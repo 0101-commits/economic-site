@@ -105,13 +105,13 @@ tailwind.config = {
           <div class="widget-title">KOSPI</div>
           <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">2,587.23</div>
           <div class="up-txt" style="font-size:13px;margin-top:4px;">▲ 8.72 (+0.34%)</div>
-          <canvas id="spark1" height="40" style="margin-top:8px;"></canvas>
+          <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark1"></canvas></div>
         </div>
         <div class="kpi-card" id="kpi-fx">
           <div class="widget-title">USD / KRW</div>
           <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,341.50</div>
           <div class="up-txt" style="font-size:13px;margin-top:4px;">▲ 1.07 (+0.08%)</div>
-          <canvas id="spark2" height="40" style="margin-top:8px;"></canvas>
+          <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark2"></canvas></div>
         </div>
         <div class="kpi-card">
           <div class="widget-title">한국 기준금리</div>
@@ -126,7 +126,7 @@ tailwind.config = {
           <div class="widget-title">WTI 유가</div>
           <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">78.42</div>
           <div class="down-txt" style="font-size:13px;margin-top:4px;">▼ 0.43 (-0.55%)</div>
-          <canvas id="spark3" height="40" style="margin-top:8px;"></canvas>
+          <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark3"></canvas></div>
         </div>
       </div>
 
@@ -519,7 +519,16 @@ function sparkline(id, series, color) {
   charts[id] = new Chart(ctx, {
     type:'line',
     data:{labels:sl(series),datasets:[{data:sv(series),borderColor:color,borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
-    options:{responsive:true,maintainAspectRatio:false,scales:{x:{display:false},y:{display:false}},plugins:{legend:{display:false},tooltip:{enabled:false}},animation:false}
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{display:false,type:'category'},
+        y:{display:false}
+      },
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      animation:false
+    }
   });
 }
 
@@ -548,7 +557,7 @@ function initMainChart(period='1W') {
       backgroundColor:`${clr}15`,tension:0.3,label:'KOSPI'}]},
     options:{responsive:true,maintainAspectRatio:false,
       scales:{
-        x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
+        x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
         y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}
       },
       plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
@@ -557,7 +566,7 @@ function initMainChart(period='1W') {
     type:'bar',
     data:{labels:sl(vol),datasets:[{data:sv(vol),backgroundColor:'#2962ff44',label:'거래량'}]},
     options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{display:false},y:{ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:2},grid:{color:'#2a2e3d33'}}},
+      scales:{x:{type:'category',display:false},y:{ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:2},grid:{color:'#2a2e3d33'}}},
       plugins:{legend:{display:false},tooltip:{enabled:false}}}
   });
 }
@@ -719,7 +728,7 @@ function buildFxPage() {
     type:'line',
     data:{labels:sl(d),datasets:[{data:sv(d),borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
     options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
+      scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
               y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
       plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
   });
@@ -796,7 +805,7 @@ function buildCommodityPage() {
         {data:sv(brent),label:'Brent', borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
-        scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
+        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
                 y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>'$'+v},grid:{color:'#2a2e3d55'},position:'right'}},
         plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
                  tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}}}
