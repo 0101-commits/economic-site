@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>경제현황 터미널</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Public+Sans:wght@600;700;900&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'bg':       '#0f131e',
+        'surface':  '#131722',
+        'card':     '#1b1f2b',
+        'card-hi':  '#262a35',
+        'border':   '#2a2e3d',
+        'primary':  '#b6c4ff',
+        'accent':   '#2962ff',
+        'txt':      '#dfe2f2',
+        'txt-dim':  '#8d90a2',
+        'up':       '#26a69a',
+        'down':     '#ef5350',
+      },
+      fontFamily: {
+        display: ['Public Sans', 'sans-serif'],
+        data:    ['Inter', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0f131e; color: #dfe2f2; font-family: 'Inter', sans-serif; margin: 0; }
+  .mat { font-family: 'Material Symbols Outlined'; font-size: 18px; line-height: 1; vertical-align: middle; }
+  .ticker-scroll { animation: tickerMove 40s linear infinite; white-space: nowrap; display: inline-flex; gap: 48px; }
+  @keyframes tickerMove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .ticker-wrap { overflow: hidden; flex: 1; mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent); }
+  .tab-btn { transition: all .15s; cursor: pointer; }
+  .tab-btn.active { background: #2962ff; color: #fff; }
+  .tab-btn:not(.active):hover { background: #262a35; }
+  .menu-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; color: #8d90a2; transition: all .15s; }
+  .menu-item:hover { background: #1b1f2b; color: #dfe2f2; }
+  .menu-item.active { background: #1b1f2b; color: #b6c4ff; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .kpi-card { background: #1b1f2b; border: 1px solid #2a2e3d; border-radius: 8px; padding: 16px; }
+  .widget { background: #1b1f2b; border: 1px solid #2a2e3d; border-radius: 8px; padding: 16px; }
+  .widget-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8d90a2; margin-bottom: 12px; }
+  .up-txt { color: #26a69a; }
+  .down-txt { color: #ef5350; }
+  tr:hover td { background: #262a35; }
+  .coming-soon { display: flex; align-items: center; justify-content: center; height: 60vh; flex-direction: column; gap: 12px; color: #434656; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #131722; }
+  ::-webkit-scrollbar-thumb { background: #2a2e3d; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ====== 상단 헤더 ====== -->
+<header style="position:fixed;top:0;left:0;right:0;height:56px;background:#131722;border-bottom:1px solid #2a2e3d;z-index:100;display:flex;align-items:center;padding:0 16px;gap:16px;">
+  <div style="font-family:'Public Sans',sans-serif;font-weight:700;font-size:15px;color:#b6c4ff;white-space:nowrap;min-width:160px;">
+    <span class="mat" style="color:#2962ff;margin-right:6px;">monitoring</span>경제현황 터미널
+  </div>
+  <!-- 실시간 티커 -->
+  <div class="ticker-wrap">
+    <div class="ticker-scroll" id="ticker"></div>
+  </div>
+  <!-- 날짜시각 -->
+  <div style="font-size:12px;color:#8d90a2;white-space:nowrap;min-width:140px;text-align:right;" id="clock"></div>
+</header>
+
+<!-- ====== 레이아웃 ====== -->
+<div style="display:flex;padding-top:56px;min-height:100vh;">
+
+  <!-- 사이드바 -->
+  <nav style="width:200px;min-height:calc(100vh - 56px);background:#131722;border-right:1px solid #2a2e3d;padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;">
+    <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;">메인 메뉴</div>
+    <div class="menu-item active" onclick="showPage('dashboard',this)"><span class="mat">home</span>대시보드 홈</div>
+    <div class="menu-item" onclick="showPage('market',this)"><span class="mat">candlestick_chart</span>시장 지표</div>
+    <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
+    <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
+    <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
+    <div style="border-top:1px solid #2a2e3d;margin:12px 0;"></div>
+    <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;">데이터 소스</div>
+    <div style="font-size:11px;color:#434656;padding:4px 14px;line-height:1.8;">BOK ECOS<br>Frankfurter API<br>Mock 시계열</div>
+  </nav>
+
+  <!-- 메인 콘텐츠 -->
+  <main style="flex:1;padding:20px;overflow-x:hidden;">
+
+    <!-- ====== 페이지 1: 대시보드 홈 ====== -->
+    <div class="page active" id="page-dashboard">
+
+      <!-- KPI 카드 4개 -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+        <div class="kpi-card" id="kpi-kospi">
+          <div class="widget-title">KOSPI</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">2,587.23</div>
+          <div class="up-txt" style="font-size:13px;margin-top:4px;">▲ 8.72 (+0.34%)</div>
+          <canvas id="spark1" height="40" style="margin-top:8px;"></canvas>
+        </div>
+        <div class="kpi-card" id="kpi-fx">
+          <div class="widget-title">USD / KRW</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,341.50</div>
+          <div class="up-txt" style="font-size:13px;margin-top:4px;">▲ 1.07 (+0.08%)</div>
+          <canvas id="spark2" height="40" style="margin-top:8px;"></canvas>
+        </div>
+        <div class="kpi-card">
+          <div class="widget-title">한국 기준금리</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">2.75<span style="font-size:14px;">%</span></div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">최근 결정: 2025.02.25</div>
+          <div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;">
+            <span style="background:#1b2a1b;color:#26a69a;font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid #26a69a33;">동결</span>
+            <span style="font-size:10px;color:#8d90a2;">전 3.00% → 현 2.75%</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="widget-title">WTI 유가</div>
+          <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">78.42</div>
+          <div class="down-txt" style="font-size:13px;margin-top:4px;">▼ 0.43 (-0.55%)</div>
+          <canvas id="spark3" height="40" style="margin-top:8px;"></canvas>
+        </div>
+      </div>
+
+      <!-- 메인 차트 + 우측 패널 -->
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:12px;margin-bottom:16px;">
+        <!-- 메인 캔들 차트 -->
+        <div class="widget">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div>
+              <span class="widget-title" style="margin-bottom:0;">KOSPI 지수</span>
+              <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;">2,587.23</span>
+              <span class="up-txt" style="font-size:13px;margin-left:6px;">▲ +0.34%</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#dfe2f2;" onclick="setPeriod('1W',this)">1W</button>
+              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('1M',this)">1M</button>
+              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('3M',this)">3M</button>
+              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('1Y',this)">1Y</button>
+            </div>
+          </div>
+          <div style="position:relative;height:260px;">
+            <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
+          </div>
+          <div style="position:relative;height:60px;margin-top:4px;">
+            <canvas id="volumeChart" role="img" aria-label="거래량 차트">거래량 차트</canvas>
+          </div>
+        </div>
+
+        <!-- 우측: 글로벌 지수 테이블 -->
+        <div class="widget">
+          <div class="widget-title">글로벌 주요 지수</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead>
+              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;">
+                <th style="text-align:left;padding:4px 0;font-weight:600;">지수</th>
+                <th style="text-align:right;padding:4px 0;font-weight:600;">현재가</th>
+                <th style="text-align:right;padding:4px 0;font-weight:600;">등락률</th>
+              </tr>
+            </thead>
+            <tbody id="globalIndexTable" style="font-family:'Inter';">
+            </tbody>
+          </table>
+          <div style="border-top:1px solid #2a2e3d;margin-top:12px;padding-top:12px;">
+            <div class="widget-title">시장 분위기</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="position:relative;width:80px;height:80px;">
+                <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
+              </div>
+              <div>
+                <div style="font-size:22px;font-weight:700;color:#26a69a;font-family:'Public Sans';">62</div>
+                <div style="font-size:11px;color:#26a69a;">탐욕 (Greed)</div>
+                <div style="font-size:10px;color:#8d90a2;margin-top:2px;">전주 대비 +4pt</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 하단: 등락 테이블 + 뉴스 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <!-- 상승/하락 Top5 -->
+        <div class="widget">
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="tab-btn active" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setMoverTab('up',this)">▲ 상승 Top5</button>
+            <button class="tab-btn" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setMoverTab('down',this)">▼ 하락 Top5</button>
+          </div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead>
+              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;">
+                <th style="text-align:left;padding:4px 0;font-weight:600;">종목</th>
+                <th style="text-align:right;padding:4px 0;font-weight:600;">현재가</th>
+                <th style="text-align:right;padding:4px 0;font-weight:600;">등락률</th>
+                <th style="text-align:right;padding:4px 0;font-weight:600;">거래량</th>
+              </tr>
+            </thead>
+            <tbody id="moverTable"></tbody>
+          </table>
+        </div>
+
+        <!-- 뉴스 피드 -->
+        <div class="widget">
+          <div class="widget-title">매크로 뉴스</div>
+          <div id="newsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+      </div>
+    </div><!-- /dashboard -->
+
+    <!-- ====== 페이지 2: 시장 지표 ====== -->
+    <div class="page" id="page-market">
+      <div style="display:flex;gap:6px;margin-bottom:16px;">
+        <button class="tab-btn active" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setMarketTab('fx',this)">외환</button>
+        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('bond',this)">금리·채권</button>
+        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('equity',this)">주식시장</button>
+        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('commodity',this)">원자재</button>
+      </div>
+
+      <!-- 외환 탭 -->
+      <div id="market-fx">
+        <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
+          <div class="widget">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+              <div>
+                <div class="widget-title" style="margin-bottom:0;">USD / KRW</div>
+                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';">1,341.50</div>
+              </div>
+              <div>
+                <div class="up-txt" style="font-size:14px;">▲ 1.07 (+0.08%)</div>
+                <div style="font-size:11px;color:#8d90a2;">52주 범위: 1,270.40 ~ 1,385.60</div>
+              </div>
+            </div>
+            <div style="position:relative;height:220px;">
+              <canvas id="fxChart" role="img" aria-label="USD/KRW 환율 차트">환율 차트</canvas>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">USDKRW 주요 정보</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">시가</td><td style="text-align:right;">1,338.30</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">고가</td><td style="text-align:right;">1,344.20</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">저가</td><td style="text-align:right;">1,337.80</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">전일 종가</td><td style="text-align:right;">1,340.43</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">52주 고가</td><td style="text-align:right;color:#ef5350;">1,385.60</td></tr>
+              <tr><td style="padding:8px 0;color:#8d90a2;">52주 저가</td><td style="text-align:right;color:#26a69a;">1,270.40</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">주요 통화쌍</div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead>
+              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px 0;">통화쌍</th>
+                <th style="text-align:right;padding:6px;">현재가</th>
+                <th style="text-align:right;padding:6px;">전일비</th>
+                <th style="text-align:right;padding:6px;">등락률</th>
+                <th style="text-align:right;padding:6px;">52주 고가</th>
+                <th style="text-align:right;padding:6px;">52주 저가</th>
+              </tr>
+            </thead>
+            <tbody id="fxTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 금리·채권 탭 -->
+      <div id="market-bond" style="display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="widget">
+            <div class="widget-title">미국 국채 수익률 곡선</div>
+            <div style="position:relative;height:220px;">
+              <canvas id="yieldCurveChart" role="img" aria-label="미국 국채 수익률 곡선">수익률 곡선</canvas>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">한·미 기준금리 비교</div>
+            <div style="position:relative;height:220px;">
+              <canvas id="rateCompChart" role="img" aria-label="한미 기준금리 비교">기준금리 비교</canvas>
+            </div>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">한국 국고채 수익률</div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead>
+              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px 0;">만기</th>
+                <th style="text-align:right;padding:6px;">수익률</th>
+                <th style="text-align:right;padding:6px;">전일비</th>
+                <th style="text-align:right;padding:6px;">1주전</th>
+                <th style="text-align:right;padding:6px;">1개월전</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">1년</td><td style="text-align:right;padding:8px;">2.71%</td><td style="text-align:right;padding:8px;" class="down-txt">▼ -0.02</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.74%</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.69%</td></tr>
+              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">3년</td><td style="text-align:right;padding:8px;">2.78%</td><td style="text-align:right;padding:8px;" class="up-txt">▲ +0.01</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.76%</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.71%</td></tr>
+              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">5년</td><td style="text-align:right;padding:8px;">2.87%</td><td style="text-align:right;padding:8px;" class="up-txt">▲ +0.02</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.84%</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.79%</td></tr>
+              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">10년</td><td style="text-align:right;padding:8px;">3.02%</td><td style="text-align:right;padding:8px;" class="up-txt">▲ +0.03</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.98%</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.92%</td></tr>
+              <tr><td style="padding:8px 0;">30년</td><td style="text-align:right;padding:8px;">3.18%</td><td style="text-align:right;padding:8px;" class="up-txt">▲ +0.01</td><td style="text-align:right;padding:8px;color:#8d90a2;">3.15%</td><td style="text-align:right;padding:8px;color:#8d90a2;">3.11%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 주식시장 탭 -->
+      <div id="market-equity" style="display:none;">
+        <div class="widget" style="margin-bottom:12px;">
+          <div class="widget-title">글로벌 주요 지수 현황</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="equityCards"></div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">KOSPI 섹터별 등락</div>
+          <div style="position:relative;height:220px;">
+            <canvas id="sectorChart" role="img" aria-label="KOSPI 섹터별 등락">섹터 차트</canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- 원자재 탭 -->
+      <div id="market-commodity" style="display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="widget">
+            <div class="widget-title">WTI / Brent 유가</div>
+            <div style="position:relative;height:220px;">
+              <canvas id="oilChart" role="img" aria-label="유가 차트">유가 차트</canvas>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">원자재 가격 테이블</div>
+            <table style="width:100%;font-size:13px;border-collapse:collapse;">
+              <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px 0;">원자재</th><th style="text-align:right;">현재가</th><th style="text-align:right;">전일비</th><th style="text-align:right;">단위</th>
+              </tr></thead>
+              <tbody id="commodityTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div><!-- /market -->
+
+    <!-- ====== 페이지 3: 거시경제 ====== -->
+    <div class="page" id="page-macro">
+      <div style="display:flex;gap:6px;margin-bottom:16px;">
+        <button class="tab-btn active" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setMacroTab('kr',this)">🇰🇷 한국</button>
+        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMacroTab('us',this)">🇺🇸 미국</button>
+        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMacroTab('eu',this)">🇪🇺 유로존</button>
+        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMacroTab('cn',this)">🇨🇳 중국</button>
+      </div>
+      <div id="macroContent"></div>
+    </div><!-- /macro -->
+
+    <!-- ====== 페이지 4: 경제 캘린더 ====== -->
+    <div class="page" id="page-calendar">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <select style="background:#1b1f2b;color:#dfe2f2;border:1px solid #2a2e3d;padding:5px 10px;border-radius:6px;font-size:12px;" id="calPeriod">
+          <option>이번 주</option><option>이번 달</option><option>다음 달</option>
+        </select>
+        <div style="display:flex;gap:4px;">
+          <span style="background:#2962ff;color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;">🇰🇷</span>
+          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇺🇸</span>
+          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇪🇺</span>
+          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇯🇵</span>
+        </div>
+        <div style="display:flex;gap:4px;">
+          <span style="background:#2962ff;color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;">★★★</span>
+          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">★★</span>
+          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">★</span>
+        </div>
+      </div>
+      <!-- 하이라이트 카드 3개 -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;" id="calHighlights"></div>
+      <div class="widget">
+        <div class="widget-title">경제 이벤트 일정</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:700px;">
+            <thead>
+              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px 8px;">일시</th>
+                <th style="text-align:center;padding:6px 8px;">국가</th>
+                <th style="text-align:left;padding:6px 8px;">이벤트</th>
+                <th style="text-align:center;padding:6px 8px;">중요도</th>
+                <th style="text-align:right;padding:6px 8px;">이전값</th>
+                <th style="text-align:right;padding:6px 8px;">예측값</th>
+                <th style="text-align:right;padding:6px 8px;">실제값</th>
+              </tr>
+            </thead>
+            <tbody id="calendarTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /calendar -->
+
+    <!-- ====== 페이지 5: 분석 노트 ====== -->
+    <div class="page" id="page-notes">
+      <div style="display:grid;grid-template-columns:240px 1fr;gap:16px;min-height:70vh;">
+        <div class="widget" style="display:flex;flex-direction:column;">
+          <button onclick="newNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:12px;">+ 새 노트</button>
+          <div class="widget-title">저장된 노트</div>
+          <div id="noteList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <div class="widget" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;gap:10px;align-items:center;">
+            <input id="noteTitle" type="text" placeholder="노트 제목" style="flex:1;background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:8px 12px;color:#dfe2f2;font-size:14px;font-family:'Public Sans';font-weight:600;"/>
+            <span id="noteDate" style="font-size:11px;color:#8d90a2;"></span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;" id="tagButtons">
+            <span class="note-tag active" onclick="setTag(this,'매크로')" style="background:#2962ff22;color:#b6c4ff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2962ff55;">매크로</span>
+            <span class="note-tag" onclick="setTag(this,'외환')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">외환</span>
+            <span class="note-tag" onclick="setTag(this,'금리')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">금리</span>
+            <span class="note-tag" onclick="setTag(this,'원자재')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">원자재</span>
+            <span class="note-tag" onclick="setTag(this,'주식')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">주식</span>
+          </div>
+          <textarea id="noteBody" placeholder="분석 내용을 입력하세요..." style="flex:1;min-height:300px;background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;color:#dfe2f2;font-size:13px;font-family:'Inter';resize:none;line-height:1.7;"></textarea>
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button onclick="deleteNote()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;">삭제</button>
+            <button onclick="saveNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;">저장</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /notes -->
+
+  </main>
+</div>
+
+<script>
+// ============================
+// 헬퍼: Mock 시계열 생성
+// ============================
+function genSeries(base, days, vol=0.008) {
+  let v = base;
+  return Array.from({length:days}, (_,i) => {
+    v *= (1 + (Math.random()-0.48)*vol);
+    const d = new Date(); d.setDate(d.getDate()-(days-i));
+    return { x: d.toISOString().slice(0,10), y: +v.toFixed(2) };
+  });
+}
+
+function fmtChg(v) {
+  const cls = v>=0?'up-txt':'down-txt', sym = v>=0?'▲':'▼';
+  return `<span class="${cls}">${sym} ${v>=0?'+':''}${v.toFixed(2)}%</span>`;
+}
+
+// ============================
+// 시계 업데이트
+// ============================
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'}) + ' ' +
+    now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ============================
+// 티커 바
+// ============================
+const tickerData = [
+  {name:'KOSPI', val:'2,587.23', chg:'+0.34%', up:true},
+  {name:'KOSDAQ', val:'742.15', chg:'-0.12%', up:false},
+  {name:'USD/KRW', val:'1,341.50', chg:'+0.08%', up:true},
+  {name:'EUR/KRW', val:'1,482.30', chg:'-0.15%', up:false},
+  {name:'WTI', val:'$78.42', chg:'-0.55%', up:false},
+  {name:'BRENT', val:'$82.17', chg:'-0.48%', up:false},
+  {name:'금(Gold)', val:'$2,387.6', chg:'+0.30%', up:true},
+  {name:'S&P 500', val:'5,635.01', chg:'+0.21%', up:true},
+  {name:'NASDAQ', val:'17,841', chg:'+0.18%', up:true},
+  {name:'닛케이', val:'38,405', chg:'+0.45%', up:true},
+  {name:'한국 기준금리', val:'2.75%', chg:'동결', up:null},
+  {name:'미 10년물', val:'4.28%', chg:'+0.03', up:true},
+];
+function buildTicker() {
+  const items = [...tickerData,...tickerData].map(d=>{
+    const cc = d.up===null?'color:#8d90a2':d.up?'color:#26a69a':'color:#ef5350';
+    return `<span style="font-size:12px;display:inline-flex;gap:6px;align-items:center;">
+      <span style="color:#8d90a2;font-size:10px;font-weight:600;text-transform:uppercase;">${d.name}</span>
+      <span style="color:#dfe2f2;font-weight:500;">${d.val}</span>
+      <span style="${cc};font-size:11px;">${d.chg}</span>
+    </span>`;
+  }).join('');
+  document.getElementById('ticker').innerHTML = items;
+}
+buildTicker();
+
+// ============================
+// 페이지 전환
+// ============================
+let charts = {};
+function destroyChart(id) {
+  if(charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(id==='market') { setTimeout(()=>initMarketPage(),50); }
+  if(id==='macro') { setTimeout(()=>initMacroPage('kr'),50); }
+  if(id==='calendar') { buildCalendar(); }
+  if(id==='notes') { loadNotes(); }
+}
+
+// ============================
+// 스파크라인 차트
+// ============================
+function sparkline(id, data, color) {
+  const ctx = document.getElementById(id);
+  if(!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type:'line',
+    data:{datasets:[{data,borderColor:color,borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{x:{display:false},y:{display:false}},plugins:{legend:{display:false},tooltip:{enabled:false}},animation:false}
+  });
+}
+
+// ============================
+// 메인 캔들(라인) 차트
+// ============================
+let mainPeriod = '1W', mainChartInst=null, volChartInst=null;
+const allData = genSeries(2580, 252, 0.012);
+const allVol  = allData.map(d=>({x:d.x, y:Math.floor(Math.random()*800000+200000)}));
+
+function getPeriodData(p) {
+  const n = p==='1W'?5:p==='1M'?21:p==='3M'?63:252;
+  return { price: allData.slice(-n), vol: allVol.slice(-n) };
+}
+
+function initMainChart(period='1W') {
+  const {price,vol} = getPeriodData(period);
+  destroyChart('mainChart'); destroyChart('volumeChart');
+  const ctx1 = document.getElementById('mainChart');
+  const ctx2 = document.getElementById('volumeChart');
+  if(!ctx1||!ctx2) return;
+  const clr = price[price.length-1].y >= price[0].y ? '#26a69a':'#ef5350';
+  charts['mainChart'] = new Chart(ctx1,{
+    type:'line',
+    data:{datasets:[{data:price,borderColor:clr,borderWidth:2,pointRadius:0,fill:true,
+      backgroundColor:`${clr}15`,tension:0.3,label:'KOSPI'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
+        y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}
+      },
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
+  });
+  charts['volumeChart'] = new Chart(ctx2,{
+    type:'bar',
+    data:{datasets:[{data:vol,backgroundColor:'#2962ff44',label:'거래량'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{display:false},y:{ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:2},grid:{color:'#2a2e3d33'}}},
+      plugins:{legend:{display:false},tooltip:{enabled:false}}}
+  });
+}
+
+function setPeriod(p, btn) {
+  mainPeriod = p;
+  document.querySelectorAll('#page-dashboard .tab-btn').forEach(b=>{ b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2'; });
+  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  initMainChart(p);
+}
+
+// ============================
+// 글로벌 지수 테이블
+// ============================
+const globalIndices = [
+  {name:'KOSPI',  val:2587.23, chg:+0.34},
+  {name:'KOSDAQ', val:742.15,  chg:-0.12},
+  {name:'S&P 500',val:5635.01, chg:+0.21},
+  {name:'NASDAQ', val:17841.20,chg:+0.18},
+  {name:'닛케이',  val:38405.10,chg:+0.45},
+  {name:'상하이',  val:3298.40, chg:-0.33},
+];
+function buildGlobalTable() {
+  const tb = document.getElementById('globalIndexTable');
+  if(!tb) return;
+  tb.innerHTML = globalIndices.map(d=>`
+    <tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:7px 0;font-size:12px;">${d.name}</td>
+      <td style="text-align:right;padding:7px 0;font-size:12px;font-weight:500;">${d.val.toLocaleString()}</td>
+      <td style="text-align:right;padding:7px 0;">${fmtChg(d.chg)}</td>
+    </tr>`).join('');
+}
+
+// ============================
+// 공포탐욕 도넛
+// ============================
+function buildFearChart() {
+  destroyChart('fearChart');
+  const ctx = document.getElementById('fearChart');
+  if(!ctx) return;
+  charts['fearChart'] = new Chart(ctx,{
+    type:'doughnut',
+    data:{datasets:[{data:[62,38],backgroundColor:['#26a69a','#262a35'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'75%',plugins:{legend:{display:false},tooltip:{enabled:false}}}
+  });
+}
+
+// ============================
+// 등락 Top5
+// ============================
+const upMovers = [
+  {name:'삼성바이오', price:'985,000', chg:'+7.23%'},
+  {name:'SK하이닉스',  price:'178,300', chg:'+4.81%'},
+  {name:'카카오뱅크',  price:'28,150', chg:'+3.52%'},
+  {name:'현대모비스',  price:'241,500', chg:'+2.97%'},
+  {name:'LG화학',     price:'312,000', chg:'+2.44%'},
+];
+const downMovers = [
+  {name:'네이버',     price:'184,200', chg:'-3.18%'},
+  {name:'카카오',     price:'43,500',  chg:'-2.87%'},
+  {name:'한국전력',   price:'22,350',  chg:'-2.41%'},
+  {name:'포스코',     price:'317,000', chg:'-1.93%'},
+  {name:'기아',       price:'91,200',  chg:'-1.55%'},
+];
+let curMoverTab = 'up';
+function buildMoverTable(type) {
+  const data = type==='up'?upMovers:downMovers;
+  const tb = document.getElementById('moverTable');
+  if(!tb) return;
+  tb.innerHTML = data.map(d=>`
+    <tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:7px 0;">${d.name}</td>
+      <td style="text-align:right;padding:7px;">${d.price}</td>
+      <td style="text-align:right;padding:7px;" class="${type==='up'?'up-txt':'down-txt'}">${d.chg}</td>
+      <td style="text-align:right;padding:7px;color:#8d90a2;">${(Math.floor(Math.random()*9000+1000)).toLocaleString()}K</td>
+    </tr>`).join('');
+}
+function setMoverTab(type, btn) {
+  curMoverTab = type;
+  btn.closest('.widget').querySelectorAll('.tab-btn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+  });
+  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  buildMoverTable(type);
+}
+
+// ============================
+// 뉴스 피드
+// ============================
+const newsItems = [
+  {time:'09:32', tag:'매크로', tagClr:'#2962ff', title:'BOK 총재, 하반기 금리 추가 인하 가능성 시사…물가 안정세 지속 시'},
+  {time:'08:51', tag:'외환',  tagClr:'#0f6e56', title:'달러 인덱스 102.3 하락…미 고용지표 예상 하회에 약세 전환'},
+  {time:'07:44', tag:'글로벌', tagClr:'#534ab7', title:'ECB, 6월 회의서 0.25%p 인하 전망 우세…인플레이션 목표 근접'},
+  {time:'06:58', tag:'원자재', tagClr:'#854f0b', title:'OPEC+ 감산 연장 합의 불발 우려…WTI 3거래일 연속 하락'},
+];
+function buildNews() {
+  const el = document.getElementById('newsFeed');
+  if(!el) return;
+  el.innerHTML = newsItems.map(n=>`
+    <div style="border-bottom:1px solid #1b1f2b;padding-bottom:10px;cursor:pointer;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span style="font-size:10px;color:#8d90a2;">${n.time}</span>
+        <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
+      </div>
+      <div style="font-size:12px;line-height:1.5;">${n.title}</div>
+    </div>`).join('');
+}
+
+// ============================
+// 시장 지표 페이지 초기화
+// ============================
+let marketTab = 'fx';
+function initMarketPage() {
+  if(marketTab==='fx') buildFxPage();
+  if(marketTab==='bond') buildBondPage();
+  if(marketTab==='equity') buildEquityPage();
+  if(marketTab==='commodity') buildCommodityPage();
+}
+function setMarketTab(tab, btn) {
+  marketTab = tab;
+  document.querySelectorAll('#page-market .tab-btn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+  });
+  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  ['fx','bond','equity','commodity'].forEach(t=>{
+    const el=document.getElementById('market-'+t);
+    if(el) el.style.display = t===tab?'block':'none';
+  });
+  setTimeout(()=>initMarketPage(),50);
+}
+function buildFxPage() {
+  // FX 차트
+  destroyChart('fxChart');
+  const ctx = document.getElementById('fxChart');
+  if(!ctx) return;
+  const d = genSeries(1340,252,0.005);
+  charts['fxChart'] = new Chart(ctx,{
+    type:'line',
+    data:{datasets:[{data:d,borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
+              y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
+  });
+  // FX 테이블
+  const fxPairs=[
+    {pair:'USD/KRW', cur:'1,341.50', chg:+1.07, pct:+0.08, h52:'1,385.60', l52:'1,270.40'},
+    {pair:'EUR/KRW', cur:'1,482.30', chg:-2.20, pct:-0.15, h52:'1,530.00', l52:'1,390.00'},
+    {pair:'JPY/KRW', cur:'8.9120',   chg:+0.02, pct:+0.22, h52:'9.2100',   l52:'8.4500'},
+    {pair:'EUR/USD', cur:'1.1060',   chg:-0.003,pct:-0.27, h52:'1.1200',   l52:'1.0500'},
+    {pair:'USD/JPY', cur:'150.32',   chg:-0.18, pct:-0.12, h52:'158.00',   l52:'139.50'},
+  ];
+  document.getElementById('fxTable').innerHTML = fxPairs.map(r=>`
+    <tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:8px 0;font-weight:500;">${r.pair}</td>
+      <td style="text-align:right;padding:8px;">${r.cur}</td>
+      <td style="text-align:right;padding:8px;" class="${r.chg>=0?'up-txt':'down-txt'}">${r.chg>=0?'+':''}${r.chg}</td>
+      <td style="text-align:right;padding:8px;">${fmtChg(r.pct)}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${r.h52}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${r.l52}</td>
+    </tr>`).join('');
+}
+function buildBondPage() {
+  destroyChart('yieldCurveChart'); destroyChart('rateCompChart');
+  const c1=document.getElementById('yieldCurveChart');
+  const c2=document.getElementById('rateCompChart');
+  if(c1) charts['yieldCurveChart'] = new Chart(c1,{
+    type:'line',
+    data:{labels:['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'],
+          datasets:[
+            {label:'현재',   data:[5.32,5.28,5.21,5.05,4.85,4.45,4.42,4.28,4.51,4.47],borderColor:'#b6c4ff',borderWidth:2,pointRadius:3,tension:0.3},
+            {label:'1개월전', data:[5.30,5.27,5.20,5.10,4.92,4.52,4.48,4.38,4.60,4.56],borderColor:'#434656',borderWidth:1.5,pointRadius:2,tension:0.3,borderDash:[4,4]},
+          ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
+              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+      plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}}}}
+  });
+  if(c2) charts['rateCompChart'] = new Chart(c2,{
+    type:'bar',
+    data:{labels:['2021','2022','2023','2024','2025'],
+          datasets:[
+            {label:'한국',data:[0.75,3.00,3.50,3.00,2.75],backgroundColor:'#2962ff99',borderRadius:3},
+            {label:'미국',data:[0.25,4.50,5.50,5.25,4.50],backgroundColor:'#26a69a66',borderRadius:3},
+          ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+      plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}}}}
+  });
+}
+function buildEquityPage() {
+  const eq=[
+    {name:'KOSPI',  val:2587.23, chg:+0.34},{name:'KOSDAQ',val:742.15,  chg:-0.12},
+    {name:'S&P 500',val:5635.01, chg:+0.21},{name:'NASDAQ',val:17841.2, chg:+0.18},
+    {name:'닛케이',  val:38405.1, chg:+0.45},{name:'항셍',   val:18342.5, chg:-0.88},
+  ];
+  document.getElementById('equityCards').innerHTML = eq.map(d=>`
+    <div class="kpi-card" style="padding:12px;">
+      <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">${d.name}</div>
+      <div style="font-size:18px;font-weight:700;font-family:'Public Sans';margin-top:4px;">${d.val.toLocaleString()}</div>
+      <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:12px;margin-top:2px;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
+    </div>`).join('');
+  destroyChart('sectorChart');
+  const ctx=document.getElementById('sectorChart');
+  if(!ctx) return;
+  charts['sectorChart'] = new Chart(ctx,{
+    type:'bar',
+    data:{labels:['IT','금융','화학','자동차','바이오','에너지','소비재','통신','건설','철강'],
+          datasets:[{data:[2.1,-0.8,1.4,-1.2,3.2,-0.5,0.7,-0.3,1.8,-0.6],
+            backgroundColor:d=>d.raw>=0?'#26a69a88':'#ef535088',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+      plugins:{legend:{display:false}}}
+  });
+}
+function buildCommodityPage() {
+  destroyChart('oilChart');
+  const ctx=document.getElementById('oilChart');
+  if(ctx) {
+    const wti=genSeries(78,90,0.02), brent=genSeries(82,90,0.018);
+    charts['oilChart'] = new Chart(ctx,{
+      type:'line',
+      data:{datasets:[
+        {data:wti,  label:'WTI',   borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+        {data:brent,label:'Brent', borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
+                y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>'$'+v},grid:{color:'#2a2e3d55'},position:'right'}},
+        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
+                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}}}
+    });
+  }
+  const comData=[
+    {name:'금 (Gold)',     price:'$2,387.60', chg:'+0.30%', up:true,  unit:'$/oz'},
+    {name:'은 (Silver)',   price:'$28.42',    chg:'+0.55%', up:true,  unit:'$/oz'},
+    {name:'구리 (Copper)', price:'$4.12',     chg:'-0.82%', up:false, unit:'$/lb'},
+    {name:'천연가스',       price:'$2.18',     chg:'-1.24%', up:false, unit:'$/MMBtu'},
+    {name:'밀 (Wheat)',    price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu'},
+  ];
+  document.getElementById('commodityTable').innerHTML = comData.map(r=>`
+    <tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:9px 0;">${r.name}</td>
+      <td style="text-align:right;padding:9px;font-weight:500;">${r.price}</td>
+      <td style="text-align:right;padding:9px;" class="${r.up?'up-txt':'down-txt'}">${r.chg}</td>
+      <td style="text-align:right;padding:9px;color:#8d90a2;">${r.unit}</td>
+    </tr>`).join('');
+}
+
+// ============================
+// 거시경제 페이지
+// ============================
+const macroData = {
+  kr:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
+       gdp:[1.3,0.9,1.4,2.1,3.3,2.3,1.9,1.2],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
+       cpi:[2.8,3.1,2.7,2.4,2.0,1.9,2.2,2.1],
+       unemp:[2.9,2.8,2.7,2.6,2.7,2.8,2.9,3.0],
+       exports:[575,568,582,601,590,610,598,617] },
+  us:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
+       gdp:[2.2,2.1,4.9,3.4,1.6,3.0,2.8,2.3],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
+       cpi:[3.1,3.5,3.3,2.9,2.4,2.7,2.9,2.8],
+       unemp:[3.7,3.8,3.7,3.7,3.9,4.1,4.0,4.1],
+       exports:[2530,2480,2510,2560,2470,2520,2490,2540] },
+  eu:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
+       gdp:[1.3,0.6,0.0,-0.1,0.4,0.3,0.9,1.1],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
+       cpi:[2.8,2.4,2.6,2.6,1.7,2.3,2.5,2.3],
+       unemp:[6.5,6.5,6.4,6.2,6.0,6.1,6.2,6.1],
+       exports:[2100,2080,2120,2090,2150,2110,2130,2160] },
+  cn:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
+       gdp:[4.5,6.3,4.9,5.2,5.3,4.7,4.6,5.0],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
+       cpi:[-0.8,0.1,0.3,0.5,-0.4,0.2,0.5,0.1],
+       unemp:[5.2,5.2,5.0,5.1,5.0,5.1,5.2,5.3],
+       exports:[3200,3150,3180,3220,3100,3190,3210,3240] },
+};
+let macroTab='kr';
+function setMacroTab(t,btn){
+  macroTab=t;
+  document.querySelectorAll('#page-macro .tab-btn').forEach(b=>{b.classList.remove('active');b.style.background='transparent';b.style.color='#8d90a2';});
+  btn.classList.add('active');btn.style.background='#2962ff';btn.style.color='#fff';
+  initMacroPage(t);
+}
+function initMacroPage(t){
+  ['gdpMacro','cpiMacro','unempMacro','tradeMacro'].forEach(destroyChart);
+  const d=macroData[t];
+  const mc=document.getElementById('macroContent');
+  mc.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div class="widget"><div class="widget-title">GDP 성장률 (전년동기비, %)</div><div style="position:relative;height:200px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div></div>
+      <div class="widget"><div class="widget-title">소비자물가 (CPI, 전년비 %)</div><div style="position:relative;height:200px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="widget"><div class="widget-title">실업률 (%)</div><div style="position:relative;height:200px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div></div>
+      <div class="widget"><div class="widget-title">수출 (억 달러)</div><div style="position:relative;height:200px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div></div>
+    </div>`;
+  const chartOpts=(color,isBar)=>({
+    responsive:true,maintainAspectRatio:false,
+    scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
+            y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}}},
+    plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:color,borderColor:'#2a2e3d',borderWidth:1}}
+  });
+  charts['gdpMacro']=new Chart(document.getElementById('gdpMacro'),{type:'bar',data:{labels:d.gdpLabels,datasets:[{data:d.gdp,backgroundColor:d.gdp.map(v=>v>=0?'#26a69a99':'#ef535099'),borderRadius:3}]},options:chartOpts('#26a69a',true)});
+  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:d.cpiLabels,datasets:[{data:d.cpi,borderColor:'#b6c4ff',borderWidth:2,pointRadius:3,fill:true,backgroundColor:'#b6c4ff15',tension:0.3}]},options:chartOpts('#b6c4ff',false)});
+  charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:d.gdpLabels,datasets:[{data:d.unemp,borderColor:'#ef5350',borderWidth:2,pointRadius:3,fill:false,tension:0.3}]},options:chartOpts('#ef5350',false)});
+  charts['tradeMacro']=new Chart(document.getElementById('tradeMacro'),{type:'bar',data:{labels:d.gdpLabels,datasets:[{data:d.exports,backgroundColor:'#2962ff88',borderRadius:3}]},options:chartOpts('#2962ff',true)});
+}
+
+// ============================
+// 경제 캘린더
+// ============================
+const calEvents=[
+  {dt:'05.01 09:00',flag:'🇰🇷',name:'한국 소비자물가지수(CPI)',stars:3,prev:'2.1%',fore:'2.0%',act:'2.1%',beat:0},
+  {dt:'05.02 15:00',flag:'🇺🇸',name:'미국 비농업고용(NFP)',stars:3,prev:'275K',fore:'240K',act:'',beat:null},
+  {dt:'05.03 22:00',flag:'🇺🇸',name:'미국 실업률',stars:3,prev:'3.9%',fore:'3.9%',act:'',beat:null},
+  {dt:'05.06 10:00',flag:'🇰🇷',name:'한국은행 금통위 회의',stars:3,prev:'2.75%',fore:'2.75%',act:'',beat:null},
+  {dt:'05.07 16:00',flag:'🇪🇺',name:'ECB 통화정책회의',stars:3,prev:'4.00%',fore:'3.75%',act:'',beat:null},
+  {dt:'05.08 21:30',flag:'🇺🇸',name:'미국 CPI (전월비)',stars:3,prev:'0.4%',fore:'0.3%',act:'',beat:null},
+  {dt:'05.09 09:00',flag:'🇰🇷',name:'한국 수출입 동향',stars:2,prev:'+3.1%',fore:'+2.8%',act:'',beat:null},
+  {dt:'05.12 09:30',flag:'🇨🇳',name:'중국 CPI (전년비)',stars:2,prev:'0.1%',fore:'0.2%',act:'',beat:null},
+  {dt:'05.14 21:30',flag:'🇺🇸',name:'미국 생산자물가지수(PPI)',stars:2,prev:'0.2%',fore:'0.2%',act:'',beat:null},
+  {dt:'05.15 22:00',flag:'🇺🇸',name:'미국 소매판매',stars:2,prev:'-0.1%',fore:'+0.4%',act:'',beat:null},
+];
+function buildCalendar(){
+  document.getElementById('calHighlights').innerHTML=calEvents.slice(0,3).map(e=>`
+    <div class="kpi-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <span style="font-size:10px;color:#8d90a2;">${e.flag} ${e.dt}</span>
+        <span style="color:#f5a623;font-size:11px;">${'★'.repeat(e.stars)}</span>
+      </div>
+      <div style="font-size:13px;font-weight:500;line-height:1.4;">${e.name}</div>
+      <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:#8d90a2;">
+        <span>이전: <strong style="color:#dfe2f2;">${e.prev}</strong></span>
+        <span>예측: <strong style="color:#b6c4ff;">${e.fore}</strong></span>
+      </div>
+    </div>`).join('');
+  document.getElementById('calendarTable').innerHTML=calEvents.map(e=>{
+    const actCls = e.act===''?'color:#434656;font-style:italic':
+                   e.beat===1?'class="up-txt"':e.beat===-1?'class="down-txt"':'';
+    return `<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:8px;">${e.dt}</td>
+      <td style="text-align:center;padding:8px;">${e.flag}</td>
+      <td style="padding:8px;">${e.name}</td>
+      <td style="text-align:center;padding:8px;color:#f5a623;">${'★'.repeat(e.stars)}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${e.prev}</td>
+      <td style="text-align:right;padding:8px;color:#b6c4ff;">${e.fore}</td>
+      <td style="text-align:right;padding:8px;${actCls}">${e.act||'예정'}</td>
+    </tr>`;}).join('');
+}
+
+// ============================
+// 분석 노트 (localStorage)
+// ============================
+let notes=[], curNoteId=null, curTag='매크로';
+function loadNotes(){
+  const saved=localStorage.getItem('econ_notes');
+  notes=saved?JSON.parse(saved):[];
+  renderNoteList();
+  document.getElementById('noteDate').textContent=new Date().toLocaleDateString('ko-KR');
+  if(notes.length>0) openNote(notes[0].id);
+}
+function renderNoteList(){
+  const el=document.getElementById('noteList');
+  if(!el) return;
+  el.innerHTML=notes.map(n=>`
+    <div onclick="openNote('${n.id}')" style="padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid ${curNoteId===n.id?'#2962ff':'#2a2e3d'};background:${curNoteId===n.id?'#2962ff11':'transparent'};">
+      <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${n.title||'(제목 없음)'}</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="font-size:10px;color:#8d90a2;">${n.date}</span>
+        <span style="font-size:10px;background:#2962ff22;color:#b6c4ff;padding:1px 5px;border-radius:3px;">${n.tag||'매크로'}</span>
+      </div>
+    </div>`).join('') || '<div style="color:#434656;font-size:12px;text-align:center;padding:20px 0;">저장된 노트가 없습니다</div>';
+}
+function openNote(id){
+  curNoteId=id;
+  const n=notes.find(n=>n.id===id); if(!n) return;
+  document.getElementById('noteTitle').value=n.title;
+  document.getElementById('noteBody').value=n.body;
+  document.getElementById('noteDate').textContent=n.date;
+  curTag=n.tag||'매크로';
+  document.querySelectorAll('.note-tag').forEach(t=>{
+    const active=t.textContent===curTag;
+    t.style.background=active?'#2962ff22':'#1b1f2b';
+    t.style.color=active?'#b6c4ff':'#8d90a2';
+    t.style.border=active?'1px solid #2962ff55':'1px solid #2a2e3d';
+  });
+  renderNoteList();
+}
+function setTag(el,tag){
+  curTag=tag;
+  document.querySelectorAll('.note-tag').forEach(t=>{
+    const active=t.textContent===tag;
+    t.style.background=active?'#2962ff22':'#1b1f2b';
+    t.style.color=active?'#b6c4ff':'#8d90a2';
+    t.style.border=active?'1px solid #2962ff55':'1px solid #2a2e3d';
+  });
+}
+function newNote(){
+  const id='note_'+Date.now();
+  const n={id,title:'새 노트',body:'',tag:'매크로',date:new Date().toLocaleDateString('ko-KR')};
+  notes.unshift(n); save(); openNote(id);
+}
+function saveNote(){
+  const id=curNoteId||('note_'+Date.now());
+  const idx=notes.findIndex(n=>n.id===id);
+  const n={id,title:document.getElementById('noteTitle').value,body:document.getElementById('noteBody').value,tag:curTag,date:new Date().toLocaleDateString('ko-KR')};
+  if(idx>=0) notes[idx]=n; else { notes.unshift(n); curNoteId=id; }
+  save(); renderNoteList();
+}
+function deleteNote(){
+  if(!curNoteId) return;
+  notes=notes.filter(n=>n.id!==curNoteId); curNoteId=null;
+  document.getElementById('noteTitle').value='';
+  document.getElementById('noteBody').value='';
+  save(); renderNoteList();
+}
+function save(){ localStorage.setItem('econ_notes',JSON.stringify(notes)); }
+
+// ============================
+// 초기 렌더링
+// ============================
+window.addEventListener('load', ()=>{
+  buildGlobalTable();
+  buildMoverTable('up');
+  buildNews();
+  initMainChart('1W');
+  // 스파크라인
+  sparkline('spark1', genSeries(2580,30,0.012).map(d=>({x:d.x,y:d.y})), '#26a69a');
+  sparkline('spark2', genSeries(1340,30,0.005).map(d=>({x:d.x,y:d.y})), '#b6c4ff');
+  sparkline('spark3', genSeries(78,30,0.02).map(d=>({x:d.x,y:d.y})), '#ef5350');
+  buildFearChart();
+});
+</script>
+</body>
+</html>
