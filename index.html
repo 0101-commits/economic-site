@@ -150,7 +150,8 @@ tailwind.config = {
           <div style="position:relative;height:260px;">
             <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
           </div>
-          <div style="position:relative;height:60px;margin-top:4px;">
+          <div style="font-size:9px;color:#434656;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding-top:6px;">거래량 (모의 데이터)</div>
+          <div style="position:relative;height:55px;">
             <canvas id="volumeChart" role="img" aria-label="거래량 차트">거래량 차트</canvas>
           </div>
         </div>
@@ -364,15 +365,16 @@ tailwind.config = {
           <option>이번 주</option><option>이번 달</option><option>다음 달</option>
         </select>
         <div style="display:flex;gap:4px;">
-          <span style="background:#2962ff;color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;">🇰🇷</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇺🇸</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇪🇺</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇯🇵</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇰🇷 KR</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','US',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇺🇸 US</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','EU',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇪🇺 EU</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','JP',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇯🇵 JP</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','CN',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇨🇳 CN</span>
         </div>
         <div style="display:flex;gap:4px;">
-          <span style="background:#2962ff;color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;">★★★</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">★★</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">★</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',3,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★★★</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',2,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★★</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',1,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★</span>
         </div>
       </div>
       <!-- 하이라이트 카드 3개 -->
@@ -506,7 +508,12 @@ function showPage(id, el) {
   if(el) el.classList.add('active');
   if(id==='market') { setTimeout(()=>initMarketPage(),50); }
   if(id==='macro') { setTimeout(()=>initMacroPage('kr'),50); }
-  if(id==='calendar') { buildCalendar(); }
+  if(id==='calendar') {
+    buildCalendar();
+    // 기간 셀렉트 변경 시 재빌드 (중복 방지)
+    const sel = document.getElementById('calPeriod');
+    if(sel && !sel._bound) { sel.addEventListener('change', buildCalendar); sel._bound=true; }
+  }
   if(id==='notes') { loadNotes(); }
 }
 
@@ -884,20 +891,72 @@ function initMacroPage(t){
 // ============================
 // 경제 캘린더
 // ============================
+// calEvents: cc = 국가코드, stars = 중요도(1~3)
 const calEvents=[
-  {dt:'05.01 09:00',flag:'🇰🇷',name:'한국 소비자물가지수(CPI)',stars:3,prev:'2.1%',fore:'2.0%',act:'2.1%',beat:0},
-  {dt:'05.02 15:00',flag:'🇺🇸',name:'미국 비농업고용(NFP)',stars:3,prev:'275K',fore:'240K',act:'',beat:null},
-  {dt:'05.03 22:00',flag:'🇺🇸',name:'미국 실업률',stars:3,prev:'3.9%',fore:'3.9%',act:'',beat:null},
-  {dt:'05.06 10:00',flag:'🇰🇷',name:'한국은행 금통위 회의',stars:3,prev:'2.75%',fore:'2.75%',act:'',beat:null},
-  {dt:'05.07 16:00',flag:'🇪🇺',name:'ECB 통화정책회의',stars:3,prev:'4.00%',fore:'3.75%',act:'',beat:null},
-  {dt:'05.08 21:30',flag:'🇺🇸',name:'미국 CPI (전월비)',stars:3,prev:'0.4%',fore:'0.3%',act:'',beat:null},
-  {dt:'05.09 09:00',flag:'🇰🇷',name:'한국 수출입 동향',stars:2,prev:'+3.1%',fore:'+2.8%',act:'',beat:null},
-  {dt:'05.12 09:30',flag:'🇨🇳',name:'중국 CPI (전년비)',stars:2,prev:'0.1%',fore:'0.2%',act:'',beat:null},
-  {dt:'05.14 21:30',flag:'🇺🇸',name:'미국 생산자물가지수(PPI)',stars:2,prev:'0.2%',fore:'0.2%',act:'',beat:null},
-  {dt:'05.15 22:00',flag:'🇺🇸',name:'미국 소매판매',stars:2,prev:'-0.1%',fore:'+0.4%',act:'',beat:null},
+  // 4월 (이번 달)
+  {dt:'04.30 09:00',cc:'KR',flag:'🇰🇷',name:'한국 산업생산지수',       stars:2,prev:'+1.2%',fore:'+0.9%', act:'',   beat:null},
+  {dt:'04.30 21:30',cc:'US',flag:'🇺🇸',name:'미국 PCE 물가지수',       stars:3,prev:'2.5%', fore:'2.4%',  act:'',   beat:null},
+  // 5월 (다음 달)
+  {dt:'05.01 09:00',cc:'KR',flag:'🇰🇷',name:'한국 소비자물가지수(CPI)',  stars:3,prev:'2.1%', fore:'2.0%',  act:'2.1%',beat:0},
+  {dt:'05.02 15:00',cc:'US',flag:'🇺🇸',name:'미국 비농업고용(NFP)',      stars:3,prev:'275K', fore:'240K',  act:'',   beat:null},
+  {dt:'05.03 22:00',cc:'US',flag:'🇺🇸',name:'미국 실업률',              stars:3,prev:'3.9%', fore:'3.9%',  act:'',   beat:null},
+  {dt:'05.06 10:00',cc:'KR',flag:'🇰🇷',name:'한국은행 금통위 회의',      stars:3,prev:'2.75%',fore:'2.75%', act:'',   beat:null},
+  {dt:'05.07 16:00',cc:'EU',flag:'🇪🇺',name:'ECB 통화정책회의',         stars:3,prev:'4.00%',fore:'3.75%', act:'',   beat:null},
+  {dt:'05.08 21:30',cc:'US',flag:'🇺🇸',name:'미국 CPI (전월비)',        stars:3,prev:'0.4%', fore:'0.3%',  act:'',   beat:null},
+  {dt:'05.09 09:00',cc:'KR',flag:'🇰🇷',name:'한국 수출입 동향',         stars:2,prev:'+3.1%',fore:'+2.8%', act:'',   beat:null},
+  {dt:'05.12 09:30',cc:'CN',flag:'🇨🇳',name:'중국 CPI (전년비)',        stars:2,prev:'0.1%', fore:'0.2%',  act:'',   beat:null},
+  {dt:'05.13 10:00',cc:'JP',flag:'🇯🇵',name:'일본 GDP (전기비)',        stars:3,prev:'-0.1%',fore:'+0.1%', act:'',   beat:null},
+  {dt:'05.14 21:30',cc:'US',flag:'🇺🇸',name:'미국 생산자물가지수(PPI)', stars:2,prev:'0.2%', fore:'0.2%',  act:'',   beat:null},
+  {dt:'05.15 22:00',cc:'US',flag:'🇺🇸',name:'미국 소매판매',           stars:2,prev:'-0.1%',fore:'+0.4%', act:'',   beat:null},
+  {dt:'05.20 10:00',cc:'KR',flag:'🇰🇷',name:'한국 1분기 GDP (확정)',    stars:3,prev:'+0.7%',fore:'+0.7%', act:'',   beat:null},
+  {dt:'05.22 20:30',cc:'EU',flag:'🇪🇺',name:'유로존 CPI (전년비)',      stars:3,prev:'2.2%', fore:'2.1%',  act:'',   beat:null},
+  {dt:'05.28 21:30',cc:'US',flag:'🇺🇸',name:'미국 1분기 GDP (2차)',     stars:3,prev:'2.3%', fore:'2.2%',  act:'',   beat:null},
 ];
+
+// ── 캘린더 필터 상태 ──────────────────────────────
+let calFilterCC    = new Set(['KR','US','EU','CN','JP']);
+let calFilterStars = new Set([3,2,1]);
+
+function toggleCalFilter(type, val, el) {
+  const set = type==='cc' ? calFilterCC : calFilterStars;
+  if(set.has(val)) {
+    if(set.size <= 1) return;   // 최소 1개는 선택 유지
+    set.delete(val);
+    el.style.background = '#1b1f2b';
+    el.style.color      = '#8d90a2';
+    el.style.border     = '1px solid #2a2e3d';
+  } else {
+    set.add(val);
+    el.style.background = '#2962ff';
+    el.style.color      = '#fff';
+    el.style.border     = 'none';
+  }
+  buildCalendar();
+}
+
 function buildCalendar(){
-  document.getElementById('calHighlights').innerHTML=calEvents.slice(0,3).map(e=>`
+  // 현재 월 판별
+  const now   = new Date();
+  const month = now.getMonth()+1;        // 1~12
+  const nextM = month===12 ? 1 : month+1;
+  const period = document.getElementById('calPeriod')?.value || '다음 달';
+
+  const filtered = calEvents.filter(e => {
+    const evMonth = parseInt(e.dt.slice(0,2), 10);
+    if(period==='이번 달' && evMonth !== month)    return false;
+    if(period==='다음 달' && evMonth !== nextM)    return false;
+    if(period==='이번 주') {
+      const today   = new Date(now.getFullYear(), month-1, now.getDate());
+      const evDay   = parseInt(e.dt.slice(3,5), 10);
+      const evDate  = new Date(now.getFullYear(), evMonth-1, evDay);
+      const diff    = (evDate - today) / 86400000;
+      if(diff < 0 || diff > 6) return false;
+    }
+    return calFilterCC.has(e.cc) && calFilterStars.has(e.stars);
+  });
+
+  const upcoming = filtered.filter(e => !e.act);
+  document.getElementById('calHighlights').innerHTML = upcoming.slice(0,3).map(e=>`
     <div class="kpi-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
         <span style="font-size:10px;color:#8d90a2;">${e.flag} ${e.dt}</span>
@@ -908,10 +967,14 @@ function buildCalendar(){
         <span>이전: <strong style="color:#dfe2f2;">${e.prev}</strong></span>
         <span>예측: <strong style="color:#b6c4ff;">${e.fore}</strong></span>
       </div>
-    </div>`).join('');
-  document.getElementById('calendarTable').innerHTML=calEvents.map(e=>{
-    const actCls = e.act===''?'color:#434656;font-style:italic':
-                   e.beat===1?'class="up-txt"':e.beat===-1?'class="down-txt"':'';
+    </div>`).join('') || '<div style="color:#434656;font-size:12px;grid-column:1/-1;text-align:center;padding:20px;">해당 조건의 예정 이벤트가 없습니다</div>';
+
+  document.getElementById('calendarTable').innerHTML = filtered.map(e=>{
+    const actStyle = e.act===''
+      ? 'style="color:#434656;font-style:italic;"'
+      : e.beat===1  ? 'class="up-txt"'
+      : e.beat===-1 ? 'class="down-txt"'
+      : '';
     return `<tr style="border-bottom:1px solid #1b1f2b;">
       <td style="padding:8px;">${e.dt}</td>
       <td style="text-align:center;padding:8px;">${e.flag}</td>
@@ -919,8 +982,8 @@ function buildCalendar(){
       <td style="text-align:center;padding:8px;color:#f5a623;">${'★'.repeat(e.stars)}</td>
       <td style="text-align:right;padding:8px;color:#8d90a2;">${e.prev}</td>
       <td style="text-align:right;padding:8px;color:#b6c4ff;">${e.fore}</td>
-      <td style="text-align:right;padding:8px;${actCls}">${e.act||'예정'}</td>
-    </tr>`;}).join('');
+      <td style="text-align:right;padding:8px;" ${actStyle}>${e.act||'예정'}</td>
+    </tr>`;}).join('') || `<tr><td colspan="7" style="text-align:center;padding:20px;color:#434656;">해당 조건의 이벤트가 없습니다</td></tr>`;
 }
 
 // ============================
