@@ -442,6 +442,9 @@ function genSeries(base, days, vol=0.008) {
     return { x: d.toISOString().slice(0,10), y: +v.toFixed(2) };
   });
 }
+// Chart.js labels/values 분리 헬퍼 (날짜 어댑터 없이도 정상 렌더링)
+function sl(s) { return s.map(d=>d.x); }
+function sv(s) { return s.map(d=>d.y); }
 
 function fmtChg(v) {
   const cls = v>=0?'up-txt':'down-txt', sym = v>=0?'▲':'▼';
@@ -510,12 +513,12 @@ function showPage(id, el) {
 // ============================
 // 스파크라인 차트
 // ============================
-function sparkline(id, data, color) {
+function sparkline(id, series, color) {
   const ctx = document.getElementById(id);
   if(!ctx) return;
   charts[id] = new Chart(ctx, {
     type:'line',
-    data:{datasets:[{data,borderColor:color,borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
+    data:{labels:sl(series),datasets:[{data:sv(series),borderColor:color,borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
     options:{responsive:true,maintainAspectRatio:false,scales:{x:{display:false},y:{display:false}},plugins:{legend:{display:false},tooltip:{enabled:false}},animation:false}
   });
 }
@@ -541,7 +544,7 @@ function initMainChart(period='1W') {
   const clr = price[price.length-1].y >= price[0].y ? '#26a69a':'#ef5350';
   charts['mainChart'] = new Chart(ctx1,{
     type:'line',
-    data:{datasets:[{data:price,borderColor:clr,borderWidth:2,pointRadius:0,fill:true,
+    data:{labels:sl(price),datasets:[{data:sv(price),borderColor:clr,borderWidth:2,pointRadius:0,fill:true,
       backgroundColor:`${clr}15`,tension:0.3,label:'KOSPI'}]},
     options:{responsive:true,maintainAspectRatio:false,
       scales:{
@@ -552,7 +555,7 @@ function initMainChart(period='1W') {
   });
   charts['volumeChart'] = new Chart(ctx2,{
     type:'bar',
-    data:{datasets:[{data:vol,backgroundColor:'#2962ff44',label:'거래량'}]},
+    data:{labels:sl(vol),datasets:[{data:sv(vol),backgroundColor:'#2962ff44',label:'거래량'}]},
     options:{responsive:true,maintainAspectRatio:false,
       scales:{x:{display:false},y:{ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:2},grid:{color:'#2a2e3d33'}}},
       plugins:{legend:{display:false},tooltip:{enabled:false}}}
@@ -714,7 +717,7 @@ function buildFxPage() {
   const d = genSeries(1340,252,0.005);
   charts['fxChart'] = new Chart(ctx,{
     type:'line',
-    data:{datasets:[{data:d,borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
+    data:{labels:sl(d),datasets:[{data:sv(d),borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
     options:{responsive:true,maintainAspectRatio:false,
       scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
               y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
@@ -788,9 +791,9 @@ function buildCommodityPage() {
     const wti=genSeries(78,90,0.02), brent=genSeries(82,90,0.018);
     charts['oilChart'] = new Chart(ctx,{
       type:'line',
-      data:{datasets:[
-        {data:wti,  label:'WTI',   borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
-        {data:brent,label:'Brent', borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
+      data:{labels:sl(wti),datasets:[
+        {data:sv(wti),  label:'WTI',   borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+        {data:sv(brent),label:'Brent', borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
@@ -1077,9 +1080,9 @@ window.addEventListener('load', async ()=>{
   buildNews();
   initMainChart('1W');
   // 스파크라인
-  sparkline('spark1', genSeries(2580,30,0.012).map(d=>({x:d.x,y:d.y})), '#26a69a');
-  sparkline('spark2', genSeries(1340,30,0.005).map(d=>({x:d.x,y:d.y})), '#b6c4ff');
-  sparkline('spark3', genSeries(78,30,0.02).map(d=>({x:d.x,y:d.y})), '#ef5350');
+  sparkline('spark1', genSeries(2580,30,0.012), '#26a69a');
+  sparkline('spark2', genSeries(1340,30,0.005), '#b6c4ff');
+  sparkline('spark3', genSeries(78,30,0.02),    '#ef5350');
   buildFearChart();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
   await loadRealData();
