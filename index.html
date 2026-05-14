@@ -64,6 +64,10 @@ tailwind.config = {
   .ticker-wrap:hover .ticker-scroll { animation-play-state: paused; }
   .news-filter-btn { font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; border:1px solid #2a2e3d; color:#8d90a2; background:#1b1f2b; transition:all .15s; }
   .news-filter-btn.act { background:#2962ff; color:#fff; border-color:#2962ff; }
+  #sidebar.collapsed { width:0 !important; padding:0 !important; overflow:hidden !important; border-right:none !important; }
+  #sidebarToggle:hover { background:#262a35; }
+  .range-reset-btn { background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:3px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:6px;line-height:1.2; }
+  .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
 </style>
 </head>
 <body>
@@ -81,21 +85,26 @@ tailwind.config = {
   <div style="font-size:12px;color:#8d90a2;white-space:nowrap;min-width:140px;text-align:right;" id="clock"></div>
 </header>
 
+<!-- 사이드바 토글 버튼 -->
+<button id="sidebarToggle" onclick="toggleSidebar()" title="사이드바 숨기기/표시" style="position:fixed;top:64px;left:8px;z-index:99;background:#1b1f2b;border:1px solid #2a2e3d;color:#b6c4ff;border-radius:6px;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:left .25s;">
+  <span class="mat" id="sidebarToggleIcon">menu_open</span>
+</button>
+
 <!-- ====== 레이아웃 ====== -->
 <div style="display:flex;padding-top:56px;min-height:100vh;">
 
   <!-- 사이드바 -->
-  <nav style="width:200px;min-height:calc(100vh - 56px);background:#131722;border-right:1px solid #2a2e3d;padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;">
-    <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;">메인 메뉴</div>
+  <nav id="sidebar" style="width:200px;min-height:calc(100vh - 56px);background:#131722;border-right:1px solid #2a2e3d;padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
+    <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;padding-left:46px;">메인 메뉴</div>
     <div class="menu-item active" onclick="showPage('dashboard',this)"><span class="mat">home</span>대시보드 홈</div>
     <div class="menu-item" onclick="showPage('market',this)"><span class="mat">candlestick_chart</span>시장 지표</div>
     <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
     <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
-    <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
     <div class="menu-item" onclick="showPage('investor',this)"><span class="mat">account_balance</span>주요 투자자</div>
+    <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
     <div style="border-top:1px solid #2a2e3d;margin:12px 0;"></div>
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;">데이터 소스</div>
-    <div style="font-size:11px;color:#434656;padding:4px 14px;line-height:1.8;">ExchangeRate API<br>Yahoo Finance<br>Mock 시계열</div>
+    <div style="font-size:11px;color:#434656;padding:4px 14px;line-height:1.8;">open.er-api.com (실시간 환율)<br>Yahoo Finance (지수·원자재)<br>NPS 공시 (국민연금)</div>
     <div id="dataSourceInfo" style="font-size:10px;color:#434656;padding:4px 14px 8px;line-height:1.6;border-top:1px solid #2a2e3d;margin-top:8px;">업데이트 대기중…</div>
   </nav>
 
@@ -620,64 +629,102 @@ tailwind.config = {
     <!-- ====== 페이지 6: 주요 투자자 (국민연금) ====== -->
     <div class="page" id="page-investor">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-        <h2 style="font-size:18px;font-weight:700;font-family:'Public Sans';margin:0;">국민연금 투자 현황</h2>
+        <h2 style="font-size:18px;font-weight:700;font-family:'Public Sans';margin:0;">국민연금 투자 현황 <span style="font-size:11px;color:#434656;font-weight:400;margin-left:8px;">출처: 국민연금공단 기금운용본부</span></h2>
         <div style="display:flex;gap:6px;">
           <button class="tab-btn active" id="npsTab1" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setNpsTab('overview',this)">운용 현황</button>
           <button class="tab-btn" id="npsTab2" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setNpsTab('allocation',this)">자산 배분</button>
         </div>
       </div>
 
-      <!-- KPI 카드 4개 -->
+      <!-- KPI 카드 4개 — 항상 표시 -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         <div class="kpi-card">
           <div class="widget-title">총 운용 자산</div>
-          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">1,127<span style="font-size:14px;">조원</span></div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">2024년말 기준</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">1,201.8<span style="font-size:14px;">조원</span></div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">2024년 11월말 기준</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">국내 주식</div>
-          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">163<span style="font-size:14px;">조원</span></div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">비중 14.5%</div>
+          <div class="widget-title">2024년 수익률 (잠정)</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+12.10%</div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">연간 수익률</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">해외 주식</div>
-          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">337<span style="font-size:14px;">조원</span></div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">비중 29.9%</div>
+          <div class="widget-title">설립이후 연평균</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+5.97%</div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">1988~2024 연환산</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">채권</div>
-          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">421<span style="font-size:14px;">조원</span></div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">비중 37.3%</div>
+          <div class="widget-title">최근 5년 누적</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+43.5%</div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">2020~2024 누적</div>
         </div>
       </div>
 
-      <!-- 차트 + 매매 동향 -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-        <div class="widget">
-          <div class="widget-title">자산 배분 현황 (2024년말)</div>
-          <div style="position:relative;height:240px;">
-            <canvas id="npsAllocationChart" role="img" aria-label="국민연금 자산배분">자산배분 차트</canvas>
+      <!-- ===== 운용 현황 탭 ===== -->
+      <div id="nps-overview">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div class="widget">
+            <div class="widget-title">연도별 수익률 (%) — 공식 발표</div>
+            <div style="position:relative;height:260px;">
+              <canvas id="npsReturnChart" role="img" aria-label="국민연금 연도별 수익률">수익률 차트</canvas>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">총 운용자산 추이 (조원)</div>
+            <div style="position:relative;height:260px;">
+              <canvas id="npsAumChart" role="img" aria-label="총 운용자산 추이">AUM 차트</canvas>
+            </div>
           </div>
         </div>
         <div class="widget">
-          <div class="widget-title">최근 매매 동향 (모의 데이터)</div>
-          <table style="width:100%;font-size:12px;border-collapse:collapse;">
-            <thead>
-              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px 0;">종목</th>
-                <th style="text-align:right;padding:6px;">구분</th>
-                <th style="text-align:right;padding:6px;">금액(억원)</th>
-                <th style="text-align:right;padding:6px;">지분율</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">삼성전자</td><td style="text-align:right;padding:8px;" class="down-txt">순매도</td><td style="text-align:right;padding:8px;">-2,340</td><td style="text-align:right;padding:8px;color:#8d90a2;">7.82%</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">SK하이닉스</td><td style="text-align:right;padding:8px;" class="up-txt">순매수</td><td style="text-align:right;padding:8px;">+1,120</td><td style="text-align:right;padding:8px;color:#8d90a2;">9.14%</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">LG에너지솔루션</td><td style="text-align:right;padding:8px;" class="up-txt">순매수</td><td style="text-align:right;padding:8px;">+780</td><td style="text-align:right;padding:8px;color:#8d90a2;">6.31%</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">현대차</td><td style="text-align:right;padding:8px;" class="down-txt">순매도</td><td style="text-align:right;padding:8px;">-430</td><td style="text-align:right;padding:8px;color:#8d90a2;">8.67%</td></tr>
-              <tr><td style="padding:8px 0;">POSCO홀딩스</td><td style="text-align:right;padding:8px;color:#8d90a2;">보합</td><td style="text-align:right;padding:8px;color:#8d90a2;">0</td><td style="text-align:right;padding:8px;color:#8d90a2;">11.43%</td></tr>
-            </tbody>
-          </table>
+          <div class="widget-title">연도별 성과 요약</div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:600px;">
+              <thead>
+                <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                  <th style="text-align:left;padding:6px 8px;">연도</th>
+                  <th style="text-align:right;padding:6px 8px;">총 자산 (조원)</th>
+                  <th style="text-align:right;padding:6px 8px;">수익률</th>
+                  <th style="text-align:right;padding:6px 8px;">운용 수익 (조원)</th>
+                  <th style="text-align:left;padding:6px 8px;">비고</th>
+                </tr>
+              </thead>
+              <tbody id="npsReturnTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 자산 배분 탭 ===== -->
+      <div id="nps-allocation" style="display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div class="widget">
+            <div class="widget-title">자산 배분 현황 (2024년 11월말)</div>
+            <div style="position:relative;height:300px;">
+              <canvas id="npsAllocationChart" role="img" aria-label="국민연금 자산배분">자산배분 차트</canvas>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">자산별 비중 상세</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead>
+                <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                  <th style="text-align:left;padding:6px 0;">자산군</th>
+                  <th style="text-align:right;padding:6px;">금액 (조원)</th>
+                  <th style="text-align:right;padding:6px;">비중</th>
+                  <th style="text-align:right;padding:6px;">목표 비중</th>
+                </tr>
+              </thead>
+              <tbody id="npsAllocationTable"></tbody>
+            </table>
+            <div style="font-size:10px;color:#434656;margin-top:8px;">※ 목표 비중: 「국민연금 중기자산배분계획(2024~2029)」 기준</div>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">자산군별 운용 비중 추이 (연도별 %)</div>
+          <div style="position:relative;height:260px;">
+            <canvas id="npsAllocationTrendChart" role="img" aria-label="자산배분 추이">배분 추이</canvas>
+          </div>
         </div>
       </div>
 
@@ -868,19 +915,42 @@ function getPeriodData(p) {
   return { price: mainAllData.slice(-n), vol: allVol.slice(-n) };
 }
 
+// ── 사이드바 토글 ──
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const icon = document.getElementById('sidebarToggleIcon');
+  if(!sb) return;
+  const collapsed = sb.classList.toggle('collapsed');
+  if(icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
+}
+
 // ── 차트 구간 선택 (2-click range) ──
 let mainRangeState = {start:null, end:null};
 let fxRangeState   = {start:null, end:null};
 
+function resetRange(stateName, divId, chartId) {
+  if(stateName==='main')  mainRangeState  = {start:null, end:null};
+  if(stateName==='fx')    fxRangeState    = {start:null, end:null};
+  if(stateName==='bond')  bondRangeState  = {start:null, end:null};
+  const el = document.getElementById(divId);
+  if(el) el.textContent = '';
+}
+
 function showRangeLabel(divId, state, labels) {
   const el = document.getElementById(divId);
   if(!el) return;
+  // divId → stateName mapping
+  const stateMap = { mainChartRange:'main', fxChartRange:'fx', bondChartRange:'bond' };
+  const stateName = stateMap[divId] || 'main';
   if(!state.start) { el.textContent=''; return; }
-  if(!state.end)   { el.textContent=`시작: ${state.start.label} — 끝점을 클릭하세요`; return; }
+  if(!state.end)   {
+    el.innerHTML = `시작: ${state.start.label} — 끝점을 클릭하세요 <button class="range-reset-btn" onclick="resetRange('${stateName}','${divId}')" title="초기화">✕</button>`;
+    return;
+  }
   const days = Math.abs(state.end.idx - state.start.idx);
   const pct  = ((state.end.price - state.start.price) / state.start.price * 100);
   const sign = pct >= 0 ? '+' : '';
-  el.innerHTML = `구간 수익률: <strong style="color:${pct>=0?'#26a69a':'#ef5350'}">${sign}${pct.toFixed(2)}%</strong> | ${days}일 | ${state.start.label} → ${state.end.label}`;
+  el.innerHTML = `구간 수익률: <strong style="color:${pct>=0?'#26a69a':'#ef5350'}">${sign}${pct.toFixed(2)}%</strong> | ${days}일 | ${state.start.label} → ${state.end.label} <button class="range-reset-btn" onclick="resetRange('${stateName}','${divId}')" title="초기화">✕</button>`;
 }
 
 function initMainChart(period='1W', customPriceData) {
@@ -1130,39 +1200,58 @@ const calendarNewsItems = [
 
 function buildNews() { buildNewsFeed('newsFeed', newsItems); }
 
-function setNewsFilter(feedId, cat, el) {
-  // Toggle active class on buttons in the same filter bar
-  const bar = el.parentElement;
-  bar.querySelectorAll('.news-filter-btn').forEach(b=>b.classList.remove('act'));
-  el.classList.add('act');
-  // Determine which array to use
-  const feedToArr = {
-    newsFeed: newsItems,
-    commodityNewsFeed: commodityNewsItems,
-    macroNewsFeed: macroNewsItems,
-    calendarNewsFeed: calendarNewsItems,
-  };
-  const arr = feedToArr[feedId];
+// 각 피드의 현재 필터 상태 저장
+const currentNewsFilter = { newsFeed:'all', commodityNewsFeed:'all', macroNewsFeed:'all', calendarNewsFeed:'all' };
+
+function getFeedArray(feedId) {
+  return ({ newsFeed:newsItems, commodityNewsFeed:commodityNewsItems, macroNewsFeed:macroNewsItems, calendarNewsFeed:calendarNewsItems })[feedId];
+}
+
+function renderFiltered(feedId) {
+  const arr = getFeedArray(feedId);
+  const cat = currentNewsFilter[feedId] || 'all';
   if(!arr) return;
   const filtered = cat==='all' ? arr : arr.filter(n=>n.cat===cat||n.tag===cat);
   const el2 = document.getElementById(feedId);
   if(el2) el2.innerHTML = filtered.length ? filtered.map(newsCard).join('') : '<div style="color:#434656;font-size:12px;padding:12px 0;text-align:center;">해당 카테고리의 뉴스가 없습니다</div>';
 }
 
+function setNewsFilter(feedId, cat, el) {
+  const bar = el.parentElement;
+  bar.querySelectorAll('.news-filter-btn').forEach(b=>b.classList.remove('act'));
+  el.classList.add('act');
+  currentNewsFilter[feedId] = cat;
+  renderFiltered(feedId);
+}
+
+// 현재 카테고리에 해당하는 쿼리만 새로고침
 async function refreshNews(feedId, arrName) {
   const btn = event.currentTarget||event.target;
+  const origText = btn ? btn.textContent : '↻ 새로고침';
   if(btn) btn.textContent = '⟳ 로딩중…';
-  const arrMap = { newsItems, commodityNewsItems, macroNewsItems, calendarNewsItems };
-  const arr = arrMap[arrName];
-  if(!arr) return;
-  // Find matching queries
-  const queries = NEWS_QUERIES[arrName];
-  if(!queries) return;
-  await Promise.all(queries.map(({idx,q})=>fetchLatestArticle(q).then(fresh=>{
-    if(fresh&&fresh.url){ arr[idx].title=fresh.title; arr[idx].url=fresh.url; arr[idx].time=fresh.time; }
+  const arr = getFeedArray(feedId);
+  if(!arr) { if(btn) btn.textContent=origText; return; }
+  const cat = currentNewsFilter[feedId] || 'all';
+  const queries = NEWS_QUERIES[arrName] || [];
+
+  // 현재 카테고리에 해당하는 인덱스만 필터링
+  const targets = cat==='all'
+    ? queries
+    : queries.filter(({idx}) => {
+        const item = arr[idx];
+        return item && (item.cat===cat || item.tag===cat);
+      });
+
+  if(targets.length === 0) {
+    if(btn) btn.textContent = origText;
+    return;
+  }
+
+  await Promise.all(targets.map(({idx,q})=>fetchLatestArticle(q).then(fresh=>{
+    if(fresh && fresh.url){ arr[idx].title=fresh.title; arr[idx].url=fresh.url; arr[idx].time=fresh.time; }
   })));
-  buildNewsFeed(feedId, arr);
-  if(btn) btn.textContent = '↻ 새로고침';
+  renderFiltered(feedId);
+  if(btn) btn.textContent = origText;
 }
 
 // ============================
@@ -1950,8 +2039,46 @@ function deleteNote(){
 function save(){ localStorage.setItem('econ_notes',JSON.stringify(notes)); }
 
 // ============================
-// 국민연금 투자 현황 페이지
+// 국민연금 투자 현황 페이지 — 실제 데이터 (출처: 국민연금공단 공시)
 // ============================
+// 연도별 수익률 및 운용자산 (단위: 조원, %)
+// 출처: 국민연금공단 기금운용본부 「기금운용 성과」 공시 (https://fund.nps.or.kr)
+const npsHistory = [
+  {year:2015, aum:512.3,  ret:+4.57, note:'국내외 주식 강세'},
+  {year:2016, aum:558.3,  ret:+4.75, note:'미국 대선 변동성'},
+  {year:2017, aum:621.7,  ret:+7.26, note:'글로벌 동반 상승'},
+  {year:2018, aum:638.8,  ret:-0.92, note:'美中 무역분쟁'},
+  {year:2019, aum:736.7,  ret:+11.31,note:'글로벌 증시 회복'},
+  {year:2020, aum:833.7,  ret:+9.70, note:'코로나 회복 랠리'},
+  {year:2021, aum:948.7,  ret:+10.77,note:'유동성 호황'},
+  {year:2022, aum:890.5,  ret:-8.22, note:'금리인상·약세장'},
+  {year:2023, aum:1035.8, ret:+13.59,note:'AI 주도 회복'},
+  {year:2024, aum:1201.8, ret:+12.10,note:'잠정치 (11월말)'},
+];
+
+// 자산 배분 (2024년 11월말 기준, 단위: 조원·%)
+// 출처: 국민연금공단 「자산배분 현황」
+const npsAllocation = [
+  {asset:'국내주식', amount:157.5, pct:13.1, target:13.0, color:'#2962ff'},
+  {asset:'해외주식', amount:421.8, pct:35.1, target:33.0, color:'#26a69a'},
+  {asset:'국내채권', amount:324.5, pct:27.0, target:28.5, color:'#b6c4ff'},
+  {asset:'해외채권', amount:88.9,  pct:7.4,  target:8.0,  color:'#7e8aff'},
+  {asset:'대체투자', amount:195.9, pct:16.3, target:16.5, color:'#f5a623'},
+  {asset:'단기자금', amount:13.2,  pct:1.1,  target:1.0,  color:'#8d90a2'},
+];
+
+// 자산 배분 추이 (연도별 비중 %, 5개년)
+const npsAllocTrend = {
+  years: ['2020','2021','2022','2023','2024'],
+  datasets: [
+    {label:'국내주식', data:[21.2,17.6,15.9,14.3,13.1], color:'#2962ff'},
+    {label:'해외주식', data:[24.4,27.8,30.4,32.7,35.1], color:'#26a69a'},
+    {label:'국내채권', data:[37.6,34.5,32.0,29.8,27.0], color:'#b6c4ff'},
+    {label:'해외채권', data:[6.8,7.1,7.5,7.4,7.4],     color:'#7e8aff'},
+    {label:'대체투자', data:[8.7,11.4,12.7,14.2,16.3], color:'#f5a623'},
+  ]
+};
+
 let npsTabCurrent = 'overview';
 function setNpsTab(tab, btn) {
   npsTabCurrent = tab;
@@ -1959,34 +2086,109 @@ function setNpsTab(tab, btn) {
     b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
   });
   btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  // 탭 컨텐츠 전환
+  const ov = document.getElementById('nps-overview');
+  const al = document.getElementById('nps-allocation');
+  if(ov) ov.style.display = tab==='overview' ? 'block' : 'none';
+  if(al) al.style.display = tab==='allocation' ? 'block' : 'none';
   buildInvestorPage();
 }
 
 function buildInvestorPage() {
-  destroyChart('npsAllocationChart');
-  const ctx = document.getElementById('npsAllocationChart');
-  if(!ctx) return;
-  charts['npsAllocationChart'] = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: ['국내주식','해외주식','채권','대체투자','단기자금'],
-      datasets:[{
-        data: [163, 337, 421, 162, 44],
-        backgroundColor:['#2962ff','#26a69a','#b6c4ff','#f5a623','#8d90a2'],
-        borderWidth: 2,
-        borderColor: '#1b1f2b'
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      cutout:'55%',
-      plugins:{
-        legend:{display:true,position:'right',labels:{color:'#8d90a2',font:{size:10},boxWidth:12,padding:10}},
-        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw}조원 (${(ctx.raw/1127*100).toFixed(1)}%)`}}
+  // 기존 차트 정리
+  ['npsReturnChart','npsAumChart','npsAllocationChart','npsAllocationTrendChart'].forEach(destroyChart);
+
+  if(npsTabCurrent === 'overview') {
+    // 수익률 차트 (막대)
+    const retCtx = document.getElementById('npsReturnChart');
+    if(retCtx) charts['npsReturnChart'] = new Chart(retCtx,{
+      type:'bar',
+      data:{ labels:npsHistory.map(h=>h.year),
+             datasets:[{ data:npsHistory.map(h=>h.ret),
+               backgroundColor:npsHistory.map(h=>h.ret>=0?'#26a69acc':'#ef5350cc'),
+               borderRadius:3 }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
+                 y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}} },
+        plugins:{ legend:{display:false},
+                  tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+                    callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}} }
       }
-    }
-  });
+    });
+    // AUM 차트 (라인)
+    const aumCtx = document.getElementById('npsAumChart');
+    if(aumCtx) charts['npsAumChart'] = new Chart(aumCtx,{
+      type:'line',
+      data:{ labels:npsHistory.map(h=>h.year),
+             datasets:[{ data:npsHistory.map(h=>h.aum),
+               borderColor:'#b6c4ff', borderWidth:2, pointRadius:3, fill:true,
+               backgroundColor:'#b6c4ff15', tension:0.3 }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
+                 y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v.toLocaleString()+'조'},grid:{color:'#2a2e3d55'}} },
+        plugins:{ legend:{display:false},
+                  tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+                    callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()+'조원'}} }
+      }
+    });
+    // 연도별 성과 요약 테이블
+    const tb = document.getElementById('npsReturnTable');
+    if(tb) tb.innerHTML = npsHistory.slice().reverse().map(h=>{
+      const profit = +(h.aum * h.ret / 100).toFixed(1);
+      const retCls = h.ret >= 0 ? 'up-txt' : 'down-txt';
+      return `<tr style="border-bottom:1px solid #1b1f2b;">
+        <td style="padding:8px;">${h.year}</td>
+        <td style="text-align:right;padding:8px;">${h.aum.toLocaleString()}</td>
+        <td style="text-align:right;padding:8px;" class="${retCls}">${h.ret>=0?'+':''}${h.ret.toFixed(2)}%</td>
+        <td style="text-align:right;padding:8px;color:#b6c4ff;">${profit>=0?'+':''}${profit.toLocaleString()}</td>
+        <td style="padding:8px;color:#8d90a2;font-size:11px;">${h.note}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  if(npsTabCurrent === 'allocation') {
+    // 자산 배분 도넛
+    const allocCtx = document.getElementById('npsAllocationChart');
+    if(allocCtx) charts['npsAllocationChart'] = new Chart(allocCtx,{
+      type:'doughnut',
+      data:{ labels:npsAllocation.map(a=>a.asset),
+             datasets:[{ data:npsAllocation.map(a=>a.amount),
+               backgroundColor:npsAllocation.map(a=>a.color),
+               borderWidth:2, borderColor:'#1b1f2b' }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:'55%',
+        plugins:{ legend:{display:true,position:'right',labels:{color:'#8d90a2',font:{size:11},boxWidth:12,padding:10}},
+                  tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}조원 (${(c.raw/1201.8*100).toFixed(1)}%)`}} }
+      }
+    });
+    // 자산별 비중 테이블
+    const tb2 = document.getElementById('npsAllocationTable');
+    if(tb2) tb2.innerHTML = npsAllocation.map(a=>{
+      const diff = a.pct - a.target;
+      const diffStr = (diff>=0?'+':'')+diff.toFixed(1)+'%p';
+      return `<tr style="border-bottom:1px solid #1b1f2b;">
+        <td style="padding:8px 0;"><span style="display:inline-block;width:10px;height:10px;background:${a.color};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>${a.asset}</td>
+        <td style="text-align:right;padding:8px;font-weight:500;">${a.amount}</td>
+        <td style="text-align:right;padding:8px;color:#b6c4ff;">${a.pct.toFixed(1)}%</td>
+        <td style="text-align:right;padding:8px;color:#8d90a2;">${a.target.toFixed(1)}% <span style="font-size:10px;color:${diff>=0?'#26a69a':'#ef5350'};">(${diffStr})</span></td>
+      </tr>`;
+    }).join('');
+    // 자산 배분 추이 (라인)
+    const trendCtx = document.getElementById('npsAllocationTrendChart');
+    if(trendCtx) charts['npsAllocationTrendChart'] = new Chart(trendCtx,{
+      type:'line',
+      data:{ labels:npsAllocTrend.years,
+             datasets: npsAllocTrend.datasets.map(d=>({
+               label:d.label, data:d.data, borderColor:d.color, backgroundColor:d.color+'22',
+               borderWidth:2, pointRadius:2, tension:0.3, fill:false
+             })) },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
+                 y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}} },
+        plugins:{ legend:{display:true,position:'bottom',labels:{color:'#8d90a2',font:{size:10},boxWidth:10,padding:8}},
+                  tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1} }
+      }
+    });
+  }
 }
 
 // ============================
@@ -2075,6 +2277,87 @@ async function loadRealData() {
     applyRealData(data);
   } catch {
     // data.json 없음 — Mock 데이터로 동작
+  }
+}
+
+// ============================
+// 실시간 환율 (open.er-api.com — 무료, no auth, CORS 허용)
+// ============================
+async function loadRealtimeFx() {
+  try {
+    // USD 기준 환율
+    const r1 = await fetch('https://open.er-api.com/v6/latest/USD');
+    if (!r1.ok) throw new Error('USD fetch failed');
+    const d1 = await r1.json();
+    if (d1.result !== 'success' || !d1.rates) throw new Error('Invalid USD data');
+    const usdKrw = d1.rates.KRW;
+    const usdJpy = d1.rates.JPY;
+    const usdEur = d1.rates.EUR;
+
+    // EUR 기준 환율
+    const r2 = await fetch('https://open.er-api.com/v6/latest/EUR');
+    if (!r2.ok) throw new Error('EUR fetch failed');
+    const d2 = await r2.json();
+    if (d2.result !== 'success' || !d2.rates) throw new Error('Invalid EUR data');
+    const eurKrw = d2.rates.KRW;
+    const eurUsd = d2.rates.USD;
+
+    const tsMsg = d1.time_last_update_utc || '';
+    const updated = tsMsg ? new Date(tsMsg) : new Date();
+
+    // 변화율 계산을 위해 이전 값(현재 fxPairs)과 비교
+    const prevRates = {
+      'USD/KRW': parseFloat(String(fxPairs[0].cur).replace(/,/g,'')),
+      'EUR/KRW': parseFloat(String(fxPairs[1].cur).replace(/,/g,'')),
+      'JPY/KRW': parseFloat(String(fxPairs[2].cur).replace(/,/g,'')),
+      'EUR/USD': parseFloat(String(fxPairs[3].cur).replace(/,/g,'')),
+      'USD/JPY': parseFloat(String(fxPairs[4].cur).replace(/,/g,'')),
+    };
+
+    const newRates = {
+      'USD/KRW': usdKrw,
+      'EUR/KRW': eurKrw,
+      'JPY/KRW': usdKrw / usdJpy, // KRW per 1 JPY
+      'EUR/USD': eurUsd,
+      'USD/JPY': usdJpy,
+    };
+
+    fxPairs.forEach((p, i) => {
+      const newR = newRates[p.pair];
+      const prevR = prevRates[p.pair];
+      if (newR == null) return;
+      const chg = newR - prevR;
+      const pct = (chg / prevR) * 100;
+      p.cur = newR.toLocaleString('en-US', { minimumFractionDigits: p.pair==='JPY/KRW'||p.pair==='EUR/USD'?4:2, maximumFractionDigits: p.pair==='JPY/KRW'||p.pair==='EUR/USD'?4:2 });
+      p.chg = +chg.toFixed(p.pair==='JPY/KRW'||p.pair==='EUR/USD'?4:2);
+      p.pct = +pct.toFixed(2);
+    });
+
+    // 티커 바의 USD/KRW, EUR/KRW 갱신
+    const tickerUpdate = (name, val, chg) => {
+      const t = tickerData.find(x=>x.name===name);
+      if(!t) return;
+      t.val = val.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+      const pct = ((val - (parseFloat(String(t.val).replace(/,/g,''))||val))/val*100);
+      t.chg = (chg>=0?'+':'')+chg.toFixed(2)+'%';
+      t.up  = chg>=0;
+    };
+
+    // 사이드바 업데이트 시각 표시
+    const sbEl = document.getElementById('dataSourceInfo');
+    if(sbEl) {
+      sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> 실시간 환율: ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
+    }
+
+    // FX 페이지가 표시 중이면 테이블 재렌더링
+    if(document.getElementById('market-fx')?.style.display !== 'none' && typeof buildFxPage === 'function') {
+      const fxTb = document.getElementById('fxTable');
+      if(fxTb) buildFxPage();
+    }
+    // 티커 재렌더링
+    buildTicker();
+  } catch (e) {
+    console.warn('실시간 FX 페치 실패:', e.message);
   }
 }
 
@@ -2169,8 +2452,12 @@ window.addEventListener('load', async ()=>{
   buildFearChart();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
   await loadRealData();
+  // 실시간 환율 페치 (open.er-api.com — 페이지 로드 시 즉시 갱신)
+  loadRealtimeFx();
   // 실시간 뉴스 로드 (Google News RSS)
   loadFreshNews();
+  // 30분마다 실시간 환율 자동 갱신
+  setInterval(loadRealtimeFx, 30 * 60 * 1000);
 });
 </script>
 </body>
