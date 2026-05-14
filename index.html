@@ -1645,6 +1645,82 @@ async function loadRealData() {
 }
 
 // ============================
+// 실시간 뉴스 (Google News RSS → rss2json 프록시)
+// ============================
+const NEWS_QUERIES = {
+  newsItems: [
+    {idx:0, q:'한국은행 기준금리'},
+    {idx:1, q:'원달러 환율 시황'},
+    {idx:2, q:'ECB 금리 결정'},
+    {idx:3, q:'OPEC 국제유가'},
+  ],
+  commodityNewsItems: [
+    {idx:0, q:'WTI 국제유가'},
+    {idx:1, q:'금 시세 골드'},
+    {idx:2, q:'LME 구리 가격'},
+    {idx:3, q:'두바이유 아시아'},
+  ],
+  macroNewsItems: [
+    {idx:0, q:'한국 GDP 성장률'},
+    {idx:1, q:'미국 CPI 인플레이션'},
+    {idx:2, q:'중국 경기 PMI'},
+    {idx:3, q:'유로존 인플레이션'},
+  ],
+  calendarNewsItems: [
+    {idx:0, q:'한국 수출 무역수지'},
+    {idx:1, q:'미국 비농업 고용'},
+    {idx:2, q:'한국은행 금통위'},
+    {idx:3, q:'ECB 통화정책'},
+  ],
+};
+
+async function fetchLatestArticle(query) {
+  try {
+    const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
+    const proxy = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`;
+    const r = await fetch(proxy);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (d.status !== 'ok' || !d.items || !d.items.length) return null;
+    const it = d.items[0];
+    const cleanTitle = (it.title || '').replace(/\s*-\s*[^-]+$/, '').trim();
+    return { title: cleanTitle, url: it.link, time: relTime(it.pubDate) };
+  } catch (e) { return null; }
+}
+
+function relTime(iso) {
+  try {
+    const t = new Date(iso).getTime();
+    const diff = (Date.now() - t) / 1000;
+    if (diff < 3600) return Math.floor(diff/60) + '분 전';
+    if (diff < 86400) return Math.floor(diff/3600) + '시간 전';
+    return Math.floor(diff/86400) + '일 전';
+  } catch { return '오늘'; }
+}
+
+async function loadFreshNews() {
+  const arrays = { newsItems, commodityNewsItems, macroNewsItems, calendarNewsItems };
+  const tasks = [];
+  for (const [arrName, items] of Object.entries(NEWS_QUERIES)) {
+    for (const {idx, q} of items) {
+      tasks.push(fetchLatestArticle(q).then(fresh => {
+        if (fresh && fresh.url) {
+          arrays[arrName][idx].title = fresh.title;
+          arrays[arrName][idx].url = fresh.url;
+          arrays[arrName][idx].time = fresh.time;
+        }
+      }));
+    }
+  }
+  await Promise.all(tasks);
+  // 모든 뉴스 피드 다시 렌더링 (DOM에 존재하는 것만)
+  if (document.getElementById('newsFeed'))          buildNewsFeed('newsFeed', newsItems);
+  if (document.getElementById('commodityNewsFeed')) buildNewsFeed('commodityNewsFeed', commodityNewsItems);
+  if (document.getElementById('macroNewsFeed'))     buildNewsFeed('macroNewsFeed', macroNewsItems);
+  if (document.getElementById('calendarNewsFeed')) buildNewsFeed('calendarNewsFeed', calendarNewsItems);
+}
+
+// ============================
 // 초기 렌더링
 // ============================
 window.addEventListener('load', async ()=>{
@@ -1659,6 +1735,8 @@ window.addEventListener('load', async ()=>{
   buildFearChart();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
   await loadRealData();
+  // 실시간 뉴스 로드 (Google News RSS)
+  loadFreshNews();
 });
 </script>
 </body>
