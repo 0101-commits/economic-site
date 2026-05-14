@@ -150,9 +150,6 @@ tailwind.config = {
           <div style="position:relative;height:260px;">
             <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
           </div>
-          <div style="position:relative;height:60px;margin-top:4px;">
-            <canvas id="volumeChart" role="img" aria-label="거래량 차트">거래량 차트</canvas>
-          </div>
         </div>
 
         <!-- 우측: 글로벌 지수 테이블 -->
@@ -328,20 +325,42 @@ tailwind.config = {
       <div id="market-commodity" style="display:none;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div class="widget-title">WTI / Brent 유가</div>
+            <div class="widget-title">WTI / Brent / Dubai 원유 가격</div>
             <div style="position:relative;height:220px;">
               <canvas id="oilChart" role="img" aria-label="유가 차트">유가 차트</canvas>
             </div>
           </div>
           <div class="widget">
-            <div class="widget-title">원자재 가격 테이블</div>
-            <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <div class="widget-title">원자재 현물 가격</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
                 <th style="text-align:left;padding:6px 0;">원자재</th><th style="text-align:right;">현재가</th><th style="text-align:right;">전일비</th><th style="text-align:right;">단위</th>
               </tr></thead>
               <tbody id="commodityTable"></tbody>
             </table>
           </div>
+        </div>
+        <!-- 금속 LME 재고 현황 -->
+        <div class="widget" style="margin-bottom:12px;">
+          <div class="widget-title">LME 금속 창고 재고 현황
+            <span style="font-size:9px;font-weight:400;color:#434656;margin-left:6px;">단위: 톤 | 출처: LME (London Metal Exchange) 주간 보고서</span>
+          </div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+              <th style="text-align:left;padding:6px 0;">금속</th>
+              <th style="text-align:right;padding:6px;">재고량(톤)</th>
+              <th style="text-align:right;padding:6px;">전주比</th>
+              <th style="text-align:right;padding:6px;">4주전</th>
+              <th style="text-align:right;padding:6px;">상태</th>
+            </tr></thead>
+            <tbody id="metalInventoryTable"></tbody>
+          </table>
+          <div style="font-size:9px;color:#434656;margin-top:8px;">※ heavymetalstats.com 접근 불가 — LME 공식 주간 창고 보고서(Warrant) 기준 모의 데이터. 실데이터: <a href="https://www.lme.com/en/metals/reports" target="_blank" style="color:#2962ff;">lme.com/metals/reports</a></div>
+        </div>
+        <!-- 원자재 관련 뉴스 -->
+        <div class="widget">
+          <div class="widget-title">원자재 관련 뉴스</div>
+          <div id="commodityNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
       </div>
     </div><!-- /market -->
@@ -355,6 +374,10 @@ tailwind.config = {
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMacroTab('cn',this)">🇨🇳 중국</button>
       </div>
       <div id="macroContent"></div>
+      <div class="widget" style="margin-top:12px;">
+        <div class="widget-title">거시경제 관련 뉴스</div>
+        <div id="macroNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
     </div><!-- /macro -->
 
     <!-- ====== 페이지 4: 경제 캘린더 ====== -->
@@ -364,15 +387,16 @@ tailwind.config = {
           <option>이번 주</option><option>이번 달</option><option>다음 달</option>
         </select>
         <div style="display:flex;gap:4px;">
-          <span style="background:#2962ff;color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;">🇰🇷</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇺🇸</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇪🇺</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">🇯🇵</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇰🇷 KR</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','US',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇺🇸 US</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','EU',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇪🇺 EU</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','JP',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇯🇵 JP</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','CN',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇨🇳 CN</span>
         </div>
         <div style="display:flex;gap:4px;">
-          <span style="background:#2962ff;color:#fff;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;">★★★</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">★★</span>
-          <span style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">★</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',3,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★★★</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',2,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★★</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',1,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★</span>
         </div>
       </div>
       <!-- 하이라이트 카드 3개 -->
@@ -395,6 +419,10 @@ tailwind.config = {
             <tbody id="calendarTable"></tbody>
           </table>
         </div>
+      </div>
+      <div class="widget" style="margin-top:12px;">
+        <div class="widget-title">경제 이벤트 관련 뉴스</div>
+        <div id="calendarNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
     </div><!-- /calendar -->
 
@@ -505,8 +533,13 @@ function showPage(id, el) {
   document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
   if(el) el.classList.add('active');
   if(id==='market') { setTimeout(()=>initMarketPage(),50); }
-  if(id==='macro') { setTimeout(()=>initMacroPage('kr'),50); }
-  if(id==='calendar') { buildCalendar(); }
+  if(id==='macro')  { setTimeout(()=>{ initMacroPage('kr'); buildNewsFeed('macroNewsFeed', macroNewsItems); },50); }
+  if(id==='calendar') {
+    buildCalendar();
+    buildNewsFeed('calendarNewsFeed', calendarNewsItems);
+    const sel = document.getElementById('calPeriod');
+    if(sel && !sel._bound) { sel.addEventListener('change', buildCalendar); sel._bound=true; }
+  }
   if(id==='notes') { loadNotes(); }
 }
 
@@ -545,11 +578,10 @@ function getPeriodData(p) {
 }
 
 function initMainChart(period='1W') {
-  const {price,vol} = getPeriodData(period);
-  destroyChart('mainChart'); destroyChart('volumeChart');
+  const {price} = getPeriodData(period);
+  destroyChart('mainChart');
   const ctx1 = document.getElementById('mainChart');
-  const ctx2 = document.getElementById('volumeChart');
-  if(!ctx1||!ctx2) return;
+  if(!ctx1) return;
   const clr = price[price.length-1].y >= price[0].y ? '#26a69a':'#ef5350';
   charts['mainChart'] = new Chart(ctx1,{
     type:'line',
@@ -561,13 +593,6 @@ function initMainChart(period='1W') {
         y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}
       },
       plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
-  });
-  charts['volumeChart'] = new Chart(ctx2,{
-    type:'bar',
-    data:{labels:sl(vol),datasets:[{data:sv(vol),backgroundColor:'#2962ff44',label:'거래량'}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{type:'category',display:false},y:{ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:2},grid:{color:'#2a2e3d33'}}},
-      plugins:{legend:{display:false},tooltip:{enabled:false}}}
   });
 }
 
@@ -654,35 +679,89 @@ function setMoverTab(type, btn) {
 }
 
 // ============================
-// 뉴스 피드
+// 뉴스 데이터 (Naver 뉴스 검색 링크 — 클릭 시 최신 기사 표시)
 // ============================
+function newsCard(n) {
+  return `<div onclick="window.open('${n.url}','_blank')" style="border-bottom:1px solid #1b1f2b;padding-bottom:10px;cursor:pointer;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <span style="font-size:10px;color:#8d90a2;">${n.time}</span>
+      <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
+      <span style="font-size:9px;color:#434656;">↗ 기사보기</span>
+    </div>
+    <div style="font-size:12px;line-height:1.5;">${n.title}</div>
+  </div>`;
+}
+function buildNewsFeed(containerId, items) {
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  el.innerHTML = items.map(newsCard).join('');
+}
+
+// 대시보드 홈 뉴스
 const newsItems = [
-  {time:'09:32', tag:'매크로', tagClr:'#2962ff',
+  {time:'오늘', tag:'매크로', tagClr:'#2962ff',
    title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
    url:'https://www.hankyung.com/amp/202601152172i'},
-  {time:'08:51', tag:'외환',  tagClr:'#0f6e56',
+  {time:'오늘', tag:'외환',  tagClr:'#0f6e56',
    title:'이어지는 달러 약세..원달러 1350원?',
    url:'https://www.hankyung.com/article/202604308877i'},
-  {time:'07:44', tag:'글로벌', tagClr:'#534ab7',
+  {time:'오늘', tag:'글로벌', tagClr:'#534ab7',
    title:'ECB, 8차례 금리인하…年2%로 내려',
    url:'https://www.hankyung.com/article/2025060583301'},
-  {time:'06:58', tag:'원자재', tagClr:'#854f0b',
+  {time:'오늘', tag:'원자재', tagClr:'#854f0b',
    title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
    url:'https://www.hankyung.com/article/202503049987i'},
 ];
-function buildNews() {
-  const el = document.getElementById('newsFeed');
-  if(!el) return;
-  el.innerHTML = newsItems.map(n=>`
-    <div onclick="window.open('${n.url}','_blank')" style="border-bottom:1px solid #1b1f2b;padding-bottom:10px;cursor:pointer;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-        <span style="font-size:10px;color:#8d90a2;">${n.time}</span>
-        <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
-        <span style="font-size:9px;color:#434656;">↗ 기사보기</span>
-      </div>
-      <div style="font-size:12px;line-height:1.5;">${n.title}</div>
-    </div>`).join('');
-}
+
+// 원자재 페이지 뉴스
+const commodityNewsItems = [
+  {time:'오늘', tag:'원유', tagClr:'#854f0b',
+   title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
+   url:'https://www.hankyung.com/article/202503049987i'},
+  {time:'오늘', tag:'귀금속', tagClr:'#b8860b',
+   title:'전쟁에도 금값 급락? 시장이 주목한 Fed 변수',
+   url:'https://www.hankyung.com/article/202603047159i'},
+  {time:'오늘', tag:'비철금속', tagClr:'#2962ff',
+   title:'구리 가격 \'주춤\'…재고 급증에 수요는 감소',
+   url:'https://www.hankyung.com/article/202603188275i'},
+  {time:'오늘', tag:'두바이유', tagClr:'#534ab7',
+   title:'중동 기름 70%라더니…한국 정유사 초유의 상황 터졌다',
+   url:'https://www.hankyung.com/article/2026031776971'},
+];
+
+// 거시경제 페이지 뉴스
+const macroNewsItems = [
+  {time:'오늘', tag:'한국GDP', tagClr:'#2962ff',
+   title:'한국 경제, 2026년 불확실성 속 완만한 회복 흐름 지속',
+   url:'https://www.hankyung.com/article/202601212936a'},
+  {time:'오늘', tag:'미국CPI', tagClr:'#0f6e56',
+   title:'예상대로 높았던 4월 CPI…연준 올해 금리인하 난망',
+   url:'https://www.hankyung.com/article/202605122103i'},
+  {time:'오늘', tag:'중국경기', tagClr:'#ef5350',
+   title:'내수 침체에 제조업 다시 위축…中 성장 목표 낮추나',
+   url:'https://www.hankyung.com/article/2026020163821'},
+  {time:'오늘', tag:'유로존', tagClr:'#534ab7',
+   title:'5월 유로존 인플레이션 1.9%…ECB 목표치보다 낮아',
+   url:'https://www.hankyung.com/article/202506032663i'},
+];
+
+// 경제캘린더 페이지 뉴스
+const calendarNewsItems = [
+  {time:'예정', tag:'한국수출', tagClr:'#2962ff',
+   title:'전쟁 뚫고…3월 수출 861억弗 신기록',
+   url:'https://www.hankyung.com/article/2026040126791'},
+  {time:'예정', tag:'미국CPI', tagClr:'#0f6e56',
+   title:'예상대로 높았던 4월 CPI…연준 올해 금리인하 난망',
+   url:'https://www.hankyung.com/article/202605122103i'},
+  {time:'예정', tag:'한국은행', tagClr:'#b6c4ff',
+   title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
+   url:'https://www.hankyung.com/amp/202601152172i'},
+  {time:'예정', tag:'ECB', tagClr:'#534ab7',
+   title:'ECB, 8차례 금리인하…年2%로 내려',
+   url:'https://www.hankyung.com/article/2025060583301'},
+];
+
+function buildNews() { buildNewsFeed('newsFeed', newsItems); }
 
 // ============================
 // 시장 지표 페이지 초기화
@@ -715,11 +794,22 @@ let fxPairs=[
   {pair:'USD/JPY', cur:'150.32',   chg:-0.18, pct:-0.12, h52:'158.00',   l52:'139.50'},
 ];
 let comData=[
-  {name:'금 (Gold)',     price:'$2,387.60', chg:'+0.30%', up:true,  unit:'$/oz'},
-  {name:'은 (Silver)',   price:'$28.42',    chg:'+0.55%', up:true,  unit:'$/oz'},
-  {name:'구리 (Copper)', price:'$4.12',     chg:'-0.82%', up:false, unit:'$/lb'},
-  {name:'천연가스',       price:'$2.18',     chg:'-1.24%', up:false, unit:'$/MMBtu'},
-  {name:'밀 (Wheat)',    price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu'},
+  // 원유
+  {name:'WTI 원유',          price:'$78.42',    chg:'-0.55%', up:false, unit:'$/bbl', cat:'oil'},
+  {name:'Brent 원유',         price:'$82.17',    chg:'-0.48%', up:false, unit:'$/bbl', cat:'oil'},
+  {name:'두바이 현물유',       price:'$80.95',    chg:'-0.41%', up:false, unit:'$/bbl', cat:'oil'},
+  // 귀금속
+  {name:'금 (Gold)',          price:'$2,387.60', chg:'+0.30%', up:true,  unit:'$/oz',  cat:'metal'},
+  {name:'은 (Silver)',        price:'$28.42',    chg:'+0.55%', up:true,  unit:'$/oz',  cat:'metal'},
+  {name:'백금 (Platinum)',    price:'$961.00',   chg:'+0.18%', up:true,  unit:'$/oz',  cat:'metal'},
+  // 비철금속
+  {name:'구리 (Copper)',      price:'$4.12',     chg:'-0.82%', up:false, unit:'$/lb',  cat:'base'},
+  {name:'알루미늄',           price:'$2,248',    chg:'+0.21%', up:true,  unit:'$/톤',  cat:'base'},
+  {name:'아연 (Zinc)',        price:'$2,912',    chg:'-0.35%', up:false, unit:'$/톤',  cat:'base'},
+  {name:'니켈 (Nickel)',      price:'$16,820',   chg:'-1.12%', up:false, unit:'$/톤',  cat:'base'},
+  // 에너지·농산물
+  {name:'천연가스',           price:'$2.18',     chg:'-1.24%', up:false, unit:'$/MMBtu',cat:'energy'},
+  {name:'밀 (Wheat)',         price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu',  cat:'agri'},
 ];
 let eqData=[
   {name:'KOSPI',  val:2587.23, chg:+0.34},{name:'KOSDAQ',val:742.15,  chg:-0.12},
@@ -802,16 +892,27 @@ function buildEquityPage() {
       plugins:{legend:{display:false}}}
   });
 }
+// LME 금속 창고 재고 (모의 데이터, 단위: 톤)
+const metalInventory = [
+  {name:'구리 (Copper)',   cur:98420,  wkChg:-3210, m4ago:112500, status:'감소'},
+  {name:'알루미늄',        cur:512300, wkChg:+8400, m4ago:489000, status:'증가'},
+  {name:'아연 (Zinc)',     cur:184200, wkChg:-1850, m4ago:198600, status:'감소'},
+  {name:'니켈 (Nickel)',   cur:71440,  wkChg:+920,  m4ago:68300,  status:'보합'},
+  {name:'납 (Lead)',       cur:88200,  wkChg:-640,  m4ago:91400,  status:'감소'},
+  {name:'주석 (Tin)',      cur:4180,   wkChg:+110,  m4ago:3950,   status:'증가'},
+];
+
 function buildCommodityPage() {
   destroyChart('oilChart');
   const ctx=document.getElementById('oilChart');
   if(ctx) {
-    const wti=genSeries(78,90,0.02), brent=genSeries(82,90,0.018);
+    const wti=genSeries(78,90,0.02), brent=genSeries(82,90,0.018), dubai=genSeries(80,90,0.018);
     charts['oilChart'] = new Chart(ctx,{
       type:'line',
       data:{labels:sl(wti),datasets:[
-        {data:sv(wti),  label:'WTI',   borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
-        {data:sv(brent),label:'Brent', borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
+        {data:sv(wti),   label:'WTI',   borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+        {data:sv(brent), label:'Brent', borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
+        {data:sv(dubai), label:'Dubai', borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4]},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
@@ -820,13 +921,41 @@ function buildCommodityPage() {
                  tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}}}
     });
   }
-  document.getElementById('commodityTable').innerHTML = comData.map(r=>`
-    <tr style="border-bottom:1px solid #1b1f2b;">
-      <td style="padding:9px 0;">${r.name}</td>
-      <td style="text-align:right;padding:9px;font-weight:500;">${r.price}</td>
-      <td style="text-align:right;padding:9px;" class="${r.up?'up-txt':'down-txt'}">${r.chg}</td>
-      <td style="text-align:right;padding:9px;color:#8d90a2;">${r.unit}</td>
-    </tr>`).join('');
+
+  // 원자재 테이블 — 카테고리 구분선 포함
+  const catLabel = {oil:'▸ 원유', metal:'▸ 귀금속', base:'▸ 비철금속', energy:'▸ 에너지', agri:'▸ 농산물'};
+  let prevCat = null;
+  document.getElementById('commodityTable').innerHTML = comData.map(r=>{
+    let sep = '';
+    if(r.cat !== prevCat) {
+      sep = `<tr><td colspan="4" style="padding:6px 0 2px;font-size:10px;font-weight:600;color:#434656;letter-spacing:.05em;">${catLabel[r.cat]||''}</td></tr>`;
+      prevCat = r.cat;
+    }
+    return sep + `<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:7px 0;">${r.name}</td>
+      <td style="text-align:right;padding:7px;font-weight:500;">${r.price}</td>
+      <td style="text-align:right;padding:7px;" class="${r.up?'up-txt':'down-txt'}">${r.chg}</td>
+      <td style="text-align:right;padding:7px;color:#8d90a2;">${r.unit}</td>
+    </tr>`;
+  }).join('');
+
+  // LME 금속 재고 테이블
+  const invEl = document.getElementById('metalInventoryTable');
+  if(invEl) invEl.innerHTML = metalInventory.map(m => {
+    const chgCls = m.wkChg < 0 ? 'down-txt' : m.wkChg > 0 ? 'up-txt' : '';
+    const chgStr = (m.wkChg > 0 ? '+' : '') + m.wkChg.toLocaleString();
+    const stsCls = m.status==='감소' ? '#ef5350' : m.status==='증가' ? '#26a69a' : '#8d90a2';
+    return `<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:8px 0;">${m.name}</td>
+      <td style="text-align:right;padding:8px;font-weight:500;">${m.cur.toLocaleString()}</td>
+      <td style="text-align:right;padding:8px;" class="${chgCls}">${chgStr}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${m.m4ago.toLocaleString()}</td>
+      <td style="text-align:right;padding:8px;"><span style="font-size:10px;color:${stsCls};">● ${m.status}</span></td>
+    </tr>`;
+  }).join('');
+
+  // 원자재 관련 뉴스
+  buildNewsFeed('commodityNewsFeed', commodityNewsItems);
 }
 
 // ============================
@@ -893,20 +1022,72 @@ function initMacroPage(t){
 // ============================
 // 경제 캘린더
 // ============================
+// calEvents: cc = 국가코드, stars = 중요도(1~3)
 const calEvents=[
-  {dt:'05.01 09:00',flag:'🇰🇷',name:'한국 소비자물가지수(CPI)',stars:3,prev:'2.1%',fore:'2.0%',act:'2.1%',beat:0},
-  {dt:'05.02 15:00',flag:'🇺🇸',name:'미국 비농업고용(NFP)',stars:3,prev:'275K',fore:'240K',act:'',beat:null},
-  {dt:'05.03 22:00',flag:'🇺🇸',name:'미국 실업률',stars:3,prev:'3.9%',fore:'3.9%',act:'',beat:null},
-  {dt:'05.06 10:00',flag:'🇰🇷',name:'한국은행 금통위 회의',stars:3,prev:'2.75%',fore:'2.75%',act:'',beat:null},
-  {dt:'05.07 16:00',flag:'🇪🇺',name:'ECB 통화정책회의',stars:3,prev:'4.00%',fore:'3.75%',act:'',beat:null},
-  {dt:'05.08 21:30',flag:'🇺🇸',name:'미국 CPI (전월비)',stars:3,prev:'0.4%',fore:'0.3%',act:'',beat:null},
-  {dt:'05.09 09:00',flag:'🇰🇷',name:'한국 수출입 동향',stars:2,prev:'+3.1%',fore:'+2.8%',act:'',beat:null},
-  {dt:'05.12 09:30',flag:'🇨🇳',name:'중국 CPI (전년비)',stars:2,prev:'0.1%',fore:'0.2%',act:'',beat:null},
-  {dt:'05.14 21:30',flag:'🇺🇸',name:'미국 생산자물가지수(PPI)',stars:2,prev:'0.2%',fore:'0.2%',act:'',beat:null},
-  {dt:'05.15 22:00',flag:'🇺🇸',name:'미국 소매판매',stars:2,prev:'-0.1%',fore:'+0.4%',act:'',beat:null},
+  // 4월 (이번 달)
+  {dt:'04.30 09:00',cc:'KR',flag:'🇰🇷',name:'한국 산업생산지수',       stars:2,prev:'+1.2%',fore:'+0.9%', act:'',   beat:null},
+  {dt:'04.30 21:30',cc:'US',flag:'🇺🇸',name:'미국 PCE 물가지수',       stars:3,prev:'2.5%', fore:'2.4%',  act:'',   beat:null},
+  // 5월 (다음 달)
+  {dt:'05.01 09:00',cc:'KR',flag:'🇰🇷',name:'한국 소비자물가지수(CPI)',  stars:3,prev:'2.1%', fore:'2.0%',  act:'2.1%',beat:0},
+  {dt:'05.02 15:00',cc:'US',flag:'🇺🇸',name:'미국 비농업고용(NFP)',      stars:3,prev:'275K', fore:'240K',  act:'',   beat:null},
+  {dt:'05.03 22:00',cc:'US',flag:'🇺🇸',name:'미국 실업률',              stars:3,prev:'3.9%', fore:'3.9%',  act:'',   beat:null},
+  {dt:'05.06 10:00',cc:'KR',flag:'🇰🇷',name:'한국은행 금통위 회의',      stars:3,prev:'2.75%',fore:'2.75%', act:'',   beat:null},
+  {dt:'05.07 16:00',cc:'EU',flag:'🇪🇺',name:'ECB 통화정책회의',         stars:3,prev:'4.00%',fore:'3.75%', act:'',   beat:null},
+  {dt:'05.08 21:30',cc:'US',flag:'🇺🇸',name:'미국 CPI (전월비)',        stars:3,prev:'0.4%', fore:'0.3%',  act:'',   beat:null},
+  {dt:'05.09 09:00',cc:'KR',flag:'🇰🇷',name:'한국 수출입 동향',         stars:2,prev:'+3.1%',fore:'+2.8%', act:'',   beat:null},
+  {dt:'05.12 09:30',cc:'CN',flag:'🇨🇳',name:'중국 CPI (전년비)',        stars:2,prev:'0.1%', fore:'0.2%',  act:'',   beat:null},
+  {dt:'05.13 10:00',cc:'JP',flag:'🇯🇵',name:'일본 GDP (전기비)',        stars:3,prev:'-0.1%',fore:'+0.1%', act:'',   beat:null},
+  {dt:'05.14 21:30',cc:'US',flag:'🇺🇸',name:'미국 생산자물가지수(PPI)', stars:2,prev:'0.2%', fore:'0.2%',  act:'',   beat:null},
+  {dt:'05.15 22:00',cc:'US',flag:'🇺🇸',name:'미국 소매판매',           stars:2,prev:'-0.1%',fore:'+0.4%', act:'',   beat:null},
+  {dt:'05.20 10:00',cc:'KR',flag:'🇰🇷',name:'한국 1분기 GDP (확정)',    stars:3,prev:'+0.7%',fore:'+0.7%', act:'',   beat:null},
+  {dt:'05.22 20:30',cc:'EU',flag:'🇪🇺',name:'유로존 CPI (전년비)',      stars:3,prev:'2.2%', fore:'2.1%',  act:'',   beat:null},
+  {dt:'05.28 21:30',cc:'US',flag:'🇺🇸',name:'미국 1분기 GDP (2차)',     stars:3,prev:'2.3%', fore:'2.2%',  act:'',   beat:null},
 ];
+
+// ── 캘린더 필터 상태 ──────────────────────────────
+let calFilterCC    = new Set(['KR','US','EU','CN','JP']);
+let calFilterStars = new Set([3,2,1]);
+
+function toggleCalFilter(type, val, el) {
+  const set = type==='cc' ? calFilterCC : calFilterStars;
+  if(set.has(val)) {
+    if(set.size <= 1) return;   // 최소 1개는 선택 유지
+    set.delete(val);
+    el.style.background = '#1b1f2b';
+    el.style.color      = '#8d90a2';
+    el.style.border     = '1px solid #2a2e3d';
+  } else {
+    set.add(val);
+    el.style.background = '#2962ff';
+    el.style.color      = '#fff';
+    el.style.border     = 'none';
+  }
+  buildCalendar();
+}
+
 function buildCalendar(){
-  document.getElementById('calHighlights').innerHTML=calEvents.slice(0,3).map(e=>`
+  // 현재 월 판별
+  const now   = new Date();
+  const month = now.getMonth()+1;        // 1~12
+  const nextM = month===12 ? 1 : month+1;
+  const period = document.getElementById('calPeriod')?.value || '다음 달';
+
+  const filtered = calEvents.filter(e => {
+    const evMonth = parseInt(e.dt.slice(0,2), 10);
+    if(period==='이번 달' && evMonth !== month)    return false;
+    if(period==='다음 달' && evMonth !== nextM)    return false;
+    if(period==='이번 주') {
+      const today   = new Date(now.getFullYear(), month-1, now.getDate());
+      const evDay   = parseInt(e.dt.slice(3,5), 10);
+      const evDate  = new Date(now.getFullYear(), evMonth-1, evDay);
+      const diff    = (evDate - today) / 86400000;
+      if(diff < 0 || diff > 6) return false;
+    }
+    return calFilterCC.has(e.cc) && calFilterStars.has(e.stars);
+  });
+
+  const upcoming = filtered.filter(e => !e.act);
+  document.getElementById('calHighlights').innerHTML = upcoming.slice(0,3).map(e=>`
     <div class="kpi-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
         <span style="font-size:10px;color:#8d90a2;">${e.flag} ${e.dt}</span>
@@ -917,10 +1098,14 @@ function buildCalendar(){
         <span>이전: <strong style="color:#dfe2f2;">${e.prev}</strong></span>
         <span>예측: <strong style="color:#b6c4ff;">${e.fore}</strong></span>
       </div>
-    </div>`).join('');
-  document.getElementById('calendarTable').innerHTML=calEvents.map(e=>{
-    const actCls = e.act===''?'color:#434656;font-style:italic':
-                   e.beat===1?'class="up-txt"':e.beat===-1?'class="down-txt"':'';
+    </div>`).join('') || '<div style="color:#434656;font-size:12px;grid-column:1/-1;text-align:center;padding:20px;">해당 조건의 예정 이벤트가 없습니다</div>';
+
+  document.getElementById('calendarTable').innerHTML = filtered.map(e=>{
+    const actStyle = e.act===''
+      ? 'style="color:#434656;font-style:italic;"'
+      : e.beat===1  ? 'class="up-txt"'
+      : e.beat===-1 ? 'class="down-txt"'
+      : '';
     return `<tr style="border-bottom:1px solid #1b1f2b;">
       <td style="padding:8px;">${e.dt}</td>
       <td style="text-align:center;padding:8px;">${e.flag}</td>
@@ -928,8 +1113,8 @@ function buildCalendar(){
       <td style="text-align:center;padding:8px;color:#f5a623;">${'★'.repeat(e.stars)}</td>
       <td style="text-align:right;padding:8px;color:#8d90a2;">${e.prev}</td>
       <td style="text-align:right;padding:8px;color:#b6c4ff;">${e.fore}</td>
-      <td style="text-align:right;padding:8px;${actCls}">${e.act||'예정'}</td>
-    </tr>`;}).join('');
+      <td style="text-align:right;padding:8px;" ${actStyle}>${e.act||'예정'}</td>
+    </tr>`;}).join('') || `<tr><td colspan="7" style="text-align:center;padding:20px;color:#434656;">해당 조건의 이벤트가 없습니다</td></tr>`;
 }
 
 // ============================
