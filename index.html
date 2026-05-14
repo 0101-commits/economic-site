@@ -686,7 +686,7 @@ function newsCard(n) {
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
       <span style="font-size:10px;color:#8d90a2;">${n.time}</span>
       <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
-      <span style="font-size:9px;color:#434656;">↗ 뉴스검색</span>
+      <span style="font-size:9px;color:#434656;">↗ 기사보기</span>
     </div>
     <div style="font-size:12px;line-height:1.5;">${n.title}</div>
   </div>`;
@@ -700,65 +700,65 @@ function buildNewsFeed(containerId, items) {
 // 대시보드 홈 뉴스
 const newsItems = [
   {time:'오늘', tag:'매크로', tagClr:'#2962ff',
-   title:'BOK 총재, 하반기 금리 추가 인하 가능성 시사…물가 안정세 지속 시',
-   url:'https://search.naver.com/search.naver?where=news&query=한국은행+금리+인하+2026'},
+   title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
+   url:'https://www.hankyung.com/amp/202601152172i'},
   {time:'오늘', tag:'외환',  tagClr:'#0f6e56',
-   title:'달러 인덱스 하락…미 고용지표 예상 하회에 달러 약세 전환',
-   url:'https://search.naver.com/search.naver?where=news&query=달러인덱스+원달러환율+2026'},
+   title:'이어지는 달러 약세..원달러 1350원?',
+   url:'https://www.hankyung.com/article/202604308877i'},
   {time:'오늘', tag:'글로벌', tagClr:'#534ab7',
-   title:'ECB, 6월 회의서 0.25%p 인하 전망 우세…인플레이션 목표 근접',
-   url:'https://search.naver.com/search.naver?where=news&query=ECB+금리+인하+2026'},
+   title:'ECB, 8차례 금리인하…年2%로 내려',
+   url:'https://www.hankyung.com/article/2025060583301'},
   {time:'오늘', tag:'원자재', tagClr:'#854f0b',
-   title:'OPEC+ 감산 연장 합의 불발 우려…WTI·두바이유 3거래일 연속 하락',
-   url:'https://search.naver.com/search.naver?where=news&query=OPEC+유가+WTI+2026'},
+   title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
+   url:'https://www.hankyung.com/article/202503049987i'},
 ];
 
 // 원자재 페이지 뉴스
 const commodityNewsItems = [
   {time:'오늘', tag:'원유', tagClr:'#854f0b',
-   title:'OPEC+ 추가 증산 검토…WTI 70달러대 초반 지지선 시험',
-   url:'https://search.naver.com/search.naver?where=news&query=OPEC+원유+유가+2026'},
+   title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
+   url:'https://www.hankyung.com/article/202503049987i'},
   {time:'오늘', tag:'귀금속', tagClr:'#b8860b',
-   title:'금값, 달러 약세·지정학적 불확실성에 2,400달러 돌파 시도',
-   url:'https://search.naver.com/search.naver?where=news&query=금값+골드+귀금속+2026'},
+   title:'전쟁에도 금값 급락? 시장이 주목한 Fed 변수',
+   url:'https://www.hankyung.com/article/202603047159i'},
   {time:'오늘', tag:'비철금속', tagClr:'#2962ff',
-   title:'LME 구리 재고 감소 지속…칠레 광산 공급 차질 우려',
-   url:'https://search.naver.com/search.naver?where=news&query=LME+구리+비철금속+재고+2026'},
+   title:'구리 가격 \'주춤\'…재고 급증에 수요는 감소',
+   url:'https://www.hankyung.com/article/202603188275i'},
   {time:'오늘', tag:'두바이유', tagClr:'#534ab7',
-   title:'두바이 현물유가, 아시아 정제 마진 개선에 소폭 반등',
-   url:'https://search.naver.com/search.naver?where=news&query=두바이유+아시아+원유+2026'},
+   title:'중동 기름 70%라더니…한국 정유사 초유의 상황 터졌다',
+   url:'https://www.hankyung.com/article/2026031776971'},
 ];
 
 // 거시경제 페이지 뉴스
 const macroNewsItems = [
   {time:'오늘', tag:'한국GDP', tagClr:'#2962ff',
-   title:'한국 1분기 GDP 성장률, 수출 호조에 전기 대비 0.7% 증가',
-   url:'https://search.naver.com/search.naver?where=news&query=한국+GDP+성장률+2026'},
+   title:'한국 경제, 2026년 불확실성 속 완만한 회복 흐름 지속',
+   url:'https://www.hankyung.com/article/202601212936a'},
   {time:'오늘', tag:'미국CPI', tagClr:'#0f6e56',
-   title:'미국 3월 CPI 2.4%…연준, 연내 1회 인하 전망 유지',
-   url:'https://search.naver.com/search.naver?where=news&query=미국+CPI+인플레이션+2026'},
+   title:'예상대로 높았던 4월 CPI…연준 올해 금리인하 난망',
+   url:'https://www.hankyung.com/article/202605122103i'},
   {time:'오늘', tag:'중국경기', tagClr:'#ef5350',
-   title:'중국 제조업 PMI 소폭 개선…내수 소비 회복세 지속 여부 주목',
-   url:'https://search.naver.com/search.naver?where=news&query=중국+PMI+경기+2026'},
+   title:'내수 침체에 제조업 다시 위축…中 성장 목표 낮추나',
+   url:'https://www.hankyung.com/article/2026020163821'},
   {time:'오늘', tag:'유로존', tagClr:'#534ab7',
-   title:'유로존 1분기 성장률 0.3%…ECB 추가 인하 가능성 높아져',
-   url:'https://search.naver.com/search.naver?where=news&query=유로존+ECB+GDP+2026'},
+   title:'5월 유로존 인플레이션 1.9%…ECB 목표치보다 낮아',
+   url:'https://www.hankyung.com/article/202506032663i'},
 ];
 
 // 경제캘린더 페이지 뉴스
 const calendarNewsItems = [
-  {time:'예정', tag:'한국CPI', tagClr:'#2962ff',
-   title:'5월 한국 CPI 발표 앞두고…시장 예상치 2.0%, 에너지 가격 하락 반영',
-   url:'https://search.naver.com/search.naver?where=news&query=한국+소비자물가+CPI+2026'},
-  {time:'예정', tag:'미국NFP', tagClr:'#0f6e56',
-   title:'미국 4월 비농업고용 발표 임박…연준 통화정책 경로 가를 핵심 지표',
-   url:'https://search.naver.com/search.naver?where=news&query=미국+비농업고용+NFP+2026'},
+  {time:'예정', tag:'한국수출', tagClr:'#2962ff',
+   title:'전쟁 뚫고…3월 수출 861억弗 신기록',
+   url:'https://www.hankyung.com/article/2026040126791'},
+  {time:'예정', tag:'미국CPI', tagClr:'#0f6e56',
+   title:'예상대로 높았던 4월 CPI…연준 올해 금리인하 난망',
+   url:'https://www.hankyung.com/article/202605122103i'},
   {time:'예정', tag:'한국은행', tagClr:'#b6c4ff',
-   title:'한은 금통위, 5월 회의 동결 전망 우세…총재 기자회견 주목',
-   url:'https://search.naver.com/search.naver?where=news&query=한국은행+금통위+금리+2026'},
+   title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
+   url:'https://www.hankyung.com/amp/202601152172i'},
   {time:'예정', tag:'ECB', tagClr:'#534ab7',
-   title:'ECB 5월 회의, 3.75%로 인하 전망…성장 둔화 대응 차원',
-   url:'https://search.naver.com/search.naver?where=news&query=ECB+통화정책+금리+2026'},
+   title:'ECB, 8차례 금리인하…年2%로 내려',
+   url:'https://www.hankyung.com/article/2025060583301'},
 ];
 
 function buildNews() { buildNewsFeed('newsFeed', newsItems); }
