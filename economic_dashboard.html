@@ -657,19 +657,28 @@ function setMoverTab(type, btn) {
 // 뉴스 피드
 // ============================
 const newsItems = [
-  {time:'09:32', tag:'매크로', tagClr:'#2962ff', title:'BOK 총재, 하반기 금리 추가 인하 가능성 시사…물가 안정세 지속 시'},
-  {time:'08:51', tag:'외환',  tagClr:'#0f6e56', title:'달러 인덱스 102.3 하락…미 고용지표 예상 하회에 약세 전환'},
-  {time:'07:44', tag:'글로벌', tagClr:'#534ab7', title:'ECB, 6월 회의서 0.25%p 인하 전망 우세…인플레이션 목표 근접'},
-  {time:'06:58', tag:'원자재', tagClr:'#854f0b', title:'OPEC+ 감산 연장 합의 불발 우려…WTI 3거래일 연속 하락'},
+  {time:'09:32', tag:'매크로', tagClr:'#2962ff',
+   title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
+   url:'https://www.hankyung.com/amp/202601152172i'},
+  {time:'08:51', tag:'외환',  tagClr:'#0f6e56',
+   title:'이어지는 달러 약세..원달러 1350원?',
+   url:'https://www.hankyung.com/article/202604308877i'},
+  {time:'07:44', tag:'글로벌', tagClr:'#534ab7',
+   title:'ECB, 8차례 금리인하…年2%로 내려',
+   url:'https://www.hankyung.com/article/2025060583301'},
+  {time:'06:58', tag:'원자재', tagClr:'#854f0b',
+   title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
+   url:'https://www.hankyung.com/article/202503049987i'},
 ];
 function buildNews() {
   const el = document.getElementById('newsFeed');
   if(!el) return;
   el.innerHTML = newsItems.map(n=>`
-    <div style="border-bottom:1px solid #1b1f2b;padding-bottom:10px;cursor:pointer;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+    <div onclick="window.open('${n.url}','_blank')" style="border-bottom:1px solid #1b1f2b;padding-bottom:10px;cursor:pointer;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
         <span style="font-size:10px;color:#8d90a2;">${n.time}</span>
         <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
+        <span style="font-size:9px;color:#434656;">↗ 기사보기</span>
       </div>
       <div style="font-size:12px;line-height:1.5;">${n.title}</div>
     </div>`).join('');
