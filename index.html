@@ -87,6 +87,7 @@ tailwind.config = {
     <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
     <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
     <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
+    <div class="menu-item" onclick="showPage('investor',this)"><span class="mat">account_balance</span>주요 투자자</div>
     <div style="border-top:1px solid #2a2e3d;margin:12px 0;"></div>
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;">데이터 소스</div>
     <div style="font-size:11px;color:#434656;padding:4px 14px;line-height:1.8;">ExchangeRate API<br>Yahoo Finance<br>Mock 시계열</div>
@@ -140,13 +141,21 @@ tailwind.config = {
               <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;">2,587.23</span>
               <span class="up-txt" style="font-size:13px;margin-left:6px;">▲ +0.34%</span>
             </div>
-            <div style="display:flex;gap:4px;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
               <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#dfe2f2;" onclick="setPeriod('1W',this)">1W</button>
               <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('1M',this)">1M</button>
               <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('3M',this)">3M</button>
               <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('1Y',this)">1Y</button>
+              <button class="tab-btn" id="mainCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('custom',this,'main')">사용자 지정</button>
             </div>
           </div>
+          <div id="mainCustomRangePanel" style="display:none;margin-bottom:8px;display:none;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input type="date" id="mainDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+            <span style="color:#8d90a2;font-size:11px;">~</span>
+            <input type="date" id="mainDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+            <button onclick="applyCustomRange('main')" style="background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
+          </div>
+          <div id="mainChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;"></div>
           <div style="position:relative;height:260px;">
             <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
           </div>
@@ -224,22 +233,39 @@ tailwind.config = {
       <div id="market-fx">
         <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
               <div>
-                <div class="widget-title" style="margin-bottom:0;">USD / KRW</div>
-                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';">1,341.50</div>
+                <div class="widget-title" style="margin-bottom:0;" id="fxChartTitle">USD / KRW</div>
+                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="fxChartPrice">1,341.50</div>
               </div>
               <div>
                 <div class="up-txt" style="font-size:14px;">▲ 1.07 (+0.08%)</div>
                 <div style="font-size:11px;color:#8d90a2;">52주 범위: 1,270.40 ~ 1,385.60</div>
               </div>
+              <div style="margin-left:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+                <button onclick="toggleFxDir()" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">⇄ 역방향</button>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                  <button class="tab-btn active" id="fxPeriodBtn1W" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setFxPeriod('1W',this)">1W</button>
+                  <button class="tab-btn" id="fxPeriodBtn1M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setFxPeriod('1M',this)">1M</button>
+                  <button class="tab-btn" id="fxPeriodBtn3M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setFxPeriod('3M',this)">3M</button>
+                  <button class="tab-btn" id="fxPeriodBtn1Y" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setFxPeriod('1Y',this)">1Y</button>
+                  <button class="tab-btn" id="fxCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setFxPeriod('custom',this)">사용자 지정</button>
+                </div>
+              </div>
             </div>
+            <div id="fxCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
+              <input type="date" id="fxDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+              <span style="color:#8d90a2;font-size:11px;">~</span>
+              <input type="date" id="fxDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+              <button onclick="applyCustomRange('fx')" style="background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
+            </div>
+            <div id="fxChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;"></div>
             <div style="position:relative;height:220px;">
               <canvas id="fxChart" role="img" aria-label="USD/KRW 환율 차트">환율 차트</canvas>
             </div>
           </div>
           <div class="widget">
-            <div class="widget-title">USDKRW 주요 정보</div>
+            <div class="widget-title" id="fxInfoPanelTitle">USDKRW 주요 정보</div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">시가</td><td style="text-align:right;">1,338.30</td></tr>
               <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">고가</td><td style="text-align:right;">1,344.20</td></tr>
@@ -314,10 +340,24 @@ tailwind.config = {
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="equityCards"></div>
         </div>
         <div class="widget">
-          <div class="widget-title">KOSPI 섹터별 등락</div>
-          <div style="position:relative;height:220px;">
-            <canvas id="sectorChart" role="img" aria-label="KOSPI 섹터별 등락">섹터 차트</canvas>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향</div>
+            <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 금융 원본 →</a>
           </div>
+          <div style="position:relative;height:220px;">
+            <canvas id="investorChart" role="img" aria-label="투자자별 순매매 동향">투자자 차트</canvas>
+          </div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:12px;">
+            <thead>
+              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px 0;">구분</th>
+                <th style="text-align:right;padding:6px;">오늘</th>
+                <th style="text-align:right;padding:6px;">5일 누계</th>
+                <th style="text-align:right;padding:6px;">20일 누계</th>
+              </tr>
+            </thead>
+            <tbody id="investorSummaryTable"></tbody>
+          </table>
         </div>
       </div>
 
@@ -455,6 +495,114 @@ tailwind.config = {
       </div>
     </div><!-- /notes -->
 
+    <!-- ====== 페이지 6: 주요 투자자 (국민연금) ====== -->
+    <div class="page" id="page-investor">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <h2 style="font-size:18px;font-weight:700;font-family:'Public Sans';margin:0;">국민연금 투자 현황</h2>
+        <div style="display:flex;gap:6px;">
+          <button class="tab-btn active" id="npsTab1" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setNpsTab('overview',this)">운용 현황</button>
+          <button class="tab-btn" id="npsTab2" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setNpsTab('allocation',this)">자산 배분</button>
+        </div>
+      </div>
+
+      <!-- KPI 카드 4개 -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+        <div class="kpi-card">
+          <div class="widget-title">총 운용 자산</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">1,127<span style="font-size:14px;">조원</span></div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">2024년말 기준</div>
+        </div>
+        <div class="kpi-card">
+          <div class="widget-title">국내 주식</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">163<span style="font-size:14px;">조원</span></div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">비중 14.5%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="widget-title">해외 주식</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">337<span style="font-size:14px;">조원</span></div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">비중 29.9%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="widget-title">채권</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">421<span style="font-size:14px;">조원</span></div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">비중 37.3%</div>
+        </div>
+      </div>
+
+      <!-- 차트 + 매매 동향 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="widget">
+          <div class="widget-title">자산 배분 현황 (2024년말)</div>
+          <div style="position:relative;height:240px;">
+            <canvas id="npsAllocationChart" role="img" aria-label="국민연금 자산배분">자산배분 차트</canvas>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">최근 매매 동향 (모의 데이터)</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead>
+              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px 0;">종목</th>
+                <th style="text-align:right;padding:6px;">구분</th>
+                <th style="text-align:right;padding:6px;">금액(억원)</th>
+                <th style="text-align:right;padding:6px;">지분율</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">삼성전자</td><td style="text-align:right;padding:8px;" class="down-txt">순매도</td><td style="text-align:right;padding:8px;">-2,340</td><td style="text-align:right;padding:8px;color:#8d90a2;">7.82%</td></tr>
+              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">SK하이닉스</td><td style="text-align:right;padding:8px;" class="up-txt">순매수</td><td style="text-align:right;padding:8px;">+1,120</td><td style="text-align:right;padding:8px;color:#8d90a2;">9.14%</td></tr>
+              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">LG에너지솔루션</td><td style="text-align:right;padding:8px;" class="up-txt">순매수</td><td style="text-align:right;padding:8px;">+780</td><td style="text-align:right;padding:8px;color:#8d90a2;">6.31%</td></tr>
+              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">현대차</td><td style="text-align:right;padding:8px;" class="down-txt">순매도</td><td style="text-align:right;padding:8px;">-430</td><td style="text-align:right;padding:8px;color:#8d90a2;">8.67%</td></tr>
+              <tr><td style="padding:8px 0;">POSCO홀딩스</td><td style="text-align:right;padding:8px;color:#8d90a2;">보합</td><td style="text-align:right;padding:8px;color:#8d90a2;">0</td><td style="text-align:right;padding:8px;color:#8d90a2;">11.43%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 공식 자료 링크 -->
+      <div class="widget">
+        <div class="widget-title">공식 자료 바로가기</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do" target="_blank" style="text-decoration:none;">
+            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+              <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">기금운용 현황</div>
+              <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
+            </div>
+          </a>
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0003M0.do?menuId=MN24000616" target="_blank" style="text-decoration:none;">
+            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+              <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">자산배분 현황</div>
+              <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
+            </div>
+          </a>
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0004M0.do?menuId=MN24000617" target="_blank" style="text-decoration:none;">
+            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+              <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">국내주식 현황</div>
+              <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
+            </div>
+          </a>
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0005M0.do?menuId=MN24000618" target="_blank" style="text-decoration:none;">
+            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+              <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">해외주식 현황</div>
+              <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
+            </div>
+          </a>
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0006M0.do?menuId=MN24000619" target="_blank" style="text-decoration:none;">
+            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+              <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">채권 현황</div>
+              <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
+            </div>
+          </a>
+          <a href="https://fund.nps.or.kr/oprtprcn/oprtotcm/getOHED0010M0.do?menuId=MN24000623" target="_blank" style="text-decoration:none;">
+            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+              <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">운용 성과</div>
+              <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div><!-- /investor -->
+
   </main>
 </div>
 
@@ -541,6 +689,7 @@ function showPage(id, el) {
     if(sel && !sel._bound) { sel.addEventListener('change', buildCalendar); sel._bound=true; }
   }
   if(id==='notes') { loadNotes(); }
+  if(id==='investor') { setTimeout(()=>buildInvestorPage(),50); }
 }
 
 // ============================
