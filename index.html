@@ -59,6 +59,11 @@ tailwind.config = {
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: #131722; }
   ::-webkit-scrollbar-thumb { background: #2a2e3d; border-radius: 2px; }
+  .ticker-item { cursor: pointer; }
+  .ticker-item:hover { opacity: 0.75; }
+  .ticker-wrap:hover .ticker-scroll { animation-play-state: paused; }
+  .news-filter-btn { font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; border:1px solid #2a2e3d; color:#8d90a2; background:#1b1f2b; transition:all .15s; }
+  .news-filter-btn.act { background:#2962ff; color:#fff; border-color:#2962ff; }
 </style>
 </head>
 <body>
@@ -137,9 +142,9 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
             <div>
-              <span class="widget-title" style="margin-bottom:0;">KOSPI 지수</span>
-              <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;">2,587.23</span>
-              <span class="up-txt" style="font-size:13px;margin-left:6px;">▲ +0.34%</span>
+              <span class="widget-title" style="margin-bottom:0;" id="mainChartIndexName">KOSPI 지수</span>
+              <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;" id="mainChartPriceVal">2,587.23</span>
+              <span class="up-txt" style="font-size:13px;margin-left:6px;" id="mainChartChangeVal">▲ +0.34%</span>
             </div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
               <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#dfe2f2;" onclick="setPeriod('1W',this)">1W</button>
@@ -214,7 +219,17 @@ tailwind.config = {
 
         <!-- 뉴스 피드 -->
         <div class="widget">
-          <div class="widget-title">매크로 뉴스</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="widget-title" style="margin-bottom:0;">최신 경제 뉴스</div>
+            <button onclick="refreshNews('newsFeed','newsItems')" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;" id="newsFilter">
+            <span class="news-filter-btn act" onclick="setNewsFilter('newsFeed','all',this)">전체</span>
+            <span class="news-filter-btn" onclick="setNewsFilter('newsFeed','주식',this)">주식</span>
+            <span class="news-filter-btn" onclick="setNewsFilter('newsFeed','채권',this)">채권</span>
+            <span class="news-filter-btn" onclick="setNewsFilter('newsFeed','외환',this)">외환</span>
+            <span class="news-filter-btn" onclick="setNewsFilter('newsFeed','원자재',this)">원자재</span>
+          </div>
           <div id="newsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
       </div>
@@ -296,22 +311,43 @@ tailwind.config = {
 
       <!-- 금리·채권 탭 -->
       <div id="market-bond" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
+          <!-- Bond detail chart -->
+          <div class="widget">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+              <div>
+                <div class="widget-title" style="margin-bottom:0;" id="bondChartTitle">10년 국고채 수익률</div>
+                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="bondChartRate">3.02%</div>
+              </div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setBondPeriod('1M',this)">1M</button>
+                <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('3M',this)">3M</button>
+                <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('1Y',this)">1Y</button>
+              </div>
+            </div>
+            <div id="bondChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;"></div>
+            <div style="position:relative;height:220px;">
+              <canvas id="bondChart" role="img" aria-label="국고채 수익률 차트">국고채 차트</canvas>
+            </div>
+          </div>
+          <!-- US yield curve -->
           <div class="widget">
             <div class="widget-title">미국 국채 수익률 곡선</div>
             <div style="position:relative;height:220px;">
               <canvas id="yieldCurveChart" role="img" aria-label="미국 국채 수익률 곡선">수익률 곡선</canvas>
             </div>
           </div>
-          <div class="widget">
-            <div class="widget-title">한·미 기준금리 비교</div>
-            <div style="position:relative;height:220px;">
-              <canvas id="rateCompChart" role="img" aria-label="한미 기준금리 비교">기준금리 비교</canvas>
-            </div>
+        </div>
+        <!-- Rate comparison chart -->
+        <div class="widget" style="margin-bottom:12px;">
+          <div class="widget-title">한·미 기준금리 비교</div>
+          <div style="position:relative;height:200px;">
+            <canvas id="rateCompChart" role="img" aria-label="한미 기준금리 비교">기준금리 비교</canvas>
           </div>
         </div>
+        <!-- Clickable bond table -->
         <div class="widget">
-          <div class="widget-title">한국 국고채 수익률</div>
+          <div class="widget-title">한국 국고채 수익률 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 차트 업데이트</span></div>
           <table style="width:100%;font-size:13px;border-collapse:collapse;">
             <thead>
               <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
@@ -322,13 +358,7 @@ tailwind.config = {
                 <th style="text-align:right;padding:6px;">1개월전</th>
               </tr>
             </thead>
-            <tbody>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">1년</td><td style="text-align:right;padding:8px;">2.71%</td><td style="text-align:right;padding:8px;" class="down-txt">▼ -0.02</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.74%</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.69%</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">3년</td><td style="text-align:right;padding:8px;">2.78%</td><td style="text-align:right;padding:8px;" class="up-txt">▲ +0.01</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.76%</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.71%</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">5년</td><td style="text-align:right;padding:8px;">2.87%</td><td style="text-align:right;padding:8px;" class="up-txt">▲ +0.02</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.84%</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.79%</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:8px 0;">10년</td><td style="text-align:right;padding:8px;">3.02%</td><td style="text-align:right;padding:8px;" class="up-txt">▲ +0.03</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.98%</td><td style="text-align:right;padding:8px;color:#8d90a2;">2.92%</td></tr>
-              <tr><td style="padding:8px 0;">30년</td><td style="text-align:right;padding:8px;">3.18%</td><td style="text-align:right;padding:8px;" class="up-txt">▲ +0.01</td><td style="text-align:right;padding:8px;color:#8d90a2;">3.15%</td><td style="text-align:right;padding:8px;color:#8d90a2;">3.11%</td></tr>
-            </tbody>
+            <tbody id="bondTable"></tbody>
           </table>
         </div>
       </div>
@@ -338,6 +368,28 @@ tailwind.config = {
         <div class="widget" style="margin-bottom:12px;">
           <div class="widget-title">글로벌 주요 지수 현황</div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="equityCards"></div>
+        </div>
+        <!-- Equity index chart -->
+        <div class="widget" style="margin-bottom:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <div class="widget-title" id="equityChartTitle" style="margin-bottom:0;">KOSPI</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="selectEquityIndex(0,this)">KOSPI</button>
+              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="selectEquityIndex(1,this)">KOSDAQ</button>
+              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="selectEquityIndex(2,this)">S&amp;P 500</button>
+              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="selectEquityIndex(3,this)">NASDAQ</button>
+              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="selectEquityIndex(4,this)">닛케이</button>
+              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="selectEquityIndex(5,this)">항셍</button>
+              <span style="color:#2a2e3d;margin:0 2px;">|</span>
+              <button class="tab-btn active" id="eqPeriod1W" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setEquityPeriod('1W',this)">1W</button>
+              <button class="tab-btn" id="eqPeriod1M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1M',this)">1M</button>
+              <button class="tab-btn" id="eqPeriod3M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('3M',this)">3M</button>
+              <button class="tab-btn" id="eqPeriod1Y" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1Y',this)">1Y</button>
+            </div>
+          </div>
+          <div style="position:relative;height:220px;">
+            <canvas id="equityIndexChart" role="img" aria-label="주식 지수 차트">지수 차트</canvas>
+          </div>
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -363,15 +415,28 @@ tailwind.config = {
 
       <!-- 원자재 탭 -->
       <div id="market-commodity" style="display:none;">
+        <!-- Top: commodity detail chart + commodity table -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <!-- Detail chart (updates on row click) -->
           <div class="widget">
-            <div class="widget-title">WTI / Brent / Dubai 원유 가격</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+              <div>
+                <div class="widget-title" style="margin-bottom:0;" id="comDetailTitle">WTI 원유</div>
+                <div style="font-size:22px;font-weight:700;font-family:'Public Sans';" id="comDetailPrice">$78.42</div>
+              </div>
+              <div style="display:flex;gap:4px;">
+                <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setComPeriod('1M',this)">1M</button>
+                <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setComPeriod('3M',this)">3M</button>
+                <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setComPeriod('1Y',this)">1Y</button>
+              </div>
+            </div>
             <div style="position:relative;height:220px;">
-              <canvas id="oilChart" role="img" aria-label="유가 차트">유가 차트</canvas>
+              <canvas id="comDetailChart" role="img" aria-label="원자재 차트">원자재 차트</canvas>
             </div>
           </div>
+          <!-- Commodity table (clickable) -->
           <div class="widget">
-            <div class="widget-title">원자재 현물 가격</div>
+            <div class="widget-title">원자재 현물 가격 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 차트 업데이트</span></div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
                 <th style="text-align:left;padding:6px 0;">원자재</th><th style="text-align:right;">현재가</th><th style="text-align:right;">전일비</th><th style="text-align:right;">단위</th>
@@ -380,7 +445,36 @@ tailwind.config = {
             </table>
           </div>
         </div>
-        <!-- 금속 LME 재고 현황 -->
+        <!-- Sector charts 2x2 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="widget">
+            <div class="widget-title">귀금속 (금·은·백금)</div>
+            <div style="position:relative;height:200px;">
+              <canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">비철금속 (구리·알루미늄·아연·니켈)</div>
+            <div style="position:relative;height:200px;">
+              <canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="widget">
+            <div class="widget-title">에너지 (WTI·Brent·두바이·천연가스)</div>
+            <div style="position:relative;height:200px;">
+              <canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">농산물 (밀)</div>
+            <div style="position:relative;height:200px;">
+              <canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas>
+            </div>
+          </div>
+        </div>
+        <!-- LME 금속 재고 현황 -->
         <div class="widget" style="margin-bottom:12px;">
           <div class="widget-title">LME 금속 창고 재고 현황
             <span style="font-size:9px;font-weight:400;color:#434656;margin-left:6px;">단위: 톤 | 출처: LME (London Metal Exchange) 주간 보고서</span>
@@ -399,7 +493,16 @@ tailwind.config = {
         </div>
         <!-- 원자재 관련 뉴스 -->
         <div class="widget">
-          <div class="widget-title">원자재 관련 뉴스</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="widget-title" style="margin-bottom:0;">원자재 관련 뉴스</div>
+            <button onclick="refreshNews('commodityNewsFeed','commodityNewsItems')" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+            <span class="news-filter-btn act" onclick="setNewsFilter('commodityNewsFeed','all',this)">전체</span>
+            <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','원유',this)">원유</span>
+            <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','귀금속',this)">귀금속</span>
+            <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','비철금속',this)">비철금속</span>
+          </div>
           <div id="commodityNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
       </div>
@@ -415,7 +518,17 @@ tailwind.config = {
       </div>
       <div id="macroContent"></div>
       <div class="widget" style="margin-top:12px;">
-        <div class="widget-title">거시경제 관련 뉴스</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="widget-title" style="margin-bottom:0;">거시경제 관련 뉴스</div>
+          <button onclick="refreshNews('macroNewsFeed','macroNewsItems')" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+          <span class="news-filter-btn act" onclick="setNewsFilter('macroNewsFeed','all',this)">전체</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)">한국</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)">미국</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','중국경기',this)">중국</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','유로존',this)">유로존</span>
+        </div>
         <div id="macroNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
     </div><!-- /macro -->
@@ -461,7 +574,16 @@ tailwind.config = {
         </div>
       </div>
       <div class="widget" style="margin-top:12px;">
-        <div class="widget-title">경제 이벤트 관련 뉴스</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="widget-title" style="margin-bottom:0;">경제 이벤트 관련 뉴스</div>
+          <button onclick="refreshNews('calendarNewsFeed','calendarNewsItems')" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+          <span class="news-filter-btn act" onclick="setNewsFilter('calendarNewsFeed','all',this)">전체</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','한국수출',this)">수출입</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','미국CPI',this)">고용/물가</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','한국은행',this)">통화정책</span>
+        </div>
         <div id="calendarNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
     </div><!-- /calendar -->
@@ -655,10 +777,29 @@ const tickerData = [
   {name:'한국 기준금리', val:'2.75%', chg:'동결', up:null},
   {name:'미 10년물', val:'4.28%', chg:'+0.03', up:true},
 ];
+function tickerClick(name) {
+  const menuItems = document.querySelectorAll('.menu-item');
+  const marketBtns = ()=>document.querySelectorAll('#page-market .tab-btn');
+  if(name==='KOSPI'||name==='KOSDAQ') {
+    showPage('dashboard', menuItems[0]);
+  } else if(name==='USD/KRW'||name==='EUR/KRW') {
+    showPage('market', menuItems[1]);
+    setTimeout(()=>setMarketTab('fx', marketBtns()[0]),60);
+  } else if(name==='한국 기준금리'||name==='미 10년물') {
+    showPage('market', menuItems[1]);
+    setTimeout(()=>setMarketTab('bond', marketBtns()[1]),60);
+  } else if(name==='S&P 500'||name==='NASDAQ'||name==='닛케이') {
+    showPage('market', menuItems[1]);
+    setTimeout(()=>setMarketTab('equity', marketBtns()[2]),60);
+  } else if(name==='WTI'||name==='BRENT'||name==='금(Gold)') {
+    showPage('market', menuItems[1]);
+    setTimeout(()=>setMarketTab('commodity', marketBtns()[3]),60);
+  }
+}
 function buildTicker() {
   const items = [...tickerData,...tickerData].map(d=>{
     const cc = d.up===null?'color:#8d90a2':d.up?'color:#26a69a':'color:#ef5350';
-    return `<span style="font-size:12px;display:inline-flex;gap:6px;align-items:center;">
+    return `<span class="ticker-item" onclick="tickerClick('${d.name.replace(/'/g,"\\'")}')" style="font-size:12px;display:inline-flex;gap:6px;align-items:center;">
       <span style="color:#8d90a2;font-size:10px;font-weight:600;text-transform:uppercase;">${d.name}</span>
       <span style="color:#dfe2f2;font-weight:500;">${d.val}</span>
       <span style="${cc};font-size:11px;">${d.chg}</span>
@@ -719,11 +860,12 @@ function sparkline(id, series, color) {
 // ============================
 let mainPeriod = '1W', mainChartInst=null, volChartInst=null;
 const allData = genSeries(2580, 252, 0.012);
+let mainAllData = allData;
 const allVol  = allData.map(d=>({x:d.x, y:Math.floor(Math.random()*800000+200000)}));
 
 function getPeriodData(p) {
   const n = p==='1W'?5:p==='1M'?21:p==='3M'?63:252;
-  return { price: allData.slice(-n), vol: allVol.slice(-n) };
+  return { price: mainAllData.slice(-n), vol: allVol.slice(-n) };
 }
 
 // ── 차트 구간 선택 (2-click range) ──
@@ -818,15 +960,36 @@ const globalIndices = [
   {name:'닛케이',  val:38405.10,chg:+0.45},
   {name:'상하이',  val:3298.40, chg:-0.33},
 ];
+let mainSelectedGlobalIdx = null;
 function buildGlobalTable() {
   const tb = document.getElementById('globalIndexTable');
   if(!tb) return;
-  tb.innerHTML = globalIndices.map(d=>`
-    <tr style="border-bottom:1px solid #1b1f2b;">
-      <td style="padding:7px 0;font-size:12px;">${d.name}</td>
-      <td style="text-align:right;padding:7px 0;font-size:12px;font-weight:500;">${d.val.toLocaleString()}</td>
-      <td style="text-align:right;padding:7px 0;">${fmtChg(d.chg)}</td>
+  tb.innerHTML = globalIndices.map((d,i)=>`
+    <tr onclick="selectGlobalIndex(${i},this)" style="border-bottom:1px solid #1b1f2b;cursor:pointer;${i===mainSelectedGlobalIdx?'background:#2962ff11;border-left:2px solid #2962ff':''}" title="${d.name} 클릭 → 차트 업데이트">
+      <td style="padding:7px 4px;font-size:12px;">${d.name}</td>
+      <td style="text-align:right;padding:7px 4px;font-size:12px;font-weight:500;">${d.val.toLocaleString()}</td>
+      <td style="text-align:right;padding:7px 4px;">${fmtChg(d.chg)}</td>
     </tr>`).join('');
+}
+function selectGlobalIndex(idx, el) {
+  mainSelectedGlobalIdx = idx;
+  const d = globalIndices[idx];
+  // Update main chart index label
+  const nameEl  = document.getElementById('mainChartIndexName');
+  const priceEl = document.getElementById('mainChartPriceVal');
+  const changeEl= document.getElementById('mainChartChangeVal');
+  if(nameEl)  nameEl.textContent = d.name + ' 지수';
+  if(priceEl) priceEl.textContent = d.val.toLocaleString();
+  if(changeEl){ changeEl.textContent = (d.chg>=0?'▲ +':'▼ ')+Math.abs(d.chg).toFixed(2)+'%'; changeEl.className=d.chg>=0?'up-txt':'down-txt'; changeEl.style.cssText='font-size:13px;margin-left:6px;'; }
+  // Rebuild table (for highlight update)
+  buildGlobalTable();
+  // Generate new data for selected index
+  const bases = {KOSPI:2580, KOSDAQ:742, 'S&P 500':5600, NASDAQ:17800, '닛케이':38400, '상하이':3300};
+  const vols  = {KOSPI:0.012, KOSDAQ:0.015, 'S&P 500':0.008, NASDAQ:0.010, '닛케이':0.011, '상하이':0.013};
+  const base = bases[d.name]||2580, vol=vols[d.name]||0.010;
+  mainAllData = genSeries(base, 252, vol);
+  const n = mainPeriod==='1W'?5:mainPeriod==='1M'?21:mainPeriod==='3M'?63:252;
+  initMainChart(null, mainAllData.slice(-n));
 }
 
 // ============================
@@ -903,69 +1066,104 @@ function buildNewsFeed(containerId, items) {
 
 // 대시보드 홈 뉴스
 const newsItems = [
-  {time:'오늘', tag:'매크로', tagClr:'#2962ff',
+  {time:'오늘', tag:'매크로', tagClr:'#2962ff', cat:'채권',
    title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
    url:'https://www.hankyung.com/amp/202601152172i'},
-  {time:'오늘', tag:'외환',  tagClr:'#0f6e56',
+  {time:'오늘', tag:'외환',  tagClr:'#0f6e56', cat:'외환',
    title:'이어지는 달러 약세..원달러 1350원?',
    url:'https://www.hankyung.com/article/202604308877i'},
-  {time:'오늘', tag:'글로벌', tagClr:'#534ab7',
+  {time:'오늘', tag:'글로벌', tagClr:'#534ab7', cat:'주식',
    title:'ECB, 8차례 금리인하…年2%로 내려',
    url:'https://www.hankyung.com/article/2025060583301'},
-  {time:'오늘', tag:'원자재', tagClr:'#854f0b',
+  {time:'오늘', tag:'원자재', tagClr:'#854f0b', cat:'원자재',
    title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
    url:'https://www.hankyung.com/article/202503049987i'},
 ];
 
 // 원자재 페이지 뉴스
 const commodityNewsItems = [
-  {time:'오늘', tag:'원유', tagClr:'#854f0b',
+  {time:'오늘', tag:'원유', tagClr:'#854f0b', cat:'원유',
    title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
    url:'https://www.hankyung.com/article/202503049987i'},
-  {time:'오늘', tag:'귀금속', tagClr:'#b8860b',
+  {time:'오늘', tag:'귀금속', tagClr:'#b8860b', cat:'귀금속',
    title:'전쟁에도 금값 급락? 시장이 주목한 Fed 변수',
    url:'https://www.hankyung.com/article/202603047159i'},
-  {time:'오늘', tag:'비철금속', tagClr:'#2962ff',
+  {time:'오늘', tag:'비철금속', tagClr:'#2962ff', cat:'비철금속',
    title:'구리 가격 \'주춤\'…재고 급증에 수요는 감소',
    url:'https://www.hankyung.com/article/202603188275i'},
-  {time:'오늘', tag:'두바이유', tagClr:'#534ab7',
+  {time:'오늘', tag:'두바이유', tagClr:'#534ab7', cat:'원유',
    title:'중동 기름 70%라더니…한국 정유사 초유의 상황 터졌다',
    url:'https://www.hankyung.com/article/2026031776971'},
 ];
 
 // 거시경제 페이지 뉴스
 const macroNewsItems = [
-  {time:'오늘', tag:'한국GDP', tagClr:'#2962ff',
+  {time:'오늘', tag:'한국GDP', tagClr:'#2962ff', cat:'한국GDP',
    title:'한국 경제, 2026년 불확실성 속 완만한 회복 흐름 지속',
    url:'https://www.hankyung.com/article/202601212936a'},
-  {time:'오늘', tag:'미국CPI', tagClr:'#0f6e56',
+  {time:'오늘', tag:'미국CPI', tagClr:'#0f6e56', cat:'미국CPI',
    title:'예상대로 높았던 4월 CPI…연준 올해 금리인하 난망',
    url:'https://www.hankyung.com/article/202605122103i'},
-  {time:'오늘', tag:'중국경기', tagClr:'#ef5350',
+  {time:'오늘', tag:'중국경기', tagClr:'#ef5350', cat:'중국경기',
    title:'내수 침체에 제조업 다시 위축…中 성장 목표 낮추나',
    url:'https://www.hankyung.com/article/2026020163821'},
-  {time:'오늘', tag:'유로존', tagClr:'#534ab7',
+  {time:'오늘', tag:'유로존', tagClr:'#534ab7', cat:'유로존',
    title:'5월 유로존 인플레이션 1.9%…ECB 목표치보다 낮아',
    url:'https://www.hankyung.com/article/202506032663i'},
 ];
 
 // 경제캘린더 페이지 뉴스
 const calendarNewsItems = [
-  {time:'예정', tag:'한국수출', tagClr:'#2962ff',
+  {time:'예정', tag:'한국수출', tagClr:'#2962ff', cat:'한국수출',
    title:'전쟁 뚫고…3월 수출 861억弗 신기록',
    url:'https://www.hankyung.com/article/2026040126791'},
-  {time:'예정', tag:'미국CPI', tagClr:'#0f6e56',
+  {time:'예정', tag:'미국CPI', tagClr:'#0f6e56', cat:'미국CPI',
    title:'예상대로 높았던 4월 CPI…연준 올해 금리인하 난망',
    url:'https://www.hankyung.com/article/202605122103i'},
-  {time:'예정', tag:'한국은행', tagClr:'#b6c4ff',
+  {time:'예정', tag:'한국은행', tagClr:'#b6c4ff', cat:'한국은행',
    title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
    url:'https://www.hankyung.com/amp/202601152172i'},
-  {time:'예정', tag:'ECB', tagClr:'#534ab7',
+  {time:'예정', tag:'ECB', tagClr:'#534ab7', cat:'한국은행',
    title:'ECB, 8차례 금리인하…年2%로 내려',
    url:'https://www.hankyung.com/article/2025060583301'},
 ];
 
 function buildNews() { buildNewsFeed('newsFeed', newsItems); }
+
+function setNewsFilter(feedId, cat, el) {
+  // Toggle active class on buttons in the same filter bar
+  const bar = el.parentElement;
+  bar.querySelectorAll('.news-filter-btn').forEach(b=>b.classList.remove('act'));
+  el.classList.add('act');
+  // Determine which array to use
+  const feedToArr = {
+    newsFeed: newsItems,
+    commodityNewsFeed: commodityNewsItems,
+    macroNewsFeed: macroNewsItems,
+    calendarNewsFeed: calendarNewsItems,
+  };
+  const arr = feedToArr[feedId];
+  if(!arr) return;
+  const filtered = cat==='all' ? arr : arr.filter(n=>n.cat===cat||n.tag===cat);
+  const el2 = document.getElementById(feedId);
+  if(el2) el2.innerHTML = filtered.length ? filtered.map(newsCard).join('') : '<div style="color:#434656;font-size:12px;padding:12px 0;text-align:center;">해당 카테고리의 뉴스가 없습니다</div>';
+}
+
+async function refreshNews(feedId, arrName) {
+  const btn = event.currentTarget||event.target;
+  if(btn) btn.textContent = '⟳ 로딩중…';
+  const arrMap = { newsItems, commodityNewsItems, macroNewsItems, calendarNewsItems };
+  const arr = arrMap[arrName];
+  if(!arr) return;
+  // Find matching queries
+  const queries = NEWS_QUERIES[arrName];
+  if(!queries) return;
+  await Promise.all(queries.map(({idx,q})=>fetchLatestArticle(q).then(fresh=>{
+    if(fresh&&fresh.url){ arr[idx].title=fresh.title; arr[idx].url=fresh.url; arr[idx].time=fresh.time; }
+  })));
+  buildNewsFeed(feedId, arr);
+  if(btn) btn.textContent = '↻ 새로고침';
+}
 
 // ============================
 // 시장 지표 페이지 초기화
@@ -1132,10 +1330,82 @@ function buildFxPage() {
       <td style="text-align:right;padding:8px;color:#8d90a2;">${r.l52}</td>
     </tr>`).join('');
 }
+const bondItems = [
+  {label:'1년',  rate:'2.71%', baseRate:2.71, chg:'-0.02', w1:'2.74%', m1:'2.69%'},
+  {label:'3년',  rate:'2.78%', baseRate:2.78, chg:'+0.01', w1:'2.76%', m1:'2.71%'},
+  {label:'5년',  rate:'2.87%', baseRate:2.87, chg:'+0.02', w1:'2.84%', m1:'2.79%'},
+  {label:'10년', rate:'3.02%', baseRate:3.02, chg:'+0.03', w1:'2.98%', m1:'2.92%'},
+  {label:'30년', rate:'3.18%', baseRate:3.18, chg:'+0.01', w1:'3.15%', m1:'3.11%'},
+];
+let bondCurrentIdx = 3; // default 10년
+let bondAllSeries = null;
+let bondRangeState = {start:null, end:null};
+let bondPeriodN = 21; // 1M default
+
+function buildBondChart(series) {
+  bondRangeState = {start:null, end:null};
+  destroyChart('bondChart');
+  const ctx = document.getElementById('bondChart');
+  if(!ctx) return;
+  charts['bondChart'] = new Chart(ctx,{
+    type:'line',
+    data:{labels:sl(series),datasets:[{data:sv(series),borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:'#b6c4ff10',tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      onClick(evt,elements,chart){
+        const pts=chart.getElementsAtEventForMode(evt,'index',{intersect:false},false);
+        if(!pts.length) return;
+        const idx=pts[0].index, price=chart.data.datasets[0].data[idx], label=chart.data.labels[idx];
+        if(!bondRangeState.start||bondRangeState.end){ bondRangeState={start:{idx,price,label},end:null}; }
+        else { bondRangeState.end={idx,price,label}; }
+        showRangeLabel('bondChartRange',bondRangeState,chart.data.labels);
+      },
+      scales:{
+        x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
+        y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v.toFixed(2)+'%'},grid:{color:'#2a2e3d55'},position:'right'}
+      },
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>ctx.parsed.y.toFixed(3)+'%'}}}
+    }
+  });
+}
+
+function selectBond(idx, el) {
+  bondCurrentIdx = idx;
+  const b = bondItems[idx];
+  document.getElementById('bondChartTitle').textContent = b.label + ' 국고채 수익률';
+  document.getElementById('bondChartRate').textContent = b.rate;
+  document.querySelectorAll('#bondTable tr').forEach(r=>r.style.borderLeft='');
+  el.style.borderLeft = '2px solid #2962ff';
+  bondAllSeries = genSeries(b.baseRate, 252, 0.005);
+  buildBondChart(bondAllSeries.slice(-bondPeriodN));
+}
+
+function setBondPeriod(p, btn) {
+  document.querySelectorAll('#market-bond .tab-btn').forEach(b=>{b.classList.remove('active');b.style.background='transparent';b.style.color='#8d90a2';});
+  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  bondPeriodN = p==='1M'?21:p==='3M'?63:252;
+  if(bondAllSeries) buildBondChart(bondAllSeries.slice(-bondPeriodN));
+}
+
 function buildBondPage() {
-  destroyChart('yieldCurveChart'); destroyChart('rateCompChart');
+  destroyChart('bondChart'); destroyChart('yieldCurveChart'); destroyChart('rateCompChart');
+  // Bond table (clickable)
+  const tb = document.getElementById('bondTable');
+  if(tb) tb.innerHTML = bondItems.map((b,i)=>`
+    <tr onclick="selectBond(${i},this)" style="border-bottom:1px solid #1b1f2b;cursor:pointer;${i===bondCurrentIdx?'border-left:2px solid #2962ff':''}" title="클릭하면 차트 업데이트">
+      <td style="padding:8px 4px;">${b.label}</td>
+      <td style="text-align:right;padding:8px;">${b.rate}</td>
+      <td style="text-align:right;padding:8px;" class="${b.chg.startsWith('-')?'down-txt':'up-txt'}">${b.chg}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${b.w1}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${b.m1}</td>
+    </tr>`).join('');
+  // Build bond chart for current selection
+  const b = bondItems[bondCurrentIdx];
+  document.getElementById('bondChartTitle').textContent = b.label + ' 국고채 수익률';
+  document.getElementById('bondChartRate').textContent = b.rate;
+  bondAllSeries = genSeries(b.baseRate, 252, 0.005);
+  buildBondChart(bondAllSeries.slice(-bondPeriodN));
+  // Yield curve chart
   const c1=document.getElementById('yieldCurveChart');
-  const c2=document.getElementById('rateCompChart');
   if(c1) charts['yieldCurveChart'] = new Chart(c1,{
     type:'line',
     data:{labels:['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'],
@@ -1148,6 +1418,8 @@ function buildBondPage() {
               y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
       plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}}}}
   });
+  // Rate comparison
+  const c2=document.getElementById('rateCompChart');
   if(c2) charts['rateCompChart'] = new Chart(c2,{
     type:'bar',
     data:{labels:['2021','2022','2023','2024','2025'],
@@ -1168,6 +1440,53 @@ const investorData = {
   retail:  [-720,  +490, -1260, -210, -770],
 };
 
+let equityCurrentIdx = 0;
+let equityAllSeries = null;
+let equityPeriodN = 5;
+
+function buildEquityIndexChart(series) {
+  destroyChart('equityIndexChart');
+  const ctx = document.getElementById('equityIndexChart');
+  if(!ctx) return;
+  const clr = series[series.length-1].y >= series[0].y ? '#26a69a':'#ef5350';
+  charts['equityIndexChart'] = new Chart(ctx,{
+    type:'line',
+    data:{labels:sl(series),datasets:[{data:sv(series),borderColor:clr,borderWidth:2,pointRadius:0,fill:true,backgroundColor:clr+'15',tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
+              y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
+  });
+}
+
+function selectEquityIndex(idx, btn) {
+  equityCurrentIdx = idx;
+  const d = eqData[idx];
+  const titleEl = document.getElementById('equityChartTitle');
+  if(titleEl) titleEl.textContent = d.name;
+  document.querySelectorAll('#market-equity .tab-btn').forEach(b=>{
+    if(['KOSPI','KOSDAQ','S&P 500','NASDAQ','닛케이','항셍'].includes(b.textContent.trim())) {
+      b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+    }
+  });
+  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  const bases=[2580,742,5600,17800,38400,18300];
+  const vols=[0.012,0.015,0.008,0.010,0.011,0.013];
+  equityAllSeries = genSeries(bases[idx]||2580, 252, vols[idx]||0.010);
+  buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
+}
+
+function setEquityPeriod(p, btn) {
+  document.querySelectorAll('#market-equity .tab-btn').forEach(b=>{
+    if(['1W','1M','3M','1Y'].includes(b.textContent.trim())) {
+      b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+    }
+  });
+  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  equityPeriodN = p==='1W'?5:p==='1M'?21:p==='3M'?63:252;
+  if(equityAllSeries) buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
+}
+
 function buildEquityPage() {
   document.getElementById('equityCards').innerHTML = eqData.map(d=>`
     <div class="kpi-card" style="padding:12px;">
@@ -1175,6 +1494,9 @@ function buildEquityPage() {
       <div style="font-size:18px;font-weight:700;font-family:'Public Sans';margin-top:4px;">${d.val.toLocaleString()}</div>
       <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:12px;margin-top:2px;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
     </div>`).join('');
+  // Equity index chart initialization
+  equityAllSeries = genSeries(2580, 252, 0.012);
+  buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
   destroyChart('investorChart');
   const ctx=document.getElementById('investorChart');
   if(!ctx) return;
@@ -1232,42 +1554,154 @@ const metalInventory = [
   {name:'주석 (Tin)',      cur:4180,   wkChg:+110,  m4ago:3950,   status:'증가'},
 ];
 
-function buildCommodityPage() {
-  destroyChart('oilChart');
-  const ctx=document.getElementById('oilChart');
-  if(ctx) {
-    const wti=genSeries(78,90,0.02), brent=genSeries(82,90,0.018), dubai=genSeries(80,90,0.018);
-    charts['oilChart'] = new Chart(ctx,{
-      type:'line',
-      data:{labels:sl(wti),datasets:[
-        {data:sv(wti),   label:'WTI',   borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
-        {data:sv(brent), label:'Brent', borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
-        {data:sv(dubai), label:'Dubai', borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4]},
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
-                y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>'$'+v},grid:{color:'#2a2e3d55'},position:'right'}},
-        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
-                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}}}
-    });
-  }
+let comCurrentIdx = 0;
+let comAllSeries = null;
+let comPeriodN = 21;
 
-  // 원자재 테이블 — 카테고리 구분선 포함
+function buildComDetailChart(series) {
+  destroyChart('comDetailChart');
+  const ctx = document.getElementById('comDetailChart');
+  if(!ctx) return;
+  const clr = series[series.length-1].y >= series[0].y ? '#26a69a':'#ef5350';
+  charts['comDetailChart'] = new Chart(ctx,{
+    type:'line',
+    data:{labels:sl(series),datasets:[{data:sv(series),borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:'#b6c4ff10',tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
+              y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
+  });
+}
+
+function selectCommodity(idx, el) {
+  comCurrentIdx = idx;
+  const c = comData[idx];
+  const titleEl = document.getElementById('comDetailTitle');
+  const priceEl = document.getElementById('comDetailPrice');
+  if(titleEl) titleEl.textContent = c.name;
+  if(priceEl) priceEl.textContent = c.price;
+  document.querySelectorAll('#commodityTable tr').forEach(r=>r.style.borderLeft='');
+  el.style.borderLeft = '2px solid #2962ff';
+  const baseNum = parseFloat(c.price.replace(/[$,]/g,''));
+  comAllSeries = genSeries(baseNum||78, 252, 0.018);
+  buildComDetailChart(comAllSeries.slice(-comPeriodN));
+}
+
+function setComPeriod(p, btn) {
+  document.querySelectorAll('#market-commodity .tab-btn').forEach(b=>{
+    if(['1M','3M','1Y'].includes(b.textContent.trim())) {
+      b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+    }
+  });
+  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  comPeriodN = p==='1M'?21:p==='3M'?63:252;
+  if(comAllSeries) buildComDetailChart(comAllSeries.slice(-comPeriodN));
+}
+
+function buildCommodityPage() {
+  // Destroy existing charts
+  ['comDetailChart','preciousChart','baseMetalChart','energyChart','agriChart'].forEach(destroyChart);
+
+  // Initialize commodity detail chart (WTI by default)
+  const initCom = comData[comCurrentIdx];
+  const titleEl = document.getElementById('comDetailTitle');
+  const priceEl = document.getElementById('comDetailPrice');
+  if(titleEl) titleEl.textContent = initCom.name;
+  if(priceEl) priceEl.textContent = initCom.price;
+  const baseNum = parseFloat(initCom.price.replace(/[$,]/g,''));
+  comAllSeries = genSeries(baseNum||78, 252, 0.018);
+  buildComDetailChart(comAllSeries.slice(-comPeriodN));
+
+  // Commodity table (clickable)
   const catLabel = {oil:'▸ 원유', metal:'▸ 귀금속', base:'▸ 비철금속', energy:'▸ 에너지', agri:'▸ 농산물'};
   let prevCat = null;
-  document.getElementById('commodityTable').innerHTML = comData.map(r=>{
+  document.getElementById('commodityTable').innerHTML = comData.map((r,i)=>{
     let sep = '';
     if(r.cat !== prevCat) {
       sep = `<tr><td colspan="4" style="padding:6px 0 2px;font-size:10px;font-weight:600;color:#434656;letter-spacing:.05em;">${catLabel[r.cat]||''}</td></tr>`;
       prevCat = r.cat;
     }
-    return sep + `<tr style="border-bottom:1px solid #1b1f2b;">
-      <td style="padding:7px 0;">${r.name}</td>
+    return sep + `<tr onclick="selectCommodity(${i},this)" style="border-bottom:1px solid #1b1f2b;cursor:pointer;${i===comCurrentIdx?'border-left:2px solid #2962ff':''}" title="${r.name} 클릭 → 차트 업데이트">
+      <td style="padding:7px 4px;">${r.name}</td>
       <td style="text-align:right;padding:7px;font-weight:500;">${r.price}</td>
       <td style="text-align:right;padding:7px;" class="${r.up?'up-txt':'down-txt'}">${r.chg}</td>
       <td style="text-align:right;padding:7px;color:#8d90a2;">${r.unit}</td>
     </tr>`;
   }).join('');
+
+  // Sector charts
+  const days=90;
+  // 귀금속
+  const pCtx=document.getElementById('preciousChart');
+  if(pCtx){
+    const gSeries=genSeries(2387,days,0.010), sSeries=genSeries(28.4,days,0.015), ptSeries=genSeries(961,days,0.012);
+    charts['preciousChart']=new Chart(pCtx,{type:'line',
+      data:{labels:sl(gSeries),datasets:[
+        {data:sv(gSeries),label:'금(Gold)',borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+        {data:sv(sSeries),label:'은(Silver)',borderColor:'#c0c0c0',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4],yAxisID:'y2'},
+        {data:sv(ptSeries),label:'백금',borderColor:'#26a69a',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4]},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
+                y:{ticks:{color:'#8d90a2',font:{size:9},callback:v=>'$'+v.toLocaleString()},grid:{color:'#2a2e3d55'},position:'right'},
+                y2:{display:false}},
+        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:9},boxWidth:8}},
+                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',borderColor:'#2a2e3d',borderWidth:1}}}
+    });
+  }
+  // 비철금속
+  const bCtx=document.getElementById('baseMetalChart');
+  if(bCtx){
+    const cuS=genSeries(4.12,days,0.015),alS=genSeries(2248,days,0.012),znS=genSeries(2912,days,0.013),niS=genSeries(16820,days,0.018);
+    charts['baseMetalChart']=new Chart(bCtx,{type:'line',
+      data:{labels:sl(cuS),datasets:[
+        {data:sv(cuS),label:'구리($/lb)',borderColor:'#ef5350',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+        {data:sv(alS),label:'알루미늄($/톤)',borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4],yAxisID:'y2'},
+        {data:sv(znS),label:'아연($/톤)',borderColor:'#26a69a',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4],yAxisID:'y2'},
+        {data:sv(niS),label:'니켈($/톤)',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,2],yAxisID:'y3'},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
+                y:{ticks:{color:'#8d90a2',font:{size:9},callback:v=>'$'+v.toFixed(2)},grid:{color:'#2a2e3d55'},position:'right'},
+                y2:{display:false},y3:{display:false}},
+        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:9},boxWidth:8}},
+                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',borderColor:'#2a2e3d',borderWidth:1}}}
+    });
+  }
+  // 에너지
+  const eCtx=document.getElementById('energyChart');
+  if(eCtx){
+    const wSeries=genSeries(78,days,0.020),brS=genSeries(82,days,0.018),dxS=genSeries(80,days,0.018),ngS=genSeries(2.18,days,0.035);
+    charts['energyChart']=new Chart(eCtx,{type:'line',
+      data:{labels:sl(wSeries),datasets:[
+        {data:sv(wSeries),label:'WTI($/bbl)',borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+        {data:sv(brS),label:'Brent',borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
+        {data:sv(dxS),label:'두바이',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4]},
+        {data:sv(ngS),label:'천연가스($/MMBtu)',borderColor:'#ef5350',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,2],yAxisID:'y2'},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
+                y:{ticks:{color:'#8d90a2',font:{size:9},callback:v=>'$'+v.toFixed(1)},grid:{color:'#2a2e3d55'},position:'right'},
+                y2:{display:false}},
+        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:9},boxWidth:8}},
+                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',borderColor:'#2a2e3d',borderWidth:1}}}
+    });
+  }
+  // 농산물
+  const aCtx=document.getElementById('agriChart');
+  if(aCtx){
+    const whS=genSeries(5.84,days,0.020);
+    charts['agriChart']=new Chart(aCtx,{type:'line',
+      data:{labels:sl(whS),datasets:[
+        {data:sv(whS),label:'밀($/bu)',borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'#f5a62315',tension:0.3},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
+                y:{ticks:{color:'#8d90a2',font:{size:9},callback:v=>'$'+v.toFixed(2)},grid:{color:'#2a2e3d55'},position:'right'}},
+        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:9},boxWidth:8}},
+                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',borderColor:'#2a2e3d',borderWidth:1}}}
+    });
+  }
 
   // LME 금속 재고 테이블
   const invEl = document.getElementById('metalInventoryTable');
@@ -1607,11 +2041,11 @@ function applyRealData(d) {
 
   // ── 원자재 데이터 업데이트 ───────────────────
   const comMap = [
-    [com.Gold,   0, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
-    [com.Silver, 1, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
-    [com.Copper, 2, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
-    [com.WTI,    3, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
-    [com.Brent,  4, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
+    [com.WTI,    0, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
+    [com.Brent,  1, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
+    [com.Gold,   3, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
+    [com.Silver, 4, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
+    [com.Copper, 6, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
   ];
   comMap.forEach(([src, i, mapper]) => { if (src) Object.assign(comData[i], mapper(src)); });
 
