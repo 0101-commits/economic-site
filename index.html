@@ -708,7 +708,13 @@ tailwind.config = {
       <div id="nps-overview">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
           <div class="widget">
-            <div class="widget-title">연도별 수익률 (%) — 공식 발표</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div class="widget-title" style="margin-bottom:0;" id="npsReturnChartTitle">연도별 수익률 (%) — 공식 발표</div>
+              <div style="display:flex;gap:4px;">
+                <button onclick="setNpsReturnView('annual',this)" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">연간</button>
+                <button onclick="setNpsReturnView('quarterly',this)" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">분기별</button>
+              </div>
+            </div>
             <div style="position:relative;height:260px;">
               <canvas id="npsReturnChart" role="img" aria-label="국민연금 연도별 수익률">수익률 차트</canvas>
             </div>
@@ -721,7 +727,7 @@ tailwind.config = {
           </div>
         </div>
         <div class="widget">
-          <div class="widget-title">연도별 성과 요약</div>
+          <div class="widget-title">연도별 성과 요약 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 분기별 상세</span></div>
           <div style="overflow-x:auto;">
             <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:600px;">
               <thead>
@@ -736,6 +742,14 @@ tailwind.config = {
               <tbody id="npsReturnTable"></tbody>
             </table>
           </div>
+        </div>
+        <!-- 연도별 분기 상세 드릴다운 -->
+        <div class="widget" id="npsYearDetail" style="margin-top:12px;display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="widget-title" style="margin-bottom:0;" id="npsYearDetailTitle">연도별 상세</div>
+            <button onclick="document.getElementById('npsYearDetail').style.display='none'" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">✕ 닫기</button>
+          </div>
+          <div style="position:relative;height:180px;"><canvas id="npsYearDetailChart"></canvas></div>
         </div>
       </div>
 
@@ -768,6 +782,34 @@ tailwind.config = {
           <div class="widget-title">자산군별 운용 비중 추이 (연도별 %)</div>
           <div style="position:relative;height:260px;">
             <canvas id="npsAllocationTrendChart" role="img" aria-label="자산배분 추이">배분 추이</canvas>
+          </div>
+        </div>
+        <!-- Top 10 보유 종목 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+          <div class="widget">
+            <div class="widget-title">국내주식 Top 10 보유 종목 <span style="font-size:9px;color:#434656;font-weight:400;">(2024Q3 기준, 공시 기반)</span></div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:5px 0;">#</th>
+                <th style="text-align:left;padding:5px;">종목</th>
+                <th style="text-align:right;padding:5px;">비중</th>
+                <th style="text-align:right;padding:5px;">평가액(조)</th>
+              </tr></thead>
+              <tbody id="npsKrStocksTable"></tbody>
+            </table>
+          </div>
+          <div class="widget">
+            <div class="widget-title">해외주식 Top 10 보유 종목 <span style="font-size:9px;color:#434656;font-weight:400;">(2024Q3 기준, 공시 기반)</span></div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:5px 0;">#</th>
+                <th style="text-align:left;padding:5px;">종목</th>
+                <th style="text-align:right;padding:5px;">비중</th>
+                <th style="text-align:right;padding:5px;">평가액(조)</th>
+              </tr></thead>
+              <tbody id="npsFxStocksTable"></tbody>
+            </table>
+            <div style="font-size:9px;color:#434656;margin-top:6px;">※ 공시 기반 추정치. 실데이터: <a href="https://fund.nps.or.kr" target="_blank" style="color:#2962ff;">fund.nps.or.kr</a></div>
           </div>
         </div>
       </div>
@@ -922,7 +964,7 @@ function showPage(id, el) {
   document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
   if(el) el.classList.add('active');
   if(id==='market') { setTimeout(()=>initMarketPage(),50); }
-  if(id==='macro')  { setTimeout(()=>{ initMacroPage('kr'); buildNewsFeed('macroNewsFeed', macroNewsItems); },50); }
+  if(id==='macro')  { setTimeout(()=>{ initMacroPage('kr'); currentNewsFilter['macroNewsFeed']='한국GDP'; renderFiltered('macroNewsFeed'); },50); }
   if(id==='calendar') {
     buildCalendar();
     buildNewsFeed('calendarNewsFeed', calendarNewsItems);
@@ -1580,12 +1622,13 @@ let fxCurrentPair = 0;   // index into fxPairs
 let fxAllSeries = null;  // full 252-day series for current pair
 
 function buildFxChart(seriesData) {
-  fxRangeState = {start:null, end:null};
+  fxAnnotations=[]; fxPending=null;
   destroyChart('fxChart');
   const ctx = document.getElementById('fxChart');
   if(!ctx) return;
+  const isKrwDenom = fxPairs[fxCurrentPair].pair.endsWith('/KRW');
   const displayData = fxInverted
-    ? seriesData.map(pt=>({x:pt.x, y: +(1/pt.y).toFixed(6)}))
+    ? seriesData.map(pt=>({x:pt.x, y: isKrwDenom ? +(1000/pt.y).toFixed(4) : +(1/pt.y).toFixed(6)}))
     : seriesData;
   charts['fxChart'] = new Chart(ctx,{
     type:'line',
@@ -1597,12 +1640,7 @@ function buildFxChart(seriesData) {
         const idx = pts[0].index;
         const price = chart.data.datasets[0].data[idx];
         const label = chart.data.labels[idx];
-        if(!fxRangeState.start || fxRangeState.end) {
-          fxRangeState = {start:{idx,price,label}, end:null};
-        } else {
-          fxRangeState.end = {idx,price,label};
-        }
-        showRangeLabel('fxChartRange', fxRangeState, chart.data.labels);
+        chartClick('fx', idx, price, label);
       },
       scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
               y:{ticks:{color:'#8d90a2',font:{size:10},callback: v => fxInverted ? v.toFixed(6) : v},grid:{color:'#2a2e3d55'},
@@ -1614,12 +1652,21 @@ function buildFxChart(seriesData) {
 function toggleFxDir() {
   fxInverted = !fxInverted;
   const pair = fxPairs[fxCurrentPair];
+  const baseRate = parseFloat(String(pair.cur).replace(/,/g,''));
+  const isKrwDenom = pair.pair.endsWith('/KRW');
   const titleEl = document.getElementById('fxChartTitle');
   const priceEl = document.getElementById('fxChartPrice');
   if(fxInverted) {
-    const baseRate = parseFloat(pair.cur.replace(',',''));
-    if(titleEl) titleEl.textContent = pair.pair.split('/').reverse().join('/');
-    if(priceEl) priceEl.textContent = (1/baseRate).toFixed(6);
+    if(isKrwDenom) {
+      const base = pair.pair.split('/')[0];
+      if(titleEl) titleEl.textContent = '1,000 KRW / ' + base;
+      const rate1000 = (1000 / baseRate);
+      const dec = base==='JPY' ? 2 : 4;
+      if(priceEl) priceEl.textContent = rate1000.toFixed(dec);
+    } else {
+      if(titleEl) titleEl.textContent = pair.pair.split('/').reverse().join('/');
+      if(priceEl) priceEl.textContent = (1/baseRate).toFixed(6);
+    }
   } else {
     if(titleEl) titleEl.textContent = pair.pair;
     if(priceEl) priceEl.textContent = pair.cur;
@@ -1732,11 +1779,10 @@ const bondItems = [
 ];
 let bondCurrentIdx = 3; // default 10년
 let bondAllSeries = null;
-let bondRangeState = {start:null, end:null};
 let bondPeriodN = 21; // 1M default
 
 function buildBondChart(series) {
-  bondRangeState = {start:null, end:null};
+  bondAnnotations=[]; bondPending=null;
   destroyChart('bondChart');
   const ctx = document.getElementById('bondChart');
   if(!ctx) return;
@@ -1748,9 +1794,7 @@ function buildBondChart(series) {
         const pts=chart.getElementsAtEventForMode(evt,'index',{intersect:false},false);
         if(!pts.length) return;
         const idx=pts[0].index, price=chart.data.datasets[0].data[idx], label=chart.data.labels[idx];
-        if(!bondRangeState.start||bondRangeState.end){ bondRangeState={start:{idx,price,label},end:null}; }
-        else { bondRangeState.end={idx,price,label}; }
-        showRangeLabel('bondChartRange',bondRangeState,chart.data.labels);
+        chartClick('bond', idx, price, label);
       },
       scales:{
         x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
@@ -1825,6 +1869,122 @@ function buildBondPage() {
               y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
       plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}}}}
   });
+  // Global bond yields table
+  buildGlobalBondTable();
+}
+
+// ── Bond & Rate sub-tab data ──
+const rateHistoryData = {
+  labels: ['2018','2019','2020','2021','2022','2023','2024','2025','2026.Q1'],
+  kr:  [1.75, 1.25, 0.50, 1.00, 3.50, 3.50, 3.00, 2.75, 2.75],
+  us:  [2.50, 1.75, 0.25, 0.25, 4.50, 5.50, 5.25, 4.50, 4.25],
+  eu:  [0.00, 0.00, 0.00, 0.00, 2.50, 4.50, 4.00, 3.00, 2.50],
+  jp:  [-0.10,-0.10,-0.10,-0.10,-0.10,0.10, 0.25, 0.50, 0.50],
+  uk:  [0.75, 0.75, 0.10, 0.25, 3.50, 5.25, 5.00, 4.75, 4.50],
+};
+const rateColors = {kr:'#2962ff',us:'#26a69a',eu:'#b6c4ff',jp:'#f5a623',uk:'#ef5350'};
+const rateCountries = {kr:'🇰🇷 한국',us:'🇺🇸 미국',eu:'🇪🇺 유로존',jp:'🇯🇵 일본',uk:'🇬🇧 영국'};
+let rateFilterSet = new Set(['kr','us']);
+
+const currentRates = [
+  {cc:'kr',flag:'🇰🇷',country:'한국',rate:'2.75%',prev:'3.00%',next:'2026.05.29',dir:'동결↔'},
+  {cc:'us',flag:'🇺🇸',country:'미국',rate:'4.25%',prev:'4.50%',next:'2026.06.11',dir:'인하↓'},
+  {cc:'eu',flag:'🇪🇺',country:'유로존',rate:'2.50%',prev:'3.00%',next:'2026.06.05',dir:'인하↓'},
+  {cc:'jp',flag:'🇯🇵',country:'일본',rate:'0.50%',prev:'0.25%',next:'2026.06.16',dir:'인상↑'},
+  {cc:'uk',flag:'🇬🇧',country:'영국',rate:'4.50%',prev:'4.75%',next:'2026.06.19',dir:'인하↓'},
+];
+
+const globalBonds = [
+  {cc:'kr',flag:'🇰🇷',country:'한국', y10:'3.02%', y2:'2.78%', spread:'+0.24', chg:'+0.03'},
+  {cc:'us',flag:'🇺🇸',country:'미국', y10:'4.48%', y2:'4.85%', spread:'-0.37', chg:'+0.02'},
+  {cc:'jp',flag:'🇯🇵',country:'일본', y10:'1.05%', y2:'0.42%', spread:'+0.63', chg:'+0.01'},
+  {cc:'uk',flag:'🇬🇧',country:'영국', y10:'4.38%', y2:'4.12%', spread:'+0.26', chg:'-0.01'},
+  {cc:'de',flag:'🇩🇪',country:'독일', y10:'2.52%', y2:'2.18%', spread:'+0.34', chg:'0.00'},
+];
+
+let bondSubTab = 'rate';
+function setBondSubTab(tab, btn) {
+  bondSubTab = tab;
+  document.querySelectorAll('#market-bond > div:first-child .tab-btn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+  });
+  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  document.getElementById('bond-subtab-rate').style.display = tab==='rate'?'block':'none';
+  document.getElementById('bond-subtab-bond').style.display = tab==='bond'?'block':'none';
+  if(tab==='rate') buildRateHistoryChart();
+  if(tab==='bond') { buildBondPage(); buildGlobalBondTable(); }
+}
+
+function toggleRateFilter(cc, btn) {
+  if(rateFilterSet.has(cc)) {
+    if(rateFilterSet.size<=1) return;
+    rateFilterSet.delete(cc);
+    btn.style.background='transparent';
+    btn.style.opacity='0.5';
+  } else {
+    rateFilterSet.add(cc);
+    btn.style.background=rateColors[cc]+'44';
+    btn.style.opacity='1';
+  }
+  buildRateHistoryChart();
+}
+
+function buildRateHistoryChart() {
+  destroyChart('rateHistoryChart');
+  const ctx = document.getElementById('rateHistoryChart');
+  if(!ctx) return;
+  const datasets = [...rateFilterSet].map(cc=>({
+    label: rateCountries[cc],
+    data: rateHistoryData[cc],
+    borderColor: rateColors[cc],
+    backgroundColor: rateColors[cc]+'22',
+    borderWidth: 2,
+    pointRadius: 3,
+    tension: 0.3,
+    fill: false,
+  }));
+  charts['rateHistoryChart'] = new Chart(ctx, {
+    type:'line',
+    data:{labels:rateHistoryData.labels, datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
+        y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}
+      },
+      plugins:{
+        legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}
+      }
+    }
+  });
+  // Current rates table
+  const tb = document.getElementById('rateCurrentTable');
+  if(tb) tb.innerHTML = currentRates.map(r=>{
+    const dirClr = r.dir.includes('인상')?'#ef5350':r.dir.includes('인하')?'#26a69a':'#8d90a2';
+    return `<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:8px;">${r.flag} ${r.country}</td>
+      <td style="text-align:right;padding:8px;font-weight:600;color:#b6c4ff;">${r.rate}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${r.prev}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;font-size:11px;">${r.next}</td>
+      <td style="text-align:right;padding:8px;font-size:11px;color:${dirClr};">${r.dir}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildGlobalBondTable() {
+  const tb = document.getElementById('globalBondTable');
+  if(!tb) return;
+  tb.innerHTML = globalBonds.map(b=>{
+    const chgClr = b.chg.startsWith('-')?'#ef5350':b.chg==='0.00'?'#8d90a2':'#26a69a';
+    const sprdClr = b.spread.startsWith('-')?'#ef5350':'#8d90a2';
+    return `<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:8px;">${b.flag} ${b.country}</td>
+      <td style="text-align:right;padding:8px;font-weight:600;">${b.y10}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${b.y2}</td>
+      <td style="text-align:right;padding:8px;color:${sprdClr};">${b.spread}%p</td>
+      <td style="text-align:right;padding:8px;color:${chgClr};">${b.chg}</td>
+    </tr>`;
+  }).join('');
 }
 const investorData = {
   dates: ['05.08','05.09','05.12','05.13','05.14'],
@@ -1838,6 +1998,7 @@ let equityAllSeries = null;
 let equityPeriodN = 5;
 
 function buildEquityIndexChart(series) {
+  equityAnnotations=[]; equityPending=null;
   destroyChart('equityIndexChart');
   const ctx = document.getElementById('equityIndexChart');
   if(!ctx) return;
@@ -1846,6 +2007,12 @@ function buildEquityIndexChart(series) {
     type:'line',
     data:{labels:sl(series),datasets:[{data:sv(series),borderColor:clr,borderWidth:2,pointRadius:0,fill:true,backgroundColor:clr+'15',tension:0.3}]},
     options:{responsive:true,maintainAspectRatio:false,
+      onClick(evt,elements,chart){
+        const pts=chart.getElementsAtEventForMode(evt,'index',{intersect:false},false);
+        if(!pts.length) return;
+        const idx=pts[0].index, price=chart.data.datasets[0].data[idx], label=chart.data.labels[idx];
+        chartClick('equity', idx, price, label);
+      },
       scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
               y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
       plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
@@ -1952,6 +2119,7 @@ let comAllSeries = null;
 let comPeriodN = 21;
 
 function buildComDetailChart(series) {
+  comAnnotations=[]; comPending=null;
   destroyChart('comDetailChart');
   const ctx = document.getElementById('comDetailChart');
   if(!ctx) return;
@@ -1960,6 +2128,12 @@ function buildComDetailChart(series) {
     type:'line',
     data:{labels:sl(series),datasets:[{data:sv(series),borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:'#b6c4ff10',tension:0.3}]},
     options:{responsive:true,maintainAspectRatio:false,
+      onClick(evt,elements,chart){
+        const pts=chart.getElementsAtEventForMode(evt,'index',{intersect:false},false);
+        if(!pts.length) return;
+        const idx=pts[0].index, price=chart.data.datasets[0].data[idx], label=chart.data.labels[idx];
+        chartClick('com', idx, price, label);
+      },
       scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
               y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
       plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
@@ -1973,11 +2147,23 @@ function selectCommodity(idx, el) {
   const priceEl = document.getElementById('comDetailPrice');
   if(titleEl) titleEl.textContent = c.name;
   if(priceEl) priceEl.textContent = c.price;
-  document.querySelectorAll('#commodityTable tr').forEach(r=>r.style.borderLeft='');
+  updateComHeader(c);
+  document.querySelectorAll('#commodityList .com-row').forEach(r=>r.style.borderLeft='');
   el.style.borderLeft = '2px solid #2962ff';
   const baseNum = parseFloat(c.price.replace(/[$,]/g,''));
   comAllSeries = genSeries(baseNum||78, 252, 0.018);
   buildComDetailChart(comAllSeries.slice(-comPeriodN));
+}
+
+function updateComHeader(c) {
+  const chgEl = document.getElementById('comDetailChange');
+  const rngEl = document.getElementById('comDetail52Range');
+  if(chgEl) {
+    chgEl.className = c.up ? 'up-txt' : 'down-txt';
+    chgEl.style.fontSize = '14px';
+    chgEl.textContent = (c.up ? '▲ ' : '▼ ') + c.chg;
+  }
+  if(rngEl) rngEl.textContent = '52주 범위: ' + (c.l52||'-') + ' ~ ' + (c.h52||'-');
 }
 
 function setComPeriod(p, btn) {
@@ -2005,22 +2191,29 @@ function buildCommodityPage() {
   comAllSeries = genSeries(baseNum||78, 252, 0.018);
   buildComDetailChart(comAllSeries.slice(-comPeriodN));
 
-  // Commodity table (clickable)
+  // Commodity list (clickable, in div)
   const catLabel = {oil:'▸ 원유', metal:'▸ 귀금속', base:'▸ 비철금속', energy:'▸ 에너지', agri:'▸ 농산물'};
   let prevCat = null;
-  document.getElementById('commodityTable').innerHTML = comData.map((r,i)=>{
-    let sep = '';
-    if(r.cat !== prevCat) {
-      sep = `<tr><td colspan="4" style="padding:6px 0 2px;font-size:10px;font-weight:600;color:#434656;letter-spacing:.05em;">${catLabel[r.cat]||''}</td></tr>`;
-      prevCat = r.cat;
-    }
-    return sep + `<tr onclick="selectCommodity(${i},this)" style="border-bottom:1px solid #1b1f2b;cursor:pointer;${i===comCurrentIdx?'border-left:2px solid #2962ff':''}" title="${r.name} 클릭 → 차트 업데이트">
-      <td style="padding:7px 4px;">${r.name}</td>
-      <td style="text-align:right;padding:7px;font-weight:500;">${r.price}</td>
-      <td style="text-align:right;padding:7px;" class="${r.up?'up-txt':'down-txt'}">${r.chg}</td>
-      <td style="text-align:right;padding:7px;color:#8d90a2;">${r.unit}</td>
-    </tr>`;
-  }).join('');
+  const listEl = document.getElementById('commodityList');
+  if(listEl) {
+    let html = '';
+    comData.forEach((r,i)=>{
+      if(r.cat !== prevCat) {
+        html += `<div style="padding:6px 0 2px;font-size:10px;font-weight:600;color:#434656;letter-spacing:.05em;">${catLabel[r.cat]||''}</div>`;
+        prevCat = r.cat;
+      }
+      html += `<div class="com-row" onclick="selectCommodity(${i},this)" style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1b1f2b;padding:7px 4px;cursor:pointer;${i===comCurrentIdx?'border-left:2px solid #2962ff':''}" title="${r.name} 클릭 → 차트 업데이트">
+        <span style="font-size:12px;">${r.name}</span>
+        <span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;">
+          <span style="font-weight:500;font-size:12px;">${r.price}</span>
+          <span class="${r.up?'up-txt':'down-txt'}" style="font-size:11px;">${r.chg}</span>
+        </span>
+      </div>`;
+    });
+    listEl.innerHTML = html;
+  }
+  // Update header for current selection
+  updateComHeader(comData[comCurrentIdx]);
 
   // Sector charts
   const days=90;
@@ -2083,10 +2276,12 @@ function buildCommodityPage() {
   // 농산물
   const aCtx=document.getElementById('agriChart');
   if(aCtx){
-    const whS=genSeries(5.84,days,0.020);
+    const whS=genSeries(5.84,days,0.020), coS=genSeries(4.42,days,0.022), soS=genSeries(10.48,days,0.018);
     charts['agriChart']=new Chart(aCtx,{type:'line',
       data:{labels:sl(whS),datasets:[
-        {data:sv(whS),label:'밀($/bu)',borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'#f5a62315',tension:0.3},
+        {data:sv(whS),label:'밀($/bu)',borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+        {data:sv(coS),label:'옥수수($/bu)',borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
+        {data:sv(soS),label:'콩($/bu)',borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4]},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
@@ -2150,19 +2345,77 @@ function setMacroTab(t,btn){
   document.querySelectorAll('#page-macro .tab-btn').forEach(b=>{b.classList.remove('active');b.style.background='transparent';b.style.color='#8d90a2';});
   btn.classList.add('active');btn.style.background='#2962ff';btn.style.color='#fff';
   initMacroPage(t);
+  // 국가별 뉴스 필터 자동 적용
+  const macroNewsMap = {kr:'한국GDP', us:'미국CPI', eu:'유로존', cn:'중국경기'};
+  const filterCat = macroNewsMap[t] || 'all';
+  currentNewsFilter['macroNewsFeed'] = filterCat;
+  // 필터 버튼 UI 갱신
+  document.querySelectorAll('#page-macro .news-filter-btn').forEach(b=>{
+    const txt = b.textContent.trim();
+    const isActive = (filterCat==='한국GDP'&&txt==='한국') ||
+                     (filterCat==='미국CPI'&&txt==='미국') ||
+                     (filterCat==='중국경기'&&txt==='중국') ||
+                     (filterCat==='유로존'&&txt==='유로존');
+    if(isActive) b.classList.add('act'); else b.classList.remove('act');
+  });
+  renderFiltered('macroNewsFeed');
 }
+const macroMeta = {
+  kr: {
+    gdpSrc:'https://ecos.bok.or.kr/#/', gdpNext:'2026.05.23 08:00',
+    cpiSrc:'https://kostat.go.kr/board.es?mid=a10301010000&bid=10820', cpiNext:'2026.06.04 08:00',
+    unempSrc:'https://kostat.go.kr', unempNext:'2026.06.13 08:00',
+    tradeSrc:'https://www.customs.go.kr/kcs/na/ntt/selectNttInfo.do?mi=3059', tradeNext:'2026.06.01 08:00',
+  },
+  us: {
+    gdpSrc:'https://www.bea.gov/data/gdp/gross-domestic-product', gdpNext:'2026.05.29 21:30',
+    cpiSrc:'https://www.bls.gov/cpi/', cpiNext:'2026.06.11 21:30',
+    unempSrc:'https://www.bls.gov/news.release/empsit.nr0.htm', unempNext:'2026.06.06 21:30',
+    tradeSrc:'https://www.census.gov/foreign-trade/index.html', tradeNext:'2026.06.05 21:30',
+  },
+  eu: {
+    gdpSrc:'https://ec.europa.eu/eurostat/web/national-accounts', gdpNext:'2026.05.30 11:00',
+    cpiSrc:'https://ec.europa.eu/eurostat/web/hicp', cpiNext:'2026.06.18 11:00',
+    unempSrc:'https://ec.europa.eu/eurostat/web/labour-market', unempNext:'2026.06.30 11:00',
+    tradeSrc:'https://ec.europa.eu/eurostat/web/international-trade', tradeNext:'2026.06.16 11:00',
+  },
+  cn: {
+    gdpSrc:'https://www.stats.gov.cn/english/', gdpNext:'2026.07.16 10:00',
+    cpiSrc:'https://www.stats.gov.cn/english/pressrelease/price/', cpiNext:'2026.06.10 09:30',
+    unempSrc:'https://www.stats.gov.cn', unempNext:'2026.06.16 10:00',
+    tradeSrc:'https://english.mofcom.gov.cn/', tradeNext:'2026.06.08 10:00',
+  },
+};
+
 function initMacroPage(t){
   ['gdpMacro','cpiMacro','unempMacro','tradeMacro'].forEach(destroyChart);
   const d=macroData[t];
+  const meta=macroMeta[t]||{};
   const mc=document.getElementById('macroContent');
+  const infoBlock=(src,next)=>`<div style="font-size:10px;color:#434656;text-align:right;">
+    <span style="color:#8d90a2;">다음 발표: ${next||'-'}</span>
+    <a href="${src||'#'}" target="_blank" style="color:#2962ff;margin-left:6px;text-decoration:none;">공식→</a>
+  </div>`;
   mc.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-      <div class="widget"><div class="widget-title">GDP 성장률 (전년동기비, %)</div><div style="position:relative;height:200px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div></div>
-      <div class="widget"><div class="widget-title">소비자물가 (CPI, 전년비 %)</div><div style="position:relative;height:200px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div></div>
+      <div class="widget">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>'}${infoBlock(meta.gdpSrc,meta.gdpNext)}</div>
+        <div style="position:relative;height:200px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
+      </div>
+      <div class="widget">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>'}${infoBlock(meta.cpiSrc,meta.cpiNext)}</div>
+        <div style="position:relative;height:200px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div class="widget"><div class="widget-title">실업률 (%)</div><div style="position:relative;height:200px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div></div>
-      <div class="widget"><div class="widget-title">수출 (억 달러)</div><div style="position:relative;height:200px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div></div>
+      <div class="widget">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>'}${infoBlock(meta.unempSrc,meta.unempNext)}</div>
+        <div style="position:relative;height:200px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
+      </div>
+      <div class="widget">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>'}${infoBlock(meta.tradeSrc,meta.tradeNext)}</div>
+        <div style="position:relative;height:200px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
+      </div>
     </div>`;
   const chartOpts=(color,isBar)=>({
     responsive:true,maintainAspectRatio:false,
@@ -2396,6 +2649,101 @@ const npsAllocTrend = {
   ]
 };
 
+// NPS 분기별 수익률 데이터
+const npsQuarterlyData = [
+  {q:'2023Q1', ret:+3.42}, {q:'2023Q2', ret:+4.15}, {q:'2023Q3', ret:-0.85}, {q:'2023Q4', ret:+6.87},
+  {q:'2024Q1', ret:+5.21}, {q:'2024Q2', ret:+2.87}, {q:'2024Q3', ret:-1.45}, {q:'2024Q4', ret:+5.10},
+  {q:'2025Q1', ret:+2.34}, {q:'2025Q2', ret:+1.88}, {q:'2025Q3', ret:+3.21}, {q:'2025Q4', ret:+4.67},
+];
+
+const npsYearQuarterly = {
+  2020: [{q:'Q1',ret:-4.30},{q:'Q2',ret:8.20},{q:'Q3',ret:3.40},{q:'Q4',ret:2.40}],
+  2021: [{q:'Q1',ret:3.20},{q:'Q2',ret:2.80},{q:'Q3',ret:2.10},{q:'Q4',ret:2.67}],
+  2022: [{q:'Q1',ret:-2.10},{q:'Q2',ret:-5.40},{q:'Q3',ret:-1.80},{q:'Q4',ret:1.08}],
+  2023: [{q:'Q1',ret:3.42},{q:'Q2',ret:4.15},{q:'Q3',ret:-0.85},{q:'Q4',ret:6.87}],
+  2024: [{q:'Q1',ret:5.21},{q:'Q2',ret:2.87},{q:'Q3',ret:-1.45},{q:'Q4',ret:5.10}],
+};
+
+const npsKrStocks = [
+  {rank:1, name:'삼성전자',      pct:'7.82%', val:12.3},
+  {rank:2, name:'SK하이닉스',    pct:'3.21%', val:5.1},
+  {rank:3, name:'LG에너지솔루션',pct:'1.98%', val:3.1},
+  {rank:4, name:'삼성바이오로직스',pct:'1.76%',val:2.8},
+  {rank:5, name:'현대차',        pct:'1.54%', val:2.4},
+  {rank:6, name:'POSCO홀딩스',   pct:'1.32%', val:2.1},
+  {rank:7, name:'KB금융',        pct:'1.21%', val:1.9},
+  {rank:8, name:'셀트리온',      pct:'1.08%', val:1.7},
+  {rank:9, name:'기아',          pct:'0.98%', val:1.5},
+  {rank:10,name:'신한지주',      pct:'0.87%', val:1.4},
+];
+
+const npsFxStocks = [
+  {rank:1, name:'Apple',     pct:'2.84%', val:11.9},
+  {rank:2, name:'Microsoft', pct:'2.41%', val:10.2},
+  {rank:3, name:'NVIDIA',    pct:'2.18%', val:9.2},
+  {rank:4, name:'Amazon',    pct:'1.87%', val:7.9},
+  {rank:5, name:'Alphabet',  pct:'1.52%', val:6.4},
+  {rank:6, name:'Meta',      pct:'1.34%', val:5.7},
+  {rank:7, name:'Tesla',     pct:'0.98%', val:4.1},
+  {rank:8, name:'TSMC',      pct:'0.87%', val:3.7},
+  {rank:9, name:'Broadcom',  pct:'0.76%', val:3.2},
+  {rank:10,name:'JP Morgan', pct:'0.65%', val:2.7},
+];
+
+let npsReturnView = 'annual';
+function setNpsReturnView(view, btn) {
+  npsReturnView = view;
+  btn.closest('.widget').querySelectorAll('button').forEach(b=>{
+    b.style.background='transparent'; b.style.color='#8d90a2';
+  });
+  btn.style.background='#2962ff'; btn.style.color='#fff';
+  buildNpsReturnChart();
+}
+
+function buildNpsReturnChart() {
+  destroyChart('npsReturnChart');
+  const retCtx = document.getElementById('npsReturnChart');
+  if(!retCtx) return;
+  if(npsReturnView==='annual') {
+    charts['npsReturnChart'] = new Chart(retCtx,{type:'bar',
+      data:{labels:npsHistory.map(h=>h.year),
+            datasets:[{data:npsHistory.map(h=>h.ret),backgroundColor:npsHistory.map(h=>h.ret>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
+                y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+  } else {
+    charts['npsReturnChart'] = new Chart(retCtx,{type:'bar',
+      data:{labels:npsQuarterlyData.map(q=>q.q),
+            datasets:[{data:npsQuarterlyData.map(q=>q.ret),backgroundColor:npsQuarterlyData.map(q=>q.ret>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:12},grid:{display:false}},
+                y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+  }
+}
+
+function showNpsYearDetail(year) {
+  const el = document.getElementById('npsYearDetail');
+  if(!el) return;
+  el.style.display='block';
+  const titleEl = document.getElementById('npsYearDetailTitle');
+  if(titleEl) titleEl.textContent = year + '년 분기별 수익률';
+  destroyChart('npsYearDetailChart');
+  const data = npsYearQuarterly[year];
+  const labels = data ? data.map(d=>d.q) : ['Q1','Q2','Q3','Q4'];
+  const vals = data ? data.map(d=>d.ret) : [null,null,null,null];
+  const ctx = document.getElementById('npsYearDetailChart');
+  if(!ctx) return;
+  charts['npsYearDetailChart'] = new Chart(ctx,{type:'bar',
+    data:{labels,datasets:[{data:vals,backgroundColor:vals.map(v=>v!=null&&v>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{ticks:{color:'#8d90a2',font:{size:11}},grid:{display:false}},
+              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
 let npsTabCurrent = 'overview';
 function setNpsTab(tab, btn) {
   npsTabCurrent = tab;
@@ -2413,25 +2761,11 @@ function setNpsTab(tab, btn) {
 
 function buildInvestorPage() {
   // 기존 차트 정리
-  ['npsReturnChart','npsAumChart','npsAllocationChart','npsAllocationTrendChart'].forEach(destroyChart);
+  ['npsReturnChart','npsAumChart','npsAllocationChart','npsAllocationTrendChart','npsYearDetailChart'].forEach(destroyChart);
 
   if(npsTabCurrent === 'overview') {
-    // 수익률 차트 (막대)
-    const retCtx = document.getElementById('npsReturnChart');
-    if(retCtx) charts['npsReturnChart'] = new Chart(retCtx,{
-      type:'bar',
-      data:{ labels:npsHistory.map(h=>h.year),
-             datasets:[{ data:npsHistory.map(h=>h.ret),
-               backgroundColor:npsHistory.map(h=>h.ret>=0?'#26a69acc':'#ef5350cc'),
-               borderRadius:3 }] },
-      options:{ responsive:true, maintainAspectRatio:false,
-        scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
-                 y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}} },
-        plugins:{ legend:{display:false},
-                  tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
-                    callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}} }
-      }
-    });
+    // 수익률 차트 (연간/분기 토글)
+    buildNpsReturnChart();
     // AUM 차트 (라인)
     const aumCtx = document.getElementById('npsAumChart');
     if(aumCtx) charts['npsAumChart'] = new Chart(aumCtx,{
@@ -2448,12 +2782,12 @@ function buildInvestorPage() {
                     callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()+'조원'}} }
       }
     });
-    // 연도별 성과 요약 테이블
+    // 연도별 성과 요약 테이블 (행 클릭 → 분기별 상세)
     const tb = document.getElementById('npsReturnTable');
     if(tb) tb.innerHTML = npsHistory.slice().reverse().map(h=>{
       const profit = +(h.aum * h.ret / 100).toFixed(1);
       const retCls = h.ret >= 0 ? 'up-txt' : 'down-txt';
-      return `<tr style="border-bottom:1px solid #1b1f2b;">
+      return `<tr onclick="showNpsYearDetail(${h.year})" style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onmouseover="this.style.background='#262a35'" onmouseout="this.style.background=''">
         <td style="padding:8px;">${h.year}</td>
         <td style="text-align:right;padding:8px;">${h.aum.toLocaleString()}</td>
         <td style="text-align:right;padding:8px;" class="${retCls}">${h.ret>=0?'+':''}${h.ret.toFixed(2)}%</td>
@@ -2505,6 +2839,23 @@ function buildInvestorPage() {
                   tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1} }
       }
     });
+    // Top 10 보유 종목 테이블
+    const krTb = document.getElementById('npsKrStocksTable');
+    if(krTb) krTb.innerHTML = npsKrStocks.map(s=>`
+      <tr style="border-bottom:1px solid #1b1f2b;">
+        <td style="padding:6px 0;color:#434656;">${s.rank}</td>
+        <td style="padding:6px;">${s.name}</td>
+        <td style="text-align:right;padding:6px;color:#b6c4ff;">${s.pct}</td>
+        <td style="text-align:right;padding:6px;color:#8d90a2;">${s.val}</td>
+      </tr>`).join('');
+    const fxTb = document.getElementById('npsFxStocksTable');
+    if(fxTb) fxTb.innerHTML = npsFxStocks.map(s=>`
+      <tr style="border-bottom:1px solid #1b1f2b;">
+        <td style="padding:6px 0;color:#434656;">${s.rank}</td>
+        <td style="padding:6px;">${s.name}</td>
+        <td style="text-align:right;padding:6px;color:#b6c4ff;">${s.pct}</td>
+        <td style="text-align:right;padding:6px;color:#8d90a2;">${s.val}</td>
+      </tr>`).join('');
   }
 }
 
