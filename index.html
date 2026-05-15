@@ -260,11 +260,11 @@ tailwind.config = {
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
               <div>
                 <div class="widget-title" style="margin-bottom:0;" id="fxChartTitle">USD / KRW</div>
-                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="fxChartPrice">1,341.50</div>
+                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="fxChartPrice">1,489.64</div>
               </div>
               <div>
-                <div class="up-txt" style="font-size:14px;">▲ 1.07 (+0.08%)</div>
-                <div style="font-size:11px;color:#8d90a2;">52주 범위: 1,270.40 ~ 1,385.60</div>
+                <div class="up-txt" style="font-size:14px;" id="fxChartChange">▲ 1.80 (+0.12%)</div>
+                <div style="font-size:11px;color:#8d90a2;" id="fxChart52Range">52주 범위: 1,340.00 ~ 1,520.00</div>
               </div>
               <div style="margin-left:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
                 <button onclick="toggleFxDir()" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">⇄ 역방향</button>
@@ -291,12 +291,12 @@ tailwind.config = {
           <div class="widget">
             <div class="widget-title" id="fxInfoPanelTitle">USDKRW 주요 정보</div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
-              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">시가</td><td style="text-align:right;">1,338.30</td></tr>
-              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">고가</td><td style="text-align:right;">1,344.20</td></tr>
-              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">저가</td><td style="text-align:right;">1,337.80</td></tr>
-              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">전일 종가</td><td style="text-align:right;">1,340.43</td></tr>
-              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">52주 고가</td><td style="text-align:right;color:#ef5350;">1,385.60</td></tr>
-              <tr><td style="padding:8px 0;color:#8d90a2;">52주 저가</td><td style="text-align:right;color:#26a69a;">1,270.40</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">시가</td><td style="text-align:right;" id="fxInfoOpen">1,488.00</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">고가</td><td style="text-align:right;" id="fxInfoHigh">1,493.20</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">저가</td><td style="text-align:right;" id="fxInfoLow">1,485.50</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">전일 종가</td><td style="text-align:right;" id="fxInfoPrev">1,487.85</td></tr>
+              <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">52주 고가</td><td style="text-align:right;color:#ef5350;" id="fxInfo52H">1,520.00</td></tr>
+              <tr><td style="padding:8px 0;color:#8d90a2;">52주 저가</td><td style="text-align:right;color:#26a69a;" id="fxInfo52L">1,340.00</td></tr>
             </table>
           </div>
         </div>
@@ -431,7 +431,7 @@ tailwind.config = {
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
               <div>
                 <div class="widget-title" style="margin-bottom:0;" id="comDetailTitle">WTI 원유</div>
-                <div style="font-size:22px;font-weight:700;font-family:'Public Sans';" id="comDetailPrice">$78.42</div>
+                <div style="font-size:22px;font-weight:700;font-family:'Public Sans';" id="comDetailPrice">$62.35</div>
               </div>
               <div style="display:flex;gap:4px;">
                 <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setComPeriod('1M',this)">1M</button>
@@ -781,11 +781,20 @@ tailwind.config = {
 // ============================
 function genSeries(base, days, vol=0.008) {
   let v = base;
-  return Array.from({length:days}, (_,i) => {
+  const arr = Array.from({length:days}, (_,i) => {
     v *= (1 + (Math.random()-0.48)*vol);
     const d = new Date(); d.setDate(d.getDate()-(days-i));
     return { x: d.toISOString().slice(0,10), y: +v.toFixed(2) };
   });
+  // 마지막 포인트를 base 근처로 정착시키기 위해 시리즈 전체를 스케일링
+  // (현재 가격과 차트 끝값 불일치 방지)
+  const last = arr[arr.length-1].y;
+  if (last > 0 && Math.abs(last - base) / base > 0.01) {
+    const scale = base / last;
+    const dec = base < 50 ? 4 : 2;
+    arr.forEach(p => { p.y = +(p.y * scale).toFixed(dec); });
+  }
+  return arr;
 }
 // Chart.js labels/values 분리 헬퍼 (날짜 어댑터 없이도 정상 렌더링)
 function sl(s) { return s.map(d=>d.x); }
@@ -1461,9 +1470,9 @@ function setMarketTab(tab, btn) {
 let fxPairs=[
   {pair:'USD/KRW', cur:'1,489.64', chg:0, pct:0, h52:'1,520.00', l52:'1,340.00'},
   {pair:'EUR/KRW', cur:'1,744.95', chg:0, pct:0, h52:'1,780.00', l52:'1,590.00'},
-  {pair:'JPY/KRW', cur:'10.2800',  chg:0, pct:0, h52:'10.8000',  l52:'9.2000'},
+  {pair:'JPY/KRW', cur:'9.4400',   chg:0, pct:0, h52:'10.5000',  l52:'9.2000'},
   {pair:'EUR/USD', cur:'1.1720',   chg:0, pct:0, h52:'1.2000',   l52:'1.0500'},
-  {pair:'USD/JPY', cur:'144.70',   chg:0, pct:0, h52:'156.00',   l52:'140.00'},
+  {pair:'USD/JPY', cur:'158.00',   chg:0, pct:0, h52:'162.00',   l52:'144.00'},
 ];
 let comData=[
   // 원유
@@ -1559,9 +1568,9 @@ function selectFxPair(idx, el) {
   if(titleEl) titleEl.textContent = fxInverted ? pair.pair.split('/').reverse().join('/') : pair.pair;
   if(priceEl) priceEl.textContent = fxInverted ? (1/parseFloat(pair.cur.replace(',',''))).toFixed(6) : pair.cur;
   if(infoEl)  infoEl.textContent  = pair.pair.replace('/','') + ' 주요 정보';
-  // 차트 재생성 — 각 페어별 base값
-  const baseVals = [1490, 1745, 10.28, 1.1720, 144.7];
-  fxAllSeries = genSeries(baseVals[idx]||1340, 252, 0.005);
+  // 차트 재생성 — 각 페어별 base값 (2026년 5월 기준)
+  const baseVals = [1490, 1745, 9.44, 1.1720, 158];
+  fxAllSeries = genSeries(baseVals[idx]||1490, 252, 0.005);
   const period = document.querySelector('#market-fx .tab-btn.active');
   const pLabel = period ? period.textContent.trim() : '1W';
   const nMap = {'1W':5,'1M':21,'3M':63,'1Y':252,'사용자 지정':252};
@@ -1586,9 +1595,47 @@ function setFxPeriod(p, btn) {
   buildFxChart(series.slice(-n));
 }
 
+function updateFxHeader() {
+  const pair = fxPairs[fxCurrentPair];
+  if (!pair) return;
+  const titleEl = document.getElementById('fxChartTitle');
+  const priceEl = document.getElementById('fxChartPrice');
+  const chgEl   = document.getElementById('fxChartChange');
+  const rngEl   = document.getElementById('fxChart52Range');
+  const infoEl  = document.getElementById('fxInfoPanelTitle');
+  const baseRate = parseFloat((pair.cur || '0').replace(/,/g,''));
+  if (titleEl) titleEl.textContent = fxInverted ? pair.pair.split('/').reverse().join('/') : pair.pair;
+  if (priceEl) priceEl.textContent = fxInverted ? (1/baseRate).toFixed(6) : pair.cur;
+  if (infoEl)  infoEl.textContent  = pair.pair.replace('/','') + ' 주요 정보';
+  if (chgEl) {
+    const up = (pair.pct || 0) >= 0;
+    chgEl.className = up ? 'up-txt' : 'down-txt';
+    chgEl.style.fontSize = '14px';
+    const chgAbs = Math.abs(pair.chg || 0);
+    const pctAbs = Math.abs(pair.pct || 0);
+    chgEl.textContent = (up ? '▲ ' : '▼ ') + chgAbs.toFixed(2) + ' (' + (up ? '+' : '-') + pctAbs.toFixed(2) + '%)';
+  }
+  if (rngEl) rngEl.textContent = '52주 범위: ' + (pair.l52 || '-') + ' ~ ' + (pair.h52 || '-');
+  // 정보 패널 (시가/고가/저가/전일종가/52주)
+  const prevClose = baseRate / (1 + (pair.pct || 0) / 100);
+  const fmt = (v, d) => v.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
+  const dec = baseRate < 50 ? 4 : 2;
+  const open  = prevClose;
+  const high  = Math.max(baseRate, prevClose) * 1.003;
+  const low   = Math.min(baseRate, prevClose) * 0.997;
+  const setT = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = typeof v === 'number' ? fmt(v, dec) : v; };
+  setT('fxInfoOpen', open);
+  setT('fxInfoHigh', high);
+  setT('fxInfoLow',  low);
+  setT('fxInfoPrev', prevClose);
+  setT('fxInfo52H',  pair.h52 || '-');
+  setT('fxInfo52L',  pair.l52 || '-');
+}
+
 function buildFxPage() {
   fxAllSeries = genSeries(1490,252,0.005);
   buildFxChart(fxAllSeries.slice(-5));
+  updateFxHeader();
   // FX 테이블
   document.getElementById('fxTable').innerHTML = fxPairs.map((r,i)=>`
     <tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;${i===fxCurrentPair?'border-left:2px solid #2962ff':''}" onclick="selectFxPair(${i},this)">
@@ -2455,6 +2502,17 @@ function applyRealData(d) {
   if (fx.USDKRW)  kpiUpd('kpi-fx-price',    'kpi-fx-chg',    fmt(fx.USDKRW.rate, 2),    fx.USDKRW.change);
   if (com.WTI)    kpiUpd('kpi-wti-price',   'kpi-wti-chg',   '$'+fmt(com.WTI.price, 2), com.WTI.change);
 
+  // ── FX 페이지 헤더·정보 패널 갱신 (현재 표시 중이라면) ─────
+  if (typeof updateFxHeader === 'function') updateFxHeader();
+
+  // ── 원자재 상세 헤더 갱신 (현재 선택된 항목 기준) ──────────
+  const cdTitle = document.getElementById('comDetailTitle');
+  const cdPrice = document.getElementById('comDetailPrice');
+  if (cdTitle && cdPrice && typeof comCurrentIdx !== 'undefined' && comData[comCurrentIdx]) {
+    cdTitle.textContent = comData[comCurrentIdx].name;
+    cdPrice.textContent = comData[comCurrentIdx].price;
+  }
+
   // 메인 차트 헤더 (KOSPI가 선택된 상태면 즉시 반영)
   if (idx.KOSPI && (mainSelectedGlobalIdx === null || mainSelectedGlobalIdx === 0)) {
     const phEl = document.getElementById('mainChartPriceVal');
@@ -2493,6 +2551,7 @@ async function loadRealData() {
 // ============================
 // 실시간 환율 (open.er-api.com — 무료, no auth, CORS 허용)
 // ============================
+let _fxFirstLoad = true;  // 최초 페치 시 변화율 계산 건너뜀 (하드코딩 기본값 대비 비교 방지)
 async function loadRealtimeFx() {
   try {
     // USD 기준 환율
@@ -2536,12 +2595,15 @@ async function loadRealtimeFx() {
       const newR = newRates[p.pair];
       const prevR = prevRates[p.pair];
       if (newR == null) return;
-      const chg = newR - prevR;
-      const pct = (chg / prevR) * 100;
-      p.cur = newR.toLocaleString('en-US', { minimumFractionDigits: p.pair==='JPY/KRW'||p.pair==='EUR/USD'?4:2, maximumFractionDigits: p.pair==='JPY/KRW'||p.pair==='EUR/USD'?4:2 });
-      p.chg = +chg.toFixed(p.pair==='JPY/KRW'||p.pair==='EUR/USD'?4:2);
+      const dec = (p.pair==='JPY/KRW'||p.pair==='EUR/USD') ? 4 : 2;
+      // 최초 페치 시에는 변화율 0으로 (하드코딩 기본값과 비교하면 의미없는 큰 값 발생)
+      const chg = _fxFirstLoad ? 0 : (newR - prevR);
+      const pct = _fxFirstLoad ? 0 : ((chg / prevR) * 100);
+      p.cur = newR.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+      p.chg = +chg.toFixed(dec);
       p.pct = +pct.toFixed(2);
     });
+    _fxFirstLoad = false;
 
     // 티커 바의 USD/KRW, EUR/KRW 갱신
     const tickerUpdate = (name, val, chg) => {
@@ -2575,6 +2637,8 @@ async function loadRealtimeFx() {
       const fxTb = document.getElementById('fxTable');
       if(fxTb) buildFxPage();
     }
+    // 헤더·정보 패널은 항상 갱신 (페이지 가시성과 무관하게 DOM 동기화)
+    if (typeof updateFxHeader === 'function') updateFxHeader();
     // 티커 재렌더링
     buildTicker();
   } catch (e) {
