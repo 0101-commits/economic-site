@@ -118,14 +118,14 @@ tailwind.config = {
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         <div class="kpi-card" id="kpi-kospi">
           <div class="widget-title">KOSPI</div>
-          <div id="kpi-kospi-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">2,587.23</div>
-          <div id="kpi-kospi-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.34%</div>
+          <div id="kpi-kospi-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">7,612.51</div>
+          <div id="kpi-kospi-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -4.62%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark1"></canvas></div>
         </div>
         <div class="kpi-card" id="kpi-fx">
           <div class="widget-title">USD / KRW</div>
-          <div id="kpi-fx-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,341.50</div>
-          <div id="kpi-fx-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.08%</div>
+          <div id="kpi-fx-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,489.64</div>
+          <div id="kpi-fx-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.00%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark2"></canvas></div>
         </div>
         <div class="kpi-card">
@@ -139,7 +139,7 @@ tailwind.config = {
         </div>
         <div class="kpi-card" id="kpi-wti">
           <div class="widget-title">WTI 유가</div>
-          <div id="kpi-wti-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">78.42</div>
+          <div id="kpi-wti-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">$62.35</div>
           <div id="kpi-wti-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -0.55%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark3"></canvas></div>
         </div>
@@ -152,8 +152,8 @@ tailwind.config = {
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
             <div>
               <span class="widget-title" style="margin-bottom:0;" id="mainChartIndexName">KOSPI 지수</span>
-              <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;" id="mainChartPriceVal">2,587.23</span>
-              <span class="up-txt" style="font-size:13px;margin-left:6px;" id="mainChartChangeVal">▲ +0.34%</span>
+              <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;" id="mainChartPriceVal">7,612.51</span>
+              <span class="down-txt" style="font-size:13px;margin-left:6px;" id="mainChartChangeVal">▼ -4.62%</span>
             </div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
               <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#dfe2f2;" onclick="setPeriod('1W',this)">1W</button>
@@ -811,18 +811,18 @@ setInterval(updateClock, 1000); updateClock();
 // 티커 바
 // ============================
 const tickerData = [
-  {name:'KOSPI', val:'2,587.23', chg:'+0.34%', up:true},
-  {name:'KOSDAQ', val:'742.15', chg:'-0.12%', up:false},
-  {name:'USD/KRW', val:'1,341.50', chg:'+0.08%', up:true},
-  {name:'EUR/KRW', val:'1,482.30', chg:'-0.15%', up:false},
-  {name:'WTI', val:'$78.42', chg:'-0.55%', up:false},
-  {name:'BRENT', val:'$82.17', chg:'-0.48%', up:false},
-  {name:'금(Gold)', val:'$2,387.6', chg:'+0.30%', up:true},
-  {name:'S&P 500', val:'5,635.01', chg:'+0.21%', up:true},
-  {name:'NASDAQ', val:'17,841', chg:'+0.18%', up:true},
-  {name:'닛케이', val:'38,405', chg:'+0.45%', up:true},
+  {name:'KOSPI', val:'7,612.51', chg:'-4.62%', up:false},
+  {name:'KOSDAQ', val:'1,143.35', chg:'-4.01%', up:false},
+  {name:'USD/KRW', val:'1,489.64', chg:'+0.00%', up:true},
+  {name:'EUR/KRW', val:'1,744.95', chg:'+0.00%', up:true},
+  {name:'WTI', val:'$62.35', chg:'-0.55%', up:false},
+  {name:'BRENT', val:'$65.80', chg:'-0.48%', up:false},
+  {name:'금(Gold)', val:'$3,241.5', chg:'+0.30%', up:true},
+  {name:'S&P 500', val:'5,659.91', chg:'+0.21%', up:true},
+  {name:'NASDAQ', val:'26,635', chg:'+0.18%', up:true},
+  {name:'닛케이', val:'61,687', chg:'+0.45%', up:true},
   {name:'한국 기준금리', val:'2.75%', chg:'동결', up:null},
-  {name:'미 10년물', val:'4.28%', chg:'+0.03', up:true},
+  {name:'미 10년물', val:'4.48%', chg:'+0.03', up:true},
 ];
 function tickerClick(name) {
   const menuItems = document.querySelectorAll('.menu-item');
@@ -906,7 +906,7 @@ function sparkline(id, series, color) {
 // 메인 캔들(라인) 차트
 // ============================
 let mainPeriod = '1W', mainChartInst=null, volChartInst=null;
-const allData = genSeries(2580, 252, 0.012);
+const allData = genSeries(7600, 252, 0.012);
 let mainAllData = allData;
 const allVol  = allData.map(d=>({x:d.x, y:Math.floor(Math.random()*800000+200000)}));
 
@@ -1023,12 +1023,12 @@ function applyCustomRange(which) {
 // 글로벌 지수 테이블
 // ============================
 const globalIndices = [
-  {name:'KOSPI',  val:2587.23, chg:+0.34},
-  {name:'KOSDAQ', val:742.15,  chg:-0.12},
-  {name:'S&P 500',val:5635.01, chg:+0.21},
-  {name:'NASDAQ', val:17841.20,chg:+0.18},
-  {name:'닛케이',  val:38405.10,chg:+0.45},
-  {name:'상하이',  val:3298.40, chg:-0.33},
+  {name:'KOSPI',  val:7612.51, chg:-4.62},
+  {name:'KOSDAQ', val:1143.35, chg:-4.01},
+  {name:'S&P 500',val:5659.91, chg:+0.21},
+  {name:'NASDAQ', val:26635.22,chg:+0.18},
+  {name:'닛케이',  val:61687.05,chg:+0.45},
+  {name:'상하이',  val:4183.06, chg:-0.33},
 ];
 let mainSelectedGlobalIdx = null;
 function buildGlobalTable() {
@@ -1054,7 +1054,7 @@ function selectGlobalIndex(idx, el) {
   // Rebuild table (for highlight update)
   buildGlobalTable();
   // Generate new data for selected index
-  const bases = {KOSPI:2580, KOSDAQ:742, 'S&P 500':5600, NASDAQ:17800, '닛케이':38400, '상하이':3300};
+  const bases = {KOSPI:7600, KOSDAQ:1140, 'S&P 500':5650, NASDAQ:26500, '닛케이':61000, '상하이':4100};
   const vols  = {KOSPI:0.012, KOSDAQ:0.015, 'S&P 500':0.008, NASDAQ:0.010, '닛케이':0.011, '상하이':0.013};
   const base = bases[d.name]||2580, vol=vols[d.name]||0.010;
   mainAllData = genSeries(base, 252, vol);
@@ -1278,23 +1278,23 @@ function setMarketTab(tab, btn) {
 }
 // FX 및 원자재 데이터 (applyRealData에서 업데이트됨)
 let fxPairs=[
-  {pair:'USD/KRW', cur:'1,341.50', chg:+1.07, pct:+0.08, h52:'1,385.60', l52:'1,270.40'},
-  {pair:'EUR/KRW', cur:'1,482.30', chg:-2.20, pct:-0.15, h52:'1,530.00', l52:'1,390.00'},
-  {pair:'JPY/KRW', cur:'8.9120',   chg:+0.02, pct:+0.22, h52:'9.2100',   l52:'8.4500'},
-  {pair:'EUR/USD', cur:'1.1060',   chg:-0.003,pct:-0.27, h52:'1.1200',   l52:'1.0500'},
-  {pair:'USD/JPY', cur:'150.32',   chg:-0.18, pct:-0.12, h52:'158.00',   l52:'139.50'},
+  {pair:'USD/KRW', cur:'1,489.64', chg:0, pct:0, h52:'1,520.00', l52:'1,340.00'},
+  {pair:'EUR/KRW', cur:'1,744.95', chg:0, pct:0, h52:'1,780.00', l52:'1,590.00'},
+  {pair:'JPY/KRW', cur:'10.2800',  chg:0, pct:0, h52:'10.8000',  l52:'9.2000'},
+  {pair:'EUR/USD', cur:'1.1720',   chg:0, pct:0, h52:'1.2000',   l52:'1.0500'},
+  {pair:'USD/JPY', cur:'144.70',   chg:0, pct:0, h52:'156.00',   l52:'140.00'},
 ];
 let comData=[
   // 원유
-  {name:'WTI 원유',          price:'$78.42',    chg:'-0.55%', up:false, unit:'$/bbl', cat:'oil'},
-  {name:'Brent 원유',         price:'$82.17',    chg:'-0.48%', up:false, unit:'$/bbl', cat:'oil'},
-  {name:'두바이 현물유',       price:'$80.95',    chg:'-0.41%', up:false, unit:'$/bbl', cat:'oil'},
+  {name:'WTI 원유',          price:'$62.35',    chg:'-0.55%', up:false, unit:'$/bbl', cat:'oil'},
+  {name:'Brent 원유',         price:'$65.80',    chg:'-0.48%', up:false, unit:'$/bbl', cat:'oil'},
+  {name:'두바이 현물유',       price:'$64.10',    chg:'-0.41%', up:false, unit:'$/bbl', cat:'oil'},
   // 귀금속
-  {name:'금 (Gold)',          price:'$2,387.60', chg:'+0.30%', up:true,  unit:'$/oz',  cat:'metal'},
-  {name:'은 (Silver)',        price:'$28.42',    chg:'+0.55%', up:true,  unit:'$/oz',  cat:'metal'},
-  {name:'백금 (Platinum)',    price:'$961.00',   chg:'+0.18%', up:true,  unit:'$/oz',  cat:'metal'},
+  {name:'금 (Gold)',          price:'$3,241.50', chg:'+0.30%', up:true,  unit:'$/oz',  cat:'metal'},
+  {name:'은 (Silver)',        price:'$32.48',    chg:'+0.55%', up:true,  unit:'$/oz',  cat:'metal'},
+  {name:'백금 (Platinum)',    price:'$985.00',   chg:'+0.18%', up:true,  unit:'$/oz',  cat:'metal'},
   // 비철금속
-  {name:'구리 (Copper)',      price:'$4.12',     chg:'-0.82%', up:false, unit:'$/lb',  cat:'base'},
+  {name:'구리 (Copper)',      price:'$4.65',     chg:'-0.82%', up:false, unit:'$/lb',  cat:'base'},
   {name:'알루미늄',           price:'$2,248',    chg:'+0.21%', up:true,  unit:'$/톤',  cat:'base'},
   {name:'아연 (Zinc)',        price:'$2,912',    chg:'-0.35%', up:false, unit:'$/톤',  cat:'base'},
   {name:'니켈 (Nickel)',      price:'$16,820',   chg:'-1.12%', up:false, unit:'$/톤',  cat:'base'},
@@ -1303,9 +1303,9 @@ let comData=[
   {name:'밀 (Wheat)',         price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu',  cat:'agri'},
 ];
 let eqData=[
-  {name:'KOSPI',  val:2587.23, chg:+0.34},{name:'KOSDAQ',val:742.15,  chg:-0.12},
-  {name:'S&P 500',val:5635.01, chg:+0.21},{name:'NASDAQ',val:17841.2, chg:+0.18},
-  {name:'닛케이',  val:38405.1, chg:+0.45},{name:'항셍',   val:18342.5, chg:-0.88},
+  {name:'KOSPI',  val:7612.51, chg:-4.62},{name:'KOSDAQ',val:1143.35, chg:-4.01},
+  {name:'S&P 500',val:5659.91, chg:+0.21},{name:'NASDAQ',val:26635.22,chg:+0.18},
+  {name:'닛케이',  val:61687.05,chg:+0.45},{name:'항셍',   val:23500.0, chg:-0.88},
 ];
 
 // ── FX 방향 토글 ──
@@ -1362,7 +1362,7 @@ function toggleFxDir() {
   const pLabel = period ? period.textContent : '1W';
   const nMap = {'1W':5,'1M':21,'3M':63,'1Y':252,'사용자 지정':252};
   const n = nMap[pLabel] || 252;
-  buildFxChart(fxAllSeries ? fxAllSeries.slice(-n) : genSeries(1340,252,0.005).slice(-n));
+  buildFxChart(fxAllSeries ? fxAllSeries.slice(-n) : genSeries(1490,252,0.005).slice(-n));
 }
 
 function selectFxPair(idx, el) {
@@ -1379,7 +1379,7 @@ function selectFxPair(idx, el) {
   if(priceEl) priceEl.textContent = fxInverted ? (1/parseFloat(pair.cur.replace(',',''))).toFixed(6) : pair.cur;
   if(infoEl)  infoEl.textContent  = pair.pair.replace('/','') + ' 주요 정보';
   // 차트 재생성 — 각 페어별 base값
-  const baseVals = [1340, 1480, 8.9, 1.1060, 150.3];
+  const baseVals = [1490, 1745, 10.28, 1.1720, 144.7];
   fxAllSeries = genSeries(baseVals[idx]||1340, 252, 0.005);
   const period = document.querySelector('#market-fx .tab-btn.active');
   const pLabel = period ? period.textContent.trim() : '1W';
@@ -1401,12 +1401,12 @@ function setFxPeriod(p, btn) {
   if(panel) panel.style.display='none';
   const nMap = {'1W':5,'1M':21,'3M':63,'1Y':252};
   const n = nMap[p] || 252;
-  const series = fxAllSeries || genSeries(1340,252,0.005);
+  const series = fxAllSeries || genSeries(1490,252,0.005);
   buildFxChart(series.slice(-n));
 }
 
 function buildFxPage() {
-  fxAllSeries = genSeries(1340,252,0.005);
+  fxAllSeries = genSeries(1490,252,0.005);
   buildFxChart(fxAllSeries.slice(-5));
   // FX 테이블
   document.getElementById('fxTable').innerHTML = fxPairs.map((r,i)=>`
@@ -1559,7 +1559,7 @@ function selectEquityIndex(idx, btn) {
     }
   });
   btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
-  const bases=[2580,742,5600,17800,38400,18300];
+  const bases=[7600,1140,5650,26500,61000,23500];
   const vols=[0.012,0.015,0.008,0.010,0.011,0.013];
   equityAllSeries = genSeries(bases[idx]||2580, 252, vols[idx]||0.010);
   buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
@@ -1584,7 +1584,7 @@ function buildEquityPage() {
       <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:12px;margin-top:2px;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
     </div>`).join('');
   // Equity index chart initialization
-  equityAllSeries = genSeries(2580, 252, 0.012);
+  equityAllSeries = genSeries(7600, 252, 0.012);
   buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
   destroyChart('investorChart');
   const ctx=document.getElementById('investorChart');
@@ -2478,6 +2478,84 @@ async function loadFreshNews() {
 }
 
 // ============================
+// 실시간 지수·원자재 (Stooq — 무료, 인증 불필요, CORS 허용)
+// Stooq CSV 히스토리 API: 최근 7일치 → 마지막 2거래일로 전일比 계산
+// ============================
+async function fetchStooqHistory(symbol) {
+  const today = new Date();
+  const d2 = today.toISOString().slice(0,10).replace(/-/g,'');
+  const past = new Date(today);
+  past.setDate(past.getDate() - 10); // 10일 전(주말·공휴일 감안)
+  const d1 = past.toISOString().slice(0,10).replace(/-/g,'');
+  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&d1=${d1}&d2=${d2}&i=d`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const text = await r.text();
+  // Format: Date,Open,High,Low,Close,Volume
+  const lines = text.trim().split('\n').filter(l => l && !l.startsWith('Date') && l.includes(','));
+  if (lines.length < 1) return null;
+  const lastRow  = lines[lines.length - 1].split(',');
+  const prevRow  = lines.length >= 2 ? lines[lines.length - 2].split(',') : null;
+  const close    = parseFloat(lastRow[4]);
+  const prevClose = prevRow ? parseFloat(prevRow[4]) : null;
+  if (!close || close <= 0 || isNaN(close)) return null;
+  const changePct = (prevClose && prevClose > 0)
+    ? (close - prevClose) / prevClose * 100
+    : 0;
+  return { price: close, change: +changePct.toFixed(2) };
+}
+
+async function loadRealtimeMarket() {
+  const indexTasks = [
+    { s:'^ksp',      key:'KOSPI'    },
+    { s:'^kdq',      key:'KOSDAQ'   },
+    { s:'^spx',      key:'SP500'    },
+    { s:'^ndq',      key:'NASDAQ'   },
+    { s:'^nkx',      key:'Nikkei'   },
+    { s:'000001.ss', key:'Shanghai' },
+  ];
+  const comTasks = [
+    { s:'cl.f',   key:'WTI'    },
+    { s:'co.f',   key:'Brent'  },
+    { s:'xauusd', key:'Gold'   },
+    { s:'xagusd', key:'Silver' },
+    { s:'hg.f',   key:'Copper' },
+  ];
+
+  const patchIdx = {}, patchCom = {};
+  let count = 0;
+
+  await Promise.all([
+    ...indexTasks.map(async ({ s, key }) => {
+      try {
+        const q = await fetchStooqHistory(s);
+        if (q) { patchIdx[key] = q; count++; }
+      } catch { /* CORS or network 차단 — 조용히 무시 */ }
+    }),
+    ...comTasks.map(async ({ s, key }) => {
+      try {
+        const q = await fetchStooqHistory(s);
+        if (q) { patchCom[key] = q; count++; }
+      } catch { /* 조용히 무시 */ }
+    }),
+  ]);
+
+  if (count > 0) {
+    // applyRealData는 fx:{} 빈 객체 전달 시 FX 값을 건드리지 않음
+    applyRealData({ indices: patchIdx, commodities: patchCom, fx: {} });
+    const sbEl = document.getElementById('dataSourceInfo');
+    if (sbEl) {
+      const now = new Date();
+      sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> Stooq 실시간: ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
+    }
+    console.info(`[Stooq] ${count}개 시세 갱신 완료`);
+  } else {
+    // Stooq CORS 차단 시 — data.json fallback 안내
+    console.warn('[Stooq] 데이터 페치 실패 (CORS 차단 가능성). data.json 값 사용 중.');
+  }
+}
+
+// ============================
 // 초기 렌더링
 // ============================
 window.addEventListener('load', async ()=>{
@@ -2486,18 +2564,21 @@ window.addEventListener('load', async ()=>{
   buildNews();
   initMainChart('1W');
   // 스파크라인
-  sparkline('spark1', genSeries(2580,30,0.012), '#26a69a');
-  sparkline('spark2', genSeries(1340,30,0.005), '#b6c4ff');
-  sparkline('spark3', genSeries(78,30,0.02),    '#ef5350');
+  sparkline('spark1', genSeries(7600,30,0.012), '#26a69a');
+  sparkline('spark2', genSeries(1490,30,0.005), '#b6c4ff');
+  sparkline('spark3', genSeries(62,30,0.02),    '#ef5350');
   buildFearChart();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
   await loadRealData();
   // 실시간 환율 페치 (open.er-api.com — 페이지 로드 시 즉시 갱신)
   loadRealtimeFx();
+  // 실시간 지수·원자재 페치 (Stooq — 무료, 인증 불필요)
+  loadRealtimeMarket();
   // 실시간 뉴스 로드 (Google News RSS)
   loadFreshNews();
-  // 30분마다 실시간 환율 자동 갱신
+  // 30분마다 실시간 환율·지수 자동 갱신
   setInterval(loadRealtimeFx, 30 * 60 * 1000);
+  setInterval(loadRealtimeMarket, 30 * 60 * 1000);
 });
 </script>
 </body>
