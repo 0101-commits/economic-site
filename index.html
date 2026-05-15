@@ -1119,9 +1119,10 @@ function setMoverTab(type, btn) {
 // 뉴스 데이터 (Naver 뉴스 검색 링크 — 클릭 시 최신 기사 표시)
 // ============================
 function newsCard(n) {
+  const displayTime = n.isoDate ? relTime(n.isoDate) : (n.time || '오늘');
   return `<div onclick="window.open('${n.url}','_blank')" style="border-bottom:1px solid #1b1f2b;padding-bottom:10px;cursor:pointer;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <span style="font-size:10px;color:#8d90a2;">${n.time}</span>
+      <span style="font-size:10px;color:#8d90a2;">${displayTime}</span>
       <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
       <span style="font-size:9px;color:#434656;">↗ 기사보기</span>
     </div>
@@ -1131,71 +1132,249 @@ function newsCard(n) {
 function buildNewsFeed(containerId, items) {
   const el = document.getElementById(containerId);
   if(!el) return;
-  el.innerHTML = items.map(newsCard).join('');
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  const recent = items.filter(n => !n.isoDate || new Date(n.isoDate).getTime() >= cutoff);
+  el.innerHTML = recent.map(newsCard).join('');
 }
 
 // 대시보드 홈 뉴스
 const newsItems = [
-  {time:'오늘', tag:'매크로', tagClr:'#2962ff', cat:'채권',
-   title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
-   url:'https://www.hankyung.com/amp/202601152172i'},
-  {time:'오늘', tag:'외환',  tagClr:'#0f6e56', cat:'외환',
-   title:'이어지는 달러 약세..원달러 1350원?',
-   url:'https://www.hankyung.com/article/202604308877i'},
-  {time:'오늘', tag:'글로벌', tagClr:'#534ab7', cat:'주식',
-   title:'ECB, 8차례 금리인하…年2%로 내려',
-   url:'https://www.hankyung.com/article/2025060583301'},
-  {time:'오늘', tag:'원자재', tagClr:'#854f0b', cat:'원자재',
-   title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
-   url:'https://www.hankyung.com/article/202503049987i'},
+  // ── 채권 (5) ───────────────────────────────────────────
+  {isoDate:'2026-05-14', tag:'통화정책', tagClr:'#2962ff', cat:'채권',
+   title:'금통위 5월 기준금리 2.75% 동결…하반기 인하 여건 조성 중',
+   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88%ED%86%B5%EC%9C%84+%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-10', tag:'국채', tagClr:'#1e88e5', cat:'채권',
+   title:'국채 3년물 3.02%…미 국채 하락에 동반 강세',
+   url:'https://search.naver.com/search.naver?where=news&query=%EA%B5%AD%EC%B1%84+%EA%B8%88%EB%A6%AC+3%EB%85%84+2026&sort=1'},
+  {isoDate:'2026-05-07', tag:'회사채', tagClr:'#1e88e5', cat:'채권',
+   title:'AA급 회사채 스프레드 축소…투자등급 채권 수요 증가세',
+   url:'https://search.naver.com/search.naver?where=news&query=%ED%9A%8C%EC%82%AC%EC%B1%84+%EC%8A%A4%ED%94%84%EB%A0%88%EB%93%9C+2026&sort=1'},
+  {isoDate:'2026-05-02', tag:'외국인국채', tagClr:'#0f6e56', cat:'채권',
+   title:'외국인 국채 순매수 1.2조 원…한미 금리차 축소 기대',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%99%B8%EA%B5%AD%EC%9D%B8+%EA%B5%AD%EC%B1%84+%EC%88%9C%EB%A7%A4%EC%88%98+2026&sort=1'},
+  {isoDate:'2026-04-25', tag:'연준', tagClr:'#534ab7', cat:'채권',
+   title:'연준 5월 FOMC 금리 동결…"인플레 목표 달성 전까지 인하 없다"',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%97%B0%EC%A4%80+FOMC+%EA%B8%88%EB%A6%AC+%EB%8F%99%EA%B2%B0+2026&sort=1'},
+  // ── 외환 (5) ───────────────────────────────────────────
+  {isoDate:'2026-05-14', tag:'원달러', tagClr:'#0f6e56', cat:'외환',
+   title:'원달러 1,490원대…글로벌 달러 약세에 원화 소폭 강세',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9B%90%EB%8B%AC%EB%9F%AC+%ED%99%98%EC%9C%A8+1490+2026&sort=1'},
+  {isoDate:'2026-05-11', tag:'달러인덱스', tagClr:'#0f6e56', cat:'외환',
+   title:'달러인덱스 3개월 최저…미 재정 우려에 달러 약세 지속',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%8B%AC%EB%9F%AC%EC%9D%B8%EB%8D%B1%EC%8A%A4+%EC%95%BD%EC%84%B8+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-07', tag:'엔화', tagClr:'#534ab7', cat:'외환',
+   title:'엔달러 144엔대 강세…BOJ 추가 금리인상 기대 확산',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%97%94%ED%99%94+BOJ+%EA%B8%88%EB%A6%AC%EC%9D%B8%EC%83%81+2026&sort=1'},
+  {isoDate:'2026-05-02', tag:'유로화', tagClr:'#534ab7', cat:'외환',
+   title:'유로화 1.17달러대…ECB 금리인하 사이클 종료 시사',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%ED%99%94+ECB+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-25', tag:'한은외환', tagClr:'#0f6e56', cat:'외환',
+   title:'한은 외환보유고 4월 4,295억달러…전월 대비 소폭 감소',
+   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EA%B5%AD%EC%9D%80%ED%96%89+%EC%99%B8%ED%99%98%EB%B3%B4%EC%9C%A0%EA%B3%A0+2026&sort=1'},
+  // ── 주식 (5) ───────────────────────────────────────────
+  {isoDate:'2026-05-14', tag:'국내주식', tagClr:'#2962ff', cat:'주식',
+   title:'KOSPI 7,600선 유지…외국인 매도에도 기관 맞불 매수',
+   url:'https://search.naver.com/search.naver?where=news&query=KOSPI+7600+%EA%B8%B0%EA%B4%80+2026&sort=1'},
+  {isoDate:'2026-05-12', tag:'반도체', tagClr:'#2962ff', cat:'주식',
+   title:'삼성전자 2Q HBM3E 납품 확대…영업이익 전망 14조 상향',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90+HBM+2026+2%EB%B6%84%EA%B8%B0&sort=1'},
+  {isoDate:'2026-05-09', tag:'AI테마', tagClr:'#2962ff', cat:'주식',
+   title:'SK하이닉스 NVIDIA 블랙웰 HBM 공급 확대…주가 52주 신고가',
+   url:'https://search.naver.com/search.naver?where=news&query=SK%ED%95%98%EC%9D%B4%EB%8B%89%EC%8A%A4+NVIDIA+HBM+2026&sort=1'},
+  {isoDate:'2026-05-06', tag:'글로벌주식', tagClr:'#534ab7', cat:'주식',
+   title:'S&P 500 5,650선 안착…연준 금리동결에 기술주 랠리',
+   url:'https://search.naver.com/search.naver?where=news&query=S%26P500+5650+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-02', tag:'코스닥', tagClr:'#2962ff', cat:'주식',
+   title:'코스닥 1,140선 공방…바이오·2차전지 업종 반등 시도',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%BD%94%EC%8A%A4%EB%8B%A5+1140+2026&sort=1'},
+  // ── 원자재 (5) ─────────────────────────────────────────
+  {isoDate:'2026-05-13', tag:'국제유가', tagClr:'#854f0b', cat:'원자재',
+   title:'WTI 62달러대 공방…OPEC+ 증산 합의에 약세 압력',
+   url:'https://search.naver.com/search.naver?where=news&query=WTI+%EA%B5%AD%EC%A0%9C%EC%9C%A0%EA%B0%80+62%EB%8B%AC%EB%9F%AC+2026&sort=1'},
+  {isoDate:'2026-05-10', tag:'금값', tagClr:'#b8860b', cat:'원자재',
+   title:'금값 3,241달러 유지…지정학적 불확실성에 안전자산 수요',
+   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88%EA%B0%92+3200%EB%8B%AC%EB%9F%AC+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-06', tag:'구리', tagClr:'#854f0b', cat:'원자재',
+   title:'LME 구리 4.65달러…중국 인프라 수요 기대에 반등',
+   url:'https://search.naver.com/search.naver?where=news&query=LME+%EA%B5%AC%EB%A6%AC+4.65%EB%8B%AC%EB%9F%AC+2026&sort=1'},
+  {isoDate:'2026-04-29', tag:'에너지', tagClr:'#854f0b', cat:'원자재',
+   title:'브렌트유 65달러대 안착…중동 공급 안정에 하락 제한',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%B8%8C%EB%A0%8C%ED%8A%B8%EC%9C%A0+65%EB%8B%AC%EB%9F%AC+2026&sort=1'},
+  {isoDate:'2026-04-22', tag:'원자재종합', tagClr:'#534ab7', cat:'원자재',
+   title:'달러 약세에 원자재 전반 강세…은·팔라듐 상승 주도',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9B%90%EC%9E%90%EC%9E%AC+%EB%8B%AC%EB%9F%AC%EC%95%BD%EC%84%B8+2026+4%EC%9B%94&sort=1'},
 ];
 
 // 원자재 페이지 뉴스
 const commodityNewsItems = [
-  {time:'오늘', tag:'원유', tagClr:'#854f0b', cat:'원유',
-   title:'OPEC+ 증산 전망에 국제유가 하락…WTI 2%↓',
-   url:'https://www.hankyung.com/article/202503049987i'},
-  {time:'오늘', tag:'귀금속', tagClr:'#b8860b', cat:'귀금속',
-   title:'전쟁에도 금값 급락? 시장이 주목한 Fed 변수',
-   url:'https://www.hankyung.com/article/202603047159i'},
-  {time:'오늘', tag:'비철금속', tagClr:'#2962ff', cat:'비철금속',
-   title:'구리 가격 \'주춤\'…재고 급증에 수요는 감소',
-   url:'https://www.hankyung.com/article/202603188275i'},
-  {time:'오늘', tag:'두바이유', tagClr:'#534ab7', cat:'원유',
-   title:'중동 기름 70%라더니…한국 정유사 초유의 상황 터졌다',
-   url:'https://www.hankyung.com/article/2026031776971'},
+  // ── 원유 (5) ────────────────────────────────────────────
+  {isoDate:'2026-05-13', tag:'WTI', tagClr:'#854f0b', cat:'원유',
+   title:'WTI 62달러대…OPEC+ 증산 우려에 원유 약세 지속',
+   url:'https://search.naver.com/search.naver?where=news&query=WTI+%EC%9B%90%EC%9C%A0+62%EB%8B%AC%EB%9F%AC+2026&sort=1'},
+  {isoDate:'2026-05-09', tag:'OPEC+', tagClr:'#854f0b', cat:'원유',
+   title:'OPEC+ 6월 추가 증산 합의…원유 시장 공급 과잉 우려',
+   url:'https://search.naver.com/search.naver?where=news&query=OPEC+%EC%A6%9D%EC%82%B0+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-06', tag:'브렌트유', tagClr:'#534ab7', cat:'원유',
+   title:'브렌트유 65달러대…중동 공급 안정에 낙폭 제한',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%B8%8C%EB%A0%8C%ED%8A%B8%EC%9C%A0+65%EB%8B%AC%EB%9F%AC+2026&sort=1'},
+  {isoDate:'2026-05-01', tag:'두바이유', tagClr:'#534ab7', cat:'원유',
+   title:'두바이 현물유 64달러대…아시아 수요 회복에 약보합',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%91%90%EB%B0%94%EC%9D%B4%EC%9C%A0+64%EB%8B%AC%EB%9F%AC+2026&sort=1'},
+  {isoDate:'2026-04-25', tag:'미국원유', tagClr:'#854f0b', cat:'원유',
+   title:'미국 원유 재고 예상 외 증가…WTI 하락 압력 지속',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+%EC%9B%90%EC%9C%A0+%EC%9E%AC%EA%B3%A0+2026&sort=1'},
+  // ── 귀금속 (5) ──────────────────────────────────────────
+  {isoDate:'2026-05-12', tag:'금', tagClr:'#b8860b', cat:'귀금속',
+   title:'금값 3,241달러 강세…안전자산 수요에 사상 최고가 근접',
+   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88%EA%B0%92+3241%EB%8B%AC%EB%9F%AC+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-08', tag:'은', tagClr:'#b8860b', cat:'귀금속',
+   title:'은 32달러 돌파…산업용 수요 증가에 귀금속 동반 강세',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%80+%EC%9D%80%EA%B0%92+32%EB%8B%AC%EB%9F%AC+2026&sort=1'},
+  {isoDate:'2026-05-03', tag:'금ETF', tagClr:'#b8860b', cat:'귀금속',
+   title:'금 ETF 순유입 10주 연속…기관 안전자산 비중 확대',
+   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88+ETF+%EC%88%9C%EC%9C%A0%EC%9E%85+2026&sort=1'},
+  {isoDate:'2026-04-28', tag:'팔라듐', tagClr:'#534ab7', cat:'귀금속',
+   title:'팔라듐 공급 부족…러 수출 제한에 자동차 촉매 가격 급등',
+   url:'https://search.naver.com/search.naver?where=news&query=%ED%8C%94%EB%9D%BC%EB%93%90+%EA%B3%B5%EA%B8%89+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-20', tag:'금KRX', tagClr:'#b8860b', cat:'귀금속',
+   title:'KRX 금 시장 1kg 바 130만원 돌파…국내 금 투자 급증',
+   url:'https://search.naver.com/search.naver?where=news&query=KRX+%EA%B8%88+%EC%8B%9C%EC%84%B8+2026&sort=1'},
+  // ── 비철금속 (5) ────────────────────────────────────────
+  {isoDate:'2026-05-11', tag:'구리', tagClr:'#2962ff', cat:'비철금속',
+   title:'LME 구리 4.65달러 반등…중국 인프라 투자 기대',
+   url:'https://search.naver.com/search.naver?where=news&query=LME+%EA%B5%AC%EB%A6%AC+4.65%EB%8B%AC%EB%9F%AC+2026&sort=1'},
+  {isoDate:'2026-05-07', tag:'알루미늄', tagClr:'#2962ff', cat:'비철금속',
+   title:'알루미늄 2,380달러대…EU 탄소국경세 여파로 공급 불확실',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%95%8C%EB%A3%A8%EB%AF%B8%EB%8A%84+LME+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-02', tag:'니켈', tagClr:'#2962ff', cat:'비철금속',
+   title:'니켈 배터리 수요 증가…전기차 시장 성장에 LME 니켈 강세',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%8B%88%EC%BC%88+LME+%EC%A0%84%EA%B8%B0%EC%B0%A8+2026&sort=1'},
+  {isoDate:'2026-04-27', tag:'아연', tagClr:'#534ab7', cat:'비철금속',
+   title:'아연 공급 과잉 우려 완화…광산 침수로 볼리비아 생산 차질',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%95%84%EC%97%B0+LME+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-18', tag:'비철금속', tagClr:'#534ab7', cat:'비철금속',
+   title:'달러 약세에 비철금속 전반 반등…구리·알루미늄 동반 상승',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%B9%84%EC%B2%A0%EA%B8%88%EC%86%8D+%EB%8B%AC%EB%9F%AC%EC%95%BD%EC%84%B8+2026&sort=1'},
 ];
 
 // 거시경제 페이지 뉴스
 const macroNewsItems = [
-  {time:'오늘', tag:'한국GDP', tagClr:'#2962ff', cat:'한국GDP',
-   title:'한국 경제, 2026년 불확실성 속 완만한 회복 흐름 지속',
-   url:'https://www.hankyung.com/article/202601212936a'},
-  {time:'오늘', tag:'미국CPI', tagClr:'#0f6e56', cat:'미국CPI',
-   title:'예상대로 높았던 4월 CPI…연준 올해 금리인하 난망',
-   url:'https://www.hankyung.com/article/202605122103i'},
-  {time:'오늘', tag:'중국경기', tagClr:'#ef5350', cat:'중국경기',
-   title:'내수 침체에 제조업 다시 위축…中 성장 목표 낮추나',
-   url:'https://www.hankyung.com/article/2026020163821'},
-  {time:'오늘', tag:'유로존', tagClr:'#534ab7', cat:'유로존',
-   title:'5월 유로존 인플레이션 1.9%…ECB 목표치보다 낮아',
-   url:'https://www.hankyung.com/article/202506032663i'},
+  // ── 한국GDP (5) ──────────────────────────────────────────
+  {isoDate:'2026-05-14', tag:'한국GDP', tagClr:'#2962ff', cat:'한국GDP',
+   title:'한국 1분기 GDP 전기比 +0.8%…IT수출 호조에 기대 상회',
+   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EA%B5%AD+GDP+1%EB%B6%84%EA%B8%B0+2026&sort=1'},
+  {isoDate:'2026-05-08', tag:'수출', tagClr:'#2962ff', cat:'한국GDP',
+   title:'4월 수출 15개월 연속 플러스…반도체·자동차 쌍끌이',
+   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EA%B5%AD+%EC%88%98%EC%B6%9C+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-04', tag:'물가', tagClr:'#1e88e5', cat:'한국GDP',
+   title:'4월 소비자물가 2.1% 상승…에너지 하락에 목표 근접',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%86%8C%EB%B9%84%EC%9E%90%EB%AC%BC%EA%B0%80+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-28', tag:'경상수지', tagClr:'#0f6e56', cat:'한국GDP',
+   title:'3월 경상수지 89억달러 흑자…반도체 수출 개선 효과',
+   url:'https://search.naver.com/search.naver?where=news&query=%EA%B2%BD%EC%83%81%EC%88%98%EC%A7%80+2026+3%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-20', tag:'성장전망', tagClr:'#2962ff', cat:'한국GDP',
+   title:'IMF, 한국 성장률 전망 2.8%로 상향…AI 수요 반영',
+   url:'https://search.naver.com/search.naver?where=news&query=IMF+%ED%95%9C%EA%B5%AD+%EC%84%B1%EC%9E%A5%EB%A5%A0+2026&sort=1'},
+  // ── 미국CPI (5) ──────────────────────────────────────────
+  {isoDate:'2026-05-13', tag:'미국CPI', tagClr:'#0f6e56', cat:'미국CPI',
+   title:'4월 미국 CPI +3.2%…근원 물가 고공행진에 금리인하 난망',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+CPI+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-09', tag:'연준', tagClr:'#0f6e56', cat:'미국CPI',
+   title:'파월 의장 "물가 목표 달성 자신감 갖기 어렵다"…매파 발언',
+   url:'https://search.naver.com/search.naver?where=news&query=%ED%8C%8C%EC%9B%94+%EC%97%B0%EC%A4%80+%EB%A7%A4%ED%8C%8C+2026&sort=1'},
+  {isoDate:'2026-05-05', tag:'미국고용', tagClr:'#534ab7', cat:'미국CPI',
+   title:'4월 미국 비농업고용 +21만명…실업률 4.0% 유지',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+%EB%B9%84%EB%86%8D%EC%97%85%EA%B3%A0%EC%9A%A9+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-30', tag:'PCE', tagClr:'#0f6e56', cat:'미국CPI',
+   title:'3월 PCE 디플레이터 +2.6%…연준 선호 물가지표 여전히 높아',
+   url:'https://search.naver.com/search.naver?where=news&query=PCE+%EB%94%94%ED%94%8C%EB%A0%88%EC%9D%B4%ED%84%B0+2026+3%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-22', tag:'미국경제', tagClr:'#534ab7', cat:'미국CPI',
+   title:'미국 1분기 GDP +2.1%…소비 둔화에도 견조한 성장세',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+GDP+1%EB%B6%84%EA%B8%B0+2026&sort=1'},
+  // ── 중국경기 (5) ─────────────────────────────────────────
+  {isoDate:'2026-05-12', tag:'중국경기', tagClr:'#ef5350', cat:'중국경기',
+   title:'4월 중국 PMI 49.5…내수 부진에 3개월 연속 위축',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%A4%91%EA%B5%AD+PMI+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-08', tag:'중국수출', tagClr:'#ef5350', cat:'중국경기',
+   title:'중국 4월 수출 +6.1%…대미 수출 관세 영향 제한적',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%A4%91%EA%B5%AD+%EC%88%98%EC%B6%9C+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-03', tag:'중국부동산', tagClr:'#ef5350', cat:'중국경기',
+   title:'중국 주요 70개 도시 주택가격 42개 하락…부동산 침체 지속',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%A4%91%EA%B5%AD+%EB%B6%80%EB%8F%99%EC%82%B0+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-27', tag:'중국GDP', tagClr:'#ef5350', cat:'중국경기',
+   title:'1분기 중국 GDP +5.1%…목표치 달성했으나 내수 불안',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%A4%91%EA%B5%AD+GDP+1%EB%B6%84%EA%B8%B0+2026&sort=1'},
+  {isoDate:'2026-04-20', tag:'PBOC', tagClr:'#534ab7', cat:'중국경기',
+   title:'인민은행 LPR 동결…경기 부양 여력 소진에 추가 조치 불투명',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%B8%EB%AF%BC%EC%9D%80%ED%96%89+LPR+2026+4%EC%9B%94&sort=1'},
+  // ── 유로존 (5) ───────────────────────────────────────────
+  {isoDate:'2026-05-11', tag:'유로존', tagClr:'#534ab7', cat:'유로존',
+   title:'5월 유로존 소비자물가 +2.1%…ECB 목표 2% 근접',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%EC%A1%B4+%EC%9D%B8%ED%94%8C%EB%A0%88%EC%9D%B4%EC%85%98+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-07', tag:'ECB', tagClr:'#534ab7', cat:'유로존',
+   title:'ECB 6월 회의서 추가 인하 검토…8차 인하 후 관망 전환 신호',
+   url:'https://search.naver.com/search.naver?where=news&query=ECB+%EA%B8%88%EB%A6%AC%EC%9D%B8%ED%95%98+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-02', tag:'독일경기', tagClr:'#534ab7', cat:'유로존',
+   title:'독일 1분기 GDP +0.3%…자동차·기계 수출 회복에 침체 탈출',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+GDP+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
+  {isoDate:'2026-04-26', tag:'유로존PMI', tagClr:'#2962ff', cat:'유로존',
+   title:'4월 유로존 PMI 51.2…3개월 연속 확장세 유지',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%EC%A1%B4+PMI+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-18', tag:'유로존무역', tagClr:'#534ab7', cat:'유로존',
+   title:'유로존 무역수지 흑자 확대…수출 증가·에너지 수입 비용 하락',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%EC%A1%B4+%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80+2026+4%EC%9B%94&sort=1'},
 ];
 
 // 경제캘린더 페이지 뉴스
 const calendarNewsItems = [
-  {time:'예정', tag:'한국수출', tagClr:'#2962ff', cat:'한국수출',
-   title:'전쟁 뚫고…3월 수출 861억弗 신기록',
-   url:'https://www.hankyung.com/article/2026040126791'},
-  {time:'예정', tag:'미국CPI', tagClr:'#0f6e56', cat:'미국CPI',
-   title:'예상대로 높았던 4월 CPI…연준 올해 금리인하 난망',
-   url:'https://www.hankyung.com/article/202605122103i'},
-  {time:'예정', tag:'한국은행', tagClr:'#b6c4ff', cat:'한국은행',
-   title:'금리 인하 통방문에서 삭제한 한은…사이클 완전히 끝난 듯',
-   url:'https://www.hankyung.com/amp/202601152172i'},
-  {time:'예정', tag:'ECB', tagClr:'#534ab7', cat:'한국은행',
-   title:'ECB, 8차례 금리인하…年2%로 내려',
-   url:'https://www.hankyung.com/article/2025060583301'},
+  // ── 한국수출 (5) ─────────────────────────────────────────
+  {isoDate:'2026-05-13', tag:'한국수출', tagClr:'#2962ff', cat:'한국수출',
+   title:'4월 수출 887억달러 신기록…반도체 비중 25% 첫 돌파',
+   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EA%B5%AD+%EC%88%98%EC%B6%9C+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-06', tag:'무역수지', tagClr:'#2962ff', cat:'한국수출',
+   title:'4월 무역수지 85억달러 흑자…에너지 수입 감소로 개선',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-01', tag:'경상수지', tagClr:'#1e88e5', cat:'한국수출',
+   title:'1분기 경상수지 흑자 261억달러…연간 800억달러 목표 순항',
+   url:'https://search.naver.com/search.naver?where=news&query=%EA%B2%BD%EC%83%81%EC%88%98%EC%A7%80+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
+  {isoDate:'2026-04-25', tag:'반도체수출', tagClr:'#2962ff', cat:'한국수출',
+   title:'반도체 수출 4월 역대 최고…HBM·고부가메모리 글로벌 수요',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%B0%98%EB%8F%84%EC%B2%B4+%EC%88%98%EC%B6%9C+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-17', tag:'수출전망', tagClr:'#534ab7', cat:'한국수출',
+   title:'산업부, 2026년 수출 목표 7,200억달러 상향 조정',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%82%B0%EC%97%85%EB%B6%80+%EC%88%98%EC%B6%9C+%EB%AA%A9%ED%91%9C+2026&sort=1'},
+  // ── 미국CPI (5) ──────────────────────────────────────────
+  {isoDate:'2026-05-13', tag:'미국CPI', tagClr:'#0f6e56', cat:'미국CPI',
+   title:'4월 미국 CPI +3.2%…예상치 상회에 국채금리 급등',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+CPI+4%EC%9B%94+2026+%EC%98%88%EC%83%81%EC%B9%98&sort=1'},
+  {isoDate:'2026-05-07', tag:'고용지표', tagClr:'#0f6e56', cat:'미국CPI',
+   title:'4월 JOLTS 구인건수 800만건 유지…노동시장 여전히 타이트',
+   url:'https://search.naver.com/search.naver?where=news&query=JOLTS+%EA%B5%AC%EC%9D%B8%EA%B1%B4%EC%88%98+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-02', tag:'미국고용', tagClr:'#534ab7', cat:'미국CPI',
+   title:'4월 ADP 민간고용 +19만명…예상 범위 내 안정',
+   url:'https://search.naver.com/search.naver?where=news&query=ADP+%EA%B3%A0%EC%9A%A9+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-28', tag:'미국GDP', tagClr:'#0f6e56', cat:'미국CPI',
+   title:'미국 1분기 GDP +2.1%…소비 둔화에도 순수출 선방',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+GDP+1%EB%B6%84%EA%B8%B0+2026+2.1&sort=1'},
+  {isoDate:'2026-04-20', tag:'연준', tagClr:'#534ab7', cat:'미국CPI',
+   title:'연준 베이지북: 경제활동 완만한 성장…인플레 압력 여전',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%97%B0%EC%A4%80+%EB%B2%A0%EC%9D%B4%EC%A7%80%EB%B6%81+2026+4%EC%9B%94&sort=1'},
+  // ── 한국은행 (5) ─────────────────────────────────────────
+  {isoDate:'2026-05-14', tag:'한국은행', tagClr:'#b6c4ff', cat:'한국은행',
+   title:'금통위 5월 기준금리 2.75% 동결…물가 안정세 확인 후 인하',
+   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88%ED%86%B5%EC%9C%84+%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-08', tag:'통화정책', tagClr:'#b6c4ff', cat:'한국은행',
+   title:'한은 총재 "2026년 하반기 금리인하 여건 조성 중"',
+   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EC%9D%80+%EC%B4%9D%EC%9E%AC+%EA%B8%88%EB%A6%AC%EC%9D%B8%ED%95%98+2026&sort=1'},
+  {isoDate:'2026-05-03', tag:'ECB', tagClr:'#534ab7', cat:'한국은행',
+   title:'ECB 6월 추가 인하 시사…글로벌 통화정책 완화 흐름 지속',
+   url:'https://search.naver.com/search.naver?where=news&query=ECB+%EA%B8%88%EB%A6%AC%EC%9D%B8%ED%95%98+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-24', tag:'BOJ', tagClr:'#534ab7', cat:'한국은행',
+   title:'BOJ 4월 금리 동결…인플레이션 2% 목표 점진 달성 확인',
+   url:'https://search.naver.com/search.naver?where=news&query=BOJ+%EA%B8%88%EB%A6%AC+%EB%8F%99%EA%B2%B0+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-17', tag:'Fed', tagClr:'#0f6e56', cat:'한국은행',
+   title:'연준 5월 FOMC 의사록 공개…"금리인하 여건 아직 충족 안 돼"',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%97%B0%EC%A4%80+FOMC+%EC%9D%98%EC%82%AC%EB%A1%9D+2026+4%EC%9B%94&sort=1'},
 ];
 
 function buildNews() { buildNewsFeed('newsFeed', newsItems); }
@@ -1211,7 +1390,9 @@ function renderFiltered(feedId) {
   const arr = getFeedArray(feedId);
   const cat = currentNewsFilter[feedId] || 'all';
   if(!arr) return;
-  const filtered = cat==='all' ? arr : arr.filter(n=>n.cat===cat||n.tag===cat);
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  const recent = arr.filter(n => !n.isoDate || new Date(n.isoDate).getTime() >= cutoff);
+  const filtered = cat==='all' ? recent : recent.filter(n=>n.cat===cat||n.tag===cat);
   const el2 = document.getElementById(feedId);
   if(el2) el2.innerHTML = filtered.length ? filtered.map(newsCard).join('') : '<div style="color:#434656;font-size:12px;padding:12px 0;text-align:center;">해당 카테고리의 뉴스가 없습니다</div>';
 }
@@ -1723,7 +1904,7 @@ function buildCommodityPage() {
   // 귀금속
   const pCtx=document.getElementById('preciousChart');
   if(pCtx){
-    const gSeries=genSeries(2387,days,0.010), sSeries=genSeries(28.4,days,0.015), ptSeries=genSeries(961,days,0.012);
+    const gSeries=genSeries(3241,days,0.010), sSeries=genSeries(32.48,days,0.015), ptSeries=genSeries(985,days,0.012);
     charts['preciousChart']=new Chart(pCtx,{type:'line',
       data:{labels:sl(gSeries),datasets:[
         {data:sv(gSeries),label:'금(Gold)',borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
@@ -1741,7 +1922,7 @@ function buildCommodityPage() {
   // 비철금속
   const bCtx=document.getElementById('baseMetalChart');
   if(bCtx){
-    const cuS=genSeries(4.12,days,0.015),alS=genSeries(2248,days,0.012),znS=genSeries(2912,days,0.013),niS=genSeries(16820,days,0.018);
+    const cuS=genSeries(4.65,days,0.015),alS=genSeries(2380,days,0.012),znS=genSeries(2850,days,0.013),niS=genSeries(15800,days,0.018);
     charts['baseMetalChart']=new Chart(bCtx,{type:'line',
       data:{labels:sl(cuS),datasets:[
         {data:sv(cuS),label:'구리($/lb)',borderColor:'#ef5350',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
@@ -1760,7 +1941,7 @@ function buildCommodityPage() {
   // 에너지
   const eCtx=document.getElementById('energyChart');
   if(eCtx){
-    const wSeries=genSeries(78,days,0.020),brS=genSeries(82,days,0.018),dxS=genSeries(80,days,0.018),ngS=genSeries(2.18,days,0.035);
+    const wSeries=genSeries(62,days,0.020),brS=genSeries(65.8,days,0.018),dxS=genSeries(64.1,days,0.018),ngS=genSeries(2.18,days,0.035);
     charts['energyChart']=new Chart(eCtx,{type:'line',
       data:{labels:sl(wSeries),datasets:[
         {data:sv(wSeries),label:'WTI($/bbl)',borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
@@ -2406,28 +2587,30 @@ async function loadRealtimeFx() {
 // ============================
 const NEWS_QUERIES = {
   newsItems: [
-    {idx:0, q:'한국은행 기준금리'},
-    {idx:1, q:'원달러 환율 시황'},
-    {idx:2, q:'ECB 금리 결정'},
-    {idx:3, q:'OPEC 국제유가'},
+    // 채권(0-4), 외환(5-9), 주식(10-14), 원자재(15-19)
+    {idx:0,  q:'한국은행 기준금리 2026'},
+    {idx:5,  q:'원달러 환율 시황 2026'},
+    {idx:10, q:'코스피 주가 시황 2026'},
+    {idx:15, q:'WTI 국제유가 2026'},
   ],
   commodityNewsItems: [
-    {idx:0, q:'WTI 국제유가'},
-    {idx:1, q:'금 시세 골드'},
-    {idx:2, q:'LME 구리 가격'},
-    {idx:3, q:'두바이유 아시아'},
+    // 원유(0-4), 귀금속(5-9), 비철금속(10-14)
+    {idx:0,  q:'WTI 국제유가 2026'},
+    {idx:5,  q:'금 시세 골드 2026'},
+    {idx:10, q:'LME 구리 가격 2026'},
   ],
   macroNewsItems: [
-    {idx:0, q:'한국 GDP 성장률'},
-    {idx:1, q:'미국 CPI 인플레이션'},
-    {idx:2, q:'중국 경기 PMI'},
-    {idx:3, q:'유로존 인플레이션'},
+    // 한국GDP(0-4), 미국CPI(5-9), 중국경기(10-14), 유로존(15-19)
+    {idx:0,  q:'한국 GDP 성장률 2026'},
+    {idx:5,  q:'미국 CPI 인플레이션 2026'},
+    {idx:10, q:'중국 경기 PMI 2026'},
+    {idx:15, q:'유로존 인플레이션 2026'},
   ],
   calendarNewsItems: [
-    {idx:0, q:'한국 수출 무역수지'},
-    {idx:1, q:'미국 비농업 고용'},
-    {idx:2, q:'한국은행 금통위'},
-    {idx:3, q:'ECB 통화정책'},
+    // 한국수출(0-4), 미국CPI(5-9), 한국은행(10-14)
+    {idx:0,  q:'한국 수출 무역수지 2026'},
+    {idx:5,  q:'미국 CPI 고용 2026'},
+    {idx:10, q:'한국은행 금통위 2026'},
   ],
 };
 
@@ -2441,7 +2624,7 @@ async function fetchLatestArticle(query) {
     if (d.status !== 'ok' || !d.items || !d.items.length) return null;
     const it = d.items[0];
     const cleanTitle = (it.title || '').replace(/\s*-\s*[^-]+$/, '').trim();
-    return { title: cleanTitle, url: it.link, time: relTime(it.pubDate) };
+    return { title: cleanTitle, url: it.link, time: relTime(it.pubDate), isoDate: it.pubDate ? new Date(it.pubDate).toISOString().slice(0,10) : null };
   } catch (e) { return null; }
 }
 
@@ -2465,6 +2648,7 @@ async function loadFreshNews() {
           arrays[arrName][idx].title = fresh.title;
           arrays[arrName][idx].url = fresh.url;
           arrays[arrName][idx].time = fresh.time;
+          if (fresh.isoDate) arrays[arrName][idx].isoDate = fresh.isoDate;
         }
       }));
     }
