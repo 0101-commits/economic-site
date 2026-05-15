@@ -1,11 +1,11 @@
-name: Daily Market Data Fetch
+name: Market Data Fetch (Hourly)
 
-# 매일 오전 8시 KST (= UTC 전날 23:00) 자동 실행
+# 매 시간 정각 자동 실행 (UTC 기준)
 # 주의: GitHub Actions 스케줄은 기본 브랜치(main)에 있을 때 활성화됩니다.
 # 개발 중에는 workflow_dispatch로 수동 실행 가능합니다.
 on:
   schedule:
-    - cron: '0 23 * * *'   # 23:00 UTC = 08:00 KST 다음날
+    - cron: '0 * * * *'    # 매 시간 정각 (KST 기준 매 정시)
   workflow_dispatch:        # 수동 실행 허용
 
 permissions:
@@ -28,7 +28,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests yfinance
 
       - name: Fetch market data
         run: python scripts/fetch_data.py
