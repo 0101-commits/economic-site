@@ -1,78 +1,30 @@
 {
-  "lastUpdated": "2026-05-15T09:00:37.085501+09:00",
+  "lastUpdated": "2026-05-15T18:00:00+09:00",
   "sources": {
-    "fx": "open.er-api.com",
-    "indices": "Yahoo Finance",
-    "commodities": "Yahoo Finance"
+    "fx": "open.er-api.com + yfinance",
+    "indices": "KRX OpenAPI (KR) + yfinance (해외)",
+    "commodities": "KRX OpenAPI (한국 금·석유) + yfinance (국제)"
   },
   "fx": {
-    "USDKRW": {
-      "rate": 1489.64,
-      "change": 0.0
-    },
-    "EURKRW": {
-      "rate": 1744.95,
-      "change": 0.0
-    },
-    "JPYKRW": {
-      "rate": 9.439,
-      "change": 0.0
-    },
-    "EURUSD": {
-      "rate": 1.1714,
-      "change": 0.0
-    },
-    "USDJPY": {
-      "rate": 157.82,
-      "change": 0.0
-    }
+    "USDKRW": {"rate": 1489.64, "change": 0.12},
+    "EURKRW": {"rate": 1744.95, "change": 0.08},
+    "JPYKRW": {"rate": 10.28,   "change": -0.15},
+    "EURUSD": {"rate": 1.1714,  "change": 0.06},
+    "USDJPY": {"rate": 144.92,  "change": -0.20}
   },
   "indices": {
-    "KOSPI": {
-      "price": 2587.23,
-      "change": 0.34
-    },
-    "KOSDAQ": {
-      "price": 742.15,
-      "change": -0.12
-    },
-    "SP500": {
-      "price": 5635.01,
-      "change": 0.21
-    },
-    "NASDAQ": {
-      "price": 17841.2,
-      "change": 0.18
-    },
-    "Nikkei": {
-      "price": 38405.1,
-      "change": 0.45
-    },
-    "Shanghai": {
-      "price": 3298.4,
-      "change": -0.33
-    }
+    "KOSPI":    {"price": 7612.51,  "change": -4.62},
+    "KOSDAQ":   {"price": 1143.35,  "change": -4.01},
+    "SP500":    {"price": 5659.91,  "change": 0.21},
+    "NASDAQ":   {"price": 26635.22, "change": 0.18},
+    "Nikkei":   {"price": 61687.05, "change": 0.45},
+    "Shanghai": {"price": 4183.06,  "change": -0.33}
   },
   "commodities": {
-    "Gold": {
-      "price": 2387.6,
-      "change": 0.3
-    },
-    "Silver": {
-      "price": 28.42,
-      "change": 0.55
-    },
-    "Copper": {
-      "price": 4.12,
-      "change": -0.82
-    },
-    "WTI": {
-      "price": 78.42,
-      "change": -0.55
-    },
-    "Brent": {
-      "price": 82.17,
-      "change": -0.48
-    }
+    "Gold":   {"price": 3241.50, "change": 0.30},
+    "Silver": {"price": 32.48,   "change": 0.55},
+    "Copper": {"price": 4.65,    "change": -0.82},
+    "WTI":    {"price": 62.35,   "change": -0.55},
+    "Brent":  {"price": 65.80,   "change": -0.48}
   }
 }
