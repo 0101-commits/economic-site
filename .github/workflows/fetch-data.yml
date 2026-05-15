@@ -31,6 +31,8 @@ jobs:
         run: pip install requests yfinance
 
       - name: Fetch market data
+        env:
+          KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
         run: python scripts/fetch_data.py
 
       - name: Commit and push data.json
