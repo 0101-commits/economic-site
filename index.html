@@ -68,6 +68,7 @@ tailwind.config = {
   #sidebarToggle:hover { background:#262a35; }
   .range-reset-btn { background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:3px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:6px;line-height:1.2; }
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
+  .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #2a2e3d;border-radius:4px;padding:2px 6px;font-size:11px; }
 </style>
 </head>
 <body>
@@ -320,55 +321,103 @@ tailwind.config = {
 
       <!-- 금리·채권 탭 -->
       <div id="market-bond" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
-          <!-- Bond detail chart -->
-          <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-              <div>
-                <div class="widget-title" style="margin-bottom:0;" id="bondChartTitle">10년 국고채 수익률</div>
-                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="bondChartRate">3.02%</div>
-              </div>
-              <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setBondPeriod('1M',this)">1M</button>
-                <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('3M',this)">3M</button>
-                <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('1Y',this)">1Y</button>
+        <!-- Sub-tabs -->
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <button class="tab-btn active" style="font-size:11px;padding:4px 12px;border:1px solid #2a2e3d;border-radius:5px;background:#2962ff;color:#fff;" onclick="setBondSubTab('rate',this)">📈 금리</button>
+          <button class="tab-btn" style="font-size:11px;padding:4px 12px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;" onclick="setBondSubTab('bond',this)">📋 채권</button>
+        </div>
+
+        <!-- 금리 sub-tab -->
+        <div id="bond-subtab-rate">
+          <!-- Country filter checkboxes -->
+          <div class="widget" style="margin-bottom:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+              <div class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns">
+                <button onclick="toggleRateFilter('kr',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">🇰🇷 한국</button>
+                <button onclick="toggleRateFilter('us',this)" style="font-size:11px;padding:3px 8px;border:1px solid #26a69a;border-radius:4px;background:#26a69a;color:#fff;cursor:pointer;">🇺🇸 미국</button>
+                <button onclick="toggleRateFilter('eu',this)" style="font-size:11px;padding:3px 8px;border:1px solid #b6c4ff;border-radius:4px;background:#b6c4ff33;color:#b6c4ff;cursor:pointer;">🇪🇺 유로존</button>
+                <button onclick="toggleRateFilter('jp',this)" style="font-size:11px;padding:3px 8px;border:1px solid #f5a623;border-radius:4px;background:#f5a62333;color:#f5a623;cursor:pointer;">🇯🇵 일본</button>
+                <button onclick="toggleRateFilter('uk',this)" style="font-size:11px;padding:3px 8px;border:1px solid #ef5350;border-radius:4px;background:#ef535033;color:#ef5350;cursor:pointer;">🇬🇧 영국</button>
               </div>
             </div>
-            <div id="bondChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;"></div>
-            <div style="position:relative;height:220px;">
-              <canvas id="bondChart" role="img" aria-label="국고채 수익률 차트">국고채 차트</canvas>
+            <div style="position:relative;height:280px;">
+              <canvas id="rateHistoryChart" role="img" aria-label="주요국 기준금리 비교">금리 차트</canvas>
             </div>
           </div>
-          <!-- US yield curve -->
+          <!-- Current rates table -->
           <div class="widget">
-            <div class="widget-title">미국 국채 수익률 곡선</div>
-            <div style="position:relative;height:220px;">
-              <canvas id="yieldCurveChart" role="img" aria-label="미국 국채 수익률 곡선">수익률 곡선</canvas>
-            </div>
+            <div class="widget-title">주요국 기준금리 현황</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px;">국가</th>
+                <th style="text-align:right;padding:6px;">현재금리</th>
+                <th style="text-align:right;padding:6px;">전회</th>
+                <th style="text-align:right;padding:6px;">다음 결정</th>
+                <th style="text-align:right;padding:6px;">방향</th>
+              </tr></thead>
+              <tbody id="rateCurrentTable"></tbody>
+            </table>
           </div>
         </div>
-        <!-- Rate comparison chart -->
-        <div class="widget" style="margin-bottom:12px;">
-          <div class="widget-title">한·미 기준금리 비교</div>
-          <div style="position:relative;height:200px;">
-            <canvas id="rateCompChart" role="img" aria-label="한미 기준금리 비교">기준금리 비교</canvas>
+
+        <!-- 채권 sub-tab -->
+        <div id="bond-subtab-bond" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
+            <div class="widget">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                <div>
+                  <div class="widget-title" style="margin-bottom:0;" id="bondChartTitle">10년 국고채 수익률</div>
+                  <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="bondChartRate">3.02%</div>
+                </div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                  <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setBondPeriod('1M',this)">1M</button>
+                  <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('3M',this)">3M</button>
+                  <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('1Y',this)">1Y</button>
+                </div>
+              </div>
+              <div id="bondChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+              <div style="position:relative;height:220px;">
+                <canvas id="bondChart" role="img" aria-label="국고채 수익률 차트">국고채 차트</canvas>
+              </div>
+            </div>
+            <div class="widget">
+              <div class="widget-title">미국 국채 수익률 곡선</div>
+              <div style="position:relative;height:220px;">
+                <canvas id="yieldCurveChart" role="img" aria-label="미국 국채 수익률 곡선">수익률 곡선</canvas>
+              </div>
+            </div>
           </div>
-        </div>
-        <!-- Clickable bond table -->
-        <div class="widget">
-          <div class="widget-title">한국 국고채 수익률 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 차트 업데이트</span></div>
-          <table style="width:100%;font-size:13px;border-collapse:collapse;">
-            <thead>
-              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px 0;">만기</th>
-                <th style="text-align:right;padding:6px;">수익률</th>
+          <!-- Multi-country bond yields table -->
+          <div class="widget" style="margin-bottom:12px;">
+            <div class="widget-title">주요국 10년물 국채 수익률</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px;">국가</th>
+                <th style="text-align:right;padding:6px;">10년</th>
+                <th style="text-align:right;padding:6px;">2년</th>
+                <th style="text-align:right;padding:6px;">스프레드</th>
                 <th style="text-align:right;padding:6px;">전일비</th>
-                <th style="text-align:right;padding:6px;">1주전</th>
-                <th style="text-align:right;padding:6px;">1개월전</th>
-              </tr>
-            </thead>
-            <tbody id="bondTable"></tbody>
-          </table>
+              </tr></thead>
+              <tbody id="globalBondTable"></tbody>
+            </table>
+          </div>
+          <!-- Korean bonds table -->
+          <div class="widget">
+            <div class="widget-title">한국 국고채 수익률 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 차트 업데이트</span></div>
+            <table style="width:100%;font-size:13px;border-collapse:collapse;">
+              <thead>
+                <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                  <th style="text-align:left;padding:6px 0;">만기</th>
+                  <th style="text-align:right;padding:6px;">수익률</th>
+                  <th style="text-align:right;padding:6px;">전일비</th>
+                  <th style="text-align:right;padding:6px;">1주전</th>
+                  <th style="text-align:right;padding:6px;">1개월전</th>
+                </tr>
+              </thead>
+              <tbody id="bondTable"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -396,6 +445,7 @@ tailwind.config = {
               <button class="tab-btn" id="eqPeriod1Y" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1Y',this)">1Y</button>
             </div>
           </div>
+          <div id="equityChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;display:flex;flex-wrap:wrap;gap:4px;"></div>
           <div style="position:relative;height:220px;">
             <canvas id="equityIndexChart" role="img" aria-label="주식 지수 차트">지수 차트</canvas>
           </div>
@@ -424,69 +474,61 @@ tailwind.config = {
 
       <!-- 원자재 탭 -->
       <div id="market-commodity" style="display:none;">
-        <!-- Top: commodity detail chart + commodity table -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-          <!-- Detail chart (updates on row click) -->
+        <!-- Top: 2-panel layout (left=chart, right=clickable list) -->
+        <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
+          <!-- Left: detail chart with header -->
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
               <div>
                 <div class="widget-title" style="margin-bottom:0;" id="comDetailTitle">WTI 원유</div>
-                <div style="font-size:22px;font-weight:700;font-family:'Public Sans';" id="comDetailPrice">$62.35</div>
+                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="comDetailPrice">$62.35</div>
               </div>
-              <div style="display:flex;gap:4px;">
+              <div>
+                <div id="comDetailChange" class="down-txt" style="font-size:14px;">▼ -0.55%</div>
+                <div id="comDetail52Range" style="font-size:11px;color:#8d90a2;">52주 범위: $55 ~ $95</div>
+              </div>
+              <div style="margin-left:auto;display:flex;gap:4px;">
                 <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setComPeriod('1M',this)">1M</button>
                 <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setComPeriod('3M',this)">3M</button>
                 <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setComPeriod('1Y',this)">1Y</button>
               </div>
             </div>
+            <div id="comDetailChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
             <div style="position:relative;height:220px;">
               <canvas id="comDetailChart" role="img" aria-label="원자재 차트">원자재 차트</canvas>
             </div>
           </div>
-          <!-- Commodity table (clickable) -->
-          <div class="widget">
-            <div class="widget-title">원자재 현물 가격 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 차트 업데이트</span></div>
-            <table style="width:100%;font-size:12px;border-collapse:collapse;">
-              <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px 0;">원자재</th><th style="text-align:right;">현재가</th><th style="text-align:right;">전일비</th><th style="text-align:right;">단위</th>
-              </tr></thead>
-              <tbody id="commodityTable"></tbody>
-            </table>
+          <!-- Right: clickable category list -->
+          <div class="widget" style="overflow-y:auto;max-height:320px;">
+            <div class="widget-title">원자재 현물 가격 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">클릭 → 차트 업데이트</span></div>
+            <div id="commodityList"></div>
           </div>
         </div>
-        <!-- Sector charts 2x2 -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-          <div class="widget">
-            <div class="widget-title">귀금속 (금·은·백금)</div>
-            <div style="position:relative;height:200px;">
-              <canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas>
-            </div>
-          </div>
-          <div class="widget">
-            <div class="widget-title">비철금속 (구리·알루미늄·아연·니켈)</div>
-            <div style="position:relative;height:200px;">
-              <canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas>
-            </div>
-          </div>
-        </div>
+        <!-- Bottom: sector comparison charts 2x2 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
             <div class="widget-title">에너지 (WTI·Brent·두바이·천연가스)</div>
-            <div style="position:relative;height:200px;">
-              <canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas>
-            </div>
+            <div style="position:relative;height:200px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div class="widget-title">농산물 (밀)</div>
-            <div style="position:relative;height:200px;">
-              <canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas>
-            </div>
+            <div class="widget-title">귀금속 (금·은·백금)</div>
+            <div style="position:relative;height:200px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
-        <!-- LME 금속 재고 현황 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="widget">
+            <div class="widget-title">비철금속 (구리·알루미늄·아연·니켈)</div>
+            <div style="position:relative;height:200px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">농산물 (밀·옥수수·콩)</div>
+            <div style="position:relative;height:200px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
+          </div>
+        </div>
+        <!-- LME 재고 -->
         <div class="widget" style="margin-bottom:12px;">
           <div class="widget-title">LME 금속 창고 재고 현황
-            <span style="font-size:9px;font-weight:400;color:#434656;margin-left:6px;">단위: 톤 | 출처: LME (London Metal Exchange) 주간 보고서</span>
+            <span style="font-size:9px;font-weight:400;color:#434656;margin-left:6px;">단위: 톤</span>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
@@ -498,9 +540,9 @@ tailwind.config = {
             </tr></thead>
             <tbody id="metalInventoryTable"></tbody>
           </table>
-          <div style="font-size:9px;color:#434656;margin-top:8px;">※ heavymetalstats.com 접근 불가 — LME 공식 주간 창고 보고서(Warrant) 기준 모의 데이터. 실데이터: <a href="https://www.lme.com/en/metals/reports" target="_blank" style="color:#2962ff;">lme.com/metals/reports</a></div>
+          <div style="font-size:9px;color:#434656;margin-top:8px;">실데이터: <a href="https://www.lme.com/en/metals/reports" target="_blank" style="color:#2962ff;">lme.com/metals/reports</a></div>
         </div>
-        <!-- 원자재 관련 뉴스 -->
+        <!-- 원자재 뉴스 -->
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">원자재 관련 뉴스</div>
@@ -511,6 +553,7 @@ tailwind.config = {
             <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','원유',this)">원유</span>
             <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','귀금속',this)">귀금속</span>
             <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','비철금속',this)">비철금속</span>
+            <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','농산물',this)">농산물</span>
           </div>
           <div id="commodityNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
@@ -554,6 +597,7 @@ tailwind.config = {
           <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','EU',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇪🇺 EU</span>
           <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','JP',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇯🇵 JP</span>
           <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','CN',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇨🇳 CN</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','UK',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇬🇧 UK</span>
         </div>
         <div style="display:flex;gap:4px;">
           <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',3,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★★★</span>
@@ -933,38 +977,72 @@ function toggleSidebar() {
   if(icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
 }
 
-// ── 차트 구간 선택 (2-click range) ──
+// ── 차트 다중 측정 (annotation) 시스템 ──
+let mainAnnotations=[], mainPending=null;
+let fxAnnotations=[], fxPending=null;
+let bondAnnotations=[], bondPending=null;
+let equityAnnotations=[], equityPending=null;
+let comAnnotations=[], comPending=null;
+
+function removeAnnotation(chartName, i) {
+  if(chartName==='main') mainAnnotations.splice(i,1);
+  else if(chartName==='fx') fxAnnotations.splice(i,1);
+  else if(chartName==='bond') bondAnnotations.splice(i,1);
+  else if(chartName==='equity') equityAnnotations.splice(i,1);
+  else if(chartName==='com') comAnnotations.splice(i,1);
+  renderAnnotations(chartName);
+}
+
+function renderAnnotations(chartName) {
+  const divMap = {main:'mainChartRange',fx:'fxChartRange',bond:'bondChartRange',equity:'equityChartRange',com:'comDetailChartRange'};
+  const divId = divMap[chartName];
+  const el = document.getElementById(divId);
+  if(!el) return;
+  const anns = chartName==='main'?mainAnnotations:chartName==='fx'?fxAnnotations:chartName==='bond'?bondAnnotations:chartName==='equity'?equityAnnotations:comAnnotations;
+  const pend = chartName==='main'?mainPending:chartName==='fx'?fxPending:chartName==='bond'?bondPending:chartName==='equity'?equityPending:comPending;
+  let html='';
+  anns.forEach((a,i)=>{
+    const days=Math.abs(a.end.idx-a.start.idx);
+    const pct=(a.end.price-a.start.price)/a.start.price*100;
+    const sign=pct>=0?'+':'';
+    const clr=pct>=0?'#26a69a':'#ef5350';
+    html+=`<span class="ann-chip">
+      <strong style="color:${clr}">${sign}${pct.toFixed(2)}%</strong>
+      <span style="color:#8d90a2">${days}일 ${a.start.label}→${a.end.label}</span>
+      <button onclick="removeAnnotation('${chartName}',${i})" style="background:none;border:none;color:#8d90a2;cursor:pointer;font-size:12px;padding:0 2px;line-height:1;">✕</button>
+    </span>`;
+  });
+  if(pend) html+=`<span style="font-size:11px;color:#8d90a2;">시작: ${pend.label} — 끝점 클릭</span>`;
+  el.innerHTML=html;
+}
+
+function chartClick(chartName, idx, price, label) {
+  if(chartName==='main'){
+    if(!mainPending){mainPending={idx,price,label};}
+    else{mainAnnotations.push({start:mainPending,end:{idx,price,label}});mainPending=null;}
+  } else if(chartName==='fx'){
+    if(!fxPending){fxPending={idx,price,label};}
+    else{fxAnnotations.push({start:fxPending,end:{idx,price,label}});fxPending=null;}
+  } else if(chartName==='bond'){
+    if(!bondPending){bondPending={idx,price,label};}
+    else{bondAnnotations.push({start:bondPending,end:{idx,price,label}});bondPending=null;}
+  } else if(chartName==='equity'){
+    if(!equityPending){equityPending={idx,price,label};}
+    else{equityAnnotations.push({start:equityPending,end:{idx,price,label}});equityPending=null;}
+  } else if(chartName==='com'){
+    if(!comPending){comPending={idx,price,label};}
+    else{comAnnotations.push({start:comPending,end:{idx,price,label}});comPending=null;}
+  }
+  renderAnnotations(chartName);
+}
+
+// Legacy stubs (kept for compatibility during transition)
 let mainRangeState = {start:null, end:null};
 let fxRangeState   = {start:null, end:null};
 
-function resetRange(stateName, divId, chartId) {
-  if(stateName==='main')  mainRangeState  = {start:null, end:null};
-  if(stateName==='fx')    fxRangeState    = {start:null, end:null};
-  if(stateName==='bond')  bondRangeState  = {start:null, end:null};
-  const el = document.getElementById(divId);
-  if(el) el.textContent = '';
-}
-
-function showRangeLabel(divId, state, labels) {
-  const el = document.getElementById(divId);
-  if(!el) return;
-  // divId → stateName mapping
-  const stateMap = { mainChartRange:'main', fxChartRange:'fx', bondChartRange:'bond' };
-  const stateName = stateMap[divId] || 'main';
-  if(!state.start) { el.textContent=''; return; }
-  if(!state.end)   {
-    el.innerHTML = `시작: ${state.start.label} — 끝점을 클릭하세요 <button class="range-reset-btn" onclick="resetRange('${stateName}','${divId}')" title="초기화">✕</button>`;
-    return;
-  }
-  const days = Math.abs(state.end.idx - state.start.idx);
-  const pct  = ((state.end.price - state.start.price) / state.start.price * 100);
-  const sign = pct >= 0 ? '+' : '';
-  el.innerHTML = `구간 수익률: <strong style="color:${pct>=0?'#26a69a':'#ef5350'}">${sign}${pct.toFixed(2)}%</strong> | ${days}일 | ${state.start.label} → ${state.end.label} <button class="range-reset-btn" onclick="resetRange('${stateName}','${divId}')" title="초기화">✕</button>`;
-}
-
 function initMainChart(period='1W', customPriceData) {
   const price = customPriceData || getPeriodData(period).price;
-  mainRangeState = {start:null, end:null};
+  mainAnnotations=[]; mainPending=null;
   destroyChart('mainChart');
   const ctx1 = document.getElementById('mainChart');
   if(!ctx1) return;
@@ -980,12 +1058,7 @@ function initMainChart(period='1W', customPriceData) {
         const idx = pts[0].index;
         const price = chart.data.datasets[0].data[idx];
         const label = chart.data.labels[idx];
-        if(!mainRangeState.start || mainRangeState.end) {
-          mainRangeState = {start:{idx,price,label}, end:null};
-        } else {
-          mainRangeState.end = {idx,price,label};
-        }
-        showRangeLabel('mainChartRange', mainRangeState, chart.data.labels);
+        chartClick('main', idx, price, label);
       },
       scales:{
         x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
@@ -1129,14 +1202,15 @@ function setMoverTab(type, btn) {
 // ============================
 function newsCard(n) {
   const displayTime = n.isoDate ? relTime(n.isoDate) : (n.time || '오늘');
-  return `<div onclick="window.open('${n.url}','_blank')" style="border-bottom:1px solid #1b1f2b;padding-bottom:10px;cursor:pointer;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+  const safeUrl = (n.url||'#').replace(/'/g,'%27');
+  return `<a href="${safeUrl}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;border-bottom:1px solid #1b1f2b;padding-bottom:10px;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
       <span style="font-size:10px;color:#8d90a2;">${displayTime}</span>
       <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
       <span style="font-size:9px;color:#434656;">↗ 기사보기</span>
     </div>
     <div style="font-size:12px;line-height:1.5;">${n.title}</div>
-  </div>`;
+  </a>`;
 }
 function buildNewsFeed(containerId, items) {
   const el = document.getElementById(containerId);
@@ -1450,7 +1524,7 @@ async function refreshNews(feedId, arrName) {
 let marketTab = 'fx';
 function initMarketPage() {
   if(marketTab==='fx') buildFxPage();
-  if(marketTab==='bond') buildBondPage();
+  if(marketTab==='bond') buildRateHistoryChart();
   if(marketTab==='equity') buildEquityPage();
   if(marketTab==='commodity') buildCommodityPage();
 }
@@ -1476,21 +1550,23 @@ let fxPairs=[
 ];
 let comData=[
   // 원유
-  {name:'WTI 원유',          price:'$62.35',    chg:'-0.55%', up:false, unit:'$/bbl', cat:'oil'},
-  {name:'Brent 원유',         price:'$65.80',    chg:'-0.48%', up:false, unit:'$/bbl', cat:'oil'},
-  {name:'두바이 현물유',       price:'$64.10',    chg:'-0.41%', up:false, unit:'$/bbl', cat:'oil'},
+  {name:'WTI 원유',          price:'$62.35',    chg:'-0.55%', up:false, unit:'$/bbl', cat:'oil',    h52:'$95.00', l52:'$55.00'},
+  {name:'Brent 원유',         price:'$65.80',    chg:'-0.48%', up:false, unit:'$/bbl', cat:'oil',    h52:'$98.00', l52:'$58.00'},
+  {name:'두바이 현물유',       price:'$64.10',    chg:'-0.41%', up:false, unit:'$/bbl', cat:'oil',    h52:'$96.00', l52:'$57.00'},
   // 귀금속
-  {name:'금 (Gold)',          price:'$3,241.50', chg:'+0.30%', up:true,  unit:'$/oz',  cat:'metal'},
-  {name:'은 (Silver)',        price:'$32.48',    chg:'+0.55%', up:true,  unit:'$/oz',  cat:'metal'},
-  {name:'백금 (Platinum)',    price:'$985.00',   chg:'+0.18%', up:true,  unit:'$/oz',  cat:'metal'},
+  {name:'금 (Gold)',          price:'$3,241.50', chg:'+0.30%', up:true,  unit:'$/oz',  cat:'metal',  h52:'$3,500', l52:'$2,100'},
+  {name:'은 (Silver)',        price:'$32.48',    chg:'+0.55%', up:true,  unit:'$/oz',  cat:'metal',  h52:'$36.00', l52:'$22.00'},
+  {name:'백금 (Platinum)',    price:'$985.00',   chg:'+0.18%', up:true,  unit:'$/oz',  cat:'metal',  h52:'$1,100', l52:'$850'},
   // 비철금속
-  {name:'구리 (Copper)',      price:'$4.65',     chg:'-0.82%', up:false, unit:'$/lb',  cat:'base'},
-  {name:'알루미늄',           price:'$2,248',    chg:'+0.21%', up:true,  unit:'$/톤',  cat:'base'},
-  {name:'아연 (Zinc)',        price:'$2,912',    chg:'-0.35%', up:false, unit:'$/톤',  cat:'base'},
-  {name:'니켈 (Nickel)',      price:'$16,820',   chg:'-1.12%', up:false, unit:'$/톤',  cat:'base'},
+  {name:'구리 (Copper)',      price:'$4.65',     chg:'-0.82%', up:false, unit:'$/lb',  cat:'base',   h52:'$5.20',  l52:'$3.80'},
+  {name:'알루미늄',           price:'$2,248',    chg:'+0.21%', up:true,  unit:'$/톤',  cat:'base',   h52:'$2,600', l52:'$2,100'},
+  {name:'아연 (Zinc)',        price:'$2,912',    chg:'-0.35%', up:false, unit:'$/톤',  cat:'base',   h52:'$3,200', l52:'$2,400'},
+  {name:'니켈 (Nickel)',      price:'$16,820',   chg:'-1.12%', up:false, unit:'$/톤',  cat:'base',   h52:'$21,000',l52:'$14,500'},
   // 에너지·농산물
-  {name:'천연가스',           price:'$2.18',     chg:'-1.24%', up:false, unit:'$/MMBtu',cat:'energy'},
-  {name:'밀 (Wheat)',         price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu',  cat:'agri'},
+  {name:'천연가스',           price:'$2.18',     chg:'-1.24%', up:false, unit:'$/MMBtu',cat:'energy', h52:'$4.50',  l52:'$1.80'},
+  {name:'밀 (Wheat)',         price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu',  cat:'agri',   h52:'$7.20',  l52:'$4.80'},
+  {name:'옥수수 (Corn)',       price:'$4.42',     chg:'+0.68%', up:true,  unit:'$/bu',  cat:'agri',   h52:'$5.20',  l52:'$3.85'},
+  {name:'콩 (Soybean)',       price:'$10.48',    chg:'-0.29%', up:false, unit:'$/bu',  cat:'agri',   h52:'$12.10', l52:'$9.20'},
 ];
 let eqData=[
   {name:'KOSPI',  val:7612.51, chg:-4.62},{name:'KOSDAQ',val:1143.35, chg:-4.01},
@@ -2123,10 +2199,23 @@ const calEvents=[
   {dt:'05.20 10:00',cc:'KR',flag:'🇰🇷',name:'한국 1분기 GDP (확정)',    stars:3,prev:'+0.7%',fore:'+0.7%', act:'',   beat:null},
   {dt:'05.22 20:30',cc:'EU',flag:'🇪🇺',name:'유로존 CPI (전년비)',      stars:3,prev:'2.2%', fore:'2.1%',  act:'',   beat:null},
   {dt:'05.28 21:30',cc:'US',flag:'🇺🇸',name:'미국 1분기 GDP (2차)',     stars:3,prev:'2.3%', fore:'2.2%',  act:'',   beat:null},
+  // 6월
+  {dt:'06.02 21:30',cc:'US',flag:'🇺🇸',name:'미국 비농업고용(NFP)',      stars:3,prev:'210K',fore:'200K',act:'',beat:null},
+  {dt:'06.02 21:30',cc:'US',flag:'🇺🇸',name:'미국 실업률',              stars:3,prev:'4.0%', fore:'4.0%', act:'',beat:null},
+  {dt:'06.04 09:00',cc:'KR',flag:'🇰🇷',name:'한국 5월 소비자물가(CPI)',   stars:3,prev:'2.1%', fore:'2.0%', act:'',beat:null},
+  {dt:'06.05 20:00',cc:'EU',flag:'🇪🇺',name:'ECB 통화정책회의',          stars:3,prev:'2.50%',fore:'2.25%',act:'',beat:null},
+  {dt:'06.11 02:00',cc:'US',flag:'🇺🇸',name:'미국 FOMC 회의',           stars:3,prev:'4.25%',fore:'4.25%',act:'',beat:null},
+  {dt:'06.12 21:30',cc:'US',flag:'🇺🇸',name:'미국 CPI (전년비)',         stars:3,prev:'3.2%', fore:'3.1%', act:'',beat:null},
+  {dt:'06.16 14:00',cc:'JP',flag:'🇯🇵',name:'일본 BOJ 금리결정',        stars:3,prev:'0.50%',fore:'0.50%',act:'',beat:null},
+  {dt:'06.19 12:00',cc:'UK',flag:'🇬🇧',name:'영국 BOE 금리결정',        stars:3,prev:'4.50%',fore:'4.25%',act:'',beat:null},
+  {dt:'06.20 09:00',cc:'KR',flag:'🇰🇷',name:'한국은행 금통위 회의',      stars:3,prev:'2.75%',fore:'2.50%',act:'',beat:null},
+  {dt:'06.23 10:00',cc:'KR',flag:'🇰🇷',name:'한국 5월 수출입 동향',     stars:2,prev:'+2.8%',fore:'+3.0%',act:'',beat:null},
+  {dt:'06.24 02:00',cc:'CN',flag:'🇨🇳',name:'중국 1년물 LPR 결정',     stars:2,prev:'3.10%',fore:'3.10%',act:'',beat:null},
+  {dt:'06.26 21:30',cc:'US',flag:'🇺🇸',name:'미국 PCE 물가지수',       stars:3,prev:'2.5%', fore:'2.4%', act:'',beat:null},
 ];
 
 // ── 캘린더 필터 상태 ──────────────────────────────
-let calFilterCC    = new Set(['KR','US','EU','CN','JP']);
+let calFilterCC    = new Set(['KR','US','EU','CN','JP','UK']);
 let calFilterStars = new Set([3,2,1]);
 
 function toggleCalFilter(type, val, el) {
