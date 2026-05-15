@@ -1,48 +1,42 @@
 """
-매일 오전 8시 KST에 실행되어 금융 시장 데이터를 수집하고 data.json을 업데이트합니다.
+매 시간 실행되어 금융 시장 데이터를 수집하고 data.json을 업데이트합니다.
 
 데이터 소스:
 - open.er-api.com : 환율 (USD/KRW, EUR, JPY 등)
-- Yahoo Finance   : 주가 지수, 원자재 선물
+- yfinance        : 주가 지수, 원자재 선물 (Yahoo Finance 공식 클라이언트)
 """
 
 import json
 import sys
 import requests
+import yfinance as yf
 from datetime import datetime, timezone, timedelta
 
 KST = timezone(timedelta(hours=9))
 
 FALLBACK = {
     "fx": {
-        "USDKRW": {"rate": 1341.50, "change": 0.08},
-        "EURKRW": {"rate": 1482.30, "change": -0.15},
-        "JPYKRW": {"rate": 8.9120,  "change": 0.22},
-        "EURUSD": {"rate": 1.1060,  "change": -0.27},
-        "USDJPY": {"rate": 150.32,  "change": -0.12},
+        "USDKRW": {"rate": 1490.00, "change": 0.0},
+        "EURKRW": {"rate": 1650.00, "change": 0.0},
+        "JPYKRW": {"rate": 10.20,   "change": 0.0},
+        "EURUSD": {"rate": 1.1200,  "change": 0.0},
+        "USDJPY": {"rate": 146.00,  "change": 0.0},
     },
     "indices": {
-        "KOSPI":    {"price": 2587.23, "change": 0.34},
-        "KOSDAQ":   {"price": 742.15,  "change": -0.12},
-        "SP500":    {"price": 5635.01, "change": 0.21},
-        "NASDAQ":   {"price": 17841.20,"change": 0.18},
-        "Nikkei":   {"price": 38405.10,"change": 0.45},
-        "Shanghai": {"price": 3298.40, "change": -0.33},
+        "KOSPI":    {"price": 2587.23, "change": 0.0},
+        "KOSDAQ":   {"price": 742.15,  "change": 0.0},
+        "SP500":    {"price": 5635.01, "change": 0.0},
+        "NASDAQ":   {"price": 17841.20,"change": 0.0},
+        "Nikkei":   {"price": 38405.10,"change": 0.0},
+        "Shanghai": {"price": 3298.40, "change": 0.0},
     },
     "commodities": {
-        "Gold":   {"price": 2387.60, "change": 0.30},
-        "Silver": {"price": 28.42,   "change": 0.55},
-        "Copper": {"price": 4.12,    "change": -0.82},
-        "WTI":    {"price": 78.42,   "change": -0.55},
-        "Brent":  {"price": 82.17,   "change": -0.48},
+        "Gold":   {"price": 2387.60, "change": 0.0},
+        "Silver": {"price": 28.42,   "change": 0.0},
+        "Copper": {"price": 4.12,    "change": 0.0},
+        "WTI":    {"price": 78.42,   "change": 0.0},
+        "Brent":  {"price": 82.17,   "change": 0.0},
     },
-}
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    )
 }
 
 
@@ -53,10 +47,7 @@ def log(msg):
 def fetch_fx_spot():
     """ExchangeRate-API에서 현재 환율 조회 (무료, 인증 불필요)."""
     try:
-        r = requests.get(
-            "https://open.er-api.com/v6/latest/USD",
-            timeout=15,
-        )
+        r = requests.get("https://open.er-api.com/v6/latest/USD", timeout=15)
         r.raise_for_status()
         data = r.json()
         if data.get("result") != "success":
@@ -77,24 +68,38 @@ def fetch_fx_spot():
         return None
 
 
-def fetch_yahoo(symbol):
-    """Yahoo Finance에서 종목 시세 조회."""
-    url = (
-        f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-        "?interval=1d&range=5d"
-    )
+def fetch_yf(symbol):
+    """yfinance를 사용해 종목 시세 조회 (공식 클라이언트, 더 안정적)."""
     try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
-        r.raise_for_status()
-        meta = r.json()["chart"]["result"][0]["meta"]
-        price = meta.get("regularMarketPrice")
-        prev = meta.get("previousClose") or meta.get("chartPreviousClose")
-        if price and prev:
+        ticker = yf.Ticker(symbol)
+        # fast_info가 가장 빠르고 최신 값을 반환
+        info = ticker.fast_info
+        price = getattr(info, 'last_price', None) or getattr(info, 'regular_market_price', None)
+        prev  = getattr(info, 'previous_close', None)
+        if price is None:
+            # 히스토리로 폴백
+            hist = ticker.history(period="5d", interval="1d")
+            if hist.empty or len(hist) < 1:
+                return None
+            price = float(hist['Close'].iloc[-1])
+            prev  = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else price
+        if price and prev and prev != 0:
             change_pct = round((price - prev) / prev * 100, 2)
-            return {"price": round(price, 2), "change": change_pct}
+        else:
+            change_pct = 0.0
+        return {"price": round(float(price), 2), "change": change_pct}
     except Exception as e:
-        log(f"[Yahoo] {symbol} 오류: {e}")
-    return None
+        log(f"[yfinance] {symbol} 오류: {e}")
+        return None
+
+
+def fetch_fx_change(pair_symbol):
+    """yfinance로 환율 변동률 조회."""
+    try:
+        res = fetch_yf(pair_symbol)
+        return res["change"] if res else 0.0
+    except Exception:
+        return 0.0
 
 
 def build_data():
@@ -110,27 +115,26 @@ def build_data():
     # ── 환율 ────────────────────────────────────────────────
     spot = fetch_fx_spot()
     if spot:
-        data["sources"]["fx"] = "open.er-api.com"
+        data["sources"]["fx"] = "open.er-api.com + yfinance"
         data["fx"] = {k: {"rate": v, "change": 0.0} for k, v in spot.items()}
-        # Yahoo에서 변동률 보강
+        # yfinance로 변동률 보강
         for pair, sym in [("USDKRW", "USDKRW=X"), ("EURUSD", "EURUSD=X"), ("USDJPY", "USDJPY=X")]:
-            q = fetch_yahoo(sym)
-            if q:
-                data["fx"][pair]["change"] = q["change"]
-                data["fx"][pair]["rate"]   = q["price"]
-        # EURKRW, JPYKRW 변동률: 기준통화 변동률로 근사
-        if "EURUSD" in data["fx"] and "USDKRW" in data["fx"]:
-            data["fx"]["EURKRW"]["change"] = round(
-                data["fx"]["EURUSD"]["change"] + data["fx"]["USDKRW"]["change"], 2
-            )
-        if "USDJPY" in data["fx"] and "USDKRW" in data["fx"]:
-            data["fx"]["JPYKRW"]["change"] = round(
-                data["fx"]["USDKRW"]["change"] - data["fx"]["USDJPY"]["change"], 2
-            )
+            chg = fetch_fx_change(sym)
+            data["fx"][pair]["change"] = chg
+            log(f"[FX] {pair}: {data['fx'][pair]['rate']} ({chg:+.2f}%)")
+        # EURKRW, JPYKRW 변동률 근사
+        data["fx"]["EURKRW"]["change"] = round(
+            data["fx"].get("EURUSD", {}).get("change", 0) +
+            data["fx"].get("USDKRW", {}).get("change", 0), 2
+        )
+        data["fx"]["JPYKRW"]["change"] = round(
+            data["fx"].get("USDKRW", {}).get("change", 0) -
+            data["fx"].get("USDJPY", {}).get("change", 0), 2
+        )
     else:
         data["sources"]["fx"] = "fallback"
         data["fx"] = {k: dict(v) for k, v in FALLBACK["fx"].items()}
-    log(f"[FX] {data['sources']['fx']}: USDKRW={data['fx'].get('USDKRW')}")
+    log(f"[FX] USDKRW={data['fx'].get('USDKRW')}")
 
     # ── 주가 지수 ────────────────────────────────────────────
     index_map = {
@@ -141,9 +145,9 @@ def build_data():
         "Nikkei":   "^N225",
         "Shanghai": "000001.SS",
     }
-    data["sources"]["indices"] = "Yahoo Finance"
+    data["sources"]["indices"] = "yfinance"
     for name, sym in index_map.items():
-        q = fetch_yahoo(sym)
+        q = fetch_yf(sym)
         if q:
             data["indices"][name] = q
             log(f"[Index] {name}: {q['price']} ({q['change']:+.2f}%)")
@@ -159,9 +163,9 @@ def build_data():
         "WTI":    "CL=F",
         "Brent":  "BZ=F",
     }
-    data["sources"]["commodities"] = "Yahoo Finance"
+    data["sources"]["commodities"] = "yfinance"
     for name, sym in commodity_map.items():
-        q = fetch_yahoo(sym)
+        q = fetch_yf(sym)
         if q:
             data["commodities"][name] = q
             log(f"[Commodity] {name}: {q['price']} ({q['change']:+.2f}%)")

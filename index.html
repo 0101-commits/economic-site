@@ -118,14 +118,14 @@ tailwind.config = {
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         <div class="kpi-card" id="kpi-kospi">
           <div class="widget-title">KOSPI</div>
-          <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">2,587.23</div>
-          <div class="up-txt" style="font-size:13px;margin-top:4px;">▲ 8.72 (+0.34%)</div>
+          <div id="kpi-kospi-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">2,587.23</div>
+          <div id="kpi-kospi-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.34%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark1"></canvas></div>
         </div>
         <div class="kpi-card" id="kpi-fx">
           <div class="widget-title">USD / KRW</div>
-          <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,341.50</div>
-          <div class="up-txt" style="font-size:13px;margin-top:4px;">▲ 1.07 (+0.08%)</div>
+          <div id="kpi-fx-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,341.50</div>
+          <div id="kpi-fx-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.08%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark2"></canvas></div>
         </div>
         <div class="kpi-card">
@@ -137,10 +137,10 @@ tailwind.config = {
             <span style="font-size:10px;color:#8d90a2;">전 3.00% → 현 2.75%</span>
           </div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card" id="kpi-wti">
           <div class="widget-title">WTI 유가</div>
-          <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">78.42</div>
-          <div class="down-txt" style="font-size:13px;margin-top:4px;">▼ 0.43 (-0.55%)</div>
+          <div id="kpi-wti-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">78.42</div>
+          <div id="kpi-wti-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -0.55%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark3"></canvas></div>
         </div>
       </div>
@@ -2258,6 +2258,35 @@ function applyRealData(d) {
     if (k && idx[k]) { g.val = idx[k].price; g.chg = idx[k].change; }
   });
 
+  // ── 대시보드 KPI 카드 DOM 업데이트 ──────────────
+  const kpiUpd = (priceId, chgId, priceStr, changePct) => {
+    const pEl = document.getElementById(priceId);
+    const cEl = document.getElementById(chgId);
+    if (pEl) pEl.textContent = priceStr;
+    if (cEl) {
+      const up = changePct >= 0;
+      cEl.className = up ? 'up-txt' : 'down-txt';
+      cEl.style.cssText = 'font-size:13px;margin-top:4px;';
+      cEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(changePct).toFixed(2) + '%';
+    }
+  };
+  if (idx.KOSPI)   kpiUpd('kpi-kospi-price', 'kpi-kospi-chg', fmt(idx.KOSPI.price, 2),   idx.KOSPI.change);
+  if (fx.USDKRW)  kpiUpd('kpi-fx-price',    'kpi-fx-chg',    fmt(fx.USDKRW.rate, 2),    fx.USDKRW.change);
+  if (com.WTI)    kpiUpd('kpi-wti-price',   'kpi-wti-chg',   '$'+fmt(com.WTI.price, 2), com.WTI.change);
+
+  // 메인 차트 헤더 (KOSPI가 선택된 상태면 즉시 반영)
+  if (idx.KOSPI && (mainSelectedGlobalIdx === null || mainSelectedGlobalIdx === 0)) {
+    const phEl = document.getElementById('mainChartPriceVal');
+    const chEl = document.getElementById('mainChartChangeVal');
+    if (phEl) phEl.textContent = fmt(idx.KOSPI.price, 2);
+    if (chEl) {
+      const up = idx.KOSPI.change >= 0;
+      chEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(idx.KOSPI.change).toFixed(2) + '%';
+      chEl.className = up ? 'up-txt' : 'down-txt';
+      chEl.style.cssText = 'font-size:13px;margin-left:6px;';
+    }
+  }
+
   // ── 사이드바 업데이트 시각 표시 ──────────────
   const el = document.getElementById('dataSourceInfo');
   if (el && d.lastUpdated) {
@@ -2347,6 +2376,17 @@ async function loadRealtimeFx() {
     const sbEl = document.getElementById('dataSourceInfo');
     if(sbEl) {
       sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> 실시간 환율: ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
+    }
+
+    // 대시보드 USD/KRW KPI 카드 갱신 (real-time)
+    const kpiFxPriceEl = document.getElementById('kpi-fx-price');
+    const kpiFxChgEl   = document.getElementById('kpi-fx-chg');
+    if (kpiFxPriceEl) kpiFxPriceEl.textContent = fxPairs[0].cur;
+    if (kpiFxChgEl) {
+      const up = fxPairs[0].pct >= 0;
+      kpiFxChgEl.className = up ? 'up-txt' : 'down-txt';
+      kpiFxChgEl.style.cssText = 'font-size:13px;margin-top:4px;';
+      kpiFxChgEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(fxPairs[0].pct).toFixed(2) + '%';
     }
 
     // FX 페이지가 표시 중이면 테이블 재렌더링
