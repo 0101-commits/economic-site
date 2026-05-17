@@ -801,9 +801,10 @@ tailwind.config = {
               <th style="text-align:left;padding:5px 0;">지표명</th>
               <th style="text-align:center;padding:5px;">국가</th>
               <th style="text-align:left;padding:5px;">분류</th>
+              <th style="text-align:right;padding:5px;">현재값</th>
+              <th style="text-align:center;padding:5px;">기준</th>
               <th style="text-align:left;padding:5px;">데이터 소스</th>
               <th style="text-align:center;padding:5px;">발표주기</th>
-              <th style="text-align:center;padding:5px;">필요 API</th>
             </tr></thead>
             <tbody id="macroIndicatorTable"></tbody>
           </table>
@@ -3492,19 +3493,25 @@ function initMacroTopicPage(topic) {
   ['gdpTopic','cpiTopic','unempTopic','tradeTopic'].forEach(destroyChart);
   const mc = document.getElementById('macroContent');
   const topicMeta = {
-    gdp:   {title:'GDP 성장률 (전년동기비, %)', id:'gdpTopic',   key:'gdp',     labels:'gdpLabels',  unit:'%'},
-    cpi:   {title:'소비자물가 CPI (전년비, %)', id:'cpiTopic',   key:'cpi',     labels:'cpiLabels',  unit:'%'},
-    unemp: {title:'실업률 (%)',                 id:'unempTopic', key:'unemp',   labels:'gdpLabels',  unit:'%'},
-    trade: {title:'수출 (억 달러)',             id:'tradeTopic', key:'exports', labels:'gdpLabels',  unit:'억$'},
+    gdp:   {title:'GDP 성장률 (전년동기비, %)', id:'gdpTopic',   key:'gdp',     labels:'gdpLabels',  unit:'%',  freq:'Q'},
+    cpi:   {title:'소비자물가 CPI (전년비, %)', id:'cpiTopic',   key:'cpi',     labels:'cpiLabels',  unit:'%',  freq:'M'},
+    unemp: {title:'실업률 (%)',                 id:'unempTopic', key:'unemp',   labels:'gdpLabels',  unit:'%',  freq:'Q'},
+    trade: {title:'수출 (억 달러)',             id:'tradeTopic', key:'exports', labels:'gdpLabels',  unit:'억$',freq:'Q'},
   };
   const m = topicMeta[topic];
   if(!m) return;
+  // 기간 옵션: 분기 데이터는 4분기(1년)/8분기(2년)/전체, 월간은 6개월/1년/전체
+  const periodOpts = m.freq === 'Q'
+    ? [{key:'4',label:'최근 1년'},{key:'8',label:'최근 2년'},{key:'all',label:'전체'}]
+    : [{key:'6',label:'최근 6개월'},{key:'12',label:'최근 1년'},{key:'all',label:'전체'}];
+  // 현재 선택값이 옵션에 없으면 'all'로 보정
+  if(!periodOpts.some(o=>o.key===macroTopicPeriod)) macroTopicPeriod = 'all';
   mc.innerHTML = `
     <div class="widget">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
         <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교</div>
         <div style="display:flex;gap:4px;">
-          ${['4','8','all'].map(p=>`<button onclick="setMacroTopicPeriod('${p}','${topic}',this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:${macroTopicPeriod===p?'#2962ff':'transparent'};color:${macroTopicPeriod===p?'#fff':'#8d90a2'};cursor:pointer;">${p==='all'?'전체':p+'개'}</button>`).join('')}
+          ${periodOpts.map(o=>`<button onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:${macroTopicPeriod===o.key?'#2962ff':'transparent'};color:${macroTopicPeriod===o.key?'#fff':'#8d90a2'};cursor:pointer;font-weight:500;">${o.label}</button>`).join('')}
         </div>
       </div>
       <div style="position:relative;height:280px;"><canvas id="${m.id}"></canvas></div>
@@ -3605,62 +3612,77 @@ const macroMeta = {
   },
 };
 
+// dataPath: data.json 내 경로 (economicIndicators.us.* / .kr.* / realestate.us.*)
+// fmt: 값 포맷터 함수
 const macroIndicators = [
-  // 한국
-  {name:'GDP 성장률',cc:'🇰🇷',cat:'경기',src:'한국은행 경제통계시스템 (ECOS)',freq:'분기',api:'ECOS API 키'},
-  {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'통계청 국가통계포털',freq:'월간',api:'공공데이터포털 API'},
-  {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',api:'ECOS API 키'},
-  {name:'실업률',cc:'🇰🇷',cat:'고용',src:'통계청 KOSIS',freq:'월간',api:'KOSIS API 키'},
-  {name:'수출입 무역수지',cc:'🇰🇷',cat:'무역',src:'관세청 무역통계',freq:'월간',api:'공공데이터포털 API'},
-  {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',api:'ECOS API 키'},
-  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global / 한국은행',freq:'월간',api:'유료 구독'},
-  {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'통계청 KOSIS',freq:'월간',api:'KOSIS API 키'},
-  {name:'소매판매',cc:'🇰🇷',cat:'소비',src:'통계청',freq:'월간',api:'KOSIS API 키'},
-  {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',api:'불필요 (공시)'},
-  // 미국
-  {name:'GDP 성장률',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: GDP)',freq:'분기',api:'FRED API 키 (무료)'},
-  {name:'소비자물가지수 (CPI)',cc:'🇺🇸',cat:'물가',src:'BLS (FRED: CPIAUCSL)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'근원 CPI (Core)',cc:'🇺🇸',cat:'물가',src:'BLS (FRED: CPILFESL)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'PCE 물가지수',cc:'🇺🇸',cat:'물가',src:'BEA (FRED: PCE)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'비농업 고용 (NFP)',cc:'🇺🇸',cat:'고용',src:'BLS (FRED: PAYEMS)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'실업률',cc:'🇺🇸',cat:'고용',src:'BLS (FRED: UNRATE)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'ISM 제조업 PMI',cc:'🇺🇸',cat:'경기',src:'ISM (FRED: MANEMP)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'소매판매',cc:'🇺🇸',cat:'소비',src:'Census Bureau (FRED: RSAFS)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'내구재 수주',cc:'🇺🇸',cat:'경기',src:'Census Bureau (FRED: DGORDER)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'기준금리 (FFR)',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: FEDFUNDS)',freq:'8회/년',api:'FRED API 키 (무료)'},
-  {name:'M2 통화량',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: M2SL)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'무역수지',cc:'🇺🇸',cat:'무역',src:'BEA (FRED: BOPGSTB)',freq:'월간',api:'FRED API 키 (무료)'},
+  // 한국 (ECOS)
+  {name:'GDP 성장률',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
+  {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간'},
+  {name:'실업률',cc:'🇰🇷',cat:'고용',src:'통계청 KOSIS',freq:'월간'},
+  {name:'수출입 무역수지',cc:'🇰🇷',cat:'무역',src:'관세청 무역통계',freq:'월간'},
+  {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간'},
+  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global',freq:'월간'},
+  {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'통계청 KOSIS',freq:'월간'},
+  {name:'소매판매',cc:'🇰🇷',cat:'소비',src:'통계청',freq:'월간'},
+  {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',dataPath:'economicIndicators.kr.base_rate_kr',fmt:v=>v?.toFixed(2)+'%'},
+  // 미국 (FRED)
+  {name:'GDP (연환산, 조$)',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: GDP)',freq:'분기',dataPath:'economicIndicators.us.gdp_us',fmt:v=>v?.toLocaleString()},
+  {name:'소비자물가지수 (CPI)',cc:'🇺🇸',cat:'물가',src:'BLS (FRED: CPIAUCSL)',freq:'월간',dataPath:'economicIndicators.us.cpi_us',fmt:v=>v?.toFixed(2)},
+  {name:'PCE 물가지수',cc:'🇺🇸',cat:'물가',src:'BEA (FRED: PCE)',freq:'월간',dataPath:'economicIndicators.us.pce_us',fmt:v=>v?.toFixed(2)},
+  {name:'실업률',cc:'🇺🇸',cat:'고용',src:'BLS (FRED: UNRATE)',freq:'월간',dataPath:'economicIndicators.us.unemployment',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'기준금리 (FFR)',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: FEDFUNDS)',freq:'8회/년',dataPath:'economicIndicators.us.ff_rate',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'M2 통화량 (10억$)',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: M2SL)',freq:'월간',dataPath:'economicIndicators.us.m2_us',fmt:v=>v?.toLocaleString()},
+  {name:'10년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS10)',freq:'일간',dataPath:'economicIndicators.us.us10y',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'2년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS2)',freq:'일간',dataPath:'economicIndicators.us.us2y',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'VIX 변동성',cc:'🇺🇸',cat:'시장',src:'CBOE (FRED: VIXCLS)',freq:'일간',dataPath:'economicIndicators.us.vix',fmt:v=>v?.toFixed(2)},
+  {name:'HY 크레딧 스프레드',cc:'🇺🇸',cat:'시장',src:'BofA (FRED: BAMLH0A0HYM2)',freq:'일간',dataPath:'economicIndicators.us.hy_spread',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'달러 인덱스 (브로드)',cc:'🇺🇸',cat:'외환',src:'연준 (FRED: DTWEXBGS)',freq:'일간',dataPath:'economicIndicators.us.dxy_idx',fmt:v=>v?.toFixed(2)},
+  {name:'Case-Shiller HPI',cc:'🇺🇸',cat:'부동산',src:'S&P (FRED: CSUSHPINSA)',freq:'월간',dataPath:'realestate.us.case_shiller_national',fmt:v=>v?.toFixed(1)},
+  {name:'30년 모기지',cc:'🇺🇸',cat:'부동산',src:'Freddie Mac (FRED)',freq:'주간',dataPath:'realestate.us.mortgage_30y',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'NAHB 주택시장지수',cc:'🇺🇸',cat:'부동산',src:'NAHB (FRED)',freq:'월간',dataPath:'realestate.us.nahb_index',fmt:v=>v?.toFixed(0)},
   // 유로존
-  {name:'GDP 성장률',cc:'🇪🇺',cat:'경기',src:'Eurostat',freq:'분기',api:'Eurostat API (무료)'},
-  {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED: CP0000EZ19M086NEST)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'실업률',cc:'🇪🇺',cat:'고용',src:'Eurostat (FRED: LRHUTTTTEZM156S)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'제조업 PMI',cc:'🇪🇺',cat:'경기',src:'S&P Global',freq:'월간',api:'유료 구독'},
-  {name:'기준금리 (ECB)',cc:'🇪🇺',cat:'통화',src:'ECB (FRED: ECBDFR)',freq:'8회/년',api:'FRED API 키 (무료)'},
+  {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED)',freq:'월간'},
+  {name:'실업률',cc:'🇪🇺',cat:'고용',src:'Eurostat (FRED)',freq:'월간'},
+  {name:'기준금리 (ECB)',cc:'🇪🇺',cat:'통화',src:'ECB',freq:'8회/년'},
   // 중국
-  {name:'GDP 성장률',cc:'🇨🇳',cat:'경기',src:'국가통계국 (NBS)',freq:'분기',api:'NBS API 또는 수동'},
-  {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED: CHNCPIALLMINMEI)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'제조업 PMI (공식)',cc:'🇨🇳',cat:'경기',src:'NBS',freq:'월간',api:'수동 입력'},
-  {name:'재정수지 (Caixin PMI)',cc:'🇨🇳',cat:'경기',src:'S&P Global',freq:'월간',api:'유료 구독'},
-  {name:'수출입',cc:'🇨🇳',cat:'무역',src:'세관총서 (FRED: XTEXVA01CNM667S)',freq:'월간',api:'FRED API 키 (무료)'},
+  {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED)',freq:'월간'},
+  {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'NBS',freq:'월간'},
   // 일본
-  {name:'GDP 성장률',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED: JPNRGDPEXP)',freq:'분기',api:'FRED API 키 (무료)'},
-  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED: JPNCPIALLMINMEI)',freq:'월간',api:'FRED API 키 (무료)'},
-  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행',freq:'연8회',api:'불필요 (공시)'},
-  {name:'단칸 지수',cc:'🇯🇵',cat:'경기',src:'일본은행',freq:'분기',api:'BOJ API 또는 수동'},
+  {name:'GDP 성장률',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기'},
+  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간'},
+  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행',freq:'연8회'},
 ];
 
+function getDataByPath(obj, path) {
+  if(!obj || !path) return null;
+  return path.split('.').reduce((o,k)=>o?.[k], obj);
+}
+let _latestDataForIndicators = null;
 function buildMacroIndicatorTable() {
   const tb = document.getElementById('macroIndicatorTable');
   if(!tb) return;
-  tb.innerHTML = macroIndicators.map(r=>`
-    <tr style="border-bottom:1px solid #1b1f2b;">
+  const d = _latestDataForIndicators;
+  tb.innerHTML = macroIndicators.map(r=>{
+    let valStr = '—', periodStr = '—';
+    if(d && r.dataPath) {
+      const node = getDataByPath(d, r.dataPath);
+      if(node && node.value != null) {
+        valStr = r.fmt ? r.fmt(node.value) : node.value;
+        if(node.period) periodStr = node.period;
+      }
+    }
+    const noData = valStr === '—';
+    return `<tr style="border-bottom:1px solid #1b1f2b;">
       <td style="padding:5px 0;font-weight:500;">${r.name}</td>
       <td style="text-align:center;padding:5px;">${r.cc}</td>
       <td style="padding:5px;color:#8d90a2;">${r.cat}</td>
+      <td style="text-align:right;padding:5px;font-family:'Public Sans';font-weight:600;color:${noData?'#434656':'#dfe2f2'};">${valStr}</td>
+      <td style="text-align:center;padding:5px;color:#434656;font-size:10px;">${periodStr}</td>
       <td style="padding:5px;color:#434656;font-size:10px;">${r.src}</td>
       <td style="text-align:center;padding:5px;color:#8d90a2;">${r.freq}</td>
-      <td style="text-align:center;padding:5px;color:${r.api.includes('무료')?'#26a69a':r.api.includes('불필요')?'#8d90a2':r.api.includes('유료')?'#ef5350':'#f5a623'};font-size:10px;">${r.api}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function initMacroPage(t){
@@ -4244,6 +4266,8 @@ function buildInvestorPage() {
 // ============================
 function applyRealData(d) {
   if (!d) return;
+  _latestDataForIndicators = d;
+  buildMacroIndicatorTable();
   const idx = d.indices   || {};
   const fx  = d.fx        || {};
   const com = d.commodities || {};
