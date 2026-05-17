@@ -1,78 +1,160 @@
 {
-  "lastUpdated": "2026-05-15T09:00:37.085501+09:00",
+  "lastUpdated": "2026-05-17T19:23:30.493824+09:00",
   "sources": {
-    "fx": "open.er-api.com",
-    "indices": "Yahoo Finance",
-    "commodities": "Yahoo Finance"
+    "fx": "open.er-api.com + yfinance",
+    "stockMovers": "KRX OpenAPI",
+    "indices": "KRX OpenAPI (KR) + yfinance (해외)",
+    "commodities": "KRX OpenAPI (한국 금·석유) + yfinance (국제)",
+    "economicIndicators_us": "FRED API (stlouisfed.org)",
+    "economicIndicators_kr": "ECOS API (ecos.bok.or.kr)",
+    "realestate_kr": "R-ONE API (reb.or.kr)"
   },
   "fx": {
     "USDKRW": {
-      "rate": 1489.64,
-      "change": 0.0
+      "rate": 1497.84,
+      "change": 0.34
     },
     "EURKRW": {
-      "rate": 1744.95,
-      "change": 0.0
+      "rate": 1742.34,
+      "change": -0.02
     },
     "JPYKRW": {
-      "rate": 9.439,
-      "change": 0.0
+      "rate": 9.4436,
+      "change": 0.11
     },
     "EURUSD": {
-      "rate": 1.1714,
-      "change": 0.0
+      "rate": 1.1632,
+      "change": -0.36
     },
     "USDJPY": {
-      "rate": 157.82,
-      "change": 0.0
+      "rate": 158.61,
+      "change": 0.23
     }
   },
   "indices": {
     "KOSPI": {
-      "price": 2587.23,
-      "change": 0.34
+      "price": 7493.18,
+      "change": -6.12
     },
     "KOSDAQ": {
-      "price": 742.15,
-      "change": -0.12
+      "price": 1129.82,
+      "change": -5.14
     },
     "SP500": {
-      "price": 5635.01,
-      "change": 0.21
+      "price": 7408.5,
+      "change": -1.24
     },
     "NASDAQ": {
-      "price": 17841.2,
-      "change": 0.18
+      "price": 26225.14,
+      "change": -1.54
     },
     "Nikkei": {
-      "price": 38405.1,
-      "change": 0.45
+      "price": 61409.29,
+      "change": -2.12
     },
     "Shanghai": {
-      "price": 3298.4,
-      "change": -0.33
+      "price": 4135.39,
+      "change": -1.07
     }
   },
   "commodities": {
     "Gold": {
-      "price": 2387.6,
-      "change": 0.3
+      "price": 4561.9,
+      "change": -1.25
     },
     "Silver": {
-      "price": 28.42,
-      "change": 0.55
+      "price": 77.55,
+      "change": -5.22
     },
     "Copper": {
-      "price": 4.12,
-      "change": -0.82
+      "price": 6.3,
+      "change": -2.12
     },
     "WTI": {
-      "price": 78.42,
-      "change": -0.55
+      "price": 101.02,
+      "change": -1.32
     },
     "Brent": {
-      "price": 82.17,
-      "change": -0.48
+      "price": 109.26,
+      "change": 2.2
     }
+  },
+  "stockMovers": {},
+  "etfMovers": {},
+  "economicIndicators": {
+    "us": {
+      "vix": {
+        "value": 17.26,
+        "desc": "VIX 변동성 지수",
+        "source": "FRED:VIXCLS"
+      },
+      "ff_rate": {
+        "value": 3.64,
+        "desc": "미국 기준금리",
+        "source": "FRED:FEDFUNDS"
+      },
+      "cpi_us": {
+        "value": 332.407,
+        "desc": "미국 CPI (계절조정)",
+        "source": "FRED:CPIAUCSL"
+      },
+      "pce_us": {
+        "value": 130.344,
+        "desc": "미국 PCE",
+        "source": "FRED:PCEPI"
+      },
+      "unemployment": {
+        "value": 4.3,
+        "desc": "미국 실업률",
+        "source": "FRED:UNRATE"
+      },
+      "gdp_us": {
+        "value": 31856.257,
+        "desc": "미국 GDP (연환산, 조달러)",
+        "source": "FRED:GDP"
+      },
+      "hy_spread": {
+        "value": 2.76,
+        "desc": "HY 크레딧 스프레드",
+        "source": "FRED:BAMLH0A0HYM2"
+      },
+      "us10y": {
+        "value": 4.32,
+        "desc": "미국 10년 국채",
+        "source": "FRED:GS10"
+      },
+      "us2y": {
+        "value": 3.8,
+        "desc": "미국 2년 국채",
+        "source": "FRED:GS2"
+      },
+      "dxy_idx": {
+        "value": 118.0392,
+        "desc": "달러 인덱스 (브로드)",
+        "source": "FRED:DTWEXBGS"
+      },
+      "m2_us": {
+        "value": 22686.0,
+        "desc": "미국 M2 통화량",
+        "source": "FRED:M2SL"
+      }
+    },
+    "kr": {
+      "base_rate_kr": {
+        "value": 2.5,
+        "period": "202604",
+        "desc": "한국 기준금리",
+        "source": "ECOS:722Y001"
+      },
+      "cpi_kr": {
+        "value": 119.37,
+        "period": "202604",
+        "desc": "한국 소비자물가지수",
+        "source": "ECOS:901Y009"
+      }
+    }
+  },
+  "realestate": {
+    "kr": {}
   }
 }
