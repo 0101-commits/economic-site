@@ -6,8 +6,12 @@
 - 해외 지수 (S&P, NASDAQ, 닛케이, 상하이)         : yfinance
 - 해외 원자재 (Brent, Silver, Copper)             : yfinance
 - 환율 (USD/KRW, EUR, JPY 등)                     : open.er-api.com + yfinance
+- 미국 경제 지표 (VIX, HY스프레드 등)              : FRED API (무료)
+- 한국 경제 지표 (기준금리 등)                     : ECOS API (한국은행)
+- 한국 부동산 지수                                 : R-ONE API (한국부동산원)
+- 한국 통계 지표                                   : KOSIS API (국가통계포털)
 
-KRX API 키는 환경변수 KRX_API_KEY 로 주입 (GitHub Secret).
+API 키는 모두 GitHub Secrets 에서 환경변수로 주입됩니다.
 """
 
 import json
@@ -18,8 +22,19 @@ import yfinance as yf
 from datetime import datetime, timezone, timedelta
 
 KST = timezone(timedelta(hours=9))
-KRX_API_KEY = os.environ.get("KRX_API_KEY", "").strip()
-KRX_BASE = "http://data-dbg.krx.co.kr/svc/apis"
+
+# ──────────────── API 키 (GitHub Secrets → 환경변수) ────────────────
+KRX_API_KEY       = os.environ.get("KRX_API_KEY",       "").strip()
+FRED_API_KEY      = os.environ.get("FRED_API_KEY",      "").strip()
+ECOS_API_KEY      = os.environ.get("ECOS_API_KEY",      "").strip()
+REALESTATE_API_KEY= os.environ.get("REALESTATE_API_KEY","").strip()
+KOSIS_API_KEY     = os.environ.get("KOSIS_API_KEY",     "").strip()
+
+KRX_BASE  = "http://data-dbg.krx.co.kr/svc/apis"
+FRED_BASE = "https://api.stlouisfed.org/fred"
+ECOS_BASE = "https://ecos.bok.or.kr/api"
+RONE_BASE = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/rest"
+KOSIS_BASE= "https://kosis.kr/openapi/statisticsData.do"
 
 FALLBACK = {
     "fx": {
@@ -52,7 +67,6 @@ def log(msg):
 
 
 def _parse_num(s):
-    """KRX 응답은 콤마 포함 문자열 → float 변환."""
     if s is None:
         return None
     try:
@@ -65,7 +79,6 @@ def _parse_num(s):
 # KRX OpenAPI 호출 헬퍼
 # ============================================================
 def fetch_krx(endpoint, bas_dd):
-    """KRX OpenAPI 단일 호출. 최신 영업일 데이터를 OutBlock 리스트로 반환."""
     if not KRX_API_KEY:
         return None
     try:
@@ -77,7 +90,6 @@ def fetch_krx(endpoint, bas_dd):
         )
         r.raise_for_status()
         data = r.json()
-        # KRX는 OutBlock_1 또는 OutBlock 키로 응답
         rows = data.get("OutBlock_1") or data.get("OutBlock") or []
         return rows if rows else None
     except Exception as e:
@@ -86,10 +98,9 @@ def fetch_krx(endpoint, bas_dd):
 
 
 def fetch_krx_latest(endpoint, max_lookback=7):
-    """최근 영업일을 거꾸로 탐색해 첫 번째로 데이터가 있는 날 반환."""
     for offset in range(0, max_lookback):
         dt = datetime.now(KST) - timedelta(days=offset)
-        if dt.weekday() >= 5:  # 토·일 스킵
+        if dt.weekday() >= 5:
             continue
         rows = fetch_krx(endpoint, dt.strftime("%Y%m%d"))
         if rows:
@@ -98,7 +109,6 @@ def fetch_krx_latest(endpoint, max_lookback=7):
 
 
 def krx_index(endpoint, name_match):
-    """KRX 지수 일별시세에서 특정 지수명만 추출."""
     rows, basd = fetch_krx_latest(endpoint)
     if not rows:
         return None
@@ -118,11 +128,9 @@ def krx_index(endpoint, name_match):
 
 
 def krx_commodity(endpoint, isu_match):
-    """KRX 금시장·석유시장에서 대표 종목 추출."""
     rows, basd = fetch_krx_latest(endpoint)
     if not rows:
         return None
-    # 우선 정확 일치 → 부분 일치 순서로 탐색
     matched = None
     for row in rows:
         nm = (row.get("ISU_NM") or row.get("ISU_CD") or "").strip()
@@ -148,11 +156,311 @@ def krx_commodity(endpoint, isu_match):
     }
 
 
+def fetch_krx_stock_movers(market="kospi", top_n=10):
+    """KRX에서 주식 등락률 상위/하위 종목 조회 (상승/하락 Top10)."""
+    if not KRX_API_KEY:
+        return None, None
+    endpoint = "/sto/stk_bydd_trd"  # KOSPI 일별 매매
+    if market == "kosdaq":
+        endpoint = "/cos/stk_bydd_trd"
+    rows, basd = fetch_krx_latest(endpoint)
+    if not rows:
+        return None, None
+    parsed = []
+    for row in rows:
+        name = row.get("ISU_NM") or row.get("ISU_SRT_CD") or ""
+        price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
+        chg_rt = _parse_num(row.get("FLUC_RT"))
+        vol = _parse_num(row.get("ACML_VOL"))
+        if price and price > 0 and chg_rt is not None:
+            parsed.append({"name": name, "price": price, "chg": chg_rt, "vol": vol or 0, "as_of": basd})
+    if not parsed:
+        return None, None
+    sorted_asc  = sorted(parsed, key=lambda x: x["chg"])
+    sorted_desc = sorted(parsed, key=lambda x: x["chg"], reverse=True)
+    gainers = sorted_desc[:top_n]
+    losers  = sorted_asc[:top_n]
+    log(f"[KRX] {market.upper()} 상승Top{top_n}: {gainers[0]['name']} +{gainers[0]['chg']}%" if gainers else "[KRX] 상승 종목 없음")
+    return gainers, losers
+
+
+def fetch_krx_etf_movers(top_n=10):
+    """KRX ETF 등락률 상위/하위 조회."""
+    if not KRX_API_KEY:
+        return None, None
+    rows, basd = fetch_krx_latest("/eto/etf_bydd_trd")
+    if not rows:
+        return None, None
+    parsed = []
+    for row in rows:
+        name = row.get("ISU_NM") or ""
+        price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
+        chg_rt = _parse_num(row.get("FLUC_RT"))
+        if price and price > 0 and chg_rt is not None:
+            parsed.append({"name": name, "price": price, "chg": chg_rt, "as_of": basd})
+    if not parsed:
+        return None, None
+    gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+    losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+    return gainers, losers
+
+
+# ============================================================
+# FRED API (미국 경제 지표)
+# ============================================================
+def fetch_fred_series(series_id, limit=1):
+    """FRED API에서 시계열 데이터 최신값 조회."""
+    if not FRED_API_KEY:
+        return None
+    try:
+        r = requests.get(
+            f"{FRED_BASE}/series/observations",
+            params={
+                "series_id": series_id,
+                "api_key": FRED_API_KEY,
+                "file_type": "json",
+                "limit": limit,
+                "sort_order": "desc",
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+        obs = r.json().get("observations", [])
+        if not obs:
+            return None
+        vals = []
+        for o in obs:
+            v = _parse_num(o.get("value"))
+            if v is not None:
+                vals.append({"date": o["date"], "value": v})
+        return vals if vals else None
+    except Exception as e:
+        log(f"[FRED] {series_id} 오류: {e}")
+        return None
+
+
+def fetch_fred_latest(series_id):
+    """FRED 최신값 (float) 반환."""
+    obs = fetch_fred_series(series_id)
+    if obs:
+        return obs[0]["value"]
+    return None
+
+
+def fetch_fred_economic_indicators():
+    """주요 미국 경제 지표 일괄 조회."""
+    if not FRED_API_KEY:
+        log("[FRED] API 키 없음 — 건너뜀")
+        return {}
+    indicators = {
+        "vix":         ("VIXCLS",         "VIX 변동성 지수"),
+        "ff_rate":     ("FEDFUNDS",        "미국 기준금리"),
+        "cpi_us":      ("CPIAUCSL",        "미국 CPI (계절조정)"),
+        "pce_us":      ("PCEPI",           "미국 PCE"),
+        "unemployment":("UNRATE",          "미국 실업률"),
+        "gdp_us":      ("GDP",             "미국 GDP (연환산, 조달러)"),
+        "hy_spread":   ("BAMLH0A0HYM2",    "HY 크레딧 스프레드"),
+        "us10y":       ("GS10",            "미국 10년 국채"),
+        "us2y":        ("GS2",             "미국 2년 국채"),
+        "dxy_idx":     ("DTWEXBGS",        "달러 인덱스 (브로드)"),
+        "m2_us":       ("M2SL",            "미국 M2 통화량"),
+    }
+    result = {}
+    for key, (series_id, desc) in indicators.items():
+        val = fetch_fred_latest(series_id)
+        if val is not None:
+            result[key] = {"value": val, "desc": desc, "source": f"FRED:{series_id}"}
+            log(f"[FRED] {series_id}: {val}")
+    return result
+
+
+# ============================================================
+# ECOS API (한국은행 경제 통계)
+# ============================================================
+def fetch_ecos_series(stat_code, item_code="", freq="A", start_period=None, end_period=None, limit=5):
+    """ECOS API 시계열 데이터 조회."""
+    if not ECOS_API_KEY:
+        return None
+    now = datetime.now(KST)
+    if not start_period:
+        if freq == "A":
+            start_period = str(now.year - limit)
+            end_period   = str(now.year)
+        elif freq == "M":
+            start_period = (now - timedelta(days=30*limit)).strftime("%Y%m")
+            end_period   = now.strftime("%Y%m")
+        elif freq == "Q":
+            y = now.year; q = (now.month-1)//3 + 1
+            start_period = f"{y-limit}Q1"
+            end_period   = f"{y}Q{q}"
+    try:
+        url = f"{ECOS_BASE}/StatisticSearch/{ECOS_API_KEY}/json/kr/1/{limit*12}/{stat_code}/{freq}/{start_period}/{end_period}/{item_code}"
+        r = requests.get(url, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        rows = data.get("StatisticSearch", {}).get("row", [])
+        return rows if rows else None
+    except Exception as e:
+        log(f"[ECOS] {stat_code} 오류: {e}")
+        return None
+
+
+def fetch_ecos_economic_indicators():
+    """주요 한국 경제 지표 일괄 조회 (ECOS)."""
+    if not ECOS_API_KEY:
+        log("[ECOS] API 키 없음 — 건너뜀")
+        return {}
+    result = {}
+    # 기준금리 (722Y001 - 한국은행 기준금리)
+    rows = fetch_ecos_series("722Y001", "0101000", "M", limit=3)
+    if rows:
+        latest = rows[-1]
+        result["base_rate_kr"] = {
+            "value": _parse_num(latest.get("DATA_VALUE")),
+            "period": latest.get("TIME"),
+            "desc": "한국 기준금리",
+            "source": "ECOS:722Y001",
+        }
+        log(f"[ECOS] 기준금리: {result['base_rate_kr']}")
+    # CPI 한국 (901Y009 - 소비자물가지수)
+    rows = fetch_ecos_series("901Y009", "0", "M", limit=3)
+    if rows:
+        latest = rows[-1]
+        result["cpi_kr"] = {
+            "value": _parse_num(latest.get("DATA_VALUE")),
+            "period": latest.get("TIME"),
+            "desc": "한국 소비자물가지수",
+            "source": "ECOS:901Y009",
+        }
+        log(f"[ECOS] CPI(한국): {result['cpi_kr']}")
+    # GDP 한국 (200Y002 - 실질 GDP 성장률)
+    rows = fetch_ecos_series("200Y002", "10101", "Q", limit=4)
+    if rows:
+        latest = rows[-1]
+        result["gdp_kr"] = {
+            "value": _parse_num(latest.get("DATA_VALUE")),
+            "period": latest.get("TIME"),
+            "desc": "한국 실질GDP 성장률(전기비)",
+            "source": "ECOS:200Y002",
+        }
+        log(f"[ECOS] GDP(한국): {result['gdp_kr']}")
+    return result
+
+
+# ============================================================
+# R-ONE API (한국부동산원 부동산 가격지수)
+# ============================================================
+def fetch_realestate_kr():
+    """한국부동산원 R-ONE API로 아파트 가격지수 조회."""
+    if not REALESTATE_API_KEY:
+        log("[R-ONE] API 키 없음 — 건너뜀")
+        return {}
+    now = datetime.now(KST)
+    result = {}
+    # 전국 아파트 매매가격지수 (주간)
+    try:
+        start_ym = (now - timedelta(days=60)).strftime("%Y%m")
+        end_ym   = now.strftime("%Y%m")
+        r = requests.get(
+            f"{RONE_BASE}/AptPriceIndex/getAptPrcIdxByRegion",
+            params={
+                "serviceKey": REALESTATE_API_KEY,
+                "pageNo":     1,
+                "numOfRows":  5,
+                "startMonth": start_ym,
+                "endMonth":   end_ym,
+                "regionCode": "00",  # 전국
+            },
+            timeout=20,
+        )
+        r.raise_for_status()
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(r.text)
+        items = root.findall(".//item")
+        if items:
+            latest = items[-1]
+            result["apt_price_idx_kr"] = {
+                "value":  _parse_num(latest.findtext("aptPrcIdx")),
+                "period": latest.findtext("yearMonth"),
+                "chg":    _parse_num(latest.findtext("aptPrcIdxMoM")),
+                "region": "전국",
+                "desc":   "전국 아파트 매매가격지수",
+                "source": "R-ONE",
+            }
+            log(f"[R-ONE] 전국 아파트 매매지수: {result['apt_price_idx_kr']}")
+    except Exception as e:
+        log(f"[R-ONE] 아파트 매매가격지수 오류: {e}")
+    # 전세가격지수 (전국)
+    try:
+        r = requests.get(
+            f"{RONE_BASE}/AptPriceIndex/getAptJnsRntPrcIdxByRegion",
+            params={
+                "serviceKey": REALESTATE_API_KEY,
+                "pageNo":     1,
+                "numOfRows":  5,
+                "startMonth": start_ym,
+                "endMonth":   end_ym,
+                "regionCode": "00",
+            },
+            timeout=20,
+        )
+        r.raise_for_status()
+        root = ET.fromstring(r.text)
+        items = root.findall(".//item")
+        if items:
+            latest = items[-1]
+            result["jns_price_idx_kr"] = {
+                "value":  _parse_num(latest.findtext("aptJnsRntPrcIdx")),
+                "period": latest.findtext("yearMonth"),
+                "region": "전국",
+                "desc":   "전국 아파트 전세가격지수",
+                "source": "R-ONE",
+            }
+            log(f"[R-ONE] 전국 전세가격지수: {result['jns_price_idx_kr']}")
+    except Exception as e:
+        log(f"[R-ONE] 전세가격지수 오류: {e}")
+    return result
+
+
+# ============================================================
+# KOSIS API (국가통계포털)
+# ============================================================
+def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=None, end_prd=None):
+    """KOSIS API 통계 데이터 조회."""
+    if not KOSIS_API_KEY:
+        return None
+    now = datetime.now(KST)
+    if not start_prd:
+        start_prd = (now - timedelta(days=365)).strftime("%Y%m")
+    if not end_prd:
+        end_prd = now.strftime("%Y%m")
+    try:
+        params = {
+            "method":      "getList",
+            "apiKey":      KOSIS_API_KEY,
+            "itmId":       item_id,
+            "objL1":       item_id,
+            "format":      "json",
+            "jsonVD":      "Y",
+            "userStatsId": "",
+            "prdSe":       period_type,
+            "startPrdDe":  start_prd,
+            "endPrdDe":    end_prd,
+            "orgId":       org_id,
+            "tblId":       table_id,
+        }
+        r = requests.get(KOSIS_BASE, params=params, timeout=20)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        log(f"[KOSIS] {org_id}/{table_id} 오류: {e}")
+        return None
+
+
 # ============================================================
 # 환율 (open.er-api.com + yfinance 보강)
 # ============================================================
 def fetch_fx_spot():
-    """ExchangeRate-API에서 현재 환율 조회 (무료, 인증 불필요)."""
     try:
         r = requests.get("https://open.er-api.com/v6/latest/USD", timeout=15)
         r.raise_for_status()
@@ -176,7 +484,6 @@ def fetch_fx_spot():
 
 
 def fetch_yf(symbol):
-    """yfinance를 사용해 종목 시세 조회."""
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.fast_info
@@ -217,6 +524,10 @@ def build_data():
         "fx": {},
         "indices": {},
         "commodities": {},
+        "stockMovers": {},
+        "etfMovers": {},
+        "economicIndicators": {},
+        "realestate": {},
     }
 
     # ── 환율 ────────────────────────────────────────────────
@@ -245,16 +556,32 @@ def build_data():
     krx_available = bool(KRX_API_KEY)
     if krx_available:
         log("[KRX] API 키 감지 → 한국 지수·원자재는 KRX 공식 데이터 사용")
-        # KOSPI 시리즈 (대표: "코스피")
         kospi = krx_index("/idx/kospi_dd_trd", "코스피")
         if kospi:
             data["indices"]["KOSPI"] = {"price": kospi["price"], "change": kospi["change"]}
-            log(f"[KRX] KOSPI: {kospi['price']} ({kospi['change']:+.2f}%) [as of {kospi['as_of']}]")
-        # KOSDAQ 시리즈 (대표: "코스닥")
+            log(f"[KRX] KOSPI: {kospi['price']} ({kospi['change']:+.2f}%)")
         kosdaq = krx_index("/idx/kosdaq_dd_trd", "코스닥")
         if kosdaq:
             data["indices"]["KOSDAQ"] = {"price": kosdaq["price"], "change": kosdaq["change"]}
-            log(f"[KRX] KOSDAQ: {kosdaq['price']} ({kosdaq['change']:+.2f}%) [as of {kosdaq['as_of']}]")
+            log(f"[KRX] KOSDAQ: {kosdaq['price']} ({kosdaq['change']:+.2f}%)")
+
+        # KOSPI 상승/하락 Top10
+        gainers, losers = fetch_krx_stock_movers("kospi", top_n=10)
+        if gainers:
+            data["stockMovers"]["kospiGainers"] = gainers
+        if losers:
+            data["stockMovers"]["kospiLosers"] = losers
+
+        # ETF 상승/하락 Top10
+        etf_up, etf_down = fetch_krx_etf_movers(top_n=10)
+        if etf_up:
+            data["etfMovers"]["etfGainers"] = etf_up
+        if etf_down:
+            data["etfMovers"]["etfLosers"] = etf_down
+
+        data["sources"]["stockMovers"] = "KRX OpenAPI"
+    else:
+        log("[KRX] API 키 없음 — 주식 이동자 데이터 없음")
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
     if "KOSPI" not in data["indices"]:
@@ -293,18 +620,14 @@ def build_data():
 
     # ── 원자재: KRX 금·석유 → yfinance ────────────────────────
     if krx_available:
-        # 금 (KRX 금시장 1g 종가)
         gold = krx_commodity("/gen/gold_bydd_trd", "금 99.99_1Kg")
         if not gold:
             gold = krx_commodity("/gen/gold_bydd_trd", "금")
         if gold:
-            # KRX 금은 원/g 단위 → 사용자 표시는 oz 변환 안 함 (그대로 노출도 무방하나,
-            # 기존 USD/oz 형식과 호환을 위해 KRX 값은 별도 키로 보관)
             data["commodities"]["GoldKRW"] = {
                 "price": gold["price"], "change": gold["change"]
             }
             log(f"[KRX] Gold(KRW/g): {gold['price']} ({gold['change']:+.2f}%)")
-        # 석유 (휘발유 또는 경유 평균가) — 보통 "휘발유" 행
         oil = krx_commodity("/gen/oil_bydd_trd", "휘발유")
         if oil:
             data["commodities"]["OilKR"] = {
@@ -312,7 +635,6 @@ def build_data():
             }
             log(f"[KRX] 휘발유(원/L): {oil['price']} ({oil['change']:+.2f}%)")
 
-    # 국제 원자재는 yfinance
     intl_com = {
         "Gold":   "GC=F",
         "Silver": "SI=F",
@@ -332,15 +654,49 @@ def build_data():
         "KRX OpenAPI (한국 금·석유) + yfinance (국제)" if krx_available else "yfinance"
     )
 
+    # ── FRED 경제 지표 (미국) ─────────────────────────────────
+    if FRED_API_KEY:
+        log("[FRED] 미국 경제 지표 수집 시작")
+        fred_data = fetch_fred_economic_indicators()
+        data["economicIndicators"]["us"] = fred_data
+        data["sources"]["economicIndicators_us"] = "FRED API (stlouisfed.org)"
+    else:
+        log("[FRED] API 키 없음 — 미국 지표 건너뜀")
+
+    # ── ECOS 경제 지표 (한국은행) ─────────────────────────────
+    if ECOS_API_KEY:
+        log("[ECOS] 한국 경제 지표 수집 시작")
+        ecos_data = fetch_ecos_economic_indicators()
+        data["economicIndicators"]["kr"] = ecos_data
+        data["sources"]["economicIndicators_kr"] = "ECOS API (ecos.bok.or.kr)"
+    else:
+        log("[ECOS] API 키 없음 — 한국 지표 건너뜀")
+
+    # ── R-ONE 부동산 지표 (한국부동산원) ─────────────────────
+    if REALESTATE_API_KEY:
+        log("[R-ONE] 한국 부동산 지표 수집 시작")
+        re_data = fetch_realestate_kr()
+        data["realestate"]["kr"] = re_data
+        data["sources"]["realestate_kr"] = "R-ONE API (reb.or.kr)"
+    else:
+        log("[R-ONE] API 키 없음 — 부동산 지표 건너뜀")
+
     return data
 
 
 if __name__ == "__main__":
     log("=== 시장 데이터 수집 시작 ===")
-    if KRX_API_KEY:
-        log(f"[KRX] API 키 설정됨 ({KRX_API_KEY[:6]}...{KRX_API_KEY[-4:]})")
-    else:
-        log("[KRX] API 키 없음 — yfinance 전용 모드")
+    for name, key in [
+        ("KRX",        KRX_API_KEY),
+        ("FRED",       FRED_API_KEY),
+        ("ECOS",       ECOS_API_KEY),
+        ("R-ONE",      REALESTATE_API_KEY),
+        ("KOSIS",      KOSIS_API_KEY),
+    ]:
+        if key:
+            log(f"[{name}] API 키 설정됨 ({key[:4]}...{key[-4:]})")
+        else:
+            log(f"[{name}] API 키 없음")
     d = build_data()
     output_path = "data.json"
     with open(output_path, "w", encoding="utf-8") as f:

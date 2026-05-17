@@ -6,6 +6,7 @@
 <title>경제현황 터미널</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Public+Sans:wght@600;700;900&display=swap" rel="stylesheet"/>
 <script>
@@ -103,8 +104,8 @@ tailwind.config = {
     <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
     <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
     <div class="menu-item" onclick="showPage('investor',this)"><span class="mat">account_balance</span>주요 투자자</div>
-    <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
     <div class="menu-item" onclick="showPage('realestate',this)"><span class="mat">home_work</span>부동산</div>
+    <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
     <div style="border-top:1px solid #2a2e3d;margin:12px 0;"></div>
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;">데이터 소스</div>
     <div style="font-size:11px;color:#434656;padding:4px 14px;line-height:1.8;">KRX OpenAPI (한국 공식)<br>Stooq (실시간 지수)<br>open.er-api.com (환율)<br>yfinance (해외 지수)<br>NPS 공시 (국민연금)</div>
@@ -194,15 +195,45 @@ tailwind.config = {
           </table>
           <div style="border-top:1px solid #2a2e3d;margin-top:12px;padding-top:12px;">
             <div class="widget-title">시장 분위기</div>
-            <div style="display:flex;align-items:center;gap:12px;">
-              <div style="position:relative;width:80px;height:80px;">
+            <!-- Fear & Greed 게이지 -->
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+              <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
                 <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
               </div>
               <div>
-                <div style="font-size:22px;font-weight:700;color:#26a69a;font-family:'Public Sans';">62</div>
-                <div style="font-size:11px;color:#26a69a;">탐욕 (Greed)</div>
-                <div style="font-size:10px;color:#8d90a2;margin-top:2px;">전주 대비 +4pt</div>
+                <div style="font-size:9px;color:#8d90a2;text-transform:uppercase;letter-spacing:.04em;">CNN Fear &amp; Greed</div>
+                <div id="fearVal" style="font-size:18px;font-weight:700;color:#26a69a;font-family:'Public Sans';">62</div>
+                <div id="fearLabel" style="font-size:10px;color:#26a69a;">탐욕 (Greed)</div>
+                <div id="fearDelta" style="font-size:9px;color:#8d90a2;">전주 대비 +4pt</div>
               </div>
+            </div>
+            <!-- 추가 시장 지표 그리드 -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+                <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VIX</div>
+                <div id="dashVix" style="font-size:15px;font-weight:700;color:#f5a623;">17.32</div>
+                <div style="font-size:9px;color:#434656;">변동성 지수</div>
+              </div>
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+                <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">MOVE Index</div>
+                <div id="dashMove" style="font-size:15px;font-weight:700;color:#b6c4ff;">95.4</div>
+                <div style="font-size:9px;color:#434656;">채권 변동성</div>
+              </div>
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+                <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Put/Call Ratio</div>
+                <div id="dashPcr" style="font-size:15px;font-weight:700;color:#dfe2f2;">0.82</div>
+                <div style="font-size:9px;color:#434656;">옵션 심리</div>
+              </div>
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+                <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HY Spread</div>
+                <div id="dashHySpread" style="font-size:15px;font-weight:700;color:#ef5350;">3.24%</div>
+                <div style="font-size:9px;color:#434656;">신용 스프레드</div>
+              </div>
+            </div>
+            <div style="font-size:9px;color:#434656;line-height:1.5;">
+              <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" style="color:#2962ff;text-decoration:none;">CNN F&amp;G</a>
+              · <a href="https://finance.yahoo.com/quote/%5EVIX" target="_blank" style="color:#2962ff;text-decoration:none;">VIX</a>
+              · <a href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" style="color:#2962ff;text-decoration:none;">HY Spread (FRED)</a>
             </div>
           </div>
         </div>
@@ -338,7 +369,7 @@ tailwind.config = {
         <div id="bond-subtab-rate">
           <!-- Country filter checkboxes -->
           <div class="widget" style="margin-bottom:12px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
               <div class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns">
                 <button onclick="toggleRateFilter('kr',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">🇰🇷 한국</button>
@@ -347,6 +378,13 @@ tailwind.config = {
                 <button onclick="toggleRateFilter('jp',this)" style="font-size:11px;padding:3px 8px;border:1px solid #f5a623;border-radius:4px;background:#f5a62333;color:#f5a623;cursor:pointer;">🇯🇵 일본</button>
                 <button onclick="toggleRateFilter('uk',this)" style="font-size:11px;padding:3px 8px;border:1px solid #ef5350;border-radius:4px;background:#ef535033;color:#ef5350;cursor:pointer;">🇬🇧 영국</button>
               </div>
+            </div>
+            <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+              <span style="font-size:11px;color:#8d90a2;">기간:</span>
+              <button onclick="setRatePeriod('all',this)" id="ratePeriodAll" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">전체</button>
+              <button onclick="setRatePeriod('5y',this)" id="ratePeriod5y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">5년</button>
+              <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3년</button>
+              <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1년</button>
             </div>
             <div style="position:relative;height:280px;">
               <canvas id="rateHistoryChart" role="img" aria-label="주요국 기준금리 비교">금리 차트</canvas>
@@ -467,10 +505,10 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향</div>
-            <div style="display:flex;gap:4px;align-items:center;">
-              <button class="tab-btn active" id="invPeriod1D" onclick="setInvestorPeriod('1D',this)" style="font-size:11px;padding:2px 7px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;">1D</button>
-              <button class="tab-btn" id="invPeriod5D" onclick="setInvestorPeriod('5D',this)" style="font-size:11px;padding:2px 7px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;">5D</button>
-              <button class="tab-btn" id="invPeriod1M" onclick="setInvestorPeriod('1M',this)" style="font-size:11px;padding:2px 7px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;">1M</button>
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+              <input type="date" id="invDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:2px 5px;color:#dfe2f2;font-size:11px;" onchange="applyInvestorDateRange()"/>
+              <span style="color:#8d90a2;font-size:11px;">~</span>
+              <input type="date" id="invDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:2px 5px;color:#dfe2f2;font-size:11px;" onchange="applyInvestorDateRange()"/>
               <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
             </div>
           </div>
@@ -489,7 +527,6 @@ tailwind.config = {
             <tbody id="investorSummaryTable"></tbody>
           </table>
         </div>
-      </div>
 
       <!-- 상승/하락 Top10 -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
@@ -524,6 +561,7 @@ tailwind.config = {
             <tbody id="equityTopLosersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 대기중…</td></tr></tbody>
           </table>
         </div>
+      </div>
       </div>
 
       <!-- 원자재 탭 -->
@@ -717,30 +755,62 @@ tailwind.config = {
     <!-- ====== 페이지 5: 분석 노트 ====== -->
     <div class="page" id="page-notes">
       <div style="display:grid;grid-template-columns:240px 1fr;gap:16px;min-height:70vh;">
+        <!-- 왼쪽: 노트 목록 -->
         <div class="widget" style="display:flex;flex-direction:column;">
-          <button onclick="newNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:12px;">+ 새 노트</button>
-          <div class="widget-title">저장된 노트</div>
+          <button onclick="newNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:8px;">+ 새 노트</button>
+          <button onclick="exportSelectedToExcel()" style="background:transparent;color:#26a69a;border:1px solid #26a69a55;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;margin-bottom:12px;">↓ Excel 저장</button>
+          <div class="widget-title">저장된 노트 <span id="noteSelCount" style="font-size:10px;color:#434656;font-weight:400;"></span></div>
           <div id="noteList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
         </div>
-        <div class="widget" style="display:flex;flex-direction:column;gap:12px;">
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <input id="noteTitle" type="text" placeholder="노트 제목 *" style="flex:2;min-width:160px;background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:8px 12px;color:#dfe2f2;font-size:14px;font-family:'Public Sans';font-weight:600;"/>
-            <input id="noteAuthor" type="text" placeholder="작성자 (필수) *" style="flex:1;min-width:120px;background:#131722;border:1px solid #2962ff55;border-radius:6px;padding:8px 12px;color:#dfe2f2;font-size:13px;"/>
-            <span id="noteDate" style="font-size:11px;color:#8d90a2;white-space:nowrap;"></span>
+        <!-- 오른쪽: 노트 편집 -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <!-- 헤더 -->
+          <div class="widget" style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input id="noteTitle" type="text" placeholder="노트 제목 *" style="flex:2;min-width:160px;background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:8px 12px;color:#dfe2f2;font-size:14px;font-family:'Public Sans';font-weight:600;"/>
+              <input id="noteAuthor" type="text" placeholder="작성자 (필수) *" style="flex:1;min-width:120px;background:#131722;border:1px solid #2962ff55;border-radius:6px;padding:8px 12px;color:#dfe2f2;font-size:13px;"/>
+              <span id="noteDate" style="font-size:11px;color:#8d90a2;white-space:nowrap;"></span>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
+              <button onclick="exportNoteToText()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">↓ TXT</button>
+              <button onclick="deleteNote()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;">삭제</button>
+              <button onclick="saveNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">저장</button>
+            </div>
           </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;" id="tagButtons">
-            <span class="note-tag active" onclick="setTag(this,'매크로')" style="background:#2962ff22;color:#b6c4ff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2962ff55;">매크로</span>
-            <span class="note-tag" onclick="setTag(this,'외환')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">외환</span>
-            <span class="note-tag" onclick="setTag(this,'금리')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">금리</span>
-            <span class="note-tag" onclick="setTag(this,'원자재')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">원자재</span>
-            <span class="note-tag" onclick="setTag(this,'주식')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">주식</span>
-            <span class="note-tag" onclick="setTag(this,'부동산')" style="background:#1b1f2b;color:#8d90a2;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #2a2e3d;">부동산</span>
+          <!-- 상단: 전체 요약 -->
+          <div class="widget">
+            <div class="widget-title" style="margin-bottom:8px;">📋 전체 요약 / 종합 의견</div>
+            <textarea id="noteBody" placeholder="전체 시장 상황 요약, 종합 투자 의견을 입력하세요..." style="width:100%;min-height:120px;background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:10px 12px;color:#dfe2f2;font-size:13px;font-family:'Inter';resize:vertical;line-height:1.7;box-sizing:border-box;"></textarea>
           </div>
-          <textarea id="noteBody" placeholder="분석 내용을 입력하세요..." style="flex:1;min-height:280px;background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;color:#dfe2f2;font-size:13px;font-family:'Inter';resize:none;line-height:1.7;"></textarea>
-          <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
-            <button onclick="exportNoteToText()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;">↓ TXT 저장</button>
-            <button onclick="deleteNote()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;">삭제</button>
-            <button onclick="saveNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;">저장</button>
+          <!-- 하단: 세부 주제별 섹션 -->
+          <div class="widget">
+            <div class="widget-title" style="margin-bottom:12px;">📌 세부 주제별 메모</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <div style="font-size:11px;color:#b6c4ff;font-weight:600;margin-bottom:4px;">📈 매크로 / 경제지표</div>
+                <textarea id="noteMacro" placeholder="GDP, 물가, 고용 등..." style="width:100%;min-height:90px;background:#131722;border:1px solid #2a2e3d;border-radius:5px;padding:8px;color:#dfe2f2;font-size:12px;font-family:'Inter';resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+              </div>
+              <div>
+                <div style="font-size:11px;color:#2962ff;font-weight:600;margin-bottom:4px;">📊 주식시장</div>
+                <textarea id="noteEquity" placeholder="지수 동향, 섹터 분석..." style="width:100%;min-height:90px;background:#131722;border:1px solid #2a2e3d;border-radius:5px;padding:8px;color:#dfe2f2;font-size:12px;font-family:'Inter';resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+              </div>
+              <div>
+                <div style="font-size:11px;color:#26a69a;font-weight:600;margin-bottom:4px;">🏦 금리 / 채권</div>
+                <textarea id="noteBond" placeholder="기준금리, 채권 수익률..." style="width:100%;min-height:90px;background:#131722;border:1px solid #2a2e3d;border-radius:5px;padding:8px;color:#dfe2f2;font-size:12px;font-family:'Inter';resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+              </div>
+              <div>
+                <div style="font-size:11px;color:#f5a623;font-weight:600;margin-bottom:4px;">💱 외환 / 환율</div>
+                <textarea id="noteFx" placeholder="USD/KRW, 달러인덱스..." style="width:100%;min-height:90px;background:#131722;border:1px solid #2a2e3d;border-radius:5px;padding:8px;color:#dfe2f2;font-size:12px;font-family:'Inter';resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+              </div>
+              <div>
+                <div style="font-size:11px;color:#ef5350;font-weight:600;margin-bottom:4px;">🛢️ 원자재</div>
+                <textarea id="noteCom" placeholder="유가, 금, 원자재 동향..." style="width:100%;min-height:90px;background:#131722;border:1px solid #2a2e3d;border-radius:5px;padding:8px;color:#dfe2f2;font-size:12px;font-family:'Inter';resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+              </div>
+              <div>
+                <div style="font-size:11px;color:#8d90a2;font-weight:600;margin-bottom:4px;">🏠 부동산</div>
+                <textarea id="noteRE" placeholder="부동산 시장 동향, PIR..." style="width:100%;min-height:90px;background:#131722;border:1px solid #2a2e3d;border-radius:5px;padding:8px;color:#dfe2f2;font-size:12px;font-family:'Inter';resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -979,14 +1049,20 @@ tailwind.config = {
           </div>
         </div>
         <div class="widget">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <div class="widget-title" style="margin-bottom:0;">자산군별 운용 비중 추이 (연도별 %)</div>
-            <div style="display:flex;gap:4px;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
               <button onclick="setNpsAllocPeriod('all',this)" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">전체</button>
               <button onclick="setNpsAllocPeriod('5y',this)" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">5년</button>
               <button onclick="setNpsAllocPeriod('3y',this)" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3년</button>
+              <span style="color:#2a2e3d;margin:0 2px;">|</span>
+              <button onclick="toggleNpsAllocMeasure(this)" id="npsMeasureBtn" style="font-size:11px;padding:2px 8px;border:1px solid #b6c4ff44;border-radius:4px;background:transparent;color:#b6c4ff;cursor:pointer;">📐 구간 측정</button>
             </div>
           </div>
+          <div id="npsMeasureInfo" style="display:none;font-size:11px;color:#8d90a2;margin-bottom:6px;padding:4px 8px;background:#131722;border-radius:4px;">
+            시작 연도를 클릭하고, 끝 연도를 클릭하면 구간별 증감률이 표시됩니다. (<button onclick="clearNpsMeasure()" style="background:transparent;border:none;color:#ef5350;cursor:pointer;font-size:11px;padding:0;">측정 초기화</button>)
+          </div>
+          <div id="npsMeasureResult" style="display:none;font-size:11px;margin-bottom:6px;padding:6px 8px;background:#131722;border-radius:4px;"></div>
           <div style="position:relative;height:260px;">
             <canvas id="npsAllocationTrendChart" role="img" aria-label="자산배분 추이">배분 추이</canvas>
           </div>
@@ -3177,23 +3253,6 @@ function renderNoteList(){
       </div>
     </div>`).join('') || '<div style="color:#434656;font-size:12px;text-align:center;padding:20px 0;">저장된 노트가 없습니다</div>';
 }
-function openNote(id){
-  curNoteId=id;
-  const n=notes.find(n=>n.id===id); if(!n) return;
-  document.getElementById('noteTitle').value=n.title||'';
-  document.getElementById('noteBody').value=n.body||'';
-  const authorEl=document.getElementById('noteAuthor');
-  if(authorEl) authorEl.value=n.author||'';
-  document.getElementById('noteDate').textContent=n.date;
-  curTag=n.tag||'매크로';
-  document.querySelectorAll('.note-tag').forEach(t=>{
-    const active=t.textContent===curTag;
-    t.style.background=active?'#2962ff22':'#1b1f2b';
-    t.style.color=active?'#b6c4ff':'#8d90a2';
-    t.style.border=active?'1px solid #2962ff55':'1px solid #2a2e3d';
-  });
-  renderNoteList();
-}
 function setTag(el,tag){
   curTag=tag;
   document.querySelectorAll('.note-tag').forEach(t=>{
@@ -3203,36 +3262,21 @@ function setTag(el,tag){
     t.style.border=active?'1px solid #2962ff55':'1px solid #2a2e3d';
   });
 }
-function newNote(){
-  const id='note_'+Date.now();
-  const n={id,title:'새 노트',author:'',body:'',tag:'매크로',date:new Date().toLocaleDateString('ko-KR')};
-  notes.unshift(n); save(); openNote(id);
-}
-function saveNote(){
-  const authorEl=document.getElementById('noteAuthor');
-  const author=(authorEl?authorEl.value:'').trim();
-  if(!author){ alert('작성자를 입력해주세요 (필수 항목)'); if(authorEl) authorEl.focus(); return; }
-  const id=curNoteId||('note_'+Date.now());
-  const idx=notes.findIndex(n=>n.id===id);
-  const n={id,title:document.getElementById('noteTitle').value,author,body:document.getElementById('noteBody').value,tag:curTag,date:new Date().toLocaleDateString('ko-KR')};
-  if(idx>=0) notes[idx]=n; else { notes.unshift(n); curNoteId=id; }
-  save(); renderNoteList();
-}
-function deleteNote(){
-  if(!curNoteId) return;
-  notes=notes.filter(n=>n.id!==curNoteId); curNoteId=null;
-  document.getElementById('noteTitle').value='';
-  document.getElementById('noteBody').value='';
-  const authorEl=document.getElementById('noteAuthor');
-  if(authorEl) authorEl.value='';
-  save(); renderNoteList();
-}
 function save(){ localStorage.setItem('econ_notes',JSON.stringify(notes)); }
 function exportNoteToText(){
   if(!curNoteId) return;
   const n=notes.find(n=>n.id===curNoteId);
   if(!n) return;
-  const text=`제목: ${n.title}\n작성자: ${n.author||'(미입력)'}\n날짜: ${n.date}\n분류: ${n.tag}\n\n${n.body}`;
+  const sec = n.sections || {};
+  const sectionText = [
+    sec.noteMacro  ? `\n[매크로/경제지표]\n${sec.noteMacro}` : '',
+    sec.noteEquity ? `\n[주식시장]\n${sec.noteEquity}` : '',
+    sec.noteBond   ? `\n[금리/채권]\n${sec.noteBond}` : '',
+    sec.noteFx     ? `\n[외환/환율]\n${sec.noteFx}` : '',
+    sec.noteCom    ? `\n[원자재]\n${sec.noteCom}` : '',
+    sec.noteRE     ? `\n[부동산]\n${sec.noteRE}` : '',
+  ].filter(Boolean).join('\n');
+  const text=`제목: ${n.title}\n작성자: ${n.author||'(미입력)'}\n날짜: ${n.date}\n분류: ${n.tag}\n\n[전체 요약]\n${n.body}${sectionText}`;
   const a=document.createElement('a');
   a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(text);
   a.download=(n.title||'note')+'.txt';
@@ -3623,6 +3667,80 @@ function applyRealData(d) {
     }
   }
 
+  // ── 주식/ETF 이동자 데이터 업데이트 (KRX API) ──────────
+  const movers = d.stockMovers || {};
+  const etfMvr = d.etfMovers   || {};
+  if (movers.kospiGainers) {
+    // 전역 upMoversStock 업데이트 → buildMoverTable에서 사용
+    upMoversStock.splice(0, upMoversStock.length, ...movers.kospiGainers.slice(0,5).map((s,i)=>({
+      name: s.name, price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'stock'
+    })));
+  }
+  if (movers.kospiLosers) {
+    downMoversStock.splice(0, downMoversStock.length, ...movers.kospiLosers.slice(0,5).map((s,i)=>({
+      name: s.name, price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'stock'
+    })));
+  }
+  if (etfMvr.etfGainers) {
+    upMoversETF.splice(0, upMoversETF.length, ...etfMvr.etfGainers.slice(0,5).map(s=>({
+      name: s.name, price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'etf'
+    })));
+  }
+  if (etfMvr.etfLosers) {
+    downMoversETF.splice(0, downMoversETF.length, ...etfMvr.etfLosers.slice(0,5).map(s=>({
+      name: s.name, price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'etf'
+    })));
+  }
+  // Top10 테이블 (주식시장 탭)
+  const gainTb = document.getElementById('equityTopGainersTable');
+  const loseTb = document.getElementById('equityTopLosersTable');
+  if (gainTb && movers.kospiGainers) {
+    gainTb.innerHTML = movers.kospiGainers.map((s,i)=>`<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:5px;color:#434656;">${i+1}</td>
+      <td style="padding:5px;font-weight:500;">${s.name}</td>
+      <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
+      <td style="text-align:right;padding:5px;color:#26a69a;">+${s.chg.toFixed(2)}%</td>
+    </tr>`).join('');
+  }
+  if (loseTb && movers.kospiLosers) {
+    loseTb.innerHTML = movers.kospiLosers.map((s,i)=>`<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:5px;color:#434656;">${i+1}</td>
+      <td style="padding:5px;font-weight:500;">${s.name}</td>
+      <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
+      <td style="text-align:right;padding:5px;color:#ef5350;">${s.chg.toFixed(2)}%</td>
+    </tr>`).join('');
+  }
+  // ── FRED 경제 지표 → 대시보드 시장 분위기 ─────────────
+  const usInd = (d.economicIndicators || {}).us || {};
+  if (usInd.vix?.value != null) {
+    const vixEl = document.getElementById('dashVix');
+    if(vixEl) {
+      vixEl.textContent = usInd.vix.value.toFixed(2);
+      vixEl.style.color = usInd.vix.value > 25 ? '#ef5350' : usInd.vix.value > 18 ? '#f5a623' : '#26a69a';
+    }
+  }
+  if (usInd.hy_spread?.value != null) {
+    const hyEl = document.getElementById('dashHySpread');
+    if(hyEl) {
+      hyEl.textContent = usInd.hy_spread.value.toFixed(2) + '%';
+      hyEl.style.color = usInd.hy_spread.value > 4 ? '#ef5350' : usInd.hy_spread.value > 3 ? '#f5a623' : '#26a69a';
+    }
+  }
+  // ── R-ONE 부동산 지표 → 부동산 페이지 KPI ──────────────
+  const reKr = (d.realestate || {}).kr || {};
+  if (reKr.apt_price_idx_kr) {
+    const el1 = document.querySelector('#re-kr .kpi-card:nth-child(2) div:nth-child(2)');
+    if(el1) {
+      el1.textContent = reKr.apt_price_idx_kr.value?.toFixed(1) || '—';
+      const chg = reKr.apt_price_idx_kr.chg;
+      const el2 = el1.nextElementSibling;
+      if(el2 && chg != null) {
+        el2.textContent = `전월비 ${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% (${reKr.apt_price_idx_kr.period})`;
+        el2.style.color = chg >= 0 ? '#26a69a' : '#ef5350';
+      }
+    }
+  }
+
   // ── 사이드바 업데이트 시각 표시 ──────────────
   const el = document.getElementById('dataSourceInfo');
   if (el && d.lastUpdated) {
@@ -3901,6 +4019,264 @@ async function loadRealtimeMarket() {
 }
 
 // ============================
+// 투자자 차트 — 날짜 범위 선택
+// ============================
+function applyInvestorDateRange() {
+  const fromEl = document.getElementById('invDateFrom');
+  const toEl   = document.getElementById('invDateTo');
+  if(!fromEl || !toEl || !fromEl.value || !toEl.value) return;
+  const fromDate = new Date(fromEl.value);
+  const toDate   = new Date(toEl.value);
+  if(fromDate >= toDate) return;
+  // 날짜 범위에 따라 기간 선택 (실제 KRX 데이터 없을 때 근사 사용)
+  const days = Math.round((toDate - fromDate) / (1000*60*60*24));
+  if(days <= 1) investorPeriodCur = '1D';
+  else if(days <= 10) investorPeriodCur = '5D';
+  else investorPeriodCur = '1M';
+  buildInvestorChart();
+}
+
+function initInvestorDateDefaults() {
+  const toEl   = document.getElementById('invDateTo');
+  const fromEl = document.getElementById('invDateFrom');
+  if(!fromEl || !toEl) return;
+  const today = new Date();
+  const lastWeek = new Date(today); lastWeek.setDate(today.getDate() - 7);
+  toEl.value   = today.toISOString().slice(0,10);
+  fromEl.value = lastWeek.toISOString().slice(0,10);
+}
+
+// ============================
+// 금리 차트 기간 선택
+// ============================
+let ratePeriodSlice = 'all';
+function setRatePeriod(period, btn) {
+  ratePeriodSlice = period;
+  ['ratePeriodAll','ratePeriod5y','ratePeriod3y','ratePeriod1y'].forEach(id=>{
+    const b = document.getElementById(id);
+    if(b) { b.style.background = 'transparent'; b.style.color = '#8d90a2'; }
+  });
+  if(btn) { btn.style.background = '#2962ff'; btn.style.color = '#fff'; }
+  buildRateHistoryChart();
+}
+
+function buildRateHistoryChart() {
+  destroyChart('rateHistoryChart');
+  const ctx = document.getElementById('rateHistoryChart');
+  if(!ctx) return;
+  const allLabels = rateHistoryData.labels;
+  const n = ratePeriodSlice==='1y' ? 2 : ratePeriodSlice==='3y' ? 4 : ratePeriodSlice==='5y' ? 6 : allLabels.length;
+  const sliceFrom = Math.max(0, allLabels.length - n);
+  const labels = allLabels.slice(sliceFrom);
+  const datasets = [...rateFilterSet].map(cc=>({
+    label: rateCountries[cc],
+    data: rateHistoryData[cc].slice(sliceFrom),
+    borderColor: rateColors[cc],
+    backgroundColor: rateColors[cc]+'22',
+    borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false,
+  }));
+  charts['rateHistoryChart'] = new Chart(ctx, {
+    type:'line',
+    data:{labels, datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
+        y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}
+      },
+      plugins:{
+        legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10,padding:8}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+          callbacks:{label:c=>c.dataset.label+': '+c.parsed.y.toFixed(2)+'%'}}
+      }
+    }
+  });
+}
+
+// ============================
+// NPS 자산배분 추이 — 구간 측정
+// ============================
+let npsMeasureMode = false;
+let npsMeasureStart = null;
+
+function toggleNpsAllocMeasure(btn) {
+  npsMeasureMode = !npsMeasureMode;
+  npsMeasureStart = null;
+  const info   = document.getElementById('npsMeasureInfo');
+  const result = document.getElementById('npsMeasureResult');
+  if(btn) {
+    btn.style.background = npsMeasureMode ? '#b6c4ff22' : 'transparent';
+    btn.style.border     = npsMeasureMode ? '1px solid #b6c4ff' : '1px solid #b6c4ff44';
+    btn.style.color      = npsMeasureMode ? '#b6c4ff' : '#b6c4ff';
+  }
+  if(info)   info.style.display   = npsMeasureMode ? 'block' : 'none';
+  if(result) result.style.display = 'none';
+  buildNpsAllocTrendChart();
+}
+
+function clearNpsMeasure() {
+  npsMeasureStart = null;
+  const result = document.getElementById('npsMeasureResult');
+  if(result) result.style.display = 'none';
+}
+
+function onNpsTrendClick(evt) {
+  if(!npsMeasureMode) return;
+  const chart = charts['npsAllocationTrendChart'];
+  if(!chart) return;
+  const points = chart.getElementsAtEventForMode(evt,'nearest',{intersect:false},true);
+  if(!points.length) return;
+  const idx   = points[0].index;
+  const trend = getNpsAllocTrend();
+  const label = trend.years[idx];
+  if(npsMeasureStart === null) {
+    npsMeasureStart = idx;
+    const info = document.getElementById('npsMeasureInfo');
+    if(info) info.textContent = `시작: ${label} 선택됨. 끝 연도를 클릭하세요.`;
+  } else {
+    const endIdx = idx;
+    const startIdx = Math.min(npsMeasureStart, endIdx);
+    const realEnd  = Math.max(npsMeasureStart, endIdx);
+    const startLabel = trend.years[startIdx];
+    const endLabel   = trend.years[realEnd];
+    const rows = trend.datasets.map(ds=>{
+      const sv = ds.data[startIdx];
+      const ev = ds.data[realEnd];
+      const diff = (ev - sv).toFixed(1);
+      const clr  = diff >= 0 ? '#26a69a' : '#ef5350';
+      return `<span style="margin-right:12px;"><span style="color:${ds.color};font-weight:600;">${ds.label}</span> ${sv}% → ${ev}% <span style="color:${clr};">(${diff>=0?'+':''}${diff}%p)</span></span>`;
+    }).join('');
+    const result = document.getElementById('npsMeasureResult');
+    if(result) {
+      result.innerHTML = `<span style="color:#8d90a2;">📐 ${startLabel} → ${endLabel} 구간 변화: </span>${rows}`;
+      result.style.display = 'block';
+    }
+    const info = document.getElementById('npsMeasureInfo');
+    if(info) info.textContent = '시작 연도를 클릭하고, 끝 연도를 클릭하면 구간별 증감률이 표시됩니다.';
+    npsMeasureStart = null;
+  }
+}
+
+// buildNpsAllocTrendChart — override to support measure mode click
+const _origBuildNpsAllocTrendChart = buildNpsAllocTrendChart;
+buildNpsAllocTrendChart = function() {
+  _origBuildNpsAllocTrendChart();
+  if(npsMeasureMode) {
+    const canvas = document.getElementById('npsAllocationTrendChart');
+    if(canvas) {
+      canvas.removeEventListener('click', onNpsTrendClick);
+      canvas.addEventListener('click', onNpsTrendClick);
+      canvas.style.cursor = 'crosshair';
+    }
+  } else {
+    const canvas = document.getElementById('npsAllocationTrendChart');
+    if(canvas) {
+      canvas.removeEventListener('click', onNpsTrendClick);
+      canvas.style.cursor = '';
+    }
+  }
+};
+
+// ============================
+// 분석 노트 — 확장 필드 처리
+// ============================
+const NOTE_SECTIONS = ['Macro','Equity','Bond','Fx','Com','RE'];
+function getSectionIds() { return NOTE_SECTIONS.map(s=>'note'+s); }
+
+function openNote(id) {
+  curNoteId = id;
+  const n = notes.find(n=>n.id===id); if(!n) return;
+  document.getElementById('noteTitle').value = n.title || '';
+  document.getElementById('noteBody').value  = n.body  || '';
+  const authorEl = document.getElementById('noteAuthor');
+  if(authorEl) authorEl.value = n.author || '';
+  document.getElementById('noteDate').textContent = n.date;
+  curTag = n.tag || '매크로';
+  document.querySelectorAll('.note-tag').forEach(t=>{
+    const active = t.textContent === curTag;
+    t.style.background = active ? '#2962ff22' : '#1b1f2b';
+    t.style.color      = active ? '#b6c4ff'   : '#8d90a2';
+    t.style.border     = active ? '1px solid #2962ff55' : '1px solid #2a2e3d';
+  });
+  getSectionIds().forEach(sid=>{
+    const el = document.getElementById(sid);
+    if(el) el.value = (n.sections && n.sections[sid]) || '';
+  });
+  renderNoteList();
+}
+
+function saveNote() {
+  const authorEl = document.getElementById('noteAuthor');
+  const author   = (authorEl ? authorEl.value : '').trim();
+  if(!author) { alert('작성자를 입력해주세요 (필수 항목)'); if(authorEl) authorEl.focus(); return; }
+  const id  = curNoteId || ('note_'+Date.now());
+  const idx = notes.findIndex(n=>n.id===id);
+  const sections = {};
+  getSectionIds().forEach(sid=>{ const el=document.getElementById(sid); if(el) sections[sid]=el.value; });
+  const n = {
+    id, title:document.getElementById('noteTitle').value, author,
+    body:document.getElementById('noteBody').value,
+    tag:curTag, date:new Date().toLocaleDateString('ko-KR'), sections,
+  };
+  if(idx>=0) notes[idx]=n; else { notes.unshift(n); curNoteId=id; }
+  save(); renderNoteList();
+}
+
+function deleteNote() {
+  if(!curNoteId) return;
+  notes = notes.filter(n=>n.id!==curNoteId); curNoteId = null;
+  document.getElementById('noteTitle').value = '';
+  document.getElementById('noteBody').value  = '';
+  const authorEl = document.getElementById('noteAuthor');
+  if(authorEl) authorEl.value = '';
+  getSectionIds().forEach(sid=>{ const el=document.getElementById(sid); if(el) el.value=''; });
+  save(); renderNoteList();
+}
+
+function newNote() {
+  const id = 'note_'+Date.now();
+  const n  = {id, title:'새 노트', author:'', body:'', tag:'매크로', date:new Date().toLocaleDateString('ko-KR'), sections:{}};
+  notes.unshift(n); save(); openNote(id);
+}
+
+// ============================
+// 분석 노트 — Excel 내보내기
+// ============================
+function exportSelectedToExcel() {
+  if(!notes.length) { alert('저장된 노트가 없습니다.'); return; }
+  if(typeof XLSX === 'undefined') { alert('Excel 라이브러리 로딩 중입니다. 잠시 후 다시 시도하세요.'); return; }
+  const wb = XLSX.utils.book_new();
+  notes.forEach((n, i)=>{
+    const rows = [
+      ['제목', n.title || ''],
+      ['작성자', n.author || ''],
+      ['날짜', n.date || ''],
+      ['분류', n.tag || ''],
+      ['', ''],
+      ['[전체 요약]', ''],
+      ['', n.body || ''],
+      ['', ''],
+      ['[매크로/경제지표]', ''],
+      ['', (n.sections && n.sections['noteMacro']) || ''],
+      ['[주식시장]', ''],
+      ['', (n.sections && n.sections['noteEquity']) || ''],
+      ['[금리/채권]', ''],
+      ['', (n.sections && n.sections['noteBond']) || ''],
+      ['[외환/환율]', ''],
+      ['', (n.sections && n.sections['noteFx']) || ''],
+      ['[원자재]', ''],
+      ['', (n.sections && n.sections['noteCom']) || ''],
+      ['[부동산]', ''],
+      ['', (n.sections && n.sections['noteRE']) || ''],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:20},{wch:60}];
+    const sheetName = (n.title || '노트'+(i+1)).slice(0,31).replace(/[\[\]*?:/\\]/g,'');
+    XLSX.utils.book_append_sheet(wb, ws, sheetName || '노트'+(i+1));
+  });
+  XLSX.writeFile(wb, '분석노트_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// ============================
 // 초기 렌더링
 // ============================
 window.addEventListener('load', async ()=>{
@@ -3913,6 +4289,7 @@ window.addEventListener('load', async ()=>{
   sparkline('spark2', genSeries(1490,30,0.005), '#b6c4ff');
   sparkline('spark3', genSeries(62,30,0.02),    '#ef5350');
   buildFearChart();
+  initInvestorDateDefaults();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
   await loadRealData();
   // 실시간 환율 페치 (open.er-api.com — 페이지 로드 시 즉시 갱신)
