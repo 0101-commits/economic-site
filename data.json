@@ -1,9 +1,13 @@
 {
-  "lastUpdated": "2026-05-17T15:14:49.218737+09:00",
+  "lastUpdated": "2026-05-17T17:58:57.478970+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
-    "indices": "yfinance",
-    "commodities": "yfinance"
+    "stockMovers": "KRX OpenAPI",
+    "indices": "KRX OpenAPI (KR) + yfinance (해외)",
+    "commodities": "KRX OpenAPI (한국 금·석유) + yfinance (국제)",
+    "economicIndicators_us": "FRED API (stlouisfed.org)",
+    "economicIndicators_kr": "ECOS API (ecos.bok.or.kr)",
+    "realestate_kr": "R-ONE API (reb.or.kr)"
   },
   "fx": {
     "USDKRW": {
@@ -74,5 +78,83 @@
       "price": 109.26,
       "change": 2.2
     }
+  },
+  "stockMovers": {},
+  "etfMovers": {},
+  "economicIndicators": {
+    "us": {
+      "vix": {
+        "value": 17.26,
+        "desc": "VIX 변동성 지수",
+        "source": "FRED:VIXCLS"
+      },
+      "ff_rate": {
+        "value": 3.64,
+        "desc": "미국 기준금리",
+        "source": "FRED:FEDFUNDS"
+      },
+      "cpi_us": {
+        "value": 332.407,
+        "desc": "미국 CPI (계절조정)",
+        "source": "FRED:CPIAUCSL"
+      },
+      "pce_us": {
+        "value": 130.344,
+        "desc": "미국 PCE",
+        "source": "FRED:PCEPI"
+      },
+      "unemployment": {
+        "value": 4.3,
+        "desc": "미국 실업률",
+        "source": "FRED:UNRATE"
+      },
+      "gdp_us": {
+        "value": 31856.257,
+        "desc": "미국 GDP (연환산, 조달러)",
+        "source": "FRED:GDP"
+      },
+      "hy_spread": {
+        "value": 2.76,
+        "desc": "HY 크레딧 스프레드",
+        "source": "FRED:BAMLH0A0HYM2"
+      },
+      "us10y": {
+        "value": 4.32,
+        "desc": "미국 10년 국채",
+        "source": "FRED:GS10"
+      },
+      "us2y": {
+        "value": 3.8,
+        "desc": "미국 2년 국채",
+        "source": "FRED:GS2"
+      },
+      "dxy_idx": {
+        "value": 118.0392,
+        "desc": "달러 인덱스 (브로드)",
+        "source": "FRED:DTWEXBGS"
+      },
+      "m2_us": {
+        "value": 22686.0,
+        "desc": "미국 M2 통화량",
+        "source": "FRED:M2SL"
+      }
+    },
+    "kr": {
+      "base_rate_kr": {
+        "value": 2.5,
+        "period": "202604",
+        "desc": "한국 기준금리",
+        "source": "ECOS:722Y001"
+      },
+      "cpi_kr": {
+        "value": 119.37,
+        "period": "202604",
+        "desc": "한국 소비자물가지수",
+        "source": "ECOS:901Y009"
+      }
+    }
+  },
+  "realestate": {
+    "kr": {}
   }
 }
