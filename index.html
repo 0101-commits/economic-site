@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko" class="dark">
+<html lang="ko">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -36,8 +36,81 @@ tailwind.config = {
 }
 </script>
 <style>
+  /* ======= CSS 변수 — 다크 테마 (기본) ======= */
+  :root {
+    --c-bg:       #0f131e;
+    --c-surface:  #131722;
+    --c-card:     #1b1f2b;
+    --c-card-hi:  #262a35;
+    --c-border:   #2a2e3d;
+    --c-txt:      #dfe2f2;
+    --c-txt-dim:  #8d90a2;
+    --c-txt-muted:#434656;
+    --c-accent:   #2962ff;
+    --c-primary:  #b6c4ff;
+    --c-up:       #26a69a;
+    --c-down:     #ef5350;
+  }
+  /* ======= 라이트 테마 오버라이드 ======= */
+  html.light {
+    --c-bg:       #f5f8fc;
+    --c-surface:  #ffffff;
+    --c-card:     #edf4fb;
+    --c-card-hi:  #d9edf8;
+    --c-border:   #aac4e6;
+    --c-txt:      rgb(38,38,38);
+    --c-txt-dim:  rgb(89,89,89);
+    --c-txt-muted:rgb(145,145,145);
+    --c-accent:   rgb(53,108,181);
+    --c-primary:  rgb(127,166,217);
+    --c-up:       rgb(57,141,139);
+    --c-down:     rgb(219,47,17);
+  }
+  /* 라이트 테마 — inline 스타일 오버라이드 (color attributes) */
+  html.light [style*="#0f131e"] { background-color: #f5f8fc !important; }
+  html.light [style*="#131722"] { background-color: #ffffff !important; }
+  html.light [style*="#1b1f2b"] { background-color: #edf4fb !important; }
+  html.light [style*="#262a35"] { background-color: #d9edf8 !important; }
+  html.light [style*="#2a2e3d"] { border-color: #aac4e6 !important; }
+  html.light [style*="color:#dfe2f2"] { color: rgb(38,38,38) !important; }
+  html.light [style*="color:#8d90a2"] { color: rgb(89,89,89) !important; }
+  html.light [style*="color:#434656"] { color: rgb(145,145,145) !important; }
+  html.light [style*="color:#b6c4ff"] { color: rgb(53,108,181) !important; }
+  html.light [style*="border:1px solid #2a2e3d"] { border-color: #aac4e6 !important; }
+  html.light [style*="border-bottom:1px solid #2a2e3d"] { border-bottom-color: #aac4e6 !important; }
+  html.light [style*="border-bottom:1px solid #1b1f2b"] { border-bottom-color: #ccdeed !important; }
+  html.light [style*="background:#131722"] { background-color: #ffffff !important; }
+  html.light [style*="background:#1b1f2b"] { background-color: #edf4fb !important; }
+  html.light [style*="background:#262a35"] { background-color: #d9edf8 !important; }
+  /* 라이트 테마 — 컴포넌트 오버라이드 */
+  html.light body { background: #f5f8fc; color: rgb(38,38,38); }
+  html.light header { background: #ffffff !important; border-bottom-color: #aac4e6 !important; }
+  html.light #sidebar { background: #ffffff !important; border-right-color: #aac4e6 !important; }
+  html.light .kpi-card { background: #edf4fb !important; border-color: #aac4e6 !important; }
+  html.light .widget { background: #edf4fb !important; border-color: #aac4e6 !important; }
+  html.light .menu-item { color: rgb(89,89,89); }
+  html.light .menu-item:hover { background: #d9edf8; color: rgb(38,38,38); }
+  html.light .menu-item.active { background: #d9edf8; color: rgb(53,108,181); }
+  html.light .widget-title { color: rgb(89,89,89); }
+  html.light .up-txt { color: rgb(57,141,139); }
+  html.light .down-txt { color: rgb(219,47,17); }
+  html.light tr:hover td { background: #d9edf8; }
+  html.light ::-webkit-scrollbar-track { background: #f5f8fc; }
+  html.light ::-webkit-scrollbar-thumb { background: #aac4e6; }
+  html.light .news-filter-btn { border-color: #aac4e6; color: rgb(89,89,89); background: #edf4fb; }
+  html.light .news-filter-btn.act { background: rgb(53,108,181); color: #fff; border-color: rgb(53,108,181); }
+  html.light .tab-btn:not(.active):hover { background: #d9edf8; }
+  html.light .ann-chip { background: #d9edf8; border-color: #aac4e6; }
+  html.light #sidebarToggle { background: #edf4fb !important; border-color: #aac4e6 !important; color: rgb(53,108,181) !important; }
+  html.light #sidebarToggle:hover { background: #d9edf8 !important; }
+  html.light input[type="date"], html.light input[type="text"], html.light textarea {
+    background: #ffffff !important; border-color: #aac4e6 !important; color: rgb(38,38,38) !important;
+  }
+  html.light select { background: #edf4fb !important; border-color: #aac4e6 !important; color: rgb(38,38,38) !important; }
+  html.light details.widget summary { color: rgb(89,89,89); }
+  /* ======= 기본 스타일 ======= */
   * { box-sizing: border-box; }
-  body { background: #0f131e; color: #dfe2f2; font-family: 'Inter', sans-serif; margin: 0; }
+  body { background: var(--c-bg, #0f131e); color: var(--c-txt, #dfe2f2); font-family: 'Inter', sans-serif; margin: 0; }
   .mat { font-family: 'Material Symbols Outlined'; font-size: 18px; line-height: 1; vertical-align: middle; }
   .ticker-scroll { animation: tickerMove 40s linear infinite; white-space: nowrap; display: inline-flex; gap: 48px; }
   @keyframes tickerMove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -71,6 +144,29 @@ tailwind.config = {
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
   .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #2a2e3d;border-radius:4px;padding:2px 6px;font-size:11px; }
   .kpi-clickable:hover { border-color:#2962ff !important; }
+  /* ======= 모바일 반응형 ======= */
+  @media (max-width: 768px) {
+    #sidebar {
+      position: fixed; left: -200px; z-index: 200; transition: left .25s;
+      height: 100vh; top: 0; padding-top: 60px;
+    }
+    #sidebar.mobile-open { left: 0; }
+    #mobileMenuBtn { display: flex !important; }
+    main { padding: 12px !important; }
+    #page-dashboard > div[style*="grid-template-columns:repeat(4"] {
+      display: grid !important; grid-template-columns: 1fr 1fr !important;
+    }
+    #page-dashboard > div[style*="grid-template-columns:1fr 300px"],
+    #page-market > div[style*="grid-template-columns:1fr 280px"],
+    #page-market > div[style*="grid-template-columns:1fr 300px"] {
+      display: block !important;
+    }
+    #page-dashboard > div[style*="grid-template-columns:1fr 1fr"] {
+      display: block !important;
+    }
+    canvas { max-height: 220px !important; }
+    #mainChart { max-height: 180px !important; }
+  }
 </style>
 </head>
 <body>
@@ -86,6 +182,10 @@ tailwind.config = {
   </div>
   <!-- 날짜시각 -->
   <div style="font-size:12px;color:#8d90a2;white-space:nowrap;min-width:140px;text-align:right;" id="clock"></div>
+  <!-- 모바일 햄버거 버튼 -->
+  <button id="mobileMenuBtn" onclick="toggleMobileSidebar()" style="display:none;background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:6px;width:36px;height:36px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;">
+    <span class="mat">menu</span>
+  </button>
 </header>
 
 <!-- 사이드바 토글 버튼 -->
@@ -101,12 +201,21 @@ tailwind.config = {
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;padding-left:46px;">메인 메뉴</div>
     <div class="menu-item active" onclick="showPage('dashboard',this)"><span class="mat">home</span>대시보드 홈</div>
     <div class="menu-item" onclick="showPage('market',this)"><span class="mat">candlestick_chart</span>시장 지표</div>
+    <div class="menu-item" onclick="showPage('market',this);setTimeout(()=>{ const b=document.querySelector('#page-market .tab-btn:nth-child(2)'); if(b) setMarketTab('bond',b); setTimeout(()=>{ const r=document.querySelector('.tab-btn[onclick*=setBondSubTab][onclick*=rate]'); if(r) setBondSubTab('rate',r); },60); },80);"><span class="mat">percent</span>금리</div>
+    <div class="menu-item" onclick="showPage('market',this);setTimeout(()=>{ const b=document.querySelector('#page-market .tab-btn:nth-child(2)'); if(b) setMarketTab('bond',b); setTimeout(()=>{ const bd=document.querySelector('.tab-btn[onclick*=setBondSubTab][onclick*=bond]'); if(bd) setBondSubTab('bond',bd); },60); },80);"><span class="mat">receipt_long</span>채권</div>
     <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
     <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
     <div class="menu-item" onclick="showPage('investor',this)"><span class="mat">account_balance</span>주요 투자자</div>
     <div class="menu-item" onclick="showPage('realestate',this)"><span class="mat">home_work</span>부동산</div>
     <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
     <div style="border-top:1px solid #2a2e3d;margin:12px 0;"></div>
+    <!-- 테마 토글 버튼 -->
+    <div style="padding:0 6px 8px;">
+      <button id="themeToggleBtn" onclick="toggleTheme()" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;border:1px solid var(--c-border,#2a2e3d);background:transparent;color:var(--c-txt-dim,#8d90a2);cursor:pointer;font-size:12px;font-weight:500;">
+        <span class="mat" id="themeIcon">light_mode</span>
+        <span id="themeLabel">라이트 모드</span>
+      </button>
+    </div>
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;">데이터 소스</div>
     <div style="font-size:11px;color:#434656;padding:4px 14px;line-height:1.8;">KRX OpenAPI (한국 공식)<br>Stooq (실시간 지수)<br>open.er-api.com (환율)<br>yfinance (해외 지수)<br>NPS 공시 (국민연금)</div>
     <div id="dataSourceInfo" style="font-size:10px;color:#434656;padding:4px 14px 8px;line-height:1.6;border-top:1px solid #2a2e3d;margin-top:8px;">업데이트 대기중…</div>
@@ -1437,9 +1546,10 @@ function initMainChart(period='1W', customPriceData) {
     type:'line',
     data:{labels:sl(price),datasets:[
       {data:vals,borderColor:clr,borderWidth:2,pointRadius:0,fill:true,backgroundColor:`${clr}15`,tension:0.3,label:'가격'},
-      {data:maData,label:'평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
+      {data:maData,label:'평균 (표시 기간)',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
+      layout:{padding:{bottom:0}},
       onClick(evt, elements, chart) {
         const pts = chart.getElementsAtEventForMode(evt,'index',{intersect:false},false);
         if(!pts.length) return;
@@ -1454,6 +1564,7 @@ function initMainChart(period='1W', customPriceData) {
       },
       plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
   });
+  if(charts['mainChart']) charts['mainChart'].resize();
 }
 
 function setPeriod(p, btn, chartId) {
@@ -1970,7 +2081,7 @@ async function refreshNews(feedId, arrName, btn) {
 let marketTab = 'fx';
 function initMarketPage() {
   if(marketTab==='fx') buildFxPage();
-  if(marketTab==='bond') buildRateHistoryChart();
+  if(marketTab==='bond') { buildRateHistoryChart(); buildRateCurrentTable(); }
   if(marketTab==='equity') buildEquityPage();
   if(marketTab==='commodity') buildCommodityPage();
 }
@@ -2053,7 +2164,7 @@ function buildFxChart(seriesData) {
     type:'line',
     data:{labels:sl(displayData),datasets:[
       {data:vals,label:'환율',borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3},
-      {data:maData,label:'평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
+      {data:maData,label:'기간 평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       onClick(evt, elements, chart) {
@@ -2304,7 +2415,7 @@ function buildBondChart(series) {
     type:'line',
     data:{labels:sl(series),datasets:[
       {data:bondVals,label:'수익률',borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:'#b6c4ff10',tension:0.3},
-      {data:bondMaData,label:'평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
+      {data:bondMaData,label:'표시 기간 평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       onClick(evt,elements,chart){
@@ -2428,7 +2539,7 @@ function setBondSubTab(tab, btn) {
   btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
   document.getElementById('bond-subtab-rate').style.display = tab==='rate'?'block':'none';
   document.getElementById('bond-subtab-bond').style.display = tab==='bond'?'block':'none';
-  if(tab==='rate') buildRateHistoryChart();
+  if(tab==='rate') { buildRateHistoryChart(); buildRateCurrentTable(); }
   if(tab==='bond') { buildBondPage(); buildGlobalBondTable(); }
 }
 
@@ -2542,7 +2653,7 @@ function buildEquityIndexChart(series) {
     type:'line',
     data:{labels:sl(series),datasets:[
       {data:eqVals,label:'지수',borderColor:clr,borderWidth:2,pointRadius:0,fill:true,backgroundColor:clr+'15',tension:0.3},
-      {data:eqMaData,label:'평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
+      {data:eqMaData,label:'기간 평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       onClick(evt,elements,chart){
@@ -3244,12 +3355,15 @@ function renderNoteList(){
   const el=document.getElementById('noteList');
   if(!el) return;
   el.innerHTML=notes.map(n=>`
-    <div onclick="openNote('${n.id}')" style="padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid ${curNoteId===n.id?'#2962ff':'#2a2e3d'};background:${curNoteId===n.id?'#2962ff11':'transparent'};">
-      <div style="font-size:12px;font-weight:500;margin-bottom:2px;">${n.title||'(제목 없음)'}</div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        <span style="font-size:10px;color:#8d90a2;">${n.date}</span>
-        <span style="font-size:10px;background:#2962ff22;color:#b6c4ff;padding:1px 5px;border-radius:3px;">${n.tag||'매크로'}</span>
-        ${n.author?`<span style="font-size:10px;color:#434656;">✍ ${n.author}</span>`:''}
+    <div style="display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border-radius:6px;border:1px solid ${curNoteId===n.id?'#2962ff':'#2a2e3d'};background:${curNoteId===n.id?'#2962ff11':'transparent'};">
+      <input type="checkbox" class="note-select-cb" data-id="${n.id}" style="cursor:pointer;accent-color:#2962ff;margin-top:3px;flex-shrink:0;" onclick="event.stopPropagation()"/>
+      <div onclick="openNote('${n.id}')" style="flex:1;cursor:pointer;min-width:0;">
+        <div style="font-size:12px;font-weight:500;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.title||'(제목 없음)'}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:10px;color:#8d90a2;">${n.date}</span>
+          <span style="font-size:10px;background:#2962ff22;color:#b6c4ff;padding:1px 5px;border-radius:3px;">${n.tag||'매크로'}</span>
+          ${n.author?`<span style="font-size:10px;color:#434656;">✍ ${n.author}</span>`:''}
+        </div>
       </div>
     </div>`).join('') || '<div style="color:#434656;font-size:12px;text-align:center;padding:20px 0;">저장된 노트가 없습니다</div>';
 }
@@ -4090,6 +4204,24 @@ function buildRateHistoryChart() {
       }
     }
   });
+  // 기준금리 현황 테이블 채우기
+  buildRateCurrentTable();
+}
+
+function buildRateCurrentTable() {
+  const tb = document.getElementById('rateCurrentTable');
+  if(!tb) return;
+  tb.innerHTML = currentRates.map(r => {
+    const dirClr = r.dir.includes('인상') ? '#ef5350' : r.dir.includes('인하') ? '#26a69a' : '#8d90a2';
+    const dirCls = r.dir.includes('인하') || r.dir.includes('↓') ? 'down-txt' : r.dir.includes('인상') || r.dir.includes('↑') ? 'up-txt' : '';
+    return `<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:8px;">${r.flag} ${r.country}</td>
+      <td style="text-align:right;padding:8px;font-weight:600;color:#b6c4ff;">${r.rate}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;">${r.prev}</td>
+      <td style="text-align:right;padding:8px;color:#8d90a2;font-size:11px;">${r.next}</td>
+      <td style="text-align:right;padding:8px;font-size:11px;" class="${dirCls}">${r.dir}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ============================
@@ -4239,47 +4371,118 @@ function newNote() {
 }
 
 // ============================
-// 분석 노트 — Excel 내보내기
+// 분석 노트 — Excel 내보내기 (단일 시트, 선택 노트)
 // ============================
 function exportSelectedToExcel() {
   if(!notes.length) { alert('저장된 노트가 없습니다.'); return; }
   if(typeof XLSX === 'undefined') { alert('Excel 라이브러리 로딩 중입니다. 잠시 후 다시 시도하세요.'); return; }
-  const wb = XLSX.utils.book_new();
-  notes.forEach((n, i)=>{
-    const rows = [
-      ['제목', n.title || ''],
-      ['작성자', n.author || ''],
-      ['날짜', n.date || ''],
-      ['분류', n.tag || ''],
-      ['', ''],
-      ['[전체 요약]', ''],
-      ['', n.body || ''],
-      ['', ''],
-      ['[매크로/경제지표]', ''],
-      ['', (n.sections && n.sections['noteMacro']) || ''],
-      ['[주식시장]', ''],
-      ['', (n.sections && n.sections['noteEquity']) || ''],
-      ['[금리/채권]', ''],
-      ['', (n.sections && n.sections['noteBond']) || ''],
-      ['[외환/환율]', ''],
-      ['', (n.sections && n.sections['noteFx']) || ''],
-      ['[원자재]', ''],
-      ['', (n.sections && n.sections['noteCom']) || ''],
-      ['[부동산]', ''],
-      ['', (n.sections && n.sections['noteRE']) || ''],
+
+  const selectedCbs = document.querySelectorAll('.note-select-cb:checked');
+  const selectedIds = selectedCbs.length > 0
+    ? [...selectedCbs].map(cb => cb.dataset.id)
+    : notes.map(n => n.id); // 선택 없으면 전체 내보내기
+
+  const toExport = notes.filter(n => selectedIds.includes(n.id));
+  if(!toExport.length) { alert('내보낼 노트가 없습니다.'); return; }
+
+  const headers = ['제목','작성자','날짜','분류','전체 요약','매크로/경제지표','주식시장','금리/채권','외환/환율','원자재','부동산'];
+  const rows = toExport.map(n => {
+    const s = n.sections || {};
+    return [
+      n.title||'', n.author||'', n.date||'', n.tag||'', n.body||'',
+      s.noteMacro||'', s.noteEquity||'', s.noteBond||'', s.noteFx||'', s.noteCom||'', s.noteRE||''
     ];
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{wch:20},{wch:60}];
-    const sheetName = (n.title || '노트'+(i+1)).slice(0,31).replace(/[\[\]*?:/\\]/g,'');
-    XLSX.utils.book_append_sheet(wb, ws, sheetName || '노트'+(i+1));
   });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map((h,i) => ({wch: i === 0 ? 20 : i < 4 ? 12 : 40}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '분석노트');
   XLSX.writeFile(wb, '분석노트_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// ============================
+// 테마 토글
+// ============================
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('econ_theme', isLight ? 'light' : 'dark');
+  const icon  = document.getElementById('themeIcon');
+  const label = document.getElementById('themeLabel');
+  if(icon)  icon.textContent  = isLight ? 'dark_mode'  : 'light_mode';
+  if(label) label.textContent = isLight ? '다크 모드' : '라이트 모드';
+  // 차트 색상 재빌드
+  rebuildChartsForTheme();
+}
+
+function applyStoredTheme() {
+  const stored = localStorage.getItem('econ_theme');
+  if(stored === 'light') {
+    document.documentElement.classList.add('light');
+    const icon  = document.getElementById('themeIcon');
+    const label = document.getElementById('themeLabel');
+    if(icon)  icon.textContent  = 'dark_mode';
+    if(label) label.textContent = '다크 모드';
+  }
+}
+
+function getThemeColors() {
+  const light = document.documentElement.classList.contains('light');
+  return {
+    txt:     light ? 'rgb(89,89,89)'  : '#8d90a2',
+    grid:    light ? '#aac4e644'      : '#2a2e3d55',
+    tooltip: light ? '#edf4fb'        : '#262a35',
+    ttBorder:light ? '#aac4e6'        : '#2a2e3d',
+    ttTitle: light ? 'rgb(38,38,38)'  : '#dfe2f2',
+    ttBody:  light ? 'rgb(53,108,181)': '#b6c4ff',
+    up:      light ? 'rgb(57,141,139)': '#26a69a',
+    down:    light ? 'rgb(219,47,17)' : '#ef5350',
+    accent:  light ? 'rgb(53,108,181)': '#2962ff',
+    primary: light ? 'rgb(127,166,217)': '#b6c4ff',
+  };
+}
+
+function rebuildChartsForTheme() {
+  // Rebuild all active charts so grid/tick/tooltip colors update
+  const tc = getThemeColors();
+  Object.entries(charts).forEach(([id, ch]) => {
+    if(!ch || !ch.options) return;
+    try {
+      // Update scale tick and grid colors
+      if(ch.options.scales) {
+        Object.values(ch.options.scales).forEach(sc => {
+          if(sc.ticks) sc.ticks.color = tc.txt;
+          if(sc.grid)  sc.grid.color  = tc.grid;
+        });
+      }
+      // Update legend label color
+      if(ch.options.plugins?.legend?.labels) ch.options.plugins.legend.labels.color = tc.txt;
+      // Update tooltip colors
+      if(ch.options.plugins?.tooltip) {
+        const tt = ch.options.plugins.tooltip;
+        tt.backgroundColor = tc.tooltip;
+        tt.titleColor = tc.ttTitle;
+        tt.bodyColor  = tc.ttBody;
+        tt.borderColor = tc.ttBorder;
+      }
+      ch.update();
+    } catch(_) {}
+  });
+}
+
+// ============================
+// 모바일 사이드바 토글
+// ============================
+function toggleMobileSidebar() {
+  const sb = document.getElementById('sidebar');
+  if(sb) sb.classList.toggle('mobile-open');
 }
 
 // ============================
 // 초기 렌더링
 // ============================
 window.addEventListener('load', async ()=>{
+  applyStoredTheme();
   buildGlobalTable();
   buildMoverTable('up');
   buildNews();
