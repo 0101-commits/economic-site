@@ -1,11 +1,12 @@
 {
-  "lastUpdated": "2026-05-17T19:23:30.493824+09:00",
+  "lastUpdated": "2026-05-17T20:55:16.813721+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "KRX OpenAPI",
     "indices": "KRX OpenAPI (KR) + yfinance (해외)",
     "commodities": "KRX OpenAPI (한국 금·석유) + yfinance (국제)",
     "economicIndicators_us": "FRED API (stlouisfed.org)",
+    "realestate_us": "FRED API (stlouisfed.org)",
     "economicIndicators_kr": "ECOS API (ecos.bok.or.kr)",
     "realestate_kr": "R-ONE API (reb.or.kr)"
   },
@@ -155,6 +156,72 @@
     }
   },
   "realestate": {
+    "us": {
+      "case_shiller_national": {
+        "value": 327.311,
+        "prev": 326.359,
+        "chg": 0.29,
+        "period": "2026-02-01",
+        "desc": "Case-Shiller 전국 HPI",
+        "source": "FRED:CSUSHPINSA"
+      },
+      "case_shiller_20city": {
+        "value": 343.000192787506,
+        "prev": 343.1597441582,
+        "chg": -0.05,
+        "period": "2026-02-01",
+        "desc": "Case-Shiller 20대도시 HPI",
+        "source": "FRED:SPCS20RSA"
+      },
+      "mortgage_30y": {
+        "value": 6.36,
+        "prev": 6.37,
+        "chg": -0.16,
+        "period": "2026-05-14",
+        "desc": "30년 고정 모기지 금리",
+        "source": "FRED:MORTGAGE30US"
+      },
+      "mortgage_15y": {
+        "value": 5.71,
+        "prev": 5.72,
+        "chg": -0.17,
+        "period": "2026-05-14",
+        "desc": "15년 고정 모기지 금리",
+        "source": "FRED:MORTGAGE15US"
+      },
+      "housing_starts": {
+        "value": 1502.0,
+        "prev": 1356.0,
+        "chg": 10.77,
+        "period": "2026-03-01",
+        "desc": "주택착공 (Housing Starts, 천 호)",
+        "source": "FRED:HOUST"
+      },
+      "building_permits": {
+        "value": 1363.0,
+        "prev": 1538.0,
+        "chg": -11.38,
+        "period": "2026-03-01",
+        "desc": "건축허가 (Building Permits, 천 건)",
+        "source": "FRED:PERMIT"
+      },
+      "existing_home_sales": {
+        "value": 4020000.0,
+        "prev": 4010000.0,
+        "chg": 0.25,
+        "period": "2026-04-01",
+        "desc": "기존주택판매 (백만 건)",
+        "source": "FRED:EXHOSLUSM495S"
+      },
+      "new_home_sales": {
+        "value": 682.0,
+        "prev": 635.0,
+        "chg": 7.4,
+        "period": "2026-03-01",
+        "desc": "신규주택판매 (천 건)",
+        "source": "FRED:HSN1F"
+      }
+    },
     "kr": {}
   }
 }
