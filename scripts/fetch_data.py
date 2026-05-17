@@ -274,6 +274,41 @@ def fetch_fred_economic_indicators():
     return result
 
 
+def fetch_fred_realestate_us():
+    """미국 부동산 주요 지표 FRED API로 조회."""
+    if not FRED_API_KEY:
+        log("[FRED] API 키 없음 — 미국 부동산 건너뜀")
+        return {}
+    indicators = {
+        "case_shiller_national": ("CSUSHPINSA",       "Case-Shiller 전국 HPI"),
+        "case_shiller_20city":   ("SPCS20RSA",         "Case-Shiller 20대도시 HPI"),
+        "mortgage_30y":          ("MORTGAGE30US",      "30년 고정 모기지 금리"),
+        "mortgage_15y":          ("MORTGAGE15US",      "15년 고정 모기지 금리"),
+        "housing_starts":        ("HOUST",             "주택착공 (Housing Starts, 천 호)"),
+        "building_permits":      ("PERMIT",            "건축허가 (Building Permits, 천 건)"),
+        "existing_home_sales":   ("EXHOSLUSM495S",     "기존주택판매 (백만 건)"),
+        "new_home_sales":        ("HSN1F",             "신규주택판매 (천 건)"),
+        "nahb_index":            ("NAHBMMI",           "NAHB 주택시장지수"),
+    }
+    result = {}
+    for key, (series_id, desc) in indicators.items():
+        obs = fetch_fred_series(series_id, limit=2)
+        if obs:
+            cur = obs[0]["value"]
+            prev = obs[1]["value"] if len(obs) > 1 else None
+            chg = round((cur - prev) / prev * 100, 2) if prev and prev != 0 else None
+            result[key] = {
+                "value": cur,
+                "prev": prev,
+                "chg": chg,
+                "period": obs[0]["date"],
+                "desc": desc,
+                "source": f"FRED:{series_id}",
+            }
+            log(f"[FRED-RE] {series_id}: {cur}")
+    return result
+
+
 # ============================================================
 # ECOS API (한국은행 경제 통계)
 # ============================================================
@@ -660,6 +695,11 @@ def build_data():
         fred_data = fetch_fred_economic_indicators()
         data["economicIndicators"]["us"] = fred_data
         data["sources"]["economicIndicators_us"] = "FRED API (stlouisfed.org)"
+        # 미국 부동산 지표
+        log("[FRED] 미국 부동산 지표 수집 시작")
+        re_us_data = fetch_fred_realestate_us()
+        data["realestate"]["us"] = re_us_data
+        data["sources"]["realestate_us"] = "FRED API (stlouisfed.org)"
     else:
         log("[FRED] API 키 없음 — 미국 지표 건너뜀")
 
