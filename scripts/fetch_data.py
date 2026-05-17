@@ -159,13 +159,15 @@ def krx_commodity(endpoint, isu_match):
 def fetch_krx_stock_movers(market="kospi", top_n=10):
     """KRX에서 주식 등락률 상위/하위 종목 조회 (상승/하락 Top10)."""
     if not KRX_API_KEY:
-        return None, None
+        log("[KRX] API 키 없음 — 주식 이동자 폴백 시도")
+        return fetch_naver_stock_movers(market=market, top_n=top_n)
     endpoint = "/sto/stk_bydd_trd"  # KOSPI 일별 매매
     if market == "kosdaq":
-        endpoint = "/cos/stk_bydd_trd"
+        endpoint = "/sto/ksq_bydd_trd"  # KOSDAQ (정정: /sto/ksq, /cos/ 아님)
     rows, basd = fetch_krx_latest(endpoint)
     if not rows:
-        return None, None
+        log(f"[KRX] {endpoint} 데이터 없음 — Naver Finance 폴백 시도")
+        return fetch_naver_stock_movers(market=market, top_n=top_n)
     parsed = []
     for row in rows:
         name = row.get("ISU_NM") or row.get("ISU_SRT_CD") or ""
@@ -175,13 +177,82 @@ def fetch_krx_stock_movers(market="kospi", top_n=10):
         if price and price > 0 and chg_rt is not None:
             parsed.append({"name": name, "price": price, "chg": chg_rt, "vol": vol or 0, "as_of": basd})
     if not parsed:
-        return None, None
+        log(f"[KRX] {endpoint} 파싱 실패 — Naver Finance 폴백 시도")
+        return fetch_naver_stock_movers(market=market, top_n=top_n)
     sorted_asc  = sorted(parsed, key=lambda x: x["chg"])
     sorted_desc = sorted(parsed, key=lambda x: x["chg"], reverse=True)
     gainers = sorted_desc[:top_n]
     losers  = sorted_asc[:top_n]
     log(f"[KRX] {market.upper()} 상승Top{top_n}: {gainers[0]['name']} +{gainers[0]['chg']}%" if gainers else "[KRX] 상승 종목 없음")
     return gainers, losers
+
+
+def fetch_naver_stock_movers(market="kospi", top_n=10):
+    """Naver Finance 등락률 페이지 스크래핑 (KRX API 폴백).
+
+    URL: https://finance.naver.com/sise/sise_rise.naver?sosok=0 (KOSPI)
+         https://finance.naver.com/sise/sise_fall.naver?sosok=0 (KOSPI 하락)
+         sosok=1 → KOSDAQ
+    """
+    import re as _re
+    sosok = "1" if market == "kosdaq" else "0"
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+
+    sess = requests.Session()
+    sess.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+        "Referer": "https://finance.naver.com/",
+        "Connection": "close",
+    })
+    try:
+        sess.get("https://finance.naver.com/", timeout=10)
+    except Exception:
+        pass
+
+    def _scrape(url):
+        try:
+            r = sess.get(url, timeout=15)
+            if r.status_code != 200:
+                log(f"[Naver] {url} HTTP {r.status_code}")
+                return []
+            r.encoding = "euc-kr"
+            html = r.text
+        except Exception as e:
+            log(f"[Naver] 스크래핑 오류: {e}")
+            return []
+        items = []
+        # 패턴1: 일반적인 등락 페이지 구조
+        # <a ... class="tltle">종목명</a> ... <td class="number">82,000</td>
+        # ... <span class="red02|blue02|red01|blue01">+1.86%</span>
+        rows_pat = _re.findall(
+            r'<a[^>]*class="tltle"[^>]*>([^<]+)</a>'
+            r'(?:.*?<td class="number">([\d,\.]+)</td>)'
+            r'(?:.*?<span[^>]*>\s*([+\-]?[\d\.]+)%)',
+            html, _re.DOTALL)
+        for name, price_str, chg_str in rows_pat:
+            try:
+                price = float(price_str.replace(",", ""))
+                chg = float(chg_str)
+                items.append({"name": name.strip(), "price": price, "chg": chg, "vol": 0, "as_of": today})
+            except (ValueError, TypeError):
+                continue
+        return items
+
+    gainers = _scrape(f"https://finance.naver.com/sise/sise_rise.naver?sosok={sosok}")[:top_n]
+    losers  = _scrape(f"https://finance.naver.com/sise/sise_fall.naver?sosok={sosok}")[:top_n]
+
+    if gainers:
+        log(f"[Naver] {market.upper()} 상승Top: {gainers[0]['name']} +{gainers[0]['chg']}% ({len(gainers)}건)")
+    else:
+        log(f"[Naver] {market.upper()} 상승 종목 수집 실패")
+    if losers:
+        log(f"[Naver] {market.upper()} 하락Top: {losers[0]['name']} {losers[0]['chg']}% ({len(losers)}건)")
+    else:
+        log(f"[Naver] {market.upper()} 하락 종목 수집 실패")
+    return (gainers or None), (losers or None)
 
 
 def fetch_krx_etf_movers(top_n=10):
@@ -267,32 +338,51 @@ def fetch_fred_economic_indicators():
     }
     result = {}
     for key, (series_id, desc) in indicators.items():
-        val = fetch_fred_latest(series_id)
-        if val is not None:
-            result[key] = {"value": val, "desc": desc, "source": f"FRED:{series_id}"}
-            log(f"[FRED] {series_id}: {val}")
+        obs = fetch_fred_series(series_id, limit=1)
+        if obs:
+            result[key] = {
+                "value": obs[0]["value"],
+                "period": obs[0]["date"],
+                "desc": desc,
+                "source": f"FRED:{series_id}",
+            }
+            log(f"[FRED] {series_id}: {obs[0]['value']} ({obs[0]['date']})")
+        else:
+            log(f"[FRED] {series_id}: 데이터 없음")
     return result
 
 
 def fetch_fred_realestate_us():
-    """미국 부동산 주요 지표 FRED API로 조회."""
+    """미국 부동산 주요 지표 FRED API로 조회.
+
+    각 series_id가 잘못된 경우를 대비해 fallback 후보를 list로 제공.
+    """
     if not FRED_API_KEY:
         log("[FRED] API 키 없음 — 미국 부동산 건너뜀")
         return {}
+    # (series_ids list, desc) — 첫 번째가 실패하면 다음 후보 시도
     indicators = {
-        "case_shiller_national": ("CSUSHPINSA",       "Case-Shiller 전국 HPI"),
-        "case_shiller_20city":   ("SPCS20RSA",         "Case-Shiller 20대도시 HPI"),
-        "mortgage_30y":          ("MORTGAGE30US",      "30년 고정 모기지 금리"),
-        "mortgage_15y":          ("MORTGAGE15US",      "15년 고정 모기지 금리"),
-        "housing_starts":        ("HOUST",             "주택착공 (Housing Starts, 천 호)"),
-        "building_permits":      ("PERMIT",            "건축허가 (Building Permits, 천 건)"),
-        "existing_home_sales":   ("EXHOSLUSM495S",     "기존주택판매 (백만 건)"),
-        "new_home_sales":        ("HSN1F",             "신규주택판매 (천 건)"),
-        "nahb_index":            ("NAHBMMI",           "NAHB 주택시장지수"),
+        "case_shiller_national": (["CSUSHPINSA"],                    "Case-Shiller 전국 HPI"),
+        "case_shiller_20city":   (["SPCS20RSA", "SPCS20RPSNSA"],     "Case-Shiller 20대도시 HPI"),
+        "mortgage_30y":          (["MORTGAGE30US"],                  "30년 고정 모기지 금리 (%)"),
+        "mortgage_15y":          (["MORTGAGE15US"],                  "15년 고정 모기지 금리 (%)"),
+        "housing_starts":        (["HOUST"],                          "주택착공 (천 호, 연환산)"),
+        "building_permits":      (["PERMIT"],                         "건축허가 (천 건, 연환산)"),
+        "existing_home_sales":   (["EXHOSLUSM495S", "EXHOSLUSM495N"], "기존주택판매 (백만 건, 연환산)"),
+        "new_home_sales":        (["HSN1F", "HSN1FNSA"],              "신규주택판매 (천 건, 연환산)"),
+        "nahb_index":            (["NAHBMMI", "MSACSR"],              "NAHB 주택시장지수"),
     }
     result = {}
-    for key, (series_id, desc) in indicators.items():
-        obs = fetch_fred_series(series_id, limit=2)
+    for key, (series_ids, desc) in indicators.items():
+        obs = None
+        used_id = None
+        for sid in series_ids:
+            obs = fetch_fred_series(sid, limit=2)
+            if obs:
+                used_id = sid
+                break
+            else:
+                log(f"[FRED-RE] {sid}: 데이터 없음 (다음 후보 시도)")
         if obs:
             cur = obs[0]["value"]
             prev = obs[1]["value"] if len(obs) > 1 else None
@@ -303,9 +393,12 @@ def fetch_fred_realestate_us():
                 "chg": chg,
                 "period": obs[0]["date"],
                 "desc": desc,
-                "source": f"FRED:{series_id}",
+                "source": f"FRED:{used_id}",
             }
-            log(f"[FRED-RE] {series_id}: {cur}")
+            log(f"[FRED-RE] {used_id}: {cur} ({obs[0]['date']}) chg={chg}")
+        else:
+            log(f"[FRED-RE] {key}: 모든 후보 실패")
+    log(f"[FRED-RE] 미국 부동산: {len(result)}/{len(indicators)} 지표 수집됨")
     return result
 
 
@@ -616,7 +709,16 @@ def build_data():
 
         data["sources"]["stockMovers"] = "KRX OpenAPI"
     else:
-        log("[KRX] API 키 없음 — 주식 이동자 데이터 없음")
+        log("[KRX] API 키 없음 — Naver Finance 폴백 시도")
+
+    # 주식 상승/하락 Top10이 비어 있으면 Naver Finance 폴백 (KRX 권한 미가입 케이스)
+    if not data["stockMovers"].get("kospiGainers"):
+        gainers, losers = fetch_naver_stock_movers(market="kospi", top_n=10)
+        if gainers:
+            data["stockMovers"]["kospiGainers"] = gainers
+            data["sources"]["stockMovers"] = "Naver Finance (스크래핑)"
+        if losers:
+            data["stockMovers"]["kospiLosers"] = losers
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
     if "KOSPI" not in data["indices"]:
