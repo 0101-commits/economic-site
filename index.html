@@ -101,8 +101,6 @@ tailwind.config = {
   html.light .news-filter-btn.act { background: rgb(53,108,181); color: #fff; border-color: rgb(53,108,181); }
   html.light .tab-btn:not(.active):hover { background: #d9edf8; }
   html.light .ann-chip { background: #d9edf8; border-color: #aac4e6; }
-  html.light #sidebarToggle { background: #edf4fb !important; border-color: #aac4e6 !important; color: rgb(53,108,181) !important; }
-  html.light #sidebarToggle:hover { background: #d9edf8 !important; }
   html.light input[type="date"], html.light input[type="text"], html.light textarea {
     background: #ffffff !important; border-color: #aac4e6 !important; color: rgb(38,38,38) !important;
   }
@@ -139,7 +137,6 @@ tailwind.config = {
   .news-filter-btn { font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; border:1px solid #2a2e3d; color:#8d90a2; background:#1b1f2b; transition:all .15s; }
   .news-filter-btn.act { background:#2962ff; color:#fff; border-color:#2962ff; }
   #sidebar.collapsed { width:0 !important; padding:0 !important; overflow:hidden !important; border-right:none !important; }
-  #sidebarToggle:hover { background:#262a35; }
   .range-reset-btn { background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:3px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:6px;line-height:1.2; }
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
   .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #2a2e3d;border-radius:4px;padding:2px 6px;font-size:11px; }
@@ -172,8 +169,12 @@ tailwind.config = {
 <body>
 
 <!-- ====== 상단 헤더 ====== -->
-<header style="position:fixed;top:0;left:0;right:0;height:56px;background:#131722;border-bottom:1px solid #2a2e3d;z-index:100;display:flex;align-items:center;padding:0 16px;gap:16px;">
-  <div style="font-family:'Public Sans',sans-serif;font-weight:700;font-size:15px;color:#b6c4ff;white-space:nowrap;min-width:160px;">
+<header style="position:fixed;top:0;left:0;right:0;height:56px;background:#131722;border-bottom:1px solid #2a2e3d;z-index:100;display:flex;align-items:center;padding:0 16px;gap:12px;">
+  <!-- 사이드바 토글 (헤더 내부) -->
+  <button onclick="toggleSidebar()" title="사이드바 토글" style="background:transparent;border:none;color:#8d90a2;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0;transition:color .15s;" onmouseover="this.style.color='#b6c4ff'" onmouseout="this.style.color='#8d90a2'">
+    <span class="mat" id="sidebarToggleIcon" style="font-size:22px;">menu_open</span>
+  </button>
+  <div style="font-family:'Public Sans',sans-serif;font-weight:700;font-size:15px;color:#b6c4ff;white-space:nowrap;">
     <span class="mat" style="color:#2962ff;margin-right:6px;">monitoring</span>경제현황 터미널
   </div>
   <!-- 실시간 티커 -->
@@ -187,11 +188,6 @@ tailwind.config = {
     <span class="mat">menu</span>
   </button>
 </header>
-
-<!-- 사이드바 토글 버튼 -->
-<button id="sidebarToggle" onclick="toggleSidebar()" title="사이드바 숨기기/표시" style="position:fixed;top:64px;left:208px;z-index:99;background:#1b1f2b;border:1px solid #2a2e3d;color:#b6c4ff;border-radius:6px;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:left .25s;">
-  <span class="mat" id="sidebarToggleIcon">menu_open</span>
-</button>
 
 <!-- ====== 레이아웃 ====== -->
 <div style="display:flex;padding-top:56px;min-height:100vh;">
@@ -821,10 +817,13 @@ tailwind.config = {
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
           <span class="news-filter-btn act" onclick="setNewsFilter('macroNewsFeed','all',this)">전체</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)">한국</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)">미국</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','중국경기',this)">중국</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','유로존',this)">유로존</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)">🇰🇷 한국</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)">🇺🇸 미국</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','일본경기',this)">🇯🇵 일본</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','중국경기',this)">🇨🇳 중국</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','독일경기',this)">🇩🇪 독일</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','영국경기',this)">🇬🇧 영국</span>
+          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','유로존',this)">🇪🇺 유로존</span>
         </div>
         <div id="macroNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
@@ -1035,7 +1034,10 @@ tailwind.config = {
           </div>
           <!-- 지역별 등락 바 차트 -->
           <div class="widget">
-            <div class="widget-title">지역별 등락률 (전월比, %)</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %)</div>
+              <div style="font-size:10px;color:#434656;">2026년 4월 기준 (한국부동산원)</div>
+            </div>
             <div style="position:relative;height:220px;"><canvas id="reRegionChart"></canvas></div>
           </div>
         </div>
@@ -1124,30 +1126,90 @@ tailwind.config = {
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;">
               <th style="text-align:left;padding:6px 0;">지표</th>
-              <th style="text-align:left;padding:6px;">설명</th>
-              <th style="text-align:left;padding:6px;">FRED 코드</th>
-              <th style="text-align:left;padding:6px;">발표 주기</th>
+              <th style="text-align:right;padding:6px;">최신값</th>
+              <th style="text-align:right;padding:6px;">전월比</th>
+              <th style="text-align:center;padding:6px;">기준</th>
+              <th style="text-align:left;padding:6px;">FRED</th>
+              <th style="text-align:center;padding:6px;">주기</th>
             </tr></thead>
             <tbody>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">Case-Shiller 전국 HPI</td><td style="padding:7px;color:#8d90a2;">전국 주택가격지수</td><td style="padding:7px;color:#b6c4ff;">CSUSHPINSA</td><td style="padding:7px;color:#8d90a2;">월간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">Case-Shiller 20대도시</td><td style="padding:7px;color:#8d90a2;">주요 20개 대도시 HPI</td><td style="padding:7px;color:#b6c4ff;">SPCS20RSA</td><td style="padding:7px;color:#8d90a2;">월간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">30년 고정 모기지</td><td style="padding:7px;color:#8d90a2;">Freddie Mac 주간 설문</td><td style="padding:7px;color:#b6c4ff;">MORTGAGE30US</td><td style="padding:7px;color:#8d90a2;">주간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">15년 고정 모기지</td><td style="padding:7px;color:#8d90a2;">Freddie Mac 주간 설문</td><td style="padding:7px;color:#b6c4ff;">MORTGAGE15US</td><td style="padding:7px;color:#8d90a2;">주간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">주택착공 (Housing Starts)</td><td style="padding:7px;color:#8d90a2;">신규 주택 착공 건수</td><td style="padding:7px;color:#b6c4ff;">HOUST</td><td style="padding:7px;color:#8d90a2;">월간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">건축허가 (Building Permits)</td><td style="padding:7px;color:#8d90a2;">신규 건축허가 건수</td><td style="padding:7px;color:#b6c4ff;">PERMIT</td><td style="padding:7px;color:#8d90a2;">월간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">기존주택판매</td><td style="padding:7px;color:#8d90a2;">Existing Home Sales</td><td style="padding:7px;color:#b6c4ff;">EXHOSLUSM495S</td><td style="padding:7px;color:#8d90a2;">월간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">신규주택판매</td><td style="padding:7px;color:#8d90a2;">New Home Sales</td><td style="padding:7px;color:#b6c4ff;">HSN1F</td><td style="padding:7px;color:#8d90a2;">월간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">NAHB 주택시장지수</td><td style="padding:7px;color:#8d90a2;">건설업체 체감경기</td><td style="padding:7px;color:#b6c4ff;">NAHBMMI</td><td style="padding:7px;color:#8d90a2;">월간</td></tr>
-              <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;font-weight:500;">모기지 신청지수 (MBA)</td><td style="padding:7px;color:#8d90a2;">주간 모기지 신청 건수</td><td style="padding:7px;color:#b6c4ff;">—</td><td style="padding:7px;color:#8d90a2;">주간</td></tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">Case-Shiller 전국 HPI</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableCaseShillerVal">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableCaseShillerChg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableCaseShillerPeriod">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">CSUSHPINSA</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">Case-Shiller 20대도시</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableCase20Val">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableCase20Chg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableCase20Period">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">SPCS20RSA</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">30년 고정 모기지</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableMtg30Val">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableMtg30Chg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableMtg30Period">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">MORTGAGE30US</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">주간</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">15년 고정 모기지</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableMtg15Val">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableMtg15Chg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableMtg15Period">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">MORTGAGE15US</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">주간</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">주택착공 (Housing Starts)</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableHStVal">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableHStChg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableHStPeriod">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">HOUST</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">건축허가 (Building Permits)</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableBPVal">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableBPChg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableBPPeriod">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">PERMIT</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">기존주택판매</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableEHSVal">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableEHSChg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableEHSPeriod">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">EXHOSLUSM495S</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">신규주택판매</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableNHSVal">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableNHSChg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableNHSPeriod">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">HSN1F</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
+              </tr>
+              <tr style="border-bottom:1px solid #1b1f2b;">
+                <td style="padding:7px 0;font-weight:500;">NAHB 주택시장지수</td>
+                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableNahbVal">—</td>
+                <td style="text-align:right;padding:7px;" id="usTableNahbChg">—</td>
+                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableNahbPeriod">—</td>
+                <td style="padding:7px;color:#b6c4ff;font-size:10px;">NAHBMMI</td>
+                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
+              </tr>
             </tbody>
           </table>
-          <div style="margin-top:12px;padding:12px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;">
-            <div style="font-size:12px;color:#b6c4ff;font-weight:600;margin-bottom:6px;">🔑 미국 부동산 데이터 활성화 방법</div>
+          <div style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;">
             <div style="font-size:11px;color:#8d90a2;line-height:1.8;">
-              1. <strong style="color:#dfe2f2;">FRED API</strong> (<a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" style="color:#2962ff;">stlouisfed.org</a>) 에서 무료 API 키 발급<br>
-              2. GitHub Secrets에 <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">FRED_API_KEY</code> 등록<br>
-              3. <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">fetch_data.py</code>에 FRED API 호출 로직 추가 (무료, 등록만 하면 됨)<br>
-              4. 위 FRED 코드들로 자동 수집 가능
+              🔑 <strong style="color:#dfe2f2;">FRED API 키</strong> (<a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" style="color:#2962ff;">stlouisfed.org</a>)를 GitHub Secrets의 <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">FRED_API_KEY</code>에 등록하면 위 지표가 자동 수집됩니다.
             </div>
           </div>
         </div>
@@ -1574,10 +1636,10 @@ function buildReCharts() {
       }]},
       options:{responsive:true,maintainAspectRatio:false,
         scales:{x:{ticks:{color:tc.txt,font:{size:9}},grid:{display:false}},
-                y:{ticks:{color:tc.txt,font:{size:9},callback:v=>v+'%'},grid:{color:tc.grid}}},
+                y:{ticks:{color:tc.txt,font:{size:9},callback:v=>(v>=0?'+':'')+v.toFixed(2)+'%'},grid:{color:tc.grid}}},
         plugins:{legend:{display:false},
           tooltip:{backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttBody,borderColor:tc.ttBorder,borderWidth:1,
-            callbacks:{label:c=>c.parsed.y.toFixed(2)+'%'}}}}
+            callbacks:{label:c=>(c.parsed.y>=0?'+':'')+c.parsed.y.toFixed(2)+'%'}}}}
     });
   }
 }
@@ -1640,11 +1702,9 @@ function getPeriodData(p) {
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
   const icon = document.getElementById('sidebarToggleIcon');
-  const btn  = document.getElementById('sidebarToggle');
   if(!sb) return;
   const collapsed = sb.classList.toggle('collapsed');
   if(icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
-  if(btn)  btn.style.left = collapsed ? '8px' : '208px';
 }
 
 // ── 차트 다중 측정 (annotation) 시스템 ──
@@ -1744,6 +1804,9 @@ function initMainChart(period='1W', customPriceData) {
   const clr = price[price.length-1].y >= price[0].y ? '#26a69a':'#ef5350';
   const vals = sv(price);
   const maData = calcAvgLine(vals);
+  const numVals = vals.filter(v=>v!=null);
+  const yMin = Math.min(...numVals); const yMax = Math.max(...numVals);
+  const yPad = (yMax - yMin) * 0.08 || yMin * 0.01;
   charts['mainChart'] = new Chart(ctx1,{
     type:'line',
     data:{labels:sl(price),datasets:[
@@ -1762,7 +1825,7 @@ function initMainChart(period='1W', customPriceData) {
       },
       scales:{
         x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
-        y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}
+        y:{min:yMin-yPad,max:yMax+yPad,ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}
       },
       plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
   });
@@ -2160,6 +2223,54 @@ const macroNewsItems = [
   {isoDate:'2026-04-18', tag:'유로존무역', tagClr:'#534ab7', cat:'유로존',
    title:'유로존 무역수지 흑자 확대…수출 증가·에너지 수입 비용 하락',
    url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%EC%A1%B4+%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80+2026+4%EC%9B%94&sort=1'},
+  // ── 일본경기 (5) ─────────────────────────────────────────
+  {isoDate:'2026-05-16', tag:'일본GDP', tagClr:'#f5a623', cat:'일본경기',
+   title:'일본 1분기 GDP -0.2%…엔화 강세·내수 부진에 2분기 연속 역성장',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8+GDP+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
+  {isoDate:'2026-05-10', tag:'BOJ', tagClr:'#f5a623', cat:'일본경기',
+   title:'우에다 일본은행 총재 "기조적 물가 2% 달성 시 추가 인상 고려"',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8%EC%9D%80%ED%96%89+%EA%B8%88%EB%A6%AC+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-03', tag:'일본물가', tagClr:'#f5a623', cat:'일본경기',
+   title:'일본 3월 CPI +3.6%…에너지 보조금 종료로 오름세 가속',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8+CPI+2026+3%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-28', tag:'일본무역', tagClr:'#f5a623', cat:'일본경기',
+   title:'일본 3월 무역적자 478억엔…대미 수출 관세 우려로 사전 출하 증가',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8+%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80+2026+3%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-20', tag:'일본소비', tagClr:'#f5a623', cat:'일본경기',
+   title:'일본 소매판매 +0.8% 회복…춘투 임금인상 효과 본격화 조짐',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8+%EC%86%8C%EB%A7%A4%ED%8C%90%EB%A7%A4+2026+4%EC%9B%94&sort=1'},
+  // ── 독일경기 (5) ─────────────────────────────────────────
+  {isoDate:'2026-05-14', tag:'독일GDP', tagClr:'#42a5f5', cat:'독일경기',
+   title:'독일 1분기 GDP +0.4%…기업 투자·수출 회복세에 2분기 연속 플러스',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+GDP+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
+  {isoDate:'2026-05-08', tag:'독일산업', tagClr:'#42a5f5', cat:'독일경기',
+   title:'독일 3월 산업생산 +1.2%…자동차·화학 수주 회복에 호조',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+%EC%82%B0%EC%97%85%EC%83%9D%EC%82%B0+2026+3%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-02', tag:'독일PMI', tagClr:'#42a5f5', cat:'독일경기',
+   title:'4월 독일 제조업 PMI 47.8…위축 지속이나 전월比 개선',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+PMI+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-24', tag:'독일물가', tagClr:'#42a5f5', cat:'독일경기',
+   title:'독일 4월 CPI +2.3%…에너지 가격 하락에 물가 둔화세',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+CPI+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-17', tag:'독일수출', tagClr:'#42a5f5', cat:'독일경기',
+   title:'독일 2월 수출 +1.1%…미국 수출 감소 속 아시아向 증가로 상쇄',
+   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+%EC%88%98%EC%B6%9C+2026+2%EC%9B%94&sort=1'},
+  // ── 영국경기 (5) ─────────────────────────────────────────
+  {isoDate:'2026-05-15', tag:'영국GDP', tagClr:'#ab47bc', cat:'영국경기',
+   title:'영국 1분기 GDP +0.7%…서비스업 강세에 G7 내 양호한 성장세',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EA%B5%AD+GDP+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
+  {isoDate:'2026-05-08', tag:'BOE', tagClr:'#ab47bc', cat:'영국경기',
+   title:'영란은행(BOE) 기준금리 4.25%로 0.25%p 인하…인플레 둔화에 완화 전환',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EB%9E%80%EC%9D%80%ED%96%89+%EA%B8%88%EB%A6%AC+2026+5%EC%9B%94&sort=1'},
+  {isoDate:'2026-05-03', tag:'영국물가', tagClr:'#ab47bc', cat:'영국경기',
+   title:'영국 3월 CPI +2.6%…목표 2% 초과하나 둔화 궤도 유지',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EA%B5%AD+CPI+2026+3%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-28', tag:'영국고용', tagClr:'#ab47bc', cat:'영국경기',
+   title:'영국 실업률 4.4%…노동시장 소폭 냉각에도 임금 상승 지속',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EA%B5%AD+%EC%8B%A4%EC%97%85%EB%A5%A0+2026+4%EC%9B%94&sort=1'},
+  {isoDate:'2026-04-20', tag:'영국소매', tagClr:'#ab47bc', cat:'영국경기',
+   title:'영국 3월 소매판매 +0.4%…부활절 효과에 소비 반등',
+   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EA%B5%AD+%EC%86%8C%EB%A7%A4%ED%8C%90%EB%A7%A4+2026+3%EC%9B%94&sort=1'},
 ];
 
 // 경제캘린더 페이지 뉴스
@@ -2958,12 +3069,30 @@ function buildEquityPage() {
   equityAllSeries = genSeries(7600, 252, 0.012);
   buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
   buildInvestorChart();
-  // Top10 가나/하락 — data.json의 topGainers/topLosers 있으면 표시
+  // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
   const noData = `<tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;font-size:11px;">실시간 데이터 없음 — KRX API 키 필요<br><a href="https://data.krx.co.kr" target="_blank" style="color:#2962ff;">data.krx.co.kr</a></td></tr>`;
-  if(gainTb) gainTb.innerHTML = noData;
-  if(loseTb) loseTb.innerHTML = noData;
+  if(gainTb) {
+    if(upMoversStock.length > 0) {
+      gainTb.innerHTML = upMoversStock.map((s,i)=>`<tr style="border-bottom:1px solid #1b1f2b;">
+        <td style="padding:5px;color:#434656;">${i+1}</td>
+        <td style="padding:5px;font-weight:500;">${s.name}</td>
+        <td style="text-align:right;padding:5px;">${s.price}</td>
+        <td style="text-align:right;padding:5px;color:#26a69a;">${s.chg}</td>
+      </tr>`).join('');
+    } else { gainTb.innerHTML = noData; }
+  }
+  if(loseTb) {
+    if(downMoversStock.length > 0) {
+      loseTb.innerHTML = downMoversStock.map((s,i)=>`<tr style="border-bottom:1px solid #1b1f2b;">
+        <td style="padding:5px;color:#434656;">${i+1}</td>
+        <td style="padding:5px;font-weight:500;">${s.name}</td>
+        <td style="text-align:right;padding:5px;">${s.price}</td>
+        <td style="text-align:right;padding:5px;color:#ef5350;">${s.chg}</td>
+      </tr>`).join('');
+    } else { loseTb.innerHTML = noData; }
+  }
 }
 // LME 금속 창고 재고 (모의 데이터, 단위: 톤)
 const metalInventory = [
@@ -3334,13 +3463,17 @@ function setMacroViewMode(mode, btn) {
   btn.style.background = '#2962ff'; btn.style.color = '#fff'; btn.style.border = '1px solid #2962ff';
   const countryTabs = document.getElementById('macroCountryTabs');
   const topicTabs   = document.getElementById('macroTopicTabs');
+  const indicatorDetails = document.querySelector('#page-macro details');
   if(mode === 'country') {
     countryTabs.style.display = 'flex';
     topicTabs.style.display   = 'none';
+    if(indicatorDetails) indicatorDetails.style.display = '';
     initMacroPage(macroTab);
   } else {
     countryTabs.style.display = 'none';
     topicTabs.style.display   = 'flex';
+    if(indicatorDetails) indicatorDetails.style.display = 'none';
+    macroTopicPeriod = 'all';
     initMacroTopicPage('gdp');
     // reset topic tab UI
     document.querySelectorAll('#macroTopicTabs .tab-btn').forEach((b,i)=>{
@@ -3354,49 +3487,61 @@ function setMacroTopicTab(topic, btn) {
   btn.style.background='#2962ff'; btn.style.color='#fff';
   initMacroTopicPage(topic);
 }
+let macroTopicPeriod = 'all';
 function initMacroTopicPage(topic) {
   ['gdpTopic','cpiTopic','unempTopic','tradeTopic'].forEach(destroyChart);
   const mc = document.getElementById('macroContent');
   const topicMeta = {
-    gdp:   {title:'GDP 성장률 (전년동기비, %)', id:'gdpTopic',   key:'gdp',     labels:'gdpLabels'},
-    cpi:   {title:'소비자물가 CPI (전년비, %)', id:'cpiTopic',   key:'cpi',     labels:'cpiLabels'},
-    unemp: {title:'실업률 (%)',                 id:'unempTopic', key:'unemp',   labels:'gdpLabels'},
-    trade: {title:'수출 (억 달러)',             id:'tradeTopic', key:'exports', labels:'gdpLabels'},
+    gdp:   {title:'GDP 성장률 (전년동기비, %)', id:'gdpTopic',   key:'gdp',     labels:'gdpLabels',  unit:'%'},
+    cpi:   {title:'소비자물가 CPI (전년비, %)', id:'cpiTopic',   key:'cpi',     labels:'cpiLabels',  unit:'%'},
+    unemp: {title:'실업률 (%)',                 id:'unempTopic', key:'unemp',   labels:'gdpLabels',  unit:'%'},
+    trade: {title:'수출 (억 달러)',             id:'tradeTopic', key:'exports', labels:'gdpLabels',  unit:'억$'},
   };
   const m = topicMeta[topic];
   if(!m) return;
   mc.innerHTML = `
     <div class="widget">
-      <div class="widget-title">${m.title} — 국가별 비교</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+        <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교</div>
+        <div style="display:flex;gap:4px;">
+          ${['4','8','all'].map(p=>`<button onclick="setMacroTopicPeriod('${p}','${topic}',this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:${macroTopicPeriod===p?'#2962ff':'transparent'};color:${macroTopicPeriod===p?'#fff':'#8d90a2'};cursor:pointer;">${p==='all'?'전체':p+'개'}</button>`).join('')}
+        </div>
+      </div>
       <div style="position:relative;height:280px;"><canvas id="${m.id}"></canvas></div>
       <div style="font-size:10px;color:#434656;margin-top:6px;text-align:right;">참고: 대표 통계 데이터 (각국 통계청 / OECD)</div>
     </div>`;
   const colors = {'kr':'#26a69a','us':'#ef5350','jp':'#f5a623','cn':'#ff7043','de':'#42a5f5','uk':'#ab47bc','eu':'#b6c4ff'};
   const flags  = {'kr':'🇰🇷 한국','us':'🇺🇸 미국','jp':'🇯🇵 일본','cn':'🇨🇳 중국','de':'🇩🇪 독일','uk':'🇬🇧 영국','eu':'🇪🇺 유로존'};
   const d0 = macroData['kr'];
-  const labels = d0[m.labels];
+  const allLabels = d0[m.labels];
+  const n = macroTopicPeriod === 'all' ? allLabels.length : parseInt(macroTopicPeriod);
+  const labels = allLabels.slice(-n);
   const tc = getThemeColors();
   const datasets = ['kr','us','jp','cn','de','uk','eu'].map(cc => ({
     label: flags[cc],
-    data: macroData[cc][m.key],
+    data: (macroData[cc][m.key] || []).slice(-n),
     borderColor: colors[cc],
-    backgroundColor: colors[cc] + (topic==='gdp'||topic==='trade' ? '88' : '22'),
+    backgroundColor: colors[cc] + '22',
     borderWidth: 2,
-    pointRadius: topic==='trade' ? 0 : 3,
+    pointRadius: 3,
     fill: false,
     tension: 0.3,
-    type: (topic==='gdp'||topic==='trade') ? 'bar' : 'line',
+    type: 'line',
   }));
   charts[m.id] = new Chart(document.getElementById(m.id), {
-    type: (topic==='gdp'||topic==='trade') ? 'bar' : 'line',
+    type: 'line',
     data: { labels, datasets },
     options: {
       responsive:true, maintainAspectRatio:false,
-      scales:{x:{ticks:{color:tc.txt,font:{size:10}},grid:{color:tc.grid}},y:{ticks:{color:tc.txt,font:{size:10}},grid:{color:tc.grid},position:'right'}},
+      scales:{x:{ticks:{color:tc.txt,font:{size:10}},grid:{color:tc.grid}},y:{ticks:{color:tc.txt,font:{size:10},callback:v=>v+(m.unit==='억$'?'':'%')},grid:{color:tc.grid},position:'right'}},
       plugins:{legend:{display:true,position:'top',labels:{color:tc.txt,font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1}}
+        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.y+m.unit}}}
     }
   });
+}
+function setMacroTopicPeriod(p, topic, btn) {
+  macroTopicPeriod = p;
+  initMacroTopicPage(topic);
 }
 function setMacroTab(t,btn){
   macroTab=t;
@@ -3404,16 +3549,14 @@ function setMacroTab(t,btn){
   btn.classList.add('active');btn.style.background='#2962ff';btn.style.color='#fff';
   initMacroPage(t);
   // 국가별 뉴스 필터 자동 적용
-  const macroNewsMap = {kr:'한국GDP', us:'미국CPI', eu:'유로존', cn:'중국경기', jp:'한국GDP', de:'유로존', uk:'미국CPI'};
+  const macroNewsMap = {kr:'한국GDP', us:'미국CPI', eu:'유로존', cn:'중국경기', jp:'일본경기', de:'독일경기', uk:'영국경기'};
   const filterCat = macroNewsMap[t] || 'all';
   currentNewsFilter['macroNewsFeed'] = filterCat;
   document.querySelectorAll('#page-macro .news-filter-btn').forEach(b=>{
-    const txt = b.textContent.trim();
-    const isActive = (filterCat==='한국GDP'&&txt==='한국') ||
-                     (filterCat==='미국CPI'&&txt==='미국') ||
-                     (filterCat==='중국경기'&&txt==='중국') ||
-                     (filterCat==='유로존'&&txt==='유로존');
-    if(isActive) b.classList.add('act'); else b.classList.remove('act');
+    const onclick = b.getAttribute('onclick') || '';
+    const m = onclick.match(/'macroNewsFeed','([^']+)'/);
+    const btnCat = m ? m[1] : '';
+    if(btnCat === filterCat) b.classList.add('act'); else b.classList.remove('act');
   });
   renderFiltered('macroNewsFeed');
 }
@@ -3568,20 +3711,20 @@ function initMacroPage(t){
 // calEvents: cc = 국가코드, stars = 중요도(1~3)
 const calEvents=[
   // 4월 (이번 달)
-  {dt:'04.30 09:00',cc:'KR',flag:'🇰🇷',name:'한국 산업생산지수',       stars:2,prev:'+1.2%',fore:'+0.9%', act:'',   beat:null},
-  {dt:'04.30 21:30',cc:'US',flag:'🇺🇸',name:'미국 PCE 물가지수',       stars:3,prev:'2.5%', fore:'2.4%',  act:'',   beat:null},
+  {dt:'04.30 09:00',cc:'KR',flag:'🇰🇷',name:'한국 산업생산지수',       stars:2,prev:'+1.2%',fore:'+0.9%', act:'+1.4%', beat:1},
+  {dt:'04.30 21:30',cc:'US',flag:'🇺🇸',name:'미국 PCE 물가지수',       stars:3,prev:'2.5%', fore:'2.4%',  act:'2.3%',  beat:1},
   // 5월 (다음 달)
   {dt:'05.01 09:00',cc:'KR',flag:'🇰🇷',name:'한국 소비자물가지수(CPI)',  stars:3,prev:'2.1%', fore:'2.0%',  act:'2.1%',beat:0},
-  {dt:'05.02 15:00',cc:'US',flag:'🇺🇸',name:'미국 비농업고용(NFP)',      stars:3,prev:'275K', fore:'240K',  act:'',   beat:null},
-  {dt:'05.03 22:00',cc:'US',flag:'🇺🇸',name:'미국 실업률',              stars:3,prev:'3.9%', fore:'3.9%',  act:'',   beat:null},
-  {dt:'05.06 10:00',cc:'KR',flag:'🇰🇷',name:'한국은행 금통위 회의',      stars:3,prev:'2.75%',fore:'2.75%', act:'',   beat:null},
-  {dt:'05.07 16:00',cc:'EU',flag:'🇪🇺',name:'ECB 통화정책회의',         stars:3,prev:'4.00%',fore:'3.75%', act:'',   beat:null},
-  {dt:'05.08 21:30',cc:'US',flag:'🇺🇸',name:'미국 CPI (전월비)',        stars:3,prev:'0.4%', fore:'0.3%',  act:'',   beat:null},
-  {dt:'05.09 09:00',cc:'KR',flag:'🇰🇷',name:'한국 수출입 동향',         stars:2,prev:'+3.1%',fore:'+2.8%', act:'',   beat:null},
-  {dt:'05.12 09:30',cc:'CN',flag:'🇨🇳',name:'중국 CPI (전년비)',        stars:2,prev:'0.1%', fore:'0.2%',  act:'',   beat:null},
-  {dt:'05.13 10:00',cc:'JP',flag:'🇯🇵',name:'일본 GDP (전기비)',        stars:3,prev:'-0.1%',fore:'+0.1%', act:'',   beat:null},
-  {dt:'05.14 21:30',cc:'US',flag:'🇺🇸',name:'미국 생산자물가지수(PPI)', stars:2,prev:'0.2%', fore:'0.2%',  act:'',   beat:null},
-  {dt:'05.15 22:00',cc:'US',flag:'🇺🇸',name:'미국 소매판매',           stars:2,prev:'-0.1%',fore:'+0.4%', act:'',   beat:null},
+  {dt:'05.02 15:00',cc:'US',flag:'🇺🇸',name:'미국 비농업고용(NFP)',      stars:3,prev:'275K', fore:'240K',  act:'+177K', beat:1},
+  {dt:'05.03 22:00',cc:'US',flag:'🇺🇸',name:'미국 실업률',              stars:3,prev:'3.9%', fore:'3.9%',  act:'4.2%',  beat:-1},
+  {dt:'05.06 10:00',cc:'KR',flag:'🇰🇷',name:'한국은행 금통위 회의',      stars:3,prev:'2.75%',fore:'2.75%', act:'2.50%', beat:0},
+  {dt:'05.07 16:00',cc:'EU',flag:'🇪🇺',name:'ECB 통화정책회의',         stars:3,prev:'2.75%',fore:'2.50%', act:'2.25%', beat:0},
+  {dt:'05.08 21:30',cc:'US',flag:'🇺🇸',name:'미국 CPI (전월비)',        stars:3,prev:'0.4%', fore:'0.3%',  act:'-0.1%', beat:1},
+  {dt:'05.09 09:00',cc:'KR',flag:'🇰🇷',name:'한국 수출입 동향',         stars:2,prev:'+3.1%',fore:'+2.8%', act:'+3.7%', beat:1},
+  {dt:'05.12 09:30',cc:'CN',flag:'🇨🇳',name:'중국 CPI (전년비)',        stars:2,prev:'0.1%', fore:'0.2%',  act:'-0.1%', beat:-1},
+  {dt:'05.13 10:00',cc:'JP',flag:'🇯🇵',name:'일본 GDP (전기비)',        stars:3,prev:'-0.1%',fore:'+0.1%', act:'-0.2%', beat:-1},
+  {dt:'05.14 21:30',cc:'US',flag:'🇺🇸',name:'미국 생산자물가지수(PPI)', stars:2,prev:'0.2%', fore:'0.2%',  act:'-0.5%', beat:1},
+  {dt:'05.15 22:00',cc:'US',flag:'🇺🇸',name:'미국 소매판매',           stars:2,prev:'-0.1%',fore:'+0.4%', act:'+0.1%', beat:-1},
   {dt:'05.20 10:00',cc:'KR',flag:'🇰🇷',name:'한국 1분기 GDP (확정)',    stars:3,prev:'+0.7%',fore:'+0.7%', act:'',   beat:null},
   {dt:'05.22 20:30',cc:'EU',flag:'🇪🇺',name:'유로존 CPI (전년비)',      stars:3,prev:'2.2%', fore:'2.1%',  act:'',   beat:null},
   {dt:'05.28 21:30',cc:'US',flag:'🇺🇸',name:'미국 1분기 GDP (2차)',     stars:3,prev:'2.3%', fore:'2.2%',  act:'',   beat:null},
@@ -4278,25 +4421,59 @@ function applyRealData(d) {
     }
   }
 
-  // ── FRED 미국 부동산 지표 → re-us KPI 카드 ──────────────
+  // ── FRED 미국 부동산 지표 → re-us KPI 카드 + 상세 테이블 ──
   const reUs = (d.realestate || {}).us || {};
-  function setUsKpi(valId, chgId, data, fmt) {
+  function setUsKpi(valId, chgId, data, fmt, tableIds) {
     const vEl = document.getElementById(valId);
     const cEl = document.getElementById(chgId);
     if(!vEl || !data) return;
-    vEl.textContent = fmt ? fmt(data.value) : (data.value?.toFixed(1) ?? '—');
+    const valStr = fmt ? fmt(data.value) : (data.value?.toFixed(1) ?? '—');
+    vEl.textContent = valStr;
+    const chgStr = data.chg != null ? `${data.chg>=0?'▲ +':'▼ '}${Math.abs(data.chg).toFixed(2)}%` : '';
     if(cEl && data.chg != null) {
-      const up = data.chg >= 0;
-      cEl.textContent = `${up?'▲ +':'▼ '}${Math.abs(data.chg).toFixed(2)}% (${data.period||''})`;
-      cEl.style.color = up ? '#26a69a' : '#ef5350';
+      cEl.textContent = chgStr + (data.period ? ` (${data.period})` : '');
+      cEl.style.color = data.chg >= 0 ? '#26a69a' : '#ef5350';
     } else if(cEl && data.period) {
       cEl.textContent = data.period;
     }
+    // 상세 테이블 채우기
+    if(tableIds) {
+      const tvEl = document.getElementById(tableIds.val);
+      const tcEl = document.getElementById(tableIds.chg);
+      const tpEl = document.getElementById(tableIds.period);
+      if(tvEl) tvEl.textContent = valStr;
+      if(tcEl) {
+        tcEl.textContent = chgStr || '—';
+        if(data.chg != null) tcEl.style.color = data.chg >= 0 ? '#26a69a' : '#ef5350';
+      }
+      if(tpEl) tpEl.textContent = data.period || '—';
+    }
   }
-  setUsKpi('usKpiCaseShiller',    'usKpiCaseShillerChg',    reUs.case_shiller_national, v=>v?.toFixed(1));
-  setUsKpi('usKpiMortgage30',     'usKpiMortgage30Chg',     reUs.mortgage_30y,           v=>v?.toFixed(2)+'%');
-  setUsKpi('usKpiNahb',           'usKpiNahbChg',           reUs.nahb_index,             v=>v?.toFixed(0));
-  setUsKpi('usKpiHousingStarts',  'usKpiHousingStartsChg',  reUs.housing_starts,         v=>v?.toFixed(0)+'K');
+  setUsKpi('usKpiCaseShiller',   'usKpiCaseShillerChg',   reUs.case_shiller_national, v=>v?.toFixed(1),         {val:'usTableCaseShillerVal',chg:'usTableCaseShillerChg',period:'usTableCaseShillerPeriod'});
+  setUsKpi('usKpiMortgage30',    'usKpiMortgage30Chg',    reUs.mortgage_30y,           v=>v?.toFixed(2)+'%',    {val:'usTableMtg30Val',      chg:'usTableMtg30Chg',      period:'usTableMtg30Period'});
+  setUsKpi('usKpiNahb',          'usKpiNahbChg',          reUs.nahb_index,             v=>v?.toFixed(0),         {val:'usTableNahbVal',       chg:'usTableNahbChg',       period:'usTableNahbPeriod'});
+  setUsKpi('usKpiHousingStarts', 'usKpiHousingStartsChg', reUs.housing_starts,         v=>v?.toFixed(0)+'K',    {val:'usTableHStVal',        chg:'usTableHStChg',        period:'usTableHStPeriod'});
+  // 추가 지표 (KPI 카드 없이 테이블만)
+  function setUsTable(data, fmt, ids) {
+    if(!data || !ids) return;
+    const tvEl = document.getElementById(ids.val);
+    const tcEl = document.getElementById(ids.chg);
+    const tpEl = document.getElementById(ids.period);
+    const valStr = fmt ? fmt(data.value) : (data.value?.toFixed(1) ?? '—');
+    if(tvEl) tvEl.textContent = valStr;
+    if(tcEl) {
+      if(data.chg != null) {
+        tcEl.textContent = `${data.chg>=0?'▲ +':'▼ '}${Math.abs(data.chg).toFixed(2)}%`;
+        tcEl.style.color = data.chg >= 0 ? '#26a69a' : '#ef5350';
+      } else { tcEl.textContent = '—'; }
+    }
+    if(tpEl) tpEl.textContent = data.period || '—';
+  }
+  setUsTable(reUs.case_shiller_20city,    v=>v?.toFixed(1),      {val:'usTableCase20Val', chg:'usTableCase20Chg', period:'usTableCase20Period'});
+  setUsTable(reUs.mortgage_15y,           v=>v?.toFixed(2)+'%',  {val:'usTableMtg15Val',  chg:'usTableMtg15Chg',  period:'usTableMtg15Period'});
+  setUsTable(reUs.building_permits,       v=>v?.toFixed(0)+'K',  {val:'usTableBPVal',     chg:'usTableBPChg',     period:'usTableBPPeriod'});
+  setUsTable(reUs.existing_home_sales,    v=>v?.toFixed(0)+'K',  {val:'usTableEHSVal',    chg:'usTableEHSChg',    period:'usTableEHSPeriod'});
+  setUsTable(reUs.new_home_sales,         v=>v?.toFixed(0)+'K',  {val:'usTableNHSVal',    chg:'usTableNHSChg',    period:'usTableNHSPeriod'});
 
   // ── 사이드바 업데이트 시각 표시 ──────────────
   const el = document.getElementById('dataSourceInfo');
