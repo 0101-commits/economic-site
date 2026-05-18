@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-18T08:51:24.399069+09:00",
+  "lastUpdated": "2026-05-18T11:32:07.414567+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "KRX OpenAPI",
@@ -7,39 +7,40 @@
     "commodities": "KRX OpenAPI (한국 금·석유) + yfinance (국제)",
     "economicIndicators_us": "FRED API (stlouisfed.org)",
     "realestate_us": "FRED API (stlouisfed.org)",
+    "yieldCurve_us": "FRED API (DGS1MO~DGS30)",
     "economicIndicators_kr": "ECOS API (ecos.bok.or.kr)",
     "realestate_kr": "R-ONE API (reb.or.kr)"
   },
   "fx": {
     "USDKRW": {
-      "rate": 1497.84,
-      "change": 0.01
+      "rate": 1497.53,
+      "change": 0.5
     },
     "EURKRW": {
-      "rate": 1742.34,
-      "change": -0.11
+      "rate": 1740.17,
+      "change": 0.42
     },
     "JPYKRW": {
-      "rate": 9.4436,
-      "change": -0.07
+      "rate": 9.4328,
+      "change": 0.4
     },
     "EURUSD": {
-      "rate": 1.1632,
-      "change": -0.12
+      "rate": 1.162,
+      "change": -0.08
     },
     "USDJPY": {
-      "rate": 158.61,
-      "change": 0.08
+      "rate": 158.76,
+      "change": 0.1
     }
   },
   "indices": {
     "KOSPI": {
-      "price": 7493.18,
-      "change": -6.12
+      "price": 7540.15,
+      "change": 1.9
     },
     "KOSDAQ": {
-      "price": 1129.82,
-      "change": -5.14
+      "price": 1108.52,
+      "change": -0.61
     },
     "SP500": {
       "price": 7408.5,
@@ -50,38 +51,308 @@
       "change": -1.54
     },
     "Nikkei": {
-      "price": 61409.29,
-      "change": -2.12
+      "price": 60864.3,
+      "change": -0.62
     },
     "Shanghai": {
-      "price": 4135.39,
-      "change": -1.07
+      "price": 4136.82,
+      "change": 0.02
     }
   },
   "commodities": {
     "Gold": {
-      "price": 4540.2,
+      "price": 4540.0,
       "change": -0.48
     },
     "Silver": {
-      "price": 76.72,
-      "change": -1.07
+      "price": 75.33,
+      "change": -2.85
     },
     "Copper": {
-      "price": 6.28,
-      "change": -0.24
+      "price": 6.23,
+      "change": -1.09
     },
     "WTI": {
-      "price": 102.62,
-      "change": 1.58
+      "price": 103.34,
+      "change": 2.3
     },
     "Brent": {
-      "price": 110.74,
-      "change": 1.35
+      "price": 111.35,
+      "change": 1.91
     }
   },
-  "stockMovers": {},
-  "etfMovers": {},
+  "stockMovers": {
+    "kospiGainers": [
+      {
+        "name": "미래산업",
+        "price": 24950.0,
+        "chg": 29.88,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "현대해상",
+        "price": 38700.0,
+        "chg": 16.04,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "한투 인버스2X은선물 ETN",
+        "price": 37800.0,
+        "chg": 14.67,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "LS네트웍스",
+        "price": 4035.0,
+        "chg": 13.66,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "테이팩스",
+        "price": 20050.0,
+        "chg": 13.4,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "진원생명과학",
+        "price": 1083.0,
+        "chg": 12.81,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "코리안리",
+        "price": 14720.0,
+        "chg": 12.11,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "이수화학",
+        "price": 11130.0,
+        "chg": 11.19,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "하나 S&P 레버리지 WTI원유 선물 ETN B",
+        "price": 70275.0,
+        "chg": 10.41,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "LS",
+        "price": 519000.0,
+        "chg": 9.84,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      }
+    ],
+    "kospiLosers": [
+      {
+        "name": "CJ",
+        "price": 172400.0,
+        "chg": -20.55,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "한창제지",
+        "price": 2200.0,
+        "chg": -19.12,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "CJ4우(전환)",
+        "price": 157400.0,
+        "chg": -16.85,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "한세엠케이",
+        "price": 1380.0,
+        "chg": -14.45,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "SK가스",
+        "price": 251500.0,
+        "chg": -13.28,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "인팩",
+        "price": 7000.0,
+        "chg": -12.83,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "신성이엔지",
+        "price": 34900.0,
+        "chg": -12.64,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "만호제강",
+        "price": 5080.0,
+        "chg": -12.41,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "한올바이오파마",
+        "price": 40800.0,
+        "chg": -11.97,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TKG휴켐스",
+        "price": 17750.0,
+        "chg": -11.69,
+        "vol": 0,
+        "as_of": "2026-05-18"
+      }
+    ]
+  },
+  "etfMovers": {
+    "etfGainers": [
+      {
+        "name": "PLUS 우주항공&UAM",
+        "price": 47670.0,
+        "chg": 7.2,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "SOL 반도체전공정",
+        "price": 23020.0,
+        "chg": 5.48,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "PLUS 200선물레버리지",
+        "price": 300000.0,
+        "chg": 4.66,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "KODEX 한중반도체(합성)",
+        "price": 54535.0,
+        "chg": 4.36,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "KIWOOM 200선물레버리지",
+        "price": 145995.0,
+        "chg": 4.32,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TIGER 한중반도체(합성)",
+        "price": 53675.0,
+        "chg": 4.25,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TIGER 200선물레버리지",
+        "price": 123435.0,
+        "chg": 4.07,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TIGER 글로벌AI사이버보안",
+        "price": 14465.0,
+        "chg": 4.06,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "KODEX WTI원유선물(H)",
+        "price": 27995.0,
+        "chg": 3.99,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TIGER 원유선물Enhanced(H)",
+        "price": 8105.0,
+        "chg": 3.98,
+        "as_of": "2026-05-18"
+      }
+    ],
+    "etfLosers": [
+      {
+        "name": "TIGER BBIG레버리지",
+        "price": 2475.0,
+        "chg": -8.33,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "KoAct 바이오헬스케어액티브",
+        "price": 17925.0,
+        "chg": -7.6,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "RISE 바이오TOP10액티브",
+        "price": 12660.0,
+        "chg": -7.56,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TIGER 기술이전바이오액티브",
+        "price": 8015.0,
+        "chg": -7.5,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "UNICORN 코스닥바이오액티브",
+        "price": 8680.0,
+        "chg": -7.02,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TIGER 미디어컨텐츠",
+        "price": 4125.0,
+        "chg": -6.36,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TIGER 코스닥150바이오테크",
+        "price": 15920.0,
+        "chg": -6.35,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "KODEX 경기소비재",
+        "price": 14330.0,
+        "chg": -6.22,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "TIME K바이오액티브",
+        "price": 15595.0,
+        "chg": -6.11,
+        "as_of": "2026-05-18"
+      },
+      {
+        "name": "UNICORN 포스트IPO액티브",
+        "price": 9370.0,
+        "chg": -5.97,
+        "as_of": "2026-05-18"
+      }
+    ]
+  },
   "economicIndicators": {
     "us": {
       "vix": {
@@ -242,5 +513,34 @@
       }
     },
     "kr": {}
+  },
+  "yieldCurve": {
+    "us": {
+      "current": [
+        3.72,
+        3.69,
+        3.76,
+        3.79,
+        4.0,
+        4.13,
+        4.29,
+        4.47,
+        5.01,
+        5.02
+      ],
+      "prev_month": [
+        3.72,
+        3.71,
+        3.72,
+        3.7,
+        3.76,
+        3.9,
+        4.08,
+        4.29,
+        4.87,
+        4.89
+      ],
+      "source": "FRED: DGS1MO, DGS3MO, DGS6MO, DGS1, DGS2, DGS5, DGS7, DGS10, DGS20, DGS30"
+    }
   }
 }
