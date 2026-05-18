@@ -196,11 +196,11 @@ tailwind.config = {
   <nav id="sidebar" style="width:200px;min-height:calc(100vh - 56px);background:#131722;border-right:1px solid #2a2e3d;padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;padding-left:46px;">메인 메뉴</div>
     <div class="menu-item active" onclick="showPage('dashboard',this)"><span class="mat">home</span>대시보드 홈</div>
-    <div class="menu-item" onclick="showPage('market',this)"><span class="mat">candlestick_chart</span>시장 지표</div>
     <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
-    <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
+    <div class="menu-item" onclick="showPage('market',this)"><span class="mat">candlestick_chart</span>시장 지표</div>
     <div class="menu-item" onclick="showPage('investor',this)"><span class="mat">account_balance</span>주요 투자자</div>
     <div class="menu-item" onclick="showPage('realestate',this)"><span class="mat">home_work</span>부동산</div>
+    <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
     <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
     <div style="border-top:1px solid #2a2e3d;margin:12px 0;"></div>
     <!-- 테마 토글 버튼 -->
@@ -235,7 +235,7 @@ tailwind.config = {
           <div id="kpi-fx-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.00%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark2"></canvas></div>
         </div>
-        <div class="kpi-card kpi-clickable" id="kpi-rate" onclick="navigateToDetail('bond')" style="cursor:pointer;transition:border-color .15s;">
+        <div class="kpi-card kpi-clickable" id="kpi-rate" onclick="navigateToDetail('rate')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">한국 기준금리</div>
           <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">2.75<span style="font-size:14px;">%</span></div>
           <div style="font-size:11px;color:#8d90a2;margin-top:4px;">최근 결정: 2025.02.25</div>
@@ -393,7 +393,8 @@ tailwind.config = {
     <div class="page" id="page-market">
       <div style="display:flex;gap:6px;margin-bottom:16px;">
         <button class="tab-btn active" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setMarketTab('fx',this)">외환</button>
-        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('bond',this)">금리·채권</button>
+        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('rate',this)">📈 금리</button>
+        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('bond',this)">📋 채권</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('equity',this)">주식시장</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('commodity',this)">원자재</button>
       </div>
@@ -466,119 +467,110 @@ tailwind.config = {
         </div>
       </div>
 
-      <!-- 금리·채권 탭 -->
+      <!-- 금리 탭 (전용 페이지) -->
+      <div id="market-rate" style="display:none;">
+        <!-- Country filter checkboxes -->
+        <div class="widget" style="margin-bottom:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <div class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns">
+              <button onclick="toggleRateFilter('kr',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">🇰🇷 한국</button>
+              <button onclick="toggleRateFilter('us',this)" style="font-size:11px;padding:3px 8px;border:1px solid #26a69a;border-radius:4px;background:#26a69a;color:#fff;cursor:pointer;">🇺🇸 미국</button>
+              <button onclick="toggleRateFilter('eu',this)" style="font-size:11px;padding:3px 8px;border:1px solid #b6c4ff;border-radius:4px;background:#b6c4ff33;color:#b6c4ff;cursor:pointer;">🇪🇺 유로존</button>
+              <button onclick="toggleRateFilter('jp',this)" style="font-size:11px;padding:3px 8px;border:1px solid #f5a623;border-radius:4px;background:#f5a62333;color:#f5a623;cursor:pointer;">🇯🇵 일본</button>
+              <button onclick="toggleRateFilter('uk',this)" style="font-size:11px;padding:3px 8px;border:1px solid #ef5350;border-radius:4px;background:#ef535033;color:#ef5350;cursor:pointer;">🇬🇧 영국</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#8d90a2;">기간:</span>
+            <button onclick="setRatePeriod('all',this)" id="ratePeriodAll" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">전체</button>
+            <button onclick="setRatePeriod('5y',this)" id="ratePeriod5y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">5년</button>
+            <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3년</button>
+            <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1년</button>
+          </div>
+          <div style="position:relative;height:340px;">
+            <canvas id="rateHistoryChart" role="img" aria-label="주요국 기준금리 비교">금리 차트</canvas>
+          </div>
+        </div>
+        <!-- Current rates table -->
+        <div class="widget">
+          <div class="widget-title">주요국 기준금리 현황 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+              <th style="text-align:left;padding:6px;">국가</th>
+              <th style="text-align:right;padding:6px;">현재금리</th>
+              <th style="text-align:right;padding:6px;">전회</th>
+              <th style="text-align:right;padding:6px;">다음 결정</th>
+              <th style="text-align:right;padding:6px;">방향</th>
+            </tr></thead>
+            <tbody id="rateCurrentTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 채권 탭 (전용 페이지) -->
       <div id="market-bond" style="display:none;">
-        <!-- Sub-tabs -->
-        <div style="display:flex;gap:6px;margin-bottom:12px;">
-          <button class="tab-btn active" style="font-size:11px;padding:4px 12px;border:1px solid #2a2e3d;border-radius:5px;background:#2962ff;color:#fff;" onclick="setBondSubTab('rate',this)">📈 금리</button>
-          <button class="tab-btn" style="font-size:11px;padding:4px 12px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;" onclick="setBondSubTab('bond',this)">📋 채권</button>
-        </div>
-
-        <!-- 금리 sub-tab -->
-        <div id="bond-subtab-rate">
-          <!-- Country filter checkboxes -->
-          <div class="widget" style="margin-bottom:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;align-items:stretch;">
+          <div class="widget" style="display:flex;flex-direction:column;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-              <div class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</div>
-              <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns">
-                <button onclick="toggleRateFilter('kr',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">🇰🇷 한국</button>
-                <button onclick="toggleRateFilter('us',this)" style="font-size:11px;padding:3px 8px;border:1px solid #26a69a;border-radius:4px;background:#26a69a;color:#fff;cursor:pointer;">🇺🇸 미국</button>
-                <button onclick="toggleRateFilter('eu',this)" style="font-size:11px;padding:3px 8px;border:1px solid #b6c4ff;border-radius:4px;background:#b6c4ff33;color:#b6c4ff;cursor:pointer;">🇪🇺 유로존</button>
-                <button onclick="toggleRateFilter('jp',this)" style="font-size:11px;padding:3px 8px;border:1px solid #f5a623;border-radius:4px;background:#f5a62333;color:#f5a623;cursor:pointer;">🇯🇵 일본</button>
-                <button onclick="toggleRateFilter('uk',this)" style="font-size:11px;padding:3px 8px;border:1px solid #ef5350;border-radius:4px;background:#ef535033;color:#ef5350;cursor:pointer;">🇬🇧 영국</button>
+              <div>
+                <div class="widget-title" style="margin-bottom:0;" id="bondChartTitle">10년 국고채 수익률</div>
+                <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="bondChartRate">3.02%</div>
+              </div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setBondPeriod('1M',this)">1M</button>
+                <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('3M',this)">3M</button>
+                <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('1Y',this)">1Y</button>
               </div>
             </div>
-            <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-              <span style="font-size:11px;color:#8d90a2;">기간:</span>
-              <button onclick="setRatePeriod('all',this)" id="ratePeriodAll" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">전체</button>
-              <button onclick="setRatePeriod('5y',this)" id="ratePeriod5y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">5년</button>
-              <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3년</button>
-              <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1년</button>
-            </div>
-            <div style="position:relative;height:280px;">
-              <canvas id="rateHistoryChart" role="img" aria-label="주요국 기준금리 비교">금리 차트</canvas>
+            <div id="bondChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+            <div style="position:relative;flex:1;min-height:280px;">
+              <canvas id="bondChart" role="img" aria-label="국고채 수익률 차트">국고채 차트</canvas>
             </div>
           </div>
-          <!-- Current rates table -->
-          <div class="widget">
-            <div class="widget-title">주요국 기준금리 현황 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
-            <table style="width:100%;font-size:12px;border-collapse:collapse;">
-              <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px;">국가</th>
-                <th style="text-align:right;padding:6px;">현재금리</th>
-                <th style="text-align:right;padding:6px;">전회</th>
-                <th style="text-align:right;padding:6px;">다음 결정</th>
-                <th style="text-align:right;padding:6px;">방향</th>
-              </tr></thead>
-              <tbody id="rateCurrentTable"></tbody>
-            </table>
+          <div class="widget" style="display:flex;flex-direction:column;">
+            <div class="widget-title">미국 국채 수익률 곡선</div>
+            <div style="position:relative;flex:1;min-height:280px;">
+              <canvas id="yieldCurveChart" role="img" aria-label="미국 국채 수익률 곡선">수익률 곡선</canvas>
+            </div>
           </div>
         </div>
-
-        <!-- 채권 sub-tab -->
-        <div id="bond-subtab-bond" style="display:none;">
-          <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
-            <div class="widget">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-                <div>
-                  <div class="widget-title" style="margin-bottom:0;" id="bondChartTitle">10년 국고채 수익률</div>
-                  <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="bondChartRate">3.02%</div>
-                </div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                  <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setBondPeriod('1M',this)">1M</button>
-                  <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('3M',this)">3M</button>
-                  <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('1Y',this)">1Y</button>
-                </div>
-              </div>
-              <div id="bondChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
-              <div style="position:relative;height:220px;">
-                <canvas id="bondChart" role="img" aria-label="국고채 수익률 차트">국고채 차트</canvas>
-              </div>
-            </div>
-            <div class="widget">
-              <div class="widget-title">미국 국채 수익률 곡선</div>
-              <div style="position:relative;height:220px;">
-                <canvas id="yieldCurveChart" role="img" aria-label="미국 국채 수익률 곡선">수익률 곡선</canvas>
-              </div>
-            </div>
+        <!-- Multi-country bond yields table -->
+        <div class="widget" style="margin-bottom:12px;">
+          <div class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+              <th style="text-align:left;padding:6px;">국가</th>
+              <th style="text-align:right;padding:6px;">10년</th>
+              <th style="text-align:right;padding:6px;">2년</th>
+              <th style="text-align:right;padding:6px;">스프레드</th>
+              <th style="text-align:right;padding:6px;">전일비</th>
+            </tr></thead>
+            <tbody id="globalBondTable"></tbody>
+          </table>
+        </div>
+        <!-- Multi-country bonds table -->
+        <div class="widget">
+          <div id="bondCountryTabs" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+            <button class="tab-btn active" onclick="setBondCountry('kr',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:#2962ff;color:#fff;cursor:pointer;">🇰🇷 한국</button>
+            <button class="tab-btn" onclick="setBondCountry('us',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇺🇸 미국</button>
+            <button class="tab-btn" onclick="setBondCountry('jp',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇯🇵 일본</button>
+            <button class="tab-btn" onclick="setBondCountry('eu',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇪🇺 독일</button>
+            <button class="tab-btn" onclick="setBondCountry('uk',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇬🇧 영국</button>
           </div>
-          <!-- Multi-country bond yields table -->
-          <div class="widget" style="margin-bottom:12px;">
-            <div class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
-            <table style="width:100%;font-size:12px;border-collapse:collapse;">
-              <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px;">국가</th>
-                <th style="text-align:right;padding:6px;">10년</th>
-                <th style="text-align:right;padding:6px;">2년</th>
-                <th style="text-align:right;padding:6px;">스프레드</th>
+          <div class="widget-title"><span id="bondTableTitle">한국 국고채 수익률</span> <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 차트 업데이트</span></div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead>
+              <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
+                <th style="text-align:left;padding:6px 0;">만기</th>
+                <th style="text-align:right;padding:6px;">수익률</th>
                 <th style="text-align:right;padding:6px;">전일비</th>
-              </tr></thead>
-              <tbody id="globalBondTable"></tbody>
-            </table>
-          </div>
-          <!-- Multi-country bonds table -->
-          <div class="widget">
-            <div id="bondCountryTabs" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-              <button class="tab-btn active" onclick="setBondCountry('kr',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:#2962ff;color:#fff;cursor:pointer;">🇰🇷 한국</button>
-              <button class="tab-btn" onclick="setBondCountry('us',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇺🇸 미국</button>
-              <button class="tab-btn" onclick="setBondCountry('jp',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇯🇵 일본</button>
-              <button class="tab-btn" onclick="setBondCountry('eu',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇪🇺 독일</button>
-              <button class="tab-btn" onclick="setBondCountry('uk',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇬🇧 영국</button>
-            </div>
-            <div class="widget-title"><span id="bondTableTitle">한국 국고채 수익률</span> <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 차트 업데이트</span></div>
-            <table style="width:100%;font-size:13px;border-collapse:collapse;">
-              <thead>
-                <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
-                  <th style="text-align:left;padding:6px 0;">만기</th>
-                  <th style="text-align:right;padding:6px;">수익률</th>
-                  <th style="text-align:right;padding:6px;">전일비</th>
-                  <th style="text-align:right;padding:6px;">1주전</th>
-                  <th style="text-align:right;padding:6px;">1개월전</th>
-                </tr>
-              </thead>
-              <tbody id="bondTable"></tbody>
-            </table>
-          </div>
+                <th style="text-align:right;padding:6px;">1주전</th>
+                <th style="text-align:right;padding:6px;">1개월전</th>
+              </tr>
+            </thead>
+            <tbody id="bondTable"></tbody>
+          </table>
         </div>
       </div>
 
@@ -606,12 +598,20 @@ tailwind.config = {
               <button class="tab-btn eq-unit-btn" data-unit="1M" id="eqUnit1M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1M',this)">한달</button>
               <button class="tab-btn eq-unit-btn" data-unit="1Q" id="eqUnit1Q" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1Q',this)">분기</button>
               <span style="color:#2a2e3d;margin:0 2px;">|</span>
+              <button class="tab-btn" id="eqCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;" onclick="toggleCustomRange('equity',this)">📅 기간 지정</button>
               <button id="eqCompareModeBtn" onclick="toggleChartCompareMode('equity',this)" style="font-size:10px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">% 비교</button>
               <button onclick="resetChartCompareMode('equity')" style="font-size:10px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#434656;cursor:pointer;">초기화</button>
             </div>
           </div>
+          <div id="equityCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input type="date" id="eqDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+            <span style="color:#8d90a2;font-size:11px;">~</span>
+            <input type="date" id="eqDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+            <button onclick="applyEquityCustomRange()" style="background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
+            <button onclick="resetEquityCustomRange()" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
+          </div>
           <div id="equityChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;display:flex;flex-wrap:wrap;gap:4px;"></div>
-          <div style="position:relative;height:220px;">
+          <div style="position:relative;height:340px;">
             <canvas id="equityIndexChart" role="img" aria-label="주식 지수 차트">지수 차트</canvas>
           </div>
         </div>
@@ -648,7 +648,6 @@ tailwind.config = {
             <div class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10</div>
             <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 →</a>
           </div>
-          <div style="font-size:11px;color:#434656;padding:8px 0;">실시간 데이터: KRX API 키 필요 — <a href="https://data.krx.co.kr" target="_blank" style="color:#2962ff;">data.krx.co.kr</a> 에서 발급 후 GitHub Secrets <code style="background:#262a35;padding:1px 3px;border-radius:2px;">KRX_API_KEY</code> 등록</div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
               <th style="text-align:left;padding:5px 0;">#</th>
@@ -656,7 +655,7 @@ tailwind.config = {
               <th style="text-align:right;padding:5px;">현재가</th>
               <th style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
-            <tbody id="equityTopGainersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 대기중…</td></tr></tbody>
+            <tbody id="equityTopGainersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
           </table>
         </div>
         <div class="widget">
@@ -664,14 +663,14 @@ tailwind.config = {
             <div class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10</div>
             <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 →</a>
           </div>
-          <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:20px;">
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
               <th style="text-align:left;padding:5px 0;">#</th>
               <th style="text-align:left;padding:5px;">종목</th>
               <th style="text-align:right;padding:5px;">현재가</th>
               <th style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
-            <tbody id="equityTopLosersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 대기중…</td></tr></tbody>
+            <tbody id="equityTopLosersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -702,12 +701,12 @@ tailwind.config = {
               </div>
             </div>
             <div id="comDetailChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
-            <div style="position:relative;height:220px;">
+            <div style="position:relative;height:300px;">
               <canvas id="comDetailChart" role="img" aria-label="원자재 차트">원자재 차트</canvas>
             </div>
           </div>
           <!-- Right: clickable category list -->
-          <div class="widget" style="overflow-y:auto;max-height:320px;">
+          <div class="widget" style="overflow-y:auto;max-height:400px;">
             <div class="widget-title">원자재 현물 가격 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">클릭 → 차트 업데이트</span></div>
             <div id="commodityList"></div>
           </div>
@@ -716,21 +715,21 @@ tailwind.config = {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
             <div class="widget-title">에너지 (WTI·Brent·두바이·천연가스)</div>
-            <div style="position:relative;height:200px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
+            <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
             <div class="widget-title">귀금속 (금·은·백금)</div>
-            <div style="position:relative;height:200px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
+            <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
             <div class="widget-title">비철금속 (구리·알루미늄·아연·니켈)</div>
-            <div style="position:relative;height:200px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
+            <div style="position:relative;height:240px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
             <div class="widget-title">농산물 (밀·옥수수·콩·쌀)</div>
-            <div style="position:relative;height:200px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
+            <div style="position:relative;height:240px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
         <!-- LME 재고 -->
@@ -840,13 +839,13 @@ tailwind.config = {
         <select style="background:#1b1f2b;color:#dfe2f2;border:1px solid #2a2e3d;padding:5px 10px;border-radius:6px;font-size:12px;" id="calPeriod">
           <option>이번 주</option><option>이번 달</option><option>다음 달</option>
         </select>
-        <div style="display:flex;gap:4px;">
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇰🇷 KR</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','US',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇺🇸 US</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','EU',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇪🇺 EU</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','JP',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇯🇵 JP</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','CN',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇨🇳 CN</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','UK',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇬🇧 UK</span>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇰🇷 한국</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','US',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇺🇸 미국</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','EU',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇪🇺 유로존</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','JP',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇯🇵 일본</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','CN',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇨🇳 중국</span>
+          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','UK',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇬🇧 영국</span>
         </div>
         <div style="display:flex;gap:4px;">
           <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',3,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★★★</span>
@@ -1034,7 +1033,7 @@ tailwind.config = {
               </div>
             </div>
             <div id="reChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:4px;min-height:16px;display:flex;flex-wrap:wrap;gap:6px;"></div>
-            <div style="position:relative;height:200px;"><canvas id="rePriceChart" style="cursor:crosshair;"></canvas></div>
+            <div style="position:relative;height:260px;"><canvas id="rePriceChart" style="cursor:crosshair;"></canvas></div>
             <div style="font-size:10px;color:#434656;margin-top:4px;">💡 차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
           <!-- 지역별 등락 바 차트 -->
@@ -1043,7 +1042,7 @@ tailwind.config = {
               <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %)</div>
               <div style="font-size:10px;color:#434656;">2026년 4월 기준 (한국부동산원)</div>
             </div>
-            <div style="position:relative;height:220px;"><canvas id="reRegionChart"></canvas></div>
+            <div style="position:relative;height:260px;"><canvas id="reRegionChart"></canvas></div>
           </div>
         </div>
 
@@ -1560,23 +1559,30 @@ const tickerData = [
   {name:'한국 기준금리', val:'2.75%', chg:'동결', up:null},
   {name:'미 10년물', val:'4.48%', chg:'+0.03', up:true},
 ];
+function menuItemFor(pageId) {
+  return document.querySelector(`.menu-item[onclick*="'${pageId}'"]`);
+}
+function marketTabBtn(tab) {
+  return document.querySelector(`#page-market > div:first-child button[onclick*="'${tab}'"]`);
+}
 function tickerClick(name) {
-  const menuItems = document.querySelectorAll('.menu-item');
-  const marketBtns = ()=>document.querySelectorAll('#page-market .tab-btn');
   if(name==='KOSPI'||name==='KOSDAQ') {
-    showPage('dashboard', menuItems[0]);
+    showPage('dashboard', menuItemFor('dashboard'));
   } else if(name==='USD/KRW'||name==='EUR/KRW') {
-    showPage('market', menuItems[1]);
-    setTimeout(()=>setMarketTab('fx', marketBtns()[0]),60);
-  } else if(name==='한국 기준금리'||name==='미 10년물') {
-    showPage('market', menuItems[1]);
-    setTimeout(()=>setMarketTab('bond', marketBtns()[1]),60);
+    showPage('market', menuItemFor('market'));
+    setTimeout(()=>setMarketTab('fx', marketTabBtn('fx')),60);
+  } else if(name==='한국 기준금리') {
+    showPage('market', menuItemFor('market'));
+    setTimeout(()=>setMarketTab('rate', marketTabBtn('rate')),60);
+  } else if(name==='미 10년물') {
+    showPage('market', menuItemFor('market'));
+    setTimeout(()=>setMarketTab('bond', marketTabBtn('bond')),60);
   } else if(name==='S&P 500'||name==='NASDAQ'||name==='닛케이') {
-    showPage('market', menuItems[1]);
-    setTimeout(()=>setMarketTab('equity', marketBtns()[2]),60);
+    showPage('market', menuItemFor('market'));
+    setTimeout(()=>setMarketTab('equity', marketTabBtn('equity')),60);
   } else if(name==='WTI'||name==='BRENT'||name==='금(Gold)') {
-    showPage('market', menuItems[1]);
-    setTimeout(()=>setMarketTab('commodity', marketBtns()[3]),60);
+    showPage('market', menuItemFor('market'));
+    setTimeout(()=>setMarketTab('commodity', marketTabBtn('commodity')),60);
   }
 }
 function buildTicker() {
@@ -1600,20 +1606,19 @@ function destroyChart(id) {
   if(charts[id]) { charts[id].destroy(); delete charts[id]; }
 }
 function navigateToDetail(target) {
-  const menuItems = document.querySelectorAll('.menu-item');
-  showPage('market', menuItems[1]);
+  showPage('market', menuItemFor('market'));
   setTimeout(()=>{
-    const tabBtns = document.querySelectorAll('#page-market > div:first-child .tab-btn');
-    if(target==='fx')        { if(tabBtns[0]) setMarketTab('fx', tabBtns[0]); }
-    else if(target==='bond') { if(tabBtns[1]) setMarketTab('bond', tabBtns[1]); }
+    if(target==='fx')        { setMarketTab('fx',   marketTabBtn('fx')); }
+    else if(target==='rate') { setMarketTab('rate', marketTabBtn('rate')); }
+    else if(target==='bond') { setMarketTab('bond', marketTabBtn('bond')); }
     else if(target==='equity'){
-      if(tabBtns[2]) setMarketTab('equity', tabBtns[2]);
+      setMarketTab('equity', marketTabBtn('equity'));
       setTimeout(()=>{
         const eqBtns=document.querySelectorAll('#market-equity .tab-btn');
         if(eqBtns[0]) selectEquityIndex(0, eqBtns[0]);
       }, 100);
     }
-    else if(target==='commodity') { if(tabBtns[3]) setMarketTab('commodity', tabBtns[3]); }
+    else if(target==='commodity') { setMarketTab('commodity', marketTabBtn('commodity')); }
   }, 80);
 }
 
@@ -2050,8 +2055,9 @@ function setPeriodUnit(unit, btn) {
 
 // 기간 지정 패널 열기/닫기 (단위와 무관하게 작동)
 function toggleCustomRange(which, btn) {
-  const panelId = which === 'main' ? 'mainCustomRangePanel'
-                : which === 'fx'   ? 'fxCustomRangePanel'
+  const panelId = which === 'main'   ? 'mainCustomRangePanel'
+                : which === 'fx'     ? 'fxCustomRangePanel'
+                : which === 'equity' ? 'equityCustomRangePanel'
                 : null;
   if(!panelId) return;
   const panel = document.getElementById(panelId);
@@ -2623,17 +2629,18 @@ async function refreshNews(feedId, arrName, btn) {
 let marketTab = 'fx';
 function initMarketPage() {
   if(marketTab==='fx') buildFxPage();
-  if(marketTab==='bond') { buildRateHistoryChart(); buildRateCurrentTable(); }
+  if(marketTab==='rate') { buildRateHistoryChart(); buildRateCurrentTable(); }
+  if(marketTab==='bond') { buildBondPage(); buildGlobalBondTable(); }
   if(marketTab==='equity') buildEquityPage();
   if(marketTab==='commodity') buildCommodityPage();
 }
 function setMarketTab(tab, btn) {
   marketTab = tab;
-  document.querySelectorAll('#page-market .tab-btn').forEach(b=>{
+  document.querySelectorAll('#page-market > div:first-child .tab-btn').forEach(b=>{
     b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
   });
-  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
-  ['fx','bond','equity','commodity'].forEach(t=>{
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
+  ['fx','rate','bond','equity','commodity'].forEach(t=>{
     const el=document.getElementById('market-'+t);
     if(el) el.style.display = t===tab?'block':'none';
   });
@@ -3077,9 +3084,7 @@ function buildYieldCurveChart(bondCC) {
   if(!c1) return;
   const cc = yieldCurveCC(bondCC || 'us');
   const yc = yieldCurveData[cc] || yieldCurveData.us;
-  // 제목 업데이트
-  const titleEl = document.querySelector('#bond-subtab-bond .widget-title');
-  // 정확히 yieldCurveChart 의 widget-title 찾기
+  // 수익률 곡선 위젯 제목 업데이트 (yieldCurveChart 가 속한 widget 의 widget-title)
   const wrapper = c1.closest('.widget');
   const wTitleEl = wrapper ? wrapper.querySelector('.widget-title') : null;
   if(wTitleEl) wTitleEl.textContent = yc.label;
@@ -3133,17 +3138,11 @@ const globalBonds = [
   {cc:'de',flag:'🇩🇪',country:'독일', y10:'2.52%', y2:'2.18%', spread:'+0.34', chg:'0.00'},
 ];
 
-let bondSubTab = 'rate';
+// Legacy: 기존 코드 호환 (금리·채권 통합 페이지에서 분리됨 → setMarketTab으로 위임)
 function setBondSubTab(tab, btn) {
-  bondSubTab = tab;
-  document.querySelectorAll('#market-bond > div:first-child .tab-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
-  });
-  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
-  document.getElementById('bond-subtab-rate').style.display = tab==='rate'?'block':'none';
-  document.getElementById('bond-subtab-bond').style.display = tab==='bond'?'block':'none';
-  if(tab==='rate') { buildRateHistoryChart(); buildRateCurrentTable(); }
-  if(tab==='bond') { buildBondPage(); buildGlobalBondTable(); }
+  const target = tab === 'bond' ? 'bond' : 'rate';
+  const newBtn = document.querySelector(`#page-market > div:first-child button[onclick*="'${target}'"]`);
+  setMarketTab(target, newBtn || btn);
 }
 
 function toggleRateFilter(cc, btn) {
@@ -3267,6 +3266,7 @@ const investorData = investorDataByPeriod['5D'];
 let equityCurrentIdx = 0;
 let equityAllSeries = null;
 let equityPeriodUnit = '1D';
+let equityCustomFrom = null, equityCustomTo = null;
 
 function buildEquityIndexChart(series) {
   equityAnnotations=[]; equityPending=null;
@@ -3316,8 +3316,31 @@ function renderEquityChart() {
   if(!equityAllSeries) return;
   const interval = unitIntervalDays(equityPeriodUnit);
   const resampled = resampleSeries(equityAllSeries, interval);
+  if(equityCustomFrom && equityCustomTo) {
+    const filtered = resampled.filter(d => d.x >= equityCustomFrom && d.x <= equityCustomTo);
+    if(filtered.length >= 2) {
+      buildEquityIndexChart(filtered);
+      return;
+    }
+  }
   const n = unitDefaultCount(equityPeriodUnit);
   buildEquityIndexChart(resampled.slice(-n));
+}
+
+function applyEquityCustomRange() {
+  const from = document.getElementById('eqDateFrom').value;
+  const to   = document.getElementById('eqDateTo').value;
+  if(!from || !to) return;
+  equityCustomFrom = from; equityCustomTo = to;
+  renderEquityChart();
+}
+function resetEquityCustomRange() {
+  equityCustomFrom = null; equityCustomTo = null;
+  const fromEl = document.getElementById('eqDateFrom');
+  const toEl   = document.getElementById('eqDateTo');
+  if(fromEl) fromEl.value = '';
+  if(toEl)   toEl.value   = '';
+  renderEquityChart();
 }
 
 function setEquityPeriod(p, btn) {
@@ -3399,8 +3422,8 @@ function buildEquityPage() {
       <div style="font-size:18px;font-weight:700;font-family:'Public Sans';margin-top:4px;">${d.val.toLocaleString()}</div>
       <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:12px;margin-top:2px;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
     </div>`).join('');
-  equityAllSeries = genSeries(7600, 252, 0.012);
-  buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
+  equityAllSeries = genSeries(7600, 1300, 0.012);
+  renderEquityChart();
   buildInvestorChart();
   // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
   const gainTb = document.getElementById('equityTopGainersTable');
@@ -3832,10 +3855,10 @@ function initMacroTopicPage(topic) {
   };
   const m = topicMeta[topic];
   if(!m) return;
-  // 기간 옵션: 분기 데이터는 4분기(1년)/8분기(2년)/전체, 월간은 6개월/1년/전체
+  // 기간 옵션: 분기 데이터는 1년/2년/3년/5년/전체, 월간은 6개월/1년/2년/3년/전체
   const periodOpts = m.freq === 'Q'
-    ? [{key:'4',label:'최근 1년'},{key:'8',label:'최근 2년'},{key:'all',label:'전체'}]
-    : [{key:'6',label:'최근 6개월'},{key:'12',label:'최근 1년'},{key:'all',label:'전체'}];
+    ? [{key:'4',label:'최근 1년'},{key:'8',label:'최근 2년'},{key:'12',label:'최근 3년'},{key:'20',label:'최근 5년'},{key:'all',label:'전체'}]
+    : [{key:'6',label:'최근 6개월'},{key:'12',label:'최근 1년'},{key:'24',label:'최근 2년'},{key:'36',label:'최근 3년'},{key:'all',label:'전체'}];
   // 현재 선택값이 옵션에 없으면 'all'로 보정
   if(!periodOpts.some(o=>o.key===macroTopicPeriod)) macroTopicPeriod = 'all';
   mc.innerHTML = `
@@ -4017,6 +4040,17 @@ function buildMacroIndicatorTable() {
   }).join('');
 }
 
+// 거시경제 국가별 차트 기간 필터 (분기 데이터 기준)
+let macroCountryPeriod = 'all'; // 'all' | '4' (1년) | '8' (2년) | '12' (3년)
+function setMacroCountryPeriod(p, btn) {
+  macroCountryPeriod = p;
+  document.querySelectorAll('.macro-country-period').forEach(b=>{
+    b.style.background='transparent'; b.style.color='#8d90a2';
+  });
+  if(btn) { btn.style.background='#2962ff'; btn.style.color='#fff'; }
+  initMacroPage(macroTab);
+}
+
 function initMacroPage(t){
   ['gdpMacro','cpiMacro','unempMacro','tradeMacro'].forEach(destroyChart);
   const d=macroData[t];
@@ -4026,37 +4060,107 @@ function initMacroPage(t){
     <span style="color:#8d90a2;">다음 발표: ${next||'-'}</span>
     <a href="${src||'#'}" target="_blank" style="color:#2962ff;margin-left:6px;text-decoration:none;">공식→</a>
   </div>`;
-  mc.innerHTML=`
+  // 기간 필터 버튼 행
+  const periodOpts = [
+    {key:'4',  label:'최근 1년'},
+    {key:'8',  label:'최근 2년'},
+    {key:'12', label:'최근 3년'},
+    {key:'all',label:'전체'},
+  ];
+  const periodRow = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+    <span style="font-size:11px;color:#8d90a2;">조회 기간:</span>
+    ${periodOpts.map(o=>`<button class="macro-country-period" onclick="setMacroCountryPeriod('${o.key}',this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:${macroCountryPeriod===o.key?'#2962ff':'transparent'};color:${macroCountryPeriod===o.key?'#fff':'#8d90a2'};cursor:pointer;">${o.label}</button>`).join('')}
+  </div>`;
+  mc.innerHTML= periodRow + `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>'}${infoBlock(meta.gdpSrc,meta.gdpNext)}</div>
-        <div style="position:relative;height:200px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
+        <div style="position:relative;height:260px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
       </div>
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>'}${infoBlock(meta.cpiSrc,meta.cpiNext)}</div>
-        <div style="position:relative;height:200px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
+        <div style="position:relative;height:260px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>'}${infoBlock(meta.unempSrc,meta.unempNext)}</div>
-        <div style="position:relative;height:200px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
+        <div style="position:relative;height:260px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
       </div>
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>'}${infoBlock(meta.tradeSrc,meta.tradeNext)}</div>
-        <div style="position:relative;height:200px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
+        <div style="position:relative;height:260px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
       </div>
     </div>`;
-  const chartOpts=(color,isBar)=>({
+  // 기간 필터 적용 (분기 기준 N개 데이터)
+  const sliceN = (arr) => macroCountryPeriod==='all' ? arr : arr.slice(-parseInt(macroCountryPeriod,10));
+  const gdpLab = sliceN(d.gdpLabels);
+  const gdpVal = sliceN(d.gdp);
+  const cpiLab = sliceN(d.cpiLabels);
+  const cpiVal = sliceN(d.cpi);
+  const unempVal = sliceN(d.unemp);
+  const expVal = sliceN(d.exports);
+  const tc = getThemeColors();
+  const chartOpts=(color,isBar,yMin)=>({
     responsive:true,maintainAspectRatio:false,
-    scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-            y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}}},
-    plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:color,borderColor:'#2a2e3d',borderWidth:1}}
+    scales:{x:{ticks:{color:tc.txt,font:{size:10}},grid:{color:tc.grid}},
+            y:{
+              ticks:{color:tc.txt,font:{size:10}},
+              grid:{color:tc.grid},
+              beginAtZero: false,
+              ...(yMin != null ? {suggestedMin: yMin} : {}),
+            }},
+    plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:color,borderColor:tc.ttBorder,borderWidth:1}}
   });
-  charts['gdpMacro']=new Chart(document.getElementById('gdpMacro'),{type:'bar',data:{labels:d.gdpLabels,datasets:[{data:d.gdp,backgroundColor:d.gdp.map(v=>v>=0?'#26a69a99':'#ef535099'),borderRadius:3}]},options:chartOpts('#26a69a',true)});
-  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:d.cpiLabels,datasets:[{data:d.cpi,borderColor:'#b6c4ff',borderWidth:2,pointRadius:3,fill:true,backgroundColor:'#b6c4ff15',tension:0.3}]},options:chartOpts('#b6c4ff',false)});
-  charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:d.gdpLabels,datasets:[{data:d.unemp,borderColor:'#ef5350',borderWidth:2,pointRadius:3,fill:false,tension:0.3}]},options:chartOpts('#ef5350',false)});
-  charts['tradeMacro']=new Chart(document.getElementById('tradeMacro'),{type:'bar',data:{labels:d.gdpLabels,datasets:[{data:d.exports,backgroundColor:'#2962ff88',borderRadius:3}]},options:chartOpts('#2962ff',true)});
+  // 수출은 절대값 차이가 작을 때 0에서 시작하면 변동이 안 보이므로 데이터 최솟값 - 5% 부근으로 시작
+  const expMin = expVal.length ? Math.min(...expVal.filter(v=>v!=null)) : 0;
+  const expYMin = Math.floor(expMin * 0.92);
+  charts['gdpMacro']=new Chart(document.getElementById('gdpMacro'),{type:'bar',data:{labels:gdpLab,datasets:[{data:gdpVal,backgroundColor:gdpVal.map(v=>v>=0?'#26a69a99':'#ef535099'),borderRadius:3}]},options:chartOpts('#26a69a',true)});
+  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:cpiLab,datasets:[{data:cpiVal,borderColor:'#b6c4ff',borderWidth:2,pointRadius:3,fill:true,backgroundColor:'#b6c4ff15',tension:0.3}]},options:chartOpts('#b6c4ff',false)});
+  charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:gdpLab,datasets:[{data:unempVal,borderColor:'#ef5350',borderWidth:2,pointRadius:3,fill:false,tension:0.3}]},options:chartOpts('#ef5350',false)});
+  // 수출 차트는 라인 + 데이터 레이블로 변경 (값 차이가 작아 바차트로는 구분 어려움)
+  charts['tradeMacro']=new Chart(document.getElementById('tradeMacro'),{
+    type:'line',
+    data:{labels:gdpLab,datasets:[{
+      data:expVal,
+      borderColor:'#2962ff',
+      borderWidth:2.5,
+      pointRadius:5,
+      pointBackgroundColor:'#2962ff',
+      pointBorderColor:'#fff',
+      pointBorderWidth:1.5,
+      fill:true,
+      backgroundColor:'#2962ff20',
+      tension:0.3,
+    }]},
+    options:{
+      ...chartOpts('#2962ff',false,expYMin),
+      plugins:{
+        legend:{display:false},
+        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:'#2962ff',borderColor:tc.ttBorder,borderWidth:1,callbacks:{label:c=>`수출: ${c.parsed.y} 억 달러`}},
+        // 데이터 포인트 값 표시 (Chart.js 기본 기능 — 별도 플러그인 없이 afterDatasetDraw)
+      },
+    },
+    plugins:[{
+      id:'tradeValueLabels',
+      afterDatasetsDraw(chart) {
+        const {ctx} = chart;
+        const meta = chart.getDatasetMeta(0);
+        if(!meta || meta.hidden) return;
+        ctx.save();
+        ctx.font = '600 10px Inter, sans-serif';
+        ctx.fillStyle = '#dfe2f2';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        meta.data.forEach((point, i) => {
+          const v = chart.data.datasets[0].data[i];
+          if(v == null) return;
+          ctx.fillText(String(v), point.x, point.y - 6);
+        });
+        ctx.restore();
+      },
+    }],
+  });
 }
 
 // ============================
@@ -4118,6 +4222,13 @@ function toggleCalFilter(type, val, el) {
   buildCalendar();
 }
 
+// 캘린더 국가 코드 → 한국어 표시
+const calCountryName = {KR:'한국', US:'미국', EU:'유로존', JP:'일본', CN:'중국', UK:'영국', DE:'독일'};
+function calCountryLabel(cc, flag) {
+  const name = calCountryName[cc] || cc;
+  return `${flag||''} ${name}`.trim();
+}
+
 function buildCalendar(){
   // 현재 월 판별
   const now   = new Date();
@@ -4143,7 +4254,7 @@ function buildCalendar(){
   document.getElementById('calHighlights').innerHTML = upcoming.slice(0,3).map(e=>`
     <div class="kpi-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <span style="font-size:10px;color:#8d90a2;">${e.flag} ${e.dt}</span>
+        <span style="font-size:10px;color:#8d90a2;">${calCountryLabel(e.cc, e.flag)} · ${e.dt}</span>
         <span style="color:#f5a623;font-size:11px;">${'★'.repeat(e.stars)}</span>
       </div>
       <div style="font-size:13px;font-weight:500;line-height:1.4;">${e.name}</div>
@@ -4162,7 +4273,7 @@ function buildCalendar(){
     const calIdx = calEvents.indexOf(e);
     return `<tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onclick="showCalendarEventDetail(${calIdx})" title="클릭하여 과거 추이 보기">
       <td style="padding:8px;">${e.dt}</td>
-      <td style="text-align:center;padding:8px;">${e.flag}</td>
+      <td style="text-align:center;padding:8px;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
       <td style="padding:8px;">${e.name} <span style="font-size:9px;color:#2962ff;">↓</span></td>
       <td style="text-align:center;padding:8px;color:#f5a623;">${'★'.repeat(e.stars)}</td>
       <td style="text-align:right;padding:8px;color:#8d90a2;">${e.prev}</td>
@@ -4199,7 +4310,7 @@ function showCalendarEventDetail(idx) {
   const panel = document.getElementById('calEventDetail');
   if(!panel) return;
   panel.style.display = 'block';
-  document.getElementById('calDetailFlag').textContent = e.flag;
+  document.getElementById('calDetailFlag').textContent = calCountryLabel(e.cc, e.flag);
   document.getElementById('calDetailName').textContent = e.name + ' · ' + e.dt;
   const prevEl = document.getElementById('calDetailPrev');
   const foreEl = document.getElementById('calDetailFore');
@@ -4553,7 +4664,7 @@ function buildInvestorPage() {
       data:{ labels:npsAllocation.map(a=>a.asset),
              datasets:[{ data:npsAllocation.map(a=>a.amount),
                backgroundColor:npsAllocation.map(a=>a.color),
-               borderWidth:2, borderColor:'#1b1f2b' }] },
+               borderWidth:0 }] },
       options:{ responsive:true, maintainAspectRatio:false, cutout:'55%',
         plugins:{ legend:{display:true,position:'right',labels:{color:'#8d90a2',font:{size:11},boxWidth:12,padding:10}},
                   tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}조원 (${(c.raw/1201.8*100).toFixed(1)}%)`}} }
@@ -4848,7 +4959,7 @@ function applyRealData(d) {
     }
   }
   // 채권 탭이 현재 표시 중이면 차트 재렌더
-  const bondTabEl = document.getElementById('bond-subtab-bond');
+  const bondTabEl = document.getElementById('market-bond');
   if(bondTabEl && bondTabEl.style.display !== 'none' && typeof buildYieldCurveChart === 'function') {
     buildYieldCurveChart(bondCountryCurrent || 'us');
   }
