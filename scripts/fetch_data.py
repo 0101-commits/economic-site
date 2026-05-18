@@ -187,17 +187,7 @@ def fetch_krx_stock_movers(market="kospi", top_n=10):
     return gainers, losers
 
 
-def fetch_naver_stock_movers(market="kospi", top_n=10):
-    """Naver Finance 등락률 페이지 스크래핑 (KRX API 폴백).
-
-    URL: https://finance.naver.com/sise/sise_rise.naver?sosok=0 (KOSPI)
-         https://finance.naver.com/sise/sise_fall.naver?sosok=0 (KOSPI 하락)
-         sosok=1 → KOSDAQ
-    """
-    import re as _re
-    sosok = "1" if market == "kosdaq" else "0"
-    today = datetime.now(KST).strftime("%Y-%m-%d")
-
+def _naver_session():
     sess = requests.Session()
     sess.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -211,6 +201,80 @@ def fetch_naver_stock_movers(market="kospi", top_n=10):
         sess.get("https://finance.naver.com/", timeout=10)
     except Exception:
         pass
+    return sess
+
+
+def fetch_naver_api_movers(market="KOSPI", direction="up", top_n=10):
+    """네이버 증권 모바일 JSON API (m.stock.naver.com)로 등락 상위/하위 조회.
+
+    엔드포인트: https://m.stock.naver.com/api/stocks/exchange/{KOSPI|KOSDAQ}/{up|down}?page=1&pageSize=20
+    응답 구조: {"stocks": [{"itemCode","stockName","closePrice","fluctuationsRatio", ...}]}
+    """
+    market = market.upper()
+    market = "KOSDAQ" if market == "KOSDAQ" else "KOSPI"
+    direction = "up" if direction == "up" else "down"
+    sess = requests.Session()
+    sess.headers.update({
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+                      "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "ko-KR,ko;q=0.9",
+        "Referer": "https://m.stock.naver.com/",
+        "Origin":  "https://m.stock.naver.com",
+    })
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    urls = [
+        f"https://m.stock.naver.com/api/stocks/exchange/{market}/{direction}?page=1&pageSize=30",
+        f"https://api.stock.naver.com/stock/exchange/{market}/{direction}?page=1&pageSize=30",
+    ]
+    for url in urls:
+        try:
+            r = sess.get(url, timeout=15)
+            if r.status_code != 200:
+                log(f"[NaverAPI] {url} HTTP {r.status_code}")
+                continue
+            data = r.json()
+        except Exception as e:
+            log(f"[NaverAPI] {url} 오류: {e}")
+            continue
+        stocks = data.get("stocks") or data.get("result") or []
+        items = []
+        for s in stocks:
+            name = s.get("stockName") or s.get("name") or s.get("itemName") or ""
+            price = _parse_num(s.get("closePrice") or s.get("nowVal") or s.get("currentPrice"))
+            chg = _parse_num(s.get("fluctuationsRatio") or s.get("changeRate") or s.get("cttr"))
+            vol = _parse_num(s.get("accumulatedTradingVolume") or s.get("aq") or s.get("volume"))
+            if name and price and chg is not None:
+                items.append({"name": name.strip(), "price": price, "chg": chg, "vol": vol or 0, "as_of": today})
+        if items:
+            log(f"[NaverAPI] {market} {direction} {len(items)}건 수집 성공 ({url.split('?')[0]})")
+            return items[:top_n]
+    log(f"[NaverAPI] {market} {direction} 모든 엔드포인트 실패")
+    return []
+
+
+def fetch_naver_stock_movers(market="kospi", top_n=10):
+    """네이버 금융 등락률 페이지/모바일 JSON API 통합 폴백.
+
+    1차: m.stock.naver.com JSON API (CORS 친화적, 안정적)
+    2차: finance.naver.com HTML 스크래핑 (백업)
+    """
+    import re as _re
+    market_lc = "kosdaq" if market == "kosdaq" else "kospi"
+    market_uc = "KOSDAQ" if market == "kosdaq" else "KOSPI"
+    sosok = "1" if market == "kosdaq" else "0"
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+
+    # 1차: 모바일 JSON API
+    gainers = fetch_naver_api_movers(market_uc, "up", top_n)
+    losers  = fetch_naver_api_movers(market_uc, "down", top_n)
+    if gainers and losers:
+        log(f"[Naver] {market_uc} JSON API 성공 → 상승 {len(gainers)}건 / 하락 {len(losers)}건")
+        return gainers, losers
+
+    # 2차: HTML 스크래핑 폴백
+    log(f"[Naver] {market_uc} JSON API 실패 → HTML 스크래핑 시도")
+    sess = _naver_session()
 
     def _scrape(url):
         try:
@@ -224,9 +288,7 @@ def fetch_naver_stock_movers(market="kospi", top_n=10):
             log(f"[Naver] 스크래핑 오류: {e}")
             return []
         items = []
-        # 패턴1: 일반적인 등락 페이지 구조
-        # <a ... class="tltle">종목명</a> ... <td class="number">82,000</td>
-        # ... <span class="red02|blue02|red01|blue01">+1.86%</span>
+        # 패턴1: <a class="tltle">종목명</a> ... 가격 ... 등락률
         rows_pat = _re.findall(
             r'<a[^>]*class="tltle"[^>]*>([^<]+)</a>'
             r'(?:.*?<td class="number">([\d,\.]+)</td>)'
@@ -239,40 +301,86 @@ def fetch_naver_stock_movers(market="kospi", top_n=10):
                 items.append({"name": name.strip(), "price": price, "chg": chg, "vol": 0, "as_of": today})
             except (ValueError, TypeError):
                 continue
+        # 패턴2 (백업): <td class="no">...</td><td><a ...>종목명</a>...</td><td class="number">가격</td>...
+        if not items:
+            rows_pat2 = _re.findall(
+                r'<tr[^>]*onmouseover[^>]*>.*?<a[^>]+>([^<]+)</a>.*?<td class="number">([\d,\.]+)</td>'
+                r'.*?<td class="number"[^>]*>.*?([+\-]?[\d\.]+)%',
+                html, _re.DOTALL)
+            for name, price_str, chg_str in rows_pat2:
+                try:
+                    price = float(price_str.replace(",", ""))
+                    chg = float(chg_str)
+                    items.append({"name": name.strip(), "price": price, "chg": chg, "vol": 0, "as_of": today})
+                except (ValueError, TypeError):
+                    continue
         return items
 
-    gainers = _scrape(f"https://finance.naver.com/sise/sise_rise.naver?sosok={sosok}")[:top_n]
-    losers  = _scrape(f"https://finance.naver.com/sise/sise_fall.naver?sosok={sosok}")[:top_n]
+    if not gainers:
+        gainers = _scrape(f"https://finance.naver.com/sise/sise_rise.naver?sosok={sosok}")[:top_n]
+    if not losers:
+        losers  = _scrape(f"https://finance.naver.com/sise/sise_fall.naver?sosok={sosok}")[:top_n]
 
     if gainers:
-        log(f"[Naver] {market.upper()} 상승Top: {gainers[0]['name']} +{gainers[0]['chg']}% ({len(gainers)}건)")
+        log(f"[Naver] {market_uc} 상승Top: {gainers[0]['name']} +{gainers[0]['chg']}% ({len(gainers)}건)")
     else:
-        log(f"[Naver] {market.upper()} 상승 종목 수집 실패")
+        log(f"[Naver] {market_uc} 상승 종목 수집 실패")
     if losers:
-        log(f"[Naver] {market.upper()} 하락Top: {losers[0]['name']} {losers[0]['chg']}% ({len(losers)}건)")
+        log(f"[Naver] {market_uc} 하락Top: {losers[0]['name']} {losers[0]['chg']}% ({len(losers)}건)")
     else:
-        log(f"[Naver] {market.upper()} 하락 종목 수집 실패")
+        log(f"[Naver] {market_uc} 하락 종목 수집 실패")
     return (gainers or None), (losers or None)
 
 
 def fetch_krx_etf_movers(top_n=10):
-    """KRX ETF 등락률 상위/하위 조회."""
-    if not KRX_API_KEY:
+    """KRX ETF 등락률 상위/하위 조회. 실패 시 Naver Finance ETF 페이지 폴백."""
+    if KRX_API_KEY:
+        rows, basd = fetch_krx_latest("/eto/etf_bydd_trd")
+        if rows:
+            parsed = []
+            for row in rows:
+                name = row.get("ISU_NM") or ""
+                price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
+                chg_rt = _parse_num(row.get("FLUC_RT"))
+                if price and price > 0 and chg_rt is not None:
+                    parsed.append({"name": name, "price": price, "chg": chg_rt, "as_of": basd})
+            if parsed:
+                gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+                losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+                return gainers, losers
+    # KRX 실패 → Naver ETF 폴백 (https://finance.naver.com/sise/etf.naver)
+    return fetch_naver_etf_movers(top_n)
+
+
+def fetch_naver_etf_movers(top_n=10):
+    """Naver Finance ETF 페이지에서 등락 상위 조회."""
+    import re as _re
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    sess = _naver_session()
+    url = "https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0"
+    try:
+        r = sess.get(url, timeout=15)
+        if r.status_code != 200:
+            log(f"[NaverETF] HTTP {r.status_code}")
+            return None, None
+        data = r.json()
+    except Exception as e:
+        log(f"[NaverETF] API 오류: {e}")
         return None, None
-    rows, basd = fetch_krx_latest("/eto/etf_bydd_trd")
-    if not rows:
-        return None, None
+    rows = data.get("result", {}).get("etfItemList", [])
     parsed = []
     for row in rows:
-        name = row.get("ISU_NM") or ""
-        price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
-        chg_rt = _parse_num(row.get("FLUC_RT"))
-        if price and price > 0 and chg_rt is not None:
-            parsed.append({"name": name, "price": price, "chg": chg_rt, "as_of": basd})
+        name = row.get("itemname") or ""
+        price = _parse_num(row.get("nowVal"))
+        chg = _parse_num(row.get("changeRate"))
+        if name and price and chg is not None:
+            parsed.append({"name": name.strip(), "price": price, "chg": chg, "as_of": today})
     if not parsed:
+        log(f"[NaverETF] 파싱 결과 0건")
         return None, None
     gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
     losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+    log(f"[NaverETF] 상위 {top_n}건 수집: 상승 {gainers[0]['name']} +{gainers[0]['chg']}% / 하락 {losers[0]['name']} {losers[0]['chg']}%")
     return gainers, losers
 
 
@@ -350,6 +458,53 @@ def fetch_fred_economic_indicators():
         else:
             log(f"[FRED] {series_id}: 데이터 없음")
     return result
+
+
+def fetch_fred_yield_curve_us():
+    """FRED 미국 국채 수익률 곡선 조회 (DGS 시리즈).
+
+    각 만기별 최근 30개 일간 관측치를 받아 현재값 + 약 1개월 전 값을 추출.
+    """
+    if not FRED_API_KEY:
+        log("[FRED-YC] API 키 없음 — 수익률 곡선 건너뜀")
+        return None
+    terms = [
+        ("1M",  "DGS1MO"),
+        ("3M",  "DGS3MO"),
+        ("6M",  "DGS6MO"),
+        ("1Y",  "DGS1"),
+        ("2Y",  "DGS2"),
+        ("5Y",  "DGS5"),
+        ("7Y",  "DGS7"),
+        ("10Y", "DGS10"),
+        ("20Y", "DGS20"),
+        ("30Y", "DGS30"),
+    ]
+    current, prev_month = [], []
+    series_used = []
+    for label, sid in terms:
+        obs = fetch_fred_series(sid, limit=30)
+        if not obs:
+            current.append(None)
+            prev_month.append(None)
+            log(f"[FRED-YC] {sid} ({label}): 데이터 없음")
+            continue
+        cur = obs[0]["value"]
+        # ~1개월 전 (영업일 기준 약 21개) — 부족하면 가장 오래된 값 사용
+        pm = obs[21]["value"] if len(obs) > 21 else obs[-1]["value"]
+        current.append(cur)
+        prev_month.append(pm)
+        series_used.append(sid)
+        log(f"[FRED-YC] {label}: {cur:.2f}% (1M전 {pm:.2f}%)")
+    if not series_used:
+        return None
+    return {
+        "us": {
+            "current": current,
+            "prev_month": prev_month,
+            "source": "FRED: " + ", ".join(series_used),
+        }
+    }
 
 
 def fetch_fred_realestate_us():
@@ -656,6 +811,7 @@ def build_data():
         "etfMovers": {},
         "economicIndicators": {},
         "realestate": {},
+        "yieldCurve": {},
     }
 
     # ── 환율 ────────────────────────────────────────────────
@@ -712,13 +868,22 @@ def build_data():
         log("[KRX] API 키 없음 — Naver Finance 폴백 시도")
 
     # 주식 상승/하락 Top10이 비어 있으면 Naver Finance 폴백 (KRX 권한 미가입 케이스)
-    if not data["stockMovers"].get("kospiGainers"):
+    if not data["stockMovers"].get("kospiGainers") or not data["stockMovers"].get("kospiLosers"):
         gainers, losers = fetch_naver_stock_movers(market="kospi", top_n=10)
-        if gainers:
+        if gainers and not data["stockMovers"].get("kospiGainers"):
             data["stockMovers"]["kospiGainers"] = gainers
-            data["sources"]["stockMovers"] = "Naver Finance (스크래핑)"
-        if losers:
+            data["sources"]["stockMovers"] = "Naver Finance"
+        if losers and not data["stockMovers"].get("kospiLosers"):
             data["stockMovers"]["kospiLosers"] = losers
+
+    # ETF 비어 있으면 Naver Finance ETF 폴백
+    if not data["etfMovers"].get("etfGainers") or not data["etfMovers"].get("etfLosers"):
+        etf_up, etf_down = fetch_naver_etf_movers(top_n=10)
+        if etf_up and not data["etfMovers"].get("etfGainers"):
+            data["etfMovers"]["etfGainers"] = etf_up
+            data["sources"]["etfMovers"] = "Naver Finance"
+        if etf_down and not data["etfMovers"].get("etfLosers"):
+            data["etfMovers"]["etfLosers"] = etf_down
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
     if "KOSPI" not in data["indices"]:
@@ -802,6 +967,12 @@ def build_data():
         re_us_data = fetch_fred_realestate_us()
         data["realestate"]["us"] = re_us_data
         data["sources"]["realestate_us"] = "FRED API (stlouisfed.org)"
+        # 미국 국채 수익률 곡선 (10년물 외 1M~30Y)
+        log("[FRED] 미국 국채 수익률 곡선 수집 시작")
+        yc_data = fetch_fred_yield_curve_us()
+        if yc_data:
+            data["yieldCurve"].update(yc_data)
+            data["sources"]["yieldCurve_us"] = "FRED API (DGS1MO~DGS30)"
     else:
         log("[FRED] API 키 없음 — 미국 지표 건너뜀")
 
