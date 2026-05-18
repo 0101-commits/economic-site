@@ -167,6 +167,21 @@ tailwind.config = {
   .up-txt { color: #26a69a; }
   .down-txt { color: #ef5350; }
   tr:hover td { background: #262a35; }
+  /* 사용자 클릭 가능 행 — 테마-인식 호버 */
+  .hoverable-row:hover td { background: var(--c-card-hi, #262a35); }
+  html.light .hoverable-row:hover td { background: #d9edf8 !important; }
+  /* 링크 카드 — 라이트/다크 호환 호버 (브라우저가 inline style 색상을 rgb() 로 변환하여 CSS 선택자에 매치 안되는 문제 회피) */
+  .link-card {
+    background: var(--c-surface, #131722);
+    border: 1px solid var(--c-border, #2a2e3d);
+    border-radius: 6px;
+    padding: 12px;
+    cursor: pointer;
+    transition: border-color .15s, background-color .15s;
+  }
+  .link-card:hover { border-color: var(--c-accent, #2962ff); }
+  html.light .link-card { background: #ffffff; border-color: #aac4e6; }
+  html.light .link-card:hover { border-color: rgb(53,108,181); }
   .coming-soon { display: flex; align-items: center; justify-content: center; height: 60vh; flex-direction: column; gap: 12px; color: #434656; }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: #131722; }
@@ -436,6 +451,7 @@ tailwind.config = {
             <button class="tab-btn active" id="moverTypeStock" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setMoverType('stock',this)">주식</button>
             <button class="tab-btn" id="moverTypeETF" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setMoverType('etf',this)">ETF</button>
             <button class="tab-btn" id="moverTypeAll" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setMoverType('all',this)">전체</button>
+            <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="margin-left:auto;background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead>
@@ -689,6 +705,8 @@ tailwind.config = {
               <button class="tab-btn" id="eqCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;" onclick="toggleCustomRange('equity',this)">📅 기간 지정</button>
               <button id="eqCompareModeBtn" onclick="toggleChartCompareMode('equity',this)" style="font-size:10px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">% 비교</button>
               <button onclick="resetChartCompareMode('equity')" style="font-size:10px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#434656;cursor:pointer;">초기화</button>
+              <span style="color:#2a2e3d;margin:0 2px;">|</span>
+              <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#1b1f2b;color:#b6c4ff;cursor:pointer;">↻ 새로고침</button>
             </div>
           </div>
           <div id="equityCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -729,12 +747,12 @@ tailwind.config = {
           </table>
         </div>
 
-      <!-- 상승/하락 Top10 -->
+      <!-- 상승/하락 Top10 (주식) -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10</div>
-            <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 →</a>
+            <div class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
+            <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -748,8 +766,8 @@ tailwind.config = {
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10</div>
-            <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 →</a>
+            <div class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
+            <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -759,6 +777,40 @@ tailwind.config = {
               <th style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
             <tbody id="equityTopLosersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 상승/하락 Top10 (ETF) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+        <div class="widget">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
+            <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+          </div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
+              <th style="text-align:left;padding:5px 0;">#</th>
+              <th style="text-align:left;padding:5px;">종목</th>
+              <th style="text-align:right;padding:5px;">현재가</th>
+              <th style="text-align:right;padding:5px;">등락률</th>
+            </tr></thead>
+            <tbody id="etfTopGainersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="widget">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
+            <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+          </div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
+              <th style="text-align:left;padding:5px 0;">#</th>
+              <th style="text-align:left;padding:5px;">종목</th>
+              <th style="text-align:right;padding:5px;">현재가</th>
+              <th style="text-align:right;padding:5px;">등락률</th>
+            </tr></thead>
+            <tbody id="etfTopLosersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -830,8 +882,11 @@ tailwind.config = {
         </div>
         <!-- LME 재고 -->
         <div class="widget" style="margin-bottom:12px;">
-          <div class="widget-title">LME 금속 창고 재고 현황
-            <span style="font-size:9px;font-weight:400;color:#434656;margin-left:6px;">단위: 톤</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="widget-title" style="margin-bottom:0;">LME 금속 창고 재고 현황
+              <span style="font-size:9px;font-weight:400;color:#434656;margin-left:6px;">단위: 톤 · 행 클릭 → 비철금속 차트 강조</span>
+            </div>
+            <button onclick="resetLmeHighlight()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">강조 해제</button>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
@@ -903,12 +958,19 @@ tailwind.config = {
             <button class="macro-ind-filter" data-cc="🇪🇺" onclick="filterMacroIndicators('🇪🇺',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇪🇺 유로존</button>
             <button class="macro-ind-filter" data-cc="🇯🇵" onclick="filterMacroIndicators('🇯🇵',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇯🇵 일본</button>
             <button class="macro-ind-filter" data-cc="🇨🇳" onclick="filterMacroIndicators('🇨🇳',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇨🇳 중국</button>
+            <button class="macro-ind-filter" data-cc="🇩🇪" onclick="filterMacroIndicators('🇩🇪',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇩🇪 독일</button>
+            <button class="macro-ind-filter" data-cc="🇬🇧" onclick="filterMacroIndicators('🇬🇧',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇬🇧 영국</button>
           </div>
         </div>
         <div id="macroIndCardsRoot"></div>
+        <!-- 데이터 소스 연결 상태 -->
+        <div style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff22;">
+          <div style="font-size:11px;color:#dfe2f2;font-weight:600;margin-bottom:6px;">🔌 데이터 소스 연결 상태 <span style="font-size:9px;color:#434656;font-weight:400;">● 연결됨 / ○ 미연결</span></div>
+          <div id="macroApiStatus" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;"></div>
+        </div>
         <!-- 데이터 부족 안내 -->
         <div id="macroMissingApiInfo" style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;font-size:11px;color:#8d90a2;line-height:1.7;display:none;">
-          <strong style="color:#dfe2f2;">📌 추가로 필요한 API/데이터 소스:</strong>
+          <strong style="color:#dfe2f2;">📌 추가로 필요한 API/데이터 소스 (현재 빈 지표):</strong>
           <ul id="macroMissingApiList" style="margin:6px 0 0 16px;padding:0;color:#b6c4ff;"></ul>
         </div>
       </div>
@@ -1021,9 +1083,22 @@ tailwind.config = {
         <!-- 왼쪽: 노트 목록 -->
         <div class="widget" style="display:flex;flex-direction:column;">
           <button onclick="newNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:8px;">+ 새 노트</button>
-          <button onclick="exportSelectedToExcel()" style="background:transparent;color:#26a69a;border:1px solid #26a69a55;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;margin-bottom:12px;">↓ Excel 저장</button>
+          <button onclick="exportSelectedToExcel()" style="background:transparent;color:#26a69a;border:1px solid #26a69a55;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;margin-bottom:6px;">↓ Excel 저장</button>
+          <button onclick="exportNotesJsonFile()" style="background:transparent;color:#b6c4ff;border:1px solid #2962ff55;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;margin-bottom:6px;" title="모든 노트를 JSON 으로 백업 — 다른 기기/브라우저로 이동 시 보존">💾 전체 JSON 백업</button>
+          <label style="background:transparent;color:#b6c4ff;border:1px solid #2962ff55;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;margin-bottom:12px;text-align:center;display:block;">
+            ↥ JSON 가져오기
+            <input type="file" accept=".json,application/json" onchange="importNotesJsonFile(this)" style="display:none;"/>
+          </label>
           <div class="widget-title">저장된 노트 <span id="noteSelCount" style="font-size:10px;color:#434656;font-weight:400;"></span></div>
           <div id="noteList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+          <!-- 백업 복원 패널 (브라우저 로컬 스토리지 내 자동 백업 슬롯) -->
+          <details style="margin-top:8px;border-top:1px solid #2a2e3d;padding-top:8px;">
+            <summary style="font-size:11px;color:#8d90a2;cursor:pointer;user-select:none;">🔄 자동 백업 복원 <span style="font-size:9px;color:#434656;">(저장 시마다 자동 생성)</span></summary>
+            <div id="noteBackupList" style="margin-top:6px;"></div>
+            <div style="font-size:9px;color:#434656;margin-top:6px;line-height:1.6;">
+              ⚠️ 노트는 브라우저 로컬에만 저장됩니다. 브라우저 데이터 삭제·시크릿 모드·다른 기기 사용 시 사라질 수 있으니<br>중요한 노트는 <strong>JSON 백업</strong> 또는 <strong>Excel 저장</strong> 으로 외부 보관을 권장합니다.
+            </div>
+          </details>
         </div>
         <!-- 오른쪽: 노트 편집 -->
         <div style="display:flex;flex-direction:column;gap:12px;">
@@ -1697,37 +1772,37 @@ tailwind.config = {
         <div class="widget-title">공식 자료 바로가기</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
           <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do" target="_blank" style="text-decoration:none;">
-            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+            <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">기금운용 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
           <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0003M0.do?menuId=MN24000616" target="_blank" style="text-decoration:none;">
-            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+            <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">자산배분 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
           <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0004M0.do?menuId=MN24000617" target="_blank" style="text-decoration:none;">
-            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+            <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">국내주식 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
           <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0005M0.do?menuId=MN24000618" target="_blank" style="text-decoration:none;">
-            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+            <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">해외주식 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
           <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0006M0.do?menuId=MN24000619" target="_blank" style="text-decoration:none;">
-            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+            <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">채권 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
           <a href="https://fund.nps.or.kr/oprtprcn/oprtotcm/getOHED0010M0.do?menuId=MN24000623" target="_blank" style="text-decoration:none;">
-            <div style="background:#131722;border:1px solid #2a2e3d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s;" onmouseover="this.style.borderColor='#2962ff'" onmouseout="this.style.borderColor='#2a2e3d'">
+            <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">운용 성과</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
@@ -2534,6 +2609,17 @@ let moverRefDate = '—';
 let curMoverTab = 'up';
 let curMoverType = 'stock';
 
+// 네이버 증권 종목 페이지 URL — code 가 있으면 직접 종목 페이지, 없으면 검색 페이지
+function naverStockUrl(s) {
+  if(!s) return 'https://finance.naver.com/';
+  const code = (s.code||'').trim();
+  if(code && /^\d{6}$/.test(code)) {
+    return `https://finance.naver.com/item/main.naver?code=${code}`;
+  }
+  // code 없으면 종목명 검색으로 폴백
+  return `https://finance.naver.com/search/searchList.naver?query=${encodeURIComponent(s.name||'')}`;
+}
+
 function buildMoverTable(dir) {
   const tb = document.getElementById('moverTable');
   if(!tb) return;
@@ -2562,7 +2648,7 @@ function buildMoverTable(dir) {
   }
   tb.innerHTML = data.map(d=>`
     <tr style="border-bottom:1px solid #1b1f2b;">
-      <td style="padding:5px 0;">${d.name}${d.type==='etf'?'<span style="font-size:9px;color:#8d90a2;margin-left:4px;">ETF</span>':''}</td>
+      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${d.name}</a>${d.type==='etf'?'<span style="font-size:9px;color:#8d90a2;margin-left:4px;">ETF</span>':''}</td>
       <td style="text-align:right;padding:5px;">${d.price}</td>
       <td style="text-align:right;padding:5px;" class="${isUp?'up-txt':'down-txt'}">${d.chg}</td>
       <td style="text-align:right;padding:5px;color:#8d90a2;">${d.vol||''}</td>
@@ -3870,25 +3956,34 @@ function buildEquityPage() {
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
   const noData = `<tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;font-size:11px;">실시간 데이터 없음 — KRX API 키 필요<br><a href="https://data.krx.co.kr" target="_blank" style="color:#2962ff;">data.krx.co.kr</a></td></tr>`;
-  if(gainTb) {
-    if(upMoversStock.length > 0) {
-      gainTb.innerHTML = upMoversStock.map((s,i)=>`<tr style="border-bottom:1px solid #1b1f2b;">
+  const stockLinkRow = (s, i, color) => `<tr style="border-bottom:1px solid #1b1f2b;">
         <td style="padding:5px;color:#434656;">${i+1}</td>
-        <td style="padding:5px;font-weight:500;">${s.name}</td>
+        <td style="padding:5px;font-weight:500;"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
         <td style="text-align:right;padding:5px;">${s.price}</td>
-        <td style="text-align:right;padding:5px;color:#26a69a;">${s.chg}</td>
-      </tr>`).join('');
-    } else { gainTb.innerHTML = noData; }
+        <td style="text-align:right;padding:5px;color:${color};">${s.chg}</td>
+      </tr>`;
+  if(gainTb) {
+    gainTb.innerHTML = upMoversStock.length > 0
+      ? upMoversStock.map((s,i)=>stockLinkRow(s,i,'#26a69a')).join('')
+      : noData;
   }
   if(loseTb) {
-    if(downMoversStock.length > 0) {
-      loseTb.innerHTML = downMoversStock.map((s,i)=>`<tr style="border-bottom:1px solid #1b1f2b;">
-        <td style="padding:5px;color:#434656;">${i+1}</td>
-        <td style="padding:5px;font-weight:500;">${s.name}</td>
-        <td style="text-align:right;padding:5px;">${s.price}</td>
-        <td style="text-align:right;padding:5px;color:#ef5350;">${s.chg}</td>
-      </tr>`).join('');
-    } else { loseTb.innerHTML = noData; }
+    loseTb.innerHTML = downMoversStock.length > 0
+      ? downMoversStock.map((s,i)=>stockLinkRow(s,i,'#ef5350')).join('')
+      : noData;
+  }
+  // ETF Top10 상승/하락 (주식시장 탭)
+  const etfGainTb = document.getElementById('etfTopGainersTable');
+  const etfLoseTb = document.getElementById('etfTopLosersTable');
+  if(etfGainTb) {
+    etfGainTb.innerHTML = upMoversETF.length > 0
+      ? upMoversETF.map((s,i)=>stockLinkRow(s,i,'#26a69a')).join('')
+      : noData;
+  }
+  if(etfLoseTb) {
+    etfLoseTb.innerHTML = downMoversETF.length > 0
+      ? downMoversETF.map((s,i)=>stockLinkRow(s,i,'#ef5350')).join('')
+      : noData;
   }
 }
 // LME 금속 창고 재고 (모의 데이터, 단위: 톤)
@@ -3929,7 +4024,14 @@ function comHistoryKey(name) {
   if(name.includes('Brent')) return 'Brent';
   if(name.includes('금') || name.includes('Gold')) return 'Gold';
   if(name.includes('은') || name.includes('Silver')) return 'Silver';
+  if(name.includes('백금') || name.includes('Platinum')) return 'Platinum';
   if(name.includes('구리') || name.includes('Copper')) return 'Copper';
+  if(name.includes('알루미늄') || name.includes('Aluminum')) return 'Aluminum';
+  if(name.includes('천연가스') || name.includes('NatGas') || name.includes('Natural Gas')) return 'NatGas';
+  if(name.includes('밀') || name.includes('Wheat')) return 'Wheat';
+  if(name.includes('옥수수') || name.includes('Corn')) return 'Corn';
+  if(name.includes('콩') || name.includes('Soybean')) return 'Soybean';
+  if(name.includes('쌀') || name.includes('Rice')) return 'Rice';
   return null;
 }
 
@@ -4138,22 +4240,31 @@ function buildCommodityPage() {
                  tooltip:{mode:'index', intersect:false, backgroundColor:tc.tooltip, borderColor:tc.ttBorder, borderWidth:1}}}
     });
   }
-  // 귀금속 (Gold + Silver)
+  // 귀금속 (Gold + Silver + Platinum)
   sectorChart('preciousChart', [
-    {key:'Gold',   label:'금(Gold) $/oz',   color:'#f5a623'},
-    {key:'Silver', label:'은(Silver) $/oz', color:'#c0c0c0', dash:[4,4]},
+    {key:'Gold',     label:'금(Gold) $/oz',     color:'#f5a623'},
+    {key:'Silver',   label:'은(Silver) $/oz',   color:'#c0c0c0', dash:[4,4]},
+    {key:'Platinum', label:'백금(Platinum) $/oz', color:'#b6c4ff', dash:[2,3]},
   ]);
-  // 비철금속 (Copper)
+  // 비철금속 (구리·알루미늄·아연·니켈) — LME 재고 행 클릭으로 강조 가능
   sectorChart('baseMetalChart', [
-    {key:'Copper', label:'구리(Copper) $/lb', color:'#ef5350'},
+    {key:'Copper',   label:'구리(Copper) $/lb', color:'#ef5350'},
+    {key:'Aluminum', label:'알루미늄($/톤)',     color:'#b6c4ff', dash:[4,4]},
+    // Zinc/Nickel: yfinance 직접 심볼이 없어 단일 가격만 카드에 표시
   ]);
-  // 에너지 (WTI + Brent)
+  // 에너지 (WTI + Brent + 천연가스)
   sectorChart('energyChart', [
-    {key:'WTI',   label:'WTI($/bbl)', color:'#b6c4ff'},
-    {key:'Brent', label:'Brent($/bbl)', color:'#26a69a', dash:[4,4]},
+    {key:'WTI',    label:'WTI($/bbl)',    color:'#b6c4ff'},
+    {key:'Brent',  label:'Brent($/bbl)',  color:'#26a69a', dash:[4,4]},
+    {key:'NatGas', label:'천연가스($/MMBtu)', color:'#f5a623'},
   ]);
-  // 농산물 — 시계열 데이터 미수집 상태이므로 안내
-  showNoDataOverlay('agriChart', '농산물 (밀·옥수수·콩·쌀) 시계열 데이터는 아직 수집되지 않았습니다. 추가 API 연동 필요.');
+  // 농산물 — yfinance (ZW=F/ZC=F/ZS=F/ZR=F) 시계열 데이터로 표시
+  sectorChart('agriChart', [
+    {key:'Wheat',   label:'밀(Wheat) $/bu',    color:'#854f0b'},
+    {key:'Corn',    label:'옥수수(Corn) $/bu', color:'#f5a623', dash:[4,4]},
+    {key:'Soybean', label:'콩(Soybean) $/bu',  color:'#26a69a'},
+    {key:'Rice',    label:'쌀(Rice) $/cwt',    color:'#b6c4ff', dash:[2,3]},
+  ]);
 
   // LME 금속 재고 테이블
   const invEl = document.getElementById('metalInventoryTable');
@@ -4177,12 +4288,19 @@ function buildCommodityPage() {
   buildNewsFeed('commodityNewsFeed', commodityNewsItems);
 }
 
-// LME 재고 행 클릭 → 위 차트 하이라이트
+// LME 재고 행 클릭 → 비철금속(baseMetalChart) 차트와 연결
+// 사용자 요청에 따라 상단 comDetailChart 가 아닌 비철금속 차트만 강조
+// metalInventory 인덱스 → comData 인덱스 매핑
+//   0: 구리(Copper)   → comData[6]
+//   1: 알루미늄         → comData[7]
+//   2: 아연(Zinc)      → comData[8]
+//   3: 니켈(Nickel)    → comData[9]
 const lmeToComIdxGlobal = {0:6, 1:7, 2:8, 3:9};
+// baseMetalChart 데이터셋의 라벨 → 비철금속 명 매핑 (아연·니켈은 시계열 미수집)
+const lmeIdxToBaseLabel = {0:'Copper', 1:'Aluminum'};
 let lmeHighlightIdx = null;
+
 function highlightLmeMetal(lmeIdx) {
-  const comIdx = lmeToComIdxGlobal[lmeIdx];
-  if(comIdx === undefined) return;
   // 행 하이라이트
   document.querySelectorAll('[id^="lmeRow"]').forEach(r => {
     r.style.background = '';
@@ -4190,19 +4308,56 @@ function highlightLmeMetal(lmeIdx) {
   });
   const row = document.getElementById('lmeRow'+lmeIdx);
   if(row) { row.style.background = 'rgba(41,98,255,0.12)'; row.style.outline = '1px solid #2962ff55'; }
-  // 차트에서 해당 원자재 단독 선택
-  comSelectedIdx = new Set([comIdx]);
-  lmeHighlightIdx = comIdx;
-  buildComDetailChartMulti();
-  // 스크롤하여 차트 표시
-  const chartEl = document.getElementById('comDetailChart');
-  if(chartEl) chartEl.closest('.widget')?.scrollIntoView({behavior:'smooth', block:'nearest'});
-  // 버튼 UI 동기화
-  document.querySelectorAll('#market-commodity .com-btn').forEach((b,i)=>{
-    const isSelected = comSelectedIdx.has(i);
-    b.style.background = isSelected ? '#2962ff' : '#1b1f2b';
-    b.style.color = isSelected ? '#fff' : '#8d90a2';
+  lmeHighlightIdx = lmeIdx;
+
+  // 비철금속 차트(baseMetalChart)의 해당 시리즈만 강조 — 나머지는 흐리게
+  const ch = charts['baseMetalChart'];
+  const targetLabel = lmeIdxToBaseLabel[lmeIdx];
+  if(ch && targetLabel) {
+    ch.data.datasets.forEach(ds => {
+      const isTarget = (ds.label||'').includes(targetLabel) ||
+                       (ds.label||'').toLowerCase().includes(targetLabel.toLowerCase());
+      ds.borderWidth = isTarget ? 3 : 1;
+      // 비강조 라인의 투명도 적용 (rgba 변환 없이 borderColor 끝 알파만 조정)
+      if(isTarget) {
+        // 강조: 원래 색상 유지
+        if(ds._origColor === undefined) ds._origColor = ds.borderColor;
+        ds.borderColor = ds._origColor;
+      } else {
+        if(ds._origColor === undefined) ds._origColor = ds.borderColor;
+        ds.borderColor = ds._origColor + '55'; // hex+alpha (#xxxxxx + 55)
+      }
+    });
+    ch.update();
+    // 스크롤하여 비철금속 차트 표시
+    const cv = document.getElementById('baseMetalChart');
+    if(cv) cv.closest('.widget')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+  } else if(ch && !targetLabel) {
+    // 아연/니켈: 시계열 미수집 → 안내 alert 대신 toast 스타일 메시지
+    const cv = document.getElementById('baseMetalChart');
+    if(cv) cv.closest('.widget')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+    // 모든 라인 원본 색상 복원
+    ch.data.datasets.forEach(ds => {
+      if(ds._origColor !== undefined) { ds.borderColor = ds._origColor; ds.borderWidth = 2; }
+    });
+    ch.update();
+  }
+}
+
+// LME 하이라이트 초기화 — 차트 재빌드 후 색상 원복
+function resetLmeHighlight() {
+  lmeHighlightIdx = null;
+  document.querySelectorAll('[id^="lmeRow"]').forEach(r => {
+    r.style.background = '';
+    r.style.outline = '';
   });
+  const ch = charts['baseMetalChart'];
+  if(ch) {
+    ch.data.datasets.forEach(ds => {
+      if(ds._origColor !== undefined) { ds.borderColor = ds._origColor; ds.borderWidth = 2; }
+    });
+    ch.update();
+  }
 }
 
 
@@ -4416,15 +4571,15 @@ const macroMeta = {
 // fmt: 값 포맷터 함수
 const macroIndicators = [
   // 한국 (ECOS)
-  {name:'GDP 성장률',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'GDP 성장률 (전기비, %)',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
-  {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간'},
-  {name:'실업률',cc:'🇰🇷',cat:'고용',src:'통계청 KOSIS',freq:'월간'},
-  {name:'수출입 무역수지',cc:'🇰🇷',cat:'무역',src:'관세청 무역통계',freq:'월간'},
-  {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간'},
+  {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.ppi_kr',fmt:v=>v?.toFixed(2)},
+  {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'수출 (백만달러)',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v?.toLocaleString()},
+  {name:'경상수지 (백만달러)',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
   {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global',freq:'월간'},
-  {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'통계청 KOSIS',freq:'월간'},
-  {name:'소매판매',cc:'🇰🇷',cat:'소비',src:'통계청',freq:'월간'},
+  {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.ip_kr',fmt:v=>v?.toFixed(2)},
+  {name:'소매판매액지수',cc:'🇰🇷',cat:'소비',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.retail_kr',fmt:v=>v?.toFixed(2)},
   {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',dataPath:'economicIndicators.kr.base_rate_kr',fmt:v=>v?.toFixed(2)+'%'},
   // 미국 (FRED)
   {name:'GDP (연환산, 조$)',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: GDP)',freq:'분기',dataPath:'economicIndicators.us.gdp_us',fmt:v=>v?.toLocaleString()},
@@ -4441,17 +4596,30 @@ const macroIndicators = [
   {name:'Case-Shiller HPI',cc:'🇺🇸',cat:'부동산',src:'S&P (FRED: CSUSHPINSA)',freq:'월간',dataPath:'realestate.us.case_shiller_national',fmt:v=>v?.toFixed(1)},
   {name:'30년 모기지',cc:'🇺🇸',cat:'부동산',src:'Freddie Mac (FRED)',freq:'주간',dataPath:'realestate.us.mortgage_30y',fmt:v=>v?.toFixed(2)+'%'},
   {name:'NAHB 주택시장지수',cc:'🇺🇸',cat:'부동산',src:'NAHB (FRED)',freq:'월간',dataPath:'realestate.us.nahb_index',fmt:v=>v?.toFixed(0)},
-  // 유로존
-  {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED)',freq:'월간'},
-  {name:'실업률',cc:'🇪🇺',cat:'고용',src:'Eurostat (FRED)',freq:'월간'},
-  {name:'기준금리 (ECB)',cc:'🇪🇺',cat:'통화',src:'ECB',freq:'8회/년'},
-  // 중국
-  {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED)',freq:'월간'},
+  // 유로존 (FRED 국제 시리즈)
+  {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED)',freq:'월간',dataPath:'economicIndicators.eu.cpi_eu',fmt:v=>v?.toFixed(2)},
+  {name:'실질 GDP',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',dataPath:'economicIndicators.eu.gdp_eu',fmt:v=>v?.toLocaleString()},
+  {name:'실업률',cc:'🇪🇺',cat:'고용',src:'Eurostat (FRED)',freq:'월간',dataPath:'economicIndicators.eu.unemployment_eu',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'기준금리 (ECB)',cc:'🇪🇺',cat:'통화',src:'ECB (FRED)',freq:'8회/년',dataPath:'economicIndicators.eu.base_rate_eu',fmt:v=>v?.toFixed(2)+'%'},
+  // 중국 (FRED 국제 시리즈)
+  {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
+  {name:'GDP (USD)',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v?.toLocaleString()},
+  {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
   {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'NBS',freq:'월간'},
-  // 일본
-  {name:'GDP 성장률',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기'},
-  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간'},
-  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행',freq:'연8회'},
+  // 일본 (FRED 국제 시리즈)
+  {name:'실질GDP (분기)',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',dataPath:'economicIndicators.jp.gdp_jp',fmt:v=>v?.toLocaleString()},
+  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v?.toFixed(2)},
+  {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (FRED)',freq:'연8회',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%'},
+  // 독일 (FRED 국제 시리즈)
+  {name:'소비자물가지수',cc:'🇩🇪',cat:'물가',src:'Destatis (FRED)',freq:'월간',dataPath:'economicIndicators.de.cpi_de',fmt:v=>v?.toFixed(2)},
+  {name:'실질GDP',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',dataPath:'economicIndicators.de.gdp_de',fmt:v=>v?.toLocaleString()},
+  {name:'실업률',cc:'🇩🇪',cat:'고용',src:'Destatis (FRED)',freq:'월간',dataPath:'economicIndicators.de.unemployment_de',fmt:v=>v?.toFixed(2)+'%'},
+  // 영국 (FRED 국제 시리즈)
+  {name:'소비자물가지수',cc:'🇬🇧',cat:'물가',src:'ONS (FRED)',freq:'월간',dataPath:'economicIndicators.uk.cpi_uk',fmt:v=>v?.toFixed(2)},
+  {name:'실질GDP',cc:'🇬🇧',cat:'경기',src:'ONS (FRED)',freq:'분기',dataPath:'economicIndicators.uk.gdp_uk',fmt:v=>v?.toLocaleString()},
+  {name:'실업률',cc:'🇬🇧',cat:'고용',src:'ONS (FRED)',freq:'월간',dataPath:'economicIndicators.uk.unemployment_uk',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'기준금리 (BOE)',cc:'🇬🇧',cat:'통화',src:'BOE (FRED)',freq:'8회/년',dataPath:'economicIndicators.uk.base_rate_uk',fmt:v=>v?.toFixed(2)+'%'},
 ];
 
 function getDataByPath(obj, path) {
@@ -4591,12 +4759,36 @@ function buildMacroIndicatorTable() {
     </div>`;
   }).join('') + `</div>`;
   root.innerHTML = html;
-  // 누락된 API 안내
+  // 누락된 API 안내 + 현재 연결된 데이터 소스 표시
   const infoEl = document.getElementById('macroMissingApiInfo');
   const listEl = document.getElementById('macroMissingApiList');
+  const statusEl = document.getElementById('macroApiStatus');
+  if(statusEl) {
+    const sources = (d && d.sources) || {};
+    const apis = [
+      {name:'FRED (미국 경제·부동산·수익률 곡선)', keys:['economicIndicators_us','realestate_us','yieldCurve_us']},
+      {name:'FRED 국제 시리즈 (일본·유로존·중국·독일·영국)', keys:['economicIndicators_intl']},
+      {name:'ECOS (한국은행 경제 통계)', keys:['economicIndicators_kr']},
+      {name:'R-ONE (한국부동산원 가격지수)', keys:['realestate_kr']},
+      {name:'data.go.kr (국토부 실거래가)', keys:['realestate_molit']},
+      {name:'KRX OpenAPI (한국 주식/ETF/원자재)', keys:['stockMovers','etfMovers','indices','commodities']},
+      {name:'yfinance (해외 지수/원자재/농산물 시계열)', keys:['history']},
+    ];
+    statusEl.innerHTML = apis.map(a => {
+      const hit = a.keys.some(k => sources[k]);
+      const color = hit ? '#26a69a' : '#ef5350';
+      const mark = hit ? '●' : '○';
+      const label = hit ? sources[a.keys.find(k=>sources[k])] : '미연결';
+      return `<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:#8d90a2;">
+        <span style="color:${color};">${mark}</span>
+        <span style="flex:1;">${a.name}</span>
+        <span style="color:#434656;font-size:9px;">${label}</span>
+      </div>`;
+    }).join('');
+  }
   if(missingApis.size > 0 && infoEl && listEl) {
     infoEl.style.display = 'block';
-    listEl.innerHTML = [...missingApis].slice(0, 20).map(s => `<li>${s}</li>`).join('');
+    listEl.innerHTML = [...missingApis].slice(0, 30).map(s => `<li>${s}</li>`).join('');
   } else if(infoEl) {
     infoEl.style.display = 'none';
   }
@@ -4611,6 +4803,70 @@ function setMacroCountryPeriod(p, btn) {
   });
   if(btn) { btn.style.background='#2962ff'; btn.style.color='#fff'; }
   initMacroPage(macroTab);
+}
+
+// 차트별 단위 (월/분기/연) — 사용자 요청에 따른 추가 기능
+// 기본값: 각 차트의 원본 빈도
+//   GDP/실업률/수출 = 분기 데이터 (Q), CPI = 월간 데이터 (M)
+//   '연(Y)' 단위 선택 시 4개 분기 / 12개월을 평균/합산
+const macroChartUnit = { gdp:'Q', cpi:'M', unemp:'Q', trade:'Q' };
+
+function setMacroChartUnit(chart, unit, btn) {
+  macroChartUnit[chart] = unit;
+  // 같은 차트의 모든 단위 버튼 비활성화
+  document.querySelectorAll(`.macro-chart-unit[data-chart="${chart}"]`).forEach(b=>{
+    b.style.background='transparent'; b.style.color='#8d90a2';
+  });
+  if(btn) { btn.style.background='#2962ff'; btn.style.color='#fff'; }
+  initMacroPage(macroTab);
+}
+
+// 월간 → 분기 (3개월 평균) 또는 연간 (12개월 평균) 집계
+function aggregateMonthly(labels, vals, targetUnit) {
+  if(targetUnit==='M' || !labels || !vals || labels.length===0) return {labels, vals};
+  const step = targetUnit==='Q' ? 3 : targetUnit==='Y' ? 12 : 1;
+  const outLabels=[], outVals=[];
+  for(let i=0; i<vals.length; i+=step) {
+    const slice = vals.slice(i, i+step).filter(v=>v!=null);
+    if(slice.length === 0) continue;
+    const avg = slice.reduce((a,b)=>a+b,0) / slice.length;
+    // 라벨: 연(Y)이면 'YYYY'만, 분기(Q)면 첫번째 라벨 사용
+    const baseLabel = labels[i] || '';
+    if(targetUnit==='Y') {
+      // 'YY.MM' → '20YY', 'YYYY.MM' → 'YYYY', 'YYYYMM' → 'YYYY'
+      const m = baseLabel.match(/^(\d{2,4})/);
+      if(m) {
+        outLabels.push(m[1].length===2 ? '20'+m[1] : m[1]);
+      } else {
+        outLabels.push(baseLabel);
+      }
+    } else {
+      outLabels.push(baseLabel);
+    }
+    outVals.push(+avg.toFixed(2));
+  }
+  return {labels:outLabels, vals:outVals};
+}
+// 분기 → 연 (4개 분기 평균) 또는 분기 → 월 (보간 없이 그대로 표시)
+function aggregateQuarterly(labels, vals, targetUnit) {
+  if(targetUnit==='Q' || !labels || !vals || labels.length===0) return {labels, vals};
+  if(targetUnit==='M') {
+    // 분기 데이터를 월 단위로 늘릴 수는 없으므로 그대로 반환 (UI 안내)
+    return {labels, vals};
+  }
+  // Y: 4개 분기 평균
+  const outLabels=[], outVals=[];
+  for(let i=0; i<vals.length; i+=4) {
+    const slice = vals.slice(i, i+4).filter(v=>v!=null);
+    if(slice.length === 0) continue;
+    const avg = slice.reduce((a,b)=>a+b,0) / slice.length;
+    const baseLabel = labels[i] || '';
+    // 분기 라벨 '23Q1' → '2023'
+    const yrMatch = baseLabel.match(/^(\d{2,4})Q?/);
+    outLabels.push(yrMatch ? (yrMatch[1].length===2 ? '20'+yrMatch[1] : yrMatch[1]) : baseLabel);
+    outVals.push(+avg.toFixed(2));
+  }
+  return {labels:outLabels, vals:outVals};
 }
 
 function initMacroPage(t){
@@ -4633,35 +4889,75 @@ function initMacroPage(t){
     <span style="font-size:11px;color:#8d90a2;">조회 기간:</span>
     ${periodOpts.map(o=>`<button class="macro-country-period" onclick="setMacroCountryPeriod('${o.key}',this)" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:${macroCountryPeriod===o.key?'#2962ff':'transparent'};color:${macroCountryPeriod===o.key?'#fff':'#8d90a2'};cursor:pointer;">${o.label}</button>`).join('')}
   </div>`;
+  // 차트별 단위 선택 버튼 생성 (월/분기/연)
+  // 차트별 가능 단위: GDP/실업률/수출은 분기 데이터(Q/Y), CPI는 월간 데이터(M/Q/Y)
+  const unitOpts = {
+    gdp:   [{k:'Q', l:'분기'}, {k:'Y', l:'연'}],
+    cpi:   [{k:'M', l:'월'}, {k:'Q', l:'분기'}, {k:'Y', l:'연'}],
+    unemp: [{k:'Q', l:'분기'}, {k:'Y', l:'연'}],
+    trade: [{k:'Q', l:'분기'}, {k:'Y', l:'연'}],
+  };
+  const unitButtons = (chart) => {
+    const opts = unitOpts[chart] || [];
+    return `<div style="display:flex;gap:3px;align-items:center;">
+      <span style="font-size:9px;color:#434656;font-weight:500;margin-right:2px;">단위:</span>
+      ${opts.map(o=>`<button class="macro-chart-unit" data-chart="${chart}" data-unit="${o.k}" onclick="setMacroChartUnit('${chart}','${o.k}',this)" style="font-size:10px;padding:2px 7px;border-radius:3px;border:1px solid #2a2e3d;background:${macroChartUnit[chart]===o.k?'#2962ff':'transparent'};color:${macroChartUnit[chart]===o.k?'#fff':'#8d90a2'};cursor:pointer;">${o.l}</button>`).join('')}
+    </div>`;
+  };
+
   mc.innerHTML= periodRow + `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
       <div class="widget">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>'}${infoBlock(meta.gdpSrc,meta.gdpNext)}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
+          <div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>
+          ${unitButtons('gdp')}
+          ${infoBlock(meta.gdpSrc,meta.gdpNext)}
+        </div>
         <div style="position:relative;height:260px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
       </div>
       <div class="widget">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>'}${infoBlock(meta.cpiSrc,meta.cpiNext)}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
+          <div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>
+          ${unitButtons('cpi')}
+          ${infoBlock(meta.cpiSrc,meta.cpiNext)}
+        </div>
         <div style="position:relative;height:260px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div class="widget">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>'}${infoBlock(meta.unempSrc,meta.unempNext)}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
+          <div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>
+          ${unitButtons('unemp')}
+          ${infoBlock(meta.unempSrc,meta.unempNext)}
+        </div>
         <div style="position:relative;height:260px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
       </div>
       <div class="widget">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">${'<div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>'}${infoBlock(meta.tradeSrc,meta.tradeNext)}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
+          <div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>
+          ${unitButtons('trade')}
+          ${infoBlock(meta.tradeSrc,meta.tradeNext)}
+        </div>
         <div style="position:relative;height:260px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
       </div>
     </div>`;
   // 기간 필터 적용 (분기 기준 N개 데이터)
   const sliceN = (arr) => macroCountryPeriod==='all' ? arr : arr.slice(-parseInt(macroCountryPeriod,10));
-  const gdpLab = sliceN(d.gdpLabels);
-  const gdpVal = sliceN(d.gdp);
-  const cpiLab = sliceN(d.cpiLabels);
-  const cpiVal = sliceN(d.cpi);
-  const unempVal = sliceN(d.unemp);
-  const expVal = sliceN(d.exports);
+  // GDP/실업/수출 — 분기 데이터에서 단위 변환 적용
+  const gdpAgg = aggregateQuarterly(sliceN(d.gdpLabels), sliceN(d.gdp), macroChartUnit.gdp);
+  const unempAgg = aggregateQuarterly(sliceN(d.gdpLabels), sliceN(d.unemp), macroChartUnit.unemp);
+  const expAgg = aggregateQuarterly(sliceN(d.gdpLabels), sliceN(d.exports), macroChartUnit.trade);
+  // CPI — 월간 데이터에서 단위 변환 적용
+  const cpiAgg = aggregateMonthly(sliceN(d.cpiLabels), sliceN(d.cpi), macroChartUnit.cpi);
+  const gdpLab = gdpAgg.labels;
+  const gdpVal = gdpAgg.vals;
+  const cpiLab = cpiAgg.labels;
+  const cpiVal = cpiAgg.vals;
+  const unempLab = unempAgg.labels;
+  const unempVal = unempAgg.vals;
+  const expLab = expAgg.labels;
+  const expVal = expAgg.vals;
   const tc = getThemeColors();
   const chartOpts=(color,isBar,yMin)=>({
     responsive:true,maintainAspectRatio:false,
@@ -4679,11 +4975,11 @@ function initMacroPage(t){
   const expYMin = Math.floor(expMin * 0.92);
   charts['gdpMacro']=new Chart(document.getElementById('gdpMacro'),{type:'bar',data:{labels:gdpLab,datasets:[{data:gdpVal,backgroundColor:gdpVal.map(v=>v>=0?'#26a69a99':'#ef535099'),borderRadius:3}]},options:chartOpts('#26a69a',true)});
   charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:cpiLab,datasets:[{data:cpiVal,borderColor:'#b6c4ff',borderWidth:2,pointRadius:3,fill:true,backgroundColor:'#b6c4ff15',tension:0.3}]},options:chartOpts('#b6c4ff',false)});
-  charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:gdpLab,datasets:[{data:unempVal,borderColor:'#ef5350',borderWidth:2,pointRadius:3,fill:false,tension:0.3}]},options:chartOpts('#ef5350',false)});
+  charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:unempLab,datasets:[{data:unempVal,borderColor:'#ef5350',borderWidth:2,pointRadius:3,fill:false,tension:0.3}]},options:chartOpts('#ef5350',false)});
   // 수출 차트는 라인 + 데이터 레이블로 변경 (값 차이가 작아 바차트로는 구분 어려움)
   charts['tradeMacro']=new Chart(document.getElementById('tradeMacro'),{
     type:'line',
-    data:{labels:gdpLab,datasets:[{
+    data:{labels:expLab,datasets:[{
       data:expVal,
       borderColor:'#2962ff',
       borderWidth:2.5,
@@ -4936,12 +5232,154 @@ function showCalendarEventDetail(idx) {
 // 분석 노트 (localStorage)
 // ============================
 let notes=[], curNoteId=null, curTag='매크로';
+
+// ─── 분석 노트 백업 시스템 ────────────────────────────────────────
+// 사용자 데이터 손실 방지를 위한 다중 백업 키
+//   econ_notes          : 메인 저장소
+//   econ_notes_bak1~5   : 순환 백업 (저장 시마다 시프트)
+//   econ_notes_session  : 세션 시작 시 스냅샷 (즉시 복원용)
+const NOTES_KEY = 'econ_notes';
+const NOTES_BACKUP_PREFIX = 'econ_notes_bak';
+const NOTES_BACKUP_SLOTS = 5;
+const NOTES_SESSION_KEY = 'econ_notes_session';
+
+function _safeLocalGet(key) {
+  try { return localStorage.getItem(key); } catch(_) { return null; }
+}
+function _safeLocalSet(key, val) {
+  try { localStorage.setItem(key, val); return true; } catch(_) { return false; }
+}
+
+function rotateNotesBackup(currentJson) {
+  // 비어있거나 빈 배열이면 백업하지 않음 (실수로 초기화된 상태가 백업되어 덮어쓰는 것 방지)
+  if(!currentJson) return;
+  try {
+    const arr = JSON.parse(currentJson);
+    if(!Array.isArray(arr) || arr.length === 0) return;
+  } catch(_) { return; }
+  // bak5 ← bak4 ← bak3 ← bak2 ← bak1 ← current
+  for(let i=NOTES_BACKUP_SLOTS; i>1; i--) {
+    const src = _safeLocalGet(NOTES_BACKUP_PREFIX + (i-1));
+    if(src) _safeLocalSet(NOTES_BACKUP_PREFIX + i, src);
+  }
+  _safeLocalSet(NOTES_BACKUP_PREFIX + 1, currentJson);
+}
+
+function listNotesBackups() {
+  const out = [];
+  // 1) 최근 백업 슬롯
+  for(let i=1; i<=NOTES_BACKUP_SLOTS; i++) {
+    const v = _safeLocalGet(NOTES_BACKUP_PREFIX + i);
+    if(v) {
+      try {
+        const arr = JSON.parse(v);
+        if(Array.isArray(arr) && arr.length>0) {
+          out.push({slot:'bak'+i, count:arr.length, sample:arr[0]?.title||'(제목없음)'});
+        }
+      } catch(_) {}
+    }
+  }
+  // 2) 세션 스냅샷
+  const sess = _safeLocalGet(NOTES_SESSION_KEY);
+  if(sess) {
+    try {
+      const arr = JSON.parse(sess);
+      if(Array.isArray(arr) && arr.length>0) {
+        out.push({slot:'session', count:arr.length, sample:arr[0]?.title||'(제목없음)'});
+      }
+    } catch(_) {}
+  }
+  return out;
+}
+
+function restoreNotesFromBackup(slot) {
+  const key = slot === 'session' ? NOTES_SESSION_KEY : (NOTES_BACKUP_PREFIX + slot.replace('bak',''));
+  const v = _safeLocalGet(key);
+  if(!v) { alert('해당 백업이 존재하지 않습니다.'); return; }
+  try {
+    const arr = JSON.parse(v);
+    if(!Array.isArray(arr)) throw new Error('invalid');
+    if(!confirm(`백업(${slot}, ${arr.length}건)을 현재 노트에 덮어쓰시겠습니까?\n(현재 노트가 사라집니다. 사라지기 전 자동으로 한 번 더 백업됩니다)`)) return;
+    // 현재 노트를 먼저 백업 슬롯1 으로 이동
+    const cur = _safeLocalGet(NOTES_KEY);
+    if(cur) rotateNotesBackup(cur);
+    _safeLocalSet(NOTES_KEY, v);
+    notes = arr;
+    curNoteId = arr[0]?.id || null;
+    renderNoteList();
+    if(curNoteId) openNote(curNoteId);
+    renderBackupPanel();
+    alert(`복원 완료 (${arr.length}건)`);
+  } catch(e) {
+    alert('복원 실패: 백업 데이터가 손상되었습니다.');
+  }
+}
+
+function exportNotesJsonFile() {
+  const data = _safeLocalGet(NOTES_KEY) || '[]';
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '분석노트_백업_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importNotesJsonFile(input) {
+  const f = input?.files?.[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const arr = JSON.parse(e.target.result);
+      if(!Array.isArray(arr)) throw new Error('not array');
+      if(!confirm(`JSON 파일에서 ${arr.length}건의 노트를 가져옵니다. 현재 노트는 백업됩니다. 진행하시겠습니까?`)) return;
+      const cur = _safeLocalGet(NOTES_KEY);
+      if(cur) rotateNotesBackup(cur);
+      _safeLocalSet(NOTES_KEY, JSON.stringify(arr));
+      notes = arr;
+      curNoteId = arr[0]?.id || null;
+      renderNoteList();
+      if(curNoteId) openNote(curNoteId);
+      renderBackupPanel();
+      alert(`가져오기 완료 (${arr.length}건)`);
+    } catch(_) {
+      alert('JSON 파일 파싱 실패. 형식이 올바른지 확인해주세요.');
+    }
+  };
+  reader.readAsText(f);
+}
+
+function renderBackupPanel() {
+  const el = document.getElementById('noteBackupList');
+  if(!el) return;
+  const bks = listNotesBackups();
+  if(bks.length === 0) {
+    el.innerHTML = '<div style="color:#434656;font-size:11px;padding:6px;">사용 가능한 백업이 없습니다. 이전 세션에서 노트를 저장한 적이 없을 수 있습니다.</div>';
+    return;
+  }
+  el.innerHTML = bks.map(b => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border:1px solid #2a2e3d;border-radius:4px;margin-bottom:4px;">
+      <div>
+        <div style="font-size:11px;font-weight:500;">${b.slot} <span style="color:#8d90a2;font-size:10px;">(${b.count}건)</span></div>
+        <div style="font-size:10px;color:#8d90a2;">첫 노트: ${b.sample}</div>
+      </div>
+      <button onclick="restoreNotesFromBackup('${b.slot}')" style="background:#2962ff22;color:#b6c4ff;border:1px solid #2962ff55;border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;">복원</button>
+    </div>`).join('');
+}
+
 function loadNotes(){
-  const saved=localStorage.getItem('econ_notes');
+  const saved=_safeLocalGet(NOTES_KEY);
   notes=saved?JSON.parse(saved):[];
+  // 세션 스냅샷 — 페이지 로드 시 한 번만 (재로딩 후 빠른 복원용)
+  if(!_safeLocalGet(NOTES_SESSION_KEY) && saved) {
+    _safeLocalSet(NOTES_SESSION_KEY, saved);
+  }
   renderNoteList();
   document.getElementById('noteDate').textContent=new Date().toLocaleDateString('ko-KR');
   if(notes.length>0) openNote(notes[0].id);
+  renderBackupPanel();
 }
 function renderNoteList(){
   const el=document.getElementById('noteList');
@@ -4968,7 +5406,14 @@ function setTag(el,tag){
     t.style.border=active?'1px solid #2962ff55':'1px solid #2a2e3d';
   });
 }
-function save(){ localStorage.setItem('econ_notes',JSON.stringify(notes)); }
+function save(){
+  // 저장 직전 현재값을 백업 슬롯으로 회전 (덮어쓰기 직전 상태 보존)
+  const prev = _safeLocalGet(NOTES_KEY);
+  if(prev) rotateNotesBackup(prev);
+  _safeLocalSet(NOTES_KEY, JSON.stringify(notes));
+  // 백업 패널 갱신 (현재 페이지에 있을 때만)
+  if(document.getElementById('noteBackupList')) renderBackupPanel();
+}
 function exportNoteToText(){
   if(!curNoteId) return;
   const n=notes.find(n=>n.id===curNoteId);
@@ -5215,7 +5660,7 @@ function buildInvestorPage() {
     if(tb) tb.innerHTML = npsHistory.slice().reverse().map(h=>{
       const profit = +(h.aum * h.ret / 100).toFixed(1);
       const retCls = h.ret >= 0 ? 'up-txt' : 'down-txt';
-      return `<tr onclick="showNpsYearDetail(${h.year})" style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onmouseover="this.style.background='#262a35'" onmouseout="this.style.background=''">
+      return `<tr onclick="showNpsYearDetail(${h.year})" class="hoverable-row" style="border-bottom:1px solid #1b1f2b;cursor:pointer;">
         <td style="padding:8px;">${h.year}</td>
         <td style="text-align:right;padding:8px;">${h.aum.toLocaleString()}</td>
         <td style="text-align:right;padding:8px;" class="${retCls}">${h.ret>=0?'+':''}${h.ret.toFixed(2)}%</td>
@@ -5351,14 +5796,24 @@ function applyRealData(d) {
   fxMap.forEach(([src, i, mapper]) => { if (src) Object.assign(fxPairs[i], mapper(src)); });
 
   // ── 원자재 데이터 업데이트 ───────────────────
+  // comData 인덱스: 0:WTI 1:Brent 2:두바이 3:금 4:은 5:백금 6:구리 7:알루미늄 8:아연 9:니켈 10:천연가스 11:밀 12:옥수수 13:콩 14:쌀
+  const priceFmt2 = v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0});
+  const priceFmt0 = v => ({price:'$'+fmt(v.price,0), chg:fmtPct(v.change), up:v.change>=0});
   const comMap = [
-    [com.WTI,    0, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
-    [com.Brent,  1, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
-    [com.Gold,   3, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
-    [com.Silver, 4, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
-    [com.Copper, 6, v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0})],
+    [com.WTI,      0,  priceFmt2],
+    [com.Brent,    1,  priceFmt2],
+    [com.Gold,     3,  priceFmt2],
+    [com.Silver,   4,  priceFmt2],
+    [com.Platinum, 5,  priceFmt2],
+    [com.Copper,   6,  priceFmt2],
+    [com.Aluminum, 7,  priceFmt0],
+    [com.NatGas,  10, priceFmt2],
+    [com.Wheat,   11, priceFmt2],
+    [com.Corn,    12, priceFmt2],
+    [com.Soybean, 13, priceFmt2],
+    [com.Rice,    14, priceFmt2],
   ];
-  comMap.forEach(([src, i, mapper]) => { if (src) Object.assign(comData[i], mapper(src)); });
+  comMap.forEach(([src, i, mapper]) => { if (src && comData[i]) Object.assign(comData[i], mapper(src)); });
 
   // ── 주식 지수 카드 데이터 업데이트 ───────────
   const eqKey = {'KOSPI':'KOSPI','KOSDAQ':'KOSDAQ','S&P 500':'SP500','NASDAQ':'NASDAQ','닛케이':'Nikkei'};
@@ -5414,44 +5869,53 @@ function applyRealData(d) {
     const asOf = movers.kospiGainers[0]?.as_of || '';
     if(asOf) moverRefDate = asOf;
     upMoversStock.splice(0, upMoversStock.length, ...movers.kospiGainers.slice(0,10).map(s=>({
-      name: s.name, price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%',
+      name: s.name, code: s.code||'', price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%',
       vol: s.vol ? Math.round(s.vol/1000).toLocaleString()+'K' : '', type:'stock'
     })));
   }
   if (movers.kospiLosers) {
     downMoversStock.splice(0, downMoversStock.length, ...movers.kospiLosers.slice(0,10).map(s=>({
-      name: s.name, price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%',
+      name: s.name, code: s.code||'', price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%',
       vol: s.vol ? Math.round(s.vol/1000).toLocaleString()+'K' : '', type:'stock'
     })));
   }
   if (etfMvr.etfGainers) {
     upMoversETF.splice(0, upMoversETF.length, ...etfMvr.etfGainers.slice(0,10).map(s=>({
-      name: s.name, price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'etf'
+      name: s.name, code: s.code||'', price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'etf'
     })));
   }
   if (etfMvr.etfLosers) {
     downMoversETF.splice(0, downMoversETF.length, ...etfMvr.etfLosers.slice(0,10).map(s=>({
-      name: s.name, price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'etf'
+      name: s.name, code: s.code||'', price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'etf'
     })));
   }
-  // Top10 테이블 (주식시장 탭)
+  // 대시보드 상승/하락 테이블 — 초기 로드시 비어있던 상태를 갱신
+  try { buildMoverTable(curMoverTab); } catch(_) {}
+
+  // Top10 테이블 (주식시장 탭) — KOSPI 상승/하락 + ETF 상승/하락 같이 갱신
+  const stockUrl = (s) => naverStockUrl(s);
+  const renderTopRow = (s, i, cls) => `<tr style="border-bottom:1px solid #1b1f2b;">
+      <td style="padding:5px;color:#434656;">${i+1}</td>
+      <td style="padding:5px;font-weight:500;"><a href="${stockUrl(s)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
+      <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
+      <td style="text-align:right;padding:5px;color:${cls==='up'?'#26a69a':'#ef5350'};">${cls==='up'?'+':''}${s.chg.toFixed(2)}%</td>
+    </tr>`;
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
   if (gainTb && movers.kospiGainers) {
-    gainTb.innerHTML = movers.kospiGainers.map((s,i)=>`<tr style="border-bottom:1px solid #1b1f2b;">
-      <td style="padding:5px;color:#434656;">${i+1}</td>
-      <td style="padding:5px;font-weight:500;">${s.name}</td>
-      <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
-      <td style="text-align:right;padding:5px;color:#26a69a;">+${s.chg.toFixed(2)}%</td>
-    </tr>`).join('');
+    gainTb.innerHTML = movers.kospiGainers.map((s,i)=>renderTopRow(s,i,'up')).join('');
   }
   if (loseTb && movers.kospiLosers) {
-    loseTb.innerHTML = movers.kospiLosers.map((s,i)=>`<tr style="border-bottom:1px solid #1b1f2b;">
-      <td style="padding:5px;color:#434656;">${i+1}</td>
-      <td style="padding:5px;font-weight:500;">${s.name}</td>
-      <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
-      <td style="text-align:right;padding:5px;color:#ef5350;">${s.chg.toFixed(2)}%</td>
-    </tr>`).join('');
+    loseTb.innerHTML = movers.kospiLosers.map((s,i)=>renderTopRow(s,i,'down')).join('');
+  }
+  // ETF Top10 테이블 (주식시장 탭에 추가됨)
+  const etfGainTb = document.getElementById('etfTopGainersTable');
+  const etfLoseTb = document.getElementById('etfTopLosersTable');
+  if (etfGainTb && etfMvr.etfGainers) {
+    etfGainTb.innerHTML = etfMvr.etfGainers.map((s,i)=>renderTopRow(s,i,'up')).join('');
+  }
+  if (etfLoseTb && etfMvr.etfLosers) {
+    etfLoseTb.innerHTML = etfMvr.etfLosers.map((s,i)=>renderTopRow(s,i,'down')).join('');
   }
   // ── FRED 경제 지표 → 대시보드 시장 분위기 ─────────────
   const usInd = (d.economicIndicators || {}).us || {};
@@ -5628,6 +6092,48 @@ async function loadRealData() {
     applyRealData(data);
   } catch {
     // data.json 없음 — Mock 데이터로 동작
+  }
+}
+
+// 전체 데이터 새로고침 — data.json + 실시간 FX/Stooq/뉴스 페치
+// 사용자가 명시적으로 클릭한 경우 호출됨
+async function refreshAllData(btn) {
+  if(btn) { btn.disabled = true; const old = btn.textContent; btn.textContent = '⟳ 갱신중…'; btn._old = old; }
+  try {
+    await loadRealData();
+    await Promise.all([
+      loadRealtimeFx().catch(()=>{}),
+      loadRealtimeMarket().catch(()=>{}),
+      loadFreshNews().catch(()=>{}),
+    ]);
+    // 현재 활성화된 페이지에 따라 차트 재빌드
+    const activePage = document.querySelector('.page.active');
+    if(activePage) {
+      const id = activePage.id;
+      if(id === 'page-market') {
+        try { initMarketPage(); } catch(_) {}
+      } else if(id === 'page-macro') {
+        try { initMacroPage(macroTab); } catch(_) {}
+      } else if(id === 'page-investor') {
+        try { buildInvestorPage(); } catch(_) {}
+      } else if(id === 'page-realestate') {
+        try { buildReCharts(); buildUsReCharts(); } catch(_) {}
+      } else if(id === 'page-dashboard') {
+        try {
+          buildMoverTable(curMoverTab);
+          buildGlobalTable();
+          initMainChart(mainPeriodUnit);
+        } catch(_) {}
+      }
+    }
+  } finally {
+    if(btn) {
+      btn.disabled = false;
+      btn.textContent = btn._old || '↻ 새로고침';
+      btn.style.transition='background .3s';
+      btn.style.background='#26a69a33';
+      setTimeout(()=>{ btn.style.background=''; }, 700);
+    }
   }
 }
 
@@ -6343,6 +6849,8 @@ window.addEventListener('load', async ()=>{
   initInvestorDateDefaults();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
   await loadRealData();
+  // 데이터 로드 완료 후 대시보드 등락 테이블 재렌더 (applyRealData 에서도 호출되지만 명시적으로 한번 더 보강)
+  try { buildMoverTable(curMoverTab); } catch(_) {}
   // 실시간 환율 페치 (open.er-api.com — 페이지 로드 시 즉시 갱신)
   loadRealtimeFx();
   // 실시간 지수·원자재 페치 (Stooq — 무료, 인증 불필요)

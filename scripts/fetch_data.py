@@ -177,11 +177,12 @@ def fetch_krx_stock_movers(market="kospi", top_n=10):
     parsed = []
     for row in rows:
         name = row.get("ISU_NM") or row.get("ISU_SRT_CD") or ""
+        code = (row.get("ISU_SRT_CD") or "").strip()
         price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
         chg_rt = _parse_num(row.get("FLUC_RT"))
         vol = _parse_num(row.get("ACML_VOL"))
         if price and price > 0 and chg_rt is not None:
-            parsed.append({"name": name, "price": price, "chg": chg_rt, "vol": vol or 0, "as_of": basd})
+            parsed.append({"name": name, "code": code, "price": price, "chg": chg_rt, "vol": vol or 0, "as_of": basd})
     if not parsed:
         log(f"[KRX] {endpoint} 파싱 실패 — Naver Finance 폴백 시도")
         return fetch_naver_stock_movers(market=market, top_n=top_n)
@@ -247,11 +248,12 @@ def fetch_naver_api_movers(market="KOSPI", direction="up", top_n=10):
         items = []
         for s in stocks:
             name = s.get("stockName") or s.get("name") or s.get("itemName") or ""
+            code = (s.get("itemCode") or s.get("code") or "").strip()
             price = _parse_num(s.get("closePrice") or s.get("nowVal") or s.get("currentPrice"))
             chg = _parse_num(s.get("fluctuationsRatio") or s.get("changeRate") or s.get("cttr"))
             vol = _parse_num(s.get("accumulatedTradingVolume") or s.get("aq") or s.get("volume"))
             if name and price and chg is not None:
-                items.append({"name": name.strip(), "price": price, "chg": chg, "vol": vol or 0, "as_of": today})
+                items.append({"name": name.strip(), "code": code, "price": price, "chg": chg, "vol": vol or 0, "as_of": today})
         if items:
             log(f"[NaverAPI] {market} {direction} {len(items)}건 수집 성공 ({url.split('?')[0]})")
             return items[:top_n]
@@ -304,7 +306,7 @@ def fetch_naver_stock_movers(market="kospi", top_n=10):
             try:
                 price = float(price_str.replace(",", ""))
                 chg = float(chg_str)
-                items.append({"name": name.strip(), "price": price, "chg": chg, "vol": 0, "as_of": today})
+                items.append({"name": name.strip(), "code": "", "price": price, "chg": chg, "vol": 0, "as_of": today})
             except (ValueError, TypeError):
                 continue
         # 패턴2 (백업): <td class="no">...</td><td><a ...>종목명</a>...</td><td class="number">가격</td>...
@@ -317,7 +319,7 @@ def fetch_naver_stock_movers(market="kospi", top_n=10):
                 try:
                     price = float(price_str.replace(",", ""))
                     chg = float(chg_str)
-                    items.append({"name": name.strip(), "price": price, "chg": chg, "vol": 0, "as_of": today})
+                    items.append({"name": name.strip(), "code": "", "price": price, "chg": chg, "vol": 0, "as_of": today})
                 except (ValueError, TypeError):
                     continue
         return items
@@ -346,10 +348,11 @@ def fetch_krx_etf_movers(top_n=10):
             parsed = []
             for row in rows:
                 name = row.get("ISU_NM") or ""
+                code = (row.get("ISU_SRT_CD") or "").strip()
                 price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
                 chg_rt = _parse_num(row.get("FLUC_RT"))
                 if price and price > 0 and chg_rt is not None:
-                    parsed.append({"name": name, "price": price, "chg": chg_rt, "as_of": basd})
+                    parsed.append({"name": name, "code": code, "price": price, "chg": chg_rt, "as_of": basd})
             if parsed:
                 gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
                 losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
@@ -377,10 +380,11 @@ def fetch_naver_etf_movers(top_n=10):
     parsed = []
     for row in rows:
         name = row.get("itemname") or ""
+        code = (row.get("itemcode") or "").strip()
         price = _parse_num(row.get("nowVal"))
         chg = _parse_num(row.get("changeRate"))
         if name and price and chg is not None:
-            parsed.append({"name": name.strip(), "price": price, "chg": chg, "as_of": today})
+            parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg, "as_of": today})
     if not parsed:
         log(f"[NaverETF] 파싱 결과 0건")
         return None, None
@@ -464,6 +468,65 @@ def fetch_fred_economic_indicators():
         else:
             log(f"[FRED] {series_id}: 데이터 없음")
     return result
+
+
+# ─── FRED 국제 시리즈 (일본/유로존/중국/독일/영국) ──────────────
+# FRED 의 international 데이터는 OECD/IMF/Eurostat 가 원본인 경우가 많음.
+# 각 시리즈 id 는 fred.stlouisfed.org/searchresults 에서 확인.
+FRED_INTL_INDICATORS = {
+    "jp": {
+        "cpi":          ("JPNCPIALLMINMEI",  "일본 CPI (전체, 2015=100)"),
+        "gdp":          ("JPNRGDPEXP",       "일본 실질GDP (분기, 십억엔)"),
+        "unemployment": ("LRUN64TTJPM156S",  "일본 실업률 (15-64세, 계절조정)"),
+        "base_rate":    ("INTDSRJPM193N",    "일본 정책금리 (할인율)"),
+    },
+    "eu": {
+        "cpi":          ("CP0000EZ19M086NEST", "유로존 HICP (전체)"),
+        "gdp":          ("CLVMNACSCAB1GQEA19", "유로존 실질GDP (백만유로)"),
+        "unemployment": ("LRHUTTTTEZM156S",  "유로존 실업률 (계절조정)"),
+        "base_rate":    ("ECBDFR",            "ECB 예금금리"),
+    },
+    "cn": {
+        "cpi":          ("CHNCPIALLMINMEI",   "중국 CPI (전체, 2015=100)"),
+        "gdp":          ("MKTGDPCNA646NWDB",  "중국 GDP (USD)"),
+        "ip":           ("CHNPROINDMISMEI",   "중국 산업생산지수"),
+    },
+    "de": {
+        "cpi":          ("DEUCPIALLMINMEI",   "독일 CPI"),
+        "gdp":          ("CLVMNACSCAB1GQDE",  "독일 실질GDP"),
+        "unemployment": ("LRHUTTTTDEM156S",   "독일 실업률"),
+    },
+    "uk": {
+        "cpi":          ("GBRCPIALLMINMEI",   "영국 CPI"),
+        "gdp":          ("CLVMNACSCAB1GQUK",  "영국 실질GDP"),
+        "unemployment": ("LRHUTTTTGBM156S",   "영국 실업률"),
+        "base_rate":    ("IRSTCB01GBM156N",   "영국 BOE 정책금리"),
+    },
+}
+
+
+def fetch_fred_intl_indicators():
+    """FRED 의 OECD/Eurostat/IMF 국제 시리즈에서 일본·유로존·중국·독일·영국 핵심 지표 조회."""
+    if not FRED_API_KEY:
+        return {}
+    out = {}
+    for cc, ind_map in FRED_INTL_INDICATORS.items():
+        cc_data = {}
+        for key, (series_id, desc) in ind_map.items():
+            obs = fetch_fred_series(series_id, limit=1)
+            if obs:
+                cc_data[f"{key}_{cc}"] = {
+                    "value": obs[0]["value"],
+                    "period": obs[0]["date"],
+                    "desc": desc,
+                    "source": f"FRED:{series_id}",
+                }
+                log(f"[FRED-INTL:{cc.upper()}] {series_id}: {obs[0]['value']} ({obs[0]['date']})")
+            else:
+                log(f"[FRED-INTL:{cc.upper()}] {series_id}: 데이터 없음")
+        if cc_data:
+            out[cc] = cc_data
+    return out
 
 
 def fetch_fred_yield_curve_us():
@@ -594,45 +657,80 @@ def fetch_ecos_series(stat_code, item_code="", freq="A", start_period=None, end_
         return None
 
 
+def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=6):
+    """ECOS 단일 시계열 최신값 조회 헬퍼."""
+    rows = fetch_ecos_series(stat_code, item_code, freq, limit=limit)
+    if not rows:
+        return None
+    # 최신값이 가장 뒤일 수도, 앞일 수도 있으므로 TIME 기준 정렬
+    rows_sorted = sorted(rows, key=lambda r: r.get("TIME", ""))
+    latest = rows_sorted[-1]
+    val = _parse_num(latest.get("DATA_VALUE"))
+    if val is None:
+        return None
+    return {
+        "value": val,
+        "period": latest.get("TIME"),
+        "desc": desc,
+        "source": f"ECOS:{source_id}",
+    }
+
+
 def fetch_ecos_economic_indicators():
-    """주요 한국 경제 지표 일괄 조회 (ECOS)."""
+    """주요 한국 경제 지표 일괄 조회 (ECOS).
+
+    각 ECOS 시리즈 ID 는 ECOS 통계지원 > 통계조회 페이지에서 확인. 잘못된 항목 코드는
+    데이터 0건으로 회신되므로 정상 응답이 오는 시리즈만 결과에 포함.
+    """
     if not ECOS_API_KEY:
         log("[ECOS] API 키 없음 — 건너뜀")
         return {}
     result = {}
-    # 기준금리 (722Y001 - 한국은행 기준금리)
-    rows = fetch_ecos_series("722Y001", "0101000", "M", limit=3)
-    if rows:
-        latest = rows[-1]
-        result["base_rate_kr"] = {
-            "value": _parse_num(latest.get("DATA_VALUE")),
-            "period": latest.get("TIME"),
-            "desc": "한국 기준금리",
-            "source": "ECOS:722Y001",
-        }
-        log(f"[ECOS] 기준금리: {result['base_rate_kr']}")
-    # CPI 한국 (901Y009 - 소비자물가지수)
-    rows = fetch_ecos_series("901Y009", "0", "M", limit=3)
-    if rows:
-        latest = rows[-1]
-        result["cpi_kr"] = {
-            "value": _parse_num(latest.get("DATA_VALUE")),
-            "period": latest.get("TIME"),
-            "desc": "한국 소비자물가지수",
-            "source": "ECOS:901Y009",
-        }
-        log(f"[ECOS] CPI(한국): {result['cpi_kr']}")
-    # GDP 한국 (200Y002 - 실질 GDP 성장률)
-    rows = fetch_ecos_series("200Y002", "10101", "Q", limit=4)
-    if rows:
-        latest = rows[-1]
-        result["gdp_kr"] = {
-            "value": _parse_num(latest.get("DATA_VALUE")),
-            "period": latest.get("TIME"),
-            "desc": "한국 실질GDP 성장률(전기비)",
-            "source": "ECOS:200Y002",
-        }
-        log(f"[ECOS] GDP(한국): {result['gdp_kr']}")
+    # ─── 통화·금리 ───
+    r = _ecos_latest("722Y001", "0101000", "M", "한국 기준금리", "722Y001")
+    if r: result["base_rate_kr"] = r; log(f"[ECOS] 기준금리: {r['value']} ({r['period']})")
+
+    # ─── 물가 ───
+    r = _ecos_latest("901Y009", "0", "M", "한국 소비자물가지수", "901Y009")
+    if r: result["cpi_kr"] = r; log(f"[ECOS] CPI: {r['value']} ({r['period']})")
+
+    # PPI - 생산자물가지수 (404Y014) — 총지수 item 코드 후보 여럿 시도
+    for item in ["1010000", "*AA", "T00000", "0000"]:
+        r = _ecos_latest("404Y014", item, "M", "한국 생산자물가지수", "404Y014")
+        if r:
+            result["ppi_kr"] = r
+            log(f"[ECOS] PPI: {r['value']} ({r['period']}) item={item}")
+            break
+
+    # ─── 경기 ───
+    # GDP 성장률 (전기비) 200Y002 / 10101 = GDP 원계열 분기 / 또는 / 10111 (계절조정)
+    r = _ecos_latest("200Y002", "10101", "Q", "한국 실질GDP 성장률(전기비)", "200Y002")
+    if r: result["gdp_kr"] = r; log(f"[ECOS] GDP: {r['value']} ({r['period']})")
+
+    # 산업생산지수 - 901Y033 (광공업생산지수)
+    r = _ecos_latest("901Y033", "I61BC", "M", "한국 광공업생산지수", "901Y033")
+    if r: result["ip_kr"] = r; log(f"[ECOS] 산업생산: {r['value']} ({r['period']})")
+
+    # 소매판매 - 901Y028 (서비스업 동향) - 소매판매액지수 / I71BC
+    r = _ecos_latest("901Y028", "I71BC", "M", "한국 소매판매액지수", "901Y028")
+    if r: result["retail_kr"] = r; log(f"[ECOS] 소매판매: {r['value']} ({r['period']})")
+
+    # ─── 고용 ───
+    # 실업률 - 901Y027 (경제활동인구) - 0000
+    r = _ecos_latest("901Y027", "I61E", "M", "한국 실업률 (계절조정)", "901Y027")
+    if not r:
+        r = _ecos_latest("901Y027", "I61EC", "M", "한국 실업률", "901Y027")
+    if r: result["unemployment_kr"] = r; log(f"[ECOS] 실업률: {r['value']} ({r['period']})")
+
+    # ─── 무역 ───
+    # 경상수지 - 301Y013 (경상수지) - 백만달러
+    r = _ecos_latest("301Y013", "000000", "M", "한국 경상수지 (백만달러)", "301Y013")
+    if r: result["current_account_kr"] = r; log(f"[ECOS] 경상수지: {r['value']} ({r['period']})")
+
+    # 수출 (관세청 통관 기준) - 901Y011 (수출입물량/금액지수 분류)
+    r = _ecos_latest("901Y011", "FIEED", "M", "한국 수출금액 (백만달러)", "901Y011")
+    if r: result["exports_kr"] = r; log(f"[ECOS] 수출: {r['value']} ({r['period']})")
+
     return result
 
 
@@ -1055,11 +1153,19 @@ def fetch_all_historical_data():
         else:
             log(f"[YF-HIST] IDX {name}({sym}): 데이터 없음")
     com_map = {
-        "Gold":   "GC=F",
-        "Silver": "SI=F",
-        "Copper": "HG=F",
-        "WTI":    "CL=F",
-        "Brent":  "BZ=F",
+        "Gold":     "GC=F",
+        "Silver":   "SI=F",
+        "Platinum": "PL=F",
+        "Copper":   "HG=F",
+        "WTI":      "CL=F",
+        "Brent":    "BZ=F",
+        "NatGas":   "NG=F",
+        "Aluminum": "ALI=F",
+        # 농산물 (사용자 요청: ZW=F/ZC=F/ZS=F/ZR=F)
+        "Wheat":    "ZW=F",
+        "Corn":     "ZC=F",
+        "Soybean":  "ZS=F",
+        "Rice":     "ZR=F",
     }
     for name, sym in com_map.items():
         h = fetch_yf_history(sym, period="5y")
@@ -1216,22 +1322,31 @@ def build_data():
             log(f"[KRX] 휘발유(원/L): {oil['price']} ({oil['change']:+.2f}%)")
 
     intl_com = {
-        "Gold":   "GC=F",
-        "Silver": "SI=F",
-        "Copper": "HG=F",
-        "WTI":    "CL=F",
-        "Brent":  "BZ=F",
+        "Gold":     "GC=F",
+        "Silver":   "SI=F",
+        "Platinum": "PL=F",
+        "Copper":   "HG=F",
+        "WTI":      "CL=F",
+        "Brent":    "BZ=F",
+        "NatGas":   "NG=F",
+        # 비철금속 (LME 선물)
+        "Aluminum": "ALI=F",
+        # 농산물 (시카고 상품거래소 선물) — 사용자 요청에 따라 yfinance ZW=F/ZC=F/ZS=F/ZR=F
+        "Wheat":    "ZW=F",
+        "Corn":     "ZC=F",
+        "Soybean":  "ZS=F",
+        "Rice":     "ZR=F",
     }
     for name, sym in intl_com.items():
         q = fetch_yf(sym)
         if q:
             data["commodities"][name] = q
             log(f"[yf] {name}: {q['price']} ({q['change']:+.2f}%)")
-        else:
+        elif name in FALLBACK["commodities"]:
             data["commodities"][name] = dict(FALLBACK["commodities"][name])
 
     data["sources"]["commodities"] = (
-        "KRX OpenAPI (한국 금·석유) + yfinance (국제)" if krx_available else "yfinance"
+        "KRX OpenAPI (한국 금·석유) + yfinance (국제·농산물·비철금속)" if krx_available else "yfinance"
     )
 
     # ── FRED 경제 지표 (미국) ─────────────────────────────────
@@ -1251,6 +1366,13 @@ def build_data():
         if yc_data:
             data["yieldCurve"].update(yc_data)
             data["sources"]["yieldCurve_us"] = "FRED API (DGS1MO~DGS30)"
+        # 국제 경제 지표 (일본/유로존/중국/독일/영국 OECD/IMF 시리즈)
+        log("[FRED] 국제 경제 지표 수집 시작")
+        intl_data = fetch_fred_intl_indicators()
+        for cc, ind in intl_data.items():
+            data["economicIndicators"][cc] = ind
+        if intl_data:
+            data["sources"]["economicIndicators_intl"] = "FRED API (OECD/IMF/Eurostat 시리즈)"
     else:
         log("[FRED] API 키 없음 — 미국 지표 건너뜀")
 
