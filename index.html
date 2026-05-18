@@ -106,13 +106,46 @@ tailwind.config = {
   }
   html.light select { background: #edf4fb !important; border-color: #aac4e6 !important; color: rgb(38,38,38) !important; }
   html.light details.widget summary { color: rgb(89,89,89); }
-  /* 활성화된 탭 버튼은 항상 파란 배경 + 흰색 글자 (라이트 테마에서도 가독성 유지) */
+  /* ───────── 라이트 테마 보강: 인라인 다크 색상 오버라이드 (모든 페이지 일관성) ───────── */
+  /* 활성화된 탭 버튼은 항상 파란 배경 + 흰색 글자 */
   html.light .tab-btn.active,
-  html.light button[style*="background:#2962ff"] { background-color: #2962ff !important; color: #fff !important; border-color: #2962ff !important; }
-  html.light .news-filter-btn.act { background: rgb(53,108,181) !important; color: #fff !important; }
-  /* 라이트 테마: 행 hover 색상이 너무 어두워 보이지 않도록 안정화 */
+  html.light button.active,
+  html.light button[style*="background:#2962ff"],
+  html.light button[style*="background: #2962ff"] { background-color: #2962ff !important; color: #fff !important; border-color: #2962ff !important; }
+  html.light .news-filter-btn.act { background: rgb(53,108,181) !important; color: #fff !important; border-color: rgb(53,108,181) !important; }
+  /* 비활성 탭 버튼: 어두운 글자/투명 배경이 라이트에서도 잘 보이게 */
+  html.light .tab-btn:not(.active) { color: rgb(89,89,89) !important; }
+  html.light .tab-btn:not(.active)[style*="color:#8d90a2"] { color: rgb(89,89,89) !important; }
+  /* JS 인라인 color:#fff 가 다른 콘텍스트에서 흰 글자를 강제하는 경우만 유지 (파란 배경 컨텍스트) */
+  html.light [style*="background:#2962ff"][style*="color:#fff"],
+  html.light [style*="background: #2962ff"][style*="color: #fff"],
+  html.light .active[style*="color:#fff"] { color: #fff !important; }
+  /* 메뉴 아이템 — hover/active 시에도 라이트 톤 유지 */
   html.light .menu-item:hover,
   html.light .menu-item.active { background: #d9edf8 !important; color: rgb(53,108,181) !important; }
+  /* 일반 다크 배경 인라인을 가진 모든 요소 (date input 등) */
+  html.light input[type="date"][style*="background:#131722"],
+  html.light input[type="text"][style*="background:#131722"],
+  html.light textarea[style*="background:#131722"] {
+    background-color: #ffffff !important; color: rgb(38,38,38) !important; border-color: #aac4e6 !important;
+  }
+  /* 사이드바 토글 버튼 inline color 강제 보정 */
+  html.light header button[style*="color:#8d90a2"] { color: rgb(89,89,89) !important; }
+  /* tooltip / dropdown / modal — 라이트에서 자연스러운 배경 */
+  html.light [style*="background:#1b1f2b"][style*="border-radius"]:not(.kpi-card):not(.widget) {
+    background-color: #ffffff !important;
+  }
+  /* 차트 캔버스 위 오버레이 (데이터 없음 안내) — 라이트에서 적절한 톤 */
+  html.light .no-data-overlay { background: rgba(247,250,253,0.92) !important; color: rgb(89,89,89) !important; }
+  /* 차트 위 평균/도구 표시 같은 강조 텍스트 (#b6c4ff → 어두운 파랑) */
+  html.light [style*="color:#b6c4ff"] { color: rgb(53,108,181) !important; }
+  /* 보조 텍스트 (#dfe2f2 → 검정) */
+  html.light [style*="color:#dfe2f2"] { color: rgb(38,38,38) !important; }
+  /* 알림 박스 / details 박스 보더 */
+  html.light [style*="border:1px solid #2962ff33"],
+  html.light [style*="border:1px solid #2962ff44"] { border-color: rgb(53,108,181) !important; }
+  /* 카테고리 카드 안쪽 (#131722 박스) 라이트 톤 */
+  html.light .widget [style*="background:#131722"] { background-color: #f5f8fc !important; }
   /* ======= 기본 스타일 ======= */
   * { box-sizing: border-box; }
   body { background: var(--c-bg, #0f131e); color: var(--c-txt, #dfe2f2); font-family: 'Inter', sans-serif; margin: 0; overflow-x: hidden; }
@@ -355,27 +388,32 @@ tailwind.config = {
                 <div id="fearDelta" style="font-size:9px;color:#8d90a2;">전주 대비 +4pt</div>
               </div>
             </div>
-            <!-- 추가 시장 지표 그리드 -->
+            <!-- 추가 시장 지표 그리드 (5개: VIX, VKOSPI, MOVE, Put/Call, HY Spread) -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
               <div style="background:#131722;border-radius:4px;padding:5px 7px;">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VIX</div>
-                <div id="dashVix" style="font-size:15px;font-weight:700;color:#f5a623;">17.32</div>
-                <div style="font-size:9px;color:#434656;">변동성 지수</div>
+                <div id="dashVix" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
+                <div style="font-size:9px;color:#434656;">미국 변동성</div>
+              </div>
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+                <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VKOSPI</div>
+                <div id="dashVkospi" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
+                <div style="font-size:9px;color:#434656;">코스피200 변동성</div>
               </div>
               <div style="background:#131722;border-radius:4px;padding:5px 7px;">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">MOVE Index</div>
-                <div id="dashMove" style="font-size:15px;font-weight:700;color:#b6c4ff;">95.4</div>
-                <div style="font-size:9px;color:#434656;">채권 변동성</div>
+                <div id="dashMove" style="font-size:15px;font-weight:700;color:#b6c4ff;">—</div>
+                <div style="font-size:9px;color:#434656;">미 채권 변동성</div>
               </div>
               <div style="background:#131722;border-radius:4px;padding:5px 7px;">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Put/Call Ratio</div>
-                <div id="dashPcr" style="font-size:15px;font-weight:700;color:#dfe2f2;">0.82</div>
+                <div id="dashPcr" style="font-size:15px;font-weight:700;color:#dfe2f2;">—</div>
                 <div style="font-size:9px;color:#434656;">옵션 심리</div>
               </div>
-              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;grid-column:1/3;">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HY Spread</div>
-                <div id="dashHySpread" style="font-size:15px;font-weight:700;color:#ef5350;">3.24%</div>
-                <div style="font-size:9px;color:#434656;">신용 스프레드</div>
+                <div id="dashHySpread" style="font-size:15px;font-weight:700;color:#ef5350;">—</div>
+                <div style="font-size:9px;color:#434656;">미 신용 스프레드</div>
               </div>
             </div>
             <div style="font-size:9px;color:#434656;line-height:1.5;">
@@ -559,11 +597,19 @@ tailwind.config = {
                 <div class="widget-title" style="margin-bottom:0;" id="bondChartTitle">10년 국고채 수익률</div>
                 <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="bondChartRate">3.02%</div>
               </div>
-              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
                 <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setBondPeriod('1M',this)">1M</button>
                 <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('3M',this)">3M</button>
                 <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setBondPeriod('1Y',this)">1Y</button>
+                <button class="tab-btn" id="bondCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="toggleCustomRange('bond',this)">📅 기간 지정</button>
               </div>
+            </div>
+            <div id="bondCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
+              <input type="date" id="bondDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+              <span style="color:#8d90a2;font-size:11px;">~</span>
+              <input type="date" id="bondDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+              <button onclick="applyBondCustomRange()" style="background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
+              <button onclick="resetBondCustomRange()" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
             </div>
             <div id="bondChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
             <div style="position:relative;flex:1;min-height:280px;">
@@ -737,10 +783,18 @@ tailwind.config = {
                 <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setComPeriod('1M',this)">1M</button>
                 <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setComPeriod('3M',this)">3M</button>
                 <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setComPeriod('1Y',this)">1Y</button>
+                <button class="tab-btn" id="comCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="toggleCustomRange('com',this)">📅 기간 지정</button>
                 <span style="width:1px;height:16px;background:#2a2e3d;margin:0 2px;"></span>
                 <button id="comCompareModeBtn" onclick="toggleComCompareMode(this)" style="font-size:10px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">% 비교</button>
                 <button onclick="resetComCompareMode()" style="font-size:10px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#434656;cursor:pointer;">초기화</button>
               </div>
+            </div>
+            <div id="comCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
+              <input type="date" id="comDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+              <span style="color:#8d90a2;font-size:11px;">~</span>
+              <input type="date" id="comDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+              <button onclick="applyComCustomRange()" style="background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
+              <button onclick="resetComCustomRange()" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
             </div>
             <div id="comDetailChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
             <div style="position:relative;height:300px;">
@@ -1071,11 +1125,19 @@ tailwind.config = {
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
               <div class="widget-title" style="margin-bottom:0;">아파트 가격지수 추이</div>
-              <div style="display:flex;gap:4px;">
+              <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
                 <button onclick="setRePeriod('1y',this)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:#2962ff;color:#fff;cursor:pointer;">1년</button>
                 <button onclick="setRePeriod('3y',this)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">3년</button>
                 <button onclick="setRePeriod('5y',this)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">5년</button>
+                <button id="reCustomBtn" onclick="toggleCustomRange('re',this)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">📅 기간 지정</button>
               </div>
+            </div>
+            <div id="reCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
+              <input type="date" id="reDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+              <span style="color:#8d90a2;font-size:11px;">~</span>
+              <input type="date" id="reDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
+              <button onclick="applyReCustomRange()" style="background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
+              <button onclick="resetReCustomRange()" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
             </div>
             <div id="reChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:4px;min-height:16px;display:flex;flex-wrap:wrap;gap:6px;"></div>
             <div style="position:relative;height:260px;"><canvas id="rePriceChart" style="cursor:crosshair;"></canvas></div>
@@ -1850,6 +1912,29 @@ function buildReCharts() {
   else                     { labels=rePriceData.labels1y; nat=rePriceData.national1y; seo=rePriceData.seoul1y; jns=rePriceData.jns1y; }
   const n = labels.length;
   labels=labels.slice(-n); nat=nat.slice(-n); seo=seo.slice(-n); jns=jns.slice(-n);
+  // 사용자 기간 지정 적용 — labels 형식이 'YY.MM' 이므로 'YYYY-MM-DD' 비교를 위해 변환
+  if(reCustomFrom && reCustomTo) {
+    const toMm = (yyMm) => {
+      // '24.05' → '2024-05-01'
+      const parts = yyMm.split('.');
+      return parts.length === 2 ? `20${parts[0]}-${parts[1]}-01` : null;
+    };
+    const idxStart = labels.findIndex(l => {
+      const m = toMm(l);
+      return m && m >= reCustomFrom;
+    });
+    let idxEnd = -1;
+    for(let i = labels.length - 1; i >= 0; i--) {
+      const m = toMm(labels[i]);
+      if(m && m <= reCustomTo) { idxEnd = i; break; }
+    }
+    if(idxStart >= 0 && idxEnd >= idxStart) {
+      labels = labels.slice(idxStart, idxEnd + 1);
+      nat = nat.slice(idxStart, idxEnd + 1);
+      seo = seo.slice(idxStart, idxEnd + 1);
+      jns = jns.slice(idxStart, idxEnd + 1);
+    }
+  }
   const priceCtx = document.getElementById('rePriceChart');
   if(priceCtx) {
     charts['rePriceChart'] = new Chart(priceCtx, {
@@ -2258,10 +2343,16 @@ function setPeriodUnit(unit, btn) {
 
 // 기간 지정 패널 열기/닫기 (단위와 무관하게 작동)
 function toggleCustomRange(which, btn) {
-  const panelId = which === 'main'   ? 'mainCustomRangePanel'
-                : which === 'fx'     ? 'fxCustomRangePanel'
-                : which === 'equity' ? 'equityCustomRangePanel'
-                : null;
+  // 모든 차트에 대한 기간 지정 패널 토글 (main/fx/equity/bond/com/re)
+  const panelMap = {
+    main:   'mainCustomRangePanel',
+    fx:     'fxCustomRangePanel',
+    equity: 'equityCustomRangePanel',
+    bond:   'bondCustomRangePanel',
+    com:    'comCustomRangePanel',
+    re:     'reCustomRangePanel',
+  };
+  const panelId = panelMap[which];
   if(!panelId) return;
   const panel = document.getElementById(panelId);
   if(!panel) return;
@@ -2271,6 +2362,60 @@ function toggleCustomRange(which, btn) {
     btn.style.background = showing ? 'transparent' : '#2962ff44';
     btn.style.color = showing ? '#8d90a2' : '#fff';
   }
+}
+
+// ───── 채권 차트 기간 지정 ─────
+let bondCustomFrom = null, bondCustomTo = null;
+function applyBondCustomRange() {
+  const from = document.getElementById('bondDateFrom').value;
+  const to   = document.getElementById('bondDateTo').value;
+  if(!from || !to) return;
+  bondCustomFrom = from; bondCustomTo = to;
+  // 채권 시계열 데이터는 아직 수집되지 않아 안내만 표시
+  showNoDataOverlay('bondChart', `${from} ~ ${to} 구간의 국채 수익률 시계열 데이터가 아직 수집되지 않았습니다. FRED DGS API 연동 시 표시됩니다.`);
+}
+function resetBondCustomRange() {
+  bondCustomFrom = null; bondCustomTo = null;
+  const fromEl = document.getElementById('bondDateFrom');
+  const toEl   = document.getElementById('bondDateTo');
+  if(fromEl) fromEl.value = '';
+  if(toEl)   toEl.value   = '';
+}
+
+// ───── 원자재 차트 기간 지정 ─────
+let comCustomFrom = null, comCustomTo = null;
+function applyComCustomRange() {
+  const from = document.getElementById('comDateFrom').value;
+  const to   = document.getElementById('comDateTo').value;
+  if(!from || !to) return;
+  comCustomFrom = from; comCustomTo = to;
+  if(typeof buildComDetailChartMulti === 'function') buildComDetailChartMulti();
+}
+function resetComCustomRange() {
+  comCustomFrom = null; comCustomTo = null;
+  const fromEl = document.getElementById('comDateFrom');
+  const toEl   = document.getElementById('comDateTo');
+  if(fromEl) fromEl.value = '';
+  if(toEl)   toEl.value   = '';
+  if(typeof buildComDetailChartMulti === 'function') buildComDetailChartMulti();
+}
+
+// ───── 부동산 차트 기간 지정 ─────
+let reCustomFrom = null, reCustomTo = null;
+function applyReCustomRange() {
+  const from = document.getElementById('reDateFrom').value;
+  const to   = document.getElementById('reDateTo').value;
+  if(!from || !to) return;
+  reCustomFrom = from; reCustomTo = to;
+  if(typeof buildReCharts === 'function') buildReCharts();
+}
+function resetReCustomRange() {
+  reCustomFrom = null; reCustomTo = null;
+  const fromEl = document.getElementById('reDateFrom');
+  const toEl   = document.getElementById('reDateTo');
+  if(fromEl) fromEl.value = '';
+  if(toEl)   toEl.value   = '';
+  if(typeof buildReCharts === 'function') buildReCharts();
 }
 
 function resetCustomRange(which) {
@@ -3804,6 +3949,11 @@ function buildComDetailChartMulti() {
     const real = key ? getHistoricalSeries('commodities', key) : null;
     if(real && real.length > 1) {
       anyReal = true;
+      // 사용자 기간 지정 우선 적용, 없으면 days slice
+      if(comCustomFrom && comCustomTo) {
+        const filtered = real.filter(d => d.x >= comCustomFrom && d.x <= comCustomTo);
+        return filtered.length >= 2 ? filtered : real.slice(-days);
+      }
       return real.slice(-days);
     }
     return null;
@@ -5317,6 +5467,16 @@ function applyRealData(d) {
     if(hyEl) {
       hyEl.textContent = usInd.hy_spread.value.toFixed(2) + '%';
       hyEl.style.color = usInd.hy_spread.value > 4 ? '#ef5350' : usInd.hy_spread.value > 3 ? '#f5a623' : '#26a69a';
+    }
+  }
+  // ── VKOSPI (KOSPI200 변동성 지수) ─────────────────────
+  const sentiment = d.sentiment || {};
+  if (sentiment.vkospi?.value != null) {
+    const vkEl = document.getElementById('dashVkospi');
+    if(vkEl) {
+      vkEl.textContent = sentiment.vkospi.value.toFixed(2);
+      const v = sentiment.vkospi.value;
+      vkEl.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
     }
   }
   // ── R-ONE 부동산 지표 → 부동산 페이지 KPI ──────────────

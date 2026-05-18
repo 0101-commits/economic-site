@@ -37,6 +37,11 @@ jobs:
           ECOS_API_KEY:       ${{ secrets.ECOS_API_KEY }}
           REALESTATE_API_KEY: ${{ secrets.REALESTATE_API_KEY }}
           KOSIS_API_KEY:      ${{ secrets.KOSIS_API_KEY }}
+          # 신규 API 키 — 사용자 발급 키를 GitHub Secrets 에 추가해야 함
+          # 공공데이터포털 통합 키 (data.go.kr): 국토부 실거래가, 금융위, KOTRA, KOSIS, 농수산식품 등 50+ 서비스
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+          # 한국수출입은행 환율/금리 API 키
+          EXIM_API_KEY:       ${{ secrets.EXIM_API_KEY }}
         run: python scripts/fetch_data.py
 
       - name: Commit and push data.json

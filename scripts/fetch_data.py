@@ -29,12 +29,18 @@ FRED_API_KEY      = os.environ.get("FRED_API_KEY",      "").strip()
 ECOS_API_KEY      = os.environ.get("ECOS_API_KEY",      "").strip()
 REALESTATE_API_KEY= os.environ.get("REALESTATE_API_KEY","").strip()
 KOSIS_API_KEY     = os.environ.get("KOSIS_API_KEY",     "").strip()
+# 신규: 공공데이터포털 통합 키 (data.go.kr) — 국토부 실거래가, 금융위 시세, KOTRA, KOSIS 등 50+ 서비스
+DATA_GO_KR_API_KEY= os.environ.get("DATA_GO_KR_API_KEY","").strip()
+# 신규: 한국수출입은행 환율·금리 (KOREAEXIM)
+EXIM_API_KEY      = os.environ.get("EXIM_API_KEY",      "").strip()
 
-KRX_BASE  = "http://data-dbg.krx.co.kr/svc/apis"
-FRED_BASE = "https://api.stlouisfed.org/fred"
-ECOS_BASE = "https://ecos.bok.or.kr/api"
-RONE_BASE = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/rest"
-KOSIS_BASE= "https://kosis.kr/openapi/statisticsData.do"
+KRX_BASE     = "http://data-dbg.krx.co.kr/svc/apis"
+FRED_BASE    = "https://api.stlouisfed.org/fred"
+ECOS_BASE    = "https://ecos.bok.or.kr/api"
+RONE_BASE    = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/rest"
+KOSIS_BASE   = "https://kosis.kr/openapi/statisticsData.do"
+DATA_GO_KR_BASE = "http://apis.data.go.kr"
+EXIM_BASE       = "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON"
 
 FALLBACK = {
     "fx": {
@@ -741,6 +747,198 @@ def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=
 
 
 # ============================================================
+# 공공데이터포털 (data.go.kr) 통합 API
+# ============================================================
+def fetch_data_go_kr(service_path, params=None):
+    """공공데이터포털 일반 API 호출 헬퍼.
+
+    service_path 예: '/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev'
+    (국토부 아파트 매매 실거래가)
+    DATA_GO_KR_API_KEY 가 ServiceKey 파라미터로 자동 추가됨.
+    """
+    if not DATA_GO_KR_API_KEY:
+        return None
+    try:
+        params = dict(params or {})
+        # 공공데이터포털은 ServiceKey 쿼리 파라미터를 사용 (디코딩된 키)
+        params["serviceKey"] = DATA_GO_KR_API_KEY
+        params.setdefault("_type", "json")
+        url = f"{DATA_GO_KR_BASE}{service_path}"
+        r = requests.get(url, params=params, timeout=20)
+        r.raise_for_status()
+        # 일부 API는 XML 응답이므로 JSON 파싱 실패 시 XML 처리
+        try:
+            return r.json()
+        except ValueError:
+            return {"_xml_text": r.text}
+    except Exception as e:
+        log(f"[data.go.kr] {service_path} 오류: {e}")
+        return None
+
+
+def fetch_molit_apt_trade_count(months_back=3):
+    """국토교통부_아파트 매매 실거래가 자료 — 최근 N개월 전국 거래량 합계.
+    Returns: dict with monthly counts {YYYYMM: count, ...}
+    """
+    if not DATA_GO_KR_API_KEY:
+        log("[MOLIT] DATA_GO_KR_API_KEY 없음 — 아파트 실거래 건너뜀")
+        return None
+    # 전국 17개 시도 코드 (LAWD_CD 앞 2자리)
+    sido_codes = ["11", "26", "27", "28", "29", "30", "31", "36",
+                  "41", "43", "44", "46", "47", "48", "50", "51", "52"]
+    now = datetime.now(KST)
+    results = {}
+    for offset in range(months_back):
+        y = now.year
+        m = now.month - offset
+        while m <= 0:
+            m += 12
+            y -= 1
+        ym = f"{y:04d}{m:02d}"
+        total = 0
+        ok = 0
+        for sido in sido_codes:
+            data = fetch_data_go_kr(
+                "/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
+                {"LAWD_CD": sido, "DEAL_YMD": ym, "numOfRows": 1, "pageNo": 1},
+            )
+            if not data:
+                continue
+            try:
+                total_cnt = int(
+                    data.get("response", {})
+                    .get("body", {})
+                    .get("totalCount", 0)
+                )
+                total += total_cnt
+                ok += 1
+            except (TypeError, ValueError):
+                continue
+        if ok > 0:
+            results[ym] = total
+            log(f"[MOLIT] {ym} 전국 아파트 매매 거래: {total:,}건 ({ok}/{len(sido_codes)} 시도)")
+    return results if results else None
+
+
+# ============================================================
+# 한국수출입은행 환율·금리 API
+# ============================================================
+def fetch_exim_exchange(target_date=None):
+    """한국수출입은행 일별 환율 정보 (KRW 기준).
+
+    target_date: YYYYMMDD (영업일). 미지정 시 어제 자동.
+    Returns: list of dicts [{"cur_unit": "USD", "deal_bas_r": "1340.5", ...}, ...]
+    """
+    if not EXIM_API_KEY:
+        return None
+    try:
+        if not target_date:
+            # 영업일 보정: 주말이면 금요일로
+            now = datetime.now(KST) - timedelta(days=1)
+            while now.weekday() >= 5:
+                now -= timedelta(days=1)
+            target_date = now.strftime("%Y%m%d")
+        r = requests.get(
+            EXIM_BASE,
+            params={
+                "authkey": EXIM_API_KEY,
+                "searchdate": target_date,
+                "data": "AP01",  # 환율
+            },
+            timeout=15,
+            verify=False,  # 한국수출입은행 SSL 인증서가 일부 환경에서 검증 실패
+        )
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, list) or not data:
+            return None
+        log(f"[EXIM] {target_date}: {len(data)}개 환율 수신")
+        return data
+    except Exception as e:
+        log(f"[EXIM] 환율 오류: {e}")
+        return None
+
+
+def fetch_exim_lending_rate(target_date=None):
+    """한국수출입은행 대출금리 정보."""
+    if not EXIM_API_KEY:
+        return None
+    try:
+        if not target_date:
+            now = datetime.now(KST) - timedelta(days=1)
+            while now.weekday() >= 5:
+                now -= timedelta(days=1)
+            target_date = now.strftime("%Y%m%d")
+        r = requests.get(
+            EXIM_BASE.replace("exchangeJSON", "newKoreaeximLending"),
+            params={"authkey": EXIM_API_KEY, "data": "EX02", "searchdate": target_date},
+            timeout=15,
+            verify=False,
+        )
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        return data if isinstance(data, list) else None
+    except Exception as e:
+        log(f"[EXIM] 대출금리 오류: {e}")
+        return None
+
+
+def fetch_exim_intl_rate():
+    """한국수출입은행 국제금리 정보."""
+    if not EXIM_API_KEY:
+        return None
+    try:
+        r = requests.get(
+            EXIM_BASE.replace("exchangeJSON", "newKoreaeximIntRate"),
+            params={"authkey": EXIM_API_KEY, "data": "AP05"},
+            timeout=15,
+            verify=False,
+        )
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        return data if isinstance(data, list) else None
+    except Exception as e:
+        log(f"[EXIM] 국제금리 오류: {e}")
+        return None
+
+
+# ============================================================
+# VKOSPI (KOSPI200 변동성 지수)
+# ============================================================
+def fetch_vkospi():
+    """KRX VKOSPI 지수 조회.
+
+    1차: KRX OpenAPI /idx/kospi_dd_trd 에서 'KOSPI 200 변동성지수' 또는 'VKOSPI' 검색
+    2차: yfinance '^VKOSPI' (Yahoo Finance 미지원 가능)
+    Returns: {"value": float, "change": float, "as_of": "YYYY-MM-DD"} or None
+    """
+    # 1차: KRX 공식
+    if KRX_API_KEY:
+        rows, basd = fetch_krx_latest("/idx/kospi_dd_trd")
+        if rows:
+            for row in rows:
+                nm = (row.get("IDX_NM") or "").strip()
+                if "변동성" in nm or "VKOSPI" in nm.upper() or "V-KOSPI" in nm.upper():
+                    val = _parse_num(row.get("CLSPRC_IDX"))
+                    chg = _parse_num(row.get("FLUC_RT"))
+                    if val and val > 0:
+                        log(f"[VKOSPI] KRX: {nm} = {val} ({chg}%)")
+                        return {"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": basd, "source": "KRX OpenAPI"}
+    # 2차: yfinance 폴백
+    try:
+        q = fetch_yf("^VKOSPI")
+        if q and q.get("price"):
+            log(f"[VKOSPI] yfinance: {q['price']} ({q['change']}%)")
+            return {"value": q["price"], "change": q["change"], "as_of": datetime.now(KST).strftime("%Y-%m-%d"), "source": "yfinance"}
+    except Exception as e:
+        log(f"[VKOSPI] yfinance 폴백 오류: {e}")
+    log("[VKOSPI] 데이터 수집 실패")
+    return None
+
+
+# ============================================================
 # 환율 (open.er-api.com + yfinance 보강)
 # ============================================================
 def fetch_fx_spot():
@@ -891,6 +1089,7 @@ def build_data():
         "realestate": {},
         "yieldCurve": {},
         "history": {},
+        "sentiment": {},  # 시장 분위기 추가 지표 (VKOSPI 등)
     }
 
     # ── 환율 ────────────────────────────────────────────────
@@ -1073,6 +1272,66 @@ def build_data():
     else:
         log("[R-ONE] API 키 없음 — 부동산 지표 건너뜀")
 
+    # ── VKOSPI (KOSPI200 변동성 지수) — 시장 분위기 ────────
+    try:
+        vk = fetch_vkospi()
+        if vk:
+            data["sentiment"]["vkospi"] = vk
+            data["sources"]["vkospi"] = vk.get("source", "KRX/yfinance")
+    except Exception as e:
+        log(f"[VKOSPI] 오류: {e}")
+
+    # ── 공공데이터포털: 국토부 아파트 매매 실거래 — 한국 부동산 보강 ──
+    if DATA_GO_KR_API_KEY:
+        try:
+            log("[MOLIT] 국토부 아파트 매매 실거래 거래량 수집 시작")
+            apt_trades = fetch_molit_apt_trade_count(months_back=3)
+            if apt_trades:
+                # 최신 월/전월 거래량
+                sorted_keys = sorted(apt_trades.keys())
+                latest = sorted_keys[-1]
+                prev = sorted_keys[-2] if len(sorted_keys) > 1 else None
+                cur_cnt = apt_trades[latest]
+                prev_cnt = apt_trades[prev] if prev else None
+                chg = round((cur_cnt - prev_cnt) / prev_cnt * 100, 2) if prev_cnt else None
+                # 부동산 KR 데이터에 추가
+                data["realestate"].setdefault("kr", {})["trade_count_kr"] = {
+                    "value": cur_cnt,
+                    "prev": prev_cnt,
+                    "chg": chg,
+                    "period": latest,
+                    "desc": "전국 아파트 매매 실거래 건수",
+                    "source": "data.go.kr (MOLIT 1613000)",
+                    "history": apt_trades,
+                }
+                data["sources"]["realestate_molit"] = "data.go.kr (국토부 실거래가)"
+        except Exception as e:
+            log(f"[MOLIT] 오류: {e}")
+    else:
+        log("[MOLIT] DATA_GO_KR_API_KEY 없음 — 실거래가 건너뜀")
+
+    # ── 한국수출입은행 EXIM: 환율/금리 검증용 ────────────────
+    if EXIM_API_KEY:
+        try:
+            exim_rates = fetch_exim_exchange()
+            if exim_rates:
+                # USD/KRW 등 주요 통화 추출 (open.er-api 와 cross-check)
+                exim_map = {}
+                for r in exim_rates:
+                    cur = r.get("cur_unit", "").upper()
+                    bas = _parse_num((r.get("deal_bas_r") or "").replace(",", ""))
+                    if cur and bas:
+                        # cur_unit 이 'JPY(100)' 등 100엔 단위로 오는 경우 환산
+                        if "(100)" in cur:
+                            exim_map[cur.replace("(100)", "")] = bas / 100
+                        else:
+                            exim_map[cur] = bas
+                if exim_map:
+                    data["sources"]["fx_verify"] = "한국수출입은행 EXIM (검증)"
+                    log(f"[EXIM] 환율 검증 데이터: USD={exim_map.get('USD')}, EUR={exim_map.get('EUR')}, JPY={exim_map.get('JPY')}")
+        except Exception as e:
+            log(f"[EXIM] 환율 오류: {e}")
+
     # ── 시계열 데이터 (FX/지수/원자재 5년치) ──────────────────
     # 프런트엔드 차트가 더미(genSeries) 대신 실제 데이터를 사용하기 위함
     try:
@@ -1089,11 +1348,13 @@ def build_data():
 if __name__ == "__main__":
     log("=== 시장 데이터 수집 시작 ===")
     for name, key in [
-        ("KRX",        KRX_API_KEY),
-        ("FRED",       FRED_API_KEY),
-        ("ECOS",       ECOS_API_KEY),
-        ("R-ONE",      REALESTATE_API_KEY),
-        ("KOSIS",      KOSIS_API_KEY),
+        ("KRX",         KRX_API_KEY),
+        ("FRED",        FRED_API_KEY),
+        ("ECOS",        ECOS_API_KEY),
+        ("R-ONE",       REALESTATE_API_KEY),
+        ("KOSIS",       KOSIS_API_KEY),
+        ("data.go.kr",  DATA_GO_KR_API_KEY),
+        ("EXIM",        EXIM_API_KEY),
     ]:
         if key:
             log(f"[{name}] API 키 설정됨 ({key[:4]}...{key[-4:]})")
