@@ -694,12 +694,12 @@ def fetch_ecos_economic_indicators():
     r = _ecos_latest("901Y009", "0", "M", "한국 소비자물가지수", "901Y009")
     if r: result["cpi_kr"] = r; log(f"[ECOS] CPI: {r['value']} ({r['period']})")
 
-    # PPI - 생산자물가지수 (404Y014 총지수 / *AA - 표제지수)
-    for item in ["*AA", "1010000"]:
+    # PPI - 생산자물가지수 (404Y014) — 총지수 item 코드 후보 여럿 시도
+    for item in ["1010000", "*AA", "T00000", "0000"]:
         r = _ecos_latest("404Y014", item, "M", "한국 생산자물가지수", "404Y014")
         if r:
             result["ppi_kr"] = r
-            log(f"[ECOS] PPI: {r['value']} ({r['period']})")
+            log(f"[ECOS] PPI: {r['value']} ({r['period']}) item={item}")
             break
 
     # ─── 경기 ───

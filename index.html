@@ -963,9 +963,14 @@ tailwind.config = {
           </div>
         </div>
         <div id="macroIndCardsRoot"></div>
+        <!-- 데이터 소스 연결 상태 -->
+        <div style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff22;">
+          <div style="font-size:11px;color:#dfe2f2;font-weight:600;margin-bottom:6px;">🔌 데이터 소스 연결 상태 <span style="font-size:9px;color:#434656;font-weight:400;">● 연결됨 / ○ 미연결</span></div>
+          <div id="macroApiStatus" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;"></div>
+        </div>
         <!-- 데이터 부족 안내 -->
         <div id="macroMissingApiInfo" style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;font-size:11px;color:#8d90a2;line-height:1.7;display:none;">
-          <strong style="color:#dfe2f2;">📌 추가로 필요한 API/데이터 소스:</strong>
+          <strong style="color:#dfe2f2;">📌 추가로 필요한 API/데이터 소스 (현재 빈 지표):</strong>
           <ul id="macroMissingApiList" style="margin:6px 0 0 16px;padding:0;color:#b6c4ff;"></ul>
         </div>
       </div>
@@ -4754,12 +4759,36 @@ function buildMacroIndicatorTable() {
     </div>`;
   }).join('') + `</div>`;
   root.innerHTML = html;
-  // 누락된 API 안내
+  // 누락된 API 안내 + 현재 연결된 데이터 소스 표시
   const infoEl = document.getElementById('macroMissingApiInfo');
   const listEl = document.getElementById('macroMissingApiList');
+  const statusEl = document.getElementById('macroApiStatus');
+  if(statusEl) {
+    const sources = (d && d.sources) || {};
+    const apis = [
+      {name:'FRED (미국 경제·부동산·수익률 곡선)', keys:['economicIndicators_us','realestate_us','yieldCurve_us']},
+      {name:'FRED 국제 시리즈 (일본·유로존·중국·독일·영국)', keys:['economicIndicators_intl']},
+      {name:'ECOS (한국은행 경제 통계)', keys:['economicIndicators_kr']},
+      {name:'R-ONE (한국부동산원 가격지수)', keys:['realestate_kr']},
+      {name:'data.go.kr (국토부 실거래가)', keys:['realestate_molit']},
+      {name:'KRX OpenAPI (한국 주식/ETF/원자재)', keys:['stockMovers','etfMovers','indices','commodities']},
+      {name:'yfinance (해외 지수/원자재/농산물 시계열)', keys:['history']},
+    ];
+    statusEl.innerHTML = apis.map(a => {
+      const hit = a.keys.some(k => sources[k]);
+      const color = hit ? '#26a69a' : '#ef5350';
+      const mark = hit ? '●' : '○';
+      const label = hit ? sources[a.keys.find(k=>sources[k])] : '미연결';
+      return `<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:#8d90a2;">
+        <span style="color:${color};">${mark}</span>
+        <span style="flex:1;">${a.name}</span>
+        <span style="color:#434656;font-size:9px;">${label}</span>
+      </div>`;
+    }).join('');
+  }
   if(missingApis.size > 0 && infoEl && listEl) {
     infoEl.style.display = 'block';
-    listEl.innerHTML = [...missingApis].slice(0, 20).map(s => `<li>${s}</li>`).join('');
+    listEl.innerHTML = [...missingApis].slice(0, 30).map(s => `<li>${s}</li>`).join('');
   } else if(infoEl) {
     infoEl.style.display = 'none';
   }
@@ -4801,11 +4830,16 @@ function aggregateMonthly(labels, vals, targetUnit) {
     const slice = vals.slice(i, i+step).filter(v=>v!=null);
     if(slice.length === 0) continue;
     const avg = slice.reduce((a,b)=>a+b,0) / slice.length;
-    // 라벨: 연(Y)이면 'YYYY'만, 분기(Q)면 'YYYY.MM' 첫 라벨
+    // 라벨: 연(Y)이면 'YYYY'만, 분기(Q)면 첫번째 라벨 사용
     const baseLabel = labels[i] || '';
     if(targetUnit==='Y') {
-      const yr = baseLabel.split('.')[0] || baseLabel;
-      outLabels.push(yr);
+      // 'YY.MM' → '20YY', 'YYYY.MM' → 'YYYY', 'YYYYMM' → 'YYYY'
+      const m = baseLabel.match(/^(\d{2,4})/);
+      if(m) {
+        outLabels.push(m[1].length===2 ? '20'+m[1] : m[1]);
+      } else {
+        outLabels.push(baseLabel);
+      }
     } else {
       outLabels.push(baseLabel);
     }
@@ -6815,6 +6849,8 @@ window.addEventListener('load', async ()=>{
   initInvestorDateDefaults();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
   await loadRealData();
+  // 데이터 로드 완료 후 대시보드 등락 테이블 재렌더 (applyRealData 에서도 호출되지만 명시적으로 한번 더 보강)
+  try { buildMoverTable(curMoverTab); } catch(_) {}
   // 실시간 환율 페치 (open.er-api.com — 페이지 로드 시 즉시 갱신)
   loadRealtimeFx();
   // 실시간 지수·원자재 페치 (Stooq — 무료, 인증 불필요)
