@@ -253,21 +253,23 @@ tailwind.config = {
       </div>
 
       <!-- 메인 차트 + 우측 패널 -->
-      <div style="display:grid;grid-template-columns:1fr 300px;gap:12px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:12px;margin-bottom:16px;align-items:stretch;">
         <!-- 메인 캔들 차트 -->
-        <div class="widget">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="widget" style="display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
             <div>
               <span class="widget-title" style="margin-bottom:0;" id="mainChartIndexName">KOSPI 지수</span>
               <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;" id="mainChartPriceVal">7,612.51</span>
               <span class="down-txt" style="font-size:13px;margin-left:6px;" id="mainChartChangeVal">▼ -4.62%</span>
             </div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-              <button class="tab-btn active" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#dfe2f2;" onclick="setPeriod('1W',this)">1W</button>
-              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('1M',this)">1M</button>
-              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('3M',this)">3M</button>
-              <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('1Y',this)">1Y</button>
-              <button class="tab-btn" id="mainCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriod('custom',this,'main')">사용자 지정</button>
+              <span style="font-size:10px;color:#8d90a2;margin-right:2px;">단위:</span>
+              <button class="tab-btn period-unit-btn active" data-unit="1D" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setPeriodUnit('1D',this)">일</button>
+              <button class="tab-btn period-unit-btn" data-unit="1W" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriodUnit('1W',this)">일주일</button>
+              <button class="tab-btn period-unit-btn" data-unit="1M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriodUnit('1M',this)">한달</button>
+              <button class="tab-btn period-unit-btn" data-unit="1Q" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setPeriodUnit('1Q',this)">분기</button>
+              <span style="color:#2a2e3d;margin:0 2px;">|</span>
+              <button class="tab-btn" id="mainCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="toggleCustomRange('main',this)">📅 기간 지정</button>
             </div>
           </div>
           <div id="mainCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -275,9 +277,10 @@ tailwind.config = {
             <span style="color:#8d90a2;font-size:11px;">~</span>
             <input type="date" id="mainDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:3px 6px;color:#dfe2f2;font-size:11px;"/>
             <button onclick="applyCustomRange('main')" style="background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
+            <button onclick="resetCustomRange('main')" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
           </div>
           <div id="mainChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;"></div>
-          <div style="position:relative;height:260px;">
+          <div style="position:relative;flex:1;min-height:440px;">
             <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
           </div>
         </div>
@@ -498,7 +501,7 @@ tailwind.config = {
           </div>
           <!-- Current rates table -->
           <div class="widget">
-            <div class="widget-title">주요국 기준금리 현황</div>
+            <div class="widget-title">주요국 기준금리 현황 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
                 <th style="text-align:left;padding:6px;">국가</th>
@@ -541,7 +544,7 @@ tailwind.config = {
           </div>
           <!-- Multi-country bond yields table -->
           <div class="widget" style="margin-bottom:12px;">
-            <div class="widget-title">주요국 10년물 국채 수익률</div>
+            <div class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
                 <th style="text-align:left;padding:6px;">국가</th>
@@ -597,10 +600,11 @@ tailwind.config = {
               <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="selectEquityIndex(4,this)">닛케이</button>
               <button class="tab-btn" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="selectEquityIndex(5,this)">항셍</button>
               <span style="color:#2a2e3d;margin:0 2px;">|</span>
-              <button class="tab-btn active" id="eqPeriod1W" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setEquityPeriod('1W',this)">1W</button>
-              <button class="tab-btn" id="eqPeriod1M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1M',this)">1M</button>
-              <button class="tab-btn" id="eqPeriod3M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('3M',this)">3M</button>
-              <button class="tab-btn" id="eqPeriod1Y" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1Y',this)">1Y</button>
+              <span style="font-size:10px;color:#8d90a2;margin-right:2px;">단위:</span>
+              <button class="tab-btn eq-unit-btn active" data-unit="1D" id="eqUnit1D" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setEquityPeriod('1D',this)">일</button>
+              <button class="tab-btn eq-unit-btn" data-unit="1W" id="eqUnit1W" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1W',this)">일주일</button>
+              <button class="tab-btn eq-unit-btn" data-unit="1M" id="eqUnit1M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1M',this)">한달</button>
+              <button class="tab-btn eq-unit-btn" data-unit="1Q" id="eqUnit1Q" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setEquityPeriod('1Q',this)">분기</button>
               <span style="color:#2a2e3d;margin:0 2px;">|</span>
               <button id="eqCompareModeBtn" onclick="toggleChartCompareMode('equity',this)" style="font-size:10px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">% 비교</button>
               <button onclick="resetChartCompareMode('equity')" style="font-size:10px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#434656;cursor:pointer;">초기화</button>
@@ -1100,6 +1104,7 @@ tailwind.config = {
 
       <!-- 미국 부동산 탭 -->
       <div id="re-us" style="display:none;">
+        <!-- 1) 핵심 KPI 카드 4개 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
           <div class="kpi-card" style="border-left:3px solid #2962ff;">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Case-Shiller HPI (전국)</div>
@@ -1122,98 +1127,165 @@ tailwind.config = {
             <div id="usKpiHousingStartsChg" style="font-size:11px;color:#434656;margin-top:4px;">천 호 (FRED: HOUST)</div>
           </div>
         </div>
-        <div class="widget" style="margin-bottom:16px;">
-          <div class="widget-title">주요 미국 부동산 지표</div>
-          <table style="width:100%;font-size:12px;border-collapse:collapse;">
-            <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;">
-              <th style="text-align:left;padding:6px 0;">지표</th>
-              <th style="text-align:right;padding:6px;">최신값</th>
-              <th style="text-align:right;padding:6px;">전월比</th>
-              <th style="text-align:center;padding:6px;">기준</th>
-              <th style="text-align:left;padding:6px;">FRED</th>
-              <th style="text-align:center;padding:6px;">주기</th>
-            </tr></thead>
-            <tbody>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">Case-Shiller 전국 HPI</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableCaseShillerVal">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableCaseShillerChg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableCaseShillerPeriod">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">CSUSHPINSA</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
-              </tr>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">Case-Shiller 20대도시</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableCase20Val">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableCase20Chg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableCase20Period">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">SPCS20RSA</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
-              </tr>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">30년 고정 모기지</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableMtg30Val">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableMtg30Chg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableMtg30Period">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">MORTGAGE30US</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">주간</td>
-              </tr>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">15년 고정 모기지</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableMtg15Val">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableMtg15Chg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableMtg15Period">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">MORTGAGE15US</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">주간</td>
-              </tr>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">주택착공 (Housing Starts)</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableHStVal">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableHStChg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableHStPeriod">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">HOUST</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
-              </tr>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">건축허가 (Building Permits)</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableBPVal">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableBPChg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableBPPeriod">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">PERMIT</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
-              </tr>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">기존주택판매</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableEHSVal">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableEHSChg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableEHSPeriod">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">EXHOSLUSM495S</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
-              </tr>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">신규주택판매</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableNHSVal">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableNHSChg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableNHSPeriod">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">HSN1F</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
-              </tr>
-              <tr style="border-bottom:1px solid #1b1f2b;">
-                <td style="padding:7px 0;font-weight:500;">NAHB 주택시장지수</td>
-                <td style="text-align:right;padding:7px;font-family:'Public Sans';font-weight:600;" id="usTableNahbVal">—</td>
-                <td style="text-align:right;padding:7px;" id="usTableNahbChg">—</td>
-                <td style="text-align:center;padding:7px;color:#434656;font-size:10px;" id="usTableNahbPeriod">—</td>
-                <td style="padding:7px;color:#b6c4ff;font-size:10px;">NAHBMMI</td>
-                <td style="text-align:center;padding:7px;color:#8d90a2;">월간</td>
-              </tr>
-            </tbody>
-          </table>
-          <div style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;">
-            <div style="font-size:11px;color:#8d90a2;line-height:1.8;">
-              🔑 <strong style="color:#dfe2f2;">FRED API 키</strong> (<a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" style="color:#2962ff;">stlouisfed.org</a>)를 GitHub Secrets의 <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">FRED_API_KEY</code>에 등록하면 위 지표가 자동 수집됩니다.
+
+        <!-- 2) 비교 차트: 전월比 변화율 (한눈에 보는 상승/하락) + 모기지 금리 비교 -->
+        <div style="display:grid;grid-template-columns:3fr 2fr;gap:12px;margin-bottom:16px;">
+          <div class="widget">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+              <div class="widget-title" style="margin-bottom:0;">📊 전월比 변화율 (한눈에 비교)</div>
+              <span style="font-size:10px;color:#434656;">초록 = 상승 / 빨강 = 하락</span>
+            </div>
+            <div style="position:relative;height:240px;">
+              <canvas id="usReChangeChart" role="img" aria-label="미국 부동산 지표 전월 비교"></canvas>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-title">🏦 모기지 금리 (30년 vs 15년)</div>
+            <div style="position:relative;height:240px;">
+              <canvas id="usReMortgageChart" role="img" aria-label="모기지 금리 비교"></canvas>
             </div>
           </div>
         </div>
+
+        <!-- 3) 카테고리별 지표 그룹 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <!-- 가격 지수 -->
+          <div class="widget">
+            <div class="widget-title">🏠 주택 가격 지수</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">Case-Shiller 전국 HPI</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: CSUSHPINSA · <span id="usTableCaseShillerPeriod">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableCaseShillerVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableCaseShillerChg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">Case-Shiller 20대도시</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: SPCS20RSA · <span id="usTableCase20Period">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableCase20Val" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableCase20Chg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">NAHB 주택시장지수</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">건설업체 체감 · <span id="usTableNahbPeriod">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableNahbVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableNahbChg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 모기지 금리 -->
+          <div class="widget">
+            <div class="widget-title">💰 모기지 금리 (Freddie Mac)</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #ef5350;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">30년 고정 모기지</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: MORTGAGE30US · 주간 · <span id="usTableMtg30Period">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableMtg30Val" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableMtg30Chg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">15년 고정 모기지</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: MORTGAGE15US · 주간 · <span id="usTableMtg15Period">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableMtg15Val" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableMtg15Chg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+              <div style="padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2a2e3d;">
+                <div style="font-size:10px;color:#8d90a2;line-height:1.6;">
+                  💡 <strong style="color:#dfe2f2;">참고</strong>: 모기지 금리는 매주 목요일 Freddie Mac이 발표.
+                  <br>30년 - 15년 스프레드: <span id="usMtgSpread" style="color:#b6c4ff;font-weight:600;">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4) 거래량 / 공급 그룹 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <!-- 거래량 -->
+          <div class="widget">
+            <div class="widget-title">📈 주택 거래 활동</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">기존주택 판매 (Existing)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: EXHOSLUSM495S · <span id="usTableEHSPeriod">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableEHSVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableEHSChg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">신규주택 판매 (New)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: HSN1F · <span id="usTableNHSPeriod">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableNHSVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableNHSChg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 공급 -->
+          <div class="widget">
+            <div class="widget-title">🏗️ 주택 공급 (선행지표)</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 착공 (Starts)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: HOUST · <span id="usTableHStPeriod">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableHStVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableHStChg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">건축 허가 (Permits)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: PERMIT · <span id="usTableBPPeriod">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="usTableBPVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';">—</div>
+                  <div id="usTableBPChg" style="font-size:11px;margin-top:2px;">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 안내 -->
+        <details class="widget" style="margin-bottom:0;">
+          <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#8d90a2;padding:4px 0;">🔑 실시간 데이터 활성화 방법 (클릭하여 펼치기)</summary>
+          <div style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;">
+            <div style="font-size:11px;color:#8d90a2;line-height:1.8;">
+              <strong style="color:#dfe2f2;">FRED API 키</strong> (<a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" style="color:#2962ff;">stlouisfed.org</a>)를 GitHub Secrets의 <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">FRED_API_KEY</code>에 등록하면 위 지표가 자동 수집됩니다.
+            </div>
+          </div>
+        </details>
       </div>
     </div><!-- /realestate -->
 
@@ -1662,6 +1734,100 @@ function setRETab(tab, btn) {
   });
   if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
   if(tab==='kr') setTimeout(buildReCharts, 50);
+  if(tab==='us') setTimeout(buildUsReCharts, 50);
+}
+
+// ============================
+// 미국 부동산 비교 차트
+// ============================
+let usReDataCache = null;
+function buildUsReCharts() {
+  destroyChart('usReChangeChart'); destroyChart('usReMortgageChart');
+  const re = usReDataCache || {};
+  // 차트 1: 전월比 변화율 비교 (한눈에 보기)
+  const items = [
+    {key:'case_shiller_national', label:'Case-Shiller 전국'},
+    {key:'case_shiller_20city',   label:'CS 20대도시'},
+    {key:'mortgage_30y',          label:'30년 모기지'},
+    {key:'mortgage_15y',          label:'15년 모기지'},
+    {key:'housing_starts',        label:'주택착공'},
+    {key:'building_permits',      label:'건축허가'},
+    {key:'existing_home_sales',   label:'기존주택판매'},
+    {key:'new_home_sales',        label:'신규주택판매'},
+    {key:'nahb_index',            label:'NAHB 지수'},
+  ];
+  const rows = items.map(it => ({ label: it.label, val: re[it.key]?.chg }))
+                    .filter(r => r.val != null && !isNaN(r.val));
+  const ctx1 = document.getElementById('usReChangeChart');
+  if(ctx1) {
+    if(rows.length === 0) {
+      ctx1.getContext('2d').clearRect(0,0,ctx1.width,ctx1.height);
+    } else {
+      charts['usReChangeChart'] = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: rows.map(r=>r.label),
+          datasets: [{
+            data: rows.map(r=>r.val),
+            backgroundColor: rows.map(r => r.val>=0 ? '#26a69ac0' : '#ef5350c0'),
+            borderColor:     rows.map(r => r.val>=0 ? '#26a69a'   : '#ef5350'),
+            borderWidth: 1.5,
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          indexAxis:'y',
+          responsive:true, maintainAspectRatio:false,
+          scales: {
+            x: { ticks:{color:'#8d90a2',font:{size:10},callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},
+                 grid:{color:'#2a2e3d55'} },
+            y: { ticks:{color:'#dfe2f2',font:{size:11}}, grid:{display:false} },
+          },
+          plugins: {
+            legend:{display:false},
+            tooltip:{ backgroundColor:'#262a35', titleColor:'#dfe2f2', bodyColor:'#b6c4ff',
+              callbacks:{ label: c => (c.parsed.x>=0?'+':'')+c.parsed.x.toFixed(2)+'% 전월比' } },
+          },
+        },
+      });
+    }
+  }
+  // 차트 2: 모기지 30y vs 15y 비교
+  const m30 = re.mortgage_30y?.value;
+  const m15 = re.mortgage_15y?.value;
+  const m30p = re.mortgage_30y?.prev;
+  const m15p = re.mortgage_15y?.prev;
+  const ctx2 = document.getElementById('usReMortgageChart');
+  if(ctx2 && (m30 != null || m15 != null)) {
+    charts['usReMortgageChart'] = new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: ['전주 (이전 발표)', '현재 (최신 발표)'],
+        datasets: [
+          { label:'30년 고정', data:[m30p ?? null, m30 ?? null], backgroundColor:'#ef5350c0', borderColor:'#ef5350', borderWidth:1.5, borderRadius:4 },
+          { label:'15년 고정', data:[m15p ?? null, m15 ?? null], backgroundColor:'#f5a623c0', borderColor:'#f5a623', borderWidth:1.5, borderRadius:4 },
+        ],
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        scales: {
+          x: { ticks:{color:'#8d90a2',font:{size:10}}, grid:{display:false} },
+          y: { ticks:{color:'#8d90a2',font:{size:10},callback:v=>v.toFixed(2)+'%'}, grid:{color:'#2a2e3d55'} },
+        },
+        plugins: {
+          legend:{ position:'top', labels:{ color:'#8d90a2', font:{size:10}, boxWidth:10 } },
+          tooltip:{ backgroundColor:'#262a35', titleColor:'#dfe2f2', bodyColor:'#b6c4ff',
+            callbacks:{ label: c => c.dataset.label+': '+c.parsed.y.toFixed(2)+'%' } },
+        },
+      },
+    });
+  }
+  // 스프레드 표시 (30년 - 15년)
+  const sprdEl = document.getElementById('usMtgSpread');
+  if(sprdEl && m30 != null && m15 != null) {
+    const sp = m30 - m15;
+    sprdEl.textContent = (sp>=0?'+':'') + sp.toFixed(2) + '%p';
+  }
 }
 
 // ============================
@@ -1689,14 +1855,53 @@ function sparkline(id, series, color) {
 // ============================
 // 메인 캔들(라인) 차트
 // ============================
-let mainPeriod = '1W', mainChartInst=null, volChartInst=null;
-const allData = genSeries(7600, 252, 0.012);
+// 단위(unit): '1D'=일, '1W'=일주일, '1M'=한달, '1Q'=분기
+// 기간(period): 사용자 지정 from~to 범위. 미설정 시 단위별 디폴트 기간 사용
+let mainPeriodUnit = '1D';
+let mainCustomFrom = null, mainCustomTo = null;
+let mainChartInst=null, volChartInst=null;
+// 분기 단위까지 의미있게 보여주려면 ~5년치 일별 데이터가 필요 (≈1260 거래일)
+const allData = genSeries(7600, 1300, 0.012);
 let mainAllData = allData;
 const allVol  = allData.map(d=>({x:d.x, y:Math.floor(Math.random()*800000+200000)}));
 
-function getPeriodData(p) {
-  const n = p==='1W'?5:p==='1M'?21:p==='3M'?63:252;
-  return { price: mainAllData.slice(-n), vol: allVol.slice(-n) };
+// 일별 데이터를 단위에 맞춰 리샘플 (각 N일의 마지막 거래일 값 채택)
+function resampleSeries(data, intervalDays) {
+  if(!data || data.length === 0) return [];
+  if(intervalDays <= 1) return data.slice();
+  const out = [];
+  for(let i = data.length - 1; i >= 0; i -= intervalDays) {
+    out.unshift(data[i]);
+  }
+  return out;
+}
+
+function unitIntervalDays(unit) {
+  return unit==='1W' ? 5 : unit==='1M' ? 21 : unit==='1Q' ? 63 : 1;
+}
+function unitDefaultCount(unit) {
+  // 각 단위별 기본 표시 포인트 수
+  return unit==='1D' ? 90 : unit==='1W' ? 52 : unit==='1M' ? 36 : 20;
+}
+function unitLabel(unit) {
+  return unit==='1D' ? '일' : unit==='1W' ? '일주일' : unit==='1M' ? '한달' : unit==='1Q' ? '분기' : '';
+}
+
+function getPeriodData(unit, fromDate, toDate) {
+  const u = unit || mainPeriodUnit;
+  const interval = unitIntervalDays(u);
+  const priceAll = resampleSeries(mainAllData, interval);
+  const volAll   = resampleSeries(allVol, interval);
+  const f = fromDate || mainCustomFrom;
+  const t = toDate   || mainCustomTo;
+  if(f && t) {
+    return {
+      price: priceAll.filter(d => d.x >= f && d.x <= t),
+      vol:   volAll.filter(d => d.x >= f && d.x <= t),
+    };
+  }
+  const n = unitDefaultCount(u);
+  return { price: priceAll.slice(-n), vol: volAll.slice(-n) };
 }
 
 // ── 사이드바 토글 ──
@@ -1796,8 +2001,8 @@ function chartClick(chartName, idx, price, label) {
 let mainRangeState = {start:null, end:null};
 let fxRangeState   = {start:null, end:null};
 
-function initMainChart(period='1W', customPriceData) {
-  const price = customPriceData || getPeriodData(period).price;
+function initMainChart(unit, customPriceData) {
+  const price = customPriceData || getPeriodData(unit || mainPeriodUnit).price;
   mainAnnotations=[]; mainPending=null;
   destroyChart('mainChart');
   const ctx1 = document.getElementById('mainChart');
@@ -1833,17 +2038,41 @@ function initMainChart(period='1W', customPriceData) {
   if(charts['mainChart']) charts['mainChart'].resize();
 }
 
-function setPeriod(p, btn, chartId) {
-  mainPeriod = p;
-  document.querySelectorAll('#page-dashboard .tab-btn').forEach(b=>{ b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2'; });
-  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
-  const panel = document.getElementById('mainCustomRangePanel');
-  if(p === 'custom') {
-    if(panel) panel.style.display='flex';
-    return;
+// 단위 버튼 (일/일주일/한달/분기) — 데이터 샘플링 단위만 변경, 기간은 그대로
+function setPeriodUnit(unit, btn) {
+  mainPeriodUnit = unit;
+  document.querySelectorAll('#page-dashboard .period-unit-btn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+  });
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
+  initMainChart(unit);
+}
+
+// 기간 지정 패널 열기/닫기 (단위와 무관하게 작동)
+function toggleCustomRange(which, btn) {
+  const panelId = which === 'main' ? 'mainCustomRangePanel'
+                : which === 'fx'   ? 'fxCustomRangePanel'
+                : null;
+  if(!panelId) return;
+  const panel = document.getElementById(panelId);
+  if(!panel) return;
+  const showing = panel.style.display === 'flex';
+  panel.style.display = showing ? 'none' : 'flex';
+  if(btn) {
+    btn.style.background = showing ? 'transparent' : '#2962ff44';
+    btn.style.color = showing ? '#8d90a2' : '#fff';
   }
-  if(panel) panel.style.display='none';
-  initMainChart(p);
+}
+
+function resetCustomRange(which) {
+  if(which === 'main') {
+    mainCustomFrom = null; mainCustomTo = null;
+    const fromEl = document.getElementById('mainDateFrom');
+    const toEl   = document.getElementById('mainDateTo');
+    if(fromEl) fromEl.value = '';
+    if(toEl)   toEl.value   = '';
+    initMainChart(mainPeriodUnit);
+  }
 }
 
 function applyCustomRange(which) {
@@ -1851,9 +2080,8 @@ function applyCustomRange(which) {
     const from = document.getElementById('mainDateFrom').value;
     const to   = document.getElementById('mainDateTo').value;
     if(!from || !to) return;
-    const filtered = allData.filter(d => d.x >= from && d.x <= to);
-    if(filtered.length < 2) return;
-    initMainChart(null, filtered);
+    mainCustomFrom = from; mainCustomTo = to;
+    initMainChart(mainPeriodUnit);
   } else if(which === 'fx') {
     const from = document.getElementById('fxDateFrom').value;
     const to   = document.getElementById('fxDateTo').value;
@@ -1864,6 +2092,14 @@ function applyCustomRange(which) {
     if(filtered.length < 2) return;
     buildFxChart(filtered);
   }
+}
+
+// Legacy: 기존 호출 호환 (selectGlobalIndex 등에서 setPeriod('1W',...) 사용)
+function setPeriod(p, btn, chartId) {
+  // 신·구 코드 호환: '1D'/'1W'/'1M'/'1Q' 는 단위로 처리, '1Y'/'3M'/'custom' 은 호환 매핑
+  if(p === 'custom') { toggleCustomRange('main', btn); return; }
+  const unitMap = {'1D':'1D','1W':'1W','1M':'1M','1Q':'1Q','3M':'1M','1Y':'1Q'};
+  setPeriodUnit(unitMap[p] || '1D', btn);
 }
 
 // ============================
@@ -1904,9 +2140,8 @@ function selectGlobalIndex(idx, el) {
   const bases = {KOSPI:7600, KOSDAQ:1140, 'S&P 500':5650, NASDAQ:26500, '닛케이':61000, '상하이':4100};
   const vols  = {KOSPI:0.012, KOSDAQ:0.015, 'S&P 500':0.008, NASDAQ:0.010, '닛케이':0.011, '상하이':0.013};
   const base = bases[d.name]||2580, vol=vols[d.name]||0.010;
-  mainAllData = genSeries(base, 252, vol);
-  const n = mainPeriod==='1W'?5:mainPeriod==='1M'?21:mainPeriod==='3M'?63:252;
-  initMainChart(null, mainAllData.slice(-n));
+  mainAllData = genSeries(base, 1300, vol);
+  initMainChart(mainPeriodUnit);
 }
 
 // ============================
@@ -1955,7 +2190,10 @@ function buildMoverTable(dir) {
   const refEl = document.getElementById('moverRefDate');
   if(refEl) refEl.textContent = moverRefDate;
   if(!data || data.length === 0) {
-    tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:#434656;font-size:12px;">KRX API 키를 GitHub Secrets에 <code>KRX_API_KEY</code>로 등록하면 실시간 데이터가 표시됩니다</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:#434656;font-size:12px;">
+      실시간 등락 데이터 수집 중… <br>
+      <span style="font-size:10px;">(KRX OpenAPI 또는 Naver 금융에서 자동 수집되며, 다음 시간별 업데이트 시점에 표시됩니다)</span>
+    </td></tr>`;
     return;
   }
   tb.innerHTML = data.map(d=>`
@@ -2698,7 +2936,7 @@ function setBondCountry(cc, btn) {
   document.querySelectorAll('#bondCountryTabs .tab-btn').forEach(b=>{
     b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
   });
-  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
   bondItems = bondCountries[cc].items;
   bondCurrentIdx = bondCountries[cc].defaultIdx;
   const titleEl = document.getElementById('bondTableTitle');
@@ -2773,20 +3011,8 @@ function buildBondPage() {
   document.getElementById('bondChartRate').textContent = b.rate;
   bondAllSeries = genSeries(b.baseRate, 252, 0.005);
   buildBondChart(bondAllSeries.slice(-bondPeriodN));
-  // Yield curve chart
-  const c1=document.getElementById('yieldCurveChart');
-  if(c1) charts['yieldCurveChart'] = new Chart(c1,{
-    type:'line',
-    data:{labels:['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'],
-          datasets:[
-            {label:'현재',   data:[5.32,5.28,5.21,5.05,4.85,4.45,4.42,4.28,4.51,4.47],borderColor:'#b6c4ff',borderWidth:2,pointRadius:3,tension:0.3},
-            {label:'1개월전', data:[5.30,5.27,5.20,5.10,4.92,4.52,4.48,4.38,4.60,4.56],borderColor:'#434656',borderWidth:1.5,pointRadius:2,tension:0.3,borderDash:[4,4]},
-          ]},
-    options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
-      plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}}}}
-  });
+  // Yield curve chart — 현재 선택된 국가에 따라 데이터 변경, FRED 데이터 우선
+  buildYieldCurveChart(bondCountryCurrent || 'us');
   // Rate comparison
   const c2=document.getElementById('rateCompChart');
   if(c2) charts['rateCompChart'] = new Chart(c2,{
@@ -2803,6 +3029,79 @@ function buildBondPage() {
   });
   // Global bond yields table
   buildGlobalBondTable();
+}
+
+// ── 수익률 곡선 데이터: FRED API 우선, 없으면 하드코딩 폴백 ──
+// data.json 의 yieldCurve.<cc>.current / .prev_month 로 덮어쓸 수 있음 (applyRealData 에서 처리)
+const yieldCurveTerms = ['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'];
+const yieldCurveData = {
+  us: {
+    current:    [5.32, 5.28, 5.21, 5.05, 4.85, 4.45, 4.42, 4.48, 4.51, 4.47],
+    prev_month: [5.30, 5.27, 5.20, 5.10, 4.92, 4.52, 4.48, 4.38, 4.60, 4.56],
+    label: '🇺🇸 미국 국채 수익률 곡선',
+    source: 'FRED (DGS1MO, DGS3MO, DGS6MO, DGS1, DGS2, DGS5, DGS7, DGS10, DGS20, DGS30)',
+  },
+  kr: {
+    current:    [null, 2.74, 2.73, 2.71, 2.78, 2.87, 2.95, 3.02, 3.12, 3.18],
+    prev_month: [null, 2.69, 2.71, 2.69, 2.71, 2.79, 2.86, 2.92, 3.04, 3.11],
+    label: '🇰🇷 한국 국고채 수익률 곡선',
+    source: '한국은행 채권시장 (대표 만기)',
+  },
+  jp: {
+    current:    [null, 0.21, 0.30, 0.38, 0.42, 0.78, 0.92, 1.05, 1.68, 2.12],
+    prev_month: [null, 0.18, 0.27, 0.34, 0.38, 0.72, 0.85, 0.98, 1.61, 2.08],
+    label: '🇯🇵 일본 국채 수익률 곡선',
+    source: 'FRED + 일본은행 (참고치)',
+  },
+  uk: {
+    current:    [4.62, 4.55, 4.42, 4.30, 4.12, 4.25, 4.30, 4.38, 4.55, 4.65],
+    prev_month: [4.65, 4.58, 4.45, 4.35, 4.20, 4.31, 4.35, 4.42, 4.58, 4.62],
+    label: '🇬🇧 영국 국채 수익률 곡선',
+    source: 'FRED + Bank of England',
+  },
+  de: {
+    current:    [2.55, 2.48, 2.32, 2.22, 2.18, 2.35, 2.45, 2.52, 2.68, 2.78],
+    prev_month: [2.62, 2.55, 2.40, 2.30, 2.28, 2.42, 2.50, 2.58, 2.72, 2.80],
+    label: '🇩🇪 독일 국채 수익률 곡선',
+    source: 'FRED (참고치)',
+  },
+};
+// bondCountries 키 (eu=독일) → yieldCurveData 키 매핑
+function yieldCurveCC(bondCC) {
+  return bondCC === 'eu' ? 'de' : bondCC;
+}
+
+function buildYieldCurveChart(bondCC) {
+  destroyChart('yieldCurveChart');
+  const c1 = document.getElementById('yieldCurveChart');
+  if(!c1) return;
+  const cc = yieldCurveCC(bondCC || 'us');
+  const yc = yieldCurveData[cc] || yieldCurveData.us;
+  // 제목 업데이트
+  const titleEl = document.querySelector('#bond-subtab-bond .widget-title');
+  // 정확히 yieldCurveChart 의 widget-title 찾기
+  const wrapper = c1.closest('.widget');
+  const wTitleEl = wrapper ? wrapper.querySelector('.widget-title') : null;
+  if(wTitleEl) wTitleEl.textContent = yc.label;
+  charts['yieldCurveChart'] = new Chart(c1, {
+    type:'line',
+    data:{
+      labels: yieldCurveTerms,
+      datasets: [
+        {label:'현재',    data: yc.current,    borderColor:'#b6c4ff', borderWidth:2,   pointRadius:3, tension:0.3, spanGaps:true},
+        {label:'1개월전', data: yc.prev_month, borderColor:'#434656', borderWidth:1.5, pointRadius:2, tension:0.3, borderDash:[4,4], spanGaps:true},
+      ],
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
+              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+      plugins:{
+        legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+          callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y!=null?c.parsed.y.toFixed(2)+'%':'—')}}
+      }
+    }
+  });
 }
 
 // ── Bond & Rate sub-tab data ──
@@ -2903,13 +3202,37 @@ function buildRateHistoryChart() {
   }).join('');
 }
 
+// 글로벌 채권 테이블 행 클릭 시: 상단 차트 (bond + yield curve) 를 해당 국가로 전환
+function selectGlobalBondCountry(cc) {
+  // bondCountries 의 키와 매칭 (eu→eu, de→eu 매핑)
+  const mapToBond = {kr:'kr',us:'us',jp:'jp',uk:'uk',de:'eu',eu:'eu'};
+  const bondCC = mapToBond[cc] || 'kr';
+  if(!bondCountries[bondCC]) return;
+  // bondCountryTabs 의 해당 버튼을 찾아 클릭과 동일 동작 수행
+  const btn = document.querySelector(`#bondCountryTabs button[onclick*="'${bondCC}'"]`);
+  if(btn) {
+    setBondCountry(bondCC, btn);
+  } else {
+    bondCountryCurrent = bondCC;
+    bondItems = bondCountries[bondCC].items;
+    bondCurrentIdx = bondCountries[bondCC].defaultIdx;
+    buildBondPage();
+  }
+}
+
 function buildGlobalBondTable() {
   const tb = document.getElementById('globalBondTable');
   if(!tb) return;
+  // 매핑: 현재 선택된 채권 국가 (highlight)
+  const curBondCC = bondCountryCurrent || 'kr';
+  const reverseMap = {kr:'kr',us:'us',jp:'jp',uk:'uk',eu:'de'};
+  const highlightCC = reverseMap[curBondCC] || curBondCC;
   tb.innerHTML = globalBonds.map(b=>{
     const chgClr = b.chg.startsWith('-')?'#ef5350':b.chg==='0.00'?'#8d90a2':'#26a69a';
     const sprdClr = b.spread.startsWith('-')?'#ef5350':'#8d90a2';
-    return `<tr style="border-bottom:1px solid #1b1f2b;">
+    const isSel = b.cc === highlightCC;
+    const bg = isSel ? 'background:#2962ff11;border-left:2px solid #2962ff;' : '';
+    return `<tr onclick="selectGlobalBondCountry('${b.cc}')" title="${b.country} 국채 차트로 보기" style="border-bottom:1px solid #1b1f2b;cursor:pointer;${bg}">
       <td style="padding:8px;">${b.flag} ${b.country}</td>
       <td style="text-align:right;padding:8px;font-weight:600;">${b.y10}</td>
       <td style="text-align:right;padding:8px;color:#8d90a2;">${b.y2}</td>
@@ -2943,7 +3266,7 @@ const investorData = investorDataByPeriod['5D'];
 
 let equityCurrentIdx = 0;
 let equityAllSeries = null;
-let equityPeriodN = 5;
+let equityPeriodUnit = '1D';
 
 function buildEquityIndexChart(series) {
   equityAnnotations=[]; equityPending=null;
@@ -2985,19 +3308,28 @@ function selectEquityIndex(idx, btn) {
   btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
   const bases=[7600,1140,5650,26500,61000,23500];
   const vols=[0.012,0.015,0.008,0.010,0.011,0.013];
-  equityAllSeries = genSeries(bases[idx]||2580, 252, vols[idx]||0.010);
-  buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
+  equityAllSeries = genSeries(bases[idx]||2580, 1300, vols[idx]||0.010);
+  renderEquityChart();
+}
+
+function renderEquityChart() {
+  if(!equityAllSeries) return;
+  const interval = unitIntervalDays(equityPeriodUnit);
+  const resampled = resampleSeries(equityAllSeries, interval);
+  const n = unitDefaultCount(equityPeriodUnit);
+  buildEquityIndexChart(resampled.slice(-n));
 }
 
 function setEquityPeriod(p, btn) {
-  document.querySelectorAll('#market-equity .tab-btn').forEach(b=>{
-    if(['1W','1M','3M','1Y'].includes(b.textContent.trim())) {
-      b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
-    }
+  // 단위 버튼만 비활성화 (지수 선택 버튼 / 비교 버튼은 그대로)
+  document.querySelectorAll('#market-equity .eq-unit-btn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
   });
-  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
-  equityPeriodN = p==='1W'?5:p==='1M'?21:p==='3M'?63:252;
-  if(equityAllSeries) buildEquityIndexChart(equityAllSeries.slice(-equityPeriodN));
+  // Legacy 호환: '1W' → '1W', '1M' → '1M', '3M' → '1M', '1Y' → '1Q', '1D' → '1D'
+  const unitMap = {'1D':'1D','1W':'1W','1M':'1M','1Q':'1Q','3M':'1M','1Y':'1Q'};
+  equityPeriodUnit = unitMap[p] || '1D';
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
+  renderEquityChart();
 }
 
 function buildInvestorChart() {
@@ -4499,6 +4831,28 @@ function applyRealData(d) {
   setUsTable(reUs.existing_home_sales,    v=>v?.toFixed(0)+'K',  {val:'usTableEHSVal',    chg:'usTableEHSChg',    period:'usTableEHSPeriod'});
   setUsTable(reUs.new_home_sales,         v=>v?.toFixed(0)+'K',  {val:'usTableNHSVal',    chg:'usTableNHSChg',    period:'usTableNHSPeriod'});
 
+  // 미국 부동산 비교 차트 데이터 캐시 + 현재 미국 탭이 표시 중이면 즉시 재렌더
+  usReDataCache = reUs;
+  const usTabEl = document.getElementById('re-us');
+  if(usTabEl && usTabEl.style.display !== 'none' && typeof buildUsReCharts === 'function') {
+    buildUsReCharts();
+  }
+
+  // 미국 국채 수익률 곡선 데이터 (FRED 우선)
+  const yc = d.yieldCurve || {};
+  for(const cc of ['us','kr','jp','uk','de']) {
+    if(yc[cc] && Array.isArray(yc[cc].current)) {
+      yieldCurveData[cc].current    = yc[cc].current;
+      yieldCurveData[cc].prev_month = yc[cc].prev_month || yieldCurveData[cc].prev_month;
+      if(yc[cc].source) yieldCurveData[cc].source = yc[cc].source;
+    }
+  }
+  // 채권 탭이 현재 표시 중이면 차트 재렌더
+  const bondTabEl = document.getElementById('bond-subtab-bond');
+  if(bondTabEl && bondTabEl.style.display !== 'none' && typeof buildYieldCurveChart === 'function') {
+    buildYieldCurveChart(bondCountryCurrent || 'us');
+  }
+
   // ── 사이드바 업데이트 시각 표시 ──────────────
   const el = document.getElementById('dataSourceInfo');
   if (el && d.lastUpdated) {
@@ -4860,13 +5214,32 @@ function buildRateHistoryChart() {
   buildRateCurrentTable();
 }
 
+// 기준금리 테이블 행 클릭 시: 해당 국가만 차트에 표시
+function selectRateCountry(cc) {
+  if(!rateCountries[cc]) return;
+  rateFilterSet = new Set([cc]);
+  // 필터 버튼 상태 동기화 — onclick 핸들러가 'kr','us','eu','jp','uk' 코드를 직접 받음
+  const btns = document.querySelectorAll('#rateFilterBtns button');
+  btns.forEach(b => {
+    const oc = b.getAttribute('onclick') || '';
+    const m = oc.match(/'([a-z]+)'/);
+    const target = m && m[1];
+    const isActive = target === cc;
+    b.style.opacity = isActive ? '1' : '0.45';
+    b.style.background = isActive ? rateColors[target] : (rateColors[target] || '#2a2e3d') + '22';
+    b.style.color = isActive ? '#fff' : rateColors[target] || '#8d90a2';
+  });
+  buildRateHistoryChart();
+}
+
 function buildRateCurrentTable() {
   const tb = document.getElementById('rateCurrentTable');
   if(!tb) return;
   tb.innerHTML = currentRates.map(r => {
-    const dirClr = r.dir.includes('인상') ? '#ef5350' : r.dir.includes('인하') ? '#26a69a' : '#8d90a2';
     const dirCls = r.dir.includes('인하') || r.dir.includes('↓') ? 'down-txt' : r.dir.includes('인상') || r.dir.includes('↑') ? 'up-txt' : '';
-    return `<tr style="border-bottom:1px solid #1b1f2b;">
+    const isSel = rateFilterSet.size === 1 && rateFilterSet.has(r.cc);
+    const bg = isSel ? 'background:#2962ff11;border-left:2px solid #2962ff;' : '';
+    return `<tr onclick="selectRateCountry('${r.cc}')" title="${r.country} 기준금리 차트로 보기" style="border-bottom:1px solid #1b1f2b;cursor:pointer;${bg}">
       <td style="padding:8px;">${r.flag} ${r.country}</td>
       <td style="text-align:right;padding:8px;font-weight:600;color:#b6c4ff;">${r.rate}</td>
       <td style="text-align:right;padding:8px;color:#8d90a2;">${r.prev}</td>
@@ -5201,7 +5574,7 @@ window.addEventListener('load', async ()=>{
   buildGlobalTable();
   buildMoverTable('up');
   buildNews();
-  initMainChart('1W');
+  initMainChart('1D');
   // 스파크라인
   sparkline('spark1', genSeries(7600,30,0.012), '#26a69a');
   sparkline('spark2', genSeries(1490,30,0.005), '#b6c4ff');
