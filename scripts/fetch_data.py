@@ -796,6 +796,84 @@ def fetch_fx_change(pair_symbol):
         return 0.0
 
 
+def fetch_yf_history(symbol, period="5y", interval="1d"):
+    """yfinance에서 시계열 데이터(historical close prices)를 가져와
+    [{"date":"YYYY-MM-DD","close":NUM}, ...] 형식으로 반환.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=period, interval=interval, auto_adjust=False)
+        if hist.empty:
+            return None
+        out = []
+        for idx, row in hist.iterrows():
+            close = row.get("Close")
+            if close is None or (isinstance(close, float) and (close != close)):  # NaN check
+                continue
+            try:
+                date_str = idx.strftime("%Y-%m-%d")
+            except Exception:
+                date_str = str(idx)[:10]
+            out.append({"date": date_str, "close": round(float(close), 4)})
+        return out if out else None
+    except Exception as e:
+        log(f"[yfinance:hist] {symbol} 오류: {e}")
+        return None
+
+
+def fetch_all_historical_data():
+    """주요 자산의 5년치 일별 시계열 데이터 일괄 조회.
+    data.json 의 history 필드에 저장되어 프런트엔드 차트에서 사용.
+    """
+    log("[YF-HIST] 시계열 데이터 수집 시작 (5년치 일별 종가)")
+    out = {"fx": {}, "indices": {}, "commodities": {}}
+    fx_map = {
+        "USDKRW": "KRW=X",
+        "EURKRW": "EURKRW=X",
+        "JPYKRW": "JPYKRW=X",
+        "EURUSD": "EURUSD=X",
+        "USDJPY": "JPY=X",
+    }
+    for name, sym in fx_map.items():
+        h = fetch_yf_history(sym, period="5y")
+        if h:
+            out["fx"][name] = h
+            log(f"[YF-HIST] FX {name}({sym}): {len(h)} bars")
+        else:
+            log(f"[YF-HIST] FX {name}({sym}): 데이터 없음")
+    idx_map = {
+        "KOSPI":    "^KS11",
+        "KOSDAQ":   "^KQ11",
+        "SP500":    "^GSPC",
+        "NASDAQ":   "^IXIC",
+        "Nikkei":   "^N225",
+        "Shanghai": "000001.SS",
+    }
+    for name, sym in idx_map.items():
+        h = fetch_yf_history(sym, period="5y")
+        if h:
+            out["indices"][name] = h
+            log(f"[YF-HIST] IDX {name}({sym}): {len(h)} bars")
+        else:
+            log(f"[YF-HIST] IDX {name}({sym}): 데이터 없음")
+    com_map = {
+        "Gold":   "GC=F",
+        "Silver": "SI=F",
+        "Copper": "HG=F",
+        "WTI":    "CL=F",
+        "Brent":  "BZ=F",
+    }
+    for name, sym in com_map.items():
+        h = fetch_yf_history(sym, period="5y")
+        if h:
+            out["commodities"][name] = h
+            log(f"[YF-HIST] COM {name}({sym}): {len(h)} bars")
+        else:
+            log(f"[YF-HIST] COM {name}({sym}): 데이터 없음")
+    log(f"[YF-HIST] 완료: fx={len(out['fx'])}, indices={len(out['indices'])}, commodities={len(out['commodities'])}")
+    return out
+
+
 # ============================================================
 # 메인 빌드
 # ============================================================
@@ -812,6 +890,7 @@ def build_data():
         "economicIndicators": {},
         "realestate": {},
         "yieldCurve": {},
+        "history": {},
     }
 
     # ── 환율 ────────────────────────────────────────────────
@@ -993,6 +1072,16 @@ def build_data():
         data["sources"]["realestate_kr"] = "R-ONE API (reb.or.kr)"
     else:
         log("[R-ONE] API 키 없음 — 부동산 지표 건너뜀")
+
+    # ── 시계열 데이터 (FX/지수/원자재 5년치) ──────────────────
+    # 프런트엔드 차트가 더미(genSeries) 대신 실제 데이터를 사용하기 위함
+    try:
+        hist = fetch_all_historical_data()
+        if hist:
+            data["history"] = hist
+            data["sources"]["history"] = "yfinance (FX/Indices/Commodities 5Y daily)"
+    except Exception as e:
+        log(f"[YF-HIST] 전체 수집 오류: {e}")
 
     return data
 
