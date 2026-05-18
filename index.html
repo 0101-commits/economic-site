@@ -106,9 +106,16 @@ tailwind.config = {
   }
   html.light select { background: #edf4fb !important; border-color: #aac4e6 !important; color: rgb(38,38,38) !important; }
   html.light details.widget summary { color: rgb(89,89,89); }
+  /* 활성화된 탭 버튼은 항상 파란 배경 + 흰색 글자 (라이트 테마에서도 가독성 유지) */
+  html.light .tab-btn.active,
+  html.light button[style*="background:#2962ff"] { background-color: #2962ff !important; color: #fff !important; border-color: #2962ff !important; }
+  html.light .news-filter-btn.act { background: rgb(53,108,181) !important; color: #fff !important; }
+  /* 라이트 테마: 행 hover 색상이 너무 어두워 보이지 않도록 안정화 */
+  html.light .menu-item:hover,
+  html.light .menu-item.active { background: #d9edf8 !important; color: rgb(53,108,181) !important; }
   /* ======= 기본 스타일 ======= */
   * { box-sizing: border-box; }
-  body { background: var(--c-bg, #0f131e); color: var(--c-txt, #dfe2f2); font-family: 'Inter', sans-serif; margin: 0; }
+  body { background: var(--c-bg, #0f131e); color: var(--c-txt, #dfe2f2); font-family: 'Inter', sans-serif; margin: 0; overflow-x: hidden; }
   .mat { font-family: 'Material Symbols Outlined'; font-size: 18px; line-height: 1; vertical-align: middle; }
   .ticker-scroll { animation: tickerMove 40s linear infinite; white-space: nowrap; display: inline-flex; gap: 48px; }
   @keyframes tickerMove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -142,27 +149,62 @@ tailwind.config = {
   .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #2a2e3d;border-radius:4px;padding:2px 6px;font-size:11px; }
   .kpi-clickable:hover { border-color:#2962ff !important; }
   /* ======= 모바일 반응형 ======= */
+  /* 모든 그리드는 모바일에서 자동으로 단일/이중 컬럼으로 축소되어 차트 오버플로우 방지 */
+  @media (max-width: 1024px) {
+    /* 태블릿: 4컬럼 → 2컬럼 */
+    main div[style*="grid-template-columns:repeat(4,1fr)"],
+    main div[style*="grid-template-columns: repeat(4,1fr)"] {
+      grid-template-columns: 1fr 1fr !important;
+    }
+    /* 메인 차트 + 사이드 패널 → 세로로 */
+    main div[style*="grid-template-columns:1fr 300px"],
+    main div[style*="grid-template-columns:1fr 280px"],
+    main div[style*="grid-template-columns:2fr 1fr"],
+    main div[style*="grid-template-columns:3fr 2fr"],
+    main div[style*="grid-template-columns:240px 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+  }
   @media (max-width: 768px) {
     #sidebar {
-      position: fixed; left: -200px; z-index: 200; transition: left .25s;
-      height: 100vh; top: 0; padding-top: 60px;
+      position: fixed; left: -220px; z-index: 200; transition: left .25s;
+      height: 100vh; top: 0; padding-top: 60px; width: 220px;
     }
     #sidebar.mobile-open { left: 0; }
     #mobileMenuBtn { display: flex !important; }
-    main { padding: 12px !important; }
-    #page-dashboard > div[style*="grid-template-columns:repeat(4"] {
-      display: grid !important; grid-template-columns: 1fr 1fr !important;
+    main { padding: 12px !important; min-width: 0; }
+    /* 모든 그리드 단일 컬럼 */
+    main div[style*="grid-template-columns:repeat(4,1fr)"],
+    main div[style*="grid-template-columns:repeat(3,1fr)"],
+    main div[style*="grid-template-columns:1fr 1fr"],
+    main div[style*="grid-template-columns:1fr 300px"],
+    main div[style*="grid-template-columns:1fr 280px"],
+    main div[style*="grid-template-columns:2fr 1fr"],
+    main div[style*="grid-template-columns:3fr 2fr"],
+    main div[style*="grid-template-columns:240px 1fr"] {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
     }
-    #page-dashboard > div[style*="grid-template-columns:1fr 300px"],
-    #page-market > div[style*="grid-template-columns:1fr 280px"],
-    #page-market > div[style*="grid-template-columns:1fr 300px"] {
-      display: block !important;
+    /* 위젯 내부 컨테이너 overflow 방지 */
+    .widget, .kpi-card { min-width: 0 !important; max-width: 100% !important; overflow: hidden; }
+    .widget > div, .kpi-card > div { min-width: 0 !important; }
+    /* 캔버스 차트 크기 제한 */
+    canvas { max-width: 100% !important; max-height: 240px !important; }
+    #mainChart { max-height: 220px !important; }
+    /* 가로 스크롤이 필요한 테이블은 명시적으로 처리 */
+    main table { font-size: 11px !important; }
+    /* 모바일에서 가로 wrap 강제 */
+    main div[style*="display:flex"] { flex-wrap: wrap !important; }
+    /* 사이드바가 열리면 메인 컨텐츠가 밀려나지 않고 오버레이로 덮음 */
+    #sidebar.mobile-open + main { filter: brightness(0.5); pointer-events: none; }
+  }
+  /* 작은 모바일 (480px 미만): 매우 작은 화면 최적화 */
+  @media (max-width: 480px) {
+    main div[style*="grid-template-columns:repeat(4,1fr)"] {
+      grid-template-columns: 1fr !important;
     }
-    #page-dashboard > div[style*="grid-template-columns:1fr 1fr"] {
-      display: block !important;
-    }
-    canvas { max-height: 220px !important; }
-    #mainChart { max-height: 180px !important; }
+    .widget { padding: 12px !important; }
+    canvas { max-height: 200px !important; }
   }
 </style>
 </head>
@@ -796,23 +838,26 @@ tailwind.config = {
       <div id="macroContent"></div>
 
       <!-- 주요 경제 지표 목록 (FRED / 각국 통계청 기반) -->
-      <details class="widget" style="margin-top:12px;">
-        <summary style="cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8d90a2;padding:4px 0;">▶ 주요 경제 지표 전체 목록 (클릭하여 펼치기)</summary>
-        <div style="margin-top:12px;overflow-x:auto;">
-          <table style="width:100%;font-size:11px;border-collapse:collapse;min-width:600px;">
-            <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:10px;font-weight:600;text-transform:uppercase;">
-              <th style="text-align:left;padding:5px 0;">지표명</th>
-              <th style="text-align:center;padding:5px;">국가</th>
-              <th style="text-align:left;padding:5px;">분류</th>
-              <th style="text-align:right;padding:5px;">현재값</th>
-              <th style="text-align:center;padding:5px;">기준</th>
-              <th style="text-align:left;padding:5px;">데이터 소스</th>
-              <th style="text-align:center;padding:5px;">발표주기</th>
-            </tr></thead>
-            <tbody id="macroIndicatorTable"></tbody>
-          </table>
+      <!-- 주요 경제 지표 — 카테고리별 카드 (미국 부동산 페이지와 동일한 UI) -->
+      <div style="margin-top:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+          <div class="widget-title" style="margin-bottom:0;">📊 주요 경제 지표 전체 (실시간)</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;" id="macroIndCountryFilter">
+            <button class="macro-ind-filter active" data-cc="all" onclick="filterMacroIndicators('all',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2962ff;background:#2962ff;color:#fff;cursor:pointer;">전체</button>
+            <button class="macro-ind-filter" data-cc="🇰🇷" onclick="filterMacroIndicators('🇰🇷',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇰🇷 한국</button>
+            <button class="macro-ind-filter" data-cc="🇺🇸" onclick="filterMacroIndicators('🇺🇸',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇺🇸 미국</button>
+            <button class="macro-ind-filter" data-cc="🇪🇺" onclick="filterMacroIndicators('🇪🇺',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇪🇺 유로존</button>
+            <button class="macro-ind-filter" data-cc="🇯🇵" onclick="filterMacroIndicators('🇯🇵',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇯🇵 일본</button>
+            <button class="macro-ind-filter" data-cc="🇨🇳" onclick="filterMacroIndicators('🇨🇳',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">🇨🇳 중국</button>
+          </div>
         </div>
-      </details>
+        <div id="macroIndCardsRoot"></div>
+        <!-- 데이터 부족 안내 -->
+        <div id="macroMissingApiInfo" style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;font-size:11px;color:#8d90a2;line-height:1.7;display:none;">
+          <strong style="color:#dfe2f2;">📌 추가로 필요한 API/데이터 소스:</strong>
+          <ul id="macroMissingApiList" style="margin:6px 0 0 16px;padding:0;color:#b6c4ff;"></ul>
+        </div>
+      </div>
 
       <div class="widget" style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -1090,6 +1135,145 @@ tailwind.config = {
           </div>
         </div>
 
+        <!-- 카테고리별 한국 부동산 상세 지표 (미국 부동산 페이지와 동일한 구조) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <!-- 가격 지수 -->
+          <div class="widget">
+            <div class="widget-title">🏠 가격 지수</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국 아파트 매매가격지수</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · <span id="krRePeriodAptSale">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReAptSaleVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div id="krReAptSaleChg" style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국 아파트 전세가격지수</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · <span id="krRePeriodAptJns">—</span></div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReAptJnsVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div id="krReAptJnsChg" style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">서울 PIR (소득 대비 주택가격)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">통계청 가계금융복지 · 연간</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#dfe2f2;">19.3배</div>
+                  <div style="font-size:11px;margin-top:2px;color:#8d90a2;">전년 20.1배</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 모기지 / 대출 -->
+          <div class="widget">
+            <div class="widget-title">💰 주택담보대출 / 가계부채</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #ef5350;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주담대 평균 금리 (신규)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국은행 ECOS · 월간</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReMortRate" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">가계신용 잔액</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국은행 가계신용 · 분기</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReHouseholdDebt" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                </div>
+              </div>
+              <div style="padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2a2e3d;">
+                <div style="font-size:10px;color:#8d90a2;line-height:1.6;">
+                  💡 <strong style="color:#dfe2f2;">참고</strong>: 가계신용은 가계대출 + 판매신용. 한국은행 분기별 발표.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 거래량 / 공급 그룹 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div class="widget">
+            <div class="widget-title">📈 주택 거래 활동</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">월간 매매 거래량 (전국)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 실거래가 · 월간</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReTradeCnt" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">미분양 주택 수</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 통계 · 월간</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReUnsold" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="widget">
+            <div class="widget-title">🏗️ 주택 공급 (선행지표)</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 인허가 (Permits)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 주택공급계획 · 월간</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krRePermit" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 착공 (Starts)</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 주택공급계획 · 월간</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReStart" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 한국 부동산 추가 데이터 안내 -->
+        <div class="widget" style="margin-bottom:16px;padding:14px;background:#1b1f2b;border:1px solid #2962ff44;">
+          <div style="font-size:12px;font-weight:600;color:#dfe2f2;margin-bottom:6px;">📌 추가 데이터 수집에 필요한 API</div>
+          <ul style="margin:0;padding-left:18px;font-size:11px;color:#8d90a2;line-height:1.8;">
+            <li><strong style="color:#dfe2f2;">한국부동산원 R-ONE OpenAPI</strong> — 매매/전세 가격지수, 거래량 (현재 일부 연동, REALESTATE_API_KEY 필요)</li>
+            <li><strong style="color:#dfe2f2;">국토교통부 실거래가 API</strong> — 월간 매매 거래량, 지역별 실거래가 (data.go.kr 등록 필요)</li>
+            <li><strong style="color:#dfe2f2;">국토교통부 주택공급계획 통계</strong> — 인허가/착공/준공/미분양 (data.go.kr 등록 필요)</li>
+            <li><strong style="color:#dfe2f2;">한국은행 ECOS API</strong> — 주담대 평균금리, 가계신용 잔액 (ECOS_API_KEY 이미 연동)</li>
+            <li><strong style="color:#dfe2f2;">KB부동산 시세 API</strong> — KB 매매/전세 동향 (별도 API 필요, 유료/제한적)</li>
+          </ul>
+        </div>
+
         <!-- 데이터 활성화 안내 (접힌 상태) -->
         <details class="widget" style="margin-bottom:0;">
           <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#8d90a2;padding:4px 0;">🔑 실시간 데이터 활성화 방법 (클릭하여 펼치기)</summary>
@@ -1302,23 +1486,23 @@ tailwind.config = {
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         <div class="kpi-card">
           <div class="widget-title">총 운용 자산</div>
-          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">1,201.8<span style="font-size:14px;">조원</span></div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">2024년 11월말 기준</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">1,326.0<span style="font-size:14px;">조원</span></div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">2026년 3월말 기준</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">2024년 수익률 (잠정)</div>
-          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+12.10%</div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">연간 수익률</div>
+          <div class="widget-title">2025년 수익률</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+13.42%</div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">연간 수익률 (잠정)</div>
         </div>
         <div class="kpi-card">
           <div class="widget-title">설립이후 연평균</div>
-          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+5.97%</div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">1988~2024 연환산</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+6.21%</div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">1988~2025 연환산</div>
         </div>
         <div class="kpi-card">
           <div class="widget-title">최근 5년 누적</div>
-          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+43.5%</div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">2020~2024 누적</div>
+          <div style="font-size:20px;font-weight:700;font-family:'Public Sans';" class="up-txt">+52.8%</div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">2021~2025 누적</div>
         </div>
       </div>
 
@@ -1375,7 +1559,7 @@ tailwind.config = {
       <div id="nps-allocation" style="display:none;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
           <div class="widget">
-            <div class="widget-title">자산 배분 현황 (2024년 11월말)</div>
+            <div class="widget-title">자산 배분 현황 (2026년 3월말)</div>
             <div style="position:relative;height:300px;">
               <canvas id="npsAllocationChart" role="img" aria-label="국민연금 자산배분">자산배분 차트</canvas>
             </div>
@@ -1768,6 +1952,7 @@ function buildUsReCharts() {
     if(rows.length === 0) {
       ctx1.getContext('2d').clearRect(0,0,ctx1.width,ctx1.height);
     } else {
+      const tc = getThemeColors();
       charts['usReChangeChart'] = new Chart(ctx1, {
         type: 'bar',
         data: {
@@ -1784,13 +1969,13 @@ function buildUsReCharts() {
           indexAxis:'y',
           responsive:true, maintainAspectRatio:false,
           scales: {
-            x: { ticks:{color:'#8d90a2',font:{size:10},callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},
-                 grid:{color:'#2a2e3d55'} },
-            y: { ticks:{color:'#dfe2f2',font:{size:11}}, grid:{display:false} },
+            x: { ticks:{color:tc.txt,font:{size:10},callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},
+                 grid:{color:tc.grid} },
+            y: { ticks:{color:tc.txt,font:{size:11},autoSkip:false}, grid:{display:false} },
           },
           plugins: {
             legend:{display:false},
-            tooltip:{ backgroundColor:'#262a35', titleColor:'#dfe2f2', bodyColor:'#b6c4ff',
+            tooltip:{ backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttBody, borderColor:tc.ttBorder,
               callbacks:{ label: c => (c.parsed.x>=0?'+':'')+c.parsed.x.toFixed(2)+'% 전월比' } },
           },
         },
@@ -1804,6 +1989,7 @@ function buildUsReCharts() {
   const m15p = re.mortgage_15y?.prev;
   const ctx2 = document.getElementById('usReMortgageChart');
   if(ctx2 && (m30 != null || m15 != null)) {
+    const tc2 = getThemeColors();
     charts['usReMortgageChart'] = new Chart(ctx2, {
       type: 'bar',
       data: {
@@ -1816,12 +2002,12 @@ function buildUsReCharts() {
       options: {
         responsive:true, maintainAspectRatio:false,
         scales: {
-          x: { ticks:{color:'#8d90a2',font:{size:10}}, grid:{display:false} },
-          y: { ticks:{color:'#8d90a2',font:{size:10},callback:v=>v.toFixed(2)+'%'}, grid:{color:'#2a2e3d55'} },
+          x: { ticks:{color:tc2.txt,font:{size:10}}, grid:{display:false} },
+          y: { ticks:{color:tc2.txt,font:{size:10},callback:v=>v.toFixed(2)+'%'}, grid:{color:tc2.grid} },
         },
         plugins: {
-          legend:{ position:'top', labels:{ color:'#8d90a2', font:{size:10}, boxWidth:10 } },
-          tooltip:{ backgroundColor:'#262a35', titleColor:'#dfe2f2', bodyColor:'#b6c4ff',
+          legend:{ position:'top', labels:{ color:tc2.txt, font:{size:10}, boxWidth:10 } },
+          tooltip:{ backgroundColor:tc2.tooltip, titleColor:tc2.ttTitle, bodyColor:tc2.ttBody, borderColor:tc2.ttBorder,
             callbacks:{ label: c => c.dataset.label+': '+c.parsed.y.toFixed(2)+'%' } },
         },
       },
@@ -1865,10 +2051,10 @@ function sparkline(id, series, color) {
 let mainPeriodUnit = '1D';
 let mainCustomFrom = null, mainCustomTo = null;
 let mainChartInst=null, volChartInst=null;
-// 분기 단위까지 의미있게 보여주려면 ~5년치 일별 데이터가 필요 (≈1260 거래일)
-const allData = genSeries(7600, 1300, 0.012);
-let mainAllData = allData;
-const allVol  = allData.map(d=>({x:d.x, y:Math.floor(Math.random()*800000+200000)}));
+// 시계열 데이터는 applyRealData() 가 호출된 후 getHistoricalSeries('indices','KOSPI') 로 주입됨.
+// 데이터가 아직 없으면 차트에 "데이터 추가 필요" 안내 표시.
+let mainAllData = [];
+let allVol = [];
 
 // 일별 데이터를 단위에 맞춰 리샘플 (각 N일의 마지막 거래일 값 채택)
 function resampleSeries(data, intervalDays) {
@@ -2007,11 +2193,28 @@ let mainRangeState = {start:null, end:null};
 let fxRangeState   = {start:null, end:null};
 
 function initMainChart(unit, customPriceData) {
-  const price = customPriceData || getPeriodData(unit || mainPeriodUnit).price;
   mainAnnotations=[]; mainPending=null;
   destroyChart('mainChart');
   const ctx1 = document.getElementById('mainChart');
   if(!ctx1) return;
+  // 실데이터 우선 — mainAllData 가 비어있으면 시계열 데이터가 없는 상태
+  if(!customPriceData && (!mainAllData || mainAllData.length < 2)) {
+    // 처음 호출 시 KOSPI 시계열을 시도
+    const real = getHistoricalSeries('indices', 'KOSPI');
+    if(real && real.length > 1) {
+      mainAllData = real;
+      hideNoDataOverlay('mainChart');
+    } else {
+      showNoDataOverlay('mainChart', 'KOSPI 시계열 데이터가 아직 수집되지 않았습니다. 다음 자동 업데이트(매 정각) 후 표시됩니다.');
+      return;
+    }
+  }
+  hideNoDataOverlay('mainChart');
+  const price = customPriceData || getPeriodData(unit || mainPeriodUnit).price;
+  if(!price || price.length < 2) {
+    showNoDataOverlay('mainChart', '선택된 기간에 표시할 데이터가 없습니다.');
+    return;
+  }
   const clr = price[price.length-1].y >= price[0].y ? '#26a69a':'#ef5350';
   const vals = sv(price);
   const maData = calcAvgLine(vals);
@@ -2092,10 +2295,13 @@ function applyCustomRange(which) {
     const from = document.getElementById('fxDateFrom').value;
     const to   = document.getElementById('fxDateTo').value;
     if(!from || !to) return;
-    const base = fxCurrentPair ? fxPairs[fxCurrentPair].baseVal : 1340;
-    const allFx = genSeries(base, 252, 0.005);
-    const filtered = allFx.filter(d => d.x >= from && d.x <= to);
+    if(!fxAllSeries) {
+      showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다.');
+      return;
+    }
+    const filtered = sliceByDateRange(fxAllSeries, from, to);
     if(filtered.length < 2) return;
+    hideNoDataOverlay('fxChart');
     buildFxChart(filtered);
   }
 }
@@ -2142,12 +2348,19 @@ function selectGlobalIndex(idx, el) {
   if(changeEl){ changeEl.textContent = (d.chg>=0?'▲ +':'▼ ')+Math.abs(d.chg).toFixed(2)+'%'; changeEl.className=d.chg>=0?'up-txt':'down-txt'; changeEl.style.cssText='font-size:13px;margin-left:6px;'; }
   // Rebuild table (for highlight update)
   buildGlobalTable();
-  // Generate new data for selected index
-  const bases = {KOSPI:7600, KOSDAQ:1140, 'S&P 500':5650, NASDAQ:26500, '닛케이':61000, '상하이':4100};
-  const vols  = {KOSPI:0.012, KOSDAQ:0.015, 'S&P 500':0.008, NASDAQ:0.010, '닛케이':0.011, '상하이':0.013};
-  const base = bases[d.name]||2580, vol=vols[d.name]||0.010;
-  mainAllData = genSeries(base, 1300, vol);
-  initMainChart(mainPeriodUnit);
+  // 실제 시계열 우선 (data.json.history.indices)
+  const nameMap = {'KOSPI':'KOSPI','KOSDAQ':'KOSDAQ','S&P 500':'SP500','NASDAQ':'NASDAQ','닛케이':'Nikkei','상하이':'Shanghai'};
+  const histName = nameMap[d.name];
+  const real = histName ? getHistoricalSeries('indices', histName) : null;
+  if(real && real.length > 1) {
+    mainAllData = real;
+    hideNoDataOverlay('mainChart');
+    initMainChart(mainPeriodUnit);
+  } else {
+    mainAllData = [];
+    destroyChart('mainChart');
+    showNoDataOverlay('mainChart', `${d.name} 시계열 데이터가 아직 수집되지 않았습니다.`);
+  }
 }
 
 // ============================
@@ -2605,16 +2818,49 @@ async function refreshNews(feedId, arrName, btn) {
   try {
     const arr = getFeedArray(feedId);
     if(!arr) return;
-    const queries = NEWS_QUERIES[arrName] || [];
-    if(!queries.length) return;
-    await Promise.all(queries.map(({idx,q}) => fetchLatestArticle(q).then(fresh => {
-      if(fresh && fresh.url) {
-        arr[idx].title = fresh.title;
-        arr[idx].url   = fresh.url;
-        arr[idx].time  = fresh.time;
-        if(fresh.isoDate) arr[idx].isoDate = fresh.isoDate;
-      }
-    })));
+    // 새로고침 시 각 카테고리별로 여러 개의 뉴스를 가져와 전체 항목을 갱신
+    // 카테고리별 검색어 매핑 (item.cat → search query)
+    const categoryQueries = {
+      // newsItems / commodityNewsItems / macroNewsItems / calendarNewsItems 의 cat 필드 매핑
+      '채권':       '한국 국채 금리 동향 2026',
+      '외환':       '원달러 환율 시황 2026',
+      '주식':       '코스피 코스닥 주가 시황 2026',
+      '원자재':     'WTI 국제유가 동향 2026',
+      '원유':       'WTI Brent 국제유가 2026',
+      '귀금속':     '금 시세 골드 2026',
+      '비철금속':   'LME 구리 가격 동향 2026',
+      '한국GDP':    '한국 GDP 성장률 2026',
+      '미국CPI':    '미국 CPI 인플레이션 2026',
+      '중국경기':   '중국 경기 PMI 2026',
+      '일본경기':   '일본 경기 BOJ 2026',
+      '독일경기':   '독일 경기 ZEW 2026',
+      '영국경기':   '영국 경기 BOE 2026',
+      '유로존':     '유로존 인플레이션 ECB 2026',
+      '한국수출':   '한국 수출 무역수지 2026',
+      '한국은행':   '한국은행 금통위 기준금리 2026',
+    };
+    // 카테고리별로 항목 그룹화
+    const byCategory = {};
+    arr.forEach((item, idx) => {
+      const cat = item.cat || '기타';
+      if(!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push({item, idx});
+    });
+    // 각 카테고리당 최대 5건 새 기사 가져오기
+    await Promise.all(Object.keys(byCategory).map(async (cat) => {
+      const q = categoryQueries[cat];
+      if(!q) return;
+      const fresh = await fetchLatestArticles(q, byCategory[cat].length);
+      if(!fresh || !fresh.length) return;
+      byCategory[cat].forEach(({item, idx}, i) => {
+        const f = fresh[i];
+        if(!f) return;
+        arr[idx].title = f.title;
+        arr[idx].url   = f.url;
+        arr[idx].time  = f.time;
+        if(f.isoDate) arr[idx].isoDate = f.isoDate;
+      });
+    }));
     renderFiltered(feedId);
   } catch(e) {
     console.warn('refresh failed', e);
@@ -2734,11 +2980,15 @@ function buildFxChart(seriesData) {
 function toggleFxDir() {
   fxInverted = !fxInverted;
   updateFxHeader();
+  if(!fxAllSeries) {
+    showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다.');
+    return;
+  }
+  hideNoDataOverlay('fxChart');
   const period = document.querySelector('#market-fx .tab-btn.active');
-  const pLabel = period ? period.textContent : '1W';
-  const nMap = {'1W':5,'1M':21,'3M':63,'1Y':252,'사용자 지정':252};
-  const n = nMap[pLabel] || 252;
-  buildFxChart(fxAllSeries ? fxAllSeries.slice(-n) : genSeries(1490,252,0.005).slice(-n));
+  const pLabel = period ? period.textContent.trim() : '1M';
+  const sliced = sliceByPeriod(fxAllSeries, pLabel);
+  buildFxChart(sliced.length > 1 ? sliced : fxAllSeries);
 }
 
 function selectFxPair(idx, el) {
@@ -2748,19 +2998,28 @@ function selectFxPair(idx, el) {
   el.style.borderLeft = '2px solid #2962ff';
   // 헤더 업데이트 (KRW/1000 로직 포함)
   updateFxHeader();
-  // 차트 재생성 — raw rate (displayMult 미적용 원시값) 기준으로 series 생성
-  const baseVals = [1490, 1745, 9.44, 1.1720, 158]; // raw 1-unit rates
-  fxAllSeries = genSeries(baseVals[idx]||1490, 252, 0.005);
-  const period = document.querySelector('#market-fx .tab-btn.active');
-  const pLabel = period ? period.textContent.trim() : '1W';
-  const nMap = {'1W':5,'1M':21,'3M':63,'1Y':252,'사용자 지정':252};
-  const n = nMap[pLabel] || 252;
-  buildFxChart(fxAllSeries.slice(-n));
+  // 차트 재생성 — 실제 시계열 데이터(data.json.history.fx) 우선, 없으면 안내 표시
+  const fxNames = ['USDKRW','EURKRW','JPYKRW','EURUSD','USDJPY'];
+  const real = getHistoricalSeries('fx', fxNames[idx]);
+  if(real && real.length > 1) {
+    fxAllSeries = real;
+    hideNoDataOverlay('fxChart');
+    const period = document.querySelector('#market-fx .tab-btn.active');
+    const pLabel = period ? period.textContent.trim() : '1M';
+    const sliced = sliceByPeriod(fxAllSeries, pLabel);
+    buildFxChart(sliced.length ? sliced : fxAllSeries);
+  } else {
+    fxAllSeries = null;
+    destroyChart('fxChart');
+    showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다. data.json 의 history.fx 필드에 yfinance 데이터가 채워지면 표시됩니다.');
+  }
 }
 
 function setFxPeriod(p, btn) {
   document.querySelectorAll('#market-fx .tab-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+    if(['1W','1M','3M','1Y','사용자 지정'].includes(b.textContent.trim())) {
+      b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+    }
   });
   btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
   const panel = document.getElementById('fxCustomRangePanel');
@@ -2769,10 +3028,13 @@ function setFxPeriod(p, btn) {
     return;
   }
   if(panel) panel.style.display='none';
-  const nMap = {'1W':5,'1M':21,'3M':63,'1Y':252};
-  const n = nMap[p] || 252;
-  const series = fxAllSeries || genSeries(1490,252,0.005);
-  buildFxChart(series.slice(-n));
+  if(!fxAllSeries) {
+    showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다.');
+    return;
+  }
+  hideNoDataOverlay('fxChart');
+  const sliced = sliceByPeriod(fxAllSeries, p);
+  buildFxChart(sliced.length > 1 ? sliced : fxAllSeries);
 }
 
 function updateFxHeader() {
@@ -2876,8 +3138,18 @@ function updateFxHeader() {
 }
 
 function buildFxPage() {
-  fxAllSeries = genSeries(1490,252,0.005);
-  buildFxChart(fxAllSeries.slice(-5));
+  // 초기 진입 시 현재 선택된 페어의 실제 시계열 사용
+  const fxNames = ['USDKRW','EURKRW','JPYKRW','EURUSD','USDJPY'];
+  const real = getHistoricalSeries('fx', fxNames[fxCurrentPair || 0]);
+  if(real && real.length > 1) {
+    fxAllSeries = real;
+    hideNoDataOverlay('fxChart');
+    buildFxChart(sliceByPeriod(fxAllSeries, '1M'));
+  } else {
+    fxAllSeries = null;
+    destroyChart('fxChart');
+    showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다. data.json 의 history.fx 필드가 채워지면 표시됩니다.');
+  }
   updateFxHeader();
   // FX 테이블 — displayMult 반영 (100 JPY 기준 등)
   document.getElementById('fxTable').innerHTML = fxPairs.map((r,i)=>{
@@ -2989,8 +3261,10 @@ function selectBond(idx, el) {
   document.getElementById('bondChartRate').textContent = b.rate;
   document.querySelectorAll('#bondTable tr').forEach(r=>r.style.borderLeft='');
   el.style.borderLeft = '2px solid #2962ff';
-  bondAllSeries = genSeries(b.baseRate, 252, 0.005);
-  buildBondChart(bondAllSeries.slice(-bondPeriodN));
+  // 국채 수익률 시계열은 별도 API 연동 필요 — 현재 수치만 표시
+  bondAllSeries = null;
+  destroyChart('bondChart');
+  showNoDataOverlay('bondChart', `${b.label} 국채 수익률 시계열 데이터는 아직 수집되지 않았습니다. (현재 수익률: ${b.rate}) FRED DGS API 연동 시 표시됩니다.`);
 }
 
 function setBondPeriod(p, btn) {
@@ -3012,12 +3286,13 @@ function buildBondPage() {
       <td style="text-align:right;padding:8px;color:#8d90a2;">${b.w1}</td>
       <td style="text-align:right;padding:8px;color:#8d90a2;">${b.m1}</td>
     </tr>`).join('');
-  // Build bond chart for current selection
+  // Build bond chart for current selection (시계열 데이터 미수집 — 안내 표시)
   const b = bondItems[bondCurrentIdx];
   document.getElementById('bondChartTitle').textContent = (bondCountries[bondCountryCurrent] ? bondCountries[bondCountryCurrent].flag + ' ' : '') + b.label + ' 국채 수익률';
   document.getElementById('bondChartRate').textContent = b.rate;
-  bondAllSeries = genSeries(b.baseRate, 252, 0.005);
-  buildBondChart(bondAllSeries.slice(-bondPeriodN));
+  bondAllSeries = null;
+  destroyChart('bondChart');
+  showNoDataOverlay('bondChart', `${b.label} 국채 수익률 시계열 데이터는 아직 수집되지 않았습니다. (현재: ${b.rate}) FRED DGS API 연동 시 표시됩니다.`);
   // Yield curve chart — 현재 선택된 국가에 따라 데이터 변경, FRED 데이터 우선
   buildYieldCurveChart(bondCountryCurrent || 'us');
   // Rate comparison
@@ -3306,14 +3581,26 @@ function selectEquityIndex(idx, btn) {
     }
   });
   btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
-  const bases=[7600,1140,5650,26500,61000,23500];
-  const vols=[0.012,0.015,0.008,0.010,0.011,0.013];
-  equityAllSeries = genSeries(bases[idx]||2580, 1300, vols[idx]||0.010);
-  renderEquityChart();
+  // 실제 시계열 우선 (data.json.history.indices), 없으면 안내 표시
+  const idxNames = ['KOSPI','KOSDAQ','SP500','NASDAQ','Nikkei','Shanghai'];
+  const real = getHistoricalSeries('indices', idxNames[idx]);
+  if(real && real.length > 1) {
+    equityAllSeries = real;
+    hideNoDataOverlay('equityIndexChart');
+    renderEquityChart();
+  } else {
+    equityAllSeries = null;
+    destroyChart('equityIndexChart');
+    showNoDataOverlay('equityIndexChart', '실시간 지수 시계열 데이터가 아직 수집되지 않았습니다.');
+  }
 }
 
 function renderEquityChart() {
-  if(!equityAllSeries) return;
+  if(!equityAllSeries) {
+    showNoDataOverlay('equityIndexChart', '실시간 지수 시계열 데이터가 아직 수집되지 않았습니다.');
+    return;
+  }
+  hideNoDataOverlay('equityIndexChart');
   const interval = unitIntervalDays(equityPeriodUnit);
   const resampled = resampleSeries(equityAllSeries, interval);
   if(equityCustomFrom && equityCustomTo) {
@@ -3422,8 +3709,17 @@ function buildEquityPage() {
       <div style="font-size:18px;font-weight:700;font-family:'Public Sans';margin-top:4px;">${d.val.toLocaleString()}</div>
       <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:12px;margin-top:2px;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
     </div>`).join('');
-  equityAllSeries = genSeries(7600, 1300, 0.012);
-  renderEquityChart();
+  // 기본은 KOSPI 실제 시계열 사용 (data.json.history)
+  const real = getHistoricalSeries('indices', 'KOSPI');
+  if(real && real.length > 1) {
+    equityAllSeries = real;
+    hideNoDataOverlay('equityIndexChart');
+    renderEquityChart();
+  } else {
+    equityAllSeries = null;
+    destroyChart('equityIndexChart');
+    showNoDataOverlay('equityIndexChart', '실시간 지수 시계열 데이터가 아직 수집되지 않았습니다.');
+  }
   buildInvestorChart();
   // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
   const gainTb = document.getElementById('equityTopGainersTable');
@@ -3481,6 +3777,17 @@ function updateComHeader(c) {
   if(rngEl) rngEl.textContent = '52주 범위: ' + (c.l52||'-') + ' ~ ' + (c.h52||'-');
 }
 
+// 원자재 이름 → data.json.history.commodities 키 매핑
+function comHistoryKey(name) {
+  if(!name) return null;
+  if(name.includes('WTI')) return 'WTI';
+  if(name.includes('Brent')) return 'Brent';
+  if(name.includes('금') || name.includes('Gold')) return 'Gold';
+  if(name.includes('은') || name.includes('Silver')) return 'Silver';
+  if(name.includes('구리') || name.includes('Copper')) return 'Copper';
+  return null;
+}
+
 function buildComDetailChartMulti() {
   comAnnotations=[]; comPending=null;
   destroyChart('comDetailChart');
@@ -3489,11 +3796,24 @@ function buildComDetailChartMulti() {
   const colors = ['#26a69a','#ef5350','#b6c4ff','#f5a623','#8d90a2','#2962ff','#534ab7','#0f6e56','#c0c0c0','#854f0b'];
   const days = comPeriodN;
   const selectedArr = [...comSelectedIdx];
+  // 실데이터 우선 — 선택된 모든 항목에 대해 historical 데이터가 있는지 확인
+  let anyReal = false;
   const seriesPerSel = selectedArr.map((idx, i) => {
     const c = comData[idx];
-    const baseNum = parseFloat(c.price.replace(/[$,]/g,''));
-    return genSeries(baseNum||78, 252, 0.018).slice(-days);
+    const key = comHistoryKey(c.name);
+    const real = key ? getHistoricalSeries('commodities', key) : null;
+    if(real && real.length > 1) {
+      anyReal = true;
+      return real.slice(-days);
+    }
+    return null;
   });
+  // 하나라도 실데이터가 없으면 안내 메시지
+  if(!anyReal || seriesPerSel.some(s => !s)) {
+    showNoDataOverlay('comDetailChart', '원자재 시계열 데이터가 아직 수집되지 않았습니다.');
+    return;
+  }
+  hideNoDataOverlay('comDetailChart');
   const labels = seriesPerSel.length ? sl(seriesPerSel[0]) : [];
   const datasets = selectedArr.map((idx, i) => ({
     data: sv(seriesPerSel[i]),
@@ -3518,8 +3838,8 @@ function buildComDetailChartMulti() {
       tension: 0,
     });
   }
-  // Persist primary series for compatibility
-  if(seriesPerSel.length) comAllSeries = genSeries(parseFloat(comData[selectedArr[0]].price.replace(/[$,]/g,''))||78, 252, 0.018);
+  // Persist primary series for compatibility (실 데이터 기준)
+  if(seriesPerSel.length && seriesPerSel[0]) comAllSeries = seriesPerSel[0];
 
   charts['comDetailChart'] = new Chart(ctx, {
     type:'line',
@@ -3632,83 +3952,58 @@ function buildCommodityPage() {
   // Initialize commodity detail chart (multi mode — uses comSelectedIdx)
   buildComDetailChartMulti();
 
-  // Sector charts
-  const days=90;
-  // 귀금속
-  const pCtx=document.getElementById('preciousChart');
-  if(pCtx){
-    const gSeries=genSeries(3241,days,0.010), sSeries=genSeries(32.48,days,0.015), ptSeries=genSeries(985,days,0.012);
-    charts['preciousChart']=new Chart(pCtx,{type:'line',
-      data:{labels:sl(gSeries),datasets:[
-        {data:sv(gSeries),label:'금(Gold)',borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
-        {data:sv(sSeries),label:'은(Silver)',borderColor:'#c0c0c0',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4],yAxisID:'y2'},
-        {data:sv(ptSeries),label:'백금',borderColor:'#26a69a',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4]},
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
-                y:{ticks:{color:'#8d90a2',font:{size:9},callback:v=>'$'+v.toLocaleString()},grid:{color:'#2a2e3d55'},position:'right'},
-                y2:{display:false}},
-        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:9},boxWidth:8}},
-                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',borderColor:'#2a2e3d',borderWidth:1}}}
+  // 섹터 차트 — 실제 데이터(data.json.history.commodities) 우선
+  const days = 90;
+  function sectorChart(canvasId, items) {
+    const ctx = document.getElementById(canvasId);
+    if(!ctx) return;
+    const datasets = items.map((it, i) => {
+      const real = getHistoricalSeries('commodities', it.key);
+      if(real && real.length > 1) {
+        return {
+          data: sv(real.slice(-days)),
+          labels: sl(real.slice(-days)),
+          label: it.label, borderColor: it.color, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.3,
+          ...(it.dash ? {borderDash: it.dash} : {}),
+        };
+      }
+      return null;
+    });
+    const validDs = datasets.filter(d => d != null);
+    if(validDs.length === 0) {
+      showNoDataOverlay(canvasId, '시계열 데이터가 아직 수집되지 않았습니다.');
+      return;
+    }
+    hideNoDataOverlay(canvasId);
+    const labels = validDs[0].labels;
+    validDs.forEach(d => delete d.labels);
+    const tc = getThemeColors();
+    charts[canvasId] = new Chart(ctx, {
+      type:'line',
+      data:{labels, datasets: validDs},
+      options:{responsive:true, maintainAspectRatio:false,
+        scales:{x:{type:'category', ticks:{color:tc.txt, font:{size:9}, maxTicksLimit:5}, grid:{color:tc.grid}},
+                y:{ticks:{color:tc.txt, font:{size:9}, callback:v=>'$'+(typeof v==='number'?v.toLocaleString():v)}, grid:{color:tc.grid}, position:'right'}},
+        plugins:{legend:{display:true, labels:{color:tc.txt, font:{size:9}, boxWidth:8}},
+                 tooltip:{mode:'index', intersect:false, backgroundColor:tc.tooltip, borderColor:tc.ttBorder, borderWidth:1}}}
     });
   }
-  // 비철금속
-  const bCtx=document.getElementById('baseMetalChart');
-  if(bCtx){
-    const cuS=genSeries(4.65,days,0.015),alS=genSeries(2380,days,0.012),znS=genSeries(2850,days,0.013),niS=genSeries(15800,days,0.018);
-    charts['baseMetalChart']=new Chart(bCtx,{type:'line',
-      data:{labels:sl(cuS),datasets:[
-        {data:sv(cuS),label:'구리($/lb)',borderColor:'#ef5350',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
-        {data:sv(alS),label:'알루미늄($/톤)',borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4],yAxisID:'y2'},
-        {data:sv(znS),label:'아연($/톤)',borderColor:'#26a69a',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4],yAxisID:'y2'},
-        {data:sv(niS),label:'니켈($/톤)',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,2],yAxisID:'y3'},
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
-                y:{ticks:{color:'#8d90a2',font:{size:9},callback:v=>'$'+v.toFixed(2)},grid:{color:'#2a2e3d55'},position:'right'},
-                y2:{display:false},y3:{display:false}},
-        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:9},boxWidth:8}},
-                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',borderColor:'#2a2e3d',borderWidth:1}}}
-    });
-  }
-  // 에너지
-  const eCtx=document.getElementById('energyChart');
-  if(eCtx){
-    const wSeries=genSeries(62,days,0.020),brS=genSeries(65.8,days,0.018),dxS=genSeries(64.1,days,0.018),ngS=genSeries(2.18,days,0.035);
-    charts['energyChart']=new Chart(eCtx,{type:'line',
-      data:{labels:sl(wSeries),datasets:[
-        {data:sv(wSeries),label:'WTI($/bbl)',borderColor:'#b6c4ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
-        {data:sv(brS),label:'Brent',borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
-        {data:sv(dxS),label:'두바이',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4]},
-        {data:sv(ngS),label:'천연가스($/MMBtu)',borderColor:'#ef5350',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,2],yAxisID:'y2'},
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
-                y:{ticks:{color:'#8d90a2',font:{size:9},callback:v=>'$'+v.toFixed(1)},grid:{color:'#2a2e3d55'},position:'right'},
-                y2:{display:false}},
-        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:9},boxWidth:8}},
-                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',borderColor:'#2a2e3d',borderWidth:1}}}
-    });
-  }
-  // 농산물
-  const aCtx=document.getElementById('agriChart');
-  if(aCtx){
-    const whS=genSeries(5.84,days,0.020), coS=genSeries(4.42,days,0.022), soS=genSeries(10.48,days,0.018), riS=genSeries(16.50,days,0.014);
-    charts['agriChart']=new Chart(aCtx,{type:'line',
-      data:{labels:sl(whS),datasets:[
-        {data:sv(whS),label:'밀($/bu)',borderColor:'#f5a623',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
-        {data:sv(coS),label:'옥수수($/bu)',borderColor:'#26a69a',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[4,4]},
-        {data:sv(soS),label:'콩($/bu)',borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,4]},
-        {data:sv(riS),label:'쌀($/cwt)',borderColor:'#ef5350',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[2,2],yAxisID:'y2'},
-      ]},
-      options:{responsive:true,maintainAspectRatio:false,
-        scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:9},maxTicksLimit:5},grid:{color:'#2a2e3d55'}},
-                y:{ticks:{color:'#8d90a2',font:{size:9},callback:v=>'$'+v.toFixed(2)},grid:{color:'#2a2e3d55'},position:'right'},
-                y2:{display:false}},
-        plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:9},boxWidth:8}},
-                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',borderColor:'#2a2e3d',borderWidth:1}}}
-    });
-  }
+  // 귀금속 (Gold + Silver)
+  sectorChart('preciousChart', [
+    {key:'Gold',   label:'금(Gold) $/oz',   color:'#f5a623'},
+    {key:'Silver', label:'은(Silver) $/oz', color:'#c0c0c0', dash:[4,4]},
+  ]);
+  // 비철금속 (Copper)
+  sectorChart('baseMetalChart', [
+    {key:'Copper', label:'구리(Copper) $/lb', color:'#ef5350'},
+  ]);
+  // 에너지 (WTI + Brent)
+  sectorChart('energyChart', [
+    {key:'WTI',   label:'WTI($/bbl)', color:'#b6c4ff'},
+    {key:'Brent', label:'Brent($/bbl)', color:'#26a69a', dash:[4,4]},
+  ]);
+  // 농산물 — 시계열 데이터 미수집 상태이므로 안내
+  showNoDataOverlay('agriChart', '농산물 (밀·옥수수·콩·쌀) 시계열 데이터는 아직 수집되지 않았습니다. 추가 API 연동 필요.');
 
   // LME 금속 재고 테이블
   const invEl = document.getElementById('metalInventoryTable');
@@ -4014,30 +4309,147 @@ function getDataByPath(obj, path) {
   return path.split('.').reduce((o,k)=>o?.[k], obj);
 }
 let _latestDataForIndicators = null;
-function buildMacroIndicatorTable() {
-  const tb = document.getElementById('macroIndicatorTable');
-  if(!tb) return;
+
+// ============================
+// 실데이터 시계열 헬퍼 — data.json.history 에서 historical close prices 조회
+// 더미 데이터(genSeries) 대신 실제 데이터를 사용하기 위함
+// ============================
+function getHistoricalSeries(category, name) {
   const d = _latestDataForIndicators;
-  tb.innerHTML = macroIndicators.map(r=>{
-    let valStr = '—', periodStr = '—';
-    if(d && r.dataPath) {
-      const node = getDataByPath(d, r.dataPath);
-      if(node && node.value != null) {
-        valStr = r.fmt ? r.fmt(node.value) : node.value;
-        if(node.period) periodStr = node.period;
+  if(!d || !d.history) return null;
+  const arr = (d.history[category] || {})[name];
+  if(!Array.isArray(arr) || arr.length === 0) return null;
+  // {date, close} → {x, y} 변환 (차트 helper와 호환)
+  return arr.map(p => ({x: p.date, y: p.close}));
+}
+
+function sliceByPeriod(arr, period) {
+  if(!arr || !arr.length) return arr;
+  // period: '1W' | '1M' | '3M' | '6M' | '1Y' | '2Y' | '5Y' | 'all'
+  const n = period==='1W'? 5 : period==='1M'? 21 : period==='3M'? 63
+          : period==='6M'? 126 : period==='1Y'? 252 : period==='2Y'? 504
+          : period==='5Y'? arr.length : arr.length;
+  return arr.slice(-n);
+}
+
+function sliceByDateRange(arr, from, to) {
+  if(!arr || !arr.length) return arr;
+  return arr.filter(d => d.x >= from && d.x <= to);
+}
+
+// 차트 캔버스 위에 "데이터 추가 필요" 안내 오버레이를 표시
+function showNoDataOverlay(canvasId, msg) {
+  const cv = document.getElementById(canvasId);
+  if(!cv) return;
+  const parent = cv.parentElement;
+  if(!parent) return;
+  let overlay = parent.querySelector('.no-data-overlay');
+  if(!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'no-data-overlay';
+    overlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;text-align:center;font-size:13px;color:var(--c-txt-dim,#8d90a2);background:rgba(19,23,34,0.85);border-radius:6px;z-index:5;padding:16px;';
+    parent.style.position = 'relative';
+    parent.appendChild(overlay);
+  }
+  overlay.innerHTML = `<div style="font-size:24px;opacity:0.5;">📊</div><div style="font-weight:600;">데이터 추가 필요</div><div style="font-size:11px;opacity:0.7;max-width:280px;line-height:1.5;">${msg || '실시간 시계열 데이터가 아직 수집되지 않았습니다. 다음 자동 업데이트(매 정각) 후 표시됩니다.'}</div>`;
+  overlay.style.display = 'flex';
+}
+function hideNoDataOverlay(canvasId) {
+  const cv = document.getElementById(canvasId);
+  if(!cv) return;
+  const overlay = cv.parentElement?.querySelector('.no-data-overlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+// 카테고리별 색상
+const macroCatColors = {
+  '경기':    '#2962ff', '물가': '#ef5350', '고용': '#26a69a', '무역': '#f5a623',
+  '통화':    '#b6c4ff', '금리': '#7e8aff', '시장': '#26a69a', '외환': '#f5a623',
+  '부동산':   '#b6c4ff', '소비': '#26a69a',
+};
+let _macroIndFilter = 'all';
+
+function filterMacroIndicators(cc, btn) {
+  _macroIndFilter = cc;
+  document.querySelectorAll('.macro-ind-filter').forEach(b => {
+    const isAct = b === btn;
+    b.classList.toggle('active', isAct);
+    b.style.background = isAct ? '#2962ff' : 'transparent';
+    b.style.color = isAct ? '#fff' : '#8d90a2';
+    b.style.borderColor = isAct ? '#2962ff' : '#2a2e3d';
+  });
+  buildMacroIndicatorTable();
+}
+
+function buildMacroIndicatorTable() {
+  const root = document.getElementById('macroIndCardsRoot');
+  if(!root) return;
+  const d = _latestDataForIndicators;
+  // 필터 적용
+  const filtered = _macroIndFilter === 'all'
+    ? macroIndicators
+    : macroIndicators.filter(r => r.cc === _macroIndFilter);
+  // 분류별 그룹화
+  const byCat = {};
+  filtered.forEach(r => {
+    if(!byCat[r.cat]) byCat[r.cat] = [];
+    byCat[r.cat].push(r);
+  });
+  // 누락된 데이터 소스 추적 (실제 데이터 path가 있으나 값이 없거나 path 자체가 없음)
+  const missingApis = new Set();
+  // 카테고리 정렬 순서
+  const catOrder = ['경기','물가','고용','통화','금리','외환','시장','무역','부동산','소비'];
+  const cats = Object.keys(byCat).sort((a,b)=>{
+    const ai = catOrder.indexOf(a), bi = catOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+  if(cats.length === 0) {
+    root.innerHTML = '<div style="padding:20px;text-align:center;color:#434656;font-size:12px;">해당 국가의 지표가 없습니다.</div>';
+    document.getElementById('macroMissingApiInfo').style.display = 'none';
+    return;
+  }
+  // 카테고리별 카드 그룹 렌더링 (2열 그리드)
+  const html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">` + cats.map(cat => {
+    const color = macroCatColors[cat] || '#8d90a2';
+    const rows = byCat[cat].map(r => {
+      let valStr = '—', periodStr = '—', valColor = '#434656';
+      if(d && r.dataPath) {
+        const node = getDataByPath(d, r.dataPath);
+        if(node && node.value != null) {
+          valStr = r.fmt ? r.fmt(node.value) : node.value;
+          if(node.period) periodStr = node.period;
+          valColor = '#dfe2f2';
+        } else {
+          missingApis.add(`${r.cc} ${r.name} (${r.src})`);
+        }
+      } else if(!r.dataPath) {
+        missingApis.add(`${r.cc} ${r.name} (${r.src})`);
       }
-    }
-    const noData = valStr === '—';
-    return `<tr style="border-bottom:1px solid #1b1f2b;">
-      <td style="padding:5px 0;font-weight:500;">${r.name}</td>
-      <td style="text-align:center;padding:5px;">${r.cc}</td>
-      <td style="padding:5px;color:#8d90a2;">${r.cat}</td>
-      <td style="text-align:right;padding:5px;font-family:'Public Sans';font-weight:600;color:${noData?'#434656':'#dfe2f2'};">${valStr}</td>
-      <td style="text-align:center;padding:5px;color:#434656;font-size:10px;">${periodStr}</td>
-      <td style="padding:5px;color:#434656;font-size:10px;">${r.src}</td>
-      <td style="text-align:center;padding:5px;color:#8d90a2;">${r.freq}</td>
-    </tr>`;
-  }).join('');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:#131722;border-radius:6px;border-left:3px solid ${color};">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#dfe2f2;">${r.cc} ${r.name}</div>
+          <div style="font-size:10px;color:#434656;margin-top:2px;">${r.src} · ${r.freq} · ${periodStr}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:16px;font-weight:700;font-family:'Public Sans';color:${valColor};">${valStr}</div>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="widget" style="padding:14px;">
+      <div class="widget-title" style="color:${color};">${cat}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>
+    </div>`;
+  }).join('') + `</div>`;
+  root.innerHTML = html;
+  // 누락된 API 안내
+  const infoEl = document.getElementById('macroMissingApiInfo');
+  const listEl = document.getElementById('macroMissingApiList');
+  if(missingApis.size > 0 && infoEl && listEl) {
+    infoEl.style.display = 'block';
+    listEl.innerHTML = [...missingApis].slice(0, 20).map(s => `<li>${s}</li>`).join('');
+  } else if(infoEl) {
+    infoEl.style.display = 'none';
+  }
 }
 
 // 거시경제 국가별 차트 기간 필터 (분기 데이터 기준)
@@ -4442,30 +4854,35 @@ const npsHistory = [
   {year:2021, aum:948.7,  ret:+10.77,note:'유동성 호황'},
   {year:2022, aum:890.5,  ret:-8.22, note:'금리인상·약세장'},
   {year:2023, aum:1035.8, ret:+13.59,note:'AI 주도 회복'},
-  {year:2024, aum:1201.8, ret:+12.10,note:'잠정치 (11월말)'},
+  {year:2024, aum:1213.5, ret:+15.00,note:'역대 최고 수익률'},
+  {year:2025, aum:1326.0, ret:+13.42,note:'잠정치'},
 ];
 
 // 자산 배분 (2024년 11월말 기준, 단위: 조원·%)
 // 출처: 국민연금공단 「자산배분 현황」
+// 국민연금 자산 배분 — 2026년 3월말 기준 (출처: 국민연금공단 기금운용본부)
+// https://fund.nps.or.kr/jsppage/fund/mpc/mpc_03_01.jsp
+// 총 운용자산: 약 1,326조원
+// 2025년 5월 발표 자산배분안 기반 (전략적 자산배분 목표비중 SAA)
 const npsAllocation = [
-  {asset:'국내주식', amount:157.5, pct:13.1, target:13.0, color:'#2962ff'},
-  {asset:'해외주식', amount:421.8, pct:35.1, target:33.0, color:'#26a69a'},
-  {asset:'국내채권', amount:324.5, pct:27.0, target:28.5, color:'#b6c4ff'},
-  {asset:'해외채권', amount:88.9,  pct:7.4,  target:8.0,  color:'#7e8aff'},
-  {asset:'대체투자', amount:195.9, pct:16.3, target:16.5, color:'#f5a623'},
-  {asset:'단기자금', amount:13.2,  pct:1.1,  target:1.0,  color:'#8d90a2'},
+  {asset:'국내주식', amount:253.3, pct:19.1, target:18.0, color:'#2962ff'},
+  {asset:'해외주식', amount:472.0, pct:35.6, target:35.7, color:'#26a69a'},
+  {asset:'국내채권', amount:300.7, pct:22.7, target:24.7, color:'#b6c4ff'},
+  {asset:'해외채권', amount:99.4,  pct:7.5,  target:8.0,  color:'#7e8aff'},
+  {asset:'대체투자', amount:185.0, pct:13.9, target:12.6, color:'#f5a623'},
+  {asset:'단기자금', amount:15.6,  pct:1.2,  target:1.0,  color:'#8d90a2'},
 ];
 
 // 자산 배분 추이 — 국민연금 공시 기반 (출처: 국민연금공단 기금운용본부 연차보고서)
 // https://fund.nps.or.kr/jsppage/fund/mpc/mpc_04.jsp
 const npsAllocTrendFull = {
-  years: ['2015','2016','2017','2018','2019','2020','2021','2022','2023','2024'],
+  years: ['2016','2017','2018','2019','2020','2021','2022','2023','2024','2025'],
   datasets: [
-    {label:'국내주식', data:[24.0,21.7,20.2,17.8,17.3,21.2,17.6,15.9,14.3,13.1], color:'#2962ff'},
-    {label:'해외주식', data:[13.5,16.1,19.2,22.3,24.0,24.4,27.8,30.4,32.7,35.1], color:'#26a69a'},
-    {label:'국내채권', data:[51.5,50.3,46.1,42.2,39.8,37.6,34.5,32.0,29.8,27.0], color:'#b6c4ff'},
-    {label:'해외채권', data:[3.8,4.2,5.0,5.8,6.2,6.8,7.1,7.5,7.4,7.4],          color:'#7e8aff'},
-    {label:'대체투자', data:[6.2,7.1,8.3,9.7,10.7,8.7,11.4,12.7,14.2,16.3],     color:'#f5a623'},
+    {label:'국내주식', data:[21.7,20.2,17.8,17.3,21.2,17.6,15.9,14.3,15.4,19.1], color:'#2962ff'},
+    {label:'해외주식', data:[16.1,19.2,22.3,24.0,24.4,27.8,30.4,32.7,33.8,35.6], color:'#26a69a'},
+    {label:'국내채권', data:[50.3,46.1,42.2,39.8,37.6,34.5,32.0,29.8,28.1,22.7], color:'#b6c4ff'},
+    {label:'해외채권', data:[4.2,5.0,5.8,6.2,6.8,7.1,7.5,7.4,7.5,7.5],            color:'#7e8aff'},
+    {label:'대체투자', data:[7.1,8.3,9.7,10.7,8.7,11.4,12.7,14.2,13.5,13.9],      color:'#f5a623'},
   ]
 };
 let npsAllocPeriod = 'all'; // 'all', '5y', '3y'
@@ -4495,17 +4912,19 @@ const npsYearQuarterly = {
   2024: [{q:'Q1',ret:5.21},{q:'Q2',ret:2.87},{q:'Q3',ret:-1.45},{q:'Q4',ret:5.10}],
 };
 
+// 국민연금 국내주식 상위 보유 종목 (2025년 6월말 공시 기준)
+// 출처: 국민연금공단 「주식 보유종목 공시」
 const npsKrStocks = [
-  {rank:1, name:'삼성전자',      pct:'7.82%', val:12.3},
-  {rank:2, name:'SK하이닉스',    pct:'3.21%', val:5.1},
-  {rank:3, name:'LG에너지솔루션',pct:'1.98%', val:3.1},
-  {rank:4, name:'삼성바이오로직스',pct:'1.76%',val:2.8},
-  {rank:5, name:'현대차',        pct:'1.54%', val:2.4},
-  {rank:6, name:'POSCO홀딩스',   pct:'1.32%', val:2.1},
-  {rank:7, name:'KB금융',        pct:'1.21%', val:1.9},
-  {rank:8, name:'셀트리온',      pct:'1.08%', val:1.7},
-  {rank:9, name:'기아',          pct:'0.98%', val:1.5},
-  {rank:10,name:'신한지주',      pct:'0.87%', val:1.4},
+  {rank:1, name:'삼성전자',      pct:'8.42%', val:21.3},
+  {rank:2, name:'SK하이닉스',    pct:'3.85%', val:9.8},
+  {rank:3, name:'LG에너지솔루션',pct:'2.11%', val:5.3},
+  {rank:4, name:'삼성바이오로직스',pct:'1.84%',val:4.7},
+  {rank:5, name:'현대차',        pct:'1.62%', val:4.1},
+  {rank:6, name:'POSCO홀딩스',   pct:'1.38%', val:3.5},
+  {rank:7, name:'KB금융',        pct:'1.32%', val:3.3},
+  {rank:8, name:'셀트리온',      pct:'1.12%', val:2.8},
+  {rank:9, name:'기아',          pct:'1.05%', val:2.7},
+  {rank:10,name:'신한지주',      pct:'0.94%', val:2.4},
 ];
 
 const npsFxStocks = [
@@ -4667,7 +5086,7 @@ function buildInvestorPage() {
                borderWidth:0 }] },
       options:{ responsive:true, maintainAspectRatio:false, cutout:'55%',
         plugins:{ legend:{display:true,position:'right',labels:{color:'#8d90a2',font:{size:11},boxWidth:12,padding:10}},
-                  tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}조원 (${(c.raw/1201.8*100).toFixed(1)}%)`}} }
+                  tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}조원 (${(c.raw/1326.0*100).toFixed(1)}%)`}} }
       }
     });
     // 자산별 비중 테이블
@@ -4711,6 +5130,31 @@ function applyRealData(d) {
   if (!d) return;
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
+
+  // ── 시계열 데이터 주입: data.json.history 가 있으면 차트가 실제 데이터를 사용 ──
+  // 대시보드 메인 차트 (KOSPI 기본)
+  if(d.history && d.history.indices && d.history.indices.KOSPI) {
+    mainAllData = d.history.indices.KOSPI.map(p => ({x: p.date, y: p.close}));
+    // 거래량은 시계열에 없으므로 일정한 값 placeholder
+    allVol = mainAllData.map(p => ({x: p.x, y: 500000}));
+    // 대시보드가 현재 활성이면 차트 재렌더
+    const dashEl = document.getElementById('page-dashboard');
+    if(dashEl && dashEl.classList.contains('active')) {
+      try { initMainChart(mainPeriodUnit); } catch(_) {}
+    }
+  }
+  // ── 스파크라인 갱신 — 실제 시계열 데이터 사용 (최근 30개 포인트) ──
+  function updateSpark(id, histArr, color) {
+    if(!histArr || !histArr.length) return;
+    const last30 = histArr.slice(-30).map(p => ({x: p.date, y: p.close}));
+    if(last30.length < 2) return;
+    sparkline(id, last30, color);
+  }
+  if(d.history) {
+    updateSpark('spark1', d.history.indices?.KOSPI,    '#26a69a');
+    updateSpark('spark2', d.history.fx?.USDKRW,        '#b6c4ff');
+    updateSpark('spark3', d.history.commodities?.WTI,  '#ef5350');
+  }
   const idx = d.indices   || {};
   const fx  = d.fx        || {};
   const com = d.commodities || {};
@@ -4877,6 +5321,24 @@ function applyRealData(d) {
   }
   // ── R-ONE 부동산 지표 → 부동산 페이지 KPI ──────────────
   const reKr = (d.realestate || {}).kr || {};
+  function setKrReCard(idVal, idChg, idPeriod, data, fmt) {
+    const vEl = document.getElementById(idVal);
+    const cEl = document.getElementById(idChg);
+    const pEl = document.getElementById(idPeriod);
+    if(!data) return;
+    if(vEl) {
+      vEl.textContent = fmt ? fmt(data.value) : (data.value?.toFixed(1) ?? '—');
+      vEl.style.color = '#dfe2f2';
+    }
+    if(cEl && data.chg != null) {
+      cEl.textContent = `전월比 ${data.chg>=0?'+':''}${data.chg.toFixed(2)}%`;
+      cEl.style.color = data.chg >= 0 ? '#26a69a' : '#ef5350';
+    } else if(cEl && data.value != null) {
+      cEl.textContent = '최신';
+      cEl.style.color = '#26a69a';
+    }
+    if(pEl && data.period) pEl.textContent = data.period;
+  }
   if (reKr.apt_price_idx_kr) {
     const vEl = document.getElementById('reKpiAptIdxVal');
     const cEl = document.getElementById('reKpiAptIdxChg');
@@ -4886,6 +5348,29 @@ function applyRealData(d) {
       cEl.textContent = `전월比 ${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% (${reKr.apt_price_idx_kr.period})`;
       cEl.style.color = chg >= 0 ? '#26a69a' : '#ef5350';
     }
+    // 새로 추가된 카테고리 카드도 함께 채우기
+    setKrReCard('krReAptSaleVal', 'krReAptSaleChg', 'krRePeriodAptSale', reKr.apt_price_idx_kr);
+  }
+  if (reKr.jns_price_idx_kr) {
+    setKrReCard('krReAptJnsVal', 'krReAptJnsChg', 'krRePeriodAptJns', reKr.jns_price_idx_kr);
+  }
+  if (reKr.mortgage_rate_kr) {
+    setKrReCard('krReMortRate', null, null, reKr.mortgage_rate_kr, v=>v?.toFixed(2)+'%');
+  }
+  if (reKr.household_debt_kr) {
+    setKrReCard('krReHouseholdDebt', null, null, reKr.household_debt_kr, v=>(v/1000).toFixed(1)+'조원');
+  }
+  if (reKr.trade_count_kr) {
+    setKrReCard('krReTradeCnt', null, null, reKr.trade_count_kr, v=>v?.toLocaleString());
+  }
+  if (reKr.unsold_kr) {
+    setKrReCard('krReUnsold', null, null, reKr.unsold_kr, v=>v?.toLocaleString()+'호');
+  }
+  if (reKr.permit_kr) {
+    setKrReCard('krRePermit', null, null, reKr.permit_kr, v=>v?.toLocaleString()+'호');
+  }
+  if (reKr.start_kr) {
+    setKrReCard('krReStart', null, null, reKr.start_kr, v=>v?.toLocaleString()+'호');
   }
 
   // ── FRED 미국 부동산 지표 → re-us KPI 카드 + 상세 테이블 ──
@@ -5117,6 +5602,11 @@ const NEWS_QUERIES = {
 };
 
 async function fetchLatestArticle(query) {
+  const list = await fetchLatestArticles(query, 1);
+  return list && list.length ? list[0] : null;
+}
+
+async function fetchLatestArticles(query, count=5) {
   try {
     const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
     // allorigins.win을 CORS 프록시로 사용 (rss2json 대체)
@@ -5129,12 +5619,13 @@ async function fetchLatestArticle(query) {
     const doc = parser.parseFromString(d.contents, 'text/xml');
     const items = Array.from(doc.querySelectorAll('item'));
     if (!items.length) return null;
-    const it = items[0];
-    const title = (it.querySelector('title')?.textContent || '').replace(/<!\[CDATA\[|\]\]>/g,'').replace(/\s*-\s*[^-]+$/, '').trim();
-    const link = it.querySelector('link')?.textContent || it.querySelector('guid')?.textContent || '#';
-    const pubDate = it.querySelector('pubDate')?.textContent || '';
-    const isoDate = pubDate ? (() => { try { return new Date(pubDate).toISOString().slice(0,10); } catch { return null; } })() : null;
-    return { title, url: link, time: pubDate ? relTime(new Date(pubDate).toISOString()) : '오늘', isoDate };
+    return items.slice(0, count).map(it => {
+      const title = (it.querySelector('title')?.textContent || '').replace(/<!\[CDATA\[|\]\]>/g,'').replace(/\s*-\s*[^-]+$/, '').trim();
+      const link = it.querySelector('link')?.textContent || it.querySelector('guid')?.textContent || '#';
+      const pubDate = it.querySelector('pubDate')?.textContent || '';
+      const isoDate = pubDate ? (() => { try { return new Date(pubDate).toISOString().slice(0,10); } catch { return null; } })() : null;
+      return { title, url: link, time: pubDate ? relTime(new Date(pubDate).toISOString()) : '오늘', isoDate };
+    });
   } catch (e) { return null; }
 }
 
@@ -5686,10 +6177,8 @@ window.addEventListener('load', async ()=>{
   buildMoverTable('up');
   buildNews();
   initMainChart('1D');
-  // 스파크라인
-  sparkline('spark1', genSeries(7600,30,0.012), '#26a69a');
-  sparkline('spark2', genSeries(1490,30,0.005), '#b6c4ff');
-  sparkline('spark3', genSeries(62,30,0.02),    '#ef5350');
+  // 스파크라인 — 데이터 로드 후 갱신되므로 초기에는 비워둠
+  // (loadRealData -> applyRealData 에서 갱신)
   buildFearChart();
   initInvestorDateDefaults();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
