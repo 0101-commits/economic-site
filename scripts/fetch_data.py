@@ -344,7 +344,7 @@ def fetch_naver_stock_movers(market="kospi", top_n=10):
 
 
 def fetch_krx_etf_movers(top_n=10):
-    """KRX ETF 등락률 상위/하위 조회. 실패 시 Naver Finance ETF 페이지 폴백."""
+    """KRX ETF 등락률 상위/하위 조회. 실패 또는 모든 등락률 0% 시 Naver Finance 폴백."""
     if KRX_API_KEY:
         rows, basd = fetch_krx_latest("/eto/etf_bydd_trd")
         if rows:
@@ -354,13 +354,24 @@ def fetch_krx_etf_movers(top_n=10):
                 code = (row.get("ISU_SRT_CD") or "").strip()
                 price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
                 chg_rt = _parse_num(row.get("FLUC_RT"))
+                # FLUC_RT 가 0 또는 누락된 경우 CMPPREVDD_PRC (전일대비)와 가격으로 직접 계산
+                if (chg_rt is None or chg_rt == 0) and price:
+                    diff = _parse_num(row.get("CMPPREVDD_PRC"))
+                    if diff is not None and (price - diff) > 0:
+                        chg_rt = round(diff / (price - diff) * 100, 2)
                 if price and price > 0 and chg_rt is not None:
                     parsed.append({"name": name, "code": code, "price": price, "chg": chg_rt, "as_of": basd})
             if parsed:
-                gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
-                losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
-                return gainers, losers
-    # KRX 실패 → Naver ETF 폴백 (https://finance.naver.com/sise/etf.naver)
+                # 모든 등락률이 0이면 데이터가 오래된 것 — Naver 폴백
+                non_zero = [p for p in parsed if p["chg"] != 0]
+                if len(non_zero) >= 3:
+                    gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+                    losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+                    log(f"[KRX-ETF] {len(parsed)}건 (비영점 {len(non_zero)}건) - {basd}")
+                    return gainers, losers
+                else:
+                    log(f"[KRX-ETF] 등락률 0% 우세 ({len(non_zero)}/{len(parsed)}) - Naver 폴백")
+    # KRX 실패 → Naver ETF 폴백
     return fetch_naver_etf_movers(top_n)
 
 
@@ -486,7 +497,7 @@ def fetch_fred_latest(series_id):
 
 
 def fetch_fred_economic_indicators():
-    """주요 미국 경제 지표 일괄 조회."""
+    """주요 미국 경제 지표 일괄 조회 (최신 값 + 24개 시점 시계열)."""
     if not FRED_API_KEY:
         log("[FRED] API 키 없음 — 건너뜀")
         return {}
@@ -505,15 +516,18 @@ def fetch_fred_economic_indicators():
     }
     result = {}
     for key, (series_id, desc) in indicators.items():
-        obs = fetch_fred_series(series_id, limit=1)
+        # 시계열: 24개 시점 (월간 데이터 = 2년, 일간 데이터 = 약 24일)
+        obs = fetch_fred_series(series_id, limit=24)
         if obs:
+            history = {o["date"]: o["value"] for o in obs}
             result[key] = {
                 "value": obs[0]["value"],
                 "period": obs[0]["date"],
                 "desc": desc,
                 "source": f"FRED:{series_id}",
+                "history": history,
             }
-            log(f"[FRED] {series_id}: {obs[0]['value']} ({obs[0]['date']})")
+            log(f"[FRED] {series_id}: {obs[0]['value']} ({obs[0]['date']}) +{len(history)}점 시계열")
         else:
             log(f"[FRED] {series_id}: 데이터 없음")
     return result
@@ -555,22 +569,24 @@ FRED_INTL_INDICATORS = {
 
 
 def fetch_fred_intl_indicators():
-    """FRED 의 OECD/Eurostat/IMF 국제 시리즈에서 일본·유로존·중국·독일·영국 핵심 지표 조회."""
+    """FRED 의 OECD/Eurostat/IMF 국제 시리즈에서 일본·유로존·중국·독일·영국 핵심 지표 조회 (시계열 포함)."""
     if not FRED_API_KEY:
         return {}
     out = {}
     for cc, ind_map in FRED_INTL_INDICATORS.items():
         cc_data = {}
         for key, (series_id, desc) in ind_map.items():
-            obs = fetch_fred_series(series_id, limit=1)
+            obs = fetch_fred_series(series_id, limit=24)
             if obs:
+                history = {o["date"]: o["value"] for o in obs}
                 cc_data[f"{key}_{cc}"] = {
                     "value": obs[0]["value"],
                     "period": obs[0]["date"],
                     "desc": desc,
                     "source": f"FRED:{series_id}",
+                    "history": history,
                 }
-                log(f"[FRED-INTL:{cc.upper()}] {series_id}: {obs[0]['value']} ({obs[0]['date']})")
+                log(f"[FRED-INTL:{cc.upper()}] {series_id}: {obs[0]['value']} ({obs[0]['date']}) +{len(history)}점")
             else:
                 log(f"[FRED-INTL:{cc.upper()}] {series_id}: 데이터 없음")
         if cc_data:
@@ -662,7 +678,7 @@ def fetch_fred_realestate_us():
         obs = None
         used_id = None
         for sid in series_ids:
-            obs = fetch_fred_series(sid, limit=2)
+            obs = fetch_fred_series(sid, limit=24)
             if obs:
                 used_id = sid
                 break
@@ -672,6 +688,7 @@ def fetch_fred_realestate_us():
             cur = obs[0]["value"]
             prev = obs[1]["value"] if len(obs) > 1 else None
             chg = round((cur - prev) / prev * 100, 2) if prev and prev != 0 else None
+            history = {o["date"]: o["value"] for o in obs}
             result[key] = {
                 "value": cur,
                 "prev": prev,
@@ -679,8 +696,9 @@ def fetch_fred_realestate_us():
                 "period": obs[0]["date"],
                 "desc": desc,
                 "source": f"FRED:{used_id}",
+                "history": history,
             }
-            log(f"[FRED-RE] {used_id}: {cur} ({obs[0]['date']}) chg={chg}")
+            log(f"[FRED-RE] {used_id}: {cur} ({obs[0]['date']}) chg={chg} +{len(history)}점")
         else:
             log(f"[FRED-RE] {key}: 모든 후보 실패")
     log(f"[FRED-RE] 미국 부동산: {len(result)}/{len(indicators)} 지표 수집됨")
@@ -718,8 +736,8 @@ def fetch_ecos_series(stat_code, item_code="", freq="A", start_period=None, end_
         return None
 
 
-def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=6):
-    """ECOS 단일 시계열 최신값 조회 헬퍼."""
+def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=24):
+    """ECOS 단일 시계열 최신값 + 24개월/분기 히스토리 조회 헬퍼."""
     rows = fetch_ecos_series(stat_code, item_code, freq, limit=limit)
     if not rows:
         return None
@@ -729,11 +747,19 @@ def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=6):
     val = _parse_num(latest.get("DATA_VALUE"))
     if val is None:
         return None
+    # 히스토리 (모든 관측값)
+    history = {}
+    for row in rows_sorted:
+        t = row.get("TIME")
+        v = _parse_num(row.get("DATA_VALUE"))
+        if t and v is not None:
+            history[t] = v
     return {
         "value": val,
         "period": latest.get("TIME"),
         "desc": desc,
         "source": f"ECOS:{source_id}",
+        "history": history,
     }
 
 
@@ -818,17 +844,28 @@ def fetch_ecos_economic_indicators():
         log(f"[ECOS] 소매판매: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
 
     # ─── 고용 ───
-    # 실업률 - 901Y027 (경제활동인구). item: I61E (전체) / I61EC (계절조정)
-    # 계절조정 코드가 더 안정적인 경우가 많음
-    r, used_stat, used_item = _ecos_try_multi(
-        ["901Y027"],
-        ["I61EC", "I61E", "I61EC1", "0", "AAA", "T0", "T00"],
-        "M", "한국 실업률 (계절조정)", "UNEMP",
-    )
-    if r:
-        r["source"] = f"ECOS:{used_stat}"
+    # 실업률 - 901Y027 (경제활동인구).
+    # ⚠ 주의: I61EC = 고용률(%) 약 62%, I61G/I61F = 실업률(%) 약 3%
+    # 값 범위로 판단하여 실업률만 채택 (0~10% 범위)
+    # 후보 item 코드 시도 후 값이 0~15 범위에 들어오는 것만 채택
+    candidates = ["I61G", "I61F", "I61BB", "I61EAA", "I61CA"]
+    chosen = None
+    for item in candidates:
+        r = _ecos_latest("901Y027", item, "M", "한국 실업률 (계절조정)", "UNEMP")
+        if r and r.get("value") is not None and 0 < r["value"] < 15:
+            chosen = (r, item)
+            break
+    if chosen:
+        r, used_item = chosen
+        r["source"] = "ECOS:901Y027"
         result["unemployment_kr"] = r
-        log(f"[ECOS] 실업률: {r['value']} ({r['period']}) item={used_item}")
+        log(f"[ECOS] 실업률: {r['value']}% ({r['period']}) item={used_item}")
+    else:
+        # 백업: 200Y004 (취업·실업·근로) 시리즈
+        r = _ecos_latest("200Y004", "1010000", "M", "한국 실업률", "UNEMP")
+        if r and 0 < (r.get("value") or 0) < 15:
+            result["unemployment_kr"] = r
+            log(f"[ECOS] 실업률 (200Y004): {r['value']}%")
 
     # ─── 무역 ───
     # 경상수지 - 301Y013. item: 000000 (전체)
