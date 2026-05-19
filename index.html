@@ -2241,7 +2241,8 @@ function setReRegionView(view, btn) {
     if(b) { b.style.background='transparent'; b.style.color='#8d90a2'; b.style.borderColor='#2a2e3d'; }
   });
   if(btn) { btn.style.background='#2962ff'; btn.style.color='#fff'; btn.style.borderColor='#2962ff'; }
-  buildKoreaRegionMap();
+  // 컨테이너 가시성 변경 후 차트 재빌드 (Chart.js 가 hidden canvas 측정 오류 회피)
+  setTimeout(() => buildKoreaRegionMap(), 50);
 }
 
 function _regionColorForVal(v) {
@@ -8203,13 +8204,13 @@ async function loadRealtimeMarket() {
 // (applyInvestorDateRange 는 위에서 정의됨 — 단위/기간 통합)
 
 function initInvestorDateDefaults() {
+  // 새 단위 시스템에서는 기본값을 비워두어 단위 선택에 따라 자동 조정
+  // 사용자가 특정 기간을 지정한 경우에만 from/to 적용
   const toEl   = document.getElementById('invDateTo');
   const fromEl = document.getElementById('invDateFrom');
   if(!fromEl || !toEl) return;
-  const today = new Date();
-  const lastWeek = new Date(today); lastWeek.setDate(today.getDate() - 7);
-  toEl.value   = today.toISOString().slice(0,10);
-  fromEl.value = lastWeek.toISOString().slice(0,10);
+  // 기본은 비워두기 — 단위 D 일 때 최근 60일 자동 표시
+  // toEl/fromEl 비어있으면 buildInvestorChart 가 전체 raw 에서 자동 슬라이스
 }
 
 // ============================
