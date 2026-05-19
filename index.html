@@ -8511,7 +8511,7 @@ function applyRealData(d) {
     if(el) {
       el.textContent = sentiment.pcr.value.toFixed(2);
       const v = sentiment.pcr.value;
-      el.style.color = v > 1.1 ? '#ef5350' : v < 0.7 ? '#26a69a' : '#dfe2f2';
+      el.style.color = v > 1.1 ? '#ef5350' : v < 0.7 ? '#26a69a' : 'var(--c-txt,#dfe2f2)';
     }
   }
   // ── R-ONE 부동산 지표 → 부동산 페이지 KPI ──────────────
