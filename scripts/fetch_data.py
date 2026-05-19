@@ -37,7 +37,10 @@ EXIM_API_KEY      = os.environ.get("EXIM_API_KEY",      "").strip()
 KRX_BASE     = "http://data-dbg.krx.co.kr/svc/apis"
 FRED_BASE    = "https://api.stlouisfed.org/fred"
 ECOS_BASE    = "https://ecos.bok.or.kr/api"
-RONE_BASE    = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/rest"
+# R-ONE 공식 OpenAPI 엔드포인트 (2023~ 신 버전)
+RONE_BASE    = "https://www.reb.or.kr/r-one/openapi"
+# 구 R-ONE 엔드포인트 (legacy, 일부 시리즈만 응답)
+RONE_BASE_LEGACY = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/rest"
 KOSIS_BASE   = "https://kosis.kr/openapi/statisticsData.do"
 DATA_GO_KR_BASE = "http://apis.data.go.kr"
 EXIM_BASE       = "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON"
@@ -362,36 +365,82 @@ def fetch_krx_etf_movers(top_n=10):
 
 
 def fetch_naver_etf_movers(top_n=10):
-    """Naver Finance ETF 페이지에서 등락 상위 조회."""
+    """Naver Finance ETF 페이지에서 등락 상위 조회.
+
+    여러 엔드포인트를 시도하여 등락률을 안정적으로 수집:
+    1) finance.naver.com/api/sise/etfItemList.nhn (전통 API)
+    2) m.stock.naver.com/api/stocks/etf/domesticEtfList (모바일 신 API)
+    3) finance.naver.com/sise/etf.naver HTML 스크래핑
+    """
     import re as _re
     today = datetime.now(KST).strftime("%Y-%m-%d")
     sess = _naver_session()
-    url = "https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0"
+
+    # 시도 1: 전통 API
     try:
-        r = sess.get(url, timeout=15)
-        if r.status_code != 200:
-            log(f"[NaverETF] HTTP {r.status_code}")
-            return None, None
-        data = r.json()
+        r = sess.get("https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0", timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            rows = data.get("result", {}).get("etfItemList", [])
+            parsed = []
+            for row in rows:
+                name = row.get("itemname") or ""
+                code = (row.get("itemcode") or "").strip()
+                price = _parse_num(row.get("nowVal"))
+                # changeRate, changeVal, fluctuationsRatio 등 여러 필드 시도
+                chg = _parse_num(row.get("changeRate"))
+                if chg is None or chg == 0:
+                    # changeVal과 nowVal로 직접 계산 시도
+                    chg_val = _parse_num(row.get("changeVal"))
+                    if chg_val is not None and price and price > 0:
+                        chg = round(chg_val / (price - chg_val) * 100, 2) if (price - chg_val) > 0 else 0.0
+                if name and price:
+                    parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg or 0.0, "as_of": today})
+            if parsed:
+                # 등락률이 모두 0이면 데이터가 오래된 것 — 다음 endpoint 시도
+                non_zero = [p for p in parsed if p["chg"] != 0]
+                if len(non_zero) >= 3:
+                    gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+                    losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+                    log(f"[NaverETF] 1차 성공: {len(parsed)}건 (non-zero {len(non_zero)})")
+                    return gainers, losers
+                else:
+                    log(f"[NaverETF] 1차 등락률 모두 0 — 다음 endpoint 시도")
     except Exception as e:
-        log(f"[NaverETF] API 오류: {e}")
-        return None, None
-    rows = data.get("result", {}).get("etfItemList", [])
-    parsed = []
-    for row in rows:
-        name = row.get("itemname") or ""
-        code = (row.get("itemcode") or "").strip()
-        price = _parse_num(row.get("nowVal"))
-        chg = _parse_num(row.get("changeRate"))
-        if name and price and chg is not None:
-            parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg, "as_of": today})
-    if not parsed:
-        log(f"[NaverETF] 파싱 결과 0건")
-        return None, None
-    gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
-    losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
-    log(f"[NaverETF] 상위 {top_n}건 수집: 상승 {gainers[0]['name']} +{gainers[0]['chg']}% / 하락 {losers[0]['name']} {losers[0]['chg']}%")
-    return gainers, losers
+        log(f"[NaverETF] 1차 오류: {e}")
+
+    # 시도 2: 모바일 신 API
+    try:
+        sess2 = requests.Session()
+        sess2.headers.update({
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1",
+            "Accept": "application/json,text/plain,*/*",
+            "Referer": "https://m.stock.naver.com/",
+        })
+        r = sess2.get("https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200", timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            rows = data.get("stocks") or data.get("result", {}).get("stocks") or []
+            parsed = []
+            for row in rows:
+                name = row.get("stockName") or row.get("itemName") or ""
+                code = (row.get("itemCode") or "").strip()
+                price = _parse_num(row.get("closePrice") or row.get("nowVal"))
+                chg = _parse_num(row.get("fluctuationsRatio") or row.get("changeRate"))
+                if name and price and chg is not None:
+                    parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg, "as_of": today})
+            if parsed:
+                non_zero = [p for p in parsed if p["chg"] != 0]
+                if len(non_zero) >= 3:
+                    gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+                    losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+                    log(f"[NaverETF] 2차(모바일) 성공: {len(parsed)}건")
+                    return gainers, losers
+    except Exception as e:
+        log(f"[NaverETF] 2차 오류: {e}")
+
+    log(f"[NaverETF] 모든 endpoint 실패 또는 등락률 0")
+    return None, None
 
 
 # ============================================================
@@ -532,7 +581,10 @@ def fetch_fred_intl_indicators():
 def fetch_fred_yield_curve_us():
     """FRED 미국 국채 수익률 곡선 조회 (DGS 시리즈).
 
-    각 만기별 최근 30개 일간 관측치를 받아 현재값 + 약 1개월 전 값을 추출.
+    각 만기별 최근 252영업일(약 1년) 관측치를 받아:
+    - current: 최신 종가
+    - prev_month: 1개월 전 (~21영업일)
+    - series: 시계열 [{date, value}, ...] - 채권 차트용
     """
     if not FRED_API_KEY:
         log("[FRED-YC] API 키 없음 — 수익률 곡선 건너뜀")
@@ -551,8 +603,9 @@ def fetch_fred_yield_curve_us():
     ]
     current, prev_month = [], []
     series_used = []
+    series_data = []  # 각 만기별 시계열
     for label, sid in terms:
-        obs = fetch_fred_series(sid, limit=30)
+        obs = fetch_fred_series(sid, limit=252)  # ~1년
         if not obs:
             current.append(None)
             prev_month.append(None)
@@ -564,13 +617,21 @@ def fetch_fred_yield_curve_us():
         current.append(cur)
         prev_month.append(pm)
         series_used.append(sid)
-        log(f"[FRED-YC] {label}: {cur:.2f}% (1M전 {pm:.2f}%)")
+        # 시계열을 오래된 → 최신 순으로 저장 (차트용)
+        series_data.append({
+            "tenor": label,
+            "label": label,
+            "fred_id": sid,
+            "data": [{"date": o["date"], "value": o["value"]} for o in reversed(obs)],
+        })
+        log(f"[FRED-YC] {label}: {cur:.2f}% (1M전 {pm:.2f}%) - {len(obs)}일 시계열")
     if not series_used:
         return None
     return {
         "us": {
             "current": current,
             "prev_month": prev_month,
+            "series": series_data,
             "source": "FRED: " + ", ".join(series_used),
         }
     }
@@ -676,11 +737,26 @@ def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=6):
     }
 
 
+def _ecos_try_multi(stat_codes, items, freq, desc, source_id):
+    """여러 stat_code × item_code 조합을 시도해서 성공한 첫 번째 결과를 반환.
+    각 ECOS 시리즈는 시기에 따라 코드 체계가 변경되거나 신·구 코드가 공존함.
+    """
+    if isinstance(stat_codes, str): stat_codes = [stat_codes]
+    if isinstance(items, str): items = [items]
+    for stat in stat_codes:
+        for item in items:
+            r = _ecos_latest(stat, item, freq, desc, source_id)
+            if r:
+                return r, stat, item
+    return None, None, None
+
+
 def fetch_ecos_economic_indicators():
     """주요 한국 경제 지표 일괄 조회 (ECOS).
 
     각 ECOS 시리즈 ID 는 ECOS 통계지원 > 통계조회 페이지에서 확인. 잘못된 항목 코드는
     데이터 0건으로 회신되므로 정상 응답이 오는 시리즈만 결과에 포함.
+    여러 stat × item 조합을 시도하여 ECOS 정책 변경에도 대응.
     """
     if not ECOS_API_KEY:
         log("[ECOS] API 키 없음 — 건너뜀")
@@ -695,41 +771,103 @@ def fetch_ecos_economic_indicators():
     if r: result["cpi_kr"] = r; log(f"[ECOS] CPI: {r['value']} ({r['period']})")
 
     # PPI - 생산자물가지수 (404Y014) — 총지수 item 코드 후보 여럿 시도
-    for item in ["1010000", "*AA", "T00000", "0000"]:
-        r = _ecos_latest("404Y014", item, "M", "한국 생산자물가지수", "404Y014")
-        if r:
-            result["ppi_kr"] = r
-            log(f"[ECOS] PPI: {r['value']} ({r['period']}) item={item}")
-            break
+    r, _, used_item = _ecos_try_multi(
+        ["404Y014"],
+        ["1010000", "*AA", "T00000", "0000", "X1AA", "AA0000"],
+        "M", "한국 생산자물가지수", "404Y014",
+    )
+    if r:
+        result["ppi_kr"] = r
+        log(f"[ECOS] PPI: {r['value']} ({r['period']}) item={used_item}")
 
     # ─── 경기 ───
-    # GDP 성장률 (전기비) 200Y002 / 10101 = GDP 원계열 분기 / 또는 / 10111 (계절조정)
-    r = _ecos_latest("200Y002", "10101", "Q", "한국 실질GDP 성장률(전기비)", "200Y002")
-    if r: result["gdp_kr"] = r; log(f"[ECOS] GDP: {r['value']} ({r['period']})")
+    # GDP 성장률 (전기비 또는 전년동기비)
+    # 200Y001 (실질GDP, 분기, 원계열 = 100), 200Y002 (계절조정), 200Y005 (성장률)
+    # item code: 10101 (GDP), 10111 (GDP, 계절조정), AAA (전체)
+    r, used_stat, used_item = _ecos_try_multi(
+        ["200Y104", "200Y005", "200Y002", "200Y001"],
+        ["10101", "10111", "1000", "0000", "AAA", "GDP"],
+        "Q", "한국 실질GDP 성장률(전기비)", "GDP",
+    )
+    if r:
+        r["source"] = f"ECOS:{used_stat}"
+        result["gdp_kr"] = r
+        log(f"[ECOS] GDP: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
 
-    # 산업생산지수 - 901Y033 (광공업생산지수)
-    r = _ecos_latest("901Y033", "I61BC", "M", "한국 광공업생산지수", "901Y033")
-    if r: result["ip_kr"] = r; log(f"[ECOS] 산업생산: {r['value']} ({r['period']})")
+    # 산업생산지수 - 901Y033 (광공업생산지수) / 901Y043 (제조업)
+    # ECOS 통계기준 변경으로 코드가 자주 바뀌므로 여러 조합 시도
+    r, used_stat, used_item = _ecos_try_multi(
+        ["901Y033", "901Y055", "901Y034"],
+        ["I61BC", "A00", "AAA", "0", "1", "I61B", "I61BC1"],
+        "M", "한국 광공업생산지수", "IP",
+    )
+    if r:
+        r["source"] = f"ECOS:{used_stat}"
+        result["ip_kr"] = r
+        log(f"[ECOS] 산업생산: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
 
-    # 소매판매 - 901Y028 (서비스업 동향) - 소매판매액지수 / I71BC
-    r = _ecos_latest("901Y028", "I71BC", "M", "한국 소매판매액지수", "901Y028")
-    if r: result["retail_kr"] = r; log(f"[ECOS] 소매판매: {r['value']} ({r['period']})")
+    # 소매판매 - 901Y028 (서비스업 동향) / 901Y055 (소매판매액지수)
+    r, used_stat, used_item = _ecos_try_multi(
+        ["901Y028", "901Y055", "901Y027"],
+        ["I71BC", "RT00", "A00", "AAA", "0", "1", "I71BC1"],
+        "M", "한국 소매판매액지수", "RETAIL",
+    )
+    if r:
+        r["source"] = f"ECOS:{used_stat}"
+        result["retail_kr"] = r
+        log(f"[ECOS] 소매판매: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
 
     # ─── 고용 ───
-    # 실업률 - 901Y027 (경제활동인구) - 0000
-    r = _ecos_latest("901Y027", "I61E", "M", "한국 실업률 (계절조정)", "901Y027")
-    if not r:
-        r = _ecos_latest("901Y027", "I61EC", "M", "한국 실업률", "901Y027")
-    if r: result["unemployment_kr"] = r; log(f"[ECOS] 실업률: {r['value']} ({r['period']})")
+    # 실업률 - 901Y027 (경제활동인구). item: I61E (전체) / I61EC (계절조정)
+    # 계절조정 코드가 더 안정적인 경우가 많음
+    r, used_stat, used_item = _ecos_try_multi(
+        ["901Y027"],
+        ["I61EC", "I61E", "I61EC1", "0", "AAA", "T0", "T00"],
+        "M", "한국 실업률 (계절조정)", "UNEMP",
+    )
+    if r:
+        r["source"] = f"ECOS:{used_stat}"
+        result["unemployment_kr"] = r
+        log(f"[ECOS] 실업률: {r['value']} ({r['period']}) item={used_item}")
 
     # ─── 무역 ───
-    # 경상수지 - 301Y013 (경상수지) - 백만달러
+    # 경상수지 - 301Y013. item: 000000 (전체)
     r = _ecos_latest("301Y013", "000000", "M", "한국 경상수지 (백만달러)", "301Y013")
     if r: result["current_account_kr"] = r; log(f"[ECOS] 경상수지: {r['value']} ({r['period']})")
 
-    # 수출 (관세청 통관 기준) - 901Y011 (수출입물량/금액지수 분류)
-    r = _ecos_latest("901Y011", "FIEED", "M", "한국 수출금액 (백만달러)", "901Y011")
-    if r: result["exports_kr"] = r; log(f"[ECOS] 수출: {r['value']} ({r['period']})")
+    # 수출 - 관세청 통관 (백만달러) - 901Y011 (수출입물량/금액지수) or 401Y013/401Y014 (실제 수출액)
+    r, used_stat, used_item = _ecos_try_multi(
+        ["401Y014", "401Y013", "401Y015", "401Y016", "901Y011"],
+        ["AAA", "EXP", "000", "1000", "FIEED", "A0000"],
+        "M", "한국 수출금액 (백만달러)", "EXPORTS",
+    )
+    if r:
+        r["source"] = f"ECOS:{used_stat}"
+        result["exports_kr"] = r
+        log(f"[ECOS] 수출: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
+
+    # ─── 부동산 (KR) ──────────────────────────────────────────
+    # 주담대 평균금리 - 121Y006 (예금은행 가중평균금리), item: 종류별 코드
+    r, used_stat, used_item = _ecos_try_multi(
+        ["121Y006", "121Y013"],
+        ["BECBLA01", "BECBLA02", "BECBLA0301", "BB001", "BHBLA"],
+        "M", "한국 주담대 평균금리 (신규)", "MORT_RATE",
+    )
+    if r:
+        r["source"] = f"ECOS:{used_stat}"
+        result["mortgage_rate_kr"] = r
+        log(f"[ECOS] 주담대 금리: {r['value']} ({r['period']}) item={used_item}")
+
+    # 가계신용 잔액 - 151Y005 (가계신용)
+    r, used_stat, used_item = _ecos_try_multi(
+        ["151Y005", "151Y009", "151Y013"],
+        ["1100000", "AAA", "1000", "0000", "1A0"],
+        "Q", "한국 가계신용 잔액 (10억원)", "HOUSEHOLD_DEBT",
+    )
+    if r:
+        r["source"] = f"ECOS:{used_stat}"
+        result["household_debt_kr"] = r
+        log(f"[ECOS] 가계신용: {r['value']} ({r['period']}) item={used_item}")
 
     return result
 
@@ -737,75 +875,193 @@ def fetch_ecos_economic_indicators():
 # ============================================================
 # R-ONE API (한국부동산원 부동산 가격지수)
 # ============================================================
+def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None,
+                    period_type="M", start_prd=None, end_prd=None, limit=24):
+    """R-ONE 신 OpenAPI (SttsApiTblData) 호출.
+
+    stats_id: 통계 ID (예: A_2024_00026 전국주택가격동향조사 매매가격지수)
+    item_code1~3: 분류 코드 (지역, 주택유형 등)
+    """
+    if not REALESTATE_API_KEY:
+        return None
+    now = datetime.now(KST)
+    if not start_prd:
+        if period_type == "M":
+            start_prd = (now - timedelta(days=30 * limit)).strftime("%Y%m")
+            end_prd   = now.strftime("%Y%m")
+        elif period_type == "W":
+            start_prd = (now - timedelta(days=7 * limit)).strftime("%Y%m%d")
+            end_prd   = now.strftime("%Y%m%d")
+        elif period_type == "Q":
+            start_prd = f"{now.year - 5}Q1"
+            end_prd   = f"{now.year}Q{(now.month - 1) // 3 + 1}"
+        else:  # Y
+            start_prd = str(now.year - limit)
+            end_prd   = str(now.year)
+    params = {
+        "KEY":        REALESTATE_API_KEY,
+        "Type":       "json",
+        "pIndex":     1,
+        "pSize":      limit,
+        "STATBL_ID":  stats_id,
+        "DTACYCLE_CD": period_type,
+        "WRTTIME_IDTFR_ID_FROM": start_prd,
+        "WRTTIME_IDTFR_ID_TO":   end_prd,
+    }
+    if item_code1: params["ITM_ID"]    = item_code1
+    if item_code2: params["CLS_ID"]    = item_code2
+    if item_code3: params["CLS_ID_2"]  = item_code3
+    # 신 API: https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do
+    urls = [
+        f"{RONE_BASE}/SttsApiTblData.do",
+        f"{RONE_BASE}/SttsApiTblData.do",  # alternative path
+    ]
+    for url in urls:
+        try:
+            r = requests.get(url, params=params, timeout=20)
+            if r.status_code != 200:
+                continue
+            try:
+                data = r.json()
+            except ValueError:
+                continue
+            rows = data.get("SttsApiTblData", [])
+            if isinstance(rows, list):
+                for blk in rows:
+                    if "row" in blk:
+                        return blk["row"]
+            return None
+        except Exception as e:
+            log(f"[R-ONE-new] {stats_id} 오류: {e}")
+            continue
+    return None
+
+
 def fetch_realestate_kr():
-    """한국부동산원 R-ONE API로 아파트 가격지수 조회."""
+    """한국부동산원 R-ONE API로 아파트 가격지수 조회.
+
+    R-ONE은 2가지 엔드포인트 운영:
+    1) https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do (신 버전, JSON)
+    2) http://openapi.reb.or.kr/.../AptPriceIndex/... (legacy, XML)
+    먼저 신 버전 시도 → 실패 시 legacy 시도.
+    """
     if not REALESTATE_API_KEY:
         log("[R-ONE] API 키 없음 — 건너뜀")
         return {}
     now = datetime.now(KST)
     result = {}
-    # 전국 아파트 매매가격지수 (주간)
-    try:
-        start_ym = (now - timedelta(days=60)).strftime("%Y%m")
-        end_ym   = now.strftime("%Y%m")
-        r = requests.get(
-            f"{RONE_BASE}/AptPriceIndex/getAptPrcIdxByRegion",
-            params={
-                "serviceKey": REALESTATE_API_KEY,
-                "pageNo":     1,
-                "numOfRows":  5,
-                "startMonth": start_ym,
-                "endMonth":   end_ym,
-                "regionCode": "00",  # 전국
-            },
-            timeout=20,
-        )
-        r.raise_for_status()
-        import xml.etree.ElementTree as ET
-        root = ET.fromstring(r.text)
-        items = root.findall(".//item")
-        if items:
-            latest = items[-1]
+
+    # ─── 신 API: 전국주택가격동향 (월간) ─────────────
+    # STATBL_ID 후보: A_2024_00026 (월간 매매), A_2024_00027 (전세), A_2024_00028 (월세)
+    # 또는 구 ID: A_2022_00131 (월간 종합주택매매가격지수)
+    stats_candidates = [
+        ("A_2024_00026", "전국 아파트 매매가격지수"),
+        ("A_2024_00301", "전국 아파트 매매가격지수"),
+        ("A_2022_00131", "전국 종합주택 매매가격지수"),
+    ]
+    for stats_id, desc in stats_candidates:
+        try:
+            rows = fetch_rone_stats(stats_id, period_type="M", limit=12)
+            if not rows: continue
+            # 정렬 후 최신
+            rows_sorted = sorted(rows, key=lambda r: r.get("WRTTIME_IDTFR_ID", ""))
+            latest = rows_sorted[-1]
+            val = _parse_num(latest.get("DTA_VAL"))
+            if val is None: continue
+            prev = _parse_num(rows_sorted[-2].get("DTA_VAL")) if len(rows_sorted) > 1 else None
+            chg = round((val - prev) / prev * 100, 2) if prev and prev != 0 else None
+            history = {}
+            for row in rows_sorted:
+                p = row.get("WRTTIME_IDTFR_ID")
+                v = _parse_num(row.get("DTA_VAL"))
+                if p and v is not None: history[p] = v
             result["apt_price_idx_kr"] = {
-                "value":  _parse_num(latest.findtext("aptPrcIdx")),
-                "period": latest.findtext("yearMonth"),
-                "chg":    _parse_num(latest.findtext("aptPrcIdxMoM")),
+                "value":  round(val, 2),
+                "prev":   prev,
+                "chg":    chg,
+                "period": latest.get("WRTTIME_IDTFR_ID"),
                 "region": "전국",
-                "desc":   "전국 아파트 매매가격지수",
-                "source": "R-ONE",
+                "desc":   desc,
+                "source": f"R-ONE:{stats_id}",
+                "history": history,
             }
-            log(f"[R-ONE] 전국 아파트 매매지수: {result['apt_price_idx_kr']}")
-    except Exception as e:
-        log(f"[R-ONE] 아파트 매매가격지수 오류: {e}")
-    # 전세가격지수 (전국)
-    try:
-        r = requests.get(
-            f"{RONE_BASE}/AptPriceIndex/getAptJnsRntPrcIdxByRegion",
-            params={
-                "serviceKey": REALESTATE_API_KEY,
-                "pageNo":     1,
-                "numOfRows":  5,
-                "startMonth": start_ym,
-                "endMonth":   end_ym,
-                "regionCode": "00",
-            },
-            timeout=20,
-        )
-        r.raise_for_status()
-        root = ET.fromstring(r.text)
-        items = root.findall(".//item")
-        if items:
-            latest = items[-1]
+            log(f"[R-ONE-new] 매매가격지수 ({stats_id}): {val} ({latest.get('WRTTIME_IDTFR_ID')})")
+            break
+        except Exception as e:
+            log(f"[R-ONE-new] {stats_id} 오류: {e}")
+            continue
+
+    # 전세가격지수 (월간)
+    jns_candidates = [
+        ("A_2024_00027", "전국 아파트 전세가격지수"),
+        ("A_2022_00132", "전국 종합주택 전세가격지수"),
+    ]
+    for stats_id, desc in jns_candidates:
+        try:
+            rows = fetch_rone_stats(stats_id, period_type="M", limit=12)
+            if not rows: continue
+            rows_sorted = sorted(rows, key=lambda r: r.get("WRTTIME_IDTFR_ID", ""))
+            latest = rows_sorted[-1]
+            val = _parse_num(latest.get("DTA_VAL"))
+            if val is None: continue
+            prev = _parse_num(rows_sorted[-2].get("DTA_VAL")) if len(rows_sorted) > 1 else None
+            chg = round((val - prev) / prev * 100, 2) if prev and prev != 0 else None
+            history = {}
+            for row in rows_sorted:
+                p = row.get("WRTTIME_IDTFR_ID")
+                v = _parse_num(row.get("DTA_VAL"))
+                if p and v is not None: history[p] = v
             result["jns_price_idx_kr"] = {
-                "value":  _parse_num(latest.findtext("aptJnsRntPrcIdx")),
-                "period": latest.findtext("yearMonth"),
+                "value":  round(val, 2),
+                "prev":   prev,
+                "chg":    chg,
+                "period": latest.get("WRTTIME_IDTFR_ID"),
                 "region": "전국",
-                "desc":   "전국 아파트 전세가격지수",
-                "source": "R-ONE",
+                "desc":   desc,
+                "source": f"R-ONE:{stats_id}",
+                "history": history,
             }
-            log(f"[R-ONE] 전국 전세가격지수: {result['jns_price_idx_kr']}")
-    except Exception as e:
-        log(f"[R-ONE] 전세가격지수 오류: {e}")
+            log(f"[R-ONE-new] 전세지수 ({stats_id}): {val}")
+            break
+        except Exception as e:
+            log(f"[R-ONE-new] {stats_id} 오류: {e}")
+            continue
+
+    # ─── Legacy API 폴백 ─────────────
+    if not result:
+        try:
+            start_ym = (now - timedelta(days=60)).strftime("%Y%m")
+            end_ym   = now.strftime("%Y%m")
+            r = requests.get(
+                f"{RONE_BASE_LEGACY}/AptPriceIndex/getAptPrcIdxByRegion",
+                params={
+                    "serviceKey": REALESTATE_API_KEY,
+                    "pageNo":     1,
+                    "numOfRows":  5,
+                    "startMonth": start_ym,
+                    "endMonth":   end_ym,
+                    "regionCode": "00",
+                },
+                timeout=20,
+            )
+            r.raise_for_status()
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(r.text)
+            items = root.findall(".//item")
+            if items:
+                latest = items[-1]
+                result["apt_price_idx_kr"] = {
+                    "value":  _parse_num(latest.findtext("aptPrcIdx")),
+                    "period": latest.findtext("yearMonth"),
+                    "chg":    _parse_num(latest.findtext("aptPrcIdxMoM")),
+                    "region": "전국",
+                    "desc":   "전국 아파트 매매가격지수",
+                    "source": "R-ONE (legacy)",
+                }
+                log(f"[R-ONE-legacy] 매매지수: {result['apt_price_idx_kr']}")
+        except Exception as e:
+            log(f"[R-ONE-legacy] 오류: {e}")
+
     return result
 
 
@@ -1010,6 +1266,7 @@ def fetch_vkospi():
 
     1차: KRX OpenAPI /idx/kospi_dd_trd 에서 'KOSPI 200 변동성지수' 또는 'VKOSPI' 검색
     2차: yfinance '^VKOSPI' (Yahoo Finance 미지원 가능)
+    3차: 네이버 증권 시세 페이지 스크래핑
     Returns: {"value": float, "change": float, "as_of": "YYYY-MM-DD"} or None
     """
     # 1차: KRX 공식
@@ -1032,7 +1289,68 @@ def fetch_vkospi():
             return {"value": q["price"], "change": q["change"], "as_of": datetime.now(KST).strftime("%Y-%m-%d"), "source": "yfinance"}
     except Exception as e:
         log(f"[VKOSPI] yfinance 폴백 오류: {e}")
+    # 3차: 네이버 증권 VKOSPI 페이지 스크래핑
+    try:
+        sess = _naver_session()
+        r = sess.get("https://finance.naver.com/sise/sise_index.naver?code=VKOSPI", timeout=15)
+        if r.status_code == 200:
+            r.encoding = "euc-kr"
+            import re as _re
+            html = r.text
+            # 가격 추출
+            m_price = _re.search(r'<em id="now_value">([\d.,]+)</em>', html)
+            m_chg = _re.search(r'<em id="change_value_and_rate">.*?([+\-]?[\d.]+)%', html, _re.DOTALL)
+            if m_price:
+                v = _parse_num(m_price.group(1))
+                chg = _parse_num(m_chg.group(1)) if m_chg else 0.0
+                if v and v > 0:
+                    log(f"[VKOSPI] Naver: {v} ({chg}%)")
+                    return {"value": round(v, 2), "change": round(chg or 0.0, 2),
+                            "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                            "source": "Naver Finance"}
+    except Exception as e:
+        log(f"[VKOSPI] Naver 폴백 오류: {e}")
     log("[VKOSPI] 데이터 수집 실패")
+    return None
+
+
+def fetch_move_index():
+    """ICE BofA MOVE Index (미국채 옵션 내재변동성)."""
+    # yfinance ^MOVE
+    try:
+        q = fetch_yf("^MOVE")
+        if q and q.get("price"):
+            log(f"[MOVE] yfinance: {q['price']}")
+            return {"value": q["price"], "change": q["change"],
+                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                    "source": "yfinance ^MOVE"}
+    except Exception as e:
+        log(f"[MOVE] yfinance 오류: {e}")
+    return None
+
+
+def fetch_putcall_ratio():
+    """CBOE Put/Call Ratio (시장 옵션 심리)."""
+    # CBOE 직접 CSV 다운로드 시도
+    try:
+        url = "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
+        # 위 URL은 VIX. P/C Ratio는 별도 페이지지만, FRED 시리즈로 대체 가능
+        # FRED 시리즈: 없음 (CBOE 단독)
+        # Stooq의 ^pcc 사용
+        r = requests.get("https://stooq.com/q/d/l/?s=%5Epcc&i=d&o=1110000", timeout=15)
+        if r.status_code == 200 and r.text:
+            lines = [l for l in r.text.strip().split("\n") if l and not l.startswith("Date")]
+            if lines:
+                last = lines[-1].split(",")
+                if len(last) >= 5:
+                    v = _parse_num(last[4])
+                    if v and 0.1 < v < 5.0:
+                        log(f"[PCR] Stooq: {v}")
+                        return {"value": v,
+                                "as_of": last[0],
+                                "source": "Stooq ^pcc"}
+    except Exception as e:
+        log(f"[PCR] Stooq 오류: {e}")
     return None
 
 
@@ -1402,6 +1720,24 @@ def build_data():
             data["sources"]["vkospi"] = vk.get("source", "KRX/yfinance")
     except Exception as e:
         log(f"[VKOSPI] 오류: {e}")
+
+    # ── MOVE Index (미국채 옵션 변동성) ────────
+    try:
+        mv = fetch_move_index()
+        if mv:
+            data["sentiment"]["move"] = mv
+            data["sources"]["move"] = mv.get("source", "yfinance")
+    except Exception as e:
+        log(f"[MOVE] 오류: {e}")
+
+    # ── Put/Call Ratio (옵션 심리) ────────
+    try:
+        pc = fetch_putcall_ratio()
+        if pc:
+            data["sentiment"]["pcr"] = pc
+            data["sources"]["pcr"] = pc.get("source", "Stooq/CBOE")
+    except Exception as e:
+        log(f"[PCR] 오류: {e}")
 
     # ── 공공데이터포털: 국토부 아파트 매매 실거래 — 한국 부동산 보강 ──
     if DATA_GO_KR_API_KEY:
