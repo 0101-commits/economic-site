@@ -313,28 +313,28 @@ tailwind.config = {
   </nav>
 
   <!-- 데이터 소스 상세 플로팅 패널 (사이드바 항목 클릭 시 표시) -->
-  <div id="dataSourceDetailPopup" class="data-source-popup" style="display:none;position:fixed;top:72px;left:210px;z-index:200;background:#1b1f2b;border:1px solid #2a2e3d;border-radius:8px;padding:14px;width:380px;max-width:calc(100vw - 40px);max-height:calc(100vh - 90px);overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4);">
+  <div id="dataSourceDetailPopup" class="data-source-popup themed-popup" style="display:none;position:fixed;top:72px;left:210px;z-index:200;background:var(--c-card,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:8px;padding:14px;width:380px;max-width:calc(100vw - 40px);max-height:calc(100vh - 90px);overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
-      <div id="dsDetailTitle" style="font-size:13px;font-weight:700;color:#dfe2f2;">데이터 소스</div>
-      <button onclick="closeDataSourcePopup()" style="background:transparent;border:none;color:#8d90a2;font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
+      <div id="dsDetailTitle" style="font-size:13px;font-weight:700;color:var(--c-txt,#dfe2f2);">데이터 소스</div>
+      <button onclick="closeDataSourcePopup()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
     </div>
-    <div id="dsDetailBody" style="font-size:11px;color:#b6c4ff;line-height:1.7;"></div>
+    <div id="dsDetailBody" style="font-size:11px;color:var(--c-txt,#b6c4ff);line-height:1.7;"></div>
   </div>
 
-  <!-- 부동산 시계열 차트 모달 (지표 클릭 시 표시) -->
-  <div id="reHistoryChartModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
-    <div style="background:#1b1f2b;border:1px solid #2a2e3d;border-radius:8px;padding:18px;width:100%;max-width:780px;max-height:90vh;display:flex;flex-direction:column;">
+  <!-- 부동산/거시 지표 시계열 차트 모달 (지표 클릭 시 표시) -->
+  <div id="reHistoryChartModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:300;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
+    <div style="background:var(--c-card,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:8px;padding:18px;width:100%;max-width:780px;max-height:90vh;display:flex;flex-direction:column;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div>
-          <div id="reHistTitle" style="font-size:14px;font-weight:700;color:#dfe2f2;">지표 추이</div>
-          <div id="reHistMeta"  style="font-size:11px;color:#8d90a2;margin-top:2px;">—</div>
+          <div id="reHistTitle" style="font-size:14px;font-weight:700;color:var(--c-txt,#dfe2f2);">지표 추이</div>
+          <div id="reHistMeta"  style="font-size:11px;color:var(--c-txt-dim,#8d90a2);margin-top:2px;">—</div>
         </div>
-        <button onclick="closeReHistoryChart()" style="background:transparent;border:none;color:#8d90a2;font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+        <button onclick="closeReHistoryChart()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
       </div>
       <div style="position:relative;flex:1;min-height:300px;">
         <canvas id="reHistChart"></canvas>
       </div>
-      <div id="reHistNote" style="font-size:10px;color:#434656;margin-top:6px;text-align:right;">—</div>
+      <div id="reHistNote" style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:6px;text-align:right;">—</div>
     </div>
   </div>
 
@@ -360,12 +360,12 @@ tailwind.config = {
         </div>
         <div class="kpi-card kpi-clickable" id="kpi-rate" onclick="navigateToDetail('rate')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">한국 기준금리 <span style="font-size:9px;color:#434656;font-weight:400;">단위: % (연이율)</span></div>
-          <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">2.75<span style="font-size:14px;">%</span></div>
-          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">최근 결정: 2025.02.25</div>
-          <div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;">
-            <span style="background:#1b2a1b;color:#26a69a;font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid #26a69a33;">동결</span>
-            <span style="font-size:10px;color:#8d90a2;">전 3.00% → 현 2.75%</span>
+          <div style="display:flex;align-items:baseline;gap:6px;">
+            <div id="kpi-rate-val" style="font-size:22px;font-weight:700;font-family:'Public Sans';">2.75<span style="font-size:14px;">%</span></div>
+            <div id="kpi-rate-status" style="font-size:10px;color:#26a69a;background:#26a69a22;padding:1px 5px;border-radius:3px;border:1px solid #26a69a44;">동결</div>
           </div>
+          <div style="font-size:10px;color:#8d90a2;margin-top:2px;">최근 결정: <span id="kpi-rate-date">2025.02.25</span></div>
+          <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark-rate"></canvas></div>
         </div>
         <div class="kpi-card kpi-clickable" id="kpi-wti" onclick="navigateToDetail('commodity')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">WTI 유가 <span style="font-size:9px;color:#434656;font-weight:400;">단위: USD/배럴</span></div>
@@ -552,7 +552,10 @@ tailwind.config = {
                 <div style="font-size:11px;color:#8d90a2;" id="fxChart52Range">52주 범위: 1,340.00 ~ 1,520.00</div>
               </div>
               <div style="margin-left:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-                <button onclick="toggleFxDir()" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">⇄ 역방향</button>
+                <div style="display:flex;gap:4px;">
+                  <button onclick="refreshFxData(this)" title="실시간 환율 + 일별 변화율 갱신" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+                  <button onclick="toggleFxDir()" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">⇄ 역방향</button>
+                </div>
                 <div style="display:flex;gap:4px;flex-wrap:wrap;">
                   <button class="tab-btn active" id="fxPeriodBtn1W" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;" onclick="setFxPeriod('1W',this)">1W</button>
                   <button class="tab-btn" id="fxPeriodBtn1M" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;" onclick="setFxPeriod('1M',this)">1M</button>
@@ -1010,14 +1013,14 @@ tailwind.config = {
         </div>
         <div id="macroIndCardsRoot"></div>
         <!-- 데이터 소스 연결 상태 -->
-        <div style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff22;">
-          <div style="font-size:11px;color:#dfe2f2;font-weight:600;margin-bottom:6px;">🔌 데이터 소스 연결 상태 <span style="font-size:9px;color:#434656;font-weight:400;">● 연결됨 / ○ 미연결</span></div>
+        <div class="themed-info-box" style="margin-top:10px;padding:10px;background:var(--c-card,#1b1f2b);border-radius:6px;border:1px solid var(--c-border,#2962ff22);">
+          <div style="font-size:11px;color:var(--c-txt,#dfe2f2);font-weight:600;margin-bottom:6px;">🔌 데이터 소스 연결 상태 <span style="font-size:9px;color:var(--c-txt-muted,#434656);font-weight:400;">● 연결됨 / ○ 미연결</span></div>
           <div id="macroApiStatus" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;"></div>
         </div>
         <!-- 데이터 부족 안내 -->
-        <div id="macroMissingApiInfo" style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;font-size:11px;color:#8d90a2;line-height:1.7;display:none;">
-          <strong style="color:#dfe2f2;">📌 추가로 필요한 API/데이터 소스 (현재 빈 지표):</strong>
-          <ul id="macroMissingApiList" style="margin:6px 0 0 16px;padding:0;color:#b6c4ff;"></ul>
+        <div id="macroMissingApiInfo" class="themed-info-box" style="margin-top:10px;padding:10px;background:var(--c-card,#1b1f2b);border-radius:6px;border:1px solid var(--c-border,#2962ff33);font-size:11px;color:var(--c-txt-dim,#8d90a2);line-height:1.7;display:none;">
+          <strong style="color:var(--c-txt,#dfe2f2);">📌 추가로 필요한 API/데이터 소스 (현재 빈 지표):</strong>
+          <ul id="macroMissingApiList" style="margin:6px 0 0 16px;padding:0;color:var(--c-primary,#b6c4ff);"></ul>
         </div>
       </div>
 
@@ -1245,7 +1248,7 @@ tailwind.config = {
           <!-- 가격지수 추이 차트 -->
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
-              <div class="widget-title" style="margin-bottom:0;">아파트 가격지수 추이</div>
+              <div class="widget-title" style="margin-bottom:0;">아파트 가격지수 추이 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 지수 (2021.6=100)</span></div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
                 <button onclick="setRePeriod('1y',this)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:#2962ff;color:#fff;cursor:pointer;">1년</button>
                 <button onclick="setRePeriod('3y',this)" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">3년</button>
@@ -2652,6 +2655,48 @@ function buildFearChart() {
   });
 }
 
+// 한국 기준금리 KPI 카드 — 최근 8년 기준금리 추이 미니 차트
+function buildRateKpiSparkline() {
+  destroyChart('spark-rate');
+  const ctx = document.getElementById('spark-rate');
+  if(!ctx) return;
+  // rateHistoryData.kr 사용 (연도별)
+  const data = rateHistoryData.kr || [];
+  const labels = rateHistoryData.labels || [];
+  if(!data.length) return;
+  const tc = (typeof getThemeColors === 'function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
+  charts['spark-rate'] = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[{data, borderColor:'#26a69a', backgroundColor:'#26a69a22', borderWidth:1.5, pointRadius:1.5, pointBackgroundColor:'#26a69a', tension:0.25, fill:true}],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{
+        x:{display:false, type:'category'},
+        y:{display:false, beginAtZero:false},
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          enabled:true,
+          backgroundColor: tc.tooltip,
+          titleColor:     tc.ttTitle,
+          bodyColor:      tc.ttTitle,
+          borderColor:    tc.ttBorder,
+          borderWidth:1,
+          callbacks:{
+            title: items => '한국 기준금리 ' + items[0].label,
+            label: c => `  ${c.parsed.y.toFixed(2)}%`,
+          },
+        },
+      },
+      animation:false,
+    },
+  });
+}
+
 // ============================
 // 등락 Top10
 // ============================
@@ -2661,6 +2706,8 @@ const upMoversETF = [];
 const downMoversETF = [];
 let moverRefDate = '—';
 let _clientMoverFetchInFlight = false;
+let _clientMoverFetchAttempts = 0;
+const _MAX_AUTO_MOVER_FETCH = 1;  // 자동 재시도 1회까지만 — 무한 루프 방지
 
 let curMoverTab = 'up';
 let curMoverType = 'stock';
@@ -2696,16 +2743,18 @@ function buildMoverTable(dir) {
   const refEl = document.getElementById('moverRefDate');
   if(refEl) refEl.textContent = moverRefDate || '—';
   if(!data || data.length === 0) {
-    tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:#434656;font-size:12px;">
+    tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--c-txt-dim,#434656);font-size:12px;">
       <div style="margin-bottom:4px;">📡 네이버 증권에서 실시간 데이터 가져오는 중…</div>
-      <button onclick="refreshMoversFromClient(true).then(()=>buildMoverTable(curMoverTab))" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
+      <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
     </td></tr>`;
-    // 자동 트리거: 빈 데이터일 때 백그라운드에서 페치 시도
-    if(!_clientMoverFetchInFlight) {
+    // 자동 트리거: 빈 데이터일 때 백그라운드에서 1회만 페치 시도 (무한 루프 방지)
+    if(!_clientMoverFetchInFlight && _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH) {
       _clientMoverFetchInFlight = true;
+      _clientMoverFetchAttempts++;
       refreshMoversFromClient().finally(()=>{
         _clientMoverFetchInFlight = false;
-        try { buildMoverTable(curMoverTab); } catch(_) {}
+        // 재시도가 데이터를 가져왔으면 applyRealData 가 buildMoverTable 을 호출함
+        // 가져오지 못한 경우 무한 루프를 막기 위해 여기서 재호출하지 않음
       });
     }
     return;
@@ -3729,7 +3778,7 @@ function buildYieldCurveChart(bondCC) {
               y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
       plugins:{
         legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
           callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y!=null?c.parsed.y.toFixed(2)+'%':'—')}}
       }
     }
@@ -3810,7 +3859,7 @@ function buildRateHistoryChart() {
       },
       plugins:{
         legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}
       }
     }
   });
@@ -4016,7 +4065,7 @@ function buildInvestorChart() {
       },
       plugins:{
         legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}
       }
     }
   });
@@ -4214,6 +4263,7 @@ function buildComDetailChartMulti() {
   // Persist primary series for compatibility (실 데이터 기준)
   if(seriesPerSel.length && seriesPerSel[0]) comAllSeries = seriesPerSel[0];
 
+  const tcCom = getThemeColors();
   charts['comDetailChart'] = new Chart(ctx, {
     type:'line',
     data:{ labels, datasets },
@@ -4226,10 +4276,10 @@ function buildComDetailChartMulti() {
         const label = chart.data.labels[idx];
         chartClick('com', idx, price, label);
       },
-      scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
-              y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}}}
+      scales:{x:{type:'category',ticks:{color:tcCom.txt,font:{size:10},maxTicksLimit:6},grid:{color:tcCom.grid}},
+              y:{ticks:{color:tcCom.txt,font:{size:10}},grid:{color:tcCom.grid},position:'right'}},
+      plugins:{legend:{display:true,position:'top',labels:{color:tcCom.txt,font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:tcCom.tooltip,titleColor:tcCom.ttTitle,bodyColor:tcCom.ttTitle,borderColor:tcCom.ttBorder,borderWidth:1}}}
   });
 
   // Update header
@@ -4358,7 +4408,7 @@ function buildCommodityPage() {
         scales:{x:{type:'category', ticks:{color:tc.txt, font:{size:9}, maxTicksLimit:5}, grid:{color:tc.grid}},
                 y:{ticks:{color:tc.txt, font:{size:9}, callback:v=>'$'+(typeof v==='number'?v.toLocaleString():v)}, grid:{color:tc.grid}, position:'right'}},
         plugins:{legend:{display:true, labels:{color:tc.txt, font:{size:9}, boxWidth:8}},
-                 tooltip:{mode:'index', intersect:false, backgroundColor:tc.tooltip, borderColor:tc.ttBorder, borderWidth:1}}}
+                 tooltip:{mode:'index', intersect:false, backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttTitle, borderColor:tc.ttBorder, borderWidth:1}}}
     });
   }
   // 귀금속 (Gold + Silver + Platinum)
@@ -4699,7 +4749,8 @@ const macroIndicators = [
   {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'수출',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v?.toLocaleString()},
   {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
-  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global',freq:'월간',unit:'지수 (50기준)'},
+  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global',freq:'월간',unit:'지수 (50기준)',
+    link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.ip_kr',fmt:v=>v?.toFixed(2)},
   {name:'소매판매액지수',cc:'🇰🇷',cat:'소비',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.retail_kr',fmt:v=>v?.toFixed(2)},
   {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',unit:'% (연이율)',dataPath:'economicIndicators.kr.base_rate_kr',fmt:v=>v?.toFixed(2)+'%'},
@@ -4727,12 +4778,34 @@ const macroIndicators = [
   {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
   {name:'GDP',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'USD (총액)',dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v?.toLocaleString()},
   {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
-  {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'NBS',freq:'월간',unit:'지수 (50기준)'},
+  {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'NBS',freq:'월간',unit:'지수 (50기준)',
+    link:'http://www.stats.gov.cn/english/PressRelease/',linkLabel:'NBS 발표문'},
+  // 일본 (link 보강)
+  {name:'제조업 PMI',cc:'🇯🇵',cat:'경기',src:'au Jibun Bank / S&P Global',freq:'월간',unit:'지수 (50기준)',
+    link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
+  // 미국 (link 보강)
+  {name:'제조업 PMI',cc:'🇺🇸',cat:'경기',src:'S&P Global / ISM',freq:'월간',unit:'지수 (50기준)',
+    link:'https://www.ismworld.org/supply-management-news-and-reports/reports/ism-report-on-business/',linkLabel:'ISM PMI 보고서'},
+  // 유로존
+  {name:'제조업 PMI',cc:'🇪🇺',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (50기준)',
+    link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
+  {name:'서비스업 PMI',cc:'🇪🇺',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (50기준)',
+    link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
+  // 영국
+  {name:'제조업 PMI',cc:'🇬🇧',cat:'경기',src:'S&P Global / CIPS',freq:'월간',unit:'지수 (50기준)',
+    link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
+  // 독일
+  {name:'제조업 PMI',cc:'🇩🇪',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (50기준)',
+    link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 일본 (FRED 국제 시리즈)
-  {name:'실질GDP (분기)',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'10억엔 (체인링크)',dataPath:'economicIndicators.jp.gdp_jp',fmt:v=>v?.toLocaleString()},
-  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v?.toFixed(2)},
-  {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',unit:'% (15-64세, 계절조정)',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (FRED)',freq:'연8회',unit:'% (할인율)',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'실질GDP (분기)',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'10억엔 (체인링크)',dataPath:'economicIndicators.jp.gdp_jp',fmt:v=>v?.toLocaleString(),
+    link:'https://www.esri.cao.go.jp/jp/sna/menu.html',linkLabel:'내각부 발표'},
+  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v?.toFixed(2),
+    link:'https://www.stat.go.jp/data/cpi/',linkLabel:'총무성 통계국'},
+  {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',unit:'% (15-64세, 계절조정)',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%',
+    link:'https://www.stat.go.jp/data/roudou/',linkLabel:'노동력조사'},
+  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (FRED)',freq:'연8회',unit:'% (할인율)',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%',
+    link:'https://www.boj.or.jp/en/mopo/mpmdeci/state_all/index.htm',linkLabel:'BOJ 정책결정'},
   // 독일 (FRED 국제 시리즈)
   {name:'소비자물가지수',cc:'🇩🇪',cat:'물가',src:'Destatis (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.de.cpi_de',fmt:v=>v?.toFixed(2)},
   {name:'실질GDP',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'백만유로 (체인링크)',dataPath:'economicIndicators.de.gdp_de',fmt:v=>v?.toLocaleString()},
@@ -4749,6 +4822,7 @@ function getDataByPath(obj, path) {
   return path.split('.').reduce((o,k)=>o?.[k], obj);
 }
 let _latestDataForIndicators = null;
+let _lastKospiHistoryHash = null;  // KOSPI history 시계열 해시 (재렌더 방지)
 
 // ============================
 // 실데이터 시계열 헬퍼 — data.json.history 에서 historical close prices 조회
@@ -4865,12 +4939,16 @@ function buildMacroIndicatorTable() {
       } else if(!r.dataPath) {
         missingApis.add(`${r.cc} ${r.name} (${r.src})`);
       }
-      const unitStr = r.unit ? `<span style="color:#b6c4ff;">단위: ${r.unit}</span>` : '';
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:#131722;border-radius:6px;border-left:3px solid ${color};">
+      // macroIndicators 의 인덱스를 onclick 에 전달 (JSON 직렬화 회피)
+      const indIdx = macroIndicators.indexOf(r);
+      // 외부 링크 (유료/수동 데이터 지표용)
+      const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:9px;padding:2px 6px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${r.linkLabel||'최신 보고서'} →</a>` : '';
+      return `<div onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:var(--c-surface,#131722);border-radius:6px;border-left:3px solid ${color};cursor:pointer;transition:background .1s;" onmouseover="this.style.background='var(--c-card-hi, #262a35)'" onmouseout="this.style.background='var(--c-surface, #131722)'" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:600;color:#dfe2f2;">${r.cc} ${r.name}</div>
-          <div style="font-size:10px;color:#434656;margin-top:2px;line-height:1.4;">${r.src} · ${r.freq} · ${periodStr}</div>
-          ${r.unit ? `<div style="font-size:9px;color:#b6c4ff;margin-top:1px;">단위: ${r.unit}</div>`:''}
+          <div style="font-size:12px;font-weight:600;color:var(--c-txt,#dfe2f2);">${r.cc} ${r.name} <span style="font-size:9px;color:var(--c-txt-muted,#434656);">📈</span></div>
+          <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:2px;line-height:1.4;">${r.src} · ${r.freq} · ${periodStr}</div>
+          ${r.unit ? `<div style="font-size:9px;color:var(--c-primary,#b6c4ff);margin-top:1px;">단위: ${r.unit}</div>`:''}
+          ${linkBtn}
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:8px;">
           <div style="font-size:16px;font-weight:700;font-family:'Public Sans';color:${valColor};">${valStr}</div>
@@ -5680,7 +5758,7 @@ function buildNpsReturnChart() {
       options:{responsive:true,maintainAspectRatio:false,
         scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
                 y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   } else {
     charts['npsReturnChart'] = new Chart(retCtx,{type:'bar',
       data:{labels:npsQuarterlyData.map(q=>q.q),
@@ -5688,7 +5766,7 @@ function buildNpsReturnChart() {
       options:{responsive:true,maintainAspectRatio:false,
         scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:12},grid:{display:false}},
                 y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   }
 }
 
@@ -5709,7 +5787,7 @@ function showNpsYearDetail(year) {
     options:{responsive:true,maintainAspectRatio:false,
       scales:{x:{ticks:{color:'#8d90a2',font:{size:11}},grid:{display:false}},
               y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -5729,7 +5807,7 @@ function buildNpsAllocTrendChart() {
       scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
                y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'},min:0,max:60} },
       plugins:{ legend:{display:true,position:'bottom',labels:{color:'#8d90a2',font:{size:10},boxWidth:10,padding:8}},
-                tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}} }
+                tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}} }
     }
   });
 }
@@ -5775,7 +5853,7 @@ function buildInvestorPage() {
         scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
                  y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v.toLocaleString()+'조'},grid:{color:'#2a2e3d55'}} },
         plugins:{ legend:{display:false},
-                  tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+                  tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
                     callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()+'조원'}} }
       }
     });
@@ -6010,9 +6088,13 @@ document.addEventListener('click', (e) => {
 // data.json이 빈 경우 또는 새로고침 시 즉시 데이터 표시
 // ============================
 async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
+  // 네이버 증권 모바일 JSON API — CORS 지원 (Origin/Referer 헤더 자동 처리)
+  // 1차: 직접 호출 (브라우저가 CORS 허용 시), 2차: corsproxy.io 경유
+  const direct = `https://m.stock.naver.com/api/stocks/exchange/${market}/${direction}?page=1&pageSize=30`;
   const urls = [
-    `https://m.stock.naver.com/api/stocks/exchange/${market}/${direction}?page=1&pageSize=30`,
-    `https://corsproxy.io/?https://m.stock.naver.com/api/stocks/exchange/${market}/${direction}?page=1&pageSize=30`,
+    direct,
+    'https://corsproxy.io/?' + encodeURIComponent(direct),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(direct),
   ];
   for(const url of urls) {
     try {
@@ -6022,7 +6104,7 @@ async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
       const stocks = data.stocks || data.result || [];
       if(!Array.isArray(stocks) || !stocks.length) continue;
       const today = new Date().toISOString().slice(0,10);
-      return stocks.slice(0,10).map(s=>({
+      const parsed = stocks.slice(0,10).map(s=>({
         name:  (s.stockName || s.name || '').trim(),
         code:  (s.itemCode || s.code || '').trim(),
         price: Number(s.closePrice || s.nowVal || 0),
@@ -6030,44 +6112,81 @@ async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
         vol:   Number(s.accumulatedTradingVolume || s.volume || 0),
         as_of: today,
       })).filter(x=>x.name && x.price);
+      if(parsed.length >= 3) {
+        console.info(`[NaverStock] ${market} ${direction}: ${parsed.length}건 (${url.split('?')[0].slice(0,40)}…)`);
+        return parsed;
+      }
     } catch(e) { /* try next */ }
   }
   return null;
 }
 
 async function fetchNaverETFMoversClient() {
-  // Naver 모바일 ETF 시세 API
-  const urls = [
-    `https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200`,
-    `https://corsproxy.io/?https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200`,
-    `https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0`,
-    `https://corsproxy.io/?https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0`,
+  // Naver 모바일 ETF 시세 API + 전통 API
+  const targets = [
+    'https://m.stock.naver.com/api/stocks/etf/domestic?category=domestic&page=1&pageSize=200',
+    'https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200',
+    'https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0',
   ];
+  const urls = [];
+  targets.forEach(t => {
+    urls.push(t);
+    urls.push('https://corsproxy.io/?' + encodeURIComponent(t));
+    urls.push('https://api.allorigins.win/raw?url=' + encodeURIComponent(t));
+  });
   for(const url of urls) {
     try {
       const r = await fetch(url, {headers:{'Accept':'application/json'}});
       if(!r.ok) continue;
       const data = await r.json();
-      let rows = data?.result?.etfItemList || data?.stocks || data?.result?.stocks || [];
+      // 다양한 응답 스키마 지원
+      let rows = data?.result?.etfItemList
+              || data?.stocks
+              || data?.result?.stocks
+              || data?.etfList
+              || (Array.isArray(data) ? data : []);
       if(!Array.isArray(rows) || !rows.length) continue;
       const today = new Date().toISOString().slice(0,10);
-      const parsed = rows.map(s=>({
-        name:  (s.itemname || s.stockName || s.name || '').trim(),
-        code:  (s.itemcode || s.itemCode || s.code || '').trim(),
-        price: Number(s.nowVal || s.closePrice || 0),
-        chg:   Number(s.changeRate ?? s.fluctuationsRatio ?? 0),
-        vol:   Number(s.quant || s.accumulatedTradingVolume || 0),
-        as_of: today,
-      })).filter(x=>x.name && x.price);
+      const parsed = rows.map(s=>{
+        // 여러 가능한 필드명
+        const name = (s.itemname || s.stockName || s.name || s.itemName || '').trim();
+        const code = (s.itemcode || s.itemCode || s.code || '').trim();
+        const price = Number(s.nowVal || s.closePrice || s.currentPrice || s.tradePrice || 0);
+        // changeRate, fluctuationsRatio, changeRatio 등
+        let chg = Number(s.fluctuationsRatio ?? s.changeRate ?? s.changeRatio ?? s.cttr ?? 0);
+        // 일부 응답은 changeVal (절대값) 만 제공 → 직접 계산
+        if(chg === 0) {
+          const chgVal = Number(s.changeVal || s.compareToPreviousClosePrice || 0);
+          if(chgVal && price > chgVal) chg = +(chgVal / (price - chgVal) * 100).toFixed(2);
+        }
+        const vol = Number(s.quant || s.accumulatedTradingVolume || s.tradeVolume || 0);
+        return { name, code, price, chg, vol, as_of: today };
+      }).filter(x=>x.name && x.price);
       if(!parsed.length) continue;
       const gainers = [...parsed].sort((a,b)=>b.chg-a.chg).slice(0,10);
       const losers  = [...parsed].sort((a,b)=>a.chg-b.chg).slice(0,10);
-      // 등락률이 모두 0이면 실패로 간주 (다른 엔드포인트 시도)
-      if(gainers[0]?.chg === 0 && losers[0]?.chg === 0) continue;
+      // 모든 변화율이 0이면 실패로 간주 (다른 엔드포인트 시도)
+      const nonZero = parsed.filter(p => p.chg !== 0).length;
+      if(nonZero < 3) continue;
+      console.info(`[NaverETF] ${parsed.length}건 수집 (비영점 ${nonZero}건) - ${url.split('?')[0].slice(0,40)}…`);
       return { gainers, losers };
     } catch(e) { /* try next */ }
   }
   return null;
+}
+
+// 수동 재시도 (버튼 클릭) — 자동 시도 카운터 무관하게 재시도
+async function manualRetryMovers(btn) {
+  if(btn) { btn.disabled = true; btn.textContent = '⟳ 갱신중…'; }
+  _clientMoverFetchAttempts = 0;  // 카운터 리셋
+  const ok = await refreshMoversFromClient(true);
+  // applyRealData 가 자동으로 buildMoverTable 을 호출하지만, 실패 시 명시적으로 한 번 더
+  if(!ok) {
+    try { buildMoverTable(curMoverTab); } catch(_) {}
+    if(btn) { btn.textContent = '⚠ 다시 시도'; btn.disabled = false; }
+  } else if(btn) {
+    btn.textContent = '✓ 갱신됨';
+  }
 }
 
 // 클라이언트 사이드에서 Top10 데이터 페치 + applyRealData 호출
@@ -6098,6 +6217,88 @@ async function refreshMoversFromClient(showStatus=false) {
     console.warn('[NaverMovers] 클라이언트 페치 실패:', e);
   }
   return false;
+}
+
+// ============================
+// 거시 경제 지표 히스토리 차트 (지표 카드 클릭 시 모달 표시)
+// dataPath 가 가리키는 노드에 history 필드가 있으면 사용, 없으면 ECOS/FRED 시리즈로 보강
+// ============================
+function showMacroHistoryChartByIdx(idx) {
+  const r = (typeof macroIndicators !== 'undefined') ? macroIndicators[idx] : null;
+  if(!r) return;
+  showMacroHistoryChart(r.dataPath, `${r.cc} ${r.name}`, {
+    unit: r.unit || '',
+    src:  r.src  || '',
+    link: r.link || '',
+    linkLabel: r.linkLabel || '',
+  });
+}
+
+function showMacroHistoryChart(dataPath, title, optsJson) {
+  let opts = {};
+  try {
+    // optsJson can be either an object or a HTML-escaped JSON string
+    opts = typeof optsJson === 'string' ? JSON.parse(optsJson.replace(/&quot;/g,'"')) : (optsJson || {});
+  } catch(_) { opts = {}; }
+  const modal = document.getElementById('reHistoryChartModal');
+  const titleEl = document.getElementById('reHistTitle');
+  const metaEl  = document.getElementById('reHistMeta');
+  const noteEl  = document.getElementById('reHistNote');
+  if(!modal) return;
+  titleEl.textContent = title;
+  const unit = opts.unit || '';
+  const linkHtml = opts.link ? `<a href="${opts.link}" target="_blank" rel="noopener" style="display:inline-block;margin-left:8px;font-size:10px;padding:2px 8px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${opts.linkLabel||'최신 보고서'} →</a>` : '';
+  metaEl.innerHTML = `<span style="color:var(--c-primary,#b6c4ff);">단위:</span> ${unit||'—'} &nbsp; <span style="color:var(--c-primary,#b6c4ff);">출처:</span> ${opts.src||'—'}${linkHtml}`;
+  modal.style.display = 'flex';
+  destroyChart('reHistChart');
+  if(!dataPath) {
+    noteEl.innerHTML = `데이터 경로 없음 ${opts.link?'— 외부 보고서 참고':''}`;
+    return;
+  }
+  const d = _latestDataForIndicators || {};
+  const node = getDataByPath(d, dataPath);
+  let labels=[], values=[];
+  let dataSource = opts.src || '데이터 소스 미연결';
+  if(node?.history && typeof node.history === 'object') {
+    Object.keys(node.history).sort().forEach(p=>{ labels.push(p); values.push(node.history[p]); });
+    dataSource = node.source || dataSource;
+  } else if(node?.value != null) {
+    // 시계열 없으면 현재값 1개만 표시
+    labels = [node.period || '현재'];
+    values = [node.value];
+    dataSource = (node.source || dataSource) + ' (단일 시점 — 시계열 추가 시 자동 확장)';
+  } else {
+    noteEl.innerHTML = `${dataSource} — 데이터 미수집. ${opts.link?'외부 링크에서 최신 데이터 확인 가능.':''}`;
+    return;
+  }
+  noteEl.textContent = `출처: ${dataSource}`;
+  const ctx = document.getElementById('reHistChart');
+  if(!ctx || !values.length) return;
+  const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
+  charts['reHistChart'] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{
+      label: title + (unit?` (${unit})`:''),
+      data: values,
+      borderColor: '#2962ff',
+      backgroundColor: '#2962ff22',
+      borderWidth: 2,
+      pointRadius: values.length > 30 ? 0 : 2,
+      tension: 0.3,
+      fill: true,
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{
+        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:10}, grid:{color:tc.grid}},
+        y:{ ticks:{color:tc.txt,font:{size:10}}, grid:{color:tc.grid}, position:'right'},
+      },
+      plugins:{
+        legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
+          callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?c.parsed.y.toLocaleString():c.parsed.y}${unit?' ['+unit+']':''}`}}
+      }
+    }
+  });
 }
 
 // ============================
@@ -6190,6 +6391,56 @@ function closeReHistoryChart() {
   const modal = document.getElementById('reHistoryChartModal');
   if(modal) modal.style.display = 'none';
   destroyChart('reHistChart');
+}
+
+// FX 새로고침 — 실시간 환율 + 일별 변화율 (yfinance corsproxy 페치)
+async function refreshFxData(btn) {
+  if(btn) { btn.disabled = true; btn._oldText = btn.textContent; btn.textContent = '⟳ 갱신중…'; }
+  try {
+    // 1) 실시간 환율 (open.er-api.com)
+    await loadRealtimeFx();
+    // 2) 일별 변화율: yfinance spark API (corsproxy 경유)
+    const symbols = {
+      USDKRW: 'KRW=X',
+      EURKRW: 'EURKRW=X',
+      JPYKRW: 'JPYKRW=X',
+      EURUSD: 'EURUSD=X',
+      USDJPY: 'JPY=X',
+    };
+    const idxMap = { USDKRW:0, EURKRW:1, JPYKRW:2, EURUSD:3, USDJPY:4 };
+    let success = 0;
+    await Promise.all(Object.entries(symbols).map(async ([key, sym]) => {
+      try {
+        const u = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(sym)}&range=5d&interval=1d`;
+        const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(u));
+        if(!r.ok) return;
+        const j = await r.json();
+        const closes = j.spark?.result?.[0]?.response?.[0]?.indicators?.quote?.[0]?.close || [];
+        const valid = closes.filter(v=>v!=null);
+        if(valid.length < 2) return;
+        const cur = valid[valid.length-1];
+        const prev = valid[valid.length-2];
+        const chgPct = (cur - prev) / prev * 100;
+        const i = idxMap[key];
+        if(i != null && fxPairs[i]) {
+          fxPairs[i].chg = +(cur-prev).toFixed(4);
+          fxPairs[i].pct = +chgPct.toFixed(2);
+          success++;
+        }
+      } catch(e) { /* skip */ }
+    }));
+    // FX 페이지 다시 그리기
+    if(typeof buildFxPage === 'function') buildFxPage();
+    // 티커 바 다시 그리기
+    if(typeof buildTicker === 'function') buildTicker();
+    if(btn) {
+      btn.textContent = success > 0 ? `✓ ${success}건 갱신` : '⚠ 변화율 미수신';
+      setTimeout(()=>{ btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }, 1500);
+    }
+  } catch(e) {
+    console.warn('[FX] refresh 오류:', e);
+    if(btn) { btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }
+  }
 }
 
 // ETF 전용 새로고침 (등락률 동기화)
@@ -6327,14 +6578,17 @@ function applyRealData(d) {
 
   // ── 시계열 데이터 주입: data.json.history 가 있으면 차트가 실제 데이터를 사용 ──
   // 대시보드 메인 차트 (KOSPI 기본)
+  // 무한 재렌더 방지: history.KOSPI 데이터가 실제로 변경된 경우에만 재빌드
   if(d.history && d.history.indices && d.history.indices.KOSPI) {
-    mainAllData = d.history.indices.KOSPI.map(p => ({x: p.date, y: p.close}));
-    // 거래량은 시계열에 없으므로 일정한 값 placeholder
-    allVol = mainAllData.map(p => ({x: p.x, y: 500000}));
-    // 대시보드가 현재 활성이면 차트 재렌더
-    const dashEl = document.getElementById('page-dashboard');
-    if(dashEl && dashEl.classList.contains('active')) {
-      try { initMainChart(mainPeriodUnit); } catch(_) {}
+    const newKospiHash = d.history.indices.KOSPI.length + ':' + (d.history.indices.KOSPI[d.history.indices.KOSPI.length-1]?.close||'');
+    if(_lastKospiHistoryHash !== newKospiHash) {
+      _lastKospiHistoryHash = newKospiHash;
+      mainAllData = d.history.indices.KOSPI.map(p => ({x: p.date, y: p.close}));
+      allVol = mainAllData.map(p => ({x: p.x, y: 500000}));
+      const dashEl = document.getElementById('page-dashboard');
+      if(dashEl && dashEl.classList.contains('active')) {
+        try { initMainChart(mainPeriodUnit); } catch(_) {}
+      }
     }
   }
   // ── 스파크라인 갱신 — 실제 시계열 데이터 사용 (최근 30개 포인트) ──
@@ -6436,6 +6690,25 @@ function applyRealData(d) {
   if (idx.KOSPI)   kpiUpd('kpi-kospi-price', 'kpi-kospi-chg', fmt(idx.KOSPI.price, 2),   idx.KOSPI.change);
   if (fx.USDKRW)  kpiUpd('kpi-fx-price',    'kpi-fx-chg',    fmt(fx.USDKRW.rate, 2),    fx.USDKRW.change);
   if (com.WTI)    kpiUpd('kpi-wti-price',   'kpi-wti-chg',   '$'+fmt(com.WTI.price, 2), com.WTI.change);
+
+  // ── 한국 기준금리 KPI 카드 — ECOS 데이터로 최신값 반영 ──────────
+  const ecosKr = (d.economicIndicators || {}).kr || {};
+  if(ecosKr.base_rate_kr?.value != null) {
+    const vEl = document.getElementById('kpi-rate-val');
+    if(vEl) vEl.innerHTML = `${ecosKr.base_rate_kr.value.toFixed(2)}<span style="font-size:14px;">%</span>`;
+    const dEl = document.getElementById('kpi-rate-date');
+    if(dEl && ecosKr.base_rate_kr.period) {
+      // 202604 → 2026.04
+      const p = String(ecosKr.base_rate_kr.period);
+      if(p.length === 6) dEl.textContent = `${p.slice(0,4)}.${p.slice(4,6)}`;
+      else dEl.textContent = p;
+    }
+    // rateHistoryData.kr 마지막 값 갱신 + 차트 재렌더
+    if(typeof rateHistoryData !== 'undefined' && Array.isArray(rateHistoryData.kr)) {
+      rateHistoryData.kr[rateHistoryData.kr.length-1] = ecosKr.base_rate_kr.value;
+      try { buildRateKpiSparkline(); } catch(_){}
+    }
+  }
 
   // ── FX 페이지 헤더·정보 패널 갱신 (현재 표시 중이라면) ─────
   if (typeof updateFxHeader === 'function') updateFxHeader();
@@ -6819,17 +7092,15 @@ async function loadRealtimeFx() {
       'USD/JPY': usdJpy,
     };
 
+    // ⚠ open.er-api.com 은 일별 변화율을 제공하지 않음. 30분 간격으로 fetch 한 두 값의 차이는
+    // 거의 0에 가까워 의미가 없으므로, data.json (yfinance 일별 변화율)을 그대로 보존하고
+    // 현재 환율만 실시간 갱신한다.
     fxPairs.forEach((p, i) => {
       const newR = newRates[p.pair];
-      const prevR = prevRates[p.pair];
       if (newR == null) return;
       const dec = (p.pair==='JPY/KRW'||p.pair==='EUR/USD') ? 4 : 2;
-      // 최초 페치 시에는 변화율 0으로 (하드코딩 기본값과 비교하면 의미없는 큰 값 발생)
-      const chg = _fxFirstLoad ? 0 : (newR - prevR);
-      const pct = _fxFirstLoad ? 0 : ((chg / prevR) * 100);
       p.cur = newR.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-      p.chg = +chg.toFixed(dec);
-      p.pct = +pct.toFixed(2);
+      // p.chg / p.pct 는 data.json 의 일별 변화율을 그대로 유지 (덮어쓰지 않음)
     });
     _fxFirstLoad = false;
 
@@ -7112,7 +7383,7 @@ function buildRateHistoryChart() {
       },
       plugins:{
         legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10,padding:8}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
           callbacks:{label:c=>c.dataset.label+': '+c.parsed.y.toFixed(2)+'%'}}
       }
     }
@@ -7356,6 +7627,8 @@ function applyStoredTheme() {
     if(icon)  icon.textContent  = 'dark_mode';
     if(label) label.textContent = '다크 모드';
   }
+  // 차트 전역 기본값을 현재 테마에 맞게 설정 (모든 차트 생성 전에 호출)
+  applyChartJsThemeDefaults();
 }
 
 function getThemeColors() {
@@ -7374,8 +7647,25 @@ function getThemeColors() {
   };
 }
 
+// Chart.js 전역 기본값 설정 — 테마 변경 시 새로 생성되는 차트도 자동 반영
+function applyChartJsThemeDefaults() {
+  if(typeof Chart === 'undefined') return;
+  const tc = getThemeColors();
+  Chart.defaults.color = tc.txt;
+  Chart.defaults.borderColor = tc.grid;
+  // 툴팁 기본값
+  if(Chart.defaults.plugins?.tooltip) {
+    Chart.defaults.plugins.tooltip.backgroundColor = tc.tooltip;
+    Chart.defaults.plugins.tooltip.titleColor = tc.ttTitle;
+    Chart.defaults.plugins.tooltip.bodyColor = tc.ttTitle;  // 본문도 제목과 같은 색 (대비 보장)
+    Chart.defaults.plugins.tooltip.borderColor = tc.ttBorder;
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+  }
+}
+
 function rebuildChartsForTheme() {
   // Rebuild all active charts so grid/tick/tooltip colors update
+  applyChartJsThemeDefaults();
   const tc = getThemeColors();
   Object.entries(charts).forEach(([id, ch]) => {
     if(!ch || !ch.options) return;
@@ -7389,12 +7679,12 @@ function rebuildChartsForTheme() {
       }
       // Update legend label color
       if(ch.options.plugins?.legend?.labels) ch.options.plugins.legend.labels.color = tc.txt;
-      // Update tooltip colors
+      // Update tooltip colors — 항상 ttTitle 사용 (콘트라스트 보장)
       if(ch.options.plugins?.tooltip) {
         const tt = ch.options.plugins.tooltip;
         tt.backgroundColor = tc.tooltip;
         tt.titleColor = tc.ttTitle;
-        tt.bodyColor  = tc.ttBody;
+        tt.bodyColor  = tc.ttTitle;  // body도 title 색 (white 기본값 방지)
         tt.borderColor = tc.ttBorder;
       }
       ch.update();
@@ -7487,6 +7777,7 @@ window.addEventListener('load', async ()=>{
   // 스파크라인 — 데이터 로드 후 갱신되므로 초기에는 비워둠
   // (loadRealData -> applyRealData 에서 갱신)
   buildFearChart();
+  buildRateKpiSparkline();
   initInvestorDateDefaults();
   // 실시간 data.json 로드 (있을 경우 화면 갱신)
   await loadRealData();
