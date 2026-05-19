@@ -7,11 +7,20 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Leaflet (OpenStreetMap) — 도메인 제한 없음 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- Naver Maps JS API v3 — Client ID 가 0101-commits.github.io/economic-site/ 도메인에 등록됨 -->
 <script>
-  // Naver Maps 로드 실패해도 SVG 지도는 정상 작동하도록 async/defer + 에러 핸들러
+  // Naver Maps 로드 실패해도 다른 뷰는 정상 작동하도록 async/defer + 에러 핸들러
   window._naverMapsLoaded = false;
   window._naverMapsLoadError = false;
+  window._naverMapsAuthFailed = false;
+  // Naver Maps 인증 실패 콜백 (도메인 미등록 / 키 무효 시 호출됨)
+  window.navermap_authFailure = function() {
+    window._naverMapsAuthFailed = true;
+    if(typeof onNaverMapsAuthFailure === 'function') onNaverMapsAuthFailure();
+  };
 </script>
 <script async defer src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=446nx360fc"
   onload="window._naverMapsLoaded=true;"
@@ -155,6 +164,29 @@ tailwind.config = {
   html.light [style*="color: rgb(223,226,242)"],
   html.light [style*="color: rgb(207, 212, 232)"],
   html.light [style*="color: rgb(182, 196, 255)"] { color: rgb(38,38,38) !important; }
+  /* JS가 #8d90a2 (txt-dim) 를 inline 으로 설정 → rgb(141, 144, 162) 로 정규화 */
+  html.light [style*="color: rgb(141, 144, 162)"],
+  html.light [style*="color: rgb(141,144,162)"] { color: rgb(89,89,89) !important; }
+  /* JS가 #434656 (txt-muted) → rgb(67, 70, 86) */
+  html.light [style*="color: rgb(67, 70, 86)"],
+  html.light [style*="color: rgb(67,70,86)"] { color: rgb(145,145,145) !important; }
+  /* JS가 #b6c4ff (primary) → rgb(182, 196, 255) (이미 있음) — 추가로 다른 톤 */
+  html.light [style*="background: rgb(27, 31, 43)"],
+  html.light [style*="background:rgb(27,31,43)"] { background-color: #edf4fb !important; }
+  html.light [style*="background: rgb(19, 23, 34)"],
+  html.light [style*="background:rgb(19,23,34)"] { background-color: #ffffff !important; }
+  html.light [style*="background: rgb(38, 42, 53)"],
+  html.light [style*="background:rgb(38,42,53)"] { background-color: #d9edf8 !important; }
+  /* 라이트 테마: 뉴스 필터 버튼 hover */
+  html.light .news-filter-btn:hover { background: #d9edf8; }
+  /* 라이트 테마: 뉴스 카드 link 의 border-bottom (다크 색상 → 라이트 색상) */
+  html.light a[style*="border-bottom:1px solid #1b1f2b"] { border-bottom-color: #ccdeed !important; }
+  /* 라이트 테마: 뉴스 더보기 / 새로고침 버튼 */
+  html.light button[style*="background:#1b1f2b"] { background-color: #edf4fb !important; color: rgb(53,108,181) !important; }
+  /* 라이트 테마: focus 시 outline 어두운 색 → 파란색 */
+  html.light *:focus { outline-color: rgb(53,108,181); }
+  /* tr:hover 의 라이트 테마 - 더 강하게 */
+  html.light tr:hover td { background: #d9edf8 !important; }
   /* "txt-on-light" 클래스 — 라이트 테마에서 항상 어두운 텍스트 */
   html.light .txt-on-light { color: rgb(38,38,38) !important; }
   html.light .txt-secondary-light { color: rgb(89,89,89) !important; }
@@ -191,6 +223,14 @@ tailwind.config = {
   /* 데이터 소스 사이드바 항목 호버도 동일 처리 */
   .ds-item:hover { background: var(--c-card-hi, #1b1f2b); }
   html.light .ds-item:hover { background: #d9edf8; }
+  /* 뉴스 카드 hover — 라이트/다크 모두 자연스럽게 */
+  .news-card-link { opacity: 1; }
+  .news-card-link:hover { opacity: 0.85; background: var(--c-card-hi, #262a35); border-radius: 4px; padding-left: 4px; padding-right: 4px; }
+  html.light .news-card-link:hover { background: #d9edf8; }
+  /* 클릭 가능한 카드/행 공통 호버 (다크 강제 색상 방지) */
+  .clickable-card { transition: background .12s; }
+  .clickable-card:hover { background: var(--c-card-hi, #262a35); }
+  html.light .clickable-card:hover { background: #d9edf8; }
   /* ======= 기본 스타일 ======= */
   * { box-sizing: border-box; }
   body { background: var(--c-bg, #0f131e); color: var(--c-txt, #dfe2f2); font-family: 'Inter', sans-serif; margin: 0; overflow-x: hidden; }
@@ -1451,13 +1491,14 @@ tailwind.config = {
             <div style="position:relative;height:260px;"><canvas id="rePriceChart" style="cursor:crosshair;"></canvas></div>
             <div style="font-size:10px;color:#434656;margin-top:4px;">💡 차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
-          <!-- 지역별 등락 — SVG 지도 + Naver 지도 + 바 차트 토글 -->
+          <!-- 지역별 등락 — SVG / OpenStreetMap / Naver 지도 / 바 차트 토글 -->
           <div class="widget" style="position:relative;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
               <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:9px;color:#434656;font-weight:400;">지도/지역 클릭 → 추이</span></div>
-              <div style="display:flex;gap:4px;">
-                <button id="reRegionViewMap" onclick="setReRegionView('map',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">🗺️ SVG</button>
-                <button id="reRegionViewNaver" onclick="setReRegionView('naver',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;" title="Naver 지도 위에 지역별 마커 표시">🗺️ Naver</button>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button id="reRegionViewMap" onclick="setReRegionView('map',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;" title="SVG 한국 지도 (도메인 무관)">🗺️ SVG</button>
+                <button id="reRegionViewOsm" onclick="setReRegionView('osm',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;" title="OpenStreetMap — 무료, 도메인 무관">🗺️ OSM</button>
+                <button id="reRegionViewNaver" onclick="setReRegionView('naver',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;" title="Naver 지도 (GitHub Pages 배포 환경에서만 작동)">🗺️ Naver</button>
                 <button id="reRegionViewBar" onclick="setReRegionView('bar',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">📊 바</button>
               </div>
             </div>
@@ -1470,9 +1511,12 @@ tailwind.config = {
                 <div style="position:relative;height:60px;width:160px;"><canvas id="reRegionTooltipChart"></canvas></div>
               </div>
             </div>
+            <div id="reRegionOsmContainer" style="position:relative;height:260px;display:none;">
+              <div id="reRegionOsmMap" style="width:100%;height:100%;border-radius:6px;"></div>
+            </div>
             <div id="reRegionNaverContainer" style="position:relative;height:260px;display:none;">
               <div id="reRegionNaverMap" style="width:100%;height:100%;border-radius:6px;"></div>
-              <div id="reRegionNaverLoading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--c-surface,#131722);border-radius:6px;font-size:11px;color:var(--c-txt-dim,#8d90a2);">📡 Naver 지도 로딩 중…</div>
+              <div id="reRegionNaverLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--c-surface,#131722);border-radius:6px;font-size:11px;color:var(--c-txt-dim,#8d90a2);text-align:center;padding:16px;">📡 Naver 지도 로딩 중…</div>
             </div>
             <div id="reRegionBarContainer" style="position:relative;height:260px;display:none;"><canvas id="reRegionChart"></canvas></div>
           </div>
@@ -2397,20 +2441,24 @@ const krRegionMapShapes = [
   {code:'50', label:'제주', labelX:175, labelY:460, path:'M 140 445 L 200 440 L 220 460 L 200 475 L 150 475 L 135 460 Z'},
 ];
 
-let _reRegionView = 'map';  // 'map' / 'naver' / 'bar'
+let _reRegionView = 'map';  // 'map' / 'osm' / 'naver' / 'bar'
 let _reRegionTooltipChart = null;
 let _naverRegionMap = null;
 let _naverRegionMarkers = [];
+let _osmRegionMap = null;
+let _osmRegionMarkers = [];
 
 function setReRegionView(view, btn) {
   _reRegionView = view;
   const mapEl   = document.getElementById('reRegionMapContainer');
+  const osmEl   = document.getElementById('reRegionOsmContainer');
   const naverEl = document.getElementById('reRegionNaverContainer');
   const barEl   = document.getElementById('reRegionBarContainer');
   if(mapEl)   mapEl.style.display   = view==='map'   ? 'block' : 'none';
+  if(osmEl)   osmEl.style.display   = view==='osm'   ? 'block' : 'none';
   if(naverEl) naverEl.style.display = view==='naver' ? 'block' : 'none';
   if(barEl)   barEl.style.display   = view==='bar'   ? 'block' : 'none';
-  ['reRegionViewMap','reRegionViewNaver','reRegionViewBar'].forEach(id=>{
+  ['reRegionViewMap','reRegionViewOsm','reRegionViewNaver','reRegionViewBar'].forEach(id=>{
     const b = document.getElementById(id);
     if(b) { b.style.background='transparent'; b.style.color='#8d90a2'; b.style.borderColor='#2a2e3d'; }
   });
@@ -2418,9 +2466,82 @@ function setReRegionView(view, btn) {
   // 컨테이너 가시성 변경 후 차트/지도 재빌드 (hidden canvas/map 측정 오류 회피)
   if(view === 'naver') {
     setTimeout(() => buildNaverRegionMap(), 80);
+  } else if(view === 'osm') {
+    setTimeout(() => buildOsmRegionMap(), 80);
   } else {
     setTimeout(() => buildKoreaRegionMap(), 50);
   }
+}
+
+// Naver Maps 인증 실패 → 자동으로 SVG 뷰로 되돌리고 안내
+function onNaverMapsAuthFailure() {
+  const loadingEl = document.getElementById('reRegionNaverLoading');
+  if(loadingEl) {
+    loadingEl.style.display = 'flex';
+    loadingEl.innerHTML = `
+      <div style="font-size:13px;color:var(--c-down, #ef5350);font-weight:600;">❌ Naver 지도 인증 실패</div>
+      <div style="font-size:11px;color:var(--c-txt-dim, #8d90a2);max-width:360px;line-height:1.5;">
+        Client ID <code>446nx360fc</code> 는 도메인 <code>0101-commits.github.io</code> 에만 등록되어 있어 다른 환경에서는 작동하지 않습니다.
+      </div>
+      <div style="display:flex;gap:6px;margin-top:4px;">
+        <button onclick="setReRegionView('osm', document.getElementById('reRegionViewOsm'))" style="font-size:11px;padding:4px 10px;border:1px solid #2962ff;background:#2962ff;color:#fff;border-radius:4px;cursor:pointer;">🗺️ OpenStreetMap 사용</button>
+        <button onclick="setReRegionView('map', document.getElementById('reRegionViewMap'))" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border,#2a2e3d);background:transparent;color:var(--c-txt-dim,#8d90a2);border-radius:4px;cursor:pointer;">🗺️ SVG 뷰</button>
+      </div>`;
+  }
+}
+
+// OpenStreetMap (Leaflet) — 도메인 제한 없이 모든 환경에서 작동
+function buildOsmRegionMap() {
+  const mapDiv = document.getElementById('reRegionOsmMap');
+  if(!mapDiv) return;
+  if(typeof L === 'undefined') {
+    mapDiv.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:11px;color:var(--c-txt-dim,#8d90a2);">📡 Leaflet 로딩 중…</div>`;
+    setTimeout(buildOsmRegionMap, 300);
+    return;
+  }
+  // 기존 마커 정리
+  if(_osmRegionMarkers.length) {
+    _osmRegionMarkers.forEach(m => { try { _osmRegionMap.removeLayer(m); } catch(_){} });
+    _osmRegionMarkers = [];
+  }
+  if(!_osmRegionMap) {
+    _osmRegionMap = L.map(mapDiv, {
+      center: [36.2, 127.8],
+      zoom: 6,
+      zoomControl: true,
+      attributionControl: true,
+    });
+    // 라이트/다크 테마에 따라 타일 선택 — 다크에서는 어두운 타일
+    const isLight = !document.documentElement.classList.contains('light');
+    const tileUrl = isLight
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    L.tileLayer(tileUrl, {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+    }).addTo(_osmRegionMap);
+  } else {
+    setTimeout(() => _osmRegionMap.invalidateSize(), 50);
+  }
+  // 각 시도 마커 (DivIcon 으로 컬러 마커)
+  krRegionData.forEach(d => {
+    const ll = krRegionLatLng[d.code];
+    if(!ll) return;
+    const color = _regionColorForVal(d.val);
+    const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
+    const icon = L.divIcon({
+      className: 'osm-region-marker',
+      html: `<div style="background:${color};color:#fff;padding:3px 7px;border-radius:12px;font-size:10px;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
+        <div style="font-size:9px;font-weight:700;">${d.label}</div>
+        <div style="font-size:10px;font-weight:700;">${valStr}</div>
+      </div>`,
+      iconSize: [56, 30],
+      iconAnchor: [28, 15],
+    });
+    const m = L.marker([ll.lat, ll.lng], { icon, title: `${d.label} ${valStr}` }).addTo(_osmRegionMap);
+    m.on('click', () => _openRegionHistoryModal(d));
+    _osmRegionMarkers.push(m);
+  });
 }
 
 // 한국 시도별 중심 좌표 (위도, 경도) — Naver 지도 마커용
@@ -2449,8 +2570,9 @@ function _waitForNaverMaps(timeoutMs) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
     const tick = () => {
+      if(window._naverMapsAuthFailed) return reject(new Error('Naver Maps 인증 실패 — 도메인 미등록'));
       if(window.naver && window.naver.maps) return resolve(true);
-      if(window._naverMapsLoadError) return reject(new Error('Naver Maps API 로드 실패 — 도메인 등록 또는 네트워크 확인'));
+      if(window._naverMapsLoadError) return reject(new Error('Naver Maps 스크립트 로드 실패 — 네트워크 확인'));
       if(Date.now() - start > (timeoutMs || 5000)) return reject(new Error('Naver Maps API 로드 타임아웃'));
       setTimeout(tick, 100);
     };
@@ -2462,12 +2584,35 @@ async function buildNaverRegionMap() {
   const loadingEl = document.getElementById('reRegionNaverLoading');
   const mapDiv = document.getElementById('reRegionNaverMap');
   if(!mapDiv) return;
+  // 이미 인증 실패한 상태면 즉시 안내
+  if(window._naverMapsAuthFailed) {
+    onNaverMapsAuthFailure();
+    return;
+  }
+  if(loadingEl) {
+    loadingEl.style.display = 'flex';
+    loadingEl.innerHTML = `<div>📡 Naver 지도 로딩 중…</div>`;
+  }
   try {
     await _waitForNaverMaps(6000);
   } catch(e) {
     if(loadingEl) {
-      loadingEl.innerHTML = `❌ ${e.message}<br><span style="font-size:10px;color:#434656;">SVG 뷰로 전환하거나 GitHub Pages 배포 환경에서 시도하세요.</span>`;
+      loadingEl.style.display = 'flex';
+      loadingEl.innerHTML = `
+        <div style="font-size:13px;color:var(--c-down, #ef5350);font-weight:600;">❌ ${e.message}</div>
+        <div style="font-size:11px;color:var(--c-txt-dim, #8d90a2);max-width:360px;line-height:1.5;">
+          이 사이트의 Naver Maps Client ID 는 도메인 <code>0101-commits.github.io</code> 에만 등록되어 있어 다른 환경에서는 작동하지 않습니다.
+        </div>
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <button onclick="setReRegionView('osm', document.getElementById('reRegionViewOsm'))" style="font-size:11px;padding:4px 10px;border:1px solid #2962ff;background:#2962ff;color:#fff;border-radius:4px;cursor:pointer;">🗺️ OpenStreetMap 사용</button>
+          <button onclick="setReRegionView('map', document.getElementById('reRegionViewMap'))" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border,#2a2e3d);background:transparent;color:var(--c-txt-dim,#8d90a2);border-radius:4px;cursor:pointer;">🗺️ SVG 뷰</button>
+        </div>`;
     }
+    return;
+  }
+  // 로드 후에도 인증 실패가 나면 (시간차) 안내 화면 표시
+  if(window._naverMapsAuthFailed) {
+    onNaverMapsAuthFailure();
     return;
   }
   if(loadingEl) loadingEl.style.display = 'none';
@@ -3871,13 +4016,13 @@ function setMoverType(type, btn) {
 function newsCard(n) {
   const displayTime = n.isoDate ? relTime(n.isoDate) : (n.time || '오늘');
   const safeUrl = (n.url||'#').replace(/'/g,'%27');
-  return `<a href="${safeUrl}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;border-bottom:1px solid #1b1f2b;padding-bottom:10px;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+  return `<a href="${safeUrl}" target="_blank" rel="noopener" class="news-card-link" style="display:block;text-decoration:none;color:inherit;border-bottom:1px solid var(--c-card, #1b1f2b);padding-bottom:10px;transition:opacity .15s,background .15s;">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <span style="font-size:10px;color:#8d90a2;">${displayTime}</span>
+      <span style="font-size:10px;color:var(--c-txt-dim, #8d90a2);">${displayTime}</span>
       <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
-      <span style="font-size:9px;color:#434656;">↗ 기사보기</span>
+      <span style="font-size:9px;color:var(--c-txt-muted, #434656);">↗ 기사보기</span>
     </div>
-    <div style="font-size:12px;line-height:1.5;">${n.title}</div>
+    <div style="font-size:12px;line-height:1.5;color:var(--c-txt, #dfe2f2);">${n.title}</div>
   </a>`;
 }
 const newsExpanded = { newsFeed:false, commodityNewsFeed:false, macroNewsFeed:false, calendarNewsFeed:false };
@@ -3895,9 +4040,9 @@ function renderNewsFeedWithPagination(containerId, items) {
   const remaining = items.length - visible.length;
   let html = visible.map(newsCard).join('');
   if(remaining > 0) {
-    html += `<button onclick="toggleNewsExpand('${containerId}')" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:6px;padding:8px;font-size:11px;cursor:pointer;width:100%;margin-top:4px;">더보기 (${remaining}개 더)</button>`;
+    html += `<button onclick="toggleNewsExpand('${containerId}')" style="background:var(--c-card, #1b1f2b);color:var(--c-primary, #b6c4ff);border:1px solid var(--c-border, #2a2e3d);border-radius:6px;padding:8px;font-size:11px;cursor:pointer;width:100%;margin-top:4px;">더보기 (${remaining}개 더)</button>`;
   } else if(expanded && items.length > NEWS_PAGE_SIZE) {
-    html += `<button onclick="toggleNewsExpand('${containerId}')" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:6px;font-size:11px;cursor:pointer;width:100%;margin-top:4px;">접기 ↑</button>`;
+    html += `<button onclick="toggleNewsExpand('${containerId}')" style="background:transparent;color:var(--c-txt-dim, #8d90a2);border:1px solid var(--c-border, #2a2e3d);border-radius:6px;padding:6px;font-size:11px;cursor:pointer;width:100%;margin-top:4px;">접기 ↑</button>`;
   }
   el.innerHTML = html;
 }
@@ -6225,7 +6370,7 @@ function buildMacroIndicatorTable() {
       const indIdx = macroIndicators.indexOf(r);
       // 외부 링크 (유료/수동 데이터 지표용)
       const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:9px;padding:2px 6px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${r.linkLabel||'최신 보고서'} →</a>` : '';
-      return `<div onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:var(--c-surface,#131722);border-radius:6px;border-left:3px solid ${color};cursor:pointer;transition:background .1s;" onmouseover="this.style.background='var(--c-card-hi, #262a35)'" onmouseout="this.style.background='var(--c-surface, #131722)'" title="클릭 → 시계열 차트">
+      return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:var(--c-surface,#131722);border-radius:6px;border-left:3px solid ${color};cursor:pointer;" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
           <div style="font-size:12px;font-weight:600;color:var(--c-txt,#dfe2f2);">${r.cc} ${r.name} <span style="font-size:9px;color:var(--c-txt-muted,#434656);">📈</span></div>
           <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:2px;line-height:1.4;">${r.src} · ${r.freq} · ${periodStr}</div>
@@ -6651,17 +6796,23 @@ function buildCalendarGrid(filteredEvents) {
     const dayClr = dow===0 ? '#ef5350' : dow===6 ? '#2962ff' : 'var(--c-txt,#dfe2f2)';
     const isToday = isCurrentMonth && d === todayD;
     const isThisWeek = weekStartD !== null && d >= weekStartD && d <= weekEndD;
-    // 강조 스타일: 오늘은 두꺼운 주황색 테두리 + 옅은 배경 (라이트/다크 모두 잘 보이는 색)
-    // 이번 주 범위는 옅은 파란 배경
+    // 강조 스타일 — 라이트/다크 양쪽에서 잘 보이게 진한 색 + 강한 테두리
+    // 오늘: 진한 주황색 배경 + 굵은 테두리
+    // 이번 주: 옅은 파란 배경 + 점선 테두리
     let cellStyle = 'background:var(--c-surface,#131722);';
     if(isToday) {
-      cellStyle = 'background:rgba(245,166,35,0.18);border:2px solid #f5a623;box-shadow:inset 0 0 0 1px rgba(245,166,35,0.4);';
+      cellStyle = 'background:rgba(245,166,35,0.45);border:3px solid #f5a623;box-shadow:0 0 0 1px #f5a623, inset 0 0 12px rgba(245,166,35,0.25);position:relative;z-index:2;';
     } else if(isThisWeek) {
-      cellStyle = 'background:rgba(41,98,255,0.10);border:1px solid rgba(41,98,255,0.35);';
+      cellStyle = 'background:rgba(41,98,255,0.18);border:1.5px dashed rgba(41,98,255,0.6);';
     }
     html += `<div style="${cellStyle}padding:4px 5px;min-height:78px;position:relative;overflow:hidden;">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">`;
-    html += `<span style="font-size:11px;font-weight:${isToday?800:500};color:${isToday?'#f5a623':dayClr};">${d}${isToday?'<span style="font-size:8px;margin-left:3px;font-weight:600;">오늘</span>':''}</span>`;
+    // 오늘 날짜 라벨: 진한 주황 배경 칩으로 강조 (가독성 ↑)
+    if(isToday) {
+      html += `<span style="font-size:11px;font-weight:800;color:#fff;background:#f5a623;padding:2px 7px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.2);">${d} · 오늘</span>`;
+    } else {
+      html += `<span style="font-size:11px;font-weight:500;color:${dayClr};">${d}</span>`;
+    }
     if(events.length > 0) html += `<span style="font-size:8px;color:#fff;background:#2962ff;border-radius:8px;padding:1px 5px;font-weight:600;">${events.length}</span>`;
     html += `</div>`;
     // 최대 3개 이벤트 표시
@@ -7578,20 +7729,20 @@ function showDataSourceDetail(key) {
     actualStats += '<li>분기별 정적 데이터 (수동 업데이트)</li>';
   }
   bodyEl.innerHTML = `
-    <div style="margin-bottom:10px;padding:8px;background:#262a35;border-radius:4px;border-left:3px solid ${stateColor};">
+    <div style="margin-bottom:10px;padding:8px;background:var(--c-card-hi, #262a35);border-radius:4px;border-left:3px solid ${stateColor};">
       <div style="font-weight:600;color:${stateColor};font-size:11px;">${stateMark}</div>
-      <div style="color:#8d90a2;font-size:10px;margin-top:2px;">${status.label||'—'}</div>
+      <div style="color:var(--c-txt-dim, #8d90a2);font-size:10px;margin-top:2px;">${status.label||'—'}</div>
     </div>
-    <div style="margin-bottom:8px;color:#dfe2f2;font-size:11px;">${src.desc}</div>
-    <div style="margin-bottom:6px;font-weight:600;color:#dfe2f2;font-size:11px;">📊 가져오는 데이터:</div>
-    <ul style="margin:0 0 10px 18px;padding:0;color:#b6c4ff;font-size:10px;">
+    <div style="margin-bottom:8px;color:var(--c-txt, #dfe2f2);font-size:11px;">${src.desc}</div>
+    <div style="margin-bottom:6px;font-weight:600;color:var(--c-txt, #dfe2f2);font-size:11px;">📊 가져오는 데이터:</div>
+    <ul style="margin:0 0 10px 18px;padding:0;color:var(--c-primary, #b6c4ff);font-size:10px;">
       ${src.fetched.map(f=>`<li>${f}</li>`).join('')}
     </ul>
-    <div style="margin-bottom:6px;font-weight:600;color:#dfe2f2;font-size:11px;">✓ 현재 수집된 데이터:</div>
-    <ul style="margin:0 0 6px 18px;padding:0;color:#26a69a;font-size:10px;">
-      ${actualStats || '<li style="color:#ef5350;">데이터 없음</li>'}
+    <div style="margin-bottom:6px;font-weight:600;color:var(--c-txt, #dfe2f2);font-size:11px;">✓ 현재 수집된 데이터:</div>
+    <ul style="margin:0 0 6px 18px;padding:0;color:var(--c-up, #26a69a);font-size:10px;">
+      ${actualStats || '<li style="color:var(--c-down, #ef5350);">데이터 없음</li>'}
     </ul>
-    <div style="font-size:9px;color:#434656;margin-top:8px;text-align:right;">최종 업데이트: ${d.lastUpdated ? new Date(d.lastUpdated).toLocaleString('ko-KR') : '—'}</div>
+    <div style="font-size:9px;color:var(--c-txt-muted, #434656);margin-top:8px;text-align:right;">최종 업데이트: ${d.lastUpdated ? new Date(d.lastUpdated).toLocaleString('ko-KR') : '—'}</div>
   `;
   popup.style.display = 'block';
 }
@@ -8244,15 +8395,22 @@ async function fetchSentimentClient() {
   return out;
 }
 
+// VKOSPI 가 합리적 범위인지 검증 — yfinance 가 ^VKOSPI 를 KOSPI 로 잘못 매핑할 수 있음
+function _isValidVkospi(v) { return v != null && v > 1 && v < 200; }
+
 function applySentimentClient(s) {
   if(!s) return;
-  if(s.vkospi?.value != null) {
+  if(s.vkospi?.value != null && _isValidVkospi(s.vkospi.value)) {
     const el = document.getElementById('dashVkospi');
     if(el) {
       el.textContent = s.vkospi.value.toFixed(2);
       const v = s.vkospi.value;
       el.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
     }
+  } else if(s.vkospi?.value != null) {
+    // 잘못된 값 (KOSPI 가 ^VKOSPI 로 잘못 매핑된 케이스 등) — 표시하지 않음
+    const el = document.getElementById('dashVkospi');
+    if(el) { el.textContent = '—'; el.style.color = 'var(--c-txt-dim,#8d90a2)'; }
   }
   if(s.move?.value != null) {
     const el = document.getElementById('dashMove');
@@ -8279,7 +8437,7 @@ function applySentimentClient(s) {
 const SENTIMENT_GUIDES = {
   vix: {
     title: 'VIX (S&P500 변동성 지수)',
-    unit: '지수 (%)',
+    unit: '지수 (연환산 변동성 %)',
     source: 'CBOE / FRED:VIXCLS',
     dataPath: 'economicIndicators.us.vix',
     color: '#f5a623',
@@ -8300,8 +8458,8 @@ const SENTIMENT_GUIDES = {
   },
   vkospi: {
     title: 'VKOSPI (KOSPI200 변동성 지수)',
-    unit: '지수 (%)',
-    source: 'KRX / Yahoo Finance',
+    unit: '지수 (연환산 변동성 %, KOSPI200 30일 내재변동성)',
+    source: 'KRX / Naver Finance',
     dataPath: 'sentiment.vkospi',
     color: '#f5a623',
     guide: `
@@ -8535,13 +8693,36 @@ function _renderReHistChartSentiment(guide) {
   const d = _latestDataForIndicators || {};
   const node = getDataByPath(d, guide.dataPath);
   let labels=[], values=[];
-  if(node?.history && typeof node.history === 'object') {
-    Object.keys(node.history).sort().forEach(p=>{ labels.push(p); values.push(node.history[p]); });
-  } else if(node?.value != null) {
-    // 시계열 없으면 현재값만
-    labels = [node.period || '현재']; values = [node.value];
-  } else {
-    if(noteEl) noteEl.textContent = '시계열 데이터 없음 — fetch_data.py 실행 시 자동 채워짐';
+  // VKOSPI 의 경우 합리적 범위 검증 — KOSPI 값이 잘못 매핑된 경우 무효화
+  const isVkospi = (guide.dataPath || '').includes('vkospi');
+  const valIsValid = node?.value != null && (!isVkospi || _isValidVkospi(node.value));
+  if(node?.history && typeof node.history === 'object' && Object.keys(node.history).length > 0) {
+    // VKOSPI 히스토리 — 잘못된 값 필터링
+    Object.keys(node.history).sort().forEach(p=>{
+      const v = node.history[p];
+      if(isVkospi && !_isValidVkospi(v)) return;
+      labels.push(p);
+      values.push(v);
+    });
+  }
+  // 히스토리 없거나 비어있으면 현재값으로 임시 시계열 생성
+  if(labels.length < 2 && valIsValid) {
+    // 단일 값으로 12개월 placeholder 점선 시계열 생성 (시각적 단서)
+    const today = new Date();
+    for(let i = 11; i >= 0; i--) {
+      const dt = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      labels.push(dt.toISOString().slice(0,7));
+      values.push(node.value);
+    }
+    if(noteEl) noteEl.textContent = `출처: ${guide.source} · 현재값 ${node.value} 기반 placeholder (시계열 미수집)`;
+  } else if(labels.length === 0) {
+    if(noteEl) {
+      if(isVkospi && node?.value != null) {
+        noteEl.innerHTML = `<span style="color:var(--c-down,#ef5350);">⚠️ VKOSPI 값(${node.value}) 이 합리적 범위 벗어남</span> — fetch_data.py 다음 실행 시 자동 갱신`;
+      } else {
+        noteEl.textContent = '시계열 데이터 없음 — fetch_data.py 실행 시 자동 채워짐';
+      }
+    }
     return;
   }
   // 기간/단위 리샘플링
@@ -8848,9 +9029,15 @@ function applyRealData(d) {
   if (sentiment.vkospi?.value != null) {
     const vkEl = document.getElementById('dashVkospi');
     if(vkEl) {
-      vkEl.textContent = sentiment.vkospi.value.toFixed(2);
+      // VKOSPI 합리적 범위 검증 (1~200) — yfinance 가 KOSPI 값을 잘못 반환할 수 있음
       const v = sentiment.vkospi.value;
-      vkEl.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
+      if(_isValidVkospi(v)) {
+        vkEl.textContent = v.toFixed(2);
+        vkEl.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
+      } else {
+        vkEl.textContent = '—';
+        vkEl.style.color = 'var(--c-txt-dim,#8d90a2)';
+      }
     }
   }
   if (sentiment.move?.value != null) {
@@ -9276,10 +9463,19 @@ async function fetchLatestArticles(query, count=5) {
     if (!items.length) return null;
     return items.slice(0, count).map(it => {
       const title = (it.querySelector('title')?.textContent || '').replace(/<!\[CDATA\[|\]\]>/g,'').replace(/\s*-\s*[^-]+$/, '').trim();
-      const link = it.querySelector('link')?.textContent || it.querySelector('guid')?.textContent || '#';
+      const link = it.querySelector('link')?.textContent || '';
+      const guid = it.querySelector('guid')?.textContent || '';
+      // description 안에 <a href="...">로 원본 기사 URL이 있을 수 있음 (Google News 일부 형식)
+      const desc = it.querySelector('description')?.textContent || '';
+      let url = link || guid || '#';
+      // description 에서 첫 번째 외부 링크 추출 시도 (구글 뉴스 리다이렉트 우회)
+      if (desc) {
+        const m = desc.match(/href="(https?:\/\/(?!news\.google\.com)[^"]+)"/);
+        if (m && m[1]) url = m[1];
+      }
       const pubDate = it.querySelector('pubDate')?.textContent || '';
       const isoDate = pubDate ? (() => { try { return new Date(pubDate).toISOString().slice(0,10); } catch { return null; } })() : null;
-      return { title, url: link, time: pubDate ? relTime(new Date(pubDate).toISOString()) : '오늘', isoDate };
+      return { title, url, time: pubDate ? relTime(new Date(pubDate).toISOString()) : '오늘', isoDate };
     });
   } catch (e) { return null; }
 }
@@ -9297,16 +9493,20 @@ function relTime(iso) {
 async function loadFreshNews() {
   const arrays = { newsItems, commodityNewsItems, macroNewsItems, calendarNewsItems };
   const tasks = [];
-  for (const [arrName, items] of Object.entries(NEWS_QUERIES)) {
-    for (const {idx, q} of items) {
-      tasks.push(fetchLatestArticle(q).then(fresh => {
-        if (fresh && fresh.url) {
-          arrays[arrName][idx].title = fresh.title;
-          arrays[arrName][idx].url = fresh.url;
-          arrays[arrName][idx].time = fresh.time;
-          if (fresh.isoDate) arrays[arrName][idx].isoDate = fresh.isoDate;
-        }
-      }));
+  // 각 쿼리당 5개씩 가져와서 idx, idx+1, idx+2, idx+3, idx+4 슬롯을 모두 실제 기사 URL 로 갱신
+  for (const [arrName, queries] of Object.entries(NEWS_QUERIES)) {
+    for (const {idx, q} of queries) {
+      tasks.push(fetchLatestArticles(q, 5).then(freshList => {
+        if (!freshList || !freshList.length) return;
+        freshList.forEach((fresh, i) => {
+          const slot = idx + i;
+          if (!arrays[arrName][slot] || !fresh || !fresh.url) return;
+          arrays[arrName][slot].title = fresh.title;
+          arrays[arrName][slot].url   = fresh.url;
+          arrays[arrName][slot].time  = fresh.time;
+          if (fresh.isoDate) arrays[arrName][slot].isoDate = fresh.isoDate;
+        });
+      }).catch(()=>{}));
     }
   }
   await Promise.all(tasks);
