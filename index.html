@@ -1217,6 +1217,7 @@ tailwind.config = {
           </div>
         </div>
         <div style="position:relative;height:180px;"><canvas id="calDetailChart"></canvas></div>
+        <div id="calDetailGuide" style="display:none;margin-top:10px;padding:10px 12px;background:var(--c-surface,#131722);border-radius:6px;border-left:3px solid #2962ff;font-size:11px;color:var(--c-txt,#dfe2f2);line-height:1.7;"></div>
       </div>
 
       <div class="widget" style="margin-top:12px;">
@@ -2429,9 +2430,16 @@ function buildKoreaRegionMap() {
       const noteEl = document.getElementById('reHistNote');
       const titleEl = document.getElementById('reHistTitle');
       const metaEl = document.getElementById('reHistMeta');
+      const guideEl = document.getElementById('reHistGuide');
       if(titleEl) titleEl.textContent = titleStr;
       if(metaEl) metaEl.innerHTML = `<span style="color:#b6c4ff;">단위:</span> 지수 (2021.6=100)`;
       if(noteEl) noteEl.textContent = '출처: 한국부동산원 R-ONE (지역별 매매가격지수)';
+      // HPI 가이드 표시
+      if(guideEl && typeof MACRO_GUIDES !== 'undefined') {
+        guideEl.innerHTML = MACRO_GUIDES.hpi;
+        guideEl.style.display = 'block';
+        guideEl.style.borderLeftColor = '#26a69a';
+      }
       const tc2 = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d'};
       charts['reHistChart'] = new Chart(ctx, {
         type:'line',
@@ -2722,9 +2730,15 @@ function buildUsRegionMap() {
       const noteEl = document.getElementById('reHistNote');
       const titleEl = document.getElementById('reHistTitle');
       const metaEl = document.getElementById('reHistMeta');
+      const guideEl = document.getElementById('reHistGuide');
       if(titleEl) titleEl.textContent = titleStr;
       if(metaEl) metaEl.innerHTML = `<span style="color:#b6c4ff;">단위:</span> 지수 (1990=100)`;
       if(noteEl) noteEl.textContent = 'FRED (Case-Shiller State HPI)';
+      if(guideEl && typeof MACRO_GUIDES !== 'undefined') {
+        guideEl.innerHTML = MACRO_GUIDES.hpi;
+        guideEl.style.display = 'block';
+        guideEl.style.borderLeftColor = '#26a69a';
+      }
       const tc2 = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d'};
       charts['reHistChart'] = new Chart(ctx, {
         type:'line',
@@ -6533,6 +6547,17 @@ function _renderCalDetailChart() {
   destroyChart('calDetailChart');
   const hist = calHistoryData[e.name];
   const canvas = document.getElementById('calDetailChart');
+  // 가이드 표시 — 이벤트명으로 매크로 가이드 매칭
+  const guideEl = document.getElementById('calDetailGuide');
+  if(guideEl) {
+    const macroGuide = (typeof _getMacroGuide === 'function') ? _getMacroGuide('', e.name) : null;
+    if(macroGuide) {
+      guideEl.innerHTML = macroGuide;
+      guideEl.style.display = 'block';
+    } else {
+      guideEl.style.display = 'none';
+    }
+  }
   if(!canvas) return;
   if(!hist) {
     canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
