@@ -1576,11 +1576,18 @@ def fetch_nps_allocation():
 # ============================================================
 # VKOSPI (KOSPI200 변동성 지수)
 # ============================================================
+def _is_valid_vkospi(v):
+    """VKOSPI 합리적 범위 체크 — 변동성 지수는 보통 5~100 사이.
+    KOSPI/KOSPI200 지수가 잘못 들어오면 1000~10000+ 이므로 검출됨.
+    """
+    return v is not None and 1 < v < 200
+
+
 def fetch_vkospi():
-    """KRX VKOSPI 지수 조회.
+    """KRX VKOSPI 지수 조회 — 변동성 범위(5~100) 검증 포함.
 
     1차: KRX OpenAPI /idx/kospi_dd_trd 에서 'KOSPI 200 변동성지수' 또는 'VKOSPI' 검색
-    2차: yfinance '^VKOSPI' (Yahoo Finance 미지원 가능)
+    2차: yfinance '^VKOSPI' (Yahoo Finance 가 잘못된 매핑으로 KOSPI 반환할 수 있어 범위 검증)
     3차: 네이버 증권 시세 페이지 스크래핑
     Returns: {"value": float, "change": float, "as_of": "YYYY-MM-DD"} or None
     """
@@ -1593,18 +1600,12 @@ def fetch_vkospi():
                 if "변동성" in nm or "VKOSPI" in nm.upper() or "V-KOSPI" in nm.upper():
                     val = _parse_num(row.get("CLSPRC_IDX"))
                     chg = _parse_num(row.get("FLUC_RT"))
-                    if val and val > 0:
+                    if _is_valid_vkospi(val):
                         log(f"[VKOSPI] KRX: {nm} = {val} ({chg}%)")
                         return {"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": basd, "source": "KRX OpenAPI"}
-    # 2차: yfinance 폴백
-    try:
-        q = fetch_yf("^VKOSPI")
-        if q and q.get("price"):
-            log(f"[VKOSPI] yfinance: {q['price']} ({q['change']}%)")
-            return {"value": q["price"], "change": q["change"], "as_of": datetime.now(KST).strftime("%Y-%m-%d"), "source": "yfinance"}
-    except Exception as e:
-        log(f"[VKOSPI] yfinance 폴백 오류: {e}")
-    # 3차: 네이버 증권 VKOSPI 페이지 스크래핑
+                    elif val:
+                        log(f"[VKOSPI] KRX {nm} = {val} → 범위 벗어남, 무시")
+    # 2차: 네이버 증권 VKOSPI 페이지 스크래핑 (yfinance 보다 우선 — yfinance 매핑 오류 회피)
     try:
         sess = _naver_session()
         r = sess.get("https://finance.naver.com/sise/sise_index.naver?code=VKOSPI", timeout=15)
@@ -1612,19 +1613,30 @@ def fetch_vkospi():
             r.encoding = "euc-kr"
             import re as _re
             html = r.text
-            # 가격 추출
             m_price = _re.search(r'<em id="now_value">([\d.,]+)</em>', html)
             m_chg = _re.search(r'<em id="change_value_and_rate">.*?([+\-]?[\d.]+)%', html, _re.DOTALL)
             if m_price:
                 v = _parse_num(m_price.group(1))
                 chg = _parse_num(m_chg.group(1)) if m_chg else 0.0
-                if v and v > 0:
+                if _is_valid_vkospi(v):
                     log(f"[VKOSPI] Naver: {v} ({chg}%)")
                     return {"value": round(v, 2), "change": round(chg or 0.0, 2),
                             "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
                             "source": "Naver Finance"}
+                elif v:
+                    log(f"[VKOSPI] Naver {v} → 범위 벗어남, 무시")
     except Exception as e:
         log(f"[VKOSPI] Naver 폴백 오류: {e}")
+    # 3차: yfinance — 범위 검증으로 KOSPI 잘못 매핑 검출
+    try:
+        q = fetch_yf("^VKOSPI")
+        if q and _is_valid_vkospi(q.get("price")):
+            log(f"[VKOSPI] yfinance: {q['price']} ({q['change']}%)")
+            return {"value": q["price"], "change": q["change"], "as_of": datetime.now(KST).strftime("%Y-%m-%d"), "source": "yfinance"}
+        elif q and q.get("price"):
+            log(f"[VKOSPI] yfinance {q['price']} → 범위 벗어남 (KOSPI 오매핑 가능성), 무시")
+    except Exception as e:
+        log(f"[VKOSPI] yfinance 폴백 오류: {e}")
     log("[VKOSPI] 데이터 수집 실패")
     return None
 
