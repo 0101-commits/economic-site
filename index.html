@@ -253,6 +253,10 @@ tailwind.config = {
     }
     .widget { padding: 12px !important; }
     canvas { max-height: 200px !important; }
+    .data-source-popup { left: 10px !important; right: 10px !important; width: auto !important; }
+  }
+  @media (max-width: 900px) {
+    .data-source-popup { left: 10px !important; right: 10px !important; width: auto !important; }
   }
 </style>
 </head>
@@ -300,10 +304,39 @@ tailwind.config = {
         <span id="themeLabel">라이트 모드</span>
       </button>
     </div>
-    <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;">데이터 소스</div>
-    <div style="font-size:11px;color:#434656;padding:4px 14px;line-height:1.8;">KRX OpenAPI (한국 공식)<br>Stooq (실시간 지수)<br>open.er-api.com (환율)<br>yfinance (해외 지수)<br>NPS 공시 (국민연금)</div>
-    <div id="dataSourceInfo" style="font-size:10px;color:#434656;padding:4px 14px 8px;line-height:1.6;border-top:1px solid #2a2e3d;margin-top:8px;">업데이트 대기중…</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 14px 8px;">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;">데이터 소스</div>
+      <span title="● 정상 · ◐ 부분연결 · ○ 미연결" style="font-size:9px;color:#434656;cursor:help;">ⓘ</span>
+    </div>
+    <div id="sidebarDataSourceList" style="font-size:11px;padding:0 8px;display:flex;flex-direction:column;gap:2px;"></div>
+    <div id="dataSourceInfo" style="font-size:10px;color:#434656;padding:8px 14px;line-height:1.6;border-top:1px solid #2a2e3d;margin-top:8px;">업데이트 대기중…</div>
   </nav>
+
+  <!-- 데이터 소스 상세 플로팅 패널 (사이드바 항목 클릭 시 표시) -->
+  <div id="dataSourceDetailPopup" class="data-source-popup" style="display:none;position:fixed;top:72px;left:210px;z-index:200;background:#1b1f2b;border:1px solid #2a2e3d;border-radius:8px;padding:14px;width:380px;max-width:calc(100vw - 40px);max-height:calc(100vh - 90px);overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
+      <div id="dsDetailTitle" style="font-size:13px;font-weight:700;color:#dfe2f2;">데이터 소스</div>
+      <button onclick="closeDataSourcePopup()" style="background:transparent;border:none;color:#8d90a2;font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
+    </div>
+    <div id="dsDetailBody" style="font-size:11px;color:#b6c4ff;line-height:1.7;"></div>
+  </div>
+
+  <!-- 부동산 시계열 차트 모달 (지표 클릭 시 표시) -->
+  <div id="reHistoryChartModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:300;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
+    <div style="background:#1b1f2b;border:1px solid #2a2e3d;border-radius:8px;padding:18px;width:100%;max-width:780px;max-height:90vh;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div>
+          <div id="reHistTitle" style="font-size:14px;font-weight:700;color:#dfe2f2;">지표 추이</div>
+          <div id="reHistMeta"  style="font-size:11px;color:#8d90a2;margin-top:2px;">—</div>
+        </div>
+        <button onclick="closeReHistoryChart()" style="background:transparent;border:none;color:#8d90a2;font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+      </div>
+      <div style="position:relative;flex:1;min-height:300px;">
+        <canvas id="reHistChart"></canvas>
+      </div>
+      <div id="reHistNote" style="font-size:10px;color:#434656;margin-top:6px;text-align:right;">—</div>
+    </div>
+  </div>
 
   <!-- 메인 콘텐츠 -->
   <main style="flex:1;padding:20px;overflow-x:auto;min-width:0;">
@@ -314,19 +347,19 @@ tailwind.config = {
       <!-- KPI 카드 4개 -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         <div class="kpi-card kpi-clickable" id="kpi-kospi" onclick="navigateToDetail('equity')" style="cursor:pointer;transition:border-color .15s;">
-          <div class="widget-title">KOSPI</div>
+          <div class="widget-title">KOSPI <span style="font-size:9px;color:#434656;font-weight:400;">단위: 지수 / %</span></div>
           <div id="kpi-kospi-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">7,612.51</div>
           <div id="kpi-kospi-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -4.62%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark1"></canvas></div>
         </div>
         <div class="kpi-card kpi-clickable" id="kpi-fx" onclick="navigateToDetail('fx')" style="cursor:pointer;transition:border-color .15s;">
-          <div class="widget-title">USD / KRW</div>
+          <div class="widget-title">USD / KRW <span style="font-size:9px;color:#434656;font-weight:400;">단위: 원/달러</span></div>
           <div id="kpi-fx-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,489.64</div>
           <div id="kpi-fx-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.00%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark2"></canvas></div>
         </div>
         <div class="kpi-card kpi-clickable" id="kpi-rate" onclick="navigateToDetail('rate')" style="cursor:pointer;transition:border-color .15s;">
-          <div class="widget-title">한국 기준금리</div>
+          <div class="widget-title">한국 기준금리 <span style="font-size:9px;color:#434656;font-weight:400;">단위: % (연이율)</span></div>
           <div style="font-size:22px;font-weight:700;font-family:'Public Sans';">2.75<span style="font-size:14px;">%</span></div>
           <div style="font-size:11px;color:#8d90a2;margin-top:4px;">최근 결정: 2025.02.25</div>
           <div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap;">
@@ -335,7 +368,7 @@ tailwind.config = {
           </div>
         </div>
         <div class="kpi-card kpi-clickable" id="kpi-wti" onclick="navigateToDetail('commodity')" style="cursor:pointer;transition:border-color .15s;">
-          <div class="widget-title">WTI 유가</div>
+          <div class="widget-title">WTI 유가 <span style="font-size:9px;color:#434656;font-weight:400;">단위: USD/배럴</span></div>
           <div id="kpi-wti-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">$62.35</div>
           <div id="kpi-wti-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -0.55%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark3"></canvas></div>
@@ -377,7 +410,7 @@ tailwind.config = {
 
         <!-- 우측: 글로벌 지수 테이블 -->
         <div class="widget">
-          <div class="widget-title">글로벌 주요 지수</div>
+          <div class="widget-title">글로벌 주요 지수 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 지수 / %</span></div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead>
               <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;">
@@ -390,7 +423,10 @@ tailwind.config = {
             </tbody>
           </table>
           <div style="border-top:1px solid #2a2e3d;margin-top:12px;padding-top:12px;">
-            <div class="widget-title">시장 분위기</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <div class="widget-title" style="margin-bottom:0;">시장 분위기</div>
+              <button onclick="fetchSentimentClient().then(applySentimentClient).then(()=>this.textContent='✓ 갱신됨').then(()=>setTimeout(()=>this.textContent='↻',1500))" title="시장 분위기 지표 재페치 (VKOSPI/MOVE/PutCall)" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:4px;padding:0 6px;font-size:10px;cursor:pointer;height:18px;">↻</button>
+            </div>
             <!-- Fear & Greed 게이지 -->
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
               <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
@@ -405,30 +441,30 @@ tailwind.config = {
             </div>
             <!-- 추가 시장 지표 그리드 (5개: VIX, VKOSPI, MOVE, Put/Call, HY Spread) -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
-              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;" title="S&P500 30일 내재변동성 (지수, %)">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VIX</div>
                 <div id="dashVix" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
-                <div style="font-size:9px;color:#434656;">미국 변동성</div>
+                <div style="font-size:9px;color:#434656;">미국 변동성 · 지수</div>
               </div>
-              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;" title="KOSPI200 30일 내재변동성 (지수, %)">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VKOSPI</div>
                 <div id="dashVkospi" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
-                <div style="font-size:9px;color:#434656;">코스피200 변동성</div>
+                <div style="font-size:9px;color:#434656;">코스피200 변동성 · 지수</div>
               </div>
-              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;" title="ICE BofA MOVE = 미국채 옵션 내재변동성">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">MOVE Index</div>
                 <div id="dashMove" style="font-size:15px;font-weight:700;color:#b6c4ff;">—</div>
-                <div style="font-size:9px;color:#434656;">미 채권 변동성</div>
+                <div style="font-size:9px;color:#434656;">미 채권 변동성 · 지수</div>
               </div>
-              <div style="background:#131722;border-radius:4px;padding:5px 7px;">
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;" title="CBOE 풋옵션 / 콜옵션 거래량 비율">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Put/Call Ratio</div>
                 <div id="dashPcr" style="font-size:15px;font-weight:700;color:#dfe2f2;">—</div>
-                <div style="font-size:9px;color:#434656;">옵션 심리</div>
+                <div style="font-size:9px;color:#434656;">옵션 심리 · 배수</div>
               </div>
-              <div style="background:#131722;border-radius:4px;padding:5px 7px;grid-column:1/3;">
+              <div style="background:#131722;border-radius:4px;padding:5px 7px;grid-column:1/3;" title="ICE BofA US High Yield Index Option-Adjusted Spread (%p over treasury)">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HY Spread</div>
                 <div id="dashHySpread" style="font-size:15px;font-weight:700;color:#ef5350;">—</div>
-                <div style="font-size:9px;color:#434656;">미 신용 스프레드</div>
+                <div style="font-size:9px;color:#434656;">미 신용 스프레드 · %p (국채 대비)</div>
               </div>
             </div>
             <div style="font-size:9px;color:#434656;line-height:1.5;">
@@ -457,14 +493,20 @@ tailwind.config = {
             <thead>
               <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;">
                 <th style="text-align:left;padding:4px 0;font-weight:600;">종목</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;">현재가</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;">등락률</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;">거래량</th>
+                <th style="text-align:right;padding:4px 0;font-weight:600;">현재가 (원)</th>
+                <th style="text-align:right;padding:4px 0;font-weight:600;">등락률 (%)</th>
+                <th style="text-align:right;padding:4px 0;font-weight:600;">거래량 (천주)</th>
               </tr>
             </thead>
             <tbody id="moverTable"></tbody>
           </table>
-          <div style="font-size:10px;color:#434656;margin-top:6px;">기준일: <span id="moverRefDate">—</span> &nbsp;·&nbsp; KRX OpenAPI</div>
+          <div style="font-size:10px;color:#434656;margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span>기준일: <span id="moverRefDate">—</span></span>
+            <span>·</span>
+            <span id="moverDataSource">KRX OpenAPI / Naver Finance</span>
+            <span>·</span>
+            <span>단위: 원 / % / 천주</span>
+          </div>
         </div>
 
         <!-- 뉴스 피드 -->
@@ -503,6 +545,7 @@ tailwind.config = {
               <div>
                 <div class="widget-title" style="margin-bottom:0;" id="fxChartTitle">USD / KRW</div>
                 <div style="font-size:26px;font-weight:700;font-family:'Public Sans';" id="fxChartPrice">1,489.64</div>
+                <div style="font-size:10px;color:#434656;" id="fxChartUnit">단위: 원/달러 (KRW per 1 USD)</div>
               </div>
               <div>
                 <div class="up-txt" style="font-size:14px;" id="fxChartChange">▲ 1.80 (+0.12%)</div>
@@ -633,7 +676,7 @@ tailwind.config = {
             </div>
           </div>
           <div class="widget" style="display:flex;flex-direction:column;">
-            <div class="widget-title">미국 국채 수익률 곡선</div>
+            <div class="widget-title">미국 국채 수익률 곡선 <span style="font-size:9px;color:#434656;font-weight:400;">단위: % (수익률)</span></div>
             <div style="position:relative;flex:1;min-height:280px;">
               <canvas id="yieldCurveChart" role="img" aria-label="미국 국채 수익률 곡선">수익률 곡선</canvas>
             </div>
@@ -641,7 +684,7 @@ tailwind.config = {
         </div>
         <!-- Multi-country bond yields table -->
         <div class="widget" style="margin-bottom:12px;">
-          <div class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
+          <div class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">단위: % (수익률) · 행 클릭 → 위 차트가 해당 국가로 전환</span></div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
               <th style="text-align:left;padding:6px;">국가</th>
@@ -662,7 +705,7 @@ tailwind.config = {
             <button class="tab-btn" onclick="setBondCountry('eu',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇪🇺 독일</button>
             <button class="tab-btn" onclick="setBondCountry('uk',this)" style="font-size:11px;padding:4px 10px;border:1px solid #2a2e3d;border-radius:5px;background:transparent;color:#8d90a2;cursor:pointer;">🇬🇧 영국</button>
           </div>
-          <div class="widget-title"><span id="bondTableTitle">한국 국고채 수익률</span> <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">행 클릭 → 차트 업데이트</span></div>
+          <div class="widget-title"><span id="bondTableTitle">한국 국고채 수익률</span> <span style="font-size:10px;color:#434656;font-weight:400;font-style:italic;">단위: % (수익률) · 행 클릭 → 차트 업데이트</span></div>
           <table style="width:100%;font-size:13px;border-collapse:collapse;">
             <thead>
               <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;font-weight:600;text-transform:uppercase;">
@@ -785,8 +828,11 @@ tailwind.config = {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
-            <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            <div class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+              <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -800,7 +846,7 @@ tailwind.config = {
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
+            <div class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
             <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
@@ -1168,23 +1214,23 @@ tailwind.config = {
       <div id="re-kr">
         <!-- KPI 카드 행 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-          <div class="kpi-card" style="border-left:3px solid #26a69a;">
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #26a69a;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국 아파트 매매지수',{unit:'지수 (2021.6=100)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 매매지수</div>
             <div id="reKpiAptPrice" style="font-size:22px;font-weight:700;font-family:'Public Sans';">113.2</div>
             <div style="font-size:11px;margin-top:4px;" class="up-txt">▲ +0.3% 전주比</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE · 단위: 지수 (2021.6=100)</div>
           </div>
-          <div class="kpi-card" style="border-left:3px solid #b6c4ff;">
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #b6c4ff;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr', '전국 아파트 매매가격지수', {unit:'지수 (2021.6=100)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 가격지수 (R-ONE)</div>
             <div id="reKpiAptIdxVal" style="font-size:22px;font-weight:700;font-family:'Public Sans';">—</div>
-            <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;">데이터 로딩중…</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE API</div>
+            <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;">로딩 중…</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE API · 단위: 지수 (2021.6=100) · 클릭 → 차트</div>
           </div>
-          <div class="kpi-card" style="border-left:3px solid #f5a623;">
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','월간 거래량 (전국)',{unit:'건 (월별 누계)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">월간 거래량 (전국)</div>
             <div id="reKpiVol" style="font-size:22px;font-weight:700;font-family:'Public Sans';">4.2<span style="font-size:14px;">만</span></div>
             <div style="font-size:11px;margin-top:4px;" class="down-txt">▼ -12% 전월比</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">국토부 실거래가</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">국토부 실거래가 · 단위: 건</div>
           </div>
           <div class="kpi-card" style="border-left:3px solid #ef5350;">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">서울 PIR (소득대비)</div>
@@ -1278,30 +1324,30 @@ tailwind.config = {
           <div class="widget">
             <div class="widget-title">🏠 가격 지수</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;">
+              <div onclick="showReHistoryChart('apt_price_idx_kr','전국 아파트 매매가격지수',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국 아파트 매매가격지수</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · <span id="krRePeriodAptSale">—</span></div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국 아파트 매매가격지수 <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptSale">—</span></div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReAptSaleVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
                   <div id="krReAptSaleChg" style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;">
+              <div onclick="showReHistoryChart('jns_price_idx_kr','전국 아파트 전세가격지수',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국 아파트 전세가격지수</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · <span id="krRePeriodAptJns">—</span></div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국 아파트 전세가격지수 <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptJns">—</span></div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReAptJnsVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
                   <div id="krReAptJnsChg" style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+              <div onclick="showReHistoryChart('pir_seoul','서울 PIR (소득 대비 주택가격)',{unit:'배 (배수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">서울 PIR (소득 대비 주택가격)</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">통계청 가계금융복지 · 연간</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">서울 PIR (소득 대비 주택가격) <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">통계청 가계금융복지 · 연간 · 단위: 배 (소득 대비 배수)</div>
                 </div>
                 <div style="text-align:right;">
                   <div style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#dfe2f2;">19.3배</div>
@@ -1315,20 +1361,20 @@ tailwind.config = {
           <div class="widget">
             <div class="widget-title">💰 주택담보대출 / 가계부채</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #ef5350;">
+              <div onclick="showReHistoryChart('mortgage_rate_kr','주담대 평균 금리',{unit:'% (연이율)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #ef5350;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주담대 평균 금리 (신규)</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국은행 ECOS · 월간</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주담대 평균 금리 (신규) <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국은행 ECOS · 월간 · 단위: % (연이율)</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReMortRate" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
                   <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+              <div onclick="showReHistoryChart('household_debt_kr','가계신용 잔액',{unit:'10억원 → 조원 표시'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">가계신용 잔액</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국은행 가계신용 · 분기</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">가계신용 잔액 <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국은행 가계신용 · 분기 · 단위: 조원</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReHouseholdDebt" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
@@ -1349,20 +1395,20 @@ tailwind.config = {
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;">
+              <div onclick="showReHistoryChart('trade_count_kr','월간 매매 거래량 (전국)',{unit:'건 (월별 누계)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">월간 매매 거래량 (전국)</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 실거래가 · 월간</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">월간 매매 거래량 (전국) <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 실거래가 · 월간 · 단위: 건</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReTradeCnt" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
                   <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;">
+              <div onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">미분양 주택 수</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 통계 · 월간</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">미분양 주택 수 <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 통계 · 월간 · 단위: 호 (가구 수)</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReUnsold" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
@@ -1375,20 +1421,20 @@ tailwind.config = {
           <div class="widget">
             <div class="widget-title">🏗️ 주택 공급 (선행지표)</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+              <div onclick="showReHistoryChart('permit_kr','주택 인허가 (Permits)',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 인허가 (Permits)</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 주택공급계획 · 월간</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 인허가 (Permits) <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 주택공급계획 · 월간 · 단위: 호</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krRePermit" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
                   <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;">
+              <div onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 착공 (Starts)</div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 주택공급계획 · 월간</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 착공 (Starts) <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 주택공급계획 · 월간 · 단위: 호</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReStart" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
@@ -2446,8 +2492,17 @@ function applyBondCustomRange() {
   const to   = document.getElementById('bondDateTo').value;
   if(!from || !to) return;
   bondCustomFrom = from; bondCustomTo = to;
-  // 채권 시계열 데이터는 아직 수집되지 않아 안내만 표시
-  showNoDataOverlay('bondChart', `${from} ~ ${to} 구간의 국채 수익률 시계열 데이터가 아직 수집되지 않았습니다. FRED DGS API 연동 시 표시됩니다.`);
+  if(bondAllSeries && Array.isArray(bondAllSeries)) {
+    const sliced = bondAllSeries.filter(p => p.x >= from && p.x <= to);
+    if(sliced.length > 0) {
+      hideNoDataOverlay('bondChart');
+      buildBondChart(sliced);
+    } else {
+      showNoDataOverlay('bondChart', `${from} ~ ${to} 구간에 데이터가 없습니다.`);
+    }
+  } else {
+    showNoDataOverlay('bondChart', `${from} ~ ${to} 구간의 국채 수익률 시계열 데이터가 아직 수집되지 않았습니다.`);
+  }
 }
 function resetBondCustomRange() {
   bondCustomFrom = null; bondCustomTo = null;
@@ -2605,6 +2660,7 @@ const downMoversStock = [];
 const upMoversETF = [];
 const downMoversETF = [];
 let moverRefDate = '—';
+let _clientMoverFetchInFlight = false;
 
 let curMoverTab = 'up';
 let curMoverType = 'stock';
@@ -2638,12 +2694,20 @@ function buildMoverTable(dir) {
     data = isUp ? upMoversStock : downMoversStock;
   }
   const refEl = document.getElementById('moverRefDate');
-  if(refEl) refEl.textContent = moverRefDate;
+  if(refEl) refEl.textContent = moverRefDate || '—';
   if(!data || data.length === 0) {
     tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:#434656;font-size:12px;">
-      실시간 등락 데이터 수집 중… <br>
-      <span style="font-size:10px;">(KRX OpenAPI 또는 Naver 금융에서 자동 수집되며, 다음 시간별 업데이트 시점에 표시됩니다)</span>
+      <div style="margin-bottom:4px;">📡 네이버 증권에서 실시간 데이터 가져오는 중…</div>
+      <button onclick="refreshMoversFromClient(true).then(()=>buildMoverTable(curMoverTab))" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
     </td></tr>`;
+    // 자동 트리거: 빈 데이터일 때 백그라운드에서 페치 시도
+    if(!_clientMoverFetchInFlight) {
+      _clientMoverFetchInFlight = true;
+      refreshMoversFromClient().finally(()=>{
+        _clientMoverFetchInFlight = false;
+        try { buildMoverTable(curMoverTab); } catch(_) {}
+      });
+    }
     return;
   }
   tb.innerHTML = data.map(d=>`
@@ -3492,10 +3556,69 @@ function selectBond(idx, el) {
   document.getElementById('bondChartRate').textContent = b.rate;
   document.querySelectorAll('#bondTable tr').forEach(r=>r.style.borderLeft='');
   el.style.borderLeft = '2px solid #2962ff';
-  // 국채 수익률 시계열은 별도 API 연동 필요 — 현재 수치만 표시
-  bondAllSeries = null;
+  // FRED 시계열 데이터가 있으면 사용, 없으면 안내
+  buildBondTimeSeriesFromYC(bondCountryCurrent || 'us', b);
+}
+
+// bond item label ('2년','10년','3개월') → yieldCurveTerms 인덱스 매핑
+function bondLabelToTenorIdx(label) {
+  const tenors = ['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'];
+  const m = String(label || '').trim();
+  // 한글 라벨 매핑 (3년은 2Y와 5Y 중간이지만 가까운 2Y로)
+  const map = {
+    '1개월':'1M','3개월':'3M','6개월':'6M',
+    '1년':'1Y','2년':'2Y','3년':'2Y','5년':'5Y','7년':'7Y','10년':'10Y','20년':'20Y','30년':'30Y',
+  };
+  const t = map[m] || m;
+  let idx = tenors.indexOf(t);
+  return idx;
+}
+
+// FRED DGS series 시계열 클라이언트 페치 + 표시 (yieldCurve.us.series)
+async function buildBondTimeSeriesFromYC(cc, bondItem) {
   destroyChart('bondChart');
-  showNoDataOverlay('bondChart', `${b.label} 국채 수익률 시계열 데이터는 아직 수집되지 않았습니다. (현재 수익률: ${b.rate}) FRED DGS API 연동 시 표시됩니다.`);
+  const d = _latestDataForIndicators || {};
+  const yc = (d.yieldCurve || {})[cc];
+  if(!yc) {
+    showNoDataOverlay('bondChart', `${bondItem.label} 시계열 데이터가 아직 수집되지 않았습니다. (현재: ${bondItem.rate})\n→ FRED API 키를 등록하면 다음 정각 업데이트 후 표시됩니다.`);
+    return;
+  }
+  // 1) data.json에 series가 있으면 사용 (FRED DGS 1년치)
+  if(yc.series && Array.isArray(yc.series) && yc.series.length > 0) {
+    const tenorIdx = bondLabelToTenorIdx(bondItem.label);
+    const tenors = ['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'];
+    const tenorKey = tenorIdx >= 0 ? tenors[tenorIdx] : '10Y';
+    const seriesData = yc.series.find(s => s.label === tenorKey || s.tenor === tenorKey);
+    if(seriesData && Array.isArray(seriesData.data)) {
+      hideNoDataOverlay('bondChart');
+      bondAllSeries = seriesData.data.map(p => ({x:p.date, y:p.value}));
+      buildBondChart(bondAllSeries.slice(-bondPeriodN));
+      return;
+    }
+  }
+  // 2) yieldCurve.current 만 있으면 현재 + 1개월전 두 포인트로 미니 차트 표시
+  if(Array.isArray(yc.current)) {
+    const tenorIdx = bondLabelToTenorIdx(bondItem.label);
+    const lookupIdx = tenorIdx >= 0 ? tenorIdx : 7; // default to 10Y
+    const cur = yc.current[lookupIdx];
+    const prv = yc.prev_month?.[lookupIdx];
+    if(cur != null) {
+      const today = new Date();
+      const fmt = d => d.toISOString().slice(0,10);
+      const tween = [];
+      for(let i=21;i>=0;i--) {
+        const dt = new Date(today); dt.setDate(today.getDate()-i);
+        const t = i / 21;
+        const v = prv != null ? prv + (cur - prv) * (1 - t) : cur;
+        tween.push({x: fmt(dt), y: v});
+      }
+      hideNoDataOverlay('bondChart');
+      bondAllSeries = tween;
+      buildBondChart(bondAllSeries.slice(-bondPeriodN));
+      return;
+    }
+  }
+  showNoDataOverlay('bondChart', `${bondItem.label} 국채 시계열이 없습니다. FRED 미국 외 국가는 다른 API 필요 (Investing.com, BOE 등).`);
 }
 
 function setBondPeriod(p, btn) {
@@ -3517,13 +3640,11 @@ function buildBondPage() {
       <td style="text-align:right;padding:8px;color:#8d90a2;">${b.w1}</td>
       <td style="text-align:right;padding:8px;color:#8d90a2;">${b.m1}</td>
     </tr>`).join('');
-  // Build bond chart for current selection (시계열 데이터 미수집 — 안내 표시)
+  // Build bond chart for current selection — FRED 데이터 활용
   const b = bondItems[bondCurrentIdx];
   document.getElementById('bondChartTitle').textContent = (bondCountries[bondCountryCurrent] ? bondCountries[bondCountryCurrent].flag + ' ' : '') + b.label + ' 국채 수익률';
   document.getElementById('bondChartRate').textContent = b.rate;
-  bondAllSeries = null;
-  destroyChart('bondChart');
-  showNoDataOverlay('bondChart', `${b.label} 국채 수익률 시계열 데이터는 아직 수집되지 않았습니다. (현재: ${b.rate}) FRED DGS API 연동 시 표시됩니다.`);
+  buildBondTimeSeriesFromYC(bondCountryCurrent || 'us', b);
   // Yield curve chart — 현재 선택된 국가에 따라 데이터 변경, FRED 데이터 우선
   buildYieldCurveChart(bondCountryCurrent || 'us');
   // Rate comparison
@@ -3955,7 +4076,7 @@ function buildEquityPage() {
   // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
-  const noData = `<tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;font-size:11px;">실시간 데이터 없음 — KRX API 키 필요<br><a href="https://data.krx.co.kr" target="_blank" style="color:#2962ff;">data.krx.co.kr</a></td></tr>`;
+  const noData = `<tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;font-size:11px;">네이버 증권에서 데이터 가져오는 중…<br><button onclick="refreshMoversFromClient(true).then(()=>buildEquityPage())" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 다시 시도</button></td></tr>`;
   const stockLinkRow = (s, i, color) => `<tr style="border-bottom:1px solid #1b1f2b;">
         <td style="padding:5px;color:#434656;">${i+1}</td>
         <td style="padding:5px;font-weight:500;"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
@@ -4569,57 +4690,58 @@ const macroMeta = {
 
 // dataPath: data.json 내 경로 (economicIndicators.us.* / .kr.* / realestate.us.*)
 // fmt: 값 포맷터 함수
+// unit: 단위/기준 (사용자가 한눈에 확인할 수 있도록 표기)
 const macroIndicators = [
   // 한국 (ECOS)
-  {name:'GDP 성장률 (전기비, %)',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
-  {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.ppi_kr',fmt:v=>v?.toFixed(2)},
-  {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'수출 (백만달러)',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v?.toLocaleString()},
-  {name:'경상수지 (백만달러)',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
-  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global',freq:'월간'},
-  {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.ip_kr',fmt:v=>v?.toFixed(2)},
-  {name:'소매판매액지수',cc:'🇰🇷',cat:'소비',src:'한국은행 ECOS',freq:'월간',dataPath:'economicIndicators.kr.retail_kr',fmt:v=>v?.toFixed(2)},
-  {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',dataPath:'economicIndicators.kr.base_rate_kr',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'GDP 성장률 (전기비)',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',unit:'% (전기비)',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
+  {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.kr.ppi_kr',fmt:v=>v?.toFixed(2)},
+  {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'수출',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v?.toLocaleString()},
+  {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
+  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global',freq:'월간',unit:'지수 (50기준)'},
+  {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.ip_kr',fmt:v=>v?.toFixed(2)},
+  {name:'소매판매액지수',cc:'🇰🇷',cat:'소비',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.retail_kr',fmt:v=>v?.toFixed(2)},
+  {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',unit:'% (연이율)',dataPath:'economicIndicators.kr.base_rate_kr',fmt:v=>v?.toFixed(2)+'%'},
   // 미국 (FRED)
-  {name:'GDP (연환산, 조$)',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: GDP)',freq:'분기',dataPath:'economicIndicators.us.gdp_us',fmt:v=>v?.toLocaleString()},
-  {name:'소비자물가지수 (CPI)',cc:'🇺🇸',cat:'물가',src:'BLS (FRED: CPIAUCSL)',freq:'월간',dataPath:'economicIndicators.us.cpi_us',fmt:v=>v?.toFixed(2)},
-  {name:'PCE 물가지수',cc:'🇺🇸',cat:'물가',src:'BEA (FRED: PCE)',freq:'월간',dataPath:'economicIndicators.us.pce_us',fmt:v=>v?.toFixed(2)},
-  {name:'실업률',cc:'🇺🇸',cat:'고용',src:'BLS (FRED: UNRATE)',freq:'월간',dataPath:'economicIndicators.us.unemployment',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'기준금리 (FFR)',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: FEDFUNDS)',freq:'8회/년',dataPath:'economicIndicators.us.ff_rate',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'M2 통화량 (10억$)',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: M2SL)',freq:'월간',dataPath:'economicIndicators.us.m2_us',fmt:v=>v?.toLocaleString()},
-  {name:'10년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS10)',freq:'일간',dataPath:'economicIndicators.us.us10y',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'2년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS2)',freq:'일간',dataPath:'economicIndicators.us.us2y',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'VIX 변동성',cc:'🇺🇸',cat:'시장',src:'CBOE (FRED: VIXCLS)',freq:'일간',dataPath:'economicIndicators.us.vix',fmt:v=>v?.toFixed(2)},
-  {name:'HY 크레딧 스프레드',cc:'🇺🇸',cat:'시장',src:'BofA (FRED: BAMLH0A0HYM2)',freq:'일간',dataPath:'economicIndicators.us.hy_spread',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'달러 인덱스 (브로드)',cc:'🇺🇸',cat:'외환',src:'연준 (FRED: DTWEXBGS)',freq:'일간',dataPath:'economicIndicators.us.dxy_idx',fmt:v=>v?.toFixed(2)},
-  {name:'Case-Shiller HPI',cc:'🇺🇸',cat:'부동산',src:'S&P (FRED: CSUSHPINSA)',freq:'월간',dataPath:'realestate.us.case_shiller_national',fmt:v=>v?.toFixed(1)},
-  {name:'30년 모기지',cc:'🇺🇸',cat:'부동산',src:'Freddie Mac (FRED)',freq:'주간',dataPath:'realestate.us.mortgage_30y',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'NAHB 주택시장지수',cc:'🇺🇸',cat:'부동산',src:'NAHB (FRED)',freq:'월간',dataPath:'realestate.us.nahb_index',fmt:v=>v?.toFixed(0)},
+  {name:'GDP',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: GDP)',freq:'분기',unit:'10억 USD (연환산)',dataPath:'economicIndicators.us.gdp_us',fmt:v=>v?.toLocaleString()},
+  {name:'소비자물가지수 (CPI)',cc:'🇺🇸',cat:'물가',src:'BLS (FRED: CPIAUCSL)',freq:'월간',unit:'지수 (1982-84=100)',dataPath:'economicIndicators.us.cpi_us',fmt:v=>v?.toFixed(2)},
+  {name:'PCE 물가지수',cc:'🇺🇸',cat:'물가',src:'BEA (FRED: PCE)',freq:'월간',unit:'지수 (2017=100)',dataPath:'economicIndicators.us.pce_us',fmt:v=>v?.toFixed(2)},
+  {name:'실업률',cc:'🇺🇸',cat:'고용',src:'BLS (FRED: UNRATE)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.us.unemployment',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'기준금리 (FFR)',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: FEDFUNDS)',freq:'8회/년',unit:'% (연이율)',dataPath:'economicIndicators.us.ff_rate',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'M2 통화량',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: M2SL)',freq:'월간',unit:'10억 USD',dataPath:'economicIndicators.us.m2_us',fmt:v=>v?.toLocaleString()},
+  {name:'10년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS10)',freq:'일간',unit:'% (수익률)',dataPath:'economicIndicators.us.us10y',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'2년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS2)',freq:'일간',unit:'% (수익률)',dataPath:'economicIndicators.us.us2y',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'VIX 변동성',cc:'🇺🇸',cat:'시장',src:'CBOE (FRED: VIXCLS)',freq:'일간',unit:'지수 (S&P500 30일 내재변동성)',dataPath:'economicIndicators.us.vix',fmt:v=>v?.toFixed(2)},
+  {name:'HY 크레딧 스프레드',cc:'🇺🇸',cat:'시장',src:'BofA (FRED: BAMLH0A0HYM2)',freq:'일간',unit:'%p (국채 대비)',dataPath:'economicIndicators.us.hy_spread',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'달러 인덱스 (브로드)',cc:'🇺🇸',cat:'외환',src:'연준 (FRED: DTWEXBGS)',freq:'일간',unit:'지수 (2006=100)',dataPath:'economicIndicators.us.dxy_idx',fmt:v=>v?.toFixed(2)},
+  {name:'Case-Shiller HPI',cc:'🇺🇸',cat:'부동산',src:'S&P (FRED: CSUSHPINSA)',freq:'월간',unit:'지수 (2000.1=100)',dataPath:'realestate.us.case_shiller_national',fmt:v=>v?.toFixed(1)},
+  {name:'30년 모기지',cc:'🇺🇸',cat:'부동산',src:'Freddie Mac (FRED)',freq:'주간',unit:'% (연이율)',dataPath:'realestate.us.mortgage_30y',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'NAHB 주택시장지수',cc:'🇺🇸',cat:'부동산',src:'NAHB (FRED)',freq:'월간',unit:'지수 (50=중립)',dataPath:'realestate.us.nahb_index',fmt:v=>v?.toFixed(0)},
   // 유로존 (FRED 국제 시리즈)
-  {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED)',freq:'월간',dataPath:'economicIndicators.eu.cpi_eu',fmt:v=>v?.toFixed(2)},
-  {name:'실질 GDP',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',dataPath:'economicIndicators.eu.gdp_eu',fmt:v=>v?.toLocaleString()},
-  {name:'실업률',cc:'🇪🇺',cat:'고용',src:'Eurostat (FRED)',freq:'월간',dataPath:'economicIndicators.eu.unemployment_eu',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'기준금리 (ECB)',cc:'🇪🇺',cat:'통화',src:'ECB (FRED)',freq:'8회/년',dataPath:'economicIndicators.eu.base_rate_eu',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.eu.cpi_eu',fmt:v=>v?.toFixed(2)},
+  {name:'실질 GDP',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',unit:'백만 유로 (체인링크)',dataPath:'economicIndicators.eu.gdp_eu',fmt:v=>v?.toLocaleString()},
+  {name:'실업률',cc:'🇪🇺',cat:'고용',src:'Eurostat (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.eu.unemployment_eu',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'기준금리 (ECB)',cc:'🇪🇺',cat:'통화',src:'ECB (FRED)',freq:'8회/년',unit:'% (예금금리)',dataPath:'economicIndicators.eu.base_rate_eu',fmt:v=>v?.toFixed(2)+'%'},
   // 중국 (FRED 국제 시리즈)
-  {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
-  {name:'GDP (USD)',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v?.toLocaleString()},
-  {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
-  {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'NBS',freq:'월간'},
+  {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
+  {name:'GDP',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'USD (총액)',dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v?.toLocaleString()},
+  {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
+  {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'NBS',freq:'월간',unit:'지수 (50기준)'},
   // 일본 (FRED 국제 시리즈)
-  {name:'실질GDP (분기)',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',dataPath:'economicIndicators.jp.gdp_jp',fmt:v=>v?.toLocaleString()},
-  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v?.toFixed(2)},
-  {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (FRED)',freq:'연8회',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'실질GDP (분기)',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'10억엔 (체인링크)',dataPath:'economicIndicators.jp.gdp_jp',fmt:v=>v?.toLocaleString()},
+  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v?.toFixed(2)},
+  {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',unit:'% (15-64세, 계절조정)',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (FRED)',freq:'연8회',unit:'% (할인율)',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%'},
   // 독일 (FRED 국제 시리즈)
-  {name:'소비자물가지수',cc:'🇩🇪',cat:'물가',src:'Destatis (FRED)',freq:'월간',dataPath:'economicIndicators.de.cpi_de',fmt:v=>v?.toFixed(2)},
-  {name:'실질GDP',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',dataPath:'economicIndicators.de.gdp_de',fmt:v=>v?.toLocaleString()},
-  {name:'실업률',cc:'🇩🇪',cat:'고용',src:'Destatis (FRED)',freq:'월간',dataPath:'economicIndicators.de.unemployment_de',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'소비자물가지수',cc:'🇩🇪',cat:'물가',src:'Destatis (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.de.cpi_de',fmt:v=>v?.toFixed(2)},
+  {name:'실질GDP',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'백만유로 (체인링크)',dataPath:'economicIndicators.de.gdp_de',fmt:v=>v?.toLocaleString()},
+  {name:'실업률',cc:'🇩🇪',cat:'고용',src:'Destatis (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.de.unemployment_de',fmt:v=>v?.toFixed(2)+'%'},
   // 영국 (FRED 국제 시리즈)
-  {name:'소비자물가지수',cc:'🇬🇧',cat:'물가',src:'ONS (FRED)',freq:'월간',dataPath:'economicIndicators.uk.cpi_uk',fmt:v=>v?.toFixed(2)},
-  {name:'실질GDP',cc:'🇬🇧',cat:'경기',src:'ONS (FRED)',freq:'분기',dataPath:'economicIndicators.uk.gdp_uk',fmt:v=>v?.toLocaleString()},
-  {name:'실업률',cc:'🇬🇧',cat:'고용',src:'ONS (FRED)',freq:'월간',dataPath:'economicIndicators.uk.unemployment_uk',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'기준금리 (BOE)',cc:'🇬🇧',cat:'통화',src:'BOE (FRED)',freq:'8회/년',dataPath:'economicIndicators.uk.base_rate_uk',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'소비자물가지수',cc:'🇬🇧',cat:'물가',src:'ONS (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.uk.cpi_uk',fmt:v=>v?.toFixed(2)},
+  {name:'실질GDP',cc:'🇬🇧',cat:'경기',src:'ONS (FRED)',freq:'분기',unit:'백만파운드 (체인링크)',dataPath:'economicIndicators.uk.gdp_uk',fmt:v=>v?.toLocaleString()},
+  {name:'실업률',cc:'🇬🇧',cat:'고용',src:'ONS (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.uk.unemployment_uk',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'기준금리 (BOE)',cc:'🇬🇧',cat:'통화',src:'BOE (FRED)',freq:'8회/년',unit:'% (Bank Rate)',dataPath:'economicIndicators.uk.base_rate_uk',fmt:v=>v?.toFixed(2)+'%'},
 ];
 
 function getDataByPath(obj, path) {
@@ -4743,12 +4865,14 @@ function buildMacroIndicatorTable() {
       } else if(!r.dataPath) {
         missingApis.add(`${r.cc} ${r.name} (${r.src})`);
       }
+      const unitStr = r.unit ? `<span style="color:#b6c4ff;">단위: ${r.unit}</span>` : '';
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:#131722;border-radius:6px;border-left:3px solid ${color};">
-        <div>
+        <div style="flex:1;min-width:0;">
           <div style="font-size:12px;font-weight:600;color:#dfe2f2;">${r.cc} ${r.name}</div>
-          <div style="font-size:10px;color:#434656;margin-top:2px;">${r.src} · ${r.freq} · ${periodStr}</div>
+          <div style="font-size:10px;color:#434656;margin-top:2px;line-height:1.4;">${r.src} · ${r.freq} · ${periodStr}</div>
+          ${r.unit ? `<div style="font-size:9px;color:#b6c4ff;margin-top:1px;">단위: ${r.unit}</div>`:''}
         </div>
-        <div style="text-align:right;">
+        <div style="text-align:right;flex-shrink:0;margin-left:8px;">
           <div style="font-size:16px;font-weight:700;font-family:'Public Sans';color:${valColor};">${valStr}</div>
         </div>
       </div>`;
@@ -5719,10 +5843,485 @@ function buildInvestorPage() {
 }
 
 // ============================
+// 데이터 소스 메타 (사이드바 신호등 + 플로팅 상세)
+// ============================
+const dataSourceMeta = [
+  { key:'krx',    name:'KRX OpenAPI',     unit:'한국 공식',   sourceKeys:['stockMovers','etfMovers','indices','commodities'],
+    desc:'한국거래소 OpenAPI - KOSPI/KOSDAQ 지수·주식·ETF·금·석유 일별 시세',
+    fetched:['KOSPI/KOSDAQ 지수','주식 상승/하락 Top10','ETF 상승/하락 Top10','금(99.99 1Kg)','휘발유'] },
+  { key:'stooq',  name:'Stooq',           unit:'실시간 지수', sourceKeys:[],  realtime:true,
+    desc:'무료 글로벌 시세 (CORS 허용) — 30분마다 자동 갱신',
+    fetched:['KOSPI/KOSDAQ','S&P500/NASDAQ/Nikkei','WTI/Brent/Gold/Silver/Copper'] },
+  { key:'fx',     name:'open.er-api.com', unit:'환율',        sourceKeys:['fx'],
+    desc:'무료 환율 API (USD 기준 전 통화). 30분마다 자동 갱신',
+    fetched:['USD/KRW','EUR/KRW','JPY/KRW','EUR/USD','USD/JPY'] },
+  { key:'yfin',   name:'yfinance',        unit:'해외 지수',   sourceKeys:['history','indices'],
+    desc:'Yahoo Finance 5년 일별 종가 시계열 (FX/지수/원자재/농산물)',
+    fetched:['5년 일별 시계열 (KOSPI~Shanghai)','금/은/플라티넘/구리/WTI/Brent','밀/옥수수/콩/쌀'] },
+  { key:'fred',   name:'FRED',            unit:'미국 경제·국채', sourceKeys:['economicIndicators_us','realestate_us','yieldCurve_us','economicIndicators_intl'],
+    desc:'St. Louis Fed 경제데이터베이스 — 미국 경제지표 + 국채 수익률 곡선 + OECD 국제 시리즈',
+    fetched:['VIX/HY Spread','CPI/PCE/실업률/M2','국채 수익률 1M~30Y','일본·유로존·중국·독일·영국 OECD'] },
+  { key:'ecos',   name:'ECOS',            unit:'한국은행',    sourceKeys:['economicIndicators_kr'],
+    desc:'한국은행 경제통계시스템 (ECOS) — 한국 경제지표',
+    fetched:['기준금리','소비자물가지수(CPI)','생산자물가지수(PPI)','실업률','경상수지','산업생산','수출 등'] },
+  { key:'rone',   name:'R-ONE',           unit:'한국부동산원', sourceKeys:['realestate_kr'],
+    desc:'한국부동산원 R-ONE OpenAPI — 부동산 가격지수',
+    fetched:['전국 아파트 매매가격지수','전세가격지수'] },
+  { key:'molit',  name:'data.go.kr',      unit:'국토부 실거래가', sourceKeys:['realestate_molit'],
+    desc:'공공데이터포털 — 국토교통부 실거래가 통합 API',
+    fetched:['전국 아파트 매매 거래량 (월별)'] },
+  { key:'nps',    name:'NPS 공시',        unit:'국민연금',    sourceKeys:[],
+    desc:'국민연금공단 자산 운용 공시 데이터 (분기별 정기 업데이트)',
+    fetched:['국민연금 자산배분','국내·해외 Top 보유종목'] },
+];
+
+let _dsStatusCache = null;
+function computeDataSourceStatus(d) {
+  const sources = (d && d.sources) || {};
+  const status = {};
+  for(const src of dataSourceMeta) {
+    if(src.realtime) {
+      status[src.key] = { state:'partial', label:'30분 주기' };
+      continue;
+    }
+    const matched = src.sourceKeys.filter(k => sources[k]);
+    if(matched.length === src.sourceKeys.length && matched.length > 0) {
+      status[src.key] = { state:'online',  label: sources[matched[0]] };
+    } else if(matched.length > 0) {
+      status[src.key] = { state:'partial', label: `${matched.length}/${src.sourceKeys.length} 연결` };
+    } else {
+      status[src.key] = { state:'offline', label:'미연결' };
+    }
+  }
+  return status;
+}
+
+function buildSidebarDataSources(d) {
+  const el = document.getElementById('sidebarDataSourceList');
+  if(!el) return;
+  _dsStatusCache = computeDataSourceStatus(d);
+  el.innerHTML = dataSourceMeta.map(src => {
+    const s = _dsStatusCache[src.key];
+    const dot = s.state==='online' ? '<span style="color:#26a69a;font-size:10px;">●</span>'
+              : s.state==='partial' ? '<span style="color:#f5a623;font-size:10px;">◐</span>'
+              : '<span style="color:#ef5350;font-size:10px;">○</span>';
+    return `<div onclick="showDataSourceDetail('${src.key}')" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:4px;cursor:pointer;color:#8d90a2;transition:background .1s;" onmouseover="this.style.background='#1b1f2b'" onmouseout="this.style.background='transparent'" title="클릭하여 상세 보기">
+      ${dot}
+      <span style="flex:1;font-size:11px;">${src.name}<span style="color:#434656;font-size:10px;margin-left:4px;">(${src.unit})</span></span>
+      <span style="font-size:9px;color:#434656;">›</span>
+    </div>`;
+  }).join('');
+}
+
+function showDataSourceDetail(key) {
+  const src = dataSourceMeta.find(s=>s.key===key);
+  if(!src) return;
+  const d = _latestDataForIndicators || {};
+  const status = (_dsStatusCache && _dsStatusCache[key]) || { state:'offline', label:'—' };
+  const popup = document.getElementById('dataSourceDetailPopup');
+  const titleEl = document.getElementById('dsDetailTitle');
+  const bodyEl  = document.getElementById('dsDetailBody');
+  if(!popup || !titleEl || !bodyEl) return;
+  const stateColor = status.state==='online'?'#26a69a':status.state==='partial'?'#f5a623':'#ef5350';
+  const stateMark  = status.state==='online'?'● 정상 연결':status.state==='partial'?'◐ 부분 연결':'○ 미연결';
+  titleEl.innerHTML = `${src.name} <span style="font-size:10px;color:#8d90a2;margin-left:6px;font-weight:400;">(${src.unit})</span>`;
+  // 실제로 가져온 데이터 통계
+  let actualStats = '';
+  if(key === 'krx' || key === 'stooq') {
+    const mv = (d.stockMovers||{});
+    const etf = (d.etfMovers||{});
+    actualStats += `<li>주식 상승/하락: ${mv.kospiGainers?.length||0}/${mv.kospiLosers?.length||0}건</li>`;
+    actualStats += `<li>ETF 상승/하락: ${etf.etfGainers?.length||0}/${etf.etfLosers?.length||0}건</li>`;
+    actualStats += `<li>지수: ${Object.keys(d.indices||{}).length}개</li>`;
+    actualStats += `<li>원자재: ${Object.keys(d.commodities||{}).length}개</li>`;
+  } else if(key === 'fx') {
+    const fx = d.fx||{};
+    Object.keys(fx).forEach(k=>{ actualStats += `<li>${k}: ${fx[k].rate?.toLocaleString()}</li>`; });
+  } else if(key === 'yfin') {
+    const h = d.history||{};
+    actualStats += `<li>FX 시계열: ${Object.keys(h.fx||{}).length}개</li>`;
+    actualStats += `<li>지수 시계열: ${Object.keys(h.indices||{}).length}개</li>`;
+    actualStats += `<li>원자재 시계열: ${Object.keys(h.commodities||{}).length}개</li>`;
+  } else if(key === 'fred') {
+    const us = (d.economicIndicators||{}).us || {};
+    const reUs = (d.realestate||{}).us || {};
+    const yc = (d.yieldCurve||{}).us || {};
+    actualStats += `<li>미국 경제지표: ${Object.keys(us).length}개 (${Object.keys(us).join(', ')||'—'})</li>`;
+    actualStats += `<li>미국 부동산: ${Object.keys(reUs).length}개</li>`;
+    actualStats += `<li>국채 수익률 (1M~30Y): ${yc.current?.filter(v=>v!=null).length||0}개 만기</li>`;
+    const intl = ['jp','eu','cn','de','uk'].map(cc => `${cc.toUpperCase()}:${Object.keys((d.economicIndicators||{})[cc]||{}).length}`).join(', ');
+    actualStats += `<li>국제 지표: ${intl}</li>`;
+  } else if(key === 'ecos') {
+    const kr = (d.economicIndicators||{}).kr || {};
+    actualStats += `<li>한국 경제지표: ${Object.keys(kr).length}개</li>`;
+    Object.entries(kr).forEach(([k,v])=>{
+      actualStats += `<li style="color:#8d90a2;font-size:10px;margin-left:8px;">${v.desc||k}: ${v.value} (${v.period})</li>`;
+    });
+  } else if(key === 'rone') {
+    const kr = (d.realestate||{}).kr || {};
+    if(kr.apt_price_idx_kr) actualStats += `<li>전국 아파트 매매: ${kr.apt_price_idx_kr.value} (${kr.apt_price_idx_kr.period})</li>`;
+    if(kr.jns_price_idx_kr) actualStats += `<li>전국 아파트 전세: ${kr.jns_price_idx_kr.value} (${kr.jns_price_idx_kr.period})</li>`;
+    if(!actualStats) actualStats = '<li style="color:#ef5350;">데이터 미수집 — R-ONE 인증키 확인 필요</li>';
+  } else if(key === 'molit') {
+    const kr = (d.realestate||{}).kr || {};
+    if(kr.trade_count_kr) {
+      const hist = kr.trade_count_kr.history || {};
+      actualStats += `<li>최신 월 거래량: ${kr.trade_count_kr.value?.toLocaleString()}건 (${kr.trade_count_kr.period})</li>`;
+      Object.keys(hist).sort().reverse().forEach(p=>{
+        actualStats += `<li style="color:#8d90a2;font-size:10px;margin-left:8px;">${p}: ${hist[p]?.toLocaleString()||0}건</li>`;
+      });
+    }
+  } else if(key === 'nps') {
+    actualStats += '<li>분기별 정적 데이터 (수동 업데이트)</li>';
+  }
+  bodyEl.innerHTML = `
+    <div style="margin-bottom:10px;padding:8px;background:#262a35;border-radius:4px;border-left:3px solid ${stateColor};">
+      <div style="font-weight:600;color:${stateColor};font-size:11px;">${stateMark}</div>
+      <div style="color:#8d90a2;font-size:10px;margin-top:2px;">${status.label||'—'}</div>
+    </div>
+    <div style="margin-bottom:8px;color:#dfe2f2;font-size:11px;">${src.desc}</div>
+    <div style="margin-bottom:6px;font-weight:600;color:#dfe2f2;font-size:11px;">📊 가져오는 데이터:</div>
+    <ul style="margin:0 0 10px 18px;padding:0;color:#b6c4ff;font-size:10px;">
+      ${src.fetched.map(f=>`<li>${f}</li>`).join('')}
+    </ul>
+    <div style="margin-bottom:6px;font-weight:600;color:#dfe2f2;font-size:11px;">✓ 현재 수집된 데이터:</div>
+    <ul style="margin:0 0 6px 18px;padding:0;color:#26a69a;font-size:10px;">
+      ${actualStats || '<li style="color:#ef5350;">데이터 없음</li>'}
+    </ul>
+    <div style="font-size:9px;color:#434656;margin-top:8px;text-align:right;">최종 업데이트: ${d.lastUpdated ? new Date(d.lastUpdated).toLocaleString('ko-KR') : '—'}</div>
+  `;
+  popup.style.display = 'block';
+}
+function closeDataSourcePopup() {
+  const p = document.getElementById('dataSourceDetailPopup');
+  if(p) p.style.display = 'none';
+}
+// 팝업 바깥 클릭 시 닫기
+document.addEventListener('click', (e) => {
+  const p = document.getElementById('dataSourceDetailPopup');
+  if(!p || p.style.display === 'none') return;
+  if(p.contains(e.target)) return;
+  if(e.target.closest('#sidebarDataSourceList')) return;
+  p.style.display = 'none';
+});
+
+// ============================
+// 클라이언트 사이드 Naver Finance 데이터 페치 (Top10 주식/ETF 실시간)
+// data.json이 빈 경우 또는 새로고침 시 즉시 데이터 표시
+// ============================
+async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
+  const urls = [
+    `https://m.stock.naver.com/api/stocks/exchange/${market}/${direction}?page=1&pageSize=30`,
+    `https://corsproxy.io/?https://m.stock.naver.com/api/stocks/exchange/${market}/${direction}?page=1&pageSize=30`,
+  ];
+  for(const url of urls) {
+    try {
+      const r = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!r.ok) continue;
+      const data = await r.json();
+      const stocks = data.stocks || data.result || [];
+      if(!Array.isArray(stocks) || !stocks.length) continue;
+      const today = new Date().toISOString().slice(0,10);
+      return stocks.slice(0,10).map(s=>({
+        name:  (s.stockName || s.name || '').trim(),
+        code:  (s.itemCode || s.code || '').trim(),
+        price: Number(s.closePrice || s.nowVal || 0),
+        chg:   Number(s.fluctuationsRatio || s.changeRate || 0),
+        vol:   Number(s.accumulatedTradingVolume || s.volume || 0),
+        as_of: today,
+      })).filter(x=>x.name && x.price);
+    } catch(e) { /* try next */ }
+  }
+  return null;
+}
+
+async function fetchNaverETFMoversClient() {
+  // Naver 모바일 ETF 시세 API
+  const urls = [
+    `https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200`,
+    `https://corsproxy.io/?https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200`,
+    `https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0`,
+    `https://corsproxy.io/?https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0`,
+  ];
+  for(const url of urls) {
+    try {
+      const r = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!r.ok) continue;
+      const data = await r.json();
+      let rows = data?.result?.etfItemList || data?.stocks || data?.result?.stocks || [];
+      if(!Array.isArray(rows) || !rows.length) continue;
+      const today = new Date().toISOString().slice(0,10);
+      const parsed = rows.map(s=>({
+        name:  (s.itemname || s.stockName || s.name || '').trim(),
+        code:  (s.itemcode || s.itemCode || s.code || '').trim(),
+        price: Number(s.nowVal || s.closePrice || 0),
+        chg:   Number(s.changeRate ?? s.fluctuationsRatio ?? 0),
+        vol:   Number(s.quant || s.accumulatedTradingVolume || 0),
+        as_of: today,
+      })).filter(x=>x.name && x.price);
+      if(!parsed.length) continue;
+      const gainers = [...parsed].sort((a,b)=>b.chg-a.chg).slice(0,10);
+      const losers  = [...parsed].sort((a,b)=>a.chg-b.chg).slice(0,10);
+      // 등락률이 모두 0이면 실패로 간주 (다른 엔드포인트 시도)
+      if(gainers[0]?.chg === 0 && losers[0]?.chg === 0) continue;
+      return { gainers, losers };
+    } catch(e) { /* try next */ }
+  }
+  return null;
+}
+
+// 클라이언트 사이드에서 Top10 데이터 페치 + applyRealData 호출
+async function refreshMoversFromClient(showStatus=false) {
+  const statusEl = document.getElementById('moverRefDate');
+  if(statusEl && showStatus) statusEl.textContent = '갱신 중…';
+  try {
+    const [kup, kdown, etf] = await Promise.all([
+      fetchNaverStockMoversClient('KOSPI', 'up').catch(()=>null),
+      fetchNaverStockMoversClient('KOSPI', 'down').catch(()=>null),
+      fetchNaverETFMoversClient().catch(()=>null),
+    ]);
+    const patch = { stockMovers: {}, etfMovers: {}, fx:{}, indices:{}, commodities:{}, sources:{} };
+    let updated = 0;
+    if(kup && kup.length) { patch.stockMovers.kospiGainers = kup; updated++; }
+    if(kdown && kdown.length) { patch.stockMovers.kospiLosers = kdown; updated++; }
+    if(etf && etf.gainers?.length) { patch.etfMovers.etfGainers = etf.gainers; updated++; }
+    if(etf && etf.losers?.length) { patch.etfMovers.etfLosers = etf.losers; updated++; }
+    if(updated > 0) {
+      // 데이터 소스 표시 설정
+      if(patch.stockMovers.kospiGainers) patch.sources.stockMovers = 'Naver Finance (클라이언트 실시간)';
+      if(patch.etfMovers.etfGainers)    patch.sources.etfMovers   = 'Naver Finance (클라이언트 실시간)';
+      // 부분 패치 — applyRealData에서 빈 객체는 건드리지 않음
+      applyRealData(patch);
+      return true;
+    }
+  } catch(e) {
+    console.warn('[NaverMovers] 클라이언트 페치 실패:', e);
+  }
+  return false;
+}
+
+// ============================
+// 부동산 지표 히스토리 차트 (지표 클릭 시 모달 표시)
+// ============================
+function showReHistoryChart(key, title, opts) {
+  opts = opts || {};
+  const modal = document.getElementById('reHistoryChartModal');
+  const titleEl = document.getElementById('reHistTitle');
+  const metaEl  = document.getElementById('reHistMeta');
+  const noteEl  = document.getElementById('reHistNote');
+  if(!modal) return;
+  titleEl.textContent = title;
+  const unit = opts.unit || '';
+  metaEl.innerHTML = `<span style="color:#b6c4ff;">단위:</span> ${unit||'—'}`;
+  modal.style.display = 'flex';
+  destroyChart('reHistChart');
+  // 데이터 소스에서 시계열 추출
+  const d = _latestDataForIndicators || {};
+  const reKr = (d.realestate||{}).kr || {};
+  let labels=[], values=[];
+  let dataSource = '한국부동산원 R-ONE / 국토교통부';
+  // 1) data.json에 시계열 history가 있는 경우
+  if(reKr[key]?.history && typeof reKr[key].history === 'object') {
+    const h = reKr[key].history;
+    Object.keys(h).sort().forEach(p=>{ labels.push(p); values.push(h[p]); });
+  }
+  // 2) 사이트의 정적 시계열 폴백 (apt_price_idx_kr → rePriceData.national5y 등)
+  if(!values.length && (key === 'apt_price_idx_kr' || key === 'jns_price_idx_kr')) {
+    labels = rePriceData.labels5y.slice();
+    values = (key === 'jns_price_idx_kr') ? rePriceData.jns5y.slice() : rePriceData.national5y.slice();
+    dataSource = '내장 5년 시계열 (R-ONE 2021.6=100)';
+    // 최신 R-ONE 값으로 마지막 점 갱신
+    if(reKr[key]?.value != null) {
+      values[values.length-1] = reKr[key].value;
+      if(reKr[key].period) labels[labels.length-1] = (reKr[key].period+'').slice(2,4)+'.'+(reKr[key].period+'').slice(4,6);
+    }
+  }
+  // 3) ECOS history 시계열 (mortgage_rate, household_debt)
+  if(!values.length && reKr[key]?.value != null) {
+    // 현재값만 있는 경우: 시계열 더미 + 현재값 한 포인트
+    const today = new Date();
+    for(let i=11;i>=0;i--) {
+      const dt = new Date(today.getFullYear(), today.getMonth()-i, 1);
+      labels.push(dt.toISOString().slice(0,7));
+      // 현재값을 안전하게 사용
+      values.push(reKr[key].value);
+    }
+    dataSource = '단일 시점 데이터 (시계열 없음)';
+  }
+  // 4) PIR 같은 정적 데이터 폴백
+  if(!values.length && key === 'pir_seoul') {
+    labels = ['2018','2019','2020','2021','2022','2023','2024','2025'];
+    values = [13.0, 14.5, 15.8, 18.2, 20.1, 19.8, 19.6, 19.3];
+    dataSource = '통계청 가계금융복지 (내장 시계열)';
+  }
+  const ctx = document.getElementById('reHistChart');
+  if(!ctx || !values.length) {
+    noteEl.textContent = '시계열 데이터 없음 — API 연동 시 자동 표시됩니다.';
+    return;
+  }
+  noteEl.textContent = `출처: ${dataSource}`;
+  const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d'};
+  charts['reHistChart'] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{
+      label: title + (unit?` (${unit})`:''),
+      data: values,
+      borderColor: '#2962ff',
+      backgroundColor: '#2962ff22',
+      borderWidth: 2,
+      pointRadius: 2,
+      tension: 0.3,
+      fill: true,
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{
+        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:10}, grid:{color:tc.grid}},
+        y:{ ticks:{color:tc.txt,font:{size:10}}, grid:{color:tc.grid}, position:'right'},
+      },
+      plugins:{
+        legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
+          callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?c.parsed.y.toLocaleString():c.parsed.y}${unit?' '+unit:''}`}}
+      }
+    }
+  });
+}
+function closeReHistoryChart() {
+  const modal = document.getElementById('reHistoryChartModal');
+  if(modal) modal.style.display = 'none';
+  destroyChart('reHistChart');
+}
+
+// ETF 전용 새로고침 (등락률 동기화)
+async function refreshETFFromClient(btn) {
+  if(btn) { btn.disabled = true; btn._oldText = btn.textContent; btn.textContent = '⟳ 갱신중…'; }
+  try {
+    const etf = await fetchNaverETFMoversClient();
+    if(etf && (etf.gainers?.length || etf.losers?.length)) {
+      applyRealData({ etfMovers:{ etfGainers: etf.gainers, etfLosers: etf.losers }, fx:{}, indices:{}, commodities:{} });
+      // 주식시장 탭이 활성화된 경우 buildEquityPage 재호출
+      try { if(typeof buildEquityPage === 'function') buildEquityPage(); } catch(_){}
+      if(btn) {
+        btn.textContent = '✓ 갱신됨';
+        setTimeout(()=>{ btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }, 1200);
+      }
+    } else {
+      if(btn) {
+        btn.textContent = '⚠ 실패';
+        setTimeout(()=>{ btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }, 1500);
+      }
+    }
+  } catch(e) {
+    console.warn('[ETF] 클라이언트 페치 오류:', e);
+    if(btn) { btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }
+  }
+}
+
+// ============================
+// 클라이언트 사이드 시장 분위기 지표 — VKOSPI / MOVE / Put-Call Ratio
+// ============================
+async function fetchSentimentClient() {
+  // Stooq에서 ^MOVE 시도 (MOVE Index = BofA ICE TYVIX 채권변동성)
+  // Stooq symbols for MOVE: ^MOVE 그대로
+  const out = {};
+  // VKOSPI: yfinance 모바일 chart API 시도
+  try {
+    const u = 'https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EVKOSPI&range=5d&interval=1d';
+    const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(u));
+    if(r.ok) {
+      const j = await r.json();
+      const node = j.spark?.result?.[0]?.response?.[0];
+      const c = node?.indicators?.quote?.[0]?.close;
+      if(Array.isArray(c)) {
+        const vals = c.filter(v=>v!=null);
+        if(vals.length >= 1) {
+          const cur = vals[vals.length-1];
+          out.vkospi = { value: cur, source:'yfinance ^VKOSPI (via corsproxy)' };
+        }
+      }
+    }
+  } catch(_) {}
+  // MOVE Index: yfinance ^MOVE 시도
+  try {
+    const u = 'https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EMOVE&range=5d&interval=1d';
+    const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(u));
+    if(r.ok) {
+      const j = await r.json();
+      const node = j.spark?.result?.[0]?.response?.[0];
+      const c = node?.indicators?.quote?.[0]?.close;
+      if(Array.isArray(c)) {
+        const vals = c.filter(v=>v!=null);
+        if(vals.length >= 1) out.move = { value: vals[vals.length-1], source:'yfinance ^MOVE' };
+      }
+    }
+  } catch(_) {}
+  // Put/Call Ratio: CBOE는 CORS 차단, Stooq에서 ^pcc 시도
+  try {
+    const r = await fetch('https://corsproxy.io/?https://stooq.com/q/d/l/?s=%5Epcc&i=d&o=1110000');
+    if(r.ok) {
+      const txt = await r.text();
+      const lines = txt.trim().split('\n').filter(l=>l && !l.startsWith('Date'));
+      if(lines.length) {
+        const last = lines[lines.length-1].split(',');
+        const v = parseFloat(last[4] || last[1] || '');
+        if(!isNaN(v) && v > 0) out.pcr = { value: v, source:'Stooq ^pcc' };
+      }
+    }
+  } catch(_) {}
+  return out;
+}
+
+function applySentimentClient(s) {
+  if(!s) return;
+  if(s.vkospi?.value != null) {
+    const el = document.getElementById('dashVkospi');
+    if(el) {
+      el.textContent = s.vkospi.value.toFixed(2);
+      const v = s.vkospi.value;
+      el.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
+    }
+  }
+  if(s.move?.value != null) {
+    const el = document.getElementById('dashMove');
+    if(el) {
+      el.textContent = s.move.value.toFixed(1);
+      const v = s.move.value;
+      el.style.color = v > 120 ? '#ef5350' : v > 100 ? '#f5a623' : '#26a69a';
+    }
+  }
+  if(s.pcr?.value != null) {
+    const el = document.getElementById('dashPcr');
+    if(el) {
+      el.textContent = s.pcr.value.toFixed(2);
+      const v = s.pcr.value;
+      el.style.color = v > 1.1 ? '#ef5350' : v < 0.7 ? '#26a69a' : '#dfe2f2';
+    }
+  }
+}
+
+// ============================
 // 실시간 데이터 로드 (data.json)
 // ============================
 function applyRealData(d) {
   if (!d) return;
+  // 부분 patch 머지: 기존 데이터 + 새 데이터 (얕은 병합)
+  // 단, fx/indices/commodities 등이 빈 객체이면 기존 값 보존
+  if(_latestDataForIndicators && _latestDataForIndicators !== d) {
+    const prev = _latestDataForIndicators;
+    const merged = { ...prev };
+    Object.keys(d).forEach(k => {
+      const v = d[k];
+      if(v && typeof v === 'object' && !Array.isArray(v)) {
+        // 빈 객체이면 기존 값 보존
+        if(Object.keys(v).length === 0) return;
+        // 객체이면 얕은 머지
+        merged[k] = { ...(prev[k] || {}), ...v };
+      } else if(v != null) {
+        merged[k] = v;
+      }
+    });
+    d = merged;
+  }
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
 
@@ -5862,9 +6461,12 @@ function applyRealData(d) {
     }
   }
 
-  // ── 주식/ETF 이동자 데이터 업데이트 (KRX API) ──────────
+  // ── 주식/ETF 이동자 데이터 업데이트 (KRX API or Naver Finance) ──
   const movers = d.stockMovers || {};
   const etfMvr = d.etfMovers   || {};
+  // 데이터 소스 표시 갱신
+  const dsEl = document.getElementById('moverDataSource');
+  if(dsEl && d.sources?.stockMovers) dsEl.textContent = d.sources.stockMovers;
   if (movers.kospiGainers) {
     const asOf = movers.kospiGainers[0]?.as_of || '';
     if(asOf) moverRefDate = asOf;
@@ -5933,7 +6535,7 @@ function applyRealData(d) {
       hyEl.style.color = usInd.hy_spread.value > 4 ? '#ef5350' : usInd.hy_spread.value > 3 ? '#f5a623' : '#26a69a';
     }
   }
-  // ── VKOSPI (KOSPI200 변동성 지수) ─────────────────────
+  // ── VKOSPI / MOVE / PCR — 시장 분위기 지표 ──────────
   const sentiment = d.sentiment || {};
   if (sentiment.vkospi?.value != null) {
     const vkEl = document.getElementById('dashVkospi');
@@ -5941,6 +6543,22 @@ function applyRealData(d) {
       vkEl.textContent = sentiment.vkospi.value.toFixed(2);
       const v = sentiment.vkospi.value;
       vkEl.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
+    }
+  }
+  if (sentiment.move?.value != null) {
+    const el = document.getElementById('dashMove');
+    if(el) {
+      el.textContent = sentiment.move.value.toFixed(1);
+      const v = sentiment.move.value;
+      el.style.color = v > 120 ? '#ef5350' : v > 100 ? '#f5a623' : '#26a69a';
+    }
+  }
+  if (sentiment.pcr?.value != null) {
+    const el = document.getElementById('dashPcr');
+    if(el) {
+      el.textContent = sentiment.pcr.value.toFixed(2);
+      const v = sentiment.pcr.value;
+      el.style.color = v > 1.1 ? '#ef5350' : v < 0.7 ? '#26a69a' : '#dfe2f2';
     }
   }
   // ── R-ONE 부동산 지표 → 부동산 페이지 KPI ──────────────
@@ -5963,6 +6581,7 @@ function applyRealData(d) {
     }
     if(pEl && data.period) pEl.textContent = data.period;
   }
+  // R-ONE 데이터가 없으면 정적 시계열 폴백 사용 (이미 화면에 113.2 같은 정적값 있음)
   if (reKr.apt_price_idx_kr) {
     const vEl = document.getElementById('reKpiAptIdxVal');
     const cEl = document.getElementById('reKpiAptIdxChg');
@@ -5974,6 +6593,21 @@ function applyRealData(d) {
     }
     // 새로 추가된 카테고리 카드도 함께 채우기
     setKrReCard('krReAptSaleVal', 'krReAptSaleChg', 'krRePeriodAptSale', reKr.apt_price_idx_kr);
+  } else {
+    // R-ONE 미연동: 내장 시계열 마지막 값으로 표시
+    const vEl = document.getElementById('reKpiAptIdxVal');
+    const cEl = document.getElementById('reKpiAptIdxChg');
+    if(vEl && typeof rePriceData !== 'undefined') {
+      const lastVal = rePriceData.national5y[rePriceData.national5y.length-1];
+      const prevVal = rePriceData.national5y[rePriceData.national5y.length-2];
+      vEl.textContent = lastVal?.toFixed(1) ?? '—';
+      vEl.style.color = '#dfe2f2';
+      if(cEl && lastVal && prevVal) {
+        const chg = (lastVal - prevVal) / prevVal * 100;
+        cEl.textContent = `전월比 ${chg>=0?'+':''}${chg.toFixed(2)}% (내장 시계열, R-ONE 미연동)`;
+        cEl.style.color = chg >= 0 ? '#26a69a' : '#ef5350';
+      }
+    }
   }
   if (reKr.jns_price_idx_kr) {
     setKrReCard('krReAptJnsVal', 'krReAptJnsChg', 'krRePeriodAptJns', reKr.jns_price_idx_kr);
@@ -6081,6 +6715,11 @@ function applyRealData(d) {
       `<span style="color:#26a69a;font-size:9px;">●</span> ` +
       dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) +
       ' 업데이트';
+  }
+
+  // ── 사이드바 데이터 소스 신호등 ──────────────
+  if(d && d.sources) {
+    try { buildSidebarDataSources(d); } catch(_) {}
   }
 }
 
@@ -6839,6 +7478,8 @@ function toggleMobileSidebar() {
 // ============================
 window.addEventListener('load', async ()=>{
   applyStoredTheme();
+  // 사이드바 신호등 초기 렌더 (페이지 로드 즉시 미연결 상태로 표시)
+  try { buildSidebarDataSources({}); } catch(_) {}
   buildGlobalTable();
   buildMoverTable('up');
   buildNews();
@@ -6851,15 +7492,25 @@ window.addEventListener('load', async ()=>{
   await loadRealData();
   // 데이터 로드 완료 후 대시보드 등락 테이블 재렌더 (applyRealData 에서도 호출되지만 명시적으로 한번 더 보강)
   try { buildMoverTable(curMoverTab); } catch(_) {}
+  // 사이드바 신호등 초기화 (data.json 없어도 표시)
+  try { buildSidebarDataSources(_latestDataForIndicators || {}); } catch(_) {}
   // 실시간 환율 페치 (open.er-api.com — 페이지 로드 시 즉시 갱신)
   loadRealtimeFx();
   // 실시간 지수·원자재 페치 (Stooq — 무료, 인증 불필요)
   loadRealtimeMarket();
+  // 실시간 주식/ETF 등락 Top10 페치 (Naver Finance 모바일 JSON API)
+  refreshMoversFromClient().catch(()=>{});
+  // 실시간 시장 분위기 페치 (VKOSPI/MOVE/PutCall)
+  fetchSentimentClient().then(applySentimentClient).catch(()=>{});
   // 실시간 뉴스 로드 (Google News RSS)
   loadFreshNews();
   // 30분마다 실시간 환율·지수 자동 갱신
   setInterval(loadRealtimeFx, 30 * 60 * 1000);
   setInterval(loadRealtimeMarket, 30 * 60 * 1000);
+  // 15분마다 Naver 주식/ETF Top10 자동 갱신
+  setInterval(() => { refreshMoversFromClient().catch(()=>{}); }, 15 * 60 * 1000);
+  // 30분마다 시장 분위기 (VKOSPI/MOVE/PutCall) 갱신
+  setInterval(() => { fetchSentimentClient().then(applySentimentClient).catch(()=>{}); }, 30 * 60 * 1000);
 
   // 창 크기 변경 시 즉시 차트 리사이즈
   const _resizeAllCharts = () => { Object.values(charts).forEach(c => { try { if(c) c.resize(); } catch(_){} }); };
