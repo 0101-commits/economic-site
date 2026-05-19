@@ -1107,7 +1107,7 @@ tailwind.config = {
         </div>
       </div>
       <!-- 시각적 캘린더 그리드 -->
-      <div class="widget" style="margin-bottom:16px;">
+      <div class="widget" style="margin-bottom:16px;position:relative;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
           <div class="widget-title" style="margin-bottom:0;" id="calGridTitle">월 캘린더</div>
           <div style="display:flex;gap:6px;align-items:center;">
@@ -1353,7 +1353,7 @@ tailwind.config = {
             <div style="font-size:10px;color:#434656;margin-top:4px;">💡 차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
           <!-- 지역별 등락 — 지도 + 바 차트 토글 -->
-          <div class="widget">
+          <div class="widget" style="position:relative;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
               <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:9px;color:#434656;font-weight:400;">지도/지역 클릭 → 추이</span></div>
               <div style="display:flex;gap:4px;">
@@ -5900,18 +5900,18 @@ function showCalGridFloating(idx, evt) {
   const actEl = document.getElementById('calFloatAct');
   actEl.textContent = e.act || '미발표';
   actEl.style.color = e.beat===1 ? '#26a69a' : e.beat===-1 ? '#ef5350' : '#dfe2f2';
-  // 플로팅 위치
+  // 플로팅 위치 — 부모 widget 기준 (position:relative 컨테이너)
   fl.style.display = 'block';
   if(evt && evt.clientX != null) {
-    const container = document.getElementById('calGridContainer');
-    if(container) {
-      const rect = container.getBoundingClientRect();
-      const x = evt.clientX - rect.left;
-      const y = evt.clientY - rect.top;
+    const parent = fl.parentElement;  // .widget
+    if(parent) {
+      const prect = parent.getBoundingClientRect();
+      const x = evt.clientX - prect.left;
+      const y = evt.clientY - prect.top;
       const fw = 320, fh = 220;
       let left = x + 10, top = y + 10;
-      if(left + fw > rect.width)  left = Math.max(4, x - fw - 10);
-      if(top  + fh > rect.height) top  = Math.max(4, y - fh - 10);
+      if(left + fw > prect.width)  left = Math.max(4, x - fw - 10);
+      if(top  + fh > prect.height) top  = Math.max(4, y - fh - 10);
       fl.style.left = left + 'px';
       fl.style.top  = top + 'px';
     }
