@@ -6939,22 +6939,45 @@ function showMacroHistoryChartByIdx(idx) {
 function showMacroHistoryChart(dataPath, title, optsJson) {
   let opts = {};
   try {
-    // optsJson can be either an object or a HTML-escaped JSON string
     opts = typeof optsJson === 'string' ? JSON.parse(optsJson.replace(/&quot;/g,'"')) : (optsJson || {});
   } catch(_) { opts = {}; }
+  // _reHistState 에 macroSpec 을 저장하고 셀렉터 UI 를 초기화 후 _renderReHistChart 호출
+  _reHistState.key = '__macro__' + (dataPath || '');
+  _reHistState.title = title;
+  _reHistState.unit = opts.unit || '';
+  _reHistState.period = 'all';
+  _reHistState.timeUnit = 'M';
+  _reHistState.macroDataPath = dataPath;
+  _reHistState.macroOpts = opts;
+  // 셀렉터 UI 초기화
+  document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
+    const isActive = b.dataset.period === 'all';
+    b.classList.toggle('active', isActive);
+    b.style.background = isActive ? '#2962ff' : 'transparent';
+    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#8d90a2)';
+  });
+  document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
+    const isActive = b.dataset.unit === 'M';
+    b.classList.toggle('active', isActive);
+    b.style.background = isActive ? '#2962ff' : 'transparent';
+    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#8d90a2)';
+  });
   const modal = document.getElementById('reHistoryChartModal');
+  if(modal) modal.style.display = 'flex';
+  _renderReHistChartMacro();
+}
+
+function _renderReHistChartMacro() {
+  const { title, unit, period, timeUnit, macroDataPath: dataPath, macroOpts: opts } = _reHistState;
   const titleEl = document.getElementById('reHistTitle');
   const metaEl  = document.getElementById('reHistMeta');
   const noteEl  = document.getElementById('reHistNote');
-  if(!modal) return;
-  titleEl.textContent = title;
-  const unit = opts.unit || '';
+  if(titleEl) titleEl.textContent = title;
   const linkHtml = opts.link ? `<a href="${opts.link}" target="_blank" rel="noopener" style="display:inline-block;margin-left:8px;font-size:10px;padding:2px 8px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${opts.linkLabel||'최신 보고서'} →</a>` : '';
-  metaEl.innerHTML = `<span style="color:var(--c-primary,#b6c4ff);">단위:</span> ${unit||'—'} &nbsp; <span style="color:var(--c-primary,#b6c4ff);">출처:</span> ${opts.src||'—'}${linkHtml}`;
-  modal.style.display = 'flex';
+  if(metaEl) metaEl.innerHTML = `<span style="color:var(--c-primary,#b6c4ff);">단위:</span> ${unit||'—'} &nbsp; <span style="color:var(--c-primary,#b6c4ff);">출처:</span> ${opts.src||'—'}${linkHtml}`;
   destroyChart('reHistChart');
   if(!dataPath) {
-    noteEl.innerHTML = `데이터 경로 없음 ${opts.link?'— 외부 보고서 참고':''}`;
+    if(noteEl) noteEl.innerHTML = `데이터 경로 없음 ${opts.link?'— 외부 보고서 참고':''}`;
     return;
   }
   const d = _latestDataForIndicators || {};
@@ -6965,33 +6988,34 @@ function showMacroHistoryChart(dataPath, title, optsJson) {
     Object.keys(node.history).sort().forEach(p=>{ labels.push(p); values.push(node.history[p]); });
     dataSource = node.source || dataSource;
   } else if(node?.value != null) {
-    // 시계열 없으면 현재값 1개만 표시
     labels = [node.period || '현재'];
     values = [node.value];
     dataSource = (node.source || dataSource) + ' (단일 시점 — 시계열 추가 시 자동 확장)';
   } else {
-    noteEl.innerHTML = `${dataSource} — 데이터 미수집. ${opts.link?'외부 링크에서 최신 데이터 확인 가능.':''}`;
+    if(noteEl) noteEl.innerHTML = `${dataSource} — 데이터 미수집. ${opts.link?'외부 링크에서 최신 데이터 확인 가능.':''}`;
     return;
   }
-  noteEl.textContent = `출처: ${dataSource}`;
+  // 기간/단위 리샘플링
+  const resampled = _resampleHistSeries(labels, values, period, timeUnit);
+  if(noteEl) noteEl.textContent = `출처: ${dataSource}${period!=='all'?' · 기간: '+period:''}${timeUnit!=='M'?' · 단위: '+({Q:'분기',H:'반기',Y:'연'}[timeUnit]||timeUnit):''}`;
   const ctx = document.getElementById('reHistChart');
-  if(!ctx || !values.length) return;
+  if(!ctx || !resampled.values.length) return;
   const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
   charts['reHistChart'] = new Chart(ctx, {
     type:'line',
-    data:{ labels, datasets:[{
+    data:{ labels: resampled.labels, datasets:[{
       label: title + (unit?` (${unit})`:''),
-      data: values,
+      data: resampled.values,
       borderColor: '#2962ff',
       backgroundColor: '#2962ff22',
       borderWidth: 2,
-      pointRadius: values.length > 30 ? 0 : 2,
+      pointRadius: resampled.values.length > 30 ? 0 : 2,
       tension: 0.3,
       fill: true,
     }]},
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{
-        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:10}, grid:{color:tc.grid}},
+        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:12}, grid:{color:tc.grid}},
         y:{ ticks:{color:tc.txt,font:{size:10}}, grid:{color:tc.grid}, position:'right'},
       },
       plugins:{
@@ -7090,7 +7114,7 @@ function setReHistPeriod(p, btn) {
     b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim,#8d90a2)';
   });
   if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
-  _renderReHistChart();
+  _renderReHistDispatch();
 }
 function setReHistUnit(u, btn) {
   _reHistState.timeUnit = u;
@@ -7098,7 +7122,15 @@ function setReHistUnit(u, btn) {
     b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim,#8d90a2)';
   });
   if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
-  _renderReHistChart();
+  _renderReHistDispatch();
+}
+function _renderReHistDispatch() {
+  // 매크로 차트는 별도 함수에서 처리 (dataPath 기반)
+  if(_reHistState.key && _reHistState.key.startsWith('__macro__') && typeof _renderReHistChartMacro === 'function') {
+    _renderReHistChartMacro();
+  } else {
+    _renderReHistChart();
+  }
 }
 
 function showReHistoryChart(key, title, opts) {
@@ -7824,6 +7856,21 @@ function applyRealData(d) {
       ' 업데이트';
   }
 
+  // ── LME 금속 재고 (data.json.lmeInventory) 동기화 ──────
+  if(d.lmeInventory && Array.isArray(d.lmeInventory.data)) {
+    const krNames = {'Copper':'구리 (Copper)', 'Aluminum':'알루미늄', 'Zinc':'아연 (Zinc)',
+                     'Nickel':'니켈 (Nickel)', 'Lead':'납 (Lead)', 'Tin':'주석 (Tin)'};
+    d.lmeInventory.data.forEach((row, i) => {
+      if(metalInventory[i]) {
+        if(row.cur != null)   metalInventory[i].cur = row.cur;
+        if(row.wkChg != null) metalInventory[i].wkChg = row.wkChg;
+        if(row.m4ago != null) metalInventory[i].m4ago = row.m4ago;
+        if(row.status) metalInventory[i].status = row.status === 'up' ? '증가' :
+                                                   row.status === 'down' ? '감소' : '보합';
+      }
+    });
+  }
+
   // ── 사이드바 데이터 소스 신호등 ──────────────
   if(d && d.sources) {
     try { buildSidebarDataSources(d); } catch(_) {}
@@ -8151,22 +8198,9 @@ async function loadRealtimeMarket() {
 }
 
 // ============================
-// 투자자 차트 — 날짜 범위 선택
+// 투자자 차트 — 날짜 범위 기본값
 // ============================
-function applyInvestorDateRange() {
-  const fromEl = document.getElementById('invDateFrom');
-  const toEl   = document.getElementById('invDateTo');
-  if(!fromEl || !toEl || !fromEl.value || !toEl.value) return;
-  const fromDate = new Date(fromEl.value);
-  const toDate   = new Date(toEl.value);
-  if(fromDate >= toDate) return;
-  // 날짜 범위에 따라 기간 선택 (실제 KRX 데이터 없을 때 근사 사용)
-  const days = Math.round((toDate - fromDate) / (1000*60*60*24));
-  if(days <= 1) investorPeriodCur = '1D';
-  else if(days <= 10) investorPeriodCur = '5D';
-  else investorPeriodCur = '1M';
-  buildInvestorChart();
-}
+// (applyInvestorDateRange 는 위에서 정의됨 — 단위/기간 통합)
 
 function initInvestorDateDefaults() {
   const toEl   = document.getElementById('invDateTo');
