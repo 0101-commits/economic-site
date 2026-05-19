@@ -674,6 +674,110 @@ def fetch_fred_yield_curve_us():
     }
 
 
+def fetch_ecos_yield_curve_kr():
+    """한국은행 ECOS API 로 한국 국고채 수익률 곡선 조회.
+
+    시장금리 일별 (817Y002) — 주요 만기:
+    - 010190000: 국고채(1년)
+    - 010195000: 국고채(3년)
+    - 010200000: 국고채(5년)
+    - 010210000: 국고채(10년)
+    - 010220000: 국고채(20년)
+    - 010230000: 국고채(30년)
+    - 010300000: 회사채(3년 AA-)
+    - 010301000: 회사채(3년 BBB-)
+
+    yieldCurveData.kr 의 terms 인덱스(['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'])
+    에 맞춰 데이터를 채움. 미수집 만기는 None.
+    """
+    if not ECOS_API_KEY:
+        log("[ECOS-YC] API 키 없음 — 한국 국채 수익률 곡선 건너뜀")
+        return None
+    # (yieldCurveData.kr.terms 인덱스, ECOS item_code, label)
+    # 1M/3M/6M/2Y/7Y 는 ECOS에 직접 없음 → 1Y, 3Y, 5Y, 10Y, 20Y, 30Y 만 수집
+    terms_map = [
+        (3, "010190000", "1Y"),
+        (5, "010195000", "3Y"),  # 3Y → 2Y 슬롯에 매핑 (인덱스 4)
+        (5, "010200000", "5Y"),
+        (7, "010210000", "10Y"),
+        (8, "010220000", "20Y"),
+        (9, "010230000", "30Y"),
+    ]
+    # yield curve 10개 슬롯 초기화
+    current    = [None] * 10
+    prev_month = [None] * 10
+    series_data = []
+    series_used = []
+    # ECOS 시장금리는 일별 (D)
+    now = datetime.now(KST)
+    end_period = now.strftime("%Y%m%d")
+    # 1년치 (약 252 영업일)
+    start_period = (now - timedelta(days=400)).strftime("%Y%m%d")
+    for slot, item_code, label in terms_map:
+        try:
+            url = f"{ECOS_BASE}/StatisticSearch/{ECOS_API_KEY}/json/kr/1/600/817Y002/D/{start_period}/{end_period}/{item_code}"
+            r = requests.get(url, timeout=20)
+            r.raise_for_status()
+            rows = r.json().get("StatisticSearch", {}).get("row", [])
+            if not rows:
+                log(f"[ECOS-YC] {label} (item={item_code}): 데이터 없음")
+                continue
+            # TIME 오름차순 정렬 (오래된 → 최신)
+            rows_sorted = sorted(rows, key=lambda x: x.get("TIME", ""))
+            # 최신값
+            latest = rows_sorted[-1]
+            cur_val = _parse_num(latest.get("DATA_VALUE"))
+            # 1개월 전 (영업일 기준 ~21번째 뒤에서부터)
+            prev_val = None
+            if len(rows_sorted) > 21:
+                prev_val = _parse_num(rows_sorted[-22].get("DATA_VALUE"))
+            else:
+                prev_val = _parse_num(rows_sorted[0].get("DATA_VALUE"))
+            if cur_val is None:
+                continue
+            # yieldCurveData.kr 슬롯에 매핑 (단, 같은 슬롯에 두 번 쓰면 후자가 덮어씀)
+            # 3Y는 slot 4(2Y) 에 매핑하지 않고 별도 처리 → 5Y 우선 채우기 후 3Y 폴백
+            if label == "3Y":
+                # 3Y → 2Y 슬롯 (terms_idx=4) — 3Y 값이 2Y 보다 약간 높음
+                if current[4] is None:
+                    current[4]    = round(cur_val, 3)
+                    prev_month[4] = round(prev_val, 3) if prev_val is not None else None
+                continue
+            current[slot]    = round(cur_val, 3)
+            prev_month[slot] = round(prev_val, 3) if prev_val is not None else None
+            # 시계열 데이터 (차트용)
+            ts = []
+            for row in rows_sorted[-252:]:  # 최근 1년
+                v = _parse_num(row.get("DATA_VALUE"))
+                t = row.get("TIME")
+                if v is not None and t and len(t) == 8:
+                    # YYYYMMDD → YYYY-MM-DD
+                    ts.append({"date": f"{t[:4]}-{t[4:6]}-{t[6:8]}", "value": v})
+            if ts:
+                series_data.append({
+                    "tenor": label,
+                    "label": label,
+                    "ecos_item": item_code,
+                    "data": ts,
+                })
+            series_used.append(f"{label}({item_code})")
+            log(f"[ECOS-YC] {label}: {cur_val:.3f}% (1M전 {prev_val if prev_val is None else f'{prev_val:.3f}'}%) — {len(ts)}일 시계열")
+        except Exception as e:
+            log(f"[ECOS-YC] {label} (item={item_code}) 오류: {e}")
+            continue
+    if not series_used:
+        log("[ECOS-YC] 한국 국채 데이터 없음 — yieldCurve.kr 미갱신")
+        return None
+    return {
+        "kr": {
+            "current": current,
+            "prev_month": prev_month,
+            "series": series_data,
+            "source": "ECOS API (817Y002): " + ", ".join(series_used),
+        }
+    }
+
+
 def fetch_fred_realestate_us():
     """미국 부동산 주요 지표 FRED API로 조회.
 
@@ -2193,6 +2297,15 @@ def build_data():
         ecos_data = fetch_ecos_economic_indicators()
         data["economicIndicators"]["kr"] = ecos_data
         data["sources"]["economicIndicators_kr"] = "ECOS API (ecos.bok.or.kr)"
+        # 한국 국채 수익률 곡선 (1Y/3Y/5Y/10Y/20Y/30Y)
+        log("[ECOS-YC] 한국 국채 수익률 곡선 수집 시작")
+        try:
+            kr_yc = fetch_ecos_yield_curve_kr()
+            if kr_yc:
+                data["yieldCurve"].update(kr_yc)
+                data["sources"]["yieldCurve_kr"] = "ECOS API (817Y002: 시장금리 일별)"
+        except Exception as e:
+            log(f"[ECOS-YC] 오류: {e}")
     else:
         log("[ECOS] API 키 없음 — 한국 지표 건너뜀")
 
