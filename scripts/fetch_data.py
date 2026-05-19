@@ -33,8 +33,14 @@ KOSIS_API_KEY     = os.environ.get("KOSIS_API_KEY",     "").strip()
 DATA_GO_KR_API_KEY= os.environ.get("DATA_GO_KR_API_KEY","").strip()
 # 신규: 한국수출입은행 환율·금리 (KOREAEXIM)
 EXIM_API_KEY      = os.environ.get("EXIM_API_KEY",      "").strip()
+# 신규: 한국투자증권 KIS Developers API
+KIS_APP_KEY       = os.environ.get("KIS_APP_KEY",       "PSWERCICjp9bA3k0WUHl1RQtMB4uazM61eJ1").strip()
+KIS_APP_SECRET    = os.environ.get("KIS_APP_SECRET",    "5P7uU+8QaDOzGmkpypZE/K3nbaLYcyc98v9rFM41MxlszoqtiotW4NsxKkEuftw3PXwxuk6hFqUzhG7hF7QQVBY+wZ/CIyfU8E+f+BlZQNjx5yoKl3Eonc6NOTNOoc2kBcnXJkp29/gRswKFc/EeLhrEM2cpktS6xnpRNknq5METVEzdsFE=").strip()
 
 KRX_BASE     = "http://data-dbg.krx.co.kr/svc/apis"
+KIS_BASE     = "https://openapi.koreainvestment.com:9443"
+# 신규: 산업통상자원부 광물자원공사 원자재 가격 (motir.go.kr)
+MOTIR_BASE   = "https://www.motir.go.kr"
 FRED_BASE    = "https://api.stlouisfed.org/fred"
 ECOS_BASE    = "https://ecos.bok.or.kr/api"
 # R-ONE 공식 OpenAPI 엔드포인트 (2023~ 신 버전)
@@ -299,26 +305,41 @@ def fetch_naver_stock_movers(market="kospi", top_n=10):
             log(f"[Naver] 스크래핑 오류: {e}")
             return []
         items = []
-        # 패턴1: <a class="tltle">종목명</a> ... 가격 ... 등락률
+        # 패턴1: 종목 링크 (코드 포함) + 가격 + 등락률 + 거래량
+        # <a href="/item/main.naver?code=NNNNNN" class="tltle">종목명</a>
+        # <td class="number">가격</td> <td>...</td> ... <span>±N.NN%</span> ... <td class="number">거래량</td>
         rows_pat = _re.findall(
-            r'<a[^>]*class="tltle"[^>]*>([^<]+)</a>'
-            r'(?:.*?<td class="number">([\d,\.]+)</td>)'
-            r'(?:.*?<span[^>]*>\s*([+\-]?[\d\.]+)%)',
+            r'<a\s+href="/item/main\.naver\?code=(\d+)"[^>]*class="tltle"[^>]*>([^<]+)</a>'
+            r'(.*?)</tr>',
             html, _re.DOTALL)
-        for name, price_str, chg_str in rows_pat:
+        for code, name, rest in rows_pat:
+            # rest 안에서 가격/등락률/거래량 추출
+            numbers = _re.findall(r'<td[^>]*class="number"[^>]*>([^<]+)</td>', rest)
+            chg_match = _re.search(r'([+\-]?[\d.]+)%', rest)
+            if len(numbers) < 2 or not chg_match: continue
             try:
-                price = float(price_str.replace(",", ""))
-                chg = float(chg_str)
-                items.append({"name": name.strip(), "code": "", "price": price, "chg": chg, "vol": 0, "as_of": today})
+                price = float(numbers[0].replace(",", "").strip())
+                chg = float(chg_match.group(1))
+                # 거래량은 보통 5번째 number 컬럼 (가격, 전일비, 등락률, 매도호가, 거래량…)
+                vol = 0
+                for n in numbers[2:]:
+                    cleaned = n.replace(",", "").strip()
+                    if cleaned.isdigit():
+                        v = int(cleaned)
+                        if v > 100:  # 의미 있는 거래량(>100주)
+                            vol = v
+                            break
+                items.append({"name": name.strip(), "code": code, "price": price, "chg": chg, "vol": vol, "as_of": today})
             except (ValueError, TypeError):
                 continue
-        # 패턴2 (백업): <td class="no">...</td><td><a ...>종목명</a>...</td><td class="number">가격</td>...
+        # 패턴2 (구식): <a class="tltle">종목명</a> 만 (코드 없음)
         if not items:
-            rows_pat2 = _re.findall(
-                r'<tr[^>]*onmouseover[^>]*>.*?<a[^>]+>([^<]+)</a>.*?<td class="number">([\d,\.]+)</td>'
-                r'.*?<td class="number"[^>]*>.*?([+\-]?[\d\.]+)%',
+            rows_pat = _re.findall(
+                r'<a[^>]*class="tltle"[^>]*>([^<]+)</a>'
+                r'(?:.*?<td class="number">([\d,\.]+)</td>)'
+                r'(?:.*?<span[^>]*>\s*([+\-]?[\d\.]+)%)',
                 html, _re.DOTALL)
-            for name, price_str, chg_str in rows_pat2:
+            for name, price_str, chg_str in rows_pat:
                 try:
                     price = float(price_str.replace(",", ""))
                     chg = float(chg_str)
@@ -1099,6 +1120,52 @@ def fetch_realestate_kr():
         except Exception as e:
             log(f"[R-ONE-legacy] 오류: {e}")
 
+    # ─── R-ONE 추가 시리즈: 미분양 / 인허가 / 착공 / 월간 거래량 ──
+    extra_stats = [
+        # (key,                desc,                            statbl_id,        period_type)
+        ("unsold_kr",          "전국 미분양 주택 수",            "A_2024_00064",  "M"),
+        ("permit_kr",          "주택 인허가 실적 (전국)",       "A_2024_00058",  "M"),
+        ("start_kr",           "주택 착공 실적 (전국)",          "A_2024_00057",  "M"),
+        ("complete_kr",        "주택 준공 실적 (전국)",          "A_2024_00059",  "M"),
+        ("trade_count_kr_rone","전국 주택 매매 거래량 (R-ONE)",  "A_2024_00061",  "M"),
+    ]
+    for key, desc, statbl_id, period_type in extra_stats:
+        try:
+            rows = fetch_rone_stats(statbl_id, period_type=period_type, limit=24)
+            if not rows:
+                log(f"[R-ONE] {statbl_id} ({key}): 응답 없음 — 건너뜀")
+                continue
+            rows_sorted = sorted(rows, key=lambda r: r.get("WRTTIME_IDTFR_ID", ""))
+            # 전국 (CL_NM == '전국') 행만 필터
+            nationwide = [r for r in rows_sorted
+                          if (r.get("CL_NM", "") in ("전국", "") or
+                              "전국" in (r.get("CLS_NM", "") or ""))]
+            target_rows = nationwide if nationwide else rows_sorted
+            latest = target_rows[-1]
+            val = _parse_num(latest.get("DTA_VAL"))
+            if val is None: continue
+            prev = _parse_num(target_rows[-2].get("DTA_VAL")) if len(target_rows) > 1 else None
+            chg  = round((val - prev) / prev * 100, 2) if prev and prev != 0 else None
+            history = {}
+            for row in target_rows:
+                p = row.get("WRTTIME_IDTFR_ID")
+                v = _parse_num(row.get("DTA_VAL"))
+                if p and v is not None:
+                    history[p] = v
+            result[key] = {
+                "value":  round(val, 2),
+                "prev":   prev,
+                "chg":    chg,
+                "period": latest.get("WRTTIME_IDTFR_ID"),
+                "region": "전국",
+                "desc":   desc,
+                "source": f"R-ONE:{statbl_id}",
+                "history": history,
+            }
+            log(f"[R-ONE] {key} ({statbl_id}): {val} ({latest.get('WRTTIME_IDTFR_ID')})")
+        except Exception as e:
+            log(f"[R-ONE] {key} ({statbl_id}) 오류: {e}")
+
     return result
 
 
@@ -1296,6 +1363,113 @@ def fetch_exim_intl_rate():
 
 
 # ============================================================
+# 산업통상자원부 — motir.go.kr 원자재 가격 (광물자원공사)
+# ============================================================
+def fetch_motir_commodities():
+    """광물자원공사(MOTIR) 일일 원자재 가격 크롤링.
+
+    https://www.motir.go.kr/kor/contents/103
+    페이지에서 비철금속/귀금속/희소금속 일일 가격을 추출.
+    Returns: {item: {price, change, unit, as_of}} or None
+    """
+    try:
+        import re as _re
+        r = requests.get(
+            f"{MOTIR_BASE}/kor/contents/103",
+            timeout=20,
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; FinanceCrawler/1.0)",
+                "Accept-Language": "ko-KR,ko;q=0.9",
+            },
+            verify=False,
+        )
+        if r.status_code != 200:
+            log(f"[MOTIR] HTTP {r.status_code}")
+            return None
+        r.encoding = "utf-8"
+        html = r.text
+        items = {}
+        # 표 형식 추출 — 일반적으로 <tr>품목명</td><td>가격</td><td>변동</td>...
+        # 우선 광물자원 공시 형식 패턴 시도
+        # 패턴: <td>구리</td><td>9,234.50</td><td>+0.45%</td>
+        rows = _re.findall(
+            r'<t[dh][^>]*>\s*(구리|알루미늄|아연|니켈|납|주석|금|은|백금|팔라듐|텅스텐|몰리브덴|망간|리튬|코발트|희토류)[^<]*</t[dh]>'
+            r'\s*(?:<t[dh][^>]*>[^<]*</t[dh]>)*?'
+            r'\s*<t[dh][^>]*>([\d,\.]+)</t[dh]>',
+            html, _re.DOTALL,
+        )
+        for name, price_str in rows:
+            v = _parse_num(price_str)
+            if v and v > 0:
+                items[name] = {"price": v, "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                               "source": "motir.go.kr 광물자원공사"}
+        if items:
+            log(f"[MOTIR] {len(items)}개 원자재 가격 수집 ({', '.join(items.keys())[:60]})")
+            return items
+        log("[MOTIR] 표 형식 매칭 실패 — HTML 구조 변경 가능")
+        return None
+    except Exception as e:
+        log(f"[MOTIR] 크롤링 오류: {e}")
+        return None
+
+
+# ============================================================
+# 국민연금 자산배분 (NPS) — fund.nps.or.kr 공시
+# ============================================================
+def fetch_nps_allocation():
+    """국민연금 자산배분 현황 크롤링.
+
+    출처: https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do
+    JSON 응답이 있으면 사용, 없으면 HTML 파싱.
+    """
+    try:
+        import re as _re
+        # NPS는 EVE 형식 (REST POST + body로 paramset)
+        url = "https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do"
+        r = requests.post(
+            url,
+            data={"paramset": "{}"},
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "text/html,application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": "https://fund.nps.or.kr/",
+            },
+            timeout=20,
+            verify=False,
+        )
+        if r.status_code != 200:
+            log(f"[NPS] 자산배분 HTTP {r.status_code}")
+            return None
+        r.encoding = "utf-8"
+        # HTML 안에서 자산비중 추출 (테이블 형식)
+        html = r.text
+        items = []
+        # 형식: <td>국내주식</td>... <td>비중(%)</td><td>14.9</td>
+        patterns = [
+            (r'국내주식.*?([\d.]+)%', '국내주식'),
+            (r'해외주식.*?([\d.]+)%', '해외주식'),
+            (r'국내채권.*?([\d.]+)%', '국내채권'),
+            (r'해외채권.*?([\d.]+)%', '해외채권'),
+            (r'대체투자.*?([\d.]+)%', '대체투자'),
+        ]
+        for pat, asset_name in patterns:
+            m = _re.search(pat, html, _re.DOTALL)
+            if m:
+                pct = _parse_num(m.group(1))
+                if pct:
+                    items.append({"asset": asset_name, "pct": pct})
+        if items:
+            log(f"[NPS] 자산배분 {len(items)}개 수집")
+            return {"allocation": items, "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                    "source": "fund.nps.or.kr"}
+        return None
+    except Exception as e:
+        log(f"[NPS] 자산배분 크롤링 오류: {e}")
+        return None
+
+
+# ============================================================
 # VKOSPI (KOSPI200 변동성 지수)
 # ============================================================
 def fetch_vkospi():
@@ -1367,27 +1541,77 @@ def fetch_move_index():
 
 
 def fetch_putcall_ratio():
-    """CBOE Put/Call Ratio (시장 옵션 심리)."""
-    # CBOE 직접 CSV 다운로드 시도
+    """CBOE Put/Call Ratio (시장 옵션 심리).
+
+    다중 소스 폴백:
+    1) Stooq ^pcc (Total Put/Call Ratio)
+    2) CBOE 직접 페이지에서 최신 일별 데이터
+    3) yfinance ^PCC
+    4) Alpha Vantage (있는 경우)
+
+    또한 과거 시계열을 함께 수집 (history)
+    """
+    # 1) Stooq — CSV 직접 다운로드
+    history = {}
+    latest = None
     try:
-        url = "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
-        # 위 URL은 VIX. P/C Ratio는 별도 페이지지만, FRED 시리즈로 대체 가능
-        # FRED 시리즈: 없음 (CBOE 단독)
-        # Stooq의 ^pcc 사용
         r = requests.get("https://stooq.com/q/d/l/?s=%5Epcc&i=d&o=1110000", timeout=15)
         if r.status_code == 200 and r.text:
             lines = [l for l in r.text.strip().split("\n") if l and not l.startswith("Date")]
-            if lines:
-                last = lines[-1].split(",")
-                if len(last) >= 5:
-                    v = _parse_num(last[4])
+            for ln in lines[-60:]:  # 최근 60일
+                parts = ln.split(",")
+                if len(parts) >= 5:
+                    dt = parts[0].strip()
+                    # 종가 (4번째 컬럼) 또는 시가 (1번째)
+                    v = _parse_num(parts[4]) or _parse_num(parts[1])
                     if v and 0.1 < v < 5.0:
-                        log(f"[PCR] Stooq: {v}")
-                        return {"value": v,
-                                "as_of": last[0],
-                                "source": "Stooq ^pcc"}
+                        history[dt] = v
+            if history:
+                latest_date = sorted(history.keys())[-1]
+                latest = history[latest_date]
+                log(f"[PCR] Stooq: {latest} ({latest_date}, +{len(history)}점 시계열)")
+                return {"value": latest, "as_of": latest_date,
+                        "history": history, "source": "Stooq ^pcc"}
     except Exception as e:
         log(f"[PCR] Stooq 오류: {e}")
+
+    # 2) CBOE 직접 (Equity Put/Call Ratio)
+    try:
+        r = requests.get(
+            "https://cdn.cboe.com/api/global/us_indices/daily_prices/EQUITYPC_History.csv",
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        if r.status_code == 200 and r.text:
+            lines = [l for l in r.text.strip().split("\n") if l and not l.startswith("DATE")]
+            for ln in lines[-60:]:
+                parts = ln.split(",")
+                if len(parts) >= 2:
+                    dt = parts[0].strip()
+                    v = _parse_num(parts[1])
+                    if v and 0.1 < v < 5.0:
+                        history[dt] = v
+            if history:
+                latest_date = sorted(history.keys())[-1]
+                latest = history[latest_date]
+                log(f"[PCR] CBOE Equity: {latest} ({latest_date})")
+                return {"value": latest, "as_of": latest_date,
+                        "history": history, "source": "CBOE Equity P/C"}
+    except Exception as e:
+        log(f"[PCR] CBOE 오류: {e}")
+
+    # 3) yfinance ^PCC
+    try:
+        q = fetch_yf("^PCC")
+        if q and q.get("price") and 0.1 < q["price"] < 5.0:
+            log(f"[PCR] yfinance: {q['price']}")
+            return {"value": q["price"], "change": q.get("change", 0),
+                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                    "source": "yfinance ^PCC"}
+    except Exception as e:
+        log(f"[PCR] yfinance 오류: {e}")
+
+    log("[PCR] 데이터 수집 실패")
     return None
 
 
@@ -1415,6 +1639,226 @@ def fetch_fx_spot():
     except Exception as e:
         log(f"[FX] open.er-api 오류: {e}")
         return None
+
+
+# ============================================================
+# 한국투자증권 KIS Developers API
+# ============================================================
+_KIS_TOKEN_CACHE = {"token": None, "expires_at": 0}
+
+def kis_get_token():
+    """KIS OAuth 2.0 토큰 발급 — 1일 1회 발급으로 충분 (24h 유효)."""
+    import time
+    if not KIS_APP_KEY or not KIS_APP_SECRET:
+        return None
+    if _KIS_TOKEN_CACHE["token"] and _KIS_TOKEN_CACHE["expires_at"] > time.time() + 60:
+        return _KIS_TOKEN_CACHE["token"]
+    try:
+        r = requests.post(
+            f"{KIS_BASE}/oauth2/tokenP",
+            json={
+                "grant_type": "client_credentials",
+                "appkey": KIS_APP_KEY,
+                "appsecret": KIS_APP_SECRET,
+            },
+            timeout=15,
+        )
+        if r.status_code != 200:
+            log(f"[KIS] 토큰 발급 실패: HTTP {r.status_code} {r.text[:200]}")
+            return None
+        j = r.json()
+        tok = j.get("access_token")
+        exp = j.get("expires_in", 86400)
+        if not tok:
+            log(f"[KIS] 토큰 응답에 access_token 없음: {j}")
+            return None
+        _KIS_TOKEN_CACHE["token"] = tok
+        _KIS_TOKEN_CACHE["expires_at"] = time.time() + int(exp) - 60
+        log(f"[KIS] 토큰 발급 성공 (만료까지 {exp}초)")
+        return tok
+    except Exception as e:
+        log(f"[KIS] 토큰 발급 오류: {e}")
+        return None
+
+
+def kis_request(path, tr_id, params=None):
+    """KIS API 공통 GET 요청 헬퍼."""
+    token = kis_get_token()
+    if not token:
+        return None
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "authorization": f"Bearer {token}",
+        "appkey": KIS_APP_KEY,
+        "appsecret": KIS_APP_SECRET,
+        "tr_id": tr_id,
+        "custtype": "P",
+    }
+    try:
+        r = requests.get(f"{KIS_BASE}{path}", headers=headers, params=params or {}, timeout=15)
+        if r.status_code != 200:
+            log(f"[KIS] {path} {tr_id} HTTP {r.status_code}: {r.text[:200]}")
+            return None
+        return r.json()
+    except Exception as e:
+        log(f"[KIS] {path} 오류: {e}")
+        return None
+
+
+def fetch_kis_index_quote(market_code):
+    """KIS API로 KOSPI/KOSDAQ 지수 조회.
+
+    market_code: '0001' (KOSPI), '1001' (KOSDAQ)
+    """
+    # 국내업종 현재가 조회 (FHPUP02100000): tr_id 'FHPUP02100000'
+    res = kis_request(
+        "/uapi/domestic-stock/v1/quotations/inquire-index-price",
+        "FHPUP02100000",
+        params={
+            "FID_COND_MRKT_DIV_CODE": "U",
+            "FID_INPUT_ISCD": market_code,
+        },
+    )
+    if not res or res.get("rt_cd") != "0":
+        return None
+    out = res.get("output", {})
+    price = _parse_num(out.get("bstp_nmix_prpr"))
+    chg_pct = _parse_num(out.get("bstp_nmix_prdy_ctrt"))
+    if not price:
+        return None
+    return {"price": round(price, 2), "change": round(chg_pct or 0.0, 2),
+            "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+            "source": "KIS OpenAPI"}
+
+
+def fetch_kis_stock_quote(stock_code):
+    """KIS API로 개별 종목 시세 조회 (6자리 종목코드)."""
+    res = kis_request(
+        "/uapi/domestic-stock/v1/quotations/inquire-price",
+        "FHKST01010100",
+        params={
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": stock_code,
+        },
+    )
+    if not res or res.get("rt_cd") != "0":
+        return None
+    out = res.get("output", {})
+    return {
+        "price":  _parse_num(out.get("stck_prpr")),
+        "change": _parse_num(out.get("prdy_ctrt")),
+        "volume": _parse_num(out.get("acml_vol")),
+        "high":   _parse_num(out.get("stck_hgpr")),
+        "low":    _parse_num(out.get("stck_lwpr")),
+        "open":   _parse_num(out.get("stck_oprc")),
+        "as_of":  datetime.now(KST).strftime("%Y-%m-%d"),
+        "source": "KIS OpenAPI",
+    }
+
+
+def fetch_kis_index_dailyprice(market_code, period_days=60):
+    """KIS API로 지수 일별 시세 조회 (시계열)."""
+    end_dt = datetime.now(KST).strftime("%Y%m%d")
+    start_dt = (datetime.now(KST) - timedelta(days=period_days*2)).strftime("%Y%m%d")
+    res = kis_request(
+        "/uapi/domestic-stock/v1/quotations/inquire-index-daily-price",
+        "FHPUP02120000",
+        params={
+            "FID_COND_MRKT_DIV_CODE": "U",
+            "FID_INPUT_ISCD": market_code,
+            "FID_INPUT_DATE_1": start_dt,
+            "FID_INPUT_DATE_2": end_dt,
+            "FID_PERIOD_DIV_CODE": "D",
+        },
+    )
+    if not res or res.get("rt_cd") != "0":
+        return None
+    out = res.get("output2") or res.get("output") or []
+    series = []
+    for r in out:
+        date = r.get("stck_bsop_date")
+        close = _parse_num(r.get("bstp_nmix_prpr") or r.get("clos_prc"))
+        if date and close:
+            series.append({"date": f"{date[:4]}-{date[4:6]}-{date[6:8]}", "close": close})
+    series.sort(key=lambda x: x["date"])
+    return series if series else None
+
+
+def fetch_kis_stock_movers(top_n=10):
+    """KIS API로 KOSPI/KOSDAQ 상승/하락 Top 종목 조회.
+
+    국내주식 등락률 순위 조회 (FHPST01700000)
+    """
+    out_gainers, out_losers = [], []
+    for market_code, label in [("0000", "KOSPI"), ("1001", "KOSDAQ")]:
+        # 상승률 순위
+        res_up = kis_request(
+            "/uapi/domestic-stock/v1/ranking/fluctuation",
+            "FHPST01700000",
+            params={
+                "fid_cond_mrkt_div_code": "J",
+                "fid_cond_scr_div_code": "20170",
+                "fid_input_iscd": market_code,
+                "fid_rank_sort_cls_code": "0",  # 0=상승, 1=하락
+                "fid_input_cnt_1": "0",
+                "fid_prc_cls_code": "1",
+                "fid_input_price_1": "",
+                "fid_input_price_2": "",
+                "fid_vol_cnt": "",
+                "fid_trgt_cls_code": "0",
+                "fid_trgt_exls_cls_code": "0",
+                "fid_div_cls_code": "0",
+                "fid_rsfl_rate1": "",
+                "fid_rsfl_rate2": "",
+            },
+        )
+        if res_up and res_up.get("rt_cd") == "0":
+            rows = (res_up.get("output") or [])[:top_n]
+            for r in rows:
+                out_gainers.append({
+                    "name": r.get("hts_kor_isnm", "").strip(),
+                    "code": r.get("stck_shrn_iscd", "").strip(),
+                    "price": _parse_num(r.get("stck_prpr")) or 0,
+                    "chg":   _parse_num(r.get("prdy_ctrt")) or 0,
+                    "vol":   _parse_num(r.get("acml_vol")) or 0,
+                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                })
+        # 하락률 순위 — 정렬 변경
+        res_dn = kis_request(
+            "/uapi/domestic-stock/v1/ranking/fluctuation",
+            "FHPST01700000",
+            params={
+                "fid_cond_mrkt_div_code": "J",
+                "fid_cond_scr_div_code": "20170",
+                "fid_input_iscd": market_code,
+                "fid_rank_sort_cls_code": "1",  # 하락
+                "fid_input_cnt_1": "0",
+                "fid_prc_cls_code": "1",
+                "fid_input_price_1": "",
+                "fid_input_price_2": "",
+                "fid_vol_cnt": "",
+                "fid_trgt_cls_code": "0",
+                "fid_trgt_exls_cls_code": "0",
+                "fid_div_cls_code": "0",
+                "fid_rsfl_rate1": "",
+                "fid_rsfl_rate2": "",
+            },
+        )
+        if res_dn and res_dn.get("rt_cd") == "0":
+            rows = (res_dn.get("output") or [])[:top_n]
+            for r in rows:
+                out_losers.append({
+                    "name": r.get("hts_kor_isnm", "").strip(),
+                    "code": r.get("stck_shrn_iscd", "").strip(),
+                    "price": _parse_num(r.get("stck_prpr")) or 0,
+                    "chg":   _parse_num(r.get("prdy_ctrt")) or 0,
+                    "vol":   _parse_num(r.get("acml_vol")) or 0,
+                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                })
+        if out_gainers or out_losers:
+            log(f"[KIS] {label} 상승/하락 {len(out_gainers)}/{len(out_losers)}건 수집")
+            break  # KOSPI 성공 시 KOSDAQ 건너뜀 (중복 방지)
+    return out_gainers[:top_n], out_losers[:top_n]
 
 
 def fetch_yf(symbol):
@@ -1606,7 +2050,19 @@ def build_data():
     else:
         log("[KRX] API 키 없음 — Naver Finance 폴백 시도")
 
-    # 주식 상승/하락 Top10이 비어 있으면 Naver Finance 폴백 (KRX 권한 미가입 케이스)
+    # 주식 상승/하락 Top10이 비어 있으면 KIS API → Naver Finance 폴백
+    # KIS (한국투자증권 Open API) 는 KRX 권한 없이도 실시간 시세 제공
+    if not data["stockMovers"].get("kospiGainers") or not data["stockMovers"].get("kospiLosers"):
+        if KIS_APP_KEY and KIS_APP_SECRET:
+            try:
+                kis_gainers, kis_losers = fetch_kis_stock_movers(top_n=10)
+                if kis_gainers and not data["stockMovers"].get("kospiGainers"):
+                    data["stockMovers"]["kospiGainers"] = kis_gainers
+                    data["sources"]["stockMovers"] = "KIS OpenAPI (한국투자증권)"
+                if kis_losers and not data["stockMovers"].get("kospiLosers"):
+                    data["stockMovers"]["kospiLosers"] = kis_losers
+            except Exception as e:
+                log(f"[KIS] 상승/하락 종목 조회 오류: {e}")
     if not data["stockMovers"].get("kospiGainers") or not data["stockMovers"].get("kospiLosers"):
         gainers, losers = fetch_naver_stock_movers(market="kospi", top_n=10)
         if gainers and not data["stockMovers"].get("kospiGainers"):
@@ -1827,6 +2283,26 @@ def build_data():
         except Exception as e:
             log(f"[EXIM] 환율 오류: {e}")
 
+    # ── 광물자원공사 (motir.go.kr) 원자재 가격 크롤링 ──────────
+    try:
+        log("[MOTIR] 광물자원공사 원자재 가격 수집 시작")
+        motir_data = fetch_motir_commodities()
+        if motir_data:
+            data["commoditiesKr"] = motir_data
+            data["sources"]["commoditiesKr"] = "motir.go.kr 광물자원공사"
+    except Exception as e:
+        log(f"[MOTIR] 오류: {e}")
+
+    # ── 국민연금 자산배분 (NPS) ──────────────────────
+    try:
+        log("[NPS] 자산배분 크롤링 시작")
+        nps_data = fetch_nps_allocation()
+        if nps_data:
+            data["nps"] = nps_data
+            data["sources"]["nps"] = nps_data.get("source", "fund.nps.or.kr")
+    except Exception as e:
+        log(f"[NPS] 오류: {e}")
+
     # ── 시계열 데이터 (FX/지수/원자재 5년치) ──────────────────
     # 프런트엔드 차트가 더미(genSeries) 대신 실제 데이터를 사용하기 위함
     try:
@@ -1850,6 +2326,7 @@ if __name__ == "__main__":
         ("KOSIS",       KOSIS_API_KEY),
         ("data.go.kr",  DATA_GO_KR_API_KEY),
         ("EXIM",        EXIM_API_KEY),
+        ("KIS",         KIS_APP_KEY),
     ]:
         if key:
             log(f"[{name}] API 키 설정됨 ({key[:4]}...{key[-4:]})")

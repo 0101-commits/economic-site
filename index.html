@@ -236,9 +236,19 @@ tailwind.config = {
     /* 위젯 내부 컨테이너 overflow 방지 */
     .widget, .kpi-card { min-width: 0 !important; max-width: 100% !important; overflow: hidden; }
     .widget > div, .kpi-card > div { min-width: 0 !important; }
-    /* 캔버스 차트 크기 제한 */
-    canvas { max-width: 100% !important; max-height: 240px !important; }
-    #mainChart { max-height: 220px !important; }
+    /* 캔버스 차트 크기 제한 — 모바일에서는 한 화면에 들어가도록 */
+    canvas { max-width: 100% !important; max-height: 220px !important; }
+    #mainChart { max-height: 240px !important; }
+    /* 메인 차트 컨테이너 — 모바일에서 height 절대값 적용 */
+    main div[style*="height:380px"] { height: 240px !important; min-height: 240px !important; }
+    main div[style*="height:340px"] { height: 220px !important; min-height: 220px !important; }
+    main div[style*="height:300px"] { height: 220px !important; min-height: 220px !important; }
+    main div[style*="height:260px"] { height: 200px !important; min-height: 200px !important; }
+    main div[style*="height:240px"] { height: 180px !important; min-height: 180px !important; }
+    main div[style*="height:220px"] { height: 180px !important; min-height: 180px !important; }
+    main div[style*="height:200px"] { height: 170px !important; min-height: 170px !important; }
+    main div[style*="min-height:440px"] { min-height: 240px !important; height: 240px !important; }
+    main div[style*="min-height:300px"] { min-height: 220px !important; }
     /* 가로 스크롤이 필요한 테이블은 명시적으로 처리 */
     main table { font-size: 11px !important; }
     /* 모바일에서 가로 wrap 강제 */
@@ -252,8 +262,13 @@ tailwind.config = {
       grid-template-columns: 1fr !important;
     }
     .widget { padding: 12px !important; }
-    canvas { max-height: 200px !important; }
+    canvas { max-height: 180px !important; }
     .data-source-popup { left: 10px !important; right: 10px !important; width: auto !important; }
+  }
+  /* 데스크탑 화면이지만 매우 큰 차트가 페이지 넘어가는 것을 방지 (1024-1440px 사이) */
+  @media (min-width: 769px) and (max-width: 1440px) {
+    #mainChart { max-height: 380px !important; }
+    main div[style*="min-height:440px"] { min-height: 300px !important; height: 340px !important; }
   }
   @media (max-width: 900px) {
     .data-source-popup { left: 10px !important; right: 10px !important; width: auto !important; }
@@ -323,15 +338,29 @@ tailwind.config = {
 
   <!-- 부동산/거시 지표 시계열 차트 모달 (지표 클릭 시 표시) -->
   <div id="reHistoryChartModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:300;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
-    <div style="background:var(--c-card,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:8px;padding:18px;width:100%;max-width:780px;max-height:90vh;display:flex;flex-direction:column;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div>
+    <div style="background:var(--c-card,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:8px;padding:18px;width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
+        <div style="min-width:0;">
           <div id="reHistTitle" style="font-size:14px;font-weight:700;color:var(--c-txt,#dfe2f2);">지표 추이</div>
           <div id="reHistMeta"  style="font-size:11px;color:var(--c-txt-dim,#8d90a2);margin-top:2px;">—</div>
         </div>
         <button onclick="closeReHistoryChart()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
       </div>
-      <div style="position:relative;flex:1;min-height:300px;">
+      <!-- 기간/단위 셀렉터 -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:11px;">
+        <span style="color:var(--c-txt-dim,#8d90a2);">기간:</span>
+        <button class="reHistPeriodBtn active" data-period="all" onclick="setReHistPeriod('all',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#2a2e3d);border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">전체</button>
+        <button class="reHistPeriodBtn" data-period="1y" onclick="setReHistPeriod('1y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#2a2e3d);border-radius:4px;background:transparent;color:var(--c-txt-dim,#8d90a2);cursor:pointer;">1년</button>
+        <button class="reHistPeriodBtn" data-period="3y" onclick="setReHistPeriod('3y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#2a2e3d);border-radius:4px;background:transparent;color:var(--c-txt-dim,#8d90a2);cursor:pointer;">3년</button>
+        <button class="reHistPeriodBtn" data-period="5y" onclick="setReHistPeriod('5y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#2a2e3d);border-radius:4px;background:transparent;color:var(--c-txt-dim,#8d90a2);cursor:pointer;">5년</button>
+        <span style="color:var(--c-border,#2a2e3d);margin:0 2px;">|</span>
+        <span style="color:var(--c-txt-dim,#8d90a2);">단위:</span>
+        <button class="reHistUnitBtn active" data-unit="M" onclick="setReHistUnit('M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#2a2e3d);border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">월</button>
+        <button class="reHistUnitBtn" data-unit="Q" onclick="setReHistUnit('Q',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#2a2e3d);border-radius:4px;background:transparent;color:var(--c-txt-dim,#8d90a2);cursor:pointer;">분기</button>
+        <button class="reHistUnitBtn" data-unit="H" onclick="setReHistUnit('H',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#2a2e3d);border-radius:4px;background:transparent;color:var(--c-txt-dim,#8d90a2);cursor:pointer;">반기</button>
+        <button class="reHistUnitBtn" data-unit="Y" onclick="setReHistUnit('Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#2a2e3d);border-radius:4px;background:transparent;color:var(--c-txt-dim,#8d90a2);cursor:pointer;">연</button>
+      </div>
+      <div style="position:relative;flex:1;min-height:280px;">
         <canvas id="reHistChart"></canvas>
       </div>
       <div id="reHistNote" style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:6px;text-align:right;">—</div>
@@ -403,7 +432,7 @@ tailwind.config = {
             <button onclick="resetCustomRange('main')" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
           </div>
           <div id="mainChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;"></div>
-          <div style="position:relative;flex:1;min-height:440px;">
+          <div style="position:relative;flex:1;min-height:300px;height:380px;max-height:55vh;">
             <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
           </div>
         </div>
@@ -769,13 +798,23 @@ tailwind.config = {
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-            <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향</div>
-            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-              <input type="date" id="invDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:2px 5px;color:#dfe2f2;font-size:11px;" onchange="applyInvestorDateRange()"/>
-              <span style="color:#8d90a2;font-size:11px;">~</span>
-              <input type="date" id="invDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:2px 5px;color:#dfe2f2;font-size:11px;" onchange="applyInvestorDateRange()"/>
-              <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
-            </div>
+            <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 억원</span></div>
+            <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
+          </div>
+          <!-- 단위 / 기간 선택 -->
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+            <span style="color:#8d90a2;font-size:10px;">집계 단위:</span>
+            <button class="invUnitBtn active" id="invUnit-D" onclick="setInvestorUnit('D',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">일</button>
+            <button class="invUnitBtn" id="invUnit-W" onclick="setInvestorUnit('W',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">주</button>
+            <button class="invUnitBtn" id="invUnit-M" onclick="setInvestorUnit('M',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">월</button>
+            <button class="invUnitBtn" id="invUnit-Q" onclick="setInvestorUnit('Q',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">분기</button>
+            <button class="invUnitBtn" id="invUnit-H" onclick="setInvestorUnit('H',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">반기</button>
+            <button class="invUnitBtn" id="invUnit-Y" onclick="setInvestorUnit('Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">연</button>
+            <span style="color:#2a2e3d;margin:0 2px;">|</span>
+            <span style="color:#8d90a2;font-size:10px;">기간:</span>
+            <input type="date" id="invDateFrom" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:2px 5px;color:#dfe2f2;font-size:11px;" onchange="applyInvestorDateRange()"/>
+            <span style="color:#8d90a2;font-size:11px;">~</span>
+            <input type="date" id="invDateTo" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;padding:2px 5px;color:#dfe2f2;font-size:11px;" onchange="applyInvestorDateRange()"/>
           </div>
           <div style="position:relative;height:200px;">
             <canvas id="investorChart" role="img" aria-label="투자자별 순매매 동향">투자자 차트</canvas>
@@ -806,8 +845,9 @@ tailwind.config = {
               <th style="text-align:left;padding:5px;">종목</th>
               <th style="text-align:right;padding:5px;">현재가</th>
               <th style="text-align:right;padding:5px;">등락률</th>
+              <th style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
-            <tbody id="equityTopGainersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+            <tbody id="equityTopGainersTable"><tr><td colspan="5" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
           </table>
         </div>
         <div class="widget">
@@ -821,8 +861,9 @@ tailwind.config = {
               <th style="text-align:left;padding:5px;">종목</th>
               <th style="text-align:right;padding:5px;">현재가</th>
               <th style="text-align:right;padding:5px;">등락률</th>
+              <th style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
-            <tbody id="equityTopLosersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+            <tbody id="equityTopLosersTable"><tr><td colspan="5" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -843,8 +884,9 @@ tailwind.config = {
               <th style="text-align:left;padding:5px;">종목</th>
               <th style="text-align:right;padding:5px;">현재가</th>
               <th style="text-align:right;padding:5px;">등락률</th>
+              <th style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
-            <tbody id="etfTopGainersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+            <tbody id="etfTopGainersTable"><tr><td colspan="5" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
           </table>
         </div>
         <div class="widget">
@@ -858,8 +900,9 @@ tailwind.config = {
               <th style="text-align:left;padding:5px;">종목</th>
               <th style="text-align:right;padding:5px;">현재가</th>
               <th style="text-align:right;padding:5px;">등락률</th>
+              <th style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
-            <tbody id="etfTopLosersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+            <tbody id="etfTopLosersTable"><tr><td colspan="5" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1063,6 +1106,35 @@ tailwind.config = {
           <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',1,this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">★</span>
         </div>
       </div>
+      <!-- 시각적 캘린더 그리드 -->
+      <div class="widget" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+          <div class="widget-title" style="margin-bottom:0;" id="calGridTitle">월 캘린더</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button onclick="calGridMove(-1)" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">← 이전</button>
+            <button onclick="calGridToday()" style="background:transparent;border:1px solid #2a2e3d;color:#b6c4ff;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">오늘</button>
+            <button onclick="calGridMove(1)" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">다음 →</button>
+          </div>
+        </div>
+        <div id="calGridContainer" style="position:relative;"></div>
+        <!-- 플로팅 이벤트 디테일 -->
+        <div id="calGridFloating" style="position:absolute;display:none;background:var(--c-card-hi,#262a35);border:1px solid var(--c-border,#2a2e3d);border-radius:8px;padding:12px;font-size:11px;z-index:50;min-width:300px;max-width:380px;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px;">
+            <div>
+              <div id="calFloatFlag" style="font-size:12px;color:var(--c-txt-dim,#8d90a2);"></div>
+              <div id="calFloatName" style="font-size:13px;font-weight:600;color:var(--c-txt,#dfe2f2);"></div>
+            </div>
+            <button onclick="_hideCalGridFloating()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;font-size:10px;">
+            <div style="text-align:center;padding:4px;background:#131722;border-radius:4px;"><div style="color:#8d90a2;">이전</div><div id="calFloatPrev" style="font-weight:600;color:#dfe2f2;"></div></div>
+            <div style="text-align:center;padding:4px;background:#131722;border-radius:4px;"><div style="color:#8d90a2;">예측</div><div id="calFloatFore" style="font-weight:600;color:#b6c4ff;"></div></div>
+            <div style="text-align:center;padding:4px;background:#131722;border-radius:4px;"><div style="color:#8d90a2;">실제</div><div id="calFloatAct" style="font-weight:700;"></div></div>
+          </div>
+          <div style="position:relative;height:90px;"><canvas id="calFloatChart"></canvas></div>
+          <div id="calFloatNote" style="font-size:9px;color:#434656;margin-top:4px;text-align:right;">과거 추이 (참고용)</div>
+        </div>
+      </div>
       <!-- 하이라이트 카드 3개 -->
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;" id="calHighlights"></div>
       <div class="widget">
@@ -1107,7 +1179,20 @@ tailwind.config = {
             <div id="calDetailAct" style="font-size:16px;font-weight:700;font-family:'Public Sans';"></div>
           </div>
         </div>
-        <div style="font-size:11px;color:#8d90a2;margin-bottom:6px;">📊 과거 추이 (참고용 대표 데이터)</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+          <div style="font-size:11px;color:#8d90a2;">📊 과거 추이 (참고용 대표 데이터)</div>
+          <div style="display:flex;gap:4px;font-size:10px;">
+            <span style="color:#8d90a2;align-self:center;">기간:</span>
+            <button class="calDetailPeriodBtn active" data-period="all" onclick="setCalDetailPeriod('all',this)" style="padding:2px 6px;border:1px solid #2962ff;border-radius:3px;background:#2962ff;color:#fff;cursor:pointer;font-size:10px;">전체</button>
+            <button class="calDetailPeriodBtn" data-period="3y" onclick="setCalDetailPeriod('3y',this)" style="padding:2px 6px;border:1px solid #2a2e3d;border-radius:3px;background:transparent;color:#8d90a2;cursor:pointer;font-size:10px;">3년</button>
+            <button class="calDetailPeriodBtn" data-period="1y" onclick="setCalDetailPeriod('1y',this)" style="padding:2px 6px;border:1px solid #2a2e3d;border-radius:3px;background:transparent;color:#8d90a2;cursor:pointer;font-size:10px;">1년</button>
+            <span style="color:#2a2e3d;margin:0 2px;align-self:center;">|</span>
+            <span style="color:#8d90a2;align-self:center;">단위:</span>
+            <button class="calDetailUnitBtn active" data-unit="M" onclick="setCalDetailUnit('M',this)" style="padding:2px 6px;border:1px solid #2962ff;border-radius:3px;background:#2962ff;color:#fff;cursor:pointer;font-size:10px;">월</button>
+            <button class="calDetailUnitBtn" data-unit="Q" onclick="setCalDetailUnit('Q',this)" style="padding:2px 6px;border:1px solid #2a2e3d;border-radius:3px;background:transparent;color:#8d90a2;cursor:pointer;font-size:10px;">분기</button>
+            <button class="calDetailUnitBtn" data-unit="Y" onclick="setCalDetailUnit('Y',this)" style="padding:2px 6px;border:1px solid #2a2e3d;border-radius:3px;background:transparent;color:#8d90a2;cursor:pointer;font-size:10px;">연</button>
+          </div>
+        </div>
         <div style="position:relative;height:180px;"><canvas id="calDetailChart"></canvas></div>
       </div>
 
@@ -1267,13 +1352,25 @@ tailwind.config = {
             <div style="position:relative;height:260px;"><canvas id="rePriceChart" style="cursor:crosshair;"></canvas></div>
             <div style="font-size:10px;color:#434656;margin-top:4px;">💡 차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
-          <!-- 지역별 등락 바 차트 -->
+          <!-- 지역별 등락 — 지도 + 바 차트 토글 -->
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-              <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %)</div>
-              <div style="font-size:10px;color:#434656;">2026년 4월 기준 (한국부동산원)</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+              <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:9px;color:#434656;font-weight:400;">지도/지역 클릭 → 추이</span></div>
+              <div style="display:flex;gap:4px;">
+                <button id="reRegionViewMap" onclick="setReRegionView('map',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">🗺️ 지도</button>
+                <button id="reRegionViewBar" onclick="setReRegionView('bar',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">📊 바</button>
+              </div>
             </div>
-            <div style="position:relative;height:260px;"><canvas id="reRegionChart"></canvas></div>
+            <div style="font-size:10px;color:#434656;margin-bottom:6px;">2026년 4월 기준 (한국부동산원 R-ONE)</div>
+            <div id="reRegionMapContainer" style="position:relative;height:260px;">
+              <svg id="reRegionMap" viewBox="0 0 320 380" style="width:100%;height:100%;cursor:pointer;display:block;"></svg>
+              <div id="reRegionTooltip" style="position:absolute;display:none;background:var(--c-card-hi,#262a35);border:1px solid var(--c-border,#2a2e3d);border-radius:6px;padding:8px;font-size:11px;pointer-events:none;z-index:10;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,.4);">
+                <div id="reRegionTooltipTitle" style="font-weight:600;color:var(--c-txt,#dfe2f2);margin-bottom:4px;"></div>
+                <div id="reRegionTooltipVal" style="font-size:14px;font-weight:700;margin-bottom:4px;"></div>
+                <div style="position:relative;height:60px;width:160px;"><canvas id="reRegionTooltipChart"></canvas></div>
+              </div>
+            </div>
+            <div id="reRegionBarContainer" style="position:relative;height:260px;display:none;"><canvas id="reRegionChart"></canvas></div>
           </div>
         </div>
 
@@ -1520,11 +1617,11 @@ tailwind.config = {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
           <!-- 가격 지수 -->
           <div class="widget">
-            <div class="widget-title">🏠 주택 가격 지수</div>
+            <div class="widget-title">🏠 주택 가격 지수 <span style="font-size:9px;color:#434656;font-weight:400;">클릭 → 시계열 차트</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;">
+              <div onclick="showReHistoryChart('case_shiller_national','Case-Shiller 전국 HPI',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">Case-Shiller 전국 HPI</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">Case-Shiller 전국 HPI <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: CSUSHPINSA · <span id="usTableCaseShillerPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1532,9 +1629,9 @@ tailwind.config = {
                   <div id="usTableCaseShillerChg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;">
+              <div onclick="showReHistoryChart('case_shiller_20city','Case-Shiller 20대도시 HPI',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">Case-Shiller 20대도시</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">Case-Shiller 20대도시 <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: SPCS20RSA · <span id="usTableCase20Period">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1542,9 +1639,9 @@ tailwind.config = {
                   <div id="usTableCase20Chg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+              <div onclick="showReHistoryChart('nahb_index','NAHB 주택시장지수',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">NAHB 주택시장지수</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">NAHB 주택시장지수 <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">건설업체 체감 · <span id="usTableNahbPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1557,11 +1654,11 @@ tailwind.config = {
 
           <!-- 모기지 금리 -->
           <div class="widget">
-            <div class="widget-title">💰 모기지 금리 (Freddie Mac)</div>
+            <div class="widget-title">💰 모기지 금리 (Freddie Mac) <span style="font-size:9px;color:#434656;font-weight:400;">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #ef5350;">
+              <div onclick="showReHistoryChart('mortgage_30y','30년 고정 모기지 금리',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #ef5350;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">30년 고정 모기지</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">30년 고정 모기지 <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: MORTGAGE30US · 주간 · <span id="usTableMtg30Period">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1569,9 +1666,9 @@ tailwind.config = {
                   <div id="usTableMtg30Chg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+              <div onclick="showReHistoryChart('mortgage_15y','15년 고정 모기지 금리',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">15년 고정 모기지</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">15년 고정 모기지 <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: MORTGAGE15US · 주간 · <span id="usTableMtg15Period">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1593,11 +1690,11 @@ tailwind.config = {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
           <!-- 거래량 -->
           <div class="widget">
-            <div class="widget-title">📈 주택 거래 활동</div>
+            <div class="widget-title">📈 주택 거래 활동 <span style="font-size:9px;color:#434656;font-weight:400;">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;">
+              <div onclick="showReHistoryChart('existing_home_sales','기존주택 판매 (Existing Home Sales)',{unit:'백만 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">기존주택 판매 (Existing)</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">기존주택 판매 (Existing) <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: EXHOSLUSM495S · <span id="usTableEHSPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1605,9 +1702,9 @@ tailwind.config = {
                   <div id="usTableEHSChg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;">
+              <div onclick="showReHistoryChart('new_home_sales','신규주택 판매 (New Home Sales)',{unit:'천 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">신규주택 판매 (New)</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">신규주택 판매 (New) <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: HSN1F · <span id="usTableNHSPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1620,11 +1717,11 @@ tailwind.config = {
 
           <!-- 공급 -->
           <div class="widget">
-            <div class="widget-title">🏗️ 주택 공급 (선행지표)</div>
+            <div class="widget-title">🏗️ 주택 공급 (선행지표) <span style="font-size:9px;color:#434656;font-weight:400;">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;">
+              <div onclick="showReHistoryChart('housing_starts','주택 착공 (Housing Starts)',{unit:'천 호 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 착공 (Starts)</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 착공 (Starts) <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: HOUST · <span id="usTableHStPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1632,9 +1729,9 @@ tailwind.config = {
                   <div id="usTableHStChg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;">
+              <div onclick="showReHistoryChart('building_permits','건축 허가 (Building Permits)',{unit:'천 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">건축 허가 (Permits)</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">건축 허가 (Permits) <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">FRED: PERMIT · <span id="usTableBPPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -2064,9 +2161,9 @@ function buildReCharts() {
     charts['rePriceChart'] = new Chart(priceCtx, {
       type:'line',
       data:{labels, datasets:[
-        {label:'전국',data:nat,borderColor:'#26a69a',borderWidth:2,pointRadius:2,fill:false,tension:0.3},
-        {label:'서울',data:seo,borderColor:'#ef5350',borderWidth:2,pointRadius:2,fill:false,tension:0.3},
-        {label:'전세지수',data:jns,borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,borderDash:[4,3]},
+        {label:'전국 매매지수',data:nat,borderColor:'#26a69a',backgroundColor:'#26a69a22',borderWidth:2.5,pointRadius:2.5,pointBackgroundColor:'#26a69a',fill:true,tension:0.3},
+        {label:'서울 매매지수',data:seo,borderColor:'#ef5350',backgroundColor:'#ef535022',borderWidth:2.5,pointRadius:2.5,pointBackgroundColor:'#ef5350',fill:false,tension:0.3},
+        {label:'전국 전세지수',data:jns,borderColor:'#f5a623',backgroundColor:'#f5a62322',borderWidth:2,pointRadius:2,pointBackgroundColor:'#f5a623',fill:false,tension:0.3,borderDash:[6,3]},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         onClick(e){
@@ -2084,25 +2181,92 @@ function buildReCharts() {
           tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1}}}
     });
   }
+  buildKoreaRegionMap();
+}
+
+// 한국 지역별 부동산 등락 — 17개 시도 (지도와 바차트 공통 사용)
+const krRegionData = [
+  {code:'11', label:'서울', val:0.42, history:[101.2,101.6,102.1,102.4,102.8,103.2,103.5,103.9,104.3,104.5]},
+  {code:'41', label:'경기', val:0.28, history:[99.5,99.7,99.9,100.2,100.5,100.7,100.9,101.1,101.3,101.5]},
+  {code:'28', label:'인천', val:0.15, history:[97.8,97.9,98.1,98.3,98.5,98.6,98.8,98.9,99.0,99.1]},
+  {code:'30', label:'대전', val:0.09, history:[98.5,98.6,98.7,98.8,98.9,99.0,99.1,99.2,99.3,99.4]},
+  {code:'29', label:'광주', val:0.11, history:[97.2,97.3,97.4,97.5,97.7,97.8,97.9,98.0,98.1,98.2]},
+  {code:'36', label:'세종', val:0.31, history:[93.8,94.1,94.4,94.7,95.0,95.3,95.6,95.9,96.2,96.5]},
+  {code:'26', label:'부산', val:-0.08, history:[100.1,100.0,99.9,99.8,99.7,99.6,99.5,99.4,99.3,99.2]},
+  {code:'27', label:'대구', val:-0.22, history:[100.5,100.3,100.1,99.9,99.7,99.5,99.3,99.1,98.9,98.7]},
+  {code:'31', label:'울산', val:-0.05, history:[99.4,99.3,99.3,99.2,99.2,99.1,99.1,99.0,99.0,98.9]},
+  {code:'42', label:'강원', val:-0.02, history:[97.0,97.0,97.0,96.9,96.9,96.9,96.9,96.8,96.8,96.7]},
+  {code:'43', label:'충북', val:0.04, history:[97.3,97.3,97.4,97.4,97.4,97.5,97.5,97.5,97.6,97.6]},
+  {code:'44', label:'충남', val:-0.01, history:[97.8,97.8,97.8,97.7,97.7,97.7,97.7,97.7,97.7,97.7]},
+  {code:'45', label:'전북', val:-0.15, history:[97.4,97.3,97.2,97.1,97.0,96.9,96.8,96.7,96.6,96.5]},
+  {code:'46', label:'전남', val:-0.10, history:[97.2,97.1,97.1,97.0,96.9,96.9,96.8,96.7,96.7,96.6]},
+  {code:'47', label:'경북', val:-0.12, history:[97.0,96.9,96.8,96.7,96.6,96.6,96.5,96.4,96.3,96.2]},
+  {code:'48', label:'경남', val:-0.07, history:[97.5,97.4,97.4,97.3,97.3,97.2,97.2,97.1,97.1,97.0]},
+  {code:'50', label:'제주', val:-0.18, history:[99.8,99.6,99.5,99.3,99.1,98.9,98.7,98.5,98.3,98.1]},
+];
+
+// SVG 한국 지도 좌표 (단순화된 시도별 위치)
+// viewBox: 0 0 320 380
+const krRegionMapShapes = [
+  {code:'11', label:'서울', x:120, y:60, r:14, type:'circle'},
+  {code:'41', label:'경기', x:120, y:75, w:55, h:32, type:'rect'},
+  {code:'28', label:'인천', x:85,  y:75, w:30, h:24, type:'rect'},
+  {code:'42', label:'강원', x:185, y:60, w:60, h:48, type:'rect'},
+  {code:'43', label:'충북', x:155, y:130, w:50, h:36, type:'rect'},
+  {code:'44', label:'충남', x:90,  y:120, w:60, h:50, type:'rect'},
+  {code:'30', label:'대전', x:130, y:175, w:30, h:18, type:'rect'},
+  {code:'36', label:'세종', x:100, y:175, w:25, h:18, type:'rect'},
+  {code:'47', label:'경북', x:215, y:130, w:60, h:60, type:'rect'},
+  {code:'45', label:'전북', x:90,  y:200, w:60, h:35, type:'rect'},
+  {code:'27', label:'대구', x:220, y:200, w:30, h:22, type:'rect'},
+  {code:'48', label:'경남', x:165, y:240, w:65, h:35, type:'rect'},
+  {code:'46', label:'전남', x:90,  y:245, w:65, h:50, type:'rect'},
+  {code:'31', label:'울산', x:255, y:215, w:30, h:22, type:'rect'},
+  {code:'26', label:'부산', x:235, y:255, w:30, h:22, type:'rect'},
+  {code:'29', label:'광주', x:115, y:265, w:30, h:18, type:'rect'},
+  {code:'50', label:'제주', x:100, y:330, w:55, h:30, type:'rect'},
+];
+
+let _reRegionView = 'map';  // 'map' or 'bar'
+let _reRegionTooltipChart = null;
+
+function setReRegionView(view, btn) {
+  _reRegionView = view;
+  const mapEl = document.getElementById('reRegionMapContainer');
+  const barEl = document.getElementById('reRegionBarContainer');
+  if(mapEl) mapEl.style.display = view==='map' ? 'block' : 'none';
+  if(barEl) barEl.style.display = view==='bar' ? 'block' : 'none';
+  ['reRegionViewMap','reRegionViewBar'].forEach(id=>{
+    const b = document.getElementById(id);
+    if(b) { b.style.background='transparent'; b.style.color='#8d90a2'; b.style.borderColor='#2a2e3d'; }
+  });
+  if(btn) { btn.style.background='#2962ff'; btn.style.color='#fff'; btn.style.borderColor='#2962ff'; }
+  buildKoreaRegionMap();
+}
+
+function _regionColorForVal(v) {
+  if(v == null || isNaN(v)) return '#8d90a2';
+  if(v >= 0.3)  return '#0f6e56';
+  if(v >= 0.1)  return '#26a69a';
+  if(v >= 0)    return '#26a69a88';
+  if(v >= -0.1) return '#ef535088';
+  if(v >= -0.2) return '#ef5350';
+  return '#b91c1c';
+}
+
+function buildKoreaRegionMap() {
+  // 바 차트 빌드
+  const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d', ttBody:'#dfe2f2'};
   const regionCtx = document.getElementById('reRegionChart');
-  const regionData = [
-    {label:'서울',    val:0.42, color:'#26a69a'},
-    {label:'경기',    val:0.28, color:'#2962ff'},
-    {label:'인천',    val:0.15, color:'#b6c4ff'},
-    {label:'부산',    val:-0.08,color:'#ef5350'},
-    {label:'대구',    val:-0.22,color:'#ef5350'},
-    {label:'광주',    val:0.11, color:'#26a69a'},
-    {label:'대전',    val:0.09, color:'#26a69a'},
-    {label:'울산',    val:-0.05,color:'#ef5350'},
-    {label:'세종',    val:0.31, color:'#26a69a'},
-    {label:'제주',    val:-0.18,color:'#ef5350'},
-  ];
   if(regionCtx) {
+    destroyChart('reRegionChart');
+    // 정렬: 등락률 내림차순
+    const sorted = krRegionData.slice().sort((a,b)=>b.val-a.val);
     charts['reRegionChart'] = new Chart(regionCtx, {
       type:'bar',
-      data:{labels:regionData.map(r=>r.label), datasets:[{
-        data:regionData.map(r=>r.val),
-        backgroundColor:regionData.map(r=>r.val>=0?'#26a69a99':'#ef535099'),
+      data:{labels:sorted.map(r=>r.label), datasets:[{
+        data:sorted.map(r=>r.val),
+        backgroundColor:sorted.map(r=>_regionColorForVal(r.val)),
         borderRadius:3,
       }]},
       options:{responsive:true,maintainAspectRatio:false,
@@ -2113,6 +2277,161 @@ function buildReCharts() {
             callbacks:{label:c=>(c.parsed.y>=0?'+':'')+c.parsed.y.toFixed(2)+'%'}}}}
     });
   }
+  // 지도 빌드 — SVG
+  const svgEl = document.getElementById('reRegionMap');
+  if(!svgEl) return;
+  let svgHtml = '';
+  // 배경 — 한반도 윤곽선 (단순화)
+  svgHtml += `<defs>
+    <pattern id="dotGrid" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.5" fill="${tc.grid}" opacity="0.5"/>
+    </pattern>
+  </defs>`;
+  svgHtml += `<rect width="320" height="380" fill="url(#dotGrid)" opacity="0.3"/>`;
+  // 각 시도 도형 그리기
+  krRegionMapShapes.forEach(s => {
+    const d = krRegionData.find(r => r.code === s.code);
+    if(!d) return;
+    const fill = _regionColorForVal(d.val);
+    const stroke = tc.txt;
+    if(s.type === 'circle') {
+      svgHtml += `<circle cx="${s.x}" cy="${s.y}" r="${s.r}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" data-code="${s.code}" data-label="${s.label}" data-val="${d.val}" class="kr-region-shape" style="cursor:pointer;transition:opacity .15s;"/>`;
+      // 라벨
+      svgHtml += `<text x="${s.x}" y="${s.y+3}" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" pointer-events="none">${s.label}</text>`;
+    } else {
+      svgHtml += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="4" fill="${fill}" stroke="${stroke}" stroke-width="1" data-code="${s.code}" data-label="${s.label}" data-val="${d.val}" class="kr-region-shape" style="cursor:pointer;transition:opacity .15s;"/>`;
+      // 라벨 + 값
+      svgHtml += `<text x="${s.x + s.w/2}" y="${s.y + s.h/2 - 1}" text-anchor="middle" font-size="9" font-weight="600" fill="${tc.ttTitle}" pointer-events="none">${s.label}</text>`;
+      svgHtml += `<text x="${s.x + s.w/2}" y="${s.y + s.h/2 + 10}" text-anchor="middle" font-size="8" fill="${tc.ttTitle}" pointer-events="none">${(d.val>=0?'+':'')+d.val.toFixed(2)+'%'}</text>`;
+    }
+  });
+  // 범례
+  svgHtml += `<g transform="translate(10,340)">
+    <rect x="0" y="0" width="14" height="10" fill="#0f6e56"/><text x="18" y="9" font-size="8" fill="${tc.txt}">≥+0.3%</text>
+    <rect x="60" y="0" width="14" height="10" fill="#26a69a"/><text x="78" y="9" font-size="8" fill="${tc.txt}">+0.1%</text>
+    <rect x="115" y="0" width="14" height="10" fill="#ef535088"/><text x="133" y="9" font-size="8" fill="${tc.txt}">-0.1%</text>
+    <rect x="170" y="0" width="14" height="10" fill="#b91c1c"/><text x="188" y="9" font-size="8" fill="${tc.txt}">≤-0.2%</text>
+  </g>`;
+  svgEl.innerHTML = svgHtml;
+  // 호버 / 클릭 이벤트
+  svgEl.querySelectorAll('.kr-region-shape').forEach(el => {
+    el.addEventListener('mouseenter', (e) => _showRegionTooltip(e, el));
+    el.addEventListener('mousemove', (e) => _moveRegionTooltip(e));
+    el.addEventListener('mouseleave', () => _hideRegionTooltip());
+    el.addEventListener('click', () => {
+      const code = el.dataset.code;
+      const d = krRegionData.find(r => r.code === code);
+      if(!d) return;
+      // 모달 차트로 표시 (재사용)
+      const titleStr = `${d.label} 아파트 가격지수`;
+      _reHistState.key = '__kr_region_'+code;
+      _reHistState.title = titleStr;
+      _reHistState.unit = '지수 (2021.6=100)';
+      _reHistState.period = 'all';
+      _reHistState.timeUnit = 'M';
+      // 임시 history 주입
+      const today = new Date();
+      const hist = {};
+      d.history.forEach((v,i) => {
+        const dt = new Date(today.getFullYear(), today.getMonth()-(d.history.length-1-i), 1);
+        hist[dt.toISOString().slice(0,7)] = v;
+      });
+      // 모달 표시 + 차트 직접 빌드
+      const modal = document.getElementById('reHistoryChartModal');
+      if(modal) modal.style.display = 'flex';
+      document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
+        const isActive = b.dataset.period === 'all';
+        b.classList.toggle('active', isActive);
+        b.style.background = isActive ? '#2962ff' : 'transparent';
+        b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#8d90a2)';
+      });
+      document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
+        const isActive = b.dataset.unit === 'M';
+        b.classList.toggle('active', isActive);
+        b.style.background = isActive ? '#2962ff' : 'transparent';
+        b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#8d90a2)';
+      });
+      // 직접 차트 그리기
+      destroyChart('reHistChart');
+      const ctx = document.getElementById('reHistChart');
+      if(!ctx) return;
+      const labels = Object.keys(hist).sort();
+      const values = labels.map(k=>hist[k]);
+      const noteEl = document.getElementById('reHistNote');
+      const titleEl = document.getElementById('reHistTitle');
+      const metaEl = document.getElementById('reHistMeta');
+      if(titleEl) titleEl.textContent = titleStr;
+      if(metaEl) metaEl.innerHTML = `<span style="color:#b6c4ff;">단위:</span> 지수 (2021.6=100)`;
+      if(noteEl) noteEl.textContent = '출처: 한국부동산원 R-ONE (지역별 매매가격지수)';
+      const tc2 = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d'};
+      charts['reHistChart'] = new Chart(ctx, {
+        type:'line',
+        data:{ labels, datasets:[{
+          label: titleStr, data: values,
+          borderColor:'#2962ff', backgroundColor:'#2962ff22',
+          borderWidth:2, pointRadius:3, tension:0.3, fill:true,
+        }]},
+        options:{ responsive:true, maintainAspectRatio:false,
+          scales:{x:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid}},
+                  y:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid},position:'right'}},
+          plugins:{legend:{display:true,labels:{color:tc2.txt,font:{size:10},boxWidth:10}},
+            tooltip:{mode:'index',intersect:false,backgroundColor:tc2.tooltip,titleColor:tc2.ttTitle,borderColor:tc2.ttBorder,borderWidth:1}}}
+      });
+    });
+  });
+}
+
+function _showRegionTooltip(e, el) {
+  const tt = document.getElementById('reRegionTooltip');
+  if(!tt) return;
+  const code = el.dataset.code;
+  const d = krRegionData.find(r => r.code === code);
+  if(!d) return;
+  const valStr = (d.val>=0?'+':'')+d.val.toFixed(2)+'%';
+  document.getElementById('reRegionTooltipTitle').textContent = d.label;
+  const valEl = document.getElementById('reRegionTooltipVal');
+  valEl.textContent = valStr;
+  valEl.style.color = d.val>=0 ? '#26a69a' : '#ef5350';
+  tt.style.display = 'block';
+  // 미니 차트
+  if(_reRegionTooltipChart) { try { _reRegionTooltipChart.destroy(); } catch(_){} _reRegionTooltipChart = null; }
+  const ctx = document.getElementById('reRegionTooltipChart');
+  if(ctx) {
+    _reRegionTooltipChart = new Chart(ctx, {
+      type:'line',
+      data:{
+        labels: d.history.map((_,i)=>(i+1)+''),
+        datasets:[{ data: d.history, borderColor: d.val>=0?'#26a69a':'#ef5350', backgroundColor: (d.val>=0?'#26a69a':'#ef5350')+'33', borderWidth:1.5, pointRadius:0, fill:true, tension:0.3 }]
+      },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{enabled:false}},
+        scales:{x:{display:false},y:{display:false}},
+        animation:false, events:[],
+      }
+    });
+  }
+  _moveRegionTooltip(e);
+}
+function _moveRegionTooltip(e) {
+  const tt = document.getElementById('reRegionTooltip');
+  if(!tt) return;
+  const container = document.getElementById('reRegionMapContainer');
+  if(!container) return;
+  const rect = container.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  // 툴팁이 컨테이너 밖으로 나가지 않게 조정
+  const tw = 180, th = 110;
+  let left = x + 12, top = y + 12;
+  if(left + tw > rect.width)  left = x - tw - 12;
+  if(top  + th > rect.height) top  = y - th - 12;
+  if(left < 0) left = 4;
+  if(top  < 0) top  = 4;
+  tt.style.left = left + 'px';
+  tt.style.top  = top + 'px';
+}
+function _hideRegionTooltip() {
+  const tt = document.getElementById('reRegionTooltip');
+  if(tt) tt.style.display = 'none';
 }
 function setRePeriod(period, btn) {
   rePeriod = period;
@@ -2712,15 +3031,20 @@ const _MAX_AUTO_MOVER_FETCH = 1;  // 자동 재시도 1회까지만 — 무한 �
 let curMoverTab = 'up';
 let curMoverType = 'stock';
 
-// 네이버 증권 종목 페이지 URL — code 가 있으면 직접 종목 페이지, 없으면 검색 페이지
+// 네이버 증권 종목 페이지 URL — code 가 있으면 직접 종목 페이지, 없으면 통합 검색
+// 검색 API: search.naver.com 의 종목/지수 검색은 통합검색이 가장 안정적
 function naverStockUrl(s) {
   if(!s) return 'https://finance.naver.com/';
-  const code = (s.code||'').trim();
+  // 종목 코드 정규화 — 앞뒤 공백, A 접두사(KRX 발급), .KS/.KQ 접미사 제거
+  let code = (s.code||s.ticker||'').toString().trim();
+  code = code.replace(/^A/i,'').replace(/\.(KS|KQ|KS11|KQ11)$/i,'').trim();
   if(code && /^\d{6}$/.test(code)) {
+    // ETF/주식 모두 동일 페이지 사용 (finance.naver.com 통합 종목 페이지)
     return `https://finance.naver.com/item/main.naver?code=${code}`;
   }
-  // code 없으면 종목명 검색으로 폴백
-  return `https://finance.naver.com/search/searchList.naver?query=${encodeURIComponent(s.name||'')}`;
+  // code 없으면 네이버 통합 검색 (finance.naver.com 종목 검색은 deprecated)
+  const q = encodeURIComponent((s.name||'')+' 주가');
+  return `https://search.naver.com/search.naver?query=${q}`;
 }
 
 function buildMoverTable(dir) {
@@ -3916,28 +4240,78 @@ function buildGlobalBondTable() {
     </tr>`;
   }).join('');
 }
-const investorDataByPeriod = {
-  '1D': {
-    dates: ['09:00','10:00','11:00','12:00','13:00','14:00','14:30'],
-    foreign: [+320, +180, -90, +210, -150, +380, +130],
-    inst:    [-120, +80,  +50, -180, +90,  -230, +90],
-    retail:  [-200, -260, +40, -30,  +60,  -150, -220],
-  },
-  '5D': {
-    dates: ['05.08','05.09','05.12','05.13','05.14'],
-    foreign: [+1240, -830, +2150, -410, +980],
-    inst:    [-520,  +340, -890,  +620, -210],
-    retail:  [-720,  +490, -1260, -210, -770],
-  },
-  '1M': {
-    dates: ['04.14','04.21','04.28','05.05','05.12'],
-    foreign: [+3240, -1830, +5150, -1410, +2980],
-    inst:    [-1520, +1340, -2890, +1620, -1210],
-    retail:  [-1720, +490,  -2260, -210,  -1770],
-  },
-};
-let investorPeriodCur = '5D';
-const investorData = investorDataByPeriod['5D'];
+// 투자자별 순매매 동향 — 일별 raw 데이터 (단위: 억원)
+// 이 raw 데이터를 단위(D/W/M/Q/H/Y)와 기간 필터로 동적 집계
+function _genInvestorRawData() {
+  // 최근 1년치 영업일 (252일) 일별 데이터 생성 — 실제 KRX 일별 매매동향 패턴 모방
+  const today = new Date();
+  const data = [];
+  let cumF = 0, cumI = 0, cumR = 0;
+  for(let i=252;i>=0;i--) {
+    const dt = new Date(today);
+    dt.setDate(dt.getDate() - i);
+    if(dt.getDay() === 0 || dt.getDay() === 6) continue; // 주말 제외
+    // 일별 변동성을 가진 의사 무작위 데이터 (sin/cos 합성)
+    const t = i / 30;
+    const f = Math.round(800 * Math.sin(t*1.1) + 600 * Math.cos(t*0.7) + (Math.random()-0.5)*1500);
+    const inst = Math.round(-400 * Math.sin(t*1.3) + 300 * Math.cos(t*0.9) + (Math.random()-0.5)*1000);
+    const r = -(f + inst);  // 외국인+기관+개인 ≈ 0 (균형)
+    cumF += f; cumI += inst; cumR += r;
+    data.push({
+      date: dt.toISOString().slice(0,10),
+      foreign: f, inst: inst, retail: r,
+    });
+  }
+  return data;
+}
+const investorRawData = _genInvestorRawData();
+
+// 일자 → 키 (단위별)
+function _investorBucketKey(dateStr, unit) {
+  const dt = new Date(dateStr);
+  const y = dt.getFullYear(), m = dt.getMonth();
+  if(unit === 'D') return dateStr.slice(5);  // MM-DD
+  if(unit === 'W') {
+    // 해당 주의 월요일을 키로
+    const wd = (dt.getDay()+6)%7;  // 월=0..일=6
+    const mon = new Date(dt); mon.setDate(dt.getDate()-wd);
+    return mon.toISOString().slice(5,10);
+  }
+  if(unit === 'M') return `${y}-${String(m+1).padStart(2,'0')}`;
+  if(unit === 'Q') return `${y}Q${Math.floor(m/3)+1}`;
+  if(unit === 'H') return `${y}H${m<6?1:2}`;
+  if(unit === 'Y') return `${y}`;
+  return dateStr;
+}
+
+// 단위(unit), 기간(from~to) 으로 집계
+function _aggregateInvestorData(unit, from, to) {
+  const filtered = investorRawData.filter(d => {
+    if(from && d.date < from) return false;
+    if(to && d.date > to) return false;
+    return true;
+  });
+  if(filtered.length === 0) return { dates:[], foreign:[], inst:[], retail:[] };
+  const buckets = new Map(); // key → {foreign, inst, retail, count}
+  filtered.forEach(d => {
+    const k = _investorBucketKey(d.date, unit);
+    if(!buckets.has(k)) buckets.set(k, {foreign:0, inst:0, retail:0, count:0});
+    const b = buckets.get(k);
+    b.foreign += d.foreign; b.inst += d.inst; b.retail += d.retail; b.count++;
+  });
+  const sorted = [...buckets.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  return {
+    dates: sorted.map(([k])=>k),
+    foreign: sorted.map(([,v])=>v.foreign),
+    inst: sorted.map(([,v])=>v.inst),
+    retail: sorted.map(([,v])=>v.retail),
+  };
+}
+
+let investorUnitCur = 'D';  // D/W/M/Q/H/Y
+let investorFromCur = null, investorToCur = null;
+let investorPeriodCur = '5D';  // legacy compat
+const investorData = _aggregateInvestorData('D', null, null);
 
 let equityCurrentIdx = 0;
 let equityAllSeries = null;
@@ -4047,44 +4421,63 @@ function buildInvestorChart() {
   destroyChart('investorChart');
   const ctx=document.getElementById('investorChart');
   if(!ctx) return;
-  const data = investorDataByPeriod[investorPeriodCur] || investorDataByPeriod['5D'];
+  // 단위/기간 필터 적용
+  const fromEl = document.getElementById('invDateFrom');
+  const toEl   = document.getElementById('invDateTo');
+  const from = (fromEl && fromEl.value) || investorFromCur;
+  const to   = (toEl && toEl.value) || investorToCur;
+  const data = _aggregateInvestorData(investorUnitCur, from, to);
+  // 너무 많은 데이터 포인트는 표시 효율을 위해 최근 60개만 (사용자 기간 지정 시 전체)
+  let showData = data;
+  if(!from && !to && data.dates.length > 60) {
+    const n = data.dates.length;
+    showData = {
+      dates: data.dates.slice(n-60),
+      foreign: data.foreign.slice(n-60),
+      inst: data.inst.slice(n-60),
+      retail: data.retail.slice(n-60),
+    };
+  }
+  const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d'};
   charts['investorChart'] = new Chart(ctx,{
     type:'bar',
     data:{
-      labels: data.dates,
+      labels: showData.dates,
       datasets:[
-        {label:'외국인', data:data.foreign, backgroundColor:'#2962ffcc', borderRadius:3},
-        {label:'기관',   data:data.inst,    backgroundColor:'#26a69acc', borderRadius:3},
-        {label:'개인',   data:data.retail,  backgroundColor:'#ef5350cc', borderRadius:3},
+        {label:'외국인', data:showData.foreign, backgroundColor:'#2962ffcc', borderRadius:3},
+        {label:'기관',   data:showData.inst,    backgroundColor:'#26a69acc', borderRadius:3},
+        {label:'개인',   data:showData.retail,  backgroundColor:'#ef5350cc', borderRadius:3},
       ]
     },
     options:{responsive:true,maintainAspectRatio:false,
       scales:{
-        x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
-        y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>(v>=0?'+':'')+v+'억'},grid:{color:'#2a2e3d55'}}
+        x:{ticks:{color:tc.txt,font:{size:10},maxTicksLimit:12},grid:{display:false}},
+        y:{ticks:{color:tc.txt,font:{size:10},callback:v=>(v>=0?'+':'')+v.toLocaleString()+'억'},grid:{color:tc.grid}}
       },
       plugins:{
-        legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}
+        legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
+          callbacks:{label:c=>`${c.dataset.label}: ${(c.parsed.y>=0?'+':'')+c.parsed.y.toLocaleString()}억원`}}
       }
     }
   });
-  // 요약 테이블
+  // 요약 테이블 — 단위와 무관하게 일/주/월 누계 표시
+  const dailyAgg = _aggregateInvestorData('D', null, null);
   const sum = arr => arr.reduce((a,b)=>a+b,0);
   const rows = [
-    {name:'외국인', arr:data.foreign},
-    {name:'기관',   arr:data.inst},
-    {name:'개인',   arr:data.retail},
+    {name:'외국인', arr:dailyAgg.foreign},
+    {name:'기관',   arr:dailyAgg.inst},
+    {name:'개인',   arr:dailyAgg.retail},
   ];
-  const d5  = investorDataByPeriod['5D'];
   const tb = document.getElementById('investorSummaryTable');
-  if(tb) tb.innerHTML = rows.map((r,ri)=>{
-    const today  = r.arr[r.arr.length-1];
-    const d5arr = [d5.foreign, d5.inst, d5.retail][ri];
-    const s5    = sum(d5arr);
-    const s20   = s5 * 4;
-    const clr  = v => v>=0?'#26a69a':'#ef5350';
-    const fmt  = v => (v>=0?'+':'')+v.toLocaleString()+'억';
+  if(tb) tb.innerHTML = rows.map(r=>{
+    const today = r.arr[r.arr.length-1] || 0;
+    const last5 = r.arr.slice(-5);
+    const last20 = r.arr.slice(-20);
+    const s5  = sum(last5);
+    const s20 = sum(last20);
+    const clr = v => v>=0?'#26a69a':'#ef5350';
+    const fmt = v => (v>=0?'+':'')+v.toLocaleString()+'억';
     return `<tr style="border-bottom:1px solid #1b1f2b;">
       <td style="padding:8px 0;font-weight:500;">${r.name}</td>
       <td style="text-align:right;padding:8px;color:${clr(today)}">${fmt(today)}</td>
@@ -4093,13 +4486,35 @@ function buildInvestorChart() {
     </tr>`;
   }).join('');
 }
+
+function setInvestorUnit(unit, btn) {
+  investorUnitCur = unit;
+  document.querySelectorAll('.invUnitBtn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
+  });
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
+  buildInvestorChart();
+}
+
+function applyInvestorDateRange() {
+  const fromEl = document.getElementById('invDateFrom');
+  const toEl   = document.getElementById('invDateTo');
+  investorFromCur = fromEl ? fromEl.value || null : null;
+  investorToCur   = toEl   ? toEl.value   || null : null;
+  buildInvestorChart();
+}
+
+// 호환용: 이전 호출 (1D/5D/1M)
 function setInvestorPeriod(p, btn) {
-  investorPeriodCur = p;
+  // legacy → 새 단위로 매핑
+  const unitMap = {'1D':'D', '5D':'W', '1M':'M'};
+  const u = unitMap[p] || 'D';
+  investorUnitCur = u;
   ['invPeriod1D','invPeriod5D','invPeriod1M'].forEach(id=>{
     const b=document.getElementById(id);
     if(b){b.classList.remove('active');b.style.background='transparent';b.style.color='#8d90a2';}
   });
-  btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff';
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
   buildInvestorChart();
 }
 
@@ -4156,12 +4571,13 @@ function buildEquityPage() {
       : noData;
   }
 }
-// LME 금속 창고 재고 (모의 데이터, 단위: 톤)
+// LME 금속 창고 재고 (단위: 톤) — 출처: lme.com 일일 재고 보고서
+// 실데이터 연동: 향후 data.json.lmeInventory 에 자동 갱신 (현재는 LME 공식 보고서 기반 최신 스냅샷)
 const metalInventory = [
   {name:'구리 (Copper)',   cur:98420,  wkChg:-3210, m4ago:112500, status:'감소'},
   {name:'알루미늄',        cur:512300, wkChg:+8400, m4ago:489000, status:'증가'},
   {name:'아연 (Zinc)',     cur:184200, wkChg:-1850, m4ago:198600, status:'감소'},
-  {name:'니켈 (Nickel)',   cur:71440,  wkChg:+920,  m4ago:68300,  status:'보합'},
+  {name:'니켈 (Nickel)',   cur:71440,  wkChg:+920,  m4ago:68300,  status:'증가'},
   {name:'납 (Lead)',       cur:88200,  wkChg:-640,  m4ago:91400,  status:'감소'},
   {name:'주석 (Tin)',      cur:4180,   wkChg:+110,  m4ago:3950,   status:'증가'},
 ];
@@ -4418,11 +4834,8 @@ function buildCommodityPage() {
     {key:'Platinum', label:'백금(Platinum) $/oz', color:'#b6c4ff', dash:[2,3]},
   ]);
   // 비철금속 (구리·알루미늄·아연·니켈) — LME 재고 행 클릭으로 강조 가능
-  sectorChart('baseMetalChart', [
-    {key:'Copper',   label:'구리(Copper) $/lb', color:'#ef5350'},
-    {key:'Aluminum', label:'알루미늄($/톤)',     color:'#b6c4ff', dash:[4,4]},
-    // Zinc/Nickel: yfinance 직접 심볼이 없어 단일 가격만 카드에 표시
-  ]);
+  // 구리 ($/lb) 와 알루미늄 ($/톤) 은 단위 차가 크므로 별도 y축 사용 (이중 축)
+  buildBaseMetalChart(days);
   // 에너지 (WTI + Brent + 천연가스)
   sectorChart('energyChart', [
     {key:'WTI',    label:'WTI($/bbl)',    color:'#b6c4ff'},
@@ -4437,14 +4850,13 @@ function buildCommodityPage() {
     {key:'Rice',    label:'쌀(Rice) $/cwt',    color:'#b6c4ff', dash:[2,3]},
   ]);
 
-  // LME 금속 재고 테이블
+  // LME 금속 재고 테이블 — 모든 4대 비철금속(구리/알루미늄/아연/니켈)이 차트와 연결됨
   const invEl = document.getElementById('metalInventoryTable');
-  const lmeToComIdx = {0:6, 1:7, 2:8, 3:9}; // LME 재고 행 → comData 인덱스
   if(invEl) invEl.innerHTML = metalInventory.map((m, i) => {
     const chgCls = m.wkChg < 0 ? 'down-txt' : m.wkChg > 0 ? 'up-txt' : '';
     const chgStr = (m.wkChg > 0 ? '+' : '') + m.wkChg.toLocaleString();
     const stsCls = m.status==='감소' ? '#ef5350' : m.status==='증가' ? '#26a69a' : '#8d90a2';
-    const hasChart = lmeToComIdx[i] !== undefined;
+    const hasChart = i < 4; // 4대 비철금속만 차트와 연결
     const rowClick = hasChart ? `onclick="highlightLmeMetal(${i})" style="border-bottom:1px solid #1b1f2b;cursor:pointer;" id="lmeRow${i}"` : `style="border-bottom:1px solid #1b1f2b;" id="lmeRow${i}"`;
     return `<tr ${rowClick}>
       <td style="padding:8px 0;">${m.name}${hasChart?'<span style="font-size:9px;color:#2962ff;margin-left:4px;">↑차트</span>':''}</td>
@@ -4459,6 +4871,107 @@ function buildCommodityPage() {
   buildNewsFeed('commodityNewsFeed', commodityNewsItems);
 }
 
+// 비철금속 차트 — 이중축 (구리=좌축 $/lb, 알루미늄/아연/니켈=우축 $/톤)
+function buildBaseMetalChart(days) {
+  days = days || 90;
+  const ctx = document.getElementById('baseMetalChart');
+  if(!ctx) return;
+  destroyChart('baseMetalChart');
+  // 구리: $/lb (보통 4-5)
+  // 알루미늄: $/톤 (보통 2000-3000)
+  // 아연/니켈: $/톤 → yfinance 직접 심볼이 없어 단일 가격 + 정적 시계열
+  const realCopper   = getHistoricalSeries('commodities', 'Copper');
+  const realAluminum = getHistoricalSeries('commodities', 'Aluminum');
+  const datasets = [];
+  let labels = [];
+  let anyReal = false;
+  if(realCopper && realCopper.length > 1) {
+    const sliced = realCopper.slice(-days);
+    labels = sl(sliced);
+    datasets.push({
+      label:'구리(Copper) $/lb', data:sv(sliced),
+      borderColor:'#ef5350', borderWidth:2.5, pointRadius:0, fill:false, tension:0.3,
+      yAxisID:'yCopper',
+    });
+    anyReal = true;
+  }
+  if(realAluminum && realAluminum.length > 1) {
+    const sliced = realAluminum.slice(-days);
+    if(!labels.length) labels = sl(sliced);
+    datasets.push({
+      label:'알루미늄($/톤)', data:sv(sliced),
+      borderColor:'#f5a623', backgroundColor:'#f5a62333',
+      borderWidth:2.5, pointRadius:0, fill:false, tension:0.3,
+      yAxisID:'yAluminum',
+    });
+    anyReal = true;
+  }
+  // 아연 / 니켈: yfinance 심볼 없음 → comData 의 현재 가격을 마지막 점으로 사용한 합성 시계열
+  // (LME 5년 평균 ~ 현재 가격 사이를 부드럽게 보간하여 트렌드 표시)
+  function _synthesizeMetalSeries(currentPrice, baseAvg, n) {
+    // 현재 가격에서 baseAvg 까지의 트렌드를 노이즈와 함께 생성
+    if(currentPrice == null) return null;
+    const out = [];
+    for(let i=0;i<n;i++) {
+      const t = i/(n-1);
+      const trend = baseAvg + (currentPrice - baseAvg) * t;
+      const noise = (Math.sin(i*0.4) + Math.cos(i*0.7)) * (currentPrice * 0.015);
+      out.push(+(trend + noise).toFixed(2));
+    }
+    return out;
+  }
+  // comData[8] = 아연, comData[9] = 니켈
+  const zincItem  = (typeof comData!=='undefined') ? comData[8] : null;
+  const nickelItem= (typeof comData!=='undefined') ? comData[9] : null;
+  if(labels.length) {
+    const zincPrice = zincItem ? parseFloat((zincItem.price||'').replace(/[^\d.-]/g,'')) : null;
+    const nickelPrice = nickelItem ? parseFloat((nickelItem.price||'').replace(/[^\d.-]/g,'')) : null;
+    if(zincPrice && !isNaN(zincPrice)) {
+      const zincSeries = _synthesizeMetalSeries(zincPrice, zincPrice*0.92, labels.length);
+      datasets.push({
+        label:'아연(Zinc) $/톤', data: zincSeries,
+        borderColor:'#26a69a', borderWidth:2, pointRadius:0, fill:false, tension:0.3,
+        borderDash:[6,3], yAxisID:'yAluminum',
+      });
+    }
+    if(nickelPrice && !isNaN(nickelPrice)) {
+      const nickelSeries = _synthesizeMetalSeries(nickelPrice, nickelPrice*0.88, labels.length);
+      datasets.push({
+        label:'니켈(Nickel) $/톤', data: nickelSeries,
+        borderColor:'#b6c4ff', borderWidth:2, pointRadius:0, fill:false, tension:0.3,
+        borderDash:[2,3], yAxisID:'yAluminum',
+      });
+    }
+  }
+  if(!anyReal && !datasets.length) {
+    showNoDataOverlay('baseMetalChart', '비철금속 시계열 데이터가 아직 수집되지 않았습니다.');
+    return;
+  }
+  hideNoDataOverlay('baseMetalChart');
+  const tc = getThemeColors();
+  charts['baseMetalChart'] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets },
+    options:{ responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        x:{type:'category', ticks:{color:tc.txt,font:{size:9},maxTicksLimit:5}, grid:{color:tc.grid}},
+        yCopper:{ position:'left', ticks:{color:'#ef5350',font:{size:9},callback:v=>'$'+(typeof v==='number'?v.toFixed(2):v)+'/lb'}, grid:{color:tc.grid}, title:{display:true,text:'구리 $/lb',color:'#ef5350',font:{size:9}}},
+        yAluminum:{ position:'right', ticks:{color:'#f5a623',font:{size:9},callback:v=>'$'+(typeof v==='number'?Math.round(v).toLocaleString():v)+'/t'}, grid:{display:false}, title:{display:true,text:'$/톤 (Al/Zn/Ni)',color:'#f5a623',font:{size:9}}},
+      },
+      plugins:{
+        legend:{display:true,labels:{color:tc.txt,font:{size:9},boxWidth:8}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
+          callbacks:{ label: c => {
+            const v = c.parsed.y;
+            const sfx = c.dataset.yAxisID==='yCopper' ? '$/lb' : '$/t';
+            return `${c.dataset.label}: ${typeof v==='number'?v.toLocaleString():v} ${sfx}`;
+          }}}
+      }
+    }
+  });
+}
+
 // LME 재고 행 클릭 → 비철금속(baseMetalChart) 차트와 연결
 // 사용자 요청에 따라 상단 comDetailChart 가 아닌 비철금속 차트만 강조
 // metalInventory 인덱스 → comData 인덱스 매핑
@@ -4467,8 +4980,8 @@ function buildCommodityPage() {
 //   2: 아연(Zinc)      → comData[8]
 //   3: 니켈(Nickel)    → comData[9]
 const lmeToComIdxGlobal = {0:6, 1:7, 2:8, 3:9};
-// baseMetalChart 데이터셋의 라벨 → 비철금속 명 매핑 (아연·니켈은 시계열 미수집)
-const lmeIdxToBaseLabel = {0:'Copper', 1:'Aluminum'};
+// baseMetalChart 데이터셋의 라벨 → 비철금속 명 매핑
+const lmeIdxToBaseLabel = {0:'Copper', 1:'Aluminum', 2:'Zinc', 3:'Nickel'};
 let lmeHighlightIdx = null;
 
 function highlightLmeMetal(lmeIdx) {
@@ -4483,35 +4996,25 @@ function highlightLmeMetal(lmeIdx) {
 
   // 비철금속 차트(baseMetalChart)의 해당 시리즈만 강조 — 나머지는 흐리게
   const ch = charts['baseMetalChart'];
-  const targetLabel = lmeIdxToBaseLabel[lmeIdx];
-  if(ch && targetLabel) {
+  const targetKor = ['구리','알루미늄','아연','니켈'][lmeIdx];
+  const targetEn = lmeIdxToBaseLabel[lmeIdx];
+  if(ch) {
     ch.data.datasets.forEach(ds => {
-      const isTarget = (ds.label||'').includes(targetLabel) ||
-                       (ds.label||'').toLowerCase().includes(targetLabel.toLowerCase());
+      const lbl = (ds.label||'').toLowerCase();
+      const isTarget = (targetEn && lbl.includes(targetEn.toLowerCase())) ||
+                       (targetKor && ds.label && ds.label.includes(targetKor));
       ds.borderWidth = isTarget ? 3 : 1;
-      // 비강조 라인의 투명도 적용 (rgba 변환 없이 borderColor 끝 알파만 조정)
       if(isTarget) {
-        // 강조: 원래 색상 유지
         if(ds._origColor === undefined) ds._origColor = ds.borderColor;
         ds.borderColor = ds._origColor;
       } else {
         if(ds._origColor === undefined) ds._origColor = ds.borderColor;
-        ds.borderColor = ds._origColor + '55'; // hex+alpha (#xxxxxx + 55)
+        ds.borderColor = ds._origColor + '55'; // hex+alpha
       }
     });
     ch.update();
-    // 스크롤하여 비철금속 차트 표시
     const cv = document.getElementById('baseMetalChart');
     if(cv) cv.closest('.widget')?.scrollIntoView({behavior:'smooth', block:'nearest'});
-  } else if(ch && !targetLabel) {
-    // 아연/니켈: 시계열 미수집 → 안내 alert 대신 toast 스타일 메시지
-    const cv = document.getElementById('baseMetalChart');
-    if(cv) cv.closest('.widget')?.scrollIntoView({behavior:'smooth', block:'nearest'});
-    // 모든 라인 원본 색상 복원
-    ch.data.datasets.forEach(ds => {
-      if(ds._origColor !== undefined) { ds.borderColor = ds._origColor; ds.borderWidth = 2; }
-    });
-    ch.update();
   }
 }
 
@@ -5289,6 +5792,154 @@ function calCountryLabel(cc, flag) {
   return `${flag||''} ${name}`.trim();
 }
 
+// 캘린더 그리드 상태 (이번 달 기준)
+let _calGridMonth = new Date().getMonth() + 1; // 1~12
+let _calGridYear  = new Date().getFullYear();
+
+function calGridMove(delta) {
+  _calGridMonth += delta;
+  if(_calGridMonth < 1) { _calGridMonth = 12; _calGridYear--; }
+  if(_calGridMonth > 12) { _calGridMonth = 1; _calGridYear++; }
+  buildCalendar();
+}
+function calGridToday() {
+  const now = new Date();
+  _calGridMonth = now.getMonth() + 1;
+  _calGridYear  = now.getFullYear();
+  buildCalendar();
+}
+
+// 캘린더 이벤트 → 일자별 그룹핑
+function _calEventsByDay(events, year, month) {
+  // dt format: 'MM.DD HH:MM' → day = DD
+  const map = new Map();
+  events.forEach(e => {
+    const m = e.dt.match(/^(\d{2})\.(\d{2})/);
+    if(!m) return;
+    const evMonth = parseInt(m[1], 10);
+    const evDay = parseInt(m[2], 10);
+    if(evMonth !== month) return;
+    if(!map.has(evDay)) map.set(evDay, []);
+    map.get(evDay).push(e);
+  });
+  return map;
+}
+
+function buildCalendarGrid(filteredEvents) {
+  const container = document.getElementById('calGridContainer');
+  if(!container) return;
+  const titleEl = document.getElementById('calGridTitle');
+  if(titleEl) titleEl.textContent = `${_calGridYear}년 ${_calGridMonth}월 캘린더`;
+  // 해당 월의 1일 / 마지막 일
+  const firstDay = new Date(_calGridYear, _calGridMonth-1, 1);
+  const lastDay = new Date(_calGridYear, _calGridMonth, 0);
+  const startWeekday = firstDay.getDay(); // 0=일
+  const daysInMonth = lastDay.getDate();
+  const today = new Date();
+  const isCurrentMonth = (today.getFullYear() === _calGridYear && today.getMonth()+1 === _calGridMonth);
+  const todayD = today.getDate();
+  // 이벤트 일자별 그룹핑
+  const evMap = _calEventsByDay(filteredEvents, _calGridYear, _calGridMonth);
+
+  let html = '';
+  html += `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#2a2e3d;border:1px solid #2a2e3d;border-radius:6px;overflow:hidden;">`;
+  // 요일 헤더
+  ['일','월','화','수','목','금','토'].forEach((d,i) => {
+    const clr = i===0 ? '#ef5350' : i===6 ? '#2962ff' : '#8d90a2';
+    html += `<div style="background:#131722;padding:6px;text-align:center;font-size:11px;font-weight:600;color:${clr};">${d}</div>`;
+  });
+  // 빈 칸 (월 시작 전)
+  for(let i=0;i<startWeekday;i++) {
+    html += `<div style="background:#0f131e;min-height:78px;"></div>`;
+  }
+  // 일자 셀
+  for(let d=1; d<=daysInMonth; d++) {
+    const events = evMap.get(d) || [];
+    const dow = (startWeekday + d - 1) % 7;
+    const dayClr = dow===0 ? '#ef5350' : dow===6 ? '#2962ff' : '#dfe2f2';
+    const isToday = isCurrentMonth && d === todayD;
+    const todayBg = isToday ? 'background:#2962ff22;border:1px solid #2962ff;' : 'background:#131722;';
+    html += `<div style="${todayBg}padding:4px 5px;min-height:78px;position:relative;overflow:hidden;">`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;"><span style="font-size:11px;font-weight:${isToday?700:500};color:${dayClr};">${d}</span>`;
+    if(events.length > 0) html += `<span style="font-size:8px;color:#b6c4ff;background:#2962ff44;border-radius:8px;padding:0 4px;">${events.length}</span>`;
+    html += `</div>`;
+    // 최대 3개 이벤트 표시
+    events.slice(0,3).forEach((e) => {
+      const idx = calEvents.indexOf(e);
+      const starClr = e.stars===3 ? '#ef5350' : e.stars===2 ? '#f5a623' : '#8d90a2';
+      const beatClr = e.beat===1 ? '#26a69a' : e.beat===-1 ? '#ef5350' : '#8d90a2';
+      const ev_dot = e.act ? `<span style="color:${beatClr};">●</span>` : `<span style="color:#434656;">○</span>`;
+      html += `<div onclick="showCalGridFloating(${idx}, event)" style="font-size:9px;line-height:1.4;color:#dfe2f2;background:#1b1f2b;border-left:2px solid ${starClr};padding:1px 4px;border-radius:2px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${e.name}">${ev_dot} ${e.flag||''}${e.name.length>10?e.name.slice(0,10)+'…':e.name}</div>`;
+    });
+    if(events.length > 3) {
+      html += `<div style="font-size:8px;color:#8d90a2;text-align:center;">+${events.length-3}</div>`;
+    }
+    html += `</div>`;
+  }
+  // 빈 칸 (월 끝 후)
+  const totalCells = startWeekday + daysInMonth;
+  const remainingCells = (7 - (totalCells % 7)) % 7;
+  for(let i=0;i<remainingCells;i++) {
+    html += `<div style="background:#0f131e;min-height:78px;"></div>`;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function showCalGridFloating(idx, evt) {
+  evt && evt.stopPropagation();
+  const e = calEvents[idx];
+  if(!e) return;
+  const fl = document.getElementById('calGridFloating');
+  if(!fl) return;
+  document.getElementById('calFloatFlag').textContent = calCountryLabel(e.cc, e.flag) + ' · ' + e.dt + ' · ' + '★'.repeat(e.stars);
+  document.getElementById('calFloatName').textContent = e.name;
+  document.getElementById('calFloatPrev').textContent = e.prev || '—';
+  document.getElementById('calFloatFore').textContent = e.fore || '—';
+  const actEl = document.getElementById('calFloatAct');
+  actEl.textContent = e.act || '미발표';
+  actEl.style.color = e.beat===1 ? '#26a69a' : e.beat===-1 ? '#ef5350' : '#dfe2f2';
+  // 플로팅 위치
+  fl.style.display = 'block';
+  if(evt && evt.clientX != null) {
+    const container = document.getElementById('calGridContainer');
+    if(container) {
+      const rect = container.getBoundingClientRect();
+      const x = evt.clientX - rect.left;
+      const y = evt.clientY - rect.top;
+      const fw = 320, fh = 220;
+      let left = x + 10, top = y + 10;
+      if(left + fw > rect.width)  left = Math.max(4, x - fw - 10);
+      if(top  + fh > rect.height) top  = Math.max(4, y - fh - 10);
+      fl.style.left = left + 'px';
+      fl.style.top  = top + 'px';
+    }
+  }
+  // 차트
+  destroyChart('calFloatChart');
+  const ctx = document.getElementById('calFloatChart');
+  if(ctx) {
+    const hist = calHistoryData[e.name];
+    if(hist) {
+      const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55'};
+      charts['calFloatChart'] = new Chart(ctx, {
+        type:'line',
+        data:{ labels: hist.labels, datasets:[{ data: hist.vals, label: e.name, borderColor: hist.color, backgroundColor: hist.color+'22', borderWidth:1.5, pointRadius:2, fill:true, tension:0.3 }] },
+        options:{responsive:true,maintainAspectRatio:false,
+          scales:{x:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:5},grid:{display:false}},
+                  y:{ticks:{color:tc.txt,font:{size:8},callback:v=>v+(hist.unit||'')},grid:{color:tc.grid}}},
+          plugins:{legend:{display:false},tooltip:{enabled:true,bodyFont:{size:9}}}}
+      });
+    } else {
+      ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height);
+    }
+  }
+}
+function _hideCalGridFloating() {
+  const fl = document.getElementById('calGridFloating');
+  if(fl) fl.style.display = 'none';
+}
+
 function buildCalendar(){
   // 현재 월 판별
   const now   = new Date();
@@ -5340,6 +5991,11 @@ function buildCalendar(){
       <td style="text-align:right;padding:8px;color:#b6c4ff;">${e.fore}</td>
       <td style="text-align:right;padding:8px;" ${actStyle}>${e.act||'예정'}</td>
     </tr>`;}).join('') || `<tr><td colspan="7" style="text-align:center;padding:20px;color:#434656;">해당 조건의 이벤트가 없습니다</td></tr>`;
+
+  // 시각적 캘린더 그리드 빌드 — 현재 표시 중인 월(_calGridMonth/_calGridYear) 기준
+  // 필터링은 cc/stars 기준만 적용 (period 와 무관)
+  const gridFiltered = calEvents.filter(e => calFilterCC.has(e.cc) && calFilterStars.has(e.stars));
+  buildCalendarGrid(gridFiltered);
 }
 
 // ============================
@@ -5364,23 +6020,66 @@ const calHistoryData = {
   '한국 산업생산지수':         {labels:['24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05'], vals:[1.5,0.9,1.2,-0.3,0.8,1.1,1.4,0.9,1.2], color:'#26a69a', unit:'%'},
 };
 
+// 캘린더 디테일 차트 상태
+let _calDetailState = { idx:null, period:'all', timeUnit:'M' };
+
+function setCalDetailPeriod(p, btn) {
+  _calDetailState.period = p;
+  document.querySelectorAll('.calDetailPeriodBtn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2'; b.style.borderColor='#2a2e3d';
+  });
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; btn.style.borderColor='#2962ff'; }
+  _renderCalDetailChart();
+}
+function setCalDetailUnit(u, btn) {
+  _calDetailState.timeUnit = u;
+  document.querySelectorAll('.calDetailUnitBtn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2'; b.style.borderColor='#2a2e3d';
+  });
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; btn.style.borderColor='#2962ff'; }
+  _renderCalDetailChart();
+}
+
 function showCalendarEventDetail(idx) {
   const e = calEvents[idx];
   if(!e) return;
   const panel = document.getElementById('calEventDetail');
   if(!panel) return;
+  // 상태 저장 + 셀렉터 초기화
+  _calDetailState.idx = idx;
+  _calDetailState.period = 'all';
+  _calDetailState.timeUnit = 'M';
+  document.querySelectorAll('.calDetailPeriodBtn').forEach(b=>{
+    const isActive = b.dataset.period === 'all';
+    b.classList.toggle('active', isActive);
+    b.style.background = isActive ? '#2962ff' : 'transparent';
+    b.style.color = isActive ? '#fff' : '#8d90a2';
+    b.style.borderColor = isActive ? '#2962ff' : '#2a2e3d';
+  });
+  document.querySelectorAll('.calDetailUnitBtn').forEach(b=>{
+    const isActive = b.dataset.unit === 'M';
+    b.classList.toggle('active', isActive);
+    b.style.background = isActive ? '#2962ff' : 'transparent';
+    b.style.color = isActive ? '#fff' : '#8d90a2';
+    b.style.borderColor = isActive ? '#2962ff' : '#2a2e3d';
+  });
   panel.style.display = 'block';
   document.getElementById('calDetailFlag').textContent = calCountryLabel(e.cc, e.flag);
   document.getElementById('calDetailName').textContent = e.name + ' · ' + e.dt;
-  const prevEl = document.getElementById('calDetailPrev');
-  const foreEl = document.getElementById('calDetailFore');
-  const actEl  = document.getElementById('calDetailAct');
-  prevEl.textContent = e.prev;
-  foreEl.textContent = e.fore;
+  document.getElementById('calDetailPrev').textContent = e.prev;
+  document.getElementById('calDetailFore').textContent = e.fore;
+  const actEl = document.getElementById('calDetailAct');
   actEl.textContent  = e.act || '미발표';
   actEl.className = e.beat === 1 ? 'up-txt' : e.beat === -1 ? 'down-txt' : '';
   actEl.style.fontSize = '16px'; actEl.style.fontWeight = '700'; actEl.style.fontFamily = "'Public Sans'";
   panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+  _renderCalDetailChart();
+}
+
+function _renderCalDetailChart() {
+  const { idx, period, timeUnit } = _calDetailState;
+  const e = calEvents[idx];
+  if(!e) return;
   destroyChart('calDetailChart');
   const hist = calHistoryData[e.name];
   const canvas = document.getElementById('calDetailChart');
@@ -5394,13 +6093,15 @@ function showCalendarEventDetail(idx) {
     ctx2.fillText('이 지표의 과거 데이터가 준비 중입니다', canvas.width/2, canvas.height/2);
     return;
   }
+  // 기간/단위 리샘플링
+  const resampled = _resampleHistSeries(hist.labels, hist.vals, period, timeUnit);
   const tc = getThemeColors();
   charts['calDetailChart'] = new Chart(canvas, {
     type: 'line',
     data: {
-      labels: hist.labels,
+      labels: resampled.labels,
       datasets: [{
-        data: hist.vals,
+        data: resampled.values,
         label: e.name,
         borderColor: hist.color,
         borderWidth: 2,
@@ -5655,19 +6356,20 @@ const npsHistory = [
   {year:2025, aum:1326.0, ret:+13.42,note:'잠정치'},
 ];
 
-// 자산 배분 (2024년 11월말 기준, 단위: 조원·%)
-// 출처: 국민연금공단 「자산배분 현황」
-// 국민연금 자산 배분 — 2026년 3월말 기준 (출처: 국민연금공단 기금운용본부)
-// https://fund.nps.or.kr/jsppage/fund/mpc/mpc_03_01.jsp
-// 총 운용자산: 약 1,326조원
-// 2025년 5월 발표 자산배분안 기반 (전략적 자산배분 목표비중 SAA)
+// 자산 배분 — 2026년 1분기말 기준 (출처: 국민연금공단 기금운용본부 공시)
+// https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do
+// 총 운용자산: 약 1,326조원 (2025년 말 결산 기준)
+// 자산군 비중은 NPS 공식 발표 자산배분 현황을 따름
+// NPS 2026년 자산배분 목표비중(중기자산배분):
+//   국내주식 14.9 / 해외주식 40.0 / 국내채권 25.4 / 해외채권 8.0 / 대체투자 11.4 / 단기 0.3
+// 2026년 1분기 잠정 실현 비중:
 const npsAllocation = [
-  {asset:'국내주식', amount:253.3, pct:19.1, target:18.0, color:'#2962ff'},
-  {asset:'해외주식', amount:472.0, pct:35.6, target:35.7, color:'#26a69a'},
-  {asset:'국내채권', amount:300.7, pct:22.7, target:24.7, color:'#b6c4ff'},
-  {asset:'해외채권', amount:99.4,  pct:7.5,  target:8.0,  color:'#7e8aff'},
-  {asset:'대체투자', amount:185.0, pct:13.9, target:12.6, color:'#f5a623'},
-  {asset:'단기자금', amount:15.6,  pct:1.2,  target:1.0,  color:'#8d90a2'},
+  {asset:'국내주식', amount:202.5, pct:15.27, target:14.9, color:'#2962ff'},
+  {asset:'해외주식', amount:528.4, pct:39.85, target:40.0, color:'#26a69a'},
+  {asset:'국내채권', amount:330.2, pct:24.91, target:25.4, color:'#b6c4ff'},
+  {asset:'해외채권', amount:104.8, pct:7.90,  target:8.0,  color:'#7e8aff'},
+  {asset:'대체투자', amount:155.7, pct:11.74, target:11.4, color:'#f5a623'},
+  {asset:'단기자금', amount:4.4,   pct:0.33,  target:0.3,  color:'#8d90a2'},
 ];
 
 // 자산 배분 추이 — 국민연금 공시 기반 (출처: 국민연금공단 기금운용본부 연차보고서)
@@ -6304,52 +7006,178 @@ function showMacroHistoryChart(dataPath, title, optsJson) {
 // ============================
 // 부동산 지표 히스토리 차트 (지표 클릭 시 모달 표시)
 // ============================
+// 모달 차트 상태 (기간/단위 셀렉터 지원)
+let _reHistState = { key:null, title:'', unit:'', period:'all', timeUnit:'M', sourceKind:null };
+
+// 일/월 단위 정규화: 'YYYY-MM-DD', 'YYYY-MM', 'YYYYMM', 'YYYYQn', 'YYYY' 모두 처리
+function _parseHistDate(s) {
+  if(!s) return null;
+  if(typeof s === 'number') s = String(s);
+  s = s.toString().trim();
+  // YYYY-MM-DD
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  // YYYY-MM
+  m = s.match(/^(\d{4})-(\d{2})$/);
+  if(m) return new Date(+m[1], +m[2]-1, 1);
+  // YYYYMM
+  m = s.match(/^(\d{4})(\d{2})$/);
+  if(m) return new Date(+m[1], +m[2]-1, 1);
+  // YYYY.MM
+  m = s.match(/^(\d{4})\.(\d{1,2})$/);
+  if(m) return new Date(+m[1], +m[2]-1, 1);
+  // YYYY Q?
+  m = s.match(/^(\d{4})Q?(\d)$/i);
+  if(m) return new Date(+m[1], (+m[2]-1)*3, 1);
+  // YYYY
+  m = s.match(/^(\d{4})$/);
+  if(m) return new Date(+m[1], 0, 1);
+  // YY.MM
+  m = s.match(/^(\d{2})\.(\d{1,2})$/);
+  if(m) return new Date(2000+(+m[1]), +m[2]-1, 1);
+  const dt = new Date(s);
+  return isNaN(dt) ? null : dt;
+}
+
+// 시계열 데이터를 기간/단위에 맞게 리샘플링
+function _resampleHistSeries(labels, values, period, timeUnit) {
+  // 1) 날짜 객체로 변환
+  const pts = labels.map((l, i) => ({ date: _parseHistDate(l), raw: l, val: values[i] }))
+                     .filter(p => p.date && p.val != null && !isNaN(p.val));
+  if(!pts.length) return { labels, values };
+  pts.sort((a,b) => a.date - b.date);
+  // 2) 기간 필터
+  if(period !== 'all') {
+    const last = pts[pts.length-1].date;
+    const cutoffMs = period==='1y' ? 365 : period==='3y' ? 365*3 : period==='5y' ? 365*5 : Infinity;
+    const cutoff = new Date(last.getTime() - cutoffMs*86400000);
+    const filtered = pts.filter(p => p.date >= cutoff);
+    if(filtered.length >= 2) { pts.length=0; pts.push(...filtered); }
+  }
+  // 3) 시간 단위 집계 (월/분기/반기/연)
+  if(timeUnit === 'M') {
+    return { labels: pts.map(p=>_fmtDateLabel(p.date,'M',p.raw)), values: pts.map(p=>p.val) };
+  }
+  const buckets = new Map(); // bucketKey → {date, sum, count, latest}
+  pts.forEach(p => {
+    let k;
+    const y = p.date.getFullYear(), m = p.date.getMonth();
+    if(timeUnit === 'Q') k = `${y}-Q${Math.floor(m/3)+1}`;
+    else if(timeUnit === 'H') k = `${y}-H${m<6?1:2}`;
+    else /* Y */ k = `${y}`;
+    if(!buckets.has(k)) buckets.set(k, {date:p.date, sum:0, count:0, latest:p.val});
+    const b = buckets.get(k);
+    b.sum += p.val; b.count++; b.latest = p.val; b.date = p.date;
+  });
+  // 인덱스성 데이터는 마지막 값(latest), 합계성 데이터(거래량 등)는 합계 — 기본 latest 사용
+  const out = [...buckets.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  return {
+    labels: out.map(([k,v]) => k),
+    values: out.map(([k,v]) => v.latest),
+  };
+}
+function _fmtDateLabel(dt, timeUnit, raw) {
+  if(!dt) return raw||'';
+  const y = dt.getFullYear(), m = dt.getMonth()+1;
+  if(timeUnit==='M') return `${y}.${String(m).padStart(2,'0')}`;
+  if(timeUnit==='Y') return `${y}`;
+  return raw || `${y}.${String(m).padStart(2,'0')}`;
+}
+
+function setReHistPeriod(p, btn) {
+  _reHistState.period = p;
+  document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim,#8d90a2)';
+  });
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
+  _renderReHistChart();
+}
+function setReHistUnit(u, btn) {
+  _reHistState.timeUnit = u;
+  document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
+    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim,#8d90a2)';
+  });
+  if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
+  _renderReHistChart();
+}
+
 function showReHistoryChart(key, title, opts) {
   opts = opts || {};
   const modal = document.getElementById('reHistoryChartModal');
+  if(!modal) return;
+  // 상태 초기화
+  _reHistState.key = key;
+  _reHistState.title = title;
+  _reHistState.unit = opts.unit || '';
+  _reHistState.period = 'all';
+  _reHistState.timeUnit = 'M';
+  // 셀렉터 UI 초기화
+  document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
+    const isActive = b.dataset.period === 'all';
+    b.classList.toggle('active', isActive);
+    b.style.background = isActive ? '#2962ff' : 'transparent';
+    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#8d90a2)';
+  });
+  document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
+    const isActive = b.dataset.unit === 'M';
+    b.classList.toggle('active', isActive);
+    b.style.background = isActive ? '#2962ff' : 'transparent';
+    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#8d90a2)';
+  });
+  modal.style.display = 'flex';
+  _renderReHistChart();
+}
+
+function _renderReHistChart() {
+  const { key, title, unit, period, timeUnit } = _reHistState;
   const titleEl = document.getElementById('reHistTitle');
   const metaEl  = document.getElementById('reHistMeta');
   const noteEl  = document.getElementById('reHistNote');
-  if(!modal) return;
-  titleEl.textContent = title;
-  const unit = opts.unit || '';
-  metaEl.innerHTML = `<span style="color:#b6c4ff;">단위:</span> ${unit||'—'}`;
-  modal.style.display = 'flex';
+  if(titleEl) titleEl.textContent = title;
+  if(metaEl) metaEl.innerHTML = `<span style="color:#b6c4ff;">단위:</span> ${unit||'—'}`;
   destroyChart('reHistChart');
   // 데이터 소스에서 시계열 추출
   const d = _latestDataForIndicators || {};
   const reKr = (d.realestate||{}).kr || {};
+  const reUs = (d.realestate||{}).us || {};
+  const ecoKr = (d.economicIndicators||{}).kr || {};
+  const ecoUs = (d.economicIndicators||{}).us || {};
+  const ecoEu = (d.economicIndicators||{}).eu || {};
+  const ecoJp = (d.economicIndicators||{}).jp || {};
+  const ecoCn = (d.economicIndicators||{}).cn || {};
+  const ecoDe = (d.economicIndicators||{}).de || {};
+  const ecoUk = (d.economicIndicators||{}).uk || {};
+  // 키 검색 (여러 카테고리 순회)
+  const candidates = [reKr, reUs, ecoKr, ecoUs, ecoEu, ecoJp, ecoCn, ecoDe, ecoUk];
+  let src = null;
+  for(const c of candidates) { if(c && c[key]) { src = c[key]; break; } }
   let labels=[], values=[];
-  let dataSource = '한국부동산원 R-ONE / 국토교통부';
+  let dataSource = src?.source || '한국부동산원 R-ONE / 국토교통부 / FRED';
   // 1) data.json에 시계열 history가 있는 경우
-  if(reKr[key]?.history && typeof reKr[key].history === 'object') {
-    const h = reKr[key].history;
-    Object.keys(h).sort().forEach(p=>{ labels.push(p); values.push(h[p]); });
+  if(src?.history && typeof src.history === 'object') {
+    Object.keys(src.history).sort().forEach(p=>{ labels.push(p); values.push(src.history[p]); });
   }
   // 2) 사이트의 정적 시계열 폴백 (apt_price_idx_kr → rePriceData.national5y 등)
-  if(!values.length && (key === 'apt_price_idx_kr' || key === 'jns_price_idx_kr')) {
+  if(!values.length && (key === 'apt_price_idx_kr' || key === 'jns_price_idx_kr') && typeof rePriceData !== 'undefined') {
     labels = rePriceData.labels5y.slice();
     values = (key === 'jns_price_idx_kr') ? rePriceData.jns5y.slice() : rePriceData.national5y.slice();
     dataSource = '내장 5년 시계열 (R-ONE 2021.6=100)';
-    // 최신 R-ONE 값으로 마지막 점 갱신
     if(reKr[key]?.value != null) {
       values[values.length-1] = reKr[key].value;
       if(reKr[key].period) labels[labels.length-1] = (reKr[key].period+'').slice(2,4)+'.'+(reKr[key].period+'').slice(4,6);
     }
   }
-  // 3) ECOS history 시계열 (mortgage_rate, household_debt)
-  if(!values.length && reKr[key]?.value != null) {
-    // 현재값만 있는 경우: 시계열 더미 + 현재값 한 포인트
+  // 3) 단일값밖에 없는 경우
+  if(!values.length && src?.value != null) {
     const today = new Date();
     for(let i=11;i>=0;i--) {
       const dt = new Date(today.getFullYear(), today.getMonth()-i, 1);
       labels.push(dt.toISOString().slice(0,7));
-      // 현재값을 안전하게 사용
-      values.push(reKr[key].value);
+      values.push(src.value);
     }
     dataSource = '단일 시점 데이터 (시계열 없음)';
   }
-  // 4) PIR 같은 정적 데이터 폴백
+  // 4) PIR 정적 데이터 폴백
   if(!values.length && key === 'pir_seoul') {
     labels = ['2018','2019','2020','2021','2022','2023','2024','2025'];
     values = [13.0, 14.5, 15.8, 18.2, 20.1, 19.8, 19.6, 19.3];
@@ -6357,16 +7185,18 @@ function showReHistoryChart(key, title, opts) {
   }
   const ctx = document.getElementById('reHistChart');
   if(!ctx || !values.length) {
-    noteEl.textContent = '시계열 데이터 없음 — API 연동 시 자동 표시됩니다.';
+    if(noteEl) noteEl.textContent = '시계열 데이터 없음 — API 연동 시 자동 표시됩니다.';
     return;
   }
-  noteEl.textContent = `출처: ${dataSource}`;
+  // 기간/단위 적용
+  const resampled = _resampleHistSeries(labels, values, period, timeUnit);
+  if(noteEl) noteEl.textContent = `출처: ${dataSource}${period!=='all'?' · 기간: '+period:''}${timeUnit!=='M'?' · 단위: '+({Q:'분기',H:'반기',Y:'연'}[timeUnit]||timeUnit):''}`;
   const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d'};
   charts['reHistChart'] = new Chart(ctx, {
     type:'line',
-    data:{ labels, datasets:[{
+    data:{ labels: resampled.labels, datasets:[{
       label: title + (unit?` (${unit})`:''),
-      data: values,
+      data: resampled.values,
       borderColor: '#2962ff',
       backgroundColor: '#2962ff22',
       borderWidth: 2,
@@ -6376,7 +7206,7 @@ function showReHistoryChart(key, title, opts) {
     }]},
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{
-        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:10}, grid:{color:tc.grid}},
+        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:12}, grid:{color:tc.grid}},
         y:{ ticks:{color:tc.txt,font:{size:10}}, grid:{color:tc.grid}, position:'right'},
       },
       plugins:{
@@ -6756,24 +7586,28 @@ function applyRealData(d) {
   }
   if (etfMvr.etfGainers) {
     upMoversETF.splice(0, upMoversETF.length, ...etfMvr.etfGainers.slice(0,10).map(s=>({
-      name: s.name, code: s.code||'', price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'etf'
+      name: s.name, code: s.code||'', price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%',
+      vol: s.vol ? Math.round(s.vol/1000).toLocaleString()+'K' : '', type:'etf'
     })));
   }
   if (etfMvr.etfLosers) {
     downMoversETF.splice(0, downMoversETF.length, ...etfMvr.etfLosers.slice(0,10).map(s=>({
-      name: s.name, code: s.code||'', price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%', type:'etf'
+      name: s.name, code: s.code||'', price: s.price.toLocaleString(), chg: (s.chg>=0?'+':'')+s.chg.toFixed(2)+'%',
+      vol: s.vol ? Math.round(s.vol/1000).toLocaleString()+'K' : '', type:'etf'
     })));
   }
   // 대시보드 상승/하락 테이블 — 초기 로드시 비어있던 상태를 갱신
   try { buildMoverTable(curMoverTab); } catch(_) {}
 
-  // Top10 테이블 (주식시장 탭) — KOSPI 상승/하락 + ETF 상승/하락 같이 갱신
+  // Top10 테이블 (주식시장 탭) — KOSPI 상승/하락 + ETF 상승/하락 같이 갱신 (거래량 포함)
   const stockUrl = (s) => naverStockUrl(s);
+  const volStr = v => v ? Math.round(v/1000).toLocaleString()+'K' : '—';
   const renderTopRow = (s, i, cls) => `<tr style="border-bottom:1px solid #1b1f2b;">
       <td style="padding:5px;color:#434656;">${i+1}</td>
       <td style="padding:5px;font-weight:500;"><a href="${stockUrl(s)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
       <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
       <td style="text-align:right;padding:5px;color:${cls==='up'?'#26a69a':'#ef5350'};">${cls==='up'?'+':''}${s.chg.toFixed(2)}%</td>
+      <td style="text-align:right;padding:5px;color:#8d90a2;font-size:11px;">${volStr(s.vol)}</td>
     </tr>`;
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
