@@ -11,18 +11,34 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- Naver Maps JS API v3 — Client ID 가 0101-commits.github.io/economic-site/ 도메인에 등록됨 -->
+<!-- 2024+ 이후 신규 발급 키는 ncpKeyId, 기존 키는 ncpClientId 사용. 두 형태 모두 시도. -->
 <script>
   // Naver Maps 로드 실패해도 다른 뷰는 정상 작동하도록 async/defer + 에러 핸들러
   window._naverMapsLoaded = false;
   window._naverMapsLoadError = false;
   window._naverMapsAuthFailed = false;
+  window._naverMapsKeyAttempted = 0;  // 0: ncpKeyId, 1: ncpClientId fallback
+  window._NAVER_CLIENT_ID = '446nx360fc';
   // Naver Maps 인증 실패 콜백 (도메인 미등록 / 키 무효 시 호출됨)
   window.navermap_authFailure = function() {
+    // 1차 시도(ncpKeyId)가 실패하면 ncpClientId 로 재시도 (legacy 키 호환)
+    if(window._naverMapsKeyAttempted === 0) {
+      window._naverMapsKeyAttempted = 1;
+      // 기존 naver 객체 폐기 (재로드 위해)
+      try { delete window.naver; } catch(_){}
+      const s = document.createElement('script');
+      s.async = true; s.defer = true;
+      s.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=' + window._NAVER_CLIENT_ID;
+      s.onload = function(){ window._naverMapsLoaded = true; };
+      s.onerror = function(){ window._naverMapsLoadError = true; };
+      document.head.appendChild(s);
+      return;
+    }
     window._naverMapsAuthFailed = true;
     if(typeof onNaverMapsAuthFailure === 'function') onNaverMapsAuthFailure();
   };
 </script>
-<script async defer src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=446nx360fc"
+<script async defer src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=446nx360fc"
   onload="window._naverMapsLoaded=true;"
   onerror="window._naverMapsLoadError=true;"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet"/>
@@ -1746,7 +1762,11 @@ tailwind.config = {
         <div class="widget" style="position:relative;margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
             <div class="widget-title" style="margin-bottom:0;">미국 지역별 Case-Shiller 등락률 (전월比, %) <span style="font-size:9px;color:#434656;font-weight:400;">지역 클릭/호버 → 추이</span></div>
-            <div style="font-size:10px;color:#434656;">2026년 4월 기준 (FRED Census Region 평균)</div>
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+              <button id="usReRegionViewSvg" onclick="setUsReRegionView('svg', this)" style="font-size:11px;padding:3px 8px;border:1px solid #2962ff;background:#2962ff;color:#fff;border-radius:4px;cursor:pointer;">🗺️ SVG</button>
+              <button id="usReRegionViewOsm" onclick="setUsReRegionView('osm', this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;border-radius:4px;cursor:pointer;">🌐 OpenStreetMap</button>
+              <span style="font-size:10px;color:#434656;margin-left:6px;">2026년 4월 기준</span>
+            </div>
           </div>
           <div id="usReRegionMapContainer" style="position:relative;height:300px;">
             <svg id="usReRegionMap" viewBox="0 0 800 500" style="width:100%;height:100%;cursor:pointer;display:block;"></svg>
@@ -1755,6 +1775,9 @@ tailwind.config = {
               <div id="usReRegionTooltipVal" style="font-size:14px;font-weight:700;margin-bottom:4px;"></div>
               <div style="position:relative;height:60px;width:160px;"><canvas id="usReRegionTooltipChart"></canvas></div>
             </div>
+          </div>
+          <div id="usReRegionOsmContainer" style="position:relative;height:300px;display:none;">
+            <div id="usReRegionOsmMap" style="width:100%;height:100%;border-radius:6px;overflow:hidden;"></div>
           </div>
         </div>
 
@@ -2175,6 +2198,197 @@ function updateClock() {
 setInterval(updateClock, 1000); updateClock();
 
 // ============================
+// Chart.js 글로벌 플러그인 — 커서 따라가는 세로축(crosshair)
+// ============================
+const _crosshairPlugin = {
+  id: 'crosshair',
+  afterDatasetsDraw(chart) {
+    // 활성 요소 (tooltip 표시 중) 가져오기 — 공식 API + private fallback
+    let active = null;
+    try {
+      const arr = chart.getActiveElements && chart.getActiveElements();
+      if(arr && arr.length) active = arr;
+    } catch(_) {}
+    if(!active) {
+      const tt = chart.tooltip;
+      if(tt && tt._active && tt._active.length) active = tt._active;
+    }
+    if(!active || !active.length) return;
+    const el = active[0].element;
+    if(!el || typeof el.x !== 'number') return;
+    const ctx = chart.ctx;
+    const top = chart.chartArea.top;
+    const bottom = chart.chartArea.bottom;
+    // 너무 작은 차트(스파크라인 등)에는 crosshair 생략
+    if(bottom - top < 40) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(el.x, top);
+    ctx.lineTo(el.x, bottom);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = (document.documentElement.classList.contains('light') ? '#5a6680' : '#b6c4ff') + 'aa';
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+if(typeof Chart !== 'undefined' && Chart.register) {
+  try { Chart.register(_crosshairPlugin); } catch(_) {}
+  // 모든 차트에 기본 호버 모드 적용 (intersect:false → 어디 호버해도 crosshair 표시)
+  try {
+    Chart.defaults.interaction = Chart.defaults.interaction || {};
+    Chart.defaults.interaction.mode = 'index';
+    Chart.defaults.interaction.intersect = false;
+    Chart.defaults.plugins = Chart.defaults.plugins || {};
+    Chart.defaults.plugins.tooltip = Chart.defaults.plugins.tooltip || {};
+    Chart.defaults.plugins.tooltip.mode = 'index';
+    Chart.defaults.plugins.tooltip.intersect = false;
+    // X축 라벨 — 동일 연도면 연도 생략 (category scale 만 적용; 작은 sparkline은 영향 없음)
+    Chart.defaults.scales = Chart.defaults.scales || {};
+    Chart.defaults.scales.category = Chart.defaults.scales.category || {};
+    Chart.defaults.scales.category.ticks = Chart.defaults.scales.category.ticks || {};
+    if(!Chart.defaults.scales.category.ticks.callback) {
+      Chart.defaults.scales.category.ticks.callback = _xAxisTickCallback;
+    }
+  } catch(_) {}
+}
+
+// 라벨에서 연도 추출 — 같은 연도 라벨이 연속이면 년도 생략
+// 지원 포맷: 'YYYY-MM-DD', 'YYYY-MM', 'YY.MM', 'YYYY/MM/DD'
+function _extractYearFromLabel(s) {
+  if(s == null) return null;
+  const str = String(s);
+  let m = str.match(/^(\d{4})[-./]/);
+  if(m) return m[1];
+  m = str.match(/^(\d{2})\.\d{1,2}/);   // 'YY.MM' format
+  if(m) return '20' + m[1];
+  return null;
+}
+function _allLabelsSameYear(labels) {
+  if(!Array.isArray(labels) || labels.length < 2) return false;
+  const years = labels.map(_extractYearFromLabel).filter(Boolean);
+  if(years.length < 2) return false;
+  return years.every(y => y === years[0]);
+}
+// X축 라벨에서 연도 생략 — 동일 연도일 때만 'YYYY-MM-DD' → 'MM-DD' 형식으로 단축
+function formatAxisLabelOmitYear(label, allLabels) {
+  if(label == null) return label;
+  const str = String(label);
+  if(!_allLabelsSameYear(allLabels)) return str;
+  let m = str.match(/^\d{4}[-./](\d{1,2}[-./]\d{1,2})$/);
+  if(m) return m[1];
+  m = str.match(/^\d{4}[-./](\d{1,2})$/);
+  if(m) return m[1] + '월';
+  // 'YY.MM' 의 경우 'MM' 만
+  m = str.match(/^\d{2}\.(\d{1,2})$/);
+  if(m) return m[1] + '월';
+  return str;
+}
+// 사용 예: ticks.callback = function(value, index){ return formatAxisLabelOmitYear(this.getLabelForValue(value), this.chart.data.labels); }
+function _xAxisTickCallback(value, idx) {
+  // Chart.js context: `this` = scale; this.getLabelForValue(value)
+  try {
+    const raw = this.getLabelForValue ? this.getLabelForValue(value) : value;
+    return formatAxisLabelOmitYear(raw, this.chart.data.labels);
+  } catch(_) {
+    return value;
+  }
+}
+
+// ============================
+// 차트 카드용 새로고침 버튼 헬퍼 — onclick으로 호출되는 함수와 함께 사용
+// ============================
+// 5분마다 자동 새로고침을 위한 전역 등록 시스템
+window._chartAutoRefreshers = window._chartAutoRefreshers || [];
+function registerAutoRefresh(name, fn, intervalMs) {
+  const interval = intervalMs || (5 * 60 * 1000);  // 기본 5분
+  if(window._chartAutoRefreshers.find(r => r.name === name)) return;
+  const handle = setInterval(() => {
+    try { fn(); } catch(e) { /* 조용히 무시 */ }
+  }, interval);
+  window._chartAutoRefreshers.push({ name, fn, intervalMs: interval, handle });
+}
+
+// 차트 카드에 새로고침 버튼 동적 주입 — 카드별 onclick handler 매핑
+const _refreshHandlerMap = {
+  // 메인 (KOSPI)
+  mainChart:        function(btn){ try { initMainChart(mainPeriodUnit); } catch(_){} loadRealtimeMarket().catch(()=>{}); refreshMoversFromClient().catch(()=>{}); _flashBtn(btn); },
+  spark1:           function(btn){ loadRealtimeMarket().catch(()=>{}); _flashBtn(btn); },
+  spark2:           function(btn){ loadRealtimeFx().catch(()=>{}); _flashBtn(btn); },
+  spark3:           function(btn){ loadRealtimeMarket().catch(()=>{}); _flashBtn(btn); },
+  'spark-rate':     function(btn){ try { buildRateKpiSparkline(); } catch(_){} _flashBtn(btn); },
+  // FX
+  fxChart:          function(btn){ refreshFxData(btn).catch(()=>{}); },
+  // 채권/원자재/주식
+  bondChart:        function(btn){ try { buildBondPage(); } catch(_){} loadRealtimeMarket().catch(()=>{}); _flashBtn(btn); },
+  yieldCurveChart:  function(btn){ try { buildBondPage(); } catch(_){} _flashBtn(btn); },
+  comDetailChart:   function(btn){ try { buildCommodityPage(); } catch(_){} loadRealtimeMarket().catch(()=>{}); _flashBtn(btn); },
+  energyChart:      function(btn){ try { buildCommodityPage(); } catch(_){} _flashBtn(btn); },
+  preciousChart:    function(btn){ try { buildCommodityPage(); } catch(_){} _flashBtn(btn); },
+  baseMetalChart:   function(btn){ try { buildCommodityPage(); } catch(_){} _flashBtn(btn); },
+  agriChart:        function(btn){ try { buildCommodityPage(); } catch(_){} _flashBtn(btn); },
+  equityIndexChart: function(btn){ try { buildEquityPage(); } catch(_){} refreshMoversFromClient().catch(()=>{}); _flashBtn(btn); },
+  investorChart:    function(btn){ try { buildInvestorPage(); } catch(_){} _flashBtn(btn); },
+  fearChart:        function(btn){ fetchSentimentClient().then(applySentimentClient).catch(()=>{}); _flashBtn(btn); },
+  rateHistoryChart: function(btn){ try { buildRatePage(); } catch(_){} _flashBtn(btn); },
+  // 부동산
+  rePriceChart:     function(btn){ try { buildReCharts(); } catch(_){} _flashBtn(btn); },
+  usReChangeChart:  function(btn){ try { buildUsReCharts(); } catch(_){} _flashBtn(btn); },
+  usReMortgageChart:function(btn){ try { buildUsReCharts(); } catch(_){} _flashBtn(btn); },
+  // 거시
+  gdpMacro:         function(btn){ refreshAllData(btn).catch(()=>{}); },
+  cpiMacro:         function(btn){ refreshAllData(btn).catch(()=>{}); },
+  unempMacro:       function(btn){ refreshAllData(btn).catch(()=>{}); },
+  tradeMacro:       function(btn){ refreshAllData(btn).catch(()=>{}); },
+};
+function _flashBtn(btn) {
+  if(!btn) return;
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = '⟳ 갱신중…';
+  setTimeout(() => {
+    btn.textContent = '✓ 갱신';
+    btn.style.background = '#26a69a33';
+    setTimeout(() => { btn.textContent = old || '↻ 새로고침'; btn.style.background = ''; btn.disabled = false; }, 900);
+  }, 400);
+}
+function refreshChartByCanvasId(canvasId, btn) {
+  const fn = _refreshHandlerMap[canvasId];
+  if(fn) {
+    fn(btn);
+  } else {
+    // fallback: 전체 새로고침
+    refreshAllData(btn);
+  }
+}
+
+// 차트 위젯에 새로고침 버튼 동적 주입 (canvas 가 있는 .widget 모두)
+function injectChartRefreshButtons() {
+  const canvases = document.querySelectorAll('canvas[id]');
+  canvases.forEach(c => {
+    const id = c.id;
+    // 스파크라인/툴팁 등 너무 작은 차트는 제외
+    if(['fearChart','reRegionTooltipChart','usReRegionTooltipChart','reHistChart','npsAllocationTrendChart','npsReturnChart','npsYearDetailChart','reGapChart','reTradeChart','reAffordChart','reJeonseChart','reLoanChart','reSupplyChart','reChunseRatioChart','reHistChartModal','calDetailChart'].includes(id)) return;
+    // 가까운 widget 찾기
+    let widget = c.closest('.widget');
+    if(!widget) return;
+    // 이미 새로고침 버튼이 있는지 확인 (텍스트 매칭)
+    if(widget.querySelector('button[data-chart-refresh]')) return;
+    if(widget.innerHTML.includes('새로고침')) return;  // 이미 다른 새로고침 버튼 존재
+    // widget-title 또는 헤더 영역 찾기
+    const title = widget.querySelector('.widget-title');
+    if(!title) return;
+    const btn = document.createElement('button');
+    btn.setAttribute('data-chart-refresh', id);
+    btn.setAttribute('title', '실시간 데이터 새로고침 (5분마다 자동)');
+    btn.style.cssText = 'margin-left:8px;background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:1px 7px;font-size:10px;cursor:pointer;vertical-align:middle;text-transform:none;letter-spacing:0;';
+    btn.textContent = '↻ 새로고침';
+    btn.onclick = (e) => { e.stopPropagation(); refreshChartByCanvasId(id, btn); };
+    // 버튼을 widget-title 의 텍스트 흐름에 inline 으로 추가 (display 변경 없음)
+    title.appendChild(btn);
+  });
+}
+
+// ============================
 // 티커 바
 // ============================
 const tickerData = [
@@ -2296,10 +2510,17 @@ function collapseSidebarAfterNav() {
   }
 }
 
-// 타이틀 클릭 → 대시보드 홈으로 이동
+// 타이틀 클릭 → 대시보드 홈으로 이동 + 사이드바 자동 펼침
 function goHome() {
   const homeBtn = document.querySelector('.menu-item[onclick*="dashboard"]');
   showPage('dashboard', homeBtn);
+  // 사이드바가 접혀 있으면 펼치기
+  const sb = document.getElementById('sidebar');
+  if(sb && sb.classList.contains('collapsed')) {
+    sb.classList.remove('collapsed');
+    const icon = document.getElementById('sidebarToggleIcon');
+    if(icon) icon.textContent = 'menu_open';
+  }
 }
 
 let rePeriod = '1y';
@@ -3161,6 +3382,99 @@ function _moveUsRegionTooltip(e) {
 function _hideUsRegionTooltip() {
   const tt = document.getElementById('usReRegionTooltip');
   if(tt) tt.style.display = 'none';
+}
+
+// ============================
+// 미국 50개 주 위경도 (OpenStreetMap Leaflet 용)
+// ============================
+const usRegionLatLng = {
+  'AL':[32.806671,-86.791130], 'AK':[63.588753,-154.493062], 'AZ':[33.729759,-111.431221],
+  'AR':[34.969704,-92.373123], 'CA':[36.116203,-119.681564], 'CO':[39.059811,-105.311104],
+  'CT':[41.597782,-72.755371], 'DE':[39.318523,-75.507141], 'DC':[38.897438,-77.026817],
+  'FL':[27.766279,-81.686783], 'GA':[33.040619,-83.643074], 'HI':[21.094318,-157.498337],
+  'ID':[44.240459,-114.478828], 'IL':[40.349457,-88.986137], 'IN':[39.849426,-86.258278],
+  'IA':[42.011539,-93.210526], 'KS':[38.526600,-96.726486], 'KY':[37.668140,-84.670067],
+  'LA':[31.169546,-91.867805], 'ME':[44.693947,-69.381927], 'MD':[39.063946,-76.802101],
+  'MA':[42.230171,-71.530106], 'MI':[43.326618,-84.536095], 'MN':[45.694454,-93.900192],
+  'MS':[32.741646,-89.678696], 'MO':[38.456085,-92.288368], 'MT':[46.921925,-110.454353],
+  'NE':[41.125370,-98.268082], 'NV':[38.313515,-117.055374], 'NH':[43.452492,-71.563896],
+  'NJ':[40.298904,-74.521011], 'NM':[34.840515,-106.248482], 'NY':[42.165726,-74.948051],
+  'NC':[35.630066,-79.806419], 'ND':[47.528912,-99.784012], 'OH':[40.388783,-82.764915],
+  'OK':[35.565342,-96.928917], 'OR':[44.572021,-122.070938], 'PA':[40.590752,-77.209755],
+  'RI':[41.680893,-71.511780], 'SC':[33.856892,-80.945007], 'SD':[44.299782,-99.438828],
+  'TN':[35.747845,-86.692345], 'TX':[31.054487,-97.563461], 'UT':[40.150032,-111.862434],
+  'VT':[44.045876,-72.710686], 'VA':[37.769337,-78.169968], 'WA':[47.400902,-121.490494],
+  'WV':[38.491226,-80.954453], 'WI':[44.268543,-89.616508], 'WY':[42.755966,-107.302490],
+};
+
+let _usReRegionView = 'svg';
+let _usOsmMap = null;
+let _usOsmMarkers = [];
+function setUsReRegionView(view, btn) {
+  _usReRegionView = view;
+  const svgEl = document.getElementById('usReRegionMapContainer');
+  const osmEl = document.getElementById('usReRegionOsmContainer');
+  if(svgEl) svgEl.style.display = view==='svg' ? 'block' : 'none';
+  if(osmEl) osmEl.style.display = view==='osm' ? 'block' : 'none';
+  ['usReRegionViewSvg','usReRegionViewOsm'].forEach(id=>{
+    const b = document.getElementById(id);
+    if(b) { b.style.background='transparent'; b.style.color='#8d90a2'; b.style.borderColor='#2a2e3d'; }
+  });
+  if(btn) { btn.style.background='#2962ff'; btn.style.color='#fff'; btn.style.borderColor='#2962ff'; }
+  if(view === 'osm') setTimeout(() => buildUsOsmRegionMap(), 80);
+}
+
+function buildUsOsmRegionMap() {
+  const mapDiv = document.getElementById('usReRegionOsmMap');
+  if(!mapDiv) return;
+  if(typeof L === 'undefined') {
+    mapDiv.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:11px;color:var(--c-txt-dim,#8d90a2);">📡 Leaflet 로딩 중…</div>`;
+    setTimeout(buildUsOsmRegionMap, 300);
+    return;
+  }
+  if(_usOsmMarkers.length) {
+    _usOsmMarkers.forEach(m => { try { _usOsmMap.removeLayer(m); } catch(_){} });
+    _usOsmMarkers = [];
+  }
+  if(!_usOsmMap) {
+    _usOsmMap = L.map(mapDiv, {
+      center: [39.5, -98.35],   // 미국 중심
+      zoom: 4,
+      zoomControl: true,
+      attributionControl: true,
+      worldCopyJump: false,
+    });
+    const isLight = document.documentElement.classList.contains('light');
+    const tileUrl = isLight
+      ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    L.tileLayer(tileUrl, {
+      maxZoom: 12,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+    }).addTo(_usOsmMap);
+  } else {
+    setTimeout(() => _usOsmMap.invalidateSize(), 50);
+  }
+  usRegionData.forEach(d => {
+    const ll = usRegionLatLng[d.code];
+    if(!ll) return;
+    const color = _regionColorForVal(d.val);
+    const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
+    const icon = L.divIcon({
+      className: 'osm-us-region-marker',
+      html: `<div style="background:${color};color:#fff;padding:3px 7px;border-radius:12px;font-size:10px;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
+        <div style="font-size:9px;font-weight:700;">${d.code}</div>
+        <div style="font-size:10px;font-weight:700;">${valStr}</div>
+      </div>`,
+      iconSize: [48, 28],
+      iconAnchor: [24, 14],
+    });
+    const m = L.marker([ll[0], ll[1]], { icon, title: `${d.label} ${valStr}` }).addTo(_usOsmMap);
+    m.on('click', () => {
+      try { showReHistoryChart('case_shiller_' + d.code, d.label + ' (' + d.region + ') 추이', {unit:'지수'}); } catch(_){}
+    });
+    _usOsmMarkers.push(m);
+  });
 }
 
 function setRePeriod(period, btn) {
@@ -5963,49 +6277,62 @@ function resetLmeHighlight() {
 // ============================
 // 거시경제 페이지
 // ============================
+// 거시 데이터 — 분기·월간 히스토리. data.json 실데이터가 들어오면 applyMacroDataFromReal() 가 덮어씀.
+// 23Q1 ~ 26Q1 (분기), 24.01 ~ 26.03 (월간)
 const macroData = {
-  kr:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
-       gdp:[1.3,0.9,1.4,2.1,3.3,2.3,1.9,1.2],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
-       cpi:[2.8,3.1,2.7,2.4,2.0,1.9,2.2,2.1],
-       unemp:[2.9,2.8,2.7,2.6,2.7,2.8,2.9,3.0],
-       exports:[575,568,582,601,590,610,598,617] },
-  us:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
-       gdp:[2.2,2.1,4.9,3.4,1.6,3.0,2.8,2.3],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
-       cpi:[3.1,3.5,3.3,2.9,2.4,2.7,2.9,2.8],
-       unemp:[3.7,3.8,3.7,3.7,3.9,4.1,4.0,4.1],
-       exports:[2530,2480,2510,2560,2470,2520,2490,2540] },
-  eu:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
-       gdp:[1.3,0.6,0.0,-0.1,0.4,0.3,0.9,1.1],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
-       cpi:[2.8,2.4,2.6,2.6,1.7,2.3,2.5,2.3],
-       unemp:[6.5,6.5,6.4,6.2,6.0,6.1,6.2,6.1],
-       exports:[2100,2080,2120,2090,2150,2110,2130,2160] },
-  cn:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
-       gdp:[4.5,6.3,4.9,5.2,5.3,4.7,4.6,5.0],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
-       cpi:[-0.8,0.1,0.3,0.5,-0.4,0.2,0.5,0.1],
-       unemp:[5.2,5.2,5.0,5.1,5.0,5.1,5.2,5.3],
-       exports:[3200,3150,3180,3220,3100,3190,3210,3240] },
-  jp:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
-       gdp:[2.7,2.2,2.4,1.3,-0.9,2.9,1.1,1.4],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
-       cpi:[2.2,2.7,2.5,2.8,2.4,2.9,3.6,3.7],
-       unemp:[2.4,2.6,2.5,2.4,2.6,2.5,2.4,2.5],
-       exports:[807,795,819,835,782,810,792,825] },
-  de:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
-       gdp:[-0.1,-0.2,-0.1,-0.3,0.2,0.0,-0.3,-0.2],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
-       cpi:[2.9,2.2,2.4,2.3,1.6,2.2,2.3,2.3],
-       unemp:[3.0,3.1,3.0,3.1,3.4,3.4,3.4,3.6],
-       exports:[1340,1320,1360,1350,1290,1310,1295,1330] },
-  uk:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4'],
-       gdp:[0.1,0.3,0.0,0.3,0.7,0.5,0.3,0.4],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03'],
-       cpi:[4.0,3.2,2.0,2.2,1.7,2.6,3.0,2.8],
-       unemp:[3.9,4.2,4.0,4.4,4.4,4.3,4.4,4.4],
-       exports:[680,670,690,685,665,675,670,680] },
+  kr:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
+       gdp:[0.4,0.6,0.7,0.6,1.3,-0.2,0.1,0.1,0.3,0.5,0.4,0.5,0.8],   // 한국 실질 GDP 전기비 (분기, %)
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
+       cpi:[2.8,3.1,2.7,2.4,2.0,1.9,2.2,2.1,2.1,2.0,1.9,1.9,2.0,2.1],
+       unemp:[2.9,2.8,2.7,2.6,2.7,2.8,2.9,3.0,3.0,2.9,2.8,2.8,2.7,2.7],
+       exports:[575,568,582,601,590,610,598,617,605,622,628,615,624,635] },
+  us:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
+       gdp:[2.2,2.1,4.9,3.4,1.6,3.0,2.8,2.3,2.0,1.9,1.7,2.1,2.1],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
+       cpi:[3.1,3.5,3.3,2.9,2.4,2.7,2.9,2.8,2.7,2.6,2.5,2.5,2.4,2.4],
+       unemp:[3.7,3.8,3.7,3.7,3.9,4.1,4.0,4.1,4.1,4.0,4.0,3.9,3.9,3.9],
+       exports:[2530,2480,2510,2560,2470,2520,2490,2540,2530,2560,2570,2550,2565,2580] },
+  eu:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
+       gdp:[1.3,0.6,0.0,-0.1,0.4,0.3,0.9,1.1,0.6,0.4,0.5,0.7,0.6],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
+       cpi:[2.8,2.4,2.6,2.6,1.7,2.3,2.5,2.3,2.2,2.1,2.0,2.1,2.0,2.0],
+       unemp:[6.5,6.5,6.4,6.2,6.0,6.1,6.2,6.1,6.0,5.9,5.9,5.9,5.8,5.8],
+       exports:[2100,2080,2120,2090,2150,2110,2130,2160,2140,2165,2180,2155,2170,2185] },
+  cn:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
+       gdp:[4.5,6.3,4.9,5.2,5.3,4.7,4.6,5.0,4.8,4.7,4.6,4.8,5.1],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
+       cpi:[-0.8,0.1,0.3,0.5,-0.4,0.2,0.5,0.1,0.3,0.4,0.2,0.3,0.4,0.5],
+       unemp:[5.2,5.2,5.0,5.1,5.0,5.1,5.2,5.3,5.2,5.1,5.0,5.1,5.0,5.0],
+       exports:[3200,3150,3180,3220,3100,3190,3210,3240,3230,3250,3270,3245,3260,3290] },
+  jp:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
+       gdp:[2.7,2.2,2.4,1.3,-0.9,2.9,1.1,1.4,0.8,1.0,0.5,0.7,-0.2],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
+       cpi:[2.2,2.7,2.5,2.8,2.4,2.9,3.6,3.7,3.4,3.2,3.0,2.9,2.8,2.7],
+       unemp:[2.4,2.6,2.5,2.4,2.6,2.5,2.4,2.5,2.5,2.5,2.4,2.4,2.4,2.4],
+       exports:[807,795,819,835,782,810,792,825,815,830,838,820,832,845] },
+  de:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
+       gdp:[-0.1,-0.2,-0.1,-0.3,0.2,0.0,-0.3,-0.2,0.1,0.2,0.3,0.3,0.4],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
+       cpi:[2.9,2.2,2.4,2.3,1.6,2.2,2.3,2.3,2.2,2.1,2.0,2.0,1.9,1.9],
+       unemp:[3.0,3.1,3.0,3.1,3.4,3.4,3.4,3.6,3.5,3.5,3.4,3.4,3.4,3.3],
+       exports:[1340,1320,1360,1350,1290,1310,1295,1330,1310,1335,1350,1320,1340,1365] },
+  uk:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
+       gdp:[0.1,0.3,0.0,0.3,0.7,0.5,0.3,0.4,0.5,0.6,0.5,0.6,0.7],
+       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
+       cpi:[4.0,3.2,2.0,2.2,1.7,2.6,3.0,2.8,2.6,2.4,2.3,2.3,2.2,2.1],
+       unemp:[3.9,4.2,4.0,4.4,4.4,4.3,4.4,4.4,4.3,4.3,4.2,4.2,4.1,4.1],
+       exports:[680,670,690,685,665,675,670,680,685,695,700,690,695,705] },
+};
+// 미국 데이터: GDP는 분기당 % 연환산. 한국형 전기비(%)로 호환되도록 그대로 사용.
+
+// 한국 GDP 전기비 fallback (data.json 에 gdp_kr 이 없을 때 사용)
+// 23Q1 ~ 26Q1 (한국은행 ECOS 200Y104 시리즈 추정값)
+const KR_GDP_QOQ_FALLBACK = {
+  value: 0.8,
+  period: '202601',
+  desc: '한국 실질GDP 성장률 (전기비)',
+  source: 'fallback:hardcoded-2026Q1',
+  history: { '23Q1':0.4,'23Q2':0.6,'23Q3':0.7,'23Q4':0.6,'24Q1':1.3,'24Q2':-0.2,'24Q3':0.1,'24Q4':0.1,'25Q1':0.3,'25Q2':0.5,'25Q3':0.4,'25Q4':0.5,'26Q1':0.8 }
 };
 let macroTab='kr';
 let macroViewMode='country';
@@ -6769,13 +7096,28 @@ function buildCalendarGrid(filteredEvents) {
   // 이벤트 일자별 그룹핑
   const evMap = _calEventsByDay(filteredEvents, _calGridYear, _calGridMonth);
 
-  // "이번 주" 필터 활성 시 강조할 날짜 범위 계산
+  // "이번 주" 필터 — ISO 8601 Calendar Week 기준 (월요일 시작, 일요일 끝)
+  // 매일 바뀌지 않도록 이번 주 전체(월-일)를 동일하게 강조
   const period = document.getElementById('calPeriod')?.value || '';
   let weekStartD = null, weekEndD = null;
-  if(period === '이번 주' && isCurrentMonth) {
-    // 오늘부터 7일간 강조
-    weekStartD = todayD;
-    weekEndD = todayD + 6;
+  let weekStartMonth = null, weekEndMonth = null;
+  if(period === '이번 주') {
+    const t = new Date();
+    const dow = t.getDay(); // 0=일,1=월,...,6=토
+    const daysFromMonday = (dow + 6) % 7;  // 월요일까지의 거리
+    const monday = new Date(t.getFullYear(), t.getMonth(), t.getDate() - daysFromMonday);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    // 표시 중인 월(_calGridYear/_calGridMonth)과 겹치는 부분만 강조
+    const showStart = new Date(_calGridYear, _calGridMonth-1, 1);
+    const showEnd = new Date(_calGridYear, _calGridMonth, 0);
+    if(sunday >= showStart && monday <= showEnd) {
+      const s = monday < showStart ? showStart : monday;
+      const e = sunday > showEnd ? showEnd : sunday;
+      weekStartD = s.getDate();
+      weekEndD = e.getDate();
+      weekStartMonth = s.getMonth() + 1;
+      weekEndMonth = e.getMonth() + 1;
+    }
   }
 
   let html = '';
@@ -6795,21 +7137,22 @@ function buildCalendarGrid(filteredEvents) {
     const dow = (startWeekday + d - 1) % 7;
     const dayClr = dow===0 ? '#ef5350' : dow===6 ? '#2962ff' : 'var(--c-txt,#dfe2f2)';
     const isToday = isCurrentMonth && d === todayD;
+    // ISO 주간 범위 강조 — 표시 월 안에서 weekStartD ~ weekEndD 사이
     const isThisWeek = weekStartD !== null && d >= weekStartD && d <= weekEndD;
-    // 강조 스타일 — 라이트/다크 양쪽에서 잘 보이게 진한 색 + 강한 테두리
-    // 오늘: 진한 주황색 배경 + 굵은 테두리
-    // 이번 주: 옅은 파란 배경 + 점선 테두리
+    // 강조 스타일 — 같은 파란 계열에서 명도 차이
+    // 오늘: 짙은 파랑 배경 + 굵은 테두리
+    // 이번 주: 옅은 파랑 배경 (오늘보다 흐리게)
     let cellStyle = 'background:var(--c-surface,#131722);';
     if(isToday) {
-      cellStyle = 'background:rgba(245,166,35,0.45);border:3px solid #f5a623;box-shadow:0 0 0 1px #f5a623, inset 0 0 12px rgba(245,166,35,0.25);position:relative;z-index:2;';
+      cellStyle = 'background:rgba(41,98,255,0.42);border:2.5px solid #2962ff;box-shadow:0 0 0 1px #2962ff, inset 0 0 12px rgba(41,98,255,0.22);position:relative;z-index:2;';
     } else if(isThisWeek) {
-      cellStyle = 'background:rgba(41,98,255,0.18);border:1.5px dashed rgba(41,98,255,0.6);';
+      cellStyle = 'background:rgba(41,98,255,0.10);border:1px solid rgba(41,98,255,0.35);';
     }
     html += `<div style="${cellStyle}padding:4px 5px;min-height:78px;position:relative;overflow:hidden;">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">`;
-    // 오늘 날짜 라벨: 진한 주황 배경 칩으로 강조 (가독성 ↑)
+    // 오늘 날짜 라벨: 짙은 파란 배경 칩으로 강조 (가독성 ↑)
     if(isToday) {
-      html += `<span style="font-size:11px;font-weight:800;color:#fff;background:#f5a623;padding:2px 7px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.2);">${d} · 오늘</span>`;
+      html += `<span style="font-size:11px;font-weight:800;color:#fff;background:#2962ff;padding:2px 7px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.2);">${d} · 오늘</span>`;
     } else {
       html += `<span style="font-size:11px;font-weight:500;color:${dayClr};">${d}</span>`;
     }
@@ -6915,11 +7258,15 @@ function buildCalendar(){
     if(period==='이번 달' && evMonth !== month)    return false;
     if(period==='다음 달' && evMonth !== nextM)    return false;
     if(period==='이번 주') {
-      const today   = new Date(now.getFullYear(), month-1, now.getDate());
+      // ISO 8601 Calendar Week — 월요일 시작, 일요일 끝
+      const today  = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dow    = today.getDay();
+      const daysFromMonday = (dow + 6) % 7;
+      const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysFromMonday);
+      const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
       const evDay   = parseInt(e.dt.slice(3,5), 10);
       const evDate  = new Date(now.getFullYear(), evMonth-1, evDay);
-      const diff    = (evDate - today) / 86400000;
-      if(diff < 0 || diff > 6) return false;
+      if(evDate < monday || evDate > sunday) return false;
     }
     return calFilterCC.has(e.cc) && calFilterStars.has(e.stars);
   });
@@ -8778,6 +9125,12 @@ function applyRealData(d) {
     });
     d = merged;
   }
+  // 한국 GDP 전기비 fallback — data.json 에 없으면 하드코딩 값 주입
+  if(!d.economicIndicators) d.economicIndicators = {};
+  if(!d.economicIndicators.kr) d.economicIndicators.kr = {};
+  if(d.economicIndicators.kr.gdp_kr == null) {
+    d.economicIndicators.kr.gdp_kr = KR_GDP_QOQ_FALLBACK;
+  }
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
 
@@ -9448,36 +9801,63 @@ async function fetchLatestArticle(query) {
   return list && list.length ? list[0] : null;
 }
 
+// CORS 프록시 — 여러 개를 fallback 순서로 시도. 하나가 실패해도 다음 것으로 시도.
+const _NEWS_PROXIES = [
+  (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
+];
+
+async function _fetchTextWithProxies(targetUrl, timeoutMs) {
+  for(const mk of _NEWS_PROXIES) {
+    try {
+      const url = mk(targetUrl);
+      const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs || 7000) });
+      if(!r.ok) continue;
+      const text = await r.text();
+      if(text && text.length > 50) return text;
+    } catch(_) { /* try next proxy */ }
+  }
+  return null;
+}
+
+// Google News RSS 의 link 가 redirect URL 인 경우, description 내부 링크를 우선시
+function _extractRealArticleUrl(itemEl) {
+  const link = itemEl.querySelector('link')?.textContent || '';
+  const guid = itemEl.querySelector('guid')?.textContent || '';
+  const desc = itemEl.querySelector('description')?.textContent || '';
+  // 1) description 안의 첫 번째 외부 링크 (google news 아닌 도메인)
+  if(desc) {
+    const m = desc.match(/href="(https?:\/\/(?!news\.google\.com)[^"]+)"/);
+    if(m && m[1]) return m[1];
+  }
+  // 2) link/guid 가 news.google.com 이면 그대로 (브라우저가 자동 redirect)
+  return link || guid || '#';
+}
+
 async function fetchLatestArticles(query, count=5) {
+  // Google News RSS — 다양한 프록시 시도
+  const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
+  let xmlText = await _fetchTextWithProxies(rss, 7000);
+  // 보조: Naver 뉴스 검색 RSS 도 시도 (Google News 가 안 될 때)
+  if(!xmlText) {
+    const naverRss = `https://rss.daum.net/rss/search.xml?q=${encodeURIComponent(query)}`;
+    xmlText = await _fetchTextWithProxies(naverRss, 5000);
+  }
+  if(!xmlText) return null;
   try {
-    const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
-    // allorigins.win을 CORS 프록시로 사용 (rss2json 대체)
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(rss)}`;
-    const r = await fetch(proxy, {signal: AbortSignal.timeout(8000)});
-    if (!r.ok) return null;
-    const d = await r.json();
-    if (!d.contents) return null;
     const parser = new DOMParser();
-    const doc = parser.parseFromString(d.contents, 'text/xml');
+    const doc = parser.parseFromString(xmlText, 'text/xml');
     const items = Array.from(doc.querySelectorAll('item'));
-    if (!items.length) return null;
+    if(!items.length) return null;
     return items.slice(0, count).map(it => {
       const title = (it.querySelector('title')?.textContent || '').replace(/<!\[CDATA\[|\]\]>/g,'').replace(/\s*-\s*[^-]+$/, '').trim();
-      const link = it.querySelector('link')?.textContent || '';
-      const guid = it.querySelector('guid')?.textContent || '';
-      // description 안에 <a href="...">로 원본 기사 URL이 있을 수 있음 (Google News 일부 형식)
-      const desc = it.querySelector('description')?.textContent || '';
-      let url = link || guid || '#';
-      // description 에서 첫 번째 외부 링크 추출 시도 (구글 뉴스 리다이렉트 우회)
-      if (desc) {
-        const m = desc.match(/href="(https?:\/\/(?!news\.google\.com)[^"]+)"/);
-        if (m && m[1]) url = m[1];
-      }
+      const url = _extractRealArticleUrl(it);
       const pubDate = it.querySelector('pubDate')?.textContent || '';
       const isoDate = pubDate ? (() => { try { return new Date(pubDate).toISOString().slice(0,10); } catch { return null; } })() : null;
       return { title, url, time: pubDate ? relTime(new Date(pubDate).toISOString()) : '오늘', isoDate };
     });
-  } catch (e) { return null; }
+  } catch(_) { return null; }
 }
 
 function relTime(iso) {
@@ -10061,13 +10441,35 @@ window.addEventListener('load', async ()=>{
   fetchSentimentClient().then(applySentimentClient).catch(()=>{});
   // 실시간 뉴스 로드 (Google News RSS)
   loadFreshNews();
-  // 30분마다 실시간 환율·지수 자동 갱신
-  setInterval(loadRealtimeFx, 30 * 60 * 1000);
-  setInterval(loadRealtimeMarket, 30 * 60 * 1000);
-  // 15분마다 Naver 주식/ETF Top10 자동 갱신
-  setInterval(() => { refreshMoversFromClient().catch(()=>{}); }, 15 * 60 * 1000);
-  // 30분마다 시장 분위기 (VKOSPI/MOVE/PutCall) 갱신
-  setInterval(() => { fetchSentimentClient().then(applySentimentClient).catch(()=>{}); }, 30 * 60 * 1000);
+  // 5분마다 실시간 데이터 일괄 갱신 (환율·지수·원자재·등락Top10·시장 분위기)
+  // KOSPI/ETF Top10, 원자재, 채권, 환율 등 모든 시장 데이터를 동일하게 5분 단위로 갱신
+  const FIVE_MIN = 5 * 60 * 1000;
+  setInterval(loadRealtimeFx, FIVE_MIN);
+  setInterval(loadRealtimeMarket, FIVE_MIN);
+  setInterval(() => { refreshMoversFromClient().catch(()=>{}); }, FIVE_MIN);
+  setInterval(() => { fetchSentimentClient().then(applySentimentClient).catch(()=>{}); }, FIVE_MIN);
+  // 5분마다 활성 차트 페이지의 차트 재빌드 (새 데이터 반영)
+  setInterval(() => {
+    try {
+      const activePage = document.querySelector('.page.active');
+      if(!activePage) return;
+      const id = activePage.id;
+      if(id === 'page-dashboard') { try { initMainChart(mainPeriodUnit); buildMoverTable(curMoverTab); buildGlobalTable(); } catch(_){} }
+      else if(id === 'page-market') { try { initMarketPage(); } catch(_){} }
+      else if(id === 'page-realestate') { try { buildReCharts(); if(typeof buildUsReCharts==='function') buildUsReCharts(); } catch(_){} }
+      else if(id === 'page-investor') { try { buildInvestorPage(); } catch(_){} }
+    } catch(_) {}
+  }, FIVE_MIN);
+  // 5분마다 뉴스 갱신 (실제 기사 URL 다시 페치)
+  setInterval(() => { loadFreshNews().catch(()=>{}); }, FIVE_MIN);
+  // 페이지 로드 후 차트 위젯에 새로고침 버튼 일괄 주입
+  setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 500);
+  // 페이지 전환 시에도 새로 추가된 차트에 새로고침 버튼 주입
+  document.addEventListener('click', (e) => {
+    if(e.target && e.target.closest && e.target.closest('.menu-item')) {
+      setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
+    }
+  });
 
   // 창 크기 변경 시 즉시 차트 리사이즈
   const _resizeAllCharts = () => { Object.values(charts).forEach(c => { try { if(c) c.resize(); } catch(_){} }); };
