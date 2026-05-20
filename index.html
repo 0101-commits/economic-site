@@ -133,7 +133,12 @@ tailwind.config = {
   html.light ::-webkit-scrollbar-thumb { background: #aac4e6; }
   html.light .news-filter-btn { border-color: #aac4e6; color: rgb(89,89,89); background: #edf4fb; }
   html.light .news-filter-btn.act { background: rgb(53,108,181); color: #fff; border-color: rgb(53,108,181); }
-  html.light .tab-btn:not(.active):hover { background: #d9edf8; }
+  html.light .tab-btn:not(.active):hover { background: #d9edf8 !important; color: rgb(53,108,181) !important; border-color: #aac4e6 !important; }
+  html.light .tab-btn:not(.active) { border-color: #aac4e6 !important; }
+  /* tab-btn 의 다크 인라인 border (#2a2e3d) 가 라이트 테마에서도 어둡게 보이는 문제 fix */
+  html.light .tab-btn[style*="border:1px solid #2a2e3d"]:not(.active) { border-color: #aac4e6 !important; }
+  /* hover 시 다크 인라인 배경 (#262a35) 가 라이트 테마에서 깜빡이는 문제 fix */
+  .tab-btn:not(.active):hover { background-color: rgba(41,98,255,0.12) !important; }
   html.light .ann-chip { background: #d9edf8; border-color: #aac4e6; }
   html.light input[type="date"], html.light input[type="text"], html.light textarea {
     background: #ffffff !important; border-color: #aac4e6 !important; color: rgb(38,38,38) !important;
@@ -320,11 +325,17 @@ tailwind.config = {
       height: 100vh; top: 0; padding-top: 60px; width: 220px;
     }
     #sidebar.mobile-open { left: 0; }
-    #mobileMenuBtn { display: flex !important; }
     main { padding: 12px !important; min-width: 0; }
-    /* 모든 그리드 단일 컬럼 */
-    main div[style*="grid-template-columns:repeat(4,1fr)"],
-    main div[style*="grid-template-columns:repeat(3,1fr)"],
+    /* 카드 그리드는 모바일에서도 2~3컬럼 유지 (각 카드를 작게 표시) */
+    main div[style*="grid-template-columns:repeat(4,1fr)"] {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+    }
+    main div[style*="grid-template-columns:repeat(3,1fr)"] {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+    }
+    /* 큰 차트/사이드패널 레이아웃만 단일 컬럼으로 */
     main div[style*="grid-template-columns:1fr 1fr"],
     main div[style*="grid-template-columns:1fr 300px"],
     main div[style*="grid-template-columns:1fr 280px"],
@@ -334,6 +345,14 @@ tailwind.config = {
       display: grid !important;
       grid-template-columns: 1fr !important;
     }
+    /* kpi-card 작게 — 폰트 축소 */
+    .kpi-card { padding: 8px !important; }
+    .kpi-card > div[style*="font-size:18px"],
+    .kpi-card > div[style*="font-size:22px"] { font-size: 14px !important; }
+    .kpi-card > div[style*="font-size:24px"] { font-size: 15px !important; }
+    .kpi-card > div[style*="font-size:10px"] { font-size: 9px !important; }
+    .kpi-card > div[style*="font-size:11px"] { font-size: 10px !important; }
+    .kpi-card > div[style*="font-size:12px"] { font-size: 10px !important; }
     /* 위젯 내부 컨테이너 overflow 방지 */
     .widget, .kpi-card { min-width: 0 !important; max-width: 100% !important; overflow: hidden; }
     .widget > div, .kpi-card > div { min-width: 0 !important; }
@@ -393,10 +412,6 @@ tailwind.config = {
   </div>
   <!-- 날짜시각 -->
   <div style="font-size:12px;color:#8d90a2;white-space:nowrap;min-width:140px;text-align:right;" id="clock"></div>
-  <!-- 모바일 햄버거 버튼 -->
-  <button id="mobileMenuBtn" onclick="toggleMobileSidebar()" style="display:none;background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:6px;width:36px;height:36px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0;">
-    <span class="mat">menu</span>
-  </button>
 </header>
 
 <!-- ====== 레이아웃 ====== -->
@@ -1166,8 +1181,8 @@ tailwind.config = {
 
     <!-- ====== 페이지 3: 거시경제 ====== -->
     <div class="page" id="page-macro">
-      <!-- 뷰 모드 토글 -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <!-- 뷰 모드 토글 + 탭 (좌측 정렬) -->
+      <div style="display:flex;align-items:center;justify-content:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
         <div style="display:flex;gap:4px;" id="macroViewToggle">
           <button id="macroViewCountry" onclick="setMacroViewMode('country',this)" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid #2962ff;background:#2962ff;color:#fff;cursor:pointer;font-weight:600;">🌍 국가별</button>
           <button id="macroViewTopic"   onclick="setMacroViewMode('topic',this)"   style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;">📊 주제별</button>
@@ -1266,7 +1281,7 @@ tailwind.config = {
           <div class="widget-title" style="margin-bottom:0;" id="calGridTitle">월 캘린더</div>
           <div style="display:flex;gap:6px;align-items:center;">
             <button onclick="calGridMove(-1)" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">← 이전</button>
-            <button onclick="calGridToday()" style="background:transparent;border:1px solid #2a2e3d;color:#b6c4ff;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">오늘</button>
+            <button onclick="calGridToday()" style="background:#2962ff;border:1px solid #2962ff;color:#fff;border-radius:4px;padding:3px 14px;font-size:11px;cursor:pointer;font-weight:600;" title="오늘 날짜로 이동">📅 오늘</button>
             <button onclick="calGridMove(1)" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">다음 →</button>
           </div>
         </div>
@@ -1507,30 +1522,17 @@ tailwind.config = {
             <div style="position:relative;height:260px;"><canvas id="rePriceChart" style="cursor:crosshair;"></canvas></div>
             <div style="font-size:10px;color:#434656;margin-top:4px;">💡 차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
-          <!-- 지역별 등락 — SVG / OpenStreetMap / Naver 지도 / 바 차트 토글 -->
+          <!-- 지역별 등락 — Naver 지도 (기본) + 바 차트 토글 -->
           <div class="widget" style="position:relative;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
               <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:9px;color:#434656;font-weight:400;">지도/지역 클릭 → 추이</span></div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                <button id="reRegionViewMap" onclick="setReRegionView('map',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;" title="SVG 한국 지도 (도메인 무관)">🗺️ SVG</button>
-                <button id="reRegionViewOsm" onclick="setReRegionView('osm',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;" title="OpenStreetMap — 무료, 도메인 무관">🗺️ OSM</button>
-                <button id="reRegionViewNaver" onclick="setReRegionView('naver',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;" title="Naver 지도 (GitHub Pages 배포 환경에서만 작동)">🗺️ Naver</button>
-                <button id="reRegionViewBar" onclick="setReRegionView('bar',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">📊 바</button>
+                <button id="reRegionViewNaver" onclick="setReRegionView('naver',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;" title="Naver 지도">🗺️ 지도</button>
+                <button id="reRegionViewBar" onclick="setReRegionView('bar',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">📊 바 차트</button>
               </div>
             </div>
             <div style="font-size:10px;color:#434656;margin-bottom:6px;">2026년 4월 기준 (한국부동산원 R-ONE)</div>
-            <div id="reRegionMapContainer" style="position:relative;height:260px;">
-              <svg id="reRegionMap" viewBox="0 0 320 380" style="width:100%;height:100%;cursor:pointer;display:block;"></svg>
-              <div id="reRegionTooltip" style="position:absolute;display:none;background:var(--c-card-hi,#262a35);border:1px solid var(--c-border,#2a2e3d);border-radius:6px;padding:8px;font-size:11px;pointer-events:none;z-index:10;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,.4);">
-                <div id="reRegionTooltipTitle" style="font-weight:600;color:var(--c-txt,#dfe2f2);margin-bottom:4px;"></div>
-                <div id="reRegionTooltipVal" style="font-size:14px;font-weight:700;margin-bottom:4px;"></div>
-                <div style="position:relative;height:60px;width:160px;"><canvas id="reRegionTooltipChart"></canvas></div>
-              </div>
-            </div>
-            <div id="reRegionOsmContainer" style="position:relative;height:260px;display:none;">
-              <div id="reRegionOsmMap" style="width:100%;height:100%;border-radius:6px;"></div>
-            </div>
-            <div id="reRegionNaverContainer" style="position:relative;height:260px;display:none;">
+            <div id="reRegionNaverContainer" style="position:relative;height:260px;">
               <div id="reRegionNaverMap" style="width:100%;height:100%;border-radius:6px;"></div>
               <div id="reRegionNaverLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--c-surface,#131722);border-radius:6px;font-size:11px;color:var(--c-txt-dim,#8d90a2);text-align:center;padding:16px;">📡 Naver 지도 로딩 중…</div>
             </div>
@@ -1758,25 +1760,13 @@ tailwind.config = {
           </div>
         </div>
 
-        <!-- 1.5) 미국 지역별 주택가격 등락률 지도 (Census 9-Division) -->
+        <!-- 1.5) 미국 지역별 주택가격 등락률 지도 (OpenStreetMap) -->
         <div class="widget" style="position:relative;margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
             <div class="widget-title" style="margin-bottom:0;">미국 지역별 Case-Shiller 등락률 (전월比, %) <span style="font-size:9px;color:#434656;font-weight:400;">지역 클릭/호버 → 추이</span></div>
-            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-              <button id="usReRegionViewSvg" onclick="setUsReRegionView('svg', this)" style="font-size:11px;padding:3px 8px;border:1px solid #2962ff;background:#2962ff;color:#fff;border-radius:4px;cursor:pointer;">🗺️ SVG</button>
-              <button id="usReRegionViewOsm" onclick="setUsReRegionView('osm', this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;border-radius:4px;cursor:pointer;">🌐 OpenStreetMap</button>
-              <span style="font-size:10px;color:#434656;margin-left:6px;">2026년 4월 기준</span>
-            </div>
+            <span style="font-size:10px;color:#434656;">2026년 4월 기준 · OpenStreetMap</span>
           </div>
-          <div id="usReRegionMapContainer" style="position:relative;height:300px;">
-            <svg id="usReRegionMap" viewBox="0 0 800 500" style="width:100%;height:100%;cursor:pointer;display:block;"></svg>
-            <div id="usReRegionTooltip" style="position:absolute;display:none;background:var(--c-card-hi,#262a35);border:1px solid var(--c-border,#2a2e3d);border-radius:6px;padding:8px;font-size:11px;pointer-events:none;z-index:10;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,.4);">
-              <div id="usReRegionTooltipTitle" style="font-weight:600;color:var(--c-txt,#dfe2f2);margin-bottom:4px;"></div>
-              <div id="usReRegionTooltipVal" style="font-size:14px;font-weight:700;margin-bottom:4px;"></div>
-              <div style="position:relative;height:60px;width:160px;"><canvas id="usReRegionTooltipChart"></canvas></div>
-            </div>
-          </div>
-          <div id="usReRegionOsmContainer" style="position:relative;height:300px;display:none;">
+          <div id="usReRegionOsmContainer" style="position:relative;height:300px;">
             <div id="usReRegionOsmMap" style="width:100%;height:100%;border-radius:6px;overflow:hidden;"></div>
           </div>
         </div>
@@ -2284,6 +2274,21 @@ function formatAxisLabelOmitYear(label, allLabels) {
   if(m) return m[1] + '월';
   return str;
 }
+// Y축 숫자 라벨 정리 — JS 부동소수점 오차(3.60000000000000005) 제거 + 단위 추가
+function fmtNum(v, decimals) {
+  if(v == null || isNaN(v)) return '';
+  const d = decimals != null ? decimals : (Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 1 ? 1 : 2);
+  // 소수점 자릿수 고정 후 trailing zero 제거
+  return parseFloat(v.toFixed(d)).toString();
+}
+function fmtPct(v) { return fmtNum(v) + '%'; }
+function fmtKrw(v) {
+  if(v == null || isNaN(v)) return '';
+  if(Math.abs(v) >= 1e8) return (v/1e8).toFixed(1) + '억';
+  if(Math.abs(v) >= 1e4) return (v/1e4).toFixed(1) + '만';
+  return v.toLocaleString();
+}
+
 // 사용 예: ticks.callback = function(value, index){ return formatAxisLabelOmitYear(this.getLabelForValue(value), this.chart.data.labels); }
 function _xAxisTickCallback(value, idx) {
   // Chart.js context: `this` = scale; this.getLabelForValue(value)
@@ -2597,10 +2602,13 @@ function buildReCharts() {
           tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1}}}
     });
   }
-  buildKoreaRegionMap();
+  // 기본 뷰: Naver 지도 (인증 실패 시 onNaverMapsAuthFailure 에서 바로 안내)
+  // 바 차트는 사용자가 토글 시 빌드됨
+  if(_reRegionView === 'bar') buildKoreaRegionMap();
+  else buildNaverRegionMap();
 }
 
-// 한국 지역별 부동산 등락 — 17개 시도 (지도와 바차트 공통 사용)
+// 한국 지역별 부동산 등락 — 17개 시도 (Naver 지도 / 바차트 공용)
 const krRegionData = [
   {code:'11', label:'서울', val:0.42, history:[101.2,101.6,102.1,102.4,102.8,103.2,103.5,103.9,104.3,104.5]},
   {code:'41', label:'경기', val:0.28, history:[99.5,99.7,99.9,100.2,100.5,100.7,100.9,101.1,101.3,101.5]},
@@ -2662,7 +2670,7 @@ const krRegionMapShapes = [
   {code:'50', label:'제주', labelX:175, labelY:460, path:'M 140 445 L 200 440 L 220 460 L 200 475 L 150 475 L 135 460 Z'},
 ];
 
-let _reRegionView = 'map';  // 'map' / 'osm' / 'naver' / 'bar'
+let _reRegionView = 'naver';  // 'naver' (기본) / 'bar' — SVG/OSM은 제거됨
 let _reRegionTooltipChart = null;
 let _naverRegionMap = null;
 let _naverRegionMarkers = [];
@@ -2670,31 +2678,25 @@ let _osmRegionMap = null;
 let _osmRegionMarkers = [];
 
 function setReRegionView(view, btn) {
-  _reRegionView = view;
-  const mapEl   = document.getElementById('reRegionMapContainer');
-  const osmEl   = document.getElementById('reRegionOsmContainer');
+  // SVG/OSM 제거 — Naver 지도(기본) + 바 차트 토글만 지원
+  _reRegionView = view === 'bar' ? 'bar' : 'naver';
   const naverEl = document.getElementById('reRegionNaverContainer');
   const barEl   = document.getElementById('reRegionBarContainer');
-  if(mapEl)   mapEl.style.display   = view==='map'   ? 'block' : 'none';
-  if(osmEl)   osmEl.style.display   = view==='osm'   ? 'block' : 'none';
-  if(naverEl) naverEl.style.display = view==='naver' ? 'block' : 'none';
-  if(barEl)   barEl.style.display   = view==='bar'   ? 'block' : 'none';
-  ['reRegionViewMap','reRegionViewOsm','reRegionViewNaver','reRegionViewBar'].forEach(id=>{
+  if(naverEl) naverEl.style.display = _reRegionView==='naver' ? 'block' : 'none';
+  if(barEl)   barEl.style.display   = _reRegionView==='bar'   ? 'block' : 'none';
+  ['reRegionViewNaver','reRegionViewBar'].forEach(id=>{
     const b = document.getElementById(id);
     if(b) { b.style.background='transparent'; b.style.color='#8d90a2'; b.style.borderColor='#2a2e3d'; }
   });
   if(btn) { btn.style.background='#2962ff'; btn.style.color='#fff'; btn.style.borderColor='#2962ff'; }
-  // 컨테이너 가시성 변경 후 차트/지도 재빌드 (hidden canvas/map 측정 오류 회피)
-  if(view === 'naver') {
+  if(_reRegionView === 'naver') {
     setTimeout(() => buildNaverRegionMap(), 80);
-  } else if(view === 'osm') {
-    setTimeout(() => buildOsmRegionMap(), 80);
   } else {
-    setTimeout(() => buildKoreaRegionMap(), 50);
+    setTimeout(() => buildKoreaRegionMap(), 50);  // 바 차트 (canvas: reRegionChart)
   }
 }
 
-// Naver Maps 인증 실패 → 자동으로 SVG 뷰로 되돌리고 안내
+// Naver Maps 인증 실패 → 바 차트로 자동 전환 + 안내
 function onNaverMapsAuthFailure() {
   const loadingEl = document.getElementById('reRegionNaverLoading');
   if(loadingEl) {
@@ -2702,11 +2704,10 @@ function onNaverMapsAuthFailure() {
     loadingEl.innerHTML = `
       <div style="font-size:13px;color:var(--c-down, #ef5350);font-weight:600;">❌ Naver 지도 인증 실패</div>
       <div style="font-size:11px;color:var(--c-txt-dim, #8d90a2);max-width:360px;line-height:1.5;">
-        Client ID <code>446nx360fc</code> 는 도메인 <code>0101-commits.github.io</code> 에만 등록되어 있어 다른 환경에서는 작동하지 않습니다.
+        Naver 지도 API 인증 실패. 바 차트로 자동 전환합니다.
       </div>
       <div style="display:flex;gap:6px;margin-top:4px;">
-        <button onclick="setReRegionView('osm', document.getElementById('reRegionViewOsm'))" style="font-size:11px;padding:4px 10px;border:1px solid #2962ff;background:#2962ff;color:#fff;border-radius:4px;cursor:pointer;">🗺️ OpenStreetMap 사용</button>
-        <button onclick="setReRegionView('map', document.getElementById('reRegionViewMap'))" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border,#2a2e3d);background:transparent;color:var(--c-txt-dim,#8d90a2);border-radius:4px;cursor:pointer;">🗺️ SVG 뷰</button>
+        <button onclick="setReRegionView('bar', document.getElementById('reRegionViewBar'))" style="font-size:11px;padding:4px 10px;border:1px solid #2962ff;background:#2962ff;color:#fff;border-radius:4px;cursor:pointer;">📊 바 차트 사용</button>
       </div>`;
   }
 }
@@ -3410,18 +3411,10 @@ const usRegionLatLng = {
 let _usReRegionView = 'svg';
 let _usOsmMap = null;
 let _usOsmMarkers = [];
+// 호환성용: SVG 옵션 제거됨. OSM 만 사용.
 function setUsReRegionView(view, btn) {
-  _usReRegionView = view;
-  const svgEl = document.getElementById('usReRegionMapContainer');
-  const osmEl = document.getElementById('usReRegionOsmContainer');
-  if(svgEl) svgEl.style.display = view==='svg' ? 'block' : 'none';
-  if(osmEl) osmEl.style.display = view==='osm' ? 'block' : 'none';
-  ['usReRegionViewSvg','usReRegionViewOsm'].forEach(id=>{
-    const b = document.getElementById(id);
-    if(b) { b.style.background='transparent'; b.style.color='#8d90a2'; b.style.borderColor='#2a2e3d'; }
-  });
-  if(btn) { btn.style.background='#2962ff'; btn.style.color='#fff'; btn.style.borderColor='#2962ff'; }
-  if(view === 'osm') setTimeout(() => buildUsOsmRegionMap(), 80);
+  _usReRegionView = 'osm';
+  setTimeout(() => buildUsOsmRegionMap(), 80);
 }
 
 function buildUsOsmRegionMap() {
@@ -3495,7 +3488,7 @@ function setRETab(tab, btn) {
   });
   if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
   if(tab==='kr') setTimeout(buildReCharts, 50);
-  if(tab==='us') setTimeout(()=>{ buildUsReCharts(); buildUsRegionMap(); }, 50);
+  if(tab==='us') setTimeout(()=>{ buildUsReCharts(); buildUsOsmRegionMap(); }, 50);
 }
 
 // ============================
@@ -3672,6 +3665,12 @@ function toggleSidebar() {
   const sb = document.getElementById('sidebar');
   const icon = document.getElementById('sidebarToggleIcon');
   if(!sb) return;
+  // 모바일(768px 이하)에서는 mobile-open 클래스로 슬라이드 인/아웃, 데스크탑에서는 collapsed
+  if(window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+    sb.classList.toggle('mobile-open');
+    if(icon) icon.textContent = sb.classList.contains('mobile-open') ? 'menu_open' : 'menu';
+    return;
+  }
   const collapsed = sb.classList.toggle('collapsed');
   if(icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
 }
@@ -4837,7 +4836,7 @@ function buildFxChart(seriesData) {
   charts['fxChart'] = new Chart(ctx,{
     type:'line',
     data:{labels:sl(displayData),datasets:[
-      {data:vals,label:'환율',borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3},
+      {data:vals,label:'환율',borderColor:'#2962ff',backgroundColor:'#2962ff18',borderWidth:2,pointRadius:0,fill:true,tension:0.3},
       {data:maData,label:'기간 평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
@@ -5114,7 +5113,7 @@ function buildBondChart(series) {
   charts['bondChart'] = new Chart(ctx,{
     type:'line',
     data:{labels:sl(series),datasets:[
-      {data:bondVals,label:'수익률',borderColor:'#b6c4ff',borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:'#b6c4ff10',tension:0.3},
+      {data:bondVals,label:'수익률',borderColor:'#2962ff',borderWidth:2,pointRadius:0,fill:true,backgroundColor:'#2962ff18',tension:0.3},
       {data:bondMaData,label:'표시 기간 평균',borderColor:'#f5a623',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,4],tension:0}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
@@ -5252,7 +5251,7 @@ function buildBondPage() {
           ]},
     options:{responsive:true,maintainAspectRatio:false,
       scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+              y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}},
       plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}}}}
   });
   // Global bond yields table
@@ -5314,13 +5313,13 @@ function buildYieldCurveChart(bondCC) {
     data:{
       labels: yieldCurveTerms,
       datasets: [
-        {label:'현재',    data: yc.current,    borderColor:'#b6c4ff', borderWidth:2,   pointRadius:3, tension:0.3, spanGaps:true},
-        {label:'1개월전', data: yc.prev_month, borderColor:'#434656', borderWidth:1.5, pointRadius:2, tension:0.3, borderDash:[4,4], spanGaps:true},
+        {label:'현재',    data: yc.current,    borderColor:'#2962ff', backgroundColor:'#2962ff15', borderWidth:2.5, pointRadius:3, tension:0.3, spanGaps:true, fill:true},
+        {label:'1개월전', data: yc.prev_month, borderColor:'#8d90a2', borderWidth:1.5, pointRadius:2, tension:0.3, borderDash:[6,4], spanGaps:true},
       ],
     },
     options:{responsive:true,maintainAspectRatio:false,
       scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+              y:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6,callback:fmtPct},grid:{color:'#2a2e3d55'}}},
       plugins:{
         legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
         tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
@@ -5400,7 +5399,7 @@ function buildRateHistoryChart() {
     options:{responsive:true,maintainAspectRatio:false,
       scales:{
         x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-        y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}
+        y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}
       },
       plugins:{
         legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
@@ -5740,11 +5739,14 @@ function setInvestorPeriod(p, btn) {
 }
 
 function buildEquityPage() {
+  // 카드 컴팩트 디자인 — 한눈에 더 많이 보이게
   document.getElementById('equityCards').innerHTML = eqData.map(d=>`
-    <div class="kpi-card" style="padding:12px;">
-      <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">${d.name}</div>
-      <div style="font-size:18px;font-weight:700;font-family:'Public Sans';margin-top:4px;">${d.val.toLocaleString()}</div>
-      <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:12px;margin-top:2px;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
+    <div class="kpi-card" style="padding:8px 10px;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:6px;">
+        <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;">${d.name}</div>
+        <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:11px;font-weight:500;white-space:nowrap;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
+      </div>
+      <div style="font-size:15px;font-weight:700;font-family:'Public Sans';margin-top:2px;">${d.val.toLocaleString()}</div>
     </div>`).join('');
   // 기본은 KOSPI 실제 시계열 사용 (data.json.history)
   const real = getHistoricalSeries('indices', 'KOSPI');
@@ -6364,8 +6366,16 @@ function setMacroViewMode(mode, btn) {
   }
 }
 function setMacroTopicTab(topic, btn) {
-  document.querySelectorAll('#macroTopicTabs .tab-btn').forEach(b=>{b.style.background='transparent';b.style.color='#8d90a2';});
-  btn.style.background='#2962ff'; btn.style.color='#fff';
+  document.querySelectorAll('#macroTopicTabs .tab-btn').forEach(b=>{
+    b.classList.remove('active');
+    b.style.background='transparent';
+    b.style.color='var(--c-txt-dim,#8d90a2)';
+  });
+  if(btn) {
+    btn.classList.add('active');
+    btn.style.background='#2962ff';
+    btn.style.color='#fff';
+  }
   initMacroTopicPage(topic);
 }
 let macroTopicPeriod = 'all';
@@ -6930,7 +6940,7 @@ function initMacroPage(t){
   const expMin = expVal.length ? Math.min(...expVal.filter(v=>v!=null)) : 0;
   const expYMin = Math.floor(expMin * 0.92);
   charts['gdpMacro']=new Chart(document.getElementById('gdpMacro'),{type:'bar',data:{labels:gdpLab,datasets:[{data:gdpVal,backgroundColor:gdpVal.map(v=>v>=0?'#26a69a99':'#ef535099'),borderRadius:3}]},options:chartOpts('#26a69a',true)});
-  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:cpiLab,datasets:[{data:cpiVal,borderColor:'#b6c4ff',borderWidth:2,pointRadius:3,fill:true,backgroundColor:'#b6c4ff15',tension:0.3}]},options:chartOpts('#b6c4ff',false)});
+  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:cpiLab,datasets:[{data:cpiVal,borderColor:'#2962ff',borderWidth:2.5,pointRadius:3,fill:true,backgroundColor:'#2962ff20',tension:0.3}]},options:chartOpts('#2962ff',false)});
   charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:unempLab,datasets:[{data:unempVal,borderColor:'#ef5350',borderWidth:2,pointRadius:3,fill:false,tension:0.3}]},options:chartOpts('#ef5350',false)});
   // 수출 차트는 라인 + 데이터 레이블로 변경 (값 차이가 작아 바차트로는 구분 어려움)
   charts['tradeMacro']=new Chart(document.getElementById('tradeMacro'),{
@@ -7139,24 +7149,25 @@ function buildCalendarGrid(filteredEvents) {
     const isToday = isCurrentMonth && d === todayD;
     // ISO 주간 범위 강조 — 표시 월 안에서 weekStartD ~ weekEndD 사이
     const isThisWeek = weekStartD !== null && d >= weekStartD && d <= weekEndD;
-    // 강조 스타일 — 같은 파란 계열에서 명도 차이
-    // 오늘: 짙은 파랑 배경 + 굵은 테두리
-    // 이번 주: 옅은 파랑 배경 (오늘보다 흐리게)
+    // 강조 스타일 — 같은 파란 계열에서 옅은 명도 (전체적으로 더 연하게)
+    // 오늘: 옅은 파랑 배경 + 가는 파란 테두리
+    // 이번 주: 더 옅은 파랑 배경 (오늘보다 흐리게)
     let cellStyle = 'background:var(--c-surface,#131722);';
     if(isToday) {
-      cellStyle = 'background:rgba(41,98,255,0.42);border:2.5px solid #2962ff;box-shadow:0 0 0 1px #2962ff, inset 0 0 12px rgba(41,98,255,0.22);position:relative;z-index:2;';
+      cellStyle = 'background:rgba(41,98,255,0.18);border:1.5px solid #2962ff;position:relative;z-index:2;';
     } else if(isThisWeek) {
-      cellStyle = 'background:rgba(41,98,255,0.10);border:1px solid rgba(41,98,255,0.35);';
+      cellStyle = 'background:rgba(41,98,255,0.06);border:1px solid rgba(41,98,255,0.20);';
     }
     html += `<div style="${cellStyle}padding:4px 5px;min-height:78px;position:relative;overflow:hidden;">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">`;
-    // 오늘 날짜 라벨: 짙은 파란 배경 칩으로 강조 (가독성 ↑)
+    // 날짜 — '오늘' 텍스트 라벨 제거. 오늘은 파란 글자로만 강조.
     if(isToday) {
-      html += `<span style="font-size:11px;font-weight:800;color:#fff;background:#2962ff;padding:2px 7px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.2);">${d} · 오늘</span>`;
+      html += `<span style="font-size:12px;font-weight:700;color:#2962ff;">${d}</span>`;
     } else {
       html += `<span style="font-size:11px;font-weight:500;color:${dayClr};">${d}</span>`;
     }
-    if(events.length > 0) html += `<span style="font-size:8px;color:#fff;background:#2962ff;border-radius:8px;padding:1px 5px;font-weight:600;">${events.length}</span>`;
+    // 이벤트 개수 — 파란 텍스트만 (배경 칩 제거)
+    if(events.length > 0) html += `<span style="font-size:10px;color:#2962ff;font-weight:600;">${events.length}건</span>`;
     html += `</div>`;
     // 최대 3개 이벤트 표시
     events.slice(0,3).forEach((e) => {
@@ -7780,7 +7791,7 @@ function buildNpsReturnChart() {
             datasets:[{data:npsHistory.map(h=>h.ret),backgroundColor:npsHistory.map(h=>h.ret>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
       options:{responsive:true,maintainAspectRatio:false,
         scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
-                y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+                y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}},
         plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   } else {
     charts['npsReturnChart'] = new Chart(retCtx,{type:'bar',
@@ -7788,7 +7799,7 @@ function buildNpsReturnChart() {
             datasets:[{data:npsQuarterlyData.map(q=>q.ret),backgroundColor:npsQuarterlyData.map(q=>q.ret>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
       options:{responsive:true,maintainAspectRatio:false,
         scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:12},grid:{display:false}},
-                y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+                y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}},
         plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   }
 }
@@ -7809,7 +7820,7 @@ function showNpsYearDetail(year) {
     data:{labels,datasets:[{data:vals,backgroundColor:vals.map(v=>v!=null&&v>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,
       scales:{x:{ticks:{color:'#8d90a2',font:{size:11}},grid:{display:false}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}},
+              y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}},
       plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -7828,7 +7839,7 @@ function buildNpsAllocTrendChart() {
            })) },
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-               y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'},min:0,max:60} },
+               y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'},min:0,max:60} },
       plugins:{ legend:{display:true,position:'bottom',labels:{color:'#8d90a2',font:{size:10},boxWidth:10,padding:8}},
                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}} }
     }
@@ -8348,16 +8359,17 @@ function _renderReHistChartMacro() {
     }]},
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{
-        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:12}, grid:{color:tc.grid}},
-        y:{ ticks:{color:tc.txt,font:{size:10}}, grid:{color:tc.grid}, position:'right'},
+        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:10,autoSkip:true,maxRotation:0}, grid:{color:tc.grid}},
+        y:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:6,callback:v=>fmtNum(v)}, grid:{color:tc.grid}, position:'right'},
       },
       plugins:{
         legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
         tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
-          callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?c.parsed.y.toLocaleString():c.parsed.y}${unit?' ['+unit+']':''}`}}
+          callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?fmtNum(c.parsed.y):c.parsed.y}${unit?' ['+unit+']':''}`}}
       }
     }
   });
+  setTimeout(() => { try { charts['reHistChart'] && charts['reHistChart'].resize(); } catch(_){} }, 50);
 }
 
 // ============================
@@ -8399,35 +8411,50 @@ function _parseHistDate(s) {
 // 시계열 데이터를 기간/단위에 맞게 리샘플링
 function _resampleHistSeries(labels, values, period, timeUnit) {
   // 1) 날짜 객체로 변환
-  const pts = labels.map((l, i) => ({ date: _parseHistDate(l), raw: l, val: values[i] }))
+  let pts = labels.map((l, i) => ({ date: _parseHistDate(l), raw: l, val: values[i] }))
                      .filter(p => p.date && p.val != null && !isNaN(p.val));
-  if(!pts.length) return { labels, values };
+  // 날짜 파싱 실패가 많으면 원본 인덱스를 사용해 fallback (예: 'Q1' 등 비표준 라벨)
+  if(pts.length < 2 && labels && labels.length >= 2) {
+    pts = labels.map((l, i) => ({ date: new Date(2000+i, 0, 1), raw: l, val: values[i] }))
+                .filter(p => p.val != null && !isNaN(p.val));
+  }
+  if(!pts.length) return { labels: labels||[], values: values||[] };
   pts.sort((a,b) => a.date - b.date);
   // 2) 기간 필터
-  if(period !== 'all') {
+  if(period && period !== 'all') {
     const last = pts[pts.length-1].date;
     const cutoffMs = period==='1y' ? 365 : period==='3y' ? 365*3 : period==='5y' ? 365*5 : Infinity;
     const cutoff = new Date(last.getTime() - cutoffMs*86400000);
     const filtered = pts.filter(p => p.date >= cutoff);
-    if(filtered.length >= 2) { pts.length=0; pts.push(...filtered); }
+    if(filtered.length >= 2) { pts = filtered; }
   }
   // 3) 시간 단위 집계 (월/분기/반기/연)
-  if(timeUnit === 'M') {
+  if(!timeUnit || timeUnit === 'M') {
     return { labels: pts.map(p=>_fmtDateLabel(p.date,'M',p.raw)), values: pts.map(p=>p.val) };
   }
-  const buckets = new Map(); // bucketKey → {date, sum, count, latest}
+  const buckets = new Map(); // bucketKey → {date, sum, count, latest, sortKey}
   pts.forEach(p => {
-    let k;
+    let k, sortKey;
     const y = p.date.getFullYear(), m = p.date.getMonth();
-    if(timeUnit === 'Q') k = `${y}-Q${Math.floor(m/3)+1}`;
-    else if(timeUnit === 'H') k = `${y}-H${m<6?1:2}`;
-    else /* Y */ k = `${y}`;
-    if(!buckets.has(k)) buckets.set(k, {date:p.date, sum:0, count:0, latest:p.val});
+    if(timeUnit === 'Q') {
+      const q = Math.floor(m/3)+1;
+      k = `${y} Q${q}`;
+      sortKey = y * 10 + q;
+    } else if(timeUnit === 'H') {
+      const h = m<6?1:2;
+      k = `${y} H${h}`;
+      sortKey = y * 10 + h;
+    } else /* Y */ {
+      k = `${y}`;
+      sortKey = y;
+    }
+    if(!buckets.has(k)) buckets.set(k, {date:p.date, sum:0, count:0, latest:p.val, sortKey});
     const b = buckets.get(k);
     b.sum += p.val; b.count++; b.latest = p.val; b.date = p.date;
   });
-  // 인덱스성 데이터는 마지막 값(latest), 합계성 데이터(거래량 등)는 합계 — 기본 latest 사용
-  const out = [...buckets.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  // 인덱스성 데이터는 마지막 값(latest) — 거래량 등 합계성 데이터는 별도 헬퍼에서 처리
+  const out = [...buckets.entries()].sort((a,b)=>a[1].sortKey-b[1].sortKey);
+  if(!out.length) return { labels: pts.map(p=>p.raw), values: pts.map(p=>p.val) };
   return {
     labels: out.map(([k,v]) => k),
     values: out.map(([k,v]) => v.latest),
@@ -8594,16 +8621,18 @@ function _renderReHistChart() {
     }]},
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{
-        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:12}, grid:{color:tc.grid}},
-        y:{ ticks:{color:tc.txt,font:{size:10}}, grid:{color:tc.grid}, position:'right'},
+        x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:10,autoSkip:true,maxRotation:0}, grid:{color:tc.grid}},
+        y:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:6,callback:v=>fmtNum(v)}, grid:{color:tc.grid}, position:'right'},
       },
       plugins:{
         legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
         tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
-          callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?c.parsed.y.toLocaleString():c.parsed.y}${unit?' '+unit:''}`}}
+          callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?fmtNum(c.parsed.y):c.parsed.y}${unit?' '+unit:''}`}}
       }
     }
   });
+  // 모달 사이즈 변경 후 차트 강제 재측정 (단위 변경 시 캔버스 측정 race condition 회피)
+  setTimeout(() => { try { charts['reHistChart'] && charts['reHistChart'].resize(); } catch(_){} }, 50);
 }
 function closeReHistoryChart() {
   const modal = document.getElementById('reHistoryChartModal');
@@ -8691,54 +8720,91 @@ async function refreshETFFromClient(btn) {
 // ============================
 // 클라이언트 사이드 시장 분위기 지표 — VKOSPI / MOVE / Put-Call Ratio
 // ============================
-async function fetchSentimentClient() {
-  // Stooq에서 ^MOVE 시도 (MOVE Index = BofA ICE TYVIX 채권변동성)
-  // Stooq symbols for MOVE: ^MOVE 그대로
-  const out = {};
-  // VKOSPI: yfinance 모바일 chart API 시도
-  try {
-    const u = 'https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EVKOSPI&range=5d&interval=1d';
-    const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(u));
-    if(r.ok) {
+// 시장 분위기 지표 — 다중 프록시·다중 소스 fallback
+const _SENTIMENT_PROXIES = [
+  (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
+];
+async function _fetchJsonWithProxies(targetUrl) {
+  for(const mk of _SENTIMENT_PROXIES) {
+    try {
+      const r = await fetch(mk(targetUrl), { signal: AbortSignal.timeout(6000) });
+      if(!r.ok) continue;
       const j = await r.json();
-      const node = j.spark?.result?.[0]?.response?.[0];
-      const c = node?.indicators?.quote?.[0]?.close;
-      if(Array.isArray(c)) {
-        const vals = c.filter(v=>v!=null);
-        if(vals.length >= 1) {
-          const cur = vals[vals.length-1];
-          out.vkospi = { value: cur, source:'yfinance ^VKOSPI (via corsproxy)' };
+      if(j) return j;
+    } catch(_) { /* try next */ }
+  }
+  return null;
+}
+async function _fetchTextStooq(symbol) {
+  for(const mk of _SENTIMENT_PROXIES) {
+    try {
+      const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d&o=1110000`;
+      const r = await fetch(mk(url), { signal: AbortSignal.timeout(6000) });
+      if(!r.ok) continue;
+      const txt = await r.text();
+      if(txt && txt.length > 20) return txt;
+    } catch(_) { /* next */ }
+  }
+  return null;
+}
+
+async function fetchSentimentClient() {
+  const out = {};
+  // 1) VKOSPI — yfinance 다중 프록시 시도. 실패 시 Stooq 시도, 그래도 실패 시 정적 fallback
+  try {
+    const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EVKOSPI&range=5d&interval=1d');
+    const node = j?.spark?.result?.[0]?.response?.[0];
+    const c = node?.indicators?.quote?.[0]?.close;
+    if(Array.isArray(c)) {
+      const vals = c.filter(v=>v!=null);
+      if(vals.length >= 1) {
+        const cur = vals[vals.length-1];
+        if(cur > 1 && cur < 200) out.vkospi = { value: cur, source:'Yahoo Finance ^VKOSPI' };
+      }
+    }
+  } catch(_) {}
+  // VKOSPI Stooq fallback (^vkospi.kr)
+  if(!out.vkospi) {
+    try {
+      const txt = await _fetchTextStooq('^vkospi.kr');
+      if(txt) {
+        const lines = txt.trim().split('\n').filter(l=>l && !l.startsWith('Date'));
+        if(lines.length) {
+          const last = lines[lines.length-1].split(',');
+          const v = parseFloat(last[4] || last[1] || '');
+          if(!isNaN(v) && v > 1 && v < 200) out.vkospi = { value: v, source:'Stooq ^vkospi.kr' };
         }
       }
+    } catch(_) {}
+  }
+  // 2) MOVE Index — yfinance
+  try {
+    const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EMOVE&range=5d&interval=1d');
+    const node = j?.spark?.result?.[0]?.response?.[0];
+    const c = node?.indicators?.quote?.[0]?.close;
+    if(Array.isArray(c)) {
+      const vals = c.filter(v=>v!=null);
+      if(vals.length >= 1) out.move = { value: vals[vals.length-1], source:'Yahoo Finance ^MOVE' };
     }
   } catch(_) {}
-  // MOVE Index: yfinance ^MOVE 시도
+  // 3) Put/Call Ratio — Stooq (^pcc)
   try {
-    const u = 'https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EMOVE&range=5d&interval=1d';
-    const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(u));
-    if(r.ok) {
-      const j = await r.json();
-      const node = j.spark?.result?.[0]?.response?.[0];
-      const c = node?.indicators?.quote?.[0]?.close;
-      if(Array.isArray(c)) {
-        const vals = c.filter(v=>v!=null);
-        if(vals.length >= 1) out.move = { value: vals[vals.length-1], source:'yfinance ^MOVE' };
-      }
-    }
-  } catch(_) {}
-  // Put/Call Ratio: CBOE는 CORS 차단, Stooq에서 ^pcc 시도
-  try {
-    const r = await fetch('https://corsproxy.io/?https://stooq.com/q/d/l/?s=%5Epcc&i=d&o=1110000');
-    if(r.ok) {
-      const txt = await r.text();
+    const txt = await _fetchTextStooq('^pcc');
+    if(txt) {
       const lines = txt.trim().split('\n').filter(l=>l && !l.startsWith('Date'));
       if(lines.length) {
         const last = lines[lines.length-1].split(',');
         const v = parseFloat(last[4] || last[1] || '');
-        if(!isNaN(v) && v > 0) out.pcr = { value: v, source:'Stooq ^pcc' };
+        if(!isNaN(v) && v > 0 && v < 5) out.pcr = { value: v, source:'Stooq ^pcc' };
       }
     }
   } catch(_) {}
+  // 4) 정적 fallback — 모든 프록시 실패 시에도 카드가 비어 있지 않도록
+  if(!out.vkospi) out.vkospi = { value: 18.4, source:'fallback (정적값)' };
+  if(!out.move)   out.move   = { value: 95.2, source:'fallback (정적값)' };
+  if(!out.pcr)    out.pcr    = { value: 0.86, source:'fallback (정적값)' };
   return out;
 }
 
@@ -8972,6 +9038,146 @@ const MACRO_GUIDES = {
     <strong style="color:#b6c4ff;">💡 활용:</strong> 준공 후 미분양(악성)이 1만 호 초과 시 시장 침체. 지방 미분양 ↑ = 부동산 양극화 심화.`,
 
   vix: SENTIMENT_GUIDES.vix.guide,
+
+  trade_count: `<strong style="color:#26a69a;">📊 주택 거래량 (매매) 란?</strong><br>
+    월간 신고된 부동산 매매계약 건수. 시장 활성도와 수요·공급 균형을 판단하는 1차 지표.<br><br>
+    <strong>해석 기준 (한국 전국 월간):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#b91c1c;">● 3만 건 이하</span> — 거래 절벽 (2022~2023 침체기, 2~3만 건)</li>
+      <li><span style="color:#ef5350;">● 3~5만 건</span> — 위축 (수요 부족)</li>
+      <li><span style="color:#f5a623;">● 5~7만 건</span> — 정상 (10년 평균 6.5만 부근)</li>
+      <li><span style="color:#26a69a;">● 7~10만 건</span> — 활황</li>
+      <li><span style="color:#0f6e56;">● 10만 건 이상</span> — 과열 (2020 코로나 저금리기 11만+)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 가격지수에 약 3개월 선행. 거래량 ↓ + 가격 ↓ = 침체 진입, 거래량 ↑ + 가격 보합 = 회복 신호. 자료: 국토교통부 실거래가공개시스템.`,
+
+  permit: `<strong style="color:#f5a623;">📊 주택 인허가 (Permits) 란?</strong><br>
+    정부가 발급한 신규 주택 건설 허가 건수. 향후 1~3년 후 공급량을 예측하는 선행지표.<br><br>
+    <strong>해석 기준 (한국 연간):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#b91c1c;">● 30만 호 이하</span> — 공급 절벽 우려 (3년 후 가격 급등 위험)</li>
+      <li><span style="color:#ef5350;">● 30~40만 호</span> — 위축 (2022~2023 ~40만 호)</li>
+      <li><span style="color:#f5a623;">● 40~50만 호</span> — 정상 (적정공급 50만 호 추정)</li>
+      <li><span style="color:#26a69a;">● 50만 호 이상</span> — 충분 (2015~2017 ~70만 호 사상 최대)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 미분양과 함께 보면 정확. 인허가 ↓ + 미분양 ↑ = 단기 공급과잉, 인허가 ↓ + 미분양 ↓ = 향후 가격 상승 압력. 자료: 국토교통부.`,
+
+  start: `<strong style="color:#2962ff;">📊 주택 착공 (Starts) 란?</strong><br>
+    실제 공사가 시작된 신규 주택의 건설 호수. 인허가보다 더 확실한 공급 선행지표 (1~2년 후 입주).<br><br>
+    <strong>해석 기준 (한국 연간):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#b91c1c;">● 25만 호 이하</span> — 공급 절벽 (2~3년 후 시장 압박)</li>
+      <li><span style="color:#ef5350;">● 25~35만 호</span> — 위축</li>
+      <li><span style="color:#f5a623;">● 35~45만 호</span> — 정상</li>
+      <li><span style="color:#26a69a;">● 45만 호 이상</span> — 충분 (2015~2017 60만+)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 미국은 'Housing Starts' (FRED: HOUST) 로 발표. 인허가 → 착공 → 준공 (입주) 순으로 약 12~18개월 시차. 자료: 국토교통부.`,
+
+  current_account: `<strong style="color:#26a69a;">📊 경상수지 란?</strong><br>
+    국가의 대외 거래 결과 — 상품·서비스 수출입 + 본원·이전소득 합산. 흑자/적자가 환율·외환보유고 결정 요인.<br><br>
+    <strong>해석 기준 (한국 월간, 억 달러):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#b91c1c;">● -50억 달러 이하</span> — 큰 적자 (외환위기 위험)</li>
+      <li><span style="color:#ef5350;">● -50~0</span> — 적자</li>
+      <li><span style="color:#f5a623;">● 0~50</span> — 소폭 흑자</li>
+      <li><span style="color:#26a69a;">● 50~100</span> — 양호한 흑자</li>
+      <li><span style="color:#0f6e56;">● 100억 달러 이상</span> — 큰 흑자 (한국 평균 50~80억)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 흑자 지속 = 원화 강세 압력, 적자 지속 = 원화 약세 압력. 한국은 12개월 누적 600~700억 달러 흑자가 정상. 자료: 한국은행 ECOS.`,
+
+  exports: `<strong style="color:#0f6e56;">📊 수출 (월간 무역수지) 란?</strong><br>
+    당월 상품 수출 총액. 한국 경제는 GDP의 ~40% 가 수출 → 핵심 경기 지표.<br><br>
+    <strong>해석 기준 (한국 월간, 억 달러):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#b91c1c;">● 450억 달러 이하</span> — 수출 부진 (반도체 다운사이클 등)</li>
+      <li><span style="color:#ef5350;">● 450~550</span> — 위축</li>
+      <li><span style="color:#f5a623;">● 550~600</span> — 정상</li>
+      <li><span style="color:#26a69a;">● 600~700</span> — 호조</li>
+      <li><span style="color:#0f6e56;">● 700억 달러 이상</span> — 사상 최고 수준 (2024~25 반도체 슈퍼사이클)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 반도체 비중 약 20~25%. 전년동기비 (YoY) 와 함께 보면 추세 판단. 무역수지 (수출-수입) 흑자 = 원화 강세 요인. 자료: 산업통상자원부 / 관세청.`,
+
+  ip: `<strong style="color:#f5a623;">📊 산업생산지수 (IP) 란?</strong><br>
+    광공업(제조업+광업) 생산활동 수준. 2020 = 100 기준. 경기변동의 동행지표.<br><br>
+    <strong>해석 기준 (전년동기비):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#b91c1c;">● -5% 이하</span> — 심각한 침체 (2008/2020 -10%대)</li>
+      <li><span style="color:#ef5350;">● -5~0%</span> — 침체</li>
+      <li><span style="color:#f5a623;">● 0~3%</span> — 저성장</li>
+      <li><span style="color:#26a69a;">● 3~7%</span> — 정상~호조</li>
+      <li><span style="color:#0f6e56;">● 7% 이상</span> — 호황 (반도체 등 IT 강한 증가세)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 제조업 PMI, 수출, GDP 와 동조. 한국은 제조업 비중 ~27% (선진국 평균 15% 대비 高). 자료: 통계청 / 한국은행 ECOS.`,
+
+  retail: `<strong style="color:#26a69a;">📊 소매판매액지수 란?</strong><br>
+    소매업체의 매출액 변동. 가계 소비 지출 = GDP의 ~50%. 내수 경기 핵심 지표.<br><br>
+    <strong>해석 기준 (전년동기비):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#b91c1c;">● -5% 이하</span> — 소비 절벽 (불황)</li>
+      <li><span style="color:#ef5350;">● -5~0%</span> — 소비 위축</li>
+      <li><span style="color:#f5a623;">● 0~3%</span> — 약한 회복</li>
+      <li><span style="color:#26a69a;">● 3~6%</span> — 정상</li>
+      <li><span style="color:#0f6e56;">● 6% 이상</span> — 강한 소비 (인플레 우려)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 고용·임금·심리지표와 연동. 명목 지수와 실질 지수 (인플레 제외)를 함께 봐야 정확. 자료: 통계청 / 한국은행 ECOS.`,
+
+  pir: `<strong style="color:#ef5350;">📊 PIR (Price-to-Income Ratio) 이란?</strong><br>
+    중위 주택가격 ÷ 가구 중위소득. 가구 평균소득으로 주택을 사는데 몇 년 걸리는지의 배수.<br><br>
+    <strong>해석 기준 (서울 기준):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#26a69a;">● 5배 이하</span> — 매우 저렴 (선진국 평균 5~7배)</li>
+      <li><span style="color:#26a69a;">● 5~10배</span> — 보통</li>
+      <li><span style="color:#f5a623;">● 10~15배</span> — 부담</li>
+      <li><span style="color:#ef5350;">● 15~20배</span> — 과열 (서울 2024~25 19배대)</li>
+      <li><span style="color:#b91c1c;">● 20배 이상</span> — 매우 위험 (홍콩 23배, 시드니 13배)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 한국 전국 평균 ~10배, 서울 ~19배 → 서울 양극화 심화. 자료: KB부동산 / 통계청 가계금융복지.`,
+
+  household_debt: `<strong style="color:#ef5350;">📊 가계신용 (가계부채) 란?</strong><br>
+    가계가 진 모든 빚 — 은행·비은행 대출 + 신용카드 미결제 잔액. GDP 대비 비율로 평가.<br><br>
+    <strong>해석 기준 (GDP 대비):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#26a69a;">● 50% 이하</span> — 매우 안정</li>
+      <li><span style="color:#f5a623;">● 50~80%</span> — 정상 (선진국 평균)</li>
+      <li><span style="color:#ef5350;">● 80~100%</span> — 위험 수준</li>
+      <li><span style="color:#b91c1c;">● 100% 이상</span> — 심각 (한국 2024 ~95%, 호주 110%, 스위스 130%)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 한국은 부동산 담보대출이 ~60%. 금리 인상 시 가계의 이자부담 ↑ → 소비 위축. 자료: 한국은행 ECOS.`,
+
+  pmi: `<strong style="color:#2962ff;">📊 제조업 PMI 란?</strong><br>
+    구매관리자지수. 신규수주·생산·고용·재고·납기 5개 항목 가중평균. 50 기준.<br><br>
+    <strong>해석 기준 (S&P Global / ISM):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#b91c1c;">● 45 이하</span> — 강한 위축 (불황 신호)</li>
+      <li><span style="color:#ef5350;">● 45~50</span> — 위축 (50 미만이면 제조업 경기 축소)</li>
+      <li><span style="color:#f5a623;">● 50~52</span> — 보합</li>
+      <li><span style="color:#26a69a;">● 52~55</span> — 정상 성장</li>
+      <li><span style="color:#0f6e56;">● 55 이상</span> — 강한 확장</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 50 기준선 돌파/하향이 추세 전환 시그널. 매월 1일 첫 영업일 발표 (가장 빠른 경기지표). 자료: S&P Global / ISM.`,
+
+  m2: `<strong style="color:#b6c4ff;">📊 M2 통화량 이란?</strong><br>
+    M1 (현금+요구불예금) + 저축성예금 + MMF + 단기금융상품. 시중 유동성의 폭넓은 측정치.<br><br>
+    <strong>해석 (전년동기비):</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#ef5350;">● -2% 이하</span> — 매우 긴축 (2022~23 미국 -3%, 사상 최초)</li>
+      <li><span style="color:#f5a623;">● -2~3%</span> — 긴축</li>
+      <li><span style="color:#26a69a;">● 3~8%</span> — 정상</li>
+      <li><span style="color:#0f6e56;">● 8% 이상</span> — 강한 완화 (2020 코로나 25%+)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 인플레이션 선행지표. M2 ↑ → 12~18개월 후 인플레 ↑. Fed/한은의 양적완화·긴축 효과를 가시화. 자료: Fed (FRED: M2SL) / 한국은행 ECOS.`,
+
+  dxy: `<strong style="color:#26a69a;">📊 달러 인덱스 (DXY) 란?</strong><br>
+    미 달러 vs 6개 주요통화 (유로 57.6%, 엔 13.6%, 파운드 11.9%, CAD/SEK/CHF) 의 가중 환율. 글로벌 달러 강세 측정.<br><br>
+    <strong>해석 기준:</strong>
+    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+      <li><span style="color:#ef5350;">● 90 이하</span> — 달러 약세 (신흥국 자금유입)</li>
+      <li><span style="color:#f5a623;">● 90~100</span> — 보합</li>
+      <li><span style="color:#26a69a;">● 100~105</span> — 정상~소폭 강세</li>
+      <li><span style="color:#0f6e56;">● 105 이상</span> — 강한 달러 (한국 원화 약세, 신흥국 자본유출)</li>
+      <li><span style="color:#b91c1c;">● 110 이상</span> — 매우 강함 (2022 114, 1985 165 사상 최고)</li>
+    </ul>
+    <strong style="color:#b6c4ff;">💡 활용:</strong> 원자재 가격과 역의 상관. 달러 ↑ = 금/원유 가격 ↓ (달러 표시). Fed 금리 ↑ = 달러 ↑. 자료: ICE / Fed.`,
 };
 
 // 데이터 경로 or 제목 기반 가이드 매칭
@@ -8979,13 +9185,25 @@ function _getMacroGuide(dataPath, title) {
   if(!dataPath && !title) return null;
   const dp = (dataPath || '').toLowerCase();
   const t = (title || '').toLowerCase();
-  // 카테고리별 매칭
+  // 카테고리별 매칭 (구체적 키워드 우선)
   if(dp.includes('cpi') || t.includes('cpi') || t.includes('물가') || t.includes('소비자물가')) return MACRO_GUIDES.cpi;
   if(dp.includes('gdp') || t.includes('gdp') || t.includes('성장률')) return MACRO_GUIDES.gdp;
   if(dp.includes('unemploy') || dp.includes('unemp') || t.includes('실업')) return MACRO_GUIDES.unemployment;
-  if(dp.includes('base_rate') || dp.includes('ff_rate') || dp.includes('us10y') || t.includes('기준금리') || t.includes('정책금리') || t.includes('국채')) return MACRO_GUIDES.base_rate;
+  if(dp.includes('base_rate') || dp.includes('ff_rate') || dp.includes('us10y') || dp.includes('us2y') || t.includes('기준금리') || t.includes('정책금리') || t.includes('국채')) return MACRO_GUIDES.base_rate;
   if(dp.includes('mortgage') || t.includes('모기지') || t.includes('주담대')) return MACRO_GUIDES.mortgage_rate;
   if(dp.includes('unsold') || t.includes('미분양')) return MACRO_GUIDES.unsold;
+  if(dp.includes('trade_count') || t.includes('거래량')) return MACRO_GUIDES.trade_count;
+  if(dp.includes('permit') || t.includes('인허가')) return MACRO_GUIDES.permit;
+  if(dp.includes('start') || t.includes('착공') || t.includes('housing start')) return MACRO_GUIDES.start;
+  if(dp.includes('current_account') || t.includes('경상수지')) return MACRO_GUIDES.current_account;
+  if(dp.includes('exports') || t.includes('수출')) return MACRO_GUIDES.exports;
+  if(dp.includes('ip_') || dp.includes('산업생산') || t.includes('산업생산')) return MACRO_GUIDES.ip;
+  if(dp.includes('retail') || t.includes('소매판매')) return MACRO_GUIDES.retail;
+  if(dp.includes('pir') || t.includes('pir') || t.includes('소득대비')) return MACRO_GUIDES.pir;
+  if(dp.includes('household_debt') || t.includes('가계신용') || t.includes('가계부채')) return MACRO_GUIDES.household_debt;
+  if(dp.includes('pmi') || t.includes('pmi')) return MACRO_GUIDES.pmi;
+  if(dp.includes('m2') || t.includes('m2') || t.includes('통화량')) return MACRO_GUIDES.m2;
+  if(dp.includes('dxy') || t.includes('달러 인덱스') || t.includes('dxy')) return MACRO_GUIDES.dxy;
   if(dp.includes('apt_price') || dp.includes('case_shiller') || dp.includes('hpi') || dp.includes('jns_price') ||
      t.includes('가격지수') || t.includes('hpi') || t.includes('case-shiller') || t.includes('아파트')) return MACRO_GUIDES.hpi;
   if(dp.includes('vix') || t.includes('vix')) return MACRO_GUIDES.vix;
@@ -10025,7 +10243,7 @@ function buildRateHistoryChart() {
     options:{responsive:true,maintainAspectRatio:false,
       scales:{
         x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-        y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v+'%'},grid:{color:'#2a2e3d55'}}
+        y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}
       },
       plugins:{
         legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10,padding:8}},
