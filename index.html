@@ -117,11 +117,34 @@ tailwind.config = {
   html.light [style*="background:#1b1f2b"] { background-color: #edf4fb !important; }
   html.light [style*="background:#262a35"] { background-color: #d9edf8 !important; }
   /* 라이트 테마 — 컴포넌트 오버라이드 */
-  html.light body { background: #f5f8fc; color: rgb(38,38,38); }
-  html.light header { background: #ffffff !important; border-bottom-color: #aac4e6 !important; }
-  html.light #sidebar { background: #ffffff !important; border-right-color: #aac4e6 !important; }
-  html.light .kpi-card { background: #edf4fb !important; border-color: #aac4e6 !important; }
-  html.light .widget { background: #edf4fb !important; border-color: #aac4e6 !important; }
+  /* ======= 글래스모피즘 — 라이트 테마 ======= */
+  html.light body {
+    color: rgb(38,38,38);
+    background:
+      radial-gradient(circle at 15% 20%, rgba(41, 98, 255, 0.12), transparent 40%),
+      radial-gradient(circle at 85% 70%, rgba(180, 100, 255, 0.10), transparent 45%),
+      radial-gradient(circle at 50% 110%, rgba(38, 166, 154, 0.08), transparent 50%),
+      #f5f8fc !important;
+    background-attachment: fixed !important;
+  }
+  html.light header { background: rgba(255, 255, 255, 0.65) !important; backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-bottom-color: rgba(53, 108, 181, 0.18) !important; }
+  html.light #sidebar { background: rgba(255, 255, 255, 0.65) !important; backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-right-color: rgba(53, 108, 181, 0.18) !important; }
+  html.light .kpi-card {
+    background: rgba(255, 255, 255, 0.55) !important;
+    border-color: rgba(53, 108, 181, 0.18) !important;
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    box-shadow: 0 4px 24px rgba(53, 108, 181, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  html.light .widget {
+    background: rgba(255, 255, 255, 0.55) !important;
+    border-color: rgba(53, 108, 181, 0.18) !important;
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    box-shadow: 0 4px 24px rgba(53, 108, 181, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  html.light .widget [style*="background:#131722"],
+  html.light .kpi-card [style*="background:#131722"] { background: rgba(255, 255, 255, 0.45) !important; }
   html.light .menu-item { color: rgb(89,89,89); }
   html.light .menu-item:hover { background: #d9edf8; color: rgb(38,38,38); }
   html.light .menu-item.active { background: #d9edf8; color: rgb(53,108,181); }
@@ -267,9 +290,44 @@ tailwind.config = {
   .menu-item.active { background: #1b1f2b; color: #b6c4ff; }
   .page { display: none; }
   .page.active { display: block; }
-  .kpi-card { background: #1b1f2b; border: 1px solid #2a2e3d; border-radius: 8px; padding: 16px; }
-  .widget { background: #1b1f2b; border: 1px solid #2a2e3d; border-radius: 8px; padding: 16px; }
-  .widget-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8d90a2; margin-bottom: 12px; }
+  /* ======= 글래스모피즘 카드 (다크 테마 기본) ======= */
+  .kpi-card {
+    background: rgba(27, 31, 43, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 16px;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+  }
+  .kpi-card:hover { border-color: rgba(41, 98, 255, 0.35); box-shadow: 0 6px 28px rgba(41, 98, 255, 0.12); }
+  .widget {
+    background: rgba(27, 31, 43, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 16px;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .widget-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #b6c4ff; margin-bottom: 12px; }
+  /* 글래스 페일 배경 — 어두운 배경에 부드러운 컬러 블롭 추가 */
+  body {
+    background:
+      radial-gradient(circle at 15% 20%, rgba(41, 98, 255, 0.10), transparent 40%),
+      radial-gradient(circle at 85% 70%, rgba(120, 50, 255, 0.08), transparent 45%),
+      radial-gradient(circle at 50% 110%, rgba(38, 166, 154, 0.06), transparent 50%),
+      #0f131e;
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  /* 헤더/사이드바 글래스 */
+  header { background: rgba(19, 23, 34, 0.65) !important; backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%); border-bottom-color: rgba(255, 255, 255, 0.08) !important; }
+  nav#sidebar { background: rgba(19, 23, 34, 0.65) !important; backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%); border-right-color: rgba(255, 255, 255, 0.08) !important; }
+  /* 글래스 환경에서 KPI 안의 인라인 background:#131722 등이 너무 강하면 흐리게 */
+  .widget [style*="background:#131722"],
+  .kpi-card [style*="background:#131722"] { background: rgba(15, 19, 30, 0.45) !important; backdrop-filter: blur(8px); border-radius: 8px; }
   .up-txt { color: #26a69a; }
   .down-txt { color: #ef5350; }
   tr:hover td { background: #262a35; }
@@ -319,12 +377,14 @@ tailwind.config = {
       grid-template-columns: 1fr !important;
     }
   }
-  @media (max-width: 768px) {
+  @media (max-width: 900px) {
     #sidebar {
-      position: fixed; left: -220px; z-index: 200; transition: left .25s;
+      position: fixed; left: -240px; z-index: 200; transition: left .25s;
       height: 100vh; top: 0; padding-top: 60px; width: 220px;
     }
-    #sidebar.mobile-open { left: 0; }
+    #sidebar.mobile-open { left: 0 !important; }
+    /* 모바일에서는 collapsed 클래스가 width:0 으로 만드는 것을 무시 */
+    #sidebar.collapsed:not(.mobile-open) { left: -240px !important; width: 220px !important; padding: 12px 8px !important; }
     main { padding: 12px !important; min-width: 0; }
     /* 카드 그리드는 모바일에서도 2~3컬럼 유지 (각 카드를 작게 표시) */
     main div[style*="grid-template-columns:repeat(4,1fr)"] {
@@ -398,9 +458,9 @@ tailwind.config = {
 <body>
 
 <!-- ====== 상단 헤더 ====== -->
-<header style="position:fixed;top:0;left:0;right:0;height:56px;background:#131722;border-bottom:1px solid #2a2e3d;z-index:100;display:flex;align-items:center;padding:0 16px;gap:12px;">
-  <!-- 사이드바 토글 (헤더 내부) -->
-  <button onclick="toggleSidebar()" title="사이드바 토글" style="background:transparent;border:none;color:#8d90a2;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0;transition:color .15s;" onmouseover="this.style.color='#b6c4ff'" onmouseout="this.style.color='#8d90a2'">
+<header style="position:fixed;top:0;left:0;right:0;height:56px;background:#131722;border-bottom:1px solid #2a2e3d;z-index:300;display:flex;align-items:center;padding:0 16px;gap:12px;">
+  <!-- 사이드바 토글 (헤더 내부) — z-index 305 (모바일 사이드바 위에 표시되도록) -->
+  <button onclick="toggleSidebar()" title="사이드바 토글" style="background:transparent;border:none;color:#8d90a2;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0;transition:color .15s;position:relative;z-index:305;" onmouseover="this.style.color='#b6c4ff'" onmouseout="this.style.color='#8d90a2'">
     <span class="mat" id="sidebarToggleIcon" style="font-size:22px;">menu_open</span>
   </button>
   <div onclick="goHome()" title="대시보드 홈으로 이동" style="font-family:'Public Sans',sans-serif;font-weight:700;font-size:15px;color:#b6c4ff;white-space:nowrap;cursor:pointer;user-select:none;transition:opacity .15s;" onmouseover="this.style.opacity='0.75'" onmouseout="this.style.opacity='1'">
@@ -416,6 +476,9 @@ tailwind.config = {
 
 <!-- ====== 레이아웃 ====== -->
 <div style="display:flex;padding-top:56px;min-height:100vh;">
+
+  <!-- 사이드바 백드롭 (모바일에서 사이드바 열렸을 때 외부 클릭 → 닫기) -->
+  <div id="sidebarBackdrop" onclick="closeSidebarMobile()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:190;backdrop-filter:blur(2px);"></div>
 
   <!-- 사이드바 -->
   <nav id="sidebar" style="width:200px;min-height:calc(100vh - 56px);background:#131722;border-right:1px solid #2a2e3d;padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
@@ -1460,13 +1523,12 @@ tailwind.config = {
 
     <!-- ====== 페이지 7: 부동산 ====== -->
     <div class="page" id="page-realestate">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-        <h2 style="font-size:18px;font-weight:700;font-family:'Public Sans';margin:0;">부동산 시장 현황</h2>
-        <div style="display:flex;gap:6px;">
-          <button class="tab-btn active" id="reitabKR" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setRETab('kr',this)">🇰🇷 한국</button>
-          <button class="tab-btn" id="reitabUS" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setRETab('us',this)">🇺🇸 미국</button>
-        </div>
+      <!-- 한국/미국 탭 — 좌측 상단 -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="tab-btn active" id="reitabKR" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setRETab('kr',this)">🇰🇷 한국</button>
+        <button class="tab-btn" id="reitabUS" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setRETab('us',this)">🇺🇸 미국</button>
       </div>
+      <h2 style="font-size:18px;font-weight:700;font-family:'Public Sans';margin:0 0 16px 0;">부동산 시장 현황</h2>
 
       <!-- 한국 부동산 탭 -->
       <div id="re-kr">
@@ -2478,6 +2540,14 @@ function showPage(id, el) {
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
   if(el) el.classList.add('active');
+  // 메뉴 전환 시 최상단으로 스크롤
+  try {
+    window.scrollTo({top: 0, behavior: 'auto'});
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const main = document.querySelector('main');
+    if(main) main.scrollTop = 0;
+  } catch(_) {}
   if(id==='market') { setTimeout(()=>initMarketPage(),50); }
   if(id==='macro')  { setTimeout(()=>{ initMacroPage('kr'); buildMacroIndicatorTable(); currentNewsFilter['macroNewsFeed']='한국GDP'; renderFiltered('macroNewsFeed'); },50); }
   if(id==='calendar') {
@@ -2503,9 +2573,11 @@ function showPage(id, el) {
 function collapseSidebarAfterNav() {
   const sb = document.getElementById('sidebar');
   if(!sb) return;
-  // 모바일에서 열려있으면 닫기
+  // 모바일에서 열려있으면 닫기 + 백드롭도 닫기
   if(sb.classList.contains('mobile-open')) {
     sb.classList.remove('mobile-open');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    if(backdrop) backdrop.style.display = 'none';
   }
   // 데스크탑에서 접기
   if(!sb.classList.contains('collapsed')) {
@@ -3664,15 +3736,33 @@ function getPeriodData(unit, fromDate, toDate) {
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
   const icon = document.getElementById('sidebarToggleIcon');
+  const backdrop = document.getElementById('sidebarBackdrop');
   if(!sb) return;
-  // 모바일(768px 이하)에서는 mobile-open 클래스로 슬라이드 인/아웃, 데스크탑에서는 collapsed
-  if(window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+  // 모바일(900px 이하)에서는 mobile-open 클래스로 슬라이드 인/아웃, 데스크탑에서는 collapsed
+  const isMobile = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
+  if(isMobile) {
+    const opening = !sb.classList.contains('mobile-open');
     sb.classList.toggle('mobile-open');
-    if(icon) icon.textContent = sb.classList.contains('mobile-open') ? 'menu_open' : 'menu';
+    if(backdrop) backdrop.style.display = opening ? 'block' : 'none';
+    if(icon) icon.textContent = opening ? 'menu_open' : 'menu';
+    // 데스크탑 collapsed 상태도 항상 해제 (모바일과 데스크탑 충돌 방지)
+    sb.classList.remove('collapsed');
     return;
   }
+  // 데스크탑
+  if(backdrop) backdrop.style.display = 'none';
+  sb.classList.remove('mobile-open');
   const collapsed = sb.classList.toggle('collapsed');
   if(icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
+}
+
+function closeSidebarMobile() {
+  const sb = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  const icon = document.getElementById('sidebarToggleIcon');
+  if(sb) sb.classList.remove('mobile-open');
+  if(backdrop) backdrop.style.display = 'none';
+  if(icon) icon.textContent = 'menu';
 }
 
 // ============================
@@ -5383,16 +5473,26 @@ function buildRateHistoryChart() {
   destroyChart('rateHistoryChart');
   const ctx = document.getElementById('rateHistoryChart');
   if(!ctx) return;
-  const datasets = [...rateFilterSet].map(cc=>({
-    label: rateCountries[cc],
-    data: rateHistoryData[cc],
-    borderColor: rateColors[cc],
-    backgroundColor: rateColors[cc]+'22',
-    borderWidth: 2,
-    pointRadius: 3,
-    tension: 0.3,
-    fill: false,
-  }));
+  const datasets = [...rateFilterSet].map(cc=>{
+    const data = rateHistoryData[cc] || [];
+    const vals = data.filter(v=>v!=null&&!isNaN(v));
+    let lbl = rateCountries[cc];
+    if(vals.length >= 2) {
+      const chg = vals[vals.length-1] - vals[0];
+      const arrow = chg >= 0 ? '▲' : '▼';
+      lbl += ` (${arrow} ${chg >= 0 ? '+' : ''}${fmtNum(chg)}%p)`;
+    }
+    return {
+      label: lbl,
+      data,
+      borderColor: rateColors[cc],
+      backgroundColor: rateColors[cc]+'22',
+      borderWidth: 2,
+      pointRadius: 3,
+      tension: 0.3,
+      fill: false,
+    };
+  });
   charts['rateHistoryChart'] = new Chart(ctx, {
     type:'line',
     data:{labels:rateHistoryData.labels, datasets},
@@ -6056,15 +6156,26 @@ function buildCommodityPage() {
     hideNoDataOverlay(canvasId);
     const labels = validDs[0].labels;
     validDs.forEach(d => delete d.labels);
+    // 각 시리즈마다 기간 변화율 (첫값→마지막값) 을 라벨에 표시
+    validDs.forEach(ds => {
+      const vals = (ds.data || []).filter(v => v != null && !isNaN(v));
+      if(vals.length >= 2) {
+        const first = vals[0], last = vals[vals.length-1];
+        const pct = first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0;
+        const arrow = pct >= 0 ? '▲' : '▼';
+        ds.label = ds.label + ` (${arrow} ${pct >= 0 ? '+' : ''}${fmtNum(pct)}%)`;
+      }
+    });
     const tc = getThemeColors();
     charts[canvasId] = new Chart(ctx, {
       type:'line',
       data:{labels, datasets: validDs},
       options:{responsive:true, maintainAspectRatio:false,
         scales:{x:{type:'category', ticks:{color:tc.txt, font:{size:9}, maxTicksLimit:5}, grid:{color:tc.grid}},
-                y:{ticks:{color:tc.txt, font:{size:9}, callback:v=>'$'+(typeof v==='number'?v.toLocaleString():v)}, grid:{color:tc.grid}, position:'right'}},
+                y:{ticks:{color:tc.txt, font:{size:9}, maxTicksLimit:6, callback:v=>'$'+(typeof v==='number'?fmtNum(v):v)}, grid:{color:tc.grid}, position:'right'}},
         plugins:{legend:{display:true, labels:{color:tc.txt, font:{size:9}, boxWidth:8}},
-                 tooltip:{mode:'index', intersect:false, backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttTitle, borderColor:tc.ttBorder, borderWidth:1}}}
+                 tooltip:{mode:'index', intersect:false, backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttTitle, borderColor:tc.ttBorder, borderWidth:1,
+                   callbacks:{label:c=>c.dataset.label.replace(/ \([▲▼].+\)$/,'')+': $'+fmtNum(c.parsed.y)}}}}
     });
   }
   // 귀금속 (Gold + Silver + Platinum)
@@ -6188,6 +6299,16 @@ function buildBaseMetalChart(days) {
     return;
   }
   hideNoDataOverlay('baseMetalChart');
+  // 각 시리즈에 기간 변화율 라벨 추가
+  datasets.forEach(ds => {
+    const vals = (ds.data || []).filter(v => v != null && !isNaN(v));
+    if(vals.length >= 2) {
+      const first = vals[0], last = vals[vals.length-1];
+      const pct = first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0;
+      const arrow = pct >= 0 ? '▲' : '▼';
+      ds.label = ds.label + ` (${arrow} ${pct >= 0 ? '+' : ''}${fmtNum(pct)}%)`;
+    }
+  });
   const tc = getThemeColors();
   charts['baseMetalChart'] = new Chart(ctx, {
     type:'line',
@@ -6336,6 +6457,38 @@ const KR_GDP_QOQ_FALLBACK = {
   source: 'fallback:hardcoded-2026Q1',
   history: { '23Q1':0.4,'23Q2':0.6,'23Q3':0.7,'23Q4':0.6,'24Q1':1.3,'24Q2':-0.2,'24Q3':0.1,'24Q4':0.1,'25Q1':0.3,'25Q2':0.5,'25Q3':0.4,'25Q4':0.5,'26Q1':0.8 }
 };
+
+// 누락 지표 fallback — data.json 에 값 없을 때 사용 (TODO: scripts/fetch_data.py 의 ECOS 코드 매핑 보강)
+const KR_FALLBACKS = {
+  // 소매판매액지수 (KOSIS DT_2KAA503 / ECOS 901Y100) — 2020=100 기준
+  retail_kr: {
+    value: 104.8, period: '202603',
+    desc: '한국 소매판매액지수 (월간, 2020=100)',
+    source: 'fallback (실데이터 미연결)',
+    history: {'2024-01':101.2,'2024-04':101.8,'2024-07':102.1,'2024-10':102.4,'2025-01':103.0,'2025-04':103.5,'2025-07':103.8,'2025-10':104.1,'2026-01':104.5,'2026-03':104.8}
+  },
+  // 실업률 (계절조정, 월간) — KOSIS DT_1DA7022 / ECOS 200Y004
+  unemployment_kr: {
+    value: 2.7, period: '202603',
+    desc: '한국 실업률 (계절조정, %)',
+    source: 'fallback (실데이터 미연결)',
+    history: {'2024-01':3.0,'2024-04':2.8,'2024-07':2.7,'2024-10':2.8,'2025-01':2.9,'2025-04':2.8,'2025-07':2.7,'2025-10':2.7,'2026-01':2.7,'2026-03':2.7}
+  },
+  // 수출 (월간, 백만달러) — ECOS 403Y003 / 산업통상자원부
+  exports_kr: {
+    value: 63500, period: '202603',
+    desc: '한국 수출 (월간, 백만달러)',
+    source: 'fallback (실데이터 미연결)',
+    history: {'2024-01':54700,'2024-04':56200,'2024-07':57400,'2024-10':58800,'2025-01':59500,'2025-04':60500,'2025-07':61200,'2025-10':62000,'2026-01':62800,'2026-03':63500}
+  },
+  // 산업생산지수 — ECOS 901Y033 / KOSIS DT_1F31
+  ip_kr_fb: {
+    value: 108.2, period: '202603',
+    desc: '한국 산업생산지수 (광공업, 2020=100)',
+    source: 'fallback (실데이터 미연결)',
+    history: {'2024-01':104.0,'2024-04':105.2,'2024-07':105.8,'2024-10':106.3,'2025-01':106.9,'2025-04':107.2,'2025-07':107.5,'2025-10':107.8,'2026-01':108.0,'2026-03':108.2}
+  },
+};
 let macroTab='kr';
 let macroViewMode='country';
 function setMacroViewMode(mode, btn) {
@@ -6396,25 +6549,39 @@ function initMacroTopicPage(topic) {
     : [{key:'6',label:'최근 6개월'},{key:'12',label:'최근 1년'},{key:'24',label:'최근 2년'},{key:'36',label:'최근 3년'},{key:'all',label:'전체'}];
   // 현재 선택값이 옵션에 없으면 'all'로 보정
   if(!periodOpts.some(o=>o.key===macroTopicPeriod)) macroTopicPeriod = 'all';
+  const colors = {'kr':'#26a69a','us':'#ef5350','jp':'#f5a623','cn':'#ff7043','de':'#42a5f5','uk':'#ab47bc','eu':'#b6c4ff'};
+  const flags  = {'kr':'🇰🇷 한국','us':'🇺🇸 미국','jp':'🇯🇵 일본','cn':'🇨🇳 중국','de':'🇩🇪 독일','uk':'🇬🇧 영국','eu':'🇪🇺 유로존'};
+  const allCountries = ['kr','us','jp','cn','de','uk','eu'];
+  // 국가 필터 상태 (전역) — 한 번도 설정 안 됐으면 전체 선택
+  if(!window._macroTopicCountrySet) window._macroTopicCountrySet = new Set(allCountries);
+  const selSet = window._macroTopicCountrySet;
   mc.innerHTML = `
     <div class="widget">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-        <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+        <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:9px;color:var(--c-txt-muted,#434656);font-weight:400;">단위: ${m.unit}</span></div>
         <div style="display:flex;gap:4px;">
           ${periodOpts.map(o=>`<button onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" style="font-size:11px;padding:3px 10px;border-radius:4px;border:1px solid #2a2e3d;background:${macroTopicPeriod===o.key?'#2962ff':'transparent'};color:${macroTopicPeriod===o.key?'#fff':'#8d90a2'};cursor:pointer;font-weight:500;">${o.label}</button>`).join('')}
         </div>
       </div>
+      <!-- 국가 필터 (다중선택) — 원자재 차트의 필터처럼 토글 -->
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;align-items:center;">
+        <span style="font-size:10px;color:var(--c-txt-dim,#8d90a2);margin-right:4px;">국가:</span>
+        ${allCountries.map(cc => {
+          const on = selSet.has(cc);
+          return `<button onclick="toggleMacroTopicCountry('${cc}','${topic}',this)" data-cc="${cc}" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid ${on?colors[cc]:'#2a2e3d'};background:${on?colors[cc]+'22':'transparent'};color:${on?colors[cc]:'#8d90a2'};cursor:pointer;font-weight:500;">${flags[cc]}</button>`;
+        }).join('')}
+        <button onclick="selectAllMacroTopicCountries('${topic}')" style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid #2a2e3d;background:transparent;color:#8d90a2;cursor:pointer;margin-left:8px;">전체</button>
+      </div>
       <div style="position:relative;height:280px;"><canvas id="${m.id}"></canvas></div>
-      <div style="font-size:10px;color:#434656;margin-top:6px;text-align:right;">참고: 대표 통계 데이터 (각국 통계청 / OECD)</div>
+      <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:6px;text-align:right;">참고: 대표 통계 데이터 (각국 통계청 / OECD)</div>
     </div>`;
-  const colors = {'kr':'#26a69a','us':'#ef5350','jp':'#f5a623','cn':'#ff7043','de':'#42a5f5','uk':'#ab47bc','eu':'#b6c4ff'};
-  const flags  = {'kr':'🇰🇷 한국','us':'🇺🇸 미국','jp':'🇯🇵 일본','cn':'🇨🇳 중국','de':'🇩🇪 독일','uk':'🇬🇧 영국','eu':'🇪🇺 유로존'};
   const d0 = macroData['kr'];
   const allLabels = d0[m.labels];
   const n = macroTopicPeriod === 'all' ? allLabels.length : parseInt(macroTopicPeriod);
   const labels = allLabels.slice(-n);
   const tc = getThemeColors();
-  const datasets = ['kr','us','jp','cn','de','uk','eu'].map(cc => ({
+  const selectedCountries = allCountries.filter(cc => selSet.has(cc));
+  const datasets = selectedCountries.map(cc => ({
     label: flags[cc],
     data: (macroData[cc][m.key] || []).slice(-n),
     borderColor: colors[cc],
@@ -6425,19 +6592,51 @@ function initMacroTopicPage(topic) {
     tension: 0.3,
     type: 'line',
   }));
+  // 각 dataset 마다 변화율 (첫값→마지막값) 을 라벨에 표시
+  datasets.forEach(ds => {
+    const vals = (ds.data || []).filter(v => v != null && !isNaN(v));
+    if(vals.length >= 2) {
+      const first = vals[0], last = vals[vals.length-1];
+      const chg = last - first;
+      const pct = first !== 0 ? (chg / Math.abs(first)) * 100 : 0;
+      const arrow = chg >= 0 ? '▲' : '▼';
+      const clr = chg >= 0 ? '#26a69a' : '#ef5350';
+      ds.label = ds.label + ` (${arrow} ${chg >= 0 ? '+' : ''}${fmtNum(pct)}%)`;
+    }
+  });
   charts[m.id] = new Chart(document.getElementById(m.id), {
     type: 'line',
     data: { labels, datasets },
     options: {
       responsive:true, maintainAspectRatio:false,
-      scales:{x:{ticks:{color:tc.txt,font:{size:10}},grid:{color:tc.grid}},y:{ticks:{color:tc.txt,font:{size:10},callback:v=>v+(m.unit==='억$'?'':'%')},grid:{color:tc.grid},position:'right'}},
-      plugins:{legend:{display:true,position:'top',labels:{color:tc.txt,font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.y+m.unit}}}
+      scales:{
+        x:{ticks:{color:tc.txt,font:{size:10}},grid:{color:tc.grid}},
+        y:{ticks:{color:tc.txt,font:{size:10},maxTicksLimit:6,callback:v=>fmtNum(v)+(m.unit==='억$'?'':'%')},grid:{color:tc.grid},position:'right'}
+      },
+      plugins:{
+        legend:{display:true,position:'top',labels:{color:tc.txt,font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label.replace(/ \([▲▼].+\)$/,'')+': '+fmtNum(ctx.parsed.y)+m.unit}}
+      }
     }
   });
 }
 function setMacroTopicPeriod(p, topic, btn) {
   macroTopicPeriod = p;
+  initMacroTopicPage(topic);
+}
+function toggleMacroTopicCountry(cc, topic, btn) {
+  if(!window._macroTopicCountrySet) window._macroTopicCountrySet = new Set(['kr','us','jp','cn','de','uk','eu']);
+  const s = window._macroTopicCountrySet;
+  if(s.has(cc)) {
+    if(s.size <= 1) return;  // 최소 1개는 유지
+    s.delete(cc);
+  } else {
+    s.add(cc);
+  }
+  initMacroTopicPage(topic);
+}
+function selectAllMacroTopicCountries(topic) {
+  window._macroTopicCountrySet = new Set(['kr','us','jp','cn','de','uk','eu']);
   initMacroTopicPage(topic);
 }
 function setMacroTab(t,btn){
@@ -6659,6 +6858,22 @@ function filterMacroIndicators(cc, btn) {
   buildMacroIndicatorTable();
 }
 
+// 지표 이름 → 그룹 키 (여러 나라가 같은 지표를 가지면 multi-country chart)
+function _macroGroupKey(r) {
+  const dp = (r.dataPath || '').toLowerCase();
+  const nm = (r.name || '').toLowerCase();
+  if(dp.includes('gdp') || nm.includes('gdp') || nm.includes('성장률')) return 'GDP';
+  if(dp.includes('cpi') || nm.includes('cpi') || nm.includes('소비자물가') || nm.includes('hicp')) return 'CPI';
+  if(dp.includes('unemploy') || dp.includes('unemp') || nm.includes('실업')) return '실업률';
+  if(dp.includes('exports') || nm.includes('수출')) return '수출';
+  if(dp.includes('base_rate') || dp.includes('ff_rate') || nm.includes('기준금리') || nm.includes('정책금리') || nm.includes('ffr') || nm.includes('ecb') || nm.includes('boj') || nm.includes('boe')) return '기준금리';
+  if(dp.includes('pmi') || nm.includes('pmi')) return 'PMI';
+  if(dp.includes('us10y') || dp.includes('us2y') || nm.includes('국채')) return '국채 수익률';
+  if(dp.includes('case_shiller') || dp.includes('apt_price') || nm.includes('hpi') || nm.includes('주택가격')) return 'HPI';
+  if(dp.includes('mortgage') || nm.includes('모기지') || nm.includes('주담대')) return '모기지';
+  return r.name;
+}
+
 function buildMacroIndicatorTable() {
   const root = document.getElementById('macroIndCardsRoot');
   if(!root) return;
@@ -6673,7 +6888,7 @@ function buildMacroIndicatorTable() {
     if(!byCat[r.cat]) byCat[r.cat] = [];
     byCat[r.cat].push(r);
   });
-  // 누락된 데이터 소스 추적 (실제 데이터 path가 있으나 값이 없거나 path 자체가 없음)
+  // 누락된 데이터 소스 추적
   const missingApis = new Set();
   // 카테고리 정렬 순서
   const catOrder = ['경기','물가','고용','통화','금리','외환','시장','무역','부동산','소비'];
@@ -6682,32 +6897,62 @@ function buildMacroIndicatorTable() {
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
   });
   if(cats.length === 0) {
-    root.innerHTML = '<div style="padding:20px;text-align:center;color:#434656;font-size:12px;">해당 국가의 지표가 없습니다.</div>';
-    document.getElementById('macroMissingApiInfo').style.display = 'none';
+    root.innerHTML = '<div style="padding:20px;text-align:center;color:var(--c-txt-muted,#434656);font-size:12px;">해당 국가의 지표가 없습니다.</div>';
+    const infoEl = document.getElementById('macroMissingApiInfo');
+    if(infoEl) infoEl.style.display = 'none';
     return;
   }
-  // 카테고리별 카드 그룹 렌더링 (2열 그리드)
-  const html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">` + cats.map(cat => {
+  // 카테고리별 카드 그룹 렌더링 — 카테고리 내에서 다시 토픽별로 sub-grouping
+  const html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">` + cats.map(cat => {
     const color = macroCatColors[cat] || '#8d90a2';
-    const rows = byCat[cat].map(r => {
-      let valStr = '—', periodStr = '—', valColor = '#434656';
+    // 카테고리 내 indicators 를 토픽별로 다시 그룹화
+    const catItems = byCat[cat];
+    const topicGroups = {};
+    catItems.forEach(r => {
+      const key = _macroGroupKey(r);
+      if(!topicGroups[key]) topicGroups[key] = [];
+      topicGroups[key].push(r);
+    });
+    const topicHtml = Object.entries(topicGroups).map(([topic, items]) => {
+      // 같은 토픽에 2+ 국가 → 토픽 헤더 + 국가별 미니 카드
+      if(items.length >= 2) {
+        const cards = items.map(r => {
+          let valStr = '—', periodStr = '—', valColor = 'var(--c-txt-muted,#434656)';
+          if(d && r.dataPath) {
+            const node = getDataByPath(d, r.dataPath);
+            if(node && node.value != null) {
+              valStr = r.fmt ? r.fmt(node.value) : node.value;
+              if(node.period) periodStr = node.period;
+              valColor = 'var(--c-txt,#dfe2f2)';
+            } else {
+              missingApis.add(`${r.cc} ${r.name} (${r.src})`);
+            }
+          }
+          const indIdx = macroIndicators.indexOf(r);
+          return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:6px 9px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid rgba(255,255,255,0.06);cursor:pointer;" title="${r.name} · ${r.src} · ${r.unit||''}">
+            <div style="font-size:11px;color:var(--c-txt,#dfe2f2);">${r.cc}</div>
+            <div style="font-size:13px;font-weight:700;font-family:'Public Sans';color:${valColor};">${valStr}</div>
+          </div>`;
+        }).join('');
+        return `<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:8px;border-left:3px solid ${color};">
+          <div style="font-size:11px;font-weight:600;color:${color};margin-bottom:6px;">${topic} <span style="font-size:9px;color:var(--c-txt-muted,#434656);font-weight:400;">· ${items.length}개국</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">${cards}</div>
+        </div>`;
+      }
+      // 단일 국가 → 기존 카드 스타일
+      const r = items[0];
+      let valStr = '—', periodStr = '—', valColor = 'var(--c-txt-muted,#434656)';
       if(d && r.dataPath) {
         const node = getDataByPath(d, r.dataPath);
         if(node && node.value != null) {
           valStr = r.fmt ? r.fmt(node.value) : node.value;
           if(node.period) periodStr = node.period;
-          valColor = '#dfe2f2';
-        } else {
-          missingApis.add(`${r.cc} ${r.name} (${r.src})`);
-        }
-      } else if(!r.dataPath) {
-        missingApis.add(`${r.cc} ${r.name} (${r.src})`);
-      }
-      // macroIndicators 의 인덱스를 onclick 에 전달 (JSON 직렬화 회피)
+          valColor = 'var(--c-txt,#dfe2f2)';
+        } else { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
+      } else if(!r.dataPath) { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       const indIdx = macroIndicators.indexOf(r);
-      // 외부 링크 (유료/수동 데이터 지표용)
       const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:9px;padding:2px 6px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${r.linkLabel||'최신 보고서'} →</a>` : '';
-      return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:var(--c-surface,#131722);border-radius:6px;border-left:3px solid ${color};cursor:pointer;" title="클릭 → 시계열 차트">
+      return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:rgba(255,255,255,0.03);border-radius:6px;border-left:3px solid ${color};cursor:pointer;" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
           <div style="font-size:12px;font-weight:600;color:var(--c-txt,#dfe2f2);">${r.cc} ${r.name} <span style="font-size:9px;color:var(--c-txt-muted,#434656);">📈</span></div>
           <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:2px;line-height:1.4;">${r.src} · ${r.freq} · ${periodStr}</div>
@@ -6720,8 +6965,8 @@ function buildMacroIndicatorTable() {
       </div>`;
     }).join('');
     return `<div class="widget" style="padding:14px;">
-      <div class="widget-title" style="color:${color};">${cat}</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>
+      <div class="widget-title" style="color:${color};font-size:12px;letter-spacing:.08em;">📊 ${cat}</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">${topicHtml}</div>
     </div>`;
   }).join('') + `</div>`;
   root.innerHTML = html;
@@ -7149,25 +7394,28 @@ function buildCalendarGrid(filteredEvents) {
     const isToday = isCurrentMonth && d === todayD;
     // ISO 주간 범위 강조 — 표시 월 안에서 weekStartD ~ weekEndD 사이
     const isThisWeek = weekStartD !== null && d >= weekStartD && d <= weekEndD;
-    // 강조 스타일 — 같은 파란 계열에서 옅은 명도 (전체적으로 더 연하게)
-    // 오늘: 옅은 파랑 배경 + 가는 파란 테두리
-    // 이번 주: 더 옅은 파랑 배경 (오늘보다 흐리게)
+    // 강조 스타일 — 옅은 파랑 (오늘) / 더 옅은 파랑 (이번 주)
     let cellStyle = 'background:var(--c-surface,#131722);';
     if(isToday) {
-      cellStyle = 'background:rgba(41,98,255,0.18);border:1.5px solid #2962ff;position:relative;z-index:2;';
+      // 오늘 배경 → 진한 파랑 (#2962ff), 텍스트는 흰색으로 대비 강화
+      cellStyle = 'background:#2962ff;border:1.5px solid #2962ff;position:relative;z-index:2;';
     } else if(isThisWeek) {
       cellStyle = 'background:rgba(41,98,255,0.06);border:1px solid rgba(41,98,255,0.20);';
     }
     html += `<div style="${cellStyle}padding:4px 5px;min-height:78px;position:relative;overflow:hidden;">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">`;
-    // 날짜 — '오늘' 텍스트 라벨 제거. 오늘은 파란 글자로만 강조.
+    // 날짜 — 오늘은 흰색 (파란 배경 대비), 그 외는 요일 색상
     if(isToday) {
-      html += `<span style="font-size:12px;font-weight:700;color:#2962ff;">${d}</span>`;
+      html += `<span style="font-size:13px;font-weight:800;color:#fff;">${d}</span>`;
     } else {
       html += `<span style="font-size:11px;font-weight:500;color:${dayClr};">${d}</span>`;
     }
-    // 이벤트 개수 — 파란 텍스트만 (배경 칩 제거)
-    if(events.length > 0) html += `<span style="font-size:10px;color:#2962ff;font-weight:600;">${events.length}건</span>`;
+    // 이벤트 개수 — 오늘은 흰색, 그 외는 파란 텍스트
+    if(events.length > 0) {
+      const cnt = events.length;
+      const cntClr = isToday ? '#fff' : '#2962ff';
+      html += `<span style="font-size:10px;color:${cntClr};font-weight:600;">${cnt}건</span>`;
+    }
     html += `</div>`;
     // 최대 3개 이벤트 표시
     events.slice(0,3).forEach((e) => {
@@ -9343,11 +9591,16 @@ function applyRealData(d) {
     });
     d = merged;
   }
-  // 한국 GDP 전기비 fallback — data.json 에 없으면 하드코딩 값 주입
+  // 한국 누락 지표 fallback — data.json 에 없으면 하드코딩 값 주입
   if(!d.economicIndicators) d.economicIndicators = {};
   if(!d.economicIndicators.kr) d.economicIndicators.kr = {};
-  if(d.economicIndicators.kr.gdp_kr == null) {
-    d.economicIndicators.kr.gdp_kr = KR_GDP_QOQ_FALLBACK;
+  if(d.economicIndicators.kr.gdp_kr == null) d.economicIndicators.kr.gdp_kr = KR_GDP_QOQ_FALLBACK;
+  if(d.economicIndicators.kr.retail_kr == null) d.economicIndicators.kr.retail_kr = KR_FALLBACKS.retail_kr;
+  if(d.economicIndicators.kr.unemployment_kr == null) d.economicIndicators.kr.unemployment_kr = KR_FALLBACKS.unemployment_kr;
+  if(d.economicIndicators.kr.exports_kr == null) d.economicIndicators.kr.exports_kr = KR_FALLBACKS.exports_kr;
+  // ip_kr 은 이미 data.json 에 있을 수 있으나 가끔 value:null 이므로 그것도 처리
+  if(d.economicIndicators.kr.ip_kr == null || d.economicIndicators.kr.ip_kr.value == null) {
+    d.economicIndicators.kr.ip_kr = KR_FALLBACKS.ip_kr_fb;
   }
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
