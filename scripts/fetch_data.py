@@ -535,10 +535,28 @@ def fetch_fred_economic_indicators():
         "dxy_idx":     ("DTWEXBGS",        "달러 인덱스 (브로드)"),
         "m2_us":       ("M2SL",            "미국 M2 통화량"),
     }
+    # 시리즈별 빈도에 맞는 limit (분기/연 단위 차트 표시 위해 5년치 이상 확보)
+    # daily 시리즈: 1300 (≈5년), monthly: 60 (5년), quarterly: 20 (5년)
+    FRED_LIMITS = {
+        # daily series
+        "vix":         1300,
+        "hy_spread":   1300,
+        "us10y":       60,   # GS10 is monthly
+        "us2y":        60,
+        "ff_rate":     60,
+        "dxy_idx":     60,
+        # monthly series
+        "cpi_us":      60,
+        "pce_us":      60,
+        "unemployment":60,
+        "m2_us":       60,
+        # quarterly series
+        "gdp_us":      20,
+    }
     result = {}
     for key, (series_id, desc) in indicators.items():
-        # 시계열: 24개 시점 (월간 데이터 = 2년, 일간 데이터 = 약 24일)
-        obs = fetch_fred_series(series_id, limit=24)
+        limit = FRED_LIMITS.get(key, 60)
+        obs = fetch_fred_series(series_id, limit=limit)
         if obs:
             history = {o["date"]: o["value"] for o in obs}
             result[key] = {
@@ -597,7 +615,8 @@ def fetch_fred_intl_indicators():
     for cc, ind_map in FRED_INTL_INDICATORS.items():
         cc_data = {}
         for key, (series_id, desc) in ind_map.items():
-            obs = fetch_fred_series(series_id, limit=24)
+            # 국제 시리즈는 대부분 월간이므로 limit=60 (5년)
+            obs = fetch_fred_series(series_id, limit=60)
             if obs:
                 history = {o["date"]: o["value"] for o in obs}
                 cc_data[f"{key}_{cc}"] = {
@@ -802,8 +821,9 @@ def fetch_fred_realestate_us():
     for key, (series_ids, desc) in indicators.items():
         obs = None
         used_id = None
+        # 부동산 지표는 대부분 월간 → 60개월(5년) 시계열
         for sid in series_ids:
-            obs = fetch_fred_series(sid, limit=24)
+            obs = fetch_fred_series(sid, limit=60)
             if obs:
                 used_id = sid
                 break
@@ -861,8 +881,10 @@ def fetch_ecos_series(stat_code, item_code="", freq="A", start_period=None, end_
         return None
 
 
-def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=24):
-    """ECOS 단일 시계열 최신값 + 24개월/분기 히스토리 조회 헬퍼."""
+def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=60):
+    """ECOS 단일 시계열 최신값 + 60개월/분기/연 히스토리 조회 헬퍼.
+    limit 60 → 월간이면 5년, 분기면 15년, 연이면 60년 (분기/연 차트 적절 표시).
+    """
     rows = fetch_ecos_series(stat_code, item_code, freq, limit=limit)
     if not rows:
         return None
