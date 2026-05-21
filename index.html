@@ -328,6 +328,101 @@ tailwind.config = {
   /* 글래스 환경에서 KPI 안의 인라인 background:#131722 등이 너무 강하면 흐리게 */
   .widget [style*="background:#131722"],
   .kpi-card [style*="background:#131722"] { background: rgba(15, 19, 30, 0.45) !important; backdrop-filter: blur(8px); border-radius: 8px; }
+  /* ======= 세부 카드 글래스모피즘 — 모달/팝업/시장분위기 카드 ======= */
+  /* 모달 백드롭 — 글래스 블러 */
+  .themed-modal {
+    background: rgba(8, 10, 18, 0.55) !important;
+    backdrop-filter: blur(16px) saturate(120%);
+    -webkit-backdrop-filter: blur(16px) saturate(120%);
+  }
+  html.light .themed-modal { background: rgba(180, 195, 220, 0.45) !important; }
+  /* 모달 내부 콘텐츠 (차트 모달의 1차 div) — 진한 글래스 카드 */
+  .themed-modal > div {
+    background: rgba(27, 31, 43, 0.72) !important;
+    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+    border-radius: 16px !important;
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  html.light .themed-modal > div {
+    background: rgba(255, 255, 255, 0.72) !important;
+    border-color: rgba(53, 108, 181, 0.20) !important;
+    box-shadow: 0 12px 48px rgba(53, 108, 181, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+  /* 모달 내부의 안내/가이드 박스 — 반투명 글래스 */
+  .themed-modal #reHistGuide,
+  .themed-modal [style*="background:var(--c-surface"] {
+    background: rgba(15, 19, 30, 0.55) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  html.light .themed-modal #reHistGuide,
+  html.light .themed-modal [style*="background:var(--c-surface"] {
+    background: rgba(245, 248, 252, 0.75) !important;
+    border-color: rgba(53, 108, 181, 0.15);
+  }
+  /* 데이터소스 / 사이드바 항목 클릭 → 우측 팝업 글래스 */
+  .themed-popup,
+  .data-source-popup {
+    background: rgba(27, 31, 43, 0.72) !important;
+    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+    border-radius: 14px !important;
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  html.light .themed-popup,
+  html.light .data-source-popup {
+    background: rgba(255, 255, 255, 0.78) !important;
+    border-color: rgba(53, 108, 181, 0.20) !important;
+    box-shadow: 0 10px 40px rgba(53, 108, 181, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+  /* 시장 분위기 카드 (sentiment) — 미니 글래스 */
+  .sentiment-card {
+    background: rgba(27, 31, 43, 0.45) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .sentiment-card:hover {
+    background: rgba(41, 98, 255, 0.18) !important;
+    border-color: rgba(41, 98, 255, 0.28);
+    transform: translateY(-1px);
+  }
+  html.light .sentiment-card {
+    background: rgba(255, 255, 255, 0.55) !important;
+    border-color: rgba(53, 108, 181, 0.15);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+  html.light .sentiment-card:hover {
+    background: rgba(217, 237, 248, 0.85) !important;
+    border-color: rgba(53, 108, 181, 0.28);
+  }
+  /* 모달 닫기 버튼 — 글래스 위에서 보이도록 색상 보정 */
+  .themed-modal button[onclick*="close"] { transition: color .15s, transform .15s; }
+  .themed-modal button[onclick*="close"]:hover { color: var(--c-down, #ef5350) !important; transform: scale(1.1); }
+  /* link-card 클릭 가능 행도 약한 글래스 */
+  .link-card, .clickable-card {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  /* 캘린더 플로팅 이벤트 상세 — 글래스 */
+  #calGridFloating {
+    background: rgba(27, 31, 43, 0.78) !important;
+    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+    border-radius: 12px !important;
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  }
+  html.light #calGridFloating {
+    background: rgba(255, 255, 255, 0.85) !important;
+    border-color: rgba(53, 108, 181, 0.20) !important;
+    box-shadow: 0 10px 40px rgba(53, 108, 181, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  }
   .up-txt { color: #26a69a; }
   .down-txt { color: #ef5350; }
   tr:hover td { background: #262a35; }
@@ -377,13 +472,14 @@ tailwind.config = {
       grid-template-columns: 1fr !important;
     }
   }
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
+    /* 태블릿/작은 화면: 사이드바는 슬라이드 오버레이로 동작 — 화면이 줄어들면 자동으로 숨김 */
     #sidebar {
-      position: fixed; left: -240px; z-index: 200; transition: left .25s;
-      height: 100vh; top: 0; padding-top: 60px; width: 220px;
+      position: fixed !important; left: -240px !important; z-index: 200; transition: left .25s;
+      height: 100vh !important; top: 0 !important; padding-top: 60px !important; width: 220px !important;
     }
     #sidebar.mobile-open { left: 0 !important; }
-    /* 모바일에서는 collapsed 클래스가 width:0 으로 만드는 것을 무시 */
+    /* collapsed 클래스가 width:0 으로 만드는 것을 무시 */
     #sidebar.collapsed:not(.mobile-open) { left: -240px !important; width: 220px !important; padding: 12px 8px !important; }
     main { padding: 12px !important; min-width: 0; }
     /* 카드 그리드는 모바일에서도 2~3컬럼 유지 (각 카드를 작게 표시) */
@@ -436,6 +532,10 @@ tailwind.config = {
     /* 사이드바가 열리면 메인 컨텐츠가 밀려나지 않고 오버레이로 덮음 */
     #sidebar.mobile-open + main { filter: brightness(0.5); pointer-events: none; }
   }
+  /* 모바일 (900px 이하): 더 강한 패딩 축소·차트 최소화 */
+  @media (max-width: 900px) {
+    main { padding: 10px !important; }
+  }
   /* 작은 모바일 (480px 미만): 매우 작은 화면 최적화 */
   @media (max-width: 480px) {
     main div[style*="grid-template-columns:repeat(4,1fr)"] {
@@ -450,7 +550,7 @@ tailwind.config = {
     #mainChart { max-height: 380px !important; }
     main div[style*="min-height:440px"] { min-height: 300px !important; height: 340px !important; }
   }
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
     .data-source-popup { left: 10px !important; right: 10px !important; width: auto !important; }
   }
 </style>
@@ -3738,8 +3838,8 @@ function toggleSidebar() {
   const icon = document.getElementById('sidebarToggleIcon');
   const backdrop = document.getElementById('sidebarBackdrop');
   if(!sb) return;
-  // 모바일(900px 이하)에서는 mobile-open 클래스로 슬라이드 인/아웃, 데스크탑에서는 collapsed
-  const isMobile = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
+  // 1024px 이하(태블릿/모바일)에서는 mobile-open 클래스로 슬라이드 인/아웃, 데스크탑에서는 collapsed
+  const isMobile = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
   if(isMobile) {
     const opening = !sb.classList.contains('mobile-open');
     sb.classList.toggle('mobile-open');
@@ -8998,58 +9098,138 @@ async function _fetchTextStooq(symbol) {
   return null;
 }
 
+// Stooq CSV 를 파싱하여 {date: close} 형태의 history 와 최신값/변화율 반환
+function _parseStooqCsv(txt, validate) {
+  if(!txt) return null;
+  const lines = txt.trim().split('\n').filter(l=>l && !l.startsWith('Date'));
+  if(!lines.length) return null;
+  const history = {};
+  for(const ln of lines) {
+    const parts = ln.split(',');
+    if(parts.length < 5) continue;
+    const dt = parts[0].trim();
+    const close = parseFloat(parts[4]);
+    if(!isNaN(close) && (!validate || validate(close))) {
+      history[dt] = close;
+    }
+  }
+  const dates = Object.keys(history).sort();
+  if(!dates.length) return null;
+  const latest = history[dates[dates.length-1]];
+  const prev   = dates.length > 1 ? history[dates[dates.length-2]] : null;
+  const change = (prev != null && prev !== 0) ? +((latest - prev) / prev * 100).toFixed(2) : 0;
+  return { value: latest, change, as_of: dates[dates.length-1], history };
+}
+
+// localStorage 헬퍼 — sentiment 히스토리 캐시 (서버 fetch_data.py 실패시 fallback)
+function _sentimentCacheKey(name) { return 'econsite_sentiment_'+name+'_v1'; }
+function _saveSentimentCache(name, payload) {
+  try { localStorage.setItem(_sentimentCacheKey(name), JSON.stringify({ ts: Date.now(), payload })); } catch(_) {}
+}
+function _loadSentimentCache(name) {
+  try {
+    const raw = localStorage.getItem(_sentimentCacheKey(name));
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    // 7일 이상 오래된 캐시는 무시
+    if(!obj || Date.now() - (obj.ts||0) > 7*24*60*60*1000) return null;
+    return obj.payload;
+  } catch(_) { return null; }
+}
+
 async function fetchSentimentClient() {
   const out = {};
-  // 1) VKOSPI — yfinance 다중 프록시 시도. 실패 시 Stooq 시도, 그래도 실패 시 정적 fallback
+  // 1) VKOSPI — Stooq (^vkospi.kr) 가 히스토리 포함 → 우선. 실패 시 yfinance.
   try {
-    const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EVKOSPI&range=5d&interval=1d');
-    const node = j?.spark?.result?.[0]?.response?.[0];
-    const c = node?.indicators?.quote?.[0]?.close;
-    if(Array.isArray(c)) {
-      const vals = c.filter(v=>v!=null);
-      if(vals.length >= 1) {
-        const cur = vals[vals.length-1];
-        if(cur > 1 && cur < 200) out.vkospi = { value: cur, source:'Yahoo Finance ^VKOSPI' };
-      }
+    const txt = await _fetchTextStooq('^vkospi.kr');
+    const parsed = _parseStooqCsv(txt, v => v > 1 && v < 200);
+    if(parsed) {
+      out.vkospi = { ...parsed, source: 'Stooq ^vkospi.kr' };
+      _saveSentimentCache('vkospi', out.vkospi);
     }
   } catch(_) {}
-  // VKOSPI Stooq fallback (^vkospi.kr)
   if(!out.vkospi) {
     try {
-      const txt = await _fetchTextStooq('^vkospi.kr');
-      if(txt) {
-        const lines = txt.trim().split('\n').filter(l=>l && !l.startsWith('Date'));
-        if(lines.length) {
-          const last = lines[lines.length-1].split(',');
-          const v = parseFloat(last[4] || last[1] || '');
-          if(!isNaN(v) && v > 1 && v < 200) out.vkospi = { value: v, source:'Stooq ^vkospi.kr' };
+      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EVKOSPI&range=1y&interval=1d');
+      const node = j?.spark?.result?.[0]?.response?.[0];
+      const ts = node?.timestamp;
+      const c  = node?.indicators?.quote?.[0]?.close;
+      if(Array.isArray(c) && Array.isArray(ts)) {
+        const history = {};
+        for(let i = 0; i < c.length; i++) {
+          const v = c[i];
+          if(v == null || v <= 1 || v >= 200) continue;
+          const d = new Date(ts[i] * 1000).toISOString().slice(0,10);
+          history[d] = +v.toFixed(2);
+        }
+        const dates = Object.keys(history).sort();
+        if(dates.length) {
+          const latest = history[dates[dates.length-1]];
+          const prev   = dates.length > 1 ? history[dates[dates.length-2]] : null;
+          const change = (prev != null && prev !== 0) ? +((latest - prev) / prev * 100).toFixed(2) : 0;
+          out.vkospi = { value: latest, change, as_of: dates[dates.length-1], history, source: 'Yahoo Finance ^VKOSPI' };
+          _saveSentimentCache('vkospi', out.vkospi);
         }
       }
     } catch(_) {}
   }
-  // 2) MOVE Index — yfinance
+  // 2) MOVE Index — Stooq (^move) 우선 (히스토리 포함), 실패 시 yfinance
   try {
-    const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EMOVE&range=5d&interval=1d');
-    const node = j?.spark?.result?.[0]?.response?.[0];
-    const c = node?.indicators?.quote?.[0]?.close;
-    if(Array.isArray(c)) {
-      const vals = c.filter(v=>v!=null);
-      if(vals.length >= 1) out.move = { value: vals[vals.length-1], source:'Yahoo Finance ^MOVE' };
+    const txt = await _fetchTextStooq('^move');
+    const parsed = _parseStooqCsv(txt, v => v > 10 && v < 500);
+    if(parsed) {
+      out.move = { ...parsed, source: 'Stooq ^move' };
+      _saveSentimentCache('move', out.move);
     }
   } catch(_) {}
-  // 3) Put/Call Ratio — Stooq (^pcc)
+  if(!out.move) {
+    try {
+      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EMOVE&range=1y&interval=1d');
+      const node = j?.spark?.result?.[0]?.response?.[0];
+      const ts = node?.timestamp;
+      const c  = node?.indicators?.quote?.[0]?.close;
+      if(Array.isArray(c) && Array.isArray(ts)) {
+        const history = {};
+        for(let i = 0; i < c.length; i++) {
+          const v = c[i];
+          if(v == null || v <= 10 || v >= 500) continue;
+          const d = new Date(ts[i] * 1000).toISOString().slice(0,10);
+          history[d] = +v.toFixed(2);
+        }
+        const dates = Object.keys(history).sort();
+        if(dates.length) {
+          const latest = history[dates[dates.length-1]];
+          const prev   = dates.length > 1 ? history[dates[dates.length-2]] : null;
+          const change = (prev != null && prev !== 0) ? +((latest - prev) / prev * 100).toFixed(2) : 0;
+          out.move = { value: latest, change, as_of: dates[dates.length-1], history, source: 'Yahoo Finance ^MOVE' };
+          _saveSentimentCache('move', out.move);
+        }
+      }
+    } catch(_) {}
+  }
+  // 3) Put/Call Ratio — Stooq (^pcc) 우선 (히스토리 포함)
   try {
     const txt = await _fetchTextStooq('^pcc');
-    if(txt) {
-      const lines = txt.trim().split('\n').filter(l=>l && !l.startsWith('Date'));
-      if(lines.length) {
-        const last = lines[lines.length-1].split(',');
-        const v = parseFloat(last[4] || last[1] || '');
-        if(!isNaN(v) && v > 0 && v < 5) out.pcr = { value: v, source:'Stooq ^pcc' };
-      }
+    const parsed = _parseStooqCsv(txt, v => v > 0.1 && v < 5);
+    if(parsed) {
+      out.pcr = { ...parsed, source: 'Stooq ^pcc' };
+      _saveSentimentCache('pcr', out.pcr);
     }
   } catch(_) {}
-  // 4) 정적 fallback — 모든 프록시 실패 시에도 카드가 비어 있지 않도록
+  // 4) localStorage 캐시 fallback — 모든 프록시 실패 시 이전 데이터라도 표시
+  if(!out.vkospi) {
+    const c = _loadSentimentCache('vkospi');
+    if(c) out.vkospi = { ...c, source: (c.source||'cached') + ' (캐시)' };
+  }
+  if(!out.move) {
+    const c = _loadSentimentCache('move');
+    if(c) out.move = { ...c, source: (c.source||'cached') + ' (캐시)' };
+  }
+  if(!out.pcr) {
+    const c = _loadSentimentCache('pcr');
+    if(c) out.pcr = { ...c, source: (c.source||'cached') + ' (캐시)' };
+  }
+  // 5) 최종 정적 fallback — 카드 비어있지 않도록
   if(!out.vkospi) out.vkospi = { value: 18.4, source:'fallback (정적값)' };
   if(!out.move)   out.move   = { value: 95.2, source:'fallback (정적값)' };
   if(!out.pcr)    out.pcr    = { value: 0.86, source:'fallback (정적값)' };
@@ -9061,6 +9241,26 @@ function _isValidVkospi(v) { return v != null && v > 1 && v < 200; }
 
 function applySentimentClient(s) {
   if(!s) return;
+  // _latestDataForIndicators.sentiment 에 머지 — 서버 데이터에 클라이언트 history 보강
+  // (모달 차트가 node.history 를 읽어 시계열 렌더링 가능)
+  if(!_latestDataForIndicators) _latestDataForIndicators = {};
+  if(!_latestDataForIndicators.sentiment) _latestDataForIndicators.sentiment = {};
+  const merge = (key, val) => {
+    if(!val || val.value == null) return;
+    const prev = _latestDataForIndicators.sentiment[key] || {};
+    // 서버 history 가 더 길면 유지, 클라이언트 history 가 더 길면 클라이언트 사용
+    const prevHist = (prev.history && typeof prev.history === 'object') ? prev.history : {};
+    const newHist  = (val.history && typeof val.history === 'object') ? val.history : {};
+    const mergedHist = { ...prevHist, ...newHist };  // 새 데이터로 덮어쓰기
+    _latestDataForIndicators.sentiment[key] = {
+      ...prev,
+      ...val,
+      history: Object.keys(mergedHist).length ? mergedHist : (prev.history || undefined),
+    };
+  };
+  merge('vkospi', s.vkospi);
+  merge('move',   s.move);
+  merge('pcr',    s.pcr);
   if(s.vkospi?.value != null && _isValidVkospi(s.vkospi.value)) {
     const el = document.getElementById('dashVkospi');
     if(el) {
@@ -9089,6 +9289,18 @@ function applySentimentClient(s) {
       el.style.color = v > 1.1 ? '#ef5350' : v < 0.7 ? '#26a69a' : 'var(--c-txt,#dfe2f2)';
     }
   }
+  // 현재 sentiment 모달이 열려있다면 즉시 재렌더 (사용자가 클릭한 후 데이터가 도착한 케이스)
+  try {
+    const modal = document.getElementById('reHistoryChartModal');
+    if(modal && modal.style.display === 'flex'
+       && _reHistState && _reHistState.key
+       && typeof _reHistState.key === 'string'
+       && _reHistState.key.indexOf('__sentiment_') === 0) {
+      const k = _reHistState.key.replace('__sentiment_', '');
+      const guide = (typeof SENTIMENT_GUIDES !== 'undefined') ? SENTIMENT_GUIDES[k] : null;
+      if(guide) _renderReHistChartSentiment(guide);
+    }
+  } catch(_) {}
 }
 
 // ============================
@@ -9486,6 +9698,20 @@ function showSentimentDetail(key) {
   const modal = document.getElementById('reHistoryChartModal');
   if(modal) modal.style.display = 'flex';
   _renderReHistChartSentiment(guide);
+  // 히스토리가 없으면 즉시 fetch — 도착하는 즉시 applySentimentClient 가 모달 재렌더
+  try {
+    const d = _latestDataForIndicators || {};
+    const node = (typeof getDataByPath === 'function') ? getDataByPath(d, guide.dataPath) : null;
+    const hasHistory = node && node.history && typeof node.history === 'object' && Object.keys(node.history).length > 1;
+    if(!hasHistory && (key === 'vkospi' || key === 'move' || key === 'pcr')) {
+      // 노트에 로딩 표시
+      const noteEl = document.getElementById('reHistNote');
+      if(noteEl && noteEl.textContent.includes('데이터 없음')) {
+        noteEl.innerHTML = '<span style="color:var(--c-primary,#b6c4ff);">⟳ 시계열 데이터 페치 중…</span>';
+      }
+      fetchSentimentClient().then(applySentimentClient).catch(()=>{});
+    }
+  } catch(_) {}
 }
 
 function _renderReHistChartSentiment(guide) {
@@ -10091,7 +10317,25 @@ async function loadRealData() {
     const r = await fetch('./data.json?_=' + Date.now());
     if (!r.ok) return;
     const data = await r.json();
+    // 신규 데이터의 lastUpdated 가 동일하면 (변화 없음) 차트 재빌드 생략
+    const prevTs = window._lastRealDataTs;
+    const newTs  = data?.lastUpdated || null;
     applyRealData(data);
+    window._lastRealDataTs = newTs;
+    // lastUpdated 가 변경되었을 때만 활성 페이지 차트 재빌드 (불필요한 렌더 방지)
+    if(prevTs && newTs && prevTs !== newTs) {
+      try {
+        const activePage = document.querySelector('.page.active');
+        if(activePage) {
+          const id = activePage.id;
+          if(id === 'page-dashboard')      { try { initMainChart(mainPeriodUnit); buildMoverTable(curMoverTab); buildGlobalTable(); } catch(_) {} }
+          else if(id === 'page-market')    { try { initMarketPage(); } catch(_) {} }
+          else if(id === 'page-macro')     { try { initMacroPage(macroTab); } catch(_) {} }
+          else if(id === 'page-realestate'){ try { buildReCharts(); if(typeof buildUsReCharts === 'function') buildUsReCharts(); } catch(_) {} }
+          else if(id === 'page-investor')  { try { buildInvestorPage(); } catch(_) {} }
+        }
+      } catch(_) {}
+    }
   } catch {
     // data.json 없음 — Mock 데이터로 동작
   }
@@ -10915,10 +11159,33 @@ window.addEventListener('load', async ()=>{
   // 5분마다 실시간 데이터 일괄 갱신 (환율·지수·원자재·등락Top10·시장 분위기)
   // KOSPI/ETF Top10, 원자재, 채권, 환율 등 모든 시장 데이터를 동일하게 5분 단위로 갱신
   const FIVE_MIN = 5 * 60 * 1000;
+  const TWO_MIN  = 2 * 60 * 1000;
+  // data.json 자동 재로드 — GitHub Actions 가 매시간 갱신하므로 2분마다 다시 페치
+  // (실시간 환율/지수/뉴스/Top10 은 별도 클라이언트 API 로 5분 단위 갱신)
+  setInterval(() => { loadRealData().catch(()=>{}); }, TWO_MIN);
   setInterval(loadRealtimeFx, FIVE_MIN);
   setInterval(loadRealtimeMarket, FIVE_MIN);
   setInterval(() => { refreshMoversFromClient().catch(()=>{}); }, FIVE_MIN);
   setInterval(() => { fetchSentimentClient().then(applySentimentClient).catch(()=>{}); }, FIVE_MIN);
+  // 탭 포커스가 돌아오면 즉시 한 번 모든 데이터 갱신 (오래 비활성 상태 후 복귀 시)
+  let _lastActivityTime = Date.now();
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState !== 'visible') return;
+    const idleMs = Date.now() - _lastActivityTime;
+    _lastActivityTime = Date.now();
+    // 1분 이상 비활성이었으면 데이터 즉시 재페치
+    if(idleMs > 60 * 1000) {
+      loadRealData().catch(()=>{});
+      loadRealtimeFx().catch(()=>{});
+      loadRealtimeMarket().catch(()=>{});
+      refreshMoversFromClient().catch(()=>{});
+      fetchSentimentClient().then(applySentimentClient).catch(()=>{});
+    }
+  });
+  // 사용자 인터랙션 추적 (마지막 활동 시각 갱신 — 자동 새로고침 판단에 사용)
+  ['click','keydown','scroll','mousemove'].forEach(ev =>
+    window.addEventListener(ev, () => { _lastActivityTime = Date.now(); }, { passive: true })
+  );
   // 5분마다 활성 차트 페이지의 차트 재빌드 (새 데이터 반영)
   setInterval(() => {
     try {

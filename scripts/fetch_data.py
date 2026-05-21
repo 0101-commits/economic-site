@@ -1583,14 +1583,57 @@ def _is_valid_vkospi(v):
     return v is not None and 1 < v < 200
 
 
+def _stooq_history(symbol, validator=None, max_points=520):
+    """Stooq CSV 에서 시계열 데이터 수집. validator(close)->bool 로 합리적 범위 검증.
+    Returns: {"YYYY-MM-DD": close, ...} 형태의 dict (최대 max_points 일).
+    """
+    try:
+        r = requests.get(
+            f"https://stooq.com/q/d/l/?s={symbol}&i=d&o=1110000",
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        if r.status_code != 200 or not r.text:
+            return {}
+        history = {}
+        lines = [l for l in r.text.strip().split("\n") if l and not l.startswith("Date")]
+        for ln in lines[-max_points:]:
+            parts = ln.split(",")
+            if len(parts) < 5:
+                continue
+            dt = parts[0].strip()
+            try:
+                close = float(parts[4])
+            except (ValueError, TypeError):
+                continue
+            if validator and not validator(close):
+                continue
+            history[dt] = round(close, 4)
+        return history
+    except Exception as e:
+        log(f"[STOOQ] {symbol} 오류: {e}")
+        return {}
+
+
 def fetch_vkospi():
     """KRX VKOSPI 지수 조회 — 변동성 범위(5~100) 검증 포함.
 
     1차: KRX OpenAPI /idx/kospi_dd_trd 에서 'KOSPI 200 변동성지수' 또는 'VKOSPI' 검색
-    2차: yfinance '^VKOSPI' (Yahoo Finance 가 잘못된 매핑으로 KOSPI 반환할 수 있어 범위 검증)
-    3차: 네이버 증권 시세 페이지 스크래핑
-    Returns: {"value": float, "change": float, "as_of": "YYYY-MM-DD"} or None
+    2차: 네이버 증권 시세 페이지 스크래핑
+    3차: yfinance '^VKOSPI' (Yahoo Finance 가 잘못된 매핑으로 KOSPI 반환할 수 있어 범위 검증)
+    Stooq (^vkospi.kr) 로 시계열(history) 함께 수집.
+    Returns: {"value": float, "change": float, "as_of": "YYYY-MM-DD", "history": {...}} or None
     """
+    # Stooq 에서 1년 + 시계열 수집 (history 항상 시도)
+    history = _stooq_history("%5Evkospi.kr", validator=_is_valid_vkospi)
+    if history:
+        log(f"[VKOSPI] Stooq 시계열: {len(history)}점 수집")
+
+    def _attach_history(result):
+        if result and history:
+            result["history"] = history
+        return result
+
     # 1차: KRX 공식
     if KRX_API_KEY:
         rows, basd = fetch_krx_latest("/idx/kospi_dd_trd")
@@ -1602,7 +1645,7 @@ def fetch_vkospi():
                     chg = _parse_num(row.get("FLUC_RT"))
                     if _is_valid_vkospi(val):
                         log(f"[VKOSPI] KRX: {nm} = {val} ({chg}%)")
-                        return {"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": basd, "source": "KRX OpenAPI"}
+                        return _attach_history({"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": basd, "source": "KRX OpenAPI"})
                     elif val:
                         log(f"[VKOSPI] KRX {nm} = {val} → 범위 벗어남, 무시")
     # 2차: 네이버 증권 VKOSPI 페이지 스크래핑 (yfinance 보다 우선 — yfinance 매핑 오류 회피)
@@ -1620,9 +1663,9 @@ def fetch_vkospi():
                 chg = _parse_num(m_chg.group(1)) if m_chg else 0.0
                 if _is_valid_vkospi(v):
                     log(f"[VKOSPI] Naver: {v} ({chg}%)")
-                    return {"value": round(v, 2), "change": round(chg or 0.0, 2),
+                    return _attach_history({"value": round(v, 2), "change": round(chg or 0.0, 2),
                             "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
-                            "source": "Naver Finance"}
+                            "source": "Naver Finance"})
                 elif v:
                     log(f"[VKOSPI] Naver {v} → 범위 벗어남, 무시")
     except Exception as e:
@@ -1632,27 +1675,53 @@ def fetch_vkospi():
         q = fetch_yf("^VKOSPI")
         if q and _is_valid_vkospi(q.get("price")):
             log(f"[VKOSPI] yfinance: {q['price']} ({q['change']}%)")
-            return {"value": q["price"], "change": q["change"], "as_of": datetime.now(KST).strftime("%Y-%m-%d"), "source": "yfinance"}
+            return _attach_history({"value": q["price"], "change": q["change"], "as_of": datetime.now(KST).strftime("%Y-%m-%d"), "source": "yfinance"})
         elif q and q.get("price"):
             log(f"[VKOSPI] yfinance {q['price']} → 범위 벗어남 (KOSPI 오매핑 가능성), 무시")
     except Exception as e:
         log(f"[VKOSPI] yfinance 폴백 오류: {e}")
+    # 4차: Stooq 만으로 현재값 추출 (위 모든 시도 실패 시)
+    if history:
+        dates = sorted(history.keys())
+        latest = history[dates[-1]]
+        prev = history[dates[-2]] if len(dates) > 1 else None
+        chg = round((latest - prev) / prev * 100, 2) if prev else 0.0
+        log(f"[VKOSPI] Stooq fallback: {latest} ({chg}%)")
+        return {"value": latest, "change": chg, "as_of": dates[-1], "source": "Stooq ^vkospi.kr", "history": history}
     log("[VKOSPI] 데이터 수집 실패")
     return None
 
 
 def fetch_move_index():
-    """ICE BofA MOVE Index (미국채 옵션 내재변동성)."""
+    """ICE BofA MOVE Index (미국채 옵션 내재변동성).
+    yfinance 우선 + Stooq 시계열 보강.
+    """
+    # Stooq 시계열 (^move) — MOVE 는 보통 30~250 사이
+    history = _stooq_history("%5Emove", validator=lambda v: 10 < v < 500)
+    if history:
+        log(f"[MOVE] Stooq 시계열: {len(history)}점 수집")
+
     # yfinance ^MOVE
     try:
         q = fetch_yf("^MOVE")
         if q and q.get("price"):
             log(f"[MOVE] yfinance: {q['price']}")
-            return {"value": q["price"], "change": q["change"],
+            result = {"value": q["price"], "change": q["change"],
                     "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
                     "source": "yfinance ^MOVE"}
+            if history:
+                result["history"] = history
+            return result
     except Exception as e:
         log(f"[MOVE] yfinance 오류: {e}")
+    # yfinance 실패 시 Stooq 만으로
+    if history:
+        dates = sorted(history.keys())
+        latest = history[dates[-1]]
+        prev = history[dates[-2]] if len(dates) > 1 else None
+        chg = round((latest - prev) / prev * 100, 2) if prev else 0.0
+        log(f"[MOVE] Stooq fallback: {latest} ({chg}%)")
+        return {"value": latest, "change": chg, "as_of": dates[-1], "source": "Stooq ^move", "history": history}
     return None
 
 
