@@ -1615,19 +1615,131 @@ def _stooq_history(symbol, validator=None, max_points=520):
         return {}
 
 
+def _naver_chart_history(symbol, validator=None, days_back=730):
+    """네이버 금융 모바일 차트 API 에서 시계열 데이터 수집.
+
+    엔드포인트: https://m.stock.naver.com/front-api/external/chart/domestic/info
+                ?symbol=SYMBOL&requestType=1&startTime=YYYYMMDD&endTime=YYYYMMDD&timeframe=day
+
+    응답: JSON-in-XML 형태 (HTML escaped JSON string) — 정규식으로 파싱.
+    symbol 예: VKOSPI, KOSPI, KOSDAQ
+    Returns: {"YYYY-MM-DD": close, ...}
+    """
+    try:
+        end_dt = datetime.now(KST)
+        start_dt = end_dt - timedelta(days=days_back)
+        url = (
+            "https://m.stock.naver.com/front-api/external/chart/domestic/info"
+            f"?symbol={symbol}"
+            "&requestType=1"
+            f"&startTime={start_dt.strftime('%Y%m%d')}"
+            f"&endTime={end_dt.strftime('%Y%m%d')}"
+            "&timeframe=day"
+        )
+        sess = _naver_session()
+        r = sess.get(url, timeout=20)
+        if r.status_code != 200:
+            log(f"[NaverChart] {symbol} HTTP {r.status_code}")
+            return {}
+        text = r.text
+        # 응답: '...|YYYYMMDD|open|high|low|close|volume|foreign_ratio|...' 형태 또는
+        # 'CHARTDATA={...}' / JSON 배열. 다중 포맷 처리.
+        import re as _re
+        history = {}
+        # 패턴 A: '[YYYYMMDD, open, high, low, close, volume]' (배열 in 응답)
+        for m in _re.finditer(r'\[\s*"?(\d{8})"?\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)', text):
+            dt = m.group(1)
+            try:
+                close = float(m.group(5))
+            except (ValueError, TypeError):
+                continue
+            if validator and not validator(close):
+                continue
+            iso = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
+            history[iso] = round(close, 4)
+        # 패턴 B: 'YYYYMMDD|open|high|low|close|...' (pipe-separated)
+        if not history:
+            for m in _re.finditer(r'(\d{8})\|[\d.]+\|[\d.]+\|[\d.]+\|([\d.]+)\|', text):
+                dt = m.group(1)
+                try:
+                    close = float(m.group(2))
+                except (ValueError, TypeError):
+                    continue
+                if validator and not validator(close):
+                    continue
+                iso = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
+                history[iso] = round(close, 4)
+        return history
+    except Exception as e:
+        log(f"[NaverChart] {symbol} 오류: {e}")
+        return {}
+
+
+def _krx_vkospi_history_series(days_back=365):
+    """KRX OpenAPI 의 변동성지수 일별 시세를 여러 날짜로 페치하여 시계열 구축.
+    /idx/kospi_dd_trd 가 basd 별 한 날짜의 모든 인덱스 row 를 반환하므로
+    날짜 범위 모드로 호출 (KRX OpenAPI 는 strtDd/endDd 파라미터 지원).
+    """
+    history = {}
+    if not KRX_API_KEY:
+        return history
+    try:
+        end_dt = datetime.now(KST)
+        start_dt = end_dt - timedelta(days=days_back)
+        url = "http://data-dbg.krx.co.kr/svc/apis/idx/kospi_dd_trd"
+        headers = {"AUTH_KEY": KRX_API_KEY}
+        params = {
+            "basDd":  end_dt.strftime("%Y%m%d"),  # KRX 는 단일 basDd 만 지원 → 최신만
+        }
+        # KRX 는 단일 basDd 만 받음. 시계열은 _krx_index_series 의 별도 호출.
+        r = requests.get(url, params=params, headers=headers, timeout=15)
+        if r.status_code == 200:
+            j = r.json()
+            for row in (j.get("OutBlock_1") or []):
+                nm = (row.get("IDX_NM") or "").strip()
+                if "변동성" in nm or "VKOSPI" in nm.upper() or "V-KOSPI" in nm.upper():
+                    val = _parse_num(row.get("CLSPRC_IDX"))
+                    basd = row.get("BAS_DD") or end_dt.strftime("%Y%m%d")
+                    if _is_valid_vkospi(val):
+                        iso = f"{basd[:4]}-{basd[4:6]}-{basd[6:8]}"
+                        history[iso] = round(val, 4)
+                    break
+    except Exception as e:
+        log(f"[KRX-VKOSPI-HIST] 오류: {e}")
+    return history
+
+
 def fetch_vkospi():
     """KRX VKOSPI 지수 조회 — 변동성 범위(5~100) 검증 포함.
 
     1차: KRX OpenAPI /idx/kospi_dd_trd 에서 'KOSPI 200 변동성지수' 또는 'VKOSPI' 검색
     2차: 네이버 증권 시세 페이지 스크래핑
     3차: yfinance '^VKOSPI' (Yahoo Finance 가 잘못된 매핑으로 KOSPI 반환할 수 있어 범위 검증)
-    Stooq (^vkospi.kr) 로 시계열(history) 함께 수집.
+    History: Naver 차트 API → Stooq → yfinance 다중 폴백
     Returns: {"value": float, "change": float, "as_of": "YYYY-MM-DD", "history": {...}} or None
     """
-    # Stooq 에서 1년 + 시계열 수집 (history 항상 시도)
-    history = _stooq_history("%5Evkospi.kr", validator=_is_valid_vkospi)
+    # History 다중 소스 시도: 1) Naver 모바일 차트, 2) Stooq, 3) yfinance
+    history = _naver_chart_history("VKOSPI", validator=_is_valid_vkospi, days_back=730)
     if history:
-        log(f"[VKOSPI] Stooq 시계열: {len(history)}점 수집")
+        log(f"[VKOSPI] Naver 차트 시계열: {len(history)}점 수집")
+    else:
+        history = _stooq_history("%5Evkospi.kr", validator=_is_valid_vkospi)
+        if history:
+            log(f"[VKOSPI] Stooq 시계열: {len(history)}점 수집")
+    # yfinance 시계열 보강 (Naver/Stooq 가 적은 경우)
+    if len(history) < 30:
+        try:
+            yf_hist = fetch_yf_history("^VKOSPI", period="2y", interval="1d")
+            if yf_hist:
+                added = 0
+                for row in yf_hist:
+                    if _is_valid_vkospi(row.get("close")):
+                        history[row["date"]] = round(row["close"], 4)
+                        added += 1
+                if added:
+                    log(f"[VKOSPI] yfinance 시계열 추가: {added}점")
+        except Exception as e:
+            log(f"[VKOSPI] yfinance 시계열 오류: {e}")
 
     def _attach_history(result):
         if result and history:
@@ -1694,14 +1806,29 @@ def fetch_vkospi():
 
 def fetch_move_index():
     """ICE BofA MOVE Index (미국채 옵션 내재변동성).
-    yfinance 우선 + Stooq 시계열 보강.
+    yfinance 시계열 + Stooq 보강.
     """
-    # Stooq 시계열 (^move) — MOVE 는 보통 30~250 사이
-    history = _stooq_history("%5Emove", validator=lambda v: 10 < v < 500)
-    if history:
-        log(f"[MOVE] Stooq 시계열: {len(history)}점 수집")
+    move_validator = lambda v: 10 < v < 500
+    # 1차: yfinance history (가장 안정적)
+    history = {}
+    try:
+        yf_hist = fetch_yf_history("^MOVE", period="2y", interval="1d")
+        if yf_hist:
+            for row in yf_hist:
+                if move_validator(row.get("close") or 0):
+                    history[row["date"]] = round(row["close"], 4)
+            if history:
+                log(f"[MOVE] yfinance 시계열: {len(history)}점 수집")
+    except Exception as e:
+        log(f"[MOVE] yfinance 시계열 오류: {e}")
+    # 2차: Stooq 보강
+    if len(history) < 30:
+        stooq = _stooq_history("%5Emove", validator=move_validator)
+        if stooq:
+            history.update(stooq)
+            log(f"[MOVE] Stooq 시계열 추가: {len(stooq)}점 (총 {len(history)}점)")
 
-    # yfinance ^MOVE
+    # 현재값 수집
     try:
         q = fetch_yf("^MOVE")
         if q and q.get("price"):
@@ -1714,14 +1841,15 @@ def fetch_move_index():
             return result
     except Exception as e:
         log(f"[MOVE] yfinance 오류: {e}")
-    # yfinance 실패 시 Stooq 만으로
+    # yfinance 현재값 실패 시 history 의 마지막 값 사용
     if history:
         dates = sorted(history.keys())
         latest = history[dates[-1]]
         prev = history[dates[-2]] if len(dates) > 1 else None
         chg = round((latest - prev) / prev * 100, 2) if prev else 0.0
-        log(f"[MOVE] Stooq fallback: {latest} ({chg}%)")
-        return {"value": latest, "change": chg, "as_of": dates[-1], "source": "Stooq ^move", "history": history}
+        log(f"[MOVE] history fallback: {latest} ({chg}%)")
+        return {"value": latest, "change": chg, "as_of": dates[-1],
+                "source": "yfinance ^MOVE (시계열)", "history": history}
     return None
 
 
@@ -1969,81 +2097,88 @@ def fetch_kis_index_dailyprice(market_code, period_days=60):
     return series if series else None
 
 
+def _kis_parse_mover_row(r):
+    """KIS 등락률 순위 응답 한 행을 표준 dict 로 변환. 필드명이 응답마다 약간 다르므로 다중 키 시도."""
+    # chg 는 양수/음수 모두 % 단위. KIS 는 prdy_ctrt (% 변화율) 또는 prdy_vrss_rate 등을 사용
+    chg_raw = r.get("prdy_ctrt") or r.get("prdy_vrss_rate") or r.get("prdy_vrss_ratio") or r.get("ctrt") or "0"
+    vol_raw = r.get("acml_vol") or r.get("vol") or r.get("acml_trd_vol") or "0"
+    return {
+        "name":  (r.get("hts_kor_isnm") or r.get("isnm") or "").strip(),
+        "code":  (r.get("stck_shrn_iscd") or r.get("mksc_shrn_iscd") or "").strip(),
+        "price": _parse_num(r.get("stck_prpr") or r.get("prpr") or r.get("price")) or 0,
+        "chg":   _parse_num(chg_raw) or 0,
+        "vol":   _parse_num(vol_raw) or 0,
+        "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+    }
+
+
+def _is_valid_mover_list(items, min_nonzero=3):
+    """등락 데이터 검증: 최소 min_nonzero 개 종목이 chg!=0 이어야 유효.
+    또한 모든 종목이 동일 chg=0 이면 무효 (랭킹 미동작).
+    """
+    if not items or len(items) < min_nonzero:
+        return False
+    nonzero = sum(1 for it in items if it.get("chg") and it["chg"] != 0)
+    return nonzero >= min_nonzero
+
+
+def _kis_fetch_ranking(market_code, sort_code, top_n):
+    """KIS 등락률 순위 단일 호출 — sort_code: '0'=상승, '1'=하락"""
+    res = kis_request(
+        "/uapi/domestic-stock/v1/ranking/fluctuation",
+        "FHPST01700000",
+        params={
+            "fid_cond_mrkt_div_code":  "J",
+            "fid_cond_scr_div_code":   "20170",
+            "fid_input_iscd":          market_code,
+            "fid_rank_sort_cls_code":  sort_code,
+            "fid_input_cnt_1":         "0",
+            "fid_prc_cls_code":        "1",
+            "fid_input_price_1":       "",
+            "fid_input_price_2":       "",
+            "fid_vol_cnt":             "",
+            "fid_trgt_cls_code":       "0",
+            "fid_trgt_exls_cls_code":  "0",
+            "fid_div_cls_code":        "0",
+            "fid_rsfl_rate1":          "",
+            "fid_rsfl_rate2":          "",
+        },
+    )
+    if not res or res.get("rt_cd") != "0":
+        if res:
+            log(f"[KIS-RANK] {market_code} sort={sort_code} rt_cd={res.get('rt_cd')} msg={res.get('msg1','')[:80]}")
+        return []
+    rows = (res.get("output") or [])[:top_n]
+    return [_kis_parse_mover_row(r) for r in rows]
+
+
 def fetch_kis_stock_movers(top_n=10):
     """KIS API로 KOSPI/KOSDAQ 상승/하락 Top 종목 조회.
 
     국내주식 등락률 순위 조회 (FHPST01700000)
+    여러 market_code 를 순차 시도 (일부 KIS 계정은 0000/0001 만 동작).
+    응답 검증: 최소 3개 종목이 chg!=0 이고, 상승/하락 리스트가 동일하지 않아야 유효.
     """
-    out_gainers, out_losers = [], []
-    for market_code, label in [("0000", "KOSPI"), ("1001", "KOSDAQ")]:
-        # 상승률 순위
-        res_up = kis_request(
-            "/uapi/domestic-stock/v1/ranking/fluctuation",
-            "FHPST01700000",
-            params={
-                "fid_cond_mrkt_div_code": "J",
-                "fid_cond_scr_div_code": "20170",
-                "fid_input_iscd": market_code,
-                "fid_rank_sort_cls_code": "0",  # 0=상승, 1=하락
-                "fid_input_cnt_1": "0",
-                "fid_prc_cls_code": "1",
-                "fid_input_price_1": "",
-                "fid_input_price_2": "",
-                "fid_vol_cnt": "",
-                "fid_trgt_cls_code": "0",
-                "fid_trgt_exls_cls_code": "0",
-                "fid_div_cls_code": "0",
-                "fid_rsfl_rate1": "",
-                "fid_rsfl_rate2": "",
-            },
-        )
-        if res_up and res_up.get("rt_cd") == "0":
-            rows = (res_up.get("output") or [])[:top_n]
-            for r in rows:
-                out_gainers.append({
-                    "name": r.get("hts_kor_isnm", "").strip(),
-                    "code": r.get("stck_shrn_iscd", "").strip(),
-                    "price": _parse_num(r.get("stck_prpr")) or 0,
-                    "chg":   _parse_num(r.get("prdy_ctrt")) or 0,
-                    "vol":   _parse_num(r.get("acml_vol")) or 0,
-                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
-                })
-        # 하락률 순위 — 정렬 변경
-        res_dn = kis_request(
-            "/uapi/domestic-stock/v1/ranking/fluctuation",
-            "FHPST01700000",
-            params={
-                "fid_cond_mrkt_div_code": "J",
-                "fid_cond_scr_div_code": "20170",
-                "fid_input_iscd": market_code,
-                "fid_rank_sort_cls_code": "1",  # 하락
-                "fid_input_cnt_1": "0",
-                "fid_prc_cls_code": "1",
-                "fid_input_price_1": "",
-                "fid_input_price_2": "",
-                "fid_vol_cnt": "",
-                "fid_trgt_cls_code": "0",
-                "fid_trgt_exls_cls_code": "0",
-                "fid_div_cls_code": "0",
-                "fid_rsfl_rate1": "",
-                "fid_rsfl_rate2": "",
-            },
-        )
-        if res_dn and res_dn.get("rt_cd") == "0":
-            rows = (res_dn.get("output") or [])[:top_n]
-            for r in rows:
-                out_losers.append({
-                    "name": r.get("hts_kor_isnm", "").strip(),
-                    "code": r.get("stck_shrn_iscd", "").strip(),
-                    "price": _parse_num(r.get("stck_prpr")) or 0,
-                    "chg":   _parse_num(r.get("prdy_ctrt")) or 0,
-                    "vol":   _parse_num(r.get("acml_vol")) or 0,
-                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
-                })
-        if out_gainers or out_losers:
-            log(f"[KIS] {label} 상승/하락 {len(out_gainers)}/{len(out_losers)}건 수집")
-            break  # KOSPI 성공 시 KOSDAQ 건너뜀 (중복 방지)
-    return out_gainers[:top_n], out_losers[:top_n]
+    # KIS 시장코드: 0000=전체 / 0001=KOSPI / 1001=KOSDAQ / 2001=KOSPI200
+    # 일부 모의투자 계정은 "0000" 만 동작하지만 등락률 정렬이 안 되는 경우가 있음 → 검증으로 fallback
+    for market_code, label in [("0001", "KOSPI"), ("0000", "전체"), ("1001", "KOSDAQ"), ("2001", "KOSPI200")]:
+        gainers = _kis_fetch_ranking(market_code, "0", top_n)
+        losers  = _kis_fetch_ranking(market_code, "1", top_n)
+        # 검증: 상승/하락 리스트가 다르고, chg!=0 인 종목이 충분한지
+        if _is_valid_mover_list(gainers) and _is_valid_mover_list(losers):
+            # 종목 코드 셋 비교 — 두 리스트가 90% 이상 같으면 랭킹이 작동 안 한 것 (KIS 가 generic list 리턴)
+            gset = set(g.get("code") for g in gainers)
+            lset = set(l.get("code") for l in losers)
+            overlap = len(gset & lset) / max(len(gset), 1)
+            if overlap < 0.5:
+                log(f"[KIS] {label}(iscd={market_code}) 상승/하락 {len(gainers)}/{len(losers)}건 수집 (검증 통과)")
+                return gainers[:top_n], losers[:top_n]
+            else:
+                log(f"[KIS] {label}(iscd={market_code}) 상승≅하락 ({overlap*100:.0f}% 중복) → 랭킹 미작동, 다음 코드 시도")
+        else:
+            log(f"[KIS] {label}(iscd={market_code}) chg 값이 모두 0 또는 부족 → 다음 코드 시도")
+    log("[KIS] 모든 market_code 실패 — 빈 리스트 반환 (Naver Finance 폴백 트리거)")
+    return [], []
 
 
 def fetch_yf(symbol):
@@ -2217,12 +2352,16 @@ def build_data():
             data["indices"]["KOSDAQ"] = {"price": kosdaq["price"], "change": kosdaq["change"]}
             log(f"[KRX] KOSDAQ: {kosdaq['price']} ({kosdaq['change']:+.2f}%)")
 
-        # KOSPI 상승/하락 Top10
+        # KOSPI 상승/하락 Top10 — 검증 포함
         gainers, losers = fetch_krx_stock_movers("kospi", top_n=10)
-        if gainers:
+        if _is_valid_mover_list(gainers):
             data["stockMovers"]["kospiGainers"] = gainers
-        if losers:
+        elif gainers:
+            log(f"[KRX] 상승종목 {len(gainers)}건 chg=0 garbage — 폴백 트리거")
+        if _is_valid_mover_list(losers):
             data["stockMovers"]["kospiLosers"] = losers
+        elif losers:
+            log(f"[KRX] 하락종목 {len(losers)}건 chg=0 garbage — 폴백 트리거")
 
         # ETF 상승/하락 Top10
         etf_up, etf_down = fetch_krx_etf_movers(top_n=10)
@@ -2235,26 +2374,33 @@ def build_data():
     else:
         log("[KRX] API 키 없음 — Naver Finance 폴백 시도")
 
-    # 주식 상승/하락 Top10이 비어 있으면 KIS API → Naver Finance 폴백
-    # KIS (한국투자증권 Open API) 는 KRX 권한 없이도 실시간 시세 제공
-    if not data["stockMovers"].get("kospiGainers") or not data["stockMovers"].get("kospiLosers"):
+    # 주식 상승/하락 Top10 — 검증 포함 다중 폴백 (KIS → Naver)
+    # KIS (한국투자증권 Open API) 는 일부 계정에서 랭킹이 작동 안하므로 chg!=0 검증 필수.
+    def _stock_movers_valid(key):
+        items = data["stockMovers"].get(key, [])
+        return _is_valid_mover_list(items) if items else False
+
+    if not _stock_movers_valid("kospiGainers") or not _stock_movers_valid("kospiLosers"):
         if KIS_APP_KEY and KIS_APP_SECRET:
             try:
                 kis_gainers, kis_losers = fetch_kis_stock_movers(top_n=10)
-                if kis_gainers and not data["stockMovers"].get("kospiGainers"):
+                if _is_valid_mover_list(kis_gainers) and not _stock_movers_valid("kospiGainers"):
                     data["stockMovers"]["kospiGainers"] = kis_gainers
                     data["sources"]["stockMovers"] = "KIS OpenAPI (한국투자증권)"
-                if kis_losers and not data["stockMovers"].get("kospiLosers"):
+                if _is_valid_mover_list(kis_losers) and not _stock_movers_valid("kospiLosers"):
                     data["stockMovers"]["kospiLosers"] = kis_losers
             except Exception as e:
                 log(f"[KIS] 상승/하락 종목 조회 오류: {e}")
-    if not data["stockMovers"].get("kospiGainers") or not data["stockMovers"].get("kospiLosers"):
+    # KIS 가 검증 실패 시 → Naver Finance 폴백
+    if not _stock_movers_valid("kospiGainers") or not _stock_movers_valid("kospiLosers"):
         gainers, losers = fetch_naver_stock_movers(market="kospi", top_n=10)
-        if gainers and not data["stockMovers"].get("kospiGainers"):
+        if _is_valid_mover_list(gainers) and not _stock_movers_valid("kospiGainers"):
             data["stockMovers"]["kospiGainers"] = gainers
             data["sources"]["stockMovers"] = "Naver Finance"
-        if losers and not data["stockMovers"].get("kospiLosers"):
+        if _is_valid_mover_list(losers) and not _stock_movers_valid("kospiLosers"):
             data["stockMovers"]["kospiLosers"] = losers
+            if data["sources"].get("stockMovers", "").startswith("KIS"):
+                data["sources"]["stockMovers"] = "KIS OpenAPI + Naver Finance"
 
     # ETF 비어 있으면 Naver Finance ETF 폴백
     if not data["etfMovers"].get("etfGainers") or not data["etfMovers"].get("etfLosers"):
