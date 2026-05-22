@@ -10841,12 +10841,12 @@ function _renderReHistChartSentiment(guide) {
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{
         x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:12}, grid:{color:tc.grid}},
-        y:{ ticks:{color:tc.txt,font:{size:10}}, grid:{color:tc.grid}, position:'right'},
+        y:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)+(unit?(' '+unit):'')}, grid:{color:tc.grid}, position:'right'},
       },
       plugins:{
         legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
         tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
-          callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?c.parsed.y.toLocaleString():c.parsed.y}${unit?' ['+unit+']':''}`}}
+          callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?fmtNum(c.parsed.y):c.parsed.y}${unit?' ['+unit+']':''}`}}
       }
     }
   });
@@ -11461,6 +11461,18 @@ function applyRealData(d) {
         ['newsFeed','commodityNewsFeed','macroNewsFeed','calendarNewsFeed'].forEach(id=>{
           if(document.getElementById(id)) renderFiltered(id);
         });
+      }
+    } catch(_) {}
+  }
+
+  // ── 서버측 경제 캘린더 (data.json.economicCalendar) 머지 + 활성 페이지 재렌더 ──
+  // 매일 09:00/22:00 KST GitHub Actions 가 FRED release dates 로 갱신.
+  if(d && d.economicCalendar) {
+    try {
+      const added = (typeof mergeServerCalendar === 'function') ? mergeServerCalendar() : 0;
+      const calPage = document.getElementById('page-calendar');
+      if(added > 0 && calPage && calPage.classList.contains('active') && typeof buildCalendar === 'function') {
+        buildCalendar();
       }
     } catch(_) {}
   }
