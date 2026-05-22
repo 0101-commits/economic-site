@@ -16,12 +16,19 @@ API 키는 모두 GitHub Secrets 에서 환경변수로 주입됩니다.
 
 import json
 import os
+import re
 import sys
+import time as _time
 import requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
+from urllib.parse import quote_plus
+from xml.etree import ElementTree as ET
 
 KST = timezone(timedelta(hours=9))
+
+# KIS 토큰 영속 캐시 — GitHub Actions cache 액션이 보관해서 24시간 재사용
+KIS_TOKEN_FILE = os.environ.get("KIS_TOKEN_FILE", ".kis_token_cache.json")
 
 # ──────────────── API 키 (GitHub Secrets → 환경변수) ────────────────
 KRX_API_KEY       = os.environ.get("KRX_API_KEY",       "").strip()
@@ -220,38 +227,64 @@ def _naver_session():
     return sess
 
 
+def _get_via_proxies(target_url, headers=None, timeout=15, expect_json=True):
+    """대상 URL 을 직접 호출하고, 실패 시 공개 CORS 프록시 여러 개 순차 시도.
+
+    GitHub Actions 러너 IP 가 Naver 등에서 차단되는 케이스 회피 목적.
+    반환: 응답 JSON (또는 expect_json=False 일 때 raw text).
+    """
+    headers = headers or {}
+    candidates = [
+        target_url,
+        f"https://corsproxy.io/?{quote_plus(target_url)}",
+        f"https://api.allorigins.win/raw?url={quote_plus(target_url)}",
+        f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(target_url)}",
+    ]
+    for url in candidates:
+        try:
+            r = requests.get(url, headers=headers, timeout=timeout)
+            if r.status_code != 200:
+                continue
+            if expect_json:
+                try:
+                    return r.json()
+                except ValueError:
+                    continue
+            else:
+                return r.text
+        except Exception:
+            continue
+    return None
+
+
 def fetch_naver_api_movers(market="KOSPI", direction="up", top_n=10):
     """네이버 증권 모바일 JSON API (m.stock.naver.com)로 등락 상위/하위 조회.
 
     엔드포인트: https://m.stock.naver.com/api/stocks/exchange/{KOSPI|KOSDAQ}/{up|down}?page=1&pageSize=20
     응답 구조: {"stocks": [{"itemCode","stockName","closePrice","fluctuationsRatio", ...}]}
+
+    GHA 러너 IP 차단 회피 — 직접 호출 실패 시 corsproxy.io / allorigins.win / codetabs 순차 시도.
     """
     market = market.upper()
     market = "KOSDAQ" if market == "KOSDAQ" else "KOSPI"
     direction = "up" if direction == "up" else "down"
-    sess = requests.Session()
-    sess.headers.update({
+    headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
                       "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
         "Accept": "application/json,text/plain,*/*",
         "Accept-Language": "ko-KR,ko;q=0.9",
         "Referer": "https://m.stock.naver.com/",
         "Origin":  "https://m.stock.naver.com",
-    })
+    }
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    urls = [
+    targets = [
         f"https://m.stock.naver.com/api/stocks/exchange/{market}/{direction}?page=1&pageSize=30",
         f"https://api.stock.naver.com/stock/exchange/{market}/{direction}?page=1&pageSize=30",
     ]
-    for url in urls:
-        try:
-            r = sess.get(url, timeout=15)
-            if r.status_code != 200:
-                log(f"[NaverAPI] {url} HTTP {r.status_code}")
-                continue
-            data = r.json()
-        except Exception as e:
-            log(f"[NaverAPI] {url} 오류: {e}")
+    for url in targets:
+        data = _get_via_proxies(url, headers=headers, timeout=15, expect_json=True)
+        if not data:
+            log(f"[NaverAPI] {url} 모든 시도 실패")
             continue
         stocks = data.get("stocks") or data.get("result") or []
         items = []
@@ -403,73 +436,97 @@ def fetch_naver_etf_movers(top_n=10):
     1) finance.naver.com/api/sise/etfItemList.nhn (전통 API)
     2) m.stock.naver.com/api/stocks/etf/domesticEtfList (모바일 신 API)
     3) finance.naver.com/sise/etf.naver HTML 스크래핑
+
+    GHA IP 차단 회피 — 모든 엔드포인트를 CORS 프록시로도 시도.
     """
-    import re as _re
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    sess = _naver_session()
+    desktop_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "ko-KR,ko;q=0.9",
+        "Referer": "https://finance.naver.com/",
+    }
+    mobile_headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+                      "(KHTML, like Gecko) Mobile/15E148 Safari/604.1",
+        "Accept": "application/json,text/plain,*/*",
+        "Referer": "https://m.stock.naver.com/",
+    }
 
-    # 시도 1: 전통 API
-    try:
-        r = sess.get("https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0", timeout=15)
-        if r.status_code == 200:
-            data = r.json()
-            rows = data.get("result", {}).get("etfItemList", [])
-            parsed = []
-            for row in rows:
-                name = row.get("itemname") or ""
-                code = (row.get("itemcode") or "").strip()
-                price = _parse_num(row.get("nowVal"))
-                # changeRate, changeVal, fluctuationsRatio 등 여러 필드 시도
-                chg = _parse_num(row.get("changeRate"))
-                if chg is None or chg == 0:
-                    # changeVal과 nowVal로 직접 계산 시도
-                    chg_val = _parse_num(row.get("changeVal"))
-                    if chg_val is not None and price and price > 0:
-                        chg = round(chg_val / (price - chg_val) * 100, 2) if (price - chg_val) > 0 else 0.0
-                if name and price:
-                    parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg or 0.0, "as_of": today})
-            if parsed:
-                # 등락률이 모두 0이면 데이터가 오래된 것 — 다음 endpoint 시도
-                non_zero = [p for p in parsed if p["chg"] != 0]
-                if len(non_zero) >= 3:
-                    gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
-                    losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
-                    log(f"[NaverETF] 1차 성공: {len(parsed)}건 (non-zero {len(non_zero)})")
-                    return gainers, losers
-                else:
-                    log(f"[NaverETF] 1차 등락률 모두 0 — 다음 endpoint 시도")
-    except Exception as e:
-        log(f"[NaverETF] 1차 오류: {e}")
+    # 시도 1: 전통 API (직접 + 프록시)
+    data = _get_via_proxies(
+        "https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0",
+        headers=desktop_headers, timeout=15, expect_json=True,
+    )
+    if data:
+        rows = data.get("result", {}).get("etfItemList", [])
+        parsed = []
+        for row in rows:
+            name = row.get("itemname") or ""
+            code = (row.get("itemcode") or "").strip()
+            price = _parse_num(row.get("nowVal"))
+            chg = _parse_num(row.get("changeRate"))
+            if chg is None or chg == 0:
+                chg_val = _parse_num(row.get("changeVal"))
+                if chg_val is not None and price and price > 0:
+                    chg = round(chg_val / (price - chg_val) * 100, 2) if (price - chg_val) > 0 else 0.0
+            if name and price:
+                parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg or 0.0, "as_of": today})
+        if parsed:
+            non_zero = [p for p in parsed if p["chg"] != 0]
+            if len(non_zero) >= 3:
+                gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+                losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+                log(f"[NaverETF] 1차(전통 API) 성공: {len(parsed)}건 (non-zero {len(non_zero)})")
+                return gainers, losers
+            log(f"[NaverETF] 1차 등락률 모두 0 — 다음 endpoint 시도")
 
-    # 시도 2: 모바일 신 API
-    try:
-        sess2 = requests.Session()
-        sess2.headers.update({
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1",
-            "Accept": "application/json,text/plain,*/*",
-            "Referer": "https://m.stock.naver.com/",
-        })
-        r = sess2.get("https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200", timeout=15)
-        if r.status_code == 200:
-            data = r.json()
-            rows = data.get("stocks") or data.get("result", {}).get("stocks") or []
-            parsed = []
-            for row in rows:
-                name = row.get("stockName") or row.get("itemName") or ""
-                code = (row.get("itemCode") or "").strip()
-                price = _parse_num(row.get("closePrice") or row.get("nowVal"))
-                chg = _parse_num(row.get("fluctuationsRatio") or row.get("changeRate"))
-                if name and price and chg is not None:
-                    parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg, "as_of": today})
-            if parsed:
-                non_zero = [p for p in parsed if p["chg"] != 0]
-                if len(non_zero) >= 3:
-                    gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
-                    losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
-                    log(f"[NaverETF] 2차(모바일) 성공: {len(parsed)}건")
-                    return gainers, losers
-    except Exception as e:
-        log(f"[NaverETF] 2차 오류: {e}")
+    # 시도 2: 모바일 신 API (직접 + 프록시)
+    data = _get_via_proxies(
+        "https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200",
+        headers=mobile_headers, timeout=15, expect_json=True,
+    )
+    if data:
+        rows = data.get("stocks") or data.get("result", {}).get("stocks") or []
+        parsed = []
+        for row in rows:
+            name = row.get("stockName") or row.get("itemName") or ""
+            code = (row.get("itemCode") or "").strip()
+            price = _parse_num(row.get("closePrice") or row.get("nowVal"))
+            chg = _parse_num(row.get("fluctuationsRatio") or row.get("changeRate"))
+            if name and price and chg is not None:
+                parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg, "as_of": today})
+        if parsed:
+            non_zero = [p for p in parsed if p["chg"] != 0]
+            if len(non_zero) >= 3:
+                gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+                losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+                log(f"[NaverETF] 2차(모바일) 성공: {len(parsed)}건")
+                return gainers, losers
+
+    # 시도 3: 다른 모바일 엔드포인트 (구조 변경 대비)
+    data = _get_via_proxies(
+        "https://m.stock.naver.com/api/stocks/etf/domestic?category=domestic&page=1&pageSize=200",
+        headers=mobile_headers, timeout=15, expect_json=True,
+    )
+    if data:
+        rows = data.get("stocks") or data.get("result", {}).get("stocks") or []
+        parsed = []
+        for row in rows:
+            name = row.get("stockName") or row.get("itemName") or ""
+            code = (row.get("itemCode") or "").strip()
+            price = _parse_num(row.get("closePrice") or row.get("nowVal"))
+            chg = _parse_num(row.get("fluctuationsRatio") or row.get("changeRate"))
+            if name and price and chg is not None:
+                parsed.append({"name": name.strip(), "code": code, "price": price, "chg": chg, "as_of": today})
+        if parsed:
+            non_zero = [p for p in parsed if p["chg"] != 0]
+            if len(non_zero) >= 3:
+                gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+                losers  = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+                log(f"[NaverETF] 3차(대체 모바일) 성공: {len(parsed)}건")
+                return gainers, losers
 
     log(f"[NaverETF] 모든 endpoint 실패 또는 등락률 0")
     return None, None
@@ -1979,15 +2036,66 @@ def fetch_fx_spot():
 # ============================================================
 # 한국투자증권 KIS Developers API
 # ============================================================
+# 토큰은 24h 유효 — 메모리 + 파일 캐시(GHA cache) 로 매시간 재발급 방지.
+# 잦은 발급 시 한투에서 카카오톡 알람을 보내고 이용 제한이 걸릴 수 있어 1일 1회로 제한한다.
 _KIS_TOKEN_CACHE = {"token": None, "expires_at": 0}
 
+
+def _load_kis_token_from_file():
+    """디스크에 저장된 KIS 토큰을 로드 (GitHub Actions cache로 런 간 공유)."""
+    try:
+        if not os.path.exists(KIS_TOKEN_FILE):
+            return None
+        with open(KIS_TOKEN_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        tok = data.get("token")
+        exp = float(data.get("expires_at", 0))
+        # 키 변경 감지 — 같은 키로 발급된 토큰만 재사용
+        saved_key_hash = data.get("appkey_hash") or ""
+        cur_key_hash = (KIS_APP_KEY[:8] + KIS_APP_KEY[-4:]) if KIS_APP_KEY else ""
+        if tok and exp > _time.time() + 60 and saved_key_hash == cur_key_hash:
+            log(f"[KIS] 파일 캐시 토큰 재사용 (만료까지 {int(exp - _time.time())}초)")
+            return {"token": tok, "expires_at": exp}
+    except Exception as e:
+        log(f"[KIS] 토큰 캐시 로드 실패: {e}")
+    return None
+
+
+def _save_kis_token_to_file(token, expires_at):
+    """KIS 토큰을 디스크에 저장 (다음 런에서 재사용)."""
+    try:
+        with open(KIS_TOKEN_FILE, "w", encoding="utf-8") as f:
+            json.dump({
+                "token": token,
+                "expires_at": expires_at,
+                "appkey_hash": (KIS_APP_KEY[:8] + KIS_APP_KEY[-4:]) if KIS_APP_KEY else "",
+                "saved_at": datetime.now(KST).isoformat(),
+            }, f)
+        log(f"[KIS] 토큰 디스크 저장 완료 ({KIS_TOKEN_FILE})")
+    except Exception as e:
+        log(f"[KIS] 토큰 디스크 저장 실패: {e}")
+
+
 def kis_get_token():
-    """KIS OAuth 2.0 토큰 발급 — 1일 1회 발급으로 충분 (24h 유효)."""
-    import time
+    """KIS OAuth 2.0 토큰 발급 — 1일 1회 발급으로 충분 (24h 유효).
+
+    캐시 우선순위:
+      1) 메모리 캐시 (_KIS_TOKEN_CACHE)
+      2) 파일 캐시 (KIS_TOKEN_FILE)  ← GitHub Actions cache 액션이 보존
+      3) 신규 발급 (한투에 POST /oauth2/tokenP)
+    """
     if not KIS_APP_KEY or not KIS_APP_SECRET:
         return None
-    if _KIS_TOKEN_CACHE["token"] and _KIS_TOKEN_CACHE["expires_at"] > time.time() + 60:
+    # 1) 메모리 캐시 확인
+    if _KIS_TOKEN_CACHE["token"] and _KIS_TOKEN_CACHE["expires_at"] > _time.time() + 60:
         return _KIS_TOKEN_CACHE["token"]
+    # 2) 파일 캐시 확인 (GHA cache로 런 간 보존)
+    cached = _load_kis_token_from_file()
+    if cached:
+        _KIS_TOKEN_CACHE["token"] = cached["token"]
+        _KIS_TOKEN_CACHE["expires_at"] = cached["expires_at"]
+        return cached["token"]
+    # 3) 신규 토큰 발급 (잦은 발급 시 한투 측에서 제한 → 1일 1회 권장)
     try:
         r = requests.post(
             f"{KIS_BASE}/oauth2/tokenP",
@@ -2007,9 +2115,11 @@ def kis_get_token():
         if not tok:
             log(f"[KIS] 토큰 응답에 access_token 없음: {j}")
             return None
+        expires_at = _time.time() + int(exp) - 60
         _KIS_TOKEN_CACHE["token"] = tok
-        _KIS_TOKEN_CACHE["expires_at"] = time.time() + int(exp) - 60
-        log(f"[KIS] 토큰 발급 성공 (만료까지 {exp}초)")
+        _KIS_TOKEN_CACHE["expires_at"] = expires_at
+        _save_kis_token_to_file(tok, expires_at)
+        log(f"[KIS] 토큰 신규 발급 성공 (만료까지 {exp}초) — 다음 24시간 동안 재사용")
         return tok
     except Exception as e:
         log(f"[KIS] 토큰 발급 오류: {e}")
@@ -2675,7 +2785,184 @@ def build_data():
     except Exception as e:
         log(f"[YF-HIST] 전체 수집 오류: {e}")
 
+    # ── 뉴스 기사 (Google News RSS) ──────────────────
+    # 클라이언트 CORS 프록시 의존도를 줄이기 위해 서버측에서 미리 가져와
+    # data.json 에 저장. 프론트엔드는 이를 우선 사용하고, 실패 시 클라이언트 페치로 폴백.
+    try:
+        log("[News] Google News RSS 카테고리별 기사 수집 시작")
+        news_data = fetch_news_all_feeds()
+        if news_data:
+            data["news"] = news_data
+            data["sources"]["news"] = "Google News RSS (서버측 페치)"
+            total = sum(len(v) for v in news_data.values()) - 1  # exclude 'lastFetched' field
+            log(f"[News] 총 {total}건 기사 수집 완료")
+    except Exception as e:
+        log(f"[News] 수집 오류: {e}")
+
     return data
+
+
+# ============================================================
+# Google News RSS — 카테고리별 기사 사전 페치
+# ============================================================
+# 카테고리 키 = 프론트엔드 newsItems/commodityNewsItems/macroNewsItems/calendarNewsItems
+# 의 item.cat 필드와 1:1 매칭. 갱신 시 cat 별로 최대 5건씩 가져와 frontend 에 주입.
+NEWS_CATEGORY_QUERIES = {
+    "채권":       "한국 국채 금리 동향",
+    "외환":       "원달러 환율 시황",
+    "주식":       "코스피 코스닥 시황",
+    "원자재":     "WTI 국제유가 동향",
+    "원유":       "WTI Brent 국제유가",
+    "귀금속":     "금 시세 골드",
+    "비철금속":   "LME 구리 가격 동향",
+    "한국GDP":    "한국 GDP 성장률",
+    "미국CPI":    "미국 CPI 인플레이션",
+    "중국경기":   "중국 경기 PMI",
+    "일본경기":   "일본 경기 BOJ",
+    "독일경기":   "독일 경기 ZEW",
+    "영국경기":   "영국 경기 BOE",
+    "유로존":     "유로존 인플레이션 ECB",
+    "한국수출":   "한국 수출 무역수지",
+    "한국은행":   "한국은행 금통위 기준금리",
+}
+
+
+def _decode_gnews_url(g_url):
+    """Google News RSS 의 base64 인코딩된 article URL 에서 원본 URL 추출."""
+    try:
+        m = re.search(r"/articles/([A-Za-z0-9_-]+)", g_url or "")
+        if not m:
+            return None
+        b64 = m.group(1).replace("-", "+").replace("_", "/")
+        b64 += "=" * (-len(b64) % 4)
+        import base64
+        raw = base64.b64decode(b64, validate=False).decode("latin-1", errors="ignore")
+        idx = raw.find("http")
+        if idx < 0:
+            return None
+        end = idx
+        while end < len(raw) and 0x20 <= ord(raw[end]) < 0x7f:
+            end += 1
+        decoded = raw[idx:end]
+        if re.match(r"^https?://[a-z0-9.\-]+\.[a-z]{2,}/", decoded, re.I):
+            return decoded
+    except Exception:
+        pass
+    return None
+
+
+def _extract_real_url(item_xml):
+    """RSS item XML 에서 실제 기사 URL 추출 (description 내 링크 우선)."""
+    desc = ""
+    link = ""
+    guid = ""
+    src_url = ""
+    for child in item_xml:
+        tag = child.tag.split("}")[-1]  # strip namespace
+        if tag == "description":
+            desc = child.text or ""
+        elif tag == "link":
+            link = child.text or ""
+        elif tag == "guid":
+            guid = child.text or ""
+        elif tag == "source":
+            src_url = child.attrib.get("url", "")
+    # 1) description 안의 외부 링크 (google news 외)
+    m = re.search(r'href="(https?://(?!news\.google\.com)[^"]+)"', desc)
+    if m:
+        return m.group(1)
+    # 2) Google News URL → base64 디코드
+    for cand in (link, guid):
+        if cand and "news.google.com" in cand:
+            decoded = _decode_gnews_url(cand)
+            if decoded:
+                return decoded
+    # 3) source url
+    if src_url and "news.google.com" not in src_url:
+        return src_url
+    return link or guid or ""
+
+
+def fetch_news_articles(query, count=5, timeout=10):
+    """Google News RSS 에서 query 에 매칭되는 최신 기사 리스트 반환.
+
+    GHA 러너 IP가 Google News에 차단되는 케이스 회피 — 직접 → CORS 프록시 폴백.
+
+    반환: [{"title": str, "url": str, "isoDate": "YYYY-MM-DD", "pubDate": str}]
+    """
+    rss_url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=ko&gl=KR&ceid=KR:ko"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml,application/xml,text/xml,*/*",
+    }
+    xml_text = None
+    candidates = [
+        rss_url,
+        f"https://corsproxy.io/?{quote_plus(rss_url)}",
+        f"https://api.allorigins.win/raw?url={quote_plus(rss_url)}",
+        f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(rss_url)}",
+    ]
+    for url in candidates:
+        try:
+            r = requests.get(url, timeout=timeout, headers=headers)
+            if r.status_code == 200 and r.text and len(r.text) > 100:
+                xml_text = r.text
+                break
+            else:
+                continue
+        except Exception:
+            continue
+    if not xml_text:
+        log(f"[News] '{query}' 모든 시도 실패 (Google News 차단)")
+        return []
+    try:
+        root = ET.fromstring(xml_text.encode("utf-8") if isinstance(xml_text, str) else xml_text)
+    except Exception as e:
+        log(f"[News] '{query}' RSS XML 파싱 실패: {e}")
+        return []
+    out = []
+    for item in root.iter("item"):
+        title_el = item.find("title")
+        pub_el = item.find("pubDate")
+        title = (title_el.text or "").strip() if title_el is not None else ""
+        # Google News 가 "제목 - 출처" 형식으로 붙이는 suffix 제거
+        title = re.sub(r"\s*-\s*[^-]+$", "", title).strip()
+        pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
+        iso_date = None
+        if pub_date:
+            try:
+                from email.utils import parsedate_to_datetime
+                iso_date = parsedate_to_datetime(pub_date).strftime("%Y-%m-%d")
+            except Exception:
+                iso_date = None
+        url = _extract_real_url(item)
+        if title and url:
+            out.append({"title": title, "url": url, "isoDate": iso_date or "", "pubDate": pub_date})
+        if len(out) >= count:
+            break
+    if out:
+        log(f"[News] '{query}' {len(out)}건 수집 (1위: {out[0]['title'][:30]}…)")
+    else:
+        log(f"[News] '{query}' 기사 없음")
+    return out
+
+
+def fetch_news_all_feeds():
+    """모든 카테고리 별로 최대 5건씩 페치하여 카테고리→[articles] 매핑 반환.
+
+    실패한 카테고리는 빈 리스트로 채우고, 나머지는 전부 시도 (한 카테고리 실패가 전체 실패가 되지 않도록).
+    """
+    result = {"lastFetched": datetime.now(KST).isoformat()}
+    for cat, query in NEWS_CATEGORY_QUERIES.items():
+        try:
+            articles = fetch_news_articles(query, count=5)
+        except Exception as e:
+            log(f"[News] '{cat}' 예외: {e}")
+            articles = []
+        result[cat] = articles
+        _time.sleep(0.3)  # Google News rate-limit 회피 — 카테고리 간 짧은 딜레이
+    return result
 
 
 if __name__ == "__main__":
