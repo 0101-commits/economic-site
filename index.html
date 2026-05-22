@@ -4623,11 +4623,19 @@ function buildMoverTable(dir) {
   if(refEl) refEl.textContent = moverRefDate || '—';
   if(!data || data.length === 0) {
     const isLoading = _clientMoverFetchInFlight || _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH;
+    // data.json 의 diagnostics 가 있으면 어떤 서버측 소스가 시도되었는지 표시
+    const diag = (_latestDataForIndicators || {}).diagnostics || {};
+    const srvSrc = diag.stockMoversSource;
+    const diagLine = srvSrc
+      ? `<div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-bottom:6px;">서버측 소스 상태: ${srvSrc==='FAILED'?'<span style=\"color:#ef5350\">모든 서버측 소스 실패 (KRX/pykrx/Naver)</span>':srvSrc}</div>`
+      : '';
     const stateMsg = isLoading
-      ? `<div style="margin-bottom:4px;">📡 네이버 증권에서 실시간 데이터 가져오는 중…</div>
-         <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-bottom:6px;">시도 ${_clientMoverFetchAttempts}/${_MAX_AUTO_MOVER_FETCH}</div>`
+      ? `<div style="margin-bottom:4px;">📡 종목 데이터 가져오는 중…</div>
+         <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-bottom:6px;">클라이언트 시도 ${_clientMoverFetchAttempts}/${_MAX_AUTO_MOVER_FETCH}</div>
+         ${diagLine}`
       : `<div style="margin-bottom:4px;color:#f5a623;">⚠ 실시간 데이터 페치 실패 (CORS 또는 네트워크 문제)</div>
-         <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-bottom:6px;">${_clientMoverLastError || '여러 차례 시도했으나 응답 없음'}</div>`;
+         <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-bottom:6px;">${_clientMoverLastError || '여러 차례 시도했으나 응답 없음'}</div>
+         ${diagLine}`;
     tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--c-txt-dim,#434656);font-size:12px;">
       ${stateMsg}
       <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
@@ -8901,9 +8909,12 @@ function buildInvestorPage() {
 // 데이터 소스 메타 (사이드바 신호등 + 플로팅 상세)
 // ============================
 const dataSourceMeta = [
-  { key:'krx',    name:'KRX OpenAPI',     unit:'한국 공식',   sourceKeys:['stockMovers','etfMovers','indices','commodities'],
-    desc:'한국거래소 OpenAPI - KOSPI/KOSDAQ 지수·주식·ETF·금·석유 일별 시세',
-    fetched:['KOSPI/KOSDAQ 지수','주식 상승/하락 Top10','ETF 상승/하락 Top10','금(99.99 1Kg)','휘발유'] },
+  { key:'krx',    name:'KRX OpenAPI',     unit:'한국 공식',   sourceKeys:['indices','commodities'],
+    desc:'한국거래소 OpenAPI - KOSPI/KOSDAQ 지수·금·석유 일별 시세 (FLUC_RT 가 0 으로 오는 결함으로 종목 등락은 pykrx 사용)',
+    fetched:['KOSPI/KOSDAQ 지수','금(99.99 1Kg)','휘발유'] },
+  { key:'pykrx',  name:'pykrx',           unit:'KRX 직접 호출', sourceKeys:['stockMovers','etfMovers'],
+    desc:'pykrx 라이브러리 — KRX 정보데이터시스템(data.krx.co.kr)을 직접 호출. API 키 불필요, IP 차단 우회 가능, FLUC_RT 신뢰성 문제 없음. 종목·ETF Top10 의 PRIMARY 소스.',
+    fetched:['KOSPI/KOSDAQ 종목 등락률 Top10','ETF 등락률 Top10','종목명/코드 매핑'] },
   { key:'stooq',  name:'Stooq',           unit:'실시간 지수', sourceKeys:[],  realtime:true,
     desc:'무료 글로벌 시세 (CORS 허용) — 30분마다 자동 갱신',
     fetched:['KOSPI/KOSDAQ','S&P500/NASDAQ/Nikkei','WTI/Brent/Gold/Silver/Copper'] },
@@ -8932,17 +8943,59 @@ const dataSourceMeta = [
     desc:'Google News RSS — 매일 KST 9시 GitHub Actions 가 카테고리별 (주식·채권·외환·원자재·거시) 최신 기사 5건씩 미리 페치하여 data.json 에 저장. 클라이언트 RSS 폴백.',
     fetched:['주식/채권/외환/원자재 뉴스','한국GDP·미국CPI·중국/일본/유로존 경제뉴스','한국수출/한국은행 정책'] },
   { key:'kis',    name:'한국투자증권 KIS', unit:'증시 실시간', sourceKeys:[],
-    desc:'한국투자증권 KIS Developers OpenAPI — KOSPI/KOSDAQ 지수·종목 시세·등락률 순위. 토큰은 1일 1회 발급(24h 유효), GHA cache 액션으로 런 간 보존. KRX 가 chg=0 garbage 반환 시 폴백으로 사용.',
-    fetched:['KOSPI/KOSDAQ 지수','등락률 상위/하위 Top10','종목 일별 시세'] },
+    desc:'한국투자증권 KIS Developers OpenAPI. 기본 비활성 (KIS_ENABLED=0) — 잦은 토큰 발급으로 인한 카카오톡 알람 차단 목적. pykrx 가 KOSPI/KOSDAQ 데이터를 직접 가져오므로 KIS 가 없어도 정상 동작. 활성화하려면 워크플로우 변수 KIS_ENABLED=1 설정.',
+    fetched:['(비활성) KOSPI/KOSDAQ 지수','(비활성) 등락률 Top10','(비활성) 종목 일별 시세'] },
 ];
 
 let _dsStatusCache = null;
 function computeDataSourceStatus(d) {
   const sources = (d && d.sources) || {};
+  const diag = (d && d.diagnostics) || {};
   const status = {};
   for(const src of dataSourceMeta) {
     if(src.realtime) {
       status[src.key] = { state:'partial', label:'30분 주기' };
+      continue;
+    }
+    // 커스텀 상태 로직 — 일부 메타는 라벨 매칭으로 더 정확하게 판정
+    if(src.key === 'pykrx') {
+      const sLabel = sources.stockMovers || '';
+      const eLabel = sources.etfMovers || '';
+      const pykrxStock = sLabel.includes('pykrx');
+      const pykrxEtf = eLabel.includes('pykrx');
+      if(pykrxStock && pykrxEtf) {
+        status[src.key] = { state:'online', label:'주식+ETF 모두 pykrx' };
+      } else if(pykrxStock || pykrxEtf) {
+        status[src.key] = { state:'partial', label: pykrxStock ? '주식만 pykrx' : 'ETF만 pykrx' };
+      } else if(diag.pykrxAvailable === false) {
+        status[src.key] = { state:'offline', label:'라이브러리 미설치' };
+      } else {
+        status[src.key] = { state:'offline', label:'폴백 사용' };
+      }
+      continue;
+    }
+    if(src.key === 'kis') {
+      const sLabel = sources.stockMovers || '';
+      if(sLabel.includes('KIS')) {
+        status[src.key] = { state:'online', label:'KIS 활성' };
+      } else if(diag.kisEnabled) {
+        status[src.key] = { state:'partial', label:'활성화이나 폴백 사용' };
+      } else {
+        status[src.key] = { state:'offline', label:'기본 비활성 (알람 차단)' };
+      }
+      continue;
+    }
+    if(src.key === 'gnews') {
+      const news = (d && d.news) || {};
+      const cats = Object.keys(news).filter(k => k !== 'lastFetched');
+      const filled = cats.filter(c => Array.isArray(news[c]) && news[c].length > 0).length;
+      if(filled === cats.length && cats.length > 0) {
+        status[src.key] = { state:'online', label: `${filled}/${cats.length} 카테고리` };
+      } else if(filled > 0) {
+        status[src.key] = { state:'partial', label: `${filled}/${cats.length} 카테고리` };
+      } else {
+        status[src.key] = { state:'offline', label:'페치 실패' };
+      }
       continue;
     }
     const matched = src.sourceKeys.filter(k => sources[k]);
@@ -9048,14 +9101,36 @@ function showDataSourceDetail(key) {
     }
     if(totalArticles === 0) actualStats += '<li style="color:#ef5350;">서버측 페치 실패 — 클라이언트 RSS 폴백 사용 중</li>';
   } else if(key === 'kis') {
+    const diag = d.diagnostics || {};
     const mv = d.stockMovers || {};
     const src = (d.sources || {}).stockMovers || '미사용';
-    actualStats += `<li>데이터 소스: ${src}</li>`;
+    const kisOn = diag.kisEnabled === true;
+    actualStats += `<li>현재 사용 중인 종목 데이터 소스: ${src}</li>`;
     actualStats += `<li>주식 상승/하락 Top10: ${mv.kospiGainers?.length||0}/${mv.kospiLosers?.length||0}건</li>`;
     if(src.includes('KIS')) {
-      actualStats += `<li style="color:#26a69a;">한국투자증권 KIS OpenAPI 활성</li>`;
+      actualStats += `<li style="color:#26a69a;">한국투자증권 KIS OpenAPI 활성 — 카카오톡 알람 받음</li>`;
+    } else if(kisOn) {
+      actualStats += `<li style="color:#f5a623;">KIS_ENABLED=1 이나 폴백 사용 중 (KIS 응답 검증 실패)</li>`;
     } else {
-      actualStats += `<li style="color:#8d90a2;font-size:10px;">KIS 토큰 비활성 또는 폴백 사용 (Naver / KRX)</li>`;
+      actualStats += `<li style="color:#26a69a;font-size:11px;">KIS 비활성 (기본값) — 카카오톡 알람 차단 상태</li>`;
+      actualStats += `<li style="color:#8d90a2;font-size:10px;">활성화: 워크플로우 변수에 KIS_ENABLED=1 추가</li>`;
+    }
+  } else if(key === 'pykrx') {
+    const diag = d.diagnostics || {};
+    const mv = d.stockMovers || {};
+    const etf = d.etfMovers || {};
+    const srcS = (d.sources || {}).stockMovers || '';
+    const srcE = (d.sources || {}).etfMovers || '';
+    const avail = diag.pykrxAvailable !== false;
+    actualStats += `<li>라이브러리 가용: ${avail ? '✓ 설치됨' : '✗ 미설치'}</li>`;
+    actualStats += `<li>종목 Top10: ${mv.kospiGainers?.length||0}/${mv.kospiLosers?.length||0}건 (소스: ${srcS || '없음'})</li>`;
+    actualStats += `<li>ETF Top10: ${etf.etfGainers?.length||0}/${etf.etfLosers?.length||0}건 (소스: ${srcE || '없음'})</li>`;
+    if(srcS.includes('pykrx')) {
+      actualStats += `<li style="color:#26a69a;">pykrx 가 종목 PRIMARY 소스로 동작 중</li>`;
+    } else if(avail) {
+      actualStats += `<li style="color:#f5a623;font-size:10px;">pykrx 시도했으나 KRX 응답 없음 — 폴백 사용</li>`;
+    } else {
+      actualStats += `<li style="color:#ef5350;">pykrx 가 설치되지 않음 — 워크플로우에 pip install pykrx 필요</li>`;
     }
   }
   bodyEl.innerHTML = `
@@ -9191,16 +9266,32 @@ async function fetchNaverETFMoversClient() {
 }
 
 // 수동 재시도 (버튼 클릭) — 자동 시도 카운터 무관하게 재시도
+// 1) data.json 강제 재페치 (서버측 새 데이터가 있으면 적용) → 2) 클라이언트 페치
 async function manualRetryMovers(btn) {
   if(btn) { btn.disabled = true; btn.textContent = '⟳ 갱신중…'; }
   _clientMoverFetchAttempts = 0;  // 카운터 리셋
-  const ok = await refreshMoversFromClient(true);
-  // applyRealData 가 자동으로 buildMoverTable 을 호출하지만, 실패 시 명시적으로 한 번 더
+  let serverHit = false;
+  // 1) data.json 강제 재페치 — GHA 가 새로 갱신했을 수 있음
+  try {
+    const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
+    if(r.ok) {
+      const fresh = await r.json();
+      const hasStock = (fresh.stockMovers||{}).kospiGainers?.length > 0;
+      const hasEtf   = (fresh.etfMovers||{}).etfGainers?.length > 0;
+      if(hasStock || hasEtf) {
+        applyRealData(fresh);
+        serverHit = true;
+      }
+    }
+  } catch(_) {}
+  // 2) 클라이언트 페치 (서버측이 비어있거나 보강 필요한 경우)
+  const ok = serverHit || await refreshMoversFromClient(true);
   if(!ok) {
     try { buildMoverTable(curMoverTab); } catch(_) {}
     if(btn) { btn.textContent = '⚠ 다시 시도'; btn.disabled = false; }
   } else if(btn) {
     btn.textContent = '✓ 갱신됨';
+    setTimeout(()=>{ if(btn) btn.textContent = '↻ 다시 시도'; btn.disabled = false; }, 1500);
   }
 }
 
@@ -10839,20 +10930,55 @@ function applyRealData(d) {
     </tr>`;
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
-  if (gainTb && movers.kospiGainers) {
-    gainTb.innerHTML = movers.kospiGainers.map((s,i)=>renderStockRow(s,i,'up')).join('');
+  // 빈 테이블에는 데이터 소스 진단과 새로고침 버튼을 함께 표시
+  const renderEmptyMoverCell = (cols, label, source) => {
+    const diag = (d.diagnostics || {});
+    const srvSrc = diag.stockMoversSource;
+    const diagLine = srvSrc
+      ? `<div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:4px;">서버 소스: ${srvSrc==='FAILED'?'<span style=\"color:#ef5350\">전체 실패 (pykrx/KRX/Naver)</span>':srvSrc}</div>`
+      : '';
+    return `<tr><td colspan="${cols}" style="padding:14px;text-align:center;color:#434656;font-size:12px;">
+      <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
+      ${diagLine}
+      <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
+      <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버 →</a>
+    </td></tr>`;
+  };
+  if (gainTb) {
+    gainTb.innerHTML = movers.kospiGainers && movers.kospiGainers.length
+      ? movers.kospiGainers.map((s,i)=>renderStockRow(s,i,'up')).join('')
+      : renderEmptyMoverCell(5, 'KOSPI 상승 Top10');
   }
-  if (loseTb && movers.kospiLosers) {
-    loseTb.innerHTML = movers.kospiLosers.map((s,i)=>renderStockRow(s,i,'down')).join('');
+  if (loseTb) {
+    loseTb.innerHTML = movers.kospiLosers && movers.kospiLosers.length
+      ? movers.kospiLosers.map((s,i)=>renderStockRow(s,i,'down')).join('')
+      : renderEmptyMoverCell(5, 'KOSPI 하락 Top10');
   }
   // ETF Top10 테이블 (거래량 없음 → 4컬럼)
   const etfGainTb = document.getElementById('etfTopGainersTable');
   const etfLoseTb = document.getElementById('etfTopLosersTable');
-  if (etfGainTb && etfMvr.etfGainers) {
-    etfGainTb.innerHTML = etfMvr.etfGainers.map((s,i)=>renderEtfRow(s,i,'up')).join('');
+  const renderEmptyEtfCell = (label) => {
+    const diag = (d.diagnostics || {});
+    const srvSrc = diag.etfMoversSource;
+    const diagLine = srvSrc
+      ? `<div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:4px;">서버 소스: ${srvSrc==='FAILED'?'<span style=\"color:#ef5350\">전체 실패 (pykrx/Naver)</span>':srvSrc}</div>`
+      : '';
+    return `<tr><td colspan="4" style="padding:14px;text-align:center;color:#434656;font-size:12px;">
+      <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
+      ${diagLine}
+      <button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
+      <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버 →</a>
+    </td></tr>`;
+  };
+  if (etfGainTb) {
+    etfGainTb.innerHTML = etfMvr.etfGainers && etfMvr.etfGainers.length
+      ? etfMvr.etfGainers.map((s,i)=>renderEtfRow(s,i,'up')).join('')
+      : renderEmptyEtfCell('ETF 상승 Top10');
   }
-  if (etfLoseTb && etfMvr.etfLosers) {
-    etfLoseTb.innerHTML = etfMvr.etfLosers.map((s,i)=>renderEtfRow(s,i,'down')).join('');
+  if (etfLoseTb) {
+    etfLoseTb.innerHTML = etfMvr.etfLosers && etfMvr.etfLosers.length
+      ? etfMvr.etfLosers.map((s,i)=>renderEtfRow(s,i,'down')).join('')
+      : renderEmptyEtfCell('ETF 하락 Top10');
   }
   // ── FRED 경제 지표 → 대시보드 시장 분위기 ─────────────
   const usInd = (d.economicIndicators || {}).us || {};

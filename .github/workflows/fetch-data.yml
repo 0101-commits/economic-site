@@ -32,7 +32,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests yfinance
+        # pykrx: KRX 정보데이터시스템 직접 호출 — 키 없음, 카카오톡 알람 없음, 가장 안정적
+        # 종목·ETF 상승/하락 Top10 의 PRIMARY 데이터 소스 (Naver/KIS 의 신뢰성 문제 우회)
+        run: pip install requests yfinance pykrx
 
       # KIS 토큰 영속 캐시 — 한국투자증권 API 는 토큰 1일 1회 발급 권장 (24h 유효).
       # 잦은 발급 시 카카오톡 알람·이용 제한이 발생하므로 GHA cache 액션으로
@@ -60,9 +62,17 @@ jobs:
           # 한국수출입은행 환율/금리 API 키
           EXIM_API_KEY:       ${{ secrets.EXIM_API_KEY }}
           # 한국투자증권 KIS API — Secrets 에 KIS_APP_KEY / KIS_APP_SECRET 설정 시 사용
+          # KIS_ENABLED=0 (기본): 카카오톡 알람 차단을 위해 KIS 토큰 발급 비활성화.
+          # pykrx 가 KOSPI/KOSDAQ 등락 데이터를 직접 가져오므로 KIS 가 없어도 정상 동작.
+          # KIS 사용을 원하면 워크플로우 변수에 KIS_ENABLED: '1' 설정.
           KIS_APP_KEY:        ${{ secrets.KIS_APP_KEY }}
           KIS_APP_SECRET:     ${{ secrets.KIS_APP_SECRET }}
+          KIS_ENABLED:        ${{ vars.KIS_ENABLED || '0' }}
           KIS_TOKEN_FILE:     .kis_token_cache.json
+          # 네이버 검색 OpenAPI — Google News 가 차단된 카테고리 보강에 사용 (선택)
+          # https://developers.naver.com/apps/ 에서 발급, 일 25,000회 무료
+          NAVER_CLIENT_ID:    ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: python scripts/fetch_data.py
 
       - name: Commit and push data.json
