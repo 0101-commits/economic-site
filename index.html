@@ -2488,10 +2488,15 @@ function formatAxisLabelOmitYear(label, allLabels) {
   return str;
 }
 // Y축 숫자 라벨 정리 — JS 부동소수점 오차(3.60000000000000005) 제거 + 단위 추가
+// 정밀도: 명시 시 그 자릿수 / 자동 시 값에 비례 (FX 1504.94 등은 2자리 유지).
+// trailing zero 는 parseFloat 으로 자연 제거 (1500.00 → "1500", 2.40 → "2.4").
 function fmtNum(v, decimals) {
   if(v == null || isNaN(v)) return '';
-  const d = decimals != null ? decimals : (Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 1 ? 1 : 2);
-  // 소수점 자릿수 고정 후 trailing zero 제거
+  if (decimals != null) return parseFloat(v.toFixed(decimals)).toString();
+  // 자동 정밀도: 항상 2자리까지 fix (parseFloat 가 trailing zero 제거),
+  // 단 0.01 미만은 4자리까지 (PCR/spread 등 미세값 보존).
+  const absV = Math.abs(v);
+  const d = absV >= 0.01 ? 2 : 4;
   return parseFloat(v.toFixed(d)).toString();
 }
 function fmtPct(v) { return fmtNum(v) + '%'; }
