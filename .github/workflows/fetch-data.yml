@@ -34,6 +34,19 @@ jobs:
       - name: Install dependencies
         run: pip install requests yfinance
 
+      # KIS 토큰 영속 캐시 — 한국투자증권 API 는 토큰 1일 1회 발급 권장 (24h 유효).
+      # 잦은 발급 시 카카오톡 알람·이용 제한이 발생하므로 GHA cache 액션으로
+      # 런 간 토큰 파일을 보존하여 매 시간 새 토큰을 발급하는 일을 막는다.
+      # 캐시 키 일자(YYYY-MM-DD) 가 바뀌면 자연스럽게 새 토큰 발급 (=하루 1회).
+      - name: Restore KIS token cache
+        id: kis-cache
+        uses: actions/cache@v4
+        with:
+          path: .kis_token_cache.json
+          key: kis-token-${{ github.run_started_at }}
+          restore-keys: |
+            kis-token-
+
       - name: Fetch market data
         env:
           KRX_API_KEY:        ${{ secrets.KRX_API_KEY }}
@@ -46,6 +59,10 @@ jobs:
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
           # 한국수출입은행 환율/금리 API 키
           EXIM_API_KEY:       ${{ secrets.EXIM_API_KEY }}
+          # 한국투자증권 KIS API — Secrets 에 KIS_APP_KEY / KIS_APP_SECRET 설정 시 사용
+          KIS_APP_KEY:        ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET:     ${{ secrets.KIS_APP_SECRET }}
+          KIS_TOKEN_FILE:     .kis_token_cache.json
         run: python scripts/fetch_data.py
 
       - name: Commit and push data.json

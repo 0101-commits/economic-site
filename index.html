@@ -4511,7 +4511,8 @@ const downMoversETF = [];
 let moverRefDate = '—';
 let _clientMoverFetchInFlight = false;
 let _clientMoverFetchAttempts = 0;
-const _MAX_AUTO_MOVER_FETCH = 2;  // 자동 재시도 2회까지 — 무한 루프 방지하면서 garbage 데이터 갱신 보장
+let _clientMoverLastError = null;       // 마지막 페치 실패 정보 (UI 표시용)
+const _MAX_AUTO_MOVER_FETCH = 3;  // 자동 재시도 3회까지 — 무한 루프 방지하면서 garbage 데이터 갱신 보장
 
 let curMoverTab = 'up';
 let curMoverType = 'stock';
@@ -4621,9 +4622,16 @@ function buildMoverTable(dir) {
   const refEl = document.getElementById('moverRefDate');
   if(refEl) refEl.textContent = moverRefDate || '—';
   if(!data || data.length === 0) {
+    const isLoading = _clientMoverFetchInFlight || _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH;
+    const stateMsg = isLoading
+      ? `<div style="margin-bottom:4px;">📡 네이버 증권에서 실시간 데이터 가져오는 중…</div>
+         <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-bottom:6px;">시도 ${_clientMoverFetchAttempts}/${_MAX_AUTO_MOVER_FETCH}</div>`
+      : `<div style="margin-bottom:4px;color:#f5a623;">⚠ 실시간 데이터 페치 실패 (CORS 또는 네트워크 문제)</div>
+         <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-bottom:6px;">${_clientMoverLastError || '여러 차례 시도했으나 응답 없음'}</div>`;
     tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--c-txt-dim,#434656);font-size:12px;">
-      <div style="margin-bottom:4px;">📡 네이버 증권에서 실시간 데이터 가져오는 중…</div>
+      ${stateMsg}
       <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
+      <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버에서 직접 보기 →</a>
     </td></tr>`;
     // 자동 트리거: 빈 데이터일 때 백그라운드에서 1회만 페치 시도 (무한 루프 방지)
     if(!_clientMoverFetchInFlight && _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH) {
@@ -5034,14 +5042,27 @@ function setNewsFilter(feedId, cat, el) {
 }
 
 // 뉴스 새로고침 — 해당 피드의 모든 쿼리를 다시 가져옴
+// 우선순위: 1) data.json 재페치 (서버측 최신 Google News) → 2) 클라이언트 CORS 프록시
 async function refreshNews(feedId, arrName, btn) {
   const origText = '↻ 새로고침';
   if(btn) { btn.textContent = '⟳ 로딩중…'; btn.disabled = true; }
   try {
     const arr = getFeedArray(feedId);
     if(!arr) return;
-    // 새로고침 시 각 카테고리별로 여러 개의 뉴스를 가져와 전체 항목을 갱신
-    // 카테고리별 검색어 매핑 (item.cat → search query)
+
+    // 0) data.json 강제 재페치 — 서버측에서 매일 9시 KST 에 Google News RSS 로 갱신된 캐시
+    try {
+      const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
+      if (r.ok) {
+        const fresh = await r.json();
+        if (fresh && fresh.news) {
+          applyServerNewsToFeeds(fresh.news);
+          _latestDataForIndicators = fresh;
+        }
+      }
+    } catch(_) {}
+
+    // 카테고리별 검색어 매핑 (item.cat → search query) — 클라이언트 RSS 폴백용
     const categoryQueries = {
       // newsItems / commodityNewsItems / macroNewsItems / calendarNewsItems 의 cat 필드 매핑
       '채권':       '한국 국채 금리 동향 2026',
@@ -5068,7 +5089,7 @@ async function refreshNews(feedId, arrName, btn) {
       if(!byCategory[cat]) byCategory[cat] = [];
       byCategory[cat].push({item, idx});
     });
-    // 각 카테고리당 최대 5건 새 기사 가져오기
+    // 1) 각 카테고리당 최대 5건 새 기사 가져오기 (클라이언트 RSS — 더 최신일 수 있음)
     await Promise.all(Object.keys(byCategory).map(async (cat) => {
       const q = categoryQueries[cat];
       if(!q) return;
@@ -5076,11 +5097,16 @@ async function refreshNews(feedId, arrName, btn) {
       if(!fresh || !fresh.length) return;
       byCategory[cat].forEach(({item, idx}, i) => {
         const f = fresh[i];
-        if(!f) return;
-        arr[idx].title = f.title;
-        arr[idx].url   = f.url;
-        arr[idx].time  = f.time;
-        if(f.isoDate) arr[idx].isoDate = f.isoDate;
+        if(!f || !f.url) return;
+        // 검색 페이지 URL (정적 폴백) 이거나 더 최신 기사가 있으면 교체
+        const cur = arr[idx];
+        const isStatic = /search\.naver\.com/.test(cur.url || '');
+        if (isStatic || !cur.url || cur.url === '#' || (f.isoDate && cur.isoDate && f.isoDate >= cur.isoDate)) {
+          cur.title = f.title;
+          cur.url   = f.url;
+          cur.time  = f.time;
+          if(f.isoDate) cur.isoDate = f.isoDate;
+        }
       });
     }));
     renderFiltered(feedId);
@@ -8902,6 +8928,12 @@ const dataSourceMeta = [
   { key:'nps',    name:'NPS 공시',        unit:'국민연금',    sourceKeys:[],
     desc:'국민연금공단 자산 운용 공시 데이터 (분기별 정기 업데이트)',
     fetched:['국민연금 자산배분','국내·해외 Top 보유종목'] },
+  { key:'gnews',  name:'Google News',     unit:'경제 뉴스',   sourceKeys:['news'],
+    desc:'Google News RSS — 매일 KST 9시 GitHub Actions 가 카테고리별 (주식·채권·외환·원자재·거시) 최신 기사 5건씩 미리 페치하여 data.json 에 저장. 클라이언트 RSS 폴백.',
+    fetched:['주식/채권/외환/원자재 뉴스','한국GDP·미국CPI·중국/일본/유로존 경제뉴스','한국수출/한국은행 정책'] },
+  { key:'kis',    name:'한국투자증권 KIS', unit:'증시 실시간', sourceKeys:[],
+    desc:'한국투자증권 KIS Developers OpenAPI — KOSPI/KOSDAQ 지수·종목 시세·등락률 순위. 토큰은 1일 1회 발급(24h 유효), GHA cache 액션으로 런 간 보존. KRX 가 chg=0 garbage 반환 시 폴백으로 사용.',
+    fetched:['KOSPI/KOSDAQ 지수','등락률 상위/하위 Top10','종목 일별 시세'] },
 ];
 
 let _dsStatusCache = null;
@@ -9002,6 +9034,29 @@ function showDataSourceDetail(key) {
     }
   } else if(key === 'nps') {
     actualStats += '<li>분기별 정적 데이터 (수동 업데이트)</li>';
+  } else if(key === 'gnews') {
+    const news = d.news || {};
+    const cats = Object.keys(news).filter(k => k !== 'lastFetched');
+    const totalArticles = cats.reduce((acc, c) => acc + (Array.isArray(news[c]) ? news[c].length : 0), 0);
+    actualStats += `<li>카테고리: ${cats.length}개 (${cats.slice(0,5).join(', ')}${cats.length>5?'…':''})</li>`;
+    actualStats += `<li>총 기사: ${totalArticles}건</li>`;
+    if(news.lastFetched) {
+      try {
+        const dt = new Date(news.lastFetched);
+        actualStats += `<li style="color:#8d90a2;font-size:10px;">최종 페치: ${dt.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</li>`;
+      } catch(_) {}
+    }
+    if(totalArticles === 0) actualStats += '<li style="color:#ef5350;">서버측 페치 실패 — 클라이언트 RSS 폴백 사용 중</li>';
+  } else if(key === 'kis') {
+    const mv = d.stockMovers || {};
+    const src = (d.sources || {}).stockMovers || '미사용';
+    actualStats += `<li>데이터 소스: ${src}</li>`;
+    actualStats += `<li>주식 상승/하락 Top10: ${mv.kospiGainers?.length||0}/${mv.kospiLosers?.length||0}건</li>`;
+    if(src.includes('KIS')) {
+      actualStats += `<li style="color:#26a69a;">한국투자증권 KIS OpenAPI 활성</li>`;
+    } else {
+      actualStats += `<li style="color:#8d90a2;font-size:10px;">KIS 토큰 비활성 또는 폴백 사용 (Naver / KRX)</li>`;
+    }
   }
   bodyEl.innerHTML = `
     <div style="margin-bottom:10px;padding:8px;background:var(--c-card-hi, #262a35);border-radius:4px;border-left:3px solid ${stateColor};">
@@ -9040,13 +9095,17 @@ document.addEventListener('click', (e) => {
 // ============================
 async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
   // 네이버 증권 모바일 JSON API — CORS 지원 (Origin/Referer 헤더 자동 처리)
-  // 1차: 직접 호출 (브라우저가 CORS 허용 시), 2차: corsproxy.io 경유
+  // 1차: 직접 호출 (브라우저가 CORS 허용 시), 2차: 다중 CORS 프록시 폴백
   const direct = `https://m.stock.naver.com/api/stocks/exchange/${market}/${direction}?page=1&pageSize=30`;
+  const directAlt = `https://api.stock.naver.com/stock/exchange/${market}/${direction}?page=1&pageSize=30`;
   const urls = [
     direct,
+    directAlt,
     'https://corsproxy.io/?' + encodeURIComponent(direct),
     'https://api.allorigins.win/raw?url=' + encodeURIComponent(direct),
     'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(direct),
+    'https://thingproxy.freeboard.io/fetch/' + direct,
+    'https://corsproxy.io/?' + encodeURIComponent(directAlt),
   ];
   for(const url of urls) {
     try {
@@ -9087,6 +9146,8 @@ async function fetchNaverETFMoversClient() {
     urls.push(t);
     urls.push('https://corsproxy.io/?' + encodeURIComponent(t));
     urls.push('https://api.allorigins.win/raw?url=' + encodeURIComponent(t));
+    urls.push('https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(t));
+    urls.push('https://thingproxy.freeboard.io/fetch/' + t);
   });
   for(const url of urls) {
     try {
@@ -9165,10 +9226,13 @@ async function refreshMoversFromClient(showStatus=false) {
       if(patch.etfMovers.etfGainers)    patch.sources.etfMovers   = 'Naver Finance (클라이언트 실시간)';
       // 부분 패치 — applyRealData에서 빈 객체는 건드리지 않음
       applyRealData(patch);
+      _clientMoverLastError = null;
       return true;
     }
+    _clientMoverLastError = 'CORS 프록시 실패 — 모든 endpoint 응답 없음';
   } catch(e) {
     console.warn('[NaverMovers] 클라이언트 페치 실패:', e);
+    _clientMoverLastError = String(e?.message || e || 'unknown');
   }
   return false;
 }
@@ -11063,6 +11127,20 @@ function applyRealData(d) {
   if(d && d.sources) {
     try { buildSidebarDataSources(d); } catch(_) {}
   }
+
+  // ── 서버측 뉴스 (data.json.news) 즉시 적용 ──────────────
+  // 매일 9시 KST GitHub Actions 가 Google News RSS 로 카테고리별 기사 미리 수집.
+  // 클라이언트 CORS 프록시 실패 케이스에 대비한 안정적 데이터 소스.
+  if(d && d.news) {
+    try {
+      const ok = applyServerNewsToFeeds(d.news);
+      if(ok) {
+        ['newsFeed','commodityNewsFeed','macroNewsFeed','calendarNewsFeed'].forEach(id=>{
+          if(document.getElementById(id)) renderFiltered(id);
+        });
+      }
+    } catch(_) {}
+  }
 }
 
 async function loadRealData() {
@@ -11274,6 +11352,7 @@ const _NEWS_PROXIES = [
   (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),
   (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
+  (url) => 'https://thingproxy.freeboard.io/fetch/' + url,
 ];
 
 async function _fetchTextWithProxies(targetUrl, timeoutMs) {
@@ -11378,10 +11457,52 @@ function relTime(iso) {
   } catch { return '오늘'; }
 }
 
+// data.json.news 우선 적용 — 서버측에서 매일 아침 9시 KST 에 Google News RSS 로
+// 미리 페치한 기사를 카테고리(item.cat) 별로 교체.
+// 클라이언트 CORS 프록시 실패율이 높아 서버측 캐시를 우선 사용한다.
+function applyServerNewsToFeeds(serverNews) {
+  if (!serverNews || typeof serverNews !== 'object') return false;
+  const feeds = { newsFeed:newsItems, commodityNewsFeed:commodityNewsItems,
+                  macroNewsFeed:macroNewsItems, calendarNewsFeed:calendarNewsItems };
+  let appliedCount = 0;
+  for (const arr of Object.values(feeds)) {
+    // 카테고리 별로 기존 항목 순서대로 서버측 기사 슬롯에 매핑
+    const byCat = {};
+    arr.forEach((item, idx) => {
+      const cat = item.cat || '기타';
+      (byCat[cat] = byCat[cat] || []).push(idx);
+    });
+    Object.entries(byCat).forEach(([cat, idxList]) => {
+      const fresh = serverNews[cat];
+      if (!Array.isArray(fresh) || !fresh.length) return;
+      idxList.forEach((slotIdx, i) => {
+        const article = fresh[i];
+        if (!article || !article.url) return;
+        arr[slotIdx].title = article.title;
+        arr[slotIdx].url   = article.url;
+        if (article.isoDate) arr[slotIdx].isoDate = article.isoDate;
+        arr[slotIdx].time  = article.isoDate ? relTime(article.isoDate) : '오늘';
+        appliedCount++;
+      });
+    });
+  }
+  if (appliedCount > 0) console.info(`[News] data.json 서버측 뉴스 ${appliedCount}건 적용`);
+  return appliedCount > 0;
+}
+
 async function loadFreshNews() {
+  // 1) data.json.news 가 있으면 우선 적용 (서버측 Google News 페치 결과)
+  let serverApplied = false;
+  try {
+    const d = _latestDataForIndicators || {};
+    if (d && d.news) {
+      serverApplied = applyServerNewsToFeeds(d.news);
+    }
+  } catch(_) {}
+
+  // 2) 클라이언트 CORS 프록시로 추가 갱신 (서버측 페치 실패 카테고리 + 더 최신 기사)
   const arrays = { newsItems, commodityNewsItems, macroNewsItems, calendarNewsItems };
   const tasks = [];
-  // 각 쿼리당 5개씩 가져와서 idx, idx+1, idx+2, idx+3, idx+4 슬롯을 모두 실제 기사 URL 로 갱신
   for (const [arrName, queries] of Object.entries(NEWS_QUERIES)) {
     for (const {idx, q} of queries) {
       tasks.push(fetchLatestArticles(q, 5).then(freshList => {
@@ -11389,10 +11510,16 @@ async function loadFreshNews() {
         freshList.forEach((fresh, i) => {
           const slot = idx + i;
           if (!arrays[arrName][slot] || !fresh || !fresh.url) return;
-          arrays[arrName][slot].title = fresh.title;
-          arrays[arrName][slot].url   = fresh.url;
-          arrays[arrName][slot].time  = fresh.time;
-          if (fresh.isoDate) arrays[arrName][slot].isoDate = fresh.isoDate;
+          // 기존 url 이 search.naver.com (정적 fallback) 이거나 서버측 url 보다 새 RSS 가 더 최신이면 교체
+          const cur = arrays[arrName][slot];
+          const isStaticUrl = /search\.naver\.com/.test(cur.url || '');
+          const newerIso = fresh.isoDate && cur.isoDate && fresh.isoDate >= cur.isoDate;
+          if (isStaticUrl || newerIso || !cur.url || cur.url === '#') {
+            cur.title = fresh.title;
+            cur.url   = fresh.url;
+            cur.time  = fresh.time;
+            if (fresh.isoDate) cur.isoDate = fresh.isoDate;
+          }
         });
       }).catch(()=>{}));
     }
