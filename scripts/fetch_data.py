@@ -748,7 +748,9 @@ def fetch_fred_economic_indicators():
         "hy_spread":   ("BAMLH0A0HYM2",    "HY 크레딧 스프레드"),
         "us10y":       ("GS10",            "미국 10년 국채"),
         "us2y":        ("GS2",             "미국 2년 국채"),
-        "dxy_idx":     ("DTWEXBGS",        "달러 인덱스 (브로드)"),
+        # ⚠ DXY 는 FRED 에 없음. 아래는 Broad Dollar Index (참고용, 1월 2006=100 베이스).
+        # 실제 DXY (1973=100, ICE 발표) 는 fetch_dxy_from_yf() 가 yfinance 로 별도 페치.
+        "broad_dollar":("DTWEXBGS",        "달러 인덱스 (브로드, 2006=100)"),
         "m2_us":       ("M2SL",            "미국 M2 통화량"),
     }
     # 시리즈별 빈도에 맞는 limit (분기/연 단위 차트 표시 위해 5년치 이상 확보)
@@ -760,7 +762,7 @@ def fetch_fred_economic_indicators():
         "us10y":       60,   # GS10 is monthly
         "us2y":        60,
         "ff_rate":     60,
-        "dxy_idx":     60,
+        "broad_dollar":1300, # DTWEXBGS is daily — 5y history for chart
         # monthly series
         "cpi_us":      60,
         "pce_us":      60,
@@ -1352,9 +1354,15 @@ def fetch_realestate_kr():
     result = {}
 
     # ─── 신 API: 전국주택가격동향 (월간) ─────────────
-    # STATBL_ID 후보: A_2024_00026 (월간 매매), A_2024_00027 (전세), A_2024_00028 (월세)
-    # 또는 구 ID: A_2022_00131 (월간 종합주택매매가격지수)
+    # R-ONE 신 OpenAPI 의 정확한 STATBL_ID 는 reb.or.kr 의 R-ONE 페이지에서 확인 가능.
+    # 사용자가 보는 R-ONE "매매가격지수 변동률 (%)" 는 월간 동향 조사의 변동률.
+    # 우리는 그것을 보여주는 게 맞음 — 지수 값(예: 105.2) 보다 변동률(%) 이 사용자에게 친숙.
+    # STATBL_ID 후보 — 변동률 PRIMARY (사용자가 사이트에서 보는 값과 동일)
     stats_candidates = [
+        # 변동률 시리즈 (매월 변동률 %)
+        ("A_2024_00177", "전국 아파트 매매가격지수 변동률 (%)"),
+        ("A_2024_00200", "전국 아파트 매매가격지수 변동률 (%)"),
+        # 지수 시리즈 (110.5 등)
         ("A_2024_00026", "전국 아파트 매매가격지수"),
         ("A_2024_00301", "전국 아파트 매매가격지수"),
         ("A_2022_00131", "전국 종합주택 매매가격지수"),
@@ -1391,8 +1399,12 @@ def fetch_realestate_kr():
             log(f"[R-ONE-new] {stats_id} 오류: {e}")
             continue
 
-    # 전세가격지수 (월간)
+    # 전세가격지수 변동률 (월간)
     jns_candidates = [
+        # 변동률 시리즈
+        ("A_2024_00178", "전국 아파트 전세가격지수 변동률 (%)"),
+        ("A_2024_00201", "전국 아파트 전세가격지수 변동률 (%)"),
+        # 지수 시리즈
         ("A_2024_00027", "전국 아파트 전세가격지수"),
         ("A_2022_00132", "전국 종합주택 전세가격지수"),
     ]
@@ -1514,7 +1526,8 @@ def fetch_realestate_kr():
 # ============================================================
 # KOSIS API (국가통계포털)
 # ============================================================
-def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=None, end_prd=None):
+def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=None, end_prd=None,
+                       obj_l1=None):
     """KOSIS API 통계 데이터 조회."""
     if not KOSIS_API_KEY:
         return None
@@ -1528,7 +1541,7 @@ def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=
             "method":      "getList",
             "apiKey":      KOSIS_API_KEY,
             "itmId":       item_id,
-            "objL1":       item_id,
+            "objL1":       obj_l1 if obj_l1 is not None else item_id,
             "format":      "json",
             "jsonVD":      "Y",
             "userStatsId": "",
@@ -1544,6 +1557,69 @@ def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=
     except Exception as e:
         log(f"[KOSIS] {org_id}/{table_id} 오류: {e}")
         return None
+
+
+def fetch_kosis_retail_sales():
+    """KOSIS 에서 한국 소매판매액지수 (총지수 + 전년동월비) 조회.
+
+    통계표: DT_1JG2105 (서비스업동향조사: 소매판매액지수)
+    조직: 101 (통계청)
+    아이템:
+      - T2 / T20: 소매판매액지수 (총지수, 불변)
+      - T6 / T60: 소매판매액지수 (전년동월비, %)
+    KOSIS 사이트에서 보여주는 값과 일치하도록 두 시리즈 모두 반환.
+    """
+    if not KOSIS_API_KEY:
+        return None
+    # KOSIS 통계표 ID 후보 — 시도 순서대로
+    table_candidates = [
+        # (orgId, tblId, label)
+        ("101", "DT_1JG2105", "서비스업동향조사: 소매판매액지수"),
+        ("101", "DT_1KI2017", "도소매업조사: 소매판매액지수"),
+    ]
+    # 항목코드 후보 — KOSIS 마다 다름
+    item_candidates = ["T2", "T20", "13102803005A", "ALL", "T03"]
+    now = datetime.now(KST)
+    end_prd = now.strftime("%Y%m")
+    start_prd = (now - timedelta(days=400)).strftime("%Y%m")
+    for org_id, tbl_id, label in table_candidates:
+        for item_id in item_candidates:
+            try:
+                data = fetch_kosis_series(org_id, tbl_id, item_id, "M", start_prd, end_prd)
+                if not data or not isinstance(data, list):
+                    continue
+                # 유효한 데이터 행 필터링
+                rows = [r for r in data if r.get("DT") and r.get("PRD_DE")]
+                if not rows:
+                    continue
+                # 최신 PRD_DE 정렬
+                rows.sort(key=lambda r: r.get("PRD_DE", ""))
+                latest = rows[-1]
+                val = _parse_num(latest.get("DT"))
+                if val is None or val == 0:
+                    continue
+                prev = _parse_num(rows[-2].get("DT")) if len(rows) > 1 else None
+                history = {}
+                for r in rows[-24:]:  # 최근 24개월
+                    p = r.get("PRD_DE")
+                    v = _parse_num(r.get("DT"))
+                    if p and v is not None:
+                        history[p] = v
+                log(f"[KOSIS] 소매판매액지수: value={val} period={latest.get('PRD_DE')} "
+                    f"src={tbl_id}/{item_id}")
+                return {
+                    "value":  round(val, 2),
+                    "prev":   prev,
+                    "period": latest.get("PRD_DE"),
+                    "desc":   "한국 소매판매액지수 (KOSIS)",
+                    "source": f"KOSIS:{tbl_id}/{item_id}",
+                    "history": history,
+                }
+            except Exception as e:
+                log(f"[KOSIS] {tbl_id}/{item_id} 오류: {e}")
+                continue
+    log("[KOSIS] 소매판매액지수 모든 후보 실패")
+    return None
 
 
 # ============================================================
@@ -1948,22 +2024,31 @@ def _krx_vkospi_history_series(days_back=365):
 
 
 def fetch_vkospi():
-    """KRX VKOSPI 지수 조회 — 변동성 범위(5~100) 검증 포함.
+    """KSVKOSPI (KOSPI 200 변동성지수, 한국거래소 공식) 조회 — 범위(5~100) 검증.
 
-    1차: KRX OpenAPI /idx/kospi_dd_trd 에서 'KOSPI 200 변동성지수' 또는 'VKOSPI' 검색
-    2차: 네이버 증권 시세 페이지 스크래핑
-    3차: yfinance '^VKOSPI' (Yahoo Finance 가 잘못된 매핑으로 KOSPI 반환할 수 있어 범위 검증)
-    History: Naver 차트 API → Stooq → yfinance 다중 폴백
+    KRX/네이버 정식 심볼 코드는 KSVKOSPI (V-KOSPI 200 정식 명칭).
+    사용자가 네이버에서 보는 시세 페이지(finance.naver.com/sise/sise_index.naver?code=KSVKOSPI)
+    와 동일한 값을 우선 가져온다.
+
+    1차: Naver 모바일 차트 API (KSVKOSPI) — 시계열 + 최신값
+    2차: KRX OpenAPI /idx/kospi_dd_trd 에서 '변동성지수' 검색
+    3차: 네이버 증권 KSVKOSPI 페이지 스크래핑
+    4차: yfinance '^VKOSPI' (Yahoo 가 KOSPI 와 혼동하는 케이스 검증)
     Returns: {"value": float, "change": float, "as_of": "YYYY-MM-DD", "history": {...}} or None
     """
-    # History 다중 소스 시도: 1) Naver 모바일 차트, 2) Stooq, 3) yfinance
-    history = _naver_chart_history("VKOSPI", validator=_is_valid_vkospi, days_back=730)
+    # History 다중 소스 시도 (KSVKOSPI 정식 심볼 우선, VKOSPI 폴백)
+    history = _naver_chart_history("KSVKOSPI", validator=_is_valid_vkospi, days_back=730)
     if history:
-        log(f"[VKOSPI] Naver 차트 시계열: {len(history)}점 수집")
+        log(f"[KSVKOSPI] Naver 차트 시계열: {len(history)}점 수집")
     else:
+        # 구 심볼 VKOSPI 도 시도
+        history = _naver_chart_history("VKOSPI", validator=_is_valid_vkospi, days_back=730)
+        if history:
+            log(f"[KSVKOSPI] Naver 차트 (구 심볼) 시계열: {len(history)}점")
+    if not history:
         history = _stooq_history("%5Evkospi.kr", validator=_is_valid_vkospi)
         if history:
-            log(f"[VKOSPI] Stooq 시계열: {len(history)}점 수집")
+            log(f"[KSVKOSPI] Stooq 시계열: {len(history)}점 수집")
     # yfinance 시계열 보강 (Naver/Stooq 가 적은 경우)
     if len(history) < 30:
         try:
@@ -1975,9 +2060,9 @@ def fetch_vkospi():
                         history[row["date"]] = round(row["close"], 4)
                         added += 1
                 if added:
-                    log(f"[VKOSPI] yfinance 시계열 추가: {added}점")
+                    log(f"[KSVKOSPI] yfinance 시계열 추가: {added}점")
         except Exception as e:
-            log(f"[VKOSPI] yfinance 시계열 오류: {e}")
+            log(f"[KSVKOSPI] yfinance 시계열 오류: {e}")
 
     def _attach_history(result):
         if result and history:
@@ -1994,15 +2079,17 @@ def fetch_vkospi():
                     val = _parse_num(row.get("CLSPRC_IDX"))
                     chg = _parse_num(row.get("FLUC_RT"))
                     if _is_valid_vkospi(val):
-                        log(f"[VKOSPI] KRX: {nm} = {val} ({chg}%)")
-                        return _attach_history({"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": basd, "source": "KRX OpenAPI"})
+                        log(f"[KSVKOSPI] KRX: {nm} = {val} ({chg}%)")
+                        return _attach_history({"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": basd, "source": "KRX OpenAPI", "symbol": "KSVKOSPI"})
                     elif val:
-                        log(f"[VKOSPI] KRX {nm} = {val} → 범위 벗어남, 무시")
-    # 2차: 네이버 증권 VKOSPI 페이지 스크래핑 (yfinance 보다 우선 — yfinance 매핑 오류 회피)
-    try:
-        sess = _naver_session()
-        r = sess.get("https://finance.naver.com/sise/sise_index.naver?code=VKOSPI", timeout=15)
-        if r.status_code == 200:
+                        log(f"[KSVKOSPI] KRX {nm} = {val} → 범위 벗어남, 무시")
+    # 2차: 네이버 증권 KSVKOSPI 페이지 스크래핑
+    sess = _naver_session()
+    for code in ("KSVKOSPI", "VKOSPI"):
+        try:
+            r = sess.get(f"https://finance.naver.com/sise/sise_index.naver?code={code}", timeout=15)
+            if r.status_code != 200:
+                continue
             r.encoding = "euc-kr"
             import re as _re
             html = r.text
@@ -2012,33 +2099,31 @@ def fetch_vkospi():
                 v = _parse_num(m_price.group(1))
                 chg = _parse_num(m_chg.group(1)) if m_chg else 0.0
                 if _is_valid_vkospi(v):
-                    log(f"[VKOSPI] Naver: {v} ({chg}%)")
+                    log(f"[KSVKOSPI] Naver ({code}): {v} ({chg}%)")
                     return _attach_history({"value": round(v, 2), "change": round(chg or 0.0, 2),
                             "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
-                            "source": "Naver Finance"})
-                elif v:
-                    log(f"[VKOSPI] Naver {v} → 범위 벗어남, 무시")
-    except Exception as e:
-        log(f"[VKOSPI] Naver 폴백 오류: {e}")
+                            "source": f"Naver Finance ({code})", "symbol": "KSVKOSPI"})
+        except Exception as e:
+            log(f"[KSVKOSPI] Naver {code} 폴백 오류: {e}")
     # 3차: yfinance — 범위 검증으로 KOSPI 잘못 매핑 검출
     try:
         q = fetch_yf("^VKOSPI")
         if q and _is_valid_vkospi(q.get("price")):
-            log(f"[VKOSPI] yfinance: {q['price']} ({q['change']}%)")
-            return _attach_history({"value": q["price"], "change": q["change"], "as_of": datetime.now(KST).strftime("%Y-%m-%d"), "source": "yfinance"})
+            log(f"[KSVKOSPI] yfinance: {q['price']} ({q['change']}%)")
+            return _attach_history({"value": q["price"], "change": q["change"], "as_of": datetime.now(KST).strftime("%Y-%m-%d"), "source": "yfinance", "symbol": "KSVKOSPI"})
         elif q and q.get("price"):
-            log(f"[VKOSPI] yfinance {q['price']} → 범위 벗어남 (KOSPI 오매핑 가능성), 무시")
+            log(f"[KSVKOSPI] yfinance {q['price']} → 범위 벗어남 (KOSPI 오매핑 가능성), 무시")
     except Exception as e:
-        log(f"[VKOSPI] yfinance 폴백 오류: {e}")
-    # 4차: Stooq 만으로 현재값 추출 (위 모든 시도 실패 시)
+        log(f"[KSVKOSPI] yfinance 폴백 오류: {e}")
+    # 4차: Stooq 만으로 현재값 추출
     if history:
         dates = sorted(history.keys())
         latest = history[dates[-1]]
         prev = history[dates[-2]] if len(dates) > 1 else None
         chg = round((latest - prev) / prev * 100, 2) if prev else 0.0
-        log(f"[VKOSPI] Stooq fallback: {latest} ({chg}%)")
-        return {"value": latest, "change": chg, "as_of": dates[-1], "source": "Stooq ^vkospi.kr", "history": history}
-    log("[VKOSPI] 데이터 수집 실패")
+        log(f"[KSVKOSPI] Stooq fallback: {latest} ({chg}%)")
+        return {"value": latest, "change": chg, "as_of": dates[-1], "source": "Stooq ^vkospi.kr", "symbol": "KSVKOSPI", "history": history}
+    log("[KSVKOSPI] 데이터 수집 실패")
     return None
 
 
@@ -2102,31 +2187,40 @@ def fetch_putcall_ratio():
 
     또한 과거 시계열을 함께 수집 (history)
     """
-    # 1) Stooq — CSV 직접 다운로드
+    # 1) Stooq — CSV 직접 다운로드 (일별 ~1년치)
     history = {}
     latest = None
     try:
-        r = requests.get("https://stooq.com/q/d/l/?s=%5Epcc&i=d&o=1110000", timeout=15)
+        # 1년치 일별 PCR 데이터 — 차트 표시용
+        end = datetime.now(KST).strftime("%Y%m%d")
+        start = (datetime.now(KST) - timedelta(days=400)).strftime("%Y%m%d")
+        r = requests.get(
+            f"https://stooq.com/q/d/l/?s=%5Epcc&i=d&d1={start}&d2={end}",
+            timeout=15,
+        )
         if r.status_code == 200 and r.text:
             lines = [l for l in r.text.strip().split("\n") if l and not l.startswith("Date")]
-            for ln in lines[-60:]:  # 최근 60일
+            for ln in lines:
                 parts = ln.split(",")
                 if len(parts) >= 5:
                     dt = parts[0].strip()
-                    # 종가 (4번째 컬럼) 또는 시가 (1번째)
-                    v = _parse_num(parts[4]) or _parse_num(parts[1])
+                    # 종가 (4번째 컬럼)
+                    v = _parse_num(parts[4])
                     if v and 0.1 < v < 5.0:
                         history[dt] = v
             if history:
                 latest_date = sorted(history.keys())[-1]
                 latest = history[latest_date]
-                log(f"[PCR] Stooq: {latest} ({latest_date}, +{len(history)}점 시계열)")
-                return {"value": latest, "as_of": latest_date,
-                        "history": history, "source": "Stooq ^pcc"}
+                prev_keys = sorted(history.keys())
+                prev = history[prev_keys[-2]] if len(prev_keys) > 1 else None
+                chg = round((latest - prev) / prev * 100, 2) if prev else 0
+                log(f"[PCR] Stooq: {latest} ({latest_date}, +{len(history)}점 일별 시계열)")
+                return {"value": latest, "change": chg, "as_of": latest_date,
+                        "history": history, "source": "Stooq ^pcc (일별)"}
     except Exception as e:
         log(f"[PCR] Stooq 오류: {e}")
 
-    # 2) CBOE 직접 (Equity Put/Call Ratio)
+    # 2) CBOE 직접 (Equity Put/Call Ratio) — 1년치 일별
     try:
         r = requests.get(
             "https://cdn.cboe.com/api/global/us_indices/daily_prices/EQUITYPC_History.csv",
@@ -2135,7 +2229,7 @@ def fetch_putcall_ratio():
         )
         if r.status_code == 200 and r.text:
             lines = [l for l in r.text.strip().split("\n") if l and not l.startswith("DATE")]
-            for ln in lines[-60:]:
+            for ln in lines[-260:]:  # 최근 ~1년 영업일
                 parts = ln.split(",")
                 if len(parts) >= 2:
                     dt = parts[0].strip()
@@ -2145,9 +2239,12 @@ def fetch_putcall_ratio():
             if history:
                 latest_date = sorted(history.keys())[-1]
                 latest = history[latest_date]
-                log(f"[PCR] CBOE Equity: {latest} ({latest_date})")
-                return {"value": latest, "as_of": latest_date,
-                        "history": history, "source": "CBOE Equity P/C"}
+                prev_keys = sorted(history.keys())
+                prev = history[prev_keys[-2]] if len(prev_keys) > 1 else None
+                chg = round((latest - prev) / prev * 100, 2) if prev else 0
+                log(f"[PCR] CBOE Equity: {latest} ({latest_date}, +{len(history)}점)")
+                return {"value": latest, "change": chg, "as_of": latest_date,
+                        "history": history, "source": "CBOE Equity P/C (일별)"}
     except Exception as e:
         log(f"[PCR] CBOE 오류: {e}")
 
@@ -2832,6 +2929,31 @@ def build_data():
         fred_data = fetch_fred_economic_indicators()
         data["economicIndicators"]["us"] = fred_data
         data["sources"]["economicIndicators_us"] = "FRED API (stlouisfed.org)"
+        # DXY (ICE Dollar Index, 1973=100) — yfinance 로 별도 페치
+        # FRED 에는 DXY 가 없고 DTWEXBGS (Broad, 2006=100) 만 있어 값이 다름.
+        # 사용자가 마켓에서 보는 "달러 인덱스" 는 DXY 이므로 이를 PRIMARY 로 사용.
+        log("[yf-DXY] DXY (DX-Y.NYB) yfinance 페치 시작")
+        try:
+            dxy_quote = fetch_yf("DX-Y.NYB")
+            if dxy_quote and dxy_quote.get("price"):
+                # 시계열도 함께
+                dxy_hist = fetch_yf_history("DX-Y.NYB", period="5y")
+                history_map = {}
+                for pt in (dxy_hist or []):
+                    history_map[pt["date"]] = pt["close"]
+                data["economicIndicators"]["us"]["dxy_idx"] = {
+                    "value":  round(dxy_quote["price"], 2),
+                    "change": dxy_quote.get("change", 0),
+                    "period": datetime.now(KST).strftime("%Y-%m-%d"),
+                    "desc":   "달러 인덱스 (DXY, ICE 1973=100)",
+                    "source": "yfinance DX-Y.NYB",
+                    "history": history_map,
+                }
+                log(f"[yf-DXY] DXY = {dxy_quote['price']} ({dxy_quote.get('change',0):+.2f}%)")
+            else:
+                log("[yf-DXY] DX-Y.NYB 응답 없음 — FRED broad_dollar 폴백 유지")
+        except Exception as e:
+            log(f"[yf-DXY] 오류: {e}")
         # 미국 부동산 지표
         log("[FRED] 미국 부동산 지표 수집 시작")
         re_us_data = fetch_fred_realestate_us()
@@ -2859,6 +2981,16 @@ def build_data():
         ecos_data = fetch_ecos_economic_indicators()
         data["economicIndicators"]["kr"] = ecos_data
         data["sources"]["economicIndicators_kr"] = "ECOS API (ecos.bok.or.kr)"
+        # 소매판매액지수가 ECOS 에서 누락되면 KOSIS API 로 보강
+        if not (ecos_data.get("retail_kr") or {}).get("value") and KOSIS_API_KEY:
+            log("[KOSIS] retail_kr 누락 → KOSIS 보강 시도")
+            try:
+                kosis_retail = fetch_kosis_retail_sales()
+                if kosis_retail:
+                    data["economicIndicators"]["kr"]["retail_kr"] = kosis_retail
+                    data["sources"]["retail_kr_kosis"] = "KOSIS API (101: 통계청)"
+            except Exception as e:
+                log(f"[KOSIS] 소매판매액지수 보강 오류: {e}")
         # 한국 국채 수익률 곡선 (1Y/3Y/5Y/10Y/20Y/30Y)
         log("[ECOS-YC] 한국 국채 수익률 곡선 수집 시작")
         try:
@@ -3077,22 +3209,80 @@ def _resolve_redirect(url, timeout=8):
     return None
 
 
+def _is_publisher_home(url):
+    """URL 이 publisher 홈페이지인지 판정 — 경로 없거나 단순 슬래시일 때 True.
+
+    예: https://www.yna.co.kr → True (홈페이지)
+         https://www.yna.co.kr/view/AKR20260522 → False (기사)
+    홈페이지 URL 은 기사 링크로 부적합하므로 다음 우선순위로 폴백해야 함.
+    """
+    if not url:
+        return True
+    try:
+        from urllib.parse import urlparse
+        p = urlparse(url)
+        path = (p.path or "").strip("/")
+        if not path or path in ("", "index.html", "main.html", "home", "main"):
+            return True
+        # 경로가 너무 짧으면 (예: /m, /news) 카테고리 페이지일 가능성 — 5자 미만이면 의심
+        if len(path) < 5 and "?" not in url and "#" not in url:
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def _gnews_resolve_via_html(g_url, timeout=8):
+    """Google News 기사 URL 을 HTML 페이지에서 redirect URL 추출.
+
+    `news.google.com/articles/...` 페이지는 JS-based redirect 인 경우가 많아
+    HTTP HEAD/GET 의 allow_redirects 로는 따라갈 수 없음. HTML 본문에서
+    `data-n-au="<URL>"` 또는 meta refresh URL 을 직접 추출한다.
+    """
+    try:
+        r = requests.get(
+            g_url, timeout=timeout, allow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Safari/537.36"},
+        )
+        # 최종 redirect 가 news.google.com 외부면 그것이 publisher URL
+        if r.url and "news.google.com" not in r.url:
+            return r.url
+        html = r.text or ""
+        # 패턴 1: data-n-au="https://..."
+        m = re.search(r'data-n-au="(https?://[^"]+)"', html)
+        if m and "news.google.com" not in m.group(1):
+            return m.group(1)
+        # 패턴 2: <meta http-equiv="refresh" content="0;URL=https://...">
+        m = re.search(r'http-equiv="refresh"[^>]*content="[^"]*URL=(https?://[^"]+)"', html, re.I)
+        if m and "news.google.com" not in m.group(1):
+            return m.group(1)
+        # 패턴 3: JS 변수 안의 URL — "url":"https://..."
+        m = re.search(r'"(https?://(?!news\.google\.com)[^"]+\.(?:html|do|asp|php|jsp|nhn|naver|kr/[^"]+))"', html)
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    return None
+
+
 def _extract_real_url(item_xml):
     """RSS item XML 에서 실제 기사 URL 추출.
 
-    우선순위:
-      1) description 내 외부 사이트 링크 (가장 신뢰성 있음)
-      2) source url 속성 (RSS <source url="...">)
-      3) Google News URL base64 디코드
-      4) Google News URL redirect 추적 (HEAD/GET)
-      5) Google News URL 원본 (최후 — 브라우저에서 redirect 됨)
+    우선순위 (publisher 홈페이지가 아닌 실제 기사 URL 을 얻는 데 최적화):
+      1) description 내 외부 사이트 링크 (경로 있는 기사 URL)
+      2) Google News URL base64 디코드 (성공 시 publisher 기사 URL)
+      3) Google News URL HTML 페이지에서 redirect URL 추출 (JS-based redirect 회피)
+      4) Google News URL HTTP redirect 추적 (HEAD/GET)
+      5) source url 속성 — 단, publisher 홈페이지가 아닐 때만
+      6) Google News URL 원본 (최후 — 브라우저가 클릭 시 redirect)
     """
     desc = ""
     link = ""
     guid = ""
     src_url = ""
     for child in item_xml:
-        tag = child.tag.split("}")[-1]  # strip namespace
+        tag = child.tag.split("}")[-1]
         if tag == "description":
             desc = child.text or ""
         elif tag == "link":
@@ -3101,26 +3291,32 @@ def _extract_real_url(item_xml):
             guid = child.text or ""
         elif tag == "source":
             src_url = child.attrib.get("url", "")
-    # 1) description 안의 외부 링크 (google news 외)
+    # 1) description 안의 외부 링크 (google news 외) — 가장 신뢰성 있는 기사 URL
     m = re.search(r'href="(https?://(?!news\.google\.com)[^"]+)"', desc)
-    if m:
+    if m and not _is_publisher_home(m.group(1)):
         return m.group(1)
-    # 2) source url 속성 (가장 안정적)
-    if src_url and "news.google.com" not in src_url:
-        return src_url
-    # 3) Google News URL → base64 디코드 시도
+    # 2) Google News URL → base64 디코드
     for cand in (link, guid):
         if cand and "news.google.com" in cand:
             decoded = _decode_gnews_url(cand)
-            if decoded:
+            if decoded and not _is_publisher_home(decoded):
                 return decoded
-    # 4) redirect 추적 — base64 디코드가 실패한 경우의 최후 수단
+    # 3) Google News HTML 페이지에서 redirect URL 추출 (JS-based)
+    for cand in (link, guid):
+        if cand and "news.google.com" in cand:
+            resolved = _gnews_resolve_via_html(cand)
+            if resolved and not _is_publisher_home(resolved):
+                return resolved
+    # 4) HTTP redirect 추적
     for cand in (link, guid):
         if cand and "news.google.com" in cand:
             resolved = _resolve_redirect(cand)
-            if resolved:
+            if resolved and not _is_publisher_home(resolved):
                 return resolved
-    # 5) 원본 Google News URL (브라우저가 클릭 시 redirect 해줌)
+    # 5) source url 속성 — publisher 홈페이지만 가능하므로 마지막 폴백
+    if src_url and "news.google.com" not in src_url and not _is_publisher_home(src_url):
+        return src_url
+    # 6) 원본 Google News URL — 브라우저가 클릭 시 redirect 처리
     return link or guid or ""
 
 
@@ -3240,39 +3436,66 @@ def fetch_naver_search_news(query, count=5, timeout=8):
 def fetch_news_all_feeds():
     """모든 카테고리 별로 최대 5건씩 페치하여 카테고리→[articles] 매핑 반환.
 
-    페치 순서 (카테고리 마다 독립적으로 시도):
-      1) Google News RSS (직접 + CORS 프록시 폴백)
-      2) Naver Search API (NAVER_CLIENT_ID/SECRET 설정된 경우)
-      3) 두 결과를 합쳐 최대 5건 반환 (중복 url 제거)
+    페치 순서 (publisher 홈페이지가 아닌 실제 기사 URL 우선):
+      1) Naver Search API (originallink = publisher 직접 기사 URL, NAVER_CLIENT_ID/SECRET 있을 때)
+      2) Google News RSS (직접 + CORS 프록시 폴백, URL 검증 통과한 것만)
+      3) 두 결과 합쳐 최대 5건 (publisher 홈페이지 URL 은 제외, 중복 url 제거)
 
     실패한 카테고리는 빈 리스트로 채우고, 나머지는 전부 시도.
     """
     result = {"lastFetched": datetime.now(KST).isoformat()}
     naver_available = bool(NAVER_CLIENT_ID and NAVER_CLIENT_SECRET)
     if naver_available:
-        log("[News] 네이버 검색 OpenAPI 활성 (Google News 와 병용)")
+        log("[News] 네이버 검색 OpenAPI 활성 (PRIMARY)")
+    else:
+        log("[News] NAVER_CLIENT_ID/SECRET 미설정 — Google News RSS 만 사용 (publisher 홈페이지 URL 회귀 위험 ↑)")
+
+    def _is_good_article_url(u):
+        """기사 URL 검증 — 빈 값, google news 직링크, publisher 홈페이지는 제외."""
+        if not u or u == "#":
+            return False
+        if "news.google.com" in u:
+            return False  # 디코드 실패한 raw google URL 은 클릭해도 redirect 안 따라가므로 제외
+        if _is_publisher_home(u):
+            return False
+        return True
 
     for cat, query in NEWS_CATEGORY_QUERIES.items():
         articles = []
-        # 1) Google News RSS
-        try:
-            articles = fetch_news_articles(query, count=5)
-        except Exception as e:
-            log(f"[News] Google '{cat}' 예외: {e}")
-        # 2) Naver Search 보강
-        if naver_available and len(articles) < 5:
+        seen_urls = set()
+        # 1) Naver Search 우선 — originallink 가 publisher 직접 기사 URL
+        if naver_available:
             try:
-                naver_articles = fetch_naver_search_news(query, count=5)
-                # 중복 url 제거 후 부족분 채우기
-                seen_urls = {a["url"] for a in articles}
-                for na in naver_articles:
-                    if na["url"] not in seen_urls:
+                for na in fetch_naver_search_news(query, count=8):
+                    if _is_good_article_url(na["url"]) and na["url"] not in seen_urls:
                         articles.append(na)
                         seen_urls.add(na["url"])
                         if len(articles) >= 5:
                             break
             except Exception as e:
                 log(f"[NaverSearch] '{cat}' 예외: {e}")
+        # 2) Google News RSS 로 부족분 보강
+        if len(articles) < 5:
+            try:
+                for ga in fetch_news_articles(query, count=10):
+                    if _is_good_article_url(ga["url"]) and ga["url"] not in seen_urls:
+                        articles.append(ga)
+                        seen_urls.add(ga["url"])
+                        if len(articles) >= 5:
+                            break
+            except Exception as e:
+                log(f"[News] Google '{cat}' 예외: {e}")
+        # 3) 그래도 부족하면 Naver Search 키워드를 좀 더 일반화해서 재시도
+        if len(articles) < 3 and naver_available:
+            try:
+                for na in fetch_naver_search_news(query.split()[0], count=8):
+                    if _is_good_article_url(na["url"]) and na["url"] not in seen_urls:
+                        articles.append(na)
+                        seen_urls.add(na["url"])
+                        if len(articles) >= 5:
+                            break
+            except Exception:
+                pass
         result[cat] = articles[:5]
         _time.sleep(0.3)  # rate-limit 회피
     return result

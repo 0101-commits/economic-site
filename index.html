@@ -529,8 +529,9 @@ tailwind.config = {
     .widget > div, .kpi-card > div { min-width: 0 !important; }
     /* 캔버스 차트 크기 제한 — 모바일에서는 한 화면에 들어가도록 */
     canvas { max-width: 100% !important; max-height: 220px !important; }
-    #mainChart { max-height: 240px !important; }
+    #mainChart { max-height: 280px !important; }
     /* 메인 차트 컨테이너 — 모바일에서 height 절대값 적용 */
+    main div[style*="min-height:380px"] { min-height: 240px !important; height: 240px !important; }
     main div[style*="height:380px"] { height: 240px !important; min-height: 240px !important; }
     main div[style*="height:340px"] { height: 220px !important; min-height: 220px !important; }
     main div[style*="height:300px"] { height: 220px !important; min-height: 220px !important; }
@@ -562,7 +563,7 @@ tailwind.config = {
   }
   /* 데스크탑 화면이지만 매우 큰 차트가 페이지 넘어가는 것을 방지 (1024-1440px 사이) */
   @media (min-width: 769px) and (max-width: 1440px) {
-    #mainChart { max-height: 380px !important; }
+    #mainChart { max-height: 540px !important; }
     main div[style*="min-height:440px"] { min-height: 300px !important; height: 340px !important; }
   }
   @media (max-width: 1024px) {
@@ -737,7 +738,9 @@ tailwind.config = {
             <button onclick="resetCustomRange('main')" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
           </div>
           <div id="mainChartRange" style="font-size:11px;color:#b6c4ff;margin-bottom:6px;min-height:16px;"></div>
-          <div style="position:relative;flex:1;min-height:300px;height:380px;max-height:55vh;">
+          <!-- flex:1 + min-height:0 으로 부모 widget 의 align-items:stretch 에 맞춰
+               우측 카드(글로벌 지수 + 시장 분위기) 와 동일 높이로 자동 스트레치. -->
+          <div style="position:relative;flex:1;min-height:380px;">
             <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
           </div>
         </div>
@@ -781,10 +784,10 @@ tailwind.config = {
                 <div id="dashVix" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
                 <div style="font-size:9px;color:#434656;">미국 변동성 · 지수</div>
               </div>
-              <div class="sentiment-card" onclick="showSentimentDetail('vkospi')" title="클릭 → VKOSPI 추이 및 해석 가이드">
-                <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VKOSPI <span style="font-size:8px;color:#2962ff;">📈</span></div>
+              <div class="sentiment-card" onclick="showSentimentDetail('vkospi')" title="클릭 → KSVKOSPI 추이 및 해석 가이드 (한국거래소 V-KOSPI 200)">
+                <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">KSVKOSPI <span style="font-size:8px;color:#2962ff;">📈</span></div>
                 <div id="dashVkospi" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
-                <div style="font-size:9px;color:#434656;">코스피200 변동성 · 지수</div>
+                <div style="font-size:9px;color:#434656;">코스피200 변동성지수 · KRX 정식</div>
               </div>
               <div class="sentiment-card" onclick="showSentimentDetail('move')" title="클릭 → MOVE 추이 및 해석 가이드">
                 <div style="font-size:9px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">MOVE Index <span style="font-size:8px;color:#2962ff;">📈</span></div>
@@ -1659,22 +1662,24 @@ tailwind.config = {
       <div id="re-kr">
         <!-- KPI 카드 행 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid #26a69a;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국 아파트 매매지수',{unit:'지수 (2021.6=100)'})">
-            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 매매지수</div>
-            <div id="reKpiAptPrice" style="font-size:22px;font-weight:700;font-family:'Public Sans';">113.2</div>
-            <div style="font-size:11px;margin-top:4px;" class="up-txt">▲ +0.3% 전주比</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE · 단위: 지수 (2021.6=100)</div>
+          <!-- 카드 1: R-ONE 변동률 (사용자가 reb.or.kr 사이트에서 보는 값) -->
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #26a69a;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국 아파트 매매가격지수 변동률',{unit:'% (월간 변동률)'})">
+            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 매매가격지수 변동률</div>
+            <div id="reKpiAptPrice" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+            <div id="reKpiAptPriceMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE API · 단위: % (월간)</div>
           </div>
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid #b6c4ff;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr', '전국 아파트 매매가격지수', {unit:'지수 (2021.6=100)'})">
-            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 가격지수 (R-ONE)</div>
-            <div id="reKpiAptIdxVal" style="font-size:22px;font-weight:700;font-family:'Public Sans';">—</div>
-            <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;">로딩 중…</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE API · 단위: 지수 (2021.6=100) · 클릭 → 차트</div>
+          <!-- 카드 2: R-ONE 전세가격지수 변동률 -->
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #b6c4ff;cursor:pointer;" onclick="showReHistoryChart('jns_price_idx_kr', '전국 아파트 전세가격지수 변동률', {unit:'% (월간 변동률)'})">
+            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 전세가격지수 변동률</div>
+            <div id="reKpiAptIdxVal" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+            <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE API · 단위: % (월간)</div>
           </div>
           <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','월간 거래량 (전국)',{unit:'건 (월별 누계)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">월간 거래량 (전국)</div>
-            <div id="reKpiVol" style="font-size:22px;font-weight:700;font-family:'Public Sans';">4.2<span style="font-size:14px;">만</span></div>
-            <div style="font-size:11px;margin-top:4px;" class="down-txt">▼ -12% 전월比</div>
+            <div id="reKpiVol" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+            <div id="reKpiVolMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">국토부 실거래 페치 중…</div>
             <div style="font-size:9px;color:#434656;margin-top:2px;">국토부 실거래가 · 단위: 건</div>
           </div>
           <div class="kpi-card" style="border-left:3px solid #ef5350;">
@@ -2766,11 +2771,37 @@ function buildReCharts() {
   reAnnotations=[]; rePending=null;
   const tc = getThemeColors();
   let labels, nat, seo, jns;
-  if(rePeriod==='5y')      { labels=rePriceData.labels5y; nat=rePriceData.national5y; seo=rePriceData.seoul5y; jns=rePriceData.jns5y; }
+  // R-ONE API 의 실제 시계열(history) 우선 사용. 내장 더미 데이터(rePriceData) 는
+  // API 가 실패한 경우에만 폴백으로 사용하며 사용자에게 명시.
+  const d = _latestDataForIndicators || {};
+  const reKr = (d.realestate || {}).kr || {};
+  const apt = reKr.apt_price_idx_kr;
+  const jnsApi = reKr.jns_price_idx_kr;
+  const hasApiData = (apt && apt.history && Object.keys(apt.history).length > 1);
+  if (hasApiData) {
+    // 실제 R-ONE 데이터로 차트 구성
+    const periods = Object.keys(apt.history).sort();
+    labels = periods.map(p => {
+      // YYYYMM → 'YY.MM'
+      if(p.length === 6) return p.slice(2,4)+'.'+p.slice(4,6);
+      return p;
+    });
+    nat = periods.map(p => apt.history[p]);
+    // 서울 매매·전세 데이터는 R-ONE 별도 시리즈가 필요 — 현재 미수집이면 빈 배열
+    seo = []; // R-ONE 별도 시리즈 — 추후 확장
+    if (jnsApi && jnsApi.history) {
+      const jnsKeys = Object.keys(jnsApi.history).sort();
+      jns = jnsKeys.map(p => jnsApi.history[p]);
+      // labels 와 길이 안 맞으면 잘라냄
+      if (jns.length !== labels.length) jns = jns.slice(-labels.length);
+    } else {
+      jns = [];
+    }
+  } else if(rePeriod==='5y')      { labels=rePriceData.labels5y; nat=rePriceData.national5y; seo=rePriceData.seoul5y; jns=rePriceData.jns5y; }
   else if(rePeriod==='3y') { labels=rePriceData.labels3y; nat=rePriceData.national3y; seo=rePriceData.seoul3y; jns=rePriceData.jns3y; }
   else                     { labels=rePriceData.labels1y; nat=rePriceData.national1y; seo=rePriceData.seoul1y; jns=rePriceData.jns1y; }
   const n = labels.length;
-  labels=labels.slice(-n); nat=nat.slice(-n); seo=seo.slice(-n); jns=jns.slice(-n);
+  labels=labels.slice(-n); nat=(nat||[]).slice(-n); seo=(seo||[]).slice(-n); jns=(jns||[]).slice(-n);
   // 사용자 기간 지정 적용 — labels 형식이 'YY.MM' 이므로 'YYYY-MM-DD' 비교를 위해 변환
   if(reCustomFrom && reCustomTo) {
     const toMm = (yyMm) => {
@@ -2796,13 +2827,14 @@ function buildReCharts() {
   }
   const priceCtx = document.getElementById('rePriceChart');
   if(priceCtx) {
+    // 빈 시리즈는 차트에서 제외 (R-ONE API 가 일부만 반환했을 때)
+    const datasets = [];
+    if(nat && nat.length) datasets.push({label: hasApiData?'전국 매매가격 (R-ONE)':'전국 매매지수', data:nat,borderColor:'#26a69a',backgroundColor:'#26a69a22',borderWidth:2.5,pointRadius:2.5,pointBackgroundColor:'#26a69a',fill:true,tension:0.3});
+    if(seo && seo.length) datasets.push({label:'서울 매매지수',data:seo,borderColor:'#ef5350',backgroundColor:'#ef535022',borderWidth:2.5,pointRadius:2.5,pointBackgroundColor:'#ef5350',fill:false,tension:0.3});
+    if(jns && jns.length) datasets.push({label: hasApiData?'전국 전세가격 (R-ONE)':'전국 전세지수',data:jns,borderColor:'#f5a623',backgroundColor:'#f5a62322',borderWidth:2,pointRadius:2,pointBackgroundColor:'#f5a623',fill:false,tension:0.3,borderDash:[6,3]});
     charts['rePriceChart'] = new Chart(priceCtx, {
       type:'line',
-      data:{labels, datasets:[
-        {label:'전국 매매지수',data:nat,borderColor:'#26a69a',backgroundColor:'#26a69a22',borderWidth:2.5,pointRadius:2.5,pointBackgroundColor:'#26a69a',fill:true,tension:0.3},
-        {label:'서울 매매지수',data:seo,borderColor:'#ef5350',backgroundColor:'#ef535022',borderWidth:2.5,pointRadius:2.5,pointBackgroundColor:'#ef5350',fill:false,tension:0.3},
-        {label:'전국 전세지수',data:jns,borderColor:'#f5a623',backgroundColor:'#f5a62322',borderWidth:2,pointRadius:2,pointBackgroundColor:'#f5a623',fill:false,tension:0.3,borderDash:[6,3]},
-      ]},
+      data:{labels, datasets},
       options:{responsive:true,maintainAspectRatio:false,
         onClick(e){
           const ch=charts['rePriceChart']; if(!ch) return;
@@ -7040,7 +7072,8 @@ const macroIndicators = [
   {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global',freq:'월간',unit:'지수 (50기준)',
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.ip_kr',fmt:v=>v?.toFixed(2)},
-  {name:'소매판매액지수',cc:'🇰🇷',cat:'소비',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.retail_kr',fmt:v=>v?.toFixed(2)},
+  {name:'소매판매액지수',cc:'🇰🇷',cat:'소비',src:'KOSIS (통계청) · ECOS 보조',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.retail_kr',fmt:v=>v?.toFixed(2),
+   link:'https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1JG2105',linkLabel:'KOSIS 소매판매액지수'},
   {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',unit:'% (연이율)',dataPath:'economicIndicators.kr.base_rate_kr',fmt:v=>v?.toFixed(2)+'%'},
   // 미국 (FRED)
   {name:'GDP',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: GDP)',freq:'분기',unit:'10억 USD (연환산)',dataPath:'economicIndicators.us.gdp_us',fmt:v=>v?.toLocaleString()},
@@ -7053,7 +7086,8 @@ const macroIndicators = [
   {name:'2년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS2)',freq:'일간',unit:'% (수익률)',dataPath:'economicIndicators.us.us2y',fmt:v=>v?.toFixed(2)+'%'},
   {name:'VIX 변동성',cc:'🇺🇸',cat:'시장',src:'CBOE (FRED: VIXCLS)',freq:'일간',unit:'지수 (S&P500 30일 내재변동성)',dataPath:'economicIndicators.us.vix',fmt:v=>v?.toFixed(2)},
   {name:'HY 크레딧 스프레드',cc:'🇺🇸',cat:'시장',src:'BofA (FRED: BAMLH0A0HYM2)',freq:'일간',unit:'%p (국채 대비)',dataPath:'economicIndicators.us.hy_spread',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'달러 인덱스 (브로드)',cc:'🇺🇸',cat:'외환',src:'연준 (FRED: DTWEXBGS)',freq:'일간',unit:'지수 (2006=100)',dataPath:'economicIndicators.us.dxy_idx',fmt:v=>v?.toFixed(2)},
+  {name:'달러 인덱스 (DXY)',cc:'🇺🇸',cat:'외환',src:'ICE / yfinance DX-Y.NYB',freq:'일간',unit:'지수 (1973=100, ICE 발표)',dataPath:'economicIndicators.us.dxy_idx',fmt:v=>v?.toFixed(2),
+   link:'https://finance.yahoo.com/quote/DX-Y.NYB',linkLabel:'Yahoo Finance DXY'},
   {name:'Case-Shiller HPI',cc:'🇺🇸',cat:'부동산',src:'S&P (FRED: CSUSHPINSA)',freq:'월간',unit:'지수 (2000.1=100)',dataPath:'realestate.us.case_shiller_national',fmt:v=>v?.toFixed(1)},
   {name:'30년 모기지',cc:'🇺🇸',cat:'부동산',src:'Freddie Mac (FRED)',freq:'주간',unit:'% (연이율)',dataPath:'realestate.us.mortgage_30y',fmt:v=>v?.toFixed(2)+'%'},
   {name:'NAHB 주택시장지수',cc:'🇺🇸',cat:'부동산',src:'NAHB (FRED)',freq:'월간',unit:'지수 (50=중립)',dataPath:'realestate.us.nahb_index',fmt:v=>v?.toFixed(0)},
@@ -8930,6 +8964,9 @@ const dataSourceMeta = [
   { key:'ecos',   name:'ECOS',            unit:'한국은행',    sourceKeys:['economicIndicators_kr'],
     desc:'한국은행 경제통계시스템 (ECOS) — 한국 경제지표',
     fetched:['기준금리','소비자물가지수(CPI)','생산자물가지수(PPI)','실업률','경상수지','산업생산','수출 등'] },
+  { key:'kosis',  name:'KOSIS',           unit:'통계청',       sourceKeys:['retail_kr_kosis'],
+    desc:'KOSIS 국가통계포털 (kosis.kr) — 통계청 공식 통계. ECOS 에 없거나 KOSIS 값과 다른 시리즈 보강용.',
+    fetched:['소매판매액지수 (DT_1JG2105)','서비스업동향조사','도소매업조사 (선택)'] },
   { key:'rone',   name:'R-ONE',           unit:'한국부동산원', sourceKeys:['realestate_kr'],
     desc:'한국부동산원 R-ONE OpenAPI — 부동산 가격지수',
     fetched:['전국 아파트 매매가격지수','전세가격지수'] },
@@ -9071,6 +9108,20 @@ function showDataSourceDetail(key) {
     Object.entries(kr).forEach(([k,v])=>{
       actualStats += `<li style="color:#8d90a2;font-size:10px;margin-left:8px;">${v.desc||k}: ${v.value} (${v.period})</li>`;
     });
+  } else if(key === 'kosis') {
+    const kr = (d.economicIndicators||{}).kr || {};
+    const retail = kr.retail_kr;
+    if(retail && retail.source && retail.source.includes('KOSIS')) {
+      actualStats += `<li style="color:#26a69a;">KOSIS 활성</li>`;
+      actualStats += `<li>소매판매액지수: ${retail.value} (${retail.period})</li>`;
+      actualStats += `<li style="color:#8d90a2;font-size:10px;">${retail.source}</li>`;
+    } else if(retail) {
+      actualStats += `<li style="color:#f5a623;font-size:11px;">ECOS 폴백 사용 중 (KOSIS 미연결)</li>`;
+      actualStats += `<li>소매판매액지수: ${retail.value} (${retail.period}) · ${retail.source||'ECOS'}</li>`;
+    } else {
+      actualStats += `<li style="color:#ef5350;">소매판매액지수 미수집</li>`;
+      actualStats += `<li style="color:#8d90a2;font-size:10px;">KOSIS_API_KEY 또는 ECOS_API_KEY 확인 필요</li>`;
+    }
   } else if(key === 'rone') {
     const kr = (d.realestate||{}).kr || {};
     if(kr.apt_price_idx_kr) actualStats += `<li>전국 아파트 매매: ${kr.apt_price_idx_kr.value} (${kr.apt_price_idx_kr.period})</li>`;
@@ -9660,22 +9711,9 @@ function _renderReHistChart() {
     // 모든 값이 0 인 경우 (MOLIT 미수집 등) 라벨도 비우고 폴백 로직 진행
     if(!values.length) { labels = []; }
   }
-  // 2) 사이트의 정적 시계열 폴백 (apt_price_idx_kr → rePriceData.national5y 등)
-  if(!values.length && (key === 'apt_price_idx_kr' || key === 'jns_price_idx_kr') && typeof rePriceData !== 'undefined') {
-    labels = rePriceData.labels5y.slice();
-    values = (key === 'jns_price_idx_kr') ? rePriceData.jns5y.slice() : rePriceData.national5y.slice();
-    dataSource = '내장 5년 시계열 (R-ONE 2021.6=100)';
-    if(reKr[key]?.value != null) {
-      values[values.length-1] = reKr[key].value;
-      if(reKr[key].period) labels[labels.length-1] = (reKr[key].period+'').slice(2,4)+'.'+(reKr[key].period+'').slice(4,6);
-    }
-  }
-  // 3) 월간 거래량 (trade_count_kr) 폴백 — 국토부 통계 (2023~2025)
-  if(!values.length && key === 'trade_count_kr') {
-    labels = ['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03','26.05'];
-    values = [55893, 51578, 38617, 39775, 56516, 41423, 43718, 53800, 48200, 44500, 39800, 42100, 41800];
-    dataSource = '내장 시계열 (국토부 통계 + 추정치)';
-  }
+  // (2) 사이트의 정적 시계열 폴백 — 제거됨.
+  // 사용자 요청: 실제 API 데이터만 표시, 더미/내장 데이터 절대 금지.
+  // R-ONE/국토부 API 가 실패한 경우 차트는 "데이터 미수집" 으로 표시되어야 함.
   // 4) 단일값밖에 없는 경우
   if(!values.length && src?.value != null && src.value !== 0) {
     const today = new Date();
@@ -9852,9 +9890,14 @@ async function _fetchJsonWithProxies(targetUrl) {
   return null;
 }
 async function _fetchTextStooq(symbol) {
+  // 일별 데이터 1년치 — &i=d 일별, 명시적 d1/d2 범위로 충분한 히스토리 확보
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(start.getDate() - 400);
+  const fmt = d => d.toISOString().slice(0,10).replace(/-/g,'');
   for(const mk of _SENTIMENT_PROXIES) {
     try {
-      const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d&o=1110000`;
+      const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&d1=${fmt(start)}&d2=${fmt(end)}&i=d`;
       const r = await fetch(mk(url), { signal: AbortSignal.timeout(6000) });
       if(!r.ok) continue;
       const txt = await r.text();
@@ -9956,18 +9999,23 @@ function _loadSentimentCache(name) {
 
 async function fetchSentimentClient() {
   const out = {};
-  // 1) VKOSPI — 네이버 차트 API (한국 시장 데이터 가장 안정적) → Stooq → yfinance 폴백
-  try {
-    const naverHist = await _fetchNaverChartHistory('VKOSPI', v => v > 1 && v < 200);
-    if(naverHist && Object.keys(naverHist).length >= 5) {
-      const dates = Object.keys(naverHist).sort();
-      const latest = naverHist[dates[dates.length-1]];
-      const prev   = dates.length > 1 ? naverHist[dates[dates.length-2]] : null;
-      const change = (prev != null && prev !== 0) ? +((latest - prev) / prev * 100).toFixed(2) : 0;
-      out.vkospi = { value: latest, change, as_of: dates[dates.length-1], history: naverHist, source: 'Naver 차트 VKOSPI' };
-      _saveSentimentCache('vkospi', out.vkospi);
-    }
-  } catch(_) {}
+  // 1) KSVKOSPI (KOSPI 200 변동성지수, 한국거래소 공식) — 네이버 차트 API
+  //    정식 심볼 코드 KSVKOSPI 가 사용자 보는 finance.naver.com/sise/sise_index.naver?code=KSVKOSPI
+  //    페이지와 동일한 시계열 데이터. 구 코드 VKOSPI 도 시도.
+  for(const code of ['KSVKOSPI', 'VKOSPI']) {
+    try {
+      const naverHist = await _fetchNaverChartHistory(code, v => v > 1 && v < 200);
+      if(naverHist && Object.keys(naverHist).length >= 5) {
+        const dates = Object.keys(naverHist).sort();
+        const latest = naverHist[dates[dates.length-1]];
+        const prev   = dates.length > 1 ? naverHist[dates[dates.length-2]] : null;
+        const change = (prev != null && prev !== 0) ? +((latest - prev) / prev * 100).toFixed(2) : 0;
+        out.vkospi = { value: latest, change, as_of: dates[dates.length-1], history: naverHist, source: `Naver 차트 ${code}`, symbol: 'KSVKOSPI' };
+        _saveSentimentCache('vkospi', out.vkospi);
+        break;
+      }
+    } catch(_) {}
+  }
   if(!out.vkospi) {
     try {
       const txt = await _fetchTextStooq('^vkospi.kr');
@@ -10218,14 +10266,14 @@ const SENTIMENT_GUIDES = {
     `,
   },
   vkospi: {
-    title: 'VKOSPI (KOSPI200 변동성 지수)',
+    title: 'KSVKOSPI (KOSPI 200 변동성지수, KRX 정식)',
     unit: '지수 (연환산 변동성 %, KOSPI200 30일 내재변동성)',
-    source: 'KRX / Naver Finance',
+    source: 'KRX / Naver Finance (code=KSVKOSPI)',
     dataPath: 'sentiment.vkospi',
     color: '#f5a623',
     guide: `
-      <strong style="color:#f5a623;">📊 VKOSPI 란?</strong><br>
-      KOSPI200 옵션의 30일 내재변동성. 한국 시장의 <strong>변동성/공포 지수</strong>로, VIX의 한국판입니다.<br><br>
+      <strong style="color:#f5a623;">📊 KSVKOSPI (V-KOSPI 200) 란?</strong><br>
+      한국거래소(KRX) 가 정식 발표하는 KOSPI 200 옵션의 30일 내재변동성. 한국 시장의 <strong>변동성/공포 지수</strong>로, VIX의 한국판입니다. 네이버에서 보는 finance.naver.com/sise/sise_index.naver?code=KSVKOSPI 과 동일.<br><br>
       <strong>해석 기준 (역사적 평균 ~17):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
         <li><span style="color:#26a69a;">● 15 이하</span> — 시장 안정 (낮은 변동성)</li>
@@ -10234,7 +10282,7 @@ const SENTIMENT_GUIDES = {
         <li><span style="color:#ef5350;">● 30~40</span> — 변동성 확대 (불안 심리)</li>
         <li><span style="color:#b91c1c;">● 40 이상</span> — 패닉 (2008년 79, 2020년 코로나 69 최고)</li>
       </ul>
-      <strong style="color:#b6c4ff;">💡 활용:</strong> VIX 와 비교하여 한국시장 고유의 변동성 변화를 측정. VKOSPI - VIX > 5 이면 한국 시장 특이 위험 신호.
+      <strong style="color:#b6c4ff;">💡 활용:</strong> VIX 와 비교하여 한국시장 고유의 변동성 변화를 측정. KSVKOSPI - VIX > 5 이면 한국 시장 특이 위험 신호.
     `,
   },
   move: {
@@ -10260,21 +10308,21 @@ const SENTIMENT_GUIDES = {
   pcr: {
     title: 'Put/Call Ratio (옵션 심리)',
     unit: '배수',
-    source: 'CBOE / Stooq ^pcc',
+    source: 'CBOE / Stooq ^pcc (일별)',
     dataPath: 'sentiment.pcr',
-    color: '#dfe2f2',
+    color: '#9b59b6',  // 보라색 — 라이트/다크 모드 양쪽에서 명확히 보임
     guide: `
-      <strong style="color:#b6c4ff;">📊 Put/Call Ratio 란?</strong><br>
+      <strong style="color:#9b59b6;">📊 Put/Call Ratio 란?</strong><br>
       풋옵션(매도 권리) 거래량 ÷ 콜옵션(매수 권리) 거래량. 시장의 <strong>약세/강세 심리</strong>를 반영하는 역방향 지표입니다.<br><br>
       <strong>해석 기준:</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
         <li><span style="color:#26a69a;">● 0.5 이하</span> — 콜옵션 과열 (극단적 낙관) → <em>역방향 신호: 조정 가능성</em></li>
         <li><span style="color:#26a69a;">● 0.5~0.7</span> — 강세 심리 (콜옵션 우세)</li>
-        <li><span style="color:#dfe2f2;">● 0.7~1.0</span> — 균형 / 정상</li>
+        <li><span style="color:#9b59b6;">● 0.7~1.0</span> — 균형 / 정상</li>
         <li><span style="color:#f5a623;">● 1.0~1.2</span> — 약세 심리 (풋옵션 우세, 헷지 수요 ↑)</li>
         <li><span style="color:#ef5350;">● 1.2 이상</span> — 극단적 약세 → <em>역방향 신호: 단기 바닥 가능성</em></li>
       </ul>
-      <strong style="color:#b6c4ff;">💡 활용:</strong> 역방향 지표 — PCR 이 극단치(매우 높음/매우 낮음)일 때 단기 추세 반전 신호로 활용. 일별 변동성 크므로 5일 이동평균 권장.
+      <strong style="color:#9b59b6;">💡 활용:</strong> 역방향 지표 — PCR 이 극단치(매우 높음/매우 낮음)일 때 단기 추세 반전 신호로 활용. 일별 변동성 크므로 5일 이동평균 권장.
     `,
   },
   hy_spread: {
@@ -11049,57 +11097,51 @@ function applyRealData(d) {
     }
     if(pEl && data.period) pEl.textContent = data.period;
   }
-  // R-ONE 데이터가 없으면 정적 시계열 폴백 사용 (이미 화면에 113.2 같은 정적값 있음)
+  // R-ONE 매매가격 카드 (KPI #1: reKpiAptPrice + reKpiAptPriceMeta)
+  // R-ONE API 가 반환하는 값은 desc 에 따라 "지수" 또는 "변동률(%)" 두 가지.
+  // 사용자가 R-ONE 사이트에서 보는 것과 동일하게 표시.
+  const fmtReValue = (data) => {
+    const isPct = /%|변동률|변화율/i.test(data.desc || '');
+    if(isPct) return (data.value >= 0 ? '+' : '') + data.value.toFixed(2) + '%';
+    return data.value.toFixed(2);
+  };
   if (reKr.apt_price_idx_kr) {
-    const vEl = document.getElementById('reKpiAptIdxVal');
-    const cEl = document.getElementById('reKpiAptIdxChg');
-    if(vEl) vEl.textContent = reKr.apt_price_idx_kr.value?.toFixed(1) ?? '—';
-    const chg = reKr.apt_price_idx_kr.chg;
-    if(cEl && chg != null) {
-      cEl.textContent = `전월比 ${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% (${reKr.apt_price_idx_kr.period})`;
-      cEl.style.color = chg >= 0 ? '#26a69a' : '#ef5350';
+    const data = reKr.apt_price_idx_kr;
+    const vEl = document.getElementById('reKpiAptPrice');
+    const mEl = document.getElementById('reKpiAptPriceMeta');
+    if(vEl) {
+      vEl.textContent = fmtReValue(data);
+      vEl.style.color = data.value >= 0 ? '#26a69a' : '#ef5350';
     }
-    // 새로 추가된 카테고리 카드도 함께 채우기
-    setKrReCard('krReAptSaleVal', 'krReAptSaleChg', 'krRePeriodAptSale', reKr.apt_price_idx_kr);
-  } else {
-    // R-ONE 미연동: 내장 시계열 마지막 값으로 표시
-    const vEl = document.getElementById('reKpiAptIdxVal');
-    const cEl = document.getElementById('reKpiAptIdxChg');
-    if(vEl && typeof rePriceData !== 'undefined') {
-      const lastVal = rePriceData.national5y[rePriceData.national5y.length-1];
-      const prevVal = rePriceData.national5y[rePriceData.national5y.length-2];
-      vEl.textContent = lastVal?.toFixed(1) ?? '—';
-      vEl.style.color = 'var(--c-txt, #dfe2f2)';
-      if(cEl && lastVal && prevVal) {
-        const chg = (lastVal - prevVal) / prevVal * 100;
-        cEl.textContent = `전월比 ${chg>=0?'+':''}${chg.toFixed(2)}% (내장 시계열, R-ONE 미연동)`;
-        cEl.style.color = chg >= 0 ? '#26a69a' : '#ef5350';
-      }
+    if(mEl) {
+      const period = data.period || '';
+      const src = data.source || 'R-ONE';
+      mEl.textContent = `${period} · ${src}`;
+      mEl.style.color = '#8d90a2';
     }
+    // 호환 - 기존 ID 도 함께 채우기 (다른 카드 그룹에서 동일 데이터 표시)
+    const vEl2 = document.getElementById('reKpiAptIdxVal');
+    if(vEl2) {
+      vEl2.textContent = fmtReValue(data);
+      vEl2.style.color = data.value >= 0 ? '#26a69a' : '#ef5350';
+    }
+    setKrReCard('krReAptSaleVal', 'krReAptSaleChg', 'krRePeriodAptSale', data);
   }
+  // 전세가격지수 — 위 카드 그룹 2 (reKpiAptIdxVal/Chg) 에 전세 데이터를 보여줌
   if (reKr.jns_price_idx_kr) {
-    setKrReCard('krReAptJnsVal', 'krReAptJnsChg', 'krRePeriodAptJns', reKr.jns_price_idx_kr);
-  } else {
-    // R-ONE 미연동: 내장 시계열 (rePriceData.jns5y) 마지막 값으로 표시
-    const vEl = document.getElementById('krReAptJnsVal');
-    const cEl = document.getElementById('krReAptJnsChg');
-    const pEl = document.getElementById('krRePeriodAptJns');
-    if(vEl && typeof rePriceData !== 'undefined' && rePriceData.jns5y?.length) {
-      const lastVal = rePriceData.jns5y[rePriceData.jns5y.length - 1];
-      const prevVal = rePriceData.jns5y[rePriceData.jns5y.length - 2];
-      vEl.textContent = lastVal?.toFixed(1) ?? '—';
-      vEl.style.color = 'var(--c-txt, #dfe2f2)';
-      if(cEl && lastVal != null && prevVal != null && prevVal !== 0) {
-        const chg = (lastVal - prevVal) / prevVal * 100;
-        cEl.textContent = `전월比 ${chg>=0?'+':''}${chg.toFixed(2)}% (내장 시계열, R-ONE 미연동)`;
-        cEl.style.color = chg >= 0 ? '#26a69a' : '#ef5350';
-      }
-      if(pEl) {
-        // 내장 시계열 마지막 라벨 (예: '25.05')
-        const lastLabel = rePriceData.labels5y?.[rePriceData.labels5y.length - 1] || '';
-        pEl.textContent = lastLabel || '최신 내장 데이터';
-      }
+    const data = reKr.jns_price_idx_kr;
+    const vEl = document.getElementById('reKpiAptIdxVal');
+    const cEl = document.getElementById('reKpiAptIdxChg');
+    if(vEl && !reKr.apt_price_idx_kr) {
+      // 매매가 없으면 전세 데이터로 카드 채움 (사용자 진단용)
+      vEl.textContent = fmtReValue(data);
+      vEl.style.color = data.value >= 0 ? '#26a69a' : '#ef5350';
     }
+    if(cEl) {
+      cEl.textContent = `${data.period} · 전세 ${fmtReValue(data)}`;
+      cEl.style.color = '#8d90a2';
+    }
+    setKrReCard('krReAptJnsVal', 'krReAptJnsChg', 'krRePeriodAptJns', data);
   }
   // 주담대 금리는 economicIndicators.kr 또는 realestate.kr 양쪽에서 검색
   const ecoKr = (d.economicIndicators || {}).kr || {};
@@ -11107,15 +11149,16 @@ function applyRealData(d) {
   if (mortRate) {
     setKrReCard('krReMortRate', null, null, mortRate, v=>v?.toFixed(2)+'%');
   }
-  // 가계신용 잔액 — ECOS 우선, 없으면 내장 폴백 (2024년 4Q 기준 약 1,927조원)
-  const hhDebt = reKr.household_debt_kr || ecoKr.household_debt_kr ||
-                 {value: 1927000, period: '2024Q4', source:'내장 폴백 (한국은행 가계신용)'};
-  setKrReCard('krReHouseholdDebt', null, null, hhDebt, v=>(v/1000).toFixed(0)+'조원');
-  // 월간 매매 거래량 — value=0 인 경우 history 에서 최신 비영값 찾기
+  // 가계신용 잔액 — ECOS 데이터만 사용 (없으면 "—" 표시, 더미 데이터 금지)
+  const hhDebt = reKr.household_debt_kr || ecoKr.household_debt_kr;
+  if (hhDebt) {
+    setKrReCard('krReHouseholdDebt', null, null, hhDebt, v=>(v/1000).toFixed(0)+'조원');
+  }
+  // 월간 매매 거래량 — 실제 데이터만 사용, 없으면 "—" (더미 데이터 절대 금지)
   if (reKr.trade_count_kr) {
     const tc = {...reKr.trade_count_kr};
     if(!tc.value || tc.value === 0) {
-      // history 에서 최신 비영값 찾기
+      // history 에서 최신 비영값 찾기 (실제 데이터)
       const hist = tc.history || {};
       const keys = Object.keys(hist).sort();
       for(let i = keys.length - 1; i >= 0; i--) {
@@ -11125,17 +11168,20 @@ function applyRealData(d) {
           break;
         }
       }
-      // 그래도 없으면 폴백 평균값 사용
-      if(!tc.value || tc.value === 0) {
-        tc.value = 41800;  // 2025-2026 평균 월간 거래량
-        tc.period = '내장 폴백';
-      }
     }
-    setKrReCard('krReTradeCnt', null, null, tc, v=>v?.toLocaleString()+'건');
-    // KPI 카드 (4.2만 표시) 갱신
-    const kpiEl = document.getElementById('reKpiVol');
-    if(kpiEl && tc.value) {
-      kpiEl.innerHTML = `${(tc.value/10000).toFixed(1)}<span style="font-size:14px;">만</span>`;
+    if (tc.value && tc.value > 0) {
+      setKrReCard('krReTradeCnt', null, null, tc, v=>v?.toLocaleString()+'건');
+      // KPI 카드 갱신
+      const kpiEl = document.getElementById('reKpiVol');
+      const metaEl = document.getElementById('reKpiVolMeta');
+      if(kpiEl) {
+        kpiEl.innerHTML = `${(tc.value/10000).toFixed(1)}<span style="font-size:14px;">만</span>`;
+        kpiEl.style.color = 'var(--c-txt,#dfe2f2)';
+      }
+      if(metaEl) {
+        metaEl.textContent = `${tc.period} · 국토부 실거래가 (data.go.kr)`;
+        metaEl.style.color = '#26a69a';
+      }
     }
   }
   if (reKr.unsold_kr) {
@@ -12173,33 +12219,12 @@ function toggleMobileSidebar() {
 // ============================
 // 초기 렌더링
 // ============================
-// 부동산 KPI 카드의 정적 내장 fallback — data.json 페치 실패해도 카드가 비어있지 않도록
+// 부동산 KPI 카드 초기 상태 — 데이터 도착 전까지 "—" 유지 (더미 데이터 금지)
+// 이전 버전에서는 내장 시계열(rePriceData) 마지막 값을 보여줬으나, 사용자가 실제 데이터로 착각할 위험
+// 때문에 R-ONE / 국토부 / ECOS API 가 실제 값을 반환할 때까지 "—" 유지.
 function initStaticRealEstateFallbacks() {
-  if(typeof rePriceData === 'undefined') return;
-  // 매매가격지수 (apt_price_idx_kr) — rePriceData.national5y 마지막 값
-  const setStatic = (idVal, idChg, arr, labels) => {
-    const v = document.getElementById(idVal);
-    const c = document.getElementById(idChg);
-    if(!v || !arr || arr.length < 2) return;
-    if(v.textContent.trim() !== '—') return;  // 이미 데이터 있으면 건드리지 않음
-    const lastVal = arr[arr.length-1];
-    const prevVal = arr[arr.length-2];
-    v.textContent = lastVal?.toFixed(1) ?? '—';
-    v.style.color = 'var(--c-txt, #dfe2f2)';
-    if(c && lastVal != null && prevVal != null && prevVal !== 0) {
-      const chg = (lastVal - prevVal) / prevVal * 100;
-      c.textContent = `전월比 ${chg>=0?'+':''}${chg.toFixed(2)}% (내장 시계열)`;
-      c.style.color = chg >= 0 ? '#26a69a' : '#ef5350';
-    }
-  };
-  setStatic('krReAptSaleVal', 'krReAptSaleChg', rePriceData.national5y, rePriceData.labels5y);
-  setStatic('krReAptJnsVal',  'krReAptJnsChg',  rePriceData.jns5y,      rePriceData.labels5y);
-  // 가계신용 잔액 (조원, 분기별 시계열 마지막값)
-  const hhDebtEl = document.getElementById('krReHouseholdDebt');
-  if(hhDebtEl && hhDebtEl.textContent.trim() === '—') {
-    hhDebtEl.textContent = '1,962조원';
-    hhDebtEl.style.color = 'var(--c-txt, #dfe2f2)';
-  }
+  // No-op — 실제 데이터만 표시. data.json 페치 실패 시 "—" 가 그대로 보이는 게 더 정직함.
+  // 카드의 보조 텍스트로 어떤 API 가 페치 중인지 표시 (이미 HTML 의 data-fetched-status 메시지 사용).
 }
 
 window.addEventListener('load', async ()=>{
