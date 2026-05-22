@@ -40,9 +40,15 @@ KOSIS_API_KEY     = os.environ.get("KOSIS_API_KEY",     "").strip()
 DATA_GO_KR_API_KEY= os.environ.get("DATA_GO_KR_API_KEY","").strip()
 # 신규: 한국수출입은행 환율·금리 (KOREAEXIM)
 EXIM_API_KEY      = os.environ.get("EXIM_API_KEY",      "").strip()
-# 신규: 한국투자증권 KIS Developers API
-KIS_APP_KEY       = os.environ.get("KIS_APP_KEY",       "PSWERCICjp9bA3k0WUHl1RQtMB4uazM61eJ1").strip()
-KIS_APP_SECRET    = os.environ.get("KIS_APP_SECRET",    "5P7uU+8QaDOzGmkpypZE/K3nbaLYcyc98v9rFM41MxlszoqtiotW4NsxKkEuftw3PXwxuk6hFqUzhG7hF7QQVBY+wZ/CIyfU8E+f+BlZQNjx5yoKl3Eonc6NOTNOoc2kBcnXJkp29/gRswKFc/EeLhrEM2cpktS6xnpRNknq5METVEzdsFE=").strip()
+# 신규: 한국투자증권 KIS Developers API — Secrets 에 등록된 키만 사용 (하드코딩 금지)
+# 잦은 토큰 발급으로 인한 카카오톡 알람 + 한투 측 이용 제한을 막기 위해 KIS_ENABLED=1
+# 로 명시 설정된 경우에만 KIS API 를 호출. 기본은 비활성화 (Naver/pykrx 폴백 사용).
+KIS_APP_KEY       = os.environ.get("KIS_APP_KEY",       "").strip()
+KIS_APP_SECRET    = os.environ.get("KIS_APP_SECRET",    "").strip()
+KIS_ENABLED       = os.environ.get("KIS_ENABLED",       "0").strip() in ("1", "true", "True", "yes")
+# 네이버 검색 OpenAPI (developers.naver.com) — 뉴스 검색에 사용 (선택)
+NAVER_CLIENT_ID   = os.environ.get("NAVER_CLIENT_ID",   "").strip()
+NAVER_CLIENT_SECRET= os.environ.get("NAVER_CLIENT_SECRET","").strip()
 
 KRX_BASE     = "http://data-dbg.krx.co.kr/svc/apis"
 KIS_BASE     = "https://openapi.koreainvestment.com:9443"
@@ -176,6 +182,159 @@ def krx_commodity(endpoint, isu_match):
         "change": round(chg_pct or 0.0, 2),
         "as_of": basd,
     }
+
+
+# ============================================================
+# pykrx — KRX 정보데이터시스템 (data.krx.co.kr) 직접 호출 무인증 라이브러리
+# ============================================================
+# 한국거래소 공식 KRX OpenAPI(data-dbg.krx.co.kr)는 FLUC_RT 가 0 으로 오는 garbage
+# 케이스가 있어 등락률 랭킹이 무력화. pykrx 는 일반 공시 페이지(data.krx.co.kr)를
+# 직접 호출하므로 GHA 러너 IP 차단도 없고 데이터 품질이 더 안정적.
+# 키 없음 = 누구나 호출 가능 = 카카오톡 알람 없음.
+try:
+    from pykrx import stock as _pykrx_stock
+    _PYKRX_AVAILABLE = True
+except ImportError:
+    _pykrx_stock = None
+    _PYKRX_AVAILABLE = False
+
+
+def _last_kr_business_day(max_lookback=14):
+    """가장 최근 영업일 찾기 — pykrx 가 데이터를 반환하는 첫 평일."""
+    for offset in range(max_lookback):
+        dt = datetime.now(KST) - timedelta(days=offset)
+        if dt.weekday() >= 5:  # 토(5)/일(6) skip
+            continue
+        yield dt.strftime("%Y%m%d")
+
+
+def fetch_pykrx_stock_movers(market="KOSPI", top_n=10):
+    """pykrx 로 KOSPI/KOSDAQ 등락률 상위/하위 Top10 조회.
+
+    KRX 정보데이터시스템(data.krx.co.kr)에서 직접 가져와 가장 안정적.
+    """
+    if not _PYKRX_AVAILABLE:
+        return None, None
+    market = "KOSDAQ" if market.upper() == "KOSDAQ" else "KOSPI"
+    for bd in _last_kr_business_day():
+        try:
+            df = _pykrx_stock.get_market_price_change(bd, bd, market=market)
+            if df is None or df.empty:
+                continue
+            # df 컬럼: 시가/종가/변동폭/등락률/거래량/거래대금 + index = 종목코드
+            # 한글 컬럼 우선, 없으면 영문
+            chg_col = "등락률" if "등락률" in df.columns else "Change"
+            close_col = "종가" if "종가" in df.columns else "Close"
+            vol_col = "거래량" if "거래량" in df.columns else "Volume"
+            df = df[df[close_col] > 0].copy()
+            if df.empty:
+                continue
+            # 종목명도 함께 가져오기
+            try:
+                tickers = list(df.index)
+                names = {t: _pykrx_stock.get_market_ticker_name(t) for t in tickers[:200]}
+            except Exception:
+                names = {}
+            parsed = []
+            iso_date = f"{bd[:4]}-{bd[4:6]}-{bd[6:8]}"
+            for code, row in df.iterrows():
+                name = names.get(code) or row.get("종목명") or code
+                price = float(row[close_col])
+                chg = float(row[chg_col])
+                vol = float(row.get(vol_col, 0) or 0)
+                parsed.append({
+                    "name": str(name), "code": str(code), "price": price,
+                    "chg": round(chg, 2), "vol": vol, "as_of": iso_date,
+                })
+            if not parsed:
+                continue
+            gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+            losers = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+            log(f"[pykrx] {market} 영업일={bd} 총={len(parsed)}건 → 상승 Top: "
+                f"{gainers[0]['name']} {gainers[0]['chg']:+.2f}% / 하락 Top: "
+                f"{losers[0]['name']} {losers[0]['chg']:+.2f}%")
+            return gainers, losers
+        except Exception as e:
+            log(f"[pykrx] {market} {bd} 페치 오류: {e}")
+            continue
+    log(f"[pykrx] {market} 모든 영업일 시도 실패")
+    return None, None
+
+
+def fetch_pykrx_etf_movers(top_n=10):
+    """pykrx 로 ETF 등락률 상위/하위 Top10 조회."""
+    if not _PYKRX_AVAILABLE:
+        return None, None
+    for bd in _last_kr_business_day():
+        try:
+            # ETF 전체 등락률 — get_etf_ohlcv_by_ticker 가 가장 안정적
+            tickers = _pykrx_stock.get_etf_ticker_list(bd)
+            if not tickers:
+                continue
+            parsed = []
+            iso_date = f"{bd[:4]}-{bd[4:6]}-{bd[6:8]}"
+            # 일괄 조회 — get_etf_ohlcv_by_date (개별 ETF), 또는 get_etf_price_change
+            try:
+                df = _pykrx_stock.get_etf_price_change_by_ticker(bd, bd)
+                if df is None or df.empty:
+                    raise ValueError("price_change empty")
+                chg_col = "등락률" if "등락률" in df.columns else "Change"
+                close_col = "종가" if "종가" in df.columns else "Close"
+                vol_col = "거래량" if "거래량" in df.columns else "Volume"
+                df = df[df[close_col] > 0].copy()
+                # 종목명 매핑
+                names = {}
+                for t in df.index[:200]:
+                    try:
+                        names[t] = _pykrx_stock.get_etf_ticker_name(t)
+                    except Exception:
+                        names[t] = t
+                for code, row in df.iterrows():
+                    parsed.append({
+                        "name": str(names.get(code, code)),
+                        "code": str(code),
+                        "price": float(row[close_col]),
+                        "chg": round(float(row[chg_col]), 2),
+                        "vol": float(row.get(vol_col, 0) or 0),
+                        "as_of": iso_date,
+                    })
+            except Exception as e:
+                log(f"[pykrx] ETF price_change 폴백 → 개별 조회: {e}")
+                # 폴백: 개별 ETF OHLCV 로 시계열 변화율 계산
+                from_dt = (datetime.strptime(bd, "%Y%m%d") - timedelta(days=10)).strftime("%Y%m%d")
+                for t in tickers[:300]:
+                    try:
+                        d2 = _pykrx_stock.get_etf_ohlcv_by_date(from_dt, bd, t)
+                        if d2 is None or len(d2) < 2:
+                            continue
+                        close = float(d2["NAV"].iloc[-1]) if "NAV" in d2 else float(d2["종가"].iloc[-1])
+                        prev = float(d2["NAV"].iloc[-2]) if "NAV" in d2 else float(d2["종가"].iloc[-2])
+                        if prev <= 0:
+                            continue
+                        chg = round((close - prev) / prev * 100, 2)
+                        try:
+                            name = _pykrx_stock.get_etf_ticker_name(t)
+                        except Exception:
+                            name = t
+                        parsed.append({
+                            "name": name, "code": t, "price": close,
+                            "chg": chg, "vol": 0, "as_of": iso_date,
+                        })
+                    except Exception:
+                        continue
+            if not parsed:
+                continue
+            gainers = sorted(parsed, key=lambda x: x["chg"], reverse=True)[:top_n]
+            losers = sorted(parsed, key=lambda x: x["chg"])[:top_n]
+            log(f"[pykrx-ETF] 영업일={bd} 총={len(parsed)}건 → 상승 Top: "
+                f"{gainers[0]['name']} {gainers[0]['chg']:+.2f}% / 하락 Top: "
+                f"{losers[0]['name']} {losers[0]['chg']:+.2f}%")
+            return gainers, losers
+        except Exception as e:
+            log(f"[pykrx-ETF] {bd} 페치 오류: {e}")
+            continue
+    log("[pykrx-ETF] 모든 영업일 시도 실패")
+    return None, None
 
 
 def fetch_krx_stock_movers(market="kospi", top_n=10):
@@ -2083,6 +2242,9 @@ def kis_get_token():
       1) 메모리 캐시 (_KIS_TOKEN_CACHE)
       2) 파일 캐시 (KIS_TOKEN_FILE)  ← GitHub Actions cache 액션이 보존
       3) 신규 발급 (한투에 POST /oauth2/tokenP)
+
+    KIS_ENABLED=1 환경변수가 명시 설정되지 않으면 신규 발급을 건너뛴다.
+    이는 한투 카카오톡 알람을 완전히 차단하기 위한 안전 장치 (기본 비활성화).
     """
     if not KIS_APP_KEY or not KIS_APP_SECRET:
         return None
@@ -2095,7 +2257,11 @@ def kis_get_token():
         _KIS_TOKEN_CACHE["token"] = cached["token"]
         _KIS_TOKEN_CACHE["expires_at"] = cached["expires_at"]
         return cached["token"]
-    # 3) 신규 토큰 발급 (잦은 발급 시 한투 측에서 제한 → 1일 1회 권장)
+    # 3) 신규 토큰 발급 — KIS_ENABLED=1 인 경우에만 (한투 카카오톡 알람 차단)
+    if not KIS_ENABLED:
+        log("[KIS] 캐시 만료 + KIS_ENABLED 비활성 — 토큰 발급 건너뜀 (카카오톡 알람 차단). "
+            "신규 토큰이 필요하면 워크플로우에 KIS_ENABLED=1 을 설정하세요.")
+        return None
     try:
         r = requests.post(
             f"{KIS_BASE}/oauth2/tokenP",
@@ -2506,14 +2672,32 @@ def build_data():
     else:
         log("[KRX] API 키 없음 — Naver Finance 폴백 시도")
 
-    # 주식 상승/하락 Top10 — 검증 포함 다중 폴백 (KIS → Naver)
-    # KIS (한국투자증권 Open API) 는 일부 계정에서 랭킹이 작동 안하므로 chg!=0 검증 필수.
+    # 주식 상승/하락 Top10 — 다중 폴백 (pykrx → KIS → Naver)
+    # 우선순위:
+    #   1) pykrx: KRX 정보데이터시스템 직접 호출 — 키 없음·차단 없음·품질 최고
+    #   2) KIS (KIS_ENABLED=1 인 경우만): 한투 OpenAPI 등락률 순위
+    #   3) Naver Finance: m.stock.naver.com 등 다중 CORS 프록시 시도
     def _stock_movers_valid(key):
         items = data["stockMovers"].get(key, [])
         return _is_valid_mover_list(items) if items else False
 
+    # 1) pykrx PRIMARY — 무인증·안정적
     if not _stock_movers_valid("kospiGainers") or not _stock_movers_valid("kospiLosers"):
-        if KIS_APP_KEY and KIS_APP_SECRET:
+        try:
+            pkg, pkl = fetch_pykrx_stock_movers(market="KOSPI", top_n=10)
+            if _is_valid_mover_list(pkg) and not _stock_movers_valid("kospiGainers"):
+                data["stockMovers"]["kospiGainers"] = pkg
+                data["sources"]["stockMovers"] = "pykrx (KRX 정보데이터시스템)"
+            if _is_valid_mover_list(pkl) and not _stock_movers_valid("kospiLosers"):
+                data["stockMovers"]["kospiLosers"] = pkl
+                if not data["sources"].get("stockMovers"):
+                    data["sources"]["stockMovers"] = "pykrx (KRX 정보데이터시스템)"
+        except Exception as e:
+            log(f"[pykrx] 주식 movers 조회 오류: {e}")
+
+    # 2) KIS — KIS_ENABLED=1 인 경우에만 (카카오톡 알람 차단을 위해 기본 OFF)
+    if not _stock_movers_valid("kospiGainers") or not _stock_movers_valid("kospiLosers"):
+        if KIS_ENABLED and KIS_APP_KEY and KIS_APP_SECRET:
             try:
                 kis_gainers, kis_losers = fetch_kis_stock_movers(top_n=10)
                 if _is_valid_mover_list(kis_gainers) and not _stock_movers_valid("kospiGainers"):
@@ -2523,7 +2707,8 @@ def build_data():
                     data["stockMovers"]["kospiLosers"] = kis_losers
             except Exception as e:
                 log(f"[KIS] 상승/하락 종목 조회 오류: {e}")
-    # KIS 가 검증 실패 시 → Naver Finance 폴백
+
+    # 3) Naver Finance — 마지막 폴백 (다중 CORS 프록시)
     if not _stock_movers_valid("kospiGainers") or not _stock_movers_valid("kospiLosers"):
         gainers, losers = fetch_naver_stock_movers(market="kospi", top_n=10)
         if _is_valid_mover_list(gainers) and not _stock_movers_valid("kospiGainers"):
@@ -2531,10 +2716,21 @@ def build_data():
             data["sources"]["stockMovers"] = "Naver Finance"
         if _is_valid_mover_list(losers) and not _stock_movers_valid("kospiLosers"):
             data["stockMovers"]["kospiLosers"] = losers
-            if data["sources"].get("stockMovers", "").startswith("KIS"):
-                data["sources"]["stockMovers"] = "KIS OpenAPI + Naver Finance"
 
-    # ETF 비어 있으면 Naver Finance ETF 폴백
+    # ETF — pykrx 우선, 실패 시 Naver
+    if not data["etfMovers"].get("etfGainers") or not data["etfMovers"].get("etfLosers"):
+        try:
+            peg, pel = fetch_pykrx_etf_movers(top_n=10)
+            if peg and not data["etfMovers"].get("etfGainers"):
+                data["etfMovers"]["etfGainers"] = peg
+                data["sources"]["etfMovers"] = "pykrx (KRX 정보데이터시스템)"
+            if pel and not data["etfMovers"].get("etfLosers"):
+                data["etfMovers"]["etfLosers"] = pel
+                if not data["sources"].get("etfMovers"):
+                    data["sources"]["etfMovers"] = "pykrx (KRX 정보데이터시스템)"
+        except Exception as e:
+            log(f"[pykrx-ETF] 조회 오류: {e}")
+    # pykrx 실패 → Naver 폴백
     if not data["etfMovers"].get("etfGainers") or not data["etfMovers"].get("etfLosers"):
         etf_up, etf_down = fetch_naver_etf_movers(top_n=10)
         if etf_up and not data["etfMovers"].get("etfGainers"):
@@ -2542,6 +2738,13 @@ def build_data():
             data["sources"]["etfMovers"] = "Naver Finance"
         if etf_down and not data["etfMovers"].get("etfLosers"):
             data["etfMovers"]["etfLosers"] = etf_down
+
+    # 진단 정보 — 어떤 소스가 성공/실패했는지 frontend 에서 표시 가능
+    data.setdefault("diagnostics", {})
+    data["diagnostics"]["stockMoversSource"] = data["sources"].get("stockMovers", "FAILED")
+    data["diagnostics"]["etfMoversSource"]   = data["sources"].get("etfMovers",   "FAILED")
+    data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
+    data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
     if "KOSPI" not in data["indices"]:
@@ -2851,8 +3054,39 @@ def _decode_gnews_url(g_url):
     return None
 
 
+def _resolve_redirect(url, timeout=8):
+    """Google News redirect URL 을 따라가 최종 publisher URL 획득.
+
+    Google News URL 형식이 점진적으로 변하여 base64 디코드가 실패하는 케이스 보강.
+    HTTP HEAD/GET 으로 redirect chain 을 따라가 r.url 의 최종 URL 을 반환.
+    """
+    try:
+        # HEAD 가 redirect 정보를 더 빨리 줌
+        r = requests.head(url, timeout=timeout, allow_redirects=True,
+                          headers={"User-Agent": "Mozilla/5.0"})
+        if r.url and "news.google.com" not in r.url:
+            return r.url
+        # HEAD 가 차단되면 GET 으로 재시도 (stream=True 로 본문 받지 않음)
+        r = requests.get(url, timeout=timeout, allow_redirects=True, stream=True,
+                         headers={"User-Agent": "Mozilla/5.0"})
+        r.close()
+        if r.url and "news.google.com" not in r.url:
+            return r.url
+    except Exception:
+        pass
+    return None
+
+
 def _extract_real_url(item_xml):
-    """RSS item XML 에서 실제 기사 URL 추출 (description 내 링크 우선)."""
+    """RSS item XML 에서 실제 기사 URL 추출.
+
+    우선순위:
+      1) description 내 외부 사이트 링크 (가장 신뢰성 있음)
+      2) source url 속성 (RSS <source url="...">)
+      3) Google News URL base64 디코드
+      4) Google News URL redirect 추적 (HEAD/GET)
+      5) Google News URL 원본 (최후 — 브라우저에서 redirect 됨)
+    """
     desc = ""
     link = ""
     guid = ""
@@ -2871,15 +3105,22 @@ def _extract_real_url(item_xml):
     m = re.search(r'href="(https?://(?!news\.google\.com)[^"]+)"', desc)
     if m:
         return m.group(1)
-    # 2) Google News URL → base64 디코드
+    # 2) source url 속성 (가장 안정적)
+    if src_url and "news.google.com" not in src_url:
+        return src_url
+    # 3) Google News URL → base64 디코드 시도
     for cand in (link, guid):
         if cand and "news.google.com" in cand:
             decoded = _decode_gnews_url(cand)
             if decoded:
                 return decoded
-    # 3) source url
-    if src_url and "news.google.com" not in src_url:
-        return src_url
+    # 4) redirect 추적 — base64 디코드가 실패한 경우의 최후 수단
+    for cand in (link, guid):
+        if cand and "news.google.com" in cand:
+            resolved = _resolve_redirect(cand)
+            if resolved:
+                return resolved
+    # 5) 원본 Google News URL (브라우저가 클릭 시 redirect 해줌)
     return link or guid or ""
 
 
@@ -2948,20 +3189,92 @@ def fetch_news_articles(query, count=5, timeout=10):
     return out
 
 
+def fetch_naver_search_news(query, count=5, timeout=8):
+    """네이버 검색 OpenAPI 로 뉴스 검색 — 공식 API, 안정적이고 실제 기사 URL 반환.
+
+    NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 가 secrets 에 설정된 경우에만 동작.
+    Google News 가 실패한 카테고리 보강용.
+    """
+    if not (NAVER_CLIENT_ID and NAVER_CLIENT_SECRET):
+        return []
+    try:
+        r = requests.get(
+            "https://openapi.naver.com/v1/search/news.json",
+            params={"query": query, "display": count, "sort": "date"},
+            headers={
+                "X-Naver-Client-Id": NAVER_CLIENT_ID,
+                "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
+                "User-Agent": "economic-site/1.0",
+            },
+            timeout=timeout,
+        )
+        if r.status_code != 200:
+            log(f"[NaverSearch] '{query}' HTTP {r.status_code} {r.text[:200]}")
+            return []
+        items = r.json().get("items", [])
+    except Exception as e:
+        log(f"[NaverSearch] '{query}' 오류: {e}")
+        return []
+    out = []
+    for it in items[:count]:
+        # 네이버 검색 API 는 HTML 엔티티/태그를 포함해 반환 → 제거
+        title = re.sub(r"<[^>]+>", "", it.get("title", "")).replace("&quot;", '"') \
+                  .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").strip()
+        # originallink 가 publisher 의 원본 기사 URL (네이버 link 보다 우선)
+        url = (it.get("originallink") or it.get("link") or "").strip()
+        pub_date = it.get("pubDate", "")
+        iso_date = ""
+        if pub_date:
+            try:
+                from email.utils import parsedate_to_datetime
+                iso_date = parsedate_to_datetime(pub_date).strftime("%Y-%m-%d")
+            except Exception:
+                iso_date = ""
+        if title and url:
+            out.append({"title": title, "url": url, "isoDate": iso_date, "pubDate": pub_date})
+    if out:
+        log(f"[NaverSearch] '{query}' {len(out)}건 수집 (1위: {out[0]['title'][:30]}…)")
+    return out
+
+
 def fetch_news_all_feeds():
     """모든 카테고리 별로 최대 5건씩 페치하여 카테고리→[articles] 매핑 반환.
 
-    실패한 카테고리는 빈 리스트로 채우고, 나머지는 전부 시도 (한 카테고리 실패가 전체 실패가 되지 않도록).
+    페치 순서 (카테고리 마다 독립적으로 시도):
+      1) Google News RSS (직접 + CORS 프록시 폴백)
+      2) Naver Search API (NAVER_CLIENT_ID/SECRET 설정된 경우)
+      3) 두 결과를 합쳐 최대 5건 반환 (중복 url 제거)
+
+    실패한 카테고리는 빈 리스트로 채우고, 나머지는 전부 시도.
     """
     result = {"lastFetched": datetime.now(KST).isoformat()}
+    naver_available = bool(NAVER_CLIENT_ID and NAVER_CLIENT_SECRET)
+    if naver_available:
+        log("[News] 네이버 검색 OpenAPI 활성 (Google News 와 병용)")
+
     for cat, query in NEWS_CATEGORY_QUERIES.items():
+        articles = []
+        # 1) Google News RSS
         try:
             articles = fetch_news_articles(query, count=5)
         except Exception as e:
-            log(f"[News] '{cat}' 예외: {e}")
-            articles = []
-        result[cat] = articles
-        _time.sleep(0.3)  # Google News rate-limit 회피 — 카테고리 간 짧은 딜레이
+            log(f"[News] Google '{cat}' 예외: {e}")
+        # 2) Naver Search 보강
+        if naver_available and len(articles) < 5:
+            try:
+                naver_articles = fetch_naver_search_news(query, count=5)
+                # 중복 url 제거 후 부족분 채우기
+                seen_urls = {a["url"] for a in articles}
+                for na in naver_articles:
+                    if na["url"] not in seen_urls:
+                        articles.append(na)
+                        seen_urls.add(na["url"])
+                        if len(articles) >= 5:
+                            break
+            except Exception as e:
+                log(f"[NaverSearch] '{cat}' 예외: {e}")
+        result[cat] = articles[:5]
+        _time.sleep(0.3)  # rate-limit 회피
     return result
 
 
@@ -2976,13 +3289,22 @@ if __name__ == "__main__":
         ("data.go.kr",  DATA_GO_KR_API_KEY),
         ("EXIM",        EXIM_API_KEY),
         ("KIS",         KIS_APP_KEY),
+        ("NaverSearch", NAVER_CLIENT_ID),
     ]:
         if key:
             log(f"[{name}] API 키 설정됨 ({key[:4]}...{key[-4:]})")
         else:
             log(f"[{name}] API 키 없음")
+    # 추가 상태 로그 — 어떤 데이터 소스가 활성/비활성인지 명확히
+    log(f"[STATE] pykrx 가용: {_PYKRX_AVAILABLE} (False 면 pip install pykrx 필요)")
+    log(f"[STATE] KIS_ENABLED={KIS_ENABLED} (False 면 KIS 토큰 발급 안함 = 카카오톡 알람 없음)")
     d = build_data()
     output_path = "data.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
     log(f"=== 완료: {d['lastUpdated']} → {output_path} ===")
+    log(f"[RESULT] stockMovers: {d['diagnostics'].get('stockMoversSource','-')}")
+    log(f"[RESULT] etfMovers:   {d['diagnostics'].get('etfMoversSource','-')}")
+    news = d.get("news", {})
+    total_news = sum(len(v) for k, v in news.items() if k != "lastFetched" and isinstance(v, list))
+    log(f"[RESULT] news:        {total_news}건 ({len([k for k,v in news.items() if k != 'lastFetched' and v])}/16 카테고리)")
