@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-22T15:41:37.059895+09:00",
+  "lastUpdated": "2026-05-22T19:18:37.321196+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "KRX OpenAPI",
@@ -11,43 +11,43 @@
     "economicIndicators_intl": "FRED API (OECD/IMF/Eurostat 시리즈)",
     "economicIndicators_kr": "ECOS API (ecos.bok.or.kr)",
     "yieldCurve_kr": "ECOS API (817Y002: 시장금리 일별)",
-    "realestate_kr": "R-ONE API (reb.or.kr)",
     "move": "yfinance ^MOVE",
     "realestate_molit": "data.go.kr (국토부 실거래가)",
     "nps": "fund.nps.or.kr",
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
-    "news": "Google News RSS (서버측 페치)"
+    "news": "Google News RSS + Bing News + Naver (서버측 페치)",
+    "economicCalendar": "FRED release dates API"
   },
   "fx": {
     "USDKRW": {
       "rate": 1504.94,
-      "change": 0.64
+      "change": 0.56
     },
     "EURKRW": {
       "rate": 1747.29,
-      "change": 0.55
+      "change": 0.46
     },
     "JPYKRW": {
       "rate": 9.4626,
-      "change": 0.57
+      "change": 0.5
     },
     "EURUSD": {
       "rate": 1.161,
-      "change": -0.09
+      "change": -0.1
     },
     "USDJPY": {
       "rate": 159.04,
-      "change": 0.07
+      "change": 0.06
     }
   },
   "indices": {
     "KOSPI": {
-      "price": 7835.95,
-      "change": 0.26
+      "price": 7847.71,
+      "change": 0.41
     },
     "KOSDAQ": {
-      "price": 1160.27,
-      "change": 4.91
+      "price": 1161.13,
+      "change": 4.99
     },
     "SP500": {
       "price": 7445.72,
@@ -58,58 +58,58 @@
       "change": 0.09
     },
     "Nikkei": {
-      "price": 63324.21,
-      "change": 2.63
+      "price": 63339.07,
+      "change": 2.65
     },
     "Shanghai": {
-      "price": 4115.21,
-      "change": 0.9
+      "price": 4112.9,
+      "change": 0.84
     }
   },
   "commodities": {
     "Gold": {
-      "price": 4524.4,
-      "change": -0.04
+      "price": 4536.0,
+      "change": 0.13
     },
     "Silver": {
-      "price": 76.79,
-      "change": 0.22
+      "price": 76.42,
+      "change": -0.43
     },
     "Platinum": {
-      "price": 1965.9,
-      "change": 0.17
+      "price": 1948.7,
+      "change": -0.77
     },
     "Copper": {
-      "price": 6.39,
-      "change": 0.64
+      "price": 6.36,
+      "change": -0.05
     },
     "WTI": {
       "price": 98.03,
-      "change": 0.04
+      "change": 0.58
     },
     "Brent": {
-      "price": 104.87,
-      "change": 0.05
+      "price": 104.95,
+      "change": 0.61
     },
     "NatGas": {
       "price": 3.14,
-      "change": 0.58
+      "change": 0.16
     },
     "Aluminum": {
-      "price": 3622.25,
-      "change": -0.08
+      "price": 3617.25,
+      "change": -0.26
     },
     "Wheat": {
-      "price": 646.0,
-      "change": 0.23
+      "price": 648.75,
+      "change": 0.54
     },
     "Corn": {
-      "price": 461.75,
-      "change": 0.05
+      "price": 465.0,
+      "change": 0.81
     },
     "Soybean": {
-      "price": 1195.0,
-      "change": -0.02
+      "price": 1199.25,
+      "change": 0.4
     },
     "Rice": {
       "price": 12.92,
@@ -147,7 +147,7 @@
         "code": "092200",
         "price": 9110.0,
         "chg": 23.44,
-        "vol": 9110,
+        "vol": 9100,
         "as_of": "2026-05-22"
       },
       {
@@ -155,7 +155,7 @@
         "code": "009190",
         "price": 1550.0,
         "chg": 21.95,
-        "vol": 1537,
+        "vol": 1540,
         "as_of": "2026-05-22"
       },
       {
@@ -163,7 +163,7 @@
         "code": "336260",
         "price": 98200.0,
         "chg": 17.6,
-        "vol": 97200,
+        "vol": 98200,
         "as_of": "2026-05-22"
       },
       {
@@ -171,7 +171,7 @@
         "code": "090460",
         "price": 39450.0,
         "chg": 17.06,
-        "vol": 39400,
+        "vol": 39450,
         "as_of": "2026-05-22"
       },
       {
@@ -179,7 +179,7 @@
         "code": "092220",
         "price": 6790.0,
         "chg": 16.47,
-        "vol": 6750,
+        "vol": 6790,
         "as_of": "2026-05-22"
       },
       {
@@ -187,7 +187,7 @@
         "code": "006110",
         "price": 96400.0,
         "chg": 16.0,
-        "vol": 95300,
+        "vol": 96300,
         "as_of": "2026-05-22"
       },
       {
@@ -195,7 +195,7 @@
         "code": "009470",
         "price": 42000.0,
         "chg": 15.7,
-        "vol": 41800,
+        "vol": 41950,
         "as_of": "2026-05-22"
       }
     ],
@@ -205,7 +205,7 @@
         "code": "004870",
         "price": 387.0,
         "chg": -17.83,
-        "vol": 384,
+        "vol": 386,
         "as_of": "2026-05-22"
       },
       {
@@ -221,7 +221,7 @@
         "code": "700018",
         "price": 1425.0,
         "chg": -15.23,
-        "vol": 1459,
+        "vol": 1451,
         "as_of": "2026-05-22"
       },
       {
@@ -229,7 +229,7 @@
         "code": "007610",
         "price": 9850.0,
         "chg": -14.35,
-        "vol": 9820,
+        "vol": 9840,
         "as_of": "2026-05-22"
       },
       {
@@ -237,7 +237,7 @@
         "code": "550098",
         "price": 5215.0,
         "chg": -13.37,
-        "vol": 5030,
+        "vol": 5205,
         "as_of": "2026-05-22"
       },
       {
@@ -245,7 +245,7 @@
         "code": "570082",
         "price": 1458.0,
         "chg": -13.37,
-        "vol": 1464,
+        "vol": 1458,
         "as_of": "2026-05-22"
       },
       {
@@ -253,7 +253,7 @@
         "code": "520057",
         "price": 1444.0,
         "chg": -13.27,
-        "vol": 1448,
+        "vol": 1444,
         "as_of": "2026-05-22"
       },
       {
@@ -261,7 +261,7 @@
         "code": "530107",
         "price": 1436.0,
         "chg": -13.13,
-        "vol": 1442,
+        "vol": 1435,
         "as_of": "2026-05-22"
       },
       {
@@ -269,7 +269,7 @@
         "code": "580044",
         "price": 1444.0,
         "chg": -13.06,
-        "vol": 1446,
+        "vol": 1438,
         "as_of": "2026-05-22"
       },
       {
@@ -277,7 +277,7 @@
         "code": "500072",
         "price": 1459.0,
         "chg": -12.69,
-        "vol": 1460,
+        "vol": 1452,
         "as_of": "2026-05-22"
       }
     ]
@@ -4269,8 +4269,8 @@
         }
       },
       "dxy_idx": {
-        "value": 99.27,
-        "change": 0.02,
+        "value": 99.28,
+        "change": 0.03,
         "period": "2026-05-22",
         "desc": "달러 인덱스 (DXY, ICE 1973=100)",
         "source": "yfinance DX-Y.NYB",
@@ -5532,7 +5532,7 @@
           "2026-05-19": 99.3,
           "2026-05-20": 99.11,
           "2026-05-21": 99.19,
-          "2026-05-22": 99.27
+          "2026-05-22": 99.278
         }
       }
     },
@@ -17413,25 +17413,25 @@
         null,
         null,
         null,
-        3.165,
-        3.602,
-        3.753,
+        3.161,
+        3.587,
+        3.736,
         null,
-        4.174,
-        4.219,
-        4.174
+        4.128,
+        4.2,
+        4.152
       ],
       "prev_month": [
         null,
         null,
         null,
-        2.923,
-        3.219,
-        3.348,
+        2.917,
+        3.206,
+        3.33,
         null,
-        3.688,
         3.655,
-        3.569
+        3.619,
+        3.535
       ],
       "series": [
         {
@@ -17439,10 +17439,6 @@
           "label": "1Y",
           "ecos_item": "010190000",
           "data": [
-            {
-              "date": "2025-05-13",
-              "value": 2.348
-            },
             {
               "date": "2025-05-14",
               "value": 2.319
@@ -18446,6 +18442,10 @@
             {
               "date": "2026-05-21",
               "value": 3.165
+            },
+            {
+              "date": "2026-05-22",
+              "value": 3.161
             }
           ]
         },
@@ -18454,10 +18454,6 @@
           "label": "5Y",
           "ecos_item": "010200000",
           "data": [
-            {
-              "date": "2025-05-13",
-              "value": 2.37
-            },
             {
               "date": "2025-05-14",
               "value": 2.351
@@ -19461,6 +19457,10 @@
             {
               "date": "2026-05-21",
               "value": 3.753
+            },
+            {
+              "date": "2026-05-22",
+              "value": 3.736
             }
           ]
         },
@@ -19469,10 +19469,6 @@
           "label": "10Y",
           "ecos_item": "010210000",
           "data": [
-            {
-              "date": "2025-05-13",
-              "value": 2.722
-            },
             {
               "date": "2025-05-14",
               "value": 2.718
@@ -20476,6 +20472,10 @@
             {
               "date": "2026-05-21",
               "value": 4.174
+            },
+            {
+              "date": "2026-05-22",
+              "value": 4.128
             }
           ]
         },
@@ -20484,10 +20484,6 @@
           "label": "20Y",
           "ecos_item": "010220000",
           "data": [
-            {
-              "date": "2025-05-13",
-              "value": 2.682
-            },
             {
               "date": "2025-05-14",
               "value": 2.683
@@ -21491,6 +21487,10 @@
             {
               "date": "2026-05-21",
               "value": 4.219
+            },
+            {
+              "date": "2026-05-22",
+              "value": 4.2
             }
           ]
         },
@@ -21499,10 +21499,6 @@
           "label": "30Y",
           "ecos_item": "010230000",
           "data": [
-            {
-              "date": "2025-05-13",
-              "value": 2.59
-            },
             {
               "date": "2025-05-14",
               "value": 2.582
@@ -22506,6 +22502,10 @@
             {
               "date": "2026-05-21",
               "value": 4.174
+            },
+            {
+              "date": "2026-05-22",
+              "value": 4.152
             }
           ]
         }
@@ -27714,7 +27714,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 1517.9301
+          "close": 1516.58
         }
       ],
       "EURKRW": [
@@ -32916,7 +32916,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 1761.8
+          "close": 1759.4
         }
       ],
       "JPYKRW": [
@@ -38118,7 +38118,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 9.521
+          "close": 9.511
         }
       ],
       "EURUSD": [
@@ -43320,7 +43320,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 1.1613
+          "close": 1.1608
         }
       ],
       "USDJPY": [
@@ -48522,7 +48522,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 159.105
+          "close": 159.096
         }
       ]
     },
@@ -53418,7 +53418,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 7835.9502
+          "close": 7847.71
         }
       ],
       "KOSDAQ": [
@@ -58308,7 +58308,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 1160.27
+          "close": 1161.13
         }
       ],
       "SP500": [
@@ -78088,7 +78088,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 4111.7847
+          "close": 4112.8994
         }
       ]
     },
@@ -83124,7 +83124,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 4526.7998
+          "close": 4536.8999
         }
       ],
       "Silver": [
@@ -88158,7 +88158,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 76.72
+          "close": 76.44
         }
       ],
       "Platinum": [
@@ -93192,7 +93192,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 1966.2
+          "close": 1949.1
         }
       ],
       "Copper": [
@@ -98230,7 +98230,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 6.3865
+          "close": 6.36
         }
       ],
       "WTI": [
@@ -103264,7 +103264,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 98.11
+          "close": 97.76
         }
       ],
       "Brent": [
@@ -108302,7 +108302,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 104.97
+          "close": 104.69
         }
       ],
       "NatGas": [
@@ -113340,7 +113340,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 3.145
+          "close": 3.134
         }
       ],
       "Aluminum": [
@@ -118370,7 +118370,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 3622.25
+          "close": 3617.25
         }
       ],
       "Wheat": [
@@ -123400,7 +123400,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 646.0
+          "close": 649.75
         }
       ],
       "Corn": [
@@ -128430,7 +128430,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 461.75
+          "close": 464.75
         }
       ],
       "Soybean": [
@@ -133460,7 +133460,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 1195.75
+          "close": 1199.25
         }
       ],
       "Rice": [
@@ -139031,22 +139031,1735 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-05-22T15:46:26.452496+09:00",
-    "채권": [],
-    "외환": [],
-    "주식": [],
-    "원자재": [],
-    "원유": [],
-    "귀금속": [],
+    "lastFetched": "2026-05-22T19:22:43.776705+09:00",
+    "채권": [
+      {
+        "title": "2월 국채금리 전구간 하락…외국인 12조 순매수",
+        "url": "https://www.asiae.co.kr/article/2026031110122190486",
+        "isoDate": "2026-03-11",
+        "pubDate": "Wed, 11 Mar 2026 03:12:00 GMT"
+      },
+      {
+        "title": "기준금리 동결 장기화로 2월 국채금리 전구간 하락...외국인 채권잔고 350조 돌파",
+        "url": "https://www.betanews.net/article/view/beta202603110094",
+        "isoDate": "2026-03-11",
+        "pubDate": "Wed, 11 Mar 2026 12:45:00 GMT"
+      },
+      {
+        "title": "금투협 \"국채금리 전 구간 하락…외국인 보유액 350조 돌파\"",
+        "url": "https://www.etoday.co.kr/news/view/2564096",
+        "isoDate": "2026-03-11",
+        "pubDate": "Wed, 11 Mar 2026 02:54:00 GMT"
+      },
+      {
+        "title": "美 금리 하락에 한은 동결까지…2월 국채금리 전구간 하락",
+        "url": "https://biz.chosun.com/stock/stock_general/2026/03/11/N3BJOJXQ5JGN5FPKJOM7PJDVZU/",
+        "isoDate": "2026-03-11",
+        "pubDate": "Wed, 11 Mar 2026 10:42:00 GMT"
+      },
+      {
+        "title": "高환율·인플레, 외국인 석달간 국채선물 13.1조 매도 [fn마켓워치]",
+        "url": "https://www.fnnews.com/news/202603221148365990",
+        "isoDate": "2026-03-22",
+        "pubDate": "Sun, 22 Mar 2026 06:00:00 GMT"
+      }
+    ],
+    "외환": [
+      {
+        "title": "중동 리스크 완화…국제유가·원달러 환율 동반 ↓",
+        "url": "https://www.junggi.co.kr/news/articleView.html?idxno=36508",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 18:47:00 GMT"
+      },
+      {
+        "title": "미·이란 종전 협상 기대감에 유가·환율 동반 하락",
+        "url": "https://www.junggi.co.kr/news/articleView.html?idxno=36524",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 18:32:00 GMT"
+      }
+    ],
+    "주식": [
+      {
+        "title": "[마감시황] 코스피, 외인 차익실현에 강보합 마감…코스닥 5% 가까이 급등",
+        "url": "https://www.msn.com/ko-kr/money/%EC%83%81%EC%9C%84-%EC%A3%BC%EC%8B%9D/%EB%A7%88%EA%B0%90%EC%8B%9C%ED%99%A9-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%99%B8%EC%9D%B8-%EC%B0%A8%EC%9D%B5%EC%8B%A4%ED%98%84%EC%97%90-%EA%B0%95%EB%B3%B4%ED%95%A9-%EB%A7%88%EA%B0%90-%EC%BD%94%EC%8A%A4%EB%8B%A5-5-%EA%B0%80%EA%B9%8C%EC%9D%B4-%EA%B8%89%EB%93%B1/ar-AA23NhhB",
+        "isoDate": "2026-05-22",
+        "pubDate": "Fri, 22 May 2026 00:03:18 GMT"
+      },
+      {
+        "title": "삼전 쉬고 삼성전기 급등, 코스피 순환매…코스닥 4.99%↑[시황종합]",
+        "url": "https://www.msn.com/ko-kr/money/%EC%83%81%EC%9C%84-%EC%A3%BC%EC%8B%9D/%EC%82%BC%EC%A0%84-%EC%89%AC%EB%8A%94-%EB%8F%99%EC%95%88-%EC%82%BC%EC%84%B1%EC%A0%84%EA%B8%B0-%EA%B8%89%EB%93%B1-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%88%9C%ED%99%98%EB%A7%A4-%EC%BD%94%EC%8A%A4%EB%8B%A5-4-99-%EC%8B%9C%ED%99%A9%EC%A2%85%ED%95%A9/ar-AA23NFMG",
+        "isoDate": "2026-05-22",
+        "pubDate": "Fri, 22 May 2026 00:19:24 GMT"
+      },
+      {
+        "title": "[마감시황] 코스피, '개인·기관' 순매도에 강보합…코스닥은 5% ↑",
+        "url": "https://www.newspim.com/news/view/20260522001098",
+        "isoDate": "2026-05-22",
+        "pubDate": "Fri, 22 May 2026 00:26:00 GMT"
+      },
+      {
+        "title": "[개장시황] 코스피, 외국인 9200억 순매도에도 강보합 출발",
+        "url": "https://www.newspim.com/news/view/20260522000215",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 17:20:00 GMT"
+      },
+      {
+        "title": "[마감시황] 코스피, 7800선 탈환…외국인은 11거래일 연속 순매도",
+        "url": "https://www.ajunews.com/view/20260521163005397",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 00:41:00 GMT"
+      }
+    ],
+    "원자재": [
+      {
+        "title": "[국제유가] \"호르무즈 해협 개방\" 선언에 폭락...WTI, 84달러",
+        "url": "https://www.fnnews.com/news/202604180408544116",
+        "isoDate": "2026-04-17",
+        "pubDate": "Fri, 17 Apr 2026 21:11:00 GMT"
+      },
+      {
+        "title": "[속보] 국제유가, 상승 마감…WTI 4.40%↑",
+        "url": "https://www.etoday.co.kr/news/view/2581580",
+        "isoDate": "2026-05-04",
+        "pubDate": "Mon, 04 May 2026 23:27:00 GMT"
+      },
+      {
+        "title": "[속보] 국제유가, 하락…WTI 5.66%↓",
+        "url": "https://www.etoday.co.kr/news/view/2586539",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 14:11:00 GMT"
+      },
+      {
+        "title": "국제 유가, 호르무즈 긴장 재고조에 급등…WTI 약 7%↑",
+        "url": "https://www.newsis.com/view/NISX20260421_0003599197",
+        "isoDate": "2026-04-20",
+        "pubDate": "Mon, 20 Apr 2026 23:04:00 GMT"
+      },
+      {
+        "title": "국제유가, UAE OPEC 탈퇴에도 상승…WTI 100달러 눈앞",
+        "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1706995",
+        "isoDate": "2026-04-28",
+        "pubDate": "Tue, 28 Apr 2026 23:22:00 GMT"
+      }
+    ],
+    "원유": [
+      {
+        "title": "[속보] 국제유가, 상승 마감…WTI 4.40%↑",
+        "url": "https://www.etoday.co.kr/news/view/2581580",
+        "isoDate": "2026-05-04",
+        "pubDate": "Mon, 04 May 2026 23:27:00 GMT"
+      },
+      {
+        "title": "[속보] 국제유가, 상승 마감…WTI 3.66%↑",
+        "url": "https://www.etoday.co.kr/news/view/2574508",
+        "isoDate": "2026-04-09",
+        "pubDate": "Thu, 09 Apr 2026 23:27:00 GMT"
+      },
+      {
+        "title": "[국제유가] \"호르무즈 해협 개방\" 선언에 폭락...WTI, 84달러",
+        "url": "https://www.fnnews.com/news/202604180408544116",
+        "isoDate": "2026-04-17",
+        "pubDate": "Fri, 17 Apr 2026 21:11:00 GMT"
+      },
+      {
+        "title": "국제유가, UAE의 OPEC 탈퇴에도 3%↑…WTI 다시 100달러",
+        "url": "https://www.fnnews.com/news/202604290426584509",
+        "isoDate": "2026-04-29",
+        "pubDate": "Wed, 29 Apr 2026 03:03:00 GMT"
+      },
+      {
+        "title": "미·이란 협상 재개 기대에 국제유가 급락…WTI 7.9%↓",
+        "url": "https://www.newsis.com/view/NISX20260415_0003591364",
+        "isoDate": "2026-04-14",
+        "pubDate": "Tue, 14 Apr 2026 22:26:00 GMT"
+      }
+    ],
+    "귀금속": [
+      {
+        "title": "올해만 15% 오른 ‘금’…‘금 한 돈 100만원’ 시대 골드 투자 전략 [리치홀릭]",
+        "url": "https://biz.heraldcorp.com/article/10661924",
+        "isoDate": "2026-01-24",
+        "pubDate": "Sat, 24 Jan 2026 09:00:00 GMT"
+      },
+      {
+        "title": "[금사빠의 핀스토리] 금 1돈 90만원·1달러 1445원…'동반 랠리'에 투자 상품 주목",
+        "url": "https://www.ajunews.com/view/20260107145119528",
+        "isoDate": "2026-01-07",
+        "pubDate": "Wed, 07 Jan 2026 22:59:00 GMT"
+      },
+      {
+        "title": "금리인하 기대 후퇴에…금 ETF 수익률 '급락'",
+        "url": "https://www.ajunews.com/view/20260323161508645",
+        "isoDate": "2026-03-23",
+        "pubDate": "Mon, 23 Mar 2026 09:52:00 GMT"
+      }
+    ],
     "비철금속": [],
-    "한국GDP": [],
-    "미국CPI": [],
-    "중국경기": [],
-    "일본경기": [],
-    "독일경기": [],
-    "영국경기": [],
-    "유로존": [],
-    "한국수출": [],
-    "한국은행": []
+    "한국GDP": [
+      {
+        "title": "무디스, 올해 한국 성장률 2.6→2.9%로 상향 “강력한 반도체 모멘텀”",
+        "url": "https://www.edaily.co.kr/News/Read?newsId=03886806645451544",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 19:21:00 GMT"
+      },
+      {
+        "title": "한국 GDP 성장률 세계 1위... 어떻게 이런 엄청난 결과 나왔나",
+        "url": "https://www.msn.com/ko-kr/news/other/%ED%95%9C%EA%B5%AD-gdp-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%84%B8%EA%B3%84-1%EC%9C%84-%EC%96%B4%EB%96%BB%EA%B2%8C-%EC%9D%B4%EB%9F%B0-%EC%97%84%EC%B2%AD%EB%82%9C-%EA%B2%B0%EA%B3%BC-%EB%82%98%EC%99%94%EB%82%98/ar-AA233sR7",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 16:57:00 GMT"
+      },
+      {
+        "title": "한국 1분기 GDP 성장률 1.69% 주요국 제치고 1위",
+        "url": "https://news.jkn.co.kr/post/908204",
+        "isoDate": "2026-05-11",
+        "pubDate": "Mon, 11 May 2026 18:18:00 GMT"
+      },
+      {
+        "title": "“이 정도일 줄은”...해외 IB, 한국 성장률 줄줄이 올렸다",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%9D%B4-%EC%A0%95%EB%8F%84%EC%9D%BC-%EC%A4%84%EC%9D%80-%ED%95%B4%EC%99%B8-ib-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%A4%84%EC%A4%84%EC%9D%B4-%EC%98%AC%EB%A0%B8%EB%8B%A4/ar-AA22EVXO",
+        "isoDate": "2026-05-07",
+        "pubDate": "Thu, 07 May 2026 19:56:22 GMT"
+      },
+      {
+        "title": "삼성·SK하이닉스가 끌어올린 한국 경제…1분기 성장률 주요국 1위",
+        "url": "https://www.dongponews.net/news/articleView.html?idxno=57963",
+        "isoDate": "2026-05-11",
+        "pubDate": "Mon, 11 May 2026 22:03:00 GMT"
+      }
+    ],
+    "미국CPI": [
+      {
+        "title": "대신증권 “미국 CPI 4% 진입 가시화…중동 장기화 땐 인플레 리스크 확대”",
+        "url": "https://www.msn.com/ko-kr/news/other/%EB%8C%80%EC%8B%A0%EC%A6%9D%EA%B6%8C-%EB%AF%B8%EA%B5%AD-cpi-4-%EC%A7%84%EC%9E%85-%EA%B0%80%EC%8B%9C%ED%99%94-%EC%A4%91%EB%8F%99-%EC%9E%A5%EA%B8%B0%ED%99%94-%EB%95%90-%EC%9D%B8%ED%94%8C%EB%A0%88-%EB%A6%AC%EC%8A%A4%ED%81%AC-%ED%99%95%EB%8C%80/ar-AA232gv6",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 15:45:15 GMT"
+      },
+      {
+        "title": "미국 부통령 \"인플레이션 수치 좋지 않다\" 이례적 인정",
+        "url": "https://www.msn.com/ko-kr/news/other/%EB%AF%B8%EA%B5%AD-%EB%B6%80%ED%86%B5%EB%A0%B9-%EC%9D%B8%ED%94%8C%EB%A0%88%EC%9D%B4%EC%85%98-%EC%88%98%EC%B9%98-%EC%A2%8B%EC%A7%80-%EC%95%8A%EB%8B%A4-%EC%9D%B4%EB%A1%80%EC%A0%81-%EC%9D%B8%EC%A0%95/ar-AA23bW3M",
+        "isoDate": "2026-05-13",
+        "pubDate": "Wed, 13 May 2026 16:49:00 GMT"
+      },
+      {
+        "title": "미국 물가 쇼크에 아시아 증시 급락…반도체 랠리 꺾이나?",
+        "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1708540",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 19:19:00 GMT"
+      },
+      {
+        "title": "서울환시 \"美 CPI 상승에 연준 금리인하 기대 소멸…달러-원 하단 높여\"",
+        "url": "https://news.einfomax.co.kr/news/articleView.html?idxno=4414544",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 14:05:00 GMT"
+      },
+      {
+        "title": "美 4월 CPI 3.8%로 3년만 최고치…금리 인하 기대 '후퇴'",
+        "url": "https://news.tf.co.kr/read/economy/2321938.htm",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 08:00:00 GMT"
+      }
+    ],
+    "중국경기": [
+      {
+        "title": "중국 4월 제조업 PMI 50.3···중동 정세 불안에도 2개월 연속 확장",
+        "url": "https://www.khan.co.kr/article/202604301212001",
+        "isoDate": "2026-05-03",
+        "pubDate": "Sun, 03 May 2026 16:39:00 GMT"
+      },
+      {
+        "title": "중국 12월 제조업 PMI 49.7, 5개월째 ‘경기위축’",
+        "url": "https://biz.heraldcorp.com/article/797855",
+        "isoDate": "2016-01-01",
+        "pubDate": "Fri, 01 Jan 2016 02:55:00 GMT"
+      },
+      {
+        "title": "[NNA] 중국 3월 제조업 PMI, 3개월 만에 기준치 상회",
+        "url": "https://www.ajunews.com/view/20260401155158100",
+        "isoDate": "2026-04-01",
+        "pubDate": "Wed, 01 Apr 2026 08:53:00 GMT"
+      },
+      {
+        "title": "중국 경기, 새해부터 빨간불…1월 제조업·서비스업 동반 위축",
+        "url": "https://www.etoday.co.kr/news/view/2551723",
+        "isoDate": "2026-02-01",
+        "pubDate": "Sun, 01 Feb 2026 05:28:00 GMT"
+      },
+      {
+        "title": "중국 제조업 PMI 2개월째 확장국면, 기대지수 3개월 연속 상승",
+        "url": "https://www.newspim.com/news/view/20260430000590",
+        "isoDate": "2026-04-29",
+        "pubDate": "Wed, 29 Apr 2026 19:12:00 GMT"
+      }
+    ],
+    "일본경기": [
+      {
+        "title": "일본, 1분기 GDP 2.1% 깜짝 성장…금리 인상 힘 실리나",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%9D%BC%EB%B3%B8-1%EB%B6%84%EA%B8%B0-gdp-2-1-%EA%B9%9C%EC%A7%9D-%EC%84%B1%EC%9E%A5-%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81-%ED%9E%98-%EC%8B%A4%EB%A6%AC%EB%82%98/ar-AA23vZ16",
+        "isoDate": "2026-05-18",
+        "pubDate": "Mon, 18 May 2026 18:17:14 GMT"
+      },
+      {
+        "title": "BOJ 위원 \"가능한 이른 단계에서 금리 인상해야\"(상보)",
+        "url": "https://news.einfomax.co.kr/news/articleView.html?idxno=4414882",
+        "isoDate": "2026-05-13",
+        "pubDate": "Wed, 13 May 2026 14:05:00 GMT"
+      },
+      {
+        "title": "일본은행 심의위원 \"조기 금리 인상 바람직\" 시사... 국채 금리 29년 만에 최고치",
+        "url": "https://news.jkn.co.kr/post/910425",
+        "isoDate": "2026-05-14",
+        "pubDate": "Thu, 14 May 2026 05:03:00 GMT"
+      },
+      {
+        "title": "BOJ, 금리 판단 신중...\"물가·경기 리스크 공존, 정책 대응 어려워\"",
+        "url": "https://www.newspim.com/news/view/20260417000320",
+        "isoDate": "2017-04-25",
+        "pubDate": "Tue, 25 Apr 2017 17:00:00 GMT"
+      },
+      {
+        "title": "BOJ, 4월 금리인상 확률 72%...0.75%→1.0%로",
+        "url": "https://www.newspim.com/news/view/20260402000337",
+        "isoDate": "2002-04-25",
+        "pubDate": "Thu, 25 Apr 2002 17:00:00 GMT"
+      }
+    ],
+    "독일경기": [
+      {
+        "title": "독일 5 월 경기예측 지수 -10.2로 7P 개선…\"이란전쟁 부담 여전\"",
+        "url": "https://www.newsis.com/view/NISX20260512_0003626856",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 07:57:00 GMT"
+      },
+      {
+        "title": "독일 3월 경기예측 지수 -0.5로 급락…\"중동전쟁에 인플레 우려\"",
+        "url": "https://www.newsis.com/view/NISX20260317_0003552466",
+        "isoDate": "2026-03-17",
+        "pubDate": "Tue, 17 Mar 2026 15:10:00 GMT"
+      },
+      {
+        "title": "4월 독일 경기예측 지수 -17.4로 급락…\"이란전쟁 충격에\"",
+        "url": "https://www.fnnews.com/news/202604220000295729",
+        "isoDate": "2026-04-21",
+        "pubDate": "Tue, 21 Apr 2026 17:00:00 GMT"
+      }
+    ],
+    "영국경기": [
+      {
+        "title": "IMF \"영국, 경기 침체 막기 위해 금리 인하 가능성 열어둬야\"",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/imf-%EC%98%81%EA%B5%AD-%EA%B2%BD%EA%B8%B0-%EC%B9%A8%EC%B2%B4-%EB%A7%89%EA%B8%B0-%EC%9C%84%ED%95%B4-%EA%B8%88%EB%A6%AC-%EC%9D%B8%ED%95%98-%EA%B0%80%EB%8A%A5%EC%84%B1-%EC%97%B4%EC%96%B4%EB%91%AC%EC%95%BC/ar-AA23wRI0",
+        "isoDate": "2026-05-18",
+        "pubDate": "Mon, 18 May 2026 21:58:58 GMT"
+      }
+    ],
+    "유로존": [
+      {
+        "title": "유로존, 12월 인플레이션 2.0%… ECB '금리 동결' 행보 당분간 계속될 듯",
+        "url": "https://www.newspim.com/news/view/20260107001085",
+        "isoDate": "2007-01-25",
+        "pubDate": "Thu, 25 Jan 2007 16:00:00 GMT"
+      },
+      {
+        "title": "ECB, 6월 금리 인상 전망 불투명 \"인플레이션 및 성장 우려 지속\"",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/ecb-6%EC%9B%94-%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81-%EC%A0%84%EB%A7%9D-%EB%B6%88%ED%88%AC%EB%AA%85-%EC%9D%B8%ED%94%8C%EB%A0%88%EC%9D%B4%EC%85%98-%EB%B0%8F-%EC%84%B1%EC%9E%A5-%EC%9A%B0%EB%A0%A4-%EC%A7%80%EC%86%8D/ar-AA23fDRU",
+        "isoDate": "2026-05-14",
+        "pubDate": "Thu, 14 May 2026 21:43:35 GMT"
+      },
+      {
+        "title": "\"전쟁발 고물가 고착화\" ECB, 6월 금리 인상 공식화…스태그플레이션 공포 확산",
+        "url": "https://news.jkn.co.kr/post/909452",
+        "isoDate": "2026-05-13",
+        "pubDate": "Wed, 13 May 2026 03:35:00 GMT"
+      },
+      {
+        "title": "유로존 5월 인플레 큰 폭 둔화…라가르드 “여전히 높아, 금리인상 필요”",
+        "url": "https://biz.heraldcorp.com/article/3138993",
+        "isoDate": "2023-06-02",
+        "pubDate": "Fri, 02 Jun 2023 03:36:00 GMT"
+      },
+      {
+        "title": "유로존 인플레 기대치 '껑충'…ECB 금리 인상 압박 커져",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%9C%A0%EB%A1%9C%EC%A1%B4-%EC%9D%B8%ED%94%8C%EB%A0%88-%EA%B8%B0%EB%8C%80%EC%B9%98-%EA%BB%91%EC%B6%A9-ecb-%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81-%EC%95%95%EB%B0%95-%EC%BB%A4%EC%A0%B8/ar-AA21THMM",
+        "isoDate": "2026-04-28",
+        "pubDate": "Tue, 28 Apr 2026 01:37:03 GMT"
+      }
+    ],
+    "한국수출": [
+      {
+        "title": "[ K-뷰티, 세계로] 한국, 미국 제치고 세계 2위로, 화장품 무역흑자 첫 100억 달러 돌파",
+        "url": "http://www.beautyhankook.com/news/articleView.html?idxno=79454",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 21:48:00 GMT"
+      },
+      {
+        "title": "K-뷰티, 미국 제치고 세계 2위…화장품 무역흑자 첫 100억 달러",
+        "url": "https://www.nocutnews.co.kr/news/6521346",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 18:02:00 GMT"
+      },
+      {
+        "title": "K뷰티, 수출 신기원 열었다… 화장품 무역수지 첫 100억달러 돌파",
+        "url": "https://www.koreaittimes.com/news/articleView.html?idxno=153951",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 22:41:00 GMT"
+      },
+      {
+        "title": "울산 4월 수출, 작년보다 20% 증가…무역수지 26억달러 흑자",
+        "url": "https://www.yna.co.kr/view/AKR20260520146400057",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 00:15:00 GMT"
+      },
+      {
+        "title": "K뷰티 수출 역대 최대, 美제치고 세계 2위 화장품 수출국 됐다",
+        "url": "https://www.koreadaily.com/article/20260521173404258",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 17:38:00 GMT"
+      }
+    ],
+    "한국은행": [
+      {
+        "title": "5월 기준금리 '매파적 동결' 한목소리⋯전문가들 \"7월부터 인상 유력\" [금통위폴]",
+        "url": "https://www.etoday.co.kr/news/view/2586288",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 01:03:00 GMT"
+      },
+      {
+        "title": "신현송 첫 금통위 '동결' 유력…관전 포인트는 '연 2회' 금리인상",
+        "url": "https://www.newstomato.com/ReadNews.aspx?no=1301835",
+        "isoDate": "2026-05-22",
+        "pubDate": "Fri, 22 May 2026 00:22:00 GMT"
+      },
+      {
+        "title": "[모닝 리포트] \"5월 금통위, 기준금리 동결 전망…인상 소수의견 나올 듯\"",
+        "url": "https://www.msn.com/ko-kr/news/other/%EB%AA%A8%EB%8B%9D-%EB%A6%AC%ED%8F%AC%ED%8A%B8-5%EC%9B%94-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EB%8F%99%EA%B2%B0-%EC%A0%84%EB%A7%9D-%EC%9D%B8%EC%83%81-%EC%86%8C%EC%88%98%EC%9D%98%EA%B2%AC-%EB%82%98%EC%98%AC-%EB%93%AF/ar-AA23LSmJ",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 16:35:22 GMT"
+      },
+      {
+        "title": "[금통위 설문조사] \"5월 기준금리 동결 후 7월 피봇…연내 2회 인상 가능성도\"",
+        "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/%EA%B8%88%ED%86%B5%EC%9C%84-%EC%84%A4%EB%AC%B8%EC%A1%B0%EC%82%AC-5%EC%9B%94-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EB%8F%99%EA%B2%B0-%ED%9B%84-7%EC%9B%94-%ED%94%BC%EB%B4%87-%EC%97%B0%EB%82%B4-2%ED%9A%8C-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1%EB%8F%84/ar-AA23JBW9",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 01:00:00 GMT"
+      },
+      {
+        "title": "첫 금통위 앞둔 신현송…'매파 소수 의견'이 향후 금리 가른다",
+        "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1709804",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 18:41:00 GMT"
+      }
+    ]
+  },
+  "economicCalendar": {
+    "events": [
+      {
+        "dt": "05.08 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-08"
+      },
+      {
+        "dt": "05.08 22:15",
+        "cc": "US",
+        "name": "미국 산업생산",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=50",
+        "iso": "2026-05-08"
+      },
+      {
+        "dt": "05.08 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-08"
+      },
+      {
+        "dt": "05.09 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-09"
+      },
+      {
+        "dt": "05.10 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-10"
+      },
+      {
+        "dt": "05.11 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-11"
+      },
+      {
+        "dt": "05.11 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-11"
+      },
+      {
+        "dt": "05.12 21:30",
+        "cc": "US",
+        "name": "미국 CPI (전월비)",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=10",
+        "iso": "2026-05-12"
+      },
+      {
+        "dt": "05.12 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-12"
+      },
+      {
+        "dt": "05.12 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-12"
+      },
+      {
+        "dt": "05.13 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-13"
+      },
+      {
+        "dt": "05.13 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-13"
+      },
+      {
+        "dt": "05.14 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-14"
+      },
+      {
+        "dt": "05.14 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-14"
+      },
+      {
+        "dt": "05.15 21:30",
+        "cc": "US",
+        "name": "미국 소매판매",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=13",
+        "iso": "2026-05-15"
+      },
+      {
+        "dt": "05.15 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-15"
+      },
+      {
+        "dt": "05.15 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-15"
+      },
+      {
+        "dt": "05.16 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-16"
+      },
+      {
+        "dt": "05.17 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-17"
+      },
+      {
+        "dt": "05.18 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-18"
+      },
+      {
+        "dt": "05.18 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-18"
+      },
+      {
+        "dt": "05.19 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-19"
+      },
+      {
+        "dt": "05.19 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-19"
+      },
+      {
+        "dt": "05.20 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-20"
+      },
+      {
+        "dt": "05.20 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-20"
+      },
+      {
+        "dt": "05.21 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-21"
+      },
+      {
+        "dt": "05.21 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-21"
+      },
+      {
+        "dt": "05.22 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-22"
+      },
+      {
+        "dt": "05.22 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-22"
+      },
+      {
+        "dt": "05.23 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-23"
+      },
+      {
+        "dt": "05.24 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-24"
+      },
+      {
+        "dt": "05.25 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-25"
+      },
+      {
+        "dt": "05.26 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-26"
+      },
+      {
+        "dt": "05.26 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-26"
+      },
+      {
+        "dt": "05.27 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-27"
+      },
+      {
+        "dt": "05.27 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-27"
+      },
+      {
+        "dt": "05.28 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-28"
+      },
+      {
+        "dt": "05.28 23:00",
+        "cc": "US",
+        "name": "미국 주택지표 (NAR)",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=53",
+        "iso": "2026-05-28"
+      },
+      {
+        "dt": "05.28 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-28"
+      },
+      {
+        "dt": "05.29 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-05-29"
+      },
+      {
+        "dt": "05.29 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-29"
+      },
+      {
+        "dt": "05.30 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-30"
+      },
+      {
+        "dt": "05.31 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-05-31"
+      },
+      {
+        "dt": "06.01 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-01"
+      },
+      {
+        "dt": "06.01 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-01"
+      },
+      {
+        "dt": "06.02 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-02"
+      },
+      {
+        "dt": "06.02 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-02"
+      },
+      {
+        "dt": "06.03 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-03"
+      },
+      {
+        "dt": "06.03 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-03"
+      },
+      {
+        "dt": "06.04 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-04"
+      },
+      {
+        "dt": "06.04 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-04"
+      },
+      {
+        "dt": "06.05 21:30",
+        "cc": "US",
+        "name": "미국 GDP",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=14",
+        "iso": "2026-06-05"
+      },
+      {
+        "dt": "06.05 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-05"
+      },
+      {
+        "dt": "06.05 22:15",
+        "cc": "US",
+        "name": "미국 산업생산",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=50",
+        "iso": "2026-06-05"
+      },
+      {
+        "dt": "06.05 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-05"
+      },
+      {
+        "dt": "06.06 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-06"
+      },
+      {
+        "dt": "06.07 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-07"
+      },
+      {
+        "dt": "06.08 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-08"
+      },
+      {
+        "dt": "06.08 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-08"
+      },
+      {
+        "dt": "06.09 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-09"
+      },
+      {
+        "dt": "06.09 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-09"
+      },
+      {
+        "dt": "06.10 21:30",
+        "cc": "US",
+        "name": "미국 CPI (전월비)",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=10",
+        "iso": "2026-06-10"
+      },
+      {
+        "dt": "06.10 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-10"
+      },
+      {
+        "dt": "06.10 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-10"
+      },
+      {
+        "dt": "06.11 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-11"
+      },
+      {
+        "dt": "06.11 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-11"
+      },
+      {
+        "dt": "06.12 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-12"
+      },
+      {
+        "dt": "06.12 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-12"
+      },
+      {
+        "dt": "06.13 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-13"
+      },
+      {
+        "dt": "06.14 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-14"
+      },
+      {
+        "dt": "06.15 21:30",
+        "cc": "US",
+        "name": "미국 소매판매",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=13",
+        "iso": "2026-06-15"
+      },
+      {
+        "dt": "06.15 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-15"
+      },
+      {
+        "dt": "06.15 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-15"
+      },
+      {
+        "dt": "06.16 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-16"
+      },
+      {
+        "dt": "06.16 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-16"
+      },
+      {
+        "dt": "06.17 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-17"
+      },
+      {
+        "dt": "06.17 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-17"
+      },
+      {
+        "dt": "06.18 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-18"
+      },
+      {
+        "dt": "06.18 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-18"
+      },
+      {
+        "dt": "06.19 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-19"
+      },
+      {
+        "dt": "06.20 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-20"
+      },
+      {
+        "dt": "06.21 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-21"
+      },
+      {
+        "dt": "06.22 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-22"
+      },
+      {
+        "dt": "06.22 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-22"
+      },
+      {
+        "dt": "06.23 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-23"
+      },
+      {
+        "dt": "06.23 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-23"
+      },
+      {
+        "dt": "06.24 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-24"
+      },
+      {
+        "dt": "06.24 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-24"
+      },
+      {
+        "dt": "06.25 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-25"
+      },
+      {
+        "dt": "06.25 23:00",
+        "cc": "US",
+        "name": "미국 주택지표 (NAR)",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=53",
+        "iso": "2026-06-25"
+      },
+      {
+        "dt": "06.25 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-25"
+      },
+      {
+        "dt": "06.26 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-26"
+      },
+      {
+        "dt": "06.26 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-26"
+      },
+      {
+        "dt": "06.27 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-27"
+      },
+      {
+        "dt": "06.28 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-28"
+      },
+      {
+        "dt": "06.29 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-29"
+      },
+      {
+        "dt": "06.29 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-29"
+      },
+      {
+        "dt": "06.30 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-06-30"
+      },
+      {
+        "dt": "06.30 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-06-30"
+      },
+      {
+        "dt": "07.01 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-07-01"
+      },
+      {
+        "dt": "07.01 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-07-01"
+      },
+      {
+        "dt": "07.02 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-07-02"
+      },
+      {
+        "dt": "07.02 22:15",
+        "cc": "US",
+        "name": "미국 산업생산",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=50",
+        "iso": "2026-07-02"
+      },
+      {
+        "dt": "07.02 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-07-02"
+      },
+      {
+        "dt": "07.03 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-07-03"
+      },
+      {
+        "dt": "07.04 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-07-04"
+      },
+      {
+        "dt": "07.05 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-07-05"
+      },
+      {
+        "dt": "07.06 21:30",
+        "cc": "US",
+        "name": "미국 PPI",
+        "stars": 2,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=18",
+        "iso": "2026-07-06"
+      },
+      {
+        "dt": "07.06 23:00",
+        "cc": "US",
+        "name": "미국 ISM 제조업 PMI",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=101",
+        "iso": "2026-07-06"
+      }
+    ],
+    "lastFetched": "2026-05-22T19:24:20.137006+09:00",
+    "source": "FRED release dates API"
   }
 }
