@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-22T08:53:25.506457+09:00",
+  "lastUpdated": "2026-05-22T10:59:48.918864+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "KRX OpenAPI",
@@ -15,38 +15,39 @@
     "move": "yfinance ^MOVE",
     "realestate_molit": "data.go.kr (국토부 실거래가)",
     "nps": "fund.nps.or.kr",
-    "history": "yfinance (FX/Indices/Commodities 5Y daily)"
+    "history": "yfinance (FX/Indices/Commodities 5Y daily)",
+    "news": "Google News RSS (서버측 페치)"
   },
   "fx": {
     "USDKRW": {
-      "rate": 1501.66,
-      "change": 0.76
+      "rate": 1504.94,
+      "change": 0.29
     },
     "EURKRW": {
-      "rate": 1743.7,
-      "change": 0.77
+      "rate": 1747.29,
+      "change": 0.23
     },
     "JPYKRW": {
-      "rate": 9.4494,
-      "change": 0.73
+      "rate": 9.4626,
+      "change": 0.22
     },
     "EURUSD": {
-      "rate": 1.1612,
-      "change": 0.01
+      "rate": 1.161,
+      "change": -0.06
     },
     "USDJPY": {
-      "rate": 158.92,
-      "change": 0.03
+      "rate": 159.04,
+      "change": 0.07
     }
   },
   "indices": {
     "KOSPI": {
-      "price": 7815.59,
-      "change": 8.42
+      "price": 7850.05,
+      "change": 0.55
     },
     "KOSDAQ": {
-      "price": 1105.97,
-      "change": 4.73
+      "price": 1160.56,
+      "change": 4.92
     },
     "SP500": {
       "price": 7445.72,
@@ -57,66 +58,376 @@
       "change": 0.09
     },
     "Nikkei": {
-      "price": 61684.14,
-      "change": 3.02
+      "price": 62944.57,
+      "change": 2.02
     },
     "Shanghai": {
-      "price": 4077.28,
-      "change": -2.11
+      "price": 4081.68,
+      "change": 0.08
     }
   },
   "commodities": {
     "Gold": {
-      "price": 4535.1,
-      "change": 0.11
+      "price": 4532.3,
+      "change": 0.05
     },
     "Silver": {
-      "price": 76.89,
-      "change": 1.55
+      "price": 76.91,
+      "change": 1.58
     },
     "Platinum": {
-      "price": 1974.7,
-      "change": 1.84
+      "price": 1966.6,
+      "change": 1.42
     },
     "Copper": {
-      "price": 6.34,
-      "change": 0.51
+      "price": 6.36,
+      "change": 0.76
     },
     "WTI": {
-      "price": 97.65,
-      "change": -1.48
+      "price": 97.76,
+      "change": -1.37
     },
     "Brent": {
-      "price": 104.49,
-      "change": -1.25
+      "price": 104.43,
+      "change": -1.3
     },
     "NatGas": {
-      "price": 3.14,
-      "change": 3.46
+      "price": 3.13,
+      "change": 3.23
     },
     "Aluminum": {
-      "price": 3614.75,
-      "change": 0.91
+      "price": 3626.5,
+      "change": 1.24
     },
     "Wheat": {
-      "price": 647.75,
-      "change": -1.07
+      "price": 645.0,
+      "change": -1.49
     },
     "Corn": {
-      "price": 462.75,
-      "change": -0.11
+      "price": 461.5,
+      "change": -0.38
     },
     "Soybean": {
-      "price": 1193.5,
-      "change": -0.25
+      "price": 1194.5,
+      "change": -0.17
     },
     "Rice": {
-      "price": 12.98,
-      "change": 0.5
+      "price": 12.92,
+      "change": 0.04
     }
   },
-  "stockMovers": {},
-  "etfMovers": {},
+  "stockMovers": {
+    "kospiGainers": [
+      {
+        "name": "미래산업",
+        "code": "025560",
+        "price": 35850.0,
+        "chg": 29.89,
+        "vol": 35550,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "두산퓨얼셀",
+        "code": "336260",
+        "price": 103000.0,
+        "chg": 23.35,
+        "vol": 103500,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "삼아알미늄",
+        "code": "006110",
+        "price": 98500.0,
+        "chg": 18.53,
+        "vol": 96100,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "디아이씨",
+        "code": "092200",
+        "price": 8560.0,
+        "chg": 15.99,
+        "vol": 8490,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "미래에셋 레버리지 코스닥150 선물 ETN",
+        "code": "520056",
+        "price": 56015.0,
+        "chg": 14.62,
+        "vol": 55890,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "하나 레버리지 코스닥150 선물 ETN",
+        "code": "700017",
+        "price": 56955.0,
+        "chg": 14.62,
+        "vol": 56410,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "N2 레버리지 코스닥150 선물 ETN",
+        "code": "550097",
+        "price": 40655.0,
+        "chg": 14.5,
+        "vol": 40660,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "KB 레버리지 KOSDAQ 150 선물 ETN",
+        "code": "580043",
+        "price": 56230.0,
+        "chg": 14.35,
+        "vol": 55810,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "키움 레버리지 바이오TOP10 ETN",
+        "code": "760015",
+        "price": 12840.0,
+        "chg": 13.88,
+        "vol": 12850,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "한투 레버리지코스닥150선물 ETN",
+        "code": "570081",
+        "price": 56305.0,
+        "chg": 13.84,
+        "vol": 56470,
+        "as_of": "2026-05-22"
+      }
+    ],
+    "kospiLosers": [
+      {
+        "name": "SH에너지화학",
+        "code": "002360",
+        "price": 2960.0,
+        "chg": -17.32,
+        "vol": 2975,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "하나 인버스 2X 코스닥150 선물 ETN",
+        "code": "700018",
+        "price": 1439.0,
+        "chg": -14.4,
+        "vol": 1428,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "N2 인버스 2X 코스닥150 선물 ETN",
+        "code": "550098",
+        "price": 5175.0,
+        "chg": -14.04,
+        "vol": 5120,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "KB 인버스 2X KOSDAQ 150 선물 ETN",
+        "code": "580044",
+        "price": 1431.0,
+        "chg": -13.85,
+        "vol": 1415,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "한투 인버스2X코스닥150선물 ETN",
+        "code": "570082",
+        "price": 1454.0,
+        "chg": -13.61,
+        "vol": 1436,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "대신 인버스 2X 코스닥 150 선물 ETN",
+        "code": "510027",
+        "price": 1446.0,
+        "chg": -13.57,
+        "vol": 1429,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "미래에셋 인버스 2X 코스닥150 선물 ETN",
+        "code": "520057",
+        "price": 1439.0,
+        "chg": -13.57,
+        "vol": 1420,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "신한 인버스 2X 코스닥 150 선물 ETN",
+        "code": "500072",
+        "price": 1451.0,
+        "chg": -13.17,
+        "vol": 1431,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "삼성 인버스 2X 코스닥150 선물 ETN",
+        "code": "530107",
+        "price": 1441.0,
+        "chg": -12.83,
+        "vol": 1420,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "대원화성",
+        "code": "024890",
+        "price": 3700.0,
+        "chg": -9.31,
+        "vol": 3700,
+        "as_of": "2026-05-22"
+      }
+    ]
+  },
+  "etfMovers": {
+    "etfGainers": [
+      {
+        "name": "SOL 미국양자컴퓨팅TOP10",
+        "code": "0023A0",
+        "price": 36130.0,
+        "chg": 15.01,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "KoAct 글로벌양자컴퓨팅액티브",
+        "code": "0020H0",
+        "price": 28805.0,
+        "chg": 14.4,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "PLUS 미국양자컴퓨팅TOP10",
+        "code": "0023B0",
+        "price": 21500.0,
+        "chg": 13.55,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "RISE 코스닥150선물레버리지",
+        "code": "278240",
+        "price": 18325.0,
+        "chg": 13.54,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "HANARO 코스닥150선물레버리지",
+        "code": "306530",
+        "price": 16450.0,
+        "chg": 13.49,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "TIGER 코스닥150 레버리지",
+        "code": "233160",
+        "price": 17970.0,
+        "chg": 13.41,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "KIWOOM 코스닥150선물레버리지",
+        "code": "291630",
+        "price": 8130.0,
+        "chg": 13.23,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "KODEX 코스닥150레버리지",
+        "code": "233740",
+        "price": 16160.0,
+        "chg": 13.17,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "PLUS 글로벌수소&차세대연료전지",
+        "code": "419650",
+        "price": 8040.0,
+        "chg": 12.53,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "RISE 글로벌수소경제",
+        "code": "417450",
+        "price": 23390.0,
+        "chg": 11.49,
+        "as_of": "2026-05-22"
+      }
+    ],
+    "etfLosers": [
+      {
+        "name": "RISE 코스닥150선물인버스",
+        "code": "275750",
+        "price": 2010.0,
+        "chg": -7.59,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "KIWOOM 코스닥150선물인버스",
+        "code": "291620",
+        "price": 3520.0,
+        "chg": -7.37,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "KODEX 200롱코스닥150숏선물",
+        "code": "360140",
+        "price": 18985.0,
+        "chg": -7.25,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "TIGER 코스닥150선물인버스",
+        "code": "250780",
+        "price": 1993.0,
+        "chg": -6.65,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "KODEX 코스닥150선물인버스",
+        "code": "251340",
+        "price": 1980.0,
+        "chg": -6.6,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "PLUS 코스닥150선물인버스",
+        "code": "301410",
+        "price": 2945.0,
+        "chg": -6.51,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "RISE 2차전지TOP10인버스(합성)",
+        "code": "465350",
+        "price": 14100.0,
+        "chg": -5.5,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "TIGER 200 경기소비재",
+        "code": "139290",
+        "price": 32720.0,
+        "chg": -2.76,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "RISE 인도디지털성장",
+        "code": "498610",
+        "price": 8320.0,
+        "chg": -1.89,
+        "as_of": "2026-05-22"
+      },
+      {
+        "name": "ACE 중국과창판STAR50",
+        "code": "416090",
+        "price": 14950.0,
+        "chg": -1.84,
+        "as_of": "2026-05-22"
+      }
+    ]
+  },
   "economicIndicators": {
     "us": {
       "vix": {
@@ -24947,6 +25258,10 @@
         {
           "date": "2026-05-21",
           "close": 1499.77
+        },
+        {
+          "date": "2026-05-22",
+          "close": 1511.88
         }
       ],
       "EURKRW": [
@@ -30148,7 +30463,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 1751.1
+          "close": 1754.6
         }
       ],
       "JPYKRW": [
@@ -35350,7 +35665,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 9.461
+          "close": 9.48
         }
       ],
       "EURUSD": [
@@ -40552,7 +40867,7 @@
         },
         {
           "date": "2026-05-22",
-          "close": 1.1621
+          "close": 1.1616
         }
       ],
       "USDJPY": [
@@ -45754,16 +46069,12 @@
         },
         {
           "date": "2026-05-22",
-          "close": 159.032
+          "close": 159.086
         }
       ]
     },
     "indices": {
       "KOSPI": [
-        {
-          "date": "2021-05-21",
-          "close": 3156.4199
-        },
         {
           "date": "2021-05-24",
           "close": 3144.3
@@ -50647,13 +50958,17 @@
         {
           "date": "2026-05-20",
           "close": 7208.9502
+        },
+        {
+          "date": "2026-05-21",
+          "close": 7815.5898
+        },
+        {
+          "date": "2026-05-22",
+          "close": 7858.27
         }
       ],
       "KOSDAQ": [
-        {
-          "date": "2021-05-21",
-          "close": 965.63
-        },
         {
           "date": "2021-05-24",
           "close": 948.37
@@ -55533,6 +55848,14 @@
         {
           "date": "2026-05-20",
           "close": 1056.0699
+        },
+        {
+          "date": "2026-05-21",
+          "close": 1105.97
+        },
+        {
+          "date": "2026-05-22",
+          "close": 1158.11
         }
       ],
       "SP500": [
@@ -65581,10 +65904,6 @@
       ],
       "Nikkei": [
         {
-          "date": "2021-05-21",
-          "close": 28317.8301
-        },
-        {
           "date": "2021-05-24",
           "close": 28364.6094
         },
@@ -70463,13 +70782,17 @@
         {
           "date": "2026-05-20",
           "close": 59804.4102
+        },
+        {
+          "date": "2026-05-21",
+          "close": 61684.1406
+        },
+        {
+          "date": "2026-05-22",
+          "close": 63008.3906
         }
       ],
       "Shanghai": [
-        {
-          "date": "2021-05-21",
-          "close": 3486.5601
-        },
         {
           "date": "2021-05-24",
           "close": 3497.28
@@ -75305,6 +75628,14 @@
         {
           "date": "2026-05-20",
           "close": 4162.1851
+        },
+        {
+          "date": "2026-05-21",
+          "close": 4077.2771
+        },
+        {
+          "date": "2026-05-22",
+          "close": 4088.1235
         }
       ]
     },
@@ -80340,7 +80671,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 4536.2002
+          "close": 4527.7998
         }
       ],
       "Silver": [
@@ -85374,7 +85705,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 76.945
+          "close": 76.825
         }
       ],
       "Platinum": [
@@ -90408,7 +90739,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 1974.2
+          "close": 1966.0
         }
       ],
       "Copper": [
@@ -95446,7 +95777,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 6.346
+          "close": 6.3545
         }
       ],
       "WTI": [
@@ -100480,7 +100811,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 97.67
+          "close": 97.68
         }
       ],
       "Brent": [
@@ -105518,7 +105849,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 104.49
+          "close": 104.4
         }
       ],
       "NatGas": [
@@ -110556,7 +110887,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 3.134
+          "close": 3.131
         }
       ],
       "Aluminum": [
@@ -115586,7 +115917,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 3614.75
+          "close": 3626.5
         }
       ],
       "Wheat": [
@@ -120616,7 +120947,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 647.75
+          "close": 645.0
         }
       ],
       "Corn": [
@@ -125646,7 +125977,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 462.75
+          "close": 461.25
         }
       ],
       "Soybean": [
@@ -130676,7 +131007,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 1193.5
+          "close": 1194.5
         }
       ],
       "Rice": [
@@ -135706,7 +136037,7 @@
         },
         {
           "date": "2026-05-21",
-          "close": 12.98
+          "close": 12.92
         }
       ]
     }
@@ -136243,5 +136574,520 @@
     ],
     "as_of": "2026-05-22",
     "source": "fund.nps.or.kr"
+  },
+  "news": {
+    "lastFetched": "2026-05-22T11:05:33.417147+09:00",
+    "채권": [
+      {
+        "title": "2월 국채금리 강세…\"미국채↓·기준금리동결 장기화 예상 영향\"",
+        "url": "https://www.yna.co.kr",
+        "isoDate": "2026-03-11",
+        "pubDate": "Wed, 11 Mar 2026 07:00:00 GMT"
+      },
+      {
+        "title": "\"한국 채권이 돈 된다\" 외국인 17조원 역대 최대 매수",
+        "url": "https://www.chosun.com",
+        "isoDate": "2025-12-13",
+        "pubDate": "Sat, 13 Dec 2025 08:00:00 GMT"
+      },
+      {
+        "title": "채권금리 '발작'…기업 자금조달 직격탄",
+        "url": "https://www.hankyung.com",
+        "isoDate": "2025-12-03",
+        "pubDate": "Wed, 03 Dec 2025 08:00:00 GMT"
+      },
+      {
+        "title": "[4월 4주차] 금리 전망",
+        "url": "https://kbthink.com",
+        "isoDate": "2026-04-20",
+        "pubDate": "Mon, 20 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "11월 국채 금리 큰 폭 상승…\"국채 발행 증가 영향\"",
+        "url": "https://www.newsis.com",
+        "isoDate": "2025-12-11",
+        "pubDate": "Thu, 11 Dec 2025 08:00:00 GMT"
+      }
+    ],
+    "외환": [
+      {
+        "title": "[마감시황] 코스피, 외국인 투매에 3%대 하락…원·달러 환율 상승",
+        "url": "https://www.shinailbo.co.kr",
+        "isoDate": "2026-05-19",
+        "pubDate": "Tue, 19 May 2026 07:00:52 GMT"
+      },
+      {
+        "title": "중동 리스크 완화…국제유가·원달러 환율 동반 ↓",
+        "url": "https://www.junggi.co.kr",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 01:34:55 GMT"
+      },
+      {
+        "title": "원·달러 환율 하락",
+        "url": "https://www.news1.kr",
+        "isoDate": "2026-05-19",
+        "pubDate": "Tue, 19 May 2026 00:53:12 GMT"
+      },
+      {
+        "title": "개장[시황] 코스피 7324.52(▲0.73%), 코스닥 1081.04(▼0.31%), 원·달러 환율 1509.0원(▲1.2원)",
+        "url": "https://sisa-news.com",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 00:19:17 GMT"
+      },
+      {
+        "title": "코스피, 삼전 갈등 완화에 바로 8.42%↑ 마감...환율은 0.7원 하락",
+        "url": "https://www.financialpost.co.kr",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 07:27:08 GMT"
+      }
+    ],
+    "주식": [
+      {
+        "title": "[개장시황] 코스피, 외국인 9200억 순매도에도 강보합 출발",
+        "url": "https://www.newspim.com",
+        "isoDate": "2026-05-22",
+        "pubDate": "Fri, 22 May 2026 00:16:00 GMT"
+      },
+      {
+        "title": "[개장시황] 코스피, 57.53포인트 오른 7873.12 출발",
+        "url": "https://www.lcnews.co.kr",
+        "isoDate": "2026-05-22",
+        "pubDate": "Fri, 22 May 2026 00:10:28 GMT"
+      },
+      {
+        "title": "[마감시황] 코스피, 파업 리스크 완화 속 8.42% 상승...코스닥도 상승 마감",
+        "url": "https://www.viva100.com",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 07:02:00 GMT"
+      },
+      {
+        "title": "[마감 시황] 美 금리 변수에 코스피·코스닥 동반 약세",
+        "url": "http://www.fieldnews.kr",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 07:01:38 GMT"
+      },
+      {
+        "title": "[마감시황] 코스피, 삼성전자 노사 합의에 8% 급등…7800선 회복",
+        "url": "https://www.shinailbo.co.kr",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 07:55:03 GMT"
+      }
+    ],
+    "원자재": [
+      {
+        "title": "중동 전쟁 재점화 우려에 국제유가 급등… WTI 105달러 돌파 - the",
+        "url": "http://www.the-news.co.kr",
+        "isoDate": "2026-05-18",
+        "pubDate": "Mon, 18 May 2026 01:06:12 GMT"
+      },
+      {
+        "title": "세계 석유재고 감소 등에 5월18일 국제유가 상승",
+        "url": "https://www.energy-news.co.kr",
+        "isoDate": "2026-05-19",
+        "pubDate": "Tue, 19 May 2026 00:39:35 GMT"
+      },
+      {
+        "title": "3거래일 연속 국제유가 상승…전쟁 종식 둘러싼 입장차에",
+        "url": "https://www.hydrogennews.co.kr",
+        "isoDate": "2026-05-06",
+        "pubDate": "Wed, 06 May 2026 07:00:00 GMT"
+      },
+      {
+        "title": "이란 사태에 국제유가 급등…\"최악 땐 120달러까지 간다\" [분석+]",
+        "url": "https://www.hankyung.com",
+        "isoDate": "2026-03-03",
+        "pubDate": "Tue, 03 Mar 2026 08:00:00 GMT"
+      },
+      {
+        "title": "[3월 4주차] FX 전망",
+        "url": "https://kbthink.com",
+        "isoDate": "2026-03-23",
+        "pubDate": "Mon, 23 Mar 2026 07:00:00 GMT"
+      }
+    ],
+    "원유": [
+      {
+        "title": "트럼프 “이란협상 최종단계” 발언에 국제유가 급락…브렌트·WTI 5%↓",
+        "url": "https://www.industrynews.co.kr",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 05:21:38 GMT"
+      },
+      {
+        "title": "브렌트유 110달러·WTI 107달러 돌파…국제유가 다시 급등",
+        "url": "https://www.etnews.com",
+        "isoDate": "2026-05-17",
+        "pubDate": "Sun, 17 May 2026 23:46:45 GMT"
+      },
+      {
+        "title": "세계 석유재고 감소 등에 5월18일 국제유가 상승",
+        "url": "https://www.energy-news.co.kr",
+        "isoDate": "2026-05-19",
+        "pubDate": "Tue, 19 May 2026 00:39:35 GMT"
+      },
+      {
+        "title": "The E-STATION",
+        "url": "https://www.theestation.com",
+        "isoDate": "2026-05-17",
+        "pubDate": "Sun, 17 May 2026 18:39:08 GMT"
+      },
+      {
+        "title": "[국제유가] 호르무즈 다시 열릴까…WTI 96달러·브렌트유 102달러",
+        "url": "https://m.news.nate.com",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 21:54:00 GMT"
+      }
+    ],
+    "귀금속": [
+      {
+        "title": "5월 21일 금 시세: 금, 은, 보석 회사별 가격표.",
+        "url": "https://www.vietnam.vn",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 09:40:39 GMT"
+      },
+      {
+        "title": "XAUUSD|금|가격:4533.320|Chg%:-9.60",
+        "url": "https://www.tradingkey.com",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 09:09:24 GMT"
+      },
+      {
+        "title": "금·은 가격 반등에 다시 들썩이는 골드뱅킹",
+        "url": "https://www.newstomato.com",
+        "isoDate": "2026-05-08",
+        "pubDate": "Fri, 08 May 2026 07:00:00 GMT"
+      },
+      {
+        "title": "금 값 급등에…신한은행 골드바 거래량 사상 최대",
+        "url": "https://zdnet.co.kr",
+        "isoDate": "2025-12-08",
+        "pubDate": "Mon, 08 Dec 2025 08:00:00 GMT"
+      },
+      {
+        "title": "금값 상승에 유통가에도 '골드러시' 번졌다",
+        "url": "https://www.etnews.com",
+        "isoDate": "2026-02-08",
+        "pubDate": "Sun, 08 Feb 2026 08:00:00 GMT"
+      }
+    ],
+    "비철금속": [
+      {
+        "title": "국제 구리 가격 7개월 연속 상승; 2026년에도 강세장 지속될까?",
+        "url": "https://www.tradingkey.com",
+        "isoDate": "2026-02-23",
+        "pubDate": "Mon, 23 Feb 2026 08:00:00 GMT"
+      },
+      {
+        "title": "구리 가격, 공급 부족에 연일 폭등세…톤당 1만2250달러 돌파",
+        "url": "https://m.ekn.kr",
+        "isoDate": "2025-12-28",
+        "pubDate": "Sun, 28 Dec 2025 08:00:00 GMT"
+      },
+      {
+        "title": "국제금융센터\"비철금속 가격, 공급측 요인에 강세 기조 유지\"",
+        "url": "https://www.thecommoditiesnews.com",
+        "isoDate": "2025-12-04",
+        "pubDate": "Thu, 04 Dec 2025 08:00:00 GMT"
+      },
+      {
+        "title": "국제 구리 가격이 톤당 12,731달러까지 상승하며 3주 만에 최고치를 기록했습니다.",
+        "url": "https://www.vietnam.vn",
+        "isoDate": "2026-04-10",
+        "pubDate": "Fri, 10 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "[비철금속 동향] 알루미늄 가격 2주래 최저…러시아 공급 기대·美 관세 발표 여파(LME Daily)",
+        "url": "https://kidd.co.kr",
+        "isoDate": "2025-08-20",
+        "pubDate": "Wed, 20 Aug 2025 07:00:00 GMT"
+      }
+    ],
+    "한국GDP": [
+      {
+        "title": "26.1분기 미국 GDP 성장률(속보)",
+        "url": "https://eiec.kdi.re.kr",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 22:33:42 GMT"
+      },
+      {
+        "title": "코리아넷뉴스 - 한국 경제 1분기 성장률 1.7%···수출·내수 동시 호조",
+        "url": "https://www.korean-culture.org",
+        "isoDate": "2026-04-23",
+        "pubDate": "Thu, 23 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "5월 2주차 현생 사느라 못 봤슴 🦔 #경제성장률 #진에어 #분노범죄 #취업 #가루비",
+        "url": "https://newneek.co",
+        "isoDate": "2026-05-18",
+        "pubDate": "Mon, 18 May 2026 23:00:00 GMT"
+      },
+      {
+        "title": "1분기 한국 GDP 성장률 1.7%…중동 악재에도 반도체가 살렸다",
+        "url": "https://news.jtbc.co.kr",
+        "isoDate": "2026-04-23",
+        "pubDate": "Thu, 23 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "[그래픽] 한국 경제성장률 전망",
+        "url": "https://www.yna.co.kr",
+        "isoDate": "2026-05-04",
+        "pubDate": "Mon, 04 May 2026 07:00:00 GMT"
+      }
+    ],
+    "미국CPI": [
+      {
+        "title": "“美 CPI 더 뜨거워질 수도”…유가 이어 주거비까지 ‘인플레 복병’",
+        "url": "https://marketin.edaily.co.kr",
+        "isoDate": "2026-05-11",
+        "pubDate": "Mon, 11 May 2026 19:31:56 GMT"
+      },
+      {
+        "title": "미 관세발 인플레이션 실체는?…엇갈린 물가 지표에 시장 ‘혼선’",
+        "url": "https://www.hani.co.kr",
+        "isoDate": "2026-05-15",
+        "pubDate": "Fri, 15 May 2026 17:13:00 GMT"
+      },
+      {
+        "title": "미국 4월 CPI 전망: 연준, 2026년까지 금리 인하 포기할까?",
+        "url": "https://www.tradingkey.com",
+        "isoDate": "2026-05-10",
+        "pubDate": "Sun, 10 May 2026 07:00:00 GMT"
+      },
+      {
+        "title": "CPI 이어 PPI까지 '인플레이션' 고개…환율 1490원대 등락",
+        "url": "https://www.news1.kr",
+        "isoDate": "2026-05-14",
+        "pubDate": "Thu, 14 May 2026 00:44:40 GMT"
+      },
+      {
+        "title": "이란 전쟁 후 美인플레이션 가속화…4월 CPI 3.8% 상승",
+        "url": "https://www.nocutnews.co.kr",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 07:00:00 GMT"
+      }
+    ],
+    "중국경기": [
+      {
+        "title": "中 4월 제조업 PMI 50.3 '호조'…건설·서비스 업종은 위축",
+        "url": "https://www.yna.co.kr",
+        "isoDate": "2026-04-30",
+        "pubDate": "Thu, 30 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "[속보] 4월 중국 제조업 PMI 50.3·0.1P↓…비제조업 49.4·0.7P↓ '경기축소'",
+        "url": "https://www.newsis.com",
+        "isoDate": "2026-04-30",
+        "pubDate": "Thu, 30 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "중국 제조업 PMI 2개월째 확장국면, 기대지수 3개월 연속 상승",
+        "url": "https://www.newspim.com",
+        "isoDate": "2026-04-30",
+        "pubDate": "Thu, 30 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "국제정세 불안 속, 중국 제조업 체감경기 두달째 확장 국면",
+        "url": "https://marketin.edaily.co.kr",
+        "isoDate": "2026-04-30",
+        "pubDate": "Thu, 30 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "중국 제조업 PMI 49.3으로 다시 위축…2026년 출발부터 경기 경고등",
+        "url": "https://www.g-enews.com",
+        "isoDate": "2026-02-01",
+        "pubDate": "Sun, 01 Feb 2026 08:00:00 GMT"
+      }
+    ],
+    "일본경기": [
+      {
+        "title": "BOJ 부총재 \"일본 경제, 스태그플레이션 상태 있지 않아\"",
+        "url": "https://news.einfomax.co.kr",
+        "isoDate": "2026-04-10",
+        "pubDate": "Fri, 10 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "日 BOJ, 3월 단관(短観) 경제 조사 발표… 대기업 체감경기, '4분기 연속 개선'",
+        "url": "https://v.daum.net",
+        "isoDate": "2026-04-02",
+        "pubDate": "Thu, 02 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "\"BOJ, 4월 보고서에서 인플레 변동 위험 경고할 듯\"",
+        "url": "https://kbthink.com",
+        "isoDate": "2026-03-27",
+        "pubDate": "Fri, 27 Mar 2026 07:00:00 GMT"
+      },
+      {
+        "title": "BOJ, 금리 판단 신중...\"물가·경기 리스크 공존, 정책 대응 어려워\"",
+        "url": "https://www.newspim.com",
+        "isoDate": "2026-04-17",
+        "pubDate": "Fri, 17 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "달러·엔, 유가 충격에 160엔에 바짝…\"BOJ 금리인상 지연 예상\"",
+        "url": "https://marketin.edaily.co.kr",
+        "isoDate": "2026-03-12",
+        "pubDate": "Thu, 12 Mar 2026 07:00:00 GMT"
+      }
+    ],
+    "독일경기": [
+      {
+        "title": "독일 ZEW 경기기대지수, 이란 전쟁에 역대급 폭락…단번에 '비관' 우위로",
+        "url": "https://news.einfomax.co.kr",
+        "isoDate": "2026-03-18",
+        "pubDate": "Wed, 18 Mar 2026 07:00:00 GMT"
+      },
+      {
+        "title": "독일 5 월 경기예측 지수 -10.2로 7P 개선…\"이란전쟁 부담 여전\"",
+        "url": "https://www.newsis.com",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 07:00:00 GMT"
+      },
+      {
+        "title": "4월 독일 경기예측 지수 -17.2로 급락…\"이란전쟁 충격에\"",
+        "url": "https://www.newsis.com",
+        "isoDate": "2026-04-21",
+        "pubDate": "Tue, 21 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "독일 5 월 경기예측 지수 -10.2로 7P 개선…\"이란전쟁 부담 여전\"",
+        "url": "https://news.nate.com",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 07:00:00 GMT"
+      },
+      {
+        "title": "엔진 식어가는 독일 경제",
+        "url": "https://www.hankyung.com",
+        "isoDate": "2018-05-16",
+        "pubDate": "Wed, 16 May 2018 07:00:00 GMT"
+      }
+    ],
+    "영국경기": [
+      {
+        "title": "IMF \"영국, 경기 침체 막기 위해 금리 인하 가능성 열어둬야\"",
+        "url": "https://www.theguru.co.kr",
+        "isoDate": "2026-05-19",
+        "pubDate": "Tue, 19 May 2026 04:58:58 GMT"
+      },
+      {
+        "title": "BOE 총재 거듭 경고…\"사모신용 잠재 위험 크다\"",
+        "url": "https://kbthink.com",
+        "isoDate": "2026-05-06",
+        "pubDate": "Wed, 06 May 2026 16:20:56 GMT"
+      },
+      {
+        "title": "영국, 기준금리 3.75%로 인하 결정…2023년 초 이후 최저",
+        "url": "https://www.news1.kr",
+        "isoDate": "2025-12-18",
+        "pubDate": "Thu, 18 Dec 2025 08:00:00 GMT"
+      },
+      {
+        "title": "유럽 4개 중앙은행, 올해 마지막 금리 결정…영국만 인하할듯",
+        "url": "https://marketin.edaily.co.kr",
+        "isoDate": "2025-12-18",
+        "pubDate": "Thu, 18 Dec 2025 08:00:00 GMT"
+      },
+      {
+        "title": "영국, 금융위기 이후 첫 은행 자본규제 완화… 성장동력 회복 노린다",
+        "url": "https://m.joseilbo.com",
+        "isoDate": "2025-12-03",
+        "pubDate": "Wed, 03 Dec 2025 08:00:00 GMT"
+      }
+    ],
+    "유로존": [
+      {
+        "title": "전문가들은 유럽중앙은행(ECB)이 인플레이션을 억제하기 위해 2026년에 두 차례 금리를 인상할 것으로 예측한다.",
+        "url": "https://www.vietnam.vn",
+        "isoDate": "2026-05-12",
+        "pubDate": "Tue, 12 May 2026 07:00:00 GMT"
+      },
+      {
+        "title": "[종합] 유로존 4월 인플레이션 3.0% 기록… 2년 7개월 만에 최고치",
+        "url": "https://www.newspim.com",
+        "isoDate": "2026-04-30",
+        "pubDate": "Thu, 30 Apr 2026 07:00:00 GMT"
+      },
+      {
+        "title": "코메르츠방크 \"유로존 인플레 상방 위험…6월 금리 인상 가능성\"",
+        "url": "https://kbthink.com",
+        "isoDate": "2026-04-27",
+        "pubDate": "Mon, 27 Apr 2026 06:49:50 GMT"
+      },
+      {
+        "title": "ECB 금리 동결…인플레 전망 대폭 상향(종합)",
+        "url": "https://www.yna.co.kr",
+        "isoDate": "2026-03-19",
+        "pubDate": "Thu, 19 Mar 2026 07:00:00 GMT"
+      },
+      {
+        "title": "인플레이션 우려에 딜레마 빠진 ECB",
+        "url": "https://www.hankyung.com",
+        "isoDate": "2026-03-17",
+        "pubDate": "Tue, 17 Mar 2026 07:00:00 GMT"
+      }
+    ],
+    "한국수출": [
+      {
+        "title": "울산 4월 수출, 작년보다 20% 증가…무역수지 26억달러 흑자",
+        "url": "https://www.yna.co.kr",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 07:15:59 GMT"
+      },
+      {
+        "title": "K-뷰티, 무역수지 101억 달러 첫 돌파…글로벌 위상 강화",
+        "url": "https://www.m-i.kr",
+        "isoDate": "2026-05-22",
+        "pubDate": "Fri, 22 May 2026 00:53:59 GMT"
+      },
+      {
+        "title": "`반도체 초호황` 한국 수출 신기록 또 갈아치웠다",
+        "url": "https://www.imaeil.com",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 04:13:00 GMT"
+      },
+      {
+        "title": "반도체 수출 신기록에 2월 수출 29%↑…무역수지 최대 흑자",
+        "url": "https://www.joongang.co.kr",
+        "isoDate": "2026-03-01",
+        "pubDate": "Sun, 01 Mar 2026 08:00:00 GMT"
+      },
+      {
+        "title": "韓 수출 두달 연속 800억달러 돌파… 이대로면 日 제친다",
+        "url": "https://www.chosun.com",
+        "isoDate": "2026-05-02",
+        "pubDate": "Sat, 02 May 2026 07:00:00 GMT"
+      }
+    ],
+    "한국은행": [
+      {
+        "title": "첫 금통위 앞둔 신현송…'매파 소수 의견'이 향후 금리 가른다",
+        "url": "https://www.ebn.co.kr",
+        "isoDate": "2026-05-22",
+        "pubDate": "Fri, 22 May 2026 01:41:46 GMT"
+      },
+      {
+        "title": "\"동결 속 매파 신호 나오나\"…5월 금통위 '인상 소수의견' 주목",
+        "url": "https://www.newsworks.co.kr",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 23:33:48 GMT"
+      },
+      {
+        "title": "[모닝 리포트] \"5월 금통위, 기준금리 동결 전망…인상 소수의견 나올 듯\"",
+        "url": "https://www.newspim.com",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 23:35:00 GMT"
+      },
+      {
+        "title": "씨티 \"5월 금통위는 매파적 동결...호르무즈 개방 시 인상 가능성도\"",
+        "url": "https://www.g-enews.com",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 05:37:26 GMT"
+      },
+      {
+        "title": "물가 불안에 환율 1500원 고착…한은 5월 '매파 동결' 후 하반기 인상 전망",
+        "url": "https://www.news1.kr",
+        "isoDate": "2026-05-21",
+        "pubDate": "Thu, 21 May 2026 21:00:00 GMT"
+      }
+    ]
   }
 }
