@@ -925,7 +925,8 @@ tailwind.config = {
             </div>
           </div>
           <div class="widget">
-            <div class="widget-title" id="fxInfoPanelTitle">USDKRW 주요 정보</div>
+            <div class="widget-title" id="fxInfoPanelTitle">한미환율 주요 정보</div>
+            <div id="fxInfoAsOf" style="font-size:10px;color:#8d90a2;margin-bottom:6px;">기준 시점: —</div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">시가</td><td style="text-align:right;" id="fxInfoOpen">1,488.00</td></tr>
               <tr style="border-bottom:1px solid #2a2e3d;"><td style="padding:8px 0;color:#8d90a2;">고가</td><td style="text-align:right;" id="fxInfoHigh">1,493.20</td></tr>
@@ -2846,9 +2847,9 @@ function buildReCharts() {
           chartClick('re', idx, price, lbl);
         },
         scales:{x:{ticks:{color:tc.txt,font:{size:10},maxTicksLimit:7},grid:{color:tc.grid}},
-                y:{ticks:{color:tc.txt,font:{size:10}},grid:{color:tc.grid},position:'right'}},
+                y:{ticks:{color:tc.txt,font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:tc.grid},position:'right'}},
         plugins:{legend:{display:true,position:'top',labels:{color:tc.txt,font:{size:10},boxWidth:10}},
-          tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1}}}
+          tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+fmtNum(c.parsed.y)}}}}
     });
   }
   // 기본 뷰: Naver 지도 (인증 실패 시 onNaverMapsAuthFailure 에서 바로 안내)
@@ -3194,9 +3195,9 @@ function _openRegionHistoryModal(d) {
     }]},
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{x:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid}},
-              y:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid},position:'right'}},
+              y:{ticks:{color:tc2.txt,font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:tc2.grid},position:'right'}},
       plugins:{legend:{display:true,labels:{color:tc2.txt,font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:tc2.tooltip,titleColor:tc2.ttTitle,borderColor:tc2.ttBorder,borderWidth:1}}}
+        tooltip:{mode:'index',intersect:false,backgroundColor:tc2.tooltip,titleColor:tc2.ttTitle,borderColor:tc2.ttBorder,borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+fmtNum(c.parsed.y)}}}}
   });
 }
 
@@ -3577,9 +3578,9 @@ function buildUsRegionMap() {
         }]},
         options:{ responsive:true, maintainAspectRatio:false,
           scales:{x:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid}},
-                  y:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid},position:'right'}},
+                  y:{ticks:{color:tc2.txt,font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:tc2.grid},position:'right'}},
           plugins:{legend:{display:true,labels:{color:tc2.txt,font:{size:10},boxWidth:10}},
-            tooltip:{mode:'index',intersect:false,backgroundColor:tc2.tooltip,titleColor:tc2.ttTitle,borderColor:tc2.ttBorder,borderWidth:1}}}
+            tooltip:{mode:'index',intersect:false,backgroundColor:tc2.tooltip,titleColor:tc2.ttTitle,borderColor:tc2.ttBorder,borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+fmtNum(c.parsed.y)}}}}
       });
     });
   });
@@ -4186,9 +4187,9 @@ function initMainChart(unit, customPriceData) {
       },
       scales:{
         x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
-        y:{min:yMin-yPad,max:yMax+yPad,ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}
+        y:{min:yMin-yPad,max:yMax+yPad,ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#2a2e3d55'},position:'right'}
       },
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
+      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
   if(charts['mainChart']) charts['mainChart'].resize();
 }
@@ -4718,14 +4719,45 @@ function setMoverType(type, btn) {
 // ============================
 // 뉴스 데이터 (Naver 뉴스 검색 링크 — 클릭 시 최신 기사 표시)
 // ============================
+// URL 정규화: 검색 결과 URL 은 "검색 결과", publisher 직접 링크는 "기사보기" 로 라벨링.
+// search.naver.com URL 은 PC 검색 결과 페이지인데, m.search.naver.com 의 모바일 뉴스 검색이
+// 기사 클릭 동선이 더 좋음 (필터 즉시 적용, 모바일 광고 적음) → 모바일 URL 로 자동 변환.
+function _normalizeNewsUrl(rawUrl) {
+  if (!rawUrl || rawUrl === '#') return { url: '#', label: '링크 없음', isSearch: true };
+  let url = rawUrl;
+  let isSearch = false;
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    if (host === 'search.naver.com') {
+      // PC 검색 → 모바일 뉴스 검색 (랜딩이 모바일 친화적, 즉시 기사 목록 노출)
+      u.hostname = 'm.search.naver.com';
+      if (!u.searchParams.get('where')) u.searchParams.set('where', 'm_news');
+      else u.searchParams.set('where', 'm_news');
+      // sort=1 (최신순) 기본 적용
+      if (!u.searchParams.get('sort')) u.searchParams.set('sort', '1');
+      url = u.toString();
+      isSearch = true;
+    } else if (host === 'm.search.naver.com' || host.endsWith('search.naver.com')) {
+      isSearch = true;
+    } else if (host === 'news.google.com' || host.endsWith('google.com')) {
+      isSearch = true;
+    } else if (host === 'www.bing.com' || host.endsWith('bing.com')) {
+      isSearch = true;
+    }
+  } catch (_) { /* invalid URL — leave as-is */ }
+  return { url, label: isSearch ? '↗ 관련 기사 보기' : '↗ 기사 보기', isSearch };
+}
+
 function newsCard(n) {
   const displayTime = n.isoDate ? relTime(n.isoDate) : (n.time || '오늘');
-  const safeUrl = (n.url||'#').replace(/'/g,'%27');
+  const norm = _normalizeNewsUrl(n.url);
+  const safeUrl = norm.url.replace(/'/g,'%27');
   return `<a href="${safeUrl}" target="_blank" rel="noopener" class="news-card-link" style="display:block;text-decoration:none;color:inherit;border-bottom:1px solid var(--c-card, #1b1f2b);padding-bottom:10px;transition:opacity .15s,background .15s;">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
       <span style="font-size:10px;color:var(--c-txt-dim, #8d90a2);">${displayTime}</span>
       <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
-      <span style="font-size:9px;color:var(--c-txt-muted, #434656);">↗ 기사보기</span>
+      <span style="font-size:9px;color:var(--c-txt-muted, #434656);">${norm.label}</span>
     </div>
     <div style="font-size:12px;line-height:1.5;color:var(--c-txt, #dfe2f2);">${n.title}</div>
   </a>`;
@@ -5259,9 +5291,9 @@ function buildFxChart(seriesData) {
         chartClick('fx', idx, price, label);
       },
       scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
-              y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},
+              y:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#2a2e3d55'},
                  title:{display:true,text:yLabel,color:'#434656',font:{size:9}},position:'right'}},
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
+      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
 }
 
@@ -5357,7 +5389,27 @@ function updateFxHeader() {
     const dec = displayRate < 10 ? 4 : 2;
     if (priceEl) priceEl.textContent = displayRate.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
   }
-  if (infoEl)  infoEl.textContent  = pair.pair.replace('/','') + ' 주요 정보';
+  // 페어별 한국어 표기 — '한미환율', '한유환율' 등 사용자 친화적 이름
+  const PAIR_KO_NAMES = {
+    'USD/KRW': '한미환율',
+    'EUR/KRW': '한유환율',
+    'JPY/KRW': '한일환율',
+    'EUR/USD': '유미환율',
+    'USD/JPY': '미일환율',
+  };
+  if (infoEl) {
+    const koName = PAIR_KO_NAMES[pair.pair] || pair.pair;
+    infoEl.textContent = `${koName} 주요 정보 (${pair.pair})`;
+  }
+  // 기준 시점 표시 — data.json.lastUpdated 우선, 없으면 현재 시각
+  const asOfEl = document.getElementById('fxInfoAsOf');
+  if (asOfEl) {
+    const lu = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators.lastUpdated : null;
+    const dt = lu ? new Date(lu) : new Date();
+    const tsStr = dt.toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const srcLabel = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators?.sources?.fx) || 'open.er-api.com + yfinance';
+    asOfEl.textContent = `기준 시점: ${tsStr} · 출처: ${srcLabel}`;
+  }
   if (chgEl) {
     const up = (pair.pct || 0) >= 0;
     chgEl.className = up ? 'up-txt' : 'down-txt';
@@ -6017,8 +6069,8 @@ function buildEquityIndexChart(series) {
         chartClick('equity', idx, price, label);
       },
       scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
-              y:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'},position:'right'}},
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1}}}
+              y:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#2a2e3d55'},position:'right'}},
+      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
 }
 
@@ -6390,9 +6442,9 @@ function buildComDetailChartMulti() {
         chartClick('com', idx, price, label);
       },
       scales:{x:{type:'category',ticks:{color:tcCom.txt,font:{size:10},maxTicksLimit:6},grid:{color:tcCom.grid}},
-              y:{ticks:{color:tcCom.txt,font:{size:10}},grid:{color:tcCom.grid},position:'right'}},
+              y:{ticks:{color:tcCom.txt,font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:tcCom.grid},position:'right'}},
       plugins:{legend:{display:true,position:'top',labels:{color:tcCom.txt,font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:tcCom.tooltip,titleColor:tcCom.ttTitle,bodyColor:tcCom.ttTitle,borderColor:tcCom.ttBorder,borderWidth:1}}}
+        tooltip:{mode:'index',intersect:false,backgroundColor:tcCom.tooltip,titleColor:tcCom.ttTitle,bodyColor:tcCom.ttTitle,borderColor:tcCom.ttBorder,borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
 
   // Update header
@@ -7156,7 +7208,40 @@ function getHistoricalSeries(category, name) {
   const arr = (d.history[category] || {})[name];
   if(!Array.isArray(arr) || arr.length === 0) return null;
   // {date, close} → {x, y} 변환 (차트 helper와 호환)
-  return arr.map(p => ({x: p.date, y: p.close}));
+  const series = arr.map(p => ({x: p.date, y: p.close}));
+  // 실시간 spot rate 와 차트 마지막 점 동기화 (소스 불일치 방지):
+  //   - fx.<NAME>.rate (open.er-api.com, 현재 시각) 와
+  //     history.fx.<NAME> 마지막 close (yfinance, 전일 종가 기반) 가 다를 수 있음.
+  //   - 화면 헤더의 큰 숫자와 차트 끝점이 동일해야 사용자가 혼란을 겪지 않음.
+  if(category === 'fx' && d.fx && d.fx[name] && d.fx[name].rate != null) {
+    const liveRate = d.fx[name].rate;
+    const today = new Date().toISOString().slice(0,10);
+    const last = series[series.length - 1];
+    if(last && last.x === today) {
+      last.y = liveRate;
+    } else if(last && last.x !== today) {
+      // 오늘 시리즈가 없으면 추가
+      series.push({x: today, y: liveRate});
+    }
+  }
+  // indices/commodities 도 동일 패턴 적용 (실시간 데이터가 있을 경우)
+  if(category === 'indices' && d.indices && d.indices[name] && d.indices[name].price != null) {
+    const liveRate = d.indices[name].price;
+    const today = new Date().toISOString().slice(0,10);
+    const last = series[series.length - 1];
+    if(last && last.x === today) {
+      last.y = liveRate;
+    }
+  }
+  if(category === 'commodities' && d.commodities && d.commodities[name] && d.commodities[name].price != null) {
+    const liveRate = d.commodities[name].price;
+    const today = new Date().toISOString().slice(0,10);
+    const last = series[series.length - 1];
+    if(last && last.x === today) {
+      last.y = liveRate;
+    }
+  }
+  return series;
 }
 
 function sliceByPeriod(arr, period) {
@@ -7840,8 +7925,8 @@ function showCalGridFloating(idx, evt) {
         data:{ labels: hist.labels, datasets:[{ data: hist.vals, label: e.name, borderColor: hist.color, backgroundColor: hist.color+'22', borderWidth:1.5, pointRadius:2, fill:true, tension:0.3 }] },
         options:{responsive:true,maintainAspectRatio:false,
           scales:{x:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:5},grid:{display:false}},
-                  y:{ticks:{color:tc.txt,font:{size:8},callback:v=>v+(hist.unit||'')},grid:{color:tc.grid}}},
-          plugins:{legend:{display:false},tooltip:{enabled:true,bodyFont:{size:9}}}}
+                  y:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:6,callback:v=>fmtNum(v)+(hist.unit||'')},grid:{color:tc.grid}}},
+          plugins:{legend:{display:false},tooltip:{enabled:true,bodyFont:{size:9},callbacks:{label:ctx=>fmtNum(ctx.parsed.y)+(hist.unit||'')}}}}
       });
     } else {
       ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height);
@@ -7935,7 +8020,45 @@ function autoBackfillCalendarActuals() {
   if(updated > 0) console.info(`[Calendar] ${updated}개 이벤트 actual 자동 백필 완료`);
 }
 
+// data.json.economicCalendar.events 를 calEvents 에 머지
+// 매일 09:00 / 22:00 KST GitHub Actions 가 FRED release dates 로 갱신.
+// 하드코드된 calEvents 와 dt+name 기준으로 중복 제거하며, 새 이벤트는 추가.
+// flag 자동 부여 (cc 기반).
+function mergeServerCalendar() {
+  const d = (typeof _latestDataForIndicators !== 'undefined') ? _latestDataForIndicators : null;
+  const serverCal = d && d.economicCalendar && Array.isArray(d.economicCalendar.events)
+    ? d.economicCalendar.events : null;
+  if(!serverCal || !serverCal.length) return 0;
+  const flagMap = {KR:'🇰🇷', US:'🇺🇸', EU:'🇪🇺', JP:'🇯🇵', CN:'🇨🇳', UK:'🇬🇧', DE:'🇩🇪'};
+  // 기존 (dt + name) 키 집합
+  const existing = new Set(calEvents.map(e => `${e.dt}|${e.name}`));
+  let added = 0;
+  for(const ev of serverCal) {
+    if(!ev || !ev.dt || !ev.name) continue;
+    const key = `${ev.dt}|${ev.name}`;
+    if(existing.has(key)) continue;
+    calEvents.push({
+      dt: ev.dt,
+      cc: ev.cc || 'US',
+      flag: flagMap[ev.cc] || '',
+      name: ev.name,
+      stars: ev.stars || 2,
+      prev: ev.prev || '',
+      fore: ev.fore || '',
+      act: ev.act || '',
+      beat: ev.beat || null,
+      _src: ev.source || 'server',
+    });
+    existing.add(key);
+    added++;
+  }
+  if(added > 0) console.info(`[Calendar] 서버측 이벤트 ${added}건 머지 완료`);
+  return added;
+}
+
 function buildCalendar(){
+  // 서버측 캘린더 머지 (FRED release dates, 매일 09:00/22:00 갱신)
+  try { mergeServerCalendar(); } catch(_) {}
   // 매번 호출 시 자동 백필 (data.json 또는 calHistoryData 마지막 값으로)
   try { autoBackfillCalendarActuals(); } catch(_) {}
   // 현재 월 판별
@@ -8146,7 +8269,7 @@ function _renderCalDetailChart() {
       responsive: true, maintainAspectRatio: false,
       scales: {
         x: { ticks: {color:tc.txt, font:{size:10}}, grid:{color:tc.grid} },
-        y: { ticks: {color:tc.txt, font:{size:10}, callback: v => v + (hist.unit||'')}, grid: {color:tc.grid}, position:'right' }
+        y: { ticks: {color:tc.txt, font:{size:10}, maxTicksLimit:8, callback: v => fmtNum(v) + (hist.unit||'')}, grid: {color:tc.grid}, position:'right' }
       },
       plugins: {
         legend: {display:false},
@@ -8154,7 +8277,7 @@ function _renderCalDetailChart() {
           mode:'index', intersect:false,
           backgroundColor: tc.tooltip, titleColor: tc.ttTitle, bodyColor: hist.color,
           borderColor: tc.ttBorder, borderWidth:1,
-          callbacks: { label: ctx => ctx.parsed.y + (hist.unit||'') }
+          callbacks: { label: ctx => fmtNum(ctx.parsed.y) + (hist.unit||'') }
         }
       }
     }
@@ -8845,7 +8968,7 @@ function _renderGlobalInvestor(id) {
     }]},
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{ x:{ticks:{color:tc.txt,font:{size:11}}, grid:{display:false}},
-               y:{ticks:{color:tc.txt,font:{size:11},callback:v=>v+'%'}, grid:{color:tc.grid}} },
+               y:{ticks:{color:tc.txt,font:{size:11},maxTicksLimit:8,callback:v=>fmtNum(v)+'%'}, grid:{color:tc.grid}} },
       plugins:{
         legend:{display:false},
         tooltip:{backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
@@ -11105,6 +11228,20 @@ function applyRealData(d) {
     if(isPct) return (data.value >= 0 ? '+' : '') + data.value.toFixed(2) + '%';
     return data.value.toFixed(2);
   };
+  // 데이터 없을 때 "페치 중..." 대신 명확한 미연동 안내로 교체
+  // (API 키 미설정/응답 없음을 사용자가 인지할 수 있도록)
+  if (!reKr.apt_price_idx_kr && !reKr.jns_price_idx_kr) {
+    const mEl = document.getElementById('reKpiAptPriceMeta');
+    if (mEl && mEl.textContent.includes('페치 중')) {
+      mEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · API 미연동';
+      mEl.style.color = '#f5a623';
+    }
+    const cEl = document.getElementById('reKpiAptIdxChg');
+    if (cEl && cEl.textContent.includes('페치 중')) {
+      cEl.innerHTML = '<a href="https://kosis.kr" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">KOSIS 사이트 보기 →</a> · API 미연동';
+      cEl.style.color = '#f5a623';
+    }
+  }
   if (reKr.apt_price_idx_kr) {
     const data = reKr.apt_price_idx_kr;
     const vEl = document.getElementById('reKpiAptPrice');
@@ -11182,6 +11319,20 @@ function applyRealData(d) {
         metaEl.textContent = `${tc.period} · 국토부 실거래가 (data.go.kr)`;
         metaEl.style.color = '#26a69a';
       }
+    } else {
+      // 거래량 데이터가 모두 0 — 국토부 실거래가 API 응답이 비어있는 상태
+      const metaEl = document.getElementById('reKpiVolMeta');
+      if(metaEl && metaEl.textContent.includes('페치 중')) {
+        metaEl.innerHTML = '<a href="https://rt.molit.go.kr" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">국토부 실거래가 사이트 →</a> · API 응답 없음';
+        metaEl.style.color = '#f5a623';
+      }
+    }
+  } else {
+    // trade_count_kr 자체가 없는 경우
+    const metaEl = document.getElementById('reKpiVolMeta');
+    if(metaEl && metaEl.textContent.includes('페치 중')) {
+      metaEl.innerHTML = '<a href="https://rt.molit.go.kr" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">국토부 실거래가 사이트 →</a> · API 미연동';
+      metaEl.style.color = '#f5a623';
     }
   }
   if (reKr.unsold_kr) {

@@ -691,6 +691,80 @@ def fetch_naver_etf_movers(top_n=10):
     return None, None
 
 
+# 주요 한국 ETF 30종 (Yahoo Finance 심볼) — pykrx/Naver 모두 실패 시 폴백
+# KODEX/TIGER/KBSTAR 주력 ETF 위주, 시가총액·거래대금 상위
+# ETF 코드 매핑: data.krx.co.kr 통계 기반 (2026년 5월 기준 상위 ETF)
+YF_KR_ETF_FALLBACK = [
+    ("069500.KS", "KODEX 200"),
+    ("102110.KS", "TIGER 200"),
+    ("114800.KS", "KODEX 인버스"),
+    ("122630.KS", "KODEX 레버리지"),
+    ("233740.KS", "KODEX 코스닥150 레버리지"),
+    ("251340.KS", "KODEX 코스닥150선물인버스"),
+    ("252670.KS", "KODEX 200선물인버스2X"),
+    ("305720.KS", "KODEX 2차전지산업"),
+    ("091170.KS", "KODEX 은행"),
+    ("091160.KS", "KODEX 반도체"),
+    ("139660.KS", "TIGER 200IT"),
+    ("117460.KS", "KODEX 에너지화학"),
+    ("139260.KS", "TIGER 200 IT"),
+    ("305540.KS", "TIGER 2차전지테마"),
+    ("371460.KS", "TIGER 차이나전기차SOLACTIVE"),
+    ("098560.KS", "TIGER 방송통신"),
+    ("228790.KS", "TIGER 화장품"),
+    ("228810.KS", "TIGER 미디어컨텐츠"),
+    ("117700.KS", "KODEX 철강"),
+    ("139220.KS", "TIGER 200건설"),
+    ("266150.KS", "KBSTAR 200건설"),
+    ("139250.KS", "TIGER 200에너지화학"),
+    ("261240.KS", "KODEX 미국S&P500선물(H)"),
+    ("133690.KS", "TIGER 미국나스닥100"),
+    ("360750.KS", "TIGER 미국S&P500"),
+    ("381170.KS", "TIGER 미국필라델피아반도체나스닥"),
+    ("114260.KS", "KODEX 국고채3년"),
+    ("130680.KS", "TIGER 원유선물Enhanced(H)"),
+    ("132030.KS", "KODEX 골드선물(H)"),
+    ("139310.KS", "TIGER 200금융"),
+]
+
+
+def fetch_yf_kr_etf_movers(top_n=10):
+    """yfinance 로 주요 한국 ETF 30종 일일 등락률 폴백 조회.
+
+    pykrx + Naver 모두 실패 시 마지막 폴백. yfinance 는 globally accessible 하여
+    GHA IP 차단 가능성이 가장 낮음. 단, 한국 ETF 30종만 커버하므로 'Top10' 의
+    품질은 시장 전체 대비 약간 떨어질 수 있음.
+    """
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    parsed = []
+    for sym, name in YF_KR_ETF_FALLBACK:
+        try:
+            res = fetch_yf(sym)
+            if not res:
+                continue
+            code = sym.split(".")[0]
+            parsed.append({
+                "name": name,
+                "code": code,
+                "price": res.get("price"),
+                "chg": res.get("change", 0.0),
+                "as_of": today,
+            })
+        except Exception:
+            continue
+    if len(parsed) < 5:
+        log(f"[YF-ETF] 폴백 데이터 부족 ({len(parsed)}건) — 사용 불가")
+        return None, None
+    non_zero = [p for p in parsed if p["chg"] != 0]
+    if len(non_zero) < 3:
+        log(f"[YF-ETF] 등락률이 대부분 0 — 사용 불가")
+        return None, None
+    gainers = sorted(parsed, key=lambda x: x["chg"] or 0, reverse=True)[:top_n]
+    losers = sorted(parsed, key=lambda x: x["chg"] or 0)[:top_n]
+    log(f"[YF-ETF] 폴백 성공: {len(parsed)}건 (gainers/losers 각 {top_n})")
+    return gainers, losers
+
+
 # ============================================================
 # FRED API (미국 경제 지표)
 # ============================================================
@@ -1337,6 +1411,64 @@ def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None
             log(f"[R-ONE-new] {stats_id} 오류: {e}")
             continue
     return None
+
+
+def fetch_realestate_kr_ecos_fallback():
+    """R-ONE API 실패 시 ECOS 의 부동산 시리즈로 폴백.
+
+    ECOS 901Y014 — KB부동산 주택매매가격지수 (월간, 1986.1=100)
+                901Y015 — 주택전세가격지수 (KB)
+    KB 데이터는 R-ONE 과 약간 다르지만 시장 동향 파악에 충분히 유의미함.
+    R-ONE API 키 미설정 케이스에 사용자 화면이 비지 않도록 폴백.
+    """
+    if not ECOS_API_KEY:
+        return {}
+    result = {}
+    sale_candidates = [
+        ("901Y014", "AAA", "전국 주택매매가격지수 (KB)"),
+        ("901Y014", "AAA000", "전국 주택매매가격지수 (KB)"),
+        ("098Y001", "0.1.0.1", "전국 종합주택 매매가격지수 (BOK)"),
+    ]
+    for stat, item, desc in sale_candidates:
+        try:
+            r = _ecos_latest(stat, item, "M", desc, f"ECOS:{stat}")
+            if r:
+                # R-ONE 과 같은 변동률(%) 표시를 위해 prev 와 chg 계산
+                history = r.get("history", {})
+                keys = sorted(history.keys())
+                if len(keys) >= 2:
+                    prev = history[keys[-2]]
+                    cur = history[keys[-1]]
+                    r["prev"] = prev
+                    r["chg"] = round((cur - prev) / prev * 100, 2) if prev else None
+                    r["region"] = "전국"
+                result["apt_price_idx_kr"] = r
+                log(f"[RE-ECOS-fb] 매매가격 ({stat}/{item}): {r['value']}")
+                break
+        except Exception as e:
+            log(f"[RE-ECOS-fb] {stat}/{item} 오류: {e}")
+    jns_candidates = [
+        ("901Y015", "AAA", "전국 주택전세가격지수 (KB)"),
+        ("901Y015", "AAA000", "전국 주택전세가격지수 (KB)"),
+    ]
+    for stat, item, desc in jns_candidates:
+        try:
+            r = _ecos_latest(stat, item, "M", desc, f"ECOS:{stat}")
+            if r:
+                history = r.get("history", {})
+                keys = sorted(history.keys())
+                if len(keys) >= 2:
+                    prev = history[keys[-2]]
+                    cur = history[keys[-1]]
+                    r["prev"] = prev
+                    r["chg"] = round((cur - prev) / prev * 100, 2) if prev else None
+                    r["region"] = "전국"
+                result["jns_price_idx_kr"] = r
+                log(f"[RE-ECOS-fb] 전세가격 ({stat}/{item}): {r['value']}")
+                break
+        except Exception as e:
+            log(f"[RE-ECOS-fb] {stat}/{item} 오류: {e}")
+    return result
 
 
 def fetch_realestate_kr():
@@ -2836,6 +2968,20 @@ def build_data():
         if etf_down and not data["etfMovers"].get("etfLosers"):
             data["etfMovers"]["etfLosers"] = etf_down
 
+    # pykrx + Naver 모두 실패 → yfinance 폴백 (주요 한국 ETF 30종)
+    if not data["etfMovers"].get("etfGainers") or not data["etfMovers"].get("etfLosers"):
+        try:
+            yf_up, yf_down = fetch_yf_kr_etf_movers(top_n=10)
+            if yf_up and not data["etfMovers"].get("etfGainers"):
+                data["etfMovers"]["etfGainers"] = yf_up
+                data["sources"]["etfMovers"] = "yfinance (주요 한국 ETF 30종)"
+            if yf_down and not data["etfMovers"].get("etfLosers"):
+                data["etfMovers"]["etfLosers"] = yf_down
+                if not data["sources"].get("etfMovers"):
+                    data["sources"]["etfMovers"] = "yfinance (주요 한국 ETF 30종)"
+        except Exception as e:
+            log(f"[YF-ETF] 폴백 오류: {e}")
+
     # 진단 정보 — 어떤 소스가 성공/실패했는지 frontend 에서 표시 가능
     data.setdefault("diagnostics", {})
     data["diagnostics"]["stockMoversSource"] = data["sources"].get("stockMovers", "FAILED")
@@ -3004,13 +3150,29 @@ def build_data():
         log("[ECOS] API 키 없음 — 한국 지표 건너뜀")
 
     # ── R-ONE 부동산 지표 (한국부동산원) ─────────────────────
+    # R-ONE 우선 → 실패/키없음이면 ECOS KB 시리즈로 폴백 (사용자 화면 비지 않도록)
+    re_data = {}
     if REALESTATE_API_KEY:
         log("[R-ONE] 한국 부동산 지표 수집 시작")
-        re_data = fetch_realestate_kr()
-        data["realestate"]["kr"] = re_data
-        data["sources"]["realestate_kr"] = "R-ONE API (reb.or.kr)"
+        re_data = fetch_realestate_kr() or {}
+        if re_data:
+            data["sources"]["realestate_kr"] = "R-ONE API (reb.or.kr)"
+        else:
+            log("[R-ONE] API 응답이 비어있음 — ECOS 폴백 시도")
     else:
-        log("[R-ONE] API 키 없음 — 부동산 지표 건너뜀")
+        log("[R-ONE] API 키 없음 — ECOS 폴백 시도")
+    # ECOS 폴백: 매매/전세 가격지수가 모두 비어있을 때만
+    if (not re_data.get("apt_price_idx_kr")) or (not re_data.get("jns_price_idx_kr")):
+        try:
+            ecos_fb = fetch_realestate_kr_ecos_fallback()
+            for k, v in ecos_fb.items():
+                if not re_data.get(k):
+                    re_data[k] = v
+            if ecos_fb and not data["sources"].get("realestate_kr"):
+                data["sources"]["realestate_kr"] = "ECOS API (KB 부동산 시계열 폴백)"
+        except Exception as e:
+            log(f"[RE-FB] 오류: {e}")
+    data["realestate"]["kr"] = re_data
 
     # ── VKOSPI (KOSPI200 변동성 지수) — 시장 분위기 ────────
     try:
@@ -3128,11 +3290,24 @@ def build_data():
         news_data = fetch_news_all_feeds()
         if news_data:
             data["news"] = news_data
-            data["sources"]["news"] = "Google News RSS (서버측 페치)"
+            data["sources"]["news"] = "Google News RSS + Bing News + Naver (서버측 페치)"
             total = sum(len(v) for v in news_data.values()) - 1  # exclude 'lastFetched' field
             log(f"[News] 총 {total}건 기사 수집 완료")
     except Exception as e:
         log(f"[News] 수집 오류: {e}")
+
+    # ── 경제 캘린더 (FRED Release Dates) ──────────────────
+    # 매일 09:00 / 22:00 KST 트리거 — 오늘 발표될 지표를 자동 백필.
+    # 프런트엔드 calEvents (하드코드) 와 머지되어 UI 에 표시됨.
+    try:
+        log("[Calendar] 경제 캘린더 수집 시작 (FRED release dates)")
+        cal_data = fetch_economic_calendar()
+        if cal_data:
+            data["economicCalendar"] = cal_data
+            data["sources"]["economicCalendar"] = cal_data.get("source", "FRED")
+            log(f"[Calendar] 수집 완료: {len(cal_data.get('events', []))}건")
+    except Exception as e:
+        log(f"[Calendar] 수집 오류: {e}")
 
     return data
 
@@ -3433,13 +3608,82 @@ def fetch_naver_search_news(query, count=5, timeout=8):
     return out
 
 
+def fetch_bing_news_articles(query, count=5, timeout=10):
+    """Bing News RSS — Google News 차단 시 대체 소스.
+
+    Bing News RSS 는 한국어 쿼리도 지원하며 GHA 러너에서 차단 사례가 거의 없음.
+    URL 형식이 publisher 직접 링크 (redirect 없음) 라 _is_publisher_home 검증 통과율 ↑.
+    """
+    rss_url = (
+        f"https://www.bing.com/news/search?q={quote_plus(query)}"
+        f"&format=rss&setmkt=ko-KR&setlang=ko"
+    )
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml,application/xml,text/xml,*/*",
+    }
+    candidates = [
+        rss_url,
+        f"https://corsproxy.io/?{quote_plus(rss_url)}",
+        f"https://api.allorigins.win/raw?url={quote_plus(rss_url)}",
+    ]
+    xml_text = None
+    for url in candidates:
+        try:
+            r = requests.get(url, timeout=timeout, headers=headers)
+            if r.status_code == 200 and r.text and len(r.text) > 100:
+                xml_text = r.text
+                break
+        except Exception:
+            continue
+    if not xml_text:
+        return []
+    try:
+        root = ET.fromstring(xml_text.encode("utf-8") if isinstance(xml_text, str) else xml_text)
+    except Exception:
+        return []
+    out = []
+    for item in root.iter("item"):
+        title_el = item.find("title")
+        link_el = item.find("link")
+        pub_el = item.find("pubDate")
+        title = (title_el.text or "").strip() if title_el is not None else ""
+        url = (link_el.text or "").strip() if link_el is not None else ""
+        pub_date = (pub_el.text or "").strip() if pub_el is not None else ""
+        iso_date = None
+        if pub_date:
+            try:
+                from email.utils import parsedate_to_datetime
+                iso_date = parsedate_to_datetime(pub_date).strftime("%Y-%m-%d")
+            except Exception:
+                iso_date = None
+        # Bing 의 URL 은 종종 https://www.bing.com/news/apiclick.aspx?...&url=<encoded> 형태
+        # 실제 기사 URL 추출
+        m_url = re.search(r"[?&]url=(https?[^&]+)", url)
+        if m_url:
+            try:
+                from urllib.parse import unquote
+                url = unquote(m_url.group(1))
+            except Exception:
+                pass
+        if title and url and "bing.com" not in url:
+            out.append({"title": title, "url": url, "isoDate": iso_date or "", "pubDate": pub_date})
+        if len(out) >= count:
+            break
+    if out:
+        log(f"[BingNews] '{query}' {len(out)}건 수집 (1위: {out[0]['title'][:30]}…)")
+    return out
+
+
 def fetch_news_all_feeds():
     """모든 카테고리 별로 최대 5건씩 페치하여 카테고리→[articles] 매핑 반환.
 
     페치 순서 (publisher 홈페이지가 아닌 실제 기사 URL 우선):
       1) Naver Search API (originallink = publisher 직접 기사 URL, NAVER_CLIENT_ID/SECRET 있을 때)
       2) Google News RSS (직접 + CORS 프록시 폴백, URL 검증 통과한 것만)
-      3) 두 결과 합쳐 최대 5건 (publisher 홈페이지 URL 은 제외, 중복 url 제거)
+      3) Bing News RSS (Google 차단 케이스 보강 — publisher 직접 링크)
+      4) 결과 합쳐 최대 5건 (publisher 홈페이지 URL 은 제외, 중복 url 제거)
 
     실패한 카테고리는 빈 리스트로 채우고, 나머지는 전부 시도.
     """
@@ -3485,7 +3729,18 @@ def fetch_news_all_feeds():
                             break
             except Exception as e:
                 log(f"[News] Google '{cat}' 예외: {e}")
-        # 3) 그래도 부족하면 Naver Search 키워드를 좀 더 일반화해서 재시도
+        # 3) Bing News RSS 로 추가 보강 — Google/Naver 모두 실패한 케이스 회복
+        if len(articles) < 5:
+            try:
+                for ba in fetch_bing_news_articles(query, count=8):
+                    if _is_good_article_url(ba["url"]) and ba["url"] not in seen_urls:
+                        articles.append(ba)
+                        seen_urls.add(ba["url"])
+                        if len(articles) >= 5:
+                            break
+            except Exception as e:
+                log(f"[BingNews] '{cat}' 예외: {e}")
+        # 4) 그래도 부족하면 Naver Search 키워드를 좀 더 일반화해서 재시도
         if len(articles) < 3 and naver_available:
             try:
                 for na in fetch_naver_search_news(query.split()[0], count=8):
@@ -3499,6 +3754,112 @@ def fetch_news_all_feeds():
         result[cat] = articles[:5]
         _time.sleep(0.3)  # rate-limit 회피
     return result
+
+
+# ============================================================
+# 경제 캘린더 (Economic Calendar) — 매일 09:00/22:00 KST 갱신
+# ============================================================
+# 사용자 요구: 오늘 8시 이후 발표되는 지표를 매일 오전 9시 / 오후 10시에 갱신.
+# FRED 의 release dates 와 ECOS 의 발표 시리즈를 활용해 미·한 주요 발표 일정을 가져옴.
+# 프론트엔드 calEvents (하드코드) 와 머지될 수 있도록 동일 스키마 사용:
+#   {dt: 'MM.DD HH:MM', cc, name, stars, prev, fore, act, beat}
+
+# FRED 주요 release_id → (cc, 한국어 지표명, 중요도, 발표 시각 KST)
+# FRED Release IDs: https://api.stlouisfed.org/fred/releases?api_key=...
+FRED_KEY_RELEASES = {
+    10:  ("US", "미국 CPI (전월비)",          3, "21:30"),
+    11:  ("US", "미국 비농업고용(NFP)",       3, "21:30"),
+    13:  ("US", "미국 소매판매",              2, "21:30"),
+    14:  ("US", "미국 GDP",                  3, "21:30"),
+    15:  ("US", "미국 PCE 물가지수",          3, "21:30"),
+    18:  ("US", "미국 PPI",                  2, "21:30"),
+    50:  ("US", "미국 산업생산",              2, "22:15"),
+    53:  ("US", "미국 주택지표 (NAR)",        2, "23:00"),
+    101: ("US", "미국 ISM 제조업 PMI",        3, "23:00"),
+    151: ("US", "미국 FOMC 회의",            3, "03:00"),
+    175: ("US", "미국 ADP 민간고용",         2, "21:15"),
+    197: ("US", "미국 소비자심리(미시간)",     2, "23:00"),
+}
+
+
+def fetch_fred_release_dates(release_id, days_back=7, days_forward=30):
+    """FRED Release Dates API — 특정 release_id 의 최근/예정 발표일 조회.
+
+    Returns: [{"release_id": int, "date": "YYYY-MM-DD"}, ...]
+    """
+    if not FRED_API_KEY:
+        return None
+    try:
+        now = datetime.now(KST)
+        start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        end = (now + timedelta(days=days_forward)).strftime("%Y-%m-%d")
+        r = requests.get(
+            f"{FRED_BASE}/release/dates",
+            params={
+                "release_id": release_id,
+                "api_key": FRED_API_KEY,
+                "file_type": "json",
+                "realtime_start": start,
+                "realtime_end": end,
+                "include_release_dates_with_no_data": "true",
+            },
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return None
+        return r.json().get("release_dates", [])
+    except Exception as e:
+        log(f"[FRED-Cal] release_id={release_id} 오류: {e}")
+        return None
+
+
+def fetch_economic_calendar():
+    """경제 캘린더 — FRED 의 release dates 로부터 향후/최근 발표일 수집.
+
+    매일 09:00/22:00 KST 에 갱신되어 프론트엔드 calEvents 와 머지됨.
+    Returns: {"events": [{dt, cc, name, stars, ...}], "lastFetched": iso}
+    """
+    events = []
+    if not FRED_API_KEY:
+        log("[Calendar] FRED_API_KEY 없음 — 경제 캘린더 수집 건너뜀")
+        return {"events": [], "lastFetched": datetime.now(KST).isoformat(),
+                "source": "none (FRED_API_KEY 필요)"}
+    log("[Calendar] FRED release dates 수집 시작")
+    seen = set()  # 중복 제거 (dt + name)
+    for rid, (cc, name, stars, time_kst) in FRED_KEY_RELEASES.items():
+        dates = fetch_fred_release_dates(rid, days_back=14, days_forward=45)
+        if not dates:
+            continue
+        for d in dates:
+            try:
+                date_str = d.get("date", "")
+                if not date_str:
+                    continue
+                dt_iso = datetime.strptime(date_str, "%Y-%m-%d")
+                # 'MM.DD HH:MM' 형식으로 변환
+                dt_disp = f"{dt_iso.month:02d}.{dt_iso.day:02d} {time_kst}"
+                key = (dt_disp, name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                events.append({
+                    "dt": dt_disp,
+                    "cc": cc,
+                    "name": name,
+                    "stars": stars,
+                    "prev": "", "fore": "", "act": "", "beat": None,
+                    "source": f"FRED:release_id={rid}",
+                    "iso": date_str,
+                })
+            except Exception:
+                continue
+    events.sort(key=lambda e: e.get("iso", ""))
+    log(f"[Calendar] FRED release 수집 완료: {len(events)}건")
+    return {
+        "events": events,
+        "lastFetched": datetime.now(KST).isoformat(),
+        "source": "FRED release dates API",
+    }
 
 
 if __name__ == "__main__":
