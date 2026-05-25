@@ -4797,8 +4797,13 @@ function toggleNewsExpand(containerId) {
 function buildNewsFeed(containerId, items) {
   const el = document.getElementById(containerId);
   if(!el) return;
-  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
-  const recent = items.filter(n => !n.isoDate || new Date(n.isoDate).getTime() >= cutoff);
+  // 사용자 요구: 최근 1주일 이내 기사만 표시.
+  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  const recent = (items || []).filter(n => {
+    if(!n) return false;
+    if(!n.isoDate) return false;  // isoDate 없으면 노출 안 함 (구 정적 데이터 정리)
+    return new Date(n.isoDate).getTime() >= cutoff;
+  });
   renderNewsFeedWithPagination(containerId, recent);
 }
 
@@ -7140,6 +7145,7 @@ const macroIndicators = [
   {name:'실업률',cc:'🇺🇸',cat:'고용',src:'BLS (FRED: UNRATE)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.us.unemployment',fmt:v=>v?.toFixed(2)+'%'},
   {name:'기준금리 (FFR)',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: FEDFUNDS)',freq:'8회/년',unit:'% (연이율)',dataPath:'economicIndicators.us.ff_rate',fmt:v=>v?.toFixed(2)+'%'},
   {name:'M2 통화량',cc:'🇺🇸',cat:'통화',src:'연준 (FRED: M2SL)',freq:'월간',unit:'10억 USD',dataPath:'economicIndicators.us.m2_us',fmt:v=>v?.toLocaleString()},
+  {name:'산업생산지수',cc:'🇺🇸',cat:'경기',src:'Fed (FRED: INDPRO)',freq:'월간',unit:'지수 (2017=100, 계절조정)',dataPath:'economicIndicators.us.ip_us',fmt:v=>v?.toFixed(2)},
   {name:'10년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS10)',freq:'일간',unit:'% (수익률)',dataPath:'economicIndicators.us.us10y',fmt:v=>v?.toFixed(2)+'%'},
   {name:'2년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS2)',freq:'일간',unit:'% (수익률)',dataPath:'economicIndicators.us.us2y',fmt:v=>v?.toFixed(2)+'%'},
   {name:'VIX 변동성',cc:'🇺🇸',cat:'시장',src:'CBOE (FRED: VIXCLS)',freq:'일간',unit:'지수 (S&P500 30일 내재변동성)',dataPath:'economicIndicators.us.vix',fmt:v=>v?.toFixed(2)},
@@ -7193,6 +7199,7 @@ const macroIndicators = [
     link:'https://www.stat.go.jp/data/roudou/',linkLabel:'노동력조사'},
   {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (FRED)',freq:'연8회',unit:'% (할인율)',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%',
     link:'https://www.boj.or.jp/en/mopo/mpmdeci/state_all/index.htm',linkLabel:'BOJ 정책결정'},
+  {name:'산업생산지수',cc:'🇯🇵',cat:'경기',src:'OECD MEI (FRED: JPNPROINDMISMEI)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.jp.ip_jp',fmt:v=>v?.toFixed(2)},
   // 독일 (FRED 국제 시리즈)
   {name:'소비자물가지수',cc:'🇩🇪',cat:'물가',src:'Destatis (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.de.cpi_de',fmt:v=>v?.toFixed(2)},
   {name:'실질GDP',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'백만유로 (체인링크)',dataPath:'economicIndicators.de.gdp_de',fmt:v=>v?.toLocaleString()},
@@ -11821,11 +11828,27 @@ function relTime(iso) {
 
 // data.json.news 우선 적용 — 서버측에서 매일 아침 9시 KST 에 Google News RSS 로
 // 미리 페치한 기사를 카테고리(item.cat) 별로 교체.
-// 클라이언트 CORS 프록시 실패율이 높아 서버측 캐시를 우선 사용한다.
+// 검색결과 페이지/publisher 홈페이지 URL 은 제외, 1주일 이내 기사만 채택.
+function _isArticleUrlOk(url) {
+  if (!url || url === '#') return false;
+  try {
+    const u = new URL(url);
+    const host = (u.hostname || '').toLowerCase();
+    const SEARCH = ['search.naver.com','m.search.naver.com','search.daum.net','www.bing.com','news.google.com'];
+    if (SEARCH.some(h => host === h || host.endsWith('.'+h))) return false;
+    if (host.endsWith('.google.com')) return false;
+    // path 가 비어있거나 너무 짧으면 홈페이지로 간주
+    const path = (u.pathname || '').replace(/\/+$/, '');
+    if (!path || path === '' || path === '/' || path.length < 4) return false;
+  } catch(_) { return false; }
+  return true;
+}
+
 function applyServerNewsToFeeds(serverNews) {
   if (!serverNews || typeof serverNews !== 'object') return false;
   const feeds = { newsFeed:newsItems, commodityNewsFeed:commodityNewsItems,
                   macroNewsFeed:macroNewsItems, calendarNewsFeed:calendarNewsItems };
+  const cutoffMs = Date.now() - 7 * 24 * 3600 * 1000;
   let appliedCount = 0;
   for (const arr of Object.values(feeds)) {
     // 카테고리 별로 기존 항목 순서대로 서버측 기사 슬롯에 매핑
@@ -11835,8 +11858,14 @@ function applyServerNewsToFeeds(serverNews) {
       (byCat[cat] = byCat[cat] || []).push(idx);
     });
     Object.entries(byCat).forEach(([cat, idxList]) => {
-      const fresh = serverNews[cat];
-      if (!Array.isArray(fresh) || !fresh.length) return;
+      const fresh = (serverNews[cat] || []).filter(a => {
+        if (!a || !a.url) return false;
+        if (!_isArticleUrlOk(a.url)) return false;
+        if (!a.isoDate) return false;  // 날짜 없는 기사 제외 (cutoff 확실치 않음)
+        const t = new Date(a.isoDate).getTime();
+        return t >= cutoffMs;
+      });
+      if (!fresh.length) return;
       idxList.forEach((slotIdx, i) => {
         const article = fresh[i];
         if (!article || !article.url) return;
@@ -11846,9 +11875,16 @@ function applyServerNewsToFeeds(serverNews) {
         arr[slotIdx].time  = article.isoDate ? relTime(article.isoDate) : '오늘';
         appliedCount++;
       });
+      // 남는 슬롯은 isoDate 를 비워 buildNewsFeed 의 7일 필터로 자연스레 숨겨짐
+      for (let j = fresh.length; j < idxList.length; j++) {
+        const oldItem = arr[idxList[j]];
+        if (oldItem && /search\.naver\.com|search\.daum|google\.com/i.test(oldItem.url || '')) {
+          oldItem.isoDate = '';  // 빈 isoDate → buildNewsFeed 가 제외
+        }
+      }
     });
   }
-  if (appliedCount > 0) console.info(`[News] data.json 서버측 뉴스 ${appliedCount}건 적용`);
+  if (appliedCount > 0) console.info(`[News] data.json 서버측 뉴스 ${appliedCount}건 적용 (7일 이내, 실기사 URL)`);
   return appliedCount > 0;
 }
 
