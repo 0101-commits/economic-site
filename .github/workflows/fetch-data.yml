@@ -76,6 +76,13 @@ jobs:
           # https://developers.naver.com/apps/ 에서 발급, 일 25,000회 무료
           NAVER_CLIENT_ID:    ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          # Alpha Vantage API — 미국 경제지표/원자재/FX 보강 (일 25회 한도)
+          # https://www.alphavantage.co/support/#api-key 에서 발급
+          # Secrets 미설정 시 코드의 기본 키가 사용됨 (개인 발급 키).
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+          # 일일 갱신 트리거 (KST 09:00/22:00) 시점에 Alpha Vantage 보강을 강제 활성화.
+          # 매시간 cron 에서는 기본 비활성 (rate-limit 보호). 코드 자동 감지도 있음.
+          AV_FETCH_FULL: ${{ (github.event.schedule == '0 0 * * *' || github.event.schedule == '0 13 * * *') && '1' || '' }}
         run: python scripts/fetch_data.py
 
       - name: Commit and push data.json

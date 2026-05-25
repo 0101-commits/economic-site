@@ -34,8 +34,13 @@ KIS_TOKEN_FILE = os.environ.get("KIS_TOKEN_FILE", ".kis_token_cache.json")
 KRX_API_KEY       = os.environ.get("KRX_API_KEY",       "").strip()
 FRED_API_KEY      = os.environ.get("FRED_API_KEY",      "").strip()
 ECOS_API_KEY      = os.environ.get("ECOS_API_KEY",      "").strip()
-REALESTATE_API_KEY= os.environ.get("REALESTATE_API_KEY","").strip()
+# R-ONE (한국부동산원) — Secrets 미설정 시에도 동작하도록 사용자 발급 키 기본값 제공.
+# 운영 시에는 GitHub Secrets 의 REALESTATE_API_KEY 가 우선되어 덮어쓰임.
+REALESTATE_API_KEY= os.environ.get("REALESTATE_API_KEY","2e3efb261b524b8eacde37220a909655").strip()
 KOSIS_API_KEY     = os.environ.get("KOSIS_API_KEY",     "").strip()
+# 신규: Alpha Vantage API — 미국 경제지표/원자재/FX 보강. Secrets ALPHAVANTAGE_API_KEY 권장.
+# 일 25회/분당 5회 무료 한도 → 매 시간 호출은 피하고 09:00/22:00 KST 일일 갱신에서만 사용.
+ALPHAVANTAGE_API_KEY = os.environ.get("ALPHAVANTAGE_API_KEY", "I5A35AT34LHERWYR").strip()
 # 신규: 공공데이터포털 통합 키 (data.go.kr) — 국토부 실거래가, 금융위 시세, KOTRA, KOSIS 등 50+ 서비스
 DATA_GO_KR_API_KEY= os.environ.get("DATA_GO_KR_API_KEY","").strip()
 # 신규: 한국수출입은행 환율·금리 (KOREAEXIM)
@@ -63,6 +68,8 @@ RONE_BASE_LEGACY = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/
 KOSIS_BASE   = "https://kosis.kr/openapi/statisticsData.do"
 DATA_GO_KR_BASE = "http://apis.data.go.kr"
 EXIM_BASE       = "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON"
+ALPHAVANTAGE_BASE = "https://www.alphavantage.co/query"
+BOE_IADB_BASE     = "https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp"
 
 FALLBACK = {
     "fx": {
@@ -1140,6 +1147,293 @@ def fetch_fred_realestate_us():
             log(f"[FRED-RE] {key}: 모든 후보 실패")
     log(f"[FRED-RE] 미국 부동산: {len(result)}/{len(indicators)} 지표 수집됨")
     return result
+
+
+# ============================================================
+# Alpha Vantage — 미국 경제지표/원자재/FX 보강 (무료 25 req/day)
+# ============================================================
+# 일 한도가 작아 매 시간 호출은 비효율. 보강용으로 핵심 지표만 페치.
+# 호출 정책: FRED 가 비어있거나 부정확한 경우의 보강용 + UK/PMI 등 FRED 가 약한 항목.
+
+def fetch_av_json(params, timeout=15):
+    """Alpha Vantage 공통 호출 헬퍼."""
+    if not ALPHAVANTAGE_API_KEY:
+        return None
+    try:
+        params = dict(params)
+        params["apikey"] = ALPHAVANTAGE_API_KEY
+        r = requests.get(ALPHAVANTAGE_BASE, params=params, timeout=timeout)
+        if r.status_code != 200:
+            log(f"[AV] HTTP {r.status_code} func={params.get('function')}")
+            return None
+        try:
+            data = r.json()
+        except ValueError:
+            log(f"[AV] JSON parse 실패 func={params.get('function')}")
+            return None
+        # AV rate-limit/error message 감지
+        if isinstance(data, dict):
+            if "Note" in data:
+                log(f"[AV] rate-limit/note: {str(data.get('Note'))[:120]}")
+                return None
+            if "Information" in data and len(data) <= 2:
+                log(f"[AV] info-only response: {str(data.get('Information'))[:120]}")
+                return None
+            if "Error Message" in data:
+                log(f"[AV] error: {data.get('Error Message')}")
+                return None
+        return data
+    except Exception as e:
+        log(f"[AV] {params.get('function')} 예외: {e}")
+        return None
+
+
+# Alpha Vantage 의 economic indicator endpoint 들 — 모두 US 지표
+# 각 항목: (AV function name, interval, 한국어 desc, key 명)
+AV_US_ECONOMIC = [
+    ("REAL_GDP",            "quarterly", "미국 실질 GDP (전기비 연환산)",     "av_real_gdp"),
+    ("CPI",                 "monthly",   "미국 CPI (Alpha Vantage)",          "av_cpi"),
+    ("INFLATION",           None,        "미국 인플레이션 (연간)",            "av_inflation"),
+    ("RETAIL_SALES",        None,        "미국 소매판매 (백만USD)",          "av_retail_sales"),
+    ("DURABLES",            None,        "미국 내구재 수주 (백만USD)",       "av_durables"),
+    ("UNEMPLOYMENT",        None,        "미국 실업률 (Alpha Vantage)",       "av_unemployment"),
+    ("NONFARM_PAYROLL",     None,        "미국 비농업고용 (Alpha Vantage)",   "av_nfp"),
+    ("FEDERAL_FUNDS_RATE",  "monthly",   "미국 FF금리 (Alpha Vantage)",       "av_ff_rate"),
+]
+
+
+def fetch_av_us_economic():
+    """Alpha Vantage 미국 경제지표 — FRED 와 cross-check 및 빈 항목 보강."""
+    if not ALPHAVANTAGE_API_KEY:
+        return {}
+    out = {}
+    for func, interval, desc, key in AV_US_ECONOMIC:
+        params = {"function": func}
+        if interval: params["interval"] = interval
+        data = fetch_av_json(params)
+        if not data or not isinstance(data, dict):
+            continue
+        series = data.get("data") or []
+        if not series:
+            continue
+        # AV 응답: data:[{date,value},...] (최신이 앞 또는 뒤일 수 있음 → 정렬 후 사용)
+        try:
+            series_sorted = sorted([s for s in series if s.get("date") and s.get("value")],
+                                   key=lambda s: s["date"])
+            if not series_sorted:
+                continue
+            latest = series_sorted[-1]
+            val = _parse_num(latest.get("value"))
+            if val is None:
+                continue
+            history = {s["date"]: _parse_num(s["value"]) for s in series_sorted if _parse_num(s["value"]) is not None}
+            out[key] = {
+                "value":   val,
+                "period":  latest["date"],
+                "desc":    desc,
+                "source":  f"AlphaVantage:{func}",
+                "history": history,
+            }
+            log(f"[AV] {func}: {val} ({latest['date']}) +{len(history)}점")
+        except Exception as e:
+            log(f"[AV] {func} 파싱 오류: {e}")
+        _time.sleep(13)  # AV 분당 5회 → 안전 마진 12초
+    return out
+
+
+def fetch_av_commodity(function):
+    """Alpha Vantage 원자재 가격 (WTI, BRENT, NATURAL_GAS, COPPER, ALUMINUM 등)."""
+    if not ALPHAVANTAGE_API_KEY:
+        return None
+    data = fetch_av_json({"function": function, "interval": "daily"})
+    if not data or not isinstance(data, dict):
+        return None
+    series = data.get("data") or []
+    if not series:
+        return None
+    try:
+        series_sorted = sorted([s for s in series if s.get("date") and s.get("value") and str(s["value"]) != "."],
+                               key=lambda s: s["date"])
+        if len(series_sorted) < 2:
+            return None
+        latest = series_sorted[-1]
+        prev = series_sorted[-2]
+        cur = _parse_num(latest.get("value"))
+        pv  = _parse_num(prev.get("value"))
+        if cur is None or pv is None or pv == 0:
+            return None
+        chg = round((cur - pv) / pv * 100, 2)
+        return {
+            "price":  round(cur, 4),
+            "change": chg,
+            "period": latest["date"],
+            "source": f"AlphaVantage:{function}",
+        }
+    except Exception as e:
+        log(f"[AV] {function} 파싱 오류: {e}")
+        return None
+
+
+def fetch_av_fx(from_sym, to_sym):
+    """Alpha Vantage 실시간 환율 (CURRENCY_EXCHANGE_RATE)."""
+    if not ALPHAVANTAGE_API_KEY:
+        return None
+    data = fetch_av_json({
+        "function": "CURRENCY_EXCHANGE_RATE",
+        "from_currency": from_sym,
+        "to_currency":   to_sym,
+    })
+    if not data:
+        return None
+    try:
+        node = data.get("Realtime Currency Exchange Rate", {})
+        rate = _parse_num(node.get("5. Exchange Rate"))
+        if rate is None:
+            return None
+        return {
+            "rate":   round(rate, 4),
+            "source": "AlphaVantage:CURRENCY_EXCHANGE_RATE",
+            "time":   node.get("6. Last Refreshed"),
+        }
+    except Exception:
+        return None
+
+
+# ============================================================
+# Bank of England — 영국 기준금리 (BOE Bank Rate) 직접 페치 (키 불필요)
+# ============================================================
+def fetch_boe_bank_rate():
+    """BoE IADB API 로 영국 Bank Rate (시리즈 IUMABEDR) 페치.
+
+    1차: FRED OECD 시리즈 IRSTCB01GBM156N (구버전, 일부 시기 누락 가능)
+    2차: Bank of England 의 IADB CSV (실시간 정책금리)
+    3차: Alpha Vantage 가 영국 직접 지원이 없으므로 미사용
+
+    Returns: {"value", "period", "desc", "source", "history"} 또는 None
+    """
+    # 1차: BoE IADB (가장 신뢰도 높음)
+    try:
+        now = datetime.now(KST)
+        params = {
+            "csv.x":       "yes",
+            "Datefrom":    "01/Jan/2018",
+            "Dateto":      now.strftime("%d/%b/%Y"),
+            "SeriesCodes": "IUMABEDR",   # Official Bank Rate
+            "UsingCodes":  "Y",
+            "CSVF":        "TT",         # TT = Tidy Time-series
+            "VPD":         "Y",
+        }
+        r = requests.get(BOE_IADB_BASE, params=params, timeout=20,
+                         headers={"User-Agent": "Mozilla/5.0 (economic-site fetch)"})
+        if r.status_code == 200 and r.text and "," in r.text:
+            lines = [ln for ln in r.text.strip().splitlines() if ln.strip()]
+            history = {}
+            for ln in lines[1:]:  # skip header
+                parts = ln.split(",")
+                if len(parts) < 2: continue
+                date_s = parts[0].strip().strip('"')
+                val_s  = parts[1].strip().strip('"')
+                v = _parse_num(val_s)
+                if v is None: continue
+                # 'DD Mon YYYY' → 'YYYY-MM-DD'
+                try:
+                    dt_obj = datetime.strptime(date_s, "%d %b %Y")
+                    history[dt_obj.strftime("%Y-%m-%d")] = v
+                except ValueError:
+                    try:
+                        dt_obj = datetime.strptime(date_s, "%d/%m/%Y")
+                        history[dt_obj.strftime("%Y-%m-%d")] = v
+                    except ValueError:
+                        continue
+            if history:
+                keys = sorted(history.keys())
+                latest = keys[-1]
+                log(f"[BoE] Bank Rate (IUMABEDR): {history[latest]}% ({latest}) +{len(history)}점")
+                return {
+                    "value":   history[latest],
+                    "period":  latest,
+                    "desc":    "영국 BOE 정책금리 (Bank Rate)",
+                    "source":  "BoE IADB:IUMABEDR",
+                    "history": history,
+                }
+    except Exception as e:
+        log(f"[BoE] IADB 오류: {e}")
+
+    # 2차: FRED OECD 시리즈 (월간 평균, 최신성 떨어질 수 있음)
+    try:
+        obs = fetch_fred_series("IRSTCB01GBM156N", limit=60)
+        if obs:
+            history = {o["date"]: o["value"] for o in obs}
+            latest = obs[0]
+            log(f"[BoE-FRED] 폴백: IRSTCB01GBM156N {latest['value']} ({latest['date']})")
+            return {
+                "value":   latest["value"],
+                "period":  latest["date"],
+                "desc":    "영국 BOE 정책금리 (FRED 폴백)",
+                "source":  "FRED:IRSTCB01GBM156N",
+                "history": history,
+            }
+    except Exception as e:
+        log(f"[BoE-FRED] 폴백 오류: {e}")
+
+    return None
+
+
+# ============================================================
+# PMI 지표 — 국가별 제조업 PMI (OECD BSCICP02 시리즈 via FRED)
+# ============================================================
+# OECD Business Tendency Surveys 의 Manufacturing PMI 와 동일/유사한 diffusion index.
+# 기준 50 → 확장/위축 시그널. S&P Global PMI 와 직접 일치하진 않으나 트렌드 동조.
+# 한국 PMI 는 ECOS 의 기업경기실사지수(BSI)로 보강 — 한국은행 공식 데이터.
+PMI_FRED_SERIES = {
+    "us": ("BSCICP02USM460S", "미국 제조업 경기지수 (OECD CLI 기반)"),
+    "jp": ("BSCICP02JPM460S", "일본 제조업 경기지수 (OECD CLI 기반)"),
+    "eu": ("BSCICP02EZM460S", "유로존 제조업 경기지수 (OECD CLI 기반)"),
+    "uk": ("BSCICP02GBM460S", "영국 제조업 경기지수 (OECD CLI 기반)"),
+    "de": ("BSCICP02DEM460S", "독일 제조업 경기지수 (OECD CLI 기반)"),
+    "cn": ("BSCICP02CNM460S", "중국 제조업 경기지수 (OECD CLI 기반)"),
+    "kr": ("BSCICP02KRM460S", "한국 제조업 경기지수 (OECD CLI 기반)"),
+}
+
+
+def fetch_pmi_indicators():
+    """국가별 제조업 PMI(또는 동등 BSCICP02) 일괄 페치.
+
+    Returns: {cc: {"pmi_cc": {value, period, desc, source, history}}}
+    """
+    if not FRED_API_KEY:
+        log("[PMI] FRED_API_KEY 없음 — PMI 수집 건너뜀")
+        return {}
+    out = {}
+    for cc, (series_id, desc) in PMI_FRED_SERIES.items():
+        try:
+            obs = fetch_fred_series(series_id, limit=60)
+            if not obs:
+                log(f"[PMI:{cc.upper()}] {series_id}: 데이터 없음")
+                continue
+            history = {o["date"]: o["value"] for o in obs}
+            out.setdefault(cc, {})[f"pmi_{cc}"] = {
+                "value":   obs[0]["value"],
+                "period":  obs[0]["date"],
+                "desc":    desc,
+                "source":  f"FRED:{series_id} (OECD)",
+                "history": history,
+            }
+            log(f"[PMI:{cc.upper()}] {series_id}: {obs[0]['value']:.1f} ({obs[0]['date']})")
+        except Exception as e:
+            log(f"[PMI:{cc.upper()}] {series_id} 오류: {e}")
+    # 한국 PMI 보강: ECOS BSI 제조업 (기업경기실사지수)
+    if ECOS_API_KEY:
+        try:
+            # 511Y003: 기업경기실사지수 (BSI) - 제조업 종합 / 업황실적
+            bsi = _ecos_latest("511Y003", "AX1AA", "M",
+                               "한국 제조업 BSI (한국은행)", "511Y003")
+            if bsi:
+                out.setdefault("kr", {})["pmi_kr_bsi"] = bsi
+                log(f"[PMI:KR-BSI] 511Y003: {bsi['value']} ({bsi['period']})")
+        except Exception as e:
+            log(f"[PMI:KR-BSI] 오류: {e}")
+    return out
 
 
 # ============================================================
@@ -3118,8 +3412,70 @@ def build_data():
             data["economicIndicators"][cc] = ind
         if intl_data:
             data["sources"]["economicIndicators_intl"] = "FRED API (OECD/IMF/Eurostat 시리즈)"
+
+        # PMI 지표 — 국가별 제조업 PMI (OECD BSCICP02 via FRED)
+        log("[PMI] 국가별 제조업 PMI 수집 시작")
+        try:
+            pmi_data = fetch_pmi_indicators()
+            for cc, ind in pmi_data.items():
+                data["economicIndicators"].setdefault(cc, {}).update(ind)
+            if pmi_data:
+                data["sources"]["pmi"] = "FRED OECD BSCICP02 시리즈 + ECOS BSI (한국)"
+        except Exception as e:
+            log(f"[PMI] 수집 오류: {e}")
+
+        # UK BOE Bank Rate 보강 (FRED IRSTCB01GBM156N 가 누락된 경우)
+        try:
+            uk_node = data["economicIndicators"].get("uk", {}) or {}
+            if not (uk_node.get("base_rate_uk") or {}).get("value"):
+                log("[BoE] UK base_rate_uk 누락 → Bank of England IADB 직접 페치")
+                boe = fetch_boe_bank_rate()
+                if boe:
+                    data["economicIndicators"].setdefault("uk", {})["base_rate_uk"] = boe
+                    data["sources"]["uk_base_rate"] = boe.get("source", "BoE IADB")
+        except Exception as e:
+            log(f"[BoE] 보강 오류: {e}")
     else:
         log("[FRED] API 키 없음 — 미국 지표 건너뜀")
+
+    # ── Alpha Vantage 보강 (미국 지표 cross-check + 원자재 보강) ──
+    # 일 25회 한도라 09:00/22:00 KST 일일 갱신 시점에만 호출.
+    # AV_FETCH_FULL=1 환경변수가 있거나 매시간 cron 이 아닌 일일 트리거인 경우 활성.
+    av_mode = os.environ.get("AV_FETCH_FULL", "").strip()
+    now_hour_utc = datetime.now(timezone.utc).hour
+    # UTC 00:00 (KST 09:00) 또는 UTC 13:00 (KST 22:00) ±30분 윈도우면 자동 활성
+    is_daily_window = now_hour_utc in (0, 13)
+    if ALPHAVANTAGE_API_KEY and (av_mode in ("1", "true", "yes") or is_daily_window):
+        log(f"[AV] Alpha Vantage 보강 모드 활성 (hour_utc={now_hour_utc}, mode={av_mode or 'auto'})")
+        try:
+            av_us = fetch_av_us_economic()
+            if av_us:
+                data["economicIndicators"].setdefault("us", {}).update(av_us)
+                data["sources"]["av_us"] = "Alpha Vantage (US 경제지표 cross-check)"
+                log(f"[AV] US 지표 {len(av_us)}개 보강")
+        except Exception as e:
+            log(f"[AV] US 보강 오류: {e}")
+        # 원자재 보강 — WTI/BRENT/COPPER/ALUMINUM 의 일일 가격
+        try:
+            for func, key in [("WTI", "WTI"), ("BRENT", "Brent"),
+                              ("COPPER", "Copper"), ("ALUMINUM", "Aluminum"),
+                              ("NATURAL_GAS", "NaturalGas")]:
+                # 기존 가격이 비어있거나 변동률이 0인 경우만 보강
+                cur = data.get("commodities", {}).get(key) or {}
+                if cur.get("price") and cur.get("change", 0) != 0:
+                    continue
+                av_com = fetch_av_commodity(func)
+                if av_com:
+                    data.setdefault("commodities", {})[key] = {
+                        "price":  av_com["price"],
+                        "change": av_com["change"],
+                    }
+                    data["sources"].setdefault(f"commodity_{key}", av_com["source"])
+                    log(f"[AV] {key} ({func}): {av_com['price']} ({av_com['change']:+.2f}%)")
+        except Exception as e:
+            log(f"[AV] 원자재 보강 오류: {e}")
+    else:
+        log(f"[AV] 보강 비활성 (현재시각 KST 09/22시 ±30분 또는 AV_FETCH_FULL=1 시 활성)")
 
     # ── ECOS 경제 지표 (한국은행) ─────────────────────────────
     if ECOS_API_KEY:
@@ -3303,9 +3659,17 @@ def build_data():
         log("[Calendar] 경제 캘린더 수집 시작 (FRED release dates)")
         cal_data = fetch_economic_calendar()
         if cal_data:
+            # 서버측 자동 백필 — 과거 이벤트의 prev/fore/act 값을 economicIndicators 에서 채움
+            try:
+                events = cal_data.get("events", []) or []
+                filled = backfill_calendar_actuals(events, data)
+                cal_data["events"] = events
+                cal_data["backfilled"] = filled
+            except Exception as e:
+                log(f"[Calendar] 백필 오류: {e}")
             data["economicCalendar"] = cal_data
             data["sources"]["economicCalendar"] = cal_data.get("source", "FRED")
-            log(f"[Calendar] 수집 완료: {len(cal_data.get('events', []))}건")
+            log(f"[Calendar] 수집 완료: {len(cal_data.get('events', []))}건 (백필 {cal_data.get('backfilled',0)})")
     except Exception as e:
         log(f"[Calendar] 수집 오류: {e}")
 
@@ -3779,7 +4143,173 @@ FRED_KEY_RELEASES = {
     151: ("US", "미국 FOMC 회의",            3, "03:00"),
     175: ("US", "미국 ADP 민간고용",         2, "21:15"),
     197: ("US", "미국 소비자심리(미시간)",     2, "23:00"),
+    # 확장: 노동·주택·소비 부수 지표 (중요도 2)
+    23:  ("US", "미국 신규 실업수당청구",      2, "21:30"),
+    24:  ("US", "미국 주택허가/착공",          2, "21:30"),
+    175: ("US", "미국 ADP 민간고용",         2, "21:15"),
+    386: ("US", "미국 ISM 서비스 PMI",        3, "23:00"),
 }
+
+# 캘린더 이벤트 → data["economicIndicators"] 경로 매핑.
+# 서버측 자동 백필 (auto-backfill calendar actuals) 에서 사용.
+# 각 항목: (dotted-path, "fmt" 함수, lower_is_positive?)
+# - fmt: "pct1" = "%.1f%%", "pct2" = "%.2f%%", "raw1" = "%.1f", "k" = "%dK"
+# - lower_is_positive: True 면 act < fore 가 긍정 (CPI/실업률), False/None 이면 act > fore
+CALENDAR_INDICATOR_MAP = {
+    # 한국
+    "한국은행 금통위 회의":   ("economicIndicators.kr.base_rate_kr", "pct2", False),
+    "한국 소비자물가지수(CPI)": ("economicIndicators.kr.cpi_kr", "raw2", True),
+    "한국 5월 소비자물가(CPI)": ("economicIndicators.kr.cpi_kr", "raw2", True),
+    "한국 1분기 GDP (확정)":  ("economicIndicators.kr.gdp_kr", "pct1", False),
+    "한국 수출입 동향":       ("economicIndicators.kr.exports_kr", "pct1", False),
+    "한국 5월 수출입 동향":   ("economicIndicators.kr.exports_kr", "pct1", False),
+    "한국 산업생산지수":      ("economicIndicators.kr.ip_kr", "pct1", False),
+    "한국 제조업 PMI":        ("economicIndicators.kr.pmi_kr", "raw1", False),
+    # 미국
+    "미국 CPI (전월비)":      ("economicIndicators.us.cpi_us", "pct1", True),
+    "미국 CPI (전년비)":      ("economicIndicators.us.cpi_us", "pct1", True),
+    "미국 PCE 물가지수":      ("economicIndicators.us.pce_us", "pct1", True),
+    "미국 실업률":            ("economicIndicators.us.unemployment", "pct1", True),
+    "미국 FOMC 회의":         ("economicIndicators.us.ff_rate", "pct2", False),
+    "미국 1분기 GDP (2차)":   ("economicIndicators.us.gdp_us", "pct1", False),
+    "미국 비농업고용(NFP)":   ("economicIndicators.us.av_nfp", "k", False),
+    "미국 PPI":               ("economicIndicators.us.cpi_us", "pct1", True),
+    "미국 ISM 제조업 PMI":    ("economicIndicators.us.pmi_us", "raw1", False),
+    "미국 ISM 서비스 PMI":    ("economicIndicators.us.pmi_us", "raw1", False),
+    "미국 소매판매":          ("economicIndicators.us.av_retail_sales", "pct1", False),
+    "미국 ADP 민간고용":      ("economicIndicators.us.av_nfp", "k", False),
+    "미국 신규 실업수당청구": ("economicIndicators.us.unemployment", "pct1", True),
+    # 유로존
+    "유로존 CPI (전년비)":    ("economicIndicators.eu.cpi_eu", "raw2", True),
+    "ECB 통화정책회의":       ("economicIndicators.eu.base_rate_eu", "pct2", False),
+    "유로존 제조업 PMI":      ("economicIndicators.eu.pmi_eu", "raw1", False),
+    # 일본
+    "일본 GDP (전기비)":      ("economicIndicators.jp.gdp_jp", "pct1", False),
+    "일본 BOJ 금리결정":      ("economicIndicators.jp.base_rate_jp", "pct2", False),
+    "일본 제조업 PMI":        ("economicIndicators.jp.pmi_jp", "raw1", False),
+    # 중국
+    "중국 CPI (전년비)":      ("economicIndicators.cn.cpi_cn", "raw2", True),
+    "중국 제조업 PMI":        ("economicIndicators.cn.pmi_cn", "raw1", False),
+    # 영국
+    "영국 BOE 금리결정":      ("economicIndicators.uk.base_rate_uk", "pct2", False),
+    "영국 CPI (전년비)":      ("economicIndicators.uk.cpi_uk", "raw2", True),
+    "영국 제조업 PMI":        ("economicIndicators.uk.pmi_uk", "raw1", False),
+    # 독일
+    "독일 CPI":               ("economicIndicators.de.cpi_de", "raw2", True),
+    "독일 제조업 PMI":        ("economicIndicators.de.pmi_de", "raw1", False),
+}
+
+
+def _fmt_indicator(val, fmt):
+    """캘린더용 값 포맷터."""
+    if val is None:
+        return ""
+    try:
+        if fmt == "pct1":
+            sign = "+" if val >= 0 else ""
+            return f"{sign}{val:.1f}%"
+        if fmt == "pct2":
+            return f"{val:.2f}%"
+        if fmt == "raw1":
+            return f"{val:.1f}"
+        if fmt == "raw2":
+            return f"{val:.2f}"
+        if fmt == "k":
+            return f"{int(round(val))}K"
+        return f"{val}"
+    except (ValueError, TypeError):
+        return ""
+
+
+def _get_by_path(obj, path):
+    """dotted path 로 중첩 dict 접근."""
+    if not obj: return None
+    cur = obj
+    for k in path.split("."):
+        if isinstance(cur, dict):
+            cur = cur.get(k)
+        else:
+            return None
+        if cur is None:
+            return None
+    return cur
+
+
+def backfill_calendar_actuals(events, data):
+    """서버측 캘린더 백필 — 과거 발표 이벤트의 prev/fore/act 자동 채움.
+
+    각 이벤트 (iso 날짜) 에 대해 CALENDAR_INDICATOR_MAP 으로 지표 노드를 찾고,
+    history 에서 발표일 ≤ ISO 인 가장 최근 값을 act, 그 직전을 prev 로 채움.
+    프론트엔드의 autoBackfillCalendarActuals 와 동일 로직이나, 서버측에서 미리 처리해
+    클라이언트 부담을 줄이고 화면의 '예정' 비어있는 문제를 해소.
+    """
+    if not events or not data:
+        return 0
+    today_iso = datetime.now(KST).strftime("%Y-%m-%d")
+    filled = 0
+    for ev in events:
+        try:
+            if ev.get("act"):
+                continue
+            iso = ev.get("iso", "")
+            if not iso:
+                continue
+            if iso > today_iso:
+                continue  # 미래 이벤트는 그대로
+            name = ev.get("name", "")
+            mp = CALENDAR_INDICATOR_MAP.get(name)
+            if not mp:
+                continue
+            path, fmt_id, _lower_pos = mp
+            node = _get_by_path(data, path)
+            if not node or not isinstance(node, dict):
+                continue
+            history = node.get("history") or {}
+            if not history:
+                # history 없으면 최신값으로 act 만 채움
+                v = node.get("value")
+                if v is not None:
+                    ev["act"] = _fmt_indicator(v, fmt_id)
+                    filled += 1
+                continue
+            # history 키 = "YYYY-MM" or "YYYY-MM-DD" or "YYYYMM"
+            iso_yyyy_mm = iso[:7]  # YYYY-MM
+            keys_sorted = sorted(history.keys())
+            # 이벤트일 이전(이하) 의 최근 키 = act, 그 전 = prev
+            recent_keys = [k for k in keys_sorted if k <= iso or k <= iso_yyyy_mm or k.replace("-","") <= iso.replace("-","")]
+            if not recent_keys:
+                continue
+            act_key = recent_keys[-1]
+            prev_key = recent_keys[-2] if len(recent_keys) >= 2 else None
+            act_v = history.get(act_key)
+            prev_v = history.get(prev_key) if prev_key else None
+            if act_v is not None:
+                ev["act"] = _fmt_indicator(act_v, fmt_id)
+                if not ev.get("prev") and prev_v is not None:
+                    ev["prev"] = _fmt_indicator(prev_v, fmt_id)
+                # forecast 가 비어있으면 prev 와 동일하게 둠 (보수적 추정)
+                if not ev.get("fore") and prev_v is not None:
+                    ev["fore"] = _fmt_indicator(prev_v, fmt_id)
+                # beat 계산
+                try:
+                    fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", "").replace("K", ""))
+                    act_num  = float(act_v)
+                    if fore_num is not None:
+                        if abs(act_num - fore_num) < 0.05:
+                            ev["beat"] = 0
+                        elif name and any(x in name for x in ("CPI", "PPI", "물가", "실업", "미분양")):
+                            ev["beat"] = 1 if act_num < fore_num else -1
+                        else:
+                            ev["beat"] = 1 if act_num > fore_num else -1
+                except (ValueError, TypeError):
+                    pass
+                filled += 1
+        except Exception as e:
+            log(f"[Cal-Backfill] {ev.get('name','?')} 오류: {e}")
+            continue
+    if filled:
+        log(f"[Cal-Backfill] {filled}/{len(events)}개 이벤트 prev/act 자동 채움 완료")
+    return filled
 
 
 def fetch_fred_release_dates(release_id, days_back=7, days_forward=30):
