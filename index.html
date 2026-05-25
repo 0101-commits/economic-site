@@ -7126,7 +7126,8 @@ const macroIndicators = [
   {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'수출',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v?.toLocaleString()},
   {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
-  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'S&P Global',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'OECD (FRED BSCICP02KRM460S) · ECOS BSI 보조',freq:'월간',unit:'지수 (50기준)',
+    dataPath:'economicIndicators.kr.pmi_kr',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.ip_kr',fmt:v=>v?.toFixed(2)},
   {name:'소매판매액지수',cc:'🇰🇷',cat:'소비',src:'KOSIS (통계청) · ECOS 보조',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.retail_kr',fmt:v=>v?.toFixed(2),
@@ -7157,24 +7158,31 @@ const macroIndicators = [
   {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
   {name:'GDP',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'USD (총액)',dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v?.toLocaleString()},
   {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
-  {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'NBS',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'OECD (FRED BSCICP02CNM460S)',freq:'월간',unit:'지수 (50기준)',
+    dataPath:'economicIndicators.cn.pmi_cn',fmt:v=>v?.toFixed(1),
     link:'http://www.stats.gov.cn/english/PressRelease/',linkLabel:'NBS 발표문'},
   // 일본 (link 보강)
-  {name:'제조업 PMI',cc:'🇯🇵',cat:'경기',src:'au Jibun Bank / S&P Global',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 PMI',cc:'🇯🇵',cat:'경기',src:'OECD (FRED BSCICP02JPM460S)',freq:'월간',unit:'지수 (50기준)',
+    dataPath:'economicIndicators.jp.pmi_jp',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 미국 (link 보강)
-  {name:'제조업 PMI',cc:'🇺🇸',cat:'경기',src:'S&P Global / ISM',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 PMI',cc:'🇺🇸',cat:'경기',src:'OECD (FRED BSCICP02USM460S) · ISM',freq:'월간',unit:'지수 (50기준)',
+    dataPath:'economicIndicators.us.pmi_us',fmt:v=>v?.toFixed(1),
     link:'https://www.ismworld.org/supply-management-news-and-reports/reports/ism-report-on-business/',linkLabel:'ISM PMI 보고서'},
   // 유로존
-  {name:'제조업 PMI',cc:'🇪🇺',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 PMI',cc:'🇪🇺',cat:'경기',src:'OECD (FRED BSCICP02EZM460S)',freq:'월간',unit:'지수 (50기준)',
+    dataPath:'economicIndicators.eu.pmi_eu',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   {name:'서비스업 PMI',cc:'🇪🇺',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (50기준)',
+    dataPath:'economicIndicators.eu.pmi_eu',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 영국
-  {name:'제조업 PMI',cc:'🇬🇧',cat:'경기',src:'S&P Global / CIPS',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 PMI',cc:'🇬🇧',cat:'경기',src:'OECD (FRED BSCICP02GBM460S) · CIPS',freq:'월간',unit:'지수 (50기준)',
+    dataPath:'economicIndicators.uk.pmi_uk',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 독일
-  {name:'제조업 PMI',cc:'🇩🇪',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 PMI',cc:'🇩🇪',cat:'경기',src:'OECD (FRED BSCICP02DEM460S)',freq:'월간',unit:'지수 (50기준)',
+    dataPath:'economicIndicators.de.pmi_de',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 일본 (FRED 국제 시리즈)
   {name:'실질GDP (분기)',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'10억엔 (체인링크)',dataPath:'economicIndicators.jp.gdp_jp',fmt:v=>v?.toLocaleString(),
@@ -7975,6 +7983,20 @@ function autoBackfillCalendarActuals() {
     '일본 BOJ 금리결정':           { node: ecoJp.base_rate_jp, fmt: v=> v.toFixed(2)+'%' },
     '중국 CPI (전년비)':           { node: ecoCn.cpi_cn, fmt: v=> v.toFixed(1)+'%' },
     '영국 BOE 금리결정':           { node: ecoUk.base_rate_uk, fmt: v=> v.toFixed(2)+'%' },
+    // PMI (OECD BSCICP02 시리즈 via FRED, 매일 09:00/22:00 KST 갱신)
+    '미국 ISM 제조업 PMI':         { node: ecoUs.pmi_us, fmt: v=> v.toFixed(1) },
+    '미국 ISM 서비스 PMI':         { node: ecoUs.pmi_us, fmt: v=> v.toFixed(1) },
+    '한국 제조업 PMI':             { node: ecoKr.pmi_kr, fmt: v=> v.toFixed(1) },
+    '중국 제조업 PMI':             { node: ecoCn.pmi_cn, fmt: v=> v.toFixed(1) },
+    '일본 제조업 PMI':             { node: ecoJp.pmi_jp, fmt: v=> v.toFixed(1) },
+    '유로존 제조업 PMI':           { node: ecoEu.pmi_eu, fmt: v=> v.toFixed(1) },
+    '영국 제조업 PMI':             { node: ecoUk.pmi_uk, fmt: v=> v.toFixed(1) },
+    '독일 제조업 PMI':             { node: (d.economicIndicators||{}).de?.pmi_de, fmt: v=> v.toFixed(1) },
+    // 보조 — Alpha Vantage US 지표 (FRED 누락 시 폴백)
+    '미국 PPI':                    { node: ecoUs.cpi_us, fmt: v=> v.toFixed(1)+'%' },
+    '미국 소매판매':               { node: ecoUs.av_retail_sales, fmt: v=> v.toFixed(1) },
+    '미국 ADP 민간고용':           { node: ecoUs.av_nfp, fmt: v=> v.toFixed(0)+'K' },
+    '미국 신규 실업수당청구':      { node: ecoUs.unemployment, fmt: v=> v.toFixed(1)+'%' },
   };
   const now = new Date();
   const curYear = now.getFullYear();
