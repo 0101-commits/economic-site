@@ -833,6 +833,15 @@ def fetch_fred_economic_indicators():
         # 실제 DXY (1973=100, ICE 발표) 는 fetch_dxy_from_yf() 가 yfinance 로 별도 페치.
         "broad_dollar":("DTWEXBGS",        "달러 인덱스 (브로드, 2006=100)"),
         "m2_us":       ("M2SL",            "미국 M2 통화량"),
+        # 산업생산지수 (월간, 2017=100, 계절조정) — 미국 IP 카드용
+        "ip_us":       ("INDPRO",          "미국 산업생산지수 (2017=100, 계절조정)"),
+        # PPI — 캘린더의 미국 PPI 이벤트가 잘못 CPI 값을 가져오던 문제 해결.
+        # WPSFD4 = "Producer Price Index by Commodity: Final Demand" (월간, 2009.11=100)
+        "ppi_us":      ("PPIFIS",          "미국 PPI 최종재 (월간, Final Demand)"),
+        # 소매판매 — 캘린더 미국 소매판매 이벤트 백필용
+        "retail_us":   ("RSXFS",           "미국 소매판매 (수정후, 백만USD)"),
+        # 비농업고용 (NFP, 월간 수준, 단위: 천명) — 캘린더 NFP 백필용
+        "nfp_us":      ("PAYEMS",          "미국 비농업고용 (PAYEMS, 천명)"),
     }
     # 시리즈별 빈도에 맞는 limit (분기/연 단위 차트 표시 위해 5년치 이상 확보)
     # daily 시리즈: 1300 (≈5년), monthly: 60 (5년), quarterly: 20 (5년)
@@ -849,6 +858,10 @@ def fetch_fred_economic_indicators():
         "pce_us":      60,
         "unemployment":60,
         "m2_us":       60,
+        "ip_us":       60,
+        "ppi_us":      60,
+        "retail_us":   60,
+        "nfp_us":      60,
         # quarterly series
         "gdp_us":      20,
     }
@@ -880,6 +893,8 @@ FRED_INTL_INDICATORS = {
         "gdp":          ("JPNRGDPEXP",       "일본 실질GDP (분기, 십억엔)"),
         "unemployment": ("LRUN64TTJPM156S",  "일본 실업률 (15-64세, 계절조정)"),
         "base_rate":    ("INTDSRJPM193N",    "일본 정책금리 (할인율)"),
+        # 일본 산업생산지수 (OECD 시계열, 2015=100, 계절조정)
+        "ip":           ("JPNPROINDMISMEI",  "일본 산업생산지수 (2015=100, 계절조정)"),
     },
     "eu": {
         "cpi":          ("CP0000EZ19M086NEST", "유로존 HICP (전체)"),
@@ -890,7 +905,7 @@ FRED_INTL_INDICATORS = {
     "cn": {
         "cpi":          ("CHNCPIALLMINMEI",   "중국 CPI (전체, 2015=100)"),
         "gdp":          ("MKTGDPCNA646NWDB",  "중국 GDP (USD)"),
-        "ip":           ("CHNPROINDMISMEI",   "중국 산업생산지수"),
+        "ip":           ("CHNPROINDMISMEI",   "중국 산업생산지수 (2015=100, 계절조정)"),
     },
     "de": {
         "cpi":          ("DEUCPIALLMINMEI",   "독일 CPI"),
@@ -1380,59 +1395,106 @@ def fetch_boe_bank_rate():
 
 
 # ============================================================
-# PMI 지표 — 국가별 제조업 PMI (OECD BSCICP02 시리즈 via FRED)
+# PMI 지표 — 국가별 제조업 경기지수 (BCI / BSI / PMI 다중 소스)
 # ============================================================
-# OECD Business Tendency Surveys 의 Manufacturing PMI 와 동일/유사한 diffusion index.
-# 기준 50 → 확장/위축 시그널. S&P Global PMI 와 직접 일치하진 않으나 트렌드 동조.
-# 한국 PMI 는 ECOS 의 기업경기실사지수(BSI)로 보강 — 한국은행 공식 데이터.
-PMI_FRED_SERIES = {
-    "us": ("BSCICP02USM460S", "미국 제조업 경기지수 (OECD CLI 기반)"),
-    "jp": ("BSCICP02JPM460S", "일본 제조업 경기지수 (OECD CLI 기반)"),
-    "eu": ("BSCICP02EZM460S", "유로존 제조업 경기지수 (OECD CLI 기반)"),
-    "uk": ("BSCICP02GBM460S", "영국 제조업 경기지수 (OECD CLI 기반)"),
-    "de": ("BSCICP02DEM460S", "독일 제조업 경기지수 (OECD CLI 기반)"),
-    "cn": ("BSCICP02CNM460S", "중국 제조업 경기지수 (OECD CLI 기반)"),
-    "kr": ("BSCICP02KRM460S", "한국 제조업 경기지수 (OECD CLI 기반)"),
+# 실제 S&P Global / ISM PMI 는 유료 데이터. FRED 가 호스팅하는 OECD BSCICP02 시리즈는
+# 2024 년 일부 국가 단종, 다른 BSCICP* 시리즈 명명이 혼재. 따라서 국가별로 여러
+# 후보 시리즈를 순차 시도하고, 한국은 ECOS BSI (50기준 다이퓨전 인덱스 가까운 형태) 사용.
+# 모든 BSCI 계열은 100=중립 (50=중립 PMI 와 다름). 사용자 카드 unit 도 100기준으로 명시.
+PMI_FRED_CANDIDATES = {
+    "us": [
+        ("BSCICP02USM460S", "미국 제조업 BCI (OECD MEI)"),
+        ("BSCICP03USM665S", "미국 제조업 BCI (OECD CLI, 진폭조정)"),
+        # MANEMP 등의 고용 시리즈는 PMI 대체로 부적합하므로 제외
+    ],
+    "jp": [
+        ("BSCICP02JPM460S", "일본 제조업 BCI (OECD MEI)"),
+        ("BSCICP03JPM665S", "일본 제조업 BCI (OECD CLI, 진폭조정)"),
+    ],
+    "eu": [
+        ("BSCICP02EZM460S", "유로존 제조업 BCI (OECD MEI)"),
+        ("BSCICP03EZM665S", "유로존 제조업 BCI (OECD CLI, 진폭조정)"),
+    ],
+    "uk": [
+        ("BSCICP02GBM460S", "영국 제조업 BCI (OECD MEI)"),
+        ("BSCICP03GBM665S", "영국 제조업 BCI (OECD CLI, 진폭조정)"),
+    ],
+    "de": [
+        ("BSCICP02DEM460S", "독일 제조업 BCI (OECD MEI)"),
+        ("BSCICP03DEM665S", "독일 제조업 BCI (OECD CLI, 진폭조정)"),
+    ],
+    "cn": [
+        ("BSCICP02CNM460S", "중국 제조업 BCI (OECD MEI)"),
+        ("BSCICP03CNM665S", "중국 제조업 BCI (OECD CLI, 진폭조정)"),
+    ],
+    "kr": [
+        ("BSCICP02KRM460S", "한국 제조업 BCI (OECD MEI)"),
+        ("BSCICP03KRM665S", "한국 제조업 BCI (OECD CLI, 진폭조정)"),
+    ],
 }
 
 
 def fetch_pmi_indicators():
-    """국가별 제조업 PMI(또는 동등 BSCICP02) 일괄 페치.
+    """국가별 제조업 PMI / BCI / BSI 일괄 페치 — 다중 후보 시리즈 폴백.
 
     Returns: {cc: {"pmi_cc": {value, period, desc, source, history}}}
+
+    - FRED OECD BSCI 시리즈는 단종/누락이 잦으므로 후보 2개씩 순차 시도.
+    - 한국은 위와 별개로 ECOS 511Y003 BSI (실제 50기준 다이퓨전 인덱스) 도 수집.
+    - 모든 후보 실패 시 해당 cc 항목은 미생성 (프론트엔드는 '— ' 표시).
     """
     if not FRED_API_KEY:
         log("[PMI] FRED_API_KEY 없음 — PMI 수집 건너뜀")
         return {}
     out = {}
-    for cc, (series_id, desc) in PMI_FRED_SERIES.items():
-        try:
-            obs = fetch_fred_series(series_id, limit=60)
-            if not obs:
-                log(f"[PMI:{cc.upper()}] {series_id}: 데이터 없음")
-                continue
-            history = {o["date"]: o["value"] for o in obs}
-            out.setdefault(cc, {})[f"pmi_{cc}"] = {
-                "value":   obs[0]["value"],
-                "period":  obs[0]["date"],
-                "desc":    desc,
-                "source":  f"FRED:{series_id} (OECD)",
-                "history": history,
-            }
-            log(f"[PMI:{cc.upper()}] {series_id}: {obs[0]['value']:.1f} ({obs[0]['date']})")
-        except Exception as e:
-            log(f"[PMI:{cc.upper()}] {series_id} 오류: {e}")
+    for cc, candidates in PMI_FRED_CANDIDATES.items():
+        success = False
+        for series_id, desc in candidates:
+            try:
+                obs = fetch_fred_series(series_id, limit=60)
+                if not obs:
+                    log(f"[PMI:{cc.upper()}] {series_id}: 데이터 없음 — 다음 후보 시도")
+                    continue
+                history = {o["date"]: o["value"] for o in obs}
+                out.setdefault(cc, {})[f"pmi_{cc}"] = {
+                    "value":   obs[0]["value"],
+                    "period":  obs[0]["date"],
+                    "desc":    desc,
+                    "source":  f"FRED:{series_id} (OECD)",
+                    "history": history,
+                }
+                log(f"[PMI:{cc.upper()}] {series_id}: {obs[0]['value']:.1f} ({obs[0]['date']})")
+                success = True
+                break
+            except Exception as e:
+                log(f"[PMI:{cc.upper()}] {series_id} 오류: {e}")
+        if not success:
+            log(f"[PMI:{cc.upper()}] 모든 후보 시리즈 실패 — 해당 국가 PMI 미생성")
+
     # 한국 PMI 보강: ECOS BSI 제조업 (기업경기실사지수)
+    # AX1AA item 외에도 시기별로 SX, 0000 등 코드 변경 가능 — 다중 시도
     if ECOS_API_KEY:
-        try:
-            # 511Y003: 기업경기실사지수 (BSI) - 제조업 종합 / 업황실적
-            bsi = _ecos_latest("511Y003", "AX1AA", "M",
-                               "한국 제조업 BSI (한국은행)", "511Y003")
-            if bsi:
-                out.setdefault("kr", {})["pmi_kr_bsi"] = bsi
-                log(f"[PMI:KR-BSI] 511Y003: {bsi['value']} ({bsi['period']})")
-        except Exception as e:
-            log(f"[PMI:KR-BSI] 오류: {e}")
+        bsi_candidates = [
+            ("511Y003", "AX1AA",  "한국 제조업 BSI (업황 종합)"),
+            ("511Y003", "AX1AB",  "한국 제조업 BSI (업황 실적)"),
+            ("511Y014", "AX1AA",  "한국 제조업 경기실사지수 (전망)"),
+            ("512Y014", "AX1AA",  "한국 기업경기실사지수"),
+        ]
+        for stat, item, desc in bsi_candidates:
+            try:
+                bsi = _ecos_latest(stat, item, "M", desc, f"ECOS:{stat}/{item}")
+                if bsi:
+                    # KR pmi_kr 가 비어있으면 ECOS BSI 를 primary 로 사용 (50기준에 더 가까움)
+                    if not (out.get("kr", {}).get("pmi_kr") or {}).get("value"):
+                        out.setdefault("kr", {})["pmi_kr"] = bsi
+                        log(f"[PMI:KR] ECOS BSI ({stat}/{item}) 를 pmi_kr 로 사용: {bsi['value']}")
+                    else:
+                        # 이미 BCI 가 있으면 별도 키로 추가
+                        out.setdefault("kr", {})["pmi_kr_bsi"] = bsi
+                        log(f"[PMI:KR-BSI] {stat}/{item}: {bsi['value']} ({bsi['period']})")
+                    break
+            except Exception as e:
+                log(f"[PMI:KR-BSI] {stat}/{item} 오류: {e}")
     return out
 
 
@@ -1682,29 +1744,51 @@ def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None
     if item_code2: params["CLS_ID"]    = item_code2
     if item_code3: params["CLS_ID_2"]  = item_code3
     # 신 API: https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do
-    urls = [
-        f"{RONE_BASE}/SttsApiTblData.do",
-        f"{RONE_BASE}/SttsApiTblData.do",  # alternative path
-    ]
-    for url in urls:
-        try:
-            r = requests.get(url, params=params, timeout=20)
-            if r.status_code != 200:
-                continue
-            try:
-                data = r.json()
-            except ValueError:
-                continue
-            rows = data.get("SttsApiTblData", [])
-            if isinstance(rows, list):
-                for blk in rows:
-                    if "row" in blk:
-                        return blk["row"]
+    # 응답 구조 케이스:
+    #   1) {"SttsApiTblData": [{"head":[...]}, {"row":[...]}]}  → 정상
+    #   2) {"SttsApiTblData": [{"head":[{"RESULT":{...}}]}]}    → STATBL_ID 오류 등
+    #   3) {"RESULT": {"CODE":"INFO-200","MESSAGE":"해당하는 데이터가 없습니다."}}
+    #   4) HTML/일반 텍스트 응답 (서버 점검 등)
+    try:
+        r = requests.get(f"{RONE_BASE}/SttsApiTblData.do", params=params, timeout=20,
+                         headers={"User-Agent": "Mozilla/5.0 (economic-site fetch)"})
+        if r.status_code != 200:
+            log(f"[R-ONE-new] {stats_id}: HTTP {r.status_code}")
             return None
-        except Exception as e:
-            log(f"[R-ONE-new] {stats_id} 오류: {e}")
-            continue
-    return None
+        try:
+            data = r.json()
+        except ValueError:
+            log(f"[R-ONE-new] {stats_id}: JSON 파싱 실패 — 응답 앞 100자: {r.text[:100]}")
+            return None
+        # 응답 진단 — 어떤 케이스인지 명확히 로그
+        if isinstance(data, dict):
+            top_result = data.get("RESULT") or {}
+            if top_result.get("CODE", "").startswith("INFO-2") or "데이터" in top_result.get("MESSAGE", ""):
+                log(f"[R-ONE-new] {stats_id}: {top_result.get('CODE')} {top_result.get('MESSAGE','')[:60]}")
+                return None
+            rows_envelope = data.get("SttsApiTblData", [])
+            if isinstance(rows_envelope, list):
+                # head 의 RESULT 코드 확인
+                for blk in rows_envelope:
+                    if isinstance(blk, dict) and "head" in blk:
+                        for h in (blk.get("head") or []):
+                            res = (h or {}).get("RESULT") or {}
+                            code = res.get("CODE", "")
+                            msg  = res.get("MESSAGE", "")
+                            if code and not code.startswith("INFO-000"):
+                                log(f"[R-ONE-new] {stats_id}: {code} {msg[:60]}")
+                                return None
+                # row 추출
+                for blk in rows_envelope:
+                    if isinstance(blk, dict) and "row" in blk:
+                        rows = blk["row"]
+                        log(f"[R-ONE-new] {stats_id}: {len(rows) if isinstance(rows, list) else 1}행 수집")
+                        return rows
+        log(f"[R-ONE-new] {stats_id}: 응답 형식 미확인 — 키={list(data.keys()) if isinstance(data, dict) else type(data).__name__}")
+        return None
+    except Exception as e:
+        log(f"[R-ONE-new] {stats_id} 예외: {e}")
+        return None
 
 
 def fetch_realestate_kr_ecos_fallback():
@@ -1718,10 +1802,16 @@ def fetch_realestate_kr_ecos_fallback():
     if not ECOS_API_KEY:
         return {}
     result = {}
+    # 매매 시리즈 — KB 부동산 + BOK 종합 + 한국부동산원 매매지수 (ECOS 게재 시리즈)
     sale_candidates = [
-        ("901Y014", "AAA", "전국 주택매매가격지수 (KB)"),
-        ("901Y014", "AAA000", "전국 주택매매가격지수 (KB)"),
-        ("098Y001", "0.1.0.1", "전국 종합주택 매매가격지수 (BOK)"),
+        # 한국부동산원 → ECOS 게재본 (가장 사용자 기대에 부합)
+        ("098Y001", "0.1.0.1", "전국 종합주택 매매가격지수 (한국부동산원→BOK)"),
+        ("098Y001", "0.2.0.1", "전국 아파트 매매가격지수 (한국부동산원→BOK)"),
+        ("099Y001", "0.1.0.1", "전국 종합주택 매매가격지수 (한국부동산원, 신코드)"),
+        # KB 부동산 폴백
+        ("901Y014", "AAA",     "전국 주택매매가격지수 (KB)"),
+        ("901Y014", "AAA000",  "전국 주택매매가격지수 (KB)"),
+        ("901Y018", "AAA",     "전국 아파트 매매가격지수 (KB)"),
     ]
     for stat, item, desc in sale_candidates:
         try:
@@ -1742,8 +1832,13 @@ def fetch_realestate_kr_ecos_fallback():
         except Exception as e:
             log(f"[RE-ECOS-fb] {stat}/{item} 오류: {e}")
     jns_candidates = [
-        ("901Y015", "AAA", "전국 주택전세가격지수 (KB)"),
+        # 한국부동산원 → ECOS 게재본
+        ("098Y002", "0.1.0.1", "전국 종합주택 전세가격지수 (한국부동산원→BOK)"),
+        ("098Y002", "0.2.0.1", "전국 아파트 전세가격지수 (한국부동산원→BOK)"),
+        # KB 폴백
+        ("901Y015", "AAA",    "전국 주택전세가격지수 (KB)"),
         ("901Y015", "AAA000", "전국 주택전세가격지수 (KB)"),
+        ("901Y019", "AAA",    "전국 아파트 전세가격지수 (KB)"),
     ]
     for stat, item, desc in jns_candidates:
         try:
@@ -1780,18 +1875,24 @@ def fetch_realestate_kr():
     result = {}
 
     # ─── 신 API: 전국주택가격동향 (월간) ─────────────
-    # R-ONE 신 OpenAPI 의 정확한 STATBL_ID 는 reb.or.kr 의 R-ONE 페이지에서 확인 가능.
-    # 사용자가 보는 R-ONE "매매가격지수 변동률 (%)" 는 월간 동향 조사의 변동률.
-    # 우리는 그것을 보여주는 게 맞음 — 지수 값(예: 105.2) 보다 변동률(%) 이 사용자에게 친숙.
-    # STATBL_ID 후보 — 변동률 PRIMARY (사용자가 사이트에서 보는 값과 동일)
+    # R-ONE 신 OpenAPI 의 STATBL_ID 는 R-ONE 통계카탈로그 매뉴얼에서 발급일 기준으로 부여.
+    # 동일 통계라도 등록 차수에 따라 A_2022_xxx / A_2024_xxx / A_2025_xxx 등 다중 ID 공존.
+    # 누가 어느 ID 를 발급받았는지 일관성이 없어 가능한 후보를 모두 시도 (첫 성공 반환).
     stats_candidates = [
-        # 변동률 시리즈 (매월 변동률 %)
+        # ── 매매가격지수 / 매매변동률 (월간) — 2025 신 등록 ──
+        ("A_2025_00130", "전국 종합주택 매매가격지수"),
+        ("A_2025_00131", "전국 아파트 매매가격지수"),
+        ("A_2025_00190", "월간 전국주택가격동향조사 매매가격지수"),
+        # ── 2024 등록 ──
         ("A_2024_00177", "전국 아파트 매매가격지수 변동률 (%)"),
         ("A_2024_00200", "전국 아파트 매매가격지수 변동률 (%)"),
-        # 지수 시리즈 (110.5 등)
         ("A_2024_00026", "전국 아파트 매매가격지수"),
         ("A_2024_00301", "전국 아파트 매매가격지수"),
+        # ── 2022 legacy ──
         ("A_2022_00131", "전국 종합주택 매매가격지수"),
+        ("A_2022_00026", "전국 아파트 매매가격지수"),
+        # ── 지역별 (전국=00000) — STATBL 차원으로 분리되어 있을 가능성 ──
+        ("A_2020_00131", "전국 아파트 매매가격지수 (구버전)"),
     ]
     for stats_id, desc in stats_candidates:
         try:
@@ -1825,14 +1926,18 @@ def fetch_realestate_kr():
             log(f"[R-ONE-new] {stats_id} 오류: {e}")
             continue
 
-    # 전세가격지수 변동률 (월간)
+    # 전세가격지수 변동률 (월간) — 매매와 동일하게 다중 등록 차수 후보 시도
     jns_candidates = [
-        # 변동률 시리즈
+        # 2025 신 등록
+        ("A_2025_00132", "전국 종합주택 전세가격지수"),
+        ("A_2025_00133", "전국 아파트 전세가격지수"),
+        # 2024 등록
         ("A_2024_00178", "전국 아파트 전세가격지수 변동률 (%)"),
         ("A_2024_00201", "전국 아파트 전세가격지수 변동률 (%)"),
-        # 지수 시리즈
         ("A_2024_00027", "전국 아파트 전세가격지수"),
+        # 2022 legacy
         ("A_2022_00132", "전국 종합주택 전세가격지수"),
+        ("A_2022_00027", "전국 아파트 전세가격지수"),
     ]
     for stats_id, desc in jns_candidates:
         try:
@@ -3508,27 +3613,39 @@ def build_data():
     # ── R-ONE 부동산 지표 (한국부동산원) ─────────────────────
     # R-ONE 우선 → 실패/키없음이면 ECOS KB 시리즈로 폴백 (사용자 화면 비지 않도록)
     re_data = {}
+    re_diag = {"rone_tried": False, "rone_ok": False, "ecos_tried": False, "ecos_ok": False}
     if REALESTATE_API_KEY:
         log("[R-ONE] 한국 부동산 지표 수집 시작")
+        re_diag["rone_tried"] = True
         re_data = fetch_realestate_kr() or {}
-        if re_data:
+        if re_data.get("apt_price_idx_kr") or re_data.get("jns_price_idx_kr"):
             data["sources"]["realestate_kr"] = "R-ONE API (reb.or.kr)"
+            re_diag["rone_ok"] = True
+            log(f"[R-ONE] 성공: {list(re_data.keys())}")
         else:
-            log("[R-ONE] API 응답이 비어있음 — ECOS 폴백 시도")
+            log("[R-ONE] 매매/전세 가격지수 미수집 — ECOS 폴백 시도")
     else:
         log("[R-ONE] API 키 없음 — ECOS 폴백 시도")
     # ECOS 폴백: 매매/전세 가격지수가 모두 비어있을 때만
     if (not re_data.get("apt_price_idx_kr")) or (not re_data.get("jns_price_idx_kr")):
+        re_diag["ecos_tried"] = True
         try:
             ecos_fb = fetch_realestate_kr_ecos_fallback()
             for k, v in ecos_fb.items():
                 if not re_data.get(k):
                     re_data[k] = v
-            if ecos_fb and not data["sources"].get("realestate_kr"):
-                data["sources"]["realestate_kr"] = "ECOS API (KB 부동산 시계열 폴백)"
+            if ecos_fb:
+                re_diag["ecos_ok"] = True
+                if not data["sources"].get("realestate_kr"):
+                    data["sources"]["realestate_kr"] = "ECOS API (KB/BOK 부동산 시계열 폴백)"
+                log(f"[RE-FB] ECOS 폴백 성공: {list(ecos_fb.keys())}")
+            else:
+                log("[RE-FB] ECOS 폴백도 응답 없음 — 모든 시리즈 후보 실패")
         except Exception as e:
             log(f"[RE-FB] 오류: {e}")
     data["realestate"]["kr"] = re_data
+    # 진단 노드에 미수집 사유 기록 — 프론트엔드/사용자가 어떤 단계가 실패했는지 확인 가능
+    data.setdefault("diagnostics", {})["realestate_kr"] = re_diag
 
     # ── VKOSPI (KOSPI200 변동성 지수) — 시장 분위기 ────────
     try:
@@ -4058,24 +4175,49 @@ def fetch_news_all_feeds():
     else:
         log("[News] NAVER_CLIENT_ID/SECRET 미설정 — Google News RSS 만 사용 (publisher 홈페이지 URL 회귀 위험 ↑)")
 
+    # 사용자 요구: 최근 1주일 이내 기사만 표시. iso 날짜가 오늘-7일 보다 오래된 기사 제외.
+    now_kst = datetime.now(KST)
+    cutoff_iso = (now_kst - timedelta(days=7)).strftime("%Y-%m-%d")
+    log(f"[News] 1주일 cutoff: {cutoff_iso} 이후 기사만 채택")
+
     def _is_good_article_url(u):
-        """기사 URL 검증 — 빈 값, google news 직링크, publisher 홈페이지는 제외."""
+        """기사 URL 검증 — 빈 값, google news 직링크, publisher 홈페이지/검색결과는 제외."""
         if not u or u == "#":
             return False
         if "news.google.com" in u:
             return False  # 디코드 실패한 raw google URL 은 클릭해도 redirect 안 따라가므로 제외
+        # 검색결과 페이지 / 일반 검색 호스트 제외 (사용자가 "신문사 홈페이지" 로 인식)
+        SEARCH_HOSTS = ("search.naver.com", "m.search.naver.com",
+                        "search.daum.net", "www.bing.com", "google.com")
+        try:
+            from urllib.parse import urlparse
+            host = (urlparse(u).hostname or "").lower()
+            if any(host == h or host.endswith("." + h) for h in SEARCH_HOSTS):
+                return False
+        except Exception:
+            pass
         if _is_publisher_home(u):
             return False
         return True
 
+    def _is_recent(article):
+        """isoDate 가 7일 이내인지 검사. isoDate 없으면 안전하게 True (편향 방지)."""
+        iso = (article.get("isoDate") or "").strip()
+        if not iso:
+            return True
+        return iso >= cutoff_iso
+
+    def _filter_keep(article):
+        return _is_good_article_url(article.get("url")) and _is_recent(article)
+
     for cat, query in NEWS_CATEGORY_QUERIES.items():
         articles = []
         seen_urls = set()
-        # 1) Naver Search 우선 — originallink 가 publisher 직접 기사 URL
+        # 1) Naver Search 우선 — originallink 가 publisher 직접 기사 URL, sort=date 로 최신순
         if naver_available:
             try:
-                for na in fetch_naver_search_news(query, count=8):
-                    if _is_good_article_url(na["url"]) and na["url"] not in seen_urls:
+                for na in fetch_naver_search_news(query, count=10):
+                    if _filter_keep(na) and na["url"] not in seen_urls:
                         articles.append(na)
                         seen_urls.add(na["url"])
                         if len(articles) >= 5:
@@ -4085,8 +4227,8 @@ def fetch_news_all_feeds():
         # 2) Google News RSS 로 부족분 보강
         if len(articles) < 5:
             try:
-                for ga in fetch_news_articles(query, count=10):
-                    if _is_good_article_url(ga["url"]) and ga["url"] not in seen_urls:
+                for ga in fetch_news_articles(query, count=15):
+                    if _filter_keep(ga) and ga["url"] not in seen_urls:
                         articles.append(ga)
                         seen_urls.add(ga["url"])
                         if len(articles) >= 5:
@@ -4096,8 +4238,8 @@ def fetch_news_all_feeds():
         # 3) Bing News RSS 로 추가 보강 — Google/Naver 모두 실패한 케이스 회복
         if len(articles) < 5:
             try:
-                for ba in fetch_bing_news_articles(query, count=8):
-                    if _is_good_article_url(ba["url"]) and ba["url"] not in seen_urls:
+                for ba in fetch_bing_news_articles(query, count=10):
+                    if _filter_keep(ba) and ba["url"] not in seen_urls:
                         articles.append(ba)
                         seen_urls.add(ba["url"])
                         if len(articles) >= 5:
@@ -4107,14 +4249,18 @@ def fetch_news_all_feeds():
         # 4) 그래도 부족하면 Naver Search 키워드를 좀 더 일반화해서 재시도
         if len(articles) < 3 and naver_available:
             try:
-                for na in fetch_naver_search_news(query.split()[0], count=8):
-                    if _is_good_article_url(na["url"]) and na["url"] not in seen_urls:
+                for na in fetch_naver_search_news(query.split()[0], count=10):
+                    if _filter_keep(na) and na["url"] not in seen_urls:
                         articles.append(na)
                         seen_urls.add(na["url"])
                         if len(articles) >= 5:
                             break
             except Exception:
                 pass
+        if articles:
+            log(f"[News] '{cat}' 최종 {len(articles)}건 (cutoff {cutoff_iso} 적용)")
+        else:
+            log(f"[News] '{cat}' 7일 이내 기사 0건 — 빈 카테고리")
         result[cat] = articles[:5]
         _time.sleep(0.3)  # rate-limit 회피
     return result
@@ -4143,10 +4289,9 @@ FRED_KEY_RELEASES = {
     151: ("US", "미국 FOMC 회의",            3, "03:00"),
     175: ("US", "미국 ADP 민간고용",         2, "21:15"),
     197: ("US", "미국 소비자심리(미시간)",     2, "23:00"),
-    # 확장: 노동·주택·소비 부수 지표 (중요도 2)
+    # 주간 발표 (목요일 정기) — 다음 7일 이내 1건만 표시되도록 dedup 안 함
     23:  ("US", "미국 신규 실업수당청구",      2, "21:30"),
-    24:  ("US", "미국 주택허가/착공",          2, "21:30"),
-    175: ("US", "미국 ADP 민간고용",         2, "21:15"),
+    # ISM 서비스 PMI - 월간 1회
     386: ("US", "미국 ISM 서비스 PMI",        3, "23:00"),
 }
 
@@ -4156,56 +4301,70 @@ FRED_KEY_RELEASES = {
 # - fmt: "pct1" = "%.1f%%", "pct2" = "%.2f%%", "raw1" = "%.1f", "k" = "%dK"
 # - lower_is_positive: True 면 act < fore 가 긍정 (CPI/실업률), False/None 이면 act > fore
 CALENDAR_INDICATOR_MAP = {
-    # 한국
+    # 한국 — 대부분 발표 형식이 % 변화율 (전월비/전년비)
     "한국은행 금통위 회의":   ("economicIndicators.kr.base_rate_kr", "pct2", False),
-    "한국 소비자물가지수(CPI)": ("economicIndicators.kr.cpi_kr", "raw2", True),
-    "한국 5월 소비자물가(CPI)": ("economicIndicators.kr.cpi_kr", "raw2", True),
-    "한국 1분기 GDP (확정)":  ("economicIndicators.kr.gdp_kr", "pct1", False),
-    "한국 수출입 동향":       ("economicIndicators.kr.exports_kr", "pct1", False),
-    "한국 5월 수출입 동향":   ("economicIndicators.kr.exports_kr", "pct1", False),
-    "한국 산업생산지수":      ("economicIndicators.kr.ip_kr", "pct1", False),
+    "한국 소비자물가지수(CPI)": ("economicIndicators.kr.cpi_kr", "yoy1", True),  # 전년비
+    "한국 5월 소비자물가(CPI)": ("economicIndicators.kr.cpi_kr", "yoy1", True),
+    "한국 1분기 GDP (확정)":  ("economicIndicators.kr.gdp_kr", "mom1", False),
+    "한국 수출입 동향":       ("economicIndicators.kr.exports_kr", "yoy1", False),
+    "한국 5월 수출입 동향":   ("economicIndicators.kr.exports_kr", "yoy1", False),
+    "한국 산업생산지수":      ("economicIndicators.kr.ip_kr", "mom1", False),
     "한국 제조업 PMI":        ("economicIndicators.kr.pmi_kr", "raw1", False),
-    # 미국
-    "미국 CPI (전월비)":      ("economicIndicators.us.cpi_us", "pct1", True),
-    "미국 CPI (전년비)":      ("economicIndicators.us.cpi_us", "pct1", True),
-    "미국 PCE 물가지수":      ("economicIndicators.us.pce_us", "pct1", True),
-    "미국 실업률":            ("economicIndicators.us.unemployment", "pct1", True),
+    # 미국 — CPI/PPI/소매/산업생산은 전월비 % 발표가 표준
+    "미국 CPI (전월비)":      ("economicIndicators.us.cpi_us", "mom1", True),
+    "미국 CPI (전년비)":      ("economicIndicators.us.cpi_us", "yoy1", True),
+    "미국 PCE 물가지수":      ("economicIndicators.us.pce_us", "mom1", True),
+    "미국 실업률":            ("economicIndicators.us.unemployment", "raw1", True),  # 실업률은 %p 그 자체
     "미국 FOMC 회의":         ("economicIndicators.us.ff_rate", "pct2", False),
-    "미국 1분기 GDP (2차)":   ("economicIndicators.us.gdp_us", "pct1", False),
-    "미국 비농업고용(NFP)":   ("economicIndicators.us.av_nfp", "k", False),
-    "미국 PPI":               ("economicIndicators.us.cpi_us", "pct1", True),
+    "미국 1분기 GDP (2차)":   ("economicIndicators.us.gdp_us", "mom1", False),
+    "미국 GDP":               ("economicIndicators.us.gdp_us", "mom1", False),
+    "미국 비농업고용(NFP)":   ("economicIndicators.us.nfp_us", "k", False),
+    "미국 PPI":               ("economicIndicators.us.ppi_us", "mom1", True),
     "미국 ISM 제조업 PMI":    ("economicIndicators.us.pmi_us", "raw1", False),
     "미국 ISM 서비스 PMI":    ("economicIndicators.us.pmi_us", "raw1", False),
-    "미국 소매판매":          ("economicIndicators.us.av_retail_sales", "pct1", False),
-    "미국 ADP 민간고용":      ("economicIndicators.us.av_nfp", "k", False),
-    "미국 신규 실업수당청구": ("economicIndicators.us.unemployment", "pct1", True),
+    "미국 소매판매":          ("economicIndicators.us.retail_us", "mom1", False),
+    "미국 산업생산":          ("economicIndicators.us.ip_us", "mom1", False),
+    "미국 ADP 민간고용":      ("economicIndicators.us.nfp_us", "k", False),
+    "미국 신규 실업수당청구": ("economicIndicators.us.unemployment", "raw1", True),
+    "미국 소비자심리(미시간)":("economicIndicators.us.cpi_us", "raw1", False),
+    "미국 주택지표 (NAR)":    ("realestate.us.housing_starts", "raw1", False),
     # 유로존
-    "유로존 CPI (전년비)":    ("economicIndicators.eu.cpi_eu", "raw2", True),
+    "유로존 CPI (전년비)":    ("economicIndicators.eu.cpi_eu", "yoy1", True),
     "ECB 통화정책회의":       ("economicIndicators.eu.base_rate_eu", "pct2", False),
     "유로존 제조업 PMI":      ("economicIndicators.eu.pmi_eu", "raw1", False),
     # 일본
-    "일본 GDP (전기비)":      ("economicIndicators.jp.gdp_jp", "pct1", False),
+    "일본 GDP (전기비)":      ("economicIndicators.jp.gdp_jp", "mom1", False),
     "일본 BOJ 금리결정":      ("economicIndicators.jp.base_rate_jp", "pct2", False),
     "일본 제조업 PMI":        ("economicIndicators.jp.pmi_jp", "raw1", False),
     # 중국
-    "중국 CPI (전년비)":      ("economicIndicators.cn.cpi_cn", "raw2", True),
+    "중국 CPI (전년비)":      ("economicIndicators.cn.cpi_cn", "yoy1", True),
     "중국 제조업 PMI":        ("economicIndicators.cn.pmi_cn", "raw1", False),
     # 영국
     "영국 BOE 금리결정":      ("economicIndicators.uk.base_rate_uk", "pct2", False),
-    "영국 CPI (전년비)":      ("economicIndicators.uk.cpi_uk", "raw2", True),
+    "영국 CPI (전년비)":      ("economicIndicators.uk.cpi_uk", "yoy1", True),
     "영국 제조업 PMI":        ("economicIndicators.uk.pmi_uk", "raw1", False),
     # 독일
-    "독일 CPI":               ("economicIndicators.de.cpi_de", "raw2", True),
+    "독일 CPI":               ("economicIndicators.de.cpi_de", "yoy1", True),
     "독일 제조업 PMI":        ("economicIndicators.de.pmi_de", "raw1", False),
 }
 
 
 def _fmt_indicator(val, fmt):
-    """캘린더용 값 포맷터."""
+    """캘린더용 값 포맷터.
+
+    fmt 코드:
+      pct1: "+2.5%" / "-1.3%"   (signed, 1 decimal)
+      pct2: "3.50%"             (rate, 2 decimal)
+      raw1: "49.7"              (1 decimal, no unit)
+      raw2: "120.50"            (2 decimal, no unit)
+      k:    "177K"              (thousands)
+      mom1: "+0.2%"             (MoM % 변화율, signed, 1 decimal — pre-computed)
+      yoy1: "+2.4%"             (YoY % 변화율, signed, 1 decimal — pre-computed)
+    """
     if val is None:
         return ""
     try:
-        if fmt == "pct1":
+        if fmt in ("pct1", "mom1", "yoy1"):
             sign = "+" if val >= 0 else ""
             return f"{sign}{val:.1f}%"
         if fmt == "pct2":
@@ -4219,6 +4378,38 @@ def _fmt_indicator(val, fmt):
         return f"{val}"
     except (ValueError, TypeError):
         return ""
+
+
+def _compute_change(history, key, mode="mom"):
+    """history 에서 key 시점의 전월비/전년비 %변화율 계산.
+
+    mode='mom': 직전 키 대비 % 변화 (월간 시리즈에서 직전 월)
+    mode='yoy': 12개월 전 키 대비 % 변화
+
+    Returns: float (예: 0.2 = +0.2%) 또는 None.
+    """
+    if not history or not key:
+        return None
+    keys_sorted = sorted(history.keys())
+    try:
+        idx = keys_sorted.index(key)
+    except ValueError:
+        return None
+    cur = history.get(key)
+    if cur is None or cur == 0:
+        return None
+    if mode == "mom":
+        if idx == 0:
+            return None
+        prev_key = keys_sorted[idx - 1]
+    else:  # yoy
+        if idx < 12:
+            return None
+        prev_key = keys_sorted[idx - 12]
+    prev_val = history.get(prev_key)
+    if prev_val is None or prev_val == 0:
+        return None
+    return round((cur - prev_val) / prev_val * 100, 2)
 
 
 def _get_by_path(obj, path):
@@ -4240,8 +4431,8 @@ def backfill_calendar_actuals(events, data):
 
     각 이벤트 (iso 날짜) 에 대해 CALENDAR_INDICATOR_MAP 으로 지표 노드를 찾고,
     history 에서 발표일 ≤ ISO 인 가장 최근 값을 act, 그 직전을 prev 로 채움.
-    프론트엔드의 autoBackfillCalendarActuals 와 동일 로직이나, 서버측에서 미리 처리해
-    클라이언트 부담을 줄이고 화면의 '예정' 비어있는 문제를 해소.
+    fmt_id 가 'mom1'/'yoy1' 이면 history 에서 직접 변화율을 계산해 채움
+    (인덱스 레벨이 아닌 발표 형식과 일치하도록 — 예: CPI 332.4 → 전월비 +0.2%).
     """
     if not events or not data:
         return 0
@@ -4266,38 +4457,64 @@ def backfill_calendar_actuals(events, data):
                 continue
             history = node.get("history") or {}
             if not history:
-                # history 없으면 최신값으로 act 만 채움
                 v = node.get("value")
                 if v is not None:
                     ev["act"] = _fmt_indicator(v, fmt_id)
                     filled += 1
                 continue
-            # history 키 = "YYYY-MM" or "YYYY-MM-DD" or "YYYYMM"
-            iso_yyyy_mm = iso[:7]  # YYYY-MM
+            # history 키 정렬 후 발표일 이전(이하) 의 최근 키 = act, 그 전 = prev
             keys_sorted = sorted(history.keys())
-            # 이벤트일 이전(이하) 의 최근 키 = act, 그 전 = prev
-            recent_keys = [k for k in keys_sorted if k <= iso or k <= iso_yyyy_mm or k.replace("-","") <= iso.replace("-","")]
+            iso_yyyy_mm = iso[:7]
+            recent_keys = [k for k in keys_sorted
+                           if k <= iso or k <= iso_yyyy_mm or k.replace("-","") <= iso.replace("-","")]
             if not recent_keys:
                 continue
             act_key = recent_keys[-1]
             prev_key = recent_keys[-2] if len(recent_keys) >= 2 else None
+
+            # mom1/yoy1: 인덱스 레벨이 아닌 변화율 계산
+            if fmt_id in ("mom1", "yoy1"):
+                mode = "mom" if fmt_id == "mom1" else "yoy"
+                act_chg = _compute_change(history, act_key, mode)
+                prev_chg = _compute_change(history, prev_key, mode) if prev_key else None
+                if act_chg is None:
+                    continue
+                ev["act"] = _fmt_indicator(act_chg, fmt_id)
+                if not ev.get("prev") and prev_chg is not None:
+                    ev["prev"] = _fmt_indicator(prev_chg, fmt_id)
+                if not ev.get("fore") and prev_chg is not None:
+                    ev["fore"] = _fmt_indicator(prev_chg, fmt_id)
+                # beat 계산
+                try:
+                    fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", ""))
+                    if fore_num is not None:
+                        if abs(act_chg - fore_num) < 0.05:
+                            ev["beat"] = 0
+                        elif any(x in name for x in ("CPI", "PPI", "물가", "실업", "미분양")):
+                            ev["beat"] = 1 if act_chg < fore_num else -1
+                        else:
+                            ev["beat"] = 1 if act_chg > fore_num else -1
+                except (ValueError, TypeError):
+                    pass
+                filled += 1
+                continue
+
+            # 그 외 (pct2, raw1, raw2, k): 인덱스 레벨을 그대로 표시
             act_v = history.get(act_key)
             prev_v = history.get(prev_key) if prev_key else None
             if act_v is not None:
                 ev["act"] = _fmt_indicator(act_v, fmt_id)
                 if not ev.get("prev") and prev_v is not None:
                     ev["prev"] = _fmt_indicator(prev_v, fmt_id)
-                # forecast 가 비어있으면 prev 와 동일하게 둠 (보수적 추정)
                 if not ev.get("fore") and prev_v is not None:
                     ev["fore"] = _fmt_indicator(prev_v, fmt_id)
-                # beat 계산
                 try:
                     fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", "").replace("K", ""))
                     act_num  = float(act_v)
                     if fore_num is not None:
                         if abs(act_num - fore_num) < 0.05:
                             ev["beat"] = 0
-                        elif name and any(x in name for x in ("CPI", "PPI", "물가", "실업", "미분양")):
+                        elif any(x in name for x in ("CPI", "PPI", "물가", "실업", "미분양")):
                             ev["beat"] = 1 if act_num < fore_num else -1
                         else:
                             ev["beat"] = 1 if act_num > fore_num else -1
@@ -4316,6 +4533,10 @@ def fetch_fred_release_dates(release_id, days_back=7, days_forward=30):
     """FRED Release Dates API — 특정 release_id 의 최근/예정 발표일 조회.
 
     Returns: [{"release_id": int, "date": "YYYY-MM-DD"}, ...]
+
+    중요: include_release_dates_with_no_data 는 반드시 false. true 면
+    실제 발표가 없는 날짜(매일/매주 기본 schedule)까지 모두 반환되어
+    캘린더에 "매일 PPI 발표" 같은 가짜 이벤트가 무더기로 생성됨.
     """
     if not FRED_API_KEY:
         return None
@@ -4331,13 +4552,34 @@ def fetch_fred_release_dates(release_id, days_back=7, days_forward=30):
                 "file_type": "json",
                 "realtime_start": start,
                 "realtime_end": end,
-                "include_release_dates_with_no_data": "true",
+                # 실제 데이터가 있는 발표일만 반환 (매일 PPI 같은 가짜 이벤트 방지)
+                "include_release_dates_with_no_data": "false",
+                "sort_order": "asc",
+                "limit": 50,
             },
             timeout=15,
         )
         if r.status_code != 200:
             return None
-        return r.json().get("release_dates", [])
+        dates = r.json().get("release_dates", []) or []
+        # 추가 안전장치: 동일 (YYYY-MM, release_id) 키 기준으로 첫번째만 유지
+        # 일부 release 는 같은 달 안에 preliminary + revision 으로 2~3건 반환됨 → 첫 발표만.
+        # 단, FOMC(151) 처럼 월 2회 이상 발표가 정상인 release 는 release_id 별 정책 적용.
+        MULTI_PER_MONTH_OK = {151, 23}  # FOMC, 신규실업수당청구(주간)
+        if int(release_id) in MULTI_PER_MONTH_OK:
+            return dates
+        seen_months = set()
+        deduped = []
+        for d in dates:
+            ds = d.get("date", "")
+            if not ds or len(ds) < 7:
+                continue
+            ym = ds[:7]  # YYYY-MM
+            if ym in seen_months:
+                continue
+            seen_months.add(ym)
+            deduped.append(d)
+        return deduped
     except Exception as e:
         log(f"[FRED-Cal] release_id={release_id} 오류: {e}")
         return None
