@@ -4550,7 +4550,11 @@ let moverRefDate = '—';
 let _clientMoverFetchInFlight = false;
 let _clientMoverFetchAttempts = 0;
 let _clientMoverLastError = null;       // 마지막 페치 실패 정보 (UI 표시용)
-const _MAX_AUTO_MOVER_FETCH = 3;  // 자동 재시도 3회까지 — 무한 루프 방지하면서 garbage 데이터 갱신 보장
+const _MAX_AUTO_MOVER_FETCH = 5;  // 자동 재시도 5회까지 — GHA 차단/일시 장애 대응
+// 주기적 자동 갱신 (사용자가 페이지에 머무는 동안 데이터 신선 유지)
+// 사용자 요구: "실시간 동기화" — 매 5분마다 movers/news/yieldCurve 등 핵심 데이터를 백그라운드 갱신.
+let _autoRefreshTimer = null;
+const _AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000;  // 5분 (300,000ms)
 
 let curMoverTab = 'up';
 let curMoverType = 'stock';
@@ -4797,12 +4801,15 @@ function toggleNewsExpand(containerId) {
 function buildNewsFeed(containerId, items) {
   const el = document.getElementById(containerId);
   if(!el) return;
-  // 사용자 요구: 최근 1주일 이내 기사만 표시.
-  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  // 사용자 요구: 14일 이내 실제 기사만 표시. isoDate 없거나 미래 날짜인 항목 거부.
+  const cutoff = Date.now() - 14 * 24 * 3600 * 1000;
+  const future = Date.now() + 24 * 3600 * 1000;  // 시차 보정 1일
   const recent = (items || []).filter(n => {
     if(!n) return false;
     if(!n.isoDate) return false;  // isoDate 없으면 노출 안 함 (구 정적 데이터 정리)
-    return new Date(n.isoDate).getTime() >= cutoff;
+    const t = new Date(n.isoDate).getTime();
+    if(isNaN(t)) return false;
+    return t >= cutoff && t <= future;
   });
   renderNewsFeedWithPagination(containerId, recent);
 }
@@ -8055,22 +8062,42 @@ function autoBackfillCalendarActuals() {
 }
 
 // data.json.economicCalendar.events 를 calEvents 에 머지
-// 매일 09:00 / 22:00 KST GitHub Actions 가 FRED release dates 로 갱신.
+// 매일 09:00 / 16:00 / 22:00 KST GitHub Actions 가 FRED release dates 로 갱신.
 // 하드코드된 calEvents 와 dt+name 기준으로 중복 제거하며, 새 이벤트는 추가.
-// flag 자동 부여 (cc 기반).
+// flag 자동 부여 (cc 기반). 동일 (cc, name, YYYY-MM) 중복도 1차 제거 (서버 dedup 안전망).
 function mergeServerCalendar() {
   const d = (typeof _latestDataForIndicators !== 'undefined') ? _latestDataForIndicators : null;
   const serverCal = d && d.economicCalendar && Array.isArray(d.economicCalendar.events)
     ? d.economicCalendar.events : null;
   if(!serverCal || !serverCal.length) return 0;
   const flagMap = {KR:'🇰🇷', US:'🇺🇸', EU:'🇪🇺', JP:'🇯🇵', CN:'🇨🇳', UK:'🇬🇧', DE:'🇩🇪'};
+  // 월 다회 발표가 정상인 이벤트는 month-dedup 에서 제외 (FOMC, 주간실업수당청구)
+  const MULTI_PER_MONTH_NAMES = new Set(['미국 FOMC 회의', '미국 신규 실업수당청구']);
   // 기존 (dt + name) 키 집합
   const existing = new Set(calEvents.map(e => `${e.dt}|${e.name}`));
+  // (cc, name, YYYY-MM) 단위로 1개씩만 추가 — 서버 dedup 안전망
+  const nameMonthSeen = new Set();
+  for(const e of calEvents) {
+    // 기존 calEvents 항목은 iso 없으니 dt('MM.DD ...') 기준 추정 (현재 연도 기준)
+    if(MULTI_PER_MONTH_NAMES.has(e.name)) continue;
+    const cc = e.cc || '';
+    const mm = (e.dt || '').slice(0,2);  // 'MM'
+    nameMonthSeen.add(`${cc}|${e.name}|${mm}`);
+  }
   let added = 0;
+  let dedupSkipped = 0;
   for(const ev of serverCal) {
     if(!ev || !ev.dt || !ev.name) continue;
     const key = `${ev.dt}|${ev.name}`;
     if(existing.has(key)) continue;
+    // 동일 (cc, name, YYYY-MM) 중복 제거 (서버 dedup 안전망)
+    if(!MULTI_PER_MONTH_NAMES.has(ev.name)) {
+      const isoYM = (ev.iso || '').slice(0,7); // YYYY-MM
+      const ccMm = isoYM ? isoYM.slice(5,7) : (ev.dt || '').slice(0,2);
+      const nmKey = `${ev.cc || ''}|${ev.name}|${ccMm}`;
+      if(nameMonthSeen.has(nmKey)) { dedupSkipped++; continue; }
+      nameMonthSeen.add(nmKey);
+    }
     calEvents.push({
       dt: ev.dt,
       cc: ev.cc || 'US',
@@ -8082,11 +8109,12 @@ function mergeServerCalendar() {
       act: ev.act || '',
       beat: ev.beat || null,
       _src: ev.source || 'server',
+      _iso: ev.iso || '',
     });
     existing.add(key);
     added++;
   }
-  if(added > 0) console.info(`[Calendar] 서버측 이벤트 ${added}건 머지 완료`);
+  if(added > 0 || dedupSkipped > 0) console.info(`[Calendar] 서버측 이벤트 ${added}건 머지 (중복 dedup ${dedupSkipped}건 제거)`);
   return added;
 }
 
@@ -9376,99 +9404,123 @@ document.addEventListener('click', (e) => {
 // 클라이언트 사이드 Naver Finance 데이터 페치 (Top10 주식/ETF 실시간)
 // data.json이 빈 경우 또는 새로고침 시 즉시 데이터 표시
 // ============================
+// 공개 CORS 프록시 풀 — 한 곳이 차단되어도 다른 곳을 통해 우회.
+// 순서: 가장 안정적인 것 먼저 (corsproxy.io, allorigins). 최근 추가된 보강 프록시 포함.
+function _buildCorsProxyUrls(target) {
+  const enc = encodeURIComponent(target);
+  return [
+    target,                                                 // 직접 호출 (브라우저가 CORS 허용 시)
+    'https://corsproxy.io/?' + enc,
+    'https://api.allorigins.win/raw?url=' + enc,
+    'https://api.codetabs.com/v1/proxy/?quest=' + enc,
+    'https://thingproxy.freeboard.io/fetch/' + target,
+    'https://proxy.cors.sh/' + target,
+    'https://yacdn.org/serve/' + target,
+    'https://cors.eu.org/' + target,
+    'https://api.allorigins.win/get?url=' + enc,           // wrapped JSON (.contents)
+  ];
+}
+
+async function _fetchViaProxies(target, parseJson=true) {
+  // 결과: 파싱된 JSON 또는 null. 9개 프록시 순차 시도, 각 8초 timeout.
+  for(const url of _buildCorsProxyUrls(target)) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(url, { headers: { 'Accept': 'application/json,text/plain,*/*' }, signal: ctrl.signal });
+      clearTimeout(tid);
+      if(!r.ok) continue;
+      if(!parseJson) {
+        const txt = await r.text();
+        return txt;
+      }
+      let raw;
+      const ct = r.headers.get('content-type') || '';
+      const txt = await r.text();
+      // allorigins.win/get returns {contents:"..."}
+      if(url.includes('allorigins.win/get')) {
+        try {
+          const obj = JSON.parse(txt);
+          raw = obj.contents || '';
+          try { return JSON.parse(raw); } catch(_) { continue; }
+        } catch(_) { continue; }
+      }
+      try { return JSON.parse(txt); }
+      catch(_) {
+        // text 로 받았으면 그대로 반환
+        if(!parseJson) return txt;
+        continue;
+      }
+    } catch(_) { /* try next */ }
+  }
+  return null;
+}
+
 async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
   // 네이버 증권 모바일 JSON API — CORS 지원 (Origin/Referer 헤더 자동 처리)
   // 1차: 직접 호출 (브라우저가 CORS 허용 시), 2차: 다중 CORS 프록시 폴백
   const direct = `https://m.stock.naver.com/api/stocks/exchange/${market}/${direction}?page=1&pageSize=30`;
   const directAlt = `https://api.stock.naver.com/stock/exchange/${market}/${direction}?page=1&pageSize=30`;
-  const urls = [
-    direct,
-    directAlt,
-    'https://corsproxy.io/?' + encodeURIComponent(direct),
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(direct),
-    'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(direct),
-    'https://thingproxy.freeboard.io/fetch/' + direct,
-    'https://corsproxy.io/?' + encodeURIComponent(directAlt),
-  ];
-  for(const url of urls) {
-    try {
-      const r = await fetch(url, {headers:{'Accept':'application/json'}});
-      if(!r.ok) continue;
-      const data = await r.json();
-      const stocks = data.stocks || data.result || [];
-      if(!Array.isArray(stocks) || !stocks.length) continue;
-      const today = new Date().toISOString().slice(0,10);
-      const parsed = stocks.slice(0,10).map(s=>({
-        name:  (s.stockName || s.name || '').trim(),
-        code:  (s.itemCode || s.code || '').trim(),
-        price: Number(s.closePrice || s.nowVal || 0),
-        chg:   Number(s.fluctuationsRatio || s.changeRate || 0),
-        vol:   Number(s.accumulatedTradingVolume || s.volume || 0),
-        as_of: today,
-      })).filter(x=>x.name && x.price);
-      // 검증: 최소 3개 종목이 chg!=0 이어야 (KIS 가 chg=0 garbage 반환하는 케이스와 동일 문제 방지)
-      const nonZero = parsed.filter(p => p.chg !== 0).length;
-      if(parsed.length >= 3 && nonZero >= 3) {
-        console.info(`[NaverStock] ${market} ${direction}: ${parsed.length}건 (${nonZero}건 비영점) - ${url.split('?')[0].slice(0,40)}…`);
-        return parsed;
-      }
-    } catch(e) { /* try next */ }
+  const targets = [direct, directAlt];
+  for(const target of targets) {
+    const data = await _fetchViaProxies(target, true);
+    if(!data) continue;
+    const stocks = data.stocks || data.result || [];
+    if(!Array.isArray(stocks) || !stocks.length) continue;
+    const today = new Date().toISOString().slice(0,10);
+    const parsed = stocks.slice(0,10).map(s=>({
+      name:  (s.stockName || s.name || '').trim(),
+      code:  (s.itemCode || s.code || '').trim(),
+      price: Number(s.closePrice || s.nowVal || 0),
+      chg:   Number(s.fluctuationsRatio || s.changeRate || 0),
+      vol:   Number(s.accumulatedTradingVolume || s.volume || 0),
+      as_of: today,
+    })).filter(x=>x.name && x.price);
+    const nonZero = parsed.filter(p => p.chg !== 0).length;
+    if(parsed.length >= 3 && nonZero >= 3) {
+      console.info(`[NaverStock] ${market} ${direction}: ${parsed.length}건 (${nonZero}건 비영점)`);
+      return parsed;
+    }
   }
   return null;
 }
 
 async function fetchNaverETFMoversClient() {
-  // Naver 모바일 ETF 시세 API + 전통 API
+  // Naver 모바일 ETF 시세 API + 전통 API — 다중 CORS 프록시 폴백 (_fetchViaProxies)
   const targets = [
     'https://m.stock.naver.com/api/stocks/etf/domestic?category=domestic&page=1&pageSize=200',
     'https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200',
     'https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0',
   ];
-  const urls = [];
-  targets.forEach(t => {
-    urls.push(t);
-    urls.push('https://corsproxy.io/?' + encodeURIComponent(t));
-    urls.push('https://api.allorigins.win/raw?url=' + encodeURIComponent(t));
-    urls.push('https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(t));
-    urls.push('https://thingproxy.freeboard.io/fetch/' + t);
-  });
-  for(const url of urls) {
-    try {
-      const r = await fetch(url, {headers:{'Accept':'application/json'}});
-      if(!r.ok) continue;
-      const data = await r.json();
-      // 다양한 응답 스키마 지원
-      let rows = data?.result?.etfItemList
-              || data?.stocks
-              || data?.result?.stocks
-              || data?.etfList
-              || (Array.isArray(data) ? data : []);
-      if(!Array.isArray(rows) || !rows.length) continue;
-      const today = new Date().toISOString().slice(0,10);
-      const parsed = rows.map(s=>{
-        // 여러 가능한 필드명
-        const name = (s.itemname || s.stockName || s.name || s.itemName || '').trim();
-        const code = (s.itemcode || s.itemCode || s.code || '').trim();
-        const price = Number(s.nowVal || s.closePrice || s.currentPrice || s.tradePrice || 0);
-        // changeRate, fluctuationsRatio, changeRatio 등
-        let chg = Number(s.fluctuationsRatio ?? s.changeRate ?? s.changeRatio ?? s.cttr ?? 0);
-        // 일부 응답은 changeVal (절대값) 만 제공 → 직접 계산
-        if(chg === 0) {
-          const chgVal = Number(s.changeVal || s.compareToPreviousClosePrice || 0);
-          if(chgVal && price > chgVal) chg = +(chgVal / (price - chgVal) * 100).toFixed(2);
-        }
-        const vol = Number(s.quant || s.accumulatedTradingVolume || s.tradeVolume || 0);
-        return { name, code, price, chg, vol, as_of: today };
-      }).filter(x=>x.name && x.price);
-      if(!parsed.length) continue;
-      const gainers = [...parsed].sort((a,b)=>b.chg-a.chg).slice(0,10);
-      const losers  = [...parsed].sort((a,b)=>a.chg-b.chg).slice(0,10);
-      // 모든 변화율이 0이면 실패로 간주 (다른 엔드포인트 시도)
-      const nonZero = parsed.filter(p => p.chg !== 0).length;
-      if(nonZero < 3) continue;
-      console.info(`[NaverETF] ${parsed.length}건 수집 (비영점 ${nonZero}건) - ${url.split('?')[0].slice(0,40)}…`);
-      return { gainers, losers };
-    } catch(e) { /* try next */ }
+  for(const target of targets) {
+    const data = await _fetchViaProxies(target, true);
+    if(!data) continue;
+    let rows = data?.result?.etfItemList
+            || data?.stocks
+            || data?.result?.stocks
+            || data?.etfList
+            || (Array.isArray(data) ? data : []);
+    if(!Array.isArray(rows) || !rows.length) continue;
+    const today = new Date().toISOString().slice(0,10);
+    const parsed = rows.map(s=>{
+      const name = (s.itemname || s.stockName || s.name || s.itemName || '').trim();
+      const code = (s.itemcode || s.itemCode || s.code || '').trim();
+      const price = Number(s.nowVal || s.closePrice || s.currentPrice || s.tradePrice || 0);
+      let chg = Number(s.fluctuationsRatio ?? s.changeRate ?? s.changeRatio ?? s.cttr ?? 0);
+      if(chg === 0) {
+        const chgVal = Number(s.changeVal || s.compareToPreviousClosePrice || 0);
+        if(chgVal && price > chgVal) chg = +(chgVal / (price - chgVal) * 100).toFixed(2);
+      }
+      const vol = Number(s.quant || s.accumulatedTradingVolume || s.tradeVolume || 0);
+      return { name, code, price, chg, vol, as_of: today };
+    }).filter(x=>x.name && x.price);
+    if(!parsed.length) continue;
+    const gainers = [...parsed].sort((a,b)=>b.chg-a.chg).slice(0,10);
+    const losers  = [...parsed].sort((a,b)=>a.chg-b.chg).slice(0,10);
+    const nonZero = parsed.filter(p => p.chg !== 0).length;
+    if(nonZero < 3) continue;
+    console.info(`[NaverETF] ${parsed.length}건 수집 (비영점 ${nonZero}건)`);
+    return { gainers, losers };
   }
   return null;
 }
@@ -11264,15 +11316,20 @@ function applyRealData(d) {
   };
   // 데이터 없을 때 "페치 중..." 대신 명확한 미연동 안내로 교체
   // (API 키 미설정/응답 없음을 사용자가 인지할 수 있도록)
+  // 매매·전세 둘 다 R-ONE 이 1차 소스 (실패 시 ECOS 폴백). 라벨 일관성 유지.
+  const reDiag = (d.diagnostics || {}).realestate_kr || {};
+  const reMissingHint = reDiag.rone_tried && !reDiag.rone_ok && !reDiag.ecos_ok
+    ? 'R-ONE/ECOS 응답 없음 — 재시도 대기'
+    : (reDiag.rone_tried ? 'R-ONE/ECOS 응답 대기' : 'API 미연동');
   if (!reKr.apt_price_idx_kr && !reKr.jns_price_idx_kr) {
     const mEl = document.getElementById('reKpiAptPriceMeta');
     if (mEl && mEl.textContent.includes('페치 중')) {
-      mEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · API 미연동';
+      mEl.innerHTML = `<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · ${reMissingHint}`;
       mEl.style.color = '#f5a623';
     }
     const cEl = document.getElementById('reKpiAptIdxChg');
     if (cEl && cEl.textContent.includes('페치 중')) {
-      cEl.innerHTML = '<a href="https://kosis.kr" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">KOSIS 사이트 보기 →</a> · API 미연동';
+      cEl.innerHTML = `<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · ${reMissingHint}`;
       cEl.style.color = '#f5a623';
     }
   }
@@ -11717,11 +11774,15 @@ async function fetchLatestArticle(query) {
 }
 
 // CORS 프록시 — 여러 개를 fallback 순서로 시도. 하나가 실패해도 다음 것으로 시도.
+// 다중 프록시 도입 배경: 단일 프록시 의존 시 차단/장애에 약함. 9개 확보로 가용성↑.
 const _NEWS_PROXIES = [
   (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),
   (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
   (url) => 'https://thingproxy.freeboard.io/fetch/' + url,
+  (url) => 'https://proxy.cors.sh/' + url,
+  (url) => 'https://cors.eu.org/' + url,
+  (url) => 'https://yacdn.org/serve/' + url,
 ];
 
 async function _fetchTextWithProxies(targetUrl, timeoutMs) {
@@ -11795,7 +11856,7 @@ async function fetchLatestArticles(query, count=5) {
   // Google News RSS — 다양한 프록시 시도
   const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
   let xmlText = await _fetchTextWithProxies(rss, 7000);
-  // 보조: Naver 뉴스 검색 RSS 도 시도 (Google News 가 안 될 때)
+  // 보조: Daum 뉴스 검색 RSS 도 시도 (Google News 가 안 될 때)
   if(!xmlText) {
     const naverRss = `https://rss.daum.net/rss/search.xml?q=${encodeURIComponent(query)}`;
     xmlText = await _fetchTextWithProxies(naverRss, 5000);
@@ -11806,13 +11867,24 @@ async function fetchLatestArticles(query, count=5) {
     const doc = parser.parseFromString(xmlText, 'text/xml');
     const items = Array.from(doc.querySelectorAll('item'));
     if(!items.length) return null;
-    return items.slice(0, count).map(it => {
+    // 사용자 요구: 14일 이내 실제 기사만. 검색결과 URL 도 거부.
+    const cutoffMs = Date.now() - 14 * 24 * 3600 * 1000;
+    const futureMs = Date.now() + 24 * 3600 * 1000;
+    const parsed = items.map(it => {
       const title = (it.querySelector('title')?.textContent || '').replace(/<!\[CDATA\[|\]\]>/g,'').replace(/\s*-\s*[^-]+$/, '').trim();
       const url = _extractRealArticleUrl(it);
       const pubDate = it.querySelector('pubDate')?.textContent || '';
       const isoDate = pubDate ? (() => { try { return new Date(pubDate).toISOString().slice(0,10); } catch { return null; } })() : null;
       return { title, url, time: pubDate ? relTime(new Date(pubDate).toISOString()) : '오늘', isoDate };
+    }).filter(a => {
+      if(!a.url || !a.title) return false;
+      if(!_isArticleUrlOk(a.url)) return false;     // 검색결과/홈페이지 URL 거부
+      if(!a.isoDate) return false;                   // 날짜 미상 거부
+      const t = new Date(a.isoDate).getTime();
+      if(isNaN(t)) return false;
+      return t >= cutoffMs && t <= futureMs;
     });
+    return parsed.slice(0, count);
   } catch(_) { return null; }
 }
 
@@ -11848,7 +11920,9 @@ function applyServerNewsToFeeds(serverNews) {
   if (!serverNews || typeof serverNews !== 'object') return false;
   const feeds = { newsFeed:newsItems, commodityNewsFeed:commodityNewsItems,
                   macroNewsFeed:macroNewsItems, calendarNewsFeed:calendarNewsItems };
-  const cutoffMs = Date.now() - 7 * 24 * 3600 * 1000;
+  // 사용자 요구: 14일 이내 실제 기사만. isoDate 없거나 미래 날짜인 항목 거부.
+  const cutoffMs = Date.now() - 14 * 24 * 3600 * 1000;
+  const nowMs    = Date.now() + 24 * 3600 * 1000;  // 시차 보정 1일
   let appliedCount = 0;
   for (const arr of Object.values(feeds)) {
     // 카테고리 별로 기존 항목 순서대로 서버측 기사 슬롯에 매핑
@@ -11863,7 +11937,8 @@ function applyServerNewsToFeeds(serverNews) {
         if (!_isArticleUrlOk(a.url)) return false;
         if (!a.isoDate) return false;  // 날짜 없는 기사 제외 (cutoff 확실치 않음)
         const t = new Date(a.isoDate).getTime();
-        return t >= cutoffMs;
+        if (isNaN(t)) return false;
+        return t >= cutoffMs && t <= nowMs;  // 14일 이내 + 미래 거부
       });
       if (!fresh.length) return;
       idxList.forEach((slotIdx, i) => {
@@ -11875,7 +11950,7 @@ function applyServerNewsToFeeds(serverNews) {
         arr[slotIdx].time  = article.isoDate ? relTime(article.isoDate) : '오늘';
         appliedCount++;
       });
-      // 남는 슬롯은 isoDate 를 비워 buildNewsFeed 의 7일 필터로 자연스레 숨겨짐
+      // 남는 슬롯은 isoDate 를 비워 buildNewsFeed 의 cutoff 필터로 자연스레 숨겨짐
       for (let j = fresh.length; j < idxList.length; j++) {
         const oldItem = arr[idxList[j]];
         if (oldItem && /search\.naver\.com|search\.daum|google\.com/i.test(oldItem.url || '')) {
@@ -11884,7 +11959,7 @@ function applyServerNewsToFeeds(serverNews) {
       }
     });
   }
-  if (appliedCount > 0) console.info(`[News] data.json 서버측 뉴스 ${appliedCount}건 적용 (7일 이내, 실기사 URL)`);
+  if (appliedCount > 0) console.info(`[News] data.json 서버측 뉴스 ${appliedCount}건 적용 (14일 이내, 실기사 URL)`);
   return appliedCount > 0;
 }
 
