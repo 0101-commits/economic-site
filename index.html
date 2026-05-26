@@ -4726,39 +4726,46 @@ function setMoverType(type, btn) {
 }
 
 // ============================
-// 뉴스 데이터 (Naver 뉴스 검색 링크 — 클릭 시 최신 기사 표시)
+// 뉴스 데이터 (실제 기사 publisher 직접 URL 만 노출)
 // ============================
-// URL 정규화: 검색 결과 URL 은 "검색 결과", publisher 직접 링크는 "기사보기" 로 라벨링.
-// search.naver.com URL 은 PC 검색 결과 페이지인데, m.search.naver.com 의 모바일 뉴스 검색이
-// 기사 클릭 동선이 더 좋음 (필터 즉시 적용, 모바일 광고 적음) → 모바일 URL 로 자동 변환.
+// 사용자 요구: 뉴스 카드 클릭 시 반드시 "실제 기사" 로 연결되어야 함 (검색 결과 페이지 X).
+// 정적 fallback 데이터의 search.naver.com URL 은 data.json.news 로 교체되며,
+// 교체 실패 시에는 카드 자체를 숨겨서 사용자가 검색창으로 튕기는 경험을 차단한다.
+// 정의 위치 주의: newsCard / buildNewsFeed / renderFiltered 보다 먼저 선언되어야 함
+//   (함수 선언은 hoisting 되지만 가독성을 위해 동일 블록에 배치).
+function _isSearchOrInvalidNewsUrl(url) {
+  if (!url || url === '#') return true;
+  let u;
+  try { u = new URL(url); } catch (_) { return true; }
+  const host = (u.hostname || '').toLowerCase();
+  // 검색결과 페이지 호스트 — publisher 가 아니므로 "실기사" 가 아님
+  const SEARCH_HOSTS = [
+    'search.naver.com', 'm.search.naver.com',
+    'search.daum.net', 'm.search.daum.net',
+    'www.bing.com', 'cn.bing.com',
+    'news.google.com',
+  ];
+  if (SEARCH_HOSTS.some(h => host === h || host.endsWith('.' + h))) return true;
+  // *.google.com 도 검색결과/Google News 일 가능성 — 모두 거부
+  if (host === 'google.com' || host.endsWith('.google.com')) return true;
+  // path 가 비었거나 너무 짧으면 publisher 홈페이지 — 기사 URL 아님
+  const path = (u.pathname || '').replace(/\/+$/, '');
+  if (!path || path === '/' || path.length < 4) return true;
+  return false;
+}
+
+// 정규화: 표시용 라벨만 결정. URL 은 검증된 publisher URL 만 들어옴 (search URL 은 사전 차단).
 function _normalizeNewsUrl(rawUrl) {
-  if (!rawUrl || rawUrl === '#') return { url: '#', label: '링크 없음', isSearch: true };
-  let url = rawUrl;
-  let isSearch = false;
-  try {
-    const u = new URL(url);
-    const host = u.hostname.toLowerCase();
-    if (host === 'search.naver.com') {
-      // PC 검색 → 모바일 뉴스 검색 (랜딩이 모바일 친화적, 즉시 기사 목록 노출)
-      u.hostname = 'm.search.naver.com';
-      if (!u.searchParams.get('where')) u.searchParams.set('where', 'm_news');
-      else u.searchParams.set('where', 'm_news');
-      // sort=1 (최신순) 기본 적용
-      if (!u.searchParams.get('sort')) u.searchParams.set('sort', '1');
-      url = u.toString();
-      isSearch = true;
-    } else if (host === 'm.search.naver.com' || host.endsWith('search.naver.com')) {
-      isSearch = true;
-    } else if (host === 'news.google.com' || host.endsWith('google.com')) {
-      isSearch = true;
-    } else if (host === 'www.bing.com' || host.endsWith('bing.com')) {
-      isSearch = true;
-    }
-  } catch (_) { /* invalid URL — leave as-is */ }
-  return { url, label: isSearch ? '↗ 관련 기사 보기' : '↗ 기사 보기', isSearch };
+  if (_isSearchOrInvalidNewsUrl(rawUrl)) {
+    return { url: '#', label: '링크 없음', isSearch: true };
+  }
+  return { url: rawUrl, label: '↗ 기사 보기', isSearch: false };
 }
 
 function newsCard(n) {
+  // 검색 URL · 빈 URL · 짧은 path (publisher 홈페이지) 인 카드는 렌더하지 않음.
+  // buildNewsFeed/renderFiltered 에서 이미 걸러지지만 (defense in depth) 다중 방어.
+  if (!n || _isSearchOrInvalidNewsUrl(n.url)) return '';
   const displayTime = n.isoDate ? relTime(n.isoDate) : (n.time || '오늘');
   const norm = _normalizeNewsUrl(n.url);
   const safeUrl = norm.url.replace(/'/g,'%27');
@@ -4777,17 +4784,19 @@ const NEWS_PAGE_SIZE = 5;
 function renderNewsFeedWithPagination(containerId, items) {
   const el = document.getElementById(containerId);
   if(!el) return;
-  if(!items || items.length === 0) {
-    el.innerHTML = '<div style="color:#434656;font-size:12px;padding:12px 0;text-align:center;">표시할 뉴스가 없습니다</div>';
+  // 추가 방어선: 검색 URL · 빈 URL 항목은 페이지네이션에서도 제외 (defense in depth)
+  const safeItems = (items || []).filter(n => n && !_isSearchOrInvalidNewsUrl(n.url));
+  if(safeItems.length === 0) {
+    el.innerHTML = '<div style="color:#434656;font-size:12px;padding:12px 0;text-align:center;line-height:1.6;">최근 실시간 뉴스를 불러오는 중입니다.<br>잠시 후 ↻ 새로고침을 눌러주세요.</div>';
     return;
   }
   const expanded = !!newsExpanded[containerId];
-  const visible = expanded ? items : items.slice(0, NEWS_PAGE_SIZE);
-  const remaining = items.length - visible.length;
+  const visible = expanded ? safeItems : safeItems.slice(0, NEWS_PAGE_SIZE);
+  const remaining = safeItems.length - visible.length;
   let html = visible.map(newsCard).join('');
   if(remaining > 0) {
     html += `<button onclick="toggleNewsExpand('${containerId}')" style="background:var(--c-card, #1b1f2b);color:var(--c-primary, #b6c4ff);border:1px solid var(--c-border, #2a2e3d);border-radius:6px;padding:8px;font-size:11px;cursor:pointer;width:100%;margin-top:4px;">더보기 (${remaining}개 더)</button>`;
-  } else if(expanded && items.length > NEWS_PAGE_SIZE) {
+  } else if(expanded && safeItems.length > NEWS_PAGE_SIZE) {
     html += `<button onclick="toggleNewsExpand('${containerId}')" style="background:transparent;color:var(--c-txt-dim, #8d90a2);border:1px solid var(--c-border, #2a2e3d);border-radius:6px;padding:6px;font-size:11px;cursor:pointer;width:100%;margin-top:4px;">접기 ↑</button>`;
   }
   el.innerHTML = html;
@@ -4802,10 +4811,12 @@ function buildNewsFeed(containerId, items) {
   const el = document.getElementById(containerId);
   if(!el) return;
   // 사용자 요구: 14일 이내 실제 기사만 표시. isoDate 없거나 미래 날짜인 항목 거부.
+  // + 검색결과/홈페이지 URL 거부 (사용자가 "검색창으로 튕긴다" 고 보고한 이슈 차단).
   const cutoff = Date.now() - 14 * 24 * 3600 * 1000;
   const future = Date.now() + 24 * 3600 * 1000;  // 시차 보정 1일
   const recent = (items || []).filter(n => {
     if(!n) return false;
+    if(_isSearchOrInvalidNewsUrl(n.url)) return false;  // 검색 URL · 빈 URL 차단
     if(!n.isoDate) return false;  // isoDate 없으면 노출 안 함 (구 정적 데이터 정리)
     const t = new Date(n.isoDate).getTime();
     if(isNaN(t)) return false;
@@ -5115,8 +5126,19 @@ function renderFiltered(feedId) {
   const arr = getFeedArray(feedId);
   const cat = currentNewsFilter[feedId] || 'all';
   if(!arr) return;
-  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
-  const recent = arr.filter(n => !n.isoDate || new Date(n.isoDate).getTime() >= cutoff);
+  // buildNewsFeed 와 동일한 14일 cutoff + 검색 URL 차단으로 일관성 유지.
+  // (기존엔 30일 cutoff 가 노후 정적 fallback 데이터를 그대로 통과시켜
+  //  사용자 클릭 → 검색창으로 튕기는 이슈를 유발했음.)
+  const cutoff = Date.now() - 14 * 24 * 3600 * 1000;
+  const future = Date.now() + 24 * 3600 * 1000;
+  const recent = arr.filter(n => {
+    if(!n) return false;
+    if(_isSearchOrInvalidNewsUrl(n.url)) return false;  // 검색 URL · 빈 URL 차단
+    if(!n.isoDate) return false;
+    const t = new Date(n.isoDate).getTime();
+    if(isNaN(t)) return false;
+    return t >= cutoff && t <= future;
+  });
   const filtered = cat==='all' ? recent : recent.filter(n=>n.cat===cat||n.tag===cat);
   renderNewsFeedWithPagination(feedId, filtered);
 }
@@ -5186,10 +5208,10 @@ async function refreshNews(feedId, arrName, btn) {
       if(!fresh || !fresh.length) return;
       byCategory[cat].forEach(({item, idx}, i) => {
         const f = fresh[i];
-        if(!f || !f.url) return;
+        if(!f || !f.url || _isSearchOrInvalidNewsUrl(f.url)) return;  // 새 URL 도 검증
         // 검색 페이지 URL (정적 폴백) 이거나 더 최신 기사가 있으면 교체
         const cur = arr[idx];
-        const isStatic = /search\.naver\.com/.test(cur.url || '');
+        const isStatic = _isSearchOrInvalidNewsUrl(cur.url);
         if (isStatic || !cur.url || cur.url === '#' || (f.isoDate && cur.isoDate && f.isoDate >= cur.isoDate)) {
           cur.title = f.title;
           cur.url   = f.url;
@@ -5198,6 +5220,10 @@ async function refreshNews(feedId, arrName, btn) {
         }
       });
     }));
+    // 마지막 sweep: 새 기사 페치 실패 카테고리의 정적 search URL 항목을 숨김
+    arr.forEach(item => {
+      if (item && _isSearchOrInvalidNewsUrl(item.url)) item.isoDate = '';
+    });
     renderFiltered(feedId);
   } catch(e) {
     console.warn('refresh failed', e);
@@ -11901,20 +11927,19 @@ function relTime(iso) {
 // data.json.news 우선 적용 — 서버측에서 매일 아침 9시 KST 에 Google News RSS 로
 // 미리 페치한 기사를 카테고리(item.cat) 별로 교체.
 // 검색결과 페이지/publisher 홈페이지 URL 은 제외, 1주일 이내 기사만 채택.
+// _isSearchOrInvalidNewsUrl 의 역으로 정의 — 단일 source-of-truth 유지.
 function _isArticleUrlOk(url) {
-  if (!url || url === '#') return false;
-  try {
-    const u = new URL(url);
-    const host = (u.hostname || '').toLowerCase();
-    const SEARCH = ['search.naver.com','m.search.naver.com','search.daum.net','www.bing.com','news.google.com'];
-    if (SEARCH.some(h => host === h || host.endsWith('.'+h))) return false;
-    if (host.endsWith('.google.com')) return false;
-    // path 가 비어있거나 너무 짧으면 홈페이지로 간주
-    const path = (u.pathname || '').replace(/\/+$/, '');
-    if (!path || path === '' || path === '/' || path.length < 4) return false;
-  } catch(_) { return false; }
-  return true;
+  return !_isSearchOrInvalidNewsUrl(url);
 }
+
+// 카테고리 fallback: 세부 카테고리가 비었을 때 더 일반적인 카테고리로 폴백.
+// 예) 원유/귀금속/비철금속 → 원자재. 데이터 소스가 세부 키워드 매칭에 실패한
+// 경우에도 사용자가 commodity 페이지에서 빈 화면 대신 관련 뉴스를 볼 수 있도록.
+const NEWS_CAT_FALLBACK = {
+  '원유':     '원자재',
+  '귀금속':   '원자재',
+  '비철금속': '원자재',
+};
 
 function applyServerNewsToFeeds(serverNews) {
   if (!serverNews || typeof serverNews !== 'object') return false;
@@ -11924,6 +11949,14 @@ function applyServerNewsToFeeds(serverNews) {
   const cutoffMs = Date.now() - 14 * 24 * 3600 * 1000;
   const nowMs    = Date.now() + 24 * 3600 * 1000;  // 시차 보정 1일
   let appliedCount = 0;
+  const _filterFresh = (rawList) => (rawList || []).filter(a => {
+    if (!a || !a.url) return false;
+    if (!_isArticleUrlOk(a.url)) return false;
+    if (!a.isoDate) return false;
+    const t = new Date(a.isoDate).getTime();
+    if (isNaN(t)) return false;
+    return t >= cutoffMs && t <= nowMs;
+  });
   for (const arr of Object.values(feeds)) {
     // 카테고리 별로 기존 항목 순서대로 서버측 기사 슬롯에 매핑
     const byCat = {};
@@ -11931,31 +11964,47 @@ function applyServerNewsToFeeds(serverNews) {
       const cat = item.cat || '기타';
       (byCat[cat] = byCat[cat] || []).push(idx);
     });
+    // 동일 피드 내 중복 URL 방지 — 같은 기사가 여러 카테고리로 들어오는 경우
+    // (예: 원유/귀금속/비철금속 → 모두 원자재 폴백으로 같은 기사 매핑) 1회만 노출.
+    const usedUrls = new Set();
     Object.entries(byCat).forEach(([cat, idxList]) => {
-      const fresh = (serverNews[cat] || []).filter(a => {
-        if (!a || !a.url) return false;
-        if (!_isArticleUrlOk(a.url)) return false;
-        if (!a.isoDate) return false;  // 날짜 없는 기사 제외 (cutoff 확실치 않음)
-        const t = new Date(a.isoDate).getTime();
-        if (isNaN(t)) return false;
-        return t >= cutoffMs && t <= nowMs;  // 14일 이내 + 미래 거부
-      });
-      if (!fresh.length) return;
+      let fresh = _filterFresh(serverNews[cat]);
+      // 폴백: 정의된 fallback 카테고리에서 기사 가져오기 (예: 원유 → 원자재)
+      if (fresh.length === 0 && NEWS_CAT_FALLBACK[cat]) {
+        fresh = _filterFresh(serverNews[NEWS_CAT_FALLBACK[cat]]);
+      }
+      // 이미 다른 카테고리에서 사용된 URL 은 제외 (중복 방지)
+      const freshDedup = fresh.filter(a => !usedUrls.has(a.url));
+      // 버그 수정: fresh.length === 0 일 때도 cleanup 루프를 반드시 돌려야 함.
+      // 기존엔 early return 으로 인해 data.json 에 해당 카테고리 기사가 0건이면
+      // 정적 fallback (search.naver.com URL) 이 화면에 그대로 노출되어 사용자가
+      // 클릭 시 검색창으로 튕기는 회귀가 발생했음.
       idxList.forEach((slotIdx, i) => {
-        const article = fresh[i];
+        const article = freshDedup[i];
         if (!article || !article.url) return;
         arr[slotIdx].title = article.title;
         arr[slotIdx].url   = article.url;
         if (article.isoDate) arr[slotIdx].isoDate = article.isoDate;
         arr[slotIdx].time  = article.isoDate ? relTime(article.isoDate) : '오늘';
+        usedUrls.add(article.url);
         appliedCount++;
       });
-      // 남는 슬롯은 isoDate 를 비워 buildNewsFeed 의 cutoff 필터로 자연스레 숨겨짐
-      for (let j = fresh.length; j < idxList.length; j++) {
+      // 남는 슬롯은 isoDate 를 비워 buildNewsFeed 의 cutoff 필터로 자연스레 숨겨짐.
+      // _isArticleUrlOk 로 검색 URL 뿐 아니라 publisher 홈페이지 URL 도 일괄 차단.
+      for (let j = freshDedup.length; j < idxList.length; j++) {
         const oldItem = arr[idxList[j]];
-        if (oldItem && /search\.naver\.com|search\.daum|google\.com/i.test(oldItem.url || '')) {
+        if (oldItem && !_isArticleUrlOk(oldItem.url)) {
           oldItem.isoDate = '';  // 빈 isoDate → buildNewsFeed 가 제외
         }
+      }
+    });
+  }
+  // 최종 sweep: 어떤 이유로든 남아있는 정적 search URL · 홈페이지 URL 항목의
+  // isoDate 를 비워 다음 렌더에서 자연 제외 (belt-and-suspenders).
+  for (const arr of Object.values(feeds)) {
+    arr.forEach(item => {
+      if (item && !_isArticleUrlOk(item.url)) {
+        item.isoDate = '';
       }
     });
   }
@@ -11983,9 +12032,10 @@ async function loadFreshNews() {
         freshList.forEach((fresh, i) => {
           const slot = idx + i;
           if (!arrays[arrName][slot] || !fresh || !fresh.url) return;
-          // 기존 url 이 search.naver.com (정적 fallback) 이거나 서버측 url 보다 새 RSS 가 더 최신이면 교체
+          if (_isSearchOrInvalidNewsUrl(fresh.url)) return;  // 새 URL 도 검증
+          // 기존 url 이 검색/홈페이지 URL (정적 fallback) 이거나 더 최신 기사가 있으면 교체
           const cur = arrays[arrName][slot];
-          const isStaticUrl = /search\.naver\.com/.test(cur.url || '');
+          const isStaticUrl = _isSearchOrInvalidNewsUrl(cur.url);
           const newerIso = fresh.isoDate && cur.isoDate && fresh.isoDate >= cur.isoDate;
           if (isStaticUrl || newerIso || !cur.url || cur.url === '#') {
             cur.title = fresh.title;
@@ -11998,6 +12048,14 @@ async function loadFreshNews() {
     }
   }
   await Promise.all(tasks);
+  // 최종 sweep: 클라이언트 RSS 도 페치 실패한 카테고리의 정적 search URL 항목 숨김.
+  // applyServerNewsToFeeds 가 이미 sweep 하지만, 그 사이 fetchLatestArticles 가
+  // 새 search URL 을 주입했을 가능성도 차단 (방어선 다층화).
+  Object.values(arrays).forEach(arr => {
+    arr.forEach(item => {
+      if (item && _isSearchOrInvalidNewsUrl(item.url)) item.isoDate = '';
+    });
+  });
   // 모든 뉴스 피드 다시 렌더링 (DOM에 존재하는 것만)
   if (document.getElementById('newsFeed'))          buildNewsFeed('newsFeed', newsItems);
   if (document.getElementById('commodityNewsFeed')) buildNewsFeed('commodityNewsFeed', commodityNewsItems);
