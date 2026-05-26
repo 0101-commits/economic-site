@@ -3224,10 +3224,134 @@ def fetch_all_historical_data():
 
 
 # ============================================================
+# 이전 data.json 로드 — 일부 fetch 실패해도 직전 값 보존
+# ============================================================
+def _load_prev_data(path="data.json"):
+    """이전 빌드에서 저장된 data.json 을 로드. 첫 빌드/파일 없음 시 빈 dict.
+
+    매 시간 cron 에서 외부 API 가 일시적으로 실패해도 이전 값을 그대로
+    표시할 수 있도록 사용. _preserve_from_prev() 가 머지 정책을 결정.
+    """
+    try:
+        if not os.path.exists(path):
+            return {}
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception as e:
+        log(f"[prev-data] {path} 로드 실패 (무시): {e}")
+        return {}
+
+
+def _is_effectively_empty(val):
+    """preserve 판정용 'effectively empty' 체크.
+
+    None, [], {}, "" 외에도:
+    - 뉴스: 모든 카테고리 리스트가 비어있으면 effectively empty
+      (단 lastFetched 만 있어도 의미 없음 — 본문 없는 dict 는 빈 것으로 간주).
+    - 캘린더: events 가 비어있으면 effectively empty.
+    """
+    if val is None:
+        return True
+    if isinstance(val, str):
+        return val.strip() == ""
+    if isinstance(val, list):
+        return len(val) == 0
+    if isinstance(val, dict):
+        if len(val) == 0:
+            return True
+        # economicCalendar 형식
+        if "events" in val and isinstance(val["events"], list):
+            return len(val["events"]) == 0
+        # news 형식: 카테고리 리스트 dict (lastFetched/cutoff 등 메타 제외)
+        meta_keys = {"lastFetched", "cutoff", "filteredManually", "source"}
+        cat_lists = [v for k, v in val.items() if k not in meta_keys and isinstance(v, list)]
+        if cat_lists and all(len(lst) == 0 for lst in cat_lists):
+            return True
+        # stockMovers/etfMovers 형식: kospiGainers/kospiLosers/etfGainers/etfLosers
+        movers_keys = ("kospiGainers", "kospiLosers", "etfGainers", "etfLosers")
+        if any(k in val for k in movers_keys):
+            return all(not val.get(k) for k in movers_keys)
+        return False
+    return False
+
+
+def _preserve_from_prev(data, prev, keys, fresh_label=None):
+    """현재 빌드 결과가 비어 있을 때 이전 빌드의 값을 보존.
+
+    Args:
+        data: 현재 빌드 결과 (mutable)
+        prev: 이전 data.json (read-only)
+        keys: 보존 후보 key 리스트 — 각 항목은 'top_key' 또는
+              'top.sub.path' 형식. effectively empty 일 때 보존.
+        fresh_label: 보존 시 sources 에 표시할 라벨 prefix.
+
+    Returns: 보존된 key 개수.
+    """
+    if not prev:
+        return 0
+    preserved = 0
+    for k in keys:
+        try:
+            cur = data
+            par = None
+            parent_key = None
+            parts = k.split(".")
+            for i, part in enumerate(parts):
+                if not isinstance(cur, dict):
+                    cur = None
+                    break
+                if i == len(parts) - 1:
+                    par = cur
+                    parent_key = part
+                    cur = cur.get(part)
+                else:
+                    nxt = cur.get(part)
+                    if nxt is None or not isinstance(nxt, dict):
+                        cur = None
+                        break
+                    cur = nxt
+            # 현재 비었음 판정 (effectively empty)
+            if not _is_effectively_empty(cur) or par is None:
+                continue
+            # 이전 값 탐색
+            pcur = prev
+            for part in parts:
+                if not isinstance(pcur, dict):
+                    pcur = None
+                    break
+                pcur = pcur.get(part)
+                if pcur is None:
+                    break
+            # 이전 값도 비어있으면 (또는 effectively empty) 보존할 이유 없음
+            if pcur is None or _is_effectively_empty(pcur):
+                continue
+            par[parent_key] = pcur
+            preserved += 1
+            # 보존된 소스 메타 라벨링
+            try:
+                src_key = parts[0]
+                prev_src = (prev.get("sources") or {}).get(src_key)
+                prev_iso = prev.get("lastUpdated") or ""
+                label = f"{fresh_label or 'preserved'} ← {prev_src or 'prev'}"
+                if prev_iso:
+                    label = f"{label} ({prev_iso[:16]})"
+                data.setdefault("sources", {})[src_key] = label
+            except Exception:
+                pass
+            log(f"[preserve] {k}: 현재 비어있어 직전 값 보존")
+        except Exception as e:
+            log(f"[preserve] {k} 보존 실패 (무시): {e}")
+    return preserved
+
+
+# ============================================================
 # 메인 빌드
 # ============================================================
 def build_data():
     now = datetime.now(KST)
+    prev = _load_prev_data("data.json")
+    if prev:
+        log(f"[prev-data] 이전 빌드 로드 OK (lastUpdated={prev.get('lastUpdated','')[:16]})")
     data = {
         "lastUpdated": now.isoformat(),
         "sources": {},
@@ -3678,9 +3802,13 @@ def build_data():
     if DATA_GO_KR_API_KEY:
         try:
             log("[MOLIT] 국토부 아파트 매매 실거래 거래량 수집 시작")
-            apt_trades = fetch_molit_apt_trade_count(months_back=3)
+            # 최근 6개월 시도 (당월/전월은 신고 lag 으로 0 일 수 있음 → 더 거슬러 올라가 비영점 확보)
+            apt_trades = fetch_molit_apt_trade_count(months_back=6)
+            # 0건 월 제거 (당월 신고 lag 으로 0 인 경우 화면이 비어 보이는 문제 방지)
             if apt_trades:
-                # 최신 월/전월 거래량
+                apt_trades = {k: v for k, v in apt_trades.items() if v and v > 0}
+            if apt_trades:
+                # 최신 월/전월 거래량 (0 이 아닌 가장 최근)
                 sorted_keys = sorted(apt_trades.keys())
                 latest = sorted_keys[-1]
                 prev = sorted_keys[-2] if len(sorted_keys) > 1 else None
@@ -3698,10 +3826,24 @@ def build_data():
                     "history": apt_trades,
                 }
                 data["sources"]["realestate_molit"] = "data.go.kr (국토부 실거래가)"
+                log(f"[MOLIT] 성공: {latest} {cur_cnt:,}건 (prev {prev}: {prev_cnt:,}건)")
+            else:
+                log("[MOLIT] 최근 6개월 거래량 모두 0 — R-ONE trade_count_kr_rone 폴백 시도")
+                # R-ONE 의 거래량 통계를 trade_count_kr 로 노출 (front-end 가 동일 키로 표시)
+                re_kr = data["realestate"].get("kr", {}) or {}
+                if re_kr.get("trade_count_kr_rone") and not re_kr.get("trade_count_kr"):
+                    rone_trade = dict(re_kr["trade_count_kr_rone"])
+                    rone_trade["source"] = rone_trade.get("source", "") + " (MOLIT 폴백)"
+                    data["realestate"]["kr"]["trade_count_kr"] = rone_trade
+                    log(f"[MOLIT] R-ONE trade_count_kr_rone 폴백 적용: {rone_trade.get('period')}")
         except Exception as e:
             log(f"[MOLIT] 오류: {e}")
     else:
-        log("[MOLIT] DATA_GO_KR_API_KEY 없음 — 실거래가 건너뜀")
+        log("[MOLIT] DATA_GO_KR_API_KEY 없음 — R-ONE trade_count_kr_rone 폴백 확인")
+        re_kr = data["realestate"].get("kr", {}) or {}
+        if re_kr.get("trade_count_kr_rone") and not re_kr.get("trade_count_kr"):
+            data["realestate"]["kr"]["trade_count_kr"] = dict(re_kr["trade_count_kr_rone"])
+            log(f"[MOLIT] R-ONE 폴백 적용 (DATA_GO_KR_API_KEY 없음)")
 
     # ── 한국수출입은행 EXIM: 환율/금리 검증용 ────────────────
     if EXIM_API_KEY:
@@ -3789,6 +3931,43 @@ def build_data():
             log(f"[Calendar] 수집 완료: {len(cal_data.get('events', []))}건 (백필 {cal_data.get('backfilled',0)})")
     except Exception as e:
         log(f"[Calendar] 수집 오류: {e}")
+
+    # ── 이전 데이터 보존 (직전 빌드 머지) ─────────────────────
+    # 외부 API 가 일시적으로 실패해도 사용자 화면이 비지 않도록,
+    # 현재 빌드에서 비어 있는 주요 필드만 직전 data.json 의 값으로 복원.
+    # 비어있지 않은 필드는 그대로 새 값 사용.
+    try:
+        preserved = _preserve_from_prev(
+            data, prev,
+            keys=[
+                # 등락 종목/ETF — KRX/pykrx/Naver 모두 실패 시 직전 값 유지
+                "stockMovers.kospiGainers",
+                "stockMovers.kospiLosers",
+                "etfMovers.etfGainers",
+                "etfMovers.etfLosers",
+                # 뉴스 — Google/Naver/Bing 모두 실패 시 직전 값 유지
+                "news",
+                # 경제 캘린더 — FRED 실패 시 직전 값 유지
+                "economicCalendar",
+                # 부동산 — R-ONE/KOSIS 실패 시 직전 값 유지
+                "realestate.kr",
+                "realestate.us",
+                # 거시 지표 (서브 카테고리별로 보존 — 한 국가만 실패해도 다른 국가 유지)
+                "economicIndicators.kr",
+                "economicIndicators.us",
+                "economicIndicators.eu",
+                "economicIndicators.jp",
+                "economicIndicators.cn",
+                "economicIndicators.uk",
+                "economicIndicators.de",
+            ],
+            fresh_label="이전 빌드 보존",
+        )
+        if preserved:
+            log(f"[preserve] 총 {preserved}개 필드를 직전 빌드 값으로 복원")
+            data.setdefault("diagnostics", {})["preservedFields"] = preserved
+    except Exception as e:
+        log(f"[preserve] 머지 오류 (무시): {e}")
 
     return data
 
@@ -4175,10 +4354,11 @@ def fetch_news_all_feeds():
     else:
         log("[News] NAVER_CLIENT_ID/SECRET 미설정 — Google News RSS 만 사용 (publisher 홈페이지 URL 회귀 위험 ↑)")
 
-    # 사용자 요구: 최근 1주일 이내 기사만 표시. iso 날짜가 오늘-7일 보다 오래된 기사 제외.
+    # 사용자 요구: 최근 14일 이내 기사만 표시. iso 날짜가 오늘-14일 보다 오래된 기사 제외.
     now_kst = datetime.now(KST)
-    cutoff_iso = (now_kst - timedelta(days=7)).strftime("%Y-%m-%d")
-    log(f"[News] 1주일 cutoff: {cutoff_iso} 이후 기사만 채택")
+    cutoff_iso = (now_kst - timedelta(days=14)).strftime("%Y-%m-%d")
+    today_iso  = now_kst.strftime("%Y-%m-%d")
+    log(f"[News] 14일 cutoff: {cutoff_iso} ~ {today_iso} 사이 기사만 채택 (미래 발행일 거부)")
 
     def _is_good_article_url(u):
         """기사 URL 검증 — 빈 값, google news 직링크, publisher 홈페이지/검색결과는 제외."""
@@ -4201,10 +4381,24 @@ def fetch_news_all_feeds():
         return True
 
     def _is_recent(article):
-        """isoDate 가 7일 이내인지 검사. isoDate 없으면 안전하게 True (편향 방지)."""
+        """isoDate 가 14일 이내인지 검사. isoDate 가 없거나 미래/과거 범위 밖이면 거부."""
         iso = (article.get("isoDate") or "").strip()
+        # isoDate 없으면 pubDate 에서 재파싱 시도
         if not iso:
-            return True
+            pub = (article.get("pubDate") or "").strip()
+            if pub:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    iso = parsedate_to_datetime(pub).strftime("%Y-%m-%d")
+                    article["isoDate"] = iso  # 후속 처리를 위해 저장
+                except Exception:
+                    iso = ""
+        if not iso:
+            # 사용자 요구: 14일 이내 실제 기사만. 날짜 미상은 거부.
+            return False
+        # 미래 발행일 (RSS 가 가끔 잘못된 미래 날짜를 주는 케이스) 거부
+        if iso > today_iso:
+            return False
         return iso >= cutoff_iso
 
     def _filter_keep(article):
@@ -4258,9 +4452,9 @@ def fetch_news_all_feeds():
             except Exception:
                 pass
         if articles:
-            log(f"[News] '{cat}' 최종 {len(articles)}건 (cutoff {cutoff_iso} 적용)")
+            log(f"[News] '{cat}' 최종 {len(articles)}건 (14일 cutoff {cutoff_iso} 적용)")
         else:
-            log(f"[News] '{cat}' 7일 이내 기사 0건 — 빈 카테고리")
+            log(f"[News] '{cat}' 14일 이내 기사 0건 — 빈 카테고리")
         result[cat] = articles[:5]
         _time.sleep(0.3)  # rate-limit 회피
     return result
@@ -4597,11 +4791,20 @@ def fetch_economic_calendar():
         return {"events": [], "lastFetched": datetime.now(KST).isoformat(),
                 "source": "none (FRED_API_KEY 필요)"}
     log("[Calendar] FRED release dates 수집 시작")
-    seen = set()  # 중복 제거 (dt + name)
+    # 다층 중복 제거:
+    #   1차 dt+name: 동일 표시일·이름 중복 방지 (당연 사항).
+    #   2차 (cc, name, YYYY-MM): 동일 지표가 같은 달 안에 여러 일자로 들어오는 케이스 제거
+    #        — FRED API 가 release_dates_with_no_data=false 무시하고 schedule date 반환하는
+    #          극단 케이스에 대응. 단 FOMC/주간실업수당 같이 월 다회 발표 정상인 ID 제외.
+    seen = set()
+    seen_name_month = set()
+    MULTI_PER_MONTH_NAMES = {"미국 FOMC 회의", "미국 신규 실업수당청구"}
     for rid, (cc, name, stars, time_kst) in FRED_KEY_RELEASES.items():
         dates = fetch_fred_release_dates(rid, days_back=14, days_forward=45)
         if not dates:
             continue
+        # release_id 단위 month dedup 도 한 번 더 적용 (API 응답 신뢰도 보강)
+        multi_ok = (name in MULTI_PER_MONTH_NAMES)
         for d in dates:
             try:
                 date_str = d.get("date", "")
@@ -4613,7 +4816,11 @@ def fetch_economic_calendar():
                 key = (dt_disp, name)
                 if key in seen:
                     continue
+                nm_key = (cc, name, date_str[:7])  # YYYY-MM
+                if not multi_ok and nm_key in seen_name_month:
+                    continue
                 seen.add(key)
+                seen_name_month.add(nm_key)
                 events.append({
                     "dt": dt_disp,
                     "cc": cc,
@@ -4626,7 +4833,7 @@ def fetch_economic_calendar():
             except Exception:
                 continue
     events.sort(key=lambda e: e.get("iso", ""))
-    log(f"[Calendar] FRED release 수집 완료: {len(events)}건")
+    log(f"[Calendar] FRED release 수집 완료: {len(events)}건 (dedup 적용)")
     return {
         "events": events,
         "lastFetched": datetime.now(KST).isoformat(),
