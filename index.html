@@ -639,7 +639,10 @@ tailwind.config = {
           <div id="reHistTitle" style="font-size:14px;font-weight:700;color:var(--c-txt,#dfe2f2);">지표 추이</div>
           <div id="reHistMeta"  style="font-size:11px;color:var(--c-txt-dim,#8d90a2);margin-top:2px;">—</div>
         </div>
-        <button onclick="closeReHistoryChart()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button onclick="event.stopPropagation();refreshReHistoryChart(this)" title="data.json 재페치 후 차트 재렌더" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+          <button onclick="closeReHistoryChart()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+        </div>
       </div>
       <!-- 기간/단위 셀렉터 -->
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:11px;">
@@ -1485,7 +1488,10 @@ tailwind.config = {
               <div id="calFloatFlag" style="font-size:12px;color:var(--c-txt-dim,#8d90a2);"></div>
               <div id="calFloatName" style="font-size:13px;font-weight:600;color:var(--c-txt,#dfe2f2);"></div>
             </div>
-            <button onclick="_hideCalGridFloating()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <button onclick="event.stopPropagation();refreshCalFloatingPopup(this)" title="이벤트 정보 다시 가져오기" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:1px 6px;font-size:10px;cursor:pointer;">↻</button>
+              <button onclick="_hideCalGridFloating()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
+            </div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;font-size:10px;">
             <div style="text-align:center;padding:4px;background:#131722;border-radius:4px;"><div style="color:#8d90a2;">이전</div><div id="calFloatPrev" style="font-weight:600;color:#dfe2f2;"></div></div>
@@ -1524,7 +1530,10 @@ tailwind.config = {
             <span id="calDetailFlag" style="font-size:16px;"></span>
             <span id="calDetailName" style="font-size:14px;font-weight:600;margin-left:6px;"></span>
           </div>
-          <button onclick="document.getElementById('calEventDetail').style.display='none';" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">✕ 닫기</button>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button onclick="event.stopPropagation();refreshCalEventDetail(this)" title="data.json 재페치 후 이벤트 상세 갱신" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+            <button onclick="document.getElementById('calEventDetail').style.display='none';" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">✕ 닫기</button>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
           <div class="kpi-card" style="padding:8px;">
@@ -2519,6 +2528,96 @@ function _xAxisTickCallback(value, idx) {
 }
 
 // ============================
+// 새로고침 버튼 — 통합 피드백 헬퍼 (모든 카드/모달 공통)
+// ============================
+// 기존엔 refresh 함수마다 버튼 텍스트 변경/복원 로직이 중복 + 비일관적이었음.
+// 이제 모든 새로고침 버튼이 동일한 상태머신을 사용해 사용자가 결과를 명확히 인지.
+//   state: 'loading' → 'success' → (auto-revert)
+//          'loading' → 'error'   → (auto-revert)
+//          'loading' → 'warn'    → (auto-revert, 부분 성공)
+// 호출 예: _refreshFeedback(btn, 'loading'); ... _refreshFeedback(btn, 'success', '12건 갱신');
+function _refreshFeedback(btn, state, msg) {
+  if(!btn) return;
+  if(!btn._refreshOrig) {
+    btn._refreshOrig = (btn.textContent || '↻ 새로고침').trim();
+    btn._refreshOrigBg = btn.style.background || '';
+    btn._refreshOrigBorder = btn.style.borderColor || '';
+    btn._refreshOrigColor = btn.style.color || '';
+  }
+  // 진행 중인 타이머 취소 (사용자가 빠르게 재클릭 시 잔존 타이머가 버튼 복원하는 race 방지)
+  if(btn._refreshTimer) { clearTimeout(btn._refreshTimer); btn._refreshTimer = null; }
+  const restore = (delay) => {
+    btn._refreshTimer = setTimeout(() => {
+      try {
+        btn.textContent      = btn._refreshOrig || '↻ 새로고침';
+        btn.style.background = btn._refreshOrigBg || '';
+        btn.style.borderColor= btn._refreshOrigBorder || '';
+        btn.style.color      = btn._refreshOrigColor || '';
+        btn.disabled = false;
+        btn._refreshTimer = null;
+      } catch(_){}
+    }, delay);
+  };
+  if(state === 'loading') {
+    btn.disabled = true;
+    btn.textContent = '⟳ 갱신중…';
+    btn.style.background = '#1b1f2b';
+    btn.style.color = '#b6c4ff';
+  } else if(state === 'success') {
+    btn.disabled = false;
+    btn.textContent = msg ? ('✓ ' + msg) : '✓ 갱신 완료';
+    btn.style.background = 'rgba(38,166,154,0.22)';
+    btn.style.borderColor = '#26a69a66';
+    btn.style.color = '#26a69a';
+    restore(1400);
+  } else if(state === 'warn') {
+    btn.disabled = false;
+    btn.textContent = msg ? ('⚠ ' + msg) : '⚠ 일부 실패';
+    btn.style.background = 'rgba(245,166,35,0.18)';
+    btn.style.borderColor = '#f5a62366';
+    btn.style.color = '#f5a623';
+    restore(1800);
+  } else if(state === 'error') {
+    btn.disabled = false;
+    btn.textContent = msg ? ('✕ ' + msg) : '✕ 갱신 실패';
+    btn.style.background = 'rgba(239,83,80,0.18)';
+    btn.style.borderColor = '#ef535066';
+    btn.style.color = '#ef5350';
+    restore(2200);
+  } else if(state === 'reset') {
+    btn.textContent      = btn._refreshOrig || '↻ 새로고침';
+    btn.style.background = btn._refreshOrigBg || '';
+    btn.style.borderColor= btn._refreshOrigBorder || '';
+    btn.style.color      = btn._refreshOrigColor || '';
+    btn.disabled = false;
+  }
+}
+
+// 새로고침 버튼이 부모 클릭 핸들러(예: kpi-clickable navigateToDetail)로
+// 이벤트 전파되어 의도치 않은 페이지 이동을 유발하는 회귀를 캡처 단계에서 차단.
+// 일부 신규 카드 디자인에서 새로고침 버튼이 클릭 가능한 카드 안쪽에 배치될
+// 수 있어 다층 방어선으로 모든 refresh 류 버튼에 stopPropagation 자동 적용.
+(function() {
+  if(window._refreshStopPropInstalled) return;
+  window._refreshStopPropInstalled = true;
+  document.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest && e.target.closest('button');
+    if(!btn) return;
+    if(btn.hasAttribute('data-chart-refresh')) {
+      // 이미 inline 핸들러에서 stopPropagation 처리됨 — 중복 가드 불필요
+      return;
+    }
+    const oc = btn.getAttribute && btn.getAttribute('onclick');
+    if(!oc) return;
+    // refresh 류 함수 호출 패턴 매칭 (전파 차단 대상)
+    if(/\brefresh[A-Za-z]+\s*\(/.test(oc) ||
+       /\bmanualRetryMovers\s*\(/.test(oc)) {
+      e.stopPropagation();
+    }
+  }, true);  // capture 단계 — 부모 onclick(target phase) 보다 앞서 실행되어 차단 유효
+})();
+
+// ============================
 // 차트 카드용 새로고침 버튼 헬퍼 — onclick으로 호출되는 함수와 함께 사용
 // ============================
 // 5분마다 자동 새로고침을 위한 전역 등록 시스템
@@ -2565,14 +2664,10 @@ const _refreshHandlerMap = {
   tradeMacro:       function(btn){ refreshAllData(btn).catch(()=>{}); },
 };
 function _flashBtn(btn) {
+  // 통합 피드백 헬퍼로 위임 — 로딩→성공 시퀀스 자동 처리
   if(!btn) return;
-  const old = btn.textContent;
-  btn.disabled = true; btn.textContent = '⟳ 갱신중…';
-  setTimeout(() => {
-    btn.textContent = '✓ 갱신';
-    btn.style.background = '#26a69a33';
-    setTimeout(() => { btn.textContent = old || '↻ 새로고침'; btn.style.background = ''; btn.disabled = false; }, 900);
-  }, 400);
+  _refreshFeedback(btn, 'loading');
+  setTimeout(() => { _refreshFeedback(btn, 'success', '갱신'); }, 400);
 }
 function refreshChartByCanvasId(canvasId, btn) {
   const fn = _refreshHandlerMap[canvasId];
@@ -3744,6 +3839,8 @@ function setRETab(tab, btn) {
   if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
   if(tab==='kr') setTimeout(buildReCharts, 50);
   if(tab==='us') setTimeout(()=>{ buildUsReCharts(); buildUsOsmRegionMap(); }, 50);
+  // 탭 전환 후 차트 새로고침 버튼 주입
+  setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
 }
 
 // ============================
@@ -5155,11 +5252,16 @@ function setNewsFilter(feedId, cat, el) {
 // 뉴스 새로고침 — 해당 피드의 모든 쿼리를 다시 가져옴
 // 우선순위: 1) data.json 재페치 (서버측 최신 Google News) → 2) 클라이언트 CORS 프록시
 async function refreshNews(feedId, arrName, btn) {
-  const origText = '↻ 새로고침';
-  if(btn) { btn.textContent = '⟳ 로딩중…'; btn.disabled = true; }
+  _refreshFeedback(btn, 'loading');
+  let serverOk = false;
+  let clientOk = 0;
+  let appliedClient = 0;
   try {
     const arr = getFeedArray(feedId);
-    if(!arr) return;
+    if(!arr) {
+      _refreshFeedback(btn, 'error', '피드 미발견');
+      return;
+    }
 
     // 0) data.json 강제 재페치 — 서버측에서 매일 9시 KST 에 Google News RSS 로 갱신된 캐시
     try {
@@ -5169,6 +5271,7 @@ async function refreshNews(feedId, arrName, btn) {
         if (fresh && fresh.news) {
           applyServerNewsToFeeds(fresh.news);
           _latestDataForIndicators = fresh;
+          serverOk = true;
         }
       }
     } catch(_) {}
@@ -5206,6 +5309,7 @@ async function refreshNews(feedId, arrName, btn) {
       if(!q) return;
       const fresh = await fetchLatestArticles(q, byCategory[cat].length);
       if(!fresh || !fresh.length) return;
+      clientOk++;
       byCategory[cat].forEach(({item, idx}, i) => {
         const f = fresh[i];
         if(!f || !f.url || _isSearchOrInvalidNewsUrl(f.url)) return;  // 새 URL 도 검증
@@ -5217,6 +5321,7 @@ async function refreshNews(feedId, arrName, btn) {
           cur.url   = f.url;
           cur.time  = f.time;
           if(f.isoDate) cur.isoDate = f.isoDate;
+          appliedClient++;
         }
       });
     }));
@@ -5225,10 +5330,19 @@ async function refreshNews(feedId, arrName, btn) {
       if (item && _isSearchOrInvalidNewsUrl(item.url)) item.isoDate = '';
     });
     renderFiltered(feedId);
+    // 피드백 — 사용자가 항상 결과를 인지하도록
+    if(serverOk && appliedClient > 0) {
+      _refreshFeedback(btn, 'success', `${appliedClient}건 추가`);
+    } else if(serverOk) {
+      _refreshFeedback(btn, 'success', '서버 캐시 갱신');
+    } else if(appliedClient > 0) {
+      _refreshFeedback(btn, 'success', `${appliedClient}건 갱신`);
+    } else {
+      _refreshFeedback(btn, 'warn', '신규 기사 없음');
+    }
   } catch(e) {
     console.warn('refresh failed', e);
-  } finally {
-    if(btn) { btn.textContent = origText; btn.disabled = false; }
+    _refreshFeedback(btn, 'error', '네트워크 오류');
   }
 }
 
@@ -5254,6 +5368,8 @@ function setMarketTab(tab, btn) {
     if(el) el.style.display = t===tab?'block':'none';
   });
   setTimeout(()=>initMarketPage(),50);
+  // 탭 전환 후 새로 표시된 차트에도 새로고침 버튼 주입 (페이지 로드 후 처음 활성화되는 탭 보강)
+  setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
 }
 // FX 및 원자재 데이터 (applyRealData에서 업데이트됨)
 let fxPairs=[
@@ -7107,6 +7223,8 @@ function setMacroTab(t,btn){
     if(btnCat === filterCat) b.classList.add('act'); else b.classList.remove('act');
   });
   renderFiltered('macroNewsFeed');
+  // 탭 전환 후 차트 새로고침 버튼 주입
+  setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
 }
 const macroMeta = {
   kr: {
@@ -7937,12 +8055,15 @@ function buildCalendarGrid(filteredEvents) {
   container.innerHTML = html;
 }
 
+// 현재 표시된 calGridFloating 팝업의 상태 (refresh 시 같은 이벤트를 다시 렌더하기 위함)
+let _calFloatingState = { idx: null };
 function showCalGridFloating(idx, evt) {
   evt && evt.stopPropagation();
   const e = calEvents[idx];
   if(!e) return;
   const fl = document.getElementById('calGridFloating');
   if(!fl) return;
+  _calFloatingState.idx = idx;  // 새로고침 시 참조용
   document.getElementById('calFloatFlag').textContent = calCountryLabel(e.cc, e.flag) + ' · ' + e.dt + ' · ' + '★'.repeat(e.stars);
   document.getElementById('calFloatName').textContent = e.name;
   document.getElementById('calFloatPrev').textContent = e.prev || '—';
@@ -7989,6 +8110,107 @@ function showCalGridFloating(idx, evt) {
 function _hideCalGridFloating() {
   const fl = document.getElementById('calGridFloating');
   if(fl) fl.style.display = 'none';
+}
+
+// 캘린더 그리드 플로팅 팝업 새로고침 — data.json 재페치 후 actual 값을 갱신하여 다시 표시.
+// _calFloatingState.idx 로 현재 표시 중인 이벤트를 추적하여, 팝업을 닫지 않고 같은 위치에서 갱신.
+async function refreshCalFloatingPopup(btn) {
+  _refreshFeedback(btn, 'loading');
+  try {
+    let ok = false;
+    try {
+      const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
+      if(r.ok) {
+        const fresh = await r.json();
+        _latestDataForIndicators = fresh;
+        try { applyRealData(fresh); } catch(_){}
+        try { autoBackfillCalendarActuals(); } catch(_){}
+        ok = true;
+      }
+    } catch(_) {}
+    // 팝업 내용만 in-place 업데이트 (팝업 위치 유지, 사용자가 다시 클릭할 필요 없음).
+    const idx = _calFloatingState && _calFloatingState.idx;
+    const e = (idx != null && typeof calEvents !== 'undefined') ? calEvents[idx] : null;
+    if(e) {
+      const flagEl = document.getElementById('calFloatFlag');
+      const nameEl = document.getElementById('calFloatName');
+      const prevEl = document.getElementById('calFloatPrev');
+      const foreEl = document.getElementById('calFloatFore');
+      const actEl  = document.getElementById('calFloatAct');
+      if(flagEl) flagEl.textContent = calCountryLabel(e.cc, e.flag) + ' · ' + e.dt + ' · ' + '★'.repeat(e.stars);
+      if(nameEl) nameEl.textContent = e.name;
+      if(prevEl) prevEl.textContent = e.prev || '—';
+      if(foreEl) foreEl.textContent = e.fore || '—';
+      if(actEl) {
+        actEl.textContent = e.act || '미발표';
+        actEl.style.color = e.beat===1 ? '#26a69a' : e.beat===-1 ? '#ef5350' : '#dfe2f2';
+      }
+      // 차트 다시 그리기
+      try {
+        destroyChart('calFloatChart');
+        const ctx = document.getElementById('calFloatChart');
+        const hist = (typeof calHistoryData !== 'undefined') ? calHistoryData[e.name] : null;
+        if(ctx && hist) {
+          const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55'};
+          charts['calFloatChart'] = new Chart(ctx, {
+            type:'line',
+            data:{ labels: hist.labels, datasets:[{ data: hist.vals, label: e.name, borderColor: hist.color, backgroundColor: hist.color+'22', borderWidth:1.5, pointRadius:2, fill:true, tension:0.3 }] },
+            options:{responsive:true,maintainAspectRatio:false,
+              scales:{x:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:5},grid:{display:false}},
+                      y:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:6,callback:v=>fmtNum(v)+(hist.unit||'')},grid:{color:tc.grid}}},
+              plugins:{legend:{display:false},tooltip:{enabled:true,bodyFont:{size:9},callbacks:{label:ctx=>fmtNum(ctx.parsed.y)+(hist.unit||'')}}}}
+          });
+        }
+      } catch(_){}
+    }
+    // 백그라운드: 캘린더 그리드도 다시 그려서 다른 이벤트들의 actual 도 반영
+    try { if(typeof buildCalendar === 'function') buildCalendar(); } catch(_){}
+    _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? '갱신' : '캐시 사용');
+  } catch(e) {
+    console.warn('[calFloating] refresh 오류:', e);
+    _refreshFeedback(btn, 'error', '실패');
+  }
+}
+
+// 캘린더 이벤트 상세 패널 새로고침 — data.json 재페치 후 _renderCalDetailChart 재실행
+async function refreshCalEventDetail(btn) {
+  _refreshFeedback(btn, 'loading');
+  try {
+    let ok = false;
+    try {
+      const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
+      if(r.ok) {
+        const fresh = await r.json();
+        _latestDataForIndicators = fresh;
+        try { applyRealData(fresh); } catch(_){}
+        try { autoBackfillCalendarActuals(); } catch(_){}
+        ok = true;
+      }
+    } catch(_) {}
+    // 현재 표시된 이벤트의 actual/prev/fore 텍스트 다시 채움
+    try {
+      const idx = _calDetailState && _calDetailState.idx;
+      if(idx != null) {
+        const e = (typeof calEvents !== 'undefined') ? calEvents[idx] : null;
+        if(e) {
+          const prevEl = document.getElementById('calDetailPrev');
+          const foreEl = document.getElementById('calDetailFore');
+          const actEl  = document.getElementById('calDetailAct');
+          if(prevEl) prevEl.textContent = e.prev || '—';
+          if(foreEl) foreEl.textContent = e.fore || '—';
+          if(actEl) {
+            actEl.textContent = e.act || '미발표';
+            actEl.className = e.beat === 1 ? 'up-txt' : e.beat === -1 ? 'down-txt' : '';
+          }
+        }
+      }
+      if(typeof _renderCalDetailChart === 'function') _renderCalDetailChart();
+    } catch(e) { console.warn('[calEventDetail] render 오류:', e); }
+    _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? '상세 갱신' : '캐시 사용');
+  } catch(e) {
+    console.warn('[calEventDetail] refresh 오류:', e);
+    _refreshFeedback(btn, 'error', '실패');
+  }
 }
 
 // 캘린더 이벤트의 actual 값을 data.json / calHistoryData 에서 자동 백필
@@ -9554,7 +9776,7 @@ async function fetchNaverETFMoversClient() {
 // 수동 재시도 (버튼 클릭) — 자동 시도 카운터 무관하게 재시도
 // 1) data.json 강제 재페치 (서버측 새 데이터가 있으면 적용) → 2) 클라이언트 페치
 async function manualRetryMovers(btn) {
-  if(btn) { btn.disabled = true; btn.textContent = '⟳ 갱신중…'; }
+  _refreshFeedback(btn, 'loading');
   _clientMoverFetchAttempts = 0;  // 카운터 리셋
   let serverHit = false;
   // 1) data.json 강제 재페치 — GHA 가 새로 갱신했을 수 있음
@@ -9574,10 +9796,9 @@ async function manualRetryMovers(btn) {
   const ok = serverHit || await refreshMoversFromClient(true);
   if(!ok) {
     try { buildMoverTable(curMoverTab); } catch(_) {}
-    if(btn) { btn.textContent = '⚠ 다시 시도'; btn.disabled = false; }
-  } else if(btn) {
-    btn.textContent = '✓ 갱신됨';
-    setTimeout(()=>{ if(btn) btn.textContent = '↻ 다시 시도'; btn.disabled = false; }, 1500);
+    _refreshFeedback(btn, 'error', '응답 없음');
+  } else {
+    _refreshFeedback(btn, 'success', '갱신');
   }
 }
 
@@ -10029,13 +10250,83 @@ function closeReHistoryChart() {
   if(guideEl) guideEl.style.display = 'none';
 }
 
-// FX 새로고침 — 실시간 환율 + 일별 변화율 (yfinance corsproxy 페치)
-async function refreshFxData(btn) {
-  if(btn) { btn.disabled = true; btn._oldText = btn.textContent; btn.textContent = '⟳ 갱신중…'; }
+// 부동산·거시·시장분위기 상세 차트 모달 새로고침
+// 사용자가 KPI 카드를 클릭하면 reHistoryChartModal 이 열림.
+// 모달 안의 새로고침 버튼을 누르면 data.json 을 다시 받아서 차트를 다시 그림.
+// _reHistState.key 의 prefix 로 분기:
+//   '__sentiment_*' → fetchSentimentClient (VKOSPI/MOVE/PCR/HY Spread)
+//   '__macro__*'    → data.json 재페치 + _renderReHistChartMacro
+//   기타             → data.json 재페치 + _renderReHistChart (부동산/거시)
+async function refreshReHistoryChart(btn) {
+  _refreshFeedback(btn, 'loading');
+  const key = (_reHistState && _reHistState.key) || '';
+  let okCount = 0, totalCount = 0;
   try {
-    // 1) 실시간 환율 (open.er-api.com)
+    // 1) data.json 재페치 (서버측 새 데이터가 있으면 적용)
+    totalCount++;
+    try {
+      const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
+      if(r.ok) {
+        const fresh = await r.json();
+        _latestDataForIndicators = fresh;
+        try { applyRealData(fresh); } catch(_){}
+        okCount++;
+      }
+    } catch(_) {}
+    // 2) 시장분위기는 클라이언트 페치도 시도 (VKOSPI/MOVE 등 실시간 갱신)
+    if(key.startsWith('__sentiment_') && typeof fetchSentimentClient === 'function') {
+      totalCount++;
+      try {
+        const sent = await fetchSentimentClient();
+        if(sent && typeof applySentimentClient === 'function') applySentimentClient(sent);
+        okCount++;
+      } catch(_) {}
+    }
+    // 3) 차트 다시 렌더 — 모달 상태에 따라 분기
+    try {
+      if(key.startsWith('__sentiment_')) {
+        // SENTIMENT_GUIDES 에서 가이드 재조회
+        const sk = key.slice('__sentiment_'.length);
+        const guide = (typeof SENTIMENT_GUIDES !== 'undefined') ? SENTIMENT_GUIDES[sk] : null;
+        if(guide && typeof _renderReHistChartSentiment === 'function') {
+          _renderReHistChartSentiment(guide);
+        } else if(typeof _renderReHistChart === 'function') {
+          _renderReHistChart();
+        }
+      } else if(key.startsWith('__macro__')) {
+        if(typeof _renderReHistChartMacro === 'function') _renderReHistChartMacro();
+      } else {
+        if(typeof _renderReHistChart === 'function') _renderReHistChart();
+      }
+    } catch(e) { console.warn('[reHist] re-render 오류:', e); }
+    if(okCount === totalCount) {
+      _refreshFeedback(btn, 'success', '차트 갱신');
+    } else if(okCount > 0) {
+      _refreshFeedback(btn, 'warn', `${okCount}/${totalCount} 갱신`);
+    } else {
+      _refreshFeedback(btn, 'error', '네트워크 오류');
+    }
+  } catch(e) {
+    console.warn('[reHist] refresh 오류:', e);
+    _refreshFeedback(btn, 'error', '실패');
+  }
+}
+
+// FX 새로고침 — 실시간 환율 + 일별 변화율
+// 기존엔 단일 corsproxy.io 사용 → 해당 프록시 차단/장애 시 100% 실패.
+// 이제 _fetchViaProxies 다중 프록시 풀(9개) 사용으로 가용성 대폭 개선.
+async function refreshFxData(btn) {
+  _refreshFeedback(btn, 'loading');
+  let fxOk = false;
+  try {
+    // 1) 실시간 환율 (open.er-api.com — CORS 허용, 프록시 불요)
     await loadRealtimeFx();
-    // 2) 일별 변화율: yfinance spark API (corsproxy 경유)
+    fxOk = true;
+  } catch(e) {
+    console.warn('[FX] loadRealtimeFx 오류:', e);
+  }
+  try {
+    // 2) 일별 변화율: yfinance spark API (다중 CORS 프록시 fallback)
     const symbols = {
       USDKRW: 'KRW=X',
       EURKRW: 'EURKRW=X',
@@ -10048,9 +10339,8 @@ async function refreshFxData(btn) {
     await Promise.all(Object.entries(symbols).map(async ([key, sym]) => {
       try {
         const u = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(sym)}&range=5d&interval=1d`;
-        const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(u));
-        if(!r.ok) return;
-        const j = await r.json();
+        const j = await _fetchViaProxies(u, true);
+        if(!j) return;
         const closes = j.spark?.result?.[0]?.response?.[0]?.indicators?.quote?.[0]?.close || [];
         const valid = closes.filter(v=>v!=null);
         if(valid.length < 2) return;
@@ -10063,44 +10353,42 @@ async function refreshFxData(btn) {
           fxPairs[i].pct = +chgPct.toFixed(2);
           success++;
         }
-      } catch(e) { /* skip */ }
+      } catch(e) { /* skip — 다른 심볼 계속 시도 */ }
     }));
-    // FX 페이지 다시 그리기
+    // FX 페이지 + 티커바 다시 그리기 (실시간 환율은 갱신 되었을 수 있으므로)
     if(typeof buildFxPage === 'function') buildFxPage();
-    // 티커 바 다시 그리기
     if(typeof buildTicker === 'function') buildTicker();
-    if(btn) {
-      btn.textContent = success > 0 ? `✓ ${success}건 갱신` : '⚠ 변화율 미수신';
-      setTimeout(()=>{ btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }, 1500);
+    if(success > 0) {
+      _refreshFeedback(btn, 'success', `${success}건 갱신`);
+    } else if(fxOk) {
+      // 환율은 갱신 됐으나 변화율은 yfinance 실패 (사용자가 클릭 효과를 인지 가능)
+      _refreshFeedback(btn, 'warn', '환율 갱신 (변화율 미수신)');
+    } else {
+      _refreshFeedback(btn, 'error', '네트워크 오류');
     }
   } catch(e) {
     console.warn('[FX] refresh 오류:', e);
-    if(btn) { btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }
+    _refreshFeedback(btn, fxOk ? 'warn' : 'error', fxOk ? '환율만 갱신' : '실패');
   }
 }
 
 // ETF 전용 새로고침 (등락률 동기화)
 async function refreshETFFromClient(btn) {
-  if(btn) { btn.disabled = true; btn._oldText = btn.textContent; btn.textContent = '⟳ 갱신중…'; }
+  _refreshFeedback(btn, 'loading');
   try {
     const etf = await fetchNaverETFMoversClient();
     if(etf && (etf.gainers?.length || etf.losers?.length)) {
       applyRealData({ etfMovers:{ etfGainers: etf.gainers, etfLosers: etf.losers }, fx:{}, indices:{}, commodities:{} });
       // 주식시장 탭이 활성화된 경우 buildEquityPage 재호출
       try { if(typeof buildEquityPage === 'function') buildEquityPage(); } catch(_){}
-      if(btn) {
-        btn.textContent = '✓ 갱신됨';
-        setTimeout(()=>{ btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }, 1200);
-      }
+      const cnt = (etf.gainers?.length || 0) + (etf.losers?.length || 0);
+      _refreshFeedback(btn, 'success', `${cnt}건 갱신`);
     } else {
-      if(btn) {
-        btn.textContent = '⚠ 실패';
-        setTimeout(()=>{ btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }, 1500);
-      }
+      _refreshFeedback(btn, 'error', '응답 없음');
     }
   } catch(e) {
     console.warn('[ETF] 클라이언트 페치 오류:', e);
-    if(btn) { btn.textContent = btn._oldText || '↻ 새로고침'; btn.disabled = false; }
+    _refreshFeedback(btn, 'error', '네트워크 오류');
   }
 }
 
@@ -11624,45 +11912,71 @@ async function loadRealData() {
   }
 }
 
-// 전체 데이터 새로고침 — data.json + 실시간 FX/Stooq/뉴스 페치
-// 사용자가 명시적으로 클릭한 경우 호출됨
+// 전체 데이터 새로고침 — data.json + 실시간 FX/Stooq/뉴스/Top10/시장분위기 페치
+// 사용자가 명시적으로 클릭한 경우 호출됨.
+// 중요: 사용자 명시 클릭 시엔 lastUpdated 비교와 무관하게 무조건 차트 재빌드함
+// (서버 data.json 이 동일해도 클라이언트 실시간 데이터는 갱신되므로).
 async function refreshAllData(btn) {
-  if(btn) { btn.disabled = true; const old = btn.textContent; btn.textContent = '⟳ 갱신중…'; btn._old = old; }
+  _refreshFeedback(btn, 'loading');
   try {
-    await loadRealData();
-    await Promise.all([
-      loadRealtimeFx().catch(()=>{}),
-      loadRealtimeMarket().catch(()=>{}),
-      loadFreshNews().catch(()=>{}),
+    // 병렬 페치 — 한쪽이 느려도 다른 쪽이 대기하지 않도록
+    // movers/sentiment 는 boolean 반환 가능 → 값까지 검사하여 실제 성공 여부 판정.
+    const results = await Promise.allSettled([
+      loadRealData(),                                                          // 0: json
+      loadRealtimeFx(),                                                        // 1: fx
+      loadRealtimeMarket(),                                                    // 2: market
+      loadFreshNews(),                                                         // 3: news
+      refreshMoversFromClient(true),                                           // 4: movers (true/false)
+      (typeof fetchSentimentClient === 'function' && typeof applySentimentClient === 'function')
+        ? fetchSentimentClient().then(applySentimentClient)
+        : Promise.resolve(),                                                   // 5: sentiment
     ]);
-    // 현재 활성화된 페이지에 따라 차트 재빌드
+    // status: fulfilled 면 일단 통과. 단 movers 는 value(boolean) 도 검사
+    const isOk = (r, requireTruthy) => r.status === 'fulfilled' && (!requireTruthy || r.value);
+    const okFlags = {
+      json:      isOk(results[0]),
+      fx:        isOk(results[1]),
+      market:    isOk(results[2]),
+      news:      isOk(results[3]),
+      movers:    isOk(results[4], true),
+      sentiment: isOk(results[5]),
+    };
+    // 현재 활성화된 페이지의 차트/테이블 강제 재빌드
+    // (loadRealData 가 lastUpdated 비교 후 재빌드를 스킵해도, 사용자 명시 클릭이므로 무조건 다시 그림)
     const activePage = document.querySelector('.page.active');
     if(activePage) {
       const id = activePage.id;
-      if(id === 'page-market') {
-        try { initMarketPage(); } catch(_) {}
-      } else if(id === 'page-macro') {
-        try { initMacroPage(macroTab); } catch(_) {}
-      } else if(id === 'page-investor') {
-        try { buildInvestorPage(); } catch(_) {}
-      } else if(id === 'page-realestate') {
-        try { buildReCharts(); buildUsReCharts(); } catch(_) {}
-      } else if(id === 'page-dashboard') {
-        try {
+      try {
+        if(id === 'page-market')         initMarketPage();
+        else if(id === 'page-macro')     { initMacroPage(macroTab); if(typeof buildMacroIndicatorTable === 'function') buildMacroIndicatorTable(); }
+        else if(id === 'page-investor')  buildInvestorPage();
+        else if(id === 'page-realestate'){ buildReCharts(); if(typeof buildUsReCharts === 'function') buildUsReCharts(); }
+        else if(id === 'page-dashboard') {
           buildMoverTable(curMoverTab);
           buildGlobalTable();
           initMainChart(mainPeriodUnit);
-        } catch(_) {}
-      }
+        } else if(id === 'page-calendar') {
+          if(typeof buildCalendar === 'function') buildCalendar();
+        }
+      } catch(e) { console.warn('[refreshAllData] 차트 재빌드 오류:', e); }
     }
-  } finally {
-    if(btn) {
-      btn.disabled = false;
-      btn.textContent = btn._old || '↻ 새로고침';
-      btn.style.transition='background .3s';
-      btn.style.background='#26a69a33';
-      setTimeout(()=>{ btn.style.background=''; }, 700);
+    // 차트 새로고침 버튼 재주입 (재빌드 후 .widget-title 이 갱신됐을 수 있음)
+    setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 80);
+    // 성공/경고 판정
+    const okCount = Object.values(okFlags).filter(Boolean).length;
+    const totalCount = Object.keys(okFlags).length;
+    if(okCount === totalCount) {
+      _refreshFeedback(btn, 'success', '전체 갱신');
+    } else if(okCount >= totalCount / 2) {
+      _refreshFeedback(btn, 'success', `${okCount}/${totalCount} 갱신`);
+    } else if(okCount > 0) {
+      _refreshFeedback(btn, 'warn', `${okCount}/${totalCount} 갱신`);
+    } else {
+      _refreshFeedback(btn, 'error', '네트워크 오류');
     }
+  } catch(e) {
+    console.warn('[refreshAllData] 오류:', e);
+    _refreshFeedback(btn, 'error', '갱신 실패');
   }
 }
 
