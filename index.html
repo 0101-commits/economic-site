@@ -768,16 +768,16 @@ tailwind.config = {
               <div class="widget-title" style="margin-bottom:0;">시장 분위기</div>
               <button onclick="fetchSentimentClient().then(applySentimentClient).then(()=>this.textContent='✓ 갱신됨').then(()=>setTimeout(()=>this.textContent='↻',1500))" title="시장 분위기 지표 재페치 (VKOSPI/MOVE/PutCall)" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:4px;padding:0 6px;font-size:10px;cursor:pointer;height:18px;">↻</button>
             </div>
-            <!-- Fear & Greed 게이지 -->
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <!-- Fear & Greed 게이지 (클릭 → 상세 모달) -->
+            <div onclick="showSentimentDetail('fear_greed')" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border-radius:6px;padding:4px;transition:background 0.15s;" onmouseover="this.style.background='var(--c-card-hover,#1f2330)'" onmouseout="this.style.background='transparent'" title="클릭 → CNN Fear &amp; Greed 추이 및 해석 가이드">
               <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
                 <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
               </div>
               <div>
-                <div style="font-size:9px;color:#8d90a2;text-transform:uppercase;letter-spacing:.04em;">CNN Fear &amp; Greed</div>
-                <div id="fearVal" style="font-size:18px;font-weight:700;color:#26a69a;font-family:'Public Sans';">62</div>
-                <div id="fearLabel" style="font-size:10px;color:#26a69a;">탐욕 (Greed)</div>
-                <div id="fearDelta" style="font-size:9px;color:#8d90a2;">전주 대비 +4pt</div>
+                <div style="font-size:9px;color:#8d90a2;text-transform:uppercase;letter-spacing:.04em;">CNN Fear &amp; Greed <span style="font-size:8px;color:#2962ff;">📈</span></div>
+                <div id="fearVal" style="font-size:18px;font-weight:700;color:var(--c-txt-dim,#8d90a2);font-family:'Public Sans';">—</div>
+                <div id="fearLabel" style="font-size:10px;color:var(--c-txt-dim,#8d90a2);">데이터 수집 대기</div>
+                <div id="fearDelta" style="font-size:9px;color:#8d90a2;">—</div>
               </div>
             </div>
             <!-- 추가 시장 지표 그리드 (5개: VIX, VKOSPI, MOVE, Put/Call, HY Spread) — 클릭 → 상세 -->
@@ -4581,17 +4581,60 @@ function selectGlobalIndex(idx, el) {
 }
 
 // ============================
-// 공포탐욕 도넛
+// 공포탐욕 도넛 — 실시간 데이터 (data.json.sentiment.fear_greed) 가 있으면 사용,
+// 없으면 빈 게이지(회색) 로 표시. 합성 더미 62 제거.
 // ============================
 function buildFearChart() {
   destroyChart('fearChart');
   const ctx = document.getElementById('fearChart');
   if(!ctx) return;
+  const d = (typeof _latestDataForIndicators !== 'undefined') ? _latestDataForIndicators : null;
+  const fg = d?.sentiment?.fear_greed;
+  const val = (fg && typeof fg.value === 'number' && fg.value >= 0 && fg.value <= 100) ? fg.value : null;
+  // 값이 없으면 회색 빈 도넛, 있으면 등급별 색상
+  let color = '#3a3e4d';  // 빈 상태
+  if(val != null) {
+    if(val < 25) color = '#ef5350';      // Extreme Fear
+    else if(val < 45) color = '#f5a623';  // Fear
+    else if(val < 55) color = '#b6c4ff';  // Neutral
+    else if(val < 75) color = '#26a69a';  // Greed
+    else color = '#26a69a';               // Extreme Greed
+  }
+  const data = val != null ? [val, 100-val] : [0, 100];
   charts['fearChart'] = new Chart(ctx,{
     type:'doughnut',
-    data:{datasets:[{data:[62,38],backgroundColor:['#26a69a','#262a35'],borderWidth:0}]},
+    data:{datasets:[{data, backgroundColor:[color,'#262a35'], borderWidth:0}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'75%',plugins:{legend:{display:false},tooltip:{enabled:false}}}
   });
+}
+
+// Fear & Greed 텍스트 라벨 갱신 (값 → 라벨/색상 매핑)
+function applyFearGreed(d) {
+  const fg = d?.sentiment?.fear_greed;
+  const valEl   = document.getElementById('fearVal');
+  const lblEl   = document.getElementById('fearLabel');
+  const dltEl   = document.getElementById('fearDelta');
+  if(!fg || typeof fg.value !== 'number' || fg.value < 0 || fg.value > 100) {
+    if(valEl) { valEl.textContent = '—'; valEl.style.color = 'var(--c-txt-dim,#8d90a2)'; }
+    if(lblEl) { lblEl.textContent = '데이터 수집 대기'; lblEl.style.color = 'var(--c-txt-dim,#8d90a2)'; }
+    if(dltEl) { dltEl.textContent = '—'; }
+    return;
+  }
+  const v = fg.value;
+  let label = '중립 (Neutral)', color = '#b6c4ff';
+  if(v < 25)      { label = '극도 공포 (Extreme Fear)'; color = '#ef5350'; }
+  else if(v < 45) { label = '공포 (Fear)';              color = '#f5a623'; }
+  else if(v < 55) { label = '중립 (Neutral)';            color = '#b6c4ff'; }
+  else if(v < 75) { label = '탐욕 (Greed)';              color = '#26a69a'; }
+  else            { label = '극도 탐욕 (Extreme Greed)'; color = '#26a69a'; }
+  if(valEl) { valEl.textContent = Math.round(v); valEl.style.color = color; }
+  if(lblEl) { lblEl.textContent = label;          lblEl.style.color = color; }
+  if(dltEl && fg.prev != null) {
+    const diff = Math.round(v - fg.prev);
+    dltEl.textContent = `전주 대비 ${diff>=0?'+':''}${diff}pt`;
+  } else if(dltEl) {
+    dltEl.textContent = '—';
+  }
 }
 
 // 한국 기준금리 KPI 카드 — 최근 8년 기준금리 추이 미니 차트
@@ -10505,8 +10548,17 @@ function _parseStooqCsv(txt, validate) {
 }
 
 // localStorage 헬퍼 — sentiment 히스토리 캐시 (서버 fetch_data.py 실패시 fallback)
-function _sentimentCacheKey(name) { return 'econsite_sentiment_'+name+'_v1'; }
+// v2: 합성 fallback 데이터 제거. v1 캐시에 합성값(18.4 등) 이 저장되어
+// 사용자가 잘못된 KSVKOSPI 값을 보던 문제 해결. 캐시 키 버전업으로 자동 무효화.
+function _sentimentCacheKey(name) { return 'econsite_sentiment_'+name+'_v2'; }
+const _SENTIMENT_RANGE = {
+  vkospi: v => v != null && v > 1 && v < 200,    // V-KOSPI 200: 통상 13~30, 위기 시 80+
+  move:   v => v != null && v > 10 && v < 500,   // MOVE Index: 통상 60~150
+  pcr:    v => v != null && v > 0.1 && v < 5,    // Put/Call Ratio: 통상 0.6~1.5
+};
 function _saveSentimentCache(name, payload) {
+  // 합리적 범위가 아닌 값은 캐시 저장 거부 (다음 페치까지 misleading 표시 방지)
+  if(payload && _SENTIMENT_RANGE[name] && !_SENTIMENT_RANGE[name](payload.value)) return;
   try { localStorage.setItem(_sentimentCacheKey(name), JSON.stringify({ ts: Date.now(), payload })); } catch(_) {}
 }
 function _loadSentimentCache(name) {
@@ -10516,9 +10568,17 @@ function _loadSentimentCache(name) {
     const obj = JSON.parse(raw);
     // 7일 이상 오래된 캐시는 무시
     if(!obj || Date.now() - (obj.ts||0) > 7*24*60*60*1000) return null;
+    // 캐시된 값이 합리적 범위 밖이면 (예: v1 합성 fallback 18.4) 무효
+    if(obj.payload && _SENTIMENT_RANGE[name] && !_SENTIMENT_RANGE[name](obj.payload.value)) return null;
     return obj.payload;
   } catch(_) { return null; }
 }
+// 구버전 캐시(v1) 정리 — 합성 fallback 잔재 제거
+try {
+  ['vkospi','move','pcr'].forEach(n => {
+    try { localStorage.removeItem('econsite_sentiment_'+n+'_v1'); } catch(_){}
+  });
+} catch(_){}
 
 async function fetchSentimentClient() {
   const out = {};
@@ -10574,6 +10634,51 @@ async function fetchSentimentClient() {
       }
     } catch(_) {}
   }
+  // 1d) investing.com KSVKOSPI 페이지 스크래핑 (현재값만, history 없음) — 최후의 보강
+  //     투자.com 의 https://kr.investing.com/indices/kospi-volatility 페이지에 노출되는
+  //     `pid-955936-last` 같은 ID 의 현재값을 정규식으로 추출.
+  if(!out.vkospi) {
+    for(const targetUrl of [
+      'https://kr.investing.com/indices/kospi-volatility',
+      'https://www.investing.com/indices/kospi-volatility',
+    ]) {
+      try {
+        let html = null;
+        for(const mk of _SENTIMENT_PROXIES) {
+          try {
+            const r = await fetch(mk(targetUrl), { signal: AbortSignal.timeout(8000) });
+            if(r.ok) { html = await r.text(); if(html && html.length > 1000) break; }
+          } catch(_) {}
+        }
+        if(!html) continue;
+        // pid-XXXXX-last 또는 instrument-price-last 패턴 (사이트 구조 변경에 견디도록 다중 시도)
+        let m = html.match(/data-test="instrument-price-last"[^>]*>([0-9,.]+)</);
+        if(!m) m = html.match(/id="last_last"[^>]*>([0-9,.]+)</);
+        if(!m) m = html.match(/"last":\s*"?([0-9.,]+)"?/);
+        if(!m) m = html.match(/pid-\d+-last[^>]*>([0-9,.]+)</);
+        if(m) {
+          const val = parseFloat(m[1].replace(/,/g,''));
+          if(val > 1 && val < 200) {
+            // 변화율도 시도
+            let chg = 0;
+            const mc = html.match(/data-test="instrument-price-change-percent"[^>]*>\(?([+\-]?[0-9.,]+)%/)
+                    || html.match(/"changePercent":\s*"?([+\-]?[0-9.,]+)/);
+            if(mc) chg = parseFloat(mc[1].replace(/,/g,''));
+            out.vkospi = {
+              value: +val.toFixed(2),
+              change: +chg.toFixed(2),
+              as_of: new Date().toISOString().slice(0,10),
+              history: { [new Date().toISOString().slice(0,10)]: +val.toFixed(2) },
+              source: 'investing.com KOSPI Volatility',
+              symbol: 'KSVKOSPI',
+            };
+            _saveSentimentCache('vkospi', out.vkospi);
+            break;
+          }
+        }
+      } catch(_) {}
+    }
+  }
   // 2) MOVE Index — Stooq (^move) 우선 (히스토리 포함), 실패 시 yfinance
   try {
     const txt = await _fetchTextStooq('^move');
@@ -10617,7 +10722,8 @@ async function fetchSentimentClient() {
       _saveSentimentCache('pcr', out.pcr);
     }
   } catch(_) {}
-  // 4) localStorage 캐시 fallback — 모든 프록시 실패 시 이전 데이터라도 표시
+  // 4) localStorage 캐시 fallback — 모든 프록시 실패 시 직전 실 데이터 표시
+  //    (캐시는 _saveSentimentCache 가 합리적 범위 검증 후 저장한 것만 반환)
   if(!out.vkospi) {
     const c = _loadSentimentCache('vkospi');
     if(c) out.vkospi = { ...c, source: (c.source||'cached') + ' (캐시)' };
@@ -10630,70 +10736,45 @@ async function fetchSentimentClient() {
     const c = _loadSentimentCache('pcr');
     if(c) out.pcr = { ...c, source: (c.source||'cached') + ' (캐시)' };
   }
-  // 5) 최종 정적 fallback — 카드 비어있지 않도록
-  // 5) 최종 정적 fallback — 카드/차트가 비어있지 않도록 24개월 합성 히스토리 포함
-  // (실제 API 페치 실패 시에도 차트가 평탄선이 아닌 의미있는 변동을 보이도록)
-  if(!out.vkospi) out.vkospi = { ...VKOSPI_FALLBACK_HISTORY, source:'fallback (24개월 합성 데이터)' };
-  if(!out.move)   out.move   = { ...MOVE_FALLBACK_HISTORY,   source:'fallback (24개월 합성 데이터)' };
-  if(!out.pcr)    out.pcr    = { ...PCR_FALLBACK_HISTORY,    source:'fallback (24개월 합성 데이터)' };
+  // 5) CNN Fear & Greed Index — 공식 production.dataviz.cnn.io API
+  //    (구 https://production.dataviz.cnn.io/index/fearandgreed/graphdata)
+  try {
+    const cnnUrl = 'https://production.dataviz.cnn.io/index/fearandgreed/graphdata';
+    const j = await _fetchJsonWithProxies(cnnUrl);
+    const fg = j?.fear_and_greed;
+    if(fg && typeof fg.score === 'number' && fg.score >= 0 && fg.score <= 100) {
+      const val = +fg.score.toFixed(0);
+      const prev = (typeof fg.previous_close === 'number') ? +fg.previous_close.toFixed(0) : null;
+      const history = {};
+      if(Array.isArray(j?.fear_and_greed_historical?.data)) {
+        for(const row of j.fear_and_greed_historical.data) {
+          if(row && typeof row.y === 'number' && row.y >= 0 && row.y <= 100) {
+            const d = new Date(row.x).toISOString().slice(0,10);
+            history[d] = +row.y.toFixed(2);
+          }
+        }
+      }
+      out.fear_greed = {
+        value: val,
+        prev,
+        rating: fg.rating,                    // 'extreme fear' / 'fear' / 'neutral' / 'greed' / 'extreme greed'
+        as_of: new Date().toISOString().slice(0,10),
+        history,
+        source: 'CNN Fear & Greed Index',
+      };
+      try {
+        if(_SENTIMENT_RANGE && !_SENTIMENT_RANGE.fear_greed) {
+          _SENTIMENT_RANGE.fear_greed = v => v != null && v >= 0 && v <= 100;
+        }
+      } catch(_){}
+      _saveSentimentCache('fear_greed', out.fear_greed);
+    }
+  } catch(_) {}
+  // 6) 합성 fallback 주입 제거 — 합성된 18.4(VKOSPI) 등이 실제값(~69) 으로
+  //    오인되어 사용자 혼란 유발. 데이터 페치 모두 실패 시 카드는 "—" 로
+  //    유지되고 모달은 "데이터 수집 실패" 안내 메시지 표시.
   return out;
 }
-
-// ============================
-// VKOSPI/MOVE/PCR 합성 fallback 히스토리 — API 페치 모두 실패 시 사용
-// 공개된 일반적 추세에 기반한 24개월 월별 추정치 (정확한 일별 값 아님)
-// ============================
-const VKOSPI_FALLBACK_HISTORY = (() => {
-  // VKOSPI 는 보통 13~25 범위. 위기 시 30+
-  const months = [
-    ['2024-06', 16.8], ['2024-07', 18.2], ['2024-08', 22.1], ['2024-09', 19.5],
-    ['2024-10', 18.7], ['2024-11', 21.3], ['2024-12', 19.8], ['2025-01', 17.9],
-    ['2025-02', 16.5], ['2025-03', 17.2], ['2025-04', 19.1], ['2025-05', 18.3],
-    ['2025-06', 16.7], ['2025-07', 17.8], ['2025-08', 20.4], ['2025-09', 18.9],
-    ['2025-10', 17.6], ['2025-11', 19.2], ['2025-12', 17.8], ['2026-01', 18.5],
-    ['2026-02', 17.3], ['2026-03', 18.9], ['2026-04', 19.6], ['2026-05', 18.4],
-  ];
-  const history = {};
-  months.forEach(([m,v]) => { history[m+'-15'] = v; });  // 매월 15일 기준
-  const latest = months[months.length-1][1];
-  const prev   = months[months.length-2][1];
-  return { value: latest, change: +((latest - prev) / prev * 100).toFixed(2),
-           as_of: months[months.length-1][0]+'-15', history };
-})();
-const MOVE_FALLBACK_HISTORY = (() => {
-  // MOVE Index: 60~150 일반, 위기 시 200+
-  const months = [
-    ['2024-06', 102.3], ['2024-07', 95.8], ['2024-08', 88.4], ['2024-09', 92.1],
-    ['2024-10', 105.6], ['2024-11', 110.2], ['2024-12', 98.7], ['2025-01', 95.3],
-    ['2025-02', 91.8], ['2025-03', 98.5], ['2025-04', 105.1], ['2025-05', 99.2],
-    ['2025-06', 92.7], ['2025-07', 88.9], ['2025-08', 96.4], ['2025-09', 102.8],
-    ['2025-10', 108.5], ['2025-11', 95.6], ['2025-12', 89.3], ['2026-01', 92.7],
-    ['2026-02', 88.1], ['2026-03', 95.6], ['2026-04', 87.8], ['2026-05', 81.5],
-  ];
-  const history = {};
-  months.forEach(([m,v]) => { history[m+'-15'] = v; });
-  const latest = months[months.length-1][1];
-  const prev   = months[months.length-2][1];
-  return { value: latest, change: +((latest - prev) / prev * 100).toFixed(2),
-           as_of: months[months.length-1][0]+'-15', history };
-})();
-const PCR_FALLBACK_HISTORY = (() => {
-  // Put/Call Ratio: 0.6~1.2 일반
-  const months = [
-    ['2024-06', 0.84], ['2024-07', 0.92], ['2024-08', 1.05], ['2024-09', 0.98],
-    ['2024-10', 0.89], ['2024-11', 1.02], ['2024-12', 0.94], ['2025-01', 0.88],
-    ['2025-02', 0.82], ['2025-03', 0.95], ['2025-04', 1.01], ['2025-05', 0.91],
-    ['2025-06', 0.85], ['2025-07', 0.88], ['2025-08', 0.96], ['2025-09', 1.04],
-    ['2025-10', 0.92], ['2025-11', 0.85], ['2025-12', 0.79], ['2026-01', 0.83],
-    ['2026-02', 0.78], ['2026-03', 0.91], ['2026-04', 0.88], ['2026-05', 0.86],
-  ];
-  const history = {};
-  months.forEach(([m,v]) => { history[m+'-15'] = v; });
-  const latest = months[months.length-1][1];
-  const prev   = months[months.length-2][1];
-  return { value: latest, change: +((latest - prev) / prev * 100).toFixed(2),
-           as_of: months[months.length-1][0]+'-15', history };
-})();
 
 // VKOSPI 가 합리적 범위인지 검증 — yfinance 가 ^VKOSPI 를 KOSPI 로 잘못 매핑할 수 있음
 function _isValidVkospi(v) { return v != null && v > 1 && v < 200; }
@@ -10720,6 +10801,7 @@ function applySentimentClient(s) {
   merge('vkospi', s.vkospi);
   merge('move',   s.move);
   merge('pcr',    s.pcr);
+  merge('fear_greed', s.fear_greed);
   if(s.vkospi?.value != null && _isValidVkospi(s.vkospi.value)) {
     const el = document.getElementById('dashVkospi');
     if(el) {
@@ -10747,6 +10829,11 @@ function applySentimentClient(s) {
       const v = s.pcr.value;
       el.style.color = v > 1.1 ? '#ef5350' : v < 0.7 ? '#26a69a' : 'var(--c-txt,#dfe2f2)';
     }
+  }
+  // Fear & Greed Index — 데이터 도착 시 카드/도넛 갱신
+  if(s.fear_greed?.value != null && typeof applyFearGreed === 'function') {
+    try { applyFearGreed(_latestDataForIndicators); } catch(_){}
+    try { if(typeof buildFearChart === 'function') buildFearChart(); } catch(_){}
   }
   // 현재 sentiment 모달이 열려있다면 즉시 재렌더 (사용자가 클릭한 후 데이터가 도착한 케이스)
   try {
@@ -10866,6 +10953,26 @@ const SENTIMENT_GUIDES = {
         <li><span style="color:#b91c1c;">● 8%p 이상</span> — 신용 위기 (2008 금융위기 21%, 2020 코로나 11%, 2016 에너지 위기 9%)</li>
       </ul>
       <strong style="color:#b6c4ff;">💡 활용:</strong> 경기침체 선행지표. 스프레드가 1년 내 3%p → 7%p 이상 급등 시 침체 가능성 ↑. VIX, MOVE 와 동반 상승 시 시스템 위험.
+    `,
+  },
+  fear_greed: {
+    title: 'CNN Fear & Greed Index',
+    unit: '지수 (0=극도 공포 ~ 100=극도 탐욕)',
+    source: 'CNN Business / Money',
+    dataPath: 'sentiment.fear_greed',
+    color: '#26a69a',
+    guide: `
+      <strong style="color:#26a69a;">📊 Fear &amp; Greed Index 란?</strong><br>
+      CNN Money 가 7가지 시장 지표(주가 모멘텀·강도·폭·풋콜비율·정크본드 수요·시장 변동성·안전자산 수요)를 종합한 <strong>시장 심리 지표</strong>. 0~100 점수로 표현됩니다.<br><br>
+      <strong>해석 기준:</strong>
+      <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
+        <li><span style="color:#ef5350;">● 0~24 (극도 공포)</span> — 매수 기회로 인식되기도 함 (역방향)</li>
+        <li><span style="color:#f5a623;">● 25~44 (공포)</span> — 시장 약세 심리, 변동성 확대</li>
+        <li><span style="color:#b6c4ff;">● 45~54 (중립)</span> — 균형 상태</li>
+        <li><span style="color:#26a69a;">● 55~74 (탐욕)</span> — 시장 강세 심리</li>
+        <li><span style="color:#0f6e56;">● 75~100 (극도 탐욕)</span> — 과열 신호 (역방향, 조정 가능성)</li>
+      </ul>
+      <strong style="color:#b6c4ff;">💡 활용:</strong> 역발상 지표로 활용 — 극단치(20 이하 / 80 이상) 진입 시 단기 추세 반전 가능성. 단일 지표보다는 VIX·PCR 과 함께 종합 판단.
     `,
   },
 };
@@ -11162,7 +11269,7 @@ function showSentimentDetail(key) {
     const d = _latestDataForIndicators || {};
     const node = (typeof getDataByPath === 'function') ? getDataByPath(d, guide.dataPath) : null;
     const hasHistory = node && node.history && typeof node.history === 'object' && Object.keys(node.history).length > 1;
-    if(!hasHistory && (key === 'vkospi' || key === 'move' || key === 'pcr')) {
+    if(!hasHistory && (key === 'vkospi' || key === 'move' || key === 'pcr' || key === 'fear_greed')) {
       // 노트에 로딩 표시
       const noteEl = document.getElementById('reHistNote');
       if(noteEl && noteEl.textContent.includes('데이터 없음')) {
@@ -11208,11 +11315,19 @@ function _renderReHistChartSentiment(guide) {
   const uniqueValues = new Set(values).size;
   if(labels.length < 2 || uniqueValues < 2) {
     if(noteEl) {
+      const isSentimentClientKey = ['vkospi','move','pcr','fear_greed'].some(k => (guide.dataPath||'').endsWith(k));
       if(isVkospi && node?.value != null && !_isValidVkospi(node.value)) {
         noteEl.innerHTML = `<span style="color:var(--c-down,#ef5350);">⚠️ VKOSPI 값(${node.value}) 이 합리적 범위 벗어남</span> — 다음 갱신에서 자동 보정`;
       } else if(valIsValid) {
         noteEl.innerHTML = `<span style="color:var(--c-primary,#b6c4ff);">⟳ 시계열 데이터 수집 중…</span> &nbsp; <span style="font-size:10px;color:var(--c-txt-dim,#8d90a2);">현재값: ${node.value} (${guide.source})</span>`;
         // 즉시 fetch 트리거 (Naver 차트 API)
+        if(typeof fetchSentimentClient === 'function') {
+          fetchSentimentClient().then(applySentimentClient).catch(()=>{});
+        }
+      } else if(isSentimentClientKey) {
+        // 합성 fallback 제거 이후: 페치 모두 실패 시 명확한 안내
+        noteEl.innerHTML = `<span style="color:var(--c-down,#ef5350);">⚠️ 데이터 수집 실패</span> — 브라우저 환경에서 외부 API 접근이 차단되었거나 일시적 응답 없음. <a href="javascript:void(0)" onclick="(function(){var b=event.target;b.textContent='⟳ 페치 중…';fetchSentimentClient().then(applySentimentClient).then(function(){b.textContent='✓ 갱신 시도 완료';}).catch(function(){b.textContent='✗ 실패';});})()" style="color:var(--c-primary,#2962ff);text-decoration:underline;">↻ 다시 시도</a>`;
+        // 자동으로 1회 재시도
         if(typeof fetchSentimentClient === 'function') {
           fetchSentimentClient().then(applySentimentClient).catch(()=>{});
         }
@@ -11328,6 +11443,11 @@ function applyRealData(d) {
     : null;
 
   // ── 티커 바 업데이트 ──────────────────────────
+  // 금리/채권 티커 — 하드코딩 값(2.75%, 4.48%) 대신 data.json 실데이터 사용
+  const _ecosKrPre = (d.economicIndicators || {}).kr || {};
+  const _ecosUsPre = (d.economicIndicators || {}).us || {};
+  const krRate = _ecosKrPre.base_rate_kr;
+  const us10y  = _ecosUsPre.us10y;
   const tickerMap = {
     'KOSPI':    idx.KOSPI   && {val: fmt(idx.KOSPI.price,2),   chg: fmtPct(idx.KOSPI.change),   up: idx.KOSPI.change   >= 0},
     'KOSDAQ':   idx.KOSDAQ  && {val: fmt(idx.KOSDAQ.price,2),  chg: fmtPct(idx.KOSDAQ.change),  up: idx.KOSDAQ.change  >= 0},
@@ -11339,6 +11459,33 @@ function applyRealData(d) {
     'S&P 500':  idx.SP500   && {val: fmt(idx.SP500.price,2),   chg: fmtPct(idx.SP500.change),   up: idx.SP500.change   >= 0},
     'NASDAQ':   idx.NASDAQ  && {val: fmt(idx.NASDAQ.price,2),  chg: fmtPct(idx.NASDAQ.change),  up: idx.NASDAQ.change  >= 0},
     '닛케이':   idx.Nikkei  && {val: fmt(idx.Nikkei.price,2),  chg: fmtPct(idx.Nikkei.change),  up: idx.Nikkei.change  >= 0},
+    '한국 기준금리': krRate?.value != null && (() => {
+      // 직전 값 추출 — history 에서 가장 최근의 다른 값
+      let prev = krRate.value;
+      if(krRate.history) {
+        const ps = Object.keys(krRate.history).sort();
+        for(let i = ps.length - 1; i >= 0; i--) {
+          const v = krRate.history[ps[i]];
+          if(v != null && Math.abs(v - krRate.value) > 0.001) { prev = v; break; }
+        }
+      }
+      const dir = prev > krRate.value ? '인하↓' : prev < krRate.value ? '인상↑' : '동결';
+      const up = prev < krRate.value ? true : prev > krRate.value ? false : null;
+      return { val: krRate.value.toFixed(2) + '%', chg: dir, up };
+    })(),
+    '미 10년물': us10y?.value != null && (() => {
+      // 직전월 vs 현재월 변화량
+      let chgPp = 0;
+      if(us10y.history) {
+        const ps = Object.keys(us10y.history).sort();
+        if(ps.length >= 2) {
+          const cur = us10y.history[ps[ps.length-1]];
+          const prv = us10y.history[ps[ps.length-2]];
+          if(cur != null && prv != null) chgPp = +(cur - prv).toFixed(2);
+        }
+      }
+      return { val: us10y.value.toFixed(2) + '%', chg: (chgPp>=0?'+':'') + chgPp.toFixed(2), up: chgPp >= 0 };
+    })(),
   };
   tickerData.forEach(t => { if (tickerMap[t.name]) Object.assign(t, tickerMap[t.name]); });
   buildTicker();
@@ -11406,6 +11553,7 @@ function applyRealData(d) {
 
   // ── 한국 기준금리 KPI 카드 — ECOS 데이터로 최신값 반영 ──────────
   const ecosKr = (d.economicIndicators || {}).kr || {};
+  const ecosUs = (d.economicIndicators || {}).us || {};
   if(ecosKr.base_rate_kr?.value != null) {
     const vEl = document.getElementById('kpi-rate-val');
     if(vEl) vEl.innerHTML = `${ecosKr.base_rate_kr.value.toFixed(2)}<span style="font-size:14px;">%</span>`;
@@ -11421,6 +11569,116 @@ function applyRealData(d) {
       rateHistoryData.kr[rateHistoryData.kr.length-1] = ecosKr.base_rate_kr.value;
       try { buildRateKpiSparkline(); } catch(_){}
     }
+  }
+
+  // ── 글로벌 기준금리 / 채권 테이블 — data.json 실데이터로 하드코딩 값 덮어쓰기 ──
+  // 하드코딩된 currentRates(KR 2.75%, US 4.25%) 와 globalBonds(US 10y 4.48%) 가
+  // 실제 data.json 값(KR 2.50%, US ff_rate 3.64%, US 10y 4.32%) 과 달라
+  // 사용자에게 잘못된 값이 표시되던 문제 해결.
+  if(typeof currentRates !== 'undefined' && Array.isArray(currentRates)) {
+    const formatRate = v => (v != null) ? v.toFixed(2) + '%' : '—';
+    const krBase = ecosKr.base_rate_kr;
+    if(krBase?.value != null) {
+      const krRow = currentRates.find(r => r.cc === 'kr');
+      if(krRow) {
+        const cur = krBase.value;
+        // 직전 값: history 의 가장 최근 다른 값 (변동 시점)
+        let prev = cur;
+        if(krBase.history) {
+          const periods = Object.keys(krBase.history).sort();
+          for(let i = periods.length - 1; i >= 0; i--) {
+            const v = krBase.history[periods[i]];
+            if(v != null && Math.abs(v - cur) > 0.001) { prev = v; break; }
+          }
+        }
+        krRow.rate = formatRate(cur);
+        krRow.prev = formatRate(prev);
+        krRow.dir = (prev > cur ? '인하↓' : prev < cur ? '인상↑' : '동결↔');
+      }
+    }
+    const usFf = ecosUs.ff_rate;
+    if(usFf?.value != null) {
+      const usRow = currentRates.find(r => r.cc === 'us');
+      if(usRow) {
+        const cur = usFf.value;
+        let prev = cur;
+        if(usFf.history) {
+          const periods = Object.keys(usFf.history).sort();
+          for(let i = periods.length - 1; i >= 0; i--) {
+            const v = usFf.history[periods[i]];
+            if(v != null && Math.abs(v - cur) > 0.001) { prev = v; break; }
+          }
+        }
+        usRow.rate = formatRate(cur);
+        usRow.prev = formatRate(prev);
+        usRow.dir = (prev > cur ? '인하↓' : prev < cur ? '인상↑' : '동결↔');
+      }
+    }
+    // rateHistoryData 의 us 마지막 값도 갱신 (대시보드/페이지 일관성)
+    if(usFf?.value != null && typeof rateHistoryData !== 'undefined' && Array.isArray(rateHistoryData.us)) {
+      rateHistoryData.us[rateHistoryData.us.length-1] = usFf.value;
+    }
+    // 화면 갱신 (현재 페이지가 시장이면 즉시, 아니면 다음 진입 시 적용)
+    try {
+      if(typeof buildRateCurrentTable === 'function') buildRateCurrentTable();
+      if(typeof buildRateHistoryChart === 'function') buildRateHistoryChart();
+    } catch(_){}
+  }
+  if(typeof globalBonds !== 'undefined' && Array.isArray(globalBonds)) {
+    const fmtYield = v => (v != null) ? v.toFixed(2) + '%' : '—';
+    const fmtSpread = (y10, y2) => (y10 != null && y2 != null) ? ((y10 - y2) >= 0 ? '+' : '') + (y10 - y2).toFixed(2) : null;
+    // yieldCurveTerms = ['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y']
+    // 인덱스: 4=2Y, 7=10Y (일관 컨벤션)
+    const IDX_10Y = 7, IDX_2Y = 4;
+    // US 10y/2y — economicIndicators.us 가 가장 신뢰성 높음 (FRED 직접)
+    if(ecosUs.us10y?.value != null || ecosUs.us2y?.value != null) {
+      const usRow = globalBonds.find(b => b.cc === 'us');
+      if(usRow) {
+        const y10 = ecosUs.us10y?.value, y2 = ecosUs.us2y?.value;
+        if(y10 != null) usRow.y10 = fmtYield(y10);
+        if(y2  != null) usRow.y2  = fmtYield(y2);
+        // 둘 다 데이터에서 왔을 때만 spread 갱신 (mixed hardcode/data 방지)
+        if(y10 != null && y2 != null) {
+          const sp = fmtSpread(y10, y2);
+          if(sp != null) usRow.spread = sp;
+        }
+      }
+    }
+    // KR 10y/2y — yieldCurve.kr.current 가 있으면 사용 (yieldCurveTerms 컨벤션)
+    const ycKr = (d.yieldCurve || {}).kr || {};
+    if(Array.isArray(ycKr.current) && ycKr.current.length >= 10) {
+      const krRow = globalBonds.find(b => b.cc === 'kr');
+      if(krRow) {
+        const y10 = ycKr.current[IDX_10Y];
+        const y2  = ycKr.current[IDX_2Y];
+        let updatedY10 = false, updatedY2 = false;
+        if(y10 != null) { krRow.y10 = fmtYield(y10); updatedY10 = true; }
+        if(y2  != null) { krRow.y2  = fmtYield(y2); updatedY2  = true; }
+        // 둘 다 갱신된 경우에만 spread 재계산 (혼합 방지)
+        if(updatedY10 && updatedY2) {
+          const sp = fmtSpread(y10, y2);
+          if(sp != null) krRow.spread = sp;
+        }
+      }
+    }
+    // JP 10y/2y — yieldCurve.jp.current 가 있으면 사용
+    const ycJp = (d.yieldCurve || {}).jp || {};
+    if(Array.isArray(ycJp.current) && ycJp.current.length >= 10) {
+      const jpRow = globalBonds.find(b => b.cc === 'jp');
+      if(jpRow) {
+        const y10 = ycJp.current[IDX_10Y];
+        const y2  = ycJp.current[IDX_2Y];
+        let updatedY10 = false, updatedY2 = false;
+        if(y10 != null) { jpRow.y10 = fmtYield(y10); updatedY10 = true; }
+        if(y2  != null) { jpRow.y2  = fmtYield(y2); updatedY2  = true; }
+        if(updatedY10 && updatedY2) {
+          const sp = fmtSpread(y10, y2);
+          if(sp != null) jpRow.spread = sp;
+        }
+      }
+    }
+    // 화면 갱신
+    try { if(typeof buildGlobalBondTable === 'function') buildGlobalBondTable(); } catch(_){}
   }
 
   // ── FX 페이지 헤더·정보 패널 갱신 (현재 표시 중이라면) ─────
@@ -11598,6 +11856,11 @@ function applyRealData(d) {
       const v = sentiment.pcr.value;
       el.style.color = v > 1.1 ? '#ef5350' : v < 0.7 ? '#26a69a' : 'var(--c-txt,#dfe2f2)';
     }
+  }
+  // ── Fear & Greed Index (CNN) — sentiment.fear_greed 가 있으면 표시 ────
+  if(typeof applyFearGreed === 'function') applyFearGreed(d);
+  if(typeof buildFearChart === 'function') {
+    try { buildFearChart(); } catch(_) {}
   }
   // ── R-ONE 부동산 지표 → 부동산 페이지 KPI ──────────────
   const reKr = (d.realestate || {}).kr || {};
