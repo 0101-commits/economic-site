@@ -2636,7 +2636,52 @@ def fetch_vkospi():
                             "source": f"Naver Finance ({code})", "symbol": "KSVKOSPI"})
         except Exception as e:
             log(f"[KSVKOSPI] Naver {code} 폴백 오류: {e}")
-    # 3차: yfinance — 범위 검증으로 KOSPI 잘못 매핑 검출
+    # 3차: investing.com KOSPI Volatility 페이지 — 사용자가 직접 보는 페이지와 동일 값
+    #      https://kr.investing.com/indices/kospi-volatility (= https://www.investing.com/indices/kospi-volatility)
+    try:
+        import re as _re
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "ko,en;q=0.8",
+        }
+        for url in ("https://kr.investing.com/indices/kospi-volatility",
+                    "https://www.investing.com/indices/kospi-volatility"):
+            try:
+                r = requests.get(url, headers=headers, timeout=15)
+                if r.status_code != 200 or not r.text:
+                    continue
+                html = r.text
+                # 다중 패턴 — investing.com 페이지 구조가 자주 바뀌므로 여러 패턴 시도.
+                m = _re.search(r'data-test="instrument-price-last"[^>]*>([0-9,.]+)<', html)
+                if not m:
+                    m = _re.search(r'id="last_last"[^>]*>([0-9,.]+)<', html)
+                if not m:
+                    m = _re.search(r'"last"\s*:\s*"?([0-9.,]+)"?', html)
+                if not m:
+                    m = _re.search(r'pid-\d+-last[^>]*>([0-9,.]+)<', html)
+                if m:
+                    v = _parse_num(m.group(1).replace(",", ""))
+                    if _is_valid_vkospi(v):
+                        # 변화율도 시도
+                        chg = 0.0
+                        mc = _re.search(r'data-test="instrument-price-change-percent"[^>]*>\(?([+\-]?[0-9.,]+)\s*%', html) \
+                             or _re.search(r'"changePercent"\s*:\s*"?([+\-]?[0-9.,]+)', html) \
+                             or _re.search(r'pid-\d+-pcp[^>]*>\(?([+\-]?[0-9.,]+)\s*%', html)
+                        if mc:
+                            chg = _parse_num(mc.group(1).replace(",", "")) or 0.0
+                        log(f"[KSVKOSPI] investing.com: {v} ({chg}%)")
+                        return _attach_history({
+                            "value": round(v, 2), "change": round(chg, 2),
+                            "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                            "source": "investing.com KOSPI Volatility",
+                            "symbol": "KSVKOSPI",
+                        })
+            except Exception as e:
+                log(f"[KSVKOSPI] investing.com 시도 오류 ({url}): {e}")
+    except Exception as e:
+        log(f"[KSVKOSPI] investing.com 폴백 오류: {e}")
+    # 4차: yfinance — 범위 검증으로 KOSPI 잘못 매핑 검출
     try:
         q = fetch_yf("^VKOSPI")
         if q and _is_valid_vkospi(q.get("price")):
@@ -2646,7 +2691,7 @@ def fetch_vkospi():
             log(f"[KSVKOSPI] yfinance {q['price']} → 범위 벗어남 (KOSPI 오매핑 가능성), 무시")
     except Exception as e:
         log(f"[KSVKOSPI] yfinance 폴백 오류: {e}")
-    # 4차: Stooq 만으로 현재값 추출
+    # 5차: Stooq 만으로 현재값 추출
     if history:
         dates = sorted(history.keys())
         latest = history[dates[-1]]
@@ -2792,6 +2837,63 @@ def fetch_putcall_ratio():
 
     log("[PCR] 데이터 수집 실패")
     return None
+
+
+# ============================================================
+# CNN Fear & Greed Index (시장 심리 종합 지표 0~100)
+# ============================================================
+def fetch_cnn_fear_greed():
+    """CNN Money 공식 Fear & Greed Index 조회.
+    공개 JSON 엔드포인트:
+      https://production.dataviz.cnn.io/index/fearandgreed/graphdata
+    응답: {"fear_and_greed": {"score": ..., "rating": ..., "previous_close": ...},
+           "fear_and_greed_historical": {"data": [{"x": ms, "y": score, "rating": ...}, ...]}}
+    Returns: {"value": int, "prev": int|None, "rating": str, "as_of": "YYYY-MM-DD",
+              "history": {"YYYY-MM-DD": score}, "source": "CNN Fear & Greed Index"} or None.
+    """
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+            "Accept": "application/json",
+            "Origin": "https://www.cnn.com",
+            "Referer": "https://www.cnn.com/markets/fear-and-greed",
+        }
+        r = requests.get(
+            "https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
+            headers=headers, timeout=15,
+        )
+        if r.status_code != 200 or not r.text:
+            log(f"[FNG] HTTP {r.status_code}")
+            return None
+        j = r.json()
+        fg = (j or {}).get("fear_and_greed") or {}
+        score = fg.get("score")
+        if not isinstance(score, (int, float)) or not (0 <= score <= 100):
+            log(f"[FNG] 점수 범위 이상: {score}")
+            return None
+        prev = fg.get("previous_close")
+        rating = fg.get("rating")
+        history = {}
+        for row in (j.get("fear_and_greed_historical") or {}).get("data", []):
+            x = row.get("x"); y = row.get("y")
+            if isinstance(y, (int, float)) and 0 <= y <= 100 and isinstance(x, (int, float)):
+                try:
+                    dt = datetime.fromtimestamp(x/1000, tz=KST).strftime("%Y-%m-%d")
+                    history[dt] = round(float(y), 2)
+                except Exception:
+                    pass
+        log(f"[FNG] score={round(score,1)} prev={prev} rating={rating} hist={len(history)}점")
+        return {
+            "value": round(float(score), 1),
+            "prev":  round(float(prev), 1) if isinstance(prev, (int, float)) else None,
+            "rating": rating,
+            "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+            "history": history,
+            "source": "CNN Fear & Greed Index",
+        }
+    except Exception as e:
+        log(f"[FNG] 오류: {e}")
+        return None
 
 
 # ============================================================
@@ -3797,6 +3899,15 @@ def build_data():
             data["sources"]["pcr"] = pc.get("source", "Stooq/CBOE")
     except Exception as e:
         log(f"[PCR] 오류: {e}")
+
+    # ── CNN Fear & Greed Index (시장 심리 종합 지표) ────────
+    try:
+        fg = fetch_cnn_fear_greed()
+        if fg:
+            data["sentiment"]["fear_greed"] = fg
+            data["sources"]["fear_greed"] = fg.get("source", "CNN Money")
+    except Exception as e:
+        log(f"[FNG] 오류: {e}")
 
     # ── 공공데이터포털: 국토부 아파트 매매 실거래 — 한국 부동산 보강 ──
     if DATA_GO_KR_API_KEY:
