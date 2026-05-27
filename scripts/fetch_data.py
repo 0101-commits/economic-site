@@ -1781,13 +1781,17 @@ def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None
         else:  # Y
             start_prd = str(now.year - limit)
             end_prd   = str(now.year)
+    # R-ONE OpenAPI 의 DTACYCLE_CD 는 2글자 코드를 사용한다 (개발가이드 예: DTACYCLE_CD=YY).
+    # 단일 문자("M"/"Q"/"Y"/"W")를 그대로 보내면 모든 STATBL_ID 가 빈 응답을 반환하므로
+    # (유효한 통계표 ID 도 동일) 반드시 2글자 코드로 매핑해야 한다.
+    cycle_code = {"M": "MM", "Q": "QQ", "Y": "YY", "W": "WK"}.get(period_type, period_type)
     params = {
         "KEY":        REALESTATE_API_KEY,
         "Type":       "json",
         "pIndex":     1,
         "pSize":      limit,
         "STATBL_ID":  stats_id,
-        "DTACYCLE_CD": period_type,
+        "DTACYCLE_CD": cycle_code,
         "WRTTIME_IDTFR_ID_FROM": start_prd,
         "WRTTIME_IDTFR_ID_TO":   end_prd,
     }
@@ -1840,6 +1844,94 @@ def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None
     except Exception as e:
         log(f"[R-ONE-new] {stats_id} 예외: {e}")
         return None
+
+
+def fetch_rone_table_catalog(name_kw, cycle_code="MM", limit=200):
+    """R-ONE 통계표 목록(SttsApiTbl)에서 이름으로 STATBL_ID 를 자동 탐색.
+
+    하드코딩한 STATBL_ID 가 (등록 차수 변경 등으로) 더 이상 유효하지 않을 때
+    이름 키워드로 현재 유효한 통계표 ID 를 동적으로 찾아 자가 복구한다.
+    응답 구조/네트워크 오류 시 빈 리스트를 반환하므로 빌드를 깨지 않는다.
+
+    Returns: [(STATBL_ID, STATBL_NM), ...] — name_kw 를 STATBL_NM 에 포함한 항목만.
+    """
+    if not REALESTATE_API_KEY:
+        return []
+    try:
+        r = requests.get(
+            f"{RONE_BASE}/SttsApiTbl.do",
+            params={"KEY": REALESTATE_API_KEY, "Type": "json", "pIndex": 1, "pSize": limit},
+            timeout=20, headers={"User-Agent": "Mozilla/5.0 (economic-site fetch)"},
+        )
+        if r.status_code != 200:
+            log(f"[R-ONE-cat] SttsApiTbl HTTP {r.status_code}")
+            return []
+        try:
+            data = r.json()
+        except ValueError:
+            log(f"[R-ONE-cat] JSON 파싱 실패 — 앞 100자: {r.text[:100]}")
+            return []
+        rows = []
+        envelope = data.get("SttsApiTbl") if isinstance(data, dict) else None
+        if isinstance(envelope, list):
+            for blk in envelope:
+                if isinstance(blk, dict) and "row" in blk and isinstance(blk["row"], list):
+                    rows = blk["row"]
+                    break
+        out = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            nm = row.get("STATBL_NM", "") or ""
+            sid = row.get("STATBL_ID", "") or ""
+            cyc = (row.get("DTACYCLE_CD", "") or "").upper()
+            if not sid or name_kw not in nm:
+                continue
+            if cycle_code and cyc and cyc != cycle_code:
+                continue
+            out.append((sid, nm))
+        if out:
+            log(f"[R-ONE-cat] '{name_kw}' 매칭 통계표 {len(out)}건: {[s for s,_ in out][:5]}")
+        return out
+    except Exception as e:
+        log(f"[R-ONE-cat] 카탈로그 조회 예외: {e}")
+        return []
+
+
+def _rone_pick_nationwide(rows):
+    """R-ONE 통계표 행 리스트에서 '전국' 분류의 최신값/전월값/시계열을 추출.
+
+    통계표는 지역(CLS_NM/CL_NM)·항목(ITM_NM) 차원으로 여러 행을 반환하므로
+    그냥 마지막 행을 쓰면 임의 지역값이 잡힌다. '전국' 행만 필터해 사용하고,
+    '전국'이 없으면 전체 행을 시점별로 합쳐 최신값을 고른다.
+
+    Returns: dict(value, prev, chg, period, history) 또는 None.
+    """
+    if not rows:
+        return None
+    def _is_nationwide(r):
+        for f in ("CLS_NM", "CL_NM", "CLS_FULLNM"):
+            v = r.get(f)
+            if v and "전국" in str(v):
+                return True
+        # 분류 필드가 아예 없으면 단일 시리즈로 간주 (전국으로 취급)
+        return not any(r.get(f) for f in ("CLS_NM", "CL_NM", "CLS_FULLNM"))
+    nationwide = [r for r in rows if _is_nationwide(r)]
+    target = nationwide if nationwide else rows
+    history = {}
+    for r in target:
+        p = r.get("WRTTIME_IDTFR_ID")
+        v = _parse_num(r.get("DTA_VAL"))
+        if p and v is not None:
+            history[p] = v
+    if not history:
+        return None
+    keys = sorted(history.keys())
+    val = history[keys[-1]]
+    prev = history[keys[-2]] if len(keys) > 1 else None
+    chg = round((val - prev) / prev * 100, 2) if prev else None
+    return {"value": round(val, 2), "prev": prev, "chg": chg,
+            "period": keys[-1], "history": history}
 
 
 def fetch_realestate_kr_ecos_fallback():
@@ -1925,101 +2017,63 @@ def fetch_realestate_kr():
     now = datetime.now(KST)
     result = {}
 
-    # ─── 신 API: 전국주택가격동향 (월간) ─────────────
-    # R-ONE 신 OpenAPI 의 STATBL_ID 는 R-ONE 통계카탈로그 매뉴얼에서 발급일 기준으로 부여.
-    # 동일 통계라도 등록 차수에 따라 A_2022_xxx / A_2024_xxx / A_2025_xxx 등 다중 ID 공존.
-    # 누가 어느 ID 를 발급받았는지 일관성이 없어 가능한 후보를 모두 시도 (첫 성공 반환).
-    stats_candidates = [
-        # ── 매매가격지수 / 매매변동률 (월간) — 2025 신 등록 ──
-        ("A_2025_00130", "전국 종합주택 매매가격지수"),
-        ("A_2025_00131", "전국 아파트 매매가격지수"),
-        ("A_2025_00190", "월간 전국주택가격동향조사 매매가격지수"),
-        # ── 2024 등록 ──
-        ("A_2024_00177", "전국 아파트 매매가격지수 변동률 (%)"),
-        ("A_2024_00200", "전국 아파트 매매가격지수 변동률 (%)"),
-        ("A_2024_00026", "전국 아파트 매매가격지수"),
-        ("A_2024_00301", "전국 아파트 매매가격지수"),
-        # ── 2022 legacy ──
-        ("A_2022_00131", "전국 종합주택 매매가격지수"),
-        ("A_2022_00026", "전국 아파트 매매가격지수"),
-        # ── 지역별 (전국=00000) — STATBL 차원으로 분리되어 있을 가능성 ──
-        ("A_2020_00131", "전국 아파트 매매가격지수 (구버전)"),
-    ]
-    for stats_id, desc in stats_candidates:
-        try:
-            rows = fetch_rone_stats(stats_id, period_type="M", limit=12)
-            if not rows: continue
-            # 정렬 후 최신
-            rows_sorted = sorted(rows, key=lambda r: r.get("WRTTIME_IDTFR_ID", ""))
-            latest = rows_sorted[-1]
-            val = _parse_num(latest.get("DTA_VAL"))
-            if val is None: continue
-            prev = _parse_num(rows_sorted[-2].get("DTA_VAL")) if len(rows_sorted) > 1 else None
-            chg = round((val - prev) / prev * 100, 2) if prev and prev != 0 else None
-            history = {}
-            for row in rows_sorted:
-                p = row.get("WRTTIME_IDTFR_ID")
-                v = _parse_num(row.get("DTA_VAL"))
-                if p and v is not None: history[p] = v
-            result["apt_price_idx_kr"] = {
-                "value":  round(val, 2),
-                "prev":   prev,
-                "chg":    chg,
-                "period": latest.get("WRTTIME_IDTFR_ID"),
-                "region": "전국",
-                "desc":   desc,
-                "source": f"R-ONE:{stats_id}",
-                "history": history,
-            }
-            log(f"[R-ONE-new] 매매가격지수 ({stats_id}): {val} ({latest.get('WRTTIME_IDTFR_ID')})")
-            break
-        except Exception as e:
-            log(f"[R-ONE-new] {stats_id} 오류: {e}")
-            continue
+    # ─── 신 API: 전국주택가격동향조사 (월간) ─────────────
+    # STATBL_ID 는 reb.or.kr 공식 통계조회 페이지(easyStatPage/{ID}.do)에서 검증한 값을 우선 사용.
+    #   A_2024_00045 = (월) 매매가격지수_아파트,  A_2024_00050 = (월) 전세가격지수_아파트
+    # 등록 차수 변경에 대비해 구 후보도 폴백으로 유지하고, 모두 실패하면 통계표 목록(SttsApiTbl)
+    # 에서 이름으로 동적 탐색(self-healing)한다. '전국' 분류 행만 골라 최신값/전월비를 계산한다.
+    def _rone_index_series(candidates, discover_kw, desc, label):
+        """candidates(검증 ID 우선) → 실패 시 카탈로그 탐색. 첫 성공의 파싱 결과를 반환."""
+        ids = list(candidates)
+        tried = {sid for sid, _ in ids}
+        for sid, _ in ids:
+            try:
+                rows = fetch_rone_stats(sid, period_type="M", limit=14)
+                picked = _rone_pick_nationwide(rows) if rows else None
+                if picked:
+                    picked.update({"region": "전국", "desc": desc, "source": f"R-ONE:{sid}"})
+                    log(f"[R-ONE-new] {label} ({sid}): {picked['value']} ({picked['period']})")
+                    return picked
+            except Exception as e:
+                log(f"[R-ONE-new] {sid} 오류: {e}")
+        # 하드코딩 ID 전부 실패 → 통계표 목록에서 이름으로 동적 탐색
+        for sid, nm in fetch_rone_table_catalog(discover_kw, "MM"):
+            if sid in tried:
+                continue
+            try:
+                rows = fetch_rone_stats(sid, period_type="M", limit=14)
+                picked = _rone_pick_nationwide(rows) if rows else None
+                if picked:
+                    picked.update({"region": "전국", "desc": desc, "source": f"R-ONE:{sid}(자동탐색)"})
+                    log(f"[R-ONE-cat] {label} 자동탐색 성공 ({sid}={nm}): {picked['value']}")
+                    return picked
+            except Exception as e:
+                log(f"[R-ONE-cat] {sid} 오류: {e}")
+        return None
 
-    # 전세가격지수 변동률 (월간) — 매매와 동일하게 다중 등록 차수 후보 시도
-    jns_candidates = [
-        # 2025 신 등록
-        ("A_2025_00132", "전국 종합주택 전세가격지수"),
-        ("A_2025_00133", "전국 아파트 전세가격지수"),
-        # 2024 등록
-        ("A_2024_00178", "전국 아파트 전세가격지수 변동률 (%)"),
-        ("A_2024_00201", "전국 아파트 전세가격지수 변동률 (%)"),
-        ("A_2024_00027", "전국 아파트 전세가격지수"),
-        # 2022 legacy
-        ("A_2022_00132", "전국 종합주택 전세가격지수"),
-        ("A_2022_00027", "전국 아파트 전세가격지수"),
-    ]
-    for stats_id, desc in jns_candidates:
-        try:
-            rows = fetch_rone_stats(stats_id, period_type="M", limit=12)
-            if not rows: continue
-            rows_sorted = sorted(rows, key=lambda r: r.get("WRTTIME_IDTFR_ID", ""))
-            latest = rows_sorted[-1]
-            val = _parse_num(latest.get("DTA_VAL"))
-            if val is None: continue
-            prev = _parse_num(rows_sorted[-2].get("DTA_VAL")) if len(rows_sorted) > 1 else None
-            chg = round((val - prev) / prev * 100, 2) if prev and prev != 0 else None
-            history = {}
-            for row in rows_sorted:
-                p = row.get("WRTTIME_IDTFR_ID")
-                v = _parse_num(row.get("DTA_VAL"))
-                if p and v is not None: history[p] = v
-            result["jns_price_idx_kr"] = {
-                "value":  round(val, 2),
-                "prev":   prev,
-                "chg":    chg,
-                "period": latest.get("WRTTIME_IDTFR_ID"),
-                "region": "전국",
-                "desc":   desc,
-                "source": f"R-ONE:{stats_id}",
-                "history": history,
-            }
-            log(f"[R-ONE-new] 전세지수 ({stats_id}): {val}")
-            break
-        except Exception as e:
-            log(f"[R-ONE-new] {stats_id} 오류: {e}")
-            continue
+    sale = _rone_index_series(
+        candidates=[
+            ("A_2024_00045", "(월) 매매가격지수_아파트"),   # 공식 페이지 검증
+            ("A_2025_00131", "전국 아파트 매매가격지수"),
+            ("A_2024_00026", "전국 아파트 매매가격지수"),
+            ("A_2022_00026", "전국 아파트 매매가격지수"),
+        ],
+        discover_kw="매매가격지수", desc="전국주택가격동향조사 아파트 매매가격지수",
+        label="매매가격지수")
+    if sale:
+        result["apt_price_idx_kr"] = sale
+
+    jns = _rone_index_series(
+        candidates=[
+            ("A_2024_00050", "(월) 전세가격지수_아파트"),   # 공식 페이지 검증
+            ("A_2025_00133", "전국 아파트 전세가격지수"),
+            ("A_2024_00027", "전국 아파트 전세가격지수"),
+            ("A_2022_00027", "전국 아파트 전세가격지수"),
+        ],
+        discover_kw="전세가격지수", desc="전국주택가격동향조사 아파트 전세가격지수",
+        label="전세가격지수")
+    if jns:
+        result["jns_price_idx_kr"] = jns
 
     # ─── Legacy API 폴백 ─────────────
     if not result:
@@ -2056,49 +2110,26 @@ def fetch_realestate_kr():
         except Exception as e:
             log(f"[R-ONE-legacy] 오류: {e}")
 
-    # ─── R-ONE 추가 시리즈: 미분양 / 인허가 / 착공 / 월간 거래량 ──
+    # ─── R-ONE 추가 시리즈: 미분양 / 인허가 / 착공 / 거래현황 ──
+    # 거래량은 국토부 실거래가(MOLIT) 대신 한국부동산원 '부동산거래현황' 을 1차로 사용.
     extra_stats = [
-        # (key,                desc,                            statbl_id,        period_type)
-        ("unsold_kr",          "전국 미분양 주택 수",            "A_2024_00064",  "M"),
-        ("permit_kr",          "주택 인허가 실적 (전국)",       "A_2024_00058",  "M"),
-        ("start_kr",           "주택 착공 실적 (전국)",          "A_2024_00057",  "M"),
-        ("complete_kr",        "주택 준공 실적 (전국)",          "A_2024_00059",  "M"),
-        ("trade_count_kr_rone","전국 주택 매매 거래량 (R-ONE)",  "A_2024_00061",  "M"),
+        # (key,                desc,                                       statbl_id,       period_type)
+        ("unsold_kr",          "전국 미분양 주택 수",                       "A_2024_00064",  "M"),
+        ("permit_kr",          "주택 인허가 실적 (전국)",                   "A_2024_00058",  "M"),
+        ("start_kr",           "주택 착공 실적 (전국)",                     "A_2024_00057",  "M"),
+        ("complete_kr",        "주택 준공 실적 (전국)",                     "A_2024_00059",  "M"),
+        ("trade_count_kr_rone","한국부동산원 부동산거래현황 (전국 매매)",   "A_2024_00061",  "M"),
     ]
     for key, desc, statbl_id, period_type in extra_stats:
         try:
             rows = fetch_rone_stats(statbl_id, period_type=period_type, limit=24)
-            if not rows:
-                log(f"[R-ONE] {statbl_id} ({key}): 응답 없음 — 건너뜀")
+            picked = _rone_pick_nationwide(rows) if rows else None
+            if not picked:
+                log(f"[R-ONE] {statbl_id} ({key}): 응답 없음/전국행 없음 — 건너뜀")
                 continue
-            rows_sorted = sorted(rows, key=lambda r: r.get("WRTTIME_IDTFR_ID", ""))
-            # 전국 (CL_NM == '전국') 행만 필터
-            nationwide = [r for r in rows_sorted
-                          if (r.get("CL_NM", "") in ("전국", "") or
-                              "전국" in (r.get("CLS_NM", "") or ""))]
-            target_rows = nationwide if nationwide else rows_sorted
-            latest = target_rows[-1]
-            val = _parse_num(latest.get("DTA_VAL"))
-            if val is None: continue
-            prev = _parse_num(target_rows[-2].get("DTA_VAL")) if len(target_rows) > 1 else None
-            chg  = round((val - prev) / prev * 100, 2) if prev and prev != 0 else None
-            history = {}
-            for row in target_rows:
-                p = row.get("WRTTIME_IDTFR_ID")
-                v = _parse_num(row.get("DTA_VAL"))
-                if p and v is not None:
-                    history[p] = v
-            result[key] = {
-                "value":  round(val, 2),
-                "prev":   prev,
-                "chg":    chg,
-                "period": latest.get("WRTTIME_IDTFR_ID"),
-                "region": "전국",
-                "desc":   desc,
-                "source": f"R-ONE:{statbl_id}",
-                "history": history,
-            }
-            log(f"[R-ONE] {key} ({statbl_id}): {val} ({latest.get('WRTTIME_IDTFR_ID')})")
+            picked.update({"region": "전국", "desc": desc, "source": f"R-ONE:{statbl_id}"})
+            result[key] = picked
+            log(f"[R-ONE] {key} ({statbl_id}): {picked['value']} ({picked['period']})")
         except Exception as e:
             log(f"[R-ONE] {key} ({statbl_id}) 오류: {e}")
 
@@ -3455,6 +3486,28 @@ def _load_prev_data(path="data.json"):
         return {}
 
 
+def _metric_is_empty(v):
+    """단일 지표 dict({value, history, ...})가 '실데이터 없음'인지 판정.
+
+    R-ONE/MOLIT 가 빈 응답일 때 value=0·history 전부 0 인 껍데기가 만들어지고,
+    이것이 preserve 로 매 빌드 carry-forward 되어 "API 응답 없음" 이 사라지지 않는다.
+    그런 0-only 지표를 비어있는 것으로 보아 보존 대상에서 제외한다.
+
+    Returns: True(빈 지표) / False(유효) / None(지표 형태 아님).
+    """
+    if not isinstance(v, dict) or "value" not in v:
+        return None
+    val = v.get("value")
+    if val is None:
+        return True
+    if val == 0:
+        hist = v.get("history")
+        if isinstance(hist, dict) and hist:
+            return all(hv in (None, 0) for hv in hist.values())
+        return True  # 값 0 + 시계열 없음 → 실데이터 아님
+    return False
+
+
 def _is_effectively_empty(val):
     """preserve 판정용 'effectively empty' 체크.
 
@@ -3462,6 +3515,7 @@ def _is_effectively_empty(val):
     - 뉴스: 모든 카테고리 리스트가 비어있으면 effectively empty
       (단 lastFetched 만 있어도 의미 없음 — 본문 없는 dict 는 빈 것으로 간주).
     - 캘린더: events 가 비어있으면 effectively empty.
+    - 지표 컨테이너(realestate.kr 등): 모든 하위 지표가 0-only 면 effectively empty.
     """
     if val is None:
         return True
@@ -3484,6 +3538,15 @@ def _is_effectively_empty(val):
         movers_keys = ("kospiGainers", "kospiLosers", "etfGainers", "etfLosers")
         if any(k in val for k in movers_keys):
             return all(not val.get(k) for k in movers_keys)
+        # 단일 지표 dict (value/history) — 0-only 면 빈 것으로 간주
+        single = _metric_is_empty(val)
+        if single is not None:
+            return single
+        # 지표 컨테이너 (realestate.kr / economicIndicators.* 등):
+        # 모든 하위 값이 지표 dict 이고 전부 0-only 면 컨테이너도 빈 것으로 간주
+        flags = [_metric_is_empty(vv) for vv in val.values()]
+        if flags and all(f is not None for f in flags):
+            return all(flags)
         return False
     return False
 
@@ -3540,12 +3603,15 @@ def _preserve_from_prev(data, prev, keys, fresh_label=None):
                 continue
             par[parent_key] = pcur
             preserved += 1
-            # 보존된 소스 메타 라벨링
+            # 보존된 소스 메타 라벨링 — 단일 hop 으로만 표기 (무한 누적 방지).
+            # 직전 라벨이 이미 "보존 ← 보존 ← … (ts)(ts)" 로 쌓였으면 원본 소스만 추출해 1회만 감싼다.
             try:
                 src_key = parts[0]
-                prev_src = (prev.get("sources") or {}).get(src_key)
+                prev_src = (prev.get("sources") or {}).get(src_key) or "prev"
                 prev_iso = prev.get("lastUpdated") or ""
-                label = f"{fresh_label or 'preserved'} ← {prev_src or 'prev'}"
+                orig = prev_src.split(" ← ")[-1]                       # 누적 체인의 원본 소스
+                orig = re.sub(r"(\s*\(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\))+\s*$", "", orig).strip() or "prev"
+                label = f"{fresh_label or 'preserved'} ← {orig}"
                 if prev_iso:
                     label = f"{label} ({prev_iso[:16]})"
                 data.setdefault("sources", {})[src_key] = label
@@ -4058,6 +4124,8 @@ def build_data():
                 log("[RE-FB] FRED(BIS) 폴백도 응답 없음")
         except Exception as e:
             log(f"[RE-FB] FRED 폴백 오류: {e}")
+    # 0-only 껍데기 지표 제거 — "API 응답 없음"이 매 빌드 carry-forward 되는 것을 차단.
+    re_data = {k: v for k, v in re_data.items() if _metric_is_empty(v) is not True}
     data["realestate"]["kr"] = re_data
     # 진단 노드에 미수집 사유 기록 — 프론트엔드/사용자가 어떤 단계가 실패했는지 확인 가능
     data.setdefault("diagnostics", {})["realestate_kr"] = re_diag
@@ -4098,52 +4166,44 @@ def build_data():
     except Exception as e:
         log(f"[FNG] 오류: {e}")
 
-    # ── 공공데이터포털: 국토부 아파트 매매 실거래 — 한국 부동산 보강 ──
+    # ── 월간 거래량: 한국부동산원 '부동산거래현황'(R-ONE) 1차 → 국토부 실거래(MOLIT) 보강 ──
+    # 국토부 실거래가는 당월 신고 lag 으로 0 만 반환하는 경우가 잦아(=API 로 실데이터 확보 불가),
+    # 사용자 요청대로 부동산원 API 에서 확인되는 '부동산거래현황' 을 기본 거래량 소스로 쓴다.
+    re_kr = data["realestate"].setdefault("kr", {})
+    if re_kr.get("trade_count_kr_rone") and _metric_is_empty(re_kr["trade_count_kr_rone"]) is not True:
+        rone_trade = dict(re_kr["trade_count_kr_rone"])
+        rone_trade.setdefault("desc", "한국부동산원 부동산거래현황 (전국 매매)")
+        data["realestate"]["kr"]["trade_count_kr"] = rone_trade
+        data["sources"]["realestate_kr_trade"] = "R-ONE 부동산거래현황 (reb.or.kr)"
+        log(f"[거래량] R-ONE 부동산거래현황 사용: {rone_trade.get('period')} {rone_trade.get('value')}")
+    # MOLIT 실거래가 — 실제 비영(非零) 데이터가 있을 때만 (더 세분화된 아파트 실거래) 우선 사용
     if DATA_GO_KR_API_KEY:
         try:
             log("[MOLIT] 국토부 아파트 매매 실거래 거래량 수집 시작")
-            # 최근 6개월 시도 (당월/전월은 신고 lag 으로 0 일 수 있음 → 더 거슬러 올라가 비영점 확보)
             apt_trades = fetch_molit_apt_trade_count(months_back=6)
-            # 0건 월 제거 (당월 신고 lag 으로 0 인 경우 화면이 비어 보이는 문제 방지)
             if apt_trades:
                 apt_trades = {k: v for k, v in apt_trades.items() if v and v > 0}
             if apt_trades:
-                # 최신 월/전월 거래량 (0 이 아닌 가장 최근)
                 sorted_keys = sorted(apt_trades.keys())
                 latest = sorted_keys[-1]
                 prev = sorted_keys[-2] if len(sorted_keys) > 1 else None
                 cur_cnt = apt_trades[latest]
                 prev_cnt = apt_trades[prev] if prev else None
                 chg = round((cur_cnt - prev_cnt) / prev_cnt * 100, 2) if prev_cnt else None
-                # 부동산 KR 데이터에 추가
-                data["realestate"].setdefault("kr", {})["trade_count_kr"] = {
-                    "value": cur_cnt,
-                    "prev": prev_cnt,
-                    "chg": chg,
-                    "period": latest,
+                data["realestate"]["kr"]["trade_count_kr"] = {
+                    "value": cur_cnt, "prev": prev_cnt, "chg": chg, "period": latest,
                     "desc": "전국 아파트 매매 실거래 건수",
                     "source": "data.go.kr (MOLIT 1613000)",
                     "history": apt_trades,
                 }
                 data["sources"]["realestate_molit"] = "data.go.kr (국토부 실거래가)"
-                log(f"[MOLIT] 성공: {latest} {cur_cnt:,}건 (prev {prev}: {prev_cnt:,}건)")
+                log(f"[MOLIT] 성공(우선 적용): {latest} {cur_cnt:,}건 (prev {prev}: {prev_cnt:,}건)")
             else:
-                log("[MOLIT] 최근 6개월 거래량 모두 0 — R-ONE trade_count_kr_rone 폴백 시도")
-                # R-ONE 의 거래량 통계를 trade_count_kr 로 노출 (front-end 가 동일 키로 표시)
-                re_kr = data["realestate"].get("kr", {}) or {}
-                if re_kr.get("trade_count_kr_rone") and not re_kr.get("trade_count_kr"):
-                    rone_trade = dict(re_kr["trade_count_kr_rone"])
-                    rone_trade["source"] = rone_trade.get("source", "") + " (MOLIT 폴백)"
-                    data["realestate"]["kr"]["trade_count_kr"] = rone_trade
-                    log(f"[MOLIT] R-ONE trade_count_kr_rone 폴백 적용: {rone_trade.get('period')}")
+                log("[MOLIT] 최근 6개월 실거래 0 — R-ONE 부동산거래현황 값 유지")
         except Exception as e:
             log(f"[MOLIT] 오류: {e}")
     else:
-        log("[MOLIT] DATA_GO_KR_API_KEY 없음 — R-ONE trade_count_kr_rone 폴백 확인")
-        re_kr = data["realestate"].get("kr", {}) or {}
-        if re_kr.get("trade_count_kr_rone") and not re_kr.get("trade_count_kr"):
-            data["realestate"]["kr"]["trade_count_kr"] = dict(re_kr["trade_count_kr_rone"])
-            log(f"[MOLIT] R-ONE 폴백 적용 (DATA_GO_KR_API_KEY 없음)")
+        log("[MOLIT] DATA_GO_KR_API_KEY 없음 — R-ONE 부동산거래현황 값 유지")
 
     # ── 한국수출입은행 EXIM: 환율/금리 검증용 ────────────────
     if EXIM_API_KEY:
