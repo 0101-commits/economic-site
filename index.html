@@ -1672,25 +1672,26 @@ tailwind.config = {
       <div id="re-kr">
         <!-- KPI 카드 행 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-          <!-- 카드 1: R-ONE 변동률 (사용자가 reb.or.kr 사이트에서 보는 값) -->
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid #26a69a;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국 아파트 매매가격지수 변동률',{unit:'% (월간 변동률)'})">
-            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 매매가격지수 변동률</div>
+          <!-- 카드 1: 전국주택가격동향조사 매매가격지수 변동률 (사용자가 reb.or.kr 에서 보는 값) -->
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #26a69a;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 변동률 (아파트)',{unit:'% (월간 변동률)'})">
+            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 매매가격지수 변동률 (아파트)</div>
             <div id="reKpiAptPrice" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
             <div id="reKpiAptPriceMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 부동산원 R-ONE · ECOS · BIS(FRED) · 단위: 전기比 %</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </div>
-          <!-- 카드 2: R-ONE 전세가격지수 변동률 -->
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid #b6c4ff;cursor:pointer;" onclick="showReHistoryChart('jns_price_idx_kr', '전국 아파트 전세가격지수 변동률', {unit:'% (월간 변동률)'})">
-            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 전세가격지수 변동률</div>
+          <!-- 카드 2: 전국주택가격동향조사 전세가격지수 변동률 -->
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #b6c4ff;cursor:pointer;" onclick="showReHistoryChart('jns_price_idx_kr', '전국주택가격동향조사 전세가격지수 변동률 (아파트)', {unit:'% (월간 변동률)'})">
+            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 전세가격지수 변동률 (아파트)</div>
             <div id="reKpiAptIdxVal" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
             <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 부동산원 R-ONE · ECOS · 단위: 전기比 %</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </div>
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','월간 거래량 (전국)',{unit:'건 (월별 누계)'})">
-            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">월간 거래량 (전국)</div>
+          <!-- 카드 3: 부동산거래현황 (한국부동산원 R-ONE) — 국토부 실거래가 API 미수집분 대체 -->
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','부동산거래현황 (전국 주택 매매거래)',{unit:'건 (월별)'})">
+            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">부동산거래현황 (전국 매매)</div>
             <div id="reKpiVol" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-            <div id="reKpiVolMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">국토부 실거래 페치 중…</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">국토부 실거래가 · 단위: 건</div>
+            <div id="reKpiVolMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">부동산원 거래현황 페치 중…</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE 부동산거래현황 · 단위: 건</div>
           </div>
           <div class="kpi-card" style="border-left:3px solid #ef5350;">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">서울 PIR (소득대비)</div>
@@ -1792,9 +1793,9 @@ tailwind.config = {
           <div class="widget">
             <div class="widget-title">🏠 가격 지수</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('apt_price_idx_kr','전국 아파트 매매가격지수',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 (아파트)',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국 아파트 매매가격지수 <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국주택가격동향조사 매매가격지수 (아파트) <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptSale">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1802,9 +1803,9 @@ tailwind.config = {
                   <div id="krReAptSaleChg" style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('jns_price_idx_kr','전국 아파트 전세가격지수',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div onclick="showReHistoryChart('jns_price_idx_kr','전국주택가격동향조사 전세가격지수 (아파트)',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국 아파트 전세가격지수 <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전국주택가격동향조사 전세가격지수 (아파트) <span style="font-size:9px;color:#434656;">📈</span></div>
                   <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptJns">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -1863,10 +1864,10 @@ tailwind.config = {
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('trade_count_kr','월간 매매 거래량 (전국)',{unit:'건 (월별 누계)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div onclick="showReHistoryChart('trade_count_kr','부동산거래현황 (전국 주택 매매거래)',{unit:'건 (월별)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">월간 매매 거래량 (전국) <span style="font-size:9px;color:#434656;">📈</span></div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 실거래가 · 월간 · 단위: 건</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">부동산거래현황 (전국 매매) <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE 부동산거래현황 · 월간 · 단위: 건</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReTradeCnt" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
@@ -1917,8 +1918,8 @@ tailwind.config = {
         <div class="widget" style="margin-bottom:16px;padding:14px;background:#1b1f2b;border:1px solid #2962ff44;">
           <div style="font-size:12px;font-weight:600;color:#dfe2f2;margin-bottom:6px;">📌 추가 데이터 수집에 필요한 API</div>
           <ul style="margin:0;padding-left:18px;font-size:11px;color:#8d90a2;line-height:1.8;">
-            <li><strong style="color:#dfe2f2;">한국부동산원 R-ONE OpenAPI</strong> — 매매/전세 가격지수, 거래량 (현재 일부 연동, REALESTATE_API_KEY 필요)</li>
-            <li><strong style="color:#dfe2f2;">국토교통부 실거래가 API</strong> — 월간 매매 거래량, 지역별 실거래가 (data.go.kr 등록 필요)</li>
+            <li><strong style="color:#dfe2f2;">한국부동산원 R-ONE OpenAPI</strong> — 전국주택가격동향조사 매매/전세 가격지수·부동산거래현황 (REALESTATE_API_KEY 필요)</li>
+            <li><strong style="color:#dfe2f2;">국토교통부 실거래가 API</strong> — 아파트 매매 실거래 건수 보강 (data.go.kr, 신고 lag 으로 미수집 시 R-ONE 거래현황 사용)</li>
             <li><strong style="color:#dfe2f2;">국토교통부 주택공급계획 통계</strong> — 인허가/착공/준공/미분양 (data.go.kr 등록 필요)</li>
             <li><strong style="color:#dfe2f2;">한국은행 ECOS API</strong> — 주담대 평균금리, 가계신용 잔액 (ECOS_API_KEY 이미 연동)</li>
             <li><strong style="color:#dfe2f2;">KB부동산 시세 API</strong> — KB 매매/전세 동향 (별도 API 필요, 유료/제한적)</li>
@@ -11882,8 +11883,8 @@ function applyRealData(d) {
   // 매매·전세 둘 다 R-ONE 이 1차 소스 (실패 시 ECOS 폴백). 라벨 일관성 유지.
   const reDiag = (d.diagnostics || {}).realestate_kr || {};
   const reMissingHint = (reDiag.rone_tried && !reDiag.rone_ok && !reDiag.ecos_ok && !reDiag.fred_ok)
-    ? 'R-ONE/ECOS/FRED 응답 없음 — 재시도 대기'
-    : (reDiag.rone_tried ? 'R-ONE/ECOS 응답 대기' : 'API 미연동');
+    ? '데이터 갱신 대기 중 (자동 재시도)'
+    : (reDiag.rone_tried ? '데이터 갱신 대기 중' : '데이터 준비 중');
   // KPI 카드는 '변동률(전기比 %)' 을 헤드라인으로 표시 (사용자가 부동산원/R-ONE 사이트에서
   // 보는 값). 소스가 '지수' 시리즈(FRED BIS·R-ONE 지수)면 chg(%) 를 헤드라인으로 쓰고 지수
   // 레벨은 메타에 병기. '변동률' 시리즈면 값 자체가 % 이므로 그대로 표시.
@@ -11942,7 +11943,7 @@ function applyRealData(d) {
   if (hhDebt) {
     setKrReCard('krReHouseholdDebt', null, null, hhDebt, v=>(v/1000).toFixed(0)+'조원');
   }
-  // 월간 매매 거래량 — 실제 데이터만 사용, 없으면 "—" (더미 데이터 절대 금지)
+  // 거래량 (부동산거래현황 R-ONE 1차 / MOLIT 보강) — 실제 데이터만 사용, 없으면 "—" (더미 금지)
   if (reKr.trade_count_kr) {
     const tc = {...reKr.trade_count_kr};
     if(!tc.value || tc.value === 0) {
@@ -11967,23 +11968,26 @@ function applyRealData(d) {
         kpiEl.style.color = 'var(--c-txt,#dfe2f2)';
       }
       if(metaEl) {
-        metaEl.textContent = `${tc.period} · 국토부 실거래가 (data.go.kr)`;
+        // 소스 표기는 실제 data.json 의 source 를 그대로 사용 (R-ONE 부동산거래현황 / MOLIT 실거래)
+        const srcLabel = /MOLIT|국토부|data\.go\.kr/i.test(tc.source||'')
+          ? '국토부 실거래가 (data.go.kr)' : '한국부동산원 부동산거래현황';
+        metaEl.textContent = `${tc.period} · ${srcLabel}`;
         metaEl.style.color = '#26a69a';
       }
     } else {
-      // 거래량 데이터가 모두 0 — 국토부 실거래가 API 응답이 비어있는 상태
+      // 거래량 실데이터 없음 — 부동산원/국토부 사이트 링크 안내 (경고 X, 안내 톤)
       const metaEl = document.getElementById('reKpiVolMeta');
       if(metaEl && metaEl.textContent.includes('페치 중')) {
-        metaEl.innerHTML = '<a href="https://rt.molit.go.kr" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">국토부 실거래가 사이트 →</a> · API 응답 없음';
-        metaEl.style.color = '#f5a623';
+        metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 부동산거래현황 →</a> · 데이터 갱신 대기 중';
+        metaEl.style.color = '#8d90a2';
       }
     }
   } else {
-    // trade_count_kr 자체가 없는 경우
+    // trade_count_kr 자체가 없는 경우 — 안내 링크만 (broken 처럼 보이지 않도록)
     const metaEl = document.getElementById('reKpiVolMeta');
     if(metaEl && metaEl.textContent.includes('페치 중')) {
-      metaEl.innerHTML = '<a href="https://rt.molit.go.kr" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">국토부 실거래가 사이트 →</a> · API 미연동';
-      metaEl.style.color = '#f5a623';
+      metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 부동산거래현황 →</a> · 데이터 준비 중';
+      metaEl.style.color = '#8d90a2';
     }
   }
   if (reKr.unsold_kr) {
