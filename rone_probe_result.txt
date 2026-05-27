@@ -1,22 +1,84 @@
-# R-ONE Probe v3 @ 2026-05-27T07:59:02.374233Z  key tail ...9655  env_set=True
+# R-ONE Probe v4 @ 2026-05-27T08:05:27.632850Z key ...9655
 
-===== 매매 (월) 매매가격지수_아파트  STATBL_ID=A_2024_00045 =====
-[A] pSize=500 → INFO-000 500rows
-[A] 고유 CLS 수=175  ITM={100001: '지수'}  첫행 period=200311
-[A] '전국' CLS_ID = 500001
-[A] 최상위(집계) CLS 후보: {500001: '전국', 500002: '수도권', 500003: '지방권', 500004: '6대광역시', 500005: '5대광역시', 500006: '9개도', 500007: '8개도', 500008: '서울', 500009: '경기', 500010: '인천', 500011: '부산', 500012: '대구', 500013: '광주', 500014: '대전', 500015: '울산'}
-[B] CLS_ID=500001 pSize=800 → INFO-000 270rows
-[B] 반환 CLS_NM=['전국']  기간 200311~202604 (n=270)
-    최신: period=202601 ITM=지수 VAL=100
-    최신: period=202602 ITM=지수 VAL=100.278612318969
-    최신: period=202603 ITM=지수 VAL=100.439616671216
-    최신: period=202604 ITM=지수 VAL=100.621950460592
-[B] >>> 최신 전국 지수=100.621950460592 (202604), 전월=100.439616671216 (202603), 전월비=0.18% <<<
+## end-to-end fetch_realestate_kr() (수정 코드)
+  apt_price_idx_kr: value=100.62 chg=0.18 period=202604 source=R-ONE:A_2024_00045 histlen=270 desc=전국주택가격동향조사 아파트 매매가격지수
+  jns_price_idx_kr: value=101.09 chg=0.41 period=202604 source=R-ONE:A_2024_00050 histlen=270 desc=전국주택가격동향조사 아파트 전세가격지수
+  unsold_kr: value=292160.0 chg=0.57 period=202604 source=R-ONE:A_2024_00064 histlen=172 desc=전국 미분양 주택 수
+  start_kr: value=101.16 chg=0.47 period=202604 source=R-ONE:A_2024_00057 histlen=131 desc=주택 착공 실적 (전국)
 
-===== 전세 (월) 전세가격지수_아파트  STATBL_ID=A_2024_00050 =====
-[A] pSize=500 → INFO-000 500rows
-[A] 고유 CLS 수=175  ITM={100001: '지수'}  첫행 period=200311
-[A] '전국' CLS_ID = 500001
-[A] 최상위(집계) CLS 후보: {500001: '전국', 500002: '수도권', 500003: '지방권', 500004: '6대광역시', 500005: '5대광역시', 500006: '9개도', 500007: '8개도', 500008: '서울', 500009: '경기', 500010: '인천', 500011: '부산', 500012: '대구', 500013: '광주', 500014: '대전', 500015: '울산'}
-[B] CLS_ID=500001 pSize=800 → EXC ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+## 거래(호수/거래량) 통계표 탐색
+EXC:
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/connectionpool.py", line 788, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/http/client.py", line 1415, in getresponse
+    response.begin()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/http/client.py", line 330, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/http/client.py", line 299, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+http.client.RemoteDisconnected: Remote end closed connection without response
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/requests/adapters.py", line 696, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/connectionpool.py", line 842, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/util/retry.py", line 498, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/util/util.py", line 38, in reraise
+    raise value.with_traceback(tb)
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/connectionpool.py", line 788, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/urllib3/connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/http/client.py", line 1415, in getresponse
+    response.begin()
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/http/client.py", line 330, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/http/client.py", line 299, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+urllib3.exceptions.ProtocolError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/economic-site/economic-site/scripts/rone_probe.py", line 58, in <module>
+    r = requests.get(f"{BASE}/SttsApiTbl.do",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/requests/api.py", line 87, in get
+    return request("get", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/requests/api.py", line 71, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/requests/sessions.py", line 651, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/requests/sessions.py", line 784, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/requests/adapters.py", line 711, in send
+    raise ConnectionError(err, request=request)
+requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+
 
