@@ -65,6 +65,10 @@ ECOS_BASE    = "https://ecos.bok.or.kr/api"
 RONE_BASE    = "https://www.reb.or.kr/r-one/openapi"
 # 구 R-ONE 엔드포인트 (legacy, 일부 시리즈만 응답)
 RONE_BASE_LEGACY = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/rest"
+# R-ONE 표준 지역분류 코드: 전국=500001 (500002 수도권, 500003 지방권, 500008 서울 …).
+# SttsApiTblData 는 날짜범위를 무시하고 모든 지역을 오래된 순으로 반환하므로, 전국 최신값을
+# 얻으려면 반드시 CLS_ID=500001 로 지역을 한정해야 한다 (GHA 프로브로 확인).
+RONE_NATIONWIDE_CLS = "500001"
 KOSIS_BASE   = "https://kosis.kr/openapi/statisticsData.do"
 DATA_GO_KR_BASE = "http://apis.data.go.kr"
 EXIM_BASE       = "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON"
@@ -1934,6 +1938,22 @@ def _rone_pick_nationwide(rows):
             "period": keys[-1], "history": history}
 
 
+def fetch_rone_nationwide_latest(stats_id, limit=600):
+    """전국(CLS_ID=500001) 월간 시계열을 받아 최신값/전월비/history 를 추출.
+
+    SttsApiTblData 는 날짜범위를 무시하고 모든 지역을 오래된 순으로 주므로, CLS_ID=500001
+    로 전국만 한정해야 최신값을 얻는다. limit 은 전국 단일 지역의 전체 월 수(현재 ~270)를
+    덮을 만큼 크게 둔다. CLS_ID 필터가 안 먹는(전국 단일 차원) 통계표는 필터 없이 재시도하고
+    _rone_pick_nationwide 가 '전국' 행(또는 분류 없는 단일 시리즈)을 골라낸다.
+    """
+    rows = fetch_rone_stats(stats_id, item_code2=RONE_NATIONWIDE_CLS, period_type="M", limit=limit)
+    picked = _rone_pick_nationwide(rows) if rows else None
+    if picked:
+        return picked
+    rows = fetch_rone_stats(stats_id, period_type="M", limit=limit)
+    return _rone_pick_nationwide(rows) if rows else None
+
+
 def fetch_realestate_kr_ecos_fallback():
     """R-ONE API 실패 시 ECOS 의 부동산 시리즈로 폴백.
 
@@ -2028,11 +2048,10 @@ def fetch_realestate_kr():
         tried = {sid for sid, _ in ids}
         for sid, _ in ids:
             try:
-                rows = fetch_rone_stats(sid, period_type="M", limit=14)
-                picked = _rone_pick_nationwide(rows) if rows else None
+                picked = fetch_rone_nationwide_latest(sid)
                 if picked:
                     picked.update({"region": "전국", "desc": desc, "source": f"R-ONE:{sid}"})
-                    log(f"[R-ONE-new] {label} ({sid}): {picked['value']} ({picked['period']})")
+                    log(f"[R-ONE-new] {label} ({sid}): {picked['value']} ({picked['period']}) chg={picked['chg']}")
                     return picked
             except Exception as e:
                 log(f"[R-ONE-new] {sid} 오류: {e}")
@@ -2041,8 +2060,7 @@ def fetch_realestate_kr():
             if sid in tried:
                 continue
             try:
-                rows = fetch_rone_stats(sid, period_type="M", limit=14)
-                picked = _rone_pick_nationwide(rows) if rows else None
+                picked = fetch_rone_nationwide_latest(sid)
                 if picked:
                     picked.update({"region": "전국", "desc": desc, "source": f"R-ONE:{sid}(자동탐색)"})
                     log(f"[R-ONE-cat] {label} 자동탐색 성공 ({sid}={nm}): {picked['value']}")
@@ -2110,20 +2128,18 @@ def fetch_realestate_kr():
         except Exception as e:
             log(f"[R-ONE-legacy] 오류: {e}")
 
-    # ─── R-ONE 추가 시리즈: 미분양 / 인허가 / 착공 / 거래현황 ──
-    # 거래량은 국토부 실거래가(MOLIT) 대신 한국부동산원 '부동산거래현황' 을 1차로 사용.
+    # ─── R-ONE 추가 시리즈: 미분양 / 인허가 / 착공 / 준공 (전국 집계) ──
+    # 모두 전국(CLS_ID=500001) 으로 한정해 최신값을 추출 (가격지수와 동일 메커니즘).
     extra_stats = [
-        # (key,                desc,                                       statbl_id,       period_type)
-        ("unsold_kr",          "전국 미분양 주택 수",                       "A_2024_00064",  "M"),
-        ("permit_kr",          "주택 인허가 실적 (전국)",                   "A_2024_00058",  "M"),
-        ("start_kr",           "주택 착공 실적 (전국)",                     "A_2024_00057",  "M"),
-        ("complete_kr",        "주택 준공 실적 (전국)",                     "A_2024_00059",  "M"),
-        ("trade_count_kr_rone","한국부동산원 부동산거래현황 (전국 매매)",   "A_2024_00061",  "M"),
+        # (key,          desc,                       statbl_id)
+        ("unsold_kr",    "전국 미분양 주택 수",        "A_2024_00064"),
+        ("permit_kr",    "주택 인허가 실적 (전국)",    "A_2024_00058"),
+        ("start_kr",     "주택 착공 실적 (전국)",      "A_2024_00057"),
+        ("complete_kr",  "주택 준공 실적 (전국)",      "A_2024_00059"),
     ]
-    for key, desc, statbl_id, period_type in extra_stats:
+    for key, desc, statbl_id in extra_stats:
         try:
-            rows = fetch_rone_stats(statbl_id, period_type=period_type, limit=24)
-            picked = _rone_pick_nationwide(rows) if rows else None
+            picked = fetch_rone_nationwide_latest(statbl_id, limit=300)
             if not picked:
                 log(f"[R-ONE] {statbl_id} ({key}): 응답 없음/전국행 없음 — 건너뜀")
                 continue
