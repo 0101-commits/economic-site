@@ -1677,14 +1677,14 @@ tailwind.config = {
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 매매가격지수 변동률</div>
             <div id="reKpiAptPrice" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
             <div id="reKpiAptPriceMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE API · 단위: % (월간)</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 부동산원 R-ONE · ECOS · BIS(FRED) · 단위: 전기比 %</div>
           </div>
           <!-- 카드 2: R-ONE 전세가격지수 변동률 -->
           <div class="kpi-card kpi-clickable" style="border-left:3px solid #b6c4ff;cursor:pointer;" onclick="showReHistoryChart('jns_price_idx_kr', '전국 아파트 전세가격지수 변동률', {unit:'% (월간 변동률)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국 아파트 전세가격지수 변동률</div>
             <div id="reKpiAptIdxVal" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
             <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE API · 단위: % (월간)</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 부동산원 R-ONE · ECOS · 단위: 전기比 %</div>
           </div>
           <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','월간 거래량 (전국)',{unit:'건 (월별 누계)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">월간 거래량 (전국)</div>
@@ -4950,9 +4950,9 @@ function toggleNewsExpand(containerId) {
 function buildNewsFeed(containerId, items) {
   const el = document.getElementById(containerId);
   if(!el) return;
-  // 사용자 요구: 14일 이내 실제 기사만 표시. isoDate 없거나 미래 날짜인 항목 거부.
+  // 사용자 요구: 15일 이내 실제 기사만 표시. isoDate 없거나 미래 날짜인 항목 거부.
   // + 검색결과/홈페이지 URL 거부 (사용자가 "검색창으로 튕긴다" 고 보고한 이슈 차단).
-  const cutoff = Date.now() - 14 * 24 * 3600 * 1000;
+  const cutoff = Date.now() - 15 * 24 * 3600 * 1000;
   const future = Date.now() + 24 * 3600 * 1000;  // 시차 보정 1일
   const recent = (items || []).filter(n => {
     if(!n) return false;
@@ -5266,10 +5266,10 @@ function renderFiltered(feedId) {
   const arr = getFeedArray(feedId);
   const cat = currentNewsFilter[feedId] || 'all';
   if(!arr) return;
-  // buildNewsFeed 와 동일한 14일 cutoff + 검색 URL 차단으로 일관성 유지.
+  // buildNewsFeed 와 동일한 15일 cutoff + 검색 URL 차단으로 일관성 유지.
   // (기존엔 30일 cutoff 가 노후 정적 fallback 데이터를 그대로 통과시켜
   //  사용자 클릭 → 검색창으로 튕기는 이슈를 유발했음.)
-  const cutoff = Date.now() - 14 * 24 * 3600 * 1000;
+  const cutoff = Date.now() - 15 * 24 * 3600 * 1000;
   const future = Date.now() + 24 * 3600 * 1000;
   const recent = arr.filter(n => {
     if(!n) return false;
@@ -9692,19 +9692,16 @@ function _buildCorsProxyUrls(target) {
   const enc = encodeURIComponent(target);
   return [
     target,                                                 // 직접 호출 (브라우저가 CORS 허용 시)
-    'https://corsproxy.io/?' + enc,
-    'https://api.allorigins.win/raw?url=' + enc,
+    'https://api.allorigins.win/raw?url=' + enc,            // 가장 안정적
     'https://api.codetabs.com/v1/proxy/?quest=' + enc,
+    'https://corsproxy.io/?url=' + enc,                     // 신 포맷(?url=)
+    'https://api.allorigins.win/get?url=' + enc,            // wrapped JSON (.contents)
     'https://thingproxy.freeboard.io/fetch/' + target,
-    'https://proxy.cors.sh/' + target,
-    'https://yacdn.org/serve/' + target,
-    'https://cors.eu.org/' + target,
-    'https://api.allorigins.win/get?url=' + enc,           // wrapped JSON (.contents)
   ];
 }
 
 async function _fetchViaProxies(target, parseJson=true) {
-  // 결과: 파싱된 JSON 또는 null. 9개 프록시 순차 시도, 각 8초 timeout.
+  // 결과: 파싱된 JSON 또는 null. 다중 프록시 순차 시도, 각 8초 timeout.
   for(const url of _buildCorsProxyUrls(target)) {
     try {
       const ctrl = new AbortController();
@@ -10348,7 +10345,7 @@ async function refreshReHistoryChart(btn) {
 
 // FX 새로고침 — 실시간 환율 + 일별 변화율
 // 기존엔 단일 corsproxy.io 사용 → 해당 프록시 차단/장애 시 100% 실패.
-// 이제 _fetchViaProxies 다중 프록시 풀(9개) 사용으로 가용성 대폭 개선.
+// 이제 _fetchViaProxies 다중 프록시 풀 사용으로 가용성 대폭 개선.
 async function refreshFxData(btn) {
   _refreshFeedback(btn, 'loading');
   let fxOk = false;
@@ -11880,70 +11877,59 @@ function applyRealData(d) {
     }
     if(pEl && data.period) pEl.textContent = data.period;
   }
-  // R-ONE 매매가격 카드 (KPI #1: reKpiAptPrice + reKpiAptPriceMeta)
-  // R-ONE API 가 반환하는 값은 desc 에 따라 "지수" 또는 "변동률(%)" 두 가지.
-  // 사용자가 R-ONE 사이트에서 보는 것과 동일하게 표시.
-  const fmtReValue = (data) => {
-    const isPct = /%|변동률|변화율/i.test(data.desc || '');
-    if(isPct) return (data.value >= 0 ? '+' : '') + data.value.toFixed(2) + '%';
-    return data.value.toFixed(2);
-  };
   // 데이터 없을 때 "페치 중..." 대신 명확한 미연동 안내로 교체
   // (API 키 미설정/응답 없음을 사용자가 인지할 수 있도록)
   // 매매·전세 둘 다 R-ONE 이 1차 소스 (실패 시 ECOS 폴백). 라벨 일관성 유지.
   const reDiag = (d.diagnostics || {}).realestate_kr || {};
-  const reMissingHint = reDiag.rone_tried && !reDiag.rone_ok && !reDiag.ecos_ok
-    ? 'R-ONE/ECOS 응답 없음 — 재시도 대기'
+  const reMissingHint = (reDiag.rone_tried && !reDiag.rone_ok && !reDiag.ecos_ok && !reDiag.fred_ok)
+    ? 'R-ONE/ECOS/FRED 응답 없음 — 재시도 대기'
     : (reDiag.rone_tried ? 'R-ONE/ECOS 응답 대기' : 'API 미연동');
-  if (!reKr.apt_price_idx_kr && !reKr.jns_price_idx_kr) {
-    const mEl = document.getElementById('reKpiAptPriceMeta');
-    if (mEl && mEl.textContent.includes('페치 중')) {
-      mEl.innerHTML = `<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · ${reMissingHint}`;
-      mEl.style.color = '#f5a623';
+  // KPI 카드는 '변동률(전기比 %)' 을 헤드라인으로 표시 (사용자가 부동산원/R-ONE 사이트에서
+  // 보는 값). 소스가 '지수' 시리즈(FRED BIS·R-ONE 지수)면 chg(%) 를 헤드라인으로 쓰고 지수
+  // 레벨은 메타에 병기. '변동률' 시리즈면 값 자체가 % 이므로 그대로 표시.
+  const _reHeadline = (data) => {
+    const isPct = /%|변동률|변화율/i.test(data.desc || '');
+    if (isPct && data.value != null)
+      return { txt:(data.value>=0?'+':'')+data.value.toFixed(2)+'%',
+               color:data.value>=0?'#26a69a':'#ef5350', lvl:'' };
+    if (data.chg != null)
+      return { txt:(data.chg>=0?'+':'')+data.chg.toFixed(2)+'%',
+               color:data.chg>=0?'#26a69a':'#ef5350',
+               lvl:(data.value!=null?` · 지수 ${data.value.toFixed(2)}`:'') };
+    return { txt:(data.value!=null?data.value.toFixed(2):'—'),
+             color:'var(--c-txt,#dfe2f2)', lvl:'' };
+  };
+  const _reMissingMeta = (elId, hint) => {
+    const el = document.getElementById(elId);
+    if (el && el.textContent.includes('페치 중')) {
+      el.innerHTML = `<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · ${hint}`;
+      el.style.color = '#f5a623';
     }
-    const cEl = document.getElementById('reKpiAptIdxChg');
-    if (cEl && cEl.textContent.includes('페치 중')) {
-      cEl.innerHTML = `<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · ${reMissingHint}`;
-      cEl.style.color = '#f5a623';
-    }
-  }
+  };
+  // ── 카드 1: 전국 매매가격지수 (apt_price_idx_kr) ──
   if (reKr.apt_price_idx_kr) {
     const data = reKr.apt_price_idx_kr;
+    const h = _reHeadline(data);
     const vEl = document.getElementById('reKpiAptPrice');
     const mEl = document.getElementById('reKpiAptPriceMeta');
-    if(vEl) {
-      vEl.textContent = fmtReValue(data);
-      vEl.style.color = data.value >= 0 ? '#26a69a' : '#ef5350';
-    }
-    if(mEl) {
-      const period = data.period || '';
-      const src = data.source || 'R-ONE';
-      mEl.textContent = `${period} · ${src}`;
-      mEl.style.color = '#8d90a2';
-    }
-    // 호환 - 기존 ID 도 함께 채우기 (다른 카드 그룹에서 동일 데이터 표시)
-    const vEl2 = document.getElementById('reKpiAptIdxVal');
-    if(vEl2) {
-      vEl2.textContent = fmtReValue(data);
-      vEl2.style.color = data.value >= 0 ? '#26a69a' : '#ef5350';
-    }
+    if(vEl) { vEl.textContent = h.txt; vEl.style.color = h.color; }
+    if(mEl) { mEl.textContent = `${data.period||''} · ${data.source||'R-ONE'}${h.lvl}`; mEl.style.color = '#8d90a2'; }
     setKrReCard('krReAptSaleVal', 'krReAptSaleChg', 'krRePeriodAptSale', data);
+  } else {
+    _reMissingMeta('reKpiAptPriceMeta', reMissingHint);
   }
-  // 전세가격지수 — 위 카드 그룹 2 (reKpiAptIdxVal/Chg) 에 전세 데이터를 보여줌
+  // ── 카드 2: 전국 전세가격지수 (jns_price_idx_kr). BIS 폴백엔 전세가 없어 미제공일 수 있음 ──
   if (reKr.jns_price_idx_kr) {
     const data = reKr.jns_price_idx_kr;
+    const h = _reHeadline(data);
     const vEl = document.getElementById('reKpiAptIdxVal');
     const cEl = document.getElementById('reKpiAptIdxChg');
-    if(vEl && !reKr.apt_price_idx_kr) {
-      // 매매가 없으면 전세 데이터로 카드 채움 (사용자 진단용)
-      vEl.textContent = fmtReValue(data);
-      vEl.style.color = data.value >= 0 ? '#26a69a' : '#ef5350';
-    }
-    if(cEl) {
-      cEl.textContent = `${data.period} · 전세 ${fmtReValue(data)}`;
-      cEl.style.color = '#8d90a2';
-    }
+    if(vEl) { vEl.textContent = h.txt; vEl.style.color = h.color; }
+    if(cEl) { cEl.textContent = `${data.period||''} · ${data.source||'R-ONE'}${h.lvl}`; cEl.style.color = '#8d90a2'; }
     setKrReCard('krReAptJnsVal', 'krReAptJnsChg', 'krRePeriodAptJns', data);
+  } else {
+    const jnsHint = reDiag.fred_ok ? '전세 지수는 BIS 미제공 — R-ONE/ECOS 복구 시 표시' : reMissingHint;
+    _reMissingMeta('reKpiAptIdxChg', jnsHint);
   }
   // 주담대 금리는 economicIndicators.kr 또는 realestate.kr 양쪽에서 검색
   const ecoKr = (d.economicIndicators || {}).kr || {};
@@ -12374,15 +12360,15 @@ async function fetchLatestArticle(query) {
 }
 
 // CORS 프록시 — 여러 개를 fallback 순서로 시도. 하나가 실패해도 다음 것으로 시도.
-// 다중 프록시 도입 배경: 단일 프록시 의존 시 차단/장애에 약함. 9개 확보로 가용성↑.
+// 가용성 높은 프록시 우선. allorigins/codetabs 가 가장 안정적이며, corsproxy.io 는
+// 신 포맷(?url=) 으로 호출해야 동작. 응답 없던 thingproxy/yacdn/cors.eu.org/proxy.cors.sh
+// (서비스 종료·API 키 요구) 는 제거. allorigins/get 는 {contents} JSON 래퍼로 반환.
 const _NEWS_PROXIES = [
-  (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),
   (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
+  (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
+  (url) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(url),  // {contents:"..."}
   (url) => 'https://thingproxy.freeboard.io/fetch/' + url,
-  (url) => 'https://proxy.cors.sh/' + url,
-  (url) => 'https://cors.eu.org/' + url,
-  (url) => 'https://yacdn.org/serve/' + url,
 ];
 
 async function _fetchTextWithProxies(targetUrl, timeoutMs) {
@@ -12391,7 +12377,11 @@ async function _fetchTextWithProxies(targetUrl, timeoutMs) {
       const url = mk(targetUrl);
       const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs || 7000) });
       if(!r.ok) continue;
-      const text = await r.text();
+      let text = await r.text();
+      // allorigins.win/get 는 {contents:"..."} JSON 래퍼 → 내부 본문 추출
+      if(url.includes('allorigins.win/get')) {
+        try { text = JSON.parse(text).contents || ''; } catch(_) { continue; }
+      }
       if(text && text.length > 50) return text;
     } catch(_) { /* try next proxy */ }
   }
@@ -12467,8 +12457,8 @@ async function fetchLatestArticles(query, count=5) {
     const doc = parser.parseFromString(xmlText, 'text/xml');
     const items = Array.from(doc.querySelectorAll('item'));
     if(!items.length) return null;
-    // 사용자 요구: 14일 이내 실제 기사만. 검색결과 URL 도 거부.
-    const cutoffMs = Date.now() - 14 * 24 * 3600 * 1000;
+    // 사용자 요구: 15일 이내 실제 기사만. 검색결과 URL 도 거부.
+    const cutoffMs = Date.now() - 15 * 24 * 3600 * 1000;
     const futureMs = Date.now() + 24 * 3600 * 1000;
     const parsed = items.map(it => {
       const title = (it.querySelector('title')?.textContent || '').replace(/<!\[CDATA\[|\]\]>/g,'').replace(/\s*-\s*[^-]+$/, '').trim();
@@ -12519,8 +12509,8 @@ function applyServerNewsToFeeds(serverNews) {
   if (!serverNews || typeof serverNews !== 'object') return false;
   const feeds = { newsFeed:newsItems, commodityNewsFeed:commodityNewsItems,
                   macroNewsFeed:macroNewsItems, calendarNewsFeed:calendarNewsItems };
-  // 사용자 요구: 14일 이내 실제 기사만. isoDate 없거나 미래 날짜인 항목 거부.
-  const cutoffMs = Date.now() - 14 * 24 * 3600 * 1000;
+  // 사용자 요구: 15일 이내 실제 기사만. isoDate 없거나 미래 날짜인 항목 거부.
+  const cutoffMs = Date.now() - 15 * 24 * 3600 * 1000;
   const nowMs    = Date.now() + 24 * 3600 * 1000;  // 시차 보정 1일
   let appliedCount = 0;
   const _filterFresh = (rawList) => (rawList || []).filter(a => {
@@ -12582,7 +12572,7 @@ function applyServerNewsToFeeds(serverNews) {
       }
     });
   }
-  if (appliedCount > 0) console.info(`[News] data.json 서버측 뉴스 ${appliedCount}건 적용 (14일 이내, 실기사 URL)`);
+  if (appliedCount > 0) console.info(`[News] data.json 서버측 뉴스 ${appliedCount}건 적용 (15일 이내, 실기사 URL)`);
   return appliedCount > 0;
 }
 
