@@ -1809,8 +1809,18 @@ def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None
     #   3) {"RESULT": {"CODE":"INFO-200","MESSAGE":"해당하는 데이터가 없습니다."}}
     #   4) HTML/일반 텍스트 응답 (서버 점검 등)
     try:
-        r = requests.get(f"{RONE_BASE}/SttsApiTblData.do", params=params, timeout=20,
-                         headers={"User-Agent": "Mozilla/5.0 (economic-site fetch)"})
+        # R-ONE 은 연속 호출 시 연결을 자주 끊는다(RemoteDisconnected). 짧은 백오프로 재시도.
+        r = None
+        for attempt in range(3):
+            try:
+                r = requests.get(f"{RONE_BASE}/SttsApiTblData.do", params=params, timeout=25,
+                                 headers={"User-Agent": "Mozilla/5.0 (economic-site fetch)"})
+                break
+            except requests.exceptions.RequestException as e:
+                if attempt == 2:
+                    log(f"[R-ONE-new] {stats_id}: 연결 실패(재시도 소진) {type(e).__name__}")
+                    return None
+                _time.sleep(1.5 * (attempt + 1))
         if r.status_code != 200:
             log(f"[R-ONE-new] {stats_id}: HTTP {r.status_code}")
             return None
@@ -1938,19 +1948,23 @@ def _rone_pick_nationwide(rows):
             "period": keys[-1], "history": history}
 
 
-def fetch_rone_nationwide_latest(stats_id, limit=600):
+def fetch_rone_nationwide_latest(stats_id, limit=600, itm_id=None):
     """전국(CLS_ID=500001) 월간 시계열을 받아 최신값/전월비/history 를 추출.
 
     SttsApiTblData 는 날짜범위를 무시하고 모든 지역을 오래된 순으로 주므로, CLS_ID=500001
     로 전국만 한정해야 최신값을 얻는다. limit 은 전국 단일 지역의 전체 월 수(현재 ~270)를
     덮을 만큼 크게 둔다. CLS_ID 필터가 안 먹는(전국 단일 차원) 통계표는 필터 없이 재시도하고
     _rone_pick_nationwide 가 '전국' 행(또는 분류 없는 단일 시리즈)을 골라낸다.
+
+    itm_id: 한 통계표에 여러 항목(예: 거래현황의 동(호)수/면적)이 있을 때 ITM_ID 로 한정.
+            미지정 시 _rone_pick_nationwide 가 단일 항목으로 가정하고 처리.
     """
-    rows = fetch_rone_stats(stats_id, item_code2=RONE_NATIONWIDE_CLS, period_type="M", limit=limit)
+    rows = fetch_rone_stats(stats_id, item_code1=itm_id, item_code2=RONE_NATIONWIDE_CLS,
+                            period_type="M", limit=limit)
     picked = _rone_pick_nationwide(rows) if rows else None
     if picked:
         return picked
-    rows = fetch_rone_stats(stats_id, period_type="M", limit=limit)
+    rows = fetch_rone_stats(stats_id, item_code1=itm_id, period_type="M", limit=limit)
     return _rone_pick_nationwide(rows) if rows else None
 
 
@@ -2083,13 +2097,11 @@ def fetch_realestate_kr():
 
     jns = _rone_index_series(
         candidates=[
-            ("A_2024_00050", "(월) 전세가격지수_아파트"),   # 공식 페이지 검증
-            ("A_2025_00133", "전국 아파트 전세가격지수"),
-            ("A_2024_00027", "전국 아파트 전세가격지수"),
-            ("A_2022_00027", "전국 아파트 전세가격지수"),
+            ("A_2024_00019", "(월) 전세가격지수_주택종합"),  # 사용자 지정 — 카탈로그 검증
+            ("A_2024_00050", "(월) 전세가격지수_아파트"),    # 폴백
         ],
-        discover_kw="전세가격지수", desc="전국주택가격동향조사 아파트 전세가격지수",
-        label="전세가격지수")
+        discover_kw="전세가격지수_주택종합", desc="전국주택가격동향조사 주택종합 전세가격지수",
+        label="전세가격지수(주택종합)")
     if jns:
         result["jns_price_idx_kr"] = jns
 
@@ -2148,6 +2160,20 @@ def fetch_realestate_kr():
             log(f"[R-ONE] {key} ({statbl_id}): {picked['value']} ({picked['period']})")
         except Exception as e:
             log(f"[R-ONE] {key} ({statbl_id}) 오류: {e}")
+
+    # ─── 거래량: (월) 행정구역별 아파트거래현황 (A_2024_00549) ──
+    # 전국(CLS_ID=500001) + ITM_ID=100001(동(호)수) 로 한정. 면적(100002) 항목과 섞이지 않게 ITM 필수.
+    try:
+        trade = fetch_rone_nationwide_latest("A_2024_00549", limit=400, itm_id="100001")
+        if trade:
+            trade.update({"region": "전국", "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
+                          "source": "R-ONE:A_2024_00549"})
+            result["trade_count_kr_rone"] = trade
+            log(f"[R-ONE] trade_count_kr_rone (A_2024_00549): {trade['value']} ({trade['period']})")
+        else:
+            log("[R-ONE] A_2024_00549 (거래현황): 응답 없음 — 건너뜀")
+    except Exception as e:
+        log(f"[R-ONE] A_2024_00549 (거래현황) 오류: {e}")
 
     return result
 
@@ -4182,16 +4208,16 @@ def build_data():
     except Exception as e:
         log(f"[FNG] 오류: {e}")
 
-    # ── 월간 거래량: 한국부동산원 '부동산거래현황'(R-ONE) 1차 → 국토부 실거래(MOLIT) 보강 ──
+    # ── 월간 거래량: 한국부동산원 '행정구역별 아파트거래현황'(R-ONE) 1차 → 국토부 실거래(MOLIT) 보강 ──
     # 국토부 실거래가는 당월 신고 lag 으로 0 만 반환하는 경우가 잦아(=API 로 실데이터 확보 불가),
-    # 사용자 요청대로 부동산원 API 에서 확인되는 '부동산거래현황' 을 기본 거래량 소스로 쓴다.
+    # 부동산원 API 에서 확인되는 '행정구역별 아파트거래현황'(전국·동(호)수) 을 기본 거래량 소스로 쓴다.
     re_kr = data["realestate"].setdefault("kr", {})
     if re_kr.get("trade_count_kr_rone") and _metric_is_empty(re_kr["trade_count_kr_rone"]) is not True:
         rone_trade = dict(re_kr["trade_count_kr_rone"])
-        rone_trade.setdefault("desc", "한국부동산원 부동산거래현황 (전국 매매)")
+        rone_trade.setdefault("desc", "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)")
         data["realestate"]["kr"]["trade_count_kr"] = rone_trade
-        data["sources"]["realestate_kr_trade"] = "R-ONE 부동산거래현황 (reb.or.kr)"
-        log(f"[거래량] R-ONE 부동산거래현황 사용: {rone_trade.get('period')} {rone_trade.get('value')}")
+        data["sources"]["realestate_kr_trade"] = "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)"
+        log(f"[거래량] R-ONE 행정구역별 아파트거래현황 사용: {rone_trade.get('period')} {rone_trade.get('value')}")
     # MOLIT 실거래가 — 실제 비영(非零) 데이터가 있을 때만 (더 세분화된 아파트 실거래) 우선 사용
     if DATA_GO_KR_API_KEY:
         try:
