@@ -1164,6 +1164,57 @@ def fetch_fred_realestate_us():
     return result
 
 
+def fetch_fred_realestate_kr():
+    """한국 주거용 부동산 가격지수 — FRED(BIS) 폴백.
+
+    R-ONE / ECOS 가 모두 실패하는 환경(특히 GitHub Actions 러너)에서도 FRED 는
+    안정적으로 응답하므로, BIS '한국 주거용 부동산 가격지수' 시리즈로 매매가격지수를
+    보강한다. BIS 는 분기 데이터이며 전세(jeonse)는 제공하지 않으므로 매매(주거용)
+    지수만 채운다. 명목/실질·코드 변형에 대비해 series_id 후보를 순차 시도하고
+    첫 성공을 사용한다 (frontend 는 history 의 YYYYMM 키로 'YY.MM' 라벨을 만든다).
+    """
+    if not FRED_API_KEY:
+        return {}
+
+    def _ym(d):  # 'YYYY-MM-DD' → 'YYYYMM'
+        return (d[:4] + d[5:7]) if d and len(d) >= 7 else d
+
+    # BIS Residential Property Prices for Korea (분기, 지수). 명목 우선, 실질·코드변형 폴백.
+    candidates = [
+        ("QKRN628BIS", "전국 주거용 부동산 가격지수 (BIS 명목, 분기)"),
+        ("QKRR628BIS", "전국 주거용 부동산 실질가격지수 (BIS, 분기)"),
+        ("QKRN368BIS", "전국 주거용 부동산 가격지수 (BIS 명목, 분기)"),
+        ("QKRR368BIS", "전국 주거용 부동산 실질가격지수 (BIS, 분기)"),
+    ]
+    result = {}
+    for sid, desc in candidates:
+        obs = fetch_fred_series(sid, limit=40)  # 분기 × 40 ≈ 10년
+        if not obs:
+            log(f"[FRED-RE-KR] {sid}: 데이터 없음 (다음 후보 시도)")
+            continue
+        cur = obs[0]["value"]
+        prev = obs[1]["value"] if len(obs) > 1 else None
+        chg = round((cur - prev) / prev * 100, 2) if prev and prev != 0 else None
+        history = {}
+        for o in obs:
+            history[_ym(o["date"])] = o["value"]
+        result["apt_price_idx_kr"] = {
+            "value":   round(cur, 2),
+            "prev":    round(prev, 2) if prev is not None else None,
+            "chg":     chg,
+            "period":  _ym(obs[0]["date"]),
+            "region":  "전국",
+            "desc":    desc,
+            "source":  f"FRED:{sid} (BIS)",
+            "history": history,
+        }
+        log(f"[FRED-RE-KR] 매매가격지수 ({sid}): {cur} ({obs[0]['date']}) chg={chg} +{len(history)}점")
+        break
+    if not result:
+        log("[FRED-RE-KR] 한국 주거용 부동산 BIS 시리즈 모든 후보 실패")
+    return result
+
+
 # ============================================================
 # Alpha Vantage — 미국 경제지표/원자재/FX 보강 (무료 25 req/day)
 # ============================================================
@@ -3958,7 +4009,8 @@ def build_data():
     # ── R-ONE 부동산 지표 (한국부동산원) ─────────────────────
     # R-ONE 우선 → 실패/키없음이면 ECOS KB 시리즈로 폴백 (사용자 화면 비지 않도록)
     re_data = {}
-    re_diag = {"rone_tried": False, "rone_ok": False, "ecos_tried": False, "ecos_ok": False}
+    re_diag = {"rone_tried": False, "rone_ok": False, "ecos_tried": False, "ecos_ok": False,
+               "fred_tried": False, "fred_ok": False}
     if REALESTATE_API_KEY:
         log("[R-ONE] 한국 부동산 지표 수집 시작")
         re_diag["rone_tried"] = True
@@ -3988,6 +4040,24 @@ def build_data():
                 log("[RE-FB] ECOS 폴백도 응답 없음 — 모든 시리즈 후보 실패")
         except Exception as e:
             log(f"[RE-FB] 오류: {e}")
+    # FRED(BIS) 폴백: 매매가격지수가 여전히 비어있으면 BIS 한국 주거용 부동산 지수로 보강.
+    # R-ONE/ECOS 가 모두 실패하는 환경에서도 FRED 는 안정적이라 사용자 화면이 비지 않도록 함.
+    if not re_data.get("apt_price_idx_kr"):
+        re_diag["fred_tried"] = True
+        try:
+            fred_fb = fetch_fred_realestate_kr()
+            for k, v in fred_fb.items():
+                if not re_data.get(k):
+                    re_data[k] = v
+            if fred_fb.get("apt_price_idx_kr"):
+                re_diag["fred_ok"] = True
+                if not data["sources"].get("realestate_kr"):
+                    data["sources"]["realestate_kr"] = "FRED(BIS) 한국 주거용 부동산 가격지수 폴백"
+                log(f"[RE-FB] FRED(BIS) 폴백 성공: {list(fred_fb.keys())}")
+            else:
+                log("[RE-FB] FRED(BIS) 폴백도 응답 없음")
+        except Exception as e:
+            log(f"[RE-FB] FRED 폴백 오류: {e}")
     data["realestate"]["kr"] = re_data
     # 진단 노드에 미수집 사유 기록 — 프론트엔드/사용자가 어떤 단계가 실패했는지 확인 가능
     data.setdefault("diagnostics", {})["realestate_kr"] = re_diag
@@ -4592,11 +4662,11 @@ def fetch_news_all_feeds():
     else:
         log("[News] NAVER_CLIENT_ID/SECRET 미설정 — Google News RSS 만 사용 (publisher 홈페이지 URL 회귀 위험 ↑)")
 
-    # 사용자 요구: 최근 14일 이내 기사만 표시. iso 날짜가 오늘-14일 보다 오래된 기사 제외.
+    # 사용자 요구: 최근 15일 이내 기사만 표시. iso 날짜가 오늘-15일 보다 오래된 기사 제외.
     now_kst = datetime.now(KST)
-    cutoff_iso = (now_kst - timedelta(days=14)).strftime("%Y-%m-%d")
+    cutoff_iso = (now_kst - timedelta(days=15)).strftime("%Y-%m-%d")
     today_iso  = now_kst.strftime("%Y-%m-%d")
-    log(f"[News] 14일 cutoff: {cutoff_iso} ~ {today_iso} 사이 기사만 채택 (미래 발행일 거부)")
+    log(f"[News] 15일 cutoff: {cutoff_iso} ~ {today_iso} 사이 기사만 채택 (미래 발행일 거부)")
 
     def _is_good_article_url(u):
         """기사 URL 검증 — 빈 값, google news 직링크, publisher 홈페이지/검색결과는 제외."""
@@ -4619,7 +4689,7 @@ def fetch_news_all_feeds():
         return True
 
     def _is_recent(article):
-        """isoDate 가 14일 이내인지 검사. isoDate 가 없거나 미래/과거 범위 밖이면 거부."""
+        """isoDate 가 15일 이내인지 검사. isoDate 가 없거나 미래/과거 범위 밖이면 거부."""
         iso = (article.get("isoDate") or "").strip()
         # isoDate 없으면 pubDate 에서 재파싱 시도
         if not iso:
@@ -4632,7 +4702,7 @@ def fetch_news_all_feeds():
                 except Exception:
                     iso = ""
         if not iso:
-            # 사용자 요구: 14일 이내 실제 기사만. 날짜 미상은 거부.
+            # 사용자 요구: 15일 이내 실제 기사만. 날짜 미상은 거부.
             return False
         # 미래 발행일 (RSS 가 가끔 잘못된 미래 날짜를 주는 케이스) 거부
         if iso > today_iso:
@@ -4690,9 +4760,9 @@ def fetch_news_all_feeds():
             except Exception:
                 pass
         if articles:
-            log(f"[News] '{cat}' 최종 {len(articles)}건 (14일 cutoff {cutoff_iso} 적용)")
+            log(f"[News] '{cat}' 최종 {len(articles)}건 (15일 cutoff {cutoff_iso} 적용)")
         else:
-            log(f"[News] '{cat}' 14일 이내 기사 0건 — 빈 카테고리")
+            log(f"[News] '{cat}' 15일 이내 기사 0건 — 빈 카테고리")
         result[cat] = articles[:5]
         _time.sleep(0.3)  # rate-limit 회피
     return result
