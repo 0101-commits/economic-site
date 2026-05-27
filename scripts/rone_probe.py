@@ -32,20 +32,30 @@ try:
     w(f"# R-ONE Probe v5 @ {datetime.datetime.utcnow().isoformat()}Z key ...{KEY[-4:]}")
     w("")
 
-    def catalog(pSize=1500):
-        try:
-            r = requests.get(f"{BASE}/SttsApiTbl.do",
-                             params={"KEY": KEY, "Type": "json", "pIndex": 1, "pSize": pSize},
-                             timeout=40, headers=UA)
-            j = r.json()
-            env = j.get("SttsApiTbl") if isinstance(j, dict) else None
-            if isinstance(env, list):
-                for blk in env:
-                    if isinstance(blk, dict) and isinstance(blk.get("row"), list):
-                        return blk["row"]
-        except Exception:
-            w("[catalog EXC]\n" + traceback.format_exc())
-        return []
+    def catalog():
+        # pSize 가 크면(>~1000) 빈 응답 → 100씩 페이지네이션으로 전체 수집
+        rows = []
+        for pidx in range(1, 12):  # 최대 11*100=1100 > 738
+            try:
+                r = requests.get(f"{BASE}/SttsApiTbl.do",
+                                 params={"KEY": KEY, "Type": "json", "pIndex": pidx, "pSize": 100},
+                                 timeout=40, headers=UA)
+                j = r.json()
+                env = j.get("SttsApiTbl") if isinstance(j, dict) else None
+                page = []
+                if isinstance(env, list):
+                    for blk in env:
+                        if isinstance(blk, dict) and isinstance(blk.get("row"), list):
+                            page = blk["row"]
+                if not page:
+                    break
+                rows += page
+                if len(page) < 100:
+                    break
+            except Exception:
+                w(f"[catalog p{pidx} EXC] " + traceback.format_exc().splitlines()[-1])
+                break
+        return rows
 
     def get_rows(params):
         try:
@@ -65,16 +75,21 @@ try:
 
     cat = catalog()
     w(f"## 통계표목록 {len(cat)}건 수신")
-    keywords = ["전세가격지수_주택종합", "매매가격지수_주택종합",
-                "행정구역별 아파트거래현황", "아파트거래현황", "행정구역별"]
-    found = {}
+    keywords = ["전세가격지수_주택종합", "매매가격지수_주택종합", "전세가격지수", "매매가격지수",
+                "행정구역별 아파트거래현황", "아파트거래현황", "아파트거래", "거래현황"]
+    seen_print = set()
+    found = {}  # 조회 대상(타깃)만
+    target_kw = ("주택종합", "행정구역별", "거래현황", "아파트거래")
     for kw in keywords:
         ms = [(r.get("STATBL_ID"), r.get("STATBL_NM"), r.get("DTACYCLE_CD"))
               for r in cat if kw in str(r.get("STATBL_NM", ""))]
         w(f"\n### '{kw}' 매칭 {len(ms)}건")
-        for sid, nm, cyc in ms[:12]:
-            w(f"   {sid}  [{cyc}]  {nm}")
-            found.setdefault(sid, nm)
+        for sid, nm, cyc in ms[:20]:
+            if sid not in seen_print:
+                w(f"   {sid}  [{cyc}]  {nm}")
+                seen_print.add(sid)
+            if any(t in str(nm) for t in target_kw):
+                found.setdefault(sid, nm)
 
     # 각 후보를 전국(CLS_ID=500001)으로 조회해 ITM/최신값 확인
     w("\n## 후보별 전국(CLS_ID=500001) 조회")
