@@ -666,25 +666,6 @@ tailwind.config = {
     </div>
   </div>
 
-  <!-- 지역 드릴다운 모달 — 시도 클릭 시 시군구별 변동률 표시 -->
-  <div id="reRegionDrillModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:300;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeRegionDrill()">
-    <div style="background:var(--c-card,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:8px;padding:18px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:8px;">
-        <div style="min-width:0;">
-          <div id="reDrillTitle" style="font-size:15px;font-weight:700;color:var(--c-txt,#dfe2f2);">지역 상세</div>
-          <div id="reDrillMeta" style="font-size:11px;color:var(--c-txt-dim,#8d90a2);margin-top:2px;">—</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <button id="reDrillTrendBtn" onclick="_drillShowTrend()" title="해당 시도 가격지수 추이 보기" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">📈 추이</button>
-          <button onclick="closeRegionDrill()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
-        </div>
-      </div>
-      <div id="reDrillSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
-      <div id="reDrillList" style="flex:1;overflow-y:auto;min-height:140px;padding-right:4px;"></div>
-      <div id="reDrillNote" style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:8px;text-align:right;">출처: 한국부동산원 R-ONE 전국주택가격동향조사 (지역별 매매가격지수 변동률)</div>
-    </div>
-  </div>
-
   <!-- 메인 콘텐츠 -->
   <main style="flex:1;padding:20px;overflow-x:auto;min-width:0;">
 
@@ -1705,12 +1686,12 @@ tailwind.config = {
             <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
             <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </div>
-          <!-- 카드 3: (월) 매입자거주지별 아파트거래현황 (한국부동산원 R-ONE) -->
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','(월) 매입자거주지별 아파트거래현황',{unit:'동(호)수 (월별)'})">
-            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">(월) 매입자거주지별 아파트거래현황</div>
+          <!-- 카드 3: 부동산거래현황 (한국부동산원 R-ONE) — 국토부 실거래가 API 미수집분 대체 -->
+          <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','부동산거래현황 (전국 주택 매매거래)',{unit:'건 (월별)'})">
+            <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">부동산거래현황 (전국 매매)</div>
             <div id="reKpiVol" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
             <div id="reKpiVolMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">부동산원 거래현황 페치 중…</div>
-            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE 매입자거주지별 아파트거래현황 · 단위: 동(호)수</div>
+            <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE 부동산거래현황 · 단위: 건</div>
           </div>
           <div class="kpi-card" style="border-left:3px solid #ef5350;">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">서울 PIR (소득대비)</div>
@@ -1747,7 +1728,7 @@ tailwind.config = {
           <!-- 지역별 등락 — Naver 지도 (기본) + 바 차트 토글 -->
           <div class="widget" style="position:relative;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
-              <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:9px;color:#434656;font-weight:400;">지역 클릭 → 시군구 상세</span></div>
+              <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:9px;color:#434656;font-weight:400;">지도/지역 클릭 → 추이</span></div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 <button id="reRegionViewNaver" onclick="setReRegionView('naver',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;" title="Naver 지도">🗺️ 지도</button>
                 <button id="reRegionViewBar" onclick="setReRegionView('bar',this)" style="font-size:10px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">📊 바 차트</button>
@@ -1883,14 +1864,14 @@ tailwind.config = {
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('trade_count_kr','(월) 매입자거주지별 아파트거래현황',{unit:'동(호)수 (월별)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트 + 매입자 거주지별 구성">
+              <div onclick="showReHistoryChart('trade_count_kr','부동산거래현황 (전국 주택 매매거래)',{unit:'건 (월별)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">(월) 매입자거주지별 아파트거래현황 <span style="font-size:9px;color:#434656;">📈</span></div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE · 월간 · 전국 합계 · 단위: 동(호)수</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">부동산거래현황 (전국 매매) <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원 R-ONE 부동산거래현황 · 월간 · 단위: 건</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReTradeCnt" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div style="font-size:11px;margin-top:2px;color:#434656;">동(호)수</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
                 </div>
               </div>
               <div onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
@@ -2979,26 +2960,24 @@ function buildReCharts() {
 }
 
 // 한국 지역별 부동산 등락 — 17개 시도 (Naver 지도 / 바차트 공용)
-// 시도별 아파트 매매가격지수 변동률 (전월比, %) — 2026년 4월 기준 (한국부동산원 R-ONE 전국주택가격동향조사)
-// val: 최신월 변동률(%) / history: 가격지수 추이(스파크라인용)
 const krRegionData = [
-  {code:'11', label:'서울', val:0.55, history:[101.2,101.6,102.1,102.4,102.8,103.2,103.5,103.9,104.3,104.5]},
-  {code:'41', label:'경기', val:0.31, history:[99.5,99.7,99.9,100.2,100.5,100.7,100.9,101.1,101.3,101.5]},
-  {code:'28', label:'인천', val:0.02, history:[97.8,97.9,98.1,98.3,98.5,98.6,98.8,98.9,99.0,99.1]},
-  {code:'30', label:'대전', val:0.01, history:[98.5,98.6,98.7,98.8,98.9,99.0,99.1,99.2,99.3,99.4]},
-  {code:'29', label:'광주', val:-0.28, history:[97.2,97.3,97.4,97.5,97.7,97.8,97.9,98.0,98.1,98.2]},
-  {code:'36', label:'세종', val:-0.13, history:[93.8,94.1,94.4,94.7,95.0,95.3,95.6,95.9,96.2,96.5]},
-  {code:'26', label:'부산', val:0.01, history:[100.1,100.0,99.9,99.8,99.7,99.6,99.5,99.4,99.3,99.2]},
-  {code:'27', label:'대구', val:-0.10, history:[100.5,100.3,100.1,99.9,99.7,99.5,99.3,99.1,98.9,98.7]},
-  {code:'31', label:'울산', val:0.46, history:[99.4,99.3,99.3,99.2,99.2,99.1,99.1,99.0,99.0,98.9]},
+  {code:'11', label:'서울', val:0.42, history:[101.2,101.6,102.1,102.4,102.8,103.2,103.5,103.9,104.3,104.5]},
+  {code:'41', label:'경기', val:0.28, history:[99.5,99.7,99.9,100.2,100.5,100.7,100.9,101.1,101.3,101.5]},
+  {code:'28', label:'인천', val:0.15, history:[97.8,97.9,98.1,98.3,98.5,98.6,98.8,98.9,99.0,99.1]},
+  {code:'30', label:'대전', val:0.09, history:[98.5,98.6,98.7,98.8,98.9,99.0,99.1,99.2,99.3,99.4]},
+  {code:'29', label:'광주', val:0.11, history:[97.2,97.3,97.4,97.5,97.7,97.8,97.9,98.0,98.1,98.2]},
+  {code:'36', label:'세종', val:0.31, history:[93.8,94.1,94.4,94.7,95.0,95.3,95.6,95.9,96.2,96.5]},
+  {code:'26', label:'부산', val:-0.08, history:[100.1,100.0,99.9,99.8,99.7,99.6,99.5,99.4,99.3,99.2]},
+  {code:'27', label:'대구', val:-0.22, history:[100.5,100.3,100.1,99.9,99.7,99.5,99.3,99.1,98.9,98.7]},
+  {code:'31', label:'울산', val:-0.05, history:[99.4,99.3,99.3,99.2,99.2,99.1,99.1,99.0,99.0,98.9]},
   {code:'42', label:'강원', val:-0.02, history:[97.0,97.0,97.0,96.9,96.9,96.9,96.9,96.8,96.8,96.7]},
-  {code:'43', label:'충북', val:0.13, history:[97.3,97.3,97.4,97.4,97.4,97.5,97.5,97.5,97.6,97.6]},
-  {code:'44', label:'충남', val:-0.07, history:[97.8,97.8,97.8,97.7,97.7,97.7,97.7,97.7,97.7,97.7]},
-  {code:'45', label:'전북', val:0.32, history:[97.4,97.3,97.2,97.1,97.0,96.9,96.8,96.7,96.6,96.5]},
-  {code:'46', label:'전남', val:0.10, history:[97.2,97.1,97.1,97.0,96.9,96.9,96.8,96.7,96.7,96.6]},
+  {code:'43', label:'충북', val:0.04, history:[97.3,97.3,97.4,97.4,97.4,97.5,97.5,97.5,97.6,97.6]},
+  {code:'44', label:'충남', val:-0.01, history:[97.8,97.8,97.8,97.7,97.7,97.7,97.7,97.7,97.7,97.7]},
+  {code:'45', label:'전북', val:-0.15, history:[97.4,97.3,97.2,97.1,97.0,96.9,96.8,96.7,96.6,96.5]},
+  {code:'46', label:'전남', val:-0.10, history:[97.2,97.1,97.1,97.0,96.9,96.9,96.8,96.7,96.7,96.6]},
   {code:'47', label:'경북', val:-0.12, history:[97.0,96.9,96.8,96.7,96.6,96.6,96.5,96.4,96.3,96.2]},
-  {code:'48', label:'경남', val:0.20, history:[97.5,97.4,97.4,97.3,97.3,97.2,97.2,97.1,97.1,97.0]},
-  {code:'50', label:'제주', val:-0.19, history:[99.8,99.6,99.5,99.3,99.1,98.9,98.7,98.5,98.3,98.1]},
+  {code:'48', label:'경남', val:-0.07, history:[97.5,97.4,97.4,97.3,97.3,97.2,97.2,97.1,97.1,97.0]},
+  {code:'50', label:'제주', val:-0.18, history:[99.8,99.6,99.5,99.3,99.1,98.9,98.7,98.5,98.3,98.1]},
 ];
 
 // SVG 한국 지도 좌표 — 단순화된 지리적 윤곽 (시도별 path)
@@ -3042,38 +3021,8 @@ const krRegionMapShapes = [
   {code:'50', label:'제주', labelX:175, labelY:460, path:'M 140 445 L 200 440 L 220 460 L 200 475 L 150 475 L 135 460 Z'},
 ];
 
-// 시군구별 아파트 매매가격지수 변동률 (전월比, %) — 시도 클릭 시 드릴다운 표시.
-// 한국부동산원 R-ONE 전국주택가격동향조사 (2026년 4월) 실측값을 기본 시드로 사용하며,
-// data.json 의 realestate.kr.region_sub[코드] 가 있으면 그 값으로 자동 대체된다.
-const krSubRegionData = {
-  '41': {  // 경기
-    period: '2026년 4월',
-    subs: [
-      {name:'광명시', val:1.44},   {name:'구리시', val:1.20},   {name:'의왕시', val:0.55},
-      {name:'남양주시', val:0.54}, {name:'화성시', val:0.49},   {name:'용인시 처인구', val:0.29},
-      {name:'고양시 덕양구', val:0.08}, {name:'오산시', val:0.07}, {name:'시흥시', val:0.00},
-      {name:'김포시', val:-0.03},  {name:'안산시 단원구', val:-0.03}, {name:'포천시', val:-0.06},
-      {name:'안성시', val:-0.07},  {name:'양주시', val:-0.08},  {name:'여주시', val:-0.10},
-      {name:'파주시', val:-0.30},  {name:'평택시', val:-0.51},  {name:'이천시', val:-0.68},
-      {name:'광주시', val:-0.71},
-    ],
-  },
-};
-
-// (월) 매입자거주지별 아파트거래현황 (전국 합계, 동(호)수) — 한국부동산원 R-ONE 실측 시드.
-// data.json 의 realestate.kr.trade_count_kr 가 채워지면 그 값이 우선 사용된다.
-const KR_APT_TRADE_RESIDENCE = {
-  source: '한국부동산원 R-ONE (월) 매입자거주지별 아파트거래현황',
-  months: ['202506','202507','202508','202509','202510','202511','202512','202601'],
-  total:  [84441, 72983, 62584, 75487, 79526, 74646, 85938, 76272],
-  // 최신월(2026.1) 매입자 거주지별 구성 (동(호)수) — 합계 = 네 항목의 합
-  breakdownPeriod: '2026년 1월',
-  breakdown: { 관할시군구내: 39582, 관할시도내: 22380, 관할시도외_서울: 4496, 관할시도외_기타: 9814 },
-};
-
 let _reRegionView = 'naver';  // 'naver' (기본) / 'bar' — SVG/OSM은 제거됨
 let _reRegionTooltipChart = null;
-let _drillCurrentRegion = null;
 let _naverRegionMap = null;
 let _naverRegionMarkers = [];
 let _osmRegionMap = null;
@@ -3163,7 +3112,7 @@ function buildOsmRegionMap() {
       iconAnchor: [28, 15],
     });
     const m = L.marker([ll.lat, ll.lng], { icon, title: `${d.label} ${valStr}` }).addTo(_osmRegionMap);
-    m.on('click', () => _onRegionClick(d));
+    m.on('click', () => _openRegionHistoryModal(d));
     _osmRegionMarkers.push(m);
   });
 }
@@ -3283,9 +3232,9 @@ async function buildNaverRegionMap() {
       },
       title: `${d.label} ${valStr}`,
     });
-    // 마커 클릭 → 시군구 드릴다운 (없으면 시계열 모달)
+    // 마커 클릭 → 시계열 모달 (SVG 지도와 동일 동작)
     naver.maps.Event.addListener(marker, 'click', () => {
-      _onRegionClick(d);
+      _openRegionHistoryModal(d);
     });
     _naverRegionMarkers.push(marker);
   });
@@ -3353,88 +3302,6 @@ function _openRegionHistoryModal(d) {
   });
 }
 
-// 시도 코드에 대한 시군구 세부 데이터 조회 — data.json(realestate.kr.region_sub) 우선, 없으면 내장 시드.
-function _getSubRegions(code) {
-  try {
-    const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) || {};
-    const rs = ((d.realestate || {}).kr || {}).region_sub;
-    if(rs && rs[code] && Array.isArray(rs[code].subs) && rs[code].subs.length) return rs[code];
-  } catch(_){}
-  return krSubRegionData[code] || null;
-}
-
-// 지역(시도) 클릭 공통 핸들러 — 시군구 데이터가 있으면 드릴다운, 없으면 가격지수 추이 모달.
-function _onRegionClick(d) {
-  if(!d) return;
-  const sub = _getSubRegions(d.code);
-  if(sub && Array.isArray(sub.subs) && sub.subs.length) {
-    openRegionDrill(d, sub);
-  } else {
-    _openRegionHistoryModal(d);
-  }
-}
-
-// 시군구별 변동률 드릴다운 모달 표시
-function openRegionDrill(d, sub) {
-  _drillCurrentRegion = d;
-  const modal = document.getElementById('reRegionDrillModal');
-  if(!modal) return;
-  const titleEl = document.getElementById('reDrillTitle');
-  const metaEl  = document.getElementById('reDrillMeta');
-  const sumEl   = document.getElementById('reDrillSummary');
-  const listEl  = document.getElementById('reDrillList');
-  const period  = sub.period || '최근월';
-  const fmt = v => (v >= 0 ? '+' : '') + Number(v).toFixed(2);
-  const subs = sub.subs.slice().filter(s => s && typeof s.val === 'number').sort((a,b) => b.val - a.val);
-  if(titleEl) titleEl.textContent = `${d.label} · 시군구별 아파트 매매가격지수 변동률`;
-  if(metaEl)  metaEl.textContent  = `${period} 기준 · 전월比 % · 한국부동산원 R-ONE`;
-  // 요약 카드 3개: 시도 변동률 / 상위 2 / 하위 2
-  if(sumEl) {
-    const top2 = subs.slice(0, 2);
-    const bot2 = subs.slice(-2).reverse();
-    const chip = (s, color) => `<div style="font-size:12px;font-weight:600;color:var(--c-txt,#dfe2f2);line-height:1.5;">${s.name} <span style="color:${color};">${fmt(s.val)}%</span></div>`;
-    sumEl.innerHTML = `
-      <div style="background:var(--c-surface,#131722);border-radius:6px;padding:10px;">
-        <div style="font-size:10px;color:#8d90a2;margin-bottom:2px;">${d.label} 변동률</div>
-        <div style="font-size:20px;font-weight:700;color:${d.val>=0?'#26a69a':'#ef5350'};">${fmt(d.val)}%</div>
-      </div>
-      <div style="background:var(--c-surface,#131722);border-radius:6px;padding:10px;border-left:3px solid #26a69a;">
-        <div style="font-size:10px;color:#8d90a2;margin-bottom:2px;">상위 2개 지역</div>
-        ${top2.map(s => chip(s, '#26a69a')).join('')}
-      </div>
-      <div style="background:var(--c-surface,#131722);border-radius:6px;padding:10px;border-left:3px solid #ef5350;">
-        <div style="font-size:10px;color:#8d90a2;margin-bottom:2px;">하위 2개 지역</div>
-        ${bot2.map(s => chip(s, '#ef5350')).join('')}
-      </div>`;
-  }
-  // 전체 시군구 리스트 — 가로 막대 + 값
-  if(listEl) {
-    const maxAbs = Math.max(0.1, ...subs.map(s => Math.abs(s.val)));
-    listEl.innerHTML = subs.map(s => {
-      const color = _regionColorForVal(s.val);
-      const w = Math.max(2, Math.abs(s.val) / maxAbs * 100);
-      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--c-border,#1b1f2b);">
-        <div style="width:104px;font-size:12px;color:var(--c-txt,#dfe2f2);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${s.name}">${s.name}</div>
-        <div style="flex:1;height:14px;background:var(--c-surface,#131722);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${w}%;background:${color};border-radius:3px;transition:width .3s;"></div></div>
-        <div style="width:58px;text-align:right;font-size:12px;font-weight:700;color:${s.val>=0?'#26a69a':'#ef5350'};flex-shrink:0;">${fmt(s.val)}%</div>
-      </div>`;
-    }).join('');
-  }
-  modal.style.display = 'flex';
-}
-
-// 드릴다운 → 해당 시도 가격지수 추이 모달로 전환
-function _drillShowTrend() {
-  const d = _drillCurrentRegion;
-  closeRegionDrill();
-  if(d) _openRegionHistoryModal(d);
-}
-
-function closeRegionDrill() {
-  const modal = document.getElementById('reRegionDrillModal');
-  if(modal) modal.style.display = 'none';
-}
-
 function _regionColorForVal(v) {
   if(v == null || isNaN(v)) return '#8d90a2';
   if(v >= 0.3)  return '#0f6e56';
@@ -3461,13 +3328,11 @@ function buildKoreaRegionMap() {
         borderRadius:3,
       }]},
       options:{responsive:true,maintainAspectRatio:false,
-        onClick:(evt,els)=>{ if(els&&els.length){ const r=sorted[els[0].index]; if(r) _onRegionClick(r); } },
-        onHover:(evt,els)=>{ const t=evt&&evt.native&&evt.native.target; if(t) t.style.cursor = (els&&els.length)?'pointer':'default'; },
         scales:{x:{ticks:{color:tc.txt,font:{size:9}},grid:{display:false}},
                 y:{ticks:{color:tc.txt,font:{size:9},callback:v=>(v>=0?'+':'')+v.toFixed(2)+'%'},grid:{color:tc.grid}}},
         plugins:{legend:{display:false},
           tooltip:{backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttBody,borderColor:tc.ttBorder,borderWidth:1,
-            callbacks:{label:c=>(c.parsed.y>=0?'+':'')+c.parsed.y.toFixed(2)+'%'+( _getSubRegions(sorted[c.dataIndex] && sorted[c.dataIndex].code) ? '  · 클릭 → 시군구' : '' )}}}}
+            callbacks:{label:c=>(c.parsed.y>=0?'+':'')+c.parsed.y.toFixed(2)+'%'}}}}
     });
   }
   // 지도 빌드 — SVG (실제 지리 윤곽 기반)
@@ -3518,7 +3383,7 @@ function buildKoreaRegionMap() {
     el.addEventListener('click', () => {
       const code = el.dataset.code;
       const d = krRegionData.find(r => r.code === code);
-      if(d) _onRegionClick(d);
+      if(d) _openRegionHistoryModal(d);
     });
   });
 }
@@ -10373,25 +10238,6 @@ function _renderReHistChart() {
       : [12378, 9542,  11856, 8923,  16320, 10800, 14200, 12500, 15600, 11800, 13900, 11700, 13400];
     dataSource = '내장 시계열 (국토부 주택 인허가/착공 통계)';
   }
-  // 9) (월) 매입자거주지별 아파트거래현황 — 전국 합계 동(호)수 (R-ONE 실측 시드)
-  if(!values.length && key === 'trade_count_kr' && typeof KR_APT_TRADE_RESIDENCE !== 'undefined') {
-    labels = KR_APT_TRADE_RESIDENCE.months.slice();
-    values = KR_APT_TRADE_RESIDENCE.total.slice();
-    dataSource = KR_APT_TRADE_RESIDENCE.source;
-  }
-  // 매입자 거주지별 구성(최신월)을 가이드 영역에 표로 표시 — 이 통계의 핵심 차원
-  if(key === 'trade_count_kr' && guideEl && typeof KR_APT_TRADE_RESIDENCE !== 'undefined') {
-    const b = KR_APT_TRADE_RESIDENCE.breakdown || {};
-    const tot = (b.관할시군구내||0)+(b.관할시도내||0)+(b.관할시도외_서울||0)+(b.관할시도외_기타||0);
-    const row = (name,v,color)=> tot ? `<div style="display:flex;justify-content:space-between;gap:12px;padding:1px 0;"><span style="color:#8d90a2;">${name}</span><span style="font-weight:600;color:${color};">${(v||0).toLocaleString()} <span style="color:#434656;font-weight:400;">(${(v/tot*100).toFixed(1)}%)</span></span></div>` : '';
-    guideEl.innerHTML = `<div style="font-weight:700;margin-bottom:6px;color:var(--c-txt,#dfe2f2);">매입자 거주지별 구성 — ${KR_APT_TRADE_RESIDENCE.breakdownPeriod} (전국, 동(호)수)</div>`
-      + row('관할 시군구 내', b.관할시군구내, '#26a69a')
-      + row('관할 시도 내', b.관할시도내, '#b6c4ff')
-      + row('관할 시도 외 — 서울', b.관할시도외_서울, '#f5a623')
-      + row('관할 시도 외 — 기타', b.관할시도외_기타, '#ef5350');
-    guideEl.style.display = 'block';
-    guideEl.style.borderLeftColor = '#f5a623';
-  }
   const ctx = document.getElementById('reHistChart');
   if(!ctx || !values.length) {
     if(noteEl) noteEl.textContent = '시계열 데이터 없음 — API 연동 시 자동 표시됩니다.';
@@ -12097,26 +11943,24 @@ function applyRealData(d) {
   if (hhDebt) {
     setKrReCard('krReHouseholdDebt', null, null, hhDebt, v=>(v/1000).toFixed(0)+'조원');
   }
-  // (월) 매입자거주지별 아파트거래현황 (전국 합계, 동(호)수) — data.json 실데이터 우선, 없으면 R-ONE 실측 시드.
-  {
-    let tc = reKr.trade_count_kr ? {...reKr.trade_count_kr} : null;
-    if(tc && (!tc.value || tc.value === 0)) {
+  // 거래량 (부동산거래현황 R-ONE 1차 / MOLIT 보강) — 실제 데이터만 사용, 없으면 "—" (더미 금지)
+  if (reKr.trade_count_kr) {
+    const tc = {...reKr.trade_count_kr};
+    if(!tc.value || tc.value === 0) {
       // history 에서 최신 비영값 찾기 (실제 데이터)
       const hist = tc.history || {};
       const keys = Object.keys(hist).sort();
       for(let i = keys.length - 1; i >= 0; i--) {
-        if(hist[keys[i]] > 0) { tc.value = hist[keys[i]]; tc.period = keys[i]; break; }
+        if(hist[keys[i]] > 0) {
+          tc.value = hist[keys[i]];
+          tc.period = keys[i];
+          break;
+        }
       }
     }
-    // data.json 미수집 시 내장 R-ONE 매입자거주지별 시리즈로 폴백
-    if((!tc || !tc.value || tc.value <= 0) && typeof KR_APT_TRADE_RESIDENCE !== 'undefined') {
-      const t = KR_APT_TRADE_RESIDENCE, hist = {};
-      t.months.forEach((m,i)=>{ hist[m] = t.total[i]; });
-      tc = { value: t.total[t.total.length-1], period: t.months[t.months.length-1],
-             source: t.source, history: hist };
-    }
-    if (tc && tc.value > 0) {
+    if (tc.value && tc.value > 0) {
       setKrReCard('krReTradeCnt', null, null, tc, v=>v?.toLocaleString()+'건');
+      // KPI 카드 갱신
       const kpiEl = document.getElementById('reKpiVol');
       const metaEl = document.getElementById('reKpiVolMeta');
       if(kpiEl) {
@@ -12124,17 +11968,26 @@ function applyRealData(d) {
         kpiEl.style.color = 'var(--c-txt,#dfe2f2)';
       }
       if(metaEl) {
-        const p = String(tc.period||'');
-        const py = p.length >= 6 ? `${p.slice(0,4)}.${p.slice(4,6)}` : p;
-        metaEl.textContent = `${py} 전국 합계 · 한국부동산원 R-ONE`;
+        // 소스 표기는 실제 data.json 의 source 를 그대로 사용 (R-ONE 부동산거래현황 / MOLIT 실거래)
+        const srcLabel = /MOLIT|국토부|data\.go\.kr/i.test(tc.source||'')
+          ? '국토부 실거래가 (data.go.kr)' : '한국부동산원 부동산거래현황';
+        metaEl.textContent = `${tc.period} · ${srcLabel}`;
         metaEl.style.color = '#26a69a';
       }
     } else {
+      // 거래량 실데이터 없음 — 부동산원/국토부 사이트 링크 안내 (경고 X, 안내 톤)
       const metaEl = document.getElementById('reKpiVolMeta');
       if(metaEl && metaEl.textContent.includes('페치 중')) {
-        metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 매입자거주지별 아파트거래현황 →</a> · 데이터 준비 중';
+        metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 부동산거래현황 →</a> · 데이터 갱신 대기 중';
         metaEl.style.color = '#8d90a2';
       }
+    }
+  } else {
+    // trade_count_kr 자체가 없는 경우 — 안내 링크만 (broken 처럼 보이지 않도록)
+    const metaEl = document.getElementById('reKpiVolMeta');
+    if(metaEl && metaEl.textContent.includes('페치 중')) {
+      metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 부동산거래현황 →</a> · 데이터 준비 중';
+      metaEl.style.color = '#8d90a2';
     }
   }
   if (reKr.unsold_kr) {
