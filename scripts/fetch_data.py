@@ -3264,6 +3264,58 @@ def fetch_yf_history(symbol, period="5y", interval="1d"):
         return None
 
 
+# pykrx 지수 티커 — KRX 정보데이터시스템(data.krx.co.kr) 공식 일별 종가.
+# yfinance(^KS11/^KQ11)는 한국 지수 일별 종가가 며칠씩 지연되는 고질적 문제가 있어
+# (spot 은 당일이지만 history 가 3~5 영업일 전에서 멈춤) 카드 헤더의 숫자와 차트 끝점이
+# 어긋난다. pykrx 는 KRX 공식 종가를 지연 없이 제공하므로 한국 지수 시계열의 PRIMARY
+# 소스로 사용하고, 실패 시에만 yfinance 로 폴백한다.
+_PYKRX_INDEX_TICKER = {"KOSPI": "1001", "KOSDAQ": "2001"}
+
+
+def fetch_pykrx_index_history(name, years=5):
+    """pykrx 로 KOSPI/KOSDAQ 지수의 일별 종가 시계열 조회.
+    Returns: [{"date":"YYYY-MM-DD","close":NUM}, ...] (오름차순) 또는 None
+    """
+    if not _PYKRX_AVAILABLE:
+        return None
+    ticker = _PYKRX_INDEX_TICKER.get(name)
+    if not ticker:
+        return None
+    today = datetime.now(KST)
+    fromdate = (today - timedelta(days=int(years * 365.25) + 5)).strftime("%Y%m%d")
+    todate = today.strftime("%Y%m%d")
+    # pykrx 버전에 따라 get_index_ohlcv / get_index_ohlcv_by_date 둘 중 하나
+    getter = getattr(_pykrx_stock, "get_index_ohlcv", None) or \
+             getattr(_pykrx_stock, "get_index_ohlcv_by_date", None)
+    if getter is None:
+        return None
+    try:
+        df = getter(fromdate, todate, ticker)
+        if df is None or df.empty:
+            return None
+        close_col = "종가" if "종가" in df.columns else ("Close" if "Close" in df.columns else None)
+        if close_col is None:
+            return None
+        out = []
+        for idx, row in df.iterrows():
+            try:
+                close = float(row[close_col])
+            except (TypeError, ValueError):
+                continue
+            if close <= 0 or close != close:  # 0/음수/NaN 제외
+                continue
+            try:
+                date_str = idx.strftime("%Y-%m-%d")
+            except Exception:
+                date_str = str(idx)[:10]
+            out.append({"date": date_str, "close": round(close, 4)})
+        out.sort(key=lambda r: r["date"])
+        return out if len(out) >= 50 else None
+    except Exception as e:
+        log(f"[pykrx:idx-hist] {name}({ticker}) 오류: {e}")
+        return None
+
+
 def fetch_all_historical_data():
     """주요 자산의 5년치 일별 시계열 데이터 일괄 조회.
     data.json 의 history 필드에 저장되어 프런트엔드 차트에서 사용.
@@ -3293,10 +3345,18 @@ def fetch_all_historical_data():
         "Shanghai": "000001.SS",
     }
     for name, sym in idx_map.items():
-        h = fetch_yf_history(sym, period="5y")
+        h = None
+        # 한국 지수(KOSPI/KOSDAQ)는 pykrx(KRX 공식)를 우선 사용 — yfinance 지연 회피
+        if name in _PYKRX_INDEX_TICKER:
+            h = fetch_pykrx_index_history(name)
+            if h:
+                log(f"[YF-HIST] IDX {name}: pykrx(KRX 공식) {len(h)} bars / 최신 {h[-1]['date']}")
+        if not h:
+            h = fetch_yf_history(sym, period="5y")
+            if h:
+                log(f"[YF-HIST] IDX {name}({sym}): yfinance {len(h)} bars / 최신 {h[-1]['date']}")
         if h:
             out["indices"][name] = h
-            log(f"[YF-HIST] IDX {name}({sym}): {len(h)} bars")
         else:
             log(f"[YF-HIST] IDX {name}({sym}): 데이터 없음")
     com_map = {
@@ -3449,6 +3509,65 @@ def _preserve_from_prev(data, prev, keys, fresh_label=None):
 # ============================================================
 # 메인 빌드
 # ============================================================
+def _reconcile_history_with_spot(data, now):
+    """차트 끝점을 실시간 spot 값과 일치시킨다 (공통 보정).
+
+    문제: 카드 헤더의 큰 숫자(spot)와 그 아래/상세 모달의 차트 마지막 점(history close)이
+    서로 다른 소스에서 와서 어긋난다. 예) KOSPI spot=8047(KRX 당일)인데 history 마지막은
+    7847(yfinance, 며칠 전). 사용자는 "차트와 수치가 맞지 않는다"고 인식한다.
+
+    해결: indices/fx/commodities 모든 시계열의 마지막 점을 최신 영업일 기준으로 spot 과
+    동기화. 마지막 점이 오늘이면 값 갱신, 더 과거이고 값이 유의미하게 다르면 오늘 점 추가.
+    주말은 직전 영업일로 롤백(공휴일은 eps 가드로 중복 방지). 모든 카드/상세 차트가
+    data.history 를 공유하므로 이 한 번의 보정이 전 차트에 일괄 적용된다.
+    """
+    hist = data.get("history") or {}
+    specs = [
+        ("indices",     data.get("indices", {}),     "price"),
+        ("fx",          data.get("fx", {}),          "rate"),
+        ("commodities", data.get("commodities", {}), "price"),
+    ]
+    tgt = now
+    while tgt.weekday() >= 5:  # 토(5)/일(6) → 직전 영업일
+        tgt -= timedelta(days=1)
+    target_date = tgt.strftime("%Y-%m-%d")
+    synced = 0
+    for cat, spot_map, field in specs:
+        series_map = hist.get(cat) or {}
+        for name, arr in series_map.items():
+            if not isinstance(arr, list) or not arr:
+                continue
+            spot_obj = spot_map.get(name) or {}
+            spot = spot_obj.get(field)
+            try:
+                spot = float(spot)
+            except (TypeError, ValueError):
+                continue
+            if spot <= 0:
+                continue
+            last = arr[-1]
+            last_date = last.get("date", "")
+            try:
+                last_close = float(last.get("close"))
+            except (TypeError, ValueError):
+                continue
+            if last_date == target_date:
+                if abs(spot - last_close) > 1e-9:
+                    last["close"] = round(spot, 4)
+                    synced += 1
+            elif last_date and last_date < target_date:
+                # 새 영업일 — 값이 유의미하게(>0.01%) 다를 때만 오늘 점 추가
+                rel = abs(spot - last_close) / (abs(last_close) or 1.0)
+                if rel > 1e-4:
+                    arr.append({"date": target_date, "close": round(spot, 4)})
+                    synced += 1
+            # last_date > target_date (미래) 는 건드리지 않음
+    if synced:
+        log(f"[reconcile] 차트 끝점 ↔ spot 동기화: {synced}개 시계열 (기준 {target_date})")
+        data.setdefault("diagnostics", {})["historySpotSynced"] = synced
+    return synced
+
+
 def build_data():
     now = datetime.now(KST)
     prev = _load_prev_data("data.json")
@@ -4079,6 +4198,14 @@ def build_data():
             data.setdefault("diagnostics", {})["preservedFields"] = preserved
     except Exception as e:
         log(f"[preserve] 머지 오류 (무시): {e}")
+
+    # ── 차트 끝점 ↔ 실시간 spot 동기화 (소스 불일치 보정) ──────────
+    # 모든 카드/상세 모달 차트가 data.history 를 공유하므로 한 번의 보정으로
+    # 헤더 숫자와 차트 끝점 불일치(예: KOSPI 차트가 며칠 전에서 멈추는 문제)를 일괄 해결.
+    try:
+        _reconcile_history_with_spot(data, now)
+    except Exception as e:
+        log(f"[reconcile] 오류 (무시): {e}")
 
     return data
 

@@ -18,6 +18,13 @@ on:
     - cron: '30 13 * * *'  # KST 22:30 (UTC 13:30) — 10PM 데이터 미수집 대비 보강
   workflow_dispatch:        # 수동 실행 허용
 
+# 동시 실행 직렬화 — 매시간 cron(0 * * * *) 과 일일 cron(0 0/0 7/0 13) 이 같은 정각에
+# 함께 발화하면 두 런이 동시에 main 에 push 하여 한쪽이 non-fast-forward 로 거부·실패한다.
+# concurrency 그룹으로 한 번에 하나만 실행(나머지는 대기)하여 push 경쟁을 제거한다.
+concurrency:
+  group: market-data-fetch
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -92,10 +99,22 @@ jobs:
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add data.json
-          if git diff --staged --quiet; then
-            echo "변경 사항 없음 — 커밋 건너뜀"
-          else
-            git commit -m "data: 시장 데이터 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git push origin HEAD
+          branch="${GITHUB_REF_NAME:-main}"
+          if git diff --quiet -- data.json && git diff --staged --quiet -- data.json; then
+            echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
+          msg="data: 시장 데이터 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
+          # 외부/동시 커밋으로 push 가 거부되면 원격 최신 위에 재배치 후 재시도.
+          # data.json 은 매 런마다 새로 생성되는 산출물이므로 '최신 런이 이긴다' 정책.
+          for attempt in 1 2 3 4 5; do
+            git add data.json
+            git commit -m "$msg" -q || true
+            if git push origin "HEAD:${branch}"; then
+              echo "push 성공 (시도 ${attempt})"; exit 0
+            fi
+            echo "push 실패 (시도 ${attempt}) — 원격 ${branch} 동기화 후 재시도"
+            git fetch origin "${branch}" || true
+            git reset --soft "origin/${branch}" || true
+            sleep $((attempt * 3))
+          done
+          echo "::error::data.json push 실패 (재시도 소진)"; exit 1
