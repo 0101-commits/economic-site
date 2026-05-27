@@ -1809,18 +1809,20 @@ def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None
     #   3) {"RESULT": {"CODE":"INFO-200","MESSAGE":"해당하는 데이터가 없습니다."}}
     #   4) HTML/일반 텍스트 응답 (서버 점검 등)
     try:
-        # R-ONE 은 연속 호출 시 연결을 자주 끊는다(RemoteDisconnected). 짧은 백오프로 재시도.
+        # R-ONE 은 연속 호출 시 연결을 자주 끊는다(RemoteDisconnected). 호출 간 간격(throttle)을
+        # 두면 드롭이 크게 줄어든다. 그래도 끊기면 백오프 재시도(최대 4회).
+        _time.sleep(1.0)
         r = None
-        for attempt in range(3):
+        for attempt in range(4):
             try:
                 r = requests.get(f"{RONE_BASE}/SttsApiTblData.do", params=params, timeout=25,
                                  headers={"User-Agent": "Mozilla/5.0 (economic-site fetch)"})
                 break
             except requests.exceptions.RequestException as e:
-                if attempt == 2:
+                if attempt == 3:
                     log(f"[R-ONE-new] {stats_id}: 연결 실패(재시도 소진) {type(e).__name__}")
                     return None
-                _time.sleep(1.5 * (attempt + 1))
+                _time.sleep(2.0 * (attempt + 1))
         if r.status_code != 200:
             log(f"[R-ONE-new] {stats_id}: HTTP {r.status_code}")
             return None
@@ -2164,7 +2166,7 @@ def fetch_realestate_kr():
     # ─── 거래량: (월) 행정구역별 아파트거래현황 (A_2024_00549) ──
     # 전국(CLS_ID=500001) + ITM_ID=100001(동(호)수) 로 한정. 면적(100002) 항목과 섞이지 않게 ITM 필수.
     try:
-        trade = fetch_rone_nationwide_latest("A_2024_00549", limit=400, itm_id="100001")
+        trade = fetch_rone_nationwide_latest("A_2024_00549", limit=600, itm_id="100001")
         if trade:
             trade.update({"region": "전국", "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
                           "source": "R-ONE:A_2024_00549"})
