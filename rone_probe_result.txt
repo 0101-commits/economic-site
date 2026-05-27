@@ -1,58 +1,22 @@
-# R-ONE Probe @ 2026-05-27T07:46:23.033761Z
-REALESTATE_API_KEY(env): set=True len=32 tail=9655
-using key tail: ...9655
+# R-ONE Probe v3 @ 2026-05-27T07:59:02.374233Z  key tail ...9655  env_set=True
 
-## Catalog SttsApiTbl (pSize=20)
-GET https://www.reb.or.kr/r-one/openapi/SttsApiTbl.do?Type=json&pIndex=1&pSize=20&KEY=...
-HTTP 200  bytes=6759  Content-Type=text/html;charset=UTF-8
-BODY (first 1600 chars):
-{"SttsApiTbl":[{"head":[{"list_total_count":738},{"RESULT":{"CODE":"INFO-000","MESSAGE":"정상 처리되었습니다."}}]},{"row":[{"STATBL_ID":"A_2024_00900","STATBL_NM":"(연) 지역별 지가지수","DTACYCLE_CD":"YY","DTACYCLE_NM":"매년","STAT_ID":"S227720243","TOP_ORG_NM":"한국부동산원","OPEN_STATE":"Y","DATA_START_YY":"1987","DATA_END_YY":"2025","STATBL_IDTFR":null,"STATBL_CMMT":"※조사ㆍ통계문의 : 부동산통계처 토지통계부(053-663-8547,545)","V_ORDER":304001,"RPSTUI_NM":"기준시점 : 2026.01.=100.0"},{"STATBL_ID":"T253233138851223","STATBL_NM":"(연) 용도지역별 지가지수","DTACYCLE_CD":"YY","DTACYCLE_NM":"매년","STAT_ID":"S227720243","TOP_ORG_NM":"한국부동산원","OPEN_STATE":"Y","DATA_START_YY":"1987","DATA_END_YY":"2025","STATBL_IDTFR":null,"STATBL_CMMT":"※조사ㆍ통계문의 : 부동산통계처 토지통계부(053-663-8547,545)","V_ORDER":304002,"RPSTUI_NM":"기준시점 : 2026.01.=100.0 "},{"STATBL_ID":"T251683138861068","STATBL_NM":"(연) 이용상황별 지가지수","DTACYCLE_CD":"YY","DTACYCLE_NM":"매년","STAT_ID":"S227720243","TOP_ORG_NM":"한국부동산원","OPEN_STATE":"Y","DATA_START_YY":"1987","DATA_END_YY":"2025","STATBL_IDTFR":null,"STATBL_CMMT":"※조사ㆍ통계문의 : 부동산통계처 토지통계부(053-663-8547,545)\r\n","V_ORDER":304003,"RPSTUI_NM":"기준시점 : 2026.01.=100.0 "},{"STATBL_ID":"A_2024_00901","STATBL_NM":"(월) 지역별 지가지수","DTACYCLE_CD":"QY,MM","DTACYCLE_NM":"분기,월","STAT_ID":"S227720243","TOP_ORG_NM":"한국부동산원","OPEN_STATE":"Y","DATA_START_YY":"1987","DATA_END_YY":"2026","STATBL_IDTFR":null,"STATBL_CMMT":"※조사ㆍ통계문의 : 부동산통계처 토지통계부(053-663-8547,545)","V_ORDER":304004,"RPSTUI_NM":"기준시점 : 2026.01.=100.0 "},{"STATBL_ID":"A_2024_00003","STATBL_NM":"(월) 용도지역별 지가지수","DTACYCLE_CD":"QY,MM","DTACYCLE_NM":"분기,월","STAT_ID":"S227720243","TOP_ORG_NM":"한
->> SttsApiTbl row 수: 20
->> row[0] keys: ['STATBL_ID', 'STATBL_NM', 'DTACYCLE_CD', 'DTACYCLE_NM', 'STAT_ID', 'TOP_ORG_NM', 'OPEN_STATE', 'DATA_START_YY', 'DATA_END_YY', 'STATBL_IDTFR', 'STATBL_CMMT', 'V_ORDER', 'RPSTUI_NM']
->> row[0]: {"STATBL_ID": "A_2024_00900", "STATBL_NM": "(연) 지역별 지가지수", "DTACYCLE_CD": "YY", "DTACYCLE_NM": "매년", "STAT_ID": "S227720243", "TOP_ORG_NM": "한국부동산원", "OPEN_STATE": "Y", "DATA_START_YY": "1987", "DATA_END_YY": "2025", "STATBL_IDTFR": null, "STATBL_CMMT": "※조사ㆍ통계문의 : 부동산통계처 토지통계부(053-663-8547,545)", "V_ORDER": 304001, "RPSTUI_NM": "기준시점 : 2026.01.=100.0"}
->> row[-1]: {"STATBL_ID": "T248493131844741", "STATBL_NM": "월세이율(~14.12)(구)", "DTACYCLE_CD": "MM", "DTACYCLE_NM": "월", "STAT_ID": "S249620303", "TOP_ORG_NM": "한국부동산원", "OPEN_STATE": "Y", "DATA_START_YY": "2010", "DATA_END_YY": "2015", "STATBL_IDTFR": null, "STATBL_CMMT": "※조사ㆍ통계문의 : 부동산통계처 상업자산통계부(053-663-8532,8536)", "V_ORDER": 365020, "RPSTUI_NM": null}
+===== 매매 (월) 매매가격지수_아파트  STATBL_ID=A_2024_00045 =====
+[A] pSize=500 → INFO-000 500rows
+[A] 고유 CLS 수=175  ITM={100001: '지수'}  첫행 period=200311
+[A] '전국' CLS_ID = 500001
+[A] 최상위(집계) CLS 후보: {500001: '전국', 500002: '수도권', 500003: '지방권', 500004: '6대광역시', 500005: '5대광역시', 500006: '9개도', 500007: '8개도', 500008: '서울', 500009: '경기', 500010: '인천', 500011: '부산', 500012: '대구', 500013: '광주', 500014: '대전', 500015: '울산'}
+[B] CLS_ID=500001 pSize=800 → INFO-000 270rows
+[B] 반환 CLS_NM=['전국']  기간 200311~202604 (n=270)
+    최신: period=202601 ITM=지수 VAL=100
+    최신: period=202602 ITM=지수 VAL=100.278612318969
+    최신: period=202603 ITM=지수 VAL=100.439616671216
+    최신: period=202604 ITM=지수 VAL=100.621950460592
+[B] >>> 최신 전국 지수=100.621950460592 (202604), 전월=100.439616671216 (202603), 전월비=0.18% <<<
 
-## 매매 A_2024_00045 DTACYCLE_CD=MM (수정값)
-GET https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?Type=json&pIndex=1&pSize=8&STATBL_ID=A_2024_00045&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID_FROM=202501&WRTTIME_IDTFR_ID_TO=202512&KEY=...
-HTTP 200  bytes=2455  Content-Type=text/html;charset=UTF-8
-BODY (first 1600 chars):
-{"SttsApiTblData":[{"head":[{"list_total_count":56284},{"RESULT":{"CODE":"INFO-000","MESSAGE":"정상 처리되었습니다."}}]},{"row":[{"STATBL_ID":"A_2024_00045","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":510085,"CLS_NM":"전주시","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":51.5366825378274,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"전북>전주시","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00045","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":510054,"CLS_NM":"중구","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":46.5563946612764,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"울산>중구","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00045","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":530045,"CLS_NM":"만안구","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":50.6792837056691,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"경기>경부1권>안양시>만안구","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00045","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":510020,"CLS_NM":"중구","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":66.3207372853332,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"인천>중구","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00045","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":510009,"CLS_NM":"강북지역","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":51.2008665256139,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"서울>강북지역","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00
->> SttsApiTblData row 수: 8
->> row[0] keys: ['STATBL_ID', 'DTACYCLE_CD', 'WRTTIME_IDTFR_ID', 'GRP_ID', 'GRP_NM', 'CLS_ID', 'CLS_NM', 'ITM_ID', 'ITM_NM', 'DTA_VAL', 'UI_NM', 'GRP_FULLNM', 'CLS_FULLNM', 'ITM_FULLNM', 'WRTTIME_DESC']
->> row[0]: {"STATBL_ID": "A_2024_00045", "DTACYCLE_CD": "MM", "WRTTIME_IDTFR_ID": "200311", "GRP_ID": null, "GRP_NM": null, "CLS_ID": 510085, "CLS_NM": "전주시", "ITM_ID": 100001, "ITM_NM": "지수", "DTA_VAL": 51.5366825378274, "UI_NM": "지수", "GRP_FULLNM": null, "CLS_FULLNM": "전북>전주시", "ITM_FULLNM": "지수", "WRTTIME_DESC": "2003년 11월"}
->> row[-1]: {"STATBL_ID": "A_2024_00045", "DTACYCLE_CD": "MM", "WRTTIME_IDTFR_ID": "200311", "GRP_ID": null, "GRP_NM": null, "CLS_ID": 520157, "CLS_NM": "남구", "ITM_ID": 100001, "ITM_NM": "지수", "DTA_VAL": 61.0328681227941, "UI_NM": "지수", "GRP_FULLNM": null, "CLS_FULLNM": "경북>포항시>남구", "ITM_FULLNM": "지수", "WRTTIME_DESC": "2003년 11월"}
-
-## 매매 A_2024_00045 DTACYCLE_CD=M (수정 전·버그 재현)
-GET https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?Type=json&pIndex=1&pSize=8&STATBL_ID=A_2024_00045&DTACYCLE_CD=M&WRTTIME_IDTFR_ID_FROM=202501&WRTTIME_IDTFR_ID_TO=202512&KEY=...
-HTTP 200  bytes=58  Content-Type=text/html;charset=UTF-8
-BODY (first 1600 chars):
-{"RESULT":{"CODE":"INFO-200","MESSAGE":"해당하는 데이터가 없습니다."}}
->> top RESULT: {"CODE": "INFO-200", "MESSAGE": "해당하는 데이터가 없습니다."}
-
-## 전세 A_2024_00050 DTACYCLE_CD=MM (수정값)
-GET https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?Type=json&pIndex=1&pSize=8&STATBL_ID=A_2024_00050&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID_FROM=202501&WRTTIME_IDTFR_ID_TO=202512&KEY=...
-HTTP 200  bytes=2468  Content-Type=text/html;charset=UTF-8
-BODY (first 1600 chars):
-{"SttsApiTblData":[{"head":[{"list_total_count":56283},{"RESULT":{"CODE":"INFO-000","MESSAGE":"정상 처리되었습니다."}}]},{"row":[{"STATBL_ID":"A_2024_00050","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":510111,"CLS_NM":"창원시","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":58.4633708619286,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"경남>창원시","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00050","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":510092,"CLS_NM":"목포시","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":65.2976280011486,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"전남>목포시","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00050","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":530045,"CLS_NM":"만안구","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":46.9031651675789,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"경기>경부1권>안양시>만안구","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00050","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":520128,"CLS_NM":"동남구","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":59.0663298728572,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"충남>천안시>동남구","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_ID":"A_2024_00050","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"200311","GRP_ID":null,"GRP_NM":null,"CLS_ID":530011,"CLS_NM":"종로구","ITM_ID":100001,"ITM_NM":"지수","DTA_VAL":59.531725436378,"UI_NM":"지수","GRP_FULLNM":null,"CLS_FULLNM":"서울>강북지역>도심권>종로구","ITM_FULLNM":"지수","WRTTIME_DESC":"2003년 11월"},{"STATBL_
->> SttsApiTblData row 수: 8
->> row[0] keys: ['STATBL_ID', 'DTACYCLE_CD', 'WRTTIME_IDTFR_ID', 'GRP_ID', 'GRP_NM', 'CLS_ID', 'CLS_NM', 'ITM_ID', 'ITM_NM', 'DTA_VAL', 'UI_NM', 'GRP_FULLNM', 'CLS_FULLNM', 'ITM_FULLNM', 'WRTTIME_DESC']
->> row[0]: {"STATBL_ID": "A_2024_00050", "DTACYCLE_CD": "MM", "WRTTIME_IDTFR_ID": "200311", "GRP_ID": null, "GRP_NM": null, "CLS_ID": 510111, "CLS_NM": "창원시", "ITM_ID": 100001, "ITM_NM": "지수", "DTA_VAL": 58.4633708619286, "UI_NM": "지수", "GRP_FULLNM": null, "CLS_FULLNM": "경남>창원시", "ITM_FULLNM": "지수", "WRTTIME_DESC": "2003년 11월"}
->> row[-1]: {"STATBL_ID": "A_2024_00050", "DTACYCLE_CD": "MM", "WRTTIME_IDTFR_ID": "200311", "GRP_ID": null, "GRP_NM": null, "CLS_ID": 510009, "CLS_NM": "강북지역", "ITM_ID": 100001, "ITM_NM": "지수", "DTA_VAL": 49.5314325901278, "UI_NM": "지수", "GRP_FULLNM": null, "CLS_FULLNM": "서울>강북지역", "ITM_FULLNM": "지수", "WRTTIME_DESC": "2003년 11월"}
-
-## 거래현황 A_2024_00061 DTACYCLE_CD=MM
-GET https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?Type=json&pIndex=1&pSize=8&STATBL_ID=A_2024_00061&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID_FROM=202501&WRTTIME_IDTFR_ID_TO=202512&KEY=...
-HTTP 200  bytes=2354  Content-Type=text/html;charset=UTF-8
-BODY (first 1600 chars):
-{"SttsApiTblData":[{"head":[{"list_total_count":39272},{"RESULT":{"CODE":"INFO-000","MESSAGE":"정상 처리되었습니다."}}]},{"row":[{"STATBL_ID":"A_2024_00061","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"201201","GRP_ID":null,"GRP_NM":null,"CLS_ID":510020,"CLS_NM":"중구","ITM_ID":100001,"ITM_NM":"가격","DTA_VAL":2410,"UI_NM":"천원/㎡","GRP_FULLNM":null,"CLS_FULLNM":"인천>중구","ITM_FULLNM":"가격","WRTTIME_DESC":"2012년 1월"},{"STATBL_ID":"A_2024_00061","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"201201","GRP_ID":null,"GRP_NM":null,"CLS_ID":530045,"CLS_NM":"만안구","ITM_ID":100001,"ITM_NM":"가격","DTA_VAL":3637,"UI_NM":"천원/㎡","GRP_FULLNM":null,"CLS_FULLNM":"경기>경부1권>안양시>만안구","ITM_FULLNM":"가격","WRTTIME_DESC":"2012년 1월"},{"STATBL_ID":"A_2024_00061","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"201201","GRP_ID":null,"GRP_NM":null,"CLS_ID":510034,"CLS_NM":"중구","ITM_ID":100001,"ITM_NM":"가격","DTA_VAL":2151,"UI_NM":"천원/㎡","GRP_FULLNM":null,"CLS_FULLNM":"대구>중구","ITM_FULLNM":"가격","WRTTIME_DESC":"2012년 1월"},{"STATBL_ID":"A_2024_00061","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"201201","GRP_ID":null,"GRP_NM":null,"CLS_ID":510043,"CLS_NM":"동구","ITM_ID":100001,"ITM_NM":"가격","DTA_VAL":1632,"UI_NM":"천원/㎡","GRP_FULLNM":null,"CLS_FULLNM":"광주>동구","ITM_FULLNM":"가격","WRTTIME_DESC":"2012년 1월"},{"STATBL_ID":"A_2024_00061","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"201201","GRP_ID":null,"GRP_NM":null,"CLS_ID":510049,"CLS_NM":"동구","ITM_ID":100001,"ITM_NM":"가격","DTA_VAL":2035,"UI_NM":"천원/㎡","GRP_FULLNM":null,"CLS_FULLNM":"대전>동구","ITM_FULLNM":"가격","WRTTIME_DESC":"2012년 1월"},{"STATBL_ID":"A_2024_00061","DTACYCLE_CD":"MM","WRTTIME_IDTFR_ID":"201201","GRP_ID":
->> SttsApiTblData row 수: 8
->> row[0] keys: ['STATBL_ID', 'DTACYCLE_CD', 'WRTTIME_IDTFR_ID', 'GRP_ID', 'GRP_NM', 'CLS_ID', 'CLS_NM', 'ITM_ID', 'ITM_NM', 'DTA_VAL', 'UI_NM', 'GRP_FULLNM', 'CLS_FULLNM', 'ITM_FULLNM', 'WRTTIME_DESC']
->> row[0]: {"STATBL_ID": "A_2024_00061", "DTACYCLE_CD": "MM", "WRTTIME_IDTFR_ID": "201201", "GRP_ID": null, "GRP_NM": null, "CLS_ID": 510020, "CLS_NM": "중구", "ITM_ID": 100001, "ITM_NM": "가격", "DTA_VAL": 2410, "UI_NM": "천원/㎡", "GRP_FULLNM": null, "CLS_FULLNM": "인천>중구", "ITM_FULLNM": "가격", "WRTTIME_DESC": "2012년 1월"}
->> row[-1]: {"STATBL_ID": "A_2024_00061", "DTACYCLE_CD": "MM", "WRTTIME_IDTFR_ID": "201201", "GRP_ID": null, "GRP_NM": null, "CLS_ID": 510103, "CLS_NM": "포항시", "ITM_ID": 100001, "ITM_NM": "가격", "DTA_VAL": 1479, "UI_NM": "천원/㎡", "GRP_FULLNM": null, "CLS_FULLNM": "경북>포항시", "ITM_FULLNM": "가격", "WRTTIME_DESC": "2012년 1월"}
-
-## end-to-end fetch_realestate_kr()
-  jns_price_idx_kr: value=219926.0 chg=None period=201201 source=R-ONE:A_2024_00027 histlen=1
-  start_kr: value=92.73 chg=None period=201506 source=R-ONE:A_2024_00057 histlen=1
-  [catalog '매매가격지수'] [('A_2024_00615', '(월) 오피스텔 매매가격지수(시계열)'), ('T244523133223976', '(월) 오피스텔 규모별 매매가격지수(2024년1월~)'), ('A_2024_00616', '(월) 오피스텔 규모별 매매가격지수(2020년7월~2023년12월)'), ('A_2024_00617', '(월) 오피스텔 규모별 매매가격지수(2018년~2020년6월)')]
-  [catalog '전세가격지수'] [('A_2024_00618', '(월) 오피스텔 전세가격지수(시계열)'), ('T242403133236554', '(월) 오피스텔 규모별 전세가격지수(2024년1월~)'), ('A_2024_00619', '(월) 오피스텔 규모별 전세가격지수(2020년7월~2023년12월)'), ('A_2024_00620', '(월) 오피스텔 규모별 전세가격지수(2018년~2020년6월)')]
-  [catalog '거래현황'] [('A_2024_00532', '(월) 행정구역별 토지거래현황'), ('A_2024_00648', '(월) 용도지역별 토지거래현황'), ('A_2024_00649', '(월) 지목별 토지거래현황'), ('A_2024_00650', '(월) 매입자거주지별 토지거래현황'), ('A_2024_00651', '(월) 거래주체별 토지거래현황'), ('A_2024_00652', '(월) 거래규모별 토지거래현황'), ('A_2024_00653', '(월) 거래원인별 토지거래현황'), ('A_2024_00654', '(월) 건물용도별 토지거래현황')]
+===== 전세 (월) 전세가격지수_아파트  STATBL_ID=A_2024_00050 =====
+[A] pSize=500 → INFO-000 500rows
+[A] 고유 CLS 수=175  ITM={100001: '지수'}  첫행 period=200311
+[A] '전국' CLS_ID = 500001
+[A] 최상위(집계) CLS 후보: {500001: '전국', 500002: '수도권', 500003: '지방권', 500004: '6대광역시', 500005: '5대광역시', 500006: '9개도', 500007: '8개도', 500008: '서울', 500009: '경기', 500010: '인천', 500011: '부산', 500012: '대구', 500013: '광주', 500014: '대전', 500015: '울산'}
+[B] CLS_ID=500001 pSize=800 → EXC ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
 
