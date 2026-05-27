@@ -1,0 +1,11 @@
+python3 - <<'EOF'
+import requests
+KEY='2e3efb261b524b8eacde37220a909655'   # 또는 본인 REALESTATE_API_KEY
+for sid,name in [('A_2024_00045','매매·아파트'),('A_2024_00050','전세·아파트')]:
+    r=requests.get('https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do',
+        params={'KEY':KEY,'Type':'json','pIndex':1,'pSize':6,'STATBL_ID':sid,
+                'DTACYCLE_CD':'MM','WRTTIME_IDTFR_ID_FROM':'202501','WRTTIME_IDTFR_ID_TO':'202512'},
+        timeout=20, headers={'User-Agent':'Mozilla/5.0'})
+    print(f'\n=== {name} ({sid}) HTTP {r.status_code} ===')
+    print(r.text[:600])
+EOF
