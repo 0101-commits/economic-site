@@ -7423,36 +7423,27 @@ function getHistoricalSeries(category, name) {
   if(!Array.isArray(arr) || arr.length === 0) return null;
   // {date, close} → {x, y} 변환 (차트 helper와 호환)
   const series = arr.map(p => ({x: p.date, y: p.close}));
-  // 실시간 spot rate 와 차트 마지막 점 동기화 (소스 불일치 방지):
-  //   - fx.<NAME>.rate (open.er-api.com, 현재 시각) 와
-  //     history.fx.<NAME> 마지막 close (yfinance, 전일 종가 기반) 가 다를 수 있음.
-  //   - 화면 헤더의 큰 숫자와 차트 끝점이 동일해야 사용자가 혼란을 겪지 않음.
-  if(category === 'fx' && d.fx && d.fx[name] && d.fx[name].rate != null) {
-    const liveRate = d.fx[name].rate;
-    const today = new Date().toISOString().slice(0,10);
+  // 실시간 spot 값과 차트 끝점 동기화 (소스 불일치 방지) — 전 카테고리 공통 처리:
+  //   history(yfinance/pykrx 일별 종가)와 spot(KRX·실시간 환율)이 서로 다른 소스라
+  //   카드 헤더의 큰 숫자와 차트 끝점이 어긋날 수 있다(예: KOSPI 차트가 며칠 전에서 멈춤).
+  //   끝점을 spot 에 맞춰 모든 카드/상세 모달 차트가 헤더 숫자와 일치하도록 한다.
+  //   fx → rate, indices/commodities → price.
+  const spotMap = category === 'fx' ? d.fx
+                : category === 'indices' ? d.indices
+                : category === 'commodities' ? d.commodities : null;
+  const field = category === 'fx' ? 'rate' : 'price';
+  if(spotMap && spotMap[name] && spotMap[name][field] != null) {
+    const spot = +spotMap[name][field];
     const last = series[series.length - 1];
-    if(last && last.x === today) {
-      last.y = liveRate;
-    } else if(last && last.x !== today) {
-      // 오늘 시리즈가 없으면 추가
-      series.push({x: today, y: liveRate});
-    }
-  }
-  // indices/commodities 도 동일 패턴 적용 (실시간 데이터가 있을 경우)
-  if(category === 'indices' && d.indices && d.indices[name] && d.indices[name].price != null) {
-    const liveRate = d.indices[name].price;
-    const today = new Date().toISOString().slice(0,10);
-    const last = series[series.length - 1];
-    if(last && last.x === today) {
-      last.y = liveRate;
-    }
-  }
-  if(category === 'commodities' && d.commodities && d.commodities[name] && d.commodities[name].price != null) {
-    const liveRate = d.commodities[name].price;
-    const today = new Date().toISOString().slice(0,10);
-    const last = series[series.length - 1];
-    if(last && last.x === today) {
-      last.y = liveRate;
+    if(isFinite(spot) && spot > 0 && last) {
+      // KST 기준 오늘 (data.json 날짜가 KST 이므로 UTC off-by-one 방지)
+      const today = new Date(Date.now() + 9*3600000).toISOString().slice(0,10);
+      if(last.x === today) {
+        last.y = spot;                                    // 오늘 점이 있으면 값 갱신
+      } else if(last.x < today) {
+        const rel = Math.abs(spot - last.y) / (Math.abs(last.y) || 1);
+        if(rel > 1e-4) series.push({x: today, y: spot});  // 새 영업일 — 오늘 점 추가
+      }
     }
   }
   return series;
@@ -11408,10 +11399,15 @@ function applyRealData(d) {
   // 대시보드 메인 차트 (KOSPI 기본)
   // 무한 재렌더 방지: history.KOSPI 데이터가 실제로 변경된 경우에만 재빌드
   if(d.history && d.history.indices && d.history.indices.KOSPI) {
-    const newKospiHash = d.history.indices.KOSPI.length + ':' + (d.history.indices.KOSPI[d.history.indices.KOSPI.length-1]?.close||'');
+    // 메인 차트도 상세 모달과 동일하게 getHistoricalSeries(spot 동기화 경로)를 사용 —
+    // 헤더 숫자와 차트 끝점 불일치 방지
+    const syncedKospi = getHistoricalSeries('indices','KOSPI')
+                      || d.history.indices.KOSPI.map(p => ({x: p.date, y: p.close}));
+    const lastPt = syncedKospi[syncedKospi.length-1] || {};
+    const newKospiHash = syncedKospi.length + ':' + (lastPt.y||'') + ':' + (lastPt.x||'');
     if(_lastKospiHistoryHash !== newKospiHash) {
       _lastKospiHistoryHash = newKospiHash;
-      mainAllData = d.history.indices.KOSPI.map(p => ({x: p.date, y: p.close}));
+      mainAllData = syncedKospi;
       allVol = mainAllData.map(p => ({x: p.x, y: 500000}));
       const dashEl = document.getElementById('page-dashboard');
       if(dashEl && dashEl.classList.contains('active')) {
@@ -11419,17 +11415,18 @@ function applyRealData(d) {
       }
     }
   }
-  // ── 스파크라인 갱신 — 실제 시계열 데이터 사용 (최근 30개 포인트) ──
-  function updateSpark(id, histArr, color) {
-    if(!histArr || !histArr.length) return;
-    const last30 = histArr.slice(-30).map(p => ({x: p.date, y: p.close}));
+  // ── 스파크라인 갱신 — getHistoricalSeries(spot 동기화 경로) 사용 (최근 30포인트) ──
+  // 카드 미니차트도 메인/상세 차트와 동일 경로를 써서 끝점이 헤더 숫자와 일치하도록 함
+  function updateSpark(id, series, color) {
+    if(!series || !series.length) return;
+    const last30 = series.slice(-30);
     if(last30.length < 2) return;
     sparkline(id, last30, color);
   }
   if(d.history) {
-    updateSpark('spark1', d.history.indices?.KOSPI,    '#26a69a');
-    updateSpark('spark2', d.history.fx?.USDKRW,        '#b6c4ff');
-    updateSpark('spark3', d.history.commodities?.WTI,  '#ef5350');
+    updateSpark('spark1', getHistoricalSeries('indices', 'KOSPI'),    '#26a69a');
+    updateSpark('spark2', getHistoricalSeries('fx', 'USDKRW'),        '#b6c4ff');
+    updateSpark('spark3', getHistoricalSeries('commodities', 'WTI'),  '#ef5350');
   }
   const idx = d.indices   || {};
   const fx  = d.fx        || {};
