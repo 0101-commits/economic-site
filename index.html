@@ -8387,7 +8387,7 @@ function showCalGridFloating(idx, evt) {
   destroyChart('calFloatChart');
   const ctx = document.getElementById('calFloatChart');
   if(ctx) {
-    const hist = calHistoryData[e.name];
+    const hist = (typeof _calGetChartSeries === 'function') ? _calGetChartSeries(e) : calHistoryData[e.name];
     if(hist) {
       const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55'};
       charts['calFloatChart'] = new Chart(ctx, {
@@ -8445,7 +8445,8 @@ async function refreshCalFloatingPopup(btn) {
       try {
         destroyChart('calFloatChart');
         const ctx = document.getElementById('calFloatChart');
-        const hist = (typeof calHistoryData !== 'undefined') ? calHistoryData[e.name] : null;
+        const hist = (typeof _calGetChartSeries === 'function') ? _calGetChartSeries(e)
+                   : ((typeof calHistoryData !== 'undefined') ? calHistoryData[e.name] : null);
         if(ctx && hist) {
           const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55'};
           charts['calFloatChart'] = new Chart(ctx, {
@@ -8509,84 +8510,235 @@ async function refreshCalEventDetail(btn) {
   }
 }
 
-// 캘린더 이벤트의 actual 값을 data.json / calHistoryData 에서 자동 백필
-// 매일 9시 GitHub Actions 가 data.json 을 갱신 → loadRealData() 후 호출되어 과거 이벤트 actual 업데이트
-// data.json 미로딩 상태에서도 calHistoryData 의 마지막 값으로 백필 가능
+// ─────────────────────────────────────────────────────────────────────────
+// 캘린더 백필 핵심 헬퍼 — data.json 의 indicator history 에서 MoM/YoY/raw 추출
+// 서버측 backfill_calendar_actuals (scripts/fetch_data.py) 와 동일한 로직을 클라이언트에서 재현.
+// data.json 의 CPI/PCE/PPI/GDP 등은 인덱스 레벨로 저장되므로 (예: cpi_eu=103.0),
+// 단순 v.toFixed(1)+'%' 로는 "103.0%" 같은 비정상 값이 나옴 → 여기서 % 변화율을 계산.
+// ─────────────────────────────────────────────────────────────────────────
+function _calGetByPath(obj, path) {
+  if(!obj || !path) return null;
+  return path.split('.').reduce((o,k) => (o && typeof o === 'object') ? o[k] : null, obj);
+}
+
+// history key 를 YYYYMMDD 8자리 문자열로 정규화하여 비교 가능하게 함.
+// 지원: "YYYY-MM-DD", "YYYY-MM", "YYYYMM", "YYYY", "YYQX", "YYYYQX"
+function _calNormKey(k) {
+  if(k == null) return null;
+  const s = String(k).trim();
+  const compact = s.replace(/-/g,'');
+  if(/^\d{8}$/.test(compact)) return compact;
+  if(/^\d{6}$/.test(compact)) return compact + '01';
+  if(/^\d{4}$/.test(compact)) return compact + '0101';
+  const q = s.match(/^(\d{2}|\d{4})Q([1-4])$/i);
+  if(q) {
+    const y = q[1].length === 2 ? '20'+q[1] : q[1];
+    const monthStart = ['01','04','07','10'][parseInt(q[2])-1];
+    return y + monthStart + '01';
+  }
+  return null;
+}
+
+// 이벤트 ISO 날짜에 해당하는 가장 최근 history key 찾기 (key 정규화 후 ISO 와 비교).
+function _calFindHistKey(history, iso) {
+  if(!history || !iso) return null;
+  const isoNorm = iso.replace(/-/g,'').padEnd(8,'9').slice(0,8); // pad 9 to include same-day keys
+  let bestKey = null, bestNorm = '00000000';
+  for(const k of Object.keys(history)) {
+    const norm = _calNormKey(k);
+    if(!norm) continue;
+    if(norm <= isoNorm && norm > bestNorm) {
+      bestNorm = norm;
+      bestKey = k;
+    }
+  }
+  return bestKey;
+}
+
+// mode='mom': 직전 키 대비, 'yoy': 12개월 전 키 대비, 'delta': 직전 키와의 raw 차이 (NFP 변화량 등).
+function _calComputeChange(history, key, mode) {
+  if(!history || !key) return null;
+  // 정규화 키 기준으로 정렬
+  const entries = Object.keys(history)
+    .map(k => ({ k, n: _calNormKey(k) }))
+    .filter(e => e.n)
+    .sort((a,b) => a.n < b.n ? -1 : a.n > b.n ? 1 : 0);
+  const idx = entries.findIndex(e => e.k === key);
+  if(idx < 0) return null;
+  const cur = history[key];
+  if(cur == null) return null;
+  let prevKey;
+  if(mode === 'mom' || mode === 'delta') {
+    if(idx < 1) return null;
+    prevKey = entries[idx-1].k;
+  } else if(mode === 'yoy') {
+    if(idx < 12) return null;
+    prevKey = entries[idx-12].k;
+  } else {
+    return null;
+  }
+  const prev = history[prevKey];
+  if(prev == null) return null;
+  if(mode === 'delta') return cur - prev;
+  if(prev === 0) return null;
+  return Math.round((cur - prev) / prev * 10000) / 100;
+}
+
+// 포맷 코드별 표시 문자열 생성 (서버 _fmt_indicator 와 호환).
+function _calFmtValue(val, fmt) {
+  if(val == null || isNaN(val)) return '';
+  if(fmt === 'mom1' || fmt === 'yoy1' || fmt === 'pct1') {
+    const sign = val >= 0 ? '+' : '';
+    return `${sign}${val.toFixed(1)}%`;
+  }
+  if(fmt === 'pct2') return `${val.toFixed(2)}%`;
+  if(fmt === 'rate1') return `${val.toFixed(1)}%`;  // 이미 % 단위 (실업률 등) — 부호 없음
+  if(fmt === 'raw1') return val.toFixed(1);
+  if(fmt === 'raw2') return val.toFixed(2);
+  if(fmt === 'k') return `${Math.round(val).toLocaleString('en-US')}K`;
+  if(fmt === 'k_delta') {
+    const sign = val >= 0 ? '+' : '';
+    return `${sign}${Math.round(val).toLocaleString('en-US')}K`;
+  }
+  return String(val);
+}
+
+// 캘린더 이벤트명 → data.json 노드 경로 + 포맷.
+// fmt: 'mom1'/'yoy1' = 변화율 계산 (인덱스에서 추출), 'pct2'/'raw1' = 값 그대로.
+// mode: 'mom'/'yoy'/'delta' = history 에서 변화율 계산, null = node.value 또는 history[key] 그대로.
+const CAL_BACKFILL_MAP = {
+  // 한국 (ECOS — CPI 는 인덱스 레벨, GDP fallback 은 이미 QoQ %)
+  '한국은행 금통위 회의':       { path: 'economicIndicators.kr.base_rate_kr', fmt: 'pct2', mode: null },
+  '한국 소비자물가지수(CPI)':    { path: 'economicIndicators.kr.cpi_kr',       fmt: 'yoy1', mode: 'yoy' },
+  '한국 5월 소비자물가(CPI)':    { path: 'economicIndicators.kr.cpi_kr',       fmt: 'yoy1', mode: 'yoy' },
+  '한국 1분기 GDP (확정)':       { path: 'economicIndicators.kr.gdp_kr',       fmt: 'pct1', mode: null },
+  '한국 수출입 동향':            { path: 'economicIndicators.kr.exports_kr',   fmt: 'yoy1', mode: 'yoy' },
+  '한국 5월 수출입 동향':        { path: 'economicIndicators.kr.exports_kr',   fmt: 'yoy1', mode: 'yoy' },
+  '한국 산업생산지수':           { path: 'economicIndicators.kr.ip_kr',        fmt: 'mom1', mode: 'mom' },
+  '한국 제조업 PMI':             { path: 'economicIndicators.kr.pmi_kr',       fmt: 'raw1', mode: null },
+  // 미국 (FRED — CPI/PCE/PPI/IP/retail/nfp 모두 인덱스 또는 레벨)
+  '미국 CPI (전월비)':           { path: 'economicIndicators.us.cpi_us',       fmt: 'mom1', mode: 'mom' },
+  '미국 CPI (전년비)':           { path: 'economicIndicators.us.cpi_us',       fmt: 'yoy1', mode: 'yoy' },
+  '미국 PCE 물가지수':           { path: 'economicIndicators.us.pce_us',       fmt: 'mom1', mode: 'mom' },
+  '미국 실업률':                 { path: 'economicIndicators.us.unemployment', fmt: 'rate1', mode: null },
+  '미국 FOMC 회의':              { path: 'economicIndicators.us.ff_rate',      fmt: 'pct2', mode: null },
+  '미국 1분기 GDP (2차)':        { path: 'economicIndicators.us.gdp_us',       fmt: 'mom1', mode: 'mom' },
+  '미국 GDP':                    { path: 'economicIndicators.us.gdp_us',       fmt: 'mom1', mode: 'mom' },
+  '미국 비농업고용(NFP)':        { path: 'economicIndicators.us.nfp_us',       fmt: 'k_delta', mode: 'delta' },
+  '미국 PPI':                    { path: 'economicIndicators.us.ppi_us',       fmt: 'mom1', mode: 'mom' },
+  '미국 생산자물가지수(PPI)':    { path: 'economicIndicators.us.ppi_us',       fmt: 'mom1', mode: 'mom' },
+  '미국 ISM 제조업 PMI':         { path: 'economicIndicators.us.pmi_us',       fmt: 'raw1', mode: null },
+  '미국 ISM 서비스 PMI':         { path: 'economicIndicators.us.pmi_us',       fmt: 'raw1', mode: null },
+  '미국 소매판매':               { path: 'economicIndicators.us.retail_us',    fmt: 'mom1', mode: 'mom' },
+  '미국 산업생산':               { path: 'economicIndicators.us.ip_us',        fmt: 'mom1', mode: 'mom' },
+  '미국 ADP 민간고용':           { path: 'economicIndicators.us.nfp_us',       fmt: 'k_delta', mode: 'delta' },
+  // 유로존
+  '유로존 CPI (전년비)':         { path: 'economicIndicators.eu.cpi_eu',       fmt: 'yoy1', mode: 'yoy' },
+  'ECB 통화정책회의':            { path: 'economicIndicators.eu.base_rate_eu', fmt: 'pct2', mode: null },
+  '유로존 제조업 PMI':           { path: 'economicIndicators.eu.pmi_eu',       fmt: 'raw1', mode: null },
+  // 일본
+  '일본 GDP (전기비)':           { path: 'economicIndicators.jp.gdp_jp',       fmt: 'mom1', mode: 'mom' },
+  '일본 BOJ 금리결정':           { path: 'economicIndicators.jp.base_rate_jp', fmt: 'pct2', mode: null },
+  '일본 제조업 PMI':             { path: 'economicIndicators.jp.pmi_jp',       fmt: 'raw1', mode: null },
+  // 중국
+  '중국 CPI (전년비)':           { path: 'economicIndicators.cn.cpi_cn',       fmt: 'yoy1', mode: 'yoy' },
+  '중국 제조업 PMI':             { path: 'economicIndicators.cn.pmi_cn',       fmt: 'raw1', mode: null },
+  // 영국
+  '영국 BOE 금리결정':           { path: 'economicIndicators.uk.base_rate_uk', fmt: 'pct2', mode: null },
+  '영국 CPI (전년비)':           { path: 'economicIndicators.uk.cpi_uk',       fmt: 'yoy1', mode: 'yoy' },
+  '영국 제조업 PMI':             { path: 'economicIndicators.uk.pmi_uk',       fmt: 'raw1', mode: null },
+  // 독일
+  '독일 CPI':                    { path: 'economicIndicators.de.cpi_de',       fmt: 'yoy1', mode: 'yoy' },
+  '독일 제조업 PMI':             { path: 'economicIndicators.de.pmi_de',       fmt: 'raw1', mode: null },
+};
+
+// 캘린더 이벤트의 prev/fore/act 값을 data.json indicator history 에서 자동 백필.
+// 매일 09:00/16:00/22:00 KST GitHub Actions 가 data.json 을 갱신 → 호출되어 stale 값 덮어씀.
+// 1) data.json 에 매칭 지표 history 가 있으면 발표일 시점의 값으로 prev/act 재계산 (인덱스 → MoM/YoY 변환).
+// 2) data.json 미연동이거나 history 없는 경우 → 기존 하드코드 act 유지 또는 calHistoryData 마지막값 사용.
 function autoBackfillCalendarActuals() {
   const d = _latestDataForIndicators || {};
-  const ecoKr = (d.economicIndicators||{}).kr || {};
-  const ecoUs = (d.economicIndicators||{}).us || {};
-  const ecoEu = (d.economicIndicators||{}).eu || {};
-  const ecoJp = (d.economicIndicators||{}).jp || {};
-  const ecoCn = (d.economicIndicators||{}).cn || {};
-  const ecoUk = (d.economicIndicators||{}).uk || {};
-  // 이벤트명 → 백필 소스 (dataPath 또는 calHistoryData 키)
-  // priorityFn: 같은 month/quarter 의 데이터가 있는지 확인하여 actual 추출
-  const sourceMap = {
-    '한국 1분기 GDP (확정)':      { node: ecoKr.gdp_kr, fmt: v=> (v>=0?'+':'')+v.toFixed(1)+'%' },
-    '한국 소비자물가지수(CPI)':    { node: ecoKr.cpi_kr, fmt: v=> v.toFixed(1)+'%' },
-    '한국 산업생산지수':           { node: ecoKr.ip_kr, fmt: v=> (v>=0?'+':'')+v.toFixed(1)+'%' },
-    '한국 수출입 동향':            { node: ecoKr.exports_kr, fmt: v=> (v>=0?'+':'')+v.toFixed(1)+'%' },
-    '한국 5월 수출입 동향':        { node: ecoKr.exports_kr, fmt: v=> (v>=0?'+':'')+v.toFixed(1)+'%' },
-    '한국 5월 소비자물가(CPI)':    { node: ecoKr.cpi_kr, fmt: v=> v.toFixed(1)+'%' },
-    '한국은행 금통위 회의':        { node: ecoKr.base_rate_kr, fmt: v=> v.toFixed(2)+'%' },
-    '미국 CPI (전년비)':           { node: ecoUs.cpi_us, fmt: v=> v.toFixed(1)+'%' },
-    '미국 PCE 물가지수':           { node: ecoUs.pce_us, fmt: v=> v.toFixed(1)+'%' },
-    '미국 실업률':                 { node: ecoUs.unemployment, fmt: v=> v.toFixed(1)+'%' },
-    '미국 FOMC 회의':              { node: ecoUs.ff_rate, fmt: v=> v.toFixed(2)+'%' },
-    '미국 1분기 GDP (2차)':        { node: ecoUs.gdp_us, fmt: v=> (v>=0?'+':'')+v.toFixed(1)+'%' },
-    '유로존 CPI (전년비)':         { node: ecoEu.cpi_eu, fmt: v=> v.toFixed(1)+'%' },
-    'ECB 통화정책회의':            { node: ecoEu.base_rate_eu, fmt: v=> v.toFixed(2)+'%' },
-    '일본 GDP (전기비)':           { node: ecoJp.gdp_jp, fmt: v=> (v>=0?'+':'')+v.toFixed(1)+'%' },
-    '일본 BOJ 금리결정':           { node: ecoJp.base_rate_jp, fmt: v=> v.toFixed(2)+'%' },
-    '중국 CPI (전년비)':           { node: ecoCn.cpi_cn, fmt: v=> v.toFixed(1)+'%' },
-    '영국 BOE 금리결정':           { node: ecoUk.base_rate_uk, fmt: v=> v.toFixed(2)+'%' },
-    // PMI (OECD BSCICP02 시리즈 via FRED, 매일 09:00/22:00 KST 갱신)
-    '미국 ISM 제조업 PMI':         { node: ecoUs.pmi_us, fmt: v=> v.toFixed(1) },
-    '미국 ISM 서비스 PMI':         { node: ecoUs.pmi_us, fmt: v=> v.toFixed(1) },
-    '한국 제조업 PMI':             { node: ecoKr.pmi_kr, fmt: v=> v.toFixed(1) },
-    '중국 제조업 PMI':             { node: ecoCn.pmi_cn, fmt: v=> v.toFixed(1) },
-    '일본 제조업 PMI':             { node: ecoJp.pmi_jp, fmt: v=> v.toFixed(1) },
-    '유로존 제조업 PMI':           { node: ecoEu.pmi_eu, fmt: v=> v.toFixed(1) },
-    '영국 제조업 PMI':             { node: ecoUk.pmi_uk, fmt: v=> v.toFixed(1) },
-    '독일 제조업 PMI':             { node: (d.economicIndicators||{}).de?.pmi_de, fmt: v=> v.toFixed(1) },
-    // 보조 — Alpha Vantage US 지표 (FRED 누락 시 폴백)
-    '미국 PPI':                    { node: ecoUs.cpi_us, fmt: v=> v.toFixed(1)+'%' },
-    '미국 소매판매':               { node: ecoUs.av_retail_sales, fmt: v=> v.toFixed(1) },
-    '미국 ADP 민간고용':           { node: ecoUs.av_nfp, fmt: v=> v.toFixed(0)+'K' },
-    '미국 신규 실업수당청구':      { node: ecoUs.unemployment, fmt: v=> v.toFixed(1)+'%' },
-  };
   const now = new Date();
   const curYear = now.getFullYear();
-  let updated = 0;
+  let updated = 0, overrode = 0;
   for(const e of calEvents) {
-    if(e.act && e.act !== '예정' && e.act !== '') continue;  // 이미 값 있으면 건너뜀
-    // 이벤트 날짜 파싱 ('MM.DD HH:mm' → Date)
+    // 이벤트 날짜 파싱 ('MM.DD HH:mm' → Date, 현재 연도 기준)
     const m = e.dt.match(/(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
     if(!m) continue;
-    const evDate = new Date(curYear, parseInt(m[1])-1, parseInt(m[2]), parseInt(m[3]), parseInt(m[4]));
+    const evMonth = parseInt(m[1]);
+    const evDay = parseInt(m[2]);
+    const evDate = new Date(curYear, evMonth-1, evDay, parseInt(m[3]), parseInt(m[4]));
     if(evDate > now) continue;  // 미래 이벤트는 그대로 둠
-    // 1) data.json 의 economicIndicators 에서 매칭
-    const src = sourceMap[e.name];
-    if(src && src.node && src.node.value != null) {
-      try {
-        e.act = src.fmt(src.node.value);
-        // beat 계산 — 예측값과 비교
-        const foreNum = parseFloat(String(e.fore||'').replace(/[%+]/g,''));
-        const actNum = src.node.value;
-        if(!isNaN(foreNum) && !isNaN(actNum)) {
-          // 임계값 0.05 (소수점 첫째자리 이하 차이는 동률)
-          if(Math.abs(actNum - foreNum) < 0.05) e.beat = 0;
-          // 'lower=better' 지표 (CPI, PPI, 실업률 등) — 낮을수록 긍정
-          else if(/CPI|PPI|물가|실업|미분양/.test(e.name)) e.beat = (actNum < foreNum) ? 1 : -1;
-          // 그 외 (GDP, 수출, 산업생산) — 높을수록 긍정
-          else e.beat = (actNum > foreNum) ? 1 : -1;
+    const evIso = `${curYear}-${String(evMonth).padStart(2,'0')}-${String(evDay).padStart(2,'0')}`;
+    // 1) data.json 의 indicator history 에서 발표일 시점 값 계산
+    const mp = CAL_BACKFILL_MAP[e.name];
+    let backfilledFromJson = false;
+    if(mp) {
+      const node = _calGetByPath(d, mp.path);
+      if(node && typeof node === 'object') {
+        const history = node.history || {};
+        const histKeys = Object.keys(history);
+        let actVal = null, prevVal = null, actKey = null;
+        if(histKeys.length) {
+          actKey = _calFindHistKey(history, evIso);
+          if(actKey != null) {
+            actVal = mp.mode ? _calComputeChange(history, actKey, mp.mode) : history[actKey];
+          }
+        } else if(node.value != null && !mp.mode) {
+          // history 없으면 현재값 사용 (raw 모드만, % 변화는 계산 불가)
+          actVal = node.value;
         }
-        updated++;
-        continue;
-      } catch(_) { /* fall through */ }
+        // 금리(pct2) prev: 동일값 연속이 많으므로 "직전 값이 다른" key 를 찾음
+        if(actVal != null && actKey && mp.fmt === 'pct2' && !mp.mode) {
+          const sorted = histKeys
+            .map(k => ({k, n:_calNormKey(k)}))
+            .filter(x => x.n)
+            .sort((a,b)=>a.n<b.n?-1:a.n>b.n?1:0);
+          const idx = sorted.findIndex(x => x.k === actKey);
+          for(let i = idx - 1; i >= 0; i--) {
+            const v = history[sorted[i].k];
+            if(v != null && Math.abs(v - actVal) > 0.0001) { prevVal = v; break; }
+          }
+        } else if(actVal != null && actKey) {
+          // 일반: 직전 history 키 값 (mp.mode 가 있으면 또 변화율로 환산)
+          const sorted = histKeys
+            .map(k => ({k, n:_calNormKey(k)}))
+            .filter(x => x.n)
+            .sort((a,b)=>a.n<b.n?-1:a.n>b.n?1:0);
+          const idx = sorted.findIndex(x => x.k === actKey);
+          if(idx > 0) {
+            const pk = sorted[idx-1].k;
+            prevVal = mp.mode ? _calComputeChange(history, pk, mp.mode) : history[pk];
+          }
+        }
+        if(actVal != null && !isNaN(actVal)) {
+          const newAct = _calFmtValue(actVal, mp.fmt);
+          if(newAct) {
+            const wasFilled = e.act && e.act !== '예정' && e.act !== '';
+            if(wasFilled && e.act !== newAct) overrode++;
+            e.act = newAct;
+            if(prevVal != null && !isNaN(prevVal)) {
+              const newPrev = _calFmtValue(prevVal, mp.fmt);
+              if(newPrev) e.prev = newPrev;
+            }
+            // beat 계산 — 예측값과 비교
+            const foreNum = parseFloat(String(e.fore||'').replace(/[%+,]/g,'').replace(/[Kk]/g,''));
+            if(!isNaN(foreNum)) {
+              const cmp = actVal;
+              if(Math.abs(cmp - foreNum) < 0.05) e.beat = 0;
+              else if(/CPI|PPI|물가|실업|미분양/.test(e.name)) e.beat = (cmp < foreNum) ? 1 : -1;
+              else e.beat = (cmp > foreNum) ? 1 : -1;
+            }
+            updated++;
+            backfilledFromJson = true;
+          }
+        }
+      }
     }
-    // 2) calHistoryData 의 마지막 값으로 백필 (실제 data.json 미연동인 경우)
+    if(backfilledFromJson) continue;
+    // 2) data.json 매칭 실패 → 기존 하드코드 act 유지 (작년에 입력된 값일 수 있어 안내 가치는 떨어지지만 fallback)
+    if(e.act && e.act !== '예정' && e.act !== '') continue;
+    // 3) calHistoryData 마지막 값으로 백필 (data.json 미연동인 경우 최후 폴백)
     const hist = calHistoryData[e.name];
     if(hist && hist.vals && hist.vals.length) {
       const lastVal = hist.vals[hist.vals.length - 1];
@@ -8602,7 +8754,59 @@ function autoBackfillCalendarActuals() {
       updated++;
     }
   }
-  if(updated > 0) console.info(`[Calendar] ${updated}개 이벤트 actual 자동 백필 완료`);
+  if(updated > 0) {
+    if(overrode > 0) console.info(`[Calendar] ${updated}개 이벤트 actual 백필 (stale 하드코드 ${overrode}개 덮어씀)`);
+    else console.info(`[Calendar] ${updated}개 이벤트 actual 자동 백필 완료`);
+  }
+}
+
+// 캘린더 이벤트의 차트 시리즈를 data.json history 에서 동적으로 생성.
+// CAL_BACKFILL_MAP 에 매핑이 있고 history 가 충분하면 신선한 시리즈 반환,
+// 없으면 calHistoryData 의 하드코드 폴백 사용.
+function _calGetChartSeries(e) {
+  if(!e) return null;
+  const mp = CAL_BACKFILL_MAP[e.name];
+  const d = _latestDataForIndicators;
+  if(mp && d) {
+    const node = _calGetByPath(d, mp.path);
+    if(node && node.history) {
+      const sorted = Object.keys(node.history)
+        .map(k => ({k, n:_calNormKey(k)}))
+        .filter(x => x.n)
+        .sort((a,b)=>a.n<b.n?-1:a.n>b.n?1:0);
+      // 최근 24~30개 데이터 포인트 (YoY 는 12개월 전 키 필요)
+      const sliceN = (mp.mode === 'yoy') ? 30 : 24;
+      const tail = sorted.slice(-sliceN);
+      const labels = [], vals = [];
+      for(const x of tail) {
+        let v;
+        if(mp.mode) {
+          v = _calComputeChange(node.history, x.k, mp.mode);
+        } else {
+          v = node.history[x.k];
+        }
+        if(v == null || isNaN(v)) continue;
+        // 라벨: YYYYMMDD → YY.MM
+        const norm = x.n; // YYYYMMDD
+        labels.push(`${norm.slice(2,4)}.${norm.slice(4,6)}`);
+        vals.push(v);
+      }
+      if(vals.length >= 2) {
+        const fb = (typeof calHistoryData !== 'undefined') ? (calHistoryData[e.name] || {}) : {};
+        const unit = (mp.fmt === 'k' || mp.fmt === 'k_delta') ? 'K' :
+                     /^(mom1|yoy1|pct1|pct2|rate1)$/.test(mp.fmt) ? '%' :
+                     (fb.unit || '');
+        return {
+          labels,
+          vals,
+          color: fb.color || '#2962ff',
+          unit,
+        };
+      }
+    }
+  }
+  // 폴백: 하드코드된 calHistoryData
+  return (typeof calHistoryData !== 'undefined') ? calHistoryData[e.name] : null;
 }
 
 // data.json.economicCalendar.events 를 calEvents 에 머지
@@ -8617,28 +8821,37 @@ function mergeServerCalendar() {
   const flagMap = {KR:'🇰🇷', US:'🇺🇸', EU:'🇪🇺', JP:'🇯🇵', CN:'🇨🇳', UK:'🇬🇧', DE:'🇩🇪'};
   // 월 다회 발표가 정상인 이벤트는 month-dedup 에서 제외 (FOMC, 주간실업수당청구)
   const MULTI_PER_MONTH_NAMES = new Set(['미국 FOMC 회의', '미국 신규 실업수당청구']);
-  // 기존 (dt + name) 키 집합
-  const existing = new Set(calEvents.map(e => `${e.dt}|${e.name}`));
+  // 동일 이벤트의 다른 이름(서버 vs 클라이언트 하드코드) 별칭 — 같은 이벤트로 dedup.
+  // 정규화 키 = 별칭 그룹의 대표명. 서버가 '미국 PPI' 보내고 클라가 '미국 생산자물가지수(PPI)' 가지면 같은 그룹으로 인식.
+  const NAME_ALIAS = {
+    '미국 PPI': '미국 생산자물가지수(PPI)',
+    '미국 생산자물가지수(PPI)': '미국 생산자물가지수(PPI)',
+    '미국 ISM 제조업 PMI': '미국 ISM 제조업 PMI',
+    '미국 ISM 서비스 PMI': '미국 ISM 서비스 PMI',
+  };
+  const normName = n => NAME_ALIAS[n] || n;
+  // 기존 (dt + name) 키 집합 (정규화 이름 사용)
+  const existing = new Set(calEvents.map(e => `${e.dt}|${normName(e.name)}`));
   // (cc, name, YYYY-MM) 단위로 1개씩만 추가 — 서버 dedup 안전망
   const nameMonthSeen = new Set();
   for(const e of calEvents) {
-    // 기존 calEvents 항목은 iso 없으니 dt('MM.DD ...') 기준 추정 (현재 연도 기준)
     if(MULTI_PER_MONTH_NAMES.has(e.name)) continue;
     const cc = e.cc || '';
     const mm = (e.dt || '').slice(0,2);  // 'MM'
-    nameMonthSeen.add(`${cc}|${e.name}|${mm}`);
+    nameMonthSeen.add(`${cc}|${normName(e.name)}|${mm}`);
   }
   let added = 0;
   let dedupSkipped = 0;
   for(const ev of serverCal) {
     if(!ev || !ev.dt || !ev.name) continue;
-    const key = `${ev.dt}|${ev.name}`;
+    const evNorm = normName(ev.name);
+    const key = `${ev.dt}|${evNorm}`;
     if(existing.has(key)) continue;
     // 동일 (cc, name, YYYY-MM) 중복 제거 (서버 dedup 안전망)
     if(!MULTI_PER_MONTH_NAMES.has(ev.name)) {
       const isoYM = (ev.iso || '').slice(0,7); // YYYY-MM
       const ccMm = isoYM ? isoYM.slice(5,7) : (ev.dt || '').slice(0,2);
-      const nmKey = `${ev.cc || ''}|${ev.name}|${ccMm}`;
+      const nmKey = `${ev.cc || ''}|${evNorm}|${ccMm}`;
       if(nameMonthSeen.has(nmKey)) { dedupSkipped++; continue; }
       nameMonthSeen.add(nmKey);
     }
@@ -8646,7 +8859,7 @@ function mergeServerCalendar() {
       dt: ev.dt,
       cc: ev.cc || 'US',
       flag: flagMap[ev.cc] || '',
-      name: ev.name,
+      name: evNorm,  // 정규화된 이름으로 저장 → CAL_BACKFILL_MAP / calHistoryData 매칭 보장
       stars: ev.stars || 2,
       prev: ev.prev || '',
       fore: ev.fore || '',
@@ -8829,7 +9042,7 @@ function _renderCalDetailChart() {
   const e = calEvents[idx];
   if(!e) return;
   destroyChart('calDetailChart');
-  const hist = calHistoryData[e.name];
+  const hist = (typeof _calGetChartSeries === 'function') ? _calGetChartSeries(e) : calHistoryData[e.name];
   const canvas = document.getElementById('calDetailChart');
   // 가이드 표시 — 이벤트명으로 매크로 가이드 매칭
   const guideEl = document.getElementById('calDetailGuide');
