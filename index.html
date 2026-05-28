@@ -8915,6 +8915,24 @@ function buildCalendar(){
     return calFilterCC.has(e.cc) && calFilterStars.has(e.stars);
   });
 
+  // 일시 오름차순 정렬 (MM.DD HH:MM) — '다음 달' 필터가 연말을 가로지를 때 12월/1월 순서를 유지하기 위해
+  // 표시 중인 월 컨텍스트(_calGridYear/_calGridMonth)에 맞춰 연도 보정.
+  filtered.sort((a, b) => {
+    const _toMs = (e) => {
+      const m = e.dt.match(/(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
+      if(!m) return 0;
+      const mo = parseInt(m[1],10), dy = parseInt(m[2],10), hr = parseInt(m[3],10), mi = parseInt(m[4],10);
+      // 표시 중인 기간이 '다음 달' 이고 다음 달이 1월(=12월말 → 익년 1월) 인 경우 연도 보정
+      let yr = now.getFullYear();
+      if(period === '다음 달' && month === 12 && mo === 1) yr++;
+      return new Date(yr, mo-1, dy, hr, mi).getTime();
+    };
+    return _toMs(a) - _toMs(b);
+  });
+
+  // 오늘 날짜 (MM.DD) — 행 하이라이트용
+  const todayMD = `${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+
   const upcoming = filtered.filter(e => !e.act);
   document.getElementById('calHighlights').innerHTML = upcoming.slice(0,3).map(e=>`
     <div class="kpi-card">
@@ -8936,8 +8954,16 @@ function buildCalendar(){
       : e.beat===-1 ? 'class="down-txt"'
       : '';
     const calIdx = calEvents.indexOf(e);
-    return `<tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onclick="showCalendarEventDetail(${calIdx})" title="클릭하여 과거 추이 보기">
-      <td style="padding:8px;">${e.dt}</td>
+    // 오늘 발표 이벤트 — 행 배경 약간 짙게 + 좌측 강조선
+    const isToday = e.dt.startsWith(todayMD);
+    const rowStyle = isToday
+      ? 'background:rgba(41,98,255,0.10);border-left:3px solid #2962ff;border-bottom:1px solid #2a2e3d;cursor:pointer;'
+      : 'border-bottom:1px solid #1b1f2b;cursor:pointer;';
+    const dtCell = isToday
+      ? `<td style="padding:8px;font-weight:600;color:#b6c4ff;">${e.dt} <span style="font-size:9px;background:#2962ff;color:#fff;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:600;">오늘</span></td>`
+      : `<td style="padding:8px;">${e.dt}</td>`;
+    return `<tr style="${rowStyle}" onclick="showCalendarEventDetail(${calIdx})" title="클릭하여 과거 추이 보기">
+      ${dtCell}
       <td style="text-align:center;padding:8px;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
       <td style="padding:8px;">${e.name} <span style="font-size:9px;color:#2962ff;">↓</span></td>
       <td style="text-align:center;padding:8px;color:#f5a623;">${'★'.repeat(e.stars)}</td>
