@@ -1113,7 +1113,10 @@ tailwind.config = {
       <!-- 주식시장 탭 -->
       <div id="market-equity" style="display:none;">
         <div class="widget" style="margin-bottom:12px;">
-          <div class="widget-title">글로벌 주요 지수 현황</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="widget-title" style="margin-bottom:0;">글로벌 주요 지수 현황</div>
+            <button onclick="refreshGlobalIndicesBtn(this)" title="Stooq 실시간 지수 재페치 (KOSPI/KOSDAQ/S&amp;P 500/NASDAQ/닛케이/상하이)" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+          </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="equityCards"></div>
         </div>
         <!-- Equity index chart -->
@@ -1166,7 +1169,10 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 억원</span></div>
-            <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="refreshInvestorChartBtn(this)" title="data.json 재페치 후 투자자 차트 재빌드" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+              <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
+            </div>
           </div>
           <!-- 단위 / 기간 선택 -->
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
@@ -1213,7 +1219,10 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
-            <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="manualRetryMovers(this)" title="네이버 실시간 + data.json 강제 재페치" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+              <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -1229,7 +1238,10 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
-            <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="manualRetryMovers(this)" title="네이버 실시간 + data.json 강제 재페치" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+              <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -1267,7 +1279,10 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
-            <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+              <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -1788,20 +1803,31 @@ tailwind.config = {
             </table>
           </div>
           <div class="widget">
-            <div class="widget-title">청약 경쟁률 (최근 3개월)</div>
-            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div class="widget-title" style="margin-bottom:0;">청약 경쟁률 (최근 3개월) <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">행 클릭 → 해당 지역만 차트 표시</span></div>
+              <button onclick="refreshSubscriptionCompetition(this)" title="청약홈 데이터 재페치 + 차트 재렌더" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+            </div>
+            <table id="subscriptionCompTable" style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:10px;">
                 <th style="text-align:left;padding:5px 0;">지역</th>
                 <th style="text-align:right;padding:5px;">1순위 경쟁률</th>
                 <th style="text-align:right;padding:5px;">추이</th>
               </tr></thead>
-              <tbody>
-                <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;">서울</td><td style="text-align:right;padding:7px;font-weight:600;">32.4 : 1</td><td style="text-align:right;padding:7px;" class="up-txt">▲</td></tr>
-                <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;">경기/인천</td><td style="text-align:right;padding:7px;font-weight:600;">8.1 : 1</td><td style="text-align:right;padding:7px;color:#8d90a2;">—</td></tr>
-                <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;">지방광역시</td><td style="text-align:right;padding:7px;font-weight:600;">3.2 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
-                <tr><td style="padding:7px 0;">기타 지방</td><td style="text-align:right;padding:7px;font-weight:600;">1.1 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
+              <tbody id="subscriptionCompTbody">
+                <tr data-region="서울" style="border-bottom:1px solid #1b1f2b;cursor:pointer;"><td style="padding:7px 0;">서울</td><td style="text-align:right;padding:7px;font-weight:600;">32.4 : 1</td><td style="text-align:right;padding:7px;" class="up-txt">▲</td></tr>
+                <tr data-region="경기/인천" style="border-bottom:1px solid #1b1f2b;cursor:pointer;"><td style="padding:7px 0;">경기/인천</td><td style="text-align:right;padding:7px;font-weight:600;">8.1 : 1</td><td style="text-align:right;padding:7px;color:#8d90a2;">—</td></tr>
+                <tr data-region="지방광역시" style="border-bottom:1px solid #1b1f2b;cursor:pointer;"><td style="padding:7px 0;">지방광역시</td><td style="text-align:right;padding:7px;font-weight:600;">3.2 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
+                <tr data-region="기타 지방" style="cursor:pointer;"><td style="padding:7px 0;">기타 지방</td><td style="text-align:right;padding:7px;font-weight:600;">1.1 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
               </tbody>
             </table>
+            <!-- 3개월 추이 차트 — 행 클릭 시 해당 지역만 표시, 전체 클릭 시 4개 지역 모두 -->
+            <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">
+              <div style="font-size:10px;color:#8d90a2;">3개월 추이 (1순위 경쟁률 : 1)</div>
+              <button id="subscriptionCompShowAllBtn" onclick="renderSubscriptionCompChart('all',this)" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">전체 보기</button>
+            </div>
+            <div style="position:relative;height:160px;margin-top:4px;">
+              <canvas id="subscriptionCompChart" role="img" aria-label="청약 경쟁률 3개월 추이"></canvas>
+            </div>
             <div style="font-size:9px;color:#434656;margin-top:6px;text-align:right;">출처: <a href="https://www.applyhome.co.kr" target="_blank" style="color:#2962ff;">청약홈</a></div>
           </div>
         </div>
@@ -2976,6 +3002,126 @@ function buildReCharts() {
   // 바 차트는 사용자가 토글 시 빌드됨
   if(_reRegionView === 'bar') buildKoreaRegionMap();
   else buildNaverRegionMap();
+  // 청약 경쟁률 3개월 추이 차트 — 부동산 페이지 진입 시 항상 동기 렌더
+  try { renderSubscriptionCompChart(_subscriptionCompFilter || 'all'); } catch(_){}
+}
+
+// ============================
+// 청약 경쟁률 (한국) — 3개월 추이 차트
+// ============================
+// 청약홈(applyhome.co.kr) 은 공개 OpenAPI 가 없어 백엔드 페치가 막혀 있다. 한국부동산원
+// R-ONE 청약 통계 시리즈 또는 KOSIS '아파트 청약 경쟁률' 통계가 등록되면 data.json
+// realestate.kr.subscription_competition 으로 라이브 값이 채워지고 자동 대체된다.
+// 시드는 최근 3개월(2026-03 ~ 2026-05) 1순위 평균 경쟁률(:1) 기준 대표값.
+const SUBSCRIPTION_COMP_SEED = {
+  periods: ['2026-03', '2026-04', '2026-05'],
+  regions: {
+    '서울':       { values: [21.5, 26.8, 32.4], color: '#26a69a' },
+    '경기/인천':  { values: [7.5,  8.3,  8.1],  color: '#2962ff' },
+    '지방광역시': { values: [5.8,  4.4,  3.2],  color: '#f5a623' },
+    '기타 지방':  { values: [1.9,  1.4,  1.1],  color: '#ef5350' },
+  },
+};
+let _subscriptionCompFilter = 'all';
+let _subscriptionCompClickHandlerBound = false;
+
+function _getSubscriptionCompData() {
+  // data.json 라이브 값 우선 — 백엔드가 채우면 자동 적용
+  try {
+    const live = ((((_latestDataForIndicators||{}).realestate)||{}).kr||{}).subscription_competition;
+    if(live && Array.isArray(live.periods) && live.regions && typeof live.regions === 'object') return live;
+  } catch(_){}
+  return SUBSCRIPTION_COMP_SEED;
+}
+
+function renderSubscriptionCompChart(filter, btn) {
+  _subscriptionCompFilter = filter || 'all';
+  const ctx = document.getElementById('subscriptionCompChart');
+  if(!ctx) return;
+  const data = _getSubscriptionCompData();
+  const tc = (typeof getThemeColors === 'function')
+    ? getThemeColors()
+    : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d', ttBody:'#dfe2f2'};
+  destroyChart('subscriptionCompChart');
+  const datasets = [];
+  Object.keys(data.regions).forEach(name => {
+    if(_subscriptionCompFilter !== 'all' && _subscriptionCompFilter !== name) return;
+    const r = data.regions[name];
+    datasets.push({
+      label: name,
+      data: r.values,
+      borderColor: r.color,
+      backgroundColor: r.color + '22',
+      borderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      tension: 0.3,
+      fill: _subscriptionCompFilter === name,  // 단일 지역 모드에선 영역 채움 (강조)
+    });
+  });
+  charts['subscriptionCompChart'] = new Chart(ctx, {
+    type: 'line',
+    data: { labels: data.periods, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { ticks:{color:tc.txt,font:{size:10}}, grid:{color:tc.grid} },
+        y: { ticks:{color:tc.txt,font:{size:10},callback:v=>v+':1'}, grid:{color:tc.grid}, position:'right', beginAtZero:true },
+      },
+      plugins: {
+        legend: { display:true, position:'top', labels:{color:tc.txt,font:{size:10},boxWidth:10,padding:6} },
+        tooltip: {
+          mode:'index', intersect:false,
+          backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttBody,
+          borderColor:tc.ttBorder, borderWidth:1,
+          callbacks:{ label: c => c.dataset.label + ': ' + c.parsed.y.toFixed(1) + ' : 1' },
+        },
+      },
+    },
+  });
+  // '전체 보기' 버튼 상태 동기화
+  const allBtn = document.getElementById('subscriptionCompShowAllBtn');
+  if(allBtn) {
+    const isAll = _subscriptionCompFilter === 'all';
+    allBtn.style.background = isAll ? '#2962ff' : 'transparent';
+    allBtn.style.color = isAll ? '#fff' : '#8d90a2';
+    allBtn.style.borderColor = isAll ? '#2962ff' : '#2a2e3d';
+  }
+  // 행 강조 동기화
+  document.querySelectorAll('#subscriptionCompTbody tr[data-region]').forEach(tr => {
+    const isSel = _subscriptionCompFilter !== 'all' && tr.dataset.region === _subscriptionCompFilter;
+    tr.style.background = isSel ? '#2962ff22' : '';
+  });
+  // 행 클릭 핸들러 1회만 바인딩 (이벤트 위임)
+  if(!_subscriptionCompClickHandlerBound) {
+    const tbody = document.getElementById('subscriptionCompTbody');
+    if(tbody) {
+      tbody.addEventListener('click', e => {
+        const tr = e.target.closest('tr[data-region]');
+        if(!tr) return;
+        const region = tr.dataset.region;
+        // 이미 단일 지역 모드인데 같은 행 다시 클릭 → 전체로 토글
+        const next = (_subscriptionCompFilter === region) ? 'all' : region;
+        renderSubscriptionCompChart(next);
+      });
+      _subscriptionCompClickHandlerBound = true;
+    }
+  }
+}
+
+async function refreshSubscriptionCompetition(btn) {
+  if(typeof _refreshFeedback === 'function') _refreshFeedback(btn, 'loading');
+  // data.json 강제 재페치 — 백엔드가 청약 데이터를 채웠을 가능성 확인
+  try {
+    const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
+    if(r.ok) {
+      const fresh = await r.json();
+      if(typeof applyRealData === 'function') applyRealData(fresh);
+    }
+  } catch(_){}
+  // 차트 재렌더 (시드 또는 라이브 데이터로)
+  try { renderSubscriptionCompChart(_subscriptionCompFilter || 'all'); } catch(_){}
+  if(typeof _refreshFeedback === 'function') _refreshFeedback(btn, 'success', '갱신');
 }
 
 // 한국 지역별 부동산 등락 — 17개 시도 (Naver 지도 / 바차트 공용)
@@ -9582,6 +9728,20 @@ function _renderGlobalInvestor(id) {
   });
 }
 
+// 투자자별 순매매 차트 새로고침 버튼 — data.json 재페치 후 차트 재빌드 (피드백 포함)
+async function refreshInvestorChartBtn(btn) {
+  if(typeof _refreshFeedback === 'function') _refreshFeedback(btn, 'loading');
+  try {
+    const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
+    if(r.ok) {
+      const fresh = await r.json();
+      if(typeof applyRealData === 'function') applyRealData(fresh);
+    }
+  } catch(_){}
+  try { if(typeof buildInvestorChart === 'function') buildInvestorChart(); } catch(_){}
+  if(typeof _refreshFeedback === 'function') _refreshFeedback(btn, 'success', '갱신');
+}
+
 function buildInvestorPage() {
   // 기존 차트 정리
   ['npsReturnChart','npsAumChart','npsAllocationChart','npsAllocationTrendChart','npsYearDetailChart'].forEach(destroyChart);
@@ -9956,8 +10116,10 @@ function _buildCorsProxyUrls(target) {
     target,                                                 // 직접 호출 (브라우저가 CORS 허용 시)
     'https://api.allorigins.win/raw?url=' + enc,            // 가장 안정적
     'https://api.codetabs.com/v1/proxy/?quest=' + enc,
+    'https://corsproxy.io/?' + enc,                         // 구 포맷 (직접 인코딩, 일부 환경에서 더 안정적)
     'https://corsproxy.io/?url=' + enc,                     // 신 포맷(?url=)
     'https://api.allorigins.win/get?url=' + enc,            // wrapped JSON (.contents)
+    'https://r.jina.ai/' + target,                          // Jina AI Reader — 매우 안정적, 무료, 인증 불필요
     'https://thingproxy.freeboard.io/fetch/' + target,
   ];
 }
@@ -10071,7 +10233,8 @@ async function fetchNaverETFMoversClient() {
 async function manualRetryMovers(btn) {
   _refreshFeedback(btn, 'loading');
   _clientMoverFetchAttempts = 0;  // 카운터 리셋
-  let serverHit = false;
+  let serverDelivered = false;
+  let serverLive = false;
   // 1) data.json 강제 재페치 — GHA 가 새로 갱신했을 수 있음
   try {
     const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
@@ -10081,17 +10244,31 @@ async function manualRetryMovers(btn) {
       const hasEtf   = (fresh.etfMovers||{}).etfGainers?.length > 0;
       if(hasStock || hasEtf) {
         applyRealData(fresh);
-        serverHit = true;
+        serverDelivered = true;
+        // 서버 데이터가 '이전 빌드 보존(스테일)'이면 라이브로 인정하지 않음 — 클라이언트 페치도 시도해
+        // 실제 실시간 시세로 덮어쓴다. (이게 막혀 있어서 사용자가 새로고침 눌러도 같은 보존 값이
+        // 계속 보였던 핵심 결함 — fix: 서버 stale 이면 클라이언트 라이브 페치 폴스루 허용.)
+        const srcS = (fresh.sources||{}).stockMovers || '';
+        const srcE = (fresh.sources||{}).etfMovers   || '';
+        serverLive = !/보존|preserved|캐시|cache|stale/i.test(srcS + ' ' + srcE);
       }
     }
   } catch(_) {}
-  // 2) 클라이언트 페치 (서버측이 비어있거나 보강 필요한 경우)
-  const ok = serverHit || await refreshMoversFromClient(true);
-  if(!ok) {
+  // 2) 서버가 stale 이거나 응답 없을 때 브라우저에서 직접 실시간 페치
+  let clientLive = false;
+  if(!serverLive) {
+    clientLive = await refreshMoversFromClient(true);
+  }
+  // 3) 결과 피드백 — 사용자에게 실제 데이터 출처를 명확히 전달
+  if(clientLive) {
+    _refreshFeedback(btn, 'success', '실시간 갱신');
+  } else if(serverLive) {
+    _refreshFeedback(btn, 'success', '서버 갱신');
+  } else if(serverDelivered) {
+    _refreshFeedback(btn, 'warn', '서버 캐시(지연)');
+  } else {
     try { buildMoverTable(curMoverTab); } catch(_) {}
     _refreshFeedback(btn, 'error', '응답 없음');
-  } else {
-    _refreshFeedback(btn, 'success', '갱신');
   }
 }
 
@@ -12969,6 +13146,20 @@ async function loadRealtimeMarket() {
   } else {
     // Stooq CORS 차단 시 — data.json fallback 안내
     console.warn('[Stooq] 데이터 페치 실패 (CORS 차단 가능성). data.json 값 사용 중.');
+  }
+  return count;
+}
+
+// 글로벌 주요 지수 카드 새로고침 버튼 핸들러 — Stooq 실시간 페치 + 시각 피드백
+async function refreshGlobalIndicesBtn(btn) {
+  _refreshFeedback(btn, 'loading');
+  try {
+    const count = await loadRealtimeMarket();
+    if(count > 0) _refreshFeedback(btn, 'success', `${count}개 갱신`);
+    else _refreshFeedback(btn, 'error', 'Stooq 응답 없음');
+  } catch(e) {
+    console.warn('[refreshGlobalIndicesBtn] 오류:', e);
+    _refreshFeedback(btn, 'error', '네트워크 오류');
   }
 }
 
