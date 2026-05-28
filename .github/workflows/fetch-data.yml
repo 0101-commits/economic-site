@@ -104,17 +104,28 @@ jobs:
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
           msg="data: 시장 데이터 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
-          # 외부/동시 커밋으로 push 가 거부되면 원격 최신 위에 재배치 후 재시도.
-          # data.json 은 매 런마다 새로 생성되는 산출물이므로 '최신 런이 이긴다' 정책.
+          # data.json 은 매 런마다 생성되는 산출물 — '최신 런이 이긴다' 정책.
+          # 단, data.json 외의 파일(index.html 등)은 절대 커밋에 포함하지 않는다.
+          # (과거 결함: push 거부 후 `git reset --soft` 가 원격의 최신 index.html 을 구버전으로
+          #  되돌리는 변경을 스테이징에 올려, 이어지는 commit 이 프런트 변경을 통째로 되돌렸다.)
+          # 생성한 data.json 을 따로 보관했다가, 매 재시도마다 원격 최신 트리에 그것만 다시 얹는다.
+          cp data.json /tmp/data.json.run
+          git add data.json
+          git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
-            git add data.json
-            git commit -m "$msg" -q || true
             if git push origin "HEAD:${branch}"; then
               echo "push 성공 (시도 ${attempt})"; exit 0
             fi
-            echo "push 실패 (시도 ${attempt}) — 원격 ${branch} 동기화 후 재시도"
+            echo "push 실패 (시도 ${attempt}) — 원격 ${branch} 최신 위에 data.json 만 재적용"
             git fetch origin "${branch}" || true
-            git reset --soft "origin/${branch}" || true
+            # 원격 최신과 정확히 일치(=index.html 등 타 파일 보존)시킨 뒤 data.json 만 덮어쓴다.
+            git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
+            cp /tmp/data.json.run data.json
+            git add data.json
+            if git diff --staged --quiet -- data.json; then
+              echo "원격 data.json 이 이미 최신 — 종료"; exit 0
+            fi
+            git commit -m "$msg" -q || true
             sleep $((attempt * 3))
           done
           echo "::error::data.json push 실패 (재시도 소진)"; exit 1
