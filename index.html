@@ -76,15 +76,50 @@ tailwind.config = {
     --c-surface:  #131722;
     --c-card:     #1b1f2b;
     --c-card-hi:  #262a35;
-    --c-border:   #2a2e3d;
-    --c-txt:      #dfe2f2;
-    --c-txt-dim:  #8d90a2;
-    --c-txt-muted:#434656;
+    --c-border:   #3a4054;        /* 어두운 배경에서 카드 경계가 보이도록 한 단계 밝게 */
+    --c-txt:      #e8ebf5;         /* 본문 텍스트 — 더 밝게 (가독성 ↑) */
+    --c-txt-dim:  #a4a8bc;         /* 보조 텍스트 — #8d90a2 → 더 밝게 */
+    --c-txt-muted:#7a8099;         /* 약한 텍스트 (출처/캡션) — #434656 → 훨씬 밝게 */
     --c-accent:   #2962ff;
-    --c-primary:  #b6c4ff;
+    --c-primary:  #c8d2ff;         /* 강조 라벨 — 약간 밝게 */
     --c-up:       #26a69a;
     --c-down:     #ef5350;
   }
+  /* ======= 다크 테마 — 인라인 스타일 가독성 보강 =======
+     인라인 style="color:#XXX" 으로 박혀있는 다크 톤 색상을 한 단계씩 밝게 매핑.
+     html.light 가 있으면 라이트 오버라이드가 우선 적용되므로 다크 모드에서만 작용. */
+  html:not(.light) [style*="color:#434656"],
+  html:not(.light) [style*="color: #434656"],
+  html:not(.light) [style*="color: rgb(67, 70, 86)"],
+  html:not(.light) [style*="color: rgb(67,70,86)"] { color: #7a8099 !important; }
+  html:not(.light) [style*="color:#8d90a2"],
+  html:not(.light) [style*="color: #8d90a2"],
+  html:not(.light) [style*="color: rgb(141, 144, 162)"],
+  html:not(.light) [style*="color: rgb(141,144,162)"] { color: #a4a8bc !important; }
+  html:not(.light) [style*="color:#dfe2f2"],
+  html:not(.light) [style*="color: #dfe2f2"],
+  html:not(.light) [style*="color: rgb(223, 226, 242)"],
+  html:not(.light) [style*="color: rgb(223,226,242)"] { color: #e8ebf5 !important; }
+  html:not(.light) [style*="color:#b6c4ff"],
+  html:not(.light) [style*="color: #b6c4ff"],
+  html:not(.light) [style*="color: rgb(182, 196, 255)"],
+  html:not(.light) [style*="color: rgb(182,196,255)"] { color: #c8d2ff !important; }
+  /* 다크 테마 — 카드/입력 경계선이 더 잘 보이도록 한 단계 밝게 */
+  html:not(.light) [style*="border:1px solid #2a2e3d"],
+  html:not(.light) [style*="border: 1px solid #2a2e3d"],
+  html:not(.light) [style*="border-top:1px solid #2a2e3d"],
+  html:not(.light) [style*="border-top: 1px solid #2a2e3d"],
+  html:not(.light) [style*="border-bottom:1px solid #2a2e3d"],
+  html:not(.light) [style*="border-bottom: 1px solid #2a2e3d"],
+  html:not(.light) [style*="border-right:1px solid #2a2e3d"],
+  html:not(.light) [style*="border-right: 1px solid #2a2e3d"],
+  html:not(.light) [style*="border-left:1px solid #2a2e3d"],
+  html:not(.light) [style*="border-left: 1px solid #2a2e3d"] { border-color: #3a4054 !important; }
+  html:not(.light) [style*="border-bottom:1px solid #1b1f2b"],
+  html:not(.light) [style*="border-bottom: 1px solid #1b1f2b"] { border-bottom-color: #2a2e3d !important; }
+  /* 사이드바 헤더/푸터 — txt-muted (#434656) 가 어두운 배경에서 거의 안 보임 */
+  nav#sidebar [style*="color:#434656"],
+  nav#sidebar [style*="color: #434656"] { color: #9ea3b8 !important; }
   /* ======= 라이트 테마 오버라이드 ======= */
   html.light {
     --c-bg:       #f5f8fc;
@@ -292,26 +327,26 @@ tailwind.config = {
   .page.active { display: block; }
   /* ======= 글래스모피즘 카드 (다크 테마 기본) ======= */
   .kpi-card {
-    background: rgba(27, 31, 43, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(27, 31, 43, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 14px;
     padding: 16px;
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     transition: transform .15s, border-color .15s, box-shadow .15s;
   }
-  .kpi-card:hover { border-color: rgba(41, 98, 255, 0.35); box-shadow: 0 6px 28px rgba(41, 98, 255, 0.12); }
+  .kpi-card:hover { border-color: rgba(41, 98, 255, 0.45); box-shadow: 0 6px 28px rgba(41, 98, 255, 0.18); }
   .widget {
-    background: rgba(27, 31, 43, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(27, 31, 43, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 14px;
     padding: 16px;
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
-  .widget-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #b6c4ff; margin-bottom: 12px; }
+  .widget-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #c8d2ff; margin-bottom: 12px; }
   /* 글래스 페일 배경 — 어두운 배경에 부드러운 컬러 블롭 추가 */
   body {
     background:
@@ -456,19 +491,19 @@ tailwind.config = {
   .link-card:hover { border-color: var(--c-accent, #2962ff); }
   html.light .link-card { background: #ffffff; border-color: #aac4e6; }
   html.light .link-card:hover { border-color: rgb(53,108,181); }
-  .coming-soon { display: flex; align-items: center; justify-content: center; height: 60vh; flex-direction: column; gap: 12px; color: #434656; }
+  .coming-soon { display: flex; align-items: center; justify-content: center; height: 60vh; flex-direction: column; gap: 12px; color: #7a8099; }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: #131722; }
-  ::-webkit-scrollbar-thumb { background: #2a2e3d; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb { background: #3a4054; border-radius: 2px; }
   .ticker-item { cursor: pointer; }
   .ticker-item:hover { opacity: 0.75; }
   .ticker-wrap:hover .ticker-scroll { animation-play-state: paused; }
-  .news-filter-btn { font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; border:1px solid #2a2e3d; color:#8d90a2; background:#1b1f2b; transition:all .15s; }
+  .news-filter-btn { font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; border:1px solid #3a4054; color:#a4a8bc; background:#1b1f2b; transition:all .15s; }
   .news-filter-btn.act { background:#2962ff; color:#fff; border-color:#2962ff; }
   #sidebar.collapsed { width:0 !important; padding:0 !important; overflow:hidden !important; border-right:none !important; }
-  .range-reset-btn { background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:3px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:6px;line-height:1.2; }
+  .range-reset-btn { background:transparent;border:1px solid #3a4054;color:#a4a8bc;border-radius:3px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:6px;line-height:1.2; }
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
-  .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #2a2e3d;border-radius:4px;padding:2px 6px;font-size:11px; }
+  .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #3a4054;border-radius:4px;padding:2px 6px;font-size:11px; }
   .kpi-clickable:hover { border-color:#2962ff !important; }
   /* ======= 모바일 반응형 ======= */
   /* 모든 그리드는 모바일에서 자동으로 단일/이중 컬럼으로 축소되어 차트 오버플로우 방지 */
@@ -4537,10 +4572,10 @@ function initMainChart(unit, customPriceData) {
         chartClick('main', idx, price, label);
       },
       scales:{
-        x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
-        y:{min:yMin-yPad,max:yMax+yPad,ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#2a2e3d55'},position:'right'}
+        x:{type:'category',ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:8},grid:{color:'#4a526888'}},
+        y:{min:yMin-yPad,max:yMax+yPad,ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#4a526888'},position:'right'}
       },
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
+      plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
   if(charts['mainChart']) charts['mainChart'].resize();
 }
@@ -5754,10 +5789,10 @@ function buildFxChart(seriesData) {
         const label = chart.data.labels[idx];
         chartClick('fx', idx, price, label);
       },
-      scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#2a2e3d55'},
-                 title:{display:true,text:yLabel,color:'#434656',font:{size:9}},position:'right'}},
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
+      scales:{x:{type:'category',ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:6},grid:{color:'#4a526888'}},
+              y:{ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#4a526888'},
+                 title:{display:true,text:yLabel,color:'#7a8099',font:{size:9}},position:'right'}},
+      plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
 }
 
@@ -6050,10 +6085,10 @@ function buildBondChart(series) {
         chartClick('bond', idx, price, label);
       },
       scales:{
-        x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6},grid:{color:'#2a2e3d55'}},
-        y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v.toFixed(2)+'%'},grid:{color:'#2a2e3d55'},position:'right'}
+        x:{type:'category',ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:6},grid:{color:'#4a526888'}},
+        y:{ticks:{color:'#b6bbcf',font:{size:10},callback:v=>v.toFixed(2)+'%'},grid:{color:'#4a526888'},position:'right'}
       },
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>ctx.parsed.y!=null?ctx.parsed.y.toFixed(3)+'%':''}}}
+      plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.parsed.y!=null?ctx.parsed.y.toFixed(3)+'%':''}}}
     }
   });
 }
@@ -6176,9 +6211,9 @@ function buildBondPage() {
             {label:'미국',data:[0.25,4.50,5.50,5.25,4.50],backgroundColor:'#26a69a66',borderRadius:3},
           ]},
     options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}},
-      plugins:{legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}}}}
+      scales:{x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{display:false}},
+              y:{ticks:{color:'#b6bbcf',font:{size:10},callback:fmtPct},grid:{color:'#4a526888'}}},
+      plugins:{legend:{display:true,labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}}}}
   });
   // Global bond yields table
   buildGlobalBondTable();
@@ -6281,11 +6316,11 @@ function buildYieldCurveChart(bondCC) {
       ],
     },
     options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:6,callback:fmtPct},grid:{color:'#2a2e3d55'}}},
+      scales:{x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
+              y:{ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:6,callback:fmtPct},grid:{color:'#4a526888'}}},
       plugins:{
-        legend:{display:true,labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+        legend:{display:true,labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1,
           callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y!=null?c.parsed.y.toFixed(2)+'%':'—')}}
       }
     }
@@ -6371,12 +6406,12 @@ function buildRateHistoryChart() {
     data:{labels:rateHistoryData.labels, datasets},
     options:{responsive:true,maintainAspectRatio:false,
       scales:{
-        x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-        y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}
+        x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
+        y:{ticks:{color:'#b6bbcf',font:{size:10},callback:fmtPct},grid:{color:'#4a526888'}}
       },
       plugins:{
-        legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1}
+        legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1}
       }
     }
   });
@@ -6532,9 +6567,9 @@ function buildEquityIndexChart(series) {
         const idx=pts[0].index, price=chart.data.datasets[0].data[idx], label=chart.data.labels[idx];
         chartClick('equity', idx, price, label);
       },
-      scales:{x:{type:'category',ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8},grid:{color:'#2a2e3d55'}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#2a2e3d55'},position:'right'}},
-      plugins:{legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#b6c4ff',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
+      scales:{x:{type:'category',ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:8},grid:{color:'#4a526888'}},
+              y:{ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#4a526888'},position:'right'}},
+      plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
 }
 
@@ -8995,7 +9030,7 @@ const calHistoryData = {
   '한국은행 금통위 회의':      {labels:['23.11','24.02','24.04','24.05','24.07','24.08','24.10','24.11','25.01','25.05','26.02','26.05'], vals:[3.5,3.5,3.5,3.5,3.5,3.25,3.25,3.25,3.0,2.75,2.75,2.50], color:'#26a69a', unit:'%'},
   'ECB 통화정책회의':          {labels:['23.09','23.10','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.12','26.03','26.05'], vals:[4.5,4.5,4.5,4.5,4.25,3.65,3.15,2.65,2.40,2.50,2.50,2.25], color:'#b6c4ff', unit:'%'},
   '미국 FOMC 회의':            {labels:['23.07','23.09','23.11','24.01','24.03','24.09','24.11','24.12','25.03','25.06','25.12','26.03'], vals:[5.5,5.5,5.5,5.5,5.5,5.0,4.75,4.5,4.5,4.25,4.25,4.25], color:'#f5a623', unit:'%'},
-  '미국 생산자물가지수(PPI)':  {labels:['24.07','24.08','24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','25.06'], vals:[2.2,1.7,1.8,2.4,3.0,3.3,3.7,3.2,2.7,2.0,0.2,-0.5], color:'#8d90a2', unit:'%'},
+  '미국 생산자물가지수(PPI)':  {labels:['24.07','24.08','24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','25.06'], vals:[2.2,1.7,1.8,2.4,3.0,3.3,3.7,3.2,2.7,2.0,0.2,-0.5], color:'#b6bbcf', unit:'%'},
   '미국 소매판매':             {labels:['24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','25.06','26.04','26.05'], vals:[0.4,-0.2,0.8,-0.9,0.9,-0.9,1.4,-0.1,0.4,0.2,0.4,0.1], color:'#b6c4ff', unit:'%'},
   '일본 GDP (전기비)':         {labels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4'], vals:[1.3,0.5,1.0,-0.4,-0.6,0.8,0.9,-0.7,-0.2,0.3,0.1,-0.2], color:'#f5a623', unit:'%'},
   '중국 CPI (전년비)':         {labels:['24.07','24.08','24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','26.04','26.05'], vals:[0.5,0.6,0.4,0.3,-0.5,0.1,0.5,-0.7,-0.1,0.2,-0.1,0.2,-0.1], color:'#ef5350', unit:'%'},
@@ -9367,7 +9402,7 @@ const npsAllocation = [
   {asset:'국내채권', amount:330.2, pct:24.91, target:25.4, color:'#b6c4ff'},
   {asset:'해외채권', amount:104.8, pct:7.90,  target:8.0,  color:'#7e8aff'},
   {asset:'대체투자', amount:155.7, pct:11.74, target:11.4, color:'#f5a623'},
-  {asset:'단기자금', amount:4.4,   pct:0.33,  target:0.3,  color:'#8d90a2'},
+  {asset:'단기자금', amount:4.4,   pct:0.33,  target:0.3,  color:'#b6bbcf'},
 ];
 
 // 자산 배분 추이 — 국민연금 공시 기반 (출처: 국민연금공단 기금운용본부 연차보고서)
@@ -9456,17 +9491,17 @@ function buildNpsReturnChart() {
       data:{labels:npsHistory.map(h=>h.year),
             datasets:[{data:npsHistory.map(h=>h.ret),backgroundColor:npsHistory.map(h=>h.ret>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
       options:{responsive:true,maintainAspectRatio:false,
-        scales:{x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{display:false}},
-                y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}},
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+        scales:{x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{display:false}},
+                y:{ticks:{color:'#b6bbcf',font:{size:10},callback:fmtPct},grid:{color:'#4a526888'}}},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   } else {
     charts['npsReturnChart'] = new Chart(retCtx,{type:'bar',
       data:{labels:npsQuarterlyData.map(q=>q.q),
             datasets:[{data:npsQuarterlyData.map(q=>q.ret),backgroundColor:npsQuarterlyData.map(q=>q.ret>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
       options:{responsive:true,maintainAspectRatio:false,
-        scales:{x:{ticks:{color:'#8d90a2',font:{size:10},maxTicksLimit:12},grid:{display:false}},
-                y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}},
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+        scales:{x:{ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:12},grid:{display:false}},
+                y:{ticks:{color:'#b6bbcf',font:{size:10},callback:fmtPct},grid:{color:'#4a526888'}}},
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   }
 }
 
@@ -9485,9 +9520,9 @@ function showNpsYearDetail(year) {
   charts['npsYearDetailChart'] = new Chart(ctx,{type:'bar',
     data:{labels,datasets:[{data:vals,backgroundColor:vals.map(v=>v!=null&&v>=0?'#26a69acc':'#ef5350cc'),borderRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,
-      scales:{x:{ticks:{color:'#8d90a2',font:{size:11}},grid:{display:false}},
-              y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
+      scales:{x:{ticks:{color:'#b6bbcf',font:{size:11}},grid:{display:false}},
+              y:{ticks:{color:'#b6bbcf',font:{size:10},callback:fmtPct},grid:{color:'#4a526888'}}},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>(ctx.parsed.y>=0?'+':'')+ctx.parsed.y.toFixed(2)+'%'}}}}});
   el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -9504,10 +9539,10 @@ function buildNpsAllocTrendChart() {
              borderWidth:2, pointRadius:3, tension:0.3, fill:false
            })) },
     options:{ responsive:true, maintainAspectRatio:false,
-      scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-               y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'},min:0,max:60} },
-      plugins:{ legend:{display:true,position:'bottom',labels:{color:'#8d90a2',font:{size:10},boxWidth:10,padding:8}},
-                tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}} }
+      scales:{ x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
+               y:{ticks:{color:'#b6bbcf',font:{size:10},callback:fmtPct},grid:{color:'#4a526888'},min:0,max:60} },
+      plugins:{ legend:{display:true,position:'bottom',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10,padding:8}},
+                tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}} }
     }
   });
 }
@@ -9621,7 +9656,7 @@ const GLOBAL_INVESTORS = {
       { name:'L Funds (라이프사이클)',    pct: 18.4, color:'#f5a623' },
       { name:'I Fund (해외 MSCI)',        pct:  6.8, color:'#2962ff' },
       { name:'S Fund (소형주)',           pct:  6.5, color:'#ef5350' },
-      { name:'F Fund (채권 인덱스)',      pct:  2.7, color:'#8d90a2' },
+      { name:'F Fund (채권 인덱스)',      pct:  2.7, color:'#b6bbcf' },
     ],
     holdings_intl: [
       { name:'C Fund (S&P 500 인덱스)', pct: 38.5 },
@@ -9655,7 +9690,7 @@ const GLOBAL_INVESTORS = {
       { name:'사모투자 (PE)', pct: 15.0, color:'#f5a623' },
       { name:'채권/인컴',     pct: 30.0, color:'#b6c4ff' },
       { name:'부동산',         pct: 15.0, color:'#ef5350' },
-      { name:'기타/현금',     pct:  6.0, color:'#8d90a2' },
+      { name:'기타/현금',     pct:  6.0, color:'#b6bbcf' },
     ],
     holdings_intl: [
       { name:'Apple', pct: 1.45 }, { name:'Microsoft', pct: 1.32 },
@@ -9837,10 +9872,10 @@ function buildInvestorPage() {
                borderColor:'#b6c4ff', borderWidth:2, pointRadius:3, fill:true,
                backgroundColor:'#b6c4ff15', tension:0.3 }] },
       options:{ responsive:true, maintainAspectRatio:false,
-        scales:{ x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-                 y:{ticks:{color:'#8d90a2',font:{size:10},callback:v=>v.toLocaleString()+'조'},grid:{color:'#2a2e3d55'}} },
+        scales:{ x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
+                 y:{ticks:{color:'#b6bbcf',font:{size:10},callback:v=>v.toLocaleString()+'조'},grid:{color:'#4a526888'}} },
         plugins:{ legend:{display:false},
-                  tooltip:{backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+                  tooltip:{backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1,
                     callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()+'조원'}} }
       }
     });
@@ -9869,7 +9904,7 @@ function buildInvestorPage() {
                backgroundColor:npsAllocation.map(a=>a.color),
                borderWidth:0 }] },
       options:{ responsive:true, maintainAspectRatio:false, cutout:'55%',
-        plugins:{ legend:{display:true,position:'right',labels:{color:'#8d90a2',font:{size:11},boxWidth:12,padding:10}},
+        plugins:{ legend:{display:true,position:'right',labels:{color:'#b6bbcf',font:{size:11},boxWidth:12,padding:10}},
                   tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}조원 (${(c.raw/1326.0*100).toFixed(1)}%)`}} }
       }
     });
@@ -13260,12 +13295,12 @@ function buildRateHistoryChart() {
     data:{labels, datasets},
     options:{responsive:true,maintainAspectRatio:false,
       scales:{
-        x:{ticks:{color:'#8d90a2',font:{size:10}},grid:{color:'#2a2e3d55'}},
-        y:{ticks:{color:'#8d90a2',font:{size:10},callback:fmtPct},grid:{color:'#2a2e3d55'}}
+        x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
+        y:{ticks:{color:'#b6bbcf',font:{size:10},callback:fmtPct},grid:{color:'#4a526888'}}
       },
       plugins:{
-        legend:{display:true,position:'top',labels:{color:'#8d90a2',font:{size:10},boxWidth:10,padding:8}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#dfe2f2',bodyColor:'#dfe2f2',borderColor:'#2a2e3d',borderWidth:1,
+        legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10,padding:8}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1,
           callbacks:{label:c=>c.dataset.label+': '+c.parsed.y.toFixed(2)+'%'}}
       }
     }
@@ -13516,16 +13551,16 @@ function applyStoredTheme() {
 function getThemeColors() {
   const light = document.documentElement.classList.contains('light');
   return {
-    txt:     light ? 'rgb(89,89,89)'  : '#8d90a2',
-    grid:    light ? '#aac4e644'      : '#2a2e3d55',
+    txt:     light ? 'rgb(89,89,89)'  : '#b6bbcf',
+    grid:    light ? '#aac4e644'      : '#4a526888',
     tooltip: light ? '#edf4fb'        : '#262a35',
-    ttBorder:light ? '#aac4e6'        : '#2a2e3d',
-    ttTitle: light ? 'rgb(38,38,38)'  : '#dfe2f2',
-    ttBody:  light ? 'rgb(53,108,181)': '#b6c4ff',
+    ttBorder:light ? '#aac4e6'        : '#3a4054',
+    ttTitle: light ? 'rgb(38,38,38)'  : '#e8ebf5',
+    ttBody:  light ? 'rgb(53,108,181)': '#c8d2ff',
     up:      light ? 'rgb(57,141,139)': '#26a69a',
     down:    light ? 'rgb(219,47,17)' : '#ef5350',
     accent:  light ? 'rgb(53,108,181)': '#2962ff',
-    primary: light ? 'rgb(127,166,217)': '#b6c4ff',
+    primary: light ? 'rgb(127,166,217)': '#c8d2ff',
   };
 }
 
