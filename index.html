@@ -44,6 +44,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Public+Sans:wght@600;700;900&display=swap" rel="stylesheet"/>
 <script>
+  // FOUC 방지 — 렌더 전 라이트 테마 클래스 동기 적용 (기본 라이트, 'dark' 저장 시만 다크)
+  try {
+    if(localStorage.getItem('econ_theme') !== 'dark') {
+      document.documentElement.classList.add('light');
+    }
+  } catch(_){}
+</script>
+<script>
 tailwind.config = {
   darkMode: 'class',
   theme: {
@@ -72,11 +80,11 @@ tailwind.config = {
 <style>
   /* ======= CSS 변수 — 다크 테마 (기본) ======= */
   :root {
-    --c-bg:       #0f131e;
-    --c-surface:  #131722;
-    --c-card:     #1b1f2b;
-    --c-card-hi:  #262a35;
-    --c-border:   #3a4054;        /* 어두운 배경에서 카드 경계가 보이도록 한 단계 밝게 */
+    --c-bg:       #0a0e18;        /* 페이지 bg — 카드가 잘 떠 보이도록 살짝 더 어둡게 */
+    --c-surface:  #1a2236;        /* 카드 표면 — 푸른 톤으로 한 단계 밝게 */
+    --c-card:     #1f2945;
+    --c-card-hi:  #2a3556;
+    --c-border:   #3e4870;        /* 어두운 배경에서 카드 경계가 보이도록 푸른 톤으로 */
     --c-txt:      #e8ebf5;         /* 본문 텍스트 — 더 밝게 (가독성 ↑) */
     --c-txt-dim:  #a4a8bc;         /* 보조 텍스트 — #8d90a2 → 더 밝게 */
     --c-txt-muted:#7a8099;         /* 약한 텍스트 (출처/캡션) — #434656 → 훨씬 밝게 */
@@ -312,54 +320,63 @@ tailwind.config = {
   html.light .clickable-card:hover { background: #d9edf8; }
   /* ======= 기본 스타일 ======= */
   * { box-sizing: border-box; }
-  body { background: var(--c-bg, #0f131e); color: var(--c-txt, #dfe2f2); font-family: 'Inter', sans-serif; margin: 0; overflow-x: hidden; }
+  body { background: var(--c-bg, #0a0e18); color: var(--c-txt, #e8ebf5); font-family: 'Inter', sans-serif; margin: 0; overflow-x: hidden; }
   .mat { font-family: 'Material Symbols Outlined'; font-size: 18px; line-height: 1; vertical-align: middle; }
   .ticker-scroll { animation: tickerMove 40s linear infinite; white-space: nowrap; display: inline-flex; gap: 48px; }
   @keyframes tickerMove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   .ticker-wrap { overflow: hidden; flex: 1; mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent); }
   .tab-btn { transition: all .15s; cursor: pointer; }
   .tab-btn.active { background: #2962ff; color: #fff; }
-  .tab-btn:not(.active):hover { background: #262a35; }
-  .menu-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; color: #b6bdd4; transition: all .15s; }
-  .menu-item:hover { background: rgba(255, 255, 255, 0.08); color: #ffffff; }
-  .menu-item.active { background: rgba(41, 98, 255, 0.18); color: #ffffff; border: 1px solid rgba(41, 98, 255, 0.25); }
+  .tab-btn:not(.active):hover { background: rgba(170, 195, 255, 0.12); }
+  .menu-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; color: #d4dae8; transition: all .15s; }
+  .menu-item:hover { background: rgba(170, 195, 255, 0.10); color: #ffffff; }
+  .menu-item.active { background: rgba(41, 98, 255, 0.22); color: #ffffff; border: 1px solid rgba(110, 145, 255, 0.35); }
   .page { display: none; }
   .page.active { display: block; }
-  /* ======= 글래스모피즘 카드 (다크 테마 기본) ======= */
+  /* ======= 글래스모피즘 카드 (다크 테마 기본) =======
+     페이지 bg(#0f131e) 보다 카드 표면이 확실히 밝아야 카드가 "떠 있는" 느낌이 살아남.
+     라이트 테마와 동일한 구조: 한 단계 밝은 표면 + 청회색 톤의 보더 + 윤곽 하이라이트 */
   .kpi-card {
-    background: rgba(27, 31, 43, 0.62);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(180deg, rgba(78, 95, 135, 0.32), rgba(48, 60, 92, 0.28));
+    border: 1px solid rgba(170, 195, 255, 0.18);
     border-radius: 14px;
     padding: 16px;
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.10),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.03);
     transition: transform .15s, border-color .15s, box-shadow .15s;
   }
-  .kpi-card:hover { border-color: rgba(41, 98, 255, 0.45); box-shadow: 0 6px 28px rgba(41, 98, 255, 0.18); }
+  .kpi-card:hover { border-color: rgba(110, 145, 255, 0.55); box-shadow: 0 10px 36px rgba(41, 98, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.14); }
   .widget {
-    background: rgba(27, 31, 43, 0.62);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(180deg, rgba(78, 95, 135, 0.32), rgba(48, 60, 92, 0.28));
+    border: 1px solid rgba(170, 195, 255, 0.18);
     border-radius: 14px;
     padding: 16px;
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.10),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.03);
   }
   .widget-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #c8d2ff; margin-bottom: 12px; }
-  /* 글래스 페일 배경 — 어두운 배경에 부드러운 컬러 블롭 추가 */
+  /* 글래스 페일 배경 — 컬러 블롭을 더 진하게 (반투명 카드가 살짝 비치도록) */
   body {
     background:
-      radial-gradient(circle at 15% 20%, rgba(41, 98, 255, 0.10), transparent 40%),
-      radial-gradient(circle at 85% 70%, rgba(120, 50, 255, 0.08), transparent 45%),
-      radial-gradient(circle at 50% 110%, rgba(38, 166, 154, 0.06), transparent 50%),
-      #0f131e;
+      radial-gradient(circle at 12% 18%, rgba(56, 110, 255, 0.22), transparent 42%),
+      radial-gradient(circle at 86% 28%, rgba(150, 90, 255, 0.16), transparent 45%),
+      radial-gradient(circle at 82% 75%, rgba(56, 200, 200, 0.14), transparent 48%),
+      radial-gradient(circle at 25% 88%, rgba(255, 120, 180, 0.10), transparent 45%),
+      #0a0e18;
     background-attachment: fixed;
     min-height: 100vh;
   }
   /* 헤더/사이드바 글래스 */
-  header { background: rgba(19, 23, 34, 0.65) !important; backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%); border-bottom-color: rgba(255, 255, 255, 0.08) !important; }
-  nav#sidebar { background: rgba(40, 48, 68, 0.55) !important; backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%); border-right-color: rgba(255, 255, 255, 0.12) !important; }
+  header { background: rgba(28, 36, 56, 0.55) !important; backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border-bottom-color: rgba(170, 195, 255, 0.16) !important; }
+  nav#sidebar { background: rgba(38, 48, 72, 0.55) !important; backdrop-filter: blur(28px) saturate(180%); -webkit-backdrop-filter: blur(28px) saturate(180%); border-right-color: rgba(170, 195, 255, 0.16) !important; }
   /* 사이드바 헤더 텍스트 / 데이터 소스 라벨도 밝게 */
   nav#sidebar [style*="color:#434656"] { color: #8d92aa !important; }
   nav#sidebar #dataSourceInfo { color: #8d92aa !important; }
@@ -375,25 +392,31 @@ tailwind.config = {
       background: rgba(255, 255, 255, 0.96) !important;
     }
   }
-  /* 글래스 환경에서 KPI 안의 인라인 background:#131722 등이 너무 강하면 흐리게 */
+  /* 글래스 환경에서 KPI 안의 인라인 background:#131722 등이 너무 어두우면 한 단계 밝게 */
   .widget [style*="background:#131722"],
-  .kpi-card [style*="background:#131722"] { background: rgba(15, 19, 30, 0.45) !important; backdrop-filter: blur(8px); border-radius: 8px; }
+  .kpi-card [style*="background:#131722"] {
+    background: rgba(50, 65, 95, 0.40) !important;
+    border: 1px solid rgba(170, 195, 255, 0.10);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    border-radius: 8px;
+  }
   /* ======= 세부 카드 글래스모피즘 — 모달/팝업/시장분위기 카드 ======= */
   /* 모달 백드롭 — 글래스 블러 */
   .themed-modal {
-    background: rgba(8, 10, 18, 0.55) !important;
-    backdrop-filter: blur(16px) saturate(120%);
-    -webkit-backdrop-filter: blur(16px) saturate(120%);
+    background: rgba(6, 8, 14, 0.55) !important;
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
   }
   html.light .themed-modal { background: rgba(180, 195, 220, 0.45) !important; }
   /* 모달 내부 콘텐츠 (차트 모달의 1차 div) — 진한 글래스 카드 */
   .themed-modal > div {
-    background: rgba(27, 31, 43, 0.72) !important;
-    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+    background: linear-gradient(180deg, rgba(78, 95, 135, 0.60), rgba(48, 60, 92, 0.55)) !important;
+    border: 1px solid rgba(170, 195, 255, 0.22) !important;
     border-radius: 16px !important;
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow: 0 16px 56px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
   html.light .themed-modal > div {
     background: rgba(255, 255, 255, 0.72) !important;
@@ -403,10 +426,10 @@ tailwind.config = {
   /* 모달 내부의 안내/가이드 박스 — 반투명 글래스 */
   .themed-modal #reHistGuide,
   .themed-modal [style*="background:var(--c-surface"] {
-    background: rgba(15, 19, 30, 0.55) !important;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(48, 62, 92, 0.50) !important;
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid rgba(170, 195, 255, 0.14);
   }
   html.light .themed-modal #reHistGuide,
   html.light .themed-modal [style*="background:var(--c-surface"] {
@@ -416,12 +439,12 @@ tailwind.config = {
   /* 데이터소스 / 사이드바 항목 클릭 → 우측 팝업 글래스 */
   .themed-popup,
   .data-source-popup {
-    background: rgba(27, 31, 43, 0.72) !important;
-    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+    background: linear-gradient(180deg, rgba(78, 95, 135, 0.62), rgba(48, 60, 92, 0.58)) !important;
+    border: 1px solid rgba(170, 195, 255, 0.22) !important;
     border-radius: 14px !important;
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
   html.light .themed-popup,
   html.light .data-source-popup {
@@ -431,11 +454,11 @@ tailwind.config = {
   }
   /* 시장 분위기 카드 (sentiment) — 미니 글래스 */
   .sentiment-card {
-    background: rgba(27, 31, 43, 0.45) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(10px) saturate(140%);
-    -webkit-backdrop-filter: blur(10px) saturate(140%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    background: rgba(60, 76, 110, 0.32) !important;
+    border: 1px solid rgba(170, 195, 255, 0.14);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
   .sentiment-card:hover {
     background: rgba(41, 98, 255, 0.18) !important;
@@ -461,12 +484,12 @@ tailwind.config = {
   }
   /* 캘린더 플로팅 이벤트 상세 — 글래스 */
   #calGridFloating {
-    background: rgba(27, 31, 43, 0.78) !important;
-    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+    background: linear-gradient(180deg, rgba(78, 95, 135, 0.70), rgba(48, 60, 92, 0.65)) !important;
+    border: 1px solid rgba(170, 195, 255, 0.22) !important;
     border-radius: 12px !important;
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   }
   html.light #calGridFloating {
     background: rgba(255, 255, 255, 0.85) !important;
@@ -475,20 +498,22 @@ tailwind.config = {
   }
   .up-txt { color: #26a69a; }
   .down-txt { color: #ef5350; }
-  tr:hover td { background: #262a35; }
+  tr:hover td { background: rgba(170, 195, 255, 0.10); }
   /* 사용자 클릭 가능 행 — 테마-인식 호버 */
-  .hoverable-row:hover td { background: var(--c-card-hi, #262a35); }
+  .hoverable-row:hover td { background: rgba(170, 195, 255, 0.10); }
   html.light .hoverable-row:hover td { background: #d9edf8 !important; }
   /* 링크 카드 — 라이트/다크 호환 호버 (브라우저가 inline style 색상을 rgb() 로 변환하여 CSS 선택자에 매치 안되는 문제 회피) */
   .link-card {
-    background: var(--c-surface, #131722);
-    border: 1px solid var(--c-border, #2a2e3d);
+    background: rgba(60, 76, 110, 0.35);
+    border: 1px solid rgba(170, 195, 255, 0.16);
     border-radius: 6px;
     padding: 12px;
     cursor: pointer;
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
     transition: border-color .15s, background-color .15s;
   }
-  .link-card:hover { border-color: var(--c-accent, #2962ff); }
+  .link-card:hover { border-color: rgba(110, 145, 255, 0.55); }
   html.light .link-card { background: #ffffff; border-color: #aac4e6; }
   html.light .link-card:hover { border-color: rgb(53,108,181); }
   .coming-soon { display: flex; align-items: center; justify-content: center; height: 60vh; flex-direction: column; gap: 12px; color: #7a8099; }
@@ -13536,8 +13561,10 @@ function toggleTheme() {
 }
 
 function applyStoredTheme() {
+  // 기본값: 라이트 테마 (명시적으로 'dark' 저장된 경우에만 다크)
   const stored = localStorage.getItem('econ_theme');
-  if(stored === 'light') {
+  const useLight = (stored !== 'dark');  // 미설정 또는 'light' 둘 다 라이트
+  if(useLight) {
     document.documentElement.classList.add('light');
     const icon  = document.getElementById('themeIcon');
     const label = document.getElementById('themeLabel');
