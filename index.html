@@ -751,6 +751,18 @@ tailwind.config = {
     <!-- ====== 페이지 1: 대시보드 홈 ====== -->
     <div class="page active" id="page-dashboard">
 
+      <!-- 🤖 AI 시황 요약 카드 — 실시간 데이터 기반 오늘의 시황 자동 요약 -->
+      <div class="widget" id="aiSummaryCard" style="margin-bottom:16px;border:1px solid var(--c-border,#2a2e3d);background:var(--c-card,#161922);border-radius:10px;padding:14px 16px;">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap;">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#2962ff,#7a5cff);font-size:14px;">🤖</span>
+          <span style="font-weight:700;font-size:15px;color:var(--c-txt,#dfe2f2);">AI 시황 요약</span>
+          <span style="font-size:9px;color:#fff;background:#2962ff;border-radius:3px;padding:1px 6px;font-weight:600;">오늘의 마켓 브리핑</span>
+          <span id="aiSummaryDate" style="font-size:10px;color:var(--c-txt-dim,#8d90a2);">—</span>
+          <button onclick="buildAiMarketSummary(this)" title="실시간 데이터로 시황 요약 재생성" style="margin-left:auto;background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+        </div>
+        <div id="aiSummaryBody" style="font-size:12.5px;line-height:1.6;color:var(--c-txt,#dfe2f2);">시황 데이터를 불러오는 중…</div>
+      </div>
+
       <!-- KPI 카드 4개 -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         <div class="kpi-card kpi-clickable" id="kpi-kospi" onclick="navigateToDetail('equity')" style="cursor:pointer;transition:border-color .15s;">
@@ -4304,6 +4316,36 @@ function unitLabel(unit) {
   return unit==='1D' ? '일' : unit==='1W' ? '일주일' : unit==='1M' ? '한달' : unit==='1Q' ? '분기' : '';
 }
 
+// ── 차트 Y축 단위 처리 ────────────────────────────────────────────
+// 문제: 긴 단위 설명(예: '지수 (0=극도 공포 ~ 100=극도 탐욕)')을 Y축 눈금마다 붙여
+// "80 지수 (0=극도 공포 ~ 100=극도 탐욕)" 처럼 모든 눈금이 도배되어 가독성 저하.
+// 해결: 짧은 기호(%, $, pt, bp, 원 등)만 눈금에 표시하고, 긴 설명은 눈금에서 제외해
+// 차트 하단(subtitle)으로 내린다. (단위는 모달 상단 '단위:' 에도 이미 표기됨)
+function _axisShortUnit(unit) {
+  if(unit == null) return '';
+  const u = String(unit).trim();
+  if(!u) return '';
+  if(/[()\s~]/.test(u)) return '';     // 괄호/공백/물결 → 긴 설명으로 간주
+  if([...u].length > 4) return '';      // 5자 이상 → 길다고 판단
+  return u;                             // %, $, pt, bp, ‰, 원, $/bbl 등 짧은 기호만
+}
+function _axisCaptionUnit(unit) {
+  if(unit == null) return '';
+  const u = String(unit).trim();
+  return (u && !_axisShortUnit(u)) ? u : '';
+}
+// 눈금 콜백 헬퍼 — 숫자 + 짧은단위만. 긴 단위는 생략.
+function _axisTick(v, unit) {
+  const s = _axisShortUnit(unit);
+  return fmtNum(v) + (s ? (' ' + s) : '');
+}
+// Chart.js subtitle(차트 하단) 구성 — 긴 단위를 캡션으로 내림.
+function _axisUnitSubtitle(unit, color) {
+  const cap = _axisCaptionUnit(unit);
+  return { display: !!cap, position: 'bottom', text: cap ? ('단위: ' + cap) : '',
+           color: color || '#8d90a2', font: { size: 9 }, padding: { top: 6 } };
+}
+
 function getPeriodData(unit, fromDate, toDate) {
   const u = unit || mainPeriodUnit;
   const interval = unitIntervalDays(u);
@@ -5103,14 +5145,25 @@ function buildMoverTable(dir) {
     // 직접 실시간 페치를 시도해 최신 시세로 대체한다 (코드/등락률이 멀쩡해 보여도).
     const srcLabel = (((_latestDataForIndicators||{}).sources)||{}).stockMovers || '';
     const serverStale = /보존|preserved|캐시|cache|stale/i.test(srcLabel);
+    const isClientRT = /클라이언트|client|실시간/i.test(srcLabel);
+    // ── 시간 기반 지연 감지 ──
+    // 핵심: 아침 KRX 스냅샷(소스='KRX OpenAPI', 코드·등락률 정상)은 스테일 라벨이 없어
+    // 종일 '신선한 척' 표시됐다. 한국 장중인데 데이터가 15분 이상 묵었으면 지연으로 보고
+    // 클라이언트 실시간 페치를 트리거 + '지연 N분' 표기한다. (= '오전 데이터 고정' 해소)
+    const _lu = (_latestDataForIndicators||{}).lastUpdated;
+    let _ageMin = null;
+    if(_lu){ const ms = Date.now() - new Date(_lu).getTime(); if(ms>=0) _ageMin = Math.floor(ms/60000); }
+    const _krOpen = (typeof window._isKrMarketOpen==='function') && window._isKrMarketOpen();
+    const timeStale = !isClientRT && _krOpen && _ageMin!=null && _ageMin > 15;
     const shouldRetry =
-      (emptyCount > data.length / 2 || allZero || serverStale) &&
+      (emptyCount > data.length / 2 || allZero || serverStale || timeStale) &&
       curMoverType === 'stock' &&
       !_clientMoverFetchInFlight &&
       _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH;
     if(shouldRetry) {
       if(allZero) console.info('[moverTable] 모든 chg=0 감지 → 클라이언트 페치 트리거');
       else if(serverStale) console.info('[moverTable] 서버 데이터 스테일(보존) 감지 → 클라이언트 실시간 페치 트리거');
+      else if(timeStale) console.info(`[moverTable] 장중 데이터 ${_ageMin}분 경과(지연) → 클라이언트 실시간 페치 트리거`);
       _clientMoverFetchInFlight = true;
       _clientMoverFetchAttempts++;
       refreshMoversFromClient().finally(()=>{ _clientMoverFetchInFlight = false; });
@@ -5118,12 +5171,26 @@ function buildMoverTable(dir) {
   }
   const refEl = document.getElementById('moverRefDate');
   if(refEl) {
-    // 데이터가 서버 보존(스테일)이고 아직 클라이언트 실시간 갱신이 안 됐으면 기준일을
-    // '실시간 오늘'처럼 보이지 않도록 (지연) 표기 — 기준일=오늘인데 값이 안 변하는 혼동 방지.
-    const srcLabel2 = (((_latestDataForIndicators||{}).sources)||{}).stockMovers || '';
-    const isStale = /보존|preserved|캐시|cache|stale/i.test(srcLabel2);
-    refEl.textContent = (moverRefDate || '—') + (isStale ? ' (지연·서버 캐시)' : '');
-    refEl.style.color = isStale ? 'var(--c-down,#ef5350)' : '';
+    const src2 = (((_latestDataForIndicators||{}).sources)||{}).stockMovers || '';
+    const isClientRT2 = /클라이언트|client|실시간/i.test(src2);
+    if(isClientRT2 && window._moverFetchTime) {
+      // 클라이언트 실시간 페치 성공 — 실제 페치 시각 표시 (가장 신선)
+      const t = new Date(window._moverFetchTime);
+      refEl.textContent = '실시간 ' + t.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) + ' · 네이버';
+      refEl.style.color = 'var(--c-up,#26a69a)';
+    } else {
+      // 서버(data.json) 데이터 — 데이터 나이로 지연 판정 (라벨 스테일 OR 장중 15분 경과)
+      const labelStale = /보존|preserved|캐시|cache|stale/i.test(src2);
+      const lu = (_latestDataForIndicators||{}).lastUpdated;
+      let ageMin = null;
+      if(lu){ const ms = Date.now() - new Date(lu).getTime(); if(ms>=0) ageMin = Math.floor(ms/60000); }
+      const krOpen = (typeof window._isKrMarketOpen==='function') && window._isKrMarketOpen();
+      const stale = labelStale || (krOpen && ageMin!=null && ageMin > 15);
+      let txt = (moverRefDate || '—');
+      if(stale) txt += (ageMin!=null ? ` (지연 ${ageMin}분)` : ' (지연·서버 캐시)');
+      refEl.textContent = txt;
+      refEl.style.color = stale ? 'var(--c-down,#ef5350)' : '';
+    }
   }
   if(!data || data.length === 0) {
     const isLoading = _clientMoverFetchInFlight || _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH;
@@ -8455,7 +8522,7 @@ function showCalGridFloating(idx, evt) {
         data:{ labels: hist.labels, datasets:[{ data: hist.vals, label: e.name, borderColor: hist.color, backgroundColor: hist.color+'22', borderWidth:1.5, pointRadius:2, fill:true, tension:0.3 }] },
         options:{responsive:true,maintainAspectRatio:false,
           scales:{x:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:5},grid:{display:false}},
-                  y:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:6,callback:v=>fmtNum(v)+(hist.unit||'')},grid:{color:tc.grid}}},
+                  y:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:6,callback:v=>_axisTick(v,hist.unit)},grid:{color:tc.grid}}},
           plugins:{legend:{display:false},tooltip:{enabled:true,bodyFont:{size:9},callbacks:{label:ctx=>fmtNum(ctx.parsed.y)+(hist.unit||'')}}}}
       });
     } else {
@@ -8514,7 +8581,7 @@ async function refreshCalFloatingPopup(btn) {
             data:{ labels: hist.labels, datasets:[{ data: hist.vals, label: e.name, borderColor: hist.color, backgroundColor: hist.color+'22', borderWidth:1.5, pointRadius:2, fill:true, tension:0.3 }] },
             options:{responsive:true,maintainAspectRatio:false,
               scales:{x:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:5},grid:{display:false}},
-                      y:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:6,callback:v=>fmtNum(v)+(hist.unit||'')},grid:{color:tc.grid}}},
+                      y:{ticks:{color:tc.txt,font:{size:8},maxTicksLimit:6,callback:v=>_axisTick(v,hist.unit)},grid:{color:tc.grid}}},
               plugins:{legend:{display:false},tooltip:{enabled:true,bodyFont:{size:9},callbacks:{label:ctx=>fmtNum(ctx.parsed.y)+(hist.unit||'')}}}}
           });
         }
@@ -9174,10 +9241,11 @@ function _renderCalDetailChart() {
       responsive: true, maintainAspectRatio: false,
       scales: {
         x: { ticks: {color:tc.txt, font:{size:10}}, grid:{color:tc.grid} },
-        y: { ticks: {color:tc.txt, font:{size:10}, maxTicksLimit:8, callback: v => fmtNum(v) + (hist.unit||'')}, grid: {color:tc.grid}, position:'right' }
+        y: { ticks: {color:tc.txt, font:{size:10}, maxTicksLimit:8, callback: v => _axisTick(v, hist.unit)}, grid: {color:tc.grid}, position:'right' }
       },
       plugins: {
         legend: {display:false},
+        subtitle: _axisUnitSubtitle(hist.unit, tc.txt),
         tooltip: {
           mode:'index', intersect:false,
           backgroundColor: tc.tooltip, titleColor: tc.ttTitle, bodyColor: hist.color,
@@ -10308,12 +10376,14 @@ async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
     const stocks = data.stocks || data.result || [];
     if(!Array.isArray(stocks) || !stocks.length) continue;
     const today = new Date().toISOString().slice(0,10);
+    // 필드명 폴백 — 서버측 fetch_naver_api_movers 와 동일하게 다양한 키 시도
+    // (Naver API 응답 스키마 변경/엔드포인트별 차이에 견디도록)
     const parsed = stocks.slice(0,10).map(s=>({
-      name:  (s.stockName || s.name || '').trim(),
+      name:  (s.stockName || s.name || s.itemName || '').trim(),
       code:  (s.itemCode || s.code || '').trim(),
-      price: Number(s.closePrice || s.nowVal || 0),
-      chg:   Number(s.fluctuationsRatio || s.changeRate || 0),
-      vol:   Number(s.accumulatedTradingVolume || s.volume || 0),
+      price: Number(s.closePrice || s.nowVal || s.currentPrice || s.tradePrice || 0),
+      chg:   Number(s.fluctuationsRatio ?? s.changeRate ?? s.cttr ?? 0),
+      vol:   Number(s.accumulatedTradingVolume || s.aq || s.volume || 0),
       as_of: today,
     })).filter(x=>x.name && x.price);
     const nonZero = parsed.filter(p => p.chg !== 0).length;
@@ -10416,6 +10486,8 @@ async function refreshMoversFromClient(showStatus=false) {
       if(patch.etfMovers.etfGainers)    patch.sources.etfMovers   = 'Naver Finance (클라이언트 실시간)';
       // 부분 패치 — applyRealData에서 빈 객체는 건드리지 않음
       applyRealData(patch);
+      // 클라이언트 실시간 페치 성공 시각 기록 (Top10 카드의 '실시간 HH:MM' 표시용)
+      window._moverFetchTime = Date.now();
       // 주식시장(equity) 탭이 열려 있으면 KOSPI/ETF Top10 테이블도 즉시 재렌더
       try { const mp=document.getElementById('page-market'); if(mp && mp.classList.contains('active') && typeof buildEquityPage==='function') buildEquityPage(); } catch(_){}
       _clientMoverLastError = null;
@@ -10540,6 +10612,7 @@ function _renderReHistChartMacro() {
       },
       plugins:{
         legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
+        subtitle:_axisUnitSubtitle(unit,tc.txt),
         tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
           callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?fmtNum(c.parsed.y):c.parsed.y}${unit?' ['+unit+']':''}`}}
       }
@@ -10828,6 +10901,7 @@ function _renderReHistChart() {
       },
       plugins:{
         legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
+        subtitle:_axisUnitSubtitle(unit,tc.txt),
         tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
           callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?fmtNum(c.parsed.y):c.parsed.y}${unit?' '+unit:''}`}}
       }
@@ -11974,10 +12048,11 @@ function _renderReHistChartSentiment(guide) {
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{
         x:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:12}, grid:{color:tc.grid}},
-        y:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)+(unit?(' '+unit):'')}, grid:{color:tc.grid}, position:'right'},
+        y:{ ticks:{color:tc.txt,font:{size:10},maxTicksLimit:8,callback:v=>_axisTick(v,unit)}, grid:{color:tc.grid}, position:'right'},
       },
       plugins:{
         legend:{display:true,labels:{color:tc.txt,font:{size:10},boxWidth:10}},
+        subtitle:_axisUnitSubtitle(unit,tc.txt),
         tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
           callbacks:{label: c=> `${title}: ${typeof c.parsed.y==='number'?fmtNum(c.parsed.y):c.parsed.y}${unit?' ['+unit+']':''}`}}
       }
@@ -12039,6 +12114,92 @@ function _mergeIndicatorContainer(prevC, newC) {
   return out;
 }
 
+// ============================================================
+// 🤖 AI 시황 요약 — 실시간 데이터 기반 '오늘의 마켓 브리핑' 자동 생성
+// 정적 사이트라 브라우저에서 LLM 을 직접 호출하지 않고(키 노출 위험), 수집된
+// 실시간 지수/환율/원자재/등락/심리 데이터를 룰 기반으로 자연어 요약한다.
+// ============================================================
+function _aiChgSpan(chg, digits) {
+  if(chg == null || isNaN(chg)) return '<span style="color:var(--c-txt-dim,#8d90a2);">—</span>';
+  const up = +chg >= 0;
+  const c = up ? 'var(--c-up,#26a69a)' : 'var(--c-down,#ef5350)';
+  return `<span style="color:${c};font-weight:600;">${up?'▲':'▼'} ${up?'+':''}${(+chg).toFixed(digits==null?2:digits)}%</span>`;
+}
+function _aiNum(v) { return (v==null||isNaN(v)) ? '—' : (+v).toLocaleString('en-US',{maximumFractionDigits:2}); }
+function _fgLabel(fg) {
+  const v = fg && fg.value;
+  if(v==null) return '—';
+  return v<25?'극도 공포':v<45?'공포':v<55?'중립':v<75?'탐욕':'극도 탐욕';
+}
+
+function buildAiMarketSummary(btn) {
+  const bodyEl = document.getElementById('aiSummaryBody');
+  if(!bodyEl) return;
+  const isBtn = btn && btn.tagName === 'BUTTON';
+  if(isBtn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'loading');
+  try {
+    const d = _latestDataForIndicators || {};
+    const idx=d.indices||{}, fx=d.fx||{}, com=d.commodities||{}, sent=d.sentiment||{}, sm=d.stockMovers||{};
+    const us=((d.economicIndicators||{}).us)||{};
+    const kospi=idx.KOSPI, kosdaq=idx.KOSDAQ, sp=idx.SP500, nas=idx.NASDAQ, nikkei=idx.Nikkei, sh=idx.Shanghai;
+    const usdkrw=fx.USDKRW, wti=com.WTI, gold=com.Gold;
+    const vix=(us.vix&&us.vix.value), vkospi=(sent.vkospi&&sent.vkospi.value), fg=sent.fear_greed;
+
+    if(kospi?.price==null && sp?.price==null) {
+      bodyEl.innerHTML='<span style="color:var(--c-txt-dim,#8d90a2);">시황 데이터가 아직 로드되지 않았습니다. 잠시 후 자동 갱신됩니다.</span>';
+      if(isBtn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'warn','데이터 대기');
+      return;
+    }
+
+    // ── 종합 톤 스코어 (위험선호 ↔ 위험회피) ──
+    let score=0;
+    if(kospi?.change!=null) score += Math.sign(kospi.change);
+    if(sp?.change!=null)    score += Math.sign(sp.change);
+    if(vix!=null)           score += (vix<20?1:vix>28?-1:0);
+    if(fg && fg.value!=null) score += (fg.value>=55?1:fg.value<=44?-1:0);
+    const tone = score>=2?'위험 선호(Risk-on)':score<=-2?'위험 회피(Risk-off)':'중립·혼조';
+    const toneColor = score>=2?'#26a69a':score<=-2?'#ef5350':'#f5a623';
+
+    // ── 종합 판단 문장 ──
+    const krDir = kospi?.change==null?'':kospi.change>0.3?'상승':kospi.change<-0.3?'하락':'보합';
+    let headline = `오늘 시장은 전반적으로 <b style="color:${toneColor}">${tone}</b> 분위기입니다.`;
+    const bits=[];
+    if(krDir) bits.push(`국내 증시는 ${krDir}세`);
+    if(vix!=null) bits.push(vix>28?'변동성(VIX) 급등':vix>20?'변동성 경계 구간':'변동성 안정');
+    if(usdkrw?.rate!=null) bits.push(`원/달러 ${_aiNum(usdkrw.rate)}원`);
+    if(bits.length) headline += ' ' + bits.join(', ') + '입니다.';
+
+    // ── 주도주/심리 ──
+    const topG=sm.kospiGainers&&sm.kospiGainers[0], topL=sm.kospiLosers&&sm.kospiLosers[0];
+    let psy='';
+    if(vix!=null)  psy += `VIX ${(+vix).toFixed(1)}(${vix>28?'공포':vix>20?'경계':'안정'})`;
+    if(vkospi!=null) psy += `${psy?' · ':''}VKOSPI ${(+vkospi).toFixed(1)}`;
+    if(fg && fg.value!=null) psy += `${psy?' · ':''}공포탐욕 ${fg.value}(${_fgLabel(fg)})`;
+
+    const cell = (icon,title,inner)=>`<div style="background:var(--c-card-hi,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:7px;padding:9px 11px;"><div style="font-size:11px;color:var(--c-txt-dim,#8d90a2);font-weight:600;margin-bottom:4px;">${icon} ${title}</div><div style="font-size:12px;line-height:1.55;">${inner}</div></div>`;
+
+    bodyEl.innerHTML = `
+      <div style="background:linear-gradient(135deg,${toneColor}1a,transparent);border-left:3px solid ${toneColor};border-radius:6px;padding:9px 12px;margin-bottom:11px;">
+        🎯 <b>종합 판단</b> — ${headline}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px;">
+        ${cell('🇰🇷','국내 증시', `KOSPI <b>${_aiNum(kospi?.price)}</b> ${_aiChgSpan(kospi?.change)} · KOSDAQ ${_aiChgSpan(kosdaq?.change)}` + (topG?`<br>주도주 <b>${topG.name}</b> ${_aiChgSpan(topG.chg)}`:'') + (topL?` · 약세 ${topL.name} ${_aiChgSpan(topL.chg)}`:''))}
+        ${cell('🌎','해외 증시', `S&P500 ${_aiChgSpan(sp?.change)} · 나스닥 ${_aiChgSpan(nas?.change)}<br>니케이 ${_aiChgSpan(nikkei?.change)} · 상하이 ${_aiChgSpan(sh?.change)}`)}
+        ${cell('💱','환율·원자재', `USD/KRW <b>${_aiNum(usdkrw?.rate)}</b> ${_aiChgSpan(usdkrw?.change)}<br>WTI ${_aiChgSpan(wti?.change)} · 금 ${_aiChgSpan(gold?.change)}`)}
+        ${cell('🧭','시장 심리', (psy||'—') + `<br><span style="color:${toneColor};font-weight:600;">→ ${tone}</span>`)}
+      </div>
+      <div style="font-size:9.5px;color:var(--c-txt-muted,#6a6f80);margin-top:9px;">※ 실시간 시장 데이터 기반 자동 생성 요약 — 투자 판단의 참고용입니다.</div>
+    `;
+
+    const dt=document.getElementById('aiSummaryDate');
+    if(dt) dt.textContent='기준 '+(d.lastUpdated?new Date(d.lastUpdated).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
+    if(isBtn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'success','요약 갱신');
+  } catch(e) {
+    console.warn('[aiSummary] 생성 오류:', e);
+    if(isBtn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'error','생성 실패');
+  }
+}
+
 function applyRealData(d) {
   if (!d) return;
   // 부분 patch 머지: 기존 데이터 + 새 데이터 (얕은 병합)
@@ -12077,6 +12238,8 @@ function applyRealData(d) {
   }
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
+  // 🤖 AI 시황 요약 — 새 데이터가 적용될 때마다 자동 재생성 (semi-실시간 브리핑)
+  try { buildAiMarketSummary(); } catch(_) {}
 
   // ── 시계열 데이터 주입: data.json.history 가 있으면 차트가 실제 데이터를 사용 ──
   // 대시보드 메인 차트 (KOSPI 기본)
