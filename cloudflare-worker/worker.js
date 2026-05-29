@@ -87,7 +87,7 @@ export default {
 
     // 헬스체크 — 파라미터 없이 호출 시 (프론트 설정 확인용)
     if (!target) {
-      return jsonResponse({ ok: true, service: 'econ-dashboard-proxy', allowed: ALLOWED_HOSTS });
+      return jsonResponse({ ok: true, service: 'ecom-dashboard-proxy', allowed: ALLOWED_HOSTS });
     }
 
     let t;
