@@ -1,0 +1,17 @@
+# Cloudflare Worker 설정 (저장소 루트) — Git 연동 빌드용
+# ------------------------------------------------------------------
+# Cloudflare 대시보드에서 이 저장소(main 브랜치)에 연결된 Worker 가
+# main 에 push 될 때마다 이 설정으로 자동 배포된다.
+#   - name: 대시보드에서 만든 Worker 이름과 정확히 일치해야 같은 URL 로 배포됨
+#   - main: 실제 Worker 코드 위치 (저장소 루트 기준 상대경로)
+#
+# 빌드/배포 명령(대시보드 Build settings):
+#   - Root directory : /            (저장소 루트 — 이 파일 위치)
+#   - Deploy command : npx wrangler deploy   (기본값)
+#   - Build command  : (비워둠 — 단일 JS, 의존성 없음)
+#
+# 배포 후 URL: https://ecom-dashboard-proxy.<account>.workers.dev
+
+name = "ecom-dashboard-proxy"
+main = "cloudflare-worker/worker.js"
+compatibility_date = "2024-11-01"

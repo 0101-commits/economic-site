@@ -10321,7 +10321,7 @@ document.addEventListener('click', (e) => {
 // 배포(README 참고)하고 아래에 URL 을 넣으면, 그 Worker 가 적절한 헤더를 주입해 안정적으로
 // 중계하므로 모든 클라이언트 페치(Top10·VIX·시계열·뉴스)가 최우선으로 그곳을 사용한다.
 // 미설정 시(빈 문자열)에는 기존 공개 프록시로 자동 폴백 → 사이트는 정상 동작.
-const CF_PROXY_DEFAULT = '';  // 예: 'https://econ-dashboard-proxy.your-account.workers.dev'
+const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.baldr0001.workers.dev';  // 배포된 Cloudflare Worker 프록시
 function _cfProxyBase() {
   try { return (localStorage.getItem('cfProxyBase') || CF_PROXY_DEFAULT || '').trim().replace(/\/+$/,''); }
   catch(_) { return (CF_PROXY_DEFAULT || '').replace(/\/+$/,''); }
