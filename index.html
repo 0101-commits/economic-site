@@ -10315,18 +10315,38 @@ document.addEventListener('click', (e) => {
 // 클라이언트 사이드 Naver Finance 데이터 페치 (Top10 주식/ETF 실시간)
 // data.json이 빈 경우 또는 새로고침 시 즉시 데이터 표시
 // ============================
+// ── 전용 CORS 프록시 (Cloudflare Worker) ─────────────────────────
+// 공개 프록시(allorigins 등)는 가용성이 들쭉날쭉하고 네이버가 요구하는 Referer/Origin/UA
+// 헤더를 전달하지 못해 'Top10 오전 데이터 고정'의 근본 원인이 된다. cloudflare-worker/ 를
+// 배포(README 참고)하고 아래에 URL 을 넣으면, 그 Worker 가 적절한 헤더를 주입해 안정적으로
+// 중계하므로 모든 클라이언트 페치(Top10·VIX·시계열·뉴스)가 최우선으로 그곳을 사용한다.
+// 미설정 시(빈 문자열)에는 기존 공개 프록시로 자동 폴백 → 사이트는 정상 동작.
+const CF_PROXY_DEFAULT = '';  // 예: 'https://econ-dashboard-proxy.your-account.workers.dev'
+function _cfProxyBase() {
+  try { return (localStorage.getItem('cfProxyBase') || CF_PROXY_DEFAULT || '').trim().replace(/\/+$/,''); }
+  catch(_) { return (CF_PROXY_DEFAULT || '').replace(/\/+$/,''); }
+}
+function _cfProxyUrl(target) {
+  const b = _cfProxyBase();
+  return b ? (b + '/?url=' + encodeURIComponent(target)) : null;
+}
+
 // 공개 CORS 프록시 풀 — 한 곳이 차단되어도 다른 곳을 통해 우회.
-// 순서: 가장 안정적인 것 먼저 (corsproxy.io, allorigins). 최근 추가된 보강 프록시 포함.
+// 순서: 전용 Worker(설정 시) → 가장 안정적인 공개 프록시 순.
 function _buildCorsProxyUrls(target) {
   const enc = encodeURIComponent(target);
-  return [
+  const list = [];
+  const cf = _cfProxyUrl(target);
+  if(cf) list.push(cf);                                     // 전용 Worker 최우선 (설정 시)
+  list.push(
     target,                                                 // 직접 호출 (브라우저가 CORS 허용 시)
     'https://api.allorigins.win/raw?url=' + enc,            // 가장 안정적
     'https://api.codetabs.com/v1/proxy/?quest=' + enc,
     'https://corsproxy.io/?url=' + enc,                     // 신 포맷(?url=)
     'https://api.allorigins.win/get?url=' + enc,            // wrapped JSON (.contents)
     'https://thingproxy.freeboard.io/fetch/' + target,
-  ];
+  );
+  return list;
 }
 
 async function _fetchViaProxies(target, parseJson=true) {
@@ -11065,6 +11085,7 @@ async function refreshETFFromClient(btn) {
 // ============================
 // 시장 분위기 지표 — 다중 프록시·다중 소스 fallback
 const _SENTIMENT_PROXIES = [
+  (url) => _cfProxyUrl(url),                                              // 전용 Worker 최우선 (설정 시, 미설정이면 null→스킵)
   (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),        // corsproxy 신 포맷
   (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
@@ -11073,8 +11094,9 @@ const _SENTIMENT_PROXIES = [
 ];
 async function _fetchJsonWithProxies(targetUrl) {
   for(const mk of _SENTIMENT_PROXIES) {
+    const purl = mk(targetUrl); if(!purl) continue;   // CF 미설정 등으로 null이면 스킵
     try {
-      const r = await fetch(mk(targetUrl), { signal: AbortSignal.timeout(6000) });
+      const r = await fetch(purl, { signal: AbortSignal.timeout(6000) });
       if(!r.ok) continue;
       const j = await r.json();
       if(j) return j;
@@ -11089,9 +11111,10 @@ async function _fetchTextStooq(symbol) {
   start.setDate(start.getDate() - 400);
   const fmt = d => d.toISOString().slice(0,10).replace(/-/g,'');
   for(const mk of _SENTIMENT_PROXIES) {
+    const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&d1=${fmt(start)}&d2=${fmt(end)}&i=d`;
+    const purl = mk(url); if(!purl) continue;          // CF 미설정 등으로 null이면 스킵
     try {
-      const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&d1=${fmt(start)}&d2=${fmt(end)}&i=d`;
-      const r = await fetch(mk(url), { signal: AbortSignal.timeout(6000) });
+      const r = await fetch(purl, { signal: AbortSignal.timeout(6000) });
       if(!r.ok) continue;
       const txt = await r.text();
       if(txt && txt.length > 20) return txt;
@@ -11273,8 +11296,9 @@ async function fetchSentimentClient() {
       try {
         let html = null;
         for(const mk of _SENTIMENT_PROXIES) {
+          const purl = mk(targetUrl); if(!purl) continue;   // CF 미설정 시 null 스킵
           try {
-            const r = await fetch(mk(targetUrl), { signal: AbortSignal.timeout(8000) });
+            const r = await fetch(purl, { signal: AbortSignal.timeout(8000) });
             if(r.ok) { html = await r.text(); if(html && html.length > 1000) break; }
           } catch(_) {}
         }
@@ -13218,6 +13242,7 @@ async function fetchLatestArticle(query) {
 // 신 포맷(?url=) 으로 호출해야 동작. 응답 없던 thingproxy/yacdn/cors.eu.org/proxy.cors.sh
 // (서비스 종료·API 키 요구) 는 제거. allorigins/get 는 {contents} JSON 래퍼로 반환.
 const _NEWS_PROXIES = [
+  (url) => _cfProxyUrl(url),                                                 // 전용 Worker 최우선 (설정 시)
   (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
   (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
@@ -13229,6 +13254,7 @@ async function _fetchTextWithProxies(targetUrl, timeoutMs) {
   for(const mk of _NEWS_PROXIES) {
     try {
       const url = mk(targetUrl);
+      if(!url) continue;                                                     // CF 미설정 시 null 스킵
       const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs || 7000) });
       if(!r.ok) continue;
       let text = await r.text();
