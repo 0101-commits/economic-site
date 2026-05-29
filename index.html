@@ -2547,6 +2547,11 @@ if(typeof Chart !== 'undefined' && Chart.register) {
     Chart.defaults.plugins.tooltip = Chart.defaults.plugins.tooltip || {};
     Chart.defaults.plugins.tooltip.mode = 'index';
     Chart.defaults.plugins.tooltip.intersect = false;
+    // 선차트 점 기본값 — 점은 숨기고(0) 호버 시에만 점 표시. 시계열 점이 촘촘히 뭉쳐
+    // 선이 두꺼워 보이는 문제 방지. (점이 의미있는 sparse 차트는 개별 pointRadius 로 override)
+    Chart.defaults.elements = Chart.defaults.elements || {};
+    Chart.defaults.elements.point = Chart.defaults.elements.point || {};
+    Chart.defaults.elements.point.hoverRadius = 4;
     // X축 라벨 — 동일 연도면 연도 생략 (category scale 만 적용; 작은 sparkline은 영향 없음)
     Chart.defaults.scales = Chart.defaults.scales || {};
     Chart.defaults.scales.category = Chart.defaults.scales.category || {};
@@ -3528,7 +3533,7 @@ function _openRegionHistoryModal(d) {
     data:{ labels, datasets:[{
       label: titleStr, data: values,
       borderColor:'#2962ff', backgroundColor:'#2962ff22',
-      borderWidth:2, pointRadius:3, tension:0.3, fill:true,
+      borderWidth:2, pointRadius: 0, tension:0.3, fill:true,
     }]},
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{x:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid}},
@@ -3995,7 +4000,7 @@ function buildUsRegionMap() {
         data:{ labels, datasets:[{
           label: titleStr, data: values,
           borderColor:'#2962ff', backgroundColor:'#2962ff22',
-          borderWidth:2, pointRadius:3, tension:0.3, fill:true,
+          borderWidth:2, pointRadius: 0, tension:0.3, fill:true,
         }]},
         options:{ responsive:true, maintainAspectRatio:false,
           scales:{x:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid}},
@@ -6488,7 +6493,7 @@ function buildRateHistoryChart() {
       borderColor: rateColors[cc],
       backgroundColor: rateColors[cc]+'22',
       borderWidth: 2,
-      pointRadius: 3,
+      pointRadius: 0,
       tension: 0.3,
       fill: false,
     };
@@ -7587,7 +7592,7 @@ function initMacroTopicPage(topic) {
     borderColor: colors[cc],
     backgroundColor: colors[cc] + '22',
     borderWidth: 2,
-    pointRadius: 3,
+    pointRadius: 0,
     fill: false,
     tension: 0.3,
     type: 'line',
@@ -8223,8 +8228,8 @@ function initMacroPage(t){
   const expMin = expVal.length ? Math.min(...expVal.filter(v=>v!=null)) : 0;
   const expYMin = Math.floor(expMin * 0.92);
   charts['gdpMacro']=new Chart(document.getElementById('gdpMacro'),{type:'bar',data:{labels:gdpLab,datasets:[{data:gdpVal,backgroundColor:gdpVal.map(v=>v>=0?'#26a69a99':'#ef535099'),borderRadius:3}]},options:chartOpts('#26a69a',true)});
-  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:cpiLab,datasets:[{data:cpiVal,borderColor:'#2962ff',borderWidth:2.5,pointRadius:3,fill:true,backgroundColor:'#2962ff20',tension:0.3}]},options:chartOpts('#2962ff',false)});
-  charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:unempLab,datasets:[{data:unempVal,borderColor:'#ef5350',borderWidth:2,pointRadius:3,fill:false,tension:0.3}]},options:chartOpts('#ef5350',false)});
+  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:cpiLab,datasets:[{data:cpiVal,borderColor:'#2962ff',borderWidth:2.5,pointRadius: 0,fill:true,backgroundColor:'#2962ff20',tension:0.3}]},options:chartOpts('#2962ff',false)});
+  charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:unempLab,datasets:[{data:unempVal,borderColor:'#ef5350',borderWidth:2,pointRadius: 0,fill:false,tension:0.3}]},options:chartOpts('#ef5350',false)});
   // 수출 차트는 라인 + 데이터 레이블로 변경 (값 차이가 작아 바차트로는 구분 어려움)
   charts['tradeMacro']=new Chart(document.getElementById('tradeMacro'),{
     type:'line',
@@ -9230,7 +9235,7 @@ function _renderCalDetailChart() {
         label: e.name,
         borderColor: hist.color,
         borderWidth: 2,
-        pointRadius: 4,
+        pointRadius: 0,
         pointBackgroundColor: hist.color,
         fill: true,
         backgroundColor: hist.color + '22',
@@ -9629,7 +9634,7 @@ function buildNpsAllocTrendChart() {
     data:{ labels:trend.years,
            datasets: trend.datasets.map(d=>({
              label:d.label, data:d.data, borderColor:d.color, backgroundColor:d.color+'22',
-             borderWidth:2, pointRadius:3, tension:0.3, fill:false
+             borderWidth:2, pointRadius: 0, tension:0.3, fill:false
            })) },
     options:{ responsive:true, maintainAspectRatio:false,
       scales:{ x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
@@ -9962,7 +9967,7 @@ function buildInvestorPage() {
       type:'line',
       data:{ labels:npsHistory.map(h=>h.year),
              datasets:[{ data:npsHistory.map(h=>h.aum),
-               borderColor:'#b6c4ff', borderWidth:2, pointRadius:3, fill:true,
+               borderColor:'#b6c4ff', borderWidth:2, pointRadius: 0, fill:true,
                backgroundColor:'#b6c4ff15', tension:0.3 }] },
       options:{ responsive:true, maintainAspectRatio:false,
         scales:{ x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
@@ -10910,7 +10915,7 @@ function _renderReHistChart() {
       borderColor: '#2962ff',
       backgroundColor: '#2962ff22',
       borderWidth: 2,
-      pointRadius: 2,
+      pointRadius: 0,
       tension: 0.3,
       fill: true,
     }]},
@@ -13518,9 +13523,10 @@ async function fetchStooqHistory(symbol) {
   past.setDate(past.getDate() - 10); // 10일 전(주말·공휴일 감안)
   const d1 = past.toISOString().slice(0,10).replace(/-/g,'');
   const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&d1=${d1}&d2=${d2}&i=d`;
-  const r = await fetch(url);
-  if (!r.ok) return null;
-  const text = await r.text();
+  // 직접 fetch 는 Stooq 의 CORS 미허용으로 브라우저에서 차단된다(지수·원자재가 실시간
+  // 갱신 안 되고 data.json 으로 폴백되던 근본 원인). CF 워커/공개 프록시 풀 경유로 가져온다.
+  const text = await _fetchTextWithProxies(url, 8000);
+  if (!text) return null;
   // Format: Date,Open,High,Low,Close,Volume
   const lines = text.trim().split('\n').filter(l => l && !l.startsWith('Date') && l.includes(','));
   if (lines.length < 1) return null;
@@ -13545,11 +13551,13 @@ async function loadRealtimeMarket() {
     { s:'000001.ss', key:'Shanghai' },
   ];
   const comTasks = [
-    { s:'cl.f',   key:'WTI'    },
-    { s:'co.f',   key:'Brent'  },
-    { s:'xauusd', key:'Gold'   },
-    { s:'xagusd', key:'Silver' },
-    { s:'hg.f',   key:'Copper' },
+    { s:'cl.f',   key:'WTI'      },
+    { s:'co.f',   key:'Brent'    },
+    { s:'xauusd', key:'Gold'     },
+    { s:'xagusd', key:'Silver'   },
+    { s:'hg.f',   key:'Copper'   },
+    { s:'xptusd', key:'Platinum' },   // 백금 (Stooq 스팟)
+    { s:'ng.f',   key:'NatGas'   },   // 천연가스 (NYMEX)
   ];
 
   const patchIdx = {}, patchCom = {};
@@ -13627,7 +13635,7 @@ function buildRateHistoryChart() {
     data: rateHistoryData[cc].slice(sliceFrom),
     borderColor: rateColors[cc],
     backgroundColor: rateColors[cc]+'22',
-    borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false,
+    borderWidth: 2, pointRadius: 0, tension: 0.3, fill: false,
   }));
   charts['rateHistoryChart'] = new Chart(ctx, {
     type:'line',
