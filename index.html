@@ -10991,9 +10991,11 @@ async function refreshETFFromClient(btn) {
 // ============================
 // 시장 분위기 지표 — 다중 프록시·다중 소스 fallback
 const _SENTIMENT_PROXIES = [
-  (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),        // corsproxy 신 포맷
   (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
+  (url) => 'https://thingproxy.freeboard.io/fetch/' + url,                 // 독립 프록시 보강
+  (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),            // corsproxy 구 포맷(폴백)
 ];
 async function _fetchJsonWithProxies(targetUrl) {
   for(const mk of _SENTIMENT_PROXIES) {
@@ -11106,6 +11108,7 @@ const _SENTIMENT_RANGE = {
   vkospi: v => v != null && v > 1 && v < 200,    // V-KOSPI 200: 통상 13~30, 위기 시 80+
   move:   v => v != null && v > 10 && v < 500,   // MOVE Index: 통상 60~150
   pcr:    v => v != null && v > 0.1 && v < 5,    // Put/Call Ratio: 통상 0.6~1.5
+  vix:    v => v != null && v > 5 && v < 200,    // VIX: 통상 12~30, 위기 시 80+ (오매핑 방지)
 };
 function _saveSentimentCache(name, payload) {
   // 합리적 범위가 아닌 값은 캐시 저장 거부 (다음 페치까지 misleading 표시 방지)
@@ -11264,6 +11267,47 @@ async function fetchSentimentClient() {
       }
     } catch(_) {}
   }
+  // 2b) VIX (S&P500 변동성지수) — Stooq (^vix) 우선, 실패 시 Yahoo ^VIX.
+  //     서버측 data.json(FRED VIXCLS) 가 비어도(2026-05-29 FRED 실패 사례) 카드가
+  //     "—" 로 멈추지 않도록 클라이언트에서 직접 보강 → semi-실시간 반영.
+  //     VIX 합리 범위 가드: 5 < v < 200 (FRED/yfinance 오매핑 방지).
+  try {
+    const txt = await _fetchTextStooq('^vix');
+    const parsed = _parseStooqCsv(txt, v => v > 5 && v < 200);
+    if(parsed) {
+      out.vix = { ...parsed, source: 'Stooq ^vix' };
+      _saveSentimentCache('vix', out.vix);
+    }
+  } catch(_) {}
+  if(!out.vix) {
+    try {
+      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EVIX&range=1y&interval=1d');
+      const node = j?.spark?.result?.[0]?.response?.[0];
+      const ts = node?.timestamp;
+      const c  = node?.indicators?.quote?.[0]?.close;
+      if(Array.isArray(c) && Array.isArray(ts)) {
+        const history = {};
+        for(let i = 0; i < c.length; i++) {
+          const v = c[i];
+          if(v == null || v <= 5 || v >= 200) continue;
+          const d = new Date(ts[i] * 1000).toISOString().slice(0,10);
+          history[d] = +v.toFixed(2);
+        }
+        const dates = Object.keys(history).sort();
+        if(dates.length) {
+          const latest = history[dates[dates.length-1]];
+          const prev   = dates.length > 1 ? history[dates[dates.length-2]] : null;
+          const change = (prev != null && prev !== 0) ? +((latest - prev) / prev * 100).toFixed(2) : 0;
+          out.vix = { value: latest, change, as_of: dates[dates.length-1], history, source: 'Yahoo Finance ^VIX' };
+          _saveSentimentCache('vix', out.vix);
+        }
+      }
+    } catch(_) {}
+  }
+  if(!out.vix) {  // 캐시 fallback
+    const c = _loadSentimentCache('vix');
+    if(c) out.vix = { ...c, source: (c.source||'cached') + ' (캐시)' };
+  }
   // 3) Put/Call Ratio — Stooq (^pcc) 우선 (히스토리 포함)
   try {
     const txt = await _fetchTextStooq('^pcc');
@@ -11371,6 +11415,29 @@ function applySentimentClient(s) {
       el.textContent = s.move.value.toFixed(1);
       const v = s.move.value;
       el.style.color = v > 120 ? '#ef5350' : v > 100 ? '#f5a623' : '#26a69a';
+    }
+  }
+  // VIX — 클라이언트 보강분을 economicIndicators.us.vix 에 기록(카드/상세 모달이 그 경로를 읽음).
+  // 서버 data.json 의 VIX 가 비어도 dashVix 가 이 값으로 채워지고, applyRealData 의
+  // deep-merge 가드가 이후 loadRealData 에서 null 로 덮어쓰지 않도록 보호한다.
+  if(s.vix?.value != null && s.vix.value > 5 && s.vix.value < 200) {
+    if(!_latestDataForIndicators) _latestDataForIndicators = {};
+    if(!_latestDataForIndicators.economicIndicators) _latestDataForIndicators.economicIndicators = {};
+    if(!_latestDataForIndicators.economicIndicators.us) _latestDataForIndicators.economicIndicators.us = {};
+    const prevVix  = _latestDataForIndicators.economicIndicators.us.vix || {};
+    const prevHist = (prevVix.history && typeof prevVix.history === 'object') ? prevVix.history : {};
+    const newHist  = (s.vix.history && typeof s.vix.history === 'object') ? s.vix.history : {};
+    const mergedHist = { ...prevHist, ...newHist };
+    _latestDataForIndicators.economicIndicators.us.vix = {
+      ...prevVix, ...s.vix,
+      desc: prevVix.desc || 'VIX 변동성 지수',
+      history: Object.keys(mergedHist).length ? mergedHist : (prevVix.history || undefined),
+    };
+    const el = document.getElementById('dashVix');
+    if(el) {
+      el.textContent = s.vix.value.toFixed(2);
+      const v = s.vix.value;
+      el.style.color = v > 25 ? '#ef5350' : v > 18 ? '#f5a623' : '#26a69a';
     }
   }
   if(s.pcr?.value != null) {
@@ -11921,10 +11988,62 @@ function _renderReHistChartSentiment(guide) {
 // ============================
 // 실시간 데이터 로드 (data.json)
 // ============================
+// 지표 leaf 가 '빈 값'인지 — value:null 또는 빈 객체. (서버가 VIX 등을 비워 보낸 케이스 판정)
+function _isEmptyMetricVal(m) {
+  if(m == null) return true;
+  if(typeof m === 'object' && !Array.isArray(m)) {
+    if('value' in m) return m.value == null;   // metric leaf
+    return Object.keys(m).length === 0;          // 빈 컨테이너
+  }
+  return false;
+}
+// metric leaf 의 기준일(신선도 비교용) — as_of > period > date 순.
+function _metricDate(m) {
+  if(!m || typeof m !== 'object') return '';
+  return String(m.as_of || m.period || m.date || '');
+}
+// server(new) leaf 를 채택할지 결정. 빈 서버값은 기존 유효값을 못 덮어쓰고,
+// 둘 다 유효하면 더 최신(기준일) 값을 택한다. (live VIX 가 stale FRED VIX 에 안 밀림)
+function _shouldAdoptServerLeaf(serverLeaf, clientLeaf) {
+  if(_isEmptyMetricVal(serverLeaf)) return false;          // 빈 서버값 → 기존 보존
+  if(_isEmptyMetricVal(clientLeaf)) return true;           // 기존 없음 → 서버값 채택
+  const ds = _metricDate(serverLeaf), dc = _metricDate(clientLeaf);
+  if(ds && dc && ds < dc) return false;                    // 클라이언트가 더 최신 → 보존
+  return true;                                              // 동률/판단불가/서버최신 → 서버값
+}
+// 지표 컨테이너(economicIndicators / realestate / sentiment) 깊은 머지.
+// 핵심: 서버(data.json) 의 leaf 가 비었는데 기존(클라이언트 보강) 값이 유효하면 보존.
+// 이래야 클라이언트가 채운 VIX(economicIndicators.us.vix)가 1~3분마다 도는 loadRealData
+// 의 null/구버전 서버값에 의해 지워지지 않는다. (FRED 실패로 서버 VIX 가 비어도 카드 유지.)
+function _mergeIndicatorContainer(prevC, newC) {
+  const out = { ...(prevC || {}) };
+  Object.keys(newC || {}).forEach(key => {
+    const nv = newC[key];
+    const pv = prevC ? prevC[key] : undefined;
+    if(nv && typeof nv === 'object' && !Array.isArray(nv)) {
+      if('value' in nv) {
+        // 이 레벨이 곧 metric leaf (예: sentiment.vkospi)
+        if(_shouldAdoptServerLeaf(nv, pv)) out[key] = nv;
+      } else {
+        // 국가 컨테이너 (예: economicIndicators.us) — leaf 단위로 머지
+        const sub = { ...((pv && typeof pv === 'object') ? pv : {}) };
+        Object.keys(nv).forEach(ik => {
+          if(_shouldAdoptServerLeaf(nv[ik], sub[ik])) sub[ik] = nv[ik];
+        });
+        out[key] = sub;
+      }
+    } else if(nv != null) {
+      out[key] = nv;
+    }
+  });
+  return out;
+}
+
 function applyRealData(d) {
   if (!d) return;
   // 부분 patch 머지: 기존 데이터 + 새 데이터 (얕은 병합)
   // 단, fx/indices/commodities 등이 빈 객체이면 기존 값 보존
+  const _DEEP_MERGE_KEYS = { economicIndicators: 1, realestate: 1, sentiment: 1 };
   if(_latestDataForIndicators && _latestDataForIndicators !== d) {
     const prev = _latestDataForIndicators;
     const merged = { ...prev };
@@ -11933,8 +12052,12 @@ function applyRealData(d) {
       if(v && typeof v === 'object' && !Array.isArray(v)) {
         // 빈 객체이면 기존 값 보존
         if(Object.keys(v).length === 0) return;
-        // 객체이면 얕은 머지
-        merged[k] = { ...(prev[k] || {}), ...v };
+        // 지표 컨테이너는 leaf 단위 깊은 머지(빈 서버값이 기존 유효값 못 덮어쓰게), 그 외는 얕은 머지
+        if(_DEEP_MERGE_KEYS[k]) {
+          merged[k] = _mergeIndicatorContainer(prev[k] || {}, v);
+        } else {
+          merged[k] = { ...(prev[k] || {}), ...v };
+        }
       } else if(v != null) {
         merged[k] = v;
       }
@@ -12697,7 +12820,9 @@ function applyRealData(d) {
 
 async function loadRealData() {
   try {
-    const r = await fetch('./data.json?_=' + Date.now());
+    // cache:'no-store' + 쿼리 캐시버스터 — GitHub Pages CDN/브라우저 캐시로 인한
+    // '오전 데이터 고정' 방지. (data.json 이 새로 커밋돼도 캐시가 구버전을 주던 문제.)
+    const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) return;
     const data = await r.json();
     // 신규 데이터의 lastUpdated 가 동일하면 (변화 없음) 차트 재빌드 생략
@@ -13749,17 +13874,59 @@ window.addEventListener('load', async ()=>{
   fetchSentimentClient().then(applySentimentClient).catch(()=>{});
   // 실시간 뉴스 로드 (Google News RSS)
   loadFreshNews();
-  // 5분마다 실시간 데이터 일괄 갱신 (환율·지수·원자재·등락Top10·시장 분위기)
-  // KOSPI/ETF Top10, 원자재, 채권, 환율 등 모든 시장 데이터를 동일하게 5분 단위로 갱신
+  // ============================================================
+  // 장 시간 인식 적응형 자동 동기화 (semi-실시간)
+  // 장 시간(한국/미국 정규장): 1분 간격 / 그 외: 5분 간격.
+  // KOSPI Top10·지수·원자재·환율·VIX 등 모든 시장 데이터가 장중 1분마다 자동 갱신.
+  // ============================================================
+  const ONE_MIN  = 1 * 60 * 1000;
   const FIVE_MIN = 5 * 60 * 1000;
-  const TWO_MIN  = 2 * 60 * 1000;
-  // data.json 자동 재로드 — GitHub Actions 가 매시간 갱신하므로 2분마다 다시 페치
-  // (실시간 환율/지수/뉴스/Top10 은 별도 클라이언트 API 로 5분 단위 갱신)
-  setInterval(() => { loadRealData().catch(()=>{}); }, TWO_MIN);
-  setInterval(loadRealtimeFx, FIVE_MIN);
-  setInterval(loadRealtimeMarket, FIVE_MIN);
-  setInterval(() => { refreshMoversFromClient().catch(()=>{}); }, FIVE_MIN);
-  setInterval(() => { fetchSentimentClient().then(applySentimentClient).catch(()=>{}); }, FIVE_MIN);
+  const THREE_MIN= 3 * 60 * 1000;
+  // 현재 시각을 KST 로 (고정 오프셋 +9, 사용자 로컬 타임존 무관하게 한국 장 판정)
+  function _kstNow() {
+    const n = new Date();
+    return new Date(n.getTime() + (n.getTimezoneOffset() + 540) * 60000);
+  }
+  // 한국 정규장: 평일 09:00–15:30 KST
+  window._isKrMarketOpen = function() {
+    const k = _kstNow(), day = k.getDay();
+    if(day === 0 || day === 6) return false;
+    const m = k.getHours() * 60 + k.getMinutes();
+    return m >= 540 && m <= 930;
+  };
+  // 미국 정규장(대략): KST 야간. 서머타임 변동 흡수 위해 22:30–06:00 으로 넉넉히.
+  window._isUsMarketOpen = function() {
+    const k = _kstNow(), day = k.getDay();
+    const m = k.getHours() * 60 + k.getMinutes();
+    if(m >= 1350) return day >= 1 && day <= 5;   // 당일 22:30~24:00 = 미 월~금
+    if(m <= 360)  return day >= 2 && day <= 6;   // 익일 00:00~06:00 = 미 월~금
+    return false;
+  };
+  // 둘 중 하나라도 열려 있으면 '장중'으로 간주 → 1분 동기화
+  window._isMarketActive = function() {
+    try { return window._isKrMarketOpen() || window._isUsMarketOpen(); } catch(_) { return false; }
+  };
+  // 적응형 스케줄러 — 매 틱마다 isActiveFn() 재평가하여 다음 지연을 결정.
+  // (장 시작/마감 시점에 자동으로 1분↔5분 전환. setInterval 과 달리 동적 간격.)
+  function _scheduleAdaptive(taskFn, isActiveFn, activeMs, idleMs) {
+    const run = async () => {
+      try { await taskFn(); } catch(_) {}
+      const delay = (isActiveFn && isActiveFn()) ? activeMs : idleMs;
+      setTimeout(run, delay);
+    };
+    const first = (isActiveFn && isActiveFn()) ? activeMs : idleMs;
+    setTimeout(run, first);
+  }
+  // data.json 재로드 — 장중 1분(서버 GHA 커밋 신속 반영) / 그 외 3분
+  _scheduleAdaptive(() => loadRealData().catch(()=>{}), window._isMarketActive, ONE_MIN, THREE_MIN);
+  // 실시간 환율 — 장중 1분 / 그 외 5분
+  _scheduleAdaptive(() => loadRealtimeFx().catch(()=>{}), window._isMarketActive, ONE_MIN, FIVE_MIN);
+  // 실시간 지수·원자재(Stooq) — 장중 1분 / 그 외 5분
+  _scheduleAdaptive(() => loadRealtimeMarket().catch(()=>{}), window._isMarketActive, ONE_MIN, FIVE_MIN);
+  // KOSPI/ETF Top10 등락 — 한국 장중 1분 / 그 외 5분
+  _scheduleAdaptive(() => refreshMoversFromClient().catch(()=>{}), window._isKrMarketOpen, ONE_MIN, FIVE_MIN);
+  // 시장 분위기(VKOSPI/MOVE/VIX/Put-Call/F&G) — 장중 1분 / 그 외 5분
+  _scheduleAdaptive(() => fetchSentimentClient().then(applySentimentClient).catch(()=>{}), window._isMarketActive, ONE_MIN, FIVE_MIN);
   // 탭 포커스가 돌아오면 즉시 한 번 모든 데이터 갱신 (오래 비활성 상태 후 복귀 시)
   let _lastActivityTime = Date.now();
   document.addEventListener('visibilitychange', () => {
@@ -13779,8 +13946,8 @@ window.addEventListener('load', async ()=>{
   ['click','keydown','scroll','mousemove'].forEach(ev =>
     window.addEventListener(ev, () => { _lastActivityTime = Date.now(); }, { passive: true })
   );
-  // 5분마다 활성 차트 페이지의 차트 재빌드 (새 데이터 반영)
-  setInterval(() => {
+  // 활성 차트 페이지 재빌드 — 장중 1분 / 그 외 5분 (방금 갱신된 데이터를 화면에 반영)
+  _scheduleAdaptive(() => {
     try {
       const activePage = document.querySelector('.page.active');
       if(!activePage) return;
@@ -13790,8 +13957,8 @@ window.addEventListener('load', async ()=>{
       else if(id === 'page-realestate') { try { buildReCharts(); if(typeof buildUsReCharts==='function') buildUsReCharts(); } catch(_){} }
       else if(id === 'page-investor') { try { buildInvestorPage(); } catch(_){} }
     } catch(_) {}
-  }, FIVE_MIN);
-  // 5분마다 뉴스 갱신 (실제 기사 URL 다시 페치)
+  }, window._isMarketActive, ONE_MIN, FIVE_MIN);
+  // 뉴스 갱신 — 5분 (뉴스는 1분 갱신 불필요 + 프록시 부하 절약)
   setInterval(() => { loadFreshNews().catch(()=>{}); }, FIVE_MIN);
   // 페이지 로드 후 차트 위젯에 새로고침 버튼 일괄 주입
   setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 500);
