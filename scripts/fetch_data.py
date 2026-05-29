@@ -780,34 +780,45 @@ def fetch_yf_kr_etf_movers(top_n=10):
 # FRED API (미국 경제 지표)
 # ============================================================
 def fetch_fred_series(series_id, limit=1):
-    """FRED API에서 시계열 데이터 최신값 조회."""
+    """FRED API에서 시계열 데이터 최신값 조회.
+
+    일시적 네트워크/FRED 응답 지연으로 단발 실패하면 그 시리즈(예: VIXCLS)가
+    통째로 누락되고, 그 누락이 _preserve_*() 로도 못 막히는 케이스가 있었다.
+    (KST 09:00 일일 풀런이 FRED 전체를 한 번에 호출 → 한 번의 블립이 us/uk 의
+     FRED 지표 16개를 날렸음.) 짧은 백오프로 최대 3회 재시도하여 전수 손실을 방지.
+    """
     if not FRED_API_KEY:
         return None
-    try:
-        r = requests.get(
-            f"{FRED_BASE}/series/observations",
-            params={
-                "series_id": series_id,
-                "api_key": FRED_API_KEY,
-                "file_type": "json",
-                "limit": limit,
-                "sort_order": "desc",
-            },
-            timeout=15,
-        )
-        r.raise_for_status()
-        obs = r.json().get("observations", [])
-        if not obs:
-            return None
-        vals = []
-        for o in obs:
-            v = _parse_num(o.get("value"))
-            if v is not None:
-                vals.append({"date": o["date"], "value": v})
-        return vals if vals else None
-    except Exception as e:
-        log(f"[FRED] {series_id} 오류: {e}")
-        return None
+    last_err = None
+    for attempt in range(3):
+        try:
+            r = requests.get(
+                f"{FRED_BASE}/series/observations",
+                params={
+                    "series_id": series_id,
+                    "api_key": FRED_API_KEY,
+                    "file_type": "json",
+                    "limit": limit,
+                    "sort_order": "desc",
+                },
+                timeout=20,
+            )
+            r.raise_for_status()
+            obs = r.json().get("observations", [])
+            if not obs:
+                return None
+            vals = []
+            for o in obs:
+                v = _parse_num(o.get("value"))
+                if v is not None:
+                    vals.append({"date": o["date"], "value": v})
+            return vals if vals else None
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                _time.sleep(1.5 * (attempt + 1))  # 1.5s, 3s 백오프
+    log(f"[FRED] {series_id} 오류(재시도 3회 소진): {last_err}")
+    return None
 
 
 def fetch_fred_latest(series_id):
@@ -3667,6 +3678,83 @@ def _preserve_from_prev(data, prev, keys, fresh_label=None):
     return preserved
 
 
+def _restore_missing_metrics(cur_node, prev_node):
+    """prev_node 의 개별 지표(metric leaf)를 cur_node 에 '지표 단위'로 채운다.
+
+    배경(중요 버그):
+      _preserve_from_prev 는 컨테이너 단위(예: economicIndicators.us)로만
+      비어있음을 판정한다. 그런데 FRED 일시 실패로 us={dxy_idx}(yfinance) 처럼
+      '일부만 남은' 상태가 되면 컨테이너는 '비어있지 않음'으로 보여 VIX 등
+      나머지 16개 FRED 지표가 영구 손실됐다. (실제 2026-05-29 KST 09:00 발생.)
+
+    해결: 컨테이너 내부를 leaf 단위로 순회하여, 현재 빌드에서 누락/빈값인
+    지표만 직전 빌드의 유효값으로 복원한다. 신선하게 수집된 지표는 절대
+    덮어쓰지 않는다(누락분만 채움).
+
+    구조 차이 자동 처리:
+      - economicIndicators: 2단계 (economicIndicators.us.vix.value)
+      - sentiment/realestate: 혼합 → metric dict('value' 보유)면 leaf 로,
+        그 외 dict 면 한 단계 더 재귀.
+    """
+    restored = 0
+    if not isinstance(prev_node, dict) or not isinstance(cur_node, dict):
+        return 0
+    for k, pv in prev_node.items():
+        cv = cur_node.get(k)
+        if isinstance(pv, dict) and "value" in pv:
+            # 지표 leaf — 현재 누락/빈값이고 직전이 유효하면 복원
+            cur_empty = (k not in cur_node) or _is_effectively_empty(cv)
+            if cur_empty and not _is_effectively_empty(pv):
+                cur_node[k] = pv
+                restored += 1
+        elif isinstance(pv, dict):
+            # 중첩 컨테이너(국가 등) — 현재에 없으면 통째로, 있으면 한 단계 재귀
+            if not isinstance(cv, dict):
+                if not _is_effectively_empty(pv):
+                    cur_node[k] = pv
+                    restored += 1
+            else:
+                restored += _restore_missing_metrics(cv, pv)
+    return restored
+
+
+def _preserve_indicators_deep(data, prev, container_keys, fresh_label="이전 빌드 보존(지표)"):
+    """지표 컨테이너(economicIndicators 등) 내부를 leaf 단위로 직전 빌드에서 보강.
+
+    _preserve_from_prev(컨테이너 단위) 의 사각지대를 메운다. 컨테이너 전체가
+    비면 _preserve_from_prev 가, 일부만 비면 이 함수가 처리한다.
+
+    Returns: 복원된 지표(leaf) 개수.
+    """
+    if not prev:
+        return 0
+    total = 0
+    for ck in container_keys:
+        cur = data.get(ck)
+        pcur = prev.get(ck)
+        if not isinstance(pcur, dict):
+            continue
+        if not isinstance(cur, dict):
+            # 컨테이너 자체가 통째로 비었으면 직전 것으로 (방어적)
+            if not _is_effectively_empty(pcur):
+                data[ck] = pcur
+                total += 1
+            continue
+        n = _restore_missing_metrics(cur, pcur)
+        if n:
+            total += n
+            # 소스 라벨에 보강 흔적 남기기 (이미 'preserved' 라벨이면 중복 표기 안 함)
+            try:
+                src_key = f"{ck}_partial"
+                data.setdefault("sources", {}).setdefault(
+                    src_key, f"{fresh_label}: {n}개 지표 보강"
+                )
+            except Exception:
+                pass
+            log(f"[preserve-deep] {ck}: 누락 지표 {n}개를 직전 빌드 값으로 보강")
+    return total
+
+
 # ============================================================
 # 메인 빌드
 # ============================================================
@@ -4005,6 +4093,34 @@ def build_data():
                 log("[yf-DXY] DX-Y.NYB 응답 없음 — FRED broad_dollar 폴백 유지")
         except Exception as e:
             log(f"[yf-DXY] 오류: {e}")
+        # VIX 폴백 — FRED VIXCLS 가 누락/실패한 경우 yfinance ^VIX 로 독립 보강.
+        # (VIX 는 사용자가 시장분위기 카드에서 가장 먼저 보는 지표 → 절대 빈 값 방지.)
+        # FRED VIXCLS 는 전일 종가(일 1회)라 약간 지연되며, yfinance ^VIX 는 장중
+        # 실시간에 가까워 보강값이 더 최신일 수 있다.
+        try:
+            us_vix = (data["economicIndicators"]["us"].get("vix") or {})
+            if us_vix.get("value") is None:
+                log("[yf-VIX] FRED VIX 누락 → yfinance ^VIX 보강 시도")
+                vix_quote = fetch_yf("^VIX")
+                if vix_quote and vix_quote.get("price"):
+                    vix_hist = fetch_yf_history("^VIX", period="5y")
+                    vix_hist_map = {}
+                    for pt in (vix_hist or []):
+                        if pt.get("close") and pt["close"] > 0:
+                            vix_hist_map[pt["date"]] = round(pt["close"], 2)
+                    data["economicIndicators"]["us"]["vix"] = {
+                        "value":  round(vix_quote["price"], 2),
+                        "change": vix_quote.get("change", 0),
+                        "period": datetime.now(KST).strftime("%Y-%m-%d"),
+                        "desc":   "VIX 변동성 지수",
+                        "source": "yfinance ^VIX",
+                        "history": vix_hist_map,
+                    }
+                    log(f"[yf-VIX] VIX = {vix_quote['price']} ({vix_quote.get('change',0):+.2f}%)")
+                else:
+                    log("[yf-VIX] ^VIX 응답 없음 — preserve 로 직전 값 복원 예정")
+        except Exception as e:
+            log(f"[yf-VIX] 오류: {e}")
         # 미국 부동산 지표
         log("[FRED] 미국 부동산 지표 수집 시작")
         re_us_data = fetch_fred_realestate_us()
@@ -4372,6 +4488,22 @@ def build_data():
             data.setdefault("diagnostics", {})["preservedFields"] = preserved
     except Exception as e:
         log(f"[preserve] 머지 오류 (무시): {e}")
+
+    # ── leaf 단위 지표 보강 (컨테이너 단위 보존의 사각지대 메우기) ──────
+    # FRED 일시 실패로 economicIndicators.us 가 {dxy_idx} 처럼 '일부만 남으면'
+    # 위 _preserve_from_prev 는 '비어있지 않음'으로 보고 건너뛴다 → VIX 등 손실.
+    # 여기서 누락된 개별 지표만 직전 빌드 값으로 채워 전수 손실을 방지한다.
+    try:
+        deep = _preserve_indicators_deep(
+            data, prev,
+            container_keys=["economicIndicators", "realestate", "sentiment", "yieldCurve"],
+        )
+        if deep:
+            log(f"[preserve-deep] 총 {deep}개 지표(leaf)를 직전 빌드 값으로 보강")
+            dg = data.setdefault("diagnostics", {})
+            dg["preservedMetricsDeep"] = deep
+    except Exception as e:
+        log(f"[preserve-deep] 머지 오류 (무시): {e}")
 
     # ── 차트 끝점 ↔ 실시간 spot 동기화 (소스 불일치 보정) ──────────
     # 모든 카드/상세 모달 차트가 data.history 를 공유하므로 한 번의 보정으로
