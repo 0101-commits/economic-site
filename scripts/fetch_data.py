@@ -209,6 +209,15 @@ except ImportError:
     _pykrx_stock = None
     _PYKRX_AVAILABLE = False
 
+# KRX 로그인 가능 여부 — 2026 부터 KRX 정보데이터시스템이 로그인을 요구하기 시작했다.
+# pykrx 1.2.x 는 KRX_ID/KRX_PW 환경변수가 있으면 import 시 자동 로그인하며, 없으면
+# 익명 접근을 시도하나 KRX 가 거부해 데이터가 비는 경우가 많다(투자자별 순매매가 대표적).
+# 워크플로 Secrets(KRX_ID/KRX_PW)에 data.krx.co.kr 무료 계정을 등록하면 정상화된다.
+_KRX_LOGIN_AVAILABLE = bool(os.environ.get("KRX_ID", "").strip() and os.environ.get("KRX_PW", "").strip())
+if _PYKRX_AVAILABLE and not _KRX_LOGIN_AVAILABLE:
+    log("[KRX-login] KRX_ID/KRX_PW 미설정 — pykrx 익명 접근 시도(투자자별 순매매 등 일부 데이터가 거부될 수 있음). "
+        "data.krx.co.kr 무료 가입 후 Secrets 에 KRX_ID/KRX_PW 등록 권장.")
+
 
 def _last_kr_business_day(max_lookback=14):
     """가장 최근 영업일 찾기 — pykrx 가 데이터를 반환하는 첫 평일."""
@@ -417,7 +426,12 @@ def fetch_investor_trading(lookback_days=400):
             log(f"[투자자] {mkt} {n}일 수집 (외국인={col_foreign}/기관={col_inst}/개인={col_retail})")
 
     if not agg or not markets_ok:
-        log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용)")
+        if not _KRX_LOGIN_AVAILABLE:
+            log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용). 원인: KRX 가 정보데이터시스템 데이터에 "
+                "로그인을 요구함. Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정) 등록 시 해결됨.")
+        else:
+            log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용). KRX 로그인은 설정됐으나 응답이 비어있음 "
+                "(KRX 일시 장애/자격증명 오류 가능).")
         return {}
     daily = [{
         "date": d,
@@ -918,6 +932,25 @@ def fetch_fred_latest(series_id):
     return None
 
 
+def fetch_dubai_crude():
+    """두바이 현물유 가격 — FRED POILDUBUSDM (Global price of Dubai Crude, USD/bbl).
+
+    두바이유는 중동·아시아 원유의 핵심 벤치마크지만 무료 '일별 현물' API 가 드물다.
+    FRED 의 IMF 기반 시리즈(월간, 약 1~2개월 지연)로 신뢰성 있는 값과 시계열을 확보한다.
+    yfinance 에는 두바이 현물/선물 티커가 없어 FRED 가 가장 안정적인 무료 소스.
+    Returns: ({"price","change"}, history[{date,close}...] asc) 또는 (None, None).
+    """
+    obs = fetch_fred_series("POILDUBUSDM", limit=72)  # 최근 6년치 월간
+    if not obs:
+        return None, None
+    # fetch_fred_series 는 desc 정렬 → [0]=최신, [1]=전월
+    latest = obs[0]["value"]
+    prev = obs[1]["value"] if len(obs) > 1 else latest
+    change = ((latest - prev) / prev * 100.0) if prev else 0.0
+    hist = [{"date": o["date"], "close": round(o["value"], 2)} for o in reversed(obs)]
+    return {"price": round(latest, 2), "change": round(change, 2)}, hist
+
+
 def fetch_fred_economic_indicators():
     """주요 미국 경제 지표 일괄 조회 (최신 값 + 24개 시점 시계열)."""
     if not FRED_API_KEY:
@@ -1219,6 +1252,45 @@ def fetch_ecos_yield_curve_kr():
     }
 
 
+# 미국 주(State) 코드 — FHFA 주별 주택가격지수(FRED {XX}STHPI) 조회용. DC 포함 51개.
+_US_STATE_CODES = [
+    "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
+    "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+    "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+    "VA","WA","WV","WI","WY","DC",
+]
+
+
+def fetch_fred_state_hpi():
+    """미국 주(State)별 주택가격지수 — FHFA All-Transactions HPI (FRED {XX}STHPI, 분기).
+
+    Case-Shiller 는 전국+20대 도시만 제공하고 주별 시계열이 없어, 프론트의 '미국 지역별
+    Case-Shiller 등락률' 지도에서 주를 클릭하면 차트가 비어 있었다. 주별 가격은 FHFA 지수
+    (FRED 표준)가 정답이므로 이를 가져와 지도/차트에 실데이터를 채운다(전분기比 등락률 포함).
+    Returns: {CODE: {value, chg, period, source, history{YYYY-MM-DD: val}}, ...}
+    """
+    out = {}
+    for code in _US_STATE_CODES:
+        try:
+            obs = fetch_fred_series(f"{code}STHPI", limit=24)  # 분기 × 24 ≈ 6년
+            if not obs:
+                continue
+            cur = obs[0]["value"]
+            prev = obs[1]["value"] if len(obs) > 1 else None
+            chg = round((cur - prev) / prev * 100, 2) if prev and prev != 0 else None
+            out[code] = {
+                "value":   round(cur, 2),
+                "chg":     chg,
+                "period":  obs[0]["date"],
+                "source":  f"FRED:{code}STHPI (FHFA 주별 HPI)",
+                "history": {o["date"]: o["value"] for o in obs},
+            }
+        except Exception as e:
+            log(f"[FRED-STATE] {code}STHPI 오류: {e}")
+    log(f"[FRED-STATE] 미국 주별 HPI {len(out)}/{len(_US_STATE_CODES)}개 수집")
+    return out
+
+
 def fetch_fred_realestate_us():
     """미국 부동산 주요 지표 FRED API로 조회.
 
@@ -1269,6 +1341,26 @@ def fetch_fred_realestate_us():
         else:
             log(f"[FRED-RE] {key}: 모든 후보 실패")
     log(f"[FRED-RE] 미국 부동산: {len(result)}/{len(indicators)} 지표 수집됨")
+    # 주별 주택가격지수(FHFA) — 지역별 Case-Shiller 지도 클릭 시 차트용 실데이터.
+    # 분기 데이터라 매 런(10분 주기)마다 51콜은 과해 FRED rate-limit 위험 → 일일 윈도우
+    # (KST 09:00/22:00 = UTC 00/13시) 또는 AV_FETCH_FULL 일 때만 새로 페치하고, 그 외에는
+    # 직전 data.json 값을 보존한다(직전 값이 없으면 한 번은 페치해 빈 화면 방지).
+    try:
+        hour_utc = datetime.now(timezone.utc).hour
+        full = os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes")
+        if hour_utc in (0, 13) or full:
+            state_hpi = fetch_fred_state_hpi()
+        else:
+            prev = _load_prev_data()
+            state_hpi = (((prev.get("realestate") or {}).get("us") or {}).get("case_shiller_state")) or {}
+            if state_hpi:
+                log(f"[FRED-STATE] 직전 빌드 주별 HPI {len(state_hpi)}개 보존 (비-일일윈도우, FRED 콜 절약)")
+            else:
+                state_hpi = fetch_fred_state_hpi()  # 직전 값 없으면 최초 1회 페치
+        if state_hpi:
+            result["case_shiller_state"] = state_hpi
+    except Exception as e:
+        log(f"[FRED-STATE] 주별 HPI 수집 오류: {e}")
     return result
 
 
@@ -2272,12 +2364,13 @@ def fetch_realestate_kr():
 
     # ─── R-ONE 추가 시리즈: 미분양 / 인허가 / 착공 / 준공 (전국 집계) ──
     # 모두 전국(CLS_ID=500001) 으로 한정해 최신값을 추출 (가격지수와 동일 메커니즘).
+    # 주: '주택 인허가/준공'(permit/complete)은 국토교통부(MOLIT) 통계라 R-ONE OpenAPI 에
+    #     존재하지 않아 항상 빈 응답이었다(프론트의 '주택 인허가' 차트가 비어 보이던 원인).
+    #     → 인허가는 아래 '전월세전환율'(R-ONE 실제 제공 지표)로 대체한다. 준공은 제거.
     extra_stats = [
         # (key,          desc,                       statbl_id)
         ("unsold_kr",    "전국 미분양 주택 수",        "A_2024_00064"),
-        ("permit_kr",    "주택 인허가 실적 (전국)",    "A_2024_00058"),
         ("start_kr",     "주택 착공 실적 (전국)",      "A_2024_00057"),
-        ("complete_kr",  "주택 준공 실적 (전국)",      "A_2024_00059"),
     ]
     for key, desc, statbl_id in extra_stats:
         try:
@@ -2290,6 +2383,27 @@ def fetch_realestate_kr():
             log(f"[R-ONE] {key} ({statbl_id}): {picked['value']} ({picked['period']})")
         except Exception as e:
             log(f"[R-ONE] {key} ({statbl_id}) 오류: {e}")
+
+    # ─── 전월세전환율 (전국, 월) — '주택 인허가'(R-ONE 미제공) 대체 지표 ──
+    # 전세보증금을 월세로 전환할 때 적용되는 연이율(%). 시장금리·임대차 수급을 반영하는
+    # 의미 있는 시장 지표로, R-ONE 이 실제 제공한다. 등록 차수에 따라 STATBL_ID 가 바뀌므로
+    # 카탈로그 검색(이름='전월세전환율')으로 유효한 통계표를 자동 탐색한다.
+    try:
+        conv = None
+        conv_id = None
+        for sid, nm in fetch_rone_table_catalog("전월세전환율", "MM"):
+            conv = fetch_rone_nationwide_latest(sid, limit=300)
+            if conv:
+                conv_id = sid
+                break
+        if conv:
+            conv.update({"region": "전국", "desc": "전월세전환율 (전국, 월)", "source": f"R-ONE:{conv_id}"})
+            result["conversion_rate_kr"] = conv
+            log(f"[R-ONE] conversion_rate_kr ({conv_id}): {conv['value']} ({conv['period']})")
+        else:
+            log("[R-ONE] 전월세전환율: 카탈로그 검색 실패 — 건너뜀 (프론트 '수집 중' 표시)")
+    except Exception as e:
+        log(f"[R-ONE] 전월세전환율 오류: {e}")
 
     # ─── 거래량: (월) 행정구역별 아파트거래현황 (A_2024_00549) ──
     # 전국(CLS_ID=500001) + ITM_ID=100001(동(호)수) 로 한정. 면적(100002) 항목과 섞이지 않게 ITM 필수.
@@ -2582,6 +2696,70 @@ def fetch_data_go_kr(service_path, params=None):
     except Exception as e:
         log(f"[data.go.kr] {service_path} 오류: {e}")
         return None
+
+
+def _applyhome_region_bucket(area_nm):
+    """청약홈 공급지역명 → 프론트 지역 버킷(seoul/gyeonggi/metro/other)."""
+    a = area_nm or ""
+    if "서울" in a:
+        return "seoul"
+    if "경기" in a or "인천" in a:
+        return "gyeonggi"
+    if any(x in a for x in ("부산", "대구", "대전", "광주", "울산")):
+        return "metro"
+    return "other"
+
+
+def fetch_applyhome_subscription(max_items=100):
+    """청약홈(한국부동산원) 최근 APT 분양정보 — data.go.kr odcloud API.
+
+    프론트의 '청약 경쟁률' 지역 클릭 드릴다운(Task 4)에 쓸 '최근 분양 단지' 목록을
+    공급지역 버킷(서울/경기인천/지방광역시/기타)별로 묶어 만든다. 1순위 경쟁률은 별도
+    서비스(주택관리번호 기준)라 여기선 단지명·지역·모집공고일 중심으로 싣고, 경쟁률 상세는
+    프론트가 청약홈 링크로 안내한다. DATA_GO_KR_API_KEY 필요. 실패해도 빌드는 계속(빈 dict).
+    Returns: {"byRegion": {...}, "source": ..., "lastFetched": ...} 또는 {}.
+    """
+    if not DATA_GO_KR_API_KEY:
+        log("[청약홈] DATA_GO_KR_API_KEY 없음 — 분양정보 건너뜀")
+        return {}
+    url = "https://api.odcloud.kr/api/ApplyhomeInfoDetailSvc/v1/getAPTLttotPblancDetail"
+    try:
+        r = requests.get(url, params={
+            "page": 1, "perPage": max_items, "serviceKey": DATA_GO_KR_API_KEY,
+        }, timeout=20)
+        if r.status_code != 200:
+            log(f"[청약홈] HTTP {r.status_code} — 건너뜀")
+            return {}
+        data = r.json()
+        rows = data.get("data") if isinstance(data, dict) else None
+        if not rows:
+            log("[청약홈] 분양정보 응답 비어있음 — 건너뜀")
+            return {}
+        rows = sorted(rows, key=lambda it: str(it.get("RCRIT_PBLANC_DE") or ""), reverse=True)
+        by = {"seoul": [], "gyeonggi": [], "metro": [], "other": []}
+        for it in rows:
+            name = it.get("HOUSE_NM") or ""
+            if not name:
+                continue
+            area = it.get("SUBSCRPT_AREA_CODE_NM") or ""
+            date = (str(it.get("RCRIT_PBLANC_DE") or ""))[:10]
+            b = _applyhome_region_bucket(area)
+            if len(by[b]) >= 15:
+                continue
+            by[b].append({"name": name, "area": area, "date": date, "rate": None})
+        total = sum(len(v) for v in by.values())
+        if not total:
+            return {}
+        log(f"[청약홈] 분양정보 {total}건 수집 (서울 {len(by['seoul'])}/경기인천 {len(by['gyeonggi'])}"
+            f"/광역 {len(by['metro'])}/기타 {len(by['other'])})")
+        return {
+            "byRegion": by,
+            "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
+            "lastFetched": datetime.now(KST).isoformat(),
+        }
+    except Exception as e:
+        log(f"[청약홈] 오류: {e}")
+        return {}
 
 
 def fetch_molit_apt_trade_count(months_back=3):
@@ -3780,19 +3958,26 @@ def fetch_all_historical_data():
         else:
             log(f"[YF-HIST] IDX {name}({sym}): 데이터 없음")
     com_map = {
-        "Gold":     "GC=F",
-        "Silver":   "SI=F",
-        "Platinum": "PL=F",
-        "Copper":   "HG=F",
-        "WTI":      "CL=F",
-        "Brent":    "BZ=F",
-        "NatGas":   "NG=F",
-        "Aluminum": "ALI=F",
+        "Gold":      "GC=F",
+        "Silver":    "SI=F",
+        "Platinum":  "PL=F",
+        "Palladium": "PA=F",
+        "Copper":    "HG=F",
+        "WTI":       "CL=F",
+        "Brent":     "BZ=F",
+        "NatGas":    "NG=F",
+        "Gasoline":   "RB=F",
+        "HeatingOil": "HO=F",
+        "Aluminum":  "ALI=F",
         # 농산물 (사용자 요청: ZW=F/ZC=F/ZS=F/ZR=F)
         "Wheat":    "ZW=F",
         "Corn":     "ZC=F",
         "Soybean":  "ZS=F",
         "Rice":     "ZR=F",
+        # 소프트 원자재 (ICE)
+        "Coffee":   "KC=F",
+        "Sugar":    "SB=F",
+        "Cocoa":    "CC=F",
     }
     for name, sym in com_map.items():
         h = fetch_yf_history(sym, period="5y")
@@ -4299,6 +4484,14 @@ def build_data():
     data["diagnostics"]["investorTradingDays"] = len((data.get("investorTrading") or {}).get("daily", []))
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
+    data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
+    # 투자자별 순매매가 비었을 때 프론트가 사용자에게 보여줄 actionable 사유.
+    if not (data.get("investorTrading") or {}).get("daily"):
+        data["diagnostics"]["investorTradingReason"] = (
+            "KRX 정보데이터시스템 로그인 필요 — 워크플로 Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정) 등록 후 자동 갱신됩니다."
+            if not _KRX_LOGIN_AVAILABLE else
+            "KRX 응답 대기 — 다음 자동 갱신 시 반영됩니다."
+        )
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
     if "KOSPI" not in data["indices"]:
@@ -4353,13 +4546,17 @@ def build_data():
             log(f"[KRX] 휘발유(원/L): {oil['price']} ({oil['change']:+.2f}%)")
 
     intl_com = {
-        "Gold":     "GC=F",
-        "Silver":   "SI=F",
-        "Platinum": "PL=F",
-        "Copper":   "HG=F",
-        "WTI":      "CL=F",
-        "Brent":    "BZ=F",
-        "NatGas":   "NG=F",
+        "Gold":      "GC=F",
+        "Silver":    "SI=F",
+        "Platinum":  "PL=F",
+        "Palladium": "PA=F",   # 팔라듐 (NYMEX) — 자동차 촉매 수요 핵심 귀금속
+        "Copper":    "HG=F",
+        "WTI":       "CL=F",
+        "Brent":     "BZ=F",
+        "NatGas":    "NG=F",
+        # 정유 제품 (NYMEX) — 휘발유/난방유 선물
+        "Gasoline":   "RB=F",  # RBOB 휘발유 ($/gal)
+        "HeatingOil": "HO=F",  # 난방유 ($/gal)
         # 비철금속 (LME 선물)
         "Aluminum": "ALI=F",
         # 농산물 (시카고 상품거래소 선물) — 사용자 요청에 따라 yfinance ZW=F/ZC=F/ZS=F/ZR=F
@@ -4367,6 +4564,10 @@ def build_data():
         "Corn":     "ZC=F",
         "Soybean":  "ZS=F",
         "Rice":     "ZR=F",
+        # 소프트 원자재 (ICE 선물) — 커피/설탕/코코아
+        "Coffee":   "KC=F",    # 커피 (¢/lb)
+        "Sugar":    "SB=F",    # 설탕 11호 (¢/lb)
+        "Cocoa":    "CC=F",    # 코코아 ($/MT)
     }
     for name, sym in intl_com.items():
         q = fetch_yf(sym)
@@ -4683,6 +4884,16 @@ def build_data():
     else:
         log("[MOLIT] DATA_GO_KR_API_KEY 없음 — R-ONE 부동산거래현황 값 유지")
 
+    # ── 청약홈 분양정보 (지역별 드릴다운용) ──────────────────
+    # 프론트 '청약 경쟁률' 지역 클릭 시 최근 분양 단지를 지역별로 보여주기 위함.
+    try:
+        subs = fetch_applyhome_subscription()
+        if subs and subs.get("byRegion"):
+            data["subscription"] = subs
+            data["sources"]["subscription"] = subs.get("source", "청약홈(data.go.kr)")
+    except Exception as e:
+        log(f"[청약홈] 수집 오류: {e}")
+
     # ── 한국수출입은행 EXIM: 환율/금리 검증용 ────────────────
     if EXIM_API_KEY:
         try:
@@ -4734,6 +4945,22 @@ def build_data():
             data["sources"]["history"] = "yfinance (FX/Indices/Commodities 5Y daily)"
     except Exception as e:
         log(f"[YF-HIST] 전체 수집 오류: {e}")
+
+    # ── 두바이 현물유 (FRED POILDUBUSDM) ─────────────────────
+    # data["history"] 가 위에서 세팅된 뒤 실행해야 history.commodities.Dubai 가 보존된다.
+    if FRED_API_KEY:
+        try:
+            dub, dub_hist = fetch_dubai_crude()
+            if dub:
+                data.setdefault("commodities", {})["Dubai"] = dub
+                if dub_hist:
+                    data.setdefault("history", {}).setdefault("commodities", {})["Dubai"] = dub_hist
+                data["sources"]["commodity_Dubai"] = "FRED POILDUBUSDM (두바이 현물유, 월간)"
+                log(f"[FRED] 두바이 현물유 = ${dub['price']} ({dub['change']:+.2f}%)")
+            else:
+                log("[FRED] 두바이유(POILDUBUSDM) 응답 없음 — 프론트 폴백값 유지")
+        except Exception as e:
+            log(f"[FRED] 두바이유 오류: {e}")
 
     # ── 뉴스 기사 (Google News RSS) ──────────────────
     # 클라이언트 CORS 프록시 의존도를 줄이기 위해 서버측에서 미리 가져와

@@ -42,7 +42,7 @@ const ALLOWED_HOSTS = [
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': '*',
   'Access-Control-Max-Age': '86400',
 };
@@ -76,10 +76,82 @@ function jsonResponse(obj, status) {
   });
 }
 
+// ──────────────────────────────────────────────────────────────────
+// AI 시황 요약 핸들러 (Anthropic Claude 중계)
+// ──────────────────────────────────────────────────────────────────
+// 프론트에서 POST /ai 로 { snapshot: {...} } 를 보내면, Worker 시크릿의 ANTHROPIC_API_KEY
+// 로 Claude 를 호출해 한국어 시황 브리핑 텍스트를 돌려준다. 키 미설정 시 503 → 프론트는
+// 자체 룰기반 요약으로 폴백한다. 비용 보호를 위해 max_tokens 제한 + 본문 크기 제한.
+async function handleAiSummary(request, env) {
+  const apiKey = env && env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    // 키 미설정 — 프론트가 룰기반 요약으로 폴백하도록 503 + 사유 반환.
+    return jsonResponse({ error: 'no_api_key', message: 'ANTHROPIC_API_KEY (Worker secret) 미설정' }, 503);
+  }
+  // 본문 크기 가드 (남용/사고 방지) — 스냅샷은 작아야 한다.
+  const raw = await request.text();
+  if (raw.length > 60000) return jsonResponse({ error: 'payload_too_large' }, 413);
+  let payload;
+  try { payload = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
+  const snapshot = payload.snapshot || payload || {};
+  const model = (typeof payload.model === 'string' && payload.model) || 'claude-haiku-4-5-20251001';
+
+  const system =
+    '당신은 한국 개인투자자를 위한 금융시장 애널리스트입니다. 제공된 실시간 시장 데이터(JSON)만 ' +
+    '근거로, 군더더기 없이 신뢰할 수 있는 "오늘의 마켓 브리핑"을 한국어로 작성하세요. 데이터에 없는 ' +
+    '수치는 추정/날조하지 말고 생략합니다. 출력은 간결한 마크다운으로:\n' +
+    '1) 한 줄 종합 판단(위험선호/위험회피/중립 + 핵심 근거)\n' +
+    '2) 국내 증시 / 해외 증시 / 환율·원자재 / 시장심리 를 각각 1~2문장 불릿\n' +
+    '3) 마지막에 "※ 투자 참고용" 한 줄. 총 250자~500자 내외, 과장·매수매도 권유 금지.';
+  const userMsg =
+    '아래는 현재 시각의 실시간 시장 데이터 스냅샷입니다. 이것만 근거로 브리핑을 작성하세요.\n\n' +
+    '```json\n' + JSON.stringify(snapshot).slice(0, 50000) + '\n```';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 900,
+        system,
+        messages: [{ role: 'user', content: userMsg }],
+      }),
+      signal: AbortSignal.timeout(25000),
+    });
+    const data = await resp.json().catch(() => null);
+    if (!resp.ok || !data) {
+      return jsonResponse({ error: 'anthropic_error', status: resp.status, detail: data }, 502);
+    }
+    const text = Array.isArray(data.content)
+      ? data.content.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim()
+      : '';
+    if (!text) return jsonResponse({ error: 'empty_response', detail: data }, 502);
+    return jsonResponse({ ok: true, summary: text, model: data.model, usage: data.usage });
+  } catch (e) {
+    return jsonResponse({ error: 'upstream_failed', detail: String(e) }, 502);
+  }
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     // CORS preflight
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+    // 🤖 AI 시황 요약 — POST /ai : 프론트가 보낸 '그 순간의 시장 스냅샷'을 Anthropic(Claude)
+    // 로 중계해 자연어 브리핑을 생성한다. 키는 Worker 시크릿 ANTHROPIC_API_KEY 로만 보관해
+    // 브라우저에 노출되지 않는다. (정적 사이트에서 안전하게 LLM 을 쓰기 위한 경로.)
+    if (request.method === 'POST') {
+      const purl = new URL(request.url);
+      if (purl.pathname === '/ai' || purl.searchParams.get('ai') === '1') {
+        return handleAiSummary(request, env);
+      }
+      return jsonResponse({ error: 'POST is only supported at /ai' }, 404);
+    }
     if (request.method !== 'GET') return jsonResponse({ error: 'GET only' }, 405);
 
     const reqUrl = new URL(request.url);
