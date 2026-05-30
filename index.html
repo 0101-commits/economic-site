@@ -1418,11 +1418,11 @@ tailwind.config = {
         <!-- Bottom: sector comparison charts 2x2 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div class="widget-title">에너지 (WTI·Brent·두바이·천연가스)</div>
+            <div class="widget-title">에너지 (WTI·Brent·천연가스) <span style="font-size:9px;color:#434656;font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div>
             <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div class="widget-title">귀금속 (금·은·백금)</div>
+            <div class="widget-title">귀금속 (금·은·백금·팔라듐)</div>
             <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
@@ -1988,26 +1988,26 @@ tailwind.config = {
           </div>
 
           <div class="widget">
-            <div class="widget-title">🏗️ 주택 공급 (선행지표)</div>
+            <div class="widget-title">🏗️ 주택 공급·임대 지표</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('permit_kr','주택 인허가 (Permits)',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div onclick="showReHistoryChart('conversion_rate_kr','전월세전환율 (전국)',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 인허가 (Permits) <span style="font-size:9px;color:#434656;">📈</span></div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 주택공급계획 · 월간 · 단위: 호</div>
+                  <div style="font-size:12px;font-weight:600;color:#dfe2f2;">전월세전환율 (전국) <span style="font-size:9px;color:#434656;">📈</span></div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: %</div>
                 </div>
                 <div style="text-align:right;">
-                  <div id="krRePermit" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                  <div id="krReConversion" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
+                  <div id="krReConversionChg" style="font-size:11px;margin-top:2px;color:#434656;">수집 중</div>
                 </div>
               </div>
               <div onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #2962ff;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:#dfe2f2;">주택 착공 (Starts) <span style="font-size:9px;color:#434656;">📈</span></div>
-                  <div style="font-size:10px;color:#434656;margin-top:2px;">국토부 주택공급계획 · 월간 · 단위: 호</div>
+                  <div style="font-size:10px;color:#434656;margin-top:2px;">한국부동산원(R-ONE) · 월간</div>
                 </div>
                 <div style="text-align:right;">
                   <div id="krReStart" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                  <div id="krReStartChg" style="font-size:11px;margin-top:2px;color:#434656;">수집 중</div>
                 </div>
               </div>
             </div>
@@ -5924,6 +5924,13 @@ let comData=[
   {name:'옥수수 (Corn)',       price:'$4.42',     chg:'+0.68%', up:true,  unit:'$/bu',  cat:'agri',   h52:'$5.20',  l52:'$3.85'},
   {name:'콩 (Soybean)',       price:'$10.48',    chg:'-0.29%', up:false, unit:'$/bu',  cat:'agri',   h52:'$12.10', l52:'$9.20'},
   {name:'쌀 (Rice)',          price:'$16.50',    chg:'+0.42%', up:true,  unit:'$/cwt', cat:'agri',   h52:'$19.80', l52:'$14.20'},
+  // ── 추가 원자재 (index 15+; 기존 0~14 인덱스 보존) ──
+  {name:'팔라듐 (Palladium)', price:'$985.00',   chg:'+0.00%', up:true,  unit:'$/oz',   cat:'metal',  h52:'$1,250', l52:'$850'},
+  {name:'휘발유 (Gasoline)',  price:'$2.10',     chg:'+0.00%', up:true,  unit:'$/gal',  cat:'energy', h52:'$2.80',  l52:'$1.70'},
+  {name:'난방유 (Heating Oil)',price:'$2.40',    chg:'+0.00%', up:true,  unit:'$/gal',  cat:'energy', h52:'$3.10',  l52:'$2.00'},
+  {name:'커피 (Coffee)',      price:'320.0¢',    chg:'+0.00%', up:true,  unit:'¢/lb',   cat:'agri',   h52:'440¢',   l52:'180¢'},
+  {name:'설탕 (Sugar)',       price:'18.50¢',    chg:'+0.00%', up:true,  unit:'¢/lb',   cat:'agri',   h52:'24¢',    l52:'15¢'},
+  {name:'코코아 (Cocoa)',     price:'$8,500',    chg:'+0.00%', up:true,  unit:'$/MT',   cat:'agri',   h52:'$12,000',l52:'$6,000'},
 ];
 let eqData=[
   {name:'KOSPI',  val:7612.51, chg:-4.62},{name:'KOSDAQ',val:1143.35, chg:-4.01},
@@ -6834,9 +6841,14 @@ function buildInvestorChart() {
   if(!ctx) return;
   // 실데이터(data.json.investorTrading) 미수집 시 — 더미를 그리지 않고 안내 표시
   if(!investorRawData || !investorRawData.length) {
-    if(typeof showNoDataOverlay==='function') showNoDataOverlay('investorChart', '투자자별 순매매 실시간 데이터(KRX)를 수집 중입니다. 다음 자동 갱신 시 반영됩니다.');
+    // 서버 진단(diagnostics.investorTradingReason)이 있으면 actionable 사유를 그대로 노출.
+    // (2026~ KRX 정보데이터시스템 로그인 요구로 비는 경우가 대표적 → Secrets KRX_ID/KRX_PW 안내)
+    const _diag = (_latestDataForIndicators && _latestDataForIndicators.diagnostics) || {};
+    const _reason = _diag.investorTradingReason
+      || '투자자별 순매매 실시간 데이터(KRX)를 수집 중입니다. 다음 자동 갱신 시 반영됩니다.';
+    if(typeof showNoDataOverlay==='function') showNoDataOverlay('investorChart', _reason);
     const tb0 = document.getElementById('investorSummaryTable');
-    if(tb0) tb0.innerHTML = '<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-dim,#8d90a2);font-size:11px;">실시간 데이터 수집 중…</td></tr>';
+    if(tb0) tb0.innerHTML = '<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-dim,#8d90a2);font-size:11px;">'+_reason+'</td></tr>';
     return;
   }
   if(typeof hideNoDataOverlay==='function') hideNoDataOverlay('investorChart');
@@ -7043,20 +7055,29 @@ function updateComHeader(c) {
 }
 
 // 원자재 이름 → data.json.history.commodities 키 매핑
+// ⚠ 순서 중요: '백금'·'팔라듐'·'두바이' 같이 다른 키워드를 부분 포함하는 항목을
+//   더 일반적인 키워드('금' 등)보다 먼저 검사한다. (예: '백금'은 '금'을 포함)
 function comHistoryKey(name) {
   if(!name) return null;
+  if(name.includes('두바이') || name.includes('Dubai')) return 'Dubai';
   if(name.includes('WTI')) return 'WTI';
   if(name.includes('Brent')) return 'Brent';
+  if(name.includes('팔라듐') || name.includes('Palladium')) return 'Palladium';
+  if(name.includes('백금') || name.includes('Platinum')) return 'Platinum';   // '금' 검사보다 먼저
   if(name.includes('금') || name.includes('Gold')) return 'Gold';
   if(name.includes('은') || name.includes('Silver')) return 'Silver';
-  if(name.includes('백금') || name.includes('Platinum')) return 'Platinum';
   if(name.includes('구리') || name.includes('Copper')) return 'Copper';
   if(name.includes('알루미늄') || name.includes('Aluminum')) return 'Aluminum';
+  if(name.includes('휘발유') || name.includes('Gasoline')) return 'Gasoline';
+  if(name.includes('난방유') || name.includes('Heating')) return 'HeatingOil';
   if(name.includes('천연가스') || name.includes('NatGas') || name.includes('Natural Gas')) return 'NatGas';
   if(name.includes('밀') || name.includes('Wheat')) return 'Wheat';
   if(name.includes('옥수수') || name.includes('Corn')) return 'Corn';
   if(name.includes('콩') || name.includes('Soybean')) return 'Soybean';
   if(name.includes('쌀') || name.includes('Rice')) return 'Rice';
+  if(name.includes('커피') || name.includes('Coffee')) return 'Coffee';
+  if(name.includes('설탕') || name.includes('Sugar')) return 'Sugar';
+  if(name.includes('코코아') || name.includes('Cocoa')) return 'Cocoa';
   return null;
 }
 
@@ -7205,24 +7226,29 @@ function buildCommodityPage() {
 
   // Commodity list (multi-select checkboxes, grouped by sector)
   const catLabel = {oil:'▸ 원유', metal:'▸ 귀금속', base:'▸ 비철금속', energy:'▸ 에너지', agri:'▸ 농산물'};
-  let prevCat = null;
+  const catOrder = ['oil','metal','base','energy','agri'];
   const listEl = document.getElementById('commodityList');
   if(listEl) {
     let html = '';
-    comData.forEach((r,i)=>{
-      if(r.cat !== prevCat) {
-        html += `<div style="padding:8px 0 4px;font-size:10px;font-weight:700;color:#854f0b;letter-spacing:.05em;border-bottom:1px solid #2a2e3d;margin-bottom:4px;">${catLabel[r.cat]||''}</div>`;
-        prevCat = r.cat;
-      }
-      const checked = comSelectedIdx.has(i) ? 'checked' : '';
-      html += `<label style="display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid #1b1f2b;padding:6px 4px;cursor:pointer;" title="${r.name}">
-        <input type="checkbox" data-idx="${i}" ${checked} onchange="toggleCommoditySelect(${i}, this.checked, this)" style="accent-color:#2962ff;cursor:pointer;flex-shrink:0;"/>
-        <span style="font-size:12px;flex:1;">${r.name}</span>
-        <span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;">
-          <span style="font-weight:500;font-size:12px;">${r.price}</span>
-          <span class="${r.up?'up-txt':'down-txt'}" style="font-size:11px;">${r.chg}</span>
-        </span>
-      </label>`;
+    // 카테고리별로 묶어서 렌더 — comData 끝에 추가된 항목도 올바른 그룹으로 합쳐지고
+    // 중복 헤더가 생기지 않는다. 체크박스 data-idx 는 원래 comData 인덱스를 보존.
+    const cats = catOrder.slice();
+    comData.forEach(r => { if(!cats.includes(r.cat)) cats.push(r.cat); });
+    cats.forEach(cat => {
+      const rows = comData.map((r,i)=>({r,i})).filter(o => o.r.cat === cat);
+      if(!rows.length) return;
+      html += `<div style="padding:8px 0 4px;font-size:10px;font-weight:700;color:#854f0b;letter-spacing:.05em;border-bottom:1px solid #2a2e3d;margin-bottom:4px;">${catLabel[cat]||cat}</div>`;
+      rows.forEach(({r,i})=>{
+        const checked = comSelectedIdx.has(i) ? 'checked' : '';
+        html += `<label style="display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid #1b1f2b;padding:6px 4px;cursor:pointer;" title="${r.name}">
+          <input type="checkbox" data-idx="${i}" ${checked} onchange="toggleCommoditySelect(${i}, this.checked, this)" style="accent-color:#2962ff;cursor:pointer;flex-shrink:0;"/>
+          <span style="font-size:12px;flex:1;">${r.name}</span>
+          <span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;">
+            <span style="font-weight:500;font-size:12px;">${r.price}</span>
+            <span class="${r.up?'up-txt':'down-txt'}" style="font-size:11px;">${r.chg}</span>
+          </span>
+        </label>`;
+      });
     });
     listEl.innerHTML = html;
   }
@@ -7277,11 +7303,12 @@ function buildCommodityPage() {
                    callbacks:{label:c=>c.dataset.label.replace(/ \([▲▼].+\)$/,'')+': $'+fmtNum(c.parsed.y)}}}}
     });
   }
-  // 귀금속 (Gold + Silver + Platinum)
+  // 귀금속 (Gold + Silver + Platinum + Palladium)
   sectorChart('preciousChart', [
-    {key:'Gold',     label:'금(Gold) $/oz',     color:'#f5a623'},
-    {key:'Silver',   label:'은(Silver) $/oz',   color:'#c0c0c0', dash:[4,4]},
-    {key:'Platinum', label:'백금(Platinum) $/oz', color:'#b6c4ff', dash:[2,3]},
+    {key:'Gold',      label:'금(Gold) $/oz',        color:'#f5a623'},
+    {key:'Silver',    label:'은(Silver) $/oz',      color:'#c0c0c0', dash:[4,4]},
+    {key:'Platinum',  label:'백금(Platinum) $/oz',  color:'#b6c4ff', dash:[2,3]},
+    {key:'Palladium', label:'팔라듐(Palladium) $/oz', color:'#534ab7', dash:[6,3]},
   ]);
   // 비철금속 (구리·알루미늄·아연·니켈) — LME 재고 행 클릭으로 강조 가능
   // 구리 ($/lb) 와 알루미늄 ($/톤) 은 단위 차가 크므로 별도 y축 사용 (이중 축)
@@ -10982,13 +11009,17 @@ function _renderReHistChart() {
     values = [66388, 61811, 62489, 64964, 74037, 66776, 70173, 71400, 72100, 68500, 65300, 63800, 61400];
     dataSource = '내장 시계열 (국토부 미분양 통계)';
   }
-  // 8) 인허가 / 착공 폴백 (호)
-  if(!values.length && (key === 'permit_kr' || key === 'start_kr')) {
+  // 8) 착공 폴백 (호)
+  if(!values.length && key === 'start_kr') {
     labels = ['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03','26.05'];
-    values = (key === 'permit_kr')
-      ? [22815, 17234, 22413, 18742, 28350, 21300, 25700, 23800, 26500, 22300, 24800, 23100, 24500]
-      : [12378, 9542,  11856, 8923,  16320, 10800, 14200, 12500, 15600, 11800, 13900, 11700, 13400];
-    dataSource = '내장 시계열 (국토부 주택 인허가/착공 통계)';
+    values = [12378, 9542,  11856, 8923,  16320, 10800, 14200, 12500, 15600, 11800, 13900, 11700, 13400];
+    dataSource = '내장 시계열 (한국부동산원 주택 착공)';
+  }
+  // 8-b) 전월세전환율 폴백 (%) — '주택 인허가' 대체 지표 (R-ONE 실제 제공)
+  if(!values.length && key === 'conversion_rate_kr') {
+    labels = ['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03','26.05'];
+    values = [6.0, 6.1, 6.2, 6.3, 6.4, 6.5, 6.5, 6.6, 6.6, 6.7, 6.7, 6.6, 6.6];
+    dataSource = '내장 시계열 (한국부동산원 전월세전환율, %)';
   }
   const ctx = document.getElementById('reHistChart');
   if(!ctx || !values.length) {
@@ -12511,22 +12542,32 @@ function applyRealData(d) {
   fxMap.forEach(([src, i, mapper]) => { if (src) Object.assign(fxPairs[i], mapper(src)); });
 
   // ── 원자재 데이터 업데이트 ───────────────────
-  // comData 인덱스: 0:WTI 1:Brent 2:두바이 3:금 4:은 5:백금 6:구리 7:알루미늄 8:아연 9:니켈 10:천연가스 11:밀 12:옥수수 13:콩 14:쌀
+  // comData 인덱스: 0:WTI 1:Brent 2:두바이 3:금 4:은 5:백금 6:구리 7:알루미늄 8:아연 9:니켈
+  //                10:천연가스 11:밀 12:옥수수 13:콩 14:쌀 15:팔라듐 16:휘발유 17:난방유 18:커피 19:설탕 20:코코아
   const priceFmt2 = v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change), up:v.change>=0});
   const priceFmt0 = v => ({price:'$'+fmt(v.price,0), chg:fmtPct(v.change), up:v.change>=0});
+  // 커피·설탕은 ICE 에서 센트/lb 로 호가 → '¢' 표기 (yfinance price 가 이미 센트값)
+  const priceFmtCents = v => ({price:fmt(v.price,2)+'¢', chg:fmtPct(v.change), up:v.change>=0});
   const comMap = [
-    [com.WTI,      0,  priceFmt2],
-    [com.Brent,    1,  priceFmt2],
-    [com.Gold,     3,  priceFmt2],
-    [com.Silver,   4,  priceFmt2],
-    [com.Platinum, 5,  priceFmt2],
-    [com.Copper,   6,  priceFmt2],
-    [com.Aluminum, 7,  priceFmt0],
-    [com.NatGas,  10, priceFmt2],
-    [com.Wheat,   11, priceFmt2],
-    [com.Corn,    12, priceFmt2],
-    [com.Soybean, 13, priceFmt2],
-    [com.Rice,    14, priceFmt2],
+    [com.WTI,        0,  priceFmt2],
+    [com.Brent,      1,  priceFmt2],
+    [com.Dubai,      2,  priceFmt2],   // 두바이 현물유 (FRED POILDUBUSDM)
+    [com.Gold,       3,  priceFmt2],
+    [com.Silver,     4,  priceFmt2],
+    [com.Platinum,   5,  priceFmt2],
+    [com.Copper,     6,  priceFmt2],
+    [com.Aluminum,   7,  priceFmt0],
+    [com.NatGas,    10, priceFmt2],
+    [com.Wheat,     11, priceFmt2],
+    [com.Corn,      12, priceFmt2],
+    [com.Soybean,   13, priceFmt2],
+    [com.Rice,      14, priceFmt2],
+    [com.Palladium, 15, priceFmt2],
+    [com.Gasoline,  16, priceFmt2],
+    [com.HeatingOil,17, priceFmt2],
+    [com.Coffee,    18, priceFmtCents],
+    [com.Sugar,     19, priceFmtCents],
+    [com.Cocoa,     20, priceFmt0],
   ];
   comMap.forEach(([src, i, mapper]) => { if (src && comData[i]) Object.assign(comData[i], mapper(src)); });
 
@@ -13019,11 +13060,12 @@ function applyRealData(d) {
   if (reKr.unsold_kr) {
     setKrReCard('krReUnsold', null, null, reKr.unsold_kr, v=>v?.toLocaleString()+'호');
   }
-  if (reKr.permit_kr) {
-    setKrReCard('krRePermit', null, null, reKr.permit_kr, v=>v?.toLocaleString()+'호');
+  // 전월세전환율 (R-ONE) — '주택 인허가'(R-ONE 미제공) 대체 지표. 단위 %.
+  if (reKr.conversion_rate_kr) {
+    setKrReCard('krReConversion', 'krReConversionChg', null, reKr.conversion_rate_kr, v=>(v!=null? v.toFixed(1)+'%':'—'));
   }
   if (reKr.start_kr) {
-    setKrReCard('krReStart', null, null, reKr.start_kr, v=>v?.toLocaleString()+'호');
+    setKrReCard('krReStart', 'krReStartChg', null, reKr.start_kr, v=>v?.toLocaleString());
   }
 
   // ── FRED 미국 부동산 지표 → re-us KPI 카드 + 상세 테이블 ──

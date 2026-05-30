@@ -209,6 +209,15 @@ except ImportError:
     _pykrx_stock = None
     _PYKRX_AVAILABLE = False
 
+# KRX 로그인 가능 여부 — 2026 부터 KRX 정보데이터시스템이 로그인을 요구하기 시작했다.
+# pykrx 1.2.x 는 KRX_ID/KRX_PW 환경변수가 있으면 import 시 자동 로그인하며, 없으면
+# 익명 접근을 시도하나 KRX 가 거부해 데이터가 비는 경우가 많다(투자자별 순매매가 대표적).
+# 워크플로 Secrets(KRX_ID/KRX_PW)에 data.krx.co.kr 무료 계정을 등록하면 정상화된다.
+_KRX_LOGIN_AVAILABLE = bool(os.environ.get("KRX_ID", "").strip() and os.environ.get("KRX_PW", "").strip())
+if _PYKRX_AVAILABLE and not _KRX_LOGIN_AVAILABLE:
+    log("[KRX-login] KRX_ID/KRX_PW 미설정 — pykrx 익명 접근 시도(투자자별 순매매 등 일부 데이터가 거부될 수 있음). "
+        "data.krx.co.kr 무료 가입 후 Secrets 에 KRX_ID/KRX_PW 등록 권장.")
+
 
 def _last_kr_business_day(max_lookback=14):
     """가장 최근 영업일 찾기 — pykrx 가 데이터를 반환하는 첫 평일."""
@@ -417,7 +426,12 @@ def fetch_investor_trading(lookback_days=400):
             log(f"[투자자] {mkt} {n}일 수집 (외국인={col_foreign}/기관={col_inst}/개인={col_retail})")
 
     if not agg or not markets_ok:
-        log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용)")
+        if not _KRX_LOGIN_AVAILABLE:
+            log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용). 원인: KRX 가 정보데이터시스템 데이터에 "
+                "로그인을 요구함. Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정) 등록 시 해결됨.")
+        else:
+            log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용). KRX 로그인은 설정됐으나 응답이 비어있음 "
+                "(KRX 일시 장애/자격증명 오류 가능).")
         return {}
     daily = [{
         "date": d,
@@ -916,6 +930,25 @@ def fetch_fred_latest(series_id):
     if obs:
         return obs[0]["value"]
     return None
+
+
+def fetch_dubai_crude():
+    """두바이 현물유 가격 — FRED POILDUBUSDM (Global price of Dubai Crude, USD/bbl).
+
+    두바이유는 중동·아시아 원유의 핵심 벤치마크지만 무료 '일별 현물' API 가 드물다.
+    FRED 의 IMF 기반 시리즈(월간, 약 1~2개월 지연)로 신뢰성 있는 값과 시계열을 확보한다.
+    yfinance 에는 두바이 현물/선물 티커가 없어 FRED 가 가장 안정적인 무료 소스.
+    Returns: ({"price","change"}, history[{date,close}...] asc) 또는 (None, None).
+    """
+    obs = fetch_fred_series("POILDUBUSDM", limit=72)  # 최근 6년치 월간
+    if not obs:
+        return None, None
+    # fetch_fred_series 는 desc 정렬 → [0]=최신, [1]=전월
+    latest = obs[0]["value"]
+    prev = obs[1]["value"] if len(obs) > 1 else latest
+    change = ((latest - prev) / prev * 100.0) if prev else 0.0
+    hist = [{"date": o["date"], "close": round(o["value"], 2)} for o in reversed(obs)]
+    return {"price": round(latest, 2), "change": round(change, 2)}, hist
 
 
 def fetch_fred_economic_indicators():
@@ -2272,12 +2305,13 @@ def fetch_realestate_kr():
 
     # ─── R-ONE 추가 시리즈: 미분양 / 인허가 / 착공 / 준공 (전국 집계) ──
     # 모두 전국(CLS_ID=500001) 으로 한정해 최신값을 추출 (가격지수와 동일 메커니즘).
+    # 주: '주택 인허가/준공'(permit/complete)은 국토교통부(MOLIT) 통계라 R-ONE OpenAPI 에
+    #     존재하지 않아 항상 빈 응답이었다(프론트의 '주택 인허가' 차트가 비어 보이던 원인).
+    #     → 인허가는 아래 '전월세전환율'(R-ONE 실제 제공 지표)로 대체한다. 준공은 제거.
     extra_stats = [
         # (key,          desc,                       statbl_id)
         ("unsold_kr",    "전국 미분양 주택 수",        "A_2024_00064"),
-        ("permit_kr",    "주택 인허가 실적 (전국)",    "A_2024_00058"),
         ("start_kr",     "주택 착공 실적 (전국)",      "A_2024_00057"),
-        ("complete_kr",  "주택 준공 실적 (전국)",      "A_2024_00059"),
     ]
     for key, desc, statbl_id in extra_stats:
         try:
@@ -2290,6 +2324,27 @@ def fetch_realestate_kr():
             log(f"[R-ONE] {key} ({statbl_id}): {picked['value']} ({picked['period']})")
         except Exception as e:
             log(f"[R-ONE] {key} ({statbl_id}) 오류: {e}")
+
+    # ─── 전월세전환율 (전국, 월) — '주택 인허가'(R-ONE 미제공) 대체 지표 ──
+    # 전세보증금을 월세로 전환할 때 적용되는 연이율(%). 시장금리·임대차 수급을 반영하는
+    # 의미 있는 시장 지표로, R-ONE 이 실제 제공한다. 등록 차수에 따라 STATBL_ID 가 바뀌므로
+    # 카탈로그 검색(이름='전월세전환율')으로 유효한 통계표를 자동 탐색한다.
+    try:
+        conv = None
+        conv_id = None
+        for sid, nm in fetch_rone_table_catalog("전월세전환율", "MM"):
+            conv = fetch_rone_nationwide_latest(sid, limit=300)
+            if conv:
+                conv_id = sid
+                break
+        if conv:
+            conv.update({"region": "전국", "desc": "전월세전환율 (전국, 월)", "source": f"R-ONE:{conv_id}"})
+            result["conversion_rate_kr"] = conv
+            log(f"[R-ONE] conversion_rate_kr ({conv_id}): {conv['value']} ({conv['period']})")
+        else:
+            log("[R-ONE] 전월세전환율: 카탈로그 검색 실패 — 건너뜀 (프론트 '수집 중' 표시)")
+    except Exception as e:
+        log(f"[R-ONE] 전월세전환율 오류: {e}")
 
     # ─── 거래량: (월) 행정구역별 아파트거래현황 (A_2024_00549) ──
     # 전국(CLS_ID=500001) + ITM_ID=100001(동(호)수) 로 한정. 면적(100002) 항목과 섞이지 않게 ITM 필수.
@@ -3780,19 +3835,26 @@ def fetch_all_historical_data():
         else:
             log(f"[YF-HIST] IDX {name}({sym}): 데이터 없음")
     com_map = {
-        "Gold":     "GC=F",
-        "Silver":   "SI=F",
-        "Platinum": "PL=F",
-        "Copper":   "HG=F",
-        "WTI":      "CL=F",
-        "Brent":    "BZ=F",
-        "NatGas":   "NG=F",
-        "Aluminum": "ALI=F",
+        "Gold":      "GC=F",
+        "Silver":    "SI=F",
+        "Platinum":  "PL=F",
+        "Palladium": "PA=F",
+        "Copper":    "HG=F",
+        "WTI":       "CL=F",
+        "Brent":     "BZ=F",
+        "NatGas":    "NG=F",
+        "Gasoline":   "RB=F",
+        "HeatingOil": "HO=F",
+        "Aluminum":  "ALI=F",
         # 농산물 (사용자 요청: ZW=F/ZC=F/ZS=F/ZR=F)
         "Wheat":    "ZW=F",
         "Corn":     "ZC=F",
         "Soybean":  "ZS=F",
         "Rice":     "ZR=F",
+        # 소프트 원자재 (ICE)
+        "Coffee":   "KC=F",
+        "Sugar":    "SB=F",
+        "Cocoa":    "CC=F",
     }
     for name, sym in com_map.items():
         h = fetch_yf_history(sym, period="5y")
@@ -4299,6 +4361,14 @@ def build_data():
     data["diagnostics"]["investorTradingDays"] = len((data.get("investorTrading") or {}).get("daily", []))
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
+    data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
+    # 투자자별 순매매가 비었을 때 프론트가 사용자에게 보여줄 actionable 사유.
+    if not (data.get("investorTrading") or {}).get("daily"):
+        data["diagnostics"]["investorTradingReason"] = (
+            "KRX 정보데이터시스템 로그인 필요 — 워크플로 Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정) 등록 후 자동 갱신됩니다."
+            if not _KRX_LOGIN_AVAILABLE else
+            "KRX 응답 대기 — 다음 자동 갱신 시 반영됩니다."
+        )
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
     if "KOSPI" not in data["indices"]:
@@ -4353,13 +4423,17 @@ def build_data():
             log(f"[KRX] 휘발유(원/L): {oil['price']} ({oil['change']:+.2f}%)")
 
     intl_com = {
-        "Gold":     "GC=F",
-        "Silver":   "SI=F",
-        "Platinum": "PL=F",
-        "Copper":   "HG=F",
-        "WTI":      "CL=F",
-        "Brent":    "BZ=F",
-        "NatGas":   "NG=F",
+        "Gold":      "GC=F",
+        "Silver":    "SI=F",
+        "Platinum":  "PL=F",
+        "Palladium": "PA=F",   # 팔라듐 (NYMEX) — 자동차 촉매 수요 핵심 귀금속
+        "Copper":    "HG=F",
+        "WTI":       "CL=F",
+        "Brent":     "BZ=F",
+        "NatGas":    "NG=F",
+        # 정유 제품 (NYMEX) — 휘발유/난방유 선물
+        "Gasoline":   "RB=F",  # RBOB 휘발유 ($/gal)
+        "HeatingOil": "HO=F",  # 난방유 ($/gal)
         # 비철금속 (LME 선물)
         "Aluminum": "ALI=F",
         # 농산물 (시카고 상품거래소 선물) — 사용자 요청에 따라 yfinance ZW=F/ZC=F/ZS=F/ZR=F
@@ -4367,6 +4441,10 @@ def build_data():
         "Corn":     "ZC=F",
         "Soybean":  "ZS=F",
         "Rice":     "ZR=F",
+        # 소프트 원자재 (ICE 선물) — 커피/설탕/코코아
+        "Coffee":   "KC=F",    # 커피 (¢/lb)
+        "Sugar":    "SB=F",    # 설탕 11호 (¢/lb)
+        "Cocoa":    "CC=F",    # 코코아 ($/MT)
     }
     for name, sym in intl_com.items():
         q = fetch_yf(sym)
@@ -4734,6 +4812,22 @@ def build_data():
             data["sources"]["history"] = "yfinance (FX/Indices/Commodities 5Y daily)"
     except Exception as e:
         log(f"[YF-HIST] 전체 수집 오류: {e}")
+
+    # ── 두바이 현물유 (FRED POILDUBUSDM) ─────────────────────
+    # data["history"] 가 위에서 세팅된 뒤 실행해야 history.commodities.Dubai 가 보존된다.
+    if FRED_API_KEY:
+        try:
+            dub, dub_hist = fetch_dubai_crude()
+            if dub:
+                data.setdefault("commodities", {})["Dubai"] = dub
+                if dub_hist:
+                    data.setdefault("history", {}).setdefault("commodities", {})["Dubai"] = dub_hist
+                data["sources"]["commodity_Dubai"] = "FRED POILDUBUSDM (두바이 현물유, 월간)"
+                log(f"[FRED] 두바이 현물유 = ${dub['price']} ({dub['change']:+.2f}%)")
+            else:
+                log("[FRED] 두바이유(POILDUBUSDM) 응답 없음 — 프론트 폴백값 유지")
+        except Exception as e:
+            log(f"[FRED] 두바이유 오류: {e}")
 
     # ── 뉴스 기사 (Google News RSS) ──────────────────
     # 클라이언트 CORS 프록시 의존도를 줄이기 위해 서버측에서 미리 가져와

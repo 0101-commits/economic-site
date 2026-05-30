@@ -60,9 +60,13 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        # pykrx: KRX 정보데이터시스템 직접 호출 — 키 없음, 카카오톡 알람 없음, 가장 안정적
-        # 종목·ETF 상승/하락 Top10 의 PRIMARY 데이터 소스 (Naver/KIS 의 신뢰성 문제 우회)
-        run: pip install requests yfinance pykrx
+        # pykrx: KRX 정보데이터시스템(data.krx.co.kr) 직접 호출 — 종목·ETF·투자자별 매매동향의 PRIMARY 소스.
+        # ⚠️ 버전 고정 이유: KRX 가 2026 초부터 정보데이터시스템 데이터에 '로그인'을 요구하기 시작했고,
+        #    pykrx 는 1.2.x 부터 이에 대응하는 로그인 지원(KRX_ID/KRX_PW 환경변수)을 추가했다.
+        #    install 을 무고정으로 두면 런마다 최신 pykrx 로 드리프트해 동작이 바뀌므로 1.2.8 로 고정한다.
+        #    KRX_ID/KRX_PW 시크릿이 설정돼 있으면 pykrx 가 자동 로그인해 투자자별 순매매·Top10 이 정상 수집된다.
+        #    (시크릿 미설정 시 익명 접근을 시도하나 KRX 가 거부 → 투자자별 데이터가 비게 됨.)
+        run: pip install requests yfinance "pykrx==1.2.8"
 
       # KIS 토큰 영속 캐시 — 한국투자증권 API 는 토큰 1일 1회 발급 권장 (24h 유효).
       # 잦은 발급 시 카카오톡 알람·이용 제한이 발생하므로 GHA cache 액션으로
@@ -80,6 +84,11 @@ jobs:
       - name: Fetch market data
         env:
           KRX_API_KEY:        ${{ secrets.KRX_API_KEY }}
+          # KRX 정보데이터시스템 로그인 (pykrx 1.2.x) — 2026 부터 KRX 가 로그인을 요구.
+          # data.krx.co.kr 무료 회원가입 후 아이디/비밀번호를 Secrets(KRX_ID, KRX_PW)에 등록하면
+          # 투자자별 순매매 동향·종목 Top10 등 pykrx 수집이 정상화된다. 미설정 시 익명 접근 시도(거부될 수 있음).
+          KRX_ID:             ${{ secrets.KRX_ID }}
+          KRX_PW:             ${{ secrets.KRX_PW }}
           FRED_API_KEY:       ${{ secrets.FRED_API_KEY }}
           ECOS_API_KEY:       ${{ secrets.ECOS_API_KEY }}
           REALESTATE_API_KEY: ${{ secrets.REALESTATE_API_KEY }}
