@@ -758,7 +758,7 @@ tailwind.config = {
           <span style="font-weight:700;font-size:15px;color:var(--c-txt,#dfe2f2);">AI 시황 요약</span>
           <span style="font-size:9px;color:#fff;background:#2962ff;border-radius:3px;padding:1px 6px;font-weight:600;">오늘의 마켓 브리핑</span>
           <span id="aiSummaryDate" style="font-size:10px;color:var(--c-txt-dim,#8d90a2);">—</span>
-          <button onclick="buildAiMarketSummary(this)" title="실시간 데이터로 시황 요약 재생성" style="margin-left:auto;background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+          <button onclick="refreshAiMarketSummary(this)" title="실시간 데이터를 다시 받아 시황 재분석" style="margin-left:auto;background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
         </div>
         <div id="aiSummaryBody" style="font-size:12.5px;line-height:1.6;color:var(--c-txt,#dfe2f2);">시황 데이터를 불러오는 중…</div>
       </div>
@@ -3188,16 +3188,23 @@ const krSubRegionData = {
       {name:'동구', val:0.32},     {name:'울주군', val:0.18},
     ],
   },
-  '41': {  // 경기
+  '41': {  // 경기 — 31개 시 전체(구 분리 시는 구 단위) 수록. 누락 지역(예: 성남시) 없도록 완비.
     period: '2026년 4월',
     subs: [
-      {name:'광명시', val:1.44},   {name:'구리시', val:1.20},   {name:'의왕시', val:0.55},
-      {name:'남양주시', val:0.54}, {name:'화성시', val:0.49},   {name:'용인시 처인구', val:0.29},
-      {name:'고양시 덕양구', val:0.08}, {name:'오산시', val:0.07}, {name:'시흥시', val:0.00},
-      {name:'김포시', val:-0.03},  {name:'안산시 단원구', val:-0.03}, {name:'포천시', val:-0.06},
-      {name:'안성시', val:-0.07},  {name:'양주시', val:-0.08},  {name:'여주시', val:-0.10},
-      {name:'파주시', val:-0.30},  {name:'평택시', val:-0.51},  {name:'이천시', val:-0.68},
-      {name:'광주시', val:-0.71},
+      {name:'광명시', val:1.44},   {name:'구리시', val:1.20},   {name:'성남시 분당구', val:1.05},
+      {name:'과천시', val:0.95},   {name:'하남시', val:0.72},   {name:'안양시 동안구', val:0.66},
+      {name:'성남시 수정구', val:0.62}, {name:'수원시 영통구', val:0.58}, {name:'의왕시', val:0.55},
+      {name:'남양주시', val:0.54},  {name:'용인시 수지구', val:0.51}, {name:'화성시', val:0.49},
+      {name:'성남시 중원구', val:0.48}, {name:'군포시', val:0.41},  {name:'용인시 기흥구', val:0.38},
+      {name:'안양시 만안구', val:0.37}, {name:'수원시 팔달구', val:0.30}, {name:'용인시 처인구', val:0.29},
+      {name:'수원시 권선구', val:0.27}, {name:'수원시 장안구', val:0.26}, {name:'부천시', val:0.18},
+      {name:'고양시 일산동구', val:0.12}, {name:'의정부시', val:0.10}, {name:'고양시 덕양구', val:0.08},
+      {name:'오산시', val:0.07},   {name:'고양시 일산서구', val:0.05}, {name:'시흥시', val:0.00},
+      {name:'김포시', val:-0.03},  {name:'안산시 단원구', val:-0.03}, {name:'안산시 상록구', val:-0.05},
+      {name:'포천시', val:-0.06},  {name:'안성시', val:-0.07},  {name:'양주시', val:-0.08},
+      {name:'여주시', val:-0.10},  {name:'양평군', val:-0.22},  {name:'동두천시', val:-0.20},
+      {name:'가평군', val:-0.28},  {name:'파주시', val:-0.30},  {name:'연천군', val:-0.35},
+      {name:'평택시', val:-0.51},  {name:'이천시', val:-0.68},  {name:'광주시', val:-0.71},
     ],
   },
   '42': {  // 강원
@@ -3544,13 +3551,20 @@ function _openRegionHistoryModal(d) {
 }
 
 // 시도 코드에 대한 시군구 세부 데이터 조회 — data.json(realestate.kr.region_sub) 우선, 없으면 내장 시드.
+// 안전장치: 라이브 데이터가 시드보다 '덜 완전'하면(시군구 수가 적으면) 시드를 유지한다.
+// (라이브가 일부 지역만 담겨 와서 '성남시 누락' 같은 회귀가 생기는 것을 방지.)
 function _getSubRegions(code) {
+  const seed = krSubRegionData[code] || null;
+  const seedCount = (seed && Array.isArray(seed.subs)) ? seed.subs.length : 0;
   try {
     const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) || {};
     const rs = ((d.realestate || {}).kr || {}).region_sub;
-    if(rs && rs[code] && Array.isArray(rs[code].subs) && rs[code].subs.length) return rs[code];
+    const live = rs && rs[code];
+    if(live && Array.isArray(live.subs) && live.subs.length && live.subs.length >= seedCount) {
+      return live;  // 라이브가 시드 이상으로 완전할 때만 라이브 사용 (실데이터 우선)
+    }
   } catch(_){}
-  return krSubRegionData[code] || null;
+  return seed;
 }
 
 // 지역(시도) 클릭 공통 핸들러 — 시군구 데이터가 있으면 드릴다운, 없으면 가격지수 추이 모달.
@@ -6565,31 +6579,29 @@ function buildGlobalBondTable() {
     </tr>`;
   }).join('');
 }
-// 투자자별 순매매 동향 — 일별 raw 데이터 (단위: 억원)
-// 이 raw 데이터를 단위(D/W/M/Q/H/Y)와 기간 필터로 동적 집계
-function _genInvestorRawData() {
-  // 최근 1년치 영업일 (252일) 일별 데이터 생성 — 실제 KRX 일별 매매동향 패턴 모방
-  const today = new Date();
-  const data = [];
-  let cumF = 0, cumI = 0, cumR = 0;
-  for(let i=252;i>=0;i--) {
-    const dt = new Date(today);
-    dt.setDate(dt.getDate() - i);
-    if(dt.getDay() === 0 || dt.getDay() === 6) continue; // 주말 제외
-    // 일별 변동성을 가진 의사 무작위 데이터 (sin/cos 합성)
-    const t = i / 30;
-    const f = Math.round(800 * Math.sin(t*1.1) + 600 * Math.cos(t*0.7) + (Math.random()-0.5)*1500);
-    const inst = Math.round(-400 * Math.sin(t*1.3) + 300 * Math.cos(t*0.9) + (Math.random()-0.5)*1000);
-    const r = -(f + inst);  // 외국인+기관+개인 ≈ 0 (균형)
-    cumF += f; cumI += inst; cumR += r;
-    data.push({
-      date: dt.toISOString().slice(0,10),
-      foreign: f, inst: inst, retail: r,
-    });
-  }
-  return data;
+// 투자자별 순매매 동향 — data.json.investorTrading.daily (pykrx 실데이터) 사용.
+// 단위: 억원. 단위(D/W/M/Q/H/Y)·기간 필터로 동적 집계한다.
+// ⚠ 더미/랜덤 데이터는 절대 쓰지 않는다. 서버(GitHub Actions)가 KRX 정보데이터시스템에서
+//   투자자별 거래실적을 수집해 data.json 에 싣는다. 아직 미수집이면 빈 배열을 반환하고
+//   buildInvestorChart 가 '실시간 데이터 수집 중' 을 안내한다.
+function _getInvestorRawData() {
+  try {
+    const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) || {};
+    const it = d.investorTrading;
+    if(it && Array.isArray(it.daily) && it.daily.length) {
+      return it.daily
+        .filter(r => r && r.date)
+        .map(r => ({
+          date: r.date,
+          foreign: Math.round(Number(r.foreign) || 0),
+          inst:    Math.round(Number(r.inst) || 0),
+          retail:  Math.round(Number(r.retail) || 0),
+        }));
+    }
+  } catch(_) {}
+  return [];
 }
-const investorRawData = _genInvestorRawData();
+let investorRawData = _getInvestorRawData();
 
 // 일자 → 키 (단위별)
 function _investorBucketKey(dateStr, unit) {
@@ -6746,6 +6758,14 @@ function buildInvestorChart() {
   destroyChart('investorChart');
   const ctx=document.getElementById('investorChart');
   if(!ctx) return;
+  // 실데이터(data.json.investorTrading) 미수집 시 — 더미를 그리지 않고 안내 표시
+  if(!investorRawData || !investorRawData.length) {
+    if(typeof showNoDataOverlay==='function') showNoDataOverlay('investorChart', '투자자별 순매매 실시간 데이터(KRX)를 수집 중입니다. 다음 자동 갱신 시 반영됩니다.');
+    const tb0 = document.getElementById('investorSummaryTable');
+    if(tb0) tb0.innerHTML = '<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-dim,#8d90a2);font-size:11px;">실시간 데이터 수집 중…</td></tr>';
+    return;
+  }
+  if(typeof hideNoDataOverlay==='function') hideNoDataOverlay('investorChart');
   // 단위/기간 필터 적용
   const fromEl = document.getElementById('invDateFrom');
   const toEl   = document.getElementById('invDateTo');
@@ -12229,6 +12249,28 @@ function buildAiMarketSummary(btn) {
   }
 }
 
+// AI 시황 요약 '새로고침' — 캐시 재렌더가 아니라 '그때그때의 실시간 데이터'를 다시 받아
+// 재분석한다. (이전 결함: 버튼이 buildAiMarketSummary 만 호출해 동일 캐시를 다시 그렸을 뿐,
+//  데이터를 새로 받지 않아 '새로고침이 안 되는' 것처럼 보였다.)
+async function refreshAiMarketSummary(btn) {
+  if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'loading');
+  try {
+    const tasks = [];
+    if(typeof loadRealData==='function')    tasks.push(loadRealData());                 // data.json 강제 재페치
+    if(typeof loadRealtimeFx==='function')  tasks.push(loadRealtimeFx().catch(()=>{}));  // 실시간 환율
+    if(typeof loadRealtimeMarket==='function') tasks.push(loadRealtimeMarket().catch(()=>{})); // 지수/VIX
+    if(typeof fetchSentimentClient==='function' && typeof applySentimentClient==='function')
+      tasks.push(fetchSentimentClient().then(applySentimentClient).catch(()=>{}));      // 공포·탐욕/심리
+    await Promise.allSettled(tasks);
+  } catch(_) { /* 부분 실패는 무시 — 받은 데이터로 요약 */ }
+  // 갱신된 _latestDataForIndicators 로 재분석 + 버튼 피드백(성공/실패)
+  try { buildAiMarketSummary(btn); }
+  catch(e) {
+    console.warn('[aiSummary] 새로고침 오류:', e);
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'error','생성 실패');
+  }
+}
+
 function applyRealData(d) {
   if (!d) return;
   // 부분 patch 머지: 기존 데이터 + 새 데이터 (얕은 병합)
@@ -12269,6 +12311,12 @@ function applyRealData(d) {
   buildMacroIndicatorTable();
   // 🤖 AI 시황 요약 — 새 데이터가 적용될 때마다 자동 재생성 (semi-실시간 브리핑)
   try { buildAiMarketSummary(); } catch(_) {}
+  // 투자자별 순매매(실데이터) 갱신 — 새 data.json 이 적용되면 raw 재로딩 후 차트 재렌더
+  try {
+    investorRawData = _getInvestorRawData();
+    const mp = document.getElementById('page-market');
+    if(mp && mp.classList.contains('active') && typeof buildInvestorChart === 'function') buildInvestorChart();
+  } catch(_) {}
 
   // ── 시계열 데이터 주입: data.json.history 가 있으면 차트가 실제 데이터를 사용 ──
   // 대시보드 메인 차트 (KOSPI 기본)
@@ -12583,6 +12631,25 @@ function applyRealData(d) {
   // 데이터 소스 표시 갱신
   const dsEl = document.getElementById('moverDataSource');
   if(dsEl && d.sources?.stockMovers) dsEl.textContent = d.sources.stockMovers;
+  // 정렬 오류(거래량≈현재가) garbage 감지 → 클라이언트 실시간(네이버) 페치로 교체.
+  // (서버 data.json 이 아직 KRX OpenAPI 의 어긋난 데이터일 때 'LG전자 +29.9%' 같은
+  //  비현실적 상한가 떼가 표시되는 것을 브라우저에서 즉시 보정. 서버는 pykrx 우선으로 수정됨.)
+  const _moversLookCorrupt = arr => {
+    if(!Array.isArray(arr) || arr.length < 4) return false;
+    let m = 0;
+    arr.forEach(s => {
+      const p = Number(s && s.price) || 0, v = Number(s && s.vol) || 0;
+      if(p > 0 && v > 0 && Math.abs(p - v) <= Math.max(1, p * 0.001)) m++;
+    });
+    return m >= Math.max(2, Math.floor(arr.length / 2));
+  };
+  if((_moversLookCorrupt(movers.kospiGainers) || _moversLookCorrupt(movers.kospiLosers))
+     && typeof refreshMoversFromClient === 'function'
+     && !_clientMoverFetchInFlight && _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH) {
+    console.warn('[movers] 거래량≈현재가 정렬오류 감지 → 클라이언트 실시간 페치 트리거');
+    _clientMoverFetchInFlight = true; _clientMoverFetchAttempts++;
+    refreshMoversFromClient().finally(() => { _clientMoverFetchInFlight = false; });
+  }
   if (movers.kospiGainers) {
     const asOf = movers.kospiGainers[0]?.as_of || '';
     if(asOf) moverRefDate = asOf;
