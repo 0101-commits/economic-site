@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-31T05:45:24.043410+09:00",
+  "lastUpdated": "2026-05-31T06:53:05.096452+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -22,8 +22,7 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-05-31T04:14)",
-    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강",
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-05-31T05:45)",
     "sentiment_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
@@ -11067,6 +11066,21 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
+      },
       "trade_count_kr_rone": {
         "value": 76391.0,
         "prev": 78432.0,
@@ -11576,21 +11590,6 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
-      },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -173642,7 +173641,7 @@
       "fred_ok": false
     },
     "preservedFields": 2,
-    "preservedMetricsDeep": 2,
+    "preservedMetricsDeep": 1,
     "historySpotSynced": 12
   },
   "nps": {
@@ -173672,7 +173671,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-05-31T05:54:02.917609+09:00",
+    "lastFetched": "2026-05-31T07:01:58.191972+09:00",
     "채권": [
       {
         "title": "반도체·AI 호황에 흔들리는 채권시장…국채 금리 상승 압력 확대",
@@ -173697,34 +173696,16 @@
     ],
     "주식": [
       {
-        "title": "[개장시황] 코스피, 종전 기대감·AI 랠리에 2%대 급등 출발",
-        "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/%EA%B0%9C%EC%9E%A5%EC%8B%9C%ED%99%A9-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%A2%85%EC%A0%84-%EA%B8%B0%EB%8C%80%EA%B0%90-ai-%EB%9E%A0%EB%A6%AC%EC%97%90-2-%EB%8C%80-%EA%B8%89%EB%93%B1-%EC%B6%9C%EB%B0%9C/ar-AA24jGJ7",
-        "isoDate": "2026-05-28",
-        "pubDate": "Thu, 28 May 2026 17:25:20 GMT"
-      },
-      {
-        "title": "코스피, 30만전자·200만닉스에 ‘팔천피’ 복귀 [시황]",
-        "url": "https://www.dailian.co.kr/news/view/1648418/%EC%BD%94%EC%8A%A4%ED%94%BC-30%EB%A7%8C%EC%A0%84%EC%9E%90200%EB%A7%8C%EB%8B%89%EC%8A%A4-%E2%80%98%ED%8C%94%EC%B2%9C%ED%94%BC-2026",
-        "isoDate": "2026-05-25",
-        "pubDate": "Mon, 25 May 2026 17:31:00 GMT"
-      },
-      {
         "title": "코스피 8400 재돌파, 미·이란 종전 기대감 커져[개장시황]",
         "url": "https://www.msn.com/ko-kr/news/other/코스피-8400-재돌파-미-이란-종전-기대감-커져-개장시황/ar-AA24jH0L",
         "isoDate": "2026-05-28",
         "pubDate": "Thu, 28 May 2026 17:41:02 GMT"
       },
       {
-        "title": "코스피, 장 초반 8424 터치…종전 협약 체결 영향 [시황]",
-        "url": "https://www.dailian.co.kr/news/view/1650103/%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%9E%A5-%EC%B4%88%EB%B0%98-8424-%ED%84%B0%EC%B9%98%EC%A2%85%EC%A0%84-%ED%98%91-2026",
+        "title": "코스피, 상승 출발하며 8,400대 안착 시도…코스닥은 하락 전환",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%83%81%EC%8A%B9-%EC%B6%9C%EB%B0%9C%ED%95%98%EB%A9%B0-8400%EB%8C%80-%EC%95%88%EC%B0%A9-%EC%8B%9C%EB%8F%84-%EC%BD%94%EC%8A%A4%EB%8B%A5%EC%9D%80-%ED%95%98%EB%9D%BD-%EC%A0%84%ED%99%98/ar-AA24jtOZ?ocid=BingNewsVerp",
         "isoDate": "2026-05-28",
-        "pubDate": "Thu, 28 May 2026 17:43:00 GMT"
-      },
-      {
-        "title": "[개장시황] 코스피, 차익실현 매물에 숨고르기…외인 매도세 확대",
-        "url": "https://www.ajunews.com/view/20260528091129729",
-        "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 17:14:00 GMT"
+        "pubDate": "Thu, 28 May 2026 18:16:00 GMT"
       }
     ],
     "원자재": [
@@ -173754,6 +173735,12 @@
     "비철금속": [],
     "한국GDP": [
       {
+        "title": "반도체 훈풍 부는데…성장률·소득 증가율 격차 2년만에 최대",
+        "url": "https://www.yna.co.kr/view/AKR20260530002600002",
+        "isoDate": "2026-05-30",
+        "pubDate": "Sat, 30 May 2026 13:47:00 GMT"
+      },
+      {
         "title": "한국은행, 올해 실질 GDP 성장률 2.0% → 2.6%로 상향",
         "url": "https://www.ytn.co.kr/_ln/0102_202605281405144350",
         "isoDate": "2026-05-28",
@@ -173776,12 +173763,6 @@
         "url": "https://news.jkn.co.kr/post/920664",
         "isoDate": "2026-05-27",
         "pubDate": "Wed, 27 May 2026 18:08:00 GMT"
-      },
-      {
-        "title": "반도체 슈퍼사이클에 올라탄 한국 경제, 성장률 2.6% 상향 가시화",
-        "url": "https://news.jkn.co.kr/post/917871",
-        "isoDate": "2026-05-23",
-        "pubDate": "Sat, 23 May 2026 14:38:00 GMT"
       }
     ],
     "미국CPI": [
@@ -173820,16 +173801,16 @@
     ],
     "한국수출": [
       {
-        "title": "4월 부산지역 수출 13억5700만달러… 2개월 연속 반등",
-        "url": "https://www.msn.com/ko-kr/news/national/4%EC%9B%94-%EB%B6%80%EC%82%B0%EC%A7%80%EC%97%AD-%EC%88%98%EC%B6%9C-13%EC%96%B55700%EB%A7%8C%EB%8B%AC%EB%9F%AC-2%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%EB%B0%98%EB%93%B1/ar-AA24nTlv",
-        "isoDate": "2026-05-29",
-        "pubDate": "Fri, 29 May 2026 13:39:04 GMT"
-      },
-      {
         "title": "산업硏, 올해 한국 GDP 성장률 2.5% …'네덜란드 제치고 4위권 합류 가능성'",
         "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1710196",
         "isoDate": "2026-05-26",
         "pubDate": "Tue, 26 May 2026 04:03:00 GMT"
+      },
+      {
+        "title": "4월 부산지역 수출 13억5700만달러… 2개월 연속 반등",
+        "url": "https://www.msn.com/ko-kr/news/national/4%EC%9B%94-%EB%B6%80%EC%82%B0%EC%A7%80%EC%97%AD-%EC%88%98%EC%B6%9C-13%EC%96%B55700%EB%A7%8C%EB%8B%AC%EB%9F%AC-2%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%EB%B0%98%EB%93%B1/ar-AA24nTlv",
+        "isoDate": "2026-05-29",
+        "pubDate": "Fri, 29 May 2026 13:39:04 GMT"
       },
       {
         "title": "부산 수출 살아났다… 4월 13억5천만달러, 2년11개월 만에 최대",
@@ -173870,16 +173851,16 @@
         "pubDate": "Thu, 28 May 2026 17:50:00 GMT"
       },
       {
+        "title": "신현송 한은총재 취임 후 첫 금통위 기준금리 연 2.5%로 묶었다: 추가 인상 가능성은 '활짝' 열어놨다",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%8B%A0%ED%98%84%EC%86%A1-%ED%95%9C%EC%9D%80%EC%B4%9D%EC%9E%AC-%EC%B7%A8%EC%9E%84-%ED%9B%84-%EC%B2%AB-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%97%B0-2-5-%EB%A1%9C-%EB%AC%B6%EC%97%88%EB%8B%A4-%EC%B6%94%EA%B0%80-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1%EC%9D%80-%ED%99%9C%EC%A7%9D-%EC%97%B4%EC%96%B4%EB%86%A8%EB%8B%A4/ar-AA24fPIA",
+        "isoDate": "2026-05-28",
+        "pubDate": "Thu, 28 May 2026 01:13:25 GMT"
+      },
+      {
         "title": "한은 금통위, 기준금리 연 2.5%…8연속 동결 [쿠키포토]",
         "url": "https://www.kukinews.com/article/view/kuk202605280035",
         "isoDate": "2026-05-27",
         "pubDate": "Wed, 27 May 2026 18:22:00 GMT"
-      },
-      {
-        "title": "신현송 체제 첫 한은 금통위…기준금리 8회 연속 동결",
-        "url": "https://www.yna.co.kr/view/MYH20260528007500038",
-        "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 18:33:00 GMT"
       }
     ]
   },
@@ -173896,10 +173877,22 @@
         "beat": -1,
         "source": "FRED:release_id=18",
         "iso": "2026-05-18"
+      },
+      {
+        "dt": "05.28 21:30",
+        "cc": "US",
+        "name": "미국 주택착공 (Housing Starts)",
+        "stars": 2,
+        "prev": "1507.0",
+        "fore": "1507.0",
+        "act": "1465.0",
+        "beat": -1,
+        "source": "FRED:release_id=53",
+        "iso": "2026-05-28"
       }
     ],
-    "lastFetched": "2026-05-31T05:56:04.265364+09:00",
+    "lastFetched": "2026-05-31T07:05:02.581560+09:00",
     "source": "FRED release dates API",
-    "backfilled": 1
+    "backfilled": 2
   }
 }
