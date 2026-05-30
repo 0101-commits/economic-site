@@ -23,6 +23,15 @@ on:
     - cron: '0 13 * * *'     # KST 22:00 (UTC 13:00) — 매일 저녁 종합 갱신 (당일 발표 반영)
     - cron: '30 13 * * *'    # KST 22:30 (UTC 13:30) — 10PM 데이터 미수집 대비 보강
   workflow_dispatch:        # 수동 실행 허용
+  # ── 코드/워크플로 변경 시 즉시 데이터 재생성 ──
+  # 스케줄 cron 은 GitHub 측 지연으로 늦게/누락 발화할 수 있어, fetch 로직이나 본
+  # 워크플로가 main 에 머지되면 곧바로 한 번 돌려 data.json 을 최신 코드로 갱신한다.
+  # paths 를 두 파일로 한정 → data.json 커밋(봇)은 매칭되지 않아 재귀 실행이 없다.
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fetch_data.py'
+      - '.github/workflows/fetch-data.yml'
 
 # 동시 실행 직렬화 — 매시간 cron(0 * * * *) 과 일일 cron(0 0/0 7/0 13) 이 같은 정각에
 # 함께 발화하면 두 런이 동시에 main 에 push 하여 한쪽이 non-fast-forward 로 거부·실패한다.
