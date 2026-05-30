@@ -4038,64 +4038,9 @@ function buildUsRegionMap() {
       const code = el.dataset.code;
       const d = usRegionData.find(r => r.code === code);
       if(!d) return;
-      // 모달 차트로 표시 (재사용)
-      const titleStr = `${d.label} (${d.region}) HPI`;
-      _reHistState.key = '__us_state_'+code;
-      _reHistState.title = titleStr;
-      _reHistState.unit = '지수 (1990=100)';
-      _reHistState.period = 'all';
-      _reHistState.timeUnit = 'M';
-      const today = new Date();
-      const hist = {};
-      d.history.forEach((v,i) => {
-        const dt = new Date(today.getFullYear(), today.getMonth()-(d.history.length-1-i), 1);
-        hist[dt.toISOString().slice(0,7)] = v;
-      });
-      const modal = document.getElementById('reHistoryChartModal');
-      if(modal) modal.style.display = 'flex';
-      document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
-        const isActive = b.dataset.period === 'all';
-        b.classList.toggle('active', isActive);
-        b.style.background = isActive ? '#2962ff' : 'transparent';
-        b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#8d90a2)';
-      });
-      document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
-        const isActive = b.dataset.unit === 'M';
-        b.classList.toggle('active', isActive);
-        b.style.background = isActive ? '#2962ff' : 'transparent';
-        b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#8d90a2)';
-      });
-      destroyChart('reHistChart');
-      const ctx = document.getElementById('reHistChart');
-      if(!ctx) return;
-      const labels = Object.keys(hist).sort();
-      const values = labels.map(k=>hist[k]);
-      const noteEl = document.getElementById('reHistNote');
-      const titleEl = document.getElementById('reHistTitle');
-      const metaEl = document.getElementById('reHistMeta');
-      const guideEl = document.getElementById('reHistGuide');
-      if(titleEl) titleEl.textContent = titleStr;
-      if(metaEl) metaEl.innerHTML = `<span style="color:#b6c4ff;">단위:</span> 지수 (1990=100)`;
-      if(noteEl) noteEl.textContent = 'FRED (Case-Shiller State HPI)';
-      if(guideEl && typeof MACRO_GUIDES !== 'undefined') {
-        guideEl.innerHTML = MACRO_GUIDES.hpi;
-        guideEl.style.display = 'block';
-        guideEl.style.borderLeftColor = '#26a69a';
-      }
-      const tc2 = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d'};
-      charts['reHistChart'] = new Chart(ctx, {
-        type:'line',
-        data:{ labels, datasets:[{
-          label: titleStr, data: values,
-          borderColor:'#2962ff', backgroundColor:'#2962ff22',
-          borderWidth:2, pointRadius: 0, tension:0.3, fill:true,
-        }]},
-        options:{ responsive:true, maintainAspectRatio:false,
-          scales:{x:{ticks:{color:tc2.txt,font:{size:10}},grid:{color:tc2.grid}},
-                  y:{ticks:{color:tc2.txt,font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:tc2.grid},position:'right'}},
-          plugins:{legend:{display:true,labels:{color:tc2.txt,font:{size:10},boxWidth:10}},
-            tooltip:{mode:'index',intersect:false,backgroundColor:tc2.tooltip,titleColor:tc2.ttTitle,borderColor:tc2.ttBorder,borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+fmtNum(c.parsed.y)}}}}
-      });
+      // 통합 렌더러 사용 — FRED FHFA 주별 HPI 실데이터 우선, 없으면 지도 내장 history 폴백.
+      // (OSM 마커 클릭과 동일 경로로 일원화: 빈 차트 회귀 방지 + 실데이터 자동 반영.)
+      showReHistoryChart('case_shiller_' + code, `${d.label} (${d.region}) 주택가격지수`, {unit:'지수 (FHFA)'});
     });
   });
 }
@@ -10967,6 +10912,13 @@ function _renderReHistChart() {
   const candidates = [reKr, reUs, ecoKr, ecoUs, ecoEu, ecoJp, ecoCn, ecoDe, ecoUk];
   let src = null;
   for(const c of candidates) { if(c && c[key]) { src = c[key]; break; } }
+  // 미국 주별 Case-Shiller/주택가격 — case_shiller_{STATE} 키는 reUs.case_shiller_state[CODE] 에서 해석
+  // (FRED FHFA 주별 HPI). 지도/마커 클릭 시 차트가 비던 문제 해결.
+  if(!src && /^case_shiller_[A-Z]{2}$/.test(key)) {
+    const _scode = key.slice('case_shiller_'.length);
+    const _st = ((reUs.case_shiller_state)||{})[_scode];
+    if(_st) src = _st;
+  }
   let labels=[], values=[];
   let dataSource = src?.source || '한국부동산원 R-ONE / 국토교통부 / FRED';
   // 1) data.json에 시계열 history가 있는 경우 — 단, 모든 값이 0/null 이면 무효 (API 빈응답 케이스)
@@ -11020,6 +10972,18 @@ function _renderReHistChart() {
     labels = ['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03','26.05'];
     values = [6.0, 6.1, 6.2, 6.3, 6.4, 6.5, 6.5, 6.6, 6.6, 6.7, 6.7, 6.6, 6.6];
     dataSource = '내장 시계열 (한국부동산원 전월세전환율, %)';
+  }
+  // 9) 미국 주별 HPI 폴백 — FRED 실데이터(case_shiller_state) 미수집 시, 지도에 내장된
+  //    history 로라도 차트가 보이게 한다(클릭 시 빈 차트 방지). FRED 연동 후 실데이터로 대체됨.
+  if(!values.length && /^case_shiller_[A-Z]{2}$/.test(key) && typeof usRegionData !== 'undefined') {
+    const _scode = key.slice('case_shiller_'.length);
+    const _reg = usRegionData.find(r => r.code === _scode);
+    if(_reg && Array.isArray(_reg.history) && _reg.history.length) {
+      const n = _reg.history.length, today = new Date();
+      for(let i=0;i<n;i++){ const dt = new Date(today.getFullYear(), today.getMonth()-(n-1-i), 1); labels.push(dt.toISOString().slice(0,7)); }
+      values = _reg.history.slice();
+      dataSource = '주별 주택가격지수 (참고용 내장 시계열 — FRED FHFA 연동 시 실데이터로 대체)';
+    }
   }
   const ctx = document.getElementById('reHistChart');
   if(!ctx || !values.length) {
@@ -11132,59 +11096,17 @@ async function refreshReHistoryChart(btn) {
 // 기존엔 단일 corsproxy.io 사용 → 해당 프록시 차단/장애 시 100% 실패.
 // 이제 _fetchViaProxies 다중 프록시 풀 사용으로 가용성 대폭 개선.
 async function refreshFxData(btn) {
+  // 외환 새로고침 — 대시보드 KOSPI 차트와 동일한 경로(loadRealtimeFx → Stooq/프록시)로
+  // 환율+일변화율을 한 번에 갱신한다. (이전: 직접 er-api 호출 실패 + yfinance v7/spark 가
+  //  크럼 요구로 자주 실패해 '새로고침이 안 되는' 것처럼 보였다.)
   _refreshFeedback(btn, 'loading');
-  let fxOk = false;
   try {
-    // 1) 실시간 환율 (open.er-api.com — CORS 허용, 프록시 불요)
-    await loadRealtimeFx();
-    fxOk = true;
-  } catch(e) {
-    console.warn('[FX] loadRealtimeFx 오류:', e);
-  }
-  try {
-    // 2) 일별 변화율: yfinance spark API (다중 CORS 프록시 fallback)
-    const symbols = {
-      USDKRW: 'KRW=X',
-      EURKRW: 'EURKRW=X',
-      JPYKRW: 'JPYKRW=X',
-      EURUSD: 'EURUSD=X',
-      USDJPY: 'JPY=X',
-    };
-    const idxMap = { USDKRW:0, EURKRW:1, JPYKRW:2, EURUSD:3, USDJPY:4 };
-    let success = 0;
-    await Promise.all(Object.entries(symbols).map(async ([key, sym]) => {
-      try {
-        const u = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(sym)}&range=5d&interval=1d`;
-        const j = await _fetchViaProxies(u, true);
-        if(!j) return;
-        const closes = j.spark?.result?.[0]?.response?.[0]?.indicators?.quote?.[0]?.close || [];
-        const valid = closes.filter(v=>v!=null);
-        if(valid.length < 2) return;
-        const cur = valid[valid.length-1];
-        const prev = valid[valid.length-2];
-        const chgPct = (cur - prev) / prev * 100;
-        const i = idxMap[key];
-        if(i != null && fxPairs[i]) {
-          fxPairs[i].chg = +(cur-prev).toFixed(4);
-          fxPairs[i].pct = +chgPct.toFixed(2);
-          success++;
-        }
-      } catch(e) { /* skip — 다른 심볼 계속 시도 */ }
-    }));
-    // FX 페이지 + 티커바 다시 그리기 (실시간 환율은 갱신 되었을 수 있으므로)
-    if(typeof buildFxPage === 'function') buildFxPage();
-    if(typeof buildTicker === 'function') buildTicker();
-    if(success > 0) {
-      _refreshFeedback(btn, 'success', `${success}건 갱신`);
-    } else if(fxOk) {
-      // 환율은 갱신 됐으나 변화율은 yfinance 실패 (사용자가 클릭 효과를 인지 가능)
-      _refreshFeedback(btn, 'warn', '환율 갱신 (변화율 미수신)');
-    } else {
-      _refreshFeedback(btn, 'error', '네트워크 오류');
-    }
-  } catch(e) {
+    const n = await loadRealtimeFx();   // 환율+변화율, 내부에서 FX 페이지/티커/헤더 재렌더
+    if (n > 0) _refreshFeedback(btn, 'success', `${n}건 갱신`);
+    else       _refreshFeedback(btn, 'error', '네트워크 오류');
+  } catch (e) {
     console.warn('[FX] refresh 오류:', e);
-    _refreshFeedback(btn, fxOk ? 'warn' : 'error', fxOk ? '환율만 갱신' : '실패');
+    _refreshFeedback(btn, 'error', '실패');
   }
 }
 
@@ -13305,95 +13227,86 @@ async function refreshAllData(btn) {
 // ============================
 let _fxFirstLoad = true;  // 최초 페치 시 변화율 계산 건너뜀 (하드코딩 기본값 대비 비교 방지)
 async function loadRealtimeFx() {
-  try {
-    // USD 기준 환율
-    const r1 = await fetch('https://open.er-api.com/v6/latest/USD');
-    if (!r1.ok) throw new Error('USD fetch failed');
-    const d1 = await r1.json();
-    if (d1.result !== 'success' || !d1.rates) throw new Error('Invalid USD data');
-    const usdKrw = d1.rates.KRW;
-    const usdJpy = d1.rates.JPY;
-    const usdEur = d1.rates.EUR;
+  // 실시간 환율 — 대시보드 KOSPI 지수와 '동일한' 경로(Stooq → CF 워커/공개 프록시 풀)로 가져온다.
+  // 이전 구현은 open.er-api.com 을 브라우저에서 직접 fetch 했는데 (1) CORS 차단으로 자주 실패하고
+  // (2) 무료 티어가 하루 1회만 갱신해 변화율이 사실상 0 이라 '새로고침이 안 되는' 문제가 있었다.
+  // Stooq 일별 종가는 KOSPI/원자재와 동일하게 프록시를 거쳐 안정적으로 받고, 의미있는 일변화율을 준다.
+  const fxTasks = [
+    { s:'usdkrw', i:0 }, { s:'eurkrw', i:1 }, { s:'jpykrw', i:2 },
+    { s:'eurusd', i:3 }, { s:'usdjpy', i:4 },
+  ];
+  let updated = 0;
+  await Promise.all(fxTasks.map(async ({ s, i }) => {
+    try {
+      const q = await fetchStooqHistory(s);
+      if (q && q.price > 0 && fxPairs[i]) {
+        const dec = (fxPairs[i].pair === 'JPY/KRW' || fxPairs[i].pair === 'EUR/USD') ? 4 : 2;
+        fxPairs[i].cur = q.price.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+        fxPairs[i].pct = q.change;
+        fxPairs[i].chg = +(q.price * q.change / 100).toFixed(4);
+        updated++;
+      }
+    } catch (_) { /* 다른 통화쌍 계속 시도 */ }
+  }));
 
-    // EUR 기준 환율
-    const r2 = await fetch('https://open.er-api.com/v6/latest/EUR');
-    if (!r2.ok) throw new Error('EUR fetch failed');
-    const d2 = await r2.json();
-    if (d2.result !== 'success' || !d2.rates) throw new Error('Invalid EUR data');
-    const eurKrw = d2.rates.KRW;
-    const eurUsd = d2.rates.USD;
-
-    const tsMsg = d1.time_last_update_utc || '';
-    const updated = tsMsg ? new Date(tsMsg) : new Date();
-
-    // 변화율 계산을 위해 이전 값(현재 fxPairs)과 비교
-    const prevRates = {
-      'USD/KRW': parseFloat(String(fxPairs[0].cur).replace(/,/g,'')),
-      'EUR/KRW': parseFloat(String(fxPairs[1].cur).replace(/,/g,'')),
-      'JPY/KRW': parseFloat(String(fxPairs[2].cur).replace(/,/g,'')),
-      'EUR/USD': parseFloat(String(fxPairs[3].cur).replace(/,/g,'')),
-      'USD/JPY': parseFloat(String(fxPairs[4].cur).replace(/,/g,'')),
-    };
-
-    const newRates = {
-      'USD/KRW': usdKrw,
-      'EUR/KRW': eurKrw,
-      'JPY/KRW': usdKrw / usdJpy, // KRW per 1 JPY
-      'EUR/USD': eurUsd,
-      'USD/JPY': usdJpy,
-    };
-
-    // ⚠ open.er-api.com 은 일별 변화율을 제공하지 않음. 30분 간격으로 fetch 한 두 값의 차이는
-    // 거의 0에 가까워 의미가 없으므로, data.json (yfinance 일별 변화율)을 그대로 보존하고
-    // 현재 환율만 실시간 갱신한다.
-    fxPairs.forEach((p, i) => {
-      const newR = newRates[p.pair];
-      if (newR == null) return;
-      const dec = (p.pair==='JPY/KRW'||p.pair==='EUR/USD') ? 4 : 2;
-      p.cur = newR.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-      // p.chg / p.pct 는 data.json 의 일별 변화율을 그대로 유지 (덮어쓰지 않음)
-    });
-    _fxFirstLoad = false;
-
-    // 티커 바의 USD/KRW, EUR/KRW 갱신
-    const tickerUpdate = (name, val, chg) => {
-      const t = tickerData.find(x=>x.name===name);
-      if(!t) return;
-      t.val = val.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-      const pct = ((val - (parseFloat(String(t.val).replace(/,/g,''))||val))/val*100);
-      t.chg = (chg>=0?'+':'')+chg.toFixed(2)+'%';
-      t.up  = chg>=0;
-    };
-
-    // 사이드바 업데이트 시각 표시
-    const sbEl = document.getElementById('dataSourceInfo');
-    if(sbEl) {
-      sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> 실시간 환율: ${updated.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
-    }
-
-    // 대시보드 USD/KRW KPI 카드 갱신 (real-time)
-    const kpiFxPriceEl = document.getElementById('kpi-fx-price');
-    const kpiFxChgEl   = document.getElementById('kpi-fx-chg');
-    if (kpiFxPriceEl) kpiFxPriceEl.textContent = fxPairs[0].cur;
-    if (kpiFxChgEl) {
-      const up = fxPairs[0].pct >= 0;
-      kpiFxChgEl.className = up ? 'up-txt' : 'down-txt';
-      kpiFxChgEl.style.cssText = 'font-size:13px;margin-top:4px;';
-      kpiFxChgEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(fxPairs[0].pct).toFixed(2) + '%';
-    }
-
-    // FX 페이지가 표시 중이면 테이블 재렌더링
-    if(document.getElementById('market-fx')?.style.display !== 'none' && typeof buildFxPage === 'function') {
-      const fxTb = document.getElementById('fxTable');
-      if(fxTb) buildFxPage();
-    }
-    // 헤더·정보 패널은 항상 갱신 (페이지 가시성과 무관하게 DOM 동기화)
-    if (typeof updateFxHeader === 'function') updateFxHeader();
-    // 티커 재렌더링
-    buildTicker();
-  } catch (e) {
-    console.warn('실시간 FX 페치 실패:', e.message);
+  // 폴백 — Stooq 가 전부 막히면 open.er-api.com 을 '프록시 경유'로 받아 현재 환율만이라도 갱신.
+  if (updated === 0) {
+    try {
+      const d1 = await _fetchViaProxies('https://open.er-api.com/v6/latest/USD', true);
+      const d2 = await _fetchViaProxies('https://open.er-api.com/v6/latest/EUR', true);
+      if (d1 && d1.rates) {
+        const usdKrw = d1.rates.KRW, usdJpy = d1.rates.JPY;
+        const eurKrw = (d2 && d2.rates) ? d2.rates.KRW : null;
+        const eurUsd = (d2 && d2.rates) ? d2.rates.USD : (d1.rates.EUR ? 1 / d1.rates.EUR : null);
+        const setRate = (i, val, dec) => {
+          if (val && fxPairs[i]) {
+            fxPairs[i].cur = val.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+            updated++;
+          }
+        };
+        setRate(0, usdKrw, 2);
+        setRate(1, eurKrw, 2);
+        setRate(2, (usdKrw && usdJpy) ? usdKrw / usdJpy : null, 4);
+        setRate(3, eurUsd, 4);
+        setRate(4, usdJpy, 2);
+      }
+    } catch (_) { /* 폴백도 실패 — 기존 값 유지 */ }
   }
+
+  if (updated > 0) _fxFirstLoad = false;
+
+  // 사이드바 업데이트 시각 표시
+  const sbEl = document.getElementById('dataSourceInfo');
+  if (sbEl && updated > 0) {
+    sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> 실시간 환율: ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  // 대시보드 USD/KRW KPI 카드 갱신
+  const kpiFxPriceEl = document.getElementById('kpi-fx-price');
+  const kpiFxChgEl   = document.getElementById('kpi-fx-chg');
+  if (kpiFxPriceEl) kpiFxPriceEl.textContent = fxPairs[0].cur;
+  if (kpiFxChgEl) {
+    const up = (fxPairs[0].pct || 0) >= 0;
+    kpiFxChgEl.className = up ? 'up-txt' : 'down-txt';
+    kpiFxChgEl.style.cssText = 'font-size:13px;margin-top:4px;';
+    kpiFxChgEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(fxPairs[0].pct || 0).toFixed(2) + '%';
+  }
+  // 티커 바의 USD/KRW · EUR/KRW 갱신 (값+일변화율)
+  const setTickerFx = (name, pairIdx) => {
+    const t = tickerData.find(x => x.name === name);
+    if (t && fxPairs[pairIdx]) {
+      const pct = fxPairs[pairIdx].pct || 0;
+      t.val = fxPairs[pairIdx].cur;
+      t.chg = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+      t.up  = pct >= 0;
+    }
+  };
+  setTickerFx('USD/KRW', 0);
+  setTickerFx('EUR/KRW', 1);
+  // 헤더·FX 페이지·티커 재렌더 (가시성과 무관하게 DOM 동기화)
+  if (typeof updateFxHeader === 'function') updateFxHeader();
+  if (document.getElementById('market-fx') && typeof buildFxPage === 'function') buildFxPage();
+  if (typeof buildTicker === 'function') buildTicker();
+  return updated;
 }
 
 // ============================

@@ -1252,6 +1252,45 @@ def fetch_ecos_yield_curve_kr():
     }
 
 
+# 미국 주(State) 코드 — FHFA 주별 주택가격지수(FRED {XX}STHPI) 조회용. DC 포함 51개.
+_US_STATE_CODES = [
+    "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
+    "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+    "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+    "VA","WA","WV","WI","WY","DC",
+]
+
+
+def fetch_fred_state_hpi():
+    """미국 주(State)별 주택가격지수 — FHFA All-Transactions HPI (FRED {XX}STHPI, 분기).
+
+    Case-Shiller 는 전국+20대 도시만 제공하고 주별 시계열이 없어, 프론트의 '미국 지역별
+    Case-Shiller 등락률' 지도에서 주를 클릭하면 차트가 비어 있었다. 주별 가격은 FHFA 지수
+    (FRED 표준)가 정답이므로 이를 가져와 지도/차트에 실데이터를 채운다(전분기比 등락률 포함).
+    Returns: {CODE: {value, chg, period, source, history{YYYY-MM-DD: val}}, ...}
+    """
+    out = {}
+    for code in _US_STATE_CODES:
+        try:
+            obs = fetch_fred_series(f"{code}STHPI", limit=24)  # 분기 × 24 ≈ 6년
+            if not obs:
+                continue
+            cur = obs[0]["value"]
+            prev = obs[1]["value"] if len(obs) > 1 else None
+            chg = round((cur - prev) / prev * 100, 2) if prev and prev != 0 else None
+            out[code] = {
+                "value":   round(cur, 2),
+                "chg":     chg,
+                "period":  obs[0]["date"],
+                "source":  f"FRED:{code}STHPI (FHFA 주별 HPI)",
+                "history": {o["date"]: o["value"] for o in obs},
+            }
+        except Exception as e:
+            log(f"[FRED-STATE] {code}STHPI 오류: {e}")
+    log(f"[FRED-STATE] 미국 주별 HPI {len(out)}/{len(_US_STATE_CODES)}개 수집")
+    return out
+
+
 def fetch_fred_realestate_us():
     """미국 부동산 주요 지표 FRED API로 조회.
 
@@ -1302,6 +1341,13 @@ def fetch_fred_realestate_us():
         else:
             log(f"[FRED-RE] {key}: 모든 후보 실패")
     log(f"[FRED-RE] 미국 부동산: {len(result)}/{len(indicators)} 지표 수집됨")
+    # 주별 주택가격지수(FHFA) — 지역별 Case-Shiller 지도 클릭 시 차트용 실데이터.
+    try:
+        state_hpi = fetch_fred_state_hpi()
+        if state_hpi:
+            result["case_shiller_state"] = state_hpi
+    except Exception as e:
+        log(f"[FRED-STATE] 주별 HPI 수집 오류: {e}")
     return result
 
 
