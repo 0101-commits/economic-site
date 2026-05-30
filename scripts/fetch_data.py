@@ -1342,8 +1342,21 @@ def fetch_fred_realestate_us():
             log(f"[FRED-RE] {key}: 모든 후보 실패")
     log(f"[FRED-RE] 미국 부동산: {len(result)}/{len(indicators)} 지표 수집됨")
     # 주별 주택가격지수(FHFA) — 지역별 Case-Shiller 지도 클릭 시 차트용 실데이터.
+    # 분기 데이터라 매 런(10분 주기)마다 51콜은 과해 FRED rate-limit 위험 → 일일 윈도우
+    # (KST 09:00/22:00 = UTC 00/13시) 또는 AV_FETCH_FULL 일 때만 새로 페치하고, 그 외에는
+    # 직전 data.json 값을 보존한다(직전 값이 없으면 한 번은 페치해 빈 화면 방지).
     try:
-        state_hpi = fetch_fred_state_hpi()
+        hour_utc = datetime.now(timezone.utc).hour
+        full = os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes")
+        if hour_utc in (0, 13) or full:
+            state_hpi = fetch_fred_state_hpi()
+        else:
+            prev = _load_prev_data()
+            state_hpi = (((prev.get("realestate") or {}).get("us") or {}).get("case_shiller_state")) or {}
+            if state_hpi:
+                log(f"[FRED-STATE] 직전 빌드 주별 HPI {len(state_hpi)}개 보존 (비-일일윈도우, FRED 콜 절약)")
+            else:
+                state_hpi = fetch_fred_state_hpi()  # 직전 값 없으면 최초 1회 페치
         if state_hpi:
             result["case_shiller_state"] = state_hpi
     except Exception as e:
