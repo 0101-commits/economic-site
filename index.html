@@ -1285,7 +1285,10 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
-            <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+              <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -1301,7 +1304,10 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
-            <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+              <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -1339,7 +1345,10 @@ tailwind.config = {
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
-            <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+              <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+            </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:11px;">
@@ -2747,7 +2756,7 @@ const _refreshHandlerMap = {
   baseMetalChart:   function(btn){ try { buildCommodityPage(); } catch(_){} _flashBtn(btn); },
   agriChart:        function(btn){ try { buildCommodityPage(); } catch(_){} _flashBtn(btn); },
   equityIndexChart: function(btn){ try { buildEquityPage(); } catch(_){} refreshMoversFromClient().catch(()=>{}); _flashBtn(btn); },
-  investorChart:    function(btn){ try { buildInvestorPage(); } catch(_){} _flashBtn(btn); },
+  investorChart:    function(btn){ refreshInvestorTrading(btn); },
   fearChart:        function(btn){ fetchSentimentClient().then(applySentimentClient).catch(()=>{}); _flashBtn(btn); },
   rateHistoryChart: function(btn){ try { buildRatePage(); } catch(_){} _flashBtn(btn); },
   // 부동산
@@ -2778,13 +2787,28 @@ async function refreshSentiment(btn) {
     if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'error', '실패');
   }
 }
-// 주식시장 Top10 빈 상태 '다시 시도' — 동일 피드백 적용 (재렌더 전 로딩 표시).
+// 주식시장 Top10 '새로고침'/'다시 시도' — data.json 재페치 + 클라이언트 실시간 페치 후 재렌더.
 async function retryEquityMovers(btn) {
   if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'loading');
   try {
-    const ok = await refreshMoversFromClient(true);
-    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? '갱신' : '응답 없음');
+    if(typeof loadRealData==='function') await loadRealData().catch(()=>{});  // 서버 data.json 최신화
+    const ok = await refreshMoversFromClient(true);                            // 네이버 실시간 보강
     if(typeof buildEquityPage==='function') buildEquityPage();
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? '갱신' : '응답 없음');
+  } catch(e) {
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'error', '실패');
+  }
+}
+// 투자자별 순매매 '새로고침' — data.json 재페치(investorTrading) 후 차트 재빌드.
+// (이전 결함: investorChart 핸들러가 buildInvestorPage[국민연금]을 호출하고 재페치도 안 했음.)
+async function refreshInvestorTrading(btn) {
+  if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'loading');
+  try {
+    if(typeof loadRealData==='function') await loadRealData().catch(()=>{});
+    investorRawData = (typeof _getInvestorRawData==='function') ? _getInvestorRawData() : investorRawData;
+    if(typeof buildInvestorChart==='function') buildInvestorChart();
+    const ok = investorRawData && investorRawData.length;
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? '갱신' : '수집 대기');
   } catch(e) {
     if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'error', '실패');
   }
@@ -2822,6 +2846,33 @@ function injectChartRefreshButtons() {
     btn.textContent = '↻ 새로고침';
     btn.onclick = (e) => { e.stopPropagation(); refreshChartByCanvasId(id, btn); };
     // 버튼을 widget-title 의 텍스트 흐름에 inline 으로 추가 (display 변경 없음)
+    title.appendChild(btn);
+  });
+
+  // ── 2차 패스: canvas 없는 '데이터 테이블 카드'에도 새로고침 버튼 주입 (전체 카드 커버) ──
+  // 예: KOSPI/ETF Top10, 글로벌 지수, 거시지표 표, 채권/국민연금 표 등.
+  // 핸들러는 표별 매핑이 있으면 그것을, 없으면 전체 새로고침(refreshAllData)을 쓴다.
+  // 모두 _refreshFeedback 상태머신을 거치므로 KOSPI 버튼과 동일한 로딩→갱신 인터랙션을 갖는다.
+  const _tableRefreshMap = {
+    equityTopGainersTable: retryEquityMovers, equityTopLosersTable: retryEquityMovers,
+    etfTopGainersTable: refreshETFFromClient, etfTopLosersTable: refreshETFFromClient,
+    moverTable: (b)=>refreshAllData(b), investorSummaryTable: refreshInvestorTrading,
+  };
+  document.querySelectorAll('.widget').forEach(widget => {
+    if(widget.querySelector('button[data-chart-refresh]')) return;
+    if(widget.querySelector('canvas[id]')) return;                 // canvas 카드는 위에서 처리
+    if(/새로고침|다시 시도/.test(widget.innerHTML)) return;        // 이미 새로고침/재시도 버튼 존재
+    const tbody = widget.querySelector('table tbody[id]');         // 데이터 테이블이 있는 카드만
+    if(!tbody) return;
+    const title = widget.querySelector('.widget-title');
+    if(!title) return;
+    const handler = _tableRefreshMap[tbody.id] || ((b)=>refreshAllData(b));
+    const btn = document.createElement('button');
+    btn.setAttribute('data-chart-refresh', tbody.id || 'card');
+    btn.setAttribute('title', '실시간 데이터 새로고침');
+    btn.style.cssText = 'margin-left:8px;background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:1px 7px;font-size:10px;cursor:pointer;vertical-align:middle;text-transform:none;letter-spacing:0;';
+    btn.textContent = '↻ 새로고침';
+    btn.onclick = (e) => { e.stopPropagation(); try { handler(btn); } catch(_) { refreshAllData(btn); } };
     title.appendChild(btn);
   });
 }
