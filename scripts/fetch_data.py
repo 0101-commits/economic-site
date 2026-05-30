@@ -348,6 +348,95 @@ def fetch_pykrx_etf_movers(top_n=10):
     return None, None
 
 
+def fetch_investor_trading(lookback_days=400):
+    """투자자별(외국인/기관/개인) 일별 순매수 추이 — pykrx 실데이터.
+
+    KRX 정보데이터시스템의 '투자자별 거래실적(일별 순매수 거래대금)' 을 KOSPI+KOSDAQ
+    합산해 가져온다. 단위는 억원(1e8 원). **더미/랜덤 데이터는 절대 쓰지 않는다** —
+    pykrx 가 없거나 응답이 비면 빈 dict 를 반환하고, 프론트엔드는 '수집 중'을 안내한다.
+
+    Returns: {"daily":[{date, foreign, inst, retail}...], "markets":[...],
+              "unit":"억원", "source":..., "lastFetched":...} 또는 {}.
+    """
+    if not _PYKRX_AVAILABLE:
+        log("[투자자] pykrx 미설치 — 투자자별 매매동향 건너뜀")
+        return {}
+    fn = getattr(_pykrx_stock, "get_market_trading_value_by_date", None)
+    if fn is None:
+        log("[투자자] pykrx get_market_trading_value_by_date 미지원 — 건너뜀")
+        return {}
+    now = datetime.now(KST)
+    todate = next(iter(_last_kr_business_day()), now.strftime("%Y%m%d"))
+    fromdate = (now - timedelta(days=lookback_days)).strftime("%Y%m%d")
+
+    agg = {}            # date -> {foreign, inst, retail} (억원)
+    markets_ok = []
+    for mkt in ("KOSPI", "KOSDAQ"):
+        try:
+            df = fn(fromdate, todate, mkt)
+        except Exception as e:
+            log(f"[투자자] {mkt} 조회 오류: {e}")
+            continue
+        if df is None or getattr(df, "empty", True):
+            log(f"[투자자] {mkt} 응답 없음/비어있음")
+            continue
+        cols = [str(c) for c in df.columns]
+
+        def _find_col(*keywords, exclude=()):
+            for c in cols:
+                if any(k in c for k in keywords) and not any(x in c for x in exclude):
+                    return c
+            return None
+        # KRX 투자자 분류 컬럼: 기관합계 / 기타법인 / 개인 / 외국인합계 / 기타외국인 / 전체
+        col_foreign = _find_col("외국인합계") or _find_col("외국인", exclude=("기타외국인",))
+        col_inst    = _find_col("기관합계") or _find_col("기관")
+        col_retail  = _find_col("개인")
+        if not (col_foreign and col_inst and col_retail):
+            log(f"[투자자] {mkt} 투자자 컬럼 매칭 실패 — 컬럼={cols}")
+            continue
+
+        def _eok(v):
+            try:
+                return float(v) / 1e8
+            except (TypeError, ValueError):
+                return 0.0
+        n = 0
+        for idx, row in df.iterrows():
+            try:
+                dstr = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else (
+                    (lambda s: s[:10] if "-" in s else f"{s[:4]}-{s[4:6]}-{s[6:8]}")(str(idx)))
+            except Exception:
+                continue
+            rec = agg.setdefault(dstr, {"foreign": 0.0, "inst": 0.0, "retail": 0.0})
+            rec["foreign"] += _eok(row[col_foreign])
+            rec["inst"]    += _eok(row[col_inst])
+            rec["retail"]  += _eok(row[col_retail])
+            n += 1
+        if n:
+            markets_ok.append(mkt)
+            log(f"[투자자] {mkt} {n}일 수집 (외국인={col_foreign}/기관={col_inst}/개인={col_retail})")
+
+    if not agg or not markets_ok:
+        log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용)")
+        return {}
+    daily = [{
+        "date": d,
+        "foreign": round(agg[d]["foreign"], 1),
+        "inst":    round(agg[d]["inst"], 1),
+        "retail":  round(agg[d]["retail"], 1),
+    } for d in sorted(agg.keys())]
+    last = daily[-1]
+    log(f"[투자자] 완료: {len(daily)}일 ({'+'.join(markets_ok)}) 최근일={last['date']} "
+        f"외국인={last['foreign']:+.0f}억 기관={last['inst']:+.0f}억 개인={last['retail']:+.0f}억")
+    return {
+        "daily": daily,
+        "markets": markets_ok,
+        "unit": "억원",
+        "source": "pykrx 투자자별 거래실적 (KRX 정보데이터시스템)",
+        "lastFetched": now.isoformat(),
+    }
+
+
 def fetch_krx_stock_movers(market="kospi", top_n=10):
     """KRX에서 주식 등락률 상위/하위 종목 조회 (상승/하락 Top10)."""
     if not KRX_API_KEY:
@@ -3278,13 +3367,32 @@ def _kis_parse_mover_row(r):
 
 
 def _is_valid_mover_list(items, min_nonzero=3):
-    """등락 데이터 검증: 최소 min_nonzero 개 종목이 chg!=0 이어야 유효.
-    또한 모든 종목이 동일 chg=0 이면 무효 (랭킹 미동작).
+    """등락 데이터 검증.
+
+    - 최소 min_nonzero 개 종목이 chg!=0 이어야 유효 (랭킹 미동작/올-0 garbage 차단).
+    - 거래량(vol)이 현재가(price)와 사실상 동일한 행이 과반이면 컬럼 정렬 오류로 보고
+      무효 처리한다. (과거 KRX OpenAPI 가 ACML_VOL≈TDD_CLSPRC 로 어긋난 garbage 를
+      반환해 'LG전자 +29.9%' 같은 비현실적 상한가 떼가 표시되던 문제의 탐지 신호.
+      무효 시 build_data 의 폴백 체인이 pykrx(품질 최고) 로 자동 전환된다.)
     """
     if not items or len(items) < min_nonzero:
         return False
     nonzero = sum(1 for it in items if it.get("chg") and it["chg"] != 0)
-    return nonzero >= min_nonzero
+    if nonzero < min_nonzero:
+        return False
+    misaligned = 0
+    for it in items:
+        try:
+            p = float(it.get("price") or 0)
+            v = float(it.get("vol") or 0)
+        except (TypeError, ValueError):
+            continue
+        if p > 0 and v > 0 and abs(p - v) <= max(1.0, p * 0.001):
+            misaligned += 1
+    if misaligned >= max(2, len(items) // 2):
+        log(f"[검증] vol≈price 정렬 오류 의심 {misaligned}/{len(items)}건 — 무효 처리(pykrx 폴백 트리거)")
+        return False
+    return True
 
 
 def _kis_fetch_ranking(market_code, sort_code, top_n):
@@ -3830,6 +3938,7 @@ def build_data():
         "commodities": {},
         "stockMovers": {},
         "etfMovers": {},
+        "investorTrading": {},
         "economicIndicators": {},
         "realestate": {},
         "yieldCurve": {},
@@ -3872,25 +3981,44 @@ def build_data():
             data["indices"]["KOSDAQ"] = {"price": kosdaq["price"], "change": kosdaq["change"]}
             log(f"[KRX] KOSDAQ: {kosdaq['price']} ({kosdaq['change']:+.2f}%)")
 
-        # KOSPI 상승/하락 Top10 — 검증 포함
-        gainers, losers = fetch_krx_stock_movers("kospi", top_n=10)
-        if _is_valid_mover_list(gainers):
-            data["stockMovers"]["kospiGainers"] = gainers
-        elif gainers:
-            log(f"[KRX] 상승종목 {len(gainers)}건 chg=0 garbage — 폴백 트리거")
-        if _is_valid_mover_list(losers):
-            data["stockMovers"]["kospiLosers"] = losers
-        elif losers:
-            log(f"[KRX] 하락종목 {len(losers)}건 chg=0 garbage — 폴백 트리거")
+        # ── KOSPI 상승/하락 Top10 ──
+        # pykrx 를 PRIMARY 로 둔다(품질 최고·무인증). KRX OpenAPI 는 pykrx 실패 시에만 보조.
+        # (과거엔 KRX OpenAPI 가 1순위였고, vol≈price 로 어긋난 garbage 가 약한 검증을 통과해
+        #  'LG전자 +29.9%' 같은 비현실적 상한가 떼가 그대로 표시됐다 — 이제 pykrx 우선 +
+        #  강화된 _is_valid_mover_list 로 차단한다.)
+        try:
+            pkg, pkl = fetch_pykrx_stock_movers(market="KOSPI", top_n=10)
+        except Exception as e:
+            log(f"[pykrx] 1순위 주식 movers 오류: {e}")
+            pkg, pkl = None, None
+        if _is_valid_mover_list(pkg):
+            data["stockMovers"]["kospiGainers"] = pkg
+            data["sources"]["stockMovers"] = "pykrx (KRX 정보데이터시스템)"
+        if _is_valid_mover_list(pkl):
+            data["stockMovers"]["kospiLosers"] = pkl
+            data["sources"].setdefault("stockMovers", "pykrx (KRX 정보데이터시스템)")
+        # pykrx 가 비면 KRX OpenAPI 로 보조 (검증 통과분만 채택)
+        if not (data["stockMovers"].get("kospiGainers") and data["stockMovers"].get("kospiLosers")):
+            gainers, losers = fetch_krx_stock_movers("kospi", top_n=10)
+            if _is_valid_mover_list(gainers) and not data["stockMovers"].get("kospiGainers"):
+                data["stockMovers"]["kospiGainers"] = gainers
+                data["sources"].setdefault("stockMovers", "KRX OpenAPI")
+            elif gainers and not data["stockMovers"].get("kospiGainers"):
+                log(f"[KRX] 상승종목 {len(gainers)}건 garbage — 폴백 트리거")
+            if _is_valid_mover_list(losers) and not data["stockMovers"].get("kospiLosers"):
+                data["stockMovers"]["kospiLosers"] = losers
+                data["sources"].setdefault("stockMovers", "KRX OpenAPI")
+            elif losers and not data["stockMovers"].get("kospiLosers"):
+                log(f"[KRX] 하락종목 {len(losers)}건 garbage — 폴백 트리거")
 
-        # ETF 상승/하락 Top10
+        # ETF 상승/하락 Top10 (KRX OpenAPI — 실패 시 이후 pykrx/Naver 폴백)
         etf_up, etf_down = fetch_krx_etf_movers(top_n=10)
         if etf_up:
             data["etfMovers"]["etfGainers"] = etf_up
         if etf_down:
             data["etfMovers"]["etfLosers"] = etf_down
-
-        data["sources"]["stockMovers"] = "KRX OpenAPI"
+        if data["etfMovers"].get("etfGainers") or data["etfMovers"].get("etfLosers"):
+            data["sources"].setdefault("etfMovers", "KRX OpenAPI")
     else:
         log("[KRX] API 키 없음 — Naver Finance 폴백 시도")
 
@@ -3975,10 +4103,25 @@ def build_data():
         except Exception as e:
             log(f"[YF-ETF] 폴백 오류: {e}")
 
+    # ── 투자자별 순매매 동향 (외국인/기관/개인) — pykrx 실데이터 ──
+    # 이전: 프론트엔드가 Math.random/sin·cos 로 가짜 데이터를 생성했음(=더미).
+    # 이제: KRX 정보데이터시스템의 실제 투자자별 거래실적을 서버에서 수집해 data.json 에 싣고,
+    #       프론트엔드는 그것만 사용한다(수집 전에는 '수집 중' 안내, 더미 없음).
+    try:
+        inv = fetch_investor_trading()
+        if inv and inv.get("daily"):
+            data["investorTrading"] = inv
+            data["sources"]["investorTrading"] = inv.get("source", "pykrx")
+        else:
+            log("[투자자] 실데이터 미수집 — investorTrading 비움 (프론트 '수집 중' 표시)")
+    except Exception as e:
+        log(f"[투자자] 수집 오류: {e}")
+
     # 진단 정보 — 어떤 소스가 성공/실패했는지 frontend 에서 표시 가능
     data.setdefault("diagnostics", {})
     data["diagnostics"]["stockMoversSource"] = data["sources"].get("stockMovers", "FAILED")
     data["diagnostics"]["etfMoversSource"]   = data["sources"].get("etfMovers",   "FAILED")
+    data["diagnostics"]["investorTradingDays"] = len((data.get("investorTrading") or {}).get("daily", []))
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
 
@@ -5014,6 +5157,12 @@ def fetch_news_all_feeds():
 
 # FRED 주요 release_id → (cc, 한국어 지표명, 중요도, 발표 시각 KST)
 # FRED Release IDs: https://api.stlouisfed.org/fred/releases?api_key=...
+# ⚠ 데이터 정합성 원칙: 각 release_id 의 '발표일' 만 빌리고 '실제값' 은 아래
+# CALENDAR_INDICATOR_MAP 이 가리키는 FRED 시리즈에서 백필한다. 따라서 라벨(지표명)은
+# 반드시 그 값의 출처와 일치해야 한다. (과거 결함: 라벨과 값 출처가 어긋나
+#  'ISM PMI = 5.4'(실제 OECD BCI), '주택지표(NAR) = 1465'(실제 주택착공) 처럼 표시됨.)
+# FRED 에 없거나(ISM·ADP=민간 독점), 우리 데이터셋에 매칭 시리즈가 없는(미시간 심리·주간
+# 실업수당) 지표는 잘못된 값을 보여주므로 캘린더에서 제외한다.
 FRED_KEY_RELEASES = {
     10:  ("US", "미국 CPI (전월비)",          3, "21:30"),
     11:  ("US", "미국 비농업고용(NFP)",       3, "21:30"),
@@ -5022,15 +5171,8 @@ FRED_KEY_RELEASES = {
     15:  ("US", "미국 PCE 물가지수",          3, "21:30"),
     18:  ("US", "미국 PPI",                  2, "21:30"),
     50:  ("US", "미국 산업생산",              2, "22:15"),
-    53:  ("US", "미국 주택지표 (NAR)",        2, "23:00"),
-    101: ("US", "미국 ISM 제조업 PMI",        3, "23:00"),
+    53:  ("US", "미국 주택착공 (Housing Starts)", 2, "21:30"),  # FRED:HOUST (천 호, 연환산)
     151: ("US", "미국 FOMC 회의",            3, "03:00"),
-    175: ("US", "미국 ADP 민간고용",         2, "21:15"),
-    197: ("US", "미국 소비자심리(미시간)",     2, "23:00"),
-    # 주간 발표 (목요일 정기) — 다음 7일 이내 1건만 표시되도록 dedup 안 함
-    23:  ("US", "미국 신규 실업수당청구",      2, "21:30"),
-    # ISM 서비스 PMI - 월간 1회
-    386: ("US", "미국 ISM 서비스 PMI",        3, "23:00"),
 }
 
 # 캘린더 이벤트 → data["economicIndicators"] 경로 매핑.
@@ -5049,6 +5191,8 @@ CALENDAR_INDICATOR_MAP = {
     "한국 산업생산지수":      ("economicIndicators.kr.ip_kr", "mom1", False),
     "한국 제조업 PMI":        ("economicIndicators.kr.pmi_kr", "raw1", False),
     # 미국 — CPI/PPI/소매/산업생산은 전월비 % 발표가 표준
+    # ⚠ 각 라벨은 FRED 시리즈와 일치해야 한다(라벨↔값 정합성). ISM(독점)·ADP(독점)·
+    #   미시간 심리·주간 실업수당 청구는 매칭 시리즈가 없어 제거했다(잘못된 값 표시 방지).
     "미국 CPI (전월비)":      ("economicIndicators.us.cpi_us", "mom1", True),
     "미국 CPI (전년비)":      ("economicIndicators.us.cpi_us", "yoy1", True),
     "미국 PCE 물가지수":      ("economicIndicators.us.pce_us", "mom1", True),
@@ -5056,16 +5200,13 @@ CALENDAR_INDICATOR_MAP = {
     "미국 FOMC 회의":         ("economicIndicators.us.ff_rate", "pct2", False),
     "미국 1분기 GDP (2차)":   ("economicIndicators.us.gdp_us", "mom1", False),
     "미국 GDP":               ("economicIndicators.us.gdp_us", "mom1", False),
-    "미국 비농업고용(NFP)":   ("economicIndicators.us.nfp_us", "k", False),
+    # NFP 는 PAYEMS '수준' 이 아니라 '전월 대비 증감(천명)' 이 발표 헤드라인 — kd(delta) 사용.
+    "미국 비농업고용(NFP)":   ("economicIndicators.us.nfp_us", "kd", False),
     "미국 PPI":               ("economicIndicators.us.ppi_us", "mom1", True),
-    "미국 ISM 제조업 PMI":    ("economicIndicators.us.pmi_us", "raw1", False),
-    "미국 ISM 서비스 PMI":    ("economicIndicators.us.pmi_us", "raw1", False),
     "미국 소매판매":          ("economicIndicators.us.retail_us", "mom1", False),
     "미국 산업생산":          ("economicIndicators.us.ip_us", "mom1", False),
-    "미국 ADP 민간고용":      ("economicIndicators.us.nfp_us", "k", False),
-    "미국 신규 실업수당청구": ("economicIndicators.us.unemployment", "raw1", True),
-    "미국 소비자심리(미시간)":("economicIndicators.us.cpi_us", "raw1", False),
-    "미국 주택지표 (NAR)":    ("realestate.us.housing_starts", "raw1", False),
+    # 주택착공(HOUST) — 천 호(연환산). 과거 '주택지표(NAR)' 오라벨 수정.
+    "미국 주택착공 (Housing Starts)": ("realestate.us.housing_starts", "raw1", False),
     # 유로존
     "유로존 CPI (전년비)":    ("economicIndicators.eu.cpi_eu", "yoy1", True),
     "ECB 통화정책회의":       ("economicIndicators.eu.base_rate_eu", "pct2", False),
@@ -5113,6 +5254,9 @@ def _fmt_indicator(val, fmt):
             return f"{val:.2f}"
         if fmt == "k":
             return f"{int(round(val))}K"
+        if fmt == "kd":  # 전월 대비 증감(천명), signed — 예: "+158K" (NFP 헤드라인)
+            sign = "+" if val >= 0 else ""
+            return f"{sign}{int(round(val))}K"
         return f"{val}"
     except (ValueError, TypeError):
         return ""
@@ -5232,6 +5376,31 @@ def backfill_calendar_actuals(events, data):
                             ev["beat"] = 1 if act_chg < fore_num else -1
                         else:
                             ev["beat"] = 1 if act_chg > fore_num else -1
+                except (ValueError, TypeError):
+                    pass
+                filled += 1
+                continue
+
+            # kd: '수준' 의 전월 대비 증감(천명) — NFP 헤드라인(PAYEMS 레벨이 아닌 증감)
+            if fmt_id == "kd":
+                prev_prev_key = recent_keys[-3] if len(recent_keys) >= 3 else None
+                a, p = history.get(act_key), history.get(prev_key)
+                if a is None or p is None:
+                    continue
+                act_delta = a - p
+                ev["act"] = _fmt_indicator(act_delta, "kd")
+                if prev_prev_key is not None:
+                    pp = history.get(prev_prev_key)
+                    if pp is not None:
+                        prev_delta = p - pp
+                        if not ev.get("prev"):
+                            ev["prev"] = _fmt_indicator(prev_delta, "kd")
+                        if not ev.get("fore"):
+                            ev["fore"] = _fmt_indicator(prev_delta, "kd")
+                try:
+                    fore_num = _parse_num(str(ev.get("fore", "")).replace("+", "").replace("K", ""))
+                    if fore_num is not None:
+                        ev["beat"] = 0 if abs(act_delta - fore_num) < 5 else (1 if act_delta > fore_num else -1)
                 except (ValueError, TypeError):
                     pass
                 filled += 1
