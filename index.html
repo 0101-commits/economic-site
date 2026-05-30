@@ -857,7 +857,7 @@ tailwind.config = {
           <div style="border-top:1px solid #2a2e3d;margin-top:12px;padding-top:12px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
               <div class="widget-title" style="margin-bottom:0;">시장 분위기</div>
-              <button onclick="fetchSentimentClient().then(applySentimentClient).then(()=>this.textContent='✓ 갱신됨').then(()=>setTimeout(()=>this.textContent='↻',1500))" title="시장 분위기 지표 재페치 (VKOSPI/MOVE/PutCall)" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:4px;padding:0 6px;font-size:10px;cursor:pointer;height:18px;">↻</button>
+              <button onclick="refreshSentiment(this)" title="시장 분위기 지표 재페치 (VKOSPI/MOVE/PutCall)" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:4px;padding:0 6px;font-size:10px;cursor:pointer;height:18px;">↻</button>
             </div>
             <!-- Fear & Greed 게이지 (클릭 → 상세 모달) -->
             <div onclick="showSentimentDetail('fear_greed')" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border-radius:6px;padding:4px;transition:background 0.15s;" onmouseover="this.style.background='var(--c-card-hover,#1f2330)'" onmouseout="this.style.background='transparent'" title="클릭 → CNN Fear &amp; Greed 추이 및 해석 가이드">
@@ -2765,6 +2765,29 @@ function _flashBtn(btn) {
   if(!btn) return;
   _refreshFeedback(btn, 'loading');
   setTimeout(() => { _refreshFeedback(btn, 'success', '갱신'); }, 400);
+}
+// 시장심리(VKOSPI/MOVE/PutCall/공포탐욕) 새로고침 — KOSPI 버튼과 동일한 _refreshFeedback 상태머신 사용.
+async function refreshSentiment(btn) {
+  if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'loading');
+  try {
+    if(typeof fetchSentimentClient==='function' && typeof applySentimentClient==='function') {
+      applySentimentClient(await fetchSentimentClient());
+    }
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'success', '갱신');
+  } catch(e) {
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'error', '실패');
+  }
+}
+// 주식시장 Top10 빈 상태 '다시 시도' — 동일 피드백 적용 (재렌더 전 로딩 표시).
+async function retryEquityMovers(btn) {
+  if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'loading');
+  try {
+    const ok = await refreshMoversFromClient(true);
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? '갱신' : '응답 없음');
+    if(typeof buildEquityPage==='function') buildEquityPage();
+  } catch(e) {
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'error', '실패');
+  }
 }
 function refreshChartByCanvasId(canvasId, btn) {
   const fn = _refreshHandlerMap[canvasId];
@@ -6888,7 +6911,7 @@ function buildEquityPage() {
   // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
-  const noData = `<tr><td colspan="5" style="padding:12px;text-align:center;color:#434656;font-size:11px;">네이버 증권에서 데이터 가져오는 중…<br><button onclick="refreshMoversFromClient(true).then(()=>buildEquityPage())" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 다시 시도</button></td></tr>`;
+  const noData = `<tr><td colspan="5" style="padding:12px;text-align:center;color:#434656;font-size:11px;">네이버 증권에서 데이터 가져오는 중…<br><button onclick="retryEquityMovers(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 다시 시도</button></td></tr>`;
   const noDataETF = `<tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;font-size:11px;">네이버 증권에서 데이터 가져오는 중…<br><button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 다시 시도</button></td></tr>`;
   const _volFmt = v => {
     if(v == null || v === '' || v === '—') return '—';
@@ -7739,7 +7762,7 @@ const macroIndicators = [
   {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'수출',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v?.toLocaleString()},
   {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
-  {name:'제조업 PMI',cc:'🇰🇷',cat:'경기',src:'OECD (FRED BSCICP02KRM460S) · ECOS BSI 보조',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 경기지수(BCI)',cc:'🇰🇷',cat:'경기',src:'OECD (FRED BSCICP02KRM460S) · ECOS BSI 보조',freq:'월간',unit:'지수 (100=중립)',
     dataPath:'economicIndicators.kr.pmi_kr',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.ip_kr',fmt:v=>v?.toFixed(2)},
@@ -7772,30 +7795,30 @@ const macroIndicators = [
   {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
   {name:'GDP',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'USD (총액)',dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v?.toLocaleString()},
   {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
-  {name:'제조업 PMI',cc:'🇨🇳',cat:'경기',src:'OECD (FRED BSCICP02CNM460S)',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 경기지수(BCI)',cc:'🇨🇳',cat:'경기',src:'OECD (FRED BSCICP02CNM460S)',freq:'월간',unit:'지수 (100=중립)',
     dataPath:'economicIndicators.cn.pmi_cn',fmt:v=>v?.toFixed(1),
     link:'http://www.stats.gov.cn/english/PressRelease/',linkLabel:'NBS 발표문'},
   // 일본 (link 보강)
-  {name:'제조업 PMI',cc:'🇯🇵',cat:'경기',src:'OECD (FRED BSCICP02JPM460S)',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 경기지수(BCI)',cc:'🇯🇵',cat:'경기',src:'OECD (FRED BSCICP02JPM460S)',freq:'월간',unit:'지수 (100=중립)',
     dataPath:'economicIndicators.jp.pmi_jp',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 미국 (link 보강)
-  {name:'제조업 PMI',cc:'🇺🇸',cat:'경기',src:'OECD (FRED BSCICP02USM460S) · ISM',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 경기지수(BCI)',cc:'🇺🇸',cat:'경기',src:'OECD BCI (FRED BSCICP02USM460S)',freq:'월간',unit:'지수 (100=중립)',
     dataPath:'economicIndicators.us.pmi_us',fmt:v=>v?.toFixed(1),
-    link:'https://www.ismworld.org/supply-management-news-and-reports/reports/ism-report-on-business/',linkLabel:'ISM PMI 보고서'},
+    link:'https://fred.stlouisfed.org/series/BSCICP02USM460S',linkLabel:'OECD 기업경기지수(FRED)'},
   // 유로존
-  {name:'제조업 PMI',cc:'🇪🇺',cat:'경기',src:'OECD (FRED BSCICP02EZM460S)',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 경기지수(BCI)',cc:'🇪🇺',cat:'경기',src:'OECD (FRED BSCICP02EZM460S)',freq:'월간',unit:'지수 (100=중립)',
     dataPath:'economicIndicators.eu.pmi_eu',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
-  {name:'서비스업 PMI',cc:'🇪🇺',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (50기준)',
+  {name:'서비스업 PMI',cc:'🇪🇺',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (100=중립)',
     dataPath:'economicIndicators.eu.pmi_eu',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 영국
-  {name:'제조업 PMI',cc:'🇬🇧',cat:'경기',src:'OECD (FRED BSCICP02GBM460S) · CIPS',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 경기지수(BCI)',cc:'🇬🇧',cat:'경기',src:'OECD BCI (FRED BSCICP02GBM460S)',freq:'월간',unit:'지수 (100=중립)',
     dataPath:'economicIndicators.uk.pmi_uk',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 독일
-  {name:'제조업 PMI',cc:'🇩🇪',cat:'경기',src:'OECD (FRED BSCICP02DEM460S)',freq:'월간',unit:'지수 (50기준)',
+  {name:'제조업 경기지수(BCI)',cc:'🇩🇪',cat:'경기',src:'OECD (FRED BSCICP02DEM460S)',freq:'월간',unit:'지수 (100=중립)',
     dataPath:'economicIndicators.de.pmi_de',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 일본 (FRED 국제 시리즈)
@@ -8317,7 +8340,7 @@ const calEvents=[
   {dt:'05.15 22:00',cc:'US',flag:'🇺🇸',name:'미국 소매판매',           stars:2,prev:'-0.1%',fore:'+0.4%', act:'+0.1%', beat:-1},
   {dt:'05.20 10:00',cc:'KR',flag:'🇰🇷',name:'한국 1분기 GDP (확정)',    stars:3,prev:'+0.7%',fore:'+0.7%', act:'',   beat:null},
   {dt:'05.22 20:30',cc:'EU',flag:'🇪🇺',name:'유로존 CPI (전년비)',      stars:3,prev:'2.2%', fore:'2.1%',  act:'',   beat:null},
-  {dt:'05.28 21:30',cc:'US',flag:'🇺🇸',name:'미국 1분기 GDP (2차)',     stars:3,prev:'2.3%', fore:'2.2%',  act:'',   beat:null},
+  {dt:'05.28 21:30',cc:'US',flag:'🇺🇸',name:'미국 1분기 GDP (2차)',     stars:3,prev:'0.5%', fore:'2.0%',  act:'1.6%',beat:-1},
   // 6월
   {dt:'06.02 21:30',cc:'US',flag:'🇺🇸',name:'미국 비농업고용(NFP)',      stars:3,prev:'210K',fore:'200K',act:'',beat:null},
   {dt:'06.02 21:30',cc:'US',flag:'🇺🇸',name:'미국 실업률',              stars:3,prev:'4.0%', fore:'4.0%', act:'',beat:null},
@@ -8774,16 +8797,14 @@ const CAL_BACKFILL_MAP = {
   '미국 PCE 물가지수':           { path: 'economicIndicators.us.pce_us',       fmt: 'mom1', mode: 'mom' },
   '미국 실업률':                 { path: 'economicIndicators.us.unemployment', fmt: 'rate1', mode: null },
   '미국 FOMC 회의':              { path: 'economicIndicators.us.ff_rate',      fmt: 'pct2', mode: null },
-  '미국 1분기 GDP (2차)':        { path: 'economicIndicators.us.gdp_us',       fmt: 'mom1', mode: 'mom' },
-  '미국 GDP':                    { path: 'economicIndicators.us.gdp_us',       fmt: 'mom1', mode: 'mom' },
+  // GDP: 명목 수준의 전기비%가 아니라 BEA 실질 성장률(전기비 연율) 시리즈를 그대로 표시 (mode 없음).
+  '미국 1분기 GDP (2차)':        { path: 'economicIndicators.us.gdp_growth_us', fmt: 'pct1', mode: null },
+  '미국 GDP':                    { path: 'economicIndicators.us.gdp_growth_us', fmt: 'pct1', mode: null },
   '미국 비농업고용(NFP)':        { path: 'economicIndicators.us.nfp_us',       fmt: 'k_delta', mode: 'delta' },
   '미국 PPI':                    { path: 'economicIndicators.us.ppi_us',       fmt: 'mom1', mode: 'mom' },
   '미국 생산자물가지수(PPI)':    { path: 'economicIndicators.us.ppi_us',       fmt: 'mom1', mode: 'mom' },
-  '미국 ISM 제조업 PMI':         { path: 'economicIndicators.us.pmi_us',       fmt: 'raw1', mode: null },
-  '미국 ISM 서비스 PMI':         { path: 'economicIndicators.us.pmi_us',       fmt: 'raw1', mode: null },
   '미국 소매판매':               { path: 'economicIndicators.us.retail_us',    fmt: 'mom1', mode: 'mom' },
   '미국 산업생산':               { path: 'economicIndicators.us.ip_us',        fmt: 'mom1', mode: 'mom' },
-  '미국 ADP 민간고용':           { path: 'economicIndicators.us.nfp_us',       fmt: 'k_delta', mode: 'delta' },
   // 유로존
   '유로존 CPI (전년비)':         { path: 'economicIndicators.eu.cpi_eu',       fmt: 'yoy1', mode: 'yoy' },
   'ECB 통화정책회의':            { path: 'economicIndicators.eu.base_rate_eu', fmt: 'pct2', mode: null },
@@ -9152,7 +9173,7 @@ const calHistoryData = {
   '일본 GDP (전기비)':         {labels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4'], vals:[1.3,0.5,1.0,-0.4,-0.6,0.8,0.9,-0.7,-0.2,0.3,0.1,-0.2], color:'#f5a623', unit:'%'},
   '중국 CPI (전년비)':         {labels:['24.07','24.08','24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','26.04','26.05'], vals:[0.5,0.6,0.4,0.3,-0.5,0.1,0.5,-0.7,-0.1,0.2,-0.1,0.2,-0.1], color:'#ef5350', unit:'%'},
   '유로존 CPI (전년비)':       {labels:['24.07','24.08','24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','26.04','26.05'], vals:[2.6,2.2,1.7,2.3,2.3,2.4,2.5,2.3,2.2,2.2,2.1,2.2,2.1], color:'#b6c4ff', unit:'%'},
-  '미국 1분기 GDP (2차)':      {labels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'], vals:[2.2,2.1,4.9,3.4,1.6,3.0,2.8,2.3,-0.3,2.4,2.6,2.3,2.2], color:'#26a69a', unit:'%'},
+  '미국 1분기 GDP (2차)':      {labels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'], vals:[2.2,2.1,4.9,3.4,1.6,3.0,2.8,2.3,-0.3,2.4,2.6,0.5,1.6], color:'#26a69a', unit:'%'},
   '한국 산업생산지수':         {labels:['24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','25.06','26.04','26.05'], vals:[1.5,0.9,1.2,-0.3,0.8,1.1,1.4,0.9,1.2,1.0,1.3,1.4], color:'#26a69a', unit:'%'},
   '일본 BOJ 금리결정':         {labels:['23.04','23.07','23.10','24.01','24.03','24.07','24.10','25.01','25.04','25.07','25.10','26.01'], vals:[-0.10,-0.10,-0.10,-0.10,0.10,0.25,0.25,0.50,0.50,0.50,0.50,0.50], color:'#f5a623', unit:'%'},
   '영국 BOE 금리결정':         {labels:['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03'], vals:[5.00,5.25,5.25,5.25,5.25,5.00,4.75,4.50,4.50,4.50,4.50,4.50], color:'#ef5350', unit:'%'},
@@ -12316,6 +12337,16 @@ function applyRealData(d) {
     investorRawData = _getInvestorRawData();
     const mp = document.getElementById('page-market');
     if(mp && mp.classList.contains('active') && typeof buildInvestorChart === 'function') buildInvestorChart();
+  } catch(_) {}
+  // 부동산 시도별 변동률 — 라이브(R-ONE) 값으로 krRegionData 갱신 (있을 때만; 시군구는 _getSubRegions 가 처리)
+  try {
+    const reg = ((d.realestate||{}).kr||{}).region;
+    if(Array.isArray(reg) && reg.length && typeof krRegionData !== 'undefined') {
+      const byCode = {}; reg.forEach(r => { if(r && r.code != null && typeof r.val === 'number') byCode[r.code] = r.val; });
+      krRegionData.forEach(r => { if(byCode[r.code] != null) r.val = byCode[r.code]; });
+      const rp = document.getElementById('page-realestate');
+      if(rp && rp.classList.contains('active') && typeof buildKoreaRegionMap === 'function') { try { buildKoreaRegionMap(); } catch(_){} }
+    }
   } catch(_) {}
 
   // ── 시계열 데이터 주입: data.json.history 가 있으면 차트가 실제 데이터를 사용 ──

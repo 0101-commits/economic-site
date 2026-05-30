@@ -930,6 +930,9 @@ def fetch_fred_economic_indicators():
         "pce_us":      ("PCEPI",           "미국 PCE"),
         "unemployment":("UNRATE",          "미국 실업률"),
         "gdp_us":      ("GDP",             "미국 GDP (연환산, 조달러)"),
+        # 미국 GDP '성장률' — BEA 헤드라인(실질, 전기비 연율 SAAR). 캘린더용.
+        # gdp_us(명목 수준)의 단순 전기비%는 발표치(예: +1.6%)와 다르므로 별도 시리즈 사용.
+        "gdp_growth_us":("A191RL1Q225SBEA", "미국 실질GDP 성장률 (전기비 연율, BEA)"),
         "hy_spread":   ("BAMLH0A0HYM2",    "HY 크레딧 스프레드"),
         "us10y":       ("GS10",            "미국 10년 국채"),
         "us2y":        ("GS2",             "미국 2년 국채"),
@@ -968,6 +971,7 @@ def fetch_fred_economic_indicators():
         "nfp_us":      60,
         # quarterly series
         "gdp_us":      20,
+        "gdp_growth_us": 24,  # A191RL1Q225SBEA — 분기 성장률 6년치
     }
     result = {}
     for key, (series_id, desc) in indicators.items():
@@ -1650,6 +1654,30 @@ def fetch_pmi_indicators():
                     break
             except Exception as e:
                 log(f"[PMI:KR-BSI] {stat}/{item} 오류: {e}")
+
+    # ── BCI 스케일 정규화 (일관된 '100=중립' 경기지수) ──
+    # OECD BSCI 시리즈는 두 스케일이 혼재한다:
+    #   · MEI(BSCICP02): 순감응(net balance) — 0 중심 (예: 미국 +5.4, 독일 -14.5, 유로존 -6.8)
+    #   · CLI(BSCICP03): 진폭조정 지수 — 100 중심 (예: 일본 100.8, 중국 97.7)
+    # 카드/차트가 '제조업 PMI(50기준)' 로 오표기되던 문제를 바로잡고 국가 간 비교가 가능하도록,
+    # 0중심(순감응) 값을 +100 보정해 모두 '100=중립(장기평균)' 지수로 통일한다.
+    # (관측 범위상 |v|<50 이면 순감응, 그 이상이면 이미 지수형 — 안전한 휴리스틱.)
+    def _to_index100(v):
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return v
+        return round(f + 100, 2) if abs(f) < 50 else round(f, 2)
+    for cc, node in out.items():
+        rec = node.get(f"pmi_{cc}")
+        if not rec or rec.get("value") is None:
+            continue
+        rec["value"] = _to_index100(rec["value"])
+        if isinstance(rec.get("history"), dict):
+            rec["history"] = {k: _to_index100(v) for k, v in rec["history"].items()}
+        rec["scale"] = "index100"
+        # desc 에 'PMI' 가 있으면 BCI 로 교정 (실제로는 OECD 경기지수, PMI 아님)
+        rec["desc"] = (rec.get("desc") or "제조업 경기지수(OECD BCI)")
     return out
 
 
@@ -2277,7 +2305,154 @@ def fetch_realestate_kr():
     except Exception as e:
         log(f"[R-ONE] A_2024_00549 (거래현황) 오류: {e}")
 
+    # ─── 시군구별 매매가격지수 변동률 (드릴다운용 region/region_sub) ──
+    try:
+        breakdown = fetch_rone_sigungu_breakdown()
+        if breakdown:
+            if breakdown.get("region_sub"):
+                result["region_sub"] = breakdown["region_sub"]
+            if breakdown.get("region"):
+                result["region"] = breakdown["region"]
+            log(f"[R-ONE] 지역 드릴다운: 시도 {len(breakdown.get('region',[]))}개, "
+                f"region_sub {len(breakdown.get('region_sub',{}))}개 시도")
+    except Exception as e:
+        log(f"[R-ONE] 시군구 드릴다운 오류: {e}")
+
     return result
+
+
+# 시도 이름(부분 문자열) → 프론트엔드 지역 코드. R-ONE 의 긴 명칭(서울특별시/경기도/
+# 강원특별자치도/전북특별자치도/충청북도 …)·짧은 명칭 모두 매칭되도록 접두어로 둔다.
+RONE_SIDO_CODE = [
+    ("서울", "11"), ("부산", "26"), ("대구", "27"), ("인천", "28"), ("광주", "29"),
+    ("대전", "30"), ("울산", "31"), ("세종", "36"), ("경기", "41"),
+    ("강원", "42"), ("충청북", "43"), ("충북", "43"), ("충청남", "44"), ("충남", "44"),
+    ("전라북", "45"), ("전북", "45"), ("전라남", "46"), ("전남", "46"),
+    ("경상북", "47"), ("경북", "47"), ("경상남", "48"), ("경남", "48"), ("제주", "50"),
+]
+
+
+def _rone_classify_region(full_name, short_name):
+    """R-ONE 지역 행을 (시도코드, 시군구표시명) 으로 분류.
+
+    full_name(CLS_FULLNM, 전체 경로 예: '수도권 경기 성남시 분당구') 를 우선 사용한다.
+    경로 토큰 중 '시도' 토큰을 찾고, 그 뒤를 시군구명으로 구성한다. ('광주광역시' vs
+    '경기 광주시' 같은 동음 충돌은 전체 경로가 있어야 정확히 구분된다.)
+
+    Returns: (sido_code, sub_name) — sub_name 이 '' 이면 시도 자체(=광역) 행.
+             분류 불가(전국/수도권/지방권 등)면 (None, None).
+    """
+    path = (full_name or "").strip()
+    tokens = [t for t in path.replace(",", " ").split() if t]
+    if not tokens:
+        tokens = [(short_name or "").strip()] if short_name else []
+    if not tokens:
+        return None, None
+    # 광역 집계행 제외
+    if len(tokens) == 1 and tokens[0] in ("전국", "수도권", "지방권", "6대광역시", "5대광역시", "9개도", "8개도"):
+        return None, None
+    sido_idx = None
+    sido_code = None
+    for i, tok in enumerate(tokens):
+        for name, code in RONE_SIDO_CODE:
+            if tok.startswith(name):
+                sido_idx, sido_code = i, code
+                break
+        if sido_code:
+            break
+    if sido_code is None:
+        return None, None
+    sub_tokens = tokens[sido_idx + 1:]
+    sub_name = " ".join(sub_tokens).strip()
+    return sido_code, sub_name
+
+
+def fetch_rone_sigungu_breakdown():
+    """R-ONE 아파트 매매가격지수의 시도·시군구별 '전월비 변동률(%)' 산출.
+
+    경기뿐 아니라 모든 시도의 시군구를 동일하게 처리한다. 최근 몇 달만 받아
+    (지역 × 월) 행을 시군구별로 모으고 최신월의 전월비 변동률을 계산한다.
+    더미 없음 — 실패/불충분하면 빈 dict 반환(프론트는 내장 시드로 폴백).
+
+    Returns: {"region":[{code,label,val}], "region_sub":{code:{period, subs:[{name,val}]}}}.
+    """
+    if not REALESTATE_API_KEY:
+        return {}
+    # 매매가격지수_아파트 통계표 후보 (fetch_realestate_kr 와 동일 우선순위)
+    sid_candidates = ["A_2024_00045", "A_2025_00131", "A_2024_00026", "A_2022_00026"]
+    now = datetime.now(KST)
+    start_prd = (now - timedelta(days=210)).strftime("%Y%m")  # 최근 ~7개월
+    end_prd = now.strftime("%Y%m")
+    rows = None
+    used_sid = None
+    for sid in sid_candidates:
+        try:
+            r = fetch_rone_stats(sid, period_type="M", start_prd=start_prd, end_prd=end_prd, limit=6000)
+        except Exception as e:
+            log(f"[R-ONE-시군구] {sid} 오류: {e}")
+            continue
+        if r and len(r) > 50:  # 전 지역 × 수개월이면 수백 행
+            rows, used_sid = r, sid
+            break
+    if not rows:
+        log("[R-ONE-시군구] 지역 행 수집 실패 — region_sub 미생성(시드 폴백)")
+        return {}
+
+    # (시도코드, 시군구명) → {period: value}
+    region_hist = {}     # 시도 자체: code -> {period: value}
+    sub_hist = {}        # code -> { sub_name -> {period: value} }
+    for row in rows:
+        full = row.get("CLS_FULLNM") or row.get("CLS_NM") or row.get("CL_NM") or ""
+        short = row.get("CLS_NM") or row.get("CL_NM") or ""
+        period = row.get("WRTTIME_IDTFR_ID")
+        val = _parse_num(row.get("DTA_VAL"))
+        if not period or val is None:
+            continue
+        code, sub = _rone_classify_region(full, short)
+        if code is None:
+            continue
+        if not sub:  # 시도(광역) 자체
+            region_hist.setdefault(code, {})[period] = val
+        else:
+            sub_hist.setdefault(code, {}).setdefault(sub, {})[period] = val
+
+    def _mom_pct(hist):
+        ks = sorted(hist.keys())
+        if len(ks) < 2:
+            return None, ks[-1] if ks else None
+        cur, prev = hist[ks[-1]], hist[ks[-2]]
+        if prev in (None, 0):
+            return None, ks[-1]
+        return round((cur - prev) / prev * 100, 2), ks[-1]
+
+    region = []
+    for code, hist in region_hist.items():
+        chg, period = _mom_pct(hist)
+        if chg is not None:
+            region.append({"code": code, "val": chg, "period": period})
+
+    region_sub = {}
+    period_label = None
+    for code, subs in sub_hist.items():
+        items = []
+        for sub_name, hist in subs.items():
+            chg, period = _mom_pct(hist)
+            if chg is None:
+                continue
+            items.append({"name": sub_name, "val": chg})
+            period_label = period_label or period
+        if len(items) >= 3:  # 시군구 3개 이상 모인 시도만 채택(부분/오류 데이터 배제)
+            region_sub[code] = {
+                "period": period_label or end_prd,
+                "subs": sorted(items, key=lambda x: x["val"], reverse=True),
+                "source": f"R-ONE:{used_sid}",
+            }
+    if not region_sub:
+        log("[R-ONE-시군구] 분류 결과 불충분 — region_sub 미생성(시드 폴백)")
+        return {}
+    log(f"[R-ONE-시군구] used_sid={used_sid} region={len(region)} region_sub={len(region_sub)}개 시도 "
+        f"({sum(len(v['subs']) for v in region_sub.values())}개 시군구)")
+    return {"region": region, "region_sub": region_sub}
 
 
 # ============================================================
@@ -5198,8 +5373,9 @@ CALENDAR_INDICATOR_MAP = {
     "미국 PCE 물가지수":      ("economicIndicators.us.pce_us", "mom1", True),
     "미국 실업률":            ("economicIndicators.us.unemployment", "raw1", True),  # 실업률은 %p 그 자체
     "미국 FOMC 회의":         ("economicIndicators.us.ff_rate", "pct2", False),
-    "미국 1분기 GDP (2차)":   ("economicIndicators.us.gdp_us", "mom1", False),
-    "미국 GDP":               ("economicIndicators.us.gdp_us", "mom1", False),
+    # GDP 는 명목 수준의 전기비%가 아니라 BEA 실질 성장률(전기비 연율) 시리즈를 그대로 표시.
+    "미국 1분기 GDP (2차)":   ("economicIndicators.us.gdp_growth_us", "pct1", False),
+    "미국 GDP":               ("economicIndicators.us.gdp_growth_us", "pct1", False),
     # NFP 는 PAYEMS '수준' 이 아니라 '전월 대비 증감(천명)' 이 발표 헤드라인 — kd(delta) 사용.
     "미국 비농업고용(NFP)":   ("economicIndicators.us.nfp_us", "kd", False),
     "미국 PPI":               ("economicIndicators.us.ppi_us", "mom1", True),
