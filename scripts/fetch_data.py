@@ -2685,6 +2685,70 @@ def fetch_data_go_kr(service_path, params=None):
         return None
 
 
+def _applyhome_region_bucket(area_nm):
+    """청약홈 공급지역명 → 프론트 지역 버킷(seoul/gyeonggi/metro/other)."""
+    a = area_nm or ""
+    if "서울" in a:
+        return "seoul"
+    if "경기" in a or "인천" in a:
+        return "gyeonggi"
+    if any(x in a for x in ("부산", "대구", "대전", "광주", "울산")):
+        return "metro"
+    return "other"
+
+
+def fetch_applyhome_subscription(max_items=100):
+    """청약홈(한국부동산원) 최근 APT 분양정보 — data.go.kr odcloud API.
+
+    프론트의 '청약 경쟁률' 지역 클릭 드릴다운(Task 4)에 쓸 '최근 분양 단지' 목록을
+    공급지역 버킷(서울/경기인천/지방광역시/기타)별로 묶어 만든다. 1순위 경쟁률은 별도
+    서비스(주택관리번호 기준)라 여기선 단지명·지역·모집공고일 중심으로 싣고, 경쟁률 상세는
+    프론트가 청약홈 링크로 안내한다. DATA_GO_KR_API_KEY 필요. 실패해도 빌드는 계속(빈 dict).
+    Returns: {"byRegion": {...}, "source": ..., "lastFetched": ...} 또는 {}.
+    """
+    if not DATA_GO_KR_API_KEY:
+        log("[청약홈] DATA_GO_KR_API_KEY 없음 — 분양정보 건너뜀")
+        return {}
+    url = "https://api.odcloud.kr/api/ApplyhomeInfoDetailSvc/v1/getAPTLttotPblancDetail"
+    try:
+        r = requests.get(url, params={
+            "page": 1, "perPage": max_items, "serviceKey": DATA_GO_KR_API_KEY,
+        }, timeout=20)
+        if r.status_code != 200:
+            log(f"[청약홈] HTTP {r.status_code} — 건너뜀")
+            return {}
+        data = r.json()
+        rows = data.get("data") if isinstance(data, dict) else None
+        if not rows:
+            log("[청약홈] 분양정보 응답 비어있음 — 건너뜀")
+            return {}
+        rows = sorted(rows, key=lambda it: str(it.get("RCRIT_PBLANC_DE") or ""), reverse=True)
+        by = {"seoul": [], "gyeonggi": [], "metro": [], "other": []}
+        for it in rows:
+            name = it.get("HOUSE_NM") or ""
+            if not name:
+                continue
+            area = it.get("SUBSCRPT_AREA_CODE_NM") or ""
+            date = (str(it.get("RCRIT_PBLANC_DE") or ""))[:10]
+            b = _applyhome_region_bucket(area)
+            if len(by[b]) >= 15:
+                continue
+            by[b].append({"name": name, "area": area, "date": date, "rate": None})
+        total = sum(len(v) for v in by.values())
+        if not total:
+            return {}
+        log(f"[청약홈] 분양정보 {total}건 수집 (서울 {len(by['seoul'])}/경기인천 {len(by['gyeonggi'])}"
+            f"/광역 {len(by['metro'])}/기타 {len(by['other'])})")
+        return {
+            "byRegion": by,
+            "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
+            "lastFetched": datetime.now(KST).isoformat(),
+        }
+    except Exception as e:
+        log(f"[청약홈] 오류: {e}")
+        return {}
+
+
 def fetch_molit_apt_trade_count(months_back=3):
     """국토교통부_아파트 매매 실거래가 자료 — 최근 N개월 전국 거래량 합계.
     Returns: dict with monthly counts {YYYYMM: count, ...}
@@ -4806,6 +4870,16 @@ def build_data():
             log(f"[MOLIT] 오류: {e}")
     else:
         log("[MOLIT] DATA_GO_KR_API_KEY 없음 — R-ONE 부동산거래현황 값 유지")
+
+    # ── 청약홈 분양정보 (지역별 드릴다운용) ──────────────────
+    # 프론트 '청약 경쟁률' 지역 클릭 시 최근 분양 단지를 지역별로 보여주기 위함.
+    try:
+        subs = fetch_applyhome_subscription()
+        if subs and subs.get("byRegion"):
+            data["subscription"] = subs
+            data["sources"]["subscription"] = subs.get("source", "청약홈(data.go.kr)")
+    except Exception as e:
+        log(f"[청약홈] 수집 오류: {e}")
 
     # ── 한국수출입은행 EXIM: 환율/금리 검증용 ────────────────
     if EXIM_API_KEY:

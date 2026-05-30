@@ -745,6 +745,20 @@ tailwind.config = {
     </div>
   </div>
 
+  <!-- 범용 정보 모달 — 대출 규제 상세 / 청약 경쟁률 지역 상세 등 (클릭 드릴다운) -->
+  <div id="infoDetailModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:320;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeInfoModal()">
+    <div style="background:var(--c-card,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:8px;padding:18px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:8px;">
+        <div style="min-width:0;">
+          <div id="infoModalTitle" style="font-size:15px;font-weight:700;color:var(--c-txt,#dfe2f2);">상세</div>
+          <div id="infoModalMeta" style="font-size:11px;color:var(--c-txt-dim,#8d90a2);margin-top:2px;">—</div>
+        </div>
+        <button onclick="closeInfoModal()" style="background:transparent;border:none;color:var(--c-txt-dim,#8d90a2);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+      </div>
+      <div id="infoModalBody" style="flex:1;overflow-y:auto;min-height:120px;padding-right:4px;font-size:12.5px;line-height:1.65;color:var(--c-txt,#dfe2f2);"></div>
+    </div>
+  </div>
+
   <!-- 메인 콘텐츠 -->
   <main style="flex:1;padding:20px;overflow-x:auto;min-width:0;">
 
@@ -1851,30 +1865,30 @@ tailwind.config = {
         <!-- 규제 현황 + 데이터 소스 요약 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div class="widget-title">대출 규제 현황</div>
+            <div class="widget-title">대출 규제 현황 <span style="font-size:9px;color:#434656;font-weight:400;">항목 클릭 → 세부 내용</span></div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <tbody>
-                <tr style="border-bottom:1px solid #1b1f2b;">
-                  <td style="padding:8px 0;font-weight:500;color:#8d90a2;">LTV</td>
+                <tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onclick="showLoanRegDetail('LTV')" title="클릭 → LTV 세부 규제">
+                  <td style="padding:8px 0;font-weight:500;color:#8d90a2;">LTV <span style="font-size:9px;color:#434656;">ⓘ</span></td>
                   <td style="padding:8px;font-weight:600;">투기지역 40% / 기타 70%</td>
                 </tr>
-                <tr style="border-bottom:1px solid #1b1f2b;">
-                  <td style="padding:8px 0;font-weight:500;color:#8d90a2;">DTI</td>
+                <tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onclick="showLoanRegDetail('DTI')" title="클릭 → DTI 세부 규제">
+                  <td style="padding:8px 0;font-weight:500;color:#8d90a2;">DTI <span style="font-size:9px;color:#434656;">ⓘ</span></td>
                   <td style="padding:8px;font-weight:600;">투기지역 40% / 기타 50%</td>
                 </tr>
-                <tr style="border-bottom:1px solid #1b1f2b;">
-                  <td style="padding:8px 0;font-weight:500;color:#8d90a2;">DSR</td>
+                <tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onclick="showLoanRegDetail('DSR')" title="클릭 → DSR 세부 규제">
+                  <td style="padding:8px 0;font-weight:500;color:#8d90a2;">DSR <span style="font-size:9px;color:#434656;">ⓘ</span></td>
                   <td style="padding:8px;font-weight:600;">40% (1억 초과 대출)</td>
                 </tr>
-                <tr>
-                  <td style="padding:8px 0;font-weight:500;color:#8d90a2;">스트레스DSR</td>
+                <tr style="cursor:pointer;" onclick="showLoanRegDetail('stress')" title="클릭 → 스트레스 DSR 세부 규제">
+                  <td style="padding:8px 0;font-weight:500;color:#8d90a2;">스트레스DSR <span style="font-size:9px;color:#434656;">ⓘ</span></td>
                   <td style="padding:8px;font-weight:600;">2단계 시행 중</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <div class="widget">
-            <div class="widget-title">청약 경쟁률 (최근 3개월)</div>
+            <div class="widget-title">청약 경쟁률 (최근 3개월) <span style="font-size:9px;color:#434656;font-weight:400;">지역 클릭 → 세부 지역·단지 순위</span></div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;font-size:10px;">
                 <th style="text-align:left;padding:5px 0;">지역</th>
@@ -1882,10 +1896,10 @@ tailwind.config = {
                 <th style="text-align:right;padding:5px;">추이</th>
               </tr></thead>
               <tbody>
-                <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;">서울</td><td style="text-align:right;padding:7px;font-weight:600;">32.4 : 1</td><td style="text-align:right;padding:7px;" class="up-txt">▲</td></tr>
-                <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;">경기/인천</td><td style="text-align:right;padding:7px;font-weight:600;">8.1 : 1</td><td style="text-align:right;padding:7px;color:#8d90a2;">—</td></tr>
-                <tr style="border-bottom:1px solid #1b1f2b;"><td style="padding:7px 0;">지방광역시</td><td style="text-align:right;padding:7px;font-weight:600;">3.2 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
-                <tr><td style="padding:7px 0;">기타 지방</td><td style="text-align:right;padding:7px;font-weight:600;">1.1 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
+                <tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onclick="showSubscriptionDetail('seoul')" title="클릭 → 서울 세부 지역·단지 순위"><td style="padding:7px 0;">서울 <span style="font-size:9px;color:#434656;">▸</span></td><td style="text-align:right;padding:7px;font-weight:600;">32.4 : 1</td><td style="text-align:right;padding:7px;" class="up-txt">▲</td></tr>
+                <tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onclick="showSubscriptionDetail('gyeonggi')" title="클릭 → 경기/인천 세부 지역·단지 순위"><td style="padding:7px 0;">경기/인천 <span style="font-size:9px;color:#434656;">▸</span></td><td style="text-align:right;padding:7px;font-weight:600;">8.1 : 1</td><td style="text-align:right;padding:7px;color:#8d90a2;">—</td></tr>
+                <tr style="border-bottom:1px solid #1b1f2b;cursor:pointer;" onclick="showSubscriptionDetail('metro')" title="클릭 → 지방광역시 세부 지역·단지 순위"><td style="padding:7px 0;">지방광역시 <span style="font-size:9px;color:#434656;">▸</span></td><td style="text-align:right;padding:7px;font-weight:600;">3.2 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
+                <tr style="cursor:pointer;" onclick="showSubscriptionDetail('other')" title="클릭 → 기타 지방 세부 지역·단지 순위"><td style="padding:7px 0;">기타 지방 <span style="font-size:9px;color:#434656;">▸</span></td><td style="text-align:right;padding:7px;font-weight:600;">1.1 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
               </tbody>
             </table>
             <div style="font-size:9px;color:#434656;margin-top:6px;text-align:right;">출처: <a href="https://www.applyhome.co.kr" target="_blank" style="color:#2962ff;">청약홈</a></div>
@@ -3716,6 +3730,133 @@ function _drillShowTrend() {
 function closeRegionDrill() {
   const modal = document.getElementById('reRegionDrillModal');
   if(modal) modal.style.display = 'none';
+}
+
+// ── 범용 정보 모달 (대출 규제 상세 / 청약 경쟁률 상세) ──
+function openInfoModal(title, meta, bodyHtml) {
+  const m = document.getElementById('infoDetailModal');
+  if(!m) return;
+  const t = document.getElementById('infoModalTitle'); if(t) t.textContent = title || '상세';
+  const mt = document.getElementById('infoModalMeta'); if(mt) mt.innerHTML = meta || '';
+  const b = document.getElementById('infoModalBody'); if(b) b.innerHTML = bodyHtml || '';
+  m.style.display = 'flex';
+}
+function closeInfoModal() {
+  const m = document.getElementById('infoDetailModal');
+  if(m) m.style.display = 'none';
+}
+
+// ── 대출 규제 세부 내용 (Task 5) ──
+// 클릭한 규제 항목의 정의·산식·적용 기준·최근 변화를 모달로 설명. 정책/지역에 따라
+// 세부 수치는 변동하므로 '일반 기준'으로 안내하고 공식 출처 링크를 함께 제공한다.
+const LOAN_REG_DETAIL = {
+  LTV: {
+    title: 'LTV · 담보인정비율 (Loan To Value)',
+    meta: '주택 담보가치 대비 대출 한도 — 단위 %',
+    rows: [
+      ['정의', '주택의 담보가치(KB시세·감정가) 대비 빌릴 수 있는 최대 대출액 비율. <b>LTV 70%</b> = 6억 주택이면 최대 4.2억.'],
+      ['규제지역', '투기과열지구·조정대상지역은 강화 적용(예: <b>40%</b>대), 비규제지역은 완화(<b>70%</b>대).'],
+      ['주택 수', '무주택·1주택(처분조건) 우대, 다주택자는 한도 축소 또는 제한.'],
+      ['생애최초', '생애최초 구입자는 지역·가격 요건 충족 시 최대 <b>80%</b>까지 우대.'],
+      ['실행 팁', '실제 한도는 LTV·DTI·DSR 중 <b>가장 낮은 한도</b>로 결정되며, 방공제(소액임차보증금)만큼 차감될 수 있음.'],
+    ],
+  },
+  DTI: {
+    title: 'DTI · 총부채상환비율 (Debt To Income)',
+    meta: '연소득 대비 (해당 주담대 원리금 + 기타대출 이자) 비율 — 단위 %',
+    rows: [
+      ['정의', '연소득 대비 <b>해당 주택담보대출의 원리금 + 기타 대출의 이자</b> 합계 비율. 소득 대비 상환 부담을 본다.'],
+      ['산식', 'DTI = (주담대 연원리금 + 기타대출 연이자) ÷ 연소득 × 100.'],
+      ['규제지역', '투기·조정지역은 강화(<b>40%</b>대), 그 외 지역은 완화(<b>50~60%</b>대).'],
+      ['DSR 과 차이', 'DTI 는 기타대출의 <b>이자만</b> 보지만, DSR 은 기타대출의 <b>원리금 전체</b>를 본다(더 엄격).'],
+    ],
+  },
+  DSR: {
+    title: 'DSR · 총부채원리금상환비율 (Debt Service Ratio)',
+    meta: '연소득 대비 모든 대출의 원리금 합계 비율 — 단위 %',
+    rows: [
+      ['정의', '연소득 대비 보유한 <b>모든 대출(주담대·신용·전세·카드론 등)의 연간 원리금 합계</b> 비율. 가장 포괄적인 규제.'],
+      ['차주단위 한도', '은행권 <b>40%</b>, 2금융권 <b>50%</b>가 일반 기준. 1억원 초과 대출 보유 차주에 적용 확대.'],
+      ['산식', 'DSR = (전체 대출 연원리금 합계) ÷ 연소득 × 100.'],
+      ['포함 대출', '주담대뿐 아니라 신용대출·전세대출(이자)·자동차할부·카드론 등 거의 모든 대출이 합산됨.'],
+      ['실행 팁', '만기를 늘리면 연원리금이 줄어 DSR 여력이 늘지만 총이자는 증가. 기존 신용대출 정리가 한도 확대에 효과적.'],
+    ],
+  },
+  stress: {
+    title: '스트레스 DSR (Stress DSR)',
+    meta: '미래 금리상승 대비 가산금리를 더해 산정하는 강화된 DSR',
+    rows: [
+      ['정의', 'DSR 계산 시 실제 금리에 <b>스트레스(가산) 금리</b>를 더해, 향후 금리가 올라도 상환 가능한지 보수적으로 본다.'],
+      ['효과', '가산금리만큼 원리금이 커진 것으로 계산 → <b>대출 한도가 줄어든다</b>(변동금리일수록 영향 큼).'],
+      ['단계 시행', '1단계(2024) → 2단계 → 3단계로 적용 범위·가산폭을 단계적으로 확대. 현재 <b>2단계 시행 중</b>.'],
+      ['금리 유형별', '고정금리일수록 스트레스 적용이 작고, 변동금리일수록 크게 적용되어 고정금리 유도 효과.'],
+    ],
+  },
+};
+function showLoanRegDetail(type) {
+  const d = LOAN_REG_DETAIL[type];
+  if(!d) return;
+  const rows = d.rows.map(([k,v]) =>
+    `<div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--c-border,#2a2e3d);">
+       <div style="flex:0 0 84px;font-weight:600;color:#b6c4ff;font-size:12px;">${k}</div>
+       <div style="flex:1;font-size:12.5px;color:var(--c-txt,#dfe2f2);">${v}</div>
+     </div>`).join('');
+  const body = rows +
+    `<div style="font-size:10px;color:var(--c-txt-muted,#6a6f80);margin-top:12px;line-height:1.6;">
+       ※ 일반 기준 안내이며, 실제 한도·비율은 규제지역 지정·주택 수·소득·정책 변경에 따라 달라집니다.
+       정확한 기준은 <a href="https://www.fsc.go.kr" target="_blank" rel="noopener" style="color:#2962ff;">금융위원회</a> ·
+       거래 은행에서 확인하세요.
+     </div>`;
+  openInfoModal(d.title, d.meta, body);
+}
+
+// ── 청약 경쟁률 지역 상세 (Task 4) ──
+// 지역 클릭 시 (1) 세부 지역(자치구/시) 구조와 (2) 최근 청약 단지 순위를 모달로 보여준다.
+// 단지 순위는 서버가 청약홈(data.go.kr)에서 수집한 data.json.subscription 을 우선 사용하고,
+// 미수집 시 세부 지역 구조 + 청약홈 링크로 안내한다(허위 수치 제시 금지).
+const SUBSCRIPTION_DETAIL = {
+  seoul:    { label:'서울', rate:'32.4 : 1', subs:['강남3구(강남·서초·송파)','마용성(마포·용산·성동)','노도강(노원·도봉·강북)','금관구(금천·관악·구로)','기타 한강이북'] },
+  gyeonggi: { label:'경기/인천', rate:'8.1 : 1', subs:['과천·성남·하남(고가권)','수원·용인·화성','인천 송도/청라','김포·파주·평택','남양주·고양'] },
+  metro:    { label:'지방광역시', rate:'3.2 : 1', subs:['부산','대구','대전','광주','울산'] },
+  other:    { label:'기타 지방', rate:'1.1 : 1', subs:['세종','강원','충청','전라','경상·제주'] },
+};
+function showSubscriptionDetail(regionKey) {
+  const r = SUBSCRIPTION_DETAIL[regionKey];
+  if(!r) return;
+  // 서버 수집 실데이터 (청약홈 → data.json.subscription.byRegion[regionKey]) 우선
+  const sub = ((_latestDataForIndicators||{}).subscription) || {};
+  const liveList = (sub.byRegion && Array.isArray(sub.byRegion[regionKey])) ? sub.byRegion[regionKey] : null;
+
+  let body = `<div style="font-size:11px;color:var(--c-txt-dim,#8d90a2);margin-bottom:8px;">세부 지역 · ${r.label} 1순위 평균 경쟁률 <b style="color:#b6c4ff;">${r.rate}</b> <span style="color:#6a6f80;">(최근 경향, 참고)</span></div>`;
+  // 세부 지역 칩
+  body += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">` +
+    r.subs.map(s=>`<span style="background:var(--c-card-hi,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:14px;padding:4px 11px;font-size:11.5px;color:var(--c-txt,#dfe2f2);">${s}</span>`).join('') +
+    `</div>`;
+  // 최근 청약 단지 순위
+  body += `<div style="font-weight:700;font-size:12.5px;margin:6px 0 6px;color:var(--c-txt,#dfe2f2);">🏢 최근 청약 단지 순위</div>`;
+  if(liveList && liveList.length) {
+    body += `<div style="overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;">
+      <thead><tr style="color:#8d90a2;border-bottom:1px solid var(--c-border,#2a2e3d);font-size:10px;">
+        <th style="text-align:left;padding:5px 0;">단지</th><th style="text-align:left;padding:5px;">지역</th>
+        <th style="text-align:right;padding:5px;">1순위 경쟁률</th><th style="text-align:right;padding:5px;">청약일</th>
+      </tr></thead><tbody>`;
+    liveList.slice(0,12).forEach(it=>{
+      const rate = (it.rate!=null) ? (Number(it.rate).toLocaleString()+' : 1') : '—';
+      body += `<tr style="border-bottom:1px solid var(--c-border,#1b1f2b);">
+        <td style="padding:6px 0;font-weight:600;">${it.name||'—'}</td>
+        <td style="padding:6px;color:#8d90a2;">${it.area||it.sub||'—'}</td>
+        <td style="text-align:right;padding:6px;font-weight:600;">${rate}</td>
+        <td style="text-align:right;padding:6px;color:#8d90a2;">${it.date||'—'}</td></tr>`;
+    });
+    body += `</tbody></table></div>`;
+  } else {
+    body += `<div style="background:var(--c-card-hi,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:7px;padding:12px;font-size:12px;color:var(--c-txt-dim,#8d90a2);line-height:1.6;">
+      이 지역의 <b>실시간 단지별 청약 경쟁률</b>은 청약홈(data.go.kr) 연동 시 자동 표시됩니다.
+      현재는 세부 지역 구조만 제공합니다. 단지별 상세 경쟁률은 아래 청약홈에서 확인하세요.</div>`;
+  }
+  const meta = (sub.lastFetched ? `청약홈 수집: ${new Date(sub.lastFetched).toLocaleDateString('ko-KR')} · ` : '') +
+    `<a href="https://www.applyhome.co.kr" target="_blank" rel="noopener" style="color:#2962ff;">청약홈에서 보기 →</a>`;
+  openInfoModal(`청약 경쟁률 — ${r.label}`, meta, body);
 }
 
 function _regionColorForVal(v) {
