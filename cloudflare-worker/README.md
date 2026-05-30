@@ -2,7 +2,27 @@
 
 정적 사이트(GitHub Pages)의 브라우저에서 **실시간 금융 데이터**(네이버 주식 Top10,
 Yahoo VIX/MOVE, Stooq 시계열, CNN 공포·탐욕, 환율, 뉴스)를 안정적으로 가져오기 위한
-전용 CORS 프록시입니다.
+전용 CORS 프록시입니다. 추가로 **AI 시황 요약**(Claude) 중계 엔드포인트를 제공합니다.
+
+## 🤖 AI 시황 요약 — `POST /ai` (Claude 중계)
+
+대시보드의 "🤖 AI 요약 생성" 버튼을 누르면, 프론트엔드가 그 순간의 실시간 시장
+스냅샷(JSON)을 `POST /ai` 로 보냅니다. Worker 는 시크릿 `ANTHROPIC_API_KEY` 로
+Anthropic(Claude) API 를 호출해 한국어 마켓 브리핑을 생성해 돌려줍니다.
+
+- **키는 Worker 시크릿에만 보관** → 브라우저에 노출되지 않습니다(정적 사이트에서 안전하게 LLM 사용).
+- 키 설정:
+  ```sh
+  npx wrangler secret put ANTHROPIC_API_KEY
+  # 또는 Cloudflare 대시보드: Workers & Pages > ecom-dashboard-proxy > Settings > Variables and Secrets
+  ```
+- **키 미설정 시**: `/ai` 는 503 을 반환하고, 프론트엔드는 자동으로 **자체 룰기반 요약**으로 폴백합니다(사이트는 정상 동작).
+- 모델 기본값: `claude-haiku-4-5-20251001` (빠르고 저렴). 비용 보호를 위해 `max_tokens` 와 요청 본문 크기를 제한합니다.
+- 테스트:
+  ```sh
+  curl -X POST 'https://<worker-url>/ai' -H 'content-type: application/json' \
+       -d '{"snapshot":{"indices":{"KOSPI":{"price":8476,"change":3.5}}}}'
+  ```
 
 ## 왜 필요한가
 

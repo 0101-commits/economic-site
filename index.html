@@ -758,9 +758,14 @@ tailwind.config = {
           <span style="font-weight:700;font-size:15px;color:var(--c-txt,#dfe2f2);">AI 시황 요약</span>
           <span style="font-size:9px;color:#fff;background:#2962ff;border-radius:3px;padding:1px 6px;font-weight:600;">오늘의 마켓 브리핑</span>
           <span id="aiSummaryDate" style="font-size:10px;color:var(--c-txt-dim,#8d90a2);">—</span>
-          <button onclick="refreshAiMarketSummary(this)" title="실시간 데이터를 다시 받아 시황 재분석" style="margin-left:auto;background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+          <button onclick="refreshAiMarketSummary(this)" title="현재 시점의 실시간 데이터를 받아 Claude AI 로 시황 요약 생성" style="margin-left:auto;background:linear-gradient(135deg,#2962ff,#7a5cff);color:#fff;border:1px solid #2962ff;border-radius:4px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;">🤖 AI 요약 생성</button>
         </div>
-        <div id="aiSummaryBody" style="font-size:12.5px;line-height:1.6;color:var(--c-txt,#dfe2f2);">시황 데이터를 불러오는 중…</div>
+        <div id="aiSummaryBody" style="font-size:12.5px;line-height:1.6;color:var(--c-txt,#dfe2f2);">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;text-align:center;color:var(--c-txt-dim,#8d90a2);">
+            <div style="font-size:22px;">🤖</div>
+            <div style="font-size:12.5px;">위 <b style="color:#b6c4ff;">🤖 AI 요약 생성</b> 버튼을 누르면, 그 순간의 실시간 시장 데이터를 바탕으로 Claude AI 가 오늘의 마켓 브리핑을 생성합니다.</div>
+          </div>
+        </div>
       </div>
 
       <!-- KPI 카드 4개 -->
@@ -12274,26 +12279,107 @@ function buildAiMarketSummary(btn) {
   }
 }
 
-// AI 시황 요약 '새로고침' — 캐시 재렌더가 아니라 '그때그때의 실시간 데이터'를 다시 받아
-// 재분석한다. (이전 결함: 버튼이 buildAiMarketSummary 만 호출해 동일 캐시를 다시 그렸을 뿐,
-//  데이터를 새로 받지 않아 '새로고침이 안 되는' 것처럼 보였다.)
+// 현재 _latestDataForIndicators 에서 Claude 로 보낼 '컴팩트한 시장 스냅샷' 추출.
+// 전체 data.json 은 크고 비용이 크므로 핵심 지표만 추려서 보낸다.
+function _buildAiSnapshot() {
+  const d = _latestDataForIndicators || {};
+  const idx = d.indices || {}, fx = d.fx || {}, com = d.commodities || {};
+  const sent = d.sentiment || {}, sm = d.stockMovers || {};
+  const us = ((d.economicIndicators || {}).us) || {};
+  const kr = ((d.economicIndicators || {}).kr) || {};
+  const pick = (o, keys) => { const r = {}; keys.forEach(k => { if (o && o[k] != null) r[k] = o[k]; }); return r; };
+  const top = (arr) => Array.isArray(arr) ? arr.slice(0, 3).map(s => ({ name: s.name, chg: s.chg })) : undefined;
+  return {
+    asOf: new Date().toISOString(),
+    indices: pick(idx, ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'Nikkei', 'Shanghai']),
+    fx: pick(fx, ['USDKRW', 'EURKRW', 'JPYKRW', 'USDJPY', 'EURUSD']),
+    commodities: pick(com, ['WTI', 'Brent', 'Dubai', 'Gold', 'Silver', 'Copper', 'NatGas']),
+    sentiment: {
+      vix: us.vix && us.vix.value, vkospi: sent.vkospi && sent.vkospi.value,
+      fearGreed: sent.fear_greed && sent.fear_greed.value,
+    },
+    rates: { kr_base: kr.base_rate_kr && kr.base_rate_kr.value, us_10y: us.treasury_10y && us.treasury_10y.value },
+    leaders: { kospiGainers: top(sm.kospiGainers), kospiLosers: top(sm.kospiLosers) },
+  };
+}
+
+// 아주 가벼운 마크다운 → HTML (Claude 응답 렌더용). 굵게/불릿/줄바꿈/제목 정도만.
+function _aiMarkdownToHtml(md) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = String(md || '').split('\n');
+  let html = '', inUl = false;
+  const inline = s => esc(s)
+    .replace(/\*\*([^*]+)\*\*/g, '<b style="color:var(--c-txt,#dfe2f2);">$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  for (let ln of lines) {
+    const t = ln.trim();
+    if (!t) { if (inUl) { html += '</ul>'; inUl = false; } continue; }
+    const m = t.match(/^[-*•]\s+(.*)/);
+    if (m) { if (!inUl) { html += '<ul style="margin:4px 0 8px;padding-left:18px;">'; inUl = true; } html += `<li style="margin:2px 0;">${inline(m[1])}</li>`; continue; }
+    if (inUl) { html += '</ul>'; inUl = false; }
+    const h = t.match(/^#{1,4}\s+(.*)/);
+    if (h) { html += `<div style="font-weight:700;margin:6px 0 3px;color:var(--c-txt,#dfe2f2);">${inline(h[1])}</div>`; continue; }
+    html += `<div style="margin:3px 0;">${inline(t)}</div>`;
+  }
+  if (inUl) html += '</ul>';
+  return html;
+}
+
+// AI 시황 요약 생성 — 사용자가 버튼을 누른 '그 순간'의 실시간 데이터를 받아 Claude(Worker 경유)
+// 로 요약한다. Worker/키 미설정·오류 시 자체 룰기반 요약(buildAiMarketSummary)으로 폴백한다.
 async function refreshAiMarketSummary(btn) {
   if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'loading');
+  const bodyEl = document.getElementById('aiSummaryBody');
+  if(bodyEl) bodyEl.innerHTML = '<div style="color:var(--c-txt-dim,#8d90a2);padding:10px 4px;">⟳ 현재 시점의 실시간 데이터를 수집해 Claude AI 가 분석 중입니다…</div>';
+  // 1) '그 당시'의 실시간 데이터 수집
   try {
     const tasks = [];
-    if(typeof loadRealData==='function')    tasks.push(loadRealData());                 // data.json 강제 재페치
-    if(typeof loadRealtimeFx==='function')  tasks.push(loadRealtimeFx().catch(()=>{}));  // 실시간 환율
-    if(typeof loadRealtimeMarket==='function') tasks.push(loadRealtimeMarket().catch(()=>{})); // 지수/VIX
+    if(typeof loadRealData==='function')    tasks.push(loadRealData());
+    if(typeof loadRealtimeFx==='function')  tasks.push(loadRealtimeFx().catch(()=>{}));
+    if(typeof loadRealtimeMarket==='function') tasks.push(loadRealtimeMarket().catch(()=>{}));
     if(typeof fetchSentimentClient==='function' && typeof applySentimentClient==='function')
-      tasks.push(fetchSentimentClient().then(applySentimentClient).catch(()=>{}));      // 공포·탐욕/심리
+      tasks.push(fetchSentimentClient().then(applySentimentClient).catch(()=>{}));
     await Promise.allSettled(tasks);
-  } catch(_) { /* 부분 실패는 무시 — 받은 데이터로 요약 */ }
-  // 갱신된 _latestDataForIndicators 로 재분석 + 버튼 피드백(성공/실패)
-  try { buildAiMarketSummary(btn); }
-  catch(e) {
-    console.warn('[aiSummary] 새로고침 오류:', e);
-    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'error','생성 실패');
+  } catch(_) { /* 부분 실패 무시 — 받은 데이터로 진행 */ }
+
+  // 2) Claude(Worker /ai) 호출 — 실패하면 룰기반으로 폴백
+  const base = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
+  let used = 'fallback';
+  if(base) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(()=>ctrl.abort(), 28000);
+      const resp = await fetch(base + '/ai', {
+        method:'POST',
+        headers:{ 'content-type':'application/json' },
+        body: JSON.stringify({ snapshot: _buildAiSnapshot() }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(tid);
+      const j = await resp.json().catch(()=>null);
+      if(resp.ok && j && j.summary) {
+        if(bodyEl) {
+          bodyEl.innerHTML = _aiMarkdownToHtml(j.summary) +
+            '<div style="font-size:9.5px;color:var(--c-txt-muted,#6a6f80);margin-top:9px;">🤖 Claude AI 생성 — 실시간 데이터 기반 · 투자 판단 참고용</div>';
+        }
+        const dt = document.getElementById('aiSummaryDate');
+        if(dt) dt.textContent = '기준 ' + new Date().toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+        used = 'claude';
+      }
+    } catch(e) { console.warn('[aiSummary] Claude 호출 실패 — 룰기반 폴백:', e); }
   }
+
+  // 3) 폴백 — Worker/키 미설정 또는 오류 시 자체 룰기반 요약
+  if(used === 'fallback') {
+    try { buildAiMarketSummary(btn); return; }  // buildAiMarketSummary 가 버튼 피드백까지 처리
+    catch(e) {
+      console.warn('[aiSummary] 폴백 생성 오류:', e);
+      if(bodyEl) bodyEl.innerHTML = '<div style="color:#ef5350;padding:10px 4px;">AI 요약 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.</div>';
+      if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'error','생성 실패');
+      return;
+    }
+  }
+  if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'success','AI 요약 완료');
 }
 
 function applyRealData(d) {
@@ -12334,8 +12420,9 @@ function applyRealData(d) {
   }
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
-  // 🤖 AI 시황 요약 — 새 데이터가 적용될 때마다 자동 재생성 (semi-실시간 브리핑)
-  try { buildAiMarketSummary(); } catch(_) {}
+  // 🤖 AI 시황 요약 — 더 이상 데이터 적용 시마다 자동 생성하지 않는다(사용자 요청).
+  // 사용자가 'AI 요약 생성' 버튼을 누른 그 순간의 데이터로만 Claude 요약을 생성한다.
+  // (refreshAiMarketSummary 참고) 여기서는 placeholder 만 유지.
   // 투자자별 순매매(실데이터) 갱신 — 새 data.json 이 적용되면 raw 재로딩 후 차트 재렌더
   try {
     investorRawData = _getInvestorRawData();
