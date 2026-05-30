@@ -2868,9 +2868,9 @@ function injectChartRefreshButtons() {
     title.appendChild(btn);
   });
 
-  // ── 2차 패스: canvas 없는 '데이터 테이블 카드'에도 새로고침 버튼 주입 (전체 카드 커버) ──
-  // 예: KOSPI/ETF Top10, 글로벌 지수, 거시지표 표, 채권/국민연금 표 등.
-  // 핸들러는 표별 매핑이 있으면 그것을, 없으면 전체 새로고침(refreshAllData)을 쓴다.
+  // ── 2차 패스: 나머지 '모든 카드(.widget)' 에 KOSPI 와 동일한 새로고침 버튼 주입 ──
+  // (사용자 요청: 사이트 내 전체 카드에 동일 새로고침 기능.) 데이터 테이블 카드는 표별
+  // 전용 핸들러를, 그 외(정적/소형차트 포함)는 전체 새로고침(refreshAllData)을 사용한다.
   // 모두 _refreshFeedback 상태머신을 거치므로 KOSPI 버튼과 동일한 로딩→갱신 인터랙션을 갖는다.
   const _tableRefreshMap = {
     equityTopGainersTable: retryEquityMovers, equityTopLosersTable: retryEquityMovers,
@@ -2878,16 +2878,17 @@ function injectChartRefreshButtons() {
     moverTable: (b)=>refreshAllData(b), investorSummaryTable: refreshInvestorTrading,
   };
   document.querySelectorAll('.widget').forEach(widget => {
-    if(widget.querySelector('button[data-chart-refresh]')) return;
-    if(widget.querySelector('canvas[id]')) return;                 // canvas 카드는 위에서 처리
-    if(/새로고침|다시 시도/.test(widget.innerHTML)) return;        // 이미 새로고침/재시도 버튼 존재
-    const tbody = widget.querySelector('table tbody[id]');         // 데이터 테이블이 있는 카드만
-    if(!tbody) return;
+    if(widget.querySelector('button[data-chart-refresh]')) return;  // 1차 패스에서 이미 주입됨
+    if(/새로고침|다시 시도/.test(widget.innerHTML)) return;          // 이미 새로고침/재시도 버튼 존재
+    if(widget.closest('.themed-modal')) return;                      // 모달 내부 카드 제외 (상세 팝업)
+    if(widget.id === 'aiSummaryCard') return;                        // AI 요약 카드는 전용 'AI 요약 생성' 버튼
     const title = widget.querySelector('.widget-title');
     if(!title) return;
-    const handler = _tableRefreshMap[tbody.id] || ((b)=>refreshAllData(b));
+    // 표 카드면 표별 전용 핸들러, 아니면 전체 새로고침
+    const tbody = widget.querySelector('table tbody[id]');
+    const handler = (tbody && _tableRefreshMap[tbody.id]) ? _tableRefreshMap[tbody.id] : ((b)=>refreshAllData(b));
     const btn = document.createElement('button');
-    btn.setAttribute('data-chart-refresh', tbody.id || 'card');
+    btn.setAttribute('data-chart-refresh', (tbody && tbody.id) || 'card');
     btn.setAttribute('title', '실시간 데이터 새로고침');
     btn.style.cssText = 'margin-left:8px;background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:1px 7px;font-size:10px;cursor:pointer;vertical-align:middle;text-transform:none;letter-spacing:0;';
     btn.textContent = '↻ 새로고침';
