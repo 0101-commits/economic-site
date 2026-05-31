@@ -111,7 +111,9 @@ async function handleAiSummary(request, env) {
   if (geminiKey) {
     const gModels = [];
     if (typeof payload.geminiModel === 'string' && payload.geminiModel) gModels.push(payload.geminiModel);
-    gModels.push('gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash');
+    // 고성능 최신 → 무료 등급 한도/가용성 폴백 순. 2.5 Pro(최고 성능, 무료 등급 한도 작음) →
+    // 2.5 Flash(고성능·무료 한도 넉넉) → 2.0 Flash → 1.5 Flash. 한도 초과(429)면 자동으로 다음 모델.
+    gModels.push('gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash');
     for (const gm of gModels) {
       try {
         const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + gm + ':generateContent', {
