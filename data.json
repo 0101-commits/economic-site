@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-01T00:02:07.738849+09:00",
+  "lastUpdated": "2026-06-01T00:13:40.450889+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -22,8 +22,7 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-05-31T23:50)",
-    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강",
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-01T00:02)",
     "sentiment_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
@@ -11067,6 +11066,21 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
+      },
       "trade_count_kr_rone": {
         "value": 76391.0,
         "prev": 78432.0,
@@ -11576,21 +11590,6 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
-      },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -173670,7 +173669,7 @@
     },
     "subscription": "ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoSvc HTTP400 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | ApplyhomeInfoSvc HTTP400 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP400 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP400 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"} ",
     "preservedFields": 2,
-    "preservedMetricsDeep": 2,
+    "preservedMetricsDeep": 1,
     "historySpotSynced": 8
   },
   "nps": {
@@ -173700,7 +173699,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-06-01T00:10:48.326562+09:00",
+    "lastFetched": "2026-06-01T00:21:52.034051+09:00",
     "채권": [],
     "외환": [
       {
@@ -173865,16 +173864,16 @@
     ],
     "한국수출": [
       {
-        "title": "4월 부산지역 수출 13억5700만달러… 2개월 연속 반등",
-        "url": "https://www.msn.com/ko-kr/news/national/4%EC%9B%94-%EB%B6%80%EC%82%B0%EC%A7%80%EC%97%AD-%EC%88%98%EC%B6%9C-13%EC%96%B55700%EB%A7%8C%EB%8B%AC%EB%9F%AC-2%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%EB%B0%98%EB%93%B1/ar-AA24nTlv",
-        "isoDate": "2026-05-29",
-        "pubDate": "Fri, 29 May 2026 13:39:04 GMT"
-      },
-      {
         "title": "“일본 추월은 시간문제”…K반도체 업고 수출 ‘1조달러’ 달성 눈앞",
         "url": "https://www.msn.com/ko-kr/news/other/%EC%9D%BC%EB%B3%B8-%EC%B6%94%EC%9B%94%EC%9D%80-%EC%8B%9C%EA%B0%84%EB%AC%B8%EC%A0%9C-k%EB%B0%98%EB%8F%84%EC%B2%B4-%EC%97%85%EA%B3%A0-%EC%88%98%EC%B6%9C-1%EC%A1%B0%EB%8B%AC%EB%9F%AC-%EB%8B%AC%EC%84%B1-%EB%88%88%EC%95%9E/ar-AA24sHis",
         "isoDate": "2026-05-30",
         "pubDate": "Sat, 30 May 2026 18:34:14 GMT"
+      },
+      {
+        "title": "4월 부산지역 수출 13억5700만달러… 2개월 연속 반등",
+        "url": "https://www.msn.com/ko-kr/news/national/4%EC%9B%94-%EB%B6%80%EC%82%B0%EC%A7%80%EC%97%AD-%EC%88%98%EC%B6%9C-13%EC%96%B55700%EB%A7%8C%EB%8B%AC%EB%9F%AC-2%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%EB%B0%98%EB%93%B1/ar-AA24nTlv",
+        "isoDate": "2026-05-29",
+        "pubDate": "Fri, 29 May 2026 13:39:04 GMT"
       },
       {
         "title": "부산 수출 살아났다… 4월 13억5천만달러, 2년11개월 만에 최대",
@@ -173883,24 +173882,24 @@
         "pubDate": "Thu, 28 May 2026 15:42:00 GMT"
       },
       {
-        "title": "부산 무역수지 2천 3백만 달러 흑자... 다변화 노력 성과“3개월 연속 흑자”",
-        "url": "https://www.dailysportshankook.co.kr/news/articleView.html?idxno=429164",
-        "isoDate": "2026-05-30",
-        "pubDate": "Sat, 30 May 2026 21:17:00 GMT"
-      },
-      {
         "title": "산업硏, 올해 한국 GDP 성장률 2.5% …'네덜란드 제치고 4위권 합류 가능성'",
         "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1710196",
         "isoDate": "2026-05-26",
         "pubDate": "Tue, 26 May 2026 04:03:00 GMT"
+      },
+      {
+        "title": "울산 4월 수출, 작년보다 20% 증가…무역수지 26억달러 흑자",
+        "url": "https://www.yna.co.kr/view/AKR20260520146400057",
+        "isoDate": "2026-05-20",
+        "pubDate": "Wed, 20 May 2026 00:15:00 GMT"
       }
     ],
     "한국은행": [
       {
-        "title": "[속보] 한은 금통위, 8연속 기준금리 동결 결정⋯현 2.5% 유지 [5월 금통위]",
-        "url": "https://www.msn.com/ko-kr/news/other/%EC%86%8D%EB%B3%B4-%ED%95%9C%EC%9D%80-%EA%B8%88%ED%86%B5%EC%9C%84-8%EC%97%B0%EC%86%8D-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EB%8F%99%EA%B2%B0-%EA%B2%B0%EC%A0%95-%ED%98%84-25-%EC%9C%A0%EC%A7%80-5%EC%9B%94-%EA%B8%88%ED%86%B5%EC%9C%84/ar-AA24em2w",
+        "title": "신현송 첫 금통위, 기준금리 8회 연속 동결…인상 가능성 열어둬",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%8B%A0%ED%98%84%EC%86%A1-%EC%B2%AB-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-8%ED%9A%8C-%EC%97%B0%EC%86%8D-%EB%8F%99%EA%B2%B0-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1-%EC%97%B4%EC%96%B4%EB%91%AC/ar-AA24eYdq",
         "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 17:50:43 GMT"
+        "pubDate": "Wed, 27 May 2026 22:37:53 GMT"
       },
       {
         "title": "‘신현송 체제 첫 금통위’ 한국은행, 8회 연속 기준금리 동결",
@@ -173909,22 +173908,22 @@
         "pubDate": "Thu, 28 May 2026 17:50:00 GMT"
       },
       {
-        "title": "신현송 첫 금통위, 기준금리 8회 연속 동결…인상 가능성 열어둬",
-        "url": "https://www.msn.com/ko-kr/news/other/%EC%8B%A0%ED%98%84%EC%86%A1-%EC%B2%AB-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-8%ED%9A%8C-%EC%97%B0%EC%86%8D-%EB%8F%99%EA%B2%B0-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1-%EC%97%B4%EC%96%B4%EB%91%AC/ar-AA24eYdq",
-        "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 22:37:53 GMT"
-      },
-      {
-        "title": "한은 금통위, 기준금리 연 2.5%…8연속 동결 [쿠키포토]",
-        "url": "https://www.kukinews.com/article/view/kuk202605280035",
-        "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 18:22:00 GMT"
-      },
-      {
         "title": "신현송 체제 첫 한은 금통위…기준금리 8회 연속 동결",
         "url": "https://www.yna.co.kr/view/MYH20260528007500038",
         "isoDate": "2026-05-27",
         "pubDate": "Wed, 27 May 2026 18:33:00 GMT"
+      },
+      {
+        "title": "\"한국은행 금통위 회의…현재 경제 불확실성 속 기준금리 결정 주목\"",
+        "url": "https://www.gokorea.kr/news/articleView.html?idxno=867607",
+        "isoDate": "2026-05-27",
+        "pubDate": "Wed, 27 May 2026 14:05:00 GMT"
+      },
+      {
+        "title": "[5월 금통위] 금리 동결에도 매파색…한은 \"8월 물가 연중 최고\"",
+        "url": "https://www.msn.com/ko-kr/news/other/5%EC%9B%94-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%88%EB%A6%AC-%EB%8F%99%EA%B2%B0%EC%97%90%EB%8F%84-%EB%A7%A4%ED%8C%8C%EC%83%89-%ED%95%9C%EC%9D%80-8%EC%9B%94-%EB%AC%BC%EA%B0%80-%EC%97%B0%EC%A4%91-%EC%B5%9C%EA%B3%A0/ar-AA24gDMv",
+        "isoDate": "2026-05-28",
+        "pubDate": "Thu, 28 May 2026 04:23:55 GMT"
       }
     ]
   },
@@ -173943,7 +173942,7 @@
         "iso": "2026-05-18"
       }
     ],
-    "lastFetched": "2026-06-01T00:13:11.791170+09:00",
+    "lastFetched": "2026-06-01T00:24:49.880506+09:00",
     "source": "FRED release dates API",
     "backfilled": 1
   }
