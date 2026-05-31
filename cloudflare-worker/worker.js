@@ -102,9 +102,45 @@ async function handleAiSummary(request, env) {
     '```json\n' + JSON.stringify(snapshot).slice(0, 50000) + '\n```';
 
   // 진단 정보 — 어떤 엔진을 왜 못 썼는지 응답에 담아 프론트/사용자가 원인을 알 수 있게 한다.
-  const diag = { aiBinding: !!(env && env.AI), anthropicKey: !!(env && env.ANTHROPIC_API_KEY), tried: [] };
+  const diag = { gemini: !!(env && env.GEMINI_API_KEY), aiBinding: !!(env && env.AI), anthropicKey: !!(env && env.ANTHROPIC_API_KEY), tried: [] };
 
-  // ── 1) Cloudflare Workers AI (무료·키 불필요) — env.AI 바인딩이 있으면 최우선 사용 ──
+  // ── 1) Google Gemini (무료 API) — env.GEMINI_API_KEY 시크릿이 있으면 최우선 사용 ──
+  // 무료 키 발급: https://aistudio.google.com/apikey (Google AI Studio). 키는 Worker 시크릿에만 보관.
+  // 모델 가용성/한도가 바뀔 수 있어 여러 모델을 순차 시도한다.
+  const geminiKey = env && env.GEMINI_API_KEY;
+  if (geminiKey) {
+    const gModels = [];
+    if (typeof payload.geminiModel === 'string' && payload.geminiModel) gModels.push(payload.geminiModel);
+    // 고성능 최신 → 무료 등급 한도/가용성 폴백 순. 2.5 Pro(최고 성능, 무료 등급 한도 작음) →
+    // 2.5 Flash(고성능·무료 한도 넉넉) → 2.0 Flash → 1.5 Flash. 한도 초과(429)면 자동으로 다음 모델.
+    gModels.push('gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash');
+    for (const gm of gModels) {
+      try {
+        const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + gm + ':generateContent', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': geminiKey },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: system }] },
+            contents: [{ role: 'user', parts: [{ text: userMsg }] }],
+            generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+          }),
+          signal: AbortSignal.timeout(25000),
+        });
+        const data = await resp.json().catch(() => null);
+        if (resp.ok && data && Array.isArray(data.candidates) && data.candidates[0]) {
+          const parts = (data.candidates[0].content && data.candidates[0].content.parts) || [];
+          const text = parts.map(p => (p && p.text) || '').join('').trim();
+          if (text) return jsonResponse({ ok: true, summary: text, model: 'gemini/' + gm, engine: 'gemini' });
+          diag.tried.push('gemini/' + gm + ':empty(' + (data.candidates[0].finishReason || '') + ')');
+        } else {
+          const em = (data && data.error && data.error.message) || '';
+          diag.tried.push('gemini/' + gm + ':HTTP' + (resp && resp.status) + ':' + String(em).slice(0, 80));
+        }
+      } catch (e) { diag.tried.push('gemini/' + gm + ':' + String((e && e.message) || e).slice(0, 80)); }
+    }
+  }
+
+  // ── 2) Cloudflare Workers AI (무료·키 불필요) — env.AI 바인딩이 있으면 사용 ──
   // wrangler.jsonc 의 "ai": {"binding":"AI"} 만 있으면 동작. 무료 플랜 일 10,000 Neurons.
   // 모델 가용성이 계정/리전마다 달라 여러 모델을 순차 시도한다.
   if (env && env.AI) {
@@ -133,7 +169,7 @@ async function handleAiSummary(request, env) {
     diag.tried.push('no-AI-binding(wrangler.jsonc ai 바인딩/계정 Workers AI 확인)');
   }
 
-  // ── 2) Anthropic Claude (선택) — ANTHROPIC_API_KEY 시크릿이 설정된 경우만 ──
+  // ── 3) Anthropic Claude (선택) — ANTHROPIC_API_KEY 시크릿이 설정된 경우만 ──
   const apiKey = env && env.ANTHROPIC_API_KEY;
   if (apiKey) {
     const model = (typeof payload.model === 'string' && payload.model) || 'claude-haiku-4-5-20251001';
@@ -157,10 +193,10 @@ async function handleAiSummary(request, env) {
     } catch (e) { diag.tried.push('anthropic:' + String((e && e.message) || e).slice(0, 80)); }
   }
 
-  // ── 3) 둘 다 불가 → 503 (프론트가 자체 룰기반 요약으로 폴백) + 진단 ──
+  // ── 4) 모두 불가 → 503 (프론트가 자체 룰기반 요약으로 폴백) + 진단 ──
   return jsonResponse({
     error: 'no_ai_available',
-    message: 'AI 엔진 미응답 — Workers AI 바인딩(env.AI) 또는 ANTHROPIC_API_KEY 필요. 프론트는 룰기반 요약으로 폴백합니다.',
+    message: 'AI 엔진 미응답 — GEMINI_API_KEY(무료) / Workers AI 바인딩 / ANTHROPIC_API_KEY 중 하나가 필요합니다. 프론트는 룰기반 요약으로 폴백합니다.',
     diag,
   }, 503);
 }
@@ -186,11 +222,16 @@ export default {
     // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.
     // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.
     if (reqUrl.pathname === '/ai') {
+      const hasGemini = !!(env && env.GEMINI_API_KEY);
       return jsonResponse({
         ok: true, service: 'ai-health',
+        geminiKey: hasGemini,
         aiBinding: !!(env && env.AI),
         anthropicKey: !!(env && env.ANTHROPIC_API_KEY),
-        hint: (env && env.AI) ? 'Workers AI 사용 가능' : 'wrangler.jsonc 의 ai 바인딩이 배포에 적용됐는지/계정 Workers AI 활성 여부 확인',
+        engine: hasGemini ? 'gemini' : (env && env.AI ? 'workers-ai' : (env && env.ANTHROPIC_API_KEY ? 'anthropic' : 'none(rule-based)')),
+        hint: hasGemini ? 'Google Gemini 무료 API 사용 가능'
+            : (env && env.AI) ? 'Workers AI 사용 가능'
+            : 'GEMINI_API_KEY 시크릿을 추가하면 무료 Gemini 사용 가능 (aistudio.google.com/apikey)',
       });
     }
     const target = reqUrl.searchParams.get('url');
