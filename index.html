@@ -777,7 +777,7 @@ tailwind.config = {
         <div id="aiSummaryBody" style="font-size:12.5px;line-height:1.6;color:var(--c-txt,#dfe2f2);">
           <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;text-align:center;color:var(--c-txt-dim,#8d90a2);">
             <div style="font-size:22px;">🤖</div>
-            <div style="font-size:12.5px;">위 <b style="color:#b6c4ff;">🤖 AI 요약 생성</b> 버튼을 누르면, 그 순간의 실시간 시장 데이터를 바탕으로 Claude AI 가 오늘의 마켓 브리핑을 생성합니다.</div>
+            <div style="font-size:12.5px;">위 <b style="color:#b6c4ff;">🤖 AI 요약 생성</b> 버튼을 누르면, 그 순간의 실시간 시장 데이터를 바탕으로 AI 가 오늘의 마켓 브리핑을 생성합니다. <span style="color:#6a6f80;">(무료 Cloudflare Workers AI 기본)</span></div>
           </div>
         </div>
       </div>
@@ -12472,7 +12472,7 @@ function _aiMarkdownToHtml(md) {
 async function refreshAiMarketSummary(btn) {
   if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'loading');
   const bodyEl = document.getElementById('aiSummaryBody');
-  if(bodyEl) bodyEl.innerHTML = '<div style="color:var(--c-txt-dim,#8d90a2);padding:10px 4px;">⟳ 현재 시점의 실시간 데이터를 수집해 Claude AI 가 분석 중입니다…</div>';
+  if(bodyEl) bodyEl.innerHTML = '<div style="color:var(--c-txt-dim,#8d90a2);padding:10px 4px;">⟳ 현재 시점의 실시간 데이터를 수집해 AI 가 분석 중입니다…</div>';
   // 1) '그 당시'의 실시간 데이터 수집
   try {
     const tasks = [];
@@ -12501,8 +12501,12 @@ async function refreshAiMarketSummary(btn) {
       const j = await resp.json().catch(()=>null);
       if(resp.ok && j && j.summary) {
         if(bodyEl) {
+          // 어떤 엔진이 생성했는지 표기 (Workers AI/Claude). 무료 Workers AI 가 기본.
+          const eng = j.engine==='workers-ai' ? 'Cloudflare Workers AI(무료)'
+                    : j.engine==='anthropic' ? 'Claude'
+                    : (j.model || 'AI');
           bodyEl.innerHTML = _aiMarkdownToHtml(j.summary) +
-            '<div style="font-size:9.5px;color:var(--c-txt-muted,#6a6f80);margin-top:9px;">🤖 Claude AI 생성 — 실시간 데이터 기반 · 투자 판단 참고용</div>';
+            '<div style="font-size:9.5px;color:var(--c-txt-muted,#6a6f80);margin-top:9px;">🤖 ' + eng + ' 생성 — 실시간 데이터 기반 · 투자 판단 참고용</div>';
         }
         const dt = document.getElementById('aiSummaryDate');
         if(dt) dt.textContent = '기준 ' + new Date().toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});

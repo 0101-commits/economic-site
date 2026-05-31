@@ -83,18 +83,12 @@ function jsonResponse(obj, status) {
 // 로 Claude 를 호출해 한국어 시황 브리핑 텍스트를 돌려준다. 키 미설정 시 503 → 프론트는
 // 자체 룰기반 요약으로 폴백한다. 비용 보호를 위해 max_tokens 제한 + 본문 크기 제한.
 async function handleAiSummary(request, env) {
-  const apiKey = env && env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    // 키 미설정 — 프론트가 룰기반 요약으로 폴백하도록 503 + 사유 반환.
-    return jsonResponse({ error: 'no_api_key', message: 'ANTHROPIC_API_KEY (Worker secret) 미설정' }, 503);
-  }
   // 본문 크기 가드 (남용/사고 방지) — 스냅샷은 작아야 한다.
   const raw = await request.text();
   if (raw.length > 60000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let payload;
   try { payload = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
   const snapshot = payload.snapshot || payload || {};
-  const model = (typeof payload.model === 'string' && payload.model) || 'claude-haiku-4-5-20251001';
 
   const system =
     '당신은 한국 개인투자자를 위한 금융시장 애널리스트입니다. 제공된 실시간 시장 데이터(JSON)만 ' +
@@ -107,34 +101,50 @@ async function handleAiSummary(request, env) {
     '아래는 현재 시각의 실시간 시장 데이터 스냅샷입니다. 이것만 근거로 브리핑을 작성하세요.\n\n' +
     '```json\n' + JSON.stringify(snapshot).slice(0, 50000) + '\n```';
 
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 900,
-        system,
-        messages: [{ role: 'user', content: userMsg }],
-      }),
-      signal: AbortSignal.timeout(25000),
-    });
-    const data = await resp.json().catch(() => null);
-    if (!resp.ok || !data) {
-      return jsonResponse({ error: 'anthropic_error', status: resp.status, detail: data }, 502);
+  // ── 1) Cloudflare Workers AI (무료·키 불필요) — env.AI 바인딩이 있으면 최우선 사용 ──
+  // wrangler.jsonc 의 "ai": {"binding":"AI"} 만 있으면 동작. 무료 플랜 일 10,000 Neurons.
+  if (env && env.AI) {
+    try {
+      const cfModel = (typeof payload.cfModel === 'string' && payload.cfModel) || '@cf/meta/llama-3.1-8b-instruct';
+      const out = await env.AI.run(cfModel, {
+        messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }],
+        max_tokens: 800,
+      });
+      const text = (out && (out.response || (out.result && out.result.response) || '') || '').trim();
+      if (text) return jsonResponse({ ok: true, summary: text, model: 'cloudflare/' + cfModel, engine: 'workers-ai' });
+    } catch (e) {
+      // Workers AI 실패(한도 초과 등) → Anthropic/룰기반으로 폴백
     }
-    const text = Array.isArray(data.content)
-      ? data.content.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim()
-      : '';
-    if (!text) return jsonResponse({ error: 'empty_response', detail: data }, 502);
-    return jsonResponse({ ok: true, summary: text, model: data.model, usage: data.usage });
-  } catch (e) {
-    return jsonResponse({ error: 'upstream_failed', detail: String(e) }, 502);
   }
+
+  // ── 2) Anthropic Claude (선택) — ANTHROPIC_API_KEY 시크릿이 설정된 경우만 ──
+  const apiKey = env && env.ANTHROPIC_API_KEY;
+  if (apiKey) {
+    const model = (typeof payload.model === 'string' && payload.model) || 'claude-haiku-4-5-20251001';
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({ model, max_tokens: 900, system, messages: [{ role: 'user', content: userMsg }] }),
+        signal: AbortSignal.timeout(25000),
+      });
+      const data = await resp.json().catch(() => null);
+      if (resp.ok && data && Array.isArray(data.content)) {
+        const text = data.content.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
+        if (text) return jsonResponse({ ok: true, summary: text, model: data.model, engine: 'anthropic', usage: data.usage });
+      }
+    } catch (e) { /* fall through */ }
+  }
+
+  // ── 3) 둘 다 불가 → 503 (프론트가 자체 룰기반 요약으로 폴백) ──
+  return jsonResponse({
+    error: 'no_ai_available',
+    message: 'Workers AI 바인딩(env.AI) 또는 ANTHROPIC_API_KEY 가 필요합니다. 프론트는 룰기반 요약으로 폴백합니다.',
+  }, 503);
 }
 
 export default {

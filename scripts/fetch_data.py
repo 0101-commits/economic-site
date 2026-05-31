@@ -357,12 +357,12 @@ def fetch_pykrx_etf_movers(top_n=10):
     return None, None
 
 
-def fetch_investor_trading(lookback_days=400):
-    """투자자별(외국인/기관/개인) 일별 순매수 추이 — pykrx 실데이터.
+def _fetch_investor_pykrx(lookback_days=400):
+    """투자자별(외국인/기관/개인) 일별 순매수 추이 — pykrx 실데이터 (KRX 로그인 시).
 
     KRX 정보데이터시스템의 '투자자별 거래실적(일별 순매수 거래대금)' 을 KOSPI+KOSDAQ
     합산해 가져온다. 단위는 억원(1e8 원). **더미/랜덤 데이터는 절대 쓰지 않는다** —
-    pykrx 가 없거나 응답이 비면 빈 dict 를 반환하고, 프론트엔드는 '수집 중'을 안내한다.
+    pykrx 가 없거나 응답이 비면 빈 dict 를 반환하고, 호출자가 Naver 폴백을 시도한다.
 
     Returns: {"daily":[{date, foreign, inst, retail}...], "markets":[...],
               "unit":"억원", "source":..., "lastFetched":...} 또는 {}.
@@ -426,12 +426,7 @@ def fetch_investor_trading(lookback_days=400):
             log(f"[투자자] {mkt} {n}일 수집 (외국인={col_foreign}/기관={col_inst}/개인={col_retail})")
 
     if not agg or not markets_ok:
-        if not _KRX_LOGIN_AVAILABLE:
-            log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용). 원인: KRX 가 정보데이터시스템 데이터에 "
-                "로그인을 요구함. Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정) 등록 시 해결됨.")
-        else:
-            log("[투자자] 수집 실패 — 빈 결과 반환 (더미 미사용). KRX 로그인은 설정됐으나 응답이 비어있음 "
-                "(KRX 일시 장애/자격증명 오류 가능).")
+        log("[투자자] pykrx 미수집 (KRX 로그인 미설정/응답 없음) — Naver 폴백 시도 예정.")
         return {}
     daily = [{
         "date": d,
@@ -449,6 +444,131 @@ def fetch_investor_trading(lookback_days=400):
         "source": "pykrx 투자자별 거래실적 (KRX 정보데이터시스템)",
         "lastFetched": now.isoformat(),
     }
+
+
+def fetch_naver_investor_trading(lookback_days=400):
+    """투자자별 순매수 — 네이버 금융 무인증 폴백 (KRX 로그인/KIS 키/카카오 알람 불필요).
+
+    finance.naver.com/sise/sise_index_buyer.naver?code=KOSPI|KOSDAQ 의 일별 표에서
+    개인/외국인/기관 순매수를 추출해 KOSPI+KOSDAQ 합산(억원). HTML 구조 변동에 대비해
+    표/컬럼을 헤더 키워드로 동적 매핑하고, 단위는 값 크기로 자동 감지한다. 구조 불일치 시
+    빈 dict 를 반환(더미 절대 미사용) — CI 로그의 raw 샘플로 파싱을 점검/보정할 수 있다.
+    """
+    try:
+        from bs4 import BeautifulSoup
+    except Exception:
+        log("[투자자-Naver] bs4 미설치 — 건너뜀")
+        return {}
+    import re as _re
+    hdrs = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/123.0 Safari/537.36",
+        "Referer": "https://finance.naver.com/sise/",
+        "Accept-Language": "ko-KR,ko;q=0.9",
+    }
+    date_re = _re.compile(r"\d{2,4}\.\d{1,2}\.\d{1,2}")
+
+    def _num(s):
+        s = (s or "").replace(",", "").replace("+", "").strip()
+        if not s or s in ("-", "—", "·"):
+            return None
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    agg, markets_ok, raw_samples = {}, [], []
+    for mkt in ("KOSPI", "KOSDAQ"):
+        try:
+            url = f"https://finance.naver.com/sise/sise_index_buyer.naver?code={mkt}"
+            r = requests.get(url, headers=hdrs, timeout=15)
+            r.encoding = "euc-kr"
+            soup = BeautifulSoup(r.text, "html.parser")
+        except Exception as e:
+            log(f"[투자자-Naver] {mkt} 요청 오류: {e}")
+            continue
+        target, colmap, hdr_text = None, {}, ""
+        for tbl in soup.find_all("table"):
+            ttext = tbl.get_text(" ", strip=True)
+            if not ("개인" in ttext and "외국인" in ttext and "기관" in ttext):
+                continue
+            for tr in tbl.find_all("tr"):
+                cells = [c.get_text(strip=True) for c in tr.find_all(["th", "td"])]
+                cm = {}
+                for i, ct in enumerate(cells):
+                    if "개인" in ct and "retail" not in cm:
+                        cm["retail"] = i
+                    elif "외국인" in ct and "기타" not in ct and "foreign" not in cm:
+                        cm["foreign"] = i
+                    elif "기관" in ct and "inst" not in cm:
+                        cm["inst"] = i
+                if len(cm) == 3:
+                    colmap, target, hdr_text = cm, tbl, " | ".join(cells)
+                    break
+            if target:
+                break
+        if not target:
+            log(f"[투자자-Naver] {mkt} 표/컬럼 매핑 실패 — 건너뜀")
+            continue
+        n = 0
+        for tr in target.find_all("tr"):
+            cells = [c.get_text(strip=True) for c in tr.find_all(["td", "th"])]
+            dcell = next((c for c in cells if date_re.fullmatch(c.replace(" ", ""))), None)
+            if not dcell or len(cells) <= max(colmap.values()):
+                continue
+            f, ins, ret = (_num(cells[colmap["foreign"]]), _num(cells[colmap["inst"]]), _num(cells[colmap["retail"]]))
+            if f is None and ins is None and ret is None:
+                continue
+            p = dcell.replace(" ", "").split(".")
+            if len(p) != 3:
+                continue
+            y = p[0] if len(p[0]) == 4 else ("20" + p[0] if len(p[0]) == 2 else str(datetime.now(KST).year))
+            try:
+                dstr = f"{int(y):04d}-{int(p[1]):02d}-{int(p[2]):02d}"
+            except ValueError:
+                continue
+            rec = agg.setdefault(dstr, {"foreign": 0.0, "inst": 0.0, "retail": 0.0})
+            rec["foreign"] += (f or 0.0); rec["inst"] += (ins or 0.0); rec["retail"] += (ret or 0.0)
+            n += 1
+            if len(raw_samples) < 4:
+                raw_samples.append((mkt, dstr, f, ins, ret))
+        if n:
+            markets_ok.append(mkt)
+            log(f"[투자자-Naver] {mkt} {n}행 (헤더='{hdr_text[:80]}')")
+    if not agg:
+        log("[투자자-Naver] 수집 실패 — 빈 결과 (프론트 '수집 중')")
+        return {}
+    # 단위 자동 감지 — 순매수 거래대금이 백만원 단위면 ÷100 으로 억원 정규화
+    allvals = sorted(abs(v) for r in agg.values() for v in r.values() if v)
+    median = allvals[len(allvals) // 2] if allvals else 0
+    scale = 0.01 if median > 100000 else 1.0
+    log(f"[투자자-Naver] 샘플={raw_samples} median={median:.0f} scale={scale} → {len(agg)}일")
+    daily = [{
+        "date": d,
+        "foreign": round(agg[d]["foreign"] * scale, 1),
+        "inst":    round(agg[d]["inst"] * scale, 1),
+        "retail":  round(agg[d]["retail"] * scale, 1),
+    } for d in sorted(agg.keys())][-lookback_days:]
+    return {
+        "daily": daily,
+        "markets": markets_ok,
+        "unit": "억원",
+        "source": "Naver 금융 투자자별 매매동향 (무인증 폴백)",
+        "lastFetched": datetime.now(KST).isoformat(),
+    }
+
+
+def fetch_investor_trading(lookback_days=400):
+    """투자자별 순매수 — pykrx(KRX 로그인) 우선, 실패 시 Naver 무인증 폴백.
+
+    우선순위: ① pykrx(KRX_ID/KRX_PW 설정 시 — 전체 시계열, 가장 정확)
+              ② Naver 금융 파싱(무인증·무알람 — 최근 수십일 시계열).
+    둘 다 실패하면 빈 dict (프론트 '수집 중' 안내; 더미 절대 미사용).
+    """
+    res = _fetch_investor_pykrx(lookback_days)
+    if res.get("daily"):
+        return res
+    return fetch_naver_investor_trading(lookback_days)
 
 
 def fetch_krx_stock_movers(market="kospi", top_n=10):
@@ -4485,12 +4605,12 @@ def build_data():
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
     data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
-    # 투자자별 순매매가 비었을 때 프론트가 사용자에게 보여줄 actionable 사유.
+    # 투자자별 순매매가 비었을 때 프론트가 사용자에게 보여줄 사유.
+    # 이제 무인증 Naver 폴백이 있어, 비어있으면 두 소스(KRX/Naver) 모두 일시 실패한 상황.
     if not (data.get("investorTrading") or {}).get("daily"):
         data["diagnostics"]["investorTradingReason"] = (
-            "KRX 정보데이터시스템 로그인 필요 — 워크플로 Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정) 등록 후 자동 갱신됩니다."
-            if not _KRX_LOGIN_AVAILABLE else
-            "KRX 응답 대기 — 다음 자동 갱신 시 반영됩니다."
+            "투자자별 매매 데이터 소스 일시 오류 — 다음 자동 갱신 시 재시도합니다. "
+            "(더 정확한 전체 시계열을 원하면 Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정) 등록)"
         )
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
