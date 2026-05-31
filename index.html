@@ -10654,11 +10654,12 @@ async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
 }
 
 async function fetchNaverETFMoversClient() {
-  // Naver 모바일 ETF 시세 API + 전통 API — 다중 CORS 프록시 폴백 (_fetchViaProxies)
+  // Naver ETF 시세 — 전통 API(etfItemList.nhn)가 가장 안정적이라 1순위. 모바일 API
+  // (etf/domestic, domesticEtfList)는 현재 400 을 반환하므로 폴백으로만 둔다(불필요한 400 오류 방지).
   const targets = [
+    'https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0',
     'https://m.stock.naver.com/api/stocks/etf/domestic?category=domestic&page=1&pageSize=200',
     'https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200',
-    'https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0',
   ];
   for(const target of targets) {
     const data = await _fetchViaProxies(target, true);
@@ -11483,8 +11484,9 @@ async function fetchSentimentClient() {
   }
   if(!out.vkospi) {
     try {
-      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EVKOSPI&range=1y&interval=1d');
-      const node = j?.spark?.result?.[0]?.response?.[0];
+      // Yahoo v7 finance/spark 는 폐기됨(404) → 현행 v8 finance/chart 사용.
+      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v8/finance/chart/%5EVKOSPI?range=1y&interval=1d');
+      const node = j?.chart?.result?.[0];
       const ts = node?.timestamp;
       const c  = node?.indicators?.quote?.[0]?.close;
       if(Array.isArray(c) && Array.isArray(ts)) {
@@ -11500,7 +11502,7 @@ async function fetchSentimentClient() {
           const latest = history[dates[dates.length-1]];
           const prev   = dates.length > 1 ? history[dates[dates.length-2]] : null;
           const change = (prev != null && prev !== 0) ? +((latest - prev) / prev * 100).toFixed(2) : 0;
-          out.vkospi = { value: latest, change, as_of: dates[dates.length-1], history, source: 'Yahoo Finance ^VKOSPI' };
+          out.vkospi = { value: latest, change, as_of: dates[dates.length-1], history, source: 'Yahoo Finance ^VKOSPI (v8)' };
           _saveSentimentCache('vkospi', out.vkospi);
         }
       }
