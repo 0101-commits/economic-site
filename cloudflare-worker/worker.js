@@ -101,20 +101,36 @@ async function handleAiSummary(request, env) {
     '아래는 현재 시각의 실시간 시장 데이터 스냅샷입니다. 이것만 근거로 브리핑을 작성하세요.\n\n' +
     '```json\n' + JSON.stringify(snapshot).slice(0, 50000) + '\n```';
 
+  // 진단 정보 — 어떤 엔진을 왜 못 썼는지 응답에 담아 프론트/사용자가 원인을 알 수 있게 한다.
+  const diag = { aiBinding: !!(env && env.AI), anthropicKey: !!(env && env.ANTHROPIC_API_KEY), tried: [] };
+
   // ── 1) Cloudflare Workers AI (무료·키 불필요) — env.AI 바인딩이 있으면 최우선 사용 ──
   // wrangler.jsonc 의 "ai": {"binding":"AI"} 만 있으면 동작. 무료 플랜 일 10,000 Neurons.
+  // 모델 가용성이 계정/리전마다 달라 여러 모델을 순차 시도한다.
   if (env && env.AI) {
-    try {
-      const cfModel = (typeof payload.cfModel === 'string' && payload.cfModel) || '@cf/meta/llama-3.1-8b-instruct';
-      const out = await env.AI.run(cfModel, {
-        messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }],
-        max_tokens: 800,
-      });
-      const text = (out && (out.response || (out.result && out.result.response) || '') || '').trim();
-      if (text) return jsonResponse({ ok: true, summary: text, model: 'cloudflare/' + cfModel, engine: 'workers-ai' });
-    } catch (e) {
-      // Workers AI 실패(한도 초과 등) → Anthropic/룰기반으로 폴백
+    const models = [];
+    if (typeof payload.cfModel === 'string' && payload.cfModel) models.push(payload.cfModel);
+    models.push(
+      '@cf/meta/llama-3.1-8b-instruct',
+      '@cf/meta/llama-3-8b-instruct',
+      '@cf/qwen/qwen1.5-14b-chat-awq',
+      '@cf/mistral/mistral-7b-instruct-v0.1',
+    );
+    for (const m of models) {
+      try {
+        const out = await env.AI.run(m, {
+          messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }],
+          max_tokens: 800,
+        });
+        const text = (out && (out.response || (out.result && out.result.response) || '') || '').trim();
+        if (text) return jsonResponse({ ok: true, summary: text, model: 'cloudflare/' + m, engine: 'workers-ai' });
+        diag.tried.push(m + ':empty');
+      } catch (e) {
+        diag.tried.push(m + ':' + String((e && e.message) || e).slice(0, 100));
+      }
     }
+  } else {
+    diag.tried.push('no-AI-binding(wrangler.jsonc ai 바인딩/계정 Workers AI 확인)');
   }
 
   // ── 2) Anthropic Claude (선택) — ANTHROPIC_API_KEY 시크릿이 설정된 경우만 ──
@@ -137,13 +153,15 @@ async function handleAiSummary(request, env) {
         const text = data.content.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
         if (text) return jsonResponse({ ok: true, summary: text, model: data.model, engine: 'anthropic', usage: data.usage });
       }
-    } catch (e) { /* fall through */ }
+      diag.tried.push('anthropic:HTTP' + (resp && resp.status));
+    } catch (e) { diag.tried.push('anthropic:' + String((e && e.message) || e).slice(0, 80)); }
   }
 
-  // ── 3) 둘 다 불가 → 503 (프론트가 자체 룰기반 요약으로 폴백) ──
+  // ── 3) 둘 다 불가 → 503 (프론트가 자체 룰기반 요약으로 폴백) + 진단 ──
   return jsonResponse({
     error: 'no_ai_available',
-    message: 'Workers AI 바인딩(env.AI) 또는 ANTHROPIC_API_KEY 가 필요합니다. 프론트는 룰기반 요약으로 폴백합니다.',
+    message: 'AI 엔진 미응답 — Workers AI 바인딩(env.AI) 또는 ANTHROPIC_API_KEY 필요. 프론트는 룰기반 요약으로 폴백합니다.',
+    diag,
   }, 503);
 }
 
@@ -165,6 +183,16 @@ export default {
     if (request.method !== 'GET') return jsonResponse({ error: 'GET only' }, 405);
 
     const reqUrl = new URL(request.url);
+    // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.
+    // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.
+    if (reqUrl.pathname === '/ai') {
+      return jsonResponse({
+        ok: true, service: 'ai-health',
+        aiBinding: !!(env && env.AI),
+        anthropicKey: !!(env && env.ANTHROPIC_API_KEY),
+        hint: (env && env.AI) ? 'Workers AI 사용 가능' : 'wrangler.jsonc 의 ai 바인딩이 배포에 적용됐는지/계정 Workers AI 활성 여부 확인',
+      });
+    }
     const target = reqUrl.searchParams.get('url');
 
     // 헬스체크 — 파라미터 없이 호출 시 (프론트 설정 확인용)

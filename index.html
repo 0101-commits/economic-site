@@ -12486,16 +12486,22 @@ async function refreshAiMarketSummary(btn) {
     if(typeof loadRealtimeMarket==='function') tasks.push(loadRealtimeMarket().catch(()=>{}));
     if(typeof fetchSentimentClient==='function' && typeof applySentimentClient==='function')
       tasks.push(fetchSentimentClient().then(applySentimentClient).catch(()=>{}));
-    await Promise.allSettled(tasks);
+    // 느린 CORS 프록시(여러 개 순차 시도)로 인해 멈춘 것처럼 보이지 않도록 최대 5초만 대기하고 진행.
+    // (이미 로드된 _latestDataForIndicators 로도 스냅샷 생성이 가능하므로 데이터 손실 없음.)
+    await Promise.race([
+      Promise.allSettled(tasks),
+      new Promise(res => setTimeout(res, 5000)),
+    ]);
   } catch(_) { /* 부분 실패 무시 — 받은 데이터로 진행 */ }
 
-  // 2) Claude(Worker /ai) 호출 — 실패하면 룰기반으로 폴백
+  // 2) AI(Worker /ai) 호출 — 실패하면 룰기반으로 폴백하되, '왜 실패했는지'를 표시한다.
   const base = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
   let used = 'fallback';
+  let aiFailNote = '';
   if(base) {
     try {
       const ctrl = new AbortController();
-      const tid = setTimeout(()=>ctrl.abort(), 28000);
+      const tid = setTimeout(()=>ctrl.abort(), 22000);
       const resp = await fetch(base + '/ai', {
         method:'POST',
         headers:{ 'content-type':'application/json' },
@@ -12516,16 +12522,31 @@ async function refreshAiMarketSummary(btn) {
         const dt = document.getElementById('aiSummaryDate');
         if(dt) dt.textContent = '기준 ' + new Date().toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
         used = 'claude';
+      } else {
+        // 실패 사유 캡처 — 사용자/디버깅에 노출 (예: Workers AI 바인딩 미적용, 모델 오류)
+        aiFailNote = (j && (j.message || j.error)) ? String(j.message || j.error) : ('HTTP ' + (resp && resp.status));
+        if(j && j.diag) console.warn('[aiSummary] /ai 진단:', j.diag);
       }
-    } catch(e) { console.warn('[aiSummary] Claude 호출 실패 — 룰기반 폴백:', e); }
+    } catch(e) {
+      aiFailNote = (e && e.name === 'AbortError') ? 'AI 응답 시간 초과(22s)' : ('요청 실패: ' + ((e && e.message) || e));
+      console.warn('[aiSummary] Worker 호출 실패 — 룰기반 폴백:', e);
+    }
+  } else {
+    aiFailNote = 'Worker(프록시) 미설정';
   }
 
-  // 3) 폴백 — Worker/키 미설정 또는 오류 시 자체 룰기반 요약
+  // 3) 폴백 — Worker/AI 미응답 시 자체 룰기반 요약 + 미응답 사유 표기
   if(used === 'fallback') {
-    try { buildAiMarketSummary(btn); return; }  // buildAiMarketSummary 가 버튼 피드백까지 처리
-    catch(e) {
+    try {
+      buildAiMarketSummary(btn);  // 룰기반 요약 렌더 + 버튼 피드백
+      if(bodyEl && aiFailNote) {
+        bodyEl.insertAdjacentHTML('beforeend',
+          '<div style="font-size:9.5px;color:var(--c-txt-muted,#6a6f80);margin-top:6px;">ℹ️ 실시간 AI 엔진 미응답 (' + aiFailNote + ') — 룰기반 요약을 표시 중입니다.</div>');
+      }
+      return;
+    } catch(e) {
       console.warn('[aiSummary] 폴백 생성 오류:', e);
-      if(bodyEl) bodyEl.innerHTML = '<div style="color:#ef5350;padding:10px 4px;">AI 요약 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.</div>';
+      if(bodyEl) bodyEl.innerHTML = '<div style="color:#ef5350;padding:10px 4px;">AI 요약 생성에 실패했습니다. 잠시 후 다시 시도해 주세요. (' + (aiFailNote||'') + ')</div>';
       if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'error','생성 실패');
       return;
     }
