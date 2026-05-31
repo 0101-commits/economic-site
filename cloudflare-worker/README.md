@@ -4,20 +4,27 @@
 Yahoo VIX/MOVE, Stooq 시계열, CNN 공포·탐욕, 환율, 뉴스)를 안정적으로 가져오기 위한
 전용 CORS 프록시입니다. 추가로 **AI 시황 요약**(Claude) 중계 엔드포인트를 제공합니다.
 
-## 🤖 AI 시황 요약 — `POST /ai` (Claude 중계)
+## 🤖 AI 시황 요약 — `POST /ai`
 
 대시보드의 "🤖 AI 요약 생성" 버튼을 누르면, 프론트엔드가 그 순간의 실시간 시장
-스냅샷(JSON)을 `POST /ai` 로 보냅니다. Worker 는 시크릿 `ANTHROPIC_API_KEY` 로
-Anthropic(Claude) API 를 호출해 한국어 마켓 브리핑을 생성해 돌려줍니다.
+스냅샷(JSON)을 `POST /ai` 로 보내고, Worker 가 LLM 으로 한국어 마켓 브리핑을 생성해 돌려줍니다.
 
-- **키는 Worker 시크릿에만 보관** → 브라우저에 노출되지 않습니다(정적 사이트에서 안전하게 LLM 사용).
-- 키 설정:
-  ```sh
-  npx wrangler secret put ANTHROPIC_API_KEY
-  # 또는 Cloudflare 대시보드: Workers & Pages > ecom-dashboard-proxy > Settings > Variables and Secrets
-  ```
-- **키 미설정 시**: `/ai` 는 503 을 반환하고, 프론트엔드는 자동으로 **자체 룰기반 요약**으로 폴백합니다(사이트는 정상 동작).
-- 모델 기본값: `claude-haiku-4-5-20251001` (빠르고 저렴). 비용 보호를 위해 `max_tokens` 와 요청 본문 크기를 제한합니다.
+엔진 우선순위 (위에서부터 자동 선택):
+
+1. **🆓 Cloudflare Workers AI (기본 · 무료 · 키 불필요)** — `wrangler.jsonc` 의
+   `"ai": { "binding": "AI" }` 만 있으면 동작. Worker 안에서 LLM 을 직접 실행하므로
+   **외부 API 키도, 추가 비용도 없습니다.** 무료 플랜 **일 10,000 Neurons** 제공(개인용 충분).
+   - 기본 모델: `@cf/meta/llama-3.1-8b-instruct` (프론트가 `cfModel` 로 변경 가능)
+   - Git 연동 배포만 하면 자동 활성화 — **별도 설정 작업이 사실상 없습니다.**
+2. **Anthropic Claude (선택)** — `ANTHROPIC_API_KEY` 시크릿이 설정된 경우에만 사용(더 높은 품질).
+   ```sh
+   npx wrangler secret put ANTHROPIC_API_KEY
+   ```
+3. **룰기반 요약 (API 없음)** — 위 둘 다 불가하면 `/ai` 가 503 을 반환하고, 프론트엔드가
+   **브라우저 내 룰기반 요약**으로 폴백합니다(네트워크/키/비용 0, 데이터가 외부로 나가지 않음).
+
+- 키(있을 경우)는 Worker 시크릿에만 보관 → 브라우저에 노출되지 않습니다.
+- 비용/남용 보호: `max_tokens` 와 요청 본문 크기를 제한합니다.
 - 테스트:
   ```sh
   curl -X POST 'https://<worker-url>/ai' -H 'content-type: application/json' \
