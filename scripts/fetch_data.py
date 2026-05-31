@@ -1060,14 +1060,28 @@ def fetch_dubai_crude():
     yfinance 에는 두바이 현물/선물 티커가 없어 FRED 가 가장 안정적인 무료 소스.
     Returns: ({"price","change"}, history[{date,close}...] asc) 또는 (None, None).
     """
-    obs = fetch_fred_series("POILDUBUSDM", limit=72)  # 최근 6년치 월간
+    obs = fetch_fred_series("POILDUBUSDM", limit=72)  # 최근 6년치 월간 (desc 정렬)
     if not obs:
         return None, None
-    # fetch_fred_series 는 desc 정렬 → [0]=최신, [1]=전월
-    latest = obs[0]["value"]
-    prev = obs[1]["value"] if len(obs) > 1 else latest
+    # 이상치 제거 — FRED 최신 관측치가 가끔 비정상값으로 들어온다(예: 2026-03 에 126.71 로 +85%).
+    # 월간 원유가는 ±45% 넘게 튀지 않으므로, '과거→현재' 순으로 보며 직전 유효값 대비
+    # 과도하게 벗어난 점(주로 맨 끝 최신 점)을 버린다.
+    asc = [o for o in reversed(obs) if o.get("value") and o["value"] > 0]
+    if not asc:
+        return None, None
+    clean = []
+    for o in asc:  # 과거 → 현재
+        v = o["value"]
+        if clean:
+            ref = clean[-1]["value"]  # 직전(더 과거) 유효값
+            if ref and abs(v - ref) / ref > 0.45:
+                log(f"[FRED] 두바이유 이상치 제외: {o.get('date')}={v} (직전 {ref})")
+                continue
+        clean.append({"date": o["date"], "value": v})
+    latest = clean[-1]["value"]
+    prev = clean[-2]["value"] if len(clean) > 1 else latest
     change = ((latest - prev) / prev * 100.0) if prev else 0.0
-    hist = [{"date": o["date"], "close": round(o["value"], 2)} for o in reversed(obs)]
+    hist = [{"date": o["date"], "close": round(o["value"], 2)} for o in clean]
     return {"price": round(latest, 2), "change": round(change, 2)}, hist
 
 
