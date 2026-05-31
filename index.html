@@ -4,6 +4,8 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>경제현황 터미널</title>
+<!-- 인라인 SVG 파비콘(📈) — favicon.ico 404 제거 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E"/>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4455,6 +4457,10 @@ function buildUsReCharts() {
 function sparkline(id, series, color) {
   const ctx = document.getElementById(id);
   if(!ctx) return;
+  // 같은 캔버스에 이미 차트가 있으면 먼저 파괴 — Chart.js "Canvas is already in use" 오류 방지.
+  // charts[id] 추적분 + Chart.getChart(canvas) 로 미추적 인스턴스까지 모두 정리한다.
+  if(charts[id]) { try { charts[id].destroy(); } catch(_){} delete charts[id]; }
+  try { if(typeof Chart!=='undefined' && Chart.getChart) { const ex = Chart.getChart(ctx); if(ex) ex.destroy(); } } catch(_){}
   charts[id] = new Chart(ctx, {
     type:'line',
     data:{labels:sl(series),datasets:[{data:sv(series),borderColor:color,borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
@@ -10565,7 +10571,7 @@ function _buildCorsProxyUrls(target) {
     'https://api.codetabs.com/v1/proxy/?quest=' + enc,
     'https://corsproxy.io/?url=' + enc,                     // 신 포맷(?url=)
     'https://api.allorigins.win/get?url=' + enc,            // wrapped JSON (.contents)
-    'https://thingproxy.freeboard.io/fetch/' + target,
+    // thingproxy.freeboard.io 제거 — DNS 미해소(ERR_NAME_NOT_RESOLVED)로 매 호출 콘솔 오류만 유발.
   );
   return list;
 }
@@ -11291,7 +11297,6 @@ const _SENTIMENT_PROXIES = [
   (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),        // corsproxy 신 포맷
   (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
-  (url) => 'https://thingproxy.freeboard.io/fetch/' + url,                 // 독립 프록시 보강
   (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),            // corsproxy 구 포맷(폴백)
 ];
 async function _fetchJsonWithProxies(targetUrl) {
@@ -13620,7 +13625,6 @@ const _NEWS_PROXIES = [
   (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
   (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
   (url) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(url),  // {contents:"..."}
-  (url) => 'https://thingproxy.freeboard.io/fetch/' + url,
 ];
 
 async function _fetchTextWithProxies(targetUrl, timeoutMs) {
