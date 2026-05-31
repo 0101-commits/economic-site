@@ -10619,8 +10619,9 @@ async function _fetchViaProxies(target, parseJson=true) {
 }
 
 async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
-  // 네이버 증권 모바일 JSON API — CORS 지원 (Origin/Referer 헤더 자동 처리)
-  // 1차: 직접 호출 (브라우저가 CORS 허용 시), 2차: 다중 CORS 프록시 폴백
+  // 네이버 모바일 종목 랭킹 API. 단, 이 엔드포인트가 세션 중 404(폐기)로 확인되면 재시도 중단 —
+  // 콘솔 404 폭주를 막고 서버 data.json(pykrx) 값을 사용한다. (페이지 새로고침 시 플래그 리셋)
+  if(window._naverTop10Dead) return null;
   const direct = `https://m.stock.naver.com/api/stocks/exchange/${market}/${direction}?page=1&pageSize=30`;
   const directAlt = `https://api.stock.naver.com/stock/exchange/${market}/${direction}?page=1&pageSize=30`;
   const targets = [direct, directAlt];
@@ -10646,6 +10647,9 @@ async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
       return parsed;
     }
   }
+  // 모든 타깃이 응답 없음(엔드포인트 폐기/404) → 세션 내 재시도 중단
+  window._naverTop10Dead = true;
+  console.info('[NaverStock] 종목 랭킹 엔드포인트 응답 없음 — 세션 내 재시도 중단(서버 data.json 사용)');
   return null;
 }
 
@@ -11346,12 +11350,13 @@ async function _fetchNaverChartHistory(symbol, validate, daysBack=730) {
   const startDt = new Date(endDt.getTime() - daysBack * 86400000);
   const fmt = d => d.toISOString().slice(0,10).replace(/-/g,'');
   const url = `https://m.stock.naver.com/front-api/external/chart/domestic/info?symbol=${symbol}&requestType=1&startTime=${fmt(startDt)}&endTime=${fmt(endDt)}&timeframe=day`;
+  // 직접 호출(url) 제거 — 네이버는 CORS 미허용이라 'blocked by CORS'만 남김. 전용 Worker 1순위.
   const proxies = [
-    url,
-    'https://corsproxy.io/?' + encodeURIComponent(url),
+    (typeof _cfProxyUrl==='function') ? _cfProxyUrl(url) : null,
     'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
     'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
-  ];
+    'https://corsproxy.io/?url=' + encodeURIComponent(url),
+  ].filter(Boolean);
   for(const u of proxies) {
     try {
       const r = await fetch(u, { signal: AbortSignal.timeout(8000) });
