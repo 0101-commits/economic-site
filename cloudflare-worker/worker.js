@@ -113,9 +113,10 @@ async function handleAiSummary(request, env) {
   if (geminiKey) {
     const gModels = [];
     if (typeof payload.geminiModel === 'string' && payload.geminiModel) gModels.push(payload.geminiModel);
-    // 고성능 최신 → 무료 등급 한도/가용성 폴백 순. 2.5 Pro(최고 성능, 무료 등급 한도 작음) →
-    // 2.5 Flash(고성능·무료 한도 넉넉) → 2.0 Flash → 1.5 Flash. 한도 초과(429)면 자동으로 다음 모델.
-    gModels.push('gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash');
+    // 2.5 Pro 는 무료 등급 한도가 매우 작아 429(quota exceeded)가 상시 발생 → 제외하고,
+    // '고성능 최신 + 무료 한도 넉넉'한 gemini-2.5-flash 를 1순위로. (실측: 2.5-flash 200 OK)
+    // payload.geminiModel 로 2.5-pro 등 강제 지정은 여전히 가능.
+    gModels.push('gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash');
     for (const gm of gModels) {
       try {
         const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + gm + ':generateContent', {
