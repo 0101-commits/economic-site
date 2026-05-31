@@ -2844,56 +2844,92 @@ def _applyhome_region_bucket(area_nm):
     return "other"
 
 
-def fetch_applyhome_subscription(max_items=100):
+def _data_go_kr_get(url, params, timeout=20):
+    """data.go.kr/odcloud GET — serviceKey 이중 인코딩 버그 회피.
+
+    data.go.kr 인증키가 '인코딩 키'(%2B 등 포함)면 requests 가 % 를 다시 인코딩(%25)해 401 이
+    난다. 키에 '%' 가 있으면 쿼리스트링을 직접 만들어 raw 로 붙이고(params 재인코딩 회피),
+    아니면 평소대로 params 로 전달한다.
+    """
+    key = DATA_GO_KR_API_KEY
+    if "%" in key:
+        from urllib.parse import urlencode
+        qs = urlencode({k: v for k, v in params.items()})
+        full = f"{url}?serviceKey={key}&{qs}"
+        return requests.get(full, timeout=timeout)
+    p = dict(params)
+    p["serviceKey"] = key
+    return requests.get(url, params=p, timeout=timeout)
+
+
+def fetch_applyhome_subscription(max_items=200):
     """청약홈(한국부동산원) 최근 APT 분양정보 — data.go.kr odcloud API.
 
-    프론트의 '청약 경쟁률' 지역 클릭 드릴다운(Task 4)에 쓸 '최근 분양 단지' 목록을
-    공급지역 버킷(서울/경기인천/지방광역시/기타)별로 묶어 만든다. 1순위 경쟁률은 별도
-    서비스(주택관리번호 기준)라 여기선 단지명·지역·모집공고일 중심으로 싣고, 경쟁률 상세는
-    프론트가 청약홈 링크로 안내한다. DATA_GO_KR_API_KEY 필요. 실패해도 빌드는 계속(빈 dict).
-    Returns: {"byRegion": {...}, "source": ..., "lastFetched": ...} 또는 {}.
+    프론트 '청약 경쟁률' 지역 드릴다운(Task 4)용 '최근 분양 단지'를 지역 버킷
+    (서울/경기인천/지방광역시/기타)으로 묶는다. 여러 엔드포인트 변형을 시도하고, 각 시도의
+    상태/응답 일부를 진단 문자열로 모은다(원격 data.json.diagnostics 에 기록 → 사후 점검).
+    Returns: (result_dict_or_{}, diag_str).
     """
     if not DATA_GO_KR_API_KEY:
-        log("[청약홈] DATA_GO_KR_API_KEY 없음 — 분양정보 건너뜀")
-        return {}
-    url = "https://api.odcloud.kr/api/ApplyhomeInfoDetailSvc/v1/getAPTLttotPblancDetail"
-    try:
-        r = requests.get(url, params={
-            "page": 1, "perPage": max_items, "serviceKey": DATA_GO_KR_API_KEY,
-        }, timeout=20)
-        if r.status_code != 200:
-            log(f"[청약홈] HTTP {r.status_code} — 건너뜀")
-            return {}
-        data = r.json()
-        rows = data.get("data") if isinstance(data, dict) else None
-        if not rows:
-            log("[청약홈] 분양정보 응답 비어있음 — 건너뜀")
-            return {}
-        rows = sorted(rows, key=lambda it: str(it.get("RCRIT_PBLANC_DE") or ""), reverse=True)
-        by = {"seoul": [], "gyeonggi": [], "metro": [], "other": []}
-        for it in rows:
-            name = it.get("HOUSE_NM") or ""
-            if not name:
+        return {}, "DATA_GO_KR_API_KEY 미설정"
+    since = (datetime.now(KST) - timedelta(days=365)).strftime("%Y-%m-%d")
+    # 등록 차수/플랫폼에 따라 경로가 달라질 수 있어 후보를 순차 시도.
+    candidates = [
+        "https://api.odcloud.kr/api/ApplyhomeInfoDetailSvc/v1/getAPTLttotPblancDetail",
+        "https://api.odcloud.kr/api/ApplyhomeInfoSvc/v1/getAPTLttotPblancDetail",
+        "https://api.odcloud.kr/api/15110480/v1/getAPTLttotPblancDetail",
+    ]
+    diag = []
+    for url in candidates:
+        tag = url.split("/api/")[-1].split("/")[0]
+        for use_cond in (True, False):  # 날짜 필터가 막히면 필터 없이 재시도
+            params = {"page": 1, "perPage": max_items}
+            if use_cond:
+                params["cond[RCRIT_PBLANC_DE::GTE]"] = since
+            try:
+                r = _data_go_kr_get(url, params)
+            except Exception as e:
+                diag.append(f"{tag} ERR {type(e).__name__}:{str(e)[:60]}")
+                break
+            snippet = (r.text or "")[:140].replace("\n", " ").replace("\r", " ")
+            if r.status_code != 200:
+                diag.append(f"{tag} HTTP{r.status_code} {snippet}")
+                continue  # 다음 변형(필터 제거) 또는 다음 후보 URL 시도
+            try:
+                data = r.json()
+            except Exception:
+                diag.append(f"{tag} 200 non-JSON {snippet}")
                 continue
-            area = it.get("SUBSCRPT_AREA_CODE_NM") or ""
-            date = (str(it.get("RCRIT_PBLANC_DE") or ""))[:10]
-            b = _applyhome_region_bucket(area)
-            if len(by[b]) >= 15:
+            rows = data.get("data") if isinstance(data, dict) else None
+            if not rows:
+                tc = data.get("totalCount") if isinstance(data, dict) else "?"
+                diag.append(f"{tag} 200 no-data tc={tc} {snippet}")
                 continue
-            by[b].append({"name": name, "area": area, "date": date, "rate": None})
-        total = sum(len(v) for v in by.values())
-        if not total:
-            return {}
-        log(f"[청약홈] 분양정보 {total}건 수집 (서울 {len(by['seoul'])}/경기인천 {len(by['gyeonggi'])}"
-            f"/광역 {len(by['metro'])}/기타 {len(by['other'])})")
-        return {
-            "byRegion": by,
-            "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-            "lastFetched": datetime.now(KST).isoformat(),
-        }
-    except Exception as e:
-        log(f"[청약홈] 오류: {e}")
-        return {}
+            rows = sorted(rows, key=lambda it: str(it.get("RCRIT_PBLANC_DE") or ""), reverse=True)
+            by = {"seoul": [], "gyeonggi": [], "metro": [], "other": []}
+            for it in rows:
+                name = it.get("HOUSE_NM") or it.get("BSNS_MBY_NM") or ""
+                if not name:
+                    continue
+                area = it.get("SUBSCRPT_AREA_CODE_NM") or it.get("HSSPLY_ADRES") or ""
+                date = (str(it.get("RCRIT_PBLANC_DE") or ""))[:10]
+                b = _applyhome_region_bucket(area)
+                if len(by[b]) >= 15:
+                    continue
+                by[b].append({"name": name, "area": area, "date": date, "rate": None})
+            total = sum(len(v) for v in by.values())
+            if not total:
+                diag.append(f"{tag} parsed-0/{len(rows)}rows")
+                continue
+            diag.append(f"OK {tag} {total}건")
+            log(f"[청약홈] {total}건 수집 via {tag}")
+            return {
+                "byRegion": by,
+                "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
+                "lastFetched": datetime.now(KST).isoformat(),
+            }, " | ".join(diag)
+    log(f"[청약홈] 수집 실패 — {' | '.join(diag)}")
+    return {}, " | ".join(diag)
 
 
 def fetch_molit_apt_trade_count(months_back=3):
@@ -5020,13 +5056,16 @@ def build_data():
 
     # ── 청약홈 분양정보 (지역별 드릴다운용) ──────────────────
     # 프론트 '청약 경쟁률' 지역 클릭 시 최근 분양 단지를 지역별로 보여주기 위함.
+    # 진단 문자열을 항상 data.json.diagnostics.subscription 에 기록 → 원격에서 실패 원인 점검.
     try:
-        subs = fetch_applyhome_subscription()
+        subs, sub_diag = fetch_applyhome_subscription()
+        data.setdefault("diagnostics", {})["subscription"] = sub_diag
         if subs and subs.get("byRegion"):
             data["subscription"] = subs
             data["sources"]["subscription"] = subs.get("source", "청약홈(data.go.kr)")
     except Exception as e:
         log(f"[청약홈] 수집 오류: {e}")
+        data.setdefault("diagnostics", {})["subscription"] = f"EXC {type(e).__name__}:{str(e)[:80]}"
 
     # ── 한국수출입은행 EXIM: 환율/금리 검증용 ────────────────
     if EXIM_API_KEY:

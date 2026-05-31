@@ -3851,9 +3851,14 @@ function showSubscriptionDetail(regionKey) {
     });
     body += `</tbody></table></div>`;
   } else {
+    // 서버 진단(diagnostics.subscription)에 키 미등록(활용신청 필요) 신호가 있으면 actionable 안내.
+    const _subDiag = String(((_latestDataForIndicators||{}).diagnostics||{}).subscription || '');
+    const _needsApply = /NOT_REGISTERED|REGISTERED|HTTP40|SERVICE.?KEY/i.test(_subDiag);
+    const _hint = _needsApply
+      ? '실시간 단지 데이터를 위해 <b>data.go.kr 의 "한국부동산원_청약홈 분양정보" 서비스 활용신청</b>이 필요합니다(무료, 즉시 승인). 신청 후 자동 표시됩니다.'
+      : '이 지역의 <b>실시간 단지별 청약 정보</b>는 청약홈(data.go.kr) 연동 시 자동 표시됩니다. 현재는 세부 지역 구조만 제공합니다.';
     body += `<div style="background:var(--c-card-hi,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:7px;padding:12px;font-size:12px;color:var(--c-txt-dim,#8d90a2);line-height:1.6;">
-      이 지역의 <b>실시간 단지별 청약 경쟁률</b>은 청약홈(data.go.kr) 연동 시 자동 표시됩니다.
-      현재는 세부 지역 구조만 제공합니다. 단지별 상세 경쟁률은 아래 청약홈에서 확인하세요.</div>`;
+      ${_hint} 단지별 상세 경쟁률은 아래 청약홈에서 확인하세요.</div>`;
   }
   const meta = (sub.lastFetched ? `청약홈 수집: ${new Date(sub.lastFetched).toLocaleDateString('ko-KR')} · ` : '') +
     `<a href="https://www.applyhome.co.kr" target="_blank" rel="noopener" style="color:#2962ff;">청약홈에서 보기 →</a>`;
