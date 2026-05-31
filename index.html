@@ -12524,8 +12524,12 @@ async function refreshAiMarketSummary(btn) {
         if(dt) dt.textContent = '기준 ' + new Date().toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
         used = 'claude';
       } else {
-        // 실패 사유 캡처 — 사용자/디버깅에 노출 (예: Workers AI 바인딩 미적용, 모델 오류)
+        // 실패 사유 캡처 — 사용자/디버깅에 노출 (예: Gemini 키 거부, API 미활성, 모델 오류)
         aiFailNote = (j && (j.message || j.error)) ? String(j.message || j.error) : ('HTTP ' + (resp && resp.status));
+        // 엔진별 시도 결과(diag.tried)가 있으면 첫 오류를 함께 노출 → 정확한 원인 파악
+        if(j && j.diag && Array.isArray(j.diag.tried) && j.diag.tried.length) {
+          aiFailNote += ' — ' + j.diag.tried.slice(0,2).join(' / ');
+        }
         if(j && j.diag) console.warn('[aiSummary] /ai 진단:', j.diag);
       }
     } catch(e) {

@@ -201,6 +201,29 @@ async function handleAiSummary(request, env) {
   }, 503);
 }
 
+// 진단용 — 실제 Gemini 호출을 최소 프롬프트로 시도해 정확한 상태/오류 메시지를 돌려준다.
+// GET /ai?test=1 에서 호출. (키가 거부되는지 / API 미활성 / 모델 문제인지 즉시 식별)
+async function _testGemini(key) {
+  const models = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const attempts = [];
+  for (const m of models) {
+    try {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'OK' }] }], generationConfig: { maxOutputTokens: 5 } }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) return { ok: true, model: m, status: r.status, attempts };
+      attempts.push({ model: m, status: r.status, error: ((d && d.error && d.error.message) || '').slice(0, 200) });
+    } catch (e) {
+      attempts.push({ model: m, error: String((e && e.message) || e).slice(0, 120) });
+    }
+  }
+  return { ok: false, attempts };
+}
+
 export default {
   async fetch(request, env) {
     // CORS preflight
@@ -223,7 +246,7 @@ export default {
     // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.
     if (reqUrl.pathname === '/ai') {
       const hasGemini = !!(env && env.GEMINI_API_KEY);
-      return jsonResponse({
+      const out = {
         ok: true, service: 'ai-health',
         geminiKey: hasGemini,
         aiBinding: !!(env && env.AI),
@@ -232,7 +255,12 @@ export default {
         hint: hasGemini ? 'Google Gemini 무료 API 사용 가능'
             : (env && env.AI) ? 'Workers AI 사용 가능'
             : 'GEMINI_API_KEY 시크릿을 추가하면 무료 Gemini 사용 가능 (aistudio.google.com/apikey)',
-      });
+      };
+      // GET /ai?test=1 — 실제 Gemini 호출을 시도해 정확한 성공/오류를 함께 반환(진단용).
+      if (reqUrl.searchParams.get('test') === '1' && hasGemini) {
+        out.geminiTest = await _testGemini(env.GEMINI_API_KEY);
+      }
+      return jsonResponse(out);
     }
     const target = reqUrl.searchParams.get('url');
 
