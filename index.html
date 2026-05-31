@@ -2802,20 +2802,22 @@ function _flashBtn(btn) {
 async function refreshSentiment(btn) {
   if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'loading');
   try {
-    if(typeof fetchSentimentClient==='function' && typeof applySentimentClient==='function') {
+    if(window._REALTIME_BOOST && typeof fetchSentimentClient==='function' && typeof applySentimentClient==='function') {
       applySentimentClient(await fetchSentimentClient());
+    } else if(typeof loadRealData==='function') {
+      await loadRealData();   // data.json 전용 모드 — 서버값 재적용
     }
     if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'success', '갱신');
   } catch(e) {
     if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'error', '실패');
   }
 }
-// 주식시장 Top10 '새로고침'/'다시 시도' — data.json 재페치 + 클라이언트 실시간 페치 후 재렌더.
+// 주식시장 Top10 '새로고침'/'다시 시도' — data.json 재페치 + (보강 모드 시) 클라이언트 실시간 페치 후 재렌더.
 async function retryEquityMovers(btn) {
   if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'loading');
   try {
     if(typeof loadRealData==='function') await loadRealData().catch(()=>{});  // 서버 data.json 최신화
-    const ok = await refreshMoversFromClient(true);                            // 네이버 실시간 보강
+    const ok = window._REALTIME_BOOST ? await refreshMoversFromClient(true) : true;  // 보강 모드만 네이버 페치
     if(typeof buildEquityPage==='function') buildEquityPage();
     if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? '갱신' : '응답 없음');
   } catch(e) {
@@ -5354,6 +5356,7 @@ function buildMoverTable(dir) {
     const _krOpen = (typeof window._isKrMarketOpen==='function') && window._isKrMarketOpen();
     const timeStale = !isClientRT && _krOpen && _ageMin!=null && _ageMin > 15;
     const shouldRetry =
+      window._REALTIME_BOOST &&                       // data.json 전용 모드면 클라 보강 트리거 안 함
       (emptyCount > data.length / 2 || allZero || serverStale || timeStale) &&
       curMoverType === 'stock' &&
       !_clientMoverFetchInFlight &&
@@ -5411,7 +5414,7 @@ function buildMoverTable(dir) {
       <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버에서 직접 보기 →</a>
     </td></tr>`;
     // 자동 트리거: 빈 데이터일 때 백그라운드에서 1회만 페치 시도 (무한 루프 방지)
-    if(!_clientMoverFetchInFlight && _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH) {
+    if(window._REALTIME_BOOST && !_clientMoverFetchInFlight && _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH) {
       _clientMoverFetchInFlight = true;
       _clientMoverFetchAttempts++;
       refreshMoversFromClient().finally(()=>{
@@ -10551,6 +10554,12 @@ document.addEventListener('click', (e) => {
 // 중계하므로 모든 클라이언트 페치(Top10·VIX·시계열·뉴스)가 최우선으로 그곳을 사용한다.
 // 미설정 시(빈 문자열)에는 기존 공개 프록시로 자동 폴백 → 사이트는 정상 동작.
 const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.baldr0001.workers.dev';  // 배포된 Cloudflare Worker 프록시
+// ── data.json 전용 모드 ──────────────────────────────────────────────
+// 클라이언트 실시간 '보강' 페치(네이버 Top10/ETF·Stooq 시세·클라 뉴스 새로고침·시장심리)는
+// 네이버 API 폐기·공개 CORS 프록시 rate-limit 으로 대부분 실패하며 콘솔 오류만 남긴다.
+// 기본을 OFF 로 두어 화면은 GitHub Actions 가 ~10~30분 주기로 갱신하는 data.json 만 사용한다.
+// (콘솔 0줄.) 실시간 보강을 다시 켜려면 브라우저 콘솔에서: window._REALTIME_BOOST = true
+window._REALTIME_BOOST = (function(){ try { return localStorage.getItem('realtimeBoost') === '1'; } catch(_) { return false; } })();
 function _cfProxyBase() {
   try { return (localStorage.getItem('cfProxyBase') || CF_PROXY_DEFAULT || '').trim().replace(/\/+$/,''); }
   catch(_) { return (CF_PROXY_DEFAULT || '').replace(/\/+$/,''); }
@@ -10727,6 +10736,7 @@ async function manualRetryMovers(btn) {
 
 // 클라이언트 사이드에서 Top10 데이터 페치 + applyRealData 호출
 async function refreshMoversFromClient(showStatus=false) {
+  if(!window._REALTIME_BOOST) return false;   // data.json 전용 모드 — 네이버 보강 페치 비활성
   const statusEl = document.getElementById('moverRefDate');
   if(statusEl && showStatus) statusEl.textContent = '갱신 중…';
   try {
@@ -11273,6 +11283,14 @@ async function refreshFxData(btn) {
   //  크럼 요구로 자주 실패해 '새로고침이 안 되는' 것처럼 보였다.)
   _refreshFeedback(btn, 'loading');
   try {
+    if(!window._REALTIME_BOOST) {
+      // data.json 전용 모드 — 서버 data.json 재페치로 환율 갱신
+      if(typeof loadRealData==='function') await loadRealData();
+      if(typeof buildFxPage==='function') buildFxPage();
+      if(typeof buildTicker==='function') buildTicker();
+      _refreshFeedback(btn, 'success', '갱신');
+      return;
+    }
     const n = await loadRealtimeFx();   // 환율+변화율, 내부에서 FX 페이지/티커/헤더 재렌더
     if (n > 0) _refreshFeedback(btn, 'success', `${n}건 갱신`);
     else       _refreshFeedback(btn, 'error', '네트워크 오류');
@@ -11457,6 +11475,7 @@ try {
 
 async function fetchSentimentClient() {
   const out = {};
+  if(!window._REALTIME_BOOST) return out;   // data.json 전용 모드 — 시장심리 클라 페치 비활성(서버 data.json 사용)
   // 1) KSVKOSPI (KOSPI 200 변동성지수, 한국거래소 공식) — 네이버 차트 API
   //    정식 심볼 코드 KSVKOSPI 가 사용자 보는 finance.naver.com/sise/sise_index.naver?code=KSVKOSPI
   //    페이지와 동일한 시계열 데이터. 구 코드 VKOSPI 도 시도.
@@ -12975,7 +12994,8 @@ function applyRealData(d) {
     });
     return m >= Math.max(2, Math.floor(arr.length / 2));
   };
-  if((_moversLookCorrupt(movers.kospiGainers) || _moversLookCorrupt(movers.kospiLosers))
+  if(window._REALTIME_BOOST
+     && (_moversLookCorrupt(movers.kospiGainers) || _moversLookCorrupt(movers.kospiLosers))
      && typeof refreshMoversFromClient === 'function'
      && !_clientMoverFetchInFlight && _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH) {
     console.warn('[movers] 거래량≈현재가 정렬오류 감지 → 클라이언트 실시간 페치 트리거');
@@ -13514,6 +13534,7 @@ async function refreshAllData(btn) {
 // ============================
 let _fxFirstLoad = true;  // 최초 페치 시 변화율 계산 건너뜀 (하드코딩 기본값 대비 비교 방지)
 async function loadRealtimeFx() {
+  if(!window._REALTIME_BOOST) return 0;   // data.json 전용 모드 — FX 는 서버 data.json 값 사용
   // 실시간 환율 — 대시보드 KOSPI 지수와 '동일한' 경로(Stooq → CF 워커/공개 프록시 풀)로 가져온다.
   // 이전 구현은 open.er-api.com 을 브라우저에서 직접 fetch 했는데 (1) CORS 차단으로 자주 실패하고
   // (2) 무료 티어가 하루 1회만 갱신해 변화율이 사실상 0 이라 '새로고침이 안 되는' 문제가 있었다.
@@ -13864,9 +13885,10 @@ async function loadFreshNews() {
   } catch(_) {}
 
   // 2) 클라이언트 CORS 프록시로 추가 갱신 (서버측 페치 실패 카테고리 + 더 최신 기사)
+  //    data.json 전용 모드면 생략 — 서버 뉴스(33건)만 표시(공개 프록시 rate-limit 오류 방지).
   const arrays = { newsItems, commodityNewsItems, macroNewsItems, calendarNewsItems };
   const tasks = [];
-  for (const [arrName, queries] of Object.entries(NEWS_QUERIES)) {
+  if(window._REALTIME_BOOST) for (const [arrName, queries] of Object.entries(NEWS_QUERIES)) {
     for (const {idx, q} of queries) {
       tasks.push(fetchLatestArticles(q, 5).then(freshList => {
         if (!freshList || !freshList.length) return;
@@ -13934,6 +13956,7 @@ async function fetchStooqHistory(symbol) {
 }
 
 async function loadRealtimeMarket() {
+  if(!window._REALTIME_BOOST) return;   // data.json 전용 모드 — 지수/원자재는 서버 data.json 값 사용
   const indexTasks = [
     { s:'^kospi',    key:'KOSPI'    },
     { s:'^kosdaq',   key:'KOSDAQ'   },
