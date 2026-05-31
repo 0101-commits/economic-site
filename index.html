@@ -10566,25 +10566,32 @@ function _buildCorsProxyUrls(target) {
   const cf = _cfProxyUrl(target);
   if(cf) list.push(cf);                                     // 전용 Worker 최우선 (설정 시)
   list.push(
-    target,                                                 // 직접 호출 (브라우저가 CORS 허용 시)
+    // 직접 호출(target)은 제거 — 네이버/야후 등은 CORS 미허용이라 매번 콘솔에 'blocked by CORS'
+    // 오류만 남긴다(try/catch로도 브라우저 CORS 로그는 못 막음). 전용 Worker 를 1순위로 쓴다.
     'https://api.allorigins.win/raw?url=' + enc,            // 가장 안정적
     'https://api.codetabs.com/v1/proxy/?quest=' + enc,
     'https://corsproxy.io/?url=' + enc,                     // 신 포맷(?url=)
     'https://api.allorigins.win/get?url=' + enc,            // wrapped JSON (.contents)
-    // thingproxy.freeboard.io 제거 — DNS 미해소(ERR_NAME_NOT_RESOLVED)로 매 호출 콘솔 오류만 유발.
   );
   return list;
 }
 
 async function _fetchViaProxies(target, parseJson=true) {
   // 결과: 파싱된 JSON 또는 null. 다중 프록시 순차 시도, 각 8초 timeout.
+  const cfBase = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
   for(const url of _buildCorsProxyUrls(target)) {
+    const isWorker = cfBase && url.indexOf(cfBase) === 0;
     try {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 8000);
       const r = await fetch(url, { headers: { 'Accept': 'application/json,text/plain,*/*' }, signal: ctrl.signal });
       clearTimeout(tid);
-      if(!r.ok) continue;
+      if(!r.ok) {
+        // 전용 Worker(적절한 헤더 주입)가 상류 4xx 를 그대로 전달 = 대상 API 가 거부/없음(예: 폐기된 엔드포인트).
+        // 헤더가 더 약한 공개 프록시로 재시도해도 동일하므로 즉시 중단 → 콘솔 오류 폭주 방지.
+        if(isWorker && r.status >= 400 && r.status < 500) return null;
+        continue;
+      }
       if(!parseJson) {
         const txt = await r.text();
         return txt;
@@ -11300,11 +11307,13 @@ const _SENTIMENT_PROXIES = [
   (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),            // corsproxy 구 포맷(폴백)
 ];
 async function _fetchJsonWithProxies(targetUrl) {
+  const cfBase = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
   for(const mk of _SENTIMENT_PROXIES) {
     const purl = mk(targetUrl); if(!purl) continue;   // CF 미설정 등으로 null이면 스킵
+    const isWorker = cfBase && purl.indexOf(cfBase) === 0;
     try {
       const r = await fetch(purl, { signal: AbortSignal.timeout(6000) });
-      if(!r.ok) continue;
+      if(!r.ok) { if(isWorker && r.status >= 400 && r.status < 500) return null; continue; }  // Worker 4xx=상류 거부 → 중단
       const j = await r.json();
       if(j) return j;
     } catch(_) { /* try next */ }
@@ -13628,12 +13637,14 @@ const _NEWS_PROXIES = [
 ];
 
 async function _fetchTextWithProxies(targetUrl, timeoutMs) {
+  const cfBase = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
   for(const mk of _NEWS_PROXIES) {
     try {
       const url = mk(targetUrl);
       if(!url) continue;                                                     // CF 미설정 시 null 스킵
+      const isWorker = cfBase && url.indexOf(cfBase) === 0;
       const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs || 7000) });
-      if(!r.ok) continue;
+      if(!r.ok) { if(isWorker && r.status >= 400 && r.status < 500) return null; continue; }  // Worker 4xx=상류 거부 → 중단
       let text = await r.text();
       // allorigins.win/get 는 {contents:"..."} JSON 래퍼 → 내부 본문 추출
       if(url.includes('allorigins.win/get')) {

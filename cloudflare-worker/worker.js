@@ -38,6 +38,8 @@ const ALLOWED_HOSTS = [
   // 뉴스 RSS (선택)
   'news.google.com',
   'www.bing.com',
+  'rss.daum.net',
+  'news.daum.net',
 ];
 
 const CORS = {
