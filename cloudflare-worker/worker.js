@@ -51,7 +51,8 @@ const CORS = {
 
 // 타깃 호스트별 주입 헤더 — 브라우저가 못 보내는 Referer/Origin/User-Agent 등.
 function originHeaders(host) {
-  if (host === 'finance.naver.com' || host.endsWith('stock.naver.com')) {
+  // m.stock.naver.com / api.stock.naver.com → 모바일 JSON API: 모바일 UA + m.stock Referer/Origin
+  if (host.endsWith('stock.naver.com')) {
     return {
       'User-Agent':
         'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 ' +
@@ -60,6 +61,19 @@ function originHeaders(host) {
       'Accept-Language': 'ko-KR,ko;q=0.9',
       'Referer': 'https://m.stock.naver.com/',
       'Origin': 'https://m.stock.naver.com',
+    };
+  }
+  // finance.naver.com → 데스크톱 시세 HTML(sise_rise/sise_fall.naver) 스크래핑용:
+  // 데스크톱 UA + finance Referer. (모바일 UA 로 요청하면 모바일/리다이렉트 HTML 이 와서
+  // 데스크톱 표 구조(table.type_2)를 못 파싱한다. 서버 fetch_data.py 와 동일한 헤더.)
+  if (host === 'finance.naver.com') {
+    return {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      'Referer': 'https://finance.naver.com/',
     };
   }
   return {
