@@ -135,13 +135,19 @@ async function handleAiSummary(request, env) {
     gModels.push('gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash');
     for (const gm of gModels) {
       try {
+        // Gemini 2.5 계열은 'thinking' 모델 → 출력 토큰이 작으면 내부 사고(thinking)에 다 소진해
+        // 본문 텍스트가 빈 채 finishReason=MAX_TOKENS 로 끝난다(요약 실패의 주원인). 요약엔 추론이
+        // 불필요하므로 2.5 계열은 thinking 을 끄고(thinkingBudget:0) 출력 토큰도 넉넉히 준다.
+        // (2.0/1.5 계열은 thinkingConfig 미지원 → 400 방지 위해 미적용.)
+        const genCfg = { maxOutputTokens: 2048, temperature: 0.7 };
+        if (gm.indexOf('gemini-2.5') === 0) genCfg.thinkingConfig = { thinkingBudget: 0 };
         const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + gm + ':generateContent', {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-goog-api-key': geminiKey },
           body: JSON.stringify({
             system_instruction: { parts: [{ text: system }] },
             contents: [{ role: 'user', parts: [{ text: userMsg }] }],
-            generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+            generationConfig: genCfg,
           }),
           signal: AbortSignal.timeout(25000),
         });
@@ -233,12 +239,23 @@ async function _testGemini(key) {
       const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'OK' }] }], generationConfig: { maxOutputTokens: 5 } }),
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: '"정상"이라고만 한국어로 답하세요.' }] }],
+          generationConfig: (function () { const g = { maxOutputTokens: 256 }; if (m.indexOf('gemini-2.5') === 0) g.thinkingConfig = { thinkingBudget: 0 }; return g; })(),
+        }),
         signal: AbortSignal.timeout(15000),
       });
       const d = await r.json().catch(() => null);
-      if (r.ok) return { ok: true, model: m, status: r.status, attempts };
-      attempts.push({ model: m, status: r.status, error: ((d && d.error && d.error.message) || '').slice(0, 200) });
+      // HTTP 200 만으로 성공 처리하지 않는다 — thinking 모델은 200 이어도 본문이 빌 수 있어
+      // (운영 경로 handleAiSummary 와 동일하게) '실제 텍스트' 가 있어야 ok 로 본다.
+      if (r.ok && d && Array.isArray(d.candidates) && d.candidates[0]) {
+        const parts = (d.candidates[0].content && d.candidates[0].content.parts) || [];
+        const text = parts.map(p => (p && p.text) || '').join('').trim();
+        if (text) return { ok: true, model: m, status: r.status, attempts };
+        attempts.push({ model: m, status: r.status, error: 'empty(' + (d.candidates[0].finishReason || '') + ')' });
+      } else {
+        attempts.push({ model: m, status: r.status, error: ((d && d.error && d.error.message) || '').slice(0, 200) });
+      }
     } catch (e) {
       attempts.push({ model: m, error: String((e && e.message) || e).slice(0, 120) });
     }
@@ -326,7 +343,16 @@ export default {
     headers.set('Cache-Control', 'public, max-age=30');
     headers.set('X-Proxy-Upstream-Status', String(upstream.status));
 
-    const resp = new Response(body, { status: upstream.status, headers });
+    // Yahoo Finance 차트 API 는 '없는 심볼/폐기 경로' 에 4xx(주로 404)를 주지만 body 는 정상 JSON
+    // ({chart:{result:null,error:{...}}})이고, 모든 소비자(_fetchJsonWithProxies·fetchYahooQuote 등)가
+    // result==null 을 graceful 폴백 처리한다. 4xx 를 그대로 통과시키면 브라우저 콘솔에 '빨간 404' 만
+    // 쌓인다(JS 가 try/catch·null 체크로 처리해도 네트워크 레벨 로그는 못 막음). 따라서 Yahoo 의 4xx 는
+    // 200 으로 클램프해 콘솔 에러를 없앤다 — 원래 상태는 위 X-Proxy-Upstream-Status 헤더로 보존하므로
+    // 디버깅/동작에는 영향 없음.
+    const isYahoo = t.hostname.endsWith('finance.yahoo.com');
+    const outStatus = (isYahoo && upstream.status >= 400 && upstream.status < 500) ? 200 : upstream.status;
+
+    const resp = new Response(body, { status: outStatus, headers });
     // 성공 응답만 edge 캐시에 저장
     if (upstream.ok) {
       try { await cache.put(cacheKey, resp.clone()); } catch (_) { /* ignore */ }
