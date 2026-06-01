@@ -11631,8 +11631,9 @@ async function fetchSentimentClient() {
   } catch(_) {}
   if(!out.move) {
     try {
-      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EMOVE&range=1y&interval=1d');
-      const node = j?.spark?.result?.[0]?.response?.[0];
+      // Yahoo v7 finance/spark 는 폐기됨(404) → 현행 v8 finance/chart 사용 (VKOSPI 와 동일).
+      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v8/finance/chart/%5EMOVE?range=1y&interval=1d');
+      const node = j?.chart?.result?.[0];
       const ts = node?.timestamp;
       const c  = node?.indicators?.quote?.[0]?.close;
       if(Array.isArray(c) && Array.isArray(ts)) {
@@ -11668,8 +11669,9 @@ async function fetchSentimentClient() {
   } catch(_) {}
   if(!out.vix) {
     try {
-      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v7/finance/spark?symbols=%5EVIX&range=1y&interval=1d');
-      const node = j?.spark?.result?.[0]?.response?.[0];
+      // Yahoo v7 finance/spark 는 폐기됨(404) → 현행 v8 finance/chart 사용 (VKOSPI 와 동일).
+      const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?range=1y&interval=1d');
+      const node = j?.chart?.result?.[0];
       const ts = node?.timestamp;
       const c  = node?.indicators?.quote?.[0]?.close;
       if(Array.isArray(c) && Array.isArray(ts)) {
