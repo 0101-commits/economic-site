@@ -6,9 +6,14 @@
 <title>경제현황 터미널</title>
 <!-- 인라인 SVG 파비콘(📈) — favicon.ico 404 제거 -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E"/>
-<!-- Tailwind CDN 의 'should not be used in production' 권고 경고만 선택적으로 숨김(동작 무관). 다른 경고는 그대로 통과. -->
-<script>(function(){var _w=console.warn;console.warn=function(){try{if(arguments[0]&&String(arguments[0]).indexOf('cdn.tailwindcss.com')>=0)return;}catch(e){}return _w.apply(console,arguments);};})();</script>
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- ⛔ Tailwind Play CDN 제거됨 (의도적) — 근본 원인 제거:
+     · 이 페이지는 Tailwind '유틸리티 클래스'(flex/grid/p-4/bg-* 등)를 단 하나도 쓰지 않는다.
+       모든 스타일은 아래 <style> 의 커스텀 CSS(.widget/.kpi-card/.tab-btn 등) + 인라인 style 로 처리된다.
+     · 그런데 cdn.tailwindcss.com(Play CDN)은 런타임 JIT 컴파일에 eval()/new Function() 을 사용하므로,
+       CSP(콘텐츠 보안 정책)가 'unsafe-eval' 을 허용하지 않는 환경(브라우저 확장/프록시/일부 호스팅)에서
+       "Content Security Policy blocks the use of 'eval'" 콘솔 오류를 유발했다.
+     · 사용처가 0 이므로 스크립트를 제거 → eval 호출 자체가 사라져 CSP eval 오류가 영구히 발생하지 않는다.
+       (시각적 변화 없음. 외부 의존성/네트워크 요청도 1개 감소.) 다시 추가하지 말 것. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Leaflet (OpenStreetMap) — 도메인 제한 없음 -->
@@ -55,32 +60,10 @@
     }
   } catch(_){}
 </script>
-<script>
-tailwind.config = {
-  darkMode: 'class',
-  theme: {
-    extend: {
-      colors: {
-        'bg':       '#0f131e',
-        'surface':  '#131722',
-        'card':     '#1b1f2b',
-        'card-hi':  '#262a35',
-        'border':   '#2a2e3d',
-        'primary':  '#b6c4ff',
-        'accent':   '#2962ff',
-        'txt':      '#dfe2f2',
-        'txt-dim':  '#8d90a2',
-        'up':       '#26a69a',
-        'down':     '#ef5350',
-      },
-      fontFamily: {
-        display: ['Public Sans', 'sans-serif'],
-        data:    ['Inter', 'sans-serif'],
-      }
-    }
-  }
-}
-</script>
+<!-- (Tailwind 설정 블록 제거됨) 위 Play CDN 을 제거했으므로 전역 `tailwind` 객체가 없다.
+     이 config 를 남겨두면 `tailwind is not defined` ReferenceError 가 나므로 함께 제거한다.
+     여기서 정의하던 색상(bg/card/border/up/down 등)은 Tailwind 클래스로 쓰인 적이 없고,
+     실제 테마 색은 아래 <style> 의 CSS 변수(--c-bg, --c-card, --c-up 등)로 관리된다. -->
 <style>
   /* ======= CSS 변수 — 다크 테마 (기본) ======= */
   :root {
@@ -10554,12 +10537,19 @@ document.addEventListener('click', (e) => {
 // 중계하므로 모든 클라이언트 페치(Top10·VIX·시계열·뉴스)가 최우선으로 그곳을 사용한다.
 // 미설정 시(빈 문자열)에는 기존 공개 프록시로 자동 폴백 → 사이트는 정상 동작.
 const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.baldr0001.workers.dev';  // 배포된 Cloudflare Worker 프록시
-// ── data.json 전용 모드 ──────────────────────────────────────────────
-// 클라이언트 실시간 '보강' 페치(네이버 Top10/ETF·Stooq 시세·클라 뉴스 새로고침·시장심리)는
-// 네이버 API 폐기·공개 CORS 프록시 rate-limit 으로 대부분 실패하며 콘솔 오류만 남긴다.
-// 기본을 OFF 로 두어 화면은 GitHub Actions 가 ~10~30분 주기로 갱신하는 data.json 만 사용한다.
-// (콘솔 0줄.) 실시간 보강을 다시 켜려면 브라우저 콘솔에서: window._REALTIME_BOOST = true
-window._REALTIME_BOOST = (function(){ try { return localStorage.getItem('realtimeBoost') === '1'; } catch(_) { return false; } })();
+// ── 클라이언트 실시간 보강 (기본 ON) ──────────────────────────────────
+// 왜 기본 ON 인가: 화면을 GitHub Actions 의 data.json 에만 의존하면 '오늘자 실시간'이 안 된다.
+// GitHub Actions 의 고빈도 스케줄 크론(*/10)은 GitHub 측에서 best-effort 라 장중에도 자주
+// 지연/누락된다(실측: 장중 09:00~10:40 사이 10분 크론이 9회 발화해야 하나 커밋 0건, 매시간
+// 크론만 불규칙 발화). 그 결과 data.json 이 직전 거래일 종가·장 시작 전 스냅샷에 묶여
+// "오늘자 실시간 갱신 안 됨" 증상이 반복됐다.
+// → 브라우저가 장중 1분마다 전용 Cloudflare Worker 프록시로 직접 시세를 받아 보강하는 것이
+//   '실시간'의 유일한 신뢰 경로다(원래 설계 의도). 전용 Worker 는 네이버/야후/Stooq/CNN 에
+//   적절한 헤더를 주입해 CORS 안전하게 중계하므로, 과거 '공개 프록시 실패로 인한 콘솔 오류'
+//   문제도 대부분 사라진다. 모든 클라 페치는 try/catch + 죽은 엔드포인트 자동 차단(아래 플래그)
+//   으로 조용히 실패하므로, 보강을 켜도 콘솔 에러가 폭주하지 않는다.
+// 끄려면(서버 data.json 전용 모드): 콘솔에서 localStorage.setItem('realtimeBoost','0') 후 새로고침.
+window._REALTIME_BOOST = (function(){ try { return localStorage.getItem('realtimeBoost') !== '0'; } catch(_) { return true; } })();
 function _cfProxyBase() {
   try { return (localStorage.getItem('cfProxyBase') || CF_PROXY_DEFAULT || '').trim().replace(/\/+$/,''); }
   catch(_) { return (CF_PROXY_DEFAULT || '').replace(/\/+$/,''); }
@@ -12585,10 +12575,16 @@ async function refreshAiMarketSummary(btn) {
   // 3) 폴백 — Worker/AI 미응답 시 자체 룰기반 요약 + 미응답 사유 표기
   if(used === 'fallback') {
     try {
-      buildAiMarketSummary(btn);  // 룰기반 요약 렌더 + 버튼 피드백
+      buildAiMarketSummary(btn);  // 룰기반 요약 렌더 + 버튼 피드백 (네트워크/키 없이 항상 동작)
       if(bodyEl && aiFailNote) {
+        // 실패 유형 분기: (a) AI 엔진 미설정(키/바인딩 없음) vs (b) 일시 오류/네트워크.
+        // (a)는 사용자가 키만 넣으면 해결되므로 '무엇을 하면 되는지'를 정확히 안내한다.
+        const needsKey = /no_ai_available|AI 엔진|GEMINI|ANTHROPIC|바인딩|미설정|503/i.test(aiFailNote);
+        const hint = needsKey
+          ? '실시간 AI 요약 엔진이 아직 연결되지 않았습니다. Cloudflare Worker 에 무료 <b>GEMINI_API_KEY</b> 시크릿을 추가하면 자동으로 켜집니다 — 키 발급(무료): <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:#7a9bff;text-decoration:underline;">aistudio.google.com/apikey</a>. 그때까지는 아래 <b>룰기반 요약</b>이 표시됩니다.'
+          : ('실시간 AI 엔진이 일시적으로 응답하지 않아(' + aiFailNote + ') 룰기반 요약을 표시 중입니다. 잠시 후 다시 시도해 주세요.');
         bodyEl.insertAdjacentHTML('beforeend',
-          '<div style="font-size:9.5px;color:var(--c-txt-muted,#6a6f80);margin-top:6px;">ℹ️ 실시간 AI 엔진 미응답 (' + aiFailNote + ') — 룰기반 요약을 표시 중입니다.</div>');
+          '<div style="font-size:10px;line-height:1.55;color:var(--c-txt-dim,#8d90a2);margin-top:8px;padding:7px 9px;background:var(--c-card-hi,#1b1f2b);border:1px solid var(--c-border,#2a2e3d);border-radius:6px;">ℹ️ ' + hint + '</div>');
       }
       return;
     } catch(e) {
@@ -14001,10 +13997,11 @@ async function loadRealtimeMarket() {
       const now = new Date();
       sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> Stooq 실시간: ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
     }
-    console.info(`[Stooq] ${count}개 시세 갱신 완료`);
+    // 보강이 기본 ON 이라 장중 1분마다 호출된다 → 정상 동작 로그는 debug 로(콘솔 기본 비표시) 노이즈 억제.
+    console.debug(`[Stooq] ${count}개 시세 갱신 완료`);
   } else {
-    // Stooq CORS 차단 시 — data.json fallback 안내
-    console.warn('[Stooq] 데이터 페치 실패 (CORS 차단 가능성). data.json 값 사용 중.');
+    // 모든 프록시 실패 = 처리된 폴백(서버 data.json 값 사용). 에러가 아니므로 debug 로 낮춤.
+    console.debug('[Stooq] 데이터 페치 실패 — data.json 값 사용 중 (정상 폴백).');
   }
 }
 
