@@ -104,19 +104,21 @@ async function handleAiSummary(request, env) {
     '```json\n' + JSON.stringify(snapshot).slice(0, 50000) + '\n```';
 
   // 진단 정보 — 어떤 엔진을 왜 못 썼는지 응답에 담아 프론트/사용자가 원인을 알 수 있게 한다.
-  const diag = { gemini: !!(env && env.GEMINI_API_KEY), aiBinding: !!(env && env.AI), anthropicKey: !!(env && env.ANTHROPIC_API_KEY), tried: [] };
+  const diag = { gemini: !!(env && (env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.GEMINI_KEY)), aiBinding: !!(env && env.AI), anthropicKey: !!(env && env.ANTHROPIC_API_KEY), tried: [] };
 
   // ── 1) Google Gemini (무료 API) — env.GEMINI_API_KEY 시크릿이 있으면 최우선 사용 ──
   // 무료 키 발급: https://aistudio.google.com/apikey (Google AI Studio). 키는 Worker 시크릿에만 보관.
   // 모델 가용성/한도가 바뀔 수 있어 여러 모델을 순차 시도한다.
-  const geminiKey = env && env.GEMINI_API_KEY;
+  // 키 이름은 환경마다 다르게 넣는 경우가 많아(별칭) 여러 후보를 허용 → 잘못 명명해도 동작.
+  const geminiKey = env && (env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.GEMINI_KEY);
   if (geminiKey) {
     const gModels = [];
     if (typeof payload.geminiModel === 'string' && payload.geminiModel) gModels.push(payload.geminiModel);
     // 2.5 Pro 는 무료 등급 한도가 매우 작아 429(quota exceeded)가 상시 발생 → 제외하고,
     // '고성능 최신 + 무료 한도 넉넉'한 gemini-2.5-flash 를 1순위로. (실측: 2.5-flash 200 OK)
-    // payload.geminiModel 로 2.5-pro 등 강제 지정은 여전히 가능.
-    gModels.push('gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash');
+    // 모델명이 버전업으로 사라져도 견디도록 '-latest' 별칭을 폴백에 섞는다(없으면 404 → 다음 후보 자동 시도).
+    // payload.geminiModel 로 강제 지정도 여전히 가능.
+    gModels.push('gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash');
     for (const gm of gModels) {
       try {
         const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + gm + ':generateContent', {
@@ -199,7 +201,7 @@ async function handleAiSummary(request, env) {
   // ── 4) 모두 불가 → 503 (프론트가 자체 룰기반 요약으로 폴백) + 진단 ──
   return jsonResponse({
     error: 'no_ai_available',
-    message: 'AI 엔진 미응답 — GEMINI_API_KEY(무료) / Workers AI 바인딩 / ANTHROPIC_API_KEY 중 하나가 필요합니다. 프론트는 룰기반 요약으로 폴백합니다.',
+    message: 'AI 엔진이 설정되지 않았습니다 — 무료 GEMINI_API_KEY(발급: https://aistudio.google.com/apikey) 시크릿을 Worker 에 추가하거나, Workers AI 바인딩 / ANTHROPIC_API_KEY 중 하나가 필요합니다. 프론트는 룰기반 요약으로 폴백합니다.',
     diag,
   }, 503);
 }
@@ -248,7 +250,8 @@ export default {
     // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.
     // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.
     if (reqUrl.pathname === '/ai') {
-      const hasGemini = !!(env && env.GEMINI_API_KEY);
+      const geminiKey = env && (env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.GEMINI_KEY);
+      const hasGemini = !!geminiKey;
       const out = {
         ok: true, service: 'ai-health',
         geminiKey: hasGemini,
@@ -261,7 +264,7 @@ export default {
       };
       // GET /ai?test=1 — 실제 Gemini 호출을 시도해 정확한 성공/오류를 함께 반환(진단용).
       if (reqUrl.searchParams.get('test') === '1' && hasGemini) {
-        out.geminiTest = await _testGemini(env.GEMINI_API_KEY);
+        out.geminiTest = await _testGemini(geminiKey);
       }
       return jsonResponse(out);
     }
