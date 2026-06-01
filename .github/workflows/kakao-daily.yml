@@ -1,0 +1,43 @@
+name: KakaoTalk Daily Digest (10AM KST)
+
+# 매일 오전 10시(KST = 01:00 UTC) data.json 시황 요약을 카카오톡 '나에게 보내기'로 발송한다.
+# GitHub Actions 스케줄은 UTC 기준이며 best-effort 라 몇 분 지연될 수 있다.
+#
+# 사전 설정(1회) — 저장소 루트 KAKAO_SETUP.md 참고:
+#   GitHub → Settings → Secrets and variables → Actions 에 아래 2개 등록
+#     - KAKAO_REST_API_KEY   : 카카오 개발자 앱 REST API 키
+#     - KAKAO_REFRESH_TOKEN  : talk_message scope 로 발급한 refresh_token
+#
+# 테스트: Actions 탭에서 이 워크플로를 'Run workflow'(workflow_dispatch)로 즉시 수동 발송 가능.
+on:
+  schedule:
+    - cron: '0 1 * * *'    # 매일 01:00 UTC = 10:00 KST
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kakao-daily-digest
+  cancel-in-progress: false
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (최신 data.json)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Send KakaoTalk digest
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+        run: python scripts/send_kakao_digest.py
