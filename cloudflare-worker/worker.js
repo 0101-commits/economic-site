@@ -209,7 +209,10 @@ async function handleAiSummary(request, env) {
 // 진단용 — 실제 Gemini 호출을 최소 프롬프트로 시도해 정확한 상태/오류 메시지를 돌려준다.
 // GET /ai?test=1 에서 호출. (키가 거부되는지 / API 미활성 / 모델 문제인지 즉시 식별)
 async function _testGemini(key) {
-  const models = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  // 운영 경로(handleAiSummary)와 동일하게 flash 계열만 점검한다. gemini-2.5-pro 는 무료 한도가
+  // 매우 작아 429 가 상시 떠 진단을 '실패처럼' 오해하게 만들고, 실제 요약에서도 쓰지 않으므로 제외.
+  // 첫 성공에서 즉시 반환하므로 정상 키라면 attempts 가 비거나 거의 비어 보인다.
+  const models = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   const attempts = [];
   for (const m of models) {
     try {
