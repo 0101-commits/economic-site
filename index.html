@@ -10724,15 +10724,70 @@ async function manualRetryMovers(btn) {
   }
 }
 
+// 네이버 '주식' 종목 등락 Top10 — finance.naver.com 시세 HTML(EUC-KR)을 전용 Worker 경유로 스크래핑.
+// 모바일 JSON API(.../stocks/exchange/...)가 2026 폐기(404)된 뒤, 서버 fetch_data.py 의 검증된 폴백
+// 경로(sise_rise.naver=상승 / sise_fall.naver=하락, sosok=0:KOSPI/1:KOSDAQ)와 '동일'하다.
+// 데스크톱 시세 페이지는 200 정상이라 콘솔 404 가 안 나고, 장중 거의 실시간으로 갱신된다.
+// EUC-KR 정확 해독을 위해 arrayBuffer 를 TextDecoder('euc-kr') 로 디코딩(공개 프록시는 charset 깨짐 →
+// 전용 Worker 만 사용; 미설정 시 null 반환 → 서버 data.json 사용). 파싱 정규식은 서버 _scrape 와 동일.
+async function fetchNaverStockMoversHtmlClient(market='KOSPI', direction='up') {
+  const sosok = (String(market).toUpperCase() === 'KOSDAQ') ? '1' : '0';
+  const page  = (direction === 'down') ? 'sise_fall' : 'sise_rise';
+  const target = `https://finance.naver.com/sise/${page}.naver?sosok=${sosok}`;
+  const purl = (typeof _cfProxyUrl === 'function') ? _cfProxyUrl(target) : null;
+  if(!purl) return null;
+  let html = null;
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(()=>ctrl.abort(), 8000);
+    const r = await fetch(purl, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if(!r.ok) return null;
+    const buf = await r.arrayBuffer();
+    try { html = new TextDecoder('euc-kr').decode(new Uint8Array(buf)); }
+    catch(_) { html = new TextDecoder('utf-8').decode(new Uint8Array(buf)); }
+  } catch(_) { return null; }
+  if(!html) return null;
+  const today = new Date().toISOString().slice(0,10);
+  const items = [];
+  // <a href="/item/main.naver?code=NNNNNN" ... class="tltle">종목명</a> … </tr>
+  const rowRe = /<a\s+href="\/item\/main\.naver\?code=(\d+)"[^>]*class="tltle"[^>]*>([^<]+)<\/a>([\s\S]*?)<\/tr>/g;
+  let m;
+  while((m = rowRe.exec(html)) !== null && items.length < 10) {
+    const code = m[1];
+    const name = m[2].replace(/&amp;/g,'&').trim();
+    const rest = m[3];
+    const numbers = [...rest.matchAll(/<td[^>]*class="number"[^>]*>([^<]+)<\/td>/g)].map(x => x[1]);
+    const chgMatch = rest.match(/([+\-]?[\d.]+)\s*%/);
+    if(numbers.length < 2 || !chgMatch) continue;
+    const price = parseFloat(numbers[0].replace(/,/g,'').trim());
+    let chg = parseFloat(chgMatch[1]);
+    if(!isFinite(price) || !isFinite(chg)) continue;
+    // 페이지가 부호 없이 표기하는 경우 대비 — 방향으로 부호 강제(상승 +, 하락 −).
+    chg = (direction === 'down') ? -Math.abs(chg) : Math.abs(chg);
+    let vol = 0;
+    for(const n of numbers.slice(2)) {
+      const c = n.replace(/,/g,'').trim();
+      if(/^\d+$/.test(c)) { const v = parseInt(c,10); if(v > 100) { vol = v; break; } }
+    }
+    items.push({ name, code, price, chg, vol, as_of: today });
+  }
+  return items.length ? items : null;
+}
+
 // 클라이언트 사이드에서 Top10 데이터 페치 + applyRealData 호출
 async function refreshMoversFromClient(showStatus=false) {
   if(!window._REALTIME_BOOST) return false;   // data.json 전용 모드 — 네이버 보강 페치 비활성
   const statusEl = document.getElementById('moverRefDate');
   if(statusEl && showStatus) statusEl.textContent = '갱신 중…';
   try {
+    // 네이버 '주식' 종목 랭킹 JSON API(m/api.stock.naver.com/.../stocks/exchange/...)는 2026 폐기(404).
+    // → 서버 fetch_data.py 와 동일한 검증 경로(finance.naver.com/sise/sise_rise|fall.naver, EUC-KR HTML)
+    //   를 전용 Worker 경유로 스크래핑한다. 데스크톱 시세 HTML 은 200 정상이라 콘솔 404 가 안 난다.
+    //   ETF 는 정상 JSON API(.../etf/domestic) 유지. (=작동하는 소스만 호출 → 콘솔 0 에러 + 실시간.)
     const [kup, kdown, etf] = await Promise.all([
-      fetchNaverStockMoversClient('KOSPI', 'up').catch(()=>null),
-      fetchNaverStockMoversClient('KOSPI', 'down').catch(()=>null),
+      fetchNaverStockMoversHtmlClient('KOSPI', 'up').catch(()=>null),
+      fetchNaverStockMoversHtmlClient('KOSPI', 'down').catch(()=>null),
       fetchNaverETFMoversClient().catch(()=>null),
     ]);
     const patch = { stockMovers: {}, etfMovers: {}, fx:{}, indices:{}, commodities:{}, sources:{} };
@@ -12510,7 +12565,8 @@ async function refreshAiMarketSummary(btn) {
   if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn,'loading');
   const bodyEl = document.getElementById('aiSummaryBody');
   if(bodyEl) bodyEl.innerHTML = '<div style="color:var(--c-txt-dim,#8d90a2);padding:10px 4px;">⟳ 현재 시점의 실시간 데이터를 수집해 AI 가 분석 중입니다…</div>';
-  // 1) '그 당시'의 실시간 데이터 수집
+  // 1) '그 당시'의 실시간 데이터 수집 (최신 스냅샷용; 실패해도 이미 로드된 data.json 으로 진행)
+  console.info('[aiSummary] ① 실시간 데이터 수집 시작');
   try {
     const tasks = [];
     if(typeof loadRealData==='function')    tasks.push(loadRealData());
@@ -12530,6 +12586,7 @@ async function refreshAiMarketSummary(btn) {
   const base = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
   let used = 'fallback';
   let aiFailNote = '';
+  console.info('[aiSummary] ② Worker /ai 호출' + (base ? (' → ' + base) : ' (base 미설정 → 룰기반)'));
   if(base) {
     try {
       const ctrl = new AbortController();
@@ -12542,6 +12599,7 @@ async function refreshAiMarketSummary(btn) {
       });
       clearTimeout(tid);
       const j = await resp.json().catch(()=>null);
+      console.info('[aiSummary] ③ /ai 응답 HTTP ' + resp.status + (j ? (' engine=' + (j.engine||'-') + ' summary=' + (j.summary?'있음':'없음')) : ' (JSON 파싱 실패)'));
       if(resp.ok && j && j.summary) {
         if(bodyEl) {
           // 어떤 엔진이 생성했는지 표기 (Gemini/Workers AI/Claude).
@@ -13880,11 +13938,15 @@ async function loadFreshNews() {
     }
   } catch(_) {}
 
-  // 2) 클라이언트 CORS 프록시로 추가 갱신 (서버측 페치 실패 카테고리 + 더 최신 기사)
-  //    data.json 전용 모드면 생략 — 서버 뉴스(33건)만 표시(공개 프록시 rate-limit 오류 방지).
+  // 2) 클라이언트 뉴스 보강 — 기본 비활성 (의도적, 콘솔 0 에러 원칙).
+  //    Google News RSS·Daum RSS(rss.daum.net)는 공개 프록시에서 400/530 으로 자주 실패해
+  //    콘솔에 빨간 에러를 다수 남기는데, 서버 data.json.news(수십 건)가 이미 충분하고 뉴스는
+  //    분 단위 실시간이 불필요하다. 따라서 _REALTIME_BOOST(지수/시세용)와 분리해 별도 플래그로
+  //    기본 OFF 로 둔다. 굳이 켜려면 콘솔: localStorage.setItem('newsClientFetch','1') 후 새로고침.
   const arrays = { newsItems, commodityNewsItems, macroNewsItems, calendarNewsItems };
   const tasks = [];
-  if(window._REALTIME_BOOST) for (const [arrName, queries] of Object.entries(NEWS_QUERIES)) {
+  const _newsClientOn = (function(){ try { return localStorage.getItem('newsClientFetch') === '1'; } catch(_) { return false; } })();
+  if(_newsClientOn) for (const [arrName, queries] of Object.entries(NEWS_QUERIES)) {
     for (const {idx, q} of queries) {
       tasks.push(fetchLatestArticles(q, 5).then(freshList => {
         if (!freshList || !freshList.length) return;
@@ -13951,41 +14013,62 @@ async function fetchStooqHistory(symbol) {
   return { price: close, change: +changePct.toFixed(2) };
 }
 
+// Yahoo Finance v8 chart — 장중 '실시간(지연)' 시세. meta.regularMarketPrice(현재가) +
+// meta.chartPreviousClose(전일 종가)로 당일 등락률을 계산한다. Stooq 일봉(i=d)은 장중에
+// '직전 거래일 종가'에 고정되어 월요일 장중에도 KOSPI 가 금요일 종가(8476.15)로 멈춰 보였는데,
+// Yahoo 는 장중 현재가를 주므로 그 문제를 해결한다. (sentiment 의 ^VKOSPI 페치와 동일 경로/검증된 패턴.)
+async function fetchYahooQuote(symbol) {
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?range=1d&interval=1m';
+    const j = await _fetchJsonWithProxies(url);
+    const meta = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+    if(!meta) return null;
+    const price = (meta.regularMarketPrice != null) ? meta.regularMarketPrice : meta.previousClose;
+    const prev  = (meta.chartPreviousClose != null) ? meta.chartPreviousClose : meta.previousClose;
+    if(price == null || !isFinite(price) || price <= 0) return null;
+    const change = (prev != null && prev > 0) ? +(((price - prev) / prev) * 100).toFixed(2) : 0;
+    return { price: +(+price).toFixed(2), change };
+  } catch(_) { return null; }
+}
+
 async function loadRealtimeMarket() {
   if(!window._REALTIME_BOOST) return;   // data.json 전용 모드 — 지수/원자재는 서버 data.json 값 사용
+  // y: Yahoo 심볼(장중 실시간) · s: Stooq 심볼(폴백, EOD). Yahoo 우선 → 실패 시 Stooq.
   const indexTasks = [
-    { s:'^kospi',    key:'KOSPI'    },
-    { s:'^kosdaq',   key:'KOSDAQ'   },
-    { s:'^spx',      key:'SP500'    },
-    { s:'^ndq',      key:'NASDAQ'   },
-    { s:'^nkx',      key:'Nikkei'   },
-    { s:'000001.ss', key:'Shanghai' },
+    { y:'^KS11',     s:'^kospi',    key:'KOSPI'    },
+    { y:'^KQ11',     s:'^kosdaq',   key:'KOSDAQ'   },
+    { y:'^GSPC',     s:'^spx',      key:'SP500'    },
+    { y:'^IXIC',     s:'^ndq',      key:'NASDAQ'   },
+    { y:'^N225',     s:'^nkx',      key:'Nikkei'   },
+    { y:'000001.SS', s:'000001.ss', key:'Shanghai' },
   ];
   const comTasks = [
-    { s:'cl.f',   key:'WTI'      },
-    { s:'co.f',   key:'Brent'    },
-    { s:'xauusd', key:'Gold'     },
-    { s:'xagusd', key:'Silver'   },
-    { s:'hg.f',   key:'Copper'   },
-    { s:'xptusd', key:'Platinum' },   // 백금 (Stooq 스팟)
-    { s:'ng.f',   key:'NatGas'   },   // 천연가스 (NYMEX)
+    { y:'CL=F', s:'cl.f',   key:'WTI'      },
+    { y:'BZ=F', s:'co.f',   key:'Brent'    },
+    { y:'GC=F', s:'xauusd', key:'Gold'     },
+    { y:'SI=F', s:'xagusd', key:'Silver'   },
+    { y:'HG=F', s:'hg.f',   key:'Copper'   },
+    { y:'PL=F', s:'xptusd', key:'Platinum' },   // 백금
+    { y:'NG=F', s:'ng.f',   key:'NatGas'   },   // 천연가스
   ];
 
   const patchIdx = {}, patchCom = {};
-  let count = 0;
+  let count = 0, yahooCount = 0;
+  // Yahoo(장중 실시간) 우선 → 실패 시 Stooq(EOD) 폴백. 둘 다 전용 Worker/공개 프록시 경유라 CORS 안전.
+  const grab = async (y, s) => {
+    const q = await fetchYahooQuote(y).catch(()=>null);
+    if(q) { yahooCount++; return q; }
+    return await fetchStooqHistory(s).catch(()=>null);
+  };
 
   await Promise.all([
-    ...indexTasks.map(async ({ s, key }) => {
-      try {
-        const q = await fetchStooqHistory(s);
-        if (q) { patchIdx[key] = q; count++; }
-      } catch { /* CORS or network 차단 — 조용히 무시 */ }
+    ...indexTasks.map(async ({ y, s, key }) => {
+      const q = await grab(y, s);
+      if (q) { patchIdx[key] = q; count++; }
     }),
-    ...comTasks.map(async ({ s, key }) => {
-      try {
-        const q = await fetchStooqHistory(s);
-        if (q) { patchCom[key] = q; count++; }
-      } catch { /* 조용히 무시 */ }
+    ...comTasks.map(async ({ y, s, key }) => {
+      const q = await grab(y, s);
+      if (q) { patchCom[key] = q; count++; }
     }),
   ]);
 
@@ -13995,13 +14078,14 @@ async function loadRealtimeMarket() {
     const sbEl = document.getElementById('dataSourceInfo');
     if (sbEl) {
       const now = new Date();
-      sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> Stooq 실시간: ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
+      const src = yahooCount > 0 ? 'Yahoo 실시간' : 'Stooq';
+      sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> ${src}: ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
     }
     // 보강이 기본 ON 이라 장중 1분마다 호출된다 → 정상 동작 로그는 debug 로(콘솔 기본 비표시) 노이즈 억제.
-    console.debug(`[Stooq] ${count}개 시세 갱신 완료`);
+    console.debug(`[지수·원자재] ${count}개 갱신 (Yahoo ${yahooCount}, Stooq ${count - yahooCount})`);
   } else {
-    // 모든 프록시 실패 = 처리된 폴백(서버 data.json 값 사용). 에러가 아니므로 debug 로 낮춤.
-    console.debug('[Stooq] 데이터 페치 실패 — data.json 값 사용 중 (정상 폴백).');
+    // 모든 소스 실패 = 처리된 폴백(서버 data.json 값 사용). 에러가 아니므로 debug 로 낮춤.
+    console.debug('[지수·원자재] 실시간 페치 실패 — data.json 값 사용 중 (정상 폴백).');
   }
 }
 

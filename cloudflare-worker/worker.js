@@ -51,7 +51,8 @@ const CORS = {
 
 // 타깃 호스트별 주입 헤더 — 브라우저가 못 보내는 Referer/Origin/User-Agent 등.
 function originHeaders(host) {
-  if (host === 'finance.naver.com' || host.endsWith('stock.naver.com')) {
+  // m.stock.naver.com / api.stock.naver.com → 모바일 JSON API: 모바일 UA + m.stock Referer/Origin
+  if (host.endsWith('stock.naver.com')) {
     return {
       'User-Agent':
         'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 ' +
@@ -60,6 +61,19 @@ function originHeaders(host) {
       'Accept-Language': 'ko-KR,ko;q=0.9',
       'Referer': 'https://m.stock.naver.com/',
       'Origin': 'https://m.stock.naver.com',
+    };
+  }
+  // finance.naver.com → 데스크톱 시세 HTML(sise_rise/sise_fall.naver) 스크래핑용:
+  // 데스크톱 UA + finance Referer. (모바일 UA 로 요청하면 모바일/리다이렉트 HTML 이 와서
+  // 데스크톱 표 구조(table.type_2)를 못 파싱한다. 서버 fetch_data.py 와 동일한 헤더.)
+  if (host === 'finance.naver.com') {
+    return {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      'Referer': 'https://finance.naver.com/',
     };
   }
   return {
@@ -209,7 +223,10 @@ async function handleAiSummary(request, env) {
 // 진단용 — 실제 Gemini 호출을 최소 프롬프트로 시도해 정확한 상태/오류 메시지를 돌려준다.
 // GET /ai?test=1 에서 호출. (키가 거부되는지 / API 미활성 / 모델 문제인지 즉시 식별)
 async function _testGemini(key) {
-  const models = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  // 운영 경로(handleAiSummary)와 동일하게 flash 계열만 점검한다. gemini-2.5-pro 는 무료 한도가
+  // 매우 작아 429 가 상시 떠 진단을 '실패처럼' 오해하게 만들고, 실제 요약에서도 쓰지 않으므로 제외.
+  // 첫 성공에서 즉시 반환하므로 정상 키라면 attempts 가 비거나 거의 비어 보인다.
+  const models = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   const attempts = [];
   for (const m of models) {
     try {
