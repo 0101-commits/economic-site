@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-06T18:20:10.962222+09:00",
+  "lastUpdated": "2026-06-06T18:35:20.272924+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -23,8 +23,7 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-06T15:50)",
-    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강",
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-06T18:20)",
     "sentiment_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
@@ -11068,6 +11067,21 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
+      },
       "trade_count_kr_rone": {
         "value": 76391.0,
         "prev": 78432.0,
@@ -11577,21 +11591,6 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
-      },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -173704,7 +173703,7 @@
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 2,
-    "preservedMetricsDeep": 2,
+    "preservedMetricsDeep": 1,
     "historySpotSynced": 15
   },
   "subscription": {
@@ -174079,7 +174078,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-06-06T18:32:01.253012+09:00"
+    "lastFetched": "2026-06-06T18:46:35.184636+09:00"
   },
   "nps": {
     "allocation": [
@@ -174108,7 +174107,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-06-06T18:32:28.805707+09:00",
+    "lastFetched": "2026-06-06T18:47:02.421570+09:00",
     "채권": [
       {
         "title": "기관 외화증권투자 42.6억달러↓…중동전쟁·국채금리 상승 영향",
@@ -174186,10 +174185,10 @@
     ],
     "귀금속": [
       {
-        "title": "20% 미끄러진 금값…골드바·골드뱅킹도 4개월째 내리막",
-        "url": "https://www.msn.com/ko-kr/news/other/20-%EB%AF%B8%EB%81%84%EB%9F%AC%EC%A7%84-%EA%B8%88%EA%B0%92-%EA%B3%A8%EB%93%9C%EB%B0%94-%EA%B3%A8%EB%93%9C%EB%B1%85%ED%82%B9%EB%8F%84-4%EA%B0%9C%EC%9B%94%EC%A7%B8-%EB%82%B4%EB%A6%AC%EB%A7%89/ar-AA24a0z4",
+        "title": "1돈 '100만→80만원' 金투자 시들…골드바·골드뱅킹 4개월째 하락세",
+        "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/1%EB%8F%88-100%EB%A7%8C-80%EB%A7%8C%EC%9B%90-%EF%A4%8A%ED%88%AC%EC%9E%90-%EC%8B%9C%EB%93%A4-%EA%B3%A8%EB%93%9C%EB%B0%94-%EA%B3%A8%EB%93%9C%EB%B1%85%ED%82%B9-4%EA%B0%9C%EC%9B%94%EC%A7%B8-%ED%95%98%EB%9D%BD%EC%84%B8/ar-AA24a0z4",
         "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 14:46:00 GMT"
+        "pubDate": "Wed, 27 May 2026 02:57:38 GMT"
       }
     ],
     "비철금속": [],
@@ -174310,6 +174309,12 @@
     ],
     "한국은행": [
       {
+        "title": "5월 한은 금통위, 기준금리 연 2.5% 8연속 동결…\"물가 등 점검하며 인상 시기 결정\"(종합)",
+        "url": "https://www.msn.com/ko-kr/news/other/5%EC%9B%94-%ED%95%9C%EC%9D%80-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%97%B0-25-8%EC%97%B0%EC%86%8D-%EB%8F%99%EA%B2%B0-%EB%AC%BC%EA%B0%80-%EB%93%B1-%EC%A0%90%EA%B2%80%ED%95%98%EB%A9%B0-%EC%9D%B8%EC%83%81-%EC%8B%9C%EA%B8%B0-%EA%B2%B0%EC%A0%95%EC%A2%85%ED%95%A9/ar-AA24evlS",
+        "isoDate": "2026-05-27",
+        "pubDate": "Wed, 27 May 2026 21:42:30 GMT"
+      },
+      {
         "title": "‘신현송 체제 첫 금통위’ 한국은행, 8회 연속 기준금리 동결",
         "url": "https://futurechosun.com/archives/149882",
         "isoDate": "2026-05-28",
@@ -174326,12 +174331,6 @@
         "url": "https://www.yna.co.kr/view/MYH20260528007500038",
         "isoDate": "2026-05-27",
         "pubDate": "Wed, 27 May 2026 18:33:00 GMT"
-      },
-      {
-        "title": "신현송 한은총재 취임 후 첫 금통위 기준금리 연 2.5%로 묶었다: 추가 인상 가능성은 '활짝' 열어놨다",
-        "url": "https://www.msn.com/ko-kr/news/other/%EC%8B%A0%ED%98%84%EC%86%A1-%ED%95%9C%EC%9D%80%EC%B4%9D%EC%9E%AC-%EC%B7%A8%EC%9E%84-%ED%9B%84-%EC%B2%AB-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%97%B0-2-5-%EB%A1%9C-%EB%AC%B6%EC%97%88%EB%8B%A4-%EC%B6%94%EA%B0%80-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1%EC%9D%80-%ED%99%9C%EC%A7%9D-%EC%97%B4%EC%96%B4%EB%86%A8%EB%8B%A4/ar-AA24fPIA",
-        "isoDate": "2026-05-28",
-        "pubDate": "Thu, 28 May 2026 01:13:25 GMT"
       },
       {
         "title": "7월 금리 ‘인상론’ 급부상에…한은 총재 “금리 인상할 필요 있다”",
@@ -174416,7 +174415,7 @@
         "iso": "2026-06-05"
       }
     ],
-    "lastFetched": "2026-06-06T18:34:54.810755+09:00",
+    "lastFetched": "2026-06-06T18:48:57.191279+09:00",
     "source": "FRED release dates API",
     "backfilled": 6
   }
