@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-06T15:50:04.364746+09:00",
+  "lastUpdated": "2026-06-06T18:20:10.962222+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -23,7 +23,8 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-06T13:38)",
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-06T15:50)",
+    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강",
     "sentiment_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
@@ -11067,21 +11068,6 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
-      },
       "trade_count_kr_rone": {
         "value": 76391.0,
         "prev": 78432.0,
@@ -11591,6 +11577,21 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
+      },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -173703,7 +173704,7 @@
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 2,
-    "preservedMetricsDeep": 1,
+    "preservedMetricsDeep": 2,
     "historySpotSynced": 15
   },
   "subscription": {
@@ -174078,7 +174079,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-06-06T16:02:14.797058+09:00"
+    "lastFetched": "2026-06-06T18:32:01.253012+09:00"
   },
   "nps": {
     "allocation": [
@@ -174107,7 +174108,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-06-06T16:02:41.899004+09:00",
+    "lastFetched": "2026-06-06T18:32:28.805707+09:00",
     "채권": [
       {
         "title": "기관 외화증권투자 42.6억달러↓…중동전쟁·국채금리 상승 영향",
@@ -174145,9 +174146,9 @@
     "주식": [
       {
         "title": "[ETF시황] 코스피·코스닥 동반 급락…인버스 ETF '강세'",
-        "url": "https://www.newspim.com/news/view/20260605000797",
+        "url": "https://www.msn.com/ko-kr/news/other/etf%EC%8B%9C%ED%99%A9-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%BD%94%EC%8A%A4%EB%8B%A5-%EB%8F%99%EB%B0%98-%EA%B8%89%EB%9D%BD-%EC%9D%B8%EB%B2%84%EC%8A%A4-etf-%EA%B0%95%EC%84%B8/ar-AA24Tk6i",
         "isoDate": "2026-06-05",
-        "pubDate": "Fri, 05 Jun 2026 00:40:00 GMT"
+        "pubDate": "Fri, 05 Jun 2026 00:39:05 GMT"
       },
       {
         "title": "[마감시황] 브로드컴 쇼크에 코스피 5.5% 급락…코스닥 장중 1000선 붕괴",
@@ -174156,22 +174157,22 @@
         "pubDate": "Thu, 04 Jun 2026 23:49:00 GMT"
       },
       {
+        "title": "코스피, 브로드컴 쇼크에 5.5%↓…8160선 마감 [시황]",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%BD%94%EC%8A%A4%ED%94%BC-%EB%B8%8C%EB%A1%9C%EB%93%9C%EC%BB%B4-%EC%87%BC%ED%81%AC%EC%97%90-55-8160%EC%84%A0-%EB%A7%88%EA%B0%90-%EC%8B%9C%ED%99%A9/ar-AA24Ts4S",
+        "isoDate": "2026-06-05",
+        "pubDate": "Fri, 05 Jun 2026 00:02:00 GMT"
+      },
+      {
         "title": "[개장시황] 코스피, 종전 기대감·AI 랠리에 2%대 급등 출발",
         "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/%EA%B0%9C%EC%9E%A5%EC%8B%9C%ED%99%A9-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%A2%85%EC%A0%84-%EA%B8%B0%EB%8C%80%EA%B0%90-ai-%EB%9E%A0%EB%A6%AC%EC%97%90-2-%EB%8C%80-%EA%B8%89%EB%93%B1-%EC%B6%9C%EB%B0%9C/ar-AA24jGJ7",
         "isoDate": "2026-05-28",
         "pubDate": "Thu, 28 May 2026 17:25:20 GMT"
       },
       {
-        "title": "코스피, 브로드컴 쇼크에 5.5%↓…8160선 마감 [시황]",
-        "url": "https://www.dailian.co.kr/news/view/1652877/%EC%BD%94%EC%8A%A4%ED%94%BC-%EB%B8%8C%EB%A1%9C%EB%93%9C%EC%BB%B4-%EC%87%BC%ED%81%AC-558160%EC%84%A0-2026",
-        "isoDate": "2026-06-05",
-        "pubDate": "Fri, 05 Jun 2026 00:02:00 GMT"
-      },
-      {
-        "title": "[마켓 라이브]코스피 1.84% 하락 마감… 외국인 19일 연속 순매도[마감 시황]",
-        "url": "https://www.hankyung.com/article/202606046376i",
-        "isoDate": "2026-06-03",
-        "pubDate": "Wed, 03 Jun 2026 14:06:00 GMT"
+        "title": "코스피·코스닥 급락 출발…美 반도체주 부진에 외인 매도 [개장시황]",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%BD%94%EC%8A%A4%EB%8B%A5-%EA%B8%89%EB%9D%BD-%EC%B6%9C%EB%B0%9C-%E7%BE%8E-%EB%B0%98%EB%8F%84%EC%B2%B4%EC%A3%BC-%EB%B6%80%EC%A7%84%EC%97%90-%EC%99%B8%EC%9D%B8-%EB%A7%A4%EB%8F%84-%EA%B0%9C%EC%9E%A5%EC%8B%9C%ED%99%A9/ar-AA24SG5W",
+        "isoDate": "2026-06-04",
+        "pubDate": "Thu, 04 Jun 2026 17:48:28 GMT"
       }
     ],
     "원자재": [],
@@ -174200,16 +174201,16 @@
         "pubDate": "Wed, 03 Jun 2026 00:02:56 GMT"
       },
       {
-        "title": "OECD, 한국 성장률 2.6%로 상향… “반도체 수요 더 강해지면 추가 상승”",
-        "url": "https://www.kmib.co.kr/article/view.asp?arcid=0029912820",
-        "isoDate": "2026-06-03",
-        "pubDate": "Wed, 03 Jun 2026 00:37:00 GMT"
-      },
-      {
         "title": "\"1분기 GDP 성장률, OECD 최고\"…허장 차관, 파리서 韓투자설명회",
         "url": "https://www.msn.com/ko-kr/news/world/1%EB%B6%84%EA%B8%B0-gdp-%EC%84%B1%EC%9E%A5%EB%A5%A0-oecd-%EC%B5%9C%EA%B3%A0-%ED%97%88%EC%9E%A5-%EC%B0%A8%EA%B4%80-%ED%8C%8C%EB%A6%AC%EC%84%9C-%E9%9F%93%ED%88%AC%EC%9E%90%EC%84%A4%EB%AA%85%ED%9A%8C/ar-AA24SAp8",
         "isoDate": "2026-06-04",
         "pubDate": "Thu, 04 Jun 2026 18:00:00 GMT"
+      },
+      {
+        "title": "OECD, 한국 성장률 2.6%로 상향… “반도체 수요 더 강해지면 추가 상승”",
+        "url": "https://www.kmib.co.kr/article/view.asp?arcid=0029912820",
+        "isoDate": "2026-06-03",
+        "pubDate": "Wed, 03 Jun 2026 00:37:00 GMT"
       },
       {
         "title": "반도체 효과… OECD, 올해 한국 성장률 1.7→2.6%로 올렸다",
@@ -174267,7 +174268,14 @@
     "일본경기": [],
     "독일경기": [],
     "영국경기": [],
-    "유로존": [],
+    "유로존": [
+      {
+        "title": "[유럽 특징주] 유로존 5월 인플레이션 3.2%… 이달 주요 정책금리 인상 가능성 95%",
+        "url": "https://www.newspim.com/news/view/20260602001100",
+        "isoDate": "2026-06-02",
+        "pubDate": "Tue, 02 Jun 2026 07:58:00 GMT"
+      }
+    ],
     "한국수출": [
       {
         "title": "‘고유가 타격’ 이긴 반도체 초호황… 무역수지 16개월 연속 플러스 [뉴스 투데이]",
@@ -174308,16 +174316,16 @@
         "pubDate": "Thu, 28 May 2026 17:50:00 GMT"
       },
       {
+        "title": "‘금리 인상’ 정해진 미래…영끌·빚투족 비상",
+        "url": "https://www.mk.co.kr/news/economy/12066775",
+        "isoDate": "2026-06-04",
+        "pubDate": "Thu, 04 Jun 2026 22:12:00 GMT"
+      },
+      {
         "title": "신현송 체제 첫 한은 금통위…기준금리 8회 연속 동결",
         "url": "https://www.yna.co.kr/view/MYH20260528007500038",
         "isoDate": "2026-05-27",
         "pubDate": "Wed, 27 May 2026 18:33:00 GMT"
-      },
-      {
-        "title": "7월 금리 ‘인상론’ 급부상에…한은 총재 “금리 인상할 필요 있다”",
-        "url": "https://www.mk.co.kr/news/economy/12059993",
-        "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 23:33:00 GMT"
       },
       {
         "title": "신현송 한은총재 취임 후 첫 금통위 기준금리 연 2.5%로 묶었다: 추가 인상 가능성은 '활짝' 열어놨다",
@@ -174326,10 +174334,10 @@
         "pubDate": "Thu, 28 May 2026 01:13:25 GMT"
       },
       {
-        "title": "[5월 금통위] 금리 동결에도 매파색…한은 \"8월 물가 연중 최고\"",
-        "url": "https://www.msn.com/ko-kr/news/other/5%EC%9B%94-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%88%EB%A6%AC-%EB%8F%99%EA%B2%B0%EC%97%90%EB%8F%84-%EB%A7%A4%ED%8C%8C%EC%83%89-%ED%95%9C%EC%9D%80-8%EC%9B%94-%EB%AC%BC%EA%B0%80-%EC%97%B0%EC%A4%91-%EC%B5%9C%EA%B3%A0/ar-AA24gDMv",
-        "isoDate": "2026-05-28",
-        "pubDate": "Thu, 28 May 2026 04:23:55 GMT"
+        "title": "7월 금리 ‘인상론’ 급부상에…한은 총재 “금리 인상할 필요 있다”",
+        "url": "https://www.mk.co.kr/news/economy/12059993",
+        "isoDate": "2026-05-27",
+        "pubDate": "Wed, 27 May 2026 23:33:00 GMT"
       }
     ]
   },
@@ -174408,7 +174416,7 @@
         "iso": "2026-06-05"
       }
     ],
-    "lastFetched": "2026-06-06T16:04:47.471852+09:00",
+    "lastFetched": "2026-06-06T18:34:54.810755+09:00",
     "source": "FRED release dates API",
     "backfilled": 6
   }
