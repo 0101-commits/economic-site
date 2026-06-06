@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-07T05:55:10.079959+09:00",
+  "lastUpdated": "2026-06-07T06:58:05.603060+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -24,8 +24,7 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-07T04:06)",
-    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-07T05:55)"
   },
   "fx": {
     "USDKRW": {
@@ -11068,6 +11067,21 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
+      },
       "trade_count_kr_rone": {
         "value": 76391.0,
         "prev": 78432.0,
@@ -11577,21 +11591,6 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
-      },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -173704,7 +173703,6 @@
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 2,
-    "preservedMetricsDeep": 1,
     "historySpotSynced": 15
   },
   "subscription": {
@@ -174079,7 +174077,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-06-07T06:07:30.797005+09:00"
+    "lastFetched": "2026-06-07T07:07:49.545064+09:00"
   },
   "nps": {
     "allocation": [
@@ -174108,7 +174106,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-06-07T06:07:58.198413+09:00",
+    "lastFetched": "2026-06-07T07:08:02.063659+09:00",
     "채권": [
       {
         "title": "기관 외화증권투자 42.6억달러↓…중동전쟁·국채금리 상승 영향",
@@ -174195,16 +174193,10 @@
     "비철금속": [],
     "한국GDP": [
       {
-        "title": "반도체 호황에도…OECD \"내년 韓 잠재성장률 사상 첫 1.5% 하회\"",
-        "url": "https://www.yna.co.kr/view/AKR20260606041400002",
+        "title": "한국 1분기 성장률 OECD 2위…반도체 특수에 연 3%도 바라본다",
+        "url": "https://www.yna.co.kr/view/AKR20260606044200002",
         "isoDate": "2026-06-06",
-        "pubDate": "Sat, 06 Jun 2026 13:52:00 GMT"
-      },
-      {
-        "title": "OECD, 올 한국 성장률 2.6%로 올려…명목GDP는 10.4%↑",
-        "url": "https://www.msn.com/ko-kr/money/topstories/oecd-%EC%98%AC-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-26-%EB%A1%9C-%EC%98%AC%EB%A0%A4-%EB%AA%85%EB%AA%A9gdp%EB%8A%94-104/ar-AA24HWPN",
-        "isoDate": "2026-06-03",
-        "pubDate": "Wed, 03 Jun 2026 00:02:56 GMT"
+        "pubDate": "Sat, 06 Jun 2026 13:48:00 GMT"
       },
       {
         "title": "\"1분기 GDP 성장률, OECD 최고\"…허장 차관, 파리서 韓투자설명회",
@@ -174213,10 +174205,16 @@
         "pubDate": "Thu, 04 Jun 2026 18:01:00 GMT"
       },
       {
-        "title": "OECD, 올해 한국 성장률 1.7→2.6%…\"산업 쟁의 행위 등은 하방 요인\"",
-        "url": "https://www.msn.com/ko-kr/news/other/oecd-%EC%98%AC%ED%95%B4-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-17-26-%EC%82%B0%EC%97%85-%EC%9F%81%EC%9D%98-%ED%96%89%EC%9C%84-%EB%93%B1%EC%9D%80-%ED%95%98%EB%B0%A9-%EC%9A%94%EC%9D%B8/ar-AA24IhmX",
+        "title": "OECD, 올 한국 성장률 2.6%로 올려…명목GDP는 10.4%↑",
+        "url": "https://www.msn.com/ko-kr/money/topstories/oecd-%EC%98%AC-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-26-%EB%A1%9C-%EC%98%AC%EB%A0%A4-%EB%AA%85%EB%AA%A9gdp%EB%8A%94-104/ar-AA24HWPN",
         "isoDate": "2026-06-03",
-        "pubDate": "Wed, 03 Jun 2026 01:29:00 GMT"
+        "pubDate": "Wed, 03 Jun 2026 00:02:56 GMT"
+      },
+      {
+        "title": "반도체 호황에도…OECD \"내년 韓 잠재성장률 사상 첫 1.5% 하회\"",
+        "url": "https://www.yna.co.kr/view/AKR20260606041400002",
+        "isoDate": "2026-06-06",
+        "pubDate": "Sat, 06 Jun 2026 13:52:00 GMT"
       },
       {
         "title": "OECD, 한국 성장률 2.6%로 상향… “반도체 수요 더 강해지면 추가 상승”",
@@ -174309,6 +174307,12 @@
     ],
     "한국은행": [
       {
+        "title": "[속보] 한은 금통위, 8연속 기준금리 동결 결정⋯현 2.5% 유지 [5월 금통위]",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%86%8D%EB%B3%B4-%ED%95%9C%EC%9D%80-%EA%B8%88%ED%86%B5%EC%9C%84-8%EC%97%B0%EC%86%8D-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EB%8F%99%EA%B2%B0-%EA%B2%B0%EC%A0%95-%ED%98%84-25-%EC%9C%A0%EC%A7%80-5%EC%9B%94-%EA%B8%88%ED%86%B5%EC%9C%84/ar-AA24em2w",
+        "isoDate": "2026-05-27",
+        "pubDate": "Wed, 27 May 2026 17:50:43 GMT"
+      },
+      {
         "title": "‘신현송 체제 첫 금통위’ 한국은행, 8회 연속 기준금리 동결",
         "url": "https://futurechosun.com/archives/149882",
         "isoDate": "2026-05-28",
@@ -174316,27 +174320,21 @@
       },
       {
         "title": "‘금리 인상’ 정해진 미래…영끌·빚투족 비상",
-        "url": "https://www.mk.co.kr/news/business/12066775",
+        "url": "https://www.mk.co.kr/news/economy/12066775",
         "isoDate": "2026-06-04",
         "pubDate": "Thu, 04 Jun 2026 22:12:00 GMT"
       },
       {
-        "title": "신현송 첫 금통위, 기준금리 8회 연속 동결…인상 가능성 열어둬",
-        "url": "https://www.msn.com/ko-kr/news/other/%EC%8B%A0%ED%98%84%EC%86%A1-%EC%B2%AB-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-8%ED%9A%8C-%EC%97%B0%EC%86%8D-%EB%8F%99%EA%B2%B0-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1-%EC%97%B4%EC%96%B4%EB%91%AC/ar-AA24eYdq",
-        "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 22:37:53 GMT"
+        "title": "[공동락의 금리산책] 한국은행 '기준금리' 인상 초읽기",
+        "url": "https://www.msn.com/ko-kr/news/other/%EA%B3%B5%EB%8F%99%EB%9D%BD%EC%9D%98-%EA%B8%88%EB%A6%AC%EC%82%B0%EC%B1%85-%ED%95%9C%EA%B5%AD%EC%9D%80%ED%96%89-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81-%EC%B4%88%EC%9D%BD%EA%B8%B0/ar-AA24TZpT",
+        "isoDate": "2026-06-05",
+        "pubDate": "Fri, 05 Jun 2026 02:48:00 GMT"
       },
       {
-        "title": "신현송 첫 금통위 '매파' 메시지…금융권 긴장감 확산",
-        "url": "https://www.msn.com/ko-kr/news/other/%EC%8B%A0%ED%98%84%EC%86%A1-%EC%B2%AB-%EA%B8%88%ED%86%B5%EC%9C%84-%EB%A7%A4%ED%8C%8C-%EB%A9%94%EC%8B%9C%EC%A7%80-%EA%B8%88%EC%9C%B5%EA%B6%8C-%EA%B8%B4%EC%9E%A5%EA%B0%90-%ED%99%95%EC%82%B0/ar-AA24kkbS",
-        "isoDate": "2026-05-28",
-        "pubDate": "Thu, 28 May 2026 21:14:10 GMT"
-      },
-      {
-        "title": "\"한국은행 금통위 회의…현재 경제 불확실성 속 기준금리 결정 주목\"",
-        "url": "https://www.gokorea.kr/news/articleView.html?idxno=867607",
+        "title": "한은 금통위, 기준금리 연 2.5%…8연속 동결 [쿠키포토]",
+        "url": "https://www.kukinews.com/article/view/kuk202605280035",
         "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 14:05:00 GMT"
+        "pubDate": "Wed, 27 May 2026 18:22:00 GMT"
       }
     ]
   },
@@ -174415,7 +174413,7 @@
         "iso": "2026-06-05"
       }
     ],
-    "lastFetched": "2026-06-07T06:10:02.449945+09:00",
+    "lastFetched": "2026-06-07T07:10:09.634285+09:00",
     "source": "FRED release dates API",
     "backfilled": 6
   }
