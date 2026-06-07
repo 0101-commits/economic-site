@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-08T04:23:13.427120+09:00",
+  "lastUpdated": "2026-06-08T06:01:51.214725+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -12,7 +12,6 @@
     "pmi": "FRED OECD BSCICP02 시리즈 + ECOS BSI (한국)",
     "uk_base_rate": "BoE IADB:IUMABEDR",
     "economicIndicators_kr": "ECOS API (ecos.bok.or.kr)",
-    "yieldCurve_kr": "ECOS API (817Y002: 시장금리 일별)",
     "realestate_kr": "R-ONE API (reb.or.kr)",
     "move": "yfinance ^MOVE",
     "fear_greed": "CNN Fear & Greed Index",
@@ -23,29 +22,31 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-08T02:58)",
-    "sentiment_partial": "이전 빌드 보존(지표): 1개 지표 보강"
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-08T04:23)",
+    "economicIndicators": "이전 빌드 보존 ← prev (2026-06-08T04:23)",
+    "sentiment_partial": "이전 빌드 보존(지표): 1개 지표 보강",
+    "yieldCurve_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
       "rate": 1545.53,
-      "change": 1.72
+      "change": 1.74
     },
     "EURKRW": {
       "rate": 1787.39,
-      "change": 0.96
+      "change": 0.9
     },
     "JPYKRW": {
       "rate": 9.6508,
-      "change": 1.63
+      "change": 1.74
     },
     "EURUSD": {
       "rate": 1.1565,
-      "change": -0.76
+      "change": -0.84
     },
     "USDJPY": {
       "rate": 160.14,
-      "change": 0.09
+      "change": -0.0
     }
   },
   "indices": {
@@ -31644,7 +31645,7 @@
         },
         {
           "date": "2026-06-07",
-          "close": 1559.0
+          "close": 1559.4301
         },
         {
           "date": "2026-06-08",
@@ -36854,7 +36855,7 @@
         },
         {
           "date": "2026-06-07",
-          "close": 1794.7
+          "close": 1794.5
         },
         {
           "date": "2026-06-08",
@@ -42064,7 +42065,7 @@
         },
         {
           "date": "2026-06-07",
-          "close": 9.706
+          "close": 9.711
         },
         {
           "date": "2026-06-08",
@@ -47274,7 +47275,7 @@
         },
         {
           "date": "2026-06-07",
-          "close": 1.1519
+          "close": 1.1515
         },
         {
           "date": "2026-06-08",
@@ -52484,7 +52485,7 @@
         },
         {
           "date": "2026-06-07",
-          "close": 160.213
+          "close": 160.197
         },
         {
           "date": "2026-06-08",
@@ -173765,8 +173766,8 @@
       "fred_ok": false
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
-    "preservedFields": 2,
-    "preservedMetricsDeep": 1,
+    "preservedFields": 3,
+    "preservedMetricsDeep": 2,
     "historySpotSynced": 12
   },
   "subscription": {
@@ -174141,7 +174142,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-06-08T04:34:52.376749+09:00"
+    "lastFetched": "2026-06-08T06:48:21.418261+09:00"
   },
   "nps": {
     "allocation": [
@@ -174170,7 +174171,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-06-08T04:35:19.565220+09:00",
+    "lastFetched": "2026-06-08T06:48:49.523710+09:00",
     "채권": [
       {
         "title": "기관 외화증권투자 42.6억달러↓…중동전쟁·국채금리 상승 영향",
@@ -174297,7 +174298,7 @@
       },
       {
         "title": "[올댓차이나] 중국 5월 제조업 PMI 50…3개월 만에 최저치",
-        "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/%EC%98%AC%EB%8C%93%EC%B0%A8%EC%9D%B4%EB%82%98-%EC%A4%91%EA%B5%AD-5%EC%9B%94-%EC%A0%9C%EC%A1%B0%EC%97%85-pmi-50-3%EA%B0%9C%EC%9B%94-%EB%A7%8C%EC%97%90-%EC%B5%9C%EC%A0%80%EC%B9%98/ar-AA24tjWd",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%98%AC%EB%8C%93%EC%B0%A8%EC%9D%B4%EB%82%98-%EC%A4%91%EA%B5%AD-5%EC%9B%94-%EC%A0%9C%EC%A1%B0%EC%97%85-pmi-50-3%EA%B0%9C%EC%9B%94-%EB%A7%8C%EC%97%90-%EC%B5%9C%EC%A0%80%EC%B9%98/ar-AA24tjWd",
         "isoDate": "2026-05-31",
         "pubDate": "Sun, 31 May 2026 06:22:34 GMT"
       },
@@ -174371,10 +174372,10 @@
     ],
     "한국은행": [
       {
-        "title": "5월 한은 금통위, 기준금리 연 2.5% 8연속 동결…\"물가 등 점검하며 인상 시기 결정\"(종합)",
-        "url": "https://www.msn.com/ko-kr/news/other/5%EC%9B%94-%ED%95%9C%EC%9D%80-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%97%B0-25-8%EC%97%B0%EC%86%8D-%EB%8F%99%EA%B2%B0-%EB%AC%BC%EA%B0%80-%EB%93%B1-%EC%A0%90%EA%B2%80%ED%95%98%EB%A9%B0-%EC%9D%B8%EC%83%81-%EC%8B%9C%EA%B8%B0-%EA%B2%B0%EC%A0%95%EC%A2%85%ED%95%A9/ar-AA24evlS",
+        "title": "[속보] 한은 금통위, 8연속 기준금리 동결 결정⋯현 2.5% 유지 [5월 금통위]",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%86%8D%EB%B3%B4-%ED%95%9C%EC%9D%80-%EA%B8%88%ED%86%B5%EC%9C%84-8%EC%97%B0%EC%86%8D-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EB%8F%99%EA%B2%B0-%EA%B2%B0%EC%A0%95-%ED%98%84-25-%EC%9C%A0%EC%A7%80-5%EC%9B%94-%EA%B8%88%ED%86%B5%EC%9C%84/ar-AA24em2w",
         "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 21:42:30 GMT"
+        "pubDate": "Wed, 27 May 2026 17:50:43 GMT"
       },
       {
         "title": "‘신현송 체제 첫 금통위’ 한국은행, 8회 연속 기준금리 동결",
@@ -174383,20 +174384,20 @@
         "pubDate": "Thu, 28 May 2026 17:50:00 GMT"
       },
       {
-        "title": "‘금리 인상’ 정해진 미래…영끌·빚투족 비상",
-        "url": "https://www.mk.co.kr/news/business/12066775",
-        "isoDate": "2026-06-04",
-        "pubDate": "Thu, 04 Jun 2026 22:12:00 GMT"
+        "title": "한은 금통위, 기준금리 연 2.5%…8연속 동결 [쿠키포토]",
+        "url": "https://www.kukinews.com/article/view/kuk202605280035",
+        "isoDate": "2026-05-27",
+        "pubDate": "Wed, 27 May 2026 18:22:00 GMT"
       },
       {
-        "title": "\"한국은행 금통위 회의…현재 경제 불확실성 속 기준금리 결정 주목\"",
-        "url": "https://www.gokorea.kr/news/articleView.html?idxno=867607",
+        "title": "신현송 첫 금통위, 기준금리 8회 연속 동결…인상 가능성 열어둬",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%8B%A0%ED%98%84%EC%86%A1-%EC%B2%AB-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-8%ED%9A%8C-%EC%97%B0%EC%86%8D-%EB%8F%99%EA%B2%B0-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1-%EC%97%B4%EC%96%B4%EB%91%AC/ar-AA24eYdq",
         "isoDate": "2026-05-27",
-        "pubDate": "Wed, 27 May 2026 14:05:00 GMT"
+        "pubDate": "Wed, 27 May 2026 22:37:53 GMT"
       },
       {
         "title": "신현송 체제 첫 한은 금통위…기준금리 8회 연속 동결",
-        "url": "https://www.yna.co.kr/view/MYH20260528007500038",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%8B%A0%ED%98%84%EC%86%A1-%EC%B2%B4%EC%A0%9C-%EC%B2%AB-%ED%95%9C%EC%9D%80-%EA%B8%88%ED%86%B5%EC%9C%84-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-8%ED%9A%8C-%EC%97%B0%EC%86%8D-%EB%8F%99%EA%B2%B0/ar-AA24erpk",
         "isoDate": "2026-05-27",
         "pubDate": "Wed, 27 May 2026 18:33:00 GMT"
       }
@@ -174477,7 +174478,7 @@
         "iso": "2026-06-05"
       }
     ],
-    "lastFetched": "2026-06-08T04:37:15.049492+09:00",
+    "lastFetched": "2026-06-08T06:51:46.070869+09:00",
     "source": "FRED release dates API",
     "backfilled": 6
   }
