@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-07T11:09:31.870698+09:00",
+  "lastUpdated": "2026-06-07T11:41:39.331767+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -18,11 +18,12 @@
     "fear_greed": "CNN Fear & Greed Index",
     "realestate_kr_trade": "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)",
     "subscription": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
+    "nps": "fund.nps.or.kr",
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-07T08:02)",
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-07T11:09)",
     "sentiment_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
@@ -174076,10 +174077,36 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-06-07T11:22:07.928816+09:00"
+    "lastFetched": "2026-06-07T11:50:55.527749+09:00"
+  },
+  "nps": {
+    "allocation": [
+      {
+        "asset": "국내주식",
+        "pct": 36.5
+      },
+      {
+        "asset": "해외주식",
+        "pct": 36.5
+      },
+      {
+        "asset": "국내채권",
+        "pct": 36.5
+      },
+      {
+        "asset": "해외채권",
+        "pct": 36.5
+      },
+      {
+        "asset": "대체투자",
+        "pct": 36.5
+      }
+    ],
+    "as_of": "2026-06-07",
+    "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-06-07T11:22:54.291335+09:00",
+    "lastFetched": "2026-06-07T11:51:03.144498+09:00",
     "채권": [
       {
         "title": "기관 외화증권투자 42.6억달러↓…중동전쟁·국채금리 상승 영향",
@@ -174160,22 +174187,22 @@
         "pubDate": "Sat, 06 Jun 2026 13:48:00 GMT"
       },
       {
-        "title": "반도체 호황의 착시…OECD “내년 韓 잠재성장률, 사상 첫 1.5% 하회”",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EB%B0%98%EB%8F%84%EC%B2%B4-%ED%98%B8%ED%99%A9%EC%9D%98-%EC%B0%A9%EC%8B%9C-oecd-%EB%82%B4%EB%85%84-%E9%9F%93-%EC%9E%A0%EC%9E%AC%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%82%AC%EC%83%81-%EC%B2%AB-1-5-%ED%95%98%ED%9A%8C/ar-AA250k1K",
+        "title": "韓 1분기 성장률 OECD 2위…반도체 호황에 IB 연 3% 전망도 잇따라",
+        "url": "https://www.fnnews.com/news/202606071110045239",
         "isoDate": "2026-06-06",
-        "pubDate": "Sat, 06 Jun 2026 16:56:00 GMT"
-      },
-      {
-        "title": "OECD, 올 한국 성장률 2.6%로 올려…명목GDP는 10.4%↑",
-        "url": "https://www.msn.com/ko-kr/money/topstories/oecd-%EC%98%AC-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-26-%EB%A1%9C-%EC%98%AC%EB%A0%A4-%EB%AA%85%EB%AA%A9gdp%EB%8A%94-104/ar-AA24HWPN",
-        "isoDate": "2026-06-03",
-        "pubDate": "Wed, 03 Jun 2026 00:02:56 GMT"
+        "pubDate": "Sat, 06 Jun 2026 19:10:00 GMT"
       },
       {
         "title": "\"1분기 GDP 성장률, OECD 최고\"…허장 차관, 파리서 韓투자설명회",
         "url": "https://www.fnnews.com/news/202606051000351359",
         "isoDate": "2026-06-04",
         "pubDate": "Thu, 04 Jun 2026 18:01:00 GMT"
+      },
+      {
+        "title": "OECD, 올 한국 성장률 2.6%로 올려…명목GDP는 10.4%↑",
+        "url": "https://www.msn.com/ko-kr/money/topstories/oecd-%EC%98%AC-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-26-%EB%A1%9C-%EC%98%AC%EB%A0%A4-%EB%AA%85%EB%AA%A9gdp%EB%8A%94-104/ar-AA24HWPN",
+        "isoDate": "2026-06-03",
+        "pubDate": "Wed, 03 Jun 2026 00:02:56 GMT"
       }
     ],
     "미국CPI": [],
@@ -174368,7 +174395,7 @@
         "iso": "2026-06-05"
       }
     ],
-    "lastFetched": "2026-06-07T11:24:49.203364+09:00",
+    "lastFetched": "2026-06-07T11:52:57.069765+09:00",
     "source": "FRED release dates API",
     "backfilled": 6
   }
