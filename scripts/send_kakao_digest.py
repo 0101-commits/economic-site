@@ -86,8 +86,20 @@ def _fg_label(v):
             "중립" if v < 55 else "탐욕" if v < 75 else "극도탐욕")
 
 
+def _yield_10y(d, side):
+    """yieldCurve[side] 에서 국고채/국채 10년물 최신값. 없으면 None."""
+    yc = (d.get("yieldCurve", {}) or {}).get(side, {}) or {}
+    for s in yc.get("series", []) or []:
+        if s.get("tenor") == "10Y":
+            pts = [x for x in (s.get("data") or []) if x.get("value") is not None]
+            if pts:
+                return _f(pts[-1].get("value"))
+    return None
+
+
 def build_summary(d):
-    """data.json → 카카오 발송용 한국어 요약문(200자 이내)."""
+    """data.json → 카카오 발송용 한국어 요약문. 카테고리(증시/채권/환율·원자재/심리)별로
+    묶어 가독성을 높인다. 카카오 기본 텍스트 템플릿 200자 제한 내에서 핵심만 담는다."""
     idx = d.get("indices", {}) or {}
     fx = d.get("fx", {}) or {}
     com = d.get("commodities", {}) or {}
@@ -98,53 +110,67 @@ def build_summary(d):
     now = datetime.datetime.now(KST)
     wd = "월화수목금토일"[now.weekday()]
     # 발송 시각(KST)에 맞춰 제목을 바꾼다 — 10시=아침 / 15시=오후 / 18시=마감.
-    # (스케줄 지연을 감안해 시각 경계는 넉넉히 잡는다.)
     if now.hour < 12:
         slot = "아침 시황"
     elif now.hour < 17:
         slot = "오후 시황"
     else:
         slot = "마감 시황"
-    lines = [f"\U0001F4CA {now.month}/{now.day}({wd}) {slot}"]
+    lines = [f"\U0001F4CA {now.month}/{now.day}({wd}) {slot}", ""]
+
+    # 등락률은 1자리(▼6.7%)로 — 200자 제한 내 가독성 우선
+    def _a1(c):
+        c = _f(c)
+        if c is None:
+            return ""
+        return f"▲{c:.1f}%" if c >= 0 else f"▼{abs(c):.1f}%"
 
     def idx_part(label, key):
         o = idx.get(key)
         if not o or o.get("price") is None:
             return None
-        return f"{label} {_num(o['price'], 2)}({_arrow(o.get('change'))})"
+        return f"{label} {_num(o['price'], 0)}({_a1(o.get('change'))})"
 
+    # 〔주요 증시〕 — 국내(코스피·코스닥) / 해외(나스닥·S&P)
     dom = [p for p in (idx_part("코스피", "KOSPI"), idx_part("코스닥", "KOSDAQ")) if p]
-    if dom:
-        lines.append(" ".join(dom))
-    ovs = [p for p in (idx_part("S&P", "SP500"), idx_part("나스닥", "NASDAQ")) if p]
-    if ovs:
-        lines.append(" ".join(ovs))
+    ovs = [p for p in (idx_part("나스닥", "NASDAQ"), idx_part("S&P", "SP500")) if p]
+    if dom or ovs:
+        lines.append("〔주요 증시〕")
+        if dom:
+            lines.append(" ".join(dom))
+        if ovs:
+            lines.append(" ".join(ovs))
 
-    # 환율 (USD/KRW, 100엔/원). JPYKRW 가 1엔당(≈9.4)이면 ×100, 이미 100엔당이면 그대로.
-    fxl = []
+    # 〔한미 채권〕 — 국고채/국채 10년물 (yieldCurve 우선, 없으면 economicIndicators 폴백)
+    kr10 = _yield_10y(d, "kr")
+    us10 = _yield_10y(d, "us")
+    if us10 is None:
+        us10 = _f((us.get("us10y") or {}).get("value"))
+    bond = []
+    if kr10 is not None:
+        bond.append(f"韓국고10년 {_num(kr10, 2)}%")
+    if us10 is not None:
+        bond.append(f"美10년 {_num(us10, 2)}%")
+    if bond:
+        lines.append("〔한미 채권〕")
+        lines.append(" ".join(bond))
+
+    # 〔환율·원자재〕 — 달러, WTI, 금
+    mix = []
     u = fx.get("USDKRW")
     if u and u.get("rate") is not None:
-        fxl.append(f"달러 {_num(u['rate'], 2)}({_arrow(u.get('change'))})")
-    jp = fx.get("JPYKRW")
-    if jp and jp.get("rate") is not None:
-        jr = _f(jp["rate"])
-        if jr is not None:
-            fxl.append(f"100엔 {_num(jr * 100 if jr < 50 else jr, 2)}")
-    if fxl:
-        lines.append(" ".join(fxl))
-
-    # 원자재 (WTI, 금)
-    cl = []
+        mix.append(f"달러 {_num(u['rate'], 1)}({_a1(u.get('change'))})")
     w = com.get("WTI")
     if w and w.get("price") is not None:
-        cl.append(f"WTI ${_num(w['price'], 2)}({_arrow(w.get('change'))})")
+        mix.append(f"WTI ${_num(w['price'], 1)}")
     g = com.get("Gold")
     if g and g.get("price") is not None:
-        cl.append(f"금 ${_num(g['price'], 0)}({_arrow(g.get('change'))})")
-    if cl:
-        lines.append(" ".join(cl))
+        mix.append(f"금 ${_num(g['price'], 0)}")
+    if mix:
+        lines.append("〔환율·원자재〕")
+        lines.append(" ".join(mix))
 
-    # 시장심리 (공포탐욕, VIX)
+    # 〔시장심리〕 — 공포탐욕, VIX
     pl = []
     fg = sent.get("fear_greed")
     if fg and fg.get("value") is not None:
@@ -153,6 +179,7 @@ def build_summary(d):
     if vix and vix.get("value") is not None:
         pl.append(f"VIX {_num(vix['value'], 1)}")
     if pl:
+        lines.append("〔시장심리〕")
         lines.append(" ".join(pl))
 
     text = "\n".join(lines)
@@ -167,7 +194,7 @@ def send_memo(access_token, text):
         "object_type": "text",
         "text": text,
         "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
-        "button_title": "대시보드 열기",
+        "button_title": "대시보드 보기",
     }
     status, j = _http_post(
         "https://kapi.kakao.com/v2/api/talk/memo/default/send",

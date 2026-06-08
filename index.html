@@ -956,6 +956,7 @@
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('bond',this)">📋 채권</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('equity',this)">주식시장</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('commodity',this)">원자재</button>
+        <a id="naverMarketLink" href="https://finance.naver.com/marketindex/exchangeList.naver" target="_blank" rel="noopener" title="현재 탭과 관련된 네이버 금융 시장지표 페이지 열기" style="margin-left:auto;align-self:center;font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff55;padding:4px 10px;border-radius:6px;white-space:nowrap;">📊 네이버 시장지표 →</a>
       </div>
 
       <!-- 외환 탭 -->
@@ -1407,21 +1408,21 @@
         <!-- Bottom: sector comparison charts 2x2 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div class="widget-title">에너지 (WTI·Brent·천연가스) <span style="font-size:9px;color:#434656;font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:9px;color:#434656;font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
             <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div class="widget-title">귀금속 (금·은·백금·팔라듐)</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
             <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div class="widget-title">비철금속 (구리·알루미늄·아연·니켈)</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
             <div style="position:relative;height:240px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
-            <div class="widget-title">농산물 (밀·옥수수·콩·쌀)</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
             <div style="position:relative;height:240px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
@@ -5987,6 +5988,14 @@ function initMarketPage() {
   if(marketTab==='equity') buildEquityPage();
   if(marketTab==='commodity') buildCommodityPage();
 }
+// 마켓 탭별 '관련 네이버 금융 시장지표' 링크 (상단 📊 네이버 시장지표 버튼이 탭에 맞춰 이동)
+const NAVER_MARKET_LINKS = {
+  fx:        'https://finance.naver.com/marketindex/exchangeList.naver',
+  rate:      'https://finance.naver.com/marketindex/interestDailyQuote.naver',
+  bond:      'https://finance.naver.com/marketindex/bondList.naver',
+  equity:    'https://finance.naver.com/sise/',
+  commodity: 'https://finance.naver.com/marketindex/',
+};
 function setMarketTab(tab, btn) {
   marketTab = tab;
   document.querySelectorAll('#page-market > div:first-child .tab-btn').forEach(b=>{
@@ -5997,6 +6006,11 @@ function setMarketTab(tab, btn) {
     const el=document.getElementById('market-'+t);
     if(el) el.style.display = t===tab?'block':'none';
   });
+  // 상단 '네이버 시장지표' 버튼을 현재 탭과 관련된 네이버 페이지로 연결
+  try {
+    const nl = document.getElementById('naverMarketLink');
+    if(nl && NAVER_MARKET_LINKS[tab]) nl.href = NAVER_MARKET_LINKS[tab];
+  } catch(_) {}
   setTimeout(()=>initMarketPage(),50);
   // 탭 전환 후 새로 표시된 차트에도 새로고침 버튼 주입 (페이지 로드 후 처음 활성화되는 탭 보강)
   setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
@@ -7371,7 +7385,8 @@ function buildFreightTable() {
     if(!it || it.price == null) {
       return `<tr style="border-bottom:1px solid #1b1f2b;">
         <td style="padding:6px 0;color:#dfe2f2;">${name}</td>
-        <td colspan="2" style="text-align:center;padding:6px;color:#434656;font-size:11px;">수집 중</td>
+        <td style="text-align:right;padding:6px;color:#434656;">—</td>
+        <td style="text-align:right;padding:6px;color:#434656;">—</td>
         <td style="text-align:right;padding:6px;color:#434656;">—</td>
         <td style="text-align:right;padding:6px;color:#8d90a2;font-size:10px;">${exch}</td></tr>`;
     }

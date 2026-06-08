@@ -588,12 +588,16 @@ FREIGHT_INDEX_META = [
 ]
 
 
-def fetch_freight_indices():
-    """해상 운임지수(SCFI/CCFI/BDI 계열)를 네이버 시장지표에서 수집.
+def _freight_num(v):
+    try:
+        return float(str(v).replace(",", "").replace("+", "").replace("\xa0", "").strip())
+    except (TypeError, ValueError):
+        return None
 
-    반환: {"items":[{code,name,price,change,chgPct,date,exchange}], "source","lastFetched"}
-    실패 시 {} (프론트는 지수명 목록 + '수집 중' + 네이버 링크 표시).
-    """
+
+def _freight_from_naver():
+    """네이버 신(新) 금융 시장지표 '운송' JSON API 후보들을 시도. {code: item} 반환.
+    (엔드포인트가 비공개라 여러 후보를 시도 — 성공 후보는 배포 로그로 확인해 고정.)"""
     hdrs = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
                       "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
@@ -602,72 +606,163 @@ def fetch_freight_indices():
         "Referer": "https://m.stock.naver.com/",
         "Origin": "https://m.stock.naver.com",
     }
-    # 네이버 신 금융 시장지표 '운송' 카테고리 추정 엔드포인트 (여러 후보 순차 시도)
     candidates = [
+        "https://api.stock.naver.com/marketindex/shipping/prices",
         "https://api.stock.naver.com/marketindex/shippings",
         "https://api.stock.naver.com/marketindex/category/shipping",
+        "https://api.stock.naver.com/marketindex/shipping",
         "https://api.stock.naver.com/marketindex/transport",
         "https://m.stock.naver.com/api/marketindex/shippings",
     ]
-
-    def _f(v):
-        try:
-            return float(str(v).replace(",", "").replace("+", "").strip())
-        except (TypeError, ValueError):
-            return None
-
-    code_by_kw = [(c, n) for (c, n, _x) in FREIGHT_INDEX_META]
-    exch_by_code = {c: x for (c, _n, x) in FREIGHT_INDEX_META}
-
+    code_kw = [(c, n) for (c, n, _x) in FREIGHT_INDEX_META]
+    out = {}
     for url in candidates:
         try:
             r = requests.get(url, headers=hdrs, timeout=12)
-        except Exception as e:
-            log(f"[운임] {url} 요청 오류: {e}")
-            continue
-        if r.status_code != 200:
-            log(f"[운임] {url} HTTP {r.status_code}")
-            continue
-        try:
+            if r.status_code != 200:
+                log(f"[운임-Naver] {url} HTTP {r.status_code}")
+                continue
             data = r.json()
-        except Exception:
-            log(f"[운임] {url} JSON 파싱 실패")
+        except Exception as e:
+            log(f"[운임-Naver] {url} 오류: {e}")
             continue
         rows = data if isinstance(data, list) else (
             data.get("result") or data.get("list") or data.get("datas") or data.get("items") or [])
         if not isinstance(rows, list) or not rows:
-            log(f"[운임] {url} 행 없음 (키={list(data)[:8] if isinstance(data, dict) else 'list'})")
             continue
-        items = []
         for row in rows:
             if not isinstance(row, dict):
                 continue
             name = (row.get("indexName") or row.get("name") or row.get("itemName")
                     or row.get("korName") or "").strip()
-            price = _f(row.get("closePrice") or row.get("nowVal") or row.get("nowValue")
-                       or row.get("value") or row.get("price"))
+            price = _freight_num(row.get("closePrice") or row.get("nowVal") or row.get("nowValue")
+                                 or row.get("value") or row.get("price"))
             if not name or price is None:
                 continue
-            change = _f(row.get("compareToPreviousClosePrice") or row.get("changeVal")
-                        or row.get("change"))
-            chg_pct = _f(row.get("fluctuationsRatio") or row.get("changeRate") or row.get("chgPct"))
-            date = (row.get("localTradedAt") or row.get("tradeDate") or row.get("date") or "")[:10]
-            # 표시명/코드 매핑 (네이버 명칭에 키워드 포함 여부로)
-            code = next((c for (c, kw) in code_by_kw if kw[:4] in name or c in name.upper()), name[:6])
-            items.append({
-                "code": code, "name": name, "price": price,
-                "change": change, "chgPct": chg_pct,
-                "date": date, "exchange": exch_by_code.get(code, ""),
-            })
-        if items:
-            log(f"[운임] {url} {len(items)}건 수집 (1위: {items[0]['name']} {items[0]['price']})")
-            return {
-                "items": items,
-                "source": "Naver 금융 시장지표(운송)",
-                "lastFetched": datetime.now(KST).isoformat(),
+            code = next((c for (c, kw) in code_kw if kw[:4] in name or c in name.upper()), None)
+            if not code:
+                continue
+            out[code] = {
+                "code": code, "price": price,
+                "change": _freight_num(row.get("compareToPreviousClosePrice") or row.get("changeVal") or row.get("change")),
+                "chgPct": _freight_num(row.get("fluctuationsRatio") or row.get("changeRate") or row.get("chgPct")),
+                "date": (str(row.get("localTradedAt") or row.get("tradeDate") or row.get("date") or ""))[:10],
             }
-    log("[운임] 모든 후보 엔드포인트 실패 — 빈 결과 (프론트 '수집 중' + 네이버 링크)")
-    return {}
+        if out:
+            log(f"[운임-Naver] {url} → {len(out)}건 {list(out)}")
+            return out
+    return out
+
+
+def _freight_from_stockq():
+    """StockQ.org 에서 BDI 현재값/등락 스크래핑(정적 HTML). {code: item}."""
+    try:
+        from bs4 import BeautifulSoup
+    except Exception:
+        return {}
+    import re as _re
+    out = {}
+    hdrs = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/123.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"}
+    for code, url in (("BDI", "https://en.stockq.org/index/BDI.php"),):
+        try:
+            r = requests.get(url, headers=hdrs, timeout=12)
+            if r.status_code != 200:
+                log(f"[운임-StockQ] {code} HTTP {r.status_code}")
+                continue
+            soup = BeautifulSoup(r.text, "html.parser")
+        except Exception as e:
+            log(f"[운임-StockQ] {code} 오류: {e}")
+            continue
+        # StockQ 지수 페이지: 최신 데이터 행 = [날짜, 지수, 등락, 등락%] (첫 일치 행 채택)
+        for tr in soup.find_all("tr"):
+            cells = [c.get_text(strip=True) for c in tr.find_all("td")]
+            if len(cells) < 2:
+                continue
+            if _re.match(r"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}", cells[0]) or _re.match(r"\d{1,2}/\d{1,2}", cells[0]):
+                nums = [x for x in (_freight_num(c) for c in cells[1:]) if x is not None]
+                if nums:
+                    out[code] = {
+                        "code": code, "price": nums[0],
+                        "change": nums[1] if len(nums) > 1 else None,
+                        "chgPct": nums[2] if len(nums) > 2 else None,
+                        "date": cells[0].replace("/", "-")[:10],
+                    }
+                    log(f"[운임-StockQ] {code} {nums[0]} ({cells[0]})")
+                    break
+    return out
+
+
+def _freight_from_sse():
+    """상하이항운거래소(SSE) 영문 페이지에서 SCFI/CCFI 종합지수 스크래핑."""
+    try:
+        from bs4 import BeautifulSoup
+    except Exception:
+        return {}
+    import re as _re
+    out = {}
+    hdrs = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/123.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9"}
+    for code, url in (("SCFI", "https://en.sse.net.cn/indices/scfinew.jsp"),
+                      ("CCFI", "https://en.sse.net.cn/indices/ccfinew.jsp")):
+        try:
+            r = requests.get(url, headers=hdrs, timeout=12)
+            if r.status_code != 200:
+                log(f"[운임-SSE] {code} HTTP {r.status_code}")
+                continue
+            r.encoding = r.apparent_encoding or "utf-8"
+            text = BeautifulSoup(r.text, "html.parser").get_text(" ", strip=True)
+        except Exception as e:
+            log(f"[운임-SSE] {code} 오류: {e}")
+            continue
+        # 'Comprehensive Index ... 1234.56' 패턴
+        m = _re.search(r"(?:Comprehensive Index|综合指数)[^\d]{0,30}([\d,]+\.\d+)", text)
+        if m:
+            out[code] = {"code": code, "price": _freight_num(m.group(1)),
+                         "change": None, "chgPct": None, "date": ""}
+            log(f"[운임-SSE] {code} {m.group(1)}")
+        else:
+            log(f"[운임-SSE] {code} 패턴 미일치")
+    return out
+
+
+def fetch_freight_indices():
+    """해상 운임지수(SCFI/CCFI/BDI 계열) 웹 스크래핑(무료 공개 API 부재 → 다중 소스).
+
+    소스 우선순위: ① 네이버 시장지표(운송, 전 항목) ② StockQ(BDI) ③ SSE(SCFI/CCFI).
+    각 소스가 주는 코드만 채우고 병합한다. 표시명/거래소는 FREIGHT_INDEX_META 로 통일.
+    반환: {"items":[...], "source", "lastFetched"} / 전부 실패 시 {}.
+    """
+    meta_name = {c: n for (c, n, _x) in FREIGHT_INDEX_META}
+    exch = {c: x for (c, _n, x) in FREIGHT_INDEX_META}
+    collected = {}
+    for strat in (_freight_from_naver, _freight_from_stockq, _freight_from_sse):
+        try:
+            got = strat() or {}
+        except Exception as e:
+            log(f"[운임] {strat.__name__} 오류: {e}")
+            got = {}
+        for code, it in got.items():
+            if code not in collected and it.get("price") is not None:
+                collected[code] = it
+    if not collected:
+        log("[운임] 전 소스 수집 실패 — 빈 결과")
+        return {}
+    items = []
+    for (c, n, x) in FREIGHT_INDEX_META:
+        if c in collected:
+            it = collected[c]
+            it["name"] = n
+            it["exchange"] = x
+            items.append(it)
+    log(f"[운임] 총 {len(items)}건 수집: {[i['code'] for i in items]}")
+    return {
+        "items": items,
+        "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
+        "lastFetched": datetime.now(KST).isoformat(),
+    }
 
 
 def fetch_krx_stock_movers(market="kospi", top_n=10):
