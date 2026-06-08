@@ -562,12 +562,20 @@ def fetch_investor_trading(lookback_days=400):
     """투자자별 순매수 — pykrx(KRX 로그인) 우선, 실패 시 Naver 무인증 폴백.
 
     우선순위: ① pykrx(KRX_ID/KRX_PW 설정 시 — 전체 시계열, 가장 정확)
-              ② Naver 금융 파싱(무인증·무알람 — 최근 수십일 시계열).
-    둘 다 실패하면 빈 dict (프론트 '수집 중' 안내; 더미 절대 미사용).
+              ② KIS 한국투자증권 API(KIS_ENABLED=1 시 — 최신 영업일)
+              ③ Naver 금융 파싱(무인증·무알람 — 최근 수십일 시계열).
+    모두 실패하면 빈 dict (프론트 '수집 중' 안내; 더미 절대 미사용).
     """
     res = _fetch_investor_pykrx(lookback_days)
     if res.get("daily"):
         return res
+    # ② KIS — 한국투자증권 OpenAPI (KIS_ENABLED=1 일 때만 토큰 발급/호출)
+    try:
+        kis = fetch_kis_investor_trading()
+        if kis.get("daily"):
+            return kis
+    except Exception as e:
+        log(f"[투자자-KIS] 오류(무시): {e}")
     return fetch_naver_investor_trading(lookback_days)
 
 
@@ -2013,6 +2021,139 @@ PMI_FRED_CANDIDATES = {
 }
 
 
+# ── 실 제조업 PMI(50기준) 웹 스크래핑 + 영속 캐시 ────────────────────────────
+# OECD BCI(100기준, FRED)는 사용자가 기대하는 'PMI 50기준'과 다른 지표라, 가능하면 실제
+# S&P Global / au Jibun Bank 제조업 PMI 를 웹에서 보강한다. FRED/공식 무료 API 가 없는
+# 데이터이므로 사용자 요청대로 '웹크롤링을 루틴으로' 사용하되, 아래 안전장치로 오류값 노출을 차단:
+#   1) 값 검증 — 제조업 PMI 는 30~75 범위 밖이면 폐기 (BCI 폴백 유지).
+#   2) 영속 캐시(.pmi_cache.json, GHA cache 액션이 런 간 보존) — 스크래핑 실패/스킵 시 최근
+#      성공값(≤45일)을 재사용해 '값이 사라지거나 BCI 로 깜빡이는' 회귀를 막는다.
+#   3) 실제 스크래핑은 일일 풀 갱신(AV_FETCH_FULL) 때만 — 소스 과호출/차단 위험 최소화.
+PMI_CACHE_FILE = os.environ.get("PMI_CACHE_FILE", ".pmi_cache.json")
+PMI_TE_SLUGS = {
+    "us": "united-states", "jp": "japan", "eu": "euro-area", "cn": "china",
+    "de": "germany", "uk": "united-kingdom", "kr": "south-korea",
+}
+
+
+def _load_pmi_cache():
+    try:
+        if os.path.exists(PMI_CACHE_FILE):
+            with open(PMI_CACHE_FILE, "r", encoding="utf-8") as f:
+                c = json.load(f)
+                return c if isinstance(c, dict) else {}
+    except Exception:
+        pass
+    return {}
+
+
+def _save_pmi_cache(cache):
+    try:
+        with open(PMI_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+    except Exception as e:
+        log(f"[PMI-scrape] 캐시 저장 실패(무시): {e}")
+
+
+def _scrape_te_pmi(slug):
+    """tradingeconomics.com/<slug>/manufacturing-pmi 에서 최신 제조업 PMI(NN.N) 추출.
+
+    페이지 메타설명("Manufacturing PMI in Japan ... to 49.40 ...")에서 NN.N 형식 숫자만
+    엄격히 매칭한다. 검증 실패/차단 시 None (BCI 폴백 유지 — 절대 오류값 미노출).
+    """
+    url = f"https://tradingeconomics.com/{slug}/manufacturing-pmi"
+    hdrs = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    try:
+        r = requests.get(url, headers=hdrs, timeout=8)
+        if r.status_code != 200 or not r.text:
+            return None
+        html = r.text
+        m = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)["\']',
+                      html, re.I)
+        desc = m.group(1) if m else html[:1200]
+        if "PMI" not in desc:
+            return None
+        # 'PMI ... <동사구> ... (to|at|near) NN.N' — PMI 는 항상 소수1자리(예 49.4) 형식.
+        mv = re.search(
+            r"PMI\s+in\s+[A-Za-z ]+?"
+            r"(?:increased|decreased|rose|fell|edged up|edged down|was unchanged|"
+            r"came in|stood|jumped|dropped|climbed|slipped|ticked up|ticked down|"
+            r"held|remained|unchanged|registered|posted|hit|reached)?\s*"
+            r"(?:to|at|near)?\s*([0-9]{2}\.[0-9])\b", desc, re.I)
+        if not mv:
+            mv = re.search(r"([0-9]{2}\.[0-9])\b", desc)
+        if not mv:
+            return None
+        val = float(mv.group(1))
+        if not (30.0 <= val <= 75.0):   # 제조업 PMI 합리 범위 밖 → 폐기
+            return None
+        # 발표 월 추정 — 설명에 'in <Month>' 가 있으면 사용, 없으면 직전 월.
+        period = None
+        mm = re.search(r"\bin\s+(January|February|March|April|May|June|July|August|"
+                       r"September|October|November|December)\b", desc, re.I)
+        months = {"january":1,"february":2,"march":3,"april":4,"may":5,"june":6,"july":7,
+                  "august":8,"september":9,"october":10,"november":11,"december":12}
+        now = datetime.now(KST)
+        if mm:
+            mo = months[mm.group(1).lower()]
+            yr = now.year if mo <= now.month else now.year - 1
+            period = f"{yr:04d}-{mo:02d}-01"
+        if not period:
+            pm = now.month - 1 or 12
+            py = now.year if now.month > 1 else now.year - 1
+            period = f"{py:04d}-{pm:02d}-01"
+        return {"value": round(val, 1), "period": period}
+    except Exception:
+        return None
+
+
+def fetch_real_pmi_scrape():
+    """국가별 실 제조업 PMI(50기준) — 웹 스크래핑 + 영속 캐시. 실패 시 빈/캐시값."""
+    cache = _load_pmi_cache()
+    do_scrape = bool(os.environ.get("AV_FETCH_FULL"))   # 일일 풀 갱신 때만 실제 호출
+    now = datetime.now(KST)
+    out = {}
+    for cc, slug in PMI_TE_SLUGS.items():
+        if do_scrape:
+            rec = _scrape_te_pmi(slug)
+            if rec:
+                ent = cache.get(cc) or {}
+                hist = ent.get("history") or {}
+                hist[rec["period"]] = rec["value"]
+                # 히스토리 최근 36개월만 유지
+                hist = dict(sorted(hist.items())[-36:])
+                cache[cc] = {"value": rec["value"], "period": rec["period"],
+                             "scrapedAt": now.isoformat(), "history": hist}
+                log(f"[PMI-scrape:{cc.upper()}] {slug}: {rec['value']} ({rec['period']})")
+        ent = cache.get(cc)
+        if not ent or ent.get("value") is None:
+            continue
+        # 캐시 신선도 — 마지막 성공 스크래핑이 45일 이내일 때만 사용.
+        try:
+            age = (now - datetime.fromisoformat(ent["scrapedAt"])).days
+        except Exception:
+            age = 999
+        if age > 45:
+            continue
+        out[cc] = {
+            "value":   ent["value"],
+            "period":  ent.get("period"),
+            "desc":    "제조업 PMI (S&P Global / au Jibun Bank)",
+            "source":  "tradingeconomics.com (웹 스크래핑)",
+            "scale":   "pmi50",
+            "unit":    "지수 (50=중립, S&P Global PMI)",
+            "history": ent.get("history") or {},
+            "asof":    ent.get("period"),
+        }
+    if do_scrape:
+        _save_pmi_cache(cache)
+    return out
+
+
 def fetch_pmi_indicators():
     """국가별 제조업 PMI / BCI / BSI 일괄 페치 — 다중 후보 시리즈 폴백.
 
@@ -2027,28 +2168,35 @@ def fetch_pmi_indicators():
         return {}
     out = {}
     for cc, candidates in PMI_FRED_CANDIDATES.items():
-        success = False
+        # 후보 시리즈를 모두 시도해 '가장 최신' 관측을 가진 시리즈를 채택한다.
+        # (과거 결함: 첫 후보(MEI)가 비면 두 번째(CLI)로 넘어가는데, 일본 CLI 는 2023-12 에
+        #  단종돼 2년 넘게 묵은 값을 '현재값'으로 노출했다 → 최신 날짜 우선으로 교정.)
+        best = None   # (latest_date, obs, series_id, desc)
         for series_id, desc in candidates:
             try:
                 obs = fetch_fred_series(series_id, limit=60)
-                if not obs:
-                    log(f"[PMI:{cc.upper()}] {series_id}: 데이터 없음 — 다음 후보 시도")
-                    continue
-                history = {o["date"]: o["value"] for o in obs}
-                out.setdefault(cc, {})[f"pmi_{cc}"] = {
-                    "value":   obs[0]["value"],
-                    "period":  obs[0]["date"],
-                    "desc":    desc,
-                    "source":  f"FRED:{series_id} (OECD)",
-                    "history": history,
-                }
-                log(f"[PMI:{cc.upper()}] {series_id}: {obs[0]['value']:.1f} ({obs[0]['date']})")
-                success = True
-                break
             except Exception as e:
                 log(f"[PMI:{cc.upper()}] {series_id} 오류: {e}")
-        if not success:
+                continue
+            if not obs:
+                log(f"[PMI:{cc.upper()}] {series_id}: 데이터 없음 — 다음 후보 시도")
+                continue
+            latest = obs[0]["date"]
+            if best is None or latest > best[0]:
+                best = (latest, obs, series_id, desc)
+        if not best:
             log(f"[PMI:{cc.upper()}] 모든 후보 시리즈 실패 — 해당 국가 PMI 미생성")
+            continue
+        _, obs, series_id, desc = best
+        history = {o["date"]: o["value"] for o in obs}
+        out.setdefault(cc, {})[f"pmi_{cc}"] = {
+            "value":   obs[0]["value"],
+            "period":  obs[0]["date"],
+            "desc":    desc,
+            "source":  f"FRED:{series_id} (OECD)",
+            "history": history,
+        }
+        log(f"[PMI:{cc.upper()}] {series_id}: {obs[0]['value']:.1f} ({obs[0]['date']}) — 최신 후보 채택")
 
     # 한국 PMI 보강: ECOS BSI 제조업 (기업경기실사지수)
     # AX1AA item 외에도 시기별로 SX, 0000 등 코드 변경 가능 — 다중 시도
@@ -2088,16 +2236,46 @@ def fetch_pmi_indicators():
         except (TypeError, ValueError):
             return v
         return round(f + 100, 2) if abs(f) < 50 else round(f, 2)
+    now_naive = datetime.now(KST).replace(tzinfo=None)
     for cc, node in out.items():
         rec = node.get(f"pmi_{cc}")
         if not rec or rec.get("value") is None:
             continue
-        rec["value"] = _to_index100(rec["value"])
-        if isinstance(rec.get("history"), dict):
-            rec["history"] = {k: _to_index100(v) for k, v in rec["history"].items()}
-        rec["scale"] = "index100"
-        # desc 에 'PMI' 가 있으면 BCI 로 교정 (실제로는 OECD 경기지수, PMI 아님)
-        rec["desc"] = (rec.get("desc") or "제조업 경기지수(OECD BCI)")
+        # 한국은 위에서 ECOS BSI(50기준 다이퓨전)를 채택했을 수 있다 — 이 경우 +100 보정 금지.
+        if rec.get("source", "").startswith("ECOS"):
+            rec["scale"] = "bsi"
+            rec["unit"]  = "지수 (50=중립, 한국은행 BSI)"
+        else:
+            rec["value"] = _to_index100(rec["value"])
+            if isinstance(rec.get("history"), dict):
+                rec["history"] = {k: _to_index100(v) for k, v in rec["history"].items()}
+            rec["scale"] = "index100"
+            rec["unit"]  = "지수 (장기평균 100=중립, OECD BCI)"
+        # desc 정정 — 실제로는 OECD 기업경기지수(BCI), S&P Global PMI 아님.
+        if rec.get("scale") == "index100":
+            rec["desc"] = "제조업 경기지수(OECD BCI)"
+        # 신선도 검사 — 월간 지표가 ~120일 이상 묵었으면 '갱신 지연' 플래그(프론트가 ⚠ 표시).
+        try:
+            pd = datetime.strptime(str(rec.get("period", ""))[:10], "%Y-%m-%d")
+            age_days = (now_naive - pd).days
+            rec["asof"] = rec.get("period")
+            if age_days > 120:
+                rec["stale"] = True
+                log(f"[PMI:{cc.upper()}] ⚠ 데이터 지연 {age_days}일 (period={rec.get('period')})")
+        except Exception:
+            pass
+
+    # ── 실 제조업 PMI(50기준, S&P Global) 웹 보강 ──────────────────────────
+    # OECD BCI(100기준)는 사용자가 기대하는 'PMI 50기준'과 다른 지표다. 가능하면 실제
+    # S&P Global / au Jibun Bank 제조업 PMI 를 웹에서 보강해 BCI 대신 노출한다(검증 실패 시 BCI 유지).
+    try:
+        real = fetch_real_pmi_scrape()
+        for cc, rec in (real or {}).items():
+            if rec and rec.get("value") is not None:
+                out.setdefault(cc, {})[f"pmi_{cc}"] = rec
+                log(f"[PMI:{cc.upper()}] 실 PMI 보강 채택: {rec['value']} ({rec.get('period')}) ← {rec.get('source')}")
+    except Exception as e:
+        log(f"[PMI] 실 PMI 웹 보강 오류(무시, BCI 유지): {e}")
     return out
 
 
@@ -3989,6 +4167,85 @@ def kis_request(path, tr_id, params=None):
         return None
 
 
+def fetch_kis_investor_trading():
+    """KIS(한국투자증권) 시장별 투자자 순매수 — 최신 영업일 KOSPI+KOSDAQ 합산(억원).
+
+    사용자 요청: '투자자별 순매매 동향을 KRX/KIS API 로'. pykrx(KRX) 가 KRX 로그인 미설정으로
+    비는 경우 KIS 를 보조 소스로 사용한다. KIS_ENABLED=1 + KIS 키가 있을 때만 동작한다.
+
+    안전장치(절대 오류값 미노출): KIS 응답에서 '외국인/기관/개인 순매수 거래대금' 필드를
+    명시적으로 식별하지 못하면 빈 dict 를 반환한다(더미/추정 절대 미사용).
+    """
+    if not (KIS_APP_KEY and KIS_APP_SECRET):
+        return {}
+    if not kis_get_token():   # KIS_ENABLED 비활성 시 토큰이 없어 안전히 스킵
+        return {}
+    # 시장별 투자자매매동향(시세) — 최신 누계 순매수.
+    markets = {"KOSPI": "0001", "KOSDAQ": "1001"}
+    agg = {}   # date -> {foreign, inst, retail} (억원)
+    for mkt, code in markets.items():
+        res = kis_request(
+            "/uapi/domestic-stock/v1/quotations/inquire-investor-time-by-market",
+            "FHPTJ04040000",
+            params={"FID_INPUT_ISCD": code, "FID_COND_MRKT_DIV_CODE": "U",
+                    "FID_INPUT_ISCD_1": code},
+        )
+        if not res or res.get("rt_cd") != "0":
+            continue
+        rows = res.get("output") or res.get("output1") or res.get("output2") or []
+        if isinstance(rows, dict):
+            rows = [rows]
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+
+            # 키 변형(거래대금 frgn_ntby_tr_pbmn / 수량 frgn_ntby_qty 등)에 대비해 부분 매칭.
+            def _pick(actor):
+                for k, v in row.items():
+                    kl = k.lower()
+                    if actor in kl and "ntby" in kl and ("pbmn" in kl or "amt" in kl):
+                        return _parse_num(v)
+                return None
+            frgn = _pick("frgn")
+            orgn = _pick("orgn")
+            prsn = _pick("prsn")
+            if frgn is None or orgn is None or prsn is None:
+                continue   # 필드 식별 실패 → 안전히 건너뜀 (오류값 미노출)
+            dstr_raw = (row.get("stck_bsop_date") or row.get("bsop_date")
+                        or datetime.now(KST).strftime("%Y%m%d"))
+            dstr_raw = str(dstr_raw)
+            dstr = (f"{dstr_raw[:4]}-{dstr_raw[4:6]}-{dstr_raw[6:8]}"
+                    if len(dstr_raw) == 8 and dstr_raw.isdigit() else dstr_raw[:10])
+            rec = agg.setdefault(dstr, {"foreign": 0.0, "inst": 0.0, "retail": 0.0})
+            # KIS 순매수 거래대금 단위는 원 → 억원(1e8). 백만원 단위 응답 대비 자동 보정은
+            # 값 검증으로 갈음(억원 환산 후 |값| 이 비현실적이면 폐기).
+            rec["foreign"] += frgn / 1e8
+            rec["inst"]    += orgn / 1e8
+            rec["retail"]  += prsn / 1e8
+    if not agg:
+        return {}
+    daily = [{
+        "date": d,
+        "foreign": round(agg[d]["foreign"], 1),
+        "inst":    round(agg[d]["inst"], 1),
+        "retail":  round(agg[d]["retail"], 1),
+    } for d in sorted(agg.keys())]
+    # 합리성 검사 — 하루 시장 순매수 합계가 수십조(억원 환산 100만↑) 면 단위 오인 → 폐기.
+    if any(abs(x[k]) > 1_000_000 for x in daily for k in ("foreign", "inst", "retail")):
+        log("[투자자-KIS] 값 범위 비정상 — 폐기(단위 오인 의심)")
+        return {}
+    last = daily[-1]
+    log(f"[투자자-KIS] {len(daily)}일 수집 최근일={last['date']} "
+        f"외국인={last['foreign']:+.0f}억 기관={last['inst']:+.0f}억 개인={last['retail']:+.0f}억")
+    return {
+        "daily": daily,
+        "markets": list(markets.keys()),
+        "unit": "억원",
+        "source": "KIS 한국투자증권 OpenAPI (시장별 투자자매매동향)",
+        "lastFetched": datetime.now(KST).isoformat(),
+    }
+
+
 def fetch_kis_index_quote(market_code):
     """KIS API로 KOSPI/KOSDAQ 지수 조회.
 
@@ -4872,8 +5129,9 @@ def build_data():
     if not (data.get("investorTrading") or {}).get("daily"):
         data["diagnostics"]["investorTradingReason"] = (
             "투자자별 순매매 데이터를 실시간으로 불러오는 중입니다… (서버가 차단된 경우 대시보드가 "
-            "브라우저에서 네이버 금융을 통해 직접 가져옵니다). 더 정확한 전체 시계열을 원하면 "
-            "Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정)를 등록하세요."
+            "브라우저에서 네이버 금융을 통해 직접 가져옵니다). 서버측 전체 시계열을 원하면 "
+            "Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정, KRX API)를 등록하거나, "
+            "한국투자증권 API 사용 시 KIS_APP_KEY/KIS_APP_SECRET 등록 + 변수 KIS_ENABLED=1 로 설정하세요."
         )
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
@@ -5049,7 +5307,7 @@ def build_data():
             for cc, ind in pmi_data.items():
                 data["economicIndicators"].setdefault(cc, {}).update(ind)
             if pmi_data:
-                data["sources"]["pmi"] = "FRED OECD BSCICP02 시리즈 + ECOS BSI (한국)"
+                data["sources"]["pmi"] = "S&P Global PMI(웹) 우선 + FRED OECD BCI 폴백 + ECOS BSI(한국)"
         except Exception as e:
             log(f"[PMI] 수집 오류: {e}")
 
