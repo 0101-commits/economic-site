@@ -183,7 +183,15 @@ def main():
     rest_key = os.environ.get("KAKAO_REST_API_KEY", "").strip()
     refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
     if not rest_key or not refresh_token:
-        raise SystemExit("[kakao] KAKAO_REST_API_KEY / KAKAO_REFRESH_TOKEN GitHub Secret 이 필요합니다.")
+        # 시크릿 미설정 = 아직 설정 전(또는 설정 진행 중). 이때 워크플로를 '실패'로 끝내면 매 스케줄마다
+        # GitHub 가 'run failed' 알림 메일을 보내 사용자를 괴롭힌다. 따라서 이 경우엔 경고만 남기고
+        # 정상 종료(exit 0)한다 — KAKAO_SETUP.md 의 ③~④(refresh_token 발급·시크릿 등록)를 마치면
+        # 다음 스케줄부터 자동으로 발송된다. (토큰 만료 등 '진짜 오류'는 아래에서 그대로 실패 처리.)
+        missing = [n for n, v in (("KAKAO_REST_API_KEY", rest_key),
+                                  ("KAKAO_REFRESH_TOKEN", refresh_token)) if not v]
+        print(f"::warning title=Kakao 미설정::{', '.join(missing)} 시크릿이 아직 없어 발송을 건너뜁니다. "
+              "설정 방법은 KAKAO_SETUP.md 참고. (워크플로는 정상 종료 — 실패 알림 없음)")
+        return
 
     path = os.path.abspath(DATA_PATH)
     try:

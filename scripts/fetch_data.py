@@ -571,6 +571,105 @@ def fetch_investor_trading(lookback_days=400):
     return fetch_naver_investor_trading(lookback_days)
 
 
+# 해상 운임지수(운송) — SCFI/CCFI/BDI 등. 네이버 금융 '시장지표 > 운송' 표시 항목.
+# 무료·검증 가능한 공개 API가 없어 네이버 신(新) 금융 마켓 API 를 best-effort 로 시도한다.
+# (GitHub Actions 러너는 네이버 접근 가능. 엔드포인트/필드는 배포 후 로그로 검증·보정.)
+FREIGHT_INDEX_META = [
+    # (코드, 표시명, 거래소)
+    ("SCFI", "상하이컨테이너 운임지수", "상하이해운거래소(SSE)"),
+    ("CCFI", "중국컨테이너 운임지수", "상하이해운거래소(SSE)"),
+    ("BDI",  "BDI 건화물선지수",       "발틱해운거래소(BDI)"),
+    ("BCI",  "BCI 케이프사이즈지수",   "발틱해운거래소(BDI)"),
+    ("BPI",  "BPI 파나막스지수",       "발틱해운거래소(BDI)"),
+    ("BSI",  "BSI 수프라막스지수",     "발틱해운거래소(BDI)"),
+    ("BHI",  "BHI 핸디사이즈지수",     "발틱해운거래소(BDI)"),
+    ("BDTI", "BDTI 원유유조선지수",    "발틱해운거래소(BDI)"),
+    ("BCTI", "BCTI 석유제품선지수",    "발틱해운거래소(BDI)"),
+]
+
+
+def fetch_freight_indices():
+    """해상 운임지수(SCFI/CCFI/BDI 계열)를 네이버 시장지표에서 수집.
+
+    반환: {"items":[{code,name,price,change,chgPct,date,exchange}], "source","lastFetched"}
+    실패 시 {} (프론트는 지수명 목록 + '수집 중' + 네이버 링크 표시).
+    """
+    hdrs = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+                      "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "ko-KR,ko;q=0.9",
+        "Referer": "https://m.stock.naver.com/",
+        "Origin": "https://m.stock.naver.com",
+    }
+    # 네이버 신 금융 시장지표 '운송' 카테고리 추정 엔드포인트 (여러 후보 순차 시도)
+    candidates = [
+        "https://api.stock.naver.com/marketindex/shippings",
+        "https://api.stock.naver.com/marketindex/category/shipping",
+        "https://api.stock.naver.com/marketindex/transport",
+        "https://m.stock.naver.com/api/marketindex/shippings",
+    ]
+
+    def _f(v):
+        try:
+            return float(str(v).replace(",", "").replace("+", "").strip())
+        except (TypeError, ValueError):
+            return None
+
+    code_by_kw = [(c, n) for (c, n, _x) in FREIGHT_INDEX_META]
+    exch_by_code = {c: x for (c, _n, x) in FREIGHT_INDEX_META}
+
+    for url in candidates:
+        try:
+            r = requests.get(url, headers=hdrs, timeout=12)
+        except Exception as e:
+            log(f"[운임] {url} 요청 오류: {e}")
+            continue
+        if r.status_code != 200:
+            log(f"[운임] {url} HTTP {r.status_code}")
+            continue
+        try:
+            data = r.json()
+        except Exception:
+            log(f"[운임] {url} JSON 파싱 실패")
+            continue
+        rows = data if isinstance(data, list) else (
+            data.get("result") or data.get("list") or data.get("datas") or data.get("items") or [])
+        if not isinstance(rows, list) or not rows:
+            log(f"[운임] {url} 행 없음 (키={list(data)[:8] if isinstance(data, dict) else 'list'})")
+            continue
+        items = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            name = (row.get("indexName") or row.get("name") or row.get("itemName")
+                    or row.get("korName") or "").strip()
+            price = _f(row.get("closePrice") or row.get("nowVal") or row.get("nowValue")
+                       or row.get("value") or row.get("price"))
+            if not name or price is None:
+                continue
+            change = _f(row.get("compareToPreviousClosePrice") or row.get("changeVal")
+                        or row.get("change"))
+            chg_pct = _f(row.get("fluctuationsRatio") or row.get("changeRate") or row.get("chgPct"))
+            date = (row.get("localTradedAt") or row.get("tradeDate") or row.get("date") or "")[:10]
+            # 표시명/코드 매핑 (네이버 명칭에 키워드 포함 여부로)
+            code = next((c for (c, kw) in code_by_kw if kw[:4] in name or c in name.upper()), name[:6])
+            items.append({
+                "code": code, "name": name, "price": price,
+                "change": change, "chgPct": chg_pct,
+                "date": date, "exchange": exch_by_code.get(code, ""),
+            })
+        if items:
+            log(f"[운임] {url} {len(items)}건 수집 (1위: {items[0]['name']} {items[0]['price']})")
+            return {
+                "items": items,
+                "source": "Naver 금융 시장지표(운송)",
+                "lastFetched": datetime.now(KST).isoformat(),
+            }
+    log("[운임] 모든 후보 엔드포인트 실패 — 빈 결과 (프론트 '수집 중' + 네이버 링크)")
+    return {}
+
+
 def fetch_krx_stock_movers(market="kospi", top_n=10):
     """KRX에서 주식 등락률 상위/하위 종목 조회 (상승/하락 Top10)."""
     if not KRX_API_KEY:
@@ -4469,6 +4568,7 @@ def build_data():
         "stockMovers": {},
         "etfMovers": {},
         "investorTrading": {},
+        "freight": {},  # 해상 운임지수 (SCFI/CCFI/BDI 계열)
         "economicIndicators": {},
         "realestate": {},
         "yieldCurve": {},
@@ -4646,6 +4746,23 @@ def build_data():
             log("[투자자] 실데이터 미수집 — investorTrading 비움 (프론트 '수집 중' 표시)")
     except Exception as e:
         log(f"[투자자] 수집 오류: {e}")
+
+    # ── 해상 운임지수(운송): SCFI/CCFI/BDI 등 — 네이버 시장지표 best-effort ──
+    # 실패 시 직전 빌드의 freight 를 보존(있으면) → 일시 실패에도 마지막 값 유지.
+    try:
+        fr = fetch_freight_indices()
+        if fr and fr.get("items"):
+            data["freight"] = fr
+            data["sources"]["freight"] = fr.get("source", "Naver 시장지표")
+        else:
+            prev_fr = (prev.get("freight") or {}) if isinstance(prev, dict) else {}
+            if prev_fr.get("items"):
+                data["freight"] = prev_fr
+                log(f"[운임] 신규 수집 실패 — 직전 빌드 보존({len(prev_fr['items'])}건)")
+            else:
+                log("[운임] 미수집 — freight 비움 (프론트 '수집 중' + 네이버 링크)")
+    except Exception as e:
+        log(f"[운임] 수집 오류: {e}")
 
     # 진단 정보 — 어떤 소스가 성공/실패했는지 frontend 에서 표시 가능
     data.setdefault("diagnostics", {})
