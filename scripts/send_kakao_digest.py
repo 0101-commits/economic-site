@@ -18,7 +18,6 @@
 import os
 import sys
 import json
-import time as _time
 import datetime
 import urllib.parse
 import urllib.request
@@ -123,12 +122,12 @@ def _movers_line(arr, mark, n=3):
     return (mark + " " + " / ".join(parts)) if parts else None
 
 
-def build_blocks(d):
-    """data.json → 카카오 발송용 한국어 섹션 블록 리스트 + 헤더.
+def build_message(d, limit=TEXT_LIMIT):
+    """data.json → 카카오 '나에게 보내기' 단일 메시지(한국어).
 
-    카테고리(증시·Top3 / 채권 / 환율 / 원자재 / 투자자 순매매 / 심리)별 블록으로 묶고,
-    카카오 텍스트 템플릿 200자 제한에 맞춰 여러 메시지로 분할 발송한다.
-    """
+    카카오 기본 텍스트 템플릿은 200자 제한이라, 카테고리(증시·투자자·환율·원자재·채권·심리)별
+    핵심 수치를 한 줄씩 압축해 우선순위대로 한도 내에서 최대한 담는다. 상세(종목/ETF Top3 등)는
+    '대시보드 보기' 버튼으로 연결. 한 통으로만 발송(분할 없음)."""
     idx  = d.get("indices", {}) or {}
     fx   = d.get("fx", {}) or {}
     com  = d.get("commodities", {}) or {}
@@ -141,107 +140,67 @@ def build_blocks(d):
 
     now = datetime.datetime.now(KST)
     wd = "월화수목금토일"[now.weekday()]
-    # 발송 시각(KST)에 맞춰 제목 — 10시=아침 / 15시=오후 / 18시(이후)=마감.
-    if now.hour < 12:
-        slot = "아침 시황"
-    elif now.hour < 17:
-        slot = "오후 시황"
-    else:
-        slot = "마감 시황"
-    header = f"\U0001F4CA {now.month}/{now.day}({wd}) {slot} ({now.hour:02d}:{now.minute:02d})"
+    slot = "아침 시황" if now.hour < 12 else "오후 시황" if now.hour < 17 else "마감 시황"
+    header = f"\U0001F4CA {now.month}/{now.day}({wd}) {slot}"
 
-    blocks = []
-
-    def idx_part(label, key):
+    def ip(label, key):
         o = idx.get(key)
         if not o or o.get("price") is None:
             return None
-        return f"{label} {_num(o['price'], 0)}({_a1(o.get('change'))})"
+        return f"{label}{_num(o['price'], 0)}{_a1(o.get('change'))}"
 
-    # 〔주요 증시〕 — 국내·해외 6개 (2개/줄)
-    eq = [p for p in (idx_part("코스피", "KOSPI"), idx_part("코스닥", "KOSDAQ"),
-                      idx_part("나스닥", "NASDAQ"), idx_part("S&P", "SP500"),
-                      idx_part("닛케이", "Nikkei"), idx_part("상해", "Shanghai")) if p]
+    blocks = []   # 우선순위 순서 — 한도 내에서 위에서부터 채운다.
+
+    # 증시 (코스피·코스닥·나스닥·S&P)
+    eq = [p for p in (ip("코스피", "KOSPI"), ip("코스닥", "KOSDAQ"),
+                      ip("나스닥", "NASDAQ"), ip("S&P", "SP500")) if p]
     if eq:
-        rows = [" ".join(eq[i:i + 2]) for i in range(0, len(eq), 2)]
-        blocks.append("〔주요 증시〕\n" + "\n".join(rows))
+        blocks.append("〔증시〕" + " ".join(eq))
 
-    # 〔종목 Top3〕 — 코스피 상승/하락 상위 3
-    up = _movers_line(sm.get("kospiGainers"), "▲상승", 3)
-    dn = _movers_line(sm.get("kospiLosers"),  "▼하락", 3)
-    if up or dn:
-        blocks.append("〔종목 Top3〕\n" + "\n".join([x for x in (up, dn) if x]))
+    # 투자자 순매매 (최근 영업일 외국인/기관/개인, 억원)
+    daily = inv.get("daily") or []
+    if daily:
+        last = daily[-1]
 
-    # 〔ETF Top3〕 — 상승/하락 상위 3
-    eup = _movers_line(etf.get("etfGainers"), "▲상승", 3)
-    edn = _movers_line(etf.get("etfLosers"),  "▼하락", 3)
-    if eup or edn:
-        blocks.append("〔ETF Top3〕\n" + "\n".join([x for x in (eup, edn) if x]))
+        def _s(v):
+            v = _f(v)
+            return "-" if v is None else f"{'+' if v >= 0 else ''}{v:,.0f}"
+        blocks.append(f"〔투자자·억원〕외{_s(last.get('foreign'))} 기{_s(last.get('inst'))} 개{_s(last.get('retail'))}")
 
-    # 〔한·미 채권〕 — 10년물 (yieldCurve 우선, 없으면 economicIndicators 폴백)
+    # 환율 (달러·엔100)
+    def fxp(label, key, nd=1, mul=1.0):
+        o = fx.get(key)
+        if not o or o.get("rate") is None:
+            return None
+        return f"{label}{_num(_f(o['rate']) * mul, nd)}{_a1(o.get('change'))}"
+    fxs = [p for p in (fxp("달러 ", "USDKRW", 1), fxp("엔100 ", "JPYKRW", 1, 100.0)) if p]
+    if fxs:
+        blocks.append("〔환율〕" + " ".join(fxs))
+
+    # 원자재 (WTI·금·구리)
+    def cmp_(label, key, nd=1):
+        o = com.get(key)
+        if not o or o.get("price") is None:
+            return None
+        return f"{label}${_num(o['price'], nd)}{_a1(o.get('change'))}"
+    coms = [p for p in (cmp_("WTI ", "WTI", 1), cmp_("금 ", "Gold", 0), cmp_("구리 ", "Copper", 2)) if p]
+    if coms:
+        blocks.append("〔원자재〕" + " ".join(coms))
+
+    # 채권 (한·미 10년)
     kr10 = _yield_10y(d, "kr")
     us10 = _yield_10y(d, "us")
     if us10 is None:
         us10 = _f((us.get("us10y") or {}).get("value"))
     bond = []
     if kr10 is not None:
-        bond.append(f"韓국고10년 {_num(kr10, 2)}%")
+        bond.append(f"韓10년 {_num(kr10, 2)}%")
     if us10 is not None:
         bond.append(f"美10년 {_num(us10, 2)}%")
     if bond:
-        blocks.append("〔한·미 채권〕 " + " ".join(bond))
+        blocks.append("〔채권〕" + " ".join(bond))
 
-    # 〔환율〕 — 달러/유로/엔(100)/엔달러/유로달러/위안 (더 풍부하게)
-    def fx_part(label, key, nd=1, mul=1.0):
-        o = fx.get(key)
-        if not o or o.get("rate") is None:
-            return None
-        return f"{label} {_num(_f(o['rate']) * mul, nd)}({_a1(o.get('change'))})"
-    fxs = [p for p in (
-        fx_part("달러", "USDKRW", 1),
-        fx_part("유로", "EURKRW", 1),
-        fx_part("엔100", "JPYKRW", 1, 100.0),   # JPYKRW 는 1엔당 → ×100 표기
-        fx_part("위안", "CNYKRW", 1),
-        fx_part("엔/달러", "USDJPY", 2),
-        fx_part("유로/달러", "EURUSD", 4),
-    ) if p]
-    if fxs:
-        rows = [" ".join(fxs[i:i + 2]) for i in range(0, len(fxs), 2)]
-        blocks.append("〔환율〕\n" + "\n".join(rows))
-
-    # 〔원자재〕 — WTI/브렌트/금/은/구리/천연가스 (더 풍부하게)
-    def com_part(label, key, nd=1, pre="$"):
-        o = com.get(key)
-        if not o or o.get("price") is None:
-            return None
-        return f"{label} {pre}{_num(o['price'], nd)}({_a1(o.get('change'))})"
-    coms = [p for p in (
-        com_part("WTI", "WTI", 1),
-        com_part("브렌트", "Brent", 1),
-        com_part("금", "Gold", 0),
-        com_part("은", "Silver", 1),
-        com_part("구리", "Copper", 2),
-        com_part("천연가스", "NatGas", 2),
-    ) if p]
-    if coms:
-        rows = [" ".join(coms[i:i + 2]) for i in range(0, len(coms), 2)]
-        blocks.append("〔원자재〕\n" + "\n".join(rows))
-
-    # 〔투자자 순매매〕 — 최근 영업일 외국인/기관/개인 (억원)
-    daily = inv.get("daily") or []
-    if daily:
-        last = daily[-1]
-        unit = inv.get("unit", "억원")
-
-        def _sig(v):
-            v = _f(v)
-            return "-" if v is None else f"{'+' if v >= 0 else ''}{v:,.0f}"
-        blocks.append(
-            f"〔투자자 순매매·{unit}〕({last.get('date','')})\n"
-            f"외국인 {_sig(last.get('foreign'))} 기관 {_sig(last.get('inst'))} 개인 {_sig(last.get('retail'))}"
-        )
-
-    # 〔시장심리〕 — 공포탐욕, VIX
+    # 시장심리 (공포탐욕·VIX)
     pl = []
     fg = sent.get("fear_greed")
     if fg and fg.get("value") is not None:
@@ -250,31 +209,20 @@ def build_blocks(d):
     if vix and vix.get("value") is not None:
         pl.append(f"VIX {_num(vix['value'], 1)}")
     if pl:
-        blocks.append("〔시장심리〕 " + " ".join(pl))
+        blocks.append("〔심리〕" + " ".join(pl))
 
-    return header, blocks
+    # 종목/ETF Top1 (여유가 있을 때만 — 상세 Top3 는 대시보드)
+    up = _movers_line(sm.get("kospiGainers"), "급등", 1)
+    dn = _movers_line(sm.get("kospiLosers"), "급락", 1)
+    if up and dn:
+        blocks.append(f"〔종목〕{up} {dn}")
 
-
-def pack_messages(header, blocks, limit=TEXT_LIMIT):
-    """헤더 + 섹션 블록들을 200자 이내 메시지 여러 개로 묶는다 (블록은 분할하지 않음)."""
-    msgs, cur = [], header
+    # 우선순위대로 200자 한도 내에서 채우기 (들어가지 않는 줄은 건너뜀).
+    msg = header
     for b in blocks:
-        cand = (cur + "\n\n" + b) if cur else b
-        if cur and len(cand) > limit:
-            msgs.append(cur)
-            cur = b
-        else:
-            cur = cand
-    if cur:
-        msgs.append(cur)
-    # 단일 블록이 한도를 넘으면(드묾) 안전하게 자른다.
-    return [m if len(m) <= limit else m[:limit - 1].rstrip() + "…" for m in msgs]
-
-
-def build_summary(d):
-    """하위호환: 첫 메시지(헤더+핵심)만 반환."""
-    header, blocks = build_blocks(d)
-    return pack_messages(header, blocks)[0]
+        if len(msg) + 1 + len(b) <= limit:
+            msg += "\n" + b
+    return msg
 
 
 def send_memo(access_token, text, with_button=True):
@@ -317,22 +265,11 @@ def main():
     except (OSError, ValueError) as e:
         raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
 
-    header, blocks = build_blocks(data)
-    # 진행표시 '(i/n)' 프리픽스 자리를 위해 여유(10자)를 두고 분할 → 프리픽스 후에도 200자 이내.
-    messages = pack_messages(header, blocks, limit=TEXT_LIMIT - 10)
+    text = build_message(data)
     access_token = refresh_access_token(rest_key, refresh_token)
-    # 200자 제한 때문에 섹션을 여러 메시지로 나눠 순차 발송한다(대시보드 버튼은 마지막에만).
-    n = len(messages)
-    for i, msg in enumerate(messages):
-        last = (i == n - 1)
-        # 다중 메시지면 진행 표시 '(i/n)' 를 붙여 맥락 유지.
-        body = msg if n == 1 else (f"{msg}\n(1/{n})" if i == 0 else f"({i + 1}/{n})\n{msg}")
-        if len(body) > TEXT_LIMIT:
-            body = body[:TEXT_LIMIT - 1].rstrip() + "…"
-        send_memo(access_token, body, with_button=last)
-        if not last:
-            _time.sleep(0.5)   # 연속 발송 간 약간의 간격
-    print(f"[kakao] 총 {n}개 메시지 발송 완료")
+    # 한 통으로만 발송 — '대시보드 보기' 버튼은 https://0101-commits.github.io/economic-site/ 로 연결.
+    send_memo(access_token, text, with_button=True)
+    print("[kakao] 단일 메시지 발송 완료")
 
 
 if __name__ == "__main__":
