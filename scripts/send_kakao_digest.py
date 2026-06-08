@@ -140,8 +140,7 @@ def build_message(d, limit=TEXT_LIMIT):
 
     now = datetime.datetime.now(KST)
     wd = "월화수목금토일"[now.weekday()]
-    slot = "아침 시황" if now.hour < 12 else "오후 시황" if now.hour < 17 else "마감 시황"
-    header = f"\U0001F4CA {now.month}/{now.day}({wd}) {slot}"
+    header = f"{now.month}/{now.day}({wd}) 시황"
 
     def ip(label, key):
         o = idx.get(key)
