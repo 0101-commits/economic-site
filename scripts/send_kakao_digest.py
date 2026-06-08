@@ -194,7 +194,7 @@ def send_memo(access_token, text):
         "object_type": "text",
         "text": text,
         "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
-        "button_title": "대시보드 열기",
+        "button_title": "대시보드 보기",
     }
     status, j = _http_post(
         "https://kapi.kakao.com/v2/api/talk/memo/default/send",
