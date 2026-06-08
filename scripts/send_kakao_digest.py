@@ -369,6 +369,47 @@ def send_feed(access_token, title, description, image_url=None, dims=None):
     return True
 
 
+def build_template_args(title, blocks, image_url=None):
+    """커스텀(사용자 정의) 템플릿 발송용 변수(${KEY}) 매핑.
+
+    콘솔 템플릿에 아래 키를 ${KEY} 형식으로 넣어두면 발송 시 값이 채워진다:
+      TITLE(제목) · SUMMARY(한줄요약) · EQ(증시) · INV(투자자) · FX(환율) · COM(원자재)
+      · BOND(채권) · SENT(심리) · TOP(종목) · CHART_URL(그날 차트 이미지 URL)
+    """
+    keymap = {"증시": "EQ", "투자자": "INV", "환율": "FX", "원자재": "COM",
+              "채권": "BOND", "심리": "SENT", "종목": "TOP"}
+    args = {"TITLE": title}
+    vals = []
+    for b in blocks:
+        if b.startswith("〔") and "〕" in b:
+            label, _, val = b[1:].partition("〕")
+            key = next((v for k, v in keymap.items() if k in label), None)
+            if key:
+                args[key] = val
+            vals.append(val)
+    # 비어있는 키는 빈 문자열로 — 템플릿에 변수가 있는데 인자가 없으면 발송 실패할 수 있음.
+    for k in keymap.values():
+        args.setdefault(k, "")
+    args["SUMMARY"] = " · ".join(vals[:2])[:100]
+    args["CHART_URL"] = image_url or ""
+    return args
+
+
+def send_custom_template(access_token, template_id, args):
+    """콘솔에서 만든 사용자 정의 템플릿(template_id)으로 한 통 발송 (memo/send)."""
+    status, j = _http_post(
+        "https://kapi.kakao.com/v2/api/talk/memo/send",
+        {"template_id": str(template_id),
+         "template_args": json.dumps(args, ensure_ascii=False)},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    if status != 200:
+        print(f"[kakao] 커스텀 템플릿(id={template_id}) 발송 실패 HTTP {status}: {j}")
+        return False
+    print(f"[kakao] 커스텀 템플릿(id={template_id}) 발송 성공\n  args={args}")
+    return True
+
+
 def send_memo(access_token, text, with_button=True):
     """카카오톡 '나에게 보내기'(기본 텍스트 템플릿) — 피드 실패 시 폴백."""
     template = {
@@ -414,9 +455,17 @@ def main():
     if png:
         image_url = kakao_upload_image(access_token, png)
 
-    # 피드 본문(이미지 아래 텍스트) — 카테고리 라인을 한도 내에서 담는다.
+    # ① KAKAO_TEMPLATE_ID 가 설정돼 있으면 콘솔 사용자 정의(커스텀) 템플릿으로 한 통 발송.
+    template_id = os.environ.get("KAKAO_TEMPLATE_ID", "").strip()
+    if template_id:
+        args = build_template_args(title, blocks, image_url)
+        if send_custom_template(access_token, template_id, args):
+            print("[kakao] 발송 완료 (커스텀 템플릿)")
+            return
+        print("[kakao] 커스텀 템플릿 실패 — 기본 피드/텍스트로 폴백")
+
+    # ② 기본 피드 템플릿 한 통 (이미지+제목+본문+버튼). 실패 시 텍스트로 폴백.
     description = _pack("", blocks, 190)
-    # 한 통으로만 발송. 피드 실패 시 텍스트로 폴백.
     if not send_feed(access_token, title, description, image_url, dims=(720, 900)):
         send_memo(access_token, _pack(title, blocks, TEXT_LIMIT), with_button=True)
     print("[kakao] 발송 완료")

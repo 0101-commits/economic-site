@@ -50,4 +50,7 @@ jobs:
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          # 커스텀(사용자 정의) 템플릿으로 보내려면 콘솔 템플릿 ID 를 Secrets 또는 Variables 에 등록.
+          # 미설정 시 기본 피드 템플릿으로 발송. (둘 다 한 통 + 그날 차트 이미지)
+          KAKAO_TEMPLATE_ID: ${{ secrets.KAKAO_TEMPLATE_ID || vars.KAKAO_TEMPLATE_ID }}
         run: python scripts/send_kakao_digest.py
