@@ -2795,11 +2795,21 @@ async function retryEquityMovers(btn) {
 async function refreshInvestorTrading(btn) {
   if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'loading');
   try {
-    if(typeof loadRealData==='function') await loadRealData().catch(()=>{});
+    if(typeof loadRealData==='function') await loadRealData().catch(()=>{});  // 서버 data.json 최신화
     investorRawData = (typeof _getInvestorRawData==='function') ? _getInvestorRawData() : investorRawData;
+    // 서버 data.json 에 투자자 데이터가 없으면(=Actions 의 네이버 IP 차단) 브라우저에서 직접 끌어온다.
+    if((!investorRawData || !investorRawData.length) && window._REALTIME_BOOST && typeof fetchNaverInvestorTradingClient==='function') {
+      try {
+        const inv = await fetchNaverInvestorTradingClient();
+        if(inv && inv.daily && inv.daily.length) {
+          applyRealData({ investorTrading: inv, sources: { investorTrading: inv.source } });
+          investorRawData = _getInvestorRawData();
+        }
+      } catch(_) {}
+    }
     if(typeof buildInvestorChart==='function') buildInvestorChart();
     const ok = investorRawData && investorRawData.length;
-    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? '갱신' : '수집 대기');
+    if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, ok ? 'success' : 'warn', ok ? `${investorRawData.length}일 갱신` : '응답 없음');
   } catch(e) {
     if(btn && typeof _refreshFeedback==='function') _refreshFeedback(btn, 'error', '실패');
   }
@@ -7050,6 +7060,19 @@ function buildEquityPage() {
     showNoDataOverlay('equityIndexChart', '실시간 지수 시계열 데이터가 아직 수집되지 않았습니다.');
   }
   buildInvestorChart();
+  // 투자자 데이터가 비어있으면(서버 Actions 미수집) 브라우저에서 1회 자동으로 끌어온다 — 주식/ETF Top10 과 동일 UX.
+  if((!investorRawData || !investorRawData.length) && window._REALTIME_BOOST && !window._investorClientTried
+     && typeof fetchNaverInvestorTradingClient === 'function') {
+    window._investorClientTried = true;
+    fetchNaverInvestorTradingClient().then(inv => {
+      if(inv && inv.daily && inv.daily.length) {
+        applyRealData({ investorTrading: inv, sources: { investorTrading: inv.source } });
+        investorRawData = _getInvestorRawData();
+        const mp = document.getElementById('page-market');
+        if(mp && mp.classList.contains('active')) buildInvestorChart();
+      }
+    }).catch(()=>{});
+  }
   // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
@@ -10607,6 +10630,37 @@ async function _fetchViaProxies(target, parseJson=true) {
   return null;
 }
 
+// EUC-KR(레거시 네이버 .nhn / 데스크톱 시세 HTML) 본문을 정확히 디코딩해 텍스트로 반환한다.
+// 네이버 finance.naver.com 의 .nhn API·시세 HTML 은 EUC-KR 인코딩이라, 일반 r.text()(=UTF-8)
+// 로 읽으면 한글이 '�' 로 깨진다(=ETF Top10·투자자 표의 깨짐 증상). arrayBuffer 를 받아
+// EUC-KR / UTF-8 둘 다 디코딩해보고 치환문자(U+FFFD)가 더 적은 쪽을 채택 → 프록시가 어떤
+// 인코딩으로 전달하든 안전. ({contents} 래퍼 프록시는 이미 (잘못) UTF-8 디코딩돼 복원 불가 → 스킵.)
+async function _fetchEucKrText(target) {
+  for(const url of _buildCorsProxyUrls(target)) {
+    if(url.includes('allorigins.win/get')) continue;   // 래퍼 = 이미 UTF-8 디코딩됨 → EUC-KR 복원 불가
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if(!r.ok) continue;
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      const _cnt = s => (s == null) ? Infinity : (s.match(/�/g) || []).length;
+      let euc = null;
+      try { euc = new TextDecoder('euc-kr').decode(bytes); } catch(_) {}
+      const utf = new TextDecoder('utf-8').decode(bytes);
+      const txt = (_cnt(euc) <= _cnt(utf)) ? euc : utf;   // 깨짐(치환문자) 더 적은 디코딩 채택
+      if(txt) return txt;
+    } catch(_) { /* try next */ }
+  }
+  return null;
+}
+async function _fetchEucKrJson(target) {
+  const txt = await _fetchEucKrText(target);
+  if(!txt) return null;
+  try { return JSON.parse(txt); } catch(_) { return null; }
+}
+
 async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
   // 네이버 모바일 종목 랭킹 API. 단, 이 엔드포인트가 세션 중 404(폐기)로 확인되면 재시도 중단 —
   // 콘솔 404 폭주를 막고 서버 data.json(pykrx) 값을 사용한다. (페이지 새로고침 시 플래그 리셋)
@@ -10643,44 +10697,136 @@ async function fetchNaverStockMoversClient(market='KOSPI', direction='up') {
 }
 
 async function fetchNaverETFMoversClient() {
-  // Naver ETF 시세 — 전통 API(etfItemList.nhn)가 가장 안정적이라 1순위. 모바일 API
-  // (etf/domestic, domesticEtfList)는 현재 400 을 반환하므로 폴백으로만 둔다(불필요한 400 오류 방지).
-  const targets = [
-    'https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0',
-    'https://m.stock.naver.com/api/stocks/etf/domestic?category=domestic&page=1&pageSize=200',
-    'https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200',
-  ];
-  for(const target of targets) {
-    const data = await _fetchViaProxies(target, true);
-    if(!data) continue;
-    let rows = data?.result?.etfItemList
-            || data?.stocks
-            || data?.result?.stocks
-            || data?.etfList
-            || (Array.isArray(data) ? data : []);
-    if(!Array.isArray(rows) || !rows.length) continue;
-    const today = new Date().toISOString().slice(0,10);
-    const parsed = rows.map(s=>{
-      const name = (s.itemname || s.stockName || s.name || s.itemName || '').trim();
-      const code = (s.itemcode || s.itemCode || s.code || '').trim();
-      const price = Number(s.nowVal || s.closePrice || s.currentPrice || s.tradePrice || 0);
-      let chg = Number(s.fluctuationsRatio ?? s.changeRate ?? s.changeRatio ?? s.cttr ?? 0);
-      if(chg === 0) {
-        const chgVal = Number(s.changeVal || s.compareToPreviousClosePrice || 0);
-        if(chgVal && price > chgVal) chg = +(chgVal / (price - chgVal) * 100).toFixed(2);
-      }
-      const vol = Number(s.quant || s.accumulatedTradingVolume || s.tradeVolume || 0);
-      return { name, code, price, chg, vol, as_of: today };
-    }).filter(x=>x.name && x.price);
-    if(!parsed.length) continue;
+  // Naver ETF 시세 — 전통 API(etfItemList.nhn)가 가장 안정적이라 1순위. 단, 이 .nhn 응답은
+  // EUC-KR 인코딩이라 반드시 _fetchEucKrJson 로 받아야 한글 종목명이 안 깨진다(기존 �� 버그 원인).
+  // 모바일 API(etf/domestic, domesticEtfList)는 UTF-8 JSON 이라 _fetchViaProxies 로 폴백한다.
+  const today = new Date().toISOString().slice(0,10);
+  const mapRow = (s)=>{
+    const name = (s.itemname || s.stockName || s.name || s.itemName || '').trim();
+    const code = (s.itemcode || s.itemCode || s.code || '').trim();
+    const price = Number(s.nowVal || s.closePrice || s.currentPrice || s.tradePrice || 0);
+    let chg = Number(s.fluctuationsRatio ?? s.changeRate ?? s.changeRatio ?? s.cttr ?? 0);
+    if(chg === 0) {
+      const chgVal = Number(s.changeVal || s.compareToPreviousClosePrice || 0);
+      if(chgVal && price > chgVal) chg = +(chgVal / (price - chgVal) * 100).toFixed(2);
+    }
+    const vol = Number(s.quant || s.accumulatedTradingVolume || s.tradeVolume || 0);
+    return { name, code, price, chg, vol, as_of: today };
+  };
+  const finalize = (rows)=>{
+    const parsed = rows.map(mapRow).filter(x=>x.name && x.price);
+    if(!parsed.length) return null;
+    const nonZero = parsed.filter(p => p.chg !== 0).length;
+    if(nonZero < 3) return null;
+    // 종목명이 깨진(치환문자 �) 응답이면 채택하지 않는다 — 깨진 표를 보여주느니 서버 data.json 유지.
+    if(parsed.some(p => p.name.includes('�'))) {
+      console.warn('[NaverETF] 종목명 인코딩 깨짐 감지 — 이 응답 폐기');
+      return null;
+    }
     const gainers = [...parsed].sort((a,b)=>b.chg-a.chg).slice(0,10);
     const losers  = [...parsed].sort((a,b)=>a.chg-b.chg).slice(0,10);
-    const nonZero = parsed.filter(p => p.chg !== 0).length;
-    if(nonZero < 3) continue;
     console.info(`[NaverETF] ${parsed.length}건 수집 (비영점 ${nonZero}건)`);
     return { gainers, losers };
+  };
+
+  // ① 레거시 EUC-KR JSON (정확 디코딩)
+  const euc = await _fetchEucKrJson('https://finance.naver.com/api/sise/etfItemList.nhn?etfType=0');
+  let rows = euc?.result?.etfItemList;
+  if(Array.isArray(rows) && rows.length) {
+    const out = finalize(rows);
+    if(out) return out;
+  }
+  // ② 모바일 UTF-8 JSON 폴백
+  for(const target of [
+    'https://m.stock.naver.com/api/stocks/etf/domestic?category=domestic&page=1&pageSize=200',
+    'https://m.stock.naver.com/api/stocks/etf/domesticEtfList?category=domestic&page=1&pageSize=200',
+  ]) {
+    const data = await _fetchViaProxies(target, true);
+    rows = data?.stocks || data?.result?.stocks || data?.etfList || (Array.isArray(data) ? data : []);
+    if(!Array.isArray(rows) || !rows.length) continue;
+    const out = finalize(rows);
+    if(out) return out;
   }
   return null;
+}
+
+// 투자자별(외국인/기관/개인) 일별 순매수 — 네이버 데스크톱 시세 HTML(EUC-KR) 클라이언트 파싱.
+// 서버 fetch_data.py 의 fetch_naver_investor_trading 과 '동일' 경로/로직이지만, 브라우저는 전용
+// CF Worker 경유라 GitHub Actions 데이터센터 IP 차단(=data.json.investorTrading 가 비는 주원인)을
+// 우회한다. KOSPI+KOSDAQ 합산, 단위 억원. 표/컬럼은 헤더 키워드로 동적 매핑, 단위는 값 크기로 자동 감지.
+async function fetchNaverInvestorTradingClient(lookbackDays=400) {
+  const _num = (s) => {
+    s = (s||'').replace(/,/g,'').replace(/\+/g,'').replace(/ /g,' ').trim();
+    if(!s || s === '-' || s === '—' || s === '·') return null;
+    const v = parseFloat(s);
+    return isFinite(v) ? v : null;
+  };
+  const dateRe = /^\d{2,4}\.\d{1,2}\.\d{1,2}$/;
+  const agg = {};                 // 'YYYY-MM-DD' → {foreign, inst, retail}
+  const marketsOk = [];
+  for(const mkt of ['KOSPI','KOSDAQ']) {
+    const html = await _fetchEucKrText(`https://finance.naver.com/sise/sise_index_buyer.naver?code=${mkt}`);
+    if(!html) continue;
+    let doc;
+    try { doc = new DOMParser().parseFromString(html, 'text/html'); } catch(_) { continue; }
+    // 개인·외국인·기관 을 모두 포함하는 표 + 헤더행으로 컬럼 인덱스 매핑
+    let tbl = null, colmap = null;
+    for(const t of doc.querySelectorAll('table')) {
+      const tt = t.textContent || '';
+      if(!(tt.includes('개인') && tt.includes('외국인') && tt.includes('기관'))) continue;
+      for(const tr of t.querySelectorAll('tr')) {
+        const cells = [...tr.querySelectorAll('th,td')].map(c => (c.textContent||'').trim());
+        const cm = {};
+        cells.forEach((ct, i) => {
+          if(ct.includes('개인') && cm.retail === undefined) cm.retail = i;
+          else if(ct.includes('외국인') && !ct.includes('기타') && cm.foreign === undefined) cm.foreign = i;
+          else if(ct.includes('기관') && cm.inst === undefined) cm.inst = i;
+        });
+        if(cm.retail !== undefined && cm.foreign !== undefined && cm.inst !== undefined) { colmap = cm; tbl = t; break; }
+      }
+      if(tbl) break;
+    }
+    if(!tbl || !colmap) continue;
+    const maxIdx = Math.max(colmap.retail, colmap.foreign, colmap.inst);
+    let n = 0;
+    for(const tr of tbl.querySelectorAll('tr')) {
+      const cells = [...tr.querySelectorAll('td,th')].map(c => (c.textContent||'').trim());
+      if(cells.length <= maxIdx) continue;
+      const dcell = cells.find(c => dateRe.test(c.replace(/\s/g,'')));
+      if(!dcell) continue;
+      const f = _num(cells[colmap.foreign]), ins = _num(cells[colmap.inst]), ret = _num(cells[colmap.retail]);
+      if(f === null && ins === null && ret === null) continue;
+      const p = dcell.replace(/\s/g,'').split('.');
+      if(p.length !== 3) continue;
+      let y = p[0];
+      if(y.length === 2) y = '20'+y; else if(y.length !== 4) y = String(new Date().getFullYear());
+      const dstr = `${y}-${String(parseInt(p[1],10)).padStart(2,'0')}-${String(parseInt(p[2],10)).padStart(2,'0')}`;
+      if(!agg[dstr]) agg[dstr] = {foreign:0, inst:0, retail:0};
+      agg[dstr].foreign += (f||0); agg[dstr].inst += (ins||0); agg[dstr].retail += (ret||0);
+      n++;
+    }
+    if(n) marketsOk.push(mkt);
+  }
+  const dates = Object.keys(agg);
+  if(!dates.length) return null;
+  // 단위 자동 감지 — 순매수 거래대금이 백만원 단위면 ÷100 으로 억원 정규화 (서버와 동일)
+  const allvals = [];
+  dates.forEach(d => ['foreign','inst','retail'].forEach(k => { if(agg[d][k]) allvals.push(Math.abs(agg[d][k])); }));
+  allvals.sort((a,b)=>a-b);
+  const median = allvals.length ? allvals[Math.floor(allvals.length/2)] : 0;
+  const scale = median > 100000 ? 0.01 : 1.0;
+  const daily = dates.sort().map(d => ({
+    date: d,
+    foreign: Math.round(agg[d].foreign * scale * 10) / 10,
+    inst:    Math.round(agg[d].inst    * scale * 10) / 10,
+    retail:  Math.round(agg[d].retail  * scale * 10) / 10,
+  })).slice(-lookbackDays);
+  console.info(`[투자자-client] ${daily.length}일 수집 (${marketsOk.join('+')}) scale=${scale}`);
+  return {
+    daily, markets: marketsOk, unit: '억원',
+    source: 'Naver 금융 투자자별 매매동향 (클라이언트 실시간)',
+    lastFetched: new Date().toISOString(),
+  };
 }
 
 // 수동 재시도 (버튼 클릭) — 자동 시도 카운터 무관하게 재시도
@@ -13740,7 +13886,20 @@ async function loadFreshNews() {
   //    기본 OFF 로 둔다. 굳이 켜려면 콘솔: localStorage.setItem('newsClientFetch','1') 후 새로고침.
   const arrays = { newsItems, commodityNewsItems, macroNewsItems, calendarNewsItems };
   const tasks = [];
-  const _newsClientOn = (function(){ try { return localStorage.getItem('newsClientFetch') === '1'; } catch(_) { return false; } })();
+  // 클라이언트 뉴스 보강 — 주식 Top10 의 _REALTIME_BOOST 와 동일하게 '실시간 갱신'을 켠다.
+  // 과거 OFF 였던 이유는 '공개 프록시'가 자주 실패해 콘솔 에러를 남겼기 때문인데, 이제 전용
+  // CF Worker(안정적·상류 4xx 시 즉시 중단)를 1순위로 쓰므로 그 경우엔 켜도 안전하다.
+  //   · CF Worker 설정됨 → 기본 ON (뉴스도 주식처럼 실시간으로 최신 기사 반영)
+  //   · 미설정          → 기본 OFF (공개 프록시 콘솔오류 방지)
+  //   · 강제 토글: localStorage.setItem('newsClientFetch','1'|'0') 후 새로고침
+  const _newsClientOn = (function(){
+    try {
+      const v = localStorage.getItem('newsClientFetch');
+      if(v === '1') return true;
+      if(v === '0') return false;
+      return !!(typeof _cfProxyBase === 'function' && _cfProxyBase());
+    } catch(_) { return false; }
+  })();
   if(_newsClientOn) for (const [arrName, queries] of Object.entries(NEWS_QUERIES)) {
     for (const {idx, q} of queries) {
       tasks.push(fetchLatestArticles(q, 5).then(freshList => {

@@ -4659,8 +4659,9 @@ def build_data():
     # 이제 무인증 Naver 폴백이 있어, 비어있으면 두 소스(KRX/Naver) 모두 일시 실패한 상황.
     if not (data.get("investorTrading") or {}).get("daily"):
         data["diagnostics"]["investorTradingReason"] = (
-            "투자자별 매매 데이터 소스 일시 오류 — 다음 자동 갱신 시 재시도합니다. "
-            "(더 정확한 전체 시계열을 원하면 Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정) 등록)"
+            "투자자별 순매매 데이터를 실시간으로 불러오는 중입니다… (서버가 차단된 경우 대시보드가 "
+            "브라우저에서 네이버 금융을 통해 직접 가져옵니다). 더 정확한 전체 시계열을 원하면 "
+            "Secrets 에 KRX_ID/KRX_PW(무료 data.krx.co.kr 계정)를 등록하세요."
         )
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────

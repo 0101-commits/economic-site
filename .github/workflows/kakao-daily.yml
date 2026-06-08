@@ -1,6 +1,7 @@
-name: KakaoTalk Daily Digest (08:30·10·16 KST)
+name: KakaoTalk Daily Digest (10·15·18 KST)
 
-# 매일 08:30 / 10:00 / 16:00 (KST) data.json 시황 요약을 카카오톡 '나에게 보내기'로 발송한다.
+# 매일 10:00 / 15:00 / 18:00 (KST) data.json 시황 요약을 카카오톡 '나에게 보내기'로 발송한다.
+# (10시=아침 브리핑 / 15시=장중 점검 / 18시=마감 정리 — 발송 시각에 맞춰 제목이 자동으로 바뀐다.)
 # GitHub Actions 스케줄은 UTC 기준이며 best-effort 라 몇 분 지연될 수 있다.
 #
 # 사전 설정(1회) — 저장소 루트 KAKAO_SETUP.md 참고:
@@ -11,9 +12,9 @@ name: KakaoTalk Daily Digest (08:30·10·16 KST)
 # 테스트: Actions 탭에서 이 워크플로를 'Run workflow'(workflow_dispatch)로 즉시 수동 발송 가능.
 on:
   schedule:
-    - cron: '30 23 * * *'  # 08:30 KST (전일 23:30 UTC)
-    - cron: '0 1 * * *'    # 10:00 KST (01:00 UTC)
-    - cron: '0 7 * * *'    # 16:00 KST (07:00 UTC)
+    - cron: '0 1 * * *'    # 10:00 KST (01:00 UTC) — 아침 시황
+    - cron: '0 6 * * *'    # 15:00 KST (06:00 UTC) — 오후 시황
+    - cron: '0 9 * * *'    # 18:00 KST (09:00 UTC) — 마감 시황
   workflow_dispatch: {}
 
 permissions:

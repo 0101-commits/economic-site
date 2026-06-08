@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""매일 오전 10시(KST) data.json 시황 요약을 카카오톡 '나에게 보내기'로 발송한다.
+"""매일 10/15/18시(KST) data.json 시황 요약을 카카오톡 '나에게 보내기'로 발송한다.
 
 필요한 GitHub Secrets:
   KAKAO_REST_API_KEY   — 카카오 개발자 앱의 REST API 키
@@ -97,7 +97,15 @@ def build_summary(d):
 
     now = datetime.datetime.now(KST)
     wd = "월화수목금토일"[now.weekday()]
-    lines = [f"\U0001F4CA {now.month}/{now.day}({wd}) 아침 시황"]
+    # 발송 시각(KST)에 맞춰 제목을 바꾼다 — 10시=아침 / 15시=오후 / 18시=마감.
+    # (스케줄 지연을 감안해 시각 경계는 넉넉히 잡는다.)
+    if now.hour < 12:
+        slot = "아침 시황"
+    elif now.hour < 17:
+        slot = "오후 시황"
+    else:
+        slot = "마감 시황"
+    lines = [f"\U0001F4CA {now.month}/{now.day}({wd}) {slot}"]
 
     def idx_part(label, key):
         o = idx.get(key)
