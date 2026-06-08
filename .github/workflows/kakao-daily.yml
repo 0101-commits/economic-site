@@ -41,11 +41,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        # matplotlib: 그날 코스피·달러-원·투자자별 순매매 차트 PNG 생성
-        # requests: 카카오 이미지 업로드 API(multipart) 호출
-        run: pip install matplotlib requests
-
       - name: Send KakaoTalk digest
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
