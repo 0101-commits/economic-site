@@ -66,7 +66,9 @@ jobs:
         #    install 을 무고정으로 두면 런마다 최신 pykrx 로 드리프트해 동작이 바뀌므로 1.2.8 로 고정한다.
         #    KRX_ID/KRX_PW 시크릿이 설정돼 있으면 pykrx 가 자동 로그인해 투자자별 순매매·Top10 이 정상 수집된다.
         #    (시크릿 미설정 시 익명 접근을 시도하나 KRX 가 거부 → 투자자별 데이터가 비게 됨.)
-        run: pip install requests yfinance "pykrx==1.2.8"
+        #    beautifulsoup4/lxml: 투자자별 순매매 Naver 폴백 파서 + 운임지수 스크래핑에 사용.
+        #    (pykrx 의 전이 의존성에 기대지 않고 명시 설치 — Naver 폴백이 'bs4 미설치'로 비는 일 방지.)
+        run: pip install requests yfinance "pykrx==1.2.8" beautifulsoup4 lxml
 
       # KIS 토큰 영속 캐시 — 한국투자증권 API 는 토큰 1일 1회 발급 권장 (24h 유효).
       # 잦은 발급 시 카카오톡 알람·이용 제한이 발생하므로 GHA cache 액션으로
@@ -80,6 +82,16 @@ jobs:
           key: kis-token-${{ github.run_started_at }}
           restore-keys: |
             kis-token-
+
+      # 실 제조업 PMI(50기준) 웹 스크래핑 영속 캐시 — 일일 풀 갱신 때 수집한 값을 런 간 보존해
+      # 비풀 런/소스 일시 차단 시에도 BCI 로 깜빡이지 않고 최신 PMI 를 유지한다.
+      - name: Restore PMI scrape cache
+        uses: actions/cache@v4
+        with:
+          path: .pmi_cache.json
+          key: pmi-cache-${{ github.run_started_at }}
+          restore-keys: |
+            pmi-cache-
 
       - name: Fetch market data
         env:

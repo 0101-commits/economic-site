@@ -849,7 +849,7 @@
               <button onclick="refreshSentiment(this)" title="시장 분위기 지표 재페치 (VKOSPI/MOVE/PutCall)" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:4px;padding:0 6px;font-size:10px;cursor:pointer;height:18px;">↻</button>
             </div>
             <!-- Fear & Greed 게이지 (클릭 → 상세 모달) -->
-            <div onclick="showSentimentDetail('fear_greed')" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border-radius:6px;padding:4px;transition:background 0.15s;" onmouseover="this.style.background='var(--c-card-hover,#1f2330)'" onmouseout="this.style.background='transparent'" title="클릭 → CNN Fear &amp; Greed 추이 및 해석 가이드">
+            <div onclick="showSentimentDetail('fear_greed')" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border-radius:6px;padding:4px;transition:background 0.15s;" onmouseover="this.style.background='var(--c-card-hi,#262a35)'" onmouseout="this.style.background='transparent'" title="클릭 → CNN Fear &amp; Greed 추이 및 해석 가이드">
               <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
                 <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
               </div>
@@ -1468,21 +1468,6 @@
             <tbody id="freightTable"></tbody>
           </table>
         </div>
-        <!-- 원자재 뉴스 -->
-        <div class="widget">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">원자재 관련 뉴스</div>
-            <button onclick="refreshNews('commodityNewsFeed','commodityNewsItems',this)" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
-          </div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-            <span class="news-filter-btn act" onclick="setNewsFilter('commodityNewsFeed','all',this)">전체</span>
-            <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','원유',this)">원유</span>
-            <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','귀금속',this)">귀금속</span>
-            <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','비철금속',this)">비철금속</span>
-            <span class="news-filter-btn" onclick="setNewsFilter('commodityNewsFeed','농산물',this)">농산물</span>
-          </div>
-          <div id="commodityNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
-        </div>
       </div>
     </div><!-- /market -->
 
@@ -1566,7 +1551,7 @@
     <div class="page" id="page-calendar">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
         <select style="background:#1b1f2b;color:#dfe2f2;border:1px solid #2a2e3d;padding:5px 10px;border-radius:6px;font-size:12px;" id="calPeriod">
-          <option>이번 주</option><option>이번 달</option><option>다음 달</option>
+          <option>이번 주</option><option>지난 달</option><option>이번 달</option><option>다음 달</option>
         </select>
         <div style="display:flex;gap:4px;flex-wrap:wrap;">
           <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:#2962ff;color:#fff;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;user-select:none;">🇰🇷 한국</span>
@@ -2899,6 +2884,19 @@ function injectChartRefreshButtons() {
     btn.onclick = (e) => { e.stopPropagation(); try { handler(btn); } catch(_) { refreshAllData(btn); } };
     title.appendChild(btn);
   });
+}
+
+// .widget-title 의 동적 텍스트만 교체하고, injectChartRefreshButtons 가 주입한 '↻ 새로고침'
+// 버튼 등 자식 엘리먼트는 보존한다. (과거 결함: bondChartTitle/equityChartTitle/comDetailTitle
+// 에 title.textContent='...' 로 제목을 갱신하면 같은 엘리먼트에 append 된 새로고침 버튼이
+// 통째로 지워져, '새로고침을 누르면 버튼이 사라지는' 회귀가 발생했다.)
+function setWidgetTitleText(el, text) {
+  if(!el) return;
+  // 선두 텍스트 노드만 갱신 — element 자식(버튼/배지/단위 span)은 그대로 둔다.
+  let tn = null;
+  for(const n of el.childNodes) { if(n.nodeType === 3) { tn = n; break; } }
+  if(tn) { tn.nodeValue = text; }
+  else { el.insertBefore(document.createTextNode(text), el.firstChild); }
 }
 
 // ============================
@@ -6413,7 +6411,7 @@ function buildBondChart(series) {
 function selectBond(idx, el) {
   bondCurrentIdx = idx;
   const b = bondItems[idx];
-  document.getElementById('bondChartTitle').textContent = (bondCountries[bondCountryCurrent] ? bondCountries[bondCountryCurrent].flag + ' ' : '') + b.label + ' 국채 수익률';
+  setWidgetTitleText(document.getElementById('bondChartTitle'), (bondCountries[bondCountryCurrent] ? bondCountries[bondCountryCurrent].flag + ' ' : '') + b.label + ' 국채 수익률');
   document.getElementById('bondChartRate').textContent = b.rate;
   document.querySelectorAll('#bondTable tr').forEach(r=>r.style.borderLeft='');
   el.style.borderLeft = '2px solid #2962ff';
@@ -6513,7 +6511,7 @@ function buildBondPage() {
     </tr>`).join('');
   // Build bond chart for current selection — FRED 데이터 활용
   const b = bondItems[bondCurrentIdx];
-  document.getElementById('bondChartTitle').textContent = (bondCountries[bondCountryCurrent] ? bondCountries[bondCountryCurrent].flag + ' ' : '') + b.label + ' 국채 수익률';
+  setWidgetTitleText(document.getElementById('bondChartTitle'), (bondCountries[bondCountryCurrent] ? bondCountries[bondCountryCurrent].flag + ' ' : '') + b.label + ' 국채 수익률');
   document.getElementById('bondChartRate').textContent = b.rate;
   buildBondTimeSeriesFromYC(bondCountryCurrent || 'us', b);
   // Yield curve chart — 현재 선택된 국가에 따라 데이터 변경, FRED 데이터 우선
@@ -6892,7 +6890,7 @@ function selectEquityIndex(idx, btn) {
   equityCurrentIdx = idx;
   const d = eqData[idx];
   const titleEl = document.getElementById('equityChartTitle');
-  if(titleEl) titleEl.textContent = d.name;
+  if(titleEl) setWidgetTitleText(titleEl, d.name);
   document.querySelectorAll('#market-equity .tab-btn').forEach(b=>{
     if(['KOSPI','KOSDAQ','S&P 500','NASDAQ','닛케이','항셍'].includes(b.textContent.trim())) {
       b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
@@ -7301,11 +7299,11 @@ function buildComDetailChartMulti() {
   const priceEl = document.getElementById('comDetailPrice');
   if(selectedArr.length === 1) {
     const c = comData[selectedArr[0]];
-    if(titleEl) titleEl.textContent = c.name;
+    if(titleEl) setWidgetTitleText(titleEl, c.name);
     if(priceEl) priceEl.textContent = c.price;
     updateComHeader(c);
   } else if(selectedArr.length > 1) {
-    if(titleEl) titleEl.textContent = `${selectedArr.length}개 선택 비교`;
+    if(titleEl) setWidgetTitleText(titleEl, `${selectedArr.length}개 선택 비교`);
     if(priceEl) priceEl.textContent = '';
     updateComHeader(null);
   }
@@ -7541,9 +7539,6 @@ function buildCommodityPage() {
       <td style="text-align:right;padding:8px;"><span style="font-size:10px;color:${stsCls};">● ${m.status}</span></td>
     </tr>`;
   }).join('');
-
-  // 원자재 관련 뉴스
-  buildNewsFeed('commodityNewsFeed', commodityNewsItems);
 }
 
 // 비철금속 차트 — 이중축 (구리=좌축 $/lb, 알루미늄/아연/니켈=우축 $/톤)
@@ -8038,7 +8033,7 @@ const macroIndicators = [
   {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'수출',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v?.toLocaleString()},
   {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
-  {name:'제조업 경기지수(BCI)',cc:'🇰🇷',cat:'경기',src:'OECD (FRED BSCICP02KRM460S) · ECOS BSI 보조',freq:'월간',unit:'지수 (100=중립)',
+  {name:'제조업 PMI·경기지수',cc:'🇰🇷',cat:'경기',src:'OECD (FRED BSCICP02KRM460S) · ECOS BSI 보조',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.kr.pmi_kr',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   {name:'산업생산지수',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.ip_kr',fmt:v=>v?.toFixed(2)},
@@ -8071,30 +8066,27 @@ const macroIndicators = [
   {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
   {name:'GDP',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'USD (총액)',dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v?.toLocaleString()},
   {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
-  {name:'제조업 경기지수(BCI)',cc:'🇨🇳',cat:'경기',src:'OECD (FRED BSCICP02CNM460S)',freq:'월간',unit:'지수 (100=중립)',
+  {name:'제조업 PMI·경기지수',cc:'🇨🇳',cat:'경기',src:'OECD (FRED BSCICP02CNM460S)',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.cn.pmi_cn',fmt:v=>v?.toFixed(1),
     link:'http://www.stats.gov.cn/english/PressRelease/',linkLabel:'NBS 발표문'},
   // 일본 (link 보강)
-  {name:'제조업 경기지수(BCI)',cc:'🇯🇵',cat:'경기',src:'OECD (FRED BSCICP02JPM460S)',freq:'월간',unit:'지수 (100=중립)',
+  {name:'제조업 PMI·경기지수',cc:'🇯🇵',cat:'경기',src:'OECD (FRED BSCICP02JPM460S)',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.jp.pmi_jp',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 미국 (link 보강)
-  {name:'제조업 경기지수(BCI)',cc:'🇺🇸',cat:'경기',src:'OECD BCI (FRED BSCICP02USM460S)',freq:'월간',unit:'지수 (100=중립)',
+  {name:'제조업 PMI·경기지수',cc:'🇺🇸',cat:'경기',src:'OECD BCI (FRED BSCICP02USM460S)',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.us.pmi_us',fmt:v=>v?.toFixed(1),
     link:'https://fred.stlouisfed.org/series/BSCICP02USM460S',linkLabel:'OECD 기업경기지수(FRED)'},
   // 유로존
-  {name:'제조업 경기지수(BCI)',cc:'🇪🇺',cat:'경기',src:'OECD (FRED BSCICP02EZM460S)',freq:'월간',unit:'지수 (100=중립)',
-    dataPath:'economicIndicators.eu.pmi_eu',fmt:v=>v?.toFixed(1),
-    link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
-  {name:'서비스업 PMI',cc:'🇪🇺',cat:'경기',src:'HCOB / S&P Global',freq:'월간',unit:'지수 (100=중립)',
+  {name:'제조업 PMI·경기지수',cc:'🇪🇺',cat:'경기',src:'S&P Global PMI · OECD BCI 보조',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.eu.pmi_eu',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 영국
-  {name:'제조업 경기지수(BCI)',cc:'🇬🇧',cat:'경기',src:'OECD BCI (FRED BSCICP02GBM460S)',freq:'월간',unit:'지수 (100=중립)',
+  {name:'제조업 PMI·경기지수',cc:'🇬🇧',cat:'경기',src:'OECD BCI (FRED BSCICP02GBM460S)',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.uk.pmi_uk',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 독일
-  {name:'제조업 경기지수(BCI)',cc:'🇩🇪',cat:'경기',src:'OECD (FRED BSCICP02DEM460S)',freq:'월간',unit:'지수 (100=중립)',
+  {name:'제조업 PMI·경기지수',cc:'🇩🇪',cat:'경기',src:'OECD (FRED BSCICP02DEM460S)',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.de.pmi_de',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 일본 (FRED 국제 시리즈)
@@ -8229,7 +8221,7 @@ function _macroGroupKey(r) {
   if(dp.includes('unemploy') || dp.includes('unemp') || nm.includes('실업')) return '실업률';
   if(dp.includes('exports') || nm.includes('수출')) return '수출';
   if(dp.includes('base_rate') || dp.includes('ff_rate') || nm.includes('기준금리') || nm.includes('정책금리') || nm.includes('ffr') || nm.includes('ecb') || nm.includes('boj') || nm.includes('boe')) return '기준금리';
-  if(dp.includes('pmi') || nm.includes('pmi')) return 'PMI';
+  if(dp.includes('pmi') || nm.includes('pmi')) return '제조업 PMI·경기지수';
   if(dp.includes('us10y') || dp.includes('us2y') || nm.includes('국채')) return '국채 수익률';
   if(dp.includes('case_shiller') || dp.includes('apt_price') || nm.includes('hpi') || nm.includes('주택가격')) return 'HPI';
   if(dp.includes('mortgage') || nm.includes('모기지') || nm.includes('주담대')) return '모기지';
@@ -8280,20 +8272,23 @@ function buildMacroIndicatorTable() {
       if(items.length >= 2) {
         const cards = items.map(r => {
           let valStr = '—', periodStr = '—', valColor = 'var(--c-txt-muted,#434656)';
+          let unitStr = r.unit, staleMark = '';
           if(d && r.dataPath) {
             const node = getDataByPath(d, r.dataPath);
             if(node && node.value != null) {
               valStr = r.fmt ? r.fmt(node.value) : node.value;
               if(node.period) periodStr = node.period;
-              valColor = 'var(--c-txt,#dfe2f2)';
+              if(node.unit) unitStr = node.unit;
+              if(node.stale) { staleMark = '⚠'; valColor = 'var(--c-warn,#f5a623)'; }
+              else { valColor = 'var(--c-txt,#dfe2f2)'; }
             } else {
               missingApis.add(`${r.cc} ${r.name} (${r.src})`);
             }
           }
           const indIdx = macroIndicators.indexOf(r);
-          return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:6px 9px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid rgba(255,255,255,0.06);cursor:pointer;" title="${r.name} · ${r.src} · ${r.unit||''}">
+          return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:6px 9px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid rgba(255,255,255,0.06);cursor:pointer;" title="${r.name} · ${r.src} · ${unitStr||''}${periodStr!=='—'?' · '+periodStr:''}">
             <div style="font-size:11px;color:var(--c-txt,#dfe2f2);">${r.cc}</div>
-            <div style="font-size:13px;font-weight:700;font-family:'Public Sans';color:${valColor};">${valStr}</div>
+            <div style="font-size:13px;font-weight:700;font-family:'Public Sans';color:${valColor};">${staleMark}${valStr}</div>
           </div>`;
         }).join('');
         return `<div style="background:rgba(255,255,255,0.02);border-radius:8px;padding:8px;border-left:3px solid ${color};">
@@ -8304,12 +8299,17 @@ function buildMacroIndicatorTable() {
       // 단일 국가 → 기존 카드 스타일
       const r = items[0];
       let valStr = '—', periodStr = '—', valColor = 'var(--c-txt-muted,#434656)';
+      let unitStr = r.unit, srcStr = r.src;
       if(d && r.dataPath) {
         const node = getDataByPath(d, r.dataPath);
         if(node && node.value != null) {
           valStr = r.fmt ? r.fmt(node.value) : node.value;
           if(node.period) periodStr = node.period;
-          valColor = 'var(--c-txt,#dfe2f2)';
+          // 데이터가 자체 단위/출처를 제공하면 우선 사용 (실 PMI 50기준 vs OECD BCI 100기준 구분).
+          if(node.unit) unitStr = node.unit;
+          if(node.source) srcStr = node.source;
+          if(node.stale) { periodStr += ' · ⚠ 갱신 지연'; valColor = 'var(--c-warn,#f5a623)'; }
+          else { valColor = 'var(--c-txt,#dfe2f2)'; }
         } else { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       } else if(!r.dataPath) { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       const indIdx = macroIndicators.indexOf(r);
@@ -8317,8 +8317,8 @@ function buildMacroIndicatorTable() {
       return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:rgba(255,255,255,0.03);border-radius:6px;border-left:3px solid ${color};cursor:pointer;" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
           <div style="font-size:12px;font-weight:600;color:var(--c-txt,#dfe2f2);">${r.cc} ${r.name} <span style="font-size:9px;color:var(--c-txt-muted,#434656);">📈</span></div>
-          <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:2px;line-height:1.4;">${r.src} · ${r.freq} · ${periodStr}</div>
-          ${r.unit ? `<div style="font-size:9px;color:var(--c-primary,#b6c4ff);margin-top:1px;">단위: ${r.unit}</div>`:''}
+          <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:2px;line-height:1.4;">${srcStr} · ${r.freq} · ${periodStr}</div>
+          ${unitStr ? `<div style="font-size:9px;color:var(--c-primary,#b6c4ff);margin-top:1px;">단위: ${unitStr}</div>`:''}
           ${linkBtn}
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:8px;">
@@ -8701,7 +8701,7 @@ function buildCalendarGrid(filteredEvents) {
   const container = document.getElementById('calGridContainer');
   if(!container) return;
   const titleEl = document.getElementById('calGridTitle');
-  if(titleEl) titleEl.textContent = `${_calGridYear}년 ${_calGridMonth}월 캘린더`;
+  if(titleEl) setWidgetTitleText(titleEl, `${_calGridYear}년 ${_calGridMonth}월 캘린더`);
   // 해당 월의 1일 / 마지막 일
   const firstDay = new Date(_calGridYear, _calGridMonth-1, 1);
   const lastDay = new Date(_calGridYear, _calGridMonth, 0);
@@ -9333,6 +9333,7 @@ function buildCalendar(){
   const now   = new Date();
   const month = now.getMonth()+1;        // 1~12
   const nextM = month===12 ? 1 : month+1;
+  const prevM = month===1  ? 12 : month-1;   // 지난 달
   const period = document.getElementById('calPeriod')?.value || '다음 달';
 
   // 필터 변경 시 그리드 자동 이동 (단, 사용자가 수동 네비게이션 한 경우 제외)
@@ -9340,6 +9341,9 @@ function buildCalendar(){
     if(period === '다음 달') {
       _calGridYear = now.getFullYear() + (month===12 ? 1 : 0);
       _calGridMonth = nextM;
+    } else if(period === '지난 달') {
+      _calGridYear = now.getFullYear() - (month===1 ? 1 : 0);
+      _calGridMonth = prevM;
     } else {
       _calGridYear = now.getFullYear();
       _calGridMonth = month;
@@ -9349,6 +9353,7 @@ function buildCalendar(){
   const filtered = calEvents.filter(e => {
     const evMonth = parseInt(e.dt.slice(0,2), 10);
     if(period==='이번 달' && evMonth !== month)    return false;
+    if(period==='지난 달' && evMonth !== prevM)    return false;
     if(period==='다음 달' && evMonth !== nextM)    return false;
     if(period==='이번 주') {
       // ISO 8601 Calendar Week — 월요일 시작, 일요일 끝
@@ -9371,9 +9376,10 @@ function buildCalendar(){
       const m = e.dt.match(/(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
       if(!m) return 0;
       const mo = parseInt(m[1],10), dy = parseInt(m[2],10), hr = parseInt(m[3],10), mi = parseInt(m[4],10);
-      // 표시 중인 기간이 '다음 달' 이고 다음 달이 1월(=12월말 → 익년 1월) 인 경우 연도 보정
+      // 표시 중인 기간이 연말/연초를 가로지를 때 연도 보정
       let yr = now.getFullYear();
-      if(period === '다음 달' && month === 12 && mo === 1) yr++;
+      if(period === '다음 달' && month === 12 && mo === 1) yr++;   // 12월 → 익년 1월
+      if(period === '지난 달' && month === 1  && mo === 12) yr--;  // 1월 → 전년 12월
       return new Date(yr, mo-1, dy, hr, mi).getTime();
     };
     return _toMs(a) - _toMs(b);
@@ -13037,7 +13043,7 @@ function applyRealData(d) {
   const cdTitle = document.getElementById('comDetailTitle');
   const cdPrice = document.getElementById('comDetailPrice');
   if (cdTitle && cdPrice && typeof comCurrentIdx !== 'undefined' && comData[comCurrentIdx]) {
-    cdTitle.textContent = comData[comCurrentIdx].name;
+    setWidgetTitleText(cdTitle, comData[comCurrentIdx].name);
     cdPrice.textContent = comData[comCurrentIdx].price;
   }
 

@@ -31,7 +31,9 @@ jobs:
       - name: Checkout (최신 data.json)
         uses: actions/checkout@v5
         with:
-          ref: main
+          # 스케줄 발화는 기본 브랜치(main)에서 도므로 github.ref_name=main → 평소 동작 동일.
+          # 수동 실행(workflow_dispatch)은 선택한 브랜치를 체크아웃 → 새 스크립트/데이터로 파일럿 가능.
+          ref: ${{ github.ref_name || 'main' }}
           fetch-depth: 1
 
       - name: Set up Python
