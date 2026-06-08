@@ -122,12 +122,8 @@ def _movers_line(arr, mark, n=3):
     return (mark + " " + " / ".join(parts)) if parts else None
 
 
-def build_message(d, limit=TEXT_LIMIT):
-    """data.json → 카카오 '나에게 보내기' 단일 메시지(한국어).
-
-    카카오 기본 텍스트 템플릿은 200자 제한이라, 카테고리(증시·투자자·환율·원자재·채권·심리)별
-    핵심 수치를 한 줄씩 압축해 우선순위대로 한도 내에서 최대한 담는다. 상세(종목/ETF Top3 등)는
-    '대시보드 보기' 버튼으로 연결. 한 통으로만 발송(분할 없음)."""
+def build_digest_parts(d):
+    """data.json → (제목, 섹션 블록 리스트). 피드 본문/텍스트 메시지 공용."""
     idx  = d.get("indices", {}) or {}
     fx   = d.get("fx", {}) or {}
     com  = d.get("commodities", {}) or {}
@@ -135,12 +131,11 @@ def build_message(d, limit=TEXT_LIMIT):
     ei   = d.get("economicIndicators", {}) or {}
     us   = ei.get("us", {}) or {}
     sm   = d.get("stockMovers", {}) or {}
-    etf  = d.get("etfMovers", {}) or {}
     inv  = d.get("investorTrading", {}) or {}
 
     now = datetime.datetime.now(KST)
     wd = "월화수목금토일"[now.weekday()]
-    header = f"{now.month}/{now.day}({wd}) 시황"
+    title = f"{now.month}/{now.day}({wd}) 시황"
 
     def ip(label, key):
         o = idx.get(key)
@@ -210,22 +205,172 @@ def build_message(d, limit=TEXT_LIMIT):
     if pl:
         blocks.append("〔심리〕" + " ".join(pl))
 
-    # 종목/ETF Top1 (여유가 있을 때만 — 상세 Top3 는 대시보드)
+    # 종목 Top1 급등/급락 (여유 있을 때만 — 상세 Top3 는 대시보드)
     up = _movers_line(sm.get("kospiGainers"), "급등", 1)
     dn = _movers_line(sm.get("kospiLosers"), "급락", 1)
     if up and dn:
         blocks.append(f"〔종목〕{up} {dn}")
 
-    # 우선순위대로 200자 한도 내에서 채우기 (들어가지 않는 줄은 건너뜀).
-    msg = header
+    return title, blocks
+
+
+def _pack(prefix, blocks, limit):
+    """prefix 뒤에 블록을 줄단위로 한도 내에서 채워 한 문자열로 만든다(못 들어가는 줄은 생략)."""
+    msg = prefix
     for b in blocks:
-        if len(msg) + 1 + len(b) <= limit:
-            msg += "\n" + b
+        add = b if not msg else "\n" + b
+        if len(msg) + len(add) <= limit:
+            msg += add
     return msg
 
 
+def build_message(d, limit=TEXT_LIMIT):
+    """텍스트 메시지(폴백)용 단일 문자열 — 제목 + 섹션을 200자 내에 채움."""
+    title, blocks = build_digest_parts(d)
+    return _pack(title, blocks, limit)
+
+
+def build_daily_chart_png(d, out_path="/tmp/kakao_daily_chart.png"):
+    """그날 코스피·달러-원·투자자별 순매매를 1장 PNG(720x900)로 생성. 실패 시 None.
+
+    CI 에 한글 폰트가 없을 수 있어 차트 라벨은 영문으로 둔다(깨짐 방지)."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+    except Exception as e:
+        print(f"[chart] matplotlib 미설치 — 이미지 생략 ({e})")
+        return None
+    from datetime import datetime as _dt
+    h = d.get("history", {}) or {}
+
+    def series(cat, key, n=60):
+        arr = [x for x in ((h.get(cat) or {}).get(key) or []) if x.get("close") is not None][-n:]
+        xs, ys = [], []
+        for x in arr:
+            try:
+                xs.append(_dt.strptime(x["date"], "%Y-%m-%d"))
+                ys.append(float(x["close"]))
+            except Exception:
+                pass
+        return xs, ys
+
+    kx, ky = series("indices", "KOSPI", 60)
+    ux, uy = series("fx", "USDKRW", 60)
+    inv = list((d.get("investorTrading") or {}).get("daily") or [])[-20:]
+    try:
+        fig, ax = plt.subplots(3, 1, figsize=(7.2, 9.0))
+        # 1) KOSPI 추이
+        if kx:
+            ax[0].plot(kx, ky, color="#2962ff", linewidth=1.6)
+            ax[0].fill_between(kx, ky, min(ky), color="#2962ff", alpha=0.08)
+        ax[0].set_title("KOSPI (last 60d)", fontsize=11, loc="left")
+        # 2) USD/KRW 추이
+        if ux:
+            ax[1].plot(ux, uy, color="#26a69a", linewidth=1.6)
+        ax[1].set_title("USD/KRW (last 60d)", fontsize=11, loc="left")
+        for a in (ax[0], ax[1]):
+            a.grid(alpha=0.25)
+            a.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
+            for lbl in a.get_xticklabels():
+                lbl.set_fontsize(8)
+        # 3) 투자자별 순매매 (막대)
+        if inv:
+            xi = list(range(len(inv)))
+            w = 0.27
+            f   = [float(x.get("foreign") or 0) for x in inv]
+            ins = [float(x.get("inst") or 0) for x in inv]
+            r   = [float(x.get("retail") or 0) for x in inv]
+            ax[2].bar([i - w for i in xi], f,   width=w, color="#2962ff", label="Foreign")
+            ax[2].bar(xi,                  ins, width=w, color="#26a69a", label="Inst")
+            ax[2].bar([i + w for i in xi], r,   width=w, color="#ef5350", label="Retail")
+            ax[2].axhline(0, color="#888", linewidth=0.6)
+            step = max(1, len(inv) // 6)
+            ax[2].set_xticks(xi[::step])
+            ax[2].set_xticklabels([inv[i]["date"][5:] for i in xi[::step]], fontsize=8)
+            ax[2].legend(fontsize=8, ncol=3, loc="upper left")
+            ax[2].set_title("Investor Net Buy, KRW bn (last 20d)", fontsize=11, loc="left")
+        else:
+            ax[2].text(0.5, 0.5, "Investor data N/A", ha="center", va="center", fontsize=11)
+            ax[2].set_xticks([])
+            ax[2].set_yticks([])
+            ax[2].set_title("Investor Net Buy", fontsize=11, loc="left")
+        fig.tight_layout()
+        fig.savefig(out_path, dpi=100)
+        plt.close(fig)
+        return out_path
+    except Exception as e:
+        print(f"[chart] 생성 실패 ({e})")
+        try:
+            plt.close("all")
+        except Exception:
+            pass
+        return None
+
+
+def kakao_upload_image(access_token, png_path):
+    """일일 차트 PNG 를 카카오 이미지 서버에 업로드하고 image_url 반환(실패 시 None).
+
+    카카오 CDN 호스팅 URL 을 받으므로 사이트 도메인 등록이 필요 없다."""
+    try:
+        import requests
+    except Exception as e:
+        print(f"[chart] requests 미설치 — 이미지 업로드 생략 ({e})")
+        return None
+    try:
+        with open(png_path, "rb") as fp:
+            r = requests.post(
+                "https://kapi.kakao.com/v2/api/talk/message/image/upload",
+                headers={"Authorization": f"Bearer {access_token}"},
+                files={"file": fp}, timeout=25)
+        if r.status_code != 200:
+            print(f"[chart] 이미지 업로드 실패 HTTP {r.status_code}: {r.text[:200]}")
+            return None
+        url = (((r.json().get("infos") or {}).get("original") or {}).get("url"))
+        if url:
+            print(f"[chart] 이미지 업로드 성공: {url}")
+        return url
+    except Exception as e:
+        print(f"[chart] 이미지 업로드 오류 ({e})")
+        return None
+
+
+def _send_template_object(access_token, template):
+    return _http_post(
+        "https://kapi.kakao.com/v2/api/talk/memo/default/send",
+        {"template_object": json.dumps(template, ensure_ascii=False)},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+
+def send_feed(access_token, title, description, image_url=None, dims=None):
+    """기본 피드 템플릿 한 통 발송 — 이미지(그날 차트)+제목+본문+'대시보드 보기' 버튼."""
+    content = {
+        "title": title,
+        "description": description,
+        "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
+    }
+    if image_url:
+        content["image_url"] = image_url
+        if dims:
+            content["image_width"], content["image_height"] = dims
+    template = {
+        "object_type": "feed",
+        "content": content,
+        "buttons": [{"title": "대시보드 보기",
+                     "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL}}],
+    }
+    status, j = _send_template_object(access_token, template)
+    if status != 200:
+        print(f"[kakao] 피드 발송 실패 HTTP {status}: {j}")
+        return False
+    print(f"[kakao] 피드 발송 성공 (이미지 {'포함' if image_url else '없음'})\n{title} | {description}")
+    return True
+
+
 def send_memo(access_token, text, with_button=True):
-    """카카오톡 '나에게 보내기'(기본 텍스트 템플릿)로 발송."""
+    """카카오톡 '나에게 보내기'(기본 텍스트 템플릿) — 피드 실패 시 폴백."""
     template = {
         "object_type": "text",
         "text": text,
@@ -233,14 +378,10 @@ def send_memo(access_token, text, with_button=True):
     }
     if with_button:
         template["button_title"] = "대시보드 보기"
-    status, j = _http_post(
-        "https://kapi.kakao.com/v2/api/talk/memo/default/send",
-        {"template_object": json.dumps(template, ensure_ascii=False)},
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
+    status, j = _send_template_object(access_token, template)
     if status != 200:
         raise SystemExit(f"[kakao] 메시지 발송 실패: HTTP {status} {j}")
-    print(f"[kakao] 발송 성공 ({len(text)}자):\n{text}\n---")
+    print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
 
 
 def main():
@@ -264,11 +405,21 @@ def main():
     except (OSError, ValueError) as e:
         raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
 
-    text = build_message(data)
+    title, blocks = build_digest_parts(data)
     access_token = refresh_access_token(rest_key, refresh_token)
-    # 한 통으로만 발송 — '대시보드 보기' 버튼은 https://0101-commits.github.io/economic-site/ 로 연결.
-    send_memo(access_token, text, with_button=True)
-    print("[kakao] 단일 메시지 발송 완료")
+
+    # 그날 차트(코스피·달러-원·투자자별 순매매) 생성 → 카카오 이미지 업로드
+    image_url = None
+    png = build_daily_chart_png(data)
+    if png:
+        image_url = kakao_upload_image(access_token, png)
+
+    # 피드 본문(이미지 아래 텍스트) — 카테고리 라인을 한도 내에서 담는다.
+    description = _pack("", blocks, 190)
+    # 한 통으로만 발송. 피드 실패 시 텍스트로 폴백.
+    if not send_feed(access_token, title, description, image_url, dims=(720, 900)):
+        send_memo(access_token, _pack(title, blocks, TEXT_LIMIT), with_button=True)
+    print("[kakao] 발송 완료")
 
 
 if __name__ == "__main__":
