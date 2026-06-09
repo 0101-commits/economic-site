@@ -30,7 +30,7 @@ DASHBOARD_URL = "https://0101-commits.github.io/economic-site/"
 KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
-FEED_DESC_LIMIT = 150  # 피드(이미지) 템플릿 본문은 짧게 — 상세는 차트 이미지·대시보드로
+FEED_DESC_LIMIT = 190  # 피드(이미지) 본문 길이 — 검증된 안전값. 한도 내에서 여러 카테고리를 담는다.
 
 # 발송 슬롯별 차트 구성 — (history 카테고리, 키, 라벨) 2개를 1장(위·아래)으로 합쳐 보낸다.
 #   morning(10시) 미국장 마감 직후 → 나스닥·S&P500 / midday(15시) 한국장 마감 → 코스피·달러원
@@ -412,7 +412,9 @@ def build_template_args(title, blocks):
     # 템플릿에 변수가 있는데 인자가 없으면 발송 실패할 수 있어 빈 키도 채워둔다.
     for k in keymap.values():
         args.setdefault(k, "")
-    args["SUMMARY"] = " · ".join(vals[:2])[:100]
+    # SUMMARY 는 리스트에 이미 보이는 증시/환율 등과 겹치지 않게 보조 지표(채권·심리·종목)로 채운다.
+    # (콘솔 템플릿 하단 ${SUMMARY} 가 상단 항목을 그대로 반복하던 '중복' 제거 + 정보 다양화)
+    args["SUMMARY"] = " · ".join(x for x in (args["BOND"], args["SENT"], args["TOP"]) if x)[:100]
     return args
 
 
