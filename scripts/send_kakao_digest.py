@@ -127,16 +127,16 @@ def _short_name(nm, limit=11):
     return nm if len(nm) <= limit else nm[:limit - 1] + "…"
 
 
-def _movers_line(arr, mark, n=3):
-    """[{name, chg}] → 'mark이름1 +x.x% 이름2 -y.y% ...' (상위 n)."""
+def _movers_line(arr, mark, n=3, namelen=9):
+    """[{name, chg}] → 'mark이름1+x.x% 이름2-y.y% ...' (상위 n). 텍스트 200자 한도 위해 간결히."""
     parts = []
     for it in (arr or [])[:n]:
         c = _f(it.get("chg"))
         if c is None:
             continue
         sign = "+" if c >= 0 else ""
-        parts.append(f"{_short_name(it.get('name'))}{sign}{c:.1f}%")
-    return (mark + " " + " / ".join(parts)) if parts else None
+        parts.append(f"{_short_name(it.get('name'), namelen)}{sign}{c:.1f}%")
+    return (mark + " " + " ".join(parts)) if parts else None
 
 
 def build_digest_parts(d):
@@ -396,8 +396,10 @@ def send_chart_feed(access_token, data, title, blocks, slot):
     image_url = kakao_upload_image(access_token, png)
     if not image_url:
         return False
-    desc = _pack("", blocks, FEED_DESC_LIMIT).strip()
-    return send_feed(access_token, title, desc, image_url)
+    # 피드 본문은 카카오가 1~2줄만 보여주고 잘라낸다 → 헤드라인(증시)만 캡션으로 싣고,
+    # 전체 요약(투자자·채권·심리·종목 Top3·ETF Top3 등)은 호출부에서 별도 텍스트로 발송한다.
+    caption = (blocks[0] if blocks else "")[:FEED_DESC_LIMIT]
+    return send_feed(access_token, title, caption, image_url)
 
 
 def build_template_args(title, blocks):
@@ -457,6 +459,51 @@ def send_memo(access_token, text, with_button=True):
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
 
 
+def _post_text(access_token, text, with_button=True):
+    """기본 텍스트 한 통 발송 — 예외 없이 bool 반환(전체 요약 다통 분할용)."""
+    template = {
+        "object_type": "text",
+        "text": text,
+        "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
+    }
+    if with_button:
+        template["button_title"] = "대시보드 보기"
+    status, j = _send_template_object(access_token, template)
+    if status != 200:
+        print(f"[kakao] 텍스트 발송 실패 HTTP {status}: {j}")
+        return False
+    return True
+
+
+def _split_for_text(title, blocks, limit=TEXT_LIMIT):
+    """제목+블록을 limit(200자) 한도의 텍스트 여러 통으로 줄 단위 분할한다."""
+    parts, cur = [], title
+    for b in blocks:
+        add = ("\n" + b) if cur else b
+        if len(cur) + len(add) <= limit:
+            cur += add
+        else:
+            if cur:
+                parts.append(cur)
+            cur = b if len(b) <= limit else b[:limit]   # 한 블록이 limit 초과면 잘라 담음(드묾)
+    if cur:
+        parts.append(cur)
+    return parts
+
+
+def send_digest_text(access_token, title, blocks, limit=TEXT_LIMIT):
+    """전체 요약을 텍스트로 발송 — 카카오 텍스트 200자 한도라 길면 여러 통으로 분할(피드 잘림 보완).
+
+    마지막 통에만 '대시보드 보기' 버튼. 한 통이라도 성공하면 True."""
+    parts = _split_for_text(title, blocks, limit)
+    ok, n = False, len(parts)
+    for i, p in enumerate(parts):
+        if _post_text(access_token, p, with_button=(i == n - 1)):
+            ok = True
+            print(f"[kakao] 요약 텍스트 {i + 1}/{n} 발송 ({len(p)}자)")
+    return ok
+
+
 def main():
     rest_key = os.environ.get("KAKAO_REST_API_KEY", "").strip()
     refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
@@ -481,15 +528,20 @@ def main():
     title, blocks = build_digest_parts(data)
     access_token = refresh_access_token(rest_key, refresh_token)
 
-    # ① 차트 이미지 피드 (기본 동작): 슬롯별 지수/환율 차트 1장 + 요약 + 버튼 한 통.
+    # ① 기본 동작 = '두 통': ① 슬롯별 차트 이미지 피드 + ② 전체 요약 텍스트.
+    #    카카오는 한 통에 '이미지+긴 텍스트'를 같이 못 담아(피드 본문은 1~2줄로 잘리고 텍스트는 200자 한도),
+    #    이미지는 피드로, 전체 요약(증시·투자자·환율·원자재·채권·심리·종목Top3·ETF Top3)은 텍스트로 나눠 보낸다.
+    #    (요약이 200자를 넘으면 텍스트는 여러 통으로 분할 → 보통 이미지 1 + 요약 1~2통.)
     #    morning=나스닥·S&P500 / midday=코스피·달러원 / close=코스피·나스닥.
-    #    (matplotlib/requests 미설치나 업로드 실패 시 아래 텍스트 경로로 자동 폴백.)
+    #    matplotlib/requests 미설치·업로드 실패 등으로 둘 다 실패하면 아래 폴백으로 넘어간다.
     if _charts_enabled():
         slot = _resolve_slot()
-        if send_chart_feed(access_token, data, title, blocks, slot):
-            print(f"[kakao] 발송 완료 (차트 피드, slot={slot})")
+        feed_ok = send_chart_feed(access_token, data, title, blocks, slot)
+        text_ok = send_digest_text(access_token, title, blocks)
+        if feed_ok or text_ok:
+            print(f"[kakao] 발송 완료 (차트 피드 + 요약 텍스트, slot={slot})")
             return
-        print("[kakao] 차트 피드 실패/생략 — 다음 경로로 폴백")
+        print("[kakao] 차트 모드 전체 실패 — 다음 경로로 폴백")
 
     # ② KAKAO_TEMPLATE_ID 가 설정돼 있으면 콘솔 사용자 정의(커스텀) 템플릿으로 한 통 발송.
     #    (이미지 없음 — 버튼은 콘솔 템플릿에서 '대시보드 보기'로 지정)
