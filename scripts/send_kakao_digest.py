@@ -20,6 +20,7 @@
 """
 import os
 import sys
+import re
 import json
 import datetime
 import urllib.parse
@@ -30,7 +31,6 @@ DASHBOARD_URL = "https://0101-commits.github.io/economic-site/"
 KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
-FEED_DESC_LIMIT = 190  # 피드(이미지) 본문 길이 — 검증된 안전값. 한도 내에서 여러 카테고리를 담는다.
 
 # 발송 슬롯별 차트 구성 — (history 카테고리, 키, 라벨) 2개를 1장(위·아래)으로 합쳐 보낸다.
 #   morning(10시) 미국장 마감 직후 → 나스닥·S&P500 / midday(15시) 한국장 마감 → 코스피·달러원
@@ -44,6 +44,8 @@ SLOT_CHARTS = {
                 "KOSPI / Nasdaq"),
 }
 _CHART_COLOR = {"NASDAQ": "#7e57c2", "SP500": "#1e88e5", "KOSPI": "#2962ff", "USDKRW": "#26a69a"}
+# 슬롯별 발송 시각(KST) — 제목에 표기. 수동/미상이면 시각 표기 생략.
+SLOT_HOUR = {"morning": "10시", "midday": "15시", "close": "22시"}
 
 
 def _http_post(url, form, headers=None):
@@ -139,8 +141,8 @@ def _movers_line(arr, mark, n=3, namelen=9):
     return (mark + " " + " ".join(parts)) if parts else None
 
 
-def build_digest_parts(d):
-    """data.json → (제목, 섹션 블록 리스트). 피드 본문/텍스트 메시지 공용."""
+def build_digest_parts(d, slot=None):
+    """data.json → (제목, 섹션 블록 리스트). 피드 본문/텍스트 메시지 공용. slot 으로 제목에 시각 표기."""
     idx  = d.get("indices", {}) or {}
     fx   = d.get("fx", {}) or {}
     com  = d.get("commodities", {}) or {}
@@ -153,7 +155,8 @@ def build_digest_parts(d):
 
     now = datetime.datetime.now(KST)
     wd = "월화수목금토일"[now.weekday()]
-    title = f"{now.month}/{now.day}({wd}) 시황"
+    hh = SLOT_HOUR.get(slot, "")
+    title = f"{now.month}/{now.day}({wd}) {hh} 시황".replace("  ", " ")
 
     def ip(label, key):
         o = idx.get(key)
@@ -365,8 +368,10 @@ def kakao_upload_image(access_token, png_path):
         return None
 
 
-def send_feed(access_token, title, description, image_url, dims=(720, 640)):
-    """기본 피드 템플릿 한 통 — 차트 이미지 + 제목/요약 + '대시보드 보기' 버튼."""
+def send_feed(access_token, title, description, image_url, items=None, dims=(720, 640)):
+    """기본 피드 한 통 — 차트 이미지 + 제목 + 설명 + (선택)리스트 행 + '대시보드 보기' 버튼.
+
+    items: [{"item": 라벨, "item_op": 값}, ...] 최대 5개 → 한 통에 여러 카테고리를 행으로 표시."""
     content = {
         "title": title,
         "description": description,
@@ -380,26 +385,31 @@ def send_feed(access_token, title, description, image_url, dims=(720, 640)):
         "buttons": [{"title": "대시보드 보기",
                      "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL}}],
     }
+    if items:
+        template["item_content"] = {"items": items[:5]}
     status, j = _send_template_object(access_token, template)
     if status != 200:
         print(f"[kakao] 피드 발송 실패 HTTP {status}: {j}")
         return False
-    print(f"[kakao] 피드(차트) 발송 성공\n{title} | {description}")
+    print(f"[kakao] 피드(차트) 발송 성공 (행 {len(items) if items else 0}개)\n{title} | {description}")
     return True
 
 
 def send_chart_feed(access_token, data, title, blocks, slot):
-    """슬롯 차트 생성→업로드→피드 발송. 한 단계라도 실패하면 False(→ 호출부가 텍스트로 폴백)."""
+    """슬롯 차트 생성→업로드→'한 통' 피드 발송(이미지+헤드라인+행). 한 단계라도 실패 시 False."""
     png = build_slot_chart_png(data, slot)
     if not png:
         return False
     image_url = kakao_upload_image(access_token, png)
     if not image_url:
         return False
-    # 피드 본문은 카카오가 1~2줄만 보여주고 잘라낸다 → 헤드라인(증시)만 캡션으로 싣고,
-    # 전체 요약(투자자·채권·심리·종목 Top3·ETF Top3 등)은 호출부에서 별도 텍스트로 발송한다.
-    caption = (blocks[0] if blocks else "")[:FEED_DESC_LIMIT]
-    return send_feed(access_token, title, caption, image_url)
+    headline, rows = build_feed_rows(data)
+    # 한 통: 이미지 + 증시 헤드라인(설명) + 환율/원자재/금리심리/종목/ETF 행 + 버튼.
+    if send_feed(access_token, title, headline, image_url, items=rows):
+        return True
+    # 행(item_content)이 길어 거부되면 행 없이 한 통 더 시도 → 그래도 '한 통'은 보장.
+    print("[kakao] 피드(행 포함) 실패 — 행 없이 재시도")
+    return send_feed(access_token, title, headline, image_url, items=None)
 
 
 def build_template_args(title, blocks):
@@ -459,49 +469,65 @@ def send_memo(access_token, text, with_button=True):
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
 
 
-def _post_text(access_token, text, with_button=True):
-    """기본 텍스트 한 통 발송 — 예외 없이 bool 반환(전체 요약 다통 분할용)."""
-    template = {
-        "object_type": "text",
-        "text": text,
-        "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
-    }
-    if with_button:
-        template["button_title"] = "대시보드 보기"
-    status, j = _send_template_object(access_token, template)
-    if status != 200:
-        print(f"[kakao] 텍스트 발송 실패 HTTP {status}: {j}")
-        return False
-    return True
+_RANK = "①②③④⑤"
 
 
-def _split_for_text(title, blocks, limit=TEXT_LIMIT):
-    """제목+블록을 limit(200자) 한도의 텍스트 여러 통으로 줄 단위 분할한다."""
-    parts, cur = [], title
+def _movers_names(arr, n=3, namelen=9):
+    """급등/급락 상위 n개를 순위 기호 + 종목명만(수치 제외)으로. 예 '①삼성 ②SK ③현대'."""
+    out = []
+    for i, it in enumerate((arr or [])[:n]):
+        nm = _short_name(it.get("name"), namelen)
+        if nm:
+            out.append(f"{_RANK[i]}{nm}")
+    return " ".join(out)
+
+
+def _strip_chg(s):
+    """등락률 표기(▲2.0% / ▼6.7%)를 제거해 가격만 남긴다(행 길이 절약)."""
+    return re.sub(r"\s*[▲▼][\d.]+%", "", s).strip()
+
+
+def _clip(s, n):
+    """n자 이내로 자르되 가능하면 공백 경계에서 끊고 …를 붙인다(행 값 가독성)."""
+    if len(s) <= n:
+        return s
+    cut = s[:n].rstrip()
+    sp = cut.rfind(" ")
+    if sp > n * 0.6:
+        cut = cut[:sp]
+    return cut + "…"
+
+
+def build_feed_rows(d, op_limit=50):
+    """단일 피드용 (description, items[≤5]) 생성.
+
+    카카오 피드는 한 통에 이미지+제목+설명(2줄)+리스트(item 최대 5개)+버튼을 담을 수 있다.
+    행은 5개가 한도라, 사용자 요청대로 금리·심리를 분리하고 상승/하락 종목을 각각 한 줄씩 두기 위해
+    환율·원자재는 한 줄로 합친다(증시는 설명에). 상승/하락은 순위 종목명만(수치 제외) 싣는다."""
+    _, blocks = build_digest_parts(d)
+    val = {}
     for b in blocks:
-        add = ("\n" + b) if cur else b
-        if len(cur) + len(add) <= limit:
-            cur += add
-        else:
-            if cur:
-                parts.append(cur)
-            cur = b if len(b) <= limit else b[:limit]   # 한 블록이 limit 초과면 잘라 담음(드묾)
-    if cur:
-        parts.append(cur)
-    return parts
+        if b.startswith("〔") and "〕" in b:
+            lab, _, v = b[1:].partition("〕")
+            val[lab] = v
+    desc = val.get("증시", "")
+    rows = []
 
+    def add(label, text):
+        if text and len(rows) < 5:
+            rows.append({"item": label[:6], "item_op": _clip(text, op_limit)})
 
-def send_digest_text(access_token, title, blocks, limit=TEXT_LIMIT):
-    """전체 요약을 텍스트로 발송 — 카카오 텍스트 200자 한도라 길면 여러 통으로 분할(피드 잘림 보완).
-
-    마지막 통에만 '대시보드 보기' 버튼. 한 통이라도 성공하면 True."""
-    parts = _split_for_text(title, blocks, limit)
-    ok, n = False, len(parts)
-    for i, p in enumerate(parts):
-        if _post_text(access_token, p, with_button=(i == n - 1)):
-            ok = True
-            print(f"[kakao] 요약 텍스트 {i + 1}/{n} 발송 ({len(p)}자)")
-    return ok
+    # 1행: 환율·원자재 (5행 한도 위해 합침, 등락률은 빼고 값만)
+    fxc = " · ".join(x for x in (_strip_chg(val.get("환율", "")), _strip_chg(val.get("원자재", ""))) if x)
+    add("환율·원자재", fxc)
+    # 2·3행: 금리 / 심리 분리
+    add("금리", val.get("채권", ""))
+    add("심리", val.get("심리", ""))
+    # 4·5행: 상승종목 / 하락종목 (순위 종목명만, 수치 제외). 데이터상 ETF·주식 통합 상위 목록.
+    sm = d.get("stockMovers", {}) or {}
+    add("상승종목", _movers_names(sm.get("kospiGainers")))
+    add("하락종목", _movers_names(sm.get("kospiLosers")))
+    return desc, rows
 
 
 def main():
@@ -525,23 +551,20 @@ def main():
     except (OSError, ValueError) as e:
         raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
 
-    title, blocks = build_digest_parts(data)
+    slot = _resolve_slot()
+    title, blocks = build_digest_parts(data, slot)   # 제목에 슬롯 시각(10/15/22시) 포함
     access_token = refresh_access_token(rest_key, refresh_token)
 
-    # ① 기본 동작 = '두 통': ① 슬롯별 차트 이미지 피드 + ② 전체 요약 텍스트.
-    #    카카오는 한 통에 '이미지+긴 텍스트'를 같이 못 담아(피드 본문은 1~2줄로 잘리고 텍스트는 200자 한도),
-    #    이미지는 피드로, 전체 요약(증시·투자자·환율·원자재·채권·심리·종목Top3·ETF Top3)은 텍스트로 나눠 보낸다.
-    #    (요약이 200자를 넘으면 텍스트는 여러 통으로 분할 → 보통 이미지 1 + 요약 1~2통.)
-    #    morning=나스닥·S&P500 / midday=코스피·달러원 / close=코스피·나스닥.
-    #    matplotlib/requests 미설치·업로드 실패 등으로 둘 다 실패하면 아래 폴백으로 넘어간다.
+    # ① 기본 동작 = '한 통' 피드: 슬롯별 차트 이미지 + 증시 헤드라인 + 카테고리 행(환율·원자재·
+    #    금리·심리·상승종목·하락종목, 최대 5행) + '대시보드 보기' 버튼을 한 메시지에 담아 보낸다.
+    #    (피드는 한 통에 이미지+리스트를 함께 담을 수 있음. 행 길이 제한상 상승/하락은 순위 종목명만,
+    #     전체·상세는 대시보드 링크로.) morning=나스닥·S&P500 / midday=코스피·달러원 / close=코스피·나스닥.
+    #    matplotlib/requests 미설치·업로드 실패 시 아래 폴백으로 넘어간다.
     if _charts_enabled():
-        slot = _resolve_slot()
-        feed_ok = send_chart_feed(access_token, data, title, blocks, slot)
-        text_ok = send_digest_text(access_token, title, blocks)
-        if feed_ok or text_ok:
-            print(f"[kakao] 발송 완료 (차트 피드 + 요약 텍스트, slot={slot})")
+        if send_chart_feed(access_token, data, title, blocks, slot):
+            print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
             return
-        print("[kakao] 차트 모드 전체 실패 — 다음 경로로 폴백")
+        print("[kakao] 차트 피드 실패 — 다음 경로로 폴백")
 
     # ② KAKAO_TEMPLATE_ID 가 설정돼 있으면 콘솔 사용자 정의(커스텀) 템플릿으로 한 통 발송.
     #    (이미지 없음 — 버튼은 콘솔 템플릿에서 '대시보드 보기'로 지정)
