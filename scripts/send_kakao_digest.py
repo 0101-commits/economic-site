@@ -126,7 +126,7 @@ def _a1(c):
 
 def _short_name(nm, limit=11):
     nm = (nm or "").strip()
-    return nm if len(nm) <= limit else nm[:limit - 1] + "…"
+    return nm if len(nm) <= limit else nm[:limit - 1].rstrip() + "…"
 
 
 def _movers_line(arr, mark, n=3, namelen=9):
@@ -470,15 +470,31 @@ def send_memo(access_token, text, with_button=True):
 
 
 _RANK = "①②③④⑤"
+# ETF/ETN 판별 — kospiGainers/Losers 에는 일반주와 ETF·ETN 이 섞여 있어, '주식만' 행을 만들 때 제외한다.
+_ETF_PAT = re.compile(
+    r"ETN|ETF|레버리지|인버스|선물|2X|단일종목|KODEX|TIGER|KIWOOM|KBSTAR|ARIRANG|HANARO|KOSEF|"
+    r"\bSOL\b|\bACE\b|\bPLUS\b|\bRISE\b|TIMEFOLIO|KINDEX|SMART|KoAct|히어로즈|마이티|마이다스",
+    re.IGNORECASE,
+)
 
 
-def _movers_names(arr, n=3, namelen=9):
-    """급등/급락 상위 n개를 순위 기호 + 종목명만(수치 제외)으로. 예 '①삼성 ②SK ③현대'."""
+def _is_etf(name):
+    return bool(_ETF_PAT.search(name or ""))
+
+
+def _movers_names(arr, n=3, namelen=7, skip_etf=False):
+    """급등/급락 상위 n개를 순위기호+종목명만(수치 제외)으로. 예 '①광전자 ②일정실업 ③…'.
+
+    skip_etf=True 면 ETF/ETN 을 건너뛰어 '순수 주식'만 남긴다. 행이 뒤에서 잘리지 않도록 이름은
+    짧게(namelen) 줄여 한 행에 순위 n개가 모두 보이게 한다."""
     out = []
-    for i, it in enumerate((arr or [])[:n]):
-        nm = _short_name(it.get("name"), namelen)
-        if nm:
-            out.append(f"{_RANK[i]}{nm}")
+    for it in (arr or []):
+        nm = (it.get("name") or "").strip()
+        if not nm or (skip_etf and _is_etf(nm)):
+            continue
+        out.append(f"{_RANK[len(out)]}{_short_name(nm, namelen)}")
+        if len(out) >= n:
+            break
     return " ".join(out)
 
 
@@ -498,35 +514,48 @@ def _clip(s, n):
     return cut + "…"
 
 
-def build_feed_rows(d, op_limit=50):
+def build_feed_rows(d):
     """단일 피드용 (description, items[≤5]) 생성.
 
-    카카오 피드는 한 통에 이미지+제목+설명(2줄)+리스트(item 최대 5개)+버튼을 담을 수 있다.
-    행은 5개가 한도라, 사용자 요청대로 금리·심리를 분리하고 상승/하락 종목을 각각 한 줄씩 두기 위해
-    환율·원자재는 한 줄로 합친다(증시는 설명에). 상승/하락은 순위 종목명만(수치 제외) 싣는다."""
+    카카오 피드는 한 통에 이미지 + 제목 + 설명(헤더, 2줄) + 리스트(item 최대 5개) + 버튼을 담는다.
+    리스트 행이 5개 한도라, 상승/하락을 '주식'과 'ETF'로 따로 나누면 무버에만 4행이 든다.
+    → 5행 = 주식상승 / 주식하락 / ETF상승 / ETF하락 / 심리.  매크로는 헤더에: 증시(코스피·나스닥) + 환율.
+       (코스닥·S&P·원자재·금리는 공간상 대시보드로.)  행 값은 짧게 만들어 '뒤에 잘림' 이 없게 한다."""
     _, blocks = build_digest_parts(d)
     val = {}
     for b in blocks:
         if b.startswith("〔") and "〕" in b:
             lab, _, v = b[1:].partition("〕")
             val[lab] = v
-    desc = val.get("증시", "")
+
+    # ── 헤더(설명): 증시(코스피·나스닥) + 환율 ── (각각 한 줄)
+    idx = d.get("indices", {}) or {}
+
+    def _ip(label, key):
+        o = idx.get(key)
+        if not o or o.get("price") is None:
+            return None
+        return f"{label}{_num(o['price'], 0)}{_a1(o.get('change'))}"
+    eq = " ".join(p for p in (_ip("코스피", "KOSPI"), _ip("나스닥", "NASDAQ")) if p)
+    desc = "\n".join(x for x in (eq, val.get("환율", "")) if x)
+
+    # ── 리스트 5행 ──
+    sm = d.get("stockMovers", {}) or {}
+    etf = d.get("etfMovers", {}) or {}
     rows = []
 
     def add(label, text):
         if text and len(rows) < 5:
-            rows.append({"item": label[:6], "item_op": _clip(text, op_limit)})
+            rows.append({"item": label[:6], "item_op": text})
 
-    # 1행: 환율·원자재 (5행 한도 위해 합침, 등락률은 빼고 값만)
-    fxc = " · ".join(x for x in (_strip_chg(val.get("환율", "")), _strip_chg(val.get("원자재", ""))) if x)
-    add("환율·원자재", fxc)
-    # 2·3행: 금리 / 심리 분리
-    add("금리", val.get("채권", ""))
+    # 주식: kospiGainers/Losers 에서 ETF·ETN 제외 → 순수 주식 Top3 (순위·종목명만)
+    add("주식상승", _movers_names(sm.get("kospiGainers"), skip_etf=True))
+    add("주식하락", _movers_names(sm.get("kospiLosers"), skip_etf=True))
+    # ETF: etfMovers 그대로 Top3 (이름이 길어 발행사 위주로 축약)
+    add("ETF상승", _movers_names(etf.get("etfGainers")))
+    add("ETF하락", _movers_names(etf.get("etfLosers")))
+    # 심리 (사용자 선택)
     add("심리", val.get("심리", ""))
-    # 4·5행: 상승종목 / 하락종목 (순위 종목명만, 수치 제외). 데이터상 ETF·주식 통합 상위 목록.
-    sm = d.get("stockMovers", {}) or {}
-    add("상승종목", _movers_names(sm.get("kospiGainers")))
-    add("하락종목", _movers_names(sm.get("kospiLosers")))
     return desc, rows
 
 
