@@ -20,6 +20,7 @@
 """
 import os
 import sys
+import re
 import json
 import datetime
 import urllib.parse
@@ -43,6 +44,8 @@ SLOT_CHARTS = {
                 "KOSPI / Nasdaq"),
 }
 _CHART_COLOR = {"NASDAQ": "#7e57c2", "SP500": "#1e88e5", "KOSPI": "#2962ff", "USDKRW": "#26a69a"}
+# 슬롯별 발송 시각(KST) — 제목에 표기. 수동/미상이면 시각 표기 생략.
+SLOT_HOUR = {"morning": "10시", "midday": "15시", "close": "22시"}
 
 
 def _http_post(url, form, headers=None):
@@ -138,8 +141,8 @@ def _movers_line(arr, mark, n=3, namelen=9):
     return (mark + " " + " ".join(parts)) if parts else None
 
 
-def build_digest_parts(d):
-    """data.json → (제목, 섹션 블록 리스트). 피드 본문/텍스트 메시지 공용."""
+def build_digest_parts(d, slot=None):
+    """data.json → (제목, 섹션 블록 리스트). 피드 본문/텍스트 메시지 공용. slot 으로 제목에 시각 표기."""
     idx  = d.get("indices", {}) or {}
     fx   = d.get("fx", {}) or {}
     com  = d.get("commodities", {}) or {}
@@ -152,7 +155,8 @@ def build_digest_parts(d):
 
     now = datetime.datetime.now(KST)
     wd = "월화수목금토일"[now.weekday()]
-    title = f"{now.month}/{now.day}({wd}) 시황"
+    hh = SLOT_HOUR.get(slot, "")
+    title = f"{now.month}/{now.day}({wd}) {hh} 시황".replace("  ", " ")
 
     def ip(label, key):
         o = idx.get(key)
@@ -465,15 +469,22 @@ def send_memo(access_token, text, with_button=True):
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
 
 
-def _movers_compact(arr, n=2, namelen=7):
-    """급등/급락 상위 n개를 'name+x.x% name-y.y%' 로 짧게(피드 행 길이 절약)."""
-    parts = []
-    for it in (arr or [])[:n]:
-        c = _f(it.get("chg"))
-        if c is None:
-            continue
-        parts.append(f"{_short_name(it.get('name'), namelen)}{'+' if c >= 0 else ''}{c:.1f}%")
-    return " ".join(parts)
+_RANK = "①②③④⑤"
+
+
+def _movers_names(arr, n=3, namelen=9):
+    """급등/급락 상위 n개를 순위 기호 + 종목명만(수치 제외)으로. 예 '①삼성 ②SK ③현대'."""
+    out = []
+    for i, it in enumerate((arr or [])[:n]):
+        nm = _short_name(it.get("name"), namelen)
+        if nm:
+            out.append(f"{_RANK[i]}{nm}")
+    return " ".join(out)
+
+
+def _strip_chg(s):
+    """등락률 표기(▲2.0% / ▼6.7%)를 제거해 가격만 남긴다(행 길이 절약)."""
+    return re.sub(r"\s*[▲▼][\d.]+%", "", s).strip()
 
 
 def _clip(s, n):
@@ -491,8 +502,8 @@ def build_feed_rows(d, op_limit=50):
     """단일 피드용 (description, items[≤5]) 생성.
 
     카카오 피드는 한 통에 이미지+제목+설명(2줄)+리스트(item 최대 5개)+버튼을 담을 수 있다.
-    → 증시는 설명(헤드라인)으로, 나머지는 행(label·value)으로 한 통에 모은다.
-    행 값(item_op)은 길이 제한이 있어 보수적으로 op_limit 자로 줄인다."""
+    행은 5개가 한도라, 사용자 요청대로 금리·심리를 분리하고 상승/하락 종목을 각각 한 줄씩 두기 위해
+    환율·원자재는 한 줄로 합친다(증시는 설명에). 상승/하락은 순위 종목명만(수치 제외) 싣는다."""
     _, blocks = build_digest_parts(d)
     val = {}
     for b in blocks:
@@ -506,15 +517,16 @@ def build_feed_rows(d, op_limit=50):
         if text and len(rows) < 5:
             rows.append({"item": label[:6], "item_op": _clip(text, op_limit)})
 
-    add("환율", val.get("환율", ""))
-    add("원자재", val.get("원자재", ""))
-    add("금리·심리", " ".join(x for x in (val.get("채권", ""), val.get("심리", "")) if x))
+    # 1행: 환율·원자재 (5행 한도 위해 합침, 등락률은 빼고 값만)
+    fxc = " · ".join(x for x in (_strip_chg(val.get("환율", "")), _strip_chg(val.get("원자재", ""))) if x)
+    add("환율·원자재", fxc)
+    # 2·3행: 금리 / 심리 분리
+    add("금리", val.get("채권", ""))
+    add("심리", val.get("심리", ""))
+    # 4·5행: 상승종목 / 하락종목 (순위 종목명만, 수치 제외). 데이터상 ETF·주식 통합 상위 목록.
     sm = d.get("stockMovers", {}) or {}
-    etf = d.get("etfMovers", {}) or {}
-    su, sd = _movers_compact(sm.get("kospiGainers")), _movers_compact(sm.get("kospiLosers"))
-    eu, ed = _movers_compact(etf.get("etfGainers")), _movers_compact(etf.get("etfLosers"))
-    add("종목", (("↑" + su) if su else "") + ((" ↓" + sd) if sd else ""))
-    add("ETF", (("↑" + eu) if eu else "") + ((" ↓" + ed) if ed else ""))
+    add("상승종목", _movers_names(sm.get("kospiGainers")))
+    add("하락종목", _movers_names(sm.get("kospiLosers")))
     return desc, rows
 
 
@@ -539,16 +551,16 @@ def main():
     except (OSError, ValueError) as e:
         raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
 
-    title, blocks = build_digest_parts(data)
+    slot = _resolve_slot()
+    title, blocks = build_digest_parts(data, slot)   # 제목에 슬롯 시각(10/15/22시) 포함
     access_token = refresh_access_token(rest_key, refresh_token)
 
     # ① 기본 동작 = '한 통' 피드: 슬롯별 차트 이미지 + 증시 헤드라인 + 카테고리 행(환율·원자재·
-    #    금리심리·종목·ETF, 최대 5행) + '대시보드 보기' 버튼을 한 메시지에 담아 보낸다.
-    #    (피드는 한 통에 이미지+리스트를 함께 담을 수 있음. 행 길이 제한상 종목/ETF는 대표 종목만,
-    #     전체 Top3·상세는 대시보드 링크로.) morning=나스닥·S&P500 / midday=코스피·달러원 / close=코스피·나스닥.
+    #    금리·심리·상승종목·하락종목, 최대 5행) + '대시보드 보기' 버튼을 한 메시지에 담아 보낸다.
+    #    (피드는 한 통에 이미지+리스트를 함께 담을 수 있음. 행 길이 제한상 상승/하락은 순위 종목명만,
+    #     전체·상세는 대시보드 링크로.) morning=나스닥·S&P500 / midday=코스피·달러원 / close=코스피·나스닥.
     #    matplotlib/requests 미설치·업로드 실패 시 아래 폴백으로 넘어간다.
     if _charts_enabled():
-        slot = _resolve_slot()
         if send_chart_feed(access_token, data, title, blocks, slot):
             print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
             return
