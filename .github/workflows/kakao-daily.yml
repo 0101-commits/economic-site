@@ -1,30 +1,31 @@
 name: KakaoTalk Daily Digest (10·15·22 KST)
 
-# 매일 10시·15시·22시(KST)에 data.json 시황을 카카오톡 '나에게 보내기'로 한 통(피드: 차트 이미지 +
-# 카테고리 행 + 버튼) 발송한다. 슬롯별 차트: 10시=나스닥·S&P500 / 15시=코스피·달러원 / 22시=코스피·나스닥.
+# 매일 10시·15시·22시(KST) 무렵 data.json 시황을 카카오톡 '나에게 보내기'로 한 통(피드: 차트 이미지 +
+# 카테고리 행 + 버튼) 발송. 슬롯별 차트: 10시=나스닥·S&P500 / 15시=코스피·달러원 / 22시=코스피·나스닥.
 #
-# ⏰ 왜 schedule(cron)만 쓰지 않는가:
-#   GitHub Actions 의 schedule 은 best-effort 라, '하루 몇 번만' 도는 워크플로는 정각에서 수십 분 밀리거나
-#   아예 누락된다(실측: 이 워크플로의 스케줄 발송이 며칠째 통째로 드롭). 정각±몇 분 보장이 cron 으로는 불가능.
-#   → 대신, 안정적으로(매 10분/매시간) 도는 데이터 수집 워크플로(fetch-data)가 끝날 때마다 workflow_run 으로
-#     이 워크플로를 깨우고(=fetch-data 의 신뢰성 있는 주기에 올라탐), 아래 '발송 창' 게이트에서 지금이
-#     타깃 시각(10/15/22시)일 때만 발송한다. fetch-data 는 정각 직후 갱신을 커밋하므로 보통 정각~몇 분 내 발송.
-#   actions/cache 마커(슬롯+날짜)로 하루 슬롯당 한 번만 발송(중복 방지). schedule 백업도 함께 둔다.
+# ⏰ 트리거 우선순위 (GitHub schedule 이 best-effort 라 며칠씩 누락되는 문제 해소):
+#   1) repository_dispatch(kakao-send) ← Cloudflare Worker 의 Cron Trigger 가 :05(10:05/15:05/22:05 KST)에
+#      호출. on-demand 실행이라 스케줄 드롭 영향이 없어 '즉시' 돈다(정시성 ↑). ★ 주 경로.
+#      (설정: 저장소 루트 wrangler.jsonc 의 triggers.crons + Worker 시크릿 GH_DISPATCH_TOKEN. KAKAO_SETUP.md 참고)
+#   2) schedule(:05 백업) — GitHub 스케줄이 살아 있을 때의 보조.
+#   3) workflow_run — 데이터 수집(fetch-data) 완료 시에도 깨워 보조(타깃 시각일 때만 발송).
+#   4) workflow_dispatch — 수동 즉시.
+#   어느 경로로 깨워지든 아래 '발송 창' 게이트가 타깃 시각만 통과시키고, actions/cache 마커(슬롯+날짜)로
+#   하루 슬롯당 한 번만 발송(중복 방지). 수동 실행은 마커 없이 항상 발송.
 #
-# 사전 설정(1회) — 저장소 루트 KAKAO_SETUP.md 참고:
+# 사전 설정 — 저장소 루트 KAKAO_SETUP.md 참고:
 #   Settings → Secrets and variables → Actions: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (필수)
 #   (선택) 변수 KAKAO_CHARTS=0 으로 차트 끄기, KAKAO_TEMPLATE_ID 로 콘솔 커스텀 템플릿 폴백.
-#
-# 테스트: Actions 탭에서 'Run workflow'(workflow_dispatch) — 시각과 무관하게 즉시 발송.
 on:
+  repository_dispatch:
+    types: [kakao-send]
+  schedule:
+    - cron: '5 1 * * *'     # 10:05 KST 백업
+    - cron: '5 6 * * *'     # 15:05 KST 백업
+    - cron: '5 13 * * *'    # 22:05 KST 백업
   workflow_run:
     workflows: ["Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)"]
     types: [completed]
-  schedule:
-    # workflow_run 이 어떤 이유로 안 올 때를 대비한 백업(타깃 정각 직후 1~3분). 게이트가 시각으로 거른다.
-    - cron: '0-2 1 * * *'    # 10:00–10:02 KST
-    - cron: '0-2 6 * * *'    # 15:00–15:02 KST
-    - cron: '0-2 13 * * *'   # 22:00–22:02 KST
   workflow_dispatch: {}
 
 permissions:
@@ -39,33 +40,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # ── 발송 창(window) 게이트 ──
-      # 지금 KST 시각이 타깃(10/15/22시)인지 판정. 타깃 시각대에만 발송하고, 그 외엔 즉시 종료.
-      # (fetch-data 완료가 매 10분/매시간 이 워크플로를 깨우므로, 타깃 시각의 '첫' 깨움에서 발송된다.)
-      # 수동 실행(workflow_dispatch)은 시각과 무관하게 항상 발송.
+      # repository_dispatch(Cloudflare cron) / workflow_dispatch(수동) 는 트리거 자체가 '보낼 때' 이므로 통과.
+      # schedule / workflow_run 은 지금이 타깃 시각(10/15/22시)일 때만 통과(그 외 깨움은 즉시 종료).
       - name: 발송 창 판정
         id: gate
         env:
           EVENT: ${{ github.event_name }}
         run: |
           H=$(TZ=Asia/Seoul date +%-H)
-          case "$H" in
-            10) slot=morning ;;
-            15) slot=midday ;;
-            22) slot=close ;;
-            *)  slot="" ;;
-          esac
-          if [ "$EVENT" = "workflow_dispatch" ]; then
-            proceed=true; mslot=manual
-          elif [ -n "$slot" ]; then
-            proceed=true; mslot="$slot"
-          else
-            proceed=false; mslot=none
+          # 가장 가까운 슬롯(항상 계산) — dispatch/수동에서 사용
+          if   [ "$H" -lt 13 ]; then nslot=morning
+          elif [ "$H" -lt 19 ]; then nslot=midday
+          else                       nslot=close
           fi
-          echo "proceed=$proceed"               >> "$GITHUB_OUTPUT"
-          echo "slot=$mslot"                     >> "$GITHUB_OUTPUT"
-          echo "ckey=${slot:-none}"              >> "$GITHUB_OUTPUT"   # 캐시 키용 시각 기반 슬롯
-          echo "date=$(TZ=Asia/Seoul date +%Y%m%d)" >> "$GITHUB_OUTPUT"
-          echo "[gate] event=$EVENT KST=${H}시 proceed=$proceed slot=$mslot"
+          # 타깃 시각(정확히 그 시간대일 때만) — schedule/workflow_run 게이트용
+          case "$H" in 10) tslot=morning ;; 15) tslot=midday ;; 22) tslot=close ;; *) tslot="" ;; esac
+          case "$EVENT" in
+            repository_dispatch) proceed=true; mslot="$nslot"; ckey="$nslot" ;;
+            workflow_dispatch)   proceed=true; mslot=manual;   ckey="$nslot" ;;
+            *) if [ -n "$tslot" ]; then proceed=true; mslot="$tslot"; ckey="$tslot"; else proceed=false; mslot=none; ckey=none; fi ;;
+          esac
+          echo "proceed=$proceed"                    >> "$GITHUB_OUTPUT"
+          echo "slot=$mslot"                         >> "$GITHUB_OUTPUT"
+          echo "ckey=$ckey"                          >> "$GITHUB_OUTPUT"
+          echo "date=$(TZ=Asia/Seoul date +%Y%m%d)"  >> "$GITHUB_OUTPUT"
+          echo "[gate] event=$EVENT KST=${H}시 proceed=$proceed slot=$mslot ckey=$ckey"
 
       - name: Checkout (최신 data.json)
         if: steps.gate.outputs.proceed == 'true'

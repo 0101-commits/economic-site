@@ -263,7 +263,50 @@ async function _testGemini(key) {
   return { ok: false, attempts };
 }
 
+// ──────────────────────────────────────────────────────────────────
+// ⏰ Cron Trigger 핸들러 — 카카오 시황 자동 발송 (정시성 보강)
+// ──────────────────────────────────────────────────────────────────
+// wrangler.jsonc 의 triggers.crons(01:05/06:05/13:05 UTC = 10:05/15:05/22:05 KST)에 따라 호출된다.
+// GitHub Actions 의 schedule 은 best-effort 라 며칠씩 누락되지만, Cloudflare cron 은 정시성이 좋고
+// on-demand 로 GitHub 워크플로를 깨우면 그 실행은 스케줄 드롭 영향을 받지 않아 즉시 돈다.
+// 여기서는 직접 카카오로 보내지 않고(차트 이미지는 matplotlib=Python 이라 GitHub Actions 가 생성),
+// GitHub repository_dispatch 로 kakao-daily 워크플로를 트리거만 한다.
+//   필요한 시크릿: GH_DISPATCH_TOKEN — 저장소 dispatch 권한 PAT
+//     (fine-grained: 0101-commits/economic-site 의 Contents=Read and write).
+//   미설정 시: 아무 것도 안 하고 경고만 남긴다(배포는 안전).
+const GH_REPO = '0101-commits/economic-site';
+async function triggerKakaoDispatch(env, cron) {
+  const token = env && env.GH_DISPATCH_TOKEN;
+  if (!token) {
+    console.log('[kakao-cron] GH_DISPATCH_TOKEN 미설정 — dispatch 생략. (README 참고: Worker 시크릿 추가 필요)');
+    return;
+  }
+  try {
+    const r = await fetch(`https://api.github.com/repos/${GH_REPO}/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'ecom-kakao-cron',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event_type: 'kakao-send', client_payload: { cron: cron || '' } }),
+      signal: AbortSignal.timeout(15000),
+    });
+    // 성공 시 204 No Content. 실패 시 본문에 사유.
+    console.log('[kakao-cron] dispatch HTTP', r.status, r.ok ? '(요청 성공)' : await r.text().catch(() => ''));
+  } catch (e) {
+    console.log('[kakao-cron] dispatch 오류:', String((e && e.message) || e));
+  }
+}
+
 export default {
+  // Cloudflare Cron Trigger 진입점
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(triggerKakaoDispatch(env, event && event.cron));
+  },
+
   async fetch(request, env) {
     // CORS preflight
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
