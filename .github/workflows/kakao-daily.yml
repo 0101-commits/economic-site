@@ -1,20 +1,33 @@
 name: KakaoTalk Daily Digest (10·15·18 KST)
 
-# 매일 10:00 / 15:00 / 18:00 (KST) data.json 시황 요약을 카카오톡 '나에게 보내기'로 발송한다.
-# (10시=아침 브리핑 / 15시=장중 점검 / 18시=마감 정리 — 발송 시각에 맞춰 제목이 자동으로 바뀐다.)
-# GitHub Actions 스케줄은 UTC 기준이며 best-effort 라 몇 분 지연될 수 있다.
+# 매일 10시·15시·18시(KST) 무렵 data.json 시황 요약을 카카오톡 '나에게 보내기'로 발송한다.
+# (10시=아침 / 15시=오후 / 18시=마감. 제목은 'M/D(요일) 시황' 공통 — 시간대 라벨은 두지 않는다.)
+#
+# ⏰ 발송 시각을 '매시 정각(0분)' 에 걸지 않는 이유:
+#   GitHub Actions 스케줄은 best-effort 라 혼잡 시 지연·누락된다. 그중에서도 '매시 정각' 은
+#   전 세계 워크플로가 한꺼번에 몰려 가장 혼잡한 슬롯이라 수십 분 지연되거나 통째로 누락되기 쉽다.
+#   (실제로 정각(0 1 * * *)으로 두었을 때 아침 발송이 매일 30~65분씩 밀리다 끝내 누락되는 사고 발생.)
+#   → 정각을 피해 17분에 1차 발송하고, 그래도 누락될 때를 대비해 42분에 '보강(catch-up)' 을 한 번 더 둔다.
+#     같은 슬롯의 1차·보강은 actions/cache 마커로 '하루 한 번만' 발송되도록 중복을 막는다
+#     (1차가 정상 발송되면 보강은 건너뛰고, 1차가 누락된 날에만 보강이 실제 발송 — fail-open).
+#   동일 패턴을 데이터 수집 워크플로(fetch-data.yml)도 'OO:30 보강' 으로 이미 사용 중.
 #
 # 사전 설정(1회) — 저장소 루트 KAKAO_SETUP.md 참고:
 #   GitHub → Settings → Secrets and variables → Actions 에 아래 2개 등록
 #     - KAKAO_REST_API_KEY   : 카카오 개발자 앱 REST API 키
 #     - KAKAO_REFRESH_TOKEN  : talk_message scope 로 발급한 refresh_token
+#   (선택) KAKAO_TEMPLATE_ID : 콘솔 사용자 정의(커스텀) 템플릿으로 보낼 때의 템플릿 ID
 #
 # 테스트: Actions 탭에서 이 워크플로를 'Run workflow'(workflow_dispatch)로 즉시 수동 발송 가능.
+#         (수동 실행은 중복 방지 마커를 쓰지 않으므로 언제든 곧바로 발송된다.)
 on:
   schedule:
-    - cron: '0 1 * * *'    # 10:00 KST (01:00 UTC) — 아침 시황
-    - cron: '0 6 * * *'    # 15:00 KST (06:00 UTC) — 오후 시황
-    - cron: '0 9 * * *'    # 18:00 KST (09:00 UTC) — 마감 시황
+    - cron: '17 1 * * *'   # 10:17 KST (01:17 UTC) — 아침 시황 (1차)
+    - cron: '42 1 * * *'   # 10:42 KST (01:42 UTC) — 아침 시황 (보강: 1차 누락 시에만 발송)
+    - cron: '17 6 * * *'   # 15:17 KST (06:17 UTC) — 오후 시황 (1차)
+    - cron: '42 6 * * *'   # 15:42 KST (06:42 UTC) — 오후 시황 (보강)
+    - cron: '17 9 * * *'   # 18:17 KST (09:17 UTC) — 마감 시황 (1차)
+    - cron: '42 9 * * *'   # 18:42 KST (09:42 UTC) — 마감 시황 (보강)
   workflow_dispatch: {}
 
 permissions:
@@ -41,11 +54,43 @@ jobs:
         with:
           python-version: '3.11'
 
+      # 발송 슬롯(morning/midday/close)과 날짜(UTC)를 계산한다.
+      # 1차·보강 cron 을 같은 슬롯으로 묶어, 아래 캐시 마커가 '슬롯+날짜' 단위로 중복 발송을 막게 한다.
+      # (세 슬롯 모두 01~09 UTC = 같은 UTC·KST 날짜이므로 UTC 날짜를 그대로 키로 쓴다.)
+      - name: 발송 슬롯/날짜 계산
+        id: slot
+        run: |
+          case "${{ github.event.schedule }}" in
+            '17 1 * * *'|'42 1 * * *') slot=morning ;;
+            '17 6 * * *'|'42 6 * * *') slot=midday ;;
+            '17 9 * * *'|'42 9 * * *') slot=close ;;
+            *)                          slot=manual ;;   # workflow_dispatch — 중복 방지 없이 항상 발송
+          esac
+          echo "slot=$slot"                       >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y%m%d)"          >> "$GITHUB_OUTPUT"
+
+      # 중복 발송 방지 마커: 같은 슬롯이 그날 이미 발송했으면 캐시가 적중(cache-hit=true)한다.
+      # exact key 만 사용(restore-keys 없음) — 다른 날/슬롯의 마커가 잘못 복원되어 발송이 '막히는' 일 방지.
+      # 키가 처음이면(=아직 미발송) miss → 아래 발송 step 이 돌고 마커 파일을 만들어 post 단계에서 캐시에 저장.
+      - name: 중복 발송 방지 마커 복원
+        if: steps.slot.outputs.slot != 'manual'
+        id: marker
+        uses: actions/cache@v4
+        with:
+          path: .kakao_sent_marker
+          key: kakao-sent-${{ steps.slot.outputs.date }}-${{ steps.slot.outputs.slot }}
+
       - name: Send KakaoTalk digest
+        # 이번 슬롯이 아직 미발송(cache-hit≠true)이거나 수동 실행일 때만 발송.
+        # (보강 실행인데 1차가 이미 보냈으면 cache-hit=true → 건너뜀 → 중복 발송 없음.)
+        if: steps.marker.outputs.cache-hit != 'true'
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           # 커스텀(사용자 정의) 템플릿으로 보내려면 콘솔 템플릿 ID 를 Secrets 또는 Variables 에 등록.
-          # 미설정 시 기본 피드 템플릿으로 발송. (둘 다 한 통 + 그날 차트 이미지)
+          # 미설정 시 기본 텍스트 템플릿으로 발송. (둘 다 한 통 + '대시보드 보기' 버튼)
           KAKAO_TEMPLATE_ID: ${{ secrets.KAKAO_TEMPLATE_ID || vars.KAKAO_TEMPLATE_ID }}
-        run: python scripts/send_kakao_digest.py
+        run: |
+          python scripts/send_kakao_digest.py
+          # 발송 성공 후에만 마커 생성(위 python 이 실패하면 -e 로 여기서 멈춰 마커 미생성 → 보강이 재시도).
+          touch .kakao_sent_marker
