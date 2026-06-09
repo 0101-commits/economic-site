@@ -1,7 +1,9 @@
-name: KakaoTalk Daily Digest (10·15·18 KST)
+name: KakaoTalk Daily Digest (10·15·22 KST)
 
-# 매일 10시·15시·18시(KST) 무렵 data.json 시황 요약을 카카오톡 '나에게 보내기'로 발송한다.
-# (10시=아침 / 15시=오후 / 18시=마감. 제목은 'M/D(요일) 시황' 공통 — 시간대 라벨은 두지 않는다.)
+# 매일 10시·15시·22시(KST) 무렵 data.json 시황을 카카오톡 '나에게 보내기'로 발송한다.
+# 슬롯마다 지수/환율 차트 이미지 1장을 함께 보낸다(피드):
+#   10시(아침)=나스닥·S&P500 / 15시(오후)=코스피·달러원 / 22시(마감)=코스피·나스닥.
+#   (차트 생성/업로드 실패 시 텍스트로 자동 폴백. 이미지를 끄려면 변수 KAKAO_CHARTS=0.)
 #
 # ⏰ 발송 시각을 '매시 정각(0분)' 에 걸지 않는 이유:
 #   GitHub Actions 스케줄은 best-effort 라 혼잡 시 지연·누락된다. 그중에서도 '매시 정각' 은
@@ -16,18 +18,19 @@ name: KakaoTalk Daily Digest (10·15·18 KST)
 #   GitHub → Settings → Secrets and variables → Actions 에 아래 2개 등록
 #     - KAKAO_REST_API_KEY   : 카카오 개발자 앱 REST API 키
 #     - KAKAO_REFRESH_TOKEN  : talk_message scope 로 발급한 refresh_token
-#   (선택) KAKAO_TEMPLATE_ID : 콘솔 사용자 정의(커스텀) 템플릿으로 보낼 때의 템플릿 ID
+#   (선택) KAKAO_TEMPLATE_ID : 차트 발송이 꺼졌거나 실패했을 때 쓸 콘솔 커스텀 템플릿 ID
+#   (선택) KAKAO_CHARTS=0     : 차트 이미지 발송 끄기 (기본 on)
 #
 # 테스트: Actions 탭에서 이 워크플로를 'Run workflow'(workflow_dispatch)로 즉시 수동 발송 가능.
 #         (수동 실행은 중복 방지 마커를 쓰지 않으므로 언제든 곧바로 발송된다.)
 on:
   schedule:
-    - cron: '17 1 * * *'   # 10:17 KST (01:17 UTC) — 아침 시황 (1차)
-    - cron: '42 1 * * *'   # 10:42 KST (01:42 UTC) — 아침 시황 (보강: 1차 누락 시에만 발송)
-    - cron: '17 6 * * *'   # 15:17 KST (06:17 UTC) — 오후 시황 (1차)
-    - cron: '42 6 * * *'   # 15:42 KST (06:42 UTC) — 오후 시황 (보강)
-    - cron: '17 9 * * *'   # 18:17 KST (09:17 UTC) — 마감 시황 (1차)
-    - cron: '42 9 * * *'   # 18:42 KST (09:42 UTC) — 마감 시황 (보강)
+    - cron: '17 1 * * *'    # 10:17 KST (01:17 UTC) — 아침 (나스닥·S&P500) (1차)
+    - cron: '42 1 * * *'    # 10:42 KST (01:42 UTC) — 아침 (보강: 1차 누락 시에만 발송)
+    - cron: '17 6 * * *'    # 15:17 KST (06:17 UTC) — 오후 (코스피·달러원) (1차)
+    - cron: '42 6 * * *'    # 15:42 KST (06:42 UTC) — 오후 (보강)
+    - cron: '17 13 * * *'   # 22:17 KST (13:17 UTC) — 마감 (코스피·나스닥) (1차)
+    - cron: '42 13 * * *'   # 22:42 KST (13:42 UTC) — 마감 (보강)
   workflow_dispatch: {}
 
 permissions:
@@ -54,20 +57,25 @@ jobs:
         with:
           python-version: '3.11'
 
+      # 차트(matplotlib)·이미지 업로드(requests) 의존성. 스크립트는 둘이 없으면 텍스트로 폴백하지만,
+      # 차트 피드를 기본 동작으로 쓰므로 여기서 설치한다.
+      - name: Install chart deps
+        run: pip install matplotlib requests
+
       # 발송 슬롯(morning/midday/close)과 날짜(UTC)를 계산한다.
       # 1차·보강 cron 을 같은 슬롯으로 묶어, 아래 캐시 마커가 '슬롯+날짜' 단위로 중복 발송을 막게 한다.
-      # (세 슬롯 모두 01~09 UTC = 같은 UTC·KST 날짜이므로 UTC 날짜를 그대로 키로 쓴다.)
+      # (세 슬롯 모두 01~13 UTC = 같은 UTC·KST 날짜이므로 UTC 날짜를 그대로 키로 쓴다.)
       - name: 발송 슬롯/날짜 계산
         id: slot
         run: |
           case "${{ github.event.schedule }}" in
-            '17 1 * * *'|'42 1 * * *') slot=morning ;;
-            '17 6 * * *'|'42 6 * * *') slot=midday ;;
-            '17 9 * * *'|'42 9 * * *') slot=close ;;
-            *)                          slot=manual ;;   # workflow_dispatch — 중복 방지 없이 항상 발송
+            '17 1 * * *'|'42 1 * * *')   slot=morning ;;
+            '17 6 * * *'|'42 6 * * *')   slot=midday ;;
+            '17 13 * * *'|'42 13 * * *') slot=close ;;
+            *)                            slot=manual ;;   # workflow_dispatch — 중복 방지 없이 항상 발송
           esac
-          echo "slot=$slot"                       >> "$GITHUB_OUTPUT"
-          echo "date=$(date -u +%Y%m%d)"          >> "$GITHUB_OUTPUT"
+          echo "slot=$slot"              >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
 
       # 중복 발송 방지 마커: 같은 슬롯이 그날 이미 발송했으면 캐시가 적중(cache-hit=true)한다.
       # exact key 만 사용(restore-keys 없음) — 다른 날/슬롯의 마커가 잘못 복원되어 발송이 '막히는' 일 방지.
@@ -87,8 +95,11 @@ jobs:
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
-          # 커스텀(사용자 정의) 템플릿으로 보내려면 콘솔 템플릿 ID 를 Secrets 또는 Variables 에 등록.
-          # 미설정 시 기본 텍스트 템플릿으로 발송. (둘 다 한 통 + '대시보드 보기' 버튼)
+          # 슬롯을 스크립트에 전달 → 어떤 차트를 그릴지 결정 (manual 은 KST 시각으로 추정).
+          KAKAO_SLOT: ${{ steps.slot.outputs.slot }}
+          # 차트 이미지 발송 on/off (기본 on). 끄려면 저장소 변수 KAKAO_CHARTS=0.
+          KAKAO_CHARTS: ${{ vars.KAKAO_CHARTS || '1' }}
+          # 차트가 꺼졌거나 실패했을 때만 쓰는 콘솔 커스텀 템플릿(미설정 시 텍스트).
           KAKAO_TEMPLATE_ID: ${{ secrets.KAKAO_TEMPLATE_ID || vars.KAKAO_TEMPLATE_ID }}
         run: |
           python scripts/send_kakao_digest.py
