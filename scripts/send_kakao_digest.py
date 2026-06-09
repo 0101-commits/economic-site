@@ -148,6 +148,7 @@ def build_digest_parts(d):
     ei   = d.get("economicIndicators", {}) or {}
     us   = ei.get("us", {}) or {}
     sm   = d.get("stockMovers", {}) or {}
+    etf  = d.get("etfMovers", {}) or {}
     inv  = d.get("investorTrading", {}) or {}
 
     now = datetime.datetime.now(KST)
@@ -222,11 +223,19 @@ def build_digest_parts(d):
     if pl:
         blocks.append("〔심리〕" + " ".join(pl))
 
-    # 종목 Top1 급등/급락 (여유 있을 때만 — 상세 Top3 는 대시보드)
-    up = _movers_line(sm.get("kospiGainers"), "급등", 1)
-    dn = _movers_line(sm.get("kospiLosers"), "급락", 1)
-    if up and dn:
-        blocks.append(f"〔종목〕{up} {dn}")
+    # 종목(주식) Top3 급등/급락
+    su = _movers_line(sm.get("kospiGainers"), "급등", 3)
+    sd = _movers_line(sm.get("kospiLosers"), "급락", 3)
+    stk = "  ".join(x for x in (su, sd) if x)
+    if stk:
+        blocks.append("〔종목〕" + stk)
+
+    # ETF Top3 급등/급락
+    eu = _movers_line(etf.get("etfGainers"), "급등", 3)
+    ed = _movers_line(etf.get("etfLosers"), "급락", 3)
+    etfln = "  ".join(x for x in (eu, ed) if x)
+    if etfln:
+        blocks.append("〔ETF〕" + etfln)
 
     return title, blocks
 
@@ -396,10 +405,10 @@ def build_template_args(title, blocks):
 
     콘솔 템플릿에 아래 키를 ${KEY} 형식으로 넣어두면 발송 시 값이 채워진다:
       TITLE(제목) · SUMMARY(한줄요약) · EQ(증시) · INV(투자자) · FX(환율) · COM(원자재)
-      · BOND(채권) · SENT(심리) · TOP(종목)
+      · BOND(채권) · SENT(심리) · TOP(종목 Top3) · ETF(ETF Top3)
     """
     keymap = {"증시": "EQ", "투자자": "INV", "환율": "FX", "원자재": "COM",
-              "채권": "BOND", "심리": "SENT", "종목": "TOP"}
+              "채권": "BOND", "심리": "SENT", "종목": "TOP", "ETF": "ETF"}
     args = {"TITLE": title}
     vals = []
     for b in blocks:
