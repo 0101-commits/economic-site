@@ -9,8 +9,11 @@
 동작:
   1) refresh_token 으로 access_token 재발급 (매 실행마다 신선한 토큰 확보)
   2) data.json 을 읽어 한국어 요약문 작성
-     (카카오 기본 '텍스트' 템플릿의 text 는 최대 200자 → 핵심 지표만 간결히, 상세는 대시보드 링크)
-  3) POST kapi.kakao.com/v2/api/talk/memo/default/send 로 본인 카톡(나와의 채팅)에 발송
+  3) 발송(아래 순서로 시도, 앞이 실패하면 다음으로 폴백):
+     ① 차트 피드 — 슬롯별 지수/환율 차트 PNG(matplotlib) 생성 → 카카오 이미지 업로드 API →
+        object_type=feed 로 이미지+요약+버튼 한 통 (KAKAO_CHARTS=0 으로 끌 수 있음)
+     ② KAKAO_TEMPLATE_ID 설정 시 콘솔 사용자 정의(커스텀) 템플릿
+     ③ 기본 '텍스트' 템플릿(최대 200자) — 핵심 지표만, 상세는 대시보드 링크
 
 설정 방법(1회): cloudflare-worker/README 가 아니라 저장소 루트 KAKAO_SETUP.md 참고.
 표준 라이브러리만 사용 — pip 설치 불필요.
@@ -27,6 +30,20 @@ DASHBOARD_URL = "https://0101-commits.github.io/economic-site/"
 KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
+FEED_DESC_LIMIT = 150  # 피드(이미지) 템플릿 본문은 짧게 — 상세는 차트 이미지·대시보드로
+
+# 발송 슬롯별 차트 구성 — (history 카테고리, 키, 라벨) 2개를 1장(위·아래)으로 합쳐 보낸다.
+#   morning(10시) 미국장 마감 직후 → 나스닥·S&P500 / midday(15시) 한국장 마감 → 코스피·달러원
+#   close(22시) 마감 종합 → 코스피·나스닥. (라벨은 CI 한글폰트 부재 대비 영문)
+SLOT_CHARTS = {
+    "morning": ([("indices", "NASDAQ", "Nasdaq"), ("indices", "SP500", "S&P 500")],
+                "US Markets (Nasdaq / S&P500)"),
+    "midday":  ([("indices", "KOSPI", "KOSPI"), ("fx", "USDKRW", "USD/KRW")],
+                "KOSPI / USD-KRW"),
+    "close":   ([("indices", "KOSPI", "KOSPI"), ("indices", "NASDAQ", "Nasdaq")],
+                "KOSPI / Nasdaq"),
+}
+_CHART_COLOR = {"NASDAQ": "#7e57c2", "SP500": "#1e88e5", "KOSPI": "#2962ff", "USDKRW": "#26a69a"}
 
 
 def _http_post(url, form, headers=None):
@@ -238,6 +255,142 @@ def _send_template_object(access_token, template):
     )
 
 
+def _resolve_slot():
+    """발송 슬롯(morning/midday/close) 판정 — 워크플로가 넘긴 KAKAO_SLOT 우선, 없으면 KST 시각 추정.
+
+    (수동 실행은 KAKAO_SLOT=manual 로 넘어오므로 시각 기준으로 가장 가까운 슬롯을 고른다.)"""
+    s = os.environ.get("KAKAO_SLOT", "").strip().lower()
+    if s in SLOT_CHARTS:
+        return s
+    hr = datetime.datetime.now(KST).hour
+    return "morning" if hr < 13 else ("midday" if hr < 19 else "close")
+
+
+def _charts_enabled():
+    """차트 이미지 발송 on/off — 기본 on. 끄려면 워크플로 변수 KAKAO_CHARTS=0."""
+    return os.environ.get("KAKAO_CHARTS", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
+    """슬롯별 지수/환율 2종을 1장 PNG(720x640)로 생성. matplotlib 미설치/실패 시 None(→ 텍스트 폴백)."""
+    spec = SLOT_CHARTS.get(slot)
+    if not spec:
+        return None
+    panels, suptitle = spec
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+    except Exception as e:
+        print(f"[chart] matplotlib 미설치 — 이미지 생략 ({e})")
+        return None
+    h = d.get("history", {}) or {}
+
+    def series(cat, key, n=60):
+        arr = [x for x in ((h.get(cat) or {}).get(key) or []) if x.get("close") is not None][-n:]
+        xs, ys = [], []
+        for x in arr:
+            try:
+                xs.append(datetime.datetime.strptime(x["date"], "%Y-%m-%d"))
+                ys.append(float(x["close"]))
+            except (ValueError, TypeError):
+                pass
+        return xs, ys
+
+    try:
+        fig, axes = plt.subplots(2, 1, figsize=(7.2, 6.4))
+        fig.suptitle(suptitle, fontsize=13, x=0.02, ha="left", weight="bold")
+        for a, (cat, key, label) in zip(axes, panels):
+            xs, ys = series(cat, key)
+            color = _CHART_COLOR.get(key, "#333333")
+            if xs:
+                a.plot(xs, ys, color=color, linewidth=1.8)
+                a.fill_between(xs, ys, min(ys), color=color, alpha=0.08)
+                pct = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
+                a.set_title(f"{label}   {ys[-1]:,.2f}  ({pct:+.1f}% / 60d)", fontsize=12, loc="left")
+            else:
+                a.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=11)
+                a.set_title(label, fontsize=12, loc="left")
+            a.grid(alpha=0.25)
+            a.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
+            for lbl in a.get_xticklabels():
+                lbl.set_fontsize(8)
+        fig.tight_layout(rect=[0, 0, 1, 0.97])
+        fig.savefig(out_path, dpi=100)
+        plt.close(fig)
+        return out_path
+    except Exception as e:
+        print(f"[chart] 생성 실패 ({e})")
+        try:
+            plt.close("all")
+        except Exception:
+            pass
+        return None
+
+
+def kakao_upload_image(access_token, png_path):
+    """차트 PNG 를 카카오 이미지 서버에 업로드하고 image_url 반환(실패 시 None).
+
+    카카오 CDN URL 을 받으므로 사이트 도메인/호스팅 등록이 필요 없다."""
+    try:
+        import requests
+    except Exception as e:
+        print(f"[chart] requests 미설치 — 업로드 생략 ({e})")
+        return None
+    try:
+        with open(png_path, "rb") as fp:
+            r = requests.post(
+                "https://kapi.kakao.com/v2/api/talk/message/image/upload",
+                headers={"Authorization": f"Bearer {access_token}"},
+                files={"file": fp}, timeout=25)
+        if r.status_code != 200:
+            print(f"[chart] 업로드 실패 HTTP {r.status_code}: {r.text[:200]}")
+            return None
+        url = (((r.json().get("infos") or {}).get("original") or {}).get("url"))
+        if url:
+            print(f"[chart] 업로드 성공: {url}")
+        return url
+    except Exception as e:
+        print(f"[chart] 업로드 오류 ({e})")
+        return None
+
+
+def send_feed(access_token, title, description, image_url, dims=(720, 640)):
+    """기본 피드 템플릿 한 통 — 차트 이미지 + 제목/요약 + '대시보드 보기' 버튼."""
+    content = {
+        "title": title,
+        "description": description,
+        "image_url": image_url,
+        "image_width": dims[0], "image_height": dims[1],
+        "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
+    }
+    template = {
+        "object_type": "feed",
+        "content": content,
+        "buttons": [{"title": "대시보드 보기",
+                     "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL}}],
+    }
+    status, j = _send_template_object(access_token, template)
+    if status != 200:
+        print(f"[kakao] 피드 발송 실패 HTTP {status}: {j}")
+        return False
+    print(f"[kakao] 피드(차트) 발송 성공\n{title} | {description}")
+    return True
+
+
+def send_chart_feed(access_token, data, title, blocks, slot):
+    """슬롯 차트 생성→업로드→피드 발송. 한 단계라도 실패하면 False(→ 호출부가 텍스트로 폴백)."""
+    png = build_slot_chart_png(data, slot)
+    if not png:
+        return False
+    image_url = kakao_upload_image(access_token, png)
+    if not image_url:
+        return False
+    desc = _pack("", blocks, FEED_DESC_LIMIT).strip()
+    return send_feed(access_token, title, desc, image_url)
+
+
 def build_template_args(title, blocks):
     """커스텀(사용자 정의) 템플릿 발송용 변수(${KEY}) 매핑.
 
@@ -317,7 +470,17 @@ def main():
     title, blocks = build_digest_parts(data)
     access_token = refresh_access_token(rest_key, refresh_token)
 
-    # ① KAKAO_TEMPLATE_ID 가 설정돼 있으면 콘솔 사용자 정의(커스텀) 템플릿으로 한 통 발송.
+    # ① 차트 이미지 피드 (기본 동작): 슬롯별 지수/환율 차트 1장 + 요약 + 버튼 한 통.
+    #    morning=나스닥·S&P500 / midday=코스피·달러원 / close=코스피·나스닥.
+    #    (matplotlib/requests 미설치나 업로드 실패 시 아래 텍스트 경로로 자동 폴백.)
+    if _charts_enabled():
+        slot = _resolve_slot()
+        if send_chart_feed(access_token, data, title, blocks, slot):
+            print(f"[kakao] 발송 완료 (차트 피드, slot={slot})")
+            return
+        print("[kakao] 차트 피드 실패/생략 — 다음 경로로 폴백")
+
+    # ② KAKAO_TEMPLATE_ID 가 설정돼 있으면 콘솔 사용자 정의(커스텀) 템플릿으로 한 통 발송.
     #    (이미지 없음 — 버튼은 콘솔 템플릿에서 '대시보드 보기'로 지정)
     template_id = os.environ.get("KAKAO_TEMPLATE_ID", "").strip()
     if template_id:
@@ -327,7 +490,7 @@ def main():
             return
         print("[kakao] 커스텀 템플릿 실패 — 기본 텍스트로 폴백")
 
-    # ② 기본 텍스트 템플릿 한 통 (이미지 없음) — '대시보드 보기' 버튼 포함.
+    # ③ 기본 텍스트 템플릿 한 통 (이미지 없음) — '대시보드 보기' 버튼 포함.
     send_memo(access_token, _pack(title, blocks, TEXT_LIMIT), with_button=True)
     print("[kakao] 발송 완료")
 
