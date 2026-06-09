@@ -44,6 +44,8 @@ SLOT_CHARTS = {
                 "KOSPI / Nasdaq"),
 }
 _CHART_COLOR = {"NASDAQ": "#7e57c2", "SP500": "#1e88e5", "KOSPI": "#2962ff", "USDKRW": "#26a69a"}
+# 당일(인트라데이) 시세용 Yahoo Finance 심볼 — data.json 엔 일별 종가만 있어 차트 생성 시 직접 조회한다.
+_YH_SYM = {"KOSPI": "^KS11", "KOSDAQ": "^KQ11", "NASDAQ": "^IXIC", "SP500": "^GSPC", "USDKRW": "KRW=X"}
 # 슬롯별 발송 시각(KST) — 제목에 표기. 수동/미상이면 시각 표기 생략.
 SLOT_HOUR = {"morning": "10시", "midday": "15시", "close": "22시"}
 
@@ -283,8 +285,58 @@ def _charts_enabled():
     return os.environ.get("KAKAO_CHARTS", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
+def _yahoo_intraday(symbol, rng="1d", interval="5m"):
+    """Yahoo 차트 API 에서 당일(최근 세션) 인트라데이 (시각[KST naive], 가격) 시계열. 실패 시 ([], []).
+
+    GitHub Actions 러너 IP 는 Yahoo 가 자주 403 으로 막으므로(fetch_data.py 와 동일 경험),
+    직접 호출 실패 시 공개 CORS 프록시(corsproxy.io / allorigins.win / codetabs)로 순차 우회한다."""
+    try:
+        import requests
+        from urllib.parse import quote_plus
+    except Exception:
+        return [], []
+    base = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+            f"?range={rng}&interval={interval}")
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                             "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"}
+    candidates = [
+        base,
+        # 저장소 전용 Cloudflare 프록시(Yahoo 허용·헤더 주입 → 가장 안정적). 공개 프록시는 폴백.
+        f"https://ecom-dashboard-proxy.baldr0001.workers.dev/?url={quote_plus(base)}",
+        f"https://corsproxy.io/?{quote_plus(base)}",
+        f"https://api.allorigins.win/raw?url={quote_plus(base)}",
+        f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(base)}",
+    ]
+    for url in candidates:
+        try:
+            r = requests.get(url, headers=headers, timeout=15)
+            if r.status_code != 200:
+                continue
+            res = (((r.json() or {}).get("chart") or {}).get("result") or [None])[0]
+            if not res:
+                continue
+            ts = res.get("timestamp") or []
+            quote = (((res.get("indicators") or {}).get("quote") or [{}])[0]) or {}
+            closes = quote.get("close") or []
+            xs, ys = [], []
+            for t, c in zip(ts, closes):
+                if c is None:
+                    continue
+                xs.append(datetime.datetime.fromtimestamp(t, KST).replace(tzinfo=None))  # KST 로컬시각(naive)
+                ys.append(float(c))
+            if xs:
+                return xs, ys
+        except Exception:
+            continue
+    print(f"[chart] 인트라데이 실패({symbol}) — 일봉으로 폴백")
+    return [], []
+
+
 def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
-    """슬롯별 지수/환율 2종을 1장 PNG(720x640)로 생성. matplotlib 미설치/실패 시 None(→ 텍스트 폴백)."""
+    """슬롯별 지수/환율 2종을 '당일(인트라데이)' 차트 1장 PNG(720x640)로 생성.
+
+    당일 시세는 Yahoo 차트 API 에서 직접 조회(data.json 엔 일별 종가만 있음). 인트라데이 조회 실패 시
+    history 일봉(60일)으로 폴백. matplotlib 미설치/생성 실패 시 None(→ 텍스트 폴백)."""
     spec = SLOT_CHARTS.get(slot)
     if not spec:
         return None
@@ -299,7 +351,7 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
         return None
     h = d.get("history", {}) or {}
 
-    def series(cat, key, n=60):
+    def daily_series(cat, key, n=60):
         arr = [x for x in ((h.get(cat) or {}).get(key) or []) if x.get("close") is not None][-n:]
         xs, ys = [], []
         for x in arr:
@@ -310,22 +362,34 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
                 pass
         return xs, ys
 
+    def snap_change(cat, key):
+        o = (d.get(cat, {}) or {}).get(key) or {}
+        return _f(o.get("change"))
+
     try:
         fig, axes = plt.subplots(2, 1, figsize=(7.2, 6.4))
-        fig.suptitle(suptitle, fontsize=13, x=0.02, ha="left", weight="bold")
+        fig.suptitle(suptitle + "  ·  today", fontsize=13, x=0.02, ha="left", weight="bold")
         for a, (cat, key, label) in zip(axes, panels):
-            xs, ys = series(cat, key)
             color = _CHART_COLOR.get(key, "#333333")
+            # 1순위: 당일 인트라데이(Yahoo). 실패 시 일봉 60일로 폴백.
+            xs, ys = _yahoo_intraday(_YH_SYM.get(key, "")) if _YH_SYM.get(key) else ([], [])
+            intraday = bool(xs)
+            if not xs:
+                xs, ys = daily_series(cat, key, 7)   # 인트라데이 실패 시 7일 일봉으로 폴백
             if xs:
-                a.plot(xs, ys, color=color, linewidth=1.8)
+                a.plot(xs, ys, color=color, linewidth=1.8,
+                       marker=("o" if (not intraday and len(xs) <= 10) else None), markersize=3)
                 a.fill_between(xs, ys, min(ys), color=color, alpha=0.08)
-                pct = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
-                a.set_title(f"{label}   {ys[-1]:,.2f}  ({pct:+.1f}% / 60d)", fontsize=12, loc="left")
+                chg = snap_change(cat, key)
+                if chg is None:
+                    chg = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
+                span = "today" if intraday else "7d"
+                a.set_title(f"{label}   {ys[-1]:,.2f}  ({chg:+.1f}% / {span})", fontsize=12, loc="left")
+                a.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M" if intraday else "%m-%d"))
             else:
                 a.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=11)
                 a.set_title(label, fontsize=12, loc="left")
             a.grid(alpha=0.25)
-            a.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
             for lbl in a.get_xticklabels():
                 lbl.set_fontsize(8)
         fig.tight_layout(rect=[0, 0, 1, 0.97])
