@@ -125,8 +125,30 @@ WTI $89.46(▲2.40%) 금 $4,571(▼0.47%)
 
 ---
 
+## ⏰ 자동 발송 시각 안정화 — Cloudflare Cron (권장, 1회 설정)
+
+GitHub Actions 의 `schedule`(cron) 은 best-effort 라 **정각 보장이 안 되고 통째로 누락**되곤 합니다(실측: 며칠씩 드롭).
+그래서 **이미 배포돼 있는 Cloudflare Worker**(`ecom-dashboard-proxy`)의 **Cron Trigger** 가 매일 **10:05 / 15:05 / 22:05 KST**
+(`wrangler.jsonc` 의 `triggers.crons`)에 GitHub 워크플로를 **on-demand(repository_dispatch)** 로 깨웁니다.
+on-demand 실행은 스케줄 드롭의 영향을 받지 않아 **즉시** 돌고, 차트 생성·발송은 그대로 GitHub Actions 가 합니다.
+
+**해야 할 일 (딱 1개) — Worker 에 GitHub 토큰 시크릿 추가:**
+1. GitHub → 우상단 프로필 → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate**
+   - **Repository access**: `0101-commits/economic-site` 만 선택
+   - **Permissions → Repository permissions → Contents: Read and write** (이게 있어야 `repository_dispatch` 가능)
+   - 토큰 생성 후 값 복사
+2. 이 토큰을 **Cloudflare Worker 시크릿 `GH_DISPATCH_TOKEN`** 으로 등록:
+   - Cloudflare 대시보드 → **Workers & Pages → `ecom-dashboard-proxy` → Settings → Variables and Secrets → Add → Secret**
+     이름 `GH_DISPATCH_TOKEN`, 값=위 토큰 → Save
+   - (또는 CLI) 저장소 루트에서 `npx wrangler secret put GH_DISPATCH_TOKEN`
+3. 끝. 이후 매일 10:05/15:05/22:05 KST 에 자동 발송됩니다. (Worker 는 `main` push 시 자동 재배포되어 cron 이 등록됩니다.)
+
+> 토큰 미설정 시: Worker 의 cron 은 돌지만 dispatch 를 건너뛰고 경고만 남깁니다(안전). 그동안은 GitHub `schedule`(:05) 백업이 살아있을 때만 발송됩니다.
+
+---
+
 ## 참고 / 문제 해결
-- **발송 시각**: 매일 약 10:17 / 15:17 / 22:17 KST(정각 혼잡 회피, 누락 시 42분 보강). best-effort 라 몇 분 더 늦을 수 있습니다.
+- **발송 시각**: 매일 약 10:05 / 15:05 / 22:05 KST. Cloudflare Cron 이 정시에 GitHub 워크플로를 깨우며(주 경로), GitHub `schedule`(:05)·`workflow_run` 백업이 보조합니다. 어느 경로든 슬롯당 하루 한 번만 발송(중복 방지).
 - **발송 형태**: 슬롯마다 **한 통(피드)** 으로 보냅니다 — 차트 이미지 + 증시 헤드라인 + 카테고리 행(환율·원자재·금리/심리·종목·ETF, 피드 리스트 최대 5행) + '대시보드 보기' 버튼. 카카오 피드 행(item)은 길이 제한이 있어 종목·ETF는 대표 종목만 싣고, 전체 Top3·상세는 대시보드 링크로 제공합니다. 행을 바꾸려면 `scripts/send_kakao_digest.py` 의 `build_feed_rows` 를 수정하세요.
 - **차트 이미지**: 슬롯별 차트를 `matplotlib` 로 1장 만들어 **카카오 이미지 업로드 API** 로 올린 뒤 피드로 첨부합니다(이미지 호스팅·도메인 등록 불필요). matplotlib/requests 미설치나 업로드 실패 시 자동으로 텍스트 발송으로 폴백합니다.
 - **🔗 링크가 엉뚱한 사이트(예: `localhost…`)로 열릴 때**: 메시지의 이미지·버튼 링크 도메인은 카카오 앱에 **등록된 사이트 도메인**이어야 합니다. 미등록이면 카카오가 등록된(잘못된) 도메인으로 대체합니다.

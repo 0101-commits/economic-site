@@ -13,5 +13,13 @@
   // 무료 플랜 일 10,000 Neurons 제공(개인용 충분). 외부 API 키·비용 없이 env.AI.run() 으로 LLM 호출.
   "ai": {
     "binding": "AI"
+  },
+  // ⏰ Cron Triggers — 카카오 시황 자동 발송 트리거(GitHub Actions 스케줄이 best-effort 라 누락되는
+  // 문제 해소). 이 시각에 Worker 의 scheduled() 가 GitHub repository_dispatch 로 kakao-daily 워크플로를
+  // on-demand 실행시킨다(차트 생성·발송은 GitHub Actions 가). on-demand 라 스케줄 드롭 영향이 없다.
+  // UTC 기준: 01:05=10:05 KST(아침) / 06:05=15:05 KST(오후) / 13:05=22:05 KST(마감).
+  // 동작에는 Worker 시크릿 GH_DISPATCH_TOKEN(저장소 dispatch 권한 PAT) 이 필요하다(README 참고).
+  "triggers": {
+    "crons": ["5 1 * * *", "5 6 * * *", "5 13 * * *"]
   }
 }
