@@ -448,13 +448,16 @@ def _fetch_investor_pykrx(lookback_days=400):
     }
 
 
-def fetch_naver_investor_trading(lookback_days=400):
+def fetch_naver_investor_trading(lookback_days=400, max_pages=30):
     """투자자별 순매수 — 네이버 금융 무인증 폴백 (KRX 로그인/KIS 키/카카오 알람 불필요).
 
-    finance.naver.com/sise/sise_index_buyer.naver?code=KOSPI|KOSDAQ 의 일별 표에서
-    개인/외국인/기관 순매수를 추출해 KOSPI+KOSDAQ 합산(억원). HTML 구조 변동에 대비해
-    표/컬럼을 헤더 키워드로 동적 매핑하고, 단위는 값 크기로 자동 감지한다. 구조 불일치 시
-    빈 dict 를 반환(더미 절대 미사용) — CI 로그의 raw 샘플로 파싱을 점검/보정할 수 있다.
+    finance.naver.com/sise/investorDealTrendDay.naver?bizdate=YYYYMMDD&sosok=01|02&page=N
+    의 '일자별 순매수' 표에서 개인/외국인/기관계 순매수(억원)를 추출해 KOSPI(01)+KOSDAQ(02)
+    합산한다. 페이지당 약 17영업일이라 lookback_days 충족까지 page 를 순회한다.
+    (이전 경로 sise_index_buyer.naver 는 2026-06 네이버 개편으로 404 삭제 확인 — 교체.)
+    HTML 구조 변동에 대비해 표/컬럼을 헤더 키워드로 동적 매핑하고, 단위는 값 크기로 자동
+    감지한다. 구조 불일치 시 빈 dict 를 반환(더미 절대 미사용) — CI 로그의 raw 샘플로
+    파싱을 점검/보정할 수 있다.
     """
     try:
         from bs4 import BeautifulSoup
@@ -469,6 +472,9 @@ def fetch_naver_investor_trading(lookback_days=400):
         "Accept-Language": "ko-KR,ko;q=0.9",
     }
     date_re = _re.compile(r"\d{2,4}\.\d{1,2}\.\d{1,2}")
+    bizdate = datetime.now(KST).strftime("%Y%m%d")
+    # 영업일 기준 페이지 수 — 페이지당 ~17행이므로 약간의 여유를 두고 산출
+    need_pages = min(max_pages, (lookback_days * 5 // 7) // 17 + 2)
 
     def _num(s):
         s = (s or "").replace(",", "").replace("+", "").strip()
@@ -479,16 +485,8 @@ def fetch_naver_investor_trading(lookback_days=400):
         except ValueError:
             return None
 
-    agg, markets_ok, raw_samples = {}, [], []
-    for mkt in ("KOSPI", "KOSDAQ"):
-        try:
-            url = f"https://finance.naver.com/sise/sise_index_buyer.naver?code={mkt}"
-            r = requests.get(url, headers=hdrs, timeout=15)
-            r.encoding = "euc-kr"
-            soup = BeautifulSoup(r.text, "html.parser")
-        except Exception as e:
-            log(f"[투자자-Naver] {mkt} 요청 오류: {e}")
-            continue
+    def _parse_page(soup):
+        """표/컬럼 헤더 매핑 후 (date, foreign, inst, retail) 행 목록 반환. 실패 시 None."""
         target, colmap, hdr_text = None, {}, ""
         for tbl in soup.find_all("table"):
             ttext = tbl.get_text(" ", strip=True)
@@ -502,7 +500,7 @@ def fetch_naver_investor_trading(lookback_days=400):
                         cm["retail"] = i
                     elif "외국인" in ct and "기타" not in ct and "foreign" not in cm:
                         cm["foreign"] = i
-                    elif "기관" in ct and "inst" not in cm:
+                    elif "기관" in ct and "기타" not in ct and "inst" not in cm:
                         cm["inst"] = i
                 if len(cm) == 3:
                     colmap, target, hdr_text = cm, tbl, " | ".join(cells)
@@ -510,9 +508,8 @@ def fetch_naver_investor_trading(lookback_days=400):
             if target:
                 break
         if not target:
-            log(f"[투자자-Naver] {mkt} 표/컬럼 매핑 실패 — 건너뜀")
-            continue
-        n = 0
+            return None, ""
+        rows = []
         for tr in target.find_all("tr"):
             cells = [c.get_text(strip=True) for c in tr.find_all(["td", "th"])]
             dcell = next((c for c in cells if date_re.fullmatch(c.replace(" ", ""))), None)
@@ -529,14 +526,42 @@ def fetch_naver_investor_trading(lookback_days=400):
                 dstr = f"{int(y):04d}-{int(p[1]):02d}-{int(p[2]):02d}"
             except ValueError:
                 continue
-            rec = agg.setdefault(dstr, {"foreign": 0.0, "inst": 0.0, "retail": 0.0})
-            rec["foreign"] += (f or 0.0); rec["inst"] += (ins or 0.0); rec["retail"] += (ret or 0.0)
-            n += 1
-            if len(raw_samples) < 4:
-                raw_samples.append((mkt, dstr, f, ins, ret))
+            rows.append((dstr, f, ins, ret))
+        return rows, hdr_text
+
+    agg, markets_ok, raw_samples = {}, [], []
+    for mkt, sosok in (("KOSPI", "01"), ("KOSDAQ", "02")):
+        n, seen_dates = 0, set()
+        for page in range(1, need_pages + 1):
+            url = (f"https://finance.naver.com/sise/investorDealTrendDay.naver"
+                   f"?bizdate={bizdate}&sosok={sosok}&page={page}")
+            try:
+                r = requests.get(url, headers=hdrs, timeout=15)
+                r.encoding = "euc-kr"
+                soup = BeautifulSoup(r.text, "html.parser")
+            except Exception as e:
+                log(f"[투자자-Naver] {mkt} p{page} 요청 오류: {e}")
+                break
+            rows, hdr_text = _parse_page(soup)
+            if rows is None:
+                log(f"[투자자-Naver] {mkt} p{page} 표/컬럼 매핑 실패 — 중단")
+                break
+            new_rows = [rw for rw in rows if rw[0] not in seen_dates]
+            if not new_rows:
+                break  # 마지막 페이지 초과 시 네이버는 같은 표를 반복 반환 → 종료
+            for dstr, f, ins, ret in new_rows:
+                seen_dates.add(dstr)
+                rec = agg.setdefault(dstr, {"foreign": 0.0, "inst": 0.0, "retail": 0.0})
+                rec["foreign"] += (f or 0.0); rec["inst"] += (ins or 0.0); rec["retail"] += (ret or 0.0)
+                n += 1
+                if len(raw_samples) < 4:
+                    raw_samples.append((mkt, dstr, f, ins, ret))
+            if page == 1 and n:
+                log(f"[투자자-Naver] {mkt} 표 매핑 OK (헤더='{hdr_text[:80]}')")
+            _time.sleep(0.2)
         if n:
             markets_ok.append(mkt)
-            log(f"[투자자-Naver] {mkt} {n}행 (헤더='{hdr_text[:80]}')")
+            log(f"[투자자-Naver] {mkt} {n}일 수집")
     if not agg:
         log("[투자자-Naver] 수집 실패 — 빈 결과 (프론트 '수집 중')")
         return {}
