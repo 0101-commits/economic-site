@@ -34,13 +34,15 @@ KIS_TOKEN_FILE = os.environ.get("KIS_TOKEN_FILE", ".kis_token_cache.json")
 KRX_API_KEY       = os.environ.get("KRX_API_KEY",       "").strip()
 FRED_API_KEY      = os.environ.get("FRED_API_KEY",      "").strip()
 ECOS_API_KEY      = os.environ.get("ECOS_API_KEY",      "").strip()
-# R-ONE (한국부동산원) — Secrets 미설정 시에도 동작하도록 사용자 발급 키 기본값 제공.
-# 운영 시에는 GitHub Secrets 의 REALESTATE_API_KEY 가 우선되어 덮어쓰임.
-REALESTATE_API_KEY= os.environ.get("REALESTATE_API_KEY","2e3efb261b524b8eacde37220a909655").strip()
+# R-ONE (한국부동산원) — 키는 GitHub Secrets(REALESTATE_API_KEY) 로만 주입한다.
+# ⚠️ 코드에 기본값(개인 키) 하드코딩 금지: 공개 저장소라 키가 그대로 유출된다.
+#    미설정 시 해당 수집은 건너뛰며(각 함수의 `if not REALESTATE_API_KEY` 가드), 기존 data.json 값이 유지된다.
+REALESTATE_API_KEY= os.environ.get("REALESTATE_API_KEY","").strip()
 KOSIS_API_KEY     = os.environ.get("KOSIS_API_KEY",     "").strip()
-# 신규: Alpha Vantage API — 미국 경제지표/원자재/FX 보강. Secrets ALPHAVANTAGE_API_KEY 권장.
+# 신규: Alpha Vantage API — 미국 경제지표/원자재/FX 보강. 키는 GitHub Secrets(ALPHAVANTAGE_API_KEY) 로만 주입.
+# ⚠️ 코드에 기본값(개인 키) 하드코딩 금지: 공개 저장소라 키가 그대로 유출된다. 미설정 시 보강은 건너뜀.
 # 일 25회/분당 5회 무료 한도 → 매 시간 호출은 피하고 09:00/22:00 KST 일일 갱신에서만 사용.
-ALPHAVANTAGE_API_KEY = os.environ.get("ALPHAVANTAGE_API_KEY", "I5A35AT34LHERWYR").strip()
+ALPHAVANTAGE_API_KEY = os.environ.get("ALPHAVANTAGE_API_KEY", "").strip()
 # 신규: 공공데이터포털 통합 키 (data.go.kr) — 국토부 실거래가, 금융위 시세, KOTRA, KOSIS 등 50+ 서비스
 DATA_GO_KR_API_KEY= os.environ.get("DATA_GO_KR_API_KEY","").strip()
 # 신규: 한국수출입은행 환율·금리 (KOREAEXIM)
