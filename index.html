@@ -10914,7 +10914,7 @@ async function fetchNaverETFMoversClient() {
 // 서버 fetch_data.py 의 fetch_naver_investor_trading 과 '동일' 경로/로직이지만, 브라우저는 전용
 // CF Worker 경유라 GitHub Actions 데이터센터 IP 차단 시에도 동작하는 보강 경로다.
 // (이전 경로 sise_index_buyer.naver 는 2026-06 네이버 개편으로 404 삭제 확인 — 교체.)
-// KOSPI(sosok=01)+KOSDAQ(sosok=02) 합산, 단위 억원. 페이지당 ~17영업일이라 여러 page 를
+// KOSPI(sosok=01)+KOSDAQ(sosok=02) 합산, 단위 억원. 페이지당 10영업일이라 여러 page 를
 // 병렬 페치(클라 보강은 최근 ~100영업일이면 충분; 전체 시계열은 서버 data.json 담당).
 // 표/컬럼은 헤더 키워드로 동적 매핑, 단위는 값 크기로 자동 감지.
 async function fetchNaverInvestorTradingClient(lookbackDays=400) {
@@ -10927,7 +10927,7 @@ async function fetchNaverInvestorTradingClient(lookbackDays=400) {
   const dateRe = /^\d{2,4}\.\d{1,2}\.\d{1,2}$/;
   const agg = {};                 // 'YYYY-MM-DD' → {foreign, inst, retail}
   const marketsOk = [];
-  const PAGES = 6;                // 6p × ~17행 ≈ 최근 100영업일
+  const PAGES = 10;               // 10p × 10행 = 최근 100영업일
   const bizdate = new Date(Date.now() + 9*3600*1000).toISOString().slice(0,10).replace(/-/g,'');
   // 한 페이지 HTML → [{dstr,f,ins,ret}] (표/컬럼 헤더 키워드 매핑; 구조 불일치 시 null)
   const parsePage = (html) => {

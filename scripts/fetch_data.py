@@ -453,7 +453,7 @@ def fetch_naver_investor_trading(lookback_days=400, max_pages=30):
 
     finance.naver.com/sise/investorDealTrendDay.naver?bizdate=YYYYMMDD&sosok=01|02&page=N
     의 '일자별 순매수' 표에서 개인/외국인/기관계 순매수(억원)를 추출해 KOSPI(01)+KOSDAQ(02)
-    합산한다. 페이지당 약 17영업일이라 lookback_days 충족까지 page 를 순회한다.
+    합산한다. 페이지당 10영업일이라 lookback_days 충족까지 page 를 순회한다.
     (이전 경로 sise_index_buyer.naver 는 2026-06 네이버 개편으로 404 삭제 확인 — 교체.)
     HTML 구조 변동에 대비해 표/컬럼을 헤더 키워드로 동적 매핑하고, 단위는 값 크기로 자동
     감지한다. 구조 불일치 시 빈 dict 를 반환(더미 절대 미사용) — CI 로그의 raw 샘플로
@@ -473,8 +473,8 @@ def fetch_naver_investor_trading(lookback_days=400, max_pages=30):
     }
     date_re = _re.compile(r"\d{2,4}\.\d{1,2}\.\d{1,2}")
     bizdate = datetime.now(KST).strftime("%Y%m%d")
-    # 영업일 기준 페이지 수 — 페이지당 ~17행이므로 약간의 여유를 두고 산출
-    need_pages = min(max_pages, (lookback_days * 5 // 7) // 17 + 2)
+    # 영업일 기준 페이지 수 — 페이지당 10행(영업일)이므로 약간의 여유를 두고 산출
+    need_pages = min(max_pages, (lookback_days * 5 // 7) // 10 + 2)
 
     def _num(s):
         s = (s or "").replace(",", "").replace("+", "").strip()
