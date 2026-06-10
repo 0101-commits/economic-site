@@ -3,6 +3,26 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!-- 🛡 Content Security Policy — GitHub Pages 는 응답 헤더를 설정할 수 없어 <meta> 로 적용.
+     · script-src 'unsafe-inline': 본 앱은 단일 HTML 인라인 스크립트 + 인라인 onclick 핸들러 구조라 필수.
+       대신 외부 스크립트 출처를 CDN/네이버 지도 도메인으로 한정하고 eval 류('unsafe-eval')는 불허.
+     · connect-src: data.json('self') + 전용 Worker + 공개 CORS 프록시 + 직접 호출하는 금융 API 만 허용.
+       (localStorage 'cfProxyBase' 로 다른 프록시를 지정하면 여기에 도메인을 추가해야 함)
+     · frame-ancestors 는 meta CSP 에서 무시되므로 클릭재킹 방어는 호스팅 헤더 지원 시 별도 적용 필요. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
+  font-src 'self' data: https://fonts.gstatic.com;
+  img-src 'self' data: blob: https:;
+  connect-src 'self' https://ecom-dashboard-proxy.baldr0001.workers.dev https://api.allorigins.win https://api.codetabs.com https://corsproxy.io https://stooq.com https://stooq.pl https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://open.er-api.com https://production.dataviz.cnn.io https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net;
+  object-src 'none';
+  base-uri 'self';
+  form-action 'self';
+  frame-src 'none';
+  upgrade-insecure-requests
+"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
 <title>경제현황 터미널</title>
 <!-- 인라인 SVG 파비콘(📈) — favicon.ico 404 제거 -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E"/>
@@ -14,11 +34,12 @@
        "Content Security Policy blocks the use of 'eval'" 콘솔 오류를 유발했다.
      · 사용처가 0 이므로 스크립트를 제거 → eval 호출 자체가 사라져 CSP eval 오류가 영구히 발생하지 않는다.
        (시각적 변화 없음. 외부 의존성/네트워크 요청도 1개 감소.) 다시 추가하지 말 것. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- SRI(integrity): CDN 이 변조/탈취돼도 해시 불일치 시 브라우저가 로드를 거부 (npm 원본 타볼 기준 sha384) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <!-- Leaflet (OpenStreetMap) — 도메인 제한 없음 -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <!-- Naver Maps JS API v3 — Client ID 가 0101-commits.github.io/economic-site/ 도메인에 등록됨 -->
 <!-- 2024+ 이후 신규 발급 키는 ncpKeyId, 기존 키는 ncpClientId 사용. 두 형태 모두 시도. -->
 <script>
@@ -889,9 +910,9 @@
               </div>
             </div>
             <div style="font-size:9px;color:#434656;line-height:1.5;">
-              <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" style="color:#2962ff;text-decoration:none;">CNN F&amp;G</a>
-              · <a href="https://finance.yahoo.com/quote/%5EVIX" target="_blank" style="color:#2962ff;text-decoration:none;">VIX</a>
-              · <a href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" style="color:#2962ff;text-decoration:none;">HY Spread (FRED)</a>
+              <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener noreferrer" style="color:#2962ff;text-decoration:none;">CNN F&amp;G</a>
+              · <a href="https://finance.yahoo.com/quote/%5EVIX" target="_blank" rel="noopener noreferrer" style="color:#2962ff;text-decoration:none;">VIX</a>
+              · <a href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" rel="noopener noreferrer" style="color:#2962ff;text-decoration:none;">HY Spread (FRED)</a>
             </div>
           </div>
         </div>
@@ -956,7 +977,7 @@
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('bond',this)">📋 채권</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('equity',this)">주식시장</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('commodity',this)">원자재</button>
-        <a id="naverMarketLink" href="https://finance.naver.com/marketindex/exchangeList.naver" target="_blank" rel="noopener" title="현재 탭과 관련된 네이버 금융 시장지표 페이지 열기" style="margin-left:auto;align-self:center;font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff55;padding:4px 10px;border-radius:6px;white-space:nowrap;">📊 네이버 시장지표 →</a>
+        <a id="naverMarketLink" href="https://finance.naver.com/marketindex/exchangeList.naver" target="_blank" rel="noopener noreferrer" title="현재 탭과 관련된 네이버 금융 시장지표 페이지 열기" style="margin-left:auto;align-self:center;font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff55;padding:4px 10px;border-radius:6px;white-space:nowrap;">📊 네이버 시장지표 →</a>
       </div>
 
       <!-- 외환 탭 -->
@@ -1228,7 +1249,7 @@
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 억원</span></div>
-            <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
+            <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
           </div>
           <!-- 단위 / 기간 선택 -->
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
@@ -1277,7 +1298,7 @@
             <div class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
-              <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+              <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
@@ -1296,7 +1317,7 @@
             <div class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
-              <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+              <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
@@ -1319,7 +1340,7 @@
             <div class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
-              <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+              <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
@@ -1337,7 +1358,7 @@
             <div class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:9px;color:#434656;font-weight:400;margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
-              <a href="https://finance.naver.com/sise/etf.naver" target="_blank" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
+              <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
@@ -1408,21 +1429,21 @@
         <!-- Bottom: sector comparison charts 2x2 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:9px;color:#434656;font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:9px;color:#434656;font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
             <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
             <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
             <div style="position:relative;height:240px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;white-space:nowrap;">네이버 →</a></div>
             <div style="position:relative;height:240px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
@@ -1444,7 +1465,7 @@
             </tr></thead>
             <tbody id="metalInventoryTable"></tbody>
           </table>
-          <div style="font-size:9px;color:#434656;margin-top:8px;">실데이터: <a href="https://www.lme.com/en/metals/reports" target="_blank" style="color:#2962ff;">lme.com/metals/reports</a></div>
+          <div style="font-size:9px;color:#434656;margin-top:8px;">실데이터: <a href="https://www.lme.com/en/metals/reports" target="_blank" rel="noopener noreferrer" style="color:#2962ff;">lme.com/metals/reports</a></div>
         </div>
         <!-- 운송 운임지수 (해상운임) -->
         <div class="widget" style="margin-bottom:12px;">
@@ -1454,7 +1475,7 @@
             </div>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="refreshFreight(this)" title="네이버 시장지표에서 운임지수 동기화" style="background:#1b1f2b;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
-              <a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 →</a>
+              <a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;">네이버 →</a>
             </div>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
@@ -1880,7 +1901,7 @@
                 <tr style="cursor:pointer;" onclick="showSubscriptionDetail('other')" title="클릭 → 기타 지방 세부 지역·단지 순위"><td style="padding:7px 0;">기타 지방 <span style="font-size:9px;color:#434656;">▸</span></td><td style="text-align:right;padding:7px;font-weight:600;">1.1 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
               </tbody>
             </table>
-            <div style="font-size:9px;color:#434656;margin-top:6px;text-align:right;">출처: <a href="https://www.applyhome.co.kr" target="_blank" style="color:#2962ff;">청약홈</a></div>
+            <div style="font-size:9px;color:#434656;margin-top:6px;text-align:right;">출처: <a href="https://www.applyhome.co.kr" target="_blank" rel="noopener noreferrer" style="color:#2962ff;">청약홈</a></div>
           </div>
         </div>
 
@@ -2027,7 +2048,7 @@
         <details class="widget" style="margin-bottom:0;">
           <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#8d90a2;padding:4px 0;">🔑 실시간 데이터 활성화 방법 (클릭하여 펼치기)</summary>
           <div style="margin-top:10px;font-size:11px;color:#8d90a2;line-height:1.9;">
-            1. <strong style="color:#dfe2f2;">공공데이터포털</strong> (<a href="https://www.data.go.kr" target="_blank" style="color:#2962ff;">data.go.kr</a>) 에서 부동산원 API 키 발급<br>
+            1. <strong style="color:#dfe2f2;">공공데이터포털</strong> (<a href="https://www.data.go.kr" target="_blank" rel="noopener noreferrer" style="color:#2962ff;">data.go.kr</a>) 에서 부동산원 API 키 발급<br>
             2. GitHub Repository Settings → Secrets → <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">REALESTATE_API_KEY</code> 등록<br>
             3. <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">scripts/fetch_data.py</code>의 R-ONE API 호출 → <code style="color:#b6c4ff;">data.json</code>에 자동 반영됩니다.
           </div>
@@ -2225,7 +2246,7 @@
           <summary style="cursor:pointer;font-size:11px;font-weight:600;color:#8d90a2;padding:4px 0;">🔑 실시간 데이터 활성화 방법 (클릭하여 펼치기)</summary>
           <div style="margin-top:10px;padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2962ff33;">
             <div style="font-size:11px;color:#8d90a2;line-height:1.8;">
-              <strong style="color:#dfe2f2;">FRED API 키</strong> (<a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" style="color:#2962ff;">stlouisfed.org</a>)를 GitHub Secrets의 <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">FRED_API_KEY</code>에 등록하면 위 지표가 자동 수집됩니다.
+              <strong style="color:#dfe2f2;">FRED API 키</strong> (<a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" rel="noopener noreferrer" style="color:#2962ff;">stlouisfed.org</a>)를 GitHub Secrets의 <code style="background:#262a35;padding:1px 4px;border-radius:2px;color:#b6c4ff;">FRED_API_KEY</code>에 등록하면 위 지표가 자동 수집됩니다.
             </div>
           </div>
         </details>
@@ -2396,7 +2417,7 @@
               </tr></thead>
               <tbody id="npsFxStocksTable"></tbody>
             </table>
-            <div style="font-size:9px;color:#434656;margin-top:6px;">※ 공시 기반 추정치. 실데이터: <a href="https://fund.nps.or.kr" target="_blank" style="color:#2962ff;">fund.nps.or.kr</a></div>
+            <div style="font-size:9px;color:#434656;margin-top:6px;">※ 공시 기반 추정치. 실데이터: <a href="https://fund.nps.or.kr" target="_blank" rel="noopener noreferrer" style="color:#2962ff;">fund.nps.or.kr</a></div>
           </div>
         </div>
       </div>
@@ -2405,37 +2426,37 @@
       <div class="widget">
         <div class="widget-title">공식 자료 바로가기</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do" target="_blank" style="text-decoration:none;">
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">기금운용 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
-          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0003M0.do?menuId=MN24000616" target="_blank" style="text-decoration:none;">
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0003M0.do?menuId=MN24000616" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">자산배분 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
-          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0004M0.do?menuId=MN24000617" target="_blank" style="text-decoration:none;">
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0004M0.do?menuId=MN24000617" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">국내주식 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
-          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0005M0.do?menuId=MN24000618" target="_blank" style="text-decoration:none;">
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0005M0.do?menuId=MN24000618" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">해외주식 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
-          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0006M0.do?menuId=MN24000619" target="_blank" style="text-decoration:none;">
+          <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0006M0.do?menuId=MN24000619" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">채권 현황</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
             </div>
           </a>
-          <a href="https://fund.nps.or.kr/oprtprcn/oprtotcm/getOHED0010M0.do?menuId=MN24000623" target="_blank" style="text-decoration:none;">
+          <a href="https://fund.nps.or.kr/oprtprcn/oprtotcm/getOHED0010M0.do?menuId=MN24000623" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">운용 성과</div>
               <div style="font-size:10px;color:#434656;">fund.nps.or.kr</div>
@@ -3807,7 +3828,7 @@ function showLoanRegDetail(type) {
   const body = rows +
     `<div style="font-size:10px;color:var(--c-txt-muted,#6a6f80);margin-top:12px;line-height:1.6;">
        ※ 일반 기준 안내이며, 실제 한도·비율은 규제지역 지정·주택 수·소득·정책 변경에 따라 달라집니다.
-       정확한 기준은 <a href="https://www.fsc.go.kr" target="_blank" rel="noopener" style="color:#2962ff;">금융위원회</a> ·
+       정확한 기준은 <a href="https://www.fsc.go.kr" target="_blank" rel="noopener noreferrer" style="color:#2962ff;">금융위원회</a> ·
        거래 은행에서 확인하세요.
      </div>`;
   openInfoModal(d.title, d.meta, body);
@@ -3863,7 +3884,7 @@ function showSubscriptionDetail(regionKey) {
       ${_hint} 단지별 상세 경쟁률은 아래 청약홈에서 확인하세요.</div>`;
   }
   const meta = (sub.lastFetched ? `청약홈 수집: ${new Date(sub.lastFetched).toLocaleDateString('ko-KR')} · ` : '') +
-    `<a href="https://www.applyhome.co.kr" target="_blank" rel="noopener" style="color:#2962ff;">청약홈에서 보기 →</a>`;
+    `<a href="https://www.applyhome.co.kr" target="_blank" rel="noopener noreferrer" style="color:#2962ff;">청약홈에서 보기 →</a>`;
   openInfoModal(`청약 경쟁률 — ${r.label}`, meta, body);
 }
 
@@ -5407,7 +5428,7 @@ function buildMoverTable(dir) {
     tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--c-txt-dim,#434656);font-size:12px;">
       ${stateMsg}
       <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
-      <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버에서 직접 보기 →</a>
+      <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버에서 직접 보기 →</a>
     </td></tr>`;
     // 자동 트리거: 빈 데이터일 때 백그라운드에서 1회만 페치 시도 (무한 루프 방지)
     if(window._REALTIME_BOOST && !_clientMoverFetchInFlight && _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH) {
@@ -5423,7 +5444,7 @@ function buildMoverTable(dir) {
   }
   tb.innerHTML = data.map(d=>`
     <tr style="border-bottom:1px solid #1b1f2b;">
-      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${d.name}</a>${d.type==='etf'?'<span style="font-size:9px;color:#8d90a2;margin-left:4px;">ETF</span>':''}</td>
+      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${d.name}</a>${d.type==='etf'?'<span style="font-size:9px;color:#8d90a2;margin-left:4px;">ETF</span>':''}</td>
       <td style="text-align:right;padding:5px;">${d.price}</td>
       <td style="text-align:right;padding:5px;" class="${isUp?'up-txt':'down-txt'}">${d.chg}</td>
       <td style="text-align:right;padding:5px;color:#8d90a2;">${d.vol||''}</td>
@@ -5459,10 +5480,19 @@ function setMoverType(type, btn) {
 // 교체 실패 시에는 카드 자체를 숨겨서 사용자가 검색창으로 튕기는 경험을 차단한다.
 // 정의 위치 주의: newsCard / buildNewsFeed / renderFiltered 보다 먼저 선언되어야 함
 //   (함수 선언은 hoisting 되지만 가독성을 위해 동일 블록에 배치).
+// XSS 방어 — 외부 데이터(RSS 제목·data.json 등)가 innerHTML 템플릿에 들어가기 전 반드시 이스케이프.
+// 클라이언트 RSS 는 공개 CORS 프록시를 경유하므로 프록시 변조 시 임의 HTML 이 주입될 수 있다.
+function escapeHtml(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 function _isSearchOrInvalidNewsUrl(url) {
   if (!url || url === '#') return true;
   let u;
   try { u = new URL(url); } catch (_) { return true; }
+  // http(s) 외 프로토콜(javascript:·data: 등) 거부 — href 에 들어가 스크립트가 실행되는 것을 차단
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return true;
   const host = (u.hostname || '').toLowerCase();
   // 검색결과 페이지 호스트 — publisher 가 아니므로 "실기사" 가 아님
   const SEARCH_HOSTS = [
@@ -5494,14 +5524,15 @@ function newsCard(n) {
   if (!n || _isSearchOrInvalidNewsUrl(n.url)) return '';
   const displayTime = n.isoDate ? relTime(n.isoDate) : (n.time || '오늘');
   const norm = _normalizeNewsUrl(n.url);
-  const safeUrl = norm.url.replace(/'/g,'%27');
-  return `<a href="${safeUrl}" target="_blank" rel="noopener" class="news-card-link" style="display:block;text-decoration:none;color:inherit;border-bottom:1px solid var(--c-card, #1b1f2b);padding-bottom:10px;transition:opacity .15s,background .15s;">
+  // 속성/본문 컨텍스트 모두 HTML 이스케이프 — URL 은 위 _isSearchOrInvalidNewsUrl 에서 http(s) 만 통과됨
+  const safeUrl = escapeHtml(norm.url);
+  return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="news-card-link" style="display:block;text-decoration:none;color:inherit;border-bottom:1px solid var(--c-card, #1b1f2b);padding-bottom:10px;transition:opacity .15s,background .15s;">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <span style="font-size:10px;color:var(--c-txt-dim, #8d90a2);">${displayTime}</span>
-      <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${n.tag}</span>
+      <span style="font-size:10px;color:var(--c-txt-dim, #8d90a2);">${escapeHtml(displayTime)}</span>
+      <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${n.tagClr}44;">${escapeHtml(n.tag)}</span>
       <span style="font-size:9px;color:var(--c-txt-muted, #434656);">${norm.label}</span>
     </div>
-    <div style="font-size:12px;line-height:1.5;color:var(--c-txt, #dfe2f2);">${n.title}</div>
+    <div style="font-size:12px;line-height:1.5;color:var(--c-txt, #dfe2f2);">${escapeHtml(n.title)}</div>
   </a>`;
 }
 const newsExpanded = { newsFeed:false, commodityNewsFeed:false, macroNewsFeed:false, calendarNewsFeed:false };
@@ -7122,7 +7153,7 @@ function buildEquityPage() {
   // 주식 행: 거래량 포함 (5컬럼)
   const stockLinkRow = (s, i, color) => `<tr style="border-bottom:1px solid #1b1f2b;">
         <td style="padding:5px;color:#434656;">${i+1}</td>
-        <td style="padding:5px;font-weight:500;"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
+        <td style="padding:5px;font-weight:500;"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
         <td style="text-align:right;padding:5px;">${s.price}</td>
         <td style="text-align:right;padding:5px;color:${color};">${s.chg}</td>
         <td style="text-align:right;padding:5px;color:#8d90a2;font-size:11px;">${_volFmt(s.vol)}</td>
@@ -7130,7 +7161,7 @@ function buildEquityPage() {
   // ETF 행: 거래량 데이터 없음 → 4컬럼만
   const etfLinkRow = (s, i, color) => `<tr style="border-bottom:1px solid #1b1f2b;">
         <td style="padding:5px;color:#434656;">${i+1}</td>
-        <td style="padding:5px;font-weight:500;"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
+        <td style="padding:5px;font-weight:500;"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
         <td style="text-align:right;padding:5px;">${s.price}</td>
         <td style="text-align:right;padding:5px;color:${color};">${s.chg}</td>
       </tr>`;
@@ -8313,7 +8344,7 @@ function buildMacroIndicatorTable() {
         } else { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       } else if(!r.dataPath) { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       const indIdx = macroIndicators.indexOf(r);
-      const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:9px;padding:2px 6px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${r.linkLabel||'최신 보고서'} →</a>` : '';
+      const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:9px;padding:2px 6px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${r.linkLabel||'최신 보고서'} →</a>` : '';
       return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:rgba(255,255,255,0.03);border-radius:6px;border-left:3px solid ${color};cursor:pointer;" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
           <div style="font-size:12px;font-weight:600;color:var(--c-txt,#dfe2f2);">${r.cc} ${r.name} <span style="font-size:9px;color:var(--c-txt-muted,#434656);">📈</span></div>
@@ -8449,7 +8480,7 @@ function initMacroPage(t){
   const mc=document.getElementById('macroContent');
   const infoBlock=(src,next)=>`<div style="font-size:10px;color:#434656;text-align:right;">
     <span style="color:#8d90a2;">다음 발표: ${next||'-'}</span>
-    <a href="${src||'#'}" target="_blank" style="color:#2962ff;margin-left:6px;text-decoration:none;">공식→</a>
+    <a href="${src||'#'}" target="_blank" rel="noopener noreferrer" style="color:#2962ff;margin-left:6px;text-decoration:none;">공식→</a>
   </div>`;
   // 기간 필터 버튼 행
   const periodOpts = [
@@ -10227,7 +10258,7 @@ function _renderGlobalInvestor(id) {
       <div class="widget-title">공식 자료 바로가기</div>
       <div style="display:grid;grid-template-columns:repeat(${Math.min(data.links.length,3)},1fr);gap:10px;">
         ${data.links.map(l => `
-          <a href="${l.url}" target="_blank" rel="noopener" style="text-decoration:none;">
+          <a href="${l.url}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
               <div style="font-size:11px;font-weight:600;color:#b6c4ff;margin-bottom:4px;">${l.label}</div>
               <div style="font-size:10px;color:#434656;">${(new URL(l.url)).hostname}</div>
@@ -11106,7 +11137,7 @@ function _renderReHistChartMacro() {
   const noteEl  = document.getElementById('reHistNote');
   const guideEl = document.getElementById('reHistGuide');
   if(titleEl) titleEl.textContent = title;
-  const linkHtml = opts.link ? `<a href="${opts.link}" target="_blank" rel="noopener" style="display:inline-block;margin-left:8px;font-size:10px;padding:2px 8px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${opts.linkLabel||'최신 보고서'} →</a>` : '';
+  const linkHtml = opts.link ? `<a href="${opts.link}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-left:8px;font-size:10px;padding:2px 8px;background:var(--c-accent,#2962ff)22;color:var(--c-accent,#2962ff);border:1px solid var(--c-accent,#2962ff)55;border-radius:3px;text-decoration:none;">📎 ${opts.linkLabel||'최신 보고서'} →</a>` : '';
   if(metaEl) metaEl.innerHTML = `<span style="color:var(--c-primary,#b6c4ff);">단위:</span> ${unit||'—'} &nbsp; <span style="color:var(--c-primary,#b6c4ff);">출처:</span> ${opts.src||'—'}${linkHtml}`;
   // 매크로 지표의 해석 가이드 표시
   const macroGuide = _getMacroGuide(dataPath, title);
@@ -13121,14 +13152,14 @@ function applyRealData(d) {
   const volStr = v => v ? Math.round(v/1000).toLocaleString()+'K' : '—';
   const renderStockRow = (s, i, cls) => `<tr style="border-bottom:1px solid #1b1f2b;">
       <td style="padding:5px;color:#434656;">${i+1}</td>
-      <td style="padding:5px;font-weight:500;"><a href="${stockUrl(s)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
+      <td style="padding:5px;font-weight:500;"><a href="${stockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
       <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
       <td style="text-align:right;padding:5px;color:${cls==='up'?'#26a69a':'#ef5350'};">${cls==='up'?'+':''}${s.chg.toFixed(2)}%</td>
       <td style="text-align:right;padding:5px;color:#8d90a2;font-size:11px;">${volStr(s.vol)}</td>
     </tr>`;
   const renderEtfRow = (s, i, cls) => `<tr style="border-bottom:1px solid #1b1f2b;">
       <td style="padding:5px;color:#434656;">${i+1}</td>
-      <td style="padding:5px;font-weight:500;"><a href="${stockUrl(s)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
+      <td style="padding:5px;font-weight:500;"><a href="${stockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
       <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
       <td style="text-align:right;padding:5px;color:${cls==='up'?'#26a69a':'#ef5350'};">${cls==='up'?'+':''}${s.chg.toFixed(2)}%</td>
     </tr>`;
@@ -13145,7 +13176,7 @@ function applyRealData(d) {
       <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
       ${diagLine}
       <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
-      <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버 →</a>
+      <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버 →</a>
     </td></tr>`;
   };
   if (gainTb) {
@@ -13171,7 +13202,7 @@ function applyRealData(d) {
       <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
       ${diagLine}
       <button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:#2962ff;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;">↻ 다시 시도</button>
-      <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버 →</a>
+      <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:#2962ff;text-decoration:none;font-size:11px;">네이버 →</a>
     </td></tr>`;
   };
   if (etfGainTb) {
@@ -13283,7 +13314,7 @@ function applyRealData(d) {
   const _reMissingMeta = (elId, hint) => {
     const el = document.getElementById(elId);
     if (el && el.textContent.includes('페치 중')) {
-      el.innerHTML = `<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · ${hint}`;
+      el.innerHTML = `<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener noreferrer" style="color:#2962ff;text-decoration:none;">R-ONE 사이트 보기 →</a> · ${hint}`;
       el.style.color = '#f5a623';
     }
   };
@@ -13358,7 +13389,7 @@ function applyRealData(d) {
       // 거래량 실데이터 없음 — 안내 톤 (경고 X)
       const metaEl = document.getElementById('reKpiVolMeta');
       if(metaEl && metaEl.textContent.includes('페치 중')) {
-        metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 아파트거래현황 →</a> · 데이터 갱신 대기 중';
+        metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener noreferrer" style="color:#2962ff;text-decoration:none;">R-ONE 아파트거래현황 →</a> · 데이터 갱신 대기 중';
         metaEl.style.color = '#8d90a2';
       }
     }
@@ -13366,7 +13397,7 @@ function applyRealData(d) {
     // trade_count_kr 자체가 없는 경우 — 안내 링크만 (broken 처럼 보이지 않도록)
     const metaEl = document.getElementById('reKpiVolMeta');
     if(metaEl && metaEl.textContent.includes('페치 중')) {
-      metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener" style="color:#2962ff;text-decoration:none;">R-ONE 아파트거래현황 →</a> · 데이터 준비 중';
+      metaEl.innerHTML = '<a href="https://www.reb.or.kr/r-one" target="_blank" rel="noopener noreferrer" style="color:#2962ff;text-decoration:none;">R-ONE 아파트거래현황 →</a> · 데이터 준비 중';
       metaEl.style.color = '#8d90a2';
     }
   }
