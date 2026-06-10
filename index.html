@@ -1275,8 +1275,8 @@
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-            <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 억원</span></div>
-            <a href="https://finance.naver.com/sise/sise_trans_style.naver" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
+            <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향 <span style="font-size:9px;color:#434656;font-weight:400;">코스피 기준 · 단위: 억원</span></div>
+            <a href="https://finance.naver.com/sise/investorDealTrendDay.naver?sosok=01" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff44;padding:3px 8px;border-radius:4px;">네이버 →</a>
           </div>
           <!-- 단위 / 기간 선택 -->
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
@@ -10914,9 +10914,11 @@ async function fetchNaverETFMoversClient() {
 // 서버 fetch_data.py 의 fetch_naver_investor_trading 과 '동일' 경로/로직이지만, 브라우저는 전용
 // CF Worker 경유라 GitHub Actions 데이터센터 IP 차단 시에도 동작하는 보강 경로다.
 // (이전 경로 sise_index_buyer.naver 는 2026-06 네이버 개편으로 404 삭제 확인 — 교체.)
-// KOSPI(sosok=01)+KOSDAQ(sosok=02) 합산, 단위 억원. 페이지당 10영업일이라 여러 page 를
-// 병렬 페치(클라 보강은 최근 ~100영업일이면 충분; 전체 시계열은 서버 data.json 담당).
-// 표/컬럼은 헤더 키워드로 동적 매핑, 단위는 값 크기로 자동 감지.
+// **KOSPI(sosok=01) 기준**, 단위 억원. (2026-06 정정: KOSPI+KOSDAQ 합산 → KOSPI 단일 —
+// 합산값이 네이버/증권사 'KOSPI 투자자별 매매동향'과 달라 보이는 문제의 원인이었음.)
+// 페이지당 10영업일이라 여러 page 를 병렬 페치(클라 보강은 최근 ~100영업일이면 충분;
+// 전체 시계열은 서버 data.json 담당). 표/컬럼은 헤더 키워드로 동적 매핑, 단위는
+// 페이지 '단위:…' 캡션 1순위 + 값 크기 자동 감지 보조 (서버와 동일).
 async function fetchNaverInvestorTradingClient(lookbackDays=400) {
   const _num = (s) => {
     s = (s||'').replace(/,/g,'').replace(/\+/g,'').replace(/ /g,' ').trim();
@@ -10968,7 +10970,8 @@ async function fetchNaverInvestorTradingClient(lookbackDays=400) {
     }
     return rows;
   };
-  for(const [mkt, sosok] of [['KOSPI','01'],['KOSDAQ','02']]) {
+  let unitLabel = null;   // 페이지 '단위:…' 캡션 (억원/백만원) — 스케일 결정의 1순위 근거
+  for(const [mkt, sosok] of [['KOSPI','01']]) {   // KOSPI 기준 (KOSDAQ 합산 금지 — 상단 주석 참고)
     const htmls = await Promise.all(
       Array.from({length: PAGES}, (_, i) => _fetchEucKrText(
         `https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=${bizdate}&sosok=${sosok}&page=${i+1}`
@@ -10978,6 +10981,10 @@ async function fetchNaverInvestorTradingClient(lookbackDays=400) {
     let n = 0;
     for(const html of htmls) {
       if(!html) continue;
+      if(!unitLabel) {
+        const mu = html.match(/단위\s*[:：]?\s*(억\s*원|백만\s*원)/);
+        if(mu) unitLabel = mu[1].replace(/\s/g,'');
+      }
       const rows = parsePage(html);
       if(!rows) continue;
       for(const { dstr, f, ins, ret } of rows) {
@@ -10992,22 +10999,22 @@ async function fetchNaverInvestorTradingClient(lookbackDays=400) {
   }
   const dates = Object.keys(agg);
   if(!dates.length) return null;
-  // 단위 자동 감지 — 순매수 거래대금이 백만원 단위면 ÷100 으로 억원 정규화 (서버와 동일)
+  // 단위 정규화(→억원) — ① 페이지 '단위:…' 캡션 1순위, ② 없으면 값 크기 자동 감지 (서버와 동일)
   const allvals = [];
   dates.forEach(d => ['foreign','inst','retail'].forEach(k => { if(agg[d][k]) allvals.push(Math.abs(agg[d][k])); }));
   allvals.sort((a,b)=>a-b);
   const median = allvals.length ? allvals[Math.floor(allvals.length/2)] : 0;
-  const scale = median > 100000 ? 0.01 : 1.0;
+  const scale = unitLabel === '백만원' ? 0.01 : unitLabel === '억원' ? 1.0 : (median > 100000 ? 0.01 : 1.0);
   const daily = dates.sort().map(d => ({
     date: d,
     foreign: Math.round(agg[d].foreign * scale * 10) / 10,
     inst:    Math.round(agg[d].inst    * scale * 10) / 10,
     retail:  Math.round(agg[d].retail  * scale * 10) / 10,
   })).slice(-lookbackDays);
-  console.info(`[투자자-client] ${daily.length}일 수집 (${marketsOk.join('+')}) scale=${scale}`);
+  console.info(`[투자자-client] ${daily.length}일 수집 (${marketsOk.join('+')}) 캡션단위=${unitLabel||'미검출'} scale=${scale}`);
   return {
     daily, markets: marketsOk, unit: '억원',
-    source: 'Naver 금융 투자자별 매매동향 (클라이언트 실시간)',
+    source: 'Naver 금융 KOSPI 투자자별 매매동향 (클라이언트 실시간)',
     lastFetched: new Date().toISOString(),
   };
 }

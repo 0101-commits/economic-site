@@ -362,9 +362,11 @@ def fetch_pykrx_etf_movers(top_n=10):
 def _fetch_investor_pykrx(lookback_days=400):
     """투자자별(외국인/기관/개인) 일별 순매수 추이 — pykrx 실데이터 (KRX 로그인 시).
 
-    KRX 정보데이터시스템의 '투자자별 거래실적(일별 순매수 거래대금)' 을 KOSPI+KOSDAQ
-    합산해 가져온다. 단위는 억원(1e8 원). **더미/랜덤 데이터는 절대 쓰지 않는다** —
+    KRX 정보데이터시스템의 '투자자별 거래실적(일별 순매수 거래대금)' 을 **KOSPI 기준**으로
+    가져온다. 단위는 억원(1e8 원). **더미/랜덤 데이터는 절대 쓰지 않는다** —
     pykrx 가 없거나 응답이 비면 빈 dict 를 반환하고, 호출자가 Naver 폴백을 시도한다.
+    (2026-06 정정: 이전엔 KOSPI+KOSDAQ 합산이라 증권사/네이버의 'KOSPI 투자자별 매매동향'
+     수치와 달라 보였음 → 사용자 요청대로 KOSPI 단일 시장 기준으로 통일.)
 
     Returns: {"daily":[{date, foreign, inst, retail}...], "markets":[...],
               "unit":"억원", "source":..., "lastFetched":...} 또는 {}.
@@ -382,7 +384,7 @@ def _fetch_investor_pykrx(lookback_days=400):
 
     agg = {}            # date -> {foreign, inst, retail} (억원)
     markets_ok = []
-    for mkt in ("KOSPI", "KOSDAQ"):
+    for mkt in ("KOSPI",):   # KOSPI 기준 (KOSDAQ 합산 금지 — 위 docstring 참고)
         try:
             df = fn(fromdate, todate, mkt)
         except Exception as e:
@@ -443,7 +445,7 @@ def _fetch_investor_pykrx(lookback_days=400):
         "daily": daily,
         "markets": markets_ok,
         "unit": "억원",
-        "source": "pykrx 투자자별 거래실적 (KRX 정보데이터시스템)",
+        "source": "pykrx KOSPI 투자자별 거래실적 (KRX 정보데이터시스템)",
         "lastFetched": now.isoformat(),
     }
 
@@ -451,12 +453,15 @@ def _fetch_investor_pykrx(lookback_days=400):
 def fetch_naver_investor_trading(lookback_days=400, max_pages=30):
     """투자자별 순매수 — 네이버 금융 무인증 폴백 (KRX 로그인/KIS 키/카카오 알람 불필요).
 
-    finance.naver.com/sise/investorDealTrendDay.naver?bizdate=YYYYMMDD&sosok=01|02&page=N
-    의 '일자별 순매수' 표에서 개인/외국인/기관계 순매수(억원)를 추출해 KOSPI(01)+KOSDAQ(02)
-    합산한다. 페이지당 10영업일이라 lookback_days 충족까지 page 를 순회한다.
+    finance.naver.com/sise/investorDealTrendDay.naver?bizdate=YYYYMMDD&sosok=01&page=N
+    의 '일자별 순매수' 표에서 개인/외국인/기관계 순매수(억원)를 **KOSPI(sosok=01) 기준**으로
+    추출한다. 페이지당 10영업일이라 lookback_days 충족까지 page 를 순회한다.
+    (2026-06 정정: KOSPI+KOSDAQ 합산 → KOSPI 단일. 합산값이 네이버/증권사 'KOSPI
+     투자자별 매매동향'과 달라 보이는 문제의 원인이었음.)
     (이전 경로 sise_index_buyer.naver 는 2026-06 네이버 개편으로 404 삭제 확인 — 교체.)
-    HTML 구조 변동에 대비해 표/컬럼을 헤더 키워드로 동적 매핑하고, 단위는 값 크기로 자동
-    감지한다. 구조 불일치 시 빈 dict 를 반환(더미 절대 미사용) — CI 로그의 raw 샘플로
+    HTML 구조 변동에 대비해 표/컬럼을 헤더 키워드로 동적 매핑한다. 단위는 페이지의
+    '단위: 억원/백만원' 캡션을 1순위로 읽고, 캡션이 없을 때만 값 크기로 자동 감지한다.
+    구조 불일치 시 빈 dict 를 반환(더미 절대 미사용) — CI 로그의 raw 샘플로
     파싱을 점검/보정할 수 있다.
     """
     try:
@@ -530,7 +535,9 @@ def fetch_naver_investor_trading(lookback_days=400, max_pages=30):
         return rows, hdr_text
 
     agg, markets_ok, raw_samples = {}, [], []
-    for mkt, sosok in (("KOSPI", "01"), ("KOSDAQ", "02")):
+    unit_label = None     # 페이지 '단위:…' 캡션 (억원/백만원) — 스케일 결정의 1순위 근거
+    unit_re = _re.compile(r"단위\s*[:：]?\s*(억\s*원|백만\s*원)")
+    for mkt, sosok in (("KOSPI", "01"),):   # KOSPI 기준 (KOSDAQ 합산 금지 — 위 docstring 참고)
         n, seen_dates = 0, set()
         for page in range(1, need_pages + 1):
             url = (f"https://finance.naver.com/sise/investorDealTrendDay.naver"
@@ -542,6 +549,10 @@ def fetch_naver_investor_trading(lookback_days=400, max_pages=30):
             except Exception as e:
                 log(f"[투자자-Naver] {mkt} p{page} 요청 오류: {e}")
                 break
+            if unit_label is None:
+                mu = unit_re.search(soup.get_text(" ", strip=True))
+                if mu:
+                    unit_label = mu.group(1).replace(" ", "")
             rows, hdr_text = _parse_page(soup)
             if rows is None:
                 log(f"[투자자-Naver] {mkt} p{page} 표/컬럼 매핑 실패 — 중단")
@@ -565,11 +576,18 @@ def fetch_naver_investor_trading(lookback_days=400, max_pages=30):
     if not agg:
         log("[투자자-Naver] 수집 실패 — 빈 결과 (프론트 '수집 중')")
         return {}
-    # 단위 자동 감지 — 순매수 거래대금이 백만원 단위면 ÷100 으로 억원 정규화
+    # 단위 정규화(→억원) — ① 페이지 '단위:…' 캡션이 1순위(확정적), ② 캡션이 없으면
+    # 값 크기(median)로 자동 감지(보조). 백만원 단위면 ÷100 으로 억원 환산.
     allvals = sorted(abs(v) for r in agg.values() for v in r.values() if v)
     median = allvals[len(allvals) // 2] if allvals else 0
-    scale = 0.01 if median > 100000 else 1.0
-    log(f"[투자자-Naver] 샘플={raw_samples} median={median:.0f} scale={scale} → {len(agg)}일")
+    if unit_label == "백만원":
+        scale = 0.01
+    elif unit_label == "억원":
+        scale = 1.0
+    else:
+        scale = 0.01 if median > 100000 else 1.0
+    log(f"[투자자-Naver] 샘플={raw_samples} 캡션단위={unit_label or '미검출'} "
+        f"median={median:.0f} scale={scale} → {len(agg)}일")
     daily = [{
         "date": d,
         "foreign": round(agg[d]["foreign"] * scale, 1),
@@ -580,7 +598,7 @@ def fetch_naver_investor_trading(lookback_days=400, max_pages=30):
         "daily": daily,
         "markets": markets_ok,
         "unit": "억원",
-        "source": "Naver 금융 투자자별 매매동향 (무인증 폴백)",
+        "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
         "lastFetched": datetime.now(KST).isoformat(),
     }
 
@@ -850,14 +868,17 @@ def _naver_session():
 
 
 def _get_via_proxies(target_url, headers=None, timeout=15, expect_json=True):
-    """대상 URL 을 직접 호출하고, 실패 시 공개 CORS 프록시 여러 개 순차 시도.
+    """대상 URL 을 직접 호출하고, 실패 시 프록시 여러 개 순차 시도.
 
-    GitHub Actions 러너 IP 가 Naver 등에서 차단되는 케이스 회피 목적.
+    GitHub Actions 러너 IP 가 Naver/TradingEconomics 등에서 차단되는 케이스 회피 목적.
+    저장소 전용 Cloudflare Worker(헤더 주입·호스트 화이트리스트)를 공개 프록시보다
+    먼저 시도한다 — 공개 프록시는 가용성이 들쭉날쭉해 최후 폴백.
     반환: 응답 JSON (또는 expect_json=False 일 때 raw text).
     """
     headers = headers or {}
     candidates = [
         target_url,
+        f"https://ecom-dashboard-proxy.baldr0001.workers.dev/?url={quote_plus(target_url)}",
         f"https://corsproxy.io/?{quote_plus(target_url)}",
         f"https://api.allorigins.win/raw?url={quote_plus(target_url)}",
         f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(target_url)}",
@@ -2055,7 +2076,11 @@ PMI_FRED_CANDIDATES = {
 #   1) 값 검증 — 제조업 PMI 는 30~75 범위 밖이면 폐기 (BCI 폴백 유지).
 #   2) 영속 캐시(.pmi_cache.json, GHA cache 액션이 런 간 보존) — 스크래핑 실패/스킵 시 최근
 #      성공값(≤45일)을 재사용해 '값이 사라지거나 BCI 로 깜빡이는' 회귀를 막는다.
-#   3) 실제 스크래핑은 일일 풀 갱신(AV_FETCH_FULL) 때만 — 소스 과호출/차단 위험 최소화.
+#   3) 스크래핑 게이트 — 캐시가 신선(<20h)하면 건너뛰고, 시도 실패 후 3h 는 재시도하지
+#      않는다(과호출/차단 위험 최소화). (이전 게이트였던 AV_FETCH_FULL 은 일일 cron 이
+#      hourly cron 과 같은 분에 발화하며 GitHub 이 이벤트를 합쳐 schedule 문자열이 일일
+#      cron 으로 잡히지 않아 '한 번도 켜진 적이 없었음' — 2026-06-10 런 로그로 확인된
+#      '7개국 PMI 데이터 오류(스크래핑 미동작 → 단종 BCI 노출)'의 근본 원인.)
 PMI_CACHE_FILE = os.environ.get("PMI_CACHE_FILE", ".pmi_cache.json")
 PMI_TE_SLUGS = {
     "us": "united-states", "jp": "japan", "eu": "euro-area", "cn": "china",
@@ -2087,6 +2112,8 @@ def _scrape_te_pmi(slug):
 
     페이지 메타설명("Manufacturing PMI in Japan ... to 49.40 ...")에서 NN.N 형식 숫자만
     엄격히 매칭한다. 검증 실패/차단 시 None (BCI 폴백 유지 — 절대 오류값 미노출).
+    TE 가 데이터센터 IP 를 차단하는 경우가 있어 직접 호출 실패 시 프록시
+    (_get_via_proxies: 전용 CF Worker → 공개 프록시) 로 순차 우회한다.
     """
     url = f"https://tradingeconomics.com/{slug}/manufacturing-pmi"
     hdrs = {
@@ -2095,24 +2122,25 @@ def _scrape_te_pmi(slug):
         "Accept-Language": "en-US,en;q=0.9",
     }
     try:
-        r = requests.get(url, headers=hdrs, timeout=8)
-        if r.status_code != 200 or not r.text:
+        html = _get_via_proxies(url, headers=hdrs, timeout=12, expect_json=False)
+        if not html:
             return None
-        html = r.text
         m = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']+)["\']',
                       html, re.I)
         desc = m.group(1) if m else html[:1200]
         if "PMI" not in desc:
             return None
-        # 'PMI ... <동사구> ... (to|at|near) NN.N' — PMI 는 항상 소수1자리(예 49.4) 형식.
+        # 'PMI ... <동사구> ... (to|at|near) NN.N[N]' — TE 메타설명은 '49.40 points' 처럼
+        # 소수 2자리가 일반적. (이전 정규식 [0-9]{2}\.[0-9]\b 는 '49.4' 뒤 '0' 때문에
+        # \b 가 성립하지 않아 2자리 표기를 영영 못 잡았다 — 스크래핑 0건의 숨은 원인.)
         mv = re.search(
             r"PMI\s+in\s+[A-Za-z ]+?"
             r"(?:increased|decreased|rose|fell|edged up|edged down|was unchanged|"
             r"came in|stood|jumped|dropped|climbed|slipped|ticked up|ticked down|"
             r"held|remained|unchanged|registered|posted|hit|reached)?\s*"
-            r"(?:to|at|near)?\s*([0-9]{2}\.[0-9])\b", desc, re.I)
+            r"(?:to|at|near)?\s*([0-9]{2}\.[0-9]{1,2})\b", desc, re.I)
         if not mv:
-            mv = re.search(r"([0-9]{2}\.[0-9])\b", desc)
+            mv = re.search(r"([0-9]{2}\.[0-9]{1,2})\b", desc)
         if not mv:
             return None
         val = float(mv.group(1))
@@ -2139,23 +2167,42 @@ def _scrape_te_pmi(slug):
 
 
 def fetch_real_pmi_scrape():
-    """국가별 실 제조업 PMI(50기준) — 웹 스크래핑 + 영속 캐시. 실패 시 빈/캐시값."""
+    """국가별 실 제조업 PMI(50기준) — 웹 스크래핑 + 영속 캐시. 실패 시 빈/캐시값.
+
+    스크래핑 게이트(국가별): 캐시 성공값이 20h 이내면 건너뜀(사실상 일 1회 갱신).
+    AV_FETCH_FULL=1 이면 강제 시도. 전체 시도 실패가 반복되지 않도록 마지막 시도
+    시각(_lastAttemptAt)을 캐시에 남겨 3h 내 재시도를 막는다(과호출/차단 보호).
+    """
     cache = _load_pmi_cache()
-    do_scrape = bool(os.environ.get("AV_FETCH_FULL"))   # 일일 풀 갱신 때만 실제 호출
     now = datetime.now(KST)
+    force = bool(os.environ.get("AV_FETCH_FULL"))
+
+    def _hours_since(iso):
+        try:
+            return (now - datetime.fromisoformat(iso)).total_seconds() / 3600.0
+        except Exception:
+            return 1e9
+    attempt_ok = force or _hours_since(cache.get("_lastAttemptAt") or "") >= 3.0
+    cache_dirty = False
     out = {}
     for cc, slug in PMI_TE_SLUGS.items():
-        if do_scrape:
+        ent0 = cache.get(cc) or {}
+        fresh = _hours_since(ent0.get("scrapedAt") or "") < 20.0
+        if attempt_ok and (force or not fresh):
+            if not cache_dirty:        # 이번 런에서 실제 스크래핑을 시작 — 시도 시각 기록
+                cache["_lastAttemptAt"] = now.isoformat()
+                cache_dirty = True
             rec = _scrape_te_pmi(slug)
             if rec:
-                ent = cache.get(cc) or {}
-                hist = ent.get("history") or {}
+                hist = ent0.get("history") or {}
                 hist[rec["period"]] = rec["value"]
                 # 히스토리 최근 36개월만 유지
                 hist = dict(sorted(hist.items())[-36:])
                 cache[cc] = {"value": rec["value"], "period": rec["period"],
                              "scrapedAt": now.isoformat(), "history": hist}
                 log(f"[PMI-scrape:{cc.upper()}] {slug}: {rec['value']} ({rec['period']})")
+            else:
+                log(f"[PMI-scrape:{cc.upper()}] {slug}: 실패(차단/형식 불일치) — 캐시/BCI 유지")
         ent = cache.get(cc)
         if not ent or ent.get("value") is None:
             continue
@@ -2176,7 +2223,7 @@ def fetch_real_pmi_scrape():
             "history": ent.get("history") or {},
             "asof":    ent.get("period"),
         }
-    if do_scrape:
+    if cache_dirty:
         _save_pmi_cache(cache)
     return out
 
@@ -2215,6 +2262,18 @@ def fetch_pmi_indicators():
             log(f"[PMI:{cc.upper()}] 모든 후보 시리즈 실패 — 해당 국가 PMI 미생성")
             continue
         _, obs, series_id, desc = best
+        # 단종 시리즈 컷오프 — '가장 최신' 후보조차 ~13개월 넘게 묵었으면(일본/중국 CLI 처럼
+        # FRED 에서 단종) 그 값을 '현재 지표'로 노출하는 것 자체가 데이터 오류다.
+        # 미생성으로 두면 ① 아래 실 PMI 웹 보강이 채우거나 ② 프론트가 '—' 표시한다.
+        try:
+            best_age = (datetime.now(KST).replace(tzinfo=None)
+                        - datetime.strptime(obs[0]["date"][:10], "%Y-%m-%d")).days
+        except Exception:
+            best_age = 0
+        if best_age > 400:
+            log(f"[PMI:{cc.upper()}] {series_id} 최신 관측이 {best_age}일 전({obs[0]['date']}) — "
+                f"단종 시리즈로 보고 폐기 (실 PMI 스크래핑/'—' 표시로 대체)")
+            continue
         history = {o["date"]: o["value"] for o in obs}
         out.setdefault(cc, {})[f"pmi_{cc}"] = {
             "value":   obs[0]["value"],
@@ -4195,10 +4254,11 @@ def kis_request(path, tr_id, params=None):
 
 
 def fetch_kis_investor_trading():
-    """KIS(한국투자증권) 시장별 투자자 순매수 — 최신 영업일 KOSPI+KOSDAQ 합산(억원).
+    """KIS(한국투자증권) 시장별 투자자 순매수 — 최신 영업일 **KOSPI 기준**(억원).
 
     사용자 요청: '투자자별 순매매 동향을 KRX/KIS API 로'. pykrx(KRX) 가 KRX 로그인 미설정으로
     비는 경우 KIS 를 보조 소스로 사용한다. KIS_ENABLED=1 + KIS 키가 있을 때만 동작한다.
+    (2026-06 정정: KOSPI+KOSDAQ 합산 → KOSPI 단일 — pykrx/Naver 경로와 동일 기준.)
 
     안전장치(절대 오류값 미노출): KIS 응답에서 '외국인/기관/개인 순매수 거래대금' 필드를
     명시적으로 식별하지 못하면 빈 dict 를 반환한다(더미/추정 절대 미사용).
@@ -4207,8 +4267,8 @@ def fetch_kis_investor_trading():
         return {}
     if not kis_get_token():   # KIS_ENABLED 비활성 시 토큰이 없어 안전히 스킵
         return {}
-    # 시장별 투자자매매동향(시세) — 최신 누계 순매수.
-    markets = {"KOSPI": "0001", "KOSDAQ": "1001"}
+    # 시장별 투자자매매동향(시세) — 최신 누계 순매수. KOSPI 기준(타 경로와 동일).
+    markets = {"KOSPI": "0001"}
     agg = {}   # date -> {foreign, inst, retail} (억원)
     for mkt, code in markets.items():
         res = kis_request(
@@ -5395,7 +5455,9 @@ def build_data():
     if ECOS_API_KEY:
         log("[ECOS] 한국 경제 지표 수집 시작")
         ecos_data = fetch_ecos_economic_indicators()
-        data["economicIndicators"]["kr"] = ecos_data
+        # 병합(update)이어야 한다 — 통째 대입은 위에서 채운 pmi_kr(7개국 PMI 패널의 한국값)을
+        # 지워 '한국 PMI 가 항상 — 로 비는' 버그가 됐었다 (2026-06-10 데이터로 확인).
+        data["economicIndicators"].setdefault("kr", {}).update(ecos_data)
         data["sources"]["economicIndicators_kr"] = "ECOS API (ecos.bok.or.kr)"
         # 소매판매액지수가 ECOS 에서 누락되면 KOSIS API 로 보강
         if not (ecos_data.get("retail_kr") or {}).get("value") and KOSIS_API_KEY:
@@ -5720,6 +5782,30 @@ def build_data():
             dg["preservedMetricsDeep"] = deep
     except Exception as e:
         log(f"[preserve-deep] 머지 오류 (무시): {e}")
+
+    # ── 단종/초장기 지연 PMI 정리 (preserve 부활 차단) ─────────────────
+    # fetch_pmi_indicators 가 단종 시리즈(일본/중국 CLI 등, 400일+ 지연)를 폐기해도,
+    # 위 preserve 단계가 직전 data.json 의 묵은 pmi_* 를 '누락 지표'로 보고 되살린다.
+    # 여기서(preserve 이후) 한 번 더 걸러 묵은 값이 화면에 '현재값'으로 남지 않게 한다.
+    try:
+        now_naive = now.replace(tzinfo=None) if getattr(now, "tzinfo", None) else now
+        dropped = []
+        for cc, node in (data.get("economicIndicators") or {}).items():
+            if not isinstance(node, dict):
+                continue
+            for mk in [k for k in node if k.startswith("pmi_")]:
+                rec = node.get(mk) or {}
+                try:
+                    pd_ = datetime.strptime(str(rec.get("period", ""))[:10], "%Y-%m-%d")
+                except (TypeError, ValueError):
+                    continue
+                if (now_naive - pd_).days > 400:
+                    node.pop(mk, None)
+                    dropped.append(f"{cc}.{mk}({rec.get('period')})")
+        if dropped:
+            log(f"[PMI] 단종/초장기 지연 지표 제거: {', '.join(dropped)} — 프론트는 '—' 표시")
+    except Exception as e:
+        log(f"[PMI] 묵은 지표 정리 오류 (무시): {e}")
 
     # ── 차트 끝점 ↔ 실시간 spot 동기화 (소스 불일치 보정) ──────────
     # 모든 카드/상세 모달 차트가 data.history 를 공유하므로 한 번의 보정으로

@@ -33,6 +33,9 @@ const ALLOWED_HOSTS = [
   // 변동성 지수 보강 (investing.com — VKOSPI 등 최후 폴백 스크래핑)
   'kr.investing.com',
   'www.investing.com',
+  // 실 제조업 PMI(50기준) 스크래핑 — fetch_data.py 가 GitHub Actions IP 차단 시 이 Worker 경유
+  'tradingeconomics.com',
+  'www.tradingeconomics.com',
   // 실시간 환율
   'open.er-api.com',
   // 뉴스 RSS (선택)
