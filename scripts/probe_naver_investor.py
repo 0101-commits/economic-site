@@ -3,6 +3,7 @@
 
 sise_index_buyer.naver 404 → investorDealTrendDay.naver 교체 후, 실제 수집
 결과(일수·범위·샘플 행)를 로그로 덤프해 data.json 에 실릴 형태를 확인한다.
+(2차: 페이지당 10영업일 보정 후 400일 lookback 충족 검증.)
 """
 import json
 import os
