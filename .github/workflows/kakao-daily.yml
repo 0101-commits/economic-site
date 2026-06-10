@@ -1,13 +1,15 @@
-name: KakaoTalk Daily Digest (10·15·22 KST)
+name: KakaoTalk Digest (07·09·10·12·15·17·20·22 KST)
 
-# 매일 10시·15시·22시(KST) 무렵 data.json 시황을 카카오톡 '나에게 보내기'로 한 통(피드: 차트 이미지 +
-# 카테고리 행 + 버튼) 발송. 슬롯별 차트: 10시=나스닥·S&P500 / 15시=코스피·달러원 / 22시=코스피·나스닥.
+# 매일 07·09·10·12·15·17·20·22시(KST) :03 무렵 data.json 시황을 카카오톡 '나에게 보내기'로
+# 한 통(피드: 차트 이미지 + 증시·환율·심리·원자재 + 버튼) 발송.
+# 슬롯별 차트: 07·09시=S&P500·달러원 / 10·12·15·17시=코스피·달러원 / 20·22시=달러원·WTI.
+# (차트는 당일 인트라데이 기준, 당일이 없으면 7일 일봉 폴백 — scripts/send_kakao_digest.py)
 #
 # ⏰ 트리거 우선순위 (GitHub schedule 이 best-effort 라 며칠씩 누락되는 문제 해소):
-#   1) repository_dispatch(kakao-send) ← Cloudflare Worker 의 Cron Trigger 가 :05(10:05/15:05/22:05 KST)에
-#      호출. on-demand 실행이라 스케줄 드롭 영향이 없어 '즉시' 돈다(정시성 ↑). ★ 주 경로.
+#   1) repository_dispatch(kakao-send) ← Cloudflare Worker 의 Cron Trigger 가 각 슬롯 :02(UTC)에
+#      호출 → 잡 기동·발송까지 약 1분이 걸려 카카오 도착이 :03 부근이 된다. ★ 주 경로.
 #      (설정: 저장소 루트 wrangler.jsonc 의 triggers.crons + Worker 시크릿 GH_DISPATCH_TOKEN. KAKAO_SETUP.md 참고)
-#   2) schedule(:05 백업) — GitHub 스케줄이 살아 있을 때의 보조.
+#   2) schedule(:03 백업) — GitHub 스케줄이 살아 있을 때의 보조.
 #   3) workflow_run — 데이터 수집(fetch-data) 완료 시에도 깨워 보조(타깃 시각일 때만 발송).
 #   4) workflow_dispatch — 수동 즉시.
 #   어느 경로로 깨워지든 아래 '발송 창' 게이트가 타깃 시각만 통과시키고, actions/cache 마커(슬롯+날짜)로
@@ -15,14 +17,13 @@ name: KakaoTalk Daily Digest (10·15·22 KST)
 #
 # 사전 설정 — 저장소 루트 KAKAO_SETUP.md 참고:
 #   Settings → Secrets and variables → Actions: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (필수)
-#   (선택) 변수 KAKAO_CHARTS=0 으로 차트 끄기, KAKAO_TEMPLATE_ID 로 콘솔 커스텀 템플릿 폴백.
+#   (선택) 변수 KAKAO_CHARTS=0 으로 차트 끄기.
 on:
   repository_dispatch:
     types: [kakao-send]
   schedule:
-    - cron: '5 1 * * *'     # 10:05 KST 백업
-    - cron: '5 6 * * *'     # 15:05 KST 백업
-    - cron: '5 13 * * *'    # 22:05 KST 백업
+    # KST 07/09/10/12/15/17/20/22시 :03 = UTC 22/00/01/03/06/08/11/13시 :03 (백업 경로)
+    - cron: '3 0,1,3,6,8,11,13,22 * * *'
   workflow_run:
     workflows: ["Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)"]
     types: [completed]
@@ -41,20 +42,24 @@ jobs:
     steps:
       # ── 발송 창(window) 게이트 ──
       # repository_dispatch(Cloudflare cron) / workflow_dispatch(수동) 는 트리거 자체가 '보낼 때' 이므로 통과.
-      # schedule / workflow_run 은 지금이 타깃 시각(10/15/22시)일 때만 통과(그 외 깨움은 즉시 종료).
+      # schedule / workflow_run 은 지금이 타깃 시각(07/09/10/12/15/17/20/22시)일 때만 통과(그 외 깨움은 즉시 종료).
       - name: 발송 창 판정
         id: gate
         env:
           EVENT: ${{ github.event_name }}
         run: |
           H=$(TZ=Asia/Seoul date +%-H)
+          HOURS="7 9 10 12 15 17 20 22"
           # 가장 가까운 슬롯(항상 계산) — dispatch/수동에서 사용
-          if   [ "$H" -lt 13 ]; then nslot=morning
-          elif [ "$H" -lt 19 ]; then nslot=midday
-          else                       nslot=close
-          fi
+          best=7; bd=99
+          for h in $HOURS; do
+            d=$(( H - h )); [ "$d" -lt 0 ] && d=$(( -d ))
+            if [ "$d" -lt "$bd" ]; then bd=$d; best=$h; fi
+          done
+          nslot=$(printf 'h%02d' "$best")
           # 타깃 시각(정확히 그 시간대일 때만) — schedule/workflow_run 게이트용
-          case "$H" in 10) tslot=morning ;; 15) tslot=midday ;; 22) tslot=close ;; *) tslot="" ;; esac
+          tslot=""
+          case " $HOURS " in *" $H "*) tslot=$(printf 'h%02d' "$H") ;; esac
           case "$EVENT" in
             repository_dispatch) proceed=true; mslot="$nslot"; ckey="$nslot" ;;
             workflow_dispatch)   proceed=true; mslot=manual;   ckey="$nslot" ;;
@@ -100,7 +105,6 @@ jobs:
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_SLOT: ${{ steps.gate.outputs.slot }}
           KAKAO_CHARTS: ${{ vars.KAKAO_CHARTS || '1' }}
-          KAKAO_TEMPLATE_ID: ${{ secrets.KAKAO_TEMPLATE_ID || vars.KAKAO_TEMPLATE_ID }}
         run: |
           python scripts/send_kakao_digest.py
           touch .kakao_sent_marker   # 발송 성공 후에만 마커 생성(실패 시 -e 로 중단 → 다음 깨움이 재시도)

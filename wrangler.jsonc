@@ -17,9 +17,13 @@
   // ⏰ Cron Triggers — 카카오 시황 자동 발송 트리거(GitHub Actions 스케줄이 best-effort 라 누락되는
   // 문제 해소). 이 시각에 Worker 의 scheduled() 가 GitHub repository_dispatch 로 kakao-daily 워크플로를
   // on-demand 실행시킨다(차트 생성·발송은 GitHub Actions 가). on-demand 라 스케줄 드롭 영향이 없다.
-  // UTC 기준: 01:05=10:05 KST(아침) / 06:05=15:05 KST(오후) / 13:05=22:05 KST(마감).
+  // 발송 슬롯(KST): 매일 07/09/10/12/15/17/20/22시 — 카카오 도착 목표는 각 시각 '03분'.
+  // 크론 발화→dispatch→잡 기동→발송까지 실측 약 60초가 걸려 :02(UTC)에 발화시킨다.
+  // UTC 환산: 22:02=07시 / 00:02=09시 / 01:02=10시 / 03:02=12시 / 06:02=15시 / 08:02=17시
+  //          / 11:02=20시 / 13:02=22시 (KST). Cloudflare 는 Worker 당 cron 5개 제한이라 한 식으로 합침.
   // 동작에는 Worker 시크릿 GH_DISPATCH_TOKEN(저장소 dispatch 권한 PAT) 이 필요하다(README 참고).
+  // ⚠️ cron 변경은 Worker 재배포(main 머지 → 자동 배포 또는 `npx wrangler deploy`) 후에 적용된다.
   "triggers": {
-    "crons": ["5 1 * * *", "5 6 * * *", "5 13 * * *"]
+    "crons": ["2 0,1,3,6,8,11,13,22 * * *"]
   }
 }
