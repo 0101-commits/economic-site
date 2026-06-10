@@ -81,6 +81,33 @@
     }
   } catch(_){}
 </script>
+<script>
+  // 🔒 DevTools/요소검사 억제 — 일반 사용자가 F12·우클릭 검사로 화면 요소를 지우거나 바꾸는 것을 막는 억지력.
+  // ⚠️ 한계(정직한 고지): 브라우저 메뉴(⋮ → 도구 더보기 → 개발자 도구)나 주소창 view-source: 는 어떤
+  //    스크립트로도 막을 수 없다. 이 사이트는 정적 페이지라 코드/데이터(data.json)가 원래 공개이며,
+  //    DevTools 로 화면을 바꿔도 그 사용자 브라우저에만 보일 뿐 서버/저장소 데이터는 변하지 않는다.
+  //    (완전한 방어가 아닌 '캐주얼 사용자 억제' 목적 — debugger 무한루프 같은 적대적 기법은 의도적으로 배제)
+  // 운영자 디버깅 해제: 브라우저 메뉴로 콘솔을 연 뒤 localStorage.setItem('econ_devtools','1') → 새로고침.
+  (function () {
+    try { if (localStorage.getItem('econ_devtools') === '1') return; } catch (_) {}
+    // 우클릭(검사 메뉴) 차단 — 입력 필드에서는 붙여넣기 등 편의를 위해 허용
+    document.addEventListener('contextmenu', function (e) {
+      var t = e.target;
+      if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+      e.preventDefault();
+    });
+    // DevTools 단축키 차단: F12 / Ctrl(⌘)+Shift+I·J·C·K / ⌘+⌥+I·J·C·U(macOS) / Ctrl(⌘)+U(소스 보기)
+    document.addEventListener('keydown', function (e) {
+      var c = e.code || '';
+      var blocked =
+        c === 'F12' ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && (c === 'KeyI' || c === 'KeyJ' || c === 'KeyC' || c === 'KeyK')) ||
+        (e.metaKey && e.altKey && (c === 'KeyI' || c === 'KeyJ' || c === 'KeyC' || c === 'KeyU')) ||
+        ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && c === 'KeyU');
+      if (blocked) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+  })();
+</script>
 <!-- (Tailwind 설정 블록 제거됨) 위 Play CDN 을 제거했으므로 전역 `tailwind` 객체가 없다.
      이 config 를 남겨두면 `tailwind is not defined` ReferenceError 가 나므로 함께 제거한다.
      여기서 정의하던 색상(bg/card/border/up/down 등)은 Tailwind 클래스로 쓰인 적이 없고,
