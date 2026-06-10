@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""매일 07/09/10/12/15/17/20/22시(KST, :03) data.json 시황을 카카오톡 '나에게 보내기'로 발송한다.
+"""매일 07/09/10/12/15/17/20/22시(KST, :03) data.json 시황을 카카오톡으로 발송한다.
+
+기본은 '나에게 보내기'(나와의 채팅)이며, 선택적으로 같은 한 통을 '친구에게 보내기'
+API 로 지정한 친구들에게도 발송할 수 있다(아래 친구 발송 참고).
 
 필요한 GitHub Secrets:
   KAKAO_REST_API_KEY   — 카카오 개발자 앱의 REST API 키
   KAKAO_REFRESH_TOKEN  — talk_message 동의로 발급한 refresh_token
+                         (친구 발송까지 쓰려면 scope=talk_message,friends 로 발급)
+
+친구 발송(선택) — KAKAO_SETUP.md '친구에게도 보내기' 절 참고:
+  변수 KAKAO_SEND_TO_FRIENDS=1  → 앱과 연결된(메시지 수신 허용) 모든 친구에게 발송
+  시크릿 KAKAO_FRIEND_UUIDS     → 쉼표 구분 uuid 로 특정 친구만 지정('all'=전체)
+  uuid 확인: 로컬에서 `python scripts/send_kakao_digest.py --list-friends`
+  ※ 카카오는 '오픈채팅방 발송 API'를 제공하지 않는다(비공식 자동화는 계정 제재 위험).
+    불특정 다수에게 보내려면 카카오톡 채널(비즈니스, 사업자 필요)이 공식 경로다.
 
 발송 형식은 '단 한 가지(통일)' — 피드 한 통:
   슬롯별 차트 이미지(당일 인트라데이, 없으면 7일 일봉 폴백)
@@ -14,7 +25,7 @@
     / 금속(금·구리) / 곡물(옥수수·밀·대두) / 운임(SCFI 상하이컨테이너운임지수)
   + '대시보드 보기' 버튼.
   (2026-06 사용자 요청: 시장심리에 코스피위험지수 추가, 원자재를 에너지·금속·곡물로
-   분리, 상하이 운임지수 포함.)
+   분리, 상하이 운임지수 포함. 친구에게도 '나에게 보내기'와 완전히 동일한 한 통이 간다.)
 
 슬롯별 차트(모두 이미지·당일 기준, 당일이 없으면 7일 폴백):
   07·09시          → S&P500 + 달러-원
@@ -424,50 +435,27 @@ def build_feed_parts(blocks):
     return desc, items
 
 
-def send_feed(access_token, title, description, image_url, items=None, dims=(720, 640)):
-    """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼."""
-    content = {
-        "title": title,
-        "description": description,
-        "image_url": image_url,
-        "image_width": dims[0], "image_height": dims[1],
-        "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
-    }
+def _feed_template(title, description, image_url, items=None, dims=(720, 640)):
+    """피드 템플릿 dict — '나에게 보내기'와 '친구에게 보내기'가 같은 객체를 공유한다."""
     template = {
         "object_type": "feed",
-        "content": content,
+        "content": {
+            "title": title,
+            "description": description,
+            "image_url": image_url,
+            "image_width": dims[0], "image_height": dims[1],
+            "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
+        },
         "buttons": [{"title": "대시보드 보기",
                      "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL}}],
     }
     if items:
         template["item_content"] = {"items": items[:5]}
-    status, j = _send_template_object(access_token, template)
-    if status != 200:
-        print(f"[kakao] 피드 발송 실패 HTTP {status}: {j}")
-        return False
-    print(f"[kakao] 피드(차트) 발송 성공\n{title} | {description} | 행 {len(items) if items else 0}개")
-    return True
+    return template
 
 
-def send_chart_feed(access_token, data, title, blocks, slot):
-    """슬롯 차트 생성→업로드→'한 통' 피드 발송. 한 단계라도 실패 시 False(→ 동일 내용 텍스트 폴백)."""
-    png = build_slot_chart_png(data, slot)
-    if not png:
-        return False
-    image_url = kakao_upload_image(access_token, png)
-    if not image_url:
-        return False
-    desc, items = build_feed_parts(blocks)
-    if send_feed(access_token, title, desc, image_url, items=items):
-        return True
-    # 행(item_content)이 거부되면 행 내용을 설명에 합쳐 한 통 더 시도 → 내용 손실 없이 '한 통' 보장.
-    print("[kakao] 피드(행 포함) 실패 — 행 내용을 설명으로 합쳐 재시도")
-    full_desc = "\n".join([desc] + [f"{it['item']} {it['item_op']}" for it in (items or [])])
-    return send_feed(access_token, title, full_desc, image_url, items=None)
-
-
-def send_memo(access_token, text, with_button=True):
-    """카카오톡 '나에게 보내기'(기본 텍스트 템플릿) — 차트 피드 실패 시 최후 폴백(내용은 동일)."""
+def _text_template(text, with_button=True):
+    """텍스트 템플릿 dict — 차트 피드 실패 시 최후 폴백(내용은 동일)."""
     template = {
         "object_type": "text",
         "text": text,
@@ -475,10 +463,177 @@ def send_memo(access_token, text, with_button=True):
     }
     if with_button:
         template["button_title"] = "대시보드 보기"
+    return template
+
+
+def send_feed(access_token, template):
+    """피드 한 통을 '나에게 보내기'로 발송. 성공 시 True."""
+    status, j = _send_template_object(access_token, template)
+    if status != 200:
+        print(f"[kakao] 피드 발송 실패 HTTP {status}: {j}")
+        return False
+    c = template.get("content", {})
+    n_items = len((template.get("item_content") or {}).get("items") or [])
+    print(f"[kakao] 피드(차트) 발송 성공\n{c.get('title')} | {c.get('description')} | 행 {n_items}개")
+    return True
+
+
+def send_chart_feed(access_token, data, title, blocks, slot):
+    """슬롯 차트 생성→업로드→'한 통' 피드 발송.
+
+    성공 시 발송한 템플릿 dict 를 반환(친구 발송에 동일 재사용),
+    한 단계라도 실패하면 None(→ 동일 내용 텍스트 폴백)."""
+    png = build_slot_chart_png(data, slot)
+    if not png:
+        return None
+    image_url = kakao_upload_image(access_token, png)
+    if not image_url:
+        return None
+    desc, items = build_feed_parts(blocks)
+    template = _feed_template(title, desc, image_url, items=items)
+    if send_feed(access_token, template):
+        return template
+    # 행(item_content)이 거부되면 행 내용을 설명에 합쳐 한 통 더 시도 → 내용 손실 없이 '한 통' 보장.
+    print("[kakao] 피드(행 포함) 실패 — 행 내용을 설명으로 합쳐 재시도")
+    full_desc = "\n".join([desc] + [f"{it['item']} {it['item_op']}" for it in (items or [])])
+    template = _feed_template(title, full_desc, image_url, items=None)
+    return template if send_feed(access_token, template) else None
+
+
+def send_memo(access_token, text, with_button=True):
+    """카카오톡 '나에게 보내기'(기본 텍스트 템플릿) — 발송한 템플릿 dict 반환."""
+    template = _text_template(text, with_button)
     status, j = _send_template_object(access_token, template)
     if status != 200:
         raise SystemExit(f"[kakao] 메시지 발송 실패: HTTP {status} {j}")
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
+    return template
+
+
+# ── 친구에게 보내기 (선택 기능) ──────────────────────────────────────────
+# 카카오 공식 '친구에게 기본 템플릿 보내기' API. 오픈채팅방 발송 API 는 카카오가 제공하지
+# 않으므로(비공식 자동화는 운영정책 위반·계정 제재 위험), 지인 공유는 이 경로가 공식이다.
+# 전제(KAKAO_SETUP.md '친구에게도 보내기'): ① 토큰에 friends 동의 포함 ② 수신자도 같은
+# 앱에 1회 로그인(연결) ③ 변수 KAKAO_SEND_TO_FRIENDS=1 (또는 KAKAO_FRIEND_UUIDS 지정).
+FRIENDS_LIST_URL = "https://kapi.kakao.com/v1/api/talk/friends"
+FRIENDS_SEND_URL = "https://kapi.kakao.com/v1/api/talk/friends/message/default/send"
+
+
+def _http_get(url, headers=None):
+    """GET → (status, json). 4xx/5xx 응답은 그대로 반환하고, 전송 오류(DNS 등)만 예외."""
+    req = urllib.request.Request(url, headers=headers or {}, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status, json.loads(r.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode("utf-8") or "{}")
+        except Exception:
+            return e.code, {}
+
+
+def _mask_uuid(u):
+    """공개 저장소 CI 로그 보호 — uuid 는 앞 6자만 남기고 마스킹."""
+    return (u[:6] + "…") if isinstance(u, str) and len(u) > 6 else "?"
+
+
+def get_app_friends(access_token):
+    """앱과 연결되고 메시지 수신을 허용한 친구 목록 [{uuid, nickname}].
+
+    refresh_token 에 friends 동의가 없으면(-402) 재발급 안내 경고를 남기고 None.
+    수신자가 목록에 없으면: 수신자도 같은 카카오 앱에 로그인(연결)해야 한다."""
+    out, offset = [], 0
+    while True:
+        status, j = _retry(
+            lambda: _http_get(f"{FRIENDS_LIST_URL}?limit=100&offset={offset}",
+                              {"Authorization": f"Bearer {access_token}"}),
+            "친구 목록 조회")
+        if status != 200:
+            if j.get("code") == -402:
+                print("::warning title=Kakao 친구 발송::토큰에 friends 동의가 없습니다. "
+                      "KAKAO_SETUP.md '친구에게도 보내기' 절차로 refresh_token 을 "
+                      "재발급(scope=talk_message,friends)해 KAKAO_REFRESH_TOKEN 을 교체하세요.")
+            else:
+                print(f"[kakao-친구] 친구 목록 조회 실패 HTTP {status}: {j}")
+            return None
+        elems = j.get("elements") or []
+        out += [{"uuid": e["uuid"], "nickname": e.get("profile_nickname", "")}
+                for e in elems if e.get("uuid") and e.get("allowed_msg", True)]
+        offset += 100
+        if not elems or offset >= int(j.get("total_count") or 0):
+            return out
+
+
+def send_to_friends(access_token, template):
+    """'나에게 보내기'와 완전히 동일한 한 통(template)을 친구들에게도 발송.
+
+    활성화: 변수 KAKAO_SEND_TO_FRIENDS=1 또는 KAKAO_FRIEND_UUIDS 지정 (미설정 시 no-op).
+    대상: KAKAO_FRIEND_UUIDS(쉼표 구분 uuid; 빈 값/'all' 이면 앱 연결 친구 전체).
+    API 제약으로 1회 최대 5명씩 분할 발송. 본인 발송은 이미 끝난 뒤이므로 여기 실패는
+    잡을 실패시키지 않고 경고만 남긴다(다음 슬롯에 또 시도).
+    """
+    sel = os.environ.get("KAKAO_FRIEND_UUIDS", "").strip()
+    flag = os.environ.get("KAKAO_SEND_TO_FRIENDS", "").strip().lower()
+    if not (sel or flag in ("1", "true", "yes", "on")):
+        return
+    if sel and sel.lower() != "all":
+        uuids = [u.strip() for u in sel.split(",") if u.strip()]
+    else:
+        friends = get_app_friends(access_token)
+        if friends is None:
+            return
+        uuids = [f["uuid"] for f in friends]
+    if not uuids:
+        print("[kakao-친구] 보낼 친구가 없습니다 — 수신자도 같은 앱에 로그인(연결)되어 있고 "
+              "메시지 수신이 허용돼야 목록에 나타납니다 (KAKAO_SETUP.md 참고)")
+        return
+    ok, fail = [], []
+    for i in range(0, len(uuids), 5):           # API 제약: receiver_uuids 1회 최대 5명
+        chunk = uuids[i:i + 5]
+        try:
+            status, j = _http_post_retry(FRIENDS_SEND_URL, {
+                "receiver_uuids": json.dumps(chunk),
+                "template_object": json.dumps(template, ensure_ascii=False),
+            }, headers={"Authorization": f"Bearer {access_token}"}, what="친구 발송")
+        except Exception as e:
+            print(f"[kakao-친구] 발송 전송 오류: {e}")
+            fail += chunk
+            continue
+        if status == 200:
+            ok += j.get("successful_receiver_uuids") or chunk
+            for fi in (j.get("failure_info") or []):
+                bad = fi.get("receiver_uuids") or []
+                fail += bad
+                ok = [u for u in ok if u not in bad]
+        else:
+            fail += chunk
+            print(f"[kakao-친구] 발송 실패 HTTP {status}: {j}")
+    print(f"[kakao-친구] 친구 발송 {len(ok)}명 성공"
+          + (f", {len(fail)}명 실패({', '.join(_mask_uuid(u) for u in fail)})" if fail else ""))
+    if fail:
+        print("::warning title=Kakao 친구 발송::일부 수신자 발송 실패 — 수신자가 앱과 연결돼 있고 "
+              "카카오톡 메시지 수신을 허용했는지, uuid 가 올바른지 확인하세요.")
+
+
+def list_friends_cli():
+    """로컬 1회 실행용: 앱과 연결된 친구의 닉네임/uuid 를 출력 (KAKAO_FRIEND_UUIDS 작성용).
+
+    사용: KAKAO_REST_API_KEY=... KAKAO_REFRESH_TOKEN=... python scripts/send_kakao_digest.py --list-friends
+    ※ 닉네임·uuid 가 출력되므로 공개 CI 로그에서는 실행하지 말 것(로컬 전용)."""
+    rest_key = os.environ.get("KAKAO_REST_API_KEY", "").strip()
+    refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
+    if not rest_key or not refresh_token:
+        raise SystemExit("KAKAO_REST_API_KEY / KAKAO_REFRESH_TOKEN 환경변수를 설정하고 실행하세요.")
+    access_token = refresh_access_token(rest_key, refresh_token)
+    friends = get_app_friends(access_token)
+    if friends is None:
+        raise SystemExit("친구 목록 조회 실패 — 위 메시지 참고 (friends 동의 포함 토큰인지 확인).")
+    if not friends:
+        print("앱과 연결된 친구가 없습니다 — 수신자가 같은 앱에 로그인(연결)했는지 확인하세요.")
+        return
+    print(f"앱 연결 친구 {len(friends)}명 (KAKAO_FRIEND_UUIDS 에 쉼표로 나열):")
+    for f in friends:
+        print(f"  {f['nickname'] or '(닉네임 비공개)'}\t{f['uuid']}")
 
 
 def main():
@@ -509,17 +664,30 @@ def main():
     # ① 기본(통일) 형식 = '한 통' 피드: 슬롯별 차트 이미지 + 증시·환율(설명)
     #    + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
     #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
+    sent_template = None
     if _charts_enabled():
-        if send_chart_feed(access_token, data, title, blocks, slot):
+        sent_template = send_chart_feed(access_token, data, title, blocks, slot)
+        if sent_template:
             print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
-            return
-        print("[kakao] 차트 피드 실패 — 동일 내용 텍스트로 폴백")
+        else:
+            print("[kakao] 차트 피드 실패 — 동일 내용 텍스트로 폴백")
 
     # ② 최후 폴백: 기본 텍스트 한 통 — 피드와 '동일한 공통 블록(증시~운임)' + '대시보드 보기' 버튼.
     #    (콘솔 커스텀 템플릿 폴백은 형식이 달라 혼란을 줬으므로 제거 — 2026-06-10 10시 사례)
-    send_memo(access_token, build_text_message(title, blocks), with_button=True)
-    print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
+    if not sent_template:
+        sent_template = send_memo(access_token, build_text_message(title, blocks), with_button=True)
+        print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
+
+    # ③ (선택) 친구에게도 동일한 한 통 — 차트 이미지는 카카오 CDN URL 이라 그대로 재사용된다.
+    #    미설정 시 no-op. 실패해도 본인 발송은 끝났으므로 경고만 남기고 잡은 성공 처리.
+    try:
+        send_to_friends(access_token, sent_template)
+    except Exception as e:
+        print(f"::warning title=Kakao 친구 발송::친구 발송 중 오류(본인 발송은 완료): {e}")
 
 
 if __name__ == "__main__":
-    main()
+    if "--list-friends" in sys.argv:
+        list_friends_cli()
+    else:
+        main()

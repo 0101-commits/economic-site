@@ -105,6 +105,11 @@ jobs:
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_SLOT: ${{ steps.gate.outputs.slot }}
           KAKAO_CHARTS: ${{ vars.KAKAO_CHARTS || '1' }}
+          # (선택) 같은 시황 한 통을 친구에게도 발송 — KAKAO_SETUP.md '친구에게도 보내기' 참고.
+          # 변수 KAKAO_SEND_TO_FRIENDS=1 이면 앱 연결 친구 전체, KAKAO_FRIEND_UUIDS(쉼표 구분)로
+          # 특정 친구만 지정 가능. 둘 다 없으면 기존처럼 '나에게 보내기'만 동작.
+          KAKAO_SEND_TO_FRIENDS: ${{ vars.KAKAO_SEND_TO_FRIENDS || '' }}
+          KAKAO_FRIEND_UUIDS: ${{ secrets.KAKAO_FRIEND_UUIDS || vars.KAKAO_FRIEND_UUIDS || '' }}
         run: |
           python scripts/send_kakao_digest.py
           touch .kakao_sent_marker   # 발송 성공 후에만 마커 생성(실패 시 -e 로 중단 → 다음 깨움이 재시도)
