@@ -1,0 +1,43 @@
+name: Repair GitHub Pages (re-enable)
+
+# 2026-06-09 16:00 KST 경 Pages 사이트가 unpublish 되어(has_pages=false) 사이트 전체가
+# 404 가 된 상태를 복구하는 일회성 유틸리티. Settings → Pages 는 저장소 관리자만 만질 수
+# 있지만, Actions 의 GITHUB_TOKEN(pages: write)으로 REST API 를 호출하면 기존과 동일한
+# 구성(legacy 빌드, main 브랜치 / 루트)으로 사이트를 다시 생성할 수 있다.
+on:
+  workflow_dispatch:
+
+permissions:
+  pages: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-enable Pages (legacy build from main root)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          api="https://api.github.com/repos/${{ github.repository }}/pages"
+          hdr=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+
+          status=$(curl -s -o /tmp/pages.json -w '%{http_code}' "${hdr[@]}" "$api")
+          echo "GET /pages -> $status"
+          cat /tmp/pages.json; echo
+
+          if [ "$status" = "404" ]; then
+            create=$(curl -s -o /tmp/create.json -w '%{http_code}' -X POST "${hdr[@]}" "$api" \
+              -d '{"build_type":"legacy","source":{"branch":"main","path":"/"}}')
+            echo "POST /pages -> $create"
+            cat /tmp/create.json; echo
+            if [ "$create" != "201" ]; then
+              echo "::error::Pages 사이트 생성 실패 (HTTP $create) — Settings → Pages 에서 수동 활성화 필요"
+              exit 1
+            fi
+          fi
+
+          # 사이트 생성 직후 빌드가 자동으로 돌지 않을 수 있어 명시적으로 1회 요청
+          build=$(curl -s -o /tmp/build.json -w '%{http_code}' -X POST "${hdr[@]}" "$api/builds")
+          echo "POST /pages/builds -> $build"
+          cat /tmp/build.json; echo
