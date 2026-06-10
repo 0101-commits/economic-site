@@ -73,23 +73,27 @@ jobs:
       # KIS 토큰 영속 캐시 — 한국투자증권 API 는 토큰 1일 1회 발급 권장 (24h 유효).
       # 잦은 발급 시 카카오톡 알람·이용 제한이 발생하므로 GHA cache 액션으로
       # 런 간 토큰 파일을 보존하여 매 시간 새 토큰을 발급하는 일을 막는다.
-      # 캐시 키 일자(YYYY-MM-DD) 가 바뀌면 자연스럽게 새 토큰 발급 (=하루 1회).
+      # ⚠ key 는 run_id 로 매 런 유일해야 한다 — 이전의 github.run_started_at 은 GHA 표현식
+      #   컨텍스트에 없는 속성이라 빈 문자열로 평가됐고, key 가 항상 'kis-token-' 으로
+      #   primary hit → actions/cache 가 갱신본을 절대 저장하지 않는 버그였다.
       - name: Restore KIS token cache
         id: kis-cache
         uses: actions/cache@v4
         with:
           path: .kis_token_cache.json
-          key: kis-token-${{ github.run_started_at }}
+          key: kis-token-${{ github.run_id }}
           restore-keys: |
             kis-token-
 
-      # 실 제조업 PMI(50기준) 웹 스크래핑 영속 캐시 — 일일 풀 갱신 때 수집한 값을 런 간 보존해
-      # 비풀 런/소스 일시 차단 시에도 BCI 로 깜빡이지 않고 최신 PMI 를 유지한다.
+      # 실 제조업 PMI(50기준) 웹 스크래핑 영속 캐시 — 스크래핑 성공값을 런 간 보존해
+      # 소스 일시 차단 시에도 BCI 로 깜빡이지 않고 최신 PMI 를 유지한다.
+      # ⚠ key 는 run_id 로 매 런 유일해야 저장된다 (위 KIS 캐시와 동일한 버그 수정 —
+      #   이전엔 스크래핑이 성공해도 갱신된 .pmi_cache.json 이 저장된 적이 없었다).
       - name: Restore PMI scrape cache
         uses: actions/cache@v4
         with:
           path: .pmi_cache.json
-          key: pmi-cache-${{ github.run_started_at }}
+          key: pmi-cache-${{ github.run_id }}
           restore-keys: |
             pmi-cache-
 

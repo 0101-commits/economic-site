@@ -9,8 +9,12 @@
 발송 형식은 '단 한 가지(통일)' — 피드 한 통:
   슬롯별 차트 이미지(당일 인트라데이, 없으면 7일 일봉 폴백)
   + 제목('M/D(요일) H시 시황')
-  + 공통 내용 4종: 증시(코스피·S&P) / 환율(달러-원·달러-엔) / 심리(공포탐욕·VIX) / 원자재(WTI·금·구리)
+  + 공통 내용 7종: 증시(코스피·S&P) / 환율(달러-원·달러-엔)
+    / 심리(공포탐욕·VIX·VKOSPI 코스피위험지수) / 에너지(WTI·천연가스)
+    / 금속(금·구리) / 곡물(옥수수·밀·대두) / 운임(SCFI 상하이컨테이너운임지수)
   + '대시보드 보기' 버튼.
+  (2026-06 사용자 요청: 시장심리에 코스피위험지수 추가, 원자재를 에너지·금속·곡물로
+   분리, 상하이 운임지수 포함.)
 
 슬롯별 차트(모두 이미지·당일 기준, 당일이 없으면 7일 폴백):
   07·09시          → S&P500 + 달러-원
@@ -141,7 +145,9 @@ def _fg_label(v):
 def build_digest_parts(d, slot=None):
     """data.json → (제목, 공통 블록 [(라벨, 값), ...]).
 
-    공통 내용(모든 슬롯 동일): 증시(코스피·S&P) / 환율(달러-원·달러-엔) / 심리 / 원자재(WTI·금·구리).
+    공통 내용(모든 슬롯 동일):
+      증시(코스피·S&P) / 환율(달러-원·달러-엔) / 심리(공포탐욕·VIX·VKOSPI)
+      / 에너지(WTI·천연가스) / 금속(금·구리) / 곡물(옥수수·밀·대두) / 운임(SCFI).
     피드·텍스트 등 모든 발송 경로가 이 한 곳의 결과만 쓰므로 경로별 내용 차이가 생길 수 없다."""
     idx  = d.get("indices", {}) or {}
     fx   = d.get("fx", {}) or {}
@@ -186,11 +192,27 @@ def build_digest_parts(d, slot=None):
     vix = us.get("vix")
     if vix and vix.get("value") is not None:
         pl.append(f"VIX {_num(vix['value'], 1)}")
+    vk = sent.get("vkospi")   # 코스피 위험지수(KOSPI 변동성지수, VKOSPI)
+    if vk and vk.get("value") is not None:
+        pl.append(f"VKOSPI {_num(vk['value'], 1)}")
     if pl:
         blocks.append(("심리", " ".join(pl)))
-    coms = [p for p in (cp("WTI", "WTI"), cp("금", "Gold", 0), cp("구리", "Copper", 2)) if p]
-    if coms:
-        blocks.append(("원자재", " ".join(coms)))
+    # 원자재 — 에너지 / 금속 / 곡물 분리
+    energy = [p for p in (cp("WTI", "WTI"), cp("천연가스", "NatGas", 2)) if p]
+    if energy:
+        blocks.append(("에너지", " ".join(energy)))
+    metal = [p for p in (cp("금", "Gold", 0), cp("구리", "Copper", 2)) if p]
+    if metal:
+        blocks.append(("금속", " ".join(metal)))
+    grain = [p for p in (cp("옥수수", "Corn", 0), cp("밀", "Wheat", 0), cp("대두", "Soybean", 0)) if p]
+    if grain:
+        blocks.append(("곡물", " ".join(grain)))
+    # 해상 운임 — 상하이컨테이너운임지수(SCFI). freight.items 는 change 대신 chgPct(%) 사용.
+    scfi = next((it for it in ((d.get("freight", {}) or {}).get("items") or [])
+                 if isinstance(it, dict) and it.get("code") == "SCFI"
+                 and it.get("price") is not None), None)
+    if scfi:
+        blocks.append(("운임", f"SCFI {_num(scfi['price'])}{_a1(scfi.get('chgPct'))}"))
     return title, blocks
 
 
@@ -205,7 +227,10 @@ def _pack(prefix, lines, limit):
 
 
 def build_text_message(title, blocks, limit=TEXT_LIMIT):
-    """텍스트 폴백용 단일 문자열 — 피드와 동일한 공통 4블록을 200자 내에 담는다."""
+    """텍스트 폴백용 단일 문자열 — 피드와 동일한 공통 블록(증시~운임)을 200자 내에 담는다.
+
+    카카오 텍스트 템플릿 한도(200자)를 넘는 뒷줄은 _pack 이 생략한다 — blocks 순서가
+    곧 우선순위(증시 > 환율 > 심리 > 에너지 > 금속 > 곡물 > 운임)."""
     return _pack(title, [f"〔{lab}〕{val}" for lab, val in blocks], limit)
 
 
@@ -389,16 +414,18 @@ def kakao_upload_image(access_token, png_path):
 def build_feed_parts(blocks):
     """공통 블록 → 피드용 (description, items).
 
-    설명(2줄): 증시 / 환율 — 헤드라인. 행(item): 심리 / 원자재.
-    네 카테고리가 항상 한 통에 모두 담기며, 행 값이 길어 뒤가 잘리는 일이 없게 배치한다."""
+    설명(2줄): 증시(코스피·S&P) / 환율(달러-원·달러-엔) — 헤드라인.
+    행(item): 심리 / 에너지 / 금속 / 곡물 / 운임 — 카카오 피드 행 한도(5개)와 일치.
+    일곱 카테고리가 항상 한 통에 모두 담기며, 행 값이 길어 뒤가 잘리는 일이 없게 배치한다."""
     val = dict(blocks)
     desc = "\n".join(x for x in (val.get("증시", ""), val.get("환율", "")) if x)
-    items = [{"item": lab, "item_op": val[lab]} for lab in ("심리", "원자재") if val.get(lab)]
+    items = [{"item": lab, "item_op": val[lab]}
+             for lab in ("심리", "에너지", "금속", "곡물", "운임") if val.get(lab)]
     return desc, items
 
 
 def send_feed(access_token, title, description, image_url, items=None, dims=(720, 640)):
-    """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·원자재(행) + '대시보드 보기' 버튼."""
+    """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼."""
     content = {
         "title": title,
         "description": description,
@@ -479,15 +506,16 @@ def main():
     title, blocks = build_digest_parts(data, slot)   # 제목에 슬롯 시각(7~22시) 포함
     access_token = refresh_access_token(rest_key, refresh_token)
 
-    # ① 기본(통일) 형식 = '한 통' 피드: 슬롯별 차트 이미지 + 증시·환율(설명) + 심리·원자재(행)
-    #    + '대시보드 보기' 버튼. 차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
+    # ① 기본(통일) 형식 = '한 통' 피드: 슬롯별 차트 이미지 + 증시·환율(설명)
+    #    + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
+    #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
     if _charts_enabled():
         if send_chart_feed(access_token, data, title, blocks, slot):
             print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
             return
         print("[kakao] 차트 피드 실패 — 동일 내용 텍스트로 폴백")
 
-    # ② 최후 폴백: 기본 텍스트 한 통 — 피드와 '동일한 공통 4블록' + '대시보드 보기' 버튼.
+    # ② 최후 폴백: 기본 텍스트 한 통 — 피드와 '동일한 공통 블록(증시~운임)' + '대시보드 보기' 버튼.
     #    (콘솔 커스텀 템플릿 폴백은 형식이 달라 혼란을 줬으므로 제거 — 2026-06-10 10시 사례)
     send_memo(access_token, build_text_message(title, blocks), with_button=True)
     print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
