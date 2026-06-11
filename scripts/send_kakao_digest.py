@@ -64,6 +64,11 @@ SLOT_CHARTS = {
 _CHART_COLOR = {"KOSPI": "#2962ff", "SP500": "#1e88e5", "USDKRW": "#26a69a", "WTI": "#ef6c00"}
 # 당일(인트라데이) 시세용 Yahoo Finance 심볼 — data.json 엔 일별 종가만 있어 차트 생성 시 직접 조회한다.
 _YH_SYM = {"KOSPI": "^KS11", "SP500": "^GSPC", "USDKRW": "KRW=X", "WTI": "CL=F"}
+# 차트 PNG 크기(px) — 카톡 피드 이미지는 말풍선 '폭'이 고정이고 높이만 비율을 따라 늘어나므로,
+# 가로형(구 720x640)은 화면에서 작게 보인다. 잘리지 않는 최대 세로 비율(3:4)·고해상도로 키운다.
+# (2026-06 사용자 요청: 카톡 사진이 작아 잘 안 보임)
+_CHART_DPI = 150
+CHART_PX = (1080, 1440)
 
 
 def _retry(fn, what, tries=3, delay=2):
@@ -307,7 +312,7 @@ def _yahoo_intraday(symbol, rng="1d", interval="5m"):
 
 
 def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
-    """슬롯별 지표 2종을 '당일(인트라데이)' 차트 1장 PNG(720x640)로 생성.
+    """슬롯별 지표 2종을 '당일(인트라데이)' 차트 1장 PNG(CHART_PX=1080x1440, 3:4 세로형)로 생성.
 
     당일 시세는 Yahoo 차트 API 에서 직접 조회(data.json 엔 일별 종가만 있음). 당일 조회 실패 시
     data.json history 의 7일 일봉으로 폴백. matplotlib 미설치/생성 실패 시 None(→ 텍스트 폴백)."""
@@ -341,7 +346,7 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
         return _f(o.get("change"))
 
     try:
-        fig, axes = plt.subplots(2, 1, figsize=(7.2, 6.4))
+        fig, axes = plt.subplots(2, 1, figsize=(CHART_PX[0] / _CHART_DPI, CHART_PX[1] / _CHART_DPI))
         # 기간(today/7d)은 패널별 제목에 표기 — 인트라데이/일봉 폴백이 섞일 수 있어 전체 제목엔 넣지 않는다.
         fig.suptitle(suptitle, fontsize=13, x=0.02, ha="left", weight="bold")
         for a, (cat, key, label) in zip(axes, panels):
@@ -368,7 +373,7 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
             for lbl in a.get_xticklabels():
                 lbl.set_fontsize(8)
         fig.tight_layout(rect=[0, 0, 1, 0.97])
-        fig.savefig(out_path, dpi=100)
+        fig.savefig(out_path, dpi=_CHART_DPI)
         plt.close(fig)
         return out_path
     except Exception as e:
@@ -424,7 +429,7 @@ def build_feed_parts(blocks):
     return desc, items
 
 
-def send_feed(access_token, title, description, image_url, items=None, dims=(720, 640)):
+def send_feed(access_token, title, description, image_url, items=None, dims=CHART_PX):
     """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼."""
     content = {
         "title": title,
