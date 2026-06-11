@@ -343,14 +343,25 @@ async function handlePortfolioGet(env) {
   }
 }
 
+// SHA-256 hex — 동기화 키 해시 검증용
+async function _sha256Hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function handlePortfolioPost(request, env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   const raw = await request.text();
   if (raw.length > 120000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let body;
   try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
-  if (env.ALERTS_SYNC_KEY && String(body.key || '') !== String(env.ALERTS_SYNC_KEY)) {
-    return jsonResponse({ error: 'unauthorized' }, 401);
+  // 동기화 키 검증 — 프론트는 키의 SHA-256 해시(keyHash)만 보낸다 (평문 키는 전송/저장 안 함).
+  // 구버전 클라이언트의 평문 body.key 도 당분간 호환 허용.
+  if (env.ALERTS_SYNC_KEY) {
+    const expected = await _sha256Hex(env.ALERTS_SYNC_KEY);
+    const okHash = body.keyHash && String(body.keyHash).toLowerCase() === expected;
+    const okLegacy = body.key && String(body.key) === String(env.ALERTS_SYNC_KEY);
+    if (!okHash && !okLegacy) return jsonResponse({ error: 'unauthorized' }, 401);
   }
   const alerts = _sanitizeAlerts(body.alerts);
   const cfg = { version: 1, updatedAt: new Date().toISOString(), alerts };

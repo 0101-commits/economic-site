@@ -693,6 +693,59 @@
   .home-sec .sec-drag-handle:hover { background: var(--c-card-hi, #262a35); color: var(--c-txt-dim, #8d90a2); }
   .home-sec.dnd-dragging, .kpi-card.dnd-dragging { opacity: .35; }
   .home-sec.dnd-over, .kpi-card.dnd-over { outline: 2px dashed #2962ff; outline-offset: 2px; border-radius: 8px; }
+  /* 홈 위젯 숨김 토글 — 드래그 핸들 옆 눈 아이콘 (2.1 정보 과부하 완화) */
+  .home-sec .sec-hide-btn {
+    position: absolute; top: 2px; right: 26px; z-index: 5;
+    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--c-txt-muted, #434656); cursor: pointer;
+    border-radius: 4px; opacity: 0; transition: opacity .15s; user-select: none;
+    background: transparent; border: none; padding: 0;
+  }
+  .home-sec:hover .sec-hide-btn { opacity: .8; }
+  .home-sec .sec-hide-btn:hover { background: var(--c-card-hi, #262a35); color: var(--c-txt-dim, #8d90a2); }
+
+  /* 스켈레톤 로딩 바 (2.2) — 텍스트형 '로딩 중…' 대신 은은한 셔머 플레이스홀더 */
+  @keyframes skel-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skel-bar {
+    display: inline-block; height: 10px; border-radius: 4px; vertical-align: middle;
+    background: linear-gradient(90deg, var(--c-card-hi, #1b1f2b) 25%, var(--c-border, #2a2e3d) 50%, var(--c-card-hi, #1b1f2b) 75%);
+    background-size: 200% 100%;
+    animation: skel-shimmer 1.6s ease-in-out infinite;
+  }
+  .skel-row td { padding: 9px 4px !important; }
+
+  /* 차트 구간 측정 어포던스 (2.3) — 측정 가능한 차트는 십자선 커서로 클릭 가능함을 암시 */
+  #mainChart, #fxChart, #bondChart, #equityIndexChart, #comDetailChart, #rePriceChart { cursor: crosshair; }
+  .ann-pending {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; color: #b6c4ff; background: rgba(41,98,255,.12);
+    border: 1px dashed #2962ff; border-radius: 4px; padding: 2px 8px;
+  }
+  .ann-pending .dot { width: 6px; height: 6px; border-radius: 50%; background: #2962ff; animation: ann-pulse 1.2s ease-in-out infinite; }
+  @keyframes ann-pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+
+  /* 지연 데이터 글로벌 상태 칩 (2.4) — 카드별 중복 경고문 대신 단일 상시 표시 */
+  #globalDelayChip {
+    position: fixed; left: 14px; bottom: 14px; z-index: 240;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 10px; color: #f0c75e; background: var(--c-card, #1b1f2b);
+    border: 1px solid #8a6d1f66; border-radius: 999px; padding: 4px 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: help; user-select: none;
+  }
+  #globalDelayChip .dot { width: 6px; height: 6px; border-radius: 50%; background: #f0c75e; }
+  @media (max-width: 640px) { #globalDelayChip { left: 8px; bottom: 8px; font-size: 9px; padding: 3px 8px; } }
+
+  /* 포트폴리오 인라인 입력 유효성 오류 (3.2) */
+  .pf-input-err { border-color: #ef5350 !important; background: rgba(239,83,80,.10) !important; }
+
+  /* 모바일 — 포트폴리오 테이블 첫 열(종목명) 고정으로 가로 스크롤 시 맥락 유지 (2.1) */
+  @media (max-width: 768px) {
+    table.pf-sticky-first th:first-child, table.pf-sticky-first td:first-child {
+      position: sticky; left: 0; z-index: 2;
+      background: var(--c-card, #1b1f2b);
+      box-shadow: 2px 0 4px rgba(0,0,0,.25);
+    }
+  }
   #homeKpiGrid .kpi-card { cursor: grab; }
   #homeKpiGrid .kpi-card:active { cursor: grabbing; }
 </style>
@@ -949,7 +1002,7 @@
               <div>
                 <div style="font-size:9px;color:#8d90a2;text-transform:uppercase;letter-spacing:.04em;">CNN Fear &amp; Greed <span style="font-size:8px;color:#2962ff;">📈</span></div>
                 <div id="fearVal" style="font-size:18px;font-weight:700;color:var(--c-txt-dim,#8d90a2);font-family:'Public Sans';">—</div>
-                <div id="fearLabel" style="font-size:10px;color:var(--c-txt-dim,#8d90a2);">데이터 수집 대기</div>
+                <div id="fearLabel" style="font-size:10px;color:var(--c-txt-dim,#8d90a2);"><span class="skel-bar" style="width:88px;"></span></div>
                 <div id="fearDelta" style="font-size:9px;color:#8d90a2;">—</div>
               </div>
             </div>
@@ -1008,6 +1061,8 @@
               <button class="tab-btn" data-p="3Y" onclick="cmpSetPeriod('3Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3Y</button>
               <button class="tab-btn" data-p="ALL" onclick="cmpSetPeriod('ALL',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">전체</button>
             </span>
+            <span style="color:#2a2e3d;margin:0 2px;">|</span>
+            <button id="cmpNormBtn" onclick="cmpToggleNorm()" title="두 지표의 시작점을 100으로 환산해 등락률 추이만 비교합니다 — 이중축 스케일 차이로 인한 시각적 착시 제거" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">⚖ 지수화 =100</button>
           </div>
         </div>
         <div style="position:relative;height:300px;">
@@ -1078,11 +1133,8 @@
           alerts_config.json 을 평가해 카카오톡 발송 — scripts/check_alerts.py)
          ============================================================ -->
     <div class="page" id="page-portfolio">
-      <!-- 데이터 지연 안내 — PRD 필수 상시 노출 문구 -->
-      <div style="display:flex;align-items:center;gap:8px;background:#3a2f1b;border:1px solid #8a6d1f;border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#f0c75e;">
-        <span class="mat" style="font-size:16px;">schedule</span>
-        <span><b>본 정보는 15분 지연된 데이터 기준입니다.</b> 무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다.</span>
-      </div>
+      <!-- 데이터 지연 안내(PRD 필수 상시 노출)는 페이지별 배너 대신
+           전 페이지 공통의 글로벌 상태 칩(#globalDelayChip, 좌하단 고정)으로 일원화됨 (UX 2.4) -->
 
       <!-- 포트폴리오 요약 KPI -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
@@ -1137,7 +1189,7 @@
 
           <!-- 종목 표 -->
           <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px;">
+            <table class="pf-sticky-first" style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px;">
               <thead>
                 <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;text-align:right;">
                   <th style="text-align:left;padding:6px 4px;">종목</th>
@@ -1172,6 +1224,17 @@
           <div id="pfPieEmpty" style="display:none;text-align:center;color:#7a8099;font-size:12px;padding:30px 0;">평단가·수량을 입력하면<br>포트폴리오 비중이 표시됩니다.</div>
           <div id="pfPieNote" style="font-size:10px;color:#7a8099;margin-top:8px;">평가 금액(원화 환산) 기준 · 유형별 = 주식/ETF 구분</div>
         </div>
+      </div>
+
+      <!-- 📈 수익률 추이 vs 벤치마크 (3.2) — 방문일별 스냅샷 기반, KOSPI·S&P500 오버레이 -->
+      <div class="widget" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          <span class="widget-title" style="margin-bottom:0;">📈 수익률 추이 vs 벤치마크 <span style="font-size:9px;color:#434656;font-weight:400;">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></span>
+          <span style="font-size:10px;color:#7a8099;">방문일마다 포트폴리오 스냅샷이 이 브라우저(localStorage)에 기록됩니다</span>
+        </div>
+        <div id="pfBenchEmpty" style="text-align:center;color:#7a8099;font-size:12px;padding:24px 0;line-height:1.7;">평단가·수량이 입력된 상태로 <b>2일 이상</b> 방문하면<br>내 포트폴리오 수익률 추이를 KOSPI·S&amp;P 500 과 같은 차트에서 비교할 수 있습니다.</div>
+        <div id="pfBenchWrap" style="position:relative;height:240px;display:none;"><canvas id="pfBenchChart"></canvas></div>
+        <div id="pfBenchNote" style="display:none;font-size:10px;color:#7a8099;margin-top:6px;">내 포트폴리오 = (평가금액/매입금액 − 1), 벤치마크 = 첫 스냅샷일 종가 대비 등락률. 입금/매수로 매입금액이 변하면 단순 비교에 왜곡이 있을 수 있습니다.</div>
       </div>
 
       <!-- 카카오 알림 요약/동기화 -->
@@ -1227,7 +1290,7 @@
           <div id="pfTvRsiWrap" style="display:none;"><div style="font-size:10px;color:#8d90a2;margin:6px 0 2px;">RSI (14)</div><div id="pfTvRsi" style="height:110px;"></div></div>
           <div id="pfTvMacdWrap" style="display:none;"><div style="font-size:10px;color:#8d90a2;margin:6px 0 2px;">MACD (12, 26, 9)</div><div id="pfTvMacd" style="height:130px;"></div></div>
           <div id="pfChartMsg" style="text-align:center;color:#7a8099;font-size:12px;padding:8px 0 0;"></div>
-          <div style="font-size:10px;color:#7a8099;margin-top:8px;">ⓘ 본 정보는 15분 지연된 데이터 기준입니다. · Charting by TradingView Lightweight Charts™</div>
+          <div style="font-size:10px;color:#7a8099;margin-top:8px;">Charting by TradingView Lightweight Charts™</div>
         </div>
       </div>
 
@@ -1612,7 +1675,7 @@
               <th style="text-align:right;padding:5px;">등락률</th>
               <th style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
-            <tbody id="equityTopGainersTable"><tr><td colspan="5" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+            <tbody id="equityTopGainersTable"><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
         <div class="widget">
@@ -1631,7 +1694,7 @@
               <th style="text-align:right;padding:5px;">등락률</th>
               <th style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
-            <tbody id="equityTopLosersTable"><tr><td colspan="5" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+            <tbody id="equityTopLosersTable"><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1653,7 +1716,7 @@
               <th style="text-align:right;padding:5px;">현재가</th>
               <th style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
-            <tbody id="etfTopGainersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+            <tbody id="etfTopGainersTable"><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
         <div class="widget">
@@ -1671,7 +1734,7 @@
               <th style="text-align:right;padding:5px;">현재가</th>
               <th style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
-            <tbody id="etfTopLosersTable"><tr><td colspan="4" style="padding:12px;text-align:center;color:#434656;">데이터 로딩 중…</td></tr></tbody>
+            <tbody id="etfTopLosersTable"><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1919,6 +1982,7 @@
             <div style="text-align:center;padding:4px;background:#131722;border-radius:4px;"><div style="color:#8d90a2;">예측</div><div id="calFloatFore" style="font-weight:600;color:#b6c4ff;"></div></div>
             <div style="text-align:center;padding:4px;background:#131722;border-radius:4px;"><div style="color:#8d90a2;">실제</div><div id="calFloatAct" style="font-weight:700;"></div></div>
           </div>
+          <div id="calFloatSurp" style="display:none;font-size:10px;text-align:center;border-radius:4px;padding:3px 6px;margin-bottom:6px;"></div>
           <div style="position:relative;height:90px;"><canvas id="calFloatChart"></canvas></div>
           <div id="calFloatNote" style="font-size:9px;color:#434656;margin-top:4px;text-align:right;">과거 추이 (참고용)</div>
         </div>
@@ -2037,6 +2101,7 @@
               <span id="noteDate" style="font-size:11px;color:#8d90a2;white-space:nowrap;"></span>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
+              <button onclick="insertIndicatorSnapshot()" title="현재 대시보드의 핵심 지표 수치를 노트 본문에 표로 박제합니다 — 시점 기록용" style="background:transparent;color:#26a69a;border:1px solid #26a69a55;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">📌 지표 스냅샷</button>
               <button onclick="exportNoteToText()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">↓ TXT</button>
               <button onclick="deleteNote()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;">삭제</button>
               <button onclick="saveNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">저장</button>
@@ -2098,21 +2163,21 @@
           <div class="kpi-card kpi-clickable" style="border-left:3px solid #26a69a;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 변동률 (아파트)',{unit:'% (월간 변동률)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 매매가격지수 변동률 (아파트)</div>
             <div id="reKpiAptPrice" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-            <div id="reKpiAptPriceMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
+            <div id="reKpiAptPriceMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;" title="R-ONE 데이터 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </div>
           <!-- 카드 2: 전국주택가격동향조사 전세가격지수 변동률 -->
           <div class="kpi-card kpi-clickable" style="border-left:3px solid #b6c4ff;cursor:pointer;" onclick="showReHistoryChart('jns_price_idx_kr', '전국주택가격동향조사 전세가격지수 변동률 (주택종합)', {unit:'% (월간 변동률)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 전세가격지수 변동률 (주택종합)</div>
             <div id="reKpiAptIdxVal" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-            <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;">R-ONE 데이터 페치 중…</div>
+            <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:#8d90a2;" title="R-ONE 데이터 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </div>
           <!-- 카드 3: 부동산거래현황 (한국부동산원 R-ONE) — 국토부 실거래가 API 미수집분 대체 -->
           <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})">
             <div style="font-size:10px;color:#8d90a2;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">행정구역별 아파트거래현황 (전국)</div>
             <div id="reKpiVol" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-            <div id="reKpiVolMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;">부동산원 거래현황 페치 중…</div>
+            <div id="reKpiVolMeta" style="font-size:11px;margin-top:4px;color:#8d90a2;" title="부동산원 거래현황 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:9px;color:#434656;margin-top:2px;">출처: 한국부동산원 R-ONE 행정구역별 아파트거래현황 · 단위: 동(호)수</div>
           </div>
           <div class="kpi-card" style="border-left:3px solid #ef5350;">
@@ -2222,7 +2287,7 @@
                 </div>
                 <div style="text-align:right;">
                   <div id="krReAptSaleVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div id="krReAptSaleChg" style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                  <div id="krReAptSaleChg" style="font-size:11px;margin-top:2px;color:#434656;" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
               <div onclick="showReHistoryChart('jns_price_idx_kr','전국주택가격동향조사 전세가격지수 (주택종합)',{unit:'지수 (2026.1=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
@@ -2232,7 +2297,7 @@
                 </div>
                 <div style="text-align:right;">
                   <div id="krReAptJnsVal" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div id="krReAptJnsChg" style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                  <div id="krReAptJnsChg" style="font-size:11px;margin-top:2px;color:#434656;" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
               <div onclick="showReHistoryChart('pir_seoul','서울 PIR (소득 대비 주택가격)',{unit:'배 (배수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
@@ -2259,7 +2324,7 @@
                 </div>
                 <div style="text-align:right;">
                   <div id="krReMortRate" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
               <div onclick="showReHistoryChart('household_debt_kr','가계신용 잔액',{unit:'10억원 → 조원 표시'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
@@ -2269,7 +2334,7 @@
                 </div>
                 <div style="text-align:right;">
                   <div id="krReHouseholdDebt" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
               <div style="padding:10px;background:#1b1f2b;border-radius:6px;border:1px solid #2a2e3d;">
@@ -2293,7 +2358,7 @@
                 </div>
                 <div style="text-align:right;">
                   <div id="krReTradeCnt" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
               <div onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#131722;border-radius:6px;border-left:3px solid #b6c4ff;cursor:pointer;" title="클릭 → 시계열 차트">
@@ -2303,7 +2368,7 @@
                 </div>
                 <div style="text-align:right;">
                   <div id="krReUnsold" style="font-size:18px;font-weight:700;font-family:'Public Sans';color:#434656;">—</div>
-                  <div style="font-size:11px;margin-top:2px;color:#434656;">데이터 추가 필요</div>
+                  <div style="font-size:11px;margin-top:2px;color:#434656;" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
             </div>
@@ -2567,6 +2632,22 @@
         <button class="tab-btn"        id="invTopFrtib"   style="font-size:12px;padding:6px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setInvestor('frtib',this)">🇺🇸 미국 FRTIB (TSP)</button>
         <button class="tab-btn"        id="invTopCalpers" style="font-size:12px;padding:6px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setInvestor('calpers',this)">🇺🇸 CalPERS</button>
       </div>
+
+      <!-- 🌐 글로벌 연기금 자산배분 교차 비교 (4.4) — 5대 기금 단일 통합 차트, 탭과 무관하게 상시 표시 -->
+      <details class="widget" style="margin-bottom:14px;" open>
+        <summary style="cursor:pointer;list-style:none;">
+          <span class="widget-title" style="margin-bottom:0;">🌐 글로벌 연기금 자산배분 교차 비교
+            <span style="font-size:9px;color:#434656;font-weight:400;">주식 / 채권 / 대체투자 / 기타·혼합 — 비중 정규화(100%) 기준</span>
+          </span>
+        </summary>
+        <div style="position:relative;height:230px;margin-top:10px;">
+          <canvas id="globalAllocCompareChart" role="img" aria-label="글로벌 연기금 자산배분 교차 비교">자산배분 비교 차트</canvas>
+        </div>
+        <div style="font-size:10px;color:#434656;margin-top:6px;">
+          출처: 각 기금 최신 공시(NPS 2026Q1 잠정 · GPFG/GPIF/TSP/CalPERS 2024년말 기준) — 분류 체계가 달라 주식/채권/대체/기타로 단순화한 근사치입니다. TSP 의 L(라이프사이클) 펀드는 혼합형으로 분류.
+        </div>
+      </details>
+
       <!-- 국민연금 (NPS) 컨테이너 — 기존 구조 유지 -->
       <div id="investor-nps-container">
       <!-- 시장지표와 동일하게 좌측 상단에 탭 배치 -->
@@ -3333,7 +3414,7 @@ function showPage(id, el) {
     }
   }
   if(id==='notes') { loadNotes(); }
-  if(id==='investor') { setTimeout(()=>buildInvestorPage(),50); }
+  if(id==='investor') { setTimeout(()=>{ buildInvestorPage(); try { buildGlobalAllocCompare(); } catch(e) { console.warn('globalAlloc', e); } },50); }
   if(id==='realestate') { setRETab('kr', document.getElementById('reitabKR')); setTimeout(buildReCharts, 80); }
   // 메뉴 클릭 후 사이드바 자동 숨김 (모바일/데스크탑 공통)
   collapseSidebarAfterNav();
@@ -5035,6 +5116,45 @@ let equityAnnotations=[], equityPending=null;
 let comAnnotations=[], comPending=null;
 let reAnnotations=[], rePending=null;
 
+// 측정 가능 차트 ID 매핑 (renderAnnotations / 시작점 마커 플러그인 공용)
+const MEASURE_CHART_IDS = {main:'mainChart',fx:'fxChart',bond:'bondChart',equity:'equityIndexChart',com:'comDetailChart',re:'rePriceChart'};
+function _getMeasurePending(chartName) {
+  return chartName==='main'?mainPending:chartName==='fx'?fxPending:chartName==='bond'?bondPending
+       : chartName==='equity'?equityPending:chartName==='re'?rePending:comPending;
+}
+// 구간 측정 어포던스 (UX 2.3) — 첫 클릭(시작점) 시 차트 위에 수직 점선 마커 + '시작' 라벨을
+// 그려, 측정이 진행 중이며 끝점 클릭을 기다리고 있음을 시각적으로 알린다.
+const _measurePendingPlugin = {
+  id: 'measurePendingMarker',
+  afterDatasetsDraw(chart) {
+    const cvId = chart.canvas && chart.canvas.id;
+    const name = Object.keys(MEASURE_CHART_IDS).find(k => MEASURE_CHART_IDS[k] === cvId);
+    if(!name) return;
+    const pend = _getMeasurePending(name);
+    if(!pend || pend.idx == null) return;
+    const meta = chart.getDatasetMeta(0);
+    const pt = meta && meta.data && meta.data[pend.idx];
+    if(!pt) return;
+    const { ctx, chartArea } = chart;
+    ctx.save();
+    ctx.strokeStyle = '#2962ff';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pt.x, chartArea.top);
+    ctx.lineTo(pt.x, chartArea.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#2962ff';
+    ctx.font = '600 10px Inter, sans-serif';
+    const label = '📍 시작';
+    const tx = Math.min(pt.x + 4, chartArea.right - ctx.measureText(label).width - 4);
+    ctx.fillText(label, tx, chartArea.top + 12);
+    ctx.restore();
+  }
+};
+if(typeof Chart !== 'undefined') { try { Chart.register(_measurePendingPlugin); } catch(_) {} }
+
 function removeAnnotation(chartName, i) {
   if(chartName==='main') mainAnnotations.splice(i,1);
   else if(chartName==='fx') fxAnnotations.splice(i,1);
@@ -5084,7 +5204,7 @@ function renderAnnotations(chartName) {
     html+=`<button onclick="removeAnnotation('${chartName}',${i})" style="background:none;border:none;color:#8d90a2;cursor:pointer;font-size:12px;padding:0 2px;line-height:1;">✕</button>`;
     html+=`</span>`;
   });
-  if(pend) html+=`<span style="font-size:11px;color:#8d90a2;">시작: ${pend.label} — 끝점 클릭</span>`;
+  if(pend) html+=`<span class="ann-pending"><span class="dot"></span>시작점 ${pend.label} 선택됨 — 끝점을 클릭하면 구간 수익률이 계산됩니다</span>`;
   el.innerHTML=html;
 }
 
@@ -5109,6 +5229,8 @@ function chartClick(chartName, idx, price, label) {
     else{reAnnotations.push({start:rePending,end:{idx,price,label}});rePending=null;}
   }
   renderAnnotations(chartName);
+  // 시작점 마커(measurePendingMarker 플러그인) 즉시 반영
+  try { const ch = charts[MEASURE_CHART_IDS[chartName]]; if(ch) ch.update('none'); } catch(_) {}
 }
 
 // Legacy stubs (kept for compatibility during transition)
@@ -9140,6 +9262,18 @@ function buildCalendarGrid(filteredEvents) {
 
 // 현재 표시된 calGridFloating 팝업의 상태 (refresh 시 같은 이벤트를 다시 렌더하기 위함)
 let _calFloatingState = { idx: null };
+// 플로팅 팝업 내 서프라이즈 라벨 — 예측 대비 실제 격차를 명시 (4.3)
+function _calRenderFloatSurprise(e) {
+  const el = document.getElementById('calFloatSurp');
+  if(!el) return;
+  const surp = (e && (e.beat === 1 || e.beat === -1)) ? _calSurprise(e) : null;
+  if(!surp) { el.style.display = 'none'; return; }
+  const good = e.beat === 1;
+  el.style.display = 'block';
+  el.style.background = good ? 'rgba(38,166,154,0.12)' : 'rgba(239,83,80,0.12)';
+  el.style.color = good ? '#26a69a' : '#ef5350';
+  el.textContent = `${surp.big ? '⚡ 매크로 서프라이즈' : '서프라이즈'} — 예측 대비 ${surp.diffLabel} (${good ? '호재' : '악재'})`;
+}
 function showCalGridFloating(idx, evt) {
   evt && evt.stopPropagation();
   const e = calEvents[idx];
@@ -9154,6 +9288,7 @@ function showCalGridFloating(idx, evt) {
   const actEl = document.getElementById('calFloatAct');
   actEl.textContent = e.act || '미발표';
   actEl.style.color = e.beat===1 ? '#26a69a' : e.beat===-1 ? '#ef5350' : '#dfe2f2';
+  _calRenderFloatSurprise(e);
   // 플로팅 위치 — 부모 widget 기준 (position:relative 컨테이너)
   fl.style.display = 'block';
   if(evt && evt.clientX != null) {
@@ -9227,6 +9362,7 @@ async function refreshCalFloatingPopup(btn) {
       if(actEl) {
         actEl.textContent = e.act || '미발표';
         actEl.style.color = e.beat===1 ? '#26a69a' : e.beat===-1 ? '#ef5350' : '#dfe2f2';
+        try { _calRenderFloatSurprise(e); } catch(_){}
       }
       // 차트 다시 그리기
       try {
@@ -9660,6 +9796,29 @@ function mergeServerCalendar() {
   return added;
 }
 
+// ── 매크로 서프라이즈 인덱스 (UX 4.3) ──────────────────────────────────────
+// 예측 대비 실제값의 격차를 정량화해, 컨센서스를 크게 벗어난 발표(서프라이즈/쇼크)를
+// 캘린더 행 배경색으로 하이라이팅한다. 방향성(호재/악재)은 기존 beat 판정을 따른다.
+function _calParseNum(s) {
+  if(s == null) return null;
+  const m = String(s).replace(/,/g, '').match(/-?\d+(\.\d+)?/);
+  return m ? parseFloat(m[0]) : null;
+}
+function _calSurprise(e) {
+  if(!e || !e.act || !e.fore) return null;
+  const f = _calParseNum(e.fore), a = _calParseNum(e.act);
+  if(f == null || a == null) return null;
+  const diff = a - f;
+  const isPct = /%/.test(String(e.fore)) || /%/.test(String(e.act));
+  const rel = Math.abs(f) > 1e-9 ? Math.abs(diff) / Math.abs(f) : null;
+  // 큰 서프라이즈: 예측 대비 ±15% 이상 괴리, 또는 %단위 지표에서 ±0.3%p 이상 괴리
+  const big = (rel != null && rel >= 0.15) || (isPct && Math.abs(diff) >= 0.3);
+  const diffLabel = isPct
+    ? `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%p`
+    : (rel != null ? `${diff >= 0 ? '+' : ''}${(diff / Math.abs(f) * 100).toFixed(1)}%` : `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}`);
+  return { diff, big, isPct, diffLabel };
+}
+
 function buildCalendar(){
   // 서버측 캘린더 머지 (FRED release dates, 매일 09:00/22:00 갱신)
   try { mergeServerCalendar(); } catch(_) {}
@@ -9747,9 +9906,16 @@ function buildCalendar(){
     const calIdx = calEvents.indexOf(e);
     // 오늘 발표 이벤트 — 행 배경 약간 짙게 + 좌측 강조선
     const isToday = e.dt.startsWith(todayMD);
+    // 매크로 서프라이즈 — 예측을 크게 벗어난 발표는 행 전체를 호재(초록)/악재(빨강)로 강조 (4.3)
+    const surp = (e.beat === 1 || e.beat === -1) ? _calSurprise(e) : null;
+    const surpStyle = (surp && surp.big)
+      ? (e.beat === 1
+        ? 'background:rgba(38,166,154,0.10);border-left:3px solid #26a69a;border-bottom:1px solid #2a2e3d;cursor:pointer;'
+        : 'background:rgba(239,83,80,0.10);border-left:3px solid #ef5350;border-bottom:1px solid #2a2e3d;cursor:pointer;')
+      : null;
     const rowStyle = isToday
       ? 'background:rgba(41,98,255,0.10);border-left:3px solid #2962ff;border-bottom:1px solid #2a2e3d;cursor:pointer;'
-      : 'border-bottom:1px solid #1b1f2b;cursor:pointer;';
+      : (surpStyle || 'border-bottom:1px solid #1b1f2b;cursor:pointer;');
     const dtCell = isToday
       ? `<td style="padding:8px;font-weight:600;color:#b6c4ff;">${e.dt} <span style="font-size:9px;background:#2962ff;color:#fff;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:600;">오늘</span></td>`
       : `<td style="padding:8px;">${e.dt}</td>`;
@@ -9764,7 +9930,7 @@ function buildCalendar(){
       <td style="text-align:center;padding:8px;color:#f5a623;">${'★'.repeat(e.stars)}</td>
       <td style="text-align:right;padding:8px;color:#8d90a2;">${e.prev}</td>
       <td style="text-align:right;padding:8px;color:#b6c4ff;">${e.fore}</td>
-      <td style="text-align:right;padding:8px;" ${actStyle}>${e.act||'예정'}</td>
+      <td style="text-align:right;padding:8px;white-space:nowrap;" ${actStyle}>${e.act||'예정'}${(surp && surp.big) ? `<span title="매크로 서프라이즈 — 예측 대비 ${surp.diffLabel} (${e.beat===1?'호재':'악재'})" style="margin-left:4px;cursor:help;">⚡</span>` : ''}</td>
       ${bellCell}
     </tr>`;}).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:#434656;">해당 조건의 이벤트가 없습니다</td></tr>`;
 
@@ -9855,6 +10021,10 @@ function showCalendarEventDetail(idx) {
   actEl.textContent  = e.act || '미발표';
   actEl.className = e.beat === 1 ? 'up-txt' : e.beat === -1 ? 'down-txt' : '';
   actEl.style.fontSize = '16px'; actEl.style.fontWeight = '700'; actEl.style.fontFamily = "'Public Sans'";
+  // 매크로 서프라이즈 (4.3) — 예측 대비 격차를 툴팁으로 표기
+  const dSurp = (e.beat === 1 || e.beat === -1) ? _calSurprise(e) : null;
+  actEl.title = dSurp ? `예측 대비 ${dSurp.diffLabel}${dSurp.big ? ' — ⚡ 매크로 서프라이즈' : ''}` : '';
+  if(dSurp && dSurp.big) actEl.textContent += ' ⚡';
   panel.scrollIntoView({behavior:'smooth', block:'nearest'});
   _renderCalDetailChart();
 }
@@ -10011,6 +10181,37 @@ function restoreNotesFromBackup(slot) {
   } catch(e) {
     alert('복원 실패: 백업 데이터가 손상되었습니다.');
   }
+}
+
+// ── 📌 지표 스냅샷 박제 (3.4) ────────────────────────────────────────────────
+// 현재 대시보드의 핵심 지표 수치를 마크다운 표로 노트 본문(전체 요약)에 삽입한다.
+// 수동 타이핑 없이 '그 시점의 시장 상황'을 분석 노트에 기록으로 남기기 위한 기능.
+function insertIndicatorSnapshot() {
+  const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : null;
+  if(!d) { alert('시장 데이터가 아직 로드되지 않았습니다. 잠시 후 다시 시도하세요.'); return; }
+  const body = document.getElementById('noteBody');
+  if(!body) return;
+  const fmt = (v, dec) => v == null ? '-' : (+v).toLocaleString('ko-KR', { maximumFractionDigits: dec != null ? dec : 2 });
+  const chg = v => v == null ? '' : ` (${v >= 0 ? '+' : ''}${(+v).toFixed(2)}%)`;
+  const rows = [];
+  const idx = d.indices || {}, fx = d.fx || {}, com = d.commodities || {};
+  [['KOSPI','KOSPI'],['KOSDAQ','KOSDAQ'],['SP500','S&P 500'],['NASDAQ','NASDAQ']].forEach(([k, lab]) => {
+    if(idx[k] && idx[k].price != null) rows.push(`| ${lab} | ${fmt(idx[k].price)}${chg(idx[k].change)} |`);
+  });
+  if(fx.USDKRW && fx.USDKRW.rate != null) rows.push(`| USD/KRW | ${fmt(fx.USDKRW.rate, 1)}${chg(fx.USDKRW.change)} |`);
+  [['WTI','WTI 유가'],['Gold','금'],['Copper','구리']].forEach(([k, lab]) => {
+    if(com[k] && com[k].price != null) rows.push(`| ${lab} | ${fmt(com[k].price)}${chg(com[k].change)} |`);
+  });
+  const fg = d.sentiment && d.sentiment.fear_greed;
+  if(fg && fg.value != null) rows.push(`| CNN 공포·탐욕 | ${fg.value}${fg.rating ? ` (${fg.rating})` : ''} |`);
+  if(!rows.length) { alert('박제할 지표 수치가 없습니다.'); return; }
+  const ts = new Date().toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
+  const snap = `\n\n--- 📌 지표 스냅샷 (${ts}, 데이터 기준 ${d.lastUpdated || '-'}) ---\n| 지표 | 수치 |\n|---|---|\n${rows.join('\n')}\n---\n`;
+  // 커서 위치에 삽입 (포커스 없으면 맨 뒤에)
+  const pos = (document.activeElement === body && body.selectionStart != null) ? body.selectionStart : body.value.length;
+  body.value = body.value.slice(0, pos) + snap + body.value.slice(pos);
+  body.dispatchEvent(new Event('input'));
+  if(typeof showToast === 'function') showToast('현재 지표 수치가 노트에 박제되었습니다. 저장 버튼을 눌러 보관하세요.');
 }
 
 function exportNotesJsonFile() {
@@ -10468,6 +10669,63 @@ const GLOBAL_INVESTORS = {
     ],
   },
 };
+
+// ── 🌐 글로벌 연기금 자산배분 교차 비교 (4.4) ────────────────────────────────
+// 5대 기금(NPS·GPFG·GPIF·TSP·CalPERS)의 자산배분을 주식/채권/대체/기타 4개 버킷으로
+// 정규화해 100% 누적 가로 막대 하나로 비교한다. 데이터는 각 기금 공시 기반 정적 스냅샷.
+function _allocBucket(name) {
+  const n = String(name);
+  if(/주식|C Fund|S Fund|I Fund/.test(n)) return '주식';
+  if(/채권|인컴|G Fund|F Fund/.test(n)) return '채권';
+  if(/대체|부동산|사모|PE|재생|인프라/.test(n)) return '대체투자';
+  return '기타·혼합';
+}
+function buildGlobalAllocCompare() {
+  const cv = document.getElementById('globalAllocCompareChart');
+  if(!cv || typeof Chart === 'undefined') return;
+  const BUCKETS = ['주식', '채권', '대체투자', '기타·혼합'];
+  const COLORS = { '주식': '#26a69a', '채권': '#b6c4ff', '대체투자': '#f5a623', '기타·혼합': '#8d90a2' };
+  const funds = [
+    { label: '🇰🇷 NPS', rows: npsAllocation.map(a => ({ name: a.asset, pct: a.pct })) },
+    { label: '🇳🇴 GPFG', rows: GLOBAL_INVESTORS.gpfg.allocation },
+    { label: '🇯🇵 GPIF', rows: GLOBAL_INVESTORS.gpif.allocation },
+    { label: '🇺🇸 TSP', rows: GLOBAL_INVESTORS.frtib.allocation },
+    { label: '🇺🇸 CalPERS', rows: GLOBAL_INVESTORS.calpers.allocation },
+  ];
+  const byFund = funds.map(f => {
+    const agg = { '주식': 0, '채권': 0, '대체투자': 0, '기타·혼합': 0 };
+    f.rows.forEach(r => { agg[_allocBucket(r.name)] += (+r.pct || 0); });
+    const total = BUCKETS.reduce((s, b) => s + agg[b], 0) || 1;
+    BUCKETS.forEach(b => { agg[b] = agg[b] / total * 100; });   // 비중 합계 100% 정규화
+    return agg;
+  });
+  const tc = (typeof getThemeColors === 'function') ? getThemeColors() : { txt: '#8d90a2', grid: '#2a2e3d55' };
+  destroyChart('globalAllocCompareChart');
+  charts['globalAllocCompareChart'] = new Chart(cv, {
+    type: 'bar',
+    data: {
+      labels: funds.map(f => f.label),
+      datasets: BUCKETS.map(b => ({
+        label: b,
+        data: byFund.map(a => a[b]),
+        backgroundColor: COLORS[b] + 'cc',
+        borderColor: COLORS[b],
+        borderWidth: 1,
+      })),
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true, max: 100, ticks: { color: tc.txt, font: { size: 10 }, callback: v => v + '%' }, grid: { color: tc.grid } },
+        y: { stacked: true, ticks: { color: tc.txt, font: { size: 11 } }, grid: { display: false } },
+      },
+      plugins: {
+        legend: { labels: { color: tc.txt, boxWidth: 10, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.x.toFixed(1)}%` } },
+      },
+    },
+  });
+}
 
 let _currentInvestor = 'nps';
 function setInvestor(id, btn) {
@@ -15221,7 +15479,7 @@ async function pfRefreshQuotes(manual) {
     }
   }));
   pfSave();
-  if(el) el.textContent = '시세 ' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}) + ' 기준 (15분 지연)';
+  if(el) el.textContent = '시세 ' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}) + ' 기준';
   pfRenderAll();
 }
 
@@ -15342,14 +15600,31 @@ function pfAddItem() {
     document.getElementById('pfLookupResult').textContent = '이미 추가된 종목입니다.';
     return;
   }
-  const avg = parseFloat(document.getElementById('pfAddAvg').value);
-  const qty = parseFloat(document.getElementById('pfAddQty').value);
+  // 인라인 유효성 검사 (3.2) — 음수/문자 입력 시 해당 칸을 표시하고 추가 중단
+  const avgEl = document.getElementById('pfAddAvg'), qtyEl = document.getElementById('pfAddQty');
+  let invalid = false;
+  [avgEl, qtyEl].forEach(el => {
+    el.classList.remove('pf-input-err');
+    const raw = (el.value || '').trim();
+    if(raw !== '' && (!isFinite(parseFloat(raw)) || parseFloat(raw) < 0)) {
+      el.classList.add('pf-input-err'); invalid = true;
+    }
+  });
+  if(invalid) {
+    document.getElementById('pfLookupResult').textContent = '평단가/수량에는 0 이상의 숫자만 입력할 수 있습니다.';
+    return;
+  }
+  const avg = parseFloat(avgEl.value);
+  const qty = parseFloat(qtyEl.value);
   const grp = document.getElementById('pfAddGroup').value || pfState.groups[0].id;
+  const avgVal = (isFinite(avg) && avg > 0) ? avg : null;
   pfState.items.push(Object.assign({}, pfPendingAdd, {
     id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    avg: (isFinite(avg) && avg > 0) ? avg : null,
+    avg: avgVal,
     qty: (isFinite(qty) && qty > 0) ? qty : null,
     group: grp,
+    // 미국(USD) 종목은 추가 시점 환율을 매입환율로 캡처 (환차손익 분리 기준)
+    fxBuy: (pfPendingAdd.ccy === 'USD' && avgVal != null) ? (pfUsdKrw() || null) : null,
   }));
   pfPendingAdd = null;
   document.getElementById('pfSymbolInput').value = '';
@@ -15369,13 +15644,36 @@ function pfDeleteItem(id) {
   delete pfQuotes[id];
   pfSave(); pfRenderAll();
 }
-function pfUpdateItemField(id, field, value) {
+function pfUpdateItemField(id, field, value, inputEl) {
   const it = pfState.items.find(x => x.id === id);
   if(!it) return;
   if(field === 'group') { it.group = value; }
   else {
-    const v = parseFloat(value);
-    it[field] = (isFinite(v) && v > 0) ? v : null;
+    const raw = String(value == null ? '' : value).trim();
+    if(raw !== '') {
+      const v = parseFloat(raw.replace(/,/g, ''));
+      // 인라인 유효성 검사 (3.2) — 문자열/음수 등 비정상 입력은 저장하지 않고 즉시 표시해
+      // localStorage 데이터 꼬임을 방지한다.
+      if(!isFinite(v) || v < 0 || !/^[\d.,]+$/.test(raw.replace(/\s/g, ''))) {
+        if(inputEl) {
+          inputEl.classList.add('pf-input-err');
+          inputEl.title = '0 이상의 숫자만 입력할 수 있습니다.';
+          inputEl.value = it[field] != null ? it[field] : '';
+          setTimeout(() => { try { inputEl.classList.remove('pf-input-err'); inputEl.title = ''; } catch(_) {} }, 2500);
+        }
+        if(typeof showToast === 'function') showToast(`${field === 'avg' ? '평단가' : '수량'}에는 0 이상의 숫자만 입력할 수 있습니다. 변경이 저장되지 않았습니다.`, 4000);
+        return;
+      }
+      it[field] = v > 0 ? v : null;
+    } else {
+      it[field] = null;
+    }
+    if(inputEl) { inputEl.classList.remove('pf-input-err'); inputEl.title = ''; }
+    // 미국(USD) 종목 평단가 입력 시 현재 환율을 '매입환율'로 캡처 — 환차손익/주가손익 분리 기준
+    if(field === 'avg') {
+      const usd = it.market === 'US' || (pfQuotes[it.id] && pfQuotes[it.id].ccy === 'USD');
+      if(usd) it.fxBuy = (it.avg != null) ? (it.fxBuy || pfUsdKrw() || null) : null;
+    }
   }
   pfSave(); pfRenderSummary(); pfRenderPie();
   if(field === 'group') pfRenderTable();
@@ -15485,8 +15783,14 @@ function pfRenderTable() {
       const pnlPct = (q.price / it.avg - 1) * 100;
       const pnlKrw = (q.ccy === 'USD') ? (fx ? pnlNative * fx : null) : pnlNative;
       const cls = pnlNative >= 0 ? 'up-txt' : 'down-txt';
-      pnlHtml = `<span class="${cls}">${pnlKrw != null ? (pnlNative >= 0 ? '+' : '') + pfFmtKrw(pnlKrw).replace('₩', '₩') : '-'}<br>` +
-                `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>`;
+      // 미국 종목 — 주가손익/환차손익 분리 (3.2). 매입환율(fxBuy)이 기록된 경우에만 가능.
+      let splitTitle = '';
+      if(q.ccy === 'USD' && fx && it.fxBuy) {
+        const fxPnl = it.avg * it.qty * (fx - it.fxBuy);
+        splitTitle = ` title="주가손익 ${pfFmtKrw(pnlNative * fx)} · 환차손익 ${pfFmtKrw(fxPnl)} (매입환율 ${it.fxBuy.toFixed(1)} → 현재 ${fx.toFixed(1)})"`;
+      }
+      pnlHtml = `<span class="${cls}"${splitTitle}>${pnlKrw != null ? (pnlNative >= 0 ? '+' : '') + pfFmtKrw(pnlKrw).replace('₩', '₩') : '-'}<br>` +
+                `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%${splitTitle ? ' <span style="font-size:9px;color:#8d90a2;">⇄FX</span>' : ''}</span>`;
     }
     const groupSel = `<select onchange="pfUpdateItemField('${it.id}','group',this.value)" onclick="event.stopPropagation()" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#a4a8bc;padding:2px 4px;font-size:11px;max-width:90px;">` +
       pfState.groups.map(g => `<option value="${g.id}"${g.id === it.group ? ' selected' : ''}>${pfEsc(g.name)}</option>`).join('') + '</select>';
@@ -15497,8 +15801,8 @@ function pfRenderTable() {
       </td>
       <td style="padding:7px 4px;font-family:'Public Sans';color:#dfe2f2;">${q ? pfFmtPrice(q.price, q.ccy) : '<span style="color:#7a8099;">로딩…</span>'}</td>
       <td style="padding:7px 4px;">${q ? pfChgHtml(q.pct) : '-'}</td>
-      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.avg != null ? it.avg : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','avg',this.value)" style="width:90px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:3px 5px;font-size:11px;text-align:right;"></td>
-      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.qty != null ? it.qty : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','qty',this.value)" style="width:70px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:3px 5px;font-size:11px;text-align:right;"></td>
+      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.avg != null ? it.avg : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','avg',this.value,this)" style="width:90px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:3px 5px;font-size:11px;text-align:right;"></td>
+      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.qty != null ? it.qty : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','qty',this.value,this)" style="width:70px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:3px 5px;font-size:11px;text-align:right;"></td>
       <td style="padding:7px 4px;font-family:'Public Sans';color:#dfe2f2;">${evalNative != null ? pfFmtPrice(evalNative, q.ccy) : '-'}${(evalKrw != null && q && q.ccy === 'USD') ? `<br><span style="font-size:10px;color:#8d90a2;">${pfFmtKrw(evalKrw)}</span>` : ''}</td>
       <td style="padding:7px 4px;font-size:11px;">${pnlHtml}</td>
       <td style="padding:7px 4px;text-align:center;">${groupSel}</td>
@@ -15515,12 +15819,19 @@ function pfRenderSummary() {
   const items = pfVisibleItems().filter(it => it.qty && pfQuotes[it.id]);
   const fx = pfUsdKrw();
   let evalKrw = 0, costKrw = 0, missingFx = false, counted = 0;
+  let fxPnlKrw = 0, hasFxSplit = false;   // 환차손익 분리 (3.2) — 매입환율 기록된 USD 종목
   items.forEach(it => {
     const q = pfQuotes[it.id];
     const mul = (q.ccy === 'USD') ? fx : 1;
     if(q.ccy === 'USD' && !fx) { missingFx = true; return; }
     evalKrw += q.price * it.qty * mul;
-    if(it.avg) costKrw += it.avg * it.qty * mul;
+    if(it.avg) {
+      // 매입환율(fxBuy)이 있으면 매입 원가를 매입 시점 환율로 환산 → 평가손익에 환차가 포함되고,
+      // 그 환차분(fxPnl)을 분리 표기한다. 없으면(과거 데이터) 현재 환율 폴백.
+      const costMul = (q.ccy === 'USD') ? (it.fxBuy || fx) : 1;
+      costKrw += it.avg * it.qty * costMul;
+      if(q.ccy === 'USD' && it.fxBuy) { fxPnlKrw += it.avg * it.qty * (fx - it.fxBuy); hasFxSplit = true; }
+    }
     counted++;
   });
   const set = (id, txt, cls) => {
@@ -15545,7 +15856,9 @@ function pfRenderSummary() {
     const elQ = document.getElementById('pfKpiPct');
     if(elQ) { elQ.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'; elQ.classList.remove('up-txt','down-txt'); elQ.classList.add(cls); }
     const subP = document.getElementById('pfKpiPnlSub');
-    if(subP) subP.textContent = '평단가 입력 종목 기준';
+    if(subP) subP.textContent = hasFxSplit
+      ? `주가 ${pfFmtKrw(pnl - fxPnlKrw)} · 환차 ${pfFmtKrw(fxPnlKrw)}`
+      : '평단가 입력 종목 기준';
   } else {
     set('pfKpiPnl', '-'); set('pfKpiPct', '-');
   }
@@ -15604,7 +15917,90 @@ function pfRenderPie() {
     },
   });
 }
-function pfRenderAll() { pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie(); pfRenderAlertSummary(); }
+// ── 📈 수익률 추이 vs 벤치마크 (3.2) ────────────────────────────────────────
+// 방문일마다 (평가금액, 매입금액) 스냅샷을 localStorage 에 적립하고, 누적 수익률 추이를
+// KOSPI·S&P500(data.json history) 등락률과 같은 차트에 겹쳐 시장 대비 초과수익을 보여준다.
+const PF_SNAP_KEY = 'pfSnapshotsV1';
+function _pfLoadSnaps() {
+  try { const a = JSON.parse(localStorage.getItem(PF_SNAP_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(_) { return []; }
+}
+function pfRecordSnapshot() {
+  if(!pfState || !pfState.items.length) return;
+  const fx = pfUsdKrw();
+  let ev = 0, ct = 0;
+  pfState.items.forEach(it => {
+    const q = pfQuotes[it.id];
+    if(!q || !it.qty || !it.avg) return;
+    if(q.ccy === 'USD' && !fx) return;
+    const mul = q.ccy === 'USD' ? fx : 1;
+    ev += q.price * it.qty * mul;
+    ct += it.avg * it.qty * (q.ccy === 'USD' ? (it.fxBuy || fx) : 1);
+  });
+  if(!(ev > 0) || !(ct > 0)) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const snaps = _pfLoadSnaps().filter(s => s && s.d && s.d !== today);
+  snaps.push({ d: today, ev: Math.round(ev), ct: Math.round(ct) });
+  snaps.sort((a, b) => a.d < b.d ? -1 : 1);
+  try { localStorage.setItem(PF_SNAP_KEY, JSON.stringify(snaps.slice(-730))); } catch(_) {}
+}
+// 벤치마크 지수 — 각 스냅샷 날짜의 (직전) 종가를 첫 스냅샷일 대비 등락률(%)로 환산
+function _pfBenchSeries(symbol, dates) {
+  const d = (typeof _latestDataForIndicators !== 'undefined') ? _latestDataForIndicators : null;
+  const arr = ((((d || {}).history || {}).indices || {})[symbol]) || [];
+  const pts = arr.filter(p => p && p.date && p.close != null)
+                 .map(p => ({ d: p.date, v: +p.close }))
+                 .sort((a, b) => a.d < b.d ? -1 : 1);
+  if(!pts.length) return null;
+  const vals = dates.map(dt => { let last = null; for(const p of pts) { if(p.d <= dt) last = p.v; else break; } return last; });
+  const base = vals.find(v => v != null);
+  if(base == null) return null;
+  return vals.map(v => v != null ? (v / base - 1) * 100 : null);
+}
+function pfRenderBench() {
+  const wrap = document.getElementById('pfBenchWrap');
+  const empty = document.getElementById('pfBenchEmpty');
+  const note = document.getElementById('pfBenchNote');
+  if(!wrap || !empty) return;
+  const snaps = _pfLoadSnaps();
+  if(snaps.length < 2) {
+    wrap.style.display = 'none'; empty.style.display = 'block';
+    if(note) note.style.display = 'none';
+    if(snaps.length === 1) empty.innerHTML = `첫 스냅샷(${snaps[0].d})이 기록되었습니다.<br>내일 다시 방문하면 KOSPI·S&amp;P 500 과의 비교 차트가 표시됩니다.`;
+    return;
+  }
+  wrap.style.display = 'block'; empty.style.display = 'none';
+  if(note) note.style.display = 'block';
+  const dates = snaps.map(s => s.d);
+  const base = snaps[0].ev / snaps[0].ct;
+  const mine = snaps.map(s => ((s.ev / s.ct) / base - 1) * 100);   // 첫 기록일=0% 로 재기준
+  const kospi = _pfBenchSeries('KOSPI', dates);
+  const sp = _pfBenchSeries('SP500', dates);
+  const tc = (typeof getThemeColors === 'function') ? getThemeColors() : { txt: '#8d90a2', grid: '#2a2e3d55' };
+  const ds = [{ label: '내 포트폴리오', data: mine, borderColor: '#26a69a', backgroundColor: '#26a69a22',
+                borderWidth: 2.5, pointRadius: snaps.length > 30 ? 0 : 2, tension: .2, spanGaps: true }];
+  if(kospi) ds.push({ label: 'KOSPI', data: kospi, borderColor: '#2962ff', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: .2, spanGaps: true });
+  if(sp) ds.push({ label: 'S&P 500', data: sp, borderColor: '#f5a623', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: .2, spanGaps: true });
+  if(charts['pfBenchChart']) { try { charts['pfBenchChart'].destroy(); } catch(_) {} }
+  const cv = document.getElementById('pfBenchChart');
+  if(!cv || typeof Chart === 'undefined') return;
+  charts['pfBenchChart'] = new Chart(cv, {
+    type: 'line',
+    data: { labels: dates, datasets: ds },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: tc.txt, usePointStyle: true, pointStyle: 'line', font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y == null ? '-' : (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(2) + '%'}` } },
+      },
+      scales: {
+        x: { ticks: { color: tc.txt, maxTicksLimit: 8, font: { size: 10 } }, grid: { color: tc.grid } },
+        y: { ticks: { color: tc.txt, font: { size: 10 }, callback: v => (v >= 0 ? '+' : '') + v + '%' }, grid: { color: tc.grid } },
+      },
+    },
+  });
+}
+
+function pfRenderAll() { pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie(); pfRenderAlertSummary(); try { pfRecordSnapshot(); pfRenderBench(); } catch(_) {} }
 
 // ── 상세 차트 (TradingView Lightweight Charts) ───────────────────────────────
 let pfChart = { item: null, period: '1Y', main: null, rsi: null, macd: null, syncing: false, candles: null };
@@ -15985,11 +16381,38 @@ function pfMarkDirty() {
 }
 
 // ── 서버 동기화 (Cloudflare Worker → 저장소 alerts_config.json) ───────────────
-function pfSetSyncKey() {
-  const cur = localStorage.getItem('pfSyncKey') || '';
-  const k = prompt('동기화 키 (Worker 시크릿 ALERTS_SYNC_KEY 와 동일하게 — 미설정 시 비워두기):', cur);
+// 보안 (1.2): 동기화 키는 평문 저장/전송하지 않는다. 입력 즉시 SHA-256 해시로 변환해
+// 해시만 localStorage 에 보관·전송하고, Worker 는 자기 시크릿의 해시와 비교 검증한다.
+// → localStorage 가 유출돼도 원본 키는 복원 불가, 네트워크 캡처에도 평문 키가 남지 않는다.
+async function pfSha256Hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+// 저장된 해시 반환 — 구버전 평문 키(pfSyncKey)가 남아 있으면 해시로 1회 마이그레이션
+async function pfGetSyncKeyHash() {
+  let h = '';
+  try { h = localStorage.getItem('pfSyncKeyHash') || ''; } catch(_) {}
+  if(h) return h;
+  let legacy = '';
+  try { legacy = localStorage.getItem('pfSyncKey') || ''; } catch(_) {}
+  if(!legacy) return '';
+  try {
+    h = await pfSha256Hex(legacy);
+    localStorage.setItem('pfSyncKeyHash', h);
+    localStorage.removeItem('pfSyncKey');
+  } catch(_) { return ''; }
+  return h;
+}
+async function pfSetSyncKey() {
+  const has = !!(localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey'));
+  const k = prompt(`동기화 키 (Worker 시크릿 ALERTS_SYNC_KEY 와 동일하게 — 미설정 시 비워두기)${has ? '\n※ 현재 키가 저장되어 있습니다 (보안을 위해 해시로만 보관되어 표시 불가)' : ''}:`, '');
   if(k === null) return;
-  try { localStorage.setItem('pfSyncKey', k.trim()); } catch(_) {}
+  try {
+    localStorage.removeItem('pfSyncKey');   // 평문 잔존 제거
+    if(!k.trim()) { localStorage.removeItem('pfSyncKeyHash'); return; }
+    localStorage.setItem('pfSyncKeyHash', await pfSha256Hex(k.trim()));
+    if(typeof showToast === 'function') showToast('동기화 키가 SHA-256 해시로 안전하게 저장되었습니다.');
+  } catch(_) {}
 }
 async function pfSyncAlerts() {
   const st = document.getElementById('pfSyncStatus');
@@ -16000,7 +16423,7 @@ async function pfSyncAlerts() {
     const r = await fetch(base + '/portfolio', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ key: localStorage.getItem('pfSyncKey') || '', alerts: pfState.alerts }),
+      body: JSON.stringify({ keyHash: await pfGetSyncKeyHash(), alerts: pfState.alerts }),
       signal: AbortSignal.timeout(20000),
     });
     const j = await r.json().catch(() => ({}));
@@ -16181,7 +16604,7 @@ function checkCalendarAlerts(d) {
 // ── 🔀 이중축 지표 비교 차트 ───────────────────────────────────────────────
 const CMP_LS_KEY = 'econ_cmp_sel_v1';
 const CMP_COLOR_A = '#2962ff', CMP_COLOR_B = '#f5a623';
-let _cmpState = { a: 'idx.KOSPI', b: 'ei.us.ff_rate', period: '1Y' };
+let _cmpState = { a: 'idx.KOSPI', b: 'ei.us.ff_rate', period: '1Y', norm: false };
 let _cmpInited = false, _cmpLastTs = null;
 
 const _CMP_LABELS = {
@@ -16268,6 +16691,7 @@ function initCompareTool() {
       b.style.background = act ? '#2962ff' : 'transparent';
       b.style.color = act ? '#fff' : '#8d90a2';
     });
+    _cmpSyncNormBtn();
   }
   _cmpFillSelect(selA, catalog, _cmpState.a);
   _cmpFillSelect(document.getElementById('cmpSelB'), catalog, _cmpState.b);
@@ -16303,6 +16727,23 @@ function cmpSetPeriod(p, btn) {
   cmpRender();
 }
 
+// 지수화 토글 (UX 4.1) — 두 지표의 시작점을 100으로 환산해 단일 축으로 등락률만 비교.
+// 이중축은 시작 스케일 차이로 기울기 착시가 생기기 쉬워, 순수 변화율 비교 모드를 제공한다.
+function _cmpSyncNormBtn() {
+  const btn = document.getElementById('cmpNormBtn');
+  if(!btn) return;
+  const on = !!_cmpState.norm;
+  btn.style.background = on ? '#26a69a' : 'transparent';
+  btn.style.borderColor = on ? '#26a69a' : '#2a2e3d';
+  btn.style.color = on ? '#fff' : '#8d90a2';
+}
+function cmpToggleNorm() {
+  _cmpState.norm = !_cmpState.norm;
+  try { localStorage.setItem(CMP_LS_KEY, JSON.stringify(_cmpState)); } catch(_) {}
+  _cmpSyncNormBtn();
+  cmpRender();
+}
+
 function _cmpCutoff(period) {
   if(period === 'ALL') return null;
   const months = { '3M': 3, '6M': 6, '1Y': 12, '3Y': 36 }[period] || 12;
@@ -16322,16 +16763,25 @@ function cmpRender() {
   const mapB = Object.fromEntries(B.map(p => [p.d, p.v]));
   const labA = _cmpLabelOf(_cmpState.a), labB = _cmpLabelOf(_cmpState.b);
   const tc = (typeof getThemeColors === 'function') ? getThemeColors() : { txt: '#8d90a2', grid: '#2a2e3d55' };
+  // 지수화 모드 — 표시 구간 내 첫 유효값을 100으로 환산 (단일 축, 순수 변화율 비교)
+  const norm = !!_cmpState.norm;
+  const rebase = map => {
+    const base = labels.map(d => map[d]).find(v => v != null && isFinite(v) && v !== 0);
+    if(base == null) return labels.map(() => null);
+    return labels.map(d => map[d] != null ? map[d] / base * 100 : null);
+  };
+  const dataA = norm ? rebase(mapA) : labels.map(d => mapA[d] ?? null);
+  const dataB = norm ? rebase(mapB) : labels.map(d => mapB[d] ?? null);
   if(charts['compareChart']) { try { charts['compareChart'].destroy(); } catch(_) {} }
   charts['compareChart'] = new Chart(canvas, {
     type: 'line',
     data: {
       labels,
       datasets: [
-        { label: labA, data: labels.map(d => mapA[d] ?? null), yAxisID: 'yA',
+        { label: labA, data: dataA, yAxisID: 'yA',
           borderColor: CMP_COLOR_A, backgroundColor: CMP_COLOR_A + '22',
           borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: .15, spanGaps: true },
-        { label: labB, data: labels.map(d => mapB[d] ?? null), yAxisID: 'yB',
+        { label: labB, data: dataB, yAxisID: norm ? 'yA' : 'yB',
           borderColor: CMP_COLOR_B, backgroundColor: CMP_COLOR_B + '22',
           borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: .15, spanGaps: true },
       ],
@@ -16340,8 +16790,13 @@ function cmpRender() {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: true, labels: { color: tc.txt, usePointStyle: true, pointStyle: 'line', font: { size: 11 } } },
+        ...(norm ? { tooltip: { callbacks: { label: c =>
+          `${c.dataset.label}: ${c.parsed.y == null ? '-' : c.parsed.y.toFixed(2)} (시작=100, ${(c.parsed.y - 100) >= 0 ? '+' : ''}${(c.parsed.y - 100).toFixed(2)}%)` } } } : {}),
       },
-      scales: {
+      scales: norm ? {
+        x: { ticks: { color: tc.txt, maxTicksLimit: 10, font: { size: 10 } }, grid: { color: tc.grid } },
+        yA: { position: 'left', ticks: { color: tc.txt, font: { size: 10 } }, grid: { color: tc.grid } },
+      } : {
         x: { ticks: { color: tc.txt, maxTicksLimit: 10, font: { size: 10 } }, grid: { color: tc.grid } },
         // _fixedTickColor — 테마 전환(rebuildChartsForTheme) 시에도 데이터셋과 같은 색 유지
         yA: { position: 'left',  ticks: { color: CMP_COLOR_A, font: { size: 10 } }, grid: { color: tc.grid }, _fixedTickColor: CMP_COLOR_A },
@@ -16352,15 +16807,62 @@ function cmpRender() {
   const last = s => s.length ? s[s.length - 1] : null;
   const la = last(A), lb = last(B), fmt = v => (+v).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
   const info = document.getElementById('cmpInfo');
-  if(info) info.innerHTML = (la && lb)
-    ? `<span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${fmt(la.v)} (${la.d}) &nbsp;·&nbsp; <span style="color:${CMP_COLOR_B};">● ${escapeHtml(labB)}</span> ${fmt(lb.v)} (${lb.d})`
-    : '선택한 지표의 시계열 데이터가 아직 없습니다.';
+  if(info) {
+    if(!(la && lb)) info.textContent = '선택한 지표의 시계열 데이터가 아직 없습니다.';
+    else if(norm) {
+      const lastIdx = arr => { for(let i = arr.length - 1; i >= 0; i--) if(arr[i] != null) return arr[i]; return null; };
+      const na = lastIdx(dataA), nb = lastIdx(dataB);
+      const chg = v => v == null ? '-' : `${(v - 100) >= 0 ? '+' : ''}${(v - 100).toFixed(2)}%`;
+      info.innerHTML = `⚖ 지수화 모드 (구간 시작=100) — <span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${chg(na)} &nbsp;·&nbsp; <span style="color:${CMP_COLOR_B};">● ${escapeHtml(labB)}</span> ${chg(nb)}`;
+    } else {
+      info.innerHTML = `<span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${fmt(la.v)} (${la.d}) &nbsp;·&nbsp; <span style="color:${CMP_COLOR_B};">● ${escapeHtml(labB)}</span> ${fmt(lb.v)} (${lb.d})`;
+    }
+  }
 }
 
-// ── ↕ 대시보드 홈 위젯 드래그 정렬 ─────────────────────────────────────────
+// ── ↕ 대시보드 홈 위젯 드래그 정렬 + 표시/숨김 (UX 2.1) ─────────────────────
 const DND_KPI_LS_KEY = 'econ_home_kpi_order_v1';
 const DND_SEC_LS_KEY = 'econ_home_sec_order_v1';
+const SEC_HIDDEN_LS_KEY = 'econ_home_hidden_v1';
+const SEC_NAMES = { kpi: '핵심 지표 KPI', main: '메인 차트', compare: '지표 비교 차트', bottom: '등락 Top10 · 뉴스' };
 let _dndEl = null, _dndType = null;
+
+function _getHiddenSecs() {
+  try { const a = JSON.parse(localStorage.getItem(SEC_HIDDEN_LS_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(_) { return []; }
+}
+function _setHiddenSecs(arr) { try { localStorage.setItem(SEC_HIDDEN_LS_KEY, JSON.stringify(arr)); } catch(_) {} }
+
+function hideHomeSec(key) {
+  const el = document.querySelector(`#page-dashboard .home-sec[data-sec="${key}"]`);
+  if(el) el.style.display = 'none';
+  const hidden = _getHiddenSecs();
+  if(!hidden.includes(key)) { hidden.push(key); _setHiddenSecs(hidden); }
+  renderHiddenSecBar();
+}
+function restoreHomeSec(key) {
+  const el = document.querySelector(`#page-dashboard .home-sec[data-sec="${key}"]`);
+  if(el) el.style.display = '';
+  _setHiddenSecs(_getHiddenSecs().filter(k => k !== key));
+  renderHiddenSecBar();
+  // 다시 보이게 된 캔버스 차트가 0px 로 그려져 있을 수 있어 리사이즈 트리거
+  try { window.dispatchEvent(new Event('resize')); } catch(_) {}
+}
+// 숨긴 위젯 복원 바 — 숨긴 섹션이 있을 때만 대시보드 상단에 표시
+function renderHiddenSecBar() {
+  const page = document.getElementById('page-dashboard');
+  if(!page) return;
+  let bar = document.getElementById('hiddenSecBar');
+  const hidden = _getHiddenSecs();
+  if(!hidden.length) { if(bar) bar.remove(); return; }
+  if(!bar) {
+    bar = document.createElement('div');
+    bar.id = 'hiddenSecBar';
+    bar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--c-txt-dim,#8d90a2);margin-bottom:10px;';
+    page.insertBefore(bar, page.firstChild);
+  }
+  bar.innerHTML = '<span>숨긴 위젯:</span>' + hidden.map(k =>
+    `<button onclick="restoreHomeSec('${k}')" title="위젯 다시 표시" style="font-size:11px;padding:2px 10px;border:1px dashed #3e4870;border-radius:999px;background:transparent;color:#b6c4ff;cursor:pointer;">👁 ${SEC_NAMES[k] || k}</button>`).join('');
+}
 
 function applyHomeLayout() {
   try {
@@ -16383,6 +16885,14 @@ function applyHomeLayout() {
       });
     }
   } catch(_) {}
+  // 숨긴 섹션 적용 (2.1)
+  try {
+    _getHiddenSecs().forEach(k => {
+      const el = document.querySelector(`#page-dashboard .home-sec[data-sec="${k}"]`);
+      if(el) el.style.display = 'none';
+    });
+    renderHiddenSecBar();
+  } catch(_) {}
 }
 
 function _dndSaveOrders() {
@@ -16404,6 +16914,13 @@ function initHomeDnd() {
     h.addEventListener('mousedown', () => { sec.draggable = true; });
     h.addEventListener('mouseup',   () => { sec.draggable = false; });
     sec.appendChild(h);
+    // 위젯 숨김 토글 (2.1) — 안 보는 섹션은 숨겨 정보 밀도를 낮춘다 (상단 복원 바로 되돌리기)
+    const hide = document.createElement('button');
+    hide.className = 'sec-hide-btn';
+    hide.title = `'${SEC_NAMES[sec.dataset.sec] || '이 위젯'}' 숨기기 (상단 복원 바에서 다시 표시)`;
+    hide.textContent = '✕';
+    hide.addEventListener('click', ev => { ev.stopPropagation(); hideHomeSec(sec.dataset.sec); });
+    sec.appendChild(hide);
     sec.addEventListener('dragstart', ev => {
       if(!sec.draggable) { ev.preventDefault(); return; }
       _dndEl = sec; _dndType = 'sec';
@@ -16447,9 +16964,22 @@ function initHomeDnd() {
   });
 }
 
+// ── ● 지연 데이터 글로벌 상태 칩 (UX 2.4) ──────────────────────────────────
+// 카드마다 흩어져 있던 '15분 지연' 경고문을 좌하단 단일 상시 표시 칩으로 일원화.
+// (PRD 의 '지연 안내 상시 노출' 요건을 전 페이지 공통으로 충족)
+function initGlobalDelayChip() {
+  if(document.getElementById('globalDelayChip')) return;
+  const chip = document.createElement('div');
+  chip.id = 'globalDelayChip';
+  chip.title = '본 정보는 최대 15분 지연된 데이터 기준입니다.\n무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다.';
+  chip.innerHTML = '<span class="dot"></span>Market Data 15m Delayed';
+  document.body.appendChild(chip);
+}
+
 window.addEventListener('load', () => {
   try { applyHomeLayout(); } catch(_) {}
   try { initHomeDnd(); } catch(_) {}
+  try { initGlobalDelayChip(); } catch(_) {}
   // data.json 이 이미 적용된 경우(applyRealData 가 먼저 돈 경우) 비교 차트 즉시 초기화
   try { initCompareTool(); } catch(_) {}
 });
