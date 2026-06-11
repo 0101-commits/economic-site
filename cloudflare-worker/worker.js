@@ -269,7 +269,7 @@ async function _testGemini(key) {
 // ──────────────────────────────────────────────────────────────────
 // ⏰ Cron Trigger 핸들러 — 카카오 시황 자동 발송 (정시성 보강)
 // ──────────────────────────────────────────────────────────────────
-// wrangler.jsonc 의 triggers.crons(각 슬롯 :02 UTC = KST 07/09/10/12/15/17/20/22시 :03 발송)에 따라 호출된다.
+// wrangler.jsonc 의 triggers.crons(각 슬롯 :02 UTC = KST 07~17시 매시간·20·22시 :03 발송)에 따라 호출된다.
 // GitHub Actions 의 schedule 은 best-effort 라 며칠씩 누락되지만, Cloudflare cron 은 정시성이 좋고
 // on-demand 로 GitHub 워크플로를 깨우면 그 실행은 스케줄 드롭 영향을 받지 않아 즉시 돈다.
 // 여기서는 직접 카카오로 보내지 않고(차트 이미지는 matplotlib=Python 이라 GitHub Actions 가 생성),

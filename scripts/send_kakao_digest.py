@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""매일 07/09/10/12/15/17/20/22시(KST, :03) data.json 시황을 카카오톡 '나에게 보내기'로 발송한다.
+"""매일 07~17시 매시간 + 20·22시(KST, :03) data.json 시황을 카카오톡 '나에게 보내기'로 발송한다.
 
 필요한 GitHub Secrets:
   KAKAO_REST_API_KEY   — 카카오 개발자 앱의 REST API 키
@@ -17,8 +17,8 @@
    분리, 상하이 운임지수 포함.)
 
 슬롯별 차트(모두 이미지·당일 기준, 당일이 없으면 7일 폴백):
-  07·09시          → S&P500 + 달러-원
-  10·12·15·17시    → 코스피 + 달러-원
+  07~09시          → S&P500 + 달러-원
+  10~17시          → 코스피 + 달러-원
   20·22시          → 달러-원 + WTI
 
 신뢰성 원칙 — '형식이 다른 메시지'가 다시는 나가지 않도록:
@@ -44,8 +44,9 @@ KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
 
-# ── 발송 슬롯 — 매일 8회(KST). 워크플로 게이트·차트 구성·제목 표기가 모두 이 목록 기준 ──
-SLOT_HOURS = [7, 9, 10, 12, 15, 17, 20, 22]
+# ── 발송 슬롯 — 매일 13회(KST): 07~17시 매시간 + 20·22시. 워크플로 게이트·차트 구성·제목 표기가
+#    모두 이 목록 기준. (2026-06 사용자 요청: 07~16시 매시간으로 확대, 저녁 17·20·22시는 유지) ──
+SLOT_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 22]
 SLOT_HOUR = {f"h{h:02d}": f"{h}시" for h in SLOT_HOURS}
 
 # 슬롯별 차트 구성 — (history 카테고리, 키, 라벨) 2개를 1장(위·아래)으로 합쳐 보낸다.
@@ -57,8 +58,9 @@ _CHART_KR = ([("indices", "KOSPI", "KOSPI"), ("fx", "USDKRW", "USD/KRW")],
 _CHART_EVE = ([("fx", "USDKRW", "USD/KRW"), ("commodities", "WTI", "WTI Crude")],
               "USD-KRW / WTI")
 SLOT_CHARTS = {
-    "h07": _CHART_US, "h09": _CHART_US,
-    "h10": _CHART_KR, "h12": _CHART_KR, "h15": _CHART_KR, "h17": _CHART_KR,
+    "h07": _CHART_US, "h08": _CHART_US, "h09": _CHART_US,
+    "h10": _CHART_KR, "h11": _CHART_KR, "h12": _CHART_KR, "h13": _CHART_KR,
+    "h14": _CHART_KR, "h15": _CHART_KR, "h16": _CHART_KR, "h17": _CHART_KR,
     "h20": _CHART_EVE, "h22": _CHART_EVE,
 }
 _CHART_COLOR = {"KOSPI": "#2962ff", "SP500": "#1e88e5", "USDKRW": "#26a69a", "WTI": "#ef6c00"}
