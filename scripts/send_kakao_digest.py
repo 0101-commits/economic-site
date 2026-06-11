@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""매일 07~17시 매시간 + 20·22시(KST, :03) data.json 시황을 카카오톡 '나에게 보내기'로 발송한다.
+"""매일 07~17시 매시간 + 20·22시(KST, :03) data.json 시황을 카카오톡으로 발송한다.
+
+수신 모드(자동 판별):
+  * 친구에게 보내기(우선) — 앱과 연결·동의된 카카오톡 친구가 있으면 그 친구들에게 발송.
+    일반 메시지처럼 '푸시 알림'이 울린다. (2026-06 사용자 요청: 나에게 보내기는 내가 보낸
+    메시지라 알림이 없음 → 보조 계정을 발신자로 두고 본 계정을 친구로 수신.)
+    검수 전 앱은 '팀 멤버'로 등록된 친구만 조회된다. 설정 절차는 KAKAO_SETUP.md ⑤ 참고.
+    쿼터: 발신자당 일 100건·발신자→수신자 쌍당 일 20건 — 하루 13회 발송 기준 친구 7명까지 안전.
+  * 나에게 보내기(폴백) — 친구가 없거나 friends 동의가 없으면 종전대로 '나와의 채팅'으로.
 
 필요한 GitHub Secrets:
   KAKAO_REST_API_KEY   — 카카오 개발자 앱의 REST API 키
-  KAKAO_REFRESH_TOKEN  — talk_message 동의로 발급한 refresh_token
+  KAKAO_REFRESH_TOKEN  — talk_message(+friends) 동의로 발급한 refresh_token
+                         (친구에게 보내기를 쓰려면 '발신용 보조 계정'의 토큰)
 
 발송 형식은 '단 한 가지(통일)' — 피드 한 통:
   슬롯별 차트 이미지(당일 인트라데이, 없으면 7일 일봉 폴백)
@@ -102,6 +111,19 @@ def _http_post(url, form, headers=None):
 
 def _http_post_retry(url, form, headers=None, what="HTTP POST"):
     return _retry(lambda: _http_post(url, form, headers), what)
+
+
+def _http_get(url, headers=None):
+    """GET → (status, json). 4xx/5xx 응답은 그대로 반환하고, 전송 오류(DNS 등)만 예외."""
+    req = urllib.request.Request(url, headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status, json.loads(r.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode("utf-8") or "{}")
+        except Exception:
+            return e.code, {}
 
 
 def refresh_access_token(rest_key, refresh_token):
@@ -241,13 +263,52 @@ def build_text_message(title, blocks, limit=TEXT_LIMIT):
     return _pack(title, [f"〔{lab}〕{val}" for lab, val in blocks], limit)
 
 
-def _send_template_object(access_token, template):
-    return _http_post_retry(
-        "https://kapi.kakao.com/v2/api/talk/memo/default/send",
-        {"template_object": json.dumps(template, ensure_ascii=False)},
-        headers={"Authorization": f"Bearer {access_token}"},
-        what="메시지 발송",
-    )
+def _friends_enabled():
+    """'친구에게 보내기' on/off — 기본 on(친구가 조회되면 자동 사용). 끄려면 워크플로 변수 KAKAO_FRIENDS=0."""
+    return os.environ.get("KAKAO_FRIENDS", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def get_friends(access_token):
+    """'친구에게 보내기' 수신자 목록 — 앱과 연결되고 친구 목록 제공(friends)에 동의한 카카오톡 친구.
+
+    검수 전 앱은 '팀 멤버'로 등록된 친구만 조회된다(설정 절차: KAKAO_SETUP.md ⑤).
+    friends 동의가 없으면(HTTP 403) 빈 목록 — 이때는 종전 '나에게 보내기'로 발송하므로,
+    보조 계정·동의 설정을 마치기 전에도 기존 동작이 그대로 유지된다."""
+    try:
+        status, j = _retry(lambda: _http_get(
+            "https://kapi.kakao.com/v1/api/talk/friends?limit=100",
+            {"Authorization": f"Bearer {access_token}"}), "친구 목록 조회")
+    except Exception as e:
+        print(f"[kakao] 친구 목록 조회 실패({e}) — 나에게 보내기로 발송")
+        return []
+    if status != 200:
+        print(f"[kakao] 친구 목록 조회 불가 HTTP {status}({j.get('msg', j)}) — 나에게 보내기로 발송")
+        return []
+    return [el for el in (j.get("elements") or []) if isinstance(el, dict) and el.get("uuid")]
+
+
+def _send_template_object(access_token, template, uuids=None):
+    """template_object 발송 — uuids 가 있으면 '친구에게 보내기', 없으면 '나에게 보내기'(메모).
+
+    친구에게는 한 호출당 최대 5명(카카오 한도)이라 5명씩 나눠 보낸다. HTTP 200 이면 그 묶음은
+    성공으로 본다(failure_info 의 개별 수신 거부 등은 로그만 — 재발송하면 성공자에게 중복이 가므로)."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {"template_object": json.dumps(template, ensure_ascii=False)}
+    if not uuids:
+        return _http_post_retry("https://kapi.kakao.com/v2/api/talk/memo/default/send",
+                                payload, headers, what="메시지 발송(나에게)")
+    worst = (200, {})
+    for i in range(0, len(uuids), 5):
+        chunk = uuids[i:i + 5]
+        status, j = _http_post_retry(
+            "https://kapi.kakao.com/v1/api/talk/friends/message/default/send",
+            dict(payload, receiver_uuids=json.dumps(chunk)), headers,
+            what=f"메시지 발송(친구 {i + 1}~{i + len(chunk)}번째)")
+        if status != 200:
+            worst = (status, j)
+        elif j.get("failure_info"):
+            print(f"[kakao] 일부 친구 수신 실패(개별 사유): {j['failure_info']}")
+    return worst
 
 
 def _resolve_slot():
@@ -433,7 +494,7 @@ def build_feed_parts(blocks):
     return desc, items
 
 
-def send_feed(access_token, title, description, image_url, items=None, dims=CHART_PX):
+def send_feed(access_token, title, description, image_url, items=None, dims=CHART_PX, uuids=None):
     """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼."""
     content = {
         "title": title,
@@ -450,7 +511,7 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
     }
     if items:
         template["item_content"] = {"items": items[:5]}
-    status, j = _send_template_object(access_token, template)
+    status, j = _send_template_object(access_token, template, uuids=uuids)
     if status != 200:
         print(f"[kakao] 피드 발송 실패 HTTP {status}: {j}")
         return False
@@ -458,7 +519,7 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
     return True
 
 
-def send_chart_feed(access_token, data, title, blocks, slot):
+def send_chart_feed(access_token, data, title, blocks, slot, uuids=None):
     """슬롯 차트 생성→업로드→'한 통' 피드 발송. 한 단계라도 실패 시 False(→ 동일 내용 텍스트 폴백)."""
     png = build_slot_chart_png(data, slot)
     if not png:
@@ -467,16 +528,16 @@ def send_chart_feed(access_token, data, title, blocks, slot):
     if not image_url:
         return False
     desc, items = build_feed_parts(blocks)
-    if send_feed(access_token, title, desc, image_url, items=items):
+    if send_feed(access_token, title, desc, image_url, items=items, uuids=uuids):
         return True
     # 행(item_content)이 거부되면 행 내용을 설명에 합쳐 한 통 더 시도 → 내용 손실 없이 '한 통' 보장.
     print("[kakao] 피드(행 포함) 실패 — 행 내용을 설명으로 합쳐 재시도")
     full_desc = "\n".join([desc] + [f"{it['item']} {it['item_op']}" for it in (items or [])])
-    return send_feed(access_token, title, full_desc, image_url, items=None)
+    return send_feed(access_token, title, full_desc, image_url, items=None, uuids=uuids)
 
 
-def send_memo(access_token, text, with_button=True):
-    """카카오톡 '나에게 보내기'(기본 텍스트 템플릿) — 차트 피드 실패 시 최후 폴백(내용은 동일)."""
+def send_memo(access_token, text, with_button=True, uuids=None):
+    """기본 텍스트 템플릿 발송 — 차트 피드 실패 시 최후 폴백(내용은 동일, 수신 모드도 동일)."""
     template = {
         "object_type": "text",
         "text": text,
@@ -484,7 +545,7 @@ def send_memo(access_token, text, with_button=True):
     }
     if with_button:
         template["button_title"] = "대시보드 보기"
-    status, j = _send_template_object(access_token, template)
+    status, j = _send_template_object(access_token, template, uuids=uuids)
     if status != 200:
         raise SystemExit(f"[kakao] 메시지 발송 실패: HTTP {status} {j}")
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
@@ -515,18 +576,28 @@ def main():
     title, blocks = build_digest_parts(data, slot)   # 제목에 슬롯 시각(7~22시) 포함
     access_token = refresh_access_token(rest_key, refresh_token)
 
+    # 수신 모드 자동 판별 — 연결·동의된 친구가 있으면 '친구에게 보내기'(푸시 알림 정상),
+    # 없으면 종전대로 '나에게 보내기'(나와의 채팅, 알림 없음).
+    friends = get_friends(access_token) if _friends_enabled() else []
+    uuids = [f["uuid"] for f in friends]
+    if uuids:
+        names = ", ".join(f.get("profile_nickname") or "?" for f in friends)
+        print(f"[kakao] 수신: 친구 {len(uuids)}명 ({names})")
+    else:
+        print("[kakao] 수신: 나와의 채팅(메모)")
+
     # ① 기본(통일) 형식 = '한 통' 피드: 슬롯별 차트 이미지 + 증시·환율(설명)
     #    + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
     #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
     if _charts_enabled():
-        if send_chart_feed(access_token, data, title, blocks, slot):
+        if send_chart_feed(access_token, data, title, blocks, slot, uuids=uuids):
             print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
             return
         print("[kakao] 차트 피드 실패 — 동일 내용 텍스트로 폴백")
 
     # ② 최후 폴백: 기본 텍스트 한 통 — 피드와 '동일한 공통 블록(증시~운임)' + '대시보드 보기' 버튼.
     #    (콘솔 커스텀 템플릿 폴백은 형식이 달라 혼란을 줬으므로 제거 — 2026-06-10 10시 사례)
-    send_memo(access_token, build_text_message(title, blocks), with_button=True)
+    send_memo(access_token, build_text_message(title, blocks), with_button=True, uuids=uuids)
     print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
 
 
