@@ -667,6 +667,34 @@
   @media (max-width: 1024px) {
     .data-source-popup { left: 10px !important; right: 10px !important; width: auto !important; }
   }
+  /* ======= 모바일 (768px 이하) — 다중 컬럼 그리드를 단일 컬럼으로 (Task 5.1) ======= */
+  @media (max-width: 768px) {
+    main div[style*="grid-template-columns:repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+    main div[style*="grid-template-columns:1fr 300px"],
+    main div[style*="grid-template-columns:300px 1fr"],
+    main div[style*="grid-template-columns:1fr 1fr"]:not(.keep-cols),
+    main div[style*="grid-template-columns:2fr 1fr"],
+    main div[style*="grid-template-columns:1fr 2fr"],
+    main div[style*="grid-template-columns:repeat(3,1fr)"] { grid-template-columns: 1fr !important; }
+    /* 고밀도 데이터 테이블 → 위젯 내부 가로 스크롤 카드 */
+    .widget { overflow-x: auto; }
+    .widget table { min-width: 460px; }
+  }
+  /* ======= 대시보드 홈 위젯 드래그 정렬 (Task 2.2) ======= */
+  .home-sec { transition: opacity .15s; }
+  .home-sec .sec-drag-handle {
+    position: absolute; top: 2px; right: 2px; z-index: 5;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--c-txt-muted, #434656); cursor: grab;
+    border-radius: 4px; opacity: 0; transition: opacity .15s, background .15s;
+    user-select: none;
+  }
+  .home-sec:hover .sec-drag-handle { opacity: .8; }
+  .home-sec .sec-drag-handle:hover { background: var(--c-card-hi, #262a35); color: var(--c-txt-dim, #8d90a2); }
+  .home-sec.dnd-dragging, .kpi-card.dnd-dragging { opacity: .35; }
+  .home-sec.dnd-over, .kpi-card.dnd-over { outline: 2px dashed #2962ff; outline-offset: 2px; border-radius: 8px; }
+  #homeKpiGrid .kpi-card { cursor: grab; }
+  #homeKpiGrid .kpi-card:active { cursor: grabbing; }
 </style>
 </head>
 <body>
@@ -804,8 +832,19 @@
     <!-- ====== 페이지 1: 대시보드 홈 ====== -->
     <div class="page active" id="page-dashboard">
 
-      <!-- KPI 카드 4개 -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+      <!-- 🤖 오늘의 매크로 3줄 요약 (Task 4.2) — data.json 의 aiBriefing 이 있을 때만 표시.
+           scripts/ai_briefing.py 가 GitHub Actions 에서 생성 (LLM 키 없으면 규칙 기반 폴백). -->
+      <div id="aiBriefingBanner" class="widget" style="display:none;margin-bottom:16px;padding:14px 16px;border-left:3px solid #2962ff;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <div class="widget-title" style="margin-bottom:0;">🤖 오늘의 매크로 3줄 요약</div>
+          <span id="aiBriefingMeta" style="font-size:10px;color:var(--c-txt-muted,#434656);"></span>
+        </div>
+        <div id="aiBriefingLines" style="font-size:13px;line-height:1.8;color:var(--c-txt,#dfe2f2);"></div>
+      </div>
+
+      <!-- KPI 카드 4개 — 드래그하여 순서 변경 가능 (Task 2.2) -->
+      <div class="home-sec" id="homeSecKpi" data-sec="kpi" style="position:relative;">
+      <div id="homeKpiGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         <div class="kpi-card kpi-clickable" id="kpi-kospi" onclick="navigateToDetail('equity')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">KOSPI <span style="font-size:9px;color:#434656;font-weight:400;">단위: 지수 / %</span></div>
           <div id="kpi-kospi-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">7,612.51</div>
@@ -834,8 +873,10 @@
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark3"></canvas></div>
         </div>
       </div>
+      </div><!-- /homeSecKpi -->
 
       <!-- 메인 차트 + 우측 패널 -->
+      <div class="home-sec" id="homeSecMain" data-sec="main" style="position:relative;">
       <div style="display:grid;grid-template-columns:1fr 300px;gap:12px;margin-bottom:16px;align-items:stretch;">
         <!-- 메인 캔들 차트 -->
         <div class="widget" style="display:flex;flex-direction:column;">
@@ -948,8 +989,36 @@
           </div>
         </div>
       </div>
+      </div><!-- /homeSecMain -->
+
+      <!-- 🔀 이중축 지표 비교 차트 (Task 3.1) — 서로 다른 두 지표를 좌/우 Y축으로 오버레이 -->
+      <div class="home-sec" id="homeSecCompare" data-sec="compare" style="position:relative;">
+      <div class="widget" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <div class="widget-title" style="margin-bottom:0;">지표 비교 차트 <span style="font-size:9px;color:#434656;font-weight:400;">이중 Y축 · 두 지표 오버레이</span></div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
+            <select id="cmpSelA" onchange="cmpOnSelectChange()" style="background:#131722;border:1px solid #2962ff;border-radius:4px;padding:3px 6px;color:#2962ff;font-size:11px;max-width:170px;"></select>
+            <button onclick="cmpSwap()" title="좌/우 지표 교체" style="background:transparent;border:1px solid #2a2e3d;color:#8d90a2;border-radius:4px;padding:3px 7px;font-size:11px;cursor:pointer;">⇄</button>
+            <select id="cmpSelB" onchange="cmpOnSelectChange()" style="background:#131722;border:1px solid #f5a623;border-radius:4px;padding:3px 6px;color:#f5a623;font-size:11px;max-width:170px;"></select>
+            <span style="color:#2a2e3d;margin:0 2px;">|</span>
+            <span id="cmpPeriodBtns">
+              <button class="tab-btn" data-p="3M" onclick="cmpSetPeriod('3M',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3M</button>
+              <button class="tab-btn" data-p="6M" onclick="cmpSetPeriod('6M',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">6M</button>
+              <button class="tab-btn active" data-p="1Y" onclick="cmpSetPeriod('1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">1Y</button>
+              <button class="tab-btn" data-p="3Y" onclick="cmpSetPeriod('3Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3Y</button>
+              <button class="tab-btn" data-p="ALL" onclick="cmpSetPeriod('ALL',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">전체</button>
+            </span>
+          </div>
+        </div>
+        <div style="position:relative;height:300px;">
+          <canvas id="compareChart" role="img" aria-label="이중축 지표 비교 차트">이중축 지표 비교 차트</canvas>
+        </div>
+        <div id="cmpInfo" style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:6px;">지표 두 개를 선택하면 좌(파랑)/우(주황) Y축으로 함께 표시됩니다. 예: 미국 기준금리 vs KOSPI</div>
+      </div>
+      </div><!-- /homeSecCompare -->
 
       <!-- 하단: 등락 테이블 + 뉴스 -->
+      <div class="home-sec" id="homeSecBottom" data-sec="bottom" style="position:relative;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <!-- 상승/하락 Top5 -->
         <div class="widget">
@@ -998,6 +1067,7 @@
           <div id="newsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
       </div>
+      </div><!-- /homeSecBottom -->
     </div><!-- /dashboard -->
 
     <!-- ====== 페이지 2: 시장 지표 ====== -->
@@ -1868,6 +1938,7 @@
                 <th style="text-align:right;padding:6px 8px;">이전값</th>
                 <th style="text-align:right;padding:6px 8px;">예측값</th>
                 <th style="text-align:right;padding:6px 8px;">실제값</th>
+                <th style="text-align:center;padding:6px 8px;width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">🔔</th>
               </tr>
             </thead>
             <tbody id="calendarTable"></tbody>
@@ -9682,6 +9753,10 @@ function buildCalendar(){
     const dtCell = isToday
       ? `<td style="padding:8px;font-weight:600;color:#b6c4ff;">${e.dt} <span style="font-size:9px;background:#2962ff;color:#fff;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:600;">오늘</span></td>`
       : `<td style="padding:8px;">${e.dt}</td>`;
+    // ★★★ 이벤트만 발표 알림 토글 제공 (Task 2.3) — 구독 상태는 localStorage 기반
+    const bellCell = e.stars >= 3
+      ? `<td style="text-align:center;padding:4px;"><button onclick="event.stopPropagation();toggleCalAlert(${calIdx},this)" title="${calAlertSubscribed(e) ? '알림 해제' : '발표 시 브라우저 알림 받기 (페이지가 열려 있는 동안)'}" style="background:transparent;border:none;cursor:pointer;font-size:14px;line-height:1;padding:2px;${calAlertSubscribed(e) ? '' : 'opacity:.45;filter:grayscale(1);'}">🔔</button></td>`
+      : `<td></td>`;
     return `<tr style="${rowStyle}" onclick="showCalendarEventDetail(${calIdx})" title="클릭하여 과거 추이 보기">
       ${dtCell}
       <td style="text-align:center;padding:8px;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
@@ -9690,7 +9765,8 @@ function buildCalendar(){
       <td style="text-align:right;padding:8px;color:#8d90a2;">${e.prev}</td>
       <td style="text-align:right;padding:8px;color:#b6c4ff;">${e.fore}</td>
       <td style="text-align:right;padding:8px;" ${actStyle}>${e.act||'예정'}</td>
-    </tr>`;}).join('') || `<tr><td colspan="7" style="text-align:center;padding:20px;color:#434656;">해당 조건의 이벤트가 없습니다</td></tr>`;
+      ${bellCell}
+    </tr>`;}).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:#434656;">해당 조건의 이벤트가 없습니다</td></tr>`;
 
   // 시각적 캘린더 그리드 빌드 — 현재 표시 중인 월(_calGridMonth/_calGridYear) 기준
   // 필터링은 cc/stars 기준만 적용 (period 와 무관)
@@ -13020,7 +13096,13 @@ function applyRealData(d) {
   }
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
-  // 🤖 AI 시황 요약 기능은 제거됨(사용자 요청) — 매일 오전 10시 카카오톡 자동 발송으로 대체.
+  // 🤖 오늘의 매크로 3줄 요약 — 서버(scripts/ai_briefing.py)가 생성한 aiBriefing 이 있을 때만 배너 표시.
+  // (과거 클라이언트측 AI 시황 요약은 사용자 요청으로 제거 — 카카오톡 발송과 병행하여 서버 생성분만 렌더.)
+  try { renderAiBriefing(d.aiBriefing); } catch(_) {}
+  // 🔔 경제 캘린더 구독 이벤트 — 실제값(act) 갱신 감지 시 브라우저 알림 (Task 2.3)
+  try { checkCalendarAlerts(d); } catch(_) {}
+  // 🔀 이중축 지표 비교 차트 — 데이터 적용 후 셀렉트 옵션/차트 초기화 (Task 3.1)
+  try { initCompareTool(); } catch(_) {}
   // 투자자별 순매매(실데이터) 갱신 — 새 data.json 이 적용되면 raw 재로딩 후 차트 재렌더
   try {
     investorRawData = _getInvestorRawData();
@@ -14786,7 +14868,8 @@ function rebuildChartsForTheme() {
       // Update scale tick and grid colors
       if(ch.options.scales) {
         Object.values(ch.options.scales).forEach(sc => {
-          if(sc.ticks) sc.ticks.color = tc.txt;
+          // _fixedTickColor: 데이터셋 색상과 묶인 축(이중축 비교 차트 등)은 테마 전환 시에도 색 유지
+          if(sc.ticks) sc.ticks.color = sc._fixedTickColor || tc.txt;
           if(sc.grid)  sc.grid.color  = tc.grid;
         });
       }
@@ -15977,6 +16060,399 @@ function initPortfolioPage() {
   pfRenderAll();
   pfRefreshQuotes();
 }
+</script>
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// 대시보드 확장 기능 모음
+//  · 🤖 오늘의 매크로 3줄 요약 배너 (Task 4.2 — scripts/ai_briefing.py 산출물 렌더)
+//  · 🔔 경제 캘린더 ★★★ 이벤트 발표 알림 (Task 2.3 — Notification API)
+//  · 🔀 이중축 지표 비교 차트 (Task 3.1)
+//  · ↕ 대시보드 홈 위젯 드래그 정렬 (Task 2.2 — localStorage 저장)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── 공통: 인페이지 토스트 (알림 권한 거부/미지원 폴백) ──────────────────────
+function showToast(msg, ms = 6000) {
+  let host = document.getElementById('econToastHost');
+  if(!host) {
+    host = document.createElement('div');
+    host.id = 'econToastHost';
+    host.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:500;display:flex;flex-direction:column;gap:8px;max-width:340px;';
+    document.body.appendChild(host);
+  }
+  const t = document.createElement('div');
+  t.style.cssText = 'background:var(--c-card,#1b1f2b);border:1px solid #2962ff;border-radius:8px;padding:10px 14px;font-size:12px;color:var(--c-txt,#dfe2f2);box-shadow:0 8px 24px rgba(0,0,0,.4);line-height:1.5;';
+  t.textContent = msg;
+  host.appendChild(t);
+  setTimeout(() => { try { t.remove(); } catch(_) {} }, ms);
+}
+
+// ── 🤖 오늘의 매크로 3줄 요약 배너 ─────────────────────────────────────────
+function renderAiBriefing(b) {
+  const box = document.getElementById('aiBriefingBanner');
+  if(!box) return;
+  const lines = (b && Array.isArray(b.lines)) ? b.lines.filter(s => s && String(s).trim()) : [];
+  if(!lines.length) { box.style.display = 'none'; return; }
+  document.getElementById('aiBriefingLines').innerHTML = lines.slice(0, 3).map((s, i) =>
+    `<div style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#2962ff;font-weight:700;flex-shrink:0;">${i + 1}.</span><span>${escapeHtml(String(s))}</span></div>`).join('');
+  const srcLabel = b.source === 'rule' ? '규칙 기반 요약' : (b.source === 'gemini' ? 'Gemini' : b.source === 'openai' ? 'OpenAI' : 'AI');
+  document.getElementById('aiBriefingMeta').textContent = `${b.date || ''} · ${srcLabel}`;
+  box.style.display = 'block';
+}
+
+// ── 🔔 경제 캘린더 ★★★ 이벤트 발표 알림 ──────────────────────────────────
+const CAL_ALERTS_LS_KEY = 'econ_cal_alerts_v1';
+
+function _calAlertsLoad() {
+  try { return JSON.parse(localStorage.getItem(CAL_ALERTS_LS_KEY) || '{}') || {}; } catch(_) { return {}; }
+}
+function _calAlertsSave(subs) {
+  try { localStorage.setItem(CAL_ALERTS_LS_KEY, JSON.stringify(subs)); } catch(_) {}
+}
+// 구독 키 — 정적 calEvents 에는 iso 가 없고 data.json 이벤트에는 있어, 양쪽에 공통인
+// dt 의 'MM.DD' 접두사 + 이벤트명으로 매칭한다.
+function _calAlertKey(e) { return `${String(e.dt || e.iso || '').slice(0, 5)}|${e.name}`; }
+
+function calAlertSubscribed(e) {
+  return !!_calAlertsLoad()[_calAlertKey(e)];
+}
+
+function toggleCalAlert(calIdx, btn) {
+  const e = (typeof calEvents !== 'undefined') ? calEvents[calIdx] : null;
+  if(!e) return;
+  const subs = _calAlertsLoad();
+  const key = _calAlertKey(e);
+  if(subs[key]) {
+    delete subs[key];
+    _calAlertsSave(subs);
+    showToast(`🔕 '${e.name}' 알림을 해제했습니다.`, 3000);
+  } else {
+    subs[key] = { name: e.name, iso: e.iso || '', lastAct: e.act || '', addedAt: Date.now() };
+    _calAlertsSave(subs);
+    // 브라우저 알림 권한 — 최초 구독 시 요청. 거부/미지원 시 인페이지 토스트로 폴백.
+    if(typeof Notification !== 'undefined') {
+      if(Notification.permission === 'default') {
+        Notification.requestPermission().then(p => {
+          if(p !== 'granted') showToast('브라우저 알림이 차단되어 페이지 내 토스트로 알려드립니다.');
+        }).catch(() => {});
+      } else if(Notification.permission === 'denied') {
+        showToast('브라우저 알림이 차단되어 페이지 내 토스트로 알려드립니다.');
+      }
+    }
+    showToast(`🔔 '${e.name}' 발표 시 알림을 보냅니다. (페이지가 열려 있는 동안)`, 4000);
+  }
+  // 벨 상태 갱신 — 캘린더 페이지가 활성일 때만 재렌더
+  try {
+    const pg = document.getElementById('page-calendar');
+    if(pg && pg.classList.contains('active') && typeof buildCalendar === 'function') buildCalendar();
+  } catch(_) {}
+}
+
+function _calNotify(title, body) {
+  if(typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try { new Notification(title, { body, tag: title }); return; } catch(_) {}
+  }
+  showToast(`${title} — ${body}`, 10000);
+}
+
+// data.json 적용 시마다 호출 — 구독 이벤트의 실제값(act)이 새로 채워지거나 바뀌면 알림
+function checkCalendarAlerts(d) {
+  const subs = _calAlertsLoad();
+  const keys = Object.keys(subs);
+  if(!keys.length) return;
+  const events = (d && d.economicCalendar && Array.isArray(d.economicCalendar.events)) ? d.economicCalendar.events : [];
+  let changed = false;
+  const now = Date.now();
+  keys.forEach(key => {
+    const sub = subs[key];
+    // 90일 지난 구독은 자동 정리
+    if(sub.addedAt && now - sub.addedAt > 90 * 24 * 3600 * 1000) { delete subs[key]; changed = true; return; }
+    const ev = events.find(e => _calAlertKey(e) === key);
+    if(!ev || !ev.act) return;
+    if(ev.act !== sub.lastAct) {
+      const beat = ev.beat === 1 ? ' (예측 상회 ▲)' : ev.beat === -1 ? ' (예측 하회 ▼)' : '';
+      _calNotify(`📢 ${ev.name} 발표`, `실제 ${ev.act} · 예측 ${ev.fore || '—'} · 이전 ${ev.prev || '—'}${beat}`);
+      sub.lastAct = ev.act;
+      changed = true;
+    }
+  });
+  if(changed) _calAlertsSave(subs);
+}
+
+// ── 🔀 이중축 지표 비교 차트 ───────────────────────────────────────────────
+const CMP_LS_KEY = 'econ_cmp_sel_v1';
+const CMP_COLOR_A = '#2962ff', CMP_COLOR_B = '#f5a623';
+let _cmpState = { a: 'idx.KOSPI', b: 'ei.us.ff_rate', period: '1Y' };
+let _cmpInited = false, _cmpLastTs = null;
+
+const _CMP_LABELS = {
+  KOSPI:'KOSPI', KOSDAQ:'KOSDAQ', SP500:'S&P 500', NASDAQ:'NASDAQ', Nikkei:'닛케이 225', Shanghai:'상하이종합',
+  USDKRW:'USD/KRW', EURKRW:'EUR/KRW', JPYKRW:'JPY(100)/KRW', EURUSD:'EUR/USD', USDJPY:'USD/JPY',
+  Gold:'금', Silver:'은', Copper:'구리', WTI:'WTI 유가', Brent:'브렌트유', NatGas:'천연가스',
+  Wheat:'밀', Corn:'옥수수', Soybean:'대두', Coffee:'커피', Sugar:'설탕',
+};
+
+// 선택 가능한 지표 카탈로그 — data.json 의 일별 시계열 + 경제지표 history 맵
+function _cmpCatalog() {
+  const d = _latestDataForIndicators;
+  if(!d) return [];
+  const out = [];
+  const hist = d.history || {};
+  Object.keys(hist.indices || {}).forEach(k => out.push({ key: 'idx.' + k, label: _CMP_LABELS[k] || k, group: '주가지수' }));
+  Object.keys(hist.fx || {}).forEach(k => out.push({ key: 'fx.' + k, label: _CMP_LABELS[k] || k, group: '환율' }));
+  Object.keys(hist.commodities || {}).forEach(k => out.push({ key: 'com.' + k, label: _CMP_LABELS[k] || k, group: '원자재' }));
+  const ei = d.economicIndicators || {};
+  const ccName = { us: '🇺🇸', kr: '🇰🇷', jp: '🇯🇵', eu: '🇪🇺', cn: '🇨🇳', de: '🇩🇪', uk: '🇬🇧' };
+  Object.keys(ei).forEach(cc => {
+    Object.keys(ei[cc] || {}).forEach(k => {
+      const ind = ei[cc][k];
+      if(ind && ind.history && typeof ind.history === 'object' && Object.keys(ind.history).length >= 6) {
+        out.push({ key: `ei.${cc}.${k}`, label: `${ccName[cc] || cc} ${ind.desc || k}`, group: '경제지표' });
+      }
+    });
+  });
+  return out;
+}
+
+// 키로 [{d:'YYYY-MM-DD', v:number}] 시계열 추출 (날짜 오름차순)
+function _cmpSeries(key) {
+  const d = _latestDataForIndicators;
+  if(!d || !key) return [];
+  const [type, ...rest] = key.split('.');
+  if(type === 'idx' || type === 'fx' || type === 'com') {
+    const grp = type === 'idx' ? 'indices' : type === 'fx' ? 'fx' : 'commodities';
+    const arr = ((d.history || {})[grp] || {})[rest[0]] || [];
+    return arr.filter(p => p && p.date && p.close != null).map(p => ({ d: p.date, v: +p.close }));
+  }
+  if(type === 'ei') {
+    const ind = ((d.economicIndicators || {})[rest[0]] || {})[rest[1]];
+    if(!ind || !ind.history) return [];
+    return Object.entries(ind.history)
+      .filter(([, v]) => v != null && isFinite(+v))
+      .map(([dt, v]) => ({ d: dt, v: +v }))
+      .sort((a, b) => a.d < b.d ? -1 : 1);
+  }
+  return [];
+}
+
+function _cmpLabelOf(key) {
+  const c = _cmpCatalog().find(m => m.key === key);
+  return c ? c.label : key;
+}
+
+function _cmpFillSelect(sel, catalog, value) {
+  const groups = {};
+  catalog.forEach(m => { (groups[m.group] = groups[m.group] || []).push(m); });
+  sel.innerHTML = Object.keys(groups).map(g =>
+    `<optgroup label="${g}">` + groups[g].map(m => `<option value="${m.key}">${escapeHtml(m.label)}</option>`).join('') + '</optgroup>').join('');
+  if(catalog.some(m => m.key === value)) sel.value = value;
+}
+
+function initCompareTool() {
+  const selA = document.getElementById('cmpSelA');
+  if(!selA || !_latestDataForIndicators) return;
+  const ts = _latestDataForIndicators.lastUpdated || null;
+  if(_cmpInited && ts === _cmpLastTs) return;   // 데이터 변동 없으면 재렌더 생략 (1~3분 폴링 플리커 방지)
+  _cmpLastTs = ts;
+  const catalog = _cmpCatalog();
+  if(!catalog.length) return;
+  if(!_cmpInited) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CMP_LS_KEY) || 'null');
+      if(saved && saved.a && saved.b) _cmpState = { ..._cmpState, ...saved };
+    } catch(_) {}
+    _cmpInited = true;
+    // 저장된 기간 버튼 상태 복원
+    document.querySelectorAll('#cmpPeriodBtns .tab-btn').forEach(b => {
+      const act = b.dataset.p === _cmpState.period;
+      b.classList.toggle('active', act);
+      b.style.background = act ? '#2962ff' : 'transparent';
+      b.style.color = act ? '#fff' : '#8d90a2';
+    });
+  }
+  _cmpFillSelect(selA, catalog, _cmpState.a);
+  _cmpFillSelect(document.getElementById('cmpSelB'), catalog, _cmpState.b);
+  _cmpState.a = selA.value;
+  _cmpState.b = document.getElementById('cmpSelB').value;
+  cmpRender();
+}
+
+function cmpOnSelectChange() {
+  _cmpState.a = document.getElementById('cmpSelA').value;
+  _cmpState.b = document.getElementById('cmpSelB').value;
+  try { localStorage.setItem(CMP_LS_KEY, JSON.stringify(_cmpState)); } catch(_) {}
+  cmpRender();
+}
+
+function cmpSwap() {
+  [_cmpState.a, _cmpState.b] = [_cmpState.b, _cmpState.a];
+  const sa = document.getElementById('cmpSelA'), sb = document.getElementById('cmpSelB');
+  if(sa) sa.value = _cmpState.a;
+  if(sb) sb.value = _cmpState.b;
+  try { localStorage.setItem(CMP_LS_KEY, JSON.stringify(_cmpState)); } catch(_) {}
+  cmpRender();
+}
+
+function cmpSetPeriod(p, btn) {
+  _cmpState.period = p;
+  try { localStorage.setItem(CMP_LS_KEY, JSON.stringify(_cmpState)); } catch(_) {}
+  document.querySelectorAll('#cmpPeriodBtns .tab-btn').forEach(b => {
+    b.classList.remove('active');
+    b.style.background = 'transparent'; b.style.color = '#8d90a2';
+  });
+  if(btn) { btn.classList.add('active'); btn.style.background = '#2962ff'; btn.style.color = '#fff'; }
+  cmpRender();
+}
+
+function _cmpCutoff(period) {
+  if(period === 'ALL') return null;
+  const months = { '3M': 3, '6M': 6, '1Y': 12, '3Y': 36 }[period] || 12;
+  const dt = new Date();
+  dt.setMonth(dt.getMonth() - months);
+  return dt.toISOString().slice(0, 10);
+}
+
+function cmpRender() {
+  const canvas = document.getElementById('compareChart');
+  if(!canvas || typeof Chart === 'undefined') return;
+  const cutoff = _cmpCutoff(_cmpState.period);
+  const filt = s => cutoff ? s.filter(p => p.d >= cutoff) : s;
+  const A = filt(_cmpSeries(_cmpState.a)), B = filt(_cmpSeries(_cmpState.b));
+  const labels = [...new Set([...A.map(p => p.d), ...B.map(p => p.d)])].sort();
+  const mapA = Object.fromEntries(A.map(p => [p.d, p.v]));
+  const mapB = Object.fromEntries(B.map(p => [p.d, p.v]));
+  const labA = _cmpLabelOf(_cmpState.a), labB = _cmpLabelOf(_cmpState.b);
+  const tc = (typeof getThemeColors === 'function') ? getThemeColors() : { txt: '#8d90a2', grid: '#2a2e3d55' };
+  if(charts['compareChart']) { try { charts['compareChart'].destroy(); } catch(_) {} }
+  charts['compareChart'] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: labA, data: labels.map(d => mapA[d] ?? null), yAxisID: 'yA',
+          borderColor: CMP_COLOR_A, backgroundColor: CMP_COLOR_A + '22',
+          borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: .15, spanGaps: true },
+        { label: labB, data: labels.map(d => mapB[d] ?? null), yAxisID: 'yB',
+          borderColor: CMP_COLOR_B, backgroundColor: CMP_COLOR_B + '22',
+          borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: .15, spanGaps: true },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, labels: { color: tc.txt, usePointStyle: true, pointStyle: 'line', font: { size: 11 } } },
+      },
+      scales: {
+        x: { ticks: { color: tc.txt, maxTicksLimit: 10, font: { size: 10 } }, grid: { color: tc.grid } },
+        // _fixedTickColor — 테마 전환(rebuildChartsForTheme) 시에도 데이터셋과 같은 색 유지
+        yA: { position: 'left',  ticks: { color: CMP_COLOR_A, font: { size: 10 } }, grid: { color: tc.grid }, _fixedTickColor: CMP_COLOR_A },
+        yB: { position: 'right', ticks: { color: CMP_COLOR_B, font: { size: 10 } }, grid: { drawOnChartArea: false }, _fixedTickColor: CMP_COLOR_B },
+      },
+    },
+  });
+  const last = s => s.length ? s[s.length - 1] : null;
+  const la = last(A), lb = last(B), fmt = v => (+v).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+  const info = document.getElementById('cmpInfo');
+  if(info) info.innerHTML = (la && lb)
+    ? `<span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${fmt(la.v)} (${la.d}) &nbsp;·&nbsp; <span style="color:${CMP_COLOR_B};">● ${escapeHtml(labB)}</span> ${fmt(lb.v)} (${lb.d})`
+    : '선택한 지표의 시계열 데이터가 아직 없습니다.';
+}
+
+// ── ↕ 대시보드 홈 위젯 드래그 정렬 ─────────────────────────────────────────
+const DND_KPI_LS_KEY = 'econ_home_kpi_order_v1';
+const DND_SEC_LS_KEY = 'econ_home_sec_order_v1';
+let _dndEl = null, _dndType = null;
+
+function applyHomeLayout() {
+  try {
+    const secOrder = JSON.parse(localStorage.getItem(DND_SEC_LS_KEY) || 'null');
+    if(Array.isArray(secOrder) && secOrder.length) {
+      const page = document.getElementById('page-dashboard');
+      secOrder.forEach(k => {
+        const el = page.querySelector(`.home-sec[data-sec="${k}"]`);
+        if(el) page.appendChild(el);
+      });
+    }
+  } catch(_) {}
+  try {
+    const kpiOrder = JSON.parse(localStorage.getItem(DND_KPI_LS_KEY) || 'null');
+    if(Array.isArray(kpiOrder) && kpiOrder.length) {
+      const grid = document.getElementById('homeKpiGrid');
+      kpiOrder.forEach(id => {
+        const el = document.getElementById(id);
+        if(el && grid && el.parentNode === grid) grid.appendChild(el);
+      });
+    }
+  } catch(_) {}
+}
+
+function _dndSaveOrders() {
+  try {
+    localStorage.setItem(DND_SEC_LS_KEY, JSON.stringify(
+      [...document.querySelectorAll('#page-dashboard .home-sec')].map(s => s.dataset.sec)));
+    localStorage.setItem(DND_KPI_LS_KEY, JSON.stringify(
+      [...document.querySelectorAll('#homeKpiGrid .kpi-card')].map(c => c.id)));
+  } catch(_) {}
+}
+
+function initHomeDnd() {
+  // 섹션 드래그 — 우상단 ⠿ 핸들을 잡았을 때만 draggable 활성화 (내부 버튼/차트 조작과 충돌 방지)
+  document.querySelectorAll('#page-dashboard .home-sec').forEach(sec => {
+    const h = document.createElement('div');
+    h.className = 'sec-drag-handle';
+    h.title = '드래그하여 섹션 순서 변경';
+    h.textContent = '⠿';
+    h.addEventListener('mousedown', () => { sec.draggable = true; });
+    h.addEventListener('mouseup',   () => { sec.draggable = false; });
+    sec.appendChild(h);
+    sec.addEventListener('dragstart', ev => {
+      if(!sec.draggable) { ev.preventDefault(); return; }
+      _dndEl = sec; _dndType = 'sec';
+      sec.classList.add('dnd-dragging');
+      ev.dataTransfer.effectAllowed = 'move';
+      try { ev.dataTransfer.setData('text/plain', 'sec'); } catch(_) {}
+    });
+    sec.addEventListener('dragend', () => {
+      sec.classList.remove('dnd-dragging');
+      sec.draggable = false;
+      _dndEl = null; _dndType = null;
+      _dndSaveOrders();
+    });
+    sec.addEventListener('dragover', ev => {
+      if(_dndType !== 'sec' || !_dndEl || _dndEl === sec) return;
+      ev.preventDefault();
+      const r = sec.getBoundingClientRect();
+      sec.parentNode.insertBefore(_dndEl, ev.clientY < r.top + r.height / 2 ? sec : sec.nextSibling);
+    });
+  });
+  // KPI 카드 드래그 — 카드 전체를 잡아 좌우 재배열
+  document.querySelectorAll('#homeKpiGrid .kpi-card').forEach(card => {
+    card.draggable = true;
+    card.addEventListener('dragstart', ev => {
+      _dndEl = card; _dndType = 'kpi';
+      card.classList.add('dnd-dragging');
+      ev.dataTransfer.effectAllowed = 'move';
+      try { ev.dataTransfer.setData('text/plain', 'kpi'); } catch(_) {}
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dnd-dragging');
+      _dndEl = null; _dndType = null;
+      _dndSaveOrders();
+    });
+    card.addEventListener('dragover', ev => {
+      if(_dndType !== 'kpi' || !_dndEl || _dndEl === card) return;
+      ev.preventDefault();
+      const r = card.getBoundingClientRect();
+      card.parentNode.insertBefore(_dndEl, ev.clientX < r.left + r.width / 2 ? card : card.nextSibling);
+    });
+  });
+}
+
+window.addEventListener('load', () => {
+  try { applyHomeLayout(); } catch(_) {}
+  try { initHomeDnd(); } catch(_) {}
+  // data.json 이 이미 적용된 경우(applyRealData 가 먼저 돈 경우) 비교 차트 즉시 초기화
+  try { initCompareTool(); } catch(_) {}
+});
 </script>
 </body>
 </html>
