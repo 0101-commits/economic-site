@@ -135,6 +135,15 @@ jobs:
           AV_FETCH_FULL: ${{ (github.event.schedule == '0 0 * * *' || github.event.schedule == '0 7 * * *' || github.event.schedule == '0 13 * * *') && '1' || '' }}
         run: python scripts/fetch_data.py
 
+      # 🤖 오늘의 매크로 3줄 요약 — data.json 의 aiBriefing 키 생성/갱신.
+      # GEMINI_API_KEY / OPENAI_API_KEY 시크릿이 있으면 LLM 요약, 없으면 규칙 기반 폴백.
+      # 스크립트는 어떤 경우에도 exit 0 (빌드 파이프라인을 깨지 않음).
+      - name: Generate AI macro briefing
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python scripts/ai_briefing.py
+
       - name: Commit and push data.json
         run: |
           git config user.name  'github-actions[bot]'
