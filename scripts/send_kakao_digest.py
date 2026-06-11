@@ -348,7 +348,8 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
     try:
         fig, axes = plt.subplots(2, 1, figsize=(CHART_PX[0] / _CHART_DPI, CHART_PX[1] / _CHART_DPI))
         # 기간(today/7d)은 패널별 제목에 표기 — 인트라데이/일봉 폴백이 섞일 수 있어 전체 제목엔 넣지 않는다.
-        fig.suptitle(suptitle, fontsize=13, x=0.02, ha="left", weight="bold")
+        # 폰트는 채팅방 표시 기준으로 보이도록 크게(2026-06 사용자 요청: 이미지 안 수치가 작음).
+        fig.suptitle(suptitle, fontsize=17, x=0.02, ha="left", weight="bold")
         for a, (cat, key, label) in zip(axes, panels):
             color = _CHART_COLOR.get(key, "#333333")
             # 1순위: 당일 인트라데이(Yahoo). 실패 시 7일 일봉으로 폴백.
@@ -364,14 +365,13 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
                 if chg is None:
                     chg = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
                 span = "today" if intraday else "7d"
-                a.set_title(f"{label}   {ys[-1]:,.2f}  ({chg:+.1f}% / {span})", fontsize=12, loc="left")
+                a.set_title(f"{label}   {ys[-1]:,.2f}  ({chg:+.1f}% / {span})", fontsize=15, loc="left")
                 a.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M" if intraday else "%m-%d"))
             else:
-                a.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=11)
-                a.set_title(label, fontsize=12, loc="left")
+                a.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=14)
+                a.set_title(label, fontsize=15, loc="left")
             a.grid(alpha=0.25)
-            for lbl in a.get_xticklabels():
-                lbl.set_fontsize(8)
+            a.tick_params(axis="both", labelsize=12)
         fig.tight_layout(rect=[0, 0, 1, 0.97])
         fig.savefig(out_path, dpi=_CHART_DPI)
         plt.close(fig)
