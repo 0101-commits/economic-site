@@ -37,6 +37,9 @@
 <!-- SRI(integrity): CDN 이 변조/탈취돼도 해시 불일치 시 브라우저가 로드를 거부 (npm 원본 타볼 기준 sha384) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+<!-- TradingView Lightweight Charts™ (Apache-2.0 오픈소스) — '투자 현황' 종목 상세 차트(캔들+MA·RSI·MACD).
+     유료 서버/위젯 없이 프론트에 라이브러리만 이식해 무료로 쓰는 PRD 요구사항. unpkg 는 CSP script-src 에 이미 허용. -->
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js" crossorigin="anonymous"></script>
 <!-- Leaflet (OpenStreetMap) — 도메인 제한 없음 -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
@@ -695,6 +698,7 @@
   <nav id="sidebar" style="width:200px;min-height:calc(100vh - 56px);background:#131722;border-right:1px solid #2a2e3d;padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;padding-left:46px;">메인 메뉴</div>
     <div class="menu-item active" onclick="showPage('dashboard',this)"><span class="mat">home</span>대시보드 홈</div>
+    <div class="menu-item" onclick="showPage('portfolio',this)"><span class="mat">monitoring</span>투자 현황</div>
     <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
     <div class="menu-item" onclick="showPage('market',this)"><span class="mat">candlestick_chart</span>시장 지표</div>
     <div class="menu-item" onclick="showPage('investor',this)"><span class="mat">account_balance</span>주요 투자자</div>
@@ -997,6 +1001,208 @@
     </div><!-- /dashboard -->
 
     <!-- ====== 페이지 2: 시장 지표 ====== -->
+    <!-- ============================================================
+         투자 현황 — 지정 종목 트래킹 + 가상 포트폴리오 + 카카오 알림 설정
+         (시세는 클라이언트가 네이버/야후를 전용 Worker 프록시로 직접 조회.
+          상세 차트는 TradingView Lightweight Charts. 알림은 GitHub Actions 가
+          alerts_config.json 을 평가해 카카오톡 발송 — scripts/check_alerts.py)
+         ============================================================ -->
+    <div class="page" id="page-portfolio">
+      <!-- 데이터 지연 안내 — PRD 필수 상시 노출 문구 -->
+      <div style="display:flex;align-items:center;gap:8px;background:#3a2f1b;border:1px solid #8a6d1f;border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#f0c75e;">
+        <span class="mat" style="font-size:16px;">schedule</span>
+        <span><b>본 정보는 15분 지연된 데이터 기준입니다.</b> 무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다.</span>
+      </div>
+
+      <!-- 포트폴리오 요약 KPI -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+        <div class="kpi-card">
+          <div class="widget-title">총 평가 금액 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 원 (해외는 환산)</span></div>
+          <div id="pfKpiEval" style="font-size:22px;font-weight:700;font-family:'Public Sans';">-</div>
+          <div id="pfKpiEvalSub" style="font-size:11px;color:#8d90a2;margin-top:4px;">보유 종목 없음</div>
+        </div>
+        <div class="kpi-card">
+          <div class="widget-title">총 매입 금액 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 원</span></div>
+          <div id="pfKpiCost" style="font-size:22px;font-weight:700;font-family:'Public Sans';">-</div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">평단가 × 수량 합계</div>
+        </div>
+        <div class="kpi-card">
+          <div class="widget-title">평가 손익 <span style="font-size:9px;color:#434656;font-weight:400;">단위: 원</span></div>
+          <div id="pfKpiPnl" style="font-size:22px;font-weight:700;font-family:'Public Sans';">-</div>
+          <div id="pfKpiPnlSub" style="font-size:11px;color:#8d90a2;margin-top:4px;">실시간 연동</div>
+        </div>
+        <div class="kpi-card">
+          <div class="widget-title">총 수익률 <span style="font-size:9px;color:#434656;font-weight:400;">단위: %</span></div>
+          <div id="pfKpiPct" style="font-size:22px;font-weight:700;font-family:'Public Sans';">-</div>
+          <div style="font-size:11px;color:#8d90a2;margin-top:4px;">(평가-매입)/매입</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:12px;margin-bottom:16px;align-items:start;" id="pfMainGrid">
+        <!-- 좌: 종목 리스트 -->
+        <div class="widget">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+            <span class="widget-title" style="margin-bottom:0;">지정 종목 트래킹</span>
+            <div style="display:flex;gap:4px;align-items:center;">
+              <button class="tab-btn" onclick="pfRefreshQuotes(true)" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#b6c4ff;cursor:pointer;">↻ 시세 새로고침</button>
+              <span id="pfQuoteTs" style="font-size:10px;color:#7a8099;"></span>
+            </div>
+          </div>
+
+          <!-- 그룹(폴더) 탭 -->
+          <div id="pfGroupTabs" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;"></div>
+
+          <!-- 종목 추가 -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#1b1f2b;border:1px solid #2a2e3d;border-radius:6px;padding:8px;margin-bottom:10px;">
+            <input id="pfSymbolInput" placeholder="종목코드/티커 (예: 005930, AAPL)" style="flex:1;min-width:170px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:5px 8px;font-size:12px;" onkeydown="if(event.key==='Enter')pfLookupSymbol()">
+            <button class="tab-btn" onclick="pfLookupSymbol()" style="font-size:11px;padding:5px 12px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">조회</button>
+            <span id="pfLookupResult" style="font-size:11px;color:#8d90a2;flex-basis:100%;"></span>
+            <div id="pfAddFields" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;flex-basis:100%;">
+              <input id="pfAddAvg" type="number" step="any" min="0" placeholder="내 평단가 (선택)" style="width:130px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:5px 8px;font-size:12px;">
+              <input id="pfAddQty" type="number" step="any" min="0" placeholder="보유 수량 (선택)" style="width:120px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:5px 8px;font-size:12px;">
+              <select id="pfAddGroup" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:5px 8px;font-size:12px;"></select>
+              <button class="tab-btn" onclick="pfAddItem()" style="font-size:11px;padding:5px 14px;border:1px solid #26a69a;border-radius:4px;background:#26a69a;color:#fff;cursor:pointer;">＋ 추가</button>
+            </div>
+          </div>
+
+          <!-- 종목 표 -->
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px;">
+              <thead>
+                <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;text-align:right;">
+                  <th style="text-align:left;padding:6px 4px;">종목</th>
+                  <th style="padding:6px 4px;">현재가</th>
+                  <th style="padding:6px 4px;">당일 대비</th>
+                  <th style="padding:6px 4px;">내 평단가</th>
+                  <th style="padding:6px 4px;">보유 수량</th>
+                  <th style="padding:6px 4px;">평가 금액</th>
+                  <th style="padding:6px 4px;">평가 손익</th>
+                  <th style="padding:6px 4px;text-align:center;">그룹</th>
+                  <th style="padding:6px 4px;text-align:center;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="pfTableBody">
+                <tr><td colspan="9" style="padding:18px;text-align:center;color:#7a8099;">종목 코드를 조회해 추가하세요. (한국 6자리 코드 / 미국 티커)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="font-size:10px;color:#7a8099;margin-top:8px;">행 클릭 = 상세 차트 · 🔔 = 카카오 알림 조건 · 평단가/수량은 셀에서 바로 수정됩니다. 입력값은 이 브라우저(localStorage)에만 저장됩니다.</div>
+        </div>
+
+        <!-- 우: 자산 비중 파이 차트 -->
+        <div class="widget">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="widget-title" style="margin-bottom:0;">자산 비중</span>
+            <div style="display:flex;gap:4px;">
+              <button class="tab-btn active" id="pfPieModeItem" onclick="pfSetPieMode('item',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">종목별</button>
+              <button class="tab-btn" id="pfPieModeType" onclick="pfSetPieMode('type',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">유형별</button>
+            </div>
+          </div>
+          <div style="position:relative;height:260px;"><canvas id="pfPieCanvas"></canvas></div>
+          <div id="pfPieEmpty" style="display:none;text-align:center;color:#7a8099;font-size:12px;padding:30px 0;">평단가·수량을 입력하면<br>포트폴리오 비중이 표시됩니다.</div>
+          <div id="pfPieNote" style="font-size:10px;color:#7a8099;margin-top:8px;">평가 금액(원화 환산) 기준 · 유형별 = 주식/ETF 구분</div>
+        </div>
+      </div>
+
+      <!-- 카카오 알림 요약/동기화 -->
+      <div class="widget" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          <span class="widget-title" style="margin-bottom:0;">📲 카카오톡 알림 조건</span>
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+            <button class="tab-btn" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">🔑 동기화 키</button>
+            <button class="tab-btn" onclick="pfPullAlerts()" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#b6c4ff;cursor:pointer;">⬇ 서버에서 불러오기</button>
+            <button class="tab-btn" onclick="pfSyncAlerts()" style="font-size:11px;padding:3px 12px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">☁ 서버에 저장</button>
+            <span id="pfSyncStatus" style="font-size:11px;color:#7a8099;"></span>
+          </div>
+        </div>
+        <div id="pfAlertSummary" style="font-size:12px;color:#a4a8bc;">설정된 알림이 없습니다. 종목 행의 🔔 버튼으로 추가하세요.</div>
+        <div style="font-size:10px;color:#7a8099;margin-top:8px;line-height:1.6;">
+          알림은 장중 15분 주기로 서버(GitHub Actions)가 조건을 평가해 카카오톡으로 발송합니다. <b>발송되려면 반드시 「☁ 서버에 저장」을 눌러야 합니다.</b>
+          도배 방지: 알림별로 <b>하루 1회</b> 또는 <b>1시간 쿨다운</b> 중 선택. 알림 메시지에도 15분 지연 문구가 함께 표기됩니다.
+          알림 조건(종목·조건값)은 공개 저장소의 <code style="background:#262a35;padding:1px 4px;border-radius:2px;">alerts_config.json</code> 에 저장됩니다(평단가·수량은 전송되지 않음). 설정 방법: 저장소의 STOCK_ALERTS.md 참고.
+        </div>
+      </div>
+
+      <!-- 상세 차트 모달 (TradingView Lightweight Charts) -->
+      <div id="pfChartModal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="if(event.target===this)pfCloseChart()">
+        <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(940px,94vw);max-height:92vh;overflow-y:auto;background:#131722;border:1px solid #2a2e3d;border-radius:10px;padding:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+            <div>
+              <span id="pfChartTitle" style="font-size:16px;font-weight:700;color:#dfe2f2;">-</span>
+              <span id="pfChartPrice" style="font-size:15px;font-weight:700;font-family:'Public Sans';margin-left:10px;"></span>
+              <span id="pfChartChg" style="font-size:12px;margin-left:6px;"></span>
+            </div>
+            <button onclick="pfCloseChart()" style="background:transparent;border:none;color:#8d90a2;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+            <div style="display:flex;gap:4px;" id="pfChartPeriods">
+              <button class="tab-btn" data-p="1D" onclick="pfSetChartPeriod('1D',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1일</button>
+              <button class="tab-btn" data-p="1W" onclick="pfSetChartPeriod('1W',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1주</button>
+              <button class="tab-btn" data-p="3M" onclick="pfSetChartPeriod('3M',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3개월</button>
+              <button class="tab-btn active" data-p="1Y" onclick="pfSetChartPeriod('1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">1년</button>
+              <button class="tab-btn" data-p="3Y" onclick="pfSetChartPeriod('3Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3년</button>
+            </div>
+            <!-- 보조지표 토글 (PRD: MA / RSI / MACD On-Off) -->
+            <div style="display:flex;gap:4px;align-items:center;">
+              <span style="font-size:10px;color:#8d90a2;">보조지표:</span>
+              <button class="tab-btn" id="pfIndMaBtn" onclick="pfToggleInd('ma',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;cursor:pointer;">MA</button>
+              <button class="tab-btn" id="pfIndRsiBtn" onclick="pfToggleInd('rsi',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;cursor:pointer;">RSI</button>
+              <button class="tab-btn" id="pfIndMacdBtn" onclick="pfToggleInd('macd',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;cursor:pointer;">MACD</button>
+            </div>
+          </div>
+          <div id="pfMaLegend" style="display:none;font-size:10px;color:#8d90a2;margin-bottom:4px;">
+            <span style="color:#f6c026;">━ MA5</span>&nbsp;&nbsp;<span style="color:#e040fb;">━ MA20</span>&nbsp;&nbsp;<span style="color:#26c6da;">━ MA60</span>
+          </div>
+          <div id="pfTvMain" style="height:360px;"></div>
+          <div id="pfTvRsiWrap" style="display:none;"><div style="font-size:10px;color:#8d90a2;margin:6px 0 2px;">RSI (14)</div><div id="pfTvRsi" style="height:110px;"></div></div>
+          <div id="pfTvMacdWrap" style="display:none;"><div style="font-size:10px;color:#8d90a2;margin:6px 0 2px;">MACD (12, 26, 9)</div><div id="pfTvMacd" style="height:130px;"></div></div>
+          <div id="pfChartMsg" style="text-align:center;color:#7a8099;font-size:12px;padding:8px 0 0;"></div>
+          <div style="font-size:10px;color:#7a8099;margin-top:8px;">ⓘ 본 정보는 15분 지연된 데이터 기준입니다. · Charting by TradingView Lightweight Charts™</div>
+        </div>
+      </div>
+
+      <!-- 알림 설정 모달 -->
+      <div id="pfAlertModal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="if(event.target===this)pfCloseAlerts()">
+        <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,94vw);max-height:90vh;overflow-y:auto;background:#131722;border:1px solid #2a2e3d;border-radius:10px;padding:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:15px;font-weight:700;color:#dfe2f2;">🔔 <span id="pfAlertModalName">-</span> 카카오 알림</span>
+            <button onclick="pfCloseAlerts()" style="background:transparent;border:none;color:#8d90a2;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+          </div>
+          <div id="pfAlertList" style="margin-bottom:12px;"></div>
+          <div style="background:#1b1f2b;border:1px solid #2a2e3d;border-radius:6px;padding:10px;">
+            <div style="font-size:12px;color:#b6c4ff;margin-bottom:8px;font-weight:600;">새 알림 추가</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <select id="pfAlertType" onchange="pfAlertTypeChanged()" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:5px 8px;font-size:12px;">
+                <option value="price_above">가격이 ~ 이상 (목표가 도달)</option>
+                <option value="price_below">가격이 ~ 이하</option>
+                <option value="pct_change">등락률 도달 (전일 종가 대비 %)</option>
+                <option value="high52">52주 신고가 도달</option>
+                <option value="low52">52주 신저가 도달</option>
+                <option value="vol_surge">거래량 폭등 (전일 대비 %)</option>
+                <option value="golden_cross">이동평균 골든크로스</option>
+                <option value="dead_cross">이동평균 데드크로스</option>
+              </select>
+              <input id="pfAlertValue" type="number" step="any" placeholder="값" style="width:120px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:5px 8px;font-size:12px;">
+              <select id="pfAlertMaPair" style="display:none;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:5px 8px;font-size:12px;">
+                <option value="5/20">MA5 / MA20 (단기)</option>
+                <option value="20/60" selected>MA20 / MA60 (중기)</option>
+              </select>
+              <select id="pfAlertLimit" title="도배 방지 — 같은 조건의 재발송 제한" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:5px 8px;font-size:12px;">
+                <option value="daily">하루 1회만</option>
+                <option value="cool60">1시간 쿨다운</option>
+              </select>
+              <button class="tab-btn" onclick="pfAddAlert()" style="font-size:11px;padding:5px 14px;border:1px solid #26a69a;border-radius:4px;background:#26a69a;color:#fff;cursor:pointer;">＋ 추가</button>
+            </div>
+            <div id="pfAlertHint" style="font-size:10px;color:#7a8099;margin-top:6px;">현재가가 입력한 가격 이상이 되면 발송됩니다.</div>
+          </div>
+          <div style="font-size:10px;color:#7a8099;margin-top:10px;line-height:1.6;">
+            변경 후 「☁ 서버에 저장」을 눌러야 실제 발송에 반영됩니다. 등락률은 음수 입력 시 하락 알림(예: -3 → 3% 하락 시).
+            거래량 폭등 기본값 300 = 전일 거래량의 300%(3배) 이상. ⓘ 알림은 15분 지연 데이터 기준으로 평가·발송됩니다.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-market">
       <div style="display:flex;gap:6px;margin-bottom:16px;">
         <button class="tab-btn active" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setMarketTab('fx',this)">외환</button>
@@ -3041,6 +3247,7 @@ function showPage(id, el) {
     if(main) main.scrollTop = 0;
   } catch(_) {}
   if(id==='market') { setTimeout(()=>initMarketPage(),50); }
+  if(id==='portfolio') { setTimeout(()=>{ try { initPortfolioPage(); } catch(e) { console.warn('portfolio init', e); } },50); }
   if(id==='macro')  { setTimeout(()=>{ initMacroPage('kr'); buildMacroIndicatorTable(); currentNewsFilter['macroNewsFeed']='한국GDP'; renderFiltered('macroNewsFeed'); },50); }
   if(id==='calendar') {
     buildCalendar();
@@ -14815,6 +15022,961 @@ window.addEventListener('load', async ()=>{
     if(_main) _ro.observe(_main);
   }
 });
+</script>
+
+<script>
+/* ============================================================================
+ * 투자 현황 (가상 포트폴리오 + 카카오 알림 설정)
+ * ----------------------------------------------------------------------------
+ * - 지정 종목 트래킹: 한국(6자리 코드)은 네이버 모바일 API, 미국 티커는 Yahoo 차트 API.
+ *   모두 전용 Cloudflare Worker 프록시(_fetchViaProxies/_fetchJsonWithProxies) 경유 — CORS 안전.
+ * - 가상 포트폴리오: 평단가·수량은 localStorage 에만 저장(서버 전송 없음). 해외 종목은
+ *   USD/KRW 환율로 원화 환산해 총 평가금액·손익·비중(파이)을 계산한다.
+ * - 상세 차트: TradingView Lightweight Charts(오픈소스) 캔들 + 거래량 + MA/RSI/MACD 토글.
+ * - 카카오 알림: 조건(가격/등락률/52주/거래량/골든·데드크로스)을 Worker 의 POST /portfolio 로
+ *   저장소 alerts_config.json 에 커밋 → GitHub Actions(stock-alerts.yml)가 장중 15분마다
+ *   scripts/check_alerts.py 로 평가해 카카오톡 발송. 도배 방지(하루 1회/1시간 쿨다운) 포함.
+ * ============================================================================ */
+
+const PF_LS_KEY = 'portfolioV1';
+let pfState = null;            // {groups, items, alerts, lastSync}
+let pfActiveGroup = 'all';
+let pfQuotes = {};             // symbol → {price, pct, prevClose, name, secType, ccy, ts}
+let pfPieMode = 'item';
+let pfPieChart = null;
+let pfPendingAdd = null;       // 조회 성공한 추가 후보
+let pfTimer = null;
+let _pfInited = false;
+
+function pfEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function pfLoad() {
+  try {
+    const j = JSON.parse(localStorage.getItem(PF_LS_KEY) || 'null');
+    if(j && Array.isArray(j.items)) {
+      if(!Array.isArray(j.groups) || !j.groups.length) j.groups = [{id:'g_default', name:'기본 그룹'}];
+      if(!Array.isArray(j.alerts)) j.alerts = [];
+      return j;
+    }
+  } catch(_) {}
+  return { groups:[{id:'g_default', name:'기본 그룹'}], items:[], alerts:[], lastSync:null };
+}
+function pfSave() { try { localStorage.setItem(PF_LS_KEY, JSON.stringify(pfState)); } catch(_) {} }
+
+// ── 환율 (해외 종목 원화 환산) ──────────────────────────────────────────────
+function pfUsdKrw() {
+  const r = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators &&
+             _latestDataForIndicators.fx && _latestDataForIndicators.fx.USDKRW) ?
+            _latestDataForIndicators.fx.USDKRW.rate : null;
+  return (r && isFinite(r) && r > 0) ? +r : (window._pfUsdKrw || null);
+}
+async function pfEnsureUsdKrw() {
+  if(pfUsdKrw()) return;
+  try {
+    const q = await fetchYahooQuote('KRW=X');
+    if(q && q.price > 0) window._pfUsdKrw = q.price;
+  } catch(_) {}
+}
+
+// ── 시세 조회 ────────────────────────────────────────────────────────────────
+// 한국: 네이버 모바일 API(stockName/closePrice/fluctuationsRatio/stockEndType) → 실패 시 Yahoo .KS/.KQ
+async function pfFetchQuoteKR(code) {
+  try {
+    const j = await _fetchViaProxies(`https://m.stock.naver.com/api/stock/${code}/basic`);
+    const price = j && parseFloat(String(j.closePrice || '').replace(/,/g, ''));
+    if(price && isFinite(price) && price > 0) {
+      const pct = parseFloat(String(j.fluctuationsRatio || '').replace(/,/g, '')) || 0;
+      const prev = price / (1 + pct / 100);
+      return { price, pct, prevClose: prev, name: j.stockName || code,
+               secType: (String(j.stockEndType || '').toLowerCase() === 'etf') ? 'etf' : 'stock', ccy: 'KRW' };
+    }
+  } catch(_) {}
+  for(const suf of ['.KS', '.KQ']) {
+    const q = await pfFetchQuoteYahoo(code + suf);
+    if(q) return Object.assign(q, { ccy: 'KRW' });
+  }
+  return null;
+}
+async function pfFetchQuoteYahoo(symbol) {
+  try {
+    const j = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v8/finance/chart/' +
+                                          encodeURIComponent(symbol) + '?range=1d&interval=5m');
+    const meta = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+    if(!meta || meta.regularMarketPrice == null) return null;
+    const price = +meta.regularMarketPrice;
+    const prev  = (meta.chartPreviousClose != null) ? +meta.chartPreviousClose : +meta.previousClose;
+    if(!isFinite(price) || price <= 0) return null;
+    const pct = (prev && prev > 0) ? ((price - prev) / prev) * 100 : 0;
+    return { price, pct, prevClose: prev || null, name: meta.shortName || meta.longName || symbol,
+             secType: null, ccy: (meta.currency === 'KRW' ? 'KRW' : 'USD') };
+  } catch(_) { return null; }
+}
+async function pfFetchQuote(item) {
+  if(item.market === 'KR') {
+    const q = await pfFetchQuoteKR(item.symbol);
+    if(q && !q.secType) q.secType = item.secType || 'stock';
+    return q;
+  }
+  const q = await pfFetchQuoteYahoo(item.yahoo || item.symbol);
+  if(q) q.secType = item.secType || 'stock';
+  return q;
+}
+async function pfRefreshQuotes(manual) {
+  if(!pfState || !pfState.items.length) { pfRenderAll(); return; }
+  const el = document.getElementById('pfQuoteTs');
+  if(manual && el) el.textContent = '갱신 중…';
+  await pfEnsureUsdKrw();
+  await Promise.all(pfState.items.map(async it => {
+    const q = await pfFetchQuote(it).catch(() => null);
+    if(q) {
+      q.ts = Date.now();
+      pfQuotes[it.id] = q;
+      // 종목명·유형 보강(최초 추가 시 비어있을 수 있음)
+      if(q.name && (!it.name || it.name === it.symbol)) it.name = q.name;
+      if(q.secType && !it.secType) it.secType = q.secType;
+    }
+  }));
+  pfSave();
+  if(el) el.textContent = '시세 ' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}) + ' 기준 (15분 지연)';
+  pfRenderAll();
+}
+
+// ── 종목 검색/추가 ────────────────────────────────────────────────────────────
+// 한국 종목명 검색 (네이버 자동완성 — 한글 입력 시). 응답 구조 변화에 견디도록 재귀 파싱.
+async function pfSearchKrByName(query) {
+  const j = await _fetchViaProxies('https://m.stock.naver.com/front-api/search/autoComplete?query=' +
+                                   encodeURIComponent(query) + '&target=stock');
+  const out = [], seen = {};
+  const walk = node => {
+    if(!node || out.length >= 20) return;
+    if(Array.isArray(node)) { node.forEach(walk); return; }
+    if(typeof node === 'object') {
+      const code = node.code || node.itemCode || node.cd;
+      const name = node.name || node.itemName || node.nm;
+      if(typeof code === 'string' && /^\d[0-9A-Z]{5}$/.test(code) && typeof name === 'string' && !seen[code]) {
+        seen[code] = 1; out.push({ code, name });
+      } else { Object.keys(node).forEach(k => walk(node[k])); }
+    }
+  };
+  walk(j);
+  return out;
+}
+function pfNormName(s) { return String(s || '').replace(/[\s&＆]/g, '').toUpperCase(); }
+function pfBestNameMatch(hits, query) {
+  const q = pfNormName(query);
+  return hits.find(h => pfNormName(h.name) === q) ||
+         hits.find(h => pfNormName(h.name).indexOf(q) === 0) ||
+         hits.find(h => pfNormName(h.name).indexOf(q) >= 0) || hits[0] || null;
+}
+// KR 코드 선택(검색 결과 클릭) → 시세 확인 후 추가 필드 표시
+async function pfPickKr(code, name) {
+  const out = document.getElementById('pfLookupResult');
+  out.textContent = '조회 중…';
+  const q = await pfFetchQuoteKR(code);
+  if(!q) { out.textContent = '시세를 가져올 수 없습니다: ' + code; return; }
+  // 알림 체커(check_alerts.py)·상세차트용 Yahoo 심볼(.KS/.KQ) 사전 해석 (신규 상장은 없을 수 있음)
+  let yahoo = null;
+  for(const suf of ['.KS', '.KQ']) {
+    if(await pfFetchQuoteYahoo(code + suf)) { yahoo = code + suf; break; }
+  }
+  pfPendingAdd = { symbol: code, market: 'KR', yahoo, name: q.name || name || code, secType: q.secType || 'stock', ccy: 'KRW' };
+  out.innerHTML = `✓ <b style="color:#dfe2f2;">${pfEsc(pfPendingAdd.name)}</b> (${code}, ${pfPendingAdd.secType === 'etf' ? 'ETF' : '주식'}) — 현재가 ${q.price.toLocaleString()}원`;
+  document.getElementById('pfAddFields').style.display = 'flex';
+  pfFillGroupSelect(document.getElementById('pfAddGroup'));
+}
+async function pfLookupSymbol() {
+  const inp = document.getElementById('pfSymbolInput');
+  const out = document.getElementById('pfLookupResult');
+  const fields = document.getElementById('pfAddFields');
+  const rawIn = (inp.value || '').trim();
+  const raw = rawIn.toUpperCase();
+  pfPendingAdd = null; fields.style.display = 'none';
+  if(!raw) { out.textContent = '종목 코드/티커 또는 한글 종목명을 입력하세요.'; return; }
+  out.textContent = '조회 중…';
+  try {
+    if(/^\d[0-9A-Z]{5}$/.test(raw)) {               // 한국 주식/ETF (6자리 코드 — 신형 영문 포함)
+      await pfPickKr(raw, null);
+    } else if(/[가-힣]/.test(rawIn)) {              // 한글 종목명 검색
+      const hits = await pfSearchKrByName(rawIn);
+      if(!hits.length) { out.textContent = '검색 결과가 없습니다: ' + rawIn; return; }
+      out.innerHTML = '아래에서 종목을 선택하세요:<br>' + hits.slice(0, 6).map(h =>
+        `<button onclick="pfPickKr('${h.code}',${JSON.stringify(h.name).replace(/"/g,'&quot;')})" style="margin:3px 4px 0 0;background:#1b1f2b;border:1px solid #3e4870;border-radius:4px;color:#b6c4ff;font-size:11px;padding:3px 8px;cursor:pointer;">${pfEsc(h.name)} <span style="color:#7a8099;">${h.code}</span></button>`).join('');
+    } else if(/^[A-Z][A-Z0-9.\-^=]{0,11}$/.test(raw)) {   // 미국 티커
+      let name = null, secType = 'stock';
+      try {
+        const s = await _fetchJsonWithProxies('https://query1.finance.yahoo.com/v1/finance/search?q=' +
+                                              encodeURIComponent(raw) + '&quotesCount=5&newsCount=0');
+        const hit = s && Array.isArray(s.quotes) &&
+          (s.quotes.find(x => x.symbol === raw) || s.quotes.find(x => x.quoteType === 'EQUITY' || x.quoteType === 'ETF'));
+        if(hit) { name = hit.shortname || hit.longname || null; if(hit.quoteType === 'ETF') secType = 'etf'; }
+      } catch(_) {}
+      const q = await pfFetchQuoteYahoo(raw);
+      if(!q) { out.textContent = '종목을 찾을 수 없습니다: ' + raw; return; }
+      pfPendingAdd = { symbol: raw, market: 'US', yahoo: raw, name: name || q.name || raw, secType, ccy: 'USD' };
+      out.innerHTML = `✓ <b style="color:#dfe2f2;">${pfEsc(pfPendingAdd.name)}</b> (${raw}, ${secType === 'etf' ? 'ETF' : '주식'}) — 현재가 $${q.price.toLocaleString()}`;
+      fields.style.display = 'flex';
+      pfFillGroupSelect(document.getElementById('pfAddGroup'));
+    } else {
+      out.textContent = '형식 오류 — 한국 6자리 코드(005930) / 미국 티커(AAPL) / 한글 종목명으로 입력하세요.';
+    }
+  } catch(e) { out.textContent = '조회 실패 — 잠시 후 다시 시도하세요.'; }
+}
+
+// ── 초기 보유 종목 시드 — 사용자 보유 ETF 9종을 첫 방문 시 자동 등록 ──
+// (코드는 신규 상장 ETF 라 하드코딩 대신 네이버 검색으로 런타임 해석 — 코드 변경/오타 위험 제거)
+const PF_SEED_NAMES = [
+  'RISE 미국양자컴퓨팅', 'SOL 미국원자력SMR', 'RISE AI반도체TOP10',
+  'TIGER 미국S&P500', 'PLUS 글로벌희토류&전략자원생산기업', 'SOL 조선TOP3플러스',
+  'RISE 버크셔포트폴리오TOP10', 'SOL 미국AI전력인프라', 'SOL K방산',
+];
+async function pfSeedDefaults() {
+  pfState.seeded = true;
+  pfState.groups[0].name = '내 보유 ETF';
+  const out = document.getElementById('pfLookupResult');
+  if(out) out.textContent = '보유 ETF 자동 등록 중… (' + PF_SEED_NAMES.length + '종목)';
+  for(const nm of PF_SEED_NAMES) {
+    try {
+      const hit = pfBestNameMatch(await pfSearchKrByName(nm), nm);
+      if(!hit || pfState.items.some(it => it.symbol === hit.code && it.market === 'KR')) continue;
+      pfState.items.push({
+        id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        symbol: hit.code, market: 'KR', yahoo: null, name: hit.name,
+        secType: 'etf', ccy: 'KRW', avg: null, qty: null, group: pfState.groups[0].id,
+      });
+    } catch(_) { /* 미등록 종목은 직접 검색으로 추가 가능 */ }
+  }
+  pfSave();
+  if(out) out.textContent = pfState.items.length ?
+    `보유 ETF ${pfState.items.length}종목 자동 등록 완료 — 평단가·수량을 입력하세요.` :
+    '자동 등록 실패 — 종목명으로 직접 검색해 추가하세요.';
+  pfRenderAll();
+  pfRefreshQuotes();
+}
+function pfAddItem() {
+  if(!pfPendingAdd) return;
+  if(pfState.items.some(it => it.symbol === pfPendingAdd.symbol && it.market === pfPendingAdd.market)) {
+    document.getElementById('pfLookupResult').textContent = '이미 추가된 종목입니다.';
+    return;
+  }
+  const avg = parseFloat(document.getElementById('pfAddAvg').value);
+  const qty = parseFloat(document.getElementById('pfAddQty').value);
+  const grp = document.getElementById('pfAddGroup').value || pfState.groups[0].id;
+  pfState.items.push(Object.assign({}, pfPendingAdd, {
+    id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    avg: (isFinite(avg) && avg > 0) ? avg : null,
+    qty: (isFinite(qty) && qty > 0) ? qty : null,
+    group: grp,
+  }));
+  pfPendingAdd = null;
+  document.getElementById('pfSymbolInput').value = '';
+  document.getElementById('pfAddAvg').value = '';
+  document.getElementById('pfAddQty').value = '';
+  document.getElementById('pfAddFields').style.display = 'none';
+  document.getElementById('pfLookupResult').textContent = '추가되었습니다.';
+  pfSave();
+  pfRefreshQuotes();
+}
+function pfDeleteItem(id) {
+  const it = pfState.items.find(x => x.id === id);
+  if(!it) return;
+  if(!confirm(`'${it.name || it.symbol}' 종목을 삭제할까요? 이 종목의 알림 조건도 함께 삭제됩니다.`)) return;
+  pfState.items = pfState.items.filter(x => x.id !== id);
+  pfState.alerts = pfState.alerts.filter(a => !(a.symbol === it.symbol && a.market === it.market));
+  delete pfQuotes[id];
+  pfSave(); pfRenderAll();
+}
+function pfUpdateItemField(id, field, value) {
+  const it = pfState.items.find(x => x.id === id);
+  if(!it) return;
+  if(field === 'group') { it.group = value; }
+  else {
+    const v = parseFloat(value);
+    it[field] = (isFinite(v) && v > 0) ? v : null;
+  }
+  pfSave(); pfRenderSummary(); pfRenderPie();
+  if(field === 'group') pfRenderTable();
+}
+
+// ── 그룹(폴더) 관리 ──────────────────────────────────────────────────────────
+function pfAddGroup() {
+  const name = (prompt('새 그룹 이름을 입력하세요. (예: 배당주, 채권 ETF)') || '').trim();
+  if(!name) return;
+  pfState.groups.push({ id: 'g' + Date.now().toString(36), name: name.slice(0, 20) });
+  pfSave(); pfRenderGroups();
+}
+function pfRenameGroup(id) {
+  const g = pfState.groups.find(x => x.id === id);
+  if(!g) return;
+  const name = (prompt('그룹 이름 변경:', g.name) || '').trim();
+  if(!name) return;
+  g.name = name.slice(0, 20);
+  pfSave(); pfRenderGroups(); pfRenderTable();
+}
+function pfDeleteGroup(id) {
+  if(pfState.groups.length <= 1) { alert('그룹은 최소 1개가 필요합니다.'); return; }
+  const g = pfState.groups.find(x => x.id === id);
+  if(!g || !confirm(`'${g.name}' 그룹을 삭제할까요? 소속 종목은 첫 번째 그룹으로 이동합니다.`)) return;
+  pfState.groups = pfState.groups.filter(x => x.id !== id);
+  const fallback = pfState.groups[0].id;
+  pfState.items.forEach(it => { if(it.group === id) it.group = fallback; });
+  if(pfActiveGroup === id) pfActiveGroup = 'all';
+  pfSave(); pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie();
+}
+function pfSetActiveGroup(id) { pfActiveGroup = id; pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie(); }
+function pfFillGroupSelect(sel, selected) {
+  if(!sel) return;
+  sel.innerHTML = pfState.groups.map(g =>
+    `<option value="${g.id}"${g.id === selected ? ' selected' : ''}>${pfEsc(g.name)}</option>`).join('');
+}
+function pfRenderGroups() {
+  const el = document.getElementById('pfGroupTabs');
+  if(!el) return;
+  const btn = (id, label, extra) => {
+    const on = pfActiveGroup === id;
+    return `<button class="tab-btn" onclick="pfSetActiveGroup('${id}')" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;cursor:pointer;background:${on ? '#2962ff' : 'transparent'};color:${on ? '#fff' : '#8d90a2'};">${label}</button>${extra || ''}`;
+  };
+  let html = btn('all', '전체');
+  pfState.groups.forEach(g => {
+    const n = pfState.items.filter(it => it.group === g.id).length;
+    let extra = '';
+    if(pfActiveGroup === g.id) {
+      extra = `<button onclick="pfRenameGroup('${g.id}')" title="이름 변경" style="background:transparent;border:none;color:#8d90a2;cursor:pointer;font-size:11px;padding:2px;">✎</button>` +
+              `<button onclick="pfDeleteGroup('${g.id}')" title="그룹 삭제" style="background:transparent;border:none;color:#8d90a2;cursor:pointer;font-size:11px;padding:2px;">🗑</button>`;
+    }
+    html += btn(g.id, `${pfEsc(g.name)} <span style="opacity:.7;">${n}</span>`, extra);
+  });
+  html += `<button onclick="pfAddGroup()" title="그룹 추가" style="font-size:11px;padding:3px 10px;border:1px dashed #3e4870;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">＋ 그룹</button>`;
+  el.innerHTML = html;
+}
+
+// ── 표 렌더링 ────────────────────────────────────────────────────────────────
+function pfFmtPrice(v, ccy, nd) {
+  if(v == null || !isFinite(v)) return '-';
+  if(ccy === 'USD') return '$' + (+v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const d = (nd != null) ? nd : (v < 1000 ? 1 : 0);
+  return (+v).toLocaleString('ko-KR', {minimumFractionDigits:d, maximumFractionDigits:d}) + '원';
+}
+function pfFmtKrw(v) {
+  if(v == null || !isFinite(v)) return '-';
+  return (v < 0 ? '-' : '') + '₩' + Math.abs(Math.round(v)).toLocaleString('ko-KR');
+}
+function pfChgHtml(pct) {
+  if(pct == null || !isFinite(pct)) return '<span style="color:#7a8099;">-</span>';
+  const cls = pct >= 0 ? 'up-txt' : 'down-txt';
+  return `<span class="${cls}">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(2)}%</span>`;
+}
+function pfItemKrwValue(it) {
+  // 평가 금액(원화 환산) — 시세 없으면 null
+  const q = pfQuotes[it.id];
+  if(!q || !it.qty) return null;
+  let v = q.price * it.qty;
+  if(q.ccy === 'USD') {
+    const fx = pfUsdKrw();
+    if(!fx) return null;
+    v *= fx;
+  }
+  return v;
+}
+function pfVisibleItems() {
+  return pfState.items.filter(it => pfActiveGroup === 'all' || it.group === pfActiveGroup);
+}
+function pfRenderTable() {
+  const body = document.getElementById('pfTableBody');
+  if(!body) return;
+  const items = pfVisibleItems();
+  if(!items.length) {
+    body.innerHTML = '<tr><td colspan="9" style="padding:18px;text-align:center;color:#7a8099;">' +
+      (pfState.items.length ? '이 그룹에 종목이 없습니다.' : '종목 코드를 조회해 추가하세요. (한국 6자리 코드 / 미국 티커)') + '</td></tr>';
+    return;
+  }
+  const fx = pfUsdKrw();
+  body.innerHTML = items.map(it => {
+    const q = pfQuotes[it.id];
+    const alerts = pfState.alerts.filter(a => a.symbol === it.symbol && a.market === it.market);
+    const evalNative = (q && it.qty) ? q.price * it.qty : null;
+    const evalKrw = pfItemKrwValue(it);
+    let pnlHtml = '<span style="color:#7a8099;">-</span>';
+    if(q && it.avg && it.qty) {
+      const pnlNative = (q.price - it.avg) * it.qty;
+      const pnlPct = (q.price / it.avg - 1) * 100;
+      const pnlKrw = (q.ccy === 'USD') ? (fx ? pnlNative * fx : null) : pnlNative;
+      const cls = pnlNative >= 0 ? 'up-txt' : 'down-txt';
+      pnlHtml = `<span class="${cls}">${pnlKrw != null ? (pnlNative >= 0 ? '+' : '') + pfFmtKrw(pnlKrw).replace('₩', '₩') : '-'}<br>` +
+                `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>`;
+    }
+    const groupSel = `<select onchange="pfUpdateItemField('${it.id}','group',this.value)" onclick="event.stopPropagation()" style="background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#a4a8bc;padding:2px 4px;font-size:11px;max-width:90px;">` +
+      pfState.groups.map(g => `<option value="${g.id}"${g.id === it.group ? ' selected' : ''}>${pfEsc(g.name)}</option>`).join('') + '</select>';
+    return `<tr class="hoverable-row" onclick="pfOpenChart('${it.id}')" style="border-bottom:1px solid #1f2430;cursor:pointer;text-align:right;">
+      <td style="text-align:left;padding:7px 4px;">
+        <span style="color:#dfe2f2;font-weight:600;">${pfEsc(it.name || it.symbol)}</span>
+        <span style="color:#7a8099;font-size:10px;margin-left:4px;">${pfEsc(it.symbol)} · ${it.market === 'KR' ? (it.secType === 'etf' ? 'ETF' : '주식') : (it.secType === 'etf' ? '미국 ETF' : '미국 주식')}</span>
+      </td>
+      <td style="padding:7px 4px;font-family:'Public Sans';color:#dfe2f2;">${q ? pfFmtPrice(q.price, q.ccy) : '<span style="color:#7a8099;">로딩…</span>'}</td>
+      <td style="padding:7px 4px;">${q ? pfChgHtml(q.pct) : '-'}</td>
+      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.avg != null ? it.avg : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','avg',this.value)" style="width:90px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:3px 5px;font-size:11px;text-align:right;"></td>
+      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.qty != null ? it.qty : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','qty',this.value)" style="width:70px;background:#131722;border:1px solid #2a2e3d;border-radius:4px;color:#dfe2f2;padding:3px 5px;font-size:11px;text-align:right;"></td>
+      <td style="padding:7px 4px;font-family:'Public Sans';color:#dfe2f2;">${evalNative != null ? pfFmtPrice(evalNative, q.ccy) : '-'}${(evalKrw != null && q && q.ccy === 'USD') ? `<br><span style="font-size:10px;color:#8d90a2;">${pfFmtKrw(evalKrw)}</span>` : ''}</td>
+      <td style="padding:7px 4px;font-size:11px;">${pnlHtml}</td>
+      <td style="padding:7px 4px;text-align:center;">${groupSel}</td>
+      <td style="padding:7px 4px;text-align:center;white-space:nowrap;" onclick="event.stopPropagation()">
+        <button onclick="pfOpenAlerts('${it.id}')" title="카카오 알림 설정" style="background:transparent;border:none;cursor:pointer;font-size:14px;">${alerts.length ? '🔔' : '🕭'}</button><span style="font-size:10px;color:#8d90a2;">${alerts.length || ''}</span>
+        <button onclick="pfDeleteItem('${it.id}')" title="삭제" style="background:transparent;border:none;cursor:pointer;font-size:13px;color:#8d90a2;">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 요약 KPI + 파이 차트 ────────────────────────────────────────────────────
+function pfRenderSummary() {
+  const items = pfVisibleItems().filter(it => it.qty && pfQuotes[it.id]);
+  const fx = pfUsdKrw();
+  let evalKrw = 0, costKrw = 0, missingFx = false, counted = 0;
+  items.forEach(it => {
+    const q = pfQuotes[it.id];
+    const mul = (q.ccy === 'USD') ? fx : 1;
+    if(q.ccy === 'USD' && !fx) { missingFx = true; return; }
+    evalKrw += q.price * it.qty * mul;
+    if(it.avg) costKrw += it.avg * it.qty * mul;
+    counted++;
+  });
+  const set = (id, txt, cls) => {
+    const el = document.getElementById(id);
+    if(el) { el.textContent = txt; el.className = cls || ''; }
+  };
+  if(!counted) {
+    set('pfKpiEval', '-'); set('pfKpiCost', '-'); set('pfKpiPnl', '-'); set('pfKpiPct', '-');
+    const sub = document.getElementById('pfKpiEvalSub');
+    if(sub) sub.textContent = '평단가·수량 입력 시 자동 계산';
+    return;
+  }
+  set('pfKpiEval', pfFmtKrw(evalKrw));
+  const sub = document.getElementById('pfKpiEvalSub');
+  if(sub) sub.textContent = `${counted}개 종목` + (missingFx ? ' · 환율 로딩 중(달러 종목 제외)' : (fx ? ` · 환율 ${fx.toFixed(1)}원` : ''));
+  set('pfKpiCost', costKrw ? pfFmtKrw(costKrw) : '-');
+  if(costKrw > 0) {
+    const pnl = evalKrw - costKrw, pct = (evalKrw / costKrw - 1) * 100;
+    const cls = pnl >= 0 ? 'up-txt' : 'down-txt';
+    const elP = document.getElementById('pfKpiPnl');
+    if(elP) { elP.textContent = (pnl >= 0 ? '+' : '') + pfFmtKrw(pnl).replace('₩', '₩'); elP.classList.remove('up-txt','down-txt'); elP.classList.add(cls); }
+    const elQ = document.getElementById('pfKpiPct');
+    if(elQ) { elQ.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'; elQ.classList.remove('up-txt','down-txt'); elQ.classList.add(cls); }
+    const subP = document.getElementById('pfKpiPnlSub');
+    if(subP) subP.textContent = '평단가 입력 종목 기준';
+  } else {
+    set('pfKpiPnl', '-'); set('pfKpiPct', '-');
+  }
+}
+const PF_PIE_COLORS = ['#2962ff','#26a69a','#f6c026','#ef5350','#e040fb','#26c6da','#ff9800','#8d6e63','#7e57c2','#66bb6a','#ec407a','#5c6bc0'];
+function pfSetPieMode(mode, btn) {
+  pfPieMode = mode;
+  document.querySelectorAll('#pfPieModeItem,#pfPieModeType').forEach(b => {
+    const on = b === btn;
+    b.style.background = on ? '#2962ff' : 'transparent';
+    b.style.color = on ? '#fff' : '#8d90a2';
+  });
+  pfRenderPie();
+}
+function pfRenderPie() {
+  const cv = document.getElementById('pfPieCanvas');
+  const empty = document.getElementById('pfPieEmpty');
+  if(!cv) return;
+  const rows = [];
+  pfVisibleItems().forEach(it => {
+    const v = pfItemKrwValue(it);
+    if(v && v > 0) rows.push({ label: it.name || it.symbol, type: it.secType === 'etf' ? 'ETF' : '주식', v });
+  });
+  if(!rows.length) {
+    cv.style.display = 'none';
+    if(empty) empty.style.display = 'block';
+    if(pfPieChart) { pfPieChart.destroy(); pfPieChart = null; }
+    return;
+  }
+  cv.style.display = 'block';
+  if(empty) empty.style.display = 'none';
+  let labels, values;
+  if(pfPieMode === 'type') {
+    const agg = {};
+    rows.forEach(r => { agg[r.type] = (agg[r.type] || 0) + r.v; });
+    labels = Object.keys(agg); values = labels.map(k => agg[k]);
+  } else {
+    rows.sort((a, b) => b.v - a.v);
+    labels = rows.map(r => r.label); values = rows.map(r => r.v);
+  }
+  const total = values.reduce((s, x) => s + x, 0);
+  if(pfPieChart) pfPieChart.destroy();
+  pfPieChart = new Chart(cv.getContext('2d'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => PF_PIE_COLORS[i % PF_PIE_COLORS.length]), borderColor: '#131722', borderWidth: 2 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '55%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#a4a8bc', font: { size: 10 }, boxWidth: 10,
+          generateLabels: c => c.data.labels.map((l, i) => ({
+            text: `${l} ${(c.data.datasets[0].data[i] / total * 100).toFixed(1)}%`,
+            fillStyle: c.data.datasets[0].backgroundColor[i], strokeStyle: 'transparent', index: i,
+          })) } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${pfFmtKrw(ctx.parsed)} (${(ctx.parsed / total * 100).toFixed(1)}%)` } },
+      },
+    },
+  });
+}
+function pfRenderAll() { pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie(); pfRenderAlertSummary(); }
+
+// ── 상세 차트 (TradingView Lightweight Charts) ───────────────────────────────
+let pfChart = { item: null, period: '1Y', main: null, rsi: null, macd: null, syncing: false, candles: null };
+let pfInd = (function(){ try { return JSON.parse(localStorage.getItem('pfIndicators')) || { ma: true, rsi: false, macd: false }; } catch(_) { return { ma: true, rsi: false, macd: false }; } })();
+const PF_PERIODS = { '1D': ['1d', '5m'], '1W': ['5d', '30m'], '3M': ['3mo', '1d'], '1Y': ['1y', '1d'], '3Y': ['3y', '1d'] };
+
+function pfOpenChart(itemId) {
+  const it = pfState.items.find(x => x.id === itemId);
+  if(!it) return;
+  pfChart.item = it;
+  document.getElementById('pfChartModal').style.display = 'block';
+  document.getElementById('pfChartTitle').textContent = (it.name || it.symbol) + ' (' + it.symbol + ')';
+  const q = pfQuotes[it.id];
+  document.getElementById('pfChartPrice').textContent = q ? pfFmtPrice(q.price, q.ccy) : '';
+  document.getElementById('pfChartChg').innerHTML = q ? pfChgHtml(q.pct) : '';
+  pfLoadChart();
+}
+function pfCloseChart() {
+  document.getElementById('pfChartModal').style.display = 'none';
+  pfDisposeCharts();
+}
+function pfDisposeCharts() {
+  ['main', 'rsi', 'macd'].forEach(k => { try { if(pfChart[k]) pfChart[k].remove(); } catch(_) {} pfChart[k] = null; });
+}
+function pfSetChartPeriod(p, btn) {
+  pfChart.period = p;
+  document.querySelectorAll('#pfChartPeriods .tab-btn').forEach(b => {
+    const on = b === btn;
+    b.style.background = on ? '#2962ff' : 'transparent';
+    b.style.color = on ? '#fff' : '#8d90a2';
+  });
+  pfLoadChart();
+}
+function pfToggleInd(name, btn) {
+  pfInd[name] = !pfInd[name];
+  try { localStorage.setItem('pfIndicators', JSON.stringify(pfInd)); } catch(_) {}
+  pfApplyIndButtons();
+  pfRenderChart();   // 데이터 재요청 없이 다시 그림
+}
+function pfApplyIndButtons() {
+  [['ma','pfIndMaBtn'], ['rsi','pfIndRsiBtn'], ['macd','pfIndMacdBtn']].forEach(([k, id]) => {
+    const b = document.getElementById(id);
+    if(!b) return;
+    b.style.background = pfInd[k] ? '#2962ff' : 'transparent';
+    b.style.color = pfInd[k] ? '#fff' : '#8d90a2';
+  });
+}
+// 네이버 국내 일봉 OHLCV — 신규 상장 ETF 등 Yahoo 에 없는 한국 종목의 차트 폴백
+async function pfFetchNaverDaily(code, daysBack) {
+  const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, '');
+  const end = new Date(), start = new Date(end.getTime() - daysBack * 86400000);
+  const url = `https://m.stock.naver.com/front-api/external/chart/domestic/info?symbol=${code}&requestType=1&startTime=${fmt(start)}&endTime=${fmt(end)}&timeframe=day`;
+  for(const u of _buildCorsProxyUrls(url)) {
+    try {
+      const r = await fetch(u, { signal: AbortSignal.timeout(8000) });
+      if(!r.ok) continue;
+      const txt = await r.text();
+      if(!txt || txt.length < 50) continue;
+      const candles = [];
+      // 행 형식: ["YYYYMMDD", 시가, 고가, 저가, 종가, 거래량, ...]
+      const re = /\[\s*"?(\d{8})"?\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/g;
+      let m;
+      while((m = re.exec(txt)) !== null) {
+        candles.push({ time: `${m[1].slice(0,4)}-${m[1].slice(4,6)}-${m[1].slice(6,8)}`,
+                       open: +m[2], high: +m[3], low: +m[4], close: +m[5], volume: +m[6] });
+      }
+      if(candles.length >= 2) return candles;
+    } catch(_) { /* next proxy */ }
+  }
+  return null;
+}
+async function pfLoadChart() {
+  const it = pfChart.item;
+  if(!it) return;
+  const msg = document.getElementById('pfChartMsg');
+  msg.textContent = '차트 데이터 로딩 중…';
+  pfDisposeCharts();
+  // KR 종목인데 Yahoo 심볼 미해석 상태면 1회 시도 (.KS → .KQ)
+  if(it.market === 'KR' && !it.yahoo && !it._yahooTried) {
+    it._yahooTried = true;
+    for(const suf of ['.KS', '.KQ']) {
+      if(await pfFetchQuoteYahoo(it.symbol + suf)) { it.yahoo = it.symbol + suf; pfSave(); break; }
+    }
+  }
+  const sym = it.yahoo || it.symbol;
+  const [rng, itv] = PF_PERIODS[pfChart.period] || PF_PERIODS['1Y'];
+  const daily = itv === '1d';
+  let candles = [];
+  const j = await _fetchJsonWithProxies(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${rng}&interval=${itv}`);
+  const res = j && j.chart && j.chart.result && j.chart.result[0];
+  const ts = res && res.timestamp;
+  const qd = res && res.indicators && res.indicators.quote && res.indicators.quote[0];
+  if(ts && qd) {
+    const gmtoff = (res.meta && res.meta.gmtoffset) || 0;
+    for(let i = 0; i < ts.length; i++) {
+      const o = qd.open[i], h = qd.high[i], l = qd.low[i], c = qd.close[i];
+      if(o == null || h == null || l == null || c == null) continue;
+      const time = daily ? new Date((ts[i] + gmtoff) * 1000).toISOString().slice(0, 10) : ts[i];
+      candles.push({ time, open: +o, high: +h, low: +l, close: +c, volume: +((qd.volume && qd.volume[i]) || 0) });
+    }
+  }
+  // Yahoo 실패 시 — 한국 종목은 네이버 일봉으로 폴백 (일봉 기간만 지원)
+  if(candles.length < 2 && it.market === 'KR') {
+    const days = { '1D': 10, '1W': 10, '3M': 130, '1Y': 500, '3Y': 1200 }[pfChart.period] || 500;
+    const nv = await pfFetchNaverDaily(it.symbol, Math.max(days, 90));
+    if(nv) {
+      candles = nv;
+      if(!daily) msg.textContent = '분봉 미지원 종목 — 일봉으로 표시합니다.';
+    }
+  }
+  if(candles.length < 2) { msg.textContent = '차트 데이터를 불러오지 못했습니다. (심볼: ' + sym + ')'; pfChart.candles = null; return; }
+  pfChart.candles = candles;
+  if(msg.textContent === '차트 데이터 로딩 중…') msg.textContent = '';
+  pfRenderChart();
+}
+function pfMkChart(el, height, opts) {
+  return LightweightCharts.createChart(el, Object.assign({
+    width: el.clientWidth, height,
+    layout: { background: { color: 'transparent' }, textColor: '#a4a8bc', fontSize: 10 },
+    grid: { vertLines: { color: '#1f2430' }, horzLines: { color: '#1f2430' } },
+    rightPriceScale: { borderColor: '#2a2e3d' },
+    timeScale: { borderColor: '#2a2e3d', timeVisible: true, secondsVisible: false },
+    crosshair: { mode: 0 },
+  }, opts || {}));
+}
+function pfSyncRanges(from) {
+  if(pfChart.syncing) return;
+  pfChart.syncing = true;
+  try {
+    const r = from.timeScale().getVisibleLogicalRange();
+    if(r) ['main', 'rsi', 'macd'].forEach(k => {
+      const c = pfChart[k];
+      if(c && c !== from) c.timeScale().setVisibleLogicalRange(r);
+    });
+  } catch(_) {}
+  pfChart.syncing = false;
+}
+function pfRenderChart() {
+  const candles = pfChart.candles;
+  pfDisposeCharts();
+  const rsiWrap = document.getElementById('pfTvRsiWrap');
+  const macdWrap = document.getElementById('pfTvMacdWrap');
+  const maLegend = document.getElementById('pfMaLegend');
+  if(!candles) { rsiWrap.style.display = 'none'; macdWrap.style.display = 'none'; return; }
+  if(typeof LightweightCharts === 'undefined') {
+    document.getElementById('pfChartMsg').textContent = '차트 라이브러리(Lightweight Charts) 로드 실패 — 네트워크 차단 여부를 확인하세요.';
+    return;
+  }
+  pfApplyIndButtons();
+  maLegend.style.display = pfInd.ma ? 'block' : 'none';
+  rsiWrap.style.display = pfInd.rsi ? 'block' : 'none';
+  macdWrap.style.display = pfInd.macd ? 'block' : 'none';
+
+  const closes = candles.map(c => c.close);
+  const times = candles.map(c => c.time);
+
+  // 메인: 캔들 + 거래량 + (토글) 이동평균선
+  const elMain = document.getElementById('pfTvMain');
+  elMain.innerHTML = '';
+  const main = pfMkChart(elMain, 360);
+  pfChart.main = main;
+  const cs = main.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350' });
+  cs.setData(candles);
+  const vol = main.addHistogramSeries({ priceScaleId: '', priceFormat: { type: 'volume' }, color: '#2a2e3d' });
+  main.priceScale('').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+  vol.setData(candles.map(c => ({ time: c.time, value: c.volume, color: c.close >= c.open ? '#26a69a55' : '#ef535055' })));
+  if(pfInd.ma) {
+    [[5, '#f6c026'], [20, '#e040fb'], [60, '#26c6da']].forEach(([n, color]) => {
+      const ma = pfSMA(closes, n);
+      const data = [];
+      for(let i = 0; i < times.length; i++) if(ma[i] != null) data.push({ time: times[i], value: ma[i] });
+      if(data.length) main.addLineSeries({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(data);
+    });
+  }
+  main.timeScale().fitContent();
+  main.timeScale().subscribeVisibleLogicalRangeChange(() => pfSyncRanges(main));
+
+  // RSI 패널
+  if(pfInd.rsi) {
+    const elR = document.getElementById('pfTvRsi');
+    elR.innerHTML = '';
+    const rsiC = pfMkChart(elR, 110);
+    pfChart.rsi = rsiC;
+    const rsi = pfRSI(closes, 14);
+    const data = [];
+    for(let i = 0; i < times.length; i++) if(rsi[i] != null) data.push({ time: times[i], value: rsi[i] });
+    const s = rsiC.addLineSeries({ color: '#b6c4ff', lineWidth: 1, priceLineVisible: false });
+    s.setData(data);
+    [[70, '#ef535088'], [30, '#26a69a88']].forEach(([lv, color]) =>
+      s.createPriceLine({ price: lv, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true }));
+    rsiC.timeScale().fitContent();
+    rsiC.timeScale().subscribeVisibleLogicalRangeChange(() => pfSyncRanges(rsiC));
+  }
+  // MACD 패널
+  if(pfInd.macd) {
+    const elM = document.getElementById('pfTvMacd');
+    elM.innerHTML = '';
+    const macdC = pfMkChart(elM, 130);
+    pfChart.macd = macdC;
+    const { macd, signal, hist } = pfMACD(closes, 12, 26, 9);
+    const hData = [], mData = [], sData = [];
+    for(let i = 0; i < times.length; i++) {
+      if(hist[i] != null) hData.push({ time: times[i], value: hist[i], color: hist[i] >= 0 ? '#26a69a88' : '#ef535088' });
+      if(macd[i] != null) mData.push({ time: times[i], value: macd[i] });
+      if(signal[i] != null) sData.push({ time: times[i], value: signal[i] });
+    }
+    macdC.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false }).setData(hData);
+    macdC.addLineSeries({ color: '#2962ff', lineWidth: 1, priceLineVisible: false }).setData(mData);
+    macdC.addLineSeries({ color: '#f6c026', lineWidth: 1, priceLineVisible: false }).setData(sData);
+    macdC.timeScale().fitContent();
+    macdC.timeScale().subscribeVisibleLogicalRangeChange(() => pfSyncRanges(macdC));
+  }
+  // 초기 가시범위 동기화
+  pfSyncRanges(main);
+}
+// 보조지표 계산
+function pfSMA(arr, n) {
+  const out = new Array(arr.length).fill(null);
+  let sum = 0;
+  for(let i = 0; i < arr.length; i++) {
+    sum += arr[i];
+    if(i >= n) sum -= arr[i - n];
+    if(i >= n - 1) out[i] = sum / n;
+  }
+  return out;
+}
+function pfEMA(arr, n) {
+  const out = new Array(arr.length).fill(null);
+  const k = 2 / (n + 1);
+  let ema = null;
+  for(let i = 0; i < arr.length; i++) {
+    const v = arr[i];
+    if(v == null) { out[i] = ema; continue; }
+    ema = (ema == null) ? v : v * k + ema * (1 - k);
+    out[i] = ema;
+  }
+  return out;
+}
+function pfRSI(closes, n) {
+  const out = new Array(closes.length).fill(null);
+  let avgG = 0, avgL = 0;
+  for(let i = 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    const g = Math.max(d, 0), l = Math.max(-d, 0);
+    if(i <= n) {
+      avgG += g / n; avgL += l / n;
+      if(i === n) out[i] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+    } else {
+      avgG = (avgG * (n - 1) + g) / n;
+      avgL = (avgL * (n - 1) + l) / n;
+      out[i] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+    }
+  }
+  return out;
+}
+function pfMACD(closes, fast, slow, sig) {
+  const ef = pfEMA(closes, fast), es = pfEMA(closes, slow);
+  const macd = closes.map((_, i) => (i >= slow - 1 && ef[i] != null && es[i] != null) ? ef[i] - es[i] : null);
+  const signal = pfEMA(macd, sig).map((v, i) => macd[i] == null ? null : v);
+  const hist = macd.map((v, i) => (v != null && signal[i] != null) ? v - signal[i] : null);
+  return { macd, signal, hist };
+}
+
+// ── 카카오 알림 조건 설정 ────────────────────────────────────────────────────
+const PF_ALERT_LABEL = {
+  price_above: v => `가격 ≥ ${(+v).toLocaleString()}`,
+  price_below: v => `가격 ≤ ${(+v).toLocaleString()}`,
+  pct_change:  v => `등락률 ${v > 0 ? '+' : ''}${v}% 도달`,
+  high52:      () => '52주 신고가',
+  low52:       () => '52주 신저가',
+  vol_surge:   v => `거래량 전일比 ${v || 300}%↑`,
+  golden_cross:(v, a) => `골든크로스 MA${a.maShort}/${a.maLong}`,
+  dead_cross:  (v, a) => `데드크로스 MA${a.maShort}/${a.maLong}`,
+};
+function pfAlertLabel(a) {
+  const fn = PF_ALERT_LABEL[a.type];
+  return (fn ? fn(a.value, a) : a.type) + (a.limit === 'cool60' ? ' · 1시간 쿨다운' : ' · 하루 1회');
+}
+let pfAlertItem = null;
+function pfOpenAlerts(itemId) {
+  const it = pfState.items.find(x => x.id === itemId);
+  if(!it) return;
+  pfAlertItem = it;
+  document.getElementById('pfAlertModalName').textContent = (it.name || it.symbol) + ' (' + it.symbol + ')';
+  document.getElementById('pfAlertModal').style.display = 'block';
+  pfAlertTypeChanged();
+  pfRenderAlertList();
+}
+function pfCloseAlerts() {
+  document.getElementById('pfAlertModal').style.display = 'none';
+  pfAlertItem = null;
+  pfRenderAll();
+}
+function pfAlertTypeChanged() {
+  const t = document.getElementById('pfAlertType').value;
+  const val = document.getElementById('pfAlertValue');
+  const ma = document.getElementById('pfAlertMaPair');
+  const hint = document.getElementById('pfAlertHint');
+  const needVal = (t === 'price_above' || t === 'price_below' || t === 'pct_change' || t === 'vol_surge');
+  val.style.display = needVal ? 'inline-block' : 'none';
+  ma.style.display = (t === 'golden_cross' || t === 'dead_cross') ? 'inline-block' : 'none';
+  const hints = {
+    price_above: '현재가가 입력한 가격 이상이 되면 발송됩니다.',
+    price_below: '현재가가 입력한 가격 이하가 되면 발송됩니다.',
+    pct_change: '전일 종가 대비 등락률이 입력값에 도달하면 발송. 양수=상승(예: 5), 음수=하락(예: -3).',
+    high52: '현재가가 최근 52주 최고가를 넘으면 발송됩니다.',
+    low52: '현재가가 최근 52주 최저가를 밑돌면 발송됩니다.',
+    vol_surge: '당일 거래량이 전일 거래량의 입력%(기본 300=3배) 이상이면 발송됩니다.',
+    golden_cross: '단기 이동평균선이 장기선을 상향 돌파(골든크로스)한 날 발송됩니다.',
+    dead_cross: '단기 이동평균선이 장기선을 하향 돌파(데드크로스)한 날 발송됩니다.',
+  };
+  hint.textContent = hints[t] || '';
+  if(t === 'vol_surge' && !val.value) val.placeholder = '300';
+  else val.placeholder = '값';
+}
+function pfAddAlert() {
+  if(!pfAlertItem) return;
+  const t = document.getElementById('pfAlertType').value;
+  const rawV = document.getElementById('pfAlertValue').value;
+  let value = parseFloat(rawV);
+  if(t === 'vol_surge' && !isFinite(value)) value = 300;
+  if((t === 'price_above' || t === 'price_below') && (!isFinite(value) || value <= 0)) { alert('가격을 입력하세요.'); return; }
+  if(t === 'pct_change' && (!isFinite(value) || value === 0)) { alert('등락률(%)을 입력하세요. 양수=상승, 음수=하락.'); return; }
+  if(t === 'vol_surge' && (!isFinite(value) || value <= 100)) { alert('100보다 큰 %를 입력하세요. (예: 300 = 3배)'); return; }
+  const [maS, maL] = (document.getElementById('pfAlertMaPair').value || '20/60').split('/').map(Number);
+  const it = pfAlertItem;
+  pfState.alerts.push({
+    id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    symbol: it.symbol, market: it.market, yahoo: it.yahoo || null, name: it.name || it.symbol,
+    type: t,
+    value: isFinite(value) ? value : null,
+    maShort: (t === 'golden_cross' || t === 'dead_cross') ? maS : null,
+    maLong:  (t === 'golden_cross' || t === 'dead_cross') ? maL : null,
+    limit: document.getElementById('pfAlertLimit').value || 'daily',
+    enabled: true,
+  });
+  document.getElementById('pfAlertValue').value = '';
+  pfSave(); pfRenderAlertList(); pfMarkDirty();
+}
+function pfDeleteAlert(id) {
+  pfState.alerts = pfState.alerts.filter(a => a.id !== id);
+  pfSave(); pfRenderAlertList(); pfMarkDirty();
+}
+function pfToggleAlert(id) {
+  const a = pfState.alerts.find(x => x.id === id);
+  if(a) { a.enabled = !a.enabled; pfSave(); pfRenderAlertList(); pfMarkDirty(); }
+}
+function pfRenderAlertList() {
+  const el = document.getElementById('pfAlertList');
+  if(!el || !pfAlertItem) return;
+  const list = pfState.alerts.filter(a => a.symbol === pfAlertItem.symbol && a.market === pfAlertItem.market);
+  if(!list.length) { el.innerHTML = '<div style="font-size:12px;color:#7a8099;padding:6px 0;">설정된 알림이 없습니다.</div>'; return; }
+  el.innerHTML = list.map(a => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:#1b1f2b;border:1px solid #2a2e3d;border-radius:6px;padding:7px 10px;margin-bottom:6px;${a.enabled ? '' : 'opacity:.45;'}">
+      <span style="font-size:12px;color:#dfe2f2;">${pfEsc(pfAlertLabel(a))}</span>
+      <span style="white-space:nowrap;">
+        <button onclick="pfToggleAlert('${a.id}')" style="background:transparent;border:1px solid #2a2e3d;border-radius:4px;color:${a.enabled ? '#26a69a' : '#8d90a2'};font-size:10px;padding:2px 8px;cursor:pointer;">${a.enabled ? 'ON' : 'OFF'}</button>
+        <button onclick="pfDeleteAlert('${a.id}')" style="background:transparent;border:none;color:#8d90a2;cursor:pointer;font-size:13px;">🗑</button>
+      </span>
+    </div>`).join('');
+}
+function pfRenderAlertSummary() {
+  const el = document.getElementById('pfAlertSummary');
+  if(!el) return;
+  if(!pfState.alerts.length) { el.textContent = '설정된 알림이 없습니다. 종목 행의 🔔 버튼으로 추가하세요.'; return; }
+  const bySym = {};
+  pfState.alerts.forEach(a => {
+    const k = a.name || a.symbol;
+    (bySym[k] = bySym[k] || []).push(pfAlertLabel(a) + (a.enabled ? '' : ' (OFF)'));
+  });
+  el.innerHTML = Object.keys(bySym).map(k =>
+    `<div style="margin-bottom:4px;"><b style="color:#dfe2f2;">${pfEsc(k)}</b> — ${pfEsc(bySym[k].join(' · '))}</div>`).join('');
+}
+function pfMarkDirty() {
+  const el = document.getElementById('pfSyncStatus');
+  if(el) { el.textContent = '변경됨 — 서버 저장 필요'; el.style.color = '#f0c75e'; }
+  pfRenderAlertSummary();
+}
+
+// ── 서버 동기화 (Cloudflare Worker → 저장소 alerts_config.json) ───────────────
+function pfSetSyncKey() {
+  const cur = localStorage.getItem('pfSyncKey') || '';
+  const k = prompt('동기화 키 (Worker 시크릿 ALERTS_SYNC_KEY 와 동일하게 — 미설정 시 비워두기):', cur);
+  if(k === null) return;
+  try { localStorage.setItem('pfSyncKey', k.trim()); } catch(_) {}
+}
+async function pfSyncAlerts() {
+  const st = document.getElementById('pfSyncStatus');
+  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+  if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = '#ef5350'; } return; }
+  if(st) { st.textContent = '저장 중…'; st.style.color = '#8d90a2'; }
+  try {
+    const r = await fetch(base + '/portfolio', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: localStorage.getItem('pfSyncKey') || '', alerts: pfState.alerts }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const j = await r.json().catch(() => ({}));
+    if(r.ok && j.ok) {
+      pfState.lastSync = new Date().toISOString();
+      pfSave();
+      if(st) { st.textContent = `저장 완료 (알림 ${j.count}개, ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'})})`; st.style.color = '#26a69a'; }
+    } else {
+      const why = j.error === 'unauthorized' ? '동기화 키 불일치 (🔑 버튼으로 설정)' :
+                  j.error === 'no_github_token' ? 'Worker 에 GH_DISPATCH_TOKEN 시크릿 필요' : (j.error || ('HTTP ' + r.status));
+      if(st) { st.textContent = '저장 실패: ' + why; st.style.color = '#ef5350'; }
+    }
+  } catch(e) {
+    if(st) { st.textContent = '저장 실패 — 네트워크 오류'; st.style.color = '#ef5350'; }
+  }
+}
+async function pfPullAlerts() {
+  const st = document.getElementById('pfSyncStatus');
+  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+  if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = '#ef5350'; } return; }
+  if(st) { st.textContent = '불러오는 중…'; st.style.color = '#8d90a2'; }
+  try {
+    const r = await fetch(base + '/portfolio', { signal: AbortSignal.timeout(15000) });
+    const j = await r.json().catch(() => null);
+    if(!r.ok || !j || !Array.isArray(j.alerts)) { if(st) { st.textContent = '서버에 저장된 설정이 없습니다.'; st.style.color = '#8d90a2'; } return; }
+    if(pfState.alerts.length && !confirm(`서버의 알림 ${j.alerts.length}개로 현재 설정(${pfState.alerts.length}개)을 덮어쓸까요?`)) return;
+    pfState.alerts = j.alerts;
+    pfSave(); pfRenderAll();
+    if(st) { st.textContent = `서버 설정 ${j.alerts.length}개 불러옴`; st.style.color = '#26a69a'; }
+  } catch(_) {
+    if(st) { st.textContent = '불러오기 실패 — 네트워크 오류'; st.style.color = '#ef5350'; }
+  }
+}
+
+// ── 페이지 초기화 ────────────────────────────────────────────────────────────
+function initPortfolioPage() {
+  let isFresh = false;
+  if(!pfState) {
+    try { isFresh = !localStorage.getItem(PF_LS_KEY); } catch(_) {}
+    pfState = pfLoad();
+  }
+  if(!_pfInited) {
+    _pfInited = true;
+    pfFillGroupSelect(document.getElementById('pfAddGroup'));
+    // 첫 방문(저장된 포트폴리오 없음) → 보유 ETF 9종 자동 등록
+    if(isFresh && !pfState.seeded && !pfState.items.length) setTimeout(() => pfSeedDefaults(), 100);
+    // 장중 1분 주기 자동 갱신 (페이지가 활성일 때만)
+    pfTimer = setInterval(() => {
+      const pg = document.getElementById('page-portfolio');
+      if(pg && pg.classList.contains('active') && pfState.items.length) pfRefreshQuotes();
+    }, 60000);
+    // ESC 로 모달 닫기
+    document.addEventListener('keydown', e => {
+      if(e.key === 'Escape') { pfCloseChart(); pfCloseAlerts(); }
+    });
+  }
+  pfRenderAll();
+  pfRefreshQuotes();
+}
 </script>
 </body>
 </html>
