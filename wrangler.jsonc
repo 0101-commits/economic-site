@@ -14,6 +14,16 @@
   "ai": {
     "binding": "AI"
   },
+  // 📝 분석 노트 클라우드 동기화 (GET/POST /notes) — 비공개 KV 스토리지 (Task 2.1).
+  // 활성화 방법:
+  //   1. `npx wrangler kv namespace create NOTES_KV` 실행 → 출력된 id 를 아래에 기입
+  //   2. 아래 블록의 주석을 해제하고 재배포 (`npx wrangler deploy`)
+  //   3. (권장) `npx wrangler secret put NOTES_SYNC_KEY` 로 동기화 키 설정
+  //      — 미설정 시 ALERTS_SYNC_KEY 를 재사용하며, 둘 다 없으면 키 검증 없이 동작
+  // 바인딩이 없으면 /notes 는 503(no_kv_binding)을 반환하고 나머지 기능은 영향 없다.
+  // "kv_namespaces": [
+  //   { "binding": "NOTES_KV", "id": "<wrangler kv namespace create NOTES_KV 출력 id>" }
+  // ],
   // ⏰ Cron Triggers — 카카오 시황 자동 발송 트리거(GitHub Actions 스케줄이 best-effort 라 누락되는
   // 문제 해소). 이 시각에 Worker 의 scheduled() 가 GitHub repository_dispatch 로 kakao-daily 워크플로를
   // on-demand 실행시킨다(차트 생성·발송은 GitHub Actions 가). on-demand 라 스케줄 드롭 영향이 없다.

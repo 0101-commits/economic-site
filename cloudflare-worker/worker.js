@@ -416,6 +416,75 @@ async function triggerKakaoDispatch(env, cron) {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────
+// 📝 분석 노트 클라우드 동기화 — GET/POST /notes (Task 2.1)
+// ──────────────────────────────────────────────────────────────────
+// 프론트('분석 노트' 페이지)의 localStorage 노트를 Cloudflare KV 에 백업/복원한다.
+// ⚠️ /portfolio 와 달리 GitHub 저장소 커밋을 쓰지 않는다 — 노트는 개인 분석 내용이라
+//    공개 저장소에 올리면 안 되고, KV 는 비공개 스토리지라 적합하다.
+//   필요한 바인딩: NOTES_KV — wrangler.jsonc 의 kv_namespaces 주석 참고 (미설정 시 503).
+//   선택 시크릿: NOTES_SYNC_KEY (미설정 시 ALERTS_SYNC_KEY 재사용) — 읽기/쓰기 모두 키 검증.
+const NOTES_KV_KEY = 'notes_v1';
+const NOTES_MAX_BYTES = 1000000;   // 1MB — KV value 한도(25MB) 대비 보수적 상한
+
+function _notesSyncKey(env) {
+  return (env && (env.NOTES_SYNC_KEY || env.ALERTS_SYNC_KEY)) || '';
+}
+
+function _sanitizeNotes(raw) {
+  // 알려진 필드만 보존 — 임의 JSON 이 KV 에 쌓이는 것 방지
+  const str = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const out = [];
+  for (const n of (Array.isArray(raw) ? raw.slice(0, 500) : [])) {
+    if (!n || typeof n !== 'object') continue;
+    const sections = {};
+    if (n.sections && typeof n.sections === 'object') {
+      for (const k of Object.keys(n.sections).slice(0, 12)) {
+        if (/^note[A-Za-z]{1,20}$/.test(k)) sections[k] = str(n.sections[k], 20000);
+      }
+    }
+    out.push({
+      id: str(n.id, 40) || ('note_' + Date.now()),
+      title: str(n.title, 300),
+      author: str(n.author, 60),
+      date: str(n.date, 30),
+      tag: str(n.tag, 30),
+      body: str(n.body, 50000),
+      sections,
+    });
+  }
+  return out;
+}
+
+async function handleNotesGet(request, env) {
+  if (!env || !env.NOTES_KV) return jsonResponse({ error: 'no_kv_binding' }, 503);
+  const key = _notesSyncKey(env);
+  const given = new URL(request.url).searchParams.get('key') || '';
+  if (key && given !== key) return jsonResponse({ error: 'unauthorized' }, 401);
+  const stored = await env.NOTES_KV.get(NOTES_KV_KEY);
+  if (!stored) return jsonResponse({ ok: true, notes: [], updatedAt: null });
+  try {
+    const cfg = JSON.parse(stored);
+    return jsonResponse({ ok: true, notes: cfg.notes || [], updatedAt: cfg.updatedAt || null });
+  } catch {
+    return jsonResponse({ error: 'stored_parse_failed' }, 502);
+  }
+}
+
+async function handleNotesPost(request, env) {
+  if (!env || !env.NOTES_KV) return jsonResponse({ error: 'no_kv_binding' }, 503);
+  const raw = await request.text();
+  if (raw.length > NOTES_MAX_BYTES) return jsonResponse({ error: 'payload_too_large' }, 413);
+  let body;
+  try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
+  const key = _notesSyncKey(env);
+  if (key && String(body.key || '') !== key) return jsonResponse({ error: 'unauthorized' }, 401);
+  const notes = _sanitizeNotes(body.notes);
+  const cfg = { version: 1, updatedAt: new Date().toISOString(), notes };
+  await env.NOTES_KV.put(NOTES_KV_KEY, JSON.stringify(cfg));
+  return jsonResponse({ ok: true, count: notes.length });
+}
+
 export default {
   // Cloudflare Cron Trigger 진입점
   async scheduled(event, env, ctx) {
@@ -438,7 +507,11 @@ export default {
       if (purl.pathname === '/portfolio') {
         return handlePortfolioPost(request, env);
       }
-      return jsonResponse({ error: 'POST is only supported at /ai or /portfolio' }, 404);
+      // 📝 분석 노트 — KV 백업 (Task 2.1)
+      if (purl.pathname === '/notes') {
+        return handleNotesPost(request, env);
+      }
+      return jsonResponse({ error: 'POST is only supported at /ai, /portfolio or /notes' }, 404);
     }
     if (request.method !== 'GET') return jsonResponse({ error: 'GET only' }, 405);
 
@@ -446,6 +519,10 @@ export default {
     // 📲 투자 현황 — 저장된 카카오 알림 설정 조회 (GET /portfolio)
     if (reqUrl.pathname === '/portfolio') {
       return handlePortfolioGet(env);
+    }
+    // 📝 분석 노트 — KV 백업 조회 (GET /notes?key=…)
+    if (reqUrl.pathname === '/notes') {
+      return handleNotesGet(request, env);
     }
     // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.
     // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.

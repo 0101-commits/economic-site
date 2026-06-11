@@ -808,6 +808,8 @@
       </div>
       <div id="reDrillSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
       <div id="reDrillList" style="flex:1;overflow-y:auto;min-height:140px;padding-right:4px;"></div>
+      <!-- 🏢 해당 권역 청약 경쟁률/최근 단지 (Task 3.2 — 지도 클릭 → 거래 동향 + 청약 연동) -->
+      <div id="reDrillSub" style="margin-top:10px;border-top:1px solid var(--c-border,#2a2e3d);padding-top:10px;display:none;"></div>
       <div id="reDrillNote" style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:8px;text-align:right;">출처: 한국부동산원 R-ONE 전국주택가격동향조사 (지역별 매매가격지수 변동률)</div>
     </div>
   </div>
@@ -2012,6 +2014,14 @@
           <button onclick="newNote()" style="background:#2962ff;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:8px;">+ 새 노트</button>
           <button onclick="exportSelectedToExcel()" style="background:transparent;color:#26a69a;border:1px solid #26a69a55;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;margin-bottom:6px;">↓ Excel 저장</button>
           <button onclick="exportNotesJsonFile()" style="background:transparent;color:#b6c4ff;border:1px solid #2962ff55;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;margin-bottom:6px;" title="모든 노트를 JSON 으로 백업 — 다른 기기/브라우저로 이동 시 보존">💾 전체 JSON 백업</button>
+          <!-- ☁ 클라우드 동기화 (Task 2.1) — Cloudflare Worker /notes (KV) 백업/복원 -->
+          <div style="border-top:1px solid var(--c-border,#2a2e3d);margin:2px 0 8px;padding-top:8px;">
+            <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-bottom:6px;">☁ 클라우드 동기화 <span title="Cloudflare Worker(KV)에 노트를 백업해 다른 기기/브라우저에서 불러올 수 있습니다. Worker 에 NOTES_KV 바인딩 필요 (wrangler.jsonc 참고)" style="cursor:help;">ⓘ</span></div>
+            <button onclick="notesSyncPush()" style="background:transparent;color:#b6c4ff;border:1px solid #2962ff55;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;margin-bottom:6px;width:100%;">☁ 서버에 저장</button>
+            <button onclick="notesSyncPull()" style="background:transparent;color:#b6c4ff;border:1px solid #2a2e3d;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;margin-bottom:6px;width:100%;">⬇ 서버에서 불러오기</button>
+            <button onclick="notesSetSyncKey()" style="background:transparent;color:#8d90a2;border:1px solid #2a2e3d;border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;margin-bottom:4px;width:100%;" title="Worker 시크릿 NOTES_SYNC_KEY(또는 ALERTS_SYNC_KEY)를 설정한 경우 동일한 키 입력">🔑 동기화 키</button>
+            <div id="notesSyncStatus" style="font-size:10px;color:var(--c-txt-dim,#8d90a2);line-height:1.5;min-height:14px;"></div>
+          </div>
           <label style="background:transparent;color:#b6c4ff;border:1px solid #2962ff55;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;margin-bottom:12px;text-align:center;display:block;">
             ↥ JSON 가져오기
             <input type="file" accept=".json,application/json" onchange="importNotesJsonFile(this)" style="display:none;"/>
@@ -3766,12 +3776,20 @@ function buildOsmRegionMap() {
   } else {
     setTimeout(() => _osmRegionMap.invalidateSize(), 50);
   }
-  // 각 시도 마커 (DivIcon 으로 컬러 마커)
+  // 각 시도 마커 (DivIcon 으로 컬러 마커) + 변동률 히트 서클 (코로플레스 대용 히트맵)
   krRegionData.forEach(d => {
     const ll = krRegionLatLng[d.code];
     if(!ll) return;
     const color = _regionColorForVal(d.val);
     const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
+    // 히트 서클 — 변동률 크기에 비례한 반경 + 등락 색상의 반투명 채움 (마커 아래 레이어)
+    const solid = color.length > 7 ? color.slice(0, 7) : color;
+    const heat = L.circle([ll.lat, ll.lng], {
+      radius: 14000 + Math.min(Math.abs(d.val) / 0.5, 1) * 26000,
+      color: solid, weight: 1, opacity: 0.35,
+      fillColor: solid, fillOpacity: 0.22, interactive: false,
+    }).addTo(_osmRegionMap);
+    _osmRegionMarkers.push(heat);   // 마커와 동일하게 removeLayer 로 정리되도록 함께 보관
     const icon = L.divIcon({
       className: 'osm-region-marker',
       html: `<div style="background:${color};color:#fff;padding:3px 7px;border-radius:12px;font-size:10px;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
@@ -3888,6 +3906,17 @@ async function buildNaverRegionMap() {
     if(!ll) return;
     const color = _regionColorForVal(d.val);
     const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
+    // 히트 서클 — 변동률 크기에 비례한 반경 + 등락 색상의 반투명 채움 (마커 아래 레이어)
+    const solid = color.length > 7 ? color.slice(0, 7) : color;
+    const heat = new naver.maps.Circle({
+      map: _naverRegionMap,
+      center: new naver.maps.LatLng(ll.lat, ll.lng),
+      radius: 14000 + Math.min(Math.abs(d.val) / 0.5, 1) * 26000,
+      fillColor: solid, fillOpacity: 0.22,
+      strokeColor: solid, strokeOpacity: 0.35, strokeWeight: 1,
+      clickable: false,
+    });
+    _naverRegionMarkers.push(heat);  // setMap(null) 로 마커와 함께 정리
     // 커스텀 HTML 마커
     const marker = new naver.maps.Marker({
       position: new naver.maps.LatLng(ll.lat, ll.lng),
@@ -4046,7 +4075,46 @@ function openRegionDrill(d, sub) {
       </div>`;
     }).join('');
   }
+  // 🏢 해당 권역 청약 경쟁률 — 시도 코드 → 청약 권역(seoul/gyeonggi/metro/other) 매핑 후
+  // 서버 수집(청약홈 → data.json.subscription.byRegion) 최근 단지를 함께 표시 (Task 3.2)
+  try { _renderDrillSubscription(d); } catch(_) {}
   modal.style.display = 'flex';
+}
+
+// 시도 코드 → 청약 권역 키 (SUBSCRIPTION_DETAIL/byRegion 과 동일 체계)
+function _subRegionKeyForCode(code) {
+  if(code === '11') return 'seoul';
+  if(code === '41' || code === '28') return 'gyeonggi';                       // 경기/인천
+  if(['26','27','29','30','31'].includes(code)) return 'metro';               // 부산·대구·광주·대전·울산
+  return 'other';
+}
+
+function _renderDrillSubscription(d) {
+  const el = document.getElementById('reDrillSub');
+  if(!el) return;
+  const regionKey = _subRegionKeyForCode(d.code);
+  const det = (typeof SUBSCRIPTION_DETAIL !== 'undefined') ? SUBSCRIPTION_DETAIL[regionKey] : null;
+  const sub = ((_latestDataForIndicators || {}).subscription) || {};
+  const list = (sub.byRegion && Array.isArray(sub.byRegion[regionKey])) ? sub.byRegion[regionKey] : [];
+  const recent = list.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 5);
+  const rateStr = v => (v == null || v === '') ? '—' : (typeof v === 'number' ? v.toFixed(1) + ' : 1' : String(v));
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+    <div style="font-size:12px;font-weight:700;color:var(--c-txt,#dfe2f2);">🏢 청약 경쟁률 — ${det ? det.label : d.label} 권역
+      ${det ? `<span style="font-size:11px;color:#b6c4ff;font-weight:600;margin-left:6px;">1순위 평균 ${det.rate}</span>` : ''}</div>
+    <button onclick="closeRegionDrill();showSubscriptionDetail('${regionKey}')" style="background:transparent;border:1px solid var(--c-border,#2a2e3d);color:#b6c4ff;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;flex-shrink:0;">권역 상세 →</button>
+  </div>`;
+  if(recent.length) {
+    html += recent.map(s => `<div style="display:flex;align-items:center;gap:8px;padding:3px 2px;font-size:11.5px;">
+      <span style="flex:1;color:var(--c-txt,#dfe2f2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(String(s.name || ''))}">${escapeHtml(String(s.name || ''))}</span>
+      <span style="color:var(--c-txt-dim,#8d90a2);flex-shrink:0;">${s.date || ''}</span>
+      <span style="width:70px;text-align:right;font-weight:600;color:${s.rate != null && s.rate !== '' ? '#b6c4ff' : 'var(--c-txt-muted,#434656)'};flex-shrink:0;">${rateStr(s.rate)}</span>
+    </div>`).join('');
+    html += `<div style="font-size:9px;color:var(--c-txt-muted,#434656);margin-top:4px;">최근 청약 단지 ${recent.length}건 · 출처: 청약홈(data.go.kr)${sub.lastFetched ? ' · 수집 ' + new Date(sub.lastFetched).toLocaleDateString('ko-KR') : ''}</div>`;
+  } else {
+    html += `<div style="font-size:11px;color:var(--c-txt-dim,#8d90a2);">이 권역의 단지별 청약 데이터가 아직 수집되지 않았습니다. '권역 상세'에서 세부 지역 구조를 확인하세요.</div>`;
+  }
+  el.innerHTML = html;
+  el.style.display = 'block';
 }
 
 // 드릴다운 → 해당 시도 가격지수 추이 모달로 전환
@@ -10361,6 +10429,11 @@ const GLOBAL_INVESTORS = {
       { name:'Tesla', pct: 0.41 }, { name:'TSMC', pct: 0.39 },
       { name:'Broadcom', pct: 0.36 }, { name:'Berkshire Hathaway', pct: 0.32 },
     ],
+    // 연말 기준 근사치 (NBIM 연차보고서, 달러 환산) — AUM 추이 차트용
+    aum_trend: { unit: '조 달러', series: [
+      { y:'2017', v:1.06 }, { y:'2018', v:1.02 }, { y:'2019', v:1.15 }, { y:'2020', v:1.27 },
+      { y:'2021', v:1.40 }, { y:'2022', v:1.23 }, { y:'2023', v:1.55 }, { y:'2024', v:1.74 },
+    ] },
     summary: '세계 최대 SWF (국부펀드). 노르웨이 유전 수입을 모태로 운용. 9,000+ 글로벌 종목 분산 투자. 윤리 투자 가이드라인으로 무기·담배·석탄 등 제외. 분기·연차 보고 투명도 ★★★★★.',
     links: [
       { label:'NBIM 공식', url:'https://www.nbim.no' },
@@ -10393,6 +10466,11 @@ const GLOBAL_INVESTORS = {
       { name:'Mitsubishi UFJ', pct: 0.38 }, { name:'Keyence', pct: 0.35 },
       { name:'SoftBank', pct: 0.31 }, { name:'Hitachi', pct: 0.28 },
     ],
+    // 회계연도말(3월) 기준 근사치 (GPIF 연차보고서, 엔화) — AUM 추이 차트용
+    aum_trend: { unit: '조 엔', series: [
+      { y:'FY17', v:156.4 }, { y:'FY18', v:159.2 }, { y:'FY19', v:150.6 }, { y:'FY20', v:186.2 },
+      { y:'FY21', v:196.6 }, { y:'FY22', v:200.1 }, { y:'FY23', v:246.0 }, { y:'FY24', v:249.8 },
+    ] },
     summary: '세계 최대 공적연금. 4분의 1씩 균등 배분 (국내주/해외주/국내채/해외채). 일본 후생연금·국민연금 적립금 운용. 분기별 공식 보고서로 투명도 높음.',
     links: [
       { label:'GPIF 공식', url:'https://www.gpif.go.jp/en/' },
@@ -10428,6 +10506,11 @@ const GLOBAL_INVESTORS = {
       { name:'I Fund (MSCI EAFE+EM)',     pct:  6.8 },
       { name:'S Fund (Dow Jones US Comp 1500)', pct: 6.5 },
     ],
+    // 연말 기준 근사치 (FRTIB 재무보고서) — AUM 추이 차트용
+    aum_trend: { unit: '십억 달러', series: [
+      { y:'2017', v:534 }, { y:'2018', v:558 }, { y:'2019', v:631 }, { y:'2020', v:709 },
+      { y:'2021', v:812 }, { y:'2022', v:726 }, { y:'2023', v:845 }, { y:'2024', v:933 },
+    ] },
     summary: '미국 연방공무원·군인 등 700만 가입자의 확정기여형(DC) 퇴직저축. 5개 코어 펀드(G/F/C/S/I) + 라이프사이클(L) 펀드. 운용 수수료 0.05% 미만 (세계 최저 수준).',
     links: [
       { label:'TSP 공식', url:'https://www.tsp.gov' },
@@ -10461,6 +10544,11 @@ const GLOBAL_INVESTORS = {
       { name:'Visa', pct: 0.38 }, { name:'JPMorgan Chase', pct: 0.36 },
       { name:'Tesla', pct: 0.32 }, { name:'Berkshire Hathaway', pct: 0.30 },
     ],
+    // 회계연도말(6월) 기준 근사치 (CalPERS 연차보고서) — AUM 추이 차트용
+    aum_trend: { unit: '십억 달러', series: [
+      { y:'FY17', v:326 }, { y:'FY18', v:351 }, { y:'FY19', v:370 }, { y:'FY20', v:389 },
+      { y:'FY21', v:469 }, { y:'FY22', v:440 }, { y:'FY23', v:463 }, { y:'FY24', v:503 },
+    ] },
     summary: '미국 최대 공적연금 (200만 가입자, 캘리포니아 주·시·교육공무원). 7% 장기 목표수익률. PE/RE 등 대체투자 비중 30%+ 로 적극 운용.',
     links: [
       { label:'CalPERS 공식', url:'https://www.calpers.ca.gov' },
@@ -10498,6 +10586,7 @@ function _renderGlobalInvestor(id) {
   // 컨텐츠 렌더 (KPI + 자산배분 차트 + 수익률 차트 + Top 보유 + 공식 링크)
   const allocChartId = 'globalInv_'+id+'_alloc';
   const retChartId   = 'globalInv_'+id+'_return';
+  const aumChartId   = 'globalInv_'+id+'_aum';
   container.innerHTML = `
     <div style="display:flex;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
       <h2 style="font-size:18px;font-weight:700;font-family:'Public Sans';margin:0;">${data.name}
@@ -10543,6 +10632,12 @@ function _renderGlobalInvestor(id) {
         <div style="position:relative;height:280px;"><canvas id="${retChartId}"></canvas></div>
       </div>
     </div>
+    ${data.aum_trend ? `
+    <!-- AUM 추이 (Task 4.1) -->
+    <div class="widget" style="margin-bottom:16px;">
+      <div class="widget-title">총 운용자산(AUM) 추이 <span style="font-size:9px;color:#434656;font-weight:400;">단위: ${data.aum_trend.unit} · 연차보고서 기반 근사치</span></div>
+      <div style="position:relative;height:220px;"><canvas id="${aumChartId}"></canvas></div>
+    </div>` : ''}
     <!-- 보유 자산 / 펀드 구성 -->
     <div class="widget" style="margin-bottom:12px;">
       <div class="widget-title">${id==='frtib'?'펀드 구성':'주요 보유 (Top 10, 공시 기반 추정치)'}</div>
@@ -10579,7 +10674,7 @@ function _renderGlobalInvestor(id) {
     </div>
   `;
   // 차트 렌더
-  destroyChart(allocChartId); destroyChart(retChartId);
+  destroyChart(allocChartId); destroyChart(retChartId); destroyChart(aumChartId);
   const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
   // 자산 배분 (도넛)
   const allocCtx = document.getElementById(allocChartId);
@@ -10615,6 +10710,24 @@ function _renderGlobalInvestor(id) {
         legend:{display:false},
         tooltip:{backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
           callbacks:{ label: c => `${c.parsed.y>=0?'+':''}${c.parsed.y.toFixed(2)}%` }} }}
+  });
+  // AUM 추이 (라인+영역, Task 4.1)
+  const aumCtx = document.getElementById(aumChartId);
+  if(aumCtx && data.aum_trend) charts[aumChartId] = new Chart(aumCtx, {
+    type:'line',
+    data:{ labels: data.aum_trend.series.map(p=>p.y), datasets:[{
+      label:`AUM (${data.aum_trend.unit})`,
+      data: data.aum_trend.series.map(p=>p.v),
+      borderColor:'#2962ff', backgroundColor:'#2962ff22',
+      borderWidth:2, pointRadius:3, pointBackgroundColor:'#2962ff', tension:0.25, fill:true,
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ticks:{color:tc.txt,font:{size:11}}, grid:{display:false}},
+               y:{ticks:{color:tc.txt,font:{size:11},maxTicksLimit:6,callback:v=>fmtNum(v)}, grid:{color:tc.grid}} },
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,
+          callbacks:{ label: c => `${fmtNum(c.parsed.y)} ${data.aum_trend.unit}` }} }}
   });
 }
 
@@ -16355,6 +16468,79 @@ function cmpRender() {
   if(info) info.innerHTML = (la && lb)
     ? `<span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${fmt(la.v)} (${la.d}) &nbsp;·&nbsp; <span style="color:${CMP_COLOR_B};">● ${escapeHtml(labB)}</span> ${fmt(lb.v)} (${lb.d})`
     : '선택한 지표의 시계열 데이터가 아직 없습니다.';
+}
+
+// ── ☁ 분석 노트 클라우드 동기화 (Task 2.1) ─────────────────────────────────
+// Cloudflare Worker /notes (KV 스토리지) 에 localStorage 노트를 백업/복원.
+// /portfolio 동기화(공개 저장소 커밋)와 달리 노트는 비공개 KV 에만 저장된다.
+const NOTES_SYNC_KEY_LS = 'notesSyncKey';
+
+function _notesSyncStatus(msg, color) {
+  const st = document.getElementById('notesSyncStatus');
+  if(st) { st.textContent = msg; st.style.color = color || 'var(--c-txt-dim,#8d90a2)'; }
+}
+
+function notesSetSyncKey() {
+  const cur = localStorage.getItem(NOTES_SYNC_KEY_LS) || '';
+  const v = prompt('노트 동기화 키 (Worker 시크릿 NOTES_SYNC_KEY 또는 ALERTS_SYNC_KEY 와 동일하게):', cur);
+  if(v === null) return;
+  try { localStorage.setItem(NOTES_SYNC_KEY_LS, v.trim()); } catch(_) {}
+  _notesSyncStatus(v.trim() ? '동기화 키 설정됨' : '동기화 키 삭제됨', '#26a69a');
+}
+
+function _notesSyncErrMsg(j, status) {
+  return j.error === 'unauthorized'   ? '동기화 키 불일치 (🔑 버튼으로 설정)' :
+         j.error === 'no_kv_binding'  ? 'Worker 에 NOTES_KV 바인딩 필요 (wrangler.jsonc 참고)' :
+         (j.error || ('HTTP ' + status));
+}
+
+async function notesSyncPush() {
+  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+  if(!base) { _notesSyncStatus('Worker 프록시 미설정', '#ef5350'); return; }
+  if(!Array.isArray(notes) || !notes.length) { _notesSyncStatus('저장할 노트가 없습니다.', '#f5a623'); return; }
+  _notesSyncStatus('저장 중…');
+  try {
+    const r = await fetch(base + '/notes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: localStorage.getItem(NOTES_SYNC_KEY_LS) || '', notes }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const j = await r.json().catch(() => ({}));
+    if(r.ok && j.ok) {
+      _notesSyncStatus(`저장 완료 (노트 ${j.count}개, ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'})})`, '#26a69a');
+    } else {
+      _notesSyncStatus('저장 실패: ' + _notesSyncErrMsg(j, r.status), '#ef5350');
+    }
+  } catch(_) {
+    _notesSyncStatus('저장 실패 — 네트워크 오류', '#ef5350');
+  }
+}
+
+async function notesSyncPull() {
+  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+  if(!base) { _notesSyncStatus('Worker 프록시 미설정', '#ef5350'); return; }
+  _notesSyncStatus('불러오는 중…');
+  try {
+    const key = encodeURIComponent(localStorage.getItem(NOTES_SYNC_KEY_LS) || '');
+    const r = await fetch(base + '/notes?key=' + key, { signal: AbortSignal.timeout(15000) });
+    const j = await r.json().catch(() => null);
+    if(!r.ok || !j || !Array.isArray(j.notes)) {
+      _notesSyncStatus('불러오기 실패: ' + _notesSyncErrMsg(j || {}, r.status), '#ef5350');
+      return;
+    }
+    if(!j.notes.length) { _notesSyncStatus('서버에 저장된 노트가 없습니다.'); return; }
+    if(notes.length && !confirm(`서버의 노트 ${j.notes.length}개로 현재 노트(${notes.length}개)를 덮어쓸까요?\n(현재 상태는 자동 백업 슬롯에 보존됩니다)`)) return;
+    notes = j.notes;
+    curNoteId = null;
+    save();           // 덮어쓰기 직전 상태를 백업 슬롯에 회전 보존
+    renderNoteList();
+    if(notes.length) openNote(notes[0].id);
+    const when = j.updatedAt ? new Date(j.updatedAt).toLocaleString('ko-KR') : '';
+    _notesSyncStatus(`노트 ${j.notes.length}개 불러옴${when ? ' (서버 저장: ' + when + ')' : ''}`, '#26a69a');
+  } catch(_) {
+    _notesSyncStatus('불러오기 실패 — 네트워크 오류', '#ef5350');
+  }
 }
 
 // ── ↕ 대시보드 홈 위젯 드래그 정렬 ─────────────────────────────────────────
