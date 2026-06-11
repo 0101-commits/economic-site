@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""매일 07/09/10/12/15/17/20/22시(KST, :03) data.json 시황을 카카오톡 '나에게 보내기'로 발송한다.
+"""매일 07~17시 매시간 + 20·22시(KST, :03) data.json 시황을 카카오톡 '나에게 보내기'로 발송한다.
 
 필요한 GitHub Secrets:
   KAKAO_REST_API_KEY   — 카카오 개발자 앱의 REST API 키
@@ -17,8 +17,8 @@
    분리, 상하이 운임지수 포함.)
 
 슬롯별 차트(모두 이미지·당일 기준, 당일이 없으면 7일 폴백):
-  07·09시          → S&P500 + 달러-원
-  10·12·15·17시    → 코스피 + 달러-원
+  07~09시          → S&P500 + 달러-원
+  10~17시          → 코스피 + 달러-원
   20·22시          → 달러-원 + WTI
 
 신뢰성 원칙 — '형식이 다른 메시지'가 다시는 나가지 않도록:
@@ -44,8 +44,9 @@ KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
 
-# ── 발송 슬롯 — 매일 8회(KST). 워크플로 게이트·차트 구성·제목 표기가 모두 이 목록 기준 ──
-SLOT_HOURS = [7, 9, 10, 12, 15, 17, 20, 22]
+# ── 발송 슬롯 — 매일 13회(KST): 07~17시 매시간 + 20·22시. 워크플로 게이트·차트 구성·제목 표기가
+#    모두 이 목록 기준. (2026-06 사용자 요청: 07~16시 매시간으로 확대, 저녁 17·20·22시는 유지) ──
+SLOT_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 22]
 SLOT_HOUR = {f"h{h:02d}": f"{h}시" for h in SLOT_HOURS}
 
 # 슬롯별 차트 구성 — (history 카테고리, 키, 라벨) 2개를 1장(위·아래)으로 합쳐 보낸다.
@@ -57,8 +58,9 @@ _CHART_KR = ([("indices", "KOSPI", "KOSPI"), ("fx", "USDKRW", "USD/KRW")],
 _CHART_EVE = ([("fx", "USDKRW", "USD/KRW"), ("commodities", "WTI", "WTI Crude")],
               "USD-KRW / WTI")
 SLOT_CHARTS = {
-    "h07": _CHART_US, "h09": _CHART_US,
-    "h10": _CHART_KR, "h12": _CHART_KR, "h15": _CHART_KR, "h17": _CHART_KR,
+    "h07": _CHART_US, "h08": _CHART_US, "h09": _CHART_US,
+    "h10": _CHART_KR, "h11": _CHART_KR, "h12": _CHART_KR, "h13": _CHART_KR,
+    "h14": _CHART_KR, "h15": _CHART_KR, "h16": _CHART_KR, "h17": _CHART_KR,
     "h20": _CHART_EVE, "h22": _CHART_EVE,
 }
 _CHART_COLOR = {"KOSPI": "#2962ff", "SP500": "#1e88e5", "USDKRW": "#26a69a", "WTI": "#ef6c00"}
@@ -348,7 +350,10 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
     try:
         fig, axes = plt.subplots(2, 1, figsize=(CHART_PX[0] / _CHART_DPI, CHART_PX[1] / _CHART_DPI))
         # 기간(today/7d)은 패널별 제목에 표기 — 인트라데이/일봉 폴백이 섞일 수 있어 전체 제목엔 넣지 않는다.
-        fig.suptitle(suptitle, fontsize=13, x=0.02, ha="left", weight="bold")
+        # 폰트는 채팅방 표시 기준으로 보이도록 크게(2026-06 사용자 요청: 이미지 안 수치가 작음).
+        # 이미지(1080px)가 말풍선 폭(약 270dp)으로 1/4 축소되므로, 패널 제목이 카톡 본문
+        # 글씨(약 15dp)와 같아 보이려면 26pt(150dpi에서 약 54px)가 필요하다.
+        fig.suptitle(suptitle, fontsize=17, x=0.02, ha="left", weight="bold")
         for a, (cat, key, label) in zip(axes, panels):
             color = _CHART_COLOR.get(key, "#333333")
             # 1순위: 당일 인트라데이(Yahoo). 실패 시 7일 일봉으로 폴백.
@@ -364,14 +369,13 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
                 if chg is None:
                     chg = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
                 span = "today" if intraday else "7d"
-                a.set_title(f"{label}   {ys[-1]:,.2f}  ({chg:+.1f}% / {span})", fontsize=12, loc="left")
+                a.set_title(f"{label}   {ys[-1]:,.2f}  ({chg:+.1f}% / {span})", fontsize=26, loc="left")
                 a.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M" if intraday else "%m-%d"))
             else:
-                a.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=11)
-                a.set_title(label, fontsize=12, loc="left")
+                a.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=24)
+                a.set_title(label, fontsize=26, loc="left")
             a.grid(alpha=0.25)
-            for lbl in a.get_xticklabels():
-                lbl.set_fontsize(8)
+            a.tick_params(axis="both", labelsize=12)
         fig.tight_layout(rect=[0, 0, 1, 0.97])
         fig.savefig(out_path, dpi=_CHART_DPI)
         plt.close(fig)

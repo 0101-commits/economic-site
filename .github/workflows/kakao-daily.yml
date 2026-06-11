@@ -1,8 +1,9 @@
-name: KakaoTalk Digest (07·09·10·12·15·17·20·22 KST)
+name: KakaoTalk Digest (07-17 매시간·20·22 KST)
 
-# 매일 07·09·10·12·15·17·20·22시(KST) :03 무렵 data.json 시황을 카카오톡 '나에게 보내기'로
+# 매일 07~17시 매시간 + 20·22시(KST) :03 무렵 data.json 시황을 카카오톡 '나에게 보내기'로
 # 한 통(피드: 차트 이미지 + 증시·환율·심리(VKOSPI 포함)·에너지·금속·곡물·운임(SCFI) + 버튼) 발송.
-# 슬롯별 차트: 07·09시=S&P500·달러원 / 10·12·15·17시=코스피·달러원 / 20·22시=달러원·WTI.
+# 슬롯별 차트: 07~09시=S&P500·달러원 / 10~17시=코스피·달러원 / 20·22시=달러원·WTI.
+# (2026-06 사용자 요청: 07~16시 매시간으로 확대, 저녁 17·20·22시는 유지 — 하루 13회)
 # (차트는 당일 인트라데이 기준, 당일이 없으면 7일 일봉 폴백 — scripts/send_kakao_digest.py)
 #
 # ⏰ 트리거 우선순위 (GitHub schedule 이 best-effort 라 며칠씩 누락되는 문제 해소):
@@ -22,8 +23,8 @@ on:
   repository_dispatch:
     types: [kakao-send]
   schedule:
-    # KST 07/09/10/12/15/17/20/22시 :03 = UTC 22/00/01/03/06/08/11/13시 :03 (백업 경로)
-    - cron: '3 0,1,3,6,8,11,13,22 * * *'
+    # KST 07~17시 매시간·20·22시 :03 = UTC 22·23·00~08·11·13시 :03 (백업 경로)
+    - cron: '3 0-8,11,13,22,23 * * *'
   workflow_run:
     workflows: ["Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)"]
     types: [completed]
@@ -42,14 +43,14 @@ jobs:
     steps:
       # ── 발송 창(window) 게이트 ──
       # repository_dispatch(Cloudflare cron) / workflow_dispatch(수동) 는 트리거 자체가 '보낼 때' 이므로 통과.
-      # schedule / workflow_run 은 지금이 타깃 시각(07/09/10/12/15/17/20/22시)일 때만 통과(그 외 깨움은 즉시 종료).
+      # schedule / workflow_run 은 지금이 타깃 시각(07~17·20·22시)일 때만 통과(그 외 깨움은 즉시 종료).
       - name: 발송 창 판정
         id: gate
         env:
           EVENT: ${{ github.event_name }}
         run: |
           H=$(TZ=Asia/Seoul date +%-H)
-          HOURS="7 9 10 12 15 17 20 22"
+          HOURS="7 8 9 10 11 12 13 14 15 16 17 20 22"
           # 가장 가까운 슬롯(항상 계산) — dispatch/수동에서 사용
           best=7; bd=99
           for h in $HOURS; do
