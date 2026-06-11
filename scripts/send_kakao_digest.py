@@ -219,11 +219,19 @@ def build_digest_parts(d, slot=None):
     if fg and fg.get("value") is not None:
         pl.append(f"공포탐욕 {int(_f(fg['value']))}({_fg_label(fg['value'])})")
     vix = us.get("vix")
-    if vix and vix.get("value") is not None:
-        pl.append(f"VIX {_num(vix['value'], 1)}")
+    vix_v = _f(vix.get("value")) if vix else None
+    if vix_v is not None:
+        pl.append(f"VIX {_num(vix_v, 1)}")
     vk = sent.get("vkospi")   # 코스피 위험지수(KOSPI 변동성지수, VKOSPI)
-    if vk and vk.get("value") is not None:
-        pl.append(f"VKOSPI {_num(vk['value'], 1)}")
+    vk_v = _f(vk.get("value")) if vk else None
+    # 이상치 가드 — 스크래핑 오류 값이 carry-forward 되어 발송되는 것 방지(2026-06-11: VIX 19.9
+    # 인데 VKOSPI 86.5 가 나간 사례). 정상 범위(5~60) 밖이면서 VIX 의 3배를 넘으면(역사적
+    # VKOSPI/VIX 비율은 대체로 1~2배) 신뢰 불가로 보고 표기를 생략한다.
+    if vk_v is not None and not (5 <= vk_v <= 60) and (vix_v is None or vk_v > 3 * vix_v):
+        print(f"[digest] VKOSPI {vk_v} 이상치 의심(VIX {vix_v}) — 표기 생략")
+        vk_v = None
+    if vk_v is not None:
+        pl.append(f"VKOSPI {_num(vk_v, 1)}")
     if pl:
         blocks.append(("심리", " ".join(pl)))
     # 원자재 — 에너지 / 금속 / 곡물 분리
@@ -327,16 +335,16 @@ def _charts_enabled():
     return os.environ.get("KAKAO_CHARTS", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
-def _yahoo_intraday(symbol, rng="1d", interval="5m"):
-    """Yahoo 차트 API 에서 당일(최근 세션) 인트라데이 (시각[KST naive], 가격) 시계열. 실패 시 ([], []).
+def _yahoo_chart_result(symbol, rng="1d", interval="5m"):
+    """Yahoo 차트 API 의 result[0](meta + 시계열)을 반환. 실패 시 None.
 
     GitHub Actions 러너 IP 는 Yahoo 가 자주 403 으로 막으므로(fetch_data.py 와 동일 경험),
-    직접 호출 실패 시 공개 CORS 프록시(corsproxy.io / allorigins.win / codetabs)로 순차 우회한다."""
+    직접 호출 실패 시 전용 Worker → 공개 CORS 프록시로 순차 우회한다."""
     try:
         import requests
         from urllib.parse import quote_plus
     except Exception:
-        return [], []
+        return None
     base = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
             f"?range={rng}&interval={interval}")
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -355,23 +363,121 @@ def _yahoo_intraday(symbol, rng="1d", interval="5m"):
             if r.status_code != 200:
                 continue
             res = (((r.json() or {}).get("chart") or {}).get("result") or [None])[0]
-            if not res:
-                continue
-            ts = res.get("timestamp") or []
-            quote = (((res.get("indicators") or {}).get("quote") or [{}])[0]) or {}
-            closes = quote.get("close") or []
-            xs, ys = [], []
-            for t, c in zip(ts, closes):
-                if c is None:
-                    continue
-                xs.append(datetime.datetime.fromtimestamp(t, KST).replace(tzinfo=None))  # KST 로컬시각(naive)
-                ys.append(float(c))
-            if xs:
-                return xs, ys
+            if res:
+                return res
         except Exception:
             continue
+    return None
+
+
+def _yahoo_intraday(symbol, rng="1d", interval="5m"):
+    """당일(최근 세션) 인트라데이 (시각[KST naive] 목록, 가격 목록, 전일 종가). 실패 시 ([], [], None).
+
+    전일 종가(chartPreviousClose)도 함께 반환해 차트 제목의 등락률을 '차트 마지막 값과 같은
+    기준'으로 계산할 수 있게 한다 — data.json 스냅샷의 change 와 섞이면 값·등락률의 기준이
+    어긋나 본문/차트 수치 불일치로 보였다(2026-06 사용자 보고)."""
+    res = _yahoo_chart_result(symbol, rng, interval)
+    if res:
+        meta = res.get("meta") or {}
+        prev = _f(meta.get("chartPreviousClose"))
+        if prev is None:
+            prev = _f(meta.get("previousClose"))
+        ts = res.get("timestamp") or []
+        quote = (((res.get("indicators") or {}).get("quote") or [{}])[0]) or {}
+        closes = quote.get("close") or []
+        xs, ys = [], []
+        for t, c in zip(ts, closes):
+            if c is None:
+                continue
+            xs.append(datetime.datetime.fromtimestamp(t, KST).replace(tzinfo=None))  # KST 로컬시각(naive)
+            ys.append(float(c))
+        if xs:
+            return xs, ys, prev
     print(f"[chart] 인트라데이 실패({symbol}) — 7일 일봉으로 폴백")
-    return [], []
+    return [], [], None
+
+
+def _yahoo_live_quote(symbol):
+    """발송 시점 시세 — (현재가, 전일 종가 대비 %) 또는 None."""
+    res = _yahoo_chart_result(symbol)
+    if not res:
+        return None
+    meta = res.get("meta") or {}
+    price = _f(meta.get("regularMarketPrice"))
+    if price is None:
+        closes = [c for c in ((((res.get("indicators") or {}).get("quote") or [{}])[0]) or {})
+                  .get("close") or [] if c is not None]
+        price = closes[-1] if closes else None
+    if price is None or price <= 0:
+        return None
+    prev = _f(meta.get("chartPreviousClose"))
+    if prev is None:
+        prev = _f(meta.get("previousClose"))
+    pct = ((price / prev) - 1) * 100 if prev else None
+    return price, pct
+
+
+# ── 본문 수치 라이브 보정 ────────────────────────────────────────────────────
+# data.json 은 GitHub Actions cron 지연으로 수십 분~수 시간 묵을 수 있고, 환율(rate)은
+# open.er-api 의 '일 1회 갱신' 값이라 장중 변동을 반영하지 못한다. 그 결과 같은 메시지에서
+# 본문(달러-원 1,522.5)과 차트(1,531.08)가 어긋났다(2026-06-11 사용자 보고). 발송 직전에
+# 차트와 같은 출처(Yahoo)의 시세로 본문 값을 덮어써 메시지 내부·실제 시세와 일치시킨다.
+# 조회 실패 시 기존 data.json 값을 그대로 쓰므로 안전하다.
+_LIVE_QUOTES = [
+    ("indices", "KOSPI", "price", "^KS11"),
+    ("indices", "SP500", "price", "^GSPC"),
+    ("fx", "USDKRW", "rate", "KRW=X"),
+    ("fx", "USDJPY", "rate", "JPY=X"),
+    ("commodities", "WTI", "price", "CL=F"),
+    ("commodities", "NatGas", "price", "NG=F"),
+    ("commodities", "Gold", "price", "GC=F"),
+    ("commodities", "Copper", "price", "HG=F"),
+    ("commodities", "Corn", "price", "ZC=F"),
+    ("commodities", "Wheat", "price", "ZW=F"),
+    ("commodities", "Soybean", "price", "ZS=F"),
+]
+
+
+def apply_live_quotes(d):
+    """data.json 스냅샷의 본문용 수치를 발송 시점 Yahoo 시세로 보정(실패 항목은 기존 값 유지)."""
+    from concurrent.futures import ThreadPoolExecutor
+    syms = sorted({sym for _, _, _, sym in _LIVE_QUOTES} | {"^VIX"})
+    try:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            quotes = dict(zip(syms, ex.map(_yahoo_live_quote, syms)))
+    except Exception as e:
+        print(f"[live] 시세 보정 실패(전체 생략): {e}")
+        return
+    updated = []
+    for cat, key, field, sym in _LIVE_QUOTES:
+        q = quotes.get(sym)
+        if not q:
+            continue
+        price, pct = q
+        node = (d.get(cat) or {}).get(key)
+        if not isinstance(node, dict):
+            node = {}
+            d.setdefault(cat, {})[key] = node
+        old = _f(node.get(field))
+        # 기존 값 대비 ±20% 초과 차이는 심볼 오매핑/이상치로 보고 무시(기존 값 유지)
+        if old and abs(price / old - 1) > 0.20:
+            print(f"[live] {key} 이상치 의심({old} → {price}) — 보정 생략")
+            continue
+        node[field] = price
+        if pct is not None:
+            node["change"] = pct
+        updated.append(f"{key}={price:,.2f}")
+    # VIX — data.json 은 FRED VIXCLS(전일 종가)라 장중과 어긋남. 라이브 ^VIX 로 보정.
+    vq = quotes.get("^VIX")
+    if vq and vq[0]:
+        us = d.setdefault("economicIndicators", {}).setdefault("us", {})
+        vix = us.setdefault("vix", {})
+        old = _f(vix.get("value"))
+        if not old or abs(vq[0] / old - 1) <= 0.5:
+            vix["value"] = vq[0]
+            updated.append(f"VIX={vq[0]:.1f}")
+    if updated:
+        print("[live] 발송 시점 시세 보정: " + ", ".join(updated))
 
 
 def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
@@ -418,7 +524,7 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
         for a, (cat, key, label) in zip(axes, panels):
             color = _CHART_COLOR.get(key, "#333333")
             # 1순위: 당일 인트라데이(Yahoo). 실패 시 7일 일봉으로 폴백.
-            xs, ys = _yahoo_intraday(_YH_SYM.get(key, "")) if _YH_SYM.get(key) else ([], [])
+            xs, ys, prev_close = _yahoo_intraday(_YH_SYM.get(key, "")) if _YH_SYM.get(key) else ([], [], None)
             intraday = bool(xs)
             if not xs:
                 xs, ys = daily_series(cat, key, 7)
@@ -426,9 +532,14 @@ def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
                 a.plot(xs, ys, color=color, linewidth=1.8,
                        marker=("o" if (not intraday and len(xs) <= 10) else None), markersize=3)
                 a.fill_between(xs, ys, min(ys), color=color, alpha=0.08)
-                chg = snap_change(cat, key)
-                if chg is None:
-                    chg = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
+                # 등락률은 '차트 마지막 값과 같은 기준'으로 — 인트라데이면 전일 종가 대비.
+                # (data.json 의 change 를 섞으면 값은 라이브·등락률은 구버전이 되어 불일치)
+                if intraday and prev_close:
+                    chg = (ys[-1] / prev_close - 1) * 100
+                else:
+                    chg = snap_change(cat, key)
+                    if chg is None:
+                        chg = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
                 span = "today" if intraday else "7d"
                 a.set_title(f"{label}   {ys[-1]:,.2f}  ({chg:+.1f}% / {span})", fontsize=26, loc="left")
                 a.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M" if intraday else "%m-%d"))
@@ -573,6 +684,7 @@ def main():
         raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
 
     slot = _resolve_slot()
+    apply_live_quotes(data)                          # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
     title, blocks = build_digest_parts(data, slot)   # 제목에 슬롯 시각(7~22시) 포함
     access_token = refresh_access_token(rest_key, refresh_token)
 

@@ -579,6 +579,7 @@
     /* 메인 차트 + 사이드 패널 → 세로로 */
     main div[style*="grid-template-columns:1fr 300px"],
     main div[style*="grid-template-columns:1fr 280px"],
+    main div[style*="grid-template-columns:1fr 320px"],
     main div[style*="grid-template-columns:2fr 1fr"],
     main div[style*="grid-template-columns:3fr 2fr"],
     main div[style*="grid-template-columns:240px 1fr"] {
@@ -608,6 +609,7 @@
     main div[style*="grid-template-columns:1fr 1fr"],
     main div[style*="grid-template-columns:1fr 300px"],
     main div[style*="grid-template-columns:1fr 280px"],
+    main div[style*="grid-template-columns:1fr 320px"],
     main div[style*="grid-template-columns:2fr 1fr"],
     main div[style*="grid-template-columns:3fr 2fr"],
     main div[style*="grid-template-columns:240px 1fr"] {
@@ -672,6 +674,7 @@
     main div[style*="grid-template-columns:repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
     main div[style*="grid-template-columns:1fr 300px"],
     main div[style*="grid-template-columns:300px 1fr"],
+    main div[style*="grid-template-columns:1fr 320px"],
     main div[style*="grid-template-columns:1fr 1fr"]:not(.keep-cols),
     main div[style*="grid-template-columns:2fr 1fr"],
     main div[style*="grid-template-columns:1fr 2fr"],
@@ -11300,9 +11303,12 @@ async function _fetchViaProxies(target, parseJson=true) {
       const r = await fetch(url, { headers: { 'Accept': 'application/json,text/plain,*/*' }, signal: ctrl.signal });
       clearTimeout(tid);
       if(!r.ok) {
-        // 전용 Worker(적절한 헤더 주입)가 상류 4xx 를 그대로 전달 = 대상 API 가 거부/없음(예: 폐기된 엔드포인트).
-        // 헤더가 더 약한 공개 프록시로 재시도해도 동일하므로 즉시 중단 → 콘솔 오류 폭주 방지.
-        if(isWorker && r.status >= 400 && r.status < 500) return null;
+        // 전용 Worker 가 404/410 을 전달 = 대상 리소스 자체가 없음(폐기된 엔드포인트/없는 심볼) → 즉시 중단.
+        // 그 외 4xx(403/429 등)는 상류(네이버 등)가 Cloudflare 대역 IP 를 차단/제한한 경우가 많아,
+        // 다른 IP 로 나가는 공개 프록시는 성공할 수 있으므로 체인을 계속 시도한다.
+        // (종전엔 모든 4xx 에서 전체 중단 → 네이버가 Worker IP 를 거부하는 동안 '지정 종목
+        //  트래킹' 현재가가 통째로 비는 원인이었다.)
+        if(isWorker && (r.status === 404 || r.status === 410)) return null;
         continue;
       }
       if(!parseJson) {
@@ -12248,7 +12254,7 @@ async function _fetchJsonWithProxies(targetUrl) {
     const isWorker = cfBase && purl.indexOf(cfBase) === 0;
     try {
       const r = await fetch(purl, { signal: AbortSignal.timeout(6000) });
-      if(!r.ok) { if(isWorker && r.status >= 400 && r.status < 500) return null; continue; }  // Worker 4xx=상류 거부 → 중단
+      if(!r.ok) { if(isWorker && (r.status === 404 || r.status === 410)) return null; continue; }  // Worker 404/410=대상 없음 → 중단. 403/429 등은 다른 프록시로 계속
       const j = await r.json();
       if(j) return j;
     } catch(_) { /* try next */ }
@@ -14406,7 +14412,7 @@ async function _fetchTextWithProxies(targetUrl, timeoutMs) {
       if(!url) continue;                                                     // CF 미설정 시 null 스킵
       const isWorker = cfBase && url.indexOf(cfBase) === 0;
       const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs || 7000) });
-      if(!r.ok) { if(isWorker && r.status >= 400 && r.status < 500) return null; continue; }  // Worker 4xx=상류 거부 → 중단
+      if(!r.ok) { if(isWorker && (r.status === 404 || r.status === 410)) return null; continue; }  // Worker 404/410=대상 없음 → 중단. 403/429 등은 다른 프록시로 계속
       let text = await r.text();
       // allorigins.win/get 는 {contents:"..."} JSON 래퍼 → 내부 본문 추출
       if(url.includes('allorigins.win/get')) {
