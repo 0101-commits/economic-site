@@ -106,6 +106,7 @@ jobs:
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_SLOT: ${{ steps.gate.outputs.slot }}
           KAKAO_CHARTS: ${{ vars.KAKAO_CHARTS || '1' }}
+          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '1' }}
         run: |
           python scripts/send_kakao_digest.py
           touch .kakao_sent_marker   # 발송 성공 후에만 마커 생성(실패 시 -e 로 중단 → 다음 깨움이 재시도)
