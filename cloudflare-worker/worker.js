@@ -267,6 +267,118 @@ async function _testGemini(key) {
 }
 
 // ──────────────────────────────────────────────────────────────────
+// 📲 투자 현황 알림 설정 동기화 — GET/POST /portfolio
+// ──────────────────────────────────────────────────────────────────
+// 프론트('투자 현황' 페이지)가 카카오 알림 조건을 POST 하면, GitHub Contents API 로
+// 저장소 alerts_config.json 에 커밋한다(브라우저엔 GitHub 토큰을 노출할 수 없어 Worker 가 중계).
+// 그 파일을 GitHub Actions(stock-alerts.yml)가 장중 15분마다 평가해 카카오톡으로 발송한다.
+//   필요한 시크릿: GH_DISPATCH_TOKEN (Contents: Read and write — kakao cron 과 공용)
+//   선택 시크릿: ALERTS_SYNC_KEY — 설정 시 body.key 가 일치해야 저장 허용(임의 쓰기 방지).
+//   주의: 평단가/수량은 프론트가 보내지 않는다(공개 저장소) — 알림 조건만 저장.
+const ALERTS_CONFIG_PATH = 'alerts_config.json';
+const ALERT_TYPES = ['price_above', 'price_below', 'pct_change', 'high52', 'low52',
+                     'vol_surge', 'golden_cross', 'dead_cross'];
+
+async function _ghContents(env, method, bodyObj) {
+  const url = `https://api.github.com/repos/${GH_REPO}/contents/${ALERTS_CONFIG_PATH}` +
+              (method === 'GET' ? '?ref=main' : '');
+  const r = await fetch(url, {
+    method,
+    headers: {
+      'Authorization': 'Bearer ' + env.GH_DISPATCH_TOKEN,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'ecom-portfolio-sync',
+      ...(bodyObj ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: bodyObj ? JSON.stringify(bodyObj) : undefined,
+    signal: AbortSignal.timeout(15000),
+  });
+  const j = await r.json().catch(() => null);
+  return { status: r.status, json: j };
+}
+
+function _sanitizeAlerts(raw) {
+  // 임의 JSON 이 저장소에 커밋되지 않도록 알려진 필드만 골라 담는다.
+  const out = [];
+  for (const a of (Array.isArray(raw) ? raw.slice(0, 200) : [])) {
+    if (!a || typeof a !== 'object') continue;
+    const type = String(a.type || '');
+    if (!ALERT_TYPES.includes(type)) continue;
+    const symbol = String(a.symbol || '').slice(0, 16);
+    if (!/^[A-Za-z0-9.\-^=]{1,16}$/.test(symbol)) continue;
+    const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
+    out.push({
+      id: String(a.id || '').slice(0, 32) || ('a' + Math.random().toString(36).slice(2, 10)),
+      symbol,
+      market: a.market === 'US' ? 'US' : 'KR',
+      yahoo: a.yahoo ? String(a.yahoo).slice(0, 20) : null,
+      name: String(a.name || symbol).slice(0, 60),
+      type,
+      value: num(a.value),
+      maShort: num(a.maShort),
+      maLong: num(a.maLong),
+      limit: a.limit === 'cool60' ? 'cool60' : 'daily',
+      enabled: a.enabled !== false,
+    });
+  }
+  return out;
+}
+
+async function handlePortfolioGet(env) {
+  if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
+  const { status, json } = await _ghContents(env, 'GET');
+  if (status === 404) return jsonResponse({ ok: true, alerts: [], updatedAt: null });
+  if (status !== 200 || !json || !json.content) {
+    return jsonResponse({ error: 'github_read_failed', status }, 502);
+  }
+  try {
+    // GitHub 는 base64 본문을 개행 포함으로 준다. UTF-8(한글 종목명) 안전 디코드.
+    const bin = atob(String(json.content).replace(/\n/g, ''));
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    const cfg = JSON.parse(new TextDecoder().decode(bytes));
+    return jsonResponse({ ok: true, alerts: cfg.alerts || [], updatedAt: cfg.updatedAt || null });
+  } catch {
+    return jsonResponse({ error: 'config_parse_failed' }, 502);
+  }
+}
+
+async function handlePortfolioPost(request, env) {
+  if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
+  const raw = await request.text();
+  if (raw.length > 120000) return jsonResponse({ error: 'payload_too_large' }, 413);
+  let body;
+  try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
+  if (env.ALERTS_SYNC_KEY && String(body.key || '') !== String(env.ALERTS_SYNC_KEY)) {
+    return jsonResponse({ error: 'unauthorized' }, 401);
+  }
+  const alerts = _sanitizeAlerts(body.alerts);
+  const cfg = { version: 1, updatedAt: new Date().toISOString(), alerts };
+  // 기존 파일 sha 조회(업데이트 시 필수) → PUT 커밋
+  const cur = await _ghContents(env, 'GET');
+  const sha = (cur.status === 200 && cur.json && cur.json.sha) ? cur.json.sha : undefined;
+  const content = JSON.stringify(cfg, null, 2) + '\n';
+  // UTF-8 안전 base64 인코딩 (한글 종목명 포함) — 스프레드 인자 한도 회피를 위해 청크 처리
+  const bytes = new TextEncoder().encode(content);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  }
+  const b64 = btoa(bin);
+  const put = await _ghContents(env, 'PUT', {
+    message: `alerts: 카카오 알림 설정 동기화 (${alerts.length}개, web)`,
+    content: b64,
+    branch: 'main',
+    ...(sha ? { sha } : {}),
+  });
+  if (put.status !== 200 && put.status !== 201) {
+    return jsonResponse({ error: 'github_write_failed', status: put.status,
+                          detail: put.json && put.json.message }, 502);
+  }
+  return jsonResponse({ ok: true, count: alerts.length });
+}
+
+// ──────────────────────────────────────────────────────────────────
 // ⏰ Cron Trigger 핸들러 — 카카오 시황 자동 발송 (정시성 보강)
 // ──────────────────────────────────────────────────────────────────
 // wrangler.jsonc 의 triggers.crons(각 슬롯 :02 UTC = KST 07~17시 매시간·20·22시 :03 발송)에 따라 호출된다.
@@ -322,11 +434,19 @@ export default {
       if (purl.pathname === '/ai' || purl.searchParams.get('ai') === '1') {
         return handleAiSummary(request, env);
       }
-      return jsonResponse({ error: 'POST is only supported at /ai' }, 404);
+      // 📲 투자 현황 — 카카오 알림 설정 저장 (저장소 alerts_config.json 커밋)
+      if (purl.pathname === '/portfolio') {
+        return handlePortfolioPost(request, env);
+      }
+      return jsonResponse({ error: 'POST is only supported at /ai or /portfolio' }, 404);
     }
     if (request.method !== 'GET') return jsonResponse({ error: 'GET only' }, 405);
 
     const reqUrl = new URL(request.url);
+    // 📲 투자 현황 — 저장된 카카오 알림 설정 조회 (GET /portfolio)
+    if (reqUrl.pathname === '/portfolio') {
+      return handlePortfolioGet(env);
+    }
     // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.
     // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.
     if (reqUrl.pathname === '/ai') {

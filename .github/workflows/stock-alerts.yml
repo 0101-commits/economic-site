@@ -1,0 +1,78 @@
+name: Stock Alerts (KakaoTalk, 장중 15분)
+
+# '투자 현황' 페이지에서 설정한 종목 알림(alerts_config.json)을 장중 15분마다 평가해
+# 조건 충족 시 카카오톡으로 발송한다 (scripts/check_alerts.py).
+#   - 한국 장중: 평일 09:00–15:40 KST (= UTC 00:00–06:40)
+#   - 미국 장중: 평일 22:30–06:10 KST (= UTC 13:30–21:10)
+# 도배 방지 발송 이력(alerts_state.json)은 매 런 커밋해 보존한다(하루 1회/1시간 쿨다운).
+# 주의: GitHub schedule 은 best-effort 라 지연/누락될 수 있음 — 알림 자체가 15분 지연
+#       데이터 기준(무료 API)이므로 분 단위 정시성은 요구하지 않는다.
+on:
+  schedule:
+    - cron: '*/15 0-6 * * 1-5'    # 한국 장중 (00:00–06:45 UTC = 09:00–15:45 KST)
+    - cron: '*/15 13-21 * * 1-5'  # 미국 장중 (13:00–21:45 UTC = 22:00–06:45 KST)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# 발송 이력 커밋 경쟁 방지 — 한 번에 하나만 실행
+concurrency:
+  group: stock-alerts
+  cancel-in-progress: false
+
+jobs:
+  check-and-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (최신 alerts_config.json)
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name || 'main' }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Check alerts & send KakaoTalk
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '1' }}
+        run: python scripts/check_alerts.py
+
+      - name: Commit alerts_state.json (발송 이력 — 도배 방지)
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          branch="${GITHUB_REF_NAME:-main}"
+          if [ ! -f alerts_state.json ]; then echo "상태 파일 없음 — 커밋 건너뜀"; exit 0; fi
+          if git diff --quiet -- alerts_state.json && git diff --staged --quiet -- alerts_state.json; then
+            echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
+          fi
+          msg="alerts: 발송 이력 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
+          # data.json 커밋과 동일한 '최신 런이 이긴다' 재시도 정책 — 상태 파일만 재적용
+          cp alerts_state.json /tmp/alerts_state.json.run
+          git add alerts_state.json
+          git commit -m "$msg" -q || true
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${branch}"; then
+              echo "push 성공 (시도 ${attempt})"; exit 0
+            fi
+            echo "push 실패 (시도 ${attempt}) — 원격 최신 위에 alerts_state.json 만 재적용"
+            git fetch origin "${branch}" || true
+            git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
+            cp /tmp/alerts_state.json.run alerts_state.json
+            git add alerts_state.json
+            if git diff --staged --quiet -- alerts_state.json; then
+              echo "원격이 이미 최신 — 종료"; exit 0
+            fi
+            git commit -m "$msg" -q || true
+            sleep $((attempt * 3))
+          done
+          echo "::error::alerts_state.json push 실패 (재시도 소진)"; exit 1
