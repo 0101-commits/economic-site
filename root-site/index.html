@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!--
+  0101-commits.github.io (사용자 루트 페이지) 용 리다이렉트 페이지
+  ─────────────────────────────────────────────────────────────────
+  카카오톡 메시지 맨 하단의 앱 이름(ECOM) 영역을 누르면 카카오는 앱에 등록된
+  '사이트 도메인'의 루트(https://0101-commits.github.io)로 이동시키는데,
+  GitHub Pages 사용자 사이트 저장소가 없으면 404 가 뜬다.
+
+  사용 방법(1회):
+    1. GitHub 에서 새 공개 저장소를 만든다 — 이름은 반드시 `0101-commits.github.io`
+    2. 이 파일(index.html)을 그 저장소 루트에 올린다
+    3. 저장소 Settings → Pages → Branch: main 으로 GitHub Pages 활성화
+  이후 https://0101-commits.github.io 접속 시 대시보드로 즉시 이동한다.
+-->
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>경제현황 터미널로 이동 중…</title>
+  <meta http-equiv="refresh" content="0; url=/economic-site/">
+  <link rel="canonical" href="https://0101-commits.github.io/economic-site/">
+  <style>
+    body { background:#131722; color:#dfe2f2; font-family:sans-serif;
+           display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
+    a { color:#2962ff; }
+  </style>
+</head>
+<body>
+  <p>경제현황 터미널로 이동 중… 자동 이동하지 않으면
+     <a href="/economic-site/">여기</a>를 누르세요.</p>
+  <script>location.replace('/economic-site/');</script>
+</body>
+</html>

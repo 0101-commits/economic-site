@@ -3629,10 +3629,14 @@ def fetch_nps_allocation():
 # VKOSPI (KOSPI200 변동성 지수)
 # ============================================================
 def _is_valid_vkospi(v):
-    """VKOSPI 합리적 범위 체크 — 변동성 지수는 보통 5~100 사이.
-    KOSPI/KOSPI200 지수가 잘못 들어오면 1000~10000+ 이므로 검출됨.
+    """VKOSPI 합리적 범위 체크 — 역사적 범위는 약 9(저변동)~89(2008 금융위기)다.
+    KOSPI/KOSPI200 지수가 잘못 들어오면 1000~10000+ 이므로 검출되고,
+    스크래핑이 페이지의 엉뚱한 숫자를 집어도 대부분 걸러진다.
+    (2026-06: investing.com 스크래핑이 86.55 라는 비정상 값을 통과시켜 카카오 시황에
+     'VIX 19.9 / VKOSPI 86.5' 로 나간 사례 — 범위를 5~100 으로 좁히고, 발송 측에도
+     VIX 대비 교차 검증 가드를 추가했다.)
     """
-    return v is not None and 1 < v < 200
+    return v is not None and 5 < v < 100
 
 
 def _stooq_history(symbol, validator=None, max_points=520):
@@ -3864,9 +3868,10 @@ def fetch_vkospi():
                 if not m:
                     m = _re.search(r'id="last_last"[^>]*>([0-9,.]+)<', html)
                 if not m:
-                    m = _re.search(r'"last"\s*:\s*"?([0-9.,]+)"?', html)
-                if not m:
                     m = _re.search(r'pid-\d+-last[^>]*>([0-9,.]+)<', html)
+                # 주의: 과거에 쓰던 r'"last"\s*:' 패턴은 페이지에 내장된 '다른 종목' JSON 의
+                # last 값(예: 유가 86.55)까지 집어 잘못된 VKOSPI 가 저장되는 원인이라 제거했다.
+                # 위 패턴들은 모두 '이 페이지의 표시 시세' DOM 요소에만 매칭된다.
                 if m:
                     v = _parse_num(m.group(1).replace(",", ""))
                     if _is_valid_vkospi(v):
@@ -5020,10 +5025,28 @@ def build_data():
     if spot:
         data["sources"]["fx"] = "open.er-api.com + yfinance"
         data["fx"] = {k: {"rate": v, "change": 0.0} for k, v in spot.items()}
+        # open.er-api 무료 플랜은 '일 1회' 갱신이라 장중 환율 변동을 반영하지 못한다.
+        # (실측 2026-06-11: er-api 1,522.5 vs 실제 장중 1,531 — 대시보드·카카오 본문이
+        #  차트/실제와 어긋난 원인.) Yahoo 라이브 시세가 있으면 환율 값 자체도 교체한다.
         for pair, sym in [("USDKRW", "USDKRW=X"), ("EURUSD", "EURUSD=X"), ("USDJPY", "USDJPY=X")]:
-            chg = fetch_fx_change(sym)
+            q = fetch_yf(sym)
+            chg = q["change"] if q else 0.0
+            # 라이브 환율 채택 — er-api 값 대비 ±5% 초과 차이는 심볼 이상치로 보고 유지.
+            # EURUSD 는 fetch_yf 가 소수 2자리로 반올림해 정밀도가 부족하므로 change 만 갱신.
+            if pair != "EURUSD" and q and q.get("price"):
+                old = data["fx"][pair].get("rate")
+                if old and abs(q["price"] / old - 1) < 0.05:
+                    data["fx"][pair]["rate"] = round(float(q["price"]), 2)
             data["fx"][pair]["change"] = chg
             log(f"[FX] {pair}: {data['fx'][pair]['rate']} ({chg:+.2f}%)")
+        # 교차 환율(EURKRW/JPYKRW)도 라이브 USDKRW 기준으로 재계산해 일관성 유지
+        usdkrw = data["fx"].get("USDKRW", {}).get("rate")
+        eurusd = data["fx"].get("EURUSD", {}).get("rate")
+        usdjpy = data["fx"].get("USDJPY", {}).get("rate")
+        if usdkrw and eurusd:
+            data["fx"]["EURKRW"]["rate"] = round(usdkrw * eurusd, 2)
+        if usdkrw and usdjpy:
+            data["fx"]["JPYKRW"]["rate"] = round(usdkrw / usdjpy, 4)
         data["fx"]["EURKRW"]["change"] = round(
             data["fx"].get("EURUSD", {}).get("change", 0) +
             data["fx"].get("USDKRW", {}).get("change", 0), 2
