@@ -14,6 +14,16 @@
   "ai": {
     "binding": "AI"
   },
+  // 🚦 Rate Limiting 바인딩 (무료 플랜 포함) — worker.js 의 _rateLimited() 가 IP 단위로 사용.
+  //   AI_LIMITER: POST(/ai·/portfolio·/portfolio/test) 분당 10회 — LLM 비용·커밋 스팸 방어
+  //   PROXY_LIMITER: GET ?url= 프록시 분당 120회 — 무료 일 10만 요청 한도 보호
+  // 참고: developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
+  //   (구버전 wrangler 에서 이 키가 거부되면 unsafe.bindings 의 type:"ratelimit" 형식으로 대체)
+  // worker.js 는 바인딩이 없으면 통과(fail-open)하므로, 이 설정 없이 배포해도 동작은 안전하다.
+  "ratelimits": [
+    { "name": "AI_LIMITER",    "namespace_id": "1001", "simple": { "limit": 10,  "period": 60 } },
+    { "name": "PROXY_LIMITER", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } }
+  ],
   // ⏰ Cron Triggers — 카카오 시황 자동 발송 트리거(GitHub Actions 스케줄이 best-effort 라 누락되는
   // 문제 해소). 이 시각에 Worker 의 scheduled() 가 GitHub repository_dispatch 로 kakao-daily 워크플로를
   // on-demand 실행시킨다(차트 생성·발송은 GitHub Actions 가). on-demand 라 스케줄 드롭 영향이 없다.

@@ -52,6 +52,36 @@ const CORS = {
   'Access-Control-Max-Age': '86400',
 };
 
+// ──────────────────────────────────────────────────────────────────
+// 🚦 남용 방어 — Origin 화이트리스트 + IP 레이트리밋 (OWASP API4 대응)
+// ──────────────────────────────────────────────────────────────────
+// POST(/ai·/portfolio)는 쓰기/비용이 발생하는 경로 — 자기 사이트 출처만 허용한다.
+// Origin 헤더는 브라우저가 자동 부여하므로 일반 스크립트로는 위조가 곤란하다.
+// Origin 이 아예 없는 서버측 호출(curl 등)은 아래 IP 레이트리밋으로 방어한다.
+const ALLOWED_ORIGINS = new Set([
+  'https://0101-commits.github.io',
+]);
+function _originAllowed(request) {
+  const o = request.headers.get('Origin');
+  if (!o) return true;                                   // 서버측 호출 → 레이트리밋으로 방어
+  if (ALLOWED_ORIGINS.has(o)) return true;
+  // 로컬 개발 편의 (file:// 는 Origin: "null", localhost 는 포트 가변)
+  if (o === 'null') return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)) return true;
+  return false;
+}
+
+// Cloudflare Rate Limiting 바인딩(wrangler.jsonc 의 AI_LIMITER/PROXY_LIMITER) 기반 IP 리밋.
+// 바인딩 미설정/오류 시에는 통과(fail-open) — 레이트리밋은 가용성 보조 수단이라 점진 도입 안전.
+async function _rateLimited(env, limiter, request) {
+  try {
+    if (!env || !env[limiter] || typeof env[limiter].limit !== 'function') return false;
+    const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+    const { success } = await env[limiter].limit({ key: ip });
+    return !success;
+  } catch { return false; }
+}
+
 // 타깃 호스트별 주입 헤더 — 브라우저가 못 보내는 Referer/Origin/User-Agent 등.
 function originHeaders(host) {
   // m.stock.naver.com / api.stock.naver.com → 모바일 JSON API: 모바일 UA + m.stock Referer/Origin
@@ -273,11 +303,19 @@ async function _testGemini(key) {
 // 저장소 alerts_config.json 에 커밋한다(브라우저엔 GitHub 토큰을 노출할 수 없어 Worker 가 중계).
 // 그 파일을 GitHub Actions(stock-alerts.yml)가 장중 15분마다 평가해 카카오톡으로 발송한다.
 //   필요한 시크릿: GH_DISPATCH_TOKEN (Contents: Read and write — kakao cron 과 공용)
-//   선택 시크릿: ALERTS_SYNC_KEY — 설정 시 body.key 가 일치해야 저장 허용(임의 쓰기 방지).
+//   필수 시크릿: ALERTS_SYNC_KEY — body.keyHash(SHA-256) 가 일치해야 저장 허용.
+//     미설정 시 쓰기 자체가 비활성화된다(fail-closed — 무인증 쓰기 개방 방지).
 //   주의: 평단가/수량은 프론트가 보내지 않는다(공개 저장소) — 알림 조건만 저장.
 const ALERTS_CONFIG_PATH = 'alerts_config.json';
 const ALERT_TYPES = ['price_above', 'price_below', 'pct_change', 'high52', 'low52',
                      'vol_surge', 'golden_cross', 'dead_cross'];
+
+// 토큰 과권한 축소(선택 운영) — GH_ALERTS_TOKEN(Contents RW 전용)을 별도 시크릿으로 두면
+// Contents 커밋에는 그것만 쓰고, GH_DISPATCH_TOKEN 은 dispatch(Read-only) 로 권한을 낮출 수 있다.
+// 미설정 시에는 기존처럼 GH_DISPATCH_TOKEN 공용 — 동작 변화 없음.
+function _ghContentsToken(env) {
+  return (env && (env.GH_ALERTS_TOKEN || env.GH_DISPATCH_TOKEN)) || '';
+}
 
 async function _ghContents(env, method, bodyObj) {
   const url = `https://api.github.com/repos/${GH_REPO}/contents/${ALERTS_CONFIG_PATH}` +
@@ -285,7 +323,7 @@ async function _ghContents(env, method, bodyObj) {
   const r = await fetch(url, {
     method,
     headers: {
-      'Authorization': 'Bearer ' + env.GH_DISPATCH_TOKEN,
+      'Authorization': 'Bearer ' + _ghContentsToken(env),
       'Accept': 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'User-Agent': 'ecom-portfolio-sync',
@@ -349,20 +387,31 @@ async function _sha256Hex(s) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// 동기화 키 검증 — fail-closed. 키 시크릿 미설정이면 쓰기 자체를 차단하고(503),
+// 설정 시에는 프론트가 보낸 SHA-256 해시(keyHash)가 일치해야만 통과(401).
+// 구버전 평문 body.key 호환은 제거됨 — 프론트는 이미 해시 전송으로 전환 완료.
+async function _verifySyncKey(body, env) {
+  if (!env || !env.ALERTS_SYNC_KEY) {
+    return jsonResponse({
+      error: 'sync_key_not_configured',
+      message: 'Worker 시크릿 ALERTS_SYNC_KEY 가 설정되지 않아 저장이 비활성화되어 있습니다. ' +
+               'wrangler secret put ALERTS_SYNC_KEY 로 설정 후 프론트 🔑 버튼에 동일 키를 입력하세요.',
+    }, 503);
+  }
+  const expected = await _sha256Hex(env.ALERTS_SYNC_KEY);
+  const okHash = body && body.keyHash && String(body.keyHash).toLowerCase() === expected;
+  if (!okHash) return jsonResponse({ error: 'unauthorized' }, 401);
+  return null;   // 통과
+}
+
 async function handlePortfolioPost(request, env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   const raw = await request.text();
   if (raw.length > 120000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let body;
   try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
-  // 동기화 키 검증 — 프론트는 키의 SHA-256 해시(keyHash)만 보낸다 (평문 키는 전송/저장 안 함).
-  // 구버전 클라이언트의 평문 body.key 도 당분간 호환 허용.
-  if (env.ALERTS_SYNC_KEY) {
-    const expected = await _sha256Hex(env.ALERTS_SYNC_KEY);
-    const okHash = body.keyHash && String(body.keyHash).toLowerCase() === expected;
-    const okLegacy = body.key && String(body.key) === String(env.ALERTS_SYNC_KEY);
-    if (!okHash && !okLegacy) return jsonResponse({ error: 'unauthorized' }, 401);
-  }
+  const denied = await _verifySyncKey(body, env);
+  if (denied) return denied;
   const alerts = _sanitizeAlerts(body.alerts);
   const cfg = { version: 1, updatedAt: new Date().toISOString(), alerts };
   // 기존 파일 sha 조회(업데이트 시 필수) → PUT 커밋
@@ -387,6 +436,37 @@ async function handlePortfolioPost(request, env) {
                           detail: put.json && put.json.message }, 502);
   }
   return jsonResponse({ ok: true, count: alerts.length });
+}
+
+// 🔔 알림 테스트 발송 — POST /portfolio/test
+// 알림 평가는 평소 stock-alerts.yml 의 15분 cron 에서만 돌아 설정 검증에 최대 15분이 걸린다.
+// 이 엔드포인트는 키 검증 후 repository_dispatch(alerts-test) 로 워크플로를 즉시 1회 깨워
+// 사용자가 저장 직후 바로 평가·발송 결과를 확인할 수 있게 한다.
+async function handlePortfolioTest(request, env) {
+  if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
+  const raw = await request.text();
+  if (raw.length > 4000) return jsonResponse({ error: 'payload_too_large' }, 413);
+  let body;
+  try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
+  const denied = await _verifySyncKey(body, env);
+  if (denied) return denied;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${GH_REPO}/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + env.GH_DISPATCH_TOKEN,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'ecom-alert-test',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event_type: 'alerts-test', client_payload: { requestedAt: new Date().toISOString() } }),
+      signal: AbortSignal.timeout(15000),
+    });
+    return jsonResponse({ ok: r.status === 204, status: r.status });
+  } catch (e) {
+    return jsonResponse({ error: 'dispatch_failed', detail: String((e && e.message) || e) }, 502);
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -441,6 +521,12 @@ export default {
     // 로 중계해 자연어 브리핑을 생성한다. 키는 Worker 시크릿 ANTHROPIC_API_KEY 로만 보관해
     // 브라우저에 노출되지 않는다. (정적 사이트에서 안전하게 LLM 을 쓰기 위한 경로.)
     if (request.method === 'POST') {
+      // 비용/쓰기가 발생하는 POST 경로 — 자기 사이트 출처가 아니면 거부 (캐주얼 남용 차단)
+      if (!_originAllowed(request)) return jsonResponse({ error: 'forbidden_origin' }, 403);
+      // IP 레이트리밋 (분당 10회) — LLM 비용·GitHub 커밋 스팸 방어. 바인딩 미설정 시 통과.
+      if (await _rateLimited(env, 'AI_LIMITER', request)) {
+        return jsonResponse({ error: 'rate_limited', message: '분당 10회 제한' }, 429);
+      }
       const purl = new URL(request.url);
       if (purl.pathname === '/ai' || purl.searchParams.get('ai') === '1') {
         return handleAiSummary(request, env);
@@ -449,7 +535,11 @@ export default {
       if (purl.pathname === '/portfolio') {
         return handlePortfolioPost(request, env);
       }
-      return jsonResponse({ error: 'POST is only supported at /ai or /portfolio' }, 404);
+      // 🔔 알림 테스트 발송 — stock-alerts 워크플로 즉시 1회 실행
+      if (purl.pathname === '/portfolio/test') {
+        return handlePortfolioTest(request, env);
+      }
+      return jsonResponse({ error: 'POST is only supported at /ai, /portfolio or /portfolio/test' }, 404);
     }
     if (request.method !== 'GET') return jsonResponse({ error: 'GET only' }, 405);
 
@@ -491,6 +581,12 @@ export default {
     if (t.protocol !== 'https:') return jsonResponse({ error: 'https only' }, 400);
     if (!ALLOWED_HOSTS.includes(t.hostname)) {
       return jsonResponse({ error: 'host not allowed', host: t.hostname }, 403);
+    }
+
+    // IP 레이트리밋 (분당 120회) — 외부 남용으로 무료 플랜 일 10만 요청 한도가 고갈되는 것 방지.
+    // 대시보드 정상 사용(1분 주기 갱신·수십 위젯)은 한도 안에 충분히 들어온다.
+    if (await _rateLimited(env, 'PROXY_LIMITER', request)) {
+      return jsonResponse({ error: 'rate_limited' }, 429);
     }
 
     // 짧은 캐시(30초) — 동일 요청 폭주 시 origin/무료 한도 보호

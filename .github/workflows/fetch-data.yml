@@ -144,34 +144,41 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/ai_briefing.py
 
+      # 🛡 데이터 무결성 게이트 — 스키마/핵심 시계열 검증 실패 시 여기서 중단되어
+      # 커밋이 일어나지 않고 직전 정상 data.json 이 유지된다(fail-safe).
+      - name: Validate data.json (스키마·최소 길이)
+        run: python scripts/validate_data.py
+
       - name: Commit and push data.json
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           branch="${GITHUB_REF_NAME:-main}"
-          if git diff --quiet -- data.json && git diff --staged --quiet -- data.json; then
+          if git diff --quiet -- data.json data_meta.json && git diff --staged --quiet -- data.json data_meta.json; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
           msg="data: 시장 데이터 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
-          # data.json 은 매 런마다 생성되는 산출물 — '최신 런이 이긴다' 정책.
-          # 단, data.json 외의 파일(index.html 등)은 절대 커밋에 포함하지 않는다.
+          # data.json(+data_meta.json) 은 매 런마다 생성되는 산출물 — '최신 런이 이긴다' 정책.
+          # 단, 그 외의 파일(index.html 등)은 절대 커밋에 포함하지 않는다.
           # (과거 결함: push 거부 후 `git reset --soft` 가 원격의 최신 index.html 을 구버전으로
           #  되돌리는 변경을 스테이징에 올려, 이어지는 commit 이 프런트 변경을 통째로 되돌렸다.)
-          # 생성한 data.json 을 따로 보관했다가, 매 재시도마다 원격 최신 트리에 그것만 다시 얹는다.
+          # 생성한 산출물을 따로 보관했다가, 매 재시도마다 원격 최신 트리에 그것만 다시 얹는다.
           cp data.json /tmp/data.json.run
-          git add data.json
+          cp data_meta.json /tmp/data_meta.json.run
+          git add data.json data_meta.json
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then
               echo "push 성공 (시도 ${attempt})"; exit 0
             fi
-            echo "push 실패 (시도 ${attempt}) — 원격 ${branch} 최신 위에 data.json 만 재적용"
+            echo "push 실패 (시도 ${attempt}) — 원격 ${branch} 최신 위에 산출물만 재적용"
             git fetch origin "${branch}" || true
-            # 원격 최신과 정확히 일치(=index.html 등 타 파일 보존)시킨 뒤 data.json 만 덮어쓴다.
+            # 원격 최신과 정확히 일치(=index.html 등 타 파일 보존)시킨 뒤 산출물만 덮어쓴다.
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
             cp /tmp/data.json.run data.json
-            git add data.json
-            if git diff --staged --quiet -- data.json; then
+            cp /tmp/data_meta.json.run data_meta.json
+            git add data.json data_meta.json
+            if git diff --staged --quiet -- data.json data_meta.json; then
               echo "원격 data.json 이 이미 최신 — 종료"; exit 0
             fi
             git commit -m "$msg" -q || true
