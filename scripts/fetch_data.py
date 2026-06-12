@@ -1252,8 +1252,11 @@ def fetch_yf_kr_etf_movers(top_n=10):
 # ============================================================
 # FRED API (미국 경제 지표)
 # ============================================================
-def fetch_fred_series(series_id, limit=1):
+def fetch_fred_series(series_id, limit=1, units=None):
     """FRED API에서 시계열 데이터 최신값 조회.
+
+    units: FRED 서버측 변환 — 예) "pc1" = 전년동기비 % (Percent Change from Year Ago).
+           레벨 시리즈를 성장률로 받을 때 사용 (별도 계산·계절성 처리 불필요).
 
     일시적 네트워크/FRED 응답 지연으로 단발 실패하면 그 시리즈(예: VIXCLS)가
     통째로 누락되고, 그 누락이 _preserve_*() 로도 못 막히는 케이스가 있었다.
@@ -1265,15 +1268,18 @@ def fetch_fred_series(series_id, limit=1):
     last_err = None
     for attempt in range(3):
         try:
+            params = {
+                "series_id": series_id,
+                "api_key": FRED_API_KEY,
+                "file_type": "json",
+                "limit": limit,
+                "sort_order": "desc",
+            }
+            if units:
+                params["units"] = units
             r = requests.get(
                 f"{FRED_BASE}/series/observations",
-                params={
-                    "series_id": series_id,
-                    "api_key": FRED_API_KEY,
-                    "file_type": "json",
-                    "limit": limit,
-                    "sort_order": "desc",
-                },
+                params=params,
                 timeout=20,
             )
             r.raise_for_status()
@@ -1413,9 +1419,13 @@ def fetch_fred_economic_indicators():
 # FRED 의 international 데이터는 OECD/IMF/Eurostat 가 원본인 경우가 많음.
 # 각 시리즈 id 는 fred.stlouisfed.org/searchresults 에서 확인.
 FRED_INTL_INDICATORS = {
+    # gdp_yoy: 동일 레벨 시리즈를 FRED units=pc1(전년동기비 %)로 받은 성장률.
+    #   '주요 경제 지표' GDP 카드가 국가별로 레벨/성장률이 섞여 있던 것을 성장률로 통일하기
+    #   위한 키. 기존 gdp(레벨) 키는 캘린더 전기비 계산 등 기존 소비처가 있어 유지한다.
     "jp": {
         "cpi":          ("JPNCPIALLMINMEI",  "일본 CPI (전체, 2015=100)"),
         "gdp":          ("JPNRGDPEXP",       "일본 실질GDP (분기, 십억엔)"),
+        "gdp_yoy":      ("JPNRGDPEXP",       "일본 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRUN64TTJPM156S",  "일본 실업률 (15-64세, 계절조정)"),
         "base_rate":    ("INTDSRJPM193N",    "일본 정책금리 (할인율)"),
         # 일본 산업생산지수 (OECD 시계열, 2015=100, 계절조정)
@@ -1424,22 +1434,26 @@ FRED_INTL_INDICATORS = {
     "eu": {
         "cpi":          ("CP0000EZ19M086NEST", "유로존 HICP (전체)"),
         "gdp":          ("CLVMNACSCAB1GQEA19", "유로존 실질GDP (백만유로)"),
+        "gdp_yoy":      ("CLVMNACSCAB1GQEA19", "유로존 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRHUTTTTEZM156S",  "유로존 실업률 (계절조정)"),
         "base_rate":    ("ECBDFR",            "ECB 예금금리"),
     },
     "cn": {
         "cpi":          ("CHNCPIALLMINMEI",   "중국 CPI (전체, 2015=100)"),
         "gdp":          ("MKTGDPCNA646NWDB",  "중국 GDP (USD)"),
+        "gdp_yoy":      ("MKTGDPCNA646NWDB",  "중국 GDP 성장률 (YoY %, 명목 USD)", "pc1"),
         "ip":           ("CHNPROINDMISMEI",   "중국 산업생산지수 (2015=100, 계절조정)"),
     },
     "de": {
         "cpi":          ("DEUCPIALLMINMEI",   "독일 CPI"),
         "gdp":          ("CLVMNACSCAB1GQDE",  "독일 실질GDP"),
+        "gdp_yoy":      ("CLVMNACSCAB1GQDE",  "독일 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRHUTTTTDEM156S",   "독일 실업률"),
     },
     "uk": {
         "cpi":          ("GBRCPIALLMINMEI",   "영국 CPI"),
         "gdp":          ("CLVMNACSCAB1GQUK",  "영국 실질GDP"),
+        "gdp_yoy":      ("CLVMNACSCAB1GQUK",  "영국 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRHUTTTTGBM156S",   "영국 실업률"),
         "base_rate":    ("IRSTCB01GBM156N",   "영국 BOE 정책금리"),
     },
@@ -1453,9 +1467,11 @@ def fetch_fred_intl_indicators():
     out = {}
     for cc, ind_map in FRED_INTL_INDICATORS.items():
         cc_data = {}
-        for key, (series_id, desc) in ind_map.items():
+        for key, spec in ind_map.items():
+            series_id, desc = spec[0], spec[1]
+            units = spec[2] if len(spec) > 2 else None   # 예: "pc1" = 전년동기비 %
             # 국제 시리즈는 대부분 월간이므로 limit=60 (5년)
-            obs = fetch_fred_series(series_id, limit=60)
+            obs = fetch_fred_series(series_id, limit=60, units=units)
             if obs:
                 history = {o["date"]: o["value"] for o in obs}
                 cc_data[f"{key}_{cc}"] = {
@@ -2396,13 +2412,24 @@ def fetch_ecos_series(stat_code, item_code="", freq="A", start_period=None, end_
         return None
 
 
-def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=60):
+def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=60, name_filter=None):
     """ECOS 단일 시계열 최신값 + 60개월/분기/연 히스토리 조회 헬퍼.
     limit 60 → 월간이면 5년, 분기면 15년, 연이면 60년 (분기/연 차트 적절 표시).
+
+    name_filter: item_code="" (전체 항목 조회) 처럼 여러 항목이 섞여 오는 경우,
+    ITEM_NAME1 에 이 키워드가 포함된 첫 항목의 시계열만 골라낸다. 항목 코드가
+    개편되어 명시 코드가 전부 빗나가도 이름으로 찾을 수 있게 하는 안전망.
     """
     rows = fetch_ecos_series(stat_code, item_code, freq, limit=limit)
     if not rows:
         return None
+    if name_filter:
+        matches = [r for r in rows if name_filter in str(r.get("ITEM_NAME1") or "")]
+        if matches:
+            first_code = matches[0].get("ITEM_CODE1")
+            rows = [r for r in matches if r.get("ITEM_CODE1") == first_code]
+        elif item_code == "":
+            return None   # 전체 항목 조회인데 이름 매칭 0건 → 엉뚱한 항목 채택 방지
     # 최신값이 가장 뒤일 수도, 앞일 수도 있으므로 TIME 기준 정렬
     rows_sorted = sorted(rows, key=lambda r: r.get("TIME", ""))
     latest = rows_sorted[-1]
@@ -2425,7 +2452,7 @@ def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=60):
     }
 
 
-def _ecos_try_multi(stat_codes, items, freq, desc, source_id):
+def _ecos_try_multi(stat_codes, items, freq, desc, source_id, name_filter=None):
     """여러 stat_code × item_code 조합을 시도해서 성공한 첫 번째 결과를 반환.
     각 ECOS 시리즈는 시기에 따라 코드 체계가 변경되거나 신·구 코드가 공존함.
     """
@@ -2433,10 +2460,48 @@ def _ecos_try_multi(stat_codes, items, freq, desc, source_id):
     if isinstance(items, str): items = [items]
     for stat in stat_codes:
         for item in items:
-            r = _ecos_latest(stat, item, freq, desc, source_id)
+            r = _ecos_latest(stat, item, freq, desc, source_id, name_filter=name_filter)
             if r:
                 return r, stat, item
     return None, None, None
+
+
+def _ecos_key_statistic(keyword, desc, source_id):
+    """ECOS 100대 통계지표(KeyStatisticList)에서 지표명 키워드로 최신값 조회.
+
+    통계표/항목 코드가 개편되어 StatisticSearch 조합이 전부 실패할 때의 최후 폴백.
+    코드가 아닌 '지표 이름'으로 찾으므로 개편에 강하다. 최신 1개 값만 제공(히스토리 없음).
+    """
+    if not ECOS_API_KEY:
+        return None
+    try:
+        url = f"{ECOS_BASE}/KeyStatisticList/{ECOS_API_KEY}/json/kr/1/100/"
+        r = requests.get(url, timeout=15)
+        r.raise_for_status()
+        rows = (r.json().get("KeyStatisticList") or {}).get("row") or []
+        for row in rows:
+            name = str(row.get("KEYSTAT_NAME") or "")
+            if keyword not in name:
+                continue
+            val = _parse_num(row.get("DATA_VALUE"))
+            if val is None:
+                continue
+            unit = str(row.get("UNIT_NAME") or "")
+            # 소비처는 '10억원(=십억원)' 단위를 전제 — 조원 단위로 오면 환산해 일관성 유지
+            if "조원" in unit:
+                val *= 1000
+                unit = "십억원"
+            t = str(row.get("CYCLE") or "")
+            return {
+                "value": val,
+                "period": t,
+                "desc": f"{desc} — KeyStat:{name}",
+                "source": f"ECOS:KeyStatisticList",
+                "history": {t: val} if t else {},
+            }
+    except Exception as e:
+        log(f"[ECOS] KeyStatisticList 오류: {e}")
+    return None
 
 
 def fetch_ecos_economic_indicators():
@@ -2558,15 +2623,26 @@ def fetch_ecos_economic_indicators():
         log(f"[ECOS] 주담대 금리: {r['value']} ({r['period']}) item={used_item}")
 
     # 가계신용 잔액 - 151Y005 (가계신용)
+    # 명시 항목 코드가 전부 빗나가는 사례가 확인됨(런 로그에 가계신용 줄 자체가 없음) —
+    # ① 항목 코드 미지정("")으로 전체 항목을 받아 ITEM_NAME1='가계신용' 을 이름으로 매칭,
+    # ② 그래도 실패하면 100대 통계지표(KeyStatisticList)에서 이름으로 최신값 폴백.
     r, used_stat, used_item = _ecos_try_multi(
         ["151Y005", "151Y009", "151Y013"],
-        ["1100000", "AAA", "1000", "0000", "1A0"],
+        ["1100000", "AAA", "1000", "0000", "1A0", ""],
         "Q", "한국 가계신용 잔액 (10억원)", "HOUSEHOLD_DEBT",
+        name_filter="가계신용",
     )
     if r:
         r["source"] = f"ECOS:{used_stat}"
         result["household_debt_kr"] = r
-        log(f"[ECOS] 가계신용: {r['value']} ({r['period']}) item={used_item}")
+        log(f"[ECOS] 가계신용: {r['value']} ({r['period']}) item={used_item or '(이름매칭)'}")
+    else:
+        r = _ecos_key_statistic("가계신용", "한국 가계신용 잔액 (10억원)", "HOUSEHOLD_DEBT")
+        if r:
+            result["household_debt_kr"] = r
+            log(f"[ECOS] 가계신용: {r['value']} ({r['period']}) — KeyStatisticList 폴백")
+        else:
+            log("[ECOS] 가계신용: StatisticSearch·KeyStatisticList 모두 실패 — 미수집")
 
     return result
 
@@ -3572,6 +3648,121 @@ def fetch_motir_commodities():
 # ============================================================
 # 국민연금 자산배분 (NPS) — fund.nps.or.kr 공시
 # ============================================================
+# ============================================================
+# 버크셔 해서웨이 13F 보유 종목 (SEC EDGAR — 무료, 키 불필요)
+# ============================================================
+BERKSHIRE_CIK = "0001067983"
+# SEC EDGAR 는 식별 가능한 User-Agent 를 요구한다 (fair access 정책)
+SEC_HEADERS = {"User-Agent": "economic-site-dashboard/1.0 (github.com/0101-commits/economic-site)"}
+# 13F 인포테이블에는 티커가 없고 CUSIP 만 있어, 주요 종목의 표시용 매핑을 둔다.
+# 매핑에 없는 종목은 발행사명만 표시된다 (기능 영향 없음).
+BERKSHIRE_CUSIP_TICKERS = {
+    "037833100": "AAPL",  "025816109": "AXP",   "060505104": "BAC",  "191216100": "KO",
+    "166764100": "CVX",   "674599105": "OXY",   "615369105": "MCO",  "500754106": "KHC",
+    "23918K108": "DVA",   "172967424": "C",     "501044101": "KR",   "92343E102": "VRSN",
+    "023135106": "AMZN",  "14040H105": "COF",   "H1467J104": "CB",   "02079K305": "GOOGL",
+    "874054109": "TMUS",  "718546104": "PM",    "863667101": "STZ",  "25754A201": "DPZ",
+}
+
+
+def fetch_berkshire_13f():
+    """버크셔 해서웨이 최신 13F-HR 보유 종목 상위 목록 (SEC EDGAR 공시 기반).
+
+    13F 는 분기 종료 후 45일 이내 공시 — '현재 보유'가 아닌 최신 공시 기준 스냅샷이며
+    프런트에 보고 기준일(reportDate)을 함께 표기한다. 실패 시 None (직전 값 보존).
+    """
+    import xml.etree.ElementTree as ET
+
+    def _get_json(url):
+        r = requests.get(url, headers=SEC_HEADERS, timeout=20)
+        r.raise_for_status()
+        return r.json()
+
+    try:
+        sub = _get_json(f"https://data.sec.gov/submissions/CIK{BERKSHIRE_CIK}.json")
+        recent = (sub.get("filings") or {}).get("recent") or {}
+        forms = recent.get("form") or []
+        idx = next((i for i, f in enumerate(forms) if f in ("13F-HR", "13F-HR/A")), None)
+        if idx is None:
+            log("[SEC-13F] 13F-HR 공시를 찾지 못함")
+            return None
+        acc = str(recent["accessionNumber"][idx]).replace("-", "")
+        report_date = (recent.get("reportDate") or [""])[idx]
+        filed_date = (recent.get("filingDate") or [""])[idx]
+        base = f"https://www.sec.gov/Archives/edgar/data/{int(BERKSHIRE_CIK)}/{acc}"
+
+        # 인포테이블 XML 파일명은 공시마다 달라 디렉터리 목록에서 찾는다
+        items = ((_get_json(f"{base}/index.json").get("directory") or {}).get("item") or [])
+        xml_name = None
+        for it in items:
+            nm = str(it.get("name") or "")
+            if nm.lower().endswith(".xml") and "infotable" in nm.lower().replace("_", "").replace("-", ""):
+                xml_name = nm
+                break
+        if not xml_name:
+            # 명명 규칙이 다른 경우: primary_doc 을 제외한 가장 큰 XML = 인포테이블
+            cands = [it for it in items
+                     if str(it.get("name", "")).lower().endswith(".xml")
+                     and "primary" not in str(it.get("name", "")).lower()]
+            if cands:
+                xml_name = max(cands, key=lambda it: int(it.get("size") or 0))["name"]
+        if not xml_name:
+            log("[SEC-13F] 인포테이블 XML 을 찾지 못함")
+            return None
+
+        r = requests.get(f"{base}/{xml_name}", headers=SEC_HEADERS, timeout=30)
+        r.raise_for_status()
+        root = ET.fromstring(r.content)
+
+        holds = {}
+        for node in root.iter():
+            if node.tag.split("}")[-1] != "infoTable":
+                continue
+            row = {ch.tag.split("}")[-1]: (ch.text or "").strip() for ch in node.iter()}
+            cusip = row.get("cusip") or ""
+            name = row.get("nameOfIssuer") or cusip or "?"
+            key = cusip or name
+            cur = holds.setdefault(key, {"name": name, "cusip": cusip, "value": 0.0, "shares": 0.0})
+            cur["value"] += _parse_num(row.get("value")) or 0.0     # 동일 종목 복수 행(의결권 구분) 합산
+            cur["shares"] += _parse_num(row.get("sshPrnamt")) or 0.0
+        if not holds:
+            log("[SEC-13F] 인포테이블 파싱 결과 0종목")
+            return None
+
+        total = sum(h["value"] for h in holds.values())
+        # 2023-01 이후 13F 의 value 는 '달러' 단위(이전엔 천달러). 버크셔 포트폴리오는
+        # 수천억 달러 규모이므로 합계가 비정상적으로 작으면 천달러 단위로 보고 환산한다.
+        if 0 < total < 5e9:
+            total *= 1000
+            for h in holds.values():
+                h["value"] *= 1000
+
+        ranked = sorted(holds.values(), key=lambda h: -h["value"])[:15]
+        holdings = [{
+            "name": h["name"],
+            "ticker": BERKSHIRE_CUSIP_TICKERS.get(h["cusip"]),
+            "cusip": h["cusip"],
+            "valueUsd": round(h["value"]),
+            "shares": round(h["shares"]),
+            "pct": round(h["value"] / total * 100, 2) if total else None,
+        } for h in ranked]
+
+        log(f"[SEC-13F] Berkshire: {len(holds)}종목, 총 ${total/1e9:,.0f}B (보고일 {report_date}, 공시일 {filed_date})")
+        return {
+            "investor": "Berkshire Hathaway",
+            "cik": BERKSHIRE_CIK,
+            "reportDate": report_date,
+            "filedDate": filed_date,
+            "totalValueUsd": round(total),
+            "holdingsCount": len(holds),
+            "holdings": holdings,
+            "source": "SEC EDGAR 13F-HR",
+        }
+    except Exception as e:
+        log(f"[SEC-13F] Berkshire 조회 실패: {e}")
+        return None
+
+
 def fetch_nps_allocation():
     """국민연금 자산배분 현황 크롤링.
 
@@ -5691,6 +5882,19 @@ def build_data():
             data["sources"]["nps"] = nps_data.get("source", "fund.nps.or.kr")
     except Exception as e:
         log(f"[NPS] 오류: {e}")
+
+    # ── 버크셔 해서웨이 13F 보유 종목 (SEC EDGAR) ──────────────────
+    # '주요 투자자' 페이지 표시용. 13F 는 분기 공시라 일시 실패 시 직전 값을 보존.
+    try:
+        bk = fetch_berkshire_13f()
+        if bk:
+            data["berkshire"] = bk
+            data["sources"]["berkshire"] = bk.get("source", "SEC EDGAR 13F-HR")
+        elif isinstance(prev, dict) and prev.get("berkshire"):
+            data["berkshire"] = prev["berkshire"]
+            data["sources"]["berkshire"] = "SEC EDGAR 13F-HR (직전 값 보존)"
+    except Exception as e:
+        log(f"[SEC-13F] 오류: {e}")
 
     # ── 시계열 데이터 (FX/지수/원자재 5년치) ──────────────────
     # 프런트엔드 차트가 더미(genSeries) 대신 실제 데이터를 사용하기 위함
