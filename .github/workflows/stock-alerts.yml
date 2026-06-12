@@ -12,6 +12,10 @@ on:
     - cron: '*/15 0-6 * * 1-5'    # 한국 장중 (00:00–06:45 UTC = 09:00–15:45 KST)
     - cron: '*/15 13-21 * * 1-5'  # 미국 장중 (13:00–21:45 UTC = 22:00–06:45 KST)
   workflow_dispatch: {}
+  # 🔔 프런트 '테스트 발송' 버튼 → Worker POST /portfolio/test → repository_dispatch 로 즉시 1회 실행.
+  # 테스트 런은 check_alerts.py 가 장중/쿨다운 가드를 무시하고 평가해 결과를 바로 카카오톡으로 보낸다.
+  repository_dispatch:
+    types: [alerts-test]
 
 permissions:
   contents: write

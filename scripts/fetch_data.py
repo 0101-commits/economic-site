@@ -6761,6 +6761,11 @@ if __name__ == "__main__":
     output_path = "data.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
+    # 경량 메타 파일(~100B) — 프런트 loadRealData() 가 이것만 선조회해 lastUpdated 가 그대로면
+    # 3.6MB 본체 재다운로드를 생략한다 (자동 갱신 주기마다 전량 재수신하던 트래픽 절감).
+    meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize(output_path)}
+    with open("data_meta.json", "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False)
     log(f"=== 완료: {d['lastUpdated']} → {output_path} ===")
     log(f"[RESULT] stockMovers: {d['diagnostics'].get('stockMoversSource','-')}")
     log(f"[RESULT] etfMovers:   {d['diagnostics'].get('etfMoversSource','-')}")

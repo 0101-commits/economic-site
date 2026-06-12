@@ -6,16 +6,18 @@
 <!-- 🛡 Content Security Policy — GitHub Pages 는 응답 헤더를 설정할 수 없어 <meta> 로 적용.
      · script-src 'unsafe-inline': 본 앱은 단일 HTML 인라인 스크립트 + 인라인 onclick 핸들러 구조라 필수.
        대신 외부 스크립트 출처를 CDN/네이버 지도 도메인으로 한정하고 eval 류('unsafe-eval')는 불허.
-     · connect-src: data.json('self') + 전용 Worker + 공개 CORS 프록시 + 직접 호출하는 금융 API 만 허용.
+     · connect-src: data.json('self') + 전용 Worker + 직접 호출하는 금융 API 만 허용.
+       공개 CORS 프록시(allorigins/codetabs/corsproxy)는 제거됨 — 제3자가 응답 본문(시세 숫자)을
+       변조할 수 있는 경로라 폴백 가치 대비 리스크가 컸다. 전용 Worker 단일 경로로 일원화.
        (localStorage 'cfProxyBase' 로 다른 프록시를 지정하면 여기에 도메인을 추가해야 함)
-     · frame-ancestors 는 meta CSP 에서 무시되므로 클릭재킹 방어는 호스팅 헤더 지원 시 별도 적용 필요. -->
+     · frame-ancestors 는 meta CSP 에서 무시되므로 클릭재킹 방어는 아래 JS 프레임버스트로 완화. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
   font-src 'self' data: https://fonts.gstatic.com;
   img-src 'self' data: blob: https:;
-  connect-src 'self' https://ecom-dashboard-proxy.baldr0001.workers.dev https://api.allorigins.win https://api.codetabs.com https://corsproxy.io https://stooq.com https://stooq.pl https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://open.er-api.com https://production.dataviz.cnn.io https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net;
+  connect-src 'self' https://ecom-dashboard-proxy.baldr0001.workers.dev https://stooq.com https://stooq.pl https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://open.er-api.com https://production.dataviz.cnn.io https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
@@ -23,7 +25,24 @@
   upgrade-insecure-requests
 "/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
+<script>
+  // 클릭재킹 완화 — GitHub Pages 는 X-Frame-Options/frame-ancestors 응답 헤더를 못 주므로
+  // JS 프레임버스트가 차선책. (근본 해결은 헤더 설정 가능한 호스팅 이전 시 frame-ancestors 'none')
+  if (window.top !== window.self) {
+    try { window.top.location = window.self.location; }
+    catch (_) { document.documentElement.style.display = 'none'; }  // 크로스오리진 차단 시 화면 은닉
+  }
+</script>
 <title>경제현황 터미널</title>
+<!-- OG 메타 — 카카오톡 등 메신저 링크 공유 시 미리보기 구성 (카카오 스크랩퍼는 OG 태그 기반).
+     변경 후에는 developers.kakao.com/tool/clear/og 에서 스크랩 캐시 초기화 필요.
+     og:image 는 대시보드 스크린샷(1200×630 권장)을 og-cover.png 로 추가하면 활성화. -->
+<meta name="description" content="KOSPI·환율·금리·원자재·부동산·연기금을 한 화면에서 — 개인 경제현황 터미널"/>
+<meta property="og:title"       content="경제현황 터미널"/>
+<meta property="og:description" content="KOSPI·환율·금리·원자재·부동산·연기금 실시간 대시보드"/>
+<meta property="og:type"        content="website"/>
+<meta property="og:url"         content="https://0101-commits.github.io/economic-site/"/>
+<!-- <meta property="og:image" content="https://0101-commits.github.io/economic-site/og-cover.png"/> -->
 <!-- 인라인 SVG 파비콘(📈) — favicon.ico 404 제거 -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E"/>
 <!-- ⛔ Tailwind Play CDN 제거됨 (의도적) — 근본 원인 제거:
@@ -36,10 +55,31 @@
        (시각적 변화 없음. 외부 의존성/네트워크 요청도 1개 감소.) 다시 추가하지 말 것. -->
 <!-- SRI(integrity): CDN 이 변조/탈취돼도 해시 불일치 시 브라우저가 로드를 거부 (npm 원본 타볼 기준 sha384) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+<script>
+  // Chart.js 캔버스 재사용 가드 — 동일 캔버스에 destroy() 없이 new Chart 를 호출하는 재빌드
+  // 경로("Canvas is already in use" 오류 + 구 인스턴스 리스너/애니메이션 잔존 누수)를 중앙에서
+  // 차단한다. 생성자를 감싸 기존 인스턴스를 자동 destroy 후 생성 — 호출부 46곳 무수정.
+  (function () {
+    if (typeof Chart === 'undefined') return;
+    const Orig = Chart;
+    function ChartGuard(item, config) {
+      try { const prev = Orig.getChart(item); if (prev) prev.destroy(); } catch (_) {}
+      return new Orig(item, config);
+    }
+    ChartGuard.prototype = Orig.prototype;
+    Object.setPrototypeOf(ChartGuard, Orig);   // 정적 멤버(defaults/register/getChart 등) 상속
+    window.Chart = ChartGuard;
+    // 접근성 — 모션 축소 환경에선 차트 애니메이션 비활성 (WCAG 2.2 SC 2.3.3)
+    try {
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) Orig.defaults.animation = false;
+    } catch (_) {}
+  })();
+</script>
+<!-- XLSX(분석 노트 Excel 저장 전용, 압축 ~900KB)는 정적 로드 제거 — 저장 버튼 클릭 시
+     loadXlsxOnce() 가 SRI 유지한 채 동적 로드한다 (첫 페인트 경량화). -->
 <!-- TradingView Lightweight Charts™ (Apache-2.0 오픈소스) — '투자 현황' 종목 상세 차트(캔들+MA·RSI·MACD).
      유료 서버/위젯 없이 프론트에 라이브러리만 이식해 무료로 쓰는 PRD 요구사항. unpkg 는 CSP script-src 에 이미 허용. -->
-<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js" integrity="sha384-stKllnUqA9AD0gsKCuUtf5XlqAW7PwIgDagoNsTWkjkBmJ/GZ/uHTgEBxdLV2VSK" crossorigin="anonymous"></script>
 <!-- Leaflet (OpenStreetMap) — 도메인 제한 없음 -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
@@ -74,43 +114,28 @@
 <script async defer src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=446nx360fc"
   onload="window._naverMapsLoaded=true;"
   onerror="window._naverMapsLoadError=true;"></script>
+<!-- preconnect — 폰트 파일은 fonts.gstatic.com(별도 오리진)에서 받으므로 DNS+TLS 핸드셰이크를
+     선행해 텍스트 렌더 지연을 줄인다. 전용 Worker 도 홈 진입 직후 첫 호출이라 함께 선행. -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://ecom-dashboard-proxy.baldr0001.workers.dev"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Public+Sans:wght@600;700;900&display=swap" rel="stylesheet"/>
+<!-- 브라우저 UI(스크롤바·폼 컨트롤)도 테마 추종 -->
+<meta name="color-scheme" content="light dark"/>
 <script>
-  // FOUC 방지 — 렌더 전 라이트 테마 클래스 동기 적용 (기본 라이트, 'dark' 저장 시만 다크)
+  // FOUC 방지 — 렌더 전 테마 클래스 동기 적용. 우선순위: 저장값 > OS 다크모드 > 라이트.
+  // (기존엔 저장값 없으면 무조건 라이트 — OS 다크 사용자도 첫 방문엔 라이트로 시작했음)
   try {
-    if(localStorage.getItem('econ_theme') !== 'dark') {
-      document.documentElement.classList.add('light');
-    }
+    const saved = localStorage.getItem('econ_theme');
+    const sysDark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const useDark = saved ? saved === 'dark' : sysDark;
+    if(!useDark) document.documentElement.classList.add('light');
   } catch(_){}
 </script>
-<script>
-  // 🔒 DevTools/요소검사 억제 — 일반 사용자가 F12·우클릭 검사로 화면 요소를 지우거나 바꾸는 것을 막는 억지력.
-  // ⚠️ 한계(정직한 고지): 브라우저 메뉴(⋮ → 도구 더보기 → 개발자 도구)나 주소창 view-source: 는 어떤
-  //    스크립트로도 막을 수 없다. 이 사이트는 정적 페이지라 코드/데이터(data.json)가 원래 공개이며,
-  //    DevTools 로 화면을 바꿔도 그 사용자 브라우저에만 보일 뿐 서버/저장소 데이터는 변하지 않는다.
-  //    (완전한 방어가 아닌 '캐주얼 사용자 억제' 목적 — debugger 무한루프 같은 적대적 기법은 의도적으로 배제)
-  // 운영자 디버깅 해제: 브라우저 메뉴로 콘솔을 연 뒤 localStorage.setItem('econ_devtools','1') → 새로고침.
-  (function () {
-    try { if (localStorage.getItem('econ_devtools') === '1') return; } catch (_) {}
-    // 우클릭(검사 메뉴) 차단 — 입력 필드에서는 붙여넣기 등 편의를 위해 허용
-    document.addEventListener('contextmenu', function (e) {
-      var t = e.target;
-      if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
-      e.preventDefault();
-    });
-    // DevTools 단축키 차단: F12 / Ctrl(⌘)+Shift+I·J·C·K / ⌘+⌥+I·J·C·U(macOS) / Ctrl(⌘)+U(소스 보기)
-    document.addEventListener('keydown', function (e) {
-      var c = e.code || '';
-      var blocked =
-        c === 'F12' ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && (c === 'KeyI' || c === 'KeyJ' || c === 'KeyC' || c === 'KeyK')) ||
-        (e.metaKey && e.altKey && (c === 'KeyI' || c === 'KeyJ' || c === 'KeyC' || c === 'KeyU')) ||
-        ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && c === 'KeyU');
-      if (blocked) { e.preventDefault(); e.stopPropagation(); }
-    }, true);
-  })();
-</script>
+<!-- (DevTools/우클릭 차단 스크립트 제거됨 — 정적 공개 사이트에서 보안 효과가 없고,
+     우클릭 차단은 '링크 새 탭 열기'·'텍스트 복사 후 검색'·모바일 롱프레스를 깨뜨려
+     실사용 마찰만 발생시켰다. 다시 추가하지 말 것.) -->
 <!-- (Tailwind 설정 블록 제거됨) 위 Play CDN 을 제거했으므로 전역 `tailwind` 객체가 없다.
      이 config 를 남겨두면 `tailwind is not defined` ReferenceError 가 나므로 함께 제거한다.
      여기서 정의하던 색상(bg/card/border/up/down 등)은 Tailwind 클래스로 쓰인 적이 없고,
@@ -751,6 +776,23 @@
   }
   #homeKpiGrid .kpi-card { cursor: grab; }
   #homeKpiGrid .kpi-card:active { cursor: grabbing; }
+
+  /* 접근성 — 모션 축소 환경(전정기관 민감 사용자) 대응: 셔머·펄스·전환 애니메이션 비활성.
+     WCAG 2.2 SC 2.3.3 충족. (Chart.js 애니메이션은 헤드의 가드 스크립트에서 함께 비활성.) */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* 모바일 터치 타깃 — 시각 크기(11px 탭 칩)는 유지하고 '터치 히트영역'만 확장.
+     WCAG 2.2 SC 2.5.8 은 최소 24×24 CSS px 권고 — ::after inset 으로 22px 버튼을 ~38px 로. */
+  @media (pointer: coarse) {
+    .tab-btn { position: relative; }
+    .tab-btn::after { content: ''; position: absolute; inset: -8px; }
+  }
 </style>
 </head>
 <body>
@@ -1248,6 +1290,7 @@
             <button class="tab-btn" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">🔑 동기화 키</button>
             <button class="tab-btn" onclick="pfPullAlerts()" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#b6c4ff;cursor:pointer;">⬇ 서버에서 불러오기</button>
             <button class="tab-btn" onclick="pfSyncAlerts()" style="font-size:11px;padding:3px 12px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">☁ 서버에 저장</button>
+            <button class="tab-btn" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증 (평소엔 장중 15분 주기)" style="font-size:11px;padding:3px 10px;border:1px solid #26a69a55;border-radius:4px;background:transparent;color:#26a69a;cursor:pointer;">🔔 테스트 발송</button>
             <span id="pfSyncStatus" style="font-size:11px;color:#7a8099;"></span>
           </div>
         </div>
@@ -6012,292 +6055,130 @@ function buildNewsFeed(containerId, items) {
   renderNewsFeedWithPagination(containerId, recent);
 }
 
+// ⚠ 가상(생성형) 헤드라인 데이터 제거됨 — 실재 보도가 아닌 하드코딩 기사 수십 건이
+// 네이버 검색 URL 과 함께 들어 있었다. 렌더는 _isSearchOrInvalidNewsUrl 필터가 막고
+// 있었지만, 필터가 리팩토링에서 회귀하면 가짜 헤드라인이 실제 뉴스처럼 노출될 위험이
+// 있어 데이터 자체를 비웠다. 아래 배열은 '슬롯 구조'만 유지한다:
+//   · cat/tag/tagClr 는 data.json.news(서버측 수집)·클라이언트 RSS 가 기사를 채워 넣는
+//     슬롯 메타데이터 (applyServerNewsToFeeds 의 byCat 매핑, NEWS_QUERIES 의 idx 슬롯).
+//   · title/url/isoDate 가 빈 슬롯은 buildNewsFeed 의 isoDate 필터로 렌더되지 않는다.
+const _newsSlot = (cat, tag, tagClr) => ({ cat, tag, tagClr, title:'', url:'', isoDate:'' });
 // 대시보드 홈 뉴스
 const newsItems = [
-  // ── 채권 (5) ───────────────────────────────────────────
-  {isoDate:'2026-05-14', tag:'통화정책', tagClr:'#2962ff', cat:'채권',
-   title:'금통위 5월 기준금리 2.75% 동결…하반기 인하 여건 조성 중',
-   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88%ED%86%B5%EC%9C%84+%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-10', tag:'국채', tagClr:'#1e88e5', cat:'채권',
-   title:'국채 3년물 3.02%…미 국채 하락에 동반 강세',
-   url:'https://search.naver.com/search.naver?where=news&query=%EA%B5%AD%EC%B1%84+%EA%B8%88%EB%A6%AC+3%EB%85%84+2026&sort=1'},
-  {isoDate:'2026-05-07', tag:'회사채', tagClr:'#1e88e5', cat:'채권',
-   title:'AA급 회사채 스프레드 축소…투자등급 채권 수요 증가세',
-   url:'https://search.naver.com/search.naver?where=news&query=%ED%9A%8C%EC%82%AC%EC%B1%84+%EC%8A%A4%ED%94%84%EB%A0%88%EB%93%9C+2026&sort=1'},
-  {isoDate:'2026-05-02', tag:'외국인국채', tagClr:'#0f6e56', cat:'채권',
-   title:'외국인 국채 순매수 1.2조 원…한미 금리차 축소 기대',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%99%B8%EA%B5%AD%EC%9D%B8+%EA%B5%AD%EC%B1%84+%EC%88%9C%EB%A7%A4%EC%88%98+2026&sort=1'},
-  {isoDate:'2026-04-25', tag:'연준', tagClr:'#534ab7', cat:'채권',
-   title:'연준 5월 FOMC 금리 동결…"인플레 목표 달성 전까지 인하 없다"',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%97%B0%EC%A4%80+FOMC+%EA%B8%88%EB%A6%AC+%EB%8F%99%EA%B2%B0+2026&sort=1'},
-  // ── 외환 (5) ───────────────────────────────────────────
-  {isoDate:'2026-05-14', tag:'원달러', tagClr:'#0f6e56', cat:'외환',
-   title:'원달러 1,490원대…글로벌 달러 약세에 원화 소폭 강세',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9B%90%EB%8B%AC%EB%9F%AC+%ED%99%98%EC%9C%A8+1490+2026&sort=1'},
-  {isoDate:'2026-05-11', tag:'달러인덱스', tagClr:'#0f6e56', cat:'외환',
-   title:'달러인덱스 3개월 최저…미 재정 우려에 달러 약세 지속',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%8B%AC%EB%9F%AC%EC%9D%B8%EB%8D%B1%EC%8A%A4+%EC%95%BD%EC%84%B8+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-07', tag:'엔화', tagClr:'#534ab7', cat:'외환',
-   title:'엔달러 144엔대 강세…BOJ 추가 금리인상 기대 확산',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%97%94%ED%99%94+BOJ+%EA%B8%88%EB%A6%AC%EC%9D%B8%EC%83%81+2026&sort=1'},
-  {isoDate:'2026-05-02', tag:'유로화', tagClr:'#534ab7', cat:'외환',
-   title:'유로화 1.17달러대…ECB 금리인하 사이클 종료 시사',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%ED%99%94+ECB+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-25', tag:'한은외환', tagClr:'#0f6e56', cat:'외환',
-   title:'한은 외환보유고 4월 4,295억달러…전월 대비 소폭 감소',
-   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EA%B5%AD%EC%9D%80%ED%96%89+%EC%99%B8%ED%99%98%EB%B3%B4%EC%9C%A0%EA%B3%A0+2026&sort=1'},
-  // ── 주식 (5) ───────────────────────────────────────────
-  {isoDate:'2026-05-14', tag:'국내주식', tagClr:'#2962ff', cat:'주식',
-   title:'KOSPI 7,600선 유지…외국인 매도에도 기관 맞불 매수',
-   url:'https://search.naver.com/search.naver?where=news&query=KOSPI+7600+%EA%B8%B0%EA%B4%80+2026&sort=1'},
-  {isoDate:'2026-05-12', tag:'반도체', tagClr:'#2962ff', cat:'주식',
-   title:'삼성전자 2Q HBM3E 납품 확대…영업이익 전망 14조 상향',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90+HBM+2026+2%EB%B6%84%EA%B8%B0&sort=1'},
-  {isoDate:'2026-05-09', tag:'AI테마', tagClr:'#2962ff', cat:'주식',
-   title:'SK하이닉스 NVIDIA 블랙웰 HBM 공급 확대…주가 52주 신고가',
-   url:'https://search.naver.com/search.naver?where=news&query=SK%ED%95%98%EC%9D%B4%EB%8B%89%EC%8A%A4+NVIDIA+HBM+2026&sort=1'},
-  {isoDate:'2026-05-06', tag:'글로벌주식', tagClr:'#534ab7', cat:'주식',
-   title:'S&P 500 5,650선 안착…연준 금리동결에 기술주 랠리',
-   url:'https://search.naver.com/search.naver?where=news&query=S%26P500+5650+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-02', tag:'코스닥', tagClr:'#2962ff', cat:'주식',
-   title:'코스닥 1,140선 공방…바이오·2차전지 업종 반등 시도',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%BD%94%EC%8A%A4%EB%8B%A5+1140+2026&sort=1'},
-  // ── 원자재 (5) ─────────────────────────────────────────
-  {isoDate:'2026-05-13', tag:'국제유가', tagClr:'#854f0b', cat:'원자재',
-   title:'WTI 62달러대 공방…OPEC+ 증산 합의에 약세 압력',
-   url:'https://search.naver.com/search.naver?where=news&query=WTI+%EA%B5%AD%EC%A0%9C%EC%9C%A0%EA%B0%80+62%EB%8B%AC%EB%9F%AC+2026&sort=1'},
-  {isoDate:'2026-05-10', tag:'금값', tagClr:'#b8860b', cat:'원자재',
-   title:'금값 3,241달러 유지…지정학적 불확실성에 안전자산 수요',
-   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88%EA%B0%92+3200%EB%8B%AC%EB%9F%AC+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-06', tag:'구리', tagClr:'#854f0b', cat:'원자재',
-   title:'LME 구리 4.65달러…중국 인프라 수요 기대에 반등',
-   url:'https://search.naver.com/search.naver?where=news&query=LME+%EA%B5%AC%EB%A6%AC+4.65%EB%8B%AC%EB%9F%AC+2026&sort=1'},
-  {isoDate:'2026-04-29', tag:'에너지', tagClr:'#854f0b', cat:'원자재',
-   title:'브렌트유 65달러대 안착…중동 공급 안정에 하락 제한',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%B8%8C%EB%A0%8C%ED%8A%B8%EC%9C%A0+65%EB%8B%AC%EB%9F%AC+2026&sort=1'},
-  {isoDate:'2026-04-22', tag:'원자재종합', tagClr:'#534ab7', cat:'원자재',
-   title:'달러 약세에 원자재 전반 강세…은·팔라듐 상승 주도',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9B%90%EC%9E%90%EC%9E%AC+%EB%8B%AC%EB%9F%AC%EC%95%BD%EC%84%B8+2026+4%EC%9B%94&sort=1'},
+  // ── 채권 (5) ──
+  _newsSlot('채권','통화정책','#2962ff'),
+  _newsSlot('채권','국채','#1e88e5'),
+  _newsSlot('채권','회사채','#1e88e5'),
+  _newsSlot('채권','외국인국채','#0f6e56'),
+  _newsSlot('채권','연준','#534ab7'),
+  // ── 외환 (5) ──
+  _newsSlot('외환','원달러','#0f6e56'),
+  _newsSlot('외환','달러인덱스','#0f6e56'),
+  _newsSlot('외환','엔화','#534ab7'),
+  _newsSlot('외환','유로화','#534ab7'),
+  _newsSlot('외환','한은외환','#0f6e56'),
+  // ── 주식 (5) ──
+  _newsSlot('주식','국내주식','#2962ff'),
+  _newsSlot('주식','반도체','#2962ff'),
+  _newsSlot('주식','AI테마','#2962ff'),
+  _newsSlot('주식','글로벌주식','#534ab7'),
+  _newsSlot('주식','코스닥','#2962ff'),
+  // ── 원자재 (5) ──
+  _newsSlot('원자재','국제유가','#854f0b'),
+  _newsSlot('원자재','금값','#b8860b'),
+  _newsSlot('원자재','구리','#854f0b'),
+  _newsSlot('원자재','에너지','#854f0b'),
+  _newsSlot('원자재','원자재종합','#534ab7'),
 ];
 
 // 원자재 페이지 뉴스
 const commodityNewsItems = [
-  // ── 원유 (5) ────────────────────────────────────────────
-  {isoDate:'2026-05-13', tag:'WTI', tagClr:'#854f0b', cat:'원유',
-   title:'WTI 62달러대…OPEC+ 증산 우려에 원유 약세 지속',
-   url:'https://search.naver.com/search.naver?where=news&query=WTI+%EC%9B%90%EC%9C%A0+62%EB%8B%AC%EB%9F%AC+2026&sort=1'},
-  {isoDate:'2026-05-09', tag:'OPEC+', tagClr:'#854f0b', cat:'원유',
-   title:'OPEC+ 6월 추가 증산 합의…원유 시장 공급 과잉 우려',
-   url:'https://search.naver.com/search.naver?where=news&query=OPEC+%EC%A6%9D%EC%82%B0+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-06', tag:'브렌트유', tagClr:'#534ab7', cat:'원유',
-   title:'브렌트유 65달러대…중동 공급 안정에 낙폭 제한',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%B8%8C%EB%A0%8C%ED%8A%B8%EC%9C%A0+65%EB%8B%AC%EB%9F%AC+2026&sort=1'},
-  {isoDate:'2026-05-01', tag:'두바이유', tagClr:'#534ab7', cat:'원유',
-   title:'두바이 현물유 64달러대…아시아 수요 회복에 약보합',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%91%90%EB%B0%94%EC%9D%B4%EC%9C%A0+64%EB%8B%AC%EB%9F%AC+2026&sort=1'},
-  {isoDate:'2026-04-25', tag:'미국원유', tagClr:'#854f0b', cat:'원유',
-   title:'미국 원유 재고 예상 외 증가…WTI 하락 압력 지속',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+%EC%9B%90%EC%9C%A0+%EC%9E%AC%EA%B3%A0+2026&sort=1'},
-  // ── 귀금속 (5) ──────────────────────────────────────────
-  {isoDate:'2026-05-12', tag:'금', tagClr:'#b8860b', cat:'귀금속',
-   title:'금값 3,241달러 강세…안전자산 수요에 사상 최고가 근접',
-   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88%EA%B0%92+3241%EB%8B%AC%EB%9F%AC+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-08', tag:'은', tagClr:'#b8860b', cat:'귀금속',
-   title:'은 32달러 돌파…산업용 수요 증가에 귀금속 동반 강세',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%80+%EC%9D%80%EA%B0%92+32%EB%8B%AC%EB%9F%AC+2026&sort=1'},
-  {isoDate:'2026-05-03', tag:'금ETF', tagClr:'#b8860b', cat:'귀금속',
-   title:'금 ETF 순유입 10주 연속…기관 안전자산 비중 확대',
-   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88+ETF+%EC%88%9C%EC%9C%A0%EC%9E%85+2026&sort=1'},
-  {isoDate:'2026-04-28', tag:'팔라듐', tagClr:'#534ab7', cat:'귀금속',
-   title:'팔라듐 공급 부족…러 수출 제한에 자동차 촉매 가격 급등',
-   url:'https://search.naver.com/search.naver?where=news&query=%ED%8C%94%EB%9D%BC%EB%93%90+%EA%B3%B5%EA%B8%89+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-20', tag:'금KRX', tagClr:'#b8860b', cat:'귀금속',
-   title:'KRX 금 시장 1kg 바 130만원 돌파…국내 금 투자 급증',
-   url:'https://search.naver.com/search.naver?where=news&query=KRX+%EA%B8%88+%EC%8B%9C%EC%84%B8+2026&sort=1'},
-  // ── 비철금속 (5) ────────────────────────────────────────
-  {isoDate:'2026-05-11', tag:'구리', tagClr:'#2962ff', cat:'비철금속',
-   title:'LME 구리 4.65달러 반등…중국 인프라 투자 기대',
-   url:'https://search.naver.com/search.naver?where=news&query=LME+%EA%B5%AC%EB%A6%AC+4.65%EB%8B%AC%EB%9F%AC+2026&sort=1'},
-  {isoDate:'2026-05-07', tag:'알루미늄', tagClr:'#2962ff', cat:'비철금속',
-   title:'알루미늄 2,380달러대…EU 탄소국경세 여파로 공급 불확실',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%95%8C%EB%A3%A8%EB%AF%B8%EB%8A%84+LME+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-02', tag:'니켈', tagClr:'#2962ff', cat:'비철금속',
-   title:'니켈 배터리 수요 증가…전기차 시장 성장에 LME 니켈 강세',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%8B%88%EC%BC%88+LME+%EC%A0%84%EA%B8%B0%EC%B0%A8+2026&sort=1'},
-  {isoDate:'2026-04-27', tag:'아연', tagClr:'#534ab7', cat:'비철금속',
-   title:'아연 공급 과잉 우려 완화…광산 침수로 볼리비아 생산 차질',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%95%84%EC%97%B0+LME+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-18', tag:'비철금속', tagClr:'#534ab7', cat:'비철금속',
-   title:'달러 약세에 비철금속 전반 반등…구리·알루미늄 동반 상승',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%B9%84%EC%B2%A0%EA%B8%88%EC%86%8D+%EB%8B%AC%EB%9F%AC%EC%95%BD%EC%84%B8+2026&sort=1'},
+  // ── 원유 (5) ──
+  _newsSlot('원유','WTI','#854f0b'),
+  _newsSlot('원유','OPEC+','#854f0b'),
+  _newsSlot('원유','브렌트유','#534ab7'),
+  _newsSlot('원유','두바이유','#534ab7'),
+  _newsSlot('원유','미국원유','#854f0b'),
+  // ── 귀금속 (5) ──
+  _newsSlot('귀금속','금','#b8860b'),
+  _newsSlot('귀금속','은','#b8860b'),
+  _newsSlot('귀금속','금ETF','#b8860b'),
+  _newsSlot('귀금속','팔라듐','#534ab7'),
+  _newsSlot('귀금속','금KRX','#b8860b'),
+  // ── 비철금속 (5) ──
+  _newsSlot('비철금속','구리','#2962ff'),
+  _newsSlot('비철금속','알루미늄','#2962ff'),
+  _newsSlot('비철금속','니켈','#2962ff'),
+  _newsSlot('비철금속','아연','#534ab7'),
+  _newsSlot('비철금속','비철금속','#534ab7'),
 ];
 
 // 거시경제 페이지 뉴스
 const macroNewsItems = [
-  // ── 한국GDP (5) ──────────────────────────────────────────
-  {isoDate:'2026-05-14', tag:'한국GDP', tagClr:'#2962ff', cat:'한국GDP',
-   title:'한국 1분기 GDP 전기比 +0.8%…IT수출 호조에 기대 상회',
-   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EA%B5%AD+GDP+1%EB%B6%84%EA%B8%B0+2026&sort=1'},
-  {isoDate:'2026-05-08', tag:'수출', tagClr:'#2962ff', cat:'한국GDP',
-   title:'4월 수출 15개월 연속 플러스…반도체·자동차 쌍끌이',
-   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EA%B5%AD+%EC%88%98%EC%B6%9C+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-04', tag:'물가', tagClr:'#1e88e5', cat:'한국GDP',
-   title:'4월 소비자물가 2.1% 상승…에너지 하락에 목표 근접',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%86%8C%EB%B9%84%EC%9E%90%EB%AC%BC%EA%B0%80+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-28', tag:'경상수지', tagClr:'#0f6e56', cat:'한국GDP',
-   title:'3월 경상수지 89억달러 흑자…반도체 수출 개선 효과',
-   url:'https://search.naver.com/search.naver?where=news&query=%EA%B2%BD%EC%83%81%EC%88%98%EC%A7%80+2026+3%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-20', tag:'성장전망', tagClr:'#2962ff', cat:'한국GDP',
-   title:'IMF, 한국 성장률 전망 2.8%로 상향…AI 수요 반영',
-   url:'https://search.naver.com/search.naver?where=news&query=IMF+%ED%95%9C%EA%B5%AD+%EC%84%B1%EC%9E%A5%EB%A5%A0+2026&sort=1'},
-  // ── 미국CPI (5) ──────────────────────────────────────────
-  {isoDate:'2026-05-13', tag:'미국CPI', tagClr:'#0f6e56', cat:'미국CPI',
-   title:'4월 미국 CPI +3.2%…근원 물가 고공행진에 금리인하 난망',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+CPI+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-09', tag:'연준', tagClr:'#0f6e56', cat:'미국CPI',
-   title:'파월 의장 "물가 목표 달성 자신감 갖기 어렵다"…매파 발언',
-   url:'https://search.naver.com/search.naver?where=news&query=%ED%8C%8C%EC%9B%94+%EC%97%B0%EC%A4%80+%EB%A7%A4%ED%8C%8C+2026&sort=1'},
-  {isoDate:'2026-05-05', tag:'미국고용', tagClr:'#534ab7', cat:'미국CPI',
-   title:'4월 미국 비농업고용 +21만명…실업률 4.0% 유지',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+%EB%B9%84%EB%86%8D%EC%97%85%EA%B3%A0%EC%9A%A9+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-30', tag:'PCE', tagClr:'#0f6e56', cat:'미국CPI',
-   title:'3월 PCE 디플레이터 +2.6%…연준 선호 물가지표 여전히 높아',
-   url:'https://search.naver.com/search.naver?where=news&query=PCE+%EB%94%94%ED%94%8C%EB%A0%88%EC%9D%B4%ED%84%B0+2026+3%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-22', tag:'미국경제', tagClr:'#534ab7', cat:'미국CPI',
-   title:'미국 1분기 GDP +2.1%…소비 둔화에도 견조한 성장세',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+GDP+1%EB%B6%84%EA%B8%B0+2026&sort=1'},
-  // ── 중국경기 (5) ─────────────────────────────────────────
-  {isoDate:'2026-05-12', tag:'중국경기', tagClr:'#ef5350', cat:'중국경기',
-   title:'4월 중국 PMI 49.5…내수 부진에 3개월 연속 위축',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%A4%91%EA%B5%AD+PMI+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-08', tag:'중국수출', tagClr:'#ef5350', cat:'중국경기',
-   title:'중국 4월 수출 +6.1%…대미 수출 관세 영향 제한적',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%A4%91%EA%B5%AD+%EC%88%98%EC%B6%9C+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-03', tag:'중국부동산', tagClr:'#ef5350', cat:'중국경기',
-   title:'중국 주요 70개 도시 주택가격 42개 하락…부동산 침체 지속',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%A4%91%EA%B5%AD+%EB%B6%80%EB%8F%99%EC%82%B0+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-27', tag:'중국GDP', tagClr:'#ef5350', cat:'중국경기',
-   title:'1분기 중국 GDP +5.1%…목표치 달성했으나 내수 불안',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%A4%91%EA%B5%AD+GDP+1%EB%B6%84%EA%B8%B0+2026&sort=1'},
-  {isoDate:'2026-04-20', tag:'PBOC', tagClr:'#534ab7', cat:'중국경기',
-   title:'인민은행 LPR 동결…경기 부양 여력 소진에 추가 조치 불투명',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%B8%EB%AF%BC%EC%9D%80%ED%96%89+LPR+2026+4%EC%9B%94&sort=1'},
-  // ── 유로존 (5) ───────────────────────────────────────────
-  {isoDate:'2026-05-11', tag:'유로존', tagClr:'#534ab7', cat:'유로존',
-   title:'5월 유로존 소비자물가 +2.1%…ECB 목표 2% 근접',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%EC%A1%B4+%EC%9D%B8%ED%94%8C%EB%A0%88%EC%9D%B4%EC%85%98+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-07', tag:'ECB', tagClr:'#534ab7', cat:'유로존',
-   title:'ECB 6월 회의서 추가 인하 검토…8차 인하 후 관망 전환 신호',
-   url:'https://search.naver.com/search.naver?where=news&query=ECB+%EA%B8%88%EB%A6%AC%EC%9D%B8%ED%95%98+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-02', tag:'독일경기', tagClr:'#534ab7', cat:'유로존',
-   title:'독일 1분기 GDP +0.3%…자동차·기계 수출 회복에 침체 탈출',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+GDP+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
-  {isoDate:'2026-04-26', tag:'유로존PMI', tagClr:'#2962ff', cat:'유로존',
-   title:'4월 유로존 PMI 51.2…3개월 연속 확장세 유지',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%EC%A1%B4+PMI+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-18', tag:'유로존무역', tagClr:'#534ab7', cat:'유로존',
-   title:'유로존 무역수지 흑자 확대…수출 증가·에너지 수입 비용 하락',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9C%A0%EB%A1%9C%EC%A1%B4+%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80+2026+4%EC%9B%94&sort=1'},
-  // ── 일본경기 (5) ─────────────────────────────────────────
-  {isoDate:'2026-05-16', tag:'일본GDP', tagClr:'#f5a623', cat:'일본경기',
-   title:'일본 1분기 GDP -0.2%…엔화 강세·내수 부진에 2분기 연속 역성장',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8+GDP+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
-  {isoDate:'2026-05-10', tag:'BOJ', tagClr:'#f5a623', cat:'일본경기',
-   title:'우에다 일본은행 총재 "기조적 물가 2% 달성 시 추가 인상 고려"',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8%EC%9D%80%ED%96%89+%EA%B8%88%EB%A6%AC+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-03', tag:'일본물가', tagClr:'#f5a623', cat:'일본경기',
-   title:'일본 3월 CPI +3.6%…에너지 보조금 종료로 오름세 가속',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8+CPI+2026+3%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-28', tag:'일본무역', tagClr:'#f5a623', cat:'일본경기',
-   title:'일본 3월 무역적자 478억엔…대미 수출 관세 우려로 사전 출하 증가',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8+%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80+2026+3%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-20', tag:'일본소비', tagClr:'#f5a623', cat:'일본경기',
-   title:'일본 소매판매 +0.8% 회복…춘투 임금인상 효과 본격화 조짐',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%9D%BC%EB%B3%B8+%EC%86%8C%EB%A7%A4%ED%8C%90%EB%A7%A4+2026+4%EC%9B%94&sort=1'},
-  // ── 독일경기 (5) ─────────────────────────────────────────
-  {isoDate:'2026-05-14', tag:'독일GDP', tagClr:'#42a5f5', cat:'독일경기',
-   title:'독일 1분기 GDP +0.4%…기업 투자·수출 회복세에 2분기 연속 플러스',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+GDP+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
-  {isoDate:'2026-05-08', tag:'독일산업', tagClr:'#42a5f5', cat:'독일경기',
-   title:'독일 3월 산업생산 +1.2%…자동차·화학 수주 회복에 호조',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+%EC%82%B0%EC%97%85%EC%83%9D%EC%82%B0+2026+3%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-02', tag:'독일PMI', tagClr:'#42a5f5', cat:'독일경기',
-   title:'4월 독일 제조업 PMI 47.8…위축 지속이나 전월比 개선',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+PMI+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-24', tag:'독일물가', tagClr:'#42a5f5', cat:'독일경기',
-   title:'독일 4월 CPI +2.3%…에너지 가격 하락에 물가 둔화세',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+CPI+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-17', tag:'독일수출', tagClr:'#42a5f5', cat:'독일경기',
-   title:'독일 2월 수출 +1.1%…미국 수출 감소 속 아시아向 증가로 상쇄',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%8F%85%EC%9D%BC+%EC%88%98%EC%B6%9C+2026+2%EC%9B%94&sort=1'},
-  // ── 영국경기 (5) ─────────────────────────────────────────
-  {isoDate:'2026-05-15', tag:'영국GDP', tagClr:'#ab47bc', cat:'영국경기',
-   title:'영국 1분기 GDP +0.7%…서비스업 강세에 G7 내 양호한 성장세',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EA%B5%AD+GDP+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
-  {isoDate:'2026-05-08', tag:'BOE', tagClr:'#ab47bc', cat:'영국경기',
-   title:'영란은행(BOE) 기준금리 4.25%로 0.25%p 인하…인플레 둔화에 완화 전환',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EB%9E%80%EC%9D%80%ED%96%89+%EA%B8%88%EB%A6%AC+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-03', tag:'영국물가', tagClr:'#ab47bc', cat:'영국경기',
-   title:'영국 3월 CPI +2.6%…목표 2% 초과하나 둔화 궤도 유지',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EA%B5%AD+CPI+2026+3%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-28', tag:'영국고용', tagClr:'#ab47bc', cat:'영국경기',
-   title:'영국 실업률 4.4%…노동시장 소폭 냉각에도 임금 상승 지속',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EA%B5%AD+%EC%8B%A4%EC%97%85%EB%A5%A0+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-20', tag:'영국소매', tagClr:'#ab47bc', cat:'영국경기',
-   title:'영국 3월 소매판매 +0.4%…부활절 효과에 소비 반등',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%98%81%EA%B5%AD+%EC%86%8C%EB%A7%A4%ED%8C%90%EB%A7%A4+2026+3%EC%9B%94&sort=1'},
+  // ── 한국GDP (5) ──
+  _newsSlot('한국GDP','한국GDP','#2962ff'),
+  _newsSlot('한국GDP','수출','#2962ff'),
+  _newsSlot('한국GDP','물가','#1e88e5'),
+  _newsSlot('한국GDP','경상수지','#0f6e56'),
+  _newsSlot('한국GDP','성장전망','#2962ff'),
+  // ── 미국CPI (5) ──
+  _newsSlot('미국CPI','미국CPI','#0f6e56'),
+  _newsSlot('미국CPI','연준','#0f6e56'),
+  _newsSlot('미국CPI','미국고용','#534ab7'),
+  _newsSlot('미국CPI','PCE','#0f6e56'),
+  _newsSlot('미국CPI','미국경제','#534ab7'),
+  // ── 중국경기 (5) ──
+  _newsSlot('중국경기','중국경기','#ef5350'),
+  _newsSlot('중국경기','중국수출','#ef5350'),
+  _newsSlot('중국경기','중국부동산','#ef5350'),
+  _newsSlot('중국경기','중국GDP','#ef5350'),
+  _newsSlot('중국경기','PBOC','#534ab7'),
+  // ── 유로존 (5) ──
+  _newsSlot('유로존','유로존','#534ab7'),
+  _newsSlot('유로존','ECB','#534ab7'),
+  _newsSlot('유로존','독일경기','#534ab7'),
+  _newsSlot('유로존','유로존PMI','#2962ff'),
+  _newsSlot('유로존','유로존무역','#534ab7'),
+  // ── 일본경기 (5) ──
+  _newsSlot('일본경기','일본GDP','#f5a623'),
+  _newsSlot('일본경기','BOJ','#f5a623'),
+  _newsSlot('일본경기','일본물가','#f5a623'),
+  _newsSlot('일본경기','일본무역','#f5a623'),
+  _newsSlot('일본경기','일본소비','#f5a623'),
+  // ── 독일경기 (5) ──
+  _newsSlot('독일경기','독일GDP','#42a5f5'),
+  _newsSlot('독일경기','독일산업','#42a5f5'),
+  _newsSlot('독일경기','독일PMI','#42a5f5'),
+  _newsSlot('독일경기','독일물가','#42a5f5'),
+  _newsSlot('독일경기','독일수출','#42a5f5'),
+  // ── 영국경기 (5) ──
+  _newsSlot('영국경기','영국GDP','#ab47bc'),
+  _newsSlot('영국경기','BOE','#ab47bc'),
+  _newsSlot('영국경기','영국물가','#ab47bc'),
+  _newsSlot('영국경기','영국고용','#ab47bc'),
+  _newsSlot('영국경기','영국소매','#ab47bc'),
 ];
 
-// 경제캘린더 페이지 뉴스
+// 경제 캘린더 페이지 뉴스
 const calendarNewsItems = [
-  // ── 한국수출 (5) ─────────────────────────────────────────
-  {isoDate:'2026-05-13', tag:'한국수출', tagClr:'#2962ff', cat:'한국수출',
-   title:'4월 수출 887억달러 신기록…반도체 비중 25% 첫 돌파',
-   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EA%B5%AD+%EC%88%98%EC%B6%9C+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-06', tag:'무역수지', tagClr:'#2962ff', cat:'한국수출',
-   title:'4월 무역수지 85억달러 흑자…에너지 수입 감소로 개선',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-01', tag:'경상수지', tagClr:'#1e88e5', cat:'한국수출',
-   title:'1분기 경상수지 흑자 261억달러…연간 800억달러 목표 순항',
-   url:'https://search.naver.com/search.naver?where=news&query=%EA%B2%BD%EC%83%81%EC%88%98%EC%A7%80+2026+1%EB%B6%84%EA%B8%B0&sort=1'},
-  {isoDate:'2026-04-25', tag:'반도체수출', tagClr:'#2962ff', cat:'한국수출',
-   title:'반도체 수출 4월 역대 최고…HBM·고부가메모리 글로벌 수요',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%B0%98%EB%8F%84%EC%B2%B4+%EC%88%98%EC%B6%9C+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-17', tag:'수출전망', tagClr:'#534ab7', cat:'한국수출',
-   title:'산업부, 2026년 수출 목표 7,200억달러 상향 조정',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%82%B0%EC%97%85%EB%B6%80+%EC%88%98%EC%B6%9C+%EB%AA%A9%ED%91%9C+2026&sort=1'},
-  // ── 미국CPI (5) ──────────────────────────────────────────
-  {isoDate:'2026-05-13', tag:'미국CPI', tagClr:'#0f6e56', cat:'미국CPI',
-   title:'4월 미국 CPI +3.2%…예상치 상회에 국채금리 급등',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+CPI+4%EC%9B%94+2026+%EC%98%88%EC%83%81%EC%B9%98&sort=1'},
-  {isoDate:'2026-05-07', tag:'고용지표', tagClr:'#0f6e56', cat:'미국CPI',
-   title:'4월 JOLTS 구인건수 800만건 유지…노동시장 여전히 타이트',
-   url:'https://search.naver.com/search.naver?where=news&query=JOLTS+%EA%B5%AC%EC%9D%B8%EA%B1%B4%EC%88%98+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-02', tag:'미국고용', tagClr:'#534ab7', cat:'미국CPI',
-   title:'4월 ADP 민간고용 +19만명…예상 범위 내 안정',
-   url:'https://search.naver.com/search.naver?where=news&query=ADP+%EA%B3%A0%EC%9A%A9+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-28', tag:'미국GDP', tagClr:'#0f6e56', cat:'미국CPI',
-   title:'미국 1분기 GDP +2.1%…소비 둔화에도 순수출 선방',
-   url:'https://search.naver.com/search.naver?where=news&query=%EB%AF%B8%EA%B5%AD+GDP+1%EB%B6%84%EA%B8%B0+2026+2.1&sort=1'},
-  {isoDate:'2026-04-20', tag:'연준', tagClr:'#534ab7', cat:'미국CPI',
-   title:'연준 베이지북: 경제활동 완만한 성장…인플레 압력 여전',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%97%B0%EC%A4%80+%EB%B2%A0%EC%9D%B4%EC%A7%80%EB%B6%81+2026+4%EC%9B%94&sort=1'},
-  // ── 한국은행 (5) ─────────────────────────────────────────
-  {isoDate:'2026-05-14', tag:'한국은행', tagClr:'#b6c4ff', cat:'한국은행',
-   title:'금통위 5월 기준금리 2.75% 동결…물가 안정세 확인 후 인하',
-   url:'https://search.naver.com/search.naver?where=news&query=%EA%B8%88%ED%86%B5%EC%9C%84+%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-05-08', tag:'통화정책', tagClr:'#b6c4ff', cat:'한국은행',
-   title:'한은 총재 "2026년 하반기 금리인하 여건 조성 중"',
-   url:'https://search.naver.com/search.naver?where=news&query=%ED%95%9C%EC%9D%80+%EC%B4%9D%EC%9E%AC+%EA%B8%88%EB%A6%AC%EC%9D%B8%ED%95%98+2026&sort=1'},
-  {isoDate:'2026-05-03', tag:'ECB', tagClr:'#534ab7', cat:'한국은행',
-   title:'ECB 6월 추가 인하 시사…글로벌 통화정책 완화 흐름 지속',
-   url:'https://search.naver.com/search.naver?where=news&query=ECB+%EA%B8%88%EB%A6%AC%EC%9D%B8%ED%95%98+2026+5%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-24', tag:'BOJ', tagClr:'#534ab7', cat:'한국은행',
-   title:'BOJ 4월 금리 동결…인플레이션 2% 목표 점진 달성 확인',
-   url:'https://search.naver.com/search.naver?where=news&query=BOJ+%EA%B8%88%EB%A6%AC+%EB%8F%99%EA%B2%B0+2026+4%EC%9B%94&sort=1'},
-  {isoDate:'2026-04-17', tag:'Fed', tagClr:'#0f6e56', cat:'한국은행',
-   title:'연준 5월 FOMC 의사록 공개…"금리인하 여건 아직 충족 안 돼"',
-   url:'https://search.naver.com/search.naver?where=news&query=%EC%97%B0%EC%A4%80+FOMC+%EC%9D%98%EC%82%AC%EB%A1%9D+2026+4%EC%9B%94&sort=1'},
+  // ── 한국수출 (5) ──
+  _newsSlot('한국수출','한국수출','#2962ff'),
+  _newsSlot('한국수출','무역수지','#2962ff'),
+  _newsSlot('한국수출','경상수지','#1e88e5'),
+  _newsSlot('한국수출','반도체수출','#2962ff'),
+  _newsSlot('한국수출','수출전망','#534ab7'),
+  // ── 미국CPI (5) ──
+  _newsSlot('미국CPI','미국CPI','#0f6e56'),
+  _newsSlot('미국CPI','고용지표','#0f6e56'),
+  _newsSlot('미국CPI','미국고용','#534ab7'),
+  _newsSlot('미국CPI','미국GDP','#0f6e56'),
+  _newsSlot('미국CPI','연준','#534ab7'),
+  // ── 한국은행 (5) ──
+  _newsSlot('한국은행','한국은행','#b6c4ff'),
+  _newsSlot('한국은행','통화정책','#b6c4ff'),
+  _newsSlot('한국은행','ECB','#534ab7'),
+  _newsSlot('한국은행','BOJ','#534ab7'),
+  _newsSlot('한국은행','Fed','#0f6e56'),
 ];
 
 function buildNews() { buildNewsFeed('newsFeed', newsItems); }
@@ -11249,8 +11130,9 @@ document.addEventListener('click', (e) => {
 // 공개 프록시(allorigins 등)는 가용성이 들쭉날쭉하고 네이버가 요구하는 Referer/Origin/UA
 // 헤더를 전달하지 못해 'Top10 오전 데이터 고정'의 근본 원인이 된다. cloudflare-worker/ 를
 // 배포(README 참고)하고 아래에 URL 을 넣으면, 그 Worker 가 적절한 헤더를 주입해 안정적으로
-// 중계하므로 모든 클라이언트 페치(Top10·VIX·시계열·뉴스)가 최우선으로 그곳을 사용한다.
-// 미설정 시(빈 문자열)에는 기존 공개 프록시로 자동 폴백 → 사이트는 정상 동작.
+// 중계하므로 모든 클라이언트 페치(Top10·VIX·시계열·뉴스)가 그곳만 사용한다.
+// ⚠ 공개 프록시 폴백은 제거됨(2차 보안 개선 S-3) — 제3자가 시세 응답을 변조할 수 있는
+//   경로였다. Worker 미설정/장애 시 클라이언트 보강은 조용히 스킵되고 data.json 값을 쓴다.
 const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.baldr0001.workers.dev';  // 배포된 Cloudflare Worker 프록시
 // ── 클라이언트 실시간 보강 (기본 ON) ──────────────────────────────────
 // 왜 기본 ON 인가: 화면을 GitHub Actions 의 data.json 에만 의존하면 '오늘자 실시간'이 안 된다.
@@ -11274,65 +11156,46 @@ function _cfProxyUrl(target) {
   return b ? (b + '/?url=' + encodeURIComponent(target)) : null;
 }
 
-// 공개 CORS 프록시 풀 — 한 곳이 차단되어도 다른 곳을 통해 우회.
-// 순서: 전용 Worker(설정 시) → 가장 안정적인 공개 프록시 순.
+// 프록시 경로 — 전용 Worker 단일화 (공개 CORS 프록시 폴백 제거).
+// 공개 프록시(allorigins 등)는 운영 주체가 불명확하고 응답 본문(시세 숫자)을 중간에서
+// 변조해 반환할 수 있는 위치라, Worker 장애 시 해당 위젯만 '일시 조회 불가'로 두는 것이
+// 변조 가능성 있는 데이터를 보여주는 것보다 안전하다 (fail-safe 원칙).
 function _buildCorsProxyUrls(target) {
-  const enc = encodeURIComponent(target);
-  const list = [];
   const cf = _cfProxyUrl(target);
-  if(cf) list.push(cf);                                     // 전용 Worker 최우선 (설정 시)
-  list.push(
-    // 직접 호출(target)은 제거 — 네이버/야후 등은 CORS 미허용이라 매번 콘솔에 'blocked by CORS'
-    // 오류만 남긴다(try/catch로도 브라우저 CORS 로그는 못 막음). 전용 Worker 를 1순위로 쓴다.
-    'https://api.allorigins.win/raw?url=' + enc,            // 가장 안정적
-    'https://api.codetabs.com/v1/proxy/?quest=' + enc,
-    'https://corsproxy.io/?url=' + enc,                     // 신 포맷(?url=)
-    'https://api.allorigins.win/get?url=' + enc,            // wrapped JSON (.contents)
-  );
-  return list;
+  return cf ? [cf] : [];
+}
+
+// 공통 fetch 래퍼 — 타임아웃·재시도·지수 백오프+지터 표준화 (SRE/AWS 권고 패턴).
+// 429/5xx 만 재시도 대상이며 그 외 4xx 는 즉시 반환(재시도 무의미). 외부 데이터 페치가
+// 프록시 다중 폴백 없이 Worker 단일 경로가 되면서, 일시 장애 내성은 이 재시도가 담당한다.
+async function fetchWithRetry(url, { timeoutMs = 8000, retries = 2, init = {} } = {}) {
+  let lastErr;
+  for(let i = 0; i <= retries; i++) {
+    try {
+      const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+      if(r.status === 429 || r.status >= 500) throw new Error('HTTP ' + r.status);
+      return r;
+    } catch(e) {
+      lastErr = e;
+      if(i < retries) await new Promise(res => setTimeout(res, 400 * 2 ** i + Math.random() * 200));
+    }
+  }
+  throw lastErr;
 }
 
 async function _fetchViaProxies(target, parseJson=true) {
-  // 결과: 파싱된 JSON 또는 null. 다중 프록시 순차 시도, 각 8초 timeout.
-  const cfBase = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
+  // 결과: 파싱된 JSON(parseJson=false 면 텍스트) 또는 null. 전용 Worker 단일 경로 + 재시도.
   for(const url of _buildCorsProxyUrls(target)) {
-    const isWorker = cfBase && url.indexOf(cfBase) === 0;
     try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 8000);
-      const r = await fetch(url, { headers: { 'Accept': 'application/json,text/plain,*/*' }, signal: ctrl.signal });
-      clearTimeout(tid);
-      if(!r.ok) {
-        // 전용 Worker 가 404/410 을 전달 = 대상 리소스 자체가 없음(폐기된 엔드포인트/없는 심볼) → 즉시 중단.
-        // 그 외 4xx(403/429 등)는 상류(네이버 등)가 Cloudflare 대역 IP 를 차단/제한한 경우가 많아,
-        // 다른 IP 로 나가는 공개 프록시는 성공할 수 있으므로 체인을 계속 시도한다.
-        // (종전엔 모든 4xx 에서 전체 중단 → 네이버가 Worker IP 를 거부하는 동안 '지정 종목
-        //  트래킹' 현재가가 통째로 비는 원인이었다.)
-        if(isWorker && (r.status === 404 || r.status === 410)) return null;
-        continue;
-      }
-      if(!parseJson) {
-        const txt = await r.text();
-        return txt;
-      }
-      let raw;
-      const ct = r.headers.get('content-type') || '';
+      const r = await fetchWithRetry(url, { timeoutMs: 8000, retries: 2,
+        init: { headers: { 'Accept': 'application/json,text/plain,*/*' } } });
+      // Worker 의 404/410 = 대상 리소스 없음(폐기된 엔드포인트/없는 심볼), 403 = 상류 차단 —
+      // 추가 폴백 경로가 없으므로 null 반환(호출부가 data.json 서버값으로 폴백).
+      if(!r.ok) return null;
       const txt = await r.text();
-      // allorigins.win/get returns {contents:"..."}
-      if(url.includes('allorigins.win/get')) {
-        try {
-          const obj = JSON.parse(txt);
-          raw = obj.contents || '';
-          try { return JSON.parse(raw); } catch(_) { continue; }
-        } catch(_) { continue; }
-      }
-      try { return JSON.parse(txt); }
-      catch(_) {
-        // text 로 받았으면 그대로 반환
-        if(!parseJson) return txt;
-        continue;
-      }
-    } catch(_) { /* try next */ }
+      if(!parseJson) return txt;
+      try { return JSON.parse(txt); } catch(_) { return null; }
+    } catch(_) { /* 재시도 소진 → null */ }
   }
   return null;
 }
@@ -11341,15 +11204,11 @@ async function _fetchViaProxies(target, parseJson=true) {
 // 네이버 finance.naver.com 의 .nhn API·시세 HTML 은 EUC-KR 인코딩이라, 일반 r.text()(=UTF-8)
 // 로 읽으면 한글이 '�' 로 깨진다(=ETF Top10·투자자 표의 깨짐 증상). arrayBuffer 를 받아
 // EUC-KR / UTF-8 둘 다 디코딩해보고 치환문자(U+FFFD)가 더 적은 쪽을 채택 → 프록시가 어떤
-// 인코딩으로 전달하든 안전. ({contents} 래퍼 프록시는 이미 (잘못) UTF-8 디코딩돼 복원 불가 → 스킵.)
+// 인코딩으로 전달하든 안전.
 async function _fetchEucKrText(target) {
   for(const url of _buildCorsProxyUrls(target)) {
-    if(url.includes('allorigins.win/get')) continue;   // 래퍼 = 이미 UTF-8 디코딩됨 → EUC-KR 복원 불가
     try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 8000);
-      const r = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(tid);
+      const r = await fetchWithRetry(url, { timeoutMs: 8000, retries: 2 });
       if(!r.ok) continue;
       const bytes = new Uint8Array(await r.arrayBuffer());
       const _cnt = s => (s == null) ? Infinity : (s.match(/�/g) || []).length;
@@ -12190,9 +12049,7 @@ async function refreshReHistoryChart(btn) {
   }
 }
 
-// FX 새로고침 — 실시간 환율 + 일별 변화율
-// 기존엔 단일 corsproxy.io 사용 → 해당 프록시 차단/장애 시 100% 실패.
-// 이제 _fetchViaProxies 다중 프록시 풀 사용으로 가용성 대폭 개선.
+// FX 새로고침 — 실시간 환율 + 일별 변화율 (_fetchViaProxies = 전용 Worker + 재시도)
 async function refreshFxData(btn) {
   // 외환 새로고침 — 대시보드 KOSPI 차트와 동일한 경로(loadRealtimeFx → Stooq/프록시)로
   // 환율+일변화율을 한 번에 갱신한다. (이전: 직접 er-api 호출 실패 + yfinance v7/spark 가
@@ -12239,26 +12096,16 @@ async function refreshETFFromClient(btn) {
 // ============================
 // 클라이언트 사이드 시장 분위기 지표 — VKOSPI / MOVE / Put-Call Ratio
 // ============================
-// 시장 분위기 지표 — 다중 프록시·다중 소스 fallback
-const _SENTIMENT_PROXIES = [
-  (url) => _cfProxyUrl(url),                                              // 전용 Worker 최우선 (설정 시, 미설정이면 null→스킵)
-  (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),        // corsproxy 신 포맷
-  (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-  (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
-  (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),            // corsproxy 구 포맷(폴백)
-];
+// 시장 분위기 지표 — 전용 Worker 단일 경로 (공개 프록시 폴백 제거, fetchWithRetry 표준화)
 async function _fetchJsonWithProxies(targetUrl) {
-  const cfBase = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
-  for(const mk of _SENTIMENT_PROXIES) {
-    const purl = mk(targetUrl); if(!purl) continue;   // CF 미설정 등으로 null이면 스킵
-    const isWorker = cfBase && purl.indexOf(cfBase) === 0;
-    try {
-      const r = await fetch(purl, { signal: AbortSignal.timeout(6000) });
-      if(!r.ok) { if(isWorker && (r.status === 404 || r.status === 410)) return null; continue; }  // Worker 404/410=대상 없음 → 중단. 403/429 등은 다른 프록시로 계속
-      const j = await r.json();
-      if(j) return j;
-    } catch(_) { /* try next */ }
-  }
+  const purl = (typeof _cfProxyUrl==='function') ? _cfProxyUrl(targetUrl) : null;
+  if(!purl) return null;                              // CF 미설정 시 스킵
+  try {
+    const r = await fetchWithRetry(purl, { timeoutMs: 6000, retries: 2 });
+    if(!r.ok) return null;                            // Worker 404/410=대상 없음, 403=상류 차단
+    const j = await r.json();
+    if(j) return j;
+  } catch(_) { /* 재시도 소진 */ }
   return null;
 }
 async function _fetchTextStooq(symbol) {
@@ -12267,16 +12114,15 @@ async function _fetchTextStooq(symbol) {
   const start = new Date(end);
   start.setDate(start.getDate() - 400);
   const fmt = d => d.toISOString().slice(0,10).replace(/-/g,'');
-  for(const mk of _SENTIMENT_PROXIES) {
-    const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&d1=${fmt(start)}&d2=${fmt(end)}&i=d`;
-    const purl = mk(url); if(!purl) continue;          // CF 미설정 등으로 null이면 스킵
-    try {
-      const r = await fetch(purl, { signal: AbortSignal.timeout(6000) });
-      if(!r.ok) continue;
-      const txt = await r.text();
-      if(txt && txt.length > 20) return txt;
-    } catch(_) { /* next */ }
-  }
+  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&d1=${fmt(start)}&d2=${fmt(end)}&i=d`;
+  const purl = (typeof _cfProxyUrl==='function') ? _cfProxyUrl(url) : null;
+  if(!purl) return null;                              // CF 미설정 시 스킵
+  try {
+    const r = await fetchWithRetry(purl, { timeoutMs: 6000, retries: 2 });
+    if(!r.ok) return null;
+    const txt = await r.text();
+    if(txt && txt.length > 20) return txt;
+  } catch(_) { /* 재시도 소진 */ }
   return null;
 }
 
@@ -12287,16 +12133,14 @@ async function _fetchNaverChartHistory(symbol, validate, daysBack=730) {
   const startDt = new Date(endDt.getTime() - daysBack * 86400000);
   const fmt = d => d.toISOString().slice(0,10).replace(/-/g,'');
   const url = `https://m.stock.naver.com/front-api/external/chart/domestic/info?symbol=${symbol}&requestType=1&startTime=${fmt(startDt)}&endTime=${fmt(endDt)}&timeframe=day`;
-  // 직접 호출(url) 제거 — 네이버는 CORS 미허용이라 'blocked by CORS'만 남김. 전용 Worker 1순위.
+  // 직접 호출(url) 제거 — 네이버는 CORS 미허용이라 'blocked by CORS'만 남김.
+  // 전용 Worker 단일 경로 (공개 프록시 폴백 제거 — 데이터 변조 가능 경로 차단).
   const proxies = [
     (typeof _cfProxyUrl==='function') ? _cfProxyUrl(url) : null,
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-    'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
-    'https://corsproxy.io/?url=' + encodeURIComponent(url),
   ].filter(Boolean);
   for(const u of proxies) {
     try {
-      const r = await fetch(u, { signal: AbortSignal.timeout(8000) });
+      const r = await fetchWithRetry(u, { timeoutMs: 8000, retries: 2 });
       if(!r.ok) continue;
       const txt = await r.text();
       if(!txt || txt.length < 50) continue;
@@ -12455,11 +12299,11 @@ async function fetchSentimentClient() {
     ]) {
       try {
         let html = null;
-        for(const mk of _SENTIMENT_PROXIES) {
-          const purl = mk(targetUrl); if(!purl) continue;   // CF 미설정 시 null 스킵
+        const purl = (typeof _cfProxyUrl==='function') ? _cfProxyUrl(targetUrl) : null;   // 전용 Worker 단일 경로
+        if(purl) {
           try {
-            const r = await fetch(purl, { signal: AbortSignal.timeout(8000) });
-            if(r.ok) { html = await r.text(); if(html && html.length > 1000) break; }
+            const r = await fetchWithRetry(purl, { timeoutMs: 8000, retries: 1 });
+            if(r.ok) { const t = await r.text(); if(t && t.length > 1000) html = t; }
           } catch(_) {}
         }
         if(!html) continue;
@@ -14157,6 +14001,18 @@ function applyRealData(d) {
 
 async function loadRealData() {
   try {
+    // 경량 메타 선조회(~100B) — lastUpdated 가 그대로면 3.6MB 본체 재다운로드를 생략한다.
+    // (기존엔 자동 갱신 주기마다 no-store 전량 재수신 → 변경 없는 야간·주말에도 매번 수백 KB.)
+    // data_meta.json 은 fetch_data.py 가 data.json 저장 직후 함께 생성·커밋한다.
+    // 파일이 아직 없거나(404) 조회 실패 시에는 기존처럼 본체를 받는다(fail-open).
+    try {
+      const metaR = await fetch('./data_meta.json?_=' + Date.now(), { cache: 'no-store' });
+      if (metaR.ok) {
+        const meta = await metaR.json().catch(() => null);
+        if (meta && meta.lastUpdated && window._lastRealDataTs &&
+            meta.lastUpdated === window._lastRealDataTs) return;   // 변경 없음 → 본체 페치 생략
+      }
+    } catch(_) {}
     // cache:'no-store' + 쿼리 캐시버스터 — GitHub Pages CDN/브라우저 캐시로 인한
     // '오전 데이터 고정' 방지. (data.json 이 새로 커밋돼도 캐시가 구버전을 주던 문제.)
     const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
@@ -14356,7 +14212,7 @@ async function loadRealtimeFx() {
 }
 
 // ============================
-// 실시간 뉴스 (Google News RSS → allorigins.win CORS 프록시)
+// 실시간 뉴스 (Google News RSS → 전용 Cloudflare Worker 프록시)
 // ============================
 const NEWS_QUERIES = {
   newsItems: [
@@ -14392,34 +14248,21 @@ async function fetchLatestArticle(query) {
   return list && list.length ? list[0] : null;
 }
 
-// CORS 프록시 — 여러 개를 fallback 순서로 시도. 하나가 실패해도 다음 것으로 시도.
-// 가용성 높은 프록시 우선. allorigins/codetabs 가 가장 안정적이며, corsproxy.io 는
-// 신 포맷(?url=) 으로 호출해야 동작. 응답 없던 thingproxy/yacdn/cors.eu.org/proxy.cors.sh
-// (서비스 종료·API 키 요구) 는 제거. allorigins/get 는 {contents} JSON 래퍼로 반환.
+// CORS 프록시 — 전용 Worker 단일 경로 (공개 프록시 폴백 제거 + fetchWithRetry 표준화).
 const _NEWS_PROXIES = [
-  (url) => _cfProxyUrl(url),                                                 // 전용 Worker 최우선 (설정 시)
-  (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-  (url) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url),
-  (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
-  (url) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(url),  // {contents:"..."}
+  (url) => _cfProxyUrl(url),                                                 // 전용 Worker (미설정 시 null)
 ];
 
 async function _fetchTextWithProxies(targetUrl, timeoutMs) {
-  const cfBase = (typeof _cfProxyBase==='function') ? _cfProxyBase() : '';
   for(const mk of _NEWS_PROXIES) {
     try {
       const url = mk(targetUrl);
       if(!url) continue;                                                     // CF 미설정 시 null 스킵
-      const isWorker = cfBase && url.indexOf(cfBase) === 0;
-      const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs || 7000) });
-      if(!r.ok) { if(isWorker && (r.status === 404 || r.status === 410)) return null; continue; }  // Worker 404/410=대상 없음 → 중단. 403/429 등은 다른 프록시로 계속
-      let text = await r.text();
-      // allorigins.win/get 는 {contents:"..."} JSON 래퍼 → 내부 본문 추출
-      if(url.includes('allorigins.win/get')) {
-        try { text = JSON.parse(text).contents || ''; } catch(_) { continue; }
-      }
+      const r = await fetchWithRetry(url, { timeoutMs: timeoutMs || 7000, retries: 2 });
+      if(!r.ok) return null;                                                 // 404/410=대상 없음, 403=상류 차단
+      const text = await r.text();
       if(text && text.length > 50) return text;
-    } catch(_) { /* try next proxy */ }
+    } catch(_) { /* 재시도 소진 */ }
   }
   return null;
 }
@@ -15033,9 +14876,27 @@ function newNote() {
 // ============================
 // 분석 노트 — Excel 내보내기 (단일 시트, 선택 노트)
 // ============================
-function exportSelectedToExcel() {
+// XLSX 라이브러리(~900KB)는 이 기능에서만 쓰여 <head> 정적 로드를 제거하고
+// 버튼 클릭 시 1회 동적 로드한다 (SRI·CSP 그대로 유지, 첫 페인트 경량화).
+let _xlsxReady = null;
+function loadXlsxOnce() {
+  if(window.XLSX) return Promise.resolve();
+  if(_xlsxReady) return _xlsxReady;
+  _xlsxReady = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.integrity = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
+    s.crossOrigin = 'anonymous';
+    s.onload = resolve;
+    s.onerror = () => { _xlsxReady = null; reject(new Error('xlsx load failed')); };
+    document.head.appendChild(s);
+  });
+  return _xlsxReady;
+}
+async function exportSelectedToExcel() {
   if(!notes.length) { alert('저장된 노트가 없습니다.'); return; }
-  if(typeof XLSX === 'undefined') { alert('Excel 라이브러리 로딩 중입니다. 잠시 후 다시 시도하세요.'); return; }
+  try { await loadXlsxOnce(); }
+  catch(_) { alert('Excel 라이브러리 로드에 실패했습니다 — 네트워크 확인 후 다시 시도하세요.'); return; }
 
   const selectedCbs = document.querySelectorAll('.note-select-cb:checked');
   const selectedIds = selectedCbs.length > 0
@@ -15076,9 +14937,11 @@ function toggleTheme() {
 }
 
 function applyStoredTheme() {
-  // 기본값: 라이트 테마 (명시적으로 'dark' 저장된 경우에만 다크)
+  // 우선순위: 저장값 > OS 다크모드(prefers-color-scheme) > 라이트 — <head> FOUC 방지 블록과 동일 규칙
   const stored = localStorage.getItem('econ_theme');
-  const useLight = (stored !== 'dark');  // 미설정 또는 'light' 둘 다 라이트
+  let sysDark = false;
+  try { sysDark = matchMedia('(prefers-color-scheme: dark)').matches; } catch(_) {}
+  const useLight = stored ? (stored !== 'dark') : !sysDark;
   if(useLight) {
     document.documentElement.classList.add('light');
     const icon  = document.getElementById('themeIcon');
@@ -15233,6 +15096,58 @@ function initStaticRealEstateFallbacks() {
   // No-op — 실제 데이터만 표시. data.json 페치 실패 시 "—" 가 그대로 보이는 게 더 정직함.
   // 카드의 보조 텍스트로 어떤 API 가 페치 중인지 표시 (이미 HTML 의 data-fetched-status 메시지 사용).
 }
+
+// ============================
+// 접근성 — 탭 위젯 ARIA·키보드 내비게이션 (WAI-ARIA APG Tabs 패턴 경량 적용)
+// ============================
+// 마크업 수정 없이 위임 방식으로 적용한다. '진짜 탭 그룹'은 2개 이상의 형제 .tab-btn 중
+// 하나가 .active 를 갖는 경우로 식별 — 같은 클래스를 스타일 용도로만 쓰는 액션 버튼 행
+// (🔑 동기화 키/☁ 서버에 저장 등)은 .active 멤버가 없어 자연히 제외된다.
+// 로빙 탭인덱스는 의도적으로 쓰지 않는다 — 활성 상태가 인라인 스타일과 혼재 관리되는
+// 구조라 잘못 적용 시 Tab 키 접근 자체가 막힐 수 있어, 자연 탭 순서 + 화살표 키만 더한다.
+(function () {
+  function _tabGroup(btn) {
+    const parent = btn && btn.parentElement;
+    if (!parent) return null;
+    const group = [...parent.children].filter(el => el.classList && el.classList.contains('tab-btn'));
+    if (group.length < 2 || !group.some(b => b.classList.contains('active'))) return null;
+    return group;
+  }
+  function decorateAllTabGroups() {
+    document.querySelectorAll('.tab-btn.active').forEach(activeBtn => {
+      const group = _tabGroup(activeBtn);
+      if (!group) return;
+      const parent = activeBtn.parentElement;
+      if (!parent.getAttribute('role')) parent.setAttribute('role', 'tablist');
+      group.forEach(b => {
+        if (!b.getAttribute('role')) b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', b.classList.contains('active') ? 'true' : 'false');
+      });
+    });
+  }
+  // 탭 클릭 직후(.active 토글 완료 후) aria-selected 재동기화 + 동적 렌더된 그룹 장식
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest || !e.target.closest('.tab-btn')) return;
+    setTimeout(decorateAllTabGroups, 0);
+  });
+  // 화살표/Home/End 키로 탭 그룹 내 이동 (포커스 이동 + 기존 onclick 로직 재사용)
+  document.addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    const btn = e.target && e.target.closest && e.target.closest('.tab-btn');
+    if (!btn) return;
+    const group = _tabGroup(btn);
+    if (!group) return;
+    let i = group.indexOf(btn);
+    if (i < 0) return;
+    i = e.key === 'ArrowRight' ? (i + 1) % group.length
+      : e.key === 'ArrowLeft'  ? (i - 1 + group.length) % group.length
+      : e.key === 'Home' ? 0 : group.length - 1;
+    group[i].focus();
+    group[i].click();
+    e.preventDefault();
+  });
+  window.addEventListener('load', decorateAllTabGroups);
+})();
 
 window.addEventListener('load', async ()=>{
   applyStoredTheme();
@@ -16444,6 +16359,34 @@ async function pfSyncAlerts() {
     }
   } catch(e) {
     if(st) { st.textContent = '저장 실패 — 네트워크 오류'; st.style.color = '#ef5350'; }
+  }
+}
+// 🔔 알림 테스트 발송 — Worker POST /portfolio/test 가 repository_dispatch(alerts-test)로
+// stock-alerts 워크플로를 즉시 1회 깨운다. 설정 검증에 다음 15분 cron 을 기다릴 필요 없음.
+// 테스트 런은 장중/쿨다운 가드를 무시하고 평가하며, 메시지에 "[테스트]" 프리픽스가 붙는다.
+async function pfTestAlerts() {
+  const st = document.getElementById('pfSyncStatus');
+  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+  if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = '#ef5350'; } return; }
+  if(st) { st.textContent = '테스트 발송 요청 중…'; st.style.color = '#8d90a2'; }
+  try {
+    const r = await fetch(base + '/portfolio/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ keyHash: await pfGetSyncKeyHash() }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const j = await r.json().catch(() => ({}));
+    if(r.ok && j.ok) {
+      if(st) { st.textContent = '테스트 실행 요청됨 — 1~2분 내 카카오톡으로 결과가 도착합니다.'; st.style.color = '#26a69a'; }
+    } else {
+      const why = j.error === 'unauthorized' ? '동기화 키 불일치 (🔑 버튼으로 설정)' :
+                  j.error === 'sync_key_not_configured' ? 'Worker 에 ALERTS_SYNC_KEY 시크릿 필요' :
+                  j.error === 'no_github_token' ? 'Worker 에 GH_DISPATCH_TOKEN 시크릿 필요' : (j.error || ('HTTP ' + r.status));
+      if(st) { st.textContent = '테스트 실패: ' + why; st.style.color = '#ef5350'; }
+    }
+  } catch(_) {
+    if(st) { st.textContent = '테스트 실패 — 네트워크 오류'; st.style.color = '#ef5350'; }
   }
 }
 async function pfPullAlerts() {

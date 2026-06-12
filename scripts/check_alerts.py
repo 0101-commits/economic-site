@@ -42,6 +42,12 @@ TEXT_LIMIT = 200          # 카카오 텍스트 템플릿 길이 제한
 MAX_MSGS = 3              # 1회 실행당 최대 발송 통수(폭주 방지)
 DELAY_NOTICE = "※ 15분 지연 데이터 기준"
 
+# 🔔 테스트 발송 모드 — 프런트 '테스트 발송' 버튼 → Worker /portfolio/test →
+# repository_dispatch(alerts-test) 로 실행된 런. 설정 검증이 목적이므로
+# 장중/쿨다운 가드를 무시하고 평가하며, 발송 이력(state)은 갱신하지 않아
+# 이후 정규 cron 의 실제 알림 1일 1회 한도를 소모하지 않는다.
+IS_TEST = os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch"
+
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
 WORKER = "https://ecom-dashboard-proxy.baldr0001.workers.dev"
@@ -333,9 +339,10 @@ def main():
     triggered = []          # (alert, line)
     for a in alerts:
         market = a.get("market", "KR")
-        if not is_market_open(market, now):
+        # 테스트 발송은 즉시 검증이 목적 — 장중/쿨다운 가드를 건너뛰고 무조건 평가
+        if not IS_TEST and not is_market_open(market, now):
             continue
-        if not should_send(a, state, now):
+        if not IS_TEST and not should_send(a, state, now):
             continue
         key = (market, a.get("symbol"))
         if key not in snaps:
@@ -353,7 +360,7 @@ def main():
             triggered.append((a, line))
             print(f"[alerts] 조건 충족: {line}")
 
-    if not triggered:
+    if not triggered and not IS_TEST:
         print(f"[alerts] 평가 {len(alerts)}건 — 충족 0건, 발송 없음")
         return
 
@@ -369,9 +376,22 @@ def main():
     uuids = [f["uuid"] for f in friends]
     print(f"[alerts] 수신: " + (f"친구 {len(uuids)}명" if uuids else "나와의 채팅(메모)"))
 
-    header = f"🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"
+    prefix = "[테스트] " if IS_TEST else ""
+    header = f"{prefix}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"
+    if IS_TEST and not triggered:
+        # 테스트인데 충족 알림이 없어도 확인 메시지 1통은 보낸다 — '파이프라인 정상' 즉시 검증이 목적
+        kakao.send_memo(access_token,
+                        f"{header}\n알림 {len(alerts)}건 평가 — 현재 충족 조건 없음 (설정·발송 경로 정상)\n{DELAY_NOTICE}",
+                        with_button=True, uuids=uuids)
+        print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
+        return
     for msg in _pack_messages([ln for _, ln in triggered], header):
         kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
+
+    # 테스트 런은 이력을 남기지 않는다 — 정규 cron 의 실제 알림(1일 1회/쿨다운)을 소모하지 않도록
+    if IS_TEST:
+        print(f"[alerts] 테스트 발송 완료 — 알림 {len(triggered)}건 (이력 미갱신)")
+        return
 
     # 발송 성공 후에만 이력 갱신 → 워크플로가 커밋해 도배 방지 이력 보존
     for a, _ in triggered:
