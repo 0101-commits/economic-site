@@ -66,10 +66,50 @@ def main():
     except (OSError, ValueError):
         errs.append("data_meta.json missing/unreadable (fetch_data.py 가 함께 생성해야 함)")
 
+    # ── [3차-T31] WARN 레벨 정확성 점검 (비차단) ─────────────────────────────
+    # 왜: '치명적 결손' 게이트(아래 errs)와 별개로, 배포는 막지 않되 사람이 봐야 할
+    # 데이터 품질 신호(오래된 시계열·결측·이상 급변·범위 이탈)를 Actions 로그에 남긴다.
+    # 사이트의 '설정 → 시스템 진단'(T28)이 같은 규칙을 브라우저에서 수행해 이중 검증한다.
+    warns = []
+
+    def _check_series(label, seq, max_stale_days, jump_pct):
+        if not seq:
+            warns.append(f"{label}: 시계열 없음")
+            return
+        last = seq[-1] if isinstance(seq[-1], dict) else {}
+        if isinstance(last.get("date"), str):
+            try:
+                stale = (datetime.now() - datetime.fromisoformat(last["date"])).days
+                if stale > max_stale_days:
+                    warns.append(f"{label}: 마지막 데이터가 {stale}일 전 ({last['date']})")
+            except ValueError:
+                warns.append(f"{label}: date 파싱 불가 ({last.get('date')!r})")
+        closes = [p.get("close") for p in seq[-10:] if isinstance(p, dict) and isinstance(p.get("close"), (int, float))]
+        nulls = sum(1 for p in seq[-30:] if not (isinstance(p, dict) and isinstance(p.get("close"), (int, float))))
+        if nulls:
+            warns.append(f"{label}: 최근 30포인트 중 결측 {nulls}건")
+        for a, b in zip(closes, closes[1:]):
+            if a and abs(b / a - 1) * 100 > jump_pct:
+                warns.append(f"{label}: 일간 {abs(b / a - 1) * 100:.1f}% 급변 — 수집 오류 여부 확인 ({a} → {b})")
+                break
+
+    hist = d.get("history") or {}
+    _check_series("history.indices.KOSPI", (hist.get("indices") or {}).get("KOSPI"), 5, 12)
+    _check_series("history.indices.SP500", (hist.get("indices") or {}).get("SP500"), 5, 12)
+    _check_series("history.fx.USDKRW",     (hist.get("fx") or {}).get("USDKRW"),     5, 6)
+
+    # 절대 범위 sanity — 단위 실수(원↔달러 등)·소스 오염을 조기 감지
+    usdkrw = ((d.get("fx") or {}).get("USDKRW") or {}).get("rate")
+    if isinstance(usdkrw, (int, float)) and not (800 <= usdkrw <= 2500):
+        warns.append(f"fx.USDKRW.rate={usdkrw} — 정상 범위(800~2,500) 이탈")
+
+    for w in warns:
+        print(f"::warning title=데이터 품질::{w}")
+
     if errs:
         print("❌ data.json 검증 실패:\n - " + "\n - ".join(errs))
         sys.exit(1)
-    print(f"✅ data.json 검증 통과 (lastUpdated={ts}, KOSPI series={len(series)})")
+    print(f"✅ data.json 검증 통과 (lastUpdated={ts}, KOSPI series={len(series)}, 품질경고 {len(warns)}건)")
 
 
 if __name__ == "__main__":

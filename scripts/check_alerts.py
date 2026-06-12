@@ -323,10 +323,20 @@ def main():
     except (OSError, ValueError):
         print("[alerts] alerts_config.json 없음 — '투자 현황' 페이지에서 알림을 저장하면 생성됩니다.")
         return
+    # [3차-T26] 전역 알림 설정 — 사이트 '설정' 페이지에서 저장한 settings 블록 반영.
+    # 구버전 파일(settings 없음)은 ON + daily 로 동작한다(하위 호환).
+    settings = cfg.get("settings") or {}
+    if settings.get("enabled") is False and not IS_TEST:
+        print("[alerts] 전역 알림 OFF (설정 페이지에서 비활성화) — 평가 건너뜀")
+        return
+    default_limit = "cool60" if settings.get("defaultLimit") == "cool60" else "daily"
     alerts = [a for a in (cfg.get("alerts") or []) if isinstance(a, dict) and a.get("enabled", True)]
     if not alerts:
         print("[alerts] 활성 알림 0개 — 종료")
         return
+    for a in alerts:
+        if not a.get("limit"):
+            a["limit"] = default_limit   # [3차-T26] 개별 미지정 시 전역 기본 도배방지 주기 적용
 
     try:
         with open(STATE_PATH, encoding="utf-8") as f:
@@ -378,6 +388,8 @@ def main():
 
     prefix = "[테스트] " if IS_TEST else ""
     header = f"{prefix}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"
+    if IS_TEST and settings.get("enabled") is False:
+        header += "\n⚠ 전역 알림이 OFF 상태입니다 — 정규 알림은 발송되지 않습니다 (테스트만 동작)"
     if IS_TEST and not triggered:
         # 테스트인데 충족 알림이 없어도 확인 메시지 1통은 보낸다 — '파이프라인 정상' 즉시 검증이 목적
         kakao.send_memo(access_token,
