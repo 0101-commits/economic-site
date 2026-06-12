@@ -35,14 +35,16 @@
 </script>
 <title>경제현황 터미널</title>
 <!-- OG 메타 — 카카오톡 등 메신저 링크 공유 시 미리보기 구성 (카카오 스크랩퍼는 OG 태그 기반).
-     변경 후에는 developers.kakao.com/tool/clear/og 에서 스크랩 캐시 초기화 필요.
-     og:image 는 대시보드 스크린샷(1200×630 권장)을 og-cover.png 로 추가하면 활성화. -->
+     변경 후에는 developers.kakao.com/tool/clear/og 에서 스크랩 캐시 초기화 필요. -->
 <meta name="description" content="KOSPI·환율·금리·원자재·부동산·연기금을 한 화면에서 — 개인 경제현황 터미널"/>
 <meta property="og:title"       content="경제현황 터미널"/>
 <meta property="og:description" content="KOSPI·환율·금리·원자재·부동산·연기금 실시간 대시보드"/>
 <meta property="og:type"        content="website"/>
 <meta property="og:url"         content="https://0101-commits.github.io/economic-site/"/>
-<!-- <meta property="og:image" content="https://0101-commits.github.io/economic-site/og-cover.png"/> -->
+<meta property="og:image"       content="https://0101-commits.github.io/economic-site/og-cover.png"/>
+<meta property="og:image:width"  content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta name="twitter:card"       content="summary_large_image"/>
 <!-- 인라인 SVG 파비콘(📈) — favicon.ico 404 제거 -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E"/>
 <!-- ⛔ Tailwind Play CDN 제거됨 (의도적) — 근본 원인 제거:
@@ -752,16 +754,18 @@
   .ann-pending .dot { width: 6px; height: 6px; border-radius: 50%; background: #2962ff; animation: ann-pulse 1.2s ease-in-out infinite; }
   @keyframes ann-pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
 
-  /* 지연 데이터 글로벌 상태 칩 (2.4) — 카드별 중복 경고문 대신 단일 상시 표시 */
+  /* 지연 데이터 글로벌 상태 칩 (2.4) — 카드별 중복 경고문 대신 단일 상시 표시.
+     좌하단 플로팅이 본문 콘텐츠를 가린다는 피드백으로 사이드바(메뉴바) 내부 정적 배치로 변경. */
   #globalDelayChip {
-    position: fixed; left: 14px; bottom: 14px; z-index: 240;
     display: inline-flex; align-items: center; gap: 6px;
+    margin: 4px 6px 0; padding: 4px 10px;
     font-size: 10px; color: #f0c75e; background: var(--c-card, #1b1f2b);
-    border: 1px solid #8a6d1f66; border-radius: 999px; padding: 4px 10px;
-    box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: help; user-select: none;
+    border: 1px solid #8a6d1f66; border-radius: 999px;
+    cursor: help; user-select: none;
   }
   #globalDelayChip .dot { width: 6px; height: 6px; border-radius: 50%; background: #f0c75e; }
-  @media (max-width: 640px) { #globalDelayChip { left: 8px; bottom: 8px; font-size: 9px; padding: 3px 8px; } }
+  /* 사이드바 접힘(아이콘 모드) 시 텍스트 칩은 숨김 */
+  #sidebar.collapsed #globalDelayChip { display: none; }
 
   /* 포트폴리오 인라인 입력 유효성 오류 (3.2) */
   .pf-input-err { border-color: #ef5350 !important; background: rgba(239,83,80,.10) !important; }
@@ -825,12 +829,15 @@
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#434656;padding:4px 14px 8px;padding-left:46px;">메인 메뉴</div>
     <div class="menu-item active" onclick="showPage('dashboard',this)"><span class="mat">home</span>대시보드 홈</div>
     <div class="menu-item" onclick="showPage('portfolio',this)"><span class="mat">monitoring</span>투자 현황</div>
+    <div class="menu-item" onclick="showPage('equity',this)"><span class="mat">show_chart</span>주식시장</div>
     <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
     <div class="menu-item" onclick="showPage('market',this)"><span class="mat">candlestick_chart</span>시장 지표</div>
     <div class="menu-item" onclick="showPage('investor',this)"><span class="mat">account_balance</span>주요 투자자</div>
     <div class="menu-item" onclick="showPage('realestate',this)"><span class="mat">home_work</span>부동산</div>
     <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
     <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
+    <!-- 지연 데이터 상태 칩 — 좌하단 플로팅에서 사이드바 정적 배치로 이동 (본문 가림 해소) -->
+    <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다."><span class="dot"></span>Market Data 15m Delayed</div>
     <div style="border-top:1px solid #2a2e3d;margin:12px 0;"></div>
     <!-- 테마 토글 버튼 -->
     <div style="padding:0 6px 8px;">
@@ -1382,12 +1389,16 @@
       </div>
     </div>
 
+    <!-- 📈 주식시장 — '시장 지표'의 주식시장 탭을 별도 메뉴/페이지로 분리 (사용자 요청).
+         실제 콘텐츠(#market-equity)는 페이지 로드 시 스크립트가 page-market 에서 이 셸로
+         이동시킨다 (마크업 대이동 없이 분리 — 기존 id/핸들러 전부 보존). -->
+    <div class="page" id="page-equity"></div>
+
     <div class="page" id="page-market">
       <div style="display:flex;gap:6px;margin-bottom:16px;">
         <button class="tab-btn active" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#dfe2f2;background:#2962ff;" onclick="setMarketTab('fx',this)">외환</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('rate',this)">📈 금리</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('bond',this)">📋 채권</button>
-        <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('equity',this)">주식시장</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setMarketTab('commodity',this)">원자재</button>
         <a id="naverMarketLink" href="https://finance.naver.com/marketindex/exchangeList.naver" target="_blank" rel="noopener noreferrer" title="현재 탭과 관련된 네이버 금융 시장지표 페이지 열기" style="margin-left:auto;align-self:center;font-size:11px;color:#2962ff;text-decoration:none;border:1px solid #2962ff55;padding:4px 10px;border-radius:6px;white-space:nowrap;">📊 네이버 시장지표 →</a>
       </div>
@@ -2677,6 +2688,7 @@
         <button class="tab-btn"        id="invTopGpif"    style="font-size:12px;padding:6px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setInvestor('gpif',this)">🇯🇵 일본 GPIF</button>
         <button class="tab-btn"        id="invTopFrtib"   style="font-size:12px;padding:6px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setInvestor('frtib',this)">🇺🇸 미국 FRTIB (TSP)</button>
         <button class="tab-btn"        id="invTopCalpers" style="font-size:12px;padding:6px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setInvestor('calpers',this)">🇺🇸 CalPERS</button>
+        <button class="tab-btn"        id="invTopBerkshire" style="font-size:12px;padding:6px 14px;border:1px solid #2a2e3d;border-radius:6px;color:#8d90a2;background:transparent;" onclick="setInvestor('berkshire',this)">🇺🇸 버크셔 해서웨이</button>
       </div>
 
       <!-- 🌐 글로벌 연기금 자산배분 교차 비교 (4.4) — 5대 기금 단일 통합 차트, 탭과 무관하게 상시 표시 -->
@@ -2905,6 +2917,8 @@
       <div id="investor-frtib-container" style="display:none;"></div>
       <!-- ===== 미국 CalPERS 컨테이너 ===== -->
       <div id="investor-calpers-container" style="display:none;"></div>
+      <!-- ===== 버크셔 해서웨이 컨테이너 (SEC 13F 보유 종목) ===== -->
+      <div id="investor-berkshire-container" style="display:none;"></div>
     </div><!-- /investor -->
 
   </main>
@@ -3118,6 +3132,10 @@ function _refreshFeedback(btn, state, msg) {
     btn.textContent = '⟳ 갱신중…';
     btn.style.background = '#1b1f2b';
     btn.style.color = '#b6c4ff';
+    // 안전망 — 호출부가 어떤 이유로든(예외 누락·미종료 fetch) 완료 피드백을 못 주면
+    // 30초 후 버튼을 자동 복원해 '⟳ 갱신중…' 고착을 방지. 정상 완료 시에는 success/error
+    // 진입부의 clearTimeout 이 이 타이머를 취소하므로 영향 없음.
+    restore(30000);
   } else if(state === 'success') {
     btn.disabled = false;
     btn.textContent = msg ? ('✓ ' + msg) : '✓ 갱신 완료';
@@ -3325,9 +3343,11 @@ function injectChartRefreshButtons() {
     if(widget.closest('.themed-modal')) return;                      // 모달 내부 카드 제외 (상세 팝업)
     const title = widget.querySelector('.widget-title');
     if(!title) return;
-    // 표 카드면 표별 전용 핸들러, 아니면 전체 새로고침
+    // 표 카드면 표별 전용 핸들러, 아니면 전체 새로고침.
+    // 매크로 3줄 요약 배너는 전용 경량 핸들러 — 전체 새로고침(수십 페치) 대신 요약만 즉시 재조립.
     const tbody = widget.querySelector('table tbody[id]');
-    const handler = (tbody && _tableRefreshMap[tbody.id]) ? _tableRefreshMap[tbody.id] : ((b)=>refreshAllData(b));
+    const handler = (widget.id === 'aiBriefingBanner' && typeof refreshAiBriefing === 'function') ? ((b)=>refreshAiBriefing(b))
+                  : (tbody && _tableRefreshMap[tbody.id]) ? _tableRefreshMap[tbody.id] : ((b)=>refreshAllData(b));
     const btn = document.createElement('button');
     btn.setAttribute('data-chart-refresh', (tbody && tbody.id) || 'card');
     btn.setAttribute('title', '실시간 데이터 새로고침');
@@ -3387,8 +3407,7 @@ function tickerClick(name) {
     showPage('market', menuItemFor('market'));
     setTimeout(()=>setMarketTab('bond', marketTabBtn('bond')),60);
   } else if(name==='S&P 500'||name==='NASDAQ'||name==='닛케이') {
-    showPage('market', menuItemFor('market'));
-    setTimeout(()=>setMarketTab('equity', marketTabBtn('equity')),60);
+    showPage('equity', menuItemFor('equity'));   // 주식시장 별도 페이지
   } else if(name==='WTI'||name==='BRENT'||name==='금(Gold)') {
     showPage('market', menuItemFor('market'));
     setTimeout(()=>setMarketTab('commodity', marketTabBtn('commodity')),60);
@@ -3415,21 +3434,33 @@ function destroyChart(id) {
   if(charts[id]) { charts[id].destroy(); delete charts[id]; }
 }
 function navigateToDetail(target) {
+  if(target==='equity') {   // 주식시장은 별도 페이지로 분리됨
+    showPage('equity', menuItemFor('equity'));
+    setTimeout(()=>{
+      const eqBtns=document.querySelectorAll('#market-equity .tab-btn');
+      if(eqBtns[0]) selectEquityIndex(0, eqBtns[0]);
+    }, 150);
+    return;
+  }
   showPage('market', menuItemFor('market'));
   setTimeout(()=>{
     if(target==='fx')        { setMarketTab('fx',   marketTabBtn('fx')); }
     else if(target==='rate') { setMarketTab('rate', marketTabBtn('rate')); }
     else if(target==='bond') { setMarketTab('bond', marketTabBtn('bond')); }
-    else if(target==='equity'){
-      setMarketTab('equity', marketTabBtn('equity'));
-      setTimeout(()=>{
-        const eqBtns=document.querySelectorAll('#market-equity .tab-btn');
-        if(eqBtns[0]) selectEquityIndex(0, eqBtns[0]);
-      }, 100);
-    }
     else if(target==='commodity') { setMarketTab('commodity', marketTabBtn('commodity')); }
   }, 80);
 }
+
+// 📈 주식시장 페이지 분리 — page-market 안의 #market-equity 콘텐츠를 전용 페이지 셸
+// (#page-equity)로 이동. 마크업 대이동 없이 분리해 기존 id/onclick/차트 코드를 전부 보존.
+(function() {
+  const shell = document.getElementById('page-equity');
+  const eq = document.getElementById('market-equity');
+  if(shell && eq && eq.parentElement !== shell) {
+    shell.appendChild(eq);
+    eq.style.display = 'block';
+  }
+})();
 
 function showPage(id, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -3445,6 +3476,7 @@ function showPage(id, el) {
     if(main) main.scrollTop = 0;
   } catch(_) {}
   if(id==='market') { setTimeout(()=>initMarketPage(),50); }
+  if(id==='equity') { setTimeout(()=>{ try { buildEquityPage(); } catch(e) { console.warn('equity init', e); } },50); }
   if(id==='portfolio') { setTimeout(()=>{ try { initPortfolioPage(); } catch(e) { console.warn('portfolio init', e); } },50); }
   if(id==='macro')  { setTimeout(()=>{ initMacroPage('kr'); buildMacroIndicatorTable(); currentNewsFilter['macroNewsFeed']='한국GDP'; renderFiltered('macroNewsFeed'); },50); }
   if(id==='calendar') {
@@ -6322,10 +6354,10 @@ async function refreshNews(feedId, arrName, btn) {
 // ============================
 let marketTab = 'fx';
 function initMarketPage() {
+  // 주식시장(equity)은 별도 페이지(page-equity)로 분리됨 — showPage('equity') 에서 초기화
   if(marketTab==='fx') buildFxPage();
   if(marketTab==='rate') { buildRateHistoryChart(); buildRateCurrentTable(); }
   if(marketTab==='bond') { buildBondPage(); buildGlobalBondTable(); }
-  if(marketTab==='equity') buildEquityPage();
   if(marketTab==='commodity') buildCommodityPage();
 }
 // 마켓 탭별 '관련 네이버 금융 시장지표' 링크 (상단 📊 네이버 시장지표 버튼이 탭에 맞춰 이동)
@@ -6337,12 +6369,13 @@ const NAVER_MARKET_LINKS = {
   commodity: 'https://finance.naver.com/marketindex/',
 };
 function setMarketTab(tab, btn) {
+  if(tab === 'equity') { showPage('equity', menuItemFor('equity')); return; }   // 별도 페이지로 분리됨
   marketTab = tab;
   document.querySelectorAll('#page-market > div:first-child .tab-btn').forEach(b=>{
     b.classList.remove('active'); b.style.background='transparent'; b.style.color='#8d90a2';
   });
   if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
-  ['fx','rate','bond','equity','commodity'].forEach(t=>{
+  ['fx','rate','bond','commodity'].forEach(t=>{
     const el=document.getElementById('market-'+t);
     if(el) el.style.display = t===tab?'block':'none';
   });
@@ -8383,7 +8416,7 @@ const macroIndicators = [
    link:'https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1JG2105',linkLabel:'KOSIS 소매판매액지수'},
   {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',unit:'% (연이율)',dataPath:'economicIndicators.kr.base_rate_kr',fmt:v=>v?.toFixed(2)+'%'},
   // 미국 (FRED)
-  {name:'GDP',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: GDP)',freq:'분기',unit:'10억 USD (연환산)',dataPath:'economicIndicators.us.gdp_us',fmt:v=>v?.toLocaleString()},
+  {name:'GDP 성장률',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: A191RL1Q225SBEA)',freq:'분기',unit:'% (전기비 연율 SAAR)',dataPath:'economicIndicators.us.gdp_growth_us',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'소비자물가지수 (CPI)',cc:'🇺🇸',cat:'물가',src:'BLS (FRED: CPIAUCSL)',freq:'월간',unit:'지수 (1982-84=100)',dataPath:'economicIndicators.us.cpi_us',fmt:v=>v?.toFixed(2)},
   {name:'PCE 물가지수',cc:'🇺🇸',cat:'물가',src:'BEA (FRED: PCE)',freq:'월간',unit:'지수 (2017=100)',dataPath:'economicIndicators.us.pce_us',fmt:v=>v?.toFixed(2)},
   {name:'실업률',cc:'🇺🇸',cat:'고용',src:'BLS (FRED: UNRATE)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.us.unemployment',fmt:v=>v?.toFixed(2)+'%'},
@@ -8401,12 +8434,12 @@ const macroIndicators = [
   {name:'NAHB 주택시장지수',cc:'🇺🇸',cat:'부동산',src:'NAHB (FRED)',freq:'월간',unit:'지수 (50=중립)',dataPath:'realestate.us.nahb_index',fmt:v=>v?.toFixed(0)},
   // 유로존 (FRED 국제 시리즈)
   {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.eu.cpi_eu',fmt:v=>v?.toFixed(2)},
-  {name:'실질 GDP',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',unit:'백만 유로 (체인링크)',dataPath:'economicIndicators.eu.gdp_eu',fmt:v=>v?.toLocaleString()},
+  {name:'GDP 성장률',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.eu.gdp_yoy_eu',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'실업률',cc:'🇪🇺',cat:'고용',src:'Eurostat (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.eu.unemployment_eu',fmt:v=>v?.toFixed(2)+'%'},
   {name:'기준금리 (ECB)',cc:'🇪🇺',cat:'통화',src:'ECB (FRED)',freq:'8회/년',unit:'% (예금금리)',dataPath:'economicIndicators.eu.base_rate_eu',fmt:v=>v?.toFixed(2)+'%'},
   // 중국 (FRED 국제 시리즈)
   {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
-  {name:'GDP',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'USD (총액)',dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v?.toLocaleString()},
+  {name:'GDP 성장률',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'% (YoY, 명목 USD)',dataPath:'economicIndicators.cn.gdp_yoy_cn',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
   {name:'제조업 PMI·경기지수',cc:'🇨🇳',cat:'경기',src:'OECD (FRED BSCICP02CNM460S)',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.cn.pmi_cn',fmt:v=>v?.toFixed(1),
@@ -8432,7 +8465,7 @@ const macroIndicators = [
     dataPath:'economicIndicators.de.pmi_de',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 일본 (FRED 국제 시리즈)
-  {name:'실질GDP (분기)',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'10억엔 (체인링크)',dataPath:'economicIndicators.jp.gdp_jp',fmt:v=>v?.toLocaleString(),
+  {name:'GDP 성장률',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.jp.gdp_yoy_jp',fmt:v=>v==null?'—':(+v).toFixed(1)+'%',
     link:'https://www.esri.cao.go.jp/jp/sna/menu.html',linkLabel:'내각부 발표'},
   {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v?.toFixed(2),
     link:'https://www.stat.go.jp/data/cpi/',linkLabel:'총무성 통계국'},
@@ -8443,11 +8476,11 @@ const macroIndicators = [
   {name:'산업생산지수',cc:'🇯🇵',cat:'경기',src:'OECD MEI (FRED: JPNPROINDMISMEI)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.jp.ip_jp',fmt:v=>v?.toFixed(2)},
   // 독일 (FRED 국제 시리즈)
   {name:'소비자물가지수',cc:'🇩🇪',cat:'물가',src:'Destatis (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.de.cpi_de',fmt:v=>v?.toFixed(2)},
-  {name:'실질GDP',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'백만유로 (체인링크)',dataPath:'economicIndicators.de.gdp_de',fmt:v=>v?.toLocaleString()},
+  {name:'GDP 성장률',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.de.gdp_yoy_de',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'실업률',cc:'🇩🇪',cat:'고용',src:'Destatis (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.de.unemployment_de',fmt:v=>v?.toFixed(2)+'%'},
   // 영국 (FRED 국제 시리즈)
   {name:'소비자물가지수',cc:'🇬🇧',cat:'물가',src:'ONS (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.uk.cpi_uk',fmt:v=>v?.toFixed(2)},
-  {name:'실질GDP',cc:'🇬🇧',cat:'경기',src:'ONS (FRED)',freq:'분기',unit:'백만파운드 (체인링크)',dataPath:'economicIndicators.uk.gdp_uk',fmt:v=>v?.toLocaleString()},
+  {name:'GDP 성장률',cc:'🇬🇧',cat:'경기',src:'ONS (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.uk.gdp_yoy_uk',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'실업률',cc:'🇬🇧',cat:'고용',src:'ONS (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.uk.unemployment_uk',fmt:v=>v?.toFixed(2)+'%'},
   {name:'기준금리 (BOE)',cc:'🇬🇧',cat:'통화',src:'BOE (FRED)',freq:'8회/년',unit:'% (Bank Rate)',dataPath:'economicIndicators.uk.base_rate_uk',fmt:v=>v?.toFixed(2)+'%'},
 ];
@@ -10620,17 +10653,101 @@ function setInvestor(id, btn) {
   });
   if(btn) { btn.classList.add('active'); btn.style.background='#2962ff'; btn.style.color='#fff'; }
   // 컨테이너 표시 전환
-  ['nps','gpfg','gpif','frtib','calpers'].forEach(k => {
+  ['nps','gpfg','gpif','frtib','calpers','berkshire'].forEach(k => {
     const el = document.getElementById('investor-'+k+'-container');
     if(el) el.style.display = (k === id) ? '' : 'none';
   });
   // NPS 이외에는 동적으로 콘텐츠 렌더
-  if(id !== 'nps') {
+  if(id === 'berkshire') {
+    _renderBerkshire();           // SEC 13F 보유 종목 (data.json.berkshire)
+  } else if(id !== 'nps') {
     _renderGlobalInvestor(id);
   } else {
     // 기존 NPS 렌더
     buildInvestorPage();
   }
+}
+
+// ── 🇺🇸 버크셔 해서웨이 13F 보유 종목 — data.json.berkshire (SEC EDGAR 수집) ──
+// 13F 는 분기 종료 후 45일 내 공시되는 스냅샷 — '현재 보유'가 아님을 기준일과 함께 명시.
+function _renderBerkshire() {
+  const container = document.getElementById('investor-berkshire-container');
+  if(!container) return;
+  const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : {};
+  const bk = d.berkshire;
+  if(!bk || !Array.isArray(bk.holdings) || !bk.holdings.length) {
+    container.innerHTML = `<div class="widget" style="text-align:center;padding:36px 20px;color:var(--c-txt-dim,#8d90a2);font-size:12px;line-height:1.9;">
+      버크셔 해서웨이 13F 보유 종목 데이터가 아직 수집되지 않았습니다.<br>
+      다음 데이터 갱신(GitHub Actions 주기 실행)에서 SEC EDGAR 13F 공시를 자동 수집합니다.</div>`;
+    return;
+  }
+  const fmtB = v => v == null ? '—' : '$' + (v / 1e9).toFixed(v >= 1e11 ? 0 : 1) + 'B';
+  const rows = bk.holdings.map((h, i) => {
+    const label = h.ticker
+      ? `<strong>${escapeHtml(h.ticker)}</strong> <span style="color:var(--c-txt-dim,#8d90a2);font-size:10px;">${escapeHtml(h.name)}</span>`
+      : escapeHtml(h.name || '—');
+    const pct = (h.pct != null && isFinite(+h.pct)) ? +h.pct : null;
+    return `<tr style="border-bottom:1px solid var(--c-border,#2a2e3d);">
+      <td style="padding:7px 8px;font-size:11px;color:var(--c-txt-dim,#8d90a2);">${i + 1}</td>
+      <td style="padding:7px 8px;font-size:12px;color:var(--c-txt,#dfe2f2);">${label}</td>
+      <td style="padding:7px 8px;text-align:right;font-family:'Public Sans';font-weight:600;font-size:12px;color:var(--c-txt,#dfe2f2);">${fmtB(h.valueUsd)}</td>
+      <td style="padding:7px 8px;text-align:right;font-size:11px;color:var(--c-txt-dim,#8d90a2);">${h.shares ? (+h.shares).toLocaleString() : '—'}</td>
+      <td style="padding:7px 8px;min-width:130px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="flex:1;height:6px;background:rgba(127,127,127,0.15);border-radius:3px;overflow:hidden;"><div style="width:${pct == null ? 0 : Math.min(100, pct)}%;height:100%;background:#2962ff;"></div></div>
+          <span style="font-size:11px;font-weight:600;min-width:44px;text-align:right;color:var(--c-txt,#dfe2f2);">${pct == null ? '—' : pct.toFixed(1) + '%'}</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  const top1 = bk.holdings[0];
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <h2 style="font-size:18px;font-weight:700;font-family:'Public Sans';margin:0;">버크셔 해서웨이 보유 종목
+        <span style="font-size:11px;color:var(--c-txt-dim,#434656);font-weight:400;margin-left:8px;">출처: SEC EDGAR 13F-HR 공시</span>
+      </h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+      <div class="kpi-card">
+        <div class="widget-title">공시 주식 포트폴리오</div>
+        <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">${fmtB(bk.totalValueUsd)}</div>
+        <div style="font-size:11px;color:#8d90a2;margin-top:4px;">13F 평가액 합계</div>
+      </div>
+      <div class="kpi-card">
+        <div class="widget-title">보유 종목 수</div>
+        <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">${bk.holdingsCount != null ? bk.holdingsCount : bk.holdings.length}<span style="font-size:14px;">종목</span></div>
+        <div style="font-size:11px;color:#8d90a2;margin-top:4px;">상위 ${bk.holdings.length}개 표시</div>
+      </div>
+      <div class="kpi-card">
+        <div class="widget-title">최대 보유 종목</div>
+        <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">${escapeHtml(top1.ticker || top1.name || '—')}</div>
+        <div style="font-size:11px;color:#8d90a2;margin-top:4px;">비중 ${top1.pct != null ? (+top1.pct).toFixed(1) + '%' : '—'}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="widget-title">보고 기준일</div>
+        <div style="font-size:20px;font-weight:700;font-family:'Public Sans';">${escapeHtml(bk.reportDate || '—')}</div>
+        <div style="font-size:11px;color:#8d90a2;margin-top:4px;">공시일 ${escapeHtml(bk.filedDate || '—')}</div>
+      </div>
+    </div>
+    <div class="widget">
+      <div class="widget-title">상위 보유 종목 (평가액 기준 Top ${bk.holdings.length})</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:1px solid var(--c-border,#2a2e3d);">
+            <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#8d90a2);font-weight:600;">#</th>
+            <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#8d90a2);font-weight:600;">종목</th>
+            <th style="padding:6px 8px;text-align:right;font-size:10px;color:var(--c-txt-dim,#8d90a2);font-weight:600;">평가액</th>
+            <th style="padding:6px 8px;text-align:right;font-size:10px;color:var(--c-txt-dim,#8d90a2);font-weight:600;">주식 수</th>
+            <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#8d90a2);font-weight:600;">포트폴리오 비중</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="font-size:10px;color:var(--c-txt-muted,#434656);margin-top:8px;line-height:1.6;">
+        ※ 13F 는 분기 종료 후 45일 이내 공시되는 미국 상장 주식 보유 현황입니다 — 현재 보유와 다를 수 있으며,
+        평가액은 보고 기준일(${escapeHtml(bk.reportDate || '—')}) 시점 가격입니다. 비중은 13F 공시 포트폴리오 내 비중.
+      </div>
+    </div>`;
 }
 
 function _renderGlobalInvestor(id) {
@@ -11534,8 +11651,8 @@ async function refreshMoversFromClient(showStatus=false) {
       applyRealData(patch);
       // 클라이언트 실시간 페치 성공 시각 기록 (Top10 카드의 '실시간 HH:MM' 표시용)
       window._moverFetchTime = Date.now();
-      // 주식시장(equity) 탭이 열려 있으면 KOSPI/ETF Top10 테이블도 즉시 재렌더
-      try { const mp=document.getElementById('page-market'); if(mp && mp.classList.contains('active') && typeof buildEquityPage==='function') buildEquityPage(); } catch(_){}
+      // 주식시장 페이지가 열려 있으면 KOSPI/ETF Top10 테이블도 즉시 재렌더
+      try { const ep=document.getElementById('page-equity'); if(ep && ep.classList.contains('active') && typeof buildEquityPage==='function') buildEquityPage(); } catch(_){}
       _clientMoverLastError = null;
       return true;
     }
@@ -14031,6 +14148,7 @@ async function loadRealData() {
           const id = activePage.id;
           if(id === 'page-dashboard')      { try { initMainChart(mainPeriodUnit); buildMoverTable(curMoverTab); buildGlobalTable(); } catch(_) {} }
           else if(id === 'page-market')    { try { initMarketPage(); } catch(_) {} }
+          else if(id === 'page-equity')    { try { buildEquityPage(); } catch(_) {} }
           else if(id === 'page-macro')     { try { initMacroPage(macroTab); } catch(_) {} }
           else if(id === 'page-realestate'){ try { buildReCharts(); if(typeof buildUsReCharts === 'function') buildUsReCharts(); } catch(_) {} }
           else if(id === 'page-investor')  { try { buildInvestorPage(); } catch(_) {} }
@@ -14078,6 +14196,7 @@ async function refreshAllData(btn) {
       const id = activePage.id;
       try {
         if(id === 'page-market')         initMarketPage();
+        else if(id === 'page-equity')    buildEquityPage();
         else if(id === 'page-macro')     { initMacroPage(macroTab); if(typeof buildMacroIndicatorTable === 'function') buildMacroIndicatorTable(); }
         else if(id === 'page-investor')  buildInvestorPage();
         else if(id === 'page-realestate'){ buildReCharts(); if(typeof buildUsReCharts === 'function') buildUsReCharts(); }
@@ -16466,9 +16585,52 @@ function renderAiBriefing(b) {
   if(!lines.length) { box.style.display = 'none'; return; }
   document.getElementById('aiBriefingLines').innerHTML = lines.slice(0, 3).map((s, i) =>
     `<div style="display:flex;gap:8px;align-items:flex-start;"><span style="color:#2962ff;font-weight:700;flex-shrink:0;">${i + 1}.</span><span>${escapeHtml(String(s))}</span></div>`).join('');
-  const srcLabel = b.source === 'rule' ? '규칙 기반 요약' : (b.source === 'gemini' ? 'Gemini' : b.source === 'openai' ? 'OpenAI' : 'AI');
+  const srcLabel = b.source === 'rule' ? '규칙 기반 요약'
+                 : b.source === 'client-rule' ? '실시간 규칙 요약'
+                 : (b.source === 'gemini' ? 'Gemini' : b.source === 'openai' ? 'OpenAI' : 'AI');
   document.getElementById('aiBriefingMeta').textContent = `${b.date || ''} · ${srcLabel}`;
   box.style.display = 'block';
+}
+
+// 3줄 요약을 '지금 화면의 최신 값'으로 직접 조립 — scripts/ai_briefing.py 의 규칙 기반
+// 라인과 동일한 구성. 서버 요약은 GitHub Actions 주기에만 갱신되어, 새로고침을 눌러도
+// 수치가 그대로인 문제(클라이언트 실시간 보강값 미반영)를 해소한다.
+function composeClientBriefingLines() {
+  const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : {};
+  const idx = d.indices || {}, fx = d.fx || {}, com = d.commodities || {};
+  const eiUs = (d.economicIndicators || {}).us || {};
+  const num = (v, nd) => (v == null || isNaN(+v)) ? '—' : (+v).toLocaleString('ko-KR', { maximumFractionDigits: nd != null ? nd : 2 });
+  const chg = v => (v == null || isNaN(+v)) ? '—' : `${+v >= 0 ? '▲' : '▼'}${Math.abs(+v).toFixed(2)}%`;
+  const k = idx.KOSPI || {}, s = idx.SP500 || {}, n = idx.NASDAQ || {};
+  const line1 = `증시 — KOSPI ${num(k.price)} (${chg(k.change)}), S&P500 ${num(s.price)} (${chg(s.change)}), 나스닥 ${num(n.price)} (${chg(n.change)})`;
+  const u = fx.USDKRW || {};
+  let line2 = `환율·금리 — 원/달러 ${num(u.rate)}원 (${chg(u.change)})`;
+  const ff = eiUs.ff_rate && eiUs.ff_rate.value;
+  const vix = eiUs.vix && eiUs.vix.value;
+  if(ff != null) line2 += `, 미국 기준금리 ${num(ff)}%`;
+  if(vix != null) line2 += `, VIX ${num(vix)}`;
+  const w = com.WTI || {}, g = com.Gold || {};
+  let line3 = `원자재·심리 — WTI $${num(w.price)} (${chg(w.change)}), 금 $${num(g.price)} (${chg(g.change)})`;
+  const fg = (d.sentiment || {}).fear_greed || {};
+  if(fg.value != null) line3 += `, 공포탐욕 ${num(fg.value, 0)}(${fg.rating || '—'})`;
+  return [line1, line2, line3];
+}
+
+// 3줄 요약 전용 새로고침 — data.json 재페치(최대 10초 대기) 후 클라이언트에서 즉시 재조립.
+// 항상 짧게 종료되므로 '⟳ 갱신중…' 고착이 없다.
+async function refreshAiBriefing(btn) {
+  _refreshFeedback(btn, 'loading');
+  try {
+    await Promise.race([
+      (typeof loadRealData === 'function' ? loadRealData() : Promise.resolve()).catch(() => {}),
+      new Promise(res => setTimeout(res, 10000)),
+    ]);
+    const lines = composeClientBriefingLines();
+    renderAiBriefing({ date: new Date().toISOString().slice(0, 10), lines, source: 'client-rule' });
+    _refreshFeedback(btn, 'success', '요약 갱신');
+  } catch(_) {
+    _refreshFeedback(btn, 'error', '갱신 실패');
+  }
 }
 
 // ── 🔔 경제 캘린더 ★★★ 이벤트 발표 알림 ──────────────────────────────────
@@ -16914,15 +17076,18 @@ function initHomeDnd() {
 }
 
 // ── ● 지연 데이터 글로벌 상태 칩 (UX 2.4) ──────────────────────────────────
-// 카드마다 흩어져 있던 '15분 지연' 경고문을 좌하단 단일 상시 표시 칩으로 일원화.
-// (PRD 의 '지연 안내 상시 노출' 요건을 전 페이지 공통으로 충족)
+// 카드마다 흩어져 있던 '15분 지연' 경고문을 단일 상시 표시 칩으로 일원화.
+// 좌하단 플로팅이 본문을 가린다는 피드백으로 사이드바 정적 마크업으로 이전됨 —
+// 이 함수는 마크업 누락 시에만 사이드바에 보강 삽입하는 안전망.
 function initGlobalDelayChip() {
   if(document.getElementById('globalDelayChip')) return;
+  const sb = document.getElementById('sidebar');
+  if(!sb) return;
   const chip = document.createElement('div');
   chip.id = 'globalDelayChip';
   chip.title = '본 정보는 최대 15분 지연된 데이터 기준입니다.\n무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다.';
   chip.innerHTML = '<span class="dot"></span>Market Data 15m Delayed';
-  document.body.appendChild(chip);
+  sb.appendChild(chip);
 }
 
 window.addEventListener('load', () => {
