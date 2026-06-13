@@ -50,10 +50,14 @@ jobs:
   send-digest:
     runs-on: ubuntu-latest
     steps:
-      # ── 발송 창(window) 게이트 ──
-      # repository_dispatch(Cloudflare cron) / workflow_dispatch(수동) 는 트리거 자체가 '보낼 때' 이므로 통과.
-      # schedule / workflow_run 은 지금이 타깃 시각일 때만 통과(그 외 깨움은 즉시 종료).
-      # 타깃 시각(KST)은 요일에 따라 다르다 — 평일 07~22시 매시간, 주말 11·17시.
+      # ── 발송 창(window) 게이트 ── (게이트가 '발송 여부'의 단일 진실원)
+      # 모든 자동 트리거(repository_dispatch=Cloudflare cron / schedule / workflow_run)는
+      # '지금이 타깃 시각'일 때만 통과한다. 타깃 시각(KST)은 요일별로 다르다 — 평일 07~22시 매시간, 주말 11·17시.
+      #   ※ 과거엔 repository_dispatch 를 무조건 통과시키고 '가장 가까운 슬롯'으로 스냅했으나,
+      #     Worker cron 이 옛 스케줄(매시간)로 남아 비-슬롯 시각에 dispatch 하면 엉뚱한 시각·라벨로
+      #     발송되는 문제가 있었다(예: 토 15:02 발송이 '17시'로 표기). 이제 게이트가 시각을 직접 판정하므로
+      #     Worker 재배포 전에도 잘못된 시각 발송이 없다(주말 11·17시는 옛 cron 으로도 그대로 발송됨).
+      # workflow_dispatch(수동)만 시각과 무관하게 즉시 발송(타깃 시각이면 그 슬롯, 아니면 가장 가까운 슬롯의 차트).
       - name: 발송 창 판정
         id: gate
         env:
@@ -66,20 +70,18 @@ jobs:
           else
             HOURS="7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22"  # 평일(월~금)
           fi
-          # 가장 가까운 슬롯(항상 계산) — dispatch/수동에서 사용
-          best=7; bd=99
-          for h in $HOURS; do
-            d=$(( H - h )); [ "$d" -lt 0 ] && d=$(( -d ))
-            if [ "$d" -lt "$bd" ]; then bd=$d; best=$h; fi
-          done
-          nslot=$(printf 'h%02d' "$best")
-          # 타깃 시각(정확히 그 시간대일 때만) — schedule/workflow_run 게이트용
+          # 지금이 정확히 타깃 시각이면 그 슬롯(h09 등), 아니면 빈값.
           tslot=""
           case " $HOURS " in *" $H "*) tslot=$(printf 'h%02d' "$H") ;; esac
           case "$EVENT" in
-            repository_dispatch) proceed=true; mslot="$nslot"; ckey="$nslot" ;;
-            workflow_dispatch)   proceed=true; mslot=manual;   ckey="$nslot" ;;
-            *) if [ -n "$tslot" ]; then proceed=true; mslot="$tslot"; ckey="$tslot"; else proceed=false; mslot=none; ckey=none; fi ;;
+            workflow_dispatch)
+              # 수동 즉시 — 타깃 시각이면 그 슬롯, 아니면 manual(파이썬이 가장 가까운 슬롯 차트로 발송). 마커 미사용.
+              proceed=true
+              if [ -n "$tslot" ]; then mslot="$tslot"; else mslot=manual; fi
+              ckey=manual ;;
+            *)
+              # 자동 트리거 — '지금이 타깃 시각'일 때만 발송(그 외 깨움은 즉시 종료).
+              if [ -n "$tslot" ]; then proceed=true; mslot="$tslot"; ckey="$tslot"; else proceed=false; mslot=none; ckey=none; fi ;;
           esac
           echo "proceed=$proceed"                    >> "$GITHUB_OUTPUT"
           echo "slot=$mslot"                         >> "$GITHUB_OUTPUT"

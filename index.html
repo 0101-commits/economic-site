@@ -441,6 +441,8 @@
   .ticker-scroll { animation: tickerMove 40s linear infinite; white-space: nowrap; display: inline-flex; gap: 48px; }
   @keyframes tickerMove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   .ticker-wrap { overflow: hidden; flex: 1; mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent); }
+  /* 모바일에서는 상단 헤더의 날짜·시각(시계)을 숨긴다 — 좁은 화면에서 티커 공간 확보(2026-06 사용자 요청). */
+  @media (max-width: 768px) { #clock { display: none !important; } }
   .tab-btn { transition: all .15s; cursor: pointer; }
   .tab-btn.active { background: #2962ff; color: #fff; }
   .tab-btn:not(.active):hover { background: rgba(170, 195, 255, 0.12); }
@@ -3178,7 +3180,7 @@ function updateClock() {
   const now = new Date();
   document.getElementById('clock').textContent =
     now.toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'}) + ' ' +
-    now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
 }
 setInterval(updateClock, 1000); updateClock();
 
@@ -6127,7 +6129,7 @@ function buildMoverTable(dir) {
     if(isClientRT2 && window._moverFetchTime) {
       // 클라이언트 실시간 페치 성공 — 실제 페치 시각 표시 (가장 신선)
       const t = new Date(window._moverFetchTime);
-      refEl.textContent = '실시간 ' + t.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) + ' · 네이버';
+      refEl.textContent = '실시간 ' + t.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false}) + ' · 네이버';
       refEl.style.color = 'var(--c-up,#26a69a)';
     } else {
       // 서버(data.json) 데이터 — 데이터 나이로 지연 판정 (라벨 스테일 OR 장중 15분 경과)
@@ -6817,12 +6819,12 @@ function updateFxHeader() {
   const asOfEl = document.getElementById('fxInfoAsOf');
   if (asOfEl) {
     if (window._fxRealtimeAsOf) {
-      const tsStr = new Date(window._fxRealtimeAsOf).toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const tsStr = new Date(window._fxRealtimeAsOf).toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
       asOfEl.textContent = `기준 시점: ${tsStr} · 출처: ${window._fxRealtimeSrc || 'Yahoo Finance (실시간)'}`;
     } else {
       const lu = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators.lastUpdated : null;
       const dt = lu ? new Date(lu) : new Date();
-      const tsStr = dt.toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const tsStr = dt.toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
       const srcLabel = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators?.sources?.fx) || 'open.er-api.com + yfinance';
       asOfEl.textContent = `기준 시점: ${tsStr} · 출처: ${srcLabel}`;
     }
@@ -11399,7 +11401,7 @@ function showDataSourceDetail(key) {
     if(news.lastFetched) {
       try {
         const dt = new Date(news.lastFetched);
-        actualStats += `<li style="color:#8d90a2;font-size:10px;">최종 페치: ${dt.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</li>`;
+        actualStats += `<li style="color:#8d90a2;font-size:10px;">최종 페치: ${dt.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})}</li>`;
       } catch(_) {}
     }
     if(totalArticles === 0) actualStats += '<li style="color:#ef5350;">서버측 페치 실패 — 클라이언트 RSS 폴백 사용 중</li>';
@@ -14293,7 +14295,7 @@ function applyRealData(d) {
     const dt = new Date(d.lastUpdated);
     el.innerHTML =
       `<span style="color:#26a69a;font-size:9px;">●</span> ` +
-      dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) +
+      dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) +
       ' 업데이트';
   }
 
@@ -14528,7 +14530,7 @@ async function loadRealtimeFx() {
   // 사이드바 업데이트 시각 표시
   const sbEl = document.getElementById('dataSourceInfo');
   if (sbEl && updated > 0) {
-    sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> 실시간 환율: ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
+    sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> 실시간 환율: ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
   }
   // 대시보드 USD/KRW KPI 카드 갱신
   const kpiFxPriceEl = document.getElementById('kpi-fx-price');
@@ -14967,7 +14969,7 @@ async function loadRealtimeMarket() {
     if (sbEl) {
       const now = new Date();
       const src = yahooCount > 0 ? 'Yahoo 실시간' : 'Stooq';
-      sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> ${src}: ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
+      sbEl.innerHTML = `<span style="color:#26a69a;font-size:9px;">●</span> ${src}: ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})}`;
     }
     // 보강이 기본 ON 이라 장중 1분마다 호출된다 → 정상 동작 로그는 debug 로(콘솔 기본 비표시) 노이즈 억제.
     console.debug(`[지수·원자재] ${count}개 갱신 (Yahoo ${yahooCount}, Stooq ${count - yahooCount})`);
@@ -15753,7 +15755,7 @@ async function pfRefreshQuotes(manual) {
     }
   }));
   pfSave();
-  if(el) el.textContent = '시세 ' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}) + ' 기준';
+  if(el) el.textContent = '시세 ' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', hour12:false}) + ' 기준';
   pfRenderAll();
 }
 
@@ -16763,7 +16765,7 @@ async function pfSyncAlerts() {
     if(r.ok && j.ok) {
       pfState.lastSync = new Date().toISOString();
       pfSave();
-      if(st) { st.textContent = `저장 완료 (알림 ${j.count}개, ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'})})`; st.style.color = '#26a69a'; }
+      if(st) { st.textContent = `저장 완료 (알림 ${j.count}개, ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false})})`; st.style.color = '#26a69a'; }
     } else {
       const why = j.error === 'unauthorized' ? '동기화 키 불일치 (🔑 버튼으로 설정)' :
                   j.error === 'no_github_token' ? 'Worker 에 GH_DISPATCH_TOKEN 시크릿 필요' : (j.error || ('HTTP ' + r.status));
