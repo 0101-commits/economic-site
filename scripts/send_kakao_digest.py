@@ -64,8 +64,6 @@ TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
 #   • 주말(토·일)  2회(KST): 11시·17시.
 SLOT_HOURS_WEEKDAY = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
 SLOT_HOURS_WEEKEND = [11, 17]
-# 제목 표기('11시')용 — 평일·주말 모든 시간을 포함.
-SLOT_HOUR = {f"h{h:02d}": f"{h}시" for h in sorted(set(SLOT_HOURS_WEEKDAY) | set(SLOT_HOURS_WEEKEND))}
 
 # 슬롯별 차트 구성 — (history 카테고리, 키, 라벨) 2개를 1장(위·아래)으로 합쳐 보낸다.
 # (라벨은 CI 한글폰트 부재 대비 영문)
@@ -193,7 +191,7 @@ def _fg_label(v):
             "중립" if v < 55 else "탐욕" if v < 75 else "극도탐욕")
 
 
-def build_digest_parts(d, slot=None):
+def build_digest_parts(d):
     """data.json → (제목, 공통 블록 [(라벨, 값), ...]).
 
     공통 내용(모든 슬롯 동일):
@@ -206,10 +204,12 @@ def build_digest_parts(d, slot=None):
     sent = d.get("sentiment", {}) or {}
     us   = (d.get("economicIndicators", {}) or {}).get("us", {}) or {}
 
+    # 제목의 시각은 '실제 발송 시각(now)' 기준 — 슬롯 라벨이 아니라 받는 시각과 항상 일치시킨다.
+    # (정시 발송에선 슬롯 시각 == now 시각이라 동일하지만, 수동·지연 등으로 어긋나도 시각이 거짓이 되지 않게.
+    #  과거 토 15:02 발송이 '17시'로 표기된 사례 방지 — 트리거 게이트 보강과 함께 이중 안전장치.)
     now = datetime.datetime.now(KST)
     wd = "월화수목금토일"[now.weekday()]
-    hh = SLOT_HOUR.get(slot, "")
-    title = f"{now.month}/{now.day}({wd}) {hh} 시황".replace("  ", " ")
+    title = f"{now.month}/{now.day}({wd}) {now.hour}시 시황"
 
     def ip(label, key, nd=0):
         o = idx.get(key)
@@ -724,7 +724,7 @@ def main():
     weekend = _is_weekend()                          # 주말(토·일)이면 11·17시만, 사진은 달러원·금
     slot = _resolve_slot(weekend)
     apply_live_quotes(data)                          # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
-    title, blocks = build_digest_parts(data, slot)   # 제목에 슬롯 시각(7~22시) 포함
+    title, blocks = build_digest_parts(data)         # 제목 시각은 실제 발송 시각(now) 기준
     access_token = refresh_access_token(rest_key, refresh_token)
 
     # 수신 모드 자동 판별 — 연결·동의된 친구가 있으면 '친구에게 보내기'(푸시 알림 정상),
