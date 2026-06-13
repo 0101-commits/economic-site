@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""매일 07~17시 매시간 + 20·22시(KST, :03) data.json 시황을 카카오톡으로 발송한다.
+"""data.json 시황을 카카오톡으로 발송한다 — 평일은 07~22시(:03), 주말은 11·17시만.
 
 수신 모드(자동 판별):
   * 친구에게 보내기(우선) — 앱과 연결·동의된 카카오톡 친구가 있으면 그 친구들에게 발송.
     일반 메시지처럼 '푸시 알림'이 울린다. (2026-06 사용자 요청: 나에게 보내기는 내가 보낸
     메시지라 알림이 없음 → 보조 계정을 발신자로 두고 본 계정을 친구로 수신.)
     검수 전 앱은 '팀 멤버'로 등록된 친구만 조회된다. 설정 절차는 KAKAO_SETUP.md ⑤ 참고.
-    쿼터: 발신자당 일 100건·발신자→수신자 쌍당 일 20건 — 하루 13회 발송 기준 친구 7명까지 안전.
+    쿼터: 발신자당 일 100건·발신자→수신자 쌍당 일 20건 — 평일 16회 발송 기준 친구 6명까지 안전.
   * 나에게 보내기(폴백) — 친구가 없거나 friends 동의가 없으면 종전대로 '나와의 채팅'으로.
 
 필요한 GitHub Secrets:
@@ -26,9 +26,14 @@
    분리, 상하이 운임지수 포함.)
 
 슬롯별 차트(모두 이미지·당일 기준, 당일이 없으면 7일 폴백):
-  07~09시          → S&P500 + 달러-원
-  10~17시          → 코스피 + 달러-원
-  20·22시          → 달러-원 + WTI
+  [평일]
+    07·08시        → S&P500 + 달러-원
+    09시           → S&P500 + 금
+    10~16시        → 코스피 + 달러-원
+    17시           → 달러-원 + 금
+    18~22시        → 달러-원 + WTI
+  [주말] 본문은 평일과 동일, 사진만 달러-원 + 금
+    11시·17시      → 달러-원 + 금
 
 신뢰성 원칙 — '형식이 다른 메시지'가 다시는 나가지 않도록:
   * 모든 카카오 API 호출(토큰 재발급·이미지 업로드·발송)에 지수 백오프 재시도.
@@ -53,10 +58,14 @@ KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
 
-# ── 발송 슬롯 — 매일 13회(KST): 07~17시 매시간 + 20·22시. 워크플로 게이트·차트 구성·제목 표기가
-#    모두 이 목록 기준. (2026-06 사용자 요청: 07~16시 매시간으로 확대, 저녁 17·20·22시는 유지) ──
-SLOT_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 22]
-SLOT_HOUR = {f"h{h:02d}": f"{h}시" for h in SLOT_HOURS}
+# ── 발송 슬롯 — 평일/주말을 분리한다. 워크플로 게이트·차트 구성·제목 표기가 모두 이 목록 기준.
+#    (2026-06 사용자 요청: 평일은 종전 시간대 유지 + 18·19·21시 추가, 주말은 11·17시 2회만.)
+#   • 평일(월~금) 16회(KST): 07~22시 매시간(다만 23~06시 미발송).
+#   • 주말(토·일)  2회(KST): 11시·17시.
+SLOT_HOURS_WEEKDAY = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
+SLOT_HOURS_WEEKEND = [11, 17]
+# 제목 표기('11시')용 — 평일·주말 모든 시간을 포함.
+SLOT_HOUR = {f"h{h:02d}": f"{h}시" for h in sorted(set(SLOT_HOURS_WEEKDAY) | set(SLOT_HOURS_WEEKEND))}
 
 # 슬롯별 차트 구성 — (history 카테고리, 키, 라벨) 2개를 1장(위·아래)으로 합쳐 보낸다.
 # (라벨은 CI 한글폰트 부재 대비 영문)
@@ -66,15 +75,28 @@ _CHART_KR = ([("indices", "KOSPI", "KOSPI"), ("fx", "USDKRW", "USD/KRW")],
              "KOSPI / USD-KRW")
 _CHART_EVE = ([("fx", "USDKRW", "USD/KRW"), ("commodities", "WTI", "WTI Crude")],
               "USD-KRW / WTI")
-SLOT_CHARTS = {
-    "h07": _CHART_US, "h08": _CHART_US, "h09": _CHART_US,
+# (2026-06 사용자 요청) 09시=S&P500+금, 17시·주말=달러원+금.
+_CHART_SP_GOLD = ([("indices", "SP500", "S&P 500"), ("commodities", "Gold", "Gold")],
+                  "S&P500 / Gold")
+_CHART_FX_GOLD = ([("fx", "USDKRW", "USD/KRW"), ("commodities", "Gold", "Gold")],
+                  "USD-KRW / Gold")
+# 평일 슬롯별 차트: 07·08시=S&P500·달러원 / 09시=S&P500·금 / 10~16시=코스피·달러원
+#               / 17시=달러원·금 / 18~22시=달러원·WTI.
+SLOT_CHARTS_WEEKDAY = {
+    "h07": _CHART_US, "h08": _CHART_US, "h09": _CHART_SP_GOLD,
     "h10": _CHART_KR, "h11": _CHART_KR, "h12": _CHART_KR, "h13": _CHART_KR,
-    "h14": _CHART_KR, "h15": _CHART_KR, "h16": _CHART_KR, "h17": _CHART_KR,
-    "h20": _CHART_EVE, "h22": _CHART_EVE,
+    "h14": _CHART_KR, "h15": _CHART_KR, "h16": _CHART_KR, "h17": _CHART_FX_GOLD,
+    "h18": _CHART_EVE, "h19": _CHART_EVE, "h20": _CHART_EVE,
+    "h21": _CHART_EVE, "h22": _CHART_EVE,
 }
-_CHART_COLOR = {"KOSPI": "#2962ff", "SP500": "#1e88e5", "USDKRW": "#26a69a", "WTI": "#ef6c00"}
+# 주말 슬롯별 차트: 본문은 평일과 동일, 사진만 달러원·금.
+SLOT_CHARTS_WEEKEND = {
+    "h11": _CHART_FX_GOLD, "h17": _CHART_FX_GOLD,
+}
+_CHART_COLOR = {"KOSPI": "#2962ff", "SP500": "#1e88e5", "USDKRW": "#26a69a",
+                "WTI": "#ef6c00", "Gold": "#fbc02d"}
 # 당일(인트라데이) 시세용 Yahoo Finance 심볼 — data.json 엔 일별 종가만 있어 차트 생성 시 직접 조회한다.
-_YH_SYM = {"KOSPI": "^KS11", "SP500": "^GSPC", "USDKRW": "KRW=X", "WTI": "CL=F"}
+_YH_SYM = {"KOSPI": "^KS11", "SP500": "^GSPC", "USDKRW": "KRW=X", "WTI": "CL=F", "Gold": "GC=F"}
 # 차트 PNG 크기(px) — 카톡 피드 이미지는 말풍선 '폭'이 고정이고 높이만 비율을 따라 늘어나므로,
 # 가로형(구 720x640)은 화면에서 작게 보인다. 잘리지 않는 최대 세로 비율(3:4)·고해상도로 키운다.
 # (2026-06 사용자 요청: 카톡 사진이 작아 잘 안 보임)
@@ -319,14 +341,30 @@ def _send_template_object(access_token, template, uuids=None):
     return worst
 
 
-def _resolve_slot():
+def _is_weekend(now=None):
+    """현재 KST 기준 주말(토·일) 여부. weekday(): 월=0 … 토=5, 일=6."""
+    return (now or datetime.datetime.now(KST)).weekday() >= 5
+
+
+def _slot_charts(weekend):
+    """요일 유형별 슬롯→차트 매핑."""
+    return SLOT_CHARTS_WEEKEND if weekend else SLOT_CHARTS_WEEKDAY
+
+
+def _slot_hours(weekend):
+    """요일 유형별 발송 시각 목록."""
+    return SLOT_HOURS_WEEKEND if weekend else SLOT_HOURS_WEEKDAY
+
+
+def _resolve_slot(weekend):
     """발송 슬롯(h07~h22) 판정 — 워크플로가 넘긴 KAKAO_SLOT 우선, 없거나 manual 이면
-    현재 KST 시각에서 가장 가까운 슬롯을 고른다."""
+    현재 KST 시각에서 (해당 요일 유형의) 가장 가까운 슬롯을 고른다."""
+    charts = _slot_charts(weekend)
     s = os.environ.get("KAKAO_SLOT", "").strip().lower()
-    if s in SLOT_CHARTS:
+    if s in charts:
         return s
     hr = datetime.datetime.now(KST).hour
-    nearest = min(SLOT_HOURS, key=lambda h: abs(h - hr))
+    nearest = min(_slot_hours(weekend), key=lambda h: abs(h - hr))
     return f"h{nearest:02d}"
 
 
@@ -480,12 +518,12 @@ def apply_live_quotes(d):
         print("[live] 발송 시점 시세 보정: " + ", ".join(updated))
 
 
-def build_slot_chart_png(d, slot, out_path="/tmp/kakao_chart.png"):
+def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
     """슬롯별 지표 2종을 '당일(인트라데이)' 차트 1장 PNG(CHART_PX=1080x1440, 3:4 세로형)로 생성.
 
     당일 시세는 Yahoo 차트 API 에서 직접 조회(data.json 엔 일별 종가만 있음). 당일 조회 실패 시
     data.json history 의 7일 일봉으로 폴백. matplotlib 미설치/생성 실패 시 None(→ 텍스트 폴백)."""
-    spec = SLOT_CHARTS.get(slot)
+    spec = _slot_charts(weekend).get(slot)
     if not spec:
         return None
     panels, suptitle = spec
@@ -630,9 +668,9 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
     return True
 
 
-def send_chart_feed(access_token, data, title, blocks, slot, uuids=None):
+def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None):
     """슬롯 차트 생성→업로드→'한 통' 피드 발송. 한 단계라도 실패 시 False(→ 동일 내용 텍스트 폴백)."""
-    png = build_slot_chart_png(data, slot)
+    png = build_slot_chart_png(data, slot, weekend)
     if not png:
         return False
     image_url = kakao_upload_image(access_token, png)
@@ -683,7 +721,8 @@ def main():
     except (OSError, ValueError) as e:
         raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
 
-    slot = _resolve_slot()
+    weekend = _is_weekend()                          # 주말(토·일)이면 11·17시만, 사진은 달러원·금
+    slot = _resolve_slot(weekend)
     apply_live_quotes(data)                          # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
     title, blocks = build_digest_parts(data, slot)   # 제목에 슬롯 시각(7~22시) 포함
     access_token = refresh_access_token(rest_key, refresh_token)
@@ -702,7 +741,7 @@ def main():
     #    + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
     #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
     if _charts_enabled():
-        if send_chart_feed(access_token, data, title, blocks, slot, uuids=uuids):
+        if send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=uuids):
             print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
             return
         print("[kakao] 차트 피드 실패 — 동일 내용 텍스트로 폴백")
