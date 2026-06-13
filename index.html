@@ -135,6 +135,57 @@
     if(!useDark) document.documentElement.classList.add('light');
   } catch(_){}
 </script>
+<script>
+/* ═══ [3차-T1] econSettings — 전역 설정 스토어 ═══════════════════════════════
+   왜: 알림·차트 기본값을 페이지 간 공유하는 단일 출처(SSOT).
+   - localStorage 'econ_settings_v1' 에 버전드 스키마로 저장
+   - 변경 시 CustomEvent('econ:settings') 발행 + storage 이벤트로 탭 간 동기화
+   - 보조지표(MA/RSI/MACD)는 기존 'pfIndicators' 키가 SSOT — 여기 중복 보관하지 않음 */
+(function () {
+  'use strict';
+  var KEY = 'econ_settings_v1';
+  var DEFAULTS = {
+    v: 1,
+    notif: { globalEnabled: true, defaultLimit: 'daily' },                  // daily | cool60
+    chart: { defaultPreset: '', syncPeriods: false, pfStyle: 'candle' }     // preset: ''|30D|1Q|6M|1Y
+  };
+  function deepMerge(base, over) {
+    var out = {};
+    Object.keys(base).forEach(function (k) {
+      if (base[k] && typeof base[k] === 'object' && !Array.isArray(base[k])) {
+        out[k] = deepMerge(base[k], (over && typeof over[k] === 'object') ? over[k] : {});
+      } else {
+        out[k] = (over && over[k] !== undefined) ? over[k] : base[k];
+      }
+    });
+    return out;
+  }
+  function load() {
+    try { return deepMerge(DEFAULTS, JSON.parse(localStorage.getItem(KEY) || '{}')); }
+    catch (_) { return deepMerge(DEFAULTS, {}); }
+  }
+  var state = load();
+  var subs = [];
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} }
+  function emit() {
+    subs.forEach(function (fn) { try { fn(state); } catch (_) {} });
+    try { window.dispatchEvent(new CustomEvent('econ:settings', { detail: state })); } catch (_) {}
+  }
+  window.econSettings = {
+    get: function (path) {
+      if (!path) return state;
+      return path.split('.').reduce(function (o, k) { return (o == null) ? o : o[k]; }, state);
+    },
+    patch: function (partial) { state = deepMerge(state, partial || {}); persist(); emit(); return state; },
+    on: function (fn) { if (typeof fn === 'function') subs.push(fn); },
+    reset: function () { state = deepMerge(DEFAULTS, {}); persist(); emit(); return state; }
+  };
+  // 다른 탭에서 변경 시 즉시 반영 (탭 간 동기화)
+  window.addEventListener('storage', function (e) {
+    if (e.key === KEY) { state = load(); emit(); }
+  });
+})();
+</script>
 <!-- (DevTools/우클릭 차단 스크립트 제거됨 — 정적 공개 사이트에서 보안 효과가 없고,
      우클릭 차단은 '링크 새 탭 열기'·'텍스트 복사 후 검색'·모바일 롱프레스를 깨뜨려
      실사용 마찰만 발생시켰다. 다시 추가하지 말 것.) -->
@@ -797,6 +848,53 @@
     .tab-btn { position: relative; }
     .tab-btn::after { content: ''; position: absolute; inset: -8px; }
   }
+/* ═══ [3차-T4] 설정·진단·카드뷰·가이드·스크롤차트 공통 스타일 ═══════════════ */
+.set-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--c-border,#2a2e3d); flex-wrap:wrap; }
+.set-row:last-of-type { border-bottom:none; }
+.set-label { font-size:12px; font-weight:600; color:var(--c-txt,#dfe2f2); }
+.set-desc { font-size:10px; color:var(--c-txt-muted,#7a8099); line-height:1.6; margin-top:2px; max-width:540px; }
+.set-select { background:var(--c-bg,#131722); border:1px solid var(--c-border,#2a2e3d); border-radius:4px; padding:4px 8px; color:var(--c-txt,#dfe2f2); font-size:11px; }
+.set-radio { font-size:11px; color:var(--c-txt-dim,#a4a8bc); margin-left:10px; cursor:pointer; white-space:nowrap; }
+/* 토글 스위치 */
+.set-switch { position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
+.set-switch input { opacity:0; width:0; height:0; }
+.set-slider { position:absolute; inset:0; background:var(--c-border,#2a2e3d); border-radius:20px; transition:.2s; cursor:pointer; }
+.set-slider:before { content:""; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#8d90a2; border-radius:50%; transition:.2s; }
+.set-switch input:checked + .set-slider { background:#2962ff; }
+.set-switch input:checked + .set-slider:before { transform:translateX(16px); background:#fff; }
+/* 진단 결과 행 */
+.diag-row { display:flex; gap:8px; padding:5px 0; border-bottom:1px dashed var(--c-border,#2a2e3d); align-items:flex-start; line-height:1.5; }
+.diag-ic { width:18px; flex-shrink:0; }
+.diag-t { font-weight:600; color:var(--c-txt,#dfe2f2); min-width:110px; flex-shrink:0; font-size:11px; }
+.diag-d { color:var(--c-txt-dim,#a4a8bc); word-break:break-all; font-size:11px; }
+/* 와이드 차트 모바일 가로 스크롤 */
+.chart-scroll-x { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+@media (max-width:768px) { .chart-scroll-x .chart-scroll-inner { min-width:560px; } }
+/* 1회성 가이드 배너 */
+.guide-banner { display:flex; gap:8px; align-items:flex-start; background:#2962ff14; border:1px solid #2962ff44; border-radius:6px; padding:8px 10px; font-size:11px; color:var(--c-txt-dim,#a4a8bc); margin:8px 0; line-height:1.6; }
+.guide-banner b { color:var(--c-txt,#dfe2f2); }
+.guide-x { margin-left:auto; cursor:pointer; color:#7a8099; font-weight:700; padding:0 4px; flex-shrink:0; }
+/* 위젯 오류 표시 + 재시도 */
+.widget-err { display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; padding:18px 8px; color:var(--c-txt-muted,#7a8099); font-size:11px; text-align:center; }
+.widget-err button { font-size:11px; padding:3px 12px; border:1px solid #2962ff; border-radius:4px; background:transparent; color:#2962ff; cursor:pointer; }
+/* 데이터 소스 배너 (실데이터 로드 실패 → Mock 동작 고지) */
+#dataSrcBanner { position:fixed; top:64px; right:12px; z-index:1200; background:#33271a; border:1px solid #f0c75e66; color:#f0c75e; border-radius:6px; padding:8px 12px; font-size:11px; display:flex; gap:10px; align-items:center; box-shadow:0 4px 14px #0006; max-width:min(92vw,420px); flex-wrap:wrap; }
+html.light #dataSrcBanner { background:#fff7e6; }
+/* 포트폴리오 모바일 카드 뷰 */
+#pfCardList { display:none; }
+.pf-card { border:1px solid var(--c-border,#2a2e3d); border-radius:8px; padding:10px 12px; margin-bottom:8px; background:var(--c-bg,#131722); }
+.pf-card-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; cursor:pointer; }
+.pf-card-name { font-weight:600; font-size:13px; color:var(--c-txt,#dfe2f2); }
+.pf-card-sym { font-size:10px; color:var(--c-txt-muted,#7a8099); margin-left:4px; }
+.pf-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin-top:8px; font-size:11px; }
+.pf-card-grid label { color:var(--c-txt-muted,#7a8099); display:block; font-size:9px; margin-bottom:2px; }
+.pf-card-grid input { width:100%; background:var(--c-bg,#131722); border:1px solid var(--c-border,#2a2e3d); border-radius:4px; color:var(--c-txt,#dfe2f2); font-size:11px; padding:3px 6px; text-align:right; box-sizing:border-box; }
+.pf-card-foot { display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:11px; }
+@media (max-width:768px) {
+  .pf-table-wrap { display:none; }     /* 표 → 카드 전환 */
+  #pfCardList { display:block; }
+  main { line-height:1.55; }           /* 모바일 본문 가독 밀도 */
+}
 </style>
 </head>
 <body>
@@ -836,6 +934,7 @@
     <div class="menu-item" onclick="showPage('realestate',this)"><span class="mat">home_work</span>부동산</div>
     <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
     <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
+    <div class="menu-item" onclick="showPage('settings',this)"><span class="mat">settings</span>설정</div>
     <!-- 지연 데이터 상태 칩 — 좌하단 플로팅에서 사이드바 정적 배치로 이동 (본문 가림 해소) -->
     <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다."><span class="dot"></span>Market Data 15m Delayed</div>
     <div style="border-top:1px solid #2a2e3d;margin:12px 0;"></div>
@@ -1039,6 +1138,12 @@
               </tr>
             </thead>
             <tbody id="globalIndexTable" style="font-family:'Inter';">
+              <!-- [3차-T20] 초기 스켈레톤 — 첫 페인트 시 빈 표 대신 로딩 형태 표시 -->
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:64%;"></div></td><td><div class="skel-bar" style="width:70%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:52%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:48%;"></div></td><td><div class="skel-bar" style="width:62%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:44%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:56%;"></div></td><td><div class="skel-bar" style="width:66%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:48%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:60%;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:50%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:52%;"></div></td><td><div class="skel-bar" style="width:64%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:46%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
             </tbody>
           </table>
           <div style="border-top:1px solid #2a2e3d;margin-top:12px;padding-top:12px;">
@@ -1147,7 +1252,14 @@
                 <th style="text-align:right;padding:4px 0;font-weight:600;">거래량 (천주)</th>
               </tr>
             </thead>
-            <tbody id="moverTable"></tbody>
+            <tbody id="moverTable">
+              <!-- [3차-T21] 초기 스켈레톤 -->
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:58%;"></div></td><td><div class="skel-bar" style="width:64%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:46%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:60%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:46%;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:50%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:54%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:62%;"></div></td><td><div class="skel-bar" style="width:60%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:42%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:50%;"></div></td><td><div class="skel-bar" style="width:62%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:48%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:52%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:55%;"></div></td><td><div class="skel-bar" style="width:56%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:44%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:56%;margin-left:auto;"></div></td></tr>
+            </tbody>
           </table>
           <div style="font-size:10px;color:#434656;margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span>기준일: <span id="moverRefDate">—</span></span>
@@ -1239,8 +1351,8 @@
             </div>
           </div>
 
-          <!-- 종목 표 -->
-          <div style="overflow-x:auto;">
+          <!-- 종목 표 (모바일 768px 이하에서는 카드 뷰로 대체 — 3차-T22) -->
+          <div style="overflow-x:auto;" class="pf-table-wrap">
             <table class="pf-sticky-first" style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px;">
               <thead>
                 <tr style="color:#8d90a2;border-bottom:1px solid #2a2e3d;text-align:right;">
@@ -1260,6 +1372,7 @@
               </tbody>
             </table>
           </div>
+          <div id="pfCardList"></div>
           <div style="font-size:10px;color:#7a8099;margin-top:8px;">행 클릭 = 상세 차트 · 🔔 = 카카오 알림 조건 · 평단가/수량은 셀에서 바로 수정됩니다. 입력값은 이 브라우저(localStorage)에만 저장됩니다.</div>
         </div>
 
@@ -1294,10 +1407,8 @@
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           <span class="widget-title" style="margin-bottom:0;">📲 카카오톡 알림 조건</span>
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-            <button class="tab-btn" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">🔑 동기화 키</button>
-            <button class="tab-btn" onclick="pfPullAlerts()" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#b6c4ff;cursor:pointer;">⬇ 서버에서 불러오기</button>
             <button class="tab-btn" onclick="pfSyncAlerts()" style="font-size:11px;padding:3px 12px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">☁ 서버에 저장</button>
-            <button class="tab-btn" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증 (평소엔 장중 15분 주기)" style="font-size:11px;padding:3px 10px;border:1px solid #26a69a55;border-radius:4px;background:transparent;color:#26a69a;cursor:pointer;">🔔 테스트 발송</button>
+            <button class="tab-btn" onclick="showPage('settings', document.querySelector('.menu-item[onclick*=settings]'))" title="동기화 키·서버 불러오기·테스트 발송·전역 토글은 설정 페이지에서 관리" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">⚙ 알림 설정 관리 →</button>
             <span id="pfSyncStatus" style="font-size:11px;color:#7a8099;"></span>
           </div>
         </div>
@@ -1504,8 +1615,10 @@
             <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">3년</button>
             <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:11px;padding:2px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1년</button>
           </div>
-          <div style="position:relative;height:340px;">
-            <canvas id="rateHistoryChart" role="img" aria-label="주요국 기준금리 비교">금리 차트</canvas>
+          <div class="chart-scroll-x">
+            <div class="chart-scroll-inner" style="position:relative;height:340px;">
+              <canvas id="rateHistoryChart" role="img" aria-label="주요국 기준금리 비교">금리 차트</canvas>
+            </div>
           </div>
         </div>
         <!-- Current rates table -->
@@ -1572,8 +1685,10 @@
                 <button onclick="setYieldCurveCompare('1y',this)" class="ycCompareBtn"        data-cmp="1y" style="font-size:10px;padding:2px 7px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1년전</button>
               </div>
             </div>
-            <div style="position:relative;flex:1;min-height:280px;">
-              <canvas id="yieldCurveChart" role="img" aria-label="국채 수익률 곡선">수익률 곡선</canvas>
+            <div class="chart-scroll-x" style="flex:1;display:flex;">
+              <div class="chart-scroll-inner" style="position:relative;flex:1;min-height:280px;">
+                <canvas id="yieldCurveChart" role="img" aria-label="국채 수익률 곡선">수익률 곡선</canvas>
+              </div>
             </div>
           </div>
         </div>
@@ -2679,6 +2794,100 @@
       </div>
     </div><!-- /realestate -->
 
+    <!-- ====== 페이지: 설정 (3차-T3) — 알림·차트 규칙·백업·진단 중앙 관리 ====== -->
+    <div class="page" id="page-settings">
+
+      <!-- 위젯 1: 알림 규칙 관리 -->
+      <div class="widget" style="margin-bottom:14px;">
+        <div class="widget-title">🔔 알림 규칙 관리</div>
+        <div class="set-row">
+          <div>
+            <div class="set-label">카카오톡 알림 전체 사용</div>
+            <div class="set-desc">끄면 서버(GitHub Actions)가 모든 종목 알림 평가·발송을 중단합니다. 「🔔 테스트 발송」은 항상 동작하며, OFF 상태임을 메시지에 표기합니다.</div>
+          </div>
+          <label class="set-switch"><input type="checkbox" id="setNotifEnabled" onchange="settingsToggleNotif(this.checked)"><span class="set-slider"></span></label>
+        </div>
+        <div class="set-row">
+          <div>
+            <div class="set-label">기본 도배 방지 주기</div>
+            <div class="set-desc">개별 알림에 주기를 지정하지 않은 경우 적용되는 기본값입니다.</div>
+          </div>
+          <select id="setNotifLimit" class="set-select" onchange="settingsSetDefaultLimit(this.value)">
+            <option value="daily">하루 1회</option>
+            <option value="cool60">1시간 쿨다운</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+          <button class="tab-btn" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">🔑 동기화 키</button>
+          <button class="tab-btn" onclick="pfPullAlerts()" style="font-size:11px;padding:3px 10px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#b6c4ff;cursor:pointer;">⬇ 서버에서 불러오기</button>
+          <button class="tab-btn" onclick="pfSyncAlerts()" style="font-size:11px;padding:3px 12px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">☁ 서버에 저장</button>
+          <button class="tab-btn" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증" style="font-size:11px;padding:3px 10px;border:1px solid #26a69a55;border-radius:4px;background:transparent;color:#26a69a;cursor:pointer;">🔔 테스트 발송</button>
+          <span id="settingsSyncStatus" style="font-size:11px;color:#7a8099;"></span>
+        </div>
+        <div id="settingsAlertSummary" style="font-size:12px;color:var(--c-txt-dim,#a4a8bc);margin-top:10px;">—</div>
+        <div class="set-desc" style="margin-top:8px;">개별 종목 알림의 추가·삭제는 「투자 현황」 페이지 종목 행의 🔔 버튼에서 합니다. <b>전역 토글·기본 주기를 바꾼 뒤에도 「☁ 서버에 저장」을 눌러야 서버에 반영됩니다.</b></div>
+      </div>
+
+      <!-- 위젯 2: 차트 공통 규칙 -->
+      <div class="widget" style="margin-bottom:14px;">
+        <div class="widget-title">📈 차트 공통 규칙</div>
+        <div class="set-row">
+          <div><div class="set-label">기본 조회 기간</div><div class="set-desc">기간 프리셋이 있는 차트(대시보드·환율·금리·주식·원자재·투자자)에 페이지 첫 진입 시 1회 적용됩니다. 종목 상세 모달에는 근사 매핑(1개월·분기→3개월 / 반기·1년→1년)으로 적용됩니다.</div></div>
+          <span id="setPresetGroup" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
+            <button class="tab-btn" data-preset="" onclick="settingsSetPreset('',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">페이지 기본</button>
+            <button class="tab-btn" data-preset="30D" onclick="settingsSetPreset('30D',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1개월</button>
+            <button class="tab-btn" data-preset="1Q" onclick="settingsSetPreset('1Q',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">분기</button>
+            <button class="tab-btn" data-preset="6M" onclick="settingsSetPreset('6M',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">반기</button>
+            <button class="tab-btn" data-preset="1Y" onclick="settingsSetPreset('1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#8d90a2;cursor:pointer;">1년</button>
+          </span>
+        </div>
+        <div class="set-row">
+          <div><div class="set-label">기간 변경 동기화</div><div class="set-desc">한 차트의 기간 프리셋을 누르면 현재 페이지의 다른 프리셋 차트에도 같은 기간을 함께 적용합니다.</div></div>
+          <label class="set-switch"><input type="checkbox" id="setSyncPeriods" onchange="settingsToggleSync(this.checked)"><span class="set-slider"></span></label>
+        </div>
+        <div class="set-row">
+          <div><div class="set-label">종목 상세 차트 스타일</div><div class="set-desc">투자 현황 종목 상세(모달) 차트의 기본 표시 방식입니다.</div></div>
+          <span>
+            <label class="set-radio"><input type="radio" name="setPfStyle" value="candle" onchange="settingsSetPfStyle('candle')"> 캔들</label>
+            <label class="set-radio"><input type="radio" name="setPfStyle" value="line" onchange="settingsSetPfStyle('line')"> 라인</label>
+          </span>
+        </div>
+        <div class="set-row">
+          <div><div class="set-label">기본 보조지표</div><div class="set-desc">종목 상세 차트를 열 때 함께 표시할 지표 — 기존 모달 내 토글과 같은 저장값(pfIndicators)을 사용합니다.</div></div>
+          <span>
+            <label class="set-radio"><input type="checkbox" id="setInd_ma" onchange="settingsToggleInd('ma',this.checked)"> 이동평균</label>
+            <label class="set-radio"><input type="checkbox" id="setInd_rsi" onchange="settingsToggleInd('rsi',this.checked)"> RSI</label>
+            <label class="set-radio"><input type="checkbox" id="setInd_macd" onchange="settingsToggleInd('macd',this.checked)"> MACD</label>
+          </span>
+        </div>
+      </div>
+
+      <!-- 위젯 3: 데이터 백업·복구 -->
+      <div class="widget" style="margin-bottom:14px;">
+        <div class="widget-title">💾 데이터 백업·복구</div>
+        <div class="set-desc" style="margin-bottom:10px;">포트폴리오(평단가·수량 포함)·알림·분석 노트·설정 등 이 브라우저에 저장된 <b>모든 사용자 데이터</b>(현재 <span id="setBackupCount">—</span>개 항목)를 파일 하나로 내보내거나 복구합니다. 브라우저 변경·캐시 삭제에 대비하세요.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <button class="tab-btn" onclick="exportAllUserData(false)" style="font-size:11px;padding:3px 12px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">⬇ JSON 백업</button>
+          <button class="tab-btn" onclick="exportAllUserData(true)" title="AES-256-GCM 으로 암호화해 내보냅니다 — 평단가·수량이 든 파일을 클라우드 등에 보관할 때 권장" style="font-size:11px;padding:3px 12px;border:1px solid #26a69a55;border-radius:4px;background:transparent;color:#26a69a;cursor:pointer;">🔐 암호화 백업</button>
+          <label class="tab-btn" style="font-size:11px;padding:3px 12px;border:1px solid #2a2e3d;border-radius:4px;background:transparent;color:#b6c4ff;cursor:pointer;display:inline-block;">↥ 백업 복구<input type="file" accept="application/json,.json" style="display:none;" onchange="importAllUserData(this)"></label>
+        </div>
+        <div id="setBackupStatus" style="font-size:11px;color:#7a8099;margin-top:8px;"></div>
+        <div style="border-top:1px solid var(--c-border,#2a2e3d);margin-top:12px;padding-top:10px;">
+          <div class="set-label" style="color:#ef5350;">위험 구역</div>
+          <div class="set-desc">이 브라우저의 모든 사용자 데이터를 삭제하고 초기 상태로 되돌립니다. 되돌릴 수 없습니다.</div>
+          <button class="tab-btn" onclick="settingsWipeAll()" style="font-size:11px;padding:3px 12px;border:1px solid #ef535055;border-radius:4px;background:transparent;color:#ef5350;cursor:pointer;margin-top:6px;">🗑 전체 초기화</button>
+        </div>
+      </div>
+
+      <!-- 위젯 4: 시스템 진단 (3차 신규 요청 — 링크·데이터 정확성 검토) -->
+      <div class="widget">
+        <div class="widget-title">🩺 시스템 진단 <span style="font-size:9px;color:var(--c-txt-muted,#434656);font-weight:400;">링크·데이터 정확성 자가 점검</span></div>
+        <div class="set-desc" style="margin-bottom:10px;">메뉴 라우팅·클릭 핸들러·데이터 신선도·핵심 시계열 정합성·알림 서버 도달·외부 링크 상태를 한 번에 점검합니다. 외부 링크의 실제 상태는 주간 CI 점검 결과(<code>link_status.json</code>)를 표시합니다.</div>
+        <button class="tab-btn" id="diagRunBtn" onclick="runDiagnostics()" style="font-size:11px;padding:3px 14px;border:1px solid #2962ff;border-radius:4px;background:#2962ff;color:#fff;cursor:pointer;">▶ 진단 실행</button>
+        <div id="diagResult" style="margin-top:10px;font-size:12px;"></div>
+      </div>
+
+    </div>
     <!-- ====== 페이지 6: 주요 투자자 (국민연금 + 글로벌 대형 연기금) ====== -->
     <div class="page" id="page-investor">
       <!-- 투자자 선택 — 1차 탭 (국민연금 / GPFG / GPIF / FRTIB / CalPERS) -->
@@ -3492,8 +3701,11 @@ function showPage(id, el) {
     }
   }
   if(id==='notes') { loadNotes(); }
+  if(id==='settings') { try { initSettingsPage(); } catch(e) { console.warn('settings init', e); } }
   if(id==='investor') { setTimeout(()=>{ buildInvestorPage(); try { buildGlobalAllocCompare(); } catch(e) { console.warn('globalAlloc', e); } },50); }
   if(id==='realestate') { setRETab('kr', document.getElementById('reitabKR')); setTimeout(buildReCharts, 80); }
+  // [3차-T5] 페이지 공통 훅 — 기본 조회 기간 1회 적용 + 1회성 가이드 배너 (T6에서 정의)
+  try { if (typeof econPageHook === 'function') econPageHook(id); } catch(_) {}
   // 메뉴 클릭 후 사이드바 자동 숨김 (모바일/데스크탑 공통)
   collapseSidebarAfterNav();
 }
@@ -5097,6 +5309,22 @@ function periodPresetLabel(preset) {
 
 // 차트별 프리셋 적용 — chartName: main / fx / bond / equity / com / investor / re
 function applyChartPresetPeriod(chartName, preset, btn) {
+  // [3차-T7] 기간 동기화 — 설정에서 켠 경우, 현재 페이지의 다른 프리셋 차트에도 전파.
+  // _presetSyncing 가드로 전파 중 재귀 진입을 차단한다 (T6 기본값 적용 시에도 동일 가드 사용).
+  if (!window._presetSyncing && window.econSettings && econSettings.get('chart.syncPeriods')) {
+    window._presetSyncing = true;
+    try {
+      const _pg = document.querySelector('.page.active');
+      if (_pg) _pg.querySelectorAll('[class*="preset-btn-group-"]').forEach(group => {
+        const gm = (group.className || '').match(/preset-btn-group-([a-z]+)/);
+        if (!gm || gm[1] === chartName) return;
+        // 버튼에 data 속성이 없어 onclick 의 'PRESET' 코드로 매칭 — 같은 프리셋이 없는 차트는 건너뜀
+        const gb = Array.prototype.find.call(group.querySelectorAll('button'),
+          b => ((b.getAttribute('onclick') || '').indexOf("'" + preset + "'") >= 0));
+        if (gb) { try { applyChartPresetPeriod(gm[1], preset, gb); } catch (_) {} }
+      });
+    } finally { window._presetSyncing = false; }
+  }
   const days = periodPresetDays(preset);
   const today = new Date();
   const fromDt = new Date(today.getTime() - days * 86400000);
@@ -14156,7 +14384,8 @@ async function loadRealData() {
       } catch(_) {}
     }
   } catch {
-    // data.json 없음 — Mock 데이터로 동작
+    // data.json 없음 — Mock 데이터로 동작. [3차-T18] 사용자에게 명시 + 재시도 제공
+    try { if (typeof showDataSourceBanner === 'function') showDataSourceBanner(); } catch (_) {}
   }
 }
 
@@ -15108,6 +15337,11 @@ function rebuildChartsForTheme() {
   // Rebuild all active charts so grid/tick/tooltip colors update
   applyChartJsThemeDefaults();
   const tc = getThemeColors();
+  // [3차-T11] 종목 상세 모달이 열려 있으면 모달 차트도 새 테마색으로 재렌더 (T10과 한 쌍)
+  try {
+    const _m = document.getElementById('pfChartModal');
+    if (_m && _m.style.display === 'block' && typeof pfChart !== 'undefined' && pfChart && pfChart.candles) pfRenderChart();
+  } catch (_) {}
   Object.entries(charts).forEach(([id, ch]) => {
     if(!ch || !ch.options) return;
     try {
@@ -16040,7 +16274,7 @@ function pfRenderBench() {
   });
 }
 
-function pfRenderAll() { pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie(); pfRenderAlertSummary(); try { pfRecordSnapshot(); pfRenderBench(); } catch(_) {} }
+function pfRenderAll() { pfRenderGroups(); pfRenderTable(); if (typeof pfRenderCards === 'function') pfRenderCards(); pfRenderSummary(); pfRenderPie(); pfRenderAlertSummary(); try { pfRecordSnapshot(); pfRenderBench(); } catch(_) {} }
 
 // ── 상세 차트 (TradingView Lightweight Charts) ───────────────────────────────
 let pfChart = { item: null, period: '1Y', main: null, rsi: null, macd: null, syncing: false, candles: null };
@@ -16051,6 +16285,22 @@ function pfOpenChart(itemId) {
   const it = pfState.items.find(x => x.id === itemId);
   if(!it) return;
   pfChart.item = it;
+  // [3차-T8] 설정의 기본 조회 기간을 모달 최초 1회 적용 (모달 기간 체계로 근사 매핑: 30D/1Q→3M, 6M/1Y→1Y)
+  if (!pfChart._defaultApplied && window.econSettings) {
+    const _dp = econSettings.get('chart.defaultPreset');
+    const _map = { '30D': '3M', '1Q': '3M', '6M': '1Y', '1Y': '1Y' };
+    if (_dp && _map[_dp]) {
+      pfChart.period = _map[_dp];
+      try {
+        document.querySelectorAll('#pfChartPeriods .tab-btn').forEach(b => {
+          const on = b.dataset.p === pfChart.period;
+          b.style.background = on ? '#2962ff' : 'transparent';
+          b.style.color = on ? '#fff' : '#8d90a2';
+        });
+      } catch (_) {}
+    }
+    pfChart._defaultApplied = true;   // 사용자가 모달에서 직접 고른 기간을 이후 덮어쓰지 않음
+  }
   document.getElementById('pfChartModal').style.display = 'block';
   document.getElementById('pfChartTitle').textContent = (it.name || it.symbol) + ' (' + it.symbol + ')';
   const q = pfQuotes[it.id];
@@ -16151,18 +16401,29 @@ async function pfLoadChart() {
       if(!daily) msg.textContent = '분봉 미지원 종목 — 일봉으로 표시합니다.';
     }
   }
-  if(candles.length < 2) { msg.textContent = '차트 데이터를 불러오지 못했습니다. (심볼: ' + sym + ')'; pfChart.candles = null; return; }
+  if(candles.length < 2) {
+    // [3차-T17] 실패 시 재시도 버튼 — 일시적 네트워크 오류를 모달 재오픈 없이 복구
+    msg.innerHTML = '차트 데이터를 불러오지 못했습니다. (심볼: ' + pfEsc(sym) + ') ' +
+      '<button onclick="pfLoadChart()" style="font-size:11px;padding:2px 10px;margin-left:6px;border:1px solid #2962ff;border-radius:4px;background:transparent;color:#2962ff;cursor:pointer;">↻ 재시도</button>';
+    pfChart.candles = null;
+    return;
+  }
   pfChart.candles = candles;
   if(msg.textContent === '차트 데이터 로딩 중…') msg.textContent = '';
   pfRenderChart();
 }
 function pfMkChart(el, height, opts) {
+  // [3차-T10] 라이트/다크 테마 인지 — 모달 차트도 현재 테마 색을 따른다 (기존엔 다크색 하드코딩)
+  const light = document.documentElement.classList.contains('light');
+  const txt = light ? 'rgb(89,89,89)' : '#a4a8bc';
+  const grid = light ? '#dbe6f4' : '#1f2430';
+  const border = light ? '#aac4e6' : '#2a2e3d';
   return LightweightCharts.createChart(el, Object.assign({
     width: el.clientWidth, height,
-    layout: { background: { color: 'transparent' }, textColor: '#a4a8bc', fontSize: 10 },
-    grid: { vertLines: { color: '#1f2430' }, horzLines: { color: '#1f2430' } },
-    rightPriceScale: { borderColor: '#2a2e3d' },
-    timeScale: { borderColor: '#2a2e3d', timeVisible: true, secondsVisible: false },
+    layout: { background: { color: 'transparent' }, textColor: txt, fontSize: 10 },
+    grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+    rightPriceScale: { borderColor: border },
+    timeScale: { borderColor: border, timeVisible: true, secondsVisible: false },
     crosshair: { mode: 0 },
   }, opts || {}));
 }
@@ -16202,8 +16463,17 @@ function pfRenderChart() {
   elMain.innerHTML = '';
   const main = pfMkChart(elMain, 360);
   pfChart.main = main;
-  const cs = main.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350', wickUpColor: '#26a69a', wickDownColor: '#ef5350' });
-  cs.setData(candles);
+  // [3차-T9] 차트 스타일(캔들/라인) + 테마색 — 설정·라이트 모드 연동
+  const tcPf = (typeof getThemeColors === 'function') ? getThemeColors() : { up: '#26a69a', down: '#ef5350', accent: '#2962ff' };
+  const pfStyle = (window.econSettings && econSettings.get('chart.pfStyle')) || 'candle';
+  let cs;
+  if (pfStyle === 'line') {
+    cs = main.addLineSeries({ color: tcPf.accent || '#2962ff', lineWidth: 2, priceLineVisible: true });
+    cs.setData(candles.map(c => ({ time: c.time, value: c.close })));
+  } else {
+    cs = main.addCandlestickSeries({ upColor: tcPf.up, downColor: tcPf.down, borderUpColor: tcPf.up, borderDownColor: tcPf.down, wickUpColor: tcPf.up, wickDownColor: tcPf.down });
+    cs.setData(candles);
+  }
   const vol = main.addHistogramSeries({ priceScaleId: '', priceFormat: { type: 'volume' }, color: '#2a2e3d' });
   main.priceScale('').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
   vol.setData(candles.map(c => ({ time: c.time, value: c.volume, color: c.close >= c.open ? '#26a69a55' : '#ef535055' })));
@@ -16403,19 +16673,25 @@ function pfRenderAlertList() {
     </div>`).join('');
 }
 function pfRenderAlertSummary() {
-  const el = document.getElementById('pfAlertSummary');
-  if(!el) return;
-  if(!pfState.alerts.length) { el.textContent = '설정된 알림이 없습니다. 종목 행의 🔔 버튼으로 추가하세요.'; return; }
+  // [3차-T14] 다중 타깃 — 포트폴리오 위젯과 설정 페이지에 같은 요약을 동시 렌더
+  const els = ['pfAlertSummary', 'settingsAlertSummary']
+    .map(id => document.getElementById(id)).filter(Boolean);
+  if(!els.length) return;
+  if(!pfState.alerts.length) {
+    els.forEach(el => { el.textContent = '설정된 알림이 없습니다. 「투자 현황」 종목 행의 🔔 버튼으로 추가하세요.'; });
+    return;
+  }
   const bySym = {};
   pfState.alerts.forEach(a => {
     const k = a.name || a.symbol;
     (bySym[k] = bySym[k] || []).push(pfAlertLabel(a) + (a.enabled ? '' : ' (OFF)'));
   });
-  el.innerHTML = Object.keys(bySym).map(k =>
+  const html = Object.keys(bySym).map(k =>
     `<div style="margin-bottom:4px;"><b style="color:#dfe2f2;">${pfEsc(k)}</b> — ${pfEsc(bySym[k].join(' · '))}</div>`).join('');
+  els.forEach(el => { el.innerHTML = html; });
 }
 function pfMarkDirty() {
-  const el = document.getElementById('pfSyncStatus');
+  const el = _pfSyncStatusEl();
   if(el) { el.textContent = '변경됨 — 서버 저장 필요'; el.style.color = '#f0c75e'; }
   pfRenderAlertSummary();
 }
@@ -16454,8 +16730,17 @@ async function pfSetSyncKey() {
     if(typeof showToast === 'function') showToast('동기화 키가 SHA-256 해시로 안전하게 저장되었습니다.');
   } catch(_) {}
 }
+// [3차-T13] 동기화 상태 표시 대상 선택 — 설정 페이지가 활성일 땐 그쪽 상태줄을 우선 사용.
+// 같은 함수(pfSyncAlerts 등)를 포트폴리오·설정 두 화면에서 공유하기 위한 어댑터.
+function _pfSyncStatusEl() {
+  const pg = document.getElementById('page-settings');
+  if (pg && pg.classList.contains('active')) {
+    return document.getElementById('settingsSyncStatus') || document.getElementById('pfSyncStatus');
+  }
+  return document.getElementById('pfSyncStatus') || document.getElementById('settingsSyncStatus');
+}
 async function pfSyncAlerts() {
-  const st = document.getElementById('pfSyncStatus');
+  const st = _pfSyncStatusEl();
   const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
   if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = '#ef5350'; } return; }
   if(st) { st.textContent = '저장 중…'; st.style.color = '#8d90a2'; }
@@ -16463,7 +16748,15 @@ async function pfSyncAlerts() {
     const r = await fetch(base + '/portfolio', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ keyHash: await pfGetSyncKeyHash(), alerts: pfState.alerts }),
+      body: JSON.stringify({
+        keyHash: await pfGetSyncKeyHash(),
+        alerts: pfState.alerts,
+        // [3차-T15] 전역 알림 설정 동봉 — Worker 가 화이트리스트 검증 후 alerts_config.json 에 커밋
+        settings: (window.econSettings ? {
+          enabled: !!econSettings.get('notif.globalEnabled'),
+          defaultLimit: econSettings.get('notif.defaultLimit') || 'daily'
+        } : undefined)
+      }),
       signal: AbortSignal.timeout(20000),
     });
     const j = await r.json().catch(() => ({}));
@@ -16484,7 +16777,7 @@ async function pfSyncAlerts() {
 // stock-alerts 워크플로를 즉시 1회 깨운다. 설정 검증에 다음 15분 cron 을 기다릴 필요 없음.
 // 테스트 런은 장중/쿨다운 가드를 무시하고 평가하며, 메시지에 "[테스트]" 프리픽스가 붙는다.
 async function pfTestAlerts() {
-  const st = document.getElementById('pfSyncStatus');
+  const st = _pfSyncStatusEl();
   const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
   if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = '#ef5350'; } return; }
   if(st) { st.textContent = '테스트 발송 요청 중…'; st.style.color = '#8d90a2'; }
@@ -16509,7 +16802,7 @@ async function pfTestAlerts() {
   }
 }
 async function pfPullAlerts() {
-  const st = document.getElementById('pfSyncStatus');
+  const st = _pfSyncStatusEl();
   const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
   if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = '#ef5350'; } return; }
   if(st) { st.textContent = '불러오는 중…'; st.style.color = '#8d90a2'; }
@@ -16520,6 +16813,14 @@ async function pfPullAlerts() {
     if(pfState.alerts.length && !confirm(`서버의 알림 ${j.alerts.length}개로 현재 설정(${pfState.alerts.length}개)을 덮어쓸까요?`)) return;
     pfState.alerts = j.alerts;
     pfSave(); pfRenderAll();
+    // [3차-T15] 서버에 저장된 전역 알림 설정도 함께 반영
+    if (j.settings && window.econSettings) {
+      econSettings.patch({ notif: {
+        globalEnabled: j.settings.enabled !== false,
+        defaultLimit: j.settings.defaultLimit === 'cool60' ? 'cool60' : 'daily'
+      } });
+      try { const pg = document.getElementById('page-settings'); if (pg && pg.classList.contains('active')) initSettingsPage(); } catch (_) {}
+    }
     if(st) { st.textContent = `서버 설정 ${j.alerts.length}개 불러옴`; st.style.color = '#26a69a'; }
   } catch(_) {
     if(st) { st.textContent = '불러오기 실패 — 네트워크 오류'; st.style.color = '#ef5350'; }
@@ -17097,6 +17398,520 @@ window.addEventListener('load', () => {
   // data.json 이 이미 적용된 경우(applyRealData 가 먼저 돈 경우) 비교 차트 즉시 초기화
   try { initCompareTool(); } catch(_) {}
 });
+</script>
+
+<script>
+/* ═══ [3차-T6] 설정 페이지 로직 · 통합 백업 · 가이드 · 오류 처리 ═══════════════
+   의존: econSettings(T1), 설정 페이지 마크업(T3), 공통 CSS(T4), showPage 훅(T5) */
+(function () {
+'use strict';
+
+/* ── 6.1 설정 페이지 초기화 ─────────────────────────────────────────────── */
+window.initSettingsPage = function () {
+  // 설정 페이지를 포트폴리오보다 먼저 열어도 알림 요약이 나오도록 상태를 선로드
+  try { if (typeof pfState !== 'undefined' && !pfState && typeof pfLoad === 'function') pfState = pfLoad(); } catch (_) {}
+  var s = econSettings.get();
+  var el;
+  if ((el = document.getElementById('setNotifEnabled'))) el.checked = !!s.notif.globalEnabled;
+  if ((el = document.getElementById('setNotifLimit')))   el.value   = s.notif.defaultLimit || 'daily';
+  if ((el = document.getElementById('setSyncPeriods')))  el.checked = !!s.chart.syncPeriods;
+  document.querySelectorAll('#setPresetGroup .tab-btn').forEach(function (b) {
+    var on = (b.dataset.preset || '') === (s.chart.defaultPreset || '');
+    b.style.background = on ? '#2962ff' : 'transparent';
+    b.style.color = on ? '#fff' : '#8d90a2';
+  });
+  var st = document.querySelector('input[name="setPfStyle"][value="' + (s.chart.pfStyle || 'candle') + '"]');
+  if (st) st.checked = true;
+  var ind = { ma: true, rsi: false, macd: false };
+  try { ind = JSON.parse(localStorage.getItem('pfIndicators')) || ind; } catch (_) {}
+  ['ma', 'rsi', 'macd'].forEach(function (k) {
+    var c = document.getElementById('setInd_' + k);
+    if (c) c.checked = !!ind[k];
+  });
+  try { if (typeof pfRenderAlertSummary === 'function' && pfState) pfRenderAlertSummary(); } catch (_) {}
+  _renderBackupCount();
+};
+
+function _settingsMarkDirty() {
+  var st = document.getElementById('settingsSyncStatus');
+  if (st) { st.textContent = '변경됨 — ☁ 서버에 저장 필요'; st.style.color = '#f0c75e'; }
+}
+window.settingsToggleNotif = function (on) {
+  econSettings.patch({ notif: { globalEnabled: !!on } });
+  _settingsMarkDirty();
+};
+window.settingsSetDefaultLimit = function (v) {
+  econSettings.patch({ notif: { defaultLimit: v === 'cool60' ? 'cool60' : 'daily' } });
+  _settingsMarkDirty();
+};
+window.settingsToggleSync = function (on) { econSettings.patch({ chart: { syncPeriods: !!on } }); };
+window.settingsSetPfStyle = function (v) { econSettings.patch({ chart: { pfStyle: v === 'line' ? 'line' : 'candle' } }); };
+window.settingsToggleInd = function (k, on) {
+  // 보조지표 SSOT 는 기존 'pfIndicators' — 설정 페이지는 같은 키를 읽고 쓴다
+  var ind = { ma: true, rsi: false, macd: false };
+  try { ind = JSON.parse(localStorage.getItem('pfIndicators')) || ind; } catch (_) {}
+  ind[k] = !!on;
+  try { localStorage.setItem('pfIndicators', JSON.stringify(ind)); } catch (_) {}
+  try { if (typeof pfInd !== 'undefined' && pfInd) pfInd[k] = !!on; } catch (_) {}  // 열린 모달 즉시 반영용 전역
+};
+window.settingsSetPreset = function (p, btn) {
+  econSettings.patch({ chart: { defaultPreset: p || '' } });
+  document.querySelectorAll('#setPresetGroup .tab-btn').forEach(function (b) {
+    var on = b === btn;
+    b.style.background = on ? '#2962ff' : 'transparent';
+    b.style.color = on ? '#fff' : '#8d90a2';
+  });
+  // 페이지별 '1회 적용' 플래그 리셋 → 다음 진입 시 새 기본 기간이 다시 적용되게
+  document.querySelectorAll('[data-default-applied]').forEach(function (el) { delete el.dataset.defaultApplied; });
+  try { if (pfChart) pfChart._defaultApplied = false; } catch (_) {}
+  if (typeof showToast === 'function') showToast(p ? '각 페이지를 다시 열면 기본 기간이 적용됩니다.' : '페이지별 기본 기간을 사용합니다.');
+};
+
+/* ── 6.2 페이지 훅 — 기본 기간 1회 적용 + 1회성 가이드 ──────────────────── */
+var GUIDES_LS_KEY = 'econ_guides_v1';
+function _guideSeen(key) { try { return !!(JSON.parse(localStorage.getItem(GUIDES_LS_KEY) || '{}'))[key]; } catch (_) { return false; } }
+window.dismissGuide = function (key, el) {
+  try {
+    var g = JSON.parse(localStorage.getItem(GUIDES_LS_KEY) || '{}');
+    g[key] = 1;
+    localStorage.setItem(GUIDES_LS_KEY, JSON.stringify(g));
+  } catch (_) {}
+  var b = el && el.closest ? el.closest('.guide-banner') : null;
+  if (b) b.remove();
+};
+function mountGuideBanner(anchorEl, key, html, position) {
+  if (!anchorEl || _guideSeen(key) || document.getElementById('guide-' + key)) return;
+  var div = document.createElement('div');
+  div.className = 'guide-banner';
+  div.id = 'guide-' + key;
+  div.innerHTML = '<span>💡</span><span>' + html + '</span><span class="guide-x" onclick="dismissGuide(\'' + key + '\',this)" title="다시 보지 않기">✕</span>';
+  anchorEl.insertAdjacentElement(position || 'beforebegin', div);
+}
+function _applyDefaultPresetsForActivePage() {
+  var preset = econSettings.get('chart.defaultPreset');
+  if (!preset || typeof applyChartPresetPeriod !== 'function') return;
+  var page = document.querySelector('.page.active');
+  if (!page) return;
+  page.querySelectorAll('[class*="preset-btn-group-"]').forEach(function (group) {
+    if (group.dataset.defaultApplied) return;
+    var m = (group.className || '').match(/preset-btn-group-([a-z]+)/);
+    if (!m) return;
+    // 버튼에 data 속성이 없으므로 onclick 의 'PRESET' 코드 문자열로 매칭 (예: applyChartPresetPeriod('main','30D',this))
+    var btn = Array.prototype.find.call(group.querySelectorAll('button'), function (b) {
+      return ((b.getAttribute('onclick') || '').indexOf("'" + preset + "'") >= 0);
+    });
+    if (!btn) return;                  // 해당 차트에 같은 프리셋이 없으면 건너뜀
+    group.dataset.defaultApplied = '1';
+    window._presetSyncing = true;      // 기본값 적용이 '기간 동기화 전파'(T7)를 재귀 유발하지 않게
+    try { applyChartPresetPeriod(m[1], preset, btn); } catch (_) {}
+    window._presetSyncing = false;
+  });
+}
+window.econPageHook = function (id) {
+  // 페이지별 init 이 setTimeout(…, 50) 으로 늦게 도는 구조 → 한 박자(400ms) 뒤 실행
+  setTimeout(function () {
+    try { _applyDefaultPresetsForActivePage(); } catch (_) {}
+    try {
+      if (id === 'dashboard') {
+        mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',
+          '<b>지표 비교 차트 사용법</b> — 두 지표를 고르면 좌(파랑)/우(주황) 이중 Y축으로 겹쳐 봅니다. 축 스케일 차이로 기울기가 과장될 수 있으니, 등락률만 비교하려면 <b>「⚖ 지수화 =100」</b> 버튼을 켜세요.', 'beforebegin');
+      }
+      if (id === 'realestate') {
+        var page = document.getElementById('page-realestate');
+        mountGuideBanner(page ? page.querySelector('.widget') : null, 're_range',
+          '<b>구간 수익률 측정</b> — 부동산 가격 차트 위에서 <b>시작점을 클릭</b>하고 <b>끝점을 다시 클릭</b>하면 두 시점 사이 변동률이 자동 계산됩니다.', 'beforebegin');
+      }
+    } catch (_) {}
+  }, 400);
+};
+
+/* ── 6.3 위젯 오류 표시 · 실데이터 미로드 배너 ─────────────────────────── */
+function _escT6(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+window.showWidgetError = function (targetId, opts) {
+  opts = opts || {};
+  var el = document.getElementById(targetId);
+  if (!el) return;
+  var btn = opts.retry ? '<button onclick="' + String(opts.retry).replace(/"/g, '&quot;') + '">↻ 재시도</button>' : '';
+  var block = '<div class="widget-err"><div>⚠ ' + _escT6(opts.title || '데이터를 불러오지 못했습니다') + '</div>' +
+              (opts.detail ? '<div style="font-size:10px;max-width:92%;">' + _escT6(String(opts.detail).slice(0, 160)) + '</div>' : '') +
+              btn + '</div>';
+  if (el.tagName === 'TBODY') {
+    var cols = 4;
+    try { cols = el.closest('table').querySelectorAll('thead th').length || 4; } catch (_) {}
+    el.innerHTML = '<tr><td colspan="' + cols + '">' + block + '</td></tr>';
+  } else {
+    el.innerHTML = block;
+  }
+};
+window.showDataSourceBanner = function () {
+  if (document.getElementById('dataSrcBanner')) return;
+  var div = document.createElement('div');
+  div.id = 'dataSrcBanner';
+  div.innerHTML = '⚠ 서버 데이터(data.json)를 불러오지 못해 <b>예시(Mock) 데이터</b>로 표시 중입니다.' +
+    '<button onclick="retryLoadRealData(this)" style="font-size:11px;padding:2px 10px;border:1px solid #f0c75e;border-radius:4px;background:transparent;color:#f0c75e;cursor:pointer;">↻ 재시도</button>' +
+    '<span style="cursor:pointer;font-weight:700;padding:0 2px;" onclick="this.parentNode.remove()" title="닫기">✕</span>';
+  document.body.appendChild(div);
+};
+window.retryLoadRealData = async function (btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '확인 중…'; }
+  try {
+    // 경량 프로브(data_meta.json, ~70B)로 도달성 먼저 확인 → 본체 로드
+    var r = await fetch('./data_meta.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    await loadRealData();
+    var b = document.getElementById('dataSrcBanner');
+    if (b) b.remove();
+    if (typeof showToast === 'function') showToast('서버 데이터 연결 복구 — 실데이터로 전환되었습니다.');
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ 재시도'; }
+    if (typeof showToast === 'function') showToast('아직 연결 불가 — 잠시 후 다시 시도하세요.');
+  }
+};
+
+/* ── 6.4 통합 백업·복구 (암호화 옵션) ───────────────────────────────────── */
+var ECON_BACKUP_KEYS = [
+  'econ_settings_v1', 'econ_theme',
+  'portfolioV1', 'pfSnapshotsV1', 'pfIndicators', 'pfSyncKeyHash',
+  'econ_notes', 'econ_notes_session',
+  'econ_cal_alerts_v1', 'econ_cmp_sel_v1',
+  'econ_home_kpi_order_v1', 'econ_home_sec_order_v1', 'econ_home_hidden_v1',
+  'cfProxyBase', 'realtimeBoost', 'newsClientFetch', 'econ_guides_v1'
+];
+var ECON_BACKUP_PREFIXES = ['econ_notes_bak'];   // 분석 노트 자동백업 세대 포함
+function _collectBackupKeys() {
+  var keys = [];
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (ECON_BACKUP_KEYS.indexOf(k) >= 0 ||
+          ECON_BACKUP_PREFIXES.some(function (p) { return k.indexOf(p) === 0; })) keys.push(k);
+    }
+  } catch (_) {}
+  return keys;
+}
+function _renderBackupCount() {
+  var el = document.getElementById('setBackupCount');
+  if (el) el.textContent = String(_collectBackupKeys().length);
+}
+function _b64FromBytes(bytes) {
+  var bin = '';
+  for (var i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  return btoa(bin);
+}
+function _bytesFromB64(b64) {
+  var bin = atob(b64);
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+var PBKDF2_ITER = 600000;   // OWASP Password Storage Cheat Sheet 의 PBKDF2-HMAC-SHA256 권장 반복수
+async function _deriveKey(pass, salt) {
+  var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: PBKDF2_ITER, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+window.exportAllUserData = async function (encrypt) {
+  var st = document.getElementById('setBackupStatus');
+  try {
+    var data = {};
+    _collectBackupKeys().forEach(function (k) { data[k] = localStorage.getItem(k); });
+    var payload = { schema: 'econ-terminal-backup', version: 1, exportedAt: new Date().toISOString(), origin: location.origin, data: data };
+    var fileObj, fname;
+    var stamp = new Date().toISOString().slice(0, 10);
+    if (encrypt) {
+      var p1 = prompt('백업 암호를 입력하세요 (복구 시 동일 암호 필요 — 분실 시 복구 불가):');
+      if (!p1) return;
+      var p2 = prompt('암호를 한 번 더 입력하세요:');
+      if (p1 !== p2) { alert('암호가 일치하지 않습니다.'); return; }
+      if (st) { st.textContent = '암호화 중… (키 유도에 수 초가 걸릴 수 있습니다)'; st.style.color = '#8d90a2'; }
+      var salt = crypto.getRandomValues(new Uint8Array(16));
+      var iv = crypto.getRandomValues(new Uint8Array(12));
+      var key = await _deriveKey(p1, salt);
+      var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, new TextEncoder().encode(JSON.stringify(payload)));
+      fileObj = {
+        schema: 'econ-terminal-backup', version: 1,
+        enc: { alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter: PBKDF2_ITER, salt: _b64FromBytes(salt), iv: _b64FromBytes(iv) },
+        ciphertext: _b64FromBytes(new Uint8Array(ct))
+      };
+      fname = 'econ-terminal-backup-' + stamp + '.enc.json';
+    } else {
+      fileObj = payload;
+      fname = 'econ-terminal-backup-' + stamp + '.json';
+    }
+    var blob = new Blob([JSON.stringify(fileObj, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    if (st) { st.textContent = (encrypt ? '암호화 ' : '') + '백업 파일 생성 완료 — ' + Object.keys(payload.data).length + '개 항목'; st.style.color = '#26a69a'; }
+  } catch (e) {
+    if (st) { st.textContent = '백업 실패: ' + (e && e.message); st.style.color = '#ef5350'; }
+  }
+};
+window.importAllUserData = function (input) {
+  var file = input && input.files && input.files[0];
+  if (!file) return;
+  var st = document.getElementById('setBackupStatus');
+  var fr = new FileReader();
+  fr.onload = async function () {
+    try {
+      var obj = JSON.parse(fr.result);
+      var payload = obj;
+      if (obj && obj.enc && obj.ciphertext) {
+        var pass = prompt('이 백업은 암호화되어 있습니다. 백업 암호를 입력하세요:');
+        if (!pass) { input.value = ''; return; }
+        if (st) { st.textContent = '복호화 중…'; st.style.color = '#8d90a2'; }
+        var key = await _deriveKey(pass, _bytesFromB64(obj.enc.salt));
+        var pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: _bytesFromB64(obj.enc.iv) }, key, _bytesFromB64(obj.ciphertext));
+        payload = JSON.parse(new TextDecoder().decode(pt));
+      }
+      if (!payload || payload.schema !== 'econ-terminal-backup' || !payload.data) throw new Error('형식이 다른 파일입니다 (econ-terminal-backup 아님)');
+      var keys = Object.keys(payload.data);
+      var pf = null;
+      try { pf = JSON.parse(payload.data.portfolioV1 || 'null'); } catch (_) {}
+      var summary = '백업 시점: ' + (payload.exportedAt || '?') + '\n항목 ' + keys.length + '개' +
+        (pf ? ' · 종목 ' + ((pf.items || []).length) + '개 · 알림 ' + ((pf.alerts || []).length) + '개' : '');
+      if (!confirm(summary + '\n\n현재 브라우저 데이터를 이 백업으로 덮어쓸까요? (적용 후 페이지가 새로고침됩니다)')) { input.value = ''; return; }
+      keys.forEach(function (k) {
+        var v = payload.data[k];
+        if (typeof v === 'string') { try { localStorage.setItem(k, v); } catch (_) {} }
+      });
+      location.reload();
+    } catch (e) {
+      if (st) { st.textContent = '복구 실패: ' + (e && e.message ? e.message : '암호 불일치 또는 손상된 파일'); st.style.color = '#ef5350'; }
+      input.value = '';
+    }
+  };
+  fr.readAsText(file);
+};
+window.settingsWipeAll = function () {
+  if (!confirm('이 브라우저에 저장된 포트폴리오·알림·분석 노트·설정을 모두 삭제합니다. 계속할까요?')) return;
+  var t = prompt("정말 삭제하려면 '초기화' 라고 입력하세요:");
+  if (t !== '초기화') return;
+  _collectBackupKeys().forEach(function (k) { try { localStorage.removeItem(k); } catch (_) {} });
+  location.reload();
+};
+
+/* ── 6.5 포트폴리오 모바일 카드 뷰 (표의 1:1 대응 렌더) ─────────────────── */
+window.pfRenderCards = function () {
+  var wrap = document.getElementById('pfCardList');
+  if (!wrap) return;
+  if (window.matchMedia && !window.matchMedia('(max-width: 768px)').matches) { wrap.innerHTML = ''; return; }  // 데스크탑은 표 사용
+  if (typeof pfState === 'undefined' || !pfState) return;
+  var items = pfVisibleItems();
+  if (!items.length) {
+    wrap.innerHTML = '<div style="padding:16px;text-align:center;color:#7a8099;font-size:11px;">' +
+      (pfState.items.length ? '이 그룹에 종목이 없습니다.' : '종목 코드를 조회해 추가하세요. (한국 6자리 코드 / 미국 티커)') + '</div>';
+    return;
+  }
+  var fx = pfUsdKrw();
+  wrap.innerHTML = items.map(function (it) {
+    var q = pfQuotes[it.id];
+    var alerts = pfState.alerts.filter(function (a) { return a.symbol === it.symbol && a.market === it.market; });
+    var pnl = '<span style="color:#7a8099;">-</span>';
+    if (q && it.avg && it.qty) {
+      var pnlNative = (q.price - it.avg) * it.qty;
+      var pnlPct = (q.price / it.avg - 1) * 100;
+      var pnlKrw = (q.ccy === 'USD') ? (fx ? pnlNative * fx : null) : pnlNative;
+      var cls = pnlNative >= 0 ? 'up-txt' : 'down-txt';
+      pnl = '<span class="' + cls + '">' + (pnlKrw != null ? (pnlNative >= 0 ? '+' : '') + pfFmtKrw(pnlKrw) : '-') +
+            ' (' + (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2) + '%)</span>';
+    }
+    return '<div class="pf-card">' +
+      '<div class="pf-card-head" onclick="pfOpenChart(\'' + it.id + '\')">' +
+        '<span><span class="pf-card-name">' + pfEsc(it.name || it.symbol) + '</span><span class="pf-card-sym">' + pfEsc(it.symbol) + '</span></span>' +
+        '<span style="text-align:right;"><span style="font-family:\'Public Sans\';color:var(--c-txt,#dfe2f2);font-size:13px;">' + (q ? pfFmtPrice(q.price, q.ccy) : '로딩…') + '</span><br>' + (q ? pfChgHtml(q.pct) : '-') + '</span>' +
+      '</div>' +
+      '<div class="pf-card-grid">' +
+        '<div><label>평단가</label><input type="number" step="any" min="0" value="' + (it.avg != null ? it.avg : '') + '" placeholder="-" onchange="pfUpdateItemField(\'' + it.id + '\',\'avg\',this.value,this)"></div>' +
+        '<div><label>수량</label><input type="number" step="any" min="0" value="' + (it.qty != null ? it.qty : '') + '" placeholder="-" onchange="pfUpdateItemField(\'' + it.id + '\',\'qty\',this.value,this)"></div>' +
+      '</div>' +
+      '<div class="pf-card-foot">' +
+        '<span>평가손익: ' + pnl + '</span>' +
+        '<span style="white-space:nowrap;">' +
+          '<button onclick="pfOpenAlerts(\'' + it.id + '\')" title="카카오 알림 설정" style="background:transparent;border:none;cursor:pointer;font-size:14px;">' + (alerts.length ? '🔔' : '🕭') + '</button><span style="font-size:10px;color:#8d90a2;">' + (alerts.length || '') + '</span> ' +
+          '<button onclick="pfDeleteItem(\'' + it.id + '\')" title="삭제" style="background:transparent;border:none;cursor:pointer;font-size:13px;color:#8d90a2;">🗑</button>' +
+        '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+};
+// 화면 폭 변경(회전 등) 시 카드/표 전환 반영 — 250ms 디바운스
+window.addEventListener('resize', (function () {
+  var t = null;
+  return function () {
+    clearTimeout(t);
+    t = setTimeout(function () { try { if (typeof pfState !== 'undefined' && pfState) pfRenderCards(); } catch (_) {} }, 250);
+  };
+})());
+
+/* ── 6.6 초기 진입(대시보드) 훅 — 가이드·기본 기간 1회 적용 ─────────────── */
+document.addEventListener('DOMContentLoaded', function () {
+  setTimeout(function () { try { econPageHook('dashboard'); } catch (_) {} }, 900);
+});
+})();
+</script>
+
+<script>
+/* ═══ [3차-T28] 시스템 진단 — 링크·라우팅·데이터 정확성 자가 점검 ═════════════
+   설계: 브라우저에서 확정 판정 가능한 것은 즉시 검사하고, CORS 로 판정 불가한
+   외부 링크 상태는 CI 산출물 link_status.json(T29~T30)을 읽어 표시한다.
+   시계열 정합성 규칙은 scripts/validate_data.py(T31)와 동일 기준을 사용한다. */
+(function () {
+'use strict';
+function _esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+function _row(level, title, detail) {
+  var ic = { ok: '✅', warn: '⚠️', err: '❌', info: 'ℹ️' }[level] || 'ℹ️';
+  return '<div class="diag-row"><span class="diag-ic">' + ic + '</span><span class="diag-t">' + _esc(title) + '</span><span class="diag-d">' + detail + '</span></div>';
+}
+
+window.runDiagnostics = async function () {
+  var out = document.getElementById('diagResult');
+  var btn = document.getElementById('diagRunBtn');
+  if (!out) return;
+  if (btn) { btn.disabled = true; btn.textContent = '진단 중…'; }
+  out.innerHTML = '<div class="skel-bar" style="width:60%;"></div>';
+  var rows = [];
+
+  /* 1) 차트 라이브러리 로드 */
+  rows.push(_row(typeof Chart !== 'undefined' ? 'ok' : 'err', '차트 라이브러리',
+    'Chart.js ' + (typeof Chart !== 'undefined' ? _esc(Chart.version || '로드됨') : '미로드 — CDN 차단 여부 확인')));
+  rows.push(_row(typeof LightweightCharts !== 'undefined' ? 'ok' : 'warn', '차트 라이브러리',
+    'Lightweight Charts ' + (typeof LightweightCharts !== 'undefined' ? '로드됨' : '미로드 — 종목 상세 차트만 영향')));
+
+  /* 2) 메뉴 라우팅 무결성 — 사이드바의 모든 showPage 대상 페이지 존재 확인 */
+  try {
+    var items = document.querySelectorAll('#sidebar .menu-item[onclick]');
+    var missing = [];
+    items.forEach(function (mi) {
+      var m = (mi.getAttribute('onclick') || '').match(/showPage\('([^']+)'/);
+      if (m && !document.getElementById('page-' + m[1])) missing.push(m[1]);
+    });
+    rows.push(missing.length
+      ? _row('err', '메뉴 라우팅', '대상 페이지 누락: ' + _esc(missing.join(', ')))
+      : _row('ok', '메뉴 라우팅', items.length + '개 메뉴 → 페이지 매핑 정상'));
+  } catch (e) { rows.push(_row('err', '메뉴 라우팅', '검사 실패: ' + _esc(e.message))); }
+
+  /* 3) 클릭 핸들러 무결성 — onclick 이 참조하는 전역 함수의 정의 여부 (깨진 버튼 사전 탐지) */
+  try {
+    var fns = {};
+    var _kw = { 'if': 1, 'for': 1, 'while': 1, 'switch': 1, 'return': 1, 'typeof': 1, 'void': 1, 'new': 1 };
+    document.querySelectorAll('[onclick]').forEach(function (el) {
+      var m = (el.getAttribute('onclick') || '').match(/^\s*(?:window\.)?([A-Za-z_$][\w$]*)\s*\(/);
+      if (m && !_kw[m[1]]) fns[m[1]] = 1;   // 'if(event.target===this)…' 류 인라인 구문은 함수 참조가 아님
+    });
+    var names = Object.keys(fns);
+    var broken = names.filter(function (f) { return typeof window[f] !== 'function'; });
+    rows.push(broken.length
+      ? _row('err', '클릭 핸들러', '미정의 함수 ' + broken.length + '개: ' + _esc(broken.slice(0, 10).join(', ')))
+      : _row('ok', '클릭 핸들러', names.length + '개 참조 함수 모두 정의됨'));
+  } catch (e) { rows.push(_row('err', '클릭 핸들러', '검사 실패: ' + _esc(e.message))); }
+
+  /* 4) 데이터 신선도 — data_meta.json(약 70B 경량 프로브) 기준.
+        수집 워크플로가 장중 10분 주기이므로 2시간 내=정상, 26시간 내=주의, 초과=오류 */
+  var meta = null;
+  try {
+    meta = await (await fetch('./data_meta.json?t=' + Date.now(), { cache: 'no-store' })).json();
+    var ageH = (Date.now() - new Date(meta.lastUpdated).getTime()) / 36e5;
+    var lvl = ageH < 2 ? 'ok' : ageH < 26 ? 'warn' : 'err';
+    rows.push(_row(lvl, '데이터 신선도', '서버 data.json 생성 ' + ageH.toFixed(1) + '시간 전 (' + _esc(new Date(meta.lastUpdated).toLocaleString('ko-KR')) + ')' + (lvl !== 'ok' ? ' — 수집 워크플로(fetch-data) 실행 상태 확인 권장' : '')));
+  } catch (_) {
+    rows.push(_row('err', '데이터 신선도', 'data_meta.json 조회 실패 — Mock 모드이거나 네트워크/배포 문제'));
+  }
+  if (meta) {
+    if (window._lastRealDataTs && window._lastRealDataTs === meta.lastUpdated)
+      rows.push(_row('ok', '화면 데이터', '화면에 로드된 데이터 = 서버 최신본 일치'));
+    else if (window._lastRealDataTs)
+      rows.push(_row('warn', '화면 데이터', '화면 데이터가 서버 최신본과 다릅니다 — 새로고침(↻) 권장'));
+    else
+      rows.push(_row('warn', '화면 데이터', '실데이터 미로드 — 예시(Mock) 데이터 표시 중'));
+  }
+
+  /* 5) 수집 파이프라인 상태 — fetch_data.py 가 data.json 에 기록한 diagnostics 키 노출 */
+  try {
+    var d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : null;
+    var dg = d && d.diagnostics;
+    if (dg) {
+      var notes = [];
+      if (dg.pykrxAvailable === false) notes.push('pykrx 사용 불가 — 국내 시세가 폴백 소스로 수집됨');
+      if (dg.krxLoginAvailable === false) notes.push('KRX 로그인 미설정 — 투자자별 매매동향이 제한될 수 있음');
+      if (dg.realestate_kr && dg.realestate_kr.rone_ok === false) notes.push('R-ONE(부동산 통계) 수집 실패');
+      rows.push(_row(notes.length ? 'warn' : 'ok', '수집 파이프라인',
+        notes.length ? _esc(notes.join(' · ')) : '주요 수집 소스 정상 (KRX·부동산·청약 OK)'));
+    } else {
+      rows.push(_row('info', '수집 파이프라인', '진단 정보 없음 — 실데이터 로드 후 다시 실행'));
+    }
+  } catch (_) {}
+
+  /* 6) 핵심 시계열 정합성 — 신선도·결측·급변·절대 범위 (validate_data.py 와 동일 규칙) */
+  try {
+    var d2 = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : null;
+    if (!d2) {
+      rows.push(_row('warn', '시계열 정합성', '실데이터 미로드 — 검사 생략'));
+    } else {
+      var issues = [];
+      var checkSeries = function (label, seq, maxStaleDays, jumpPct) {
+        if (!Array.isArray(seq) || !seq.length) { issues.push(label + ': 시계열 없음'); return; }
+        var last = seq[seq.length - 1] || {};
+        var staleD = (Date.now() - new Date(last.date).getTime()) / 864e5;
+        if (isFinite(staleD) && staleD > maxStaleDays) issues.push(label + ': 마지막 데이터 ' + Math.floor(staleD) + '일 전(' + _esc(last.date) + ')');
+        var closes = seq.slice(-10).map(function (p) { return p && p.close; }).filter(function (v) { return typeof v === 'number' && isFinite(v); });
+        for (var i = 1; i < closes.length; i++) {
+          var chg = Math.abs(closes[i] / closes[i - 1] - 1) * 100;
+          if (chg > jumpPct) { issues.push(label + ': 일간 ' + chg.toFixed(1) + '% 급변 — 수집 오류 의심'); break; }
+        }
+        var nulls = seq.slice(-30).filter(function (p) { return !(p && typeof p.close === 'number' && isFinite(p.close)); }).length;
+        if (nulls) issues.push(label + ': 최근 30포인트 중 결측 ' + nulls + '건');
+      };
+      var hist = d2.history || {};
+      checkSeries('KOSPI', (hist.indices || {}).KOSPI, 5, 12);
+      checkSeries('S&P500', (hist.indices || {}).SP500, 5, 12);
+      checkSeries('USD/KRW', (hist.fx || {}).USDKRW, 5, 6);
+      var rate = ((d2.fx || {}).USDKRW || {}).rate;
+      if (typeof rate === 'number' && !(rate >= 800 && rate <= 2500)) issues.push('USD/KRW 현재가 ' + rate + ' — 정상 범위(800~2,500) 이탈(단위 오류 의심)');
+      rows.push(issues.length
+        ? _row('warn', '시계열 정합성', _esc(issues.join(' · ')))
+        : _row('ok', '시계열 정합성', 'KOSPI·S&P500·USD/KRW — 신선도/결측/급변/범위 이상 없음'));
+    }
+  } catch (e) { rows.push(_row('err', '시계열 정합성', '검사 실패: ' + _esc(e.message))); }
+
+  /* 7) 알림 서버(Worker) 도달 — 인증과 무관하게 응답 자체를 확인 (GET /portfolio 는 공개 설계) */
+  try {
+    var base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+    if (!base) rows.push(_row('warn', '알림 서버', 'Worker 프록시 미설정'));
+    else {
+      var wr = await fetch(base + '/portfolio', { signal: AbortSignal.timeout(8000) });
+      rows.push(_row(wr.status < 500 ? 'ok' : 'warn', '알림 서버',
+        _esc(base.replace(/^https?:\/\//, '')) + ' 응답 HTTP ' + wr.status + (wr.status < 500 ? ' — 도달 정상' : ' — 서버 오류')));
+    }
+  } catch (_) { rows.push(_row('err', '알림 서버', 'Worker 도달 실패 — 네트워크/배포 상태 확인')); }
+
+  /* 8) 외부 링크 상태 — CI 주간 점검 결과(link_status.json) 표시. 없으면 인벤토리만.
+        (브라우저 직접 검사는 CORS 의 opaque 응답으로 상태코드 판정이 불가능 — §0.3 #3) */
+  try {
+    var links = [];
+    document.querySelectorAll('a[href^="http"]').forEach(function (a) { links.push(a.href); });
+    var uniq = links.filter(function (v, i) { return links.indexOf(v) === i; });
+    var st = null;
+    try { st = await (await fetch('./link_status.json?t=' + Date.now(), { cache: 'no-store' })).json(); } catch (_) {}
+    if (st && Array.isArray(st.results)) {
+      var bad = st.results.filter(function (r) { return r.status === 'broken'; });
+      var man = st.results.filter(function (r) { return r.status === 'manual'; });
+      rows.push(_row(bad.length ? 'err' : 'ok', '외부 링크',
+        '검사 ' + st.results.length + '개 — 정상 ' + (st.results.length - bad.length - man.length) + ' · 수동확인 ' + man.length + ' · 끊김 ' + bad.length +
+        ' <span style="color:#7a8099;">(점검일 ' + _esc(String(st.checkedAt || '').slice(0, 10)) + ', 주 1회 자동)</span>'));
+      bad.slice(0, 6).forEach(function (b) { rows.push(_row('err', '· 끊긴 링크', _esc(b.url) + ' → ' + _esc(b.code) + ' (링크 교체 필요)')); });
+      man.slice(0, 4).forEach(function (b) { rows.push(_row('warn', '· 수동 확인', _esc(b.url) + ' → ' + _esc(b.code) + ' (봇 차단/일시 장애 가능 — 브라우저로 직접 확인)')); });
+    } else {
+      rows.push(_row('info', '외부 링크', '본문 링크 ' + uniq.length + '개 발견 — 상태 파일(link_status.json) 없음. 링크 점검 워크플로(Actions → Link Check)를 1회 수동 실행하면 이후 자동 표시됩니다.'));
+    }
+  } catch (e) { rows.push(_row('err', '외부 링크', '검사 실패: ' + _esc(e.message))); }
+
+  out.innerHTML = rows.join('');
+  if (btn) { btn.disabled = false; btn.textContent = '▶ 진단 실행'; }
+};
+})();
 </script>
 </body>
 </html>

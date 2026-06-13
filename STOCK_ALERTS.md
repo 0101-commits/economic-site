@@ -129,3 +129,20 @@ TIGER 미국S&P500 21,840원(+0.8%) 52주 신고가
   기기별 localStorage 라 동기화되지 않음).
 - GitHub `schedule` 은 best-effort 라 몇 분 지연될 수 있습니다 — 알림 데이터 자체가
   15분 지연 기준이므로 분 단위 정시성은 보장하지 않습니다.
+
+## 전역 알림 설정 (`settings` 블록) — 3차 고도화
+
+사이트의 **설정 페이지**(사이드바 ⚙)에서 저장하면 `alerts_config.json` 에 다음 블록이 추가된다:
+
+```json
+"settings": { "enabled": true, "defaultLimit": "daily" }
+```
+
+| 필드 | 값 | 동작 |
+|---|---|---|
+| `enabled` | `true`/`false` | `false` 면 `check_alerts.py` 가 정규 cron 평가를 통째로 건너뛴다. **「🔔 테스트 발송」은 항상 동작**하며, 메시지에 전역 OFF 상태를 표기한다. |
+| `defaultLimit` | `"daily"`/`"cool60"` | 개별 알림에 `limit` 이 지정되지 않은 경우 적용되는 기본 도배 방지 주기(하루 1회 / 1시간 쿨다운). |
+
+- Worker(`/portfolio` POST)가 화이트리스트 검증(`_sanitizeSettings`) 후 커밋하므로 임의 필드는 저장되지 않는다.
+- **하위 호환**: `settings` 키가 없는 기존 파일은 `enabled=true`, `defaultLimit="daily"` 로 동작한다.
+- 전역 토글·기본 주기를 바꾼 뒤에도 반드시 **「☁ 서버에 저장」** 을 눌러야 서버에 반영된다.

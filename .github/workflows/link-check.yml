@@ -1,0 +1,53 @@
+name: Link Check (외부 링크 주간 점검)
+
+# index.html 의 외부 링크(출처·바로가기) 상태를 매주 점검해 link_status.json 으로 커밋.
+# 사이트의 '설정 → 시스템 진단' 패널이 이 파일을 읽어 끊긴 링크를 표시한다.
+# 주 1회로 충분한 이유: 링크 부패(link rot)는 일 단위 사건이 아니고,
+# 대상 기관 서버에 불필요한 트래픽을 만들지 않기 위함.
+on:
+  schedule:
+    - cron: '0 21 * * 0'   # 매주 월요일 06:00 KST (UTC 일요일 21:00)
+  workflow_dispatch:        # 수동 실행 허용 (최초 1회 수동 실행 권장)
+
+concurrency:
+  group: link-check
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Run link checker
+        run: python scripts/check_links.py
+
+      - name: Commit link_status.json
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          # 신규 파일(첫 실행)은 git diff 에 잡히지 않으므로 add 후 인덱스 기준으로 판정
+          git add link_status.json
+          if git diff --cached --quiet -- link_status.json; then
+            echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
+          fi
+          git commit -m "chore: 외부 링크 상태 점검 결과 갱신" -q
+          # data.json 10분 주기 커밋과의 push 경쟁 대비 — 원격 최신 위에 재적용 후 재시도
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then echo "push 성공 (시도 ${attempt})"; exit 0; fi
+            echo "push 실패 (시도 ${attempt}) — rebase 후 재시도"
+            git pull --rebase origin main || true
+            sleep $((attempt * 3))
+          done
+          echo "::error::link_status.json push 실패 (재시도 소진)"; exit 1

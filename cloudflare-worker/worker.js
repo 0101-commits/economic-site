@@ -363,10 +363,20 @@ function _sanitizeAlerts(raw) {
   return out;
 }
 
+function _sanitizeSettings(raw) {
+  // [3차-T25] 전역 알림 설정 화이트리스트 — _sanitizeAlerts 와 동일 원칙으로,
+  // 알 수 없는 필드가 공개 저장소(alerts_config.json)에 커밋되지 않게 막는다.
+  const s = (raw && typeof raw === 'object') ? raw : {};
+  return {
+    enabled: s.enabled !== false,                                    // 기본 ON
+    defaultLimit: s.defaultLimit === 'cool60' ? 'cool60' : 'daily',  // 기본 daily
+  };
+}
+
 async function handlePortfolioGet(env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   const { status, json } = await _ghContents(env, 'GET');
-  if (status === 404) return jsonResponse({ ok: true, alerts: [], updatedAt: null });
+  if (status === 404) return jsonResponse({ ok: true, alerts: [], settings: null, updatedAt: null });
   if (status !== 200 || !json || !json.content) {
     return jsonResponse({ error: 'github_read_failed', status }, 502);
   }
@@ -375,7 +385,7 @@ async function handlePortfolioGet(env) {
     const bin = atob(String(json.content).replace(/\n/g, ''));
     const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
     const cfg = JSON.parse(new TextDecoder().decode(bytes));
-    return jsonResponse({ ok: true, alerts: cfg.alerts || [], updatedAt: cfg.updatedAt || null });
+    return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, updatedAt: cfg.updatedAt || null });
   } catch {
     return jsonResponse({ error: 'config_parse_failed' }, 502);
   }
@@ -413,7 +423,8 @@ async function handlePortfolioPost(request, env) {
   const denied = await _verifySyncKey(body, env);
   if (denied) return denied;
   const alerts = _sanitizeAlerts(body.alerts);
-  const cfg = { version: 1, updatedAt: new Date().toISOString(), alerts };
+  const settings = _sanitizeSettings(body.settings);
+  const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts };
   // 기존 파일 sha 조회(업데이트 시 필수) → PUT 커밋
   const cur = await _ghContents(env, 'GET');
   const sha = (cur.status === 200 && cur.json && cur.json.sha) ? cur.json.sha : undefined;
@@ -426,7 +437,7 @@ async function handlePortfolioPost(request, env) {
   }
   const b64 = btoa(bin);
   const put = await _ghContents(env, 'PUT', {
-    message: `alerts: 카카오 알림 설정 동기화 (${alerts.length}개, web)`,
+    message: `alerts: 카카오 알림 설정 동기화 (${alerts.length}개, 전역 ${settings.enabled ? 'ON' : 'OFF'}, web)`,
     content: b64,
     branch: 'main',
     ...(sha ? { sha } : {}),
