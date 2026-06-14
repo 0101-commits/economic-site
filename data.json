@@ -1,8 +1,8 @@
 {
-  "lastUpdated": "2026-06-15T00:09:31.333071+09:00",
+  "lastUpdated": "2026-06-15T00:26:19.164144+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-14T22:41)",
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-15T00:09)",
     "etfMovers": "KRX OpenAPI",
     "investorTrading": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
     "freight": "해상운임 스크래핑(네이버/StockQ/SSE)",
@@ -20,6 +20,7 @@
     "move": "yfinance ^MOVE",
     "fear_greed": "CNN Fear & Greed Index",
     "realestate_kr_trade": "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)",
+    "subscription": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
     "nps": "fund.nps.or.kr",
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
@@ -2273,7 +2274,7 @@
     ],
     "unit": "억원",
     "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
-    "lastFetched": "2026-06-15T00:11:29.663502+09:00"
+    "lastFetched": "2026-06-15T00:28:21.226368+09:00"
   },
   "freight": {
     "items": [
@@ -2360,7 +2361,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-06-15T00:11:40.427197+09:00"
+    "lastFetched": "2026-06-15T00:28:29.759239+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -6509,8 +6510,8 @@
         }
       },
       "dxy_idx": {
-        "value": 99.75,
-        "change": -0.22,
+        "value": 99.81,
+        "change": 0.04,
         "period": "2026-06-15",
         "desc": "달러 인덱스 (DXY, ICE 1973=100)",
         "source": "yfinance DX-Y.NYB",
@@ -175683,10 +175684,384 @@
       "fred_tried": false,
       "fred_ok": false
     },
-    "subscription": "ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoSvc HTTP400 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | ApplyhomeInfoSvc HTTP400 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP400 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP400 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"} ",
+    "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 1,
     "preservedMetricsDeep": 1,
     "historySpotSynced": 7
+  },
+  "subscription": {
+    "byRegion": {
+      "seoul": [
+        {
+          "name": "북서울자이 폴라리스(보류지)",
+          "area": "서울",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "써밋 더힐",
+          "area": "서울",
+          "date": "2026-05-15",
+          "rate": null
+        },
+        {
+          "name": "아크로 리버스카이",
+          "area": "서울",
+          "date": "2026-05-13",
+          "rate": null
+        },
+        {
+          "name": "더 리치먼드 미아",
+          "area": "서울",
+          "date": "2026-04-27",
+          "rate": null
+        },
+        {
+          "name": "공덕역자이르네",
+          "area": "서울",
+          "date": "2026-04-17",
+          "rate": null
+        },
+        {
+          "name": "라클라체자이드파인",
+          "area": "서울",
+          "date": "2026-04-03",
+          "rate": null
+        },
+        {
+          "name": "오티에르 반포",
+          "area": "서울",
+          "date": "2026-03-31",
+          "rate": null
+        },
+        {
+          "name": "이촌 르엘",
+          "area": "서울",
+          "date": "2026-03-30",
+          "rate": null
+        },
+        {
+          "name": "더샵 신길센트럴시티",
+          "area": "서울",
+          "date": "2026-03-20",
+          "rate": null
+        },
+        {
+          "name": "아크로 드 서초",
+          "area": "서울",
+          "date": "2026-03-20",
+          "rate": null
+        },
+        {
+          "name": "더샵 프리엘라",
+          "area": "서울",
+          "date": "2026-03-12",
+          "rate": null
+        },
+        {
+          "name": "래미안 엘라비네",
+          "area": "서울",
+          "date": "2026-03-06",
+          "rate": null
+        },
+        {
+          "name": "마곡지구 17단지 토지임대부(본청약)",
+          "area": "서울",
+          "date": "2026-02-27",
+          "rate": null
+        },
+        {
+          "name": "해링턴플레이스 노원 센트럴",
+          "area": "서울",
+          "date": "2026-02-20",
+          "rate": null
+        },
+        {
+          "name": "드파인 연희",
+          "area": "서울",
+          "date": "2026-01-09",
+          "rate": null
+        }
+      ],
+      "gyeonggi": [
+        {
+          "name": "북오산자이 드포레",
+          "area": "경기",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "더샵 검단레이크파크(AB23BL)",
+          "area": "인천",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "더샵 검단레이크파크(AB22BL)",
+          "area": "인천",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "고덕국제신도시 수자인하우스디",
+          "area": "경기",
+          "date": "2026-06-11",
+          "rate": null
+        },
+        {
+          "name": "평택 고덕 우미 린 프레스티지(Abc-36BL)",
+          "area": "경기",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "e편한세상 분당 퍼스트빌리지(성남낙생지구 A-1BL) 신혼희망타운(공공분양)(본청약)",
+          "area": "경기",
+          "date": "2026-05-29",
+          "rate": null
+        },
+        {
+          "name": "화성동탄2지구 C-27블록 공공분양주택",
+          "area": "경기",
+          "date": "2026-05-29",
+          "rate": null
+        },
+        {
+          "name": "호반써밋 풍무Ⅱ",
+          "area": "경기",
+          "date": "2026-05-22",
+          "rate": null
+        },
+        {
+          "name": "수원역 아너스빌 타임원",
+          "area": "경기",
+          "date": "2026-05-22",
+          "rate": null
+        },
+        {
+          "name": "오정 해모로 스마트시티(조합원 취소분)",
+          "area": "경기",
+          "date": "2026-05-19",
+          "rate": null
+        },
+        {
+          "name": "검암역자이르네",
+          "area": "인천",
+          "date": "2026-05-15",
+          "rate": null
+        },
+        {
+          "name": "힐스테이트 시흥더클래스",
+          "area": "경기",
+          "date": "2026-05-15",
+          "rate": null
+        },
+        {
+          "name": "엘리프 역곡",
+          "area": "경기",
+          "date": "2026-05-14",
+          "rate": null
+        },
+        {
+          "name": "오남역 서희스타힐스 여의재 3단지",
+          "area": "경기",
+          "date": "2026-05-13",
+          "rate": null
+        },
+        {
+          "name": "식사 푸르지오 파크센트(조합원 취소분)",
+          "area": "경기",
+          "date": "2026-05-11",
+          "rate": null
+        }
+      ],
+      "metro": [
+        {
+          "name": "상무 양우내안에 퍼스트힐(조합원 취소분)",
+          "area": "광주",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "호반써밋 첨단3지구(A7BL)",
+          "area": "광주",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "알티에로 광안",
+          "area": "부산",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "동래사적공원 오네뜨",
+          "area": "부산",
+          "date": "2026-05-15",
+          "rate": null
+        },
+        {
+          "name": "해운대 마티안 디 에디션",
+          "area": "부산",
+          "date": "2026-05-14",
+          "rate": null
+        },
+        {
+          "name": "두산위브 트리니뷰 구명역",
+          "area": "부산",
+          "date": "2026-05-08",
+          "rate": null
+        },
+        {
+          "name": "더샵 중앙로역센터폴",
+          "area": "대구",
+          "date": "2026-05-04",
+          "rate": null
+        },
+        {
+          "name": "더샵 시에르네(조합원 취소분)",
+          "area": "울산",
+          "date": "2026-04-28",
+          "rate": null
+        },
+        {
+          "name": "기장 이진캐스빌 포레",
+          "area": "부산",
+          "date": "2026-04-24",
+          "rate": null
+        },
+        {
+          "name": "더샵 관저아르테",
+          "area": "대전",
+          "date": "2026-04-24",
+          "rate": null
+        },
+        {
+          "name": "울산신복역 비스타 메트로",
+          "area": "울산",
+          "date": "2026-04-24",
+          "rate": null
+        },
+        {
+          "name": "문수로 라티에르 673",
+          "area": "울산",
+          "date": "2026-04-10",
+          "rate": null
+        },
+        {
+          "name": "도안자이 센텀리체 2단지",
+          "area": "대전",
+          "date": "2026-04-10",
+          "rate": null
+        },
+        {
+          "name": "도안자이 센텀리체 1단지",
+          "area": "대전",
+          "date": "2026-04-10",
+          "rate": null
+        },
+        {
+          "name": "온천장 하늘채 엘리시움",
+          "area": "부산",
+          "date": "2026-04-03",
+          "rate": null
+        }
+      ],
+      "other": [
+        {
+          "name": "힐스테이트 양산더스카이 2단지",
+          "area": "경남",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "힐스테이트 양산더스카이 1단지",
+          "area": "경남",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "호반써밋 첨단3지구(A8BL)",
+          "area": "전남",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "백석시그니처자이 2단지",
+          "area": "충남",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "백석시그니처자이 1단지",
+          "area": "충남",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "익산 펠리피아",
+          "area": "전북",
+          "date": "2026-05-29",
+          "rate": null
+        },
+        {
+          "name": "강릉 성보필리오 더센트럴힐즈",
+          "area": "강원",
+          "date": "2026-05-27",
+          "rate": null
+        },
+        {
+          "name": "더 리치먼드 리버센트 소양",
+          "area": "강원",
+          "date": "2026-05-22",
+          "rate": null
+        },
+        {
+          "name": "청주 한양립스 더 벨루체",
+          "area": "충북",
+          "date": "2026-05-08",
+          "rate": null
+        },
+        {
+          "name": "덕진 거제의 봄 우선분양전환 후 공가세대",
+          "area": "경남",
+          "date": "2026-04-30",
+          "rate": null
+        },
+        {
+          "name": "상주북천 하늘채 파크원",
+          "area": "경북",
+          "date": "2026-04-30",
+          "rate": null
+        },
+        {
+          "name": "메트로시티 자산 데시앙",
+          "area": "경남",
+          "date": "2026-04-30",
+          "rate": null
+        },
+        {
+          "name": "공주월송 진아레히",
+          "area": "충남",
+          "date": "2026-04-30",
+          "rate": null
+        },
+        {
+          "name": "천안 휴먼빌 퍼스트시티(2회차)",
+          "area": "충남",
+          "date": "2026-04-24",
+          "rate": null
+        },
+        {
+          "name": "천안 동문 디 이스트 파크시티",
+          "area": "충남",
+          "date": "2026-04-24",
+          "rate": null
+        }
+      ]
+    },
+    "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
+    "lastFetched": "2026-06-15T00:38:51.792228+09:00"
   },
   "nps": {
     "allocation": [
@@ -175715,7 +176090,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-06-15T00:22:40.440939+09:00",
+    "lastFetched": "2026-06-15T00:39:21.601102+09:00",
     "채권": [
       {
         "title": "기관 외화증권투자 42.6억달러↓…중동전쟁·국채금리 상승 영향",
@@ -175801,22 +176176,22 @@
         "pubDate": "Mon, 08 Jun 2026 14:06:00 GMT"
       },
       {
+        "title": "한국 1분기 성장률 OECD 2위…반도체 특수에 연 3%도 바라본다",
+        "url": "https://www.yna.co.kr/view/AKR20260606044200002",
+        "isoDate": "2026-06-06",
+        "pubDate": "Sat, 06 Jun 2026 13:48:00 GMT"
+      },
+      {
         "title": "씨티, 올해 명목 GDP 성장률 10.6→15.3%로 전망치 상향",
-        "url": "https://www.yna.co.kr/view/AKR20260609125400002",
+        "url": "https://www.msn.com/ko-kr/money/topstories/%EC%94%A8%ED%8B%B0-%EC%98%AC%ED%95%B4-%EB%AA%85%EB%AA%A9-gdp-%EC%84%B1%EC%9E%A5%EB%A5%A0-10-6-15-3-%EB%A1%9C-%EC%A0%84%EB%A7%9D%EC%B9%98-%EC%83%81%ED%96%A5/ar-AA25a4Mq",
         "isoDate": "2026-06-08",
-        "pubDate": "Mon, 08 Jun 2026 23:23:00 GMT"
+        "pubDate": "Mon, 08 Jun 2026 23:24:37 GMT"
       },
       {
         "title": "OECD, 올해 한국 성장률 1.7→2.6%…\"산업 쟁의 행위 등은 하방 요인\"",
         "url": "https://www.msn.com/ko-kr/news/other/oecd-%EC%98%AC%ED%95%B4-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-17-26-%EC%82%B0%EC%97%85-%EC%9F%81%EC%9D%98-%ED%96%89%EC%9C%84-%EB%93%B1%EC%9D%80-%ED%95%98%EB%B0%A9-%EC%9A%94%EC%9D%B8/ar-AA24IhmX",
         "isoDate": "2026-06-03",
         "pubDate": "Wed, 03 Jun 2026 01:29:00 GMT"
-      },
-      {
-        "title": "씨티 \"올해 韓 명목 GDP 성장률 전망 15.3%로 상향…확장재정 가능성\"",
-        "url": "https://news.einfomax.co.kr/news/articleView.html?idxno=4419131",
-        "isoDate": "2026-06-08",
-        "pubDate": "Mon, 08 Jun 2026 14:06:00 GMT"
       }
     ],
     "미국CPI": [
@@ -175833,7 +176208,7 @@
         "pubDate": "Thu, 11 Jun 2026 01:54:00 GMT"
       },
       {
-        "title": "미국, '장바구니 비명'에도… 트럼프 \"인플레 사랑한다\" [종합]",
+        "title": "미국, ‘장바구니 비명’에도…트럼프 “인플레 사랑한다” [종합]",
         "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/%EB%AF%B8%EA%B5%AD-%EC%9E%A5%EB%B0%94%EA%B5%AC%EB%8B%88-%EB%B9%84%EB%AA%85-%EC%97%90%EB%8F%84-%ED%8A%B8%EB%9F%BC%ED%94%84-%EC%9D%B8%ED%94%8C%EB%A0%88-%EC%82%AC%EB%9E%91%ED%95%9C%EB%8B%A4-%EC%A2%85%ED%95%A9/ar-AA25n0mB",
         "isoDate": "2026-06-10",
         "pubDate": "Wed, 10 Jun 2026 23:35:59 GMT"
@@ -175865,16 +176240,16 @@
         "pubDate": "Sun, 31 May 2026 00:13:44 GMT"
       },
       {
-        "title": "[관세신문 스페셜] 중국 제조업 PMI 50.0의 경고…‘침체’가 아니라 첨단·전통의 ‘이중 분화’다",
-        "url": "http://www.kcnews.org/news/articleView.html?idxno=14132",
-        "isoDate": "2026-06-02",
-        "pubDate": "Tue, 02 Jun 2026 21:57:00 GMT"
-      },
-      {
         "title": "[NNA] 중국 5월 제조업 PMI, 경기 기준선인 50으로 하락",
         "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/nna-%EC%A4%91%EA%B5%AD-5%EC%9B%94-%EC%A0%9C%EC%A1%B0%EC%97%85-pmi-%EA%B2%BD%EA%B8%B0-%EA%B8%B0%EC%A4%80%EC%84%A0%EC%9D%B8-50%EC%9C%BC%EB%A1%9C-%ED%95%98%EB%9D%BD/ar-AA24wDET",
         "isoDate": "2026-05-31",
         "pubDate": "Sun, 31 May 2026 23:11:07 GMT"
+      },
+      {
+        "title": "[관세신문 스페셜] 중국 제조업 PMI 50.0의 경고…‘침체’가 아니라 첨단·전통의 ‘이중 분화’다",
+        "url": "http://www.kcnews.org/news/articleView.html?idxno=14132",
+        "isoDate": "2026-06-02",
+        "pubDate": "Tue, 02 Jun 2026 21:57:00 GMT"
       },
       {
         "title": "5월 中 레이팅독 제조업 PMI 51.8·0.4P↓…\"6개월째 경기확대 유지\"",
@@ -176040,13 +176415,13 @@
         "iso": "2026-06-10"
       }
     ],
-    "lastFetched": "2026-06-15T00:24:56.501209+09:00",
+    "lastFetched": "2026-06-15T00:41:18.176465+09:00",
     "source": "FRED release dates API",
     "backfilled": 5
   },
   "aiBriefing": {
     "date": "2026-06-15",
-    "generatedAt": "2026-06-15 00:24 KST",
+    "generatedAt": "2026-06-15 00:41 KST",
     "lines": [
       "증시 — KOSPI 8,123.62 (▲4.63%), S&P500 7,431.46 (▲0.50%), 나스닥 25,888.84 (▲0.31%)",
       "환율·금리 — 원/달러 1,517.89원 (▲0.12%), 미국 기준금리 3.63%, VIX 19.44",
