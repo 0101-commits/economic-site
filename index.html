@@ -282,6 +282,14 @@
   .news-filter-btn, .range-reset-btn, .guide-x { position:relative; }
   .news-filter-btn::after, .range-reset-btn::after, .guide-x::after {
     content:''; position:absolute; inset:calc((var(--touch-min) - 100%)/-2); }
+  /* 반응형 그리드 유틸 (auto-fit 기반) — 신규 컨테이너용 인프라 (기존 string-match MQ 병존) */
+  .grid-kpi{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:var(--sp-3); }
+  .grid-2{ display:grid; grid-template-columns:repeat(2,1fr); gap:var(--sp-3); }
+  .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-3); }
+  .grid-4{ display:grid; grid-template-columns:repeat(4,1fr); gap:var(--sp-3); }
+  .grid-split{ display:grid; grid-template-columns:1fr 320px; gap:var(--sp-4); }
+  @media (max-width:1024px){ .grid-3,.grid-4{ grid-template-columns:repeat(2,1fr); } .grid-split{ grid-template-columns:1fr; } }
+  @media (max-width:768px){ .grid-2,.grid-3,.grid-4{ grid-template-columns:1fr; } }
   /* 라이트 테마 — inline 스타일 오버라이드 (color attributes) */
   html.light [style*="#262a35"] { background-color: #d9edf8 !important; }
   html.light [style*="background:#262a35"] { background-color: #d9edf8 !important; }
