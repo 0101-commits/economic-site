@@ -458,7 +458,7 @@
     -webkit-backdrop-filter: blur(18px) saturate(160%);
     box-shadow: var(--e-2), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
   }
-  .widget-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #c8d2ff; margin-bottom: 12px; }
+  .widget-title { font-size: var(--fs-label); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--c-primary); margin-bottom: 12px; }
   /* 글래스 페일 배경 — 컬러 블롭을 더 진하게 (반투명 카드가 살짝 비치도록) */
   body {
     background:
@@ -591,8 +591,8 @@
     border-color: rgba(53, 108, 181, 0.20) !important;
     box-shadow: 0 10px 40px rgba(53, 108, 181, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
   }
-  .up-txt { color: #26a69a; }
-  .down-txt { color: #ef5350; }
+  .up-txt { color: var(--c-up); }
+  .down-txt { color: var(--c-down); }
   tr:hover td { background: rgba(170, 195, 255, 0.10); }
   /* 사용자 클릭 가능 행 — 테마-인식 호버 */
   .hoverable-row:hover td { background: rgba(170, 195, 255, 0.10); }
@@ -618,10 +618,10 @@
   .ticker-item { cursor: pointer; }
   .ticker-item:hover { opacity: 0.75; }
   .ticker-wrap:hover .ticker-scroll { animation-play-state: paused; }
-  .news-filter-btn { font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; user-select:none; border:1px solid #3a4054; color:#a4a8bc; background:#1b1f2b; transition:all .15s; }
+  .news-filter-btn { font-size:var(--fs-label); padding:2px 8px; border-radius:var(--r-xs); cursor:pointer; user-select:none; border:1px solid var(--c-border); color:var(--c-txt-dim); background:var(--c-card); transition:all .15s; }
   .news-filter-btn.act { background:#2962ff; color:#fff; border-color:#2962ff; }
   #sidebar.collapsed { width:0 !important; padding:0 !important; overflow:hidden !important; border-right:none !important; }
-  .range-reset-btn { background:transparent;border:1px solid #3a4054;color:#a4a8bc;border-radius:3px;padding:0 5px;font-size:11px;cursor:pointer;margin-left:6px;line-height:1.2; }
+  .range-reset-btn { background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:0 5px;font-size:var(--fs-label);cursor:pointer;margin-left:6px;line-height:1.2; }
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
   .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #3a4054;border-radius:4px;padding:2px 6px;font-size:11px; }
   .kpi-clickable:hover { border-color:#2962ff !important; }
@@ -852,7 +852,7 @@
 /* 1회성 가이드 배너 */
 .guide-banner { display:flex; gap:8px; align-items:flex-start; background:#2962ff14; border:1px solid #2962ff44; border-radius:6px; padding:8px 10px; font-size:11px; color:var(--c-txt-dim,#a4a8bc); margin:8px 0; line-height:1.6; }
 .guide-banner b { color:var(--c-txt,#e8ebf5); }
-.guide-x { margin-left:auto; cursor:pointer; color:#7a8099; font-weight:700; padding:0 4px; flex-shrink:0; }
+.guide-x { margin-left:auto; cursor:pointer; color:var(--c-txt-muted); font-weight:700; padding:0 4px; flex-shrink:0; }
 /* 위젯 오류 표시 + 재시도 */
 .widget-err { display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; padding:18px 8px; color:var(--c-txt-muted,#8b90a8); font-size:11px; text-align:center; }
 .widget-err button { font-size:11px; padding:3px 12px; border:1px solid #2962ff; border-radius:4px; background:transparent; color:#2962ff; cursor:pointer; }
