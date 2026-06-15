@@ -1235,10 +1235,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
             <button class="tab-btn active" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;" onclick="setMoverTab('up',this)">▲ 상승 Top10</button>
             <button class="tab-btn" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverTab('down',this)">▼ 하락 Top10</button>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button class="tab-btn active" id="moverTypeStock" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;" onclick="setMoverType('stock',this)">주식</button>
-            <button class="tab-btn" id="moverTypeETF" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverType('etf',this)">ETF</button>
-            <button class="tab-btn" id="moverTypeAll" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverType('all',this)">전체</button>
-            <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="margin-left:auto;background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+            <button class="tab-btn active" id="moverTypeStock" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;" onclick="setMoverType('stock',this)">주식</button>
+            <button class="tab-btn" id="moverTypeETF" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverType('etf',this)">ETF</button>
+            <button class="tab-btn" id="moverTypeAll" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverType('all',this)">전체</button>
+            <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="margin-left:auto;background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead>
@@ -2053,8 +2053,8 @@ html.light #dataSrcBanner { background:#fff7e6; }
       <!-- 뷰 모드 토글 + 탭 (좌측 정렬) -->
       <div style="display:flex;align-items:center;justify-content:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
         <div style="display:flex;gap:4px;" id="macroViewToggle">
-          <button id="macroViewCountry" onclick="setMacroViewMode('country',this)" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--c-accent);background:var(--c-accent);color:#fff;cursor:pointer;font-weight:600;">🌍 국가별</button>
-          <button id="macroViewTopic"   onclick="setMacroViewMode('topic',this)"   style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📊 주제별</button>
+          <button id="macroViewCountry" onclick="setMacroViewMode('country',this)" style="font-size:12px;padding:5px 14px;border-radius:20px;border:1px solid var(--c-accent);background:var(--c-accent);color:#fff;cursor:pointer;font-weight:600;">🌍 국가별</button>
+          <button id="macroViewTopic"   onclick="setMacroViewMode('topic',this)"   style="font-size:12px;padding:5px 14px;border-radius:20px;border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📊 주제별</button>
         </div>
         <!-- 국가별 탭 -->
         <div id="macroCountryTabs" style="display:flex;gap:6px;flex-wrap:wrap;">
