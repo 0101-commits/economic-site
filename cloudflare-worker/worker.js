@@ -373,10 +373,48 @@ function _sanitizeSettings(raw) {
   };
 }
 
+// 📋 지정 종목 트래킹(관심목록) 동기화 — 기기 간 동일한 목록을 보기 위한 화이트리스트.
+// ⚠ 프라이버시: 평단가/수량/매입환율 등 '보유 정보'는 절대 받지 않는다(공개 저장소이므로).
+//   관심종목(코드/이름/시장/구분)과 그룹(폴더) 정의만 저장한다. 사용자 선택='관심목록만 공개 동기화'.
+function _sanitizeTracking(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const groups = [];
+  const seenG = new Set();
+  for (const g of (Array.isArray(raw.groups) ? raw.groups.slice(0, 50) : [])) {
+    if (!g || typeof g !== 'object') continue;
+    const id = String(g.id || '').slice(0, 40);
+    if (!id || seenG.has(id)) continue;
+    if (!/^[A-Za-z0-9_]{1,40}$/.test(id)) continue;
+    seenG.add(id);
+    groups.push({ id, name: String(g.name || '그룹').slice(0, 30) });
+  }
+  const items = [];
+  const seenI = new Set();
+  for (const it of (Array.isArray(raw.items) ? raw.items.slice(0, 300) : [])) {
+    if (!it || typeof it !== 'object') continue;
+    const symbol = String(it.symbol || '').slice(0, 16);
+    if (!/^[A-Za-z0-9.\-^=]{1,16}$/.test(symbol)) continue;
+    const market = it.market === 'US' ? 'US' : 'KR';
+    const key = market + ':' + symbol;
+    if (seenI.has(key)) continue;
+    seenI.add(key);
+    items.push({
+      symbol,
+      market,
+      yahoo: it.yahoo ? String(it.yahoo).slice(0, 20) : null,
+      name: String(it.name || symbol).slice(0, 60),
+      secType: it.secType === 'etf' ? 'etf' : 'stock',
+      group: String(it.group || '').slice(0, 40),
+    });
+  }
+  if (!groups.length && !items.length) return null;
+  return { groups, items };
+}
+
 async function handlePortfolioGet(env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   const { status, json } = await _ghContents(env, 'GET');
-  if (status === 404) return jsonResponse({ ok: true, alerts: [], settings: null, updatedAt: null });
+  if (status === 404) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, updatedAt: null });
   if (status !== 200 || !json || !json.content) {
     return jsonResponse({ error: 'github_read_failed', status }, 502);
   }
@@ -385,7 +423,7 @@ async function handlePortfolioGet(env) {
     const bin = atob(String(json.content).replace(/\n/g, ''));
     const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
     const cfg = JSON.parse(new TextDecoder().decode(bytes));
-    return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, updatedAt: cfg.updatedAt || null });
+    return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, tracking: cfg.tracking || null, updatedAt: cfg.updatedAt || null });
   } catch {
     return jsonResponse({ error: 'config_parse_failed' }, 502);
   }
@@ -424,10 +462,20 @@ async function handlePortfolioPost(request, env) {
   if (denied) return denied;
   const alerts = _sanitizeAlerts(body.alerts);
   const settings = _sanitizeSettings(body.settings);
-  const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts };
+  // 📋 관심목록 — body.tracking 이 있으면 갱신, 없으면 기존 저장본을 보존(부분 저장 시 유실 방지).
+  let tracking = _sanitizeTracking(body.tracking);
   // 기존 파일 sha 조회(업데이트 시 필수) → PUT 커밋
   const cur = await _ghContents(env, 'GET');
   const sha = (cur.status === 200 && cur.json && cur.json.sha) ? cur.json.sha : undefined;
+  if (tracking === null && cur.status === 200 && cur.json && cur.json.content) {
+    try {
+      const _bin = atob(String(cur.json.content).replace(/\n/g, ''));
+      const _bytes = Uint8Array.from(_bin, c => c.charCodeAt(0));
+      const _prev = JSON.parse(new TextDecoder().decode(_bytes));
+      if (_prev && _prev.tracking) tracking = _sanitizeTracking(_prev.tracking);
+    } catch (_) { /* 이전 본 파싱 실패 시 tracking 생략 */ }
+  }
+  const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts, ...(tracking ? { tracking } : {}) };
   const content = JSON.stringify(cfg, null, 2) + '\n';
   // UTF-8 안전 base64 인코딩 (한글 종목명 포함) — 스프레드 인자 한도 회피를 위해 청크 처리
   const bytes = new TextEncoder().encode(content);
@@ -436,8 +484,9 @@ async function handlePortfolioPost(request, env) {
     bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
   }
   const b64 = btoa(bin);
+  const trackCount = tracking && Array.isArray(tracking.items) ? tracking.items.length : 0;
   const put = await _ghContents(env, 'PUT', {
-    message: `alerts: 카카오 알림 설정 동기화 (${alerts.length}개, 전역 ${settings.enabled ? 'ON' : 'OFF'}, web)`,
+    message: `sync: 알림 ${alerts.length}개·관심종목 ${trackCount}개 동기화 (전역 ${settings.enabled ? 'ON' : 'OFF'}, web)`,
     content: b64,
     branch: 'main',
     ...(sha ? { sha } : {}),
@@ -446,7 +495,7 @@ async function handlePortfolioPost(request, env) {
     return jsonResponse({ error: 'github_write_failed', status: put.status,
                           detail: put.json && put.json.message }, 502);
   }
-  return jsonResponse({ ok: true, count: alerts.length });
+  return jsonResponse({ ok: true, count: alerts.length, trackingCount: trackCount });
 }
 
 // 🔔 알림 테스트 발송 — POST /portfolio/test
