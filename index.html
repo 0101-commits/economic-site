@@ -864,15 +864,16 @@ html.light #dataSrcBanner { background:#fff7e6; }
 </style>
 </head>
 <body>
+<a href="#mainContent" class="skip-link">본문 바로가기</a>
 
 <!-- ====== 상단 헤더 ====== -->
 <header style="position:fixed;top:0;left:0;right:0;height:56px;background:var(--c-bg);border-bottom:1px solid var(--c-border);z-index:300;display:flex;align-items:center;padding:0 16px;gap:12px;">
   <!-- 사이드바 토글 (헤더 내부) — z-index 305 (모바일 사이드바 위에 표시되도록) -->
-  <button onclick="toggleSidebar()" title="사이드바 토글" style="background:transparent;border:none;color:var(--c-txt-dim);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-xs);flex-shrink:0;transition:color .15s;position:relative;z-index:305;" onmouseover="this.style.color='var(--c-primary)'" onmouseout="this.style.color='var(--c-txt-dim)'">
+  <button onclick="toggleSidebar()" class="u-touch" aria-label="사이드바 토글" aria-expanded="false" title="사이드바 토글" style="background:transparent;border:none;color:var(--c-txt-dim);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-xs);flex-shrink:0;transition:color .15s;position:relative;z-index:305;" onmouseover="this.style.color='var(--c-primary)'" onmouseout="this.style.color='var(--c-txt-dim)'">
     <span class="mat" id="sidebarToggleIcon" style="font-size:22px;">menu_open</span>
   </button>
-  <div onclick="goHome()" title="대시보드 홈으로 이동" style="font-family:'Public Sans',sans-serif;font-weight:700;font-size:15px;color:var(--c-primary);white-space:nowrap;cursor:pointer;user-select:none;transition:opacity .15s;" onmouseover="this.style.opacity='0.75'" onmouseout="this.style.opacity='1'">
-    <span class="mat" style="color:var(--c-primary);margin-right:6px;">monitoring</span>경제현황 터미널
+  <div onclick="goHome()" role="link" tabindex="0" aria-label="대시보드 홈으로 이동" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goHome();}" title="대시보드 홈으로 이동" style="font-family:'Public Sans',sans-serif;font-weight:700;font-size:15px;color:var(--c-primary);white-space:nowrap;cursor:pointer;user-select:none;transition:opacity .15s;" onmouseover="this.style.opacity='0.75'" onmouseout="this.style.opacity='1'">
+    <span class="mat" style="color:var(--c-primary);margin-right:6px;">monitoring</span><h1 style="font:inherit;margin:0;display:inline;">경제현황 터미널</h1>
   </div>
   <!-- 실시간 티커 -->
   <div class="ticker-wrap">
@@ -997,7 +998,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
   </div>
 
   <!-- 메인 콘텐츠 -->
-  <main style="flex:1;padding:20px;overflow-x:auto;min-width:0;">
+  <main id="mainContent" tabindex="-1" style="flex:1;padding:20px;overflow-x:auto;min-width:0;">
 
     <!-- ====== 페이지 1: 대시보드 홈 ====== -->
     <div class="page active" id="page-dashboard">
@@ -3692,6 +3693,7 @@ function collapseSidebarAfterNav() {
     const icon = document.getElementById('sidebarToggleIcon');
     if(icon) icon.textContent = 'menu';
   }
+  _syncSidebarAria();
 }
 
 // 타이틀 클릭 → 대시보드 홈으로 이동 + 사이드바 자동 펼침
@@ -5223,6 +5225,14 @@ function getPeriodData(unit, fromDate, toDate) {
 }
 
 // ── 사이드바 토글 ──
+function _syncSidebarAria() {
+  const sb = document.getElementById('sidebar');
+  const btn = document.querySelector('button[onclick="toggleSidebar()"]');
+  if(!sb || !btn) return;
+  const isMobile = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
+  const expanded = isMobile ? sb.classList.contains('mobile-open') : !sb.classList.contains('collapsed');
+  btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+}
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
   const icon = document.getElementById('sidebarToggleIcon');
@@ -5237,6 +5247,7 @@ function toggleSidebar() {
     if(icon) icon.textContent = opening ? 'menu_open' : 'menu';
     // 데스크탑 collapsed 상태도 항상 해제 (모바일과 데스크탑 충돌 방지)
     sb.classList.remove('collapsed');
+    _syncSidebarAria();
     return;
   }
   // 데스크탑
@@ -5244,6 +5255,7 @@ function toggleSidebar() {
   sb.classList.remove('mobile-open');
   const collapsed = sb.classList.toggle('collapsed');
   if(icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
+  _syncSidebarAria();
 }
 
 function closeSidebarMobile() {
@@ -5253,6 +5265,7 @@ function closeSidebarMobile() {
   if(sb) sb.classList.remove('mobile-open');
   if(backdrop) backdrop.style.display = 'none';
   if(icon) icon.textContent = 'menu';
+  _syncSidebarAria();
 }
 
 // ============================
