@@ -890,24 +890,24 @@ html.light #dataSrcBanner { background:#fff7e6; }
   <div id="sidebarBackdrop" onclick="closeSidebarMobile()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:190;backdrop-filter:blur(2px);"></div>
 
   <!-- 사이드바 -->
-  <nav id="sidebar" style="width:200px;min-height:calc(100vh - 56px);background:var(--c-bg);border-right:1px solid var(--c-border);padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
+  <nav id="sidebar" aria-label="메인 메뉴" style="width:200px;min-height:calc(100vh - 56px);background:var(--c-bg);border-right:1px solid var(--c-border);padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--c-txt-muted);padding:4px 14px 8px;padding-left:46px;">메인 메뉴</div>
-    <div class="menu-item active" onclick="showPage('dashboard',this)"><span class="mat">home</span>대시보드 홈</div>
-    <div class="menu-item" onclick="showPage('portfolio',this)"><span class="mat">monitoring</span>투자 현황</div>
-    <div class="menu-item" onclick="showPage('equity',this)"><span class="mat">show_chart</span>주식시장</div>
-    <div class="menu-item" onclick="showPage('macro',this)"><span class="mat">public</span>거시경제</div>
-    <div class="menu-item" onclick="showPage('market',this)"><span class="mat">candlestick_chart</span>시장 지표</div>
-    <div class="menu-item" onclick="showPage('investor',this)"><span class="mat">account_balance</span>주요 투자자</div>
-    <div class="menu-item" onclick="showPage('realestate',this)"><span class="mat">home_work</span>부동산</div>
-    <div class="menu-item" onclick="showPage('calendar',this)"><span class="mat">calendar_month</span>경제 캘린더</div>
-    <div class="menu-item" onclick="showPage('notes',this)"><span class="mat">edit_note</span>분석 노트</div>
-    <div class="menu-item" onclick="showPage('settings',this)"><span class="mat">settings</span>설정</div>
+    <div class="menu-item active" onclick="showPage('dashboard',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">home</span>대시보드 홈</div>
+    <div class="menu-item" onclick="showPage('portfolio',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">monitoring</span>투자 현황</div>
+    <div class="menu-item" onclick="showPage('equity',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">show_chart</span>주식시장</div>
+    <div class="menu-item" onclick="showPage('macro',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">public</span>거시경제</div>
+    <div class="menu-item" onclick="showPage('market',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">candlestick_chart</span>시장 지표</div>
+    <div class="menu-item" onclick="showPage('investor',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">account_balance</span>주요 투자자</div>
+    <div class="menu-item" onclick="showPage('realestate',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">home_work</span>부동산</div>
+    <div class="menu-item" onclick="showPage('calendar',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">calendar_month</span>경제 캘린더</div>
+    <div class="menu-item" onclick="showPage('notes',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">edit_note</span>분석 노트</div>
+    <div class="menu-item" onclick="showPage('settings',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">settings</span>설정</div>
     <!-- 지연 데이터 상태 칩 — 좌하단 플로팅에서 사이드바 정적 배치로 이동 (본문 가림 해소) -->
     <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다."><span class="dot"></span>Market Data 15m Delayed</div>
     <div style="border-top:1px solid var(--c-border);margin:12px 0;"></div>
     <!-- 테마 토글 버튼 -->
     <div style="padding:0 6px 8px;">
-      <button id="themeToggleBtn" onclick="toggleTheme()" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--r-sm);border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;font-size:12px;font-weight:500;">
+      <button id="themeToggleBtn" onclick="toggleTheme()" aria-pressed="false" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--r-sm);border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;font-size:12px;font-weight:500;">
         <span class="mat" id="themeIcon">light_mode</span>
         <span id="themeLabel">라이트 모드</span>
       </button>
@@ -3641,8 +3641,8 @@ function navigateToDetail(target) {
 function showPage(id, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
-  if(el) el.classList.add('active');
+  document.querySelectorAll('.menu-item').forEach(m=>{ m.classList.remove('active'); m.removeAttribute('aria-current'); });
+  if(el) { el.classList.add('active'); el.setAttribute('aria-current','page'); }
   // 메뉴 전환 시 최상단으로 스크롤
   try {
     window.scrollTo({top: 0, behavior: 'auto'});
@@ -15259,6 +15259,8 @@ function toggleTheme() {
   const label = document.getElementById('themeLabel');
   if(icon)  icon.textContent  = isLight ? 'dark_mode'  : 'light_mode';
   if(label) label.textContent = isLight ? '다크 모드' : '라이트 모드';
+  const tbtn = document.getElementById('themeToggleBtn');
+  if(tbtn) tbtn.setAttribute('aria-pressed', isLight ? 'true' : 'false');
   // 차트 색상 재빌드
   rebuildChartsForTheme();
 }
@@ -15276,6 +15278,8 @@ function applyStoredTheme() {
     if(icon)  icon.textContent  = 'dark_mode';
     if(label) label.textContent = '다크 모드';
   }
+  const tbtn = document.getElementById('themeToggleBtn');
+  if(tbtn) tbtn.setAttribute('aria-pressed', useLight ? 'true' : 'false');
   // 차트 전역 기본값을 현재 테마에 맞게 설정 (모든 차트 생성 전에 호출)
   applyChartJsThemeDefaults();
 }
