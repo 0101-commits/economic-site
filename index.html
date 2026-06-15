@@ -353,6 +353,14 @@
   html.light .news-filter-btn.act { background: rgb(53,108,181) !important; color: #fff !important; border-color: rgb(53,108,181) !important; }
   /* 비활성 탭 버튼: 어두운 글자/투명 배경이 라이트에서도 잘 보이게 */
   html.light .tab-btn:not(.active) { color: rgb(89,89,89) !important; }
+  /* ↑ 위 규칙이 '활성 class 없이 파란 배경 + 흰 글씨'인 버튼(목록 저장·조회·그룹 탭·파이 모드·프리셋 등)의
+     흰 글씨까지 어둡게 덮어써 파란 버튼 안 글자가 안 보이던 문제 수정 — 자기 인라인 흰 글씨는 그대로 유지한다.
+     (정적 #fff / JS 가 설정한 rgb(255,255,255) 두 직렬화 형태 모두 매칭) */
+  html.light .tab-btn[style*="color:#fff"],
+  html.light .tab-btn[style*="color: #fff"],
+  html.light .tab-btn[style*="color:#ffffff"],
+  html.light .tab-btn[style*="color: rgb(255"],
+  html.light .tab-btn[style*="color:rgb(255"] { color: #fff !important; }
   /* JS 인라인 color:#fff 가 다른 콘텍스트에서 흰 글자를 강제하는 경우만 유지 (파란 배경 컨텍스트) */
   /* 메뉴 아이템 — hover/active 시에도 라이트 톤 유지 */
   html.light .menu-item:hover,
@@ -750,25 +758,27 @@
   /* ======= 대시보드 홈 위젯 드래그 정렬 (Task 2.2) ======= */
   .home-sec { transition: opacity .15s; }
   .home-sec .sec-drag-handle {
-    position: absolute; top: 2px; right: 2px; z-index: 5;
-    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 6px; right: 6px; z-index: 6;
+    width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
     font-size: 13px; color: var(--c-txt-muted,#8b90a8); cursor: grab;
-    border-radius: 4px; opacity: 0; transition: opacity .15s, background .15s;
+    border-radius: 6px; opacity: 0; transition: opacity .15s, background .15s, box-shadow .15s;
     user-select: none;
   }
-  .home-sec:hover .sec-drag-handle { opacity: .8; }
+  /* 핸들이 보일 땐 카드 배경 위에 떠 보이도록 살짝 배경/테두리를 줘 헤더 콘텐츠·서로와 구분 */
+  .home-sec:hover .sec-drag-handle { opacity: 1; background: var(--c-surface,#1a2236); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
   .home-sec .sec-drag-handle:hover { background: var(--c-card-hi,#2a3556); color: var(--c-txt-dim,#a4a8bc); }
   .home-sec.dnd-dragging, .kpi-card.dnd-dragging { opacity: .35; }
   .home-sec.dnd-over, .kpi-card.dnd-over { outline: 2px dashed #2962ff; outline-offset: 2px; border-radius: 8px; }
   /* 홈 위젯 숨김 토글 — 드래그 핸들 옆 눈 아이콘 (2.1 정보 과부하 완화) */
   .home-sec .sec-hide-btn {
-    position: absolute; top: 2px; right: 26px; z-index: 5;
-    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 6px; right: 38px; z-index: 6;
+    width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
     font-size: 12px; color: var(--c-txt-muted,#8b90a8); cursor: pointer;
-    border-radius: 4px; opacity: 0; transition: opacity .15s; user-select: none;
-    background: transparent; border: none; padding: 0;
+    border-radius: 6px; opacity: 0; transition: opacity .15s, background .15s, box-shadow .15s;
+    user-select: none; padding: 0; border: none;
   }
-  .home-sec:hover .sec-hide-btn { opacity: .8; }
+  /* ✕(숨김)과 ⠿(이동) 핸들이 겹쳐 보이지 않도록 간격(우측 38px vs 6px)을 벌리고 각자 배경을 준다 */
+  .home-sec:hover .sec-hide-btn { opacity: 1; background: var(--c-surface,#1a2236); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
   .home-sec .sec-hide-btn:hover { background: var(--c-card-hi,#2a3556); color: var(--c-txt-dim,#a4a8bc); }
 
   /* 스켈레톤 로딩 바 (2.2) — 텍스트형 '로딩 중…' 대신 은은한 셔머 플레이스홀더 */
@@ -1314,15 +1324,18 @@ html.light #dataSrcBanner { background:#fff7e6; }
       <div style="display:grid;grid-template-columns:1fr 320px;gap:12px;margin-bottom:16px;align-items:start;" id="pfMainGrid">
         <!-- 좌: 종목 리스트 -->
         <div class="widget">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
             <span class="widget-title" style="margin-bottom:0;">지정 종목 트래킹</span>
-            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-              <button class="tab-btn" onclick="pfSyncTracking()" title="관심종목·그룹을 서버에 저장해 다른 기기/플랫폼에서도 같은 목록을 봅니다 (평단가·수량은 이 기기에만 저장)" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">☁ 목록 저장</button>
-              <button class="tab-btn" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 이 기기 값 유지)" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 불러오기</button>
-              <button class="tab-btn" onclick="pfRefreshQuotes(true)" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">↻ 시세 새로고침</button>
-              <span id="pfQuoteTs" style="font-size:10px;color:#7a8099;"></span>
-              <span id="pfTrackSyncStatus" style="font-size:10px;color:#7a8099;flex-basis:100%;text-align:right;"></span>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+              <button class="tab-btn" onclick="pfSyncTracking()" title="관심종목·그룹을 서버에 저장해 다른 기기/플랫폼에서도 같은 목록을 봅니다 (평단가·수량은 이 기기에만 저장)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">☁ 목록 저장</button>
+              <button class="tab-btn" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 이 기기 값 유지)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 불러오기</button>
+              <button class="tab-btn" onclick="pfRefreshQuotes(true)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">↻ 시세 새로고침</button>
             </div>
+          </div>
+          <!-- 상태줄(자동 저장·서버 동기화·시세 기준 시각) — 헤더와 분리해 좌/우 상단 정렬을 통일 -->
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;min-height:14px;margin-bottom:10px;">
+            <span id="pfTrackSyncStatus" style="font-size:10px;color:#7a8099;"></span>
+            <span id="pfQuoteTs" style="font-size:10px;color:#7a8099;"></span>
           </div>
 
           <!-- 그룹(폴더) 탭 -->
@@ -3677,6 +3690,11 @@ function navigateToDetail(target) {
 })();
 
 function showPage(id, el) {
+  // 포트폴리오 페이지를 떠날 때 서버 미저장 변경이 있으면 저장 여부를 물어본다 (지정 종목 트래킹 저장 리마인더)
+  try {
+    const _prev = document.querySelector('.page.active');
+    if(_prev && _prev.id === 'page-portfolio' && id !== 'portfolio' && typeof pfWarnUnsavedOnLeave === 'function') pfWarnUnsavedOnLeave();
+  } catch(_) {}
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.menu-item').forEach(m=>{ m.classList.remove('active'); m.removeAttribute('aria-current'); });
@@ -15944,6 +15962,37 @@ function pfLoad() {
 }
 function pfSave() { try { localStorage.setItem(PF_LS_KEY, JSON.stringify(pfState)); } catch(_) {} }
 
+// ── 저장 상태 추적 ('자동 저장됨' 확인 + 서버 미저장 경고) ─────────────────────
+// 평단가·수량·종목·그룹 등 수기 입력은 pfSave() 로 이 브라우저(localStorage)에 즉시 자동 저장된다.
+// 그 사실을 사용자에게 보여주고(자동 저장됨), 다른 기기 반영(서버 「목록 저장」)을 까먹지 않도록
+// 변경이 생기면 _pfDirty 로 표시 → 상태줄 안내 + 페이지 이탈/새로고침 시 경고창을 띄운다.
+let _pfDirty = false;
+function pfHasSyncKey() {
+  try { return !!(localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey')); } catch(_) { return false; }
+}
+// 사용자 수정 직후 호출 — 이미 localStorage 에 저장된 상태에서 호출되므로 '자동 저장됨'을 안내한다.
+function pfMarkDirty() {
+  _pfDirty = true;
+  const st = document.getElementById('pfTrackSyncStatus');
+  if(!st) return;
+  if(pfHasSyncKey()) {
+    st.textContent = '✓ 자동 저장됨 · ☁ 다른 기기 반영하려면 「목록 저장」';
+    st.style.color = '#f5a623';
+  } else {
+    st.textContent = '✓ 이 브라우저에 자동 저장됨';
+    st.style.color = '#26a69a';
+  }
+}
+function pfClearDirty() { _pfDirty = false; }
+// 포트폴리오 페이지를 떠나거나 탭을 닫을 때, 서버에 저장하지 않은 변경이 있으면 저장을 물어본다.
+function pfWarnUnsavedOnLeave() {
+  if(!_pfDirty || !pfHasSyncKey()) return;
+  if(confirm('지정 종목 트래킹에 저장하지 않은 변경이 있습니다. 지금 서버에 「목록 저장」할까요?')) {
+    try { pfSyncTracking(); } catch(_) {}
+  }
+  _pfDirty = false;   // 한 번 물었으면(저장/취소 무관) 같은 이동에서 반복해 묻지 않는다
+}
+
 // ── 환율 (해외 종목 원화 환산) ──────────────────────────────────────────────
 function pfUsdKrw() {
   const r = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators &&
@@ -16172,6 +16221,7 @@ function pfAddItem() {
   document.getElementById('pfAddFields').style.display = 'none';
   document.getElementById('pfLookupResult').textContent = '추가되었습니다.';
   pfSave();
+  pfMarkDirty();
   pfRefreshQuotes();
 }
 function pfDeleteItem(id) {
@@ -16181,7 +16231,7 @@ function pfDeleteItem(id) {
   pfState.items = pfState.items.filter(x => x.id !== id);
   pfState.alerts = pfState.alerts.filter(a => !(a.symbol === it.symbol && a.market === it.market));
   delete pfQuotes[id];
-  pfSave(); pfRenderAll();
+  pfSave(); pfMarkDirty(); pfRenderAll();
 }
 function pfUpdateItemField(id, field, value, inputEl) {
   const it = pfState.items.find(x => x.id === id);
@@ -16214,7 +16264,7 @@ function pfUpdateItemField(id, field, value, inputEl) {
       if(usd) it.fxBuy = (it.avg != null) ? (it.fxBuy || pfUsdKrw() || null) : null;
     }
   }
-  pfSave(); pfRenderSummary(); pfRenderPie();
+  pfSave(); pfMarkDirty(); pfRenderSummary(); pfRenderPie();
   if(field === 'group') pfRenderTable();
 }
 
@@ -16223,7 +16273,7 @@ function pfAddGroup() {
   const name = (prompt('새 그룹 이름을 입력하세요. (예: 배당주, 채권 ETF)') || '').trim();
   if(!name) return;
   pfState.groups.push({ id: 'g' + Date.now().toString(36), name: name.slice(0, 20) });
-  pfSave(); pfRenderGroups();
+  pfSave(); pfMarkDirty(); pfRenderGroups();
 }
 function pfRenameGroup(id) {
   const g = pfState.groups.find(x => x.id === id);
@@ -16231,7 +16281,7 @@ function pfRenameGroup(id) {
   const name = (prompt('그룹 이름 변경:', g.name) || '').trim();
   if(!name) return;
   g.name = name.slice(0, 20);
-  pfSave(); pfRenderGroups(); pfRenderTable();
+  pfSave(); pfMarkDirty(); pfRenderGroups(); pfRenderTable();
 }
 function pfDeleteGroup(id) {
   if(pfState.groups.length <= 1) { alert('그룹은 최소 1개가 필요합니다.'); return; }
@@ -16241,7 +16291,7 @@ function pfDeleteGroup(id) {
   const fallback = pfState.groups[0].id;
   pfState.items.forEach(it => { if(it.group === id) it.group = fallback; });
   if(pfActiveGroup === id) pfActiveGroup = 'all';
-  pfSave(); pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie();
+  pfSave(); pfMarkDirty(); pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie();
 }
 function pfSetActiveGroup(id) { pfActiveGroup = id; pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie(); }
 function pfFillGroupSelect(sel, selected) {
@@ -16483,17 +16533,20 @@ function pfRecordSnapshot() {
   try { localStorage.setItem(PF_SNAP_KEY, JSON.stringify(snaps.slice(-730))); } catch(_) {}
 }
 // 벤치마크 지수 — 각 스냅샷 날짜의 (직전) 종가를 첫 스냅샷일 대비 등락률(%)로 환산
-function _pfBenchSeries(symbol, dates) {
+// 지수 일별 정규화 시계열 — startDate 종가를 기준(0%)으로 axis(일별 날짜 배열) 위에 forward-fill.
+// 스냅샷일에만 샘플링하면 해외 지수(S&P500)가 한국 휴장·데이터 지연 구간에서 같은 종가로 collapse →
+// 0% 평탄선이 되는 문제가 있어, 일별 축으로 실제 추이를 그린다(미국 거래일이 쌓이면 자동으로 채워짐).
+function _pfBenchSeriesDaily(symbol, axis, startDate) {
   const d = (typeof _latestDataForIndicators !== 'undefined') ? _latestDataForIndicators : null;
   const arr = ((((d || {}).history || {}).indices || {})[symbol]) || [];
   const pts = arr.filter(p => p && p.date && p.close != null)
                  .map(p => ({ d: p.date, v: +p.close }))
                  .sort((a, b) => a.d < b.d ? -1 : 1);
   if(!pts.length) return null;
-  const vals = dates.map(dt => { let last = null; for(const p of pts) { if(p.d <= dt) last = p.v; else break; } return last; });
-  const base = vals.find(v => v != null);
-  if(base == null) return null;
-  return vals.map(v => v != null ? (v / base - 1) * 100 : null);
+  const closeOnOrBefore = dt => { let last = null; for(const p of pts) { if(p.d <= dt) last = p.v; else break; } return last; };
+  const baseV = closeOnOrBefore(startDate);
+  if(baseV == null) return null;
+  return axis.map(dt => { const v = closeOnOrBefore(dt); return v != null ? (v / baseV - 1) * 100 : null; });
 }
 function pfRenderBench() {
   const wrap = document.getElementById('pfBenchWrap');
@@ -16509,22 +16562,43 @@ function pfRenderBench() {
   }
   wrap.style.display = 'block'; empty.style.display = 'none';
   if(note) note.style.display = 'block';
-  const dates = snaps.map(s => s.d);
+  // 일별 축: 첫 스냅샷일 ~ 오늘(또는 마지막 스냅샷일).
+  const startDate = snaps[0].d;
+  const today = new Date().toISOString().slice(0, 10);
+  const lastSnap = snaps[snaps.length - 1].d;
+  const endDate = today > lastSnap ? today : lastSnap;
+  const axis = [];
+  for(let cur = startDate, guard = 0; cur <= endDate && guard < 1100; guard++) {
+    axis.push(cur);
+    const dt = new Date(cur + 'T00:00:00Z'); dt.setUTCDate(dt.getUTCDate() + 1);
+    cur = dt.toISOString().slice(0, 10);
+  }
+  // 내 포트폴리오 — 스냅샷 (평가/매입) 비율을 첫 스냅샷=0% 로 재기준해 축 위에 forward-fill
   const base = snaps[0].ev / snaps[0].ct;
-  const mine = snaps.map(s => ((s.ev / s.ct) / base - 1) * 100);   // 첫 기록일=0% 로 재기준
-  const kospi = _pfBenchSeries('KOSPI', dates);
-  const sp = _pfBenchSeries('SP500', dates);
+  const snapMap = new Map(snaps.map(s => [s.d, ((s.ev / s.ct) / base - 1) * 100]));
+  let lastMine = null;
+  const mine = axis.map(dt => { if(snapMap.has(dt)) lastMine = snapMap.get(dt); return lastMine; });
+  const kospi = _pfBenchSeriesDaily('KOSPI', axis, startDate);
+  const sp = _pfBenchSeriesDaily('SP500', axis, startDate);
   const tc = (typeof getThemeColors === 'function') ? getThemeColors() : { txt: '#8d90a2', grid: '#2a2e3d55' };
   const ds = [{ label: '내 포트폴리오', data: mine, borderColor: '#26a69a', backgroundColor: '#26a69a22',
-                borderWidth: 2.5, pointRadius: snaps.length > 30 ? 0 : 2, tension: .2, spanGaps: true }];
+                borderWidth: 2.5, pointRadius: 0, tension: .2, spanGaps: true }];
   if(kospi) ds.push({ label: 'KOSPI', data: kospi, borderColor: '#2962ff', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: .2, spanGaps: true });
   if(sp) ds.push({ label: 'S&P 500', data: sp, borderColor: '#f5a623', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: .2, spanGaps: true });
+  // 해외 지수가 추적 구간 내 변동이 없으면(미국 증시가 한국 대비 ~1거래일 지연 → 같은 종가) 그 이유를 안내
+  if(note) {
+    const isFlat = a => a && a.filter(v => v != null).length > 0 && a.every(v => v == null || Math.abs(v) < 0.005);
+    const baseNote = '내 포트폴리오 = (평가금액/매입금액 − 1), 벤치마크 = 첫 스냅샷일 종가 대비 등락률. 입금/매수로 매입금액이 변하면 단순 비교에 왜곡이 있을 수 있습니다.';
+    note.innerHTML = baseNote + (isFlat(sp)
+      ? '<br><span style="color:#f5a623;">※ S&amp;P 500 등 해외 지수는 한국보다 약 1거래일 늦게 갱신됩니다 — 추적 기간이 짧으면 미국 증시 종가 변동이 없어 0%(평탄)로 보일 수 있고, 미국 거래일이 쌓이면 자동으로 채워집니다.</span>'
+      : '');
+  }
   if(charts['pfBenchChart']) { try { charts['pfBenchChart'].destroy(); } catch(_) {} }
   const cv = document.getElementById('pfBenchChart');
   if(!cv || typeof Chart === 'undefined') return;
   charts['pfBenchChart'] = new Chart(cv, {
     type: 'line',
-    data: { labels: dates, datasets: ds },
+    data: { labels: axis, datasets: ds },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: {
@@ -17043,6 +17117,7 @@ async function pfSyncAlerts(stOverride) {
     if(r.ok && j.ok) {
       pfState.lastSync = new Date().toISOString();
       pfSave();
+      if(typeof pfClearDirty === 'function') pfClearDirty();   // 서버 저장 완료 → 미저장 경고 해제
       const _tc = (j.trackingCount != null) ? `관심종목 ${j.trackingCount}개·` : '';
       if(st) { st.textContent = `저장 완료 (${_tc}알림 ${j.count}개, ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false})})`; st.style.color = '#26a69a'; }
     } else {
@@ -17181,6 +17256,7 @@ async function pfPullTracking(auto) {
   });
   pfState.seeded = true;   // 서버 목록을 받았으면 기본 시드 자동등록은 더 이상 불필요
   pfSave();
+  if(typeof pfClearDirty === 'function') pfClearDirty();   // 서버 목록을 막 받음 → 관심목록은 서버와 동기 상태
   pfRenderAll();
   pfRefreshQuotes();
   if(st) {
@@ -17214,6 +17290,10 @@ function initPortfolioPage() {
     // ESC 로 모달 닫기
     document.addEventListener('keydown', e => {
       if(e.key === 'Escape') { pfCloseChart(); pfCloseAlerts(); }
+    });
+    // 탭 닫기/새로고침 시 서버 미저장 변경이 있으면 브라우저 기본 경고로 한 번 더 상기 (item 3)
+    window.addEventListener('beforeunload', e => {
+      if(_pfDirty && pfHasSyncKey()) { e.preventDefault(); e.returnValue = ''; return ''; }
     });
   }
   pfRenderAll();
