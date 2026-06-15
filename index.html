@@ -430,6 +430,13 @@
   .tab-btn { transition: all .15s; cursor: pointer; }
   .tab-btn.active { background: #2962ff; color: #fff; }
   .tab-btn:not(.active):hover { background: rgba(170, 195, 255, 0.12); }
+  /* ═══ 버튼 글자 가독성 보강 (전역, 2026-06 사용자 요청) ═══
+     작은 컨트롤 버튼의 얇은 11px 글씨가 글래스 배경 위에서 잘 안 보이던 문제 해소.
+     글자 두께를 올려 체감 대비를 높인다(활성=파란 배경+흰 글씨 구분은 그대로 유지).
+     색은 디자인 토큰을 그대로 두고 두께만 조정 → 기존 활성/비활성 로직과 충돌 없음. */
+  button, select { font-weight: 500; }
+  .tab-btn, .preset-btn, .invUnitBtn, .news-filter-btn,
+  .reHistPeriodBtn, .reHistUnitBtn, .range-reset-btn { font-weight: 600; letter-spacing: .01em; }
   .menu-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; color: #d4dae8; transition: all .15s; }
   .menu-item:hover { background: rgba(170, 195, 255, 0.10); color: #ffffff; }
   .menu-item.active { background: rgba(41, 98, 255, 0.22); color: #ffffff; border: 1px solid rgba(110, 145, 255, 0.35); }
@@ -1309,9 +1316,12 @@ html.light #dataSrcBanner { background:#fff7e6; }
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
             <span class="widget-title" style="margin-bottom:0;">지정 종목 트래킹</span>
-            <div style="display:flex;gap:4px;align-items:center;">
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+              <button class="tab-btn" onclick="pfSyncTracking()" title="관심종목·그룹을 서버에 저장해 다른 기기/플랫폼에서도 같은 목록을 봅니다 (평단가·수량은 이 기기에만 저장)" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">☁ 목록 저장</button>
+              <button class="tab-btn" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 이 기기 값 유지)" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 불러오기</button>
               <button class="tab-btn" onclick="pfRefreshQuotes(true)" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">↻ 시세 새로고침</button>
               <span id="pfQuoteTs" style="font-size:10px;color:#7a8099;"></span>
+              <span id="pfTrackSyncStatus" style="font-size:10px;color:#7a8099;flex-basis:100%;text-align:right;"></span>
             </div>
           </div>
 
@@ -1353,7 +1363,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
             </table>
           </div>
           <div id="pfCardList"></div>
-          <div style="font-size:10px;color:#7a8099;margin-top:8px;">행 클릭 = 상세 차트 · 🔔 = 카카오 알림 조건 · 평단가/수량은 셀에서 바로 수정됩니다. 입력값은 이 브라우저(localStorage)에만 저장됩니다.</div>
+          <div style="font-size:10px;color:#7a8099;margin-top:8px;">행 클릭 = 상세 차트 · 🔔 = 카카오 알림 조건 · 평단가/수량은 셀에서 바로 수정됩니다. <b>「☁ 목록 저장」</b>을 누르면 관심종목·그룹이 서버에 저장돼 다른 기기/플랫폼에서 <b>「⬇ 불러오기」</b>로 같은 목록을 볼 수 있습니다(동기화 키 필요 · ⚙ 설정). 평단가·수량은 공개 노출 방지를 위해 이 브라우저(localStorage)에만 저장됩니다.</div>
         </div>
 
         <!-- 우: 자산 비중 파이 차트 -->
@@ -2006,6 +2016,21 @@ html.light #dataSrcBanner { background:#fff7e6; }
             </tr></thead>
             <tbody id="freightTable"></tbody>
           </table>
+        </div>
+        <!-- 🌊 엘니뇨·라니냐 기후 영향 분석 (원자재 수급·가격 변동성 → 주가/산업 연동) -->
+        <div class="widget" id="ensoCard" style="margin-bottom:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+            <div class="widget-title" style="margin-bottom:0;">🌊 엘니뇨·라니냐 기후 영향 분석
+              <span style="font-size:10px;font-weight:400;color:var(--c-txt-muted);margin-left:6px;">ENSO 국면 → 원자재 수급·가격 변동성 → 주가/산업 연동</span>
+            </div>
+            <div id="ensoScenarioTabs" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+          </div>
+          <div id="ensoCardBody"></div>
+          <div style="font-size:10px;color:var(--c-txt-muted);margin-top:10px;line-height:1.6;">
+            ※ 국면별 영향은 과거 ENSO 사이클의 <b>전형적 패턴</b>이며 실시간 예보가 아닙니다. 실제 가격은 재고·달러·OPEC+·지정학 등 복합 요인에 좌우됩니다 — 투자 참고용.
+            실시간 감시: <a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/ensostuff/ONI_v5.php" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">NOAA CPC (ONI 지수)</a> ·
+            <a href="https://www.weather.go.kr/w/obs-climate/climate/elnino-lanina.do" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">기상청 엘니뇨·라니냐</a>
+          </div>
         </div>
       </div>
     </div><!-- /market -->
@@ -7780,6 +7805,22 @@ function buildEquityPage() {
     showNoDataOverlay('equityIndexChart', '실시간 지수 시계열 데이터가 아직 수집되지 않았습니다.');
   }
   buildInvestorChart();
+  // 투자자별 순매매 — 기본 조회 기간을 '일주일(1W)'로 최초 1회 적용 (2026-06 사용자 요청 기본값).
+  // 전역 기본 프리셋(_applyDefaultPresetsForActivePage)이 덮어쓰지 않도록 그룹에 defaultApplied 플래그를 세우고,
+  // 사용자가 이후 다른 기간을 고르면 _investorDefaultApplied 가드로 재적용하지 않는다.
+  if(!window._investorDefaultApplied) {
+    window._investorDefaultApplied = true;
+    try {
+      const _invGrp = document.querySelector('.preset-btn-group-investor');
+      const _invWk = _invGrp && Array.prototype.find.call(_invGrp.querySelectorAll('button'),
+        b => ((b.getAttribute('onclick') || '').indexOf("'1W'") >= 0));
+      if(_invGrp) _invGrp.dataset.defaultApplied = '1';
+      if(_invWk && typeof applyChartPresetPeriod === 'function') {
+        window._presetSyncing = true;   // 기본값 적용이 '기간 동기화 전파'(T7)를 유발하지 않게
+        try { applyChartPresetPeriod('investor', '1W', _invWk); } finally { window._presetSyncing = false; }
+      }
+    } catch(_) {}
+  }
   // 투자자 데이터가 비어있으면(서버 Actions 미수집) 브라우저에서 1회 자동으로 끌어온다 — 주식/ETF Top10 과 동일 UX.
   if((!investorRawData || !investorRawData.length) && window._REALTIME_BOOST && !window._investorClientTried
      && typeof fetchNaverInvestorTradingClient === 'function') {
@@ -8099,6 +8140,140 @@ async function refreshFreight(btn) {
   }
 }
 
+// ═══ 🌊 엘니뇨·라니냐 기후 영향 분석 ═══════════════════════════════════════════
+// ENSO(엘니뇨·남방진동) 국면별로 ① 원자재 수급·가격 변동성의 전형적 패턴과 ② 그것이 국내
+// 주가/산업으로 연동되는 경로를 정리한 분석 카드. 실시간 예보가 아니라 과거 사이클의 historical
+// pattern 이며, 사용자가 국면(엘니뇨/라니냐/중립)을 골라 시나리오별 영향을 비교할 수 있게 한다.
+const ENSO_SCENARIOS = {
+  elnino: {
+    label: '🔴 엘니뇨', tab: '엘니뇨', accent: '#ef5350',
+    phase: '적도 동태평양 해수면 온도 상승 (난수기)',
+    overallVol: '高',
+    summary: '동남아·인도·호주의 가뭄·고온이 두드러져 설탕·커피·팜유 등 열대 농산물 공급이 줄고, 북반구 겨울이 온난해 난방용 가스 수요는 약해지는 경향. 기후 프리미엄으로 농산물 가격 변동성이 커집니다.',
+    commodities: [
+      { name: '설탕(원당)',      dir: 'up',    vol: '高', note: '인도·태국 몬순 약화·가뭄 → 사탕수수 감산' },
+      { name: '커피',            dir: 'up',    vol: '高', note: '베트남·브라질 건조 → 로부스타·아라비카 감산' },
+      { name: '코코아',          dir: 'up',    vol: '中', note: '서아프리카 건조 리스크' },
+      { name: '팜유',            dir: 'up',    vol: '中', note: '인니·말련 건조로 단수(수확량) 저하' },
+      { name: '천연가스',        dir: 'down',  vol: '中', note: '북반구 겨울 온난 → 난방 수요 감소' },
+      { name: '밀·옥수수·대두',  dir: 'mixed', vol: '中', note: '미 중서부는 양호, 호주·동남아는 건조 → 혼조' },
+      { name: '니켈·주석',       dir: 'up',    vol: '中', note: '인도네시아 강우·물류 차질 가능' },
+    ],
+    sectors: [
+      { sector: '음식료 (원가 압박)', tickers: 'CJ제일제당 · 대상 · 롯데웰푸드 · 오뚜기', effect: 'neg', note: '설탕·커피·팜유 원재료비 ↑ → 마진 압박' },
+      { sector: '가스·난방',          tickers: '한국가스공사',                          effect: 'neg', note: '온난한 겨울 → 난방·LNG 수요 둔화' },
+      { sector: '비료·농업',          tickers: 'KG케미칼 · 효성오앤비 · 남해화학',       effect: 'pos', note: '농산물가 ↑ → 비료·작물보호제 수요 확대' },
+      { sector: '곡물·사료',          tickers: '한일사료 · 사조동아원',                  effect: 'mixed', note: '곡물가 등락 → 사료 원가 변동' },
+    ],
+  },
+  lanina: {
+    label: '🔵 라니냐', tab: '라니냐', accent: '#2962ff',
+    phase: '적도 동태평양 해수면 온도 하강 (한수기)',
+    overallVol: '高',
+    summary: '남미(아르헨티나·브라질 남부) 가뭄으로 대두·옥수수가 흔들리고, 북반구 한파로 원유·천연가스 난방 수요가 늘며, 페루·칠레 폭우는 구리 공급을 위협하는 경향. 에너지·곡물·구리 변동성이 동반 확대됩니다.',
+    commodities: [
+      { name: '대두·옥수수',   dir: 'up',    vol: '高', note: '남미 가뭄 → 작황 부진·감산' },
+      { name: '밀',            dir: 'up',    vol: '中', note: '북미·남미 작황 변동' },
+      { name: '원유·천연가스', dir: 'up',    vol: '高', note: '북반구 한파 → 난방 수요 급증' },
+      { name: '구리',          dir: 'up',    vol: '中', note: '페루·칠레 폭우 → 광산·물류 차질' },
+      { name: '팜유',          dir: 'up',    vol: '中', note: '동남아 과우(홍수) → 수확 차질' },
+      { name: '커피',          dir: 'mixed', vol: '中', note: '산지별 강우 편차로 혼조' },
+    ],
+    sectors: [
+      { sector: '정유·가스 (난방수요↑)', tickers: 'S-Oil · GS · 한국가스공사',      effect: 'pos', note: '난방·정제 수요 ↑ → 정제마진·판매 개선' },
+      { sector: '비철·구리',             tickers: '풍산 · LS · 고려아연',           effect: 'pos', note: '구리·아연 가격 ↑ → 제품 스프레드 개선' },
+      { sector: '곡물·사료 (원가↑)',     tickers: '한일사료 · 팜스코',              effect: 'neg', note: '대두·옥수수 ↑ → 사료 원가 부담' },
+      { sector: '음식료 (원가↑)',        tickers: 'CJ제일제당 · 대상',              effect: 'neg', note: '곡물·유지류 원가 ↑ → 마진 압박' },
+      { sector: '비료',                  tickers: '남해화학 · KG케미칼',            effect: 'pos', note: '곡물가 ↑ → 비료 수요·판가 상승' },
+    ],
+  },
+  neutral: {
+    label: '⚪ 중립', tab: '중립', accent: '#8b90a8',
+    phase: '해수면 온도 평년 수준 (ONI ±0.5℃ 이내)',
+    overallVol: '低~中',
+    summary: 'ENSO발 공급 충격이 제한적이어서 원자재는 기후 프리미엄보다 재고·달러지수(DXY)·OPEC+ 정책·지정학 등 펀더멘털 요인에 더 민감해집니다. 특정 섹터 일방향 베팅보다 환율·금리 흐름과의 연동에 주목할 국면.',
+    commodities: [
+      { name: '원유',   dir: 'mixed', vol: '中', note: 'OPEC+ 정책·재고가 핵심 변수' },
+      { name: '곡물',   dir: 'mixed', vol: '低', note: '평년 작황 가정 → 계절성·환율 영향 우세' },
+      { name: '금속',   dir: 'mixed', vol: '中', note: '달러·금리·중국 수요가 가격 주도' },
+    ],
+    sectors: [
+      { sector: '시장 전반', tickers: '섹터 일방 베팅보다 환율·금리 연동 주목', effect: 'mixed', note: 'ENSO 신호 약함 → 개별 펀더멘털·환율 흐름 중심 대응' },
+    ],
+  },
+};
+let ensoCurrent = 'elnino';
+function _ensoDirChip(dir) {
+  if(dir === 'up')   return '<span class="up-txt" style="font-weight:600;font-size:11px;">▲ 상승 압력</span>';
+  if(dir === 'down') return '<span class="down-txt" style="font-weight:600;font-size:11px;">▼ 하락 압력</span>';
+  return '<span style="color:var(--c-warn);font-weight:600;font-size:11px;">↔ 혼조</span>';
+}
+function _ensoVolChip(vol) {
+  const c = vol === '高' ? '#ef5350' : (vol === '中' ? '#f5a623' : '#8b90a8');
+  return `<span style="font-size:10px;font-weight:600;color:${c};border:1px solid ${c}66;border-radius:var(--r-full);padding:0 7px;white-space:nowrap;">변동성 ${vol}</span>`;
+}
+function _ensoEffectChip(effect) {
+  if(effect === 'pos')  return '<span style="font-size:10px;font-weight:700;color:#fff;background:#26a69a;border-radius:var(--r-full);padding:1px 8px;white-space:nowrap;">호재</span>';
+  if(effect === 'neg')  return '<span style="font-size:10px;font-weight:700;color:#fff;background:#ef5350;border-radius:var(--r-full);padding:1px 8px;white-space:nowrap;">악재</span>';
+  return '<span style="font-size:10px;font-weight:700;color:#fff;background:#f5a623;border-radius:var(--r-full);padding:1px 8px;white-space:nowrap;">혼재</span>';
+}
+function setEnsoScenario(key, btn) {
+  if(ENSO_SCENARIOS[key]) ensoCurrent = key;
+  renderEnsoCard();
+}
+function renderEnsoCard() {
+  const tabsEl = document.getElementById('ensoScenarioTabs');
+  const bodyEl = document.getElementById('ensoCardBody');
+  if(!bodyEl) return;
+  // 시나리오 탭
+  if(tabsEl) {
+    tabsEl.innerHTML = Object.keys(ENSO_SCENARIOS).map(k => {
+      const on = k === ensoCurrent;
+      const s = ENSO_SCENARIOS[k];
+      return `<button class="tab-btn${on ? ' active' : ''}" onclick="setEnsoScenario('${k}',this)" style="font-size:11px;padding:3px 12px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;background:${on ? 'var(--c-accent)' : 'transparent'};color:${on ? '#fff' : 'var(--c-txt-dim)'};">${s.tab}</button>`;
+    }).join('');
+  }
+  const s = ENSO_SCENARIOS[ensoCurrent];
+  const volC = s.overallVol.indexOf('高') >= 0 ? '#ef5350' : (s.overallVol.indexOf('中') >= 0 ? '#f5a623' : '#8b90a8');
+  const comRows = s.commodities.map(c => `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--c-border);">
+      <div style="min-width:96px;font-weight:600;font-size:12px;color:var(--c-txt);">${c.name}</div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">${_ensoDirChip(c.dir)} ${_ensoVolChip(c.vol)}</div>
+        <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;">${c.note}</div>
+      </div>
+    </div>`).join('');
+  const secRows = s.sectors.map(x => `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--c-border);">
+      <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span style="font-weight:600;font-size:12px;color:var(--c-txt);">${x.sector}</span> ${_ensoEffectChip(x.effect)}
+        </div>
+        <div style="font-size:11px;color:var(--c-primary);line-height:1.5;">${x.tickers}</div>
+        <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;">${x.note}</div>
+      </div>
+    </div>`).join('');
+  bodyEl.innerHTML = `
+    <div style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${s.accent};border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+        <span style="font-size:14px;font-weight:700;color:var(--c-txt);">${s.label}</span>
+        <span style="font-size:11px;color:var(--c-txt-dim);">${s.phase}</span>
+        <span style="margin-left:auto;font-size:11px;font-weight:700;color:${volC};border:1px solid ${volC}66;border-radius:var(--r-full);padding:1px 10px;white-space:nowrap;">예상 가격 변동성 ${s.overallVol}</span>
+      </div>
+      <div style="font-size:12px;color:var(--c-txt);line-height:1.65;">${s.summary}</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:2px;">① 원자재 수급·가격 변동성</div>
+        ${comRows}
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:2px;">② 연동 주가·산업 (국내)</div>
+        ${secRows}
+      </div>
+    </div>`;
+}
+
 function buildCommodityPage() {
   // Destroy existing charts
   ['comDetailChart','preciousChart','baseMetalChart','energyChart','agriChart'].forEach(destroyChart);
@@ -8137,6 +8312,9 @@ function buildCommodityPage() {
 
   // 운송 운임지수 표 (data.json.freight)
   if(typeof buildFreightTable === 'function') buildFreightTable();
+
+  // 🌊 엘니뇨·라니냐 기후 영향 분석 카드
+  try { renderEnsoCard(); } catch(_) {}
 
   // 섹터 차트 — 실제 데이터(data.json.history.commodities) 우선
   const days = 90;
@@ -11158,7 +11336,7 @@ function _renderGlobalInvestor(id) {
     data:{ labels: data.allocation.map(a=>a.name),
            datasets:[{ data: data.allocation.map(a=>a.pct),
                        backgroundColor: data.allocation.map(a=>a.color),
-                       borderWidth: 1, borderColor: 'rgba(0,0,0,0.2)' }] },
+                       borderWidth: 0 }] },
     options:{ responsive:true, maintainAspectRatio:false, cutout:'55%',
       plugins:{
         legend:{position:'right', labels:{color:tc.txt,font:{size:10},boxWidth:10}},
@@ -16264,7 +16442,7 @@ function pfRenderPie() {
   if(pfPieChart) pfPieChart.destroy();
   pfPieChart = new Chart(cv.getContext('2d'), {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => PF_PIE_COLORS[i % PF_PIE_COLORS.length]), borderColor: '#131722', borderWidth: 2 }] },
+    data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => PF_PIE_COLORS[i % PF_PIE_COLORS.length]), borderWidth: 0 }] },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '55%',
       plugins: {
@@ -16826,8 +17004,21 @@ function _pfSyncStatusEl() {
   }
   return document.getElementById('pfSyncStatus') || document.getElementById('settingsSyncStatus');
 }
-async function pfSyncAlerts() {
-  const st = _pfSyncStatusEl();
+// 📋 관심목록(지정 종목 트래킹) 서버 동기화 페이로드 — 기기 간 동일한 목록 표시용.
+// ⚠ 프라이버시(사용자 선택='관심목록만 공개 동기화'): 평단가/수량/매입환율은 절대 보내지 않는다.
+//   종목(코드·이름·시장·구분)과 그룹(폴더) 정의만 담아 공개 저장소에 커밋한다.
+function pfBuildTrackingPayload() {
+  if(!pfState) return undefined;
+  return {
+    groups: (pfState.groups || []).slice(0, 50).map(g => ({ id: String(g.id || ''), name: String(g.name || '그룹') })),
+    items: (pfState.items || []).slice(0, 300).map(it => ({
+      symbol: it.symbol, market: it.market, yahoo: it.yahoo || null,
+      name: it.name || it.symbol, secType: it.secType === 'etf' ? 'etf' : 'stock', group: it.group || ''
+    })),
+  };
+}
+async function pfSyncAlerts(stOverride) {
+  const st = stOverride || _pfSyncStatusEl();
   const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
   if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = '#ef5350'; } return; }
   if(st) { st.textContent = '저장 중…'; st.style.color = 'var(--c-txt-dim)'; }
@@ -16838,6 +17029,8 @@ async function pfSyncAlerts() {
       body: JSON.stringify({
         keyHash: await pfGetSyncKeyHash(),
         alerts: pfState.alerts,
+        // 📋 지정 종목 트래킹(관심목록) 동봉 — 다른 기기/플랫폼에서도 같은 목록을 보기 위함.
+        tracking: pfBuildTrackingPayload(),
         // [3차-T15] 전역 알림 설정 동봉 — Worker 가 화이트리스트 검증 후 alerts_config.json 에 커밋
         settings: (window.econSettings ? {
           enabled: !!econSettings.get('notif.globalEnabled'),
@@ -16850,7 +17043,8 @@ async function pfSyncAlerts() {
     if(r.ok && j.ok) {
       pfState.lastSync = new Date().toISOString();
       pfSave();
-      if(st) { st.textContent = `저장 완료 (알림 ${j.count}개, ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false})})`; st.style.color = '#26a69a'; }
+      const _tc = (j.trackingCount != null) ? `관심종목 ${j.trackingCount}개·` : '';
+      if(st) { st.textContent = `저장 완료 (${_tc}알림 ${j.count}개, ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit',hour12:false})})`; st.style.color = '#26a69a'; }
     } else {
       const why = j.error === 'unauthorized' ? '동기화 키 불일치 (🔑 버튼으로 설정)' :
                   j.error === 'no_github_token' ? 'Worker 에 GH_DISPATCH_TOKEN 시크릿 필요' : (j.error || ('HTTP ' + r.status));
@@ -16914,6 +17108,87 @@ async function pfPullAlerts() {
   }
 }
 
+// ── 📋 지정 종목 트래킹(관심목록) 서버 동기화 ──────────────────────────────────
+// 다른 기기/플랫폼에서도 같은 목록을 보기 위해 관심종목·그룹을 서버에 저장/복원한다.
+// (평단가·수량은 이 브라우저에만 남는다 — 사용자 선택 '관심목록만 공개 동기화'.)
+function _pfTrackStatusEl() { return document.getElementById('pfTrackSyncStatus'); }
+
+// 저장 — 알림·전역설정과 함께 한 번에 커밋(부분 저장으로 알림이 지워지지 않도록).
+async function pfSyncTracking() {
+  const st = _pfTrackStatusEl();
+  if(!pfState || !pfState.items.length) {
+    if(st) { st.textContent = '저장할 종목이 없습니다.'; st.style.color = 'var(--c-txt-dim)'; }
+    return;
+  }
+  await pfSyncAlerts(st);
+}
+
+// 복원 — 서버 관심목록을 현재 목록에 병합한다. 평단가/수량은 종목코드 기준으로 로컬 값을 유지.
+//   auto=true(초기 자동): 누락 종목/그룹만 '추가'(비파괴). auto=false(수동 버튼): 그룹 소속·이름도 서버 기준으로 갱신.
+async function pfPullTracking(auto) {
+  const st = _pfTrackStatusEl();
+  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+  if(!base) { if(!auto && st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = '#ef5350'; } return; }
+  if(!auto && st) { st.textContent = '불러오는 중…'; st.style.color = 'var(--c-txt-dim)'; }
+  let j = null;
+  try {
+    const r = await fetch(base + '/portfolio', { signal: AbortSignal.timeout(15000) });
+    j = await r.json().catch(() => null);
+    if(!r.ok || !j) { if(!auto && st) { st.textContent = '서버 응답 오류'; st.style.color = '#ef5350'; } return; }
+  } catch(_) {
+    if(!auto && st) { st.textContent = '불러오기 실패 — 네트워크 오류'; st.style.color = '#ef5350'; }
+    return;
+  }
+  const tr = j.tracking;
+  if(!tr || !Array.isArray(tr.items) || !tr.items.length) {
+    if(!auto && st) { st.textContent = '서버에 저장된 관심목록이 없습니다.'; st.style.color = 'var(--c-txt-dim)'; }
+    return;
+  }
+  if(!auto) {
+    const adds = tr.items.filter(s => !pfState.items.some(it => it.symbol === s.symbol && it.market === s.market)).length;
+    if(!confirm(`서버 관심목록 ${tr.items.length}개를 불러옵니다.\n· 새 종목 ${adds}개 추가\n· 그룹 소속·이름은 서버 기준으로 맞춥니다\n· 평단가·수량은 이 기기 값이 그대로 유지됩니다.\n진행할까요?`)) {
+      if(st) { st.textContent = ''; }
+      return;
+    }
+  }
+  // 1) 그룹 병합 — 서버 그룹 id 를 보존해 종목의 group 참조가 끊기지 않게 한다.
+  (tr.groups || []).forEach(g => {
+    if(!g || !g.id) return;
+    const ex = pfState.groups.find(x => x.id === g.id);
+    if(!ex) pfState.groups.push({ id: g.id, name: String(g.name || '그룹').slice(0, 30) });
+    else if(!auto && g.name) ex.name = String(g.name).slice(0, 30);
+  });
+  const groupIds = new Set(pfState.groups.map(g => g.id));
+  const fallbackGroup = pfState.groups[0] ? pfState.groups[0].id : 'g_default';
+  // 2) 종목 병합 — 코드+시장 기준. 기존은 평단가/수량 유지, 신규는 평단가/수량 없이 추가.
+  let added = 0;
+  tr.items.forEach(s => {
+    const grp = groupIds.has(s.group) ? s.group : fallbackGroup;
+    const ex = pfState.items.find(it => it.symbol === s.symbol && it.market === s.market);
+    if(ex) {
+      if(!auto) { ex.group = grp; if(s.name) ex.name = s.name; if(s.secType) ex.secType = s.secType; }
+    } else {
+      pfState.items.push({
+        id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        symbol: s.symbol, market: s.market === 'US' ? 'US' : 'KR',
+        yahoo: s.yahoo || (s.market === 'US' ? s.symbol : null),
+        name: s.name || s.symbol, secType: s.secType === 'etf' ? 'etf' : 'stock',
+        ccy: s.market === 'US' ? 'USD' : 'KRW',
+        avg: null, qty: null, group: grp,
+      });
+      added++;
+    }
+  });
+  pfState.seeded = true;   // 서버 목록을 받았으면 기본 시드 자동등록은 더 이상 불필요
+  pfSave();
+  pfRenderAll();
+  pfRefreshQuotes();
+  if(st) {
+    st.textContent = auto ? `서버 목록 동기화됨 (신규 ${added}개)` : `불러옴 — 신규 ${added}개 추가 (총 ${pfState.items.length}개)`;
+    st.style.color = '#26a69a';
+  }
+}
+
 // ── 페이지 초기화 ────────────────────────────────────────────────────────────
 function initPortfolioPage() {
   let isFresh = false;
@@ -16926,6 +17201,11 @@ function initPortfolioPage() {
     pfFillGroupSelect(document.getElementById('pfAddGroup'));
     // 첫 방문(저장된 포트폴리오 없음) → 보유 ETF 9종 자동 등록
     if(isFresh && !pfState.seeded && !pfState.items.length) setTimeout(() => pfSeedDefaults(), 100);
+    // 동기화 키가 설정된 기기에서는 서버 관심목록을 1회 자동 병합(비파괴)해 기기 간 목록을 맞춘다.
+    // (첫 방문/시드 등록 중인 기기는 제외 — 시드 후 사용자가 직접 「☁ 목록 저장」으로 올린다.)
+    else if(!isFresh) setTimeout(async () => {
+      try { if(typeof pfGetSyncKeyHash === 'function' && await pfGetSyncKeyHash()) pfPullTracking(true); } catch(_) {}
+    }, 600);
     // 장중 1분 주기 자동 갱신 (페이지가 활성일 때만)
     pfTimer = setInterval(() => {
       const pg = document.getElementById('page-portfolio');
