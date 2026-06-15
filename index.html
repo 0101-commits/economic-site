@@ -278,6 +278,10 @@
   .skip-link:focus{ left:0; }
   *:focus-visible{ outline:2px solid var(--c-primary); outline-offset:2px; }
   @media (max-width:768px){ .reHistPeriodBtn, .reHistUnitBtn { min-height:36px; } }
+  /* 소형 컨트롤 — 시각 크기 유지, 터치 히트영역 48px 확장 */
+  .news-filter-btn, .range-reset-btn, .guide-x { position:relative; }
+  .news-filter-btn::after, .range-reset-btn::after, .guide-x::after {
+    content:''; position:absolute; inset:calc((var(--touch-min) - 100%)/-2); }
   /* 라이트 테마 — inline 스타일 오버라이드 (color attributes) */
   html.light [style*="#262a35"] { background-color: #d9edf8 !important; }
   html.light [style*="background:#262a35"] { background-color: #d9edf8 !important; }
@@ -888,7 +892,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
 <div style="display:flex;padding-top:56px;min-height:100vh;">
 
   <!-- 사이드바 백드롭 (모바일에서 사이드바 열렸을 때 외부 클릭 → 닫기) -->
-  <div id="sidebarBackdrop" onclick="closeSidebarMobile()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:190;backdrop-filter:blur(2px);"></div>
+  <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" id="sidebarBackdrop" onclick="closeSidebarMobile()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:190;backdrop-filter:blur(2px);"></div>
 
   <!-- 사이드바 -->
   <nav id="sidebar" aria-label="메인 메뉴" style="width:200px;min-height:calc(100vh - 56px);background:var(--c-bg);border-right:1px solid var(--c-border);padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
@@ -1017,19 +1021,19 @@ html.light #dataSrcBanner { background:#fff7e6; }
       <!-- KPI 카드 4개 — 드래그하여 순서 변경 가능 (Task 2.2) -->
       <div class="home-sec" id="homeSecKpi" data-sec="kpi" style="position:relative;">
       <div id="homeKpiGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-        <div class="kpi-card kpi-clickable" id="kpi-kospi" onclick="navigateToDetail('equity')" style="cursor:pointer;transition:border-color .15s;">
+        <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-kospi" onclick="navigateToDetail('equity')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">KOSPI <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">단위: 지수 / %</span></div>
           <div id="kpi-kospi-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">7,612.51</div>
           <div id="kpi-kospi-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -4.62%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark1"></canvas></div>
         </div>
-        <div class="kpi-card kpi-clickable" id="kpi-fx" onclick="navigateToDetail('fx')" style="cursor:pointer;transition:border-color .15s;">
+        <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-fx" onclick="navigateToDetail('fx')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">USD / KRW <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">단위: 원/달러</span></div>
           <div id="kpi-fx-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,489.64</div>
           <div id="kpi-fx-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.00%</div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark2"></canvas></div>
         </div>
-        <div class="kpi-card kpi-clickable" id="kpi-rate" onclick="navigateToDetail('rate')" style="cursor:pointer;transition:border-color .15s;">
+        <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-rate" onclick="navigateToDetail('rate')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">한국 기준금리 <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">단위: % (연이율)</span></div>
           <div style="display:flex;align-items:baseline;gap:6px;">
             <div id="kpi-rate-val" style="font-size:22px;font-weight:700;font-family:'Public Sans';">2.75<span style="font-size:14px;">%</span></div>
@@ -1038,7 +1042,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div style="font-size:10px;color:var(--c-txt-dim);margin-top:2px;">최근 결정: <span id="kpi-rate-date">2025.02.25</span></div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark-rate"></canvas></div>
         </div>
-        <div class="kpi-card kpi-clickable" id="kpi-wti" onclick="navigateToDetail('commodity')" style="cursor:pointer;transition:border-color .15s;">
+        <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-wti" onclick="navigateToDetail('commodity')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">WTI 유가 <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">단위: USD/배럴</span></div>
           <div id="kpi-wti-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">$62.35</div>
           <div id="kpi-wti-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -0.55%</div>
@@ -1120,7 +1124,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
               <button onclick="refreshSentiment(this)" title="시장 분위기 지표 재페치 (VKOSPI/MOVE/PutCall)" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:0 6px;font-size:10px;cursor:pointer;height:18px;">↻</button>
             </div>
             <!-- Fear & Greed 게이지 (클릭 → 상세 모달) -->
-            <div onclick="showSentimentDetail('fear_greed')" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border-radius:var(--r-sm);padding:4px;transition:background 0.15s;" onmouseover="this.style.background='var(--c-card-hi,#2a3556)'" onmouseout="this.style.background='transparent'" title="클릭 → CNN Fear &amp; Greed 추이 및 해석 가이드">
+            <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showSentimentDetail('fear_greed')" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border-radius:var(--r-sm);padding:4px;transition:background 0.15s;" onmouseover="this.style.background='var(--c-card-hi,#2a3556)'" onmouseout="this.style.background='transparent'" title="클릭 → CNN Fear &amp; Greed 추이 및 해석 가이드">
               <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
                 <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
               </div>
@@ -1133,27 +1137,27 @@ html.light #dataSrcBanner { background:#fff7e6; }
             </div>
             <!-- 추가 시장 지표 그리드 (5개: VIX, VKOSPI, MOVE, Put/Call, HY Spread) — 클릭 → 상세 -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
-              <div class="sentiment-card" onclick="showSentimentDetail('vix')" title="클릭 → VIX 추이 및 해석 가이드">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('vix')" title="클릭 → VIX 추이 및 해석 가이드">
                 <div style="font-size:9px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VIX <span style="font-size:8px;color:var(--c-primary);">📈</span></div>
                 <div id="dashVix" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
                 <div style="font-size:9px;color:var(--c-txt-muted);">미국 변동성 · 지수</div>
               </div>
-              <div class="sentiment-card" onclick="showSentimentDetail('vkospi')" title="클릭 → KSVKOSPI 추이 및 해석 가이드 (한국거래소 V-KOSPI 200)">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('vkospi')" title="클릭 → KSVKOSPI 추이 및 해석 가이드 (한국거래소 V-KOSPI 200)">
                 <div style="font-size:9px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">KSVKOSPI <span style="font-size:8px;color:var(--c-primary);">📈</span></div>
                 <div id="dashVkospi" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
                 <div style="font-size:9px;color:var(--c-txt-muted);">코스피200 변동성지수 · KRX 정식</div>
               </div>
-              <div class="sentiment-card" onclick="showSentimentDetail('move')" title="클릭 → MOVE 추이 및 해석 가이드">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('move')" title="클릭 → MOVE 추이 및 해석 가이드">
                 <div style="font-size:9px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">MOVE Index <span style="font-size:8px;color:var(--c-primary);">📈</span></div>
                 <div id="dashMove" style="font-size:15px;font-weight:700;color:var(--c-primary);">—</div>
                 <div style="font-size:9px;color:var(--c-txt-muted);">미 채권 변동성 · 지수</div>
               </div>
-              <div class="sentiment-card" onclick="showSentimentDetail('pcr')" title="클릭 → Put/Call 비율 추이 및 해석 가이드">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('pcr')" title="클릭 → Put/Call 비율 추이 및 해석 가이드">
                 <div style="font-size:9px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Put/Call Ratio <span style="font-size:8px;color:var(--c-primary);">📈</span></div>
                 <div id="dashPcr" style="font-size:15px;font-weight:700;color:var(--c-txt,#e8ebf5);">—</div>
                 <div style="font-size:9px;color:var(--c-txt-muted);">옵션 심리 · 배수</div>
               </div>
-              <div class="sentiment-card" onclick="showSentimentDetail('hy_spread')" style="grid-column:1/3;" title="클릭 → HY Spread 추이 및 해석 가이드">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('hy_spread')" style="grid-column:1/3;" title="클릭 → HY Spread 추이 및 해석 가이드">
                 <div style="font-size:9px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HY Spread <span style="font-size:8px;color:var(--c-primary);">📈</span></div>
                 <div id="dashHySpread" style="font-size:15px;font-weight:700;color:#ef5350;">—</div>
                 <div style="font-size:9px;color:var(--c-txt-muted);">미 신용 스프레드 · %p (국채 대비)</div>
@@ -1245,11 +1249,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
             <button onclick="refreshNews('newsFeed','newsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
           </div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;" id="newsFilter">
-            <span class="news-filter-btn act" onclick="setNewsFilter('newsFeed','all',this)">전체</span>
-            <span class="news-filter-btn" onclick="setNewsFilter('newsFeed','주식',this)">주식</span>
-            <span class="news-filter-btn" onclick="setNewsFilter('newsFeed','채권',this)">채권</span>
-            <span class="news-filter-btn" onclick="setNewsFilter('newsFeed','외환',this)">외환</span>
-            <span class="news-filter-btn" onclick="setNewsFilter('newsFeed','원자재',this)">원자재</span>
+            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn act" onclick="setNewsFilter('newsFeed','all',this)">전체</span>
+            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('newsFeed','주식',this)">주식</span>
+            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('newsFeed','채권',this)">채권</span>
+            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('newsFeed','외환',this)">외환</span>
+            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('newsFeed','원자재',this)">원자재</span>
           </div>
           <div id="newsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
@@ -2061,14 +2065,14 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <button onclick="refreshNews('macroNewsFeed','macroNewsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-          <span class="news-filter-btn act" onclick="setNewsFilter('macroNewsFeed','all',this)">전체</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)">🇰🇷 한국</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)">🇺🇸 미국</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','일본경기',this)">🇯🇵 일본</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','중국경기',this)">🇨🇳 중국</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','독일경기',this)">🇩🇪 독일</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','영국경기',this)">🇬🇧 영국</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','유로존',this)">🇪🇺 유로존</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn act" onclick="setNewsFilter('macroNewsFeed','all',this)">전체</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)">🇰🇷 한국</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)">🇺🇸 미국</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','일본경기',this)">🇯🇵 일본</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','중국경기',this)">🇨🇳 중국</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','독일경기',this)">🇩🇪 독일</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','영국경기',this)">🇬🇧 영국</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','유로존',this)">🇪🇺 유로존</span>
         </div>
         <div id="macroNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
@@ -2081,17 +2085,17 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <option>이번 주</option><option>지난 달</option><option>이번 달</option><option>다음 달</option>
         </select>
         <div style="display:flex;gap:4px;flex-wrap:wrap;">
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇰🇷 한국</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','US',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇺🇸 미국</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','EU',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇪🇺 유로존</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','JP',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇯🇵 일본</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','CN',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇨🇳 중국</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','UK',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇬🇧 영국</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇰🇷 한국</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','US',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇺🇸 미국</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','EU',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇪🇺 유로존</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','JP',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇯🇵 일본</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','CN',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇨🇳 중국</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','UK',this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇬🇧 영국</span>
         </div>
         <div style="display:flex;gap:4px;">
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',3,this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★★</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',2,this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★</span>
-          <span class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',1,this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',3,this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★★</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',2,this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',1,this)" style="background:var(--c-accent);color:#fff;font-size:11px;padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★</span>
         </div>
       </div>
       <!-- 시각적 캘린더 그리드 -->
@@ -2199,10 +2203,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <button onclick="refreshNews('calendarNewsFeed','calendarNewsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-          <span class="news-filter-btn act" onclick="setNewsFilter('calendarNewsFeed','all',this)">전체</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','한국수출',this)">수출입</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','미국CPI',this)">고용/물가</span>
-          <span class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','한국은행',this)">통화정책</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn act" onclick="setNewsFilter('calendarNewsFeed','all',this)">전체</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','한국수출',this)">수출입</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','미국CPI',this)">고용/물가</span>
+          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','한국은행',this)">통화정책</span>
         </div>
         <div id="calendarNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
@@ -2300,21 +2304,21 @@ html.light #dataSrcBanner { background:#fff7e6; }
         <!-- KPI 카드 행 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
           <!-- 카드 1: 전국주택가격동향조사 매매가격지수 변동률 (사용자가 reb.or.kr 에서 보는 값) -->
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid #26a69a;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 변동률 (아파트)',{unit:'% (월간 변동률)'})">
+          <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" style="border-left:3px solid #26a69a;cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 변동률 (아파트)',{unit:'% (월간 변동률)'})">
             <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 매매가격지수 변동률 (아파트)</div>
             <div id="reKpiAptPrice" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:var(--c-txt-muted);">—</div>
             <div id="reKpiAptPriceMeta" style="font-size:11px;margin-top:4px;color:var(--c-txt-dim);" title="R-ONE 데이터 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:9px;color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </div>
           <!-- 카드 2: 전국주택가격동향조사 전세가격지수 변동률 -->
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid var(--c-primary);cursor:pointer;" onclick="showReHistoryChart('jns_price_idx_kr', '전국주택가격동향조사 전세가격지수 변동률 (주택종합)', {unit:'% (월간 변동률)'})">
+          <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" style="border-left:3px solid var(--c-primary);cursor:pointer;" onclick="showReHistoryChart('jns_price_idx_kr', '전국주택가격동향조사 전세가격지수 변동률 (주택종합)', {unit:'% (월간 변동률)'})">
             <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 전세가격지수 변동률 (주택종합)</div>
             <div id="reKpiAptIdxVal" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:var(--c-txt-muted);">—</div>
             <div id="reKpiAptIdxChg" style="font-size:11px;margin-top:4px;color:var(--c-txt-dim);" title="R-ONE 데이터 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:9px;color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </div>
           <!-- 카드 3: 부동산거래현황 (한국부동산원 R-ONE) — 국토부 실거래가 API 미수집분 대체 -->
-          <div class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})">
+          <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})">
             <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">행정구역별 아파트거래현황 (전국)</div>
             <div id="reKpiVol" style="font-size:22px;font-weight:700;font-family:'Public Sans';color:var(--c-txt-muted);">—</div>
             <div id="reKpiVolMeta" style="font-size:11px;margin-top:4px;color:var(--c-txt-dim);" title="부동산원 거래현황 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
@@ -2420,7 +2424,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget">
             <div class="widget-title">🏠 가격 지수</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 (아파트)',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 (아파트)',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">전국주택가격동향조사 매매가격지수 (아파트) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptSale">—</span></div>
@@ -2430,7 +2434,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div id="krReAptSaleChg" style="font-size:11px;margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('jns_price_idx_kr','전국주택가격동향조사 전세가격지수 (주택종합)',{unit:'지수 (2026.1=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('jns_price_idx_kr','전국주택가격동향조사 전세가격지수 (주택종합)',{unit:'지수 (2026.1=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">전국주택가격동향조사 전세가격지수 (주택종합) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptJns">—</span></div>
@@ -2440,7 +2444,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div id="krReAptJnsChg" style="font-size:11px;margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('pir_seoul','서울 PIR (소득 대비 주택가격)',{unit:'배 (배수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('pir_seoul','서울 PIR (소득 대비 주택가격)',{unit:'배 (배수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">서울 PIR (소득 대비 주택가격) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">통계청 가계금융복지 · 연간 · 단위: 배 (소득 대비 배수)</div>
@@ -2457,7 +2461,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget">
             <div class="widget-title">💰 주택담보대출 / 가계부채</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('mortgage_rate_kr','주담대 평균 금리',{unit:'% (연이율)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #ef5350;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('mortgage_rate_kr','주담대 평균 금리',{unit:'% (연이율)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #ef5350;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">주담대 평균 금리 (신규) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">한국은행 ECOS · 월간 · 단위: % (연이율)</div>
@@ -2467,7 +2471,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div style="font-size:11px;margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('household_debt_kr','가계신용 잔액',{unit:'10억원 → 조원 표시'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('household_debt_kr','가계신용 잔액',{unit:'10억원 → 조원 표시'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">가계신용 잔액 <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">한국은행 가계신용 · 분기 · 단위: 조원</div>
@@ -2491,7 +2495,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">행정구역별 아파트거래현황 (전국) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE 행정구역별 아파트거래현황 · 월간 · 단위: 동(호)수</div>
@@ -2501,7 +2505,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div style="font-size:11px;margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">미분양 주택 수 <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">국토부 통계 · 월간 · 단위: 호 (가구 수)</div>
@@ -2517,7 +2521,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget">
             <div class="widget-title">🏗️ 주택 공급·임대 지표</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('conversion_rate_kr','전월세전환율 (전국)',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('conversion_rate_kr','전월세전환율 (전국)',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">전월세전환율 (전국) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: %</div>
@@ -2527,7 +2531,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div id="krReConversionChg" style="font-size:11px;margin-top:2px;color:var(--c-txt-muted);">수집 중</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간</div>
@@ -2626,7 +2630,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget">
             <div class="widget-title">🏠 주택 가격 지수 <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">클릭 → 시계열 차트</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('case_shiller_national','Case-Shiller 전국 HPI',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('case_shiller_national','Case-Shiller 전국 HPI',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">Case-Shiller 전국 HPI <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">FRED: CSUSHPINSA · <span id="usTableCaseShillerPeriod">—</span></div>
@@ -2636,7 +2640,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div id="usTableCaseShillerChg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('case_shiller_20city','Case-Shiller 20대도시 HPI',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('case_shiller_20city','Case-Shiller 20대도시 HPI',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">Case-Shiller 20대도시 <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">FRED: SPCS20RSA · <span id="usTableCase20Period">—</span></div>
@@ -2646,7 +2650,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div id="usTableCase20Chg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('nahb_index','NAHB 주택시장지수',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('nahb_index','NAHB 주택시장지수',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">NAHB 주택시장지수 <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">건설업체 체감 · <span id="usTableNahbPeriod">—</span></div>
@@ -2663,7 +2667,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget">
             <div class="widget-title">💰 모기지 금리 (Freddie Mac) <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('mortgage_30y','30년 고정 모기지 금리',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #ef5350;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('mortgage_30y','30년 고정 모기지 금리',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #ef5350;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">30년 고정 모기지 <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">FRED: MORTGAGE30US · 주간 · <span id="usTableMtg30Period">—</span></div>
@@ -2673,7 +2677,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div id="usTableMtg30Chg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('mortgage_15y','15년 고정 모기지 금리',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('mortgage_15y','15년 고정 모기지 금리',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">15년 고정 모기지 <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">FRED: MORTGAGE15US · 주간 · <span id="usTableMtg15Period">—</span></div>
@@ -2699,7 +2703,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동 <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('existing_home_sales','기존주택 판매 (Existing Home Sales)',{unit:'백만 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('existing_home_sales','기존주택 판매 (Existing Home Sales)',{unit:'백만 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #26a69a;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">기존주택 판매 (Existing) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">FRED: EXHOSLUSM495S · <span id="usTableEHSPeriod">—</span></div>
@@ -2709,7 +2713,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div id="usTableEHSChg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('new_home_sales','신규주택 판매 (New Home Sales)',{unit:'천 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('new_home_sales','신규주택 판매 (New Home Sales)',{unit:'천 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">신규주택 판매 (New) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">FRED: HSN1F · <span id="usTableNHSPeriod">—</span></div>
@@ -2726,7 +2730,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget">
             <div class="widget-title">🏗️ 주택 공급 (선행지표) <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div onclick="showReHistoryChart('housing_starts','주택 착공 (Housing Starts)',{unit:'천 호 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('housing_starts','주택 착공 (Housing Starts)',{unit:'천 호 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">FRED: HOUST · <span id="usTableHStPeriod">—</span></div>
@@ -2736,7 +2740,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
                   <div id="usTableHStChg" style="font-size:11px;margin-top:2px;">—</div>
                 </div>
               </div>
-              <div onclick="showReHistoryChart('building_permits','건축 허가 (Building Permits)',{unit:'천 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('building_permits','건축 허가 (Building Permits)',{unit:'천 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
                 <div>
                   <div style="font-size:12px;font-weight:600;color:var(--c-txt);">건축 허가 (Permits) <span style="font-size:9px;color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:10px;color:var(--c-txt-muted);margin-top:2px;">FRED: PERMIT · <span id="usTableBPPeriod">—</span></div>
@@ -4467,6 +4471,43 @@ function closeInfoModal() {
     });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+// ── 전역 키보드 접근성: 동적 렌더된 onclick div/span 보강 + Enter/Space 위임 ──
+(function(){
+  const INTERACTIVE=/^(A|BUTTON|INPUT|SELECT|TEXTAREA|LABEL|SUMMARY|OPTION)$/;
+  function mark(el){
+    if(INTERACTIVE.test(el.tagName)) return;
+    const oc=el.getAttribute('onclick')||'';
+    if(/event\.target\s*===\s*this/.test(oc)) return;
+    if(!el.hasAttribute('tabindex')) el.setAttribute('tabindex','0');
+    if(!el.hasAttribute('role')) el.setAttribute('role','button');
+  }
+  function enhance(root){
+    let nodes; try { nodes=root.querySelectorAll('[onclick]'); } catch(_){ return; }
+    nodes.forEach(mark);
+  }
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Enter' && e.key!==' ') return;
+    const el=e.target;
+    if(!el || INTERACTIVE.test(el.tagName)) return;
+    if(el.hasAttribute('onkeydown')) return;          // 자체 keydown 처리 요소는 건너뜀
+    if(el.getAttribute('tabindex')!=='0') return;
+    const oc=el.getAttribute('onclick'); if(!oc) return;
+    if(/event\.target\s*===\s*this/.test(oc)) return;
+    e.preventDefault(); el.click();
+  }, false);
+  function boot(){
+    enhance(document);
+    new MutationObserver(muts=>{
+      for(const mu of muts) for(const n of mu.addedNodes){
+        if(n.nodeType!==1) continue;
+        if(n.hasAttribute && n.hasAttribute('onclick')) mark(n);
+        enhance(n);
+      }
+    }).observe(document.body,{childList:true,subtree:true});
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
 
 // ── 대출 규제 세부 내용 (Task 5) ──
