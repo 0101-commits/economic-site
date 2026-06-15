@@ -242,41 +242,6 @@
     /* touch & focus */
     --touch-min:48px;
   }
-  /* ======= 다크 테마 — 인라인 스타일 가독성 보강 =======
-     인라인 style="color:#XXX" 으로 박혀있는 다크 톤 색상을 한 단계씩 밝게 매핑.
-     html.light 가 있으면 라이트 오버라이드가 우선 적용되므로 다크 모드에서만 작용. */
-  html:not(.light) [style*="color:#434656"],
-  html:not(.light) [style*="color: #434656"],
-  html:not(.light) [style*="color: rgb(67, 70, 86)"],
-  html:not(.light) [style*="color: rgb(67,70,86)"] { color: #7a8099 !important; }
-  html:not(.light) [style*="color:#8d90a2"],
-  html:not(.light) [style*="color: #8d90a2"],
-  html:not(.light) [style*="color: rgb(141, 144, 162)"],
-  html:not(.light) [style*="color: rgb(141,144,162)"] { color: #a4a8bc !important; }
-  html:not(.light) [style*="color:#dfe2f2"],
-  html:not(.light) [style*="color: #dfe2f2"],
-  html:not(.light) [style*="color: rgb(223, 226, 242)"],
-  html:not(.light) [style*="color: rgb(223,226,242)"] { color: #e8ebf5 !important; }
-  html:not(.light) [style*="color:#b6c4ff"],
-  html:not(.light) [style*="color: #b6c4ff"],
-  html:not(.light) [style*="color: rgb(182, 196, 255)"],
-  html:not(.light) [style*="color: rgb(182,196,255)"] { color: #c8d2ff !important; }
-  /* 다크 테마 — 카드/입력 경계선이 더 잘 보이도록 한 단계 밝게 */
-  html:not(.light) [style*="border:1px solid #2a2e3d"],
-  html:not(.light) [style*="border: 1px solid #2a2e3d"],
-  html:not(.light) [style*="border-top:1px solid #2a2e3d"],
-  html:not(.light) [style*="border-top: 1px solid #2a2e3d"],
-  html:not(.light) [style*="border-bottom:1px solid #2a2e3d"],
-  html:not(.light) [style*="border-bottom: 1px solid #2a2e3d"],
-  html:not(.light) [style*="border-right:1px solid #2a2e3d"],
-  html:not(.light) [style*="border-right: 1px solid #2a2e3d"],
-  html:not(.light) [style*="border-left:1px solid #2a2e3d"],
-  html:not(.light) [style*="border-left: 1px solid #2a2e3d"] { border-color: #3a4054 !important; }
-  html:not(.light) [style*="border-bottom:1px solid #1b1f2b"],
-  html:not(.light) [style*="border-bottom: 1px solid #1b1f2b"] { border-bottom-color: #2a2e3d !important; }
-  /* 사이드바 헤더/푸터 — txt-muted (#434656) 가 어두운 배경에서 거의 안 보임 */
-  nav#sidebar [style*="color:#434656"],
-  nav#sidebar [style*="color: #434656"] { color: #9ea3b8 !important; }
   /* ======= 라이트 테마 오버라이드 ======= */
   html.light {
     --c-bg:       #f5f8fc;
@@ -288,7 +253,7 @@
     --c-txt-dim:  rgb(89,89,89);
     --c-txt-muted:rgb(145,145,145);
     --c-accent:   rgb(53,108,181);
-    --c-primary:  rgb(127,166,217);
+    --c-primary:  rgb(53,108,181);
     --c-up:       rgb(57,141,139);
     --c-down:     rgb(219,47,17);
   }
@@ -313,20 +278,7 @@
   .skip-link:focus{ left:0; }
   *:focus-visible{ outline:2px solid var(--c-primary); outline-offset:2px; }
   /* 라이트 테마 — inline 스타일 오버라이드 (color attributes) */
-  html.light [style*="#0f131e"] { background-color: #f5f8fc !important; }
-  html.light [style*="#131722"] { background-color: #ffffff !important; }
-  html.light [style*="#1b1f2b"] { background-color: #edf4fb !important; }
   html.light [style*="#262a35"] { background-color: #d9edf8 !important; }
-  html.light [style*="#2a2e3d"] { border-color: #aac4e6 !important; }
-  html.light [style*="color:#dfe2f2"] { color: rgb(38,38,38) !important; }
-  html.light [style*="color:#8d90a2"] { color: rgb(89,89,89) !important; }
-  html.light [style*="color:#434656"] { color: rgb(145,145,145) !important; }
-  html.light [style*="color:#b6c4ff"] { color: rgb(53,108,181) !important; }
-  html.light [style*="border:1px solid #2a2e3d"] { border-color: #aac4e6 !important; }
-  html.light [style*="border-bottom:1px solid #2a2e3d"] { border-bottom-color: #aac4e6 !important; }
-  html.light [style*="border-bottom:1px solid #1b1f2b"] { border-bottom-color: #ccdeed !important; }
-  html.light [style*="background:#131722"] { background-color: #ffffff !important; }
-  html.light [style*="background:#1b1f2b"] { background-color: #edf4fb !important; }
   html.light [style*="background:#262a35"] { background-color: #d9edf8 !important; }
   /* 라이트 테마 — 컴포넌트 오버라이드 */
   /* ======= 글래스모피즘 — 라이트 테마 ======= */
@@ -355,8 +307,8 @@
     -webkit-backdrop-filter: blur(14px) saturate(180%);
     box-shadow: 0 4px 24px rgba(53, 108, 181, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   }
-  html.light .widget [style*="background:#131722"],
-  html.light .kpi-card [style*="background:#131722"] { background: rgba(255, 255, 255, 0.45) !important; }
+  html.light .widget [style*="background:var(--c-bg)"],
+  html.light .kpi-card [style*="background:var(--c-bg)"] { background: rgba(255, 255, 255, 0.45) !important; }
   html.light .menu-item { color: rgb(89,89,89); }
   html.light .menu-item:hover { background: #d9edf8; color: rgb(38,38,38); }
   html.light .menu-item.active { background: #d9edf8; color: rgb(53,108,181); }
@@ -371,7 +323,6 @@
   html.light .tab-btn:not(.active):hover { background: #d9edf8 !important; color: rgb(53,108,181) !important; border-color: #aac4e6 !important; }
   html.light .tab-btn:not(.active) { border-color: #aac4e6 !important; }
   /* tab-btn 의 다크 인라인 border (#2a2e3d) 가 라이트 테마에서도 어둡게 보이는 문제 fix */
-  html.light .tab-btn[style*="border:1px solid #2a2e3d"]:not(.active) { border-color: #aac4e6 !important; }
   /* hover 시 다크 인라인 배경 (#262a35) 가 라이트 테마에서 깜빡이는 문제 fix */
   .tab-btn:not(.active):hover { background-color: rgba(41,98,255,0.12) !important; }
   html.light .ann-chip { background: #d9edf8; border-color: #aac4e6; }
@@ -384,61 +335,30 @@
   /* 활성화된 탭 버튼은 항상 파란 배경 + 흰색 글자 */
   html.light .tab-btn.active,
   html.light button.active,
-  html.light button[style*="background:#2962ff"],
-  html.light button[style*="background: #2962ff"] { background-color: #2962ff !important; color: #fff !important; border-color: #2962ff !important; }
+  html.light button[style*="background:var(--c-accent)"],
+  html.light button[style*="background: var(--c-accent)"] { background-color: #2962ff !important; color: #fff !important; border-color: #2962ff !important; }
   html.light .news-filter-btn.act { background: rgb(53,108,181) !important; color: #fff !important; border-color: rgb(53,108,181) !important; }
   /* 비활성 탭 버튼: 어두운 글자/투명 배경이 라이트에서도 잘 보이게 */
   html.light .tab-btn:not(.active) { color: rgb(89,89,89) !important; }
-  html.light .tab-btn:not(.active)[style*="color:#8d90a2"] { color: rgb(89,89,89) !important; }
   /* JS 인라인 color:#fff 가 다른 콘텍스트에서 흰 글자를 강제하는 경우만 유지 (파란 배경 컨텍스트) */
-  html.light [style*="background:#2962ff"][style*="color:#fff"],
-  html.light [style*="background: #2962ff"][style*="color: #fff"],
-  html.light .active[style*="color:#fff"] { color: #fff !important; }
   /* 메뉴 아이템 — hover/active 시에도 라이트 톤 유지 */
   html.light .menu-item:hover,
   html.light .menu-item.active { background: #d9edf8 !important; color: rgb(53,108,181) !important; }
   /* 일반 다크 배경 인라인을 가진 모든 요소 (date input 등) */
-  html.light input[type="date"][style*="background:#131722"],
-  html.light input[type="text"][style*="background:#131722"],
-  html.light textarea[style*="background:#131722"] {
-    background-color: #ffffff !important; color: rgb(38,38,38) !important; border-color: #aac4e6 !important;
-  }
   /* 사이드바 토글 버튼 inline color 강제 보정 */
-  html.light header button[style*="color:#8d90a2"] { color: rgb(89,89,89) !important; }
   /* tooltip / dropdown / modal — 라이트에서 자연스러운 배경 */
-  html.light [style*="background:#1b1f2b"][style*="border-radius"]:not(.kpi-card):not(.widget) {
-    background-color: #ffffff !important;
-  }
   /* 차트 캔버스 위 오버레이 (데이터 없음 안내) — 라이트에서 적절한 톤 */
   html.light .no-data-overlay { background: rgba(247,250,253,0.92) !important; color: rgb(89,89,89) !important; }
   /* 차트 위 평균/도구 표시 같은 강조 텍스트 (#b6c4ff → 어두운 파랑) */
-  html.light [style*="color:#b6c4ff"] { color: rgb(53,108,181) !important; }
   /* 보조 텍스트 (#dfe2f2 → 검정) */
-  html.light [style*="color:#dfe2f2"] { color: rgb(38,38,38) !important; }
   /* JS 가 DOM 으로 색상 설정한 경우 — 브라우저가 rgb() 로 정규화하므로 별도 매칭 필요 */
-  html.light [style*="color: rgb(223, 226, 242)"],
-  html.light [style*="color: rgb(223,226,242)"],
-  html.light [style*="color: rgb(207, 212, 232)"],
-  html.light [style*="color: rgb(182, 196, 255)"] { color: rgb(38,38,38) !important; }
   /* JS가 #8d90a2 (txt-dim) 를 inline 으로 설정 → rgb(141, 144, 162) 로 정규화 */
-  html.light [style*="color: rgb(141, 144, 162)"],
-  html.light [style*="color: rgb(141,144,162)"] { color: rgb(89,89,89) !important; }
   /* JS가 #434656 (txt-muted) → rgb(67, 70, 86) */
-  html.light [style*="color: rgb(67, 70, 86)"],
-  html.light [style*="color: rgb(67,70,86)"] { color: rgb(145,145,145) !important; }
   /* JS가 #b6c4ff (primary) → rgb(182, 196, 255) (이미 있음) — 추가로 다른 톤 */
-  html.light [style*="background: rgb(27, 31, 43)"],
-  html.light [style*="background:rgb(27,31,43)"] { background-color: #edf4fb !important; }
-  html.light [style*="background: rgb(19, 23, 34)"],
-  html.light [style*="background:rgb(19,23,34)"] { background-color: #ffffff !important; }
-  html.light [style*="background: rgb(38, 42, 53)"],
-  html.light [style*="background:rgb(38,42,53)"] { background-color: #d9edf8 !important; }
   /* 라이트 테마: 뉴스 필터 버튼 hover */
   html.light .news-filter-btn:hover { background: #d9edf8; }
   /* 라이트 테마: 뉴스 카드 link 의 border-bottom (다크 색상 → 라이트 색상) */
-  html.light a[style*="border-bottom:1px solid #1b1f2b"] { border-bottom-color: #ccdeed !important; }
   /* 라이트 테마: 뉴스 더보기 / 새로고침 버튼 */
-  html.light button[style*="background:#1b1f2b"] { background-color: #edf4fb !important; color: rgb(53,108,181) !important; }
   /* 라이트 테마: focus 시 outline 어두운 색 → 파란색 */
   html.light *:focus { outline-color: rgb(53,108,181); }
   /* tr:hover 의 라이트 테마 - 더 강하게 */
@@ -449,8 +369,6 @@
   /* 차트/지표값 — JS에서 자주 사용되는 #dfe2f2 패턴이 라이트테마에서 검정으로 */
   html.light .value-display { color: rgb(38,38,38) !important; }
   /* 광범위 인라인 hex 컬러 매칭 (#dfe2f2 가 .style.color 로 설정되어 rgb 로 정규화된 케이스) */
-  html.light [style*="color: rgb(223"][style*="226"][style*="242)"] { color: rgb(38,38,38) !important; }
-  html.light [style*="color: rgb(207"][style*="212"][style*="232)"] { color: rgb(38,38,38) !important; }
   /* font-weight:700 같은 강조 텍스트가 라이트 테마에서 너무 연한 경우 대비 (KPI 가격) */
   html.light .kpi-card div[style*="font-weight:700"]:not([style*="color:#"]):not(.up-txt):not(.down-txt) {
     color: rgb(38,38,38);
@@ -464,7 +382,7 @@
   html.light [style*="border:1px solid #2962ff33"],
   html.light [style*="border:1px solid #2962ff44"] { border-color: rgb(53,108,181) !important; }
   /* 카테고리 카드 안쪽 (#131722 박스) 라이트 톤 */
-  html.light .widget [style*="background:#131722"] { background-color: #f5f8fc !important; }
+  html.light .widget [style*="background:var(--c-bg)"] { background-color: #f5f8fc !important; }
   /* 시장 분위기 카드 호버 — 테마 무관 (라이트/다크 모두 자연스럽게) */
   .sentiment-card {
     background: var(--c-surface,#1a2236);
@@ -549,7 +467,6 @@
   header { background: rgba(28, 36, 56, 0.55) !important; backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); border-bottom-color: rgba(170, 195, 255, 0.16) !important; }
   nav#sidebar { background: rgba(38, 48, 72, 0.55) !important; backdrop-filter: blur(28px) saturate(180%); -webkit-backdrop-filter: blur(28px) saturate(180%); border-right-color: rgba(170, 195, 255, 0.16) !important; }
   /* 사이드바 헤더 텍스트 / 데이터 소스 라벨도 밝게 */
-  nav#sidebar [style*="color:#434656"] { color: #8d92aa !important; }
   nav#sidebar #dataSourceInfo { color: #8d92aa !important; }
   /* 모바일/태블릿 (1024px 이하) 사이드바: 오버레이로 동작할 때 더 불투명한 밝은 배경
      (backdrop-filter 만으로는 충분히 밝지 않음 — 뒤 콘텐츠가 어두우면 사이드바도 어두워 보임) */
@@ -564,8 +481,8 @@
     }
   }
   /* 글래스 환경에서 KPI 안의 인라인 background:#131722 등이 너무 어두우면 한 단계 밝게 */
-  .widget [style*="background:#131722"],
-  .kpi-card [style*="background:#131722"] {
+  .widget [style*="background:var(--c-bg)"],
+  .kpi-card [style*="background:var(--c-bg)"] {
     background: rgba(50, 65, 95, 0.40) !important;
     border: 1px solid rgba(170, 195, 255, 0.10);
     backdrop-filter: blur(10px) saturate(140%);
