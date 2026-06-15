@@ -691,7 +691,7 @@
     main div[style*="min-height:440px"] { min-height: 240px !important; height: 240px !important; }
     main div[style*="min-height:300px"] { min-height: 220px !important; }
     /* 가로 스크롤이 필요한 테이블은 명시적으로 처리 */
-    main table { font-size: 11px !important; }
+    main table { font-size: var(--fs-body-sm) !important; }
     /* 모바일에서 가로 wrap 강제 */
     main div[style*="display:flex"] { flex-wrap: wrap !important; }
     /* 사이드바가 열리면 메인 컨텐츠가 밀려나지 않고 오버레이로 덮음 */
@@ -1103,10 +1103,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);">
-                <th style="text-align:left;padding:4px 0;font-weight:600;">지수</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;">현재가</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;">등락률</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;width:32px;" title="상세">📊</th>
+                <th scope="col" style="text-align:left;padding:4px 0;font-weight:600;">지수</th>
+                <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;">현재가</th>
+                <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;">등락률</th>
+                <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;width:32px;" title="상세">📊</th>
               </tr>
             </thead>
             <tbody id="globalIndexTable" style="font-family:'Inter';">
@@ -1218,10 +1218,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);">
-                <th style="text-align:left;padding:4px 0;font-weight:600;">종목</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;">현재가 (원)</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;">등락률 (%)</th>
-                <th style="text-align:right;padding:4px 0;font-weight:600;">거래량 (천주)</th>
+                <th scope="col" style="text-align:left;padding:4px 0;font-weight:600;">종목</th>
+                <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;">현재가 (원)</th>
+                <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;">등락률 (%)</th>
+                <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;">거래량 (천주)</th>
               </tr>
             </thead>
             <tbody id="moverTable">
@@ -1328,15 +1328,15 @@ html.light #dataSrcBanner { background:#fff7e6; }
             <table class="pf-sticky-first" style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px;">
               <thead>
                 <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);text-align:right;">
-                  <th style="text-align:left;padding:6px 4px;">종목</th>
-                  <th style="padding:6px 4px;">현재가</th>
-                  <th style="padding:6px 4px;">당일 대비</th>
-                  <th style="padding:6px 4px;">내 평단가</th>
-                  <th style="padding:6px 4px;">보유 수량</th>
-                  <th style="padding:6px 4px;">평가 금액</th>
-                  <th style="padding:6px 4px;">평가 손익</th>
-                  <th style="padding:6px 4px;text-align:center;">그룹</th>
-                  <th style="padding:6px 4px;text-align:center;">관리</th>
+                  <th scope="col" style="text-align:left;padding:6px 4px;">종목</th>
+                  <th scope="col" style="padding:6px 4px;">현재가</th>
+                  <th scope="col" style="padding:6px 4px;">당일 대비</th>
+                  <th scope="col" style="padding:6px 4px;">내 평단가</th>
+                  <th scope="col" style="padding:6px 4px;">보유 수량</th>
+                  <th scope="col" style="padding:6px 4px;">평가 금액</th>
+                  <th scope="col" style="padding:6px 4px;">평가 손익</th>
+                  <th scope="col" style="padding:6px 4px;text-align:center;">그룹</th>
+                  <th scope="col" style="padding:6px 4px;text-align:center;">관리</th>
                 </tr>
               </thead>
               <tbody id="pfTableBody">
@@ -1553,12 +1553,12 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <table style="width:100%;font-size:13px;border-collapse:collapse;">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px 0;">통화쌍</th>
-                <th style="text-align:right;padding:6px;">현재가</th>
-                <th style="text-align:right;padding:6px;">전일비</th>
-                <th style="text-align:right;padding:6px;">등락률</th>
-                <th style="text-align:right;padding:6px;">52주 고가</th>
-                <th style="text-align:right;padding:6px;">52주 저가</th>
+                <th scope="col" style="text-align:left;padding:6px 0;">통화쌍</th>
+                <th scope="col" style="text-align:right;padding:6px;">현재가</th>
+                <th scope="col" style="text-align:right;padding:6px;">전일비</th>
+                <th scope="col" style="text-align:right;padding:6px;">등락률</th>
+                <th scope="col" style="text-align:right;padding:6px;">52주 고가</th>
+                <th scope="col" style="text-align:right;padding:6px;">52주 저가</th>
               </tr>
             </thead>
             <tbody id="fxTable"></tbody>
@@ -1598,11 +1598,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget-title">주요국 기준금리 현황 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-              <th style="text-align:left;padding:6px;">국가</th>
-              <th style="text-align:right;padding:6px;">현재금리</th>
-              <th style="text-align:right;padding:6px;">전회</th>
-              <th style="text-align:right;padding:6px;">다음 결정</th>
-              <th style="text-align:right;padding:6px;">방향</th>
+              <th scope="col" style="text-align:left;padding:6px;">국가</th>
+              <th scope="col" style="text-align:right;padding:6px;">현재금리</th>
+              <th scope="col" style="text-align:right;padding:6px;">전회</th>
+              <th scope="col" style="text-align:right;padding:6px;">다음 결정</th>
+              <th scope="col" style="text-align:right;padding:6px;">방향</th>
             </tr></thead>
             <tbody id="rateCurrentTable"></tbody>
           </table>
@@ -1669,11 +1669,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;font-style:italic;">단위: % (수익률) · 행 클릭 → 위 차트가 해당 국가로 전환</span></div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-              <th style="text-align:left;padding:6px;">국가</th>
-              <th style="text-align:right;padding:6px;">10년</th>
-              <th style="text-align:right;padding:6px;">2년</th>
-              <th style="text-align:right;padding:6px;">스프레드</th>
-              <th style="text-align:right;padding:6px;">전일비</th>
+              <th scope="col" style="text-align:left;padding:6px;">국가</th>
+              <th scope="col" style="text-align:right;padding:6px;">10년</th>
+              <th scope="col" style="text-align:right;padding:6px;">2년</th>
+              <th scope="col" style="text-align:right;padding:6px;">스프레드</th>
+              <th scope="col" style="text-align:right;padding:6px;">전일비</th>
             </tr></thead>
             <tbody id="globalBondTable"></tbody>
           </table>
@@ -1691,11 +1691,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <table style="width:100%;font-size:13px;border-collapse:collapse;">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px 0;">만기</th>
-                <th style="text-align:right;padding:6px;">수익률</th>
-                <th style="text-align:right;padding:6px;">전일비</th>
-                <th style="text-align:right;padding:6px;">1주전</th>
-                <th style="text-align:right;padding:6px;">1개월전</th>
+                <th scope="col" style="text-align:left;padding:6px 0;">만기</th>
+                <th scope="col" style="text-align:right;padding:6px;">수익률</th>
+                <th scope="col" style="text-align:right;padding:6px;">전일비</th>
+                <th scope="col" style="text-align:right;padding:6px;">1주전</th>
+                <th scope="col" style="text-align:right;padding:6px;">1개월전</th>
               </tr>
             </thead>
             <tbody id="bondTable"></tbody>
@@ -1791,10 +1791,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:12px;">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px 0;">구분</th>
-                <th style="text-align:right;padding:6px;">오늘</th>
-                <th style="text-align:right;padding:6px;">5일 누계</th>
-                <th style="text-align:right;padding:6px;">20일 누계</th>
+                <th scope="col" style="text-align:left;padding:6px 0;">구분</th>
+                <th scope="col" style="text-align:right;padding:6px;">오늘</th>
+                <th scope="col" style="text-align:right;padding:6px;">5일 누계</th>
+                <th scope="col" style="text-align:right;padding:6px;">20일 누계</th>
               </tr>
             </thead>
             <tbody id="investorSummaryTable"></tbody>
@@ -1813,11 +1813,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;">
-              <th style="text-align:left;padding:5px 0;">#</th>
-              <th style="text-align:left;padding:5px;">종목</th>
-              <th style="text-align:right;padding:5px;">현재가</th>
-              <th style="text-align:right;padding:5px;">등락률</th>
-              <th style="text-align:right;padding:5px;">거래량</th>
+              <th scope="col" style="text-align:left;padding:5px 0;">#</th>
+              <th scope="col" style="text-align:left;padding:5px;">종목</th>
+              <th scope="col" style="text-align:right;padding:5px;">현재가</th>
+              <th scope="col" style="text-align:right;padding:5px;">등락률</th>
+              <th scope="col" style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
             <tbody id="equityTopGainersTable"><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
@@ -1832,11 +1832,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;">
-              <th style="text-align:left;padding:5px 0;">#</th>
-              <th style="text-align:left;padding:5px;">종목</th>
-              <th style="text-align:right;padding:5px;">현재가</th>
-              <th style="text-align:right;padding:5px;">등락률</th>
-              <th style="text-align:right;padding:5px;">거래량</th>
+              <th scope="col" style="text-align:left;padding:5px 0;">#</th>
+              <th scope="col" style="text-align:left;padding:5px;">종목</th>
+              <th scope="col" style="text-align:right;padding:5px;">현재가</th>
+              <th scope="col" style="text-align:right;padding:5px;">등락률</th>
+              <th scope="col" style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
             <tbody id="equityTopLosersTable"><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
@@ -1855,10 +1855,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;">
-              <th style="text-align:left;padding:5px 0;">#</th>
-              <th style="text-align:left;padding:5px;">종목</th>
-              <th style="text-align:right;padding:5px;">현재가</th>
-              <th style="text-align:right;padding:5px;">등락률</th>
+              <th scope="col" style="text-align:left;padding:5px 0;">#</th>
+              <th scope="col" style="text-align:left;padding:5px;">종목</th>
+              <th scope="col" style="text-align:right;padding:5px;">현재가</th>
+              <th scope="col" style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
             <tbody id="etfTopGainersTable"><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
@@ -1873,10 +1873,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;">
-              <th style="text-align:left;padding:5px 0;">#</th>
-              <th style="text-align:left;padding:5px;">종목</th>
-              <th style="text-align:right;padding:5px;">현재가</th>
-              <th style="text-align:right;padding:5px;">등락률</th>
+              <th scope="col" style="text-align:left;padding:5px 0;">#</th>
+              <th scope="col" style="text-align:left;padding:5px;">종목</th>
+              <th scope="col" style="text-align:right;padding:5px;">현재가</th>
+              <th scope="col" style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
             <tbody id="etfTopLosersTable"><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
@@ -1967,11 +1967,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-              <th style="text-align:left;padding:6px 0;">금속</th>
-              <th style="text-align:right;padding:6px;">재고량(톤)</th>
-              <th style="text-align:right;padding:6px;">전주比</th>
-              <th style="text-align:right;padding:6px;">4주전</th>
-              <th style="text-align:right;padding:6px;">상태</th>
+              <th scope="col" style="text-align:left;padding:6px 0;">금속</th>
+              <th scope="col" style="text-align:right;padding:6px;">재고량(톤)</th>
+              <th scope="col" style="text-align:right;padding:6px;">전주比</th>
+              <th scope="col" style="text-align:right;padding:6px;">4주전</th>
+              <th scope="col" style="text-align:right;padding:6px;">상태</th>
             </tr></thead>
             <tbody id="metalInventoryTable"></tbody>
           </table>
@@ -1990,11 +1990,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
           </div>
           <table style="width:100%;font-size:12px;border-collapse:collapse;">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;">
-              <th style="text-align:left;padding:6px 0;">지수</th>
-              <th style="text-align:right;padding:6px;">종가</th>
-              <th style="text-align:right;padding:6px;">전일대비</th>
-              <th style="text-align:right;padding:6px;">기준일</th>
-              <th style="text-align:right;padding:6px;">거래소</th>
+              <th scope="col" style="text-align:left;padding:6px 0;">지수</th>
+              <th scope="col" style="text-align:right;padding:6px;">종가</th>
+              <th scope="col" style="text-align:right;padding:6px;">전일대비</th>
+              <th scope="col" style="text-align:right;padding:6px;">기준일</th>
+              <th scope="col" style="text-align:right;padding:6px;">거래소</th>
             </tr></thead>
             <tbody id="freightTable"></tbody>
           </table>
@@ -2139,14 +2139,14 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:700px;">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:6px 8px;">일시</th>
-                <th style="text-align:center;padding:6px 8px;">국가</th>
-                <th style="text-align:left;padding:6px 8px;">이벤트</th>
-                <th style="text-align:center;padding:6px 8px;">중요도</th>
-                <th style="text-align:right;padding:6px 8px;">이전값</th>
-                <th style="text-align:right;padding:6px 8px;">예측값</th>
-                <th style="text-align:right;padding:6px 8px;">실제값</th>
-                <th style="text-align:center;padding:6px 8px;width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">🔔</th>
+                <th scope="col" style="text-align:left;padding:6px 8px;">일시</th>
+                <th scope="col" style="text-align:center;padding:6px 8px;">국가</th>
+                <th scope="col" style="text-align:left;padding:6px 8px;">이벤트</th>
+                <th scope="col" style="text-align:center;padding:6px 8px;">중요도</th>
+                <th scope="col" style="text-align:right;padding:6px 8px;">이전값</th>
+                <th scope="col" style="text-align:right;padding:6px 8px;">예측값</th>
+                <th scope="col" style="text-align:right;padding:6px 8px;">실제값</th>
+                <th scope="col" style="text-align:center;padding:6px 8px;width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">🔔</th>
               </tr>
             </thead>
             <tbody id="calendarTable"></tbody>
@@ -2403,9 +2403,9 @@ html.light #dataSrcBanner { background:#fff7e6; }
             <div class="widget-title">청약 경쟁률 (최근 3개월) <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">지역 클릭 → 세부 지역·단지 순위</span></div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:10px;">
-                <th style="text-align:left;padding:5px 0;">지역</th>
-                <th style="text-align:right;padding:5px;">1순위 경쟁률</th>
-                <th style="text-align:right;padding:5px;">추이</th>
+                <th scope="col" style="text-align:left;padding:5px 0;">지역</th>
+                <th scope="col" style="text-align:right;padding:5px;">1순위 경쟁률</th>
+                <th scope="col" style="text-align:right;padding:5px;">추이</th>
               </tr></thead>
               <tbody>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('seoul')" title="클릭 → 서울 세부 지역·단지 순위"><td style="padding:7px 0;">서울 <span style="font-size:9px;color:var(--c-txt-muted);">▸</span></td><td style="text-align:right;padding:7px;font-weight:600;">32.4 : 1</td><td style="text-align:right;padding:7px;" class="up-txt">▲</td></tr>
@@ -2950,11 +2950,11 @@ html.light #dataSrcBanner { background:#fff7e6; }
             <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:600px;">
               <thead>
                 <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-                  <th style="text-align:left;padding:6px 8px;">연도</th>
-                  <th style="text-align:right;padding:6px 8px;">총 자산 (조원)</th>
-                  <th style="text-align:right;padding:6px 8px;">수익률</th>
-                  <th style="text-align:right;padding:6px 8px;">운용 수익 (조원)</th>
-                  <th style="text-align:left;padding:6px 8px;">비고</th>
+                  <th scope="col" style="text-align:left;padding:6px 8px;">연도</th>
+                  <th scope="col" style="text-align:right;padding:6px 8px;">총 자산 (조원)</th>
+                  <th scope="col" style="text-align:right;padding:6px 8px;">수익률</th>
+                  <th scope="col" style="text-align:right;padding:6px 8px;">운용 수익 (조원)</th>
+                  <th scope="col" style="text-align:left;padding:6px 8px;">비고</th>
                 </tr>
               </thead>
               <tbody id="npsReturnTable"></tbody>
@@ -2985,10 +2985,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead>
                 <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-                  <th style="text-align:left;padding:6px 0;">자산군</th>
-                  <th style="text-align:right;padding:6px;">금액 (조원)</th>
-                  <th style="text-align:right;padding:6px;">비중</th>
-                  <th style="text-align:right;padding:6px;">목표 비중</th>
+                  <th scope="col" style="text-align:left;padding:6px 0;">자산군</th>
+                  <th scope="col" style="text-align:right;padding:6px;">금액 (조원)</th>
+                  <th scope="col" style="text-align:right;padding:6px;">비중</th>
+                  <th scope="col" style="text-align:right;padding:6px;">목표 비중</th>
                 </tr>
               </thead>
               <tbody id="npsAllocationTable"></tbody>
@@ -3022,10 +3022,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
             <div class="widget-title">국내주식 Top 10 보유 종목 <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">(2024Q3 기준, 공시 기반)</span></div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:5px 0;">#</th>
-                <th style="text-align:left;padding:5px;">종목</th>
-                <th style="text-align:right;padding:5px;">비중</th>
-                <th style="text-align:right;padding:5px;">평가액(조)</th>
+                <th scope="col" style="text-align:left;padding:5px 0;">#</th>
+                <th scope="col" style="text-align:left;padding:5px;">종목</th>
+                <th scope="col" style="text-align:right;padding:5px;">비중</th>
+                <th scope="col" style="text-align:right;padding:5px;">평가액(조)</th>
               </tr></thead>
               <tbody id="npsKrStocksTable"></tbody>
             </table>
@@ -3034,10 +3034,10 @@ html.light #dataSrcBanner { background:#fff7e6; }
             <div class="widget-title">해외주식 Top 10 보유 종목 <span style="font-size:9px;color:var(--c-txt-muted);font-weight:400;">(2024Q3 기준, 공시 기반)</span></div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-                <th style="text-align:left;padding:5px 0;">#</th>
-                <th style="text-align:left;padding:5px;">종목</th>
-                <th style="text-align:right;padding:5px;">비중</th>
-                <th style="text-align:right;padding:5px;">평가액(조)</th>
+                <th scope="col" style="text-align:left;padding:5px 0;">#</th>
+                <th scope="col" style="text-align:left;padding:5px;">종목</th>
+                <th scope="col" style="text-align:right;padding:5px;">비중</th>
+                <th scope="col" style="text-align:right;padding:5px;">평가액(조)</th>
               </tr></thead>
               <tbody id="npsFxStocksTable"></tbody>
             </table>
@@ -4601,8 +4601,8 @@ function showSubscriptionDetail(regionKey) {
   if(liveList && liveList.length) {
     body += `<div style="overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;">
       <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border,#3e4870);font-size:10px;">
-        <th style="text-align:left;padding:5px 0;">단지</th><th style="text-align:left;padding:5px;">지역</th>
-        <th style="text-align:right;padding:5px;">1순위 경쟁률</th><th style="text-align:right;padding:5px;">청약일</th>
+        <th scope="col" style="text-align:left;padding:5px 0;">단지</th><th scope="col" style="text-align:left;padding:5px;">지역</th>
+        <th scope="col" style="text-align:right;padding:5px;">1순위 경쟁률</th><th scope="col" style="text-align:right;padding:5px;">청약일</th>
       </tr></thead><tbody>`;
     liveList.slice(0,12).forEach(it=>{
       const rate = (it.rate!=null) ? (Number(it.rate).toLocaleString()+' : 1') : '—';
@@ -11037,11 +11037,11 @@ function _renderBerkshire() {
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;">
           <thead><tr style="border-bottom:1px solid var(--c-border,#3e4870);">
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">#</th>
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">종목</th>
-            <th style="padding:6px 8px;text-align:right;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">평가액</th>
-            <th style="padding:6px 8px;text-align:right;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">주식 수</th>
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">포트폴리오 비중</th>
+            <th scope="col" style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">#</th>
+            <th scope="col" style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">종목</th>
+            <th scope="col" style="padding:6px 8px;text-align:right;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">평가액</th>
+            <th scope="col" style="padding:6px 8px;text-align:right;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">주식 수</th>
+            <th scope="col" style="padding:6px 8px;text-align:left;font-size:10px;color:var(--c-txt-dim,#a4a8bc);font-weight:600;">포트폴리오 비중</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -11110,9 +11110,9 @@ function _renderGlobalInvestor(id) {
       <div class="widget-title">${id==='frtib'?'펀드 구성':'주요 보유 (Top 10, 공시 기반 추정치)'}</div>
       <table style="width:100%;font-size:12px;border-collapse:collapse;">
         <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:11px;font-weight:600;text-transform:uppercase;">
-          <th style="text-align:left;padding:6px 0;">#</th>
-          <th style="text-align:left;padding:6px;">${id==='frtib'?'펀드':'종목'}</th>
-          <th style="text-align:right;padding:6px;">비중</th>
+          <th scope="col" style="text-align:left;padding:6px 0;">#</th>
+          <th scope="col" style="text-align:left;padding:6px;">${id==='frtib'?'펀드':'종목'}</th>
+          <th scope="col" style="text-align:right;padding:6px;">비중</th>
         </tr></thead>
         <tbody>
           ${data.holdings_intl.map((h,i)=>`
