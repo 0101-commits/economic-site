@@ -277,6 +277,7 @@
     padding:8px 16px; border-radius:0 0 var(--r-xs) 0; font-size:var(--fs-body); }
   .skip-link:focus{ left:0; }
   *:focus-visible{ outline:2px solid var(--c-primary); outline-offset:2px; }
+  @media (max-width:768px){ .reHistPeriodBtn, .reHistUnitBtn { min-height:36px; } }
   /* 라이트 테마 — inline 스타일 오버라이드 (color attributes) */
   html.light [style*="#262a35"] { background-color: #d9edf8 !important; }
   html.light [style*="background:#262a35"] { background-color: #d9edf8 !important; }
@@ -924,7 +925,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
   <div id="dataSourceDetailPopup" class="data-source-popup themed-popup" style="display:none;position:fixed;top:72px;left:210px;z-index:200;background:var(--c-card,#1f2945);border:1px solid var(--c-border,#3e4870);border-radius:var(--r-sm);padding:14px;width:380px;max-width:calc(100vw - 40px);max-height:calc(100vh - 90px);overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;">
       <div id="dsDetailTitle" style="font-size:13px;font-weight:700;color:var(--c-txt,#e8ebf5);">데이터 소스</div>
-      <button onclick="closeDataSourcePopup()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
+      <button class="u-touch" aria-label="닫기" onclick="closeDataSourcePopup()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
     </div>
     <div id="dsDetailBody" style="font-size:11px;color:var(--c-txt,#e8ebf5);line-height:1.7;"></div>
   </div>
@@ -938,23 +939,23 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div id="reHistMeta"  style="font-size:11px;color:var(--c-txt-dim,#a4a8bc);margin-top:2px;">—</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <button onclick="event.stopPropagation();refreshReHistoryChart(this)" title="data.json 재페치 후 차트 재렌더" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
-          <button onclick="closeReHistoryChart()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+          <button class="u-touch-hit" onclick="event.stopPropagation();refreshReHistoryChart(this)" title="data.json 재페치 후 차트 재렌더" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+          <button class="u-touch" aria-label="닫기" onclick="closeReHistoryChart()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
         </div>
       </div>
       <!-- 기간/단위 셀렉터 -->
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:11px;">
         <span style="color:var(--c-txt-dim,#a4a8bc);">기간:</span>
-        <button class="reHistPeriodBtn active" data-period="all" onclick="setReHistPeriod('all',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">전체</button>
-        <button class="reHistPeriodBtn" data-period="1y" onclick="setReHistPeriod('1y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">1년</button>
-        <button class="reHistPeriodBtn" data-period="3y" onclick="setReHistPeriod('3y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">3년</button>
-        <button class="reHistPeriodBtn" data-period="5y" onclick="setReHistPeriod('5y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">5년</button>
+        <button class="reHistPeriodBtn active u-touch-hit" data-period="all" onclick="setReHistPeriod('all',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">전체</button>
+        <button class="reHistPeriodBtn u-touch-hit" data-period="1y" onclick="setReHistPeriod('1y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">1년</button>
+        <button class="reHistPeriodBtn u-touch-hit" data-period="3y" onclick="setReHistPeriod('3y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">3년</button>
+        <button class="reHistPeriodBtn u-touch-hit" data-period="5y" onclick="setReHistPeriod('5y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">5년</button>
         <span style="color:var(--c-border,#3e4870);margin:0 2px;">|</span>
         <span style="color:var(--c-txt-dim,#a4a8bc);">단위:</span>
-        <button class="reHistUnitBtn active" data-unit="M" onclick="setReHistUnit('M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">월</button>
-        <button class="reHistUnitBtn" data-unit="Q" onclick="setReHistUnit('Q',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">분기</button>
-        <button class="reHistUnitBtn" data-unit="H" onclick="setReHistUnit('H',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">반기</button>
-        <button class="reHistUnitBtn" data-unit="Y" onclick="setReHistUnit('Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">연</button>
+        <button class="reHistUnitBtn active u-touch-hit" data-unit="M" onclick="setReHistUnit('M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">월</button>
+        <button class="reHistUnitBtn u-touch-hit" data-unit="Q" onclick="setReHistUnit('Q',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">분기</button>
+        <button class="reHistUnitBtn u-touch-hit" data-unit="H" onclick="setReHistUnit('H',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">반기</button>
+        <button class="reHistUnitBtn u-touch-hit" data-unit="Y" onclick="setReHistUnit('Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">연</button>
       </div>
       <div style="position:relative;flex:1;min-height:280px;">
         <canvas id="reHistChart"></canvas>
@@ -973,8 +974,8 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div id="reDrillMeta" style="font-size:11px;color:var(--c-txt-dim,#a4a8bc);margin-top:2px;">—</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <button id="reDrillTrendBtn" onclick="_drillShowTrend()" title="해당 시도 가격지수 추이 보기" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:11px;cursor:pointer;">📈 추이</button>
-          <button onclick="closeRegionDrill()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+          <button id="reDrillTrendBtn" class="u-touch-hit" onclick="_drillShowTrend()" title="해당 시도 가격지수 추이 보기" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:11px;cursor:pointer;">📈 추이</button>
+          <button class="u-touch" aria-label="닫기" onclick="closeRegionDrill()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
         </div>
       </div>
       <div id="reDrillSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
@@ -991,7 +992,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
           <div id="infoModalTitle" style="font-size:15px;font-weight:700;color:var(--c-txt,#e8ebf5);">상세</div>
           <div id="infoModalMeta" style="font-size:11px;color:var(--c-txt-dim,#a4a8bc);margin-top:2px;">—</div>
         </div>
-        <button onclick="closeInfoModal()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+        <button class="u-touch" aria-label="닫기" onclick="closeInfoModal()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
       </div>
       <div id="infoModalBody" style="flex:1;overflow-y:auto;min-height:120px;padding-right:4px;font-size:12.5px;line-height:1.65;color:var(--c-txt,#e8ebf5);"></div>
     </div>
@@ -1396,7 +1397,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
               <span id="pfChartPrice" style="font-size:15px;font-weight:700;font-family:'Public Sans';margin-left:10px;"></span>
               <span id="pfChartChg" style="font-size:12px;margin-left:6px;"></span>
             </div>
-            <button onclick="pfCloseChart()" style="background:transparent;border:none;color:var(--c-txt-dim);font-size:20px;cursor:pointer;line-height:1;">✕</button>
+            <button class="u-touch" aria-label="닫기" onclick="pfCloseChart()" style="background:transparent;border:none;color:var(--c-txt-dim);font-size:20px;cursor:pointer;line-height:1;">✕</button>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
             <div style="display:flex;gap:4px;" id="pfChartPeriods">
@@ -1430,7 +1431,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
         <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,94vw);max-height:90vh;overflow-y:auto;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <span style="font-size:15px;font-weight:700;color:var(--c-txt);">🔔 <span id="pfAlertModalName">-</span> 카카오 알림</span>
-            <button onclick="pfCloseAlerts()" style="background:transparent;border:none;color:var(--c-txt-dim);font-size:20px;cursor:pointer;line-height:1;">✕</button>
+            <button class="u-touch" aria-label="닫기" onclick="pfCloseAlerts()" style="background:transparent;border:none;color:var(--c-txt-dim);font-size:20px;cursor:pointer;line-height:1;">✕</button>
           </div>
           <div id="pfAlertList" style="margin-bottom:12px;"></div>
           <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:10px;">
@@ -4413,6 +4414,60 @@ function closeInfoModal() {
   const m = document.getElementById('infoDetailModal');
   if(m) m.style.display = 'none';
 }
+
+// ── 모달 접근성: role/aria-modal/labelledby + 포커스 트랩 + Esc + 포커스 복귀 ──
+(function(){
+  const MODALS = [
+    {id:'reHistoryChartModal',  label:'reHistTitle'},
+    {id:'reRegionDrillModal',   label:'reDrillTitle'},
+    {id:'infoDetailModal',      label:'infoModalTitle'},
+    {id:'dataSourceDetailPopup',label:'dsDetailTitle'},
+    {id:'pfChartModal',         label:null},
+    {id:'pfAlertModal',         label:'pfAlertModalName'},
+  ];
+  let active=null, lastFocus=null;
+  const SEL='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  function focusables(m){ return Array.prototype.filter.call(m.querySelectorAll(SEL), el=>el.offsetWidth||el.offsetHeight||el.getClientRects().length); }
+  function onKey(e){
+    if(!active) return;
+    if(e.key==='Escape'){
+      const cb=active.querySelector('button[aria-label="닫기"]')||active.querySelector('[onclick*="lose"]');
+      if(cb){ e.preventDefault(); cb.click(); } else { active.style.display='none'; }
+    } else if(e.key==='Tab'){
+      const f=focusables(active); if(!f.length) return;
+      const first=f[0], last=f[f.length-1];
+      if(e.shiftKey){ if(document.activeElement===first || !active.contains(document.activeElement)){ e.preventDefault(); last.focus(); } }
+      else { if(document.activeElement===last || !active.contains(document.activeElement)){ e.preventDefault(); first.focus(); } }
+    }
+  }
+  function shown(m){ const d=m.style.display; return !!d && d!=='none'; }
+  function activate(m){
+    if(active===m) return;
+    if(!active) lastFocus=document.activeElement;
+    active=m;
+    document.addEventListener('keydown', onKey, true);
+    setTimeout(()=>{ if(active!==m) return; const f=focusables(m); if(f.length){ try{ f[0].focus(); }catch(_){} } }, 40);
+  }
+  function deactivate(){
+    if(!active) return;
+    document.removeEventListener('keydown', onKey, true);
+    active=null;
+    if(lastFocus && lastFocus.focus){ try{ lastFocus.focus(); }catch(_){} }
+    lastFocus=null;
+  }
+  function init(){
+    MODALS.forEach(cfg=>{
+      const m=document.getElementById(cfg.id); if(!m) return;
+      m.setAttribute('role','dialog');
+      m.setAttribute('aria-modal','true');
+      if(cfg.label && document.getElementById(cfg.label)) m.setAttribute('aria-labelledby', cfg.label);
+      new MutationObserver(()=>{ if(shown(m)) activate(m); else if(active===m) deactivate(); })
+        .observe(m,{attributes:true, attributeFilter:['style']});
+      if(shown(m)) activate(m);
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
 
 // ── 대출 규제 세부 내용 (Task 5) ──
 // 클릭한 규제 항목의 정의·산식·적용 기준·최근 변화를 모달로 설명. 정책/지역에 따라
