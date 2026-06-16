@@ -42,6 +42,14 @@ on:
 permissions:
   contents: read
 
+# 모든 JS 액션(actions/cache@v4 등)을 Node 24 로 강제 실행 — 런 로그의 'Node.js 20 deprecated'
+# ⚠ 경고 주석을 없애 매 발송 런을 '경고 0개의 완전한 green' 으로 유지한다. (2026-06-16 GitHub 이
+# Node24 를 기본으로 강제 전환 — 명시적으로 켜 두면 전환 시점과 무관하게 항상 깨끗하다.)
+# 목적: 워크플로 상태를 스크랩하는 모니터(예: 아침 카톡 점검 세션)가 ⚠ 경고를 '실패/이상'으로
+#       오인해 '카톡 발송 실패' 오탐 알림을 내는 것을 차단. 발송 성공/실패 판정에는 영향 없음.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 concurrency:
   group: kakao-daily-digest
   cancel-in-progress: false

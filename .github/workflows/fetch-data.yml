@@ -43,6 +43,12 @@ concurrency:
 permissions:
   contents: write
 
+# 모든 JS 액션(actions/cache@v4 등)을 Node 24 로 강제 실행 — 런 로그의 'Node.js 20 deprecated'
+# ⚠ 경고 주석 제거(런을 '경고 0개의 green' 으로 유지). 2026-06-16 GitHub 이 Node24 를 기본으로
+# 강제 전환하므로 명시적으로 켜 둔다. 데이터 수집/커밋 동작에는 영향 없음.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   fetch-and-commit:
     runs-on: ubuntu-latest
