@@ -8142,8 +8142,11 @@ function buildFreightTable() {
     const chg = (it.chgPct != null) ? it.chgPct : null;
     const cls = (chg == null) ? '' : (chg >= 0 ? 'up-txt' : 'down-txt');
     const arrow = (chg == null) ? '' : (chg >= 0 ? '▲' : '▼');
+    // change 절대값이 없으면 price × chgPct / (1 + chgPct/100) 으로 근사 계산
+    const absChg = it.change != null ? Math.abs(it.change)
+      : (it.price != null && chg != null && chg !== 0) ? Math.abs(it.price * chg / 100 / (1 + chg / 100)) : null;
     const chgTxt = (chg == null) ? '—'
-      : `${arrow} ${it.change != null ? fmt(Math.abs(it.change)) : ''} (${chg >= 0 ? '+' : ''}${fmt(chg)}%)`;
+      : `${arrow} ${absChg != null ? fmt(absChg) : ''} (${chg >= 0 ? '+' : ''}${fmt(chg)}%)`;
     return `<tr style="border-bottom:1px solid var(--c-border);">
       <td style="padding:6px 0;color:var(--c-txt);">${it.name || name}</td>
       <td style="text-align:right;padding:6px;font-family:'Public Sans';">${fmt(it.price)}</td>
@@ -12940,11 +12943,14 @@ async function fetchSentimentClient() {
         // pid-XXXXX-last 또는 instrument-price-last 패턴 (사이트 구조 변경에 견디도록 다중 시도)
         let m = html.match(/data-test="instrument-price-last"[^>]*>([0-9,.]+)</);
         if(!m) m = html.match(/id="last_last"[^>]*>([0-9,.]+)</);
-        if(!m) m = html.match(/"last":\s*"?([0-9.,]+)"?/);
+        // "last" JSON 패턴은 제거 — 페이지 내 다른 종목(예: 유가) JSON의 last 값을 오매핑함
         if(!m) m = html.match(/pid-\d+-last[^>]*>([0-9,.]+)</);
         if(m) {
           const val = parseFloat(m[1].replace(/,/g,''));
           if(val > 1 && val < 200) {
+            // VIX 교차검증: VKOSPI/VIX 비율이 0.3~4.0 벗어나면 스크래핑 오염 가능성 높음
+            const vix = (_latestDataForIndicators?.economicIndicators?.us?.vix?.value) || 0;
+            if(vix > 0 && (val / vix > 4.0 || val / vix < 0.3)) continue;
             // 변화율도 시도
             let chg = 0;
             const mc = html.match(/data-test="instrument-price-change-percent"[^>]*>\(?([+\-]?[0-9.,]+)%/)
@@ -13131,17 +13137,19 @@ function applySentimentClient(s) {
   merge('move',   s.move);
   merge('pcr',    s.pcr);
   merge('fear_greed', s.fear_greed);
-  if(s.vkospi?.value != null && _isValidVkospi(s.vkospi.value)) {
+  if(s.vkospi?.value != null) {
     const el = document.getElementById('dashVkospi');
     if(el) {
-      el.textContent = s.vkospi.value.toFixed(2);
       const v = s.vkospi.value;
-      el.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
+      const vix = (_latestDataForIndicators?.economicIndicators?.us?.vix?.value) || 0;
+      const vixCrossOk = !vix || (v / vix >= 0.3 && v / vix <= 4.0);
+      if(_isValidVkospi(v) && vixCrossOk) {
+        el.textContent = v.toFixed(2);
+        el.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
+      } else {
+        el.textContent = '—'; el.style.color = 'var(--c-txt-dim,#a4a8bc)';
+      }
     }
-  } else if(s.vkospi?.value != null) {
-    // 잘못된 값 (KOSPI 가 ^VKOSPI 로 잘못 매핑된 케이스 등) — 표시하지 않음
-    const el = document.getElementById('dashVkospi');
-    if(el) { el.textContent = '—'; el.style.color = 'var(--c-txt-dim,#a4a8bc)'; }
   }
   if(s.move?.value != null) {
     const el = document.getElementById('dashMove');
@@ -13650,9 +13658,11 @@ function _renderReHistChartSentiment(guide) {
   const d = _latestDataForIndicators || {};
   const node = getDataByPath(d, guide.dataPath);
   let labels=[], values=[];
-  // VKOSPI 의 경우 합리적 범위 검증 — KOSPI 값이 잘못 매핑된 경우 무효화
+  // VKOSPI 의 경우 합리적 범위 검증 + VIX 교차검증 — KOSPI 오매핑·스크래핑 오염 검출
   const isVkospi = (guide.dataPath || '').includes('vkospi');
-  const valIsValid = node?.value != null && (!isVkospi || _isValidVkospi(node.value));
+  const _vkospiVix = (_latestDataForIndicators?.economicIndicators?.us?.vix?.value) || 0;
+  const _vkospiXvalid = !isVkospi || !_vkospiVix || (node?.value != null && node.value / _vkospiVix >= 0.3 && node.value / _vkospiVix <= 4.0);
+  const valIsValid = node?.value != null && (!isVkospi || (_isValidVkospi(node.value) && _vkospiXvalid));
   if(node?.history && typeof node.history === 'object' && Object.keys(node.history).length > 0) {
     // VKOSPI 히스토리 — 잘못된 값 필터링
     Object.keys(node.history).sort().forEach(p=>{
@@ -13668,8 +13678,10 @@ function _renderReHistChartSentiment(guide) {
   if(labels.length < 2 || uniqueValues < 2) {
     if(noteEl) {
       const isSentimentClientKey = ['vkospi','move','pcr','fear_greed'].some(k => (guide.dataPath||'').endsWith(k));
-      if(isVkospi && node?.value != null && !_isValidVkospi(node.value)) {
-        noteEl.innerHTML = `<span style="color:var(--c-down,#ef5350);">⚠️ VKOSPI 값(${node.value}) 이 합리적 범위 벗어남</span> — 다음 갱신에서 자동 보정`;
+      if(isVkospi && node?.value != null && (!_isValidVkospi(node.value) || !_vkospiXvalid)) {
+        const _xMsg = !_isValidVkospi(node.value) ? `합리적 범위 벗어남(${node.value})`
+          : `VIX(${_vkospiVix.toFixed(1)}) 대비 비율 이상(${(node.value/_vkospiVix).toFixed(2)}x — 스크래핑 오염 의심)`;
+        noteEl.innerHTML = `<span style="color:var(--c-down,#ef5350);">⚠️ VKOSPI ${_xMsg}</span> — 다음 갱신에서 자동 보정`;
       } else if(valIsValid) {
         noteEl.innerHTML = `<span style="color:var(--c-primary,#c8d2ff);">⟳ 시계열 데이터 수집 중…</span> &nbsp; <span style="font-size:10px;color:var(--c-txt-dim,#a4a8bc);">현재값: ${node.value} (${guide.source})</span>`;
         // 즉시 fetch 트리거 (Naver 차트 API)
@@ -14321,8 +14333,11 @@ function applyRealData(d) {
     const vkEl = document.getElementById('dashVkospi');
     if(vkEl) {
       // VKOSPI 합리적 범위 검증 (1~200) — yfinance 가 KOSPI 값을 잘못 반환할 수 있음
+      // 추가: VIX 교차검증 — VKOSPI/VIX 비율이 0.3~4.0 벗어나면 스크래핑 오염 의심
       const v = sentiment.vkospi.value;
-      if(_isValidVkospi(v)) {
+      const vix = d?.economicIndicators?.us?.vix?.value;
+      const vixCrossOk = !vix || vix <= 0 || (v / vix >= 0.3 && v / vix <= 4.0);
+      if(_isValidVkospi(v) && vixCrossOk) {
         vkEl.textContent = v.toFixed(2);
         vkEl.style.color = v > 30 ? '#ef5350' : v > 20 ? '#f5a623' : '#26a69a';
       } else {

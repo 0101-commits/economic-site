@@ -5762,6 +5762,38 @@ def build_data():
     except Exception as e:
         log(f"[VKOSPI] 오류: {e}")
 
+    # ── VKOSPI × VIX 교차검증: 스크래핑 오염값 거부 ────────
+    # 역사적으로 VKOSPI/VIX 는 약 0.3~4.0 배 범위. 이 범위를 벗어나면 소스 오염 가능성이 높다.
+    # (2026-06 실사례: investing.com 79.76, VIX 16.2 → 비율 4.92 → 카카오 시황 오발송)
+    try:
+        _vk = data["sentiment"].get("vkospi") or {}
+        _vk_val = _vk.get("value")
+        _vix_val = ((data.get("economicIndicators") or {}).get("us") or {}).get("vix", {}).get("value")
+        if _vk_val and _vix_val and _vix_val > 0:
+            _ratio = _vk_val / _vix_val
+            if _ratio > 4.0 or _ratio < 0.3:
+                _src = _vk.get("source", "알 수 없음")
+                log(f"[VKOSPI] 교차검증 이상 — VKOSPI({_vk_val:.2f}) / VIX({_vix_val:.2f}) = {_ratio:.2f} (정상 0.3~4.0), 소스={_src}")
+                _hist = _vk.get("history") or {}
+                if _hist:
+                    _dates = sorted(_hist.keys())
+                    _latest_h = _hist[_dates[-1]]
+                    _prev_h = _hist[_dates[-2]] if len(_dates) > 1 else None
+                    _chg_h = round((_latest_h - _prev_h) / _prev_h * 100, 2) if _prev_h else 0.0
+                    if _is_valid_vkospi(_latest_h) and _latest_h / _vix_val <= 4.0:
+                        data["sentiment"]["vkospi"] = {**_vk, "value": _latest_h, "change": _chg_h,
+                                                        "as_of": _dates[-1], "source": f"History ({_src} 교차검증 실패)"}
+                        data["sources"]["vkospi"] = f"History ({_src} 교차검증 실패)"
+                        log(f"[VKOSPI] 히스토리 최신값으로 대체: {_latest_h}")
+                    else:
+                        data["sentiment"]["vkospi"]["value"] = None
+                        log(f"[VKOSPI] 히스토리값도 의심, value=None 처리")
+                else:
+                    data["sentiment"]["vkospi"]["value"] = None
+                    log(f"[VKOSPI] 히스토리 없어 교차검증 실패값 null 처리")
+    except Exception as e:
+        log(f"[VKOSPI] 교차검증 오류: {e}")
+
     # ── MOVE Index (미국채 옵션 변동성) ────────
     try:
         mv = fetch_move_index()
