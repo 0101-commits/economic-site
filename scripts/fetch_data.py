@@ -1372,6 +1372,8 @@ def fetch_fred_economic_indicators():
         "retail_us":   ("RSXFS",           "미국 소매판매 (수정후, 백만USD)"),
         # 비농업고용 (NFP, 월간 수준, 단위: 천명) — 캘린더 NFP 백필용
         "nfp_us":      ("PAYEMS",          "미국 비농업고용 (PAYEMS, 천명)"),
+        # FOMC 목표금리 상한 (일간, 결정 즉시 반영) — FEDFUNDS(실효율)보다 정확
+        "ff_target":   ("DFEDTARU",        "미국 기준금리 목표 상한 (FOMC 발표)"),
     }
     # 시리즈별 빈도에 맞는 limit (분기/연 단위 차트 표시 위해 5년치 이상 확보)
     # daily 시리즈: 1300 (≈5년), monthly: 60 (5년), quarterly: 20 (5년)
@@ -1382,6 +1384,7 @@ def fetch_fred_economic_indicators():
         "us10y":       60,   # GS10 is monthly
         "us2y":        60,
         "ff_rate":     60,
+        "ff_target":   1300, # DFEDTARU daily — 5y history for step-chart
         "broad_dollar":1300, # DTWEXBGS is daily — 5y history for chart
         # monthly series
         "cpi_us":      60,
@@ -5637,6 +5640,62 @@ def build_data():
                 log(f"[BOJ] 정책금리 신규 생성: {_BOJ_KNOWN[known_latest]}% (FRED 데이터 없음)")
         except Exception as _boj_err:
             log(f"[BOJ] 정책금리 오버라이드 오류: {_boj_err}")
+
+        # ── FOMC 목표금리 ff_target 보정 — DFEDTARU 지연 보완 ────────
+        # DFEDTARU 는 결정 즉시 반영되므로 지연이 없지만, 가끔 fetch 실패 시
+        # 아래 확정값으로 폴백. 또한 ff_rate(월평균 실효금리)를 FOMC 캘린더에
+        # 사용하지 않도록 ff_target 필드를 보장한다.
+        # FOMC 목표금리 상한 확정값 — FEDFUNDS(실효율) 시계열에서 역산.
+        # 실효율 ≈ 목표상한 − 0.12pp 로 추정.
+        #   Aug 25: 4.33% eff → 4.50% 상한 (hold)
+        #   Sep 25: 4.22% eff → Sep 17 회의 −25bp → 4.25% 상한
+        #   Oct 25: 4.09% eff → Oct 29 회의 −25bp → 4.00% 상한
+        #   Nov 25: 3.88% eff → hold 4.00%
+        #   Dec 25: 3.72% eff (월평균, 12/10 인하 반영) → 3.75% 상한
+        #   Jan-May 26: 3.63% eff → 3.75% 상한 hold
+        _FOMC_KNOWN = {  # YYYY-MM-DD : 목표 상한(%)
+            "2024-09-19": 5.00,   # −50bp: 5.50→5.00
+            "2024-11-07": 4.75,   # −25bp: 5.00→4.75
+            "2024-12-19": 4.50,   # −25bp: 4.75→4.50
+            "2025-01-29": 4.50,   # hold
+            "2025-03-19": 4.50,   # hold
+            "2025-05-07": 4.50,   # hold
+            "2025-06-18": 4.50,   # hold
+            "2025-07-30": 4.50,   # hold
+            "2025-09-17": 4.25,   # −25bp: 4.50→4.25
+            "2025-10-29": 4.00,   # −25bp: 4.25→4.00
+            "2025-12-10": 3.75,   # −25bp: 4.00→3.75
+            "2026-01-29": 3.75,   # hold
+            "2026-03-18": 3.75,   # hold
+            "2026-04-29": 3.75,   # hold
+            "2026-06-10": 3.75,   # hold (캘린더 '06.11 02:00 KST' = Jun 10 EDT)
+        }
+        try:
+            us_node = data.get("economicIndicators", {}).get("us", {})
+            tgt_node = us_node.get("ff_target", {})
+            if tgt_node:
+                hist = dict(tgt_node.get("history") or {})
+                fred_latest = max(hist.keys()) if hist else "0000-00-00"
+                known_latest = max(_FOMC_KNOWN.keys())
+                if known_latest > fred_latest:
+                    for k, v in _FOMC_KNOWN.items():
+                        hist[k] = v
+                    tgt_node["value"] = _FOMC_KNOWN[known_latest]
+                    tgt_node["period"] = known_latest
+                    tgt_node["history"] = dict(sorted(hist.items(), reverse=True))
+                    log(f"[FOMC] ff_target 오버라이드: {tgt_node['value']}% (period={known_latest})")
+            else:
+                known_latest = max(_FOMC_KNOWN.keys())
+                data["economicIndicators"].setdefault("us", {})["ff_target"] = {
+                    "value": _FOMC_KNOWN[known_latest],
+                    "period": known_latest,
+                    "desc": "미국 기준금리 목표 상한 (FOMC 발표)",
+                    "source": "FRED:DFEDTARU + FOMC confirmed decisions",
+                    "history": dict(sorted(_FOMC_KNOWN.items(), reverse=True)),
+                }
+                log(f"[FOMC] ff_target 신규 생성: {_FOMC_KNOWN[known_latest]}% (FRED 없음)")
+        except Exception as _fomc_err:
+            log(f"[FOMC] ff_target 오버라이드 오류: {_fomc_err}")
 
         # PMI 지표 — 국가별 제조업 PMI (OECD BSCICP02 via FRED)
         log("[PMI] 국가별 제조업 PMI 수집 시작")
