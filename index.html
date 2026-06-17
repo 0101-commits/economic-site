@@ -800,6 +800,8 @@
   }
   .ann-pending .dot { width: 6px; height: 6px; border-radius: 50%; background: #2962ff; animation: ann-pulse 1.2s ease-in-out infinite; }
   @keyframes ann-pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+  @keyframes _spin { to { transform: rotate(360deg); } }
+  .spin-anim { animation: _spin .8s linear infinite; display: inline-block; }
 
   /* 지연 데이터 글로벌 상태 칩 (2.4) — 카드별 중복 경고문 대신 단일 상시 표시.
      좌하단 플로팅이 본문 콘텐츠를 가린다는 피드백으로 사이드바(메뉴바) 내부 정적 배치로 변경. */
@@ -934,6 +936,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
     <div class="menu-item" onclick="showPage('settings',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">settings</span>설정</div>
     <!-- 지연 데이터 상태 칩 — 좌하단 플로팅에서 사이드바 정적 배치로 이동 (본문 가림 해소) -->
     <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다."><span class="dot"></span>Market Data 15m Delayed</div>
+    <button id="globalRefreshBtn" onclick="manualRefreshData()" title="데이터 수동 새로고침 (30초 쿨다운)" style="display:flex;align-items:center;gap:5px;width:100%;padding:5px 10px;margin-top:4px;border-radius:var(--r-xs);border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;font-size:11px;font-weight:500;transition:opacity .2s;"><span class="mat" id="globalRefreshIcon" style="font-size:14px;">refresh</span><span id="globalRefreshLabel">새로고침</span></button>
     <div style="border-top:1px solid var(--c-border);margin:12px 0;"></div>
     <!-- 테마 토글 버튼 -->
     <div style="padding:0 6px 8px;">
@@ -1330,6 +1333,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
               <button class="tab-btn" onclick="pfSyncTracking()" title="관심종목·그룹을 서버에 저장해 다른 기기/플랫폼에서도 같은 목록을 봅니다 (평단가·수량은 이 기기에만 저장)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">☁ 목록 저장</button>
               <button class="tab-btn" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 이 기기 값 유지)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 불러오기</button>
               <button class="tab-btn" onclick="pfRefreshQuotes(true)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">↻ 시세 새로고침</button>
+              <button class="tab-btn" onclick="pfExportCsv()" title="포트폴리오를 CSV 파일로 저장 (Excel 호환)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ CSV 저장</button>
             </div>
           </div>
           <!-- 상태줄(자동 저장·서버 동기화·시세 기준 시각) — 헤더와 분리해 좌/우 상단 정렬을 통일 -->
@@ -3729,6 +3733,8 @@ function showPage(id, el) {
   if(id==='realestate') { setRETab('kr', document.getElementById('reitabKR')); setTimeout(buildReCharts, 80); }
   // [3차-T5] 페이지 공통 훅 — 기본 조회 기간 1회 적용 + 1회성 가이드 배너 (T6에서 정의)
   try { if (typeof econPageHook === 'function') econPageHook(id); } catch(_) {}
+  // URL 딥링크 — 페이지 전환마다 ?p=<id> 반영 (뒤로/앞으로 지원)
+  try { history.replaceState(null, '', location.pathname + '?p=' + id); } catch(_) {}
   // 메뉴 클릭 후 사이드바 자동 숨김 (모바일/데스크탑 공통)
   collapseSidebarAfterNav();
 }
@@ -18198,7 +18204,157 @@ document.addEventListener('DOMContentLoaded', function () {
   setTimeout(function () { try { econPageHook('dashboard'); } catch (_) {} }, 900);
 });
 })();
+
+// ═══ 수동 새로고침 버튼 ══════════════════════════════════════════════════════
+(function() {
+  var _refreshCooldown = false;
+  window.manualRefreshData = function() {
+    if(_refreshCooldown) return;
+    _refreshCooldown = true;
+    var btn  = document.getElementById('globalRefreshBtn');
+    var icon = document.getElementById('globalRefreshIcon');
+    var lbl  = document.getElementById('globalRefreshLabel');
+    if(icon) icon.classList.add('spin-anim');
+    if(lbl)  lbl.textContent = '새로고침 중…';
+    if(btn)  { btn.disabled = true; btn.style.opacity = '.5'; }
+    Promise.all([
+      loadRealData().catch(function(){}),
+      loadRealtimeFx().catch(function(){}),
+      loadRealtimeMarket().catch(function(){}),
+    ]).then(function() {
+      if(icon) icon.classList.remove('spin-anim');
+      if(lbl)  lbl.textContent = '새로고침 완료';
+      setTimeout(function() { if(lbl) lbl.textContent = '새로고침'; }, 3000);
+    });
+    setTimeout(function() {
+      _refreshCooldown = false;
+      if(btn) { btn.disabled = false; btn.style.opacity = ''; }
+    }, 30000);
+  };
+})();
+
+// ═══ URL 딥링크 + popstate ════════════════════════════════════════════════════
+window.addEventListener('load', function() {
+  try {
+    var _VALID = ['dashboard','portfolio','equity','macro','market','investor','realestate','calendar','notes','settings'];
+    var p = new URLSearchParams(location.search).get('p');
+    if(p && _VALID.indexOf(p) >= 0 && p !== 'dashboard') {
+      var mEl = Array.from(document.querySelectorAll('.menu-item')).find(function(m) {
+        return (m.getAttribute('onclick') || '').indexOf("'" + p + "'") >= 0;
+      });
+      showPage(p, mEl || null);
+    }
+    window.addEventListener('popstate', function() {
+      try {
+        var pg = new URLSearchParams(location.search).get('p') || 'dashboard';
+        if(_VALID.indexOf(pg) >= 0) {
+          var el = Array.from(document.querySelectorAll('.menu-item')).find(function(m) {
+            return (m.getAttribute('onclick') || '').indexOf("'" + pg + "'") >= 0;
+          });
+          showPage(pg, el || null);
+        }
+      } catch(_) {}
+    });
+  } catch(_) {}
+});
+
+// ═══ 키보드 단축키 ════════════════════════════════════════════════════════════
+document.addEventListener('keydown', function(e) {
+  var tag = (document.activeElement || {}).tagName || '';
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if((document.activeElement || {}).isContentEditable) return;
+  if(e.ctrlKey || e.altKey || e.metaKey) return;
+  var PAGE_MAP = {'1':'dashboard','2':'portfolio','3':'equity','4':'macro','5':'market','6':'investor','7':'realestate','8':'calendar','9':'notes','0':'settings'};
+  var id = PAGE_MAP[e.key];
+  if(id) {
+    e.preventDefault();
+    var menuEl = Array.from(document.querySelectorAll('.menu-item')).find(function(m) {
+      return (m.getAttribute('onclick') || '').indexOf("'" + id + "'") >= 0;
+    });
+    showPage(id, menuEl || null);
+    return;
+  }
+  if(e.key === 'r' || e.key === 'R') {
+    e.preventDefault();
+    loadRealData().catch(function(){});
+    loadRealtimeFx().catch(function(){});
+    loadRealtimeMarket().catch(function(){});
+    return;
+  }
+  if(e.key === '?') {
+    e.preventDefault();
+    var modal = document.getElementById('kbShortcutModal');
+    if(modal) modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+    return;
+  }
+  if(e.key === 'Escape') {
+    var kb = document.getElementById('kbShortcutModal');
+    if(kb && kb.style.display !== 'none') { kb.style.display = 'none'; }
+  }
+});
+
+// ═══ 포트폴리오 CSV 내보내기 ══════════════════════════════════════════════════
+function pfExportCsv() {
+  if(!pfState || !pfState.items || !pfState.items.length) {
+    if(typeof showToast === 'function') showToast('내보낼 종목이 없습니다.', 3000);
+    return;
+  }
+  var fx = pfUsdKrw();
+  var today = new Date().toISOString().slice(0, 10);
+  var groupMap = {};
+  (pfState.groups || []).forEach(function(g) { groupMap[g.id] = g.name; });
+  var rows = [['종목코드','종목명','시장','유형','통화','평단가','보유수량','현재가','평가금액(원)','매입금액(원)','평가손익(원)','수익률(%)','그룹']];
+  pfState.items.forEach(function(it) {
+    var q = pfQuotes[it.id] || {};
+    var price = q.price || '';
+    var mul = (q.ccy === 'USD' && fx) ? fx : 1;
+    var evalKrw = (q.price && it.qty) ? q.price * it.qty * mul : '';
+    var costKrw = (it.avg != null && it.qty) ? it.avg * it.qty * (q.ccy === 'USD' ? (it.fxBuy || fx || 1) : 1) : '';
+    var pnl = (evalKrw !== '' && costKrw !== '') ? evalKrw - costKrw : '';
+    var pct = (pnl !== '' && costKrw) ? (pnl / costKrw * 100).toFixed(2) : '';
+    rows.push([
+      it.symbol || '', it.name || '', it.market || '',
+      it.secType === 'etf' ? 'ETF' : '주식',
+      it.ccy || '', it.avg != null ? it.avg : '', it.qty != null ? it.qty : '',
+      price,
+      evalKrw !== '' ? Math.round(evalKrw) : '',
+      costKrw !== '' ? Math.round(costKrw) : '',
+      pnl !== '' ? Math.round(pnl) : '', pct,
+      groupMap[it.group] || '',
+    ]);
+  });
+  var csv = rows.map(function(r) {
+    return r.map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'portfolio_' + today + '.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
 </script>
+
+<!-- 키보드 단축키 도움말 모달 -->
+<div id="kbShortcutModal" role="dialog" aria-modal="true" aria-label="키보드 단축키" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
+  <div style="background:var(--c-card,#1f2945);border:1px solid var(--c-border,#3e4870);border-radius:var(--r-sm);padding:24px 28px;min-width:280px;max-width:400px;width:90%;box-shadow:0 12px 36px rgba(0,0,0,.5);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="font-size:14px;font-weight:700;color:var(--c-txt);">키보드 단축키</span>
+      <button onclick="document.getElementById('kbShortcutModal').style.display='none'" style="background:transparent;border:none;color:var(--c-txt-dim);cursor:pointer;font-size:18px;line-height:1;padding:0 2px;">✕</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--c-txt-dim);">
+      <tr><td style="padding:4px 10px 4px 0;white-space:nowrap;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">1</kbd>–<kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">8</kbd></td><td>대시보드 → 경제 캘린더 순서 이동</td></tr>
+      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">9</kbd></td><td>분석 노트</td></tr>
+      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">0</kbd></td><td>설정</td></tr>
+      <tr><td colspan="2" style="padding:8px 0 4px;border-top:1px solid var(--c-border);"></td></tr>
+      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">R</kbd></td><td>데이터 새로고침</td></tr>
+      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">?</kbd></td><td>이 도움말 표시 / 닫기</td></tr>
+      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">Esc</kbd></td><td>이 모달 닫기</td></tr>
+    </table>
+    <p style="font-size:10px;color:var(--c-txt-muted);margin-top:12px;margin-bottom:0;">입력 필드 포커스 중에는 단축키가 비활성화됩니다.</p>
+  </div>
+</div>
 
 <script>
 /* ═══ [3차-T28] 시스템 진단 — 링크·라우팅·데이터 정확성 자가 점검 ═════════════
