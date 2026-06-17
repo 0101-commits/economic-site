@@ -13978,7 +13978,7 @@ function applyRealData(d) {
   const comMap = [
     [com.WTI,        0,  priceFmt2],
     [com.Brent,      1,  priceFmt2],
-    [com.Dubai,      2,  priceFmt2],   // 두바이 현물유 (FRED POILDUBUSDM)
+    [com.Dubai,      2,  v => ({price:'$'+fmt(v.price,2), chg:fmtPct(v.change)+'(월간)', up:v.change>=0})],   // 두바이 현물유 (FRED POILDUBUSDM) — FRED 월간 MoM 변동률
     [com.Gold,       3,  priceFmt2],
     [com.Silver,     4,  priceFmt2],
     [com.Platinum,   5,  priceFmt2],
@@ -17288,11 +17288,15 @@ function initPortfolioPage() {
     else if(!isFresh) setTimeout(async () => {
       try { if(typeof pfGetSyncKeyHash === 'function' && await pfGetSyncKeyHash()) pfPullTracking(true); } catch(_) {}
     }, 600);
-    // 장중 1분 주기 자동 갱신 (페이지가 활성일 때만)
-    pfTimer = setInterval(() => {
-      const pg = document.getElementById('page-portfolio');
-      if(pg && pg.classList.contains('active') && pfState.items.length) pfRefreshQuotes();
-    }, 60000);
+    // 적응형 자동 갱신: 한국/미국 장중 1분, 그 외 5분 (페이지가 활성일 때만)
+    (function _pfSchedule() {
+      const delay = (typeof window._isMarketActive === 'function' && window._isMarketActive()) ? 60000 : 300000;
+      pfTimer = setTimeout(function() {
+        const pg = document.getElementById('page-portfolio');
+        if(pg && pg.classList.contains('active') && pfState.items.length) pfRefreshQuotes();
+        _pfSchedule();
+      }, delay);
+    })();
     // ESC 로 모달 닫기
     document.addEventListener('keydown', e => {
       if(e.key === 'Escape') { pfCloseChart(); pfCloseAlerts(); }
@@ -18221,7 +18225,24 @@ document.addEventListener('DOMContentLoaded', function () {
       loadRealData().catch(function(){}),
       loadRealtimeFx().catch(function(){}),
       loadRealtimeMarket().catch(function(){}),
+      (typeof refreshMoversFromClient === 'function' ? refreshMoversFromClient() : Promise.resolve()).catch(function(){}),
+      (typeof fetchSentimentClient === 'function' && typeof applySentimentClient === 'function'
+        ? fetchSentimentClient().then(applySentimentClient) : Promise.resolve()).catch(function(){}),
+      (typeof loadFreshNews === 'function' ? loadFreshNews() : Promise.resolve()).catch(function(){}),
     ]).then(function() {
+      // 현재 활성 페이지 차트 재빌드 (실시간 패치 반영)
+      try {
+        var activePage = document.querySelector('.page.active');
+        if(activePage) {
+          var id = activePage.id;
+          if(id === 'page-dashboard')      { try { initMainChart(mainPeriodUnit); buildMoverTable(curMoverTab); buildGlobalTable(); } catch(_){} }
+          else if(id === 'page-market')    { try { initMarketPage(); } catch(_){} }
+          else if(id === 'page-equity')    { try { buildEquityPage(); } catch(_){} }
+          else if(id === 'page-macro')     { try { initMacroPage(macroTab); } catch(_){} }
+          else if(id === 'page-investor')  { try { buildInvestorPage(); } catch(_){} }
+          else if(id === 'page-realestate'){ try { buildReCharts(); if(typeof buildUsReCharts==='function') buildUsReCharts(); } catch(_){} }
+        }
+      } catch(_) {}
       if(icon) icon.classList.remove('spin-anim');
       if(lbl)  lbl.textContent = '새로고침 완료';
       setTimeout(function() { if(lbl) lbl.textContent = '새로고침'; }, 3000);
