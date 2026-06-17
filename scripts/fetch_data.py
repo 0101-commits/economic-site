@@ -1427,7 +1427,7 @@ FRED_INTL_INDICATORS = {
         "gdp":          ("JPNRGDPEXP",       "일본 실질GDP (분기, 십억엔)"),
         "gdp_yoy":      ("JPNRGDPEXP",       "일본 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRUN64TTJPM156S",  "일본 실업률 (15-64세, 계절조정)"),
-        "base_rate":    ("INTDSRJPM193N",    "일본 정책금리 (할인율)"),
+        "base_rate":    ("IRSTCI01JPM156N",  "일본 정책금리 (BOJ 무담보 익일물 유도목표)"),
         # 일본 산업생산지수 (OECD 시계열, 2015=100, 계절조정)
         "ip":           ("JPNPROINDMISMEI",  "일본 산업생산지수 (2015=100, 계절조정)"),
     },
@@ -5600,6 +5600,43 @@ def build_data():
             data["economicIndicators"][cc] = ind
         if intl_data:
             data["sources"]["economicIndicators_intl"] = "FRED API (OECD/IMF/Eurostat 시리즈)"
+
+        # ── BOJ 정책금리 확정값 오버라이드 ─────────────────────────────
+        # IRSTCI01JPM156N (OECD 월간) 은 2~3개월 지연됨. 확정된 BOJ 결정을 직접 반영해
+        # 최신 정책금리가 항상 올바르게 표시되도록 함. FRED 가 따라잡으면 자동으로 무효화.
+        _BOJ_KNOWN = {  # YYYY-MM-01 (FRED 월간 키 형식) : 금리(%)
+            "2016-02-01": -0.10,  # NIRP 도입
+            "2024-03-01":  0.10,  # NIRP 종료
+            "2024-07-01":  0.25,  # 1차 인상
+            "2025-01-01":  0.50,  # 2차 인상
+            "2026-06-01":  1.00,  # 3차 인상 (2026-06-16 결정)
+        }
+        try:
+            jp_node = data.get("economicIndicators", {}).get("jp", {})
+            rate_node = jp_node.get("base_rate_jp", {})
+            if rate_node:
+                hist = dict(rate_node.get("history") or {})
+                for k, v in _BOJ_KNOWN.items():
+                    hist[k] = v  # 확정값으로 항상 덮어씀
+                known_latest = max(_BOJ_KNOWN.keys())
+                rate_node["value"] = _BOJ_KNOWN[known_latest]
+                rate_node["period"] = known_latest
+                rate_node["history"] = dict(sorted(hist.items(), reverse=True))
+                rate_node["source"] = "FRED:IRSTCI01JPM156N + BOJ confirmed decisions"
+                rate_node["desc"] = "일본 정책금리 (BOJ 무담보 익일물 유도목표)"
+                log(f"[BOJ] 정책금리 오버라이드: {rate_node['value']}% (period={known_latest})")
+            else:
+                known_latest = max(_BOJ_KNOWN.keys())
+                data["economicIndicators"].setdefault("jp", {})["base_rate_jp"] = {
+                    "value": _BOJ_KNOWN[known_latest],
+                    "period": known_latest,
+                    "desc": "일본 정책금리 (BOJ 무담보 익일물 유도목표)",
+                    "source": "BOJ confirmed decisions",
+                    "history": dict(sorted(_BOJ_KNOWN.items(), reverse=True)),
+                }
+                log(f"[BOJ] 정책금리 신규 생성: {_BOJ_KNOWN[known_latest]}% (FRED 데이터 없음)")
+        except Exception as _boj_err:
+            log(f"[BOJ] 정책금리 오버라이드 오류: {_boj_err}")
 
         # PMI 지표 — 국가별 제조업 PMI (OECD BSCICP02 via FRED)
         log("[PMI] 국가별 제조업 PMI 수집 시작")

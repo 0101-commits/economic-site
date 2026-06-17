@@ -9078,7 +9078,7 @@ const macroIndicators = [
     link:'https://www.stat.go.jp/data/cpi/',linkLabel:'총무성 통계국'},
   {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',unit:'% (15-64세, 계절조정)',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%',
     link:'https://www.stat.go.jp/data/roudou/',linkLabel:'노동력조사'},
-  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (FRED)',freq:'연8회',unit:'% (할인율)',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%',
+  {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (BOJ+FRED)',freq:'연8회',unit:'% (무담보 익일물)',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%',
     link:'https://www.boj.or.jp/en/mopo/mpmdeci/state_all/index.htm',linkLabel:'BOJ 정책결정'},
   {name:'산업생산지수',cc:'🇯🇵',cat:'경기',src:'OECD MEI (FRED: JPNPROINDMISMEI)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.jp.ip_jp',fmt:v=>v?.toFixed(2)},
   // 독일 (FRED 국제 시리즈)
@@ -9606,7 +9606,7 @@ const calEvents=[
   {dt:'06.05 20:00',cc:'EU',flag:'🇪🇺',name:'ECB 통화정책회의',          stars:3,prev:'2.50%',fore:'2.25%',act:'',beat:null},
   {dt:'06.11 02:00',cc:'US',flag:'🇺🇸',name:'미국 FOMC 회의',           stars:3,prev:'4.25%',fore:'4.25%',act:'',beat:null},
   {dt:'06.12 21:30',cc:'US',flag:'🇺🇸',name:'미국 CPI (전년비)',         stars:3,prev:'3.2%', fore:'3.1%', act:'',beat:null},
-  {dt:'06.16 14:00',cc:'JP',flag:'🇯🇵',name:'일본 BOJ 금리결정',        stars:3,prev:'0.50%',fore:'0.50%',act:'',beat:null},
+  {dt:'06.16 14:00',cc:'JP',flag:'🇯🇵',name:'일본 BOJ 금리결정',        stars:3,prev:'0.50%',fore:'0.50%',act:'1.00%',beat:1},
   {dt:'06.19 12:00',cc:'UK',flag:'🇬🇧',name:'영국 BOE 금리결정',        stars:3,prev:'4.50%',fore:'4.25%',act:'',beat:null},
   {dt:'06.20 09:00',cc:'KR',flag:'🇰🇷',name:'한국은행 금통위 회의',      stars:3,prev:'2.75%',fore:'2.50%',act:'',beat:null},
   {dt:'06.23 10:00',cc:'KR',flag:'🇰🇷',name:'한국 5월 수출입 동향',     stars:2,prev:'+2.8%',fore:'+3.0%',act:'',beat:null},
@@ -10488,7 +10488,7 @@ const calHistoryData = {
   '유로존 CPI (전년비)':       {labels:['24.07','24.08','24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','26.04','26.05'], vals:[2.6,2.2,1.7,2.3,2.3,2.4,2.5,2.3,2.2,2.2,2.1,2.2,2.1], color:'#b6c4ff', unit:'%'},
   '미국 1분기 GDP (2차)':      {labels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'], vals:[2.2,2.1,4.9,3.4,1.6,3.0,2.8,2.3,-0.3,2.4,2.6,0.5,1.6], color:'#26a69a', unit:'%'},
   '한국 산업생산지수':         {labels:['24.09','24.10','24.11','24.12','25.01','25.02','25.03','25.04','25.05','25.06','26.04','26.05'], vals:[1.5,0.9,1.2,-0.3,0.8,1.1,1.4,0.9,1.2,1.0,1.3,1.4], color:'#26a69a', unit:'%'},
-  '일본 BOJ 금리결정':         {labels:['23.04','23.07','23.10','24.01','24.03','24.07','24.10','25.01','25.04','25.07','25.10','26.01'], vals:[-0.10,-0.10,-0.10,-0.10,0.10,0.25,0.25,0.50,0.50,0.50,0.50,0.50], color:'#f5a623', unit:'%'},
+  '일본 BOJ 금리결정':         {labels:['23.04','23.07','23.10','24.01','24.03','24.07','24.10','25.01','25.04','25.07','25.10','26.01','26.06'], vals:[-0.10,-0.10,-0.10,-0.10,0.10,0.25,0.25,0.50,0.50,0.50,0.50,0.50,1.00], color:'#f5a623', unit:'%'},
   '영국 BOE 금리결정':         {labels:['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03'], vals:[5.00,5.25,5.25,5.25,5.25,5.00,4.75,4.50,4.50,4.50,4.50,4.50], color:'#ef5350', unit:'%'},
   '중국 1년물 LPR 결정':       {labels:['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03'], vals:[3.55,3.45,3.45,3.45,3.45,3.35,3.10,3.10,3.10,3.10,3.10,3.10], color:'#2962ff', unit:'%'},
 };
