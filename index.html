@@ -8503,7 +8503,7 @@ function renderEnsoCard() {
         <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;">${x.note}</div>
       </div>
     </div>`).join('');
-  bodyEl.innerHTML = _liveBanner + `
+  bodyEl.innerHTML = _liveBanner + ensoLogicDiagramHTML(_live) + `
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${s.accent};border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
         <span style="font-size:14px;font-weight:700;color:var(--c-txt);">${s.label}</span>
@@ -8521,7 +8521,7 @@ function renderEnsoCard() {
         <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:2px;">② 연동 주가·산업 (국내)${_live ? ` <span style="font-weight:600;color:var(--c-txt-dim);">· 현재 강도: ${ensoStrengthLabel(_live.strength) || ensoPhaseLabel(_live.phase)}</span>` : ''}</div>
         ${secRows}
       </div>
-    </div>`;
+    </div>` + ensoForecastsHTML(ensoForecastsExpanded);
 }
 
 function buildCommodityPage() {
