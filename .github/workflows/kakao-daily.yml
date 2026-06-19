@@ -15,7 +15,8 @@ name: KakaoTalk Digest (평일 07-22 매시간 · 주말 11·17 KST)
 #   1) repository_dispatch(kakao-send) ← Cloudflare Worker 의 Cron Trigger 가 각 슬롯 :02(UTC)에
 #      호출 → 잡 기동·발송까지 약 1분이 걸려 카카오 도착이 :03 부근이 된다. ★ 주 경로.
 #      (설정: 저장소 루트 wrangler.jsonc 의 triggers.crons + Worker 시크릿 GH_DISPATCH_TOKEN. KAKAO_SETUP.md 참고)
-#   2) schedule(:03 백업) — GitHub 스케줄이 살아 있을 때의 보조.
+#   2) schedule(백업) — Worker 가 멈춰도 발송이 끊기지 않게, 한 슬롯 시각 안에서 매시 :07·:22·:37·:52
+#      네 번 깨운다. GitHub schedule 의 드롭·지연을 다중 발화 + 슬롯 마커(중복 방지)로 흡수한다.
 #   3) workflow_run — 데이터 수집(fetch-data) 완료 시에도 깨워 보조(타깃 시각일 때만 발송).
 #   4) workflow_dispatch — 수동 즉시.
 #   어느 경로로 깨워지든 아래 '발송 창' 게이트가 타깃 시각만 통과시키고, actions/cache 마커(슬롯+날짜)로
@@ -28,12 +29,18 @@ on:
   repository_dispatch:
     types: [kakao-send]
   schedule:
-    # 백업 경로(주 경로는 Cloudflare Worker→repository_dispatch). 게이트가 KST 요일·시각으로 최종 판정.
-    # UTC 환산(:03): 평일 KST 09~22시 = UTC 월~금 00~13시 / 평일 KST 07·08시 = UTC 일~목 22·23시
-    #                / 주말 KST 11·17시 = UTC 토·일 02·08시.
-    - cron: '3 0-13 * * 1-5'
-    - cron: '3 22,23 * * 0-4'
-    - cron: '3 2,8 * * 6,0'
+    # 백업 경로(주 경로는 Cloudflare Worker→repository_dispatch). GitHub schedule 은 best-effort 라
+    # 개별 발화가 자주 드롭되고 30~50분씩 지연된다(실측). 한 슬롯이 통째로 누락되지 않도록
+    # '한 시각 안에서 여러 번(매시 :07·:22·:37·:52)' 깨워 적중 확률을 높인다.
+    #   • 게이트가 '현재 KST 시각'으로 슬롯을 판정하므로 같은 시(時) 안의 4번은 모두 같은 슬롯이 된다.
+    #   • actions/cache 마커(날짜+슬롯)가 슬롯당 하루 '딱 한 번'만 실제 발송하도록 보장 → 다중 발화여도
+    #     중복 발송은 생기지 않는다(이미 보낸 슬롯의 추가 발화는 마커 적중→무거운 단계 건너뛰고 즉시 종료).
+    # (오프피크 분(:07 등)을 쓰는 건 GitHub schedule 이 정각·:00 부근에 가장 많이 밀리기 때문.)
+    # UTC 환산: 평일 KST 09~22시 = UTC 월~금 00~13시 / 평일 KST 07·08시 = UTC 일~목 22·23시
+    #           / 주말 KST 11·17시 = UTC 토·일 02·08시.
+    - cron: '7,22,37,52 0-13 * * 1-5'
+    - cron: '7,22,37,52 22,23 * * 0-4'
+    - cron: '7,22,37,52 2,8 * * 6,0'
   workflow_run:
     workflows: ["Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)"]
     types: [completed]
@@ -97,25 +104,11 @@ jobs:
           echo "date=$(TZ=Asia/Seoul date +%Y%m%d)"  >> "$GITHUB_OUTPUT"
           echo "[gate] event=$EVENT KST=${H}시 proceed=$proceed slot=$mslot ckey=$ckey"
 
-      - name: Checkout (최신 data.json)
-        if: steps.gate.outputs.proceed == 'true'
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.ref_name || 'main' }}
-          fetch-depth: 1
-
-      - name: Set up Python
-        if: steps.gate.outputs.proceed == 'true'
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Install chart deps
-        if: steps.gate.outputs.proceed == 'true'
-        run: pip install matplotlib requests
-
-      # 중복 발송 방지 마커: 같은 슬롯이 그날 이미 발송했으면 cache-hit=true → 발송 건너뜀.
+      # 중복 발송 방지 마커: 같은 슬롯이 그날 이미 발송했으면 cache-hit=true → 이하 모든 단계 건너뜀.
       # 수동 실행(slot=manual)은 마커를 쓰지 않아 언제든 발송된다.
+      #   ※ 마커 복원을 '맨 앞'에 둔다 — 백업 스케줄이 한 슬롯을 시간당 여러 번 깨우므로, 이미 보낸
+      #     슬롯의 추가 발화는 여기서 cache-hit 으로 걸러 무거운 checkout·python·pip 단계를
+      #     아예 실행하지 않고 즉시 끝낸다(러너 시간 절약 + 깨끗한 green).
       - name: 중복 발송 방지 마커 복원
         if: steps.gate.outputs.proceed == 'true' && steps.gate.outputs.slot != 'manual'
         id: marker
@@ -123,6 +116,23 @@ jobs:
         with:
           path: .kakao_sent_marker
           key: kakao-sent-${{ steps.gate.outputs.date }}-${{ steps.gate.outputs.ckey }}
+
+      - name: Checkout (최신 data.json)
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name || 'main' }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install chart deps
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
+        run: pip install matplotlib requests
 
       - name: Send KakaoTalk digest
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
