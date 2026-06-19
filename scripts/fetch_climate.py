@@ -78,3 +78,35 @@ def parse_nino34_weekly(text):
     token, val = rows[-1]
     prev = rows[-2][1] if len(rows) >= 2 else None
     return {"value": val, "weekEnding": _wk_date(token), "prevValue": prev}
+
+
+def derive_phase(oni_value):
+    if oni_value >= 0.5:
+        return "elnino"
+    if oni_value <= -0.5:
+        return "lanina"
+    return "neutral"
+
+
+def derive_strength(oni_value):
+    a = abs(oni_value)
+    if a < 0.5:
+        return "neutral"
+    if a < 1.0:
+        return "weak"
+    if a < 1.5:
+        return "moderate"
+    if a < 2.0:
+        return "strong"
+    return "very_strong"
+
+
+def derive_trend(prev, last, eps=0.1):
+    if prev is None:
+        return "steady"
+    d = last - prev
+    if d > eps:
+        return "warming"
+    if d < -eps:
+        return "cooling"
+    return "steady"

@@ -41,3 +41,21 @@ def test_parse_nino34_weekly_handles_glued_negative():
     # 첫 데이터행(27JAN2021)만 주면 Nino34 SSTA = -0.7
     one = "\n".join(WK_FIX.splitlines()[:5])
     assert fc.parse_nino34_weekly(one)["value"] == -0.7
+
+def test_derive_phase_thresholds():
+    assert fc.derive_phase(0.48) == "neutral"
+    assert fc.derive_phase(0.5) == "elnino"
+    assert fc.derive_phase(-0.5) == "lanina"
+
+def test_derive_strength_bands():
+    assert fc.derive_strength(0.48) == "neutral"
+    assert fc.derive_strength(0.8) == "weak"
+    assert fc.derive_strength(1.2) == "moderate"
+    assert fc.derive_strength(1.7) == "strong"
+    assert fc.derive_strength(-2.1) == "very_strong"
+
+def test_derive_trend():
+    assert fc.derive_trend(1.3, 1.5) == "warming"
+    assert fc.derive_trend(1.5, 1.3) == "cooling"
+    assert fc.derive_trend(1.50, 1.52) == "steady"
+    assert fc.derive_trend(None, 1.5) == "steady"
