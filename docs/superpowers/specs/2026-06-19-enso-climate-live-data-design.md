@@ -89,7 +89,7 @@ disclaimer are retained.
 ```jsonc
 "climate": {
   "enso": {
-    "oni":            { "value": 0.48, "season": "MAM", "year": 2026, "asOf": "2026-05" },
+    "oni":            { "value": 0.48, "season": "MAM", "year": 2026, "asOf": "MAM 2026" },  // season label — ONI is a 3-month running mean, so the season (not a single month) is the correct period
     "nino34_monthly": { "value": 0.82, "year": 2026, "mon": 5 },
     "nino34_weekly":  { "value": 1.5,  "weekEnding": "2026-06-10" },
     "jma_nino3":      { "value": 0.9,  "asOf": "2026-05" } | null,  // null if scrape fails
