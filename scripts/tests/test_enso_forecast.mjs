@@ -22,7 +22,7 @@ const ensoPhaseLabel    = p => ({elnino:'엘니뇨',lanina:'라니냐',neutral:'
 const ensoStrengthLabel = s => ({weak:'약한',moderate:'중간',strong:'강한',very_strong:'매우 강한',neutral:''})[s] || '';
 const ensoTrendLabel    = t => ({warming:'따뜻해지는 추세',cooling:'차가워지는 추세',steady:'안정적'})[t] || '';
 const scope = { ENSO_SCENARIOS, ensoPhaseLabel, ensoStrengthLabel, ensoTrendLabel, Date };
-const fn = new Function(...Object.keys(scope), block + '\n;return {cpcProbUrl, ensoDiagramState, ensoForecastSources, ensoLogicDiagramHTML};');
+const fn = new Function(...Object.keys(scope), block + '\n;return {cpcProbUrl, ensoDiagramState, ensoForecastSources, ensoLogicDiagramHTML, ensoForecastsHTML};');
 const M = fn(...Object.values(scope));
 
 // cpcProbUrl
@@ -58,3 +58,16 @@ const dNone = M2.ensoLogicDiagramHTML(null);
 assert.ok(dNone.includes('관측 대기'), 'no-data diagram shows 관측 대기, not a fabricated phase');
 assert.ok(!dNone.includes('엘니뇨') && !dNone.includes('라니냐'), 'no-data diagram does not assert a phase');
 console.log('Task2 OK');
+
+// --- Task 3: forecast panel ---
+const M3 = fn(...Object.values(scope));
+const collapsed = M3.ensoForecastsHTML(false);
+assert.ok(collapsed.includes('기상청 예측'), 'panel header present when collapsed');
+assert.ok(!collapsed.includes('<img'), 'no images rendered when collapsed (lazy)');
+const open = M3.ensoForecastsHTML(true);
+assert.ok(open.includes('cfsv2fcst/imagesInd3/nino34Mon.gif'), 'embeds verified CFSv2 plume');
+assert.ok(open.includes('/archives/enso/roni/images/'), 'embeds CPC probability (year-built)');
+assert.ok(open.includes('iri.columbia.edu') && open.includes('charts.ecmwf.int') && open.includes('jma.go.jp'), 'links IRI/ECMWF/JMA');
+assert.ok(open.includes('onerror='), 'images have onerror fallback');
+assert.ok(open.includes('rel="noopener noreferrer"'), 'external links are safe');
+console.log('Task3 OK');

@@ -8430,6 +8430,39 @@ function ensoLogicDiagramHTML(enso) {
       </div></div>
     </div>`;
 }
+let ensoForecastsExpanded = false;
+function toggleEnsoForecasts() { ensoForecastsExpanded = !ensoForecastsExpanded; renderEnsoCard(); }
+function ensoForecastsHTML(expanded) {
+  const head = `
+    <div onclick="toggleEnsoForecasts()" style="cursor:pointer;display:flex;align-items:center;gap:6px;margin-top:14px;padding-top:10px;border-top:1px solid var(--c-border);font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;">
+      <span>🌐 기상청 예측 (미·유럽·일)</span>
+      <span style="color:var(--c-txt-muted);font-weight:600;">예측(forecast)</span>
+      <span style="margin-left:auto;color:var(--c-txt-muted);">${expanded ? '▲' : '▼'}</span>
+    </div>`;
+  if (!expanded) return head;
+  const yr = new Date().getFullYear();
+  const link = (s) => `<a href="${s.page}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">${s.label} ↗</a>`;
+  const items = ensoForecastSources.map(s => {
+    if (s.embed) {
+      const url = s.embed === 'cpcProb' ? cpcProbUrl(yr) : s.embed;
+      // onerror: hide the broken image and reveal the always-present fallback link sibling.
+      return `
+        <figure style="margin:0;">
+          <figcaption style="font-size:11px;color:var(--c-txt-dim);margin-bottom:3px;">${s.region} · ${s.label}</figcaption>
+          <img src="${url}" loading="lazy" referrerpolicy="no-referrer" alt="${s.label}"
+               style="max-width:100%;border:1px solid var(--c-border);border-radius:var(--r-xs);"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
+          <a href="${s.page}" target="_blank" rel="noopener noreferrer" style="display:none;font-size:11px;color:var(--c-primary);">${s.label} ↗ (이미지 불러오기 실패 — 원본 보기)</a>
+        </figure>`;
+    }
+    return `<div style="font-size:11px;color:var(--c-txt-dim);">${s.region} · ${link(s)}</div>`;
+  }).join('');
+  return head + `
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:12px;">${items}</div>
+    <div style="font-size:10px;color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">
+      ※ 각 기관의 공식 예측 차트/페이지. 예보는 갱신·정정될 수 있으며 투자 참고용입니다.
+    </div>`;
+}
 /* ===== ENSO forecast+diagram (end) ===== */
 function renderEnsoCard() {
   const tabsEl = document.getElementById('ensoScenarioTabs');
