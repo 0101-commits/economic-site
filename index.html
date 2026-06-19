@@ -8361,6 +8361,48 @@ function setEnsoScenario(key, btn) {
   ensoUserPinned = true;
   renderEnsoCard();
 }
+/* ===== ENSO forecast+diagram (start) ===== */
+// 🌐 기상청 예측 뷰어 + 분석 로직 도식화 — climate.enso(실측) + 기관 예측 차트(이미지) 를
+// 카드에 결합. 데이터 없으면 도식은 '관측 대기'(국면 미점등), 이미지는 onerror→링크 폴백.
+function cpcProbUrl(year) {
+  return `https://www.cpc.ncep.noaa.gov/archives/enso/roni/images/${year}/enso-probs-current.png`;
+}
+// 도식 표시용 순수 뷰모델 — enso 가 없거나 oni 값이 없으면 hasData:false (국면 날조 금지).
+function ensoDiagramState(enso) {
+  if (!enso || !enso.oni || typeof enso.oni.value !== 'number') {
+    return { hasData:false, oniText:'관측 대기', asOf:'', phaseKey:null,
+             phaseLabel:'—', strengthLabel:'', trendLabel:'', topCommodities:[], topSectors:[] };
+  }
+  const ph = enso.phase || 'neutral';
+  const sc = ENSO_SCENARIOS[ph] || {};
+  const v = enso.oni.value;
+  return {
+    hasData:true,
+    oniText: (v >= 0 ? '+' : '') + v.toFixed(2) + '℃',
+    asOf: enso.oni.asOf || '',
+    phaseKey: ph,
+    phaseLabel: ensoPhaseLabel(ph),
+    strengthLabel: ensoStrengthLabel(enso.strength),
+    trendLabel: ensoTrendLabel(enso.trend),
+    topCommodities: (sc.commodities || []).slice(0,3).map(c => c.name),
+    topSectors: (sc.sectors || []).slice(0,2).map(s => s.sector),
+  };
+}
+// 기관 예측 소스 — embed:있으면 이미지 임베드(검증된 NOAA 2건), 없으면 링크 카드.
+const ensoForecastSources = [
+  { region:'🇺🇸 미국', label:'NOAA CPC ENSO 확률', embed:'cpcProb',
+    page:'https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/probabilities/' },
+  { region:'🇺🇸 미국', label:'NOAA CFSv2 Niño3.4 예측',
+    embed:'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/imagesInd3/nino34Mon.gif',
+    page:'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/' },
+  { region:'🇺🇸 미국', label:'IRI ENSO 예측',
+    page:'https://iri.columbia.edu/our-expertise/climate/forecasts/enso/current/' },
+  { region:'🇪🇺 유럽', label:'ECMWF SEAS5 Niño plume',
+    page:'https://charts.ecmwf.int/products/seasonal_system5_standard_nino_plumes' },
+  { region:'🇯🇵 일본', label:'JMA 엘니뇨 전망',
+    page:'https://ds.data.jma.go.jp/tcc/tcc/products/elnino/outlook.html' },
+];
+/* ===== ENSO forecast+diagram (end) ===== */
 function renderEnsoCard() {
   const tabsEl = document.getElementById('ensoScenarioTabs');
   const bodyEl = document.getElementById('ensoCardBody');
