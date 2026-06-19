@@ -8320,6 +8320,25 @@ const ENSO_SCENARIOS = {
     ],
   },
 };
+// 🌊 실측 ENSO 바인딩 — data.json.climate.enso 를 읽어 카드를 구동한다.
+let ensoUserPinned = false;  // 사용자가 탭을 직접 고르면 자동 국면 덮어쓰기 중단
+function ensoData() {
+  const d = _latestDataForIndicators;
+  return (d && d.climate && d.climate.enso) ? d.climate.enso : null;
+}
+function ensoPhaseLabel(p)   { return ({elnino:'엘니뇨', lanina:'라니냐', neutral:'중립'})[p] || '중립'; }
+function ensoStrengthLabel(s){ return ({weak:'약한', moderate:'중간', strong:'강한', very_strong:'매우 강한', neutral:''})[s] || ''; }
+function ensoTrendLabel(t)   { return ({warming:'따뜻해지는 추세', cooling:'차가워지는 추세', steady:'안정적'})[t] || ''; }
+function ensoLiveSentence(e) {
+  if (!e || !e.oni || typeof e.oni.value !== 'number') return null;
+  const o = e.oni, sgn = o.value >= 0 ? '+' : '';
+  let s = `현재 ${o.asOf} 관측 기준 ONI는 ${sgn}${o.value.toFixed(2)}℃(${ensoPhaseLabel(e.phase)})`;
+  if (e.nino34_weekly && typeof e.nino34_weekly.value === 'number') {
+    const w = e.nino34_weekly, ws = w.value >= 0 ? '+' : '';
+    s += `이며, 최근 주간 Niño 3.4는 ${ws}${w.value.toFixed(1)}℃로 ${ensoTrendLabel(e.trend)}입니다.`;
+  } else { s += '입니다.'; }
+  return s;
+}
 let ensoCurrent = 'elnino';
 function _ensoDirChip(dir) {
   if(dir === 'up')   return '<span class="up-txt" style="font-weight:600;font-size:11px;">▲ 상승 압력</span>';
@@ -8337,12 +8356,20 @@ function _ensoEffectChip(effect) {
 }
 function setEnsoScenario(key, btn) {
   if(ENSO_SCENARIOS[key]) ensoCurrent = key;
+  ensoUserPinned = true;
   renderEnsoCard();
 }
 function renderEnsoCard() {
   const tabsEl = document.getElementById('ensoScenarioTabs');
   const bodyEl = document.getElementById('ensoCardBody');
   if(!bodyEl) return;
+  const _live = ensoData();
+  if (_live && !ensoUserPinned && ENSO_SCENARIOS[_live.phase]) ensoCurrent = _live.phase;
+  const _sentence = _live ? ensoLiveSentence(_live) : null;
+  const _liveBanner = _sentence ? `
+    <div style="background:var(--c-card);border:1px solid var(--c-accent);border-radius:var(--r-sm);padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--c-txt);line-height:1.6;">
+      <span style="font-size:10px;font-weight:700;color:#fff;background:var(--c-accent);border-radius:var(--r-full);padding:1px 8px;margin-right:6px;">실측</span>${_sentence}
+    </div>` : '';
   // 시나리오 탭
   if(tabsEl) {
     tabsEl.innerHTML = Object.keys(ENSO_SCENARIOS).map(k => {
@@ -8371,7 +8398,7 @@ function renderEnsoCard() {
         <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;">${x.note}</div>
       </div>
     </div>`).join('');
-  bodyEl.innerHTML = `
+  bodyEl.innerHTML = _liveBanner + `
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${s.accent};border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
         <span style="font-size:14px;font-weight:700;color:var(--c-txt);">${s.label}</span>
