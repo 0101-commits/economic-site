@@ -103,6 +103,11 @@ def main():
     if isinstance(usdkrw, (int, float)) and not (800 <= usdkrw <= 2500):
         warns.append(f"fx.USDKRW.rate={usdkrw} — 정상 범위(800~2,500) 이탈")
 
+    # ENSO 실측 신선도 — 비차단 경고(배포는 막지 않음)
+    enso = (d.get("climate") or {}).get("enso") or {}
+    if enso and enso.get("stale", {}).get("oni") is True:
+        warns.append("climate.enso.oni: 최신 ONI 수집 실패(직전값 사용 중)")
+
     for w in warns:
         print(f"::warning title=데이터 품질::{w}")
 
