@@ -124,3 +124,54 @@ def parse_jma_nino3(text):
         return None
     y, mon, val = int(last.group(1)), int(last.group(2)), float(last.group(3))
     return {"value": val, "asOf": f"{y:04d}-{mon:02d}"}
+
+
+def fetch_enso(get=_http_get):
+    """ENSO 블록 생성. 소스별 독립 try/except — 부분 실패는 stale 플래그로 표시하고
+    다른 소스는 살린다. 모든 소스 실패 시 None(호출측이 직전값 보존)."""
+    enso = {"phase": "neutral", "strength": "neutral", "trend": "steady",
+            "stale": {}, "sources": {}}
+    ok = False
+
+    try:
+        o = parse_oni(get(ONI_URL))
+        enso["oni"] = {"value": o["value"], "season": o["season"],
+                       "year": o["year"], "asOf": f'{o["season"]} {o["year"]}'}
+        enso["sources"]["oni"] = ONI_URL
+        enso["stale"]["oni"] = False
+        enso["phase"] = derive_phase(o["value"])
+        enso["strength"] = derive_strength(o["value"])
+        ok = True
+    except Exception:
+        enso["stale"]["oni"] = True
+
+    try:
+        m = parse_nino34_monthly(get(NINO34_MTH_URL))
+        enso["nino34_monthly"] = m
+        enso["sources"]["nino34_monthly"] = NINO34_MTH_URL
+        enso["stale"]["nino34_monthly"] = False
+        ok = True
+    except Exception:
+        enso["stale"]["nino34_monthly"] = True
+
+    try:
+        w = parse_nino34_weekly(get(NINO34_WK_URL))
+        enso["nino34_weekly"] = {"value": w["value"], "weekEnding": w["weekEnding"]}
+        enso["sources"]["nino34_weekly"] = NINO34_WK_URL
+        enso["stale"]["nino34_weekly"] = False
+        enso["trend"] = derive_trend(w["prevValue"], w["value"])
+        ok = True
+    except Exception:
+        enso["stale"]["nino34_weekly"] = True
+
+    try:
+        j = parse_jma_nino3(get(JMA_URL))
+        enso["jma_nino3"] = j
+        enso["stale"]["jma_nino3"] = j is None
+        if j:
+            enso["sources"]["jma_nino3"] = JMA_URL
+    except Exception:
+        enso["jma_nino3"] = None
+        enso["stale"]["jma_nino3"] = True
+
+    return enso if ok else None

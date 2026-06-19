@@ -72,3 +72,37 @@ def test_parse_jma_nino3_ok():
 def test_parse_jma_nino3_garbage_returns_none():
     assert fc.parse_jma_nino3("<html>unexpected</html>") is None
     assert fc.parse_jma_nino3("") is None
+
+
+def _fake_all_ok(url):
+    return {fc.ONI_URL: ONI_FIX, fc.NINO34_MTH_URL: MTH_FIX,
+            fc.NINO34_WK_URL: WK_FIX, fc.JMA_URL: JMA_FIX}[url]
+
+
+def test_fetch_enso_all_ok():
+    e = fc.fetch_enso(get=_fake_all_ok)
+    assert e["oni"]["value"] == 0.48
+    assert e["phase"] == "neutral"
+    assert e["strength"] == "neutral"
+    assert e["nino34_weekly"]["value"] == 1.5
+    assert e["trend"] == "warming"
+    assert e["jma_nino3"]["value"] == 0.9
+    assert e["stale"]["oni"] is False
+
+
+def test_fetch_enso_oni_fails_others_survive():
+    def g(url):
+        if url == fc.ONI_URL:
+            raise RuntimeError("boom")
+        return _fake_all_ok(url)
+    e = fc.fetch_enso(get=g)
+    assert e is not None
+    assert e["stale"]["oni"] is True
+    assert "oni" not in e            # 실패 소스는 값 미기록
+    assert e["nino34_weekly"]["value"] == 1.5  # 다른 소스 생존
+
+
+def test_fetch_enso_total_failure_returns_none():
+    def g(url):
+        raise RuntimeError("network down")
+    assert fc.fetch_enso(get=g) is None
