@@ -8402,6 +8402,34 @@ const ensoForecastSources = [
   { region:'🇯🇵 일본', label:'JMA 엘니뇨 전망',
     page:'https://ds.data.jma.go.jp/tcc/tcc/products/elnino/outlook.html' },
 ];
+function ensoLogicDiagramHTML(enso) {
+  const st = ensoDiagramState(enso);
+  const node = 'flex:1;min-width:118px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 10px;';
+  const hi = st.hasData ? 'border-color:var(--c-accent);background:var(--c-card);' : '';
+  const arrow = '<div style="align-self:center;color:var(--c-txt-muted);font-size:15px;padding:0 1px;">→</div>';
+  const t = 'font-size:11px;font-weight:700;color:var(--c-txt);';
+  const d = 'font-size:10px;color:var(--c-txt-dim);line-height:1.45;margin-top:2px;';
+  const phaseDetail = st.hasData
+    ? `${st.phaseLabel}${st.strengthLabel ? ' · ' + st.strengthLabel : ''}${st.trendLabel ? ' · ' + st.trendLabel : ''}`
+    : '—';
+  return `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">
+        🔗 분석 로직 흐름 ${st.hasData ? '<span style="color:var(--c-txt-muted);font-weight:600;">(실측 반영)</span>' : '<span style="color:var(--c-txt-muted);font-weight:600;">(관측 대기)</span>'}
+      </div>
+      <div style="overflow-x:auto;"><div style="display:flex;gap:4px;align-items:stretch;min-width:660px;">
+        <div style="${node}"><div style="${t}">입력</div><div style="${d}">관측 ONI·Niño3.4<br>예측 기상청 확률</div></div>
+        ${arrow}
+        <div style="${node}"><div style="${t}">ONI ±0.5℃ 분류</div><div style="${d}">${st.hasData ? `현재 ${st.oniText}${st.asOf ? ' (' + st.asOf + ')' : ''}` : '데이터 대기'}</div></div>
+        ${arrow}
+        <div style="${node}${hi}"><div style="${t}">국면</div><div style="${d}">${phaseDetail}</div></div>
+        ${arrow}
+        <div style="${node}"><div style="${t}">① 원자재 변동성</div><div style="${d}">${st.hasData && st.topCommodities.length ? st.topCommodities.join(', ') : '국면별 패턴'}</div></div>
+        ${arrow}
+        <div style="${node}"><div style="${t}">② 국내 주가·산업</div><div style="${d}">${st.hasData && st.topSectors.length ? st.topSectors.join(', ') : '국면별 영향'}</div></div>
+      </div></div>
+    </div>`;
+}
 /* ===== ENSO forecast+diagram (end) ===== */
 function renderEnsoCard() {
   const tabsEl = document.getElementById('ensoScenarioTabs');

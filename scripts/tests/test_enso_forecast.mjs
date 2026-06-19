@@ -22,7 +22,7 @@ const ensoPhaseLabel    = p => ({elnino:'엘니뇨',lanina:'라니냐',neutral:'
 const ensoStrengthLabel = s => ({weak:'약한',moderate:'중간',strong:'강한',very_strong:'매우 강한',neutral:''})[s] || '';
 const ensoTrendLabel    = t => ({warming:'따뜻해지는 추세',cooling:'차가워지는 추세',steady:'안정적'})[t] || '';
 const scope = { ENSO_SCENARIOS, ensoPhaseLabel, ensoStrengthLabel, ensoTrendLabel, Date };
-const fn = new Function(...Object.keys(scope), block + '\n;return {cpcProbUrl, ensoDiagramState, ensoForecastSources};');
+const fn = new Function(...Object.keys(scope), block + '\n;return {cpcProbUrl, ensoDiagramState, ensoForecastSources, ensoLogicDiagramHTML};');
 const M = fn(...Object.values(scope));
 
 // cpcProbUrl
@@ -46,3 +46,15 @@ assert.strictEqual(none.phaseKey, null);
 const regions = M.ensoForecastSources.map(s => s.region).join(' ');
 assert.ok(/미국/.test(regions) && /유럽/.test(regions) && /일본/.test(regions));
 console.log('Task1 OK');
+
+// --- Task 2: logic diagram ---
+const M2 = fn(...Object.values(scope));  // re-eval after impl includes ensoLogicDiagramHTML
+const dHtml = M2.ensoLogicDiagramHTML({oni:{value:-1.1,asOf:'MAM 2026'}, phase:'lanina', strength:'moderate', trend:'cooling'});
+assert.ok(dHtml.includes('라니냐'), 'diagram shows live phase label');
+assert.ok(dHtml.includes('-1.10℃'), 'diagram shows live ONI');
+assert.ok(dHtml.includes('overflow-x:auto'), 'diagram horizontally scrollable, never forces page hscroll');
+assert.ok(dHtml.includes('var(--c-accent)'), 'active phase node highlighted when hasData');
+const dNone = M2.ensoLogicDiagramHTML(null);
+assert.ok(dNone.includes('관측 대기'), 'no-data diagram shows 관측 대기, not a fabricated phase');
+assert.ok(!dNone.includes('엘니뇨') && !dNone.includes('라니냐'), 'no-data diagram does not assert a phase');
+console.log('Task2 OK');
