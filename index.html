@@ -8361,6 +8361,109 @@ function setEnsoScenario(key, btn) {
   ensoUserPinned = true;
   renderEnsoCard();
 }
+/* ===== ENSO forecast+diagram (start) ===== */
+// 🌐 기상청 예측 뷰어 + 분석 로직 도식화 — climate.enso(실측) + 기관 예측 차트(이미지) 를
+// 카드에 결합. 데이터 없으면 도식은 '관측 대기'(국면 미점등), 이미지는 onerror→링크 폴백.
+function cpcProbUrl(year) {
+  return `https://www.cpc.ncep.noaa.gov/archives/enso/roni/images/${year}/enso-probs-current.png`;
+}
+// 도식 표시용 순수 뷰모델 — enso 가 없거나 oni 값이 없으면 hasData:false (국면 날조 금지).
+function ensoDiagramState(enso) {
+  if (!enso || !enso.oni || typeof enso.oni.value !== 'number') {
+    return { hasData:false, oniText:'관측 대기', asOf:'', phaseKey:null,
+             phaseLabel:'—', strengthLabel:'', trendLabel:'', topCommodities:[], topSectors:[] };
+  }
+  const ph = enso.phase || 'neutral';
+  const sc = ENSO_SCENARIOS[ph] || {};
+  const v = enso.oni.value;
+  return {
+    hasData:true,
+    oniText: (v >= 0 ? '+' : '') + v.toFixed(2) + '℃',
+    asOf: enso.oni.asOf || '',
+    phaseKey: ph,
+    phaseLabel: ensoPhaseLabel(ph),
+    strengthLabel: ensoStrengthLabel(enso.strength),
+    trendLabel: ensoTrendLabel(enso.trend),
+    topCommodities: (sc.commodities || []).slice(0,3).map(c => c.name),
+    topSectors: (sc.sectors || []).slice(0,2).map(s => s.sector),
+  };
+}
+// 기관 예측 소스 — embed:있으면 이미지 임베드(검증된 NOAA 2건), 없으면 링크 카드.
+const ensoForecastSources = [
+  { region:'🇺🇸 미국', label:'NOAA CPC ENSO 확률', embed:'cpcProb',
+    page:'https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/probabilities/' },
+  { region:'🇺🇸 미국', label:'NOAA CFSv2 Niño3.4 예측',
+    embed:'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/imagesInd3/nino34Mon.gif',
+    page:'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/' },
+  { region:'🇺🇸 미국', label:'IRI ENSO 예측',
+    page:'https://iri.columbia.edu/our-expertise/climate/forecasts/enso/current/' },
+  { region:'🇪🇺 유럽', label:'ECMWF SEAS5 Niño plume',
+    page:'https://charts.ecmwf.int/products/seasonal_system5_standard_nino_plumes' },
+  { region:'🇯🇵 일본', label:'JMA 엘니뇨 전망',
+    page:'https://ds.data.jma.go.jp/tcc/tcc/products/elnino/outlook.html' },
+];
+function ensoLogicDiagramHTML(enso) {
+  const st = ensoDiagramState(enso);
+  const node = 'flex:1;min-width:118px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 10px;';
+  const hi = st.hasData ? 'border-color:var(--c-accent);background:var(--c-card);' : '';
+  const arrow = '<div style="align-self:center;color:var(--c-txt-muted);font-size:15px;padding:0 1px;">→</div>';
+  const t = 'font-size:11px;font-weight:700;color:var(--c-txt);';
+  const d = 'font-size:10px;color:var(--c-txt-dim);line-height:1.45;margin-top:2px;';
+  const phaseDetail = st.hasData
+    ? `${st.phaseLabel}${st.strengthLabel ? ' · ' + st.strengthLabel : ''}${st.trendLabel ? ' · ' + st.trendLabel : ''}`
+    : '—';
+  return `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">
+        🔗 분석 로직 흐름 ${st.hasData ? '<span style="color:var(--c-txt-muted);font-weight:600;">(실측 반영)</span>' : '<span style="color:var(--c-txt-muted);font-weight:600;">(관측 대기)</span>'}
+      </div>
+      <div style="overflow-x:auto;"><div style="display:flex;gap:4px;align-items:stretch;min-width:660px;">
+        <div style="${node}"><div style="${t}">입력</div><div style="${d}">관측 ONI·Niño3.4<br>예측 기상청 확률</div></div>
+        ${arrow}
+        <div style="${node}"><div style="${t}">ONI ±0.5℃ 분류</div><div style="${d}">${st.hasData ? `현재 ${st.oniText}${st.asOf ? ' (' + st.asOf + ')' : ''}` : '데이터 대기'}</div></div>
+        ${arrow}
+        <div style="${node}${hi}"><div style="${t}">국면</div><div style="${d}">${phaseDetail}</div></div>
+        ${arrow}
+        <div style="${node}"><div style="${t}">① 원자재 변동성</div><div style="${d}">${st.hasData && st.topCommodities.length ? st.topCommodities.join(', ') : '국면별 패턴'}</div></div>
+        ${arrow}
+        <div style="${node}"><div style="${t}">② 국내 주가·산업</div><div style="${d}">${st.hasData && st.topSectors.length ? st.topSectors.join(', ') : '국면별 영향'}</div></div>
+      </div></div>
+    </div>`;
+}
+let ensoForecastsExpanded = false;
+function toggleEnsoForecasts() { ensoForecastsExpanded = !ensoForecastsExpanded; renderEnsoCard(); }
+function ensoForecastsHTML(expanded) {
+  const head = `
+    <div onclick="toggleEnsoForecasts()" style="cursor:pointer;display:flex;align-items:center;gap:6px;margin-top:14px;padding-top:10px;border-top:1px solid var(--c-border);font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;">
+      <span>🌐 기상청 예측 (미·유럽·일)</span>
+      <span style="color:var(--c-txt-muted);font-weight:600;">예측(forecast)</span>
+      <span style="margin-left:auto;color:var(--c-txt-muted);">${expanded ? '▲' : '▼'}</span>
+    </div>`;
+  if (!expanded) return head;
+  const yr = new Date().getFullYear();
+  const link = (s) => `<a href="${s.page}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">${s.label} ↗</a>`;
+  const items = ensoForecastSources.map(s => {
+    if (s.embed) {
+      const url = s.embed === 'cpcProb' ? cpcProbUrl(yr) : s.embed;
+      // onerror: hide the broken image and reveal the always-present fallback link sibling.
+      return `
+        <figure style="margin:0;">
+          <figcaption style="font-size:11px;color:var(--c-txt-dim);margin-bottom:3px;">${s.region} · ${s.label}</figcaption>
+          <img src="${url}" loading="lazy" referrerpolicy="no-referrer" alt="${s.label}"
+               style="max-width:100%;border:1px solid var(--c-border);border-radius:var(--r-xs);"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
+          <a href="${s.page}" target="_blank" rel="noopener noreferrer" style="display:none;font-size:11px;color:var(--c-primary);">${s.label} ↗ (이미지 불러오기 실패 — 원본 보기)</a>
+        </figure>`;
+    }
+    return `<div style="font-size:11px;color:var(--c-txt-dim);">${s.region} · ${link(s)}</div>`;
+  }).join('');
+  return head + `
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:12px;">${items}</div>
+    <div style="font-size:10px;color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">
+      ※ 각 기관의 공식 예측 차트/페이지. 예보는 갱신·정정될 수 있으며 투자 참고용입니다.
+    </div>`;
+}
+/* ===== ENSO forecast+diagram (end) ===== */
 function renderEnsoCard() {
   const tabsEl = document.getElementById('ensoScenarioTabs');
   const bodyEl = document.getElementById('ensoCardBody');
@@ -8400,7 +8503,7 @@ function renderEnsoCard() {
         <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;">${x.note}</div>
       </div>
     </div>`).join('');
-  bodyEl.innerHTML = _liveBanner + `
+  bodyEl.innerHTML = _liveBanner + ensoLogicDiagramHTML(_live) + `
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${s.accent};border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
         <span style="font-size:14px;font-weight:700;color:var(--c-txt);">${s.label}</span>
@@ -8418,7 +8521,7 @@ function renderEnsoCard() {
         <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:2px;">② 연동 주가·산업 (국내)${_live ? ` <span style="font-weight:600;color:var(--c-txt-dim);">· 현재 강도: ${ensoStrengthLabel(_live.strength) || ensoPhaseLabel(_live.phase)}</span>` : ''}</div>
         ${secRows}
       </div>
-    </div>`;
+    </div>` + ensoForecastsHTML(ensoForecastsExpanded);
 }
 
 function buildCommodityPage() {
