@@ -278,6 +278,11 @@
   .skip-link:focus{ left:0; }
   *:focus-visible{ outline:2px solid var(--c-primary); outline-offset:2px; }
   @media (max-width:768px){ .reHistPeriodBtn, .reHistUnitBtn { min-height:36px; } }
+  /* 지표 추이 모달 — 모바일에서 카드 내부 스크롤 + 차트 높이 축소 (콘텐츠가 카드 밖으로 넘치지 않게) */
+  @media (max-width:768px){
+    .reHistModalCard { padding:14px !important; max-height:94vh !important; }
+    .reHistChartBox  { min-height:220px !important; }
+  }
   /* 소형 컨트롤 — 시각 크기 유지, 터치 히트영역 48px 확장 */
   .news-filter-btn, .range-reset-btn, .guide-x { position:relative; }
   .news-filter-btn::after, .range-reset-btn::after, .guide-x::after {
@@ -1055,7 +1060,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 
   <!-- 부동산/거시 지표 시계열 차트 모달 (지표 클릭 시 표시) -->
   <div id="reHistoryChartModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:300;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
-    <div style="background:var(--c-card,#1f2945);border:1px solid var(--c-border,#3e4870);border-radius:var(--r-sm);padding:18px;width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;">
+    <div class="reHistModalCard" style="background:var(--c-card,#1f2945);border:1px solid var(--c-border,#3e4870);border-radius:var(--r-sm);padding:18px;width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
         <div style="min-width:0;">
           <div id="reHistTitle" style="font-size:14px;font-weight:700;color:var(--c-txt,#e8ebf5);">지표 추이</div>
@@ -1080,8 +1085,9 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
         <button class="reHistUnitBtn u-touch-hit" data-unit="H" onclick="setReHistUnit('H',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">반기</button>
         <button class="reHistUnitBtn u-touch-hit" data-unit="Y" onclick="setReHistUnit('Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">연</button>
       </div>
-      <div style="position:relative;flex:1;min-height:280px;">
+      <div class="reHistChartBox" style="position:relative;flex:1 0 auto;min-height:280px;">
         <canvas id="reHistChart"></canvas>
+        <div id="reHistEmpty" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px;font-size:12px;color:var(--c-txt-dim,#a4a8bc);line-height:1.8;"></div>
       </div>
       <div id="reHistGuide" style="display:none;margin-top:10px;padding:10px 12px;background:var(--c-surface,#1a2236);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);font-size:11px;color:var(--c-txt,#e8ebf5);line-height:1.7;"></div>
       <div id="reHistNote" style="font-size:10px;color:var(--c-txt-muted,#8b90a8);margin-top:6px;text-align:right;">—</div>
@@ -4434,6 +4440,7 @@ function _openRegionHistoryModal(d) {
     b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
   });
   destroyChart('reHistChart');
+  if(typeof _setReHistEmpty==='function') _setReHistEmpty('');
   const ctx = document.getElementById('reHistChart');
   if(!ctx) return;
   const labels = Object.keys(hist).sort();
@@ -6039,6 +6046,7 @@ function _renderReHistChartIndex(histName) {
   }
   if(metaEl) metaEl.innerHTML = `<span style="color:var(--c-primary,#c8d2ff);">단위:</span> ${unit||'지수'} &nbsp; <span style="color:var(--c-primary,#c8d2ff);">출처:</span> yfinance / data.json.history.indices`;
   destroyChart('reHistChart');
+  if(typeof _setReHistEmpty==='function') _setReHistEmpty('');
   // 데이터 추출 — data.json.history.indices
   const real = (typeof getHistoricalSeries === 'function') ? getHistoricalSeries('indices', histName) : null;
   if(!real || real.length < 2) {
@@ -12470,6 +12478,7 @@ function _renderReHistChartMacro() {
     }
   }
   destroyChart('reHistChart');
+  if(typeof _setReHistEmpty==='function') _setReHistEmpty('');
   if(!dataPath) {
     if(noteEl) noteEl.innerHTML = `데이터 경로 없음 ${opts.link?'— 외부 보고서 참고':''}`;
     return;
@@ -12710,6 +12719,7 @@ function _renderReHistChart() {
     }
   }
   destroyChart('reHistChart');
+  if(typeof _setReHistEmpty==='function') _setReHistEmpty('');
   // 데이터 소스에서 시계열 추출
   const d = _latestDataForIndicators || {};
   const reKr = (d.realestate||{}).kr || {};
@@ -12841,6 +12851,25 @@ function closeReHistoryChart() {
   destroyChart('reHistChart');
   const guideEl = document.getElementById('reHistGuide');
   if(guideEl) guideEl.style.display = 'none';
+  _setReHistEmpty('');
+}
+
+// 차트 영역 placeholder 토글 — msg 가 있으면 빈 차트 자리에 안내문을 가운데 표시하고
+// 캔버스를 숨긴다(큰 흰 여백 대신 명확한 메시지). msg 가 falsy 면 캔버스 복원.
+// 시계열이 비었을 때(reHistChart 미생성) "차트가 안 뜬다"는 인상을 주지 않기 위함.
+function _setReHistEmpty(msg) {
+  const e = document.getElementById('reHistEmpty');
+  const c = document.getElementById('reHistChart');
+  if(!e) return;
+  if(msg) {
+    e.innerHTML = msg;
+    e.style.display = 'flex';
+    if(c) c.style.visibility = 'hidden';
+  } else {
+    e.style.display = 'none';
+    e.innerHTML = '';
+    if(c) c.style.visibility = '';
+  }
 }
 
 // 부동산·거시·시장분위기 상세 차트 모달 새로고침
@@ -13877,6 +13906,7 @@ function _renderReHistChartSentiment(guide) {
     guideEl.style.borderLeftColor = guide.color || '#2962ff';
   }
   destroyChart('reHistChart');
+  _setReHistEmpty('');
   // 데이터 경로에서 시계열 추출
   const d = _latestDataForIndicators || {};
   const node = getDataByPath(d, guide.dataPath);
@@ -13922,6 +13952,11 @@ function _renderReHistChartSentiment(guide) {
         noteEl.textContent = '시계열 데이터 없음 — 데이터 갱신 시 자동 표시됩니다.';
       }
     }
+    // 빈 차트 영역에 안내문을 가운데 표시 (큰 흰 여백 대신) — note 내용을 그대로 노출
+    _setReHistEmpty(
+      `<div style="font-size:26px;opacity:.5;margin-bottom:6px;">📉</div>` +
+      `<div style="max-width:340px;">${(noteEl && noteEl.innerHTML) || '시계열 데이터 없음'}</div>`
+    );
     return;
   }
   // 기간/단위 리샘플링
