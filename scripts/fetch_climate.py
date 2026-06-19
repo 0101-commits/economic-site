@@ -110,3 +110,17 @@ def derive_trend(prev, last, eps=0.1):
     if d < -eps:
         return "cooling"
     return "steady"
+
+
+def parse_jma_nino3(text):
+    """JMA NINO.3 월별 편차 — best-effort. 'YYYY MM value' 마지막 행, 없으면 None."""
+    row_re = re.compile(r"^\s*(\d{4})\s+(\d{1,2})\s+([-+]?\d+\.\d+)\s*$")
+    last = None
+    for line in (text or "").splitlines():
+        m = row_re.match(line)
+        if m:
+            last = m
+    if not last:
+        return None
+    y, mon, val = int(last.group(1)), int(last.group(2)), float(last.group(3))
+    return {"value": val, "asOf": f"{y:04d}-{mon:02d}"}

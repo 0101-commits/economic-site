@@ -59,3 +59,16 @@ def test_derive_trend():
     assert fc.derive_trend(1.5, 1.3) == "cooling"
     assert fc.derive_trend(1.50, 1.52) == "steady"
     assert fc.derive_trend(None, 1.5) == "steady"
+
+JMA_FIX = """# JMA NINO.3 SST anomaly (deg C)
+2026 03 0.7
+2026 04 0.8
+2026 05 0.9
+"""
+
+def test_parse_jma_nino3_ok():
+    assert fc.parse_jma_nino3(JMA_FIX) == {"value": 0.9, "asOf": "2026-05"}
+
+def test_parse_jma_nino3_garbage_returns_none():
+    assert fc.parse_jma_nino3("<html>unexpected</html>") is None
+    assert fc.parse_jma_nino3("") is None
