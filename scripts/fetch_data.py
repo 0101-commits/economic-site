@@ -24,6 +24,7 @@ import yfinance as yf
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote_plus
 from xml.etree import ElementTree as ET
+import fetch_climate
 
 KST = timezone(timedelta(hours=9))
 
@@ -7090,6 +7091,25 @@ if __name__ == "__main__":
     log(f"[STATE] pykrx 가용: {_PYKRX_AVAILABLE} (False 면 pip install pykrx 필요)")
     log(f"[STATE] KIS_ENABLED={KIS_ENABLED} (False 면 KIS 토큰 발급 안함 = 카카오톡 알람 없음)")
     d = build_data()
+    # 🌊 ENSO(엘니뇨·라니냐) 실측 — 일일 런에서만 갱신(과호출 방지). 실패 시 직전 블록 보존.
+    try:
+        _is_daily = os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes")
+        if _is_daily:
+            _enso = fetch_climate.fetch_enso()
+            if _enso is not None:
+                d["climate"] = {"enso": _enso}
+            # _enso is None → 기존 d["climate"] 유지(아래 보존 로직)
+        # 비일일 런 또는 미수집 시: 직전 data.json 의 climate 를 보존
+        if "climate" not in d:
+            try:
+                with open("data.json", encoding="utf-8") as _f:
+                    _prev = json.load(_f)
+                if isinstance(_prev.get("climate"), dict):
+                    d["climate"] = _prev["climate"]
+            except (OSError, ValueError):
+                pass
+    except Exception as _e:
+        print(f"[climate] skipped: {_e}")
     output_path = "data.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
