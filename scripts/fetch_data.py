@@ -25,6 +25,7 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import quote_plus
 from xml.etree import ElementTree as ET
 import fetch_climate
+import climate_impact
 
 KST = timezone(timedelta(hours=9))
 
@@ -7108,6 +7109,10 @@ if __name__ == "__main__":
                     d["climate"] = _prev["climate"]
             except (OSError, ValueError):
                 pass
+        # 🌊 기후→경제 영향 매핑(IMF WP/15/89, 2015) — 실측 enso 국면에서 파생.
+        # 매번 재계산(정적 매핑 + 실측 국면 포인터). enso 가 없으면 생략(값 날조 금지).
+        if isinstance(d.get("climate"), dict) and isinstance(d["climate"].get("enso"), dict):
+            d["climate"]["impact"] = climate_impact.build_impact(d["climate"]["enso"])
     except Exception as _e:
         print(f"[climate] skipped: {_e}")
     output_path = "data.json"

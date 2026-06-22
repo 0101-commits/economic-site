@@ -2128,8 +2128,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
         <!-- 🌊 엘니뇨·라니냐 기후 영향 분석 (원자재 수급·가격 변동성 → 주가/산업 연동) -->
         <div class="widget" id="ensoCard" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-            <div class="widget-title" style="margin-bottom:0;">🌊 엘니뇨·라니냐 기후 영향 분석
-              <span style="font-size:10px;font-weight:400;color:var(--c-txt-muted);margin-left:6px;">ENSO 국면 → 원자재 수급·가격 변동성 → 주가/산업 연동</span>
+            <div class="widget-title" style="margin-bottom:0;">🌊 엘니뇨·라니냐 기후·거시 분석
+              <span style="font-size:10px;font-weight:400;color:var(--c-txt-muted);margin-left:6px;">ENSO 국면 → 원자재·섹터 & 시간축 거시 파급(단·중·장기)</span>
             </div>
             <div id="ensoScenarioTabs" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
           </div>
@@ -8342,6 +8342,7 @@ function ensoLiveSentence(e) {
   return s;
 }
 let ensoCurrent = 'elnino';
+let ensoView = 'sector';  // 분석 렌즈: 'sector'=원자재·섹터(기존) | 'macro'=시간축 거시 파급(신규)
 function _ensoDirChip(dir) {
   if(dir === 'up')   return '<span class="up-txt" style="font-weight:600;font-size:11px;">▲ 상승 압력</span>';
   if(dir === 'down') return '<span class="down-txt" style="font-weight:600;font-size:11px;">▼ 하락 압력</span>';
@@ -8464,6 +8465,116 @@ function ensoForecastsHTML(expanded) {
     </div>`;
 }
 /* ===== ENSO forecast+diagram (end) ===== */
+
+/* ===== 🌐 시간축 거시 파급 (IMF WP/15/89, 2015) — 신규 렌즈 (start) ===== */
+// data.json.climate.impact 를 읽어 단기(0~6M)/중기(6~12M)/장기(1~3Y) 경제 파급을 렌더.
+// 국면·강도는 실측(NOAA), 영향 방향/자산군은 IMF 논문·기후학 기반 '전형 패턴'(예보 아님).
+function climateImpactData() {
+  const d = _latestDataForIndicators;
+  return (d && d.climate && d.climate.impact) ? d.climate.impact : null;
+}
+// 자산 stance(위험/기회/혼조) → 색상 정의. risk=빨강, opportunity=파랑, mixed=주황.
+const ENSO_STANCE = {
+  risk:        { color:'#ef5350', label:'위험' },
+  opportunity: { color:'#2962ff', label:'기회' },
+  mixed:       { color:'#f5a623', label:'혼조' },
+};
+function _ensoStanceChip(stance) {
+  const s = ENSO_STANCE[stance] || ENSO_STANCE.mixed;
+  return `<span style="font-size:10px;font-weight:700;color:#fff;background:${s.color};border-radius:var(--r-full);padding:1px 8px;white-space:nowrap;">${s.label}</span>`;
+}
+// 분석 렌즈 탭 — 'sector'(기존 ①②) | 'macro'(신규 시간축 거시 파급)
+function ensoLensTabsHTML() {
+  const t = (key, icon, label) => {
+    const on = ensoView === key;
+    return `<button onclick="setEnsoView('${key}')" style="font-size:12px;font-weight:700;padding:6px 14px;border:none;border-bottom:2px solid ${on?'var(--c-accent)':'transparent'};background:transparent;color:${on?'var(--c-txt)':'var(--c-txt-muted)'};cursor:pointer;">${icon} ${label}</button>`;
+  };
+  return `<div style="display:flex;gap:4px;border-bottom:1px solid var(--c-border);margin:2px 0 12px;">${t('sector','🛢️','원자재·섹터')}${t('macro','🌐','시간축 거시 파급')}</div>`;
+}
+function setEnsoView(key) {
+  if (key === 'sector' || key === 'macro') ensoView = key;
+  renderEnsoCard();
+}
+// 신규: 시간축 거시 파급 본문(선택 국면 phaseKey 기준). impact 데이터 없으면 '갱신 대기' 안내(날조 금지).
+function ensoMacroHTML(phaseKey, live) {
+  const imp = climateImpactData();
+  if (!imp || !imp.map || !imp.map[phaseKey]) {
+    return `<div style="background:var(--c-bg);border:1px dashed var(--c-border);border-radius:var(--r-sm);padding:18px 14px;text-align:center;color:var(--c-txt-dim);font-size:12px;line-height:1.7;">
+      🌊 기후–거시경제 파급 데이터 갱신 대기 중<br>
+      <span style="font-size:11px;color:var(--c-txt-muted);">다음 일일 수집(NOAA ONI) 후 자동 표시됩니다 — 값을 임의로 채우지 않습니다.</span>
+    </div>`;
+  }
+  const node = imp.map[phaseKey];
+  const isActive = (phaseKey === imp.activePhase);
+  const confMap = {
+    imf:        { t:'IMF 논문 직접 분석',            c:'#26a69a' },
+    estimated:  { t:'거울상 추정(논문은 엘니뇨 중심)', c:'#f5a623' },
+    low_signal: { t:'ENSO 신호 약함',               c:'#8b90a8' },
+  };
+  const conf = confMap[node.confidence] || confMap.low_signal;
+  // 실측 게이지 — 활성(현재 실측) 국면일 때만 실측 강도 노출, 아니면 '가정 시나리오' 안내.
+  let gauge;
+  if (isActive) {
+    const pct = Math.round((imp.intensity || 0) * 100);
+    const oniTxt = (typeof imp.oni === 'number') ? `${imp.oni>=0?'+':''}${imp.oni.toFixed(2)}℃` : '—';
+    const strLabel = ensoStrengthLabel(imp.activeStrength) || ensoPhaseLabel(phaseKey);
+    gauge = `<div style="margin:2px 0 14px;">
+      <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--c-txt-dim);margin-bottom:4px;flex-wrap:wrap;">
+        <span style="font-size:10px;font-weight:700;color:#fff;background:var(--c-accent);border-radius:var(--r-full);padding:1px 8px;">실측</span>
+        ENSO 신호 강도 · ONI ${oniTxt}${imp.asOf?` (${imp.asOf})`:''}${strLabel?` · ${strLabel}`:''}
+      </div>
+      <div style="height:8px;background:var(--c-border);border-radius:var(--r-full);overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#26a69a,#f5a623,#ef5350);border-radius:var(--r-full);transition:width .4s;"></div>
+      </div>
+    </div>`;
+  } else {
+    gauge = `<div style="margin:2px 0 14px;font-size:11px;color:var(--c-txt-muted);background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:7px 10px;line-height:1.6;">
+      ℹ️ 가정 시나리오 — 현재 실측 국면은 <b style="color:var(--c-txt-dim);">${ensoPhaseLabel(imp.activePhase)}</b> 입니다. 이 탭은 <b style="color:var(--c-txt-dim);">${ensoPhaseLabel(phaseKey)}</b> 국면의 전형 패턴을 보여줍니다.
+    </div>`;
+  }
+  // 위험/기회/혼조 범례
+  const legend = `<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--c-txt-dim);margin-bottom:10px;">
+    ${Object.keys(ENSO_STANCE).map(k=>`<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:${ENSO_STANCE[k].color};display:inline-block;"></span>${ENSO_STANCE[k].label}</span>`).join('')}
+  </div>`;
+  // 단기→중기→장기 타임라인 카드(→ 연결자 포함)
+  const cards = (imp.horizons || []).map(hk => {
+    const h = node[hk];
+    if (!h) return '';
+    const assets = (h.assets||[]).map(a => `
+      <div style="display:flex;align-items:flex-start;gap:7px;padding:5px 0;border-top:1px solid var(--c-border);">
+        <span style="width:8px;height:8px;border-radius:50%;background:${(ENSO_STANCE[a.stance]||ENSO_STANCE.mixed).color};flex-shrink:0;margin-top:5px;"></span>
+        <div style="flex:1;">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span style="font-size:12px;font-weight:600;color:var(--c-txt);">${a.name}</span>${_ensoStanceChip(a.stance)}</div>
+          <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;margin-top:1px;">${a.note}</div>
+        </div>
+      </div>`).join('');
+    return `<div style="flex:1;min-width:210px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:11px 12px;">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">
+        <span style="font-size:16px;">${h.icon||''}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--c-txt);">${h.label}</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-full);padding:1px 8px;white-space:nowrap;">${h.timeframe}</span>
+      </div>
+      <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.55;margin-bottom:4px;">${h.mechanism}</div>
+      ${assets}
+    </div>`;
+  }).join('<div style="align-self:center;color:var(--c-txt-muted);font-size:15px;padding:0 1px;">→</div>');
+  const src = imp.source || {};
+  const footer = `<div style="font-size:10px;color:var(--c-txt-muted);margin-top:12px;line-height:1.65;border-top:1px solid var(--c-border);padding-top:8px;">
+    📚 근거: ${src.authors||''} (2015), <a href="${src.url||'#'}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">${src.title||''}</a>${src.ref?` · ${src.ref}`:''}<br>
+    <span style="display:inline-block;margin-top:3px;">⚠️ ${imp.disclaimer||''}</span>
+  </div>`;
+  return `<div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+      <span style="font-size:12px;font-weight:700;color:var(--c-primary);letter-spacing:.03em;">③ 시간축 거시 파급 (단기→중기→장기)</span>
+      <span style="font-size:10px;font-weight:700;color:${conf.c};border:1px solid ${conf.c}66;border-radius:var(--r-full);padding:1px 8px;">${conf.t}</span>
+    </div>
+    ${gauge}${legend}
+    <div style="overflow-x:auto;"><div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;min-width:0;">${cards}</div></div>
+    ${footer}
+  </div>`;
+}
+/* ===== 🌐 시간축 거시 파급 (end) ===== */
+
 function renderEnsoCard() {
   const tabsEl = document.getElementById('ensoScenarioTabs');
   const bodyEl = document.getElementById('ensoCardBody');
@@ -8483,7 +8594,18 @@ function renderEnsoCard() {
       return `<button class="tab-btn${on ? ' active' : ''}" onclick="setEnsoScenario('${k}',this)" style="font-size:11px;padding:3px 12px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;background:${on ? 'var(--c-accent)' : 'transparent'};color:${on ? '#fff' : 'var(--c-txt-dim)'};">${s.tab}</button>`;
     }).join('');
   }
-  const s = ENSO_SCENARIOS[ensoCurrent];
+  // 분석 렌즈에 따라 본문 분기 — 'sector'(기존 ①②) | 'macro'(신규 시간축 거시 파급)
+  const _viewHTML = (ensoView === 'macro')
+    ? ensoMacroHTML(ensoCurrent, _live)
+    : ensoSectorHTML(ensoCurrent, _live);
+  bodyEl.innerHTML = _liveBanner + ensoLogicDiagramHTML(_live)
+    + ensoLensTabsHTML() + _viewHTML
+    + ensoForecastsHTML(ensoForecastsExpanded);
+}
+
+// 원자재·섹터 렌즈(기존 ①②) — 본문 HTML 문자열 반환. 내용·마크업은 기존과 동일하게 보존.
+function ensoSectorHTML(phaseKey, _live) {
+  const s = ENSO_SCENARIOS[phaseKey];
   const volC = s.overallVol.indexOf('高') >= 0 ? '#ef5350' : (s.overallVol.indexOf('中') >= 0 ? '#f5a623' : '#8b90a8');
   const comRows = s.commodities.map(c => `
     <div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--c-border);">
@@ -8503,7 +8625,7 @@ function renderEnsoCard() {
         <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;">${x.note}</div>
       </div>
     </div>`).join('');
-  bodyEl.innerHTML = _liveBanner + ensoLogicDiagramHTML(_live) + `
+  return `
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${s.accent};border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
         <span style="font-size:14px;font-weight:700;color:var(--c-txt);">${s.label}</span>
@@ -8521,7 +8643,7 @@ function renderEnsoCard() {
         <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:2px;">② 연동 주가·산업 (국내)${_live ? ` <span style="font-weight:600;color:var(--c-txt-dim);">· 현재 강도: ${ensoStrengthLabel(_live.strength) || ensoPhaseLabel(_live.phase)}</span>` : ''}</div>
         ${secRows}
       </div>
-    </div>` + ensoForecastsHTML(ensoForecastsExpanded);
+    </div>`;
 }
 
 function buildCommodityPage() {
