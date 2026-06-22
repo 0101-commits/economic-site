@@ -108,6 +108,15 @@ def main():
     if enso and enso.get("stale", {}).get("oni") is True:
         warns.append("climate.enso.oni: 최신 ONI 수집 실패(직전값 사용 중)")
 
+    # 기후→경제 영향 매핑(climate.impact) 구조 — 비차단 경고(블록이 있을 때만 점검)
+    impact = (d.get("climate") or {}).get("impact") or {}
+    if impact:
+        if impact.get("activePhase") not in ("elnino", "lanina", "neutral"):
+            warns.append(f"climate.impact.activePhase 이상값: {impact.get('activePhase')!r}")
+        imap = impact.get("map")
+        if not isinstance(imap, dict) or not imap.get(impact.get("activePhase")):
+            warns.append("climate.impact.map 에 활성 국면 매핑 누락")
+
     for w in warns:
         print(f"::warning title=데이터 품질::{w}")
 
