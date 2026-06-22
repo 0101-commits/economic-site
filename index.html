@@ -892,7 +892,7 @@ html.light #dataSrcBanner { background:#fff7e6; }
 .pf-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin-top:8px; font-size:11px; }
 .pf-card-grid label { color:var(--c-txt-muted,#8b90a8); display:block; font-size:9px; margin-bottom:2px; }
 .pf-card-grid input { width:100%; background:var(--c-bg,#0a0e18); border:1px solid var(--c-border,#3e4870); border-radius:4px; color:var(--c-txt,#e8ebf5); font-size:11px; padding:3px 6px; text-align:right; box-sizing:border-box; }
-.pf-card-foot { display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:11px; }
+.pf-card-foot { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px; margin-top:8px; font-size:11px; }
 @media (max-width:768px) {
   .pf-table-wrap { display:none; }     /* 표 → 카드 전환 */
   #pfCardList { display:block; }
@@ -16666,7 +16666,10 @@ function pfUpdateItemField(id, field, value, inputEl) {
     }
   }
   pfSave(); pfMarkDirty(); pfRenderSummary(); pfRenderPie();
+  // 그룹 변경 → 표 재렌더(표가 카드까지 동기화). 평단가/수량 변경 → 모바일 카드(평가손익) 갱신.
+  // 데스크탑에선 pfRenderCards 가 즉시 return 하므로 입력 포커스에 영향 없음.
   if(field === 'group') pfRenderTable();
+  else if (typeof pfRenderCards === 'function') pfRenderCards();
 }
 
 // ── 그룹(폴더) 관리 ──────────────────────────────────────────────────────────
@@ -16759,6 +16762,7 @@ function pfRenderTable() {
   if(!items.length) {
     body.innerHTML = '<tr><td colspan="9" style="padding:18px;text-align:center;color:#7a8099;">' +
       (pfState.items.length ? '이 그룹에 종목이 없습니다.' : '종목 코드를 조회해 추가하세요. (한국 6자리 코드 / 미국 티커)') + '</td></tr>';
+    if (typeof pfRenderCards === 'function') pfRenderCards();  // 모바일 카드 뷰도 빈 상태로 동기화
     return;
   }
   const fx = pfUsdKrw();
@@ -16802,6 +16806,8 @@ function pfRenderTable() {
       </td>
     </tr>`;
   }).join('');
+  // 모바일 카드 뷰(#pfCardList)도 같은 데이터로 항상 동기화 — 표만 갱신되고 카드는 stale 되던 버그 차단.
+  if (typeof pfRenderCards === 'function') pfRenderCards();
 }
 
 // ── 요약 KPI + 파이 차트 ────────────────────────────────────────────────────
@@ -17014,7 +17020,7 @@ function pfRenderBench() {
   });
 }
 
-function pfRenderAll() { pfRenderGroups(); pfRenderTable(); if (typeof pfRenderCards === 'function') pfRenderCards(); pfRenderSummary(); pfRenderPie(); pfRenderAlertSummary(); try { pfRecordSnapshot(); pfRenderBench(); } catch(_) {} }
+function pfRenderAll() { pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie(); pfRenderAlertSummary(); try { pfRecordSnapshot(); pfRenderBench(); } catch(_) {} }  // pfRenderTable 이 카드까지 동기화하므로 별도 pfRenderCards 호출 불필요(중복 렌더·깜빡임 제거)
 
 // ── 상세 차트 (TradingView Lightweight Charts) ───────────────────────────────
 let pfChart = { item: null, period: '1Y', main: null, rsi: null, macd: null, syncing: false, candles: null };

@@ -3245,9 +3245,25 @@ def fetch_rone_sigungu_breakdown():
 # ============================================================
 # KOSIS API (국가통계포털)
 # ============================================================
+class _KosisConnectionError(Exception):
+    """KOSIS 서버 연결 자체 실패(연결 거부/타임아웃) 신호.
+
+    이 오류가 나면 통계표·항목 후보(최대 10개)를 더 시도해도 같은 서버라 똑같이
+    실패한다. 후보 반복을 즉시 중단해 GitHub Actions 가 멈추는(Stuck) 것을 막는 용도.
+    """
+    pass
+
+
 def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=None, end_prd=None,
                        obj_l1=None):
-    """KOSIS API 통계 데이터 조회."""
+    """KOSIS API 통계 데이터 조회.
+
+    네트워크 예외를 모두 흡수해 스크립트가 죽지 않게 한다:
+      · 연결 실패/타임아웃(ConnectTimeout 등) → 경고 로그 후 _KosisConnectionError 발생
+        (호출부가 남은 후보 반복을 즉시 멈추도록 하는 '서버 다운' 신호)
+      · 그 외 요청 오류(HTTP 4xx/5xx 등)       → 경고 로그 후 None (다음 후보 시도)
+      · JSON 파싱 등 기타 오류                  → 경고 로그 후 None
+    """
     if not KOSIS_API_KEY:
         return None
     now = datetime.now(KST)
@@ -3255,26 +3271,33 @@ def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=
         start_prd = (now - timedelta(days=365)).strftime("%Y%m")
     if not end_prd:
         end_prd = now.strftime("%Y%m")
+    params = {
+        "method":      "getList",
+        "apiKey":      KOSIS_API_KEY,
+        "itmId":       item_id,
+        "objL1":       obj_l1 if obj_l1 is not None else item_id,
+        "format":      "json",
+        "jsonVD":      "Y",
+        "userStatsId": "",
+        "prdSe":       period_type,
+        "startPrdDe":  start_prd,
+        "endPrdDe":    end_prd,
+        "orgId":       org_id,
+        "tblId":       table_id,
+    }
     try:
-        params = {
-            "method":      "getList",
-            "apiKey":      KOSIS_API_KEY,
-            "itmId":       item_id,
-            "objL1":       obj_l1 if obj_l1 is not None else item_id,
-            "format":      "json",
-            "jsonVD":      "Y",
-            "userStatsId": "",
-            "prdSe":       period_type,
-            "startPrdDe":  start_prd,
-            "endPrdDe":    end_prd,
-            "orgId":       org_id,
-            "tblId":       table_id,
-        }
-        r = requests.get(KOSIS_BASE, params=params, timeout=20)
+        # timeout=(연결 5초, 응답 10초) — KOSIS 서버 지연 시 무한 대기(Stuck) 방지.
+        r = requests.get(KOSIS_BASE, params=params, timeout=(5, 10))
         r.raise_for_status()
         return r.json()
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        log(f"[KOSIS] API 호출 실패 - 기존 데이터 유지 (연결/타임아웃: {e})")
+        raise _KosisConnectionError(str(e))
+    except requests.exceptions.RequestException as e:
+        log(f"[KOSIS] API 호출 실패 - 기존 데이터 유지 (요청 오류 {org_id}/{table_id}: {e})")
+        return None
     except Exception as e:
-        log(f"[KOSIS] {org_id}/{table_id} 오류: {e}")
+        log(f"[KOSIS] {org_id}/{table_id} 응답 처리 오류: {e}")
         return None
 
 
@@ -3303,10 +3326,16 @@ def fetch_kosis_retail_sales():
     start_prd = (now - timedelta(days=400)).strftime("%Y%m")
     for org_id, tbl_id, label in table_candidates:
         for item_id in item_candidates:
+            # 1) 네트워크 호출 — 연결 자체가 죽으면 후보 반복을 멈춘다(Stuck 방지).
             try:
                 data = fetch_kosis_series(org_id, tbl_id, item_id, "M", start_prd, end_prd)
-                if not data or not isinstance(data, list):
-                    continue
+            except _KosisConnectionError:
+                log("[KOSIS] 서버 연결 실패 — 소매판매액지수 후보 탐색 중단")
+                return None
+            if not data or not isinstance(data, list):
+                continue
+            # 2) 응답 파싱 — 이 후보만의 문제이므로 실패해도 다음 후보 계속 시도.
+            try:
                 # 유효한 데이터 행 필터링
                 rows = [r for r in data if r.get("DT") and r.get("PRD_DE")]
                 if not rows:
@@ -3335,7 +3364,7 @@ def fetch_kosis_retail_sales():
                     "history": history,
                 }
             except Exception as e:
-                log(f"[KOSIS] {tbl_id}/{item_id} 오류: {e}")
+                log(f"[KOSIS] {tbl_id}/{item_id} 파싱 오류: {e}")
                 continue
     log("[KOSIS] 소매판매액지수 모든 후보 실패")
     return None
@@ -5771,16 +5800,30 @@ def build_data():
         # 지워 '한국 PMI 가 항상 — 로 비는' 버그가 됐었다 (2026-06-10 데이터로 확인).
         data["economicIndicators"].setdefault("kr", {}).update(ecos_data)
         data["sources"]["economicIndicators_kr"] = "ECOS API (ecos.bok.or.kr)"
-        # 소매판매액지수가 ECOS 에서 누락되면 KOSIS API 로 보강
+        # 소매판매액지수가 ECOS 에서 누락되면 KOSIS API 로 보강.
+        # KOSIS 가 실패(서버 다운/타임아웃/빈 응답)하면 직전 data.json 의 retail_kr 을
+        # 그대로 유지(Fallback)해, ECOS 등 먼저 수집한 지표가 정상 커밋되도록 한다.
         if not (ecos_data.get("retail_kr") or {}).get("value") and KOSIS_API_KEY:
             log("[KOSIS] retail_kr 누락 → KOSIS 보강 시도")
+            kosis_retail = None
             try:
                 kosis_retail = fetch_kosis_retail_sales()
-                if kosis_retail:
-                    data["economicIndicators"]["kr"]["retail_kr"] = kosis_retail
-                    data["sources"]["retail_kr_kosis"] = "KOSIS API (101: 통계청)"
             except Exception as e:
                 log(f"[KOSIS] 소매판매액지수 보강 오류: {e}")
+            if kosis_retail:
+                data["economicIndicators"]["kr"]["retail_kr"] = kosis_retail
+                data["sources"]["retail_kr_kosis"] = "KOSIS API (101: 통계청)"
+            else:
+                # Fallback — 직전 빌드(data.json)에 저장돼 있던 KOSIS 소매판매액지수를 복원.
+                prev_retail = None
+                if isinstance(prev, dict):
+                    prev_retail = ((prev.get("economicIndicators") or {}).get("kr") or {}).get("retail_kr")
+                if isinstance(prev_retail, dict) and prev_retail.get("value") is not None:
+                    data["economicIndicators"]["kr"]["retail_kr"] = prev_retail
+                    data["sources"]["retail_kr_kosis"] = "KOSIS API (101: 통계청) — 직전 값 유지"
+                    log("[KOSIS] API 호출 실패 - 기존 데이터 유지 (직전 retail_kr 복원)")
+                else:
+                    log("[KOSIS] API 호출 실패 - 기존 데이터 유지 (직전 retail_kr 없음 → 건너뜀)")
         # 한국 국채 수익률 곡선 (1Y/3Y/5Y/10Y/20Y/30Y)
         log("[ECOS-YC] 한국 국채 수익률 곡선 수집 시작")
         try:
