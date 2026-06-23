@@ -3998,14 +3998,18 @@ function applyYoY(id){
 
 // 범례: chartOpts 류가 legend.display=false 로 숨기므로, YoY ON 시 임시로 켜고 OFF 시 원복.
 function _yoySetLegend(ch, show){
-  ch.options = ch.options || {};
-  ch.options.plugins = ch.options.plugins || {};
-  const lg = ch.options.plugins.legend = ch.options.plugins.legend || {};
+  // Chart.js v4: ch.options 는 resolver proxy → 거기에 쓰면 set 트랩이 무한재귀(Maximum call stack).
+  //   반드시 원본 config(ch.config.options)에 기록하고 update()가 재머지하게 한다.
+  //   또 토글된 적 없으면(OFF 기본) config 를 아예 건드리지 않는다(불필요한 접근·재귀 차단).
+  const cfg = ch && ch.config && ch.config.options;
+  if(!cfg) return;
   if(show){
-    if(ch._yoyLegendOrig === undefined) ch._yoyLegendOrig = (lg.display === undefined ? true : lg.display);
-    lg.display = true;
+    cfg.plugins = cfg.plugins || {};
+    cfg.plugins.legend = cfg.plugins.legend || {};
+    if(ch._yoyLegendOrig === undefined) ch._yoyLegendOrig = (cfg.plugins.legend.display === undefined ? null : cfg.plugins.legend.display);
+    cfg.plugins.legend.display = true;
   } else if(ch._yoyLegendOrig !== undefined){
-    lg.display = ch._yoyLegendOrig;
+    if(cfg.plugins && cfg.plugins.legend) cfg.plugins.legend.display = (ch._yoyLegendOrig === null ? undefined : ch._yoyLegendOrig);
     ch._yoyLegendOrig = undefined;
   }
 }
