@@ -1,0 +1,25 @@
+name: Market Halt Alert — Test Send (manual)
+
+# 실제 발동은 드물어 실시간 테스트가 불가하므로, Actions → 'Run workflow' 로
+# 가짜 서킷브레이커 사건 1건을 카카오톡으로 보내 발송 경로를 검증한다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Test Kakao halt alert
+        env:
+          HALTS_TEST: '1'
+          KAKAO_REST_API_KEY:  ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+        run: python scripts/check_halts.py
