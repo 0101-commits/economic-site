@@ -7158,6 +7158,18 @@ if __name__ == "__main__":
             d["climate"]["impact"] = climate_impact.build_impact(d["climate"]["enso"])
     except Exception as _e:
         print(f"[climate] skipped: {_e}")
+    # 🚨 시장중단(서킷브레이커·사이드카) 감지 — data.json.marketHalts 생성.
+    # 디스크의 직전 data.json(아직 미갱신)을 읽어 active 를 이월. 실패해도 직전 블록 보존(날조 금지).
+    try:
+        import market_halts
+        d["marketHalts"] = market_halts.detect_market_halts(d, _load_prev_data("data.json"))
+        _mh = d["marketHalts"]
+        log(f"[halts] active={len(_mh.get('active', []))} history={len(_mh.get('history', []))}")
+    except Exception as _e:
+        print(f"[halts] 감지 skipped: {_e}")
+        _prev_mh = (_load_prev_data("data.json") or {}).get("marketHalts")
+        if isinstance(_prev_mh, dict):
+            d["marketHalts"] = _prev_mh
     output_path = "data.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
