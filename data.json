@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-24T06:24:39.953238+09:00",
+  "lastUpdated": "2026-06-24T06:59:04.167741+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -25,29 +25,30 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-24T05:21)",
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-06-24T06:24)",
+    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강",
     "sentiment_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
-      "rate": 1531.23,
-      "change": -0.32
+      "rate": 1531.52,
+      "change": -0.3
     },
     "EURKRW": {
-      "rate": 1751.11,
-      "change": -0.7
+      "rate": 1751.45,
+      "change": -0.69
     },
     "JPYKRW": {
-      "rate": 9.4825,
-      "change": -0.26
+      "rate": 9.4813,
+      "change": -0.27
     },
     "EURUSD": {
       "rate": 1.1436,
-      "change": -0.38
+      "change": -0.39
     },
     "USDJPY": {
-      "rate": 161.48,
-      "change": -0.06
+      "rate": 161.53,
+      "change": -0.03
     }
   },
   "indices": {
@@ -2274,7 +2275,7 @@
     ],
     "unit": "억원",
     "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
-    "lastFetched": "2026-06-24T06:25:51.731561+09:00"
+    "lastFetched": "2026-06-24T07:01:06.847668+09:00"
   },
   "freight": {
     "items": [
@@ -2361,7 +2362,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-06-24T06:25:58.882268+09:00"
+    "lastFetched": "2026-06-24T07:01:17.239582+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -9078,7 +9079,7 @@
           "2026-06-17": 100.09,
           "2026-06-18": 100.85,
           "2026-06-22": 101.02,
-          "2026-06-23": 101.356
+          "2026-06-23": 101.358
         }
       },
       "pmi_us": {
@@ -14296,21 +14297,6 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
-      },
       "trade_count_kr_rone": {
         "value": 76391.0,
         "prev": 78432.0,
@@ -14820,6 +14806,21 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
+      },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -34869,11 +34870,11 @@
         },
         {
           "date": "2026-06-23",
-          "close": 1531.83
+          "close": 1530.91
         },
         {
           "date": "2026-06-24",
-          "close": 1531.23
+          "close": 1531.52
         }
       ],
       "EURKRW": [
@@ -40075,11 +40076,11 @@
         },
         {
           "date": "2026-06-23",
-          "close": 1742.2
+          "close": 1741.5
         },
         {
           "date": "2026-06-24",
-          "close": 1751.11
+          "close": 1751.45
         }
       ],
       "JPYKRW": [
@@ -45281,11 +45282,11 @@
         },
         {
           "date": "2026-06-23",
-          "close": 9.456
+          "close": 9.453
         },
         {
           "date": "2026-06-24",
-          "close": 9.4825
+          "close": 9.4813
         }
       ],
       "EURUSD": [
@@ -50487,7 +50488,7 @@
         },
         {
           "date": "2026-06-23",
-          "close": 1.1388
+          "close": 1.1384
         },
         {
           "date": "2026-06-24",
@@ -55693,11 +55694,11 @@
         },
         {
           "date": "2026-06-23",
-          "close": 161.503
+          "close": 161.558
         },
         {
           "date": "2026-06-24",
-          "close": 161.48
+          "close": 161.53
         }
       ]
     },
@@ -176880,7 +176881,7 @@
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 2,
-    "preservedMetricsDeep": 1,
+    "preservedMetricsDeep": 2,
     "historySpotSynced": 14
   },
   "subscription": {
@@ -177255,7 +177256,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-06-24T06:32:01.846455+09:00"
+    "lastFetched": "2026-06-24T07:07:40.528738+09:00"
   },
   "nps": {
     "allocation": [
@@ -177284,7 +177285,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-06-24T06:32:30.686557+09:00",
+    "lastFetched": "2026-06-24T07:08:08.410536+09:00",
     "채권": [],
     "외환": [],
     "주식": [
@@ -177295,10 +177296,10 @@
         "pubDate": "Fri, 19 Jun 2026 00:23:00 GMT"
       },
       {
-        "title": "[마감시황] 코스피 하루 10% 추락…개미는 10조 싹쓸이 매수",
-        "url": "https://www.msn.com/ko-kr/news/other/%EB%A7%88%EA%B0%90%EC%8B%9C%ED%99%A9-%EC%BD%94%EC%8A%A4%ED%94%BC-%ED%95%98%EB%A3%A8-10-%EC%B6%94%EB%9D%BD-%EA%B0%9C%EB%AF%B8%EB%8A%94-10%EC%A1%B0-%EC%8B%B9%EC%93%B8%EC%9D%B4-%EB%A7%A4%EC%88%98/ar-AA26kdN0?ocid=BingNewsVerp",
-        "isoDate": "2026-06-23",
-        "pubDate": "Tue, 23 Jun 2026 00:27:00 GMT"
+        "title": "코스피 하락 출발해 9천선 아래로…환율 1540원대 등락",
+        "url": "https://www.msn.com/ko-kr/money/topstories/%EC%BD%94%EC%8A%A4%ED%94%BC-%ED%95%98%EB%9D%BD-%EC%B6%9C%EB%B0%9C%ED%95%B4-9%EC%B2%9C%EC%84%A0-%EC%95%84%EB%9E%98%EB%A1%9C-%ED%99%98%EC%9C%A8-1540%EC%9B%90%EB%8C%80-%EB%93%B1%EB%9D%BD/ar-AA26iCZS?ocid=BingNewsVerp",
+        "isoDate": "2026-06-22",
+        "pubDate": "Mon, 22 Jun 2026 19:49:00 GMT"
       }
     ],
     "원자재": [],
@@ -177314,15 +177315,15 @@
       },
       {
         "title": "김용범 \"역대급 경제호항 착시 아냐\"..24년만에 GDP성장률 두자리 초과할듯",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EA%B9%80%EC%9A%A9%EB%B2%94-%EC%97%AD%EB%8C%80%EA%B8%89-%EA%B2%BD%EC%A0%9C%ED%98%B8%ED%95%AD-%EC%B0%A9%EC%8B%9C-%EC%95%84%EB%83%90-24%EB%85%84%EB%A7%8C%EC%97%90-gdp%EC%84%B1%EC%9E%A5%EB%A5%A0-%EB%91%90%EC%9E%90%EB%A6%AC-%EC%B4%88%EA%B3%BC%ED%95%A0%EB%93%AF/ar-AA267nEw",
+        "url": "https://www.msn.com/ko-kr/news/other/%EA%B9%80%EC%9A%A9%EB%B2%94-%EC%97%AD%EB%8C%80%EA%B8%89-%EA%B2%BD%EC%A0%9C%ED%98%B8%ED%95%AD-%EC%B0%A9%EC%8B%9C-%EC%95%84%EB%83%9024%EB%85%84%EB%A7%8C%EC%97%90-gdp%EC%84%B1%EC%9E%A5%EB%A5%A0-%EB%91%90%EC%9E%90%EB%A6%AC-%EC%B4%88%EA%B3%BC%ED%95%A0%EB%93%AF/ar-AA267nEw",
         "isoDate": "2026-06-19",
         "pubDate": "Fri, 19 Jun 2026 23:05:52 GMT"
       },
       {
-        "title": "신현송 한은 총재 \"한국 올해 성장률, 2.6%서 상향될 것\"",
-        "url": "https://www.msn.com/ko-kr/money/topstories/%EC%8B%A0%ED%98%84%EC%86%A1-%ED%95%9C%EC%9D%80-%EC%B4%9D%EC%9E%AC-%ED%95%9C%EA%B5%AD-%EC%98%AC%ED%95%B4-%EC%84%B1%EC%9E%A5%EB%A5%A0-26-%EC%84%9C-%EC%83%81%ED%96%A5%EB%90%A0-%EA%B2%83/ar-AA2630kB",
-        "isoDate": "2026-06-19",
-        "pubDate": "Fri, 19 Jun 2026 03:53:00 GMT"
+        "title": "1분기 성장률 1.8%… 수출 물가 반영 땐 10.5% 올라 ‘50년 만에 최고’",
+        "url": "https://www.seoul.co.kr/news/economy/2026/06/10/20260610004002",
+        "isoDate": "2026-06-09",
+        "pubDate": "Tue, 09 Jun 2026 07:30:00 GMT"
       },
       {
         "title": "씨티, 올해 GDP 성장률 전망치 3.0→3.1%로 상향",
@@ -177331,19 +177332,13 @@
         "pubDate": "Wed, 17 Jun 2026 02:28:00 GMT"
       },
       {
-        "title": "1분기 성장률 1.8%… 수출 물가 반영 땐 10.5% 올라 ‘50년 만에 최고’",
-        "url": "https://www.seoul.co.kr/news/economy/2026/06/10/20260610004002",
-        "isoDate": "2026-06-09",
-        "pubDate": "Tue, 09 Jun 2026 07:30:00 GMT"
+        "title": "한국은행 총재 “올해 성장률 전망치 상향 조정될 것”",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%ED%95%9C%EA%B5%AD%EC%9D%80%ED%96%89-%EC%B4%9D%EC%9E%AC-%EC%98%AC%ED%95%B4-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%A0%84%EB%A7%9D%EC%B9%98-%EC%83%81%ED%96%A5-%EC%A1%B0%EC%A0%95%EB%90%A0-%EA%B2%83/ar-AA263iwu",
+        "isoDate": "2026-06-19",
+        "pubDate": "Fri, 19 Jun 2026 03:42:44 GMT"
       }
     ],
     "미국CPI": [
-      {
-        "title": "미국 소비자 물가 3년 만에 최고로 치솟아... 트럼프 \"인플레이션 마음에 들어\"",
-        "url": "https://www.msn.com/ko-kr/news/other/%EB%AF%B8%EA%B5%AD-%EC%86%8C%EB%B9%84%EC%9E%90-%EB%AC%BC%EA%B0%80-3%EB%85%84-%EB%A7%8C%EC%97%90-%EC%B5%9C%EA%B3%A0%EB%A1%9C-%EC%B9%98%EC%86%9F%EC%95%84%ED%8A%B8%EB%9F%BC%ED%94%84-%EC%9D%B8%ED%94%8C%EB%A0%88%EC%9D%B4%EC%85%98-%EB%A7%88%EC%9D%8C%EC%97%90-%EB%93%A4%EC%96%B4/ar-AA25k5Kp",
-        "isoDate": "2026-06-10",
-        "pubDate": "Wed, 10 Jun 2026 14:17:00 GMT"
-      },
       {
         "title": "미국, 이란 전쟁發 유가 충격…5월 CPI 4.2% 3년래 최고",
         "url": "https://www.msn.com/ko-kr/news/other/%EB%AF%B8%EA%B5%AD-%EC%9D%B4%EB%9E%80-%EC%A0%84%EC%9F%81%E7%99%BC-%EC%9C%A0%EA%B0%80-%EC%B6%A9%EA%B2%A9-5%EC%9B%94-cpi-42-3%EB%85%84%EB%9E%98-%EC%B5%9C%EA%B3%A0/ar-AA25iznR",
@@ -177394,6 +177389,12 @@
     "영국경기": [],
     "유로존": [
       {
+        "title": "ECB, 이란戰 여파로 3년만에 금리 인상... 3대 정책금리 0.25%p씩",
+        "url": "https://www.msn.com/ko-kr/news/other/ecb-%EC%9D%B4%EB%9E%80%E6%88%B0-%EC%97%AC%ED%8C%8C%EB%A1%9C-3%EB%85%84%EB%A7%8C%EC%97%90-%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81-3%EB%8C%80-%EC%A0%95%EC%B1%85%EA%B8%88%EB%A6%AC-025-p%EC%94%A9/ar-AA25qqBm",
+        "isoDate": "2026-06-11",
+        "pubDate": "Thu, 11 Jun 2026 15:45:14 GMT"
+      },
+      {
         "title": "ECB, 3년 만에 금리인상…에너지 쇼크에 글로벌 긴축 우려 확산(종합)",
         "url": "https://www.msn.com/ko-kr/news/other/ecb-3%EB%85%84-%EB%A7%8C%EC%97%90-%EA%B8%88%EB%A6%AC%EC%9D%B8%EC%83%81-%EC%97%90%EB%84%88%EC%A7%80-%EC%87%BC%ED%81%AC%EC%97%90-%EA%B8%80%EB%A1%9C%EB%B2%8C-%EA%B8%B4%EC%B6%95-%EC%9A%B0%EB%A0%A4-%ED%99%95%EC%82%B0%EC%A2%85%ED%95%A9/ar-AA25pFZH",
         "isoDate": "2026-06-11",
@@ -177406,22 +177407,16 @@
         "pubDate": "Thu, 11 Jun 2026 05:37:00 GMT"
       },
       {
-        "title": "ECB, 3년만에 금리 인상…이란전쟁 후 주요국 중 처음(종합)",
-        "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/ecb-3%EB%85%84%EB%A7%8C%EC%97%90-%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81-%EC%9D%B4%EB%9E%80%EC%A0%84%EC%9F%81-%ED%9B%84-%EC%A3%BC%EC%9A%94%EA%B5%AD-%EC%A4%91-%EC%B2%98%EC%9D%8C-%EC%A2%85%ED%95%A9/ar-AA25nImi",
+        "title": "ECB, 기준금리 0.25%p 올려 2.25%로… 이란 전쟁에 3년만의 인상(종합)",
+        "url": "https://www.msn.com/ko-kr/news/world/ecb-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-0-25-p-%EC%98%AC%EB%A0%A4-2-25-%EB%A1%9C-%EC%9D%B4%EB%9E%80-%EC%A0%84%EC%9F%81%EC%97%90-3%EB%85%84%EB%A7%8C%EC%9D%98-%EC%9D%B8%EC%83%81-%EC%A2%85%ED%95%A9/ar-AA25pxB1",
         "isoDate": "2026-06-11",
-        "pubDate": "Thu, 11 Jun 2026 06:03:28 GMT"
+        "pubDate": "Thu, 11 Jun 2026 10:57:12 GMT"
       },
       {
         "title": "ECB, 2년 9개월 만에 금리 인상…예금금리 2.25%로",
         "url": "https://www.ajunews.com/view/20260611213848309",
         "isoDate": "2026-06-11",
         "pubDate": "Thu, 11 Jun 2026 05:44:00 GMT"
-      },
-      {
-        "title": "ECB, 기준금리 0.25%p 올려 2.25%로… 이란 전쟁에 3년만의 인상(종합)",
-        "url": "https://www.msn.com/ko-kr/news/world/ecb-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-0-25-p-%EC%98%AC%EB%A0%A4-2-25-%EB%A1%9C-%EC%9D%B4%EB%9E%80-%EC%A0%84%EC%9F%81%EC%97%90-3%EB%85%84%EB%A7%8C%EC%9D%98-%EC%9D%B8%EC%83%81-%EC%A2%85%ED%95%A9/ar-AA25pxB1",
-        "isoDate": "2026-06-11",
-        "pubDate": "Thu, 11 Jun 2026 10:57:12 GMT"
       }
     ],
     "한국수출": [
@@ -177430,6 +177425,12 @@
         "url": "https://www.ajunews.com/view/20260623093056600",
         "isoDate": "2026-06-22",
         "pubDate": "Mon, 22 Jun 2026 17:35:00 GMT"
+      },
+      {
+        "title": "전체 수출액 620억 달러",
+        "url": "https://www.hankookilbo.com/news/article/A2026062209420002146",
+        "isoDate": "2026-06-21",
+        "pubDate": "Sun, 21 Jun 2026 18:18:00 GMT"
       },
       {
         "title": "5월 ICT 수출 477억 달러 ‘사상 최대’…AI 반도체가 새 역사 견인",
@@ -177448,12 +177449,6 @@
         "url": "https://www.msn.com/ko-kr/money/topstories/%EB%B0%98%EB%8F%84%EC%B2%B4-%ED%98%B8%ED%99%A9%EC%97%90-5%EC%9B%94-ict-%EC%88%98%EC%B6%9C-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-%ED%9D%91%EC%9E%90-%EC%97%AD%EB%8C%80-%EC%B5%9C%EB%8C%80/ar-AA25ABEI",
         "isoDate": "2026-06-13",
         "pubDate": "Sat, 13 Jun 2026 19:00:00 GMT"
-      },
-      {
-        "title": "달리는 수출 앞길 막는 美301조·EU 철강관세·탄소비용",
-        "url": "https://www.fnnews.com/news/202606101847274199",
-        "isoDate": "2026-06-10",
-        "pubDate": "Wed, 10 Jun 2026 02:46:00 GMT"
       }
     ],
     "한국은행": [
@@ -177464,10 +177459,10 @@
         "pubDate": "Wed, 17 Jun 2026 18:28:00 GMT"
       },
       {
-        "title": "美 연준 금리 동결… 한국은행, 기준금리 인상 불가피",
-        "url": "https://www.segye.com/newsView/20260618516137",
-        "isoDate": "2026-06-18",
-        "pubDate": "Thu, 18 Jun 2026 05:27:00 GMT"
+        "title": "글로벌 기준금리 인상기조 시작...한은도 연내 두 차례 인상 가능성↑",
+        "url": "https://www.msn.com/ko-kr/news/other/%EA%B8%80%EB%A1%9C%EB%B2%8C-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81%EA%B8%B0%EC%A1%B0-%EC%8B%9C%EC%9E%91%ED%95%9C%EC%9D%80%EB%8F%84-%EC%97%B0%EB%82%B4-%EB%91%90-%EC%B0%A8%EB%A1%80-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1/ar-AA269K5y",
+        "isoDate": "2026-06-20",
+        "pubDate": "Sat, 20 Jun 2026 13:00:00 GMT"
       },
       {
         "title": "'기준금리 인상' 또 쐐기 박은 신현송 \"늦지 않게 올린다, 곧\" [종합]",
@@ -177476,10 +177471,10 @@
         "pubDate": "Thu, 11 Jun 2026 19:36:00 GMT"
       },
       {
-        "title": "글로벌 기준금리 인상기조 시작...한은도 연내 두 차례 인상 가능성↑",
-        "url": "https://www.msn.com/ko-kr/news/other/%EA%B8%80%EB%A1%9C%EB%B2%8C-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81%EA%B8%B0%EC%A1%B0-%EC%8B%9C%EC%9E%91%ED%95%9C%EC%9D%80%EB%8F%84-%EC%97%B0%EB%82%B4-%EB%91%90-%EC%B0%A8%EB%A1%80-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1/ar-AA269K5y",
-        "isoDate": "2026-06-20",
-        "pubDate": "Sat, 20 Jun 2026 13:00:00 GMT"
+        "title": "美 연준 금리 동결… 한국은행, 기준금리 인상 불가피",
+        "url": "https://www.segye.com/newsView/20260618516137",
+        "isoDate": "2026-06-18",
+        "pubDate": "Thu, 18 Jun 2026 05:27:00 GMT"
       },
       {
         "title": "'금리동결' 5월 금통위원 \"물가안정 위한 금리인상 검토 필요\"",
@@ -177528,7 +177523,7 @@
         "iso": "2026-06-15"
       }
     ],
-    "lastFetched": "2026-06-24T06:35:21.173215+09:00",
+    "lastFetched": "2026-06-24T07:10:18.629871+09:00",
     "source": "FRED release dates API",
     "backfilled": 3
   },
@@ -178272,10 +178267,10 @@
   },
   "aiBriefing": {
     "date": "2026-06-24",
-    "generatedAt": "2026-06-24 06:35 KST",
+    "generatedAt": "2026-06-24 07:10 KST",
     "lines": [
       "증시 — KOSPI 8,203.84 (▼9.99%), S&P500 7,365.46 (▼1.44%), 나스닥 25,587.04 (▼2.21%)",
-      "환율·금리 — 원/달러 1,531.23원 (▼0.32%), 미국 기준금리 3.63%, VIX 17.28",
+      "환율·금리 — 원/달러 1,531.52원 (▼0.30%), 미국 기준금리 3.63%, VIX 17.28",
       "원자재·심리 — WTI $73.05 (▼0.80%), 금 $4,129.00 (▼0.80%), 공포탐욕 28(fear)"
     ],
     "source": "rule"
