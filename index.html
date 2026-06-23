@@ -463,6 +463,25 @@
   .tab-btn { transition: all .15s; cursor: pointer; }
   .tab-btn.active { background: #2962ff; color: #fff; }
   .tab-btn:not(.active):hover { background: rgba(170, 195, 255, 0.12); }
+  /* ═══ 전년 동기(YoY) 비교 — 토글 버튼 + 변화율 배지 (순수 추가) ═══ */
+  .yoy-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px;
+             border: 1px solid var(--c-border,#3e4870); border-radius: var(--r-xs,4px);
+             background: transparent; color: var(--c-txt-dim,#a4a8bc); cursor: pointer;
+             font-weight: 600; transition: all .15s; white-space: nowrap; }
+  .yoy-btn:not(.active):hover { background: rgba(170,195,255,.12); color: var(--c-txt,#e8ebf5); }
+  .yoy-btn.active { background: var(--c-accent,#2962ff); color: #fff; border-color: var(--c-accent,#2962ff); }
+  .yoy-btn.indeterminate { background: rgba(41,98,255,.16); color: var(--c-primary,#c8d2ff);
+             border-color: var(--c-accent,#2962ff); border-style: dashed; }
+  .yoy-btn .mat { font-size: 14px; }
+  html.light .yoy-btn.active { background: #2962ff !important; color: #fff !important; border-color: #2962ff !important; }
+  .yoy-badge { position: absolute; top: 6px; right: 8px; z-index: 5; pointer-events: none;
+               font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px;
+               border-radius: 999px; letter-spacing: .01em;
+               border: 1px solid transparent; backdrop-filter: blur(2px); }
+  .yoy-badge-up   { color: #fff; background: var(--c-up,#26a69a);  border-color: var(--c-up,#26a69a); }
+  .yoy-badge-down { color: #fff; background: var(--c-down,#ef5350); border-color: var(--c-down,#ef5350); }
+  .yoy-badge-none { color: var(--c-txt-dim,#a4a8bc); background: rgba(120,130,150,.18);
+                    border-color: var(--c-border,#3e4870); font-weight: 600; }
   /* ═══ 버튼 글자 가독성 보강 (전역, 2026-06 사용자 요청) ═══
      작은 컨트롤 버튼의 얇은 11px 글씨가 글래스 배경 위에서 잘 안 보이던 문제 해소.
      글자 두께를 올려 체감 대비를 높인다(활성=파란 배경+흰 글씨 구분은 그대로 유지).
@@ -1023,6 +1042,10 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
   <div onclick="goHome()" role="link" tabindex="0" aria-label="대시보드 홈으로 이동" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goHome();}" title="대시보드 홈으로 이동" style="font-family:'Public Sans',sans-serif;font-weight:700;font-size:15px;color:var(--c-primary);white-space:nowrap;cursor:pointer;user-select:none;transition:opacity .15s;" onmouseover="this.style.opacity='0.75'" onmouseout="this.style.opacity='1'">
     <span class="mat" style="color:var(--c-primary);margin-right:6px;">monitoring</span><h1 style="font:inherit;margin:0;display:inline;">경제현황 터미널</h1>
   </div>
+  <!-- 전년 동기(YoY) 비교 글로벌 토글 — 지원 차트 전체에 전년 데이터 오버레이 동시 적용 -->
+  <button id="yoyGlobalBtn" class="yoy-btn" onclick="toggleYoYGlobal()" aria-pressed="false" title="전년 동기 비교 — 지원되는 모든 차트에 전년 데이터를 점선으로 오버레이하고 변화율 배지를 표시합니다." style="flex-shrink:0;">
+    <span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span>
+  </button>
   <!-- 실시간 티커 -->
   <div class="ticker-wrap">
     <div class="ticker-scroll" id="ticker"></div>
@@ -1225,6 +1248,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               </span>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button class="tab-btn" id="mainCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('main',this)">📅 기간 지정</button>
+              <span style="color:var(--c-border);margin:0 2px;">|</span>
+              <button class="yoy-btn" data-yoy="mainChart" onclick="toggleYoY('mainChart',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이하고 변화율 배지를 표시"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
             </div>
           </div>
           <div id="mainCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -1337,6 +1362,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             </span>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <button id="cmpNormBtn" onclick="cmpToggleNorm()" title="두 지표의 시작점을 100으로 환산해 등락률 추이만 비교합니다 — 이중축 스케일 차이로 인한 시각적 착시 제거" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">⚖ 지수화 =100</button>
+            <button class="yoy-btn" data-yoy="compareChart" onclick="toggleYoY('compareChart',this)" aria-pressed="false" title="주 지표(좌측 A)의 전년 동기를 점선으로 오버레이 — 지수화 모드에서는 비활성"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           </div>
         </div>
         <div style="position:relative;height:300px;">
@@ -1519,6 +1545,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           <span class="widget-title" style="margin-bottom:0;">📈 수익률 추이 vs 벤치마크 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></span>
+          <button class="yoy-btn" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           <span style="font-size:10px;color:#7a8099;">방문일마다 포트폴리오 스냅샷이 이 브라우저(localStorage)에 기록됩니다</span>
         </div>
         <div id="pfBenchEmpty" style="text-align:center;color:#7a8099;font-size:12px;padding:24px 0;line-height:1.7;">평단가·수량이 입력된 상태로 <b>2일 이상</b> 방문하면<br>내 포트폴리오 수익률 추이를 KOSPI·S&amp;P 500 과 같은 차트에서 비교할 수 있습니다.</div>
@@ -1673,6 +1700,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
                   <span style="width:1px;height:14px;background:var(--c-border);display:inline-block;margin:0 2px;vertical-align:middle;"></span>
                   <button id="fxCompareModeBtn" onclick="toggleChartCompareMode('fx',this)" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                   <button onclick="resetChartCompareMode('fx')" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
+                  <button class="yoy-btn" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
                 </div>
               </div>
             </div>
@@ -1738,6 +1766,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             <button onclick="setRatePeriod('5y',this)" id="ratePeriod5y" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
             <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
             <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
+            <span style="color:var(--c-border);margin:0 2px;">|</span>
+            <button class="yoy-btn" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           </div>
           <div class="chart-scroll-x">
             <div class="chart-scroll-inner" style="position:relative;height:340px;">
@@ -1784,6 +1814,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
                   <button class="preset-btn" onclick="applyChartPresetPeriod('bond','1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
                 </span>
                 <button class="tab-btn" id="bondCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('bond',this)">📅 기간 지정</button>
+                <button class="yoy-btn" data-yoy="bondChart" onclick="toggleYoY('bondChart',this)" aria-pressed="false" title="전년 동기 수익률을 점선으로 오버레이하고 변화율 배지를 표시"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
               </div>
             </div>
             <div id="bondCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -1894,6 +1925,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               <button onclick="resetChartCompareMode('equity')" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-card);color:var(--c-primary);cursor:pointer;">↻ 새로고침</button>
+              <span style="color:var(--c-border);margin:0 2px;">|</span>
+              <button class="yoy-btn" data-yoy="equityIndexChart" onclick="toggleYoY('equityIndexChart',this)" aria-pressed="false" title="전년 동기 지수를 점선으로 오버레이하고 변화율 배지를 표시"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
             </div>
           </div>
           <div id="equityCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -1936,6 +1969,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             <input type="date" id="invDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:11px;" onchange="applyInvestorDateRange()"/>
             <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
             <input type="date" id="invDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:11px;" onchange="applyInvestorDateRange()"/>
+            <span style="color:var(--c-border);margin:0 2px;">|</span>
+            <button class="yoy-btn" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           </div>
           <div style="position:relative;height:200px;">
             <canvas id="investorChart" role="img" aria-label="투자자별 순매매 동향">투자자 차트</canvas>
@@ -2068,6 +2103,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
                 <span style="width:1px;height:16px;background:var(--c-border);margin:0 2px;"></span>
                 <button id="comCompareModeBtn" onclick="toggleComCompareMode(this)" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                 <button onclick="resetChartCompareMode('com')" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
+                <button class="yoy-btn" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
               </div>
             </div>
             <div id="comCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -2091,21 +2127,21 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
         <!-- Bottom: sector comparison charts 2x2 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" style="padding:2px 8px;" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" style="padding:2px 8px;" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" style="padding:2px 8px;" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" style="padding:2px 8px;" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
@@ -2514,6 +2550,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
                 <button onclick="setRePeriod('3y',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
                 <button onclick="setRePeriod('5y',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
                 <button id="reCustomBtn" onclick="toggleCustomRange('re',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📅 기간 지정</button>
+                <button class="yoy-btn" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" style="font-size:10px;padding:2px 8px;" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
               </div>
             </div>
             <div id="reCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -3104,7 +3141,10 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             </div>
           </div>
           <div class="widget">
-            <div class="widget-title">총 운용자산 추이 (조원)</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:4px;">
+              <div class="widget-title" style="margin-bottom:0;">총 운용자산 추이 (조원)</div>
+              <button class="yoy-btn" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+            </div>
             <div style="position:relative;height:260px;">
               <canvas id="npsAumChart" role="img" aria-label="총 운용자산 추이">AUM 차트</canvas>
             </div>
@@ -3171,6 +3211,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               <button onclick="setNpsAllocPeriod('3y',this)" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button onclick="toggleNpsAllocMeasure(this)" id="npsMeasureBtn" style="font-size:11px;padding:2px 8px;border:1px solid #b6c4ff44;border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">📐 구간 측정</button>
+              <span style="color:var(--c-border);margin:0 2px;">|</span>
+              <button class="yoy-btn" data-yoy="npsAllocationTrendChart" onclick="toggleYoY('npsAllocationTrendChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 자산군의 전년 동기 비중을 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
             </div>
           </div>
           <div id="npsMeasureInfo" style="display:none;font-size:11px;color:var(--c-txt-dim);margin-bottom:6px;padding:4px 8px;background:var(--c-bg);border-radius:var(--r-xs);">
@@ -3780,6 +3822,262 @@ let charts = {};
 function destroyChart(id) {
   if(charts[id]) { charts[id].destroy(); delete charts[id]; }
 }
+
+// ============================
+// 전년 동기(YoY) 비교 엔진 — 순수 추가. 기존 차트 동작/스타일 불변.
+//   · 각 build 함수 말미에서 registerYoY(id, meta) + applyYoY(id) 호출 → 재빌드에도 상태 유지.
+//   · 토글 시 dataset 만 add/remove 후 chart.update() (차트 재생성 안 함).
+//   · 전년 데이터는 meta 에 캐시 (build 1회 계산), data.json 추가 fetch 없음.
+//   · 캘린더의 _calComputeChange(MoM/YoY)와 네임스페이스 분리(yoy* 접두사).
+// ============================
+let yoyState = {};                 // chartId -> bool (개별 토글)
+const _yoyMeta = {};               // chartId -> meta (build 시 주입)
+let _yoyGlobal = false;            // 글로벌 토글 상태
+// YoY 지원 차트 정적 목록 (지연 빌드 차트도 글로벌 토글이 선반영되도록). Tier A + Tier B.
+const YOY_CHARTS = [
+  // Tier A — 단일 시리즈 일별/거시
+  'mainChart','fxChart','equityIndexChart','bondChart','cpiMacro','gdpMacro','unempMacro','tradeMacro',
+  // Tier B — 다중 시리즈는 주 시리즈(인덱스 0)만 오버레이
+  'rePriceChart','comDetailChart','gdpTopic','cpiTopic','unempTopic','tradeTopic',
+  'rateHistoryChart','npsAumChart','pfBenchChart','compareChart',
+  // Tier B 확장 — 시계열 차트 전체 (사용자 요청). 수급·NPS배분추이·금속·섹터(귀금속/에너지/농산물)
+  'investorChart','npsAllocationTrendChart','baseMetalChart','preciousChart','energyChart','agriChart'
+];
+const YOY_SET = new Set(YOY_CHARTS);
+try { yoyState = JSON.parse(localStorage.getItem('econ_yoy_state') || '{}') || {}; } catch(_) { yoyState = {}; }
+try { _yoyGlobal = localStorage.getItem('econ_yoy_global') === '1'; } catch(_) {}
+function _yoyPersist(){
+  try {
+    localStorage.setItem('econ_yoy_state', JSON.stringify(yoyState));
+    localStorage.setItem('econ_yoy_global', _yoyGlobal ? '1' : '0');
+  } catch(_) {}
+}
+
+// 색상 → 같은 색 rgba(.,alpha). hex(#rgb/#rrggbb/#rrggbbaa), rgb()/rgba(), var(--x) 지원.
+function _yoyFade(color, alpha){
+  alpha = (alpha==null) ? 0.5 : alpha;
+  if(!color) return `rgba(120,130,150,${alpha})`;
+  let c = ('' + color).trim();
+  if(c.startsWith('var(')){
+    const name = c.slice(4, -1).trim();
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if(v) c = v;
+  }
+  if(c[0] === '#'){
+    let h = c.slice(1);
+    if(h.length === 3) h = h.split('').map(x=>x+x).join('');
+    if(h.length === 8) h = h.slice(0,6);
+    const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+    if([r,g,b].every(isFinite)) return `rgba(${r},${g},${b},${alpha})`;
+  }
+  const m = c.match(/rgba?\(([^)]+)\)/);
+  if(m){ const p = m[1].split(',').map(s=>s.trim()); return `rgba(${p[0]},${p[1]},${p[2]},${alpha})`; }
+  return `rgba(120,130,150,${alpha})`;
+}
+
+// 일별 시계열: 표시된 각 날짜의 정확히 1년 전(달력 날짜) 값을 full 시계열에서 ±tol일 최근접으로 탐색.
+function _yoyPrevByDate(dispDates, fullDates, fullValues, tol){
+  tol = (tol==null) ? 7 : tol;
+  const fms = fullDates.map(d => Date.parse(d));
+  const tolMs = tol * 86400000;
+  return dispDates.map(d => {
+    const dt = new Date(d);
+    if(isNaN(dt)) return null;
+    const py = new Date(dt); py.setFullYear(dt.getFullYear() - 1);  // 윤년 안전(달력 1년 전)
+    const tgt = py.getTime();
+    let best = -1, bestDiff = Infinity;
+    for(let i=0;i<fms.length;i++){
+      const diff = Math.abs(fms[i] - tgt);
+      if(diff < bestDiff){ bestDiff = diff; best = i; }
+    }
+    if(best < 0 || bestDiff > tolMs) return null;
+    return fullValues[best];
+  });
+}
+
+// 주기형 라벨(월/분기/연): 동일 라벨 인덱스에서 step 만큼 뒤(=1년 전) 값. 월=12, 분기=4, 연=1.
+function _yoyPrevByLabel(dispLabels, fullLabels, fullValues, step){
+  const idx = new Map();
+  fullLabels.forEach((l,i) => idx.set('' + l, i));
+  return dispLabels.map(l => {
+    const i = idx.get('' + l);
+    if(i == null) return null;
+    const j = i - step;
+    return (j >= 0) ? fullValues[j] : null;
+  });
+}
+
+// 주기 라벨의 '1년 전' 라벨 문자열 생성(형식 보존). 'YYYY','YY.MM','YYYY-MM','YYYYMM','23Q1','2023.Q1' 등.
+function _yoyPrevYearLabel(label){
+  const s = ('' + label).trim();
+  const dec = (y) => { const n = +y - 1; return (y.length === 2) ? (('' + ((n + 100) % 100)).padStart(2,'0')) : ('' + n); };
+  let m;
+  if(m = s.match(/^(\d{2,4})([.\-]?)[Qq]([1-4])$/)) return dec(m[1]) + m[2] + 'Q' + m[3];
+  if(m = s.match(/^(\d{2,4})([.\-/])(\d{1,2})$/))    return dec(m[1]) + m[2] + m[3];
+  if(m = s.match(/^(\d{4})(\d{2})$/))                return dec(m[1]) + m[2];
+  if(m = s.match(/^(\d{2,4})$/))                     return dec(m[1]);
+  return null;
+}
+// 주기 라벨 기반(월/분기/연): 표시 라벨의 1년 전 라벨 값을 full 집계에서 조회. step 불필요·필터 무관·정확.
+function _yoyPrevByPeriodLabel(dispLabels, fullLabels, fullValues){
+  const idx = new Map();
+  (fullLabels || []).forEach((l,i) => idx.set('' + l, i));
+  return (dispLabels || []).map(l => {
+    const pl = _yoyPrevYearLabel(l);
+    if(pl == null) return null;
+    const i = idx.get('' + pl);
+    return (i == null) ? null : fullValues[i];
+  });
+}
+
+function registerYoY(id, meta){ if(YOY_SET.has(id)) _yoyMeta[id] = meta; }
+
+// 편의 래퍼: getHistoricalSeries 기반 일별 차트.
+//   dispDates = 실제 그려진 주 시리즈의 날짜 배열(ISO). opt:{primary,color,tension,tol}
+function yoyFromHistory(id, category, name, dispDates, opt){
+  opt = opt || {};
+  const full = getHistoricalSeries(category, name) || [];
+  registerYoY(id, {
+    mode:'date',
+    dispDates: dispDates || full.map(p=>p.x),
+    fullDates: full.map(p=>p.x),
+    fullValues: full.map(p=>p.y),
+    tol: opt.tol || 7,
+    primary: opt.primary || 0,
+    color: opt.color,
+    tension: opt.tension
+  });
+}
+
+function _yoyComputePrev(meta){
+  if(!meta) return null;
+  if(meta.mode === 'date') return _yoyPrevByDate(meta.dispDates, meta.fullDates, meta.fullValues, meta.tol);
+  if(meta.mode === 'periodlabel') return _yoyPrevByPeriodLabel(meta.dispLabels, meta.fullLabels, meta.fullValues);
+  return _yoyPrevByLabel(meta.dispLabels, meta.fullLabels, meta.fullValues, meta.step);
+}
+
+// 차트에 전년 dataset 추가/제거 + 범례·배지 갱신. (build 말미 + 토글 시 호출)
+function applyYoY(id){
+  const ch = charts[id];
+  if(!ch){ return; }
+  ch.data.datasets = ch.data.datasets.filter(d => !d._yoy);   // 기존 전년 레이어 제거(원복)
+  const on = !!yoyState[id];
+  const meta = _yoyMeta[id];
+  if(on && meta){
+    const prev = _yoyComputePrev(meta);
+    const base = ch.data.datasets[meta.primary || 0];
+    if(base && Array.isArray(prev)){
+      const baseLabel = base.label || meta.label || '';
+      ch.data.datasets.push({
+        type: 'line',                                  // bar 차트 위에도 점선 라인으로 오버레이
+        label: baseLabel + ' (전년)',
+        data: prev,
+        borderColor: _yoyFade(meta.color || base.borderColor, 0.5),
+        backgroundColor: 'transparent',
+        borderDash: [5,5],
+        borderWidth: (base.borderWidth!=null ? base.borderWidth : 2),
+        pointRadius: 1,
+        pointHoverRadius: 3,
+        tension: (meta.tension!=null ? meta.tension : (base.tension!=null ? base.tension : 0)),
+        fill: false,
+        spanGaps: true,
+        ...(base.yAxisID ? { yAxisID: base.yAxisID } : {}),   // 이중축 차트(compareChart 등)에서 주 시리즈 축 공유
+        _yoy: true,
+        order: (base.order!=null ? base.order : 0) + 50
+      });
+      _yoySetLegend(ch, true);
+      _yoyRenderBadge(id, base, prev);
+    }
+  } else {
+    _yoySetLegend(ch, false);
+    _yoyRenderBadge(id, null, null);
+  }
+  _yoyUpdateBtn(id);
+  ch.update();
+}
+
+// 범례: chartOpts 류가 legend.display=false 로 숨기므로, YoY ON 시 임시로 켜고 OFF 시 원복.
+function _yoySetLegend(ch, show){
+  ch.options = ch.options || {};
+  ch.options.plugins = ch.options.plugins || {};
+  const lg = ch.options.plugins.legend = ch.options.plugins.legend || {};
+  if(show){
+    if(ch._yoyLegendOrig === undefined) ch._yoyLegendOrig = (lg.display === undefined ? true : lg.display);
+    lg.display = true;
+  } else if(ch._yoyLegendOrig !== undefined){
+    lg.display = ch._yoyLegendOrig;
+    ch._yoyLegendOrig = undefined;
+  }
+}
+
+// 배지: 캔버스 컨테이너 우상단. 최신(현재·전년 모두 존재) 지점 기준 변화율.
+function _yoyRenderBadge(id, base, prev){
+  const ch = charts[id];
+  if(!ch || !ch.canvas) return;
+  const cont = ch.canvas.parentElement;
+  if(!cont) return;
+  let badge = cont.querySelector(':scope > .yoy-badge');
+  if(!base || !prev){ if(badge) badge.remove(); return; }
+  if(getComputedStyle(cont).position === 'static') cont.style.position = 'relative';
+  if(!badge){ badge = document.createElement('div'); badge.className = 'yoy-badge'; cont.appendChild(badge); }
+  const cur = base.data || [];
+  let i = Math.min(cur.length, prev.length) - 1;
+  while(i >= 0 && (cur[i] == null || prev[i] == null)) i--;
+  if(i < 0){ badge.className = 'yoy-badge yoy-badge-none'; badge.textContent = '전년 데이터 없음'; return; }
+  const c = +(cur[i] && cur[i].y != null ? cur[i].y : cur[i]);
+  const p = +(prev[i] && prev[i].y != null ? prev[i].y : prev[i]);
+  if(!isFinite(c) || !isFinite(p) || p === 0){ badge.className = 'yoy-badge yoy-badge-none'; badge.textContent = '전년 데이터 없음'; return; }
+  const pct = (c - p) / Math.abs(p) * 100;
+  const up = pct >= 0;
+  badge.className = 'yoy-badge ' + (up ? 'yoy-badge-up' : 'yoy-badge-down');
+  badge.textContent = (up ? '▲+' : '▼') + pct.toFixed(2) + '%';
+}
+
+// ── 토글 + 글로벌/개별 동기화 ─────────────────────────────────
+function toggleYoY(id, btn){
+  yoyState[id] = !yoyState[id];
+  applyYoY(id);
+  _yoySyncGlobalFromIndividual();
+  _yoyPersist();
+}
+function toggleYoYGlobal(){
+  _yoyGlobal = !_yoyGlobal;
+  YOY_CHARTS.forEach(id => { yoyState[id] = _yoyGlobal; });   // 지연 빌드 차트도 선반영
+  Object.keys(charts).forEach(id => { if(YOY_SET.has(id)) applyYoY(id); });
+  _yoyUpdateGlobalBtn(false);
+  _yoyPersist();
+}
+// 개별 토글 결과로 글로벌 상태 재계산: 전부 ON→ON, 일부만 ON→indeterminate, 전부 OFF→OFF.
+function _yoySyncGlobalFromIndividual(){
+  const onCount = YOY_CHARTS.filter(id => yoyState[id]).length;
+  const total = YOY_CHARTS.length;
+  _yoyGlobal = (onCount === total);
+  _yoyUpdateGlobalBtn(onCount > 0 && onCount < total);
+}
+function _yoyUpdateBtn(id){
+  document.querySelectorAll(`.yoy-btn[data-yoy="${id}"]`).forEach(b => {
+    const on = !!yoyState[id];
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    const lbl = b.querySelector('.yoy-btn-lbl');
+    if(lbl) lbl.textContent = on ? '전년비교 ON' : '전년비교';
+  });
+}
+function _yoyUpdateGlobalBtn(indeterminate){
+  const b = document.getElementById('yoyGlobalBtn');
+  if(!b) return;
+  b.classList.toggle('active', _yoyGlobal);
+  b.classList.toggle('indeterminate', !!indeterminate);
+  b.setAttribute('aria-pressed', _yoyGlobal ? 'true' : (indeterminate ? 'mixed' : 'false'));
+  const lbl = b.querySelector('.yoy-btn-lbl');
+  if(lbl) lbl.textContent = _yoyGlobal ? '전년 비교 ON' : (indeterminate ? '전년 비교 (일부)' : '전년 비교');
+}
+// 페이지 로드 시 글로벌 버튼 상태 초기 동기화.
+function _yoyInitGlobalBtn(){
+  const onCount = YOY_CHARTS.filter(id => yoyState[id]).length;
+  _yoyUpdateGlobalBtn(onCount > 0 && onCount < YOY_CHARTS.length);
+}
+window.addEventListener('load', _yoyInitGlobalBtn);
 function navigateToDetail(target) {
   if(target==='equity') {   // 주식시장은 별도 페이지로 분리됨
     showPage('equity', menuItemFor('equity'));
@@ -3940,6 +4238,8 @@ function buildReCharts() {
   const n = labels.length;
   labels=labels.slice(-n); nat=(nat||[]).slice(-n); seo=(seo||[]).slice(-n); jns=(jns||[]).slice(-n);
   // 사용자 기간 지정 적용 — labels 형식이 'YY.MM' 이므로 'YYYY-MM-DD' 비교를 위해 변환
+  const _reFullLabels = Array.isArray(labels) ? labels.slice() : [];
+  const _reFullNat    = Array.isArray(nat)    ? nat.slice()    : [];
   if(reCustomFrom && reCustomTo) {
     const toMm = (yyMm) => {
       // '24.05' → '2024-05-01'
@@ -3987,6 +4287,9 @@ function buildReCharts() {
         plugins:{legend:{display:true,position:'top',labels:{color:tc.txt,font:{size:10},boxWidth:10}},
           tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+fmtNum(c.parsed.y)}}}}
     });
+    // YoY — 주 시리즈(전국 매매, dataset 0)만 전년 오버레이. 월별 라벨 'YY.MM' → 1년 전 라벨 조회.
+    registerYoY('rePriceChart', { mode:'periodlabel', dispLabels:labels, fullLabels:_reFullLabels, fullValues:_reFullNat, primary:0, color:'#26a69a', tension:0.3 });
+    applyYoY('rePriceChart');
   }
   // 기본 뷰: Naver 지도 (인증 실패 시 onNaverMapsAuthFailure 에서 바로 안내)
   // 바 차트는 사용자가 토글 시 빌드됨
@@ -5844,6 +6147,12 @@ function initMainChart(unit, customPriceData) {
       plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
   if(charts['mainChart']) charts['mainChart'].resize();
+  registerYoY('mainChart', { mode:'date',
+    dispDates: price.map(p=>p.x),
+    fullDates: ((typeof mainAllData!=='undefined' && mainAllData && mainAllData.length) ? mainAllData : price).map(p=>p.x),
+    fullValues:((typeof mainAllData!=='undefined' && mainAllData && mainAllData.length) ? mainAllData : price).map(p=>p.y),
+    tol:7, primary:0, color:clr, tension:0.3 });
+  applyYoY('mainChart');
 }
 
 // 단위 버튼 (일/일주일/한달/분기) — 데이터 샘플링 단위만 변경, 기간은 그대로
@@ -6956,6 +7265,11 @@ function buildFxChart(seriesData) {
                  title:{display:true,text:yLabel,color:'#7a8099',font:{size:9}},position:'right'}},
       plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
+  { const _ft = pt => fxInverted ? (isKrwDenom ? {x:pt.x,y:1000/pt.y} : {x:pt.x,y:1/pt.y}) : (dm===1 ? pt : {x:pt.x,y:pt.y*dm});
+    const _full = (typeof fxAllSeries!=='undefined' && fxAllSeries) ? fxAllSeries.map(_ft) : displayData;
+    registerYoY('fxChart', { mode:'date', dispDates: displayData.map(p=>p.x),
+      fullDates:_full.map(p=>p.x), fullValues:_full.map(p=>p.y), tol:7, primary:0, color:'#2962ff', tension:0.3 });
+    applyYoY('fxChart'); }
 }
 
 function toggleFxDir() {
@@ -7259,6 +7573,11 @@ function buildBondChart(series) {
       plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.parsed.y!=null?ctx.parsed.y.toFixed(3)+'%':''}}}
     }
   });
+  registerYoY('bondChart', { mode:'date', dispDates: series.map(p=>p.x),
+    fullDates:((typeof bondAllSeries!=='undefined' && bondAllSeries) ? bondAllSeries : series).map(p=>p.x),
+    fullValues:((typeof bondAllSeries!=='undefined' && bondAllSeries) ? bondAllSeries : series).map(p=>p.y),
+    tol:10, primary:0, color:'#2962ff', tension:0.3 });
+  applyYoY('bondChart');
 }
 
 function selectBond(idx, el) {
@@ -7737,6 +8056,11 @@ function buildEquityIndexChart(series) {
               y:{ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#4a526888'},position:'right'}},
       plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
+  registerYoY('equityIndexChart', { mode:'date', dispDates: series.map(p=>p.x),
+    fullDates:((typeof equityAllSeries!=='undefined' && equityAllSeries) ? equityAllSeries : series).map(p=>p.x),
+    fullValues:((typeof equityAllSeries!=='undefined' && equityAllSeries) ? equityAllSeries : series).map(p=>p.y),
+    tol:7, primary:0, color:clr, tension:0.3 });
+  applyYoY('equityIndexChart');
 }
 
 function selectEquityIndex(idx, btn) {
@@ -7868,6 +8192,12 @@ function buildInvestorChart() {
       }
     }
   });
+  // YoY — 주 시리즈(외국인, dataset 0)만. 월/분기/연 단위에서만 동작(일·주 버킷은 'MM-DD'라 연도 정보가 없어 불가).
+  { const _u = investorUnitCur;
+    if(_u==='M'||_u==='Q'||_u==='Y'){ const _full=_aggregateInvestorData(_u,null,null);
+      registerYoY('investorChart',{mode:'periodlabel',dispLabels:showData.dates,fullLabels:_full.dates,fullValues:_full.foreign,primary:0,color:'#2962ff'});
+    } else registerYoY('investorChart',null);
+    applyYoY('investorChart'); }
   // 요약 테이블 — 단위와 무관하게 일/주/월 누계 표시
   const dailyAgg = _aggregateInvestorData('D', null, null);
   const sum = arr => arr.reduce((a,b)=>a+b,0);
@@ -8162,6 +8492,13 @@ function buildComDetailChartMulti() {
       plugins:{legend:{display:true,position:'top',labels:{color:tcCom.txt,font:{size:10},boxWidth:10}},
         tooltip:{mode:'index',intersect:false,backgroundColor:tcCom.tooltip,titleColor:tcCom.ttTitle,bodyColor:tcCom.ttTitle,borderColor:tcCom.ttBorder,borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
+  // YoY — 주 시리즈(첫 선택 원자재)만 전년 오버레이
+  { const _p0 = selectedArr.length ? comData[selectedArr[0]] : null;
+    const _k0 = _p0 ? comHistoryKey(_p0.name) : null;
+    const _full0 = _k0 ? (getHistoricalSeries('commodities', _k0) || []) : [];
+    registerYoY('comDetailChart', { mode:'date', dispDates:(seriesPerSel[0]||[]).map(p=>p.x),
+      fullDates:_full0.map(p=>p.x), fullValues:_full0.map(p=>p.y), tol:7, primary:0, color:colors[0], tension:0.3 });
+    applyYoY('comDetailChart'); }
 
   // Update header
   const titleEl = document.getElementById('comDetailTitle');
@@ -8759,6 +9096,12 @@ function buildCommodityPage() {
                  tooltip:{mode:'index', intersect:false, backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttTitle, borderColor:tc.ttBorder, borderWidth:1,
                    callbacks:{label:c=>c.dataset.label.replace(/ \([▲▼].+\)$/,'')+': $'+fmtNum(c.parsed.y)}}}}
     });
+    // YoY — 주 시리즈(첫 유효 품목, dataset 0)만 전년 오버레이
+    { const _it = items.find(it=>{ const r=getHistoricalSeries('commodities',it.key); return r&&r.length>1; });
+      if(_it){ const _f=getHistoricalSeries('commodities',_it.key)||[];
+        registerYoY(canvasId,{mode:'date',dispDates:_f.slice(-days).map(p=>p.x),fullDates:_f.map(p=>p.x),fullValues:_f.map(p=>p.y),tol:7,primary:0,color:(validDs[0]&&validDs[0].borderColor)||'#26a69a',tension:0.3});
+      } else registerYoY(canvasId,null);
+      applyYoY(canvasId); }
   }
   // 귀금속 (Gold + Silver + Platinum + Palladium)
   sectorChart('preciousChart', [
@@ -8911,6 +9254,14 @@ function buildBaseMetalChart(days) {
       }
     }
   });
+  // YoY — 주 시리즈(구리 우선, 없으면 알루미늄)만 전년 오버레이. 합성(아연/니켈) 시리즈는 제외.
+  { let _bmKey=null,_bmColor='#ef5350';
+    if(realCopper&&realCopper.length>1){_bmKey='Copper';_bmColor='#ef5350';}
+    else if(realAluminum&&realAluminum.length>1){_bmKey='Aluminum';_bmColor='#f5a623';}
+    if(_bmKey){ const _f=getHistoricalSeries('commodities',_bmKey)||[];
+      registerYoY('baseMetalChart',{mode:'date',dispDates:_f.slice(-days).map(p=>p.x),fullDates:_f.map(p=>p.x),fullValues:_f.map(p=>p.y),tol:7,primary:0,color:_bmColor,tension:0.3});
+    } else registerYoY('baseMetalChart',null);
+    applyYoY('baseMetalChart'); }
 }
 
 // LME 재고 행 클릭 → 비철금속(baseMetalChart) 차트와 연결
@@ -9141,6 +9492,7 @@ function initMacroTopicPage(topic) {
         <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:10px;color:var(--c-txt-muted,#8b90a8);font-weight:400;">단위: ${m.unit}</span></div>
         <div style="display:flex;gap:4px;">
           ${periodOpts.map(o=>`<button onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" style="font-size:11px;padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:${macroTopicPeriod===o.key?'var(--c-accent)':'transparent'};color:${macroTopicPeriod===o.key?'#fff':'var(--c-txt-dim)'};cursor:pointer;font-weight:500;">${o.label}</button>`).join('')}
+          <button class="yoy-btn" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
         </div>
       </div>
       <!-- 국가 필터 (다중선택) — 원자재 차트의 필터처럼 토글 -->
@@ -9199,6 +9551,11 @@ function initMacroTopicPage(topic) {
       }
     }
   });
+  // YoY — 주 시리즈(첫 선택 국가, dataset 0)만 전년 오버레이. 주기 라벨 기반.
+  { const _pc = selectedCountries[0];
+    if(_pc) registerYoY(m.id, { mode:'periodlabel', dispLabels:labels, fullLabels:allLabels, fullValues:(macroData[_pc][m.key]||[]), primary:0, color:colors[_pc], tension:0.3 });
+    else registerYoY(m.id, null);
+    applyYoY(m.id); }
 }
 function setMacroTopicPeriod(p, topic, btn) {
   macroTopicPeriod = p;
@@ -9745,6 +10102,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>
           ${unitButtons('gdp')}
+          <button class="yoy-btn" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           ${infoBlock(meta.gdpSrc,meta.gdpNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
@@ -9753,6 +10111,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>
           ${unitButtons('cpi')}
+          <button class="yoy-btn" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           ${infoBlock(meta.cpiSrc,meta.cpiNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
@@ -9763,6 +10122,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>
           ${unitButtons('unemp')}
+          <button class="yoy-btn" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           ${infoBlock(meta.unempSrc,meta.unempNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
@@ -9771,6 +10131,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>
           ${unitButtons('trade')}
+          <button class="yoy-btn" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           ${infoBlock(meta.tradeSrc,meta.tradeNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
@@ -9792,6 +10153,11 @@ function initMacroPage(t){
   const unempVal = unempAgg.vals;
   const expLab = expAgg.labels;
   const expVal = expAgg.vals;
+  // YoY 전년 비교용 — 전체(미필터) 집계 (동일 unit). 표시 라벨의 1년 전 라벨을 여기서 조회.
+  const _gdpFull   = aggregateQuarterly(d.gdpLabels, d.gdp,     macroChartUnit.gdp);
+  const _unempFull = aggregateQuarterly(d.gdpLabels, d.unemp,   macroChartUnit.unemp);
+  const _expFull   = aggregateQuarterly(d.gdpLabels, d.exports, macroChartUnit.trade);
+  const _cpiFull   = aggregateMonthly(d.cpiLabels, d.cpi,       macroChartUnit.cpi);
   const tc = getThemeColors();
   const chartOpts=(color,isBar,yMin)=>({
     responsive:true,maintainAspectRatio:false,
@@ -9853,6 +10219,11 @@ function initMacroPage(t){
       },
     }],
   });
+  registerYoY('gdpMacro',   {mode:'periodlabel', dispLabels:gdpLab,   fullLabels:_gdpFull.labels,   fullValues:_gdpFull.vals,   primary:0, color:'#26a69a'});
+  registerYoY('cpiMacro',   {mode:'periodlabel', dispLabels:cpiLab,   fullLabels:_cpiFull.labels,   fullValues:_cpiFull.vals,   primary:0, color:'#2962ff', tension:0.3});
+  registerYoY('unempMacro', {mode:'periodlabel', dispLabels:unempLab, fullLabels:_unempFull.labels, fullValues:_unempFull.vals, primary:0, color:'#ef5350', tension:0.3});
+  registerYoY('tradeMacro', {mode:'periodlabel', dispLabels:expLab,   fullLabels:_expFull.labels,   fullValues:_expFull.vals,   primary:0, color:'#2962ff', tension:0.3});
+  ['gdpMacro','cpiMacro','unempMacro','tradeMacro'].forEach(applyYoY);
 }
 
 // ============================
@@ -11370,6 +11741,10 @@ function buildNpsAllocTrendChart() {
                 tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1,callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}} }
     }
   });
+  // YoY — 주 시리즈(배분 1순위, dataset 0)만 전년 오버레이. 연도 라벨 기반.
+  { const _t = trend;
+    registerYoY('npsAllocationTrendChart', { mode:'periodlabel', dispLabels:(_t.years||[]).map(String), fullLabels:(_t.years||[]).map(String), fullValues:(_t.datasets&&_t.datasets[0]?_t.datasets[0].data:[]), primary:0, color:(_t.datasets&&_t.datasets[0]?_t.datasets[0].color:'#2962ff'), tension:0.3 });
+    applyYoY('npsAllocationTrendChart'); }
 }
 function setNpsAllocPeriod(period, btn) {
   npsAllocPeriod = period;
@@ -11845,6 +12220,9 @@ function buildInvestorPage() {
                     callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()+'조원'}} }
       }
     });
+    // YoY — 연도 라벨 기반. 오버레이 + 배지(전년 대비 AUM 증감률).
+    { registerYoY('npsAumChart', { mode:'periodlabel', dispLabels:npsHistory.map(h=>''+h.year), fullLabels:npsHistory.map(h=>''+h.year), fullValues:npsHistory.map(h=>h.aum), primary:0, color:'#b6c4ff', tension:0.3 });
+      applyYoY('npsAumChart'); }
     // 연도별 성과 요약 테이블 (행 클릭 → 분기별 상세)
     const tb = document.getElementById('npsReturnTable');
     if(tb) tb.innerHTML = npsHistory.slice().reverse().map(h=>{
@@ -15792,6 +16170,11 @@ function buildRateHistoryChart() {
       }
     }
   });
+  // YoY — 주 시리즈(rateFilterSet 첫 국가, dataset 0)만 전년 오버레이. 연/분기 라벨 기반.
+  { const _rc = [...rateFilterSet][0];
+    if(_rc) registerYoY('rateHistoryChart', { mode:'periodlabel', dispLabels:labels, fullLabels:allLabels, fullValues:(rateHistoryData[_rc]||[]), primary:0, color:rateColors[_rc], tension:0.3 });
+    else registerYoY('rateHistoryChart', null);
+    applyYoY('rateHistoryChart'); }
   // 기준금리 현황 테이블 채우기
   buildRateCurrentTable();
 }
@@ -17094,6 +17477,9 @@ function pfRenderBench() {
       },
     },
   });
+  // YoY — 주 시리즈('내 포트폴리오', dataset 0)만 전년 오버레이. 추적 기간이 1년 미만이면 '전년 데이터 없음'.
+  registerYoY('pfBenchChart', { mode:'date', dispDates:axis, fullDates:axis, fullValues:mine, tol:7, primary:0, color:'#26a69a', tension:0.2 });
+  applyYoY('pfBenchChart');
 }
 
 function pfRenderAll() { pfRenderGroups(); pfRenderTable(); pfRenderSummary(); pfRenderPie(); pfRenderAlertSummary(); try { pfRecordSnapshot(); pfRenderBench(); } catch(_) {} }  // pfRenderTable 이 카드까지 동기화하므로 별도 pfRenderCards 호출 불필요(중복 렌더·깜빡임 제거)
@@ -18154,6 +18540,11 @@ function cmpRender() {
       },
     },
   });
+  // YoY — 주 시리즈 A(dataset 0)만 전년 오버레이. 지수화(norm) 모드에서는 스케일이 달라 비활성.
+  { if(!norm){ const _fa = _cmpSeries(_cmpState.a) || [];
+      registerYoY('compareChart', { mode:'date', dispDates:labels, fullDates:_fa.map(p=>p.d), fullValues:_fa.map(p=>p.v), tol:10, primary:0, color:CMP_COLOR_A, tension:0.15 });
+    } else registerYoY('compareChart', null);
+    applyYoY('compareChart'); }
   const last = s => s.length ? s[s.length - 1] : null;
   const la = last(A), lb = last(B), fmt = v => (+v).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
   const info = document.getElementById('cmpInfo');
