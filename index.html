@@ -8802,32 +8802,19 @@ function toggleEnsoForecasts() { ensoForecastsExpanded = !ensoForecastsExpanded;
 function ensoForecastsHTML(expanded) {
   const head = `
     <div onclick="toggleEnsoForecasts()" style="cursor:pointer;display:flex;align-items:center;gap:6px;margin-top:14px;padding-top:10px;border-top:1px solid var(--c-border);font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;">
-      <span>🌐 기상청 예측 (미·유럽·일)</span>
-      <span style="color:var(--c-txt-muted);font-weight:600;">예측(forecast)</span>
+      <span>🌐 다른 기관 예측 더 보기</span>
+      <span style="color:var(--c-txt-muted);font-weight:600;">IRI · ECMWF · JMA</span>
       <span style="margin-left:auto;color:var(--c-txt-muted);">${expanded ? '▲' : '▼'}</span>
     </div>`;
   if (!expanded) return head;
-  const yr = new Date().getFullYear();
+  // NOAA CPC·CFSv2(embed)는 상단 '🔮 공식 예측' 패널로 승격됨 — 여기선 링크 전용 기관만.
   const link = (s) => `<a href="${s.page}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">${s.label} ↗</a>`;
-  const items = ensoForecastSources.map(s => {
-    if (s.embed) {
-      const url = s.embed === 'cpcProb' ? cpcProbUrl(yr) : s.embed;
-      // onerror: hide the broken image and reveal the always-present fallback link sibling.
-      return `
-        <figure style="margin:0;">
-          <figcaption style="font-size:11px;color:var(--c-txt-dim);margin-bottom:3px;">${s.region} · ${s.label}</figcaption>
-          <img src="${url}" loading="lazy" referrerpolicy="no-referrer" alt="${s.label}"
-               style="max-width:100%;border:1px solid var(--c-border);border-radius:var(--r-xs);"
-               onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
-          <a href="${s.page}" target="_blank" rel="noopener noreferrer" style="display:none;font-size:11px;color:var(--c-primary);">${s.label} ↗ (이미지 불러오기 실패 — 원본 보기)</a>
-        </figure>`;
-    }
-    return `<div style="font-size:11px;color:var(--c-txt-dim);">${s.region} · ${link(s)}</div>`;
-  }).join('');
+  const items = ensoForecastSources.filter(s => !s.embed)
+    .map(s => `<div style="font-size:11px;color:var(--c-txt-dim);">${s.region} · ${link(s)}</div>`).join('');
   return head + `
-    <div style="margin-top:8px;display:flex;flex-direction:column;gap:12px;">${items}</div>
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">${items}</div>
     <div style="font-size:10px;color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">
-      ※ 각 기관의 공식 예측 차트/페이지. 예보는 갱신·정정될 수 있으며 투자 참고용입니다.
+      ※ 각 기관의 공식 예측 페이지. 예보는 갱신·정정될 수 있으며 투자 참고용입니다.
     </div>`;
 }
 /* ===== ENSO forecast+diagram (end) ===== */
@@ -8902,28 +8889,26 @@ function ensoMacroHTML(phaseKey, live) {
   const legend = `<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--c-txt-dim);margin-bottom:10px;">
     ${Object.keys(ENSO_STANCE).map(k=>`<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:${ENSO_STANCE[k].color};display:inline-block;"></span>${ENSO_STANCE[k].label}</span>`).join('')}
   </div>`;
-  // 단기→중기→장기 타임라인 카드(→ 연결자 포함)
-  const cards = (imp.horizons || []).map(hk => {
-    const h = node[hk];
-    if (!h) return '';
-    const assets = (h.assets||[]).map(a => `
-      <div style="display:flex;align-items:flex-start;gap:7px;padding:5px 0;border-top:1px solid var(--c-border);">
-        <span style="width:8px;height:8px;border-radius:50%;background:${(ENSO_STANCE[a.stance]||ENSO_STANCE.mixed).color};flex-shrink:0;margin-top:5px;"></span>
-        <div style="flex:1;">
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span style="font-size:12px;font-weight:600;color:var(--c-txt);">${a.name}</span>${_ensoStanceChip(a.stance)}</div>
-          <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;margin-top:1px;">${a.note}</div>
-        </div>
-      </div>`).join('');
-    return `<div style="flex:1;min-width:210px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:11px 12px;">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">
-        <span style="font-size:16px;">${h.icon||''}</span>
-        <span style="font-size:13px;font-weight:700;color:var(--c-txt);">${h.label}</span>
-        <span style="margin-left:auto;font-size:10px;font-weight:700;color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-full);padding:1px 8px;white-space:nowrap;">${h.timeframe}</span>
-      </div>
-      <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.55;margin-bottom:4px;">${h.mechanism}</div>
-      ${assets}
-    </div>`;
-  }).join('<div style="align-self:center;color:var(--c-txt-muted);font-size:15px;padding:0 1px;">→</div>');
+  // 신호등 히트맵 — 행=자산, 열=단/중/장기. 각 자산은 자기 시간대 칸만 stance 색으로 점등(데이터 있는 곳만).
+  const HLAB = {short:'단기', mid:'중기', long:'장기'};
+  const horizons = (imp.horizons || ['short','mid','long']).filter(hk => node[hk]);
+  const cols = `minmax(116px,1.5fr) repeat(${horizons.length},1fr)`;
+  const head = `<div style="display:grid;grid-template-columns:${cols};gap:3px;margin-bottom:4px;">
+    <div></div>
+    ${horizons.map(hk => { const h = node[hk]; return `<div title="${_ensoAttr(h.mechanism)}" style="text-align:center;font-size:11px;font-weight:700;color:var(--c-txt);line-height:1.2;">${h.icon||''} ${HLAB[hk]||hk}<div style="font-size:9px;font-weight:600;color:var(--c-txt-muted);">${h.timeframe||''}</div></div>`; }).join('')}
+  </div>`;
+  const hmRows = [];
+  horizons.forEach((hk,hi) => (node[hk].assets||[]).forEach(a => hmRows.push({name:a.name, hi, stance:a.stance, note:a.note})));
+  const cell = (on, stance, note) => {
+    if(!on) return `<div style="display:flex;align-items:center;justify-content:center;color:var(--c-border);font-size:13px;">·</div>`;
+    const c = (ENSO_STANCE[stance]||ENSO_STANCE.mixed).color;
+    return `<div title="${_ensoAttr(note)}" style="display:flex;align-items:center;justify-content:center;background:${c}22;border:1px solid ${c};border-radius:var(--r-xs);min-height:28px;cursor:help;"><span style="width:9px;height:9px;border-radius:50%;background:${c};"></span></div>`;
+  };
+  const hmBody = hmRows.map(r => `<div style="display:grid;grid-template-columns:${cols};gap:3px;margin-bottom:3px;">
+    <div title="${_ensoAttr(r.note)}" style="display:flex;align-items:center;font-size:11px;color:var(--c-txt);cursor:help;">${r.name}</div>
+    ${horizons.map((hk,hi)=>cell(hi===r.hi, r.stance, r.note)).join('')}
+  </div>`).join('');
+  const heatmap = `<div style="overflow-x:auto;"><div style="min-width:430px;">${head}${hmBody}</div></div>`;
   const src = imp.source || {};
   const footer = `<div style="font-size:10px;color:var(--c-txt-muted);margin-top:12px;line-height:1.65;border-top:1px solid var(--c-border);padding-top:8px;">
     📚 근거: ${src.authors||''} (2015), <a href="${src.url||'#'}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">${src.title||''}</a>${src.ref?` · ${src.ref}`:''}<br>
@@ -8931,15 +8916,163 @@ function ensoMacroHTML(phaseKey, live) {
   </div>`;
   return `<div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-      <span style="font-size:12px;font-weight:700;color:var(--c-primary);letter-spacing:.03em;">③ 시간축 거시 파급 (단기→중기→장기)</span>
+      <span style="font-size:12px;font-weight:700;color:var(--c-primary);letter-spacing:.03em;">③ 시간축 거시 파급 — 신호등 매트릭스</span>
       <span style="font-size:10px;font-weight:700;color:${conf.c};border:1px solid ${conf.c}66;border-radius:var(--r-full);padding:1px 8px;">${conf.t}</span>
     </div>
     ${gauge}${legend}
-    <div style="overflow-x:auto;"><div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;min-width:0;">${cards}</div></div>
+    <div style="font-size:10px;color:var(--c-txt-muted);margin:-4px 0 8px;">행 = 자산/섹터 · 열 = 영향 시점(단·중·장기) · 색 = 위험🔴/기회🔵/혼조🟠 · hover = 근거</div>
+    ${heatmap}
     ${footer}
   </div>`;
 }
 /* ===== 🌐 시간축 거시 파급 (end) ===== */
+
+/* ===== 🌡️ 시각화 재설계 — 헤드라인·추이차트·예측패널·영향 시각화 (start) ===== */
+// title 속성 등에 들어갈 문자열의 큰따옴표만 무력화(노트엔 보통 " 없음 — 방어).
+function _ensoAttr(s){ return (s||'').split('"').join('&quot;'); }
+
+// 현재 상태 헤드라인 — 큰 ONI 숫자 + 국면 배지 + 추세 + 평이 한 줄. 데이터 없으면 빈 문자열(날조 금지).
+function ensoHeadlineHTML(live){
+  if(!live || !live.oni || typeof live.oni.value !== 'number') return '';
+  const v = live.oni.value, ph = live.phase || 'neutral';
+  const col = ph==='elnino' ? '#ef5350' : (ph==='lanina' ? '#2962ff' : '#8b90a8');
+  const phl = ensoPhaseLabel(ph), strl = ensoStrengthLabel(live.strength), trend = ensoTrendLabel(live.trend);
+  const arrow = live.trend==='warming' ? '↑' : (live.trend==='cooling' ? '↓' : '→');
+  const wk = (live.nino34_weekly && typeof live.nino34_weekly.value==='number') ? live.nino34_weekly.value : null;
+  const plain = ph==='elnino' ? '적도 동태평양이 평년보다 따뜻 — 열대 농산물·에너지 가격 변동성에 주의할 국면'
+              : ph==='lanina' ? '적도 동태평양이 평년보다 차가움 — 곡물·구리·난방수요 변동성에 주의할 국면'
+              : 'ENSO 신호 약함 — 기후 프리미엄보다 재고·환율·정책이 가격을 주도하는 국면';
+  return `<div style="display:flex;align-items:center;gap:13px;flex-wrap:wrap;background:var(--c-card);border:1px solid ${col}66;border-left:3px solid ${col};border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;">
+    <span style="font-size:26px;font-weight:800;color:${col};line-height:1;">${v>=0?'+':''}${v.toFixed(2)}<span style="font-size:13px;font-weight:600;">°C</span></span>
+    <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:200px;">
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
+        <span style="font-size:11px;font-weight:700;color:#fff;background:${col};border-radius:var(--r-full);padding:1px 10px;">${strl?strl+' ':''}${phl}</span>
+        <span style="font-size:11px;color:var(--c-txt-dim);">ONI ${live.oni.asOf||''} · 추세 ${arrow} ${trend}${wk!==null?` · 주간 Niño3.4 ${wk>=0?'+':''}${wk.toFixed(1)}°C`:''}</span>
+      </div>
+      <div style="font-size:12px;color:var(--c-txt);line-height:1.5;">${plain}</div>
+    </div>
+  </div>`;
+}
+
+// 🌡️ ONI 기온 추이(실측 차트) + 🔮 공식 예측(NOAA 이미지) 패널. 캔버스는 innerHTML 후 buildEnsoTrendChart 가 채움.
+function ensoTrendForecastHTML(){
+  const yr = new Date().getFullYear();
+  const cpc = cpcProbUrl(yr);
+  const plume = 'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/imagesInd3/nino34Mon.gif';
+  const img = (src,cap,page)=>`<figure style="margin:0;flex:1;min-width:210px;">
+      <figcaption style="font-size:10px;color:var(--c-txt-dim);margin-bottom:3px;">${cap}</figcaption>
+      <img src="${src}" loading="lazy" referrerpolicy="no-referrer" alt="${cap}" style="max-width:100%;border:1px solid var(--c-border);border-radius:var(--r-xs);display:block;"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
+      <a href="${page}" target="_blank" rel="noopener noreferrer" style="display:none;font-size:11px;color:var(--c-primary);">이미지 불러오기 실패 — 원본 보기 ↗</a>
+    </figure>`;
+  return `<div style="margin-bottom:14px;">
+    <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🌡️ ONI 기온 추이 <span style="font-weight:600;color:var(--c-txt-muted);">(실측 · 최근 10년)</span></div>
+    <div style="position:relative;height:190px;margin-bottom:6px;"><canvas id="ensoTrendChart"></canvas></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--c-txt-dim);margin-bottom:14px;">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#ef535033;border:1px solid #ef5350;border-radius:2px;vertical-align:-1px;"></span> 엘니뇨대 (&gt;+0.5°C)</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#2962ff33;border:1px solid #2962ff;border-radius:2px;vertical-align:-1px;"></span> 라니냐대 (&lt;−0.5°C)</span>
+      <span>점선 = ±0.5°C 기준 · 끝점 = 현재</span>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🔮 공식 예측 <span style="font-weight:600;color:var(--c-txt-muted);">(NOAA CPC 확률 · CFSv2 모델)</span></div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      ${img(cpc,'🇺🇸 NOAA CPC · 엘니뇨/중립/라니냐 확률 예측','https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/probabilities/')}
+      ${img(plume,'🇺🇸 NOAA CFSv2 · Niño3.4 수치 예측','https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/')}
+    </div>
+  </div>`;
+}
+
+// 실측 ONI 시계열 차트. 국면대 음영 + ±0.5/0 기준선 + 끝점(현재) 강조. history 없으면 안내(날조 금지).
+function buildEnsoTrendChart(live){
+  if(typeof destroyChart==='function') destroyChart('ensoTrendChart');
+  const cv = document.getElementById('ensoTrendChart');
+  if(!cv) return;
+  const hist = (live && Array.isArray(live.oni_history)) ? live.oni_history : [];
+  if(hist.length < 2){
+    if(typeof showNoDataOverlay==='function') showNoDataOverlay('ensoTrendChart','ONI 추이 데이터 수집 대기 — 다음 일일 수집(NOAA) 후 표시됩니다');
+    return;
+  }
+  const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
+  const labels = hist.map(p=>p.t), vals = hist.map(p=>p.v), n = vals.length;
+  const phaseCol = y => y>=0.5 ? '#ef5350' : (y<=-0.5 ? '#2962ff' : '#8b90a8');
+  const bandsPlugin = {
+    id:'ensoBands',
+    beforeDatasetsDraw(chart){
+      const {ctx, chartArea:{left,right}, scales:{y}} = chart;
+      if(!y) return;
+      ctx.save();
+      if(y.max > 0.5){ const t=y.getPixelForValue(y.max), b=y.getPixelForValue(0.5); ctx.fillStyle='#ef535014'; ctx.fillRect(left,t,right-left,b-t); }
+      if(y.min < -0.5){ const t=y.getPixelForValue(-0.5), b=y.getPixelForValue(y.min); ctx.fillStyle='#2962ff14'; ctx.fillRect(left,t,right-left,b-t); }
+      [[0.5,'#ef535066'],[-0.5,'#2962ff66'],[0,'#8b90a855']].forEach(([val,c])=>{
+        const py=y.getPixelForValue(val); ctx.strokeStyle=c; ctx.setLineDash([4,3]); ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(left,py); ctx.lineTo(right,py); ctx.stroke();
+      });
+      ctx.restore();
+    }
+  };
+  charts['ensoTrendChart'] = new Chart(cv, {
+    type:'line',
+    data:{ labels, datasets:[{
+      data: vals, borderWidth:2, tension:0.25, fill:false, borderColor:'#8b90a8',
+      segment:{ borderColor: c => phaseCol(c.p1.parsed.y) },
+      pointRadius: c => c.dataIndex===n-1 ? 4 : 0,
+      pointBackgroundColor: c => phaseCol(c.parsed.y),
+      pointBorderColor:'#fff', pointBorderWidth:1,
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{intersect:false, mode:'index'},
+      scales:{
+        x:{ ticks:{color:tc.txt, maxTicksLimit:7, autoSkip:true, font:{size:10}}, grid:{display:false} },
+        y:{ suggestedMin:-2.5, suggestedMax:2.5, ticks:{color:tc.txt, font:{size:10}, callback:v=>(v>0?'+':'')+v+'°'}, grid:{color:tc.grid} },
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{ backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttTitle, borderColor:tc.ttBorder, borderWidth:1,
+          callbacks:{ title:items=>'ONI '+items[0].label,
+            label:c=>{ const v=c.parsed.y, ph=v>=0.5?'엘니뇨':(v<=-0.5?'라니냐':'중립'); return `  ${v>=0?'+':''}${v.toFixed(2)}°C · ${ph}`; } } },
+      },
+    },
+    plugins:[bandsPlugin],
+  });
+}
+
+// 원자재 방향성 바 — 상승▲(빨강,우)/하락▼(파랑,좌)/혼조↔(주황,중앙), 길이=변동성(高/中/低). 근거는 hover.
+function _ensoComBar(c){
+  const VOLW = {'高':46,'中':30,'低':15};
+  const w = VOLW[c.vol] || 20;
+  const up = c.dir==='up', down = c.dir==='down';
+  const color = up ? '#ef5350' : down ? '#2962ff' : '#f5a623';
+  const seg = up   ? `left:50%;width:${w}%;`
+            : down ? `right:50%;width:${w}%;`
+            :        `left:calc(50% - 7px);width:14px;`;
+  const dirTxt = up ? '▲ 상승압력' : down ? '▼ 하락압력' : '↔ 혼조';
+  return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border);" title="${_ensoAttr(c.note)}">
+    <div style="min-width:88px;font-size:12px;font-weight:600;color:var(--c-txt);">${c.name}</div>
+    <div style="position:relative;flex:1;height:16px;background:var(--c-bg);border-radius:4px;">
+      <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--c-border);"></div>
+      <div style="position:absolute;top:3px;bottom:3px;${seg}background:${color};border-radius:3px;"></div>
+    </div>
+    <div style="min-width:64px;text-align:right;font-size:10px;font-weight:700;color:${color};">${dirTxt}</div>
+    <div style="min-width:16px;font-size:10px;font-weight:700;color:var(--c-txt-muted);">${c.vol}</div>
+  </div>`;
+}
+
+// 섹터 → 수혜🔵/부담🔴/혼재🟠 열. 종목은 칩, 근거는 hover.
+function _ensoSectorCols(sectors){
+  const pos = sectors.filter(x=>x.effect==='pos');
+  const neg = sectors.filter(x=>x.effect==='neg');
+  const mix = sectors.filter(x=>x.effect!=='pos' && x.effect!=='neg');
+  const card = (x,color)=>`<div title="${_ensoAttr(x.note)}" style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${color};border-radius:var(--r-xs);padding:6px 9px;margin-bottom:6px;">
+      <div style="font-size:12px;font-weight:600;color:var(--c-txt);">${x.sector}</div>
+      <div style="font-size:11px;color:var(--c-primary);line-height:1.45;margin-top:1px;">${x.tickers}</div>
+    </div>`;
+  const col = (title,color,items)=> items.length ? `<div style="flex:1;min-width:178px;">
+      <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:5px;">${title}</div>
+      ${items.map(x=>card(x,color)).join('')}
+    </div>` : '';
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;">${col('🔵 수혜','#2962ff',pos)}${col('🔴 부담','#ef5350',neg)}${col('🟠 혼재','#f5a623',mix)}</div>`;
+}
+/* ===== 🌡️ 시각화 재설계 (end) ===== */
 
 function renderEnsoCard() {
   const tabsEl = document.getElementById('ensoScenarioTabs');
@@ -8947,11 +9080,6 @@ function renderEnsoCard() {
   if(!bodyEl) return;
   const _live = ensoData();
   if (_live && !ensoUserPinned && ENSO_SCENARIOS[_live.phase]) ensoCurrent = _live.phase;
-  const _sentence = _live ? ensoLiveSentence(_live) : null;
-  const _liveBanner = _sentence ? `
-    <div style="background:var(--c-card);border:1px solid var(--c-accent);border-radius:var(--r-sm);padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--c-txt);line-height:1.6;">
-      <span style="font-size:10px;font-weight:700;color:#fff;background:var(--c-accent);border-radius:var(--r-full);padding:1px 8px;margin-right:6px;">실측</span>${_sentence}
-    </div>` : '';
   // 시나리오 탭
   if(tabsEl) {
     tabsEl.innerHTML = Object.keys(ENSO_SCENARIOS).map(k => {
@@ -8964,33 +9092,20 @@ function renderEnsoCard() {
   const _viewHTML = (ensoView === 'macro')
     ? ensoMacroHTML(ensoCurrent, _live)
     : ensoSectorHTML(ensoCurrent, _live);
-  bodyEl.innerHTML = _liveBanner + ensoLogicDiagramHTML(_live)
+  bodyEl.innerHTML = ensoHeadlineHTML(_live)
+    + ensoTrendForecastHTML()
     + ensoLensTabsHTML() + _viewHTML
+    + ensoLogicDiagramHTML(_live)
     + ensoForecastsHTML(ensoForecastsExpanded);
+  buildEnsoTrendChart(_live);
 }
 
 // 원자재·섹터 렌즈(기존 ①②) — 본문 HTML 문자열 반환. 내용·마크업은 기존과 동일하게 보존.
 function ensoSectorHTML(phaseKey, _live) {
   const s = ENSO_SCENARIOS[phaseKey];
   const volC = s.overallVol.indexOf('高') >= 0 ? '#ef5350' : (s.overallVol.indexOf('中') >= 0 ? '#f5a623' : '#8b90a8');
-  const comRows = s.commodities.map(c => `
-    <div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--c-border);">
-      <div style="min-width:96px;font-weight:600;font-size:12px;color:var(--c-txt);">${c.name}</div>
-      <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">${_ensoDirChip(c.dir)} ${_ensoVolChip(c.vol)}</div>
-        <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;">${c.note}</div>
-      </div>
-    </div>`).join('');
-  const secRows = s.sectors.map(x => `
-    <div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--c-border);">
-      <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <span style="font-weight:600;font-size:12px;color:var(--c-txt);">${x.sector}</span> ${_ensoEffectChip(x.effect)}
-        </div>
-        <div style="font-size:11px;color:var(--c-primary);line-height:1.5;">${x.tickers}</div>
-        <div style="font-size:11px;color:var(--c-txt-dim);line-height:1.5;">${x.note}</div>
-      </div>
-    </div>`).join('');
+  const comBars = s.commodities.map(_ensoComBar).join('');
+  const strength = _live ? (ensoStrengthLabel(_live.strength) || ensoPhaseLabel(_live.phase)) : '';
   return `
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${s.accent};border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
@@ -9002,12 +9117,15 @@ function ensoSectorHTML(phaseKey, _live) {
     </div>
     <div class="grid-2">
       <div>
-        <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:2px;">① 원자재 수급·가격 변동성${_live ? ` <span style="font-weight:600;color:var(--c-txt-dim);">· 현재 강도: ${ensoStrengthLabel(_live.strength) || ensoPhaseLabel(_live.phase)}</span>` : ''}</div>
-        ${comRows}
+        <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span>① 원자재 수급·가격 압력</span>
+          <span style="font-weight:600;color:var(--c-txt-muted);font-size:10px;">막대 길이=변동성 · hover=근거${strength?` · 현재 ${strength}`:''}</span>
+        </div>
+        ${comBars}
       </div>
       <div>
-        <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:2px;">② 연동 주가·산업 (국내)${_live ? ` <span style="font-weight:600;color:var(--c-txt-dim);">· 현재 강도: ${ensoStrengthLabel(_live.strength) || ensoPhaseLabel(_live.phase)}</span>` : ''}</div>
-        ${secRows}
+        <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">② 연동 주가·산업 (국내)${strength?` <span style="font-weight:600;color:var(--c-txt-dim);font-size:10px;">· 현재 ${strength}</span>`:''}</div>
+        ${_ensoSectorCols(s.sectors)}
       </div>
     </div>`;
 }

@@ -20,6 +20,10 @@ JMA_URL = "https://ds.data.jma.go.jp/tcc/tcc/products/elnino/index/sstindex/base
 _MONTHS = {"JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
            "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12}
 
+# ONI 시즌(rolling 3개월) → 대표 '중앙월'. 추이 차트 x축 라벨용(DJF→01 … NDJ→12).
+_SEASON_MONTH = {"DJF": 1, "JFM": 2, "FMA": 3, "MAM": 4, "AMJ": 5, "MJJ": 6,
+                 "JJA": 7, "JAS": 8, "ASO": 9, "SON": 10, "OND": 11, "NDJ": 12}
+
 
 def _http_get(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": "economic-site climate fetch"})
@@ -37,6 +41,27 @@ def parse_oni(text):
     if not last:
         raise ValueError("ONI: no data rows")
     return {"value": float(last[3]), "season": last[0], "year": int(last[1])}
+
+
+def parse_oni_history(text, keep=120):
+    """oni.ascii.txt 전체 → 최근 keep개월 시계열 [{"t":"YYYY-MM","v":ANOM}].
+
+    추이 차트용. 각 행 'SEAS YR TOTAL ANOM'. 시즌을 대표 중앙월에 매핑하고
+    (DJF→01 … NDJ→12) 파일의 시간순을 신뢰해 마지막 keep개만 취한다.
+    값을 지어내지 않는다 — 데이터행이 없으면 ValueError.
+    """
+    out = []
+    for line in text.splitlines():
+        p = line.split()
+        if len(p) == 4 and p[1].isdigit() and p[0] in _SEASON_MONTH:
+            try:
+                v = float(p[3])
+            except ValueError:
+                continue
+            out.append({"t": f"{int(p[1]):04d}-{_SEASON_MONTH[p[0]]:02d}", "v": v})
+    if not out:
+        raise ValueError("ONI history: no data rows")
+    return out[-keep:]
 
 
 def parse_nino34_monthly(text):
@@ -134,7 +159,8 @@ def fetch_enso(get=_http_get):
     ok = False
 
     try:
-        o = parse_oni(get(ONI_URL))
+        _oni_txt = get(ONI_URL)
+        o = parse_oni(_oni_txt)
         enso["oni"] = {"value": o["value"], "season": o["season"],
                        "year": o["year"], "asOf": f'{o["season"]} {o["year"]}'}
         enso["sources"]["oni"] = ONI_URL
@@ -142,8 +168,15 @@ def fetch_enso(get=_http_get):
         enso["phase"] = derive_phase(o["value"])
         enso["strength"] = derive_strength(o["value"])
         ok = True
+        # 과거 시계열(추이 차트용) — 같은 텍스트 재사용, 독립 실패 처리.
+        try:
+            enso["oni_history"] = parse_oni_history(_oni_txt)
+            enso["stale"]["oni_history"] = False
+        except Exception:
+            enso["stale"]["oni_history"] = True
     except Exception:
         enso["stale"]["oni"] = True
+        enso["stale"]["oni_history"] = True
 
     try:
         m = parse_nino34_monthly(get(NINO34_MTH_URL))
