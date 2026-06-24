@@ -117,6 +117,21 @@ def main():
         if not isinstance(imap, dict) or not imap.get(impact.get("activePhase")):
             warns.append("climate.impact.map 에 활성 국면 매핑 누락")
 
+    # 시장중단(서킷브레이커·사이드카) — 있으면 형태 점검(비차단 경고).
+    # fetch_data.detect_market_halts 가 항상 생성하지만, 누락/형오류는 게이트가 아닌 경고로 남긴다.
+    mh_block = d.get("marketHalts")
+    if mh_block is not None:
+        if not isinstance(mh_block, dict):
+            warns.append(f"marketHalts: dict 예상, {type(mh_block).__name__}")
+        else:
+            for key in ("active", "history"):
+                if not isinstance(mh_block.get(key), list):
+                    warns.append(f"marketHalts.{key}: list 아님")
+            for h in (mh_block.get("active") or []):
+                if not (isinstance(h, dict) and h.get("id") and h.get("type") in ("circuit", "sidecar")):
+                    warns.append(f"marketHalts.active 형식 오류: {h!r}")
+                    break
+
     for w in warns:
         print(f"::warning title=데이터 품질::{w}")
 
