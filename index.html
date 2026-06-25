@@ -317,7 +317,7 @@
   @media (max-width:768px){ .grid-2,.grid-3,.grid-4{ grid-template-columns:1fr; } }
   /* ENSO 원자재 확장형 영향 행 — 클릭 시 상세 펼침 */
   .enso-com-detail{ max-height:0; overflow:hidden; transition:max-height .3s ease; }
-  .enso-com-detail.open{ max-height:160px; }
+  .enso-com-detail.open{ max-height:300px; }
   .enso-chev{ display:inline-block; transition:transform .3s ease; }
   .enso-com-row.open .enso-chev{ transform:rotate(180deg); }
   /* 라이트 테마 — inline 스타일 오버라이드 (color attributes) */
@@ -8658,13 +8658,24 @@ const ENSO_SCENARIOS = {
     overallVol: '高',
     summary: '동남아·인도·호주의 가뭄·고온이 두드러져 설탕·커피·팜유 등 열대 농산물 공급이 줄고, 북반구 겨울이 온난해 난방용 가스 수요는 약해지는 경향. 기후 프리미엄으로 농산물 가격 변동성이 커집니다.',
     commodities: [
-      { name: '설탕(원당)',      dir: 'up',    vol: '高', note: '인도·태국 몬순 약화·가뭄 → 사탕수수 감산' },
-      { name: '커피',            dir: 'up',    vol: '高', note: '베트남·브라질 건조 → 로부스타·아라비카 감산' },
-      { name: '코코아',          dir: 'up',    vol: '中', note: '서아프리카 건조 리스크' },
-      { name: '팜유',            dir: 'up',    vol: '中', note: '인니·말련 건조로 단수(수확량) 저하' },
-      { name: '천연가스',        dir: 'down',  vol: '中', note: '북반구 겨울 온난 → 난방 수요 감소' },
-      { name: '밀·옥수수·대두',  dir: 'mixed', vol: '中', note: '미 중서부는 양호, 호주·동남아는 건조 → 혼조' },
-      { name: '니켈·주석',       dir: 'up',    vol: '中', note: '인도네시아 강우·물류 차질 가능' },
+      { name: '설탕(원당)',      dir: 'up',    vol: '高', note: '인도·태국 몬순 약화·가뭄 → 사탕수수 감산',
+        detail: '인도·태국은 세계 설탕 공급의 큰 축. 엘니뇨 가뭄으로 사탕수수 단수가 떨어지고, 인도가 수출 쿼터를 축소하면 국제 원당가가 급등하는 패턴.' },
+      { name: '커피',            dir: 'up',    vol: '高', note: '베트남·브라질 건조 → 로부스타·아라비카 감산',
+        detail: '베트남 중부고원 건조는 로부스타, 브라질 미나스 건조는 아라비카를 동시에 압박. 두 대형 산지가 함께 타격받으면 가격 급등 위험이 커짐.' },
+      { name: '코코아',          dir: 'up',    vol: '中', note: '서아프리카 건조 리스크',
+        detail: '세계 코코아 약 70%가 서아프리카(코트디부아르·가나)산. 엘니뇨 건조·하르마탄(건조풍) 강화로 수확이 줄어드는 경향.' },
+      { name: '팜유',            dir: 'up',    vol: '中', note: '인니·말련 건조로 단수(수확량) 저하',
+        detail: '엘니뇨 건조는 통상 6~12개월 시차를 두고 팜 단수에 반영. 인니·말련 생산이 둔화되면 식용유 전반(대두유 포함)에 상방 압력.' },
+      { name: '천연가스',        dir: 'down',  vol: '中', note: '북반구 겨울 온난 → 난방 수요 감소',
+        detail: '엘니뇨 겨울은 북미·동아시아가 평년보다 온난한 경향. 난방용 가스 수요가 줄고 재고가 쌓이며 가격에 하방 압력으로 작용.' },
+      { name: '밀',              dir: 'mixed', vol: '中', note: '호주·아르헨티나 건조 vs 미국 양호 → 혼조',
+        detail: '엘니뇨 시 호주 밀 산지는 건조로 감산 위험(상방), 반면 미국 평원은 강수가 양호한 편(하방). 산지별 방향이 엇갈려 변동성만 커짐.' },
+      { name: '옥수수·대두',     dir: 'down',  vol: '中', note: '미 중서부 강수 양호 → 작황 우호적',
+        detail: '엘니뇨는 미국 중서부 곡창에 여름 강수를 더해 옥수수·대두 작황에 우호적인 경우가 많음 → 증산 기대가 가격에 하방으로 작용하는 경향.' },
+      { name: '니켈',            dir: 'up',    vol: '中', note: '인도네시아 우기 강화 → 채굴·선적 차질',
+        detail: '인도네시아가 세계 니켈 공급의 절반 이상. 엘니뇨 후 우기가 강해지면 노천광 채굴·선적이 지연돼 공급 우려로 가격이 들썩일 수 있음.' },
+      { name: '주석',            dir: 'up',    vol: '中', note: '인니 수출 비중 높아 니켈과 동반 변동',
+        detail: '주석도 인도네시아 수출 의존도가 높아, 인니 기상·수출 정책 변화 시 니켈과 함께 공급 우려가 부각되는 비철 품목.' },
     ],
     sectors: [
       { sector: '음식료 (원가 압박)', tickers: 'CJ제일제당 · 대상 · 롯데웰푸드 · 오뚜기', effect: 'neg', note: '설탕·커피·팜유 원재료비 ↑ → 마진 압박' },
@@ -8679,12 +8690,22 @@ const ENSO_SCENARIOS = {
     overallVol: '高',
     summary: '남미(아르헨티나·브라질 남부) 가뭄으로 대두·옥수수가 흔들리고, 북반구 한파로 원유·천연가스 난방 수요가 늘며, 페루·칠레 폭우는 구리 공급을 위협하는 경향. 에너지·곡물·구리 변동성이 동반 확대됩니다.',
     commodities: [
-      { name: '대두·옥수수',   dir: 'up',    vol: '高', note: '남미 가뭄 → 작황 부진·감산' },
-      { name: '밀',            dir: 'up',    vol: '中', note: '북미·남미 작황 변동' },
-      { name: '원유·천연가스', dir: 'up',    vol: '高', note: '북반구 한파 → 난방 수요 급증' },
-      { name: '구리',          dir: 'up',    vol: '中', note: '페루·칠레 폭우 → 광산·물류 차질' },
-      { name: '팜유',          dir: 'up',    vol: '中', note: '동남아 과우(홍수) → 수확 차질' },
-      { name: '커피',          dir: 'mixed', vol: '中', note: '산지별 강우 편차로 혼조' },
+      { name: '대두',          dir: 'up',    vol: '高', note: '아르헨티나·브라질 남부 가뭄 → 작황 부진',
+        detail: '라니냐는 아르헨티나·브라질 남부에 가뭄을 유발. 세계 대두 핵심 수출지의 작황이 부진하면 국제 대두가에 강한 상방 압력.' },
+      { name: '옥수수',        dir: 'up',    vol: '中', note: '남미 가뭄 → 감산 우려',
+        detail: '대두와 같은 남미 산지를 공유. 가뭄으로 옥수수 단수가 떨어지면 사료·에탄올 수요와 맞물려 가격 변동성이 커짐.' },
+      { name: '밀',            dir: 'up',    vol: '中', note: '미 남부 평원 건조 → 겨울밀 부담',
+        detail: '라니냐 시 미국 남부 평원이 건조해 겨울밀 작황에 부담. 호주는 다우로 증산 경향이라 산지별로 엇갈리나 전반 변동성 확대.' },
+      { name: '원유',          dir: 'up',    vol: '高', note: '북반구 한파 → 난방·정제 수요 증가',
+        detail: '라니냐 겨울은 북미·동아시아 한파 빈도가 높아 난방유 수요가 늘고, 정제마진 개선으로 원유 수요에도 상방으로 작용.' },
+      { name: '천연가스',      dir: 'up',    vol: '高', note: '한파 → 난방수요 급증 + 동파 감산 위험',
+        detail: '한파 시 난방용 가스 수요가 급증하는 데다, 미국 셰일 지대 동파(freeze-off)로 생산이 일시 중단되면 가스가 급등하는 대표적 라니냐 리스크.' },
+      { name: '구리',          dir: 'up',    vol: '中', note: '페루·칠레 폭우 → 광산·물류 차질',
+        detail: '라니냐 시 안데스(페루·칠레) 폭우·홍수로 세계 최대 구리 광산의 조업·운송이 차질을 빚으면 공급 우려로 가격 상방.' },
+      { name: '팜유',          dir: 'up',    vol: '中', note: '동남아 과우(홍수) → 수확 차질',
+        detail: '라니냐는 인니·말련에 과우·홍수를 유발. 수확·운송이 막히면 팜유 단기 공급 차질로 식용유 가격이 들썩임.' },
+      { name: '커피',          dir: 'mixed', vol: '中', note: '산지별 강우 편차로 혼조',
+        detail: '브라질은 다우로 작황에 우호적인 반면, 중미·동남아는 과우 피해가 날 수 있어 산지별로 방향이 엇갈리는 혼조 양상.' },
     ],
     sectors: [
       { sector: '정유·가스 (난방수요↑)', tickers: 'S-Oil · GS · 한국가스공사',      effect: 'pos', note: '난방·정제 수요 ↑ → 정제마진·판매 개선' },
@@ -8700,9 +8721,12 @@ const ENSO_SCENARIOS = {
     overallVol: '低~中',
     summary: 'ENSO발 공급 충격이 제한적이어서 원자재는 기후 프리미엄보다 재고·달러지수(DXY)·OPEC+ 정책·지정학 등 펀더멘털 요인에 더 민감해집니다. 특정 섹터 일방향 베팅보다 환율·금리 흐름과의 연동에 주목할 국면.',
     commodities: [
-      { name: '원유',   dir: 'mixed', vol: '中', note: 'OPEC+ 정책·재고가 핵심 변수' },
-      { name: '곡물',   dir: 'mixed', vol: '低', note: '평년 작황 가정 → 계절성·환율 영향 우세' },
-      { name: '금속',   dir: 'mixed', vol: '中', note: '달러·금리·중국 수요가 가격 주도' },
+      { name: '원유',   dir: 'mixed', vol: '中', note: 'OPEC+ 정책·재고가 핵심 변수',
+        detail: 'ENSO 신호가 약해 기후 프리미엄이 제한적. OPEC+ 감산 정책·미국 원유재고·달러지수·지정학이 가격을 주도하며 박스권 등락 경향.' },
+      { name: '곡물',   dir: 'mixed', vol: '低', note: '평년 작황 가정 → 계절성·환율 영향 우세',
+        detail: '평년 수준 작황을 가정하면 기후발 충격이 작음. 파종·수확 계절성, 환율, 수출입 정책이 곡물가를 더 좌우.' },
+      { name: '금속',   dir: 'mixed', vol: '中', note: '달러·금리·중국 수요가 가격 주도',
+        detail: 'ENSO 영향이 미미한 국면. 달러지수·실질금리·중국 경기 및 부양책이 비철·귀금속 가격의 핵심 동인.' },
     ],
     sectors: [
       { sector: '시장 전반', tickers: '섹터 일방 베팅보다 환율·금리 연동 주목', effect: 'mixed', note: 'ENSO 신호 약함 → 개별 펀더멘털·환율 흐름 중심 대응' },
@@ -9085,8 +9109,9 @@ function _ensoComBar(c){
     <span class="enso-chev" style="min-width:12px;font-size:9px;color:var(--c-txt-muted);">▼</span>
   </div>
   <div class="enso-com-detail">
-    <div style="padding:8px 4px 10px;display:flex;flex-direction:column;gap:5px;font-size:11px;line-height:1.6;">
+    <div style="padding:8px 4px 10px;display:flex;flex-direction:column;gap:5px;font-size:11px;line-height:1.65;">
       <div style="color:var(--c-txt-dim);"><b style="color:var(--c-txt);">핵심 근거</b> · ${c.note}</div>
+      ${c.detail ? `<div style="color:var(--c-txt-dim);">${c.detail}</div>` : ''}
       <div style="color:var(--c-txt-muted);">가격 방향 <b style="color:${color};">${dirTxt}</b> · 예상 변동성 <b style="color:var(--c-txt);">${volTxt}(${c.vol})</b></div>
     </div>
   </div>`;
