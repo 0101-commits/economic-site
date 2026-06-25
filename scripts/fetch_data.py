@@ -5904,24 +5904,29 @@ def build_data():
         log(f"[VKOSPI] 오류: {e}")
 
     # ── VKOSPI × VIX 교차검증: 스크래핑 오염값 거부 ────────
-    # 역사적으로 VKOSPI/VIX 는 약 0.3~4.0 배 범위. 이 범위를 벗어나면 소스 오염 가능성이 높다.
-    # (2026-06 실사례: investing.com 79.76, VIX 16.2 → 비율 4.92 → 카카오 시황 오발송)
+    # VKOSPI/VIX 비율로 명백한 소스 오염(엉뚱한 종목값)만 거른다. 상한은 9.0 —
+    # 한국 변동성은 미국 VIX 의 수 배까지 정당하게 벌어질 수 있다.
+    # (2026-06 국면: KOSPI 8천선 + VKOSPI 95대 / VIX 17대 → 비율 5.5 는 '정상'.
+    #  과거 4.0 상한이 이 진짜값을 매 런 None 처리해 헤드라인 수치가 79.76 에 동결됐다 —
+    #  사용자 'KSVKOSPI 업데이트 안 됨' 의 원인. VKOSPI 52주 범위 18~98 / VIX 12~ →
+    #  최악의 정당 비율 ≈ 8 이므로 9.0 으로 둔다. 값 자체의 합리성은 _is_valid_vkospi(5~100)
+    #  가 1차로 보장한다.)
     try:
         _vk = data["sentiment"].get("vkospi") or {}
         _vk_val = _vk.get("value")
         _vix_val = ((data.get("economicIndicators") or {}).get("us") or {}).get("vix", {}).get("value")
         if _vk_val and _vix_val and _vix_val > 0:
             _ratio = _vk_val / _vix_val
-            if _ratio > 4.0 or _ratio < 0.3:
+            if _ratio > 9.0 or _ratio < 0.3:
                 _src = _vk.get("source", "알 수 없음")
-                log(f"[VKOSPI] 교차검증 이상 — VKOSPI({_vk_val:.2f}) / VIX({_vix_val:.2f}) = {_ratio:.2f} (정상 0.3~4.0), 소스={_src}")
+                log(f"[VKOSPI] 교차검증 이상 — VKOSPI({_vk_val:.2f}) / VIX({_vix_val:.2f}) = {_ratio:.2f} (정상 0.3~9.0), 소스={_src}")
                 _hist = _vk.get("history") or {}
                 if _hist:
                     _dates = sorted(_hist.keys())
                     _latest_h = _hist[_dates[-1]]
                     _prev_h = _hist[_dates[-2]] if len(_dates) > 1 else None
                     _chg_h = round((_latest_h - _prev_h) / _prev_h * 100, 2) if _prev_h else 0.0
-                    if _is_valid_vkospi(_latest_h) and _latest_h / _vix_val <= 4.0:
+                    if _is_valid_vkospi(_latest_h) and _latest_h / _vix_val <= 9.0:
                         data["sentiment"]["vkospi"] = {**_vk, "value": _latest_h, "change": _chg_h,
                                                         "as_of": _dates[-1], "source": f"History ({_src} 교차검증 실패)"}
                         data["sources"]["vkospi"] = f"History ({_src} 교차검증 실패)"
@@ -5934,6 +5939,32 @@ def build_data():
                     log(f"[VKOSPI] 히스토리 없어 교차검증 실패값 null 처리")
     except Exception as e:
         log(f"[VKOSPI] 교차검증 오류: {e}")
+
+    # ── VKOSPI history 자가축적 ───────────────────────────
+    # 외부 시계열 소스(네이버 차트·yfinance·Stooq)가 모두 죽어 history 가 비어도,
+    # 매 런의 검증된 일별값을 이전 빌드 history 에 누적해 추이 차트를 유지한다.
+    # (2026-06: 네이버 차트 API 가 KSVKOSPI/VKOSPI 심볼에 빈 응답, yfinance ^VKOSPI 상장폐지,
+    #  Stooq 차단 → 시계열 전멸. investing.com 현재값만 살아있어 누적 방식으로 차트 복구.)
+    try:
+        _vk = data["sentiment"].get("vkospi") or {}
+        _merged = {}
+        _prev_vk = ((prev or {}).get("sentiment") or {}).get("vkospi") or {}
+        if isinstance(_prev_vk.get("history"), dict):
+            _merged.update(_prev_vk["history"])
+        if isinstance(_vk.get("history"), dict):
+            _merged.update(_vk["history"])
+        _vk_val = _vk.get("value")
+        if _vk_val and _is_valid_vkospi(_vk_val):
+            _merged[_vk.get("as_of") or now.strftime("%Y-%m-%d")] = round(_vk_val, 4)
+        # 오염 방지: 범위 밖 값 제거 후 최근 520거래일만 유지
+        _merged = {k: v for k, v in _merged.items() if _is_valid_vkospi(v)}
+        if _merged and _vk:
+            _keys = sorted(_merged.keys())[-520:]
+            _vk["history"] = {k: _merged[k] for k in _keys}
+            data["sentiment"]["vkospi"] = _vk
+            log(f"[VKOSPI] history 누적: {len(_vk['history'])}점 (최신 {_keys[-1]})")
+    except Exception as e:
+        log(f"[VKOSPI] history 누적 오류: {e}")
 
     # ── MOVE Index (미국채 옵션 변동성) ────────
     try:
@@ -6150,6 +6181,9 @@ def build_data():
                 # 부동산 — R-ONE/KOSIS 실패 시 직전 값 유지
                 "realestate.kr",
                 "realestate.us",
+                # 시장심리 VKOSPI — 모든 소스 실패(예: investing.com 의 클라우드 IP 차단) 시
+                # 직전 값+history 유지. history 자가축적과 함께 추이 차트가 비지 않게 한다.
+                "sentiment.vkospi",
                 # 거시 지표 (서브 카테고리별로 보존 — 한 국가만 실패해도 다른 국가 유지)
                 "economicIndicators.kr",
                 "economicIndicators.us",

@@ -13912,9 +13912,11 @@ async function fetchSentimentClient() {
         if(m) {
           const val = parseFloat(m[1].replace(/,/g,''));
           if(val > 1 && val < 200) {
-            // VIX 교차검증: VKOSPI/VIX 비율이 0.3~4.0 벗어나면 스크래핑 오염 가능성 높음
+            // VIX 교차검증: VKOSPI/VIX 비율이 0.3~9.0 벗어나면 스크래핑 오염 가능성 높음.
+            // 상한 9.0 — 한국 변동성은 미국 VIX 의 수 배까지 정당하게 벌어질 수 있다
+            // (2026-06: VKOSPI 95 / VIX 17 = 5.5 는 정상. 과거 4.0 상한이 진짜값을 막았음.)
             const vix = (_latestDataForIndicators?.economicIndicators?.us?.vix?.value) || 0;
-            if(vix > 0 && (val / vix > 4.0 || val / vix < 0.3)) continue;
+            if(vix > 0 && (val / vix > 9.0 || val / vix < 0.3)) continue;
             // 변화율도 시도
             let chg = 0;
             const mc = html.match(/data-test="instrument-price-change-percent"[^>]*>\(?([+\-]?[0-9.,]+)%/)
