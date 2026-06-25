@@ -25,13 +25,19 @@
   (2026-06 사용자 요청: 시장심리에 코스피위험지수 추가, 원자재를 에너지·금속·곡물로
    분리, 상하이 운임지수 포함.)
 
-슬롯별 차트(모두 이미지·당일 기준, 당일이 없으면 7일 폴백):
+슬롯별 차트(주가/환율/원자재는 당일 인트라데이, 없으면 일봉 폴백.
+            국채 수익률은 일별[미·한] 또는 월별[일본] 추세선 — 인트라데이 없음):
   [평일]
-    07·08시        → S&P500 + 달러-원
-    09시           → S&P500 + 금
+    07시           → 미국 10년 국채 + 일본 10년 국채
+    08시           → 달러-원 + 금
+    09시           → S&P500 + 코스피
     10~16시        → 코스피 + 달러-원
     17시           → 달러-원 + 금
-    18~22시        → 달러-원 + WTI
+    18시           → 달러-엔 + 천연가스
+    19시           → 은 + 구리
+    20시           → 천연가스 + 밀
+    21시           → 한국 10년 국채 + 미국 10년 국채
+    22시           → 달러-원 + WTI
   [주말] 본문은 평일과 동일, 사진만 달러-원 + 금
     11시·17시      → 달러-원 + 금
 
@@ -65,36 +71,54 @@ TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
 SLOT_HOURS_WEEKDAY = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
 SLOT_HOURS_WEEKEND = [11, 17]
 
-# 슬롯별 차트 구성 — (history 카테고리, 키, 라벨) 2개를 1장(위·아래)으로 합쳐 보낸다.
+# 슬롯별 차트 구성 — 패널 2개(위·아래)를 1장으로 합쳐 보낸다. 각 패널은 (카테고리, 키, 라벨).
+#   • 카테고리 "indices"/"fx"/"commodities" → data.json history[cat][key] 일봉 + Yahoo 인트라데이.
+#   • 카테고리 "yield" → 국채 수익률. US10Y·KR10Y 는 yieldCurve(일별), JP10Y 는
+#     economicIndicators.jp.bond10y_jp(월별). 인트라데이 없음 → 추세선(값은 %, 변화는 bp 표기).
 # (라벨은 CI 한글폰트 부재 대비 영문)
-_CHART_US = ([("indices", "SP500", "S&P 500"), ("fx", "USDKRW", "USD/KRW")],
-             "S&P500 / USD-KRW")
 _CHART_KR = ([("indices", "KOSPI", "KOSPI"), ("fx", "USDKRW", "USD/KRW")],
              "KOSPI / USD-KRW")
 _CHART_EVE = ([("fx", "USDKRW", "USD/KRW"), ("commodities", "WTI", "WTI Crude")],
               "USD-KRW / WTI")
-# (2026-06 사용자 요청) 09시=S&P500+금, 17시·주말=달러원+금.
-_CHART_SP_GOLD = ([("indices", "SP500", "S&P 500"), ("commodities", "Gold", "Gold")],
-                  "S&P500 / Gold")
 _CHART_FX_GOLD = ([("fx", "USDKRW", "USD/KRW"), ("commodities", "Gold", "Gold")],
                   "USD-KRW / Gold")
-# 평일 슬롯별 차트: 07·08시=S&P500·달러원 / 09시=S&P500·금 / 10~16시=코스피·달러원
-#               / 17시=달러원·금 / 18~22시=달러원·WTI.
+# (2026-06 사용자 요청) 슬롯별 신규 구성.
+_CHART_BONDS_USJP = ([("yield", "US10Y", "US 10Y"), ("yield", "JP10Y", "JP 10Y")],
+                     "US 10Y / JP 10Y")
+_CHART_SP_KOSPI = ([("indices", "SP500", "S&P 500"), ("indices", "KOSPI", "KOSPI")],
+                   "S&P500 / KOSPI")
+_CHART_JPY_GAS = ([("fx", "USDJPY", "USD/JPY"), ("commodities", "NatGas", "NatGas")],
+                  "USD-JPY / NatGas")
+_CHART_SILVER_COPPER = ([("commodities", "Silver", "Silver"), ("commodities", "Copper", "Copper")],
+                        "Silver / Copper")
+_CHART_GAS_WHEAT = ([("commodities", "NatGas", "NatGas"), ("commodities", "Wheat", "Wheat")],
+                    "NatGas / Wheat")
+_CHART_BONDS_KRUS = ([("yield", "KR10Y", "KR 10Y"), ("yield", "US10Y", "US 10Y")],
+                     "KR 10Y / US 10Y")
+# 평일 슬롯별 차트: 07=미·일국채 / 08=달러원·금 / 09=S&P·코스피 / 10~16=코스피·달러원
+#               / 17=달러원·금 / 18=달러엔·천연가스 / 19=은·구리 / 20=천연가스·밀
+#               / 21=한·미국채 / 22=달러원·WTI.
 SLOT_CHARTS_WEEKDAY = {
-    "h07": _CHART_US, "h08": _CHART_US, "h09": _CHART_SP_GOLD,
+    "h07": _CHART_BONDS_USJP, "h08": _CHART_FX_GOLD, "h09": _CHART_SP_KOSPI,
     "h10": _CHART_KR, "h11": _CHART_KR, "h12": _CHART_KR, "h13": _CHART_KR,
     "h14": _CHART_KR, "h15": _CHART_KR, "h16": _CHART_KR, "h17": _CHART_FX_GOLD,
-    "h18": _CHART_EVE, "h19": _CHART_EVE, "h20": _CHART_EVE,
-    "h21": _CHART_EVE, "h22": _CHART_EVE,
+    "h18": _CHART_JPY_GAS, "h19": _CHART_SILVER_COPPER, "h20": _CHART_GAS_WHEAT,
+    "h21": _CHART_BONDS_KRUS, "h22": _CHART_EVE,
 }
 # 주말 슬롯별 차트: 본문은 평일과 동일, 사진만 달러원·금.
 SLOT_CHARTS_WEEKEND = {
     "h11": _CHART_FX_GOLD, "h17": _CHART_FX_GOLD,
 }
 _CHART_COLOR = {"KOSPI": "#2962ff", "SP500": "#1e88e5", "USDKRW": "#26a69a",
-                "WTI": "#ef6c00", "Gold": "#fbc02d"}
+                "WTI": "#ef6c00", "Gold": "#fbc02d", "USDJPY": "#00897b",
+                "NatGas": "#5e35b1", "Silver": "#90a4ae", "Copper": "#c0631f",
+                "Wheat": "#8d6e63", "US10Y": "#d32f2f", "KR10Y": "#1565c0",
+                "JP10Y": "#6a1b9a"}
 # 당일(인트라데이) 시세용 Yahoo Finance 심볼 — data.json 엔 일별 종가만 있어 차트 생성 시 직접 조회한다.
-_YH_SYM = {"KOSPI": "^KS11", "SP500": "^GSPC", "USDKRW": "KRW=X", "WTI": "CL=F", "Gold": "GC=F"}
+# (국채 수익률[US10Y·KR10Y·JP10Y]은 인트라데이 소스가 없어 등록하지 않는다 → 일별/월별 추세선.)
+_YH_SYM = {"KOSPI": "^KS11", "SP500": "^GSPC", "USDKRW": "KRW=X", "WTI": "CL=F",
+           "Gold": "GC=F", "USDJPY": "JPY=X", "NatGas": "NG=F", "Silver": "SI=F",
+           "Copper": "HG=F", "Wheat": "ZW=F"}
 # 차트 PNG 크기(px) — 카톡 피드 이미지는 말풍선 '폭'이 고정이고 높이만 비율을 따라 늘어나므로,
 # 가로형(구 720x640)은 화면에서 작게 보인다. 잘리지 않는 최대 세로 비율(3:4)·고해상도로 키운다.
 # (2026-06 사용자 요청: 카톡 사진이 작아 잘 안 보임)
@@ -469,6 +493,7 @@ _LIVE_QUOTES = [
     ("commodities", "WTI", "price", "CL=F"),
     ("commodities", "NatGas", "price", "NG=F"),
     ("commodities", "Gold", "price", "GC=F"),
+    ("commodities", "Silver", "price", "SI=F"),
     ("commodities", "Copper", "price", "HG=F"),
     ("commodities", "Corn", "price", "ZC=F"),
     ("commodities", "Wheat", "price", "ZW=F"),
@@ -518,6 +543,63 @@ def apply_live_quotes(d):
         print("[live] 발송 시점 시세 보정: " + ", ".join(updated))
 
 
+def _yield_series(d, key, n_daily=45):
+    """국채 수익률 시계열 → (xs[datetime], ys[float], monthly?).
+
+    US10Y·KR10Y 는 yieldCurve.{us,kr} 의 10Y 텐서(일별, FRED DGS10 / ECOS),
+    JP10Y 는 economicIndicators.jp.bond10y_jp.history(월별, FRED IRLTLT01JPM156N).
+    데이터가 아직 없으면(예: 파이프라인 미수집) 빈 시계열을 돌려 패널은 'N/A'로 그려진다."""
+    if key == "JP10Y":
+        hist = ((((d.get("economicIndicators") or {}).get("jp") or {})
+                 .get("bond10y_jp") or {}).get("history") or {})
+        xs, ys = [], []
+        for ds, v in sorted(hist.items())[-12:]:   # 최근 12개월
+            try:
+                xs.append(datetime.datetime.strptime(ds, "%Y-%m-%d"))
+                ys.append(float(v))
+            except (ValueError, TypeError):
+                pass
+        return xs, ys, True
+    region = "us" if key == "US10Y" else "kr"
+    yc = (d.get("yieldCurve") or {}).get(region) or {}
+    ser = next((s for s in (yc.get("series") or []) if s.get("tenor") == "10Y"), None)
+    xs, ys = [], []
+    for pt in ((ser or {}).get("data") or [])[-n_daily:]:
+        v = pt.get("value")
+        if v is None:
+            continue
+        try:
+            xs.append(datetime.datetime.strptime(pt["date"], "%Y-%m-%d"))
+            ys.append(float(v))
+        except (ValueError, TypeError):
+            pass
+    return xs, ys, False
+
+
+def _draw_yield_panel(ax, d, key, label, color, mdates):
+    """국채 수익률 패널 — 값은 '%', 변화는 'bp'로 표기.
+
+    (수익률을 가격처럼 ±% 로 적으면 '4.0→4.4 = +10%' 식으로 오해를 부르므로 bp[=0.01%p] 사용.)
+    grid·tick 은 호출부 루프가 'yield' 분기에서 즉시 continue 하므로 이 안에서 직접 적용한다."""
+    xs, ys, monthly = _yield_series(d, key)
+    if not xs:
+        ax.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=24)
+        ax.set_title(label, fontsize=26, loc="left")
+        ax.grid(alpha=0.25)
+        ax.tick_params(axis="both", labelsize=12)
+        return
+    ax.plot(xs, ys, color=color, linewidth=1.8,
+            marker=("o" if len(xs) <= 14 else None), markersize=3)
+    ax.fill_between(xs, ys, min(ys), color=color, alpha=0.08)
+    chg_bp = (ys[-1] - ys[0]) * 100
+    span = "12mo" if monthly else f"{len(xs)}d"
+    ax.set_title(f"{label}   {ys[-1]:.2f}%  ({chg_bp:+.0f}bp / {span})",
+                 fontsize=26, loc="left")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%y-%m" if monthly else "%m-%d"))
+    ax.grid(alpha=0.25)
+    ax.tick_params(axis="both", labelsize=12)
+
+
 def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
     """슬롯별 지표 2종을 '당일(인트라데이)' 차트 1장 PNG(CHART_PX=1080x1440, 3:4 세로형)로 생성.
 
@@ -557,6 +639,10 @@ def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
         fig.suptitle(suptitle, fontsize=17, x=0.02, ha="left", weight="bold")
         for a, (cat, key, label) in zip(axes, panels):
             color = _CHART_COLOR.get(key, "#333333")
+            # 국채 수익률 패널은 별도 경로(yieldCurve/economicIndicators) — % 값·bp 변화로 그린다.
+            if cat == "yield":
+                _draw_yield_panel(a, d, key, label, color, mdates)
+                continue
             # 1순위: 당일 인트라데이(Yahoo). 실패 시 7일 일봉으로 폴백.
             xs, ys, prev_close = _yahoo_intraday(_YH_SYM.get(key, "")) if _YH_SYM.get(key) else ([], [], None)
             intraday = bool(xs)
