@@ -9037,17 +9037,52 @@ function ensoHeadlineHTML(live){
   </div>`;
 }
 
-// 🌡️ ONI 기온 추이(실측 차트) + 🔮 공식 예측(NOAA 이미지) 패널. 캔버스는 innerHTML 후 buildEnsoTrendChart 가 채움.
-function ensoTrendForecastHTML(){
+// 'MJJ 2026' → "MJJ'26" (x축 라벨 압축). 형식이 다르면 원문 그대로.
+function ensoSeasonShort(s){
+  const m = /^([A-Z]{3})\s*(\d{4})$/.exec(s || '');
+  return m ? `${m[1]}'${m[2].slice(2)}` : (s || '');
+}
+// 🌡️ ONI 기온 추이(실측 차트) + 🔮 공식 예측 패널.
+// 공식 예측: data.json.climate.enso.forecast(실측 CPC/IRI 확률표 파싱)가 있으면
+// 인터랙티브 누적막대 차트로, 없으면 기존 NOAA 원본 이미지로 폴백(무회귀).
+// 캔버스는 innerHTML 후 buildEnsoTrendChart / buildEnsoForecastChart 가 채운다.
+function ensoTrendForecastHTML(live){
   const yr = new Date().getFullYear();
   const cpc = cpcProbUrl(yr);
   const plume = 'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/imagesInd3/nino34Mon.gif';
+  const cpcPage = 'https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/probabilities/';
+  const plumePage = 'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/';
+  const hasFc = !!(live && live.forecast && Array.isArray(live.forecast.seasons) && live.forecast.seasons.length);
   const img = (src,cap,page)=>`<figure style="margin:0;flex:1;min-width:210px;">
       <figcaption style="font-size:10px;color:var(--c-txt-dim);margin-bottom:3px;">${cap}</figcaption>
       <img src="${src}" loading="lazy" referrerpolicy="no-referrer" alt="${cap}" style="max-width:100%;border:1px solid var(--c-border);border-radius:var(--r-xs);display:block;"
            onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
       <a href="${page}" target="_blank" rel="noopener noreferrer" style="display:none;font-size:11px;color:var(--c-primary);">이미지 불러오기 실패 — 원본 보기 ↗</a>
     </figure>`;
+  // 🔮 공식 예측 블록 — 실측 확률 데이터 유무로 분기.
+  const chip = (c,t)=>`<span><span style="display:inline-block;width:10px;height:10px;background:${c};border-radius:2px;vertical-align:-1px;"></span> ${t}</span>`;
+  let forecastBlock;
+  if (hasFc) {
+    forecastBlock = `
+    <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🔮 공식 예측 <span style="font-weight:600;color:var(--c-txt-muted);">(NOAA CPC·IRI 확률 — 향후 분기별 국면 전망)</span></div>
+    <div style="position:relative;height:230px;margin-bottom:6px;"><canvas id="ensoForecastChart"></canvas></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--c-txt-dim);margin-bottom:6px;">
+      ${chip('#ef5350','엘니뇨')}${chip('#8b90a8','중립')}${chip('#2962ff','라니냐')}
+      <span>막대=각 분기 확률 합 100% · 막대 클릭/hover=상세</span>
+    </div>
+    <div style="font-size:10px;color:var(--c-txt-muted);margin-bottom:14px;">
+      ※ 향후 9개 중첩 3개월 시즌의 국면 확률(CPC/IRI 공식 합의 예측). 원본:
+      <a href="${cpcPage}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">CPC 확률 ↗</a> ·
+      <a href="${plumePage}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">CFSv2 Niño3.4 플룸 ↗</a>
+    </div>`;
+  } else {
+    forecastBlock = `
+    <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🔮 공식 예측 <span style="font-weight:600;color:var(--c-txt-muted);">(NOAA CPC 확률 · CFSv2 모델)</span></div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      ${img(cpc,'🇺🇸 NOAA CPC · 엘니뇨/중립/라니냐 확률 예측',cpcPage)}
+      ${img(plume,'🇺🇸 NOAA CFSv2 · Niño3.4 수치 예측',plumePage)}
+    </div>`;
+  }
   return `<div style="margin-bottom:14px;">
     <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🌡️ ONI 기온 추이 <span style="font-weight:600;color:var(--c-txt-muted);">(실측 · 최근 10년)</span></div>
     <div style="position:relative;height:190px;margin-bottom:6px;"><canvas id="ensoTrendChart"></canvas></div>
@@ -9056,12 +9091,46 @@ function ensoTrendForecastHTML(){
       <span><span style="display:inline-block;width:10px;height:10px;background:#2962ff33;border:1px solid #2962ff;border-radius:2px;vertical-align:-1px;"></span> 라니냐대 (&lt;−0.5°C)</span>
       <span>점선 = ±0.5°C 기준 · 끝점 = 현재</span>
     </div>
-    <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🔮 공식 예측 <span style="font-weight:600;color:var(--c-txt-muted);">(NOAA CPC 확률 · CFSv2 모델)</span></div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
-      ${img(cpc,'🇺🇸 NOAA CPC · 엘니뇨/중립/라니냐 확률 예측','https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/probabilities/')}
-      ${img(plume,'🇺🇸 NOAA CFSv2 · Niño3.4 수치 예측','https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/')}
-    </div>
+    ${forecastBlock}
   </div>`;
+}
+
+// 🔮 공식 예측 차트 — 시즌(x) × 국면 확률(누적 100% 막대). enso.forecast.seasons 가
+// 있을 때만 그린다. 색: 엘니뇨 빨강 / 중립 회색 / 라니냐 파랑(추이 차트와 동일 규약).
+function buildEnsoForecastChart(live){
+  if(typeof destroyChart==='function') destroyChart('ensoForecastChart');
+  const cv = document.getElementById('ensoForecastChart');
+  if(!cv) return;  // 폴백(이미지) 모드면 캔버스가 없음 — 정상.
+  const seasons = (live && live.forecast && Array.isArray(live.forecast.seasons)) ? live.forecast.seasons : [];
+  if(!seasons.length){
+    if(typeof showNoDataOverlay==='function') showNoDataOverlay('ensoForecastChart','공식 예측 확률 수집 대기 — 다음 일일 수집(CPC) 후 표시됩니다');
+    return;
+  }
+  const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
+  const labels = seasons.map(s=>ensoSeasonShort(s.label));
+  const ds = (key,color,label)=>({ label, data: seasons.map(s=>s[key]),
+    backgroundColor:color, borderWidth:0, stack:'enso', maxBarThickness:38 });
+  charts['ensoForecastChart'] = new Chart(cv, {
+    type:'bar',
+    data:{ labels, datasets:[
+      ds('elnino','#ef5350','엘니뇨'),
+      ds('neutral','#8b90a8','중립'),
+      ds('lanina','#2962ff','라니냐'),
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{intersect:false, mode:'index'},
+      scales:{
+        x:{ stacked:true, ticks:{color:tc.txt, font:{size:10}, maxRotation:0, autoSkip:false}, grid:{display:false} },
+        y:{ stacked:true, min:0, max:100, ticks:{color:tc.txt, font:{size:10}, stepSize:25, callback:v=>v+'%'}, grid:{color:tc.grid} },
+      },
+      plugins:{
+        legend:{ display:true, position:'bottom', labels:{color:tc.txt, boxWidth:10, boxHeight:10, font:{size:10}, padding:10} },
+        tooltip:{ backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttTitle, borderColor:tc.ttBorder, borderWidth:1,
+          callbacks:{ label:c=>`  ${c.dataset.label}: ${(c.parsed.y!=null?c.parsed.y:0)}%` } },
+      },
+    },
+  });
 }
 
 // 실측 ONI 시계열 차트. 국면대 음영 + ±0.5/0 기준선 + 끝점(현재) 강조. history 없으면 안내(날조 금지).
@@ -9198,11 +9267,12 @@ function renderEnsoCard() {
     ? ensoMacroHTML(ensoCurrent, _live)
     : ensoSectorHTML(ensoCurrent, _live);
   bodyEl.innerHTML = ensoHeadlineHTML(_live)
-    + ensoTrendForecastHTML()
+    + ensoTrendForecastHTML(_live)
     + ensoLensTabsHTML() + _viewHTML
     + ensoLogicDiagramHTML(_live)
     + ensoForecastsHTML(ensoForecastsExpanded);
   buildEnsoTrendChart(_live);
+  buildEnsoForecastChart(_live);
 }
 
 // 원자재·섹터 렌즈(기존 ①②) — 본문 HTML 문자열 반환. 내용·마크업은 기존과 동일하게 보존.
