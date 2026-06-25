@@ -33,7 +33,7 @@ Live site: `https://0101-commits.github.io/economic-site/`
 |----------|----------|---------------------|
 | `fetch-data.yml` | Every 10 min (market hours), hourly (off-hours), daily KST 09/16/22 | `KRX_ID`, `KRX_PW`, `FRED_API_KEY`, `ECOS_API_KEY`, `REALESTATE_API_KEY`, `KOSIS_API_KEY`, `ALPHAVANTAGE_API_KEY`, `DATA_GO_KR_API_KEY`, `KIS_APP_KEY`/`KIS_APP_SECRET` (optional), `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET` (optional), `GEMINI_API_KEY`/`OPENAI_API_KEY` (for AI briefing) |
 | `kakao-daily.yml` | Weekdays 07–22 KST hourly, weekends 11 & 17 KST | `KAKAO_REST_API_KEY`, `KAKAO_REFRESH_TOKEN` |
-| `stock-alerts.yml` | Every 15 min during KR/US market hours | same Kakao secrets |
+| `stock-alerts.yml` | Every 5 min during KR/US market hours | same Kakao secrets |
 | `link-check.yml` | Periodic | none |
 
 Trigger `fetch-data` or `kakao-daily` manually via **Actions → workflow_dispatch** for testing.
