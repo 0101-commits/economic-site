@@ -1676,7 +1676,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 
     <div class="page" id="page-market">
       <div id="marketHaltHistory" class="widget" style="display:none;margin-bottom:16px;"></div>
-      <div style="display:flex;gap:6px;margin-bottom:16px;">
+      <div id="marketMainTabs" style="display:flex;gap:6px;margin-bottom:16px;">
         <button class="tab-btn active" style="font-size:12px;padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);background:var(--c-accent);" onclick="setMarketTab('fx',this)">외환</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMarketTab('rate',this)">📈 금리</button>
         <button class="tab-btn" style="font-size:12px;padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMarketTab('bond',this)">📋 채권</button>
@@ -7181,7 +7181,9 @@ const NAVER_MARKET_LINKS = {
 function setMarketTab(tab, btn) {
   if(tab === 'equity') { showPage('equity', menuItemFor('equity')); return; }   // 별도 페이지로 분리됨
   marketTab = tab;
-  document.querySelectorAll('#page-market > div:first-child .tab-btn').forEach(b=>{
+  // 탭 리셋 — 시장중단 이력(#marketHaltHistory) 추가로 div:first-child 가 탭바를 안 가리켜 회귀했던 것 수정.
+  const _tabBar = document.getElementById('marketMainTabs') || (btn && btn.parentElement);
+  if(_tabBar) _tabBar.querySelectorAll('.tab-btn').forEach(b=>{
     b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
   });
   if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='#fff'; }
