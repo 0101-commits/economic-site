@@ -1435,6 +1435,10 @@ FRED_INTL_INDICATORS = {
         "base_rate":    ("IRSTCI01JPM156N",  "일본 정책금리 (BOJ 무담보 익일물 유도목표)"),
         # 일본 산업생산지수 (OECD 시계열, 2015=100, 계절조정)
         "ip":           ("JPNPROINDMISMEI",  "일본 산업생산지수 (2015=100, 계절조정)"),
+        # 일본 10년 국채 수익률 (OECD 장기국채금리, 월별) — 카톡 07·21시 차트용.
+        #   ⚠ FRED 에 일본 국채는 월별만 있어 인트라데이/일별이 없다(미국·한국은 일별 yieldCurve 사용).
+        #   economicIndicators.jp.bond10y_jp.history(월별)로 저장된다.
+        "bond10y":      ("IRLTLT01JPM156N",  "일본 10년 국채 (월별)"),
     },
     "eu": {
         "cpi":          ("CP0000EZ19M086NEST", "유로존 HICP (전체)"),
