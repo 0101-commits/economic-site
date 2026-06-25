@@ -5,7 +5,7 @@
 흐름:
   '투자 현황' 페이지에서 설정한 알림 조건을 Cloudflare Worker(POST /portfolio)가
   저장소 alerts_config.json 에 커밋 → 본 스크립트가 GitHub Actions(stock-alerts.yml,
-  장중 15분 주기)에서 실행되어 조건 충족 알림을 카카오톡으로 발송한다.
+  장중 5분 주기)에서 실행되어 조건 충족 알림을 카카오톡으로 발송한다.
 
 지원 조건(type):
   price_above / price_below — 목표 가격 도달(이상/이하)

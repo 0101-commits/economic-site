@@ -1583,7 +1583,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
         </div>
         <div id="pfAlertSummary" style="font-size:12px;color:#a4a8bc;">설정된 알림이 없습니다. 종목 행의 🔔 버튼으로 추가하세요.</div>
         <div style="font-size:10px;color:#7a8099;margin-top:8px;line-height:1.6;">
-          알림은 장중 15분 주기로 서버(GitHub Actions)가 조건을 평가해 카카오톡으로 발송합니다. <b>발송되려면 반드시 「☁ 서버에 저장」을 눌러야 합니다.</b>
+          알림은 장중 5분 주기로 서버(GitHub Actions)가 조건을 평가해 카카오톡으로 발송합니다(조건 충족 후 보통 5분 내 안내). <b>발송되려면 반드시 「☁ 서버에 저장」을 눌러야 합니다.</b>
           도배 방지: 알림별로 <b>하루 1회</b> 또는 <b>1시간 쿨다운</b> 중 선택. 알림 메시지에도 15분 지연 문구가 함께 표기됩니다.
           알림 조건(종목·조건값)은 공개 저장소의 <code style="background:#262a35;padding:1px 4px;border-radius:var(--r-xs);">alerts_config.json</code> 에 저장됩니다(평단가·수량은 전송되지 않음). 설정 방법: 저장소의 STOCK_ALERTS.md 참고.
         </div>
@@ -17093,7 +17093,7 @@ window.addEventListener('load', async ()=>{
  *   USD/KRW 환율로 원화 환산해 총 평가금액·손익·비중(파이)을 계산한다.
  * - 상세 차트: TradingView Lightweight Charts(오픈소스) 캔들 + 거래량 + MA/RSI/MACD 토글.
  * - 카카오 알림: 조건(가격/등락률/52주/거래량/골든·데드크로스)을 Worker 의 POST /portfolio 로
- *   저장소 alerts_config.json 에 커밋 → GitHub Actions(stock-alerts.yml)가 장중 15분마다
+ *   저장소 alerts_config.json 에 커밋 → GitHub Actions(stock-alerts.yml)가 장중 5분마다
  *   scripts/check_alerts.py 로 평가해 카카오톡 발송. 도배 방지(하루 1회/1시간 쿨다운) 포함.
  * ============================================================================ */
 
@@ -18300,7 +18300,7 @@ async function pfSyncAlerts(stOverride) {
   }
 }
 // 🔔 알림 테스트 발송 — Worker POST /portfolio/test 가 repository_dispatch(alerts-test)로
-// stock-alerts 워크플로를 즉시 1회 깨운다. 설정 검증에 다음 15분 cron 을 기다릴 필요 없음.
+// stock-alerts 워크플로를 즉시 1회 깨운다. 설정 검증에 다음 5분 cron 을 기다릴 필요 없음.
 // 테스트 런은 장중/쿨다운 가드를 무시하고 평가하며, 메시지에 "[테스트]" 프리픽스가 붙는다.
 async function pfTestAlerts() {
   const st = _pfSyncStatusEl();

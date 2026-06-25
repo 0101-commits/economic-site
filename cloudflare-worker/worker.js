@@ -301,7 +301,7 @@ async function _testGemini(key) {
 // ──────────────────────────────────────────────────────────────────
 // 프론트('투자 현황' 페이지)가 카카오 알림 조건을 POST 하면, GitHub Contents API 로
 // 저장소 alerts_config.json 에 커밋한다(브라우저엔 GitHub 토큰을 노출할 수 없어 Worker 가 중계).
-// 그 파일을 GitHub Actions(stock-alerts.yml)가 장중 15분마다 평가해 카카오톡으로 발송한다.
+// 그 파일을 GitHub Actions(stock-alerts.yml)가 장중 5분마다 평가해 카카오톡으로 발송한다.
 //   필요한 시크릿: GH_DISPATCH_TOKEN (Contents: Read and write — kakao cron 과 공용)
 //   필수 시크릿: ALERTS_SYNC_KEY — body.keyHash(SHA-256) 가 일치해야 저장 허용.
 //     미설정 시 쓰기 자체가 비활성화된다(fail-closed — 무인증 쓰기 개방 방지).
@@ -499,7 +499,7 @@ async function handlePortfolioPost(request, env) {
 }
 
 // 🔔 알림 테스트 발송 — POST /portfolio/test
-// 알림 평가는 평소 stock-alerts.yml 의 15분 cron 에서만 돌아 설정 검증에 최대 15분이 걸린다.
+// 알림 평가는 평소 stock-alerts.yml 의 5분 cron 에서만 돌아 설정 검증에 최대 5분이 걸린다.
 // 이 엔드포인트는 키 검증 후 repository_dispatch(alerts-test) 로 워크플로를 즉시 1회 깨워
 // 사용자가 저장 직후 바로 평가·발송 결과를 확인할 수 있게 한다.
 async function handlePortfolioTest(request, env) {
