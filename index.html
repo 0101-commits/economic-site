@@ -9090,15 +9090,27 @@ function _ensoComBar(c){
   </div>`;
 }
 
-// 섹터 → 수혜🔵/부담🔴/혼재🟠 열. 종목은 칩, 근거는 hover.
+// 섹터 → 수혜🔵/부담🔴/혼재🟠 열. 종목은 칩. 카드 클릭 시 상세(영향 구분·근거) 펼침 — 모바일 hover 대응.
+const ENSO_EFFLAB = { pos:'수혜', neg:'부담', mixed:'혼재' };
 function _ensoSectorCols(sectors){
   const pos = sectors.filter(x=>x.effect==='pos');
   const neg = sectors.filter(x=>x.effect==='neg');
   const mix = sectors.filter(x=>x.effect!=='pos' && x.effect!=='neg');
-  const card = (x,color)=>`<div title="${_ensoAttr(x.note)}" style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${color};border-radius:var(--r-xs);padding:6px 9px;margin-bottom:6px;">
-      <div style="font-size:12px;font-weight:600;color:var(--c-txt);">${x.sector}</div>
+  const card = (x,color)=>{
+    const eff = x.effect==='pos' ? 'pos' : x.effect==='neg' ? 'neg' : 'mixed';
+    return `<div class="enso-com-row" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');" style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${color};border-radius:var(--r-xs);padding:6px 9px;cursor:pointer;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="flex:1;font-size:12px;font-weight:600;color:var(--c-txt);">${x.sector}</div>
+        <span class="enso-chev" style="font-size:9px;color:var(--c-txt-muted);">▼</span>
+      </div>
       <div style="font-size:11px;color:var(--c-primary);line-height:1.45;margin-top:1px;">${x.tickers}</div>
+    </div>
+    <div class="enso-com-detail" style="margin-bottom:6px;">
+      <div style="padding:7px 9px 9px;font-size:11px;line-height:1.6;color:var(--c-txt-dim);background:var(--c-bg);border:1px solid var(--c-border);border-top:none;border-left:3px solid ${color};border-radius:0 0 var(--r-xs) var(--r-xs);">
+        <b style="color:${color};">${ENSO_EFFLAB[eff]}</b> · ${x.note}
+      </div>
     </div>`;
+  };
   const col = (title,color,items)=> items.length ? `<div style="flex:1;min-width:178px;">
       <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:5px;">${title}</div>
       ${items.map(x=>card(x,color)).join('')}
@@ -9173,7 +9185,10 @@ function ensoSectorHTML(phaseKey, _live) {
         ${comBars}
       </div>
       <div>
-        <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">② 연동 주가·산업 (국내)${strength?` <span style="font-weight:600;color:var(--c-txt-dim);font-size:10px;">· 현재 ${strength}</span>`:''}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span>② 연동 주가·산업 (국내)${strength?` <span style="font-weight:600;color:var(--c-txt-dim);font-size:10px;">· 현재 ${strength}</span>`:''}</span>
+          <span style="font-weight:600;color:var(--c-txt-muted);font-size:10px;">클릭=상세</span>
+        </div>
         ${_ensoSectorCols(s.sectors)}
       </div>
     </div>`;
