@@ -315,6 +315,11 @@
   .grid-split{ display:grid; grid-template-columns:1fr 320px; gap:var(--sp-4); }
   @media (max-width:1024px){ .grid-3,.grid-4{ grid-template-columns:repeat(2,1fr); } .grid-split{ grid-template-columns:1fr; } }
   @media (max-width:768px){ .grid-2,.grid-3,.grid-4{ grid-template-columns:1fr; } }
+  /* ENSO 원자재 확장형 영향 행 — 클릭 시 상세 펼침 */
+  .enso-com-detail{ max-height:0; overflow:hidden; transition:max-height .3s ease; }
+  .enso-com-detail.open{ max-height:160px; }
+  .enso-chev{ display:inline-block; transition:transform .3s ease; }
+  .enso-com-row.open .enso-chev{ transform:rotate(180deg); }
   /* 라이트 테마 — inline 스타일 오버라이드 (color attributes) */
   html.light [style*="#262a35"] { background-color: #d9edf8 !important; }
   html.light [style*="background:#262a35"] { background-color: #d9edf8 !important; }
@@ -8723,6 +8728,11 @@ function ensoLiveSentence(e) {
 }
 let ensoCurrent = 'elnino';
 let ensoView = 'sector';  // 분석 렌즈: 'sector'=원자재·섹터(기존) | 'macro'=시간축 거시 파급(신규)
+// ① 원자재 영향 행 — 필터(변동성)·정렬 상태. 변경 시 카드 재렌더.
+let ensoComFilter = 'all';  // all | 高 | 中 | 低
+let ensoComSort   = 'vol';  // vol(변동성) | dir(방향) | name(이름)
+function setEnsoComFilter(v){ ensoComFilter = v; renderEnsoCard(); }
+function setEnsoComSort(v){ ensoComSort = v; renderEnsoCard(); }
 function _ensoDirChip(dir) {
   if(dir === 'up')   return '<span class="up-txt" style="font-weight:600;font-size:11px;">▲ 상승 압력</span>';
   if(dir === 'down') return '<span class="down-txt" style="font-weight:600;font-size:11px;">▼ 하락 압력</span>';
@@ -9050,7 +9060,8 @@ function buildEnsoTrendChart(live){
   });
 }
 
-// 원자재 방향성 바 — 상승▲(빨강,우)/하락▼(파랑,좌)/혼조↔(주황,중앙), 길이=변동성(高/中/低). 근거는 hover.
+// 원자재 방향성 바 — 상승▲(빨강,우)/하락▼(파랑,좌)/혼조↔(주황,중앙), 길이=변동성(高/中/低).
+// 행 클릭 시 상세(핵심 근거·방향·변동성) 펼침 — hover 안 되는 모바일 대응. 상세값은 전부 실데이터.
 function _ensoComBar(c){
   const VOLW = {'高':46,'中':30,'低':15};
   const w = VOLW[c.vol] || 20;
@@ -9060,7 +9071,8 @@ function _ensoComBar(c){
             : down ? `right:50%;width:${w}%;`
             :        `left:calc(50% - 7px);width:14px;`;
   const dirTxt = up ? '▲ 상승압력' : down ? '▼ 하락압력' : '↔ 혼조';
-  return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border);" title="${_ensoAttr(c.note)}">
+  const volTxt = {'高':'높음','中':'중간','低':'낮음'}[c.vol] || c.vol;
+  return `<div class="enso-com-row" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border);cursor:pointer;">
     <div style="min-width:88px;font-size:12px;font-weight:600;color:var(--c-txt);">${c.name}</div>
     <div style="position:relative;flex:1;height:16px;background:var(--c-bg);border-radius:4px;">
       <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--c-border);"></div>
@@ -9068,6 +9080,13 @@ function _ensoComBar(c){
     </div>
     <div style="min-width:64px;text-align:right;font-size:10px;font-weight:700;color:${color};">${dirTxt}</div>
     <div style="min-width:16px;font-size:10px;font-weight:700;color:var(--c-txt-muted);">${c.vol}</div>
+    <span class="enso-chev" style="min-width:12px;font-size:9px;color:var(--c-txt-muted);">▼</span>
+  </div>
+  <div class="enso-com-detail">
+    <div style="padding:8px 4px 10px;display:flex;flex-direction:column;gap:5px;font-size:11px;line-height:1.6;">
+      <div style="color:var(--c-txt-dim);"><b style="color:var(--c-txt);">핵심 근거</b> · ${c.note}</div>
+      <div style="color:var(--c-txt-muted);">가격 방향 <b style="color:${color};">${dirTxt}</b> · 예상 변동성 <b style="color:var(--c-txt);">${volTxt}(${c.vol})</b></div>
+    </div>
   </div>`;
 }
 
@@ -9118,7 +9137,22 @@ function renderEnsoCard() {
 function ensoSectorHTML(phaseKey, _live) {
   const s = ENSO_SCENARIOS[phaseKey];
   const volC = s.overallVol.indexOf('高') >= 0 ? '#ef5350' : (s.overallVol.indexOf('中') >= 0 ? '#f5a623' : '#8b90a8');
-  const comBars = s.commodities.map(_ensoComBar).join('');
+  // ① 원자재 — 필터(변동성)·정렬 적용. 0 으로 떨어지는 dir 랭크 회피 위해 1부터 매김(|| 9 안전).
+  const VOLRANK = {'高':3,'中':2,'低':1}, DIRRANK = {'up':1,'mixed':2,'down':3};
+  let _coms = s.commodities.slice();
+  if (ensoComFilter !== 'all') _coms = _coms.filter(c => c.vol === ensoComFilter);
+  if (ensoComSort === 'vol')       _coms.sort((a,b)=>(VOLRANK[b.vol]||0)-(VOLRANK[a.vol]||0));
+  else if (ensoComSort === 'dir')  _coms.sort((a,b)=>(DIRRANK[a.dir]||9)-(DIRRANK[b.dir]||9));
+  else if (ensoComSort === 'name') _coms.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+  const _comSel = (fn,val,opts)=>`<select onchange="${fn}(this.value)" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);font-size:10px;padding:2px 6px;cursor:pointer;">${opts.map(([v,l])=>`<option value="${v}"${v===val?' selected':''}>${l}</option>`).join('')}</select>`;
+  const comControls = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+    <span style="font-size:10px;color:var(--c-txt-muted);font-weight:700;">필터</span>
+    ${_comSel('setEnsoComFilter',ensoComFilter,[['all','전체 변동성'],['高','높음(高)'],['中','중간(中)'],['低','낮음(低)']])}
+    <span style="font-size:10px;color:var(--c-txt-muted);font-weight:700;">정렬</span>
+    ${_comSel('setEnsoComSort',ensoComSort,[['vol','변동성순'],['dir','방향순'],['name','이름순']])}
+  </div>`;
+  const comBars = _coms.length ? _coms.map(_ensoComBar).join('')
+    : `<div style="padding:14px 4px;font-size:11px;color:var(--c-txt-muted);text-align:center;">해당 변동성 등급의 원자재가 없습니다.</div>`;
   const strength = _live ? (ensoStrengthLabel(_live.strength) || ensoPhaseLabel(_live.phase)) : '';
   return `
     <div style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${s.accent};border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;">
@@ -9133,8 +9167,9 @@ function ensoSectorHTML(phaseKey, _live) {
       <div>
         <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <span>① 원자재 수급·가격 압력</span>
-          <span style="font-weight:600;color:var(--c-txt-muted);font-size:10px;">막대 길이=변동성 · hover=근거${strength?` · 현재 ${strength}`:''}</span>
+          <span style="font-weight:600;color:var(--c-txt-muted);font-size:10px;">막대 길이=변동성 · 클릭=상세${strength?` · 현재 ${strength}`:''}</span>
         </div>
+        ${comControls}
         ${comBars}
       </div>
       <div>
