@@ -42,7 +42,14 @@
   // 크론 발화→dispatch→잡 기동→발송까지 실측 약 60초가 걸려 :02(UTC)에 발화시킨다.
   // UTC 환산(요일은 UTC 기준): 평일 KST 09~22시 = UTC 월~금 00~13시 / 평일 KST 07·08시 = UTC 일~목 22·23시
   //                          / 주말 KST 11·17시 = UTC 토·일 02·08시.
-  // Cloudflare 는 Worker 당 cron 5개 제한 — 4식 사용(5개 이내).
+  // Cloudflare 는 Worker 당 cron 5개 제한 — 5식 사용(한도 정확히 채움).
+  //
+  // 🔔 5번째 cron "*/5 * * * *" — 종목 알림(stock-alerts)·서킷브레이커(fetch-data→check_halts) 정시성 보강.
+  //    GitHub Actions schedule(stock-alerts */5, fetch-data */10)은 best-effort 라 5~15분 밀려 알림이
+  //    늦게 도착하던 문제 해소. 이 cron 은 24/7 5분마다 발화하지만 scheduled() 가 '장중'에만 dispatch 하고
+  //    장외에는 즉시 종료해 GitHub 를 깨우지 않는다(=Actions 분 낭비 없음). 장중에는 repository_dispatch 로
+  //    alerts-cron(종목) + fetch-data(시세·halt 데이터 갱신) 두 워크플로를 on-demand 실행 → 도착 ~5분 내.
+  //    GHA schedule 은 폴백으로 유지(둘 다 돌아도 종목=시세 dedup, fetch=concurrency 직렬화라 멱등·안전).
   // ⚠️ Cloudflare cron 파서는 weekday 필드에서 0(일요일)을 포함한 범위(예: 0-4)를 거부(code 10100).
   //    GitHub Actions 는 0 허용하지만 Cloudflare 는 7(ISO Sunday)만 허용 → 0 대신 7 사용.
   //    0-4 범위(일~목)는 단일 식으로 불가 → "1-4"(월~목) + "7"(일) 두 식으로 분리.
@@ -54,6 +61,6 @@
   // 동작에는 Worker 시크릿 GH_DISPATCH_TOKEN(저장소 dispatch 권한 PAT) 이 필요하다(README 참고).
   // ⚠️ cron 변경은 Worker 재배포(main 머지 → 자동 배포 또는 `npx wrangler deploy`) 후에 적용된다.
   "triggers": {
-    "crons": ["2 0-13 * * 1-5", "2 22,23 * * 1-4", "2 22,23 * * 7", "2 2,8 * * 6,7"]
+    "crons": ["2 0-13 * * 1-5", "2 22,23 * * 1-4", "2 22,23 * * 7", "2 2,8 * * 6,7", "*/5 * * * *"]
   }
 }

@@ -674,11 +674,13 @@ async function handlePortfolioTest(request, env) {
 //     (fine-grained: 0101-commits/economic-site 의 Contents=Read and write).
 //   미설정 시: 아무 것도 안 하고 경고만 남긴다(배포는 안전).
 const GH_REPO = '0101-commits/economic-site';
-async function triggerKakaoDispatch(env, cron) {
+
+// 공통 repository_dispatch — eventType 워크플로를 on-demand 1회 실행시킨다(204=성공).
+async function ghDispatch(env, eventType, payload, ua) {
   const token = env && env.GH_DISPATCH_TOKEN;
   if (!token) {
-    console.log('[kakao-cron] GH_DISPATCH_TOKEN 미설정 — dispatch 생략. (README 참고: Worker 시크릿 추가 필요)');
-    return;
+    console.log(`[cron] GH_DISPATCH_TOKEN 미설정 — ${eventType} dispatch 생략. (README 참고)`);
+    return false;
   }
   try {
     const r = await fetch(`https://api.github.com/repos/${GH_REPO}/dispatches`, {
@@ -687,23 +689,58 @@ async function triggerKakaoDispatch(env, cron) {
         'Authorization': 'Bearer ' + token,
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'ecom-kakao-cron',
+        'User-Agent': ua || 'ecom-cron',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ event_type: 'kakao-send', client_payload: { cron: cron || '' } }),
+      body: JSON.stringify({ event_type: eventType, client_payload: payload || {} }),
       signal: AbortSignal.timeout(15000),
     });
-    // 성공 시 204 No Content. 실패 시 본문에 사유.
-    console.log('[kakao-cron] dispatch HTTP', r.status, r.ok ? '(요청 성공)' : await r.text().catch(() => ''));
+    console.log(`[cron] ${eventType} dispatch HTTP`, r.status, r.ok ? '(요청 성공)' : await r.text().catch(() => ''));
+    return r.ok;
   } catch (e) {
-    console.log('[kakao-cron] dispatch 오류:', String((e && e.message) || e));
+    console.log(`[cron] ${eventType} dispatch 오류:`, String((e && e.message) || e));
+    return false;
   }
+}
+
+async function triggerKakaoDispatch(env, cron) {
+  return ghDispatch(env, 'kakao-send', { cron: cron || '' }, 'ecom-kakao-cron');
+}
+
+// 🔔 장중 판정(UTC) — stock-alerts.yml / fetch-data.yml 의 장중 cron 윈도우와 동일.
+//   KR 장중: UTC 월~금 00:00–06:59 (= KST 09:00–15:59)
+//   US 장중: UTC 월~금 13:00–21:59 (= KST 22:00–06:59)
+// 장외에는 GitHub 를 깨우지 않아 Actions 분/무료 API 호출을 낭비하지 않는다.
+function inMarketHours(d) {
+  const day = d.getUTCDay();        // 0=일 .. 6=토
+  if (day < 1 || day > 5) return false;
+  const h = d.getUTCHours();
+  return (h <= 6) || (h >= 13 && h <= 21);
+}
+
+// 🔔 종목 알림(alerts-cron) + 서킷브레이커 데이터 갱신(fetch-data) on-demand 실행.
+// GHA schedule 드롭 영향을 받지 않아 장중 5분 주기를 안정적으로 보장한다.
+async function triggerMarketAlerts(env) {
+  if (!(env && env.GH_DISPATCH_TOKEN)) {
+    console.log('[market-cron] GH_DISPATCH_TOKEN 미설정 — dispatch 생략. (README 참고)');
+    return;
+  }
+  if (!inMarketHours(new Date())) return;   // 장외 — GitHub 깨우지 않음
+  await Promise.all([
+    ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron'),
+    ghDispatch(env, 'fetch-data', {}, 'ecom-fetch-cron'),
+  ]);
 }
 
 export default {
   // Cloudflare Cron Trigger 진입점
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(triggerKakaoDispatch(env, event && event.cron));
+    const cron = event && event.cron;
+    if (cron === '*/5 * * * *') {
+      ctx.waitUntil(triggerMarketAlerts(env));      // 5분 cron → 종목·halt 정시성 보강
+    } else {
+      ctx.waitUntil(triggerKakaoDispatch(env, cron)); // 기존 hourly cron → 카카오 시황 다이제스트
+    }
   },
 
   async fetch(request, env) {

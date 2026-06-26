@@ -9,8 +9,7 @@ fetch-data.yml 에서 fetch_data.py 직후 실행되어, 직전 발송 이력(ha
 도배 방지: 사건 id 당 발동 1회 + 해제 1회. 이력은 halts_state.json 에 남고 워크플로가
 data.json 과 함께 커밋해 런 간 보존한다.
 
-테스트 발송: GITHUB_EVENT_NAME=repository_dispatch 또는 HALTS_TEST=1 이면 가짜 사건 1건만
-보내 경로를 검증하며 이력을 갱신하지 않는다.
+테스트 발송: HALTS_TEST=1 이면 가짜 사건 1건만 보내 경로를 검증하며 이력을 갱신하지 않는다.
 
 필요 Secrets: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (시황 다이제스트와 공용)."""
 import os
@@ -23,8 +22,10 @@ KST = datetime.timezone(datetime.timedelta(hours=9))
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 DATA_PATH = os.path.join(ROOT, "data.json")
 STATE_PATH = os.path.join(ROOT, "halts_state.json")
-IS_TEST = (os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch"
-           or os.environ.get("HALTS_TEST") == "1")
+# ⚠️ HALTS_TEST=1 일 때만 테스트(가짜 사건) 발송. repository_dispatch 전체를 테스트로 보면 안 된다 —
+#    Worker cron 의 정시성 보강용 fetch-data dispatch 런에서 가짜 서킷브레이커가 발송되기 때문.
+#    테스트 경로(halts-test.yml)는 HALTS_TEST=1 을 명시 전달한다.
+IS_TEST = os.environ.get("HALTS_TEST") == "1"
 
 TYPE_KO = {"circuit": "서킷브레이커", "sidecar": "사이드카"}
 DELAY_NOTICE = "※ 최대 15분 지연 가능 · 정확한 시각은 거래소/증권사 앱 확인"

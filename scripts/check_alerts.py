@@ -46,7 +46,10 @@ DELAY_NOTICE = "※ 15분 지연 데이터 기준"
 # repository_dispatch(alerts-test) 로 실행된 런. 설정 검증이 목적이므로
 # 장중/쿨다운 가드를 무시하고 평가하며, 발송 이력(state)은 갱신하지 않아
 # 이후 정규 cron 의 실제 알림 1일 1회 한도를 소모하지 않는다.
-IS_TEST = os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch"
+# ⚠️ repository_dispatch 전체가 아니라 'alerts-test' 액션만 테스트로 본다 — Worker cron 의
+#    정시성 보강용 'alerts-cron' dispatch 는 정규 런(가드·이력 갱신 적용)이어야 하기 때문.
+#    워크플로가 ALERTS_TEST=true/false 를 명시 전달한다(stock-alerts.yml).
+IS_TEST = os.environ.get("ALERTS_TEST") == "true"
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")

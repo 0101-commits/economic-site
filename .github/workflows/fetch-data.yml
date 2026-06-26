@@ -23,6 +23,11 @@ on:
     - cron: '0 13 * * *'     # KST 22:00 (UTC 13:00) — 매일 저녁 종합 갱신 (당일 발표 반영)
     - cron: '30 13 * * *'    # KST 22:30 (UTC 13:30) — 10PM 데이터 미수집 대비 보강
   workflow_dispatch:        # 수동 실행 허용
+  # 🔔 Worker cron(*/5 장중)이 정시성 보강용으로 깨우는 on-demand 런 — GHA schedule(*/10) 드롭에
+  #    영향받지 않아 시세·서킷브레이커(check_halts) 데이터를 장중 5분 주기로 안정 갱신한다.
+  #    concurrency 직렬화 + fetch_data 부분실패 시 이전값 보존이라 schedule 과 겹쳐도 멱등·안전.
+  repository_dispatch:
+    types: [fetch-data]
   # ── 코드/워크플로 변경 시 즉시 데이터 재생성 ──
   # 스케줄 cron 은 GitHub 측 지연으로 늦게/누락 발화할 수 있어, fetch 로직이나 본
   # 워크플로가 main 에 머지되면 곧바로 한 번 돌려 data.json 을 최신 코드로 갱신한다.
