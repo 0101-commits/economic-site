@@ -1492,7 +1492,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             <span class="widget-title" style="margin-bottom:0;">지정 종목 트래킹</span>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
               <button class="tab-btn" onclick="pfSyncTracking()" title="관심종목·그룹을 서버에 저장해 다른 기기/플랫폼에서도 같은 목록을 봅니다 (평단가·수량은 이 기기에만 저장)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">☁ 목록 저장</button>
-              <button class="tab-btn" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 이 기기 값 유지)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 불러오기</button>
+              <button class="tab-btn" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 암호화 동기화 켜둔 경우 함께 복원)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 불러오기</button>
+              <button class="tab-btn" id="pfHoldingsPassBtn" onclick="pfSetHoldingsPass()" title="평단가·수량을 암호화해 기기 간 동기화 — 암호 설정 후 「☁ 목록 저장」하면 암호문으로 함께 저장되고, 다른 기기에서 같은 암호로 「⬇ 불러오기」 시 복원됩니다. 서버엔 암호문만 저장(평문 자산 노출 없음)." style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">🔐 평단가 동기화</button>
               <button class="tab-btn" onclick="pfRefreshQuotes(true)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">↻ 시세 새로고침</button>
               <button class="tab-btn" onclick="pfExportCsv()" title="포트폴리오를 CSV 파일로 저장 (Excel 호환)" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ CSV 저장</button>
             </div>
@@ -18378,6 +18379,8 @@ async function pfSyncAlerts(stOverride) {
         alerts: pfState.alerts,
         // 📋 지정 종목 트래킹(관심목록) 동봉 — 다른 기기/플랫폼에서도 같은 목록을 보기 위함.
         tracking: pfBuildTrackingPayload(),
+        // 🔐 평단가·수량(암호화 블록) — 암호 설정 시에만 동봉. 미설정이면 undefined → 서버 기존본 보존.
+        encHoldings: await pfBuildEncHoldings(),
         // [3차-T15] 전역 알림 설정 동봉 — Worker 가 화이트리스트 검증 후 alerts_config.json 에 커밋
         settings: (window.econSettings ? {
           enabled: !!econSettings.get('notif.globalEnabled'),
@@ -18498,7 +18501,7 @@ async function pfPullTracking(auto) {
   }
   if(!auto) {
     const adds = tr.items.filter(s => !pfState.items.some(it => it.symbol === s.symbol && it.market === s.market)).length;
-    if(!confirm(`서버 관심목록 ${tr.items.length}개를 불러옵니다.\n· 새 종목 ${adds}개 추가\n· 그룹 소속·이름은 서버 기준으로 맞춥니다\n· 평단가·수량은 이 기기 값이 그대로 유지됩니다.\n진행할까요?`)) {
+    if(!confirm(`서버 관심목록 ${tr.items.length}개를 불러옵니다.\n· 새 종목 ${adds}개 추가\n· 그룹 소속·이름은 서버 기준으로 맞춥니다\n· 평단가·수량: 암호화 동기화를 켜둔 경우 서버 암호본을 복호화해 채우고, 아니면 이 기기 값 유지\n진행할까요?`)) {
       if(st) { st.textContent = ''; }
       return;
     }
@@ -18536,10 +18539,101 @@ async function pfPullTracking(auto) {
   if(typeof pfClearDirty === 'function') pfClearDirty();   // 서버 목록을 막 받음 → 관심목록은 서버와 동기 상태
   pfRenderAll();
   pfRefreshQuotes();
+  // 🔐 암호화된 평단가/수량이 서버에 있으면 복호화해 병합(자동 복원은 암호 저장된 기기에서만 조용히).
+  let _encApplied = 0;
+  if (j.encHoldings) { try { _encApplied = await pfApplyEncHoldings(j.encHoldings, { silent: auto }); } catch(_) {} }
   if(st) {
-    st.textContent = auto ? `서버 목록 동기화됨 (신규 ${added}개)` : `불러옴 — 신규 ${added}개 추가 (총 ${pfState.items.length}개)`;
+    const _enc = _encApplied > 0 ? ` · 평단가 ${_encApplied}개 복원` : '';
+    st.textContent = (auto ? `서버 목록 동기화됨 (신규 ${added}개` : `불러옴 — 신규 ${added}개 추가 (총 ${pfState.items.length}개`) + _enc + ')';
     st.style.color = '#26a69a';
   }
+}
+
+// ── 🔐 평단가·수량 E2E 암호화 동기화 ──────────────────────────────────────────
+// 평단가/수량/매입환율은 공개 저장소(alerts_config.json)에 평문으로 올리지 않는다.
+// 사용자 암호로 이 기기에서 AES-GCM 암호화한 '불투명 블록'만 서버에 저장하고, 다른 기기에서
+// 같은 암호로 복호화한다. 암호는 이 기기 localStorage 에만 둔다(이 기기엔 이미 평문 보유정보가
+// 있으므로 위협이 늘지 않음 — E2E 의 보호 대상은 서버/공개 repo 사본이다).
+// 자체 크립토 헬퍼(전역) — exportAllUserData 쪽 _deriveKey/_b64 는 IIFE 안이라 여기선 접근 불가.
+const PF_KDF_ITER = 600000;  // OWASP 권장 PBKDF2-HMAC-SHA256 반복수
+function _pfB64(bytes) { const u = new Uint8Array(bytes); let b = ''; for (let i = 0; i < u.length; i += 8192) b += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(b); }
+function _pfUnB64(s) { const bin = atob(String(s)); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+async function _pfDeriveKey(pass, salt) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: PF_KDF_ITER, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+function pfGetHoldingsPass() { try { return localStorage.getItem('pfHoldingsPass') || ''; } catch(_) { return ''; } }
+function pfUpdateHoldingsSyncUI() {
+  const b = document.getElementById('pfHoldingsPassBtn');
+  if (!b) return;
+  const on = !!pfGetHoldingsPass();
+  b.textContent = on ? '🔐 평단가 동기화 ON' : '🔐 평단가 동기화';
+  b.style.borderColor = on ? '#26a69a' : 'var(--c-border)';
+  b.style.color = on ? '#26a69a' : 'var(--c-primary)';
+}
+function pfSetHoldingsPass() {
+  const on = !!pfGetHoldingsPass();
+  const p = prompt('평단가·수량 동기화 암호\n\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), '');
+  if (p === null) return;
+  try {
+    if (!p.trim()) { localStorage.removeItem('pfHoldingsPass'); if(typeof showToast==='function') showToast('평단가 동기화 해제 — 이후 「☁ 목록 저장」에서 평단가/수량은 서버에 올라가지 않습니다.', 4000); }
+    else { localStorage.setItem('pfHoldingsPass', p); if(typeof showToast==='function') showToast('평단가 동기화 암호 설정 완료 — 「☁ 목록 저장」 시 평단가/수량이 암호화돼 함께 저장됩니다.', 4000); }
+  } catch(_) {}
+  pfUpdateHoldingsSyncUI();
+}
+// 보유정보 → 암호문 블록(서버 전송용). 암호 미설정/대상 없음이면 undefined(전송 안 함 → 서버는 기존 보존).
+async function pfBuildEncHoldings() {
+  const pass = pfGetHoldingsPass();
+  if (!pass || !pfState || !Array.isArray(pfState.items)) return undefined;
+  const map = pfState.items
+    .filter(it => it.avg != null || it.qty != null)
+    .map(it => ({ s: it.symbol, m: it.market === 'US' ? 'US' : 'KR',
+                  a: (it.avg != null ? it.avg : null), q: (it.qty != null ? it.qty : null), fx: (it.fxBuy != null ? it.fxBuy : null) }));
+  if (!map.length) return undefined;
+  try {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await _pfDeriveKey(pass, salt);
+    const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(map)));
+    return { alg:'AES-256-GCM', kdf:'PBKDF2-SHA256', iter: PF_KDF_ITER,
+             salt: _pfB64(salt), iv: _pfB64(iv), ciphertext: _pfB64(new Uint8Array(ct)) };
+  } catch(_) { return undefined; }
+}
+// 서버 암호문 블록 → 복호화 → 현재 종목에 평단가/수량/매입환율 병합. 반환: 적용 개수(복호화 실패 시 -1).
+async function pfApplyEncHoldings(blob, opts) {
+  opts = opts || {};
+  if (!blob || typeof blob !== 'object' || !blob.ciphertext) return 0;
+  let pass = pfGetHoldingsPass();
+  if (!pass) {
+    if (opts.silent) return 0;   // 자동 복원인데 암호 없음 → 조용히 건너뜀(수동 불러오기 때 입력 받음)
+    pass = prompt('서버에 암호화된 평단가·수량이 있습니다.\n복호화 암호를 입력하세요(성공 시 이 기기에 저장됩니다):', '');
+    if (pass === null || !pass.trim()) return 0;
+    pass = pass.trim();
+  }
+  let map;
+  try {
+    const key = await _pfDeriveKey(pass, _pfUnB64(blob.salt));
+    const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv: _pfUnB64(blob.iv) }, key, _pfUnB64(blob.ciphertext));
+    map = JSON.parse(new TextDecoder().decode(pt));
+  } catch(_) {
+    if (!opts.silent && typeof showToast==='function') showToast('평단가 복호화 실패 — 암호가 일치하지 않습니다.', 4000);
+    return -1;
+  }
+  if (!Array.isArray(map)) return 0;
+  try { localStorage.setItem('pfHoldingsPass', pass); } catch(_) {}   // 복호화 성공 → 암호 기기에 저장
+  let applied = 0;
+  map.forEach(h => {
+    if (!h || !h.s) return;
+    const mk = h.m === 'US' ? 'US' : 'KR';
+    const ex = pfState.items.find(it => it.symbol === h.s && it.market === mk);
+    if (!ex) return;
+    if (h.a != null) ex.avg = h.a;
+    if (h.q != null) ex.qty = h.q;
+    if (h.fx != null) ex.fxBuy = h.fx;
+    applied++;
+  });
+  if (applied) { pfSave(); pfRenderAll(); }
+  return applied;
 }
 
 // ── 페이지 초기화 ────────────────────────────────────────────────────────────
@@ -18579,6 +18673,7 @@ function initPortfolioPage() {
   }
   pfRenderAll();
   pfRefreshQuotes();
+  if(typeof pfUpdateHoldingsSyncUI === 'function') pfUpdateHoldingsSyncUI();
 }
 </script>
 <script>

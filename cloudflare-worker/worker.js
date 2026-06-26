@@ -14,6 +14,20 @@
  * 헬스: GET https://<worker>.workers.dev/         → {ok:true} (설정 확인용)
  *
  * 배포: cloudflare-worker/ 에서  npx wrangler deploy   (README.md 참고)
+ *
+ * ──────────────────────────────────────────────────────────────────
+ * 🔐 토큰 최소 권한 가이드 (GitHub PAT 분리 운영 — 과권한 축소)
+ * ──────────────────────────────────────────────────────────────────
+ *  이 Worker 는 GitHub 에 두 가지 작업을 한다:
+ *    (1) alerts_config.json 커밋        → Contents: Read and write 권한 필요
+ *    (2) repository_dispatch 트리거      → 별도 권한 없이 dispatch 가능(파인그레인드는 Contents:RW 면 충분)
+ *  권장(최소 권한):
+ *    • GH_ALERTS_TOKEN  — (1) 커밋 전용. fine-grained PAT, 0101-commits/economic-site 의
+ *                          Contents = Read and write 만. 다른 권한·다른 저장소 접근 금지.
+ *    • GH_DISPATCH_TOKEN — (2) dispatch 전용. 가능한 한 권한을 낮춘다(이상적으로 Contents:Read).
+ *  하위호환: GH_ALERTS_TOKEN 미설정 시 커밋도 GH_DISPATCH_TOKEN 을 쓴다(_ghContentsToken 참고).
+ *    이 경우 GH_DISPATCH_TOKEN 은 Contents:RW 가 필요해 사실상 과권한 — 분리 토큰 설정을 권장한다.
+ *  모든 토큰은 Worker 시크릿(wrangler secret put …)에만 보관하며, 코드/저장소에 하드코딩 금지.
  */
 
 // 허용 호스트 — 대시보드가 실제로 호출하는 금융 데이터 출처만.
@@ -45,11 +59,29 @@ const ALLOWED_HOSTS = [
   'news.daum.net',
 ];
 
-const CORS = {
+// [이슈8] CORS 정책을 경로별로 분리한다.
+//   GET_CORS  — GET 프록시(퍼블릭 금융 데이터 중계)는 모든 출처 허용(*). 공개 데이터라 적절.
+//   POST_CORS — POST(/ai·/portfolio)는 비용/쓰기가 발생 → 자기 사이트 출처만. ACAO 는
+//               요청 Origin 을 검사해 동적으로 echo 하므로 메서드/헤더만 상수로 둔다.
+//               (와일드카드 '*' 와 출처 echo 를 섞지 않아 캐시·credential 혼선 방지.)
+const GET_CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': '*',
   'Access-Control-Max-Age': '86400',
+};
+const POST_CORS = {
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'content-type',
+  'Access-Control-Max-Age': '86400',
+};
+
+// [이슈10] 공통 보안 헤더 — jsonResponse(Worker 자체 JSON 응답)에만 부착한다.
+//   업스트림 프록시 응답(GET ?url= 결과)에는 적용하지 않는다(원본 헤더 보존 — 아래 fetch 핸들러 참고).
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',   // MIME 스니핑 차단
+  'X-Frame-Options': 'DENY',             // 클릭재킹 방지(iframe 임베드 금지)
+  'Referrer-Policy': 'no-referrer',      // Referer 로 워커 URL/쿼리 유출 방지
 };
 
 // ──────────────────────────────────────────────────────────────────
@@ -65,21 +97,60 @@ function _originAllowed(request) {
   const o = request.headers.get('Origin');
   if (!o) return true;                                   // 서버측 호출 → 레이트리밋으로 방어
   if (ALLOWED_ORIGINS.has(o)) return true;
-  // 로컬 개발 편의 (file:// 는 Origin: "null", localhost 는 포트 가변)
-  if (o === 'null') return true;
+  // [이슈2] file:// 의 Origin:"null" 허용은 제거 — 임의 사이트가 sandbox iframe 등으로 Origin:"null"
+  //   을 위조해 POST(/ai·/portfolio)를 남용할 수 있다. 로컬 개발은 아래 localhost/127.0.0.1
+  //   (python -m http.server) 만으로 충분하다.
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)) return true;
   return false;
 }
 
+// [이슈8] POST 응답용 CORS — 요청 Origin 이 화이트리스트에 있으면 그 Origin 을 ACAO 로 echo,
+//   아니면 ACAO 미포함(브라우저가 본문을 못 읽음). Vary:Origin 으로 캐시 오염 방지.
+function postCors(request) {
+  const o = request.headers.get('Origin');
+  const h = { ...POST_CORS, 'Vary': 'Origin' };
+  if (o && ALLOWED_ORIGINS.has(o)) h['Access-Control-Allow-Origin'] = o;
+  return h;
+}
+
+// [이슈8] 핸들러가 만든 응답(jsonResponse 기본 = GET_CORS '*')의 CORS 헤더를 POST 정책으로 교체.
+//   POST 경로 경계에서 한 번에 적용 → 내부 jsonResponse 마다 cors 를 넘기지 않아도 '*' 누출 없음.
+function _withCors(resp, cors) {
+  const h = new Headers(resp.headers);
+  h.delete('Access-Control-Allow-Origin');               // GET_CORS 의 '*' 제거
+  for (const [k, v] of Object.entries(cors)) h.set(k, v);
+  return new Response(resp.body, { status: resp.status, headers: h });
+}
+
 // Cloudflare Rate Limiting 바인딩(wrangler.jsonc 의 AI_LIMITER/PROXY_LIMITER) 기반 IP 리밋.
-// 바인딩 미설정/오류 시에는 통과(fail-open) — 레이트리밋은 가용성 보조 수단이라 점진 도입 안전.
-async function _rateLimited(env, limiter, request) {
+// [이슈3] 세 번째 인자 failClosed 로 바인딩 미설정/오류 시 동작 선택:
+//   • false(기본) — 통과(fail-open). 가용성이 우선인 GET 프록시(PROXY_LIMITER)용.
+//   • true        — 503 차단(fail-closed) + 로그. 비용/쓰기가 큰 POST(/ai·/portfolio, AI_LIMITER)용 —
+//                   레이트리밋 보호 없이 비용·커밋 경로를 열지 않는다.
+// 반환: null = 통과, Response = 차단(429 한도초과 / 503 미설정·오류). (기존 boolean 반환에서 변경)
+async function _rateLimited(env, limiter, request, failClosed) {
+  const ready = env && env[limiter] && typeof env[limiter].limit === 'function';
+  if (!ready) {
+    if (failClosed) {
+      console.log('[ratelimit] ' + limiter + ' 바인딩 미설정 — fail-closed 503 차단 ' +
+                  '(wrangler.jsonc 의 ratelimits 블록 활성화 필요)');
+      return jsonResponse({ error: 'rate_limiter_unavailable',
+                            message: '레이트리밋이 설정되지 않아 일시적으로 차단됩니다.' }, 503);
+    }
+    return null;   // fail-open — GET 프록시는 가용성 우선
+  }
   try {
-    if (!env || !env[limiter] || typeof env[limiter].limit !== 'function') return false;
     const ip = request.headers.get('cf-connecting-ip') || 'unknown';
     const { success } = await env[limiter].limit({ key: ip });
-    return !success;
-  } catch { return false; }
+    if (success) return null;
+    return jsonResponse({ error: 'rate_limited', message: '요청이 너무 많습니다. 잠시 후 다시 시도하세요.' }, 429);
+  } catch (e) {
+    if (failClosed) {
+      console.log('[ratelimit] ' + limiter + ' 평가 오류 — fail-closed 503:', String((e && e.message) || e));
+      return jsonResponse({ error: 'rate_limiter_error', message: '레이트리밋 처리 오류로 일시 차단됩니다.' }, 503);
+    }
+    return null;   // fail-open (오류 시에도 GET 은 가용성 우선)
+  }
 }
 
 // 타깃 호스트별 주입 헤더 — 브라우저가 못 보내는 Referer/Origin/User-Agent 등.
@@ -118,11 +189,27 @@ function originHeaders(host) {
   };
 }
 
-function jsonResponse(obj, status) {
+function jsonResponse(obj, status, cors) {
+  // [이슈8] 기본 CORS 는 GET_CORS(*) — POST 핸들러 응답은 _withCors(resp, postCors(request)) 로 제한된다.
+  // [이슈10] 모든 자체 JSON 응답에 보안 헤더(nosniff·DENY·no-referrer) 부착.
   return new Response(JSON.stringify(obj), {
     status: status || 200,
-    headers: { ...CORS, 'content-type': 'application/json; charset=utf-8' },
+    headers: { ...(cors || GET_CORS), ...SECURITY_HEADERS, 'content-type': 'application/json; charset=utf-8' },
   });
+}
+
+// [이슈7] 객체 중첩 깊이 검증 — maxDepth(기본 5) 초과 시 false. 깊은 재귀/메모리 남용·악성 페이로드 방어.
+//   원시값은 깊이 0. 객체/배열만 깊이로 센다. 순환참조는 깊이 한도에서 자연히 false 로 걸린다.
+function _validateDepth(obj, maxDepth = 5) {
+  function walk(v, depth) {
+    if (v === null || typeof v !== 'object') return true;
+    if (depth >= maxDepth) return false;
+    for (const k in v) {
+      if (Object.prototype.hasOwnProperty.call(v, k) && !walk(v[k], depth + 1)) return false;
+    }
+    return true;
+  }
+  return walk(obj, 0);
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -137,6 +224,26 @@ async function handleAiSummary(request, env) {
   if (raw.length > 60000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let payload;
   try { payload = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
+  // [이슈7] 입력 검증 강화 — 비정상/남용 페이로드 차단.
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return jsonResponse({ error: 'invalid_payload' }, 400);
+  }
+  // [A1] /ai 도 sync-key 인증 — LLM 비용 경로 무단 사용(특히 Origin 없는 서버측 호출)을 차단.
+  //   keyHash 는 본문(payload.keyHash, SHA-256 hex)으로 받는다. 키 미설정→503, 불일치→401.
+  //   (현재 프론트는 /ai 를 호출하지 않음. 향후 클라이언트 AI 요약 복원 시 body 에 keyHash 동봉 필요.)
+  const denied = await _verifySyncKey(payload, env);
+  if (denied) return denied;
+  // (a) 최상위 키 개수 제한 — 정상 페이로드는 snapshot/model/geminiModel/cfModel/keyHash 등 소수 키뿐.
+  if (Object.keys(payload).length > 20) return jsonResponse({ error: 'too_many_fields' }, 400);
+  // (b) snapshot 은 object 여야 한다.
+  const snap = payload.snapshot;
+  if (snap !== undefined && (typeof snap !== 'object' || snap === null)) {
+    return jsonResponse({ error: 'invalid_snapshot' }, 400);
+  }
+  // (b) 중첩 깊이 ≤5 — 실제 직렬화 대상(snapshot, 없으면 payload 전체)에 적용.
+  if (!_validateDepth((snap && typeof snap === 'object') ? snap : payload, 5)) {
+    return jsonResponse({ error: 'payload_too_deep' }, 400);
+  }
   const snapshot = payload.snapshot || payload || {};
 
   const system =
@@ -251,12 +358,16 @@ async function handleAiSummary(request, env) {
     } catch (e) { diag.tried.push('anthropic:' + String((e && e.message) || e).slice(0, 80)); }
   }
 
-  // ── 4) 모두 불가 → 503 (프론트가 자체 룰기반 요약으로 폴백) + 진단 ──
-  return jsonResponse({
+  // ── 4) 모두 불가 → 503 (프론트가 자체 룰기반 요약으로 폴백) ──
+  // [이슈6] 내부 진단(diag: 어떤 키/바인딩이 있고 무엇이 실패했는지)은 외부 정찰 정보가 될 수 있어
+  //   프로덕션 응답에서 숨긴다. Worker 로그로만 남기고, env.DEBUG_MODE==='1' 일 때만 응답에 포함.
+  console.log('[ai] no_ai_available diag:', JSON.stringify(diag));
+  const out503 = {
     error: 'no_ai_available',
     message: 'AI 엔진이 설정되지 않았습니다 — 무료 GEMINI_API_KEY(발급: https://aistudio.google.com/apikey) 시크릿을 Worker 에 추가하거나, Workers AI 바인딩 / ANTHROPIC_API_KEY 중 하나가 필요합니다. 프론트는 룰기반 요약으로 폴백합니다.',
-    diag,
-  }, 503);
+  };
+  if (env && env.DEBUG_MODE === '1') out503.diag = diag;
+  return jsonResponse(out503, 503);
 }
 
 // 진단용 — 실제 Gemini 호출을 최소 프롬프트로 시도해 정확한 상태/오류 메시지를 돌려준다.
@@ -411,10 +522,29 @@ function _sanitizeTracking(raw) {
   return { groups, items };
 }
 
-async function handlePortfolioGet(env) {
+// 🔐 E2E 암호화 보유정보(평단가/수량/매입환율) — 클라이언트가 사용자 암호로 AES-GCM 암호화한
+//   불투명 암호문 블록만 받는다. 평문 보유정보는 절대 담기지 않으므로 공개 저장소에도 안전.
+//   서버는 복호화하지 않으며(키 없음), 형태·길이만 검증해 그대로 보존한다.
+function _sanitizeEncHoldings(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (raw.alg !== 'AES-256-GCM' || raw.kdf !== 'PBKDF2-SHA256') return null;
+  const iter = Number(raw.iter);
+  if (!Number.isInteger(iter) || iter < 1 || iter > 2000000) return null;
+  const b64 = s => typeof s === 'string' && s.length >= 1 && s.length <= 60000 && /^[A-Za-z0-9+/=]+$/.test(s);
+  if (!b64(raw.salt) || !b64(raw.iv) || !b64(raw.ciphertext)) return null;
+  return { alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter, salt: raw.salt, iv: raw.iv, ciphertext: raw.ciphertext };
+}
+
+async function handlePortfolioGet(request, env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
+  // [이슈1] 무인증 조회 차단 — POST 와 동일한 ALERTS_SYNC_KEY 검증 적용. GET 이므로 keyHash 는
+  //   쿼리스트링(?keyHash=<SHA-256 hex>)으로 받는다. 키 미설정→503, 불일치→401 (_verifySyncKey 동일 패턴).
+  //   ⚠ 프론트(index.html)의 GET /portfolio 호출도 ?keyHash= 를 보내도록 함께 수정해야 한다.
+  const _kh = new URL(request.url).searchParams.get('keyHash');
+  const denied = await _verifySyncKey({ keyHash: _kh }, env);
+  if (denied) return denied;
   const { status, json } = await _ghContents(env, 'GET');
-  if (status === 404) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, updatedAt: null });
+  if (status === 404) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, encHoldings: null, updatedAt: null });
   if (status !== 200 || !json || !json.content) {
     return jsonResponse({ error: 'github_read_failed', status }, 502);
   }
@@ -423,7 +553,7 @@ async function handlePortfolioGet(env) {
     const bin = atob(String(json.content).replace(/\n/g, ''));
     const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
     const cfg = JSON.parse(new TextDecoder().decode(bytes));
-    return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, tracking: cfg.tracking || null, updatedAt: cfg.updatedAt || null });
+    return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, tracking: cfg.tracking || null, encHoldings: cfg.encHoldings || null, updatedAt: cfg.updatedAt || null });
   } catch {
     return jsonResponse({ error: 'config_parse_failed' }, 502);
   }
@@ -464,18 +594,21 @@ async function handlePortfolioPost(request, env) {
   const settings = _sanitizeSettings(body.settings);
   // 📋 관심목록 — body.tracking 이 있으면 갱신, 없으면 기존 저장본을 보존(부분 저장 시 유실 방지).
   let tracking = _sanitizeTracking(body.tracking);
+  // 🔐 암호화 보유정보 — 동일 원칙(부분 저장 시 보존). 평문 아님(불투명 암호문).
+  let encHoldings = _sanitizeEncHoldings(body.encHoldings);
   // 기존 파일 sha 조회(업데이트 시 필수) → PUT 커밋
   const cur = await _ghContents(env, 'GET');
   const sha = (cur.status === 200 && cur.json && cur.json.sha) ? cur.json.sha : undefined;
-  if (tracking === null && cur.status === 200 && cur.json && cur.json.content) {
+  if ((tracking === null || encHoldings === null) && cur.status === 200 && cur.json && cur.json.content) {
     try {
       const _bin = atob(String(cur.json.content).replace(/\n/g, ''));
       const _bytes = Uint8Array.from(_bin, c => c.charCodeAt(0));
       const _prev = JSON.parse(new TextDecoder().decode(_bytes));
-      if (_prev && _prev.tracking) tracking = _sanitizeTracking(_prev.tracking);
-    } catch (_) { /* 이전 본 파싱 실패 시 tracking 생략 */ }
+      if (tracking === null && _prev && _prev.tracking) tracking = _sanitizeTracking(_prev.tracking);
+      if (encHoldings === null && _prev && _prev.encHoldings) encHoldings = _sanitizeEncHoldings(_prev.encHoldings);
+    } catch (_) { /* 이전 본 파싱 실패 시 보존 생략 */ }
   }
-  const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts, ...(tracking ? { tracking } : {}) };
+  const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts, ...(tracking ? { tracking } : {}), ...(encHoldings ? { encHoldings } : {}) };
   const content = JSON.stringify(cfg, null, 2) + '\n';
   // UTF-8 안전 base64 인코딩 (한글 종목명 포함) — 스프레드 인자 한도 회피를 위해 청크 처리
   const bytes = new TextEncoder().encode(content);
@@ -574,39 +707,46 @@ export default {
   },
 
   async fetch(request, env) {
-    // CORS preflight
-    if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+    // CORS preflight — [이슈8] POST 엔드포인트는 출처 제한 CORS(postCors), 그 외는 퍼블릭 GET_CORS.
+    if (request.method === 'OPTIONS') {
+      const _p = new URL(request.url).pathname;
+      const _isPost = (_p === '/ai' || _p === '/portfolio' || _p === '/portfolio/test');
+      return new Response(null, { headers: _isPost ? postCors(request) : GET_CORS });
+    }
 
     // 🤖 AI 시황 요약 — POST /ai : 프론트가 보낸 '그 순간의 시장 스냅샷'을 Anthropic(Claude)
     // 로 중계해 자연어 브리핑을 생성한다. 키는 Worker 시크릿 ANTHROPIC_API_KEY 로만 보관해
     // 브라우저에 노출되지 않는다. (정적 사이트에서 안전하게 LLM 을 쓰기 위한 경로.)
     if (request.method === 'POST') {
+      // [이슈8] POST 응답 CORS — 화이트리스트 Origin 만 echo(그 외 ACAO 미포함). 모든 분기에 일괄 적용.
+      const pc = postCors(request);
       // 비용/쓰기가 발생하는 POST 경로 — 자기 사이트 출처가 아니면 거부 (캐주얼 남용 차단)
-      if (!_originAllowed(request)) return jsonResponse({ error: 'forbidden_origin' }, 403);
-      // IP 레이트리밋 (분당 10회) — LLM 비용·GitHub 커밋 스팸 방어. 바인딩 미설정 시 통과.
-      if (await _rateLimited(env, 'AI_LIMITER', request)) {
-        return jsonResponse({ error: 'rate_limited', message: '분당 10회 제한' }, 429);
-      }
+      if (!_originAllowed(request)) return jsonResponse({ error: 'forbidden_origin' }, 403, pc);
+      // [이슈3] IP 레이트리밋 (AI_LIMITER, 분당 10회) — LLM 비용·GitHub 커밋 스팸 방어.
+      //   fail-closed: 레이트리밋 바인딩 미설정 시 503(보호 없이 비용 경로를 열지 않음).
+      const rl = await _rateLimited(env, 'AI_LIMITER', request, true);
+      if (rl) return _withCors(rl, pc);
       const purl = new URL(request.url);
+      let resp;
       if (purl.pathname === '/ai' || purl.searchParams.get('ai') === '1') {
-        return handleAiSummary(request, env);
+        resp = await handleAiSummary(request, env);
+      } else if (purl.pathname === '/portfolio') {
+        // 📲 투자 현황 — 카카오 알림 설정 저장 (저장소 alerts_config.json 커밋)
+        resp = await handlePortfolioPost(request, env);
+      } else if (purl.pathname === '/portfolio/test') {
+        // 🔔 알림 테스트 발송 — stock-alerts 워크플로 즉시 1회 실행
+        resp = await handlePortfolioTest(request, env);
+      } else {
+        resp = jsonResponse({ error: 'POST is only supported at /ai, /portfolio or /portfolio/test' }, 404);
       }
-      // 📲 투자 현황 — 카카오 알림 설정 저장 (저장소 alerts_config.json 커밋)
-      if (purl.pathname === '/portfolio') {
-        return handlePortfolioPost(request, env);
-      }
-      // 🔔 알림 테스트 발송 — stock-alerts 워크플로 즉시 1회 실행
-      if (purl.pathname === '/portfolio/test') {
-        return handlePortfolioTest(request, env);
-      }
-      return jsonResponse({ error: 'POST is only supported at /ai, /portfolio or /portfolio/test' }, 404);
+      return _withCors(resp, pc);   // [이슈8] 핸들러 응답의 CORS 를 POST 정책으로 통일
     }
     if (request.method !== 'GET') return jsonResponse({ error: 'GET only' }, 405);
 
     const reqUrl = new URL(request.url);
     // 📲 투자 현황 — 저장된 카카오 알림 설정 조회 (GET /portfolio)
     if (reqUrl.pathname === '/portfolio') {
-      return handlePortfolioGet(env);
+      return handlePortfolioGet(request, env);   // [이슈1] request 전달 — keyHash 쿼리 검증에 필요
     }
     // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.
     // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.
@@ -623,8 +763,9 @@ export default {
             : (env && env.AI) ? 'Workers AI 사용 가능'
             : 'GEMINI_API_KEY 시크릿을 추가하면 무료 Gemini 사용 가능 (aistudio.google.com/apikey)',
       };
-      // GET /ai?test=1 — 실제 Gemini 호출을 시도해 정확한 성공/오류를 함께 반환(진단용).
-      if (reqUrl.searchParams.get('test') === '1' && hasGemini) {
+      // GET /ai?test=1 — 실제 Gemini 호출로 성공/오류 진단. [A2] 모델/오류 메시지가 노출되므로
+      //   프로덕션에선 숨기고 env.DEBUG_MODE==='1' 일 때만 수행한다.
+      if (reqUrl.searchParams.get('test') === '1' && hasGemini && env && env.DEBUG_MODE === '1') {
         out.geminiTest = await _testGemini(geminiKey);
       }
       return jsonResponse(out);
@@ -633,7 +774,9 @@ export default {
 
     // 헬스체크 — 파라미터 없이 호출 시 (프론트 설정 확인용)
     if (!target) {
-      return jsonResponse({ ok: true, service: 'ecom-dashboard-proxy', allowed: ALLOWED_HOSTS });
+      // [이슈5] 허용 호스트 상세 목록은 숨기고 개수만 노출 — 운영 확인은 가능하되 화이트리스트
+      //   전체를 외부에 드러내지 않는다(정찰 정보 최소화).
+      return jsonResponse({ ok: true, service: 'ecom-dashboard-proxy', allowedCount: ALLOWED_HOSTS.length });
     }
 
     let t;
@@ -645,9 +788,9 @@ export default {
 
     // IP 레이트리밋 (분당 120회) — 외부 남용으로 무료 플랜 일 10만 요청 한도가 고갈되는 것 방지.
     // 대시보드 정상 사용(1분 주기 갱신·수십 위젯)은 한도 안에 충분히 들어온다.
-    if (await _rateLimited(env, 'PROXY_LIMITER', request)) {
-      return jsonResponse({ error: 'rate_limited' }, 429);
-    }
+    // [이슈3] GET 프록시는 fail-open(failClosed 미지정) — 레이트리밋 바인딩이 없어도 데이터 중계는 계속.
+    const proxyRl = await _rateLimited(env, 'PROXY_LIMITER', request);
+    if (proxyRl) return proxyRl;
 
     // 짧은 캐시(30초) — 동일 요청 폭주 시 origin/무료 한도 보호
     const cache = caches.default;
@@ -670,7 +813,9 @@ export default {
     }
 
     const body = await upstream.arrayBuffer();
-    const headers = new Headers(CORS);
+    // [이슈8] 프록시(퍼블릭 데이터 중계)는 GET_CORS(*) 유지. [이슈10] 보안 헤더는 업스트림 응답에는
+    //   부착하지 않는다 — 원본 헤더(content-type/charset 등) 보존이 우선(요구사항: 프록시 응답 분리).
+    const headers = new Headers(GET_CORS);
     const ct = upstream.headers.get('content-type');
     if (ct) headers.set('content-type', ct);          // 원본 charset 보존(EUC-KR HTML 등)
     headers.set('Cache-Control', 'public, max-age=30');
