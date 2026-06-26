@@ -17319,20 +17319,28 @@ async function pfFetchQuote(item) {
 async function pfRefreshQuotes(manual) {
   if(!pfState || !pfState.items.length) { pfRenderAll(); return; }
   const el = document.getElementById('pfQuoteTs');
-  if(manual && el) el.textContent = '갱신 중…';
+  if(manual && el) { el.textContent = '갱신 중…'; el.style.color = '#7a8099'; }
   await pfEnsureUsdKrw();
+  let ok = 0, fail = 0;
   await Promise.all(pfState.items.map(async it => {
     const q = await pfFetchQuote(it).catch(() => null);
     if(q) {
+      ok++;
       q.ts = Date.now();
       pfQuotes[it.id] = q;
       // 종목명·유형 보강(최초 추가 시 비어있을 수 있음)
       if(q.name && (!it.name || it.name === it.symbol)) it.name = q.name;
       if(q.secType && !it.secType) it.secType = q.secType;
-    }
+    } else { fail++; }
   }));
   pfSave();
-  if(el) el.textContent = '시세 ' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', hour12:false}) + ' 기준';
+  if(el) {
+    const ts = new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', hour12:false});
+    // 전 종목 시세 실패 → 화면의 현재가는 이전 캐시값이므로 '최신'으로 오인하지 않게 오류를 명시한다.
+    // (대개 전용 Worker 프록시 장애·네트워크 차단. 일부만 실패하면 실패 종목 수만 덧붙인다.)
+    if(ok === 0) { el.textContent = '시세 응답 오류 · ' + ts + ' 기준(이전 값 표시)'; el.style.color = '#ef5350'; }
+    else { el.textContent = '시세 ' + ts + ' 기준' + (fail ? ' · ' + fail + '종목 응답 없음' : ''); el.style.color = fail ? '#f0c75e' : '#7a8099'; }
+  }
   pfRenderAll();
 }
 
@@ -18441,7 +18449,10 @@ async function pfPullAlerts() {
   try {
     // [이슈1] GET /portfolio 가 ALERTS_SYNC_KEY 인증을 요구 → keyHash 쿼리 동봉(키 없으면 빈 값→401 graceful).
     const _kh = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : '';
+    if(!_kh) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
     const r = await fetch(base + '/portfolio?keyHash=' + encodeURIComponent(_kh), { signal: AbortSignal.timeout(15000) });
+    if(r.status === 401 || r.status === 403) { if(st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = '#ef5350'; } return; }
+    if(r.status === 503) { if(st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = '#ef5350'; } return; }
     const j = await r.json().catch(() => null);
     if(!r.ok || !j || !Array.isArray(j.alerts)) { if(st) { st.textContent = '서버에 저장된 설정이 없습니다.'; st.style.color = 'var(--c-txt-dim)'; } return; }
     if(pfState.alerts.length && !confirm(`서버의 알림 ${j.alerts.length}개로 현재 설정(${pfState.alerts.length}개)을 덮어쓸까요?`)) return;
@@ -18487,11 +18498,16 @@ async function pfPullTracking(auto) {
   try {
     // [이슈1] GET /portfolio 인증(keyHash) 동봉 — 자동(auto) 복원은 키 존재 시에만 호출되므로 정상 동작.
     const _kh = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : '';
+    // 이 기기에 동기화 키가 없으면 서버는 401 을 준다 → 원인을 명확히 안내(다른 기기에서 저장한 목록을
+    // 새 기기에서 불러오려면 ⚙ 설정에서 동일한 동기화 키를 먼저 입력해야 한다).
+    if(!_kh && !auto) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
     const r = await fetch(base + '/portfolio?keyHash=' + encodeURIComponent(_kh), { signal: AbortSignal.timeout(15000) });
+    if(r.status === 401 || r.status === 403) { if(!auto && st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = '#ef5350'; } return; }
+    if(r.status === 503) { if(!auto && st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = '#ef5350'; } return; }
     j = await r.json().catch(() => null);
-    if(!r.ok || !j) { if(!auto && st) { st.textContent = '서버 응답 오류'; st.style.color = '#ef5350'; } return; }
+    if(!r.ok || !j) { if(!auto && st) { st.textContent = '서버 응답 오류 (HTTP ' + r.status + ')'; st.style.color = '#ef5350'; } return; }
   } catch(_) {
-    if(!auto && st) { st.textContent = '불러오기 실패 — 네트워크 오류'; st.style.color = '#ef5350'; }
+    if(!auto && st) { st.textContent = '불러오기 실패 — 네트워크/프록시 오류(잠시 후 재시도)'; st.style.color = '#ef5350'; }
     return;
   }
   const tr = j.tracking;
@@ -18543,9 +18559,11 @@ async function pfPullTracking(auto) {
   let _encApplied = 0;
   if (j.encHoldings) { try { _encApplied = await pfApplyEncHoldings(j.encHoldings, { silent: auto }); } catch(_) {} }
   if(st) {
-    const _enc = _encApplied > 0 ? ` · 평단가 ${_encApplied}개 복원` : '';
+    // 평단가/수량 복원 결과를 명시: 복원됨 / (서버에 암호본은 있으나) 암호 미설정·불일치로 복원 안 됨.
+    const _enc = _encApplied > 0 ? ` · 평단가 ${_encApplied}개 복원`
+               : (j.encHoldings && !auto ? ' · 평단가 복원 안 됨(🔐 평단가 동기화 암호 필요)' : '');
     st.textContent = (auto ? `서버 목록 동기화됨 (신규 ${added}개` : `불러옴 — 신규 ${added}개 추가 (총 ${pfState.items.length}개`) + _enc + ')';
-    st.style.color = '#26a69a';
+    st.style.color = (j.encHoldings && _encApplied <= 0 && !auto) ? '#f0c75e' : '#26a69a';
   }
 }
 
