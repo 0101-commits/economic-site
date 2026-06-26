@@ -718,6 +718,17 @@ function inMarketHours(d) {
   return (h <= 6) || (h >= 13 && h <= 21);
 }
 
+// 📲 카카오 발송 슬롯 판정(KST) — kakao-daily.yml 의 '발송 창 게이트'와 동일 규칙.
+//   • 평일(월~금) 07~22시 매시간 / 주말(토·일) 11·17시.
+// */5 cron 재시도 dispatch 의 게이트로만 쓴다(실제 발송 여부의 단일 진실원은 워크플로 게이트).
+function inKakaoSlot(d) {
+  const kst = new Date(d.getTime() + 9 * 3600 * 1000);   // UTC→KST(+9). cron 환경에 TZ 가 없어 직접 가산.
+  const dow = kst.getUTCDay();                            // 0=일 .. 6=토 (KST 기준)
+  const h = kst.getUTCHours();
+  if (dow === 0 || dow === 6) return h === 11 || h === 17;   // 주말
+  return h >= 7 && h <= 22;                                   // 평일 07~22시
+}
+
 // 🔔 종목 알림(alerts-cron) + 서킷브레이커 데이터 갱신(fetch-data) on-demand 실행.
 // GHA schedule 드롭 영향을 받지 않아 장중 5분 주기를 안정적으로 보장한다.
 async function triggerMarketAlerts(env) {
@@ -738,6 +749,11 @@ export default {
     const cron = event && event.cron;
     if (cron === '*/5 * * * *') {
       ctx.waitUntil(triggerMarketAlerts(env));      // 5분 cron → 종목·halt 정시성 보강
+      // 🔁 카카오 슬롯 재시도 — hourly cron(:02) 1회가 드롭되거나 GitHub 백업 스케줄까지 한 시(時)를
+      //   통째로 누락해도(실측 2026-06-26 KST 18시 사례) 슬롯을 놓치지 않도록, 슬롯 시각이면 5분마다
+      //   kakao-send 를 추가 dispatch 한다. 워크플로의 발송 창 게이트(타깃 시각만 통과) + 슬롯 dedup
+      //   마커(슬롯당 하루 1회) + concurrency 직렬화가 멱등성을 보장하므로 중복 발송은 생기지 않는다.
+      if (inKakaoSlot(new Date())) ctx.waitUntil(triggerKakaoDispatch(env, cron));
     } else {
       ctx.waitUntil(triggerKakaoDispatch(env, cron)); // 기존 hourly cron → 카카오 시황 다이제스트
     }
