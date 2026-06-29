@@ -26,6 +26,27 @@
 "/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <script>
+  // ── AbortSignal.timeout 폴리필 (구형 모바일 웹뷰 호환) ─────────────────────────
+  // 왜 필요한가: 모든 클라이언트 시세/동기화 fetch(fetchWithRetry·pfPullTracking·pfSyncTracking
+  // ·pfFetchQuote*)가 `signal: AbortSignal.timeout(ms)` 를 쓴다. 이 메서드는 Safari 16·Chrome 103
+  // (둘 다 2022) 이후에만 있는데, iOS 15.x Safari / 카카오톡·네이버 인앱 웹뷰는 옵셔널 체이닝(?.)
+  // 같은 ES2020 은 지원해 페이지 렌더는 정상이지만 이 메서드가 없다. 그러면 `AbortSignal.timeout(ms)`
+  // 호출이 TypeError 로 즉시 throw → 감싼 try/catch 에 먹혀 모든 페치가 조용히 null → '투자 현황'
+  // 시세가 '로딩…'·'시세 응답 오류'로 고착되고 ⬇ 불러오기도 실패한다(= 모바일에서만 데이터 안 불러와짐).
+  // 표준과 동일하게(지정 ms 후 TimeoutError 로 abort) 보강한다. AbortController 는 이 구간 웹뷰에도
+  // 있으므로(Safari 12.1+) 안전하며, 네이티브 구현이 있으면 건드리지 않는다.
+  if (typeof AbortSignal !== 'undefined' && typeof AbortController !== 'undefined' &&
+      typeof AbortSignal.timeout !== 'function') {
+    AbortSignal.timeout = function (ms) {
+      var c = new AbortController();
+      setTimeout(function () {
+        try { c.abort((typeof DOMException === 'function') ? new DOMException('The operation timed out.', 'TimeoutError') : new Error('TimeoutError')); }
+        catch (_) { c.abort(); }
+      }, ms);
+      return c.signal;
+    };
+  }
+
   // 클릭재킹 완화 — GitHub Pages 는 X-Frame-Options/frame-ancestors 응답 헤더를 못 주므로
   // JS 프레임버스트가 차선책. (근본 해결은 헤더 설정 가능한 호스팅 이전 시 frame-ancestors 'none')
   if (window.top !== window.self) {
