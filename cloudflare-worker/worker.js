@@ -535,28 +535,51 @@ function _sanitizeEncHoldings(raw) {
   return { alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter, salt: raw.salt, iv: raw.iv, ciphertext: raw.ciphertext };
 }
 
+// alerts_config.json 읽기 — 공개 저장소이므로 토큰 없이도 읽을 수 있다.
+//   1순위: 인증 Contents API(레이트리밋 5000/h·항상 최신).
+//   2순위: 공개 raw CDN(무인증). ⚠ 근본 복원력: GH 토큰이 만료/권한부족/레이트리밋이면
+//     인증 GET 이 GitHub 에서 401/403 을 받아(공개 파일이라도 '잘못된 토큰'이면 401) 과거엔
+//     502 'github_read_failed' 로 '불러오기'가 통째로 끊겼다. 읽기는 토큰이 필요 없으므로
+//     인증 경로 실패 시 raw 로 폴백해 조회를 끊기지 않게 한다(쓰기/POST 는 여전히 토큰 필요).
+//   반환: { found, cfg }  — found=false 면 파일 없음(빈 설정), cfg=null+throw 없음.  읽기 자체가
+//     양쪽 다 실패하면 예외를 던진다(호출부가 502 로 변환).
+async function _readAlertsConfig(env) {
+  // 1순위: 인증 Contents API
+  try {
+    const { status, json } = await _ghContents(env, 'GET');
+    if (status === 404) return { found: false, cfg: null };
+    if (status === 200 && json && json.content) {
+      // GitHub 는 base64 본문을 개행 포함으로 준다. UTF-8(한글 종목명) 안전 디코드.
+      const bin = atob(String(json.content).replace(/\n/g, ''));
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+      return { found: true, cfg: JSON.parse(new TextDecoder().decode(bytes)) };
+    }
+    // 그 외(401 만료토큰·403 권한/레이트리밋·5xx) → raw 폴백으로
+  } catch (_) { /* 네트워크/파싱 실패 → raw 폴백으로 */ }
+  // 2순위: 공개 raw CDN — 토큰과 무관하게 읽힌다(저장 직후 ~수십초 캐시 지연 가능, 인증 경로 정상 시엔 미사용).
+  const rawUrl = `https://raw.githubusercontent.com/${GH_REPO}/main/${ALERTS_CONFIG_PATH}`;
+  const rr = await fetch(rawUrl, {
+    headers: { 'User-Agent': 'ecom-portfolio-sync', 'Accept': 'application/json' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (rr.status === 404) return { found: false, cfg: null };
+  if (!rr.ok) throw new Error('raw_read_failed_' + rr.status);
+  return { found: true, cfg: JSON.parse(await rr.text()) };
+}
+
 async function handlePortfolioGet(request, env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   // [이슈1] 무인증 조회 차단 — POST 와 동일한 ALERTS_SYNC_KEY 검증 적용. GET 이므로 keyHash 는
   //   쿼리스트링(?keyHash=<SHA-256 hex>)으로 받는다. 키 미설정→503, 불일치→401 (_verifySyncKey 동일 패턴).
-  //   ⚠ 프론트(index.html)의 GET /portfolio 호출도 ?keyHash= 를 보내도록 함께 수정해야 한다.
   const _kh = new URL(request.url).searchParams.get('keyHash');
   const denied = await _verifySyncKey({ keyHash: _kh }, env);
   if (denied) return denied;
-  const { status, json } = await _ghContents(env, 'GET');
-  if (status === 404) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, encHoldings: null, updatedAt: null });
-  if (status !== 200 || !json || !json.content) {
-    return jsonResponse({ error: 'github_read_failed', status }, 502);
-  }
-  try {
-    // GitHub 는 base64 본문을 개행 포함으로 준다. UTF-8(한글 종목명) 안전 디코드.
-    const bin = atob(String(json.content).replace(/\n/g, ''));
-    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-    const cfg = JSON.parse(new TextDecoder().decode(bytes));
-    return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, tracking: cfg.tracking || null, encHoldings: cfg.encHoldings || null, updatedAt: cfg.updatedAt || null });
-  } catch {
-    return jsonResponse({ error: 'config_parse_failed' }, 502);
-  }
+  let cfgRes;
+  try { cfgRes = await _readAlertsConfig(env); }
+  catch (e) { return jsonResponse({ error: 'github_read_failed', detail: String((e && e.message) || e) }, 502); }
+  const { found, cfg } = cfgRes;
+  if (!found || !cfg) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, encHoldings: null, updatedAt: null });
+  return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, tracking: cfg.tracking || null, encHoldings: cfg.encHoldings || null, updatedAt: cfg.updatedAt || null });
 }
 
 // SHA-256 hex — 동기화 키 해시 검증용
