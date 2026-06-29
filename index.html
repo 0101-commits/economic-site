@@ -3072,7 +3072,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           </select>
         </div>
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:10px;">
-          <button class="tab-btn" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🔑 동기화 키</button>
+          <button id="pfSyncKeyBtn" class="tab-btn" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🔑 동기화 키</button>
           <button class="tab-btn" onclick="pfPullAlerts()" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 서버에서 불러오기</button>
           <button class="tab-btn" onclick="pfSyncAlerts()" style="font-size:11px;padding:3px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">☁ 서버에 저장</button>
           <button class="tab-btn" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증" style="font-size:11px;padding:3px 10px;border:1px solid #26a69a55;border-radius:var(--r-xs);background:transparent;color:#26a69a;cursor:pointer;">🔔 테스트 발송</button>
@@ -18361,14 +18361,26 @@ async function pfGetSyncKeyHash() {
   } catch(_) { return ''; }
   return h;
 }
+// 🔑 버튼에 키 저장 여부를 표시 — 해시로만 보관해 값은 못 보여주므로 '저장됨' 상태라도 명시해
+// 사용자가 "키를 넣는 곳이 없다/안 읽힌다"고 오해하지 않게 한다.
+function pfUpdateSyncKeyBtn() {
+  const b = document.getElementById('pfSyncKeyBtn');
+  if(!b) return;
+  const has = (typeof pfHasSyncKey === 'function') ? pfHasSyncKey() : false;
+  b.textContent = has ? '🔑 동기화 키 ✓' : '🔑 동기화 키';
+  b.style.color = has ? '#26a69a' : 'var(--c-txt-dim)';
+  b.title = has ? '동기화 키 저장됨 (해시로만 보관) — 변경하려면 클릭'
+                : 'Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력';
+}
 async function pfSetSyncKey() {
   const has = !!(localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey'));
   const k = prompt(`동기화 키 (Worker 시크릿 ALERTS_SYNC_KEY 와 동일하게 — 미설정 시 비워두기)${has ? '\n※ 현재 키가 저장되어 있습니다 (보안을 위해 해시로만 보관되어 표시 불가)' : ''}:`, '');
   if(k === null) return;
   try {
     localStorage.removeItem('pfSyncKey');   // 평문 잔존 제거
-    if(!k.trim()) { localStorage.removeItem('pfSyncKeyHash'); return; }
+    if(!k.trim()) { localStorage.removeItem('pfSyncKeyHash'); pfUpdateSyncKeyBtn(); return; }
     localStorage.setItem('pfSyncKeyHash', await pfSha256Hex(k.trim()));
+    pfUpdateSyncKeyBtn();
     if(typeof showToast === 'function') showToast('동기화 키가 SHA-256 해시로 안전하게 저장되었습니다.');
   } catch(_) {}
 }
@@ -19296,6 +19308,7 @@ window.initSettingsPage = function () {
     if (c) c.checked = !!ind[k];
   });
   try { if (typeof pfRenderAlertSummary === 'function' && pfState) pfRenderAlertSummary(); } catch (_) {}
+  try { if (typeof pfUpdateSyncKeyBtn === 'function') pfUpdateSyncKeyBtn(); } catch (_) {}
   _renderBackupCount();
 };
 

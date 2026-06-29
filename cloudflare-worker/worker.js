@@ -599,7 +599,9 @@ async function _verifySyncKey(body, env) {
                'wrangler secret put ALERTS_SYNC_KEY 로 설정 후 프론트 🔑 버튼에 동일 키를 입력하세요.',
     }, 503);
   }
-  const expected = await _sha256Hex(env.ALERTS_SYNC_KEY);
+  // 시크릿 양끝 공백/개행 제거 — `wrangler secret put` 로 키를 붙여넣을 때 흔히 끼는
+  // 후행 개행이 프론트(키 입력 시 k.trim())와의 해시 불일치를 일으켜 정상 키도 401 이 되던 문제 수정.
+  const expected = await _sha256Hex(String(env.ALERTS_SYNC_KEY).trim());
   const okHash = body && body.keyHash && String(body.keyHash).toLowerCase() === expected;
   if (!okHash) return jsonResponse({ error: 'unauthorized' }, 401);
   return null;   // 통과
