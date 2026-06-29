@@ -15,8 +15,16 @@
   golden_cross/dead_cross  — 이동평균선(maShort/maLong) 골든/데드크로스 발생일
 
 도배 방지(필수 예외 처리 — PRD):
-  limit="daily"  → 같은 알림은 하루(KST) 1회만 발송
-  limit="cool60" → 발송 후 1시간 동안 같은 알림 재발송 금지
+  가격 기준선(price_below/price_above) — '교차 시 1회 + 재무장':
+    미충족→충족으로 전환되는 순간(기준선 돌파)에만 1회 발송하고, 가격이 기준선
+    아래(이하 알림)/위(이상 알림)에 머무는 동안은 침묵한다. 가격이 기준선 반대편으로
+    회복하면 재무장되어 다음 돌파에서 다시 발송한다. 각 알림의 직전 충족 여부는
+    alerts_state.json 의 met 필드에 매 런 기록된다(발송 여부와 무관).
+  이벤트형(pct_change/high52/low52/vol_surge/golden_cross/dead_cross):
+    limit="daily"  → 같은 알림은 하루(KST) 1회만 발송
+    limit="cool60" → 발송 후 1시간 동안 같은 알림 재발송 금지
+  종목당 1줄 — 한 종목에서 여러 조건이 동시 충족되면 현재가에 '가장 근접한' 1건만
+    발송한다(가격 사다리 동시 충족 시 폭주 방지). 미발송 건도 이력(met/date/ts)은 갱신.
   발송 이력은 alerts_state.json 에 기록되고 워크플로가 커밋해 런 간 보존된다.
 
 데이터 소스(무료·15분 지연 가능):
@@ -277,10 +285,63 @@ def evaluate(alert, snap):
 
 # ── 도배 방지(발송 제한) ────────────────────────────────────────────────────
 def should_send(alert, state, now):
+    """이벤트형(52주/크로스/등락률/거래량) 쿨다운 가드. 가격 기준선은 교차감지로 별도 처리."""
     rec = state.get(alert["id"]) or {}
     if alert.get("limit") == "cool60":
         return (now.timestamp() - float(rec.get("ts") or 0)) >= 3600
     return rec.get("date") != now.strftime("%Y%m%d")     # 기본: 하루 1회
+
+
+PRICE_TYPES = ("price_below", "price_above")
+
+
+def _price_met(t, price, v):
+    """가격 기준선 충족 여부 — 이하/이상."""
+    if v is None:
+        return False
+    return price <= v if t == "price_below" else price >= v
+
+
+# 종목당 1줄 — 한 종목에서 여러 조건이 동시 충족되면 가장 의미 있는 1건만 남긴다.
+# 가격 사다리(이하/이상)는 현재가에 '가장 근접한' 기준선을 채택하고, 그 외 이벤트는
+# 가격 기준선이 없을 때만 고정 우선순위로 채택한다.
+_EVENT_RANK = {"low52": 0, "high52": 0, "dead_cross": 1, "golden_cross": 1,
+               "pct_change": 2, "vol_surge": 3}
+
+
+def _dedup_per_symbol(triggered, snaps):
+    """[(alert, line)] → 종목당 현재가 최근접 1건만. 입력 순서 보존."""
+    by_sym, order = {}, []
+    for a, line in triggered:
+        key = (a.get("market", "KR"), a.get("symbol"))
+        if key not in by_sym:
+            by_sym[key] = []
+            order.append(key)
+        by_sym[key].append((a, line))
+
+    def score(item):
+        a = item[0]
+        v = a.get("value")
+        snap = snaps.get((a.get("market", "KR"), a.get("symbol")))
+        price = snap["price"] if snap else None
+        if v is not None and price is not None:           # 가격 기준선 → 현재가 최근접
+            return (0, abs(price - v))
+        return (1, _EVENT_RANK.get(a.get("type"), 9))     # 이벤트 → 고정 우선순위
+
+    out = []
+    for key in order:
+        winner = min(by_sym[key], key=score)
+        out.append(winner)
+    return out
+
+
+def _write_state(state, alerts, now):
+    """유효 알림만 남겨 alerts_state.json 기록(삭제된 알림 이력 정리)."""
+    valid_ids = {a["id"] for a in alerts}
+    pruned = {k: v for k, v in state.items() if k in valid_ids}
+    with open(STATE_PATH, "w", encoding="utf-8") as f:
+        json.dump(pruned, f, ensure_ascii=False, indent=2)
+        f.write("\n")
 
 
 def is_market_open(market, now):
@@ -349,13 +410,17 @@ def main():
 
     # 종목별 스냅샷 1회 조회 (알림 여러 개가 같은 종목을 공유)
     snaps = {}
-    triggered = []          # (alert, line)
+    triggered = []          # (alert, line) — 충족·발송 후보 (종목당1줄 축약 전)
+    met_now = {}            # alert id -> 현재 가격조건 충족 여부 (재무장 판정용, 매 런 기록)
     for a in alerts:
         market = a.get("market", "KR")
-        # 테스트 발송은 즉시 검증이 목적 — 장중/쿨다운 가드를 건너뛰고 무조건 평가
+        # 테스트 발송은 즉시 검증이 목적 — 장중/쿨다운/교차 가드를 건너뛰고 무조건 평가
         if not IS_TEST and not is_market_open(market, now):
             continue
-        if not IS_TEST and not should_send(a, state, now):
+        t = a.get("type")
+        is_price = t in PRICE_TYPES
+        # 이벤트형은 기존 쿨다운(daily/cool60) 가드 유지. 가격 기준선은 교차감지로 별도 판정.
+        if not is_price and not IS_TEST and not should_send(a, state, now):
             continue
         key = (market, a.get("symbol"))
         if key not in snaps:
@@ -364,6 +429,15 @@ def main():
         if not snap:
             print(f"[alerts] 시세 조회 실패: {a.get('symbol')} ({market}) — 건너뜀")
             continue
+
+        if is_price:
+            m = _price_met(t, snap["price"], a.get("value"))
+            met_now[a["id"]] = m                          # 매 런 기록 → 회복 시 재무장
+            prev = (state.get(a["id"]) or {}).get("met")
+            # 교차 시 1회: 미충족→충족 전환에서만 발송. 충족 지속 중엔 침묵.
+            fire = m if IS_TEST else (m and prev is not True)
+            if not fire:
+                continue
         try:
             line = evaluate(a, snap)
         except Exception as e:
@@ -373,8 +447,19 @@ def main():
             triggered.append((a, line))
             print(f"[alerts] 조건 충족: {line}")
 
+    # 종목당 1줄 — 동시 충족(사다리/이벤트)을 현재가 최근접 1건으로 축약
+    to_send = _dedup_per_symbol(triggered, snaps)
+
+    # 재무장 상태(met)는 발송 여부와 무관하게 항상 보존 → 다음 교차 때 재발송 보장
+    if not IS_TEST:
+        for aid, m in met_now.items():
+            rec = state.get(aid) or {}
+            rec["met"] = m
+            state[aid] = rec
+
     if not triggered and not IS_TEST:
-        print(f"[alerts] 평가 {len(alerts)}건 — 충족 0건, 발송 없음")
+        _write_state(state, alerts, now)
+        print(f"[alerts] 평가 {len(alerts)}건 — 발송 0건(미충족/충족지속) — 재무장 상태만 저장")
         return
 
     rest_key = os.environ.get("KAKAO_REST_API_KEY", "").strip()
@@ -400,24 +485,23 @@ def main():
                         with_button=True, uuids=uuids)
         print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
         return
-    for msg in _pack_messages([ln for _, ln in triggered], header):
+    for msg in _pack_messages([ln for _, ln in to_send], header):
         kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
 
-    # 테스트 런은 이력을 남기지 않는다 — 정규 cron 의 실제 알림(1일 1회/쿨다운)을 소모하지 않도록
+    # 테스트 런은 이력을 남기지 않는다 — 정규 cron 의 실제 알림(교차/쿨다운)을 소모하지 않도록
     if IS_TEST:
-        print(f"[alerts] 테스트 발송 완료 — 알림 {len(triggered)}건 (이력 미갱신)")
+        print(f"[alerts] 테스트 발송 완료 — 충족 {len(triggered)}건 / 발송 {len(to_send)}건 (이력 미갱신)")
         return
 
-    # 발송 성공 후에만 이력 갱신 → 워크플로가 커밋해 도배 방지 이력 보존
+    # 발송 성공 후 date/ts 스탬프 — 충족된 모든 건에(종목당1줄로 미발송된 건 포함) 적용해
+    # 다음 런에서 이벤트형 쿨다운/이력이 일관되게 동작. met 은 위에서 이미 반영됨.
     for a, _ in triggered:
-        state[a["id"]] = {"date": now.strftime("%Y%m%d"), "ts": int(now.timestamp())}
-    # 오래된 이력 정리(설정에서 삭제된 알림)
-    valid_ids = {a["id"] for a in alerts}
-    state = {k: v for k, v in state.items() if k in valid_ids}
-    with open(STATE_PATH, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
-        f.write("\n")
-    print(f"[alerts] 발송 완료 — 알림 {len(triggered)}건, 상태 저장")
+        rec = state.get(a["id"]) or {}
+        rec["date"] = now.strftime("%Y%m%d")
+        rec["ts"] = int(now.timestamp())
+        state[a["id"]] = rec
+    _write_state(state, alerts, now)
+    print(f"[alerts] 발송 완료 — 충족 {len(triggered)}건 / 발송 {len(to_send)}건, 상태 저장")
 
 
 if __name__ == "__main__":
