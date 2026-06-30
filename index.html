@@ -18538,7 +18538,16 @@ async function pfPullTracking(auto) {
     if(r.status === 401 || r.status === 403) { if(!auto && st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = '#ef5350'; } return; }
     if(r.status === 503) { if(!auto && st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = '#ef5350'; } return; }
     j = await r.json().catch(() => null);
-    if(!r.ok || !j) { if(!auto && st) { st.textContent = '서버 응답 오류 (HTTP ' + r.status + ')'; st.style.color = '#ef5350'; } return; }
+    if(!r.ok || !j) {
+      // 5xx 의 실제 원인을 노출 — Worker 가 본문에 담아주는 error/detail(예: github_read_failed)을
+      // 'HTTP 5xx' 뒤에 숨기지 않고 보여줘 즉시 진단 가능하게 한다.
+      const _why = (j && j.error === 'github_read_failed') ? 'GitHub 읽기 실패 — Worker 재배포 + GH_DISPATCH_TOKEN 갱신 필요'
+                 : (j && j.error === 'no_github_token') ? 'Worker GH_DISPATCH_TOKEN 시크릿 미설정'
+                 : (j && (j.error || j.detail)) ? (j.error || j.detail)
+                 : ('HTTP ' + r.status);
+      if(!auto && st) { st.textContent = '서버 응답 오류: ' + _why + ' (HTTP ' + r.status + ')'; st.style.color = '#ef5350'; }
+      return;
+    }
   } catch(_) {
     if(!auto && st) { st.textContent = '불러오기 실패 — 네트워크/프록시 오류(잠시 후 재시도)'; st.style.color = '#ef5350'; }
     return;

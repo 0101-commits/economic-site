@@ -62,13 +62,18 @@ jobs:
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           branch="${GITHUB_REF_NAME:-main}"
           if [ ! -f alerts_state.json ]; then echo "상태 파일 없음 — 커밋 건너뜀"; exit 0; fi
-          if git diff --quiet -- alerts_state.json && git diff --staged --quiet -- alerts_state.json; then
+          # ⚠ 반드시 먼저 stage 한 뒤 변경 여부를 본다. alerts_state.json 은 최초엔 untracked 라
+          #   `git diff`(워킹트리 vs 인덱스)·`git diff --staged`(인덱스 vs HEAD) 모두 untracked 파일을
+          #   '변경 없음'으로 보고 → 최초 커밋이 영원히 스킵돼 파일이 끝내 추적되지 않던 버그.
+          #   그 결과 매 런 state={} 로 시작 → cool60/교차 가드가 런 간 보존되지 않아 동일 알림이 5분마다 반복.
+          #   stage 후 `git diff --staged`(인덱스 vs HEAD)는 신규 추가도 변경으로 감지한다.
+          git add alerts_state.json
+          if git diff --staged --quiet -- alerts_state.json; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
           msg="alerts: 발송 이력 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
           # data.json 커밋과 동일한 '최신 런이 이긴다' 재시도 정책 — 상태 파일만 재적용
           cp alerts_state.json /tmp/alerts_state.json.run
-          git add alerts_state.json
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then
