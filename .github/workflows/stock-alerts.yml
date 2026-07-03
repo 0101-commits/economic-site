@@ -1,13 +1,14 @@
 name: Stock Alerts (KakaoTalk, 장중 5분)
 
-# '투자 현황' 페이지에서 설정한 종목 알림(alerts_config.json)을 장중 5분마다 평가해
+# '투자 현황' 페이지에서 설정한 종목 알림(alerts_config.json)을 장중 평가해
 # 조건 충족 시 카카오톡으로 발송한다 (scripts/check_alerts.py).
 #   - 한국 장중: 평일 09:00–15:40 KST (= UTC 00:00–06:40)
 #   - 미국 장중: 평일 22:30–06:10 KST (= UTC 13:30–21:10)
 # 도배 방지 발송 이력(alerts_state.json)은 매 런 커밋해 보존한다(하루 1회/1시간 쿨다운).
-# 주의: GitHub schedule 은 best-effort 라 지연/누락될 수 있음 — 5분 주기로 평가해 조건
-#       충족 후 보통 5분 내 안내한다. 단, 시세 데이터 자체는 무료 API 특성상 최대 15분
-#       지연될 수 있으므로(별개 한계) 메시지엔 '15분 지연 데이터 기준' 문구를 유지한다.
+# 평가 주기(2026-07-03 단축): Worker cron(* * * * *)이 장중 '매분' alerts-cron dispatch →
+#   조건 충족→카톡 도착 최악 ~2분. 아래 GHA schedule(*/5)은 Worker/토큰 장애 대비 폴백일 뿐
+#   (best-effort 라 5~15분 밀릴 수 있음 — 정시성의 단일 진실원은 Worker cron).
+#   런당 ~40초·직렬(concurrency)이라 매분 dispatch 도 안전, 공개 repo 라 Actions 분 무료.
 on:
   schedule:
     - cron: '*/5 0-6 * * 1-5'    # 한국 장중 (00:00–06:55 UTC = 09:00–15:55 KST)

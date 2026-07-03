@@ -5,7 +5,8 @@
 흐름:
   '투자 현황' 페이지에서 설정한 알림 조건을 Cloudflare Worker(POST /portfolio)가
   저장소 alerts_config.json 에 커밋 → 본 스크립트가 GitHub Actions(stock-alerts.yml,
-  장중 5분 주기)에서 실행되어 조건 충족 알림을 카카오톡으로 발송한다.
+  장중 매분 — Worker cron dispatch, GHA schedule 5분은 폴백)에서 실행되어
+  조건 충족 알림을 카카오톡으로 발송한다. (조건 충족→도착 최악 ~2분)
 
 지원 조건(type):
   price_above / price_below — 목표 가격 도달(이상/이하)
@@ -27,10 +28,12 @@
     발송한다(가격 사다리 동시 충족 시 폭주 방지). 미발송 건도 이력(met/date/ts)은 갱신.
   발송 이력은 alerts_state.json 에 기록되고 워크플로가 커밋해 런 간 보존된다.
 
-데이터 소스(무료·15분 지연 가능):
+데이터 소스(무료·수분 지연 가능):
   한국: 네이버 모바일 API(현재가/등락률) + 네이버 일봉 차트(MA/52주/거래량) — 신규 상장 ETF 포함
   미국: Yahoo Finance 차트 API (러너 IP 차단 대비 전용 Worker/공개 프록시 폴백)
-  → 모든 알림 메시지에 "15분 지연 데이터 기준" 문구를 포함한다(PRD 필수).
+  → 모든 알림 메시지에 시세 지연 고지 문구를 포함한다(PRD 필수). 소스 자체는 실시간급이지만
+    무료 API 라 보장이 없어 보수적으로 고지한다. (구 문구 "15분 지연"은 실측과 달라 완화 —
+    실제 병목은 평가 주기였고 2026-07-03 매분 평가로 단축됨.)
 
 필요한 GitHub Secrets: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (시황 다이제스트와 공용)
 """
@@ -48,7 +51,7 @@ CONFIG_PATH = os.path.join(ROOT, "alerts_config.json")
 STATE_PATH = os.path.join(ROOT, "alerts_state.json")
 TEXT_LIMIT = 200          # 카카오 텍스트 템플릿 길이 제한
 MAX_MSGS = 3              # 1회 실행당 최대 발송 통수(폭주 방지)
-DELAY_NOTICE = "※ 15분 지연 데이터 기준"
+DELAY_NOTICE = "※ 무료 시세 기준(지연 가능)"
 
 # 🔔 테스트 발송 모드 — 프런트 '테스트 발송' 버튼 → Worker /portfolio/test →
 # repository_dispatch(alerts-test) 로 실행된 런. 설정 검증이 목적이므로

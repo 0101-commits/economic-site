@@ -755,30 +755,34 @@ function inKakaoSlot(d) {
 }
 
 // 🔔 종목 알림(alerts-cron) + 서킷브레이커 데이터 갱신(fetch-data) on-demand 실행.
-// GHA schedule 드롭 영향을 받지 않아 장중 5분 주기를 안정적으로 보장한다.
-async function triggerMarketAlerts(env) {
+// GHA schedule 드롭 영향을 받지 않는다. alerts-cron 은 장중 '매분'(알림 도착 최악 ~2분),
+// fetch-data 는 무거워서(런 수분·data.json 커밋) 기존 5분 주기 유지 — includeFetch 로 게이트.
+async function triggerMarketAlerts(env, includeFetch) {
   if (!(env && env.GH_DISPATCH_TOKEN)) {
     console.log('[market-cron] GH_DISPATCH_TOKEN 미설정 — dispatch 생략. (README 참고)');
     return;
   }
   if (!inMarketHours(new Date())) return;   // 장외 — GitHub 깨우지 않음
-  await Promise.all([
-    ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron'),
-    ghDispatch(env, 'fetch-data', {}, 'ecom-fetch-cron'),
-  ]);
+  const jobs = [ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron')];
+  if (includeFetch) jobs.push(ghDispatch(env, 'fetch-data', {}, 'ecom-fetch-cron'));
+  await Promise.all(jobs);
 }
 
 export default {
   // Cloudflare Cron Trigger 진입점
   async scheduled(event, env, ctx) {
     const cron = event && event.cron;
-    if (cron === '*/5 * * * *') {
-      ctx.waitUntil(triggerMarketAlerts(env));      // 5분 cron → 종목·halt 정시성 보강
+    // 매분 cron(구 */5 도 배포 전환기 호환) → 종목·halt 정시성 보강.
+    if (cron === '* * * * *' || cron === '*/5 * * * *') {
+      const now = new Date(event.scheduledTime || Date.now());
+      // 5분 게이트 — fetch-data(무거움)·카카오 재시도는 기존 5분 주기 유지, alerts-cron 만 매분.
+      const on5min = now.getUTCMinutes() % 5 === 0;
+      ctx.waitUntil(triggerMarketAlerts(env, on5min));
       // 🔁 카카오 슬롯 재시도 — hourly cron(:02) 1회가 드롭되거나 GitHub 백업 스케줄까지 한 시(時)를
       //   통째로 누락해도(실측 2026-06-26 KST 18시 사례) 슬롯을 놓치지 않도록, 슬롯 시각이면 5분마다
       //   kakao-send 를 추가 dispatch 한다. 워크플로의 발송 창 게이트(타깃 시각만 통과) + 슬롯 dedup
       //   마커(슬롯당 하루 1회) + concurrency 직렬화가 멱등성을 보장하므로 중복 발송은 생기지 않는다.
-      if (inKakaoSlot(new Date())) ctx.waitUntil(triggerKakaoDispatch(env, cron));
+      if (on5min && inKakaoSlot(now)) ctx.waitUntil(triggerKakaoDispatch(env, cron));
     } else {
       ctx.waitUntil(triggerKakaoDispatch(env, cron)); // 기존 hourly cron → 카카오 시황 다이제스트
     }

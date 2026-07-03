@@ -1113,7 +1113,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
     <div class="menu-item" onclick="showPage('notes',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">edit_note</span>분석 노트</div>
     <div class="menu-item" onclick="showPage('settings',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">settings</span>설정</div>
     <!-- 지연 데이터 상태 칩 — 좌하단 플로팅에서 사이드바 정적 배치로 이동 (본문 가림 해소) -->
-    <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다."><span class="dot"></span>Market Data 15m Delayed</div>
+    <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>Market Data 15m Delayed</div>
     <button id="globalRefreshBtn" onclick="manualRefreshData()" title="데이터 수동 새로고침 (30초 쿨다운)" style="display:flex;align-items:center;gap:5px;width:100%;padding:5px 10px;margin-top:4px;border-radius:var(--r-xs);border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;font-size:11px;font-weight:500;transition:opacity .2s;"><span class="mat" id="globalRefreshIcon" style="font-size:14px;">refresh</span><span id="globalRefreshLabel">새로고침</span></button>
     <div style="border-top:1px solid var(--c-border);margin:12px 0;"></div>
     <!-- 테마 토글 버튼 -->
@@ -1605,8 +1605,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
         </div>
         <div id="pfAlertSummary" style="font-size:12px;color:#a4a8bc;">설정된 알림이 없습니다. 종목 행의 🔔 버튼으로 추가하세요.</div>
         <div style="font-size:10px;color:#7a8099;margin-top:8px;line-height:1.6;">
-          알림은 장중 5분 주기로 서버(GitHub Actions)가 조건을 평가해 카카오톡으로 발송합니다(조건 충족 후 보통 5분 내 안내). <b>발송되려면 반드시 「☁ 서버에 저장」을 눌러야 합니다.</b>
-          도배 방지: 알림별로 <b>하루 1회</b> 또는 <b>1시간 쿨다운</b> 중 선택. 알림 메시지에도 15분 지연 문구가 함께 표기됩니다.
+          알림은 장중 <b>매분</b> 서버(GitHub Actions)가 조건을 평가해 카카오톡으로 발송합니다(조건 충족 후 보통 1~2분 내 안내). <b>발송되려면 반드시 「☁ 서버에 저장」을 눌러야 합니다.</b>
+          도배 방지: 알림별로 <b>하루 1회</b> 또는 <b>1시간 쿨다운</b> 중 선택. 알림 메시지에는 무료 시세 지연 가능 고지가 함께 표기됩니다.
           알림 조건(종목·조건값)은 공개 저장소의 <code style="background:#262a35;padding:1px 4px;border-radius:var(--r-xs);">alerts_config.json</code> 에 저장됩니다(평단가·수량은 전송되지 않음). 설정 방법: 저장소의 STOCK_ALERTS.md 참고.
         </div>
       </div>
@@ -1685,7 +1685,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           </div>
           <div style="font-size:10px;color:#7a8099;margin-top:10px;line-height:1.6;">
             변경 후 「☁ 서버에 저장」을 눌러야 실제 발송에 반영됩니다. 등락률은 음수 입력 시 하락 알림(예: -3 → 3% 하락 시).
-            거래량 폭등 기본값 300 = 전일 거래량의 300%(3배) 이상. ⓘ 알림은 15분 지연 데이터 기준으로 평가·발송됩니다.
+            거래량 폭등 기본값 300 = 전일 거래량의 300%(3배) 이상. ⓘ 알림은 장중 매분 평가·발송됩니다(무료 시세 특성상 지연 가능).
           </div>
         </div>
       </div>
@@ -19274,7 +19274,7 @@ function initGlobalDelayChip() {
   if(!sb) return;
   const chip = document.createElement('div');
   chip.id = 'globalDelayChip';
-  chip.title = '본 정보는 최대 15분 지연된 데이터 기준입니다.\n무료 시세 API 특성상 현재가·카카오톡 알림 모두 최대 15분가량 지연될 수 있습니다.';
+  chip.title = '본 정보는 최대 15분 지연된 데이터 기준입니다.\n무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.\n(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)';
   chip.innerHTML = '<span class="dot"></span>Market Data 15m Delayed';
   sb.appendChild(chip);
 }
