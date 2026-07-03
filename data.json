@@ -1,8 +1,8 @@
 {
-  "lastUpdated": "2026-07-03T07:52:01.539517+09:00",
+  "lastUpdated": "2026-07-03T08:56:33.462867+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
-    "etfMovers": "KRX OpenAPI",
+    "etfMovers": "yfinance (주요 한국 ETF 30종)",
     "investorTrading": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
     "freight": "해상운임 스크래핑(네이버/StockQ/SSE)",
     "indices": "KRX OpenAPI (KR) + yfinance (해외)",
@@ -26,7 +26,8 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← Naver Finance (2026-07-03T07:04)"
+    "stockMovers": "이전 빌드 보존 ← Naver Finance (2026-07-03T07:52)",
+    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
@@ -35,19 +36,19 @@
     },
     "EURKRW": {
       "rate": 1749.95,
-      "change": -0.57
+      "change": -1.09
     },
     "JPYKRW": {
-      "rate": 9.5304,
-      "change": -0.23
+      "rate": 9.5222,
+      "change": -1.19
     },
     "EURUSD": {
       "rate": 1.1385,
-      "change": 0.43
+      "change": -0.09
     },
     "USDJPY": {
-      "rate": 161.28,
-      "change": -0.77
+      "rate": 161.42,
+      "change": 0.19
     }
   },
   "indices": {
@@ -78,44 +79,44 @@
   },
   "commodities": {
     "Gold": {
-      "price": 4135.9,
-      "change": 1.31
+      "price": 4140.5,
+      "change": 1.43
     },
     "Silver": {
-      "price": 61.47,
-      "change": 1.14
+      "price": 61.58,
+      "change": 1.33
     },
     "Platinum": {
-      "price": 1630.5,
-      "change": 0.27
+      "price": 1635.2,
+      "change": 0.56
     },
     "Palladium": {
-      "price": 1270.5,
-      "change": 3.0
+      "price": 1270.0,
+      "change": 2.96
     },
     "Copper": {
       "price": 6.18,
-      "change": -0.09
+      "change": 0.0
     },
     "WTI": {
-      "price": 68.5,
-      "change": 1.17
+      "price": 68.46,
+      "change": 1.11
     },
     "Brent": {
-      "price": 71.61,
-      "change": 1.26
+      "price": 71.57,
+      "change": 1.2
     },
     "NatGas": {
       "price": 3.21,
-      "change": 0.41
+      "change": 0.34
     },
     "Gasoline": {
       "price": 2.92,
-      "change": 0.51
+      "change": 0.48
     },
     "HeatingOil": {
-      "price": 3.19,
-      "change": -0.58
+      "price": 3.18,
+      "change": -0.68
     },
     "Aluminum": {
       "price": 3254.0,
@@ -323,59 +324,10 @@
   "etfMovers": {
     "etfGainers": [
       {
-        "name": "SOL SK하이닉스선물단일종목인버스2X",
-        "code": "0197X0",
-        "price": 10545.0,
-        "chg": 34.67,
-        "as_of": "2026-07-03"
-      },
-      {
-        "name": "KIWOOM 200선물인버스2X",
-        "code": "253230",
-        "price": 81.0,
-        "chg": 19.12,
-        "as_of": "2026-07-03"
-      },
-      {
-        "name": "PLUS 삼성전자선물단일종목인버스2X",
-        "code": "0193L0",
-        "price": 15625.0,
-        "chg": 19.05,
-        "as_of": "2026-07-03"
-      },
-      {
-        "name": "PLUS 200선물인버스2X",
-        "code": "253160",
-        "price": 174.0,
-        "chg": 18.37,
-        "as_of": "2026-07-03"
-      },
-      {
         "name": "KODEX 200선물인버스2X",
         "code": "252670",
         "price": 84.0,
         "chg": 16.67,
-        "as_of": "2026-07-03"
-      },
-      {
-        "name": "RISE 200선물인버스2X",
-        "code": "252420",
-        "price": 87.0,
-        "chg": 16.0,
-        "as_of": "2026-07-03"
-      },
-      {
-        "name": "TIGER 200선물인버스2X",
-        "code": "252710",
-        "price": 88.0,
-        "chg": 11.39,
-        "as_of": "2026-07-03"
-      },
-      {
-        "name": "TIGER 인버스",
-        "code": "123310",
-        "price": 1132.0,
-        "chg": 8.74,
         "as_of": "2026-07-03"
       },
       {
@@ -386,82 +338,131 @@
         "as_of": "2026-07-03"
       },
       {
-        "name": "KIWOOM 200선물인버스",
-        "code": "253240",
-        "price": 1271.0,
-        "chg": 7.89,
+        "name": "KODEX 코스닥150선물인버스",
+        "code": "251340",
+        "price": 2385.0,
+        "chg": 6.95,
+        "as_of": "2026-07-03"
+      },
+      {
+        "name": "KODEX 은행",
+        "code": "091170",
+        "price": 15470.0,
+        "chg": 5.35,
+        "as_of": "2026-07-03"
+      },
+      {
+        "name": "KODEX 골드선물(H)",
+        "code": "132030",
+        "price": 22945.0,
+        "chg": 2.75,
+        "as_of": "2026-07-03"
+      },
+      {
+        "name": "TIGER 차이나전기차SOLACTIVE",
+        "code": "371460",
+        "price": 12730.0,
+        "chg": 1.6,
+        "as_of": "2026-07-03"
+      },
+      {
+        "name": "TIGER 미디어컨텐츠",
+        "code": "228810",
+        "price": 3500.0,
+        "chg": 1.45,
+        "as_of": "2026-07-03"
+      },
+      {
+        "name": "TIGER 화장품",
+        "code": "228790",
+        "price": 3780.0,
+        "chg": 0.8,
+        "as_of": "2026-07-03"
+      },
+      {
+        "name": "TIGER 미국필라델피아반도체나스닥",
+        "code": "381170",
+        "price": 33050.0,
+        "chg": 0.47,
+        "as_of": "2026-07-03"
+      },
+      {
+        "name": "KODEX 국고채3년",
+        "code": "114260",
+        "price": 61575.0,
+        "chg": 0.09,
         "as_of": "2026-07-03"
       }
     ],
     "etfLosers": [
       {
-        "name": "KIWOOM SK하이닉스선물단일종목레버리지",
-        "code": "0194R0",
-        "price": 17425.0,
-        "chg": -33.77,
+        "name": "KODEX 레버리지",
+        "code": "122630",
+        "price": 160235.0,
+        "chg": -15.98,
         "as_of": "2026-07-03"
       },
       {
-        "name": "RISE SK하이닉스단일종목레버리지",
-        "code": "0192L0",
-        "price": 18225.0,
-        "chg": -32.49,
+        "name": "KODEX 코스닥150 레버리지",
+        "code": "233740",
+        "price": 9320.0,
+        "chg": -14.1,
         "as_of": "2026-07-03"
       },
       {
-        "name": "1Q SK하이닉스선물단일종목레버리지",
-        "code": "0198D0",
-        "price": 19015.0,
-        "chg": -32.45,
+        "name": "KODEX 반도체",
+        "code": "091160",
+        "price": 149255.0,
+        "chg": -11.97,
         "as_of": "2026-07-03"
       },
       {
-        "name": "KODEX SK하이닉스단일종목레버리지",
-        "code": "0193T0",
-        "price": 22035.0,
-        "chg": -30.87,
+        "name": "TIGER 200 IT",
+        "code": "139260",
+        "price": 170185.0,
+        "chg": -10.94,
         "as_of": "2026-07-03"
       },
       {
-        "name": "ACE SK하이닉스단일종목레버리지",
-        "code": "0194T0",
-        "price": 18730.0,
-        "chg": -30.38,
+        "name": "KODEX 200",
+        "code": "069500",
+        "price": 123530.0,
+        "chg": -8.17,
         "as_of": "2026-07-03"
       },
       {
-        "name": "SOL SK하이닉스단일종목레버리지",
-        "code": "0197W0",
-        "price": 18575.0,
-        "chg": -30.29,
+        "name": "TIGER 200",
+        "code": "102110",
+        "price": 123740.0,
+        "chg": -7.86,
         "as_of": "2026-07-03"
       },
       {
-        "name": "TIGER SK하이닉스단일종목레버리지",
-        "code": "0195S0",
-        "price": 18845.0,
-        "chg": -30.28,
+        "name": "TIGER 200에너지화학",
+        "code": "139250",
+        "price": 17530.0,
+        "chg": -4.73,
         "as_of": "2026-07-03"
       },
       {
-        "name": "KODEX 반도체레버리지",
-        "code": "494310",
-        "price": 126490.0,
-        "chg": -24.68,
+        "name": "TIGER 200건설",
+        "code": "139220",
+        "price": 7870.0,
+        "chg": -4.72,
         "as_of": "2026-07-03"
       },
       {
-        "name": "TIGER 반도체TOP10레버리지",
-        "code": "488080",
-        "price": 60140.0,
-        "chg": -21.08,
+        "name": "KODEX 철강",
+        "code": "117700",
+        "price": 6650.0,
+        "chg": -3.76,
         "as_of": "2026-07-03"
       },
       {
-        "name": "TIGER 200IT레버리지",
-        "code": "243880",
-        "price": 632000.0,
-        "chg": -20.89,
+        "name": "KODEX 2차전지산업",
+        "code": "305720",
+        "price": 14200.0,
+        "chg": -2.84,
         "as_of": "2026-07-03"
       }
     ]
@@ -2274,7 +2275,7 @@
     ],
     "unit": "억원",
     "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
-    "lastFetched": "2026-07-03T07:54:54.287459+09:00"
+    "lastFetched": "2026-07-03T09:01:16.448016+09:00"
   },
   "freight": {
     "items": [
@@ -2361,7 +2362,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-07-03T07:55:00.344937+09:00"
+    "lastFetched": "2026-07-03T09:01:27.631186+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -7818,8 +7819,8 @@
         }
       },
       "dxy_idx": {
-        "value": 100.85,
-        "change": -0.51,
+        "value": 100.95,
+        "change": -0.41,
         "period": "2026-07-03",
         "desc": "달러 인덱스 (DXY, ICE 1973=100)",
         "source": "yfinance DX-Y.NYB",
@@ -9080,7 +9081,7 @@
           "2026-06-29": 101.11,
           "2026-06-30": 101.19,
           "2026-07-01": 101.39,
-          "2026-07-02": 100.848
+          "2026-07-02": 100.947
         }
       },
       "pmi_us": {
@@ -14369,21 +14370,6 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
-      },
       "trade_count_kr_rone": {
         "value": 80119.0,
         "prev": 76391.0,
@@ -14895,6 +14881,21 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
+      },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -45388,7 +45389,7 @@
         },
         {
           "date": "2026-07-03",
-          "close": 9.5304
+          "close": 9.5222
         }
       ],
       "EURUSD": [
@@ -55792,16 +55793,12 @@
         },
         {
           "date": "2026-07-03",
-          "close": 161.28
+          "close": 161.42
         }
       ]
     },
     "indices": {
       "KOSPI": [
-        {
-          "date": "2021-07-02",
-          "close": 3281.78
-        },
         {
           "date": "2021-07-05",
           "close": 3293.21
@@ -60684,10 +60681,6 @@
         }
       ],
       "KOSDAQ": [
-        {
-          "date": "2021-07-02",
-          "close": 1038.1801
-        },
         {
           "date": "2021-07-05",
           "close": 1047.33
@@ -75603,10 +75596,6 @@
       ],
       "Nikkei": [
         {
-          "date": "2021-07-02",
-          "close": 28783.2793
-        },
-        {
           "date": "2021-07-05",
           "close": 28598.1895
         },
@@ -90366,7 +90355,11 @@
         },
         {
           "date": "2026-07-02",
-          "close": 4136.2002
+          "close": 4139.7002
+        },
+        {
+          "date": "2026-07-03",
+          "close": 4140.5
         }
       ],
       "Silver": [
@@ -95396,11 +95389,11 @@
         },
         {
           "date": "2026-07-02",
-          "close": 61.505
+          "close": 61.55
         },
         {
           "date": "2026-07-03",
-          "close": 61.47
+          "close": 61.58
         }
       ],
       "Platinum": [
@@ -100430,7 +100423,11 @@
         },
         {
           "date": "2026-07-02",
-          "close": 1630.4
+          "close": 1635.5
+        },
+        {
+          "date": "2026-07-03",
+          "close": 1635.2
         }
       ],
       "Palladium": [
@@ -105456,11 +105453,11 @@
         },
         {
           "date": "2026-07-02",
-          "close": 1269.5
+          "close": 1271.0
         },
         {
           "date": "2026-07-03",
-          "close": 1270.5
+          "close": 1270.0
         }
       ],
       "Copper": [
@@ -110494,11 +110491,7 @@
         },
         {
           "date": "2026-07-02",
-          "close": 6.177
-        },
-        {
-          "date": "2026-07-03",
-          "close": 6.18
+          "close": 6.1795
         }
       ],
       "WTI": [
@@ -115528,11 +115521,11 @@
         },
         {
           "date": "2026-07-02",
-          "close": 68.47
+          "close": 68.39
         },
         {
           "date": "2026-07-03",
-          "close": 68.5
+          "close": 68.46
         }
       ],
       "Brent": [
@@ -120566,7 +120559,7 @@
         },
         {
           "date": "2026-07-02",
-          "close": 71.61
+          "close": 71.57
         }
       ],
       "NatGas": [
@@ -125600,7 +125593,7 @@
         },
         {
           "date": "2026-07-02",
-          "close": 3.207
+          "close": 3.204
         },
         {
           "date": "2026-07-03",
@@ -130638,7 +130631,7 @@
         },
         {
           "date": "2026-07-02",
-          "close": 2.9221
+          "close": 2.9187
         },
         {
           "date": "2026-07-03",
@@ -135676,11 +135669,11 @@
         },
         {
           "date": "2026-07-02",
-          "close": 3.1859
+          "close": 3.1805
         },
         {
           "date": "2026-07-03",
-          "close": 3.19
+          "close": 3.18
         }
       ],
       "Aluminum": [
@@ -176193,8 +176186,8 @@
   },
   "sentiment": {
     "vkospi": {
-      "value": 86.41,
-      "change": -2.55,
+      "value": 89.03,
+      "change": 3.03,
       "as_of": "2026-07-03",
       "source": "investing.com KOSPI Volatility",
       "symbol": "KSVKOSPI",
@@ -176226,7 +176219,7 @@
         "2026-06-30": 93.8,
         "2026-07-01": 88.67,
         "2026-07-02": 86.41,
-        "2026-07-03": 86.41
+        "2026-07-03": 89.03
       }
     },
     "move": {
@@ -176737,7 +176730,6 @@
       "rating": "fear",
       "as_of": "2026-07-03",
       "history": {
-        "2025-07-02": 63.71,
         "2025-07-03": 77.63,
         "2025-07-07": 75.09,
         "2025-07-08": 74.63,
@@ -176996,7 +176988,7 @@
   },
   "diagnostics": {
     "stockMoversSource": "FAILED",
-    "etfMoversSource": "KRX OpenAPI",
+    "etfMoversSource": "yfinance (주요 한국 ETF 30종)",
     "investorTradingDays": 300,
     "kisEnabled": false,
     "pykrxAvailable": true,
@@ -177011,7 +177003,8 @@
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 2,
-    "historySpotSynced": 16
+    "preservedMetricsDeep": 1,
+    "historySpotSynced": 17
   },
   "subscription": {
     "byRegion": {
@@ -177385,7 +177378,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-07-03T08:04:20.507178+09:00"
+    "lastFetched": "2026-07-03T09:08:28.175474+09:00"
   },
   "nps": {
     "allocation": [
@@ -177414,7 +177407,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-07-03T08:04:29.415564+09:00",
+    "lastFetched": "2026-07-03T09:08:56.973348+09:00",
     "채권": [],
     "외환": [
       {
@@ -177432,10 +177425,22 @@
     ],
     "주식": [
       {
+        "title": "힘 못쓰는 삼전닉스, 코스피 1% 약세…코스닥 900선 회복[장중시황]",
+        "url": "https://www.msn.com/ko-kr/news/living/%ED%9E%98-%EB%AA%BB%EC%93%B0%EB%8A%94-%EC%82%BC%EC%A0%84%EB%8B%89%EC%8A%A4-%EC%BD%94%EC%8A%A4%ED%94%BC-1-%EC%95%BD%EC%84%B8-%EC%BD%94%EC%8A%A4%EB%8B%A5-900%EC%84%A0-%ED%9A%8C%EB%B3%B5-%EC%9E%A5%EC%A4%91%EC%8B%9C%ED%99%A9/ar-AA26KQL2",
+        "isoDate": "2026-06-28",
+        "pubDate": "Sun, 28 Jun 2026 20:17:28 GMT"
+      },
+      {
         "title": "[마켓라이브] 반도체 강세에 코스피·코스닥 동반 상승 출발… 이차전지는 약세 [오전 9시10분 시황]",
         "url": "https://www.hankyung.com/article/202606305740i",
         "isoDate": "2026-06-30",
         "pubDate": "Tue, 30 Jun 2026 02:23:00 GMT"
+      },
+      {
+        "title": "코스피, 7800선으로 밀려…외국인 2.4조 순매도 [시황]",
+        "url": "https://www.dailian.co.kr/news/view/1662496/%EC%BD%94%EC%8A%A4%ED%94%BC-7800%EC%84%A0-%EB%B0%80%EB%A0%A4%EC%99%B8%EA%B5%AD%EC%9D%B8-24%EC%A1%B0-2026",
+        "isoDate": "2026-07-02",
+        "pubDate": "Thu, 02 Jul 2026 02:44:00 GMT"
       },
       {
         "title": "[마감시황] '메모리 수요 정점 논란'...반도체 투매에 코스피 7.9% 하락",
@@ -177444,22 +177449,10 @@
         "pubDate": "Thu, 02 Jul 2026 00:01:00 GMT"
       },
       {
-        "title": "[개장시황] 코스피 장 초반 5% 급락…반도체 쇼크에 매도 사이드카 발동",
-        "url": "https://www.newspim.com/news/view/20260702000210",
-        "isoDate": "2026-07-02",
-        "pubDate": "Thu, 02 Jul 2026 15:55:00 GMT"
-      },
-      {
         "title": "반도체 저가 매수…코스피, 3거래일 만에 반등 [시황]",
         "url": "https://www.dailian.co.kr/news/view/1661689/%EB%B0%98%EB%8F%84%EC%B2%B4-%EC%A0%80%EA%B0%80-%EB%A7%A4%EC%88%98%EC%BD%94%EC%8A%A4%ED%94%BC-3%EA%B1%B0%EB%9E%98%EC%9D%BC-%EB%A7%8C%EC%97%90-2026",
         "isoDate": "2026-06-30",
         "pubDate": "Tue, 30 Jun 2026 08:58:00 GMT"
-      },
-      {
-        "title": "[마감시황] 코스피, 외인 '팔자'에 약보합…코스닥 8%↑",
-        "url": "https://www.shinailbo.co.kr/news/articleView.html?idxno=5035460",
-        "isoDate": "2026-06-29",
-        "pubDate": "Mon, 29 Jun 2026 08:58:00 GMT"
       }
     ],
     "원자재": [],
@@ -177482,7 +177475,7 @@
       },
       {
         "title": "“예상보다 경기지표 견조” 올해 한국 GDP성장률 3.1→3.5%로 올렸다…씨티은행 전망",
-        "url": "https://www.msn.com/ko-kr/news/other/%EC%98%88%EC%83%81%EB%B3%B4%EB%8B%A4-%EA%B2%BD%EA%B8%B0%EC%A7%80%ED%91%9C-%EA%B2%AC%EC%A1%B0-%EC%98%AC%ED%95%B4-%ED%95%9C%EA%B5%AD-gdp%EC%84%B1%EC%9E%A5%EB%A5%A0-31-35-%EB%A1%9C-%EC%98%AC%EB%A0%B8%EB%8B%A4-%EC%94%A8%ED%8B%B0%EC%9D%80%ED%96%89-%EC%A0%84%EB%A7%9D/ar-AA26RIjT",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%98%88%EC%83%81%EB%B3%B4%EB%8B%A4-%EA%B2%BD%EA%B8%B0%EC%A7%80%ED%91%9C-%EA%B2%AC%EC%A1%B0-%EC%98%AC%ED%95%B4-%ED%95%9C%EA%B5%AD-gdp%EC%84%B1%EC%9E%A5%EB%A5%A0-3-1-3-5-%EB%A1%9C-%EC%98%AC%EB%A0%B8%EB%8B%A4-%EC%94%A8%ED%8B%B0%EC%9D%80%ED%96%89-%EC%A0%84%EB%A7%9D/ar-AA26RIjT",
         "isoDate": "2026-06-30",
         "pubDate": "Tue, 30 Jun 2026 00:58:06 GMT"
       },
@@ -177499,10 +177492,10 @@
         "pubDate": "Mon, 29 Jun 2026 18:36:50 GMT"
       },
       {
-        "title": "씨티 “올해 한국 실질 성장률, 3.1→3.5%로 상향 조정”",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%94%A8%ED%8B%B0-%EC%98%AC%ED%95%B4-%ED%95%9C%EA%B5%AD-%EC%8B%A4%EC%A7%88-%EC%84%B1%EC%9E%A5%EB%A5%A0-3-1-3-5-%EB%A1%9C-%EC%83%81%ED%96%A5-%EC%A1%B0%EC%A0%95/ar-AA26QYuJ",
-        "isoDate": "2026-06-29",
-        "pubDate": "Mon, 29 Jun 2026 22:54:10 GMT"
+        "title": "“한국, AI 파도 탔다”… 국내외 11곳 “성장률 3% 이상” 낙관 [뉴스 투데이]",
+        "url": "https://www.msn.com/ko-kr/money/topstories/%ED%95%9C%EA%B5%AD-ai-%ED%8C%8C%EB%8F%84-%ED%83%94%EB%8B%A4-%EA%B5%AD%EB%82%B4%EC%99%B8-11%EA%B3%B3-%EC%84%B1%EC%9E%A5%EB%A5%A0-3-%EC%9D%B4%EC%83%81-%EB%82%99%EA%B4%80-%EB%89%B4%EC%8A%A4-%ED%88%AC%EB%8D%B0%EC%9D%B4/ar-AA26Y7hT",
+        "isoDate": "2026-07-01",
+        "pubDate": "Wed, 01 Jul 2026 05:09:00 GMT"
       }
     ],
     "미국CPI": [],
@@ -177512,12 +177505,6 @@
         "url": "https://www.ajunews.com/view/20260701114902457",
         "isoDate": "2026-07-01",
         "pubDate": "Wed, 01 Jul 2026 04:50:00 GMT"
-      },
-      {
-        "title": "중국 제조업 체감 경기 확장세인데… 불안한 내수 부진[e차이나]",
-        "url": "https://www.msn.com/ko-kr/news/other/%EC%A4%91%EA%B5%AD-%EC%A0%9C%EC%A1%B0%EC%97%85-%EC%B2%B4%EA%B0%90-%EA%B2%BD%EA%B8%B0-%ED%99%95%EC%9E%A5%EC%84%B8%EC%9D%B8%EB%8D%B0-%EB%B6%88%EC%95%88%ED%95%9C-%EB%82%B4%EC%88%98-%EB%B6%80%EC%A7%84-e%EC%B0%A8%EC%9D%B4%EB%82%98/ar-AA26R1lF",
-        "isoDate": "2026-06-29",
-        "pubDate": "Mon, 29 Jun 2026 20:06:51 GMT"
       },
       {
         "title": "중국 6월 제조업 PMI 50.3⋯AI 수출 호조 덕에 확장국면 재진입",
@@ -177532,10 +177519,16 @@
         "pubDate": "Tue, 30 Jun 2026 05:25:00 GMT"
       },
       {
-        "title": "[속보]중국 6월 제조업 PMI 50.3, 4개월째 확장 국면",
-        "url": "https://www.edaily.co.kr/News/Read?newsId=03745766645486968",
+        "title": "[속보] 5월 中 레이팅독 제조업 PMI 51.7·0.1P↓… 7개월째 경기확대",
+        "url": "https://www.msn.com/ko-kr/news/world/%EC%86%8D%EB%B3%B4-5%EC%9B%94-%E4%B8%AD-%EB%A0%88%EC%9D%B4%ED%8C%85%EB%8F%85-%EC%A0%9C%EC%A1%B0%EC%97%85-pmi-517-01p-7%EA%B0%9C%EC%9B%94%EC%A7%B8-%EA%B2%BD%EA%B8%B0%ED%99%95%EB%8C%80/ar-AA26WGuA",
         "isoDate": "2026-06-30",
-        "pubDate": "Tue, 30 Jun 2026 03:33:00 GMT"
+        "pubDate": "Tue, 30 Jun 2026 18:51:06 GMT"
+      },
+      {
+        "title": "중국 제조업 체감 경기 확장세인데…불안한 내수 부진[e차이나]",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%A4%91%EA%B5%AD-%EC%A0%9C%EC%A1%B0%EC%97%85-%EC%B2%B4%EA%B0%90-%EA%B2%BD%EA%B8%B0-%ED%99%95%EC%9E%A5%EC%84%B8%EC%9D%B8%EB%8D%B0-%EB%B6%88%EC%95%88%ED%95%9C-%EB%82%B4%EC%88%98-%EB%B6%80%EC%A7%84-e%EC%B0%A8%EC%9D%B4%EB%82%98/ar-AA26R1lF",
+        "isoDate": "2026-06-30",
+        "pubDate": "Tue, 30 Jun 2026 05:06:00 GMT"
       }
     ],
     "일본경기": [],
@@ -177550,16 +177543,16 @@
         "pubDate": "Wed, 01 Jul 2026 03:09:00 GMT"
       },
       {
-        "title": "日 제친 한국 수출, 사상 첫 월 1000억달러 돌파…세계 5위",
-        "url": "https://www.msn.com/ko-kr/news/other/%E6%97%A5-%EC%A0%9C%EC%B9%9C-%ED%95%9C%EA%B5%AD-%EC%88%98%EC%B6%9C-%EC%82%AC%EC%83%81-%EC%B2%AB-%EC%9B%94-1000%EC%96%B5%EB%8B%AC%EB%9F%AC-%EB%8F%8C%ED%8C%8C-%EC%84%B8%EA%B3%84-5%EC%9C%84/ar-AA26ZAWz",
-        "isoDate": "2026-07-01",
-        "pubDate": "Wed, 01 Jul 2026 07:52:00 GMT"
-      },
-      {
         "title": "韓 수출 사상 첫 1000억 달러 돌파…'꿈의 1조 달러' 달성 가능성",
         "url": "https://www.ajunews.com/view/20260701151053913",
         "isoDate": "2026-07-01",
         "pubDate": "Wed, 01 Jul 2026 01:50:00 GMT"
+      },
+      {
+        "title": "日 제친 한국 수출, 사상 첫 월 1000억달러 돌파…세계 5위",
+        "url": "https://www.msn.com/ko-kr/news/other/%E6%97%A5-%EC%A0%9C%EC%B9%9C-%ED%95%9C%EA%B5%AD-%EC%88%98%EC%B6%9C-%EC%82%AC%EC%83%81-%EC%B2%AB-%EC%9B%94-1000%EC%96%B5%EB%8B%AC%EB%9F%AC-%EB%8F%8C%ED%8C%8C-%EC%84%B8%EA%B3%84-5%EC%9C%84/ar-AA26ZAWz",
+        "isoDate": "2026-07-01",
+        "pubDate": "Wed, 01 Jul 2026 07:52:00 GMT"
       },
       {
         "title": "한국 月수출 1000억불 새역사… 대전·세종·충남도 힘 보탰다",
@@ -177568,18 +177561,24 @@
         "pubDate": "Wed, 01 Jul 2026 00:48:12 GMT"
       },
       {
-        "title": "\"한중 무역지형 변할까\"…대중 무역수지 4년만에 흑자 유력",
-        "url": "https://www.fnnews.com/news/202606250604175366",
-        "isoDate": "2026-06-24",
-        "pubDate": "Wed, 24 Jun 2026 14:06:00 GMT"
+        "title": "6월 수출 첫 1000억 달러… 한국, 세계 4번째 기록",
+        "url": "https://www.newscj.com/news/articleView.html?idxno=3413488",
+        "isoDate": "2026-06-30",
+        "pubDate": "Tue, 30 Jun 2026 18:00:00 GMT"
       }
     ],
     "한국은행": [
       {
         "title": "글로벌 기준금리 인상기조 시작...한은도 연내 두 차례 인상 가능성↑",
-        "url": "https://www.msn.com/ko-kr/news/other/%EA%B8%80%EB%A1%9C%EB%B2%8C-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81%EA%B8%B0%EC%A1%B0-%EC%8B%9C%EC%9E%91-%ED%95%9C%EC%9D%80%EB%8F%84-%EC%97%B0%EB%82%B4-%EB%91%90-%EC%B0%A8%EB%A1%80-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1/ar-AA269K5y",
+        "url": "https://www.msn.com/ko-kr/news/other/%EA%B8%80%EB%A1%9C%EB%B2%8C-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81%EA%B8%B0%EC%A1%B0-%EC%8B%9C%EC%9E%91%ED%95%9C%EC%9D%80%EB%8F%84-%EC%97%B0%EB%82%B4-%EB%91%90-%EC%B0%A8%EB%A1%80-%EC%9D%B8%EC%83%81-%EA%B0%80%EB%8A%A5%EC%84%B1/ar-AA269K5y",
         "isoDate": "2026-06-20",
         "pubDate": "Sat, 20 Jun 2026 13:00:00 GMT"
+      },
+      {
+        "title": "美 연준 금리 동결… 한국은행, 기준금리 인상 불가피",
+        "url": "https://www.msn.com/ko-kr/money/other/美-연준-금리-동결-한국은행-기준금리-인상-불가피/ar-AA25WXmP",
+        "isoDate": "2026-06-18",
+        "pubDate": "Thu, 18 Jun 2026 05:27:00 GMT"
       }
     ]
   },
@@ -177646,7 +177645,7 @@
         "iso": "2026-07-02"
       }
     ],
-    "lastFetched": "2026-07-03T08:06:33.679519+09:00",
+    "lastFetched": "2026-07-03T09:10:55.764230+09:00",
     "source": "FRED release dates API",
     "backfilled": 5
   },
@@ -178419,16 +178418,16 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-07-03T08:06:33.754294+09:00",
+    "asOf": "2026-07-03T09:10:55.838073+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-07-03",
-    "generatedAt": "2026-07-03 08:06 KST",
+    "generatedAt": "2026-07-03 09:10 KST",
     "lines": [
       "증시 — KOSPI 7,648.09 (▼7.89%), S&P500 7,483.24 (▲0.00%), 나스닥 25,832.67 (▼0.80%)",
       "환율·금리 — 원/달러 1,537.07원 (▼1.00%), 미국 기준금리 3.63%, VIX 16.59",
-      "원자재·심리 — WTI $68.50 (▲1.17%), 금 $4,135.90 (▲1.31%), 공포탐욕 31(fear)"
+      "원자재·심리 — WTI $68.46 (▲1.11%), 금 $4,140.50 (▲1.43%), 공포탐욕 31(fear)"
     ],
     "source": "rule"
   }
