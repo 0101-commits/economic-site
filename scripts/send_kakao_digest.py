@@ -26,7 +26,8 @@
    분리, 상하이 운임지수 포함.)
 
 슬롯별 차트(주가/환율/원자재는 당일 인트라데이, 없으면 일봉 폴백.
-            국채 수익률은 일별[미·한] 또는 월별[일본] 추세선 — 인트라데이 없음):
+            국채 수익률: 미국은 당일 인트라데이[^TNX], 한국은 일별[ECOS],
+            일본은 일별[재무성 MOF CSV, 실패 시 FRED 월별 폴백] 추세선):
   [평일]
     07시           → 미국 10년 국채 + 일본 10년 국채
     08시           → 달러-원 + 금
@@ -51,6 +52,7 @@
 설정 방법(1회): 저장소 루트 KAKAO_SETUP.md 참고.
 """
 import os
+import re
 import sys
 import time
 import json
@@ -115,7 +117,8 @@ _CHART_COLOR = {"KOSPI": "#2962ff", "SP500": "#1e88e5", "USDKRW": "#26a69a",
                 "Wheat": "#8d6e63", "US10Y": "#d32f2f", "KR10Y": "#1565c0",
                 "JP10Y": "#6a1b9a"}
 # 당일(인트라데이) 시세용 Yahoo Finance 심볼 — data.json 엔 일별 종가만 있어 차트 생성 시 직접 조회한다.
-# (국채 수익률[US10Y·KR10Y·JP10Y]은 인트라데이 소스가 없어 등록하지 않는다 → 일별/월별 추세선.)
+# (국채 수익률은 별도 경로: US10Y 는 _YIELD_INTRADAY_SYM[^TNX] 인트라데이,
+#  KR10Y·JP10Y 는 인트라데이 소스가 없어 일별 추세선 — _draw_yield_panel 참고.)
 _YH_SYM = {"KOSPI": "^KS11", "SP500": "^GSPC", "USDKRW": "KRW=X", "WTI": "CL=F",
            "Gold": "GC=F", "USDJPY": "JPY=X", "NatGas": "NG=F", "Silver": "SI=F",
            "Copper": "HG=F", "Wheat": "ZW=F"}
@@ -543,13 +546,75 @@ def apply_live_quotes(d):
         print("[live] 발송 시점 시세 보정: " + ", ".join(updated))
 
 
+# ── 일본 국채 일별 수익률 (재무성 MOF CSV) ──────────────────────────────────
+# FRED 의 일본 10년 국채는 '월별'뿐이라 카톡 차트가 1~2개월 묵은 값으로 나갔다
+# (2026-07 사용자 보고: "45일·1년 단위 차트 = outdated"). 재무성이 매영업일 공표하는
+# 국債金利情報 CSV(Shift-JIS, 연호 날짜)에서 10년물을 직접 읽어 일별 시계열로 그린다.
+# 당월분(jgbcm.csv)은 월초엔 며칠뿐이라 과거 전체분(jgbcm_all.csv)과 병합해 45일을 채운다.
+_MOF_JGB_URLS = (
+    "https://www.mof.go.jp/jgbs/reference/interest_rate/data/jgbcm_all.csv",  # 과거 전체(~전월 말)
+    "https://www.mof.go.jp/jgbs/reference/interest_rate/jgbcm.csv",           # 당월(매영업일 갱신)
+)
+
+
+def _parse_mof_era_date(s):
+    """MOF 연호 날짜 → datetime. 'R8.7.2'(令和8년=2026) / 'H31.4.30'(平成31년=2019). 그 외 None."""
+    m = re.match(r"([RH])(\d+)\.(\d+)\.(\d+)$", (s or "").strip())
+    if not m:
+        return None
+    base = 2018 if m.group(1) == "R" else 1988   # 令和1=2019, 平成1=1989
+    try:
+        return datetime.datetime(base + int(m.group(2)), int(m.group(3)), int(m.group(4)))
+    except ValueError:
+        return None
+
+
+def parse_jgb_10y(text):
+    """MOF 국채금리 CSV 본문 → {'YYYY-MM-DD': 10년물 수익률(float)}.
+
+    열 구성: 基準日,1年,…,9年,10年,15年,…,40年 → 10년물은 11번째 열(index 10).
+    헤더·빈 행·꼬리 주석은 연호 날짜 파싱 실패로, 결측값('-')은 float 변환 실패로 걸러진다."""
+    out = {}
+    for ln in text.splitlines():
+        cols = [c.strip() for c in ln.split(",")]
+        if len(cols) < 11:
+            continue
+        dt = _parse_mof_era_date(cols[0])
+        if not dt:
+            continue
+        try:
+            out[dt.strftime("%Y-%m-%d")] = float(cols[10])
+        except ValueError:
+            pass
+    return out
+
+
+def _fetch_jgb_daily(n=45):
+    """일본 10년 국채 '일별' 수익률 최근 n일 — {'YYYY-MM-DD': float}. 실패 시 빈 dict(→ 월별 폴백)."""
+    merged = {}
+    for url in _MOF_JGB_URLS:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                merged.update(parse_jgb_10y(r.read().decode("shift-jis", errors="replace")))
+        except Exception as e:
+            print(f"[chart] MOF JGB CSV 조회 실패({url.rsplit('/', 1)[-1]}): {e}")
+    return dict(sorted(merged.items())[-n:])
+
+
 def _yield_series(d, key, n_daily=45):
     """국채 수익률 시계열 → (xs[datetime], ys[float], monthly?).
 
     US10Y·KR10Y 는 yieldCurve.{us,kr} 의 10Y 텐서(일별, FRED DGS10 / ECOS),
-    JP10Y 는 economicIndicators.jp.bond10y_jp.history(월별, FRED IRLTLT01JPM156N).
+    JP10Y 는 재무성 MOF CSV(일별) 우선, 실패 시 economicIndicators.jp.bond10y_jp
+    (월별, FRED IRLTLT01JPM156N) 폴백.
     데이터가 아직 없으면(예: 파이프라인 미수집) 빈 시계열을 돌려 패널은 'N/A'로 그려진다."""
     if key == "JP10Y":
+        daily = _fetch_jgb_daily(n_daily)
+        if daily:
+            xs = [datetime.datetime.strptime(ds, "%Y-%m-%d") for ds in daily]
+            return xs, [float(v) for v in daily.values()], False
+        print("[chart] JP10Y 일별(MOF) 없음 — FRED 월별로 폴백")
         hist = ((((d.get("economicIndicators") or {}).get("jp") or {})
                  .get("bond10y_jp") or {}).get("history") or {})
         xs, ys = [], []
@@ -576,11 +641,32 @@ def _yield_series(d, key, n_daily=45):
     return xs, ys, False
 
 
+# 인트라데이 조회 가능한 수익률 — Yahoo ^TNX(CBOE 10년물 수익률 지수)는 값 자체가 %.
+# (KR10Y·JP10Y 는 인트라데이 소스가 없어 일별 추세선 + 기준일 표기로 신선도를 드러낸다.)
+_YIELD_INTRADAY_SYM = {"US10Y": "^TNX"}
+
+
 def _draw_yield_panel(ax, d, key, label, color, mdates):
     """국채 수익률 패널 — 값은 '%', 변화는 'bp'로 표기.
 
     (수익률을 가격처럼 ±% 로 적으면 '4.0→4.4 = +10%' 식으로 오해를 부르므로 bp[=0.01%p] 사용.)
+    US10Y 는 당일 인트라데이(^TNX) 우선 — 다른 자산 패널과 동일한 'today' 차트.
+    일별·월별 추세선은 마지막 데이터가 오늘이 아니면 제목에 기준일(~M/D)을 붙여
+    묵은 값이 최신처럼 보이지 않게 한다(2026-07 사용자 보고: 45d·12mo 차트 = outdated).
     grid·tick 은 호출부 루프가 'yield' 분기에서 즉시 continue 하므로 이 안에서 직접 적용한다."""
+    sym = _YIELD_INTRADAY_SYM.get(key)
+    if sym:
+        xs, ys, prev = _yahoo_intraday(sym)
+        if xs:
+            ax.plot(xs, ys, color=color, linewidth=1.8)
+            ax.fill_between(xs, ys, min(ys), color=color, alpha=0.08)
+            chg_bp = (ys[-1] - prev) * 100 if prev else (ys[-1] - ys[0]) * 100
+            ax.set_title(f"{label}   {ys[-1]:.2f}%  ({chg_bp:+.0f}bp / today)",
+                         fontsize=26, loc="left")
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+            ax.grid(alpha=0.25)
+            ax.tick_params(axis="both", labelsize=12)
+            return
     xs, ys, monthly = _yield_series(d, key)
     if not xs:
         ax.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=24)
@@ -593,7 +679,11 @@ def _draw_yield_panel(ax, d, key, label, color, mdates):
     ax.fill_between(xs, ys, min(ys), color=color, alpha=0.08)
     chg_bp = (ys[-1] - ys[0]) * 100
     span = "12mo" if monthly else f"{len(xs)}d"
-    ax.set_title(f"{label}   {ys[-1]:.2f}%  ({chg_bp:+.0f}bp / {span})",
+    # 마지막 데이터가 오늘(KST)이 아니면 기준일을 표기 — 신선도가 제목에서 바로 보이게.
+    asof = ""
+    if xs[-1].date() < datetime.datetime.now(KST).date():
+        asof = f", ~{xs[-1].month}/{xs[-1].day}"
+    ax.set_title(f"{label}   {ys[-1]:.2f}%  ({chg_bp:+.0f}bp / {span}{asof})",
                  fontsize=26, loc="left")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%y-%m" if monthly else "%m-%d"))
     ax.grid(alpha=0.25)
