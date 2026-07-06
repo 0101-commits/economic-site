@@ -72,7 +72,9 @@ const GET_CORS = {
 };
 const POST_CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type',
+  // X-Sync-Key-Hash — GET /portfolio 의 키 해시 전달용 커스텀 헤더(아래 handlePortfolioGet 참고).
+  //   /portfolio 경로의 preflight 는 이 POST_CORS 를 쓰므로 여기 허용 목록에 함께 둔다.
+  'Access-Control-Allow-Headers': 'content-type, x-sync-key-hash',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -569,9 +571,13 @@ async function _readAlertsConfig(env) {
 
 async function handlePortfolioGet(request, env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
-  // [이슈1] 무인증 조회 차단 — POST 와 동일한 ALERTS_SYNC_KEY 검증 적용. GET 이므로 keyHash 는
-  //   쿼리스트링(?keyHash=<SHA-256 hex>)으로 받는다. 키 미설정→503, 불일치→401 (_verifySyncKey 동일 패턴).
-  const _kh = new URL(request.url).searchParams.get('keyHash');
+  // [이슈1] 무인증 조회 차단 — POST 와 동일한 ALERTS_SYNC_KEY 검증 적용. 키 미설정→503,
+  //   불일치→401 (_verifySyncKey 동일 패턴).
+  // [보안] keyHash 는 커스텀 헤더 X-Sync-Key-Hash 를 1순위로 읽는다 — 쿼리스트링(?keyHash=…)은
+  //   접근 로그·브라우저 히스토리·Referer 에 재사용 가능한 베어러로 남기 때문. 쿼리 폴백은
+  //   구클라이언트(헤더 미전송 프론트) 하위호환용이며, 프론트 전환 완료 후 제거 예정.
+  const _kh = request.headers.get('X-Sync-Key-Hash')
+           || new URL(request.url).searchParams.get('keyHash');
   const denied = await _verifySyncKey({ keyHash: _kh }, env);
   if (denied) return denied;
   let cfgRes;
@@ -880,16 +886,49 @@ export default {
     const cached = await cache.match(cacheKey);
     if (cached) return cached;
 
+    // [보안] 리다이렉트 수동 추종 — fetch 기본값 redirect:'follow' 는 허용 호스트가 화이트리스트
+    //   밖 임의 호스트로 3xx 를 주면 그대로 따라가 사실상 준-오픈 프록시가 된다(최초 타깃만 검사
+    //   하는 위 ALLOWED_HOSTS 검증이 우회됨). redirect:'manual' 로 받아 매 홉의 Location 호스트를
+    //   ALLOWED_HOSTS 로 재검증한 뒤에만 재요청한다(최대 3홉 — 무한 루프 가드).
+    //   허용 호스트 간 리다이렉트(kr.investing.com→www.investing.com, http 정규화 등)는 항상 통과
+    //   — '최종 호스트도 화이트리스트 안이면 OK' 원칙(특정 호스트 예외 하드코딩 없음).
+    //   참고: news.google.com 링크의 publisher 해소는 서버측 fetch_data.py 가 프록시 없이 직접
+    //   수행하므로(_resolve_redirect) 이 Worker 경유 요청에는 외부 호스트 리다이렉트 의존이 없다.
+    const MAX_REDIRECT_HOPS = 3;
+    let hopUrl = t;
     let upstream;
     try {
-      upstream = await fetch(t.toString(), {
-        method: 'GET',
-        headers: originHeaders(t.hostname),
-        // Cloudflare edge 캐시 30초
-        cf: { cacheTtl: 30, cacheEverything: true },
-        // 응답 지연 방지
-        signal: AbortSignal.timeout(12000),
-      });
+      for (let hop = 0; ; hop++) {
+        upstream = await fetch(hopUrl.toString(), {
+          method: 'GET',
+          headers: originHeaders(hopUrl.hostname),
+          redirect: 'manual',
+          // Cloudflare edge 캐시 30초
+          cf: { cacheTtl: 30, cacheEverything: true },
+          // 응답 지연 방지
+          signal: AbortSignal.timeout(12000),
+        });
+        // 3xx 가 아니면 최종 응답 — 루프 종료
+        if (upstream.status < 300 || upstream.status >= 400) break;
+        const loc = upstream.headers.get('Location');
+        if (!loc) break;                      // Location 없는 3xx(304 등) → 그대로 전달
+        if (hop >= MAX_REDIRECT_HOPS) {
+          return jsonResponse({ error: 'too many redirects', host: hopUrl.hostname }, 502);
+        }
+        let next;
+        // 상대 경로 Location(RFC 7231 허용)은 현재 홉 URL 기준으로 해석
+        try { next = new URL(loc, hopUrl); } catch {
+          return jsonResponse({ error: 'invalid redirect location' }, 502);
+        }
+        // 최초 타깃과 동일 기준 재검증 — https 강제 + 호스트 화이트리스트(불일치 시 403)
+        if (next.protocol !== 'https:') {
+          return jsonResponse({ error: 'redirect not allowed', reason: 'https only' }, 403);
+        }
+        if (!ALLOWED_HOSTS.includes(next.hostname)) {
+          return jsonResponse({ error: 'redirect host not allowed', host: next.hostname }, 403);
+        }
+        hopUrl = next;
+      }
     } catch (e) {
       return jsonResponse({ error: 'upstream fetch failed', detail: String(e) }, 502);
     }

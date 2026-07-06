@@ -60,13 +60,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           ref: ${{ github.ref_name || 'main' }}
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
 
@@ -89,7 +89,7 @@ jobs:
       #   primary hit → actions/cache 가 갱신본을 절대 저장하지 않는 버그였다.
       - name: Restore KIS token cache
         id: kis-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .kis_token_cache.json
           key: kis-token-${{ github.run_id }}
@@ -101,7 +101,7 @@ jobs:
       # ⚠ key 는 run_id 로 매 런 유일해야 저장된다 (위 KIS 캐시와 동일한 버그 수정 —
       #   이전엔 스크래핑이 성공해도 갱신된 .pmi_cache.json 이 저장된 적이 없었다).
       - name: Restore PMI scrape cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .pmi_cache.json
           key: pmi-cache-${{ github.run_id }}

@@ -105,7 +105,31 @@ FALLBACK = {
 }
 
 
+# 로그 레다크션 대상 시크릿 — ECOS 처럼 키가 URL '경로'에 들어가는 API 는 예외 메시지
+# (requests 가 URL 전체를 포함)로 키 원문이 공개 Actions 로그에 유출될 수 있다.
+# GitHub 의 Secrets 자동 마스킹에만 의존하지 않고 출력 직전에 직접 치환한다.
+# 8자 미만은 제외 — 짧은 문자열은 일반 로그 본문과 우연히 겹쳐 오탐(과다 마스킹) 위험.
+_LOG_SECRETS = tuple(
+    k for k in (
+        KRX_API_KEY, FRED_API_KEY, ECOS_API_KEY, REALESTATE_API_KEY,
+        KOSIS_API_KEY, ALPHAVANTAGE_API_KEY, DATA_GO_KR_API_KEY, EXIM_API_KEY,
+        KIS_APP_KEY, KIS_APP_SECRET, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET,
+        os.environ.get("KRX_PW", "").strip(),
+    )
+    if k and len(k) >= 8
+)
+
+
 def log(msg):
+    # 시크릿 일괄 마스킹 — 마스킹 실패가 로깅 자체를 막으면 안 되므로 방어적으로 처리
+    try:
+        s = str(msg)
+        for k in _LOG_SECRETS:
+            if k in s:
+                s = s.replace(k, "***")
+        msg = s
+    except Exception:
+        pass
     print(msg, file=sys.stderr)
 
 
@@ -1651,14 +1675,62 @@ def fetch_ecos_yield_curve_kr():
     if not series_used:
         log("[ECOS-YC] 한국 국채 데이터 없음 — yieldCurve.kr 미갱신")
         return None
-    return {
-        "kr": {
-            "current": current,
-            "prev_month": prev_month,
-            "series": series_data,
-            "source": "ECOS API (817Y002): " + ", ".join(series_used),
-        }
+    # ── 회사채 수익률 (신용스프레드 재료) ────────────────────────
+    # 같은 817Y002 통계표의 회사채 항목. 국고채 만기 축(terms 10칸 슬롯)에 속하지
+    # 않으므로 current/prev_month 배열이 아닌 kr.corp 별도 키에 저장한다 —
+    # 프론트의 기존 수익률 곡선(terms 배열) 렌더에는 영향 없음.
+    # 국고채 3Y(슬롯 4)와의 차가 곧 신용스프레드(AA-/BBB-)가 된다.
+    corp_map = [
+        ("corp3yAA",  "010300000", "회사채3Y(AA-)"),
+        ("corp3yBBB", "010301000", "회사채3Y(BBB-)"),
+    ]
+    corp = {}
+    for key, item_code, label in corp_map:
+        try:
+            url = f"{ECOS_BASE}/StatisticSearch/{ECOS_API_KEY}/json/kr/1/600/817Y002/D/{start_period}/{end_period}/{item_code}"
+            r = requests.get(url, timeout=20)
+            r.raise_for_status()
+            rows = r.json().get("StatisticSearch", {}).get("row", [])
+            if not rows:
+                log(f"[ECOS-YC] {label} (item={item_code}): 데이터 없음")
+                continue
+            rows_sorted = sorted(rows, key=lambda x: x.get("TIME", ""))
+            cur_val = _parse_num(rows_sorted[-1].get("DATA_VALUE"))
+            if cur_val is None:
+                continue
+            # 1개월 전 (영업일 기준 ~21번째 뒤에서부터) — 국고채와 동일 규칙
+            if len(rows_sorted) > 21:
+                prev_val = _parse_num(rows_sorted[-22].get("DATA_VALUE"))
+            else:
+                prev_val = _parse_num(rows_sorted[0].get("DATA_VALUE"))
+            ts = []
+            for row in rows_sorted[-252:]:  # 최근 1년
+                v = _parse_num(row.get("DATA_VALUE"))
+                t = row.get("TIME")
+                if v is not None and t and len(t) == 8:
+                    ts.append({"date": f"{t[:4]}-{t[4:6]}-{t[6:8]}", "value": v})
+            corp[key] = {
+                "current": round(cur_val, 3),
+                "prev_month": round(prev_val, 3) if prev_val is not None else None,
+                "label": label,
+                "ecos_item": item_code,
+                "data": ts,
+            }
+            series_used.append(f"{label}({item_code})")
+            log(f"[ECOS-YC] {label}: {cur_val:.3f}% — {len(ts)}일 시계열 (corp)")
+        except Exception as e:
+            # 회사채 실패는 국고채 곡선 반환을 막지 않는다 (preserve 철학)
+            log(f"[ECOS-YC] {label} (item={item_code}) 오류: {e}")
+            continue
+    kr_block = {
+        "current": current,
+        "prev_month": prev_month,
+        "series": series_data,
+        "source": "ECOS API (817Y002): " + ", ".join(series_used),
     }
+    if corp:
+        kr_block["corp"] = corp
+    return {"kr": kr_block}
 
 
 # 미국 주(State) 코드 — FHFA 주별 주택가격지수(FRED {XX}STHPI) 조회용. DC 포함 51개.
@@ -2475,6 +2547,11 @@ def _ecos_try_multi(stat_codes, items, freq, desc, source_id, name_filter=None):
     return None, None, None
 
 
+# KeyStatisticList 응답 캐시 — 지표 4~5종이 각자 폴백을 타면 같은 100대 목록을
+# 반복 조회하게 되므로 프로세스 생애 1회만 받는다 (실패 시 캐시하지 않음 = 재시도 허용).
+_KEYSTAT_CACHE = {"rows": None}
+
+
 def _ecos_key_statistic(keyword, desc, source_id):
     """ECOS 100대 통계지표(KeyStatisticList)에서 지표명 키워드로 최신값 조회.
 
@@ -2484,10 +2561,13 @@ def _ecos_key_statistic(keyword, desc, source_id):
     if not ECOS_API_KEY:
         return None
     try:
-        url = f"{ECOS_BASE}/KeyStatisticList/{ECOS_API_KEY}/json/kr/1/100/"
-        r = requests.get(url, timeout=15)
-        r.raise_for_status()
-        rows = (r.json().get("KeyStatisticList") or {}).get("row") or []
+        rows = _KEYSTAT_CACHE["rows"]
+        if rows is None:
+            url = f"{ECOS_BASE}/KeyStatisticList/{ECOS_API_KEY}/json/kr/1/100/"
+            r = requests.get(url, timeout=15)
+            r.raise_for_status()
+            rows = (r.json().get("KeyStatisticList") or {}).get("row") or []
+            _KEYSTAT_CACHE["rows"] = rows
         for row in rows:
             name = str(row.get("KEYSTAT_NAME") or "")
             if keyword not in name:
@@ -2555,6 +2635,15 @@ def fetch_ecos_economic_indicators():
         r["source"] = f"ECOS:{used_stat}"
         result["gdp_kr"] = r
         log(f"[ECOS] GDP: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
+    else:
+        # 코드 조합 전패 시 100대 통계지표 이름 매칭 폴백 (가계신용과 동일 패턴).
+        # 100대 지표의 공식 명칭은 '경제성장률(실질, 계절조정 전기대비)' — 키워드 부분매칭.
+        r = _ecos_key_statistic("경제성장률", "한국 실질GDP 성장률(전기비)", "GDP")
+        if r:
+            result["gdp_kr"] = r
+            log(f"[ECOS] GDP: {r['value']} ({r['period']}) — KeyStatisticList 폴백")
+        else:
+            log("[ECOS] GDP: StatisticSearch·KeyStatisticList 모두 실패 — 미수집")
 
     # 산업생산지수 - 901Y033 (광공업생산지수) / 901Y043 (제조업)
     # ECOS 통계기준 변경으로 코드가 자주 바뀌므로 여러 조합 시도
@@ -2578,6 +2667,17 @@ def fetch_ecos_economic_indicators():
         r["source"] = f"ECOS:{used_stat}"
         result["retail_kr"] = r
         log(f"[ECOS] 소매판매: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
+    else:
+        # 코드 조합 전패 시 100대 통계지표 이름 매칭 폴백.
+        # 명칭 변형 대비 정확한 이름('소매판매액지수')부터 시도, 실패 시 축약 키워드.
+        for kw in ("소매판매액지수", "소매판매"):
+            r = _ecos_key_statistic(kw, "한국 소매판매액지수", "RETAIL")
+            if r:
+                result["retail_kr"] = r
+                log(f"[ECOS] 소매판매: {r['value']} ({r['period']}) — KeyStatisticList 폴백({kw})")
+                break
+        else:
+            log("[ECOS] 소매판매: StatisticSearch·KeyStatisticList 모두 실패 — 미수집")
 
     # ─── 고용 ───
     # 실업률 - 901Y027 (경제활동인구).
@@ -2602,6 +2702,15 @@ def fetch_ecos_economic_indicators():
         if r and 0 < (r.get("value") or 0) < 15:
             result["unemployment_kr"] = r
             log(f"[ECOS] 실업률 (200Y004): {r['value']}%")
+        else:
+            # 최후 폴백: 100대 통계지표 이름 매칭 — 실업률은 100대 지표에 포함.
+            # 값 범위 검증(0~15%)은 동일 적용 (고용률 62% 류 오매칭 차단).
+            r = _ecos_key_statistic("실업률", "한국 실업률", "UNEMP")
+            if r and 0 < (r.get("value") or 0) < 15:
+                result["unemployment_kr"] = r
+                log(f"[ECOS] 실업률: {r['value']}% ({r['period']}) — KeyStatisticList 폴백")
+            else:
+                log("[ECOS] 실업률: StatisticSearch·KeyStatisticList 모두 실패 — 미수집")
 
     # ─── 무역 ───
     # 경상수지 - 301Y013. item: 000000 (전체)
@@ -2618,6 +2727,18 @@ def fetch_ecos_economic_indicators():
         r["source"] = f"ECOS:{used_stat}"
         result["exports_kr"] = r
         log(f"[ECOS] 수출: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
+    else:
+        # 코드 조합 전패 시 100대 통계지표 이름 매칭 폴백.
+        # ⚠ 키워드 '수출' 단독은 '수출입물가지수' 같은 물가 지표에 오매칭될 수 있어
+        #   금액 지표 명칭('수출총액'/'수출입총액')만 시도한다.
+        for kw in ("수출총액", "수출입총액"):
+            r = _ecos_key_statistic(kw, "한국 수출금액 (백만달러)", "EXPORTS")
+            if r:
+                result["exports_kr"] = r
+                log(f"[ECOS] 수출: {r['value']} ({r['period']}) — KeyStatisticList 폴백({kw})")
+                break
+        else:
+            log("[ECOS] 수출: StatisticSearch·KeyStatisticList 모두 실패 — 미수집")
 
     # ─── 부동산 (KR) ──────────────────────────────────────────
     # 주담대 평균금리 - 121Y006 (예금은행 가중평균금리), item: 종류별 코드
@@ -4669,6 +4790,11 @@ def _is_valid_mover_list(items, min_nonzero=3):
       무효 처리한다. (과거 KRX OpenAPI 가 ACML_VOL≈TDD_CLSPRC 로 어긋난 garbage 를
       반환해 'LG전자 +29.9%' 같은 비현실적 상한가 떼가 표시되던 문제의 탐지 신호.
       무효 시 build_data 의 폴백 체인이 pykrx(품질 최고) 로 자동 전환된다.)
+    - vol≈price 허용오차는 5% — 과거 0.1% 는 너무 좁아, 가격형 값이 vol 컬럼에
+      들어간 KRX garbage(vol 이 price 대비 0~7% 이내)를 통과시켰다
+      (실증: 2026-07-03 kospiGainers/Losers 20행 전부 오염인데 리스트당 3행만 검출).
+    - |chg| ≥ 29.5 인 행이 과반이면 무효 — 정상 시장에서 상하한가(±30%) 종목이
+      리스트 과반을 차지할 수 없다. 컬럼 어긋난 garbage 의 전형 패턴.
     """
     if not items or len(items) < min_nonzero:
         return False
@@ -4676,16 +4802,26 @@ def _is_valid_mover_list(items, min_nonzero=3):
     if nonzero < min_nonzero:
         return False
     misaligned = 0
+    extreme = 0  # 상하한가(±30%) 패턴 행 수 — garbage 는 chg 가 ±29.9x 로 도배됨
     for it in items:
+        try:
+            c = abs(float(it.get("chg") or 0))
+        except (TypeError, ValueError):
+            c = 0.0
+        if c >= 29.5:
+            extreme += 1
         try:
             p = float(it.get("price") or 0)
             v = float(it.get("vol") or 0)
         except (TypeError, ValueError):
             continue
-        if p > 0 and v > 0 and abs(p - v) <= max(1.0, p * 0.001):
+        if p > 0 and v > 0 and abs(p - v) <= max(1.0, p * 0.05):
             misaligned += 1
     if misaligned >= max(2, len(items) // 2):
         log(f"[검증] vol≈price 정렬 오류 의심 {misaligned}/{len(items)}건 — 무효 처리(pykrx 폴백 트리거)")
+        return False
+    if extreme > len(items) // 2:
+        log(f"[검증] |chg|≥29.5%(상하한가 패턴) {extreme}/{len(items)}건 과반 — 무효 처리(pykrx 폴백 트리거)")
         return False
     return True
 
@@ -4883,6 +5019,7 @@ def fetch_all_historical_data():
         "NASDAQ":   "^IXIC",
         "Nikkei":   "^N225",
         "Shanghai": "000001.SS",
+        "SOX":      "^SOX",   # 필라델피아 반도체지수 (지수 현재가 목록과 동일 심볼)
     }
     for name, sym in idx_map.items():
         h = None
@@ -5494,15 +5631,20 @@ def build_data():
         "NASDAQ":   "^IXIC",
         "Nikkei":   "^N225",
         "Shanghai": "000001.SS",
+        "SOX":      "^SOX",   # 필라델피아 반도체지수 — 한국 수출·반도체 사이클 선행 신호
     }
     for name, sym in intl_indices.items():
         q = fetch_yf(sym)
         if q:
             data["indices"][name] = q
             log(f"[yf] {name}: {q['price']} ({q['change']:+.2f}%)")
-        else:
+        elif name in FALLBACK["indices"]:
             data["indices"][name] = dict(FALLBACK["indices"][name])
             log(f"[yf] {name}: fallback 사용")
+        else:
+            # SOX 등 신규 지수는 하드코드 FALLBACK 을 두지 않는다(날조 방지) —
+            # 이번 런 미수집이면 키 자체를 생략하고 프론트가 '—' 처리.
+            log(f"[yf] {name}: 수집 실패 — FALLBACK 없음, 이번 런 생략")
 
     data["sources"]["indices"] = (
         "KRX OpenAPI (KR) + yfinance (해외)" if krx_available else "yfinance"
@@ -6169,6 +6311,22 @@ def build_data():
     # 외부 API 가 일시적으로 실패해도 사용자 화면이 비지 않도록,
     # 현재 빌드에서 비어 있는 주요 필드만 직전 data.json 의 값으로 복원.
     # 비어있지 않은 필드는 그대로 새 값 사용.
+    #
+    # 단, 등락 종목/ETF 는 보존 전에 재검증 — 직전 빌드가 검증 강화 이전에 통과한
+    # 오염본(vol≈price 컬럼 어긋남, ±29.9% 상하한가 떼)일 수 있어, 그대로 보존하면
+    # garbage 가 빌드를 넘어 무한 연명한다. 오염이면 빈 리스트로 비워
+    # preserve 를 건너뛰게 하고 프론트가 '—' 처리하도록 한다.
+    try:
+        for topk in ("stockMovers", "etfMovers"):
+            node = (prev or {}).get(topk)
+            if not isinstance(node, dict):
+                continue
+            for lk, lst in list(node.items()):
+                if isinstance(lst, list) and lst and not _is_valid_mover_list(lst):
+                    node[lk] = []
+                    log(f"[preserve] {topk}.{lk}: 직전 빌드 값이 오염(검증 실패) — 보존하지 않음")
+    except Exception as e:
+        log(f"[preserve] movers 재검증 오류 (무시): {e}")
     try:
         preserved = _preserve_from_prev(
             data, prev,
@@ -7039,40 +7197,83 @@ def fetch_fred_release_dates(release_id, days_back=7, days_forward=30):
 
     Returns: [{"release_id": int, "date": "YYYY-MM-DD"}, ...]
 
-    중요: include_release_dates_with_no_data 는 반드시 false. true 면
-    실제 발표가 없는 날짜(매일/매주 기본 schedule)까지 모두 반환되어
-    캘린더에 "매일 PPI 발표" 같은 가짜 이벤트가 무더기로 생성됨.
+    구간별 include_release_dates_with_no_data 정책 (중요 — 2026-07 감사 반영):
+      - 과거 구간(~오늘): 반드시 false. true 면 실제 발표가 없는 날짜
+        (매일/매주 기본 schedule)까지 모두 반환되어 캘린더에
+        "매일 PPI 발표" 같은 가짜 이벤트가 무더기로 생성됨.
+      - 미래 구간(오늘~): 반드시 true. FRED 는 false 일 때 '데이터가 이미
+        붙은(=발표 완료된) 날짜'만 반환하므로, false 로만 조회하면 미래
+        발표 예정일이 원천 배제되어 캘린더 미래 이벤트가 0건이 되는 버그가
+        있었음. 미래분의 schedule 노이즈는 아래 월별 dedup 으로 제거.
     """
     if not FRED_API_KEY:
         return None
+
+    def _call(start, end, include_no_data):
+        """단일 구간 조회 — 실패 시 None (다른 구간 결과와 독립적으로 병합)."""
+        try:
+            r = requests.get(
+                f"{FRED_BASE}/release/dates",
+                params={
+                    "release_id": release_id,
+                    "api_key": FRED_API_KEY,
+                    "file_type": "json",
+                    "realtime_start": start,
+                    "realtime_end": end,
+                    "include_release_dates_with_no_data": include_no_data,
+                    "sort_order": "asc",
+                    "limit": 100,
+                },
+                timeout=15,
+            )
+            if r.status_code != 200:
+                return None
+            return r.json().get("release_dates", []) or []
+        except Exception as e:
+            log(f"[FRED-Cal] release_id={release_id} ({start}~{end}) 오류: {e}")
+            return None
+
     try:
         now = datetime.now(KST)
+        today_s = now.strftime("%Y-%m-%d")
         start = (now - timedelta(days=days_back)).strftime("%Y-%m-%d")
         end = (now + timedelta(days=days_forward)).strftime("%Y-%m-%d")
-        r = requests.get(
-            f"{FRED_BASE}/release/dates",
-            params={
-                "release_id": release_id,
-                "api_key": FRED_API_KEY,
-                "file_type": "json",
-                "realtime_start": start,
-                "realtime_end": end,
-                # 실제 데이터가 있는 발표일만 반환 (매일 PPI 같은 가짜 이벤트 방지)
-                "include_release_dates_with_no_data": "false",
-                "sort_order": "asc",
-                "limit": 50,
-            },
-            timeout=15,
-        )
-        if r.status_code != 200:
+        past = _call(start, today_s, "false")   # 발표 완료분 — 노이즈 없는 실측만
+        future = _call(today_s, end, "true")    # 발표 예정분 — true 아니면 항상 0건
+        if past is None and future is None:
             return None
-        dates = r.json().get("release_dates", []) or []
+        # 병합 + 날짜 단위 dedup (오늘 날짜는 두 구간에 모두 걸릴 수 있음)
+        dates = []
+        seen_days = set()
+        for d in (past or []) + (future or []):
+            ds = d.get("date", "")
+            if not ds or ds in seen_days:
+                continue
+            seen_days.add(ds)
+            dates.append(d)
+        dates.sort(key=lambda d: d.get("date", ""))
         # 추가 안전장치: 동일 (YYYY-MM, release_id) 키 기준으로 첫번째만 유지
         # 일부 release 는 같은 달 안에 preliminary + revision 으로 2~3건 반환됨 → 첫 발표만.
+        # 미래(schedule) 구간의 '매일 발표' 노이즈도 같은 dedup 으로 함께 제거됨.
         # 단, FOMC(151) 처럼 월 2회 이상 발표가 정상인 release 는 release_id 별 정책 적용.
         MULTI_PER_MONTH_OK = {151, 23}  # FOMC, 신규실업수당청구(주간)
         if int(release_id) in MULTI_PER_MONTH_OK:
-            return dates
+            # 월별 dedup 은 건너뛰되, 미래 schedule 이 '매일'로 오는 극단 케이스만
+            # ISO 주 단위로 압축 (주간 발표 cadence 는 유지, 일간 노이즈만 차단).
+            deduped = []
+            seen_weeks = set()
+            for d in dates:
+                ds = d.get("date", "")
+                if len(ds) >= 10 and ds > today_s:
+                    try:
+                        wk = datetime.strptime(ds, "%Y-%m-%d").strftime("%G-W%V")
+                    except ValueError:
+                        continue
+                    if wk in seen_weeks:
+                        continue
+                    seen_weeks.add(wk)
+                deduped.append(d)
+            return deduped
         seen_months = set()
         deduped = []
         for d in dates:

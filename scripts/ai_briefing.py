@@ -69,6 +69,72 @@ def build_snapshot(d):
         "FearGreed": fg.get("value"),
         "FearGreedLabel": fg.get("rating") or fg.get("label"),
     }
+
+    # ── 스냅샷 보강 (LLM 품질 개선) — 모든 항목은 '데이터 없으면 생략' 방어 필수.
+    #    누락 시 키 자체를 넣지 않아 LLM 이 없는 수치를 지어낼 여지를 줄인다.
+    # ① 외국인 순매매 최근 5일 누적 — 수급 방향 신호 (investorTrading.daily)
+    try:
+        it = d.get("investorTrading") or {}
+        daily = [r for r in (it.get("daily") or []) if isinstance(r, dict)]
+        vals = [r.get("foreign") for r in daily[-5:]
+                if isinstance(r.get("foreign"), (int, float))]
+        if vals:
+            unit = it.get("unit") or "억원"
+            snap["외국인순매매_최근5일누적"] = f"{round(sum(vals), 1):,} {unit} ({len(vals)}일)"
+    except Exception as e:  # noqa: BLE001 — 스냅샷 보강 실패가 브리핑을 막으면 안 됨
+        log(f"snapshot 외국인 순매매 생략: {e}")
+
+    # ② 한국 기준금리 + 한미 금리차 (economicIndicators.kr.base_rate_kr)
+    try:
+        ei_kr = (d.get("economicIndicators") or {}).get("kr") or {}
+        kr_rate = (ei_kr.get("base_rate_kr") or {}).get("value")
+        us_rate = snap.get("미국기준금리")
+        if isinstance(kr_rate, (int, float)):
+            snap["한국기준금리"] = kr_rate
+            if isinstance(us_rate, (int, float)):
+                snap["한미기준금리차"] = round(kr_rate - us_rate, 2)
+    except Exception as e:  # noqa: BLE001
+        log(f"snapshot 한국 기준금리 생략: {e}")
+
+    # ③ HY 스프레드 현재값 + 전주 대비 — 신용 스트레스 신호 (history 는 날짜→값 dict)
+    try:
+        hy = ei_us.get("hy_spread") or {}
+        hy_val = hy.get("value")
+        if isinstance(hy_val, (int, float)):
+            snap["HY스프레드"] = hy_val
+            hist = hy.get("history") or {}
+            dates = sorted(k for k, v in hist.items() if isinstance(v, (int, float)))
+            if dates:
+                last_d = datetime.strptime(dates[-1], "%Y-%m-%d").date()
+                target = (last_d - timedelta(days=7)).isoformat()
+                prior = [k for k in dates if k <= target]
+                if prior:
+                    snap["HY스프레드_전주대비"] = round(hy_val - hist[prior[-1]], 2)
+    except Exception as e:  # noqa: BLE001
+        log(f"snapshot HY 스프레드 생략: {e}")
+
+    # ④ 뉴스 헤드라인 상위 5건 — 카테고리 전체에서 최신순 (news.<카테고리>=[{title,isoDate}])
+    try:
+        news = d.get("news") or {}
+        arts = []
+        for v in news.values():
+            if not isinstance(v, list):
+                continue
+            for a in v:
+                if isinstance(a, dict) and a.get("title"):
+                    arts.append((str(a.get("isoDate") or ""), str(a["title"]).strip()))
+        arts.sort(reverse=True)  # isoDate 내림차순 = 최신 우선
+        titles, seen = [], set()
+        for _, t in arts:
+            if t and t not in seen:
+                seen.add(t)
+                titles.append(t)
+            if len(titles) >= 5:
+                break
+        if titles:
+            snap["뉴스헤드라인"] = titles
+    except Exception as e:  # noqa: BLE001
+        log(f"snapshot 뉴스 헤드라인 생략: {e}")
     # 오늘/내일 ★3 캘린더 이벤트
     today = datetime.now(KST).date()
     events = ((d.get("economicCalendar") or {}).get("events")) or []
@@ -112,11 +178,16 @@ def rule_based_lines(snap):
 
 
 def _llm_prompt(snap):
+    # '1줄=주식/2줄=환율·금리/3줄=원자재' 고정 배분은 폐기 — 매일 같은 틀의 나열이 되어
+    # 정보가치가 낮았다. 대신 '이례적 변화 1가지 + 파급 경로 + 내일 확인 지표'를 요구해
+    # 스냅샷(수급·금리차·신용스프레드·헤드라인 포함)에서 통찰을 뽑도록 유도한다.
     return (
         "다음은 오늘의 시장 데이터 스냅샷이다(JSON). 한국 개인투자자 관점에서 "
         "'오늘의 매크로 3줄 요약'을 한국어로 작성하라.\n"
         "규칙: 정확히 3줄, 각 줄 90자 이내, 번호/불릿/머리말 없이 본문만, "
-        "데이터에 없는 수치를 지어내지 말 것. 1줄=주식시장, 2줄=환율·금리, 3줄=원자재·시장심리·일정.\n\n"
+        "데이터에 없는 수치를 지어내지 말 것.\n"
+        "반드시 포함: ① 스냅샷에서 가장 이례적인 변화 1가지와 그것이 한국 시장에 "
+        "미치는 파급 경로, ② 내일 확인해야 할 지표 1가지.\n\n"
         + json.dumps(snap, ensure_ascii=False, default=str)
     )
 

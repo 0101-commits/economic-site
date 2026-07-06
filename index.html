@@ -102,10 +102,13 @@
      loadXlsxOnce() 가 SRI 유지한 채 동적 로드한다 (첫 페인트 경량화). -->
 <!-- TradingView Lightweight Charts™ (Apache-2.0 오픈소스) — '투자 현황' 종목 상세 차트(캔들+MA·RSI·MACD).
      유료 서버/위젯 없이 프론트에 라이브러리만 이식해 무료로 쓰는 PRD 요구사항. unpkg 는 CSP script-src 에 이미 허용. -->
-<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js" integrity="sha384-stKllnUqA9AD0gsKCuUtf5XlqAW7PwIgDagoNsTWkjkBmJ/GZ/uHTgEBxdLV2VSK" crossorigin="anonymous"></script>
+<!-- defer — 이 두 라이브러리(합 ~310KB raw)는 특정 페이지(종목 상세 차트/부동산 지도)에서만
+     쓰이고 모든 초기화가 window 'load' 이후라 파서 차단 동기 로드일 이유가 없다.
+     defer 로 HTML 파싱 비차단 → FCP 개선. (사용처에 typeof 미로드 가드 기존재.) -->
+<script defer src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js" integrity="sha384-stKllnUqA9AD0gsKCuUtf5XlqAW7PwIgDagoNsTWkjkBmJ/GZ/uHTgEBxdLV2VSK" crossorigin="anonymous"></script>
 <!-- Leaflet (OpenStreetMap) — 도메인 제한 없음 -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <!-- Naver Maps JS API v3 — Client ID 가 0101-commits.github.io/economic-site/ 도메인에 등록됨 -->
 <!-- 2024+ 이후 신규 발급 키는 ncpKeyId, 기존 키는 ncpClientId 사용. 두 형태 모두 시도. -->
 <script>
@@ -142,7 +145,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link rel="preconnect" href="https://ecom-dashboard-proxy.baldr0001.workers.dev"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap" rel="stylesheet"/>
+<!-- icon_names 서브셋(알파벳순 필수) — 전체 가변 아이콘 폰트(200KB+) 대신 실사용 16종만 받아
+     용량 90%+ 절감. display=block: 아이콘 폰트는 swap 시 'menu_open' 같은 리거처 원문이
+     그대로 보였다가 교체되는 결함이 있어 짧은 공백이 낫다(Google Fonts 권장).
+     ⚠ 새 아이콘을 쓰려면 여기 icon_names 에도 추가해야 한다(빠지면 이름 텍스트가 그대로 노출). -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&icon_names=account_balance,calendar_month,candlestick_chart,compare_arrows,dark_mode,edit_note,home,home_work,light_mode,menu,menu_open,monitoring,public,refresh,settings,show_chart&display=block" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Public+Sans:wght@600;700;900&display=swap" rel="stylesheet"/>
 <!-- 브라우저 UI(스크롤바·폼 컨트롤)도 테마 추종 -->
 <meta name="color-scheme" content="light dark"/>
@@ -397,11 +404,13 @@
   html.light details.widget summary { color: rgb(89,89,89); }
   /* ───────── 라이트 테마 보강: 인라인 다크 색상 오버라이드 (모든 페이지 일관성) ───────── */
   /* 활성화된 탭 버튼은 항상 파란 배경 + 흰색 글자 */
+  /* 활성 파랑은 라이트 토큰 --c-accent(#356CB5)로 통일 — 기존 #2962ff 하드코딩 때문에
+     같은 화면(탭 vs 뉴스필터)에서 두 가지 파랑이 공존하던 불일치 해소. 흰 글자 대비 5.0:1 AA 충족. */
   html.light .tab-btn.active,
   html.light button.active,
   html.light button[style*="background:var(--c-accent)"],
-  html.light button[style*="background: var(--c-accent)"] { background-color: #2962ff !important; color: #fff !important; border-color: #2962ff !important; }
-  html.light .news-filter-btn.act { background: rgb(53,108,181) !important; color: #fff !important; border-color: rgb(53,108,181) !important; }
+  html.light button[style*="background: var(--c-accent)"] { background-color: var(--c-accent,#356CB5) !important; color: #fff !important; border-color: var(--c-accent,#356CB5) !important; }
+  html.light .news-filter-btn.act { background: var(--c-accent,#356CB5) !important; color: #fff !important; border-color: var(--c-accent,#356CB5) !important; }
   /* 비활성 탭 버튼: 어두운 글자/투명 배경이 라이트에서도 잘 보이게 */
   html.light .tab-btn:not(.active) { color: rgb(89,89,89) !important; }
   /* ↑ 위 규칙이 '활성 class 없이 파란 배경 + 흰 글씨'인 버튼(목록 저장·조회·그룹 탭·파이 모드·프리셋 등)의
@@ -499,7 +508,7 @@
   .yoy-btn.indeterminate { background: rgba(41,98,255,.16); color: var(--c-primary,#c8d2ff);
              border-color: var(--c-accent,#2962ff); border-style: dashed; }
   .yoy-btn .mat { font-size: 14px; }
-  html.light .yoy-btn.active { background: #2962ff !important; color: #fff !important; border-color: #2962ff !important; }
+  html.light .yoy-btn.active { background: var(--c-accent,#356CB5) !important; color: #fff !important; border-color: var(--c-accent,#356CB5) !important; }
   .yoy-badge { position: absolute; top: 6px; right: 8px; z-index: 5; pointer-events: none;
                font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px;
                border-radius: 999px; letter-spacing: .01em;
@@ -886,14 +895,16 @@
 
   /* 지연 데이터 글로벌 상태 칩 (2.4) — 카드별 중복 경고문 대신 단일 상시 표시.
      좌하단 플로팅이 본문 콘텐츠를 가린다는 피드백으로 사이드바(메뉴바) 내부 정적 배치로 변경. */
+  /* 색은 테마 토큰 --c-warn 사용 — #f0c75e 하드코딩은 라이트 카드 위 대비 ~1.6:1 로 안 보였다
+     (라이트용 --c-warn:#b8860b 이 이미 정의돼 있는데 미사용이던 문제). */
   #globalDelayChip {
     display: inline-flex; align-items: center; gap: 6px;
     margin: 4px 6px 0; padding: 4px 10px;
-    font-size: 10px; color: #f0c75e; background: var(--c-card,#1f2945);
+    font-size: 10px; color: var(--c-warn,#f0c75e); background: var(--c-card,#1f2945);
     border: 1px solid #8a6d1f66; border-radius: 999px;
     cursor: help; user-select: none;
   }
-  #globalDelayChip .dot { width: 6px; height: 6px; border-radius: 50%; background: #f0c75e; }
+  #globalDelayChip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-warn,#f0c75e); }
   /* 사이드바 접힘(아이콘 모드) 시 텍스트 칩은 숨김 */
   #sidebar.collapsed #globalDelayChip { display: none; }
 
@@ -958,7 +969,8 @@
 .widget-err button { font-size:11px; padding:3px 12px; border:1px solid #2962ff; border-radius:4px; background:transparent; color:#2962ff; cursor:pointer; }
 /* 데이터 소스 배너 (실데이터 로드 실패 → Mock 동작 고지) */
 #dataSrcBanner { position:fixed; top:64px; right:12px; z-index:1200; background:#33271a; border:1px solid #f0c75e66; color:#f0c75e; border-radius:6px; padding:8px 12px; font-size:11px; display:flex; gap:10px; align-items:center; box-shadow:0 4px 14px #0006; max-width:min(92vw,420px); flex-wrap:wrap; }
-html.light #dataSrcBanner { background:#fff7e6; }
+/* 라이트: 배경만 바꾸고 글자색 #f0c75e 를 남기면 '노란 배경 위 노란 글자'가 된다 — 토큰으로 보정 */
+html.light #dataSrcBanner { background:#fff7e6; color:var(--c-warn,#b8860b); border-color:#b8860b66; }
 /* 포트폴리오 모바일 카드 뷰 */
 #pfCardList { display:none; }
 .pf-card { border:1px solid var(--c-border,#3e4870); border-radius:8px; padding:10px 12px; margin-bottom:8px; background:var(--c-bg,#0a0e18); }
@@ -1074,14 +1086,14 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 <header style="position:fixed;top:0;left:0;right:0;height:56px;background:var(--c-bg);border-bottom:1px solid var(--c-border);z-index:300;display:flex;align-items:center;padding:0 16px;gap:12px;">
   <!-- 사이드바 토글 (헤더 내부) — z-index 305 (모바일 사이드바 위에 표시되도록) -->
   <button onclick="toggleSidebar()" class="u-touch" aria-label="사이드바 토글" aria-expanded="false" title="사이드바 토글" style="background:transparent;border:none;color:var(--c-txt-dim);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-xs);flex-shrink:0;transition:color .15s;position:relative;z-index:305;" onmouseover="this.style.color='var(--c-primary)'" onmouseout="this.style.color='var(--c-txt-dim)'">
-    <span class="mat" id="sidebarToggleIcon" style="font-size:22px;">menu_open</span>
+    <span aria-hidden="true" class="mat" id="sidebarToggleIcon" style="font-size:22px;">menu_open</span>
   </button>
   <div onclick="goHome()" role="link" tabindex="0" aria-label="대시보드 홈으로 이동" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goHome();}" title="대시보드 홈으로 이동" style="font-family:'Public Sans',sans-serif;font-weight:700;font-size:15px;color:var(--c-primary);white-space:nowrap;cursor:pointer;user-select:none;transition:opacity .15s;" onmouseover="this.style.opacity='0.75'" onmouseout="this.style.opacity='1'">
-    <span class="mat" style="color:var(--c-primary);margin-right:6px;">monitoring</span><h1 style="font:inherit;margin:0;display:inline;">경제현황 터미널</h1>
+    <span aria-hidden="true" class="mat" style="color:var(--c-primary);margin-right:6px;">monitoring</span><h1 style="font:inherit;margin:0;display:inline;">경제현황 터미널</h1>
   </div>
   <!-- 전년 동기(YoY) 비교 글로벌 토글 — 지원 차트 전체에 전년 데이터 오버레이 동시 적용 -->
   <button id="yoyGlobalBtn" class="yoy-btn" onclick="toggleYoYGlobal()" aria-pressed="false" title="전년 동기 비교 — 지원되는 모든 차트에 전년 데이터를 점선으로 오버레이하고 변화율 배지를 표시합니다." style="flex-shrink:0;">
-    <span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span>
+    <span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span>
   </button>
   <!-- 실시간 티커 -->
   <div class="ticker-wrap">
@@ -1102,24 +1114,24 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
   <!-- 사이드바 -->
   <nav id="sidebar" aria-label="메인 메뉴" style="width:200px;min-height:calc(100vh - 56px);background:var(--c-bg);border-right:1px solid var(--c-border);padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
     <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--c-txt-muted);padding:4px 14px 8px;padding-left:46px;">메인 메뉴</div>
-    <div class="menu-item active" onclick="showPage('dashboard',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">home</span>대시보드 홈</div>
-    <div class="menu-item" onclick="showPage('portfolio',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">monitoring</span>투자 현황</div>
-    <div class="menu-item" onclick="showPage('equity',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">show_chart</span>주식시장</div>
-    <div class="menu-item" onclick="showPage('macro',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">public</span>거시경제</div>
-    <div class="menu-item" onclick="showPage('market',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">candlestick_chart</span>시장 지표<span id="marketHaltBadge" style="display:none;width:7px;height:7px;border-radius:50%;background:#ef5350;margin-left:6px;animation:ann-pulse 1.2s ease-in-out infinite;"></span></div>
-    <div class="menu-item" onclick="showPage('investor',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">account_balance</span>주요 투자자</div>
-    <div class="menu-item" onclick="showPage('realestate',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">home_work</span>부동산</div>
-    <div class="menu-item" onclick="showPage('calendar',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">calendar_month</span>경제 캘린더</div>
-    <div class="menu-item" onclick="showPage('notes',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">edit_note</span>분석 노트</div>
-    <div class="menu-item" onclick="showPage('settings',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span class="mat">settings</span>설정</div>
+    <div class="menu-item active" onclick="showPage('dashboard',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">home</span>대시보드 홈</div>
+    <div class="menu-item" onclick="showPage('portfolio',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">monitoring</span>투자 현황</div>
+    <div class="menu-item" onclick="showPage('equity',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">show_chart</span>주식시장</div>
+    <div class="menu-item" onclick="showPage('macro',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">public</span>거시경제</div>
+    <div class="menu-item" onclick="showPage('market',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">candlestick_chart</span>시장 지표<span id="marketHaltBadge" style="display:none;width:7px;height:7px;border-radius:50%;background:#ef5350;margin-left:6px;animation:ann-pulse 1.2s ease-in-out infinite;"></span></div>
+    <div class="menu-item" onclick="showPage('investor',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">account_balance</span>주요 투자자</div>
+    <div class="menu-item" onclick="showPage('realestate',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">home_work</span>부동산</div>
+    <div class="menu-item" onclick="showPage('calendar',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">calendar_month</span>경제 캘린더</div>
+    <div class="menu-item" onclick="showPage('notes',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">edit_note</span>분석 노트</div>
+    <div class="menu-item" onclick="showPage('settings',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">settings</span>설정</div>
     <!-- 지연 데이터 상태 칩 — 좌하단 플로팅에서 사이드바 정적 배치로 이동 (본문 가림 해소) -->
     <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>Market Data 15m Delayed</div>
-    <button id="globalRefreshBtn" onclick="manualRefreshData()" title="데이터 수동 새로고침 (30초 쿨다운)" style="display:flex;align-items:center;gap:5px;width:100%;padding:5px 10px;margin-top:4px;border-radius:var(--r-xs);border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;font-size:11px;font-weight:500;transition:opacity .2s;"><span class="mat" id="globalRefreshIcon" style="font-size:14px;">refresh</span><span id="globalRefreshLabel">새로고침</span></button>
+    <button id="globalRefreshBtn" onclick="manualRefreshData()" title="데이터 수동 새로고침 (30초 쿨다운)" style="display:flex;align-items:center;gap:5px;width:100%;padding:5px 10px;margin-top:4px;border-radius:var(--r-xs);border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;font-size:11px;font-weight:500;transition:opacity .2s;"><span aria-hidden="true" class="mat" id="globalRefreshIcon" style="font-size:14px;">refresh</span><span id="globalRefreshLabel">새로고침</span></button>
     <div style="border-top:1px solid var(--c-border);margin:12px 0;"></div>
     <!-- 테마 토글 버튼 -->
     <div style="padding:0 6px 8px;">
       <button id="themeToggleBtn" onclick="toggleTheme()" aria-pressed="false" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--r-sm);border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;font-size:12px;font-weight:500;">
-        <span class="mat" id="themeIcon">light_mode</span>
+        <span aria-hidden="true" class="mat" id="themeIcon">light_mode</span>
         <span id="themeLabel">라이트 모드</span>
       </button>
     </div>
@@ -1168,7 +1180,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
         <button class="reHistUnitBtn u-touch-hit" data-unit="Y" onclick="setReHistUnit('Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border,#3e4870);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;">연</button>
       </div>
       <div class="reHistChartBox" style="position:relative;flex:1 0 auto;min-height:280px;">
-        <canvas id="reHistChart"></canvas>
+        <canvas role="img" aria-label="부동산 지표 추이 차트" id="reHistChart"></canvas>
         <div id="reHistEmpty" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px;font-size:12px;color:var(--c-txt-dim,#a4a8bc);line-height:1.8;"></div>
       </div>
       <div id="reHistGuide" style="display:none;margin-top:10px;padding:10px 12px;background:var(--c-surface,#1a2236);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);font-size:11px;color:var(--c-txt,#e8ebf5);line-height:1.7;"></div>
@@ -1232,13 +1244,13 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           <div class="widget-title">KOSPI <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">단위: 지수 / %</span></div>
           <div id="kpi-kospi-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">7,612.51</div>
           <div id="kpi-kospi-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -4.62%</div>
-          <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark1"></canvas></div>
+          <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark1"></canvas></div>
         </div>
         <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-fx" onclick="navigateToDetail('fx')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">USD / KRW <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">단위: 원/달러</span></div>
           <div id="kpi-fx-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">1,489.64</div>
           <div id="kpi-fx-chg" class="up-txt" style="font-size:13px;margin-top:4px;">▲ +0.00%</div>
-          <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark2"></canvas></div>
+          <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark2"></canvas></div>
         </div>
         <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-rate" onclick="navigateToDetail('rate')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">한국 기준금리 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">단위: % (연이율)</span></div>
@@ -1247,13 +1259,13 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             <div id="kpi-rate-status" style="font-size:10px;color:#26a69a;background:#26a69a22;padding:1px 5px;border-radius:var(--r-xs);border:1px solid #26a69a44;">동결</div>
           </div>
           <div style="font-size:10px;color:var(--c-txt-dim);margin-top:2px;">최근 결정: <span id="kpi-rate-date">2025.02.25</span></div>
-          <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark-rate"></canvas></div>
+          <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark-rate"></canvas></div>
         </div>
         <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-wti" onclick="navigateToDetail('commodity')" style="cursor:pointer;transition:border-color .15s;">
           <div class="widget-title">WTI 유가 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">단위: USD/배럴</span></div>
           <div id="kpi-wti-price" style="font-size:22px;font-weight:700;font-family:'Public Sans';">$62.35</div>
           <div id="kpi-wti-chg" class="down-txt" style="font-size:13px;margin-top:4px;">▼ -0.55%</div>
-          <div style="position:relative;height:40px;margin-top:8px;"><canvas id="spark3"></canvas></div>
+          <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark3"></canvas></div>
         </div>
       </div>
       </div><!-- /homeSecKpi -->
@@ -1288,13 +1300,13 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button class="tab-btn" id="mainCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('main',this)">📅 기간 지정</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="mainChart" onclick="toggleYoY('mainChart',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이하고 변화율 배지를 표시"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+              <button class="yoy-btn" data-yoy="mainChart" onclick="toggleYoY('mainChart',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
             </div>
           </div>
           <div id="mainCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-            <input type="date" id="mainDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+            <input aria-label="메인 차트 조회 시작일" type="date" id="mainDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
             <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
-            <input type="date" id="mainDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+            <input aria-label="메인 차트 조회 종료일" type="date" id="mainDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
             <button onclick="applyCustomRange('main')" style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
             <button onclick="resetCustomRange('main')" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
           </div>
@@ -1388,9 +1400,9 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
           <div class="widget-title" style="margin-bottom:0;">지표 비교 차트 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">이중 Y축 · 두 지표 오버레이</span></div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-            <select id="cmpSelA" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid var(--c-accent);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-primary);font-size:11px;max-width:170px;"></select>
+            <select aria-label="비교 지표 A 선택" id="cmpSelA" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid var(--c-accent);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-primary);font-size:11px;max-width:170px;"></select>
             <button onclick="cmpSwap()" title="좌/우 지표 교체" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 7px;font-size:11px;cursor:pointer;">⇄</button>
-            <select id="cmpSelB" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid #f5a623;border-radius:var(--r-xs);padding:3px 6px;color:#f5a623;font-size:11px;max-width:170px;"></select>
+            <select aria-label="비교 지표 B 선택" id="cmpSelB" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid #f5a623;border-radius:var(--r-xs);padding:3px 6px;color:#f5a623;font-size:11px;max-width:170px;"></select>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <span id="cmpPeriodBtns">
               <button class="tab-btn" data-p="3M" onclick="cmpSetPeriod('3M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3M</button>
@@ -1401,7 +1413,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             </span>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <button id="cmpNormBtn" onclick="cmpToggleNorm()" title="두 지표의 시작점을 100으로 환산해 등락률 추이만 비교합니다 — 이중축 스케일 차이로 인한 시각적 착시 제거" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">⚖ 지수화 =100</button>
-            <button class="yoy-btn" data-yoy="compareChart" onclick="toggleYoY('compareChart',this)" aria-pressed="false" title="주 지표(좌측 A)의 전년 동기를 점선으로 오버레이 — 지수화 모드에서는 비활성"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+            <button class="yoy-btn" data-yoy="compareChart" onclick="toggleYoY('compareChart',this)" aria-pressed="false" title="주 지표(좌측 A)의 전년 동기를 점선으로 오버레이 — 지수화 모드에서는 비활성"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           </div>
         </div>
         <div style="position:relative;height:300px;">
@@ -1530,13 +1542,13 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 
           <!-- 종목 추가 -->
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;margin-bottom:10px;">
-            <input id="pfSymbolInput" placeholder="종목코드/티커 (예: 005930, AAPL)" style="flex:1;min-width:170px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;" onkeydown="if(event.key==='Enter')pfLookupSymbol()">
+            <input aria-label="종목 코드 또는 티커 입력" id="pfSymbolInput" placeholder="종목코드/티커 (예: 005930, AAPL)" style="flex:1;min-width:170px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;" onkeydown="if(event.key==='Enter')pfLookupSymbol()">
             <button class="tab-btn" onclick="pfLookupSymbol()" style="font-size:11px;padding:5px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">조회</button>
             <span id="pfLookupResult" style="font-size:11px;color:var(--c-txt-dim);flex-basis:100%;"></span>
             <div id="pfAddFields" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;flex-basis:100%;">
-              <input id="pfAddAvg" type="number" step="any" min="0" placeholder="내 평단가 (선택)" style="width:130px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;">
-              <input id="pfAddQty" type="number" step="any" min="0" placeholder="보유 수량 (선택)" style="width:120px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;">
-              <select id="pfAddGroup" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;"></select>
+              <input aria-label="내 평단가 입력" id="pfAddAvg" type="number" step="any" min="0" placeholder="내 평단가 (선택)" style="width:130px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;">
+              <input aria-label="보유 수량 입력" id="pfAddQty" type="number" step="any" min="0" placeholder="보유 수량 (선택)" style="width:120px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;">
+              <select aria-label="추가할 종목의 그룹 선택" id="pfAddGroup" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;"></select>
               <button class="tab-btn" onclick="pfAddItem()" style="font-size:11px;padding:5px 14px;border:1px solid #26a69a;border-radius:var(--r-xs);background:#26a69a;color:#fff;cursor:pointer;">＋ 추가</button>
             </div>
           </div>
@@ -1575,7 +1587,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               <button class="tab-btn" id="pfPieModeType" onclick="pfSetPieMode('type',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">유형별</button>
             </div>
           </div>
-          <div style="position:relative;height:260px;"><canvas id="pfPieCanvas"></canvas></div>
+          <div style="position:relative;height:260px;"><canvas role="img" aria-label="포트폴리오 자산 비중 도넛 차트" id="pfPieCanvas"></canvas></div>
           <div id="pfPieEmpty" style="display:none;text-align:center;color:#7a8099;font-size:12px;padding:30px 0;">평단가·수량을 입력하면<br>포트폴리오 비중이 표시됩니다.</div>
           <div id="pfPieNote" style="font-size:10px;color:#7a8099;margin-top:8px;">평가 금액(원화 환산) 기준 · 유형별 = 주식/ETF 구분</div>
         </div>
@@ -1585,11 +1597,11 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           <span class="widget-title" style="margin-bottom:0;">📈 수익률 추이 vs 벤치마크 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></span>
-          <button class="yoy-btn" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           <span style="font-size:10px;color:#7a8099;">방문일마다 포트폴리오 스냅샷이 이 브라우저(localStorage)에 기록됩니다</span>
         </div>
         <div id="pfBenchEmpty" style="text-align:center;color:#7a8099;font-size:12px;padding:24px 0;line-height:1.7;">평단가·수량이 입력된 상태로 <b>2일 이상</b> 방문하면<br>내 포트폴리오 수익률 추이를 KOSPI·S&amp;P 500 과 같은 차트에서 비교할 수 있습니다.</div>
-        <div id="pfBenchWrap" style="position:relative;height:240px;display:none;"><canvas id="pfBenchChart"></canvas></div>
+        <div id="pfBenchWrap" style="position:relative;height:240px;display:none;"><canvas role="img" aria-label="포트폴리오 vs KOSPI·S&P500 벤치마크 비교 차트" id="pfBenchChart"></canvas></div>
         <div id="pfBenchNote" style="display:none;font-size:10px;color:#7a8099;margin-top:6px;">내 포트폴리오 = (평가금액/매입금액 − 1), 벤치마크 = 첫 스냅샷일 종가 대비 등락률. 입금/매수로 매입금액이 변하면 단순 비교에 왜곡이 있을 수 있습니다.</div>
       </div>
 
@@ -1660,7 +1672,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:10px;">
             <div style="font-size:12px;color:var(--c-primary);margin-bottom:8px;font-weight:600;">새 알림 추가</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-              <select id="pfAlertType" onchange="pfAlertTypeChanged()" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;">
+              <select aria-label="알림 조건 유형 선택" id="pfAlertType" onchange="pfAlertTypeChanged()" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:12px;">
                 <option value="price_above">가격이 ~ 이상 (목표가 도달)</option>
                 <option value="price_below">가격이 ~ 이하</option>
                 <option value="pct_change">등락률 도달 (전일 종가 대비 %)</option>
@@ -1741,14 +1753,14 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
                   <span style="width:1px;height:14px;background:var(--c-border);display:inline-block;margin:0 2px;vertical-align:middle;"></span>
                   <button id="fxCompareModeBtn" onclick="toggleChartCompareMode('fx',this)" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                   <button onclick="resetChartCompareMode('fx')" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
-                  <button class="yoy-btn" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+                  <button class="yoy-btn" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
                 </div>
               </div>
             </div>
             <div id="fxCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input type="date" id="fxDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+              <input aria-label="환율 차트 조회 시작일" type="date" id="fxDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
               <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
-              <input type="date" id="fxDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+              <input aria-label="환율 차트 조회 종료일" type="date" id="fxDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
               <button onclick="applyCustomRange('fx')" style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
             </div>
             <div id="fxChartRange" style="font-size:11px;color:var(--c-primary);margin-bottom:6px;min-height:16px;"></div>
@@ -1808,7 +1820,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
             <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button class="yoy-btn" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+            <button class="yoy-btn" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           </div>
           <div class="chart-scroll-x">
             <div class="chart-scroll-inner" style="position:relative;height:340px;">
@@ -1855,13 +1867,13 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
                   <button class="preset-btn" onclick="applyChartPresetPeriod('bond','1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
                 </span>
                 <button class="tab-btn" id="bondCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('bond',this)">📅 기간 지정</button>
-                <button class="yoy-btn" data-yoy="bondChart" onclick="toggleYoY('bondChart',this)" aria-pressed="false" title="전년 동기 수익률을 점선으로 오버레이하고 변화율 배지를 표시"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+                <button class="yoy-btn" data-yoy="bondChart" onclick="toggleYoY('bondChart',this)" aria-pressed="false" title="전년 동기 수익률을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
               </div>
             </div>
             <div id="bondCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input type="date" id="bondDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+              <input aria-label="금리 차트 조회 시작일" type="date" id="bondDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
               <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
-              <input type="date" id="bondDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+              <input aria-label="금리 차트 조회 종료일" type="date" id="bondDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
               <button onclick="applyBondCustomRange()" style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
               <button onclick="resetBondCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
             </div>
@@ -1967,13 +1979,13 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-card);color:var(--c-primary);cursor:pointer;">↻ 새로고침</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="equityIndexChart" onclick="toggleYoY('equityIndexChart',this)" aria-pressed="false" title="전년 동기 지수를 점선으로 오버레이하고 변화율 배지를 표시"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+              <button class="yoy-btn" data-yoy="equityIndexChart" onclick="toggleYoY('equityIndexChart',this)" aria-pressed="false" title="전년 동기 지수를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
             </div>
           </div>
           <div id="equityCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-            <input type="date" id="eqDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+            <input aria-label="주식 차트 조회 시작일" type="date" id="eqDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
             <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
-            <input type="date" id="eqDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+            <input aria-label="주식 차트 조회 종료일" type="date" id="eqDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
             <button onclick="applyEquityCustomRange()" style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
             <button onclick="resetEquityCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
           </div>
@@ -2007,11 +2019,11 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               <button class="preset-btn" onclick="applyChartPresetPeriod('investor','1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
             </span>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <input type="date" id="invDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:11px;" onchange="applyInvestorDateRange()"/>
+            <input aria-label="투자자 수급 조회 시작일" type="date" id="invDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:11px;" onchange="applyInvestorDateRange()"/>
             <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
-            <input type="date" id="invDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:11px;" onchange="applyInvestorDateRange()"/>
+            <input aria-label="투자자 수급 조회 종료일" type="date" id="invDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:11px;" onchange="applyInvestorDateRange()"/>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button class="yoy-btn" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+            <button class="yoy-btn" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           </div>
           <div style="position:relative;height:200px;">
             <canvas id="investorChart" role="img" aria-label="투자자별 순매매 동향">투자자 차트</canvas>
@@ -2144,13 +2156,13 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
                 <span style="width:1px;height:16px;background:var(--c-border);margin:0 2px;"></span>
                 <button id="comCompareModeBtn" onclick="toggleComCompareMode(this)" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                 <button onclick="resetChartCompareMode('com')" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
-                <button class="yoy-btn" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+                <button class="yoy-btn" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
               </div>
             </div>
             <div id="comCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input type="date" id="comDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+              <input aria-label="원자재 차트 조회 시작일" type="date" id="comDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
               <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
-              <input type="date" id="comDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+              <input aria-label="원자재 차트 조회 종료일" type="date" id="comDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
               <button onclick="applyComCustomRange()" style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
               <button onclick="resetComCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
             </div>
@@ -2168,21 +2180,21 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
         <!-- Bottom: sector comparison charts 2x2 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" style="padding:2px 8px;" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" style="padding:2px 8px;" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" style="padding:2px 8px;" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" style="padding:2px 8px;" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" style="padding:2px 8px;" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" style="padding:2px 8px;" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" style="padding:2px 8px;" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" style="padding:2px 8px;" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
@@ -2204,7 +2216,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             </tr></thead>
             <tbody id="metalInventoryTable"></tbody>
           </table>
-          <div style="font-size:10px;color:var(--c-txt-muted);margin-top:8px;">실데이터: <a href="https://www.lme.com/en/metals/reports" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">lme.com/metals/reports</a></div>
+          <div style="font-size:10px;color:var(--c-txt-muted);margin-top:8px;"><span id="metalInventoryNote">⚠ 정적 스냅샷(자동 갱신 아님) — 최신 수치는 원본 확인:</span> <a href="https://www.lme.com/en/metals/reports" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">lme.com/metals/reports</a></div>
         </div>
         <!-- ⚙️ Heavy Metal Stats — COMEX·LME 금속 재고/스퀴즈 심층 분석 (외부 참조) -->
         <div class="widget" style="margin-bottom:12px;">
@@ -2360,7 +2372,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
     <!-- ====== 페이지 4: 경제 캘린더 ====== -->
     <div class="page" id="page-calendar">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-        <select style="background:var(--c-card);color:var(--c-txt);border:1px solid var(--c-border);padding:5px 10px;border-radius:var(--r-sm);font-size:12px;" id="calPeriod">
+        <select aria-label="경제 캘린더 기간 선택" style="background:var(--c-card);color:var(--c-txt);border:1px solid var(--c-border);padding:5px 10px;border-radius:var(--r-sm);font-size:12px;" id="calPeriod">
           <option>이번 주</option><option>지난 달</option><option>이번 달</option><option>다음 달</option>
         </select>
         <div style="display:flex;gap:4px;flex-wrap:wrap;">
@@ -2408,7 +2420,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           <div id="calFloatSurp" style="display:none;font-size:10px;text-align:center;border-radius:var(--r-xs);padding:3px 6px;margin-bottom:6px;"></div>
           <figure style="margin:0;">
             <figcaption class="cal-figcaption">과거 추이 (참고용)</figcaption>
-            <div style="position:relative;height:120px;"><canvas id="calFloatChart"></canvas></div>
+            <div style="position:relative;height:120px;"><canvas role="img" aria-label="경제 캘린더 지표 미니 차트" id="calFloatChart"></canvas></div>
           </figure>
         </div>
       </div>
@@ -2474,7 +2486,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             <button class="calDetailUnitBtn" data-unit="Y" onclick="setCalDetailUnit('Y',this)" style="padding:2px 6px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;font-size:10px;">연</button>
           </div>
         </div>
-        <div style="position:relative;height:180px;"><canvas id="calDetailChart"></canvas></div>
+        <div style="position:relative;height:180px;"><canvas role="img" aria-label="경제 캘린더 지표 상세 차트" id="calDetailChart"></canvas></div>
         <div id="calDetailGuide" style="display:none;margin-top:10px;padding:10px 12px;background:var(--c-surface,#1a2236);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);font-size:11px;color:var(--c-txt,#e8ebf5);line-height:1.7;"></div>
       </div>
 
@@ -2521,8 +2533,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           <!-- 헤더 -->
           <div class="widget" style="display:flex;flex-direction:column;gap:10px;">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <input id="noteTitle" type="text" placeholder="노트 제목 *" style="flex:2;min-width:160px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 12px;color:var(--c-txt);font-size:14px;font-family:'Public Sans';font-weight:600;"/>
-              <input id="noteAuthor" type="text" placeholder="작성자 (필수) *" style="flex:1;min-width:120px;background:var(--c-bg);border:1px solid #2962ff55;border-radius:var(--r-sm);padding:8px 12px;color:var(--c-txt);font-size:13px;"/>
+              <input aria-label="노트 제목" id="noteTitle" type="text" placeholder="노트 제목 *" style="flex:2;min-width:160px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 12px;color:var(--c-txt);font-size:14px;font-family:'Public Sans';font-weight:600;"/>
+              <input aria-label="노트 작성자" id="noteAuthor" type="text" placeholder="작성자 (필수) *" style="flex:1;min-width:120px;background:var(--c-bg);border:1px solid #2962ff55;border-radius:var(--r-sm);padding:8px 12px;color:var(--c-txt);font-size:13px;"/>
               <span id="noteDate" style="font-size:11px;color:var(--c-txt-dim);white-space:nowrap;"></span>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
@@ -2624,18 +2636,18 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
                 <button onclick="setRePeriod('3y',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
                 <button onclick="setRePeriod('5y',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
                 <button id="reCustomBtn" onclick="toggleCustomRange('re',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📅 기간 지정</button>
-                <button class="yoy-btn" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" style="font-size:10px;padding:2px 8px;" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+                <button class="yoy-btn" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" style="font-size:10px;padding:2px 8px;" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
               </div>
             </div>
             <div id="reCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input type="date" id="reDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+              <input aria-label="부동산 지표 조회 시작일" type="date" id="reDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
               <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
-              <input type="date" id="reDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
+              <input aria-label="부동산 지표 조회 종료일" type="date" id="reDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:11px;"/>
               <button onclick="applyReCustomRange()" style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">적용</button>
               <button onclick="resetReCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:11px;cursor:pointer;">초기화</button>
             </div>
             <div id="reChartRange" style="font-size:11px;color:var(--c-primary);margin-bottom:4px;min-height:16px;display:flex;flex-wrap:wrap;gap:6px;"></div>
-            <div style="position:relative;height:260px;"><canvas id="rePriceChart" style="cursor:crosshair;"></canvas></div>
+            <div style="position:relative;height:260px;"><canvas role="img" aria-label="지역별 아파트 매매가격지수 차트" id="rePriceChart" style="cursor:crosshair;"></canvas></div>
             <div style="font-size:10px;color:var(--c-txt-muted);margin-top:4px;">💡 차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
           <!-- 지역별 등락 — Naver 지도 (기본) + 바 차트 토글 -->
@@ -2652,7 +2664,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               <div id="reRegionNaverMap" style="width:100%;height:100%;border-radius:var(--r-sm);"></div>
               <div id="reRegionNaverLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--c-surface,#1a2236);border-radius:var(--r-sm);font-size:11px;color:var(--c-txt-dim,#a4a8bc);text-align:center;padding:16px;">📡 Naver 지도 로딩 중…</div>
             </div>
-            <div id="reRegionBarContainer" style="position:relative;height:260px;display:none;"><canvas id="reRegionChart"></canvas></div>
+            <div id="reRegionBarContainer" style="position:relative;height:260px;display:none;"><canvas role="img" aria-label="지역별 부동산 지표 비교 차트" id="reRegionChart"></canvas></div>
           </div>
         </div>
 
@@ -3079,6 +3091,15 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           <span id="settingsSyncStatus" style="font-size:11px;color:#7a8099;"></span>
         </div>
         <div id="settingsAlertSummary" style="font-size:12px;color:var(--c-txt-dim,#a4a8bc);margin-top:10px;">—</div>
+        <!-- 최근 발동 이력 — 서버가 커밋하는 alerts_state.json(같은 origin)을 조인해 표시.
+             카카오 푸시가 무음일 때 '발동됐는데 못 받은 것'과 '애초에 발동 안 된 것'을 구분하는 창구. -->
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--c-border,#3e4870);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="set-label" style="font-size:12px;">📜 최근 발동 이력 (서버 발송 기록)</div>
+            <button class="tab-btn" onclick="loadAlertHistory(true)" title="alerts_state.json 재조회" style="font-size:10px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">↻ 새로고침</button>
+          </div>
+          <div id="alertHistoryList" style="font-size:11px;color:var(--c-txt-dim,#a4a8bc);margin-top:6px;line-height:1.8;">—</div>
+        </div>
         <div class="set-desc" style="margin-top:8px;">개별 종목 알림의 추가·삭제는 「투자 현황」 페이지 종목 행의 🔔 버튼에서 합니다. <b>전역 토글·기본 주기를 바꾼 뒤에도 「☁ 서버에 저장」을 눌러야 서버에 반영됩니다.</b></div>
       </div>
 
@@ -3217,7 +3238,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:4px;">
               <div class="widget-title" style="margin-bottom:0;">총 운용자산 추이 (조원)</div>
-              <button class="yoy-btn" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+              <button class="yoy-btn" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
             </div>
             <div style="position:relative;height:260px;">
               <canvas id="npsAumChart" role="img" aria-label="총 운용자산 추이">AUM 차트</canvas>
@@ -3247,7 +3268,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
             <div class="widget-title" style="margin-bottom:0;" id="npsYearDetailTitle">연도별 상세</div>
             <button onclick="document.getElementById('npsYearDetail').style.display='none'" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:2px 8px;font-size:11px;cursor:pointer;">✕ 닫기</button>
           </div>
-          <div style="position:relative;height:180px;"><canvas id="npsYearDetailChart"></canvas></div>
+          <div style="position:relative;height:180px;"><canvas role="img" aria-label="연기금 연도별 수익률 상세 차트" id="npsYearDetailChart"></canvas></div>
         </div>
       </div>
 
@@ -3286,7 +3307,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button onclick="toggleNpsAllocMeasure(this)" id="npsMeasureBtn" style="font-size:11px;padding:2px 8px;border:1px solid #b6c4ff44;border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">📐 구간 측정</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="npsAllocationTrendChart" onclick="toggleYoY('npsAllocationTrendChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 자산군의 전년 동기 비중을 점선으로 오버레이"><span class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+              <button class="yoy-btn" data-yoy="npsAllocationTrendChart" onclick="toggleYoY('npsAllocationTrendChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 자산군의 전년 동기 비중을 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
             </div>
           </div>
           <div id="npsMeasureInfo" style="display:none;font-size:11px;color:var(--c-txt-dim);margin-bottom:6px;padding:4px 8px;background:var(--c-bg);border-radius:var(--r-xs);">
@@ -4191,6 +4212,8 @@ function showPage(id, el) {
     const _prev = document.querySelector('.page.active');
     if(_prev && _prev.id === 'page-portfolio' && id !== 'portfolio' && typeof pfWarnUnsavedOnLeave === 'function') pfWarnUnsavedOnLeave();
   } catch(_) {}
+  // 잘못된 id 로 호출돼도 빈 화면이 되지 않게 대상 존재를 먼저 확인하고 없으면 dashboard 폴백
+  if(!document.getElementById('page-'+id)) id = 'dashboard';
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.menu-item').forEach(m=>{ m.classList.remove('active'); m.removeAttribute('aria-current'); });
@@ -4745,8 +4768,8 @@ async function buildNaverRegionMap() {
           이 사이트의 Naver Maps Client ID 는 도메인 <code>0101-commits.github.io</code> 에만 등록되어 있어 다른 환경에서는 작동하지 않습니다.
         </div>
         <div style="display:flex;gap:6px;margin-top:4px;">
-          <button onclick="setReRegionView('osm', document.getElementById('reRegionViewOsm'))" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-accent);background:var(--c-accent);color:#fff;border-radius:var(--r-xs);cursor:pointer;">🗺️ OpenStreetMap 사용</button>
-          <button onclick="setReRegionView('map', document.getElementById('reRegionViewMap'))" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);border-radius:var(--r-xs);cursor:pointer;">🗺️ SVG 뷰</button>
+          <!-- 구 'osm'/'map' 버튼은 setReRegionView 가 'naver' 로 매핑해 같은 오류 화면으로 되돌아오는 루프였음 — 유일한 탈출구인 바 차트로 교체 -->
+          <button onclick="setReRegionView('bar', document.getElementById('reRegionViewBar'))" style="font-size:11px;padding:4px 10px;border:1px solid var(--c-accent);background:var(--c-accent);color:#fff;border-radius:var(--r-xs);cursor:pointer;">📊 바 차트로 보기</button>
         </div>`;
     }
     return;
@@ -6914,7 +6937,11 @@ function renderNewsFeedWithPagination(containerId, items) {
   // 추가 방어선: 검색 URL · 빈 URL 항목은 페이지네이션에서도 제외 (defense in depth)
   const safeItems = (items || []).filter(n => n && !_isSearchOrInvalidNewsUrl(n.url));
   if(safeItems.length === 0) {
-    el.innerHTML = '<div style="color:var(--c-txt-muted);font-size:12px;padding:12px 0;text-align:center;line-height:1.6;">최근 실시간 뉴스를 불러오는 중입니다.<br>잠시 후 ↻ 새로고침을 눌러주세요.</div>';
+    // '로딩 중'과 '결과 0건'을 구분 — 로드가 끝났는데도 영구히 '불러오는 중…'이 남아
+    // 사용자에게 수동 새로고침을 지시하던 문제 수정.
+    el.innerHTML = window._newsFetchDone
+      ? '<div style="color:var(--c-txt-muted);font-size:12px;padding:12px 0;text-align:center;line-height:1.6;">최근 15일 내 해당 카테고리 기사가 없습니다.</div>'
+      : '<div style="padding:8px 0;"><div class="skel-bar" style="width:92%;height:12px;margin:6px auto;"></div><div class="skel-bar" style="width:84%;height:12px;margin:6px auto;"></div><div class="skel-bar" style="width:88%;height:12px;margin:6px auto;"></div></div>';
     return;
   }
   const expanded = !!newsExpanded[containerId];
@@ -9087,7 +9114,7 @@ function ensoTrendForecastHTML(live){
   if (hasFc) {
     forecastBlock = `
     <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🔮 공식 예측 <span style="font-weight:600;color:var(--c-txt-muted);">(NOAA CPC·IRI 확률 — 향후 분기별 국면 전망)</span></div>
-    <div style="position:relative;height:230px;margin-bottom:6px;"><canvas id="ensoForecastChart"></canvas></div>
+    <div style="position:relative;height:230px;margin-bottom:6px;"><canvas role="img" aria-label="엘니뇨·라니냐 공식 예측 차트" id="ensoForecastChart"></canvas></div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--c-txt-dim);margin-bottom:6px;">
       ${chip('#ef5350','엘니뇨')}${chip('#8b90a8','중립')}${chip('#2962ff','라니냐')}
       <span>막대=각 분기 확률 합 100% · 막대 클릭/hover=상세</span>
@@ -9107,7 +9134,7 @@ function ensoTrendForecastHTML(live){
   }
   return `<div style="margin-bottom:14px;">
     <div style="font-size:11px;font-weight:700;color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🌡️ ONI 기온 추이 <span style="font-weight:600;color:var(--c-txt-muted);">(실측 · 최근 10년)</span></div>
-    <div style="position:relative;height:190px;margin-bottom:6px;"><canvas id="ensoTrendChart"></canvas></div>
+    <div style="position:relative;height:190px;margin-bottom:6px;"><canvas role="img" aria-label="ONI 지수 추이 차트" id="ensoTrendChart"></canvas></div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--c-txt-dim);margin-bottom:14px;">
       <span><span style="display:inline-block;width:10px;height:10px;background:#ef535033;border:1px solid #ef5350;border-radius:2px;vertical-align:-1px;"></span> 엘니뇨대 (&gt;+0.5°C)</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#2962ff33;border:1px solid #2962ff;border-radius:2px;vertical-align:-1px;"></span> 라니냐대 (&lt;−0.5°C)</span>
@@ -9830,7 +9857,7 @@ function initMacroTopicPage(topic) {
         <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:10px;color:var(--c-txt-muted,#8b90a8);font-weight:400;">단위: ${m.unit}</span></div>
         <div style="display:flex;gap:4px;">
           ${periodOpts.map(o=>`<button onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" style="font-size:11px;padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:${macroTopicPeriod===o.key?'var(--c-accent)':'transparent'};color:${macroTopicPeriod===o.key?'#fff':'var(--c-txt-dim)'};cursor:pointer;font-weight:500;">${o.label}</button>`).join('')}
-          <button class="yoy-btn" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
         </div>
       </div>
       <!-- 국가 필터 (다중선택) — 원자재 차트의 필터처럼 토글 -->
@@ -10403,8 +10430,18 @@ function initMacroPage(t){
   const d=macroData[t];
   const meta=macroMeta[t]||{};
   const mc=document.getElementById('macroContent');
+  // '다음 발표'는 하드코딩 상수(macroMeta.*Next)라 갱신이 안 되면 과거 날짜가 남는다 —
+  // 지난 날짜면 숨긴다(틀린 과거 날짜보다 '—' 가 낫다. 근본 해법은 economicCalendar 동적 조회).
+  const _nextValid = (next) => {
+    if(!next) return null;
+    try {
+      const m = String(next).match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+      if(m && new Date(+m[1], +m[2]-1, +m[3], 23, 59) < new Date()) return null;
+    } catch(_) {}
+    return next;
+  };
   const infoBlock=(src,next)=>`<div style="font-size:10px;color:var(--c-txt-muted);text-align:right;">
-    <span style="color:var(--c-txt-dim);">다음 발표: ${next||'-'}</span>
+    <span style="color:var(--c-txt-dim);">다음 발표: ${_nextValid(next)||'—'}</span>
     <a href="${src||'#'}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);margin-left:6px;text-decoration:none;">공식→</a>
   </div>`;
   // 기간 필터 버튼 행
@@ -10440,7 +10477,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>
           ${unitButtons('gdp')}
-          <button class="yoy-btn" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           ${infoBlock(meta.gdpSrc,meta.gdpNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
@@ -10449,7 +10486,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>
           ${unitButtons('cpi')}
-          <button class="yoy-btn" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           ${infoBlock(meta.cpiSrc,meta.cpiNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
@@ -10460,7 +10497,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>
           ${unitButtons('unemp')}
-          <button class="yoy-btn" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           ${infoBlock(meta.unempSrc,meta.unempNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
@@ -10469,7 +10506,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>
           ${unitButtons('trade')}
-          <button class="yoy-btn" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
           ${infoBlock(meta.tradeSrc,meta.tradeNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
@@ -11880,9 +11917,26 @@ function save(){
   // 저장 직전 현재값을 백업 슬롯으로 회전 (덮어쓰기 직전 상태 보존)
   const prev = _safeLocalGet(NOTES_KEY);
   if(prev) rotateNotesBackup(prev);
-  _safeLocalSet(NOTES_KEY, JSON.stringify(notes));
+  let ok = _safeLocalSet(NOTES_KEY, JSON.stringify(notes));
+  // quota 초과로 실패하면 오래된 백업 슬롯부터 비우고 1회씩 재시도 —
+  // 백업(최대 5슬롯+세션 스냅샷)이 원본의 수 배 용량을 점유해 정작 원본 저장이 막히는 역전 방지.
+  if(!ok) {
+    try {
+      for(let i=NOTES_BACKUP_SLOTS; i>=2 && !ok; i--) {
+        localStorage.removeItem(NOTES_BACKUP_PREFIX + i);
+        ok = _safeLocalSet(NOTES_KEY, JSON.stringify(notes));
+      }
+    } catch(_) {}
+  }
+  // 그래도 실패면 사용자에게 알린다 — 기존엔 무음 실패 후 인메모리 목록이 갱신돼
+  // '저장된 것처럼' 보였고, 새로고침 시 수기 입력이 통째로 사라졌다(시크릿 모드/quota).
+  if(!ok && !window._noteSaveWarned) {
+    window._noteSaveWarned = true;
+    try { if(typeof showToast === 'function') showToast('⚠ 노트 저장 실패 — 브라우저 저장공간 부족 또는 시크릿 모드입니다. 「텍스트로 내보내기」로 백업해 두세요.'); } catch(_) {}
+  }
   // 백업 패널 갱신 (현재 페이지에 있을 때만)
   if(document.getElementById('noteBackupList')) renderBackupPanel();
+  return ok;
 }
 function exportNoteToText(){
   if(!curNoteId) return;
@@ -12944,17 +12998,25 @@ function _buildCorsProxyUrls(target) {
 }
 
 // 공통 fetch 래퍼 — 타임아웃·재시도·지수 백오프+지터 표준화 (SRE/AWS 권고 패턴).
-// 429/5xx 만 재시도 대상이며 그 외 4xx 는 즉시 반환(재시도 무의미). 외부 데이터 페치가
+// 5xx 만 재시도 대상이며 그 외 4xx 는 즉시 반환(재시도 무의미). 외부 데이터 페치가
 // 프록시 다중 폴백 없이 Worker 단일 경로가 되면서, 일시 장애 내성은 이 재시도가 담당한다.
+// ⚠ 429(레이트리밋)는 재시도하지 않는다 — Worker 의 PROXY_LIMITER 가 IP당 '분당' 창이라
+//   0.4~0.8초 백오프 재시도는 100% 다시 429 로 요청량만 3배 증폭시켰다(실측 페이지당 최대 113건).
+//   대신 30초 전역 서킷브레이커를 열어 그동안의 프록시 호출을 즉시 실패시킨다(호출부는
+//   개별 catch 로 data.json 서버값 폴백이 이미 있음).
+let _rate429CooldownUntil = 0;
 async function fetchWithRetry(url, { timeoutMs = 8000, retries = 2, init = {} } = {}) {
   let lastErr;
   for(let i = 0; i <= retries; i++) {
+    if(Date.now() < _rate429CooldownUntil) throw new Error('HTTP 429 (레이트리밋 쿨다운 중)');
     try {
       const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
-      if(r.status === 429 || r.status >= 500) throw new Error('HTTP ' + r.status);
+      if(r.status === 429) { _rate429CooldownUntil = Date.now() + 30000; throw new Error('HTTP 429'); }
+      if(r.status >= 500) throw new Error('HTTP ' + r.status);
       return r;
     } catch(e) {
       lastErr = e;
+      if(Date.now() < _rate429CooldownUntil) break;   // 429 는 백오프 재시도 무의미 — 즉시 중단
       if(i < retries) await new Promise(res => setTimeout(res, 400 * 2 ** i + Math.random() * 200));
     }
   }
@@ -15372,12 +15434,17 @@ function applyRealData(d) {
   //  비현실적 상한가 떼가 표시되는 것을 브라우저에서 즉시 보정. 서버는 pykrx 우선으로 수정됨.)
   const _moversLookCorrupt = arr => {
     if(!Array.isArray(arr) || arr.length < 4) return false;
-    let m = 0;
+    let m = 0, cap = 0;
     arr.forEach(s => {
       const p = Number(s && s.price) || 0, v = Number(s && s.vol) || 0;
-      if(p > 0 && v > 0 && Math.abs(p - v) <= Math.max(1, p * 0.001)) m++;
+      // 허용오차 0.1%→5% — 가격형 값이 vol 에 들어간 garbage 는 근사(±수 %)로 어긋나
+      // 정확 일치 판정으로는 새는 변종이 실측 확인됨(서버 _is_valid_mover_list 와 동일 기준).
+      if(p > 0 && v > 0 && Math.abs(p - v) <= Math.max(1, p * 0.05)) m++;
+      const c = Number(s && s.chg);
+      if(Number.isFinite(c) && Math.abs(c) >= 29.5) cap++;   // 전 행 ±30% 상하한가 떼 = garbage 신호
     });
-    return m >= Math.max(2, Math.floor(arr.length / 2));
+    const half = Math.max(2, Math.floor(arr.length / 2));
+    return m >= half || cap >= half;
   };
   if(window._REALTIME_BOOST
      && (_moversLookCorrupt(movers.kospiGainers) || _moversLookCorrupt(movers.kospiLosers))
@@ -15761,18 +15828,27 @@ function applyRealData(d) {
     buildYieldCurveChart(bondCountryCurrent || 'us');
   }
 
-  // ── 사이드바 업데이트 시각 표시 ──────────────
+  // ── 사이드바 업데이트 시각 표시 + 신선도 자동 판정 ──────────────
+  // 기존엔 파이프라인이 며칠 죽어도 항상 초록 점이라 낡은 시세를 최신으로 오인했다.
+  // 시스템 진단 위젯과 동일 기준(2h 정상 / 26h 주의 / 초과 오류)을 여기서 자동 적용한다.
   const el = document.getElementById('dataSourceInfo');
   if (el && d.lastUpdated) {
     const dt = new Date(d.lastUpdated);
+    const ageH = (Date.now() - dt.getTime()) / 3600000;
+    const dotColor = ageH <= 2 ? '#26a69a' : ageH <= 26 ? 'var(--c-warn,#f0c75e)' : 'var(--c-down,#ef5350)';
+    const ageTxt = ageH <= 2 ? '' :
+      ` <span style="color:${dotColor};font-weight:600;">(${ageH < 48 ? Math.round(ageH) + '시간' : Math.round(ageH / 24) + '일'} 전 데이터)</span>`;
     el.innerHTML =
-      `<span style="color:#26a69a;font-size:10px;">●</span> ` +
+      `<span style="color:${dotColor};font-size:10px;">●</span> ` +
       dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) +
-      ' 업데이트';
+      ' 업데이트' + ageTxt;
+    el.title = ageH > 26 ? '⚠ 데이터 수집 파이프라인이 멈춰 있을 수 있습니다 — 설정 > 시스템 진단 확인' : '';
   }
 
   // ── LME 금속 재고 (data.json.lmeInventory) 동기화 ──────
   if(d.lmeInventory && Array.isArray(d.lmeInventory.data)) {
+    // 실데이터가 실제로 들어오면 '정적 스냅샷' 경고 문구를 자동 수집 표기로 교체
+    try { const nt = document.getElementById('metalInventoryNote'); if(nt) nt.textContent = '출처: LME 일일 재고 보고서 (자동 수집) —'; } catch(_) {}
     const krNames = {'Copper':'구리 (Copper)', 'Aluminum':'알루미늄', 'Zinc':'아연 (Zinc)',
                      'Nickel':'니켈 (Nickel)', 'Lead':'납 (Lead)', 'Tin':'주석 (Tin)'};
     d.lmeInventory.data.forEach((row, i) => {
@@ -15824,17 +15900,23 @@ async function loadRealData() {
     // (기존엔 자동 갱신 주기마다 no-store 전량 재수신 → 변경 없는 야간·주말에도 매번 수백 KB.)
     // data_meta.json 은 fetch_data.py 가 data.json 저장 직후 함께 생성·커밋한다.
     // 파일이 아직 없거나(404) 조회 실패 시에는 기존처럼 본체를 받는다(fail-open).
+    let _dataVer = null;
     try {
       const metaR = await fetch('./data_meta.json?_=' + Date.now(), { cache: 'no-store' });
       if (metaR.ok) {
         const meta = await metaR.json().catch(() => null);
         if (meta && meta.lastUpdated && window._lastRealDataTs &&
             meta.lastUpdated === window._lastRealDataTs) return;   // 변경 없음 → 본체 페치 생략
+        if (meta && meta.lastUpdated) _dataVer = meta.lastUpdated;
       }
     } catch(_) {}
-    // cache:'no-store' + 쿼리 캐시버스터 — GitHub Pages CDN/브라우저 캐시로 인한
-    // '오전 데이터 고정' 방지. (data.json 이 새로 커밋돼도 캐시가 구버전을 주던 문제.)
-    const r = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
+    // 본체는 lastUpdated 를 '버전 쿼리'로 사용 — 데이터가 갱신되면 URL 이 바뀌어 신선도가
+    // 보장되고('오전 데이터 고정' 재발 없음), 같은 버전 재방문은 브라우저/CDN 캐시 적중으로
+    // 363KB(gzip) 재다운로드 + 3.9MB JSON 파싱을 생략한다. 메타 조회 실패 시에만 기존
+    // Date.now() 캐시버스터 + no-store 로 폴백(fail-open).
+    const r = _dataVer
+      ? await fetch('./data.json?v=' + encodeURIComponent(_dataVer))
+      : await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) return;
     const data = await r.json();
     // 신규 데이터의 lastUpdated 가 동일하면 (변화 없음) 차트 재빌드 생략
@@ -16425,6 +16507,8 @@ async function loadFreshNews() {
       if (item && _isSearchOrInvalidNewsUrl(item.url)) item.isoDate = '';
     });
   });
+  // 로드 완료 표시 — 이후 0건이면 '로딩 중'이 아니라 '기사 없음' 빈 상태를 렌더한다
+  window._newsFetchDone = true;
   // 모든 뉴스 피드 다시 렌더링 (DOM에 존재하는 것만)
   if (document.getElementById('newsFeed'))          buildNewsFeed('newsFeed', newsItems);
   if (document.getElementById('commodityNewsFeed')) buildNewsFeed('commodityNewsFeed', commodityNewsItems);
@@ -16975,22 +17059,25 @@ function applyChartCompareMode(chartKey, active) {
   if(!ch._originalData) {
     ch._originalData = ch.data.datasets.map(ds => [...ds.data]);
   }
+  // ⚠ ch.options 는 Chart.js v4 resolver proxy — 직접 쓰면 set 트랩 무한재귀(RangeError)로
+  //   차트가 영구 파손된다(4074행 _yoySetLegend 와 동일 함정). 반드시 ch.config.options 에 쓴다.
+  const cfg = ch.config.options = ch.config.options || {};
   if(active) {
     ch.data.datasets.forEach((ds, i) => {
       ds.data = normalizeToPercent(ch._originalData[i]);
     });
-    if(ch.options.scales?.y?.ticks) ch.options.scales.y.ticks.callback = v => v.toFixed(1) + '%';
-    ch.options.plugins = ch.options.plugins || {};
-    ch.options.plugins.tooltip = ch.options.plugins.tooltip || {};
-    ch.options.plugins.tooltip._origCallbacks = ch.options.plugins.tooltip.callbacks;
-    ch.options.plugins.tooltip.callbacks = { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' };
+    if(cfg.scales?.y?.ticks) cfg.scales.y.ticks.callback = v => v.toFixed(1) + '%';
+    cfg.plugins = cfg.plugins || {};
+    cfg.plugins.tooltip = cfg.plugins.tooltip || {};
+    cfg.plugins.tooltip._origCallbacks = cfg.plugins.tooltip.callbacks;
+    cfg.plugins.tooltip.callbacks = { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' };
   } else {
     ch.data.datasets.forEach((ds, i) => {
       ds.data = ch._originalData[i];
     });
-    if(ch.options.scales?.y?.ticks?.callback) delete ch.options.scales.y.ticks.callback;
-    if(ch.options.plugins?.tooltip?._origCallbacks) {
-      ch.options.plugins.tooltip.callbacks = ch.options.plugins.tooltip._origCallbacks;
+    if(cfg.scales?.y?.ticks?.callback) delete cfg.scales.y.ticks.callback;
+    if(cfg.plugins?.tooltip?._origCallbacks) {
+      cfg.plugins.tooltip.callbacks = cfg.plugins.tooltip._origCallbacks;
     }
   }
   ch.update();
@@ -17086,12 +17173,15 @@ window.addEventListener('load', async ()=>{
   buildFearChart();
   buildRateKpiSparkline();
   initInvestorDateDefaults();
-  // 실시간 data.json 로드 (있을 경우 화면 갱신)
-  await loadRealData();
-  // 데이터 로드 완료 후 대시보드 등락 테이블 재렌더 (applyRealData 에서도 호출되지만 명시적으로 한번 더 보강)
-  try { buildMoverTable(curMoverTab); } catch(_) {}
-  // 사이드바 신호등 초기화 (data.json 없어도 표시)
-  try { buildSidebarDataSources(_latestDataForIndicators || {}); } catch(_) {}
+  // 실시간 data.json 로드 + 독립적인 실시간 페치 5종을 '병렬' 시작.
+  // (기존엔 await loadRealData() 가 3.9MB 본체 다운로드·파싱을 끝낼 때까지 환율/지수/Top10/
+  //  분위기/뉴스가 직렬 대기 — 느린 회선에서 수 초 지연되던 워터폴 제거. 이들은 data.json 과
+  //  의존성이 없는 별도 외부 API 이고 각자 catch 를 갖고 있어 병렬화가 안전하다.)
+  loadRealData().then(() => {
+    // 데이터 로드 완료 후 대시보드 등락 테이블 재렌더 + 사이드바 신호등 (data.json 의존 후처리)
+    try { buildMoverTable(curMoverTab); } catch(_) {}
+    try { buildSidebarDataSources(_latestDataForIndicators || {}); } catch(_) {}
+  }).catch(()=>{});
   // 실시간 환율 페치 (open.er-api.com — 페이지 로드 시 즉시 갱신)
   loadRealtimeFx();
   // 실시간 지수·원자재 페치 (Stooq — 무료, 인증 불필요)
@@ -17138,6 +17228,9 @@ window.addEventListener('load', async ()=>{
   // (장 시작/마감 시점에 자동으로 1분↔5분 전환. setInterval 과 달리 동적 간격.)
   function _scheduleAdaptive(taskFn, isActiveFn, activeMs, idleMs) {
     const run = async () => {
+      // 탭이 숨겨져 있으면 페치를 건너뛴다 — 복귀 시 즉시 재페치는 아래 visibilitychange
+      // 핸들러가 담당하므로 hidden 중 폴링은 모바일 배터리·데이터 순수 낭비.
+      if(document.hidden) { setTimeout(run, idleMs); return; }
       try { await taskFn(); } catch(_) {}
       const delay = (isActiveFn && isActiveFn()) ? activeMs : idleMs;
       setTimeout(run, delay);
@@ -17174,9 +17267,37 @@ window.addEventListener('load', async ()=>{
   ['click','keydown','scroll','mousemove'].forEach(ev =>
     window.addEventListener(ev, () => { _lastActivityTime = Date.now(); }, { passive: true })
   );
+  // 오프라인/온라인 감지 — 기존엔 감지가 전무해 오프라인 전환 시 낡은 시세가 조용히 계속
+  // 노출됐다. 상시 노출 중인 글로벌 상태 칩을 재활용해 표시하고, 재접속 시 즉시 1회 재페치
+  // (다음 폴링 틱까지 최대 5분 기다리지 않게).
+  const _updateOfflineChip = () => {
+    const chip = document.getElementById('globalDelayChip');
+    if(!chip) return;
+    if(navigator.onLine === false) {
+      const ts = window._lastRealDataTs ? new Date(window._lastRealDataTs) : null;
+      chip.innerHTML = '<span class="dot" style="background:var(--c-down,#ef5350);"></span>⚠ 오프라인' +
+        (ts ? ' — 마지막 ' + ts.toLocaleString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false}) : '');
+      chip.style.color = 'var(--c-down,#ef5350)';
+    } else {
+      chip.innerHTML = '<span class="dot"></span>Market Data 15m Delayed';
+      chip.style.color = '';
+    }
+  };
+  window.addEventListener('offline', _updateOfflineChip);
+  window.addEventListener('online', () => {
+    _updateOfflineChip();
+    loadRealData().catch(()=>{});
+    loadRealtimeFx().catch(()=>{});
+    loadRealtimeMarket().catch(()=>{});
+  });
   // 활성 차트 페이지 재빌드 — 장중 1분 / 그 외 5분 (방금 갱신된 데이터를 화면에 반영)
+  // 단, data.json lastUpdated 가 직전 재빌드 시점과 같으면 생략 — 데이터 변화 없이 매분
+  // 차트를 destroy/재생성하면 GC churn 만 늘고 사용자의 툴팁·구간측정 상태가 리셋된다.
+  // (loadRealData 자체도 ts 변경 시 재빌드하므로 이 루프는 그 보강일 뿐.)
   _scheduleAdaptive(() => {
     try {
+      if(window._lastRealDataTs && window._lastChartRebuildTs === window._lastRealDataTs) return;
+      window._lastChartRebuildTs = window._lastRealDataTs;
       const activePage = document.querySelector('.page.active');
       if(!activePage) return;
       const id = activePage.id;
@@ -17246,7 +17367,12 @@ function pfLoad() {
   } catch(_) {}
   return { groups:[{id:'g_default', name:'기본 그룹'}], items:[], alerts:[], lastSync:null };
 }
-function pfSave() { try { localStorage.setItem(PF_LS_KEY, JSON.stringify(pfState)); } catch(_) {} }
+// 실패 여부를 남긴다 — 시크릿 모드/quota 초과 시 setItem 이 throw 하는데 무음 처리하면
+// pfMarkDirty 가 '✓ 자동 저장됨'을 표시해 수기 입력(평단가·수량)이 소리 없이 사라진다.
+function pfSave() {
+  try { localStorage.setItem(PF_LS_KEY, JSON.stringify(pfState)); window._pfSaveFailed = false; return true; }
+  catch(_) { window._pfSaveFailed = true; return false; }
+}
 
 // ── 저장 상태 추적 ('자동 저장됨' 확인 + 서버 미저장 경고) ─────────────────────
 // 평단가·수량·종목·그룹 등 수기 입력은 pfSave() 로 이 브라우저(localStorage)에 즉시 자동 저장된다.
@@ -17261,6 +17387,12 @@ function pfMarkDirty() {
   _pfDirty = true;
   const st = document.getElementById('pfTrackSyncStatus');
   if(!st) return;
+  // 직전 pfSave() 가 실패했다면 '자동 저장됨' 대신 경고 — 무음 소실 방지
+  if(window._pfSaveFailed) {
+    st.textContent = '⚠ 자동 저장 실패 — 브라우저 저장공간 부족 또는 시크릿 모드 (☁ 서버 저장 권장)';
+    st.style.color = 'var(--c-down,#ef5350)';
+    return;
+  }
   if(pfHasSyncKey()) {
     st.textContent = '✓ 자동 저장됨 · ☁ 다른 기기 반영하려면 「목록 저장」';
     st.style.color = '#f5a623';
@@ -18483,7 +18615,9 @@ async function pfPullAlerts() {
     // [이슈1] GET /portfolio 가 ALERTS_SYNC_KEY 인증을 요구 → keyHash 쿼리 동봉(키 없으면 빈 값→401 graceful).
     const _kh = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : '';
     if(!_kh) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
-    const r = await fetch(base + '/portfolio?keyHash=' + encodeURIComponent(_kh), { signal: AbortSignal.timeout(15000) });
+    // 키 해시는 쿼리스트링 대신 커스텀 헤더로 — URL 은 접근 로그·히스토리에 남아 재사용 가능한
+    // 베어러가 유출된다(Worker 는 X-Sync-Key-Hash 1순위, 구버전 쿼리 폴백 지원).
+    const r = await fetch(base + '/portfolio', { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
     if(r.status === 401 || r.status === 403) { if(st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = '#ef5350'; } return; }
     if(r.status === 503) { if(st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = '#ef5350'; } return; }
     const j = await r.json().catch(() => null);
@@ -18534,7 +18668,8 @@ async function pfPullTracking(auto) {
     // 이 기기에 동기화 키가 없으면 서버는 401 을 준다 → 원인을 명확히 안내(다른 기기에서 저장한 목록을
     // 새 기기에서 불러오려면 ⚙ 설정에서 동일한 동기화 키를 먼저 입력해야 한다).
     if(!_kh && !auto) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
-    const r = await fetch(base + '/portfolio?keyHash=' + encodeURIComponent(_kh), { signal: AbortSignal.timeout(15000) });
+    // 키 해시는 헤더로 전송 (위 pfPullAlerts 와 동일 — URL 로그 유출 방지)
+    const r = await fetch(base + '/portfolio', { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
     if(r.status === 401 || r.status === 403) { if(!auto && st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = '#ef5350'; } return; }
     if(r.status === 503) { if(!auto && st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = '#ef5350'; } return; }
     j = await r.json().catch(() => null);
@@ -18633,11 +18768,17 @@ function pfUpdateHoldingsSyncUI() {
 }
 function pfSetHoldingsPass() {
   const on = !!pfGetHoldingsPass();
-  const p = prompt('평단가·수량 동기화 암호\n\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), '');
+  const p = prompt('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 암호문은 공개 저장소에 올라가므로, 짧거나 흔한 암호는\n  오프라인 무차별 대입으로 평단가·수량이 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), '');
   if (p === null) return;
   try {
     if (!p.trim()) { localStorage.removeItem('pfHoldingsPass'); if(typeof showToast==='function') showToast('평단가 동기화 해제 — 이후 「☁ 목록 저장」에서 평단가/수량은 서버에 올라가지 않습니다.', 4000); }
-    else { localStorage.setItem('pfHoldingsPass', p); if(typeof showToast==='function') showToast('평단가 동기화 암호 설정 완료 — 「☁ 목록 저장」 시 평단가/수량이 암호화돼 함께 저장됩니다.', 4000); }
+    else {
+      // 암호문이 공개 repo 에 커밋되는 구조라 최소 길이를 강제한다 — PBKDF2 600k 라도
+      // 사전 단어/짧은 암호는 오프라인 대입에 뚫린다(감사 확인 사항).
+      if (p.trim().length < 8) { if(typeof showToast==='function') showToast('⚠ 암호가 너무 짧습니다(8자 미만) — 설정되지 않았습니다. 12자 이상을 권장합니다.', 5000); return; }
+      if (p.trim().length < 12 && typeof showToast==='function') showToast('ℹ 12자 미만 암호는 권장하지 않습니다 — 길수록 안전합니다.', 4000);
+      localStorage.setItem('pfHoldingsPass', p); if(typeof showToast==='function') showToast('평단가 동기화 암호 설정 완료 — 「☁ 목록 저장」 시 평단가/수량이 암호화돼 함께 저장됩니다.', 4000);
+    }
   } catch(_) {}
   pfUpdateHoldingsSyncUI();
 }
@@ -19318,8 +19459,43 @@ window.initSettingsPage = function () {
   });
   try { if (typeof pfRenderAlertSummary === 'function' && pfState) pfRenderAlertSummary(); } catch (_) {}
   try { if (typeof pfUpdateSyncKeyBtn === 'function') pfUpdateSyncKeyBtn(); } catch (_) {}
+  try { if (typeof loadAlertHistory === 'function') loadAlertHistory(); } catch (_) {}
   _renderBackupCount();
 };
+
+// 📜 최근 발동 이력 — 서버(check_alerts.py)가 매 런 커밋하는 alerts_state.json 을 읽어
+// 실제 '발송된' 알림(ts 존재)을 시간 역순으로 표시. 알림 이름은 로컬 pfState.alerts 와 id 조인.
+// 서버 변경 없이 프론트 fetch 하나로 구현 — 카카오 무음 환경에서 알림 동작 여부를 확인하는 유일한 창.
+async function loadAlertHistory(manual) {
+  const el = document.getElementById('alertHistoryList');
+  if(!el) return;
+  if(manual) el.textContent = '불러오는 중…';
+  try {
+    const r = await fetch('./alerts_state.json?_=' + Date.now(), { cache: 'no-store' });
+    if(!r.ok) { el.textContent = '이력 파일 없음 — 아직 서버 평가가 실행되지 않았습니다.'; return; }
+    const st = await r.json();
+    const byId = {};
+    try { ((pfState && pfState.alerts) || []).forEach(a => { if(a && a.id) byId[a.id] = a; }); } catch(_) {}
+    const TYPE_TXT = { price_above:'목표가 이상', price_below:'지정가 이하', pct_change:'등락률 도달',
+                       high52:'52주 신고가', low52:'52주 신저가', vol_surge:'거래량 폭증',
+                       golden_cross:'골든크로스', dead_cross:'데드크로스' };
+    const rows = Object.entries(st)
+      .filter(([, v]) => v && v.ts)
+      .sort((a, b) => (b[1].ts || 0) - (a[1].ts || 0))
+      .slice(0, 10)
+      .map(([id, v]) => {
+        const a = byId[id];
+        const name = a ? (a.name || a.symbol || id) : '(이 기기에 없는 알림)';
+        const cond = a ? (TYPE_TXT[a.type] || a.type || '') : '';
+        const when = new Date((v.ts || 0) * 1000).toLocaleString('ko-KR',
+          { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false });
+        return '<div>🔔 <b>' + escapeHtml(String(name)) + '</b> ' + escapeHtml(cond) +
+               ' — <span style="color:var(--c-txt-muted);">' + when + ' 카카오 발송</span></div>';
+      });
+    el.innerHTML = rows.length ? rows.join('')
+      : '최근 발송된 알림이 없습니다. (조건 미충족 상태 — 평가는 장중 매분 실행 중)';
+  } catch(_) { el.textContent = '이력 조회 실패 — 네트워크를 확인하세요.'; }
+}
 
 function _settingsMarkDirty() {
   var st = document.getElementById('settingsSyncStatus');
@@ -19647,15 +19823,27 @@ document.addEventListener('DOMContentLoaded', function () {
     if(icon) icon.classList.add('spin-anim');
     if(lbl)  lbl.textContent = '새로고침 중…';
     if(btn)  { btn.disabled = true; btn.style.opacity = '.5'; }
+    // 오프라인이면 페치 시도 없이 즉시 안내 (기내모드·지하철에서 '완료' 오표시 방지)
+    if(typeof navigator !== 'undefined' && navigator.onLine === false) {
+      if(icon) icon.classList.remove('spin-anim');
+      if(lbl)  { lbl.textContent = '오프라인 — 연결 확인'; lbl.style.color = 'var(--c-down,#ef5350)'; }
+      setTimeout(function() { if(lbl) { lbl.textContent = '새로고침'; lbl.style.color = ''; } }, 3000);
+      setTimeout(function() { _refreshCooldown = false; if(btn) { btn.disabled = false; btn.style.opacity = ''; } }, 3000);
+      return;
+    }
+    // 각 페치가 성공(true)/실패(false)를 반환하게 해 결과를 집계 — 전부 실패한 오프라인/장애
+    // 상황이 '새로고침 완료'로 위장되던 문제 수정.
+    var _ok = function(p){ return p.then(function(){ return true; }, function(){ return false; }); };
     Promise.all([
-      loadRealData().catch(function(){}),
-      loadRealtimeFx().catch(function(){}),
-      loadRealtimeMarket().catch(function(){}),
-      (typeof refreshMoversFromClient === 'function' ? refreshMoversFromClient() : Promise.resolve()).catch(function(){}),
-      (typeof fetchSentimentClient === 'function' && typeof applySentimentClient === 'function'
-        ? fetchSentimentClient().then(applySentimentClient) : Promise.resolve()).catch(function(){}),
-      (typeof loadFreshNews === 'function' ? loadFreshNews() : Promise.resolve()).catch(function(){}),
-    ]).then(function() {
+      _ok(loadRealData()),
+      _ok(loadRealtimeFx()),
+      _ok(loadRealtimeMarket()),
+      _ok(typeof refreshMoversFromClient === 'function' ? refreshMoversFromClient() : Promise.resolve()),
+      _ok(typeof fetchSentimentClient === 'function' && typeof applySentimentClient === 'function'
+        ? fetchSentimentClient().then(applySentimentClient) : Promise.resolve()),
+      _ok(typeof loadFreshNews === 'function' ? loadFreshNews() : Promise.resolve()),
+    ]).then(function(results) {
+      var okCount = results.filter(Boolean).length;
       // 현재 활성 페이지 차트 재빌드 (실시간 패치 반영)
       try {
         var activePage = document.querySelector('.page.active');
@@ -19670,8 +19858,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       } catch(_) {}
       if(icon) icon.classList.remove('spin-anim');
-      if(lbl)  lbl.textContent = '새로고침 완료';
-      setTimeout(function() { if(lbl) lbl.textContent = '새로고침'; }, 3000);
+      if(lbl) {
+        if(okCount === 0)                { lbl.textContent = '갱신 실패 — 네트워크 확인'; lbl.style.color = 'var(--c-down,#ef5350)'; }
+        else if(okCount < results.length){ lbl.textContent = okCount + '/' + results.length + ' 갱신됨'; lbl.style.color = 'var(--c-warn,#f0c75e)'; }
+        else                             { lbl.textContent = '새로고침 완료'; }
+      }
+      setTimeout(function() { if(lbl) { lbl.textContent = '새로고침'; lbl.style.color = ''; } }, 3000);
     });
     setTimeout(function() {
       _refreshCooldown = false;

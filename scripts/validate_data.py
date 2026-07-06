@@ -103,6 +103,16 @@ def main():
     if isinstance(usdkrw, (int, float)) and not (800 <= usdkrw <= 2500):
         warns.append(f"fx.USDKRW.rate={usdkrw} — 정상 범위(800~2,500) 이탈")
 
+    # 한국 거시 지표 커버리지 — 비차단 경고. ECOS 통계표 개편으로 StatisticSearch
+    # 조합이 조용히 전패하면(gdp/retail/unemployment/exports 등) kr 키가 줄어든다.
+    # preserve 로직이 직전값을 유지하므로 배포는 막지 않되 수집 실패 신호를 남긴다.
+    kr_ind = (d.get("economicIndicators") or {}).get("kr") or {}
+    if isinstance(kr_ind, dict) and len(kr_ind) < 8:
+        warns.append(
+            f"economicIndicators.kr 지표 {len(kr_ind)}종(<8) — ECOS 수집 실패 가능성, "
+            f"현재 키: {sorted(kr_ind.keys())}"
+        )
+
     # ENSO 실측 신선도 — 비차단 경고(배포는 막지 않음)
     enso = (d.get("climate") or {}).get("enso") or {}
     if enso and enso.get("stale", {}).get("oni") is True:
