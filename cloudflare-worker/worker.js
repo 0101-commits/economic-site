@@ -215,6 +215,96 @@ function _validateDepth(obj, maxDepth = 5) {
 }
 
 // ──────────────────────────────────────────────────────────────────
+// 📝 메르 블로그(ranto28) 라이브 검색 — 네이버 모바일 API 프록시(CORS 우회)
+//   GET /merblog?q=&page=&size=&sort=sim|date&full=0|1&fullK=
+//   공개 엔드포인트(키 불필요). full=1 이면 상위 K개 원문(PostView)도 파싱해 동봉.
+// ──────────────────────────────────────────────────────────────────
+const MER_BLOG_ID = 'ranto28';
+const MER_API_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15';
+const MER_POST_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+function merStripHtml(s) {
+  if (!s) return '';
+  s = String(s).replace(/<[^>]+>/g, ' ');
+  const ent = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
+  s = s.replace(/&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/g, m => ent[m]);
+  s = s.replace(/​/g, '');
+  return s.replace(/\s+/g, ' ').trim();
+}
+function merKstIso(ms) {
+  if (!ms) return null;
+  // KST = UTC+9. Date 로 UTC 계산 후 +9h 표기.
+  const d = new Date(Number(ms) + 9 * 3600 * 1000);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}+09:00`;
+}
+function merNorm(raw) {
+  const logNo = String(raw.logNo);
+  return {
+    logNo,
+    title: merStripHtml(raw.title || raw.titleWithInspectMessage),
+    date: merKstIso(raw.addDate),
+    category: raw.categoryName || '',
+    excerpt: merStripHtml(raw.contents || raw.briefContents),
+    url: `https://blog.naver.com/${MER_BLOG_ID}/${logNo}`,
+  };
+}
+function merExtractFulltext(htmlStr) {
+  if (!htmlStr) return '';
+  htmlStr = htmlStr.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  // [Task-1 파이썬 추출기와 동일 수정] 'se-main-container' 부분문자열이 아니라 그 div의
+  //   여는 태그 전체를 매치해 그 "끝"부터 슬라이스해야 한다. 그렇지 않으면 태그 조각
+  //   (예: `"> `)이 결과 앞에 남아 HTML 프래그먼트가 누출된다.
+  const m = htmlStr.match(/<div[^>]*se-main-container[^>]*>/);
+  if (!m) return '';
+  let body = htmlStr.slice(m.index + m[0].length);
+  body = body.split(/wrap_postcomment|area_sympathy|post_footer|revenue_share|floating_menu/)[0];
+  // 분할 지점에서 태그가 잘렸을 수 있으므로(예: 닫는 div 태그 중간), 끝에 매달린
+  //   미완성 태그 조각을 strip 한 뒤 텍스트 정규화한다.
+  body = body.replace(/<[^>]*$/, '');
+  return merStripHtml(body).slice(0, 20000);
+}
+async function merFetchFulltext(logNo) {
+  try {
+    const r = await fetch(`https://blog.naver.com/PostView.naver?blogId=${MER_BLOG_ID}&logNo=${logNo}`,
+      { headers: { 'User-Agent': MER_POST_UA } });
+    if (!r.ok) return '';
+    return merExtractFulltext(await r.text());
+  } catch (e) { return ''; }
+}
+async function handleMerBlog(request) {
+  const u = new URL(request.url);
+  const q = (u.searchParams.get('q') || '').trim();
+  if (!q) return jsonResponse({ error: 'q(검색어) 필요' }, 400);
+  const page = Math.max(1, parseInt(u.searchParams.get('page') || '1', 10) || 1);
+  const size = Math.min(30, Math.max(1, parseInt(u.searchParams.get('size') || '10', 10) || 10));
+  const sort = u.searchParams.get('sort') === 'date' ? 'date' : 'sim';
+  const full = u.searchParams.get('full') === '1';
+  const fullK = Math.min(20, Math.max(1, parseInt(u.searchParams.get('fullK') || '5', 10) || 5));
+  const api = `https://m.blog.naver.com/api/blogs/${MER_BLOG_ID}/search/post`
+    + `?query=${encodeURIComponent(q)}&page=${page}&size=${size}&sortType=${sort}`;
+  let data;
+  try {
+    const r = await fetch(api, { headers: { 'User-Agent': MER_API_UA, 'Referer': `https://m.blog.naver.com/${MER_BLOG_ID}` } });
+    if (!r.ok) return jsonResponse({ error: 'naver_upstream', status: r.status }, 502);
+    data = await r.json();
+  } catch (e) {
+    return jsonResponse({ error: 'naver_fetch_failed', detail: String(e) }, 502);
+  }
+  const result = data.result || {};
+  const posts = (result.list || []).map(merNorm);
+  if (full) {
+    const targets = posts.slice(0, fullK);
+    await Promise.all(targets.map(async p => { p.fullText = await merFetchFulltext(p.logNo); }));
+  }
+  return jsonResponse({
+    blogId: MER_BLOG_ID, query: q, page,
+    totalCount: result.totalCount || 0,
+    count: posts.length, posts,
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────
 // AI 시황 요약 핸들러 (Anthropic Claude 중계)
 // ──────────────────────────────────────────────────────────────────
 // 프론트에서 POST /ai 로 { snapshot: {...} } 를 보내면, Worker 시크릿의 ANTHROPIC_API_KEY
@@ -857,6 +947,12 @@ export default {
         out.geminiTest = await _testGemini(geminiKey);
       }
       return jsonResponse(out);
+    }
+    // 📝 메르 블로그 라이브 검색 (GET /merblog) — 공개 데이터, GET_CORS('*') 그대로 사용
+    if (reqUrl.pathname === '/merblog') {
+      const rl = await _rateLimited(env, 'PROXY_LIMITER', request, false);
+      if (rl) return rl;
+      return handleMerBlog(request);
     }
     const target = reqUrl.searchParams.get('url');
 
