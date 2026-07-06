@@ -16,6 +16,8 @@ def test_extract_fulltext():
     got = M.extract_fulltext(html)
     assert '첫 문단.' in got and '둘째 문단.' in got, repr(got)
     assert '댓글영역' not in got, '본문 뒤 위젯은 잘라야 함'
+    assert '<' not in got and '>' not in got, 'HTML 파편 누출: ' + repr(got)
+    assert not got.strip().startswith('"'), '선행 속성파편 누출: ' + repr(got)
 
 def test_extract_fulltext_none():
     assert M.extract_fulltext('<html><body>no container</body></html>') == ''

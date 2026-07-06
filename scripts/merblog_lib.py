@@ -25,12 +25,14 @@ def extract_fulltext(html_str):
         return ''
     # script/style 제거
     html_str = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', html_str, flags=re.S | re.I)
-    m = re.search(r'se-main-container', html_str)
+    m = re.search(r'<div[^>]*se-main-container[^>]*>', html_str)
     if not m:
         return ''
     body = html_str[m.end():]
     # 본문 뒤 페이지 위젯 절단(댓글·공감·추천·푸터)
     body = re.split(r'wrap_postcomment|area_sympathy|post_footer|revenue_share|floating_menu', body)[0]
+    # 절단 지점이 태그 중간일 경우 남는 미완성 태그 제거
+    body = re.sub(r'<[^>]*$', '', body)
     return strip_html(body)[:20000]
 
 def _kst_iso(add_ms):
