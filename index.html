@@ -17377,7 +17377,7 @@ async function merblogInit(){
   }catch(e){ _merSnapshot = {posts:[]}; }
   return _merSnapshot;
 }
-function _merEsc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _merEsc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 async function merblogSearch(){
   const q = (document.getElementById('merQ').value||'').trim();
