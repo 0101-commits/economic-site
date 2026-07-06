@@ -18615,9 +18615,10 @@ async function pfPullAlerts() {
     // [이슈1] GET /portfolio 가 ALERTS_SYNC_KEY 인증을 요구 → keyHash 쿼리 동봉(키 없으면 빈 값→401 graceful).
     const _kh = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : '';
     if(!_kh) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
-    // 키 해시는 쿼리스트링 대신 커스텀 헤더로 — URL 은 접근 로그·히스토리에 남아 재사용 가능한
-    // 베어러가 유출된다(Worker 는 X-Sync-Key-Hash 1순위, 구버전 쿼리 폴백 지원).
-    const r = await fetch(base + '/portfolio', { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
+    // 키 해시는 커스텀 헤더 1순위 — URL 쿼리는 접근 로그·히스토리에 남아 재사용 가능한
+    // 베어러가 유출된다. ⚠ 전환기 호환: 신 Worker 배포 전엔 헤더를 못 읽으므로 쿼리도
+    // '함께' 보낸다(신 Worker 는 헤더 우선). Worker 배포 확인 후 쿼리 제거 예정.
+    const r = await fetch(base + '/portfolio?keyHash=' + encodeURIComponent(_kh), { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
     if(r.status === 401 || r.status === 403) { if(st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = '#ef5350'; } return; }
     if(r.status === 503) { if(st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = '#ef5350'; } return; }
     const j = await r.json().catch(() => null);
@@ -18668,8 +18669,8 @@ async function pfPullTracking(auto) {
     // 이 기기에 동기화 키가 없으면 서버는 401 을 준다 → 원인을 명확히 안내(다른 기기에서 저장한 목록을
     // 새 기기에서 불러오려면 ⚙ 설정에서 동일한 동기화 키를 먼저 입력해야 한다).
     if(!_kh && !auto) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
-    // 키 해시는 헤더로 전송 (위 pfPullAlerts 와 동일 — URL 로그 유출 방지)
-    const r = await fetch(base + '/portfolio', { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
+    // 키 해시는 헤더 1순위 + 전환기 쿼리 병행 (위 pfPullAlerts 와 동일 — Worker 배포 후 쿼리 제거 예정)
+    const r = await fetch(base + '/portfolio?keyHash=' + encodeURIComponent(_kh), { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
     if(r.status === 401 || r.status === 403) { if(!auto && st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = '#ef5350'; } return; }
     if(r.status === 503) { if(!auto && st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = '#ef5350'; } return; }
     j = await r.json().catch(() => null);
