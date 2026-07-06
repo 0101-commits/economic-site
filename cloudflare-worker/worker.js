@@ -231,8 +231,16 @@ function merStripHtml(s) {
   // (공백 삽입 시 "환율"+"이" 처럼 태그로 감싼 단어 중간이 쪼개짐).
   s = s.replace(/<\/?(p|div|br|li|ul|ol|h[1-6]|tr|table)[^>]*>/gi, ' ');
   s = s.replace(/<[^>]+>/g, '');
-  const ent = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
-  s = s.replace(/&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/g, m => ent[m]);
+  // Python html.unescape 와의 파리티: 숫자 엔티티(10/16진) + 흔한 named 엔티티까지 디코드.
+  // &amp; 는 반드시 마지막에 디코드해야 "&amp;#39;" 같은 이중 인코딩이 잘못 풀리지 않는다.
+  const named = { '&nbsp;': ' ', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
+    '&hellip;': '…', '&middot;': '·', '&ndash;': '–', '&mdash;': '—',
+    '&lsquo;': '‘', '&rsquo;': '’', '&ldquo;': '“', '&rdquo;': '”',
+    '&trade;': '™', '&copy;': '©', '&reg;': '®', '&deg;': '°' };
+  s = s.replace(/&#x([0-9a-fA-F]+);/g, (m, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch (e) { return m; } });
+  s = s.replace(/&#(\d+);/g, (m, d) => { try { return String.fromCodePoint(parseInt(d, 10)); } catch (e) { return m; } });
+  s = s.replace(/&nbsp;|&lt;|&gt;|&quot;|&#39;|&hellip;|&middot;|&ndash;|&mdash;|&lsquo;|&rsquo;|&ldquo;|&rdquo;|&trade;|&copy;|&reg;|&deg;/g, m => named[m]);
+  s = s.replace(/&amp;/g, '&');
   s = s.replace(/​/g, '');
   return s.replace(/\s+/g, ' ').trim();
 }
