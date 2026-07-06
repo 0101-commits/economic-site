@@ -146,6 +146,10 @@ jobs:
           AV_FETCH_FULL: ${{ (github.event.schedule == '0 0 * * *' || github.event.schedule == '0 7 * * *' || github.event.schedule == '0 13 * * *') && '1' || '' }}
         run: python scripts/fetch_data.py
 
+      - name: Fetch 메르 블로그 스냅샷
+        continue-on-error: true
+        run: python scripts/fetch_merblog.py
+
       # 🤖 오늘의 매크로 3줄 요약 — data.json 의 aiBriefing 키 생성/갱신.
       # GEMINI_API_KEY / OPENAI_API_KEY 시크릿이 있으면 LLM 요약, 없으면 규칙 기반 폴백.
       # 스크립트는 어떤 경우에도 exit 0 (빌드 파이프라인을 깨지 않음).
@@ -183,6 +187,7 @@ jobs:
           cp halts_state.json /tmp/halts_state.json.run 2>/dev/null || true
           git add data.json data_meta.json
           [ -f halts_state.json ] && git add halts_state.json || true
+          [ -f merblog.json ] && git add merblog.json || true
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then
@@ -196,6 +201,7 @@ jobs:
             cp /tmp/halts_state.json.run halts_state.json 2>/dev/null || true
             git add data.json data_meta.json
             [ -f halts_state.json ] && git add halts_state.json || true
+            [ -f merblog.json ] && git add merblog.json || true
             if git diff --staged --quiet -- data.json data_meta.json halts_state.json; then
               echo "원격이 이미 최신 — 종료"; exit 0
             fi
