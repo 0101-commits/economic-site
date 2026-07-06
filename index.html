@@ -1077,6 +1077,18 @@ html.light .ann-chip { color: rgb(53, 108, 181); }
 
 /* ── 12. 다크 모드: 테이블 행 hover ──────────────────────────── */
 tr:hover td { background: rgba(170, 195, 255, 0.05); }
+
+/* ── 13. 📝 메르 블로그 검색 페이지 ───────────────────────────── */
+.mer-searchbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.mer-searchbar input[type=search]{flex:1;min-width:220px}
+.mer-item{border:1px solid var(--c-border);border-radius:var(--r-sm);padding:12px;margin:8px 0;background:var(--c-card,transparent)}
+.mer-item h3{margin:0 0 4px;font-size:14px;color:var(--c-txt)}
+.mer-item .mer-meta{font-size:11px;color:var(--c-txt-dim);margin-bottom:6px}
+.mer-item .mer-excerpt{font-size:12px;line-height:1.6;color:var(--c-txt)}
+.mer-item .mer-full{white-space:pre-wrap;font-size:12px;line-height:1.7;margin-top:8px;color:var(--c-txt);
+  max-height:420px;overflow:auto;border-top:1px dashed var(--c-border);padding-top:8px}
+.mer-item a{color:var(--c-accent)}
+.mer-item button{background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 10px;font-size:11px;cursor:pointer;margin-top:4px}
 </style>
 </head>
 <body>
@@ -1123,6 +1135,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
     <div class="menu-item" onclick="showPage('realestate',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">home_work</span>부동산</div>
     <div class="menu-item" onclick="showPage('calendar',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">calendar_month</span>경제 캘린더</div>
     <div class="menu-item" onclick="showPage('notes',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">edit_note</span>분석 노트</div>
+    <div class="menu-item" onclick="showPage('merblog',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">article</span>메르 블로그 검색</div>
     <div class="menu-item" onclick="showPage('settings',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">settings</span>설정</div>
     <!-- 지연 데이터 상태 칩 — 좌하단 플로팅에서 사이드바 정적 배치로 이동 (본문 가림 해소) -->
     <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>Market Data 15m Delayed</div>
@@ -3405,6 +3418,26 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
       <div id="investor-berkshire-container" style="display:none;"></div>
     </div><!-- /investor -->
 
+    <div class="page" id="page-merblog">
+      <div class="widget-title">📝 메르 블로그 검색</div>
+      <p style="font-size:12px;color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글을 키워드로 찾고 원문을 JSON으로 내려받습니다.</p>
+      <div class="mer-searchbar">
+        <input id="merQ" type="search" placeholder="예: 물가, 환율, 미국채 10년물" aria-label="검색어"
+               style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 10px;color:var(--c-txt);font-size:13px;"
+               onkeydown="if(event.key==='Enter')merblogSearch()">
+        <label style="font-size:12px;color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;"><input id="merLive" type="checkbox"> 전체기간 검색(라이브)</label>
+        <label style="font-size:12px;color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">정렬
+          <select id="merSort" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);padding:4px 6px;font-size:12px;">
+            <option value="sim">관련도</option><option value="date">최신</option>
+          </select>
+        </label>
+        <button onclick="merblogSearch()" style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-sm);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;">검색</button>
+        <button id="merDl" onclick="merblogDownloadJson()" disabled style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 14px;font-size:12px;cursor:pointer;">JSON 다운로드</button>
+      </div>
+      <div id="merStatus" style="font-size:12px;color:var(--c-txt-dim);margin-bottom:8px;" role="status" aria-live="polite"></div>
+      <div id="merResults"></div>
+    </div><!-- /merblog -->
+
   </main>
 </div>
 
@@ -4246,6 +4279,7 @@ function showPage(id, el) {
   if(id==='settings') { try { initSettingsPage(); } catch(e) { console.warn('settings init', e); } }
   if(id==='investor') { setTimeout(()=>{ buildInvestorPage(); try { buildGlobalAllocCompare(); } catch(e) { console.warn('globalAlloc', e); } },50); }
   if(id==='realestate') { setRETab('kr', document.getElementById('reitabKR')); setTimeout(buildReCharts, 80); }
+  if(id==='merblog') { try { merblogInit(); } catch(e) { console.warn('merblog init', e); } }
   // [3차-T5] 페이지 공통 훅 — 기본 조회 기간 1회 적용 + 1회성 가이드 배너 (T6에서 정의)
   try { if (typeof econPageHook === 'function') econPageHook(id); } catch(_) {}
   // URL 딥링크 — 페이지 전환마다 ?p=<id> 반영 (뒤로/앞으로 지원)
@@ -17327,6 +17361,121 @@ window.addEventListener('load', async ()=>{
     if(_main) _ro.observe(_main);
   }
 });
+
+// ── 📝 메르 블로그 검색 ──────────────────────────────────────────
+// 스냅샷(merblog.json, Task 2 산출물) 즉시 필터 + Worker GET /merblog(Task 4) 라이브 폴백.
+// Worker 베이스는 기존 CORS 프록시 상수를 재사용(_cfProxyBase()) — 별도 URL 하드코딩 금지.
+let _merSnapshot = null;      // merblog.json 캐시
+let _merLastResults = [];     // JSON 다운로드용 마지막 결과
+let _merLastQuery = '';
+
+async function merblogInit(){
+  if(_merSnapshot) return _merSnapshot;
+  try{
+    const r = await fetch('merblog.json?v=' + Date.now());
+    _merSnapshot = r.ok ? await r.json() : {posts:[]};
+  }catch(e){ _merSnapshot = {posts:[]}; }
+  return _merSnapshot;
+}
+function _merEsc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function merblogSearch(){
+  const q = (document.getElementById('merQ').value||'').trim();
+  const live = document.getElementById('merLive').checked;
+  const sort = document.getElementById('merSort').value;
+  const status = document.getElementById('merStatus');
+  const dl = document.getElementById('merDl');
+  _merLastQuery = q;
+  if(!q){ status.textContent='검색어를 입력하세요.'; return; }
+  dl.disabled = true;
+  if(!live){
+    // 스냅샷 클라이언트 필터(즉시)
+    status.textContent = '스냅샷에서 검색 중…';
+    const snap = await merblogInit();
+    const ql = q.toLowerCase();
+    let hits = (snap.posts||[]).filter(p =>
+      (p.title||'').toLowerCase().includes(ql) ||
+      (p.excerpt||'').toLowerCase().includes(ql) ||
+      (p.fullText||'').toLowerCase().includes(ql));
+    if(sort==='date') hits = hits.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    _merLastResults = hits;
+    merblogRenderResults(hits, 'snapshot');
+    status.textContent = `스냅샷 ${hits.length}건 (전체기간은 '라이브' 체크). ${snap.posts?snap.posts.length:0}개 글 색인.`;
+    dl.disabled = hits.length===0;
+    return;
+  }
+  // 라이브(Worker) — 네이버 검색 API는 size 파라미터를 무시하고 페이지당 약 20건만 반환하므로
+  // 정확한 건수를 약속하지 않고 totalCount 기준으로 안내한다.
+  status.textContent = '네이버 전체기간 검색 중…';
+  try{
+    const base = _cfProxyBase();
+    if(!base) throw new Error('Worker 프록시 미설정');
+    const url = `${base}/merblog?q=${encodeURIComponent(q)}&size=20&sort=${sort}`;
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    _merLastResults = d.posts||[];
+    merblogRenderResults(_merLastResults, 'live');
+    status.textContent = `전체 ${d.totalCount||0}건 중 ${d.count||_merLastResults.length}건 표시. 원문은 '원문 보기'로 로드.`;
+    dl.disabled = (_merLastResults.length===0);
+  }catch(e){
+    status.textContent = '라이브 검색 실패: '+e.message+' (스냅샷으로 다시 시도해 보세요)';
+  }
+}
+
+function merblogRenderResults(posts, mode){
+  const box = document.getElementById('merResults');
+  if(!posts || !posts.length){ box.innerHTML = '<p style="font-size:12px;color:var(--c-txt-dim);">결과 없음.</p>'; return; }
+  box.innerHTML = posts.map(p => {
+    return `<div class="mer-item" id="mer-${_merEsc(String(p.logNo))}">
+      <h3>${_merEsc(p.title)}</h3>
+      <div class="mer-meta">${_merEsc(p.date||'')} · ${_merEsc(p.category||'')}
+        · <a href="${_merEsc(p.url||'')}" target="_blank" rel="noopener">원글↗</a></div>
+      <div class="mer-excerpt">${_merEsc(p.excerpt||'')}</div>
+      <button onclick="merblogToggleFull('${_merEsc(String(p.logNo))}',this)">원문 보기</button>
+      <div class="mer-full" style="display:none"></div>
+    </div>`;
+  }).join('');
+}
+
+async function merblogToggleFull(logNo, btn){
+  const box = document.querySelector('#mer-'+CSS.escape(String(logNo))+' .mer-full');
+  if(!box) return;
+  if(box.style.display!=='none'){ box.style.display='none'; btn.textContent='원문 보기'; return; }
+  const post = _merLastResults.find(p=>String(p.logNo)===String(logNo));
+  if(post && post.fullText){
+    box.textContent = post.fullText; box.style.display='block'; btn.textContent='원문 접기'; return;
+  }
+  // 라이브 온디맨드 로드(스냅샷 결과는 최신 ~20건만 fullText 보유 — 그 외는 Worker 재조회)
+  btn.disabled=true; btn.textContent='불러오는 중…';
+  try{
+    const base = _cfProxyBase();
+    if(!base) throw new Error('Worker 프록시 미설정');
+    const q = _merLastQuery || (post && post.title) || '';
+    const r = await fetch(`${base}/merblog?q=${encodeURIComponent(q)}&size=20&full=1&fullK=20`);
+    const d = await r.json();
+    const hit = (d.posts||[]).find(p=>String(p.logNo)===String(logNo));
+    const txt = hit && hit.fullText ? hit.fullText : '(원문을 불러오지 못했습니다. 원글↗ 링크를 이용하세요.)';
+    if(post) post.fullText = txt;   // 캐시(다운로드에도 반영)
+    box.textContent = txt; box.style.display='block'; btn.textContent='원문 접기';
+  }catch(e){
+    box.textContent='원문 로드 실패: '+e.message; box.style.display='block'; btn.textContent='원문 접기';
+  }finally{ btn.disabled=false; }
+}
+
+function merblogDownloadJson(){
+  const out = {
+    blogId:'ranto28', blogName:'메르의 블로그',
+    query:_merLastQuery, exportedAt:new Date().toISOString(),
+    count:_merLastResults.length, posts:_merLastResults,
+  };
+  const blob = new Blob([JSON.stringify(out,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `merblog_${(_merLastQuery||'search').replace(/[^\w가-힣]+/g,'_')}_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+}
 </script>
 
 <script>
