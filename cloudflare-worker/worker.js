@@ -225,7 +225,12 @@ const MER_POST_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 
 function merStripHtml(s) {
   if (!s) return '';
-  s = String(s).replace(/<[^>]+>/g, ' ');
+  s = String(s);
+  // Python merblog_lib.strip_html 과 동일한 2-pass: 블록 레벨 태그(단락 경계)는 공백으로
+  // 치환해 단어가 붙지 않게 하고, 인라인 태그(em/b/span 등 서식용)는 그냥 제거한다
+  // (공백 삽입 시 "환율"+"이" 처럼 태그로 감싼 단어 중간이 쪼개짐).
+  s = s.replace(/<\/?(p|div|br|li|ul|ol|h[1-6]|tr|table)[^>]*>/gi, ' ');
+  s = s.replace(/<[^>]+>/g, '');
   const ent = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
   s = s.replace(/&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/g, m => ent[m]);
   s = s.replace(/​/g, '');
