@@ -38,7 +38,9 @@ def _halt_id(typ, market, day):
 
 def cb_from_index(market, change_pct, now):
     """지수 등락률(전일比 %) → 서킷브레이커 사건 dict 또는 None. 가장 심각한 충족 단계."""
-    if change_pct is None:
+    # 오염 방어: 지수 하루 변동은 이론상 -30% 미만이 불가능(3단계 -20% 서 당일 거래 종료).
+    # 글리치성 극단값(-100 등)·NaN 은 서킷브레이커 날조를 막기 위해 무시한다.
+    if change_pct is None or change_pct != change_pct or change_pct < -30.0:
         return None
     for stage, thr, halt_min, auc_min, eod in CB_RULES:
         if change_pct <= thr:
@@ -140,6 +142,10 @@ def detect_market_halts(data, prev, now=None):
 
     candidates = []
     indices = data.get("indices") or {}
+    # 지수 등락률이 둘 다 없으면 감지가 '깜깜이'로 돈 것 → stale 로 표시해 소비측(check_halts)이
+    # 지수기반 신규 발동을 보류하게 한다(부분실패로 보존된 옛 값에 반응해 오탐하는 것 방지).
+    have_index = any((indices.get(m) or {}).get("change") is not None
+                     for m in ("KOSPI", "KOSDAQ"))
     for market in ("KOSPI", "KOSDAQ"):
         ev = cb_from_index(market, (indices.get(market) or {}).get("change"), now)
         if ev:
@@ -180,4 +186,5 @@ def detect_market_halts(data, prev, now=None):
             history.insert(0, rec)
     history = history[:30]
 
-    return {"active": active, "history": history, "asOf": now.isoformat(), "stale": False}
+    return {"active": active, "history": history, "asOf": now.isoformat(),
+            "stale": not have_index}

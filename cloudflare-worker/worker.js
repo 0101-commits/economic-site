@@ -821,32 +821,48 @@ async function handlePortfolioTest(request, env) {
 //   미설정 시: 아무 것도 안 하고 경고만 남긴다(배포는 안전).
 const GH_REPO = '0101-commits/economic-site';
 
+// 무거운 5분 작업(fetch-data·카카오 재시도)의 슬롯 dedup 마커 — cron 드롭 보강(catch-up)용.
+// 아이솔레이트 수명 동안만 유지되는 best-effort 값(교차 아이솔레이트 중복은 멱등 워크플로가 흡수).
+let _lastHeavySlot = '';
+
 // 공통 repository_dispatch — eventType 워크플로를 on-demand 1회 실행시킨다(204=성공).
+// cron 은 최선노력이라 단발 실패가 알림 누락으로 직결되므로 일시 오류(네트워크·5xx·429)는 3회 재시도한다.
 async function ghDispatch(env, eventType, payload, ua) {
   const token = env && env.GH_DISPATCH_TOKEN;
   if (!token) {
     console.log(`[cron] GH_DISPATCH_TOKEN 미설정 — ${eventType} dispatch 생략. (README 참고)`);
     return false;
   }
-  try {
-    const r = await fetch(`https://api.github.com/repos/${GH_REPO}/dispatches`, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': ua || 'ecom-cron',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ event_type: eventType, client_payload: payload || {} }),
-      signal: AbortSignal.timeout(15000),
-    });
-    console.log(`[cron] ${eventType} dispatch HTTP`, r.status, r.ok ? '(요청 성공)' : await r.text().catch(() => ''));
-    return r.ok;
-  } catch (e) {
-    console.log(`[cron] ${eventType} dispatch 오류:`, String((e && e.message) || e));
-    return false;
+  let lastErr = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const r = await fetch(`https://api.github.com/repos/${GH_REPO}/dispatches`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': ua || 'ecom-cron',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ event_type: eventType, client_payload: payload || {} }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (r.ok) {
+        console.log(`[cron] ${eventType} dispatch HTTP`, r.status, '(요청 성공)');
+        return true;
+      }
+      lastErr = `HTTP ${r.status} ${await r.text().catch(() => '')}`;
+      // 4xx(401 토큰만료·403 권한/레이트)는 재시도해도 동일 → 즉시 중단하고 아래서 크게 경고.
+      if (r.status >= 400 && r.status < 500 && r.status !== 429) break;
+    } catch (e) {
+      lastErr = String((e && e.message) || e);
+    }
+    if (attempt < 3) await new Promise((res) => setTimeout(res, attempt * 1000));
   }
+  // ⚠ 디스패치 실패 = 알림 파이프라인이 조용히 죽는 지점. 눈에 띄는 태그로 남겨 로그 알람이 잡게 한다.
+  console.error(`[ALERT-DISPATCH-FAILED] ${eventType}: ${lastErr}`);
+  return false;
 }
 
 async function triggerKakaoDispatch(env, cron) {
@@ -886,7 +902,11 @@ async function triggerMarketAlerts(env, includeFetch) {
   if (!inMarketHours(new Date())) return;   // 장외 — GitHub 깨우지 않음
   const jobs = [ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron')];
   if (includeFetch) jobs.push(ghDispatch(env, 'fetch-data', {}, 'ecom-fetch-cron'));
-  await Promise.all(jobs);
+  const results = await Promise.all(jobs);
+  // 디스패치 결과를 삼키지 않는다 — 실패가 하나라도 있으면 알림 지연/누락 가능. 눈에 띄게 남긴다.
+  if (results.some((ok) => ok === false)) {
+    console.error('[ALERT-SYSTEM-DEGRADED] 일부 dispatch 실패 — 알림이 지연/누락될 수 있음');
+  }
 }
 
 export default {
@@ -896,14 +916,19 @@ export default {
     // 매분 cron(구 */5 도 배포 전환기 호환) → 종목·halt 정시성 보강.
     if (cron === '* * * * *' || cron === '*/5 * * * *') {
       const now = new Date(event.scheduledTime || Date.now());
-      // 5분 게이트 — fetch-data(무거움)·카카오 재시도는 기존 5분 주기 유지, alerts-cron 만 매분.
-      const on5min = now.getUTCMinutes() % 5 === 0;
-      ctx.waitUntil(triggerMarketAlerts(env, on5min));
+      const min = now.getUTCMinutes();
+      // 5분 게이트 — alerts-cron 은 매분(정시성 핵심, 아래 triggerMarketAlerts 가 항상 발화).
+      //   무거운 fetch-data·카카오 재시도는 슬롯당 1회면 충분하나, cron 이 정확히 :0/:5 틱을
+      //   드롭하면 그 슬롯을 통째로 놓쳤다. → 슬롯의 첫 2분(min%5<2) 안에서 '아직 안 한 슬롯'이면
+      //   실행해 누락된 :0 틱을 :1 이 보강한다(slotKey dedup + 멱등 워크플로로 중복은 무해).
+      const slotKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-${now.getUTCHours()}-${Math.floor(min / 5)}`;
+      const doHeavy = (min % 5 < 2) && _lastHeavySlot !== slotKey;
+      if (doHeavy) _lastHeavySlot = slotKey;
+      ctx.waitUntil(triggerMarketAlerts(env, doHeavy));
       // 🔁 카카오 슬롯 재시도 — hourly cron(:02) 1회가 드롭되거나 GitHub 백업 스케줄까지 한 시(時)를
-      //   통째로 누락해도(실측 2026-06-26 KST 18시 사례) 슬롯을 놓치지 않도록, 슬롯 시각이면 5분마다
-      //   kakao-send 를 추가 dispatch 한다. 워크플로의 발송 창 게이트(타깃 시각만 통과) + 슬롯 dedup
-      //   마커(슬롯당 하루 1회) + concurrency 직렬화가 멱등성을 보장하므로 중복 발송은 생기지 않는다.
-      if (on5min && inKakaoSlot(now)) ctx.waitUntil(triggerKakaoDispatch(env, cron));
+      //   통째로 누락해도(실측 2026-06-26 KST 18시 사례) 슬롯을 놓치지 않도록, 슬롯 시각이면 dispatch.
+      //   워크플로 발송 창 게이트 + 슬롯 dedup 마커 + concurrency 직렬화가 멱등성을 보장한다.
+      if (doHeavy && inKakaoSlot(now)) ctx.waitUntil(triggerKakaoDispatch(env, cron));
     } else {
       ctx.waitUntil(triggerKakaoDispatch(env, cron)); // 기존 hourly cron → 카카오 시황 다이제스트
     }

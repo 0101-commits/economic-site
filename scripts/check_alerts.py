@@ -52,6 +52,9 @@ STATE_PATH = os.path.join(ROOT, "alerts_state.json")
 TEXT_LIMIT = 200          # 카카오 텍스트 템플릿 길이 제한
 MAX_MSGS = 3              # 1회 실행당 최대 발송 통수(폭주 방지)
 DELAY_NOTICE = "※ 무료 시세 기준(지연 가능)"
+# 시세 오염 방어 — 무료 프록시가 0/오종목/캐시된 이상치를 돌려줄 수 있다.
+# 전일 종가 대비 이 %를 넘게 벌어진 스냅샷은 오염 의심으로 폐기(국내 상·하한 ±30% 여유 위).
+SANE_MOVE_PCT = 50.0
 
 # 🔔 테스트 발송 모드 — 프런트 '테스트 발송' 버튼 → Worker /portfolio/test →
 # repository_dispatch(alerts-test) 로 실행된 런. 설정 검증이 목적이므로
@@ -298,11 +301,23 @@ def should_send(alert, state, now):
 PRICE_TYPES = ("price_below", "price_above")
 
 
-def _price_met(t, price, v):
-    """가격 기준선 충족 여부 — 이하/이상."""
+def _price_met(t, price, v, snap=None):
+    """가격 기준선 충족 여부 — 이하/이상.
+
+    cron 이 한두 분 드롭돼 교차 순간을 지나쳐도 놓치지 않도록, 순간 현재가가 아니라
+    '당일 장중 고가/저가'(마지막 일봉의 high/low)를 기준으로 판정한다. 하루 안에서 한 번이라도
+    기준선을 넘었으면 충족으로 본다(met 는 회복 시 재무장 — 일봉이 갱신되는 다음 날 자연 리셋)."""
     if v is None:
         return False
-    return price <= v if t == "price_below" else price >= v
+    if t == "price_below":
+        low = price
+        if snap and snap.get("lows"):
+            low = min(low, snap["lows"][-1])
+        return low <= v
+    high = price
+    if snap and snap.get("highs"):
+        high = max(high, snap["highs"][-1])
+    return high >= v
 
 
 # 종목당 1줄 — 한 종목에서 여러 조건이 동시 충족되면 가장 의미 있는 1건만 남긴다.
@@ -347,6 +362,22 @@ def _write_state(state, alerts, now):
         f.write("\n")
 
 
+def _stamp_and_write(state, triggered, alerts, now):
+    """충족 알림에 date/ts 스탬프 후 alerts_state.json 기록.
+
+    ⚠ '발송 전에' 호출한다 — 카카오 전송이 5xx 등으로 실패해도(메시지는 이미 나갔을 수 있음)
+    이력이 남아, 다음 런에서 같은 알림이 매분 재발송되는 스팸 루프를 막는다.
+    (전송 성공 보장보다 재발송 억제를 우선한다 — 교차형은 met, 이벤트형은 date/ts 로 재무장 관리.)"""
+    ds = now.strftime("%Y%m%d")
+    ts = int(now.timestamp())
+    for a, _ in triggered:
+        rec = state.get(a["id"]) or {}
+        rec["date"] = ds
+        rec["ts"] = ts
+        state[a["id"]] = rec
+    _write_state(state, alerts, now)
+
+
 def is_market_open(market, now):
     """장중 판정(KST) — 장외 시간엔 가격이 멈춰 stale 데이터로 쿨다운 알림이 반복 발송될 수
     있으므로(특히 cool60), 해당 시장 장중에만 조건을 평가한다."""
@@ -377,6 +408,9 @@ def _pack_messages(lines, header):
             cur += add[:budget - len(cur)]
     if cur != header:
         msgs.append(cur + "\n" + DELAY_NOTICE)
+    if len(msgs) > MAX_MSGS:
+        print(f"::warning title=알림 통수 초과::{len(msgs)}통 중 {MAX_MSGS}통만 발송(초과분 생략) — "
+              f"동시 충족 조건이 과다합니다")
     return msgs[:MAX_MSGS]
 
 
@@ -432,9 +466,14 @@ def main():
         if not snap:
             print(f"[alerts] 시세 조회 실패: {a.get('symbol')} ({market}) — 건너뜀")
             continue
+        # 시세 오염 가드 — 0/음수·비정상 급변(전일比 |%|>SANE) 스냅샷은 폐기해 헛알림 방지.
+        if snap["price"] <= 0 or abs(snap.get("pct") or 0.0) > SANE_MOVE_PCT:
+            print(f"::warning title=시세 이상::{a.get('symbol')}({market}) 가격 {snap['price']} "
+                  f"전일比 {snap.get('pct')}% — 오염 의심, 건너뜀")
+            continue
 
         if is_price:
-            m = _price_met(t, snap["price"], a.get("value"))
+            m = _price_met(t, snap["price"], a.get("value"), snap)
             met_now[a["id"]] = m                          # 매 런 기록 → 회복 시 재무장
             prev = (state.get(a["id"]) or {}).get("met")
             # 교차 시 1회: 미충족→충족 전환에서만 발송. 충족 지속 중엔 침묵.
@@ -472,10 +511,22 @@ def main():
               "알림 발송을 건너뜁니다 (KAKAO_SETUP.md 참고).")
         return
 
-    access_token = kakao.refresh_access_token(rest_key, refresh_token)
+    # 토큰 재발급 실패는 '매분' 실행에선 job 실패 메일 폭탄으로 이어지므로, 한 번만 크게 경고하고
+    # exit 0 로 끝낸다(메일 스팸 방지). 재무장/이력 상태는 저장해 다음 런 일관성 유지.
+    try:
+        access_token = kakao.refresh_access_token(rest_key, refresh_token)
+    except SystemExit as e:
+        print(f"::error title=Kakao 토큰 재발급 실패::{e} — 이번 발송 건너뜀(토큰 갱신 필요)")
+        if not IS_TEST:
+            _stamp_and_write(state, triggered, alerts, now)
+        return
     friends = kakao.get_friends(access_token) if kakao._friends_enabled() else []
     uuids = [f["uuid"] for f in friends]
-    print(f"[alerts] 수신: " + (f"친구 {len(uuids)}명" if uuids else "나와의 채팅(메모)"))
+    if uuids:
+        print(f"[alerts] 수신: 친구 {len(uuids)}명")
+    else:
+        print("::warning title=푸시 미도달 가능::수신 친구 0명 → '나에게 보내기(메모)'로 발송합니다. "
+              "메모는 푸시 알림이 울리지 않습니다(friends scope 필요 — KAKAO_SETUP.md ⑤).")
 
     prefix = "[테스트] " if IS_TEST else ""
     header = f"{prefix}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"
@@ -488,23 +539,25 @@ def main():
                         with_button=True, uuids=uuids)
         print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
         return
-    for msg in _pack_messages([ln for _, ln in to_send], header):
-        kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
 
-    # 테스트 런은 이력을 남기지 않는다 — 정규 cron 의 실제 알림(교차/쿨다운)을 소모하지 않도록
+    # 🛡 발송 '전에' 이력을 먼저 확정·저장한다(스팸 루프 방지 — _stamp_and_write 주석 참고).
+    #    테스트 런은 이력을 남기지 않는다(정규 cron 의 실제 알림을 소모하지 않도록).
+    if not IS_TEST:
+        _stamp_and_write(state, triggered, alerts, now)
+
+    sent = 0
+    try:
+        for msg in _pack_messages([ln for _, ln in to_send], header):
+            kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
+            sent += 1
+    except SystemExit as e:
+        # 일부 통 실패해도 job 을 죽이지 않는다(매분 실패 메일·커밋 스텝 스킵 방지). 이력은 이미 저장됨.
+        print(f"::warning title=일부 알림 발송 실패::{e} — {sent}통 발송 후 중단(이력 저장됨, 재발송 안 함)")
+
     if IS_TEST:
         print(f"[alerts] 테스트 발송 완료 — 충족 {len(triggered)}건 / 발송 {len(to_send)}건 (이력 미갱신)")
         return
-
-    # 발송 성공 후 date/ts 스탬프 — 충족된 모든 건에(종목당1줄로 미발송된 건 포함) 적용해
-    # 다음 런에서 이벤트형 쿨다운/이력이 일관되게 동작. met 은 위에서 이미 반영됨.
-    for a, _ in triggered:
-        rec = state.get(a["id"]) or {}
-        rec["date"] = now.strftime("%Y%m%d")
-        rec["ts"] = int(now.timestamp())
-        state[a["id"]] = rec
-    _write_state(state, alerts, now)
-    print(f"[alerts] 발송 완료 — 충족 {len(triggered)}건 / 발송 {len(to_send)}건, 상태 저장")
+    print(f"[alerts] 발송 완료 — 충족 {len(triggered)}건 / 발송 시도 {len(to_send)}건, 상태 저장(발송 전 확정)")
 
 
 if __name__ == "__main__":

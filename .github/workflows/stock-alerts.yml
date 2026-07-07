@@ -58,6 +58,9 @@ jobs:
         run: python scripts/check_alerts.py
 
       - name: Commit alerts_state.json (발송 이력 — 도배 방지)
+        # ⚠ always() — 발송 스텝이 예외로 실패해도 이력 커밋은 반드시 돌려 '매분 재발송 스팸'을 막는다.
+        #   (check_alerts.py 는 발송 전에 상태를 저장하고 전송 실패를 삼키므로 정상 시엔 exit 0.)
+        if: always()
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'

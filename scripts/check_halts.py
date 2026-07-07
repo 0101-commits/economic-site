@@ -105,22 +105,41 @@ def main():
     resolved_ids = [hid for hid in state
                     if hid not in active_ids and not state[hid].get("resolvedSent")]
 
+    # 🛡 데이터 신선도 가드 — 지수 수집이 비어 halt 감지가 '깜깜이'로 돈 빌드(marketHalts.stale=True)
+    #    에서는 지수기반(source=index) 신규 발동을 신뢰하지 않는다. 뉴스/KRX 출처와 '해제'는 그대로 처리.
+    if halts.get("stale"):
+        dropped = [h for h in new_events if h.get("source") == "index"]
+        if dropped:
+            print(f"::warning title=시세 stale::지수 데이터 부재로 index 기반 신규 발동 {len(dropped)}건 보류")
+        new_events = [h for h in new_events if h.get("source") != "index"]
+
     if new_events or resolved_ids:
         if not rest_key or not refresh_token:
             print("::warning title=Kakao 미설정::KAKAO secrets 없음 — 발송 건너뜀")
         else:
-            token = kakao.refresh_access_token(rest_key, refresh_token)
-            uuids = [f["uuid"] for f in kakao.get_friends(token)] if kakao._friends_enabled() else []
-            for h in new_events:
-                _send_all(token, uuids, _fire_msg(h))
-                state[h["id"]] = {"firedAt": now.isoformat(), "event": h, "resolvedSent": False}
-                print(f"[halts] 발동 발송: {h['id']}")
-            for hid in resolved_ids:
-                h = state[hid].get("event") or {"id": hid}
-                _send_all(token, uuids, _resolve_msg(h))
-                state[hid]["resolvedSent"] = True
-                state[hid]["resolvedAt"] = now.isoformat()
-                print(f"[halts] 해제 발송: {hid}")
+            try:
+                token = kakao.refresh_access_token(rest_key, refresh_token)
+            except SystemExit as e:
+                print(f"::error title=Kakao 토큰 재발급 실패::{e} — 발송 건너뜀(다음 런 재시도)")
+                token = None
+            if token:
+                uuids = [f["uuid"] for f in kakao.get_friends(token)] if kakao._friends_enabled() else []
+                # 🛡 발송 '전에' 이력을 먼저 확정 → 전송이 5xx 등으로 실패해도 다음 런에서 중복 발송하지 않는다.
+                for h in new_events:
+                    state[h["id"]] = {"firedAt": now.isoformat(), "event": h, "resolvedSent": False}
+                for hid in resolved_ids:
+                    state[hid]["resolvedSent"] = True
+                    state[hid]["resolvedAt"] = now.isoformat()
+                try:
+                    for h in new_events:
+                        _send_all(token, uuids, _fire_msg(h))
+                        print(f"[halts] 발동 발송: {h['id']}")
+                    for hid in resolved_ids:
+                        h = state[hid].get("event") or {"id": hid}
+                        _send_all(token, uuids, _resolve_msg(h))
+                        print(f"[halts] 해제 발송: {hid}")
+                except SystemExit as e:
+                    print(f"::warning title=일부 halt 발송 실패::{e} — 이력 저장됨(재발송 안 함)")
     else:
         print(f"[halts] 변동 없음 — active {len(active)}건")
 

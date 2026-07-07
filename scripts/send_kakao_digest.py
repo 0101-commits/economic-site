@@ -156,8 +156,39 @@ def _http_post(url, form, headers=None):
             return e.code, {}
 
 
+# 카카오/OAuth 일시 오류(429·5xx)는 재시도 대상 — 4xx(권한·형식)는 즉시 반환.
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+def _retry_status(fn, what, tries=3, delay=2):
+    """(status, json) 반환 fn 을 감싸 전송오류(예외) + 일시 서버오류(429/5xx)에 지수 백오프 재시도.
+
+    _retry 는 예외만 재시도하지만 _http_post/_http_get 은 4xx/5xx 를 (status, json) 으로 '반환'하므로,
+    5xx·429 가 첫 시도에 그대로 실패로 굳던 문제를 막는다."""
+    for i in range(tries):
+        try:
+            status, j = fn()
+        except Exception as e:
+            if i == tries - 1:
+                raise
+            print(f"[retry] {what} 전송오류({e}) — {delay}s 후 재시도 ({i + 2}/{tries})")
+            time.sleep(delay)
+            delay *= 2
+            continue
+        if status in RETRYABLE_STATUS and i < tries - 1:
+            print(f"[retry] {what} HTTP {status} — {delay}s 후 재시도 ({i + 2}/{tries})")
+            time.sleep(delay)
+            delay *= 2
+            continue
+        return status, j
+
+
 def _http_post_retry(url, form, headers=None, what="HTTP POST"):
-    return _retry(lambda: _http_post(url, form, headers), what)
+    return _retry_status(lambda: _http_post(url, form, headers), what)
+
+
+def _http_get_retry(url, headers=None, what="HTTP GET"):
+    return _retry_status(lambda: _http_get(url, headers), what)
 
 
 def _http_get(url, headers=None):
@@ -184,8 +215,11 @@ def refresh_access_token(rest_key, refresh_token):
         raise SystemExit(f"[kakao] access_token 재발급 실패: HTTP {status} {j}")
     # refresh_token 유효기간이 1개월 미만이면 카카오가 새 토큰을 함께 준다 → 시크릿 교체 안내.
     if j.get("refresh_token"):
-        print("::warning title=KAKAO_REFRESH_TOKEN::카카오가 새 refresh_token 을 발급했습니다. "
-              "GitHub Secret 의 KAKAO_REFRESH_TOKEN 을 새 값으로 교체하세요(로그에는 마스킹됨).")
+        # ⚠ 보안: 공개 저장소라 Actions 로그가 공개된다 → 새 토큰을 로그에 노출하면 안 됨(마스킹 유지).
+        #    기존 refresh_token 은 회전 후에도 약 1개월 유효하므로, 그 안에 재발급하면 된다.
+        print("::warning title=KAKAO_REFRESH_TOKEN 회전됨::카카오가 refresh_token 을 회전했습니다. "
+              "기존 토큰은 약 1개월 더 유효하나, 만료 전 KAKAO_SETUP.md 절차로 재발급해 GitHub Secret 을 "
+              "갱신하세요. (보안상 새 토큰 값은 공개 로그에 노출하지 않습니다.)")
         print(f"::add-mask::{j['refresh_token']}")
     return j["access_token"]
 
@@ -332,9 +366,9 @@ def get_friends(access_token):
     friends 동의가 없으면(HTTP 403) 빈 목록 — 이때는 종전 '나에게 보내기'로 발송하므로,
     보조 계정·동의 설정을 마치기 전에도 기존 동작이 그대로 유지된다."""
     try:
-        status, j = _retry(lambda: _http_get(
+        status, j = _http_get_retry(
             "https://kapi.kakao.com/v1/api/talk/friends?limit=100",
-            {"Authorization": f"Bearer {access_token}"}), "친구 목록 조회")
+            {"Authorization": f"Bearer {access_token}"}, what="친구 목록 조회")
     except Exception as e:
         print(f"[kakao] 친구 목록 조회 실패({e}) — 나에게 보내기로 발송")
         return []
