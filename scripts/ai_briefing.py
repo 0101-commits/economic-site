@@ -198,7 +198,9 @@ def try_gemini(snap):
     try:
         r = requests.post(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-            params={"key": GEMINI_API_KEY},
+            # 키를 URL 쿼리(params)가 아닌 헤더로 전달 — 비2xx 응답 시 raise_for_status 예외 메시지에
+            # 요청 URL(쿼리 포함)이 박혀 키가 로그로 새는 것을 방지. (worker.js 와 동일 방식)
+            headers={"x-goog-api-key": GEMINI_API_KEY},
             json={"contents": [{"parts": [{"text": _llm_prompt(snap)}]}],
                   "generationConfig": {"temperature": 0.4, "maxOutputTokens": 400}},
             timeout=40,

@@ -688,11 +688,10 @@ async function handlePortfolioGet(request, env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   // [이슈1] 무인증 조회 차단 — POST 와 동일한 ALERTS_SYNC_KEY 검증 적용. 키 미설정→503,
   //   불일치→401 (_verifySyncKey 동일 패턴).
-  // [보안] keyHash 는 커스텀 헤더 X-Sync-Key-Hash 를 1순위로 읽는다 — 쿼리스트링(?keyHash=…)은
-  //   접근 로그·브라우저 히스토리·Referer 에 재사용 가능한 베어러로 남기 때문. 쿼리 폴백은
-  //   구클라이언트(헤더 미전송 프론트) 하위호환용이며, 프론트 전환 완료 후 제거 예정.
-  const _kh = request.headers.get('X-Sync-Key-Hash')
-           || new URL(request.url).searchParams.get('keyHash');
+  // [보안] keyHash 는 오직 커스텀 헤더 X-Sync-Key-Hash 로만 받는다. 쿼리스트링(?keyHash=…) 폴백은
+  //   제거됨 — 접근 로그·브라우저 히스토리·Referer 에 재사용 가능한 베어러로 남기 때문.
+  //   프론트는 이미 헤더 전송으로 전환 완료(index.html X-Sync-Key-Hash).
+  const _kh = request.headers.get('X-Sync-Key-Hash');
   const denied = await _verifySyncKey({ keyHash: _kh }, env);
   if (denied) return denied;
   let cfgRes;
@@ -709,6 +708,18 @@ async function _sha256Hex(s) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// 상수시간 hex 비교 — 타이밍 사이드채널 방지. 길이(64)는 공개값이므로 길이 비교는 누출 없음.
+// 서버가 해시-대-해시로 비교하므로 expected 자체가 사실상 베어러라, 조기 종료 비교는 피한다.
+function _ctEqualHex(a, expected) {
+  a = String(a).toLowerCase();
+  if (a.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= a.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 // 동기화 키 검증 — fail-closed. 키 시크릿 미설정이면 쓰기 자체를 차단하고(503),
 // 설정 시에는 프론트가 보낸 SHA-256 해시(keyHash)가 일치해야만 통과(401).
 // 구버전 평문 body.key 호환은 제거됨 — 프론트는 이미 해시 전송으로 전환 완료.
@@ -723,7 +734,7 @@ async function _verifySyncKey(body, env) {
   // 시크릿 양끝 공백/개행 제거 — `wrangler secret put` 로 키를 붙여넣을 때 흔히 끼는
   // 후행 개행이 프론트(키 입력 시 k.trim())와의 해시 불일치를 일으켜 정상 키도 401 이 되던 문제 수정.
   const expected = await _sha256Hex(String(env.ALERTS_SYNC_KEY).trim());
-  const okHash = body && body.keyHash && String(body.keyHash).toLowerCase() === expected;
+  const okHash = !!(body && body.keyHash && _ctEqualHex(body.keyHash, expected));
   if (!okHash) return jsonResponse({ error: 'unauthorized' }, 401);
   return null;   // 통과
 }

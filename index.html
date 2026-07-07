@@ -317,7 +317,7 @@
     --c-border:   #aac4e6;
     --c-txt:      rgb(38,38,38);
     --c-txt-dim:  rgb(89,89,89);
-    --c-txt-muted:rgb(145,145,145);
+    --c-txt-muted:rgb(107,107,107);
     --c-accent:   rgb(53,108,181);
     --c-primary:  rgb(53,108,181);
     --c-up:       rgb(57,141,139);
@@ -1492,8 +1492,8 @@ html.light .toast { background: #fff; }
         <!-- 상승/하락 Top5 -->
         <div class="widget">
           <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
-            <button class="tab-btn active" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;" onclick="setMoverTab('up',this)">▲ 상승 Top10</button>
-            <button class="tab-btn" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverTab('down',this)">▼ 하락 Top10</button>
+            <button class="tab-btn active" aria-pressed="true" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;" onclick="setMoverTab('up',this)">▲ 상승 Top10</button>
+            <button class="tab-btn" aria-pressed="false" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverTab('down',this)">▼ 하락 Top10</button>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <button class="tab-btn active" id="moverTypeStock" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;" onclick="setMoverType('stock',this)">주식</button>
             <button class="tab-btn" id="moverTypeETF" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverType('etf',this)">ETF</button>
@@ -1869,11 +1869,11 @@ html.light .toast { background: #fff; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
             <div class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns">
-              <button onclick="toggleRateFilter('kr',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">🇰🇷 한국</button>
-              <button onclick="toggleRateFilter('us',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:#fff;cursor:pointer;">🇺🇸 미국</button>
-              <button onclick="toggleRateFilter('eu',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-primary);border-radius:var(--r-xs);background:#b6c4ff33;color:var(--c-primary);cursor:pointer;">🇪🇺 유로존</button>
-              <button onclick="toggleRateFilter('jp',this)" style="font-size:11px;padding:3px 8px;border:1px solid #f5a623;border-radius:var(--r-xs);background:#f5a62333;color:#f5a623;cursor:pointer;">🇯🇵 일본</button>
-              <button onclick="toggleRateFilter('uk',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-down);border-radius:var(--r-xs);background:color-mix(in srgb,var(--c-down) 20%,transparent);color:var(--c-down);cursor:pointer;">🇬🇧 영국</button>
+              <button onclick="toggleRateFilter('kr',this)" aria-pressed="true" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">🇰🇷 한국</button>
+              <button onclick="toggleRateFilter('us',this)" aria-pressed="true" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:#fff;cursor:pointer;">🇺🇸 미국</button>
+              <button onclick="toggleRateFilter('eu',this)" aria-pressed="true" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-primary);border-radius:var(--r-xs);background:#b6c4ff33;color:var(--c-primary);cursor:pointer;">🇪🇺 유로존</button>
+              <button onclick="toggleRateFilter('jp',this)" aria-pressed="true" style="font-size:11px;padding:3px 8px;border:1px solid #f5a623;border-radius:var(--r-xs);background:#f5a62333;color:#f5a623;cursor:pointer;">🇯🇵 일본</button>
+              <button onclick="toggleRateFilter('uk',this)" aria-pressed="true" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-down);border-radius:var(--r-xs);background:color-mix(in srgb,var(--c-down) 20%,transparent);color:var(--c-down);cursor:pointer;">🇬🇧 영국</button>
             </div>
           </div>
           <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
@@ -2967,7 +2967,7 @@ html.light .toast { background: #fff; }
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
               <div class="widget-title" style="margin-bottom:0;">📊 전월比 변화율 (한눈에 비교)</div>
-              <span style="font-size:10px;color:var(--c-txt-muted);">초록 = 상승 / 빨강 = 하락</span>
+              <span id="usReChangeLegend" style="font-size:10px;color:var(--c-txt-muted);"></span>
             </div>
             <div style="position:relative;height:240px;">
               <canvas id="usReChangeChart" role="img" aria-label="미국 부동산 지표 전월 비교"></canvas>
@@ -5352,12 +5352,14 @@ function showSubscriptionDetail(regionKey) {
 
 function _regionColorForVal(v) {
   if(v == null || isNaN(v)) return '#8d90a2';
-  if(v >= 0.3)  return '#0f6e56';
-  if(v >= 0.1)  return window.CUP;
+  // 색상관습(CUP=상승, CDN=하락)에서 파생 — 강도만 알파로 조절. 극단값을 팔레트에 하드코딩하면
+  // KR 관습(빨강=상승)에서 방향이 뒤집혀 보이므로 절대 하드코딩하지 않는다.
+  if(v >= 0.3)  return window.CUP;          // 최대 상승: 상승색 최대 채도
+  if(v >= 0.1)  return (window.CUP+'cc');
   if(v >= 0)    return (window.CUP+'88');
   if(v >= -0.1) return (window.CDN+'88');
-  if(v >= -0.2) return window.CDN;
-  return '#b91c1c';
+  if(v >= -0.2) return (window.CDN+'cc');
+  return window.CDN;                         // 최대 하락: 하락색 최대 채도
 }
 
 function buildKoreaRegionMap() {
@@ -5411,7 +5413,7 @@ function buildKoreaRegionMap() {
     const fill = _regionColorForVal(d.val);
     const stroke = tc.txt;
     // path 사용 — 지리적 윤곽
-    svgHtml += `<path d="${s.path}" fill="${fill}" stroke="${stroke}" stroke-width="1.2" stroke-linejoin="round" data-code="${s.code}" data-label="${s.label}" data-val="${d.val}" class="kr-region-shape" style="cursor:pointer;transition:opacity .15s, filter .15s;" filter="url(#regionShadow)"/>`;
+    svgHtml += `<path d="${s.path}" fill="${fill}" stroke="${stroke}" stroke-width="1.2" stroke-linejoin="round" data-code="${s.code}" data-label="${s.label}" data-val="${d.val}" class="kr-region-shape" role="button" tabindex="0" aria-label="${s.label} ${(d.val>=0?'+':'')+d.val.toFixed(2)}%" style="cursor:pointer;transition:opacity .15s, filter .15s;" filter="url(#regionShadow)"/>`;
     // 라벨 (중심점에 표시)
     svgHtml += `<text x="${s.labelX}" y="${s.labelY - 2}" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" pointer-events="none" style="text-shadow:0 1px 2px rgba(0,0,0,.6);">${s.label}</text>`;
     svgHtml += `<text x="${s.labelX}" y="${s.labelY + 11}" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" pointer-events="none" style="text-shadow:0 1px 2px rgba(0,0,0,.6);">${(d.val>=0?'+':'')+d.val.toFixed(2)+'%'}</text>`;
@@ -5419,22 +5421,29 @@ function buildKoreaRegionMap() {
   // 범례 — 화면 아래쪽
   svgHtml += `<g transform="translate(15,485)">
     <text x="0" y="-3" font-size="9" font-weight="600" fill="${tc.txt}">월간 등락률</text>
-    <rect x="0" y="2" width="16" height="11" fill="#0f6e56"/><text x="20" y="11" font-size="9" fill="${tc.txt}">≥+0.3%</text>
-    <rect x="70" y="2" width="16" height="11" fill=window.CUP/><text x="90" y="11" font-size="9" fill="${tc.txt}">+0.1~0.3%</text>
-    <rect x="155" y="2" width="16" height="11" fill=(window.CDN+'88')/><text x="175" y="11" font-size="9" fill="${tc.txt}">-0.1~0%</text>
-    <rect x="240" y="2" width="16" height="11" fill="#b91c1c"/><text x="260" y="11" font-size="9" fill="${tc.txt}">≤-0.2%</text>
+    <rect x="0" y="2" width="16" height="11" fill="${window.CUP}"/><text x="20" y="11" font-size="9" fill="${tc.txt}">≥+0.3%</text>
+    <rect x="70" y="2" width="16" height="11" fill="${window.CUP}cc"/><text x="90" y="11" font-size="9" fill="${tc.txt}">+0.1~0.3%</text>
+    <rect x="155" y="2" width="16" height="11" fill="${window.CDN}88"/><text x="175" y="11" font-size="9" fill="${tc.txt}">-0.1~0%</text>
+    <rect x="240" y="2" width="16" height="11" fill="${window.CDN}"/><text x="260" y="11" font-size="9" fill="${tc.txt}">≤-0.2%</text>
   </g>`;
   svgEl.innerHTML = svgHtml;
   // 호버 / 클릭 이벤트
   svgEl.querySelectorAll('.kr-region-shape').forEach(el => {
-    el.addEventListener('mouseenter', (e) => _showRegionTooltip(e, el));
-    el.addEventListener('mousemove', (e) => _moveRegionTooltip(e));
-    el.addEventListener('mouseleave', () => _hideRegionTooltip());
-    el.addEventListener('click', () => {
+    const _click = () => {
       const code = el.dataset.code;
       const d = krRegionData.find(r => r.code === code);
       if(d) _onRegionClick(d);
+    };
+    el.addEventListener('mouseenter', (e) => _showRegionTooltip(e, el));
+    el.addEventListener('mousemove', (e) => _moveRegionTooltip(e));
+    el.addEventListener('mouseleave', () => _hideRegionTooltip());
+    el.addEventListener('click', _click);
+    // 키보드 접근성 — Enter/Space 로 드릴다운, 포커스 시 툴팁 표시
+    el.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _click(); }
     });
+    el.addEventListener('focus', (e) => _showRegionTooltip(e, el));
+    el.addEventListener('blur', () => _hideRegionTooltip());
   });
 }
 
@@ -5474,8 +5483,15 @@ function _moveRegionTooltip(e) {
   const container = document.getElementById('reRegionMapContainer');
   if(!container) return;
   const rect = container.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  // 포커스(키보드) 이벤트엔 clientX/Y 가 없음 → 대상 도형 중심으로 폴백
+  let cx = e.clientX, cy = e.clientY;
+  if(cx == null || cy == null || isNaN(cx)) {
+    const tgt = e && e.target && e.target.getBoundingClientRect ? e.target.getBoundingClientRect() : rect;
+    cx = tgt.left + tgt.width/2;
+    cy = tgt.top + tgt.height/2;
+  }
+  const x = cx - rect.left;
+  const y = cy - rect.top;
   // 툴팁이 컨테이너 밖으로 나가지 않게 조정
   const tw = 180, th = 110;
   let left = x + 12, top = y + 12;
@@ -5658,10 +5674,10 @@ function buildUsRegionMap() {
   // 범례
   svgHtml += `<g transform="translate(15,485)">
     <text x="0" y="-3" font-size="9" font-weight="600" fill="${tc.txt}">월간 등락률</text>
-    <rect x="0" y="2" width="16" height="11" fill="#0f6e56"/><text x="20" y="11" font-size="9" fill="${tc.txt}">≥+0.3%</text>
-    <rect x="70" y="2" width="16" height="11" fill=window.CUP/><text x="90" y="11" font-size="9" fill="${tc.txt}">+0.1~0.3%</text>
-    <rect x="155" y="2" width="16" height="11" fill=(window.CDN+'88')/><text x="175" y="11" font-size="9" fill="${tc.txt}">-0.1~0%</text>
-    <rect x="240" y="2" width="16" height="11" fill="#b91c1c"/><text x="260" y="11" font-size="9" fill="${tc.txt}">≤-0.2%</text>
+    <rect x="0" y="2" width="16" height="11" fill="${window.CUP}"/><text x="20" y="11" font-size="9" fill="${tc.txt}">≥+0.3%</text>
+    <rect x="70" y="2" width="16" height="11" fill="${window.CUP}cc"/><text x="90" y="11" font-size="9" fill="${tc.txt}">+0.1~0.3%</text>
+    <rect x="155" y="2" width="16" height="11" fill="${window.CDN}88"/><text x="175" y="11" font-size="9" fill="${tc.txt}">-0.1~0%</text>
+    <rect x="240" y="2" width="16" height="11" fill="${window.CDN}"/><text x="260" y="11" font-size="9" fill="${tc.txt}">≤-0.2%</text>
   </g>`;
   // AK/HI 박스 라벨
   svgHtml += `<text x="25" y="375" font-size="9" fill="${tc.txt}">알래스카·하와이</text>`;
@@ -5715,8 +5731,15 @@ function _moveUsRegionTooltip(e) {
   const container = document.getElementById('usReRegionMapContainer');
   if(!container) return;
   const rect = container.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  // 포커스(키보드) 이벤트엔 clientX/Y 가 없음 → 대상 도형 중심으로 폴백
+  let cx = e.clientX, cy = e.clientY;
+  if(cx == null || cy == null || isNaN(cx)) {
+    const tgt = e && e.target && e.target.getBoundingClientRect ? e.target.getBoundingClientRect() : rect;
+    cx = tgt.left + tgt.width/2;
+    cy = tgt.top + tgt.height/2;
+  }
+  const x = cx - rect.left;
+  const y = cy - rect.top;
   const tw = 180, th = 110;
   let left = x + 12, top = y + 12;
   if(left + tw > rect.width)  left = x - tw - 12;
@@ -5845,6 +5868,9 @@ function setRETab(tab, btn) {
 let usReDataCache = null;
 function buildUsReCharts() {
   destroyChart('usReChangeChart'); destroyChart('usReMortgageChart');
+  // 범례를 막대 색상관습과 일치시킴 (KR: 빨강=상승, global: 초록=상승)
+  const _reLegend = document.getElementById('usReChangeLegend');
+  if(_reLegend) _reLegend.textContent = (window.econColorConv === 'kr') ? '빨강 = 상승 / 파랑 = 하락' : '초록 = 상승 / 빨강 = 하락';
   const re = usReDataCache || {};
   // 차트 1: 전월比 변화율 비교 (한눈에 보기)
   const items = [
@@ -6994,9 +7020,11 @@ function setMoverTab(dir, btn) {
   widget.querySelectorAll('.tab-btn').forEach(b=>{
     if(b.textContent.includes('상승')||b.textContent.includes('하락')) {
       b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+      b.setAttribute('aria-pressed','false');
     }
   });
   btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='#fff';
+  btn.setAttribute('aria-pressed','true');
   buildMoverTable(dir);
 }
 function setMoverType(type, btn) {
@@ -7643,12 +7671,27 @@ function updateFxHeader() {
     }
   }
   if (chgEl) {
-    const up = (pair.pct || 0) >= 0;
-    chgEl.className = up ? 'up-txt' : 'down-txt';
     chgEl.style.fontSize = '14px';
-    const chgAbs = Math.abs((pair.chg || 0) * dm);
-    const pctAbs = Math.abs(pair.pct || 0);
-    chgEl.textContent = (up ? '▲ ' : '▼ ') + chgAbs.toFixed(2) + ' (' + (up ? '+' : '-') + pctAbs.toFixed(2) + '%)';
+    if (fxInverted) {
+      // 역방향: 표시 수량(1000/rate 또는 1/rate)의 변화로 재계산 — 방향/색/단위가 정방향과 반대·다름
+      const prevCloseR = baseRate / (1 + (pair.pct || 0) / 100);
+      const base = pair.pair.split('/')[0];
+      const toDisp = v => isKrwDenom ? 1000 / v : 1 / v;
+      const decI = isKrwDenom ? (base === 'JPY' ? 2 : 4) : 6;
+      const dispCur = toDisp(baseRate);
+      const dispPrev = toDisp(prevCloseR);
+      const up = dispCur >= dispPrev;
+      const chgAbs = Math.abs(dispCur - dispPrev);
+      const pctAbs = dispPrev ? Math.abs((dispCur - dispPrev) / dispPrev * 100) : 0;
+      chgEl.className = up ? 'up-txt' : 'down-txt';
+      chgEl.textContent = (up ? '▲ ' : '▼ ') + chgAbs.toFixed(decI) + ' (' + (up ? '+' : '-') + pctAbs.toFixed(2) + '%)';
+    } else {
+      const up = (pair.pct || 0) >= 0;
+      chgEl.className = up ? 'up-txt' : 'down-txt';
+      const chgAbs = Math.abs((pair.chg || 0) * dm);
+      const pctAbs = Math.abs(pair.pct || 0);
+      chgEl.textContent = (up ? '▲ ' : '▼ ') + chgAbs.toFixed(2) + ' (' + (up ? '+' : '-') + pctAbs.toFixed(2) + '%)';
+    }
   }
 
   // 52주 범위
@@ -8107,10 +8150,12 @@ function toggleRateFilter(cc, btn) {
     rateFilterSet.delete(cc);
     btn.style.background='transparent';
     btn.style.opacity='0.5';
+    btn.setAttribute('aria-pressed','false');
   } else {
     rateFilterSet.add(cc);
     btn.style.background=rateColors[cc]+'44';
     btn.style.opacity='1';
+    btn.setAttribute('aria-pressed','true');
   }
   buildRateHistoryChart();
 }
@@ -18836,9 +18881,12 @@ function pfMarkDirty() {
 }
 
 // ── 서버 동기화 (Cloudflare Worker → 저장소 alerts_config.json) ───────────────
-// 보안 (1.2): 동기화 키는 평문 저장/전송하지 않는다. 입력 즉시 SHA-256 해시로 변환해
-// 해시만 localStorage 에 보관·전송하고, Worker 는 자기 시크릿의 해시와 비교 검증한다.
-// → localStorage 가 유출돼도 원본 키는 복원 불가, 네트워크 캡처에도 평문 키가 남지 않는다.
+// 보안 (1.2): 입력한 동기화 키를 SHA-256 해시로 변환해 해시만 localStorage 에 보관·전송한다.
+// Worker 는 자기 시크릿의 해시와 이 값을 그대로 비교한다(hash-to-hash).
+// ⚠ 주의: 서버가 해시 자체를 인증값으로 쓰므로, 전송/저장되는 해시가 곧 bearer 자격증명이다.
+//   즉 해시가 유출(TLS MITM·XSS 로 localStorage 탈취)되면 그대로 재전송해 쓰기 권한 획득 가능하다.
+//   해싱은 원본 키 노출만 줄일 뿐 재사용(replay) 은 막지 못한다 — 실질 보호는 TLS 전송이다.
+//   저엔트로피 사용자 입력 키는 rainbow-table 로 역산될 수 있으니 고엔트로피 키 사용을 권장한다.
 async function pfSha256Hex(s) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -18878,7 +18926,7 @@ async function pfSetSyncKey() {
     if(!k.trim()) { localStorage.removeItem('pfSyncKeyHash'); pfUpdateSyncKeyBtn(); return; }
     localStorage.setItem('pfSyncKeyHash', await pfSha256Hex(k.trim()));
     pfUpdateSyncKeyBtn();
-    if(typeof showToast === 'function') showToast('동기화 키가 SHA-256 해시로 안전하게 저장되었습니다.');
+    if(typeof showToast === 'function') showToast('동기화 키(SHA-256 해시)를 저장했습니다.');
   } catch(_) {}
 }
 // [3차-T13] 동기화 상태 표시 대상 선택 — 설정 페이지가 활성일 땐 그쪽 상태줄을 우선 사용.
