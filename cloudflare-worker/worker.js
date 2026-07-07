@@ -287,8 +287,20 @@ async function merFetchFulltext(logNo) {
 }
 async function handleMerBlog(request) {
   const u = new URL(request.url);
+  // ids= 모드: logNo 목록의 원문을 직접 조회(검색어 불필요). 다운로드 시 누락 원문 일괄 확보용.
+  //   프론트가 최대 10개씩 배치로 호출하지만 남용 방지로 서버에서도 30개 상한.
+  const idsParam = (u.searchParams.get('ids') || '').trim();
+  if (idsParam) {
+    const ids = idsParam.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s)).slice(0, 30);
+    const posts = await Promise.all(ids.map(async id => ({
+      logNo: id,
+      url: `https://blog.naver.com/${MER_BLOG_ID}/${id}`,
+      fullText: await merFetchFulltext(id),
+    })));
+    return jsonResponse({ blogId: MER_BLOG_ID, mode: 'ids', count: posts.length, posts });
+  }
   const q = (u.searchParams.get('q') || '').trim();
-  if (!q) return jsonResponse({ error: 'q(검색어) 필요' }, 400);
+  if (!q) return jsonResponse({ error: 'q(검색어) 또는 ids 필요' }, 400);
   const page = Math.max(1, parseInt(u.searchParams.get('page') || '1', 10) || 1);
   const size = Math.min(30, Math.max(1, parseInt(u.searchParams.get('size') || '10', 10) || 10));
   const sort = u.searchParams.get('sort') === 'date' ? 'date' : 'sim';

@@ -149,7 +149,7 @@
      용량 90%+ 절감. display=block: 아이콘 폰트는 swap 시 'menu_open' 같은 리거처 원문이
      그대로 보였다가 교체되는 결함이 있어 짧은 공백이 낫다(Google Fonts 권장).
      ⚠ 새 아이콘을 쓰려면 여기 icon_names 에도 추가해야 한다(빠지면 이름 텍스트가 그대로 노출). -->
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&icon_names=account_balance,calendar_month,candlestick_chart,compare_arrows,dark_mode,edit_note,home,home_work,light_mode,menu,menu_open,monitoring,public,refresh,settings,show_chart&display=block" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&icon_names=account_balance,article,calendar_month,candlestick_chart,compare_arrows,dark_mode,edit_note,home,home_work,light_mode,menu,menu_open,monitoring,public,refresh,settings,show_chart&display=block" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Public+Sans:wght@600;700;900&display=swap" rel="stylesheet"/>
 <!-- 브라우저 UI(스크롤바·폼 컨트롤)도 테마 추종 -->
 <meta name="color-scheme" content="light dark"/>
@@ -3432,9 +3432,30 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
           </select>
         </label>
         <button onclick="merblogSearch()" style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-sm);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;">검색</button>
-        <button id="merDl" onclick="merblogDownloadJson()" disabled style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 14px;font-size:12px;cursor:pointer;">JSON 다운로드</button>
+      </div>
+      <!-- 필터 바(검색 결과 좁히기): 카테고리 + 날짜 범위. 결과가 있을 때만 노출. -->
+      <div id="merFilters" class="mer-searchbar" style="display:none;margin-top:0;">
+        <label style="font-size:12px;color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">분류
+          <select id="merCat" onchange="merblogApplyAndRender()" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);padding:4px 6px;font-size:12px;max-width:200px;">
+            <option value="">전체</option>
+          </select>
+        </label>
+        <label style="font-size:12px;color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">기간
+          <input id="merFrom" type="date" onchange="merblogApplyAndRender()" aria-label="시작일" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);padding:4px 6px;font-size:12px;">
+          <span>~</span>
+          <input id="merTo" type="date" onchange="merblogApplyAndRender()" aria-label="종료일" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);padding:4px 6px;font-size:12px;">
+        </label>
+        <button onclick="merblogClearFilters()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:11px;cursor:pointer;">필터 초기화</button>
       </div>
       <div id="merStatus" style="font-size:12px;color:var(--c-txt-dim);margin-bottom:8px;" role="status" aria-live="polite"></div>
+      <!-- 일괄 선택/다운로드 바: 결과가 있을 때만 노출. -->
+      <div id="merBulk" style="display:none;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-card,transparent);">
+        <label style="font-size:12px;color:var(--c-txt);display:flex;align-items:center;gap:5px;cursor:pointer;"><input id="merSelAll" type="checkbox" onchange="merblogToggleAll(this)"> 전체 선택</label>
+        <span id="merSelCount" style="font-size:11px;color:var(--c-txt-dim);">0개 선택</span>
+        <span style="flex:1;"></span>
+        <button id="merDlSel" onclick="merblogDownloadSelected()" disabled style="background:transparent;color:var(--c-txt);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 12px;font-size:12px;cursor:pointer;">선택 항목 원문 JSON ⬇</button>
+        <button id="merDl" onclick="merblogDownloadJson()" disabled style="background:var(--c-accent);color:#fff;border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">전체 결과 원문 JSON ⬇</button>
+      </div>
       <div id="merResults"></div>
     </div><!-- /merblog -->
 
@@ -17363,11 +17384,14 @@ window.addEventListener('load', async ()=>{
 });
 
 // ── 📝 메르 블로그 검색 ──────────────────────────────────────────
-// 스냅샷(merblog.json, Task 2 산출물) 즉시 필터 + Worker GET /merblog(Task 4) 라이브 폴백.
-// Worker 베이스는 기존 CORS 프록시 상수를 재사용(_cfProxyBase()) — 별도 URL 하드코딩 금지.
+// 스냅샷(merblog.json) 즉시 필터 + Worker GET /merblog(라이브) 폴백.
+// 원문 확보: Worker GET /merblog?ids=<logNo,...> (by-logNo 직접 조회) — 원문 보기/다운로드 시
+//   fullText 없는 글을 일괄 로드. Worker 베이스는 기존 CORS 프록시 상수 재사용(_cfProxyBase()).
 let _merSnapshot = null;      // merblog.json 캐시
-let _merLastResults = [];     // JSON 다운로드용 마지막 결과
+let _merRawResults = [];      // 검색 원본(분류·날짜 필터 적용 전)
+let _merLastResults = [];     // 필터 적용 후 — 화면/다운로드 대상
 let _merLastQuery = '';
+let _merSnapMeta = '';        // 상태줄 앞부분(검색 요약) 재사용용
 
 async function merblogInit(){
   if(_merSnapshot) return _merSnapshot;
@@ -17384,10 +17408,8 @@ async function merblogSearch(){
   const live = document.getElementById('merLive').checked;
   const sort = document.getElementById('merSort').value;
   const status = document.getElementById('merStatus');
-  const dl = document.getElementById('merDl');
   _merLastQuery = q;
   if(!q){ status.textContent='검색어를 입력하세요.'; return; }
-  dl.disabled = true;
   if(!live){
     // 스냅샷 클라이언트 필터(즉시)
     status.textContent = '스냅샷에서 검색 중…';
@@ -17398,10 +17420,10 @@ async function merblogSearch(){
       (p.excerpt||'').toLowerCase().includes(ql) ||
       (p.fullText||'').toLowerCase().includes(ql));
     if(sort==='date') hits = hits.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-    _merLastResults = hits;
-    merblogRenderResults(hits, 'snapshot');
-    status.textContent = `스냅샷 ${hits.length}건 (전체기간은 '라이브' 체크). ${snap.posts?snap.posts.length:0}개 글 색인.`;
-    dl.disabled = hits.length===0;
+    _merRawResults = hits;
+    _merSnapMeta = `스냅샷 ${hits.length}건 (전체기간은 '라이브' 체크). ${snap.posts?snap.posts.length:0}개 글 색인.`;
+    merblogPopulateCats(hits);
+    merblogApplyAndRender();
     return;
   }
   // 라이브(Worker) — 네이버 검색 API는 size 파라미터를 무시하고 페이지당 약 20건만 반환하므로
@@ -17414,28 +17436,86 @@ async function merblogSearch(){
     const r = await fetch(url);
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d = await r.json();
-    _merLastResults = d.posts||[];
-    merblogRenderResults(_merLastResults, 'live');
-    status.textContent = `전체 ${d.totalCount||0}건 중 ${d.count||_merLastResults.length}건 표시. 원문은 '원문 보기'로 로드.`;
-    dl.disabled = (_merLastResults.length===0);
+    _merRawResults = d.posts||[];
+    _merSnapMeta = `전체 ${d.totalCount||0}건 중 ${d.count||_merRawResults.length}건 표시.`;
+    merblogPopulateCats(_merRawResults);
+    merblogApplyAndRender();
   }catch(e){
     status.textContent = '라이브 검색 실패: '+e.message+' (스냅샷으로 다시 시도해 보세요)';
   }
 }
 
-function merblogRenderResults(posts, mode){
+// 분류 드롭다운 채우기(현재 선택 보존).
+function merblogPopulateCats(posts){
+  const sel = document.getElementById('merCat');
+  if(!sel) return;
+  const cur = sel.value;
+  const cats = Array.from(new Set((posts||[]).map(p=>p.category).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="">전체 분류</option>' +
+    cats.map(c=>`<option value="${_merEsc(c)}">${_merEsc(c)}</option>`).join('');
+  sel.value = (cur && cats.includes(cur)) ? cur : '';
+}
+
+// 분류 + 날짜(from~to) 필터 적용 → 렌더 + 컨트롤/상태 갱신.
+function merblogApplyAndRender(){
+  const cat  = (document.getElementById('merCat')||{}).value || '';
+  const from = (document.getElementById('merFrom')||{}).value || '';
+  const to   = (document.getElementById('merTo')||{}).value || '';
+  let list = _merRawResults.slice();
+  if(cat)  list = list.filter(p=>p.category===cat);
+  if(from) list = list.filter(p=>(p.date||'').slice(0,10) >= from);
+  if(to)   list = list.filter(p=>(p.date||'').slice(0,10) <= to);
+  _merLastResults = list;
+  merblogRenderResults(list);
+  const has = _merRawResults.length>0;
+  document.getElementById('merFilters').style.display = has?'flex':'none';
+  document.getElementById('merBulk').style.display = has?'flex':'none';
+  const dl = document.getElementById('merDl'); if(dl) dl.disabled = list.length===0;
+  const selAll = document.getElementById('merSelAll'); if(selAll) selAll.checked = false;
+  const filtered = !!(cat||from||to);
+  const status = document.getElementById('merStatus');
+  status.textContent = `${_merSnapMeta}${filtered?` 필터 후 ${list.length}건.`:''} 원문은 다운로드 시 자동 로드.`;
+  merblogUpdateSel();
+}
+
+function merblogClearFilters(){
+  ['merCat','merFrom','merTo'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  merblogApplyAndRender();
+}
+
+function merblogRenderResults(posts){
   const box = document.getElementById('merResults');
   if(!posts || !posts.length){ box.innerHTML = '<p style="font-size:12px;color:var(--c-txt-dim);">결과 없음.</p>'; return; }
   box.innerHTML = posts.map(p => {
-    return `<div class="mer-item" id="mer-${_merEsc(String(p.logNo))}">
-      <h3>${_merEsc(p.title)}</h3>
-      <div class="mer-meta">${_merEsc(p.date||'')} · ${_merEsc(p.category||'')}
-        · <a href="${_merEsc(p.url||'')}" target="_blank" rel="noopener">원글↗</a></div>
-      <div class="mer-excerpt">${_merEsc(p.excerpt||'')}</div>
-      <button onclick="merblogToggleFull('${_merEsc(String(p.logNo))}',this)">원문 보기</button>
-      <div class="mer-full" style="display:none"></div>
+    const id = _merEsc(String(p.logNo));
+    return `<div class="mer-item" id="mer-${id}">
+      <div style="display:flex;gap:8px;align-items:flex-start;">
+        <input type="checkbox" class="mer-sel" value="${id}" onchange="merblogUpdateSel()" aria-label="이 글 선택" style="margin-top:3px;flex-shrink:0;">
+        <div style="flex:1;min-width:0;">
+          <h3>${_merEsc(p.title)}</h3>
+          <div class="mer-meta">${_merEsc(p.date? String(p.date).slice(0,10):'')} · ${_merEsc(p.category||'')}
+            · <a href="${_merEsc(p.url||'')}" target="_blank" rel="noopener">원글↗</a></div>
+          <div class="mer-excerpt">${_merEsc(p.excerpt||'')}</div>
+          <button onclick="merblogToggleFull('${id}',this)">원문 보기</button>
+          <div class="mer-full" style="display:none"></div>
+        </div>
+      </div>
     </div>`;
   }).join('');
+}
+
+// 선택 상태 헬퍼 ────────────────────────────────
+function merblogSelectedLogNos(){
+  return Array.from(document.querySelectorAll('#merResults .mer-sel:checked')).map(el=>el.value);
+}
+function merblogToggleAll(cb){
+  document.querySelectorAll('#merResults .mer-sel').forEach(el=>{ el.checked = cb.checked; });
+  merblogUpdateSel();
+}
+function merblogUpdateSel(){
+  const n = merblogSelectedLogNos().length;
+  const c = document.getElementById('merSelCount'); if(c) c.textContent = `${n}개 선택`;
+  const b = document.getElementById('merDlSel'); if(b) b.disabled = n===0;
 }
 
 async function merblogToggleFull(logNo, btn){
@@ -17446,13 +17526,12 @@ async function merblogToggleFull(logNo, btn){
   if(post && post.fullText){
     box.textContent = post.fullText; box.style.display='block'; btn.textContent='원문 접기'; return;
   }
-  // 라이브 온디맨드 로드(스냅샷 결과는 최신 ~20건만 fullText 보유 — 그 외는 Worker 재조회)
+  // 온디맨드 로드 — logNo 로 원문 직접 조회(ids= 모드). 쿼리 재검색보다 정확·빠름.
   btn.disabled=true; btn.textContent='불러오는 중…';
   try{
     const base = _cfProxyBase();
     if(!base) throw new Error('Worker 프록시 미설정');
-    const q = _merLastQuery || (post && post.title) || '';
-    const r = await fetch(`${base}/merblog?q=${encodeURIComponent(q)}&size=20&full=1&fullK=20`);
+    const r = await fetch(`${base}/merblog?ids=${encodeURIComponent(String(logNo))}`);
     const d = await r.json();
     const hit = (d.posts||[]).find(p=>String(p.logNo)===String(logNo));
     const txt = hit && hit.fullText ? hit.fullText : '(원문을 불러오지 못했습니다. 원글↗ 링크를 이용하세요.)';
@@ -17463,18 +17542,65 @@ async function merblogToggleFull(logNo, btn){
   }finally{ btn.disabled=false; }
 }
 
-function merblogDownloadJson(){
+// 누락 원문 일괄 확보 — Worker ids= 모드로 10개씩 배치 조회, 원본 객체에 fullText 채움.
+async function merblogEnsureFull(posts, onProgress){
+  const missing = posts.filter(p=>p && !p.fullText && p.logNo);
+  if(!missing.length) return;
+  const base = _cfProxyBase();
+  if(!base) throw new Error('Worker 프록시 미설정 — 원문 자동 로드 불가(원글↗ 링크 이용)');
+  for(let i=0;i<missing.length;i+=10){
+    const batch = missing.slice(i,i+10);
+    if(onProgress) onProgress(Math.min(i+batch.length, missing.length), missing.length);
+    try{
+      const ids = batch.map(p=>p.logNo).join(',');
+      const r = await fetch(`${base}/merblog?ids=${encodeURIComponent(ids)}`);
+      if(!r.ok) continue;
+      const d = await r.json();
+      (d.posts||[]).forEach(fp=>{
+        const t = missing.find(p=>String(p.logNo)===String(fp.logNo));
+        if(t && fp.fullText) t.fullText = fp.fullText;
+      });
+    }catch(e){ /* 배치 실패는 건너뛰고 나머지 계속 */ }
+  }
+}
+
+// 공용 다운로드 — 원문 확보 후 JSON 저장.
+async function _merDoDownload(posts, tag, btns){
+  if(!posts.length) return;
+  const status = document.getElementById('merStatus');
+  btns.forEach(b=>{ if(b) b.disabled = true; });
+  try{
+    await merblogEnsureFull(posts, (done,total)=>{ status.textContent = `원문 불러오는 중… ${done}/${total}`; });
+  }catch(e){ status.textContent = '원문 로드 경고: '+e.message+' (확보된 내용만 저장)'; }
+  const withFull = posts.filter(p=>p.fullText).length;
   const out = {
     blogId:'ranto28', blogName:'메르의 블로그',
     query:_merLastQuery, exportedAt:new Date().toISOString(),
-    count:_merLastResults.length, posts:_merLastResults,
+    count:posts.length, fullTextCount:withFull, posts,
   };
   const blob = new Blob([JSON.stringify(out,null,2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `merblog_${(_merLastQuery||'search').replace(/[^\w가-힣]+/g,'_')}_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `merblog_${tag}_${(_merLastQuery||'search').replace(/[^\w가-힣]+/g,'_')}_${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(a.href);
+  status.textContent = `다운로드 완료: ${posts.length}건(원문 ${withFull}건 포함).`;
+  btns.forEach(b=>{ if(b) b.disabled = false; });
+  merblogUpdateSel();  // 선택 다운로드 버튼 상태 복원
+}
+
+// 전체 결과(필터 적용분) 원문 포함 다운로드.
+async function merblogDownloadJson(){
+  await _merDoDownload(_merLastResults, 'all',
+    [document.getElementById('merDl'), document.getElementById('merDlSel')]);
+}
+// 체크한 글만 원문 포함 다운로드.
+async function merblogDownloadSelected(){
+  const ids = new Set(merblogSelectedLogNos());
+  const sel = _merLastResults.filter(p=>ids.has(String(p.logNo)));
+  if(!sel.length){ document.getElementById('merStatus').textContent='선택된 글이 없습니다.'; return; }
+  await _merDoDownload(sel, 'selected',
+    [document.getElementById('merDl'), document.getElementById('merDlSel')]);
 }
 </script>
 
