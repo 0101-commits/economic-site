@@ -573,11 +573,16 @@ def main():
     if IS_TEST and settings.get("enabled") is False:
         header += "\n⚠ 전역 알림이 OFF 상태입니다 — 정규 알림은 발송되지 않습니다 (테스트만 동작)"
     if IS_TEST and not triggered:
-        # 테스트인데 충족 알림이 없어도 확인 메시지 1통은 보낸다 — '파이프라인 정상' 즉시 검증이 목적
-        kakao.send_memo(access_token,
-                        f"{header}\n알림 {len(alerts)}건 평가 — 현재 충족 조건 없음 (설정·발송 경로 정상)\n{DELAY_NOTICE}",
-                        with_button=True, uuids=uuids)
-        print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
+        # 테스트인데 충족 알림이 없어도 확인 메시지 1통은 보낸다 — '파이프라인 정상' 즉시 검증이 목적.
+        # send_memo 는 발송 실패 시 SystemExit 를 던진다 — 정규 발송 루프(아래)처럼 삼켜 job 을 죽이지
+        # 않는다(테스트 발송 실패가 workflow 실패로 이어지는 것 방지).
+        try:
+            kakao.send_memo(access_token,
+                            f"{header}\n알림 {len(alerts)}건 평가 — 현재 충족 조건 없음 (설정·발송 경로 정상)\n{DELAY_NOTICE}",
+                            with_button=True, uuids=uuids)
+            print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
+        except SystemExit as e:
+            print(f"::warning title=테스트 발송 실패::{e} — 토큰/발송 문제 추정(KAKAO_SETUP.md 참고)")
         return
 
     # 발송 통 구성 — MAX_MSGS 초과분은 packed_ids 에서 빠져 미확정으로 남는다(다음 런 재시도).
