@@ -208,6 +208,53 @@ def _http_get(url, headers=None):
             return e.code, {}
 
 
+def _update_github_secret(name, value):
+    """회전된 refresh_token 을 GitHub Actions Secret 에 자동 반영(auto-rotate) → 사실상 무기한 연장.
+
+    카카오는 refresh_token 만료 1개월 전부터 갱신 때마다 '새 refresh_token' 을 함께 준다.
+    이 함수가 그 값을 시크릿에 되써 주면 매달 스스로 연장돼 '수동 재발급'이 사라진다.
+    필요: 저장소 시크릿 GH_SECRETS_PAT(이 저장소 Secrets: write 권한 PAT). 없으면 조용히 skip
+    (기존 토큰이 회전 후에도 ~1개월 유효 → 다음 회전/수동 갱신으로 복구되므로 발송은 안 끊긴다).
+    실패해도 예외를 올리지 않는다(발송 자체는 이미 성공한 뒤 호출)."""
+    pat = os.environ.get("GH_SECRETS_PAT", "").strip()
+    repo = os.environ.get("GITHUB_REPOSITORY", "").strip()   # Actions 가 자동 제공 "owner/name"
+    if not pat or not repo:
+        print("::warning title=토큰 자동회전 불가::GH_SECRETS_PAT 미설정 — 회전된 refresh_token 을 "
+              "자동 저장하지 못했습니다. 기존 토큰은 ~1개월 유효하나, KAKAO_SETUP.md 절차로 수동 갱신 필요.")
+        return False
+    try:
+        import base64
+        import requests
+        from nacl import public, encoding
+    except Exception as e:
+        print(f"::warning title=토큰 자동회전 불가::pynacl/requests 미설치({e}) — 수동 갱신 필요")
+        return False
+    api = f"https://api.github.com/repos/{repo}/actions/secrets"
+    hdr = {"Authorization": f"Bearer {pat}", "Accept": "application/vnd.github+json",
+           "X-GitHub-Api-Version": "2022-11-28"}
+    try:
+        pk = requests.get(f"{api}/public-key", headers=hdr, timeout=15)
+        if pk.status_code != 200:
+            print(f"::warning title=토큰 자동회전 실패::public-key HTTP {pk.status_code} — 수동 갱신 필요")
+            return False
+        pkj = pk.json()
+        # GitHub Actions 시크릿은 저장소 공개키로 libsodium sealed box 암호화해 올린다.
+        sealed = public.SealedBox(
+            public.PublicKey(pkj["key"], encoding.Base64Encoder())).encrypt(value.encode("utf-8"))
+        put = requests.put(f"{api}/{name}", headers=hdr, timeout=15,
+                           json={"encrypted_value": base64.b64encode(sealed).decode(),
+                                 "key_id": pkj["key_id"]})
+        if put.status_code in (201, 204):
+            print(f"::notice title=토큰 자동회전 완료::{name} 시크릿을 새 refresh_token 으로 갱신했습니다 "
+                  "(다음 런부터 자동 적용 — 수동 재발급 불필요).")
+            return True
+        print(f"::warning title=토큰 자동회전 실패::PUT HTTP {put.status_code} {put.text[:120]} — 수동 갱신 필요")
+        return False
+    except Exception as e:
+        print(f"::warning title=토큰 자동회전 실패::{e} — 수동 갱신 필요")
+        return False
+
+
 def refresh_access_token(rest_key, refresh_token):
     """refresh_token 으로 access_token 을 재발급한다."""
     status, j = _http_post_retry("https://kauth.kakao.com/oauth/token", {
@@ -217,14 +264,16 @@ def refresh_access_token(rest_key, refresh_token):
     }, what="토큰 재발급")
     if status != 200 or not j.get("access_token"):
         raise SystemExit(f"[kakao] access_token 재발급 실패: HTTP {status} {j}")
-    # refresh_token 유효기간이 1개월 미만이면 카카오가 새 토큰을 함께 준다 → 시크릿 교체 안내.
+    # refresh_token 유효기간이 1개월 미만이면 카카오가 새 토큰을 함께 준다.
     if j.get("refresh_token"):
-        # ⚠ 보안: 공개 저장소라 Actions 로그가 공개된다 → 새 토큰을 로그에 노출하면 안 됨(마스킹 유지).
-        #    기존 refresh_token 은 회전 후에도 약 1개월 유효하므로, 그 안에 재발급하면 된다.
-        print("::warning title=KAKAO_REFRESH_TOKEN 회전됨::카카오가 refresh_token 을 회전했습니다. "
-              "기존 토큰은 약 1개월 더 유효하나, 만료 전 KAKAO_SETUP.md 절차로 재발급해 GitHub Secret 을 "
-              "갱신하세요. (보안상 새 토큰 값은 공개 로그에 노출하지 않습니다.)")
+        # ⚠ 보안: 공개 저장소라 Actions 로그가 공개된다 → 새 토큰 값은 절대 로그에 노출 금지(마스킹 먼저).
         print(f"::add-mask::{j['refresh_token']}")
+        # auto-rotate: 새 토큰을 GitHub Secret 에 자동 반영해 사실상 무기한 연장(수동 재발급 제거).
+        # GH_SECRETS_PAT 없거나 실패하면 경고만 — 기존 토큰이 회전 후 ~1개월 유효해 발송은 안 끊긴다.
+        if not _update_github_secret("KAKAO_REFRESH_TOKEN", j["refresh_token"]):
+            print("::warning title=KAKAO_REFRESH_TOKEN 회전됨::카카오가 refresh_token 을 회전했으나 "
+                  "자동 반영에 실패했습니다. 기존 토큰은 약 1개월 더 유효 — 그 안에 KAKAO_SETUP.md 절차로 "
+                  "GitHub Secret 을 갱신하세요.")
     return j["access_token"]
 
 

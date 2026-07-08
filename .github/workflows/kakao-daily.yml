@@ -137,7 +137,7 @@ jobs:
 
       - name: Install chart deps
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
-        run: pip install matplotlib requests
+        run: pip install matplotlib requests pynacl
 
       - name: Send KakaoTalk digest
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
@@ -147,6 +147,9 @@ jobs:
           KAKAO_SLOT: ${{ steps.gate.outputs.slot }}
           KAKAO_CHARTS: ${{ vars.KAKAO_CHARTS || '1' }}
           KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '1' }}
+          # 토큰 auto-rotate 용 — 카카오가 refresh_token 을 회전할 때(만료 1개월 전) 새 토큰을
+          # 이 PAT 로 KAKAO_REFRESH_TOKEN 시크릿에 자동 반영 → 수동 재발급 제거. 미설정이면 조용히 skip.
+          GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
         run: |
           python scripts/send_kakao_digest.py
           touch .kakao_sent_marker   # 발송 성공 후에만 마커 생성(실패 시 -e 로 중단 → 다음 깨움이 재시도)
