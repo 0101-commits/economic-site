@@ -112,8 +112,14 @@ def main():
     # pending=True = 직전 런에서 발송에 실패해 재시도 대기 중인 발동 → 다시 발송 대상에 포함(누락 방지).
     new_events = [h for h in active
                   if h["id"] not in state or state[h["id"]].get("pending")]
-    resolved_ids = [hid for hid in state
-                    if hid not in active_ids and not state[hid].get("resolvedSent")]
+    # active 에서 사라진(=거래 재개) 사건들. 이 중 '발동을 실제로 보낸'(fireSent) 것만 해제 발송.
+    # 발동을 끝내 못 보낸 사건(전송 실패 후 재시도 소진 포기, 또는 stale 로 index 발동이 계속 보류된
+    # 채로 해제)에 '해제'만 보내면 사용자가 '발동' 없이 '해제'만 받는 유령 알림이 된다 → abandoned 로
+    # 분류해 조용히 제거한다.
+    gone_ids = [hid for hid in state
+                if hid not in active_ids and not state[hid].get("resolvedSent")]
+    resolved_ids = [hid for hid in gone_ids if state[hid].get("fireSent")]
+    abandoned_ids = [hid for hid in gone_ids if not state[hid].get("fireSent")]
 
     # 🛡 데이터 신선도 가드 — 지수 수집이 비어 halt 감지가 '깜깜이'로 돈 빌드(marketHalts.stale=True)
     #    에서는 지수기반(source=index) 신규 발동을 신뢰하지 않는다. 뉴스/KRX 출처와 '해제'는 그대로 처리.
@@ -129,7 +135,7 @@ def main():
         else:
             try:
                 token = kakao.refresh_access_token(rest_key, refresh_token)
-            except SystemExit as e:
+            except (SystemExit, Exception) as e:   # SystemExit(응답오류) + 네트워크예외(URLError/timeout)
                 print(f"::error title=Kakao 토큰 재발급 실패::{e} — 발송 건너뜀(다음 런 재시도)")
                 token = None
             if token:
@@ -155,6 +161,7 @@ def main():
                         _send_all(token, uuids, _fire_msg(h))
                         rec["pending"] = False
                         rec["tries"] = 0
+                        rec["fireSent"] = True   # 발동 실제 발송 확정 — 이후 '해제' 발송 자격
                         print(f"[halts] 발동 발송: {h['id']}")
                     except (SystemExit, Exception) as e:
                         if int(rec.get("tries", 0)) >= GIVE_UP_TRIES:
@@ -175,6 +182,11 @@ def main():
                         print(f"::warning title=halt 해제 발송 실패::{hid}({e}) — 다음 런 재시도")
     else:
         print(f"[halts] 변동 없음 — active {len(active)}건")
+
+    # '발동'을 끝내 못 보낸 채 거래 재개된 사건 제거 — 해제 발송 없이 조용히 폐기(유령 해제 방지).
+    for hid in abandoned_ids:
+        if state.pop(hid, None) is not None:
+            print(f"[halts] 발동 미발송 사건 폐기(해제 미발송): {hid}")
 
     # 오래된 이력 정리 — 해제 완료 사건은 2일 후 제거
     cutoff = now - datetime.timedelta(days=2)
