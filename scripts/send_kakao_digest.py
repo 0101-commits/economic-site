@@ -842,18 +842,34 @@ def kakao_upload_image(access_token, png_path):
                 "https://kapi.kakao.com/v2/api/talk/message/image/upload",
                 headers={"Authorization": f"Bearer {access_token}"},
                 files={"file": fp}, timeout=25)
-    try:
-        r = _retry(_upload, "차트 업로드")
-        if r.status_code != 200:
-            print(f"[chart] 업로드 실패 HTTP {r.status_code}: {r.text[:200]}")
-            return None
-        url = (((r.json().get("infos") or {}).get("original") or {}).get("url"))
-        if url:
-            print(f"[chart] 업로드 성공: {url}")
-        return url
-    except Exception as e:
-        print(f"[chart] 업로드 오류 ({e})")
+    # 전송오류(예외)뿐 아니라 일시 서버오류(429/5xx)도 재시도한다 — 카카오 이미지 서버가 429/502 를
+    # 한 번 돌려주면 (구) _retry 는 그대로 None 을 반환해 '차트 없는 텍스트 폴백'으로 나갔다
+    # (사용자 보고: "가끔 사진이 안 뜸"). 이제 업로드도 토큰/발송과 같은 백오프 재시도를 쓴다.
+    tries, delay = 3, 2
+    for i in range(tries):
+        try:
+            r = _upload()
+        except Exception as e:
+            if i == tries - 1:
+                print(f"[chart] 업로드 오류 ({e})")
+                return None
+            print(f"[retry] 차트 업로드 전송오류({e}) — {delay}s 후 재시도 ({i + 2}/{tries})")
+            time.sleep(delay)
+            delay *= 2
+            continue
+        if r.status_code == 200:
+            url = (((r.json().get("infos") or {}).get("original") or {}).get("url"))
+            if url:
+                print(f"[chart] 업로드 성공: {url}")
+            return url
+        if r.status_code in RETRYABLE_STATUS and i < tries - 1:
+            print(f"[retry] 차트 업로드 HTTP {r.status_code} — {delay}s 후 재시도 ({i + 2}/{tries})")
+            time.sleep(delay)
+            delay *= 2
+            continue
+        print(f"[chart] 업로드 실패 HTTP {r.status_code}: {r.text[:200]}")
         return None
+    return None
 
 
 def build_feed_parts(blocks):
@@ -951,31 +967,42 @@ def main():
     slot = _resolve_slot(weekend)
     apply_live_quotes(data)                          # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
     title, blocks = build_digest_parts(data)         # 제목 시각은 실제 발송 시각(now) 기준
-    access_token = refresh_access_token(rest_key, refresh_token)
 
-    # 수신 모드 자동 판별 — 연결·동의된 친구가 있으면 '친구에게 보내기'(푸시 알림 정상),
-    # 없으면 종전대로 '나에게 보내기'(나와의 채팅, 알림 없음).
-    friends = get_friends(access_token) if _friends_enabled() else []
-    uuids = [f["uuid"] for f in friends]
-    if uuids:
-        names = ", ".join(f.get("profile_nickname") or "?" for f in friends)
-        print(f"[kakao] 수신: 친구 {len(uuids)}명 ({names})")
-    else:
-        print("[kakao] 수신: 나와의 채팅(메모)")
+    # 토큰 재발급·발송 실패는 '매 슬롯(평일 16회) 실행'이라 job 실패 시 GitHub 실패 알림 메일이
+    # 슬롯마다 쏟아진다. (2026-07-08 18:00 KST~ KAKAO_REFRESH_TOKEN 만료/회전 추정으로 전 슬롯
+    # 실패가 연속 발생해 실패 알림이 도배된 사건.) check_alerts.py 와 동일하게 SystemExit 를 삼켜
+    # ::warning + 정상 종료(exit 0)로 알림 스팸을 막는다. 단, 이는 '증상(스팸)'만 멈추는 것 —
+    # 토큰 만료면 KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신해야 실제 발송이 복구된다.
+    try:
+        access_token = refresh_access_token(rest_key, refresh_token)
 
-    # ① 기본(통일) 형식 = '한 통' 피드: 슬롯별 차트 이미지 + 증시·환율(설명)
-    #    + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
-    #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
-    if _charts_enabled():
-        if send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=uuids):
-            print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
-            return
-        print("[kakao] 차트 피드 실패 — 동일 내용 텍스트로 폴백")
+        # 수신 모드 자동 판별 — 연결·동의된 친구가 있으면 '친구에게 보내기'(푸시 알림 정상),
+        # 없으면 종전대로 '나에게 보내기'(나와의 채팅, 알림 없음).
+        friends = get_friends(access_token) if _friends_enabled() else []
+        uuids = [f["uuid"] for f in friends]
+        if uuids:
+            names = ", ".join(f.get("profile_nickname") or "?" for f in friends)
+            print(f"[kakao] 수신: 친구 {len(uuids)}명 ({names})")
+        else:
+            print("[kakao] 수신: 나와의 채팅(메모)")
 
-    # ② 최후 폴백: 기본 텍스트 한 통 — 피드와 '동일한 공통 블록(증시~운임)' + '대시보드 보기' 버튼.
-    #    (콘솔 커스텀 템플릿 폴백은 형식이 달라 혼란을 줬으므로 제거 — 2026-06-10 10시 사례)
-    send_memo(access_token, build_text_message(title, blocks), with_button=True, uuids=uuids)
-    print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
+        # ① 기본(통일) 형식 = '한 통' 피드: 슬롯별 차트 이미지 + 증시·환율(설명)
+        #    + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
+        #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
+        if _charts_enabled():
+            if send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=uuids):
+                print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
+                return
+            print("[kakao] 차트 피드 실패 — 동일 내용 텍스트로 폴백")
+
+        # ② 최후 폴백: 기본 텍스트 한 통 — 피드와 '동일한 공통 블록(증시~운임)' + '대시보드 보기' 버튼.
+        #    (콘솔 커스텀 템플릿 폴백은 형식이 달라 혼란을 줬으므로 제거 — 2026-06-10 10시 사례)
+        send_memo(access_token, build_text_message(title, blocks), with_button=True, uuids=uuids)
+        print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
+    except SystemExit as e:
+        print(f"::warning title=Kakao 발송 건너뜀::{e} — 토큰 만료/회전 또는 발송 실패 추정. "
+              "KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신하면 다음 슬롯부터 발송이 복구됩니다. "
+              "(워크플로는 정상 종료 — 매 슬롯 실패 알림 메일 방지)")
 
 
 if __name__ == "__main__":
