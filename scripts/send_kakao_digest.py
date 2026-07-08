@@ -122,11 +122,15 @@ _CHART_COLOR = {"KOSPI": "#2962ff", "SP500": "#1e88e5", "USDKRW": "#26a69a",
 _YH_SYM = {"KOSPI": "^KS11", "SP500": "^GSPC", "USDKRW": "KRW=X", "WTI": "CL=F",
            "Gold": "GC=F", "USDJPY": "JPY=X", "NatGas": "NG=F", "Silver": "SI=F",
            "Copper": "HG=F", "Wheat": "ZW=F"}
-# 차트 PNG 크기(px) — 카톡 피드 이미지는 말풍선 '폭'이 고정이고 높이만 비율을 따라 늘어나므로,
-# 가로형(구 720x640)은 화면에서 작게 보인다. 잘리지 않는 최대 세로 비율(3:4)·고해상도로 키운다.
-# (2026-06 사용자 요청: 카톡 사진이 작아 잘 안 보임)
+# 차트 PNG 크기(px) — 카톡 피드 이미지는 말풍선 '폭'이 고정이고 높이만 비율을 따라 늘어난다.
+# 카카오 이미지 표시 허용 비율은 가로 2:1 ~ 세로 3:4 이며, '3:4 를 초과(더 세로로 김)'하면 상단
+# 기준으로 자동 크롭된다. 1080x1440 은 정확히 3:4(경계선)라, 카카오가 큰 이미지를 재인코딩·
+# 리사이즈할 때 반올림으로 경계를 살짝 넘으면 상단이 잘리는 일이 생겼다(2026-07 사용자 보고:
+# "사진이 잘릴 때가 있음"). → 경계에서 안전 여백을 둔 4:5(세로형, 폭/높이=0.8)로 낮춰 어떤
+# 재인코딩에도 크롭되지 않게 한다. 픽셀도 과대하지 않게(≤1080) 유지해 서버 리사이즈를 줄인다.
+# (2026-06 사용자 요청 '사진이 작음'은 비율이 좌우 — 4:5 도 세로형이라 말풍선에서 크게 보인다.)
 _CHART_DPI = 150
-CHART_PX = (1080, 1440)
+CHART_PX = (864, 1080)   # 4:5 (세로형, 2:1~3:4 허용대 안쪽 안전 여백)
 
 
 def _retry(fn, what, tries=3, delay=2):
@@ -391,10 +395,18 @@ def _send_template_object(access_token, template, uuids=None):
     worst = (200, {})
     for i in range(0, len(uuids), 5):
         chunk = uuids[i:i + 5]
-        status, j = _http_post_retry(
-            "https://kapi.kakao.com/v1/api/talk/friends/message/default/send",
-            dict(payload, receiver_uuids=json.dumps(chunk)), headers,
-            what=f"메시지 발송(친구 {i + 1}~{i + len(chunk)}번째)")
+        # 청크별 전송오류(URLError/타임아웃 등 재시도 소진)를 예외로 던지지 않고 '실패 status'로
+        # 흡수한다 — 앞 청크가 성공(200)한 뒤 뒤 청크에서 예외가 튀면 send 전체가 크래시하고
+        # (kakao-daily) 발송 마커가 안 찍혀 다음 깨움이 '이미 받은 친구에게' 전체 재발송하던 문제 방지.
+        try:
+            status, j = _http_post_retry(
+                "https://kapi.kakao.com/v1/api/talk/friends/message/default/send",
+                dict(payload, receiver_uuids=json.dumps(chunk)), headers,
+                what=f"메시지 발송(친구 {i + 1}~{i + len(chunk)}번째)")
+        except Exception as e:
+            print(f"[kakao] 친구 {i + 1}~{i + len(chunk)}번째 전송오류({e}) — 실패 처리")
+            worst = (0, {"error": str(e)})
+            continue
         if status != 200:
             worst = (status, j)
         elif j.get("failure_info"):

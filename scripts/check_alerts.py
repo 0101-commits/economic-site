@@ -51,10 +51,15 @@ CONFIG_PATH = os.path.join(ROOT, "alerts_config.json")
 STATE_PATH = os.path.join(ROOT, "alerts_state.json")
 TEXT_LIMIT = 200          # 카카오 텍스트 템플릿 길이 제한
 MAX_MSGS = 3              # 1회 실행당 최대 발송 통수(폭주 방지)
+GIVE_UP_TRIES = 3         # 발송 실패 재시도 상한 — 이 횟수 넘게 실패하면 이력 확정(무한 재시도·크래시 스팸 방지)
 DELAY_NOTICE = "※ 무료 시세 기준(지연 가능)"
 # 시세 오염 방어 — 무료 프록시가 0/오종목/캐시된 이상치를 돌려줄 수 있다.
-# 전일 종가 대비 이 %를 넘게 벌어진 스냅샷은 오염 의심으로 폐기(국내 상·하한 ±30% 여유 위).
-SANE_MOVE_PCT = 50.0
+# 전일 종가 대비 이 %를 넘게 벌어진 스냅샷은 오염 의심으로 폐기한다. 단 '상·하한폭'이 시장마다
+# 다르다: 국내(KR)는 ±30% 제한이 있어 50%면 충분하지만, 미국(US)은 상·하한이 없어 바이오·소형주가
+# FDA/M&A 로 하루 +60~150% 급등하는 게 정상이다. 이걸 오염으로 폐기하면 '가장 받고 싶은 큰 알림'을
+# 오히려 놓친다(2026-07 감사). → 시장별로 임계값을 분리한다.
+SANE_MOVE_PCT_KR = 50.0
+SANE_MOVE_PCT_US = 400.0  # 미국 무제한 — 명백한 프록시 글리치(수백 % 초과)만 폐기
 
 # 🔔 테스트 발송 모드 — 프런트 '테스트 발송' 버튼 → Worker /portfolio/test →
 # repository_dispatch(alerts-test) 로 실행된 런. 설정 검증이 목적이므로
@@ -362,22 +367,6 @@ def _write_state(state, alerts, now):
         f.write("\n")
 
 
-def _stamp_and_write(state, triggered, alerts, now):
-    """충족 알림에 date/ts 스탬프 후 alerts_state.json 기록.
-
-    ⚠ '발송 전에' 호출한다 — 카카오 전송이 5xx 등으로 실패해도(메시지는 이미 나갔을 수 있음)
-    이력이 남아, 다음 런에서 같은 알림이 매분 재발송되는 스팸 루프를 막는다.
-    (전송 성공 보장보다 재발송 억제를 우선한다 — 교차형은 met, 이벤트형은 date/ts 로 재무장 관리.)"""
-    ds = now.strftime("%Y%m%d")
-    ts = int(now.timestamp())
-    for a, _ in triggered:
-        rec = state.get(a["id"]) or {}
-        rec["date"] = ds
-        rec["ts"] = ts
-        state[a["id"]] = rec
-    _write_state(state, alerts, now)
-
-
 def is_market_open(market, now):
     """장중 판정(KST) — 장외 시간엔 가격이 멈춰 stale 데이터로 쿨다운 알림이 반복 발송될 수
     있으므로(특히 cool60), 해당 시장 장중에만 조건을 평가한다."""
@@ -393,25 +382,64 @@ def is_market_open(market, now):
     return False
 
 
-def _pack_messages(lines, header):
-    """알림 줄들을 카카오 텍스트 한도(200자) 내 여러 통으로 분할."""
-    msgs, cur = [], header
+def _pack_messages(items, header):
+    """[(alert, line)] → (msgs≤MAX_MSGS, packed_ids).
+
+    카카오 텍스트 한도(200자) 내 여러 통으로 분할하되, MAX_MSGS 초과분은 packed_ids 에서
+    제외한다 — 호출측이 '실제 발송된 알림'만 이력 확정하고, 초과분은 미확정으로 남겨 다음 런에
+    재시도하게 한다(과거엔 초과분도 '발송됨'으로 스탬프돼 그날 영영 안 오던 버그 — 2026-07 감사).
+    폭락장에 수십 종목이 동시 충족될 때 앞쪽만 오고 뒤쪽이 조용히 사라지는 것을 막는다."""
+    msgs, cur, cur_ids, packed_ids = [], header, [], set()
     budget = TEXT_LIMIT - len(DELAY_NOTICE) - 1
-    for ln in lines:
+
+    def flush():
+        nonlocal cur, cur_ids
+        if cur != header and len(msgs) < MAX_MSGS:
+            msgs.append(cur + "\n" + DELAY_NOTICE)
+            packed_ids.update(cur_ids)
+        cur, cur_ids = header, []
+
+    for a, ln in items:
         add = "\n" + ln
         if len(cur) + len(add) > budget and cur != header:
-            msgs.append(cur + "\n" + DELAY_NOTICE)
-            cur = header
+            flush()
+            if len(msgs) >= MAX_MSGS:
+                break                                  # 한도 도달 — 남은 줄은 미확정(다음 런 재시도)
         if len(cur) + len(add) <= budget:
             cur += add
         else:                                          # 한 줄이 그 자체로 너무 긴 경우 자름
             cur += add[:budget - len(cur)]
-    if cur != header:
-        msgs.append(cur + "\n" + DELAY_NOTICE)
-    if len(msgs) > MAX_MSGS:
-        print(f"::warning title=알림 통수 초과::{len(msgs)}통 중 {MAX_MSGS}통만 발송(초과분 생략) — "
-              f"동시 충족 조건이 과다합니다")
-    return msgs[:MAX_MSGS]
+        cur_ids.append(a["id"])
+    if len(msgs) < MAX_MSGS:
+        flush()
+    dropped = len(items) - len(packed_ids)
+    if dropped > 0:
+        print(f"::warning title=알림 통수 초과::{MAX_MSGS}통 한도 초과 — {dropped}건 이번 발송 보류"
+              f"(미확정, 다음 런 재시도)")
+    return msgs, packed_ids
+
+
+def _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered):
+    """발송 결과를 이력에 반영한다.
+
+    성공(delivered) 또는 재시도 상한(GIVE_UP_TRIES) 도달 시에만 이력을 '확정'(date/ts + 가격교차 met)
+    해 재발화를 억제한다. 실패면 미확정으로 남겨 다음 런에서 다시 발송한다(전송 실패로 필요한 알림이
+    영영 안 오던 문제 방지 — 2026-07 감사). tries 는 발송 前에 이미 +1 되어 있으므로 상한 도달을 여기서 판정한다."""
+    ds, ts = now.strftime("%Y%m%d"), int(now.timestamp())
+    for a, _ in to_finalize:
+        rec = state.get(a["id"]) or {}
+        give_up = int(rec.get("tries", 0)) >= GIVE_UP_TRIES
+        if delivered or give_up:
+            rec["date"] = ds
+            rec["ts"] = ts
+            if a["id"] in fired_price_ids:
+                rec["met"] = True                      # 가격 교차 발송 확정 → 회복 전까지 재무장 안 함
+            rec["tries"] = 0
+            if give_up and not delivered:
+                print(f"::warning title=알림 재시도 포기::{a.get('symbol')} {GIVE_UP_TRIES}회 발송 실패 "
+                      f"— 이력 확정(중복 방지)")
+        # else: 미확정 유지 — 다음 런 재시도
+        state[a["id"]] = rec
 
 
 def main():
@@ -466,8 +494,10 @@ def main():
         if not snap:
             print(f"[alerts] 시세 조회 실패: {a.get('symbol')} ({market}) — 건너뜀")
             continue
-        # 시세 오염 가드 — 0/음수·비정상 급변(전일比 |%|>SANE) 스냅샷은 폐기해 헛알림 방지.
-        if snap["price"] <= 0 or abs(snap.get("pct") or 0.0) > SANE_MOVE_PCT:
+        # 시세 오염 가드 — 0/음수·비정상 급변 스냅샷은 폐기해 헛알림 방지. 임계값은 시장별로 다르다
+        # (KR ±30% 제한 위 50%, US 무제한이라 400% — 진짜 급등 알림을 오폐기하지 않게).
+        sane = SANE_MOVE_PCT_KR if market == "KR" else SANE_MOVE_PCT_US
+        if snap["price"] <= 0 or abs(snap.get("pct") or 0.0) > sane:
             print(f"::warning title=시세 이상::{a.get('symbol')}({market}) 가격 {snap['price']} "
                   f"전일比 {snap.get('pct')}% — 오염 의심, 건너뜀")
             continue
@@ -492,9 +522,15 @@ def main():
     # 종목당 1줄 — 동시 충족(사다리/이벤트)을 현재가 최근접 1건으로 축약
     to_send = _dedup_per_symbol(triggered, snaps)
 
-    # 재무장 상태(met)는 발송 여부와 무관하게 항상 보존 → 다음 교차 때 재발송 보장
+    # 재무장 상태(met) 보존 — 회복/미충족(m=False)은 즉시 기록해 다음 교차 재발송을 보장한다.
+    # 단 '이번에 새로 발동한 가격 알림'의 met=True 는 미리 쓰지 않는다 — 발송이 성공해야 확정한다.
+    #   (토큰 만료·5xx 로 발송이 실패했는데 미리 disarm 하면, 그 가격 교차 알림이 회복·재교차 전까지
+    #    영영 안 오던 버그 — 2026-07 감사. met=True 확정은 _finalize_alerts 가 발송 성공 후 담당.)
+    fired_price_ids = {a["id"] for a, _ in triggered if a.get("type") in PRICE_TYPES}
     if not IS_TEST:
         for aid, m in met_now.items():
+            if aid in fired_price_ids and m:
+                continue                              # 발송 성공 후 확정
             rec = state.get(aid) or {}
             rec["met"] = m
             state[aid] = rec
@@ -509,16 +545,20 @@ def main():
     if not rest_key or not refresh_token:
         print("::warning title=Kakao 미설정::KAKAO_REST_API_KEY/KAKAO_REFRESH_TOKEN 시크릿이 없어 "
               "알림 발송을 건너뜁니다 (KAKAO_SETUP.md 참고).")
+        if not IS_TEST:
+            _write_state(state, alerts, now)          # 재무장 상태만 저장(발송분은 미확정 → 다음 런 재시도)
         return
 
     # 토큰 재발급 실패는 '매분' 실행에선 job 실패 메일 폭탄으로 이어지므로, 한 번만 크게 경고하고
-    # exit 0 로 끝낸다(메일 스팸 방지). 재무장/이력 상태는 저장해 다음 런 일관성 유지.
+    # exit 0 로 끝낸다(메일 스팸 방지). ⚠ 이때 발송분을 '발송됨'으로 확정하면 안 된다 — 아무 메시지도
+    # 나가지 않았으므로 중복 위험이 0이고, 미확정으로 두어야 토큰 복구 후 다음 런이 그 알림을 재발송한다.
+    #   (과거엔 여기서 이력을 확정해 토큰 만료 창의 가격 교차 알림을 영영 잃었다 — 2026-07 감사.)
     try:
         access_token = kakao.refresh_access_token(rest_key, refresh_token)
     except SystemExit as e:
-        print(f"::error title=Kakao 토큰 재발급 실패::{e} — 이번 발송 건너뜀(토큰 갱신 필요)")
+        print(f"::error title=Kakao 토큰 재발급 실패::{e} — 이번 발송 건너뜀(다음 런 재시도)")
         if not IS_TEST:
-            _stamp_and_write(state, triggered, alerts, now)
+            _write_state(state, alerts, now)          # 재무장 상태만 저장(발송분 미확정)
         return
     friends = kakao.get_friends(access_token) if kakao._friends_enabled() else []
     uuids = [f["uuid"] for f in friends]
@@ -540,24 +580,42 @@ def main():
         print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
         return
 
-    # 🛡 발송 '전에' 이력을 먼저 확정·저장한다(스팸 루프 방지 — _stamp_and_write 주석 참고).
-    #    테스트 런은 이력을 남기지 않는다(정규 cron 의 실제 알림을 소모하지 않도록).
-    if not IS_TEST:
-        _stamp_and_write(state, triggered, alerts, now)
+    # 발송 통 구성 — MAX_MSGS 초과분은 packed_ids 에서 빠져 미확정으로 남는다(다음 런 재시도).
+    msgs, packed_ids = _pack_messages(to_send, header)
+    sent_syms = {(a.get("market", "KR"), a.get("symbol")) for a, _ in to_send if a["id"] in packed_ids}
+    # 확정 대상 = 실제 발송된 종목의 트리거 전부(대표 1줄 + 같은 종목 동시충족 탈락분까지 함께 확정 —
+    #   '종목당 1줄' 이력 일관성). 발송 안 된 종목은 확정하지 않아 다음 런에 다시 발송된다.
+    to_finalize = [(a, ln) for a, ln in triggered
+                   if (a.get("market", "KR"), a.get("symbol")) in sent_syms]
 
-    sent = 0
+    # 🛡 발송 '전' 시도 카운터만 디스크 확정 → 러너 크래시 시 무한 재발송을 GIVE_UP_TRIES 로 상한.
+    #    실제 이력(date/ts/met)은 발송 성공 후 _finalize_alerts 가 확정한다(실패 시 다음 런 재시도).
+    if not IS_TEST:
+        for a, _ in to_finalize:
+            rec = state.get(a["id"]) or {}
+            rec["tries"] = int(rec.get("tries", 0)) + 1
+            state[a["id"]] = rec
+        _write_state(state, alerts, now)
+
+    sent, ok = 0, False
     try:
-        for msg in _pack_messages([ln for _, ln in to_send], header):
+        for msg in msgs:
             kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
             sent += 1
+        ok = True
     except SystemExit as e:
-        # 일부 통 실패해도 job 을 죽이지 않는다(매분 실패 메일·커밋 스텝 스킵 방지). 이력은 이미 저장됨.
-        print(f"::warning title=일부 알림 발송 실패::{e} — {sent}통 발송 후 중단(이력 저장됨, 재발송 안 함)")
+        # 일부 통 실패해도 job 을 죽이지 않는다(매분 실패 메일·커밋 스텝 스킵 방지).
+        print(f"::warning title=일부 알림 발송 실패::{e} — {sent}통 발송 후 중단(다음 런 재시도)")
 
     if IS_TEST:
         print(f"[alerts] 테스트 발송 완료 — 충족 {len(triggered)}건 / 발송 {len(to_send)}건 (이력 미갱신)")
         return
-    print(f"[alerts] 발송 완료 — 충족 {len(triggered)}건 / 발송 시도 {len(to_send)}건, 상태 저장(발송 전 확정)")
+
+    # 발송 결과 확정 — 성공분(또는 재시도 상한 도달분)만 이력 확정, 실패분은 미확정(다음 런 재시도).
+    _finalize_alerts(state, to_finalize, fired_price_ids, now, ok)
+    _write_state(state, alerts, now)
+    print(f"[alerts] 발송 {'성공' if ok else '일부 실패'} — 충족 {len(triggered)}건 / {sent}통 발송 / "
+          f"확정 대상 {len(to_finalize)}건")
 
 
 if __name__ == "__main__":

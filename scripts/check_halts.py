@@ -26,6 +26,7 @@ STATE_PATH = os.path.join(ROOT, "halts_state.json")
 #    Worker cron 의 정시성 보강용 fetch-data dispatch 런에서 가짜 서킷브레이커가 발송되기 때문.
 #    테스트 경로(halts-test.yml)는 HALTS_TEST=1 을 명시 전달한다.
 IS_TEST = os.environ.get("HALTS_TEST") == "1"
+GIVE_UP_TRIES = 3   # 발동 발송 실패 재시도 상한 — 넘게 실패하면 확정(무한 재시도·크래시 스팸 방지)
 
 TYPE_KO = {"circuit": "서킷브레이커", "sidecar": "사이드카"}
 DELAY_NOTICE = "※ 최대 15분 지연 가능 · 정확한 시각은 거래소/증권사 앱 확인"
@@ -66,6 +67,13 @@ def _send_all(token, uuids, msg):
     kakao.send_memo(token, msg, with_button=True, uuids=uuids)
 
 
+def _flush_state(state):
+    """halts_state.json 디스크 기록 — '발송 전'에도 호출해 크래시/전송예외에도 재발송을 막는다."""
+    with open(STATE_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
 def main():
     now = _now()
     try:
@@ -101,7 +109,9 @@ def main():
         state = {}
 
     active_ids = {h["id"] for h in active}
-    new_events = [h for h in active if h["id"] not in state]
+    # pending=True = 직전 런에서 발송에 실패해 재시도 대기 중인 발동 → 다시 발송 대상에 포함(누락 방지).
+    new_events = [h for h in active
+                  if h["id"] not in state or state[h["id"]].get("pending")]
     resolved_ids = [hid for hid in state
                     if hid not in active_ids and not state[hid].get("resolvedSent")]
 
@@ -124,22 +134,45 @@ def main():
                 token = None
             if token:
                 uuids = [f["uuid"] for f in kakao.get_friends(token)] if kakao._friends_enabled() else []
-                # 🛡 발송 '전에' 이력을 먼저 확정 → 전송이 5xx 등으로 실패해도 다음 런에서 중복 발송하지 않는다.
+                # 🛡 발송 '전' 디스크 확정 — 러너 크래시·전송예외에도 재발송 상한(GIVE_UP_TRIES). 각 건을
+                #    pending=True 로 두어 발송 성공 확인 전엔 재시도 대상으로 남긴다(전송 실패 시 다음 런
+                #    재발송 = 서킷브레이커 같은 최중요 알림 누락 방지). 성공하면 pending 해제해 중복도 막는다.
                 for h in new_events:
-                    state[h["id"]] = {"firedAt": now.isoformat(), "event": h, "resolvedSent": False}
-                for hid in resolved_ids:
-                    state[hid]["resolvedSent"] = True
-                    state[hid]["resolvedAt"] = now.isoformat()
-                try:
-                    for h in new_events:
+                    rec = state.get(h["id"]) or {}
+                    rec["event"] = h
+                    rec["firedAt"] = rec.get("firedAt") or now.isoformat()
+                    rec["resolvedSent"] = False
+                    rec["tries"] = int(rec.get("tries", 0)) + 1
+                    rec["pending"] = True
+                    state[h["id"]] = rec
+                _flush_state(state)                       # 발송 전 디스크 확정
+
+                # 발동 발송 — 건별 독립 처리(하나 실패가 다른 건을 막지 않음). 성공만 pending 해제(확정),
+                #   실패는 pending 유지(다음 런 재시도), 단 tries 상한 도달 시 포기(확정)해 무한 재발송 차단.
+                for h in new_events:
+                    rec = state[h["id"]]
+                    try:
                         _send_all(token, uuids, _fire_msg(h))
+                        rec["pending"] = False
+                        rec["tries"] = 0
                         print(f"[halts] 발동 발송: {h['id']}")
-                    for hid in resolved_ids:
-                        h = state[hid].get("event") or {"id": hid}
+                    except (SystemExit, Exception) as e:
+                        if int(rec.get("tries", 0)) >= GIVE_UP_TRIES:
+                            rec["pending"] = False
+                            print(f"::warning title=halt 재시도 포기::{h['id']} {GIVE_UP_TRIES}회 실패 — 확정(중복 방지)")
+                        else:
+                            print(f"::warning title=halt 발송 실패::{h['id']}({e}) — 다음 런 재시도")
+
+                # 해제 발송 — 성공 시에만 resolvedSent=True(실패 시 다음 런 재시도).
+                for hid in resolved_ids:
+                    h = state[hid].get("event") or {"id": hid}
+                    try:
                         _send_all(token, uuids, _resolve_msg(h))
+                        state[hid]["resolvedSent"] = True
+                        state[hid]["resolvedAt"] = now.isoformat()
                         print(f"[halts] 해제 발송: {hid}")
-                except SystemExit as e:
-                    print(f"::warning title=일부 halt 발송 실패::{e} — 이력 저장됨(재발송 안 함)")
+                    except (SystemExit, Exception) as e:
+                        print(f"::warning title=halt 해제 발송 실패::{hid}({e}) — 다음 런 재시도")
     else:
         print(f"[halts] 변동 없음 — active {len(active)}건")
 
@@ -155,9 +188,7 @@ def main():
                 cleaned[hid] = rec
         else:
             cleaned[hid] = rec
-    with open(STATE_PATH, "w", encoding="utf-8") as f:
-        json.dump(cleaned, f, ensure_ascii=False, indent=2)
-        f.write("\n")
+    _flush_state(cleaned)
     print(f"[halts] 완료 — active {len(active)}, 신규 {len(new_events)}, 해제 {len(resolved_ids)}")
 
 
