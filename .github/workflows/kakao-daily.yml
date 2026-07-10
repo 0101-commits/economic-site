@@ -22,7 +22,8 @@ name: KakaoTalk Digest (평일 07-22 매시간 · 주말 11·17 KST)
 #   3) workflow_run — 데이터 수집(fetch-data) 완료 시에도 깨워 보조(타깃 시각일 때만 발송).
 #   4) workflow_dispatch — 수동 즉시.
 #   어느 경로로 깨워지든 아래 '발송 창' 게이트가 타깃 시각만 통과시키고, actions/cache 마커(슬롯+날짜)로
-#   하루 슬롯당 한 번만 발송(중복 방지). 수동 실행은 마커 없이 항상 발송.
+#   하루 슬롯당 한 번만 발송(중복 방지). 수동 실행도 슬롯 시각이면 그 슬롯 마커를 공유(자동 트리거와의
+#   중복 방지) — 비슬롯 시각 수동만 마커 없이 항상 발송.
 #
 # 사전 설정 — 저장소 루트 KAKAO_SETUP.md 참고:
 #   Settings → Secrets and variables → Actions: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (필수)
@@ -68,7 +69,14 @@ concurrency:
 
 jobs:
   send-digest:
+    # workflow_run 게이트 — fetch-data 가 '성공 완료'했을 때만 연쇄 기동(취소·실패 런은 무시).
+    # types: [completed] 는 cancelled/failure 도 포함하므로, 필터 없이는 취소된 수집 런까지
+    # 발송 잡을 깨워 러너를 낭비했다. (시각 게이트는 아래 스텝이 별도로 판정.)
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    # 발송 1회는 정상적으로 2~3분 — 프록시 폴백·재시도가 전부 걸려도 10분이면 충분하다.
+    # 행이 걸린 잡이 기본 한도(6시간)까지 러너를 점유하지 않게 상한을 둔다.
+    timeout-minutes: 10
     steps:
       # ── 발송 창(window) 게이트 ── (게이트가 '발송 여부'의 단일 진실원)
       # 모든 자동 트리거(repository_dispatch=Cloudflare cron / schedule / workflow_run)는
@@ -95,10 +103,13 @@ jobs:
           case " $HOURS " in *" $H "*) tslot=$(printf 'h%02d' "$H") ;; esac
           case "$EVENT" in
             workflow_dispatch)
-              # 수동 즉시 — 타깃 시각이면 그 슬롯, 아니면 manual(파이썬이 가장 가까운 슬롯 차트로 발송). 마커 미사용.
+              # 수동 즉시 — 타깃 시각이면 그 슬롯, 아니면 manual(파이썬이 가장 가까운 슬롯 차트로 발송).
+              # 마커 키(ckey)는 슬롯 시각이면 '그 슬롯'을 쓴다 — 종전 ckey=manual 고정은 슬롯 시각에
+              # 수동 발송한 뒤 같은 시각의 자동 트리거(백업 스케줄 등)가 마커 미적중으로 '또' 발송하는
+              # 중복을 낳았다. 비슬롯 시각 수동만 마커 없이(manual) 항상 발송.
               proceed=true
               if [ -n "$tslot" ]; then mslot="$tslot"; else mslot=manual; fi
-              ckey=manual ;;
+              ckey="${tslot:-manual}" ;;
             *)
               # 자동 트리거 — '지금이 타깃 시각'일 때만 발송(그 외 깨움은 즉시 종료).
               if [ -n "$tslot" ]; then proceed=true; mslot="$tslot"; ckey="$tslot"; else proceed=false; mslot=none; ckey=none; fi ;;
@@ -110,12 +121,13 @@ jobs:
           echo "[gate] event=$EVENT KST=${H}시 proceed=$proceed slot=$mslot ckey=$ckey"
 
       # 중복 발송 방지 마커: 같은 슬롯이 그날 이미 발송했으면 cache-hit=true → 이하 모든 단계 건너뜀.
-      # 수동 실행(slot=manual)은 마커를 쓰지 않아 언제든 발송된다.
+      # 마커 사용 여부는 ckey 기준 — 비슬롯 시각의 수동 실행(ckey=manual)만 마커 없이 언제든 발송되고,
+      # 슬롯 시각의 수동 실행은 그 슬롯 마커(ckey=h07 등)를 자동 트리거와 공유해 같은 슬롯 중복을 막는다.
       #   ※ 마커 복원을 '맨 앞'에 둔다 — 백업 스케줄이 한 슬롯을 시간당 여러 번 깨우므로, 이미 보낸
       #     슬롯의 추가 발화는 여기서 cache-hit 으로 걸러 무거운 checkout·python·pip 단계를
       #     아예 실행하지 않고 즉시 끝낸다(러너 시간 절약 + 깨끗한 green).
       - name: 중복 발송 방지 마커 복원
-        if: steps.gate.outputs.proceed == 'true' && steps.gate.outputs.slot != 'manual'
+        if: steps.gate.outputs.proceed == 'true' && steps.gate.outputs.ckey != 'manual'
         id: marker
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -152,4 +164,8 @@ jobs:
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
         run: |
           python scripts/send_kakao_digest.py
-          touch .kakao_sent_marker   # 발송 성공 후에만 마커 생성(실패 시 -e 로 중단 → 다음 깨움이 재시도)
+          # 마커는 '실제 발송 성공' 센티널(.kakao_sent_ok — 스크립트가 발송 성공 직후에만 생성)이
+          # 있을 때만 만든다. 스크립트는 실패 알림 스팸 방지를 위해 토큰/발송 실패도 exit 0 하므로
+          # 종료코드로는 성공을 알 수 없다 — 종전처럼 무조건 touch 하면 실패 슬롯까지 '발송됨'으로
+          # 캐시돼 그 슬롯의 재시도(백업 스케줄)가 하루 종일 차단되는 무음 유실이 났다.
+          if [ -f .kakao_sent_ok ]; then touch .kakao_sent_marker; fi

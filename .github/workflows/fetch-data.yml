@@ -23,9 +23,12 @@ on:
     - cron: '0 13 * * *'     # KST 22:00 (UTC 13:00) — 매일 저녁 종합 갱신 (당일 발표 반영)
     - cron: '30 13 * * *'    # KST 22:30 (UTC 13:30) — 10PM 데이터 미수집 대비 보강
   workflow_dispatch:        # 수동 실행 허용
-  # 🔔 Worker cron(*/5 장중)이 정시성 보강용으로 깨우는 on-demand 런 — GHA schedule(*/10) 드롭에
-  #    영향받지 않아 시세·서킷브레이커(check_halts) 데이터를 장중 5분 주기로 안정 갱신한다.
-  #    concurrency 직렬화 + fetch_data 부분실패 시 이전값 보존이라 schedule 과 겹쳐도 멱등·안전.
+  # 🔔 Worker cron 이 정시성 보강용으로 깨우는 on-demand 런 — GHA schedule(*/10) 드롭에 영향받지
+  #    않아 시세 데이터 갱신을 보강한다. 단 본 워크플로는 concurrency 직렬화 + 런당 실측 12~57분
+  #    소요라 실효 반영 주기는 '분' 단위가 아니라 15분+ 수준(대기·취소 포함) — 서킷브레이커 알림은
+  #    이 지연 때문에 stock-alerts.yml(장중 5분 주기, HALTS_LIVE 라이브 감지)로 이관됐고, 여기서는
+  #    data.json.marketHalts(프론트 배너용)만 생성한다. fetch_data 부분실패 시 이전값 보존이라
+  #    schedule 과 겹쳐도 멱등·안전.
   repository_dispatch:
     types: [fetch-data]
   # ── 코드/워크플로 변경 시 즉시 데이터 재생성 ──
@@ -57,6 +60,9 @@ env:
 jobs:
   fetch-and-commit:
     runs-on: ubuntu-latest
+    # 행 방지 — 성공 런 실측 소요 12~57분(대부분 45분 이내). 외부 API 행으로 러너를 물고 늘어지면
+    # concurrency 직렬화 때문에 후속 런까지 전부 밀리므로 상한을 둔다(기본 360분은 사실상 무제한).
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -164,29 +170,25 @@ jobs:
       - name: Validate data.json (스키마·최소 길이)
         run: python scripts/validate_data.py
 
-      # 🚨 시장중단(서킷브레이커·사이드카) 카카오톡 — data.json.marketHalts 의 신규 발동/해제만 발송.
-      # best-effort: 실패해도 데이터 커밋을 막지 않도록 continue-on-error.
-      - name: Send market-halt alerts (Kakao)
-        continue-on-error: true
-        env:
-          KAKAO_REST_API_KEY:  ${{ secrets.KAKAO_REST_API_KEY }}
-          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
-        run: python scripts/check_halts.py
+      # 🚨 시장중단(서킷브레이커) 카카오톡 발송 스텝은 stock-alerts.yml 로 이관됨(2026-07) —
+      #    본 워크플로의 실효 주기(성공 런 소요 12~57분)로는 발동→알림 지연이 15분+ 이었기 때문.
+      #    중복 발송 방지를 위해 halts_state.json 소유권도 stock-alerts 로 단일화(여기선 커밋 안 함).
+      #    fetch_data.py 의 marketHalts 생성(data.json)은 프론트 배너용으로 그대로 유지한다.
 
       - name: Commit and push data.json
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           branch="${GITHUB_REF_NAME:-main}"
-          if git diff --quiet -- data.json data_meta.json halts_state.json && git diff --staged --quiet -- data.json data_meta.json halts_state.json; then
+          # ⚠ halts_state.json 은 여기서 커밋하지 않는다 — 소유권이 stock-alerts.yml 로 단일화됨
+          #   (두 워크플로가 같은 상태 파일을 커밋하면 push 경쟁 + 서킷브레이커 중복 발송 위험).
+          if git diff --quiet -- data.json data_meta.json && git diff --staged --quiet -- data.json data_meta.json; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
           msg="data: 시장 데이터 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
           cp data.json /tmp/data.json.run
           cp data_meta.json /tmp/data_meta.json.run
-          cp halts_state.json /tmp/halts_state.json.run 2>/dev/null || true
           git add data.json data_meta.json
-          [ -f halts_state.json ] && git add halts_state.json || true
           [ -f merblog.json ] && git add merblog.json || true
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
@@ -198,11 +200,9 @@ jobs:
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
             cp /tmp/data.json.run data.json
             cp /tmp/data_meta.json.run data_meta.json
-            cp /tmp/halts_state.json.run halts_state.json 2>/dev/null || true
             git add data.json data_meta.json
-            [ -f halts_state.json ] && git add halts_state.json || true
             [ -f merblog.json ] && git add merblog.json || true
-            if git diff --staged --quiet -- data.json data_meta.json halts_state.json; then
+            if git diff --staged --quiet -- data.json data_meta.json; then
               echo "원격이 이미 최신 — 종료"; exit 0
             fi
             git commit -m "$msg" -q || true

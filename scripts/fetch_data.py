@@ -5611,19 +5611,29 @@ def build_data():
         )
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
+    # ⚠️ pykrx·yfinance 동시 실패 시 FALLBACK 주입은 change 를 None 으로 바꿔 넣는다(날조 방지 —
+    #    SOX 선례와 같은 원칙). 종전처럼 change:0.0 을 그대로 넣으면 market_halts 의 have_index 가
+    #    항상 True 가 되어 stale 가드가 영구 사문화된다 — 실제 -10% 폭락 + 수집장애가 겹치면
+    #    서킷브레이커 미감지인데 데이터는 멀쩡한 척 위장하는 최악 조합. price 는 프론트 표시용 유지.
     if "KOSPI" not in data["indices"]:
         q = fetch_yf("^KS11")
         if q:
             data["indices"]["KOSPI"] = q
             log(f"[yf] KOSPI: {q['price']} ({q['change']:+.2f}%)")
         else:
-            data["indices"]["KOSPI"] = dict(FALLBACK["indices"]["KOSPI"])
+            fb = dict(FALLBACK["indices"]["KOSPI"])
+            fb["change"] = None                # 등락률 날조 금지 → marketHalts.stale 로 이어짐
+            data["indices"]["KOSPI"] = fb
+            log("[yf] KOSPI: 수집 실패 — FALLBACK(price 표시용, change=None)")
     if "KOSDAQ" not in data["indices"]:
         q = fetch_yf("^KQ11")
         if q:
             data["indices"]["KOSDAQ"] = q
         else:
-            data["indices"]["KOSDAQ"] = dict(FALLBACK["indices"]["KOSDAQ"])
+            fb = dict(FALLBACK["indices"]["KOSDAQ"])
+            fb["change"] = None                # 등락률 날조 금지 → marketHalts.stale 로 이어짐
+            data["indices"]["KOSDAQ"] = fb
+            log("[yf] KOSDAQ: 수집 실패 — FALLBACK(price 표시용, change=None)")
 
     # ── 해외 지수 (yfinance) ──────────────────────────────────
     intl_indices = {

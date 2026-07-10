@@ -42,8 +42,21 @@ def cb_from_index(market, change_pct, now):
     # 글리치성 극단값(-100 등)·NaN 은 서킷브레이커 날조를 막기 위해 무시한다.
     if change_pct is None or change_pct != change_pct or change_pct < -30.0:
         return None
+    # 🛡 세션 게이트 ①: KRX 정규장(평일 09:00~15:30 KST) 밖에서는 지수기반 CB 를 만들지 않는다.
+    #    실증: 2026-07-02 15:43 KST 장마감 후 오염 데이터(-8.00%)로 오발송(해제까지 발송) 사건 +
+    #    주말 hourly 런이 금요일 -8% '종가'를 보고 오발동하는 것 방지. now 는 주입형이라 테스트 가능.
+    t = now.astimezone(KST)
+    if t.weekday() >= 5:                              # 토(5)·일(6)
+        return None
+    hm = t.hour * 60 + t.minute
+    if not (9 * 60 <= hm <= 15 * 60 + 30):            # 09:00~15:30 밖
+        return None
     for stage, thr, halt_min, auc_min, eod in CB_RULES:
         if change_pct <= thr:
+            # 🛡 세션 게이트 ②: KRX 규정상 1·2단계는 14:50 이후 발동 불가(3단계=endOfDay 만
+            #    장마감 15:30 까지 발동 가능) → 14:50 이후엔 1·2단계 후보를 건너뛴다.
+            if not eod and hm >= 14 * 60 + 50:
+                continue
             resume = None if eod else now + datetime.timedelta(minutes=halt_min + auc_min)
             return {
                 "id": _halt_id("circuit", market, now.strftime("%Y%m%d")),
@@ -125,7 +138,11 @@ def _merge(a, b):
     if earliest:
         out["triggeredAt"] = earliest["triggeredAt"]
         out["resumeAt"] = earliest.get("resumeAt")
-        out["endOfDay"] = earliest.get("endOfDay", out.get("endOfDay"))
+    # endOfDay 는 OR(더 심각한 쪽) 채택 — '가장 이른' 이벤트 기준이면 1→3단계 격상 후에도
+    # False 로 남아 당일종료 유지·격상 알림이 깨진다. endOfDay 면 resumeAt 도 의미 없으니 None.
+    out["endOfDay"] = bool(a.get("endOfDay")) or bool(b.get("endOfDay"))
+    if out["endOfDay"]:
+        out["resumeAt"] = None
     for cand in (a, b):
         if cand.get("source") == "index" and cand.get("reason"):
             out["reason"] = cand["reason"]
@@ -142,11 +159,23 @@ def detect_market_halts(data, prev, now=None):
 
     candidates = []
     indices = data.get("indices") or {}
-    # 지수 등락률이 둘 다 없으면 감지가 '깜깜이'로 돈 것 → stale 로 표시해 소비측(check_halts)이
-    # 지수기반 신규 발동을 보류하게 한다(부분실패로 보존된 옛 값에 반응해 오탐하는 것 방지).
+
+    # 🛡 세션 게이트 ③(데이터 정합): 지수 값(price/value)이 None 인데 change 만 있으면 오염으로
+    #    간주하고 그 market 의 지수기반 감지를 스킵한다 — 2026-07-02 실사건의 직접 원인
+    #    (value=None·change=-8.00 오염 데이터로 서킷브레이커 오발송). 키 이름은 fetch_data 산출
+    #    (price)과 check_halts 라이브 모드 산출(value)을 모두 수용한다.
+    def _idx_value(m):
+        e = indices.get(m) or {}
+        return e.get("price") if e.get("price") is not None else e.get("value")
+
+    # 지수 등락률이 둘 다 없으면(또는 값이 None 으로 오염) 감지가 '깜깜이'로 돈 것 → stale 로 표시해
+    # 소비측(check_halts)이 지수기반 신규 발동을 보류하게 한다(부분실패로 보존된 옛 값 오탐 방지).
     have_index = any((indices.get(m) or {}).get("change") is not None
+                     and _idx_value(m) is not None
                      for m in ("KOSPI", "KOSDAQ"))
     for market in ("KOSPI", "KOSDAQ"):
+        if _idx_value(market) is None:                 # 값 오염 → change 불신, 감지 스킵
+            continue
         ev = cb_from_index(market, (indices.get(market) or {}).get("change"), now)
         if ev:
             candidates.append(ev)

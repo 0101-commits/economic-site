@@ -940,6 +940,8 @@
   @keyframes ann-pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
   /* 🚨 시장중단(서킷브레이커·사이드카) 경고 */
   #marketHaltBanner { position: fixed; top: 56px; left: 0; right: 0; z-index: 299; display: none; flex-direction: column; }
+  /* ⚠️ 알림 파이프라인 경고 배너 — 시장중단 배너 '아래'에 스택(top 은 JS _syncTopBanners 가 보정) */
+  #pipelineWarnBanner { position: fixed; top: 56px; left: 0; right: 0; z-index: 298; display: none; flex-direction: column; }
   .halt-banner { display: flex; align-items: center; gap: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; color: #fff; border-bottom: 1px solid rgba(0,0,0,.25); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
   .halt-banner.circuit { background: linear-gradient(90deg,#c0211b,#e23b30); }
   .halt-banner.sidecar { background: linear-gradient(90deg,#b5631a,#e08a2b); }
@@ -1190,6 +1192,8 @@ html.light .toast { background: #fff; }
 </header>
 
 <div id="marketHaltBanner" role="alert" aria-live="assertive"></div>
+<!-- ⚠️ 알림 파이프라인 경고 — Worker 헬스(GET /)의 ghTokenValid===false(GH 토큰 만료 확정)일 때만 표시 -->
+<div id="pipelineWarnBanner" role="alert" aria-live="polite"></div>
 
 <!-- ====== 레이아웃 ====== -->
 <div id="appLayout" style="display:flex;padding-top:56px;min-height:100vh;">
@@ -16199,7 +16203,10 @@ function renderMarketHalts(data) {
 
   const show = visible.length > 0;
   banner.style.display = show ? 'flex' : 'none';
-  if (layout) layout.style.paddingTop = show ? (56 + banner.offsetHeight) + 'px' : '56px';
+  // 파이프라인 경고 배너(#pipelineWarnBanner)와 겹치지 않게 공통 스택/paddingTop 보정으로 위임.
+  // (_syncTopBanners 미정의 환경에서는 기존 로직 그대로 폴백 — 동작 불변.)
+  if (typeof _syncTopBanners === 'function') _syncTopBanners();
+  else if (layout) layout.style.paddingTop = show ? (56 + banner.offsetHeight) + 'px' : '56px';
   if (badge) badge.style.display = active.length > 0 ? 'inline-block' : 'none';
 
   // 재개까지 카운트다운(1초 간격)
@@ -16243,6 +16250,68 @@ function dismissHalt(id) {
   dismissed[id] = 1;
   try { localStorage.setItem('econ_halt_dismissed', JSON.stringify(dismissed)); } catch (_) {}
   if (window._lastRealDataObj) renderMarketHalts(window._lastRealDataObj);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ⚠️ 알림 파이프라인 상태 배너 — Worker 헬스(GET /)의 ghTokenValid 가 '확정 false'
+//   (GH_DISPATCH_TOKEN 만료/폐기)일 때만 상단 경고 배너를 띄운다. null(판정불가)·fetch 실패는
+//   무시(fail-open — 배너는 확정 신호에만 반응). loadRealData 최초 완료 후 1회만 조회.
+// ─────────────────────────────────────────────────────────────────
+// 상단 고정 배너 스택 공통 보정 — 시장중단 배너(top:56 고정) 아래에 파이프라인 배너를 쌓고,
+// #appLayout paddingTop 을 '56 + 두 배너 높이 합'으로 맞춘다(renderMarketHalts 의 기존
+// 56px 보정을 포괄 대체 — 둘 다 숨김이면 정확히 기존과 같은 56px).
+function _syncTopBanners() {
+  const layout = document.getElementById('appLayout');
+  const halt = document.getElementById('marketHaltBanner');
+  const pipe = document.getElementById('pipelineWarnBanner');
+  const haltH = halt ? halt.offsetHeight : 0;              // display:none 이면 0
+  if (pipe) pipe.style.top = (56 + haltH) + 'px';
+  const pipeH = pipe ? pipe.offsetHeight : 0;
+  if (layout) layout.style.paddingTop = (56 + haltH + pipeH) + 'px';
+}
+
+var _PIPE_WARN_DISMISS_KEY = 'econ_pipeline_warn_dismissed';
+function dismissPipelineWarn() {
+  try { localStorage.setItem(_PIPE_WARN_DISMISS_KEY, String(Date.now())); } catch (_) {}
+  const pipe = document.getElementById('pipelineWarnBanner');
+  if (pipe) { pipe.style.display = 'none'; pipe.innerHTML = ''; }
+  _syncTopBanners();
+}
+
+let _pipelineHealthChecked = false;
+async function _checkWorkerPipelineHealth() {
+  if (_pipelineHealthChecked) return;            // 세션당 1회만
+  _pipelineHealthChecked = true;
+  try {
+    // 24시간 내 닫았으면 재표시하지 않음(과도한 잔소리 방지 — 다음날 다시 리마인드).
+    try {
+      const t = parseInt(localStorage.getItem(_PIPE_WARN_DISMISS_KEY) || '0', 10);
+      if (t && Date.now() - t < 24 * 3600 * 1000) return;
+    } catch (_) {}
+    const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+    if (!base) return;
+    const r = await fetch(base + '/', { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return;                            // 헬스 실패 자체는 무시(배너는 확정 신호에만)
+    const h = await r.json().catch(() => null);
+    if (!h || h.ghTokenValid !== false) return;   // true/null(판정불가)/필드없음 → 배너 없음
+    const pipe = document.getElementById('pipelineWarnBanner');
+    if (!pipe) return;
+    let msg = '⚠️ 알림 파이프라인 점검 필요: GitHub 토큰 만료 — Worker 시크릿 GH_DISPATCH_TOKEN 재발급';
+    if (h.ghAlertsTokenValid === false) msg += ' (GH_ALERTS_TOKEN 도 만료)';
+    // 최근 24시간 내 dispatch 실패 신호(Worker isolate 메모리 best-effort)가 있으면 부드럽게 안내.
+    let sub = '';
+    const lf = h.lastDispatchFail;
+    if (lf && lf.t && (Date.now() - lf.t) < 24 * 3600 * 1000) {
+      let when = '';
+      try { when = new Date(lf.t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }); } catch (_) {}
+      sub = ' · 최근 24시간 내 알림 발송 트리거 실패가 감지되었습니다' + (when ? ' (마지막 ' + when + ')' : '') + ' — 카카오 알림이 누락될 수 있어요.';
+    }
+    pipe.innerHTML = '<div class="halt-banner sidecar">'
+      + '<span>' + msg + sub + '</span>'
+      + '<button class="halt-x" title="닫기" onclick="dismissPipelineWarn()">✕</button></div>';
+    pipe.style.display = 'flex';
+    _syncTopBanners();
+  } catch (_) { /* 조회 실패 무시 — 대시보드 렌더에는 영향 없음 */ }
 }
 
 // 전체 데이터 새로고침 — data.json + 실시간 FX/Stooq/뉴스/Top10/시장분위기 페치
@@ -17426,7 +17495,10 @@ window.addEventListener('load', async ()=>{
     // 데이터 로드 완료 후 대시보드 등락 테이블 재렌더 + 사이드바 신호등 (data.json 의존 후처리)
     try { buildMoverTable(curMoverTab); } catch(_) {}
     try { buildSidebarDataSources(_latestDataForIndicators || {}); } catch(_) {}
-  }).catch(()=>{});
+  }).catch(()=>{}).finally(() => {
+    // ⚠️ 알림 파이프라인 헬스 1회 점검(비동기·5s 타임아웃·실패 무시) — GH 토큰 만료 시 상단 경고 배너
+    try { _checkWorkerPipelineHealth(); } catch(_) {}
+  });
   // 실시간 환율 페치 (open.er-api.com — 페이지 로드 시 즉시 갱신)
   loadRealtimeFx();
   // 실시간 지수·원자재 페치 (Stooq — 무료, 인증 불필요)

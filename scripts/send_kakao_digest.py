@@ -65,6 +65,9 @@ DASHBOARD_URL = "https://0101-commits.github.io/economic-site/"
 KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
+# 발송 '성공' 센티널 — 워크플로(kakao-daily.yml)가 이 파일의 존재로만 '발송됨' 마커를 캐시한다.
+# (스크립트는 알림 스팸 방지를 위해 실패해도 exit 0 이므로, 종료코드로는 성공을 알 수 없다.)
+SENT_OK_PATH = ".kakao_sent_ok"
 
 # ── 발송 슬롯 — 평일/주말을 분리한다. 워크플로 게이트·차트 구성·제목 표기가 모두 이 목록 기준.
 #    (2026-06 사용자 요청: 평일은 종전 시간대 유지 + 18·19·21시 추가, 주말은 11·17시 2회만.)
@@ -262,7 +265,13 @@ def refresh_access_token(rest_key, refresh_token):
         "refresh_token": refresh_token,
     }, what="토큰 재발급")
     if status != 200 or not j.get("access_token"):
-        raise SystemExit(f"[kakao] access_token 재발급 실패: HTTP {status} {j}")
+        # 400 응답의 error_code 를 메시지에 명시 — KOE320/KOE322 는 refresh_token 자체가 만료/무효라
+        # 재시도로는 절대 복구되지 않는다(KAKAO_SETUP.md ③ 재발급이 유일한 해법임을 바로 알 수 있게).
+        ecode = str(j.get("error_code") or "")
+        hint = (" — refresh_token 만료 — KAKAO_SETUP.md 재발급 필요"
+                if ecode in ("KOE320", "KOE322") else "")
+        raise SystemExit(f"[kakao] access_token 재발급 실패: HTTP {status}"
+                         f"{f' {ecode}' if ecode else ''} {j}{hint}")
     # refresh_token 유효기간이 1개월 미만이면 카카오가 새 토큰을 함께 준다.
     if j.get("refresh_token"):
         # ⚠ 보안: 공개 저장소라 Actions 로그가 공개된다 → 새 토큰 값은 절대 로그에 노출 금지(마스킹 먼저).
@@ -438,8 +447,15 @@ def _send_template_object(access_token, template, uuids=None):
     headers = {"Authorization": f"Bearer {access_token}"}
     payload = {"template_object": json.dumps(template, ensure_ascii=False)}
     if not uuids:
-        return _http_post_retry("https://kapi.kakao.com/v2/api/talk/memo/default/send",
-                                payload, headers, what="메시지 발송(나에게)")
+        # 메모 경로도 친구 경로처럼 전송예외(URLError/타임아웃 등 재시도 소진)를 흡수한다 — 종전엔
+        # 그대로 raise 돼 소비자(digest/check_alerts/check_halts)의 except SystemExit 를 비껴가
+        # 스택트레이스 크래시로 끝났다. SystemExit 로 변환해 세 소비자가 일관되게 잡도록 한다.
+        # (실패이므로 발송 성공 센티널(.kakao_sent_ok)은 당연히 안 생긴다.)
+        try:
+            return _http_post_retry("https://kapi.kakao.com/v2/api/talk/memo/default/send",
+                                    payload, headers, what="메시지 발송(나에게)")
+        except Exception as e:
+            raise SystemExit(f"[kakao] 메모 발송 실패: {e}")
     worst = (200, {})
     for i in range(0, len(uuids), 5):
         chunk = uuids[i:i + 5]
@@ -516,15 +532,21 @@ def _yahoo_chart_result(symbol, rng="1d", interval="5m"):
         f"https://api.allorigins.win/raw?url={quote_plus(base)}",
         f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(base)}",
     ]
+    # 후보별 실패 사유를 한 줄씩 남긴다 — 종전엔 조용히 continue 해 '왜 인트라데이가 없는지'
+    # (Yahoo 403? 프록시 다운?) 로그로 알 수 없었다. URL 쿼리는 빼고 호스트만 적는다(민감정보 없음).
     for url in candidates:
+        host = urllib.parse.urlsplit(url).netloc
         try:
             r = requests.get(url, headers=headers, timeout=15)
             if r.status_code != 200:
+                print(f"[chart] {symbol} {host} 실패: HTTP {r.status_code}")
                 continue
             res = (((r.json() or {}).get("chart") or {}).get("result") or [None])[0]
             if res:
                 return res
-        except Exception:
+            print(f"[chart] {symbol} {host} 실패: HTTP 200 이지만 result 비어 있음")
+        except Exception as e:
+            print(f"[chart] {symbol} {host} 실패: {e}")
             continue
     return None
 
@@ -785,7 +807,7 @@ def _draw_yield_panel(ax, d, key, label, color, mdates):
 
 
 def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
-    """슬롯별 지표 2종을 '당일(인트라데이)' 차트 1장 PNG(CHART_PX=1080x1440, 3:4 세로형)로 생성.
+    """슬롯별 지표 2종을 '당일(인트라데이)' 차트 1장 PNG(CHART_PX=1080x1080, 1:1 정사각)로 생성.
 
     당일 시세는 Yahoo 차트 API 에서 직접 조회(data.json 엔 일별 종가만 있음). 당일 조회 실패 시
     data.json history 의 7일 일봉으로 폴백. matplotlib 미설치/생성 실패 시 None(→ 텍스트 폴백)."""
@@ -799,7 +821,7 @@ def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
     except Exception as e:
-        print(f"[chart] matplotlib 미설치 — 이미지 생략 ({e})")
+        print(f"::warning title=차트 누락 폴백::[chart] matplotlib 미설치 — 이미지 생략 ({e})")
         return None
     h = d.get("history", {}) or {}
 
@@ -846,13 +868,19 @@ def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
                     disp_val = _f(node.get("rate"))
                 if disp_val is None:
                     disp_val = ys[-1]
+                # 기간 라벨은 '등락률의 기준'과 일치시킨다 — 본문 change 는 '전일 대비'라, 7일 일봉
+                # 폴백에서 종전처럼 "/ 7d" 로 적으면 값(1일 등락)과 라벨(7일)이 어긋난 거짓 표기였다
+                # (2026-07 감사). 본문 수치와의 단일 출처 원칙은 유지하고 라벨만 1d 로 바로잡는다.
+                # 시계열로 '추정'한 경우에만 실제 계산 구간(오늘/일봉 n일)을 라벨로 쓴다.
                 disp_chg = _f(node.get("change"))
-                if disp_chg is None:   # d 에 등락률이 없을 때만 시계열로 추정
-                    if intraday and prev_close:
-                        disp_chg = (ys[-1] / prev_close - 1) * 100
-                    else:
-                        disp_chg = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
-                span = "today" if intraday else "7d"
+                if disp_chg is not None:             # 본문과 동일 출처(전일 대비)
+                    span = "today" if intraday else "1d"
+                elif intraday and prev_close:        # 인트라데이 추정(전일 종가 대비)
+                    disp_chg = (ys[-1] / prev_close - 1) * 100
+                    span = "today"
+                else:                                # 그려진 시계열 처음~끝 기준 추정
+                    disp_chg = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
+                    span = "today" if intraday else f"{len(xs)}d"
                 a.set_title(f"{label}   {disp_val:,.2f}  ({disp_chg:+.1f}% / {span})", fontsize=26, loc="left")
                 a.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M" if intraday else "%m-%d"))
             else:
@@ -865,7 +893,7 @@ def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
         plt.close(fig)
         return out_path
     except Exception as e:
-        print(f"[chart] 생성 실패 ({e})")
+        print(f"::warning title=차트 누락 폴백::[chart] 생성 실패 ({e})")
         try:
             plt.close("all")
         except Exception:
@@ -881,7 +909,7 @@ def kakao_upload_image(access_token, png_path):
     try:
         import requests
     except Exception as e:
-        print(f"[chart] requests 미설치 — 업로드 생략 ({e})")
+        print(f"::warning title=차트 누락 폴백::[chart] requests 미설치 — 업로드 생략 ({e})")
         return None
 
     def _upload():
@@ -899,7 +927,7 @@ def kakao_upload_image(access_token, png_path):
             r = _upload()
         except Exception as e:
             if i == tries - 1:
-                print(f"[chart] 업로드 오류 ({e})")
+                print(f"::warning title=차트 누락 폴백::[chart] 업로드 전송오류 ({e}) — 재시도 소진")
                 return None
             print(f"[retry] 차트 업로드 전송오류({e}) — {delay}s 후 재시도 ({i + 2}/{tries})")
             time.sleep(delay)
@@ -915,7 +943,14 @@ def kakao_upload_image(access_token, png_path):
             time.sleep(delay)
             delay *= 2
             continue
-        print(f"[chart] 업로드 실패 HTTP {r.status_code}: {r.text[:200]}")
+        # 최종 실패 — 카카오 오류 코드(KOE···/숫자 code)를 파싱해 함께 남긴다(원인 파악용).
+        try:
+            ej = r.json() or {}
+        except Exception:
+            ej = {}
+        ecode = str(ej.get("error_code") or ej.get("code") or "")
+        print(f"::warning title=차트 누락 폴백::[chart] 업로드 실패 HTTP {r.status_code}"
+              f"{f' code={ecode}' if ecode else ''}: {r.text[:200]}")
         return None
     return None
 
@@ -990,6 +1025,21 @@ def send_memo(access_token, text, with_button=True, uuids=None):
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
 
 
+def _mark_sent_ok():
+    """'실제 발송 성공' 직후에만 호출 — SENT_OK_PATH 센티널 파일을 만든다.
+
+    과거엔 워크플로가 스크립트 종료 후 무조건 마커(.kakao_sent_marker)를 만들어, 토큰 만료·발송
+    실패로 SystemExit 를 삼키고 exit 0 한 슬롯까지 '발송됨'으로 캐시됐다 → 백업 스케줄의 같은
+    슬롯 재시도가 하루 종일 차단되는 '무음 유실'. 이제 성공 시에만 이 파일이 생기고, 워크플로는
+    이 파일이 있을 때만 마커를 만든다(실패 슬롯은 다음 깨움이 재시도)."""
+    try:
+        open(SENT_OK_PATH, "w").close()
+    except OSError as e:
+        # 센티널 생성 실패 = 마커가 안 찍혀 같은 슬롯이 중복 발송될 수 있음(유실보다는 낫다) — 경고만.
+        print(f"::warning title=발송 센티널 생성 실패::{SENT_OK_PATH} 생성 불가({e}) — "
+              "같은 슬롯이 중복 발송될 수 있습니다")
+
+
 def main():
     rest_key = os.environ.get("KAKAO_REST_API_KEY", "").strip()
     refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
@@ -1039,18 +1089,30 @@ def main():
         #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
         if _charts_enabled():
             if send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=uuids):
+                _mark_sent_ok()                      # 실제 발송 성공 — 여기서만 센티널 생성
                 print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
                 return
-            print("[kakao] 차트 피드 실패 — 동일 내용 텍스트로 폴백")
+            # 차트 없는 발송으로 열화되는 순간 — 로그를 훑지 않아도 런 요약(Annotations)에 바로 보이게.
+            print(f"::warning title=차트 누락 폴백::차트 피드 실패 — 동일 내용 텍스트로 폴백(slot={slot}). "
+                  "사유는 앞선 [chart] 경고 참고")
 
         # ② 최후 폴백: 기본 텍스트 한 통 — 피드와 '동일한 공통 블록(증시~운임)' + '대시보드 보기' 버튼.
         #    (콘솔 커스텀 템플릿 폴백은 형식이 달라 혼란을 줬으므로 제거 — 2026-06-10 10시 사례)
         send_memo(access_token, build_text_message(title, blocks), with_button=True, uuids=uuids)
+        _mark_sent_ok()                              # 텍스트 폴백도 '발송 성공'(실패면 위에서 SystemExit)
         print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
     except SystemExit as e:
         print(f"::warning title=Kakao 발송 건너뜀::{e} — 토큰 만료/회전 또는 발송 실패 추정. "
               "KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신하면 다음 슬롯부터 발송이 복구됩니다. "
               "(워크플로는 정상 종료 — 매 슬롯 실패 알림 메일 방지)")
+        # ::warning 은 로그를 열어야 보인다 — 런 첫 화면(Summary)에도 남겨 무음 유실을 눈에 띄게 한다.
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "").strip()
+        if summary_path:
+            try:
+                with open(summary_path, "a", encoding="utf-8") as f:
+                    f.write(f"❌ 카카오 발송 건너뜀: {e}\n\n")
+            except OSError as we:
+                print(f"[kakao] STEP_SUMMARY 기록 실패({we}) — 경고 로그로 갈음")
 
 
 if __name__ == "__main__":

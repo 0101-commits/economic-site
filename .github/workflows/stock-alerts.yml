@@ -2,6 +2,8 @@ name: Stock Alerts (KakaoTalk, 장중 5분)
 
 # '투자 현황' 페이지에서 설정한 종목 알림(alerts_config.json)을 장중 평가해
 # 조건 충족 시 카카오톡으로 발송한다 (scripts/check_alerts.py).
+# + 시장중단(서킷브레이커) 라이브 감지·발송(scripts/check_halts.py, HALTS_LIVE=1)도 본 워크플로
+#   담당 — fetch-data 경유의 실효 지연(15분+)을 없애기 위해 2026-07 이관.
 #   - 한국 장중: 평일 09:00–15:40 KST (= UTC 00:00–06:40)
 #   - 미국 장중: 평일 22:30–06:10 KST (= UTC 13:30–21:10)
 # 도배 방지 발송 이력(alerts_state.json)은 매 런 커밋해 보존한다(하루 1회/1시간 쿨다운).
@@ -33,6 +35,9 @@ concurrency:
 jobs:
   check-and-notify:
     runs-on: ubuntu-latest
+    # 행 방지 — 정상 런은 ~1분. 외부 시세 API 행이 러너를 물면 concurrency 직렬화로
+    # 후속 매분 런까지 밀리므로 짧게 자른다.
+    timeout-minutes: 10
     steps:
       - name: Checkout (최신 alerts_config.json)
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -46,7 +51,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        run: pip install requests
+        # pynacl: 카카오 refresh_token 자동 회전 시 GH_SECRETS_PAT 로 시크릿을 갱신하는 데 필요
+        # (GitHub Secrets API 는 libsodium 암호화 요구 — kakao-daily.yml 과 동일 배선).
+        run: pip install requests pynacl
 
       - name: Check alerts & send KakaoTalk
         env:
@@ -55,43 +62,69 @@ jobs:
           KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '1' }}
           # 'alerts-test' dispatch 만 테스트 런(가드 무시·이력 미갱신). 'alerts-cron'/schedule 은 정규 런.
           ALERTS_TEST: ${{ github.event_name == 'repository_dispatch' && github.event.action == 'alerts-test' }}
+          # 토큰 auto-rotate 용 — 카카오가 refresh_token 을 회전할 때(만료 1개월 전) 새 토큰을
+          # 이 PAT 로 KAKAO_REFRESH_TOKEN 시크릿에 자동 반영 → 수동 재발급 제거. 미설정이면 조용히 skip.
+          GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
         run: python scripts/check_alerts.py
 
-      - name: Commit alerts_state.json (발송 이력 — 도배 방지)
+      # 🚨 시장중단(서킷브레이커) 감지·카카오 — fetch-data.yml 에서 이관(2026-07).
+      #   HALTS_LIVE=1: ^KS11/^KQ11 시세를 직접 조회해 감지 → 발동→알림 지연을 fetch-data 경유
+      #   15분+ 에서 본 워크플로 주기(장중 5분, Worker cron 보강 시 그 이하)로 단축.
+      #   라이브 조회 실패 시 data.json.marketHalts 폴백. halts_state.json 소유권은 본 워크플로.
+      #   ⚠️ 트레이드오프: 본 워크플로는 장중에만 돌므로(KR 09:00–15:55 KST) 장마감 후의 '해제·
+      #   정리'는 다음 개장 런(또는 미국장 런)에서 처리된다 — market_halts.cb_from_index 의 세션
+      #   게이트(평일 09:00–15:30 KST, 1·2단계는 14:50 까지)와 결합해 장외 오발동은 없다.
+      #   continue-on-error: 시세/카카오 장애가 종목 알림 이력 커밋(다음 스텝)을 막지 않게.
+      - name: Check market halts & send KakaoTalk (라이브 감지)
+        continue-on-error: true
+        env:
+          HALTS_LIVE: '1'
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          # 토큰 auto-rotate 용 — kakao-daily.yml 과 동일 배선(미설정이면 조용히 skip).
+          GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
+        run: python scripts/check_halts.py
+
+      - name: Commit alerts_state.json + halts_state.json (발송 이력 — 도배 방지)
         # ⚠ always() — 발송 스텝이 예외로 실패해도 이력 커밋은 반드시 돌려 '매분 재발송 스팸'을 막는다.
         #   (check_alerts.py 는 발송 전에 상태를 저장하고 전송 실패를 삼키므로 정상 시엔 exit 0.)
+        #   halts_state.json 도 함께 커밋 — 서킷브레이커 발송 이력 소유권은 본 워크플로(fetch-data 는 미커밋).
         if: always()
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           branch="${GITHUB_REF_NAME:-main}"
-          if [ ! -f alerts_state.json ]; then echo "상태 파일 없음 — 커밋 건너뜀"; exit 0; fi
-          # ⚠ 반드시 먼저 stage 한 뒤 변경 여부를 본다. alerts_state.json 은 최초엔 untracked 라
+          if [ ! -f alerts_state.json ] && [ ! -f halts_state.json ]; then echo "상태 파일 없음 — 커밋 건너뜀"; exit 0; fi
+          # ⚠ 반드시 먼저 stage 한 뒤 변경 여부를 본다. 상태 파일은 최초엔 untracked 라
           #   `git diff`(워킹트리 vs 인덱스)·`git diff --staged`(인덱스 vs HEAD) 모두 untracked 파일을
           #   '변경 없음'으로 보고 → 최초 커밋이 영원히 스킵돼 파일이 끝내 추적되지 않던 버그.
           #   그 결과 매 런 state={} 로 시작 → cool60/교차 가드가 런 간 보존되지 않아 동일 알림이 5분마다 반복.
           #   stage 후 `git diff --staged`(인덱스 vs HEAD)는 신규 추가도 변경으로 감지한다.
-          git add alerts_state.json
-          if git diff --staged --quiet -- alerts_state.json; then
+          [ -f alerts_state.json ] && git add alerts_state.json || true
+          [ -f halts_state.json ] && git add halts_state.json || true
+          if git diff --staged --quiet -- alerts_state.json halts_state.json; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
           msg="alerts: 발송 이력 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
           # data.json 커밋과 동일한 '최신 런이 이긴다' 재시도 정책 — 상태 파일만 재적용
-          cp alerts_state.json /tmp/alerts_state.json.run
+          cp alerts_state.json /tmp/alerts_state.json.run 2>/dev/null || true
+          cp halts_state.json /tmp/halts_state.json.run 2>/dev/null || true
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then
               echo "push 성공 (시도 ${attempt})"; exit 0
             fi
-            echo "push 실패 (시도 ${attempt}) — 원격 최신 위에 alerts_state.json 만 재적용"
+            echo "push 실패 (시도 ${attempt}) — 원격 최신 위에 상태 파일만 재적용"
             git fetch origin "${branch}" || true
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
-            cp /tmp/alerts_state.json.run alerts_state.json
-            git add alerts_state.json
-            if git diff --staged --quiet -- alerts_state.json; then
+            cp /tmp/alerts_state.json.run alerts_state.json 2>/dev/null || true
+            cp /tmp/halts_state.json.run halts_state.json 2>/dev/null || true
+            [ -f alerts_state.json ] && git add alerts_state.json || true
+            [ -f halts_state.json ] && git add halts_state.json || true
+            if git diff --staged --quiet -- alerts_state.json halts_state.json; then
               echo "원격이 이미 최신 — 종료"; exit 0
             fi
             git commit -m "$msg" -q || true
             sleep $((attempt * 3))
           done
-          echo "::error::alerts_state.json push 실패 (재시도 소진)"; exit 1
+          echo "::error::alerts/halts state push 실패 (재시도 소진)"; exit 1

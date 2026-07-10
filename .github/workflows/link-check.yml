@@ -19,6 +19,7 @@ permissions:
 jobs:
   check-links:
     runs-on: ubuntu-latest
+    timeout-minutes: 15   # 행 방지 — 외부 링크 다건 점검이라 여유를 두되 기본 360분 무제한은 차단
     steps:
       - name: Checkout repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5

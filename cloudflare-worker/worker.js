@@ -839,6 +839,33 @@ const GH_REPO = '0101-commits/economic-site';
 // 아이솔레이트 수명 동안만 유지되는 best-effort 값(교차 아이솔레이트 중복은 멱등 워크플로가 흡수).
 let _lastHeavySlot = '';
 
+// 🔎 [가시화] 마지막 repository_dispatch 실패 기록 — isolate 메모리 전역(비영속, best-effort).
+//   KV 없이 헬스(GET /)의 lastDispatchFail 필드로만 노출한다. isolate 재활용/축출/재배포 시
+//   소실되므로 'null = 실패 없음'을 보장하지 않는다(값이 있으면 확실히 실패가 있었다는 뜻).
+let _lastDispatchFail = null;
+
+// 🔑 [토큰 만료 무감지 해소] GH 토큰 프로브 결과 60초 캐시(모듈 전역) — 프론트의 헬스 폴링이
+//   GitHub 을 두들기지 않게 한다(캐시 역시 isolate 비영속이지만 프로브는 저비용이라 무방).
+let _ghTokenHealth = { t: 0, dispatch: null, alerts: null };
+
+// GET /rate_limit 프로브 — GitHub 레이트리밋을 소모하지 않는 엔드포인트.
+//   200 = 토큰 유효, 401/403 등 = 만료·폐기·권한없음(false). 네트워크 예외 등 판정 불가는
+//   null(fail-open) — 프로브 실패가 헬스 응답 자체를 죽이지 않는다.
+async function _probeGhToken(token) {
+  try {
+    const r = await fetch('https://api.github.com/rate_limit', {
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'ecom-health-probe',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    return r.status === 200;
+  } catch (_) { return null; }
+}
+
 // 공통 repository_dispatch — eventType 워크플로를 on-demand 1회 실행시킨다(204=성공).
 // cron 은 최선노력이라 단발 실패가 알림 누락으로 직결되므로 일시 오류(네트워크·5xx·429)는 3회 재시도한다.
 async function ghDispatch(env, eventType, payload, ua) {
@@ -849,6 +876,8 @@ async function ghDispatch(env, eventType, payload, ua) {
   }
   let lastErr = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
+    // 기본 대기 — 일시 오류(네트워크·5xx)용 선형 백오프. 429 는 아래에서 Retry-After 기반으로 대체.
+    let waitMs = attempt * 1000;
     try {
       const r = await fetch(`https://api.github.com/repos/${GH_REPO}/dispatches`, {
         method: 'POST',
@@ -867,15 +896,27 @@ async function ghDispatch(env, eventType, payload, ua) {
         return true;
       }
       lastErr = `HTTP ${r.status} ${await r.text().catch(() => '')}`;
-      // 4xx(401 토큰만료·403 권한/레이트)는 재시도해도 동일 → 즉시 중단하고 아래서 크게 경고.
-      if (r.status >= 400 && r.status < 500 && r.status !== 429) break;
+      if (r.status === 429) {
+        // [429] GitHub 세컨더리 레이트리밋은 통상 60초+ — 1~2초 선형 대기로는 3회 전부 무효였다.
+        //   Retry-After 헤더를 존중하되 30초 상한(cron 실행 컨텍스트 보호), 헤더가 없으면
+        //   지수 백오프 2s→8s 로 대기한다.
+        const ra = parseInt(r.headers.get('Retry-After') || '', 10);
+        waitMs = (Number.isFinite(ra) && ra > 0) ? Math.min(ra * 1000, 30000)
+                                                 : 2000 * Math.pow(4, attempt - 1);
+      } else if (r.status >= 400 && r.status < 500) {
+        // 4xx(401 토큰만료·403 권한)는 재시도해도 동일 → 즉시 중단하고 아래서 크게 경고.
+        break;
+      }
     } catch (e) {
       lastErr = String((e && e.message) || e);
     }
-    if (attempt < 3) await new Promise((res) => setTimeout(res, attempt * 1000));
+    if (attempt < 3) await new Promise((res) => setTimeout(res, waitMs));
   }
   // ⚠ 디스패치 실패 = 알림 파이프라인이 조용히 죽는 지점. 눈에 띄는 태그로 남겨 로그 알람이 잡게 한다.
   console.error(`[ALERT-DISPATCH-FAILED] ${eventType}: ${lastErr}`);
+  // [가시화] 마지막 실패를 모듈 전역에 기록 → 헬스(GET /)의 lastDispatchFail 로 노출.
+  //   isolate 비영속(best-effort) — 영속 저장(KV) 없이 '신호가 보이면 확실히 실패했다' 수준의 관측용.
+  _lastDispatchFail = { t: Date.now(), event: eventType, err: String(lastErr).slice(0, 120) };
   return false;
 }
 
@@ -905,22 +946,56 @@ function inKakaoSlot(d) {
   return h >= 7 && h <= 22;                                   // 평일 07~22시
 }
 
+// 🔍 fetch-data 워크플로가 '지금 실행 중'인지 조회 — 과밀 dispatch 방지 게이트.
+//   성공 런이 12~57분 걸리는데 5분마다 무조건 dispatch 하면 concurrency 그룹이 이전 런을
+//   취소해 cancelled 런이 양산된다(실측 77%). 실행 중이면 이번 슬롯의 fetch-data 만 건너뛴다.
+//   조회 실패/권한 부족(fine-grained PAT 에 Actions:Read 없음 → 403)은 false 반환
+//   = fail-open(dispatch 진행) — 최악의 경우에도 기존 동작과 동일하다. GH_DISPATCH_TOKEN 재사용.
+async function _fetchDataInProgress(env) {
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${GH_REPO}/actions/workflows/fetch-data.yml/runs?status=in_progress&per_page=1`, {
+      headers: {
+        'Authorization': 'Bearer ' + env.GH_DISPATCH_TOKEN,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'ecom-fetch-cron',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) return false;                       // 403/404/5xx → fail-open
+    const j = await r.json().catch(() => null);
+    return !!(j && Number(j.total_count) > 0);
+  } catch (_) { return false; }                    // 네트워크/타임아웃 → fail-open
+}
+
 // 🔔 종목 알림(alerts-cron) + 서킷브레이커 데이터 갱신(fetch-data) on-demand 실행.
 // GHA schedule 드롭 영향을 받지 않는다. alerts-cron 은 장중 '매분'(알림 도착 최악 ~2분),
 // fetch-data 는 무거워서(런 수분·data.json 커밋) 기존 5분 주기 유지 — includeFetch 로 게이트.
+// 반환: 발화한 dispatch 가 모두 성공하면 true, 하나라도 실패하면 false.
+//   (scheduled 가 false 를 받으면 _lastHeavySlot 마커를 롤백해 :1분 백업 재시도가 살아난다.)
 async function triggerMarketAlerts(env, includeFetch) {
   if (!(env && env.GH_DISPATCH_TOKEN)) {
     console.log('[market-cron] GH_DISPATCH_TOKEN 미설정 — dispatch 생략. (README 참고)');
-    return;
+    return false;
   }
-  if (!inMarketHours(new Date())) return;   // 장외 — GitHub 깨우지 않음
+  if (!inMarketHours(new Date())) return true;   // 장외 — GitHub 깨우지 않음(할 일 없음 = 성공)
+  // alerts-cron 은 즉시 발화(아래 in_progress 조회를 기다리지 않음 — 정시성 핵심).
   const jobs = [ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron')];
-  if (includeFetch) jobs.push(ghDispatch(env, 'fetch-data', {}, 'ecom-fetch-cron'));
+  if (includeFetch) {
+    if (await _fetchDataInProgress(env)) {
+      console.log('[market-cron] fetch-data 실행 중 — 이번 슬롯 fetch-data dispatch 생략(과밀·cancelled 방지)');
+    } else {
+      jobs.push(ghDispatch(env, 'fetch-data', {}, 'ecom-fetch-cron'));
+    }
+  }
   const results = await Promise.all(jobs);
   // 디스패치 결과를 삼키지 않는다 — 실패가 하나라도 있으면 알림 지연/누락 가능. 눈에 띄게 남긴다.
   if (results.some((ok) => ok === false)) {
     console.error('[ALERT-SYSTEM-DEGRADED] 일부 dispatch 실패 — 알림이 지연/누락될 수 있음');
+    return false;
   }
+  return true;
 }
 
 export default {
@@ -937,8 +1012,17 @@ export default {
       //   실행해 누락된 :0 틱을 :1 이 보강한다(slotKey dedup + 멱등 워크플로로 중복은 무해).
       const slotKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-${now.getUTCHours()}-${Math.floor(min / 5)}`;
       const doHeavy = (min % 5 < 2) && _lastHeavySlot !== slotKey;
+      // [마커 선점 버그 수정] 예전엔 dispatch 성공 '전'에 마커를 세팅해, 실패한 슬롯이 '완료'로
+      //   남아 :1분 백업 재시도가 무력화됐다. 선점(같은 isolate 의 연속 틱 중복 방지)은 유지하되,
+      //   dispatch 가 실패로 끝나면 이전 값으로 롤백해 같은 슬롯의 다음 분(min%5<2 창)이
+      //   재시도할 수 있게 한다. 롤백으로 생길 수 있는 중복 발화는 워크플로 concurrency +
+      //   슬롯 dedup 마커(GHA 캐시)가 흡수하므로 안전하다.
+      const prevHeavySlot = _lastHeavySlot;
       if (doHeavy) _lastHeavySlot = slotKey;
-      ctx.waitUntil(triggerMarketAlerts(env, doHeavy));
+      ctx.waitUntil((async () => {
+        const ok = await triggerMarketAlerts(env, doHeavy);
+        if (doHeavy && ok === false) _lastHeavySlot = prevHeavySlot;
+      })());
       // 🔁 카카오 슬롯 재시도 — hourly cron(:02) 1회가 드롭되거나 GitHub 백업 스케줄까지 한 시(時)를
       //   통째로 누락해도(실측 2026-06-26 KST 18시 사례) 슬롯을 놓치지 않도록, 슬롯 시각이면 dispatch.
       //   워크플로 발송 창 게이트 + 슬롯 dedup 마커 + concurrency 직렬화가 멱등성을 보장한다.
@@ -1024,7 +1108,28 @@ export default {
     if (!target) {
       // [이슈5] 허용 호스트 상세 목록은 숨기고 개수만 노출 — 운영 확인은 가능하되 화이트리스트
       //   전체를 외부에 드러내지 않는다(정찰 정보 최소화).
-      return jsonResponse({ ok: true, service: 'ecom-dashboard-proxy', allowedCount: ALLOWED_HOSTS.length });
+      const out = { ok: true, service: 'ecom-dashboard-proxy', allowedCount: ALLOWED_HOSTS.length };
+      // [토큰 만료 무감지 해소] GH 토큰 유효성 프로브 — GET /rate_limit 은 레이트리밋을 소모하지
+      //   않으며 200=유효, 401/403=만료·폐기. 결과는 모듈 전역 60초 캐시(_ghTokenHealth)로 재사용해
+      //   프론트 헬스 폴링이 GitHub 을 두들기지 않는다. 프로브 예외는 fail-open(필드 null) —
+      //   어떤 경우에도 헬스 자체는 200 을 유지한다.
+      try {
+        const nowMs = Date.now();
+        if (nowMs - _ghTokenHealth.t > 60000) {
+          const dTok = env && env.GH_DISPATCH_TOKEN;
+          const aTok = env && env.GH_ALERTS_TOKEN;    // 별도 설정 시에만 프로브(_ghContentsToken 참고)
+          const [d, a] = await Promise.all([
+            dTok ? _probeGhToken(dTok) : Promise.resolve(null),
+            aTok ? _probeGhToken(aTok) : Promise.resolve(null),
+          ]);
+          _ghTokenHealth = { t: nowMs, dispatch: d, alerts: a };
+        }
+        out.ghTokenValid = _ghTokenHealth.dispatch;
+        if (env && env.GH_ALERTS_TOKEN) out.ghAlertsTokenValid = _ghTokenHealth.alerts;
+      } catch (_) { out.ghTokenValid = null; }
+      // [가시화] 마지막 repository_dispatch 실패(모듈 전역·isolate 비영속 best-effort) — 없으면 null.
+      out.lastDispatchFail = _lastDispatchFail;
+      return jsonResponse(out);
     }
 
     let t;

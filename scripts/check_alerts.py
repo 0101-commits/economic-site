@@ -555,7 +555,7 @@ def main():
     #   (과거엔 여기서 이력을 확정해 토큰 만료 창의 가격 교차 알림을 영영 잃었다 — 2026-07 감사.)
     try:
         access_token = kakao.refresh_access_token(rest_key, refresh_token)
-    except SystemExit as e:
+    except (SystemExit, Exception) as e:   # SystemExit(응답오류) + 네트워크예외(URLError/timeout — _retry_status 소진 시 원예외 그대로 raise)
         print(f"::error title=Kakao 토큰 재발급 실패::{e} — 이번 발송 건너뜀(다음 런 재시도)")
         if not IS_TEST:
             _write_state(state, alerts, now)          # 재무장 상태만 저장(발송분 미확정)
@@ -608,7 +608,7 @@ def main():
             kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
             sent += 1
         ok = True
-    except SystemExit as e:
+    except (SystemExit, Exception) as e:   # SystemExit(응답오류) + 전송예외(URLError/timeout — 메모 경로 원예외)
         # 일부 통 실패해도 job 을 죽이지 않는다(매분 실패 메일·커밋 스텝 스킵 방지).
         print(f"::warning title=일부 알림 발송 실패::{e} — {sent}통 발송 후 중단(다음 런 재시도)")
 

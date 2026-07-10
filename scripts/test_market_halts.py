@@ -44,19 +44,74 @@ def test_cb_stage3_is_end_of_day():
 
 
 def test_carry_forward_then_resolve():
-    d1 = {"indices": {"KOSPI": {"change": -8.2}}}
+    d1 = {"indices": {"KOSPI": {"price": 6992, "change": -8.2}}}
     s1 = mh.detect_market_halts(d1, {}, now=NOW)                       # 발동(14:31, resume 15:01)
     assert len(s1["active"]) == 1
     later = NOW + datetime.timedelta(minutes=10)                       # 14:41 등락 회복(-5%)
-    s2 = mh.detect_market_halts({"indices": {"KOSPI": {"change": -5.0}}},
+    s2 = mh.detect_market_halts({"indices": {"KOSPI": {"price": 7230, "change": -5.0}}},
                                 {"marketHalts": s1}, now=later)
     assert len(s2["active"]) == 1, s2                                  # resume 전 → 유지
     assert s2["active"][0]["triggeredAt"] == s1["active"][0]["triggeredAt"]  # 시작시각 고정
     after = datetime.datetime(2026, 6, 23, 15, 5, tzinfo=KST)          # 15:05 resume 경과
-    s3 = mh.detect_market_halts({"indices": {"KOSPI": {"change": -5.0}}},
+    s3 = mh.detect_market_halts({"indices": {"KOSPI": {"price": 7230, "change": -5.0}}},
                                 {"marketHalts": s2}, now=after)
     assert s3["active"] == [], s3                                      # 해제
     assert len(s3["history"]) == 1 and s3["history"][0].get("resolvedAt")
+
+
+# ── 회귀: 세션 게이트 3중 (2026-07-02 15:43 장마감 후 오발송 실사건) ──
+def test_no_cb_after_market_close():
+    """① 장마감(15:30) 후에는 -8% 여도 지수기반 CB 를 만들지 않는다(07-02 실사건 재현)."""
+    after_close = datetime.datetime(2026, 6, 23, 15, 43, tzinfo=KST)   # 화요일 15:43
+    d = {"indices": {"KOSPI": {"price": 6992, "change": -8.0}}}
+    out = mh.detect_market_halts(d, {}, now=after_close)
+    assert out["active"] == [], out
+    before_open = datetime.datetime(2026, 6, 23, 8, 59, tzinfo=KST)    # 개장 전
+    assert mh.detect_market_halts(d, {}, now=before_open)["active"] == []
+
+
+def test_no_cb_on_weekend():
+    """① 주말 hourly 런이 금요일 -8% '종가'를 보고 오발동하지 않는다."""
+    d = {"indices": {"KOSPI": {"price": 6992, "change": -8.1}}}
+    for day in (27, 28):                                               # 토·일
+        wk = datetime.datetime(2026, 6, day, 10, 0, tzinfo=KST)
+        assert mh.detect_market_halts(d, {}, now=wk)["active"] == [], day
+
+
+def test_stage12_blocked_after_1450_stage3_allowed():
+    """② KRX 규정: 1·2단계는 14:50 이후 발동 불가, 3단계(endOfDay)만 15:30 까지."""
+    late = datetime.datetime(2026, 6, 23, 14, 55, tzinfo=KST)
+    d12 = {"indices": {"KOSPI": {"price": 6400, "change": -15.5}}}     # 2단계 상당
+    assert mh.detect_market_halts(d12, {}, now=late)["active"] == []
+    d3 = {"indices": {"KOSPI": {"price": 6080, "change": -20.5}}}      # 3단계
+    out = mh.detect_market_halts(d3, {}, now=late)
+    assert len(out["active"]) == 1 and out["active"][0]["stage"] == 3, out
+
+
+def test_no_cb_when_value_none():
+    """③ 지수 값 None + change=-8.00 오염(07-02 실사건 직접 원인) → 감지 스킵 + stale."""
+    d = {"indices": {"KOSPI": {"price": None, "change": -8.0}}}
+    out = mh.detect_market_halts(d, {}, now=NOW)
+    assert out["active"] == [], out
+    assert out["stale"] is True, out                                   # 깜깜이 빌드로 표시
+    # 라이브 모드 산출 키(value)도 동일하게 취급
+    d2 = {"indices": {"KOSPI": {"value": None, "change": -8.0}}}
+    assert mh.detect_market_halts(d2, {}, now=NOW)["active"] == []
+    # value 키로 정상 값이 오면 감지된다(check_halts 라이브 경로)
+    d3 = {"indices": {"KOSPI": {"value": 6992.0, "change": -8.1}}}
+    assert len(mh.detect_market_halts(d3, {}, now=NOW)["active"]) == 1
+
+
+def test_merge_endofday_or():
+    """B 회귀: 1→3단계 격상 병합 시 endOfDay 는 OR(더 심각한 쪽) — '가장 이른' 기준이면
+    3단계 격상 후에도 False 로 남아 당일종료 유지가 깨진다."""
+    ev1 = mh.cb_from_index("KOSPI", -8.5, NOW)                          # 1단계(이른 시각)
+    ev3 = mh.cb_from_index("KOSPI", -20.5, NOW + datetime.timedelta(minutes=20))  # 3단계 격상
+    merged = mh._merge(ev1, ev3)
+    assert merged["stage"] == 3, merged
+    assert merged["endOfDay"] is True, merged
+    assert merged["resumeAt"] is None, merged                           # 당일종료 = 재개시각 없음
+    assert merged["triggeredAt"] == ev1["triggeredAt"]                  # 시작시각은 이른 값 유지
 
 
 def run():
