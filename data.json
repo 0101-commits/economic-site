@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-12T23:25:50.463827+09:00",
+  "lastUpdated": "2026-07-12T23:39:14.240013+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -25,8 +25,9 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-07-12T21:58)",
-    "sentiment": "이전 빌드 보존 ← prev (2026-07-12T21:58)"
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-07-12T23:25)",
+    "sentiment": "이전 빌드 보존 ← prev (2026-07-12T23:25)",
+    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
@@ -2278,7 +2279,7 @@
     ],
     "unit": "억원",
     "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
-    "lastFetched": "2026-07-12T23:28:53.522379+09:00"
+    "lastFetched": "2026-07-12T23:42:19.904630+09:00"
   },
   "freight": {
     "items": [
@@ -2365,7 +2366,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-07-12T23:29:01.945855+09:00"
+    "lastFetched": "2026-07-12T23:42:27.934515+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -14398,21 +14399,6 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
-      },
       "trade_count_kr_rone": {
         "value": 80119.0,
         "prev": 76391.0,
@@ -14924,6 +14910,21 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
+      },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -183028,6 +183029,7 @@
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 3,
+    "preservedMetricsDeep": 1,
     "historySpotSynced": 16
   },
   "subscription": {
@@ -183402,7 +183404,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-07-12T23:34:57.308681+09:00"
+    "lastFetched": "2026-07-12T23:48:27.797162+09:00"
   },
   "nps": {
     "allocation": [
@@ -183431,7 +183433,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-07-12T23:35:08.589305+09:00",
+    "lastFetched": "2026-07-12T23:48:57.475317+09:00",
     "채권": [],
     "외환": [
       {
@@ -183443,16 +183445,16 @@
     ],
     "주식": [
       {
-        "title": "[마감시황] 기관 매수에 증시 급반등…코스피·코스닥 상승 마감",
-        "url": "https://www.msn.com/ko-kr/news/other/%EB%A7%88%EA%B0%90%EC%8B%9C%ED%99%A9-%EA%B8%B0%EA%B4%80-%EB%A7%A4%EC%88%98%EC%97%90-%EC%A6%9D%EC%8B%9C-%EA%B8%89%EB%B0%98%EB%93%B1-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%BD%94%EC%8A%A4%EB%8B%A5-%EC%83%81%EC%8A%B9-%EB%A7%88%EA%B0%90/ar-AA27CYRW",
-        "isoDate": "2026-07-09",
-        "pubDate": "Thu, 09 Jul 2026 23:57:38 GMT"
-      },
-      {
         "title": "코스피·코스닥 급등에 매수 사이드카까지…美 반도체 훈풍 타고 상승[마감시황]",
         "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%BD%94%EC%8A%A4%EB%8B%A5-%EA%B8%89%EB%93%B1%EC%97%90-%EB%A7%A4%EC%88%98-%EC%82%AC%EC%9D%B4%EB%93%9C%EC%B9%B4%EA%B9%8C%EC%A7%80-%E7%BE%8E-%EB%B0%98%EB%8F%84%EC%B2%B4-%ED%9B%88%ED%92%8D-%ED%83%80%EA%B3%A0-%EC%83%81%EC%8A%B9-%EB%A7%88%EA%B0%90%EC%8B%9C%ED%99%A9/ar-AA27CxGS",
         "isoDate": "2026-07-10",
         "pubDate": "Fri, 10 Jul 2026 00:47:13 GMT"
+      },
+      {
+        "title": "[마감시황] 기관 매수에 증시 급반등…코스피·코스닥 상승 마감",
+        "url": "https://www.msn.com/ko-kr/news/other/%EB%A7%88%EA%B0%90%EC%8B%9C%ED%99%A9-%EA%B8%B0%EA%B4%80-%EB%A7%A4%EC%88%98%EC%97%90-%EC%A6%9D%EC%8B%9C-%EA%B8%89%EB%B0%98%EB%93%B1-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%BD%94%EC%8A%A4%EB%8B%A5-%EC%83%81%EC%8A%B9-%EB%A7%88%EA%B0%90/ar-AA27CYRW",
+        "isoDate": "2026-07-09",
+        "pubDate": "Thu, 09 Jul 2026 23:57:38 GMT"
       },
       {
         "title": "매수 사이드카 코스피·코스닥, 상승 마감…기관 홀로 '사자' [시황]",
@@ -183498,16 +183500,16 @@
         "pubDate": "Tue, 30 Jun 2026 00:08:00 GMT"
       },
       {
-        "title": "한국 성장률 전망 첫 3%대 나왔다…반도체 수출 덕분",
-        "url": "https://www.msn.com/ko-kr/news/other/%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%A0%84%EB%A7%9D-%EC%B2%AB-3-%EB%8C%80-%EB%82%98%EC%99%94%EB%8B%A4-%EB%B0%98%EB%8F%84%EC%B2%B4-%EC%88%98%EC%B6%9C-%EB%8D%95%EB%B6%84/ar-AA27lL6v",
-        "isoDate": "2026-07-06",
-        "pubDate": "Mon, 06 Jul 2026 16:00:59 GMT"
-      },
-      {
         "title": "수출 호황에… 해외IB, 한국 성장률 첫 3%대 전망",
         "url": "https://www.msn.com/ko-kr/money/topstories/%EC%88%98%EC%B6%9C-%ED%98%B8%ED%99%A9%EC%97%90-%ED%95%B4%EC%99%B8ib-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%B2%AB-3-%EB%8C%80-%EC%A0%84%EB%A7%9D/ar-AA27nVzl",
         "isoDate": "2026-07-07",
         "pubDate": "Tue, 07 Jul 2026 08:39:00 GMT"
+      },
+      {
+        "title": "한국 성장률 전망 첫 3%대 나왔다…반도체 수출 덕분",
+        "url": "https://www.msn.com/ko-kr/news/other/%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%A0%84%EB%A7%9D-%EC%B2%AB-3-%EB%8C%80-%EB%82%98%EC%99%94%EB%8B%A4-%EB%B0%98%EB%8F%84%EC%B2%B4-%EC%88%98%EC%B6%9C-%EB%8D%95%EB%B6%84/ar-AA27lL6v",
+        "isoDate": "2026-07-06",
+        "pubDate": "Mon, 06 Jul 2026 16:00:59 GMT"
       },
       {
         "title": "해외IB 올해 한국 성장 전망 평균 처음 3% 찍었다…반년새 1%p↑",
@@ -183801,7 +183803,7 @@
         "iso": "2026-08-26"
       }
     ],
-    "lastFetched": "2026-07-12T23:38:15.992549+09:00",
+    "lastFetched": "2026-07-12T23:51:14.022010+09:00",
     "source": "FRED release dates API",
     "backfilled": 5
   },
@@ -184574,12 +184576,12 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-07-12T23:38:16.081869+09:00",
+    "asOf": "2026-07-12T23:51:15.377445+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-07-12",
-    "generatedAt": "2026-07-12 23:38 KST",
+    "generatedAt": "2026-07-12 23:51 KST",
     "lines": [
       "증시 — KOSPI 7,475.94 (▲2.52%), S&P500 7,575.39 (▲0.42%), 나스닥 26,281.61 (▲0.29%)",
       "환율·금리 — 원/달러 1,498.87원 (▼0.51%), 미국 기준금리 3.63%, VIX 15.84",
