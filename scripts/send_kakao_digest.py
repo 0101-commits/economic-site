@@ -551,8 +551,20 @@ def _yahoo_chart_result(symbol, rng="1d", interval="5m"):
     return None
 
 
+# 인트라데이로 '인정'할 최소 점수. 세션이 갓 개장한 순간(예: KST 08시 발송 시 KRW=X —
+# 서울 FX 는 09시 개장이라 8시엔 야후가 1~2점만 반환)엔 점이 너무 적어 ① 선이 그려지지 않고
+# (matplotlib 은 점 1개면 선을 못 그림·fill 도 투명) ② x축이 '00:00' 로 붕괴한다. 그런데도
+# bool(xs)=True 라 호출부가 '유효한 7일 일봉 폴백'을 건너뛰어 빈 패널이 그대로 발송됐다
+# (2026-07 사용자 보고: 아침 8시 '달러원' 차트가 항상 빔 — Gold 는 야간 선물이라 정상).
+# 임계 미만이면 인트라데이를 버리고 일봉 폴백을 태워 '항상 볼 수 있는' 차트를 보장한다.
+_MIN_INTRADAY_PTS = 3
+
+
 def _yahoo_intraday(symbol, rng="1d", interval="5m"):
     """당일(최근 세션) 인트라데이 (시각[KST naive] 목록, 가격 목록, 전일 종가). 실패 시 ([], [], None).
+
+    점이 _MIN_INTRADAY_PTS 미만이면 '유효한 인트라데이 없음'으로 보고 빈 결과를 돌려
+    호출부가 일봉 폴백을 쓰게 한다(세션 갓 개장 시 1~2점 → 빈 패널 방지).
 
     전일 종가(chartPreviousClose)도 함께 반환해 차트 제목의 등락률을 '차트 마지막 값과 같은
     기준'으로 계산할 수 있게 한다 — data.json 스냅샷의 change 와 섞이면 값·등락률의 기준이
@@ -572,8 +584,12 @@ def _yahoo_intraday(symbol, rng="1d", interval="5m"):
                 continue
             xs.append(datetime.datetime.fromtimestamp(t, KST).replace(tzinfo=None))  # KST 로컬시각(naive)
             ys.append(float(c))
-        if xs:
+        if len(xs) >= _MIN_INTRADAY_PTS:
             return xs, ys, prev
+        if xs:
+            print(f"[chart] 인트라데이 점 부족({symbol}: {len(xs)}점<{_MIN_INTRADAY_PTS}) "
+                  f"— 세션 갓 개장 추정, 일봉 폴백")
+            return [], [], None
     print(f"[chart] 인트라데이 실패({symbol}) — 7일 일봉으로 폴백")
     return [], [], None
 
