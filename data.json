@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-16T00:10:16.923372+09:00",
+  "lastUpdated": "2026-07-16T00:32:04.946699+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -19,34 +19,36 @@
     "move": "yfinance ^MOVE",
     "fear_greed": "CNN Fear & Greed Index",
     "realestate_kr_trade": "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)",
+    "subscription": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
     "nps": "fund.nps.or.kr",
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-07-15T23:56)",
-    "sentiment": "이전 빌드 보존 ← prev (2026-07-15T23:56)"
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-07-16T00:10)",
+    "sentiment": "이전 빌드 보존 ← prev (2026-07-16T00:10)",
+    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
-      "rate": 1490.5,
-      "change": 0.13
+      "rate": 1489.63,
+      "change": 0.07
     },
     "EURKRW": {
-      "rate": 1702.0,
-      "change": 0.3
+      "rate": 1701.01,
+      "change": 0.21
     },
     "JPYKRW": {
-      "rate": 9.1921,
-      "change": 0.18
+      "rate": 9.189,
+      "change": 0.14
     },
     "EURUSD": {
       "rate": 1.1419,
-      "change": 0.17
+      "change": 0.14
     },
     "USDJPY": {
-      "rate": 162.15,
-      "change": -0.05
+      "rate": 162.11,
+      "change": -0.07
     }
   },
   "indices": {
@@ -59,12 +61,12 @@
       "change": 5.8
     },
     "SP500": {
-      "price": 7561.57,
+      "price": 7561.44,
       "change": 0.23
     },
     "NASDAQ": {
-      "price": 26191.2,
-      "change": 0.32
+      "price": 26208.93,
+      "change": 0.39
     },
     "Nikkei": {
       "price": 68751.51,
@@ -75,82 +77,82 @@
       "change": -0.27
     },
     "SOX": {
-      "price": 12295.04,
-      "change": -2.9
+      "price": 12292.83,
+      "change": -2.92
     }
   },
   "commodities": {
     "Gold": {
-      "price": 4065.9,
-      "change": 0.69
+      "price": 4052.0,
+      "change": 0.35
     },
     "Silver": {
-      "price": 58.37,
-      "change": -0.64
+      "price": 57.92,
+      "change": -1.39
     },
     "Platinum": {
-      "price": 1650.7,
-      "change": 0.46
+      "price": 1646.2,
+      "change": 0.19
     },
     "Palladium": {
-      "price": 1303.0,
-      "change": -0.19
+      "price": 1300.0,
+      "change": -0.42
     },
     "Copper": {
-      "price": 6.38,
-      "change": -0.02
+      "price": 6.37,
+      "change": -0.16
     },
     "WTI": {
-      "price": 78.88,
-      "change": -1.31
+      "price": 78.41,
+      "change": -1.9
     },
     "Brent": {
-      "price": 83.82,
-      "change": -2.19
+      "price": 83.41,
+      "change": -2.67
     },
     "NatGas": {
-      "price": 2.92,
-      "change": 0.34
+      "price": 2.9,
+      "change": -0.58
     },
     "Gasoline": {
-      "price": 3.06,
-      "change": -0.35
+      "price": 3.05,
+      "change": -0.7
     },
     "HeatingOil": {
-      "price": 3.83,
-      "change": -2.25
+      "price": 3.81,
+      "change": -2.96
     },
     "Aluminum": {
       "price": 3349.75,
       "change": 0.0
     },
     "Wheat": {
-      "price": 676.5,
-      "change": 4.97
+      "price": 680.0,
+      "change": 5.51
     },
     "Corn": {
-      "price": 468.75,
-      "change": 1.74
+      "price": 469.0,
+      "change": 1.79
     },
     "Soybean": {
-      "price": 1202.75,
-      "change": 0.75
+      "price": 1200.25,
+      "change": 0.54
     },
     "Rice": {
-      "price": 13.84,
-      "change": 0.51
+      "price": 13.86,
+      "change": 0.73
     },
     "Coffee": {
-      "price": 334.65,
-      "change": 2.34
+      "price": 334.55,
+      "change": 2.31
     },
     "Sugar": {
-      "price": 14.76,
-      "change": -1.07
+      "price": 14.86,
+      "change": -0.4
     },
     "Cocoa": {
-      "price": 5824.0,
-      "change": -4.05
+      "price": 5853.0,
+      "change": -3.57
     },
     "Dubai": {
       "price": 79.54,
@@ -2277,7 +2279,7 @@
     ],
     "unit": "억원",
     "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
-    "lastFetched": "2026-07-16T00:13:17.787857+09:00"
+    "lastFetched": "2026-07-16T00:35:04.101047+09:00"
   },
   "freight": {
     "items": [
@@ -2364,7 +2366,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-07-16T00:13:27.057495+09:00"
+    "lastFetched": "2026-07-16T00:35:10.579502+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -9081,7 +9083,8 @@
           "2026-07-09": 100.94,
           "2026-07-10": 100.97,
           "2026-07-13": 101.28,
-          "2026-07-15": 100.714
+          "2026-07-14": 100.94,
+          "2026-07-15": 100.715
         }
       },
       "pmi_us": {
@@ -14398,21 +14401,6 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
-      },
       "trade_count_kr_rone": {
         "value": 80119.0,
         "prev": 76391.0,
@@ -14924,6 +14912,21 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
+      },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -35991,11 +35994,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 1489.84
+          "close": 1488.87
         },
         {
           "date": "2026-07-16",
-          "close": 1490.5
+          "close": 1489.63
         }
       ],
       "EURKRW": [
@@ -41197,11 +41200,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 1703.4
+          "close": 1701.9
         },
         {
           "date": "2026-07-16",
-          "close": 1702.0
+          "close": 1701.01
         }
       ],
       "JPYKRW": [
@@ -46403,11 +46406,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 9.168
+          "close": 9.162
         },
         {
           "date": "2026-07-16",
-          "close": 9.1921
+          "close": 9.189
         }
       ],
       "EURUSD": [
@@ -51609,7 +51612,7 @@
         },
         {
           "date": "2026-07-15",
-          "close": 1.144
+          "close": 1.1438
         },
         {
           "date": "2026-07-16",
@@ -56815,11 +56818,7 @@
         },
         {
           "date": "2026-07-15",
-          "close": 162.133
-        },
-        {
-          "date": "2026-07-16",
-          "close": 162.15
+          "close": 162.117
         }
       ]
     },
@@ -71611,11 +71610,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 7556.2798
+          "close": 7559.02
         },
         {
           "date": "2026-07-16",
-          "close": 7561.57
+          "close": 7561.44
         }
       ],
       "NASDAQ": [
@@ -76637,11 +76636,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 26183.0273
+          "close": 26214.7832
         },
         {
           "date": "2026-07-16",
-          "close": 26191.2
+          "close": 26208.93
         }
       ],
       "Nikkei": [
@@ -91399,11 +91398,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 12244.5273
+          "close": 12277.3887
         },
         {
           "date": "2026-07-16",
-          "close": 12295.04
+          "close": 12292.83
         }
       ]
     },
@@ -96435,11 +96434,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 4050.3999
+          "close": 4054.3999
         },
         {
           "date": "2026-07-16",
-          "close": 4065.9
+          "close": 4052.0
         }
       ],
       "Silver": [
@@ -101469,11 +101468,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 57.925
+          "close": 58.04
         },
         {
           "date": "2026-07-16",
-          "close": 58.37
+          "close": 57.92
         }
       ],
       "Platinum": [
@@ -106503,11 +106502,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 1642.4
+          "close": 1646.9
         },
         {
           "date": "2026-07-16",
-          "close": 1650.7
+          "close": 1646.2
         }
       ],
       "Palladium": [
@@ -111533,11 +111532,7 @@
         },
         {
           "date": "2026-07-15",
-          "close": 1298.5
-        },
-        {
-          "date": "2026-07-16",
-          "close": 1303.0
+          "close": 1300.0
         }
       ],
       "Copper": [
@@ -116571,11 +116566,7 @@
         },
         {
           "date": "2026-07-15",
-          "close": 6.3685
-        },
-        {
-          "date": "2026-07-16",
-          "close": 6.38
+          "close": 6.3705
         }
       ],
       "WTI": [
@@ -121605,11 +121596,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 78.78
+          "close": 78.4
         },
         {
           "date": "2026-07-16",
-          "close": 78.88
+          "close": 78.41
         }
       ],
       "Brent": [
@@ -126643,11 +126634,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 83.91
+          "close": 83.59
         },
         {
           "date": "2026-07-16",
-          "close": 83.82
+          "close": 83.41
         }
       ],
       "NatGas": [
@@ -131681,11 +131672,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 2.911
+          "close": 2.896
         },
         {
           "date": "2026-07-16",
-          "close": 2.92
+          "close": 2.9
         }
       ],
       "Gasoline": [
@@ -136719,11 +136710,7 @@
         },
         {
           "date": "2026-07-15",
-          "close": 3.0582
-        },
-        {
-          "date": "2026-07-16",
-          "close": 3.06
+          "close": 3.0498
         }
       ],
       "HeatingOil": [
@@ -141757,11 +141744,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 3.8197
+          "close": 3.7984
         },
         {
           "date": "2026-07-16",
-          "close": 3.83
+          "close": 3.81
         }
       ],
       "Aluminum": [
@@ -151813,11 +151800,7 @@
         },
         {
           "date": "2026-07-15",
-          "close": 679.0
-        },
-        {
-          "date": "2026-07-16",
-          "close": 676.5
+          "close": 680.0
         }
       ],
       "Corn": [
@@ -156843,7 +156826,7 @@
         },
         {
           "date": "2026-07-15",
-          "close": 468.75
+          "close": 469.0
         }
       ],
       "Soybean": [
@@ -161869,11 +161852,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 1201.25
+          "close": 1198.5
         },
         {
           "date": "2026-07-16",
-          "close": 1202.75
+          "close": 1200.25
         }
       ],
       "Rice": [
@@ -166899,11 +166882,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 13.895
+          "close": 13.9
         },
         {
           "date": "2026-07-16",
-          "close": 13.84
+          "close": 13.86
         }
       ],
       "Coffee": [
@@ -171937,11 +171920,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 333.5
+          "close": 333.75
         },
         {
           "date": "2026-07-16",
-          "close": 334.65
+          "close": 334.55
         }
       ],
       "Sugar": [
@@ -176975,11 +176958,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 14.87
+          "close": 14.88
         },
         {
           "date": "2026-07-16",
-          "close": 14.76
+          "close": 14.86
         }
       ],
       "Cocoa": [
@@ -182009,11 +181992,11 @@
         },
         {
           "date": "2026-07-15",
-          "close": 5871.0
+          "close": 5875.0
         },
         {
           "date": "2026-07-16",
-          "close": 5824.0
+          "close": 5853.0
         }
       ],
       "Dubai": [
@@ -182801,7 +182784,7 @@
       }
     },
     "fear_greed": {
-      "value": 46.9,
+      "value": 46.7,
       "prev": 43.3,
       "rating": "neutral",
       "as_of": "2026-07-16",
@@ -183058,8 +183041,8 @@
         "2026-07-10": 48.4,
         "2026-07-13": 41.66,
         "2026-07-14": 45.37,
-        "2026-07-15": 47.17,
-        "2026-07-16": 46.91
+        "2026-07-15": 46.83,
+        "2026-07-16": 46.71
       },
       "source": "CNN Fear & Greed Index"
     },
@@ -183118,9 +183101,384 @@
       "fred_tried": false,
       "fred_ok": false
     },
-    "subscription": "ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoSvc HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | ApplyhomeInfoSvc HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"} ",
+    "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 3,
-    "historySpotSynced": 27
+    "preservedMetricsDeep": 1,
+    "historySpotSynced": 22
+  },
+  "subscription": {
+    "byRegion": {
+      "seoul": [
+        {
+          "name": "동작 센트럴 동문 디 이스트",
+          "area": "서울",
+          "date": "2026-07-02",
+          "rate": null
+        },
+        {
+          "name": "장위 푸르지오 마크원",
+          "area": "서울",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "드파인 아르티아",
+          "area": "서울",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "북서울자이 폴라리스(보류지)",
+          "area": "서울",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "써밋 더힐",
+          "area": "서울",
+          "date": "2026-05-15",
+          "rate": null
+        },
+        {
+          "name": "아크로 리버스카이",
+          "area": "서울",
+          "date": "2026-05-13",
+          "rate": null
+        },
+        {
+          "name": "더 리치먼드 미아",
+          "area": "서울",
+          "date": "2026-04-27",
+          "rate": null
+        },
+        {
+          "name": "공덕역자이르네",
+          "area": "서울",
+          "date": "2026-04-17",
+          "rate": null
+        },
+        {
+          "name": "라클라체자이드파인",
+          "area": "서울",
+          "date": "2026-04-03",
+          "rate": null
+        },
+        {
+          "name": "오티에르 반포",
+          "area": "서울",
+          "date": "2026-03-31",
+          "rate": null
+        },
+        {
+          "name": "이촌 르엘",
+          "area": "서울",
+          "date": "2026-03-30",
+          "rate": null
+        },
+        {
+          "name": "더샵 신길센트럴시티",
+          "area": "서울",
+          "date": "2026-03-20",
+          "rate": null
+        },
+        {
+          "name": "아크로 드 서초",
+          "area": "서울",
+          "date": "2026-03-20",
+          "rate": null
+        },
+        {
+          "name": "더샵 프리엘라",
+          "area": "서울",
+          "date": "2026-03-12",
+          "rate": null
+        },
+        {
+          "name": "래미안 엘라비네",
+          "area": "서울",
+          "date": "2026-03-06",
+          "rate": null
+        }
+      ],
+      "gyeonggi": [
+        {
+          "name": "오산헤리티지자이 2단지",
+          "area": "경기",
+          "date": "2026-07-10",
+          "rate": null
+        },
+        {
+          "name": "오산헤리티지자이 1단지",
+          "area": "경기",
+          "date": "2026-07-10",
+          "rate": null
+        },
+        {
+          "name": "의왕역 SK VIEW",
+          "area": "경기",
+          "date": "2026-07-10",
+          "rate": null
+        },
+        {
+          "name": "평택역 더센트럴45",
+          "area": "경기",
+          "date": "2026-07-09",
+          "rate": null
+        },
+        {
+          "name": "호반써밋 풍무Ⅲ",
+          "area": "경기",
+          "date": "2026-07-09",
+          "rate": null
+        },
+        {
+          "name": "남양주 진접 서한이다음(S1BL)",
+          "area": "경기",
+          "date": "2026-07-09",
+          "rate": null
+        },
+        {
+          "name": "야목역 서희스타힐스 그랜드힐(조합원 취소분)",
+          "area": "경기",
+          "date": "2026-07-02",
+          "rate": null
+        },
+        {
+          "name": "고양창릉 S-4블록 공공분양주택(본청약)",
+          "area": "경기",
+          "date": "2026-06-30",
+          "rate": null
+        },
+        {
+          "name": "고양창릉지구 S-3블록 이익공유형 분양주택(본청약)",
+          "area": "경기",
+          "date": "2026-06-30",
+          "rate": null
+        },
+        {
+          "name": "군포대야미지구 A-1블록 6년 분양전환공공임대주택(본청약)",
+          "area": "경기",
+          "date": "2026-06-30",
+          "rate": null
+        },
+        {
+          "name": "역곡지구 하우스토리(부천역곡지구 A-2BL) 신혼희망타운(공공분양)(본청약)",
+          "area": "경기",
+          "date": "2026-06-26",
+          "rate": null
+        },
+        {
+          "name": "이천 서희스타힐스 SKY(조합원 취소분)",
+          "area": "경기",
+          "date": "2026-06-22",
+          "rate": null
+        },
+        {
+          "name": "양주 회천지구 A-8BL 로제비앙 엘가",
+          "area": "경기",
+          "date": "2026-06-22",
+          "rate": null
+        },
+        {
+          "name": "북오산자이 드포레",
+          "area": "경기",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "더샵 검단레이크파크(AB23BL)",
+          "area": "인천",
+          "date": "2026-06-12",
+          "rate": null
+        }
+      ],
+      "metro": [
+        {
+          "name": "부산 장안지구 B-2블록 중흥S-클래스(본청약)",
+          "area": "부산",
+          "date": "2026-07-10",
+          "rate": null
+        },
+        {
+          "name": "센텀 엘카사",
+          "area": "울산",
+          "date": "2026-07-03",
+          "rate": null
+        },
+        {
+          "name": "에코델타시티 중흥S-클래스 리버시티",
+          "area": "부산",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "상무 양우내안에 퍼스트힐(조합원 취소분)",
+          "area": "광주",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "호반써밋 첨단3지구(A7BL)",
+          "area": "광주",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "알티에로 광안",
+          "area": "부산",
+          "date": "2026-06-05",
+          "rate": null
+        },
+        {
+          "name": "동래사적공원 오네뜨",
+          "area": "부산",
+          "date": "2026-05-15",
+          "rate": null
+        },
+        {
+          "name": "해운대 마티안 디 에디션",
+          "area": "부산",
+          "date": "2026-05-14",
+          "rate": null
+        },
+        {
+          "name": "두산위브 트리니뷰 구명역",
+          "area": "부산",
+          "date": "2026-05-08",
+          "rate": null
+        },
+        {
+          "name": "더샵 중앙로역센터폴",
+          "area": "대구",
+          "date": "2026-05-04",
+          "rate": null
+        },
+        {
+          "name": "더샵 시에르네(조합원 취소분)",
+          "area": "울산",
+          "date": "2026-04-28",
+          "rate": null
+        },
+        {
+          "name": "기장 이진캐스빌 포레",
+          "area": "부산",
+          "date": "2026-04-24",
+          "rate": null
+        },
+        {
+          "name": "더샵 관저아르테",
+          "area": "대전",
+          "date": "2026-04-24",
+          "rate": null
+        },
+        {
+          "name": "울산신복역 비스타 메트로",
+          "area": "울산",
+          "date": "2026-04-24",
+          "rate": null
+        },
+        {
+          "name": "문수로 라티에르 673",
+          "area": "울산",
+          "date": "2026-04-10",
+          "rate": null
+        }
+      ],
+      "other": [
+        {
+          "name": "춘천 리버뷰 아이파크",
+          "area": "강원",
+          "date": "2026-07-10",
+          "rate": null
+        },
+        {
+          "name": "업성 푸르지오 레이크시티 2단지",
+          "area": "충남",
+          "date": "2026-07-10",
+          "rate": null
+        },
+        {
+          "name": "거제 푸르지오 마린피스",
+          "area": "경남",
+          "date": "2026-07-07",
+          "rate": null
+        },
+        {
+          "name": "천안 아이파크 시티 1단지(2회차)",
+          "area": "충남",
+          "date": "2026-06-26",
+          "rate": null
+        },
+        {
+          "name": "트리븐 김해",
+          "area": "경남",
+          "date": "2026-06-26",
+          "rate": null
+        },
+        {
+          "name": "군산 세경아파트 우선분양전환 후 잔여세대 ",
+          "area": "전북",
+          "date": "2026-06-24",
+          "rate": null
+        },
+        {
+          "name": "신제주 동문디이스트 시그니처원Ⅱ",
+          "area": "제주",
+          "date": "2026-06-23",
+          "rate": null
+        },
+        {
+          "name": "신제주 동문디이스트 시그니처원Ⅰ",
+          "area": "제주",
+          "date": "2026-06-23",
+          "rate": null
+        },
+        {
+          "name": "함안가야 휴니온아르떼",
+          "area": "경남",
+          "date": "2026-06-22",
+          "rate": null
+        },
+        {
+          "name": "펜타힐즈 더블유 1단지",
+          "area": "경북",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "김해 신문 센트럴 아이파크",
+          "area": "경남",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "신문 대상 웰라움 라시엘",
+          "area": "경남",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "밀양 수자인 더퍼스트 2단지 공공분양주택",
+          "area": "경남",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "밀양 수자인 더퍼스트 1단지 공공분양주택",
+          "area": "경남",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "힐스테이트 양산더스카이 2단지",
+          "area": "경남",
+          "date": "2026-06-12",
+          "rate": null
+        }
+      ]
+    },
+    "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
+    "lastFetched": "2026-07-16T00:43:02.079401+09:00"
   },
   "nps": {
     "allocation": [
@@ -183149,7 +183507,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-07-16T00:27:30.293269+09:00",
+    "lastFetched": "2026-07-16T00:43:21.082162+09:00",
     "채권": [],
     "외환": [],
     "주식": [
@@ -183160,8 +183518,8 @@
         "pubDate": "Tue, 14 Jul 2026 17:33:03 GMT"
       },
       {
-        "title": "코스피, 6500 깼다가 6850선 반등…코스닥 783p 연저점 [시황종합]",
-        "url": "https://www.msn.com/ko-kr/money/%EC%83%81%EC%9C%84-%EC%A3%BC%EC%8B%9D/%EC%BD%94%EC%8A%A4%ED%94%BC-6500%EC%84%A0-%EB%B6%95%EA%B4%B4-%EB%94%9B%EA%B3%A0-%EB%B0%98%EB%93%B1-%EB%A7%88%EA%B0%90-%EC%BD%94%EC%8A%A4%EB%8B%A5-783p-%EC%97%B0%EC%A0%80%EC%A0%90-%EC%8B%9C%ED%99%A9%EC%A2%85%ED%95%A9/ar-AA27S8oB",
+        "title": "코스피, 6500선 붕괴 딛고 반등 마감…코스닥 783p 연저점 [시황종합]",
+        "url": "https://www.msn.com/ko-kr/news/living/%EC%BD%94%EC%8A%A4%ED%94%BC-6500%EC%84%A0-%EB%B6%95%EA%B4%B4-%EB%94%9B%EA%B3%A0-%EB%B0%98%EB%93%B1-%EB%A7%88%EA%B0%90-%EC%BD%94%EC%8A%A4%EB%8B%A5-783p-%EC%97%B0%EC%A0%80%EC%A0%90-%EC%8B%9C%ED%99%A9%EC%A2%85%ED%95%A9/ar-AA27S8oB",
         "isoDate": "2026-07-14",
         "pubDate": "Tue, 14 Jul 2026 00:27:23 GMT"
       },
@@ -183176,12 +183534,6 @@
         "url": "https://www.fnnews.com/news/202607141401063487",
         "isoDate": "2026-07-14",
         "pubDate": "Tue, 14 Jul 2026 07:03:00 GMT"
-      },
-      {
-        "title": "반도체 투심 위축에 중동 리스크까지…코스피·코스닥 5%대 폭락[시황종합]",
-        "url": "https://www.news1.kr/finance/general-stock/6221889",
-        "isoDate": "2026-07-07",
-        "pubDate": "Tue, 07 Jul 2026 21:18:00 GMT"
       }
     ],
     "원자재": [],
@@ -183209,16 +183561,16 @@
         "pubDate": "Tue, 14 Jul 2026 00:38:11 GMT"
       },
       {
-        "title": "정부, 올해 성장률 3.0% 제시…반도체·AI 중심 '경제 대도약' 시동",
-        "url": "https://jeonmae.co.kr/news/articleView.html?idxno=1274645",
-        "isoDate": "2026-07-14",
-        "pubDate": "Tue, 14 Jul 2026 07:43:00 GMT"
-      },
-      {
         "title": "수출 호황에… 해외IB, 한국 성장률 첫 3%대 전망",
         "url": "https://www.msn.com/ko-kr/money/topstories/%EC%88%98%EC%B6%9C-%ED%98%B8%ED%99%A9%EC%97%90-%ED%95%B4%EC%99%B8ib-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%B2%AB-3-%EB%8C%80-%EC%A0%84%EB%A7%9D/ar-AA27nVzl",
         "isoDate": "2026-07-07",
         "pubDate": "Tue, 07 Jul 2026 17:39:00 GMT"
+      },
+      {
+        "title": "정부, 올해 성장률 3.0% 제시…반도체·AI 중심 '경제 대도약' 시동",
+        "url": "https://jeonmae.co.kr/news/articleView.html?idxno=1274645",
+        "isoDate": "2026-07-14",
+        "pubDate": "Tue, 14 Jul 2026 07:43:00 GMT"
       },
       {
         "title": "한국 성장률 전망 첫 3%대 나왔다…반도체 수출 덕분",
@@ -183243,8 +183595,8 @@
       {
         "title": "“미국 물가만 바라보는 코스피”…CPI·PPI 변수 맞이한 증시, 투자전략은",
         "url": "https://www.msn.com/ko-kr/news/other/%EB%AF%B8%EA%B5%AD-%EB%AC%BC%EA%B0%80%EB%A7%8C-%EB%B0%94%EB%9D%BC%EB%B3%B4%EB%8A%94-%EC%BD%94%EC%8A%A4%ED%94%BC-cpi-ppi-%EB%B3%80%EC%88%98-%EB%A7%9E%EC%9D%B4%ED%95%9C-%EC%A6%9D%EC%8B%9C-%ED%88%AC%EC%9E%90%EC%A0%84%EB%9E%B5%EC%9D%80/ar-AA27WV61",
-        "isoDate": "2026-07-14",
-        "pubDate": "Tue, 14 Jul 2026 23:30:59 GMT"
+        "isoDate": "2026-07-15",
+        "pubDate": "Wed, 15 Jul 2026 08:30:00 GMT"
       },
       {
         "title": "미 PPI·CPI 동반 둔화…비트코인, 금리 인하 기대에 숨통 트일까",
@@ -183265,30 +183617,23 @@
         "pubDate": "Wed, 15 Jul 2026 01:25:00 GMT"
       }
     ],
-    "중국경기": [
-      {
-        "title": "[NNA] 중국 6월 제조업 PMI, 두 달 만에 50 상회",
-        "url": "https://www.ajunews.com/view/20260701114902457",
-        "isoDate": "2026-07-01",
-        "pubDate": "Wed, 01 Jul 2026 04:50:00 GMT"
-      }
-    ],
+    "중국경기": [],
     "일본경기": [],
     "독일경기": [],
     "영국경기": [],
     "유로존": [],
     "한국수출": [
       {
-        "title": "월 수출 1000억 달러 첫 돌파… 한국 무역, 세계 네 번째 쾌거",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%9B%94-%EC%88%98%EC%B6%9C-1000%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EC%B2%AB-%EB%8F%8C%ED%8C%8C-%ED%95%9C%EA%B5%AD-%EB%AC%B4%EC%97%AD-%EC%84%B8%EA%B3%84-%EB%84%A4-%EB%B2%88%EC%A7%B8-%EC%BE%8C%EA%B1%B0/ar-AA26YEMB",
-        "isoDate": "2026-07-01",
-        "pubDate": "Wed, 01 Jul 2026 03:09:00 GMT"
-      },
-      {
         "title": "美, 한국 상대 44억달러 적자...5월 무역적자 14개월 만에 최대",
         "url": "https://www.newsway.co.kr/news/view?ud=2026070810394669734",
         "isoDate": "2026-07-08",
         "pubDate": "Wed, 08 Jul 2026 03:44:00 GMT"
+      },
+      {
+        "title": "월 수출 1000억 달러 첫 돌파… 한국 무역, 세계 네 번째 쾌거",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%9B%94-%EC%88%98%EC%B6%9C-1000%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EC%B2%AB-%EB%8F%8C%ED%8C%8C-%ED%95%9C%EA%B5%AD-%EB%AC%B4%EC%97%AD-%EC%84%B8%EA%B3%84-%EB%84%A4-%EB%B2%88%EC%A7%B8-%EC%BE%8C%EA%B1%B0/ar-AA26YEMB",
+        "isoDate": "2026-07-01",
+        "pubDate": "Wed, 01 Jul 2026 03:09:00 GMT"
       },
       {
         "title": "한국 月수출 1000억불 새역사… 대전·세종·충남도 힘 보탰다",
@@ -183317,28 +183662,28 @@
         "pubDate": "Wed, 15 Jul 2026 03:11:00 GMT"
       },
       {
-        "title": "한은, 기준금리 인상 예고…신현송 발언 수위 주목",
-        "url": "https://www.yna.co.kr/view/MYH20260715023100038",
-        "isoDate": "2026-07-14",
-        "pubDate": "Tue, 14 Jul 2026 23:55:00 GMT"
-      },
-      {
         "title": "[이번 주 금통위] 한은, 3년 6개월 만에 기준금리 인상 유력…긴축 사이클 재개",
         "url": "https://www.msn.com/ko-kr/news/other/%EC%9D%B4%EB%B2%88-%EC%A3%BC-%EA%B8%88%ED%86%B5%EC%9C%84-%ED%95%9C%EC%9D%80-3%EB%85%84-6%EA%B0%9C%EC%9B%94-%EB%A7%8C%EC%97%90-%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81-%EC%9C%A0%EB%A0%A5-%EA%B8%B4%EC%B6%95-%EC%82%AC%EC%9D%B4%ED%81%B4-%EC%9E%AC%EA%B0%9C/ar-AA27HIqM",
         "isoDate": "2026-07-11",
         "pubDate": "Sat, 11 Jul 2026 23:00:00 GMT"
       },
       {
-        "title": "한국은행, 이번주 금리 인상 확실시⋯8월 연속 인상도 가능할까",
-        "url": "https://www.etoday.co.kr/news/view/2603024",
-        "isoDate": "2026-07-13",
-        "pubDate": "Mon, 13 Jul 2026 07:26:00 GMT"
+        "title": "한은, 기준금리 인상 예고…신현송 발언 수위 주목",
+        "url": "https://www.yna.co.kr/view/MYH20260715023100038",
+        "isoDate": "2026-07-14",
+        "pubDate": "Tue, 14 Jul 2026 23:55:00 GMT"
       },
       {
         "title": "채권시장, 한은 기준금리 인상 앞두고 금통위 '시그널' 촉각",
         "url": "https://www.yna.co.kr/view/AKR20260715122100008",
         "isoDate": "2026-07-14",
         "pubDate": "Tue, 14 Jul 2026 19:05:00 GMT"
+      },
+      {
+        "title": "한국은행, 이번주 금리 인상 확실시...8월 연속 인상도 가능할까",
+        "url": "https://www.msn.com/ko-kr/news/other/%ED%95%9C%EA%B5%AD%EC%9D%80%ED%96%89-%EC%9D%B4%EB%B2%88%EC%A3%BC-%EA%B8%88%EB%A6%AC-%EC%9D%B8%EC%83%81-%ED%99%95%EC%8B%A4%EC%8B%9C-8%EC%9B%94-%EC%97%B0%EC%86%8D-%EC%9D%B8%EC%83%81%EB%8F%84-%EA%B0%80%EB%8A%A5%ED%95%A0%EA%B9%8C/ar-AA27Mp5s",
+        "isoDate": "2026-07-12",
+        "pubDate": "Sun, 12 Jul 2026 22:25:55 GMT"
       }
     ]
   },
@@ -183501,7 +183846,7 @@
         "iso": "2026-08-26"
       }
     ],
-    "lastFetched": "2026-07-16T00:31:10.644208+09:00",
+    "lastFetched": "2026-07-16T00:45:45.418081+09:00",
     "source": "FRED release dates API",
     "backfilled": 4
   },
@@ -184300,16 +184645,16 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-07-16T00:31:10.705364+09:00",
+    "asOf": "2026-07-16T00:45:45.494137+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-07-16",
-    "generatedAt": "2026-07-16 00:31 KST",
+    "generatedAt": "2026-07-16 00:46 KST",
     "lines": [
-      "증시 — KOSPI 7,284.41 (▲6.24%), S&P500 7,561.57 (▲0.23%), 나스닥 26,191.20 (▲0.32%)",
-      "환율·금리 — 원/달러 1,490.50원 (▲0.13%), 미국 기준금리 3.63%, VIX 16.50",
-      "원자재·심리 — WTI $78.88 (▼1.31%), 금 $4,065.90 (▲0.69%), 공포탐욕 47(neutral)"
+      "증시 — KOSPI 7,284.41 (▲6.24%), S&P500 7,561.44 (▲0.23%), 나스닥 26,208.93 (▲0.39%)",
+      "환율·금리 — 원/달러 1,489.63원 (▲0.07%), 미국 기준금리 3.63%, VIX 16.50",
+      "원자재·심리 — WTI $78.41 (▼1.90%), 금 $4,052.00 (▲0.35%), 공포탐욕 47(neutral)"
     ],
     "source": "rule"
   }
