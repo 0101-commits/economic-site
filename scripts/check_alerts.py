@@ -564,6 +564,12 @@ def main():
             prev = (state.get(a["id"]) or {}).get("met")
             # 교차 시 1회: 미충족→충족 전환에서만 발송. 충족 지속 중엔 침묵.
             fire = m if IS_TEST else (m and prev is not True)
+            # [재알림 옵션 — 2026-07 고도화] refire=true 인 가격 알림은 '충족 지속' 중에도
+            # 도배방지 주기(limit: daily=하루 1회 / cool60=1시간)에 따라 반복 알림한다 —
+            # UI 가 약속하던 '하루 1회/1시간 쿨다운'을 가격형에서도 실제로 지원(옵트인).
+            # 기본(refire 미설정)은 종전대로 교차 시 1회 — 기존 알림 동작 불변.
+            if not fire and not IS_TEST and m and prev is True and a.get("refire"):
+                fire = should_send(a, state, now)
             if not fire:
                 continue
             # 가격형은 판정과 같은 근거(당일 저가/고가)로 문구 생성 — evaluate(현재가만) 재검사로

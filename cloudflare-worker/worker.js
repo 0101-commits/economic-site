@@ -599,6 +599,9 @@ function _sanitizeAlerts(raw) {
       maShort: num(a.maShort),
       maLong: num(a.maLong),
       limit: a.limit === 'cool60' ? 'cool60' : 'daily',
+      // [재알림 옵션] 가격 기준선 알림 전용 — true 면 충족 지속 중에도 limit 주기로 반복 알림
+      // (check_alerts.py 가 소비). 기본 false = 종전 '교차 시 1회'.
+      refire: a.refire === true,
       enabled: a.enabled !== false,
     });
   }

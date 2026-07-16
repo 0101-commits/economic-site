@@ -61,7 +61,9 @@ jobs:
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
-          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '1' }}
+          # 기본 OFF(2026-07 사용자 결정) — kakao-daily.yml 과 동일 사유(친구 발송 403 무음 폴백).
+          # 재동의(KAKAO_SETUP.md ⑤) 후 저장소 변수 KAKAO_FRIENDS=1 로 재활성화.
+          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}
           # 'alerts-test' dispatch 만 테스트 런(가드 무시·이력 미갱신). 'alerts-cron'/schedule 은 정규 런.
           ALERTS_TEST: ${{ github.event_name == 'repository_dispatch' && github.event.action == 'alerts-test' }}
           # 토큰 auto-rotate 용 — 카카오가 refresh_token 을 회전할 때(만료 1개월 전) 새 토큰을

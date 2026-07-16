@@ -1818,6 +1818,11 @@ html.light .toast { background: #fff; }
                 <option value="daily">하루 1회만</option>
                 <option value="cool60">1시간 쿨다운</option>
               </select>
+              <!-- [재알림 옵션] 가격 지정 알림 전용(가격 유형 선택 시에만 표시) — 체크하면 기준선을
+                   넘은 채 머무는 동안에도 위 주기(하루 1회/1시간)로 반복 알림. 미체크(기본)는 돌파 시 1회. -->
+              <label id="pfAlertRefireWrap" title="충족 지속 중에도 선택한 주기로 반복 알림 (기본: 돌파 시 1회)" style="display:none;align-items:center;gap:4px;font-size:11px;color:var(--c-txt);cursor:pointer;">
+                <input type="checkbox" id="pfAlertRefire" style="accent-color:var(--c-accent);"> 지속 재알림
+              </label>
               <button class="tab-btn" onclick="pfAddAlert()" style="font-size:11px;padding:5px 14px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:#fff;cursor:pointer;">＋ 추가</button>
             </div>
             <div id="pfAlertHint" style="font-size:10px;color:#7a8099;margin-top:6px;">현재가가 입력한 가격 이상이 되면 발송됩니다.</div>
@@ -18899,7 +18904,12 @@ const PF_ALERT_LABEL = {
 };
 function pfAlertLabel(a) {
   const fn = PF_ALERT_LABEL[a.type];
-  return (fn ? fn(a.value, a) : a.type) + (a.limit === 'cool60' ? ' · 1시간 쿨다운' : ' · 하루 1회');
+  const period = a.limit === 'cool60' ? '1시간 쿨다운' : '하루 1회';
+  // 가격 지정 알림은 백엔드가 '교차 시 1회 + 재무장'으로 동작한다(도배방지 주기는 이벤트형 전용).
+  // refire 를 켠 알림만 충족 지속 중 주기 재알림 — 라벨이 실제 동작을 정확히 말하게 한다(2026-07 감사).
+  const isPrice = (a.type === 'price_above' || a.type === 'price_below');
+  const suffix = isPrice ? (a.refire ? ` · 재알림(${period})` : ' · 돌파 시 1회') : ` · ${period}`;
+  return (fn ? fn(a.value, a) : a.type) + suffix;
 }
 let pfAlertItem = null;
 function pfOpenAlerts(itemId) {
@@ -18924,9 +18934,12 @@ function pfAlertTypeChanged() {
   const needVal = (t === 'price_above' || t === 'price_below' || t === 'pct_change' || t === 'vol_surge');
   val.style.display = needVal ? 'inline-block' : 'none';
   ma.style.display = (t === 'golden_cross' || t === 'dead_cross') ? 'inline-block' : 'none';
+  // [재알림 옵션] 가격 유형에서만 체크박스 노출 — 이벤트형은 도배방지 주기가 이미 반복을 관장한다.
+  const refireWrap = document.getElementById('pfAlertRefireWrap');
+  if (refireWrap) refireWrap.style.display = (t === 'price_above' || t === 'price_below') ? 'inline-flex' : 'none';
   const hints = {
-    price_above: '현재가가 입력한 가격 이상이 되면 발송됩니다.',
-    price_below: '현재가가 입력한 가격 이하가 되면 발송됩니다.',
+    price_above: '현재가가 입력한 가격 이상이 되면 발송됩니다. 기본은 돌파 시 1회(회복 후 재돌파 시 재발송) — 「지속 재알림」을 켜면 충족 지속 중에도 선택한 주기로 반복 알림.',
+    price_below: '현재가가 입력한 가격 이하가 되면 발송됩니다. 기본은 돌파 시 1회(회복 후 재돌파 시 재발송) — 「지속 재알림」을 켜면 충족 지속 중에도 선택한 주기로 반복 알림.',
     pct_change: '전일 종가 대비 등락률이 입력값에 도달하면 발송. 양수=상승(예: 5), 음수=하락(예: -3).',
     high52: '현재가가 최근 52주 최고가를 넘으면 발송됩니다.',
     low52: '현재가가 최근 52주 최저가를 밑돌면 발송됩니다.',
@@ -18957,6 +18970,10 @@ function pfAddAlert() {
     maShort: (t === 'golden_cross' || t === 'dead_cross') ? maS : null,
     maLong:  (t === 'golden_cross' || t === 'dead_cross') ? maL : null,
     limit: document.getElementById('pfAlertLimit').value || 'daily',
+    // [재알림 옵션] 가격 유형 전용 — 체크 시 충족 지속 중에도 limit 주기로 반복 알림(백엔드 refire).
+    refire: (t === 'price_above' || t === 'price_below')
+      ? !!(document.getElementById('pfAlertRefire') && document.getElementById('pfAlertRefire').checked)
+      : false,
     enabled: true,
   });
   document.getElementById('pfAlertValue').value = '';

@@ -417,6 +417,16 @@ def build_digest_parts(d):
         pl.append(f"VIX {_num(vix_v, 1)}")
     vk = sent.get("vkospi")   # 코스피 위험지수(KOSPI 변동성지수, VKOSPI)
     vk_v = _f(vk.get("value")) if vk else None
+    # as_of 스테일 가드 — 수집원이 며칠씩 죽어 carry-forward 된 값(실측: 11일 묵은 as_of)이
+    # '지금 심리'처럼 발송되지 않게, 5일 넘게 묵으면 표기를 생략한다(2026-07 감사).
+    if vk_v is not None and vk and vk.get("as_of"):
+        try:
+            vk_age = (now.date() - datetime.datetime.strptime(str(vk["as_of"])[:10], "%Y-%m-%d").date()).days
+            if vk_age > 5:
+                print(f"[digest] VKOSPI as_of {vk['as_of']} — {vk_age}일 경과 스테일, 표기 생략")
+                vk_v = None
+        except ValueError:
+            pass
     # 이상치 가드 — 스크래핑 오류 값이 carry-forward 되어 발송되는 것 방지(2026-06-11: VIX 19.9
     # 인데 VKOSPI 86.5 가 나간 사례). 정상 범위(5~60) 밖이면서 VIX 의 3배를 넘으면(역사적
     # VKOSPI/VIX 비율은 대체로 1~2배) 신뢰 불가로 보고 표기를 생략한다.

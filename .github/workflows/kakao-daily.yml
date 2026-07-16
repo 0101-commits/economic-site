@@ -161,7 +161,10 @@ jobs:
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_SLOT: ${{ steps.gate.outputs.slot }}
           KAKAO_CHARTS: ${{ vars.KAKAO_CHARTS || '1' }}
-          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '1' }}
+          # 기본 OFF(2026-07 사용자 결정) — 현재 토큰에 friends 스코프가 없어 친구 발송이 매번
+          # HTTP 403 → 무음 폴백만 반복했다. KAKAO_SETUP.md ⑤ 재동의 후 저장소 변수
+          # KAKAO_FRIENDS=1 을 설정하면 재활성화된다.
+          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}
           # 토큰 auto-rotate 용 — 카카오가 refresh_token 을 회전할 때(만료 1개월 전) 새 토큰을
           # 이 PAT 로 KAKAO_REFRESH_TOKEN 시크릿에 자동 반영 → 수동 재발급 제거. 미설정이면 조용히 skip.
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
