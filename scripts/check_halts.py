@@ -123,7 +123,14 @@ def _fire_confirmed(rec):
 # ── 라이브 감지 (HALTS_LIVE=1) ──────────────────────────────────
 def _yahoo_quote(symbol):
     """Yahoo v8 chart 로 (현재가, 전일比%) 조회 — check_alerts.yahoo_snapshot 의 축약판.
-    urllib 만 사용(추가 의존성 없음). 실패 시 None — 호출측이 data.json 폴백."""
+    urllib 만 사용(추가 의존성 없음). 실패/스테일 시 None — 호출측이 data.json 폴백.
+
+    ⚠ 전일比는 '일봉 배열의 직전 확정 종가'(rows[-2]) 대비로 계산한다. 종전의
+    meta.chartPreviousClose 는 '요청 구간(range=5d) 첫 봉 직전 종가'(≈5거래일 전)라,
+    하락이 이어진 주간에는 5일 누적 등락률이 전일比로 둔갑했다 — 실제 전일比 -7.34% 인 날
+    'KOSPI -8.14% 서킷브레이커 1단계' 발동·해제 카톡이 오발송된 직접 원인(2026-07-16 실사건).
+    또한 마지막 봉이 '오늘'(KST)이 아니면 휴장/장전 이월 데이터로 보고 None 을 반환해,
+    전일 -8% 종가가 다음 날 아침 새 id 로 재발동하는 것도 막는다."""
     import urllib.request
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=5d&interval=1d"
     try:
@@ -133,9 +140,20 @@ def _yahoo_quote(symbol):
             j = json.load(r)
         res = ((((j or {}).get("chart") or {}).get("result")) or [None])[0] or {}
         meta = res.get("meta") or {}
+        ts = res.get("timestamp") or []
+        closes = ((((res.get("indicators") or {}).get("quote") or [{}])[0]) or {}).get("close") or []
+        rows = [(t, c) for t, c in zip(ts, closes) if c is not None]
         price = meta.get("regularMarketPrice")
-        prev = meta.get("chartPreviousClose") or meta.get("previousClose")
-        if price is None or not prev:
+        if price is None or len(rows) < 2:
+            return None
+        # ^KS11/^KQ11 은 KST 거래소 — meta.gmtoffset(초) 기준 현지 날짜로 신선도 판정.
+        gmtoff = int(meta.get("gmtoffset") or 9 * 3600)
+        day = lambda epoch: datetime.datetime.fromtimestamp(
+            int(epoch) + gmtoff, datetime.timezone.utc).date()
+        if day(rows[-1][0]) != day(datetime.datetime.now(datetime.timezone.utc).timestamp()):
+            return None                                # 마지막 봉이 오늘 아님 — 스테일, 감지 보류
+        prev = rows[-2][1]
+        if not prev:
             return None
         return float(price), (float(price) / float(prev) - 1) * 100.0
     except Exception:

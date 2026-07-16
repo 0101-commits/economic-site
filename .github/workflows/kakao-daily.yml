@@ -54,6 +54,9 @@ on:
 
 permissions:
   contents: read
+  # 토큰 만료(KOE320/322)·회전 실패를 GitHub 이슈 1건으로 통지(send_kakao_digest._gh_issue_notify) —
+  # 잡은 green 유지(실패 메일 스팸 방지)하면서 '무음 중단'을 확실히 알리는 유일한 승격 채널.
+  issues: write
 
 # 모든 JS 액션(actions/cache@v4 등)을 Node 24 로 강제 실행 — 런 로그의 'Node.js 20 deprecated'
 # ⚠ 경고 주석을 없애 매 발송 런을 '경고 0개의 완전한 green' 으로 유지한다. (2026-06-16 GitHub 이
@@ -162,6 +165,8 @@ jobs:
           # 토큰 auto-rotate 용 — 카카오가 refresh_token 을 회전할 때(만료 1개월 전) 새 토큰을
           # 이 PAT 로 KAKAO_REFRESH_TOKEN 시크릿에 자동 반영 → 수동 재발급 제거. 미설정이면 조용히 skip.
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
+          # 토큰 만료/회전 실패의 이슈 통지용(permissions.issues: write 와 세트) — _gh_issue_notify.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           python scripts/send_kakao_digest.py
           # 마커는 '실제 발송 성공' 센티널(.kakao_sent_ok — 스크립트가 발송 성공 직후에만 생성)이

@@ -133,7 +133,12 @@ def _http_get_text(url):
 
 # ── 시세 스냅샷 ──────────────────────────────────────────────────────────────
 def yahoo_snapshot(symbol):
-    """Yahoo 1y 일봉 → {price, pct, closes, highs, lows, vol_today, vol_prev}."""
+    """Yahoo 1y 일봉 → {price, pct, closes, highs, lows, vol_today, vol_prev, fresh}.
+
+    ⚠ pct(전일比)는 '일봉 배열의 직전 확정 종가' 대비로 계산한다 — 종전의 meta.chartPreviousClose 는
+    '요청 구간(range=1y) 첫 봉 직전 종가'(≈1년 전)라 pct 가 사실상 연 수익률이 되어, pct_change
+    알림 오발송·메시지 등락률 오표기·오염 가드(50%)의 정상 스냅샷 오폐기를 낳았다(2026-07 감사).
+    fresh 는 '마지막 봉이 거래소 현지 기준 오늘인가' — 호출측이 휴장(공휴일)/스테일 판정에 쓴다."""
     j = _http_get_json("https://query1.finance.yahoo.com/v8/finance/chart/"
                        f"{symbol}?range=1y&interval=1d")
     res = (((j or {}).get("chart") or {}).get("result") or [None])[0]
@@ -141,27 +146,34 @@ def yahoo_snapshot(symbol):
         return None
     meta = res.get("meta") or {}
     quote = (((res.get("indicators") or {}).get("quote") or [{}])[0]) or {}
-    rows = [(o, h, l, c, v) for o, h, l, c, v in zip(
-        quote.get("open") or [], quote.get("high") or [], quote.get("low") or [],
+    ts = res.get("timestamp") or []
+    rows = [(t, o, h, l, c, v) for t, o, h, l, c, v in zip(
+        ts, quote.get("open") or [], quote.get("high") or [], quote.get("low") or [],
         quote.get("close") or [], quote.get("volume") or []) if c is not None]
     if len(rows) < 2:
         return None
     price = meta.get("regularMarketPrice")
-    prev = meta.get("chartPreviousClose") or meta.get("previousClose")
     if price is None:
-        price = rows[-1][3]
-    if not prev:
-        prev = rows[-2][3]
-    closes = [r[3] for r in rows]
+        price = rows[-1][4]
+    # 거래소 현지 날짜로 '마지막 봉 = 오늘' 여부 판정 — gmtoffset 은 야후 meta 가 준다.
+    gmtoff = int(meta.get("gmtoffset") or 0)
+    _day = lambda epoch: datetime.datetime.fromtimestamp(
+        int(epoch) + gmtoff, datetime.timezone.utc).date()
+    fresh = _day(rows[-1][0]) == _day(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    # 전일 종가: 마지막 봉이 오늘 라이브 봉이면 그 직전 봉, 아니면(장전·휴장) 마지막 확정 봉
+    # (이때 price 도 그 종가라 pct=0 — 장전 스테일 데이터로 등락률 알림이 서지 않게).
+    prev = rows[-2][4] if fresh else rows[-1][4]
+    closes = [r[4] for r in rows]
     closes[-1] = float(price)  # 마지막 봉은 '현재가' 기준 (장중 라이브 반영)
     return {
         "price": float(price),
         "pct": (float(price) / float(prev) - 1) * 100 if prev else 0.0,
         "closes": closes,
-        "highs": [r[1] for r in rows if r[1] is not None],
-        "lows": [r[2] for r in rows if r[2] is not None],
-        "vol_today": float(rows[-1][4] or 0) or None,
-        "vol_prev": float(rows[-2][4] or 0) or None,
+        "highs": [r[2] for r in rows if r[2] is not None],
+        "lows": [r[3] for r in rows if r[3] is not None],
+        "vol_today": float(rows[-1][5] or 0) or None,
+        "vol_prev": float(rows[-2][5] or 0) or None,
+        "fresh": fresh,
     }
 
 
@@ -216,6 +228,9 @@ def naver_snapshot(code):
         "price": float(price), "pct": float(pct or 0.0),
         "closes": closes, "highs": highs, "lows": lows,
         "vol_today": vol_today, "vol_prev": vol_prev,
+        # 마지막 일봉이 오늘이 아니면 휴장(공휴일)/스테일 — 호출측이 평가를 건너뛴다.
+        # (차트가 아예 없고 basic 현재가만 있으면 판정 불가 → fresh 로 간주해 과차단을 피한다.)
+        "fresh": (not rows) or rows[-1][0] == today,
     }
 
 
@@ -295,12 +310,21 @@ def evaluate(alert, snap):
 
 
 # ── 도배 방지(발송 제한) ────────────────────────────────────────────────────
+def _daily_key(market, now):
+    """'하루 1회' 도배방지의 날짜 키 — KR 은 KST 달력일, US 는 세션 기준일(KST-9h).
+
+    미국 세션(KST 22:30~익일 06:10)은 KST 자정을 걸치므로 KST 달력일을 그대로 쓰면
+    같은 세션 안에서 날짜가 바뀌어 daily 가드가 풀려 동일 알림이 세션당 2번 발송됐다(2026-07 감사)."""
+    base = now if market == "KR" else now - datetime.timedelta(hours=9)
+    return base.strftime("%Y%m%d")
+
+
 def should_send(alert, state, now):
     """이벤트형(52주/크로스/등락률/거래량) 쿨다운 가드. 가격 기준선은 교차감지로 별도 처리."""
     rec = state.get(alert["id"]) or {}
     if alert.get("limit") == "cool60":
         return (now.timestamp() - float(rec.get("ts") or 0)) >= 3600
-    return rec.get("date") != now.strftime("%Y%m%d")     # 기본: 하루 1회
+    return rec.get("date") != _daily_key(alert.get("market", "KR"), now)   # 기본: 하루 1회
 
 
 PRICE_TYPES = ("price_below", "price_above")
@@ -323,6 +347,27 @@ def _price_met(t, price, v, snap=None):
     if snap and snap.get("highs"):
         high = max(high, snap["highs"][-1])
     return high >= v
+
+
+def _price_line(alert, snap):
+    """가격 기준선 발송 문구 — 판정(_price_met: 당일 저가/고가 포함)과 '같은 근거'로 만든다.
+
+    종전엔 fire=True 뒤 evaluate(현재가만 검사)를 재호출해 문구를 만들었는데, 장중에 기준선을
+    찍고 반등(터치-회복)한 경우 evaluate 가 None → 발송 후보에서 빠진 채 met=True 만 기록되어
+    '메시지 0통 + 그날 재발송 영구 차단'이 됐다(2026-07 감사). 판정 근거(당일 저가/고가)로
+    문구까지 만들어 fire=True 면 반드시 발송 라인이 나오게 한다."""
+    t, v, market = alert.get("type"), alert.get("value"), alert.get("market", "KR")
+    price, pct = snap["price"], snap["pct"]
+    head = f"{alert.get('name') or alert.get('symbol')} {_fmt_price(price, market)}({pct:+.1f}%)"
+    if t == "price_below":
+        if price <= v:
+            return f"{head} 지정가 {_fmt_price(v, market)} 이하 하락"
+        low = min(x for x in (price, (snap.get("lows") or [None])[-1]) if x is not None)
+        return f"{head} 장중 {_fmt_price(low, market)} — 지정가 {_fmt_price(v, market)} 이하 터치"
+    if price >= v:
+        return f"{head} 목표가 {_fmt_price(v, market)} 이상 도달"
+    high = max(x for x in (price, (snap.get("highs") or [None])[-1]) if x is not None)
+    return f"{head} 장중 {_fmt_price(high, market)} — 목표가 {_fmt_price(v, market)} 이상 터치"
 
 
 # 종목당 1줄 — 한 종목에서 여러 조건이 동시 충족되면 가장 의미 있는 1건만 남긴다.
@@ -383,19 +428,21 @@ def is_market_open(market, now):
 
 
 def _pack_messages(items, header):
-    """[(alert, line)] → (msgs≤MAX_MSGS, packed_ids).
+    """[(alert, line)] → (packs=[(msg, ids)] ≤MAX_MSGS, packed_ids).
 
     카카오 텍스트 한도(200자) 내 여러 통으로 분할하되, MAX_MSGS 초과분은 packed_ids 에서
     제외한다 — 호출측이 '실제 발송된 알림'만 이력 확정하고, 초과분은 미확정으로 남겨 다음 런에
     재시도하게 한다(과거엔 초과분도 '발송됨'으로 스탬프돼 그날 영영 안 오던 버그 — 2026-07 감사).
-    폭락장에 수십 종목이 동시 충족될 때 앞쪽만 오고 뒤쪽이 조용히 사라지는 것을 막는다."""
-    msgs, cur, cur_ids, packed_ids = [], header, [], set()
+    폭락장에 수십 종목이 동시 충족될 때 앞쪽만 오고 뒤쪽이 조용히 사라지는 것을 막는다.
+    통(msg)별 알림 id 집합을 함께 돌려줘, 다통 발송 중 일부만 성공했을 때 '배달된 통'만
+    확정할 수 있게 한다(런 단위 all-or-nothing 확정이 낳던 부분 실패 시 전량 재발송 중복 방지)."""
+    packs, cur, cur_ids, packed_ids = [], header, [], set()
     budget = TEXT_LIMIT - len(DELAY_NOTICE) - 1
 
     def flush():
         nonlocal cur, cur_ids
-        if cur != header and len(msgs) < MAX_MSGS:
-            msgs.append(cur + "\n" + DELAY_NOTICE)
+        if cur != header and len(packs) < MAX_MSGS:
+            packs.append((cur + "\n" + DELAY_NOTICE, set(cur_ids)))
             packed_ids.update(cur_ids)
         cur, cur_ids = header, []
 
@@ -403,34 +450,37 @@ def _pack_messages(items, header):
         add = "\n" + ln
         if len(cur) + len(add) > budget and cur != header:
             flush()
-            if len(msgs) >= MAX_MSGS:
+            if len(packs) >= MAX_MSGS:
                 break                                  # 한도 도달 — 남은 줄은 미확정(다음 런 재시도)
         if len(cur) + len(add) <= budget:
             cur += add
         else:                                          # 한 줄이 그 자체로 너무 긴 경우 자름
             cur += add[:budget - len(cur)]
         cur_ids.append(a["id"])
-    if len(msgs) < MAX_MSGS:
+    if len(packs) < MAX_MSGS:
         flush()
     dropped = len(items) - len(packed_ids)
     if dropped > 0:
         print(f"::warning title=알림 통수 초과::{MAX_MSGS}통 한도 초과 — {dropped}건 이번 발송 보류"
               f"(미확정, 다음 런 재시도)")
-    return msgs, packed_ids
+    return packs, packed_ids
 
 
-def _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered):
+def _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered_syms):
     """발송 결과를 이력에 반영한다.
 
-    성공(delivered) 또는 재시도 상한(GIVE_UP_TRIES) 도달 시에만 이력을 '확정'(date/ts + 가격교차 met)
-    해 재발화를 억제한다. 실패면 미확정으로 남겨 다음 런에서 다시 발송한다(전송 실패로 필요한 알림이
-    영영 안 오던 문제 방지 — 2026-07 감사). tries 는 발송 前에 이미 +1 되어 있으므로 상한 도달을 여기서 판정한다."""
-    ds, ts = now.strftime("%Y%m%d"), int(now.timestamp())
+    '그 알림의 종목이 담긴 통이 실제 배달됐거나'(delivered_syms) 재시도 상한(GIVE_UP_TRIES) 도달 시에만
+    이력을 '확정'(date/ts + 가격교차 met)해 재발화를 억제한다. 실패면 미확정으로 남겨 다음 런에서 다시
+    발송한다(전송 실패로 필요한 알림이 영영 안 오던 문제 방지 — 2026-07 감사). 배달 여부를 런 단위가
+    아니라 통 단위로 보는 이유: 3통 중 1통만 성공한 런을 통째로 미확정하면 이미 받은 통이 다음 런에
+    재발송(중복)되기 때문. tries 는 발송 前에 이미 +1 되어 있으므로 상한 도달을 여기서 판정한다."""
+    ts = int(now.timestamp())
     for a, _ in to_finalize:
         rec = state.get(a["id"]) or {}
+        delivered = (a.get("market", "KR"), a.get("symbol")) in delivered_syms
         give_up = int(rec.get("tries", 0)) >= GIVE_UP_TRIES
         if delivered or give_up:
-            rec["date"] = ds
+            rec["date"] = _daily_key(a.get("market", "KR"), now)
             rec["ts"] = ts
             if a["id"] in fired_price_ids:
                 rec["met"] = True                      # 가격 교차 발송 확정 → 회복 전까지 재무장 안 함
@@ -501,6 +551,12 @@ def main():
             print(f"::warning title=시세 이상::{a.get('symbol')}({market}) 가격 {snap['price']} "
                   f"전일比 {snap.get('pct')}% — 오염 의심, 건너뜀")
             continue
+        # 🛡 휴장/스테일 가드 — 마지막 일봉이 '오늘'(거래소 현지)이 아니면 공휴일 휴장 또는
+        #    지연 데이터다. is_market_open 은 요일·시각만 보므로, 공휴일에 전일 종가로
+        #    daily 이벤트 알림이 재발송되던 문제를 여기서 막는다(2026-07 감사).
+        if not IS_TEST and snap.get("fresh") is False:
+            print(f"[alerts] 스테일 시세({a.get('symbol')} {market}) — 휴장(공휴일) 추정, 건너뜀")
+            continue
 
         if is_price:
             m = _price_met(t, snap["price"], a.get("value"), snap)
@@ -510,6 +566,12 @@ def main():
             fire = m if IS_TEST else (m and prev is not True)
             if not fire:
                 continue
+            # 가격형은 판정과 같은 근거(당일 저가/고가)로 문구 생성 — evaluate(현재가만) 재검사로
+            # 터치-반등 건이 무음 disarm 되던 버그 수정(_price_line docstring 참고).
+            line = _price_line(a, snap)
+            triggered.append((a, line))
+            print(f"[alerts] 조건 충족: {line}")
+            continue
         try:
             line = evaluate(a, snap)
         except Exception as e:
@@ -586,9 +648,9 @@ def main():
         return
 
     # 발송 통 구성 — MAX_MSGS 초과분은 packed_ids 에서 빠져 미확정으로 남는다(다음 런 재시도).
-    msgs, packed_ids = _pack_messages(to_send, header)
+    packs, packed_ids = _pack_messages(to_send, header)
     sent_syms = {(a.get("market", "KR"), a.get("symbol")) for a, _ in to_send if a["id"] in packed_ids}
-    # 확정 대상 = 실제 발송된 종목의 트리거 전부(대표 1줄 + 같은 종목 동시충족 탈락분까지 함께 확정 —
+    # 확정 대상 = 발송 시도한 종목의 트리거 전부(대표 1줄 + 같은 종목 동시충족 탈락분까지 함께 확정 —
     #   '종목당 1줄' 이력 일관성). 발송 안 된 종목은 확정하지 않아 다음 런에 다시 발송된다.
     to_finalize = [(a, ln) for a, ln in triggered
                    if (a.get("market", "KR"), a.get("symbol")) in sent_syms]
@@ -602,22 +664,27 @@ def main():
             state[a["id"]] = rec
         _write_state(state, alerts, now)
 
-    sent, ok = 0, False
-    try:
-        for msg in msgs:
+    sent, delivered_ids, ok = 0, set(), True
+    for msg, ids in packs:
+        try:
             kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
             sent += 1
-        ok = True
-    except (SystemExit, Exception) as e:   # SystemExit(응답오류) + 전송예외(URLError/timeout — 메모 경로 원예외)
-        # 일부 통 실패해도 job 을 죽이지 않는다(매분 실패 메일·커밋 스텝 스킵 방지).
-        print(f"::warning title=일부 알림 발송 실패::{e} — {sent}통 발송 후 중단(다음 런 재시도)")
+            delivered_ids.update(ids)                  # 배달된 '통'의 알림만 확정 대상(부분 실패 중복 방지)
+        except (SystemExit, Exception) as e:   # SystemExit(응답오류) + 전송예외(URLError/timeout — 메모 경로 원예외)
+            # 일부 통 실패해도 job 을 죽이지 않는다(매분 실패 메일·커밋 스텝 스킵 방지).
+            ok = False
+            print(f"::warning title=일부 알림 발송 실패::{e} — {sent}통 발송 후 중단"
+                  f"(배달된 통만 확정, 나머지 다음 런 재시도)")
+            break
 
     if IS_TEST:
         print(f"[alerts] 테스트 발송 완료 — 충족 {len(triggered)}건 / 발송 {len(to_send)}건 (이력 미갱신)")
         return
 
-    # 발송 결과 확정 — 성공분(또는 재시도 상한 도달분)만 이력 확정, 실패분은 미확정(다음 런 재시도).
-    _finalize_alerts(state, to_finalize, fired_price_ids, now, ok)
+    # 발송 결과 확정 — '배달된 통'의 종목(또는 재시도 상한 도달분)만 이력 확정, 실패분은 미확정(다음 런 재시도).
+    delivered_syms = {(a.get("market", "KR"), a.get("symbol"))
+                      for a, _ in to_send if a["id"] in delivered_ids}
+    _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered_syms)
     _write_state(state, alerts, now)
     print(f"[alerts] 발송 {'성공' if ok else '일부 실패'} — 충족 {len(triggered)}건 / {sent}통 발송 / "
           f"확정 대상 {len(to_finalize)}건")

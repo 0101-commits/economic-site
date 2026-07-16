@@ -19092,11 +19092,22 @@ async function pfSyncAlerts(stOverride) {
         tracking: pfBuildTrackingPayload(),
         // 🔐 평단가·수량(암호화 블록) — 암호 설정 시에만 동봉. 미설정이면 undefined → 서버 기존본 보존.
         encHoldings: await pfBuildEncHoldings(),
-        // [3차-T15] 전역 알림 설정 동봉 — Worker 가 화이트리스트 검증 후 alerts_config.json 에 커밋
-        settings: (window.econSettings ? {
-          enabled: !!econSettings.get('notif.globalEnabled'),
-          defaultLimit: econSettings.get('notif.defaultLimit') || 'daily'
-        } : undefined)
+        // [3차-T15] 전역 알림 설정 동봉 — Worker 가 화이트리스트 검증 후 alerts_config.json 에 커밋.
+        // ⚠ '이 기기에서 명시 설정(저장/불러오기)한 적이 있을 때만' 동봉한다 — 기본값(ON)만 들고 있는
+        //   기기가 저장할 때마다 다른 기기에서 꺼 둔 전역 OFF 를 소리 없이 되돌리던 문제 방지
+        //   (미동봉 시 Worker 가 기존 저장본의 settings 를 보존한다 — 2026-07 감사).
+        settings: (function () {
+          try {
+            var raw = JSON.parse(localStorage.getItem('econ_settings_v1') || '{}');
+            if (raw && raw.notif && window.econSettings) {
+              return {
+                enabled: !!econSettings.get('notif.globalEnabled'),
+                defaultLimit: econSettings.get('notif.defaultLimit') || 'daily'
+              };
+            }
+          } catch (_) {}
+          return undefined;
+        })()
       }),
       signal: AbortSignal.timeout(20000),
     });

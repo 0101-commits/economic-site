@@ -257,6 +257,37 @@ def _update_github_secret(name, value):
         return False
 
 
+def _gh_issue_notify(title, body):
+    """치명 상태(토큰 만료·회전 실패)를 GitHub Issue 로 승격 — '무음 중단' 방지.
+
+    발송 실패를 잡 실패(exit 1)로 만들면 슬롯/매분 실행마다 실패 메일이 도배되므로 잡은 green 으로
+    유지하되, 로그를 열어야만 보이는 ::warning 대신 이슈 1건으로 확실히 통지한다(이슈 생성은
+    저장소 소유자에게 알림이 간다). 같은 제목의 열린 이슈가 있으면 생성하지 않는다(스팸 방지).
+    필요: GITHUB_TOKEN(워크플로 permissions: issues: write) + GITHUB_REPOSITORY(러너 자동 제공).
+    미설정/실패 시 조용히 경고만 — 통지는 best-effort 이며 발송 로직에 영향을 주지 않는다."""
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if not token or not repo:
+        return
+    hdr = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+           "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "ecom-kakao-notify"}
+    try:
+        status, issues = _http_get(
+            f"https://api.github.com/repos/{repo}/issues?state=open&per_page=100", hdr)
+        if status == 200 and any(isinstance(i, dict) and i.get("title") == title
+                                 for i in (issues if isinstance(issues, list) else [])):
+            return                                     # 이미 통지됨 — 중복 이슈 방지
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{repo}/issues",
+            data=json.dumps({"title": title, "body": body}, ensure_ascii=False).encode("utf-8"),
+            headers=dict(hdr, **{"Content-Type": "application/json"}), method="POST")
+        with urllib.request.urlopen(req, timeout=20) as r:
+            if r.status in (200, 201):
+                print(f"::notice title=이슈로 통지::{title}")
+    except Exception as e:
+        print(f"[notify] GitHub 이슈 통지 실패({e}) — 경고 로그로 갈음")
+
+
 def refresh_access_token(rest_key, refresh_token):
     """refresh_token 으로 access_token 을 재발급한다."""
     status, j = _http_post_retry("https://kauth.kakao.com/oauth/token", {
@@ -270,6 +301,17 @@ def refresh_access_token(rest_key, refresh_token):
         ecode = str(j.get("error_code") or "")
         hint = (" — refresh_token 만료 — KAKAO_SETUP.md 재발급 필요"
                 if ecode in ("KOE320", "KOE322") else "")
+        if ecode in ("KOE320", "KOE322"):
+            # 재시도 불가능한 '토큰 사망' — 이 순간부터 모든 카카오 발송(다이제스트·종목·서킷)이
+            # 조용히 중단된다. 사용자가 메시지 부재를 눈치챌 때까지 며칠 걸리던 무음 유실을
+            # 이슈 1건으로 즉시 통지한다(digest/alerts/halts 세 경로 모두 이 함수를 지나간다).
+            _gh_issue_notify(
+                "🚨 카카오 refresh_token 만료 — 카톡 알림 전체 중단 (재발급 필요)",
+                f"카카오 토큰 재발급이 `HTTP {status} {ecode}` 로 실패해 시황 다이제스트·종목 알림·"
+                f"서킷브레이커 알림이 모두 중단된 상태입니다.\n\n"
+                f"**복구 방법**: `KAKAO_SETUP.md` ③ 절차로 refresh_token 을 재발급해 "
+                f"저장소 Secret `KAKAO_REFRESH_TOKEN` 을 교체하세요. 교체 즉시 다음 런부터 복구됩니다.\n\n"
+                f"응답: `{j}`")
         raise SystemExit(f"[kakao] access_token 재발급 실패: HTTP {status}"
                          f"{f' {ecode}' if ecode else ''} {j}{hint}")
     # refresh_token 유효기간이 1개월 미만이면 카카오가 새 토큰을 함께 준다.
@@ -282,6 +324,13 @@ def refresh_access_token(rest_key, refresh_token):
             print("::warning title=KAKAO_REFRESH_TOKEN 회전됨::카카오가 refresh_token 을 회전했으나 "
                   "자동 반영에 실패했습니다. 기존 토큰은 약 1개월 더 유효 — 그 안에 KAKAO_SETUP.md 절차로 "
                   "GitHub Secret 을 갱신하세요.")
+            # 아직 발송이 살아있는 '지금'이 통지 적기 — 1개월 뒤 만료되면 그때는 전 채널 무음 중단이다.
+            _gh_issue_notify(
+                "⚠️ 카카오 refresh_token 회전 자동반영 실패 — 1개월 내 수동 갱신 필요",
+                "카카오가 refresh_token 을 회전 발급했지만 GitHub Secret 자동 갱신(GH_SECRETS_PAT)이 "
+                "실패했습니다. 기존 토큰은 약 1개월 더 유효하며, 그 안에 `KAKAO_SETUP.md` ③ 절차로 "
+                "`KAKAO_REFRESH_TOKEN` Secret 을 갱신하지 않으면 카톡 알림 전체가 중단됩니다.\n\n"
+                "GH_SECRETS_PAT 시크릿(이 저장소 Secrets: write 권한 fine-grained PAT)을 점검하세요.")
     return j["access_token"]
 
 
@@ -434,7 +483,12 @@ def get_friends(access_token):
         print(f"[kakao] 친구 목록 조회 실패({e}) — 나에게 보내기로 발송")
         return []
     if status != 200:
-        print(f"[kakao] 친구 목록 조회 불가 HTTP {status}({j.get('msg', j)}) — 나에게 보내기로 발송")
+        # 403(insufficient scopes) = 토큰에 friends 동의가 없어 '친구에게 보내기'가 상시 죽어 있고
+        # 매 발송이 무음(푸시 없음)인 '나와의 채팅'으로만 간다 — 로그 한 줄로는 묻히던 것을
+        # ::warning 으로 승격해 런 Annotations 첫 화면에서 보이게 한다(2026-07 감사: 매 런 재현 확인).
+        print(f"::warning title=친구 발송 미동작::친구 목록 조회 불가 HTTP {status}({j.get('msg', j)}) — "
+              "'나에게 보내기'로 폴백(푸시 알림 없음). friends 스코프 동의로 refresh_token 을 "
+              "재발급해야 복구됩니다(KAKAO_SETUP.md ⑤). 친구 발송을 안 쓰면 변수 KAKAO_FRIENDS=0 으로 끄세요.")
         return []
     return [el for el in (j.get("elements") or []) if isinstance(el, dict) and el.get("uuid")]
 
@@ -1070,24 +1124,40 @@ def main():
               "설정 방법은 KAKAO_SETUP.md 참고. (워크플로는 정상 종료 — 실패 알림 없음)")
         return
 
-    path = os.path.abspath(DATA_PATH)
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError) as e:
-        raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
-
-    weekend = _is_weekend()                          # 주말(토·일)이면 11·17시만, 사진은 달러원·금
-    slot = _resolve_slot(weekend)
-    apply_live_quotes(data)                          # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
-    title, blocks = build_digest_parts(data)         # 제목 시각은 실제 발송 시각(now) 기준
-
     # 토큰 재발급·발송 실패는 '매 슬롯(평일 16회) 실행'이라 job 실패 시 GitHub 실패 알림 메일이
     # 슬롯마다 쏟아진다. (2026-07-08 18:00 KST~ KAKAO_REFRESH_TOKEN 만료/회전 추정으로 전 슬롯
     # 실패가 연속 발생해 실패 알림이 도배된 사건.) check_alerts.py 와 동일하게 SystemExit 를 삼켜
     # ::warning + 정상 종료(exit 0)로 알림 스팸을 막는다. 단, 이는 '증상(스팸)'만 멈추는 것 —
     # 토큰 만료면 KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신해야 실제 발송이 복구된다.
+    # ⚠ data.json 로드·라이브 보정·본문 구성도 try 안에 둔다 — 종전엔 try '밖'이라 여기서의 예외
+    #   (일시 네트워크 장애·데이터 이상)가 미포획 traceback → job 실패 → 실패 메일로 새던 구멍이었다.
+    #   센티널(.kakao_sent_ok)이 없으므로 백업 깨움이 같은 슬롯을 재시도한다(무음 유실 아님).
     try:
+        path = os.path.abspath(DATA_PATH)
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
+
+        weekend = _is_weekend()                      # 주말(토·일)이면 11·17시만, 사진은 달러원·금
+        slot = _resolve_slot(weekend)
+        apply_live_quotes(data)                      # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
+        title, blocks = build_digest_parts(data)     # 제목 시각은 실제 발송 시각(now) 기준
+
+        # 수집 파이프라인 정체 가시화 — 주요 시세는 apply_live_quotes 가 발송 시점 값으로 보정하지만,
+        # 심리(공포탐욕)·운임(SCFI) 등 비보정 항목은 data.json 그대로다. 커밋이 2시간 넘게 끊겼으면
+        # (fetch-data 타임아웃/취소 적체 실측 최대 3.4h — 2026-07 감사) 제목에 기준시각을 밝혀
+        # 묵은 수치가 '지금 시황'처럼 보이지 않게 한다.
+        try:
+            lu = datetime.datetime.fromisoformat(str(data.get("lastUpdated")))
+            age_min = (datetime.datetime.now(KST) - lu.astimezone(KST)).total_seconds() / 60
+        except (ValueError, TypeError):
+            age_min = None
+        if age_min is not None and age_min > 120:
+            title += f" (수집 {age_min / 60:.1f}h 전)"
+            print(f"::warning title=데이터 스테일::data.json 이 {age_min:.0f}분 전 수집본 — 제목에 표기")
+
         access_token = refresh_access_token(rest_key, refresh_token)
 
         # 수신 모드 자동 판별 — 연결·동의된 친구가 있으면 '친구에게 보내기'(푸시 알림 정상),
@@ -1121,14 +1191,26 @@ def main():
         print(f"::warning title=Kakao 발송 건너뜀::{e} — 토큰 만료/회전 또는 발송 실패 추정. "
               "KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신하면 다음 슬롯부터 발송이 복구됩니다. "
               "(워크플로는 정상 종료 — 매 슬롯 실패 알림 메일 방지)")
-        # ::warning 은 로그를 열어야 보인다 — 런 첫 화면(Summary)에도 남겨 무음 유실을 눈에 띄게 한다.
-        summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "").strip()
-        if summary_path:
-            try:
-                with open(summary_path, "a", encoding="utf-8") as f:
-                    f.write(f"❌ 카카오 발송 건너뜀: {e}\n\n")
-            except OSError as we:
-                print(f"[kakao] STEP_SUMMARY 기록 실패({we}) — 경고 로그로 갈음")
+        _step_summary(f"❌ 카카오 발송 건너뜀: {e}")
+    except Exception as e:
+        # 예상 밖 예외(토큰 재발급 전송예외의 재시도 소진, 데이터 필드 이상 등)도 job 을 죽이지
+        # 않는다 — job 실패는 곧 실패 메일이고, 센티널 부재로 백업 깨움이 어차피 재시도한다.
+        # (2026-07 감사: except SystemExit 만 잡아 URLError 등이 그대로 새던 구멍 봉합.)
+        print(f"::warning title=Kakao 발송 실패(예상 밖 오류)::{type(e).__name__}: {e} — "
+              "워크플로는 정상 종료(실패 메일 방지), 같은 슬롯은 백업 깨움이 재시도합니다.")
+        _step_summary(f"❌ 카카오 발송 실패(예상 밖 오류): {type(e).__name__}: {e}")
+
+
+def _step_summary(line):
+    """::warning 은 로그를 열어야 보인다 — 런 첫 화면(Summary)에도 남겨 무음 유실을 눈에 띄게 한다."""
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "").strip()
+    if not summary_path:
+        return
+    try:
+        with open(summary_path, "a", encoding="utf-8") as f:
+            f.write(f"{line}\n\n")
+    except OSError as we:
+        print(f"[kakao] STEP_SUMMARY 기록 실패({we}) — 경고 로그로 갈음")
 
 
 if __name__ == "__main__":
