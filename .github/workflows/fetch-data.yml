@@ -2,9 +2,11 @@ name: Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)
 
 # 자동 실행 스케줄 (UTC 기준; GitHub Actions 는 UTC 만 인식)
 # 1) 매 시간 정각 — 24시간 시세 베이스라인 갱신
-# 2) 한국 장중(평일 09:00–15:30 KST = 00:00–06:30 UTC) 10분마다 — Top10·지수 신속 반영
-# 3) 미국 장중(평일 22:30–06:00 KST = 13:30–21:00 UTC) 10분마다 — 미 지수·VIX 신속 반영
-# 4) 매일 KST 09:00 / 16:00 / 22:00 — 경제 캘린더·뉴스·통계 풀 갱신 트리거
+# 2) 한국 장중(평일 09:00–15:30 KST = 00:00–06:30 UTC) 15분마다 — Top10·지수 신속 반영
+# 3) 미국 장중(평일 22:30–06:00 KST = 13:30–21:00 UTC) 15분마다 — 미 지수·VIX 신속 반영
+#    (장중 정시성의 주 경로는 Worker cron 5분 dispatch — GHA 스케줄은 백업. 이름의 '10min' 은
+#     workflow_run 연쇄(kakao-daily)가 name 문자열로 이 워크플로를 참조하므로 바꾸지 않는다.)
+# 4) 매일 KST 09:05 / 16:05 / 22:05 (+:30 보강) — 경제 캘린더·뉴스·통계 풀 갱신 트리거
 # 주의: GitHub Actions 스케줄은 기본 브랜치(main)에 있을 때만 활성화됩니다.
 #       또한 스케줄은 best-effort 라 혼잡 시 지연/누락될 수 있어, 프런트엔드가
 #       장중 1분마다 클라이언트 API 로 직접 동기화(semi-실시간)하는 것을 1차 수단으로 둠.
@@ -13,14 +15,26 @@ on:
   schedule:
     - cron: '0 * * * *'      # 매 시간 정각 (24h 시세 베이스라인)
     # ── 장중 고빈도 (평일) — '오전 데이터가 그대로 유지' 문제 해소 ──
-    - cron: '*/10 0-6 * * 1-5'   # 한국 장중 10분마다 (00:00–06:50 UTC = 09:00–15:50 KST)
-    - cron: '*/10 13-21 * * 1-5' # 미국 장중 10분마다 (13:00–21:50 UTC = 22:00–06:50 KST)
+    # ⚠ 이 두 cron 은 '경량(FETCH_LIGHT=1) 시세 전용 런'(~1분)으로 돈다 — 풀 런(12~57분)이
+    #   10분 주기와 겹치며 concurrency 대기열 교체 취소('Canceled by higher priority waiting
+    #   request')를 장중 내내 양산해 취소 알림 메일의 주범이었다(7일간 76건 실측 — 2026-07 감사).
+    #   분(minute)을 10,25,40,55 로 두는 이유: 매시간 풀 cron(:00)·일일 풀 cron(:05·:30)과
+    #   같은 분을 절대 공유하지 않아 GitHub 의 '동일 분 schedule 이벤트 병합'(아래 참고)으로
+    #   경량/풀 판정이 뒤섞이지 않는다. 장중 정시성의 주 경로는 Worker cron(5분, busy 게이트)이고
+    #   이 스케줄은 그 백업이다.
+    - cron: '10,25,40,55 0-6 * * 1-5'   # 한국 장중 15분마다 · 경량 (00 UTC대 = 09시 KST대)
+    - cron: '10,25,40,55 13-21 * * 1-5' # 미국 장중 15분마다 · 경량 (13 UTC대 = 22시 KST대)
     # ── 일일 종합 갱신 트리거 ──
-    - cron: '0 0 * * *'      # KST 09:00 (UTC 00:00) — 매일 아침 종합 갱신
+    # ⚠ 분(minute)을 :05 로 두는 이유: 정각(:00)은 매시간 cron('0 * * * *')과 같은 분이라 GitHub 이
+    #   동일 분 schedule 이벤트를 '하나로 합쳐' github.event.schedule 문자열이 일일 cron 으로 잡히지
+    #   않았고(fetch_data.py 의 PMI 게이트에서 2026-06-10 실측·확인된 동작), 그 결과 아래
+    #   AV_FETCH_FULL 스위치가 한 번도 켜진 적 없는 죽은 코드였다(2026-07 감사). :05 는 매시간(:00)·
+    #   장중(*/15 → :00/:15/:30/:45) 어느 cron 과도 겹치지 않아 일일 런이 독립 발화한다.
+    - cron: '5 0 * * *'      # KST 09:05 (UTC 00:05) — 매일 아침 종합 갱신
     - cron: '30 0 * * *'     # KST 09:30 (UTC 00:30) — 9AM 데이터 미수집 대비 보강
-    - cron: '0 7 * * *'      # KST 16:00 (UTC 07:00) — 한국 장 마감 직후 종합 갱신
+    - cron: '5 7 * * *'      # KST 16:05 (UTC 07:05) — 한국 장 마감 직후 종합 갱신
     - cron: '30 7 * * *'     # KST 16:30 (UTC 07:30) — 4PM 데이터 미수집 대비 보강
-    - cron: '0 13 * * *'     # KST 22:00 (UTC 13:00) — 매일 저녁 종합 갱신 (당일 발표 반영)
+    - cron: '5 13 * * *'     # KST 22:05 (UTC 13:05) — 매일 저녁 종합 갱신 (당일 발표 반영)
     - cron: '30 13 * * *'    # KST 22:30 (UTC 13:30) — 10PM 데이터 미수집 대비 보강
   workflow_dispatch:        # 수동 실행 허용
   # 🔔 Worker cron 이 정시성 보강용으로 깨우는 on-demand 런 — GHA schedule(*/10) 드롭에 영향받지
@@ -41,11 +55,13 @@ on:
       - 'scripts/fetch_data.py'
       - '.github/workflows/fetch-data.yml'
 
-# 동시 실행 직렬화 — 매시간 cron(0 * * * *) 과 일일 cron(0 0/0 7/0 13) 이 같은 정각에
-# 함께 발화하면 두 런이 동시에 main 에 push 하여 한쪽이 non-fast-forward 로 거부·실패한다.
-# concurrency 그룹으로 한 번에 하나만 실행(나머지는 대기)하여 push 경쟁을 제거한다.
+# 동시 실행 직렬화 — 같은 유형(경량/풀)끼리만 직렬화한다.
+# 경량 런(~1분, 시세만)과 풀 런(12~57분)을 '한' 그룹에 넣으면 풀 런이 도는 내내 경량 런이
+# 대기열에서 교체 취소되어(그룹당 대기 1개 제한) 취소 알림 메일이 쌓였다(2026-07 감사).
+# 그룹을 분리하면 경량은 풀 런과 무관하게 즉시 돌고, 서로의 data.json push 경쟁은
+# 커밋 스텝의 5회 재시도('최신 런이 이긴다' — reset 후 산출물 재적용)가 흡수한다.
 concurrency:
-  group: market-data-fetch
+  group: market-data-fetch-${{ (github.event_name == 'repository_dispatch' || startsWith(github.event.schedule, '10,25,40,55')) && 'light' || 'full' }}
   cancel-in-progress: false
 
 permissions:
@@ -60,9 +76,18 @@ env:
 jobs:
   fetch-and-commit:
     runs-on: ubuntu-latest
-    # 행 방지 — 성공 런 실측 소요 12~57분(대부분 45분 이내). 외부 API 행으로 러너를 물고 늘어지면
+    env:
+      # 🪶 경량(시세 전용) 런 판정 — Worker 의 5분 dispatch(repository_dispatch) 와 장중 백업
+      #   스케줄(10,25,40,55분)은 경량, 매시간(:00)·일일(:05·:30)·수동·push 는 풀 런.
+      #   fetch_data.py 가 FETCH_LIGHT=1 이면 직전 data.json 위에 야후 시세+서킷 감지만 ~1분에
+      #   갱신하고 종료한다(무거운 뉴스·지표·부동산 수집 없음 — 2026-07 고도화).
+      FETCH_LIGHT: ${{ (github.event_name == 'repository_dispatch' || startsWith(github.event.schedule, '10,25,40,55')) && '1' || '' }}
+    # 행 방지 — 성공 런 실측 소요 12~57분. 외부 API 행으로 러너를 물고 늘어지면
     # concurrency 직렬화 때문에 후속 런까지 전부 밀리므로 상한을 둔다(기본 360분은 사실상 무제한).
-    timeout-minutes: 45
+    # ⚠ 70분(구 45분): 자체 실측 최대(57분)보다 짧은 45분 상한이 '정상 꼬리 런'을 매일 2~5건씩
+    #   45.3분에 강제 종료(cancelled)시켜 GitHub 실패 알림 메일 + 그 사이클의 data.json 커밋 유실을
+    #   만들었다(2026-07 감사, 7일간 ~20건 실측). 실측 최대 + 여유로 상향 — 진짜 행만 자른다.
+    timeout-minutes: 70
 
     steps:
       - name: Checkout repository
@@ -94,6 +119,9 @@ jobs:
       #   컨텍스트에 없는 속성이라 빈 문자열로 평가됐고, key 가 항상 'kis-token-' 으로
       #   primary hit → actions/cache 가 갱신본을 절대 저장하지 않는 버그였다.
       - name: Restore KIS token cache
+        # 경량 런은 KIS 를 쓰지 않는다 — 캐시 복원/저장(run_id 키라 매 런 새 엔트리)을 생략해
+        # 하루 ~100건의 불필요한 캐시 엔트리 적체(10GB 축출 가속)를 막는다.
+        if: env.FETCH_LIGHT != '1'
         id: kis-cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -107,6 +135,7 @@ jobs:
       # ⚠ key 는 run_id 로 매 런 유일해야 저장된다 (위 KIS 캐시와 동일한 버그 수정 —
       #   이전엔 스크래핑이 성공해도 갱신된 .pmi_cache.json 이 저장된 적이 없었다).
       - name: Restore PMI scrape cache
+        if: env.FETCH_LIGHT != '1'   # 경량 런은 PMI 스크래핑 없음 — 캐시 엔트리 적체 방지(위와 동일)
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .pmi_cache.json
@@ -147,12 +176,14 @@ jobs:
           # https://www.alphavantage.co/support/#api-key 에서 발급
           # Secrets 미설정 시 Alpha Vantage 보강은 건너뜀 (코드에 기본 키 하드코딩 금지 — 공개 저장소).
           ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
-          # 일일 갱신 트리거 (KST 09:00/16:00/22:00) 시점에 Alpha Vantage 보강을 강제 활성화.
+          # 일일 갱신 트리거 (KST 09:05/16:05/22:05) 시점에 Alpha Vantage 보강을 강제 활성화.
           # 매시간 cron 에서는 기본 비활성 (rate-limit 보호). 코드 자동 감지도 있음.
-          AV_FETCH_FULL: ${{ (github.event.schedule == '0 0 * * *' || github.event.schedule == '0 7 * * *' || github.event.schedule == '0 13 * * *') && '1' || '' }}
+          # (일일 cron 을 :05 로 분리했으므로 — 위 schedule 주석 참고 — 이 비교가 실제로 참이 된다.)
+          AV_FETCH_FULL: ${{ (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *') && '1' || '' }}
         run: python scripts/fetch_data.py
 
       - name: Fetch 메르 블로그 스냅샷
+        if: env.FETCH_LIGHT != '1'   # 경량 런은 시세만 — 블로그 스냅샷은 풀 런 담당
         continue-on-error: true
         run: python scripts/fetch_merblog.py
 
@@ -160,6 +191,7 @@ jobs:
       # GEMINI_API_KEY / OPENAI_API_KEY 시크릿이 있으면 LLM 요약, 없으면 규칙 기반 폴백.
       # 스크립트는 어떤 경우에도 exit 0 (빌드 파이프라인을 깨지 않음).
       - name: Generate AI macro briefing
+        if: env.FETCH_LIGHT != '1'   # 경량 런은 시세만 — AI 요약은 풀 런 담당(직전 요약은 보존됨)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

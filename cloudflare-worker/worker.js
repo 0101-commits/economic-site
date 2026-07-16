@@ -599,6 +599,9 @@ function _sanitizeAlerts(raw) {
       maShort: num(a.maShort),
       maLong: num(a.maLong),
       limit: a.limit === 'cool60' ? 'cool60' : 'daily',
+      // [재알림 옵션] 가격 기준선 알림 전용 — true 면 충족 지속 중에도 limit 주기로 반복 알림
+      // (check_alerts.py 가 소비). 기본 false = 종전 '교차 시 1회'.
+      refire: a.refire === true,
       enabled: a.enabled !== false,
     });
   }
@@ -751,7 +754,10 @@ async function handlePortfolioPost(request, env) {
   const denied = await _verifySyncKey(body, env);
   if (denied) return denied;
   const alerts = _sanitizeAlerts(body.alerts);
-  const settings = _sanitizeSettings(body.settings);
+  // ⚙ 전역 알림 설정 — body.settings 가 '있을 때만' 갱신, 없으면 기존 저장본을 보존(tracking 과 동일 원칙).
+  //   종전엔 미동봉을 기본값 {enabled:true} 로 치환해, 전역 OFF 로 저장해 둔 설정이 settings 를
+  //   안 보내는 다른 기기/구버전 클라이언트의 저장 한 번에 소리 없이 ON 으로 뒤집혔다(2026-07 감사).
+  let settings = (body.settings && typeof body.settings === 'object') ? _sanitizeSettings(body.settings) : null;
   // 📋 관심목록 — body.tracking 이 있으면 갱신, 없으면 기존 저장본을 보존(부분 저장 시 유실 방지).
   let tracking = _sanitizeTracking(body.tracking);
   // 🔐 암호화 보유정보 — 동일 원칙(부분 저장 시 보존). 평문 아님(불투명 암호문).
@@ -759,15 +765,17 @@ async function handlePortfolioPost(request, env) {
   // 기존 파일 sha 조회(업데이트 시 필수) → PUT 커밋
   const cur = await _ghContents(env, 'GET');
   const sha = (cur.status === 200 && cur.json && cur.json.sha) ? cur.json.sha : undefined;
-  if ((tracking === null || encHoldings === null) && cur.status === 200 && cur.json && cur.json.content) {
+  if ((tracking === null || encHoldings === null || settings === null) && cur.status === 200 && cur.json && cur.json.content) {
     try {
       const _bin = atob(String(cur.json.content).replace(/\n/g, ''));
       const _bytes = Uint8Array.from(_bin, c => c.charCodeAt(0));
       const _prev = JSON.parse(new TextDecoder().decode(_bytes));
       if (tracking === null && _prev && _prev.tracking) tracking = _sanitizeTracking(_prev.tracking);
       if (encHoldings === null && _prev && _prev.encHoldings) encHoldings = _sanitizeEncHoldings(_prev.encHoldings);
+      if (settings === null && _prev && _prev.settings) settings = _sanitizeSettings(_prev.settings);
     } catch (_) { /* 이전 본 파싱 실패 시 보존 생략 */ }
   }
+  if (settings === null) settings = _sanitizeSettings(null);   // 기존 본도 없음 → 기본값(ON/daily)
   const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts, ...(tracking ? { tracking } : {}), ...(encHoldings ? { encHoldings } : {}) };
   const content = JSON.stringify(cfg, null, 2) + '\n';
   // UTF-8 안전 base64 인코딩 (한글 종목명 포함) — 스프레드 인자 한도 회피를 위해 청크 처리
@@ -946,15 +954,18 @@ function inKakaoSlot(d) {
   return h >= 7 && h <= 22;                                   // 평일 07~22시
 }
 
-// 🔍 fetch-data 워크플로가 '지금 실행 중'인지 조회 — 과밀 dispatch 방지 게이트.
+// 🔍 fetch-data 워크플로가 '지금 실행 중 또는 대기 중'인지 조회 — 과밀 dispatch 방지 게이트.
 //   성공 런이 12~57분 걸리는데 5분마다 무조건 dispatch 하면 concurrency 그룹이 이전 런을
-//   취소해 cancelled 런이 양산된다(실측 77%). 실행 중이면 이번 슬롯의 fetch-data 만 건너뛴다.
+//   취소해 cancelled 런이 양산된다(실측 77%). 실행/대기 중이면 이번 슬롯의 fetch-data 만 건너뛴다.
+//   ⚠ queued 도 함께 본다 — GitHub concurrency 는 그룹당 '실행 1 + 대기 1'만 유지하고 초과 pending
+//   을 취소하므로, in_progress 만 보면 '대기 런 뒤에 또 dispatch → 그 대기 런이 교체 취소'가
+//   반복됐다(2026-07-10 KST 09~11시 22연속 취소로 장중 2시간 데이터 동결 실측 — 2026-07 감사).
 //   조회 실패/권한 부족(fine-grained PAT 에 Actions:Read 없음 → 403)은 false 반환
 //   = fail-open(dispatch 진행) — 최악의 경우에도 기존 동작과 동일하다. GH_DISPATCH_TOKEN 재사용.
-async function _fetchDataInProgress(env) {
-  try {
+async function _fetchDataBusy(env) {
+  const check = async (status) => {
     const r = await fetch(
-      `https://api.github.com/repos/${GH_REPO}/actions/workflows/fetch-data.yml/runs?status=in_progress&per_page=1`, {
+      `https://api.github.com/repos/${GH_REPO}/actions/workflows/fetch-data.yml/runs?status=${status}&per_page=1`, {
       headers: {
         'Authorization': 'Bearer ' + env.GH_DISPATCH_TOKEN,
         'Accept': 'application/vnd.github+json',
@@ -966,6 +977,10 @@ async function _fetchDataInProgress(env) {
     if (!r.ok) return false;                       // 403/404/5xx → fail-open
     const j = await r.json().catch(() => null);
     return !!(j && Number(j.total_count) > 0);
+  };
+  try {
+    const [inProgress, queued] = await Promise.all([check('in_progress'), check('queued')]);
+    return inProgress || queued;
   } catch (_) { return false; }                    // 네트워크/타임아웃 → fail-open
 }
 
@@ -983,8 +998,8 @@ async function triggerMarketAlerts(env, includeFetch) {
   // alerts-cron 은 즉시 발화(아래 in_progress 조회를 기다리지 않음 — 정시성 핵심).
   const jobs = [ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron')];
   if (includeFetch) {
-    if (await _fetchDataInProgress(env)) {
-      console.log('[market-cron] fetch-data 실행 중 — 이번 슬롯 fetch-data dispatch 생략(과밀·cancelled 방지)');
+    if (await _fetchDataBusy(env)) {
+      console.log('[market-cron] fetch-data 실행/대기 중 — 이번 슬롯 fetch-data dispatch 생략(과밀·cancelled 방지)');
     } else {
       jobs.push(ghDispatch(env, 'fetch-data', {}, 'ecom-fetch-cron'));
     }

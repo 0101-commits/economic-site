@@ -7363,7 +7363,102 @@ def fetch_economic_calendar():
     }
 
 
+# ── 경량(라이트) 빌드 — 장중 고빈도 '시세 전용' 경로 (2026-07 고도화) ──────────────
+# 풀 빌드(build_data)는 뉴스·지표·부동산·이력까지 전부 수집해 12~57분이 걸려, 10분 주기
+# 스케줄과 겹치며 concurrency 대기열 교체 취소(→ 취소 알림 메일)를 양산했고 장중 시세 반영도
+# 런 소요에 묶였다(2026-07 감사: 7일간 취소 76건, 커밋 공백 최대 3.4h). 직전 data.json 을
+# 그대로 두고 야후 라이브 시세(지수·환율·원자재)와 서킷브레이커 감지만 ~1분에 덮어쓰는 경량
+# 경로를 분리한다 — 무거운 수집은 시간별/일일 풀 런 담당. 트리거: FETCH_LIGHT=1
+# (fetch-data.yml 이 Worker dispatch·장중 백업 스케줄에 설정).
+_LIGHT_INDICES = (("KOSPI", "^KS11"), ("KOSDAQ", "^KQ11"), ("SP500", "^GSPC"), ("NASDAQ", "^IXIC"))
+_LIGHT_FX = (("USDKRW", "USDKRW=X"), ("EURUSD", "EURUSD=X"), ("USDJPY", "USDJPY=X"))
+_LIGHT_COMMODITIES = (("WTI", "CL=F"), ("Gold", "GC=F"), ("Silver", "SI=F"), ("Copper", "HG=F"),
+                      ("NatGas", "NG=F"), ("Wheat", "ZW=F"), ("Corn", "ZC=F"), ("Soybean", "ZS=F"))
+
+
+def build_light_data():
+    """직전 data.json 위에 라이브 시세만 갱신 → (data, 갱신 건수). prev 없으면 (None, 0).
+
+    lastUpdated 는 '시세가 1건이라도 실제 갱신됐을 때만' 새로 스탬프한다 — 전량 실패 런이
+    옛값을 '방금 갱신됨'으로 위장하지 않게(정직화). 이상치(±20% 급변)는 프록시 글리치로 보고
+    기존 값을 유지한다(apply_live_quotes 와 동일 원칙 — 오염 값이 저장소에 커밋되는 것 방지)."""
+    prev = _load_prev_data("data.json")
+    if not prev:
+        return None, 0
+    data = prev
+    updated = [0]
+
+    def _apply(node, field, sym, price_too=True):
+        q = fetch_yf(sym)
+        if not q or not q.get("price"):
+            return
+        old = node.get(field)
+        try:
+            if old and abs(float(q["price"]) / float(old) - 1) > 0.20:
+                log(f"[light] {sym} 이상치 의심({old} → {q['price']}) — 유지")
+                return
+        except (TypeError, ValueError, ZeroDivisionError):
+            pass
+        if price_too:
+            node[field] = q["price"]
+        node["change"] = q["change"]
+        updated[0] += 1
+
+    for key, sym in _LIGHT_INDICES:
+        _apply(data.setdefault("indices", {}).setdefault(key, {}), "price", sym)
+    for key, sym in _LIGHT_FX:
+        # EURUSD 는 fetch_yf 가 소수 2자리 반올림이라 rate 정밀도가 부족 — change 만 갱신(build_data 와 동일).
+        _apply(data.setdefault("fx", {}).setdefault(key, {}), "rate", sym, price_too=(key != "EURUSD"))
+    # 교차 환율(EURKRW/JPYKRW) 재계산 — build_data 와 동일 규칙(값 일관성 유지)
+    fxd = data.get("fx") or {}
+    usdkrw = (fxd.get("USDKRW") or {}).get("rate")
+    eurusd = (fxd.get("EURUSD") or {}).get("rate")
+    usdjpy = (fxd.get("USDJPY") or {}).get("rate")
+    if usdkrw and eurusd and isinstance(fxd.get("EURKRW"), dict):
+        fxd["EURKRW"]["rate"] = round(usdkrw * eurusd, 2)
+    if usdkrw and usdjpy and isinstance(fxd.get("JPYKRW"), dict):
+        fxd["JPYKRW"]["rate"] = round(usdkrw / usdjpy, 4)
+    for key, sym in _LIGHT_COMMODITIES:
+        _apply(data.setdefault("commodities", {}).setdefault(key, {}), "price", sym)
+    if updated[0]:
+        data["lastUpdated"] = datetime.now(KST).isoformat()
+    return data, updated[0]
+
+
+def run_light_build():
+    """FETCH_LIGHT=1 진입점 — 경량 빌드 + 서킷브레이커 감지 + 파일 쓰기. 항상 exit 0.
+
+    갱신 0건이면 data.json 을 건드리지 않고 종료한다(커밋 스텝이 '변경 없음'으로 스킵 →
+    빈 커밋·거짓 lastUpdated 없음). prev 자체가 없으면 풀 런이 채울 때까지 무변경 종료."""
+    log("=== FETCH_LIGHT=1 — 경량(시세 전용) 빌드 ===")
+    d, updated = build_light_data()
+    if d is None:
+        log("[light] 이전 data.json 없음 — 경량 빌드 불가(무변경 종료, 풀 런이 먼저 필요)")
+        return
+    if not updated:
+        log("[light] 갱신된 시세 0건 — data.json 미변경 종료(커밋 없음, lastUpdated 유지)")
+        return
+    # 서킷브레이커·사이드카 감지 — 경량 런이 장중 최빈 경로이므로 프론트 배너 신선도도 여기서 확보.
+    # (카카오 발송 소유권은 stock-alerts.yml/check_halts.py — 여기서는 data.json 갱신만.)
+    try:
+        import market_halts
+        d["marketHalts"] = market_halts.detect_market_halts(d, _load_prev_data("data.json"))
+        _mh = d["marketHalts"]
+        log(f"[light-halts] active={len(_mh.get('active', []))} history={len(_mh.get('history', []))}")
+    except Exception as _e:
+        print(f"[light-halts] 감지 skipped: {_e}")
+    with open("data.json", "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
+    meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize("data.json")}
+    with open("data_meta.json", "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False)
+    log(f"=== 경량 빌드 완료: 시세 {updated}건 갱신 → data.json ===")
+
+
 if __name__ == "__main__":
+    if os.environ.get("FETCH_LIGHT", "").strip() in ("1", "true", "yes"):
+        run_light_build()
+        sys.exit(0)
     log("=== 시장 데이터 수집 시작 ===")
     for name, key in [
         ("KRX",         KRX_API_KEY),

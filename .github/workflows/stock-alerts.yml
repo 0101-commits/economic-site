@@ -26,6 +26,8 @@ on:
 
 permissions:
   contents: write
+  # 토큰 만료(KOE320/322)·회전 실패를 GitHub 이슈 1건으로 통지(kakao._gh_issue_notify — 잡은 green 유지).
+  issues: write
 
 # 발송 이력 커밋 경쟁 방지 — 한 번에 하나만 실행
 concurrency:
@@ -59,12 +61,16 @@ jobs:
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
-          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '1' }}
+          # 기본 OFF(2026-07 사용자 결정) — kakao-daily.yml 과 동일 사유(친구 발송 403 무음 폴백).
+          # 재동의(KAKAO_SETUP.md ⑤) 후 저장소 변수 KAKAO_FRIENDS=1 로 재활성화.
+          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}
           # 'alerts-test' dispatch 만 테스트 런(가드 무시·이력 미갱신). 'alerts-cron'/schedule 은 정규 런.
           ALERTS_TEST: ${{ github.event_name == 'repository_dispatch' && github.event.action == 'alerts-test' }}
           # 토큰 auto-rotate 용 — 카카오가 refresh_token 을 회전할 때(만료 1개월 전) 새 토큰을
           # 이 PAT 로 KAKAO_REFRESH_TOKEN 시크릿에 자동 반영 → 수동 재발급 제거. 미설정이면 조용히 skip.
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
+          # 토큰 만료/회전 실패의 이슈 통지용(permissions.issues: write 와 세트) — kakao._gh_issue_notify.
+          GITHUB_TOKEN: ${{ github.token }}
         run: python scripts/check_alerts.py
 
       # 🚨 시장중단(서킷브레이커) 감지·카카오 — fetch-data.yml 에서 이관(2026-07).
@@ -83,6 +89,14 @@ jobs:
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           # 토큰 auto-rotate 용 — kakao-daily.yml 과 동일 배선(미설정이면 조용히 skip).
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
+          # 토큰 만료/회전 실패의 이슈 통지용 — kakao._gh_issue_notify.
+          GITHUB_TOKEN: ${{ github.token }}
+          # 🟠 사이드카 감지(뉴스 스크레이프) — 사이드카는 지수 등락률(1겹)로는 못 잡고
+          #    NAVER 뉴스 헤드라인(market_halts.scrape_market_halts)이 유일한 경로인데, 종전엔
+          #    이 스텝에 NAVER 자격증명이 배선되지 않아 라이브 모드에서 사이드카 감지가 구조적으로
+          #    불가능했다(2026-07-16 09:10 실제 매도 사이드카를 미발송한 원인 — 2026-07 감사).
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: python scripts/check_halts.py
 
       - name: Commit alerts_state.json + halts_state.json (발송 이력 — 도배 방지)
