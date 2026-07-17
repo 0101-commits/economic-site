@@ -172,15 +172,27 @@
 </script>
 <script>
   // 색상 방향 관습 부트스트랩 — 렌더 전 동기 적용. 'kr'(빨강=상승/파랑=하락, 한국식) | 'global'(초록=상승).
+  // 값은 CSS 토큰(--c-up/--c-down, html.kr-colors 오버라이드)과 1:1 동기 — 수정 시 양쪽 함께.
+  // hex 리터럴 필수: 코드 전반에서 CUP+'22' 식 알파 결합을 하므로 var()/getComputedStyle 사용 금지.
   (function(){
+    window._UPDN = {
+      kr:     { dark: ['#f87171', '#58a6ff'], light: ['#d32f2f', '#1565c0'] },
+      global: { dark: ['#26a69a', '#f87171'], light: ['#0f766e', '#db2f11'] }
+    };
+    // 앞선 FOUC 방지 블록이 html.light 를 이미 적용했으므로 여기서 테마를 읽어도 안전.
+    window.refreshUpDn = function(){
+      try {
+        var t = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+        var m = window._UPDN[window.econColorConv === 'kr' ? 'kr' : 'global'][t];
+        window.CUP = m[0]; window.CDN = m[1];
+      } catch(_) { window.CUP = '#26a69a'; window.CDN = '#f87171'; }
+    };
     try {
       var cc = localStorage.getItem('econ_color_conv') || 'kr';
       if (cc === 'kr') document.documentElement.classList.add('kr-colors');
-      var kr = (cc === 'kr');
-      window.CUP = kr ? '#e01f1f' : '#26a69a';
-      window.CDN = kr ? '#1976d2' : '#ef5350';
       window.econColorConv = cc;
-    } catch(_) { window.CUP = '#26a69a'; window.CDN = '#ef5350'; window.econColorConv = 'global'; }
+    } catch(_) { window.econColorConv = 'global'; }
+    window.refreshUpDn();
   })();
   // 토스트 알림 — 액션 피드백. host 는 최초 호출 시 생성.
   window.showToast = function(msg, type, ms){
@@ -269,7 +281,7 @@
     --c-accent:   #2962ff;
     --c-primary:  #c8d2ff;         /* 강조 라벨 — 약간 밝게 */
     --c-up:       #26a69a;
-    --c-down:     #ef5350;
+    --c-down:     #f87171;      /* #ef5350 → 다크 카드 위 AA 대비 상향 */
     /* 경제지표 팝업 — 실제값 상태색(다크 표면 위 WCAG AA) + 모달 표면 토큰 */
     --ind-pos:#34d399; --ind-neg:#f87171; --ind-neu:#cbd5e1;
     --modal-bg:var(--c-card-hi); --modal-text:var(--c-txt); --modal-border:var(--c-border); --modal-surface:var(--c-bg);
@@ -320,7 +332,7 @@
     --c-txt-muted:rgb(145,145,145);
     --c-accent:   rgb(53,108,181);
     --c-primary:  rgb(53,108,181);
-    --c-up:       rgb(57,141,139);
+    --c-up:       #0f766e;      /* rgb(57,141,139) → 흰 카드 위 AA 대비 상향(5.3:1) */
     --c-down:     rgb(219,47,17);
     /* 경제지표 팝업 — 실제값 상태색(흰 배경 WCAG AA 4.5:1↑) */
     --ind-pos:#15803d; --ind-neg:#dc2626; --ind-neu:#374151;
@@ -344,7 +356,7 @@
     --c-txt-muted:#6b6b6b;
     --c-border-weak:#cfe0ef;
     --c-accent-container:#d9e6ff;
-    --c-warn:#b8860b;
+    --c-warn:#b45309;   /* #b8860b(2.9:1) → 흰 카드 위 AA 통과(4.9:1) */
     --c-success:#2e7d32;
     --c-on-accent:#ffffff;
   }
@@ -358,6 +370,8 @@
     background:var(--c-accent); color:var(--c-on-accent);
     padding:8px 16px; border-radius:0 0 var(--r-xs) 0; font-size:var(--fs-body); }
   .skip-link:focus{ left:0; }
+  /* 시각적으로 숨기고 스크린리더에만 노출 — 상태 라이브 리전용 */
+  .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   *:focus-visible{ outline:2px solid var(--c-primary); outline-offset:2px; }
   @media (max-width:768px){ .reHistPeriodBtn, .reHistUnitBtn { min-height:36px; } }
   /* 지표 추이 모달 — 모바일에서 카드 내부 스크롤 + 차트 높이 축소 (콘텐츠가 카드 밖으로 넘치지 않게) */
@@ -418,8 +432,8 @@
   html.light .menu-item:hover { background: #d9edf8; color: rgb(38,38,38); }
   html.light .menu-item.active { background: #d9edf8; color: rgb(53,108,181); }
   html.light .widget-title { color: rgb(89,89,89); }
-  html.light .up-txt { color: rgb(57,141,139); }
-  html.light .down-txt { color: rgb(219,47,17); }
+  /* .up-txt/.down-txt 라이트 하드코딩 제거 — 관습(kr/global)별 색은 --c-up/--c-down 토큰이 담당.
+     여기서 글로벌 관습 색을 강제하면 기본 kr-colors 와 한 화면에서 관습이 뒤섞인다. */
   html.light tr:hover td { background: #d9edf8; }
   html.light ::-webkit-scrollbar-track { background: #f5f8fc; }
   html.light ::-webkit-scrollbar-thumb { background: #aac4e6; }
@@ -828,12 +842,11 @@
     }
     /* kpi-card 작게 — 폰트 축소 */
     .kpi-card { padding: 8px !important; }
-    .kpi-card > div[style*="font-size:18px"],
-    .kpi-card > div[style*="font-size:22px"] { font-size: 14px !important; }
-    .kpi-card > div[style*="font-size:24px"] { font-size: 15px !important; }
-    .kpi-card > div[style*="font-size:10px"] { font-size: 10px !important; }
-    .kpi-card > div[style*="font-size:11px"] { font-size: 10px !important; }
-    .kpi-card > div[style*="font-size:12px"] { font-size: 10px !important; }
+    /* 자손 결합자 — 기준금리 카드의 중첩 flex 안 #kpi-rate-val 까지 포함해 4카드 크기 통일.
+       14px 는 등락률(13px)과 1px 차라 위계가 무너져 17px 로 완화. 10px 강제 축소 규칙은 제거. */
+    .kpi-card div[style*="font-size:18px"],
+    .kpi-card div[style*="font-size:22px"] { font-size: 17px !important; }
+    .kpi-card div[style*="font-size:24px"] { font-size: 17px !important; }
     /* 위젯 내부 컨테이너 overflow 방지 */
     .widget, .kpi-card { min-width: 0 !important; max-width: 100% !important; overflow: hidden; }
     .widget > div, .kpi-card > div { min-width: 0 !important; }
@@ -954,6 +967,18 @@
   @keyframes _spin { to { transform: rotate(360deg); } }
   .spin-anim { animation: _spin .8s linear infinite; display: inline-block; }
 
+  /* 숫자 표기 안정화 — 고정폭 숫자(tnum)로 우측정렬 컬럼 세로선 정렬 + 주기 갱신 시 흔들림 제거 */
+  main table { font-variant-numeric: tabular-nums; }
+  #kpi-kospi-price, #kpi-fx-price, #kpi-rate-val, #kpi-wti-price,
+  #kpi-kospi-chg, #kpi-fx-chg, #kpi-wti-chg,
+  #mainChartPriceVal, #mainChartChangeVal, #fearVal,
+  .brief-val, #clock, #ticker { font-variant-numeric: tabular-nums; }
+
+  /* 글로벌 지수 테이블 — 지수명 셀을 실제 버튼으로 (키보드로 메인차트 전환 가능) */
+  .gidx-btn { all: unset; display: block; width: 100%; padding: 7px 4px; font-size: 12px;
+    color: inherit; cursor: pointer; box-sizing: border-box; }
+  .gidx-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: -2px; }
+
   /* 지연 데이터 글로벌 상태 칩 (2.4) — 카드별 중복 경고문 대신 단일 상시 표시.
      좌하단 플로팅이 본문 콘텐츠를 가린다는 피드백으로 사이드바(메뉴바) 내부 정적 배치로 변경. */
   /* 색은 테마 토큰 --c-warn 사용 — #f0c75e 하드코딩은 라이트 카드 위 대비 ~1.6:1 로 안 보였다
@@ -996,8 +1021,10 @@
   /* 모바일 터치 타깃 — 시각 크기(11px 탭 칩)는 유지하고 '터치 히트영역'만 확장.
      WCAG 2.2 SC 2.5.8 은 최소 24×24 CSS px 권고 — ::after inset 으로 22px 버튼을 ~38px 로. */
   @media (pointer: coarse) {
-    .tab-btn { position: relative; }
-    .tab-btn::after { content: ''; position: absolute; inset: -8px; }
+    /* 좌우 -2px — 버튼 gap(4px)보다 커지면 인접 버튼 히트영역이 겹쳐 오탭 유발.
+       preset-btn(기간 프리셋)·yoy-btn(전년 비교)도 확장 대상에 포함. */
+    .tab-btn, .preset-btn, .yoy-btn { position: relative; }
+    .tab-btn::after, .preset-btn::after, .yoy-btn::after { content: ''; position: absolute; inset: -10px -2px; }
   }
 /* ═══ [3차-T4] 설정·진단·카드뷰·가이드·스크롤차트 공통 스타일 ═══════════════ */
 .set-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--c-border,#3e4870); flex-wrap:wrap; }
@@ -1152,7 +1179,8 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 .mer-item button{background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 10px;font-size:11px;cursor:pointer;margin-top:4px}
 
 /* ═══════════════ 2026-07 고도화 (접근성·UX·색상관습) ═══════════════ */
-html.kr-colors { --c-up:#e01f1f; --c-down:#1976d2; }
+/* 다크 카드(#1f2945) 위 WCAG AA — #e01f1f/#1976d2 는 3.0~3.1:1 미달이라 상향(5.19:1/5.69:1) */
+html.kr-colors { --c-up:#f87171; --c-down:#58a6ff; }
 html.light.kr-colors { --c-up:#d32f2f; --c-down:#1565c0; }
 .home-sec:focus-within .sec-drag-handle,
 .home-sec:focus-within .sec-hide-btn { opacity: 1; background: var(--c-surface,#1a2236); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
@@ -1216,7 +1244,7 @@ html.light .toast { background: #fff; }
     <div class="menu-item" onclick="showPage('merblog',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">article</span>메르 블로그 검색</div>
     <div class="menu-item" onclick="showPage('settings',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">settings</span>설정</div>
     <!-- 지연 데이터 상태 칩 — 좌하단 플로팅에서 사이드바 정적 배치로 이동 (본문 가림 해소) -->
-    <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>Market Data 15m Delayed</div>
+    <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>시세 최대 15분 지연</div>
     <button id="globalRefreshBtn" onclick="manualRefreshData()" title="데이터 수동 새로고침 (30초 쿨다운)" style="display:flex;align-items:center;gap:5px;width:100%;padding:5px 10px;margin-top:4px;border-radius:var(--r-xs);border:1px solid var(--c-border,#3e4870);background:transparent;color:var(--c-txt-dim,#a4a8bc);cursor:pointer;font-size:11px;font-weight:500;transition:opacity .2s;"><span aria-hidden="true" class="mat" id="globalRefreshIcon" style="font-size:14px;">refresh</span><span id="globalRefreshLabel">새로고침</span></button>
     <div style="border-top:1px solid var(--c-border);margin:12px 0;"></div>
     <!-- 테마 토글 버튼 -->
@@ -1252,7 +1280,7 @@ html.light .toast { background: #fff; }
           <div id="reHistMeta"  style="font-size:11px;color:var(--c-txt-dim,#a4a8bc);margin-top:2px;">—</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <button class="u-touch-hit" onclick="event.stopPropagation();refreshReHistoryChart(this)" title="data.json 재페치 후 차트 재렌더" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+          <button class="u-touch-hit" onclick="event.stopPropagation();refreshReHistoryChart(this)" title="데이터 다시 불러오기" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
           <button class="u-touch" aria-label="닫기" onclick="closeReHistoryChart()" style="background:transparent;border:none;color:var(--c-txt-dim,#a4a8bc);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
         </div>
       </div>
@@ -1322,7 +1350,7 @@ html.light .toast { background: #fff; }
            scripts/ai_briefing.py 가 GitHub Actions 에서 생성 (LLM 키 없으면 규칙 기반 폴백). -->
       <div id="aiBriefingBanner" class="widget" style="display:none;margin-bottom:16px;padding:14px 16px;border-left:3px solid var(--c-accent);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-          <div class="widget-title" style="margin-bottom:0;">🤖 오늘의 매크로 3줄 요약</div>
+          <div class="widget-title" style="margin-bottom:0;"><span aria-hidden="true">🤖</span> 오늘의 매크로 3줄 요약</div>
           <span id="aiBriefingMeta" style="font-size:10px;color:var(--c-txt-muted,#8b90a8);"></span>
         </div>
         <div id="aiBriefingLines" style="font-size:13px;line-height:1.8;color:var(--c-txt,#e8ebf5);"></div>
@@ -1374,7 +1402,7 @@ html.light .toast { background: #fff; }
           <div class="widget-title">한국 기준금리 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">단위: % (연이율)</span></div>
           <div style="display:flex;align-items:baseline;gap:6px;">
             <div id="kpi-rate-val" style="font-size:22px;font-weight:700;font-family:'Public Sans';"><span class="skel-bar" style="width:70px;height:20px;"></span></div>
-            <div id="kpi-rate-status" style="font-size:10px;color:var(--c-up);background:color-mix(in srgb,var(--c-up) 13%,transparent);padding:1px 5px;border-radius:var(--r-xs);border:1px solid color-mix(in srgb,var(--c-up) 27%,transparent);">동결</div>
+            <div id="kpi-rate-status" style="font-size:10px;color:var(--ind-neu);background:color-mix(in srgb,var(--ind-neu) 13%,transparent);padding:1px 5px;border-radius:var(--r-xs);border:1px solid color-mix(in srgb,var(--ind-neu) 27%,transparent);">동결</div>
           </div>
           <div style="font-size:10px;color:var(--c-txt-dim);margin-top:2px;">최근 결정: <span id="kpi-rate-date"><span class="skel-bar" style="width:64px;height:8px;"></span></span></div>
           <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark-rate"></canvas></div>
@@ -1396,29 +1424,31 @@ html.light .toast { background: #fff; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
             <div>
               <span class="widget-title" style="margin-bottom:0;" id="mainChartIndexName">KOSPI 지수</span>
-              <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;" id="mainChartPriceVal">7,612.51</span>
-              <span class="down-txt" style="font-size:13px;margin-left:6px;" id="mainChartChangeVal">▼ -4.62%</span>
+              <span style="font-size:20px;font-weight:700;font-family:'Public Sans';margin-left:10px;" id="mainChartPriceVal"><span class="skel-bar" style="width:80px;height:18px;" aria-hidden="true"></span></span>
+              <span style="font-size:13px;margin-left:6px;" id="mainChartChangeVal"><span class="skel-bar" style="width:56px;" aria-hidden="true"></span></span>
             </div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-              <span style="font-size:10px;color:var(--c-txt-dim);margin-right:2px;">단위:</span>
-              <button class="tab-btn period-unit-btn active" data-unit="1D" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;" onclick="setPeriodUnit('1D',this)">일</button>
-              <button class="tab-btn period-unit-btn" data-unit="1W" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1W',this)">일주일</button>
-              <button class="tab-btn period-unit-btn" data-unit="1M" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1M',this)">한달</button>
-              <button class="tab-btn period-unit-btn" data-unit="1Q" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1Q',this)">분기</button>
-              <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <span style="font-size:10px;color:var(--c-txt-dim);margin-right:2px;">기간:</span>
-              <span class="preset-btn-group-main" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1W',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">일주일</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','15D',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','30D',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">30일</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1Q',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','6M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
+              <span style="font-size:10px;color:var(--c-txt-dim);margin-right:2px;">봉 단위:</span>
+              <span role="group" aria-label="봉 단위 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
+              <button class="tab-btn period-unit-btn active" data-unit="1D" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;" onclick="setPeriodUnit('1D',this)">일봉</button>
+              <button class="tab-btn period-unit-btn" data-unit="1W" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1W',this)">주봉</button>
+              <button class="tab-btn period-unit-btn" data-unit="1M" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1M',this)">월봉</button>
+              <button class="tab-btn period-unit-btn" data-unit="1Q" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1Q',this)">분기봉</button>
               </span>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="tab-btn" id="mainCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('main',this)">📅 기간 지정</button>
+              <span style="font-size:10px;color:var(--c-txt-dim);margin-right:2px;">기간:</span>
+              <span class="preset-btn-group-main" role="group" aria-label="조회 기간 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
+                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1W',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1주</button>
+                <button class="preset-btn" onclick="applyChartPresetPeriod('main','15D',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
+                <button class="preset-btn" onclick="applyChartPresetPeriod('main','30D',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1개월</button>
+                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1Q',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3개월</button>
+                <button class="preset-btn" onclick="applyChartPresetPeriod('main','6M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">6개월</button>
+                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
+              </span>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="mainChart" onclick="toggleYoY('mainChart',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+              <button class="tab-btn" id="mainCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('main',this)"><span aria-hidden="true">📅</span> 기간 지정</button>
+              <span style="color:var(--c-border);margin:0 2px;">|</span>
+              <button class="yoy-btn" data-yoy="mainChart" onclick="toggleYoY('mainChart',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
           </div>
           <div id="mainCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -1445,22 +1475,23 @@ html.light .toast { background: #fff; }
                 <th scope="col" style="text-align:left;padding:4px 0;font-weight:600;">지수</th>
                 <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;">현재가</th>
                 <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;">등락률</th>
-                <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;width:32px;" title="상세">📊</th>
+                <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;width:32px;">상세</th>
               </tr>
             </thead>
-            <tbody id="globalIndexTable" style="font-family:'Inter';">
+            <tbody id="globalIndexTable" style="font-family:'Inter';" aria-busy="true">
               <!-- [3차-T20] 초기 스켈레톤 — 첫 페인트 시 빈 표 대신 로딩 형태 표시 -->
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:64%;"></div></td><td><div class="skel-bar" style="width:70%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:52%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:48%;"></div></td><td><div class="skel-bar" style="width:62%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:44%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:56%;"></div></td><td><div class="skel-bar" style="width:66%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:48%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:60%;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:50%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:52%;"></div></td><td><div class="skel-bar" style="width:64%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:46%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:64%;"></div></td><td><div class="skel-bar" style="width:70%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:52%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:48%;"></div></td><td><div class="skel-bar" style="width:62%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:44%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:56%;"></div></td><td><div class="skel-bar" style="width:66%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:48%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:60%;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:50%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:52%;"></div></td><td><div class="skel-bar" style="width:64%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:46%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
             </tbody>
           </table>
+          <div style="font-size:10px;color:var(--c-txt-muted);margin-top:4px;">행 클릭: 메인 차트 전환 · 상세: 팝업 차트</div>
           <div style="border-top:1px solid var(--c-border);margin-top:12px;padding-top:12px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-              <div class="widget-title" style="margin-bottom:0;">시장 분위기</div>
-              <button onclick="refreshSentiment(this)" title="시장 분위기 지표 재페치 (VKOSPI/MOVE/PutCall)" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:0 6px;font-size:10px;cursor:pointer;height:18px;">↻</button>
+              <div class="widget-title" id="sentimentTitle" style="margin-bottom:0;">시장 분위기</div>
+              <button onclick="refreshSentiment(this)" class="u-touch-hit" aria-label="시장 분위기 지표 새로고침" title="시장 분위기 지표 다시 불러오기 (V-KOSPI 200·MOVE·Put/Call)" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 6px;font-size:10px;cursor:pointer;">↻</button>
             </div>
             <!-- Fear & Greed 게이지 (클릭 → 상세 모달) -->
             <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showSentimentDetail('fear_greed')" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border-radius:var(--r-sm);padding:4px;transition:background 0.15s;" onmouseover="this.style.background='var(--c-card-hi,#2a3556)'" onmouseout="this.style.background='transparent'" title="클릭 → CNN Fear &amp; Greed 추이 및 해석 가이드">
@@ -1468,7 +1499,7 @@ html.light .toast { background: #fff; }
                 <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
               </div>
               <div>
-                <div style="font-size:10px;color:var(--c-txt-dim);text-transform:uppercase;letter-spacing:.04em;">CNN Fear &amp; Greed <span style="font-size:10px;color:var(--c-primary);">📈</span></div>
+                <div style="font-size:10px;color:var(--c-txt-dim);text-transform:uppercase;letter-spacing:.04em;">CNN Fear &amp; Greed <span style="font-size:10px;color:var(--c-primary);" aria-hidden="true">📈</span></div>
                 <div id="fearVal" style="font-size:18px;font-weight:700;color:var(--c-txt-dim,#a4a8bc);font-family:'Public Sans';">—</div>
                 <div id="fearLabel" style="font-size:10px;color:var(--c-txt-dim,#a4a8bc);"><span class="skel-bar" style="width:88px;"></span></div>
                 <div id="fearDelta" style="font-size:10px;color:var(--c-txt-dim);">—</div>
@@ -1477,28 +1508,28 @@ html.light .toast { background: #fff; }
             <!-- 추가 시장 지표 그리드 (5개: VIX, VKOSPI, MOVE, Put/Call, HY Spread) — 클릭 → 상세 -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
               <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('vix')" title="클릭 → VIX 추이 및 해석 가이드">
-                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VIX <span style="font-size:10px;color:var(--c-primary);">📈</span></div>
-                <div id="dashVix" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
+                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">VIX <span style="font-size:10px;color:var(--c-primary);" aria-hidden="true">📈</span></div>
+                <div id="dashVix" style="font-size:15px;font-weight:700;color:var(--c-warn);">—</div>
                 <div style="font-size:10px;color:var(--c-txt-muted);">미국 변동성 · 지수</div>
               </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('vkospi')" title="클릭 → KSVKOSPI 추이 및 해석 가이드 (한국거래소 V-KOSPI 200)">
-                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">KSVKOSPI <span style="font-size:10px;color:var(--c-primary);">📈</span></div>
-                <div id="dashVkospi" style="font-size:15px;font-weight:700;color:#f5a623;">—</div>
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('vkospi')" title="클릭 → V-KOSPI 200 추이 및 해석 가이드 (한국거래소 코스피200 변동성지수)">
+                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">V-KOSPI 200 <span style="font-size:10px;color:var(--c-primary);" aria-hidden="true">📈</span></div>
+                <div id="dashVkospi" style="font-size:15px;font-weight:700;color:var(--c-warn);">—</div>
                 <div style="font-size:10px;color:var(--c-txt-muted);">코스피200 변동성지수 · KRX 정식</div>
               </div>
               <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('move')" title="클릭 → MOVE 추이 및 해석 가이드">
-                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">MOVE Index <span style="font-size:10px;color:var(--c-primary);">📈</span></div>
+                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">MOVE Index <span style="font-size:10px;color:var(--c-primary);" aria-hidden="true">📈</span></div>
                 <div id="dashMove" style="font-size:15px;font-weight:700;color:var(--c-primary);">—</div>
                 <div style="font-size:10px;color:var(--c-txt-muted);">미 채권 변동성 · 지수</div>
               </div>
               <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('pcr')" title="클릭 → Put/Call 비율 추이 및 해석 가이드">
-                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Put/Call Ratio <span style="font-size:10px;color:var(--c-primary);">📈</span></div>
+                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Put/Call Ratio <span style="font-size:10px;color:var(--c-primary);" aria-hidden="true">📈</span></div>
                 <div id="dashPcr" style="font-size:15px;font-weight:700;color:var(--c-txt,#e8ebf5);">—</div>
                 <div style="font-size:10px;color:var(--c-txt-muted);">옵션 심리 · 배수</div>
               </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('hy_spread')" style="grid-column:1/3;" title="클릭 → HY Spread 추이 및 해석 가이드">
-                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HY Spread <span style="font-size:10px;color:var(--c-primary);">📈</span></div>
-                <div id="dashHySpread" style="font-size:15px;font-weight:700;color:var(--c-down);">—</div>
+              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('hy_spread')" style="grid-column:1/-1;" title="클릭 → HY Spread 추이 및 해석 가이드">
+                <div style="font-size:10px;color:var(--c-txt-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;">HY Spread <span style="font-size:10px;color:var(--c-primary);" aria-hidden="true">📈</span></div>
+                <div id="dashHySpread" style="font-size:15px;font-weight:700;color:var(--ind-neg);">—</div>
                 <div style="font-size:10px;color:var(--c-txt-muted);">미 신용 스프레드 · %p (국채 대비)</div>
               </div>
             </div>
@@ -1518,20 +1549,22 @@ html.light .toast { background: #fff; }
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
           <div class="widget-title" style="margin-bottom:0;">지표 비교 차트 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">이중 Y축 · 두 지표 오버레이</span></div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-            <select aria-label="비교 지표 A 선택" id="cmpSelA" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid var(--c-accent);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-primary);font-size:11px;max-width:170px;"></select>
+            <span style="font-size:10px;color:var(--c-accent);">좌축</span>
+            <select aria-label="비교 지표 A 선택 (좌측 Y축)" id="cmpSelA" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid var(--c-accent);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-primary);font-size:11px;max-width:170px;"></select>
             <button onclick="cmpSwap()" title="좌/우 지표 교체" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 7px;font-size:11px;cursor:pointer;">⇄</button>
-            <select aria-label="비교 지표 B 선택" id="cmpSelB" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid #f5a623;border-radius:var(--r-xs);padding:3px 6px;color:#f5a623;font-size:11px;max-width:170px;"></select>
+            <span style="font-size:10px;color:var(--c-warn);">우축</span>
+            <select aria-label="비교 지표 B 선택 (우측 Y축)" id="cmpSelB" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid var(--c-warn);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-warn);font-size:11px;max-width:170px;"></select>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <span id="cmpPeriodBtns">
-              <button class="tab-btn" data-p="3M" onclick="cmpSetPeriod('3M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3M</button>
-              <button class="tab-btn" data-p="6M" onclick="cmpSetPeriod('6M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">6M</button>
-              <button class="tab-btn active" data-p="1Y" onclick="cmpSetPeriod('1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">1Y</button>
-              <button class="tab-btn" data-p="3Y" onclick="cmpSetPeriod('3Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3Y</button>
+              <button class="tab-btn" data-p="3M" onclick="cmpSetPeriod('3M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3개월</button>
+              <button class="tab-btn" data-p="6M" onclick="cmpSetPeriod('6M',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">6개월</button>
+              <button class="tab-btn active" data-p="1Y" onclick="cmpSetPeriod('1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:#fff;cursor:pointer;">1년</button>
+              <button class="tab-btn" data-p="3Y" onclick="cmpSetPeriod('3Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
               <button class="tab-btn" data-p="ALL" onclick="cmpSetPeriod('ALL',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">전체</button>
             </span>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <button id="cmpNormBtn" onclick="cmpToggleNorm()" title="두 지표의 시작점을 100으로 환산해 등락률 추이만 비교합니다 — 이중축 스케일 차이로 인한 시각적 착시 제거" style="font-size:11px;padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">⚖ 지수화 =100</button>
-            <button class="yoy-btn" data-yoy="compareChart" onclick="toggleYoY('compareChart',this)" aria-pressed="false" title="주 지표(좌측 A)의 전년 동기를 점선으로 오버레이 — 지수화 모드에서는 비활성"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+            <button class="yoy-btn" data-yoy="compareChart" onclick="toggleYoY('compareChart',this)" aria-pressed="false" title="주 지표(좌측 A)의 전년 동기를 점선으로 오버레이 — 지수화 모드에서는 비활성"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
         </div>
         <!-- 추천 조합 프리셋 — 한 번 클릭으로 자주 보는 지표 쌍 적용 -->
@@ -1573,13 +1606,13 @@ html.light .toast { background: #fff; }
                 <th scope="col" style="text-align:right;padding:4px 0;font-weight:600;">거래량 (천주)</th>
               </tr>
             </thead>
-            <tbody id="moverTable">
+            <tbody id="moverTable" aria-busy="true">
               <!-- [3차-T21] 초기 스켈레톤 -->
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:58%;"></div></td><td><div class="skel-bar" style="width:64%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:46%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:60%;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:46%;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:50%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:54%;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:62%;"></div></td><td><div class="skel-bar" style="width:60%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:42%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:50%;"></div></td><td><div class="skel-bar" style="width:62%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:48%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:52%;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row"><td style="padding:7px 0;"><div class="skel-bar" style="width:55%;"></div></td><td><div class="skel-bar" style="width:56%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:44%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:56%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:58%;"></div></td><td><div class="skel-bar" style="width:64%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:46%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:60%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:46%;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:50%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:54%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:62%;"></div></td><td><div class="skel-bar" style="width:60%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:42%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:50%;"></div></td><td><div class="skel-bar" style="width:62%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:48%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:52%;margin-left:auto;"></div></td></tr>
+              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:55%;"></div></td><td><div class="skel-bar" style="width:56%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:44%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:56%;margin-left:auto;"></div></td></tr>
             </tbody>
           </table>
           <div style="font-size:10px;color:var(--c-txt-muted);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1724,7 +1757,7 @@ html.light .toast { background: #fff; }
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           <span class="widget-title" style="margin-bottom:0;">📈 수익률 추이 vs 벤치마크 <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></span>
-          <button class="yoy-btn" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           <span style="font-size:10px;color:#7a8099;">방문일마다 포트폴리오 스냅샷이 이 브라우저(localStorage)에 기록됩니다</span>
         </div>
         <div id="pfBenchEmpty" style="text-align:center;color:#7a8099;font-size:12px;padding:24px 0;line-height:1.7;">평단가·수량이 입력된 상태로 <b>2일 이상</b> 방문하면<br>내 포트폴리오 수익률 추이를 KOSPI·S&amp;P 500 과 같은 차트에서 비교할 수 있습니다.</div>
@@ -1885,7 +1918,7 @@ html.light .toast { background: #fff; }
                   <span style="width:1px;height:14px;background:var(--c-border);display:inline-block;margin:0 2px;vertical-align:middle;"></span>
                   <button id="fxCompareModeBtn" onclick="toggleChartCompareMode('fx',this)" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                   <button onclick="resetChartCompareMode('fx')" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
-                  <button class="yoy-btn" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+                  <button class="yoy-btn" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
                 </div>
               </div>
             </div>
@@ -1952,7 +1985,7 @@ html.light .toast { background: #fff; }
             <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
             <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:11px;padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button class="yoy-btn" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+            <button class="yoy-btn" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
           <div class="chart-scroll-x">
             <div class="chart-scroll-inner" style="position:relative;height:340px;">
@@ -1999,7 +2032,7 @@ html.light .toast { background: #fff; }
                   <button class="preset-btn" onclick="applyChartPresetPeriod('bond','1Y',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
                 </span>
                 <button class="tab-btn" id="bondCustomBtn" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('bond',this)">📅 기간 지정</button>
-                <button class="yoy-btn" data-yoy="bondChart" onclick="toggleYoY('bondChart',this)" aria-pressed="false" title="전년 동기 수익률을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+                <button class="yoy-btn" data-yoy="bondChart" onclick="toggleYoY('bondChart',this)" aria-pressed="false" title="전년 동기 수익률을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
             <div id="bondCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -2111,7 +2144,7 @@ html.light .toast { background: #fff; }
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="font-size:11px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-card);color:var(--c-primary);cursor:pointer;">↻ 새로고침</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="equityIndexChart" onclick="toggleYoY('equityIndexChart',this)" aria-pressed="false" title="전년 동기 지수를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+              <button class="yoy-btn" data-yoy="equityIndexChart" onclick="toggleYoY('equityIndexChart',this)" aria-pressed="false" title="전년 동기 지수를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
           </div>
           <div id="equityCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -2155,7 +2188,7 @@ html.light .toast { background: #fff; }
             <span style="color:var(--c-txt-dim);font-size:11px;">~</span>
             <input aria-label="투자자 수급 조회 종료일" type="date" id="invDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:11px;" onchange="applyInvestorDateRange()"/>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button class="yoy-btn" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+            <button class="yoy-btn" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
           <div style="position:relative;height:200px;">
             <canvas id="investorChart" role="img" aria-label="투자자별 순매매 동향">투자자 차트</canvas>
@@ -2191,7 +2224,7 @@ html.light .toast { background: #fff; }
               <th scope="col" style="text-align:right;padding:5px;">등락률</th>
               <th scope="col" style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
-            <tbody id="equityTopGainersTable"><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
+            <tbody id="equityTopGainersTable"><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
         <div class="widget">
@@ -2210,7 +2243,7 @@ html.light .toast { background: #fff; }
               <th scope="col" style="text-align:right;padding:5px;">등락률</th>
               <th scope="col" style="text-align:right;padding:5px;">거래량</th>
             </tr></thead>
-            <tbody id="equityTopLosersTable"><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
+            <tbody id="equityTopLosersTable"><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2232,7 +2265,7 @@ html.light .toast { background: #fff; }
               <th scope="col" style="text-align:right;padding:5px;">현재가</th>
               <th scope="col" style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
-            <tbody id="etfTopGainersTable"><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
+            <tbody id="etfTopGainersTable"><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
         <div class="widget">
@@ -2250,7 +2283,7 @@ html.light .toast { background: #fff; }
               <th scope="col" style="text-align:right;padding:5px;">현재가</th>
               <th scope="col" style="text-align:right;padding:5px;">등락률</th>
             </tr></thead>
-            <tbody id="etfTopLosersTable"><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
+            <tbody id="etfTopLosersTable"><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2288,7 +2321,7 @@ html.light .toast { background: #fff; }
                 <span style="width:1px;height:16px;background:var(--c-border);margin:0 2px;"></span>
                 <button id="comCompareModeBtn" onclick="toggleComCompareMode(this)" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                 <button onclick="resetChartCompareMode('com')" style="font-size:10px;padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
-                <button class="yoy-btn" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+                <button class="yoy-btn" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
             <div id="comCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -2312,21 +2345,21 @@ html.light .toast { background: #fff; }
         <!-- Bottom: sector comparison charts 2x2 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" style="padding:2px 8px;" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:10px;color:var(--c-txt-muted);font-weight:400;">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" style="padding:2px 8px;" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" style="padding:2px 8px;" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" style="padding:2px 8px;" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" style="padding:2px 8px;" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" style="padding:2px 8px;" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" style="padding:2px 8px;" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" style="padding:2px 8px;" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
@@ -2586,7 +2619,7 @@ html.light .toast { background: #fff; }
             <span id="calDetailName" style="font-size:14px;font-weight:600;margin-left:6px;"></span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <button onclick="event.stopPropagation();refreshCalEventDetail(this)" title="data.json 재페치 후 이벤트 상세 갱신" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
+            <button onclick="event.stopPropagation();refreshCalEventDetail(this)" title="데이터 다시 불러오기" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:11px;cursor:pointer;">↻ 새로고침</button>
             <button onclick="document.getElementById('calEventDetail').style.display='none';" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:2px 8px;font-size:11px;cursor:pointer;">✕ 닫기</button>
           </div>
         </div>
@@ -2768,7 +2801,7 @@ html.light .toast { background: #fff; }
                 <button onclick="setRePeriod('3y',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
                 <button onclick="setRePeriod('5y',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
                 <button id="reCustomBtn" onclick="toggleCustomRange('re',this)" style="font-size:10px;padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📅 기간 지정</button>
-                <button class="yoy-btn" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" style="font-size:10px;padding:2px 8px;" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+                <button class="yoy-btn" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" style="font-size:10px;padding:2px 8px;" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
             <div id="reCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -3377,7 +3410,7 @@ html.light .toast { background: #fff; }
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:4px;">
               <div class="widget-title" style="margin-bottom:0;">총 운용자산 추이 (조원)</div>
-              <button class="yoy-btn" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+              <button class="yoy-btn" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
             <div style="position:relative;height:260px;">
               <canvas id="npsAumChart" role="img" aria-label="총 운용자산 추이">AUM 차트</canvas>
@@ -3446,7 +3479,7 @@ html.light .toast { background: #fff; }
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button onclick="toggleNpsAllocMeasure(this)" id="npsMeasureBtn" style="font-size:11px;padding:2px 8px;border:1px solid #b6c4ff44;border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">📐 구간 측정</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="npsAllocationTrendChart" onclick="toggleYoY('npsAllocationTrendChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 자산군의 전년 동기 비중을 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+              <button class="yoy-btn" data-yoy="npsAllocationTrendChart" onclick="toggleYoY('npsAllocationTrendChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 자산군의 전년 동기 비중을 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:13px;">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
           </div>
           <div id="npsMeasureInfo" style="display:none;font-size:11px;color:var(--c-txt-dim);margin-bottom:6px;padding:4px 8px;background:var(--c-bg);border-radius:var(--r-xs);">
@@ -3768,6 +3801,23 @@ function _xAxisTickCallback(value, idx) {
 //   state: 'loading' → 'success' → (auto-revert)
 //          'loading' → 'error'   → (auto-revert)
 //          'loading' → 'warn'    → (auto-revert, 부분 성공)
+// 스크린리더 상태 알림 — 시각적 버튼 피드백(텍스트 치환)은 낭독되지 않으므로 라이브 리전으로 병행 고지
+function _a11ySay(msg) {
+  try {
+    let el = document.getElementById('a11yStatus');
+    if(!el) {
+      el = document.createElement('div');
+      el.id = 'a11yStatus';
+      el.className = 'sr-only';
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      document.body.appendChild(el);
+    }
+    el.textContent = '';
+    el.textContent = msg;
+  } catch(_) {}
+}
+
 // 호출 예: _refreshFeedback(btn, 'loading'); ... _refreshFeedback(btn, 'success', '12건 갱신');
 function _refreshFeedback(btn, state, msg) {
   if(!btn) return;
@@ -3803,23 +3853,27 @@ function _refreshFeedback(btn, state, msg) {
   } else if(state === 'success') {
     btn.disabled = false;
     btn.textContent = msg ? ('✓ ' + msg) : '✓ 갱신 완료';
-    btn.style.background = 'rgba(38,166,154,0.22)';
-    btn.style.borderColor = (window.CUP+'66');
-    btn.style.color = window.CUP;
+    // 성공/경고/실패는 등락 관습색(CUP/CDN)이 아니라 의미 토큰 — kr 모드에서 '성공=빨강' 오독 방지
+    btn.style.background = 'color-mix(in srgb, var(--ind-pos) 18%, transparent)';
+    btn.style.borderColor = 'color-mix(in srgb, var(--ind-pos) 40%, transparent)';
+    btn.style.color = 'var(--ind-pos)';
+    _a11ySay(msg ? ('데이터 갱신 완료 — ' + msg) : '데이터 갱신 완료');
     restore(1400);
   } else if(state === 'warn') {
     btn.disabled = false;
     btn.textContent = msg ? ('⚠ ' + msg) : '⚠ 일부 실패';
-    btn.style.background = 'rgba(245,166,35,0.18)';
-    btn.style.borderColor = '#f5a62366';
-    btn.style.color = '#f5a623';
+    btn.style.background = 'color-mix(in srgb, var(--c-warn) 15%, transparent)';
+    btn.style.borderColor = 'color-mix(in srgb, var(--c-warn) 40%, transparent)';
+    btn.style.color = 'var(--c-warn)';
+    _a11ySay(msg ? ('데이터 일부 갱신 실패 — ' + msg) : '데이터 일부 갱신 실패');
     restore(1800);
   } else if(state === 'error') {
     btn.disabled = false;
     btn.textContent = msg ? ('✕ ' + msg) : '✕ 갱신 실패';
-    btn.style.background = 'rgba(239,83,80,0.18)';
-    btn.style.borderColor = (window.CDN+'66');
-    btn.style.color = window.CDN;
+    btn.style.background = 'color-mix(in srgb, var(--ind-neg) 15%, transparent)';
+    btn.style.borderColor = 'color-mix(in srgb, var(--ind-neg) 40%, transparent)';
+    btn.style.color = 'var(--ind-neg)';
+    _a11ySay(msg ? ('데이터 갱신 실패 — ' + msg) : '데이터 갱신 실패');
     restore(2200);
   } else if(state === 'reset') {
     btn.textContent      = btn._refreshOrig || '↻ 새로고침';
@@ -6438,6 +6492,9 @@ function initMainChart(unit, customPriceData) {
   const numVals = vals.filter(v=>v!=null);
   const yMin = Math.min(...numVals); const yMax = Math.max(...numVals);
   const yPad = (yMax - yMin) * 0.08 || yMin * 0.01;
+  // 테마 색 — rebuildChartsForTheme 는 토글 시에만 돌므로, 라이트 상태에서의
+  // 재생성(기간 버튼·지수 전환)도 여기서 매번 현재 테마를 읽어야 한다.
+  const tc = getThemeColors();
   charts['mainChart'] = new Chart(ctx1,{
     type:'line',
     data:{labels:sl(price),datasets:[
@@ -6455,10 +6512,10 @@ function initMainChart(unit, customPriceData) {
         chartClick('main', idx, price, label);
       },
       scales:{
-        x:{type:'category',ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:8},grid:{color:'#4a526888'}},
-        y:{min:yMin-yPad,max:yMax+yPad,ticks:{color:'#b6bbcf',font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:'#4a526888'},position:'right'}
+        x:{type:'category',ticks:{color:tc.txt,font:{size:10},maxTicksLimit:8},grid:{display:false}},
+        y:{min:yMin-yPad,max:yMax+yPad,ticks:{color:tc.txt,font:{size:10},maxTicksLimit:8,callback:v=>fmtNum(v)},grid:{color:tc.grid},position:'right'}
       },
-      plugins:{legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#c8d2ff',borderColor:'#3a4054',borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
+      plugins:{legend:{display:true,position:'top',labels:{color:tc.txt,font:{size:10},boxWidth:10}},tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttTitle,borderColor:tc.ttBorder,borderWidth:1,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtNum(ctx.parsed.y)}}}}
   });
   if(charts['mainChart']) charts['mainChart'].resize();
   registerYoY('mainChart', { mode:'date',
@@ -6609,27 +6666,33 @@ function setPeriod(p, btn, chartId) {
 // ============================
 // 글로벌 지수 테이블
 // ============================
+// 하드코딩 더미 시세 제거 — 실데이터(applyRealData) 도착 전에는 null 로 두고 스켈레톤 렌더.
+// 느린 회선에서 가짜 수치가 실데이터처럼 수 초간 노출되던 문제 해소.
 const globalIndices = [
-  {name:'KOSPI',  val:7612.51, chg:-4.62},
-  {name:'KOSDAQ', val:1143.35, chg:-4.01},
-  {name:'S&P 500',val:5659.91, chg:+0.21},
-  {name:'NASDAQ', val:26635.22,chg:+0.18},
-  {name:'닛케이',  val:61687.05,chg:+0.45},
-  {name:'상하이',  val:4183.06, chg:-0.33},
+  {name:'KOSPI',  val:null, chg:null},
+  {name:'KOSDAQ', val:null, chg:null},
+  {name:'S&P 500',val:null, chg:null},
+  {name:'NASDAQ', val:null, chg:null},
+  {name:'닛케이',  val:null, chg:null},
+  {name:'상하이',  val:null, chg:null},
 ];
-let mainSelectedGlobalIdx = null;
+let mainSelectedGlobalIdx = 0;   // 첫 로드부터 KOSPI 행 강조 — '행 = 메인차트' 모델 학습
 function buildGlobalTable() {
   const tb = document.getElementById('globalIndexTable');
   if(!tb) return;
+  const fmtVal = v => v == null
+    ? '<div class="skel-bar" style="width:60%;margin-left:auto;" aria-hidden="true"></div>'
+    : v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
   tb.innerHTML = globalIndices.map((d,i)=>`
-    <tr style="border-bottom:1px solid var(--c-border);${i===mainSelectedGlobalIdx?'background:#2962ff11;border-left:2px solid var(--c-accent)':''}" title="${d.name} — 좌측 클릭: 메인차트 갱신 / 우측 📊 클릭: 상세 차트 팝업">
-      <td onclick="selectGlobalIndex(${i},this.parentElement)" style="padding:7px 4px;font-size:12px;cursor:pointer;">${d.name}</td>
-      <td onclick="selectGlobalIndex(${i},this.parentElement)" style="text-align:right;padding:7px 4px;font-size:12px;font-weight:500;cursor:pointer;">${d.val.toLocaleString()}</td>
-      <td onclick="selectGlobalIndex(${i},this.parentElement)" style="text-align:right;padding:7px 4px;cursor:pointer;">${fmtChg(d.chg)}</td>
+    <tr style="border-bottom:1px solid var(--c-border);${i===mainSelectedGlobalIdx?'background:#2962ff11;border-left:2px solid var(--c-accent)':''}" title="${d.name} — 행 클릭: 메인 차트 전환 / 상세: 팝업 차트">
+      <td style="padding:0;"><button type="button" class="gidx-btn" onclick="selectGlobalIndex(${i},this.closest('tr'))" aria-pressed="${i===mainSelectedGlobalIdx}" aria-label="${d.name} — 메인 차트에 표시">${d.name}</button></td>
+      <td onclick="selectGlobalIndex(${i},this.parentElement)" style="text-align:right;padding:7px 4px;font-size:12px;font-weight:500;cursor:pointer;">${fmtVal(d.val)}</td>
+      <td onclick="selectGlobalIndex(${i},this.parentElement)" style="text-align:right;padding:7px 4px;cursor:pointer;">${d.chg == null ? '<div class="skel-bar" style="width:44%;margin-left:auto;" aria-hidden="true"></div>' : fmtChg(d.chg)}</td>
       <td style="text-align:right;padding:7px 4px;">
-        <button onclick="event.stopPropagation(); showGlobalIndexDetail('${d.name}')" title="상세 차트 팝업" style="background:transparent;border:1px solid var(--c-border);color:var(--c-primary);border-radius:var(--r-xs);padding:2px 6px;font-size:10px;cursor:pointer;line-height:1;">📊</button>
+        <button onclick="event.stopPropagation(); showGlobalIndexDetail('${d.name}')" class="u-touch-hit" aria-label="${d.name} 상세 차트 팝업" title="상세 차트 팝업" style="background:transparent;border:1px solid var(--c-border);color:var(--c-primary);border-radius:var(--r-xs);padding:2px 6px;font-size:10px;cursor:pointer;line-height:1;">📊</button>
       </td>
     </tr>`).join('');
+  tb.removeAttribute('aria-busy');
 }
 
 // 글로벌 주요 지수 상세 모달 (행 클릭 → 시계열 + 가이드)
@@ -6730,13 +6793,18 @@ function _renderReHistChartIndex(histName) {
 function selectGlobalIndex(idx, el) {
   mainSelectedGlobalIdx = idx;
   const d = globalIndices[idx];
-  // Update main chart index label
+  // Update main chart index label — 실데이터 도착 전(null)에는 스켈레톤 유지
   const nameEl  = document.getElementById('mainChartIndexName');
   const priceEl = document.getElementById('mainChartPriceVal');
   const changeEl= document.getElementById('mainChartChangeVal');
   if(nameEl)  nameEl.textContent = d.name + ' 지수';
-  if(priceEl) priceEl.textContent = d.val.toLocaleString();
-  if(changeEl){ changeEl.textContent = (d.chg>=0?'▲ +':'▼ ')+Math.abs(d.chg).toFixed(2)+'%'; changeEl.className=d.chg>=0?'up-txt':'down-txt'; changeEl.style.cssText='font-size:13px;margin-left:6px;'; }
+  if(priceEl && d.val != null) priceEl.textContent = d.val.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(changeEl && d.chg != null){ changeEl.textContent = (d.chg>=0?'▲ +':'▼ ')+Math.abs(d.chg).toFixed(2)+'%'; changeEl.className=d.chg>=0?'up-txt':'down-txt'; changeEl.style.cssText='font-size:13px;margin-left:6px;'; }
+  // 스크린리더용 차트 설명 동적 갱신
+  try {
+    const cv = document.getElementById('mainChart');
+    if(cv) cv.setAttribute('aria-label', d.name + ' 지수 시계열 차트' + (d.val != null ? ' — 현재 ' + d.val.toLocaleString() + ', 등락 ' + (d.chg == null ? '—' : d.chg.toFixed(2) + '%') : ''));
+  } catch(_) {}
   // Rebuild table (for highlight update)
   buildGlobalTable();
   // 실제 시계열 우선 (data.json.history.indices)
@@ -6765,19 +6833,21 @@ function buildFearChart() {
   const d = (typeof _latestDataForIndicators !== 'undefined') ? _latestDataForIndicators : null;
   const fg = d?.sentiment?.fear_greed;
   const val = (fg && typeof fg.value === 'number' && fg.value >= 0 && fg.value <= 100) ? fg.value : null;
+  // canvas 는 var() 불가 — 라이트/다크 리터럴 분기 (applyFearGreed 텍스트 색과 동일 값 유지)
+  const light = document.documentElement.classList.contains('light');
   // 값이 없으면 회색 빈 도넛, 있으면 등급별 색상
-  let color = '#3a3e4d';  // 빈 상태
+  let color = light ? '#c3cede' : '#3a3e4d';  // 빈 상태
   if(val != null) {
-    if(val < 25) color = window.CDN;      // Extreme Fear
-    else if(val < 45) color = '#f5a623';  // Fear
-    else if(val < 55) color = '#b6c4ff';  // Neutral
+    if(val < 25) color = window.CDN;                          // Extreme Fear
+    else if(val < 45) color = light ? '#b45309' : '#f5a623';  // Fear — 경고색(등락 관습과 분리)
+    else if(val < 55) color = light ? '#5b6c9e' : '#b6c4ff';  // Neutral
     else if(val < 75) color = window.CUP;  // Greed
     else color = window.CUP;               // Extreme Greed
   }
   const data = val != null ? [val, 100-val] : [0, 100];
   charts['fearChart'] = new Chart(ctx,{
     type:'doughnut',
-    data:{datasets:[{data, backgroundColor:[color,'#262a35'], borderWidth:0}]},
+    data:{datasets:[{data, backgroundColor:[color, light ? '#dce6f2' : '#262a35'], borderWidth:0}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'75%',plugins:{legend:{display:false},tooltip:{enabled:false}}}
   });
 }
@@ -6795,10 +6865,12 @@ function applyFearGreed(d) {
     return;
   }
   const v = fg.value;
-  let label = '중립 (Neutral)', color = '#b6c4ff';
+  const light = document.documentElement.classList.contains('light');
+  const neu = light ? '#5b6c9e' : '#b6c4ff';   // buildFearChart 게이지 색과 동일 리터럴 유지
+  let label = '중립 (Neutral)', color = neu;
   if(v < 25)      { label = '극도 공포 (Extreme Fear)'; color = window.CDN; }
-  else if(v < 45) { label = '공포 (Fear)';              color = '#f5a623'; }
-  else if(v < 55) { label = '중립 (Neutral)';            color = '#b6c4ff'; }
+  else if(v < 45) { label = '공포 (Fear)';              color = light ? '#b45309' : '#f5a623'; }
+  else if(v < 55) { label = '중립 (Neutral)';            color = neu; }
   else if(v < 75) { label = '탐욕 (Greed)';              color = window.CUP; }
   else            { label = '극도 탐욕 (Extreme Greed)'; color = window.CUP; }
   if(valEl) { valEl.textContent = Math.round(v); valEl.style.color = color; }
@@ -6808,6 +6880,26 @@ function applyFearGreed(d) {
     dltEl.textContent = `전주 대비 ${diff>=0?'+':''}${diff}pt`;
   } else if(dltEl) {
     dltEl.textContent = '—';
+  }
+}
+
+// 시장 분위기 카드 캡션에 기준일(as_of) 표기 — "이 숫자가 언제 것인지"를 카드에서 즉시 인지.
+// 기준일이 3일 넘게 지났으면 경고색 — 수집 실패로 이전 값이 유지 중일 가능성 표시.
+function _sentCaption(elId, asOf, base) {
+  const el = document.getElementById(elId);
+  const cap = el && el.nextElementSibling;
+  if(!cap) return;
+  const s = asOf != null ? String(asOf) : '';
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const dateStr = s.slice(0,10);
+    cap.textContent = base + ' · 기준 ' + dateStr;
+    const age = (Date.now() - new Date(dateStr).getTime()) / 864e5;
+    cap.style.color = age > 3 ? 'var(--c-warn)' : '';
+    cap.title = age > 3 ? `기준일이 ${Math.round(age)}일 지났습니다 — 수집 실패로 직전 값이 유지되고 있을 수 있습니다` : '';
+  } else {
+    cap.textContent = base;
+    cap.style.color = '';
+    cap.title = '';
   }
 }
 
@@ -7022,13 +7114,13 @@ function buildMoverTable(dir) {
     const diag = (_latestDataForIndicators || {}).diagnostics || {};
     const srvSrc = diag.stockMoversSource;
     const diagLine = srvSrc
-      ? `<div style="font-size:10px;color:var(--c-txt-muted,#8b90a8);margin-bottom:6px;">서버측 소스 상태: ${srvSrc==='FAILED'?'<span style=\"color:var(--c-down)\">모든 서버측 소스 실패 (KRX/pykrx/Naver)</span>':srvSrc}</div>`
+      ? `<div style="font-size:10px;color:var(--c-txt-muted,#8b90a8);margin-bottom:6px;">서버측 소스 상태: ${srvSrc==='FAILED'?'<span style=\"color:var(--ind-neg)\">서버 수집 실패 (한국거래소·네이버 모두 응답 없음)</span>':srvSrc}</div>`
       : '';
     const stateMsg = isLoading
       ? `<div style="margin-bottom:4px;">📡 종목 데이터 가져오는 중…</div>
          <div style="font-size:10px;color:var(--c-txt-muted,#8b90a8);margin-bottom:6px;">클라이언트 시도 ${_clientMoverFetchAttempts}/${_MAX_AUTO_MOVER_FETCH}</div>
          ${diagLine}`
-      : `<div style="margin-bottom:4px;color:#f5a623;">⚠ 실시간 데이터 페치 실패 (CORS 또는 네트워크 문제)</div>
+      : `<div style="margin-bottom:4px;color:var(--c-warn);">⚠ 실시간 시세를 불러오지 못했습니다 (네트워크 차단 또는 일시 오류)</div>
          <div style="font-size:10px;color:var(--c-txt-muted,#8b90a8);margin-bottom:6px;">${_clientMoverLastError || '여러 차례 시도했으나 응답 없음'}</div>
          ${diagLine}`;
     tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--c-txt-dim,#a4a8bc);font-size:12px;">
@@ -7055,6 +7147,7 @@ function buildMoverTable(dir) {
       <td style="text-align:right;padding:5px;" class="${isUp?'up-txt':'down-txt'}">${d.chg}</td>
       <td style="text-align:right;padding:5px;color:var(--c-txt-dim);">${d.vol||''}</td>
     </tr>`).join('');
+  tb.removeAttribute('aria-busy');
 }
 function setMoverTab(dir, btn) {
   curMoverTab = dir;
@@ -10070,7 +10163,7 @@ function initMacroTopicPage(topic) {
         <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:10px;color:var(--c-txt-muted,#8b90a8);font-weight:400;">단위: ${m.unit}</span></div>
         <div style="display:flex;gap:4px;">
           ${periodOpts.map(o=>`<button onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" style="font-size:11px;padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:${macroTopicPeriod===o.key?'var(--c-accent)':'transparent'};color:${macroTopicPeriod===o.key?'#fff':'var(--c-txt-dim)'};cursor:pointer;font-weight:500;">${o.label}</button>`).join('')}
-          <button class="yoy-btn" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
         </div>
       </div>
       <!-- 국가 필터 (다중선택) — 원자재 차트의 필터처럼 토글 -->
@@ -10690,7 +10783,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>
           ${unitButtons('gdp')}
-          <button class="yoy-btn" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.gdpSrc,meta.gdpNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
@@ -10699,7 +10792,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>
           ${unitButtons('cpi')}
-          <button class="yoy-btn" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.cpiSrc,meta.cpiNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
@@ -10710,7 +10803,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>
           ${unitButtons('unemp')}
-          <button class="yoy-btn" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.unempSrc,meta.unempNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
@@ -10719,7 +10812,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>
           ${unitButtons('trade')}
-          <button class="yoy-btn" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년비교</span></button>
+          <button class="yoy-btn" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.tradeSrc,meta.tradeNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
@@ -14588,10 +14681,11 @@ function applySentimentClient(s) {
       const vixCrossOk = !vix || (v / vix >= 0.3 && v / vix <= 4.0);
       if(_isValidVkospi(v) && vixCrossOk) {
         el.textContent = v.toFixed(2);
-        el.style.color = v > 30 ? window.CDN : v > 20 ? '#f5a623' : window.CUP;
+        el.style.color = v > 30 ? 'var(--ind-neg)' : v > 20 ? 'var(--c-warn)' : 'var(--ind-pos)';
       } else {
         el.textContent = '—'; el.style.color = 'var(--c-txt-dim,#a4a8bc)';
       }
+      if(s.vkospi.as_of && typeof _sentCaption === 'function') _sentCaption('dashVkospi', s.vkospi.as_of, '코스피200 변동성지수 · KRX');
     }
   }
   if(s.move?.value != null) {
@@ -14599,7 +14693,7 @@ function applySentimentClient(s) {
     if(el) {
       el.textContent = s.move.value.toFixed(1);
       const v = s.move.value;
-      el.style.color = v > 120 ? window.CDN : v > 100 ? '#f5a623' : window.CUP;
+      el.style.color = v > 120 ? 'var(--ind-neg)' : v > 100 ? 'var(--c-warn)' : 'var(--ind-pos)';
     }
   }
   // VIX — 클라이언트 보강분을 economicIndicators.us.vix 에 기록(카드/상세 모달이 그 경로를 읽음).
@@ -14622,7 +14716,7 @@ function applySentimentClient(s) {
     if(el) {
       el.textContent = s.vix.value.toFixed(2);
       const v = s.vix.value;
-      el.style.color = v > 25 ? window.CDN : v > 18 ? '#f5a623' : window.CUP;
+      el.style.color = v > 25 ? 'var(--ind-neg)' : v > 18 ? 'var(--c-warn)' : 'var(--ind-pos)';
     }
   }
   if(s.pcr?.value != null) {
@@ -14630,7 +14724,7 @@ function applySentimentClient(s) {
     if(el) {
       el.textContent = s.pcr.value.toFixed(2);
       const v = s.pcr.value;
-      el.style.color = v > 1.1 ? window.CDN : v < 0.7 ? window.CUP : 'var(--c-txt,#e8ebf5)';
+      el.style.color = v > 1.1 ? 'var(--ind-neg)' : v < 0.7 ? 'var(--ind-pos)' : 'var(--c-txt,#e8ebf5)';
     }
   }
   // Fear & Greed Index — 데이터 도착 시 카드/도넛 갱신
@@ -15079,7 +15173,7 @@ function showSentimentDetail(key) {
       // 노트에 로딩 표시
       const noteEl = document.getElementById('reHistNote');
       if(noteEl && noteEl.textContent.includes('데이터 없음')) {
-        noteEl.innerHTML = '<span style="color:var(--c-primary,#c8d2ff);">⟳ 시계열 데이터 페치 중…</span>';
+        noteEl.innerHTML = '<span style="color:var(--c-primary,#c8d2ff);">⟳ 시계열 데이터 불러오는 중…</span>';
       }
       fetchSentimentClient().then(applySentimentClient).catch(()=>{});
     }
@@ -15344,16 +15438,19 @@ function applyRealData(d) {
   }
   // ── 스파크라인 갱신 — getHistoricalSeries(spot 동기화 경로) 사용 (최근 30포인트) ──
   // 카드 미니차트도 메인/상세 차트와 동일 경로를 써서 끝점이 헤더 숫자와 일치하도록 함
-  function updateSpark(id, series, color) {
+  // 색은 고정색이 아니라 표시 구간의 실제 추세 방향으로 결정 — 같은 카드의 등락 텍스트와
+  // 색 신호가 모순되지 않도록 (메인차트 initMainChart 의 추세색 로직과 동일 패턴)
+  function updateSpark(id, series) {
     if(!series || !series.length) return;
     const last30 = series.slice(-30);
     if(last30.length < 2) return;
-    sparkline(id, last30, color);
+    const c = last30[last30.length-1].y >= last30[0].y ? window.CUP : window.CDN;
+    sparkline(id, last30, c);
   }
   if(d.history) {
-    updateSpark('spark1', getHistoricalSeries('indices', 'KOSPI'),    window.CUP);
-    updateSpark('spark2', getHistoricalSeries('fx', 'USDKRW'),        '#b6c4ff');
-    updateSpark('spark3', getHistoricalSeries('commodities', 'WTI'),  window.CDN);
+    updateSpark('spark1', getHistoricalSeries('indices', 'KOSPI'));
+    updateSpark('spark2', getHistoricalSeries('fx', 'USDKRW'));
+    updateSpark('spark3', getHistoricalSeries('commodities', 'WTI'));
   }
   const idx = d.indices   || {};
   const fx  = d.fx        || {};
@@ -15497,6 +15594,24 @@ function applyRealData(d) {
       const p = String(ecosKr.base_rate_kr.period);
       if(p.length === 6) dEl.textContent = `${p.slice(0,4)}.${p.slice(4,6)}`;
       else dEl.textContent = p;
+    }
+    // '동결' 배지 동적화 — ECOS 월별 시계열 마지막 두 값 비교 (하드코딩 오정보 방지).
+    // 인상=위험색, 인하=완화색: 등락 관습(kr/global)과 무관한 --ind-* 의미 토큰 사용.
+    const stEl = document.getElementById('kpi-rate-status');
+    if(stEl) {
+      let dir = '동결';
+      try {
+        const h = ecosKr.base_rate_kr.history || {};
+        const vals = Object.keys(h).sort().map(k => h[k]).filter(v => v != null);
+        const cur = ecosKr.base_rate_kr.value;
+        const prev = vals.length >= 2 ? vals[vals.length-2] : null;
+        if(prev != null && Math.abs(cur - prev) > 0.001) dir = cur > prev ? '인상' : '인하';
+      } catch(_) {}
+      stEl.textContent = dir;
+      const tok = dir === '인상' ? '--ind-neg' : dir === '인하' ? '--ind-pos' : '--ind-neu';
+      stEl.style.color = `var(${tok})`;
+      stEl.style.background = `color-mix(in srgb, var(${tok}) 13%, transparent)`;
+      stEl.style.borderColor = `color-mix(in srgb, var(${tok}) 27%, transparent)`;
     }
     // rateHistoryData.kr 마지막 값 갱신 + 차트 재렌더
     if(typeof rateHistoryData !== 'undefined' && Array.isArray(rateHistoryData.kr)) {
@@ -15774,14 +15889,16 @@ function applyRealData(d) {
     const vixEl = document.getElementById('dashVix');
     if(vixEl) {
       vixEl.textContent = usInd.vix.value.toFixed(2);
-      vixEl.style.color = usInd.vix.value > 25 ? window.CDN : usInd.vix.value > 18 ? '#f5a623' : window.CUP;
+      vixEl.style.color = usInd.vix.value > 25 ? 'var(--ind-neg)' : usInd.vix.value > 18 ? 'var(--c-warn)' : 'var(--ind-pos)';
+      _sentCaption('dashVix', usInd.vix.period || usInd.vix.as_of, '미국 변동성 · 지수');
     }
   }
   if (usInd.hy_spread?.value != null) {
     const hyEl = document.getElementById('dashHySpread');
     if(hyEl) {
       hyEl.textContent = usInd.hy_spread.value.toFixed(2) + '%';
-      hyEl.style.color = usInd.hy_spread.value > 4 ? window.CDN : usInd.hy_spread.value > 3 ? '#f5a623' : window.CUP;
+      hyEl.style.color = usInd.hy_spread.value > 4 ? 'var(--ind-neg)' : usInd.hy_spread.value > 3 ? 'var(--c-warn)' : 'var(--ind-pos)';
+      _sentCaption('dashHySpread', usInd.hy_spread.period || usInd.hy_spread.as_of, '미 신용 스프레드 · %p (국채 대비)');
     }
   }
   // ── VKOSPI / MOVE / PCR — 시장 분위기 지표 ──────────
@@ -15796,11 +15913,12 @@ function applyRealData(d) {
       const vixCrossOk = !vix || vix <= 0 || (v / vix >= 0.3 && v / vix <= 4.0);
       if(_isValidVkospi(v) && vixCrossOk) {
         vkEl.textContent = v.toFixed(2);
-        vkEl.style.color = v > 30 ? window.CDN : v > 20 ? '#f5a623' : window.CUP;
+        vkEl.style.color = v > 30 ? 'var(--ind-neg)' : v > 20 ? 'var(--c-warn)' : 'var(--ind-pos)';
       } else {
         vkEl.textContent = '—';
         vkEl.style.color = 'var(--c-txt-dim,#a4a8bc)';
       }
+      _sentCaption('dashVkospi', sentiment.vkospi.as_of, '코스피200 변동성지수 · KRX');
     }
   }
   if (sentiment.move?.value != null) {
@@ -15808,7 +15926,8 @@ function applyRealData(d) {
     if(el) {
       el.textContent = sentiment.move.value.toFixed(1);
       const v = sentiment.move.value;
-      el.style.color = v > 120 ? window.CDN : v > 100 ? '#f5a623' : window.CUP;
+      el.style.color = v > 120 ? 'var(--ind-neg)' : v > 100 ? 'var(--c-warn)' : 'var(--ind-pos)';
+      _sentCaption('dashMove', sentiment.move.as_of, '미 채권 변동성 · 지수');
     }
   }
   if (sentiment.pcr?.value != null) {
@@ -15816,9 +15935,28 @@ function applyRealData(d) {
     if(el) {
       el.textContent = sentiment.pcr.value.toFixed(2);
       const v = sentiment.pcr.value;
-      el.style.color = v > 1.1 ? window.CDN : v < 0.7 ? window.CUP : 'var(--c-txt,#e8ebf5)';
+      el.style.color = v > 1.1 ? 'var(--ind-neg)' : v < 0.7 ? 'var(--ind-pos)' : 'var(--c-txt,#e8ebf5)';
+      _sentCaption('dashPcr', sentiment.pcr.as_of, '옵션 심리 · 배수');
     }
   }
+  // ── 수집 실패로 이전 빌드 값이 보존된 경우 '이전 값 유지' 배지 표시 (멱등) ──
+  try {
+    const stale = /보존|preserved|stale/i.test(String((d.sources || {}).sentiment || ''));
+    const tEl = document.getElementById('sentimentTitle');
+    if(tEl) {
+      let b = document.getElementById('sentStaleBadge');
+      if(stale) {
+        if(!b) {
+          b = document.createElement('span');
+          b.id = 'sentStaleBadge';
+          b.style.cssText = 'font-size:10px;color:var(--c-warn);font-weight:400;margin-left:6px;text-transform:none;letter-spacing:normal;';
+          b.title = '이번 수집이 실패해 직전 수집 값이 유지되고 있습니다';
+          b.textContent = '◐ 이전 값 유지';
+          tEl.appendChild(b);
+        }
+      } else if(b) b.remove();
+    }
+  } catch(_) {}
   // ── Fear & Greed Index (CNN) — sentiment.fear_greed 가 있으면 표시 ────
   if(typeof applyFearGreed === 'function') applyFearGreed(d);
   if(typeof buildFearChart === 'function') {
@@ -16045,21 +16183,10 @@ function applyRealData(d) {
   }
 
   // ── 사이드바 업데이트 시각 표시 + 신선도 자동 판정 ──────────────
-  // 기존엔 파이프라인이 며칠 죽어도 항상 초록 점이라 낡은 시세를 최신으로 오인했다.
-  // 시스템 진단 위젯과 동일 기준(2h 정상 / 26h 주의 / 초과 오류)을 여기서 자동 적용한다.
-  const el = document.getElementById('dataSourceInfo');
-  if (el && d.lastUpdated) {
-    const dt = new Date(d.lastUpdated);
-    const ageH = (Date.now() - dt.getTime()) / 3600000;
-    const dotColor = ageH <= 2 ? window.CUP : ageH <= 26 ? 'var(--c-warn,#f0c75e)' : 'var(--c-down,#ef5350)';
-    const ageTxt = ageH <= 2 ? '' :
-      ` <span style="color:${dotColor};font-weight:600;">(${ageH < 48 ? Math.round(ageH) + '시간' : Math.round(ageH / 24) + '일'} 전 데이터)</span>`;
-    el.innerHTML =
-      `<span style="color:${dotColor};font-size:10px;">●</span> ` +
-      dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) +
-      ' 업데이트' + ageTxt;
-    el.title = ageH > 26 ? '⚠ 데이터 수집 파이프라인이 멈춰 있을 수 있습니다 — 설정 > 시스템 진단 확인' : '';
-  }
+  // 렌더는 renderDataFreshness() 단일 출처 — 실시간 보강 성공이 이 표시를 덮어쓰지 않고(슬롯 분리),
+  // 1분 주기 재평가로 탭을 켜둔 동안에도 경과 시간이 갱신된다.
+  if (d.lastUpdated) window._lastServerDataTs = d.lastUpdated;
+  renderDataFreshness();
 
   // ── LME 금속 재고 (data.json.lmeInventory) 동기화 ──────
   if(d.lmeInventory && Array.isArray(d.lmeInventory.data)) {
@@ -16117,6 +16244,40 @@ function applyRealData(d) {
   try { updateAiQaVisibility(); } catch(_) {}
 }
 
+// ── 데이터 신선도 표시 (단일 출처) ──────────────────────────────
+// #dataSourceInfo 를 두 슬롯으로 분리:
+//   j(dsJsonFresh) = 서버 data.json 파이프라인 신선도 (2h 정상 / 26h 주의 / 초과 오류)
+//   r(dsRtFresh)   = 클라이언트 실시간 시세 보강 시각
+// 기존엔 장중 1분 주기 실시간 성공이 innerHTML 전체를 '● 실시간' 초록으로 덮어써
+// 파이프라인 정지 경고(26h 판정)가 위장됐다. 점 색은 등락 관습과 분리된 --ind-* 사용.
+function _dsSlots() {
+  const el = document.getElementById('dataSourceInfo');
+  if(!el) return null;
+  if(!document.getElementById('dsJsonFresh')) {
+    el.innerHTML = '<div id="dsJsonFresh"></div><div id="dsRtFresh" style="margin-top:2px;"></div>';
+  }
+  return { j: document.getElementById('dsJsonFresh'), r: document.getElementById('dsRtFresh') };
+}
+function renderDataFreshness() {
+  const s = _dsSlots();
+  const ts = window._lastServerDataTs || window._lastRealDataTs;
+  if(!s || !s.j || !ts) return;
+  const dt = new Date(ts);
+  if(isNaN(dt.getTime())) return;
+  const ageH = (Date.now() - dt.getTime()) / 3600000;
+  const dotColor = ageH <= 2 ? 'var(--ind-pos)' : ageH <= 26 ? 'var(--c-warn,#f0c75e)' : 'var(--ind-neg)';
+  const ageTxt = ageH <= 2 ? '' :
+    ` <span style="color:${dotColor};font-weight:600;">(${ageH < 48 ? Math.round(ageH) + '시간' : Math.round(ageH / 24) + '일'} 전 데이터)</span>`;
+  s.j.innerHTML =
+    `<span style="color:${dotColor};font-size:10px;">●</span> ` +
+    dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) +
+    ' 업데이트' + ageTxt;
+  const host = document.getElementById('dataSourceInfo');
+  if(host) host.title = ageH > 26 ? '⚠ 데이터 수집 파이프라인이 멈춰 있을 수 있습니다 — 설정 > 시스템 진단 확인' : '';
+}
+// 탭 상시 오픈 사용 패턴 — 페이지 로드 시점에 동결되지 않도록 경과 시간을 1분마다 재평가
+try { setInterval(renderDataFreshness, 60000); } catch(_) {}
+
 async function loadRealData() {
   try {
     // 경량 메타 선조회(~100B) — lastUpdated 가 그대로면 3.6MB 본체 재다운로드를 생략한다.
@@ -16129,7 +16290,10 @@ async function loadRealData() {
       if (metaR.ok) {
         const meta = await metaR.json().catch(() => null);
         if (meta && meta.lastUpdated && window._lastRealDataTs &&
-            meta.lastUpdated === window._lastRealDataTs) return;   // 변경 없음 → 본체 페치 생략
+            meta.lastUpdated === window._lastRealDataTs) {
+          renderDataFreshness();   // 변경 없음이어도 경과 시간 표시는 재평가
+          return;                  // 본체 페치 생략
+        }
         if (meta && meta.lastUpdated) _dataVer = meta.lastUpdated;
       }
     } catch(_) {}
@@ -16455,10 +16619,10 @@ async function loadRealtimeFx() {
     window._fxRealtimeSrc  = (yahooCount > 0) ? 'Yahoo Finance (실시간)' : 'Stooq (일별 종가)';
   }
 
-  // 사이드바 업데이트 시각 표시
-  const sbEl = document.getElementById('dataSourceInfo');
-  if (sbEl && updated > 0) {
-    sbEl.innerHTML = `<span style="color:var(--c-up);font-size:10px;">●</span> 실시간 환율: ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+  // 사이드바 실시간 슬롯만 갱신 — 파이프라인 신선도 표시(j 슬롯)는 보존
+  const _rtSlots = (typeof _dsSlots === 'function') ? _dsSlots() : null;
+  if (_rtSlots && _rtSlots.r && updated > 0) {
+    _rtSlots.r.innerHTML = `<span style="color:var(--ind-pos);font-size:10px;">●</span> 실시간 환율: ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
   }
   // 대시보드 USD/KRW KPI 카드 갱신
   const kpiFxPriceEl = document.getElementById('kpi-fx-price');
@@ -16926,11 +17090,12 @@ async function loadRealtimeMarket() {
   if (count > 0) {
     // applyRealData는 fx:{} 빈 객체 전달 시 FX 값을 건드리지 않음
     applyRealData({ indices: patchIdx, commodities: patchCom, fx: {} });
-    const sbEl = document.getElementById('dataSourceInfo');
-    if (sbEl) {
+    // 실시간 슬롯만 갱신 — 파이프라인 신선도 표시(j 슬롯)는 보존
+    const _rtSlots = (typeof _dsSlots === 'function') ? _dsSlots() : null;
+    if (_rtSlots && _rtSlots.r) {
       const now = new Date();
       const src = yahooCount > 0 ? 'Yahoo 실시간' : 'Stooq';
-      sbEl.innerHTML = `<span style="color:var(--c-up);font-size:10px;">●</span> ${src}: ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})}`;
+      _rtSlots.r.innerHTML = `<span style="color:var(--ind-pos);font-size:10px;">●</span> ${src}: ${now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})}`;
     }
     // 보강이 기본 ON 이라 장중 1분마다 호출된다 → 정상 동작 로그는 debug 로(콘솔 기본 비표시) 노이즈 억제.
     console.debug(`[지수·원자재] ${count}개 갱신 (Yahoo ${yahooCount}, Stooq ${count - yahooCount})`);
@@ -17250,7 +17415,8 @@ function toggleTheme() {
   if(label) label.textContent = isLight ? '다크 모드' : '라이트 모드';
   const tbtn = document.getElementById('themeToggleBtn');
   if(tbtn) tbtn.setAttribute('aria-pressed', isLight ? 'true' : 'false');
-  // 차트 색상 재빌드
+  // 등락색(CUP/CDN)을 새 테마 값으로 갱신한 뒤 차트 색상 재빌드
+  if(typeof window.refreshUpDn === 'function') window.refreshUpDn();
   rebuildChartsForTheme();
 }
 
@@ -17274,6 +17440,7 @@ function applyStoredTheme() {
 }
 
 function getThemeColors() {
+  // 주의: CSS 토큰(:root / html.light) 수정 시 이 맵도 함께 동기화할 것.
   const light = document.documentElement.classList.contains('light');
   return {
     txt:     light ? 'rgb(89,89,89)'  : '#b6bbcf',
@@ -17282,10 +17449,11 @@ function getThemeColors() {
     ttBorder:light ? '#aac4e6'        : '#3a4054',
     ttTitle: light ? 'rgb(38,38,38)'  : '#e8ebf5',
     ttBody:  light ? 'rgb(53,108,181)': '#c8d2ff',
-    up:      light ? 'rgb(57,141,139)': window.CUP,
-    down:    light ? 'rgb(219,47,17)' : window.CDN,
+    // 등락색은 관습(kr/global)×테마 매트릭스(refreshUpDn)가 단일 출처
+    up:      window.CUP,
+    down:    window.CDN,
     accent:  light ? 'rgb(53,108,181)': '#2962ff',
-    primary: light ? 'rgb(127,166,217)': '#c8d2ff',
+    primary: light ? 'rgb(53,108,181)': '#c8d2ff',
   };
 }
 
@@ -17338,6 +17506,9 @@ function rebuildChartsForTheme() {
       ch.update();
     } catch(_) {}
   });
+  // 도넛 게이지·비교차트는 dataset 색이 테마 리터럴이라 옵션 패치로 안 바뀜 — 재생성
+  try { buildFearChart(); } catch(_) {}
+  try { if(charts['compareChart'] && typeof cmpRender === 'function') cmpRender(); } catch(_) {}
 }
 
 // ============================
@@ -19460,6 +19631,9 @@ function showToast(msg, ms = 6000) {
   if(!host) {
     host = document.createElement('div');
     host.id = 'econToastHost';
+    // 라이브 리전 — 자식 토스트 추가가 스크린리더에 자동 낭독됨 (헤드 window.showToast 와 동급 보장)
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
     host.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:500;display:flex;flex-direction:column;gap:8px;max-width:340px;';
     document.body.appendChild(host);
   }
@@ -19481,7 +19655,14 @@ function renderAiBriefing(b) {
   const srcLabel = b.source === 'rule' ? '규칙 기반 요약'
                  : b.source === 'client-rule' ? '실시간 규칙 요약'
                  : (b.source === 'gemini' ? 'Gemini' : b.source === 'openai' ? 'OpenAI' : 'AI');
-  document.getElementById('aiBriefingMeta').textContent = `${b.date || ''} · ${srcLabel}`;
+  // 면책 상시 노출 + 생성일이 오늘(KST)이 아니면 스테일 경고 — 파이프라인이 며칠 멈춰도
+  // 이전 날짜 요약이 '오늘의' 제목으로 최신처럼 보이는 문제 방지.
+  const _kstToday = new Date(Date.now() + 9*36e5).toISOString().slice(0,10);
+  const _isOld = typeof b.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date) && b.date < _kstToday;
+  document.getElementById('aiBriefingMeta').innerHTML =
+    (_isOld ? `<span style="color:var(--c-warn);font-weight:600;">⚠ ${escapeHtml(String(b.date))} 생성 (오늘 아님)</span>` : escapeHtml(String(b.date || '')))
+    + ` · ${srcLabel} · 참고용, 투자 조언 아님`;
+  box.style.borderLeftColor = _isOld ? 'var(--c-warn)' : '';
   box.style.display = 'block';
 }
 
@@ -19685,6 +19866,18 @@ function renderBriefStrip(d) {
   const chips = [];
   const chip = (onclick, lbl, valHtml, title, aria) =>
     chips.push(`<button type="button" class="brief-chip u-touch-hit" onclick="${onclick}" title="${escapeHtml(title || '')}" aria-label="${escapeHtml(aria || title || lbl)}"><span class="brief-lbl">${lbl}</span>${valHtml}</button>`);
+  // 데이터 신선도 칩 — 사이드바가 오프캔버스인 모바일에서도 "이 숫자가 언제 것인지" 노출
+  try {
+    const ts = window._lastServerDataTs || d.lastUpdated || window._lastRealDataTs;
+    if(ts) {
+      const ageH = (Date.now() - new Date(ts).getTime()) / 36e5;
+      if(isFinite(ageH) && ageH >= 0) {
+        const dot = ageH <= 2 ? 'var(--ind-pos)' : ageH <= 26 ? 'var(--c-warn)' : 'var(--ind-neg)';
+        const rel = ageH < 1 ? Math.max(1, Math.round(ageH * 60)) + '분 전' : ageH < 48 ? Math.round(ageH) + '시간 전' : Math.round(ageH / 24) + '일 전';
+        chips.push(`<span class="brief-chip" title="${escapeHtml('서버 데이터 기준: ' + new Date(ts).toLocaleString('ko-KR') + ' · 시세 최대 15분 지연')}" aria-label="데이터 ${rel} 갱신"><span aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:${dot};display:inline-block;flex-shrink:0;"></span><span class="brief-lbl">데이터</span><span class="brief-val" style="font-weight:500;">${ageH > 26 ? '⚠ ' : ''}${rel}</span></span>`);
+      }
+    }
+  } catch(_) {}
   const idx = d.indices || {}, fx = d.fx || {}, sent = d.sentiment || {};
   const k = idx.KOSPI;
   if(k && k.price != null) chip("navigateToDetail('equity')", 'KOSPI',
@@ -19951,6 +20144,9 @@ function checkCalendarAlerts(d) {
 // ── 🔀 이중축 지표 비교 차트 ───────────────────────────────────────────────
 const CMP_LS_KEY = 'econ_cmp_sel_v1';
 const CMP_COLOR_A = '#2962ff', CMP_COLOR_B = '#f5a623';
+// B 시리즈 색 테마 getter — CMP_COLOR_B(#f5a623)는 라이트 흰 배경에서 2.0:1 로 판독 불가.
+// 반드시 hex 리터럴 반환 (CB+'22' 알파 결합 때문에 var() 사용 금지).
+function cmpColorB() { return document.documentElement.classList.contains('light') ? '#b45309' : CMP_COLOR_B; }
 let _cmpState = { a: 'idx.KOSPI', b: 'ei.us.ff_rate', period: '1Y', norm: true };
 let _cmpInited = false, _cmpLastTs = null;
 
@@ -20092,9 +20288,11 @@ function _cmpSyncNormBtn() {
   const btn = document.getElementById('cmpNormBtn');
   if(!btn) return;
   const on = !!_cmpState.norm;
-  btn.style.background = on ? window.CUP : 'transparent';
-  btn.style.borderColor = on ? window.CUP : '#2a2e3d';
-  btn.style.color = on ? '#fff' : '#8d90a2';
+  // 토글 활성은 accent — 상승색(CUP) 오용은 '상승'으로 오독되고 다크 하드코딩은 라이트에서 깨짐
+  btn.style.background = on ? 'var(--c-accent)' : 'transparent';
+  btn.style.borderColor = on ? 'var(--c-accent)' : 'var(--c-border)';
+  btn.style.color = on ? 'var(--c-on-accent,#fff)' : 'var(--c-txt-dim)';
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 function cmpToggleNorm() {
   _cmpState.norm = !_cmpState.norm;
@@ -20131,6 +20329,7 @@ function cmpRender() {
   };
   const dataA = norm ? rebase(mapA) : labels.map(d => mapA[d] ?? null);
   const dataB = norm ? rebase(mapB) : labels.map(d => mapB[d] ?? null);
+  const CB = cmpColorB();   // 테마별 B 색 — 라이트에서 판독 가능한 갈색으로
   if(charts['compareChart']) { try { charts['compareChart'].destroy(); } catch(_) {} }
   charts['compareChart'] = new Chart(canvas, {
     type: 'line',
@@ -20141,7 +20340,7 @@ function cmpRender() {
           borderColor: CMP_COLOR_A, backgroundColor: CMP_COLOR_A + '22',
           borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: .15, spanGaps: true },
         { label: labB, data: dataB, yAxisID: norm ? 'yA' : 'yB',
-          borderColor: CMP_COLOR_B, backgroundColor: CMP_COLOR_B + '22',
+          borderColor: CB, backgroundColor: CB + '22',
           borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: .15, spanGaps: true },
       ],
     },
@@ -20152,17 +20351,22 @@ function cmpRender() {
         ...(norm ? { tooltip: { callbacks: { label: c =>
           `${c.dataset.label}: ${c.parsed.y == null ? '-' : c.parsed.y.toFixed(2)} (시작=100, ${(c.parsed.y - 100) >= 0 ? '+' : ''}${(c.parsed.y - 100).toFixed(2)}%)` } } } : {}),
       },
+      // 축 타이틀에 지표명 명기 — 축-시리즈 매칭이 색상 단독 의존에서 벗어남 (색각 이상·인쇄 대응)
       scales: norm ? {
         x: { ticks: { color: tc.txt, maxTicksLimit: 10, font: { size: 10 } }, grid: { color: tc.grid } },
-        yA: { position: 'left', ticks: { color: tc.txt, font: { size: 10 } }, grid: { color: tc.grid } },
+        yA: { position: 'left', ticks: { color: tc.txt, font: { size: 10 } }, grid: { color: tc.grid },
+              title: { display: true, text: '지수화 (시작=100)', color: tc.txt, font: { size: 10 } } },
       } : {
         x: { ticks: { color: tc.txt, maxTicksLimit: 10, font: { size: 10 } }, grid: { color: tc.grid } },
         // _fixedTickColor — 테마 전환(rebuildChartsForTheme) 시에도 데이터셋과 같은 색 유지
-        yA: { position: 'left',  ticks: { color: CMP_COLOR_A, font: { size: 10 } }, grid: { color: tc.grid }, _fixedTickColor: CMP_COLOR_A },
-        yB: { position: 'right', ticks: { color: CMP_COLOR_B, font: { size: 10 } }, grid: { drawOnChartArea: false }, _fixedTickColor: CMP_COLOR_B },
+        yA: { position: 'left',  ticks: { color: CMP_COLOR_A, font: { size: 10 } }, grid: { color: tc.grid }, _fixedTickColor: CMP_COLOR_A,
+              title: { display: true, text: labA, color: CMP_COLOR_A, font: { size: 10 } } },
+        yB: { position: 'right', ticks: { color: CB, font: { size: 10 } }, grid: { drawOnChartArea: false }, _fixedTickColor: CB,
+              title: { display: true, text: labB, color: CB, font: { size: 10 } } },
       },
     },
   });
+  try { canvas.setAttribute('aria-label', `${labA} · ${labB} 지표 비교 차트${norm ? ' (지수화, 시작=100)' : ' (이중축)'}`); } catch(_) {}
   // YoY — 주 시리즈 A(dataset 0)만 전년 오버레이. 지수화(norm) 모드에서는 스케일이 달라 비활성.
   { if(!norm){ const _fa = _cmpSeries(_cmpState.a) || [];
       registerYoY('compareChart', { mode:'date', dispDates:labels, fullDates:_fa.map(p=>p.d), fullValues:_fa.map(p=>p.v), tol:10, primary:0, color:CMP_COLOR_A, tension:0.15 });
@@ -20177,9 +20381,9 @@ function cmpRender() {
       const lastIdx = arr => { for(let i = arr.length - 1; i >= 0; i--) if(arr[i] != null) return arr[i]; return null; };
       const na = lastIdx(dataA), nb = lastIdx(dataB);
       const chg = v => v == null ? '-' : `${(v - 100) >= 0 ? '+' : ''}${(v - 100).toFixed(2)}%`;
-      info.innerHTML = `⚖ 지수화 모드 (구간 시작=100) — <span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${chg(na)} &nbsp;·&nbsp; <span style="color:${CMP_COLOR_B};">● ${escapeHtml(labB)}</span> ${chg(nb)}`;
+      info.innerHTML = `⚖ 지수화 모드 (구간 시작=100) — <span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${chg(na)} &nbsp;·&nbsp; <span style="color:${CB};">● ${escapeHtml(labB)}</span> ${chg(nb)}`;
     } else {
-      info.innerHTML = `<span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${fmt(la.v)} (${la.d}) &nbsp;·&nbsp; <span style="color:${CMP_COLOR_B};">● ${escapeHtml(labB)}</span> ${fmt(lb.v)} (${lb.d})`;
+      info.innerHTML = `<span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${fmt(la.v)} (${la.d}) &nbsp;·&nbsp; <span style="color:${CB};">● ${escapeHtml(labB)}</span> ${fmt(lb.v)} (${lb.d})`;
     }
   }
 }
