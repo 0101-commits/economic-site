@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-19T17:02:06.693668+09:00",
+  "lastUpdated": "2026-07-19T18:10:36.905978+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -25,8 +25,9 @@
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-07-19T14:13)",
-    "sentiment": "이전 빌드 보존 ← prev (2026-07-19T14:13)"
+    "stockMovers": "이전 빌드 보존 ← KRX OpenAPI (2026-07-19T17:02)",
+    "sentiment": "이전 빌드 보존 ← prev (2026-07-19T17:02)",
+    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
@@ -2278,7 +2279,7 @@
     ],
     "unit": "억원",
     "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
-    "lastFetched": "2026-07-19T17:05:14.495798+09:00"
+    "lastFetched": "2026-07-19T18:13:50.704511+09:00"
   },
   "freight": {
     "items": [
@@ -2365,7 +2366,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-07-19T17:05:23.448997+09:00"
+    "lastFetched": "2026-07-19T18:13:59.088635+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -14400,21 +14401,6 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
-      },
       "trade_count_kr_rone": {
         "value": 80119.0,
         "prev": 76391.0,
@@ -14926,6 +14912,21 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
+      },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -183023,6 +183024,7 @@
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "preservedFields": 3,
+    "preservedMetricsDeep": 1,
     "historySpotSynced": 14
   },
   "subscription": {
@@ -183397,7 +183399,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-07-19T17:12:12.334540+09:00"
+    "lastFetched": "2026-07-19T18:20:17.629661+09:00"
   },
   "nps": {
     "allocation": [
@@ -183426,7 +183428,7 @@
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-07-19T17:12:41.027830+09:00",
+    "lastFetched": "2026-07-19T18:20:45.669955+09:00",
     "채권": [],
     "외환": [],
     "주식": [
@@ -183474,6 +183476,18 @@
     "비철금속": [],
     "한국GDP": [
       {
+        "title": "한국, 1인당 GDP 사상 첫 4만달러 눈앞…반도체 수출 호조",
+        "url": "https://www.msn.com/ko-kr/news/other/%ED%95%9C%EA%B5%AD-1%EC%9D%B8%EB%8B%B9-gdp-%EC%82%AC%EC%83%81-%EC%B2%AB-4%EB%A7%8C%EB%8B%AC%EB%9F%AC-%EB%88%88%EC%95%9E-%EB%B0%98%EB%8F%84%EC%B2%B4-%EC%88%98%EC%B6%9C-%ED%98%B8%EC%A1%B0/ar-AA28di8t",
+        "isoDate": "2026-07-18",
+        "pubDate": "Sat, 18 Jul 2026 20:04:08 GMT"
+      },
+      {
+        "title": "한국 1인당 GDP 4만달러 코앞…올해 경제 규모 2조달러 첫 돌파 전망",
+        "url": "https://www.shinailbo.co.kr/news/articleView.html?idxno=5041978",
+        "isoDate": "2026-07-18",
+        "pubDate": "Sat, 18 Jul 2026 13:40:00 GMT"
+      },
+      {
         "title": "한국 1인당 GDP 4만 달러 '눈앞'…5년 만에 최대폭 증가",
         "url": "https://www.msn.com/ko-kr/news/other/%ED%95%9C%EA%B5%AD-1%EC%9D%B8%EB%8B%B9-gdp-4%EB%A7%8C-%EB%8B%AC%EB%9F%AC-%EB%88%88%EC%95%9E-5%EB%85%84-%EB%A7%8C%EC%97%90-%EC%B5%9C%EB%8C%80%ED%8F%AD-%EC%A6%9D%EA%B0%80/ar-AA28cKwY",
         "isoDate": "2026-07-18",
@@ -183484,18 +183498,6 @@
         "url": "https://www.fnnews.com/news/202607070551110950",
         "isoDate": "2026-07-06",
         "pubDate": "Mon, 06 Jul 2026 22:51:00 GMT"
-      },
-      {
-        "title": "수출 호황에… 해외IB, 한국 성장률 첫 3%대 전망",
-        "url": "https://www.msn.com/ko-kr/money/topstories/%EC%88%98%EC%B6%9C-%ED%98%B8%ED%99%A9%EC%97%90-%ED%95%B4%EC%99%B8ib-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%B2%AB-3-%EB%8C%80-%EC%A0%84%EB%A7%9D/ar-AA27nVzl",
-        "isoDate": "2026-07-07",
-        "pubDate": "Tue, 07 Jul 2026 17:39:00 GMT"
-      },
-      {
-        "title": "[하반기 경제성장전략] '한국경제의 메시' 반도체 있으메... 정부, 5년 만에 '3% 성장률' 강공 드리블",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%ED%95%98%EB%B0%98%EA%B8%B0-%EA%B2%BD%EC%A0%9C%EC%84%B1%EC%9E%A5%EC%A0%84%EB%9E%B5-%ED%95%9C%EA%B5%AD%EA%B2%BD%EC%A0%9C%EC%9D%98-%EB%A9%94%EC%8B%9C-%EB%B0%98%EB%8F%84%EC%B2%B4-%EC%9E%88%EC%9C%BC%EB%A9%94-%EC%A0%95%EB%B6%80-5%EB%85%84-%EB%A7%8C%EC%97%90-3-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EA%B0%95%EA%B3%B5-%EB%93%9C%EB%A6%AC%EB%B8%94/ar-AA27RzVZ",
-        "isoDate": "2026-07-14",
-        "pubDate": "Tue, 14 Jul 2026 00:38:11 GMT"
       },
       {
         "title": "[이슈] 해외 IB, 한국 성장률 전망 첫 평균 3% 돌파…반도체 수출 호황에 잇단 상향",
@@ -183747,7 +183749,7 @@
         "iso": "2026-09-01"
       }
     ],
-    "lastFetched": "2026-07-19T17:14:33.708889+09:00",
+    "lastFetched": "2026-07-19T18:22:37.597887+09:00",
     "source": "FRED release dates API",
     "backfilled": 4
   },
@@ -184559,12 +184561,12 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-07-19T17:14:33.782712+09:00",
+    "asOf": "2026-07-19T18:22:38.862833+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-07-19",
-    "generatedAt": "2026-07-19 17:14 KST",
+    "generatedAt": "2026-07-19 18:23 KST",
     "lines": [
       "증시 — KOSPI 6,820.60 (▼6.37%), S&P500 7,457.69 (▼1.01%), 나스닥 25,520.24 (▼1.40%)",
       "환율·금리 — 원/달러 1,487.46원 (▲0.66%), 미국 기준금리 3.63%, VIX 16.73",
