@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-26T23:42:48.508835+09:00",
+  "lastUpdated": "2026-07-26T23:56:19.324900+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "etfMovers": "KRX OpenAPI",
@@ -19,15 +19,13 @@
     "move": "yfinance ^MOVE",
     "fear_greed": "CNN Fear & Greed Index",
     "realestate_kr_trade": "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)",
-    "subscription": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
     "nps": "fund.nps.or.kr",
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "stockMovers": "이전 빌드 보존 ← Naver Finance (2026-07-26T22:01)",
-    "sentiment": "이전 빌드 보존 ← prev (2026-07-26T22:01)",
-    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
+    "stockMovers": "이전 빌드 보존 ← Naver Finance (2026-07-26T23:42)",
+    "sentiment": "이전 빌드 보존 ← prev (2026-07-26T23:42)"
   },
   "fx": {
     "USDKRW": {
@@ -2223,7 +2221,7 @@
     ],
     "unit": "억원",
     "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
-    "lastFetched": "2026-07-26T23:45:44.549461+09:00"
+    "lastFetched": "2026-07-26T23:59:21.905176+09:00"
   },
   "freight": {
     "items": [
@@ -2310,7 +2308,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-07-26T23:46:03.233301+09:00"
+    "lastFetched": "2026-07-26T23:59:28.519259+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -14345,6 +14343,23 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
+      "conversion_rate_kr": {
+        "value": 8.15,
+        "prev": 7.27608055029607,
+        "chg": 12.01,
+        "period": "201806",
+        "history": {
+          "201801": 4.83116883116883,
+          "201802": 4.83116883116883,
+          "201803": 4.83116883116883,
+          "201804": 7.62908024748653,
+          "201805": 7.27608055029607,
+          "201806": 8.14988335699956
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:A_2024_00635"
+      },
       "trade_count_kr_rone": {
         "value": 80119.0,
         "prev": 76391.0,
@@ -14856,21 +14871,6 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
-      },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -182151,7 +182151,7 @@
     "move": {
       "value": 76.82,
       "change": -4.07,
-      "as_of": "2026-07-26",
+      "as_of": "2026-07-27",
       "source": "yfinance ^MOVE",
       "history": {
         "2024-07-25": 99.08,
@@ -182652,7 +182652,7 @@
       "value": 39.4,
       "prev": 39.6,
       "rating": "fear",
-      "as_of": "2026-07-26",
+      "as_of": "2026-07-27",
       "history": {
         "2025-07-28": 73.8,
         "2025-07-29": 70.63,
@@ -182967,384 +182967,9 @@
       "fred_tried": false,
       "fred_ok": false
     },
-    "subscription": "OK ApplyhomeInfoDetailSvc 60건",
+    "subscription": "ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoSvc HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | ApplyhomeInfoSvc HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"} ",
     "preservedFields": 3,
-    "preservedMetricsDeep": 1,
     "historySpotSynced": 17
-  },
-  "subscription": {
-    "byRegion": {
-      "seoul": [
-        {
-          "name": "월계 중흥S-클래스 리비에르",
-          "area": "서울",
-          "date": "2026-07-16",
-          "rate": null
-        },
-        {
-          "name": "동작 센트럴 동문 디 이스트",
-          "area": "서울",
-          "date": "2026-07-02",
-          "rate": null
-        },
-        {
-          "name": "장위 푸르지오 마크원",
-          "area": "서울",
-          "date": "2026-06-19",
-          "rate": null
-        },
-        {
-          "name": "드파인 아르티아",
-          "area": "서울",
-          "date": "2026-06-19",
-          "rate": null
-        },
-        {
-          "name": "북서울자이 폴라리스(보류지)",
-          "area": "서울",
-          "date": "2026-06-12",
-          "rate": null
-        },
-        {
-          "name": "써밋 더힐",
-          "area": "서울",
-          "date": "2026-05-15",
-          "rate": null
-        },
-        {
-          "name": "아크로 리버스카이",
-          "area": "서울",
-          "date": "2026-05-13",
-          "rate": null
-        },
-        {
-          "name": "더 리치먼드 미아",
-          "area": "서울",
-          "date": "2026-04-27",
-          "rate": null
-        },
-        {
-          "name": "공덕역자이르네",
-          "area": "서울",
-          "date": "2026-04-17",
-          "rate": null
-        },
-        {
-          "name": "라클라체자이드파인",
-          "area": "서울",
-          "date": "2026-04-03",
-          "rate": null
-        },
-        {
-          "name": "오티에르 반포",
-          "area": "서울",
-          "date": "2026-03-31",
-          "rate": null
-        },
-        {
-          "name": "이촌 르엘",
-          "area": "서울",
-          "date": "2026-03-30",
-          "rate": null
-        },
-        {
-          "name": "더샵 신길센트럴시티",
-          "area": "서울",
-          "date": "2026-03-20",
-          "rate": null
-        },
-        {
-          "name": "아크로 드 서초",
-          "area": "서울",
-          "date": "2026-03-20",
-          "rate": null
-        },
-        {
-          "name": "더샵 프리엘라",
-          "area": "서울",
-          "date": "2026-03-12",
-          "rate": null
-        }
-      ],
-      "gyeonggi": [
-        {
-          "name": "수원당수지구 A5블록 신혼희망타운(공공분양) 추가 입주자모집",
-          "area": "경기",
-          "date": "2026-07-23",
-          "rate": null
-        },
-        {
-          "name": "역북 서희스타힐스 프라임시티(조합원 취소분)",
-          "area": "경기",
-          "date": "2026-07-16",
-          "rate": null
-        },
-        {
-          "name": "이천 휴먼빌 클래스원",
-          "area": "경기",
-          "date": "2026-07-16",
-          "rate": null
-        },
-        {
-          "name": "오산헤리티지자이 2단지",
-          "area": "경기",
-          "date": "2026-07-10",
-          "rate": null
-        },
-        {
-          "name": "오산헤리티지자이 1단지",
-          "area": "경기",
-          "date": "2026-07-10",
-          "rate": null
-        },
-        {
-          "name": "의왕역 SK VIEW",
-          "area": "경기",
-          "date": "2026-07-10",
-          "rate": null
-        },
-        {
-          "name": "평택역 더센트럴45",
-          "area": "경기",
-          "date": "2026-07-09",
-          "rate": null
-        },
-        {
-          "name": "호반써밋 풍무Ⅲ",
-          "area": "경기",
-          "date": "2026-07-09",
-          "rate": null
-        },
-        {
-          "name": "남양주 진접 서한이다음(S1BL)",
-          "area": "경기",
-          "date": "2026-07-09",
-          "rate": null
-        },
-        {
-          "name": "야목역 서희스타힐스 그랜드힐(조합원 취소분)",
-          "area": "경기",
-          "date": "2026-07-02",
-          "rate": null
-        },
-        {
-          "name": "고양창릉 S-4블록 공공분양주택(본청약)",
-          "area": "경기",
-          "date": "2026-06-30",
-          "rate": null
-        },
-        {
-          "name": "고양창릉지구 S-3블록 이익공유형 분양주택(본청약)",
-          "area": "경기",
-          "date": "2026-06-30",
-          "rate": null
-        },
-        {
-          "name": "군포대야미지구 A-1블록 6년 분양전환공공임대주택(본청약)",
-          "area": "경기",
-          "date": "2026-06-30",
-          "rate": null
-        },
-        {
-          "name": "역곡지구 하우스토리(부천역곡지구 A-2BL) 신혼희망타운(공공분양)(본청약)",
-          "area": "경기",
-          "date": "2026-06-26",
-          "rate": null
-        },
-        {
-          "name": "이천 서희스타힐스 SKY(조합원 취소분)",
-          "area": "경기",
-          "date": "2026-06-22",
-          "rate": null
-        }
-      ],
-      "metro": [
-        {
-          "name": "더샵 트리센트",
-          "area": "부산",
-          "date": "2026-07-24",
-          "rate": null
-        },
-        {
-          "name": "부산 장안지구 B-2블록 중흥S-클래스(본청약)",
-          "area": "부산",
-          "date": "2026-07-10",
-          "rate": null
-        },
-        {
-          "name": "센텀 엘카사",
-          "area": "울산",
-          "date": "2026-07-03",
-          "rate": null
-        },
-        {
-          "name": "에코델타시티 중흥S-클래스 리버시티",
-          "area": "부산",
-          "date": "2026-06-19",
-          "rate": null
-        },
-        {
-          "name": "상무 양우내안에 퍼스트힐(조합원 취소분)",
-          "area": "광주",
-          "date": "2026-06-05",
-          "rate": null
-        },
-        {
-          "name": "호반써밋 첨단3지구(A7BL)",
-          "area": "광주",
-          "date": "2026-06-05",
-          "rate": null
-        },
-        {
-          "name": "알티에로 광안",
-          "area": "부산",
-          "date": "2026-06-05",
-          "rate": null
-        },
-        {
-          "name": "동래사적공원 오네뜨",
-          "area": "부산",
-          "date": "2026-05-15",
-          "rate": null
-        },
-        {
-          "name": "해운대 마티안 디 에디션",
-          "area": "부산",
-          "date": "2026-05-14",
-          "rate": null
-        },
-        {
-          "name": "두산위브 트리니뷰 구명역",
-          "area": "부산",
-          "date": "2026-05-08",
-          "rate": null
-        },
-        {
-          "name": "더샵 중앙로역센터폴",
-          "area": "대구",
-          "date": "2026-05-04",
-          "rate": null
-        },
-        {
-          "name": "더샵 시에르네(조합원 취소분)",
-          "area": "울산",
-          "date": "2026-04-28",
-          "rate": null
-        },
-        {
-          "name": "기장 이진캐스빌 포레",
-          "area": "부산",
-          "date": "2026-04-24",
-          "rate": null
-        },
-        {
-          "name": "더샵 관저아르테",
-          "area": "대전",
-          "date": "2026-04-24",
-          "rate": null
-        },
-        {
-          "name": "울산신복역 비스타 메트로",
-          "area": "울산",
-          "date": "2026-04-24",
-          "rate": null
-        }
-      ],
-      "other": [
-        {
-          "name": "센트레빌 아스테리움 거제",
-          "area": "경남",
-          "date": "2026-07-24",
-          "rate": null
-        },
-        {
-          "name": "리쉐스302",
-          "area": "강원",
-          "date": "2026-07-24",
-          "rate": null
-        },
-        {
-          "name": "창원 한신더휴 메가센텀",
-          "area": "경남",
-          "date": "2026-07-16",
-          "rate": null
-        },
-        {
-          "name": "춘천 리버뷰 아이파크",
-          "area": "강원",
-          "date": "2026-07-10",
-          "rate": null
-        },
-        {
-          "name": "업성 푸르지오 레이크시티 2단지",
-          "area": "충남",
-          "date": "2026-07-10",
-          "rate": null
-        },
-        {
-          "name": "거제 푸르지오 마린피스",
-          "area": "경남",
-          "date": "2026-07-07",
-          "rate": null
-        },
-        {
-          "name": "천안 아이파크 시티 1단지(2회차)",
-          "area": "충남",
-          "date": "2026-06-26",
-          "rate": null
-        },
-        {
-          "name": "트리븐 김해",
-          "area": "경남",
-          "date": "2026-06-26",
-          "rate": null
-        },
-        {
-          "name": "군산 세경아파트 우선분양전환 후 잔여세대 ",
-          "area": "전북",
-          "date": "2026-06-24",
-          "rate": null
-        },
-        {
-          "name": "신제주 동문디이스트 시그니처원Ⅱ",
-          "area": "제주",
-          "date": "2026-06-23",
-          "rate": null
-        },
-        {
-          "name": "신제주 동문디이스트 시그니처원Ⅰ",
-          "area": "제주",
-          "date": "2026-06-23",
-          "rate": null
-        },
-        {
-          "name": "함안가야 휴니온아르떼",
-          "area": "경남",
-          "date": "2026-06-22",
-          "rate": null
-        },
-        {
-          "name": "펜타힐즈 더블유 1단지",
-          "area": "경북",
-          "date": "2026-06-19",
-          "rate": null
-        },
-        {
-          "name": "김해 신문 센트럴 아이파크",
-          "area": "경남",
-          "date": "2026-06-19",
-          "rate": null
-        },
-        {
-          "name": "신문 대상 웰라움 라시엘",
-          "area": "경남",
-          "date": "2026-06-19",
-          "rate": null
-        }
-      ]
-    },
-    "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-07-26T23:52:01.740828+09:00"
   },
   "nps": {
     "allocation": [
@@ -183369,11 +182994,11 @@
         "pct": 36.2
       }
     ],
-    "as_of": "2026-07-26",
+    "as_of": "2026-07-27",
     "source": "fund.nps.or.kr"
   },
   "news": {
-    "lastFetched": "2026-07-26T23:52:10.459081+09:00",
+    "lastFetched": "2026-07-27T00:17:02.811113+09:00",
     "채권": [],
     "외환": [
       {
@@ -183708,7 +183333,7 @@
         "iso": "2026-09-08"
       }
     ],
-    "lastFetched": "2026-07-26T23:55:18.152651+09:00",
+    "lastFetched": "2026-07-27T00:19:42.844090+09:00",
     "source": "FRED release dates API",
     "backfilled": 3
   },
@@ -184520,12 +184145,12 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-07-26T23:55:20.537169+09:00",
+    "asOf": "2026-07-27T00:19:42.921064+09:00",
     "stale": false
   },
   "aiBriefing": {
-    "date": "2026-07-26",
-    "generatedAt": "2026-07-26 23:55 KST",
+    "date": "2026-07-27",
+    "generatedAt": "2026-07-27 00:20 KST",
     "lines": [
       "증시 — KOSPI 6,690.62 (▼5.72%), S&P500 7,411.98 (▲0.05%), 나스닥 24,975.82 (▼0.64%)",
       "환율·금리 — 원/달러 1,459.42원 (▼1.03%), 미국 기준금리 3.63%, VIX 18.70",
