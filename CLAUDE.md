@@ -10,7 +10,50 @@ Live site: `https://0101-commits.github.io/economic-site/`
 
 ## No Build Step
 
-**No npm, no bundler, no compilation.** The site is a single `index.html` (~18 000 lines) with all CSS and JavaScript inline. Edit `index.html` directly. Changes to `index.html` are live on GitHub Pages immediately after push.
+**No npm, no bundler, no compilation.** The site is a single `index.html` (~22 000 lines) with all CSS and JavaScript inline. Edit `index.html` directly. Changes to `index.html` are live on GitHub Pages immediately after push.
+
+The one exception is the **design-token block**, which is generated — see *Design system* below.
+
+## Design system — astryx (neutral)
+
+The UI follows the astryx design system (`@astryxdesign/*`; local copy at
+`C:\Users\cgpar\astryx`). Three rules carry most of it:
+
+1. **Semantic tokens, never hardcoded values.** Colors come from `var(--color-*)`
+   (or the legacy `var(--c-*)` alias layer). No hex literals in CSS or in
+   `style=""` attributes.
+2. **Color means data.** Surfaces, borders and text are pure grayscale. Hue is
+   reserved for market direction (`--c-up`/`--c-down`), status
+   (success/warning/error), and chart series (`--color-series-1…9`).
+3. **Dense data renders as rows, not cards.** `.widget`/`.kpi-card` are widget
+   containers; lists and tables are edge-to-edge rows with dividers and
+   32–40 px row height. Don't wrap list items in cards.
+
+Token pipeline (the only generated artifact in the repo):
+
+```
+scripts/econ.theme.ts                        # source of truth — edit this
+  → copy to C:\Users\cgpar\astryx\ (the CLI needs @astryxdesign deps installed there)
+  → node node_modules/@astryxdesign/cli/bin/astryx.mjs theme build econ.theme.ts --out dist/econ.css
+  → python scripts/build_astryx_tokens.py > scripts/_astryx_tokens.css
+  → paste over the `astryx econ tokens` block in index.html
+```
+
+`scripts/econ.theme.ts` is vendored here so the theme is versioned with the site;
+the build itself runs from the astryx workspace because that is where the
+`@astryxdesign/*` packages live. Keep the two copies in sync.
+
+`build_astryx_tokens.py` merges `theme-neutral` defaults with the `econ`
+overrides and flattens `light-dark()` / `@scope` into plain
+`:root {…}` + `html.light {…}` blocks, because the site has no build step and
+must run on older mobile webviews.
+
+The `astryx layer` section at the end of `<style>` holds frame/surface/row/
+control rules and must stay last — it overrides the older legacy CSS above it.
+
+`scripts/patch_astryx.py` and `scripts/patch_astryx_layer.py` are the one-shot
+migration scripts that produced the current state; they are kept for provenance
+and are **not** idempotent — do not re-run them.
 
 ## Key Files
 
@@ -84,6 +127,15 @@ Deploy: `cd cloudflare-worker && npx wrangler deploy`
   through `data.json`, the Worker, or the repo; media files would blow up repo size and leak private recordings.
   Cross-device transfer is by explicit JSON export/import only. CSP carries `media-src 'self' data: blob:` solely
   so those local blobs can play — do not widen it further.
+- **Chart.js colors must come from `getThemeColors()`** — the canvas cannot resolve
+  `var()`, so that helper reads the astryx tokens via `getComputedStyle` and hands
+  Chart.js concrete values. It caches per theme; `invalidateThemeColors()` runs
+  before `applyChartJsThemeDefaults()` on theme switch. Don't reintroduce a
+  hardcoded color map, and don't reference `color-mix()` tokens from it —
+  browsers serialize those as `color(srgb …)`, which `@kurkle/color` can't parse.
+- **`window._UPDN` mirrors `--color-market-*`** — hex literals are required there
+  because the code does `CUP + '22'` alpha concatenation. If the market colors
+  change in `econ.theme.ts`, update `_UPDN` in the same commit.
 - **Tailwind CDN must not be re-added** — removed intentionally because its runtime JIT uses `eval()`, which violates the site's CSP.
 - **Alpha Vantage** has a 25 calls/day free limit — only fetch on daily triggers (`AV_FETCH_FULL=1`), not on every-hour runs.
 
