@@ -17,6 +17,7 @@
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
   font-src 'self' data: https://fonts.gstatic.com;
   img-src 'self' data: blob: https:;
+  media-src 'self' data: blob:;
   connect-src 'self' https://ecom-dashboard-proxy.baldr0001.workers.dev https://stooq.com https://stooq.pl https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://open.er-api.com https://production.dataviz.cnn.io https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net;
   object-src 'none';
   base-uri 'self';
@@ -351,6 +352,50 @@
   .cal-figcaption{ font-size:0.75rem; color:#6b7280; font-style:italic; margin:0 0 4px; padding:0; }
   .cal-iconbtn{ min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:0; }
   @media (max-width:380px){ .cal-vals{ grid-template-columns:1fr; } }
+  /* ═══ 스터디 기록 (page-study) ═══════════════════════════════════════════ */
+  .study-split{ display:grid; grid-template-columns:340px 1fr; gap:16px; align-items:start; }
+  @media (max-width:1024px){ .study-split{ grid-template-columns:1fr; } }
+  .study-cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .study-dow{ text-align:center; font-size:10px; font-weight:600; color:var(--c-txt-muted); padding:4px 0; }
+  .study-day{ position:relative; min-height:38px; border-radius:var(--r-xs); background:var(--c-surface); border:1px solid transparent;
+              display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; cursor:pointer;
+              font-size:11px; color:var(--c-txt); transition:background var(--t-fast),border-color var(--t-fast); }
+  .study-day:hover{ background:var(--c-card-hi); }
+  .study-day.is-empty{ background:transparent; cursor:default; }
+  .study-day.is-today{ border-color:var(--c-accent); font-weight:700; }
+  .study-day.is-selected{ background:var(--c-accent); color:var(--c-on-accent,#fff); border-color:var(--c-accent); font-weight:700; }
+  .study-day.has-log::after{ content:''; position:absolute; bottom:4px; width:5px; height:5px; border-radius:50%; background:var(--c-up); }
+  .study-day.is-selected.has-log::after{ background:#fff; }
+  .study-day .study-daynum{ line-height:1; }
+  .study-list-item{ display:flex; flex-direction:column; gap:3px; padding:8px 10px; border-radius:var(--r-sm); cursor:pointer;
+                    border:1px solid var(--c-border-weak,var(--c-border)); background:var(--c-surface); transition:background var(--t-fast); }
+  .study-list-item:hover{ background:var(--c-card-hi); }
+  .study-list-item.active{ border-color:var(--c-accent); background:var(--c-accent-container,rgba(41,98,255,.18)); }
+  .study-badge{ display:inline-flex; align-items:center; gap:3px; font-size:10px; padding:1px 6px; border-radius:var(--r-full);
+                background:var(--chip-bg); color:var(--chip-fg); white-space:nowrap; }
+  .study-field{ background:var(--c-surface); border:1px solid var(--c-border); border-radius:var(--r-sm); color:var(--c-txt);
+                padding:6px 8px; font-size:12px; font-family:inherit; width:100%; }
+  .study-field:focus{ outline:2px solid var(--c-accent); outline-offset:-1px; }
+  .study-btn{ background:transparent; color:var(--c-txt-dim); border:1px solid var(--c-border); border-radius:var(--r-sm);
+              padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; transition:all var(--t-fast); }
+  .study-btn:hover{ background:var(--c-card-hi); color:var(--c-txt); }
+  .study-btn.primary{ background:var(--c-accent); color:var(--c-on-accent,#fff); border-color:var(--c-accent); }
+  .study-btn.primary:hover{ filter:brightness(1.1); }
+  .study-btn.danger{ color:var(--c-down); border-color:color-mix(in srgb,var(--c-down) 40%,transparent); }
+  .study-drop{ border:1.5px dashed var(--c-border); border-radius:var(--r-sm); padding:16px; text-align:center;
+               color:var(--c-txt-muted); font-size:12px; transition:all var(--t-fast); cursor:pointer; }
+  .study-drop:hover,.study-drop.dragover{ border-color:var(--c-accent); background:var(--c-accent-container,rgba(41,98,255,.12)); color:var(--c-txt); }
+  .study-file{ display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:var(--r-sm);
+               background:var(--c-surface); border:1px solid var(--c-border-weak,var(--c-border)); }
+  .study-file.playing{ border-color:var(--c-accent); }
+  .study-file-name{ flex:1; min-width:0; font-size:12px; color:var(--c-txt); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .study-ts{ color:var(--c-accent); cursor:pointer; font-weight:600; text-decoration:underline dotted; }
+  .study-empty{ text-align:center; color:var(--c-txt-muted); font-size:12px; padding:20px 8px; line-height:1.7; }
+  .study-action-row{ display:flex; align-items:flex-start; flex-wrap:wrap; gap:8px; padding:6px 0; border-bottom:1px solid var(--c-border-weak,var(--c-border)); }
+  .study-action-row.done .study-action-text{ text-decoration:line-through; color:var(--c-txt-muted); }
+  .study-tabbtn{ background:transparent; border:none; border-bottom:2px solid transparent; color:var(--c-txt-dim);
+                 padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; }
+  .study-tabbtn.active{ color:var(--c-txt); border-bottom-color:var(--c-accent); }
   /* ═══ Design Tokens v2 — light overrides (additive; placed after base html.light to win cascade) ═══ */
   html.light{
     --c-txt-muted:#6b6b6b;
@@ -1240,6 +1285,7 @@ html.light .toast { background: #fff; }
     <div class="menu-item" onclick="showPage('investor',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">account_balance</span>주요 투자자</div>
     <div class="menu-item" onclick="showPage('realestate',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">home_work</span>부동산</div>
     <div class="menu-item" onclick="showPage('calendar',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">calendar_month</span>경제 캘린더</div>
+      <div class="menu-item" onclick="showPage('study',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">history_edu</span>스터디 기록</div>
     <div class="menu-item" onclick="showPage('notes',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">edit_note</span>분석 노트</div>
     <div class="menu-item" onclick="showPage('merblog',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">article</span>메르 블로그 검색</div>
     <div class="menu-item" onclick="showPage('settings',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">settings</span>설정</div>
@@ -2670,6 +2716,165 @@ html.light .toast { background: #fff; }
       </div>
     </div><!-- /calendar -->
 
+    <!-- ====== 페이지 4b: 스터디 기록 ====== -->
+    <div class="page" id="page-study">
+      <div class="study-split">
+
+        <!-- ─── 좌측: 캘린더 + 세션 목록 ─── -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+
+          <div class="widget">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px;">
+              <button class="study-btn" onclick="styMonthMove(-1)" aria-label="이전 달" title="이전 달">‹</button>
+              <div id="styCalTitle" style="font-size:13px;font-weight:700;color:var(--c-txt);">—</div>
+              <div style="display:flex;gap:4px;">
+                <button class="study-btn" onclick="styMonthToday()" title="이번 달로 이동">오늘</button>
+                <button class="study-btn" onclick="styMonthMove(1)" aria-label="다음 달" title="다음 달">›</button>
+              </div>
+            </div>
+            <div class="study-cal-grid" id="styCalGrid" role="grid" aria-label="스터디 캘린더"></div>
+            <div id="styStats" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;"></div>
+            <button class="study-btn primary" style="width:100%;margin-top:10px;" onclick="styCreateForSelected()">
+              + 선택한 날짜에 스터디 기록
+            </button>
+          </div>
+
+          <div class="widget" style="display:flex;flex-direction:column;gap:8px;">
+            <div class="widget-title" style="margin-bottom:0;">기록 목록</div>
+            <input id="stySearch" class="study-field" type="search" placeholder="제목 · 태그 · 참석자 · 내용 검색"
+                   oninput="styRenderList()" aria-label="스터디 기록 검색"/>
+            <div id="styList" style="display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto;"></div>
+          </div>
+
+          <div class="widget" style="display:flex;flex-direction:column;gap:8px;">
+            <div class="widget-title" style="margin-bottom:0;">데이터 관리</div>
+            <div id="styQuota" style="font-size:11px;color:var(--c-txt-muted);line-height:1.6;">저장 용량 확인 중…</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="study-btn" onclick="styExport(false)" title="기록 텍스트만 JSON 으로 저장 (파일 제외, 가벼움)">↓ 기록 내보내기</button>
+              <button class="study-btn" onclick="styExport(true)" title="업로드 파일까지 Base64 로 포함 (용량 큼)">↓ 파일 포함 백업</button>
+              <label class="study-btn" style="display:inline-flex;align-items:center;">↑ 가져오기
+                <input type="file" accept="application/json,.json" style="display:none;" onchange="styImport(this)"/>
+              </label>
+            </div>
+            <div style="font-size:10px;color:var(--c-txt-muted);line-height:1.6;">
+              ※ 업로드한 파일은 이 브라우저(IndexedDB)에만 저장됩니다 — 서버로 전송되지 않습니다.
+              다른 기기에서 보려면 <b>파일 포함 백업</b> 후 가져오거나, 외부 링크(YouTube·Drive)를 등록하세요.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ─── 우측: 세션 상세 ─── -->
+        <div>
+          <div id="styEmpty" class="widget">
+            <div class="study-empty">
+              <div style="font-size:34px;line-height:1;margin-bottom:8px;" aria-hidden="true">📚</div>
+              왼쪽 캘린더에서 날짜를 고르고<br/><b>+ 선택한 날짜에 스터디 기록</b> 을 눌러 시작하세요.<br/>
+              <span style="font-size:11px;">자료·녹화본 업로드 → 재생하며 타임스탬프 메모 → 회의록 자동 정리</span>
+            </div>
+          </div>
+
+          <div id="styBody" style="display:none;flex-direction:column;gap:12px;">
+
+            <!-- ① 세션 헤더 -->
+            <div class="widget">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+                <span id="styRoundBadge" class="study-badge">—</span>
+                <input id="styTitle" class="study-field" style="flex:1;min-width:180px;font-size:14px;font-weight:600;"
+                       placeholder="스터디 제목 (예: 3장 금리와 채권가격)" oninput="styPatchField('title',this.value)" aria-label="스터디 제목"/>
+                <button class="study-btn" onclick="styDuplicate()" title="이 회차를 복제">⧉ 복제</button>
+                <button class="study-btn danger" onclick="styDelete()" title="이 회차 삭제">🗑 삭제</button>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
+                <label style="font-size:11px;color:var(--c-txt-muted);">날짜
+                  <input id="styDate" class="study-field" type="date" onchange="styPatchField('date',this.value)"/></label>
+                <label style="font-size:11px;color:var(--c-txt-muted);">시작
+                  <input id="styStart" class="study-field" type="time" onchange="styPatchField('start',this.value)"/></label>
+                <label style="font-size:11px;color:var(--c-txt-muted);">종료
+                  <input id="styEnd" class="study-field" type="time" onchange="styPatchField('end',this.value)"/></label>
+                <label style="font-size:11px;color:var(--c-txt-muted);">장소 / 링크
+                  <input id="styPlace" class="study-field" placeholder="회의실 · Zoom" oninput="styPatchField('place',this.value)"/></label>
+                <label style="font-size:11px;color:var(--c-txt-muted);">참석자 (쉼표 구분)
+                  <input id="styMembers" class="study-field" placeholder="홍길동, 김철수" oninput="styPatchField('members',this.value)"/></label>
+                <label style="font-size:11px;color:var(--c-txt-muted);">태그 (쉼표 구분)
+                  <input id="styTags" class="study-field" placeholder="채권, 금리" oninput="styPatchField('tags',this.value)"/></label>
+              </div>
+              <div id="stySaveState" style="font-size:10px;color:var(--c-txt-muted);margin-top:8px;">&nbsp;</div>
+            </div>
+
+            <!-- ② 자료 · 녹화/녹음 -->
+            <div class="widget">
+              <div class="widget-title">스터디 자료 · 녹화/녹음</div>
+
+              <div class="study-drop" id="styDrop" tabindex="0" role="button"
+                   onclick="document.getElementById('styFileInput').click()"
+                   onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+                파일을 여기로 끌어다 놓거나 클릭해서 선택<br/>
+                <span style="font-size:10px;">PDF · 이미지 · 문서 · 영상(mp4/webm) · 음성(mp3/m4a/wav)</span>
+              </div>
+              <input id="styFileInput" type="file" multiple style="display:none;" onchange="styAddFiles(this.files); this.value='';"/>
+
+              <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+                <input id="styLinkUrl" class="study-field" style="flex:2;min-width:160px;" placeholder="외부 링크 URL (YouTube · Drive · Notion)"/>
+                <input id="styLinkLabel" class="study-field" style="flex:1;min-width:110px;" placeholder="링크 이름 (선택)"/>
+                <button class="study-btn" onclick="styAddLink()">+ 링크</button>
+              </div>
+
+              <div id="styPlayerWrap" style="display:none;margin-top:12px;padding:10px;border-radius:var(--r-sm);background:var(--c-surface);border:1px solid var(--c-border);">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                  <div id="styPlayerName" style="font-size:12px;font-weight:600;color:var(--c-txt);overflow:hidden;text-overflow:ellipsis;"></div>
+                  <div style="display:flex;gap:4px;align-items:center;">
+                    <span style="font-size:10px;color:var(--c-txt-muted);">배속</span>
+                    <select id="styRate" class="study-field" style="width:auto;padding:3px 6px;" onchange="stySetRate(this.value)" aria-label="재생 배속">
+                      <option value="0.75">0.75×</option><option value="1" selected>1×</option>
+                      <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+                    </select>
+                    <button class="study-btn" onclick="styClosePlayer()" aria-label="플레이어 닫기">×</button>
+                  </div>
+                </div>
+                <video id="styVideo" controls playsinline style="display:none;width:100%;max-height:340px;border-radius:var(--r-xs);background:#000;"></video>
+                <audio id="styAudio" controls style="display:none;width:100%;"></audio>
+                <button class="study-btn primary" style="margin-top:8px;" onclick="styStampNote()"
+                        title="현재 재생 시점을 회의록에 [mm:ss] 로 삽입합니다">⏱ 현재 시점 메모</button>
+                <span style="font-size:10px;color:var(--c-txt-muted);margin-left:6px;">회의록의 [mm:ss] 를 클릭하면 그 시점으로 이동합니다.</span>
+              </div>
+
+              <div id="styFileList" style="display:flex;flex-direction:column;gap:6px;margin-top:10px;"></div>
+            </div>
+
+            <!-- ③ 요약(회의록) -->
+            <div class="widget">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <div class="widget-title" style="margin-bottom:0;">스터디 요약 (회의록)</div>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                  <button class="study-btn" onclick="styInsertTemplate()" title="안건·논의·결론·액션 템플릿 삽입">▤ 템플릿</button>
+                  <button class="study-btn" id="styAiBtn" onclick="styAiSummarize()" title="메모·자료 목록을 바탕으로 회의록 초안 생성">✨ AI 요약 초안</button>
+                </div>
+              </div>
+              <div style="display:flex;gap:2px;border-bottom:1px solid var(--c-border);margin-bottom:8px;">
+                <button class="study-tabbtn active" id="styTabWrite" onclick="styNoteTab('write')">작성</button>
+                <button class="study-tabbtn" id="styTabView" onclick="styNoteTab('view')">보기</button>
+              </div>
+              <textarea id="styNotes" class="study-field" rows="12" style="line-height:1.7;resize:vertical;"
+                        placeholder="회의록을 작성하세요. '- ' 로 목록, '# ' 로 제목, [12:34] 로 녹화 시점 표시" oninput="styPatchField('notes',this.value)"
+                        aria-label="스터디 회의록"></textarea>
+              <div id="styNotesView" style="display:none;font-size:13px;line-height:1.8;color:var(--c-txt);"></div>
+
+              <div style="margin-top:14px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+                  <div style="font-size:12px;font-weight:700;color:var(--c-txt);">액션 아이템</div>
+                  <button class="study-btn" onclick="styAddAction()">+ 추가</button>
+                </div>
+                <div id="styActions"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /study -->
+
     <!-- ====== 페이지 5: 분석 노트 ====== -->
     <div class="page" id="page-notes">
       <div style="display:grid;grid-template-columns:240px 1fr;gap:16px;min-height:70vh;">
@@ -4059,6 +4264,7 @@ function injectChartRefreshButtons() {
     if(widget.querySelector('button[data-chart-refresh]')) return;  // 1차 패스에서 이미 주입됨
     if(/새로고침|다시 시도/.test(widget.innerHTML)) return;          // 이미 새로고침/재시도 버튼 존재
     if(widget.closest('.themed-modal')) return;                      // 모달 내부 카드 제외 (상세 팝업)
+    if(widget.closest('#page-study')) return;                        // 스터디 기록은 로컬 저장 데이터 — 시장 새로고침 무의미
     const title = widget.querySelector('.widget-title');
     if(!title) return;
     // 표 카드면 표별 전용 핸들러, 아니면 전체 새로고침.
@@ -4477,6 +4683,8 @@ function showPage(id, el) {
       sel._bound=true;
     }
   }
+  if(id==='study') { try { initStudyPage(); } catch(e) { console.warn('study init', e); } }
+  else if(typeof styClosePlayer === 'function') { try { styFlushAll(); styClosePlayer(); } catch(_) {} }   // 페이지 이탈 시 미저장 입력 확정 + 재생 중지 + blob URL 해제
   if(id==='notes') { loadNotes(); }
   if(id==='settings') { try { initSettingsPage(); } catch(e) { console.warn('settings init', e); } }
   if(id==='investor') { setTimeout(()=>{ buildInvestorPage(); try { buildGlobalAllocCompare(); } catch(e) { console.warn('globalAlloc', e); } },50); }
@@ -20062,6 +20270,936 @@ async function aiQaAsk() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 📚 스터디 기록 (page-study)
+//   설계: 메타데이터(제목·참석자·회의록·액션아이템)는 localStorage,
+//         업로드 파일(영상·음성·문서) 실체는 IndexedDB blob 으로 분리 저장한다.
+//         localStorage 는 5MB 한도라 미디어를 담을 수 없고, IndexedDB 는 수 GB 까지
+//         가능하지만 JSON 직렬화가 번거로워 메타만 LS 에 두는 하이브리드 구조.
+//   외부 전송 없음 — 모든 파일은 이 브라우저에만 남는다(내보내기로 이관).
+// ═══════════════════════════════════════════════════════════════════════════
+const STUDY_LS_KEY  = 'econ_study_v1';
+const STUDY_DB_NAME = 'econStudyDB';
+const STUDY_DB_STORE = 'files';
+const STUDY_FILE_WARN = 300 * 1024 * 1024;   // 단일 파일 300MB 초과 시 경고(브라우저 쿼터 보호)
+
+var _styState = {
+  year: 0, month: 0,        // 캘린더가 보고 있는 연/월
+  selDate: '',              // 선택된 날짜 YYYY-MM-DD
+  curId: '',                // 열려 있는 세션 id
+  objUrl: '',               // 재생 중 blob URL (해제 대상)
+  playFid: '',              // 재생 중 파일 id
+  saveTimer: null, pending: null,          // 필드 편집 디바운스 — 여러 필드를 한 패치로 병합
+  actionTimer: null, pendingActions: null, // 액션아이템 편집 디바운스 (필드와 분리)
+  inited: false,
+};
+
+/* ── 날짜 유틸 (KST 기준) ── */
+function _styTodayStr() {
+  try { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); }
+  catch(_) { return new Date().toISOString().slice(0, 10); }
+}
+function _styUid(p) { return (p || 'x') + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function _styFmtSize(b) {
+  if(b == null) return '';
+  if(b < 1024) return b + ' B';
+  if(b < 1048576) return (b / 1024).toFixed(0) + ' KB';
+  if(b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+  return (b / 1073741824).toFixed(2) + ' GB';
+}
+function _styKind(type, name) {
+  const t = String(type || '').toLowerCase(), n = String(name || '').toLowerCase();
+  if(t.startsWith('video/') || /\.(mp4|webm|mov|mkv|avi)$/.test(n)) return 'video';
+  if(t.startsWith('audio/') || /\.(mp3|m4a|wav|ogg|aac|flac)$/.test(n)) return 'audio';
+  if(t.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/.test(n)) return 'image';
+  return 'doc';
+}
+function _styKindIcon(k) { return k === 'video' ? '🎬' : k === 'audio' ? '🎧' : k === 'image' ? '🖼' : '📄'; }
+
+/* ── IndexedDB (파일 blob) ───────────────────────────────────────────────── */
+function _styIdb() {
+  return new Promise(function(resolve, reject) {
+    let req;
+    try { req = indexedDB.open(STUDY_DB_NAME, 1); }
+    catch(e) { reject(e); return; }
+    req.onupgradeneeded = function() {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(STUDY_DB_STORE)) {
+        const os = db.createObjectStore(STUDY_DB_STORE, { keyPath: 'fid' });
+        os.createIndex('sessionId', 'sessionId', { unique: false });
+      }
+    };
+    req.onsuccess = function() { resolve(req.result); };
+    req.onerror = function() { reject(req.error); };
+  });
+}
+function _styIdbTx(mode, fn) {
+  return _styIdb().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      const tx = db.transaction(STUDY_DB_STORE, mode);
+      const store = tx.objectStore(STUDY_DB_STORE);
+      let out;
+      try { out = fn(store); } catch(e) { reject(e); return; }
+      // IDBRequest 는 결과를 result 로 돌려준다. 없는 키의 get 은 result === undefined 이므로
+      // '값이 없음'을 undefined 로 정확히 전달해야 한다 — 예전엔 이때 request 객체 자체를
+      // 돌려줘서 호출부의 `if(rec)` 가 항상 참이 되는 함정이 있었다.
+      tx.oncomplete = function() { db.close(); resolve((out instanceof IDBRequest) ? out.result : out); };
+      tx.onerror = function() { db.close(); reject(tx.error); };
+      tx.onabort = function() { db.close(); reject(tx.error); };
+    });
+  });
+}
+function styIdbPut(rec)  { return _styIdbTx('readwrite', function(s) { return s.put(rec); }); }
+function styIdbGet(fid)  { return _styIdbTx('readonly',  function(s) { return s.get(fid); }); }
+function styIdbDel(fid)  { return _styIdbTx('readwrite', function(s) { return s.delete(fid); }); }
+
+/* ── 저장소 (메타) ───────────────────────────────────────────────────────── */
+function styLoad() {
+  try {
+    const raw = localStorage.getItem(STUDY_LS_KEY);
+    if(!raw) return { v: 1, sessions: [] };
+    const o = JSON.parse(raw);
+    if(!o || !Array.isArray(o.sessions)) return { v: 1, sessions: [] };
+    return o;
+  } catch(_) { return { v: 1, sessions: [] }; }
+}
+function stySave(store, quiet) {
+  try {
+    localStorage.setItem(STUDY_LS_KEY, JSON.stringify(store));
+    if(!quiet) _stySaveState('저장됨 · ' + new Date().toLocaleTimeString('ko-KR'));
+    return true;
+  } catch(e) {
+    _stySaveState('⚠ 저장 실패 — 브라우저 저장 공간이 부족할 수 있습니다');
+    if(typeof showToast === 'function') showToast('스터디 기록 저장 실패 — 저장 공간을 확인하세요.');
+    return false;
+  }
+}
+function _stySaveState(msg) {
+  const el = document.getElementById('stySaveState');
+  if(el) el.textContent = msg;
+}
+function styCur() {
+  if(!_styState.curId) return null;
+  return styLoad().sessions.find(function(s) { return s.id === _styState.curId; }) || null;
+}
+function styUpdate(id, patch, quiet) {
+  const store = styLoad();
+  const i = store.sessions.findIndex(function(s) { return s.id === id; });
+  if(i < 0) return null;
+  Object.assign(store.sessions[i], patch, { updatedAt: Date.now() });
+  stySave(store, quiet);
+  return store.sessions[i];
+}
+
+/* ── 렌더: 캘린더 ────────────────────────────────────────────────────────── */
+function styRenderCalendar() {
+  const grid = document.getElementById('styCalGrid'), title = document.getElementById('styCalTitle');
+  if(!grid) return;
+  const y = _styState.year, m = _styState.month;
+  if(title) title.textContent = y + '년 ' + m + '월';
+
+  const sessions = styLoad().sessions;
+  const byDate = {};
+  sessions.forEach(function(s) { if(s.date) byDate[s.date] = (byDate[s.date] || 0) + 1; });
+
+  const first = new Date(y, m - 1, 1).getDay();
+  const days = new Date(y, m, 0).getDate();
+  const today = _styTodayStr();
+
+  let html = ['일','월','화','수','목','금','토'].map(function(d, i) {
+    const c = i === 0 ? 'var(--c-down)' : i === 6 ? 'var(--c-accent)' : 'var(--c-txt-muted)';
+    return '<div class="study-dow" style="color:' + c + '">' + d + '</div>';
+  }).join('');
+  for(let i = 0; i < first; i++) html += '<div class="study-day is-empty" aria-hidden="true"></div>';
+  for(let d = 1; d <= days; d++) {
+    const ds = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const n = byDate[ds] || 0;
+    const cls = ['study-day'];
+    if(ds === today) cls.push('is-today');
+    if(ds === _styState.selDate) cls.push('is-selected');
+    if(n) cls.push('has-log');
+    html += '<div class="' + cls.join(' ') + '" role="gridcell" tabindex="0"' +
+            ' onclick="stySelectDate(\'' + ds + '\')"' +
+            ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"' +
+            ' aria-label="' + ds + (n ? (' 스터디 ' + n + '건') : '') + '" title="' + ds + (n ? (' · ' + n + '건') : '') + '">' +
+            '<span class="study-daynum">' + d + '</span></div>';
+  }
+  grid.innerHTML = html;
+}
+
+/* ── 렌더: 통계 ──────────────────────────────────────────────────────────── */
+function styRenderStats() {
+  const el = document.getElementById('styStats');
+  if(!el) return;
+  const ss = styLoad().sessions;
+  let mins = 0, openActions = 0;
+  ss.forEach(function(s) {
+    if(s.start && s.end) {
+      const a = s.start.split(':'), b = s.end.split(':');
+      const d = (+b[0] * 60 + +b[1]) - (+a[0] * 60 + +a[1]);
+      if(d > 0) mins += d;
+    }
+    (s.actions || []).forEach(function(x) { if(!x.done) openActions++; });
+  });
+  // 연속 주차 — 이번 주부터 거슬러 올라가며 스터디가 있는 주가 몇 주 이어지는지
+  const weekKeys = {};
+  ss.forEach(function(s) {
+    if(!s.date) return;
+    const dt = new Date(s.date + 'T00:00:00');
+    if(isNaN(dt)) return;
+    const th = new Date(dt); th.setDate(th.getDate() - ((th.getDay() + 6) % 7));   // 월요일 기준
+    weekKeys[th.toISOString().slice(0, 10)] = 1;
+  });
+  let streak = 0;
+  const cur = new Date(_styTodayStr() + 'T00:00:00');
+  cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));
+  while(weekKeys[cur.toISOString().slice(0, 10)]) { streak++; cur.setDate(cur.getDate() - 7); }
+
+  const chips = [
+    ['총 ' + ss.length + '회', ''],
+    ['누적 ' + (mins >= 60 ? (mins / 60).toFixed(1) + 'h' : mins + '분'), ''],
+    ['연속 ' + streak + '주', ''],
+  ];
+  if(openActions) chips.push(['미완료 액션 ' + openActions, 'warn']);
+  el.innerHTML = chips.map(function(c) {
+    const st = c[1] === 'warn' ? ' style="background:color-mix(in srgb,var(--c-warn) 22%,transparent);color:var(--c-warn);"' : '';
+    return '<span class="study-badge"' + st + '>' + escapeHtml(c[0]) + '</span>';
+  }).join('');
+}
+
+/* ── 렌더: 목록 ──────────────────────────────────────────────────────────── */
+function styRenderList() {
+  const el = document.getElementById('styList');
+  if(!el) return;
+  const q = ((document.getElementById('stySearch') || {}).value || '').trim().toLowerCase();
+  let ss = styLoad().sessions.slice().sort(function(a, b) { return String(b.date).localeCompare(String(a.date)); });
+  if(q) {
+    ss = ss.filter(function(s) {
+      const hay = [s.title, s.place, s.notes, (s.tags || []).join(' '), (s.members || []).join(' '), s.date].join(' ').toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+  if(!ss.length) {
+    el.innerHTML = '<div class="study-empty" style="padding:12px;">' + (q ? '검색 결과가 없습니다.' : '아직 기록이 없습니다.') + '</div>';
+    return;
+  }
+  el.innerHTML = ss.map(function(s) {
+    const nFile = (s.files || []).length + (s.links || []).length;
+    const open = (s.actions || []).filter(function(a) { return !a.done; }).length;
+    return '<div class="study-list-item' + (s.id === _styState.curId ? ' active' : '') + '"' +
+      ' role="button" tabindex="0" onclick="styOpen(\'' + s.id + '\')"' +
+      ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">' +
+      '<div style="font-size:12px;font-weight:600;color:var(--c-txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+        escapeHtml(s.title || '(제목 없음)') + '</div>' +
+      '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">' +
+        '<span style="font-size:10px;color:var(--c-txt-muted);">' + escapeHtml(s.date || '') + '</span>' +
+        (nFile ? '<span class="study-badge">📎 ' + nFile + '</span>' : '') +
+        (open ? '<span class="study-badge" style="background:color-mix(in srgb,var(--c-warn) 22%,transparent);color:var(--c-warn);">☐ ' + open + '</span>' : '') +
+        (s.tags || []).slice(0, 2).map(function(t) { return '<span class="study-badge">#' + escapeHtml(t) + '</span>'; }).join('') +
+      '</div></div>';
+  }).join('');
+}
+
+/* ── 렌더: 상세 ──────────────────────────────────────────────────────────── */
+function styRenderDetail() {
+  const empty = document.getElementById('styEmpty'), body = document.getElementById('styBody');
+  const s = styCur();
+  if(!s) {
+    if(empty) empty.style.display = '';
+    if(body) body.style.display = 'none';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+  if(body) body.style.display = 'flex';
+
+  const all = styLoad().sessions.slice().sort(function(a, b) { return String(a.date).localeCompare(String(b.date)); });
+  const round = all.findIndex(function(x) { return x.id === s.id; }) + 1;
+  const rb = document.getElementById('styRoundBadge');
+  if(rb) rb.textContent = round > 0 ? (round + '회차') : '—';
+
+  const setv = function(id, v) { const e = document.getElementById(id); if(e && e.value !== v) e.value = v; };
+  setv('styTitle', s.title || '');
+  setv('styDate', s.date || '');
+  setv('styStart', s.start || '');
+  setv('styEnd', s.end || '');
+  setv('styPlace', s.place || '');
+  setv('styMembers', (s.members || []).join(', '));
+  setv('styTags', (s.tags || []).join(', '));
+  setv('styNotes', s.notes || '');
+
+  styRenderFiles();
+  styRenderActions();
+  if(((document.getElementById('styNotesView') || {}).style || {}).display !== 'none') styNoteTab('view');
+}
+
+function styRenderFiles() {
+  const el = document.getElementById('styFileList');
+  const s = styCur();
+  if(!el || !s) return;
+  const files = s.files || [], links = s.links || [];
+  if(!files.length && !links.length) {
+    el.innerHTML = '<div class="study-empty" style="padding:10px;">등록된 자료가 없습니다.</div>';
+    return;
+  }
+  let html = files.map(function(f) {
+    const playable = f.kind === 'video' || f.kind === 'audio';
+    return '<div class="study-file' + (_styState.playFid === f.fid ? ' playing' : '') + '">' +
+      '<span aria-hidden="true">' + _styKindIcon(f.kind) + '</span>' +
+      '<span class="study-file-name" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</span>' +
+      '<span style="font-size:10px;color:var(--c-txt-muted);white-space:nowrap;">' + _styFmtSize(f.size) + '</span>' +
+      (playable ? '<button class="study-btn" onclick="styPlayFile(\'' + f.fid + '\')" title="재생">▶</button>' : '') +
+      (f.kind === 'image' ? '<button class="study-btn" onclick="styPreviewImage(\'' + f.fid + '\')" title="미리보기">👁</button>' : '') +
+      '<button class="study-btn" onclick="styDownloadFile(\'' + f.fid + '\')" title="다운로드">↓</button>' +
+      '<button class="study-btn danger" onclick="styRemoveFile(\'' + f.fid + '\')" title="삭제">×</button>' +
+      '</div>';
+  }).join('');
+  html += links.map(function(l) {
+    return '<div class="study-file">' +
+      '<span aria-hidden="true">🔗</span>' +
+      '<a class="study-file-name" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer"' +
+      ' title="' + escapeHtml(l.url) + '" style="color:var(--c-accent);">' + escapeHtml(l.label || l.url) + '</a>' +
+      '<button class="study-btn danger" onclick="styRemoveLink(\'' + l.lid + '\')" title="삭제">×</button>' +
+      '</div>';
+  }).join('');
+  el.innerHTML = html;
+}
+
+function styRenderActions() {
+  const el = document.getElementById('styActions');
+  const s = styCur();
+  if(!el || !s) return;
+  const acts = s.actions || [];
+  if(!acts.length) {
+    el.innerHTML = '<div class="study-empty" style="padding:10px;">액션 아이템이 없습니다. 다음 스터디까지 할 일을 적어두세요.</div>';
+    return;
+  }
+  el.innerHTML = acts.map(function(a) {
+    return '<div class="study-action-row' + (a.done ? ' done' : '') + '">' +
+      '<input type="checkbox" ' + (a.done ? 'checked' : '') + ' onchange="styToggleAction(\'' + a.aid + '\',this.checked)"' +
+      ' aria-label="완료 표시" style="margin-top:6px;"/>' +
+      '<input class="study-field study-action-text" style="flex:2;min-width:120px;" value="' + escapeHtml(a.text || '') + '"' +
+      ' placeholder="할 일" oninput="styPatchAction(\'' + a.aid + '\',\'text\',this.value)"/>' +
+      '<input class="study-field" style="width:88px;" value="' + escapeHtml(a.owner || '') + '"' +
+      ' placeholder="담당" oninput="styPatchAction(\'' + a.aid + '\',\'owner\',this.value)"/>' +
+      '<input class="study-field" style="width:132px;" type="date" value="' + escapeHtml(a.due || '') + '"' +
+      ' onchange="styPatchAction(\'' + a.aid + '\',\'due\',this.value)" aria-label="기한"/>' +
+      '<button class="study-btn danger" onclick="styDelAction(\'' + a.aid + '\')" title="삭제">×</button>' +
+      '</div>';
+  }).join('');
+}
+
+function styRenderQuota() {
+  const el = document.getElementById('styQuota');
+  if(!el) return;
+  const nFiles = styLoad().sessions.reduce(function(n, s) { return n + (s.files || []).length; }, 0);
+  if(navigator.storage && navigator.storage.estimate) {
+    navigator.storage.estimate().then(function(e) {
+      const used = _styFmtSize(e.usage || 0), quota = _styFmtSize(e.quota || 0);
+      el.textContent = '업로드 파일 ' + nFiles + '개 · 사용 ' + used + ' / 가용 ' + quota;
+    }).catch(function() { el.textContent = '업로드 파일 ' + nFiles + '개'; });
+  } else {
+    el.textContent = '업로드 파일 ' + nFiles + '개';
+  }
+}
+
+function styRenderAll() { styRenderCalendar(); styRenderStats(); styRenderList(); styRenderDetail(); styRenderQuota(); }
+
+/* ── 캘린더 조작 ─────────────────────────────────────────────────────────── */
+function styMonthMove(d) {
+  _styState.month += d;
+  if(_styState.month < 1) { _styState.month = 12; _styState.year--; }
+  if(_styState.month > 12) { _styState.month = 1; _styState.year++; }
+  styRenderCalendar();
+}
+function styMonthToday() {
+  const t = _styTodayStr();
+  _styState.year = +t.slice(0, 4); _styState.month = +t.slice(5, 7);
+  _styState.selDate = t;
+  styRenderCalendar();
+}
+function stySelectDate(ds) {
+  styFlushAll();
+  _styState.selDate = ds;
+  // 그 날짜의 기록이 있으면 바로 연다 (없으면 선택만)
+  const hit = styLoad().sessions.filter(function(s) { return s.date === ds; })
+    .sort(function(a, b) { return (a.start || '').localeCompare(b.start || ''); })[0];
+  if(hit) { styOpen(hit.id); return; }
+  styRenderCalendar(); styRenderList();
+}
+
+/* ── 세션 CRUD ───────────────────────────────────────────────────────────── */
+function styCreateForSelected() {
+  styFlushAll();
+  const date = _styState.selDate || _styTodayStr();
+  const store = styLoad();
+  const s = {
+    id: _styUid('s'), date: date, title: '', start: '', end: '', place: '',
+    members: [], tags: [], files: [], links: [], notes: '', actions: [],
+    createdAt: Date.now(), updatedAt: Date.now(),
+  };
+  store.sessions.push(s);
+  if(!stySave(store)) return;
+  _styState.curId = s.id;
+  styRenderAll();
+  const t = document.getElementById('styTitle'); if(t) t.focus();
+  if(typeof showToast === 'function') showToast(date + ' 스터디 기록을 만들었습니다.', 2500);
+}
+function styOpen(id) {
+  styFlushAll();          // 편집 중이던 내용을 잃지 않도록 먼저 확정
+  styClosePlayer();
+  _styState.curId = id;
+  const s = styCur();
+  if(s && s.date) {
+    _styState.selDate = s.date;
+    _styState.year = +s.date.slice(0, 4); _styState.month = +s.date.slice(5, 7);
+  }
+  styRenderAll();
+}
+function styDelete() {
+  styFlushAll();
+  const s = styCur();
+  if(!s) return;
+  if(!confirm('이 스터디 기록과 업로드한 파일을 모두 삭제합니다. 되돌릴 수 없습니다.\n\n' + (s.title || '(제목 없음)') + ' · ' + (s.date || ''))) return;
+  const fids = (s.files || []).map(function(f) { return f.fid; });
+  Promise.all(fids.map(function(fid) { return styIdbDel(fid).catch(function() {}); })).then(function() {
+    const store = styLoad();
+    store.sessions = store.sessions.filter(function(x) { return x.id !== s.id; });
+    stySave(store, true);
+    styClosePlayer();
+    _styState.curId = '';
+    styRenderAll();
+    if(typeof showToast === 'function') showToast('삭제했습니다.', 2000);
+  });
+}
+function styDuplicate() {
+  styFlushAll();
+  const s = styCur();
+  if(!s) return;
+  const store = styLoad();
+  const c = JSON.parse(JSON.stringify(s));
+  c.id = _styUid('s');
+  c.title = (s.title || '(제목 없음)') + ' (복제)';
+  c.date = _styState.selDate || _styTodayStr();
+  c.files = [];                       // 파일 blob 은 공유하지 않는다 (중복 저장 방지)
+  c.actions = (c.actions || []).map(function(a) { return Object.assign({}, a, { aid: _styUid('a'), done: false }); });
+  c.createdAt = c.updatedAt = Date.now();
+  store.sessions.push(c);
+  stySave(store);
+  _styState.curId = c.id;
+  styRenderAll();
+  if(typeof showToast === 'function') showToast('복제했습니다 (업로드 파일 제외).', 2500);
+}
+
+/* ── 필드 편집 (디바운스 자동저장) ───────────────────────────────────────── */
+//   여러 입력칸을 연달아 고칠 때 타이머 하나를 공유하면 마지막 필드만 저장되므로,
+//   대기 중인 변경을 하나의 patch 로 병합했다가 한 번에 flush 한다.
+function styPatchField(field, value) {
+  const id = _styState.curId;
+  if(!id) return;
+  let v = value;
+  if(field === 'members' || field === 'tags') {
+    v = String(value).split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+  }
+  if(!_styState.pending || _styState.pending.id !== id) _styState.pending = { id: id, patch: {} };
+  _styState.pending.patch[field] = v;
+  _stySaveState('입력 중…');
+  clearTimeout(_styState.saveTimer);
+  _styState.saveTimer = setTimeout(styFlushPatch, 500);
+}
+function styFlushPatch() {
+  clearTimeout(_styState.saveTimer);
+  const p = _styState.pending;
+  if(!p) return;
+  _styState.pending = null;
+  const dateChanged = Object.prototype.hasOwnProperty.call(p.patch, 'date');
+  styUpdate(p.id, p.patch);
+  if(dateChanged) styOpen(p.id);
+  else { styRenderList(); styRenderStats(); }
+}
+function styFlushAll() { styFlushPatch(); styFlushActions(); }
+
+/* ── 파일 업로드 / 링크 ──────────────────────────────────────────────────── */
+function styAddFiles(fileList) {
+  styFlushAll();
+  const s = styCur();
+  if(!s) { if(typeof showToast === 'function') showToast('먼저 스터디 기록을 선택하거나 만들어 주세요.'); return; }
+  const arr = Array.from(fileList || []);
+  if(!arr.length) return;
+  const big = arr.filter(function(f) { return f.size > STUDY_FILE_WARN; });
+  if(big.length && !confirm('300MB 가 넘는 파일이 ' + big.length + '개 있습니다. 브라우저 저장 공간을 많이 쓰고 느려질 수 있습니다. 계속할까요?')) return;
+
+  let done = 0;
+  const metas = [];
+  Promise.all(arr.map(function(f) {
+    const rec = { fid: _styUid('f'), sessionId: s.id, name: f.name, type: f.type || '', size: f.size, blob: f };
+    return styIdbPut(rec).then(function() {
+      done++;
+      metas.push({ fid: rec.fid, name: rec.name, type: rec.type, size: rec.size, kind: _styKind(rec.type, rec.name), addedAt: Date.now() });
+    }).catch(function(e) {
+      console.warn('study file save', e);
+      if(typeof showToast === 'function') showToast('“' + f.name + '” 저장 실패 — 저장 공간이 부족할 수 있습니다.');
+    });
+  })).then(function() {
+    if(!metas.length) return;
+    const cur = styCur();
+    styUpdate(s.id, { files: (cur.files || []).concat(metas) });
+    styRenderFiles(); styRenderList(); styRenderQuota();
+    if(typeof showToast === 'function') showToast(done + '개 파일을 저장했습니다 (이 브라우저에만 보관).', 2500);
+  });
+}
+function styAddLink() {
+  styFlushAll();
+  const s = styCur();
+  if(!s) { if(typeof showToast === 'function') showToast('먼저 스터디 기록을 선택하거나 만들어 주세요.'); return; }
+  const uEl = document.getElementById('styLinkUrl'), lEl = document.getElementById('styLinkLabel');
+  let url = ((uEl || {}).value || '').trim();
+  if(!url) { if(uEl) uEl.focus(); return; }
+  if(!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  try { new URL(url); } catch(_) { if(typeof showToast === 'function') showToast('올바른 URL 이 아닙니다.'); return; }
+  const link = { lid: _styUid('l'), url: url, label: ((lEl || {}).value || '').trim(), addedAt: Date.now() };
+  styUpdate(s.id, { links: (s.links || []).concat([link]) });
+  if(uEl) uEl.value = ''; if(lEl) lEl.value = '';
+  styRenderFiles(); styRenderList();
+}
+function styRemoveFile(fid) {
+  const s = styCur();
+  if(!s) return;
+  const f = (s.files || []).find(function(x) { return x.fid === fid; });
+  if(!confirm('“' + ((f && f.name) || '파일') + '” 을(를) 삭제합니다.')) return;
+  if(_styState.playFid === fid) styClosePlayer();
+  styIdbDel(fid).catch(function() {}).then(function() {
+    const cur = styCur();
+    styUpdate(s.id, { files: (cur.files || []).filter(function(x) { return x.fid !== fid; }) });
+    styRenderFiles(); styRenderList(); styRenderQuota();
+  });
+}
+function styRemoveLink(lid) {
+  const s = styCur();
+  if(!s) return;
+  styUpdate(s.id, { links: (s.links || []).filter(function(x) { return x.lid !== lid; }) });
+  styRenderFiles(); styRenderList();
+}
+function styDownloadFile(fid) {
+  styIdbGet(fid).then(function(rec) {
+    if(!rec || !rec.blob) { if(typeof showToast === 'function') showToast('파일을 찾을 수 없습니다.'); return; }
+    const url = URL.createObjectURL(rec.blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = rec.name || 'file';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 4000);
+  });
+}
+function styPreviewImage(fid) {
+  styIdbGet(fid).then(function(rec) {
+    if(!rec || !rec.blob) return;
+    const url = URL.createObjectURL(rec.blob);
+    if(typeof openInfoModal === 'function') {
+      openInfoModal(rec.name || '이미지', _styFmtSize(rec.size),
+        '<img src="' + url + '" alt="' + escapeHtml(rec.name || '') + '" style="max-width:100%;border-radius:var(--r-sm);"/>');
+      setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+    }
+  });
+}
+
+/* ── 미디어 플레이어 + 타임스탬프 ────────────────────────────────────────── */
+function _styMediaEl() {
+  const v = document.getElementById('styVideo'), a = document.getElementById('styAudio');
+  if(v && v.style.display !== 'none' && v.src) return v;
+  if(a && a.style.display !== 'none' && a.src) return a;
+  return null;
+}
+function styPlayFile(fid) {
+  const s = styCur();
+  if(!s) return;
+  const meta = (s.files || []).find(function(x) { return x.fid === fid; });
+  if(!meta) return;
+  styIdbGet(fid).then(function(rec) {
+    if(!rec || !rec.blob) { if(typeof showToast === 'function') showToast('파일을 찾을 수 없습니다.'); return; }
+    styClosePlayer();
+    const url = URL.createObjectURL(rec.blob);
+    _styState.objUrl = url; _styState.playFid = fid;
+    const wrap = document.getElementById('styPlayerWrap'),
+          v = document.getElementById('styVideo'), a = document.getElementById('styAudio'),
+          nm = document.getElementById('styPlayerName');
+    if(nm) nm.textContent = _styKindIcon(meta.kind) + ' ' + meta.name;
+    if(meta.kind === 'video') { v.src = url; v.style.display = ''; a.style.display = 'none'; a.removeAttribute('src'); }
+    else { a.src = url; a.style.display = ''; v.style.display = 'none'; v.removeAttribute('src'); }
+    if(wrap) wrap.style.display = '';
+    stySetRate((document.getElementById('styRate') || {}).value || '1');
+    styRenderFiles();
+    const el = _styMediaEl(); if(el) el.play().catch(function() {});
+  });
+}
+function styClosePlayer() {
+  const v = document.getElementById('styVideo'), a = document.getElementById('styAudio'),
+        wrap = document.getElementById('styPlayerWrap');
+  try { if(v) { v.pause(); v.removeAttribute('src'); v.load(); v.style.display = 'none'; } } catch(_) {}
+  try { if(a) { a.pause(); a.removeAttribute('src'); a.load(); a.style.display = 'none'; } } catch(_) {}
+  if(wrap) wrap.style.display = 'none';
+  if(_styState.objUrl) { try { URL.revokeObjectURL(_styState.objUrl); } catch(_) {} _styState.objUrl = ''; }
+  _styState.playFid = '';
+  styRenderFiles();
+}
+function stySetRate(r) { const el = _styMediaEl(); if(el) el.playbackRate = parseFloat(r) || 1; }
+function _styFmtTs(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s).padStart(2, '0');
+}
+function styStampNote() {
+  const el = _styMediaEl();
+  if(!el) { if(typeof showToast === 'function') showToast('먼저 녹화/녹음 파일을 재생하세요.'); return; }
+  const ta = document.getElementById('styNotes');
+  if(!ta) return;
+  const stamp = '[' + _styFmtTs(el.currentTime) + '] ';
+  const pos = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const before = ta.value.slice(0, pos), after = ta.value.slice(pos);
+  const nl = (before && !/\n$/.test(before)) ? '\n' : '';
+  ta.value = before + nl + stamp + after;
+  const np = (before + nl + stamp).length;
+  ta.focus(); ta.setSelectionRange(np, np);
+  styPatchField('notes', ta.value);
+}
+function stySeek(sec) {
+  const el = _styMediaEl();
+  if(!el) { if(typeof showToast === 'function') showToast('해당 녹화/녹음 파일을 먼저 재생하세요.'); return; }
+  try { el.currentTime = +sec || 0; el.play().catch(function() {}); } catch(_) {}
+}
+
+/* ── 회의록 (마크다운 lite + 타임스탬프 링크) ────────────────────────────── */
+const STUDY_TEMPLATE = [
+  '# 안건',
+  '- ',
+  '',
+  '# 핵심 논의',
+  '- ',
+  '',
+  '# 결론',
+  '- ',
+  '',
+  '# 다음 스터디',
+  '- 일시: ',
+  '- 준비물: ',
+  '',
+].join('\n');
+
+function styInsertTemplate() {
+  const ta = document.getElementById('styNotes');
+  if(!ta) return;
+  if(ta.value.trim() && !confirm('현재 작성 내용 위에 템플릿을 덧붙입니다. 계속할까요?')) return;
+  ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n\n' : '') + STUDY_TEMPLATE;
+  styPatchField('notes', ta.value);
+  ta.focus();
+}
+function styNoteTab(mode) {
+  const ta = document.getElementById('styNotes'), view = document.getElementById('styNotesView'),
+        bw = document.getElementById('styTabWrite'), bv = document.getElementById('styTabView');
+  if(!ta || !view) return;
+  if(mode === 'view') {
+    view.innerHTML = _styRenderNotes(ta.value);
+    view.style.display = ''; ta.style.display = 'none';
+    if(bw) bw.classList.remove('active'); if(bv) bv.classList.add('active');
+  } else {
+    view.style.display = 'none'; ta.style.display = '';
+    if(bv) bv.classList.remove('active'); if(bw) bw.classList.add('active');
+  }
+}
+function _styRenderNotes(txt) {
+  const lines = String(txt || '').split('\n');
+  let html = '', inList = false;
+  const close = function() { if(inList) { html += '</ul>'; inList = false; } };
+  lines.forEach(function(ln) {
+    // AI/규칙 요약이 남기는 출처 태그 `<!-- … -->` — 원문(textarea·내보내기)에는 그대로 두고
+    // 보기 탭에서만 배지로 렌더한다(주석 기호가 본문처럼 보이던 문제).
+    const tag = /^\s*<!--\s*([\s\S]*?)\s*-->\s*$/.exec(ln);
+    if(tag) {
+      close();
+      html += '<div style="margin:14px 0 6px;"><span class="study-badge" style="background:var(--c-card-hi);' +
+              'color:var(--c-txt-muted);border:1px solid var(--c-border);">' + escapeHtml(tag[1]) + '</span></div>';
+      return;
+    }
+    let e = escapeHtml(ln);
+    // [mm:ss] / [h:mm:ss] → 클릭 시 해당 시점으로 이동
+    e = e.replace(/\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g, function(_m, a, b, c) {
+      const sec = c != null ? (+a * 3600 + (+b) * 60 + (+c)) : ((+a) * 60 + (+b));
+      const lbl = c != null ? (a + ':' + b + ':' + c) : (a + ':' + b);
+      return '<span class="study-ts" role="button" tabindex="0" onclick="stySeek(' + sec + ')"' +
+             ' onkeydown="if(event.key===\'Enter\'){stySeek(' + sec + ');}" title="이 시점으로 이동">[' + lbl + ']</span>';
+    });
+    e = e.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    if(/^#{2}\s+/.test(ln))      { close(); html += '<div style="font-size:12px;font-weight:700;margin:10px 0 4px;color:var(--c-txt-dim);">' + e.replace(/^##\s+/, '') + '</div>'; }
+    else if(/^#\s+/.test(ln))    { close(); html += '<div style="font-size:14px;font-weight:700;margin:14px 0 6px;color:var(--c-txt);border-left:3px solid var(--c-accent);padding-left:8px;">' + e.replace(/^#\s+/, '') + '</div>'; }
+    else if(/^\s*[-•*]\s+/.test(ln)) { if(!inList) { html += '<ul style="margin:4px 0 4px 18px;padding:0;">'; inList = true; } html += '<li style="margin:2px 0;">' + e.replace(/^\s*[-•*]\s+/, '') + '</li>'; }
+    else if(!ln.trim())          { close(); html += '<div style="height:8px;"></div>'; }
+    else                         { close(); html += '<div>' + e + '</div>'; }
+  });
+  close();
+  return html || '<div class="study-empty">작성된 내용이 없습니다.</div>';
+}
+
+/* ── 액션 아이템 ─────────────────────────────────────────────────────────── */
+function styAddAction() {
+  styFlushAll();
+  const s = styCur();
+  if(!s) return;
+  styUpdate(s.id, { actions: (s.actions || []).concat([{ aid: _styUid('a'), text: '', owner: '', due: '', done: false }]) });
+  styRenderActions(); styRenderStats(); styRenderList();
+}
+function styToggleAction(aid, done) {
+  styFlushAll();
+  const s = styCur();
+  if(!s) return;
+  styUpdate(s.id, { actions: (s.actions || []).map(function(a) { return a.aid === aid ? Object.assign({}, a, { done: !!done }) : a; }) });
+  styRenderActions(); styRenderStats(); styRenderList();
+}
+function styPatchAction(aid, field, value) {
+  const s = styCur();
+  if(!s) return;
+  if(!_styState.pendingActions || _styState.pendingActions.id !== s.id) _styState.pendingActions = { id: s.id, map: {} };
+  const m = _styState.pendingActions.map;
+  if(!m[aid]) m[aid] = {};
+  m[aid][field] = value;
+  clearTimeout(_styState.actionTimer);
+  _styState.actionTimer = setTimeout(styFlushActions, 500);
+}
+function styFlushActions() {
+  clearTimeout(_styState.actionTimer);
+  const p = _styState.pendingActions;
+  if(!p) return;
+  _styState.pendingActions = null;
+  const store = styLoad();
+  const s = store.sessions.find(function(x) { return x.id === p.id; });
+  if(!s) return;
+  s.actions = (s.actions || []).map(function(a) { return p.map[a.aid] ? Object.assign({}, a, p.map[a.aid]) : a; });
+  s.updatedAt = Date.now();
+  stySave(store);
+  styRenderStats(); styRenderList();
+}
+function styDelAction(aid) {
+  styFlushAll();
+  const s = styCur();
+  if(!s) return;
+  styUpdate(s.id, { actions: (s.actions || []).filter(function(a) { return a.aid !== aid; }) });
+  styRenderActions(); styRenderStats(); styRenderList();
+}
+
+/* ── AI 요약 초안 (Worker /ai, 실패 시 로컬 규칙 요약 폴백) ──────────────── */
+var _styAiBusy = false, _styAiLastTs = 0;
+
+function _styLocalSummary(s) {
+  const bullets = String(s.notes || '').split('\n')
+    .map(function(l) { return l.replace(/^\s*[-•*]\s+/, '').trim(); })
+    .filter(function(l) { return l && !/^#/.test(l); });
+  const acts = (s.actions || []).filter(function(a) { return a.text; });
+  const mats = (s.files || []).map(function(f) { return f.name; })
+    .concat((s.links || []).map(function(l) { return l.label || l.url; }));
+  const out = ['# 요약 (자동 정리 · 규칙 기반)'];
+  out.push('- 일시: ' + (s.date || '') + (s.start ? ' ' + s.start : '') + (s.end ? '~' + s.end : ''));
+  if((s.members || []).length) out.push('- 참석: ' + s.members.join(', '));
+  if(mats.length) out.push('- 자료: ' + mats.slice(0, 8).join(' · '));
+  out.push('');
+  out.push('# 핵심 논의');
+  if(bullets.length) bullets.slice(0, 12).forEach(function(b) { out.push('- ' + b); });
+  else out.push('- (메모가 비어 있어 정리할 내용이 없습니다)');
+  out.push('');
+  out.push('# 액션 아이템');
+  if(acts.length) acts.forEach(function(a) { out.push('- ' + (a.done ? '[완료] ' : '') + a.text + (a.owner ? ' (' + a.owner + ')' : '') + (a.due ? ' ~' + a.due : '')); });
+  else out.push('- (등록된 액션 아이템 없음)');
+  return out.join('\n');
+}
+
+async function styAiSummarize() {
+  styFlushAll();
+  const s = styCur();
+  if(!s) return;
+  const btn = document.getElementById('styAiBtn'), ta = document.getElementById('styNotes');
+  if(!ta || _styAiBusy) return;
+  const now = Date.now();
+  if(now - _styAiLastTs < 6000) { if(typeof showToast === 'function') showToast('요청 간격 6초 — 잠시 후 다시 시도하세요.'); return; }
+
+  const src = String(ta.value || '').trim();
+  if(!src) { if(typeof showToast === 'function') showToast('먼저 메모를 조금이라도 작성하면 더 좋은 요약이 나옵니다.'); }
+
+  const apply = function(text, tag) {
+    const body = String(text || '').trim();
+    if(!body) return;
+    ta.value = (ta.value.replace(/\s+$/, '') + '\n\n' + '<!-- ' + tag + ' -->\n' + body + '\n').replace(/^\n+/, '');
+    styPatchField('notes', ta.value);
+    styNoteTab('view');
+  };
+
+  _styAiBusy = true; _styAiLastTs = now;
+  if(btn) { btn.disabled = true; btn.textContent = '⟳ 생성 중…'; }
+  try {
+    let keyHash = null;
+    try { keyHash = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : null; } catch(_) {}
+    if(!keyHash) {
+      apply(_styLocalSummary(s), 'AI 미사용 · 규칙 기반 자동 정리');
+      if(typeof showToast === 'function') showToast('동기화 키가 없어 규칙 기반으로 정리했습니다. (투자 현황 → 🔑 동기화 키 등록 시 AI 사용)', 5000);
+      return;
+    }
+    const snapshot = {
+      유형: '스터디_회의록_요약_요청',
+      제목: s.title || '', 일시: (s.date || '') + ' ' + (s.start || '') + '~' + (s.end || ''),
+      장소: s.place || '', 참석자: s.members || [], 태그: s.tags || [],
+      자료: (s.files || []).map(function(f) { return f.name; }).slice(0, 20)
+        .concat((s.links || []).map(function(l) { return l.label || l.url; }).slice(0, 20)),
+      메모원문: src.slice(0, 12000),
+      기존_액션아이템: (s.actions || []).map(function(a) { return a.text; }).filter(Boolean).slice(0, 20),
+    };
+    // mode:'study' → Worker 가 회의록 전용 서버 고정 프롬프트를 쓴다(권장 경로).
+    // question 은 mode 를 모르는 구버전 Worker 폴백용 — 신버전은 mode 를 우선해 이 문장을 무시한다.
+    const question = '아래 snapshot 은 시장 데이터가 아니라 스터디 모임 메모입니다. 메모원문만 근거로 ' +
+      '한국어 회의록을 작성하세요. 형식: "# 안건", "# 핵심 논의", "# 결론", "# 액션 아이템"(담당자/기한 포함) ' +
+      '네 개 섹션의 불릿(-) 목록. 메모에 없는 내용은 만들어내지 마세요.';
+    const r = await fetch(_cfProxyBase() + '/ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ keyHash: keyHash, mode: 'study', question: question, snapshot: snapshot }),
+      signal: AbortSignal.timeout(45000),
+    });
+    const j = await r.json().catch(function() { return {}; });
+    if(r.ok && j && j.ok && j.summary) {
+      apply(String(j.summary).replace(/※\s*투자\s*조언이?\s*아닙니다\.?/g, '').trim(),
+            'AI 초안 · ' + (j.engine || 'AI') + (j.model ? ' / ' + j.model : '') + ' · 사실 확인 필요');
+      if(typeof showToast === 'function') showToast('AI 초안을 회의록 아래에 추가했습니다. 내용을 검토·수정하세요.', 4000);
+    } else {
+      apply(_styLocalSummary(s), 'AI 호출 실패 · 규칙 기반 자동 정리');
+      if(typeof showToast === 'function') showToast('AI 를 사용할 수 없어 규칙 기반으로 정리했습니다.', 4000);
+    }
+  } catch(_) {
+    apply(_styLocalSummary(s), 'AI 호출 실패 · 규칙 기반 자동 정리');
+    if(typeof showToast === 'function') showToast('네트워크 오류 — 규칙 기반으로 정리했습니다.', 4000);
+  } finally {
+    _styAiBusy = false;
+    if(btn) { btn.disabled = false; btn.textContent = '✨ AI 요약 초안'; }
+  }
+}
+
+/* ── 내보내기 / 가져오기 ─────────────────────────────────────────────────── */
+function _styBlobToDataUrl(blob) {
+  return new Promise(function(resolve) {
+    const fr = new FileReader();
+    fr.onload = function() { resolve(String(fr.result || '')); };
+    fr.onerror = function() { resolve(''); };
+    fr.readAsDataURL(blob);
+  });
+}
+async function styExport(withFiles) {
+  styFlushAll();
+  const store = styLoad();
+  const payload = { schema: 'econ-study-backup', v: 1, exportedAt: new Date().toISOString(), withFiles: !!withFiles, sessions: store.sessions };
+  if(withFiles) {
+    const total = store.sessions.reduce(function(n, s) { return n + (s.files || []).reduce(function(m, f) { return m + (f.size || 0); }, 0); }, 0);
+    if(total > 500 * 1024 * 1024 && !confirm('첨부 파일 총 ' + _styFmtSize(total) + ' 를 포함합니다. 파일이 매우 커지고 시간이 걸립니다. 계속할까요?')) return;
+    if(typeof showToast === 'function') showToast('파일을 인코딩하는 중… 잠시 기다려 주세요.', 6000);
+    payload.blobs = {};
+    for(const s of store.sessions) {
+      for(const f of (s.files || [])) {
+        try {
+          const rec = await styIdbGet(f.fid);
+          if(rec && rec.blob) payload.blobs[f.fid] = await _styBlobToDataUrl(rec.blob);
+        } catch(_) {}
+      }
+    }
+  }
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'study-log-' + _styTodayStr() + (withFiles ? '-full' : '') + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 4000);
+  if(typeof showToast === 'function') showToast('내보내기 완료.', 2500);
+}
+// data:<mime>;base64,<payload> → Blob.
+//   fetch(dataUrl) 로 복원하면 CSP 의 connect-src 가 data: 스킴을 차단해(“Refused to connect”)
+//   파일 포함 백업의 가져오기가 항상 실패한다. media-src 만 열어둔 정책을 넓히지 않기 위해
+//   여기서 직접 디코드한다. 실패 시 null → 호출부가 건수를 세어 사용자에게 알린다.
+function _styDataUrlToBlob(durl) {
+  const m = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(String(durl || ''));
+  if(!m) return null;
+  const mime = m[1] || 'application/octet-stream', body = m[3] || '';
+  try {
+    if(!m[2]) return new Blob([decodeURIComponent(body)], { type: mime });
+    const bin = atob(body), buf = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return new Blob([buf], { type: mime });
+  } catch(_) { return null; }
+}
+function styImport(input) {
+  const file = (input && input.files && input.files[0]) || null;
+  if(!file) return;
+  const fr = new FileReader();
+  fr.onload = async function() {
+    input.value = '';
+    let p;
+    try { p = JSON.parse(String(fr.result || '')); } catch(_) { alert('JSON 을 읽을 수 없습니다.'); return; }
+    if(!p || p.schema !== 'econ-study-backup' || !Array.isArray(p.sessions)) { alert('스터디 기록 백업 파일이 아닙니다.'); return; }
+    if(!confirm('기록 ' + p.sessions.length + '건을 가져옵니다. 같은 id 는 덮어쓰고 나머지는 추가합니다. 계속할까요?')) return;
+    const store = styLoad();
+    const idx = {};
+    store.sessions.forEach(function(s, i) { idx[s.id] = i; });
+    p.sessions.forEach(function(s) {
+      if(idx[s.id] != null) store.sessions[idx[s.id]] = s; else store.sessions.push(s);
+    });
+    let fileOk = 0, fileFail = 0;
+    if(p.blobs) {
+      for(const s of p.sessions) {
+        for(const f of (s.files || [])) {
+          const durl = p.blobs[f.fid];
+          if(!durl) { fileFail++; continue; }        // 텍스트만 내보낸 백업을 되살릴 때도 여기로 온다
+          const b = _styDataUrlToBlob(durl);
+          if(!b) { fileFail++; continue; }
+          try {
+            await styIdbPut({ fid: f.fid, sessionId: s.id, name: f.name, type: f.type, size: f.size, blob: b });
+            fileOk++;
+          } catch(e) { fileFail++; console.warn('study import blob', f.name, e); }
+        }
+      }
+    } else {
+      fileFail = p.sessions.reduce(function(n, s) { return n + (s.files || []).length; }, 0);
+    }
+    stySave(store, true);
+    styRenderAll();
+    if(typeof showToast === 'function') {
+      // 파일 복원 실패를 조용히 넘기면 사용자는 기기 이관 후 첨부가 사라진 것을 뒤늦게 발견한다.
+      showToast('가져오기 완료 — 기록 ' + p.sessions.length + '건' +
+                (fileOk ? ' · 파일 ' + fileOk + '개' : '') +
+                (fileFail ? ' · ⚠ 파일 ' + fileFail + '개 복원 실패(백업에 파일이 없거나 손상)' : '') + '.',
+                fileFail ? 6000 : 3000);
+    }
+  };
+  fr.readAsText(file);
+}
+
+/* ── 초기화 ──────────────────────────────────────────────────────────────── */
+function initStudyPage() {
+  if(!_styState.year) {
+    const t = _styTodayStr();
+    _styState.year = +t.slice(0, 4); _styState.month = +t.slice(5, 7); _styState.selDate = t;
+  }
+  if(!_styState.inited) {
+    _styState.inited = true;
+    const drop = document.getElementById('styDrop');
+    if(drop) {
+      ['dragenter', 'dragover'].forEach(function(ev) {
+        drop.addEventListener(ev, function(e) { e.preventDefault(); e.stopPropagation(); drop.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(function(ev) {
+        drop.addEventListener(ev, function(e) { e.preventDefault(); e.stopPropagation(); drop.classList.remove('dragover'); });
+      });
+      drop.addEventListener('drop', function(e) {
+        if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) styAddFiles(e.dataTransfer.files);
+      });
+    }
+    const linkUrl = document.getElementById('styLinkUrl');
+    if(linkUrl) linkUrl.addEventListener('keydown', function(e) { if(e.key === 'Enter') { e.preventDefault(); styAddLink(); } });
+    // 다른 페이지로 이동하면 재생 중인 미디어를 정리해 blob URL 누수를 막는다
+    window.addEventListener('beforeunload', function() { try { styFlushAll(); } catch(_) {} styClosePlayer(); });
+  }
+  styRenderAll();
+}
+
 // ── 🔔 경제 캘린더 ★★★ 이벤트 발표 알림 ──────────────────────────────────
 const CAL_ALERTS_LS_KEY = 'econ_cal_alerts_v1';
 
@@ -20779,7 +21917,7 @@ var ECON_BACKUP_KEYS = [
   'econ_settings_v1', 'econ_theme',
   'portfolioV1', 'pfSnapshotsV1', 'pfIndicators', 'pfSyncKeyHash',
   'econ_notes', 'econ_notes_session',
-  'econ_cal_alerts_v1', 'econ_cmp_sel_v1',
+  'econ_cal_alerts_v1', 'econ_cmp_sel_v1', 'econ_study_v1',
   'econ_home_kpi_order_v1', 'econ_home_sec_order_v1', 'econ_home_hidden_v1',
   'cfProxyBase', 'realtimeBoost', 'newsClientFetch', 'econ_guides_v1'
 ];
@@ -21016,7 +22154,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // ═══ URL 딥링크 + popstate ════════════════════════════════════════════════════
 window.addEventListener('load', function() {
   try {
-    var _VALID = ['dashboard','portfolio','equity','macro','market','investor','realestate','calendar','notes','settings'];
+    var _VALID = ['dashboard','portfolio','equity','macro','market','investor','realestate','calendar','study','notes','merblog','settings'];
     var p = new URLSearchParams(location.search).get('p');
     if(p && _VALID.indexOf(p) >= 0 && p !== 'dashboard') {
       var mEl = Array.from(document.querySelectorAll('.menu-item')).find(function(m) {
@@ -21044,7 +22182,7 @@ document.addEventListener('keydown', function(e) {
   if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if((document.activeElement || {}).isContentEditable) return;
   if(e.ctrlKey || e.altKey || e.metaKey) return;
-  var PAGE_MAP = {'1':'dashboard','2':'portfolio','3':'equity','4':'macro','5':'market','6':'investor','7':'realestate','8':'calendar','9':'notes','0':'settings'};
+  var PAGE_MAP = {'1':'dashboard','2':'portfolio','3':'equity','4':'macro','5':'market','6':'investor','7':'realestate','8':'calendar','9':'notes','0':'settings','s':'study','S':'study'};
   var id = PAGE_MAP[e.key];
   if(id) {
     e.preventDefault();
@@ -21125,6 +22263,7 @@ function pfExportCsv() {
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--c-txt-dim);">
       <tr><td style="padding:4px 10px 4px 0;white-space:nowrap;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">1</kbd>–<kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">8</kbd></td><td>대시보드 → 경제 캘린더 순서 이동</td></tr>
+      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">S</kbd></td><td>스터디 기록</td></tr>
       <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">9</kbd></td><td>분석 노트</td></tr>
       <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:11px;">0</kbd></td><td>설정</td></tr>
       <tr><td colspan="2" style="padding:8px 0 4px;border-top:1px solid var(--c-border);"></td></tr>

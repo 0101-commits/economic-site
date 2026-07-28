@@ -11,3 +11,9 @@ __pycache__/
 !.dev.vars.example
 .env*
 !.env.example
+
+# [이슈9] 시크릿/로컬 전용 설정 — 절대 커밋 금지 (공개 저장소)
+#   .env / .env.local → 위 .env* 가 커버, .dev.vars → 위 .dev.vars* 가 커버.
+#   아래 둘은 위 글롭이 못 잡아 명시 추가.
+*.secret
+wrangler.toml.local
