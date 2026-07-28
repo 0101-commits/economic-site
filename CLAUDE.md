@@ -28,6 +28,16 @@ The UI follows the astryx design system (`@astryxdesign/*`; local copy at
 3. **Dense data renders as rows, not cards.** `.widget`/`.kpi-card` are widget
    containers; lists and tables are edge-to-edge rows with dividers and
    32–40 px row height. Don't wrap list items in cards.
+4. **Never set `font-size` or `font-weight` by hand.** Use the geometric scale
+   (`--font-size-xs` … `--font-size-5xl`, base 14 × ratio 1.2) or a semantic
+   type style (`--text-body-*`, `--text-supporting-*`, `--text-heading-N-*`).
+   Off-scale values (11, 13, 15, 18, 22 px) are what made the old UI drift by
+   1–2 px between screens.
+5. **Chart colors come from tokens, never literals.** Categorical series use
+   `getThemeColors().series` (9 hues); the interactive blue is
+   `getThemeColors().accent`. Market up/down (`window.CUP`/`CDN`) must not be
+   mixed into a categorical palette — a slice colored red then reads as
+   "down" rather than "category 6".
 
 Token pipeline (the only generated artifact in the repo):
 
@@ -133,6 +143,16 @@ Deploy: `cd cloudflare-worker && npx wrangler deploy`
   before `applyChartJsThemeDefaults()` on theme switch. Don't reintroduce a
   hardcoded color map, and don't reference `color-mix()` tokens from it —
   browsers serialize those as `color(srgb …)`, which `@kurkle/color` can't parse.
+- **`getThemeColors()`'s cache vars are `var`, not `let`** — top-level constants
+  earlier in the same script block call it (chart palettes), so a `let`
+  declaration puts them in the temporal dead zone and the whole block's
+  top-level execution aborts with `Cannot access '_tcCache' before
+  initialization`. This regressed once; keep `var`.
+- **Theme switch remaps dataset colors** — `rebuildChartsForTheme()` diffs
+  `window._tcPrevPalette` against the new palette and rewrites `borderColor`,
+  `backgroundColor`, datalabels, etc. (alpha suffixes are carried over by
+  prefix match). Any new theme-dependent chart color must be part of that
+  palette array or it will stay stuck on the previous theme's value.
 - **`window._UPDN` mirrors `--color-market-*`** — hex literals are required there
   because the code does `CUP + '22'` alpha concatenation. If the market colors
   change in `econ.theme.ts`, update `_UPDN` in the same commit.

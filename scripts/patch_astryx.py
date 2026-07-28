@@ -138,9 +138,10 @@ ALIASES = """
     --font-num:    var(--font-family-body);
 
     /* 프레임 예산 (astryx layout: side nav 240–280) */
-    --frame-header: 56px;
-    --frame-nav:    240px;
-    --touch-min:    48px;
+    --frame-header:      56px;
+    --frame-nav:         240px;
+    --frame-content-max: 1680px;
+    --touch-min:         48px;
   }
   /* 등락 색상 관습 — 한국(상승 빨강 / 하락 파랑) */
   html.kr-colors {

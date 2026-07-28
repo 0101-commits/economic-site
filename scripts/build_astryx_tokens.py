@@ -38,6 +38,16 @@ SPACING = {f"--spacing-{i}": f"{i * 4}px" for i in range(0, 13)}
 SPACING["--spacing-0\\.5"] = "2px"
 SPACING["--spacing-1\\.5"] = "6px"
 
+# 의미 폰트 웨이트(astryx docs typography: normal/medium/semibold/bold).
+# theme.css 는 --text-*-weight 에서 이 토큰들을 참조만 하고 정의는 core 기본값에
+# 있어서, 테마 CSS 만 떼어 오면 정의가 비어 무효 선언이 된다. 여기서 채운다.
+WEIGHTS = {
+    "--font-weight-normal": "400",
+    "--font-weight-medium": "500",
+    "--font-weight-semibold": "600",
+    "--font-weight-bold": "700",
+}
+
 # 컨트롤 높이(astryx core size 토큰)
 SIZES = {
     "--size-element-sm": "28px",
@@ -113,7 +123,7 @@ def main() -> int:
         if lv != dv:
             light_lines.append(f"    {name}:{lv};")
 
-    for name, value in {**SPACING, **SIZES}.items():
+    for name, value in {**SPACING, **SIZES, **WEIGHTS}.items():
         dark_lines.append(f"    {name}:{value};")
 
     out = [
