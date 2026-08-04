@@ -1,0 +1,72 @@
+name: Build Frontend (minify js)
+
+# js/app*.js(원본)가 main 에 push 되면 파일별 min 을 재생성하고 index.html 의 BUILD_V 를
+# 커밋 sha 로 갱신해 커밋한다. 프로덕션 로더(index.html 하단)는 appN.min.js?v=BUILD_V 를
+# 로드하므로, 이 워크플로가 곧 캐시버스팅이다 — 수동 ?v= 갱신 규칙(구 js/README.md)을 대체.
+# ⚠ 파일별 개별 minify — 5개 스크립트는 독립 파싱 단위라 하나로 합치면(cat) ASI/파싱
+#   경계가 붕괴할 수 있다. esbuild 는 script(비모듈) 모드에서 최상위 식별자를 rename
+#   하지 않으므로 파일 간 전역 공유가 안전하다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/app[0-9].js'          # min 파일은 매칭 안 됨 → 자기 커밋 재귀 없음
+      - '.github/workflows/build-frontend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-frontend
+  cancel-in-progress: true        # 최신 소스만 의미 있음
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Minify js/app*.js
+        run: |
+          set -e
+          V=$(git rev-parse --short=8 HEAD)
+          for f in js/app[0-9].js; do
+            npx --yes esbuild "$f" --minify --charset=utf8 --target=es2017 \
+              --outfile="${f%.js}.min.js" --log-level=warning
+          done
+          # 로더의 BUILD_V 를 소스 커밋 sha 로 — 프로덕션 캐시버스팅
+          sed -i -E "s/var BUILD_V = '[0-9a-f]{8}'/var BUILD_V = '${V}'/" index.html
+          grep -q "var BUILD_V = '${V}'" index.html   # sed 무매치 침묵 방지
+
+      - name: Commit and push
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- js index.html; then
+            echo "변경 없음 — 종료"; exit 0
+          fi
+          msg="build: js minify + BUILD_V $(git rev-parse --short=8 HEAD)"
+          cp index.html /tmp/index.run
+          mkdir -p /tmp/minrun && cp js/*.min.js /tmp/minrun/
+          git add js/*.min.js index.html
+          git commit -m "$msg" -q
+          # data.json 봇 push 와의 경쟁 — fetch-data.yml 과 동일한 재시도 패턴
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              echo "push 성공 (시도 ${attempt})"; exit 0
+            fi
+            git fetch origin main || true
+            git reset --hard origin/main
+            cp /tmp/index.run index.html
+            cp /tmp/minrun/*.min.js js/
+            git add js/*.min.js index.html
+            if git diff --staged --quiet; then echo "원격이 이미 최신"; exit 0; fi
+            git commit -m "$msg" -q
+            sleep $((attempt * 3))
+          done
+          echo "::error::minify 산출물 push 실패"; exit 1

@@ -4366,19 +4366,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </main>
 </div>
 
-<!-- ═══ 앱 스크립트 (옵션 A① 분리, 2026-08-04) ═══
-     구 인라인 5블록을 경계 그대로 js/app1~5.js 로 이동 — 로드 순서가 곧 선언 순서라
-     순서를 바꾸면 전역 var 공유(TDZ 포함)가 깨진다. defer/async/module 금지.
-     ⚠ appN.js 를 수정하면 반드시 아래 ?v= 를 갱신할 것(파일 md5 앞 8자 권장, 임의 문자열도 무방)
-       — GitHub Pages 캐시로 수정이 반영 안 되는 사고 방지. 자세한 규칙: js/README.md -->
-<script src="js/app1.js?v=e02afb7c"></script>
-
-<script src="js/app2.js?v=d8ef63cb"></script>
-<script src="js/app3.js?v=7fcf82b1"></script>
-
-<script src="js/app4.js?v=8f5f2a16"></script>
-
-<!-- 키보드 단축키 도움말 모달 -->
+<!-- 키보드 단축키 도움말 모달 (앱 스크립트보다 앞 — 구조상 무해, app5 가 참조) -->
 <div id="kbShortcutModal" role="dialog" aria-modal="true" aria-label="키보드 단축키" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
   <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:24px 28px;min-width:280px;max-width:400px;width:90%;box-shadow:0 12px 36px rgba(0,0,0,.5);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -4399,6 +4387,25 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div>
 </div>
 
-<script src="js/app5.js?v=327ea8d4"></script>
+<!-- ═══ 앱 스크립트 로더 (옵션 A① 분리 + B1 번들, 2026-08-04) ═══
+     구 인라인 5블록 = js/app1~5.js. 로드 순서가 곧 선언 순서라 순서를 바꾸면 전역 var
+     공유(TDZ 포함)가 깨진다 — document.write 가 그 순서·블로킹 실행을 보존한다.
+     defer/async/module 금지. 파일별 개별 minify(합치면 스크립트 파싱 단위가 붕괴).
+     · dev(localhost): js/appN.js 원본 + 타임스탬프 — 수동 ?v= 갱신 불필요
+     · prod: js/appN.min.js + BUILD_V — .github/workflows/build-frontend.yml 이
+       js/app*.js push 시 min 재생성 + BUILD_V 를 커밋 sha 로 sed 갱신
+     · 로컬에서 min 경로 확인: ?bundle=1  · 규칙 상세: js/README.md -->
+<script>
+(function () {
+  var BUILD_V = '00000000'; /* BUILD_V:auto — build-frontend.yml 이 갱신 */
+  var dev = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+            && !/[?&]bundle=1/.test(location.search);
+  for (var i = 1; i <= 5; i++) {
+    var f = dev ? 'js/app' + i + '.js?v=' + Date.now()
+                : 'js/app' + i + '.min.js?v=' + BUILD_V;
+    document.write('<script src="' + f + '"><\/script>');
+  }
+})();
+</script>
 </body>
 </html>
