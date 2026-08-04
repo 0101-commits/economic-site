@@ -7131,6 +7131,15 @@ def backfill_calendar_actuals(events, data):
         return 0
     today_iso = datetime.now(KST).strftime("%Y-%m-%d")
     filled = 0
+    # 지표별로 '이미 어떤 관측치를 실적으로 소비했는지' 기록한다.
+    # 왜: history 에서 '발표일 이하의 가장 최근 관측'을 고르는 규칙은, 아직 공표되지 않은
+    # 회차에도 직전 회차의 관측치를 그대로 물려준다. 실측(2026-08-04)에서 미국 PPI 가
+    # 07-21·08-03 두 날짜에 똑같이 act=-0.3% / fore=+0.6% 로 찍혔다 — FRED PPIFIS 의
+    # 최신 관측이 2026-06 하나뿐이라 두 회차가 같은 값을 집은 것이다.
+    # 서로 다른 두 발표가 같은 관측치를 낼 수는 없다. 먼저 온 회차가 가져가고, 뒤 회차는
+    # 값을 비워 '아직 발표 전'으로 남긴다 — 없는 실적을 지어내는 것보다 낫다.
+    # (events 는 iso 오름차순 정렬돼 있어 앞선 회차가 먼저 청구한다.)
+    claimed_obs = {}
     for ev in events:
         try:
             if ev.get("act"):
@@ -7164,6 +7173,12 @@ def backfill_calendar_actuals(events, data):
                 continue
             act_key = recent_keys[-1]
             prev_key = recent_keys[-2] if len(recent_keys) >= 2 else None
+
+            # 앞선 회차가 이미 이 관측치를 실적으로 가져갔으면 이번 회차는 아직 발표 전이다.
+            claim = (name, act_key)
+            if claim in claimed_obs:
+                continue
+            claimed_obs[claim] = iso
 
             # mom1/yoy1: 인덱스 레벨이 아닌 변화율 계산
             if fmt_id in ("mom1", "yoy1"):
