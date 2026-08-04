@@ -1381,11 +1381,13 @@ main#mainContent { padding: var(--spacing-5); }
   box-shadow: var(--shadow-low) !important;
 }
 .widget-title {
-  font-size: var(--font-size-xs);
+  /* Phase 3 위계 격상: xs(10px)·dim 단일 위계가 212개 위젯을 균일한 회색 텍스처로
+     만들었다(감사 C3) — 한 단계 위 크기 + 본문 명도로 섹션 식별성을 올린다. */
+  font-size: var(--font-size-sm);
   font-weight: 600;
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--c-txt-dim) !important;   /* 제목은 강조색이 아니라 보조 텍스트 */
+  color: var(--c-txt) !important;
   margin-bottom: var(--spacing-3);
 }
 /* 클릭 가능한 카드: 들어올리지 말고 테두리로 알린다(모션 최소화) */
@@ -1592,6 +1594,32 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 ::-webkit-scrollbar-thumb { background: var(--color-border-emphasized); border-radius: var(--r-full); }
 ::-webkit-scrollbar-thumb:hover { background: var(--c-txt-dim); }
 * { scrollbar-width: thin; scrollbar-color: var(--color-border-emphasized) transparent; }
+
+/* ── Phase 3 (2026-08): 위젯 접기 · 페이지 목차 칩 · 위젯 신선도 칩 ──────────
+   접기: .widget-title 클릭 → 본문만 숨김(홈 home-sec '숨기기'와 별개). 펼칠 때
+   JS 가 resize 를 쏴 0px 캔버스를 되살린다(restoreHomeSec 와 같은 패턴). */
+.w-toggle { cursor: pointer; user-select: none; }
+.w-toggle:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.w-toggle::after { content: '▾'; display: inline-block; margin-left: 6px; opacity: .45;
+  transition: transform var(--duration-fast-min) var(--ease-standard); }
+.widget.w-collapsed .w-toggle::after { transform: rotate(-90deg); }
+.widget.w-collapsed > :not(.w-head) { display: none !important; }
+.widget.w-collapsed { padding-bottom: var(--spacing-3); }
+@media (prefers-reduced-motion: reduce) { .w-toggle::after { transition: none; } }
+/* 페이지 목차 칩 — 탭(.tab-btn)과 혼동되지 않게 점선 테두리 + 라운드 필 */
+.page-toc { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
+  padding: 8px 10px; border: 1px dashed var(--c-border); border-radius: var(--radius-container);
+  background: var(--c-card); }
+.page-toc-h { font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);
+  margin: 0 8px 0 0; color: var(--c-txt); }
+.page-toc a { font-size: var(--font-size-sm); color: var(--c-txt-dim); text-decoration: none;
+  border: 1px solid var(--c-border); border-radius: var(--r-full); padding: 2px 10px; cursor: pointer; }
+.page-toc a:hover, .page-toc a:focus-visible { color: var(--c-primary); border-color: var(--c-primary); outline: none; }
+.w-anchor-target { scroll-margin-top: 72px; }   /* 고정 헤더(56px) 보정 */
+/* 위젯 신선도 칩 — dataHealth 의 stale/failed/missing 을 위젯 타이틀 옆에 노출 */
+.w-fresh-chip { font-size: var(--font-size-xs); font-weight: var(--font-weight-normal);
+  letter-spacing: 0; text-transform: none; border: 1px solid currentColor;
+  border-radius: var(--r-xs); padding: 0 5px; margin-left: 6px; vertical-align: middle; cursor: pointer; }
 
 /* ── 8. 모션 — 방향은 트리거를 따르고, 반복 상호작용은 무지연 ──── */
 .enso-com-detail { transition: max-height var(--duration-medium) var(--ease-standard); }
@@ -1861,15 +1889,6 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <span style="font-size:var(--font-size-base);margin-left:6px;" id="mainChartChangeVal"><span class="skel-bar" style="width:56px;" aria-hidden="true"></span></span>
             </div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-              <!-- 라벨을 버튼 그룹 안에 넣어 그룹 단위로 줄바꿈 — 라벨만 줄 끝에 고립되던 문제(감사 B3) -->
-              <span role="group" aria-label="봉 단위 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
-              <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">봉 단위:</span>
-              <button class="tab-btn period-unit-btn active" data-unit="1D" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setPeriodUnit('1D',this)">일봉</button>
-              <button class="tab-btn period-unit-btn" data-unit="1W" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1W',this)">주봉</button>
-              <button class="tab-btn period-unit-btn" data-unit="1M" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1M',this)">월봉</button>
-              <button class="tab-btn period-unit-btn" data-unit="1Q" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1Q',this)">분기봉</button>
-              </span>
-              <span style="color:var(--c-border);margin:0 2px;">|</span>
               <span class="preset-btn-group-main" role="group" aria-label="조회 기간 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
                 <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">기간:</span>
                 <button class="preset-btn" onclick="applyChartPresetPeriod('main','1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1주</button>
@@ -1879,11 +1898,24 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <button class="preset-btn" onclick="applyChartPresetPeriod('main','6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">6개월</button>
                 <button class="preset-btn" onclick="applyChartPresetPeriod('main','1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
               </span>
+              <!-- 저빈도 컨트롤(봉 단위·기간 지정·전년 비교)은 ⋯ 서랍으로 — 컨트롤이 차트보다
+                   먼저 눈에 들어오던 문제(감사: 첫 화면 인터랙티브 34개). 요소는 아래 서랍으로
+                   이동만 했고 핸들러·상태(setPeriodUnit/toggleCustomRange/toggleYoY)는 그대로다. -->
+              <button class="tab-btn" id="mainChartMoreBtn" aria-expanded="false" aria-controls="mainChartMoreRow" title="봉 단위 · 기간 지정 · 전년 비교" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleMainChartMore(this)">⋯</button>
+            </div>
+          </div>
+          <div id="mainChartMoreRow" style="display:none;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+              <span role="group" aria-label="봉 단위 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
+              <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">봉 단위:</span>
+              <button class="tab-btn period-unit-btn active" data-unit="1D" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setPeriodUnit('1D',this)">일봉</button>
+              <button class="tab-btn period-unit-btn" data-unit="1W" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1W',this)">주봉</button>
+              <button class="tab-btn period-unit-btn" data-unit="1M" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1M',this)">월봉</button>
+              <button class="tab-btn period-unit-btn" data-unit="1Q" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1Q',this)">분기봉</button>
+              </span>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button class="tab-btn" id="mainCustomBtn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('main',this)"><span aria-hidden="true">📅</span> 기간 지정</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button class="yoy-btn" data-yoy="mainChart" onclick="toggleYoY('mainChart',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
-            </div>
           </div>
           <div id="mainCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
             <input aria-label="메인 차트 조회 시작일" type="date" id="mainDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
@@ -16854,6 +16886,7 @@ function renderDataFreshness() {
     ' 업데이트' + ageTxt + _healthChipHtml();
   const host = document.getElementById('dataSourceInfo');
   if(host) host.title = ageH > 26 ? '⚠ 데이터 수집 파이프라인이 멈춰 있을 수 있습니다 — 설정 > 시스템 진단 확인' : '';
+  try { applyWidgetFreshChips(); } catch(_) {}   // Phase 3 — 위젯 타이틀 옆 신선도 칩
 }
 
 /* 지표 신선도 칩 — data.json.dataHealth 요약을 헤더에 노출한다.
@@ -16864,12 +16897,14 @@ function _healthChipHtml() {
   const h = window._dataHealth;
   if (!h || !h.summary) return '';
   const s = h.summary;
-  const bad = (s.stale || 0) + (s.failed || 0);
+  const bad = (s.stale || 0) + (s.failed || 0) + (s.missing || 0);
   if (!bad) return '';
-  const col = (s.failed || (h.blocking || []).length) ? 'var(--ind-neg)' : 'var(--c-warn,#f0c75e)';
-  const label = s.failed ? `지연 ${s.stale} · 실패 ${s.failed}` : `지연 ${s.stale}`;
+  const col = (s.failed || s.missing || (h.blocking || []).length) ? 'var(--ind-neg)' : 'var(--c-warn,#f0c75e)';
+  const label = ['지연 ' + (s.stale || 0),
+                 s.failed ? '실패 ' + s.failed : '',
+                 s.missing ? '누락 ' + s.missing : ''].filter(Boolean).join(' · ');
   return ' <span class="health-chip" role="button" tabindex="0" onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
-    ` title="정상 ${s.ok} · 보존 ${s.preserved} · 지연 ${s.stale} · 실패 ${s.failed} — 클릭하면 시스템 진단"` +
+    ` title="정상 ${s.ok} · 보존 ${s.preserved} · 지연 ${s.stale} · 실패 ${s.failed} · 누락 ${s.missing || 0} — 클릭하면 시스템 진단"` +
     ` style="color:${col};border:1px solid ${col};border-radius:var(--r-xs);padding:0 6px;margin-left:6px;cursor:pointer;font-size:var(--font-size-xs);">` +
     `⚠ ${label}</span>`;
 }
@@ -22142,9 +22177,182 @@ function initGlobalDelayChip() {
   sb.appendChild(chip);
 }
 
+/* ═══ Phase 3 (2026-08) — 위젯 접기 · 페이지 목차 칩 · 위젯 신선도 칩 ═══
+   원칙: 홈 home-sec 시스템(숨김/정렬)의 완성된 패턴을 재사용한다 — 상태는 localStorage,
+   다시 보일 때 resize 디스패치로 0px 캔버스 소생(restoreHomeSec 와 동일). */
+
+// ── 1) 위젯 접기 — .widget-title 클릭으로 본문만 접힘/펼침 ──────────────
+var WCOLLAPSE_LS = 'econ_widget_collapse_v1';
+function _wcLoad(){ try { return new Set(JSON.parse(localStorage.getItem(WCOLLAPSE_LS) || '[]')); } catch(_) { return new Set(); } }
+function _wcSave(s){ try { localStorage.setItem(WCOLLAPSE_LS, JSON.stringify([...s])); } catch(_) {} }
+function _wcSetState(w, t, collapsed){
+  w.classList.toggle('w-collapsed', collapsed);
+  t.setAttribute('aria-expanded', String(!collapsed));
+  // 접혀 있던 동안 0px 로 그려진 Chart.js 캔버스 소생 — restoreHomeSec 패턴
+  if(!collapsed){ try { window.dispatchEvent(new Event('resize')); } catch(_) {} }
+}
+function initWidgetCollapse(){
+  var saved = _wcLoad();
+  document.querySelectorAll('#mainContent .widget').forEach(function(w){
+    // 제외: 클릭 내비게이션 카드, <details> 위젯(네이티브 토글 보유)
+    if(w.hasAttribute('onclick') || w.tagName === 'DETAILS') return;
+    var t = w.querySelector('.widget-title');
+    if(!t || t.closest('.widget') !== w) return;
+    // 타이틀이 위젯 직계(단순형)거나 직계 헤더 줄 안(헤더형)인 경우만 — 그 외 구조는 제외
+    var head = (t.parentElement === w) ? t : (t.parentElement.parentElement === w ? t.parentElement : null);
+    if(!head) return;
+    head.classList.add('w-head');
+    t.classList.add('w-toggle');
+    t.setAttribute('role', 'button'); t.setAttribute('tabindex', '0');
+    var key = (w.closest('.page') ? w.closest('.page').id : 'x') + '|' + (t.textContent || '').trim().slice(0, 40);
+    _wcSetState(w, t, saved.has(key));
+    function onToggle(ev){
+      // 타이틀 안의 인터랙티브 요소(신선도 칩·링크·버튼)는 통과
+      if(ev.target.closest('button,a,select,input,label,.w-fresh-chip')) return;
+      var willCollapse = !w.classList.contains('w-collapsed');
+      _wcSetState(w, t, willCollapse);
+      var s = _wcLoad(); willCollapse ? s.add(key) : s.delete(key); _wcSave(s);
+    }
+    t.addEventListener('click', onToggle);
+    t.addEventListener('keydown', function(ev){
+      if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); onToggle(ev); }
+    });
+  });
+}
+
+// ── 2) 페이지 목차 칩 — 긴 페이지 상단에 섹션 바로가기 (h2 로 문서 아웃라인 복구) ──
+// 대상은 title 텍스트 부분일치로 찾는다 — id 하드코딩보다 마크업 변경에 강하다.
+var PAGE_TOC = {
+  'page-market':     { title: '시장 지표', items: [
+    { label: 'LME 재고',   m: 'LME 금속 창고 재고', tabText: '원자재' },
+    { label: '금속 심층',  m: 'Heavy Metal Stats',  tabText: '원자재' },
+    { label: '해상운임',   m: '운송 운임지수',       tabText: '원자재' },
+    { label: '기후 ENSO',  sel: '#ensoCard',        tabText: '원자재' } ] },
+  'page-macro':      { title: '거시경제', items: [
+    { label: '국가·주제 차트', sel: '#macroContent' },
+    { label: '전체 지표',      m: '주요 경제 지표 전체' } ] },
+  'page-realestate': { title: '부동산', items: [
+    { label: '가격지수',    m: '아파트 가격지수 추이' },
+    { label: '지역 등락',   m: '지역별 등락률' },
+    { label: '대출 규제',   m: '대출 규제 현황' },
+    { label: '청약 경쟁률', m: '청약 경쟁률' },
+    { label: '🇺🇸 미국',     m: '미국 지역별 Case-Shiller', tabText: '미국' } ] },
+  'page-investor':   { title: '주요 투자자', items: [
+    { label: '교차 비교',  m: '글로벌 연기금 자산배분' },
+    { label: '수익률',     m: '연도별 수익률' },
+    { label: '자산 배분',  m: '자산 배분 현황' },
+    { label: '보유 종목',  m: '국내주식 Top 10' } ] },
+};
+function _tocTarget(page, it){
+  if(it.sel) return page.querySelector(it.sel);
+  var ts = page.querySelectorAll('.widget-title');
+  for(var i = 0; i < ts.length; i++){
+    if((ts[i].textContent || '').indexOf(it.m) !== -1) return ts[i].closest('.widget') || ts[i];
+  }
+  return null;
+}
+function _tocClickTab(page, txt){
+  var btns = page.querySelectorAll('.tab-btn');
+  for(var i = 0; i < btns.length; i++){
+    if((btns[i].textContent || '').indexOf(txt) !== -1){ btns[i].click(); return; }
+  }
+}
+function buildPageTocs(){
+  Object.keys(PAGE_TOC).forEach(function(pid){
+    var page = document.getElementById(pid);
+    if(!page || page.querySelector('.page-toc')) return;
+    var cfg = PAGE_TOC[pid];
+    var bar = document.createElement('nav');
+    bar.className = 'page-toc';
+    bar.setAttribute('aria-label', cfg.title + ' 섹션 바로가기');
+    var h = document.createElement('h2');
+    h.className = 'page-toc-h'; h.textContent = cfg.title;
+    bar.appendChild(h);
+    cfg.items.forEach(function(it){
+      var a = document.createElement('a');
+      a.textContent = it.label; a.href = '#';
+      a.addEventListener('click', function(ev){
+        ev.preventDefault();
+        try {
+          if(it.tabText) _tocClickTab(page, it.tabText);   // 숨은 탭 안이면 먼저 활성화
+          requestAnimationFrame(function(){
+            var el = _tocTarget(page, it);
+            if(!el) return;
+            // 접힌 위젯이면 펼치고 이동
+            if(el.classList && el.classList.contains('w-collapsed')){
+              var tg = el.querySelector('.w-toggle'); if(tg) tg.click();
+            }
+            el.classList.add('w-anchor-target');
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        } catch(_) {}
+      });
+      bar.appendChild(a);
+    });
+    page.insertBefore(bar, page.firstElementChild);
+  });
+}
+
+// ── 3) 위젯 신선도 칩 — dataHealth(stale/failed/missing)를 대표 위젯 타이틀에 노출 ──
+var WIDGET_FRESH_MAP = [
+  { pid: 'page-dashboard',  m: '시장 분위기',        pre: ['sentiment.'] },
+  { pid: 'page-dashboard',  m: 'Top10',              pre: ['stockMovers.', 'etfMovers.'] },
+  { pid: 'page-market',     m: '운송 운임지수',       pre: ['freight'] },
+  { pid: 'page-macro',      m: '주요 경제 지표 전체', pre: ['economicIndicators.'] },
+  { pid: 'page-investor',   m: '자산 배분 현황',      pre: ['nps'] },
+  { pid: 'page-investor',   m: '글로벌 연기금',       pre: ['berkshire'] },
+  { pid: 'page-realestate', m: '아파트 가격지수',     pre: ['realestate.kr.'] },
+];
+function applyWidgetFreshChips(){
+  var h = window._dataHealth;
+  // 방어: 구버전 dataHealth(4건짜리 — 판정 시점 버그 시절 산출물)로는 위젯 판정을 하지 않는다
+  if(!h || !Array.isArray(h.items) || h.items.length < 5) return;
+  WIDGET_FRESH_MAP.forEach(function(cfg){
+    var page = document.getElementById(cfg.pid);
+    if(!page) return;
+    var t = null, ts = page.querySelectorAll('.widget-title');
+    for(var i = 0; i < ts.length; i++){
+      if((ts[i].textContent || '').indexOf(cfg.m) !== -1){ t = ts[i]; break; }
+    }
+    if(!t) return;
+    var worst = null;
+    h.items.forEach(function(it){
+      if(it.state !== 'stale' && it.state !== 'failed' && it.state !== 'missing') return;
+      if(!cfg.pre.some(function(p){ return it.path === p || it.path.indexOf(p) === 0; })) return;
+      if(!worst || (it.ageDays || 9999) > (worst.ageDays || 9999)) worst = it;
+    });
+    var old = t.querySelector('.w-fresh-chip');
+    if(old) old.remove();
+    if(!worst) return;
+    var chip = document.createElement('span');
+    chip.className = 'w-fresh-chip';
+    chip.style.color = worst.state === 'stale' ? 'var(--c-warn,#f0c75e)' : 'var(--ind-neg)';
+    chip.textContent = worst.state === 'stale' ? ('지연 ' + worst.ageDays + '일')
+                     : worst.state === 'failed' ? '수집 실패' : '데이터 없음';
+    chip.title = worst.path + ' — 기준일 ' + (worst.asOf || '미상') + ' · 클릭하면 시스템 진단';
+    chip.setAttribute('role', 'button'); chip.setAttribute('tabindex', '0');
+    chip.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      try { showPage('settings'); setTimeout(runDiagnostics, 300); } catch(_) {}
+    });
+    t.appendChild(chip);
+  });
+}
+
+// ── 4) 홈 메인차트 저빈도 컨트롤 서랍(⋯) 토글 ──────────────────────────
+function toggleMainChartMore(btn){
+  var row = document.getElementById('mainChartMoreRow');
+  if(!row) return;
+  var open = row.style.display === 'none';
+  row.style.display = open ? 'flex' : 'none';
+  btn.setAttribute('aria-expanded', String(open));
+}
+
 window.addEventListener('load', () => {
   try { applyHomeLayout(); } catch(_) {}
   try { initHomeDnd(); } catch(_) {}
+  try { initWidgetCollapse(); } catch(_) {}   // Phase 3 — 위젯 접기
+  try { buildPageTocs(); } catch(_) {}        // Phase 3 — 페이지 목차 칩
   try { initGlobalDelayChip(); } catch(_) {}
   // data.json 이 이미 적용된 경우(applyRealData 가 먼저 돈 경우) 비교 차트 즉시 초기화
   try { initCompareTool(); } catch(_) {}
@@ -22853,10 +23061,11 @@ window.runDiagnostics = async function () {
          브라우저에서 재판정하지 않는 이유: 기준이 두 벌이 되면 반드시 어긋난다. */
       var _h = d2.dataHealth;
       if (_h && _h.items) {
-        var bad = _h.items.filter(function (i) { return i.state === 'stale' || i.state === 'failed'; });
+        var bad = _h.items.filter(function (i) { return i.state === 'stale' || i.state === 'failed' || i.state === 'missing'; });
         bad.slice(0, 25).forEach(function (i) {
-          issues.push((i.state === 'failed' ? '수집 실패' : '갱신 지연') + ': ' + i.path +
-            ' (기준일 ' + (i.asOf || '알 수 없음') + ', ' + i.ageDays + '일 경과 / 허용 ' + i.sla + '일)');
+          issues.push((i.state === 'failed' ? '수집 실패' : i.state === 'missing' ? '데이터 없음(키 실종)' : '갱신 지연') + ': ' + i.path +
+            (i.state === 'missing' ? '' :
+             ' (기준일 ' + (i.asOf || '알 수 없음') + ', ' + i.ageDays + '일 경과 / 허용 ' + i.sla + '일)'));
         });
         if (bad.length > 25) issues.push('… 외 ' + (bad.length - 25) + '건');
       }
