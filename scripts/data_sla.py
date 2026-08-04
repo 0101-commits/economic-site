@@ -59,6 +59,7 @@ SLA_RULES = [
     ("realestate.*",                     100, "normal"),
     ("yieldCurve.*",                     6,   "important"),
     ("nps",                              400, "normal"),
+    ("berkshire",                        200, "normal"),    # SEC 13F — 분기 공시
     ("subscription",                     40,  "normal"),
     ("climate.*",                        45,  "normal"),
     ("news",                             2,   "important"),
@@ -69,7 +70,12 @@ SLA_RULES = [
 DEFAULT_SLA = (60, "normal")
 
 # as-of 로 인정하는 키 (우선순위 순)
-_ASOF_KEYS = ("as_of", "asOf", "period", "date", "lastFetched", "lastUpdated", "checkedAt")
+# ⚠ lastFetched 는 여기 넣지 않는다 — '우리가 언제 돌았나'(수집 시각)이지 '데이터가 언제
+#   것인가'(as-of)가 아니다. 이 키가 들어있던 동안 freight(내용 07-31)·news(6개 카테고리
+#   빈 배열) 등 8개 원자 블록이 수집 시각으로 자기 신선도를 증명해 영원히 ok 였다(2026-08 감사).
+#   lastFetched 를 빼면 items/daily/events 등 내용 날짜 경로로 내려가고, 그것도 없으면
+#   unknown 으로 정직하게 보고된다.
+_ASOF_KEYS = ("as_of", "asOf", "period", "date", "lastUpdated", "checkedAt")
 
 
 def _parse_date(s):
@@ -147,6 +153,11 @@ _SKIP_TOPS = ("lastUpdated", "sources", "diagnostics", "dataHealth")
 # 현재가 스냅샷 블록 — 자체 날짜 필드가 없고 신선도는 같은 심볼의 history 가 대변한다.
 # 여기서 판정하면 심볼마다 'unknown' 이 중복으로 쌓여 요약이 무의미해진다.
 _SPOT_TOPS = ("indices", "commodities", "fx")
+# 프런트가 렌더하지만 수집 실패 시 키 자체가 사라질 수 있는 최상위 블록.
+# SLA 는 '존재하는 키'만 순회하므로 통째 실종은 보이지 않는다 — 여기 있는 키가
+# data 에 없으면 state="missing" 으로 보고한다. (실측: berkshire 가 SEC 13F 실패 +
+# prev 에도 없어 키째 사라졌는데 몇 달간 아무도 몰랐다 — 2026-08 감사.)
+_EXPECTED_TOPS = ("berkshire",)
 
 
 def _walk_paths(data):
@@ -202,6 +213,13 @@ def build_health(data, today=None, sources=None):
             "state": state,
         })
 
+    # 통째 실종 감지 — 있어야 할 최상위 블록이 키째 없으면 missing
+    for top in _EXPECTED_TOPS:
+        if top not in data:
+            sla_days, tier = _rule_for(top)
+            items.append({"path": top, "asOf": None, "ageDays": None,
+                          "sla": sla_days, "tier": tier, "state": "missing"})
+
     # 소스 자체가 실패를 자백한 경우 — diagnostics.*Source == "FAILED"
     failed_tops = set()
     for k, v in (data.get("diagnostics") or {}).items():
@@ -225,6 +243,7 @@ def build_health(data, today=None, sources=None):
             "stale": counts.get("stale", 0),
             "failed": counts.get("failed", 0),
             "unknown": counts.get("unknown", 0),
+            "missing": counts.get("missing", 0),
         },
         "blocking": blocking,
         "items": sorted(items, key=lambda x: (x["state"] == "ok", x["path"])),
@@ -263,6 +282,11 @@ def _demo():
     assert by["history.indices.KOSPI"]["state"] == "ok", by["history.indices.KOSPI"]
     assert by["sentiment.vkospi"]["state"] == "stale", by["sentiment.vkospi"]
     assert by["stockMovers.kospiGainers"]["state"] == "failed", by["stockMovers.kospiGainers"]
+    assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
+    assert h["summary"]["missing"] == 1
+    # lastFetched(수집 시각)는 as-of 로 인정하지 않는다 — 내용 날짜 items 로 내려가야 함
+    assert _extract_asof({"lastFetched": "2026-08-04T09:00:00+09:00",
+                          "items": [{"date": "2026-07-31"}]}) == date(2026, 7, 31)
     assert h["blocking"] == []
     # critical 이 늦으면 blocking 에 들어간다
     sample["history"]["indices"]["KOSPI"] = [{"date": "2026-07-01", "close": 1}]

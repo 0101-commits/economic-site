@@ -60,8 +60,12 @@ on:
 # 대기열에서 교체 취소되어(그룹당 대기 1개 제한) 취소 알림 메일이 쌓였다(2026-07 감사).
 # 그룹을 분리하면 경량은 풀 런과 무관하게 즉시 돌고, 서로의 data.json push 경쟁은
 # 커밋 스텝의 5회 재시도('최신 런이 이긴다' — reset 후 산출물 재적용)가 흡수한다.
+# push 트리거는 별도 그룹 — 'full' 그룹에 넣으면 schedule 풀 런 진행 중 들어온 push 런이
+# 대기열 1개 제한에 밀려 교체 취소된다. 실측: ECB·OECD 대체 커밋(b7debbb5)의 push 런이
+# 13초 만에 취소돼 유로존/영국/중국 stale 이 그대로 남았다(2026-08 감사). 코드 수정 직후
+# 런은 '그 수정을 반영하는 유일한 즉시 실행'이므로 취소되면 안 된다.
 concurrency:
-  group: market-data-fetch-${{ (github.event_name == 'repository_dispatch' || startsWith(github.event.schedule, '10,25,40,55')) && 'light' || 'full' }}
+  group: market-data-fetch-${{ github.event_name == 'push' && 'push' || ((github.event_name == 'repository_dispatch' || startsWith(github.event.schedule, '10,25,40,55')) && 'light' || 'full') }}
   cancel-in-progress: false
 
 permissions:

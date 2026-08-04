@@ -3965,23 +3965,35 @@ def fetch_nps_allocation():
         html = r.text
         items = []
         # 형식: <td>국내주식</td>... <td>비중(%)</td><td>14.9</td>
-        patterns = [
-            (r'국내주식.*?([\d.]+)%', '국내주식'),
-            (r'해외주식.*?([\d.]+)%', '해외주식'),
-            (r'국내채권.*?([\d.]+)%', '국내채권'),
-            (r'해외채권.*?([\d.]+)%', '해외채권'),
-            (r'대체투자.*?([\d.]+)%', '대체투자'),
-        ]
-        for pat, asset_name in patterns:
-            m = _re.search(pat, html, _re.DOTALL)
+        # ⚠ 라벨 뒤 150자 이내의 첫 퍼센트만 인정. 종전의 re.DOTALL + '.*?' 는 내비게이션
+        #   영역의 라벨과 문서 첫 숫자를 짝지어 5개 자산군이 전부 같은 값(합계 176%)이
+        #   되는 오염을 만들었다(2026-08 감사).
+        for asset_name in ("국내주식", "해외주식", "국내채권", "해외채권", "대체투자"):
+            m = _re.search(asset_name + r'[\s\S]{0,150}?([\d.]+)\s*%', html)
             if m:
                 pct = _parse_num(m.group(1))
                 if pct:
                     items.append({"asset": asset_name, "pct": pct})
         if items:
-            log(f"[NPS] 자산배분 {len(items)}개 수집")
-            return {"allocation": items, "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
-                    "source": "fund.nps.or.kr"}
+            # sanity — 전부 동일값이거나 합계가 비정상이면 파싱 오류로 보고 폐기(직전값 보존 경로로)
+            vals = [i["pct"] for i in items]
+            if len(items) >= 3 and len(set(vals)) == 1:
+                log(f"[NPS] 자산배분 파싱 의심(전 자산군 {vals[0]}%) — 폐기")
+                return None
+            if not (40 <= sum(vals) <= 110):
+                log(f"[NPS] 자산배분 합계 {sum(vals):.1f}% 비정상 — 폐기")
+                return None
+            # as-of 는 페이지의 기준일(예: '2026.05월말 기준')이다 — 수집 시각(now)을 as_of 로
+            # 찍으면 신선도 판정이 자기 증명이 된다. 기준일을 못 찾으면 as_of 를 싣지 않는다
+            # (data_sla 가 unknown 으로 정직하게 보고).
+            out = {"allocation": items, "source": "fund.nps.or.kr",
+                   "lastFetched": datetime.now(KST).isoformat()}
+            md = _re.search(r'(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*월?\s*말?\s*기준', html)
+            if md and 1 <= int(md.group(2)) <= 12:
+                out["as_of"] = f"{int(md.group(1)):04d}-{int(md.group(2)):02d}-01"
+            log(f"[NPS] 자산배분 {len(items)}개 수집" +
+                (f" (기준 {out['as_of']})" if "as_of" in out else " (기준일 미상)"))
+            return out
         return None
     except Exception as e:
         log(f"[NPS] 자산배분 크롤링 오류: {e}")
@@ -5622,17 +5634,9 @@ def build_data():
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
     data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
 
-    # 신선도 계약 — 지표별 as-of 를 SLA 표(scripts/data_sla.py)와 대조해 상태를 싣는다.
-    # 왜: 개별 소스가 죽어도 직전값이 보존되므로 화면상으로는 최신과 구분되지 않았다.
-    # 이 블록이 커밋 게이트·사이트 배지·카톡 알림의 공통 근거가 된다.
-    try:
-        data["dataHealth"] = data_sla.build_health(data)
-        _s = data["dataHealth"]["summary"]
-        log(f"[HEALTH] ok={_s['ok']} preserved={_s['preserved']} stale={_s['stale']} "
-            f"failed={_s['failed']} unknown={_s['unknown']} blocking={data['dataHealth']['blocking']}")
-    except Exception as e:
-        # 진단 기능이 수집 자체를 망가뜨리면 안 된다 — 실패해도 데이터는 커밋한다.
-        log(f"[HEALTH] dataHealth 생성 실패: {e}")
+    # 신선도 계약(dataHealth)은 여기서 계산하지 않는다 — validate_data.py 가 커밋 직전에
+    # 재계산해 되쓴다. 이 자리(수집 중간)에서 계산했을 때 economicIndicators/history/news/
+    # preserve 가 전부 이 뒤에 대입되어 판정 대상이 4개 블록뿐이었다(2026-08 감사).
     # 투자자별 순매매가 비었을 때 프론트가 사용자에게 보여줄 사유.
     # 이제 무인증 Naver 폴백이 있어, 비어있으면 두 소스(KRX/Naver) 모두 일시 실패한 상황.
     if not (data.get("investorTrading") or {}).get("daily"):
@@ -6457,6 +6461,30 @@ def build_data():
             log(f"[PMI] 단종/초장기 지연 지표 제거: {', '.join(dropped)} — 프론트는 '—' 표시")
     except Exception as e:
         log(f"[PMI] 묵은 지표 정리 오류 (무시): {e}")
+
+    # ── 폐기(tombstone) 지표 정리 — preserve 부활 차단 ─────────────────
+    # FRED 폐기로 FRED_INTL_INDICATORS 표에서 제거된 지표는 수집 소스가 없다. 그런데 위
+    # preserve-deep 이 '현재 빌드에 없고 prev 에 있는 leaf'를 무조건 복원하므로, 표에서
+    # 지워도 직전 data.json 의 묵은 값(일본 CPI 2021-06 등)이 매 런 되살아난다(재현 확인,
+    # 2026-08 감사). 모든 preserve 이후인 여기서 명시적으로 제거한다.
+    # 대체 소스가 생기면 이 목록에서 빼면 된다. (eu 실업률·uk/cn CPI 는 intl_sources 가
+    # 같은 키를 다시 채우므로 묘비 대상이 아니다.)
+    _TOMBSTONED = {
+        "jp": ("cpi_jp", "ip_jp"),   # JPNCPIALLMINMEI(2021-06 종료)·JPNPROINDMISMEI(2024-03 종료), OECD 도 동일 상류
+    }
+    try:
+        removed = []
+        ei = data.get("economicIndicators") or {}
+        for cc, mkeys in _TOMBSTONED.items():
+            node = ei.get(cc)
+            if isinstance(node, dict):
+                for mk in mkeys:
+                    if node.pop(mk, None) is not None:
+                        removed.append(f"{cc}.{mk}")
+        if removed:
+            log(f"[tombstone] 폐기 지표 제거: {', '.join(removed)} — 프론트는 '—' 표시")
+    except Exception as e:
+        log(f"[tombstone] 정리 오류 (무시): {e}")
 
     # ── 차트 끝점 ↔ 실시간 spot 동기화 (소스 불일치 보정) ──────────
     # 모든 카드/상세 모달 차트가 data.history 를 공유하므로 한 번의 보정으로

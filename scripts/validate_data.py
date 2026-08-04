@@ -27,6 +27,10 @@ MIN_SERIES_LEN = 5   # 핵심 시계열 최소 길이 — 전부 비면 실패 �
 
 
 def main():
+    # Windows 로컬 실행 시 콘솔이 cp949 라 '—' 등에서 UnicodeEncodeError 로 죽는다.
+    # Actions(리눅스 UTF-8)에는 영향 없음.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     errs = []
     try:
         with open("data.json", encoding="utf-8") as f:
@@ -147,19 +151,27 @@ def main():
     # 왜: 위의 WARN 은 Actions 로그에만 남아 아무도 읽지 않았고, 그 사이 일본 CPI 가
     # 2021-06, 영국 GDP 가 2020-07 에서 멈춘 채로 몇 년을 통과했다. tier=critical 만
     # 배포를 막고(대시보드가 무의미해지는 경우), 나머지는 요약을 남겨 화면·알림이 쓴다.
-    health = d.get("dataHealth")
-    if not health:
-        # fetch_data.py 가 아직 안 실은 경우(수동 편집 등) 여기서 직접 계산한다.
-        try:
-            import data_sla
-            health = data_sla.build_health(d)
-        except Exception as e:
-            warns.append(f"dataHealth 계산 불가: {e}")
-            health = None
+    # 항상 여기서 재계산해 data.json 에 되쓴다. 과거에는 fetch_data.py 가 계산해 실었는데,
+    # 그 호출이 실제 수집 대입(economicIndicators/history/news/preserve)보다 앞에 있어
+    # 판정 대상이 4개 블록뿐이었고 blocking 게이트는 한 번도 발동할 수 없었다(2026-08 감사).
+    # 이 스크립트는 모든 기록자(fetch_data → merblog → ai_briefing)보다 뒤, 커밋 직전에
+    # 도는 유일한 지점이라 앞으로 수집 코드가 어디에 추가되든 순서 함정이 재발하지 않는다.
+    health = None
+    try:
+        import data_sla
+        health = data_sla.build_health(d)
+        d["dataHealth"] = health
+        with open("data.json", "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=2)   # fetch_data.py 와 동일 포맷
+    except Exception as e:
+        # 진단 기능이 배포 자체를 막으면 안 된다 — 직전 빌드의 dataHealth 라도 쓴다.
+        warns.append(f"dataHealth 계산 불가: {e}")
+        health = d.get("dataHealth")
     if health:
         s = health.get("summary") or {}
         print(f"::notice title=데이터 신선도::ok={s.get('ok')} preserved={s.get('preserved')} "
-              f"stale={s.get('stale')} failed={s.get('failed')} unknown={s.get('unknown')}")
+              f"stale={s.get('stale')} failed={s.get('failed')} unknown={s.get('unknown')} "
+              f"missing={s.get('missing')}")
         for it in health.get("items") or []:
             if it.get("state") in ("stale", "failed"):
                 warns.append(
