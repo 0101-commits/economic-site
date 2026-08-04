@@ -16354,11 +16354,25 @@ function applyRealData(d) {
     const half = Math.max(2, Math.floor(arr.length / 2));
     return m >= half || cap >= half;
   };
+  /* 신선도 실패도 같은 폴백을 발동시킨다.
+     왜: 지금까지는 '값이 깨졌을 때'만 클라이언트 페치로 넘어갔다. 그런데 서버는
+     KRX 로그인 실패로 stockMovers 를 몇 주째 수집하지 못하면서도(diagnostics
+     stockMoversSource=FAILED) 직전 값을 그대로 넘겨줬다 — 값은 멀쩡해 보이니
+     corrupt 판정에 안 걸리고, 사용자는 6일 전 등락률을 오늘 것으로 읽었다.
+     dataHealth 가 이 상태를 이름 붙여 주므로 그대로 트리거로 쓴다. */
+  const _moversStale = (function () {
+    const h = window._dataHealth;
+    if (!h || !h.items) return false;
+    return h.items.some(i => i.path.indexOf('stockMovers') === 0 &&
+                             (i.state === 'failed' || i.state === 'stale'));
+  })();
   if(window._REALTIME_BOOST
-     && (_moversLookCorrupt(movers.kospiGainers) || _moversLookCorrupt(movers.kospiLosers))
+     && (_moversStale || _moversLookCorrupt(movers.kospiGainers) || _moversLookCorrupt(movers.kospiLosers))
      && typeof refreshMoversFromClient === 'function'
      && !_clientMoverFetchInFlight && _clientMoverFetchAttempts < _MAX_AUTO_MOVER_FETCH) {
-    console.warn('[movers] 거래량≈현재가 정렬오류 감지 → 클라이언트 실시간 페치 트리거');
+    console.warn(_moversStale
+      ? '[movers] 서버 수집 실패/지연 감지 → 클라이언트 실시간 페치 트리거'
+      : '[movers] 거래량≈현재가 정렬오류 감지 → 클라이언트 실시간 페치 트리거');
     _clientMoverFetchInFlight = true; _clientMoverFetchAttempts++;
     refreshMoversFromClient().finally(() => { _clientMoverFetchInFlight = false; });
   }

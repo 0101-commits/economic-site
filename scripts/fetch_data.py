@@ -27,6 +27,7 @@ from xml.etree import ElementTree as ET
 import fetch_climate
 import climate_impact
 import data_sla
+import intl_sources
 
 KST = timezone(timedelta(hours=9))
 
@@ -1401,6 +1402,12 @@ def fetch_fred_economic_indicators():
         "nfp_us":      ("PAYEMS",          "미국 비농업고용 (PAYEMS, 천명)"),
         # FOMC 목표금리 상한 (일간, 결정 즉시 반영) — FEDFUNDS(실효율)보다 정확
         "ff_target":   ("DFEDTARU",        "미국 기준금리 목표 상한 (FOMC 발표)"),
+        # ── 2026-08 신규 ─────────────────────────────────────────────────
+        # 대시보드에 주간·일간 빈도의 미국 실물/침체 지표가 없었다. 월간 지표만으로는
+        # 한 달에 한 번만 그림이 바뀌어 '최신'이라는 말이 무의미하다.
+        "claims_us":   ("ICSA",            "미국 신규 실업수당 청구 (주간, 명)"),
+        "t10y2y_us":   ("T10Y2Y",          "미국 장단기 금리차 10Y-2Y (일간, %p)"),
+        "sentiment_us":("UMCSENT",         "미국 소비자심리지수 (미시간대)"),
     }
     # 시리즈별 빈도에 맞는 limit (분기/연 단위 차트 표시 위해 5년치 이상 확보)
     # daily 시리즈: 1300 (≈5년), monthly: 60 (5년), quarterly: 20 (5년)
@@ -1408,6 +1415,9 @@ def fetch_fred_economic_indicators():
         # daily series
         "vix":         1300,
         "hy_spread":   1300,
+        "t10y2y_us":   1300,   # 일간 — 침체 신호 곡선은 5년치가 있어야 의미가 있다
+        "claims_us":   260,    # 주간 5년치
+        "sentiment_us": 60,    # 월간 5년치
         "us10y":       60,   # GS10 is monthly
         "us2y":        60,
         "ff_rate":     60,
@@ -1452,14 +1462,21 @@ FRED_INTL_INDICATORS = {
     # gdp_yoy: 동일 레벨 시리즈를 FRED units=pc1(전년동기비 %)로 받은 성장률.
     #   '주요 경제 지표' GDP 카드가 국가별로 레벨/성장률이 섞여 있던 것을 성장률로 통일하기
     #   위한 키. 기존 gdp(레벨) 키는 캘린더 전기비 계산 등 기존 소비처가 있어 유지한다.
+    # ⚠️ 2026-08 감사: FRED 가 OECD MEI 계열(*MINMEI/*MISMEI/LRHUTTTTEZ*)을 전면 폐기했다.
+    #    fredgraph.csv 로 원본을 직접 확인한 결과 시리즈 자체가 아래 날짜에서 끝나 있다 —
+    #    수집 버그가 아니라 소스 사망이므로, 대체가 있으면 교체하고 없으면 제거했다.
+    #      JPNCPIALLMINMEI 2021-06 / JPNPROINDMISMEI 2024-03 / CHNCPIALLMINMEI 2025-04
+    #      CHNPROINDMISMEI 없음    / DEUCPIALLMINMEI 2025-03 / GBRCPIALLMINMEI 2025-03
+    #      LRHUTTTTEZM156S 2023-01 / CLVMNACSCAB1GQUK 2020-07 / IRSTCB01GBM156N 없음
+    #    유로존 실업률·중국 CPI·영국 CPI 는 scripts/intl_sources.py(ECB·OECD)가 담당한다.
+    #    일본 CPI·광공업생산과 중국 산업생산은 OECD 도 같은 상류라 끊겨 대체 미확정 —
+    #    죽은 시리즈를 계속 불러 2021년 값을 오늘 값처럼 보여주느니 빼는 편이 낫다.
     "jp": {
-        "cpi":          ("JPNCPIALLMINMEI",  "일본 CPI (전체, 2015=100)"),
         "gdp":          ("JPNRGDPEXP",       "일본 실질GDP (분기, 십억엔)"),
         "gdp_yoy":      ("JPNRGDPEXP",       "일본 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRUN64TTJPM156S",  "일본 실업률 (15-64세, 계절조정)"),
         "base_rate":    ("IRSTCI01JPM156N",  "일본 정책금리 (BOJ 무담보 익일물 유도목표)"),
         # 일본 산업생산지수 (OECD 시계열, 2015=100, 계절조정)
-        "ip":           ("JPNPROINDMISMEI",  "일본 산업생산지수 (2015=100, 계절조정)"),
         # 일본 10년 국채 수익률 (OECD 장기국채금리, 월별) — 카톡 07·21시 차트용.
         #   ⚠ FRED 에 일본 국채는 월별만 있어 인트라데이/일별이 없다(미국·한국은 일별 yieldCurve 사용).
         #   economicIndicators.jp.bond10y_jp.history(월별)로 저장된다.
@@ -1469,27 +1486,22 @@ FRED_INTL_INDICATORS = {
         "cpi":          ("CP0000EZ19M086NEST", "유로존 HICP (전체)"),
         "gdp":          ("CLVMNACSCAB1GQEA19", "유로존 실질GDP (백만유로)"),
         "gdp_yoy":      ("CLVMNACSCAB1GQEA19", "유로존 실질GDP 성장률 (YoY %)", "pc1"),
-        "unemployment": ("LRHUTTTTEZM156S",  "유로존 실업률 (계절조정)"),
         "base_rate":    ("ECBDFR",            "ECB 예금금리"),
     },
     "cn": {
-        "cpi":          ("CHNCPIALLMINMEI",   "중국 CPI (전체, 2015=100)"),
         "gdp":          ("MKTGDPCNA646NWDB",  "중국 GDP (USD)"),
         "gdp_yoy":      ("MKTGDPCNA646NWDB",  "중국 GDP 성장률 (YoY %, 명목 USD)", "pc1"),
-        "ip":           ("CHNPROINDMISMEI",   "중국 산업생산지수 (2015=100, 계절조정)"),
     },
     "de": {
-        "cpi":          ("DEUCPIALLMINMEI",   "독일 CPI"),
+        "cpi":          ("CP0000DEM086NEST",  "독일 HICP (전체)"),
         "gdp":          ("CLVMNACSCAB1GQDE",  "독일 실질GDP"),
         "gdp_yoy":      ("CLVMNACSCAB1GQDE",  "독일 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRHUTTTTDEM156S",   "독일 실업률"),
     },
     "uk": {
-        "cpi":          ("GBRCPIALLMINMEI",   "영국 CPI"),
-        "gdp":          ("CLVMNACSCAB1GQUK",  "영국 실질GDP"),
-        "gdp_yoy":      ("CLVMNACSCAB1GQUK",  "영국 실질GDP 성장률 (YoY %)", "pc1"),
+        "gdp":          ("NGDPRSAXDCGBQ",     "영국 실질GDP (분기, IMF)"),
+        "gdp_yoy":      ("NGDPRSAXDCGBQ",     "영국 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRHUTTTTGBM156S",   "영국 실업률"),
-        "base_rate":    ("IRSTCB01GBM156N",   "영국 BOE 정책금리"),
     },
 }
 
@@ -3979,13 +3991,21 @@ def fetch_nps_allocation():
 # ============================================================
 # VKOSPI (KOSPI200 변동성 지수)
 # ============================================================
-def _is_valid_vkospi(v):
+def _is_valid_vkospi(v, vix=None):
     """VKOSPI 합리적 범위 체크 — 역사적 범위는 약 9(저변동)~89(2008 금융위기)다.
     KOSPI/KOSPI200 지수가 잘못 들어오면 1000~10000+ 이므로 검출되고,
     스크래핑이 페이지의 엉뚱한 숫자를 집어도 대부분 걸러진다.
     (2026-06: investing.com 스크래핑이 86.55 라는 비정상 값을 통과시켜 카카오 시황에
      'VIX 19.9 / VKOSPI 86.5' 로 나간 사례 — 범위를 5~100 으로 좁히고, 발송 측에도
      VIX 대비 교차 검증 가드를 추가했다.)
+
+    2026-08 재확인: 78.3 / VIX 15.99 = 4.9배라 한때 오염값으로 의심했으나, KOSPI 일별
+    종가로 실현변동성을 직접 계산하니 20일 100.4% / 60일 80.6% 였다(최근 일간 수익률에
+    -10.8%, +17.9% 가 있다). 같은 계산에서 S&P500 은 13.3% 로 VIX 15.99 와 정합한다.
+    즉 VKOSPI 78~82 는 **정상값**이고, VIX 대비 배수를 좁히면 진짜 값을 죽인다.
+    아래 교차검증(비율 상한 9.0)이 이미 그 교훈으로 넓혀진 것이니 좁히지 말 것.
+
+    vix 인자는 호출부 호환을 위해 받되 범위 판정에는 쓰지 않는다.
     """
     return v is not None and 5 < v < 100
 
@@ -5803,6 +5823,18 @@ def build_data():
             data["economicIndicators"][cc] = ind
         if intl_data:
             data["sources"]["economicIndicators_intl"] = "FRED API (OECD/IMF/Eurostat 시리즈)"
+
+        # FRED 가 폐기한 시리즈의 대체 소스 — ECB Data Portal + OECD SDMX (무인증).
+        # 유로존 실업률(FRED 2023-01 사망)·중국 CPI(2025-04)·영국 CPI(2025-03) 담당.
+        # FRED 블록 뒤에 병합해, FRED 가 되살아나도 최신 소스가 이기게 한다.
+        try:
+            alt = intl_sources.fetch_all(log=log)
+            for cc, ind in alt.items():
+                data["economicIndicators"].setdefault(cc, {}).update(ind)
+            if alt:
+                data["sources"]["economicIndicators_intl_alt"] = "ECB Data Portal + OECD SDMX"
+        except Exception as e:
+            log(f"[INTL-ALT] 대체 소스 수집 실패: {e}")
 
         # ── BOJ 정책금리 확정값 오버라이드 ─────────────────────────────
         # IRSTCI01JPM156N (OECD 월간) 은 2~3개월 지연됨. 확정된 BOJ 결정을 직접 반영해
