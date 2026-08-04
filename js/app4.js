@@ -467,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // ═══ URL 딥링크 + popstate ════════════════════════════════════════════════════
 window.addEventListener('load', function() {
   try {
-    var _VALID = ['dashboard','portfolio','equity','macro','market','investor','realestate','calendar','study','notes','merblog','settings'];
+    var _VALID = ['dashboard','mydash','portfolio','equity','macro','market','investor','realestate','calendar','study','notes','merblog','settings'];
     var p = new URLSearchParams(location.search).get('p');
     if(p && _VALID.indexOf(p) >= 0 && p !== 'dashboard') {
       var mEl = Array.from(document.querySelectorAll('.menu-item')).find(function(m) {

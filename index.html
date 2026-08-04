@@ -1704,6 +1704,17 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .w-fresh-chip { font-size: var(--font-size-xs); font-weight: var(--font-weight-normal);
   letter-spacing: 0; text-transform: none; border: 1px solid currentColor;
   border-radius: var(--r-xs); padding: 0 5px; margin-left: 6px; vertical-align: middle; cursor: pointer; }
+/* 위젯 즐겨찾기(★) + 내 대시보드 — 옵션 C */
+.w-fav { background: none; border: none; cursor: pointer; padding: 0 2px; margin-left: 6px;
+  font-size: inherit; color: var(--c-txt-dim); vertical-align: baseline; }
+.w-fav.on { color: var(--c-accent); }
+.w-fav:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+.mydash-ctl { margin-left: 6px; display: inline-flex; gap: 2px; }
+.mydash-ctl button { background: none; border: 1px solid var(--c-border); border-radius: var(--r-xs);
+  color: var(--c-txt-dim); cursor: pointer; font-size: inherit; line-height: 1.2; padding: 0 5px; }
+.mydash-ctl button:hover { color: var(--c-primary); border-color: var(--c-primary); }
+#mydashGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 1024px) { #mydashGrid { grid-template-columns: 1fr; } }
 
 /* ── 8. 모션 — 방향은 트리거를 따르고, 반복 상호작용은 무지연 ──── */
 .enso-com-detail { transition: max-height var(--duration-medium) var(--ease-standard); }
@@ -1777,6 +1788,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   <nav id="sidebar" aria-label="메인 메뉴" style="width:200px;min-height:calc(100vh - 56px);background:var(--c-bg);border-right:1px solid var(--c-border);padding:12px 8px;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;flex-shrink:0;transition:width .25s,padding .25s;">
     <div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);letter-spacing:.08em;text-transform:uppercase;color:var(--c-txt-muted);padding:4px 14px 8px;padding-left:46px;">메인 메뉴</div>
     <div class="menu-item active" onclick="showPage('dashboard',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">home</span>대시보드 홈</div>
+    <div class="menu-item" onclick="showPage('mydash',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">star</span>내 대시보드</div>
     <div class="menu-item" onclick="showPage('portfolio',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">monitoring</span>투자 현황</div>
     <div class="menu-item" onclick="showPage('equity',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">show_chart</span>주식시장</div>
     <div class="menu-item" onclick="showPage('macro',this)" role="link" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><span aria-hidden="true" class="mat">public</span>거시경제</div>
@@ -2200,6 +2212,20 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           상세 차트는 TradingView Lightweight Charts. 알림은 GitHub Actions 가
           alerts_config.json 을 평가해 카카오톡 발송 — scripts/check_alerts.py)
          ============================================================ -->
+    <!-- ⭐ 내 대시보드 (옵션 C) — 위젯 타이틀의 ★로 담은 위젯을 DOM 이동으로 모아 보여준다.
+         이동/복원은 js/app3.js 의 _mydashSync/_mydashRestore. 위젯 노드·id 는 그대로라
+         차트 인스턴스와 주기 갱신(id 기반 렌더)이 원 페이지에 있을 때와 동일하게 동작한다. -->
+    <div class="page" id="page-mydash">
+      <nav class="page-toc" aria-label="내 대시보드">
+        <h2 class="page-toc-h">내 대시보드</h2>
+        <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">위젯 제목의 ★로 담고, ↑↓로 순서를 바꿉니다. 원래 페이지로 돌아가면 위젯도 제자리로.</span>
+      </nav>
+      <div id="mydashEmpty" class="widget" style="display:none;">
+        <div class="widget-title">아직 담은 위젯이 없습니다</div>
+        <p style="color:var(--c-txt-dim);margin:8px 0 0;">각 페이지에서 위젯 제목 옆의 ☆ 버튼을 누르면 여기에 모아 볼 수 있습니다.</p>
+      </div>
+      <div id="mydashGrid"></div>
+    </div>
     <div class="page" id="page-portfolio">
       <!-- 데이터 지연 안내(PRD 필수 상시 노출)는 페이지별 배너 대신
            전 페이지 공통의 글로벌 상태 칩(#globalDelayChip, 좌하단 고정)으로 일원화됨 (UX 2.4) -->
@@ -4350,7 +4376,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 <script src="js/app2.js?v=d8ef63cb"></script>
 <script src="js/app3.js?v=7fcf82b1"></script>
 
-<script src="js/app4.js?v=1c1bf089"></script>
+<script src="js/app4.js?v=8f5f2a16"></script>
 
 <!-- 키보드 단축키 도움말 모달 -->
 <div id="kbShortcutModal" role="dialog" aria-modal="true" aria-label="키보드 단축키" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);align-items:center;justify-content:center;">
