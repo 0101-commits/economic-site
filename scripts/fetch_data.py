@@ -846,6 +846,72 @@ def fetch_freight_indices():
     }
 
 
+# LME 6금속 — Westmetall 이 LME 공식 일일 데이터를 무료 게시(금속당 표 1개, 약 7개월치).
+# 프론트(원자재 탭 '금속 재고' 위젯)는 data.lmeInventory.data 를 metalInventory 배열 순서
+# (구리→알루미늄→아연→니켈→납→주석)로 인덱스 매칭하므로 이 순서를 바꾸면 안 된다.
+_LME_FIELDS = [("Copper", "LME_Cu_cash"), ("Aluminum", "LME_Al_cash"), ("Zinc", "LME_Zn_cash"),
+               ("Nickel", "LME_Ni_cash"), ("Lead", "LME_Pb_cash"), ("Tin", "LME_Sn_cash")]
+
+
+def fetch_lme_inventory():
+    """LME 금속 창고 재고 (Westmetall 스크래핑, 톤 단위).
+
+    반환: {"data":[{name, cur, wkChg, m4ago, status}×6], "as_of", "source", "lastFetched"}
+    행 필드: cur=최신 재고, wkChg=7일 전 대비 증감, m4ago=약 4개월 전 재고,
+             status="up"/"down"/"flat". 일부 금속 실패 시 해당 행은 null 필드(프론트가
+             null 은 기존 스냅샷 유지). 전 금속 실패 시 None → 호출부가 직전 빌드 보존.
+    """
+    from bs4 import BeautifulSoup
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    out, latest_asof, got = [], None, 0
+    for name, field in _LME_FIELDS:
+        row = {"name": name, "cur": None, "wkChg": None, "m4ago": None, "status": None}
+        try:
+            r = requests.get("https://www.westmetall.com/en/markdaten.php",
+                             params={"action": "table", "field": field},
+                             headers=headers, timeout=15)
+            r.raise_for_status()
+            rows = []
+            table = BeautifulSoup(r.text, "lxml").find("table")
+            for tr in (table.find_all("tr") if table else []):
+                tds = [td.get_text(strip=True) for td in tr.find_all("td")]
+                if len(tds) < 4:
+                    continue
+                try:
+                    # 날짜 형식 "03. August 2026" — %B 는 C 로케일(영문) 전제. 4번째 열이 stock.
+                    d = datetime.strptime(tds[0], "%d. %B %Y").date()
+                    stock = float(tds[3].replace(",", ""))
+                except (ValueError, IndexError):
+                    continue
+                rows.append((d, stock))
+            rows.sort(reverse=True)
+            if rows:
+                d0, cur = rows[0]
+                wk = next((s for d, s in rows if d <= d0 - timedelta(days=7)), None)
+                m4 = next((s for d, s in rows if d <= d0 - timedelta(days=120)), None)
+                wk_chg = round(cur - wk) if wk is not None else None
+                row.update({
+                    "cur": round(cur), "wkChg": wk_chg,
+                    "m4ago": round(m4) if m4 is not None else None,
+                    "status": "up" if (wk_chg or 0) > 0 else "down" if (wk_chg or 0) < 0 else "flat",
+                })
+                got += 1
+                if latest_asof is None or d0 > latest_asof:
+                    latest_asof = d0
+        except Exception as e:
+            log(f"[LME] {name} 수집 실패: {e}")
+        out.append(row)
+    if not got:
+        return None
+    log(f"[LME] 재고 {got}/6 금속 수집 (기준 {latest_asof})")
+    return {
+        "data": out,
+        "as_of": latest_asof.isoformat() if latest_asof else None,
+        "source": "westmetall.com (LME 일일 재고)",
+        "lastFetched": datetime.now(KST).isoformat(),
+    }
+
+
 def fetch_krx_stock_movers(market="kospi", top_n=10):
     """KRX에서 주식 등락률 상위/하위 종목 조회 (상승/하락 Top10)."""
     if not KRX_API_KEY:
@@ -5625,6 +5691,24 @@ def build_data():
     except Exception as e:
         log(f"[운임] 수집 오류: {e}")
 
+    # LME 금속 창고 재고 — 원자재 탭 '금속 재고' 위젯 소비(data.lmeInventory.data).
+    # 종전에는 수집기가 없어 하드코딩 스냅샷 고정이었다(2026-08 감사). freight 와 동일한
+    # 직전 빌드 보존 패턴.
+    try:
+        lme = fetch_lme_inventory()
+        if lme and lme.get("data"):
+            data["lmeInventory"] = lme
+            data["sources"]["lmeInventory"] = lme.get("source", "westmetall.com (LME)")
+        else:
+            prev_lme = (prev.get("lmeInventory") or {}) if isinstance(prev, dict) else {}
+            if prev_lme.get("data"):
+                data["lmeInventory"] = prev_lme
+                log("[LME] 신규 수집 실패 — 직전 빌드 보존")
+            else:
+                log("[LME] 미수집 — 프론트는 정적 스냅샷 표시")
+    except Exception as e:
+        log(f"[LME] 수집 오류: {e}")
+
     # 진단 정보 — 어떤 소스가 성공/실패했는지 frontend 에서 표시 가능
     data.setdefault("diagnostics", {})
     data["diagnostics"]["stockMoversSource"] = data["sources"].get("stockMovers", "FAILED")
@@ -6521,6 +6605,75 @@ NEWS_CATEGORY_QUERIES = {
     "한국은행":   "한국은행 금통위 기준금리",
 }
 
+# ── 무키 직행 RSS 풀 폴백 ────────────────────────────────────────────
+# Google/Bing 이 혼합어·전문어 쿼리(예: 'LME 구리 가격 동향', '영국 경기 BOE')에서 전패해
+# 6개 카테고리가 빈 배열로 배포되던 문제(2026-08 감사). 발행사 직행 RSS 는 키·프록시가
+# 필요 없고 GHA 러너 차단 사례가 없어 최후 폴백으로 쓴다. 풀은 런당 1회만 페치.
+_KEYLESS_RSS_FEEDS = (
+    "https://www.yna.co.kr/rss/economy.xml",
+    "https://www.yna.co.kr/rss/international.xml",
+    "https://www.mk.co.kr/rss/30100041/",
+    "https://www.hankyung.com/feed/economy",
+    "https://www.hankyung.com/feed/finance",
+)
+# 카테고리별 제목 매칭 키워드 (any-match). 풀이 일반 경제기사라 변별력 있는 단어만.
+_KEYLESS_CATEGORY_KEYWORDS = {
+    "채권":     ("국채", "채권", "금리"),
+    "외환":     ("환율", "달러"),
+    "주식":     ("코스피", "코스닥", "증시"),
+    "원자재":   ("유가", "원자재", "WTI", "원유"),
+    "원유":     ("유가", "원유", "WTI", "브렌트"),
+    "귀금속":   ("금값", "금 시세", "귀금속", "금괴"),
+    "비철금속": ("구리", "니켈", "알루미늄", "아연", "LME", "비철", "광물", "제련"),
+    "한국GDP":  ("GDP", "성장률"),
+    "미국CPI":  ("미국 물가", "CPI", "인플레이션", "연준", "파월", "연방준비", "물가"),
+    "중국경기": ("중국",),
+    "일본경기": ("일본", "BOJ", "엔화", "엔저"),
+    "독일경기": ("독일",),
+    "영국경기": ("영국", "BOE", "파운드", "영란은행"),
+    "유로존":   ("유로", "ECB"),
+    "한국수출": ("수출", "무역수지", "통관"),
+    "한국은행": ("한국은행", "기준금리", "금통위"),
+}
+_keyless_pool_cache = None
+
+
+def fetch_keyless_rss_pool(timeout=10):
+    """발행사 직행 RSS 5종을 합쳐 {title, url, isoDate, pubDate} 풀 반환 (런당 1회 캐시)."""
+    global _keyless_pool_cache
+    if _keyless_pool_cache is not None:
+        return _keyless_pool_cache
+    pool, seen = [], set()
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+               "Accept": "application/rss+xml,application/xml,text/xml,*/*"}
+    for feed in _KEYLESS_RSS_FEEDS:
+        try:
+            r = requests.get(feed, timeout=timeout, headers=headers)
+            if r.status_code != 200:
+                log(f"[KeylessRSS] {feed} HTTP {r.status_code}")
+                continue
+            root = ET.fromstring(r.content)
+            for item in root.iter("item"):
+                def _t(tag):
+                    el = item.find(tag)
+                    return (el.text or "").strip() if el is not None and el.text else ""
+                title, url, pub = _t("title"), _t("link"), _t("pubDate")
+                iso = ""
+                if pub:
+                    try:
+                        from email.utils import parsedate_to_datetime
+                        iso = parsedate_to_datetime(pub).strftime("%Y-%m-%d")
+                    except Exception:
+                        iso = ""
+                if title and url and url not in seen:
+                    seen.add(url)
+                    pool.append({"title": title, "url": url, "isoDate": iso, "pubDate": pub})
+        except Exception as e:
+            log(f"[KeylessRSS] {feed} 실패: {e}")
+    _keyless_pool_cache = pool
+    log(f"[KeylessRSS] 풀 {len(pool)}건 확보 (피드 {len(_KEYLESS_RSS_FEEDS)}종)")
+    return pool
+
 
 def _decode_gnews_url(g_url):
     """Google News RSS 의 base64 인코딩된 article URL 에서 원본 URL 추출."""
@@ -6965,6 +7118,19 @@ def fetch_news_all_feeds():
                             break
             except Exception as e:
                 log(f"[BingNews] '{cat}' 예외: {e}")
+        # 3.5) 무키 직행 RSS 풀 폴백 — Google/Bing 전패 카테고리(빈 배열 배포) 회복
+        if len(articles) < 3:
+            kws = _KEYLESS_CATEGORY_KEYWORDS.get(cat) or (query.split()[0],)
+            try:
+                for pa in fetch_keyless_rss_pool():
+                    if any(k in pa["title"] for k in kws) and _filter_keep(pa) \
+                            and pa["url"] not in seen_urls:
+                        articles.append(pa)
+                        seen_urls.add(pa["url"])
+                        if len(articles) >= 5:
+                            break
+            except Exception as e:
+                log(f"[KeylessRSS] '{cat}' 폴백 예외: {e}")
         # 4) 그래도 부족하면 Naver Search 키워드를 좀 더 일반화해서 재시도
         if len(articles) < 3 and naver_available:
             try:

@@ -60,6 +60,7 @@ SLA_RULES = [
     ("yieldCurve.*",                     6,   "important"),
     ("nps",                              400, "normal"),
     ("berkshire",                        200, "normal"),    # SEC 13F — 분기 공시
+    ("lmeInventory",                     7,   "normal"),    # Westmetall 일일 재고
     ("subscription",                     40,  "normal"),
     ("climate.*",                        45,  "normal"),
     ("news",                             2,   "important"),
@@ -148,7 +149,7 @@ def _rule_for(path):
 
 # 블록 전체가 하나의 지표로 취급되는 최상위 키 (내부를 쪼개지 않는다)
 _ATOMIC_TOPS = ("freight", "investorTrading", "news", "economicCalendar",
-                "nps", "subscription", "marketHalts", "aiBriefing")
+                "nps", "subscription", "marketHalts", "aiBriefing", "lmeInventory")
 _SKIP_TOPS = ("lastUpdated", "sources", "diagnostics", "dataHealth")
 # 현재가 스냅샷 블록 — 자체 날짜 필드가 없고 신선도는 같은 심볼의 history 가 대변한다.
 # 여기서 판정하면 심볼마다 'unknown' 이 중복으로 쌓여 요약이 무의미해진다.
@@ -157,7 +158,7 @@ _SPOT_TOPS = ("indices", "commodities", "fx")
 # SLA 는 '존재하는 키'만 순회하므로 통째 실종은 보이지 않는다 — 여기 있는 키가
 # data 에 없으면 state="missing" 으로 보고한다. (실측: berkshire 가 SEC 13F 실패 +
 # prev 에도 없어 키째 사라졌는데 몇 달간 아무도 몰랐다 — 2026-08 감사.)
-_EXPECTED_TOPS = ("berkshire",)
+_EXPECTED_TOPS = ("berkshire", "lmeInventory")
 
 
 def _walk_paths(data):
@@ -283,7 +284,10 @@ def _demo():
     assert by["sentiment.vkospi"]["state"] == "stale", by["sentiment.vkospi"]
     assert by["stockMovers.kospiGainers"]["state"] == "failed", by["stockMovers.kospiGainers"]
     assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
-    assert h["summary"]["missing"] == 1
+    assert by["lmeInventory"]["state"] == "missing", by["lmeInventory"]
+    assert h["summary"]["missing"] == 2
+    # lmeInventory 는 원자 블록 — as_of 로 블록 단위 판정
+    assert _extract_asof({"data": [{"cur": 1}], "as_of": "2026-08-03"}) == date(2026, 8, 3)
     # lastFetched(수집 시각)는 as-of 로 인정하지 않는다 — 내용 날짜 items 로 내려가야 함
     assert _extract_asof({"lastFetched": "2026-08-04T09:00:00+09:00",
                           "items": [{"date": "2026-07-31"}]}) == date(2026, 7, 31)
