@@ -782,7 +782,11 @@
   .kpi-pct-badge { display:inline-block; font-size:9px; font-weight:600; color:var(--c-txt-dim);
     border:1px solid var(--c-border); border-radius:var(--r-full); padding:1px 6px; margin-left:6px; vertical-align:middle; }
   @media (max-width:768px){
-    .brief-chip-scroll { flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    /* 리스크 칩(고정폭)이 한 줄을 선점해 칩 스트립이 125px 로 압사하던 문제(감사 B1) —
+       스트립을 wrap 시켜 칩 스크롤 영역이 둘째 줄 전체 폭을 쓰게 한다.
+       padding-right:70px(✕·⠿ 자리)는 터치에서 오버레이 컨트롤이 사라지므로 불필요. */
+    .brief-strip-row { flex-wrap:wrap; padding-right:0 !important; }
+    .brief-chip-scroll { flex-basis:100%; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
     .brief-chip-scroll::-webkit-scrollbar { display:none; }
   }
   /* 데이터 소스 사이드바 항목 호버 — 밝은 글래스 hover */
@@ -802,7 +806,7 @@
   .mat { font-family: 'Material Symbols Outlined'; font-size: 18px; line-height: 1; vertical-align: middle; }
   .ticker-scroll { animation: tickerMove 40s linear infinite; white-space: nowrap; display: inline-flex; gap: 48px; }
   @keyframes tickerMove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  .ticker-wrap { overflow: hidden; flex: 1; mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent); }
+  .ticker-wrap { overflow: hidden; flex: 1; mask-image: linear-gradient(to right, transparent, black 2%, black 98%, transparent); }
   /* 모바일에서는 상단 헤더의 날짜·시각(시계)을 숨긴다 — 좁은 화면에서 티커 공간 확보(2026-06 사용자 요청). */
   @media (max-width: 768px) { #clock { display: none !important; } }
   .tab-btn { transition: all .15s; cursor: pointer; }
@@ -926,10 +930,22 @@
     main div[style*="height:200px"] { height: 170px !important; min-height: 170px !important; }
     main div[style*="min-height:440px"] { min-height: 240px !important; height: 240px !important; }
     main div[style*="min-height:300px"] { min-height: 220px !important; }
+    /* 목록에 없던 값들 — 채권 차트 2종(min-height:280px)·NPS/투자자(height:280px)·
+       포트폴리오 종목상세(height:360px)가 축소 규칙에서 빠져 canvas max-height(220px)와
+       래퍼 높이가 어긋나 모바일에서 60px+ 빈 공간을 만들었다(2026-08 감사). */
+    main div[style*="min-height:280px"] { min-height: 210px !important; }
+    main div[style*="height:280px"] { height: 210px !important; min-height: 210px !important; }
+    main div[style*="height:360px"] { height: 240px !important; min-height: 240px !important; }
     /* 가로 스크롤이 필요한 테이블은 명시적으로 처리 */
     main table { font-size: var(--fs-body-sm) !important; }
     /* 모바일에서 가로 wrap 강제 */
     main div[style*="display:flex"] { flex-wrap: wrap !important; }
+    /* 예외: 3줄 요약의 '1.' 마커와 본문은 한 줄 유지 — 위 wrap 강제가 마커/본문을
+       두 줄로 쪼개 카드가 780px 까지 길어졌다(2026-08 감사 B5). */
+    main .ai-brief-line { flex-wrap: nowrap !important; }
+    /* 캘린더 플로팅 상세 등 절대배치 자식이 위젯 밖으로 나가는 페이지는 클리핑 예외
+       (아래 .widget overflow:hidden 의 사각지대 — 2026-08 감사) */
+    #page-calendar .widget { overflow: visible; }
     /* 사이드바가 열리면 메인 컨텐츠가 밀려나지 않고 오버레이로 덮음 */
     #sidebar.mobile-open + main { filter: brightness(0.5); pointer-events: none; }
   }
@@ -967,6 +983,10 @@
     /* 고밀도 데이터 테이블 → 위젯 내부 가로 스크롤 카드 */
     .widget { overflow-x: auto; }
     .widget table { min-width: 460px; }
+    /* 홈 지수(4열)·Top10 표는 좁은 화면에 다 들어간다 — 일괄 min-width 가 등락률 열을
+       화면 밖으로 밀어내던 문제(2026-08 감사 B2). 폭이 정말 부족하면 자연 폭만큼만
+       넘치고 위 overflow-x:auto 가 받아준다. */
+    #homeSecMain .widget table, #homeSecBottom .widget table { min-width: 0; }
   }
   /* ======= 대시보드 홈 위젯 드래그 정렬 (Task 2.2) ======= */
   .home-sec { transition: opacity .15s; }
@@ -993,6 +1013,13 @@
   /* ✕(숨김)과 ⠿(이동) 핸들이 겹쳐 보이지 않도록 간격(우측 38px vs 6px)을 벌리고 각자 배경을 준다 */
   .home-sec:hover .sec-hide-btn { opacity: 1; background: var(--c-surface,#1a2236); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
   .home-sec .sec-hide-btn:hover { background: var(--c-card-hi,#2a3556); color: var(--c-txt-dim,#a4a8bc); }
+  /* 숨김(opacity:0) 상태에서 히트영역이 살아 KPI 라벨·탭 클릭을 훔치던 문제(2026-08 감사 A1):
+     안 보일 땐 클릭도 통과시키고, hover/focus-within 으로 보일 때만 받는다.
+     키보드 접근은 유지 — pointer-events 는 Tab 포커스를 막지 않고, 포커스가 닿으면
+     :focus-within 이 켜져 마우스도 다시 동작한다. */
+  .home-sec .sec-drag-handle, .home-sec .sec-hide-btn { pointer-events: none; }
+  .home-sec:hover .sec-drag-handle, .home-sec:hover .sec-hide-btn,
+  .home-sec:focus-within .sec-drag-handle, .home-sec:focus-within .sec-hide-btn { pointer-events: auto; }
 
   /* 스켈레톤 로딩 바 (2.2) — 텍스트형 '로딩 중…' 대신 은은한 셔머 플레이스홀더 */
   @keyframes skel-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -1118,7 +1145,9 @@
 .widget-err { display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; padding:18px 8px; color:var(--c-txt-muted,#8b90a8); font-size:11px; text-align:center; }
 .widget-err button { font-size:11px; padding:3px 12px; border:1px solid #2962ff; border-radius:4px; background:transparent; color:#2962ff; cursor:pointer; }
 /* 데이터 소스 배너 (실데이터 로드 실패 → Mock 동작 고지) */
-#dataSrcBanner { position:fixed; top:64px; right:12px; z-index:1200; background:#33271a; border:1px solid #f0c75e66; color:#f0c75e; border-radius:6px; padding:8px 12px; font-size:11px; display:flex; gap:10px; align-items:center; box-shadow:0 4px 14px #0006; max-width:min(92vw,420px); flex-wrap:wrap; }
+/* top:64px(헤더 바로 아래)는 '글로벌 주요 지수' 위젯 상단을 가렸다(2026-08 감사) — 우하단으로.
+   토스트(#toastHost)는 하단 중앙이라 겹치지 않는다. */
+#dataSrcBanner { position:fixed; bottom:16px; right:12px; z-index:1200; background:#33271a; border:1px solid #f0c75e66; color:#f0c75e; border-radius:6px; padding:8px 12px; font-size:11px; display:flex; gap:10px; align-items:center; box-shadow:0 4px 14px #0006; max-width:min(92vw,420px); flex-wrap:wrap; }
 /* 라이트: 배경만 바꾸고 글자색 #f0c75e 를 남기면 '노란 배경 위 노란 글자'가 된다 — 토큰으로 보정 */
 html.light #dataSrcBanner { background:#fff7e6; color:var(--c-warn,#b8860b); border-color:#b8860b66; }
 /* 포트폴리오 모바일 카드 뷰 */
@@ -1246,7 +1275,10 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 .home-sec:focus-within .sec-drag-handle,
 .home-sec:focus-within .sec-hide-btn { opacity: 1; background: var(--c-surface,#1a2236); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .sec-drag-handle:focus-visible, .sec-hide-btn:focus-visible { opacity: 1 !important; }
-@media (pointer: coarse) { .home-sec .sec-drag-handle, .home-sec .sec-hide-btn { opacity: .5; } }
+/* 터치 기기: 드래그는 mousedown 전용이라 어차피 동작하지 않고, 반투명 ✕가 ETF 탭 등
+   콘텐츠 위에서 탭을 훔쳤다(2026-08 감사 A1) — 오버레이 컨트롤 자체를 없앤다.
+   숨긴 섹션 복원 바는 그대로 동작한다. */
+@media (pointer: coarse) { .home-sec .sec-drag-handle, .home-sec .sec-hide-btn { display: none; } }
 #toastHost { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3000; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
 .toast { background: var(--c-surface,#1a2236); color: var(--c-txt,#e8ebf5); border: 1px solid var(--c-border,#3e4870); border-radius: var(--r-md,12px); padding: 10px 16px; font-size: var(--fs-body,13px); box-shadow: var(--e-2); opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; max-width: min(90vw, 380px); }
 .toast.show { opacity: 1; transform: translateY(0); }
@@ -1673,7 +1705,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div>
 
   <!-- 부동산/거시 지표 시계열 차트 모달 (지표 클릭 시 표시) -->
-  <div id="reHistoryChartModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:300;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
+  <div id="reHistoryChartModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:310;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
     <div class="reHistModalCard" style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:18px;width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
         <div style="min-width:0;">
@@ -1709,7 +1741,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div>
 
   <!-- 지역 드릴다운 모달 — 시도 클릭 시 시군구별 변동률 표시 -->
-  <div id="reRegionDrillModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:300;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeRegionDrill()">
+  <div id="reRegionDrillModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:310;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeRegionDrill()">
     <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:18px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:8px;">
         <div style="min-width:0;">
@@ -1829,16 +1861,17 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <span style="font-size:var(--font-size-base);margin-left:6px;" id="mainChartChangeVal"><span class="skel-bar" style="width:56px;" aria-hidden="true"></span></span>
             </div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
+              <!-- 라벨을 버튼 그룹 안에 넣어 그룹 단위로 줄바꿈 — 라벨만 줄 끝에 고립되던 문제(감사 B3) -->
+              <span role="group" aria-label="봉 단위 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
               <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">봉 단위:</span>
-              <span role="group" aria-label="봉 단위 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
               <button class="tab-btn period-unit-btn active" data-unit="1D" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setPeriodUnit('1D',this)">일봉</button>
               <button class="tab-btn period-unit-btn" data-unit="1W" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1W',this)">주봉</button>
               <button class="tab-btn period-unit-btn" data-unit="1M" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1M',this)">월봉</button>
               <button class="tab-btn period-unit-btn" data-unit="1Q" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1Q',this)">분기봉</button>
               </span>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">기간:</span>
-              <span class="preset-btn-group-main" role="group" aria-label="조회 기간 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
+              <span class="preset-btn-group-main" role="group" aria-label="조회 기간 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
+                <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">기간:</span>
                 <button class="preset-btn" onclick="applyChartPresetPeriod('main','1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1주</button>
                 <button class="preset-btn" onclick="applyChartPresetPeriod('main','15D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
                 <button class="preset-btn" onclick="applyChartPresetPeriod('main','30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1개월</button>
@@ -1948,7 +1981,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="home-sec" id="homeSecCompare" data-sec="compare" style="position:relative;">
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-          <div class="widget-title" style="margin-bottom:0;">지표 비교 차트 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">이중 Y축 · 두 지표 오버레이</span></div>
+          <div class="widget-title" style="margin-bottom:0;">지표 비교 차트 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">두 지표 오버레이 — 기본 지수화(=100) 단일축, ⚖ 해제 시 이중 Y축</span></div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
             <span style="font-size:var(--font-size-xs);color:var(--c-accent);">좌축</span>
             <select aria-label="비교 지표 A 선택 (좌측 Y축)" id="cmpSelA" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid var(--c-accent);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-primary);font-size:var(--font-size-sm);max-width:170px;"></select>
@@ -2185,7 +2218,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- 상세 차트 모달 (TradingView Lightweight Charts) -->
-      <div id="pfChartModal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="if(event.target===this)pfCloseChart()">
+      <div id="pfChartModal" style="display:none;position:fixed;inset:0;z-index:310;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="if(event.target===this)pfCloseChart()">
         <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(940px,94vw);max-height:92vh;overflow-y:auto;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:14px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
             <div>
@@ -2223,7 +2256,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- 알림 설정 모달 -->
-      <div id="pfAlertModal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="if(event.target===this)pfCloseAlerts()">
+      <div id="pfAlertModal" style="display:none;position:fixed;inset:0;z-index:310;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="if(event.target===this)pfCloseAlerts()">
         <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,94vw);max-height:90vh;overflow-y:auto;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <span style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-txt);">🔔 <span id="pfAlertModalName">-</span> 카카오 알림</span>
@@ -2523,14 +2556,16 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="selectEquityIndex(4,this)">닛케이</button>
               <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="selectEquityIndex(5,this)">항셍</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
+              <span role="group" aria-label="봉 단위 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
               <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">단위:</span>
               <button class="tab-btn eq-unit-btn active" data-unit="1D" id="eqUnit1D" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setEquityPeriod('1D',this)">일</button>
               <button class="tab-btn eq-unit-btn" data-unit="1W" id="eqUnit1W" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setEquityPeriod('1W',this)">일주일</button>
               <button class="tab-btn eq-unit-btn" data-unit="1M" id="eqUnit1M" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setEquityPeriod('1M',this)">한달</button>
               <button class="tab-btn eq-unit-btn" data-unit="1Q" id="eqUnit1Q" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setEquityPeriod('1Q',this)">분기</button>
+              </span>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">기간:</span>
-              <span class="preset-btn-group-equity" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
+              <span class="preset-btn-group-equity" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
+                <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">기간:</span>
                 <button class="preset-btn" onclick="applyChartPresetPeriod('equity','1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">일주일</button>
                 <button class="preset-btn" onclick="applyChartPresetPeriod('equity','15D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
                 <button class="preset-btn" onclick="applyChartPresetPeriod('equity','30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">30일</button>
@@ -8850,58 +8885,8 @@ function toggleRateFilter(cc, btn) {
   buildRateHistoryChart();
 }
 
-function buildRateHistoryChart() {
-  destroyChart('rateHistoryChart');
-  const ctx = document.getElementById('rateHistoryChart');
-  if(!ctx) return;
-  const datasets = [...rateFilterSet].map(cc=>{
-    const data = rateHistoryData[cc] || [];
-    const vals = data.filter(v=>v!=null&&!isNaN(v));
-    let lbl = rateCountries[cc];
-    if(vals.length >= 2) {
-      const chg = vals[vals.length-1] - vals[0];
-      const arrow = chg >= 0 ? '▲' : '▼';
-      lbl += ` (${arrow} ${chg >= 0 ? '+' : ''}${fmtNum(chg)}%p)`;
-    }
-    return {
-      label: lbl,
-      data,
-      borderColor: rateColors[cc],
-      backgroundColor: rateColors[cc]+'22',
-      borderWidth: 2,
-      pointRadius: 0,
-      tension: 0.3,
-      fill: false,
-    };
-  });
-  charts['rateHistoryChart'] = new Chart(ctx, {
-    type:'line',
-    data:{labels:rateHistoryData.labels, datasets},
-    options:{responsive:true,maintainAspectRatio:false,
-      scales:{
-        x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
-        y:{ticks:{color:'#b6bbcf',font:{size:10},callback:fmtPct},grid:{color:'#4a526888'}}
-      },
-      plugins:{
-        legend:{display:true,position:'top',labels:{color:'#b6bbcf',font:{size:10},boxWidth:10}},
-        tooltip:{mode:'index',intersect:false,backgroundColor:'#262a35',titleColor:'#e8ebf5',bodyColor:'#e8ebf5',borderColor:'#3a4054',borderWidth:1}
-      }
-    }
-  });
-  // Current rates table
-  const tb = document.getElementById('rateCurrentTable');
-  if(tb) tb.innerHTML = currentRates.map(r=>{
-    const dirClr = r.dir.includes('인상')?window.CDN:r.dir.includes('인하')?window.CUP:'#8d90a2';
-    return `<tr style="border-bottom:1px solid var(--c-border);">
-      <td style="padding:8px;">${r.flag} ${r.country}</td>
-      <td style="text-align:right;padding:8px;font-weight:var(--font-weight-semibold);color:var(--c-primary);">${r.rate}</td>
-      <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${r.prev}</td>
-      <td style="text-align:right;padding:8px;color:var(--c-txt-dim);font-size:var(--font-size-sm);">${r.next}</td>
-      <td style="text-align:right;padding:8px;font-size:var(--font-size-sm);color:${dirClr};">${r.dir}</td>
-    </tr>`;
-  }).join('');
-}
-
+// (구) buildRateHistoryChart 정의 삭제 — 아래쪽(시장지표 금리 탭) 정의가 호이스팅으로
+// 항상 이겨 이 자리 코드는 한 번도 실행된 적 없는 죽은 코드였다(2026-08 감사).
 // 글로벌 채권 테이블 행 클릭 시: 상단 차트 (bond + yield curve) 를 해당 국가로 전환
 function selectGlobalBondCountry(cc) {
   // bondCountries 의 키와 매칭 (eu→eu, de→eu 매핑)
@@ -18767,25 +18752,8 @@ let _pfDirty = false;
 function pfHasSyncKey() {
   try { return !!(localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey')); } catch(_) { return false; }
 }
-// 사용자 수정 직후 호출 — 이미 localStorage 에 저장된 상태에서 호출되므로 '자동 저장됨'을 안내한다.
-function pfMarkDirty() {
-  _pfDirty = true;
-  const st = document.getElementById('pfTrackSyncStatus');
-  if(!st) return;
-  // 직전 pfSave() 가 실패했다면 '자동 저장됨' 대신 경고 — 무음 소실 방지
-  if(window._pfSaveFailed) {
-    st.textContent = '⚠ 자동 저장 실패 — 브라우저 저장공간 부족 또는 시크릿 모드 (☁ 서버 저장 권장)';
-    st.style.color = 'var(--c-down,#ef5350)';
-    return;
-  }
-  if(pfHasSyncKey()) {
-    st.textContent = '✓ 자동 저장됨 · ☁ 다른 기기 반영하려면 「목록 저장」';
-    st.style.color = '#f5a623';
-  } else {
-    st.textContent = '✓ 이 브라우저에 자동 저장됨';
-    st.style.color = window.CUP;
-  }
-}
+// (구) pfMarkDirty 정의 삭제 — 아래쪽 정의가 호이스팅으로 항상 이겨 이 코드는 죽은
+// 코드였고, 그 바람에 _pfDirty(이탈 경고 플래그)가 어디서도 켜지지 않았다(2026-08 감사).
 function pfClearDirty() { _pfDirty = false; }
 // 포트폴리오 페이지를 떠나거나 탭을 닫을 때, 서버에 저장하지 않은 변경이 있으면 저장을 물어본다.
 function pfWarnUnsavedOnLeave() {
@@ -19869,6 +19837,7 @@ function pfRenderAlertSummary() {
   els.forEach(el => { el.innerHTML = html; });
 }
 function pfMarkDirty() {
+  _pfDirty = true;   // 페이지 이탈/새로고침 경고 플래그 — 죽은 첫 정의에만 있어 유실됐던 동작 복원
   const el = _pfSyncStatusEl();
   if(el) { el.textContent = '변경됨 — 서버 저장 필요'; el.style.color = '#f0c75e'; }
   pfRenderAlertSummary();
@@ -20329,7 +20298,7 @@ function renderAiBriefing(b) {
   const lines = (b && Array.isArray(b.lines)) ? b.lines.filter(s => s && String(s).trim()) : [];
   if(!lines.length) { box.style.display = 'none'; return; }
   document.getElementById('aiBriefingLines').innerHTML = lines.slice(0, 3).map((s, i) =>
-    `<div style="display:flex;gap:8px;align-items:flex-start;"><span style="color:var(--c-primary);font-weight:var(--font-weight-bold);flex-shrink:0;">${i + 1}.</span><span>${escapeHtml(String(s))}</span></div>`).join('');
+    `<div class="ai-brief-line" style="display:flex;gap:8px;align-items:flex-start;"><span style="color:var(--c-primary);font-weight:var(--font-weight-bold);flex-shrink:0;">${i + 1}.</span><span style="min-width:0;">${escapeHtml(String(s))}</span></div>`).join('');
   const srcLabel = b.source === 'rule' ? '규칙 기반 요약'
                  : b.source === 'client-rule' ? '실시간 규칙 요약'
                  : (b.source === 'gemini' ? 'Gemini' : b.source === 'openai' ? 'OpenAI' : 'AI');
@@ -20337,9 +20306,16 @@ function renderAiBriefing(b) {
   // 이전 날짜 요약이 '오늘의' 제목으로 최신처럼 보이는 문제 방지.
   const _kstToday = new Date(Date.now() + 9*36e5).toISOString().slice(0,10);
   const _isOld = typeof b.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date) && b.date < _kstToday;
+  // 생성 시각까지 표기 — 요약 속 수치는 이 시점의 스냅샷이라 실시간 KPI 와 다를 수 있다.
+  // (첫 화면에서 KOSPI 가 요약/칩/티커 세 값으로 다르게 보이던 혼란의 표기 해소 — 감사 A3)
+  let _asofTxt = String(b.date || '');
+  if(typeof b.generatedAt === 'string' && b.generatedAt.length >= 16) {
+    const _t = b.generatedAt.slice(11, 16);
+    if(/^\d{2}:\d{2}$/.test(_t)) _asofTxt += ` ${_t}`;
+  }
   document.getElementById('aiBriefingMeta').innerHTML =
-    (_isOld ? `<span style="color:var(--c-warn);font-weight:var(--font-weight-semibold);">⚠ ${escapeHtml(String(b.date))} 생성 (오늘 아님)</span>` : escapeHtml(String(b.date || '')))
-    + ` · ${srcLabel} · 참고용, 투자 조언 아님`;
+    (_isOld ? `<span style="color:var(--c-warn);font-weight:var(--font-weight-semibold);">⚠ ${escapeHtml(_asofTxt)} 생성 (오늘 아님)</span>` : escapeHtml(_asofTxt))
+    + ` 기준 스냅샷 · ${srcLabel} · 참고용, 투자 조언 아님`;
   box.style.borderLeftColor = _isOld ? 'var(--c-warn)' : '';
   box.style.display = 'block';
 }
@@ -21755,7 +21731,9 @@ const CMP_COLOR_A = getThemeColors().accent, CMP_COLOR_B = '#f5a623';
 // B 시리즈 색 테마 getter — CMP_COLOR_B(#f5a623)는 라이트 흰 배경에서 2.0:1 로 판독 불가.
 // 반드시 hex 리터럴 반환 (CB+'22' 알파 결합 때문에 var() 사용 금지).
 function cmpColorB() { return document.documentElement.classList.contains('light') ? '#b45309' : CMP_COLOR_B; }
-let _cmpState = { a: 'idx.KOSPI', b: 'ei.us.ff_rate', period: '1Y', norm: true };
+// 기본 b 를 ei.us.ff_rate(월간·희소 시계열)로 두면 일간 축에 null 이 대부분이라
+// 첫 화면 비교차트가 사실상 빈 선이었다(감사 A2) — 밀도가 같은 일간 지수로.
+let _cmpState = { a: 'idx.KOSPI', b: 'idx.SP500', period: '1Y', norm: true };
 let _cmpInited = false, _cmpLastTs = null;
 
 const _CMP_LABELS = {
@@ -21844,10 +21822,19 @@ function initCompareTool() {
     });
     _cmpSyncNormBtn();
   }
+  // 상태값 검증 후 채우기 — 종전에는 '옵션을 채운 뒤 select.value 를 상태로 되읽어',
+  // 카탈로그가 아직 부분(실시간 전용 1차 로드)일 때 첫 옵션(KOSPI)으로 떨어진 값이
+  // 상태·저장까지 오염돼 'KOSPI vs KOSPI'가 나왔다(감사 A2). 이제 상태가 기준이고,
+  // 무효하면 밀도 있는 기본 쌍(a≠b 보장)으로 교정한다.
+  const _has = k => catalog.some(m => m.key === k);
+  const _dense = k => { try { return _cmpSeries(k).length >= 30; } catch(_) { return false; } };
+  if(!_has(_cmpState.a)) _cmpState.a = ['idx.KOSPI', 'idx.SP500'].find(k => _has(k) && _dense(k)) || catalog[0].key;
+  if(!_has(_cmpState.b) || _cmpState.b === _cmpState.a) {
+    _cmpState.b = ['idx.SP500', 'fx.USDKRW', 'idx.KOSDAQ'].find(k => _has(k) && _dense(k) && k !== _cmpState.a)
+      || (catalog.find(m => m.key !== _cmpState.a && _dense(m.key)) || catalog.find(m => m.key !== _cmpState.a) || catalog[0]).key;
+  }
   _cmpFillSelect(selA, catalog, _cmpState.a);
   _cmpFillSelect(document.getElementById('cmpSelB'), catalog, _cmpState.b);
-  _cmpState.a = selA.value;
-  _cmpState.b = document.getElementById('cmpSelB').value;
   cmpRender();
 }
 
