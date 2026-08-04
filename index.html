@@ -4281,6 +4281,16 @@ if(typeof Chart !== 'undefined' && Chart.register) {
     Chart.defaults.elements = Chart.defaults.elements || {};
     Chart.defaults.elements.point = Chart.defaults.elements.point || {};
     Chart.defaults.elements.point.hoverRadius = 4;
+    /* 차트 기본 형태 — 48개 차트가 각자 인라인으로 tension/borderWidth/pointRadius 를
+       지정하면서 tension 만 6종(0.3/.2/.25/.15/0.2/0)이 섞여 화면마다 곡선 느낌이 달랐다.
+       기본값을 여기 한 곳에 두고, 개별 차트는 '다르게 그려야 할 이유가 있을 때만' 덮어쓴다.
+       (tension:0 = 수익률곡선처럼 직선이어야 하는 차트 — 의도적 예외) */
+    Chart.defaults.elements.point.radius = 0;
+    Chart.defaults.elements.line = Chart.defaults.elements.line || {};
+    Chart.defaults.elements.line.tension = 0.3;
+    Chart.defaults.elements.line.borderWidth = 1.5;
+    Chart.defaults.animation = Chart.defaults.animation || {};
+    Chart.defaults.animation.duration = 400;
     // X축 라벨 — 동일 연도면 연도 생략 (category scale 만 적용; 작은 sparkline은 영향 없음)
     Chart.defaults.scales = Chart.defaults.scales || {};
     Chart.defaults.scales.category = Chart.defaults.scales.category || {};
@@ -5166,8 +5176,8 @@ function buildReCharts() {
   if(priceCtx) {
     // 빈 시리즈는 차트에서 제외 (R-ONE API 가 일부만 반환했을 때)
     const datasets = [];
-    if(nat && nat.length) datasets.push({label: hasApiData?'전국 매매가격 (R-ONE)':'전국 매매지수', data:nat,borderColor:window.CUP,backgroundColor:(window.CUP+'22'),borderWidth:2.5,pointRadius:0,pointHoverRadius:4,pointBackgroundColor:window.CUP,fill:true,tension:0.3});
-    if(seo && seo.length) datasets.push({label:'서울 매매지수',data:seo,borderColor:window.CDN,backgroundColor:(window.CDN+'22'),borderWidth:2.5,pointRadius:0,pointHoverRadius:4,pointBackgroundColor:window.CDN,fill:false,tension:0.3});
+    if(nat && nat.length) datasets.push({label: hasApiData?'전국 매매가격 (R-ONE)':'전국 매매지수', data:nat,borderColor:window.CUP,backgroundColor:(window.CUP+'22'),borderWidth:2,pointRadius:0,pointHoverRadius:4,pointBackgroundColor:window.CUP,fill:true,tension:0.3});
+    if(seo && seo.length) datasets.push({label:'서울 매매지수',data:seo,borderColor:window.CDN,backgroundColor:(window.CDN+'22'),borderWidth:2,pointRadius:0,pointHoverRadius:4,pointBackgroundColor:window.CDN,fill:false,tension:0.3});
     if(jns && jns.length) datasets.push({label: hasApiData?'전국 전세가격 (R-ONE)':'전국 전세지수',data:jns,borderColor:'#f5a623',backgroundColor:'#f5a62322',borderWidth:2,pointRadius:0,pointHoverRadius:4,pointBackgroundColor:'#f5a623',fill:false,tension:0.3,borderDash:[6,3]});
     charts['rePriceChart'] = new Chart(priceCtx, {
       type:'line',
@@ -7480,7 +7490,7 @@ function buildRateKpiSparkline() {
     type:'line',
     data:{
       labels,
-      datasets:[{data, borderColor:window.CUP, backgroundColor:(window.CUP+'22'), borderWidth:1.5, pointRadius:1.5, pointBackgroundColor:window.CUP, tension:0.25, fill:true}],
+      datasets:[{data, borderColor:window.CUP, backgroundColor:(window.CUP+'22'), borderWidth:1.5, pointRadius:1.5, pointBackgroundColor:window.CUP, tension:0.3, fill:true}],
     },
     options:{
       responsive:true, maintainAspectRatio:false,
@@ -8774,7 +8784,7 @@ function buildYieldCurveChart(bondCC) {
     data:{
       labels: yieldCurveTerms,
       datasets: [
-        {label:'현재',    data: yc.current, borderColor:getThemeColors().accent, backgroundColor:getThemeColors().accent+'15', borderWidth:2.5, pointRadius:3, tension:0.3, spanGaps:true, fill:true},
+        {label:'현재',    data: yc.current, borderColor:getThemeColors().accent, backgroundColor:getThemeColors().accent+'15', borderWidth:2, pointRadius:3, tension:0.3, spanGaps:true, fill:true},
         {label:cmpLabel,  data: cmpData,    borderColor:'#8d90a2', borderWidth:1.5, pointRadius:2, tension:0.3, borderDash:[6,4], spanGaps:true},
       ],
     },
@@ -10085,7 +10095,7 @@ function buildEnsoTrendChart(live){
   charts['ensoTrendChart'] = new Chart(cv, {
     type:'line',
     data:{ labels, datasets:[{
-      data: vals, borderWidth:2, tension:0.25, fill:false, borderColor:'#8b90a8',
+      data: vals, borderWidth:2, tension:0.3, fill:false, borderColor:'#8b90a8',
       segment:{ borderColor: c => phaseCol(c.p1.parsed.y) },
       pointRadius: c => c.dataIndex===n-1 ? 4 : 0,
       pointBackgroundColor: c => phaseCol(c.parsed.y),
@@ -10401,7 +10411,7 @@ function buildBaseMetalChart(days) {
     labels = sl(sliced);
     datasets.push({
       label:'구리(Copper) $/lb', data:sv(sliced),
-      borderColor:window.CDN, borderWidth:2.5, pointRadius:0, fill:false, tension:0.3,
+      borderColor:window.CDN, borderWidth:2, pointRadius:0, fill:false, tension:0.3,
       yAxisID:'yCopper',
     });
     anyReal = true;
@@ -10412,7 +10422,7 @@ function buildBaseMetalChart(days) {
     datasets.push({
       label:'알루미늄($/톤)', data:sv(sliced),
       borderColor:'#f5a623', backgroundColor:'#f5a62333',
-      borderWidth:2.5, pointRadius:0, fill:false, tension:0.3,
+      borderWidth:2, pointRadius:0, fill:false, tension:0.3,
       yAxisID:'yAluminum',
     });
     anyReal = true;
@@ -11421,7 +11431,7 @@ function initMacroPage(t){
   const expMin = expVal.length ? Math.min(...expVal.filter(v=>v!=null)) : 0;
   const expYMin = Math.floor(expMin * 0.92);
   charts['gdpMacro']=new Chart(document.getElementById('gdpMacro'),{type:'bar',data:{labels:gdpLab,datasets:[{data:gdpVal,backgroundColor:gdpVal.map(v=>v>=0?(window.CUP+'99'):(window.CDN+'99')),borderRadius:3}]},options:chartOpts(window.CUP,true)});
-  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:cpiLab,datasets:[{data:cpiVal,borderColor:getThemeColors().accent,borderWidth:2.5,pointRadius: 0,fill:true,backgroundColor:getThemeColors().accent+'20',tension:0.3}]},options:chartOpts(getThemeColors().accent,false)});
+  charts['cpiMacro']=new Chart(document.getElementById('cpiMacro'),{type:'line',data:{labels:cpiLab,datasets:[{data:cpiVal,borderColor:getThemeColors().accent,borderWidth:2,pointRadius: 0,fill:true,backgroundColor:getThemeColors().accent+'20',tension:0.3}]},options:chartOpts(getThemeColors().accent,false)});
   charts['unempMacro']=new Chart(document.getElementById('unempMacro'),{type:'line',data:{labels:unempLab,datasets:[{data:unempVal,borderColor:window.CDN,borderWidth:2,pointRadius: 0,fill:false,tension:0.3}]},options:chartOpts(window.CDN,false)});
   // 수출 차트는 라인 + 데이터 레이블로 변경 (값 차이가 작아 바차트로는 구분 어려움)
   charts['tradeMacro']=new Chart(document.getElementById('tradeMacro'),{
@@ -11429,7 +11439,7 @@ function initMacroPage(t){
     data:{labels:expLab,datasets:[{
       data:expVal,
       borderColor:getThemeColors().accent,
-      borderWidth:2.5,
+      borderWidth:2,
       pointRadius:5,
       pointBackgroundColor:getThemeColors().accent,
       pointBorderColor:'#fff',
@@ -16753,6 +16763,10 @@ function applyRealData(d) {
   // 렌더는 renderDataFreshness() 단일 출처 — 실시간 보강 성공이 이 표시를 덮어쓰지 않고(슬롯 분리),
   // 1분 주기 재평가로 탭을 켜둔 동안에도 경과 시간이 갱신된다.
   if (d.lastUpdated) window._lastServerDataTs = d.lastUpdated;
+  // 지표별 신선도 계약(scripts/data_sla.py 가 산출) — 전역 lastUpdated 하나로는
+  // "일본 CPI 가 2021년에서 멈춤" 같은 개별 지표 고착을 표현할 수 없다.
+  window._dataHealth = d.dataHealth || null;
+  try { renderDataFreshness(); } catch(_) {}
   renderDataFreshness();
 
   // ── LME 금속 재고 (data.json.lmeInventory) 동기화 ──────
@@ -16838,9 +16852,27 @@ function renderDataFreshness() {
   s.j.innerHTML =
     `<span style="color:${dotColor};font-size:var(--font-size-xs);">●</span> ` +
     dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) +
-    ' 업데이트' + ageTxt;
+    ' 업데이트' + ageTxt + _healthChipHtml();
   const host = document.getElementById('dataSourceInfo');
   if(host) host.title = ageH > 26 ? '⚠ 데이터 수집 파이프라인이 멈춰 있을 수 있습니다 — 설정 > 시스템 진단 확인' : '';
+}
+
+/* 지표 신선도 칩 — data.json.dataHealth 요약을 헤더에 노출한다.
+   왜: 전역 '업데이트 시각'은 파이프라인이 돌기만 하면 항상 최신이라, 개별 소스가
+   죽어 직전값이 보존되고 있는 상태를 전혀 드러내지 못했다(일본 CPI 2021-06 고착 등).
+   클릭하면 설정 > 시스템 진단으로 이동해 어떤 지표인지 확인할 수 있다. */
+function _healthChipHtml() {
+  const h = window._dataHealth;
+  if (!h || !h.summary) return '';
+  const s = h.summary;
+  const bad = (s.stale || 0) + (s.failed || 0);
+  if (!bad) return '';
+  const col = (s.failed || (h.blocking || []).length) ? 'var(--ind-neg)' : 'var(--c-warn,#f0c75e)';
+  const label = s.failed ? `지연 ${s.stale} · 실패 ${s.failed}` : `지연 ${s.stale}`;
+  return ' <span class="health-chip" role="button" tabindex="0" onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
+    ` title="정상 ${s.ok} · 보존 ${s.preserved} · 지연 ${s.stale} · 실패 ${s.failed} — 클릭하면 시스템 진단"` +
+    ` style="color:${col};border:1px solid ${col};border-radius:var(--r-xs);padding:0 6px;margin-left:6px;cursor:pointer;font-size:var(--font-size-xs);">` +
+    `⚠ ${label}</span>`;
 }
 // 탭 상시 오픈 사용 패턴 — 페이지 로드 시점에 동결되지 않도록 경과 시간을 1분마다 재평가
 try { setInterval(renderDataFreshness, 60000); } catch(_) {}
@@ -19360,9 +19392,9 @@ function pfRenderBench() {
   const sp = _pfBenchSeriesDaily('SP500', axis, startDate);
   const tc = (typeof getThemeColors === 'function') ? getThemeColors() : { txt: '#8d90a2', grid: '#2a2e3d55' };
   const ds = [{ label: '내 포트폴리오', data: mine, borderColor: window.CUP, backgroundColor: (window.CUP+'22'),
-                borderWidth: 2.5, pointRadius: 0, tension: .2, spanGaps: true }];
-  if(kospi) ds.push({ label: 'KOSPI', data: kospi, borderColor: getThemeColors().accent, borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: .2, spanGaps: true });
-  if(sp) ds.push({ label: 'S&P 500', data: sp, borderColor: '#f5a623', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: .2, spanGaps: true });
+                borderWidth: 2, pointRadius: 0, tension: 0.3, spanGaps: true }];
+  if(kospi) ds.push({ label: 'KOSPI', data: kospi, borderColor: getThemeColors().accent, borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: 0.3, spanGaps: true });
+  if(sp) ds.push({ label: 'S&P 500', data: sp, borderColor: '#f5a623', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: 0.3, spanGaps: true });
   // 해외 지수가 추적 구간 내 변동이 없으면(미국 증시가 한국 대비 ~1거래일 지연 → 같은 종가) 그 이유를 안내
   if(note) {
     const isFlat = a => a && a.filter(v => v != null).length > 0 && a.every(v => v == null || Math.abs(v) < 0.005);
@@ -19390,7 +19422,7 @@ function pfRenderBench() {
     },
   });
   // YoY — 주 시리즈('내 포트폴리오', dataset 0)만 전년 오버레이. 추적 기간이 1년 미만이면 '전년 데이터 없음'.
-  registerYoY('pfBenchChart', { mode:'date', dispDates:axis, fullDates:axis, fullValues:mine, tol:7, primary:0, color:window.CUP, tension:0.2 });
+  registerYoY('pfBenchChart', { mode:'date', dispDates:axis, fullDates:axis, fullValues:mine, tol:7, primary:0, color:window.CUP, tension:0.3 });
   applyYoY('pfBenchChart');
 }
 
@@ -21900,10 +21932,10 @@ function cmpRender() {
       datasets: [
         { label: labA, data: dataA, yAxisID: 'yA',
           borderColor: CMP_COLOR_A, backgroundColor: CMP_COLOR_A + '22',
-          borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: .15, spanGaps: true },
+          borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: 0.3, spanGaps: true },
         { label: labB, data: dataB, yAxisID: norm ? 'yA' : 'yB',
           borderColor: CB, backgroundColor: CB + '22',
-          borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: .15, spanGaps: true },
+          borderWidth: 2, pointRadius: 0, pointHitRadius: 6, tension: 0.3, spanGaps: true },
       ],
     },
     options: {
@@ -21931,7 +21963,7 @@ function cmpRender() {
   try { canvas.setAttribute('aria-label', `${labA} · ${labB} 지표 비교 차트${norm ? ' (지수화, 시작=100)' : ' (이중축)'}`); } catch(_) {}
   // YoY — 주 시리즈 A(dataset 0)만 전년 오버레이. 지수화(norm) 모드에서는 스케일이 달라 비활성.
   { if(!norm){ const _fa = _cmpSeries(_cmpState.a) || [];
-      registerYoY('compareChart', { mode:'date', dispDates:labels, fullDates:_fa.map(p=>p.d), fullValues:_fa.map(p=>p.v), tol:10, primary:0, color:CMP_COLOR_A, tension:0.15 });
+      registerYoY('compareChart', { mode:'date', dispDates:labels, fullDates:_fa.map(p=>p.d), fullValues:_fa.map(p=>p.v), tol:10, primary:0, color:CMP_COLOR_A, tension:0.3 });
     } else registerYoY('compareChart', null);
     applyYoY('compareChart'); }
   const last = s => s.length ? s[s.length - 1] : null;
@@ -22816,6 +22848,17 @@ window.runDiagnostics = async function () {
       checkSeries('USD/KRW', (hist.fx || {}).USDKRW, 5, 6);
       var rate = ((d2.fx || {}).USDKRW || {}).rate;
       if (typeof rate === 'number' && !(rate >= 800 && rate <= 2500)) issues.push('USD/KRW 현재가 ' + rate + ' — 정상 범위(800~2,500) 이탈(단위 오류 의심)');
+      /* 신선도 계약 위반 목록 — 서버(scripts/data_sla.py)가 판정한 결과를 그대로 읽는다.
+         브라우저에서 재판정하지 않는 이유: 기준이 두 벌이 되면 반드시 어긋난다. */
+      var _h = d2.dataHealth;
+      if (_h && _h.items) {
+        var bad = _h.items.filter(function (i) { return i.state === 'stale' || i.state === 'failed'; });
+        bad.slice(0, 25).forEach(function (i) {
+          issues.push((i.state === 'failed' ? '수집 실패' : '갱신 지연') + ': ' + i.path +
+            ' (기준일 ' + (i.asOf || '알 수 없음') + ', ' + i.ageDays + '일 경과 / 허용 ' + i.sla + '일)');
+        });
+        if (bad.length > 25) issues.push('… 외 ' + (bad.length - 25) + '건');
+      }
       rows.push(issues.length
         ? _row('warn', '시계열 정합성', _esc(issues.join(' · ')))
         : _row('ok', '시계열 정합성', 'KOSPI·S&P500·USD/KRW — 신선도/결측/급변/범위 이상 없음'));

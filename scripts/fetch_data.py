@@ -26,6 +26,7 @@ from urllib.parse import quote_plus
 from xml.etree import ElementTree as ET
 import fetch_climate
 import climate_impact
+import data_sla
 
 KST = timezone(timedelta(hours=9))
 
@@ -5600,6 +5601,18 @@ def build_data():
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
     data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
+
+    # 신선도 계약 — 지표별 as-of 를 SLA 표(scripts/data_sla.py)와 대조해 상태를 싣는다.
+    # 왜: 개별 소스가 죽어도 직전값이 보존되므로 화면상으로는 최신과 구분되지 않았다.
+    # 이 블록이 커밋 게이트·사이트 배지·카톡 알림의 공통 근거가 된다.
+    try:
+        data["dataHealth"] = data_sla.build_health(data)
+        _s = data["dataHealth"]["summary"]
+        log(f"[HEALTH] ok={_s['ok']} preserved={_s['preserved']} stale={_s['stale']} "
+            f"failed={_s['failed']} unknown={_s['unknown']} blocking={data['dataHealth']['blocking']}")
+    except Exception as e:
+        # 진단 기능이 수집 자체를 망가뜨리면 안 된다 — 실패해도 데이터는 커밋한다.
+        log(f"[HEALTH] dataHealth 생성 실패: {e}")
     # 투자자별 순매매가 비었을 때 프론트가 사용자에게 보여줄 사유.
     # 이제 무인증 Naver 폴백이 있어, 비어있으면 두 소스(KRX/Naver) 모두 일시 실패한 상황.
     if not (data.get("investorTrading") or {}).get("daily"):

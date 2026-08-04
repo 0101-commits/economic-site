@@ -10,6 +10,7 @@ data.json 무결성 게이트 — fetch_data.py 산출물을 커밋 전에 검�
 워크플로: .github/workflows/fetch-data.yml 의 커밋 step 직전에 실행.
 """
 import json
+import os
 import sys
 from datetime import datetime
 
@@ -141,6 +142,48 @@ def main():
                 if not (isinstance(h, dict) and h.get("id") and h.get("type") in ("circuit", "sidecar")):
                     warns.append(f"marketHalts.active 형식 오류: {h!r}")
                     break
+
+    # ── 신선도 계약(dataHealth) 게이트 ────────────────────────────────────
+    # 왜: 위의 WARN 은 Actions 로그에만 남아 아무도 읽지 않았고, 그 사이 일본 CPI 가
+    # 2021-06, 영국 GDP 가 2020-07 에서 멈춘 채로 몇 년을 통과했다. tier=critical 만
+    # 배포를 막고(대시보드가 무의미해지는 경우), 나머지는 요약을 남겨 화면·알림이 쓴다.
+    health = d.get("dataHealth")
+    if not health:
+        # fetch_data.py 가 아직 안 실은 경우(수동 편집 등) 여기서 직접 계산한다.
+        try:
+            import data_sla
+            health = data_sla.build_health(d)
+        except Exception as e:
+            warns.append(f"dataHealth 계산 불가: {e}")
+            health = None
+    if health:
+        s = health.get("summary") or {}
+        print(f"::notice title=데이터 신선도::ok={s.get('ok')} preserved={s.get('preserved')} "
+              f"stale={s.get('stale')} failed={s.get('failed')} unknown={s.get('unknown')}")
+        for it in health.get("items") or []:
+            if it.get("state") in ("stale", "failed"):
+                warns.append(
+                    f"{it['path']}: {it['state']} (as-of {it.get('asOf')}, "
+                    f"{it.get('ageDays')}일 경과 / SLA {it.get('sla')}일)"
+                )
+        for p in health.get("blocking") or []:
+            errs.append(f"critical 지표 신선도 위반: {p}")
+        # GitHub Actions Job Summary — 사람이 실제로 보는 자리에 표로 남긴다
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary_path:
+            try:
+                with open(summary_path, "a", encoding="utf-8") as fh:
+                    fh.write(f"\n### 데이터 신선도\n\n"
+                             f"정상 {s.get('ok')} · 보존 {s.get('preserved')} · 지연 {s.get('stale')} · "
+                             f"실패 {s.get('failed')} · 미상 {s.get('unknown')}\n\n")
+                    bad = [i for i in (health.get("items") or []) if i.get("state") in ("stale", "failed")]
+                    if bad:
+                        fh.write("| 지표 | 상태 | as-of | 경과 | SLA |\n|---|---|---|---|---|\n")
+                        for i in bad[:40]:
+                            fh.write(f"| `{i['path']}` | {i['state']} | {i.get('asOf')} | "
+                                     f"{i.get('ageDays')}일 | {i.get('sla')}일 |\n")
+            except OSError:
+                pass
 
     for w in warns:
         print(f"::warning title=데이터 품질::{w}")
