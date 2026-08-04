@@ -22,6 +22,10 @@ window.initSettingsPage = function () {
   var cc = window.econColorConv || 'kr';
   var ccEl = document.querySelector('input[name="setColorConv"][value="' + cc + '"]');
   if (ccEl) ccEl.checked = true;
+  var sk = 'neutral';
+  try { sk = localStorage.getItem('econ_skin') || 'neutral'; } catch (_) {}
+  var skEl = document.querySelector('input[name="setSkin"][value="' + sk + '"]');
+  if (skEl) skEl.checked = true;
   var ind = { ma: true, rsi: false, macd: false };
   try { ind = JSON.parse(localStorage.getItem('pfIndicators')) || ind; } catch (_) {}
   ['ma', 'rsi', 'macd'].forEach(function (k) {
@@ -88,6 +92,16 @@ window.settingsSetColorConv = function (v) {
   try { localStorage.setItem('econ_color_conv', v); } catch (_) {}
   try { if (typeof showToast === 'function') showToast('색상 방향 적용 중… 새로고침', 'ok'); } catch (_) {}
   setTimeout(function () { location.reload(); }, 400);
+};
+window.settingsSetSkin = function (v) {
+  // 화면 스킨(색감 프리셋) — 토큰 오버라이드 레이어(index.html skin presets)를 켠다.
+  // 색상 방향(settingsSetColorConv)과 달리 reload 불필요: 스킨은 CUP/CDN(등락색)을 안
+  // 건드리므로 테마 토글과 같은 rebuildChartsForTheme 경로로 차트만 다시 칠하면 된다.
+  v = (v === 'navy' || v === 'contrast') ? v : 'neutral';
+  try { localStorage.setItem('econ_skin', v); } catch (_) {}
+  if (v === 'neutral') delete document.documentElement.dataset.skin;
+  else document.documentElement.dataset.skin = v;
+  try { rebuildChartsForTheme(); } catch (_) {}
 };
 window.settingsToggleInd = function (k, on) {
   // 보조지표 SSOT 는 기존 'pfIndicators' — 설정 페이지는 같은 키를 읽고 쓴다

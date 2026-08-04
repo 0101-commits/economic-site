@@ -13832,7 +13832,8 @@ function applyStoredTheme() {
 var _tcCache = null, _tcKey = '';
 function getThemeColors() {
   const light = document.documentElement.classList.contains('light');
-  const key = light ? 'light' : 'dark';
+  // 캐시 키에 스킨 포함 — 스킨 전환 직후 어떤 경로로 호출돼도 묵은 색을 재사용하지 않게
+  const key = (light ? 'light' : 'dark') + '|' + (document.documentElement.dataset.skin || '');
   if (_tcCache && _tcKey === key) return _tcCache;
   const cs = getComputedStyle(document.documentElement);
   const tok = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
