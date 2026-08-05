@@ -99,6 +99,7 @@ jobs:
           #    불가능했다(2026-07-16 09:10 실제 매도 사이드카를 미발송한 원인 — 2026-07 감사).
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python scripts/check_halts.py
 
       # ⚡ 시장 급변 속보(옵션 A) — 코스피·S&P500 ±2%, 달러-원 ±1% 급변 시 즉시 1통.

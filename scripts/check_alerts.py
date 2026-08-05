@@ -595,11 +595,13 @@ def main():
 
     # 디스코드 병행 발송 — 카카오 시크릿/토큰 상태와 무관하게 도달(채널 이중화). 실패·미설정 무시.
     # 카카오 쪽 이력(met/date/ts) 확정에는 관여하지 않는다 — 도배 방지 기준은 카카오 경로 그대로.
-    if to_send and not IS_TEST:
+    # 테스트 발송도 병행한다(테스트 버튼이 두 채널 경로를 함께 검증) — [테스트] 접두로 구분.
+    if to_send:
         try:
             import notify_discord
+            _pre = "[테스트] " if IS_TEST else ""
             notify_discord.send("\n".join(
-                [f"🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"]
+                [f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"]
                 + [ln for _, ln in to_send] + [DELAY_NOTICE]))
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
@@ -658,10 +660,14 @@ def main():
         # 테스트인데 충족 알림이 없어도 확인 메시지 1통은 보낸다 — '파이프라인 정상' 즉시 검증이 목적.
         # send_memo 는 발송 실패 시 SystemExit 를 던진다 — 정규 발송 루프(아래)처럼 삼켜 job 을 죽이지
         # 않는다(테스트 발송 실패가 workflow 실패로 이어지는 것 방지).
+        _test_msg = f"{header}\n알림 {len(alerts)}건 평가 — 현재 충족 조건 없음 (설정·발송 경로 정상)\n{DELAY_NOTICE}"
         try:
-            kakao.send_memo(access_token,
-                            f"{header}\n알림 {len(alerts)}건 평가 — 현재 충족 조건 없음 (설정·발송 경로 정상)\n{DELAY_NOTICE}",
-                            with_button=True, uuids=uuids)
+            import notify_discord
+            notify_discord.send(_test_msg)          # 테스트 버튼이 디스코드 경로도 함께 검증
+        except Exception as _dce:
+            print(f"[discord] 병행 발송 예외 무시: {_dce}")
+        try:
+            kakao.send_memo(access_token, _test_msg, with_button=True, uuids=uuids)
             print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
         except SystemExit as e:
             print(f"::warning title=테스트 발송 실패::{e} — 토큰/발송 문제 추정(KAKAO_SETUP.md 참고)")

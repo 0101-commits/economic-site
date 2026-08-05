@@ -76,6 +76,14 @@ def _resolve_msg(h):
 
 
 def _send_all(token, uuids, msg):
+    # 디스코드 병행(채널 이중화) — 카카오보다 먼저, 예외는 삼킨다(카카오 재시도 로직 무영향).
+    # 카카오 실패 시 다음 런 재시도가 디스코드엔 중복 1통이 될 수 있으나, 시장경보는
+    # 희귀·중대 이벤트라 누락보다 중복이 낫다.
+    try:
+        import notify_discord
+        notify_discord.send(msg)
+    except Exception as e:
+        print(f"[discord] 병행 발송 예외 무시: {e}")
     kakao.send_memo(token, msg, with_button=True, uuids=uuids)
 
 
