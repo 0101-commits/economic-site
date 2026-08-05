@@ -284,6 +284,13 @@ def _gh_issue_notify(title, body):
         with urllib.request.urlopen(req, timeout=20) as r:
             if r.status in (200, 201):
                 print(f"::notice title=이슈로 통지::{title}")
+                # #시스템 채널 병행(D8) — 이슈 신규 생성 시에만 도달하므로(위 dedup)
+                # 매분 런에서도 스팸 없이 '치명 상태 1건 = 디스코드 1통'이 보장된다.
+                try:
+                    import notify_discord
+                    notify_discord.system(f"{title}\n{body[:800]}")
+                except Exception:
+                    pass
     except Exception as e:
         print(f"[notify] GitHub 이슈 통지 실패({e}) — 경고 로그로 갈음")
 
@@ -1213,8 +1220,19 @@ def _dispatch_fetch_data():
             method="POST")
         urllib.request.urlopen(req, timeout=15)
         print("[digest] 스테일 감지 — fetch-data workflow_dispatch 트리거(다음 슬롯부터 정상화)")
+        try:
+            import notify_discord
+            notify_discord.system("data.json 60분+ 스테일 감지 — fetch-data 를 자동 트리거했습니다. "
+                                  "이번 발송은 라이브 보정 값으로 진행, 다음 슬롯부터 정상화 예상.")
+        except Exception:
+            pass
     except Exception as e:
         print(f"::warning title=fetch-data 트리거 실패::{type(e).__name__}: {e} — 발송은 계속(라이브 보정)")
+        try:
+            import notify_discord
+            notify_discord.system(f"스테일 복구용 fetch-data 트리거 실패: {type(e).__name__}: {e}")
+        except Exception:
+            pass
 
 
 def _mark_sent_ok():
@@ -1300,9 +1318,15 @@ def main():
             import notify_discord
             if _charts_enabled():
                 _dc_png = build_slot_chart_png(data, slot, weekend)
-            # embed 형식 — 제목 클릭 시 대시보드로 이동(이미지 클릭은 디스코드 정책상 확대 보기).
-            notify_discord.send("\n".join(f"〔{lab}〕{val}" for lab, val in blocks),
-                                png=_dc_png, title=title, url=DASHBOARD_URL)
+            # embed 형식(D1~D4) — 제목 클릭=대시보드(이미지 클릭은 디스코드 정책상 확대 보기),
+            # 블록은 fields 2열 그리드, footer=신선도, 색=일간 네이비/주간 금색.
+            _weekly_mode = title.startswith("주간")
+            notify_discord.send(
+                "", png=_dc_png, title=title, url=DASHBOARD_URL,
+                color=notify_discord.COLOR_WEEKLY if _weekly_mode else notify_discord.COLOR_DIGEST,
+                fields=[(lab, val, True) for lab, val in blocks],
+                footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
+                timestamp=True)
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 
@@ -1340,6 +1364,12 @@ def main():
               "KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신하면 다음 슬롯부터 발송이 복구됩니다. "
               "(워크플로는 정상 종료 — 매 슬롯 실패 알림 메일 방지)")
         _step_summary(f"❌ 카카오 발송 건너뜀: {e}")
+        try:
+            import notify_discord
+            notify_discord.system(f"카카오 다이제스트 발송 실패(토큰 만료/발송 오류 추정): {e}\n"
+                                  "디스코드 발송은 별도 경로라 정상일 수 있음. KAKAO_SETUP.md ③ 참고.")
+        except Exception:
+            pass
     except Exception as e:
         # 예상 밖 예외(토큰 재발급 전송예외의 재시도 소진, 데이터 필드 이상 등)도 job 을 죽이지
         # 않는다 — job 실패는 곧 실패 메일이고, 센티널 부재로 백업 깨움이 어차피 재시도한다.

@@ -75,13 +75,20 @@ def _resolve_msg(h):
             f"{_now().strftime('%H:%M')} 거래 재개\n{DELAY_NOTICE}")
 
 
-def _send_all(token, uuids, msg):
-    # 디스코드 병행(채널 이중화) — 카카오보다 먼저, 예외는 삼킨다(카카오 재시도 로직 무영향).
-    # 카카오 실패 시 다음 런 재시도가 디스코드엔 중복 1통이 될 수 있으나, 시장경보는
-    # 희귀·중대 이벤트라 누락보다 중복이 낫다.
+def _send_all(token, uuids, msg, kind="fire"):
+    """카카오+디스코드 병행 발송. kind: fire(발동/격상=빨강+@everyone) / resolve(해제=초록)
+    / test(회색). 디스코드는 카카오보다 먼저, 예외는 삼킨다(카카오 재시도 로직 무영향).
+    카카오 실패 시 다음 런 재시도가 디스코드엔 중복 1통이 될 수 있으나 시장경보는 누락보다 중복이 낫다."""
     try:
         import notify_discord
-        notify_discord.send(msg)
+        lines = msg.split("\n")
+        color, mention = {"fire": (notify_discord.COLOR_FIRE, True),
+                          "resolve": (notify_discord.COLOR_RESOLVE, False)
+                          }.get(kind, (notify_discord.COLOR_TEST, False))
+        notify_discord.send("\n".join(lines[1:]), title=(lines[0] + " — 시장 지표 보기")[:256],
+                            url="https://0101-commits.github.io/economic-site/?p=market",
+                            color=color, timestamp=True, mention=mention,
+                            env="DISCORD_WEBHOOK_SWINGS")
     except Exception as e:
         print(f"[discord] 병행 발송 예외 무시: {e}")
     kakao.send_memo(token, msg, with_button=True, uuids=uuids)
@@ -216,7 +223,7 @@ def main():
         fake = {"type": "circuit", "market": "KOSPI", "stage": 1, "endOfDay": False,
                 "reason": "테스트 — 지수 전일比 -8.0%", "triggeredAt": now.isoformat(),
                 "resumeAt": (now + datetime.timedelta(minutes=30)).isoformat()}
-        _send_all(token, uuids, "[테스트] " + _fire_msg(fake))
+        _send_all(token, uuids, "[테스트] " + _fire_msg(fake), kind="test")
         print("[halts] 테스트 발송 완료 (이력 미갱신)")
         return
 
@@ -320,7 +327,7 @@ def main():
                 h = rec.get("event") or {"id": hid}
                 rec["resolveTries"] = int(rec.get("resolveTries", 0)) + 1
                 try:
-                    _send_all(token, uuids, _resolve_msg(h))
+                    _send_all(token, uuids, _resolve_msg(h), kind="resolve")
                     rec["resolvedSent"] = True
                     rec["resolvedAt"] = now.isoformat()
                     print(f"[halts] 해제 발송: {hid}")

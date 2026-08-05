@@ -103,7 +103,13 @@ def main():
         print("::warning title=Kakao 미설정::급변 속보 카카오 건너뜀 (KAKAO_SETUP.md 참고)")
     try:
         import notify_discord
-        if notify_discord.send(msg):
+        # 급변=빨강 embed + @everyone(D6 — 위급 알림만 강제 푸시) + 주식시장 딥링크.
+        if notify_discord.send(
+                "\n".join(line for _, line in hits),
+                title=f"⚡ {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 시장 급변 — 주식시장 보기",
+                url="https://0101-commits.github.io/economic-site/?p=equity",
+                color=notify_discord.COLOR_FIRE, footer=ca.DELAY_NOTICE,
+                timestamp=True, mention=True, env="DISCORD_WEBHOOK_SWINGS"):
             sent_ok = True
     except Exception as e:
         print(f"[discord] 병행 발송 예외 무시: {e}")

@@ -71,8 +71,10 @@ jobs:
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
           # 토큰 만료/회전 실패의 이슈 통지용(permissions.issues: write 와 세트) — kakao._gh_issue_notify.
           GITHUB_TOKEN: ${{ github.token }}
-          # 디스코드 병행 발송(notify_discord) — 미설정이면 카카오 단독으로 종전과 동일.
+          # 디스코드 병행 발송(notify_discord) — 채널 분리(D5): 종목 알림 전용 + 시스템 경고.
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_ALERTS: ${{ secrets.DISCORD_WEBHOOK_ALERTS }}
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
         run: python scripts/check_alerts.py
 
       # 🚨 시장중단(서킷브레이커) 감지·카카오 — fetch-data.yml 에서 이관(2026-07).
@@ -100,6 +102,8 @@ jobs:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_SWINGS: ${{ secrets.DISCORD_WEBHOOK_SWINGS }}
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
         run: python scripts/check_halts.py
 
       # ⚡ 시장 급변 속보(옵션 A) — 코스피·S&P500 ±2%, 달러-원 ±1% 급변 시 즉시 1통.
@@ -116,6 +120,8 @@ jobs:
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
           GITHUB_TOKEN: ${{ github.token }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_SWINGS: ${{ secrets.DISCORD_WEBHOOK_SWINGS }}
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
         run: python scripts/check_swings.py
 
       - name: Commit alerts_state.json + halts_state.json (발송 이력 — 도배 방지)

@@ -600,9 +600,12 @@ def main():
         try:
             import notify_discord
             _pre = "[테스트] " if IS_TEST else ""
-            notify_discord.send("\n".join(
-                [f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"]
-                + [ln for _, ln in to_send] + [DELAY_NOTICE]))
+            notify_discord.send(
+                "\n".join(ln for _, ln in to_send),
+                title=f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림 — 투자 현황 보기",
+                url="https://0101-commits.github.io/economic-site/?p=portfolio",
+                color=notify_discord.COLOR_TEST if IS_TEST else notify_discord.COLOR_ALERT,
+                footer=DELAY_NOTICE, timestamp=True, env="DISCORD_WEBHOOK_ALERTS")
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 
@@ -663,7 +666,9 @@ def main():
         _test_msg = f"{header}\n알림 {len(alerts)}건 평가 — 현재 충족 조건 없음 (설정·발송 경로 정상)\n{DELAY_NOTICE}"
         try:
             import notify_discord
-            notify_discord.send(_test_msg)          # 테스트 버튼이 디스코드 경로도 함께 검증
+            notify_discord.send(_test_msg, title="[테스트] 종목 알림 경로 확인",
+                                color=notify_discord.COLOR_TEST, timestamp=True,
+                                env="DISCORD_WEBHOOK_ALERTS")  # 테스트 버튼이 디스코드 경로도 함께 검증
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
         try:
