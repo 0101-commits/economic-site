@@ -1054,7 +1054,9 @@ def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
                 a.set_title(label, fontsize=26, loc="left")
             a.grid(alpha=0.25)
             a.tick_params(axis="both", labelsize=12)
-        fig.tight_layout(rect=[0, 0, 1, 0.97])
+        # rect 좌우에 1.5% 거터 — 축 눈금 라벨이 캔버스 가장자리에 닿아 미세하게 잘리던 것
+        # 방지(2026-08-05 디스코드 표시 확인). 캔버스 픽셀 크기는 그대로라 카카오 비율 불변.
+        fig.tight_layout(rect=[0.015, 0.005, 0.985, 0.97])
         fig.savefig(out_path, dpi=_CHART_DPI)
         plt.close(fig)
         return out_path
@@ -1298,8 +1300,9 @@ def main():
             import notify_discord
             if _charts_enabled():
                 _dc_png = build_slot_chart_png(data, slot, weekend)
-            notify_discord.send(f"**{title}**\n" + "\n".join(f"〔{lab}〕{val}" for lab, val in blocks),
-                                png=_dc_png)
+            # embed 형식 — 제목 클릭 시 대시보드로 이동(이미지 클릭은 디스코드 정책상 확대 보기).
+            notify_discord.send("\n".join(f"〔{lab}〕{val}" for lab, val in blocks),
+                                png=_dc_png, title=title, url=DASHBOARD_URL)
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 

@@ -17,17 +17,31 @@ WEBHOOK_ENV = "DISCORD_WEBHOOK_URL"
 _UA = "economic-site-notifier/1.0 (+https://github.com/0101-commits/economic-site)"
 
 
-def send(text, png=None, filename="chart.png"):
+def send(text, png=None, filename="chart.png", title=None, url=None):
     """텍스트(+선택 PNG 첨부) 발송. 성공 True / 미설정·실패 False.
 
     png 는 bytes 또는 파일 경로(str) — build_slot_chart_png 가 경로를 반환하므로
-    (2026-08-05 실런에서 str+bytes TypeError 로 이미지 누락됐던 원인) 둘 다 받는다."""
+    (2026-08-05 실런에서 str+bytes TypeError 로 이미지 누락됐던 원인) 둘 다 받는다.
+    title 을 주면 embed 형식 — 제목이 url(대시보드)로 하이퍼링크되고 이미지는 embed 안에
+    붙는다. ⚠ 디스코드 구조상 이미지 클릭은 항상 '확대 보기'라 이미지 자체에 링크는 불가 —
+    클릭 이동은 제목이 담당한다. title 없으면 종전 그대로 평문(content)."""
     # BOM 제거 — Windows PowerShell 파이프로 등록한 시크릿은 U+FEFF 가 앞에 붙을 수 있고,
     # str.strip() 은 BOM 을 공백으로 안 봐서 'unknown url type: ﻿https' 로 죽는다(2026-08-05 실측).
     url = os.environ.get(WEBHOOK_ENV, "").strip().lstrip("﻿").strip()
     if not url:
         return False
-    content = (text or "")[:2000]
+    hook = os.environ.get(WEBHOOK_ENV, "").strip().lstrip("﻿").strip()
+    if title:
+        embed = {"title": title[:256], "description": (text or "")[:4096]}
+        if url:
+            embed["url"] = url                       # 제목 클릭 → 대시보드
+        if png:
+            embed["image"] = {"url": f"attachment://{filename}"}
+        payload = {"embeds": [embed]}
+        plen = len(embed["description"]) + len(embed["title"])
+    else:
+        payload = {"content": (text or "")[:2000]}
+        plen = len(payload["content"])
     try:
         if isinstance(png, str):
             with open(png, "rb") as f:
@@ -36,18 +50,18 @@ def send(text, png=None, filename="chart.png"):
             b = uuid.uuid4().hex
             head = (f'--{b}\r\nContent-Disposition: form-data; name="payload_json"\r\n'
                     f'Content-Type: application/json\r\n\r\n'
-                    + json.dumps({"content": content}, ensure_ascii=False) + "\r\n"
+                    + json.dumps(payload, ensure_ascii=False) + "\r\n"
                     + f'--{b}\r\nContent-Disposition: form-data; name="files[0]"; filename="{filename}"\r\n'
                     f'Content-Type: image/png\r\n\r\n').encode("utf-8")
             body = head + png + f"\r\n--{b}--\r\n".encode("utf-8")
-            req = urllib.request.Request(url, data=body,
+            req = urllib.request.Request(hook, data=body,
                                          headers={"Content-Type": f"multipart/form-data; boundary={b}",
                                                   "User-Agent": _UA})
         else:
-            req = urllib.request.Request(url, data=json.dumps({"content": content}, ensure_ascii=False).encode("utf-8"),
+            req = urllib.request.Request(hook, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                                          headers={"Content-Type": "application/json", "User-Agent": _UA})
         urllib.request.urlopen(req, timeout=20)
-        print(f"[discord] 발송 성공 ({len(content)}자{', 이미지 첨부' if png else ''})")
+        print(f"[discord] 발송 성공 ({plen}자{', 이미지 첨부' if png else ''}{', embed' if title else ''})")
         return True
     except Exception as e:
         print(f"::warning title=Discord 발송 실패::{type(e).__name__}: {e} — 카카오 경로는 영향 없음")
