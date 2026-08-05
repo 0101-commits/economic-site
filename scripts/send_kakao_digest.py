@@ -1321,12 +1321,18 @@ def main():
             # embed 형식(D1~D4) — 제목 클릭=대시보드(이미지 클릭은 디스코드 정책상 확대 보기),
             # 블록은 fields 2열 그리드, footer=신선도, 색=일간 네이비/주간 금색.
             _weekly_mode = title.startswith("주간")
+            # 일자 스레드(D10) — 매시간 다이제스트를 날짜별로 묶어 채널 스크롤 정리.
+            # 변수 DISCORD_DIGEST_THREADS=0 으로 끄면 채널 본문 발송(종전 동작).
+            _thr = None
+            if os.environ.get("DISCORD_DIGEST_THREADS", "1").strip().lower() not in ("0", "false", "off"):
+                _kn = datetime.datetime.now(KST)
+                _thr = f"📅 {_kn.month}/{_kn.day} 시황"
             notify_discord.send(
                 "", png=_dc_png, title=title, url=DASHBOARD_URL,
                 color=notify_discord.COLOR_WEEKLY if _weekly_mode else notify_discord.COLOR_DIGEST,
                 fields=[(lab, val, True) for lab, val in blocks],
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
-                timestamp=True)
+                timestamp=True, thread_name=_thr)
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 

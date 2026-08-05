@@ -42,9 +42,40 @@ def _hook(env):
     return ""
 
 
+def _thread_id(hook, name):
+    """일자 스레드 확보(D10) — 같은 이름의 활성 스레드가 있으면 재사용, 없으면 생성.
+    DISCORD_BOT_TOKEN 필요(웹훅만으론 기존 텍스트 채널에 스레드 생성 불가).
+    실패·미설정 시 None → 호출측이 채널 본문으로 발송(기능 열화 없음)."""
+    tok = os.environ.get("DISCORD_BOT_TOKEN", "").strip().lstrip("﻿").strip()
+    if not tok:
+        return None
+    try:
+        info = json.load(urllib.request.urlopen(
+            urllib.request.Request(hook, headers={"User-Agent": _UA}), timeout=10))
+        cid, gid = info.get("channel_id"), info.get("guild_id")
+        if not cid or not gid:
+            return None
+        hdr = {"Authorization": f"Bot {tok}", "User-Agent": _UA, "Content-Type": "application/json"}
+        act = json.load(urllib.request.urlopen(
+            urllib.request.Request(f"https://discord.com/api/v10/guilds/{gid}/threads/active",
+                                   headers=hdr), timeout=10))
+        for t in act.get("threads", []):
+            if t.get("parent_id") == cid and t.get("name") == name:
+                return t["id"]
+        made = json.load(urllib.request.urlopen(
+            urllib.request.Request(f"https://discord.com/api/v10/channels/{cid}/threads",
+                                   data=json.dumps({"name": name, "type": 11,
+                                                    "auto_archive_duration": 1440}).encode("utf-8"),
+                                   headers=hdr, method="POST"), timeout=10))
+        return made.get("id")
+    except Exception as e:
+        print(f"[discord] 일자 스레드 확보 실패({e}) — 채널 본문으로 발송")
+        return None
+
+
 def send(text, png=None, filename="chart.png", title=None, url=None,
          color=None, fields=None, footer=None, timestamp=False, mention=False,
-         env=WEBHOOK_ENV):
+         env=WEBHOOK_ENV, thread_name=None):
     """텍스트(+선택 PNG 첨부) 발송. 성공 True / 미설정·실패 False.
 
     png 는 bytes 또는 파일 경로(str) — build_slot_chart_png 가 경로를 반환하므로 둘 다 받는다.
@@ -56,6 +87,10 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     hook = _hook(env)
     if not hook:
         return False
+    if thread_name:                                   # D10 — 일자 스레드로 묶기(실패 시 본문)
+        tid = _thread_id(hook, thread_name)
+        if tid:
+            hook += ("&" if "?" in hook else "?") + f"thread_id={tid}"
     if title:
         embed = {"title": title[:256], "description": (text or "")[:4096]}
         if url:
