@@ -362,6 +362,21 @@ def _fg_label(v):
             "중립" if v < 55 else "탐욕" if v < 75 else "극도탐욕")
 
 
+def _stale_tag(s, now):
+    """항목별 신선도 라벨(P2) — as_of/date 가 오늘이 아니면 '·전일'/'·M/D' 를 돌려준다.
+
+    라이브 보정 항목(증시·환율·원자재)은 발송 시점 시세라 무표기, 스냅샷 항목(심리·운임)만
+    기준일을 밝혀 묵은 수치가 '지금 시황'처럼 읽히지 않게 한다. 파싱 실패는 무표기(기존 동작)."""
+    try:
+        d = datetime.datetime.strptime(str(s)[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return ""
+    days = (now.date() - d).days
+    if days <= 0:
+        return ""
+    return "·전일" if days == 1 else f"·{d.month}/{d.day}"
+
+
 def build_digest_parts(d):
     """data.json → (제목, 공통 블록 [(라벨, 값), ...]).
 
@@ -401,7 +416,8 @@ def build_digest_parts(d):
         return f"{label} {_num(o['price'], nd)}{_a1(o.get('change'))}"
 
     blocks = []
-    eq = [p for p in (ip("코스피", "KOSPI"), ip("S&P", "SP500")) if p]
+    eq = [p for p in (ip("코스피", "KOSPI"), ip("코스닥", "KOSDAQ"),
+                      ip("S&P", "SP500"), ip("나스닥", "NASDAQ")) if p]
     if eq:
         blocks.append(("증시", " ".join(eq)))
     fxs = [p for p in (fxp("달러-원", "USDKRW"), fxp("달러-엔", "USDJPY")) if p]
@@ -410,7 +426,7 @@ def build_digest_parts(d):
     pl = []
     fg = sent.get("fear_greed")
     if fg and fg.get("value") is not None:
-        pl.append(f"공포탐욕 {int(_f(fg['value']))}({_fg_label(fg['value'])})")
+        pl.append(f"공포탐욕 {int(_f(fg['value']))}({_fg_label(fg['value'])}){_stale_tag(fg.get('as_of'), now)}")
     vix = us.get("vix")
     vix_v = _f(vix.get("value")) if vix else None
     if vix_v is not None:
@@ -434,7 +450,7 @@ def build_digest_parts(d):
         print(f"[digest] VKOSPI {vk_v} 이상치 의심(VIX {vix_v}) — 표기 생략")
         vk_v = None
     if vk_v is not None:
-        pl.append(f"VKOSPI {_num(vk_v, 1)}")
+        pl.append(f"VKOSPI {_num(vk_v, 1)}{_stale_tag(vk.get('as_of'), now)}")
     if pl:
         blocks.append(("심리", " ".join(pl)))
     # 원자재 — 에너지 / 금속 / 곡물 분리
@@ -452,7 +468,75 @@ def build_digest_parts(d):
                  if isinstance(it, dict) and it.get("code") == "SCFI"
                  and it.get("price") is not None), None)
     if scfi:
-        blocks.append(("운임", f"SCFI {_num(scfi['price'])}{_a1(scfi.get('chgPct'))}"))
+        blocks.append(("운임", f"SCFI {_num(scfi['price'])}{_a1(scfi.get('chgPct'))}{_stale_tag(scfi.get('date'), now)}"))
+    return title, blocks
+
+
+# ── 주간 리포트(옵션 D) — 일요일 17시 슬롯을 주간 모드로 ────────────────────
+def _wk_pct(hist, now, days=7):
+    """history 일봉([{date, close}])에서 최근 종가 vs ~days일 전(이하 가장 가까운 과거) 종가의 %.
+
+    데이터 부족(2개 미만·기준일 못 찾음)이면 None — 호출측이 항목을 생략한다."""
+    if not isinstance(hist, list) or len(hist) < 2:
+        return None
+    try:
+        rows = [(datetime.datetime.strptime(str(r["date"])[:10], "%Y-%m-%d").date(), _f(r.get("close")))
+                for r in hist if r.get("date") and r.get("close") is not None]
+    except (ValueError, TypeError, KeyError):
+        return None
+    if len(rows) < 2:
+        return None
+    cutoff = now.date() - datetime.timedelta(days=days)
+    base = next((c for d0, c in reversed(rows) if d0 <= cutoff), None)
+    last = rows[-1][1]
+    if not base or not last:
+        return None
+    return (last / base - 1) * 100
+
+
+def _wk_line(pairs):
+    """[(라벨, pct)] → '코스피 +2.1% 코스닥 -0.4%' (None 항목 생략). 전부 None 이면 ''."""
+    parts = [f"{lab} {p:+.1f}%" for lab, p in pairs if p is not None]
+    return " ".join(parts)
+
+
+def build_weekly_parts(d, now):
+    """data.json history → 주간 리포트 (제목, 블록). 핵심 데이터가 없으면 (None, None) —
+    호출측이 일반 다이제스트로 폴백한다(주간 모드가 발송 자체를 깨지 않게)."""
+    h = d.get("history", {}) or {}
+    hi, hf, hc = h.get("indices", {}) or {}, h.get("fx", {}) or {}, h.get("commodities", {}) or {}
+    eq = _wk_line([("코스피", _wk_pct(hi.get("KOSPI"), now)), ("코스닥", _wk_pct(hi.get("KOSDAQ"), now)),
+                   ("S&P", _wk_pct(hi.get("SP500"), now)), ("나스닥", _wk_pct(hi.get("NASDAQ"), now))])
+    if not eq:
+        return None, None                            # 증시 주간 변화조차 없으면 주간 모드 포기
+    fxl = _wk_line([("달러-원", _wk_pct(hf.get("USDKRW"), now)), ("달러-엔", _wk_pct(hf.get("USDJPY"), now))])
+    cml = _wk_line([("금", _wk_pct(hc.get("Gold"), now)), ("WTI", _wk_pct(hc.get("WTI"), now)),
+                    ("구리", _wk_pct(hc.get("Copper"), now))])
+    blocks = [("주간증시", eq)]
+    if fxl:
+        blocks.append(("주간환율", fxl))
+    if cml:
+        blocks.append(("주간원자재", cml))
+    # 다음 주 주요 일정 — economicCalendar.events(dt='MM.DD HH:MM', 연도 없음)에서
+    # 오늘 초과~7일 이내·별 많은 순 상위 3건. 연도는 현재 연도로 두되 연말 롤오버만 보정.
+    evs = []
+    for ev in ((d.get("economicCalendar", {}) or {}).get("events") or []):
+        m = re.match(r"(\d{2})\.(\d{2})", str(ev.get("dt", "")))
+        if not m:
+            continue
+        try:
+            ed = datetime.date(now.year, int(m.group(1)), int(m.group(2)))
+        except ValueError:
+            continue
+        if ed < now.date() - datetime.timedelta(days=180):
+            ed = ed.replace(year=now.year + 1)       # 12월에 보는 1월 일정
+        if now.date() < ed <= now.date() + datetime.timedelta(days=7):
+            evs.append((-(ev.get("stars") or 0), ed, str(ev.get("name", "")).strip()))
+    evs.sort()
+    if evs:
+        blocks.append(("다음주", " · ".join(f"{ed.month}/{ed.day} {name}" for _, ed, name in evs[:3])))
+    start = now.date() - datetime.timedelta(days=6)  # 일요일 발송 기준 지난 월~일
+    title = f"주간 시황 {start.month}/{start.day}~{now.month}/{now.day}"
     return title, blocks
 
 
@@ -686,7 +770,9 @@ def _yahoo_live_quote(symbol):
 # 조회 실패 시 기존 data.json 값을 그대로 쓰므로 안전하다.
 _LIVE_QUOTES = [
     ("indices", "KOSPI", "price", "^KS11"),
+    ("indices", "KOSDAQ", "price", "^KQ11"),
     ("indices", "SP500", "price", "^GSPC"),
+    ("indices", "NASDAQ", "price", "^IXIC"),
     ("fx", "USDKRW", "rate", "KRW=X"),
     ("fx", "USDJPY", "rate", "JPY=X"),
     ("commodities", "WTI", "price", "CL=F"),
@@ -1041,10 +1127,10 @@ def build_feed_parts(blocks):
     설명(2줄): 증시(코스피·S&P) / 환율(달러-원·달러-엔) — 헤드라인.
     행(item): 심리 / 에너지 / 금속 / 곡물 / 운임 — 카카오 피드 행 한도(5개)와 일치.
     일곱 카테고리가 항상 한 통에 모두 담기며, 행 값이 길어 뒤가 잘리는 일이 없게 배치한다."""
-    val = dict(blocks)
-    desc = "\n".join(x for x in (val.get("증시", ""), val.get("환율", "")) if x)
-    items = [{"item": lab, "item_op": val[lab]}
-             for lab in ("심리", "에너지", "금속", "곡물", "운임") if val.get(lab)]
+    # 앞 두 블록=설명(헤드라인), 나머지=행 — 일간(증시·환율 / 심리~운임 5행)과
+    # 주간 리포트(주간증시·주간환율 / 원자재·다음주 일정)가 같은 규칙을 쓴다.
+    desc = "\n".join(v for _, v in blocks[:2] if v)
+    items = [{"item": lab, "item_op": v} for lab, v in blocks[2:] if v]
     return desc, items
 
 
@@ -1105,6 +1191,29 @@ def send_memo(access_token, text, with_button=True, uuids=None):
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
 
 
+def _dispatch_fetch_data():
+    """data.json 스테일(60분+) 시 fetch-data 워크플로를 workflow_dispatch 로 깨운다(P3 자동 복구).
+
+    kakao-daily.yml 이 GITHUB_TOKEN(permissions.actions: write)을 넘긴다. fetch-data 쪽
+    concurrency 그룹이 동시 실행을 직렬화하므로 중복 트리거도 안전. 실패는 경고만 — 발송을 막지 않는다."""
+    tok = os.environ.get("GITHUB_TOKEN", "").strip()
+    repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if not tok or not repo:
+        return
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{repo}/actions/workflows/fetch-data.yml/dispatches",
+            data=json.dumps({"ref": "main"}).encode("utf-8"),
+            headers={"Authorization": f"Bearer {tok}",
+                     "Accept": "application/vnd.github+json",
+                     "Content-Type": "application/json"},
+            method="POST")
+        urllib.request.urlopen(req, timeout=15)
+        print("[digest] 스테일 감지 — fetch-data workflow_dispatch 트리거(다음 슬롯부터 정상화)")
+    except Exception as e:
+        print(f"::warning title=fetch-data 트리거 실패::{type(e).__name__}: {e} — 발송은 계속(라이브 보정)")
+
+
 def _mark_sent_ok():
     """'실제 발송 성공' 직후에만 호출 — SENT_OK_PATH 센티널 파일을 만든다.
 
@@ -1155,6 +1264,15 @@ def main():
         apply_live_quotes(data)                      # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
         title, blocks = build_digest_parts(data)     # 제목 시각은 실제 발송 시각(now) 기준
 
+        # 주간 리포트(옵션 D) — 일요일 17시 슬롯만 주간 모드(지난 7일 등락 + 다음 주 일정).
+        # 데이터 부족으로 주간 블록을 못 만들면 그대로 일반 다이제스트 발송(무발송보다 낫다).
+        _now_kst = datetime.datetime.now(KST)
+        if weekend and _now_kst.weekday() == 6 and slot == "h17":
+            wt, wb = build_weekly_parts(data, _now_kst)
+            if wb:
+                title, blocks = wt, wb
+                print(f"[digest] 주간 리포트 모드(일 17시): {title}")
+
         # 수집 파이프라인 정체 가시화 — 주요 시세는 apply_live_quotes 가 발송 시점 값으로 보정하지만,
         # 심리(공포탐욕)·운임(SCFI) 등 비보정 항목은 data.json 그대로다. 커밋이 2시간 넘게 끊겼으면
         # (fetch-data 타임아웃/취소 적체 실측 최대 3.4h — 2026-07 감사) 제목에 기준시각을 밝혀
@@ -1167,6 +1285,10 @@ def main():
         if age_min is not None and age_min > 120:
             title += f" (수집 {age_min / 60:.1f}h 전)"
             print(f"::warning title=데이터 스테일::data.json 이 {age_min:.0f}분 전 수집본 — 제목에 표기")
+        # 스테일 자동 복구(P3) — 60분 넘게 묵었으면 fetch-data 를 깨워 다음 슬롯부터 정상화.
+        # 이번 발송은 라이브 보정 값으로 그대로 진행. 실패는 경고만(발송을 막지 않는다).
+        if age_min is not None and age_min > 60:
+            _dispatch_fetch_data()
 
         access_token = refresh_access_token(rest_key, refresh_token)
 

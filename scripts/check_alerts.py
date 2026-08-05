@@ -404,9 +404,12 @@ def _dedup_per_symbol(triggered, snaps):
 
 
 def _write_state(state, alerts, now):
-    """유효 알림만 남겨 alerts_state.json 기록(삭제된 알림 이력 정리)."""
+    """유효 알림만 남겨 alerts_state.json 기록(삭제된 알림 이력 정리).
+
+    '_' 로 시작하는 키는 다른 소유자의 상태(check_swings 의 _swings 등)라 정리 대상에서 제외 —
+    여기서 지우면 급변 속보 쿨다운이 매 런 리셋돼 같은 급변이 반복 발송된다."""
     valid_ids = {a["id"] for a in alerts}
-    pruned = {k: v for k, v in state.items() if k in valid_ids}
+    pruned = {k: v for k, v in state.items() if k in valid_ids or k.startswith("_")}
     with open(STATE_PATH, "w", encoding="utf-8") as f:
         json.dump(pruned, f, ensure_ascii=False, indent=2)
         f.write("\n")
