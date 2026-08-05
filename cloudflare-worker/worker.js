@@ -1032,6 +1032,91 @@ async function triggerMarketAlerts(env, includeFetch) {
   return true;
 }
 
+// ═══ 🤖 Discord Interactions (D9 — 슬래시 명령 양방향) ═══════════════════════
+// POST /discord — Discord 가 슬래시 명령을 여기로 보낸다. 인증 = Ed25519 서명 검증
+// (env.DISCORD_PUBLIC_KEY, 개발자 포털 General Information 의 PUBLIC KEY). 서명이 곧
+// 인증이므로 Origin/레이트리밋 게이트를 타지 않는다(디스코드 서버 호출엔 Origin 없음).
+// 명령: /시세 <지표> — Yahoo 라이브 시세 1건, /대시보드 — 링크.
+const DISCORD_QUOTES = {
+  '코스피': ['^KS11', 0], '코스닥': ['^KQ11', 0], 'S&P500': ['^GSPC', 0],
+  '나스닥': ['^IXIC', 0], '달러-원': ['KRW=X', 1], '금': ['GC=F', 1], 'WTI': ['CL=F', 2],
+};
+
+async function _discordVerify(request, rawBody, env) {
+  const sig = request.headers.get('X-Signature-Ed25519');
+  const ts = request.headers.get('X-Signature-Timestamp');
+  const pub = (env && env.DISCORD_PUBLIC_KEY || '').trim();
+  if (!sig || !ts || !pub) return false;
+  try {
+    const hex2buf = (h) => new Uint8Array((h.match(/.{2}/g) || []).map((b) => parseInt(b, 16)));
+    const key = await crypto.subtle.importKey('raw', hex2buf(pub), { name: 'Ed25519' }, false, ['verify']);
+    return await crypto.subtle.verify('Ed25519', key,
+      hex2buf(sig), new TextEncoder().encode(ts + rawBody));
+  } catch (e) {
+    console.error('[discord] 서명 검증 오류', e && e.message);
+    return false;
+  }
+}
+
+async function _discordQuote(label) {
+  const [sym, nd] = DISCORD_QUOTES[label] || [];
+  if (!sym) return `알 수 없는 지표: ${label}`;
+  try {
+    // range=1d — 이때 chartPreviousClose 가 '직전 거래일 종가'다. 5d 로 부르면 5일 전
+    // 종가가 되어 등락률이 주간 수익률로 부풀던 버그(실측 ▲16.51%) 방지.
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (economic-site-bot)' } });
+    const j = await r.json();
+    const meta = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+    const price = meta && meta.regularMarketPrice;
+    const prev = meta && (meta.regularMarketPreviousClose || meta.chartPreviousClose);
+    if (price == null) return `${label} 시세 조회 실패(Yahoo 응답 이상)`;
+    const pct = prev ? ((price / prev - 1) * 100) : null;
+    const arrow = pct == null ? '' : (pct >= 0 ? '▲' : '▼');
+    const pctTxt = pct == null ? '' : ` ${arrow}${Math.abs(pct).toFixed(2)}%`;
+    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}\n※ 무료 시세 기준(지연 가능) · [대시보드](https://0101-commits.github.io/economic-site/)`;
+  } catch (e) {
+    return `${label} 시세 조회 실패: ${e && e.message}`;
+  }
+}
+
+async function handleDiscordInteractions(request, env, ctx) {
+  const rawBody = await request.text();
+  if (!(await _discordVerify(request, rawBody, env))) {
+    return new Response('invalid request signature', { status: 401 });
+  }
+  let body;
+  try { body = JSON.parse(rawBody); } catch (_) { return new Response('bad json', { status: 400 }); }
+  if (body.type === 1) {                                    // PING — 엔드포인트 검증
+    return jsonResponse({ type: 1 });
+  }
+  if (body.type === 2) {                                    // APPLICATION_COMMAND
+    const name = body.data && body.data.name;
+    if (name === '시세') {
+      // ⏱ 디스코드는 3초 내 응답 필수 — Yahoo 조회가 넘길 수 있어 '지연 응답(type 5)'
+      //   을 먼저 보내고 waitUntil 로 원본 메시지를 결과로 편집한다(봇 토큰 불필요 —
+      //   interaction token 웹훅 경로).
+      const opt = body.data.options && body.data.options[0];
+      const label = String((opt && opt.value) || '코스피');
+      const followup = (async () => {
+        const content = await _discordQuote(label);
+        await fetch(`https://discord.com/api/v10/webhooks/${body.application_id}/${body.token}/messages/@original`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        }).catch((e) => console.error('[discord] followup 실패', e && e.message));
+      })();
+      if (ctx && ctx.waitUntil) ctx.waitUntil(followup);
+      return jsonResponse({ type: 5 });
+    }
+    if (name === '대시보드') {
+      return jsonResponse({ type: 4, data: {
+        content: '📊 경제터미널 대시보드\nhttps://0101-commits.github.io/economic-site/' } });
+    }
+    return jsonResponse({ type: 4, data: { content: `알 수 없는 명령: ${name}`, flags: 64 } });
+  }
+  return jsonResponse({ type: 4, data: { content: '지원하지 않는 상호작용 유형', flags: 64 } });
+}
+
 export default {
   // Cloudflare Cron Trigger 진입점
   async scheduled(event, env, ctx) {
@@ -1066,7 +1151,7 @@ export default {
     }
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     // CORS preflight — [이슈8] POST 엔드포인트는 출처 제한 CORS(postCors), 그 외는 퍼블릭 GET_CORS.
     if (request.method === 'OPTIONS') {
       const _p = new URL(request.url).pathname;
@@ -1078,6 +1163,11 @@ export default {
     // 로 중계해 자연어 브리핑을 생성한다. 키는 Worker 시크릿 ANTHROPIC_API_KEY 로만 보관해
     // 브라우저에 노출되지 않는다. (정적 사이트에서 안전하게 LLM 을 쓰기 위한 경로.)
     if (request.method === 'POST') {
+      // 🤖 Discord Interactions(D9) — Ed25519 서명이 곧 인증. Origin/레이트리밋 게이트보다
+      //   먼저 처리(디스코드 서버 호출엔 Origin 헤더가 없어 아래 게이트가 오탐 차단함).
+      if (new URL(request.url).pathname === '/discord') {
+        return handleDiscordInteractions(request, env, ctx);
+      }
       // [이슈8] POST 응답 CORS — 화이트리스트 Origin 만 echo(그 외 ACAO 미포함). 모든 분기에 일괄 적용.
       const pc = postCors(request);
       // 비용/쓰기가 발생하는 POST 경로 — 자기 사이트 출처가 아니면 거부 (캐주얼 남용 차단)
