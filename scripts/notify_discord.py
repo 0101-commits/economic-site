@@ -22,7 +22,9 @@ def send(text, png=None, filename="chart.png"):
 
     png 는 bytes 또는 파일 경로(str) — build_slot_chart_png 가 경로를 반환하므로
     (2026-08-05 실런에서 str+bytes TypeError 로 이미지 누락됐던 원인) 둘 다 받는다."""
-    url = os.environ.get(WEBHOOK_ENV, "").strip()
+    # BOM 제거 — Windows PowerShell 파이프로 등록한 시크릿은 U+FEFF 가 앞에 붙을 수 있고,
+    # str.strip() 은 BOM 을 공백으로 안 봐서 'unknown url type: ﻿https' 로 죽는다(2026-08-05 실측).
+    url = os.environ.get(WEBHOOK_ENV, "").strip().lstrip("﻿").strip()
     if not url:
         return False
     content = (text or "")[:2000]
