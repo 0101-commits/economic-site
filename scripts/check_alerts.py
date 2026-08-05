@@ -593,6 +593,17 @@ def main():
     # 종목당 1줄 — 동시 충족(사다리/이벤트)을 현재가 최근접 1건으로 축약
     to_send = _dedup_per_symbol(triggered, snaps)
 
+    # 디스코드 병행 발송 — 카카오 시크릿/토큰 상태와 무관하게 도달(채널 이중화). 실패·미설정 무시.
+    # 카카오 쪽 이력(met/date/ts) 확정에는 관여하지 않는다 — 도배 방지 기준은 카카오 경로 그대로.
+    if to_send and not IS_TEST:
+        try:
+            import notify_discord
+            notify_discord.send("\n".join(
+                [f"🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"]
+                + [ln for _, ln in to_send] + [DELAY_NOTICE]))
+        except Exception as _dce:
+            print(f"[discord] 병행 발송 예외 무시: {_dce}")
+
     # 재무장 상태(met) 보존 — 회복/미충족(m=False)은 즉시 기록해 다음 교차 재발송을 보장한다.
     # 단 '이번에 새로 발동한 가격 알림'의 met=True 는 미리 쓰지 않는다 — 발송이 성공해야 확정한다.
     #   (토큰 만료·5xx 로 발송이 실패했는데 미리 disarm 하면, 그 가격 교차 알림이 회복·재교차 전까지

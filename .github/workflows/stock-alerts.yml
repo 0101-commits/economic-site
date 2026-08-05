@@ -71,6 +71,8 @@ jobs:
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
           # 토큰 만료/회전 실패의 이슈 통지용(permissions.issues: write 와 세트) — kakao._gh_issue_notify.
           GITHUB_TOKEN: ${{ github.token }}
+          # 디스코드 병행 발송(notify_discord) — 미설정이면 카카오 단독으로 종전과 동일.
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python scripts/check_alerts.py
 
       # 🚨 시장중단(서킷브레이커) 감지·카카오 — fetch-data.yml 에서 이관(2026-07).
@@ -112,6 +114,7 @@ jobs:
           ALERTS_TEST: ${{ github.event_name == 'repository_dispatch' && github.event.action == 'alerts-test' }}
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
           GITHUB_TOKEN: ${{ github.token }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python scripts/check_swings.py
 
       - name: Commit alerts_state.json + halts_state.json (발송 이력 — 도배 방지)

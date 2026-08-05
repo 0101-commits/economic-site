@@ -82,22 +82,32 @@ def main():
     if not hits:
         return
 
+    msg = (f"⚡ {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 시장 급변\n"
+           + "\n".join(line for _, line in hits)
+           + f"\n{ca.DELAY_NOTICE}")
+
+    # 카카오 + 디스코드 병행 — 어느 한쪽이라도 성공하면 쿨다운 확정(같은 급변 재발송 방지).
+    # 둘 다 실패한 경우만 미확정 → 다음 분 런이 재시도. job 은 항상 green(실패 메일 방지).
+    sent_ok = False
     rest_key = os.environ.get("KAKAO_REST_API_KEY", "").strip()
     refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
-    if not rest_key or not refresh_token:
-        print("::warning title=Kakao 미설정::급변 속보 발송 건너뜀 (KAKAO_SETUP.md 참고)")
-        return
+    if rest_key and refresh_token:
+        try:
+            access_token = kakao.refresh_access_token(rest_key, refresh_token)
+            friends = kakao.get_friends(access_token) if kakao._friends_enabled() else []
+            kakao.send_memo(access_token, msg, with_button=True, uuids=[f["uuid"] for f in friends])
+            sent_ok = True
+        except (SystemExit, Exception) as e:
+            print(f"::warning title=급변 속보 카카오 실패::{e} — 디스코드 경로 시도")
+    else:
+        print("::warning title=Kakao 미설정::급변 속보 카카오 건너뜀 (KAKAO_SETUP.md 참고)")
     try:
-        access_token = kakao.refresh_access_token(rest_key, refresh_token)
-        friends = kakao.get_friends(access_token) if kakao._friends_enabled() else []
-        uuids = [f["uuid"] for f in friends]
-        msg = (f"⚡ {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 시장 급변\n"
-               + "\n".join(line for _, line in hits)
-               + f"\n{ca.DELAY_NOTICE}")
-        kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
-    except (SystemExit, Exception) as e:
-        # 발송 실패 = 쿨다운 미확정 → 다음 분 런이 재시도. job 은 green 유지(실패 메일 방지).
-        print(f"::warning title=급변 속보 발송 실패::{e} — 다음 런 재시도")
+        import notify_discord
+        if notify_discord.send(msg):
+            sent_ok = True
+    except Exception as e:
+        print(f"[discord] 병행 발송 예외 무시: {e}")
+    if not sent_ok:
         return
 
     # 발송 성공 후에만 쿨다운 확정 — 당일 키만 남겨 상태 파일이 자라지 않게 한다.

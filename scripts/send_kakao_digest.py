@@ -1159,9 +1159,10 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
     return True
 
 
-def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None):
-    """슬롯 차트 생성→업로드→'한 통' 피드 발송. 한 단계라도 실패 시 False(→ 동일 내용 텍스트 폴백)."""
-    png = build_slot_chart_png(data, slot, weekend)
+def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None, png=None):
+    """슬롯 차트 생성→업로드→'한 통' 피드 발송. 한 단계라도 실패 시 False(→ 동일 내용 텍스트 폴백).
+    png 를 넘기면 재사용(디스코드 병행 발송과 이중 생성 방지)."""
+    png = png or build_slot_chart_png(data, slot, weekend)
     if not png:
         return False
     image_url = kakao_upload_image(access_token, png)
@@ -1290,6 +1291,18 @@ def main():
         if age_min is not None and age_min > 60:
             _dispatch_fetch_data()
 
+        # 디스코드 병행 발송 — 카카오와 완전 독립(토큰 만료·발송 실패와 무관하게 도달).
+        # 웹훅(DISCORD_WEBHOOK_URL) 미설정이면 no-op. 차트는 여기서 1회 생성해 카카오 피드에 재사용.
+        _dc_png = None
+        try:
+            import notify_discord
+            if _charts_enabled():
+                _dc_png = build_slot_chart_png(data, slot, weekend)
+            notify_discord.send(f"**{title}**\n" + "\n".join(f"〔{lab}〕{val}" for lab, val in blocks),
+                                png=_dc_png)
+        except Exception as _dce:
+            print(f"[discord] 병행 발송 예외 무시: {_dce}")
+
         access_token = refresh_access_token(rest_key, refresh_token)
 
         # 수신 모드 자동 판별 — 연결·동의된 친구가 있으면 '친구에게 보내기'(푸시 알림 정상),
@@ -1306,7 +1319,7 @@ def main():
         #    + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
         #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
         if _charts_enabled():
-            if send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=uuids):
+            if send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=uuids, png=_dc_png):
                 _mark_sent_ok()                      # 실제 발송 성공 — 여기서만 센티널 생성
                 print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
                 return
