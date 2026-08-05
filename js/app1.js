@@ -839,8 +839,6 @@ function showPage(id, el) {
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.menu-item').forEach(m=>{ m.classList.remove('active'); m.removeAttribute('aria-current'); });
   if(el) { el.classList.add('active'); el.setAttribute('aria-current','page'); }
-  // 내 대시보드(옵션 C) — 진입 시 즐겨찾기 위젯 이동, 이탈 시 원위치 (app3.js)
-  try { if(typeof mydashOnNavigate === 'function') mydashOnNavigate(id); } catch(_) {}
   try { const _main = document.getElementById('mainContent'); if(_main) _main.focus({ preventScroll: true }); } catch(_) {}
   // 메뉴 전환 시 최상단으로 스크롤
   try {

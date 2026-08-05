@@ -2038,114 +2038,6 @@ function applyWidgetFreshChips(){
   });
 }
 
-// ── 5) 위젯 즐겨찾기(★) + 내 대시보드 — DOM 이동 방식 ─────────────────
-// page-equity 가 #market-equity 를 appendChild 로 옮겨 쓰는 검증된 패턴과 동일.
-// 위젯 노드·id 가 유지되므로 차트 인스턴스가 살아있고, 주기 갱신(id 기반 렌더)도
-// 위젯이 mydash 에 가 있는 동안 그대로 도착한다. 이탈 시 placeholder 로 원위치 복원.
-var WFAV_LS = 'econ_widget_favs_v1';
-var _wfavReg = {};          // wid → 위젯 노드 (부팅 스캔, 정적 위젯만 — macroContent 등 동적 생성물 제외)
-var _wfavMoved = [];        // 현재 mydash 로 이동된 [wid, placeholder]
-var _wfavPageInited = {};   // mydash 진입 시 원 페이지 지연 init 1회 가드
-function _wfavLoad(){ try { return JSON.parse(localStorage.getItem(WFAV_LS) || '[]'); } catch(_) { return []; } }
-function _wfavSave(a){ try { localStorage.setItem(WFAV_LS, JSON.stringify(a)); } catch(_) {} }
-function initWidgetFavs(){
-  var favs = _wfavLoad();
-  document.querySelectorAll('#mainContent .page .widget').forEach(function(w){
-    var page = w.closest('.page');
-    if(!page || page.id === 'page-mydash') return;
-    var t = w.querySelector('.w-toggle');            // 접기와 같은 대상 기준(타이틀 보유 위젯)
-    if(!t || t.closest('.widget') !== w) return;
-    var wid = page.id + '|' + (t.textContent || '').trim().slice(0, 40);
-    if(_wfavReg[wid]) return;                         // 동일 타이틀 중복은 첫 위젯만
-    _wfavReg[wid] = w;
-    w.dataset.wid = wid;
-    var b = document.createElement('button');
-    b.className = 'w-fav'; b.type = 'button';
-    b.setAttribute('aria-label', '내 대시보드에 추가/제거');
-    var on = favs.indexOf(wid) !== -1;
-    b.textContent = on ? '★' : '☆';
-    b.classList.toggle('on', on);
-    b.addEventListener('click', function(ev){
-      ev.stopPropagation();
-      var a = _wfavLoad(), i = a.indexOf(wid);
-      if(i === -1) a.push(wid); else a.splice(i, 1);
-      _wfavSave(a);
-      b.textContent = i === -1 ? '★' : '☆';
-      b.classList.toggle('on', i === -1);
-      var md = document.getElementById('page-mydash');
-      if(md && md.classList.contains('active')) _mydashSync();
-    });
-    t.appendChild(b);
-  });
-  // 딥링크(?p=mydash)가 load 이벤트(이 스캔)보다 먼저 페이지를 열어둔 경우 지금 채운다
-  var md = document.getElementById('page-mydash');
-  if(md && md.classList.contains('active')) _mydashSync();
-}
-// 원 페이지 지연 렌더 재현 — showPage 의 페이지별 init 을 favs 소스 페이지에 한해 1회
-var _WFAV_PAGE_INIT = {
-  'page-market':     function(){ initMarketPage(); },
-  'page-equity':     function(){ buildEquityPage(); },
-  'page-portfolio':  function(){ initPortfolioPage(); },
-  'page-macro':      function(){ initMacroPage('kr'); buildMacroIndicatorTable(); },
-  'page-investor':   function(){ buildInvestorPage(); try { buildGlobalAllocCompare(); } catch(_) {} },
-  'page-realestate': function(){ setRETab('kr', document.getElementById('reitabKR')); buildReCharts(); },
-};
-function _mydashCtl(w, wid){
-  var t = w.querySelector('.w-toggle');
-  if(!t || t.querySelector('.mydash-ctl')) return;
-  var sp = document.createElement('span'); sp.className = 'mydash-ctl';
-  [['↑', -1], ['↓', 1]].forEach(function(cfg){
-    var b = document.createElement('button'); b.type = 'button';
-    b.textContent = cfg[0];
-    b.setAttribute('aria-label', cfg[0] === '↑' ? '위로' : '아래로');
-    b.addEventListener('click', function(ev){
-      ev.stopPropagation();
-      var a = _wfavLoad(), i = a.indexOf(wid), j = i + cfg[1];
-      if(i === -1 || j < 0 || j >= a.length) return;
-      a[i] = a[j]; a[j] = wid; _wfavSave(a);
-      _mydashSync();
-    });
-    sp.appendChild(b);
-  });
-  t.appendChild(sp);
-}
-function _mydashSync(){
-  _mydashRestore();
-  var grid = document.getElementById('mydashGrid');
-  var empty = document.getElementById('mydashEmpty');
-  if(!grid || !empty) return;
-  var favs = _wfavLoad().filter(function(wid){ return _wfavReg[wid]; });
-  empty.style.display = favs.length ? 'none' : 'block';
-  favs.forEach(function(wid){
-    var w = _wfavReg[wid];
-    var pid = wid.split('|')[0];                     // 원 페이지 id 는 wid 에서 (노드는 이동 중일 수 있음)
-    if(_WFAV_PAGE_INIT[pid] && !_wfavPageInited[pid]){
-      _wfavPageInited[pid] = 1;
-      try { _WFAV_PAGE_INIT[pid](); } catch(_) {}
-    }
-    var ph = document.createElement('div');
-    ph.style.display = 'none'; ph.dataset.phFor = wid;
-    w.parentNode.insertBefore(ph, w);
-    grid.appendChild(w);
-    _wfavMoved.push([wid, ph]);
-    _mydashCtl(w, wid);
-  });
-  try { window.dispatchEvent(new Event('resize')); } catch(_) {}
-}
-function _mydashRestore(){
-  _wfavMoved.forEach(function(p){
-    var wid = p[0], ph = p[1], w = _wfavReg[wid];
-    var ctl = w.querySelector('.mydash-ctl'); if(ctl) ctl.remove();
-    if(ph.parentNode) ph.parentNode.replaceChild(w, ph);
-  });
-  if(_wfavMoved.length){ try { window.dispatchEvent(new Event('resize')); } catch(_) {} }
-  _wfavMoved = [];
-}
-// showPage 가 매 전환마다 호출 — mydash 진입이면 채우고, 이탈이면 원위치
-function mydashOnNavigate(id){
-  if(id === 'mydash') setTimeout(_mydashSync, 30);
-  else _mydashRestore();
-}
 
 // ── 4) 홈 메인차트 저빈도 컨트롤 서랍(⋯) 토글 ──────────────────────────
 function toggleMainChartMore(btn){
@@ -2160,7 +2052,6 @@ window.addEventListener('load', () => {
   try { applyHomeLayout(); } catch(_) {}
   try { initHomeDnd(); } catch(_) {}
   try { initWidgetCollapse(); } catch(_) {}   // Phase 3 — 위젯 접기
-  try { initWidgetFavs(); } catch(_) {}       // 옵션 C — 위젯 즐겨찾기(★) 스캔 (접기 스캔 이후여야 함)
   try { buildPageTocs(); } catch(_) {}        // Phase 3 — 페이지 목차 칩
   try { initGlobalDelayChip(); } catch(_) {}
   // data.json 이 이미 적용된 경우(applyRealData 가 먼저 돈 경우) 비교 차트 즉시 초기화

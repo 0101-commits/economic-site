@@ -232,10 +232,14 @@ def krx_commodity(endpoint, isu_match):
 # 케이스가 있어 등락률 랭킹이 무력화. pykrx 는 일반 공시 페이지(data.krx.co.kr)를
 # 직접 호출하므로 GHA 러너 IP 차단도 없고 데이터 품질이 더 안정적.
 # 키 없음 = 누구나 호출 가능 = 카카오톡 알람 없음.
+# ImportError 외 예외도 잡는다 — pykrx 1.2.x 는 KRX_ID/KRX_PW 가 있으면 import 시점에
+# KRX 로그인을 시도하는데, KRX 서버가 점검/차단으로 HTML 을 반환하면 JSONDecodeError 가
+# import 문 자체에서 터진다. 그 경우 KRX 섹션만 skip 하고 나머지 수집은 계속한다.
 try:
     from pykrx import stock as _pykrx_stock
     _PYKRX_AVAILABLE = True
-except ImportError:
+except Exception as _pykrx_err:
+    print(f"[pykrx] import 실패 — KRX 데이터 skip, 이전 값 유지: {type(_pykrx_err).__name__}: {_pykrx_err}", file=sys.stderr)
     _pykrx_stock = None
     _PYKRX_AVAILABLE = False
 
