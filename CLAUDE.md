@@ -76,6 +76,7 @@ and are **not** idempotent — do not re-run them.
 | `scripts/send_kakao_digest.py` | KakaoTalk digest sender |
 | `scripts/check_alerts.py` | Stock alert evaluator |
 | `scripts/check_swings.py` | Market swing alert (코스피·S&P500 ±2%, 달러-원 ±1% 즉시 속보; cooldown = `alerts_state.json` `_swings` key) |
+| `scripts/notify_discord.py` | Discord webhook parallel channel (secret `DISCORD_WEBHOOK_URL`; digest/alerts/swings 병행 발송, 미설정 시 no-op) |
 | `cloudflare-worker/worker.js` | CORS proxy + rate limiting + KakaoTalk cron dispatch |
 | `data.json` | Market data artifact — committed by bot, never edit by hand |
 | `data_meta.json` | Lightweight `lastUpdated` mirror of `data.json` |
