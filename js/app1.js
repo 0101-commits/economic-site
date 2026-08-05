@@ -828,6 +828,9 @@ function navigateToDetail(target) {
 })();
 
 function showPage(id, el) {
+  // 잠금 페이지(투자 현황·설정) 게이트 — 모든 진입(메뉴·?p= 딥링크·popstate·키보드)이
+  // showPage 를 지나므로 관문은 여기 한 곳. 비밀번호 확인 성공 시 econLockGate 가 재호출한다.
+  try { if(typeof econLockGate === 'function' && econLockGate(id, el)) return; } catch(_) {}
   // 포트폴리오 페이지를 떠날 때 서버 미저장 변경이 있으면 저장 여부를 물어본다 (지정 종목 트래킹 저장 리마인더)
   try {
     const _prev = document.querySelector('.page.active');

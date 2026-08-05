@@ -565,3 +565,104 @@ function pfExportCsv() {
   document.body.removeChild(a);
   setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 }
+
+// ═══ 페이지 잠금 (투자 현황·설정) ═══════════════════════════════════════════════
+// 열람 방지용 클라이언트 게이트. 비밀번호는 SHA-256 해시로만 보관(공개 저장소 — 평문 금지).
+// 해제 상태는 sessionStorage 에만 유지 → 탭을 닫으면 다시 잠긴다.
+// 모든 진입이 showPage() 를 지나므로(메뉴·?p= 딥링크·popstate·키보드 단축키) 관문은 app1.js
+// showPage 상단의 econLockGate 호출 한 곳이다. 개발자도구로 우회는 가능하나, 민감 데이터
+// (평단가·수량)는 각 브라우저 localStorage 에만 있어 '어깨너머 열람 방지' 목적에는 충분.
+(function() {
+  var LOCKED = ['portfolio', 'settings'];
+  var HASH = 'b552a7c023fa767b5844340395bf7654d68550838f1f47bbb9ddb375f7295f70';
+  var SS_KEY = 'econLockOk_v1';
+
+  function unlocked() { try { return sessionStorage.getItem(SS_KEY) === '1'; } catch(_) { return false; } }
+
+  // showPage 에서 호출 — true 반환 시 전환 중단(모달이 성공하면 showPage 재호출)
+  window.econLockGate = function(id, el) {
+    if(LOCKED.indexOf(id) < 0 || unlocked()) return false;
+    openModal(id, el);
+    return true;
+  };
+
+  function sha256Hex(s) {
+    if(!(window.crypto && crypto.subtle)) return Promise.reject(new Error('insecure context'));
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)).then(function(buf) {
+      return Array.prototype.map.call(new Uint8Array(buf), function(b) {
+        return ('0' + b.toString(16)).slice(-2);
+      }).join('');
+    });
+  }
+
+  var _overlay = null;
+  function closeModal() {
+    if(_overlay) { _overlay.remove(); _overlay = null; }
+    document.removeEventListener('keydown', onEsc, true);
+  }
+  function onEsc(e) { if(e.key === 'Escape') { e.stopPropagation(); closeModal(); } }
+
+  function openModal(id, el) {
+    if(_overlay) { var i0 = _overlay.querySelector('input'); if(i0) i0.focus(); return; }
+    _overlay = document.createElement('div');
+    _overlay.setAttribute('role', 'dialog');
+    _overlay.setAttribute('aria-modal', 'true');
+    _overlay.setAttribute('aria-label', '잠금 해제');
+    _overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
+    var card = document.createElement('div');
+    card.style.cssText = 'background:var(--modal-bg,var(--c-card));border:1px solid var(--modal-border,var(--c-border));border-radius:var(--r-sm);padding:22px 24px;width:min(320px,90vw);box-shadow:0 8px 32px rgba(0,0,0,.4);';
+    card.innerHTML =
+      '<div style="font-size:var(--font-size-md);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">🔒 잠긴 페이지</div>' +
+      '<div style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-bottom:14px;">' + (id === 'settings' ? '설정' : '투자 현황') + ' 페이지는 비밀번호가 필요합니다.</div>' +
+      '<input type="password" inputmode="numeric" autocomplete="off" aria-label="비밀번호" style="width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:8px 10px;font-size:var(--font-size-md);">' +
+      '<div data-lock-err style="display:none;color:var(--c-down,#e05555);font-size:var(--font-size-xs);margin-top:6px;">비밀번호가 올바르지 않습니다.</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">' +
+        '<button data-lock-cancel style="border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);border-radius:var(--r-xs);padding:6px 14px;font-size:var(--font-size-sm);cursor:pointer;">취소</button>' +
+        '<button data-lock-ok style="border:none;background:var(--c-accent,var(--c-primary));color:var(--c-on-accent,#fff);border-radius:var(--r-xs);padding:6px 14px;font-size:var(--font-size-sm);cursor:pointer;">확인</button>' +
+      '</div>';
+    _overlay.appendChild(card);
+    document.body.appendChild(_overlay);
+
+    var input = card.querySelector('input');
+    var err = card.querySelector('[data-lock-err]');
+    function submit() {
+      var v = input.value || '';
+      sha256Hex(v).then(function(h) {
+        if(h === HASH) {
+          try { sessionStorage.setItem(SS_KEY, '1'); } catch(_) {}
+          closeModal();
+          showPage(id, el);
+        } else {
+          err.style.display = 'block';
+          input.value = '';
+          input.focus();
+        }
+      }).catch(function() {
+        err.textContent = '이 환경(비보안 컨텍스트)에서는 잠금 해제를 지원하지 않습니다. https 로 접속하세요.';
+        err.style.display = 'block';
+      });
+    }
+    card.querySelector('[data-lock-ok]').addEventListener('click', submit);
+    card.querySelector('[data-lock-cancel]').addEventListener('click', closeModal);
+    input.addEventListener('keydown', function(e) { if(e.key === 'Enter') submit(); });
+    _overlay.addEventListener('mousedown', function(e) { if(e.target === _overlay) closeModal(); });
+    document.addEventListener('keydown', onEsc, true);
+    setTimeout(function() { input.focus(); }, 30);
+  }
+
+  // 메뉴에 잠금 표시 — 어떤 메뉴가 보호되는지 시각적 안내
+  window.addEventListener('load', function() {
+    try {
+      document.querySelectorAll('.menu-item').forEach(function(m) {
+        var oc = m.getAttribute('onclick') || '';
+        if(LOCKED.some(function(p) { return oc.indexOf("'" + p + "'") >= 0; })) {
+          var s = document.createElement('span');
+          s.textContent = ' 🔒';
+          s.setAttribute('aria-label', '비밀번호 잠금');
+          s.style.cssText = 'font-size:var(--font-size-xs);opacity:.55;';
+          m.appendChild(s);
+        }
+      });
+    } catch(_) {}
+  });
+})();
