@@ -18,12 +18,18 @@ _UA = "economic-site-notifier/1.0 (+https://github.com/0101-commits/economic-sit
 
 
 def send(text, png=None, filename="chart.png"):
-    """텍스트(+선택 PNG 첨부) 발송. 성공 True / 미설정·실패 False."""
+    """텍스트(+선택 PNG 첨부) 발송. 성공 True / 미설정·실패 False.
+
+    png 는 bytes 또는 파일 경로(str) — build_slot_chart_png 가 경로를 반환하므로
+    (2026-08-05 실런에서 str+bytes TypeError 로 이미지 누락됐던 원인) 둘 다 받는다."""
     url = os.environ.get(WEBHOOK_ENV, "").strip()
     if not url:
         return False
     content = (text or "")[:2000]
     try:
+        if isinstance(png, str):
+            with open(png, "rb") as f:
+                png = f.read()
         if png:
             b = uuid.uuid4().hex
             head = (f'--{b}\r\nContent-Disposition: form-data; name="payload_json"\r\n'
