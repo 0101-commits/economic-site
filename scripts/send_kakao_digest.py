@@ -1235,6 +1235,149 @@ def _dispatch_fetch_data():
             pass
 
 
+# ── 디스코드 전용 표현 헬퍼(E2·E5·E6) — 카카오 본문(blocks)은 절대 건드리지 않는다 ──
+
+_SPARK_CH = "▁▂▃▄▅▆▇█"
+
+
+def _spark(hist, n=7):
+    """일봉 [{date, close}] 끝 n개 → 유니코드 스파크라인(▂▃▅▇…). 3점 미만이면 ''."""
+    closes = [h.get("close") for h in (hist or [])[-n:]
+              if isinstance(h.get("close"), (int, float))]
+    if len(closes) < 3:
+        return ""
+    lo, hi = min(closes), max(closes)
+    if hi - lo < 1e-9:
+        return "▄" * len(closes)
+    return "".join(_SPARK_CH[int((c - lo) / (hi - lo) * 7 + 0.5)] for c in closes)
+
+
+def _dc_intensity(v):
+    """등락 강도 표기(E2) — ±2% 이상이면 ▲→⏫ / ▼→⏬ (기호가 크기도 전달)."""
+    def rep(m):
+        return (("⏫" if m.group(1) == "▲" else "⏬") + m.group(2) + "%"
+                if float(m.group(2)) >= 2.0 else m.group(0))
+    return re.sub(r"([▲▼])(\d+(?:\.\d+)?)%", rep, v)
+
+
+def _dc_cal_line(d, tgt=None):
+    """경제 캘린더에서 tgt일(기본 오늘) 별점 최상위 1건 → "US CPI 21:30 ★★★" (없으면 '')."""
+    try:
+        ev = (d.get("economicCalendar") or {}).get("events") or []
+        tgt = tgt or datetime.datetime.now(KST)
+        key = f"{tgt.month:02d}.{tgt.day:02d}"
+        todays = [e for e in ev if str(e.get("dt", "")).startswith(key)]
+        if not todays:
+            return ""
+        e = max(todays, key=lambda x: (x.get("stars") or 0))
+        stars = int(e.get("stars") or 0)
+        if stars < 2:
+            return ""
+        t = str(e.get("dt", ""))[6:]
+        return f"{e.get('cc', '')} {e.get('name', '')} {t} {'★' * stars}".strip()
+    except Exception:
+        return ""
+
+
+def _dc_fields(blocks, d):
+    """카카오 공통 blocks → 디스코드 필드(E2): 강도 기호 변환 + 추세 스파크라인 + 오늘 일정."""
+    fs = [(lab, _dc_intensity(v), True) for lab, v in blocks if v]
+    hi = (d.get("history") or {}).get("indices") or {}
+    sp = []
+    for lab, key in (("코스피", "KOSPI"), ("나스닥", "NASDAQ")):
+        s = _spark(hi.get(key))
+        if s:
+            sp.append(f"{lab} {s}")
+    if sp:
+        fs.append(("추세 7일", " · ".join(sp), True))
+    cal = _dc_cal_line(d)
+    if cal:
+        fs.append(("📅 오늘", cal, True))
+    return fs
+
+
+def _dc_buttons():
+    """다이제스트·마감 리포트 공통 버튼(E3) — 봇 토큰 있을 때만 실제로 붙는다."""
+    return [("대시보드", DASHBOARD_URL), ("시장 지표", DASHBOARD_URL + "?p=market"),
+            ("🔄 지금 시세", "id:refresh_quotes")]
+
+
+def _dc_thread_name(now):
+    """일자 스레드 이름(D10) — 변수 DISCORD_DIGEST_THREADS=0 이면 None(채널 본문)."""
+    if os.environ.get("DISCORD_DIGEST_THREADS", "1").strip().lower() in ("0", "false", "off"):
+        return None
+    return f"📅 {now.month}/{now.day} 시황"
+
+
+def _send_close_report(data):
+    """장 마감 리포트(E5) — 15:40 KST 전용 슬롯(close). 디스코드 전용(카카오 무변경),
+    당일 스레드의 '마침표': 마감 지수 + 오늘 발동 알림 수 + 내일 주요 일정."""
+    import notify_discord
+    now = datetime.datetime.now(KST)
+    idx = data.get("indices") or {}
+    fx = data.get("fx") or {}
+    rows = []
+    for lab, key in (("코스피", "KOSPI"), ("코스닥", "KOSDAQ"),
+                     ("S&P500", "SP500"), ("나스닥", "NASDAQ")):
+        n = idx.get(key) or {}
+        v = _f(n.get("price"))
+        if v is not None:
+            rows.append((lab, f"{v:,.0f} {_a1(n.get('change'))}".strip(), True))
+    kr = fx.get("USDKRW") or {}
+    v = _f(kr.get("rate"))
+    if v is not None:
+        rows.append(("달러-원", f"{v:,.1f} {_a1(kr.get('change'))}".strip(), True))
+    try:
+        sp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "alerts_state.json")
+        with open(sp, encoding="utf-8") as f:
+            st = json.load(f)
+        today = now.strftime("%Y%m%d")
+        cnt = sum(1 for k, r in st.items()
+                  if not k.startswith("_") and isinstance(r, dict) and r.get("date") == today)
+        rows.append(("오늘 발동 알림", f"{cnt}건", True))
+    except Exception:
+        pass                                          # 이력 파일 없으면 필드 생략
+    cal = _dc_cal_line(data, now + datetime.timedelta(days=1))
+    if cal:
+        rows.append(("📅 내일", cal, True))
+    kchg = _f((idx.get("KOSPI") or {}).get("change"))
+    color = (notify_discord.COLOR_FLAT if kchg is None or abs(kchg) < 0.05
+             else notify_discord.COLOR_UP if kchg >= 0 else notify_discord.COLOR_DOWN)
+    ok = notify_discord.send(
+        "", title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
+        url=DASHBOARD_URL + "?p=market", color=color, fields=rows,
+        footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
+        timestamp=True, thread_name=_dc_thread_name(now), buttons=_dc_buttons())
+    if ok:
+        _mark_sent_ok()
+        print(f"[digest] 장 마감 리포트 발송 완료 (필드 {len(rows)}개)")
+    else:
+        print("::warning title=장 마감 리포트 실패::디스코드 발송 실패 — 다음 깨움이 재시도")
+
+
+def _send_heartbeat(data):
+    """데일리 하트비트(E6) — 08시 슬롯 1회, '조용함=정상'을 '초록불=정상'으로.
+    dataHealth(수집 SLA 실측) + 수집 시각 + 오늘 발송 예정 요약. 실패는 무시."""
+    try:
+        import notify_discord
+        dh = (data.get("dataHealth") or {}).get("summary") or {}
+        failed = int(dh.get("failed") or 0)
+        lu = str(data.get("lastUpdated", ""))[:16].replace("T", " ")
+        wd = datetime.datetime.now(KST).weekday()
+        txt = (f"데이터 {dh.get('ok', '?')}/{dh.get('total', '?')} 정상 · "
+               f"지연 {dh.get('stale', 0)} · 실패 {failed}\n"
+               f"data.json 수집 {lu}\n"
+               + ("오늘 예정: 다이제스트 16회(07~22시) · 장마감 리포트 15:40 · 종목/급변 상시"
+                  if wd < 5 else "오늘 예정(주말): 다이제스트 11·17시"))
+        if failed > 0:
+            notify_discord.system(txt, title=f"⚠️ 데일리 하트비트 — 수집 실패 {failed}건")
+        else:
+            notify_discord.system(txt, title="💚 데일리 하트비트 — 파이프라인 정상",
+                                  color=notify_discord.COLOR_RESOLVE)
+    except Exception as e:
+        print(f"[discord] 하트비트 예외 무시: {e}")
+
+
 def _mark_sent_ok():
     """'실제 발송 성공' 직후에만 호출 — SENT_OK_PATH 센티널 파일을 만든다.
 
@@ -1281,8 +1424,15 @@ def main():
             raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
 
         weekend = _is_weekend()                      # 주말(토·일)이면 11·17시만, 사진은 달러원·금
-        slot = _resolve_slot(weekend)
         apply_live_quotes(data)                      # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
+
+        # 장 마감 리포트(E5) — 게이트가 KAKAO_SLOT=close 를 주는 15:40 전용 경로.
+        # 디스코드만 발송하고 즉시 종료(카카오·차트 경로 완전 무변경).
+        if os.environ.get("KAKAO_SLOT", "").strip() == "close":
+            _send_close_report(data)
+            return
+
+        slot = _resolve_slot(weekend)
         title, blocks = build_digest_parts(data)     # 제목 시각은 실제 발송 시각(now) 기준
 
         # 주간 리포트(옵션 D) — 일요일 17시 슬롯만 주간 모드(지난 7일 등락 + 다음 주 일정).
@@ -1318,23 +1468,27 @@ def main():
             import notify_discord
             if _charts_enabled():
                 _dc_png = build_slot_chart_png(data, slot, weekend)
-            # embed 형식(D1~D4) — 제목 클릭=대시보드(이미지 클릭은 디스코드 정책상 확대 보기),
-            # 블록은 fields 2열 그리드, footer=신선도, 색=일간 네이비/주간 금색.
+            # embed(D1~D4 + E2) — 제목 클릭=대시보드, 필드=강도 기호(⏫⏬)+추세 스파크라인
+            # +오늘 일정, 색띠=코스피 방향 동적(상승 빨강/하락 파랑/보합 회색 — 주간은 금색),
+            # 버튼(E3)=딥링크 2개+지금 시세(봇 토큰 있을 때만 부착, 없으면 웹훅 그대로).
             _weekly_mode = title.startswith("주간")
-            # 일자 스레드(D10) — 매시간 다이제스트를 날짜별로 묶어 채널 스크롤 정리.
-            # 변수 DISCORD_DIGEST_THREADS=0 으로 끄면 채널 본문 발송(종전 동작).
-            _thr = None
-            if os.environ.get("DISCORD_DIGEST_THREADS", "1").strip().lower() not in ("0", "false", "off"):
-                _kn = datetime.datetime.now(KST)
-                _thr = f"📅 {_kn.month}/{_kn.day} 시황"
+            _kchg = _f(((data.get("indices") or {}).get("KOSPI") or {}).get("change"))
+            _dc_color = (notify_discord.COLOR_WEEKLY if _weekly_mode
+                         else notify_discord.COLOR_FLAT if _kchg is None or abs(_kchg) < 0.05
+                         else notify_discord.COLOR_UP if _kchg >= 0 else notify_discord.COLOR_DOWN)
             notify_discord.send(
                 "", png=_dc_png, title=title, url=DASHBOARD_URL,
-                color=notify_discord.COLOR_WEEKLY if _weekly_mode else notify_discord.COLOR_DIGEST,
-                fields=[(lab, val, True) for lab, val in blocks],
+                color=_dc_color,
+                fields=_dc_fields(blocks, data),
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
-                timestamp=True, thread_name=_thr)
+                timestamp=True, thread_name=_dc_thread_name(datetime.datetime.now(KST)),
+                buttons=_dc_buttons())
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
+
+        # 데일리 하트비트(E6) — 08시 슬롯 1회, #시스템 채널 그린 임베드.
+        if slot == "h08":
+            _send_heartbeat(data)
 
         access_token = refresh_access_token(rest_key, refresh_token)
 

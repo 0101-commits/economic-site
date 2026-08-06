@@ -47,10 +47,18 @@ on:
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 0-13 * * 1-5'
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 22,23 * * 0-4'
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 2,8 * * 6,0'
+    # 장 마감 리포트(E5) — 평일 KST 15:40(UTC 06:40) 전용. 게이트가 '15시 35분 이후'를
+    # close 슬롯으로 판정하므로 위 백업 크론(15:37~)으로도 커버된다(마커 close 로 하루 1회).
+    - cron: '40 6 * * 1-5'
   workflow_run:
     workflows: ["Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)"]
     types: [completed]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      close:
+        description: '장 마감 리포트(E5) 즉시 발송 테스트'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -96,8 +104,10 @@ jobs:
         id: gate
         env:
           EVENT: ${{ github.event_name }}
+          INPUT_CLOSE: ${{ inputs.close }}
         run: |
           H=$(TZ=Asia/Seoul date +%-H)
+          M=$(TZ=Asia/Seoul date +%-M)
           DOW=$(TZ=Asia/Seoul date +%u)   # 1=월 … 6=토, 7=일
           if [ "$DOW" -ge 6 ]; then
             HOURS="11 17"                                       # 주말(토·일)
@@ -107,18 +117,26 @@ jobs:
           # 지금이 정확히 타깃 시각이면 그 슬롯(h09 등), 아니면 빈값.
           tslot=""
           case " $HOURS " in *" $H "*) tslot=$(printf 'h%02d' "$H") ;; esac
+          # 장 마감 리포트(E5) — 평일 15시 35분 이후는 close 슬롯(h15 다이제스트는 :02~:34).
+          # 전용 크론(15:40)과 백업 크론(15:37~:57)이 모두 여기 걸리고, 마커 close 가 하루 1회 보장.
+          close=""
+          if [ "$DOW" -lt 6 ] && [ "$H" = "15" ] && [ "$M" -ge 35 ]; then close=1; fi
           case "$EVENT" in
             workflow_dispatch)
               # 수동 즉시 — 타깃 시각이면 그 슬롯, 아니면 manual(파이썬이 가장 가까운 슬롯 차트로 발송).
               # 마커 키(ckey)는 슬롯 시각이면 '그 슬롯'을 쓴다 — 종전 ckey=manual 고정은 슬롯 시각에
               # 수동 발송한 뒤 같은 시각의 자동 트리거(백업 스케줄 등)가 마커 미적중으로 '또' 발송하는
               # 중복을 낳았다. 비슬롯 시각 수동만 마커 없이(manual) 항상 발송.
+              # inputs.close=true 면 시각 무관 장 마감 리포트 즉시(테스트, 마커 없음).
               proceed=true
-              if [ -n "$tslot" ]; then mslot="$tslot"; else mslot=manual; fi
-              ckey="${tslot:-manual}" ;;
+              if [ "$INPUT_CLOSE" = "true" ]; then mslot=close; ckey=manual
+              elif [ -n "$tslot" ]; then mslot="$tslot"; ckey="$tslot"
+              else mslot=manual; ckey=manual; fi ;;
             *)
               # 자동 트리거 — '지금이 타깃 시각'일 때만 발송(그 외 깨움은 즉시 종료).
-              if [ -n "$tslot" ]; then proceed=true; mslot="$tslot"; ckey="$tslot"; else proceed=false; mslot=none; ckey=none; fi ;;
+              if [ -n "$close" ]; then proceed=true; mslot=close; ckey=close
+              elif [ -n "$tslot" ]; then proceed=true; mslot="$tslot"; ckey="$tslot"
+              else proceed=false; mslot=none; ckey=none; fi ;;
           esac
           echo "proceed=$proceed"                    >> "$GITHUB_OUTPUT"
           echo "slot=$mslot"                         >> "$GITHUB_OUTPUT"

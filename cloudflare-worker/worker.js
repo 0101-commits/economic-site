@@ -1114,6 +1114,26 @@ async function handleDiscordInteractions(request, env, ctx) {
     }
     return jsonResponse({ type: 4, data: { content: `알 수 없는 명령: ${name}`, flags: 64 } });
   }
+  if (body.type === 3) {                                    // MESSAGE_COMPONENT — 버튼(E3)
+    const customId = body.data && body.data.custom_id;
+    if (customId === 'refresh_quotes') {
+      // 다이제스트의 [🔄 지금 시세] — /시세 로직 재사용, 7지표 병렬 조회.
+      // 응답은 에페메랄(flags 64) — 채널을 시세 스냅샷으로 어지럽히지 않는다.
+      const followup = (async () => {
+        const labels = Object.keys(DISCORD_QUOTES);
+        const lines = await Promise.all(labels.map((l) => _discordQuote(l).then((t) => t.split('\n')[0])));
+        const kst = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16);
+        const content = `**지금 시세** (${kst} KST)\n${lines.join('\n')}\n※ 무료 시세 기준(지연 가능)`;
+        await fetch(`https://discord.com/api/v10/webhooks/${body.application_id}/${body.token}/messages/@original`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        }).catch((e) => console.error('[discord] 버튼 followup 실패', e && e.message));
+      })();
+      if (ctx && ctx.waitUntil) ctx.waitUntil(followup);
+      return jsonResponse({ type: 5, data: { flags: 64 } });
+    }
+    return jsonResponse({ type: 4, data: { content: `알 수 없는 버튼: ${customId}`, flags: 64 } });
+  }
   return jsonResponse({ type: 4, data: { content: '지원하지 않는 상호작용 유형', flags: 64 } });
 }
 

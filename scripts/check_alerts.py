@@ -485,6 +485,10 @@ def _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered_syms):
         if delivered or give_up:
             rec["date"] = _daily_key(a.get("market", "KR"), now)
             rec["ts"] = ts
+            # 발동 이력(E4) — 디스코드 "이번 달 n번째" 표기용. 최근 40건만 유지(파일 비대 방지).
+            hist = rec.get("hist") or []
+            hist.append(rec["date"])
+            rec["hist"] = hist[-40:]
             if a["id"] in fired_price_ids:
                 rec["met"] = True                      # 가격 교차 발송 확정 → 회복 전까지 재무장 안 함
             rec["tries"] = 0
@@ -600,12 +604,30 @@ def main():
         try:
             import notify_discord
             _pre = "[테스트] " if IS_TEST else ""
+            # 컨텍스트 강화(E4) — 카카오 문구(line)는 그대로 두고 디스코드에만
+            # '목표 대비 %'와 '이번 달 n번째'(발동 이력)를 덧붙인다.
+            _mon = now.strftime("%Y%m")
+            _lines = []
+            for a, ln in to_send:
+                extra = []
+                _snap = snaps.get((a.get("market", "KR"), a.get("symbol")))
+                _v = a.get("value")
+                if (_snap and isinstance(_v, (int, float)) and _v
+                        and a.get("type") in PRICE_TYPES):
+                    extra.append(f"목표 대비 {(_snap['price'] / _v - 1) * 100:+.1f}%")
+                _n = sum(1 for d in ((state.get(a["id"]) or {}).get("hist") or [])
+                         if str(d).startswith(_mon)) + 1
+                if _n > 1:
+                    extra.append(f"이번 달 {_n}번째")
+                _lines.append(ln + (" · " + " · ".join(extra) if extra else ""))
             notify_discord.send(
-                "\n".join(ln for _, ln in to_send),
+                "\n".join(_lines),
                 title=f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림 — 투자 현황 보기",
                 url="https://0101-commits.github.io/economic-site/?p=portfolio",
                 color=notify_discord.COLOR_TEST if IS_TEST else notify_discord.COLOR_ALERT,
-                footer=DELAY_NOTICE, timestamp=True, env="DISCORD_WEBHOOK_ALERTS")
+                footer=DELAY_NOTICE, timestamp=True, env="DISCORD_WEBHOOK_ALERTS",
+                # 도달 티어 T2(E1) — @종목알림 역할 멘션(셀프 구독형). 테스트는 무멘션.
+                mention=None if IS_TEST else "role:종목알림")
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 
