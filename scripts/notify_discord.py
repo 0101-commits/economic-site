@@ -42,6 +42,22 @@ def _hook(env):
     return ""
 
 
+def _ensure_thread_member(tid, gid, hdr):
+    """서버 소유자를 스레드 멤버로 등록 — 스레드 메시지는 '가입자'에게만 알림·푸시가
+    가는 디스코드 사양이라, 미가입 상태면 다이제스트가 전부 무음이 된다(실측 원인).
+    PUT 은 멱등이라 매 발송 보장해도 무해. 실패는 적재엔 지장 없어 경고만."""
+    try:
+        own = json.load(urllib.request.urlopen(
+            urllib.request.Request(f"https://discord.com/api/v10/guilds/{gid}",
+                                   headers=hdr), timeout=10)).get("owner_id")
+        if own:
+            urllib.request.urlopen(urllib.request.Request(
+                f"https://discord.com/api/v10/channels/{tid}/thread-members/{own}",
+                headers=hdr, method="PUT"), timeout=10)
+    except Exception as e:
+        print(f"::warning title=Discord 스레드 멤버 등록 실패::{e} — 스레드 적재는 되나 푸시가 없을 수 있음")
+
+
 def _thread_id(hook, name):
     """일자 스레드 확보(D10) — 같은 이름의 활성 스레드가 있으면 재사용, 없으면 생성.
     DISCORD_BOT_TOKEN 필요(웹훅만으론 기존 텍스트 채널에 스레드 생성 불가).
@@ -59,15 +75,21 @@ def _thread_id(hook, name):
         act = json.load(urllib.request.urlopen(
             urllib.request.Request(f"https://discord.com/api/v10/guilds/{gid}/threads/active",
                                    headers=hdr), timeout=10))
+        tid = None
         for t in act.get("threads", []):
             if t.get("parent_id") == cid and t.get("name") == name:
-                return t["id"]
-        made = json.load(urllib.request.urlopen(
-            urllib.request.Request(f"https://discord.com/api/v10/channels/{cid}/threads",
-                                   data=json.dumps({"name": name, "type": 11,
-                                                    "auto_archive_duration": 1440}).encode("utf-8"),
-                                   headers=hdr, method="POST"), timeout=10))
-        return made.get("id")
+                tid = t["id"]
+                break
+        if not tid:
+            made = json.load(urllib.request.urlopen(
+                urllib.request.Request(f"https://discord.com/api/v10/channels/{cid}/threads",
+                                       data=json.dumps({"name": name, "type": 11,
+                                                        "auto_archive_duration": 1440}).encode("utf-8"),
+                                       headers=hdr, method="POST"), timeout=10))
+            tid = made.get("id")
+        if tid:
+            _ensure_thread_member(tid, gid, hdr)
+        return tid
     except Exception as e:
         print(f"[discord] 일자 스레드 확보 실패({e}) — 채널 본문으로 발송")
         return None
