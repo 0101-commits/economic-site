@@ -981,15 +981,17 @@ function inKakaoSlot(d) {
 //   반복됐다(2026-07-10 KST 09~11시 22연속 취소로 장중 2시간 데이터 동결 실측 — 2026-07 감사).
 //   조회 실패/권한 부족(fine-grained PAT 에 Actions:Read 없음 → 403)은 false 반환
 //   = fail-open(dispatch 진행) — 최악의 경우에도 기존 동작과 동일하다. GH_DISPATCH_TOKEN 재사용.
-async function _fetchDataBusy(env) {
+//   (2026-08-07) stock-alerts 도 같은 병을 앓아 이 헬퍼를 워크플로 인자화했다 — 아래
+//   _alertsWaiting 주석 참고.
+async function _wfBusy(env, wfFile, statuses, ua) {
   const check = async (status) => {
     const r = await fetch(
-      `https://api.github.com/repos/${GH_REPO}/actions/workflows/fetch-data.yml/runs?status=${status}&per_page=1`, {
+      `https://api.github.com/repos/${GH_REPO}/actions/workflows/${wfFile}/runs?status=${status}&per_page=1`, {
       headers: {
         'Authorization': 'Bearer ' + env.GH_DISPATCH_TOKEN,
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'ecom-fetch-cron',
+        'User-Agent': ua || 'ecom-fetch-cron',
       },
       signal: AbortSignal.timeout(10000),
     });
@@ -998,10 +1000,23 @@ async function _fetchDataBusy(env) {
     return !!(j && Number(j.total_count) > 0);
   };
   try {
-    const [inProgress, queued] = await Promise.all([check('in_progress'), check('queued')]);
-    return inProgress || queued;
+    const hits = await Promise.all(statuses.map(check));
+    return hits.some(Boolean);
   } catch (_) { return false; }                    // 네트워크/타임아웃 → fail-open
 }
+
+const _fetchDataBusy = (env) => _wfBusy(env, 'fetch-data.yml', ['in_progress', 'queued'], 'ecom-fetch-cron');
+
+// 🔍 stock-alerts 에 '이미 대기 중인 런'이 있는지 조회 — cancelled 양산 차단 게이트.
+//   GitHub concurrency 는 그룹당 '실행 1 + 대기 1'만 유지하고 그 위로 오는 dispatch 가
+//   대기 런을 교체 취소한다("Canceled by higher priority waiting request"). 정상 시 런은
+//   25~45초라 매분 dispatch 가 안전하지만, GitHub 러너가 밀려 런이 15분씩 걸리면 그 사이
+//   14건이 취소된다(2026-08-06 15~18 UTC 실측 166건 — 러너 기아 6시간).
+//   ⚠ in_progress 는 보지 않는다 — 실행 중일 때 오는 dispatch 는 '대기 1' 자리를 채울 뿐
+//   취소되지 않으므로, 그것까지 막으면 정시성만 잃고 얻는 게 없다. 대기 자리가 이미
+//   찼을 때만 건너뛴다 = 정시성(최악 ~2분) 유지 + cancelled 0.
+//   fail-open(조회 실패 → false = dispatch 진행)은 _fetchDataBusy 와 동일 원칙.
+const _alertsWaiting = (env) => _wfBusy(env, 'stock-alerts.yml', ['queued', 'pending'], 'ecom-alert-cron');
 
 // 🔔 종목 알림(alerts-cron) + 서킷브레이커 데이터 갱신(fetch-data) on-demand 실행.
 // GHA schedule 드롭 영향을 받지 않는다. alerts-cron 은 장중 '매분'(알림 도착 최악 ~2분),
@@ -1014,8 +1029,15 @@ async function triggerMarketAlerts(env, includeFetch) {
     return false;
   }
   if (!inMarketHours(new Date())) return true;   // 장외 — GitHub 깨우지 않음(할 일 없음 = 성공)
-  // alerts-cron 은 즉시 발화(아래 in_progress 조회를 기다리지 않음 — 정시성 핵심).
-  const jobs = [ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron')];
+  // alerts-cron — '대기 자리가 이미 찬' 분만 건너뛴다(_alertsWaiting 주석 참고).
+  // 이 dispatch 는 어차피 대기 런을 교체 취소시킬 뿐이라 평가 횟수는 늘지 않고 cancelled 만 늘었다.
+  // 조회는 ~수백 ms — 1분 주기의 정시성에는 영향 없다.
+  const jobs = [];
+  if (await _alertsWaiting(env)) {
+    console.log('[market-cron] stock-alerts 대기 런 존재 — 이번 분 alerts-cron dispatch 생략(cancelled 방지)');
+  } else {
+    jobs.push(ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron'));
+  }
   if (includeFetch) {
     if (await _fetchDataBusy(env)) {
       console.log('[market-cron] fetch-data 실행/대기 중 — 이번 슬롯 fetch-data dispatch 생략(과밀·cancelled 방지)');
