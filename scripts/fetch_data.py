@@ -253,6 +253,31 @@ if _PYKRX_AVAILABLE and not _KRX_LOGIN_AVAILABLE:
         "data.krx.co.kr 무료 가입 후 Secrets 에 KRX_ID/KRX_PW 등록 권장.")
 
 
+def _krx_name(fn, ticker):
+    """pykrx 종목명 조회 결과를 항상 '스칼라 문자열'로 좁힌다.
+
+    pykrx 의 이름 조회는 내부적으로 `df.loc[ticker, "종목명"]` 이다. ETF/ETN/ELW 를
+    concat 한 인덱스에 같은 티커가 두 번 들어오면(= KRX 응답이 깨졌을 때 발생)
+    `.loc` 는 스칼라가 아니라 **pandas Series** 를 돌려준다. 그 Series 가 그대로
+    movers 리스트에 실리면 마지막 `json.dump(data)` 가
+    `TypeError: Object of type Series is not JSON serializable` 로 죽어
+    수집 전체(뉴스·지표·시계열 포함)가 버려진다. 여기서 한 번에 막는다.
+    """
+    try:
+        v = fn(ticker)
+    except Exception:
+        return str(ticker)
+    if hasattr(v, "iloc"):          # pandas Series (중복 인덱스) → 첫 값만
+        try:
+            v = v.iloc[0] if len(v) else ticker
+        except Exception:
+            return str(ticker)
+    if v is None:
+        return str(ticker)
+    v = str(v).strip()
+    return v or str(ticker)
+
+
 def _last_kr_business_day(max_lookback=14):
     """가장 최근 영업일 찾기 — pykrx 가 데이터를 반환하는 첫 평일."""
     for offset in range(max_lookback):
@@ -286,7 +311,7 @@ def fetch_pykrx_stock_movers(market="KOSPI", top_n=10):
             # 종목명도 함께 가져오기
             try:
                 tickers = list(df.index)
-                names = {t: _pykrx_stock.get_market_ticker_name(t) for t in tickers[:200]}
+                names = {t: _krx_name(_pykrx_stock.get_market_ticker_name, t) for t in tickers[:200]}
             except Exception:
                 names = {}
             parsed = []
@@ -339,10 +364,7 @@ def fetch_pykrx_etf_movers(top_n=10):
                 # 종목명 매핑
                 names = {}
                 for t in df.index[:200]:
-                    try:
-                        names[t] = _pykrx_stock.get_etf_ticker_name(t)
-                    except Exception:
-                        names[t] = t
+                    names[t] = _krx_name(_pykrx_stock.get_etf_ticker_name, t)
                 for code, row in df.iterrows():
                     parsed.append({
                         "name": str(names.get(code, code)),
@@ -366,12 +388,9 @@ def fetch_pykrx_etf_movers(top_n=10):
                         if prev <= 0:
                             continue
                         chg = round((close - prev) / prev * 100, 2)
-                        try:
-                            name = _pykrx_stock.get_etf_ticker_name(t)
-                        except Exception:
-                            name = t
+                        name = _krx_name(_pykrx_stock.get_etf_ticker_name, t)
                         parsed.append({
-                            "name": name, "code": t, "price": close,
+                            "name": name, "code": str(t), "price": close,
                             "chg": chg, "vol": 0, "as_of": iso_date,
                         })
                     except Exception:
@@ -7705,8 +7724,11 @@ def run_light_build():
         log(f"[light-halts] active={len(_mh.get('active', []))} history={len(_mh.get('history', []))}")
     except Exception as _e:
         print(f"[light-halts] 감지 skipped: {_e}")
+    # 직렬화를 먼저 끝내고 쓴다 — 중간에 TypeError 가 나도 기존 data.json 이 반쯤 잘린
+    # 채로 남지 않는다(스트리밍 json.dump 는 파일을 이미 잘라놓은 뒤 죽는다).
+    _payload = json.dumps(d, ensure_ascii=False, indent=2)
     with open("data.json", "w", encoding="utf-8") as f:
-        json.dump(d, f, ensure_ascii=False, indent=2)
+        f.write(_payload)
     meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize("data.json")}
     with open("data_meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False)
@@ -7773,8 +7795,10 @@ if __name__ == "__main__":
         if isinstance(_prev_mh, dict):
             d["marketHalts"] = _prev_mh
     output_path = "data.json"
+    # 직렬화 → 쓰기 순서 (위 run_light_build 와 동일 이유: 부분 기록 방지)
+    _payload = json.dumps(d, ensure_ascii=False, indent=2)
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(d, f, ensure_ascii=False, indent=2)
+        f.write(_payload)
     # 경량 메타 파일(~100B) — 프런트 loadRealData() 가 이것만 선조회해 lastUpdated 가 그대로면
     # 3.6MB 본체 재다운로드를 생략한다 (자동 갱신 주기마다 전량 재수신하던 트래픽 절감).
     meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize(output_path)}
