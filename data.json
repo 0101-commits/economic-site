@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-09T01:27:46.262158+09:00",
+  "lastUpdated": "2026-08-09T02:21:31.368865+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "pykrx (KRX 정보데이터시스템)",
@@ -28,8 +28,7 @@
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
-    "economicCalendar": "FRED release dates API",
-    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
+    "economicCalendar": "FRED release dates API"
   },
   "fx": {
     "USDKRW": {
@@ -2083,7 +2082,7 @@
     ],
     "unit": "억원",
     "source": "pykrx KOSPI 투자자별 거래실적 (KRX 정보데이터시스템)",
-    "lastFetched": "2026-08-09T01:28:04.412144+09:00"
+    "lastFetched": "2026-08-09T02:21:55.250479+09:00"
   },
   "freight": {
     "items": [
@@ -2170,7 +2169,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-08-09T01:28:13.368014+09:00"
+    "lastFetched": "2026-08-09T02:22:03.750832+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -15668,6 +15667,21 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
+      },
       "trade_count_kr_rone": {
         "value": 85504.0,
         "prev": 80119.0,
@@ -16181,21 +16195,6 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
-      },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -184359,7 +184358,7 @@
     ],
     "as_of": "2026-08-07",
     "source": "westmetall.com (LME 일일 재고)",
-    "lastFetched": "2026-08-09T01:28:17.758315+09:00"
+    "lastFetched": "2026-08-09T02:22:07.651163+09:00"
   },
   "diagnostics": {
     "stockMoversSource": "pykrx (KRX 정보데이터시스템)",
@@ -184377,7 +184376,6 @@
       "fred_ok": false
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
-    "preservedMetricsDeep": 1,
     "historySpotSynced": 14
   },
   "subscription": {
@@ -184752,7 +184750,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-08-09T02:06:25.096748+09:00"
+    "lastFetched": "2026-08-09T03:01:32.738457+09:00"
   },
   "nps": {
     "allocation": [
@@ -184778,11 +184776,11 @@
       }
     ],
     "source": "fund.nps.or.kr",
-    "lastFetched": "2026-08-09T02:06:47.768969+09:00",
+    "lastFetched": "2026-08-09T03:01:55.587591+09:00",
     "as_of": "2026-05-01"
   },
   "news": {
-    "lastFetched": "2026-08-09T02:07:06.306208+09:00",
+    "lastFetched": "2026-08-09T03:02:17.818170+09:00",
     "채권": [
       {
         "title": "美증시, 금리인상 기대론 후퇴에 상승…S&P500 사상최고치 마감(종합)",
@@ -185131,22 +185129,22 @@
         "pubDate": "Thu, 06 Aug 2026 22:39:43 GMT"
       },
       {
-        "title": "[한중관계 다시보기] ②무역 : 중국은 한국의 최대 시장인가, 최대 경쟁자인가",
-        "url": "http://www.kcnews.org/news/articleView.html?idxno=14218",
-        "isoDate": "2026-07-29",
-        "pubDate": "Wed, 29 Jul 2026 03:08:00 GMT"
-      },
-      {
-        "title": "7월 수출 989억만 달러…반도체 폭발적 성장에 무역수지 303억 달러 흑자",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/7%EC%9B%94-%EC%88%98%EC%B6%9C-989%EC%96%B5%EB%A7%8C-%EB%8B%AC%EB%9F%AC-%EB%B0%98%EB%8F%84%EC%B2%B4-%ED%8F%AD%EB%B0%9C%EC%A0%81-%EC%84%B1%EC%9E%A5%EC%97%90-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-303%EC%96%B5-%EB%8B%AC%EB%9F%AC-%ED%9D%91%EC%9E%90/ar-AA29bqvm",
-        "isoDate": "2026-07-31",
-        "pubDate": "Fri, 31 Jul 2026 23:09:00 GMT"
+        "title": "한국, 수출 1000억달러 끝내 뚫었다…상반기 경상흑자 4배 폭증",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%ED%95%9C%EA%B5%AD-%EC%88%98%EC%B6%9C-1000%EC%96%B5%EB%8B%AC%EB%9F%AC-%EB%81%9D%EB%82%B4-%EB%9A%AB%EC%97%88%EB%8B%A4-%EC%83%81%EB%B0%98%EA%B8%B0-%EA%B2%BD%EC%83%81%ED%9D%91%EC%9E%90-4%EB%B0%B0-%ED%8F%AD%EC%A6%9D/vi-AA29Auze",
+        "isoDate": "2026-08-06",
+        "pubDate": "Thu, 06 Aug 2026 23:20:20 GMT"
       },
       {
         "title": "한국 7월 수출, 11개월 연속 역대급 기록 : 메디컬투데이TV",
         "url": "https://www.msn.com/ko-kr/news/other/%ED%95%9C%EA%B5%AD-7%EC%9B%94-%EC%88%98%EC%B6%9C-11%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%EC%97%AD%EB%8C%80%EA%B8%89-%EA%B8%B0%EB%A1%9D-%EB%A9%94%EB%94%94%EC%BB%AC%ED%88%AC%EB%8D%B0%EC%9D%B4tv/ar-AA29ikKB",
         "isoDate": "2026-08-03",
         "pubDate": "Mon, 03 Aug 2026 10:46:00 GMT"
+      },
+      {
+        "title": "[한중관계 다시보기] ②무역 : 중국은 한국의 최대 시장인가, 최대 경쟁자인가",
+        "url": "http://www.kcnews.org/news/articleView.html?idxno=14218",
+        "isoDate": "2026-07-29",
+        "pubDate": "Wed, 29 Jul 2026 03:08:00 GMT"
       }
     ],
     "한국은행": [
@@ -185365,7 +185363,7 @@
         "iso": "2026-09-18"
       }
     ],
-    "lastFetched": "2026-08-09T02:09:39.838366+09:00",
+    "lastFetched": "2026-08-09T03:04:53.302238+09:00",
     "source": "FRED release dates API",
     "backfilled": 6
   },
@@ -186216,12 +186214,12 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-08-09T02:09:39.914218+09:00",
+    "asOf": "2026-08-09T03:04:53.378013+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-08-09",
-    "generatedAt": "2026-08-09 02:10 KST",
+    "generatedAt": "2026-08-09 03:05 KST",
     "lines": [
       "증시 — KOSPI 6,258.77 (▼0.60%), S&P500 7,757.64 (▲0.62%), 나스닥 26,690.62 (▲1.30%)",
       "환율·금리 — 원/달러 1,407.45원 (▼1.09%), 미국 기준금리 3.63%, VIX 15.15",
@@ -186230,7 +186228,7 @@
     "source": "rule"
   },
   "dataHealth": {
-    "checkedAt": "2026-08-08T17:10:02.391363+00:00",
+    "checkedAt": "2026-08-08T18:05:14.926208+00:00",
     "summary": {
       "total": 129,
       "ok": 114,
