@@ -1,10 +1,9 @@
 {
-  "lastUpdated": "2026-08-08T11:01:40.002818+09:00",
+  "lastUpdated": "2026-08-08T11:26:53.764719+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
-    "stockMovers": "pykrx (KRX 정보데이터시스템)",
     "etfMovers": "KRX OpenAPI",
-    "investorTrading": "pykrx KOSPI 투자자별 거래실적 (KRX 정보데이터시스템)",
+    "investorTrading": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
     "freight": "해상운임 스크래핑(네이버/StockQ/SSE)",
     "lmeInventory": "westmetall.com (LME 일일 재고)",
     "indices": "KRX OpenAPI (KR) + yfinance (해외)",
@@ -18,18 +17,18 @@
     "uk_base_rate": "BoE IADB:IUMABEDR",
     "economicIndicators_kr": "ECOS API (ecos.bok.or.kr)",
     "yieldCurve_kr": "ECOS API (817Y002: 시장금리 일별)",
-    "realestate_kr": "R-ONE API (reb.or.kr)",
+    "realestate_kr": "FRED(BIS) 한국 주거용 부동산 가격지수 폴백",
     "vkospi": "investing.com KOSPI Volatility",
     "move": "yfinance ^MOVE",
     "fear_greed": "CNN Fear & Greed Index",
-    "realestate_kr_trade": "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)",
     "subscription": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
     "nps": "fund.nps.or.kr",
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
     "economicCalendar": "FRED release dates API",
-    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
+    "stockMovers": "이전 빌드 보존 ← pykrx (KRX 정보데이터시스템) (2026-08-08T11:01)",
+    "realestate_partial": "이전 빌드 보존(지표): 6개 지표 보강"
   },
   "fx": {
     "USDKRW": {
@@ -476,1620 +475,1812 @@
   "investorTrading": {
     "daily": [
       {
+        "date": "2025-05-19",
+        "foreign": -1134.0,
+        "inst": -1948.0,
+        "retail": 2986.0
+      },
+      {
+        "date": "2025-05-20",
+        "foreign": -1145.0,
+        "inst": 610.0,
+        "retail": 206.0
+      },
+      {
+        "date": "2025-05-21",
+        "foreign": 1920.0,
+        "inst": 1046.0,
+        "retail": -3315.0
+      },
+      {
+        "date": "2025-05-22",
+        "foreign": -2237.0,
+        "inst": -4319.0,
+        "retail": 6848.0
+      },
+      {
+        "date": "2025-05-23",
+        "foreign": -585.0,
+        "inst": -1026.0,
+        "retail": 1347.0
+      },
+      {
+        "date": "2025-05-26",
+        "foreign": 1015.0,
+        "inst": 4323.0,
+        "retail": -5158.0
+      },
+      {
+        "date": "2025-05-27",
+        "foreign": -781.0,
+        "inst": -201.0,
+        "retail": 537.0
+      },
+      {
+        "date": "2025-05-28",
+        "foreign": 2999.0,
+        "inst": 7438.0,
+        "retail": -9907.0
+      },
+      {
+        "date": "2025-05-29",
+        "foreign": 2897.0,
+        "inst": 6842.0,
+        "retail": -9963.0
+      },
+      {
+        "date": "2025-05-30",
+        "foreign": -6070.0,
+        "inst": -160.0,
+        "retail": 6051.0
+      },
+      {
+        "date": "2025-06-02",
+        "foreign": 1250.0,
+        "inst": -2415.0,
+        "retail": 982.0
+      },
+      {
+        "date": "2025-06-04",
+        "foreign": 10507.0,
+        "inst": 2046.0,
+        "retail": -12260.0
+      },
+      {
+        "date": "2025-06-05",
+        "foreign": 9801.0,
+        "inst": 2207.0,
+        "retail": -11892.0
+      },
+      {
+        "date": "2025-06-09",
+        "foreign": 9767.0,
+        "inst": -7332.0,
+        "retail": -2301.0
+      },
+      {
+        "date": "2025-06-10",
+        "foreign": 6323.0,
+        "inst": 142.0,
+        "retail": -6269.0
+      },
+      {
+        "date": "2025-06-11",
+        "foreign": 1661.0,
+        "inst": 2304.0,
+        "retail": -3663.0
+      },
+      {
+        "date": "2025-06-12",
+        "foreign": 4073.0,
+        "inst": -2304.0,
+        "retail": -1794.0
+      },
+      {
+        "date": "2025-06-13",
+        "foreign": 1210.0,
+        "inst": -6461.0,
+        "retail": 4674.0
+      },
+      {
+        "date": "2025-06-16",
+        "foreign": -3224.0,
+        "inst": 2524.0,
+        "retail": 463.0
+      },
+      {
+        "date": "2025-06-17",
+        "foreign": -953.0,
+        "inst": -1006.0,
+        "retail": 2245.0
+      },
+      {
+        "date": "2025-06-18",
+        "foreign": 2870.0,
+        "inst": 1101.0,
+        "retail": -4318.0
+      },
+      {
+        "date": "2025-06-19",
+        "foreign": -826.0,
+        "inst": -3018.0,
+        "retail": 3500.0
+      },
+      {
+        "date": "2025-06-20",
+        "foreign": 5626.0,
+        "inst": 372.0,
+        "retail": -5966.0
+      },
+      {
+        "date": "2025-06-23",
+        "foreign": -3668.0,
+        "inst": -9485.0,
+        "retail": 13797.0
+      },
+      {
+        "date": "2025-06-24",
+        "foreign": 4383.0,
+        "inst": 2594.0,
+        "retail": -5676.0
+      },
+      {
+        "date": "2025-06-25",
+        "foreign": -1108.0,
+        "inst": -5883.0,
+        "retail": 7580.0
+      },
+      {
+        "date": "2025-06-26",
+        "foreign": -5794.0,
+        "inst": -4080.0,
+        "retail": 8325.0
+      },
+      {
+        "date": "2025-06-27",
+        "foreign": -8580.0,
+        "inst": 3434.0,
+        "retail": 4868.0
+      },
+      {
+        "date": "2025-06-30",
+        "foreign": -6489.0,
+        "inst": 4757.0,
+        "retail": 1892.0
+      },
+      {
+        "date": "2025-07-01",
+        "foreign": 1760.0,
+        "inst": 4745.0,
+        "retail": -6405.0
+      },
+      {
+        "date": "2025-07-02",
+        "foreign": -3278.0,
+        "inst": 720.0,
+        "retail": 2329.0
+      },
+      {
+        "date": "2025-07-03",
+        "foreign": 6427.0,
+        "inst": 5484.0,
+        "retail": -12330.0
+      },
+      {
         "date": "2025-07-04",
-        "foreign": 1623.8,
-        "inst": -3822.4,
-        "retail": 2574.7
+        "foreign": 1624.0,
+        "inst": -3822.0,
+        "retail": 2575.0
       },
       {
         "date": "2025-07-07",
-        "foreign": -936.6,
-        "inst": -810.5,
-        "retail": 1558.3
+        "foreign": -937.0,
+        "inst": -811.0,
+        "retail": 1558.0
       },
       {
         "date": "2025-07-08",
-        "foreign": 2461.4,
-        "inst": -326.4,
-        "retail": -2549.2
+        "foreign": 2461.0,
+        "inst": -326.0,
+        "retail": -2549.0
       },
       {
         "date": "2025-07-09",
-        "foreign": -4105.2,
-        "inst": -570.8,
-        "retail": 4309.7
+        "foreign": -4105.0,
+        "inst": -571.0,
+        "retail": 4310.0
       },
       {
         "date": "2025-07-10",
-        "foreign": 4693.7,
-        "inst": 446.7,
-        "retail": -5868.5
+        "foreign": 4694.0,
+        "inst": 447.0,
+        "retail": -5869.0
       },
       {
         "date": "2025-07-11",
-        "foreign": 3259.3,
-        "inst": -742.9,
-        "retail": 1249.8
+        "foreign": 3259.0,
+        "inst": -743.0,
+        "retail": 1250.0
       },
       {
         "date": "2025-07-14",
-        "foreign": 3706.5,
-        "inst": -946.5,
-        "retail": -3568.4
+        "foreign": 3707.0,
+        "inst": -947.0,
+        "retail": -3568.0
       },
       {
         "date": "2025-07-15",
-        "foreign": 2123.3,
-        "inst": -167.1,
-        "retail": -3102.5
+        "foreign": 2123.0,
+        "inst": -167.0,
+        "retail": -3102.0
       },
       {
         "date": "2025-07-16",
-        "foreign": 554.9,
-        "inst": -5525.2,
-        "retail": 4016.4
+        "foreign": 555.0,
+        "inst": -5525.0,
+        "retail": 4016.0
       },
       {
         "date": "2025-07-17",
-        "foreign": 493.3,
-        "inst": 1582.9,
-        "retail": -3355.5
+        "foreign": 493.0,
+        "inst": 1583.0,
+        "retail": -3356.0
       },
       {
         "date": "2025-07-18",
-        "foreign": 1878.4,
-        "inst": 320.5,
-        "retail": -3410.7
+        "foreign": 1878.0,
+        "inst": 320.0,
+        "retail": -3411.0
       },
       {
         "date": "2025-07-21",
-        "foreign": 8935.3,
-        "inst": 994.3,
-        "retail": -10578.4
+        "foreign": 8935.0,
+        "inst": 994.0,
+        "retail": -10578.0
       },
       {
         "date": "2025-07-22",
-        "foreign": -1287.8,
-        "inst": -4127.5,
-        "retail": 4780.5
+        "foreign": -1288.0,
+        "inst": -4128.0,
+        "retail": 4780.0
       },
       {
         "date": "2025-07-23",
         "foreign": 4228.0,
-        "inst": 1917.4,
-        "retail": -6981.6
+        "inst": 1917.0,
+        "retail": -6982.0
       },
       {
         "date": "2025-07-24",
-        "foreign": 7386.2,
-        "inst": 1273.2,
-        "retail": -9512.6
+        "foreign": 7386.0,
+        "inst": 1273.0,
+        "retail": -9513.0
       },
       {
         "date": "2025-07-25",
-        "foreign": 2705.8,
-        "inst": 1100.1,
-        "retail": -4615.8
+        "foreign": 2706.0,
+        "inst": 1100.0,
+        "retail": -4616.0
       },
       {
         "date": "2025-07-28",
-        "foreign": 4752.8,
-        "inst": 4520.3,
-        "retail": -9975.2
+        "foreign": 4753.0,
+        "inst": 4520.0,
+        "retail": -9975.0
       },
       {
         "date": "2025-07-29",
-        "foreign": 6053.9,
-        "inst": 1166.7,
-        "retail": -8258.9
+        "foreign": 6054.0,
+        "inst": 1167.0,
+        "retail": -8259.0
       },
       {
         "date": "2025-07-30",
-        "foreign": 5783.5,
-        "inst": 3307.1,
-        "retail": -9844.3
+        "foreign": 5783.0,
+        "inst": 3307.0,
+        "retail": -9844.0
       },
       {
         "date": "2025-07-31",
-        "foreign": 3449.6,
-        "inst": -7052.5,
-        "retail": 2235.2
+        "foreign": 3450.0,
+        "inst": -7053.0,
+        "retail": 2235.0
       },
       {
         "date": "2025-08-01",
-        "foreign": -6524.2,
-        "inst": -10719.7,
-        "retail": 16282.9
+        "foreign": -6524.0,
+        "inst": -10720.0,
+        "retail": 16283.0
       },
       {
         "date": "2025-08-04",
-        "foreign": 829.5,
-        "inst": 1316.2,
-        "retail": -2995.8
+        "foreign": 830.0,
+        "inst": 1316.0,
+        "retail": -2996.0
       },
       {
         "date": "2025-08-05",
-        "foreign": 2918.9,
-        "inst": 946.7,
-        "retail": -4784.6
+        "foreign": 2919.0,
+        "inst": 947.0,
+        "retail": -4785.0
       },
       {
         "date": "2025-08-06",
-        "foreign": 2803.8,
-        "inst": -4020.3,
-        "retail": 473.9
+        "foreign": 2804.0,
+        "inst": -4020.0,
+        "retail": 474.0
       },
       {
         "date": "2025-08-07",
-        "foreign": -171.3,
-        "inst": 1092.4,
-        "retail": -2048.3
+        "foreign": -171.0,
+        "inst": 1092.0,
+        "retail": -2048.0
       },
       {
         "date": "2025-08-08",
-        "foreign": -1576.2,
-        "inst": -1318.1,
-        "retail": 1835.2
+        "foreign": -1576.0,
+        "inst": -1318.0,
+        "retail": 1835.0
       },
       {
         "date": "2025-08-11",
-        "foreign": 2168.6,
-        "inst": -2160.1,
-        "retail": -1407.3
+        "foreign": 2169.0,
+        "inst": -2160.0,
+        "retail": -1407.0
       },
       {
         "date": "2025-08-12",
         "foreign": -604.0,
-        "inst": -980.6,
-        "retail": 634.5
+        "inst": -981.0,
+        "retail": 634.0
       },
       {
         "date": "2025-08-13",
-        "foreign": 6349.3,
-        "inst": -809.1,
-        "retail": -6647.7
+        "foreign": 6349.0,
+        "inst": -809.0,
+        "retail": -6648.0
       },
       {
         "date": "2025-08-14",
-        "foreign": -779.4,
-        "inst": 196.7,
-        "retail": -533.7
+        "foreign": -779.0,
+        "inst": 197.0,
+        "retail": -534.0
       },
       {
         "date": "2025-08-18",
         "foreign": -4881.0,
-        "inst": 812.6,
-        "retail": 3569.7
+        "inst": 813.0,
+        "retail": 3570.0
       },
       {
         "date": "2025-08-19",
-        "foreign": -4543.9,
-        "inst": 2538.9,
+        "foreign": -4544.0,
+        "inst": 2539.0,
         "retail": 904.0
       },
       {
         "date": "2025-08-20",
-        "foreign": -2184.6,
+        "foreign": -2185.0,
         "inst": 5024.0,
-        "retail": -3929.1
+        "retail": -3929.0
       },
       {
         "date": "2025-08-21",
-        "foreign": -152.2,
-        "inst": 1598.3,
-        "retail": -2591.3
+        "foreign": -152.0,
+        "inst": 1598.0,
+        "retail": -2591.0
       },
       {
         "date": "2025-08-22",
-        "foreign": 1825.7,
-        "inst": 1556.1,
-        "retail": -4571.7
+        "foreign": 1826.0,
+        "inst": 1556.0,
+        "retail": -4572.0
       },
       {
         "date": "2025-08-25",
-        "foreign": 1224.5,
-        "inst": 1543.4,
-        "retail": -3857.2
+        "foreign": 1224.0,
+        "inst": 1543.0,
+        "retail": -3857.0
       },
       {
         "date": "2025-08-26",
-        "foreign": -6836.4,
-        "inst": -2657.1,
-        "retail": 8519.4
+        "foreign": -6836.0,
+        "inst": -2657.0,
+        "retail": 8519.0
       },
       {
         "date": "2025-08-27",
-        "foreign": -2022.6,
-        "inst": 276.9,
+        "foreign": -2023.0,
+        "inst": 277.0,
         "retail": 569.0
       },
       {
         "date": "2025-08-28",
         "foreign": -241.0,
-        "inst": 3263.8,
-        "retail": -3938.5
+        "inst": 3264.0,
+        "retail": -3939.0
       },
       {
         "date": "2025-08-29",
-        "foreign": -3723.7,
-        "inst": 647.9,
-        "retail": 2353.1
+        "foreign": -3724.0,
+        "inst": 648.0,
+        "retail": 2353.0
       },
       {
         "date": "2025-09-01",
-        "foreign": -2719.9,
-        "inst": -1940.2,
-        "retail": 3469.3
+        "foreign": -2720.0,
+        "inst": -1940.0,
+        "retail": 3469.0
       },
       {
         "date": "2025-09-02",
-        "foreign": 4009.9,
-        "inst": -1416.5,
-        "retail": -3473.6
+        "foreign": 4010.0,
+        "inst": -1416.0,
+        "retail": -3474.0
       },
       {
         "date": "2025-09-03",
-        "foreign": 4359.5,
-        "inst": -3756.1,
-        "retail": -1563.4
+        "foreign": 4359.0,
+        "inst": -3756.0,
+        "retail": -1563.0
       },
       {
         "date": "2025-09-04",
-        "foreign": 2025.1,
-        "inst": -232.2,
-        "retail": -2847.5
+        "foreign": 2025.0,
+        "inst": -232.0,
+        "retail": -2847.0
       },
       {
         "date": "2025-09-05",
-        "foreign": -1374.4,
-        "inst": 1124.2,
-        "retail": -552.2
+        "foreign": -1374.0,
+        "inst": 1124.0,
+        "retail": -552.0
       },
       {
         "date": "2025-09-08",
-        "foreign": 2300.7,
-        "inst": 778.3,
-        "retail": -3848.5
+        "foreign": 2301.0,
+        "inst": 778.0,
+        "retail": -3848.0
       },
       {
         "date": "2025-09-09",
-        "foreign": 6808.1,
-        "inst": 2806.2,
-        "retail": -10370.7
+        "foreign": 6808.0,
+        "inst": 2806.0,
+        "retail": -10371.0
       },
       {
         "date": "2025-09-10",
-        "foreign": 13817.4,
-        "inst": 9046.4,
-        "retail": -22634.1
+        "foreign": 13817.0,
+        "inst": 9046.0,
+        "retail": -22634.0
       },
       {
         "date": "2025-09-11",
-        "foreign": 2999.9,
-        "inst": 8225.4,
-        "retail": -11492.6
+        "foreign": 3000.0,
+        "inst": 8225.0,
+        "retail": -11493.0
       },
       {
         "date": "2025-09-12",
-        "foreign": 14354.9,
-        "inst": 6118.6,
-        "retail": -20287.2
+        "foreign": 14355.0,
+        "inst": 6119.0,
+        "retail": -20287.0
       },
       {
         "date": "2025-09-15",
-        "foreign": 2667.2,
-        "inst": -1376.3,
-        "retail": -1373.7
+        "foreign": 2667.0,
+        "inst": -1376.0,
+        "retail": -1374.0
       },
       {
         "date": "2025-09-16",
-        "foreign": 17927.3,
-        "inst": 1082.9,
-        "retail": -17636.9
+        "foreign": 17927.0,
+        "inst": 1083.0,
+        "retail": -17637.0
       },
       {
         "date": "2025-09-17",
-        "foreign": -347.4,
-        "inst": -3075.3,
-        "retail": 2521.6
+        "foreign": -347.0,
+        "inst": -3075.0,
+        "retail": 2522.0
       },
       {
         "date": "2025-09-18",
-        "foreign": 2851.1,
-        "inst": 4294.1,
-        "retail": -7815.8
+        "foreign": 2851.0,
+        "inst": 4294.0,
+        "retail": -7816.0
       },
       {
         "date": "2025-09-19",
-        "foreign": -3080.4,
-        "inst": -3357.3,
-        "retail": 5332.3
+        "foreign": -3080.0,
+        "inst": -3357.0,
+        "retail": 5332.0
       },
       {
         "date": "2025-09-22",
-        "foreign": 5652.9,
-        "inst": 2671.5,
+        "foreign": 5653.0,
+        "inst": 2672.0,
         "retail": -7682.0
       },
       {
         "date": "2025-09-23",
-        "foreign": 3413.6,
-        "inst": -1363.3,
-        "retail": -2462.1
+        "foreign": 3414.0,
+        "inst": -1363.0,
+        "retail": -2462.0
       },
       {
         "date": "2025-09-24",
-        "foreign": -2486.5,
+        "foreign": -2486.0,
         "inst": 2124.0,
         "retail": 17.0
       },
       {
         "date": "2025-09-25",
-        "foreign": 2196.1,
-        "inst": 2706.8,
-        "retail": -5410.6
+        "foreign": 2196.0,
+        "inst": 2707.0,
+        "retail": -5411.0
       },
       {
         "date": "2025-09-26",
-        "foreign": -5707.2,
-        "inst": -4891.5,
-        "retail": 10997.1
+        "foreign": -5707.0,
+        "inst": -4892.0,
+        "retail": 10997.0
       },
       {
         "date": "2025-09-29",
-        "foreign": 4471.6,
-        "inst": 3014.3,
-        "retail": -7479.8
+        "foreign": 4472.0,
+        "inst": 3014.0,
+        "retail": -7480.0
       },
       {
         "date": "2025-09-30",
-        "foreign": 230.1,
+        "foreign": 230.0,
         "inst": -497.0,
-        "retail": -264.6
+        "retail": -265.0
       },
       {
         "date": "2025-10-01",
-        "foreign": 8454.8,
-        "inst": 2207.9,
-        "retail": -10812.2
+        "foreign": 8455.0,
+        "inst": 2208.0,
+        "retail": -10812.0
       },
       {
         "date": "2025-10-02",
         "foreign": 31265.0,
-        "inst": -674.9,
+        "inst": -675.0,
         "retail": -30715.0
       },
       {
         "date": "2025-10-10",
-        "foreign": 10591.6,
-        "inst": -5936.3,
-        "retail": -5022.1
+        "foreign": 10592.0,
+        "inst": -5936.0,
+        "retail": -5022.0
       },
       {
         "date": "2025-10-13",
-        "foreign": -8220.5,
-        "inst": -4470.5,
-        "retail": 11648.9
+        "foreign": -8220.0,
+        "inst": -4471.0,
+        "retail": 11649.0
       },
       {
         "date": "2025-10-14",
-        "foreign": 5581.1,
-        "inst": -6299.5,
-        "retail": 20.3
+        "foreign": 5581.0,
+        "inst": -6299.0,
+        "retail": 20.0
       },
       {
         "date": "2025-10-15",
-        "foreign": 1631.3,
-        "inst": 7512.4,
-        "retail": -9706.3
+        "foreign": 1631.0,
+        "inst": 7512.0,
+        "retail": -9706.0
       },
       {
         "date": "2025-10-16",
-        "foreign": 6532.8,
-        "inst": 7813.3,
-        "retail": -13935.8
+        "foreign": 6533.0,
+        "inst": 7813.0,
+        "retail": -13936.0
       },
       {
         "date": "2025-10-17",
-        "foreign": 4437.9,
-        "inst": -1688.2,
-        "retail": -3122.3
+        "foreign": 4438.0,
+        "inst": -1688.0,
+        "retail": -3122.0
       },
       {
         "date": "2025-10-20",
-        "foreign": -2499.7,
-        "inst": 6427.8,
-        "retail": -4108.7
+        "foreign": -2500.0,
+        "inst": 6428.0,
+        "retail": -4109.0
       },
       {
         "date": "2025-10-21",
-        "foreign": -123.6,
+        "foreign": -124.0,
         "inst": 2116.0,
-        "retail": -1556.5
+        "retail": -1556.0
       },
       {
         "date": "2025-10-22",
-        "foreign": -7032.8,
-        "inst": 7632.6,
-        "retail": -769.4
+        "foreign": -7033.0,
+        "inst": 7633.0,
+        "retail": -769.0
       },
       {
         "date": "2025-10-23",
-        "foreign": -4071.4,
-        "inst": -3971.6,
-        "retail": 7504.7
+        "foreign": -4071.0,
+        "inst": -3972.0,
+        "retail": 7505.0
       },
       {
         "date": "2025-10-24",
-        "foreign": 5755.8,
-        "inst": 14054.2,
-        "retail": -20004.7
+        "foreign": 5756.0,
+        "inst": 14054.0,
+        "retail": -20005.0
       },
       {
         "date": "2025-10-27",
-        "foreign": 6470.8,
-        "inst": 2343.1,
-        "retail": -7968.5
+        "foreign": 6471.0,
+        "inst": 2343.0,
+        "retail": -7969.0
       },
       {
         "date": "2025-10-28",
-        "foreign": -16379.1,
-        "inst": 925.2,
-        "retail": 15728.1
+        "foreign": -16379.0,
+        "inst": 925.0,
+        "retail": 15728.0
       },
       {
         "date": "2025-10-29",
-        "foreign": -1066.1,
-        "inst": 5196.4,
-        "retail": -3583.5
+        "foreign": -1066.0,
+        "inst": 5196.0,
+        "retail": -3583.0
       },
       {
         "date": "2025-10-30",
-        "foreign": -1172.6,
-        "inst": -8379.1,
-        "retail": 9363.2
+        "foreign": -1173.0,
+        "inst": -8379.0,
+        "retail": 9363.0
       },
       {
         "date": "2025-10-31",
-        "foreign": 13211.7,
-        "inst": -11063.5,
-        "retail": -2017.6
+        "foreign": 13212.0,
+        "inst": -11064.0,
+        "retail": -2018.0
       },
       {
         "date": "2025-11-03",
         "foreign": -7949.0,
-        "inst": 1840.6,
-        "retail": 6255.6
+        "inst": 1841.0,
+        "retail": 6256.0
       },
       {
         "date": "2025-11-04",
         "foreign": -22282.0,
-        "inst": -4988.7,
-        "retail": 27008.8
+        "inst": -4989.0,
+        "retail": 27009.0
       },
       {
         "date": "2025-11-05",
-        "foreign": -20695.3,
-        "inst": -1876.8,
-        "retail": 25538.1
+        "foreign": -20695.0,
+        "inst": -1877.0,
+        "retail": 25538.0
       },
       {
         "date": "2025-11-06",
         "foreign": -16950.0,
-        "inst": 8301.1,
-        "retail": 8839.5
+        "inst": 8301.0,
+        "retail": 8840.0
       },
       {
         "date": "2025-11-07",
-        "foreign": -4550.1,
+        "foreign": -4550.0,
         "inst": -2446.0,
-        "retail": 6790.6
+        "retail": 6791.0
       },
       {
         "date": "2025-11-10",
-        "foreign": -1510.2,
-        "inst": 13065.6,
+        "foreign": -1510.0,
+        "inst": 13066.0,
         "retail": -11607.0
       },
       {
         "date": "2025-11-11",
-        "foreign": 770.1,
-        "inst": 2247.4,
-        "retail": -2830.5
+        "foreign": 770.0,
+        "inst": 2247.0,
+        "retail": -2830.0
       },
       {
         "date": "2025-11-12",
-        "foreign": -4265.1,
+        "foreign": -4265.0,
         "inst": 9093.0,
-        "retail": -4423.3
+        "retail": -4423.0
       },
       {
         "date": "2025-11-13",
-        "foreign": 9989.5,
-        "inst": -7178.6,
-        "retail": -2342.6
+        "foreign": 9989.0,
+        "inst": -7179.0,
+        "retail": -2343.0
       },
       {
         "date": "2025-11-14",
-        "foreign": -23575.4,
-        "inst": -9005.2,
-        "retail": 32346.1
+        "foreign": -23575.0,
+        "inst": -9005.0,
+        "retail": 32346.0
       },
       {
         "date": "2025-11-17",
-        "foreign": 5188.6,
-        "inst": -245.1,
-        "retail": -4999.8
+        "foreign": 5189.0,
+        "inst": -245.0,
+        "retail": -5000.0
       },
       {
         "date": "2025-11-18",
-        "foreign": -5499.9,
-        "inst": -6788.4,
+        "foreign": -5500.0,
+        "inst": -6788.0,
         "retail": 12382.0
       },
       {
         "date": "2025-11-19",
-        "foreign": -10495.2,
+        "foreign": -10495.0,
         "inst": 6256.0,
-        "retail": 4450.3
+        "retail": 4450.0
       },
       {
         "date": "2025-11-20",
-        "foreign": 7405.6,
-        "inst": 7566.1,
-        "retail": -13817.2
+        "foreign": 7406.0,
+        "inst": 7566.0,
+        "retail": -13817.0
       },
       {
         "date": "2025-11-21",
         "foreign": -28229.0,
-        "inst": 4935.4,
+        "inst": 4935.0,
         "retail": 22695.0
       },
       {
         "date": "2025-11-24",
-        "foreign": -7992.6,
-        "inst": 12718.7,
-        "retail": -4619.3
+        "foreign": -7993.0,
+        "inst": 12719.0,
+        "retail": -4619.0
       },
       {
         "date": "2025-11-25",
-        "foreign": 49.2,
-        "inst": 315.4,
-        "retail": -275.6
+        "foreign": 49.0,
+        "inst": 315.0,
+        "retail": -276.0
       },
       {
         "date": "2025-11-26",
-        "foreign": 5157.6,
-        "inst": 12279.8,
-        "retail": -18048.2
+        "foreign": 5158.0,
+        "inst": 12280.0,
+        "retail": -18048.0
       },
       {
         "date": "2025-11-27",
-        "foreign": 1545.6,
-        "inst": 4325.7,
-        "retail": -6152.1
+        "foreign": 1546.0,
+        "inst": 4326.0,
+        "retail": -6152.0
       },
       {
         "date": "2025-11-28",
-        "foreign": -20368.7,
+        "foreign": -20369.0,
         "inst": 4587.0,
-        "retail": 15684.6
+        "retail": 15685.0
       },
       {
         "date": "2025-12-01",
         "foreign": 2235.0,
-        "inst": -2332.6,
-        "retail": 528.5
+        "inst": -2333.0,
+        "retail": 528.0
       },
       {
         "date": "2025-12-02",
-        "foreign": 12146.9,
-        "inst": 3928.8,
-        "retail": -15762.6
+        "foreign": 12147.0,
+        "inst": 3929.0,
+        "retail": -15763.0
       },
       {
         "date": "2025-12-03",
-        "foreign": 2816.4,
-        "inst": 7364.1,
-        "retail": -8984.4
+        "foreign": 2816.0,
+        "inst": 7364.0,
+        "retail": -8984.0
       },
       {
         "date": "2025-12-04",
-        "foreign": -6960.1,
-        "inst": 1318.3,
-        "retail": 5585.4
+        "foreign": -6960.0,
+        "inst": 1318.0,
+        "retail": 5585.0
       },
       {
         "date": "2025-12-05",
-        "foreign": 9933.8,
-        "inst": 11527.9,
-        "retail": -21156.5
+        "foreign": 9934.0,
+        "inst": 11528.0,
+        "retail": -21156.0
       },
       {
         "date": "2025-12-08",
         "foreign": 3211.0,
-        "inst": -307.5,
-        "retail": -3449.2
+        "inst": -308.0,
+        "retail": -3449.0
       },
       {
         "date": "2025-12-09",
-        "foreign": -889.3,
-        "inst": 494.1,
-        "retail": -133.2
+        "foreign": -889.0,
+        "inst": 494.0,
+        "retail": -133.0
       },
       {
         "date": "2025-12-10",
-        "foreign": 3739.2,
-        "inst": -3002.9,
-        "retail": -889.2
+        "foreign": 3739.0,
+        "inst": -3003.0,
+        "retail": -889.0
       },
       {
         "date": "2025-12-11",
-        "foreign": 3656.3,
+        "foreign": 3656.0,
         "inst": -7753.0,
-        "retail": 3922.5
+        "retail": 3922.0
       },
       {
         "date": "2025-12-12",
-        "foreign": 414.4,
+        "foreign": 414.0,
         "inst": 14184.0,
-        "retail": -14624.9
+        "retail": -14625.0
       },
       {
         "date": "2025-12-15",
-        "foreign": -9568.6,
-        "inst": -4802.9,
-        "retail": 14210.5
+        "foreign": -9569.0,
+        "inst": -4803.0,
+        "retail": 14210.0
       },
       {
         "date": "2025-12-16",
-        "foreign": -10305.1,
+        "foreign": -10305.0,
         "inst": -2309.0,
-        "retail": 12410.2
+        "retail": 12410.0
       },
       {
         "date": "2025-12-17",
         "foreign": -322.0,
         "inst": 3353.0,
-        "retail": -3374.2
+        "retail": -3374.0
       },
       {
         "date": "2025-12-18",
-        "foreign": -3459.4,
-        "inst": -1005.8,
-        "retail": 4129.5
+        "foreign": -3459.0,
+        "inst": -1006.0,
+        "retail": 4130.0
       },
       {
         "date": "2025-12-19",
-        "foreign": -7572.5,
-        "inst": 8540.9,
-        "retail": -1412.5
+        "foreign": -7573.0,
+        "inst": 8541.0,
+        "retail": -1412.0
       },
       {
         "date": "2025-12-22",
         "foreign": 11017.0,
-        "inst": 16054.7,
-        "retail": -26714.4
+        "inst": 16055.0,
+        "retail": -26714.0
       },
       {
         "date": "2025-12-23",
-        "foreign": 9551.1,
+        "foreign": 9551.0,
         "inst": 3527.0,
         "retail": -12853.0
       },
       {
         "date": "2025-12-24",
         "foreign": 5225.0,
-        "inst": 2038.9,
-        "retail": -7170.7
+        "inst": 2039.0,
+        "retail": -7171.0
       },
       {
         "date": "2025-12-26",
-        "foreign": 17790.5,
-        "inst": 4435.5,
-        "retail": -23264.7
+        "foreign": 17790.0,
+        "inst": 4435.0,
+        "retail": -23265.0
       },
       {
         "date": "2025-12-29",
-        "foreign": 3336.6,
-        "inst": -3132.7,
-        "retail": 661.1
+        "foreign": 3337.0,
+        "inst": -3133.0,
+        "retail": 661.0
       },
       {
         "date": "2025-12-30",
-        "foreign": -4768.3,
-        "inst": -3763.1,
-        "retail": 8448.1
+        "foreign": -4768.0,
+        "inst": -3763.0,
+        "retail": 8448.0
       },
       {
         "date": "2026-01-02",
-        "foreign": 6309.3,
-        "inst": -2476.6,
-        "retail": -4251.9
+        "foreign": 6309.0,
+        "inst": -2477.0,
+        "retail": -4252.0
       },
       {
         "date": "2026-01-05",
-        "foreign": 21726.3,
-        "inst": -7045.6,
-        "retail": -15141.3
+        "foreign": 21726.0,
+        "inst": -7046.0,
+        "retail": -15141.0
       },
       {
         "date": "2026-01-06",
-        "foreign": -6184.2,
-        "inst": -664.4,
-        "retail": 5963.1
+        "foreign": -6184.0,
+        "inst": -664.0,
+        "retail": 5963.0
       },
       {
         "date": "2026-01-07",
-        "foreign": 12547.7,
-        "inst": -9397.2,
-        "retail": -2943.7
+        "foreign": 12548.0,
+        "inst": -9397.0,
+        "retail": -2944.0
       },
       {
         "date": "2026-01-08",
-        "foreign": -978.5,
-        "inst": -14014.1,
-        "retail": 12539.6
+        "foreign": -979.0,
+        "inst": -14014.0,
+        "retail": 12540.0
       },
       {
         "date": "2026-01-09",
-        "foreign": -16068.3,
-        "inst": 12045.9,
-        "retail": 1339.2
+        "foreign": -16068.0,
+        "inst": 12046.0,
+        "retail": 1339.0
       },
       {
         "date": "2026-01-12",
-        "foreign": -3512.2,
-        "inst": 2100.7,
-        "retail": -1013.2
+        "foreign": -3512.0,
+        "inst": 2101.0,
+        "retail": -1013.0
       },
       {
         "date": "2026-01-13",
-        "foreign": -2792.7,
-        "inst": 7881.3,
-        "retail": -7125.1
+        "foreign": -2793.0,
+        "inst": 7881.0,
+        "retail": -7125.0
       },
       {
         "date": "2026-01-14",
-        "foreign": -3760.1,
-        "inst": 5887.1,
-        "retail": -4377.3
+        "foreign": -3760.0,
+        "inst": 5887.0,
+        "retail": -4377.0
       },
       {
         "date": "2026-01-15",
-        "foreign": 3449.6,
-        "inst": 12905.5,
-        "retail": -18235.1
+        "foreign": 3450.0,
+        "inst": 12905.0,
+        "retail": -18235.0
       },
       {
         "date": "2026-01-16",
         "foreign": 4350.0,
-        "inst": 3083.5,
-        "retail": -9382.5
+        "inst": 3083.0,
+        "retail": -9383.0
       },
       {
         "date": "2026-01-19",
-        "foreign": 5532.2,
-        "inst": -256.4,
-        "retail": -7512.8
+        "foreign": 5532.0,
+        "inst": -256.0,
+        "retail": -7513.0
       },
       {
         "date": "2026-01-20",
-        "foreign": 1231.8,
-        "inst": -6499.7,
-        "retail": 3524.4
+        "foreign": 1232.0,
+        "inst": -6500.0,
+        "retail": 3524.0
       },
       {
         "date": "2026-01-21",
         "foreign": 4394.0,
-        "inst": 3216.7,
-        "retail": -9965.4
+        "inst": 3217.0,
+        "retail": -9965.0
       },
       {
         "date": "2026-01-22",
-        "foreign": -2431.7,
-        "inst": -1568.3,
-        "retail": 1555.4
+        "foreign": -2432.0,
+        "inst": -1568.0,
+        "retail": 1555.0
       },
       {
         "date": "2026-01-23",
-        "foreign": 1438.2,
-        "inst": 4789.6,
-        "retail": -7239.4
+        "foreign": 1438.0,
+        "inst": 4790.0,
+        "retail": -7239.0
       },
       {
         "date": "2026-01-26",
-        "foreign": -1588.1,
-        "inst": -15414.2,
-        "retail": 17156.6
+        "foreign": -1588.0,
+        "inst": -15414.0,
+        "retail": 17157.0
       },
       {
         "date": "2026-01-27",
-        "foreign": 8448.1,
+        "foreign": 8448.0,
         "inst": 2474.0,
-        "retail": -10197.1
+        "retail": -10197.0
       },
       {
         "date": "2026-01-28",
-        "foreign": 4007.9,
+        "foreign": 4008.0,
         "inst": -14021.0,
-        "retail": 12130.8
+        "retail": 12131.0
       },
       {
         "date": "2026-01-29",
-        "foreign": -14896.6,
-        "inst": -1673.1,
-        "retail": 16172.8
+        "foreign": -14897.0,
+        "inst": -1673.0,
+        "retail": 16173.0
       },
       {
         "date": "2026-01-30",
-        "foreign": -19728.9,
+        "foreign": -19729.0,
         "inst": -4241.0,
-        "retail": 22979.3
+        "retail": 22979.0
       },
       {
         "date": "2026-02-02",
-        "foreign": -25167.8,
-        "inst": -22125.5,
-        "retail": 45874.2
+        "foreign": -25168.0,
+        "inst": -22125.0,
+        "retail": 45874.0
       },
       {
         "date": "2026-02-03",
         "foreign": 7038.0,
-        "inst": 21707.9,
-        "retail": -29422.7
+        "inst": 21708.0,
+        "retail": -29423.0
       },
       {
         "date": "2026-02-04",
-        "foreign": -9412.7,
-        "inst": 17836.3,
-        "retail": -10118.7
+        "foreign": -9413.0,
+        "inst": 17836.0,
+        "retail": -10119.0
       },
       {
         "date": "2026-02-05",
-        "foreign": -50107.7,
-        "inst": -20692.7,
-        "retail": 67790.7
+        "foreign": -50108.0,
+        "inst": -20693.0,
+        "retail": 67791.0
       },
       {
         "date": "2026-02-06",
-        "foreign": -33232.6,
-        "inst": 9413.7,
+        "foreign": -33233.0,
+        "inst": 9414.0,
         "retail": 21736.0
       },
       {
         "date": "2026-02-09",
-        "foreign": 4320.1,
-        "inst": 27123.4,
+        "foreign": 4320.0,
+        "inst": 27123.0,
         "retail": -32947.0
       },
       {
         "date": "2026-02-10",
         "foreign": 1474.0,
-        "inst": 5643.1,
-        "retail": -8779.8
+        "inst": 5643.0,
+        "retail": -8780.0
       },
       {
         "date": "2026-02-11",
-        "foreign": 8461.2,
-        "inst": 6926.6,
-        "retail": -17148.9
+        "foreign": 8461.0,
+        "inst": 6927.0,
+        "retail": -17149.0
       },
       {
         "date": "2026-02-12",
         "foreign": 29954.0,
         "inst": 13800.0,
-        "retail": -44546.9
+        "retail": -44547.0
       },
       {
         "date": "2026-02-13",
-        "foreign": -9220.3,
-        "inst": 830.7,
-        "retail": 7141.2
+        "foreign": -9220.0,
+        "inst": 831.0,
+        "retail": 7141.0
       },
       {
         "date": "2026-02-19",
-        "foreign": -9395.7,
-        "inst": 16542.2,
-        "retail": -8609.2
+        "foreign": -9396.0,
+        "inst": 16542.0,
+        "retail": -8609.0
       },
       {
         "date": "2026-02-20",
-        "foreign": -7420.2,
-        "inst": 16149.5,
-        "retail": -9872.5
+        "foreign": -7420.0,
+        "inst": 16149.0,
+        "retail": -9872.0
       },
       {
         "date": "2026-02-23",
-        "foreign": -11131.6,
-        "inst": -1271.2,
-        "retail": 10815.1
+        "foreign": -11132.0,
+        "inst": -1271.0,
+        "retail": 10815.0
       },
       {
         "date": "2026-02-24",
-        "foreign": -2013.5,
-        "inst": 23772.7,
-        "retail": -22861.1
+        "foreign": -2013.0,
+        "inst": 23773.0,
+        "retail": -22861.0
       },
       {
         "date": "2026-02-25",
-        "foreign": -13082.4,
-        "inst": 14701.2,
-        "retail": 2307.1
+        "foreign": -13082.0,
+        "inst": 14701.0,
+        "retail": 2307.0
       },
       {
         "date": "2026-02-26",
-        "foreign": -21134.8,
-        "inst": 12569.1,
-        "retail": 6497.5
+        "foreign": -21135.0,
+        "inst": 12569.0,
+        "retail": 6498.0
       },
       {
         "date": "2026-02-27",
-        "foreign": -70527.6,
-        "inst": 5666.2,
-        "retail": 62495.7
+        "foreign": -70528.0,
+        "inst": 5666.0,
+        "retail": 62496.0
       },
       {
         "date": "2026-03-03",
         "foreign": -51487.0,
-        "inst": -8859.2,
-        "retail": 57974.4
+        "inst": -8859.0,
+        "retail": 57974.0
       },
       {
         "date": "2026-03-04",
-        "foreign": 2302.6,
-        "inst": -5978.2,
-        "retail": 795.8
+        "foreign": 2303.0,
+        "inst": -5978.0,
+        "retail": 796.0
       },
       {
         "date": "2026-03-05",
-        "foreign": -1445.6,
-        "inst": -17185.6,
-        "retail": 18228.1
+        "foreign": -1446.0,
+        "inst": -17186.0,
+        "retail": 18228.0
       },
       {
         "date": "2026-03-06",
-        "foreign": -19418.2,
-        "inst": -11141.6,
-        "retail": 29487.9
+        "foreign": -19418.0,
+        "inst": -11142.0,
+        "retail": 29488.0
       },
       {
         "date": "2026-03-09",
-        "foreign": -31735.4,
-        "inst": -15440.6,
-        "retail": 46242.1
+        "foreign": -31735.0,
+        "inst": -15441.0,
+        "retail": 46242.0
       },
       {
         "date": "2026-03-10",
-        "foreign": 10282.5,
+        "foreign": 10283.0,
         "inst": 9164.0,
-        "retail": -18339.5
+        "retail": -18340.0
       },
       {
         "date": "2026-03-11",
-        "foreign": -2562.6,
-        "inst": 7821.4,
-        "retail": -5086.2
+        "foreign": -2563.0,
+        "inst": 7821.0,
+        "retail": -5086.0
       },
       {
         "date": "2026-03-12",
         "foreign": -23831.0,
-        "inst": 775.3,
-        "retail": 22291.5
+        "inst": 775.0,
+        "retail": 22291.0
       },
       {
         "date": "2026-03-13",
-        "foreign": -14501.5,
+        "foreign": -14502.0,
         "inst": -10434.0,
-        "retail": 24511.7
+        "retail": 24512.0
       },
       {
         "date": "2026-03-16",
-        "foreign": -8485.5,
-        "inst": 910.7,
-        "retail": 7163.5
+        "foreign": -8485.0,
+        "inst": 911.0,
+        "retail": 7164.0
       },
       {
         "date": "2026-03-17",
-        "foreign": -1740.5,
-        "inst": 7340.6,
-        "retail": -5752.1
+        "foreign": -1740.0,
+        "inst": 7341.0,
+        "retail": -5752.0
       },
       {
         "date": "2026-03-18",
-        "foreign": 8801.8,
-        "inst": 31092.6,
-        "retail": -38716.7
+        "foreign": 8802.0,
+        "inst": 31093.0,
+        "retail": -38717.0
       },
       {
         "date": "2026-03-19",
-        "foreign": -18760.4,
+        "foreign": -18760.0,
         "inst": -6649.0,
-        "retail": 24115.7
+        "retail": 24116.0
       },
       {
         "date": "2026-03-20",
-        "foreign": -12401.6,
-        "inst": -10260.2,
-        "retail": 22338.4
+        "foreign": -12402.0,
+        "inst": -10260.0,
+        "retail": 22338.0
       },
       {
         "date": "2026-03-23",
-        "foreign": -36750.7,
+        "foreign": -36751.0,
         "inst": -38173.0,
-        "retail": 70028.7
+        "retail": 70029.0
       },
       {
         "date": "2026-03-24",
-        "foreign": -19862.7,
-        "inst": 9683.1,
-        "retail": 7269.6
+        "foreign": -19863.0,
+        "inst": 9683.0,
+        "retail": 7270.0
       },
       {
         "date": "2026-03-25",
-        "foreign": -12894.8,
-        "inst": 23229.6,
-        "retail": -13402.3
+        "foreign": -12895.0,
+        "inst": 23230.0,
+        "retail": -13402.0
       },
       {
         "date": "2026-03-26",
-        "foreign": -29370.2,
-        "inst": -2999.2,
+        "foreign": -29370.0,
+        "inst": -2999.0,
         "retail": 30598.0
       },
       {
         "date": "2026-03-27",
         "foreign": -34286.0,
-        "inst": 7784.7,
-        "retail": 22596.1
+        "inst": 7785.0,
+        "retail": 22596.0
       },
       {
         "date": "2026-03-30",
-        "foreign": -20945.1,
-        "inst": 8449.6,
-        "retail": 8945.2
+        "foreign": -20945.0,
+        "inst": 8450.0,
+        "retail": 8945.0
       },
       {
         "date": "2026-03-31",
-        "foreign": -38385.6,
-        "inst": 10250.6,
-        "retail": 24399.8
+        "foreign": -38386.0,
+        "inst": 10251.0,
+        "retail": 24400.0
       },
       {
         "date": "2026-04-01",
-        "foreign": -6410.5,
-        "inst": 40418.7,
-        "retail": -37628.4
+        "foreign": -6411.0,
+        "inst": 40419.0,
+        "retail": -37628.0
       },
       {
         "date": "2026-04-02",
-        "foreign": -1368.1,
-        "inst": -14517.1,
-        "retail": 12097.5
+        "foreign": -1368.0,
+        "inst": -14517.0,
+        "retail": 12097.0
       },
       {
         "date": "2026-04-03",
-        "foreign": 8035.3,
-        "inst": 7389.6,
-        "retail": -20952.3
+        "foreign": 8035.0,
+        "inst": 7390.0,
+        "retail": -20952.0
       },
       {
         "date": "2026-04-06",
-        "foreign": -1595.7,
-        "inst": 8371.5,
-        "retail": -10501.7
+        "foreign": -1596.0,
+        "inst": 8371.0,
+        "retail": -10502.0
       },
       {
         "date": "2026-04-07",
-        "foreign": 3703.7,
-        "inst": -4000.8,
-        "retail": -3429.3
+        "foreign": 3704.0,
+        "inst": -4001.0,
+        "retail": -3429.0
       },
       {
         "date": "2026-04-08",
-        "foreign": 19088.8,
-        "inst": 27267.7,
-        "retail": -54161.2
+        "foreign": 19089.0,
+        "inst": 27268.0,
+        "retail": -54161.0
       },
       {
         "date": "2026-04-09",
-        "foreign": 18476.5,
-        "inst": -25124.9,
+        "foreign": 18476.0,
+        "inst": -25125.0,
         "retail": 2950.0
       },
       {
         "date": "2026-04-10",
-        "foreign": 10641.3,
-        "inst": -2031.1,
-        "retail": -12280.4
+        "foreign": 10641.0,
+        "inst": -2031.0,
+        "retail": -12280.0
       },
       {
         "date": "2026-04-13",
         "foreign": -4579.0,
-        "inst": -6698.4,
-        "retail": 7173.4
+        "inst": -6698.0,
+        "retail": 7173.0
       },
       {
         "date": "2026-04-14",
-        "foreign": 8276.4,
-        "inst": 12544.6,
-        "retail": -23918.8
+        "foreign": 8276.0,
+        "inst": 12545.0,
+        "retail": -23919.0
       },
       {
         "date": "2026-04-15",
-        "foreign": 4973.4,
-        "inst": 368.1,
-        "retail": -9400.3
+        "foreign": 4973.0,
+        "inst": 368.0,
+        "retail": -9400.0
       },
       {
         "date": "2026-04-16",
-        "foreign": 4813.9,
-        "inst": 10783.1,
-        "retail": -18049.8
+        "foreign": 4814.0,
+        "inst": 10783.0,
+        "retail": -18050.0
       },
       {
         "date": "2026-04-17",
-        "foreign": -19974.3,
-        "inst": 1501.1,
-        "retail": 14464.1
+        "foreign": -19974.0,
+        "inst": 1501.0,
+        "retail": 14464.0
       },
       {
         "date": "2026-04-20",
-        "foreign": -2337.9,
-        "inst": 2937.9,
-        "retail": -3158.3
+        "foreign": -2338.0,
+        "inst": 2938.0,
+        "retail": -3158.0
       },
       {
         "date": "2026-04-21",
-        "foreign": 11564.6,
-        "inst": 9180.7,
-        "retail": -19204.3
+        "foreign": 11565.0,
+        "inst": 9181.0,
+        "retail": -19204.0
       },
       {
         "date": "2026-04-22",
         "foreign": -6762.0,
-        "inst": -4045.9,
-        "retail": 11983.7
+        "inst": -4046.0,
+        "retail": 11984.0
       },
       {
         "date": "2026-04-23",
-        "foreign": -820.3,
-        "inst": -2965.5,
-        "retail": 4513.6
+        "foreign": -820.0,
+        "inst": -2965.0,
+        "retail": 4514.0
       },
       {
         "date": "2026-04-24",
-        "foreign": -19496.3,
-        "inst": 8053.1,
-        "retail": 11832.5
+        "foreign": -19496.0,
+        "inst": 8053.0,
+        "retail": 11832.0
       },
       {
         "date": "2026-04-27",
-        "foreign": 8563.1,
-        "inst": 11349.3,
-        "retail": -19757.6
+        "foreign": 8563.0,
+        "inst": 11349.0,
+        "retail": -19758.0
       },
       {
         "date": "2026-04-28",
-        "foreign": -1843.5,
+        "foreign": -1843.0,
         "inst": 3532.0,
-        "retail": -1305.6
+        "retail": -1306.0
       },
       {
         "date": "2026-04-29",
-        "foreign": -6070.7,
-        "inst": 4770.7,
-        "retail": 1681.3
+        "foreign": -6071.0,
+        "inst": 4771.0,
+        "retail": 1681.0
       },
       {
         "date": "2026-04-30",
-        "foreign": -14559.3,
-        "inst": 2837.9,
-        "retail": 11824.4
+        "foreign": -14559.0,
+        "inst": 2838.0,
+        "retail": 11824.0
       },
       {
         "date": "2026-05-04",
-        "foreign": 29307.8,
-        "inst": 20097.8,
-        "retail": -47935.5
+        "foreign": 29308.0,
+        "inst": 20098.0,
+        "retail": -47936.0
       },
       {
         "date": "2026-05-06",
         "foreign": 31085.0,
-        "inst": -22894.2,
-        "retail": -5714.6
+        "inst": -22894.0,
+        "retail": -5715.0
       },
       {
         "date": "2026-05-07",
-        "foreign": -66986.8,
-        "inst": 8916.9,
-        "retail": 59924.6
+        "foreign": -66987.0,
+        "inst": 8917.0,
+        "retail": 59925.0
       },
       {
         "date": "2026-05-08",
-        "foreign": -52966.7,
-        "inst": 12542.4,
-        "retail": 39706.7
+        "foreign": -52967.0,
+        "inst": 12542.0,
+        "retail": 39707.0
       },
       {
         "date": "2026-05-11",
-        "foreign": -28147.4,
-        "inst": -458.1,
-        "retail": 28668.6
+        "foreign": -28147.0,
+        "inst": -458.0,
+        "retail": 28669.0
       },
       {
         "date": "2026-05-12",
-        "foreign": -56089.7,
+        "foreign": -56090.0,
         "inst": -12138.0,
-        "retail": 66818.3
+        "retail": 66818.0
       },
       {
         "date": "2026-05-13",
-        "foreign": -37226.5,
+        "foreign": -37227.0,
         "inst": 16876.0,
-        "retail": 18868.4
+        "retail": 18868.0
       },
       {
         "date": "2026-05-14",
         "foreign": -21450.0,
-        "inst": 1927.2,
-        "retail": 18499.1
+        "inst": 1927.0,
+        "retail": 18499.0
       },
       {
         "date": "2026-05-15",
-        "foreign": -56039.5,
-        "inst": -17347.2,
-        "retail": 72307.8
+        "foreign": -56040.0,
+        "inst": -17347.0,
+        "retail": 72308.0
       },
       {
         "date": "2026-05-18",
-        "foreign": -36491.8,
-        "inst": 13903.8,
-        "retail": 22094.3
+        "foreign": -36492.0,
+        "inst": 13904.0,
+        "retail": 22094.0
       },
       {
         "date": "2026-05-19",
-        "foreign": -57242.4,
-        "inst": 1574.8,
-        "retail": 56289.5
+        "foreign": -57242.0,
+        "inst": 1575.0,
+        "retail": 56289.0
       },
       {
         "date": "2026-05-20",
-        "foreign": -29309.5,
-        "inst": 11069.6,
-        "retail": 17104.4
+        "foreign": -29310.0,
+        "inst": 11070.0,
+        "retail": 17104.0
       },
       {
         "date": "2026-05-21",
-        "foreign": -2211.9,
-        "inst": 29008.3,
-        "retail": -26753.6
+        "foreign": -2212.0,
+        "inst": 29008.0,
+        "retail": -26754.0
       },
       {
         "date": "2026-05-22",
-        "foreign": -19221.4,
-        "inst": 7583.2,
-        "retail": 10654.6
+        "foreign": -19221.0,
+        "inst": 7583.0,
+        "retail": 10655.0
       },
       {
         "date": "2026-05-26",
-        "foreign": -1320.6,
-        "inst": 8167.7,
-        "retail": -5745.4
+        "foreign": -1321.0,
+        "inst": 8168.0,
+        "retail": -5745.0
       },
       {
         "date": "2026-05-27",
-        "foreign": -2492.8,
-        "inst": -125.5,
-        "retail": 4064.4
+        "foreign": -2493.0,
+        "inst": -126.0,
+        "retail": 4064.0
       },
       {
         "date": "2026-05-28",
-        "foreign": -27414.2,
-        "inst": -10421.6,
-        "retail": 36145.8
+        "foreign": -27414.0,
+        "inst": -10422.0,
+        "retail": 36146.0
       },
       {
         "date": "2026-05-29",
-        "foreign": -10420.6,
-        "inst": 23687.8,
-        "retail": -14054.1
+        "foreign": -10421.0,
+        "inst": 23688.0,
+        "retail": -14054.0
       },
       {
         "date": "2026-06-01",
-        "foreign": -28219.2,
-        "inst": 24427.3,
-        "retail": 3862.3
+        "foreign": -28219.0,
+        "inst": 24427.0,
+        "retail": 3862.0
       },
       {
         "date": "2026-06-02",
-        "foreign": -63035.3,
-        "inst": -545.8,
-        "retail": 63537.5
+        "foreign": -63035.0,
+        "inst": -546.0,
+        "retail": 63537.0
       },
       {
         "date": "2026-06-04",
-        "foreign": -66662.6,
-        "inst": 15254.5,
-        "retail": 50134.9
+        "foreign": -66663.0,
+        "inst": 15255.0,
+        "retail": 50135.0
       },
       {
         "date": "2026-06-05",
-        "foreign": -27637.9,
-        "inst": -13808.6,
+        "foreign": -27638.0,
+        "inst": -13809.0,
         "retail": 42240.0
       },
       {
         "date": "2026-06-08",
-        "foreign": -2644.3,
-        "inst": -17164.2,
-        "retail": 17627.6
+        "foreign": -2644.0,
+        "inst": -17164.0,
+        "retail": 17628.0
       },
       {
         "date": "2026-06-09",
-        "foreign": -20063.9,
-        "inst": 25048.2,
-        "retail": -6166.9
+        "foreign": -20064.0,
+        "inst": 25048.0,
+        "retail": -6167.0
       },
       {
         "date": "2026-06-10",
-        "foreign": -27753.9,
-        "inst": -22665.3,
-        "retail": 48642.9
+        "foreign": -27754.0,
+        "inst": -22665.0,
+        "retail": 48643.0
       },
       {
         "date": "2026-06-11",
-        "foreign": -14640.2,
-        "inst": -7561.4,
-        "retail": 20802.5
+        "foreign": -14640.0,
+        "inst": -7561.0,
+        "retail": 20803.0
       },
       {
         "date": "2026-06-12",
-        "foreign": 22040.9,
-        "inst": 22869.8,
-        "retail": -43174.5
+        "foreign": 22041.0,
+        "inst": 22870.0,
+        "retail": -43174.0
       },
       {
         "date": "2026-06-15",
-        "foreign": 10774.4,
-        "inst": 4461.5,
-        "retail": -15123.5
+        "foreign": 10774.0,
+        "inst": 4462.0,
+        "retail": -15124.0
       },
       {
         "date": "2026-06-16",
-        "foreign": 15353.1,
-        "inst": 7076.4,
-        "retail": -21841.5
+        "foreign": 15353.0,
+        "inst": 7076.0,
+        "retail": -21841.0
       },
       {
         "date": "2026-06-17",
-        "foreign": -9951.7,
-        "inst": 5956.6,
-        "retail": 5254.1
+        "foreign": -9952.0,
+        "inst": 5957.0,
+        "retail": 5254.0
       },
       {
         "date": "2026-06-18",
-        "foreign": 12776.2,
-        "inst": -7682.2,
-        "retail": -4156.2
+        "foreign": 12776.0,
+        "inst": -7682.0,
+        "retail": -4156.0
       },
       {
         "date": "2026-06-19",
-        "foreign": -3555.1,
-        "inst": -12244.3,
-        "retail": 16478.4
+        "foreign": -3555.0,
+        "inst": -12244.0,
+        "retail": 16478.0
       },
       {
         "date": "2026-06-22",
-        "foreign": -25465.5,
-        "inst": 3033.9,
-        "retail": 21505.9
+        "foreign": -25466.0,
+        "inst": 3034.0,
+        "retail": 21506.0
       },
       {
         "date": "2026-06-23",
-        "foreign": -42047.5,
-        "inst": -44760.1,
-        "retail": 85909.6
+        "foreign": -42047.0,
+        "inst": -44760.0,
+        "retail": 85910.0
       },
       {
         "date": "2026-06-24",
-        "foreign": -46545.8,
-        "inst": 19095.5,
-        "retail": 26312.5
+        "foreign": -46546.0,
+        "inst": 19095.0,
+        "retail": 26312.0
       },
       {
         "date": "2026-06-25",
-        "foreign": -8753.6,
-        "inst": 33244.2,
-        "retail": -24136.3
+        "foreign": -8754.0,
+        "inst": 33244.0,
+        "retail": -24136.0
       },
       {
         "date": "2026-06-26",
-        "foreign": -42905.8,
-        "inst": -41223.8,
-        "retail": 81919.1
+        "foreign": -42906.0,
+        "inst": -41224.0,
+        "retail": 81919.0
       },
       {
         "date": "2026-06-29",
-        "foreign": -77331.7,
-        "inst": 29326.7,
-        "retail": 45975.2
+        "foreign": -77332.0,
+        "inst": 29327.0,
+        "retail": 45975.0
       },
       {
         "date": "2026-06-30",
         "foreign": -37992.0,
         "inst": 29332.0,
-        "retail": 8401.5
+        "retail": 8401.0
       },
       {
         "date": "2026-07-01",
-        "foreign": -17028.4,
-        "inst": -699.9,
-        "retail": 17369.6
+        "foreign": -17028.0,
+        "inst": -700.0,
+        "retail": 17370.0
       },
       {
         "date": "2026-07-02",
-        "foreign": -43705.7,
-        "inst": -20825.3,
-        "retail": 62412.8
+        "foreign": -43706.0,
+        "inst": -20825.0,
+        "retail": 62413.0
       },
       {
         "date": "2026-07-03",
-        "foreign": -21750.2,
-        "inst": 44078.8,
-        "retail": -22942.4
+        "foreign": -21750.0,
+        "inst": 44079.0,
+        "retail": -22942.0
       },
       {
         "date": "2026-07-06",
-        "foreign": -13143.7,
-        "inst": -14618.4,
-        "retail": 26829.1
+        "foreign": -13144.0,
+        "inst": -14618.0,
+        "retail": 26829.0
       },
       {
         "date": "2026-07-07",
-        "foreign": -29172.3,
-        "inst": -3107.6,
-        "retail": 31358.7
+        "foreign": -29172.0,
+        "inst": -3108.0,
+        "retail": 31359.0
       },
       {
         "date": "2026-07-08",
-        "foreign": 3436.8,
-        "inst": -3552.2,
-        "retail": -357.8
+        "foreign": 3437.0,
+        "inst": -3552.0,
+        "retail": -358.0
       },
       {
         "date": "2026-07-09",
-        "foreign": 1343.1,
-        "inst": 12884.5,
-        "retail": -13277.6
+        "foreign": 1343.0,
+        "inst": 12884.0,
+        "retail": -13278.0
       },
       {
         "date": "2026-07-10",
-        "foreign": -3227.7,
-        "inst": 11313.9,
-        "retail": -7804.6
+        "foreign": -3228.0,
+        "inst": 11314.0,
+        "retail": -7805.0
       },
       {
         "date": "2026-07-13",
-        "foreign": -16705.5,
-        "inst": -22338.2,
-        "retail": 38868.8
+        "foreign": -16705.0,
+        "inst": -22338.0,
+        "retail": 38869.0
       },
       {
         "date": "2026-07-14",
-        "foreign": 9565.1,
-        "inst": 32116.7,
-        "retail": -41410.9
+        "foreign": 9565.0,
+        "inst": 32117.0,
+        "retail": -41411.0
       },
       {
         "date": "2026-07-15",
-        "foreign": 23031.5,
-        "inst": 1992.1,
-        "retail": -24666.2
+        "foreign": 23031.0,
+        "inst": 1992.0,
+        "retail": -24666.0
       },
       {
         "date": "2026-07-16",
-        "foreign": -13665.1,
+        "foreign": -13665.0,
         "inst": -23831.0,
-        "retail": 36646.7
+        "retail": 36647.0
       },
       {
         "date": "2026-07-20",
-        "foreign": 5198.2,
-        "inst": -9234.9,
-        "retail": 3490.1
+        "foreign": 5198.0,
+        "inst": -9235.0,
+        "retail": 3490.0
       },
       {
         "date": "2026-07-21",
-        "foreign": 2951.6,
-        "inst": 13744.4,
-        "retail": -16420.5
+        "foreign": 2952.0,
+        "inst": 13744.0,
+        "retail": -16421.0
       },
       {
         "date": "2026-07-22",
-        "foreign": 26210.9,
+        "foreign": 26211.0,
         "inst": -13963.0,
-        "retail": -12176.1
+        "retail": -12176.0
       },
       {
         "date": "2026-07-23",
-        "foreign": 21358.9,
-        "inst": 975.5,
-        "retail": -22077.1
+        "foreign": 21359.0,
+        "inst": 976.0,
+        "retail": -22077.0
       },
       {
         "date": "2026-07-24",
-        "foreign": -32683.4,
-        "inst": -19514.4,
-        "retail": 51782.3
+        "foreign": -32683.0,
+        "inst": -19514.0,
+        "retail": 51782.0
       },
       {
         "date": "2026-07-27",
-        "foreign": -28811.1,
-        "inst": 8595.4,
-        "retail": 19788.4
+        "foreign": -28811.0,
+        "inst": 8595.0,
+        "retail": 19788.0
       },
       {
         "date": "2026-07-28",
-        "foreign": -45008.8,
-        "inst": 1830.3,
+        "foreign": -45009.0,
+        "inst": 1830.0,
         "retail": 43152.0
       },
       {
         "date": "2026-07-29",
-        "foreign": -12502.2,
-        "inst": 31769.4,
+        "foreign": -12502.0,
+        "inst": 31769.0,
         "retail": -19701.0
       },
       {
         "date": "2026-07-30",
-        "foreign": 13280.1,
-        "inst": 805.2,
-        "retail": -14308.8
+        "foreign": 13280.0,
+        "inst": 805.0,
+        "retail": -14309.0
       },
       {
         "date": "2026-07-31",
-        "foreign": 72409.8,
-        "inst": 11502.9,
+        "foreign": 72410.0,
+        "inst": 11503.0,
         "retail": -82840.0
       },
       {
         "date": "2026-08-03",
-        "foreign": -28220.2,
-        "inst": -19516.3,
-        "retail": 46523.1
+        "foreign": -28220.0,
+        "inst": -19516.0,
+        "retail": 46523.0
       },
       {
         "date": "2026-08-04",
-        "foreign": -3716.1,
-        "inst": -5384.6,
-        "retail": 8186.6
+        "foreign": -3716.0,
+        "inst": -5385.0,
+        "retail": 8187.0
       },
       {
         "date": "2026-08-05",
-        "foreign": 14463.7,
-        "inst": -2837.6,
+        "foreign": 14464.0,
+        "inst": -2838.0,
         "retail": -11844.0
       },
       {
         "date": "2026-08-06",
-        "foreign": -32892.7,
-        "inst": -1214.3,
+        "foreign": -32893.0,
+        "inst": -1214.0,
         "retail": 33367.0
       },
       {
         "date": "2026-08-07",
         "foreign": -8651.0,
-        "inst": 5853.7,
-        "retail": 2675.3
+        "inst": 5854.0,
+        "retail": 2675.0
       }
     ],
     "markets": [
       "KOSPI"
     ],
     "unit": "억원",
-    "source": "pykrx KOSPI 투자자별 거래실적 (KRX 정보데이터시스템)",
-    "lastFetched": "2026-08-08T11:01:56.581439+09:00"
+    "source": "Naver 금융 KOSPI 투자자별 매매동향 (무인증 폴백)",
+    "lastFetched": "2026-08-08T11:28:28.856013+09:00"
   },
   "freight": {
     "items": [
@@ -2176,7 +2367,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-08-08T11:02:06.291388+09:00"
+    "lastFetched": "2026-08-08T11:28:36.001440+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -14780,287 +14971,55 @@
     },
     "kr": {
       "apt_price_idx_kr": {
-        "value": 101.27,
-        "prev": 100.87261585176,
-        "chg": 0.4,
-        "period": "202606",
-        "history": {
-          "200311": 58.4457675304094,
-          "200312": 58.1127145290559,
-          "200401": 57.9726365145635,
-          "200402": 58.1677525109382,
-          "200403": 58.3996071580076,
-          "200404": 58.6473648380174,
-          "200405": 58.7164613695348,
-          "200406": 58.6582493478437,
-          "200407": 58.570709868439,
-          "200408": 58.3881882623608,
-          "200409": 58.2881229408009,
-          "200410": 58.2221785945284,
-          "200411": 57.9957211821029,
-          "200412": 57.7538237605263,
-          "200501": 57.611817967828,
-          "200502": 57.9157301732331,
-          "200503": 58.2508311172911,
-          "200504": 58.6970747412944,
-          "200505": 59.1426416644537,
-          "200506": 59.8523328278953,
-          "200507": 60.4766625034628,
-          "200508": 60.7585617702272,
-          "200509": 60.9126785554469,
-          "200510": 60.9279222273987,
-          "200511": 60.9658941930509,
-          "200512": 61.1032210859445,
-          "200601": 61.3609507304515,
-          "200602": 61.7161555342306,
-          "200603": 62.2222465237058,
-          "200604": 62.8545756678324,
-          "200605": 63.5996178047855,
-          "200606": 63.9557396336095,
-          "200607": 64.0989717785066,
-          "200608": 64.2466133473292,
-          "200609": 64.5887117729489,
-          "200610": 65.6001038982614,
-          "200611": 68.0784522688486,
-          "200612": 69.6079908796885,
-          "200701": 70.5588204943714,
-          "200702": 70.8943314435926,
-          "200703": 71.0760254726462,
-          "200704": 71.2327054077438,
-          "200705": 71.2576746474318,
-          "200706": 71.3662908984311,
-          "200707": 71.5493401308973,
-          "200708": 71.7381183245001,
-          "200709": 71.9703488466069,
-          "200710": 72.2699274099863,
-          "200711": 72.5633815880532,
-          "200712": 72.768246420737,
-          "200801": 73.0728271864638,
-          "200802": 73.354392857865,
-          "200803": 73.9935416288249,
-          "200804": 75.0273571638962,
-          "200805": 75.7032434505423,
-          "200806": 76.4941484199262,
-          "200807": 76.9987757653167,
-          "200808": 77.2911224387859,
-          "200809": 77.6247516206894,
-          "200810": 77.5670676208615,
-          "200811": 77.1222957762572,
-          "200812": 76.411899020305,
-          "200901": 75.8916374802479,
-          "200902": 75.6581385503667,
-          "200903": 75.4826955051464,
-          "200904": 75.5208529368508,
-          "200905": 75.6401519309423,
-          "200906": 75.7878047540232,
-          "200907": 76.0459684138041,
-          "200908": 76.2877085707243,
-          "200909": 76.8871085862371,
-          "200910": 77.1868156647545,
-          "200911": 77.4248898324304,
-          "200912": 77.5490489222574,
-          "201001": 77.6536733959751,
-          "201002": 77.9291416141494,
-          "201003": 78.1324492959942,
-          "201004": 78.2732895207585,
-          "201005": 78.2833029764104,
-          "201006": 78.2320951606442,
-          "201007": 78.0911956968046,
-          "201008": 78.015119289429,
-          "201009": 78.1001479818286,
-          "201010": 78.2729018975821,
-          "201011": 78.6266749289091,
-          "201012": 79.0198445449316,
-          "201101": 79.4584486266992,
-          "201102": 80.2172179818202,
-          "201103": 81.1377151293309,
-          "201104": 82.3229576165771,
-          "201105": 82.5391698644393,
-          "201106": 83.0547662822156,
-          "201107": 83.4942633461734,
-          "201108": 84.0181403094637,
-          "201109": 84.547599300863,
-          "201110": 84.9292013300667,
-          "201111": 85.3535778573918,
-          "201112": 85.4936743117005,
-          "201201": 85.7356157999879,
-          "201202": 85.7442532492642,
-          "201203": 85.7629072832158,
-          "201204": 85.70514445683,
-          "201205": 85.5852424887643,
-          "201206": 85.3185071819781,
-          "201207": 84.9849115235635,
-          "201208": 84.621413086668,
-          "201209": 84.332620673587,
-          "201210": 84.1018959696327,
-          "201211": 83.9116555045801,
-          "201212": 83.6763931156352,
-          "201301": 83.405426356391,
-          "201302": 83.21749330554,
-          "201303": 83.1309921330323,
-          "201304": 83.2844695447856,
-          "201305": 83.4947986316036,
-          "201306": 83.5582543979031,
-          "201307": 83.5117110874991,
-          "201308": 83.4002626238515,
-          "201309": 83.4837108460645,
-          "201310": 83.8504110967365,
-          "201311": 84.0986570342587,
-          "201312": 84.3076455245475,
-          "201401": 84.6194320172233,
-          "201402": 84.8844904858381,
-          "201403": 85.1894326540993,
-          "201404": 85.2917245251433,
-          "201405": 85.3271187575895,
-          "201406": 85.3635882303796,
-          "201407": 85.4292561997855,
-          "201408": 85.5551280424529,
-          "201409": 85.870215629124,
-          "201410": 86.1784239999311,
-          "201411": 86.4079486864456,
-          "201412": 86.5904882320381,
-          "201501": 86.7674983784024,
-          "201502": 87.0243454816116,
-          "201503": 87.3964630617782,
-          "201504": 87.9600053450596,
-          "201505": 88.3782985369996,
-          "201506": 88.8441725187237,
-          "201507": 89.1587413687711,
-          "201508": 89.475198630586,
-          "201509": 89.8692576159159,
-          "201510": 90.2699099325811,
-          "201511": 90.6383691701758,
-          "201512": 90.8252791478088,
-          "201601": 90.8468042410116,
-          "201602": 90.8348007969561,
-          "201603": 90.8033351984327,
-          "201604": 90.8013831098205,
-          "201605": 90.8210488796929,
-          "201606": 90.8584349917946,
-          "201607": 90.9013972370081,
-          "201608": 90.9715756326762,
-          "201609": 91.0604074982333,
-          "201610": 91.2750176296722,
-          "201611": 91.4734422426682,
-          "201612": 91.5180600137358,
-          "201701": 91.5256045557124,
-          "201702": 91.5164415361642,
-          "201703": 91.5479694273252,
-          "201704": 91.6040352838744,
-          "201705": 91.7009085786175,
-          "201706": 91.9012605350596,
-          "201707": 92.040612493142,
-          "201708": 92.2585180302544,
-          "201709": 92.3052674627605,
-          "201710": 92.3702871397286,
-          "201711": 92.4311266971044,
-          "201712": 92.5086221561029,
-          "201801": 92.6426008169824,
-          "201802": 92.8315141235266,
-          "201803": 92.9230348664083,
-          "201804": 92.8997096961874,
-          "201805": 92.7616359325904,
-          "201806": 92.6191159648742,
-          "201807": 92.4867270626482,
-          "201808": 92.3909502053472,
-          "201809": 92.6722152535205,
-          "201810": 92.7919665682796,
-          "201811": 92.7647092821996,
-          "201812": 92.5931285572767,
-          "201901": 92.3249379102541,
-          "201902": 92.0902224846332,
-          "201903": 91.8031408457587,
-          "201904": 91.4286849402703,
-          "201905": 91.1315669872593,
-          "201906": 90.8838396598701,
-          "201907": 90.6858412061463,
-          "201908": 90.555401951339,
-          "201909": 90.5088970777652,
-          "201910": 90.6078138958874,
-          "201911": 90.8123857220434,
-          "201912": 91.2740094786173,
-          "202001": 91.6142025843197,
-          "202002": 92.0284540164769,
-          "202003": 92.7590210697856,
-          "202004": 93.1129888519257,
-          "202005": 93.2623131928158,
-          "202006": 93.7986836696167,
-          "202007": 94.6301713325663,
-          "202008": 95.2412300707298,
-          "202009": 95.7829721095466,
-          "202010": 96.1624242925998,
-          "202011": 96.8860983529135,
-          "202012": 98.183261383615,
-          "202101": 99.3065957617493,
-          "202102": 100.611821455381,
-          "202103": 101.683898146498,
-          "202104": 102.715132664469,
-          "202105": 103.718354307429,
-          "202106": 105.482427873995,
-          "202107": 106.755496790908,
-          "202108": 108.190356601018,
-          "202109": 109.477515710269,
-          "202110": 110.774089699791,
-          "202111": 111.660155401626,
-          "202112": 112.026269939226,
-          "202201": 112.11098240806,
-          "202202": 112.087780027042,
-          "202203": 112.02575481148,
-          "202204": 112.020716019914,
-          "202205": 111.964088873305,
-          "202206": 111.847457321269,
-          "202207": 111.62659382076,
-          "202208": 111.057782347418,
-          "202209": 110.187588647792,
-          "202210": 108.86097319808,
-          "202211": 106.66509982817,
-          "202212": 103.556007779418,
-          "202301": 101.361489874429,
-          "202302": 99.7241321670233,
-          "202303": 98.6353274810389,
-          "202304": 98.0199003508459,
-          "202305": 97.7969760987439,
-          "202306": 97.7564096962821,
-          "202307": 97.8190914012128,
-          "202308": 98.0474849231658,
-          "202309": 98.3943051415516,
-          "202310": 98.661216794484,
-          "202311": 98.7038987956797,
-          "202312": 98.5578888087322,
-          "202401": 98.3599195508383,
-          "202402": 98.1512624440442,
-          "202403": 97.9767121041568,
-          "202404": 97.9021922902369,
-          "202405": 97.8770590937844,
-          "202406": 97.9149062951534,
-          "202407": 98.1181029602333,
-          "202408": 98.4384323606263,
-          "202409": 98.6640232635691,
-          "202410": 98.7451440381646,
-          "202411": 98.74275647916,
-          "202412": 98.6305165148818,
-          "202501": 98.4783824442997,
-          "202502": 98.3883390744178,
-          "202503": 98.3914811541526,
-          "202504": 98.3371288169396,
-          "202505": 98.3053349096171,
-          "202506": 98.475890990321,
-          "202507": 98.6229761871386,
-          "202508": 98.6606866561568,
-          "202509": 98.743226761869,
-          "202510": 99.0778805772913,
-          "202511": 99.3498933471846,
-          "202512": 99.6561891527607,
-          "202601": 100.0,
-          "202602": 100.278612318969,
-          "202603": 100.439616671216,
-          "202604": 100.621950460592,
-          "202605": 100.87261585176,
-          "202606": 101.274210802592
-        },
+        "value": 144.84,
+        "prev": 143.69,
+        "chg": 0.8,
+        "period": "202601",
         "region": "전국",
-        "desc": "전국주택가격동향조사 아파트 매매가격지수",
-        "source": "R-ONE:A_2024_00045"
+        "desc": "전국 주거용 부동산 가격지수 (BIS 명목, 분기)",
+        "source": "FRED:QKRN628BIS (BIS)",
+        "history": {
+          "202601": 144.8397,
+          "202510": 143.6856,
+          "202507": 142.8669,
+          "202504": 142.4055,
+          "202501": 142.3289,
+          "202410": 142.6825,
+          "202407": 142.3633,
+          "202404": 142.2513,
+          "202401": 142.5474,
+          "202310": 142.9153,
+          "202307": 142.8322,
+          "202304": 143.6407,
+          "202301": 146.6481,
+          "202210": 151.3923,
+          "202207": 154.12,
+          "202204": 154.1145,
+          "202201": 153.2779,
+          "202110": 151.529,
+          "202107": 146.4089,
+          "202104": 140.8894,
+          "202101": 136.1153,
+          "202010": 130.9111,
+          "202007": 127.2227,
+          "202004": 124.6709,
+          "202001": 123.4607,
+          "201910": 122.1546,
+          "201907": 121.718,
+          "201904": 121.7576,
+          "201901": 122.1278,
+          "201810": 122.0746,
+          "201807": 120.3656,
+          "201804": 119.5458,
+          "201801": 118.9426,
+          "201710": 118.3167,
+          "201707": 117.8753,
+          "201704": 117.2244,
+          "201701": 117.0466,
+          "201610": 116.8458,
+          "201607": 116.1854,
+          "201604": 115.7891
+        }
       },
       "jns_price_idx_kr": {
         "value": 101.56,
@@ -62966,28 +62925,12 @@
       ],
       "KOSDAQ": [
         {
-          "date": "2021-08-03",
-          "close": 1036.11
-        },
-        {
-          "date": "2021-08-04",
-          "close": 1047.93
-        },
-        {
-          "date": "2021-08-05",
-          "close": 1059.54
-        },
-        {
-          "date": "2021-08-06",
-          "close": 1059.8
-        },
-        {
           "date": "2021-08-09",
           "close": 1060.0
         },
         {
           "date": "2021-08-10",
-          "close": 1052.07
+          "close": 1052.0699
         },
         {
           "date": "2021-08-11",
@@ -63051,7 +62994,7 @@
         },
         {
           "date": "2021-09-02",
-          "close": 1047.19
+          "close": 1047.1899
         },
         {
           "date": "2021-09-03",
@@ -63063,7 +63006,7 @@
         },
         {
           "date": "2021-09-07",
-          "close": 1054.43
+          "close": 1054.4301
         },
         {
           "date": "2021-09-08",
@@ -63091,7 +63034,7 @@
         },
         {
           "date": "2021-09-16",
-          "close": 1039.43
+          "close": 1039.4301
         },
         {
           "date": "2021-09-17",
@@ -63107,7 +63050,7 @@
         },
         {
           "date": "2021-09-27",
-          "close": 1034.82
+          "close": 1034.8199
         },
         {
           "date": "2021-09-28",
@@ -63259,7 +63202,7 @@
         },
         {
           "date": "2021-11-22",
-          "close": 1032.31
+          "close": 1032.3101
         },
         {
           "date": "2021-11-23",
@@ -63363,7 +63306,7 @@
         },
         {
           "date": "2021-12-28",
-          "close": 1027.44
+          "close": 1027.4399
         },
         {
           "date": "2021-12-29",
@@ -63372,10 +63315,6 @@
         {
           "date": "2021-12-30",
           "close": 1033.98
-        },
-        {
-          "date": "2022-01-03",
-          "close": 1037.83
         },
         {
           "date": "2022-01-04",
@@ -63708,10 +63647,6 @@
         {
           "date": "2022-05-06",
           "close": 884.22
-        },
-        {
-          "date": "2022-05-09",
-          "close": 860.84
         },
         {
           "date": "2022-05-10",
@@ -67363,7 +67298,7 @@
         },
         {
           "date": "2026-01-30",
-          "close": 1149.44
+          "close": 1149.4399
         },
         {
           "date": "2026-02-02",
@@ -67375,7 +67310,7 @@
         },
         {
           "date": "2026-02-04",
-          "close": 1149.43
+          "close": 1149.4301
         },
         {
           "date": "2026-02-05",
@@ -67455,7 +67390,7 @@
         },
         {
           "date": "2026-03-10",
-          "close": 1137.68
+          "close": 1137.6801
         },
         {
           "date": "2026-03-11",
@@ -67475,7 +67410,7 @@
         },
         {
           "date": "2026-03-17",
-          "close": 1136.94
+          "close": 1136.9399
         },
         {
           "date": "2026-03-18",
@@ -67495,7 +67430,7 @@
         },
         {
           "date": "2026-03-24",
-          "close": 1121.44
+          "close": 1121.4399
         },
         {
           "date": "2026-03-25",
@@ -67519,7 +67454,7 @@
         },
         {
           "date": "2026-04-01",
-          "close": 1116.18
+          "close": 1116.1801
         },
         {
           "date": "2026-04-02",
@@ -67559,7 +67494,7 @@
         },
         {
           "date": "2026-04-15",
-          "close": 1152.43
+          "close": 1152.4301
         },
         {
           "date": "2026-04-16",
@@ -67583,7 +67518,7 @@
         },
         {
           "date": "2026-04-23",
-          "close": 1174.31
+          "close": 1174.3101
         },
         {
           "date": "2026-04-24",
@@ -67591,7 +67526,7 @@
         },
         {
           "date": "2026-04-27",
-          "close": 1226.18
+          "close": 1226.1801
         },
         {
           "date": "2026-04-28",
@@ -67615,7 +67550,7 @@
         },
         {
           "date": "2026-05-07",
-          "close": 1199.18
+          "close": 1199.1801
         },
         {
           "date": "2026-05-08",
@@ -67631,7 +67566,7 @@
         },
         {
           "date": "2026-05-13",
-          "close": 1176.93
+          "close": 1176.9301
         },
         {
           "date": "2026-05-14",
@@ -67639,7 +67574,7 @@
         },
         {
           "date": "2026-05-15",
-          "close": 1129.82
+          "close": 1129.8199
         },
         {
           "date": "2026-05-18",
@@ -67651,7 +67586,7 @@
         },
         {
           "date": "2026-05-20",
-          "close": 1056.07
+          "close": 1056.0699
         },
         {
           "date": "2026-05-21",
@@ -184349,25 +184284,26 @@
     ],
     "as_of": "2026-08-07",
     "source": "westmetall.com (LME 일일 재고)",
-    "lastFetched": "2026-08-08T11:02:10.320815+09:00"
+    "lastFetched": "2026-08-08T11:28:40.841619+09:00"
   },
   "diagnostics": {
-    "stockMoversSource": "pykrx (KRX 정보데이터시스템)",
+    "stockMoversSource": "FAILED",
     "etfMoversSource": "KRX OpenAPI",
-    "investorTradingDays": 268,
+    "investorTradingDays": 300,
     "kisEnabled": false,
-    "pykrxAvailable": true,
+    "pykrxAvailable": false,
     "krxLoginAvailable": true,
     "realestate_kr": {
       "rone_tried": true,
-      "rone_ok": true,
-      "ecos_tried": false,
+      "rone_ok": false,
+      "ecos_tried": true,
       "ecos_ok": false,
-      "fred_tried": false,
-      "fred_ok": false
+      "fred_tried": true,
+      "fred_ok": true
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
-    "preservedMetricsDeep": 1,
+    "preservedFields": 2,
+    "preservedMetricsDeep": 6,
     "historySpotSynced": 14
   },
   "subscription": {
@@ -184742,7 +184678,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-08-08T11:07:39.013532+09:00"
+    "lastFetched": "2026-08-08T12:15:52.594935+09:00"
   },
   "nps": {
     "allocation": [
@@ -184768,11 +184704,11 @@
       }
     ],
     "source": "fund.nps.or.kr",
-    "lastFetched": "2026-08-08T11:07:42.295353+09:00",
+    "lastFetched": "2026-08-08T12:15:56.847037+09:00",
     "as_of": "2026-05-01"
   },
   "news": {
-    "lastFetched": "2026-08-08T11:23:48.729514+09:00",
+    "lastFetched": "2026-08-08T12:16:03.638133+09:00",
     "채권": [
       {
         "title": "美증시, 금리인상 기대론 후퇴에 상승…S&P500 사상최고치 마감(종합)",
@@ -184839,34 +184775,22 @@
     ],
     "주식": [
       {
-        "title": "(마감시황) 코스피, 17% 초유의 폭등 속 6,590선 회복…삼전·닉스 불기둥",
-        "url": "https://www.news2day.co.kr/article/20260731500233",
-        "isoDate": "2026-07-31",
-        "pubDate": "Fri, 31 Jul 2026 09:37:00 GMT"
+        "title": "코스피 6300선 회복…코스닥 사상 첫 3거래일 연속 매수 사이드카[마감시황]",
+        "url": "https://www.msn.com/ko-kr/money/%EC%83%81%EC%9C%84-%EC%A3%BC%EC%8B%9D/%EC%BD%94%EC%8A%A4%ED%94%BC-6300%EC%84%A0-%ED%9A%8C%EB%B3%B5-%EC%BD%94%EC%8A%A4%EB%8B%A5-%EC%82%AC%EC%83%81-%EC%B2%AB-3%EA%B1%B0%EB%9E%98%EC%9D%BC-%EC%97%B0%EC%86%8D-%EB%A7%A4%EC%88%98-%EC%82%AC%EC%9D%B4%EB%93%9C%EC%B9%B4-%EB%A7%88%EA%B0%90%EC%8B%9C%ED%99%A9/ar-AA29m3uN",
+        "isoDate": "2026-08-04",
+        "pubDate": "Tue, 04 Aug 2026 00:36:33 GMT"
       },
       {
-        "title": "코스피-코스닥, 소폭 오르며 장 시작",
-        "url": "https://www.newsis.com/view/NISI20260807_0021391174",
-        "isoDate": "2026-08-06",
-        "pubDate": "Thu, 06 Aug 2026 17:17:00 GMT"
+        "title": "[마감시황] 코스피, 급등락 속 1.62% 상승…코스닥 3거래일째 사이드카",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EB%A7%88%EA%B0%90%EC%8B%9C%ED%99%A9-%EC%BD%94%EC%8A%A4%ED%94%BC-%EA%B8%89%EB%93%B1%EB%9D%BD-%EC%86%8D-1-62-%EC%83%81%EC%8A%B9-%EC%BD%94%EC%8A%A4%EB%8B%A5-3%EA%B1%B0%EB%9E%98%EC%9D%BC%EC%A7%B8-%EC%82%AC%EC%9D%B4%EB%93%9C%EC%B9%B4/ar-AA29m7HI",
+        "isoDate": "2026-08-04",
+        "pubDate": "Tue, 04 Aug 2026 00:19:53 GMT"
       },
       {
-        "title": "[IPO챗] 딜리셔스·케이앤에스아이앤씨 코스닥 입성…공모주 청약 3곳",
-        "url": "https://www.yna.co.kr/view/AKR20260807058400008",
-        "isoDate": "2026-08-08",
-        "pubDate": "Sat, 8 Aug 2026 09:00:03 +0900"
-      },
-      {
-        "title": "美증시, 금리인상 기대론 후퇴에 상승…S&P500 사상최고치 마감(종합)",
-        "url": "https://www.yna.co.kr/view/AKR20260808005151072",
-        "isoDate": "2026-08-08",
-        "pubDate": "Sat, 8 Aug 2026 06:12:23 +0900"
-      },
-      {
-        "title": "[마켓뷰] 美증시 약세 vs 반발매수 유입 기대…코스피 향배는",
-        "url": "https://www.yna.co.kr/view/AKR20260807017900008",
-        "isoDate": "2026-08-07",
-        "pubDate": "Fri, 7 Aug 2026 08:01:32 +0900"
+        "title": "코스피·코스닥 줄줄이 '매도 사이드카'…美 반도체·中 쇼크에 증시 와르르",
+        "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1718035",
+        "isoDate": "2026-07-28",
+        "pubDate": "Tue, 28 Jul 2026 02:49:00 GMT"
       }
     ],
     "원자재": [
@@ -185049,6 +184973,12 @@
     ],
     "독일경기": [
       {
+        "title": "\"美 정보기관, 독일 공항 폭발드론 러시아 소유 가능성 제기\"",
+        "url": "https://www.yna.co.kr/view/AKR20260808025300009",
+        "isoDate": "2026-08-08",
+        "pubDate": "Sat, 8 Aug 2026 11:25:26 +0900"
+      },
+      {
         "title": "독일, 라인강 물류 운송 막히자 화물차 대체 투입",
         "url": "https://www.yna.co.kr/view/AKR20260808002600082",
         "isoDate": "2026-08-08",
@@ -185096,10 +185026,10 @@
         "pubDate": "Thu, 06 Aug 2026 22:39:43 GMT"
       },
       {
-        "title": "[한중관계 다시보기] ②무역 : 중국은 한국의 최대 시장인가, 최대 경쟁자인가",
-        "url": "http://www.kcnews.org/news/articleView.html?idxno=14218",
-        "isoDate": "2026-07-29",
-        "pubDate": "Wed, 29 Jul 2026 03:08:00 GMT"
+        "title": "한국, 수출 1000억달러 끝내 뚫었다…상반기 경상흑자 4배 폭증",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%ED%95%9C%EA%B5%AD-%EC%88%98%EC%B6%9C-1000%EC%96%B5%EB%8B%AC%EB%9F%AC-%EB%81%9D%EB%82%B4-%EB%9A%AB%EC%97%88%EB%8B%A4-%EC%83%81%EB%B0%98%EA%B8%B0-%EA%B2%BD%EC%83%81%ED%9D%91%EC%9E%90-4%EB%B0%B0-%ED%8F%AD%EC%A6%9D/vi-AA29Auze",
+        "isoDate": "2026-08-06",
+        "pubDate": "Thu, 06 Aug 2026 23:20:20 GMT"
       },
       {
         "title": "인천 상반기 수출 첫 300억 달러 돌파… 10년 만에 무역수지 흑자 전환",
@@ -185108,10 +185038,10 @@
         "pubDate": "Thu, 30 Jul 2026 10:12:00 GMT"
       },
       {
-        "title": "7월 수출 989억만 달러…반도체 폭발적 성장에 무역수지 303억 달러 흑자",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/7%EC%9B%94-%EC%88%98%EC%B6%9C-989%EC%96%B5%EB%A7%8C-%EB%8B%AC%EB%9F%AC-%EB%B0%98%EB%8F%84%EC%B2%B4-%ED%8F%AD%EB%B0%9C%EC%A0%81-%EC%84%B1%EC%9E%A5%EC%97%90-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-303%EC%96%B5-%EB%8B%AC%EB%9F%AC-%ED%9D%91%EC%9E%90/ar-AA29bqvm",
-        "isoDate": "2026-07-31",
-        "pubDate": "Fri, 31 Jul 2026 23:09:00 GMT"
+        "title": "[한중관계 다시보기] ②무역 : 중국은 한국의 최대 시장인가, 최대 경쟁자인가",
+        "url": "http://www.kcnews.org/news/articleView.html?idxno=14218",
+        "isoDate": "2026-07-29",
+        "pubDate": "Wed, 29 Jul 2026 03:08:00 GMT"
       }
     ],
     "한국은행": [
@@ -185120,6 +185050,12 @@
         "url": "https://www.newspim.com/news/view/20260804001387",
         "isoDate": "2026-08-04",
         "pubDate": "Tue, 04 Aug 2026 07:22:00 GMT"
+      },
+      {
+        "title": "기준금리 만장일치 인상한 금통위 \"한 번으론 충분치 않아\"",
+        "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/%EA%B8%B0%EC%A4%80%EA%B8%88%EB%A6%AC-%EB%A7%8C%EC%9E%A5%EC%9D%BC%EC%B9%98-%EC%9D%B8%EC%83%81%ED%95%9C-%EA%B8%88%ED%86%B5%EC%9C%84-%ED%95%9C-%EB%B2%88%EC%9C%BC%EB%A1%A0-%EC%B6%A9%EB%B6%84%EC%B9%98-%EC%95%8A%EC%95%84/ar-AA29mzCt",
+        "isoDate": "2026-08-04",
+        "pubDate": "Tue, 04 Aug 2026 01:27:24 GMT"
       },
       {
         "title": "금통위원들 \"기준금리 인상 필요성 커지고 부담은 줄어\"",
@@ -185138,12 +185074,6 @@
         "url": "https://www.inews24.com/view/1991853",
         "isoDate": "2026-08-04",
         "pubDate": "Tue, 04 Aug 2026 10:11:00 GMT"
-      },
-      {
-        "title": "금통위 추가 금리인상 신호에 건설업계 \"단기 유동성 지원 절실\"",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EA%B8%88%ED%86%B5%EC%9C%84-%EC%B6%94%EA%B0%80-%EA%B8%88%EB%A6%AC%EC%9D%B8%EC%83%81-%EC%8B%A0%ED%98%B8%EC%97%90-%EA%B1%B4%EC%84%A4%EC%97%85%EA%B3%84-%EB%8B%A8%EA%B8%B0-%EC%9C%A0%EB%8F%99%EC%84%B1-%EC%A7%80%EC%9B%90-%EC%A0%88%EC%8B%A4/ar-AA29qGU0",
-        "isoDate": "2026-08-05",
-        "pubDate": "Wed, 05 Aug 2026 08:28:00 GMT"
       }
     ]
   },
@@ -185330,7 +185260,7 @@
         "iso": "2026-09-18"
       }
     ],
-    "lastFetched": "2026-08-08T11:25:53.319464+09:00",
+    "lastFetched": "2026-08-08T12:19:27.935620+09:00",
     "source": "FRED release dates API",
     "backfilled": 6
   },
@@ -186181,12 +186111,12 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-08-08T11:25:53.396417+09:00",
+    "asOf": "2026-08-08T12:19:29.889427+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-08-08",
-    "generatedAt": "2026-08-08 11:26 KST",
+    "generatedAt": "2026-08-08 12:19 KST",
     "lines": [
       "증시 — KOSPI 6,258.77 (▼0.60%), S&P500 7,757.64 (▲0.62%), 나스닥 26,690.62 (▲1.30%)",
       "환율·금리 — 원/달러 1,407.45원 (▼1.09%), 미국 기준금리 3.63%, VIX 15.15",
@@ -186195,13 +186125,13 @@
     "source": "rule"
   },
   "dataHealth": {
-    "checkedAt": "2026-08-08T02:26:17.558575+00:00",
+    "checkedAt": "2026-08-08T03:19:54.956656+00:00",
     "summary": {
       "total": 129,
-      "ok": 114,
+      "ok": 111,
       "preserved": 0,
-      "stale": 10,
-      "failed": 0,
+      "stale": 11,
+      "failed": 2,
       "unknown": 4,
       "missing": 1
     },
@@ -186312,6 +186242,14 @@
         "state": "unknown"
       },
       {
+        "path": "realestate.kr.apt_price_idx_kr",
+        "asOf": "2026-01-01",
+        "ageDays": 219,
+        "sla": 100,
+        "tier": "normal",
+        "state": "stale"
+      },
+      {
         "path": "realestate.kr.conversion_rate_kr",
         "asOf": "2024-04-01",
         "ageDays": 859,
@@ -186326,6 +186264,22 @@
         "sla": 150,
         "tier": "normal",
         "state": "stale"
+      },
+      {
+        "path": "stockMovers.kospiGainers",
+        "asOf": "2026-08-07",
+        "ageDays": 1,
+        "sla": 4,
+        "tier": "important",
+        "state": "failed"
+      },
+      {
+        "path": "stockMovers.kospiLosers",
+        "asOf": "2026-08-07",
+        "ageDays": 1,
+        "sla": 4,
+        "tier": "important",
+        "state": "failed"
       },
       {
         "path": "aiBriefing",
@@ -187056,14 +187010,6 @@
         "state": "ok"
       },
       {
-        "path": "realestate.kr.apt_price_idx_kr",
-        "asOf": "2026-06-01",
-        "ageDays": 68,
-        "sla": 100,
-        "tier": "normal",
-        "state": "ok"
-      },
-      {
         "path": "realestate.kr.jns_price_idx_kr",
         "asOf": "2026-06-01",
         "ageDays": 68,
@@ -187195,22 +187141,6 @@
         "path": "sentiment.vkospi",
         "asOf": "2026-08-08",
         "ageDays": 0,
-        "sla": 4,
-        "tier": "important",
-        "state": "ok"
-      },
-      {
-        "path": "stockMovers.kospiGainers",
-        "asOf": "2026-08-07",
-        "ageDays": 1,
-        "sla": 4,
-        "tier": "important",
-        "state": "ok"
-      },
-      {
-        "path": "stockMovers.kospiLosers",
-        "asOf": "2026-08-07",
-        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok"
