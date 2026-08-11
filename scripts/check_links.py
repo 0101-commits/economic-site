@@ -13,6 +13,7 @@
 실행: python scripts/check_links.py   (항상 exit 0 — 보고서 성격, 빌드를 깨지 않음)
 """
 import json
+import os
 import re
 import socket
 import sys
@@ -45,6 +46,15 @@ def extract_urls():
             u = m.group(1)
             if not u.startswith(SKIP_PREFIX):
                 urls.add(u)
+    # 디스코드 알림의 네이버 딥링크(notify_discord.NAVER_LINKS)도 점검 — 네이버는
+    # 없는 지표를 404 대신 타 페이지로 조용히 리다이렉트하므로(소프트 200) 여기서
+    # 최소한 broken/manual 전환이라도 감지한다(기획 c661d5b0 v3).
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import notify_discord
+        urls.update(notify_discord.NAVER_LINKS.values())
+    except Exception as e:
+        print(f"[links] NAVER_LINKS 로드 실패 무시: {e}")
     return sorted(urls)
 
 

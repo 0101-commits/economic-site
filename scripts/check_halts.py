@@ -96,9 +96,23 @@ def _halt_card(h):
         return None
 
 
-def _send_all(token, uuids, msg, kind="fire", card=None):
+def _halt_buttons(h):
+    """v3 — 발동 시장 지수의 네이버 증권 버튼(+시장 지표 딥링크). 실패는 None."""
+    try:
+        import notify_discord
+        btns = [("시장 지표", "https://0101-commits.github.io/economic-site/?p=market")]
+        key = "KOSDAQ" if h.get("market") == "KOSDAQ" else "KOSPI"
+        u = notify_discord.NAVER_LINKS.get(key)
+        if u:
+            btns.append((f"N {h.get('market') or 'KOSPI'}", u))
+        return btns
+    except Exception:
+        return None
+
+
+def _send_all(token, uuids, msg, kind="fire", card=None, buttons=None):
     """카카오+디스코드 병행 발송. kind: fire(발동/격상=빨강+@everyone) / resolve(해제=초록)
-    / test(회색). card=발동 카드 PNG 경로(없으면 종전 텍스트 embed).
+    / test(회색). card=발동 카드 PNG 경로(없으면 종전 텍스트 embed), buttons=v3 링크 버튼.
     디스코드는 카카오보다 먼저, 예외는 삼킨다(카카오 재시도 로직 무영향).
     카카오 실패 시 다음 런 재시도가 디스코드엔 중복 1통이 될 수 있으나 시장경보는 누락보다 중복이 낫다."""
     try:
@@ -111,7 +125,7 @@ def _send_all(token, uuids, msg, kind="fire", card=None):
                             title=(lines[0] + " — 시장 지표 보기")[:256],
                             url="https://0101-commits.github.io/economic-site/?p=market",
                             color=color, timestamp=True, mention=mention,
-                            env="DISCORD_WEBHOOK_SWINGS")
+                            env="DISCORD_WEBHOOK_SWINGS", buttons=buttons)
     except Exception as e:
         print(f"[discord] 병행 발송 예외 무시: {e}")
     kakao.send_memo(token, msg, with_button=True, uuids=uuids)
@@ -331,7 +345,8 @@ def main():
                 rec = state[h["id"]]
                 esc = h["id"] in escalated_ids
                 try:
-                    _send_all(token, uuids, _fire_msg(h, escalated=esc), card=_halt_card(h))
+                    _send_all(token, uuids, _fire_msg(h, escalated=esc),
+                              card=_halt_card(h), buttons=_halt_buttons(h))
                     rec["pending"] = False
                     rec["tries"] = 0
                     rec["fireSent"] = True   # 발동 실제 발송 확정 — 이후 '해제' 발송 자격
@@ -350,7 +365,8 @@ def main():
                 h = rec.get("event") or {"id": hid}
                 rec["resolveTries"] = int(rec.get("resolveTries", 0)) + 1
                 try:
-                    _send_all(token, uuids, _resolve_msg(h), kind="resolve")
+                    _send_all(token, uuids, _resolve_msg(h), kind="resolve",
+                              buttons=_halt_buttons(h))
                     rec["resolvedSent"] = True
                     rec["resolvedAt"] = now.isoformat()
                     print(f"[halts] 해제 발송: {hid}")

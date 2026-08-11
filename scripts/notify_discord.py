@@ -36,6 +36,35 @@ _API = "https://discord.com/api/v10"
 # 봇 계정(구 econ-terminal-bot)은 최초 발송 시 /users/@me PATCH 로 개명한다.
 BOT_NAME = "ecom"
 
+# ── 네이버 증권 딥링크(기획 c661d5b0 v3) ──────────────────────────────────
+# 2026-08-11 2중 검사(최종 URL 동일성 + 본문 키워드) 통과분만 등록한다.
+# 네이버는 미제공 지표를 404 대신 타 페이지로 조용히 리다이렉트하므로(소프트 200 —
+# VKOSPI 가 코스피로 302 하던 실측) 후보 추가는 반드시 같은 2중 검사를 먼저 거칠 것.
+# 미제공 확정: VKOSPI·MOVE·PutCall·HY·SCFI·구리·밀·옥수수(전 경로 리다이렉트/404).
+# 이 dict 의 URL 은 check_links.py 가 주기 점검한다(개편 감지).
+_NF = "https://finance.naver.com"
+NAVER_LINKS = {
+    "KOSPI": _NF + "/sise/sise_index.naver?code=KOSPI",
+    "KOSDAQ": _NF + "/sise/sise_index.naver?code=KOSDAQ",
+    "SP500": _NF + "/world/sise.naver?symbol=SPI@SPX",
+    "NASDAQ": _NF + "/world/sise.naver?symbol=NAS@IXIC",
+    "Nikkei": _NF + "/world/sise.naver?symbol=NII@NI225",
+    "SOX": _NF + "/world/sise.naver?symbol=NAS@SOX",
+    "USDKRW": _NF + "/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW",
+    "USDJPY": _NF + "/marketindex/worldExchangeDetail.naver?marketindexCd=FX_USDJPY",
+    "Gold": _NF + "/marketindex/worldGoldDetail.naver?marketindexCd=CMDT_GC",
+    "Silver": _NF + "/marketindex/worldGoldDetail.naver?marketindexCd=CMDT_SI",
+    "WTI": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=OIL_CL",
+    "Brent": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=OIL_BRT",
+    "NatGas": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=CMDT_NG",
+}
+
+
+def naver_stock_url(code):
+    """국내 종목(6자리 코드) 네이버 페이지 — 형식이 아니면 None(깨진 링크 방지)."""
+    c = str(code or "").strip()
+    return f"{_NF}/item/main.naver?code={c}" if c.isdigit() and len(c) == 6 else None
+
 # 시맨틱 컬러(D1) — 메시지 글자색은 디스코드가 지원하지 않아(ANSI 코드블록은 모바일 미표시)
 # embed 색띠가 표준. 알림 성격별 고정 팔레트:
 COLOR_DIGEST = 0x23408E    # 시황 다이제스트 — 네이비(보합 시 기본)
@@ -139,17 +168,24 @@ def _mention_content(mention, hook):
 
 
 def _components(buttons):
-    """buttons=[(라벨, url 또는 'id:custom_id'), …] → 디스코드 컴포넌트(행 1개, 최대 5개).
+    """buttons → 디스코드 컴포넌트. 평면 리스트 [(라벨, url|'id:…'), …]=1행(종전 호환)
+    또는 행 리스트 [[(…), …], …]=다행(v3 버튼 그리드). 행 5개·행당 5버튼 상한.
     링크 버튼은 style 5(url), 액션 버튼은 style 1(custom_id — Worker /discord 가 처리)."""
     if not buttons:
         return None
-    row = []
-    for lab, target in buttons[:5]:
-        if str(target).startswith("id:"):
-            row.append({"type": 2, "style": 1, "label": str(lab)[:80], "custom_id": str(target)[3:][:100]})
-        else:
-            row.append({"type": 2, "style": 5, "label": str(lab)[:80], "url": str(target)})
-    return [{"type": 1, "components": row}]
+    rows_in = buttons if isinstance(buttons[0], list) else [buttons]
+    comps = []
+    for row_in in rows_in[:5]:
+        row = []
+        for lab, target in row_in[:5]:
+            if str(target).startswith("id:"):
+                row.append({"type": 2, "style": 1, "label": str(lab)[:80],
+                            "custom_id": str(target)[3:][:100]})
+            else:
+                row.append({"type": 2, "style": 5, "label": str(lab)[:80], "url": str(target)})
+        if row:
+            comps.append({"type": 1, "components": row})
+    return comps or None
 
 
 def _ensure_thread_member(tid, gid, tok):
@@ -288,7 +324,30 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
         except Exception as e:
             print(f"[discord] 봇 발송 실패({e}) — 버튼 없이 웹훅 폴백")
 
-    # 웹훅 경로(종전) — 버튼만 빠지고 내용 동일. username=웹훅 표시명 통일(ecom).
+    # 웹훅 경로(종전) — 버튼이 빠지므로(웹훅은 컴포넌트 불가) 링크 버튼들을 embed
+    # 필드 한 줄로 자동 변환해 도달을 보장한다(v3 안전망 — 평시 봇 경로에선 미표시).
+    if comps and title:
+        try:
+            links = [f"[{c['label']}]({c['url']})"
+                     for r in comps for c in r["components"] if c.get("url")]
+            fs = payload["embeds"][0].setdefault("fields", [])
+            # 필드당 1024자 제한 — 중간에서 자르면 마크다운 링크가 깨지므로 링크
+            # 단위로 청크를 나눠 여러 필드로(최대 3개, 이름은 첫 필드만).
+            chunk, chunks = [], []
+            for lk in links:
+                if sum(len(x) + 3 for x in chunk) + len(lk) > 1000:
+                    chunks.append(chunk)
+                    chunk = []
+                chunk.append(lk)
+            if chunk:
+                chunks.append(chunk)
+            for i, ch in enumerate(chunks[:3]):
+                if len(fs) >= 25:
+                    break
+                fs.append({"name": "바로가기(버튼 대체)" if i == 0 else "​",
+                           "value": " · ".join(ch), "inline": False})
+        except Exception:
+            pass
     try:
         wh = hook + (("&" if "?" in hook else "?") + f"thread_id={tid}" if tid else "")
         _post(wh, {**payload, "username": BOT_NAME}, png, filename)

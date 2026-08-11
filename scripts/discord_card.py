@@ -233,18 +233,25 @@ def close_report(items, now, alerts_cnt=None, cal=""):
         return None
 
 
+def weekly_rows(d):
+    """주간 수익률 정렬 [(ko, en, key, chg%)] — weekly() 차트와 버튼 그리드(v3)가
+    같은 순서를 쓰도록 하는 단일 원천."""
+    rows = []
+    for ko, en, cat, key in _ASSETS[:12]:
+        vs = _hist(d, cat, key, days=6)
+        if len(vs) >= 2 and vs[0]:
+            rows.append((ko, en, key, (vs[-1] / vs[0] - 1) * 100))
+    rows.sort(key=lambda r: r[3])
+    return rows
+
+
 def weekly(d, now):
     """카드 C — 주간 수익률 정렬 바. 실패 시 None."""
     try:
         plt, _ = _setup()
-        rows = []
-        for ko, en, cat, key in _ASSETS[:12]:
-            vs = _hist(d, cat, key, days=6)
-            if len(vs) >= 2 and vs[0]:
-                rows.append((_L(ko, en), (vs[-1] / vs[0] - 1) * 100))
+        rows = [(_L(ko, en), chg) for ko, en, key, chg in weekly_rows(d)]
         if not rows:
             return None
-        rows.sort(key=lambda r: r[1])
         fig = plt.figure(figsize=(10, 6.4), dpi=130)
         fig.patch.set_facecolor(BG)
         wk0 = now - datetime.timedelta(days=now.weekday())

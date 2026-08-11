@@ -1202,7 +1202,7 @@ def send_memo(access_token, text, with_button=True, uuids=None):
 
 
 def _dispatch_fetch_data():
-    """data.json 스테일(60분+) 시 fetch-data 워크플로를 workflow_dispatch 로 깨운다(P3 자동 복구).
+    """data.json 스테일(120분+) 시 fetch-data 워크플로를 workflow_dispatch 로 깨운다(P3 자동 복구).
 
     kakao-daily.yml 이 GITHUB_TOKEN(permissions.actions: write)을 넘긴다. fetch-data 쪽
     concurrency 그룹이 동시 실행을 직렬화하므로 중복 트리거도 안전. 실패는 경고만 — 발송을 막지 않는다."""
@@ -1222,7 +1222,7 @@ def _dispatch_fetch_data():
         print("[digest] 스테일 감지 — fetch-data workflow_dispatch 트리거(다음 슬롯부터 정상화)")
         try:
             import notify_discord
-            notify_discord.system("data.json 60분+ 스테일 감지 — fetch-data 를 자동 트리거했습니다. "
+            notify_discord.system("data.json 120분+ 스테일 감지 — fetch-data 를 자동 트리거했습니다. "
                                   "이번 발송은 라이브 보정 값으로 진행, 다음 슬롯부터 정상화 예상.")
         except Exception:
             pass
@@ -1302,6 +1302,34 @@ def _dc_buttons():
             ("🔄 지금 시세", "id:refresh_quotes")]
 
 
+def _dc_button_rows(data, weekly=False):
+    """v3 버튼 그리드(기획 c661d5b0) — 카드 이미지의 타일(보드)·바(주간) 배열을
+    위치·순서 그대로 미러한 네이버 증권 링크 버튼 + 유틸 행. 라벨은 발송 시점
+    등락 스냅샷(「{지표} ▲▼{%}」). 네이버 미제공 지표(구리·밀·옥수수)는 대시보드
+    딥링크로 자리를 채워 4열 배열을 유지한다. 총 ≤5행(다이제스트 16+유틸=19/25)."""
+    import discord_card
+    import notify_discord
+    if weekly:
+        seq = [(ko, key, chg) for ko, en, key, chg in discord_card.weekly_rows(data)]
+    else:
+        seq = []
+        for ko, en, cat, key in discord_card._ASSETS:
+            n = (data.get(cat) or {}).get(key) or {}
+            seq.append((ko, key, _f(n.get("change") if n.get("change") is not None
+                                    else n.get("chgPct"))))
+    rows, cur = [], []
+    for ko, key, chg in seq[:16]:
+        url = notify_discord.NAVER_LINKS.get(key) or DASHBOARD_URL
+        arrow = "" if chg is None else (" ▲" if chg > 0 else " ▼") + f"{abs(chg):.1f}%"
+        cur.append((f"{ko}{arrow}", url))
+        if len(cur) == 4:
+            rows.append(cur)
+            cur = []
+    if cur:
+        rows.append(cur)
+    return rows[:4] + [_dc_buttons()]
+
+
 def _dc_thread_name(now):
     """일자 스레드 이름(D10) — 변수 DISCORD_DIGEST_THREADS=0 이면 None(채널 본문)."""
     if os.environ.get("DISCORD_DIGEST_THREADS", "1").strip().lower() in ("0", "false", "off"):
@@ -1354,39 +1382,27 @@ def _send_close_report(data):
         png = discord_card.close_report(citems, now, alerts_cnt=cnt, cal=cal)
     except Exception as e:
         print(f"[discord] 마감 카드 예외({e}) — 필드만 발송")
+    # v3 버튼: 바 차트의 지표 순서를 미러한 네이버 링크 1행 + 유틸 행.
+    _keymap = {"코스피": "KOSPI", "코스닥": "KOSDAQ", "S&P500": "SP500",
+               "나스닥": "NASDAQ", "달러-원": "USDKRW"}
+    nav = []
+    for lab, v, c in citems:
+        u = notify_discord.NAVER_LINKS.get(_keymap.get(lab))
+        if u:
+            arrow = "" if c is None else (" ▲" if c > 0 else " ▼") + f"{abs(c):.1f}%"
+            nav.append((f"{lab}{arrow}", u))
     ok = notify_discord.send(
         "", png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
-        url=DASHBOARD_URL + "?p=market", color=color, fields=rows,
+        url=DASHBOARD_URL + "?p=market", color=color,
+        fields=None if png else rows,
         footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
-        timestamp=True, thread_name=_dc_thread_name(now), buttons=_dc_buttons())
+        timestamp=True, thread_name=_dc_thread_name(now),
+        buttons=([nav[:5]] if nav else []) + [_dc_buttons()])
     if ok:
         _mark_sent_ok()
         print(f"[digest] 장 마감 리포트 발송 완료 (필드 {len(rows)}개)")
     else:
         print("::warning title=장 마감 리포트 실패::디스코드 발송 실패 — 다음 깨움이 재시도")
-
-
-def _send_heartbeat(data):
-    """데일리 하트비트(E6) — 08시 슬롯 1회, '조용함=정상'을 '초록불=정상'으로.
-    dataHealth(수집 SLA 실측) + 수집 시각 + 오늘 발송 예정 요약. 실패는 무시."""
-    try:
-        import notify_discord
-        dh = (data.get("dataHealth") or {}).get("summary") or {}
-        failed = int(dh.get("failed") or 0)
-        lu = str(data.get("lastUpdated", ""))[:16].replace("T", " ")
-        wd = datetime.datetime.now(KST).weekday()
-        txt = (f"데이터 {dh.get('ok', '?')}/{dh.get('total', '?')} 정상 · "
-               f"지연 {dh.get('stale', 0)} · 실패 {failed}\n"
-               f"data.json 수집 {lu}\n"
-               + ("오늘 예정: 다이제스트 16회(07~22시) · 장마감 리포트 15:40 · 종목/급변 상시"
-                  if wd < 5 else "오늘 예정(주말): 다이제스트 11·17시"))
-        if failed > 0:
-            notify_discord.system(txt, title=f"⚠️ 데일리 하트비트 — 수집 실패 {failed}건")
-        else:
-            notify_discord.system(txt, title="💚 데일리 하트비트 — 파이프라인 정상",
-                                  color=notify_discord.COLOR_RESOLVE)
-    except Exception as e:
-        print(f"[discord] 하트비트 예외 무시: {e}")
 
 
 def _mark_sent_ok():
@@ -1467,9 +1483,11 @@ def main():
         if age_min is not None and age_min > 120:
             title += f" (수집 {age_min / 60:.1f}h 전)"
             print(f"::warning title=데이터 스테일::data.json 이 {age_min:.0f}분 전 수집본 — 제목에 표기")
-        # 스테일 자동 복구(P3) — 60분 넘게 묵었으면 fetch-data 를 깨워 다음 슬롯부터 정상화.
-        # 이번 발송은 라이브 보정 값으로 그대로 진행. 실패는 경고만(발송을 막지 않는다).
-        if age_min is not None and age_min > 60:
+        # 스테일 자동 복구(P3) — 게이트 120분(2026-08-11 원인 수정): 오프시간 fetch-data 는
+        # 시간당 1회 + 런타임 10~25분이라 나이 60~90분이 '정상'이다(커밋 공백 실측 65~90분
+        # 상시 + 주말 최대 235분). 종전 60분 게이트가 정상 케이던스마다 ⚙️ 경고·재트리거를
+        # 쏘던 원인. 이번 발송은 라이브 보정 값으로 그대로 진행, 실패는 경고만.
+        if age_min is not None and age_min > 120:
             _dispatch_fetch_data()
 
         # 디스코드 병행 발송 — 카카오와 완전 독립(토큰 만료·발송 실패와 무관하게 도달).
@@ -1498,19 +1516,18 @@ def main():
             _dc_color = (notify_discord.COLOR_WEEKLY if _weekly_mode
                          else notify_discord.COLOR_FLAT if _kchg is None or abs(_kchg) < 0.05
                          else notify_discord.COLOR_UP if _kchg >= 0 else notify_discord.COLOR_DOWN)
+            # v3: 카드가 있으면 필드 0개(이미지 최대 노출 — 사용자 결정), 카드 실패
+            # 시에만 종전 텍스트 필드로 폴백. 버튼=타일 미러 그리드(웹훅 폴백 시
+            # notify_discord 가 링크 필드로 자동 변환).
             notify_discord.send(
                 "", png=_card_png or _dc_png, title=title, url=DASHBOARD_URL,
                 color=_dc_color,
-                fields=_dc_fields(blocks, data),
+                fields=None if _card_png else _dc_fields(blocks, data),
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
                 timestamp=True, thread_name=_dc_thread_name(datetime.datetime.now(KST)),
-                buttons=_dc_buttons())
+                buttons=_dc_button_rows(data, weekly=_weekly_mode))
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
-
-        # 데일리 하트비트(E6) — 08시 슬롯 1회, #시스템 채널 그린 임베드.
-        if slot == "h08":
-            _send_heartbeat(data)
 
         access_token = refresh_access_token(rest_key, refresh_token)
 

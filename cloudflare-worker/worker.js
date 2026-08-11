@@ -1063,6 +1063,17 @@ const DISCORD_QUOTES = {
   '코스피': ['^KS11', 0], '코스닥': ['^KQ11', 0], 'S&P500': ['^GSPC', 0],
   '나스닥': ['^IXIC', 0], '달러-원': ['KRW=X', 1], '금': ['GC=F', 1], 'WTI': ['CL=F', 2],
 };
+// 지표별 네이버 증권 딥링크(기획 c661d5b0 v3) — scripts/notify_discord.NAVER_LINKS 와
+// 동일 검증(2중 검사 통과분만). 개편 감지는 check_links.py 가 담당.
+const DISCORD_NAVER = {
+  '코스피': 'https://finance.naver.com/sise/sise_index.naver?code=KOSPI',
+  '코스닥': 'https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ',
+  'S&P500': 'https://finance.naver.com/world/sise.naver?symbol=SPI@SPX',
+  '나스닥': 'https://finance.naver.com/world/sise.naver?symbol=NAS@IXIC',
+  '달러-원': 'https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW',
+  '금': 'https://finance.naver.com/marketindex/worldGoldDetail.naver?marketindexCd=CMDT_GC',
+  'WTI': 'https://finance.naver.com/marketindex/worldOilDetail.naver?marketindexCd=OIL_CL',
+};
 
 async function _discordVerify(request, rawBody, env) {
   const sig = request.headers.get('X-Signature-Ed25519');
@@ -1096,7 +1107,8 @@ async function _discordQuote(label) {
     const pct = prev ? ((price / prev - 1) * 100) : null;
     const arrow = pct == null ? '' : (pct >= 0 ? '▲' : '▼');
     const pctTxt = pct == null ? '' : ` ${arrow}${Math.abs(pct).toFixed(2)}%`;
-    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}\n※ 무료 시세 기준(지연 가능) · [대시보드](https://0101-commits.github.io/economic-site/)`;
+    const nav = DISCORD_NAVER[label] ? ` · [네이버 ↗](${DISCORD_NAVER[label]})` : '';
+    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}${nav}\n※ 무료 시세 기준(지연 가능) · [대시보드](https://0101-commits.github.io/economic-site/)`;
   } catch (e) {
     return `${label} 시세 조회 실패: ${e && e.message}`;
   }

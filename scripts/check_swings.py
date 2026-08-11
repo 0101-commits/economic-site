@@ -114,13 +114,22 @@ def main():
             _png = discord_card.swing(name0, price0, pct0, thr0, xs, ys, prev, now)
         except Exception as _ce:
             print(f"[swings] 카드 렌더 예외({_ce}) — 텍스트만 발송")
+        # v3 버튼 — 급변 지표의 네이버 증권 원클릭(봇 경로). 웹훅 폴백 시엔
+        # notify_discord 가 링크 필드로 자동 변환해 도달을 보장한다.
+        _sym2key = {"^KS11": "KOSPI", "^GSPC": "SP500", "KRW=X": "USDKRW"}
+        _btns = [("주식시장", "https://0101-commits.github.io/economic-site/?p=equity")]
+        for _, _, nm, sym, _, pct, _ in hits[:4]:
+            u = notify_discord.NAVER_LINKS.get(_sym2key.get(sym))
+            if u:
+                _btns.append((f"N {nm} {'▲' if pct > 0 else '▼'}{abs(pct):.1f}%", u))
         # 급변=빨강 embed + @everyone(D6 — 위급 알림만 강제 푸시) + 주식시장 딥링크.
         if notify_discord.send(
                 "\n".join(h[1] for h in hits), png=_png,
                 title=f"⚡ {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 시장 급변 — 주식시장 보기",
                 url="https://0101-commits.github.io/economic-site/?p=equity",
                 color=notify_discord.COLOR_FIRE, footer=ca.DELAY_NOTICE,
-                timestamp=True, mention=True, env="DISCORD_WEBHOOK_SWINGS"):
+                timestamp=True, mention=True, env="DISCORD_WEBHOOK_SWINGS",
+                buttons=_btns):
             sent_ok = True
     except Exception as e:
         print(f"[discord] 병행 발송 예외 무시: {e}")

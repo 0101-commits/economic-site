@@ -620,6 +620,14 @@ def main():
                 if _n > 1:
                     extra.append(f"이번 달 {_n}번째")
                 _lines.append(ln + (" · " + " · ".join(extra) if extra else ""))
+            # v3 버튼 — 발동 종목의 네이버 증권(국내 6자리 코드만, 미국 종목은 미배선).
+            # 웹훅 폴백 시 notify_discord 가 링크 필드로 자동 변환.
+            _btns = [("투자현황", "https://0101-commits.github.io/economic-site/?p=portfolio")]
+            for a, _ in to_send:
+                if a.get("market", "KR") == "KR":
+                    _u = notify_discord.naver_stock_url(a.get("symbol"))
+                    if _u:
+                        _btns.append(((f"N {a.get('name') or a.get('symbol')}")[:80], _u))
             notify_discord.send(
                 "\n".join(_lines),
                 title=f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림 — 투자 현황 보기",
@@ -627,7 +635,8 @@ def main():
                 color=notify_discord.COLOR_TEST if IS_TEST else notify_discord.COLOR_ALERT,
                 footer=DELAY_NOTICE, timestamp=True, env="DISCORD_WEBHOOK_ALERTS",
                 # 도달 티어 T2(E1) — @종목알림 역할 멘션(셀프 구독형). 테스트는 무멘션.
-                mention=None if IS_TEST else "role:종목알림")
+                mention=None if IS_TEST else "role:종목알림",
+                buttons=_btns[:5])
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 
