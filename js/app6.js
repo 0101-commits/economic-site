@@ -71,6 +71,7 @@ function _pfAggregate() {
     if (q.ccy === 'USD' && !fx) return;
     var ev = q.price * it.qty * mul;
     out.evalKrw += ev;
+    out.tiles[out.tiles.length - 1].ev = ev;   // P3: 히트맵 평가액 가중용
     if (q.ccy === 'USD') out.usdEval += ev; else out.krEval += ev;
     if (q.prevClose != null && isFinite(q.prevClose)) { out.dayPnlKrw += (q.price - q.prevClose) * it.qty * mul; out.hasDay = true; }
     if (it.avg) {
@@ -242,7 +243,21 @@ function pfBriefRender() {
   var vkNote = vk.value != null
     ? ('일간변동성 ≈ ' + (vk.value / 16).toFixed(1) + '%' + (vk.stale ? ' · <span style="color:var(--color-warning,#c98500);">⏸ ' + (vk.as_of || '') + ' 지연</span>' : ''))
     : '수집 지연';
-  var tiles =
+  /* P3 — 내 포트폴리오 한 줄 (클라 규칙 기반: 보유 정보는 서버·AI 로 전송하지 않는다) */
+  var withPct = agg.tiles.filter(function (t) { return t.pct != null; });
+  var oneLine = '';
+  if (withPct.length) {
+    var upN = withPct.filter(function (t) { return t.pct > 0; }).length;
+    var sortedT = withPct.slice().sort(function (a, b) { return b.pct - a.pct; });
+    var best = sortedT[0], worst = sortedT[sortedT.length - 1];
+    var regime = vk.value == null ? '' : (vk.value >= 80 ? ' · 변동성 극단권' : (vk.value >= 50 ? ' · 변동성 공포권' : (vk.value >= 30 ? ' · 변동성 주의권' : '')));
+    oneLine = '<div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:10px;line-height:1.6;">📌 보유 ' + withPct.length + '종 중 <b class="up-txt">' + upN + '종 상승</b>' +
+      (best ? ' — 최고 ' + pfEsc(best.name) + ' <b class="' + _pfTone(best.pct) + '">' + (best.pct >= 0 ? '+' : '') + best.pct.toFixed(1) + '%</b>' : '') +
+      (worst && worst !== best ? ', 최저 ' + pfEsc(worst.name) + ' <b class="' + _pfTone(worst.pct) + '">' + (worst.pct >= 0 ? '+' : '') + worst.pct.toFixed(1) + '%</b>' : '') +
+      regime + ' <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">(기기 내 규칙 생성 — 보유 정보 외부 전송 없음)</span></div>';
+  }
+
+  var tiles = oneLine +
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px;">' +
     '<div class="kpi-card"><div class="widget-title">총 평가액</div><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (agg.counted ? pfFmtKrw(agg.evalKrw) : '-') + '</div>' +
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">' + (pnl != null ? ('누적 ' + (pnl >= 0 ? '+' : '') + pfFmtKrw(pnl)) : '평단가·수량 입력 시 계산') + '</div>' + evSpark + '</div>' +
@@ -254,7 +269,7 @@ function pfBriefRender() {
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">' + vkNote + '</div>' + _pfSpark(vkHistVals, 'var(--color-warning,#c98500)') + '</div>' +
     '</div>';
 
-  /* 보유 종목 히트맵 — 색=방향, 농도=강도(±1%/±2.5% 3단계) */
+  /* 보유 종목 히트맵 — 색=방향, 농도=강도(±1%/±2.5% 3단계), 크기=평가액 가중(P3: 비중 22%+ → 2칸) */
   var hm = agg.tiles.map(function (t) {
     var p = t.pct, bg, fg;
     if (p == null) { bg = 'var(--c-surface)'; fg = 'var(--c-txt-muted)'; }
@@ -264,7 +279,8 @@ function pfBriefRender() {
       var base = up ? (window.CUP || '#d13c3c') : (window.CDN || '#2a78d6');
       bg = base + alpha; fg = a >= 2.5 ? '#fff' : base;
     }
-    return '<div role="button" tabindex="0" onclick="pfStockOpenFromTile(\'' + (t.it ? t.it.id : '') + '\')" onkeydown="if(event.key===\'Enter\')this.click()" style="cursor:pointer;border-radius:var(--r-sm);padding:8px 10px;min-height:52px;background:' + bg + ';color:' + fg + ';">' +
+    var big = (t.ev && agg.evalKrw > 0 && t.ev / agg.evalKrw >= 0.22) ? 'grid-column:span 2;' : '';
+    return '<div role="button" tabindex="0" onclick="pfStockOpenFromTile(\'' + (t.it ? t.it.id : '') + '\')" onkeydown="if(event.key===\'Enter\')this.click()" style="cursor:pointer;border-radius:var(--r-sm);padding:8px 10px;min-height:52px;' + big + 'background:' + bg + ';color:' + fg + ';">' +
       '<div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + pfEsc(t.name) + '</div>' +
       '<div style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (p == null ? '—' : (p >= 0 ? '+' : '') + p.toFixed(2) + '%') + '</div></div>';
   }).join('');
@@ -272,9 +288,10 @@ function pfBriefRender() {
     agg.tiles.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;">' + hm + '</div>'
                      : '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:12px 0;">포트폴리오 탭에서 종목을 추가하세요.</div>');
 
-  /* 오늘의 차트 + 이번 주 일정 */
-  var chart = _pfCard('오늘의 차트 — VKOSPI × 외국인 순매매 (30거래일) ' + _pfI('varlimit'),
-    '<div style="position:relative;height:220px;"><canvas id="pfBriefChartCanvas" role="img" aria-label="VKOSPI와 외국인 순매매 30일 비교 차트"></canvas></div>' +
+  /* 오늘의 차트 (P3: 변화량 스코어링으로 VKOSPI vs 환율 자동 선정) + 이번 주 일정 */
+  var chartMode = _pfBriefChartMode(d);
+  var chart = _pfCard('오늘의 차트 — ' + chartMode.title + ' × 외국인 순매매 (30거래일) ' + _pfI(chartMode.key === 'fx' ? 'fxexpo' : 'varlimit'),
+    '<div style="position:relative;height:220px;"><canvas id="pfBriefChartCanvas" role="img" aria-label="' + chartMode.title + '와 외국인 순매매 30일 비교 차트"></canvas></div>' +
     '<div id="pfBriefChartNote" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;"></div>');
   var cal = _pfBriefCalendarHtml(d, agg);
   var merBox = '<div class="widget" style="margin-bottom:12px;"><div class="widget-title">오늘의 메르 한 줄</div><div id="pfMerOneLine" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.7;">불러오는 중…</div></div>';
@@ -283,7 +300,7 @@ function pfBriefRender() {
     '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px;" class="pf-brief-2col">' + chart + cal + '</div>' + merBox +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기준: 시세=무료 소스(지연 가능) · 지표=' + ((d.lastUpdated || '').slice(0, 16).replace('T', ' ') || '-') + ' 빌드 · ' + asof.getHours() + ':' + String(asof.getMinutes()).padStart(2, '0') + ' 렌더</div>';
 
-  _pfBriefChartRender(d);
+  _pfBriefChartRender(d, chartMode);
   /* 개별 종목 실적 발표일 병합 (P2 — fundamentals.json us[].earningsDate) */
   pfFundaLoad().then(function (fd) {
     if (_pfActiveTab !== 'brief' || !fd || !fd.us) return;
@@ -326,16 +343,34 @@ function _pfBriefCalendarHtml(d, agg) {
   return _pfCard('이번 주 · 내 시장 관련 일정',
     rows ? '<ul style="list-style:none;margin:0;padding:0;">' + rows + '</ul>' : '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:10px 0;">향후 8일 내 주요 일정이 없습니다.</div>');
 }
-function _pfBriefChartRender(d) {
+function _pfBriefChartMode(d) {
+  // P3 킬러 차트 자동 선정 — 최근 5거래일 변화율 스코어: VKOSPI vs 환율(가중 ×3,
+  // 환율 1% 는 변동성 5% 급의 사건이라 스케일 보정). 큰 쪽이 "오늘 더 중요한 축".
+  function chg5(vals) {
+    var xs = (vals || []).filter(function (v) { return v != null && isFinite(v); });
+    if (xs.length < 6) return 0;
+    var a = xs[xs.length - 6], b = xs[xs.length - 1];
+    return a ? Math.abs(b / a - 1) * 100 : 0;
+  }
+  var vkScore = chg5(_pfHistTail(((d.sentiment || {}).vkospi || {}).history, 10));
+  var fxScore = chg5(_pfHistTail(((d.history || {}).fx || {}).USDKRW, 10)) * 3;
+  return fxScore > vkScore ? { key: 'fx', title: '달러원 환율' } : { key: 'vk', title: 'VKOSPI' };
+}
+function _pfBriefChartRender(d, mode) {
   var cv = document.getElementById('pfBriefChartCanvas'); if (!cv || typeof Chart === 'undefined') return;
-  var vk = ((d.sentiment || {}).vkospi || {});
-  var hist = vk.history || {};
+  mode = mode || { key: 'vk', title: 'VKOSPI' };
   var daily = ((d.investorTrading || {}).daily || []);
   var fMap = {};
   daily.forEach(function (r) { if (r && r.date) fMap[r.date] = +r.foreign; });
-  // 축 = 외국인 데이터의 최근 30거래일 (VKOSPI history 는 구멍이 있어 forward-fill)
+  // 축 = 외국인 데이터의 최근 30거래일 (라인 시계열은 구멍이 있어 forward-fill)
   var axis = daily.slice(-30).map(function (r) { return r.date; });
   if (!axis.length) { cv.parentElement.innerHTML = '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:20px;">투자자 수급 데이터 없음</div>'; return; }
+  var hist = {};
+  if (mode.key === 'fx') {
+    (((d.history || {}).fx || {}).USDKRW || []).forEach(function (r) { if (r && r.date && r.close != null) hist[r.date] = +r.close; });
+  } else {
+    hist = ((d.sentiment || {}).vkospi || {}).history || {};
+  }
   var vkLine = [], last = null;
   axis.forEach(function (dt) { if (hist[dt] != null) last = hist[dt]; vkLine.push(last); });
   var bars = axis.map(function (dt) { return fMap[dt] != null ? fMap[dt] : null; });
@@ -347,7 +382,7 @@ function _pfBriefChartRender(d) {
       datasets: [
         { type: 'bar', label: '외국인 순매매(억원)', data: bars, yAxisID: 'y1',
           backgroundColor: bars.map(function (v) { return (v != null && v >= 0 ? (window.CUP || '#d13c3c') : (window.CDN || '#2a78d6')) + '99'; }) },
-        { type: 'line', label: 'VKOSPI', data: vkLine, yAxisID: 'y2', borderColor: tc.accent, borderWidth: 2, pointRadius: 0, tension: 0.2 }
+        { type: 'line', label: mode.title, data: vkLine, yAxisID: 'y2', borderColor: tc.accent, borderWidth: 2, pointRadius: 0, tension: 0.2 }
       ]
     },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
@@ -358,8 +393,11 @@ function _pfBriefChartRender(d) {
   });
   var f20 = daily.slice(-20).reduce(function (s, r) { return s + (+r.foreign || 0); }, 0);
   var note = document.getElementById('pfBriefChartNote');
-  if (note) note.textContent = '읽는 법 · 변동성(선)이 꺾이는 구간에서 외국인 매도(파란 막대)가 멈추는지 본다 — VaR 한도 논리. 최근 20거래일 외국인 순매매 ' + (f20 >= 0 ? '+' : '') + _pfNum(f20, 0) + '억원.';
-  // 참고: y1(수급)·y2(VKOSPI)는 단위가 달라 이중축이 불가피한 조합 — 각 축을 범례 라벨에 명시해 오독을 막는다.
+  if (note) note.textContent = (mode.key === 'fx'
+    ? '읽는 법 · 외국인 매도 달러가 빠져나가면 환율이 오른다(4편) — 매도세와 환율 방향을 같이 본다.'
+    : '읽는 법 · 변동성(선)이 꺾이는 구간에서 외국인 매도(파란 막대)가 멈추는지 본다 — VaR 한도 논리.') +
+    ' 최근 20거래일 외국인 순매매 ' + (f20 >= 0 ? '+' : '') + _pfNum(f20, 0) + '억원. (차트 축은 최근 5일 변화량 스코어로 자동 선정)';
+  // 참고: y1(수급)·y2(라인)는 단위가 달라 이중축이 불가피한 조합 — 각 축을 범례 라벨에 명시해 오독을 막는다.
 }
 function pfStockOpenFromTile(itemId) {
   var it = (pfState && pfState.items || []).find(function (i) { return i.id === itemId; });
@@ -626,12 +664,15 @@ function pfRiskRender() {
     biasRow('내 포트폴리오', krPct, true) + biasRow('국민연금 목표', 20.8) + (npsKr2 ? biasRow('국민연금 실제', npsKr2.pct) : '') + biasRow('캐나다 CPP', 12) + biasRow('노르웨이 GPFG', 0.5) +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">한국에서 일하며 한국 주식 ' + krPct + '% — 급여·연금·자산이 같은 충격에 노출된다는 진단(메르 외전). 진단만 표기하며 리밸런싱 권고는 하지 않습니다.</div>');
 
-  /* 손익 분해 워터폴 + 환노출 what-if */
+  /* 손익 분해 워터폴 (P3: 배당 원장 반영) + 환노출 what-if */
+  var ledger = pfLedgerLoad();
+  var divSum = ledger.filter(function (r) { return r.kind === 'div'; }).reduce(function (s, r) { return s + (+r.amt || 0); }, 0);
   var wf = '';
   if (agg.costKrw > 0) {
     var pnl = agg.evalKrw - agg.costKrw;
     var pricePnl = pnl - agg.fxPnlKrw;
-    var maxV = Math.max(Math.abs(pricePnl), Math.abs(agg.fxPnlKrw), Math.abs(pnl), 1);
+    var total = pnl + divSum;
+    var maxV = Math.max(Math.abs(pricePnl), Math.abs(agg.fxPnlKrw), Math.abs(divSum), Math.abs(total), 1);
     var wfCol = function (label, v, color) {
       var h = Math.max(4, Math.abs(v) / maxV * 90);
       return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%;">' +
@@ -643,7 +684,9 @@ function pfRiskRender() {
       '<div style="display:flex;align-items:flex-end;gap:12px;height:140px;padding-top:8px;">' +
       wfCol('주가 손익', pricePnl, 'var(--c-up)') +
       (agg.hasFxSplit ? wfCol('환차 손익', agg.fxPnlKrw, 'var(--c-down)') : '') +
-      wfCol('합계', pnl, 'var(--c-accent)') + '</div>');
+      (divSum ? wfCol('배당(기록)', divSum, 'var(--c-txt-muted)') : '') +
+      wfCol('합계', total, 'var(--c-accent)') + '</div>' +
+      (divSum ? '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">배당은 아래 원장에 직접 기록한 금액 합계(평가액과 별도 현금).</div>' : ''));
   }
   var whatif = agg.usdEval > 0 ? _pfCard('환노출 what-if ' + _pfI('fxexpo'),
     '<div style="font-size:var(--font-size-sm);">원화가 <b id="pfWhatIfPct" style="font-family:var(--font-num);">0</b>% ' +
@@ -651,9 +694,47 @@ function pfRiskRender() {
     ' → 총 평가액 <b id="pfWhatIfOut" style="font-family:var(--font-num);">' + pfFmtKrw(agg.evalKrw) + '</b> <span id="pfWhatIfDelta" style="font-size:var(--font-size-xs);"></span></div>' +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;">＋ = 원화 약세(달러 강세) 가정. USD 노출 ' + Math.round(agg.usdEval / agg.evalKrw * 100) + '% 기준 단순 환산(가정 시나리오).</div>') : '';
 
+  /* P3 — 배당·입출금 원장 (브라우저 로컬 전용, 서버 미전송) */
+  var ledRows = ledger.slice(-6).reverse().map(function (r) {
+    var kindLbl = { div: '배당', dep: '입금', wd: '출금' }[r.kind] || r.kind;
+    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:var(--font-size-xs);padding:4px 0;border-bottom:1px dashed var(--c-border);font-family:var(--font-num);">' +
+      '<span>' + r.d + ' · ' + kindLbl + (r.memo ? ' · ' + pfEsc(r.memo) : '') + '</span>' +
+      '<span><b>' + pfFmtKrw(+r.amt || 0) + '</b> <button onclick="pfLedgerDel(\'' + r.id + '\')" aria-label="기록 삭제" style="background:transparent;border:none;color:var(--c-txt-muted);cursor:pointer;">🗑</button></span></div>';
+  }).join('');
+  var ledCard = _pfCard('배당·입출금 원장 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">이 브라우저에만 저장 · 총 ' + ledger.length + '건</span>',
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
+    '<input id="pfLedDate" type="date" value="' + new Date().toISOString().slice(0, 10) + '" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="기록 날짜">' +
+    '<select id="pfLedKind" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="기록 종류"><option value="div">배당</option><option value="dep">입금</option><option value="wd">출금</option></select>' +
+    '<input id="pfLedAmt" type="number" min="0" step="any" placeholder="금액(원)" style="width:110px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="금액">' +
+    '<input id="pfLedMemo" placeholder="메모(선택)" style="width:110px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="메모">' +
+    '<button onclick="pfLedgerAdd()" style="font-size:var(--font-size-xs);padding:4px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">＋ 기록</button></div>' +
+    (ledRows || '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기록 없음 — 배당을 기록하면 손익 워터폴에 반영됩니다.</div>') +
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">입출금 기록은 참고용 — 위 위험 지표는 평가/매입 비율 기반이라 추가매수에는 원래 강건하며, 대규모 입출금 시 벤치마크 비교 왜곡 고지는 기존과 동일.</div>');
+
   el.innerHTML = '<div class="widget-title" style="margin:4px 0 10px;">🧭 메르 위험 패널 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">— 내 계좌를 연기금처럼 본다 · ⓘ = 메르식 설명</span></div>' +
-    riskCards + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;" class="pf-risk-2col">' + (wf || '') + (bias || '') + '</div>' + whatif;
+    riskCards + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;" class="pf-risk-2col">' + (wf || '') + (bias || '') + '</div>' + whatif + ledCard;
   window._pfWhatIfBase = { ev: agg.evalKrw, usd: agg.usdEval };
+}
+/* 원장 저장소 — localStorage 전용(프라이버시: 서버·동기화 페이로드에 절대 미포함) */
+function pfLedgerLoad() {
+  try { var a = JSON.parse(localStorage.getItem('pfLedgerV1') || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; }
+}
+function pfLedgerSave(a) { try { localStorage.setItem('pfLedgerV1', JSON.stringify(a.slice(-500))); } catch (_) {} }
+function pfLedgerAdd() {
+  var d = (document.getElementById('pfLedDate') || {}).value;
+  var kind = (document.getElementById('pfLedKind') || {}).value;
+  var amt = parseFloat((document.getElementById('pfLedAmt') || {}).value);
+  var memo = ((document.getElementById('pfLedMemo') || {}).value || '').slice(0, 40);
+  if (!d || !kind || !(amt > 0)) { alert('날짜·종류·금액을 확인하세요.'); return; }
+  var a = pfLedgerLoad();
+  a.push({ id: 'L' + Date.now().toString(36), d: d, kind: kind, amt: amt, memo: memo });
+  a.sort(function (x, y) { return x.d < y.d ? -1 : 1; });
+  pfLedgerSave(a);
+  pfRiskRender();
+}
+function pfLedgerDel(id) {
+  pfLedgerSave(pfLedgerLoad().filter(function (r) { return r.id !== id; }));
+  pfRiskRender();
 }
 function pfWhatIf(v) {
   var b = window._pfWhatIfBase || {};
