@@ -175,6 +175,12 @@ jobs:
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
         run: pip install matplotlib requests pynacl
 
+      - name: Install Korean fonts (Discord card)
+        # 디스코드 시각 보드 카드(discord_card.py)의 한글 라벨용 — 실패해도 카드가
+        # 영문 라벨로 강등될 뿐 발송엔 지장 없음(기획 2026-08-11).
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
+        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk || echo "::warning::한글 폰트 설치 실패 — 카드 영문 라벨로 강등"
+
       - name: Send KakaoTalk digest
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
         env:

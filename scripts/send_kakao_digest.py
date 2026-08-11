@@ -1317,16 +1317,20 @@ def _send_close_report(data):
     idx = data.get("indices") or {}
     fx = data.get("fx") or {}
     rows = []
+    citems = []                                       # 카드 B 용 수치 (라벨, 가격, 등락%)
     for lab, key in (("코스피", "KOSPI"), ("코스닥", "KOSDAQ"),
                      ("S&P500", "SP500"), ("나스닥", "NASDAQ")):
         n = idx.get(key) or {}
         v = _f(n.get("price"))
         if v is not None:
             rows.append((lab, f"{v:,.0f} {_a1(n.get('change'))}".strip(), True))
+            citems.append((lab, v, _f(n.get("change"))))
     kr = fx.get("USDKRW") or {}
     v = _f(kr.get("rate"))
     if v is not None:
         rows.append(("달러-원", f"{v:,.1f} {_a1(kr.get('change'))}".strip(), True))
+        citems.append(("달러-원", v, _f(kr.get("change"))))
+    cnt = None
     try:
         sp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "alerts_state.json")
         with open(sp, encoding="utf-8") as f:
@@ -1343,8 +1347,15 @@ def _send_close_report(data):
     kchg = _f((idx.get("KOSPI") or {}).get("change"))
     color = (notify_discord.COLOR_FLAT if kchg is None or abs(kchg) < 0.05
              else notify_discord.COLOR_UP if kchg >= 0 else notify_discord.COLOR_DOWN)
+    # 카드 B(기획 2026-08-11) — 다이버징 바 + 발동 수·내일 일정. 실패 시 필드만(종전 형식).
+    png = None
+    try:
+        import discord_card
+        png = discord_card.close_report(citems, now, alerts_cnt=cnt, cal=cal)
+    except Exception as e:
+        print(f"[discord] 마감 카드 예외({e}) — 필드만 발송")
     ok = notify_discord.send(
-        "", title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
+        "", png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
         url=DASHBOARD_URL + "?p=market", color=color, fields=rows,
         footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
         timestamp=True, thread_name=_dc_thread_name(now), buttons=_dc_buttons())
@@ -1472,12 +1483,23 @@ def main():
             # +오늘 일정, 색띠=코스피 방향 동적(상승 빨강/하락 파랑/보합 회색 — 주간은 금색),
             # 버튼(E3)=딥링크 2개+지금 시세(봇 토큰 있을 때만 부착, 없으면 웹훅 그대로).
             _weekly_mode = title.startswith("주간")
+            # 시각 보드 카드(기획 2026-08-11) — 디스코드 본문은 카드 1장(평시=보드 A,
+            # 주간=수익률 바 C). 렌더 실패 시 카카오용 슬롯 차트로 폴백해 이미지가
+            # 절대 비지 않는다. 카카오 피드는 계속 _dc_png(슬롯 차트)를 쓴다.
+            _card_png = None
+            try:
+                import discord_card
+                _dc_now = datetime.datetime.now(KST)
+                _card_png = (discord_card.weekly(data, _dc_now) if _weekly_mode
+                             else discord_card.board(data, _dc_now, cal=_dc_cal_line(data)))
+            except Exception as _ce:
+                print(f"[discord] 카드 렌더 예외({_ce}) — 슬롯 차트 폴백")
             _kchg = _f(((data.get("indices") or {}).get("KOSPI") or {}).get("change"))
             _dc_color = (notify_discord.COLOR_WEEKLY if _weekly_mode
                          else notify_discord.COLOR_FLAT if _kchg is None or abs(_kchg) < 0.05
                          else notify_discord.COLOR_UP if _kchg >= 0 else notify_discord.COLOR_DOWN)
             notify_discord.send(
-                "", png=_dc_png, title=title, url=DASHBOARD_URL,
+                "", png=_card_png or _dc_png, title=title, url=DASHBOARD_URL,
                 color=_dc_color,
                 fields=_dc_fields(blocks, data),
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",

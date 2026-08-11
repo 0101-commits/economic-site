@@ -32,6 +32,9 @@ WEBHOOK_ENV = "DISCORD_WEBHOOK_URL"
 # 디스코드(Cloudflare)가 파이썬 기본 UA(Python-urllib)를 403 으로 차단한다 — 반드시 지정.
 _UA = "economic-site-notifier/1.0 (+https://github.com/0101-commits/economic-site)"
 _API = "https://discord.com/api/v10"
+# 발신 표시명 통일(2026-08-11 사용자 지시) — 웹훅은 메시지별 username 필드로,
+# 봇 계정(구 econ-terminal-bot)은 최초 발송 시 /users/@me PATCH 로 개명한다.
+BOT_NAME = "ecom"
 
 # 시맨틱 컬러(D1) — 메시지 글자색은 디스코드가 지원하지 않아(ANSI 코드블록은 모바일 미표시)
 # embed 색띠가 표준. 알림 성격별 고정 팔레트:
@@ -82,6 +85,26 @@ def _bot_get(path, tok):
         urllib.request.Request(f"{_API}{path}",
                                headers={"Authorization": f"Bot {tok}", "User-Agent": _UA}),
         timeout=10))
+
+
+def _ensure_bot_name(tok):
+    """봇 계정 username 을 BOT_NAME('ecom')으로 동기화 — 프로세스당 1회, 멱등.
+    디스코드 username 변경은 시간당 2회 제한이라 다르면 그때만 PATCH. 실패는 경고만."""
+    if _INFO_CACHE.get("_name_synced") or not tok:
+        return
+    _INFO_CACHE["_name_synced"] = True
+    try:
+        me = _bot_get("/users/@me", tok)
+        if (me.get("username") or "") != BOT_NAME:
+            urllib.request.urlopen(urllib.request.Request(
+                f"{_API}/users/@me",
+                data=json.dumps({"username": BOT_NAME}).encode("utf-8"),
+                headers={"Authorization": f"Bot {tok}", "User-Agent": _UA,
+                         "Content-Type": "application/json"},
+                method="PATCH"), timeout=10)
+            print(f"[discord] 봇 이름 {me.get('username')} → {BOT_NAME} 변경")
+    except Exception as e:
+        print(f"[discord] 봇 이름 동기화 실패 무시: {e}")
 
 
 _ROLE_CACHE = {}
@@ -254,6 +277,7 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     comps = _components(buttons)
     if comps and tok:
         try:
+            _ensure_bot_name(tok)
             cid = tid or _webhook_info(hook).get("channel_id")
             if cid:
                 _post(f"{_API}/channels/{cid}/messages", {**payload, "components": comps},
@@ -264,10 +288,10 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
         except Exception as e:
             print(f"[discord] 봇 발송 실패({e}) — 버튼 없이 웹훅 폴백")
 
-    # 웹훅 경로(종전) — 버튼만 빠지고 내용 동일.
+    # 웹훅 경로(종전) — 버튼만 빠지고 내용 동일. username=웹훅 표시명 통일(ecom).
     try:
         wh = hook + (("&" if "?" in hook else "?") + f"thread_id={tid}" if tid else "")
-        _post(wh, payload, png, filename)
+        _post(wh, {**payload, "username": BOT_NAME}, png, filename)
         print(f"[discord] 발송 성공 ({plen}자{', 이미지 첨부' if png else ''}{', embed' if title else ''}, env={env})")
         return True
     except Exception as e:

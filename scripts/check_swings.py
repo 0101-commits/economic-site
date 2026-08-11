@@ -76,14 +76,15 @@ def main():
             continue                     # 같은 방향은 하루 1회
         arrow = "▲" if pct > 0 else "▼"
         nd = 1 if sym == "KRW=X" else 0              # 환율만 소수 1자리, 지수는 정수(단위 없음)
-        hits.append((key, f"{name} {snap['price']:,.{nd}f} {arrow}{abs(pct):.1f}%"))
+        hits.append((key, f"{name} {snap['price']:,.{nd}f} {arrow}{abs(pct):.1f}%",
+                     name, sym, snap["price"], pct, thr))
         print(f"[swings] 급변 감지: {hits[-1][1]}")
 
     if not hits:
         return
 
     msg = (f"⚡ {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 시장 급변\n"
-           + "\n".join(line for _, line in hits)
+           + "\n".join(h[1] for h in hits)
            + f"\n{ca.DELAY_NOTICE}")
 
     # 카카오 + 디스코드 병행 — 어느 한쪽이라도 성공하면 쿨다운 확정(같은 급변 재발송 방지).
@@ -103,9 +104,19 @@ def main():
         print("::warning title=Kakao 미설정::급변 속보 카카오 건너뜀 (KAKAO_SETUP.md 참고)")
     try:
         import notify_discord
+        # 카드 D(기획 2026-08-11) — |등락| 최대 심볼을 히어로로, 인트라데이+임계선.
+        # 렌더·시세 실패 시 None → 종전 텍스트 embed 그대로.
+        _png = None
+        try:
+            import discord_card
+            _, _, name0, sym0, price0, pct0, thr0 = max(hits, key=lambda h: abs(h[5]))
+            xs, ys, prev = kakao._yahoo_intraday(sym0)
+            _png = discord_card.swing(name0, price0, pct0, thr0, xs, ys, prev, now)
+        except Exception as _ce:
+            print(f"[swings] 카드 렌더 예외({_ce}) — 텍스트만 발송")
         # 급변=빨강 embed + @everyone(D6 — 위급 알림만 강제 푸시) + 주식시장 딥링크.
         if notify_discord.send(
-                "\n".join(line for _, line in hits),
+                "\n".join(h[1] for h in hits), png=_png,
                 title=f"⚡ {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 시장 급변 — 주식시장 보기",
                 url="https://0101-commits.github.io/economic-site/?p=equity",
                 color=notify_discord.COLOR_FIRE, footer=ca.DELAY_NOTICE,
@@ -118,8 +129,8 @@ def main():
 
     # 발송 성공 후에만 쿨다운 확정 — 당일 키만 남겨 상태 파일이 자라지 않게 한다.
     swings = {k: v for k, v in swings.items() if k.endswith(day)}
-    for key, _ in hits:
-        swings[key] = now.isoformat()
+    for h in hits:
+        swings[h[0]] = now.isoformat()
     state["_swings"] = swings
     try:
         with open(STATE_PATH, "w", encoding="utf-8") as f:

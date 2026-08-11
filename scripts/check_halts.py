@@ -75,9 +75,31 @@ def _resolve_msg(h):
             f"{_now().strftime('%H:%M')} 거래 재개\n{DELAY_NOTICE}")
 
 
-def _send_all(token, uuids, msg, kind="fire"):
+def _halt_card(h):
+    """서킷 발동 카드(기획 2026-08-11, 카드 D 변형) — 해당 시장 인트라데이 + 단계 임계선.
+    실패·비서킷·시세 없음은 None(종전 텍스트 embed 그대로)."""
+    if h.get("type") != "circuit":
+        return None
+    try:
+        import discord_card
+        sym = "^KQ11" if h.get("market") == "KOSDAQ" else "^KS11"
+        xs, ys, prev = kakao._yahoo_intraday(sym)
+        price = ys[-1] if ys else None
+        pct = (price / prev - 1) * 100 if (price and prev) else None
+        thr = {1: 8.0, 2: 15.0, 3: 20.0}.get(h.get("stage"), 8.0)
+        resume = ("당일 장 종료" if h.get("endOfDay")
+                  else f"재개예정 {_hm(h.get('resumeAt'))}")
+        return discord_card.swing(f"{h.get('market', '')} 서킷 {h.get('stage', '')}단계",
+                                  price, pct, thr, xs, ys, prev, _now(), resume=resume)
+    except Exception as e:
+        print(f"[discord] 서킷 카드 예외({e}) — 텍스트만 발송")
+        return None
+
+
+def _send_all(token, uuids, msg, kind="fire", card=None):
     """카카오+디스코드 병행 발송. kind: fire(발동/격상=빨강+@everyone) / resolve(해제=초록)
-    / test(회색). 디스코드는 카카오보다 먼저, 예외는 삼킨다(카카오 재시도 로직 무영향).
+    / test(회색). card=발동 카드 PNG 경로(없으면 종전 텍스트 embed).
+    디스코드는 카카오보다 먼저, 예외는 삼킨다(카카오 재시도 로직 무영향).
     카카오 실패 시 다음 런 재시도가 디스코드엔 중복 1통이 될 수 있으나 시장경보는 누락보다 중복이 낫다."""
     try:
         import notify_discord
@@ -85,7 +107,8 @@ def _send_all(token, uuids, msg, kind="fire"):
         color, mention = {"fire": (notify_discord.COLOR_FIRE, True),
                           "resolve": (notify_discord.COLOR_RESOLVE, False)
                           }.get(kind, (notify_discord.COLOR_TEST, False))
-        notify_discord.send("\n".join(lines[1:]), title=(lines[0] + " — 시장 지표 보기")[:256],
+        notify_discord.send("\n".join(lines[1:]), png=card,
+                            title=(lines[0] + " — 시장 지표 보기")[:256],
                             url="https://0101-commits.github.io/economic-site/?p=market",
                             color=color, timestamp=True, mention=mention,
                             env="DISCORD_WEBHOOK_SWINGS")
@@ -308,7 +331,7 @@ def main():
                 rec = state[h["id"]]
                 esc = h["id"] in escalated_ids
                 try:
-                    _send_all(token, uuids, _fire_msg(h, escalated=esc))
+                    _send_all(token, uuids, _fire_msg(h, escalated=esc), card=_halt_card(h))
                     rec["pending"] = False
                     rec["tries"] = 0
                     rec["fireSent"] = True   # 발동 실제 발송 확정 — 이후 '해제' 발송 자격

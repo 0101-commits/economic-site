@@ -55,7 +55,9 @@ jobs:
       - name: Install deps
         # pynacl: 카카오 refresh_token 자동 회전 시 GH_SECRETS_PAT 로 시크릿을 갱신하는 데 필요
         # (GitHub Secrets API 는 libsodium 암호화 요구 — kakao-daily.yml 과 동일 배선).
-        run: pip install requests pynacl
+        # matplotlib: 급변·서킷 디스코드 카드(discord_card.py) 렌더용. 매분 런이라
+        # 한글 폰트 apt 설치는 생략 — 카드는 영문 라벨로 강등된다(기획 2026-08-11).
+        run: pip install requests pynacl matplotlib
 
       - name: Check alerts & send KakaoTalk
         env:
