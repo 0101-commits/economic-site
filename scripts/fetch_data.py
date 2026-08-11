@@ -4283,20 +4283,26 @@ def fetch_vkospi():
             result["history"] = history
         return result
 
-    # 1차: KRX 공식
+    # 1차: KRX 공식 — VKOSPI 는 '파생상품지수' 계열이라 drvprod 를 먼저 뒤진다.
+    # (기존엔 /idx/kospi_dd_trd 만 조회했는데, KOSPI 시리즈 응답에는 변동성지수 row 가
+    #  없을 수 있어 키가 등록돼 있어도 못 찾는 구조였다. 두 엔드포인트를 순회한다.)
     if KRX_API_KEY:
-        rows, basd = fetch_krx_latest("/idx/kospi_dd_trd")
-        if rows:
-            for row in rows:
+        for _ep in ("/idx/drvprod_dd_trd", "/idx/kospi_dd_trd"):
+            rows, basd = fetch_krx_latest(_ep)
+            for row in (rows or []):
                 nm = (row.get("IDX_NM") or "").strip()
                 if "변동성" in nm or "VKOSPI" in nm.upper() or "V-KOSPI" in nm.upper():
                     val = _parse_num(row.get("CLSPRC_IDX"))
                     chg = _parse_num(row.get("FLUC_RT"))
                     if _is_valid_vkospi(val):
-                        log(f"[KSVKOSPI] KRX: {nm} = {val} ({chg}%)")
-                        return _attach_history({"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": basd, "source": "KRX OpenAPI", "symbol": "KSVKOSPI"})
+                        _basd = str(basd or "")
+                        iso = (f"{_basd[:4]}-{_basd[4:6]}-{_basd[6:8]}"
+                               if len(_basd) == 8 and _basd.isdigit()
+                               else datetime.now(KST).strftime("%Y-%m-%d"))
+                        log(f"[KSVKOSPI] KRX {_ep}: {nm} = {val} ({chg}%)")
+                        return _attach_history({"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": iso, "source": "KRX OpenAPI", "symbol": "KSVKOSPI"})
                     elif val:
-                        log(f"[KSVKOSPI] KRX {nm} = {val} → 범위 벗어남, 무시")
+                        log(f"[KSVKOSPI] KRX {_ep} {nm} = {val} → 범위 벗어남, 무시")
     # 2차: 네이버 증권 KSVKOSPI 페이지 스크래핑
     sess = _naver_session()
     for code in ("KSVKOSPI", "VKOSPI"):
@@ -6266,10 +6272,23 @@ def build_data():
         if isinstance(_vk.get("history"), dict):
             _merged.update(_vk["history"])
         _vk_val = _vk.get("value")
-        if _vk_val and _is_valid_vkospi(_vk_val):
-            _merged[_vk.get("as_of") or now.strftime("%Y-%m-%d")] = round(_vk_val, 4)
-        # 오염 방지: 범위 밖 값 제거 후 최근 520거래일만 유지
-        _merged = {k: v for k, v in _merged.items() if _is_valid_vkospi(v)}
+        _asof_key = _vk.get("as_of") or now.strftime("%Y-%m-%d")
+        if len(_asof_key) == 8 and _asof_key.isdigit():
+            _asof_key = f"{_asof_key[:4]}-{_asof_key[4:6]}-{_asof_key[6:8]}"
+
+        def _bday_iso(k):
+            """ISO 날짜이면서 평일인 키만 통과. 주말엔 장이 없으므로 —
+            소스가 as_of=오늘 로 반환한 값이 토·일 키로 쌓이면 가짜 평평한
+            구간이 생긴다 (2026-08-08/09 실측 오염). 과거 오염분도 여기서 청소."""
+            try:
+                return datetime.strptime(k, "%Y-%m-%d").weekday() < 5
+            except (ValueError, TypeError):
+                return False
+
+        if _vk_val and _is_valid_vkospi(_vk_val) and _bday_iso(_asof_key):
+            _merged[_asof_key] = round(_vk_val, 4)
+        # 오염 방지: 범위 밖 값·주말 키 제거 후 최근 520거래일만 유지
+        _merged = {k: v for k, v in _merged.items() if _is_valid_vkospi(v) and _bday_iso(k)}
         if _merged and _vk:
             _keys = sorted(_merged.keys())[-520:]
             _vk["history"] = {k: _merged[k] for k in _keys}
@@ -6421,6 +6440,42 @@ def build_data():
             data["sources"]["history"] = "yfinance (FX/Indices/Commodities 5Y daily)"
     except Exception as e:
         log(f"[YF-HIST] 전체 수집 오류: {e}")
+
+    # ── VKOSPI 보조: 신선도(stale) + KOSPI 실현변동성(자체 계산) ────────
+    # 2026-08 실측: VKOSPI 무료 소스 전멸(네이버 지수 페이지 폐지→코스피 오반환,
+    # investing.com 403 차단, yfinance ^VKOSPI 상장폐지, KRX 정보데이터시스템 로그인 필수)
+    # 로 값이 preserve 로만 연명하는 상황이 생긴다.
+    # ① as_of 가 4일+ 과거면 stale=True → 프론트/알림이 "지연" 표기 가능.
+    # ② KOSPI 종가 20일 로그수익률 표준편차 × √252 = 실현변동성(연율 %) 을 realized20d 로
+    #    병기. VKOSPI(내재변동성)와는 다른 지표라 value 를 대체하지 않고 별도 필드로만
+    #    제공한다(날조 금지 원칙). data["history"] 세팅 직후라 최신 시계열 사용 가능.
+    try:
+        _vk = (data.get("sentiment") or {}).get("vkospi")
+        if isinstance(_vk, dict):
+            _asof = str(_vk.get("as_of") or "")
+            if len(_asof) == 8 and _asof.isdigit():
+                _asof = f"{_asof[:4]}-{_asof[4:6]}-{_asof[6:8]}"
+                _vk["as_of"] = _asof
+            try:
+                _age = (now.date() - datetime.strptime(_asof, "%Y-%m-%d").date()).days
+            except (ValueError, TypeError):
+                _age = None
+            _vk["stale"] = bool(_age is None or _age >= 4)
+            _series = (((data.get("history") or (prev or {}).get("history") or {})
+                        .get("indices") or {}).get("KOSPI") or [])
+            _closes = [r.get("close") for r in _series
+                       if isinstance(r, dict) and isinstance(r.get("close"), (int, float)) and r.get("close") > 0]
+            if len(_closes) >= 21:
+                import math as _math
+                _tail = _closes[-21:]
+                _rets = [_math.log(_tail[i] / _tail[i - 1]) for i in range(1, len(_tail))]
+                _mean = sum(_rets) / len(_rets)
+                _var = sum((x - _mean) ** 2 for x in _rets) / (len(_rets) - 1)
+                _vk["realized20d"] = round(_math.sqrt(_var) * _math.sqrt(252) * 100, 1)
+                _vk["realized_asof"] = (_series[-1].get("date") if isinstance(_series[-1], dict) else None)
+                log(f"[VKOSPI] 보조지표 — stale={_vk['stale']}, KOSPI 실현변동성(20D) {_vk['realized20d']}% (기준 {_vk['realized_asof']})")
+    except Exception as e:
+        log(f"[VKOSPI] 보조지표 오류: {e}")
 
     # ── 두바이 현물유 (FRED POILDUBUSDM) ─────────────────────
     # data["history"] 가 위에서 세팅된 뒤 실행해야 history.commodities.Dubai 가 보존된다.
