@@ -191,6 +191,15 @@ jobs:
         continue-on-error: true
         run: python scripts/fetch_merblog.py
 
+      # 📑 종목 펀더멘털 (fundamentals.json) — 일일 풀런에서만. 관심목록(alerts_config.json
+      # tracking) 대상 KR=OpenDART / US=yfinance. 키 미설정·개별 실패 = 기존 값 보존.
+      - name: Fetch fundamentals (일일 런)
+        if: env.FETCH_LIGHT != '1' && (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          OPENDART_API_KEY: ${{ secrets.OPENDART_API_KEY }}
+        run: python scripts/fetch_fundamentals.py
+
       # 🤖 오늘의 매크로 3줄 요약 — data.json 의 aiBriefing 키 생성/갱신.
       # GEMINI_API_KEY / OPENAI_API_KEY 시크릿이 있으면 LLM 요약, 없으면 규칙 기반 폴백.
       # 스크립트는 어떤 경우에도 exit 0 (빌드 파이프라인을 깨지 않음).
@@ -226,6 +235,7 @@ jobs:
           cp data_meta.json /tmp/data_meta.json.run
           git add data.json data_meta.json
           [ -f merblog.json ] && git add merblog.json || true
+          [ -f fundamentals.json ] && git add fundamentals.json || true
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then
@@ -238,6 +248,7 @@ jobs:
             cp /tmp/data_meta.json.run data_meta.json
             git add data.json data_meta.json
             [ -f merblog.json ] && git add merblog.json || true
+          [ -f fundamentals.json ] && git add fundamentals.json || true
             if git diff --staged --quiet -- data.json data_meta.json; then
               echo "원격이 이미 최신 — 종료"; exit 0
             fi

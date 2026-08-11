@@ -17,9 +17,18 @@ var _pfBriefChart = null;          // Chart.js (오늘의 차트)
 var _pfStockLw = null;             // LWC 인라인 차트 (종목 분석)
 var _pfStockCur = null;            // 현재 열린 종목 spec
 var _pfMerCache = null;            // merblog.json 캐시 (Promise)
+var _pfFundaCache = null;          // fundamentals.json 캐시 (Promise, P2)
 
 /* ── 공용 헬퍼 ─────────────────────────────────────────── */
 function _pfData() { return (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : null; }
+var _pfDataRetry = 0;
+function _pfWaitData(rerender) {
+  // 딥링크로 곧장 진입하면 data.json 로드 전에 렌더가 돈다 — 도착까지 1.2s 간격 재시도(최대 8회).
+  if (_pfData() || _pfDataRetry >= 8) return false;
+  _pfDataRetry++;
+  setTimeout(function () { try { rerender(); } catch (_) {} }, 1200);
+  return true;
+}
 function _pfNum(v, nd) { return (v == null || !isFinite(v)) ? '-' : (+v).toLocaleString('ko-KR', { maximumFractionDigits: nd == null ? 1 : nd }); }
 function _pfTone(v) { return v > 0 ? 'up-txt' : (v < 0 ? 'down-txt' : ''); }
 function _pfSpark(series, colorVar, w, h) {
@@ -188,6 +197,14 @@ function pfMerOneLiner(mer) {
   }
   return null;
 }
+function pfFundaLoad() {
+  // fundamentals.json — 일일 풀런이 생성(P2). 파일이 아직 없으면 null.
+  if (_pfFundaCache) return _pfFundaCache;
+  _pfFundaCache = fetch('fundamentals.json?v=' + Date.now(), { signal: AbortSignal.timeout(10000) })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .catch(function () { return null; });
+  return _pfFundaCache;
+}
 var PF_ALIAS = { 'SK하이닉스': ['하이닉스'], '삼성전자': ['삼전'] };
 function pfMerMentions(mer, name, symbol) {
   var posts = (mer && mer.posts) || [];
@@ -208,6 +225,7 @@ function pfMerMentions(mer, name, symbol) {
    ══════════════════════════════════════════════════════════ */
 function pfBriefRender() {
   var el = document.getElementById('pfTab-brief'); if (!el || _pfActiveTab !== 'brief') return;
+  _pfWaitData(pfBriefRender);
   var d = _pfData() || {};
   var agg = _pfAggregate();
   var vk = (d.sentiment || {}).vkospi || {};
@@ -266,6 +284,20 @@ function pfBriefRender() {
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기준: 시세=무료 소스(지연 가능) · 지표=' + ((d.lastUpdated || '').slice(0, 16).replace('T', ' ') || '-') + ' 빌드 · ' + asof.getHours() + ':' + String(asof.getMinutes()).padStart(2, '0') + ' 렌더</div>';
 
   _pfBriefChartRender(d);
+  /* 개별 종목 실적 발표일 병합 (P2 — fundamentals.json us[].earningsDate) */
+  pfFundaLoad().then(function (fd) {
+    if (_pfActiveTab !== 'brief' || !fd || !fd.us) return;
+    var ul = el.querySelector('ul'); if (!ul) return;
+    var today = new Date().toISOString().slice(0, 10);
+    var lim = new Date(Date.now() + 8 * 86400000).toISOString().slice(0, 10);
+    Object.keys(fd.us).forEach(function (sym) {
+      var ed = fd.us[sym].earningsDate;
+      if (!ed || ed < today || ed > lim) return;
+      var wd = '일월화수목금토'[new Date(ed + 'T00:00:00').getDay()];
+      ul.insertAdjacentHTML('beforeend',
+        '<li style="padding:6px 0;border-bottom:1px dashed var(--c-border);font-size:var(--font-size-sm);"><b>' + ed.slice(5).replace('-', '/') + ' (' + wd + ')</b> 🇺🇸 ' + pfEsc(sym) + ' 실적 발표 <span style="color:var(--c-txt-muted);font-size:var(--font-size-xs);">보유·관심 종목</span></li>');
+    });
+  });
   pfMerLoad().then(function (mer) {
     var box = document.getElementById('pfMerOneLine'); if (!box) return;
     var one = pfMerOneLiner(mer);
@@ -340,6 +372,7 @@ function pfStockOpenFromTile(itemId) {
    ══════════════════════════════════════════════════════════ */
 function pfSignalRender() {
   var el = document.getElementById('pfTab-signal'); if (!el || _pfActiveTab !== 'signal') return;
+  _pfWaitData(pfSignalRender);
   var d = _pfData() || {};
   var vk = (d.sentiment || {}).vkospi || {};
   var daily = ((d.investorTrading || {}).daily || []);
@@ -430,9 +463,84 @@ function pfSignalRender() {
     '<div style="font-size:var(--font-size-sm);font-family:var(--font-num);">실제 <b style="font-size:var(--font-size-lg);">' + (npsKrRow ? npsKrRow.pct + '%' : '-') + '</b> vs 목표 <b>20.8%</b> <span style="color:var(--c-txt-muted);font-size:var(--font-size-xs);">(2026 상향 후 · SAA±6%p)</span></div>' +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">읽는 법 · 목표 대비 초과분은 잠재 매도 압력. 내 자국편향 진단(포트폴리오 탭)과 같은 논리 축. 목표치는 기금운용위 발표 기준(수동 상수).</div>');
 
+  /* 샤프 시장 비교 (P2) — "코스피가 수익률이 높아도 위험을 감안하면…" (2편 23~25항) */
+  function mktSharpe(sym, rfPct) {
+    var arr = (((d.history || {}).indices || {})[sym] || []).slice(-260);
+    var closes = arr.map(function (r) { return r && +r.close; }).filter(function (v) { return v > 0; });
+    if (closes.length < 120) return null;
+    var rs2 = [];
+    for (var i = 1; i < closes.length; i++) rs2.push(Math.log(closes[i] / closes[i - 1]));
+    var mean = rs2.reduce(function (a, b) { return a + b; }, 0) / rs2.length;
+    var sd = Math.sqrt(rs2.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / (rs2.length - 1));
+    var annR = mean * 252 * 100, annV = sd * Math.sqrt(252) * 100;
+    return annV > 0 ? { sharpe: (annR - rfPct) / annV, ret: annR, vol: annV } : null;
+  }
+  var rfK = (((d.economicIndicators || {}).kr || {}).base_rate_kr || {}).value; if (rfK == null) rfK = 2.75;
+  var shK = mktSharpe('KOSPI', rfK), shS = mktSharpe('SP500', rfK);
+  function shCell(label, s) {
+    return '<div style="text-align:center;"><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (s ? s.sharpe.toFixed(2) : '-') + '</div>' +
+      '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">' + label + (s ? '<br>수익 ' + s.ret.toFixed(0) + '% · 변동 ' + s.vol.toFixed(0) + '%' : '') + '</div></div>';
+  }
+  var shCard = (shK || shS) ? _pfCard('시장 샤프 비교 (최근 1년) ' + _pfI('sharpe'),
+    '<div style="display:flex;gap:26px;justify-content:center;padding:4px 0;">' + shCell('KOSPI', shK) + shCell('S&amp;P500', shS) + '</div>' +
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">읽는 법 · 명목 수익률이 높아도 변동성이 크면 위험조정 점수는 낮다 — 외국인이 국장 비중을 정하는 눈. 동일 무위험수익률(' + rfK + '%) 기준 단순 비교.</div>') : '';
+
+  /* 위험예산 시뮬레이터 (P2) — 메르 1편 32~43항 계산기 */
+  var simCard = _pfCard('위험예산 시뮬레이터 — 변동성이 바뀌면 기관은 얼마나 팔아야 하나 ' + _pfI('varlimit'),
+    '<div style="font-size:var(--font-size-sm);">일간변동성 가정 <b id="pfSimVol" style="font-family:var(--font-num);">1.9</b>% ' +
+    '<input type="range" min="0.5" max="6" step="0.1" value="1.9" oninput="pfSimUpdate(this.value)" style="vertical-align:middle;width:200px;accent-color:var(--c-accent);" aria-label="일간변동성 가정 슬라이더">' +
+    (dailyVol ? ' <button onclick="pfSimUpdate(' + dailyVol.toFixed(1) + ');document.querySelector(\'#pfTab-signal input[type=range]\').value=' + dailyVol.toFixed(1) + '" style="font-size:var(--font-size-xs);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">현재 VKOSPI 수준(' + dailyVol.toFixed(1) + '%)로</button>' : '') + '</div>' +
+    '<div id="pfSimOut" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;font-family:var(--font-num);font-size:var(--font-size-sm);"></div>' +
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">가상 기관(위험예산 100억)의 교육용 계산 — 담을 수 있는 금액 = 예산 ÷ (일간변동성 × 1.645). 시장 전체 매도 물량 예측이 아닙니다.</div>');
+
   el.innerHTML = chain +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="pf-sig-2col">' + vol + inv + fxCard + npsCard + '</div>' +
+    shCard + simCard +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">지표 기준: ' + ((d.lastUpdated || '').slice(0, 16).replace('T', ' ') || '-') + ' 빌드 · ⓘ = 메르식 설명 · 매수/매도 판단은 표기하지 않습니다</div>';
+  pfSimUpdate(1.9);
+  _pfSignalMerBadges();
+}
+function pfSimUpdate(v) {
+  var out = document.getElementById('pfSimOut'); if (!out) return;
+  var vol = +v;
+  var elV = document.getElementById('pfSimVol'); if (elV) elV.textContent = vol.toFixed(1);
+  var BASE_VOL = 1.9, BUDGET = 100;                       // 억원 — 메르 1편 예시 그대로
+  var cap = BUDGET / (vol / 100 * 1.645);                 // 담을 수 있는 금액(억)
+  var capBase = BUDGET / (BASE_VOL / 100 * 1.645);
+  var delta = cap - capBase, pct = (cap / capBase - 1) * 100;
+  function cell(k, val, cls) {
+    return '<div style="background:var(--c-surface);border-radius:var(--r-sm);padding:8px 10px;text-align:center;"><div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">' + k + '</div><div class="' + (cls || '') + '" style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);">' + val + '</div></div>';
+  }
+  out.innerHTML =
+    cell('보유 한도', Math.round(cap).toLocaleString('ko-KR') + '억') +
+    cell('기준(1.9%) 대비', (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%', _pfTone(pct)) +
+    cell(pct < 0 ? '기계적 매도 압력' : '추가 편입 여력', (delta >= 0 ? '+' : '') + Math.round(delta).toLocaleString('ko-KR') + '억', _pfTone(delta));
+}
+function _pfSignalMerBadges() {
+  // 글→지표 자동 태깅 (P2): 최신 원문 20건에서 지표 키워드 검출 → 카드 제목 옆 배지
+  pfMerLoad().then(function (mer) {
+    if (_pfActiveTab !== 'signal' || !mer) return;
+    var posts = (mer.posts || []).filter(function (p) { return p.fullText; });
+    var rules = [
+      { re: /VKOSPI|변동성지수|변동성이/, sel: 'vkospi' },
+      { re: /환율|원화|원\/달러|달러원/, sel: 'fx' },
+      { re: /국민연금|연기금/, sel: 'nps' }
+    ];
+    var counts = { vkospi: 0, fx: 0, nps: 0 };
+    posts.forEach(function (p) {
+      rules.forEach(function (r) { if (r.re.test(p.fullText)) counts[r.sel]++; });
+    });
+    var titles = document.querySelectorAll('#pfTab-signal .widget-title');
+    titles.forEach(function (t) {
+      var key = t.textContent.indexOf('변동성') === 0 ? 'vkospi'
+              : t.textContent.indexOf('환율') === 0 ? 'fx'
+              : t.textContent.indexOf('국민연금') === 0 ? 'nps' : null;
+      if (key && counts[key] && !t.querySelector('.pf-mer-badge')) {
+        t.insertAdjacentHTML('beforeend',
+          ' <a class="pf-mer-badge" href="?p=merblog" style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-primary);text-decoration:none;">📝 관련 메르 글 ' + counts[key] + '건</a>');
+      }
+    });
+  });
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -673,7 +781,7 @@ async function pfStockOpen(spec, keep) {
     (held ? '<button onclick="pfOpenChart(\'' + held.id + '\')" style="font-size:var(--font-size-xs);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">🔍 상세 차트(MA·RSI·MACD) →</button>' : '') + '</div>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="pf-stock-2col">' +
-    _pfCard('펀더멘털', '<div id="pfStockFunda" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">P2 예정 — 국내는 OpenDART(전자공시), 미국은 yfinance 재무 데이터를 연동합니다. 현재는 가격·기술 지표까지만 제공.</div>') +
+    _pfCard('펀더멘털', '<div id="pfStockFunda" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">불러오는 중…</div>') +
     _pfCard('메르 블로그 언급', '<div id="pfStockMer" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">검색 중…</div>') +
     '</div>';
 
@@ -691,6 +799,38 @@ async function pfStockOpen(spec, keep) {
   } else if (wrap) {
     wrap.innerHTML = '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:30px;text-align:center;">차트 데이터를 불러오지 못했습니다.</div>';
   }
+
+  /* 펀더멘털 (P2 — fundamentals.json) */
+  pfFundaLoad().then(function (fd) {
+    var box = document.getElementById('pfStockFunda'); if (!box || _pfStockCur !== spec) return;
+    var price = q && q.price;
+    var row = null, isKr = spec.market === 'KR';
+    if (fd) row = isKr ? (fd.kr || {})[spec.symbol] : (fd.us || {})[spec.symbol];
+    if (!row) {
+      box.innerHTML = (spec.secType === 'etf' || (held && held.secType === 'etf'))
+        ? 'ETF 는 개별 기업 재무가 없어 펀더멘털을 제공하지 않습니다.'
+        : (isKr
+          ? '데이터 없음 — <code>OPENDART_API_KEY</code> 시크릿 등록 후 일일 런부터 수집됩니다.'
+          : '데이터 없음 — 다음 일일 런에서 수집됩니다(관심목록 등록 종목 대상).');
+      return;
+    }
+    // PER/PBR 은 저장 EPS/BPS × 현재가로 재계산(신선도). 실패 시 저장값 폴백.
+    var per = (price && row.eps > 0) ? price / row.eps : row.per;
+    var pbr = (price && row.bps > 0) ? price / row.bps : row.pbr;
+    var dy = row.divYield != null ? row.divYield : ((price && row.dps) ? row.dps / price * 100 : null);
+    function fv(v, suf, nd) { return v == null || !isFinite(v) ? '-' : (+v).toFixed(nd == null ? 1 : nd) + (suf || ''); }
+    box.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-family:var(--font-num);color:var(--c-txt);">' +
+      '<div>PER <b>' + fv(per) + '</b></div>' +
+      '<div>PBR <b>' + fv(pbr, '', 2) + '</b></div>' +
+      '<div>ROE <b>' + fv(row.roe, '%') + '</b></div>' +
+      '<div>배당수익률 <b>' + fv(dy, '%', 2) + '</b></div>' +
+      '<div>영업이익률 <b>' + fv(row.opMargin, '%') + '</b></div>' +
+      (isKr ? '<div>부채비율 <b>' + fv(row.debtRatio, '%', 0) + '</b></div>' : '<div>실적 발표 <b style="font-size:var(--font-size-xs);">' + (row.earningsDate || '-') + '</b></div>') +
+      '</div>' +
+      '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;">' +
+      (isKr ? row.year + '년 사업보고서(OpenDART) 기준 · PER/PBR 은 현재가로 재계산' : 'yfinance 기준 · ' + (row.fetchedAt || '')) + '</div>';
+  });
 
   /* 메르 언급 */
   pfMerLoad().then(function (mer) {
