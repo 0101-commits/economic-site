@@ -6451,7 +6451,32 @@ def build_data():
     #    제공한다(날조 금지 원칙). data["history"] 세팅 직후라 최신 시계열 사용 가능.
     try:
         _vk = (data.get("sentiment") or {}).get("vkospi")
-        if isinstance(_vk, dict):
+        if not (isinstance(_vk, dict) and _vk):
+            # 소스 전멸로 이번 런 수집이 실패하면 이 시점엔 vkospi 가 아예 없다.
+            # 후반 _preserve_from_prev(6550~) 는 이 블록보다 뒤라서, 여기서 직전 빌드
+            # 값을 선복원하지 않으면 stale/realized 부착·주말 청소가 영영 스킵된다
+            # (2026-08-11 라이브 런 실측). 선복원해두면 후반 preserve 는 '이미 있음'
+            # 으로 건너뛰므로 이중 복원 없음.
+            _vk_prev = ((prev or {}).get("sentiment") or {}).get("vkospi")
+            if isinstance(_vk_prev, dict) and _vk_prev:
+                _vk = dict(_vk_prev)
+                data.setdefault("sentiment", {})["vkospi"] = _vk
+                data.setdefault("sources", {})["vkospi"] = f"{_vk.get('source', '?')} (직전 값 보존)"
+                log("[VKOSPI] 수집 실패 — 직전 빌드 값 선복원 (보조지표 부착용)")
+        if isinstance(_vk, dict) and _vk:
+            # 주말 키 청소 — 자가축적 블록은 '이번 런 수집 성공' 시에만 돌므로,
+            # 실패 런에 preserve 로 실려온 과거 오염분은 여기서 걷어낸다.
+            _h = _vk.get("history")
+            if isinstance(_h, dict):
+                def _bday2(k):
+                    try:
+                        return datetime.strptime(k, "%Y-%m-%d").weekday() < 5
+                    except (ValueError, TypeError):
+                        return False
+                _cleaned = {k: v for k, v in _h.items() if _is_valid_vkospi(v) and _bday2(k)}
+                if len(_cleaned) != len(_h):
+                    log(f"[VKOSPI] history 주말/오염 키 {len(_h) - len(_cleaned)}건 청소")
+                    _vk["history"] = _cleaned
             _asof = str(_vk.get("as_of") or "")
             if len(_asof) == 8 and _asof.isdigit():
                 _asof = f"{_asof[:4]}-{_asof[4:6]}-{_asof[6:8]}"
