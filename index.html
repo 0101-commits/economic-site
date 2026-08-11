@@ -1737,6 +1737,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 /* 라벨(폼·범례)은 label 타입 = medium weight */
 .set-label, .study-dow, label { font-weight: var(--font-weight-medium); }
 
+/* 투자현황 4탭(app6) — 2단 카드 그리드는 모바일에서 1단으로.
+   app6 이 innerHTML inline grid 로 그리므로 !important 로 눌러야 한다. */
+@media (max-width: 768px) {
+  .pf-brief-2col, .pf-sig-2col, .pf-risk-2col, .pf-stock-2col { grid-template-columns: 1fr !important; }
+}
 </style>
 </head>
 <body>
@@ -2204,6 +2209,20 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 데이터 지연 안내(PRD 필수 상시 노출)는 페이지별 배너 대신
            전 페이지 공통의 글로벌 상태 칩(#globalDelayChip, 좌하단 고정)으로 일원화됨 (UX 2.4) -->
 
+      <!-- ── 4탭 구조 (2026-08-11 재구성): 브리핑 / 포트폴리오 / 종목 분석 / 시장 신호 ──
+           탭 로직·신규 탭 렌더는 js/app6.js. 기존 포트폴리오 화면은 pfTab-holdings 로 감쌌을 뿐
+           마크업·id·핸들러 전부 보존. PIN 관문(showPage)이 페이지 단위라 4탭 모두 잠금 범위. -->
+      <div role="tablist" aria-label="투자 현황 탭" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--c-border);padding-bottom:8px;">
+        <button role="tab" id="pfTabBtn-brief" onclick="pfShowTab('brief')" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📊 브리핑</button>
+        <button role="tab" id="pfTabBtn-holdings" onclick="pfShowTab('holdings')" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">💼 포트폴리오</button>
+        <button role="tab" id="pfTabBtn-stock" onclick="pfShowTab('stock')" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🔍 종목 분석</button>
+        <button role="tab" id="pfTabBtn-signal" onclick="pfShowTab('signal')" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🧭 시장 신호</button>
+      </div>
+      <div id="pfTab-brief" role="tabpanel" style="display:none;"></div>
+      <div id="pfTab-stock" role="tabpanel" style="display:none;"></div>
+      <div id="pfTab-signal" role="tabpanel" style="display:none;"></div>
+      <div id="pfTab-holdings" role="tabpanel" style="display:none;">
+
       <!-- 포트폴리오 요약 KPI -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         <div class="kpi-card">
@@ -2332,6 +2351,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           알림 조건(종목·조건값)은 공개 저장소의 <code style="background:var(--c-surface);padding:1px 4px;border-radius:var(--r-xs);">alerts_config.json</code> 에 저장됩니다(평단가·수량은 전송되지 않음). 설정 방법: 저장소의 STOCK_ALERTS.md 참고.
         </div>
       </div>
+
+      <!-- 메르 위험 패널 (app6.js pfRiskRender 가 채움) -->
+      <div id="pfRiskPanel" style="margin-bottom:16px;"></div>
+      </div><!-- /#pfTab-holdings -->
 
       <!-- 상세 차트 모달 (TradingView Lightweight Charts) -->
       <div id="pfChartModal" style="display:none;position:fixed;inset:0;z-index:310;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="if(event.target===this)pfCloseChart()">
@@ -4374,7 +4397,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   var BUILD_V = 'e01d302e'; /* BUILD_V:auto — build-frontend.yml 이 갱신 */
   var dev = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
             && !/[?&]bundle=1/.test(location.search);
-  for (var i = 1; i <= 5; i++) {
+  for (var i = 1; i <= 6; i++) {
     var f = dev ? 'js/app' + i + '.js?v=' + Date.now()
                 : 'js/app' + i + '.min.js?v=' + BUILD_V;
     document.write('<script src="' + f + '"><\/script>');
