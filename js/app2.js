@@ -1175,9 +1175,46 @@ function pfUpdateSyncKeyBtn() {
   b.title = has ? '동기화 키 저장됨 (해시로만 보관) — 변경하려면 클릭'
                 : 'Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력';
 }
+// 페이지 내 입력 모달 — window.prompt 대체. 카카오톡·네이버 인앱 웹뷰는 prompt/confirm 을
+// 무시(즉시 null)하는 경우가 있어, 모바일에서 "눌러도 아무 일도 안 남"으로 나타난다.
+// 반환: 입력 문자열(취소는 null). type='password' 면 가려서 입력받는다.
+function pfAskText(msg, opts) {
+  opts = opts || {};
+  return new Promise(resolve => {
+    let done = false;
+    const fin = v => { if(done) return; done = true; try { ov.remove(); } catch(_) {} document.removeEventListener('keydown', onKey, true); resolve(v); };
+    const ov = document.createElement('div');
+    ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--modal-bg,var(--c-card));border:1px solid var(--c-border);border-radius:var(--r-sm);padding:20px;width:min(360px,100%);box-shadow:0 8px 32px rgba(0,0,0,.4);';
+    const p = document.createElement('div');
+    p.style.cssText = 'font-size:var(--font-size-sm);color:var(--c-txt);white-space:pre-wrap;margin-bottom:12px;line-height:1.5;';
+    p.textContent = String(msg || '');
+    const inp = document.createElement('input');
+    inp.type = opts.type === 'password' ? 'password' : 'text';
+    inp.autocomplete = 'off'; inp.value = opts.value || '';
+    if(opts.type === 'password') inp.inputMode = 'text';
+    inp.style.cssText = 'width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:10px;font-size:var(--font-size-md);';
+    if(opts.confirm) inp.style.display = 'none';   // 확인 전용(= window.confirm 대체) — true/false 반환
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:14px;';
+    const mk = (t, primary) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t;
+      b.style.cssText = 'padding:9px 16px;border-radius:var(--r-xs);border:1px solid var(--c-border);font-size:var(--font-size-sm);cursor:pointer;' +
+        (primary ? 'background:var(--c-accent);color:var(--c-on-accent);border-color:transparent;' : 'background:transparent;color:var(--c-txt-dim);'); return b; };
+    const cancel = mk('취소', false), ok = mk('확인', true);
+    cancel.onclick = () => fin(opts.confirm ? false : null);
+    ok.onclick = () => fin(opts.confirm ? true : inp.value);
+    inp.addEventListener('keydown', e => { if(e.key === 'Enter') { e.preventDefault(); fin(inp.value); } });
+    function onKey(e) { if(e.key === 'Escape') { e.stopPropagation(); fin(opts.confirm ? false : null); } }
+    document.addEventListener('keydown', onKey, true);
+    row.append(cancel, ok); card.append(p, inp, row); ov.append(card); document.body.appendChild(ov);
+    setTimeout(() => { try { inp.focus(); } catch(_) {} }, 30);
+  });
+}
 async function pfSetSyncKey() {
   const has = !!(localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey'));
-  const k = prompt(`동기화 키 (Worker 시크릿 ALERTS_SYNC_KEY 와 동일하게 — 미설정 시 비워두기)${has ? '\n※ 현재 키가 저장되어 있습니다 (보안을 위해 해시로만 보관되어 표시 불가)' : ''}:`, '');
+  const k = await pfAskText(`동기화 키 (Worker 시크릿 ALERTS_SYNC_KEY 와 동일하게 — 미설정 시 비워두기)${has ? '\n※ 현재 키가 저장되어 있습니다 (보안을 위해 해시로만 보관되어 표시 불가)' : ''}`, { type: 'password' });
   if(k === null) return;
   try {
     localStorage.removeItem('pfSyncKey');   // 평문 잔존 제거
@@ -1378,7 +1415,9 @@ async function pfPullTracking(auto) {
   }
   if(!auto) {
     const adds = tr.items.filter(s => !pfState.items.some(it => it.symbol === s.symbol && it.market === s.market)).length;
-    if(!confirm(`서버 관심목록 ${tr.items.length}개를 불러옵니다.\n· 새 종목 ${adds}개 추가\n· 그룹 소속·이름은 서버 기준으로 맞춥니다\n· 평단가·수량: 암호화 동기화를 켜둔 경우 서버 암호본을 복호화해 채우고, 아니면 이 기기 값 유지\n진행할까요?`)) {
+    // window.confirm 대신 페이지 내 모달 — 인앱 웹뷰(카카오톡·네이버)가 confirm 을 무시하면
+    // 항상 false 가 돼 「⬇ 불러오기」가 아무 반응 없이 끝나던 문제가 있었다.
+    if(!await pfAskText(`서버 관심목록 ${tr.items.length}개를 불러옵니다.\n· 새 종목 ${adds}개 추가\n· 그룹 소속·이름은 서버 기준으로 맞춥니다\n· 평단가·수량: 암호화 동기화를 켜둔 경우 서버 암호본을 복호화해 채우고, 아니면 이 기기 값 유지\n진행할까요?`, { confirm: true })) {
       if(st) { st.textContent = ''; }
       return;
     }
@@ -1417,6 +1456,7 @@ async function pfPullTracking(auto) {
   pfRenderAll();
   pfRefreshQuotes();
   // 🔐 암호화된 평단가/수량이 서버에 있으면 복호화해 병합(자동 복원은 암호 저장된 기기에서만 조용히).
+  _pfLastEnc = j.encHoldings || null;   // 암호 미보유 기기용 — pfOfferHoldingsRestore 가 뒤이어 물어본다
   let _encApplied = 0;
   if (j.encHoldings) { try { _encApplied = await pfApplyEncHoldings(j.encHoldings, { silent: auto }); } catch(_) {} }
   if(st) {
@@ -1435,6 +1475,7 @@ async function pfPullTracking(auto) {
 // 있으므로 위협이 늘지 않음 — E2E 의 보호 대상은 서버/공개 repo 사본이다).
 // 자체 크립토 헬퍼(전역) — exportAllUserData 쪽 _deriveKey/_b64 는 IIFE 안이라 여기선 접근 불가.
 const PF_KDF_ITER = 600000;  // OWASP 권장 PBKDF2-HMAC-SHA256 반복수
+let _pfLastEnc = null;       // 직전 GET /portfolio 의 encHoldings (복원 유도용)
 function _pfB64(bytes) { const u = new Uint8Array(bytes); let b = ''; for (let i = 0; i < u.length; i += 8192) b += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(b); }
 function _pfUnB64(s) { const bin = atob(String(s)); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
 async function _pfDeriveKey(pass, salt) {
@@ -1450,9 +1491,9 @@ function pfUpdateHoldingsSyncUI() {
   b.style.borderColor = on ? window.CUP : 'var(--c-border)';
   b.style.color = on ? window.CUP : 'var(--c-primary)';
 }
-function pfSetHoldingsPass() {
+async function pfSetHoldingsPass() {
   const on = !!pfGetHoldingsPass();
-  const p = prompt('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 암호문은 공개 저장소에 올라가므로, 짧거나 흔한 암호는\n  오프라인 무차별 대입으로 평단가·수량이 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), '');
+  const p = await pfAskText('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 암호문은 공개 저장소에 올라가므로, 짧거나 흔한 암호는\n  오프라인 무차별 대입으로 평단가·수량이 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), { type: 'password' });
   if (p === null) return;
   try {
     if (!p.trim()) { localStorage.removeItem('pfHoldingsPass'); if(typeof showToast==='function') showToast('평단가 동기화 해제 — 이후 「☁ 목록 저장」에서 평단가/수량은 서버에 올라가지 않습니다.', 4000); }
@@ -1492,7 +1533,7 @@ async function pfApplyEncHoldings(blob, opts) {
   let pass = pfGetHoldingsPass();
   if (!pass) {
     if (opts.silent) return 0;   // 자동 복원인데 암호 없음 → 조용히 건너뜀(수동 불러오기 때 입력 받음)
-    pass = prompt('서버에 암호화된 평단가·수량이 있습니다.\n복호화 암호를 입력하세요(성공 시 이 기기에 저장됩니다):', '');
+    pass = await pfAskText('서버에 암호화된 평단가·수량이 있습니다.\n복호화 암호를 입력하세요(성공 시 이 기기에 저장됩니다).', { type: 'password' });
     if (pass === null || !pass.trim()) return 0;
     pass = pass.trim();
   }
@@ -1518,8 +1559,16 @@ async function pfApplyEncHoldings(blob, opts) {
     if (h.fx != null) ex.fxBuy = h.fx;
     applied++;
   });
-  if (applied) { pfSave(); pfRenderAll(); }
+  if (applied) { pfSave(); pfRenderAll(); if (typeof pfRefreshQuotes === 'function') pfRefreshQuotes(); }
   return applied;
+}
+// 자동 복원이 조용히 건너뛴 경우(이 기기에 암호 없음)만 사용자에게 한 번 물어본다.
+// 새 기기(폰)에서 평단가·손익이 빈칸으로 남던 원인 — 홀딩스 탭 안쪽 버튼을 눌러야만 복원됐다.
+async function pfOfferHoldingsRestore() {
+  if (!_pfLastEnc || pfGetHoldingsPass()) return 0;
+  if (pfState && pfState.items.some(it => it.avg != null)) return 0;   // 이미 이 기기에 평단가 있음
+  try { if (sessionStorage.getItem('pfEncAsked_v1') === '1') return 0; sessionStorage.setItem('pfEncAsked_v1', '1'); } catch(_) {}
+  return await pfApplyEncHoldings(_pfLastEnc, { silent: false });
 }
 
 // ── 페이지 초기화 ────────────────────────────────────────────────────────────
@@ -1533,11 +1582,15 @@ function initPortfolioPage() {
     _pfInited = true;
     pfFillGroupSelect(document.getElementById('pfAddGroup'));
     // 첫 방문(저장된 포트폴리오 없음) → 보유 ETF 9종 자동 등록
-    if(isFresh && !pfState.seeded && !pfState.items.length) setTimeout(() => pfSeedDefaults(), 100);
+    // 단, 동기화 키가 있는 기기(=다른 기기에서 이미 목록을 올려둔 사용자)는 시드 대신 서버 목록을 받는다.
+    if(isFresh && !pfState.seeded && !pfState.items.length && !pfHasSyncKey()) setTimeout(() => pfSeedDefaults(), 100);
     // 동기화 키가 설정된 기기에서는 서버 관심목록을 1회 자동 병합(비파괴)해 기기 간 목록을 맞춘다.
-    // (첫 방문/시드 등록 중인 기기는 제외 — 시드 후 사용자가 직접 「☁ 목록 저장」으로 올린다.)
-    else if(!isFresh) setTimeout(async () => {
-      try { if(typeof pfGetSyncKeyHash === 'function' && await pfGetSyncKeyHash()) pfPullTracking(true); } catch(_) {}
+    // 새 기기(첫 방문)도 포함한다 — 예전엔 제외해서 폰에서 목록·평단가가 영영 안 넘어왔다.
+    else setTimeout(async () => {
+      try { if(typeof pfGetSyncKeyHash === 'function' && await pfGetSyncKeyHash()) await pfPullTracking(true); } catch(_) {}
+      // 평단가 복원 유도 — 서버에 암호본이 있는데 이 기기에 암호가 없으면 자동 복원이 조용히
+      // 건너뛰어(평단가·손익 빈칸) 사용자가 원인을 알 수 없었다. 세션당 한 번만 물어본다.
+      try { await pfOfferHoldingsRestore(); } catch(_) {}
     }, 600);
     // 적응형 자동 갱신: 한국/미국 장중 1분, 그 외 5분 (페이지가 활성일 때만)
     (function _pfSchedule() {
