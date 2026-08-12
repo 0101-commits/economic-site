@@ -1459,7 +1459,8 @@ function pfSetHoldingsPass() {
     else {
       // 암호문이 공개 repo 에 커밋되는 구조라 최소 길이를 강제한다 — PBKDF2 600k 라도
       // 사전 단어/짧은 암호는 오프라인 대입에 뚫린다(감사 확인 사항).
-      if (p.trim().length < 8) { if(typeof showToast==='function') showToast('⚠ 암호가 너무 짧습니다(8자 미만) — 설정되지 않았습니다. 12자 이상을 권장합니다.', 5000); return; }
+      // 하한 6자 = 사이트 잠금 PIN 과 같은 암호를 쓰려는 사용자 결정(2026-08-12). 짧을수록 대입에 약함.
+      if (p.trim().length < 6) { if(typeof showToast==='function') showToast('⚠ 암호가 너무 짧습니다(6자 미만) — 설정되지 않았습니다. 12자 이상을 권장합니다.', 5000); return; }
       if (p.trim().length < 12 && typeof showToast==='function') showToast('ℹ 12자 미만 암호는 권장하지 않습니다 — 길수록 안전합니다.', 4000);
       localStorage.setItem('pfHoldingsPass', p); if(typeof showToast==='function') showToast('평단가 동기화 암호 설정 완료 — 「☁ 목록 저장」 시 평단가/수량이 암호화돼 함께 저장됩니다.', 4000);
     }

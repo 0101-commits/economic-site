@@ -574,7 +574,7 @@ function pfExportCsv() {
 // (평단가·수량)는 각 브라우저 localStorage 에만 있어 '어깨너머 열람 방지' 목적에는 충분.
 (function() {
   var LOCKED = ['portfolio', 'settings'];
-  var HASH = 'b552a7c023fa767b5844340395bf7654d68550838f1f47bbb9ddb375f7295f70';
+  var HASH = '54bb6a0d2ea7d49744e886aa20859d70b6fc4ee0b9f144353ecb4b39195767f3';
   var SS_KEY = 'econLockOk_v1';
 
   function unlocked() { try { return sessionStorage.getItem(SS_KEY) === '1'; } catch(_) { return false; } }
