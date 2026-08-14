@@ -1684,6 +1684,43 @@ def fetch_fred_yield_curve_us():
     }
 
 
+_ecos_item_cache = {}
+
+
+def _ecos_item_map(stat_code, limit=300):
+    """ECOS 통계표의 {항목명: 항목코드}. 실패하면 빈 dict.
+
+    항목코드를 소스에 하드코딩해 두면 상류가 번호를 바꿔도 알 길이 없고, 실제로
+    817Y002 의 국고채 만기 매핑이 그렇게 어긋나 있었다(2026-08-14 실측). 이름으로
+    찾으면 코드가 바뀌어도 따라간다.
+    """
+    if stat_code in _ecos_item_cache:
+        return _ecos_item_cache[stat_code]
+    out = {}
+    if ECOS_API_KEY:
+        try:
+            url = f"{ECOS_BASE}/StatisticItemList/{ECOS_API_KEY}/json/kr/1/{limit}/{stat_code}"
+            r = requests.get(url, timeout=20)
+            r.raise_for_status()
+            for row in r.json().get("StatisticItemList", {}).get("row", []):
+                name, code = row.get("ITEM_NAME"), row.get("ITEM_CODE")
+                if name and code:
+                    out[name.strip()] = code
+        except Exception as e:
+            log(f"[ECOS] 항목목록({stat_code}) 조회 실패: {e}")
+    _ecos_item_cache[stat_code] = out
+    return out
+
+
+def _ecos_ktb_code(items, years):
+    """'국고채(5년)' 처럼 만기를 이름으로 찾아 항목코드 반환 (없으면 None)."""
+    pat = re.compile(rf"국고채.*?(?<!\d){years}\s*년")
+    for name, code in items.items():
+        if pat.search(name) and "물가" not in name:      # 물가연동국고채 제외
+            return code
+    return None
+
+
 def fetch_ecos_yield_curve_kr():
     """한국은행 ECOS API 로 한국 국고채 수익률 곡선 조회.
 
@@ -1724,6 +1761,15 @@ def fetch_ecos_yield_curve_kr():
         # 5Y 는 마지막 — 채택 판정에 3Y·10Y 값이 이미 있어야 한다(순서 의존).
         (5,    "010205000", "5Y"),   # item code 미확정 → 3Y<v<10Y 검증 통과 시에만 채택
     ]
+    # 항목코드는 이름으로 다시 확인한다 — 하드코딩 코드가 상류와 어긋난 게 이 버그의 원인.
+    _items = _ecos_item_map("817Y002")
+    if _items:
+        terms_map = [
+            (slot, _ecos_ktb_code(_items, label.rstrip("Y")) or code, label)
+            for slot, code, label in terms_map
+        ]
+        log("[ECOS-YC] 항목코드 이름 기반 해석: "
+            + ", ".join(f"{lab}={code}" for _s, code, lab in terms_map))
     extra = {}
     # yield curve 10개 슬롯 초기화
     current    = [None] * 10
