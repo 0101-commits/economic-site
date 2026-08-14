@@ -759,20 +759,29 @@ def _yahoo_live_quote(symbol):
         q = toss_api.live_quote(symbol)
         if q:
             return q
-    res = _yahoo_chart_result(symbol)
+    # ⚠ 전일 종가는 meta.chartPreviousClose 를 믿지 않고 **일봉 배열의 직전 확정 종가**로
+    #   계산한다. Yahoo 의 chartPreviousClose 는 지수에서 실측이 어긋난다 — 2026-08-14
+    #   ^KQ11 은 이 필드 기준 +0.67% 였지만 실제(토스·KRX·사이트)는 +0.38% 였고, 그 값이
+    #   그대로 카톡·디스코드 본문에 실려 '알림 숫자가 사이트와 다르다'의 원인이 됐다.
+    #   check_halts._yahoo_quote 가 서킷브레이커 오발동을 막으려 쓴 것과 같은 방식이다.
+    res = _yahoo_chart_result(symbol, rng="5d", interval="1d")
     if not res:
         return None
     meta = res.get("meta") or {}
+    closes = [c for c in ((((res.get("indicators") or {}).get("quote") or [{}])[0]) or {})
+              .get("close") or [] if c is not None]
     price = _f(meta.get("regularMarketPrice"))
     if price is None:
-        closes = [c for c in ((((res.get("indicators") or {}).get("quote") or [{}])[0]) or {})
-                  .get("close") or [] if c is not None]
         price = closes[-1] if closes else None
     if price is None or price <= 0:
         return None
-    prev = _f(meta.get("chartPreviousClose"))
+    # 직전 봉이 곧 기준가다. 장중이면 closes[-1]=오늘 봉·closes[-2]=전일 종가이고,
+    # 마감 후·휴장이면 closes[-1]=마지막 세션 종가·closes[-2]=그 전날이라 '마지막 세션의
+    # 등락률'이 나온다 — 사이트가 표시하는 것과 같은 값이다. (여기서 '신선도'로 pct 를 0 으로
+    # 눌러선 안 된다. 그건 알림 발동 판정의 규칙이고, 본문 표시는 마감 후에도 값이 필요하다.)
+    prev = closes[-2] if len(closes) >= 2 else None
     if prev is None:
-        prev = _f(meta.get("previousClose"))
+        prev = _f(meta.get("chartPreviousClose")) or _f(meta.get("previousClose"))
     pct = ((price / prev) - 1) * 100 if prev else None
     return price, pct
 
