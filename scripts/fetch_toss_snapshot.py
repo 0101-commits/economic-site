@@ -123,24 +123,56 @@ def collect():
 def git_push():
     """toss_snapshot.json 만 커밋·푸시. 봇 커밋과 충돌해도 rebase 로 흡수된다."""
     def run(*args):
-        return subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
+        # ⚠ encoding 을 명시한다. text=True 만 주면 파이썬이 **로케일 인코딩(cp949)** 으로
+        #   디코드하는데 git 출력은 UTF-8 이라(커밋 메시지에 한글) 리더 스레드가
+        #   UnicodeDecodeError 로 죽고 stdout 이 None 이 된다 — 스케줄러 실행에서 실측된 버그.
+        return subprocess.run(args, cwd=ROOT, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace")
 
     # `git diff --quiet` 는 **추적되지 않는 파일을 '변경 없음'으로 본다** — 최초 실행에서
     # 스냅샷이 영원히 푸시되지 않는 함정. status --porcelain 으로 신규/변경을 함께 본다.
-    if not run("git", "status", "--porcelain", "--", "toss_snapshot.json").stdout.strip():
+    if not (run("git", "status", "--porcelain", "--", "toss_snapshot.json").stdout or "").strip():
         log("변경 없음 — 푸시 생략")
         return True
     run("git", "add", "toss_snapshot.json")
     stamp = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
-    run("git", "commit", "-m", f"data: 토스 스냅샷 {stamp}")
+    c = run("git", "commit", "-m", f"data: 토스 스냅샷 {stamp}")
+    if c.returncode != 0:
+        log(f"커밋 실패 — 푸시 중단: {((c.stdout or '') + (c.stderr or '')).strip()[:200]}")
+        return False
     for attempt in range(3):
-        run("git", "pull", "--rebase", "-q")
+        # --autostash: 다른 작업으로 워킹트리가 더러워도 rebase 가 멈추지 않게 한다.
+        # (이 스크립트는 PC 가 켜질 때마다 배경에서 돌아 — 사람이 편집 중일 수 있다.)
+        run("git", "pull", "--rebase", "--autostash", "-q")
         r = run("git", "push", "-q")
         if r.returncode == 0:
             log("푸시 완료")
             return True
         log(f"푸시 실패({attempt + 1}/3): {(r.stderr or '').strip()[:200]}")
     return False
+
+
+# 커밋 스팸 방지 — 이 스크립트는 로그온·매시간 등 자주 돌지만, 장 마감 뒤·주말엔
+# 값이 하나도 안 바뀐다. fetch_data.py 가 **실제로 소비하는 항목**만 해시해서 같으면
+# 파일을 아예 건드리지 않는다(=커밋 없음). usdkrw 는 24시간 미세하게 흔들리는데
+# 소비처가 없어 해시에서 뺀다 — 넣으면 매 실행이 새 커밋이 된다.
+_HASHED_KEYS = ("indices", "yieldCurveKr", "stockMovers", "investorDaily")
+
+
+def _payload_hash(snap):
+    import hashlib
+    body = {k: snap.get(k) for k in _HASHED_KEYS if k in snap}
+    return hashlib.sha256(
+        json.dumps(body, ensure_ascii=False, sort_keys=True,
+                   separators=(",", ":")).encode()).hexdigest()
+
+
+def _prev_hash():
+    try:
+        with open(OUT, encoding="utf-8") as f:
+            return json.load(f).get("payloadHash")
+    except Exception:                                        # noqa: BLE001
+        return None
 
 
 def main():
@@ -152,9 +184,18 @@ def main():
     if not payload_keys:
         log("수집 0건 — 파일 미갱신 (허용 IP 목록에 이 PC 의 공인 IP 가 있는지 확인)")
         return 2
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(snap, f, ensure_ascii=False, separators=(",", ":"))
-    log(f"저장 {OUT} ({os.path.getsize(OUT) // 1024}KB, 항목 {payload_keys})")
+    snap["payloadHash"] = _payload_hash(snap)
+    if snap["payloadHash"] == _prev_hash() and "--force" not in sys.argv:
+        # generatedAt 을 일부러 갱신하지 않는다. 새 데이터가 없는데 시각만 새로 찍으면
+        # fetch_data 의 신선도 가드가 '방금 받은 값'으로 오인한다(정직성 우선).
+        log("데이터 변동 없음 — 파일 재작성 생략")
+    else:
+        with open(OUT, "w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False, separators=(",", ":"))
+        log(f"저장 {OUT} ({os.path.getsize(OUT) // 1024}KB, 항목 {payload_keys})")
+    # 푸시 여부는 해시가 아니라 **git 상태**가 정한다. 해시로 파일 재작성을 건너뛰었더라도
+    # 직전 실행이 푸시에 실패했으면 워킹트리가 dirty 인 채로 남아 있고, 그걸 계속
+    # 방치하면 영영 커밋되지 않는다. git_push() 는 HEAD 와 같으면 스스로 no-op 한다.
     if "--push" in sys.argv:
         return 0 if git_push() else 3
     return 0
