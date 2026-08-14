@@ -1951,6 +1951,48 @@ def _toss_snapshot(max_age_hours=None):
     return snap
 
 
+# 스냅샷 신선도가 곧 토스 연결상태다 — 수집기 PC 가 꺼져 있으면 파일이 늙는다.
+# LIVE 2시간은 수집기 스케줄(평일 09~20시 매시)보다 한 텀 넉넉하게 잡은 값이고,
+# STALE 96시간은 국고채 가드(_toss_snapshot(max_age_hours=96))와 맞춘 것이다.
+_TOSS_LIVE_MAX_H = 2
+_TOSS_STALE_MAX_H = 96
+
+
+def toss_connection_status(sources=None, now=None):
+    """토스 연결상태 → {state, generatedAt, ageMinutes, supplied, reason}.
+
+    state 는 프론트 배지가 그대로 쓴다.
+      LIVE    수집기 정상, 스냅샷 전 항목 유효
+      STALE   스냅샷이 늙음 — 신선도 가드를 통과한 항목만 쓰이고 나머지는 폴백
+      OFFLINE 스냅샷 없음/파싱 불가/96시간 초과 — 전 항목 폴백
+
+    supplied 는 이번 수집에서 실제로 토스가 채운 블록. sources 라벨을 그대로 읽으므로
+    "토스라고 표시했는데 실은 폴백이었다"가 생기지 않는다.
+    """
+    snap = _toss_snapshot()
+    supplied = sorted(
+        k for k, v in (sources or {}).items() if isinstance(v, str) and "토스" in v)
+    base = {"generatedAt": None, "ageMinutes": None, "supplied": supplied}
+    if not snap:
+        return {**base, "state": "OFFLINE", "reason": "스냅샷 없음 — PC 수집기 미실행"}
+    gen = snap.get("generatedAt")
+    try:
+        delta = (now or datetime.now(KST)) - datetime.fromisoformat(gen)
+    except Exception:
+        return {**base, "generatedAt": gen, "state": "OFFLINE",
+                "reason": f"generatedAt 파싱 불가: {gen!r}"}
+    # 수집기 PC 와 러너의 시계가 어긋나면 음수가 나온다. 미래 시각을 신선함으로 읽지 않는다.
+    age_min = max(0.0, delta.total_seconds() / 60)
+    if age_min <= _TOSS_LIVE_MAX_H * 60:
+        state, reason = "LIVE", ""
+    elif age_min <= _TOSS_STALE_MAX_H * 60:
+        state, reason = "STALE", "수집기 PC 미가동 — 신선도 가드를 통과한 항목만 사용"
+    else:
+        state, reason = "OFFLINE", f"스냅샷이 {_TOSS_STALE_MAX_H}시간 이상 낡음 — 전 항목 폴백"
+    return {**base, "generatedAt": gen, "ageMinutes": round(age_min, 1),
+            "state": state, "reason": reason}
+
+
 def fetch_toss_kr_indices():
     """코스피·코스닥 지수 (토스증권 공식 실시간) → {'KOSPI': {price, change}, …}"""
     if not toss_api.enabled():
@@ -6147,6 +6189,7 @@ def build_data():
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
     data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
+    data["diagnostics"]["toss"]              = toss_connection_status(data.get("sources"))
 
     # 신선도 계약(dataHealth)은 여기서 계산하지 않는다 — validate_data.py 가 커밋 직전에
     # 재계산해 되쓴다. 이 자리(수집 중간)에서 계산했을 때 economicIndicators/history/news/

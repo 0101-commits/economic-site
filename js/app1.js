@@ -12614,6 +12614,8 @@ function applyRealData(d) {
   // 지표별 신선도 계약(scripts/data_sla.py 가 산출) — 전역 lastUpdated 하나로는
   // "일본 CPI 가 2021년에서 멈춤" 같은 개별 지표 고착을 표현할 수 없다.
   window._dataHealth = d.dataHealth || null;
+  // 토스 연결상태(fetch_data.toss_connection_status) — 스냅샷 신선도가 곧 수집기 가동 여부다.
+  window._tossStatus = (d.diagnostics && d.diagnostics.toss) || null;
   try { renderDataFreshness(); } catch(_) {}
   renderDataFreshness();
 
@@ -12700,10 +12702,35 @@ function renderDataFreshness() {
   s.j.innerHTML =
     `<span style="color:${dotColor};font-size:var(--font-size-xs);">●</span> ` +
     dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) +
-    ' 업데이트' + ageTxt + _healthChipHtml();
+    ' 업데이트' + ageTxt + _tossChipHtml() + _healthChipHtml();
   const host = document.getElementById('dataSourceInfo');
   if(host) host.title = ageH > 26 ? '⚠ 데이터 수집 파이프라인이 멈춰 있을 수 있습니다 — 설정 > 시스템 진단 확인' : '';
   try { applyWidgetFreshChips(); } catch(_) {}   // Phase 3 — 위젯 타이틀 옆 신선도 칩
+}
+
+/* 토스증권 연결상태 칩 — diagnostics.toss 를 헤더에 노출한다.
+   왜: 토스는 IP 허용 목록 때문에 CI 에서 못 부르고, 허용 IP 가 등록된 PC 수집기가
+   toss_snapshot.json 을 커밋해 넘긴다. PC 가 꺼져 있으면 지수·국고채·순위·투자자수급이
+   조용히 pykrx/yfinance 폴백으로 바뀌는데, 화면상 숫자는 그대로라 사용자는 알 수 없었다.
+   LIVE 는 기본 상태이므로 칩을 띄우지 않는다 — 정상일 때 조용해야 경고가 눈에 띈다. */
+function _tossChipHtml() {
+  const t = window._tossStatus;
+  if (!t || !t.state || t.state === 'LIVE') return '';
+  const off = t.state === 'OFFLINE';
+  const col = off ? 'var(--ind-neg)' : 'var(--c-warn,#f0c75e)';
+  const label = off ? '토스 연결 끊김' : '토스 지연';
+  const age = (t.ageMinutes == null) ? '수집 기록 없음'
+    : (t.ageMinutes < 90 ? Math.round(t.ageMinutes) + '분 전 수집'
+                         : Math.round(t.ageMinutes / 60) + '시간 전 수집');
+  const src = (t.supplied && t.supplied.length)
+    ? ' · 토스 제공: ' + t.supplied.join(', ') : ' · 전 항목 폴백';
+  const tip = label + ' — ' + age + (t.reason ? ' · ' + t.reason : '') + src +
+              ' — 클릭하면 시스템 진단';
+  return ' <span class="health-chip" role="button" tabindex="0"' +
+    ' onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
+    ` title="${tip.replace(/"/g, '&quot;')}"` +
+    ` style="color:${col};border:1px solid ${col};border-radius:var(--r-xs);padding:0 6px;margin-left:6px;cursor:pointer;font-size:var(--font-size-xs);">` +
+    `${off ? '⛔' : '⚠'} ${label}</span>`;
 }
 
 /* 지표 신선도 칩 — data.json.dataHealth 요약을 헤더에 노출한다.

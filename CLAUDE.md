@@ -231,6 +231,22 @@ dirty by a failed push is retried on the next run.
 Credentials are the user env vars `TOSS_CLIENT_ID` / `TOSS_CLIENT_SECRET`. If they are
 missing the script exits 1 with a log line and the pipeline just falls back.
 
+### Connection status surfaced to the UI
+
+`fetch_data.toss_connection_status()` turns the snapshot's `generatedAt` into
+`data.json.diagnostics.toss` = `{state, generatedAt, ageMinutes, supplied, reason}`.
+`state` is `LIVE` (≤2 h, one scheduler tick of slack), `STALE` (≤96 h — the same bound as the
+yield-curve guard), or `OFFLINE` (missing / unparsable / older). `supplied` is read back out of
+`data["sources"]`, so a block only counts as Toss-provided when the label says it actually was.
+
+`_tossChipHtml()` (`js/app1.js`) renders it next to the header timestamp and **stays silent on
+`LIVE`** — a chip that is always present stops being a warning. Without this the fallback was
+invisible: when the collector PC is off, indices/KTB/rankings/investor flows quietly switch to
+pykrx/yfinance while the numbers on screen look unchanged.
+
+Regression test: `python scripts/tests/test_toss_status.py` (8 cases — boundaries, missing
+snapshot, unparsable timestamp, and clock skew producing a negative age).
+
 **Toss daily candles are an integrated session** (pre-market + regular + after-hours), so
 their close is not the base price percentage moves are quoted against. Use `rankings()`'s
 `changeRate` for per-stock moves. Indices have no after-hours print and are safe.
