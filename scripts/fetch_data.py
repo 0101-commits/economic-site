@@ -1699,20 +1699,32 @@ def fetch_ecos_yield_curve_kr():
 
     yieldCurveData.kr 의 terms 인덱스(['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'])
     에 맞춰 데이터를 채움. 미수집 만기는 None.
+
+    ⚠ 위 docstring 의 item code ↔ 만기 대응은 **틀렸었다**. 2026-08-14 토스증권 공식
+    지표(KR_BOND_*)와 같은 날 값을 대조해 실측한 결과:
+        010190000 = 1Y, 010195000 = **2Y**(3.617), 010200000 = **3Y**(3.782),
+        010210000 = 10Y(4.297), 010220000 = 20Y(4.624), 010230000 = 30Y(4.686)
+    즉 3년물이 '5Y' 슬롯에 들어가 화면의 국고채 5년이 실제로는 3년물이었고(3.781 vs
+    실제 4.015), 5년물은 아예 수집되지 않고 있었다. 아래 매핑을 실측대로 고친다.
+    5Y 후보 item code 는 확정 근거가 없어 '3Y < 5Y < 10Y' 를 만족할 때만 채택하고,
+    아니면 None 으로 둔다(날조 금지).
     """
     if not ECOS_API_KEY:
         log("[ECOS-YC] API 키 없음 — 한국 국채 수익률 곡선 건너뜀")
         return None
     # (yieldCurveData.kr.terms 인덱스, ECOS item_code, label)
-    # 1M/3M/6M/2Y/7Y 는 ECOS에 직접 없음 → 1Y, 3Y, 5Y, 10Y, 20Y, 30Y 만 수집
+    # slot=None 은 '만기축에 칸이 없음' → kr.extra 에만 싣는다(3Y).
     terms_map = [
-        (3, "010190000", "1Y"),
-        (5, "010195000", "3Y"),  # 3Y → 2Y 슬롯에 매핑 (인덱스 4)
-        (5, "010200000", "5Y"),
-        (7, "010210000", "10Y"),
-        (8, "010220000", "20Y"),
-        (9, "010230000", "30Y"),
+        (3,    "010190000", "1Y"),
+        (4,    "010195000", "2Y"),
+        (None, "010200000", "3Y"),   # 축에 3Y 칸 없음 — extra 로만 보관
+        (7,    "010210000", "10Y"),
+        (8,    "010220000", "20Y"),
+        (9,    "010230000", "30Y"),
+        # 5Y 는 마지막 — 채택 판정에 3Y·10Y 값이 이미 있어야 한다(순서 의존).
+        (5,    "010205000", "5Y"),   # item code 미확정 → 3Y<v<10Y 검증 통과 시에만 채택
     ]
+    extra = {}
     # yield curve 10개 슬롯 초기화
     current    = [None] * 10
     prev_month = [None] * 10
@@ -1745,13 +1757,20 @@ def fetch_ecos_yield_curve_kr():
                 prev_val = _parse_num(rows_sorted[0].get("DATA_VALUE"))
             if cur_val is None:
                 continue
-            # yieldCurveData.kr 슬롯에 매핑 (단, 같은 슬롯에 두 번 쓰면 후자가 덮어씀)
-            # 3Y는 slot 4(2Y) 에 매핑하지 않고 별도 처리 → 5Y 우선 채우기 후 3Y 폴백
             if label == "3Y":
-                # 3Y → 2Y 슬롯 (terms_idx=4) — 3Y 값이 2Y 보다 약간 높음
-                if current[4] is None:
-                    current[4]    = round(cur_val, 3)
-                    prev_month[4] = round(prev_val, 3) if prev_val is not None else None
+                # 만기축(10칸)에 3Y 칸이 없다 — 예전엔 5Y 칸에 넣어 화면이 3년물을
+                # '5년'으로 표시했다. 이제 extra 로만 보관한다.
+                extra["3Y"] = round(cur_val, 3)
+                log(f"[ECOS-YC] 3Y: {cur_val:.3f}% (만기축 칸 없음 → extra)")
+                continue
+            if label == "5Y":
+                # item code 미확정 — 3Y 와 10Y 사이가 아니면 다른 만기이므로 버린다.
+                lo, hi = extra.get("3Y"), current[7]
+                if lo is not None and hi is not None and not (lo < cur_val < hi):
+                    log(f"[ECOS-YC] 5Y 후보 {cur_val:.3f}% 가 3Y({lo})~10Y({hi}) 밖 — 폐기")
+                    continue
+                log(f"[ECOS-YC] 5Y 후보 {cur_val:.3f}% 채택 (3Y~10Y 범위 검증 통과)")
+            if slot is None:
                 continue
             current[slot]    = round(cur_val, 3)
             prev_month[slot] = round(prev_val, 3) if prev_val is not None else None
@@ -1831,6 +1850,8 @@ def fetch_ecos_yield_curve_kr():
         "series": series_data,
         "source": "ECOS API (817Y002): " + ", ".join(series_used),
     }
+    if extra:
+        kr_block["extra"] = extra
     if corp:
         kr_block["corp"] = corp
     return {"kr": kr_block}

@@ -1097,7 +1097,7 @@ let _tossTok = { v: null, exp: 0 };
 async function _tossToken(env) {
   const id = (env && env.TOSS_CLIENT_ID || '').trim();
   const sec = (env && env.TOSS_CLIENT_SECRET || '').trim();
-  if (!id || !sec) return null;
+  if (!id || !sec) { console.error('[toss] 자격증명 미주입 id=' + (!!id) + ' sec=' + (!!sec)); return null; }
   if (_tossTok.v && Date.now() < _tossTok.exp - 60000) return _tossTok.v;
   try {
     const r = await fetch('https://openapi.tossinvest.com/oauth2/token', {
@@ -1105,8 +1105,13 @@ async function _tossToken(env) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: sec }),
     });
-    const j = await r.json();
-    if (!j || !j.access_token) return null;
+    const txt = await r.text();
+    let j = null;
+    try { j = JSON.parse(txt); } catch (_) { /* HTML 차단 페이지 등 */ }
+    if (!j || !j.access_token) {
+      console.error('[toss] 토큰 실패 status=' + r.status + ' body=' + txt.slice(0, 200));
+      return null;
+    }
     _tossTok = { v: j.access_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000 };
     return _tossTok.v;
   } catch (e) {
@@ -1168,6 +1173,51 @@ async function _discordQuote(label, env) {
     return _fmt(price, prev ? ((price / prev - 1) * 100) : null);
   } catch (e) {
     return `${label} 시세 조회 실패: ${e && e.message}`;
+  }
+}
+
+// 토스 릴레이가 통과시키는 읽기 전용 경로. 계좌·주문 계열(/orders, /holdings,
+// /buying-power, /conditional-orders …)은 **절대 넣지 말 것** — 같은 자격증명으로
+// 실제 주문이 나갈 수 있다. 정규식은 전체 일치(^…$)만 허용한다.
+const TOSS_RELAY_ALLOW = [
+  /^\/api\/v1\/prices$/,
+  /^\/api\/v1\/candles$/,
+  /^\/api\/v1\/stocks$/,
+  /^\/api\/v1\/rankings$/,
+  /^\/api\/v1\/exchange-rate$/,
+  /^\/api\/v1\/market-calendar\/(KR|US)$/,
+  /^\/api\/v1\/market-indicators\/prices$/,
+  /^\/api\/v1\/market-indicators\/[A-Z0-9_]{1,20}\/(candles|investor-trading)$/,
+  /^\/api\/v1\/stocks\/[A-Za-z0-9.]{1,12}\/(investor-trading|short-selling|program-trades|credit-trades|securities-lending|warnings)$/,
+];
+
+async function handleTossRelay(request, env) {
+  // 인증 = 전용 공유키의 SHA-256 해시 (GH secret TOSS_RELAY_KEY ↔ Worker secret 동일 값).
+  // 동기화 키(ALERTS_SYNC_KEY)를 재사용하지 않는 이유: 그 키는 프론트가 쥐고 있어
+  // 브라우저에서도 이 릴레이를 부를 수 있게 되고, 릴레이는 서버 전용이어야 한다.
+  const want = (env && env.TOSS_RELAY_KEY || '').trim();
+  if (!want) return jsonResponse({ error: 'relay_not_configured' }, 503);
+  const got = String(request.headers.get('X-Relay-Key-Hash') || '').toLowerCase();
+  if (!got || got !== await _sha256Hex(want)) return jsonResponse({ error: 'unauthorized' }, 401);
+  const u = new URL(request.url);
+  const path = u.searchParams.get('_path') || '';
+  if (!TOSS_RELAY_ALLOW.some((re) => re.test(path))) {
+    return jsonResponse({ error: 'path not allowed' }, 403);
+  }
+  const tok = await _tossToken(env);
+  if (!tok) return jsonResponse({ error: 'toss credentials unavailable' }, 503);
+  const qs = new URLSearchParams();
+  for (const [k, v] of u.searchParams) if (k !== '_path') qs.set(k, v);
+  const target = 'https://openapi.tossinvest.com' + path + (qs.toString() ? '?' + qs : '');
+  try {
+    const r = await fetch(target, { headers: { Authorization: 'Bearer ' + tok } });
+    const body = await r.text();
+    return new Response(body, {
+      status: r.status,
+      headers: { ...GET_CORS, ...SECURITY_HEADERS, 'content-type': 'application/json; charset=utf-8' },
+    });
+  } catch (e) {
+    return jsonResponse({ error: String((e && e.message) || e) }, 502);
   }
 }
 
@@ -1330,6 +1380,15 @@ export default {
         out.geminiTest = await _testGemini(geminiKey);
       }
       return jsonResponse(out);
+    }
+    // 📈 토스증권 릴레이 (GET /toss) — GitHub Actions 러너 IP 는 토스 앞단 봇 차단에
+    //    걸려 403 이 난다(2026-08-14 실측). 워커가 토큰을 쥐고 대신 호출한다.
+    //    ⚠ 자격증명이 주문 권한까지 포함하므로 **읽기 전용 시장 데이터 경로만** 통과시킨다.
+    //      화이트리스트에 없는 경로는 403. 인증은 기존 동기화 키(X-Sync-Key-Hash).
+    if (reqUrl.pathname === '/toss') {
+      const rl = await _rateLimited(env, 'PROXY_LIMITER', request, false);
+      if (rl) return rl;
+      return handleTossRelay(request, env);
     }
     // 📝 메르 블로그 라이브 검색 (GET /merblog) — 공개 데이터, GET_CORS('*') 그대로 사용
     if (reqUrl.pathname === '/merblog') {

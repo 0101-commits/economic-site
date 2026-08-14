@@ -36,6 +36,33 @@ INDICATOR_SYMBOLS = ("KOSPI", "KOSDAQ", "KR_BOND_2Y", "KR_BOND_3Y",
 
 _token = {"value": None, "exp": 0.0}
 
+# 토스 API 는 봇 차단 앞단(Cloudflare)을 두고 있다. GitHub Actions 러너에서
+# `Python-urllib/3.x` UA 로 호출하면 403 Forbidden 이 떨어진다(2026-08-14 실측:
+# 로컬 한국 IP 는 통과, GHA 러너는 전부 403). 브라우저형 헤더를 실어 통과율을 올린다.
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+_BASE_HEADERS = {
+    "User-Agent": _UA,
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Origin": "https://openapi.tossinvest.com",
+    "Referer": "https://openapi.tossinvest.com/docs",
+}
+
+# 러너 IP 가 차단될 때의 우회로 — 우리 Cloudflare Worker 의 `/toss` 릴레이.
+# Worker 가 TOSS_CLIENT_ID/SECRET 을 쥐고 토큰까지 발급하므로 자격증명은 여기서 나가지 않는다.
+# 인증 = 전용 공유키 TOSS_RELAY_KEY 의 SHA-256 해시(동기화 키를 재사용하지 않는 이유는
+# 그 키를 프론트도 알고 있어 브라우저에서 릴레이를 부를 수 있게 되기 때문).
+TOSS_RELAY = os.environ.get(
+    "TOSS_RELAY", "https://ecom-dashboard-proxy.baldr0001.workers.dev/toss").strip()
+RELAY_KEY = os.environ.get("TOSS_RELAY_KEY", "").strip()
+_relay_mode = {"on": False}
+
+
+def _relay_key_hash():
+    import hashlib
+    return hashlib.sha256(RELAY_KEY.encode()).hexdigest()
+
 
 def log(msg):
     print(f"[TOSS] {msg}", flush=True)
@@ -64,10 +91,18 @@ def _access_token():
     }).encode()
     req = urllib.request.Request(
         BASE + "/oauth2/token", data=body,
-        headers={"Content-Type": "application/x-www-form-urlencoded"})
+        headers={**_BASE_HEADERS, "Content-Type": "application/x-www-form-urlencoded"})
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
             j = json.loads(_decode(r.read(), r.headers))
+    except urllib.error.HTTPError as e:
+        # 403 = 러너 IP/UA 가 토스 앞단 봇 차단에 걸림 → Worker 릴레이로 전환
+        if e.code == 403 and RELAY_KEY and TOSS_RELAY and not _relay_mode["on"]:
+            _relay_mode["on"] = True
+            log("직접 호출 403 — Cloudflare Worker 릴레이로 전환")
+            return "relay"
+        log(f"토큰 발급 실패: {e}")
+        return None
     except Exception as e:                                  # noqa: BLE001
         log(f"토큰 발급 실패: {e}")
         return None
@@ -80,14 +115,34 @@ def _access_token():
     return tok
 
 
+def _relay_get(path, params=None):
+    """Worker 릴레이 경유 GET — Worker 가 토스 토큰을 쥐고 대신 호출한다."""
+    q = dict(params or {})
+    q["_path"] = path
+    url = TOSS_RELAY + "?" + urllib.parse.urlencode(q)
+    req = urllib.request.Request(url, headers={**_BASE_HEADERS,
+                                               "X-Relay-Key-Hash": _relay_key_hash()})
+    try:
+        with urllib.request.urlopen(req, timeout=25) as r:
+            return json.loads(_decode(r.read(), r.headers)).get("result")
+    except Exception as e:                                  # noqa: BLE001
+        log(f"릴레이 {path} 오류: {e}")
+        return None
+
+
 def get(path, params=None, retries=2):
     """GET → result 필드. 실패하면 None (에러 메시지는 로그로만)."""
+    if _relay_mode["on"]:
+        return _relay_get(path, params)
     tok = _access_token()
     if not tok:
         return None
+    if tok == "relay":                     # 직접 호출 403 → 릴레이로 재시도
+        return _relay_get(path, params)
     url = BASE + path + ("?" + urllib.parse.urlencode(params) if params else "")
     for attempt in range(retries + 1):
-        req = urllib.request.Request(url, headers={"Authorization": "Bearer " + tok})
+        req = urllib.request.Request(url, headers={**_BASE_HEADERS,
+                                                   "Authorization": "Bearer " + tok})
         try:
             with urllib.request.urlopen(req, timeout=25) as r:
                 return json.loads(_decode(r.read(), r.headers)).get("result")
