@@ -1872,6 +1872,39 @@ _TOSS_BOND_SLOTS = [(4, "KR_BOND_2Y", "2Y"), (5, "KR_BOND_5Y", "5Y"),
                     (9, "KR_BOND_30Y", "30Y")]
 
 
+# PC 수집기(scripts/fetch_toss_snapshot.py)가 커밋하는 스냅샷. GitHub Actions 러너는
+# 토스 허용 IP 목록에 넣을 수 없으므로(러너 IP 유동), 허용 IP 가 등록된 PC 가 대신 받아
+# 이 파일로 넘겨준다. 항목별 신선도 가드를 둬서 낡은 값은 쓰지 않는다.
+_TOSS_SNAPSHOT_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "toss_snapshot.json")
+_toss_snap_cache = {"loaded": False, "data": None}
+
+
+def _toss_snapshot(max_age_hours=None):
+    """스냅샷 로드(프로세스 1회). max_age_hours 를 넘겼으면 None."""
+    if not _toss_snap_cache["loaded"]:
+        _toss_snap_cache["loaded"] = True
+        try:
+            with open(_TOSS_SNAPSHOT_PATH, encoding="utf-8") as f:
+                _toss_snap_cache["data"] = json.load(f)
+            log(f"[TOSS] 스냅샷 로드 (생성 {_toss_snap_cache['data'].get('generatedAt')})")
+        except FileNotFoundError:
+            log("[TOSS] 스냅샷 없음 — PC 수집기 미실행")
+        except Exception as e:
+            log(f"[TOSS] 스냅샷 읽기 오류: {e}")
+    snap = _toss_snap_cache["data"]
+    if not snap or max_age_hours is None:
+        return snap
+    try:
+        age = (datetime.now(KST) - datetime.fromisoformat(snap["generatedAt"])).total_seconds() / 3600
+    except Exception:
+        return None
+    if age > max_age_hours:
+        log(f"[TOSS] 스냅샷 {age:.1f}시간 경과 (> {max_age_hours}h) — 해당 항목 미사용")
+        return None
+    return snap
+
+
 def fetch_toss_kr_indices():
     """코스피·코스닥 지수 (토스증권 공식 실시간) → {'KOSPI': {price, change}, …}"""
     if not toss_api.enabled():
@@ -5746,6 +5779,7 @@ def build_data():
     # ── 한국 지수·등락상위 (토스증권 Open API — 최우선) ────────
     # 아래 KRX/pykrx/네이버 체인보다 먼저 채운다. 각 블록은 '이미 값이 있으면 건너뜀'
     # 구조라, 토스가 성공하면 자동으로 하위 소스가 생략되고 실패하면 종전대로 흐른다.
+    _tg = _tl = None
     if toss_api.enabled():
         for _name, _q in fetch_toss_kr_indices().items():
             data["indices"][_name] = _q
@@ -5754,14 +5788,24 @@ def build_data():
             _tg, _tl = fetch_toss_stock_movers(top_n=10)
         except Exception as e:
             log(f"[TOSS] 등락상위 오류: {e}")
-            _tg = _tl = None
-        if _is_valid_mover_list(_tg):
-            data["stockMovers"]["kospiGainers"] = _tg
-            data["sources"]["stockMovers"] = "토스증권 Open API"
-        if _is_valid_mover_list(_tl):
-            data["stockMovers"]["kospiLosers"] = _tl
-            data["sources"].setdefault("stockMovers", "토스증권 Open API")
-    else:
+    # 러너에서 직접 호출이 막히면(허용 IP) PC 수집기 스냅샷의 등락상위를 쓴다.
+    # 단 '오늘 자' 목록일 때만 — 어제 상한가를 오늘 화면에 올리면 그게 곧 오답이다.
+    if not (_tg or _tl):
+        _snap = _toss_snapshot() or {}
+        _sm = _snap.get("stockMovers") or {}
+        _today = datetime.now(KST).strftime("%Y-%m-%d")
+        _fresh = lambda rows: rows and all(r.get("as_of") == _today for r in rows)
+        _tg = _sm.get("kospiGainers") if _fresh(_sm.get("kospiGainers")) else None
+        _tl = _sm.get("kospiLosers") if _fresh(_sm.get("kospiLosers")) else None
+        if _tg or _tl:
+            log("[TOSS] 등락상위 — PC 스냅샷 사용(당일분)")
+    if _is_valid_mover_list(_tg):
+        data["stockMovers"]["kospiGainers"] = _tg
+        data["sources"]["stockMovers"] = "토스증권 Open API"
+    if _is_valid_mover_list(_tl):
+        data["stockMovers"]["kospiLosers"] = _tl
+        data["sources"].setdefault("stockMovers", "토스증권 Open API")
+    if not toss_api.enabled():
         log("[TOSS] TOSS_CLIENT_ID/SECRET 미설정 — 기존 소스 체인 사용")
 
     # ── 한국 지수 (KRX 공식) ──────────────────────────────────
@@ -5912,9 +5956,20 @@ def build_data():
     #       프론트엔드는 그것만 사용한다(수집 전에는 '수집 중' 안내, 더미 없음).
     try:
         # 토스 공식 우선 — 직전 빌드 시계열과 병합해 400일 길이를 유지한다.
-        inv = fetch_toss_investor_trading(
-            400, ((prev.get("investorTrading") or {}).get("daily")
-                  if isinstance(prev, dict) else None))
+        _prev_daily = ((prev.get("investorTrading") or {}).get("daily")
+                       if isinstance(prev, dict) else None)
+        inv = fetch_toss_investor_trading(400, _prev_daily)
+        if not (inv and inv.get("daily")):
+            # PC 스냅샷 폴백 — 날짜가 명시된 시계열이라 나이 제한 없이 병합해도 안전하다.
+            _rows = (_toss_snapshot() or {}).get("investorDaily")
+            if _rows:
+                _m = {r["date"]: r for r in (_prev_daily or []) if r.get("date")}
+                _m.update({r["date"]: r for r in _rows if r.get("date")})
+                inv = {"daily": [_m[d] for d in sorted(_m)][-400:], "markets": ["KOSPI"],
+                       "unit": "억원",
+                       "source": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷)",
+                       "lastFetched": datetime.now(KST).isoformat()}
+                log(f"[TOSS] 투자자 동향 — PC 스냅샷 사용({len(inv['daily'])}일)")
         if not (inv and inv.get("daily")):
             inv = fetch_investor_trading()
         if inv and inv.get("daily"):
@@ -6379,6 +6434,12 @@ def build_data():
     # 국고채 만기별 값은 토스로 덮어쓴다 (ECOS item code 라벨 밀림 교정 + 5Y 결측 보충)
     try:
         _toss_yc = fetch_toss_yield_curve_kr()
+        if not _toss_yc:
+            # 러너 직접 호출이 막힌 경우 PC 스냅샷으로. 금리는 하루 몇 bp라 4일까지는
+            # 만기 라벨을 바로잡는 값이 틀린 라벨보다 낫다.
+            _toss_yc = (_toss_snapshot(max_age_hours=96) or {}).get("yieldCurveKr")
+            if _toss_yc:
+                log("[TOSS-YC] PC 스냅샷 사용")
         if _toss_yc:
             data["yieldCurve"]["kr"] = _merge_toss_yield_curve(
                 data["yieldCurve"].get("kr"), _toss_yc)
