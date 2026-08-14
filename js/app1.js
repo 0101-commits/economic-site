@@ -13484,12 +13484,24 @@ async function fetchStooqHistory(symbol) {
 // Yahoo 는 장중 현재가를 주므로 그 문제를 해결한다. (sentiment 의 ^VKOSPI 페치와 동일 경로/검증된 패턴.)
 async function fetchYahooQuote(symbol) {
   try {
-    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?range=1d&interval=1m';
+    // ⚠ 일봉(5d) 으로 받는다. 종전엔 range=1d&interval=1m 이었고 전일 종가를
+    //   meta.chartPreviousClose 로 삼았는데, 지수에서 이 필드가 실제와 어긋난다 —
+    //   2026-08-14 ^KQ11 은 이 값 기준 +0.67% 였지만 실제(KRX·토스·data.json)는 +0.38%
+    //   였고, 그 값이 헤더 티커를 덮어써 사이트 안에서 숫자가 서로 달라 보였다.
+    //   일봉 배열의 직전 확정 종가를 기준가로 쓰면 그 오차가 사라진다(서버측 다이제스트·
+    //   서킷브레이커 판정도 같은 방식으로 고쳤다). meta.regularMarketPrice 는 5d 요청에도
+    //   장중 실시간 값이라 현재가 신선도는 그대로다.
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?range=5d&interval=1d';
     const j = await _fetchJsonWithProxies(url);
-    const meta = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+    const res = j && j.chart && j.chart.result && j.chart.result[0];
+    const meta = res && res.meta;
     if(!meta) return null;
-    const price = (meta.regularMarketPrice != null) ? meta.regularMarketPrice : meta.previousClose;
-    const prev  = (meta.chartPreviousClose != null) ? meta.chartPreviousClose : meta.previousClose;
+    const closes = (((res.indicators || {}).quote || [{}])[0] || {}).close || [];
+    const valid = closes.filter(c => c != null && isFinite(c));
+    const price = (meta.regularMarketPrice != null) ? meta.regularMarketPrice
+                : (valid.length ? valid[valid.length - 1] : meta.previousClose);
+    let prev = valid.length >= 2 ? valid[valid.length - 2] : null;
+    if(prev == null) prev = (meta.chartPreviousClose != null) ? meta.chartPreviousClose : meta.previousClose;
     if(price == null || !isFinite(price) || price <= 0) return null;
     const change = (prev != null && prev > 0) ? +(((price - prev) / prev) * 100).toFixed(2) : 0;
     return { price: +(+price).toFixed(2), change };
