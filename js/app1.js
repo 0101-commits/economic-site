@@ -4331,6 +4331,50 @@ const bondCountries = {
     {label:'30년', rate:'4.65%', baseRate:4.65, chg:'+0.01', w1:'4.64%', m1:'4.62%'},
   ]},
 };
+// bondCountries 의 위 숫자들은 **초기 표시용 자리값**일 뿐이다. data.json 의 yieldCurve 가
+// 도착하면 applyBondCountriesFromData() 가 전부 실측값으로 갈아끼운다. 예전에는 이 갈아끼움이
+// 없어 '한국 10년 3.02%'(실제 4.30%) 같은 옛 숫자가 그대로 화면에 남아 있었다.
+const BOND_TENOR_LABEL = {'1M':'1개월','3M':'3개월','6M':'6개월','1Y':'1년','2Y':'2년',
+                          '5Y':'5년','7Y':'7년','10Y':'10년','20Y':'20년','30Y':'30년'};
+
+function applyBondCountriesFromData(d) {
+  const TERMS = ['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'];
+  const ycOf = { kr:'kr', us:'us', jp:'jp', uk:'uk', eu:'eu' };   // 탭 eu = 유로존 AAA 곡선
+  const f2 = v => v.toFixed(2) + '%';
+  Object.keys(bondCountries).forEach(cc => {
+    const yc = (d.yieldCurve || {})[ycOf[cc]];
+    if(!yc || !Array.isArray(yc.current)) return;
+    const items = [];
+    TERMS.forEach((t, i) => {
+      const v = yc.current[i];
+      if(v == null) return;
+      const s = (yc.series || []).find(x => x.tenor === t || x.label === t);
+      const arr = (s && Array.isArray(s.data)) ? s.data : [];
+      const prevDay = arr.length > 1 ? arr[arr.length - 2].value : null;
+      const w1 = arr.length > 5 ? arr[arr.length - 6].value : null;
+      const m1 = Array.isArray(yc.prev_month) ? yc.prev_month[i] : null;
+      const chg = prevDay != null ? (v - prevDay) : null;
+      items.push({
+        label: BOND_TENOR_LABEL[t] || t, rate: f2(v), baseRate: v,
+        chg: chg == null ? '—' : (chg >= 0 ? '+' : '') + chg.toFixed(2),
+        w1: w1 == null ? '—' : f2(w1),
+        m1: m1 == null ? '—' : f2(m1),
+      });
+    });
+    if(!items.length) return;
+    bondCountries[cc].items = items;
+    if(yc.label) {
+      bondCountries[cc].name = yc.label;
+      if(cc === 'eu') bondCountries[cc].flag = '🇪🇺';   // 독일 단일국이 아니라 유로존 AAA 곡선
+    }
+    const i10 = items.findIndex(x => x.label === '10년');
+    bondCountries[cc].defaultIdx = i10 >= 0 ? i10 : 0;
+  });
+  // 현재 선택 상태를 새 목록 길이에 맞춰 보정 (만기 수가 줄면 인덱스가 넘칠 수 있다)
+  bondItems = bondCountries[bondCountryCurrent].items;
+  if(bondCurrentIdx >= bondItems.length) bondCurrentIdx = bondCountries[bondCountryCurrent].defaultIdx;
+}
+
 let bondCountryCurrent = 'kr';
 let bondItems = bondCountries.kr.items;
 let bondCurrentIdx = bondCountries.kr.defaultIdx; // default 10년
@@ -12072,8 +12116,29 @@ function applyRealData(d) {
         }
       }
     }
+    // 남은 하드코딩 값 청소 — globalBonds 초기값은 소스 없는 옛 숫자였다(2026-08-14 발견:
+    // 한국 10년 3.02%, 실제 4.30%). 위에서 데이터로 갱신되지 않은 행은 옛 숫자를 그대로
+    // 두는 대신 '—' 로 비운다. 없는 값을 현재값인 척 보여주는 게 가장 나쁜 오답이다.
+    const _ycOf = { kr:'kr', us:'us', jp:'jp', uk:'uk', de:'eu' };   // 표의 '독일' = 유로존 AAA 곡선
+    globalBonds.forEach(row => {
+      const yc = (d.yieldCurve || {})[_ycOf[row.cc]] || {};
+      const cur = Array.isArray(yc.current) ? yc.current : null;
+      const has = (i) => cur && cur[i] != null;
+      if(row.cc !== 'us' && row.cc !== 'kr') {           // us·kr 은 위에서 FRED/ECOS 로 확정
+        row.y10 = has(IDX_10Y) ? fmtYield(cur[IDX_10Y]) : '—';
+        row.y2  = has(IDX_2Y)  ? fmtYield(cur[IDX_2Y])  : '—';
+        row.spread = (has(IDX_10Y) && has(IDX_2Y)) ? fmtSpread(cur[IDX_10Y], cur[IDX_2Y]) : '—';
+        row.chg = '—';                                   // 전일比는 아직 수집 대상이 아니다
+      }
+      if(yc.label) row.country = yc.label;                // '독일' → '유로존(AAA)'
+    });
+    // 국가별 만기 테이블(bondCountries)도 같은 이유로 데이터 구동으로 바꾼다.
+    try { applyBondCountriesFromData(d); } catch(e) { console.warn('[bond] 만기 테이블 갱신 실패', e); }
     // 화면 갱신
     try { if(typeof buildGlobalBondTable === 'function') buildGlobalBondTable(); } catch(_){}
+    try { if(typeof buildBondPage === 'function' &&
+             document.getElementById('market-bond') &&
+             getComputedStyle(document.getElementById('market-bond')).display !== 'none') buildBondPage(); } catch(_){}
   }
 
   // ── FX 페이지 헤더·정보 패널 갱신 (현재 표시 중이라면) ─────

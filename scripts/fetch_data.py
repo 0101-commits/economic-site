@@ -2079,6 +2079,84 @@ def fetch_toss_yield_curve_kr():
     return out
 
 
+# yieldCurve 의 10칸 만기축 (프론트 yieldCurveTerms 와 같은 순서)
+_YC_TERMS = ["1M", "3M", "6M", "1Y", "2Y", "5Y", "7Y", "10Y", "20Y", "30Y"]
+
+# 유로존 AAA 국채 수익률 곡선 (ECB Data Portal, 일별·무료·키 불필요).
+# 프론트의 '독일 2.52%' 같은 값은 소스 없이 하드코딩된 옛 숫자였다 — 실제 곡선으로 대체한다.
+# AAA 등급 발행국(사실상 분트 중심) 곡선이라 라벨도 '독일'이 아닌 '유로존(AAA)'으로 적는다.
+_ECB_YC = "YC/B.U2.EUR.4F.G_N_A.SV_C_YM.SR_{}"
+# 영국 국채 — BoE IADB 제로쿠폰 수익률(일별). 2Y 계열은 공개 코드가 없어 비워 둔다.
+_BOE_YC = {"5Y": "IUDSNZC", "10Y": "IUDMNZC"}
+
+
+def fetch_ecb_yield_curve_eu():
+    """유로존 AAA 국고채 곡선 → yieldCurve.eu (10칸 축). 실패 시 None."""
+    cur, prv, series = [None] * 10, [None] * 10, []
+    for slot, tenor in enumerate(_YC_TERMS):
+        if tenor == "1M":                      # ECB 곡선은 3M 부터
+            continue
+        try:
+            rows = intl_sources.fetch_ecb(_ECB_YC.format(tenor), n=300)
+        except Exception as e:
+            log(f"[ECB-YC] {tenor} 오류: {e}")
+            continue
+        if not rows:
+            continue
+        cur[slot] = round(rows[-1][1], 3)
+        prv[slot] = round(rows[-22][1], 3) if len(rows) > 21 else round(rows[0][1], 3)
+        series.append({"tenor": tenor, "label": tenor, "ecb_key": _ECB_YC.format(tenor),
+                       "data": [{"date": d, "value": round(v, 3)} for d, v in rows[-252:]]})
+    if not any(v is not None for v in cur):
+        log("[ECB-YC] 유로존 곡선 수집 실패")
+        return None
+    log(f"[ECB-YC] 유로존 {[f'{t}={v}' for t, v in zip(_YC_TERMS, cur) if v is not None]}")
+    return {"current": cur, "prev_month": prv, "series": series,
+            "label": "유로존(AAA)", "source": "ECB Data Portal (AAA 국채 수익률 곡선)"}
+
+
+def fetch_boe_yield_curve_uk():
+    """영국 국채 곡선(5Y·10Y) → yieldCurve.uk. 실패 시 None."""
+    cur, prv, series = [None] * 10, [None] * 10, []
+    now = datetime.now(KST)
+    for tenor, code in _BOE_YC.items():
+        slot = _YC_TERMS.index(tenor)
+        try:
+            r = requests.get(BOE_IADB_BASE, timeout=25,
+                             headers={"User-Agent": "Mozilla/5.0 (economic-site fetch)"},
+                             params={"csv.x": "yes", "Datefrom": "01/Aug/2025",
+                                     "Dateto": now.strftime("%d/%b/%Y"), "SeriesCodes": code,
+                                     "UsingCodes": "Y", "CSVF": "TT", "VPD": "Y"})
+            r.raise_for_status()
+            rows = []
+            for ln in r.text.strip().splitlines()[1:]:
+                parts = ln.split(",")
+                if len(parts) < 2:
+                    continue
+                v = _parse_num(parts[1])
+                try:
+                    d = datetime.strptime(parts[0].strip().strip('"'), "%d %b %Y")
+                except ValueError:
+                    continue
+                if v is not None:
+                    rows.append((d.strftime("%Y-%m-%d"), v))
+        except Exception as e:
+            log(f"[BOE-YC] {tenor}({code}) 오류: {e}")
+            continue
+        if not rows:
+            continue
+        rows.sort()
+        cur[slot] = round(rows[-1][1], 3)
+        prv[slot] = round(rows[-22][1], 3) if len(rows) > 21 else round(rows[0][1], 3)
+        series.append({"tenor": tenor, "label": tenor, "boe_series": code,
+                       "data": [{"date": d, "value": round(v, 3)} for d, v in rows[-252:]]})
+    if not any(v is not None for v in cur):
+        return None
+    log(f"[BOE-YC] 영국 {[f'{t}={v}' for t, v in zip(_YC_TERMS, cur) if v is not None]}")
+    return {"current": cur, "prev_month": prv, "series": series,
+            "label": "영국", "source": "Bank of England IADB (제로쿠폰 국채 수익률)"}
+
+
 def _merge_toss_yield_curve(kr_block, toss_kr):
     """ECOS 결과(kr_block) 위에 토스 값을 덮어쓴다. 토스가 있는 만기만 교체."""
     if not toss_kr:
@@ -6492,6 +6570,37 @@ def build_data():
             data["sources"]["yieldCurve_kr"] = data["yieldCurve"]["kr"].get("source")
     except Exception as e:
         log(f"[TOSS-YC] 오류: {e}")
+
+    # ── 유로존·영국 국채 곡선 ──────────────────────────────────
+    # 프론트의 독일·영국 국채 금리는 소스 없는 하드코딩 값이었다(2026-08-14 발견).
+    # ECB·BoE 의 공개 일별 곡선으로 대체한다. 실패하면 해당 국가는 값 없음으로 두고
+    # 화면이 '—' 를 표시한다 — 옛 숫자를 현재값인 척 보여주는 것보다 낫다.
+    for _cc, _fn in (("eu", fetch_ecb_yield_curve_eu), ("uk", fetch_boe_yield_curve_uk)):
+        try:
+            _blk = _fn()
+        except Exception as e:
+            log(f"[YC-{_cc}] 오류: {e}")
+            _blk = None
+        if _blk:
+            data["yieldCurve"][_cc] = _blk
+            data["sources"][f"yieldCurve_{_cc}"] = _blk["source"]
+
+    # 일본은 공개 일별 곡선이 없다 — 이미 수집한 FRED 월별 10년물만 곡선의 10Y 칸에 싣는다.
+    # (한 점짜리 '곡선'이지만, 화면의 하드코딩 1.05% 를 실제 값으로 바꾸는 게 목적이다.)
+    _jp10 = ((data.get("economicIndicators") or {}).get("jp") or {}).get("bond10y_jp") or {}
+    _jp10v = _jp10.get("value")
+    if _jp10v is not None:
+        _jp_cur = [None] * 10
+        _jp_cur[_YC_TERMS.index("10Y")] = round(float(_jp10v), 3)
+        _hist = sorted((_jp10.get("history") or {}).items())
+        data["yieldCurve"]["jp"] = {
+            "current": _jp_cur, "prev_month": [None] * 10,
+            "series": ([{"tenor": "10Y", "label": "10Y",
+                         "data": [{"date": k, "value": v} for k, v in _hist]}] if _hist else []),
+            "label": "일본",
+            "source": _jp10.get("source") or "FRED (일본 10년 국채, 월별)",
+        }
+        log(f"[YC-jp] 일본 10Y={_jp_cur[_YC_TERMS.index('10Y')]} (월별)")
 
     # ── R-ONE 부동산 지표 (한국부동산원) ─────────────────────
     # R-ONE 우선 → 실패/키없음이면 ECOS KB 시리즈로 폴백 (사용자 화면 비지 않도록)
