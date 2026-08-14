@@ -182,7 +182,15 @@ def _yahoo_quote(symbol):
     하락이 이어진 주간에는 5일 누적 등락률이 전일比로 둔갑했다 — 실제 전일比 -7.34% 인 날
     'KOSPI -8.14% 서킷브레이커 1단계' 발동·해제 카톡이 오발송된 직접 원인(2026-07-16 실사건).
     또한 마지막 봉이 '오늘'(KST)이 아니면 휴장/장전 이월 데이터로 보고 None 을 반환해,
-    전일 -8% 종가가 다음 날 아침 새 id 로 재발동하는 것도 막는다."""
+    전일 -8% 종가가 다음 날 아침 새 id 로 재발동하는 것도 막는다.
+
+    ⚠ 국내 지수는 토스증권 공식 시세를 먼저 쓴다(스테일 판정 포함). 서킷브레이커는
+    오발동 비용이 큰 알림이라 지연·결측이 잦은 Yahoo 국내 지수보다 공식 소스가 안전하다."""
+    import toss_api
+    if symbol in toss_api.YAHOO_INDEX_MAP:
+        snap = toss_api.snapshot(symbol, days=5)
+        if snap:
+            return (snap["price"], snap["pct"]) if snap.get("fresh") else None
     import urllib.request
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=5d&interval=1d"
     try:

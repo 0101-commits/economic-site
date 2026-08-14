@@ -61,6 +61,8 @@ jobs:
 
       - name: Check alerts & send KakaoTalk
         env:
+          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
+          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           # 기본 OFF(2026-07 사용자 결정) — kakao-daily.yml 과 동일 사유(친구 발송 403 무음 폴백).
@@ -93,6 +95,8 @@ jobs:
         continue-on-error: true
         env:
           HALTS_LIVE: '1'
+          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
+          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           # 토큰 auto-rotate 용 — kakao-daily.yml 과 동일 배선(미설정이면 조용히 skip).
@@ -117,6 +121,8 @@ jobs:
       - name: Check market swings & send KakaoTalk (급변 속보)
         continue-on-error: true
         env:
+          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
+          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}

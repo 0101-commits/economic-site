@@ -44,6 +44,7 @@ import datetime
 
 # 카카오 발송/토큰 유틸은 시황 다이제스트와 공용 (scripts/ 가 sys.path[0])
 import send_kakao_digest as kakao
+import toss_api
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -138,7 +139,14 @@ def yahoo_snapshot(symbol):
     ⚠ pct(전일比)는 '일봉 배열의 직전 확정 종가' 대비로 계산한다 — 종전의 meta.chartPreviousClose 는
     '요청 구간(range=1y) 첫 봉 직전 종가'(≈1년 전)라 pct 가 사실상 연 수익률이 되어, pct_change
     알림 오발송·메시지 등락률 오표기·오염 가드(50%)의 정상 스냅샷 오폐기를 낳았다(2026-07 감사).
-    fresh 는 '마지막 봉이 거래소 현지 기준 오늘인가' — 호출측이 휴장(공휴일)/스테일 판정에 쓴다."""
+    fresh 는 '마지막 봉이 거래소 현지 기준 오늘인가' — 호출측이 휴장(공휴일)/스테일 판정에 쓴다.
+
+    ⚠ 국내 지수(^KS11/^KQ11)는 토스증권 공식 시세를 먼저 쓴다 — Yahoo 국내 지수는 지연·결측이
+    잦아 알림 숫자가 사이트 값과 어긋났다. 토스 실패 시 아래 Yahoo 경로로 그대로 흐른다."""
+    if symbol in toss_api.YAHOO_INDEX_MAP:
+        snap = toss_api.snapshot(symbol)
+        if snap:
+            return snap
     j = _http_get_json("https://query1.finance.yahoo.com/v8/finance/chart/"
                        f"{symbol}?range=1y&interval=1d")
     res = (((j or {}).get("chart") or {}).get("result") or [None])[0]
@@ -235,6 +243,11 @@ def naver_snapshot(code):
 
 
 def get_snapshot(market, symbol, yahoo_sym):
+    # ⚠ 개별 종목은 토스를 쓰지 않는다 — 토스 일봉은 장전·정규장·시간외를 합친
+    #   '통합 세션'이라 종가가 정규장 종가와 다르다(2026-08-14 실측: 삼성전자 08-13
+    #   토스 일봉 263,000 vs 정규장 268,000). 등락률의 분모인 '기준가'는 정규장 종가라,
+    #   토스 일봉으로 pct 를 내면 앱·네이버 표시(+2.23%)와 어긋난다(+4.2%로 부풀음).
+    #   지수(^KS11/^KQ11)는 시간외 산출이 없어 이 문제가 없다 → yahoo_snapshot 안에서만 대체.
     if market == "KR":
         snap = naver_snapshot(symbol)
         if snap:

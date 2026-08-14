@@ -28,6 +28,7 @@ import fetch_climate
 import climate_impact
 import data_sla
 import intl_sources
+import toss_api
 
 KST = timezone(timedelta(hours=9))
 
@@ -1833,6 +1834,173 @@ def fetch_ecos_yield_curve_kr():
     if corp:
         kr_block["corp"] = corp
     return {"kr": kr_block}
+
+
+# ── 토스증권 Open API 레이어 ────────────────────────────────────────────────
+# 국내 시장 데이터의 최우선 소스. 기존 체인(pykrx→KIS→네이버→Yahoo)은 그대로 폴백으로
+# 남는다 — 토스 키가 없거나 응답이 비면 아래 함수들이 전부 None/빈값을 돌려주고
+# 종전 코드가 그대로 실행된다.
+#
+# 왜 최우선인가: pykrx 는 KRX 로그인(2026~)에 묶여 있고, 네이버 경로는 개편마다 깨지고,
+# Yahoo 국내 시세는 지연·부정확하다. 토스는 공식 인증 + 실시간 KRX 시세다.
+
+# yieldCurve.kr 의 10칸 만기축 ['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y']
+# 위 슬롯 인덱스 ↔ 토스 국고채 심볼. 3Y 는 이 축에 칸이 없어 kr.extra 로 따로 싣는다.
+_TOSS_BOND_SLOTS = [(4, "KR_BOND_2Y", "2Y"), (5, "KR_BOND_5Y", "5Y"),
+                    (7, "KR_BOND_10Y", "10Y"), (8, "KR_BOND_20Y", "20Y"),
+                    (9, "KR_BOND_30Y", "30Y")]
+
+
+def fetch_toss_kr_indices():
+    """코스피·코스닥 지수 (토스증권 공식 실시간) → {'KOSPI': {price, change}, …}"""
+    if not toss_api.enabled():
+        return {}
+    out = {}
+    for name in ("KOSPI", "KOSDAQ"):
+        try:
+            q = toss_api.index_quote(name)
+        except Exception as e:
+            log(f"[TOSS] {name} 지수 오류: {e}")
+            continue
+        if q and q["price"] > 0:
+            out[name] = {"price": q["price"], "change": q["change"]}
+            log(f"[TOSS] {name}: {q['price']} ({q['change']:+.2f}%) as_of={q['asOf']}")
+    return out
+
+
+def fetch_toss_stock_movers(top_n=10):
+    """코스피 상승/하락 Top N (토스 등락률 순위 + 종목 마스터 조인).
+
+    토스 rankings 는 marketCountry=KR 단위라 코스피·코스닥이 섞여 온다.
+    /stocks 로 name·market 을 붙인 뒤 KOSPI 보통주만 골라 기존 스키마
+    ({name, code, price, chg, vol, as_of})로 돌려준다.
+    """
+    if not toss_api.enabled():
+        return None, None
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+
+    def _side(rank_type):
+        try:
+            rows = toss_api.rankings(rank_type, "KR", "1d", limit=60)
+        except Exception as e:
+            log(f"[TOSS] {rank_type} 오류: {e}")
+            return None
+        if not rows:
+            return None
+        meta = toss_api.stocks([r["code"] for r in rows])
+        out = []
+        for r in rows:
+            m = meta.get(r["code"]) or {}
+            if m.get("market") != "KOSPI" or m.get("type") != "STOCK":
+                continue
+            out.append({"name": m.get("name") or r["code"], "code": r["code"],
+                        "price": r["price"], "chg": r["chg"],
+                        "vol": r["vol"], "as_of": today})
+            if len(out) >= top_n:
+                break
+        return out or None
+
+    gainers, losers = _side("TOP_GAINERS"), _side("TOP_LOSERS")
+    log(f"[TOSS] 코스피 상승 {len(gainers or [])}건 / 하락 {len(losers or [])}건")
+    return gainers, losers
+
+
+def fetch_toss_investor_trading(lookback_days=400, prev_daily=None):
+    """코스피 투자자별 순매수(억원) — 토스 공식. 직전 빌드 시계열과 병합해 길이를 유지한다.
+
+    토스는 한 페이지에 10영업일씩 주므로 lookback 을 페이지 수로 환산해 커서를 따라간다.
+    """
+    if not toss_api.enabled():
+        return None
+    pages = max(3, min(40, int(lookback_days / 10) + 1))
+    try:
+        rows = toss_api.index_investor_trading("KOSPI", "1d", max_pages=pages)
+    except Exception as e:
+        log(f"[TOSS] 투자자 동향 오류: {e}")
+        return None
+    if not rows:
+        return None
+    merged = {r["date"]: r for r in (prev_daily or []) if isinstance(r, dict) and r.get("date")}
+    merged.update({r["date"]: r for r in rows})
+    daily = [merged[d] for d in sorted(merged)][-max(lookback_days, len(rows)):]
+    log(f"[TOSS] 투자자 동향 {len(rows)}일 수집 → 병합 {len(daily)}일")
+    return {
+        "daily": daily,
+        "markets": ["KOSPI"],
+        "unit": "억원",
+        "source": "토스증권 Open API (KOSPI 투자자별 매매동향)",
+        "lastFetched": datetime.now(KST).isoformat(),
+    }
+
+
+def fetch_toss_yield_curve_kr():
+    """한국 국고채 수익률 곡선 (토스증권 공식) — 2Y/5Y/10Y/20Y/30Y + 3Y.
+
+    ECOS 경로(fetch_ecos_yield_curve_kr)는 817Y002 item code 주석이 실제 만기와
+    어긋나 있어 '5Y' 칸에 3년물이 들어가 있었다(2026-08-14 토스 대조로 실측: ECOS
+    010200000 = 3.782 = 토스 3Y, 실제 5Y 는 4.015). 만기별 심볼이 명시적인 토스로
+    덮어써서 라벨 밀림을 근본에서 없앤다. 1Y·회사채는 토스에 없어 ECOS 값을 그대로 둔다.
+
+    → {'current': [...10], 'prev_month': [...10], 'series': [...], 'extra': {...}}
+      (해당 만기 슬롯만 채우고 나머지는 None — 호출측이 ECOS 결과 위에 병합한다.)
+    """
+    if not toss_api.enabled():
+        return None
+    current, prev_month, series = [None] * 10, [None] * 10, []
+    spot = {}
+    try:
+        spot = toss_api.indicator_prices(
+            [s for _, s, _ in _TOSS_BOND_SLOTS] + ["KR_BOND_3Y"])
+    except Exception as e:
+        log(f"[TOSS-YC] 현재값 오류: {e}")
+    for slot, sym, label in _TOSS_BOND_SLOTS:
+        try:
+            cs = toss_api.indicator_candles(sym, "1d", 200)
+        except Exception as e:
+            log(f"[TOSS-YC] {label} 일봉 오류: {e}")
+            cs = []
+        cur = spot.get(sym) or (cs[-1]["close"] if cs else None)
+        if cur is None:
+            continue
+        current[slot] = round(cur, 3)
+        if len(cs) > 21:
+            prev_month[slot] = round(cs[-22]["close"], 3)
+        elif cs:
+            prev_month[slot] = round(cs[0]["close"], 3)
+        if cs:
+            series.append({"tenor": label, "label": label, "toss_symbol": sym,
+                           "data": [{"date": c["date"], "value": c["close"]} for c in cs]})
+        log(f"[TOSS-YC] {label}: {current[slot]}% (1M전 {prev_month[slot]}%) — {len(cs)}일")
+    if not any(v is not None for v in current):
+        return None
+    out = {"current": current, "prev_month": prev_month, "series": series}
+    if spot.get("KR_BOND_3Y") is not None:      # 만기축에 3Y 칸이 없어 별도 보관
+        out["extra"] = {"3Y": round(spot["KR_BOND_3Y"], 3)}
+    return out
+
+
+def _merge_toss_yield_curve(kr_block, toss_kr):
+    """ECOS 결과(kr_block) 위에 토스 값을 덮어쓴다. 토스가 있는 만기만 교체."""
+    if not toss_kr:
+        return kr_block
+    base = dict(kr_block or {})
+    cur = list(base.get("current") or [None] * 10)
+    prv = list(base.get("prev_month") or [None] * 10)
+    replaced = set()
+    for slot, _sym, label in _TOSS_BOND_SLOTS:
+        if toss_kr["current"][slot] is not None:
+            cur[slot] = toss_kr["current"][slot]
+            prv[slot] = toss_kr["prev_month"][slot]
+            replaced.add(label)
+    base["current"], base["prev_month"] = cur, prv
+    # 시계열도 같은 만기는 토스 것으로 교체 (ECOS 시계열은 라벨이 어긋나 있었다)
+    kept = [s for s in (base.get("series") or []) if s.get("tenor") not in replaced]
+    base["series"] = kept + toss_kr["series"]
+    if toss_kr.get("extra"):
+        base["extra"] = {**(base.get("extra") or {}), **toss_kr["extra"]}
+    base["source"] = ("토스증권 Open API (국고채 " + ", ".join(sorted(replaced)) + ")"
+                      + (" + " + base["source"] if base.get("source") else ""))
+    return base
 
 
 # 미국 주(State) 코드 — FHFA 주별 주택가격지수(FRED {XX}STHPI) 조회용. DC 포함 51개.
@@ -5554,33 +5722,61 @@ def build_data():
         data["fx"] = {k: dict(v) for k, v in FALLBACK["fx"].items()}
     log(f"[FX] USDKRW={data['fx'].get('USDKRW')}")
 
+    # ── 한국 지수·등락상위 (토스증권 Open API — 최우선) ────────
+    # 아래 KRX/pykrx/네이버 체인보다 먼저 채운다. 각 블록은 '이미 값이 있으면 건너뜀'
+    # 구조라, 토스가 성공하면 자동으로 하위 소스가 생략되고 실패하면 종전대로 흐른다.
+    if toss_api.enabled():
+        for _name, _q in fetch_toss_kr_indices().items():
+            data["indices"][_name] = _q
+            data["sources"].setdefault("indices_kr", "토스증권 Open API")
+        try:
+            _tg, _tl = fetch_toss_stock_movers(top_n=10)
+        except Exception as e:
+            log(f"[TOSS] 등락상위 오류: {e}")
+            _tg = _tl = None
+        if _is_valid_mover_list(_tg):
+            data["stockMovers"]["kospiGainers"] = _tg
+            data["sources"]["stockMovers"] = "토스증권 Open API"
+        if _is_valid_mover_list(_tl):
+            data["stockMovers"]["kospiLosers"] = _tl
+            data["sources"].setdefault("stockMovers", "토스증권 Open API")
+    else:
+        log("[TOSS] TOSS_CLIENT_ID/SECRET 미설정 — 기존 소스 체인 사용")
+
     # ── 한국 지수 (KRX 공식) ──────────────────────────────────
     krx_available = bool(KRX_API_KEY)
     if krx_available:
         log("[KRX] API 키 감지 → 한국 지수·원자재는 KRX 공식 데이터 사용")
-        kospi = krx_index("/idx/kospi_dd_trd", "코스피")
-        if kospi:
-            data["indices"]["KOSPI"] = {"price": kospi["price"], "change": kospi["change"]}
-            log(f"[KRX] KOSPI: {kospi['price']} ({kospi['change']:+.2f}%)")
-        kosdaq = krx_index("/idx/kosdaq_dd_trd", "코스닥")
-        if kosdaq:
-            data["indices"]["KOSDAQ"] = {"price": kosdaq["price"], "change": kosdaq["change"]}
-            log(f"[KRX] KOSDAQ: {kosdaq['price']} ({kosdaq['change']:+.2f}%)")
+        # ⚠ 토스가 이미 채웠으면 덮어쓰지 않는다 — KRX OpenAPI 는 전일 확정치(일봉)라
+        #   장중에는 토스 실시간 값보다 낡다.
+        if "KOSPI" not in data["indices"]:
+            kospi = krx_index("/idx/kospi_dd_trd", "코스피")
+            if kospi:
+                data["indices"]["KOSPI"] = {"price": kospi["price"], "change": kospi["change"]}
+                log(f"[KRX] KOSPI: {kospi['price']} ({kospi['change']:+.2f}%)")
+        if "KOSDAQ" not in data["indices"]:
+            kosdaq = krx_index("/idx/kosdaq_dd_trd", "코스닥")
+            if kosdaq:
+                data["indices"]["KOSDAQ"] = {"price": kosdaq["price"], "change": kosdaq["change"]}
+                log(f"[KRX] KOSDAQ: {kosdaq['price']} ({kosdaq['change']:+.2f}%)")
 
         # ── KOSPI 상승/하락 Top10 ──
         # pykrx 를 PRIMARY 로 둔다(품질 최고·무인증). KRX OpenAPI 는 pykrx 실패 시에만 보조.
         # (과거엔 KRX OpenAPI 가 1순위였고, vol≈price 로 어긋난 garbage 가 약한 검증을 통과해
         #  'LG전자 +29.9%' 같은 비현실적 상한가 떼가 그대로 표시됐다 — 이제 pykrx 우선 +
         #  강화된 _is_valid_mover_list 로 차단한다.)
-        try:
-            pkg, pkl = fetch_pykrx_stock_movers(market="KOSPI", top_n=10)
-        except Exception as e:
-            log(f"[pykrx] 1순위 주식 movers 오류: {e}")
-            pkg, pkl = None, None
-        if _is_valid_mover_list(pkg):
+        if data["stockMovers"].get("kospiGainers") and data["stockMovers"].get("kospiLosers"):
+            pkg = pkl = None            # 토스가 이미 채움 — pykrx 호출 자체를 생략
+        else:
+            try:
+                pkg, pkl = fetch_pykrx_stock_movers(market="KOSPI", top_n=10)
+            except Exception as e:
+                log(f"[pykrx] 1순위 주식 movers 오류: {e}")
+                pkg, pkl = None, None
+        if _is_valid_mover_list(pkg) and not data["stockMovers"].get("kospiGainers"):
             data["stockMovers"]["kospiGainers"] = pkg
             data["sources"]["stockMovers"] = "pykrx (KRX 정보데이터시스템)"
-        if _is_valid_mover_list(pkl):
+        if _is_valid_mover_list(pkl) and not data["stockMovers"].get("kospiLosers"):
             data["stockMovers"]["kospiLosers"] = pkl
             data["sources"].setdefault("stockMovers", "pykrx (KRX 정보데이터시스템)")
         # pykrx 가 비면 KRX OpenAPI 로 보조 (검증 통과분만 채택)
@@ -5694,7 +5890,12 @@ def build_data():
     # 이제: KRX 정보데이터시스템의 실제 투자자별 거래실적을 서버에서 수집해 data.json 에 싣고,
     #       프론트엔드는 그것만 사용한다(수집 전에는 '수집 중' 안내, 더미 없음).
     try:
-        inv = fetch_investor_trading()
+        # 토스 공식 우선 — 직전 빌드 시계열과 병합해 400일 길이를 유지한다.
+        inv = fetch_toss_investor_trading(
+            400, ((prev.get("investorTrading") or {}).get("daily")
+                  if isinstance(prev, dict) else None))
+        if not (inv and inv.get("daily")):
+            inv = fetch_investor_trading()
         if inv and inv.get("daily"):
             data["investorTrading"] = inv
             data["sources"]["investorTrading"] = inv.get("source", "pykrx")
@@ -6153,6 +6354,16 @@ def build_data():
             log(f"[ECOS-YC] 오류: {e}")
     else:
         log("[ECOS] API 키 없음 — 한국 지표 건너뜀")
+
+    # 국고채 만기별 값은 토스로 덮어쓴다 (ECOS item code 라벨 밀림 교정 + 5Y 결측 보충)
+    try:
+        _toss_yc = fetch_toss_yield_curve_kr()
+        if _toss_yc:
+            data["yieldCurve"]["kr"] = _merge_toss_yield_curve(
+                data["yieldCurve"].get("kr"), _toss_yc)
+            data["sources"]["yieldCurve_kr"] = data["yieldCurve"]["kr"].get("source")
+    except Exception as e:
+        log(f"[TOSS-YC] 오류: {e}")
 
     # ── R-ONE 부동산 지표 (한국부동산원) ─────────────────────
     # R-ONE 우선 → 실패/키없음이면 ECOS KB 시리즈로 폴백 (사용자 화면 비지 않도록)

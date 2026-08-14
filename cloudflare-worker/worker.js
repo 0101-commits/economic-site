@@ -1091,9 +1091,70 @@ async function _discordVerify(request, rawBody, env) {
   }
 }
 
-async function _discordQuote(label) {
+// 토스증권 Open API 토큰 — 워커 격리(isolate)당 1회 발급해 재사용(만료 60초 전 갱신).
+// env.TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 미설정이면 null → 호출측이 Yahoo 로 흐른다.
+let _tossTok = { v: null, exp: 0 };
+async function _tossToken(env) {
+  const id = (env && env.TOSS_CLIENT_ID || '').trim();
+  const sec = (env && env.TOSS_CLIENT_SECRET || '').trim();
+  if (!id || !sec) return null;
+  if (_tossTok.v && Date.now() < _tossTok.exp - 60000) return _tossTok.v;
+  try {
+    const r = await fetch('https://openapi.tossinvest.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: sec }),
+    });
+    const j = await r.json();
+    if (!j || !j.access_token) return null;
+    _tossTok = { v: j.access_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000 };
+    return _tossTok.v;
+  } catch (e) {
+    console.error('[toss] 토큰 실패', e && e.message);
+    return null;
+  }
+}
+
+// 국내 지수 실시간(토스 공식) → {price, pct} / 실패 시 null.
+// 등락률 필드가 없어 일봉 2개(현재봉·전일봉)로 직접 계산한다.
+const TOSS_INDEX = { '^KS11': 'KOSPI', '^KQ11': 'KOSDAQ' };
+async function _tossIndexQuote(sym, env) {
+  const name = TOSS_INDEX[sym];
+  const tok = name ? await _tossToken(env) : null;
+  if (!tok) return null;
+  try {
+    const h = { Authorization: 'Bearer ' + tok };
+    const [cr, pr] = await Promise.all([
+      fetch(`https://openapi.tossinvest.com/api/v1/market-indicators/${name}/candles?interval=1d&count=3`, { headers: h }),
+      fetch(`https://openapi.tossinvest.com/api/v1/market-indicators/prices?symbols=${name}`, { headers: h }),
+    ]);
+    const cj = await cr.json();
+    const pj = await pr.json();
+    const cs = cj && cj.result && cj.result.candles;      // 최신 → 과거 순
+    if (!Array.isArray(cs) || cs.length < 2) return null;
+    const live = pj && pj.result && pj.result[0] && Number(pj.result[0].lastPrice);
+    const price = (live > 0) ? live : Number(cs[0].closePrice);
+    const prev = Number(cs[1].closePrice);
+    if (!(price > 0) || !(prev > 0)) return null;
+    return { price, pct: (price / prev - 1) * 100 };
+  } catch (e) {
+    console.error('[toss] 지수 조회 실패', e && e.message);
+    return null;
+  }
+}
+
+async function _discordQuote(label, env) {
   const [sym, nd] = DISCORD_QUOTES[label] || [];
   if (!sym) return `알 수 없는 지표: ${label}`;
+  const _fmt = (price, pct) => {
+    const arrow = pct == null ? '' : (pct >= 0 ? '▲' : '▼');
+    const pctTxt = pct == null ? '' : ` ${arrow}${Math.abs(pct).toFixed(2)}%`;
+    const nav = DISCORD_NAVER[label] ? ` · [네이버 ↗](${DISCORD_NAVER[label]})` : '';
+    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}${nav}\n※ 무료 시세 기준(지연 가능) · [대시보드](https://0101-commits.github.io/economic-site/)`;
+  };
+  // 국내 지수는 토스증권 공식 실시간 우선 (Yahoo 국내 지수는 지연·결측이 잦다)
+  const t = await _tossIndexQuote(sym, env);
+  if (t) return _fmt(t.price, t.pct);
   try {
     // range=1d — 이때 chartPreviousClose 가 '직전 거래일 종가'다. 5d 로 부르면 5일 전
     // 종가가 되어 등락률이 주간 수익률로 부풀던 버그(실측 ▲16.51%) 방지.
@@ -1104,11 +1165,7 @@ async function _discordQuote(label) {
     const price = meta && meta.regularMarketPrice;
     const prev = meta && (meta.regularMarketPreviousClose || meta.chartPreviousClose);
     if (price == null) return `${label} 시세 조회 실패(Yahoo 응답 이상)`;
-    const pct = prev ? ((price / prev - 1) * 100) : null;
-    const arrow = pct == null ? '' : (pct >= 0 ? '▲' : '▼');
-    const pctTxt = pct == null ? '' : ` ${arrow}${Math.abs(pct).toFixed(2)}%`;
-    const nav = DISCORD_NAVER[label] ? ` · [네이버 ↗](${DISCORD_NAVER[label]})` : '';
-    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}${nav}\n※ 무료 시세 기준(지연 가능) · [대시보드](https://0101-commits.github.io/economic-site/)`;
+    return _fmt(price, prev ? ((price / prev - 1) * 100) : null);
   } catch (e) {
     return `${label} 시세 조회 실패: ${e && e.message}`;
   }
@@ -1133,7 +1190,7 @@ async function handleDiscordInteractions(request, env, ctx) {
       const opt = body.data.options && body.data.options[0];
       const label = String((opt && opt.value) || '코스피');
       const followup = (async () => {
-        const content = await _discordQuote(label);
+        const content = await _discordQuote(label, env);
         await fetch(`https://discord.com/api/v10/webhooks/${body.application_id}/${body.token}/messages/@original`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content }),
@@ -1155,7 +1212,7 @@ async function handleDiscordInteractions(request, env, ctx) {
       // 응답은 에페메랄(flags 64) — 채널을 시세 스냅샷으로 어지럽히지 않는다.
       const followup = (async () => {
         const labels = Object.keys(DISCORD_QUOTES);
-        const lines = await Promise.all(labels.map((l) => _discordQuote(l).then((t) => t.split('\n')[0])));
+        const lines = await Promise.all(labels.map((l) => _discordQuote(l, env).then((t) => t.split('\n')[0])));
         const kst = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16);
         const content = `**지금 시세** (${kst} KST)\n${lines.join('\n')}\n※ 무료 시세 기준(지연 가능)`;
         await fetch(`https://discord.com/api/v10/webhooks/${body.application_id}/${body.token}/messages/@original`, {

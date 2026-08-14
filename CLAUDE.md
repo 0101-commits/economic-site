@@ -104,6 +104,16 @@ GitHub Actions (fetch_data.py)
 ```
 
 `fetch_data.py` data source priority:
+0. **Toss Securities Open API** (`scripts/toss_api.py`, secrets `TOSS_CLIENT_ID`/`TOSS_CLIENT_SECRET`) —
+   official OAuth2 source for KOSPI/KOSDAQ indices, KTB yield curve (2/3/5/10/20/30Y),
+   gainer/loser rankings, and KOSPI investor flows. Every function returns `None`/`{}`
+   when the keys are absent, so the legacy chain below runs unchanged.
+   **Caveat: Toss stock candles are an *integrated* session** (pre + regular + after-hours),
+   so their close is not the regular-session close that 등락률 is measured against
+   (2026-08-14: 005930 08-13 Toss 263 000 vs regular 268 000). Use `rankings()`'s
+   `changeRate` (base-price derived) for per-stock moves; never `snapshot()`.
+   Indices have no after-hours print, so `snapshot('^KS11'/'^KQ11')` is safe and is what
+   `check_alerts`/`check_halts`/`send_kakao_digest` now use.
 1. **pykrx** (`pykrx==1.2.8` pinned) — KRX official (KOSPI/KOSDAQ/Top10/investor flows)
 2. **yfinance** — overseas indices, commodities, FX fallback
 3. **FRED API** — US macro indicators

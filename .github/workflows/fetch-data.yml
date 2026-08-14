@@ -149,6 +149,8 @@ jobs:
 
       - name: Fetch market data
         env:
+          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
+          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
           KRX_API_KEY:        ${{ secrets.KRX_API_KEY }}
           # KRX 정보데이터시스템 로그인 (pykrx 1.2.x) — 2026 부터 KRX 가 로그인을 요구.
           # data.krx.co.kr 무료 회원가입 후 아이디/비밀번호를 Secrets(KRX_ID, KRX_PW)에 등록하면

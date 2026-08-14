@@ -750,7 +750,15 @@ def _yahoo_intraday(symbol, rng="1d", interval="5m"):
 
 
 def _yahoo_live_quote(symbol):
-    """발송 시점 시세 — (현재가, 전일 종가 대비 %) 또는 None."""
+    """발송 시점 시세 — (현재가, 전일 종가 대비 %) 또는 None.
+
+    국내 지수(^KS11/^KQ11)는 토스증권 공식 시세 우선 — 알림 본문 숫자가 사이트와
+    어긋나던 주 원인이 Yahoo 국내 지수의 지연·결측이었다."""
+    import toss_api
+    if symbol in toss_api.YAHOO_INDEX_MAP:
+        q = toss_api.live_quote(symbol)
+        if q:
+            return q
     res = _yahoo_chart_result(symbol)
     if not res:
         return None
