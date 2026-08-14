@@ -114,6 +114,14 @@ GitHub Actions (fetch_data.py)
    `changeRate` (base-price derived) for per-stock moves; never `snapshot()`.
    Indices have no after-hours print, so `snapshot('^KS11'/'^KQ11')` is safe and is what
    `check_alerts`/`check_halts`/`send_kakao_digest` now use.
+   **Toss cannot be called from CI.** Each client is bound to an IP allowlist with no
+   CIDR or wildcard form, and both GitHub Actions runners and Cloudflare Workers egress
+   from dynamic addresses (measured: runner 403, Worker 401 `unidentified-client`).
+   `scripts/fetch_toss_snapshot.py` therefore runs on the allowlisted PC, writes
+   `toss_snapshot.json` and pushes it; `fetch_data.py` reads that file through
+   `_toss_snapshot()` with per-item freshness guards (movers same-day only, yield curve
+   96 h, investor series any age since it carries dates). PC off → guards drop the stale
+   parts and the chain below runs. See *Local Toss collector* at the end of this file.
 1. **pykrx** (`pykrx==1.2.8` pinned) — KRX official (KOSPI/KOSDAQ/Top10/investor flows)
 2. **yfinance** — overseas indices, commodities, FX fallback
 3. **FRED API** — US macro indicators
@@ -196,3 +204,33 @@ python scripts/validate_data.py   # verify output
 - Cloudflare Worker cron (`:02 UTC` each slot) fires `repository_dispatch(kakao-send)` → `kakao-daily.yml`
 - Duplicate-send guard: GHA cache marker keyed by `date + slot`; manual `workflow_dispatch` always bypasses
 - Charts use `matplotlib`; slot determines which two tickers to chart (see `kakao-daily.yml` header comments)
+
+## Local Toss collector (this PC, not CI)
+
+Toss Open API binds every client to an **IP allowlist** (WTS → 설정 → Open API → 허용 IP 관리).
+There is no CIDR or wildcard entry, so CI can never be allowlisted. The collector runs here
+instead and hands its result to the cloud pipeline through the repo.
+
+| Piece | What it does |
+|-------|--------------|
+| `scripts/fetch_toss_snapshot.py` | Fetches indices, the KTB curve, gainer/loser rankings, KOSPI investor flows and the USD/KRW quote; writes `toss_snapshot.json`; `--push` commits and pushes it |
+| `scripts/run_toss_snapshot.cmd` | Task Scheduler entry point. **ASCII only** — cmd.exe parses batch files in the OEM code page, so UTF-8 Korean comments get executed as commands (seen as exit 9009) |
+| `scripts/register_toss_task.ps1` | Registers the `EconSite-TossSnapshot` task from XML (PowerShell 5.1's `New-ScheduledTaskTrigger` cannot set a logon `Delay` or a repetition) |
+
+The machine is not on 24/7, so four things cover the gaps: a logon trigger with a 3-minute
+delay, hourly runs on weekdays 09:00–20:00, a 15:45 run right after the close, and
+`StartWhenAvailable` to catch up on anything missed while the PC was off.
+
+Because it runs often, the script hashes only the fields `fetch_data.py` consumes and skips
+rewriting the file when nothing moved — otherwise every run would be a commit. `usdkrw` is
+deliberately outside that hash: it drifts around the clock and nothing reads it. A no-change
+run never bumps `generatedAt`; a fresh timestamp on stale data would defeat the consumer's
+freshness guard. Whether to push is decided by `git status`, not the hash, so a file left
+dirty by a failed push is retried on the next run.
+
+Credentials are the user env vars `TOSS_CLIENT_ID` / `TOSS_CLIENT_SECRET`. If they are
+missing the script exits 1 with a log line and the pipeline just falls back.
+
+**Toss daily candles are an integrated session** (pre-market + regular + after-hours), so
+their close is not the base price percentage moves are quoted against. Use `rankings()`'s
+`changeRate` for per-stock moves. Indices have no after-hours print and are safe.
