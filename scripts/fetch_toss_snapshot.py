@@ -175,6 +175,33 @@ def _prev_hash():
         return None
 
 
+# 수집이 0건이면 디스코드로 알린다. 하루 1회로 묶어 두는 이유: 이 작업은 로그온·매시간
+# 돌기 때문에 IP 가 빠진 동안 알림이 수십 개 쌓인다.
+_NOTIFY = r"C:\Users\cgpar\AI_CLI\scripts\discord-notify.js"
+_NOTIFY_STAMP = os.path.join(os.environ.get("TEMP", ROOT), "toss_snapshot_notified.txt")
+
+
+def _notify_failure():
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    try:
+        if os.path.exists(_NOTIFY_STAMP) and open(_NOTIFY_STAMP).read().strip() == today:
+            return
+        if not os.path.exists(_NOTIFY):
+            return
+        subprocess.run(
+            ["node", _NOTIFY, "error", "토스 스냅샷 수집 실패",
+             "토스 API 가 한 건도 응답하지 않았습니다. 이 PC 의 공인 IP 가 바뀌어 "
+             "허용 IP 목록에서 빠졌을 가능성이 큽니다 — 토스증권 PC웹 → 설정 → "
+             "Open API → 허용 IP 관리에서 현재 IP 를 등록하세요. "
+             "그 동안 사이트는 기존 소스로 계속 동작합니다."],
+            cwd=ROOT, capture_output=True, timeout=30)
+        with open(_NOTIFY_STAMP, "w") as f:
+            f.write(today)
+        log("실패 알림 발송")
+    except Exception as e:                                   # noqa: BLE001
+        log(f"실패 알림 불가(무시): {e}")
+
+
 def main():
     if not toss_api.enabled():
         log("TOSS_CLIENT_ID/SECRET 미설정 — 종료")
@@ -183,6 +210,9 @@ def main():
     payload_keys = [k for k in snap if k not in ("generatedAt", "source")]
     if not payload_keys:
         log("수집 0건 — 파일 미갱신 (허용 IP 목록에 이 PC 의 공인 IP 가 있는지 확인)")
+        # 배경 작업이라 아무도 로그를 안 본다. 가장 흔한 원인(공인 IP 변경으로 허용 목록
+        # 이탈)은 조용히 계속 실패하므로 한 번은 알린다.
+        _notify_failure()
         return 2
     snap["payloadHash"] = _payload_hash(snap)
     if snap["payloadHash"] == _prev_hash() and "--force" not in sys.argv:
