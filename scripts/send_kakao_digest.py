@@ -1315,7 +1315,7 @@ def _dc_fields(blocks, d):
 
 def _dc_buttons():
     """다이제스트·마감 리포트 공통 버튼(E3) — 봇 토큰 있을 때만 실제로 붙는다."""
-    return [("대시보드", DASHBOARD_URL), ("시장 지표", DASHBOARD_URL + "?p=market"),
+    return [("🌐 대시보드", DASHBOARD_URL), ("📊 시장 지표", DASHBOARD_URL + "?p=market"),
             ("🔄 지금 시세", "id:refresh_quotes")]
 
 
@@ -1337,8 +1337,7 @@ def _dc_button_rows(data, weekly=False):
     rows, cur = [], []
     for ko, key, chg in seq[:16]:
         url = notify_discord.NAVER_LINKS.get(key) or DASHBOARD_URL
-        arrow = "" if chg is None else (" ▲" if chg > 0 else " ▼") + f"{abs(chg):.1f}%"
-        cur.append((f"{ko}{arrow}", url))
+        cur.append((notify_discord.dir_label(ko, chg), url))
         if len(cur) == 4:
             rows.append(cur)
             cur = []
@@ -1406,8 +1405,7 @@ def _send_close_report(data):
     for lab, v, c in citems:
         u = notify_discord.NAVER_LINKS.get(_keymap.get(lab))
         if u:
-            arrow = "" if c is None else (" ▲" if c > 0 else " ▼") + f"{abs(c):.1f}%"
-            nav.append((f"{lab}{arrow}", u))
+            nav.append((notify_discord.dir_label(lab, c), u))
     ok = notify_discord.send(
         "", png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
         url=DASHBOARD_URL + "?p=market", color=color,
