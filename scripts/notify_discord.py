@@ -47,6 +47,8 @@ def direction_emoji(c):
         c = float(c)
     except (TypeError, ValueError):
         return "➖"
+    if c != c:  # NaN → 보합
+        return "➖"
     if abs(c) < 0.05:
         return "➖"
     if c >= 2.0:
@@ -62,6 +64,10 @@ def dir_label(name, c):
     예: dir_label("코스피", 1.8) == "📈 코스피 +1.8%"
         dir_label("구리", None)  == "➖ 구리"
     """
+    try:
+        c = float(c)
+    except (TypeError, ValueError):
+        c = None
     emoji = direction_emoji(c)
     pct = "" if emoji == "➖" else f" {c:+.1f}%"
     return f"{emoji} {name}{pct}"

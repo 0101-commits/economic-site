@@ -35,6 +35,18 @@ def test_non_numeric_falls_back_flat():
     assert direction_emoji("abc") == "➖"
 
 
+def test_nan_is_flat():
+    assert direction_emoji(float("nan")) == "➖"
+
+
+def test_dir_label_accepts_numeric_string():
+    assert dir_label("코스피", "1.8") == "📈 코스피 +1.8%"
+
+
+def test_dir_label_non_numeric_string_is_flat():
+    assert dir_label("구리", "abc") == "➖ 구리"
+
+
 def test_dir_label_has_emoji_name_pct():
     assert dir_label("코스피", 1.8) == "📈 코스피 +1.8%"
     assert dir_label("S&P500", 2.0) == "⏫ S&P500 +2.0%"
