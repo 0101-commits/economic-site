@@ -16,7 +16,8 @@
   운영/테스트=회색 · 다이제스트 동적색=코스피 방향(상승 빨강/하락 파랑/보합 회색 —
   국내 관습, ±0.05% 기준).
 이모지 사전: 📊 정기 시황 · 🔔 종목/마감 · ⚡ 급변 · 🔴 서킷 · 💚 하트비트 · ⚙️ 운영.
-등락 강도(E2): ±2% 미만 ▲/▼ · 이상 ⏫/⏬ (변환은 send_kakao_digest._dc_intensity).
+등락 강도(E2): ±2% 미만 ▲/▼ · 이상 ⏫/⏬ (텍스트 embed 는 send_kakao_digest._dc_intensity,
+  버튼 라벨은 direction_emoji / dir_label).
 필드 순서: 증시 → 환율 → 심리 → 에너지 → 금속 → 곡물 → 운임 → 추세 → 📅 일정.
 footer: 항상 신선도 한 줄("시세 HH:MM 기준…" 또는 DELAY_NOTICE).
 도달 티어(E1): T1 급변·서킷=@everyone / T2 종목=@종목알림 역할 / T3 정기=무멘션
@@ -35,6 +36,35 @@ _API = "https://discord.com/api/v10"
 # 발신 표시명 통일(2026-08-11 사용자 지시) — 웹훅은 메시지별 username 필드로,
 # 봇 계정(구 econ-terminal-bot)은 최초 발송 시 /users/@me PATCH 로 개명한다.
 BOT_NAME = "ecom"
+
+# ── 버튼 라벨 방향 이모지(기획 2026-08-15) ────────────────────────────────
+# 디스코드 네이티브 버튼은 색/이미지가 고정이라 방향·강도를 라벨 이모지로 표현.
+# E2 표준(±2%) 임계를 공유 — 텍스트 embed 의 _dc_intensity 와 같은 판정.
+
+def direction_emoji(c):
+    """등락률 → 방향 이모지. None/|c|<0.05=➖(보합), ±2% 이상=⏫/⏬, 그 외 📈/📉."""
+    try:
+        c = float(c)
+    except (TypeError, ValueError):
+        return "➖"
+    if abs(c) < 0.05:
+        return "➖"
+    if c >= 2.0:
+        return "⏫"
+    if c <= -2.0:
+        return "⏬"
+    return "📈" if c > 0 else "📉"
+
+
+def dir_label(name, c):
+    """버튼 라벨 — 이모지 + 이름 + 등락률(보합·무데이터는 퍼센트 생략).
+
+    예: dir_label("코스피", 1.8) == "📈 코스피 +1.8%"
+        dir_label("구리", None)  == "➖ 구리"
+    """
+    emoji = direction_emoji(c)
+    pct = "" if emoji == "➖" else f" {c:+.1f}%"
+    return f"{emoji} {name}{pct}"
 
 # ── 네이버 증권 딥링크(기획 c661d5b0 v3) ──────────────────────────────────
 # 2026-08-11 2중 검사(최종 URL 동일성 + 본문 키워드) 통과분만 등록한다.
