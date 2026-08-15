@@ -100,11 +100,12 @@ def _halt_buttons(h):
     """v3 — 발동 시장 지수의 네이버 증권 버튼(+시장 지표 딥링크). 실패는 None."""
     try:
         import notify_discord
-        btns = [("시장 지표", "https://0101-commits.github.io/economic-site/?p=market")]
+        emoji = {"up": "📈", "down": "📉"}.get(h.get("direction"), "➖")
+        btns = [("📊 시장 지표", "https://0101-commits.github.io/economic-site/?p=market")]
         key = "KOSDAQ" if h.get("market") == "KOSDAQ" else "KOSPI"
         u = notify_discord.NAVER_LINKS.get(key)
         if u:
-            btns.append((f"N {h.get('market') or 'KOSPI'}", u))
+            btns.append((f"{emoji} N {h.get('market') or 'KOSPI'}", u))
         return btns
     except Exception:
         return None

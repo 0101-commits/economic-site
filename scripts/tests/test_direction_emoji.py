@@ -59,6 +59,17 @@ def test_dir_label_omits_pct_when_flat():
     assert dir_label("N 삼성전자", 0.8) == "📈 N 삼성전자 +0.8%"
 
 
+def test_halt_buttons_direction_emoji():
+    import check_halts
+    down = check_halts._halt_buttons({"market": "KOSPI", "direction": "down"})
+    assert down[0][0] == "📊 시장 지표"
+    assert any(lab == "📉 N KOSPI" for lab, _ in down)
+    up = check_halts._halt_buttons({"market": "KOSDAQ", "direction": "up"})
+    assert any(lab == "📈 N KOSDAQ" for lab, _ in up)
+    unknown = check_halts._halt_buttons({"market": "KOSPI"})
+    assert any(lab.startswith("➖") for lab, _ in unknown)
+
+
 if __name__ == "__main__":
     for _n, _f in sorted(globals().items()):
         if _n.startswith("test_"):
