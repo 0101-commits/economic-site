@@ -121,7 +121,7 @@ def main():
         for _, _, nm, sym, _, pct, _ in hits[:4]:
             u = notify_discord.NAVER_LINKS.get(_sym2key.get(sym))
             if u:
-                _btns.append((f"N {nm} {'▲' if pct > 0 else '▼'}{abs(pct):.1f}%", u))
+                _btns.append((notify_discord.dir_label(f"N {nm}", pct), u))
         # 급변=빨강 embed + @everyone(D6 — 위급 알림만 강제 푸시) + 주식시장 딥링크.
         if notify_discord.send(
                 "\n".join(h[1] for h in hits), png=_png,
