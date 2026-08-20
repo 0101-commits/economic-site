@@ -649,7 +649,8 @@ def main():
                 footer=DELAY_NOTICE, timestamp=True, env="DISCORD_WEBHOOK_ALERTS",
                 # 도달 티어 T2(E1) — @종목알림 역할 멘션(셀프 구독형). 테스트는 무멘션.
                 mention=None if IS_TEST else "role:종목알림",
-                buttons=_btns[:5])
+                # v4 버튼 다이어트(기획 ed0e5496) — 1행 3개 상한(투자현황 + 종목 2).
+                buttons=_btns[:3])
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 

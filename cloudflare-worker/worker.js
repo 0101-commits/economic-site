@@ -1063,6 +1063,23 @@ const DISCORD_QUOTES = {
   '코스피': ['^KS11', 0], '코스닥': ['^KQ11', 0], 'S&P500': ['^GSPC', 0],
   '나스닥': ['^IXIC', 0], '달러-원': ['KRW=X', 1], '금': ['GC=F', 1], 'WTI': ['CL=F', 2],
 };
+// 지표 드롭다운(v4 버튼 다이어트, 기획 ed0e5496) — 값 = notify_discord.NAVER_LINKS 키.
+// goto_link 셀렉트 선택 → 에페메랄 링크 응답. 목록은 NAVER_LINKS 와 동일 검증 통과분만.
+const DISCORD_ASSET_LINKS = {
+  KOSPI: ['코스피', 'https://finance.naver.com/sise/sise_index.naver?code=KOSPI'],
+  KOSDAQ: ['코스닥', 'https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ'],
+  SP500: ['S&P500', 'https://finance.naver.com/world/sise.naver?symbol=SPI@SPX'],
+  NASDAQ: ['나스닥', 'https://finance.naver.com/world/sise.naver?symbol=NAS@IXIC'],
+  Nikkei: ['닛케이', 'https://finance.naver.com/world/sise.naver?symbol=NII@NI225'],
+  SOX: ['SOX 반도체', 'https://finance.naver.com/world/sise.naver?symbol=NAS@SOX'],
+  USDKRW: ['달러-원', 'https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW'],
+  USDJPY: ['달러-엔', 'https://finance.naver.com/marketindex/worldExchangeDetail.naver?marketindexCd=FX_USDJPY'],
+  Gold: ['금', 'https://finance.naver.com/marketindex/worldGoldDetail.naver?marketindexCd=CMDT_GC'],
+  Silver: ['은', 'https://finance.naver.com/marketindex/worldGoldDetail.naver?marketindexCd=CMDT_SI'],
+  WTI: ['WTI', 'https://finance.naver.com/marketindex/worldOilDetail.naver?marketindexCd=OIL_CL'],
+  Brent: ['브렌트', 'https://finance.naver.com/marketindex/worldOilDetail.naver?marketindexCd=OIL_BRT'],
+  NatGas: ['천연가스', 'https://finance.naver.com/marketindex/worldOilDetail.naver?marketindexCd=CMDT_NG'],
+};
 // 지표별 네이버 증권 딥링크(기획 c661d5b0 v3) — scripts/notify_discord.NAVER_LINKS 와
 // 동일 검증(2중 검사 통과분만). 개편 감지는 check_links.py 가 담당.
 const DISCORD_NAVER = {
@@ -1272,6 +1289,16 @@ async function handleDiscordInteractions(request, env, ctx) {
       })();
       if (ctx && ctx.waitUntil) ctx.waitUntil(followup);
       return jsonResponse({ type: 5, data: { flags: 64 } });
+    }
+    if (customId === 'goto_link') {
+      // v4 지표 드롭다운(기획 ed0e5496) — 선택값 = NAVER_LINKS 키. 사전 조회뿐이라
+      // 즉답(type 4) + 에페메랄(flags 64). 미지 키는 대시보드로 폴백(깨진 응답 방지).
+      const v = String((body.data.values && body.data.values[0]) || '');
+      const hit = DISCORD_ASSET_LINKS[v];
+      const content = hit
+        ? `📈 **${hit[0]}** 차트 → ${hit[1]}`
+        : `📊 대시보드 → https://0101-commits.github.io/economic-site/`;
+      return jsonResponse({ type: 4, data: { content, flags: 64 } });
     }
     return jsonResponse({ type: 4, data: { content: `알 수 없는 버튼: ${customId}`, flags: 64 } });
   }

@@ -3,7 +3,7 @@
 """디스코드 전용 '시각 보드' 카드 렌더러 (기획 2026-08-11, 아티팩트 e9144cf7).
 
 카드 4종 — 전부 embed 이미지 1장이 본문이 되는 형식(카카오는 무변경):
-  board()        카드 A: 정기 다이제스트 — 히트맵 타일 16 + 30일 스파크라인 4
+  board()        카드 A: 정기 다이제스트 — 히트맵 타일 12(+캡션 4) + 30일 스파크라인 4
   close_report() 카드 B: 장 마감 — 다이버징 수평 바 + 오늘 발동 알림 수·내일 일정
   weekly()       카드 C: 주간 — 주간 수익률 정렬 다이버징 바
   swing()        카드 D: 급변·서킷 — 히어로 등락률 + 인트라데이 임계선
@@ -105,8 +105,8 @@ def _tile_color(c):
 def _footer(fig, now, extra=""):
     fig.text(0.03, 0.022, _L(f"시세 {now.strftime('%m/%d %H:%M')} 기준 · 무료 시세 지연 가능",
                              f"as of {now.strftime('%m/%d %H:%M')} KST · free quotes may lag") + extra,
-             color=FAINT, fontsize=9)
-    fig.text(0.97, 0.022, "econ dashboard →", color=FAINT, fontsize=9, ha="right")
+             color=FAINT, fontsize=11)
+    fig.text(0.97, 0.022, "econ dashboard →", color=FAINT, fontsize=11, ha="right")
 
 
 def _save(fig, name):
@@ -117,7 +117,7 @@ def _save(fig, name):
     return path
 
 
-# (한글, 영문, 카테고리, 키) — 카드 A 타일 16 · 카드 C 상위 12 재사용
+# (한글, 영문, 카테고리, 키) — 카드 A 타일 12(+캡션 4) · 카드 C 상위 12 재사용
 _ASSETS = [("코스피", "KOSPI", "indices", "KOSPI"), ("코스닥", "KOSDAQ", "indices", "KOSDAQ"),
            ("S&P500", "S&P500", "indices", "SP500"), ("나스닥", "NASDAQ", "indices", "NASDAQ"),
            ("닛케이", "Nikkei", "indices", "Nikkei"), ("SOX 반도체", "SOX", "indices", "SOX"),
@@ -129,14 +129,18 @@ _ASSETS = [("코스피", "KOSPI", "indices", "KOSPI"), ("코스닥", "KOSDAQ", "
 
 
 def board(d, now, cal=""):
-    """카드 A — 시황 보드. 실패 시 None(호출측이 슬롯 차트로 폴백)."""
+    """카드 A — 시황 보드. 실패 시 None(호출측이 슬롯 차트로 폴백).
+
+    v4(기획 ed0e5496 — 버튼 다이어트): 폐기된 16버튼 그리드의 정보를 카드가 단독
+    흡수한다 — 타일 16→12 로 줄여 키우고(4×3), 글자 전반 확대 + dpi 130→160 으로
+    모바일 가독성 확보. 밀려난 저변동 4종(밀·옥수수·은·브렌트)은 하단 캡션 한 줄."""
     try:
         plt, _ = _setup()
-        fig = plt.figure(figsize=(10, 7.4), dpi=130)
+        fig = plt.figure(figsize=(10, 7.0), dpi=160)
         fig.patch.set_facecolor(BG)
-        fig.text(0.03, 0.955, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드",
+        fig.text(0.03, 0.945, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드",
                                  f"{now.month}/{now.day} {now.hour}h Market Board"),
-                 color=INK, fontsize=15, fontweight="bold")
+                 color=INK, fontsize=19, fontweight="bold")
         mv = ((d.get("sentiment") or {}).get("move")) or {}
         head = []
         if _f(mv.get("value")) is not None:
@@ -144,26 +148,30 @@ def board(d, now, cal=""):
         if cal:
             head.append((_L("오늘 ", "today ") + cal).strip())
         if head:
-            fig.text(0.97, 0.958, " · ".join(head), color=MUT, fontsize=9.5, ha="right")
-        cols, rows = 4, 4
-        gx0, gy0, gw, gh = 0.03, 0.40, 0.94, 0.50
+            fig.text(0.97, 0.950, " · ".join(head), color=MUT, fontsize=11, ha="right")
+        cols, rows = 4, 3
+        gx0, gy0, gw, gh = 0.03, 0.44, 0.94, 0.46
         from matplotlib.patches import FancyBboxPatch
-        for i, (ko, en, cat, key) in enumerate(_ASSETS):
+        for i, (ko, en, cat, key) in enumerate(_ASSETS[:12]):
             r_, c_ = divmod(i, cols)
             x = gx0 + c_ * gw / cols
             y = gy0 + (rows - 1 - r_) * gh / rows
-            w, h = gw / cols - 0.008, gh / rows - 0.014
+            w, h = gw / cols - 0.008, gh / rows - 0.016
             price, chg = _node(d, cat, key)
             bgc, ink = _tile_color(chg)
             fig.patches.append(FancyBboxPatch(
                 (x, y), w, h, boxstyle="round,pad=0.004,rounding_size=0.008",
                 transform=fig.transFigure, fc=bgc, ec="none"))
-            fig.text(x + 0.012, y + h - 0.028, _L(ko, en),
-                     color=ink if bgc != TILE else MUT, fontsize=9.5)
-            fig.text(x + 0.012, y + 0.038, _fmt(price), color=INK, fontsize=13, fontweight="bold")
-            fig.text(x + w - 0.010, y + 0.012, _chgtxt(chg),
-                     color=INK if bgc != TILE else MUT, fontsize=9.5, ha="right")
-        fig.text(0.03, 0.335, _L("추세 30일", "30-day trend"), color=MUT, fontsize=10)
+            fig.text(x + 0.012, y + h - 0.038, _L(ko, en),
+                     color=ink if bgc != TILE else MUT, fontsize=13)
+            fig.text(x + 0.012, y + 0.048, _fmt(price), color=INK, fontsize=17, fontweight="bold")
+            fig.text(x + w - 0.010, y + 0.014, _chgtxt(chg),
+                     color=INK if bgc != TILE else MUT, fontsize=13, fontweight="bold", ha="right")
+        # 타일에서 밀려난 저변동 4종 — 캡션 한 줄(정보 유실 방지).
+        rest = " · ".join(f"{_L(ko, en)} {_chgtxt(_node(d, cat, key)[1]) or '—'}"
+                          for ko, en, cat, key in _ASSETS[12:])
+        fig.text(0.03, 0.395, rest, color=MUT, fontsize=11)
+        fig.text(0.03, 0.335, _L("추세 30일", "30-day trend"), color=MUT, fontsize=12)
         sparks = [_ASSETS[0], _ASSETS[2], _ASSETS[6], _ASSETS[8]]  # 코스피·S&P·달러원·금
         for i, (ko, en, cat, key) in enumerate(sparks):
             ax = fig.add_axes([0.03 + i * 0.2425, 0.075, 0.205, 0.235])
@@ -174,10 +182,10 @@ def board(d, now, cal=""):
                 dirc = UP if vs[-1] >= vs[0] else DN
                 ax.plot(len(vs) - 1, vs[-1], "o", color=dirc, ms=5)
                 p30 = (vs[-1] / vs[0] - 1) * 100 if vs[0] else 0.0
-                ax.text(0.05, 0.86, _L(ko, en), transform=ax.transAxes, color=MUT, fontsize=9.5)
-                ax.text(0.95, 0.86, f"{'+' if p30 >= 0 else ''}{p30:.1f}%", transform=ax.transAxes,
-                        color=dirc, fontsize=9.5, ha="right", fontweight="bold")
-                ax.text(0.05, 0.06, _fmt(vs[-1]), transform=ax.transAxes, color=INK, fontsize=10.5)
+                ax.text(0.05, 0.84, _L(ko, en), transform=ax.transAxes, color=MUT, fontsize=12)
+                ax.text(0.95, 0.84, f"{'+' if p30 >= 0 else ''}{p30:.1f}%", transform=ax.transAxes,
+                        color=dirc, fontsize=12, ha="right", fontweight="bold")
+                ax.text(0.05, 0.08, _fmt(vs[-1]), transform=ax.transAxes, color=INK, fontsize=13)
             ax.set_xticks([]); ax.set_yticks([])
             for s in ax.spines.values():
                 s.set_visible(False)
@@ -199,7 +207,7 @@ def close_report(items, now, alerts_cnt=None, cal=""):
         fig.patch.set_facecolor(BG)
         fig.text(0.03, 0.94, _L(f"{now.month}/{now.day} 장 마감 리포트",
                                 f"{now.month}/{now.day} Market Close"),
-                 color=INK, fontsize=15, fontweight="bold")
+                 color=INK, fontsize=18, fontweight="bold")
         ax = fig.add_axes([0.13, 0.14, 0.50, 0.70])
         ax.set_facecolor(BG)
         chgs = [c for _, _, c in its]
@@ -208,9 +216,9 @@ def close_report(items, now, alerts_cnt=None, cal=""):
         ax.axvline(0, color=FAINT, lw=1)
         for i, (l, p, c) in enumerate(its):
             ax.text(c + (0.06 if c >= 0 else -0.06), i, f"{_fmt(p)}  {_chgtxt(c)}",
-                    va="center", ha="left" if c >= 0 else "right", color=INK, fontsize=10)
+                    va="center", ha="left" if c >= 0 else "right", color=INK, fontsize=12.5)
         ax.set_yticks(range(len(its)))
-        ax.set_yticklabels([l for l, _, _ in its], color=MUT, fontsize=10.5)
+        ax.set_yticklabels([l for l, _, _ in its], color=MUT, fontsize=13)
         lim = max(abs(c) for c in chgs) * 1.9 + 0.3
         ax.set_xlim(-lim, lim)
         ax.set_xticks([])
@@ -219,13 +227,13 @@ def close_report(items, now, alerts_cnt=None, cal=""):
         ax.tick_params(length=0)
         y = 0.80
         if alerts_cnt is not None:
-            fig.text(0.70, y, _L("오늘 발동 알림", "alerts fired today"), color=MUT, fontsize=10.5)
+            fig.text(0.70, y, _L("오늘 발동 알림", "alerts fired today"), color=MUT, fontsize=12.5)
             fig.text(0.70, y - 0.10, _L(f"{alerts_cnt}건", f"{alerts_cnt}"),
-                     color=INK, fontsize=20, fontweight="bold")
+                     color=INK, fontsize=24, fontweight="bold")
             y -= 0.30
         if cal:
-            fig.text(0.70, y, _L("내일 일정", "tomorrow"), color=MUT, fontsize=10.5)
-            fig.text(0.70, y - 0.08, cal, color=INK, fontsize=10)
+            fig.text(0.70, y, _L("내일 일정", "tomorrow"), color=MUT, fontsize=12.5)
+            fig.text(0.70, y - 0.08, cal, color=INK, fontsize=12)
         _footer(fig, now)
         return _save(fig, "discord_card_close.png")
     except Exception as e:
@@ -258,7 +266,7 @@ def weekly(d, now):
         fig.text(0.03, 0.945,
                  _L(f"주간 리포트 — {wk0.month}/{wk0.day}~{now.month}/{now.day} 수익률",
                     f"Weekly — {wk0.month}/{wk0.day}~{now.month}/{now.day} returns"),
-                 color=INK, fontsize=15, fontweight="bold")
+                 color=INK, fontsize=18, fontweight="bold")
         ax = fig.add_axes([0.16, 0.11, 0.78, 0.78])
         ax.set_facecolor(BG)
         ax.barh(range(len(rows)), [r[1] for r in rows], height=0.55,
@@ -266,9 +274,9 @@ def weekly(d, now):
         ax.axvline(0, color=FAINT, lw=1)
         for i, (l, c) in enumerate(rows):
             ax.text(c + (0.08 if c >= 0 else -0.08), i, f"{'+' if c >= 0 else ''}{c:.2f}%",
-                    va="center", ha="left" if c >= 0 else "right", color=INK, fontsize=10)
+                    va="center", ha="left" if c >= 0 else "right", color=INK, fontsize=12.5)
         ax.set_yticks(range(len(rows)))
-        ax.set_yticklabels([r[0] for r in rows], color=MUT, fontsize=10.5)
+        ax.set_yticklabels([r[0] for r in rows], color=MUT, fontsize=13)
         lim = max(abs(r[1]) for r in rows) * 1.35 + 0.2
         ax.set_xlim(-lim, lim)
         ax.set_xticks([])
@@ -296,17 +304,17 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume=""):
         fig.text(0.03, 0.93,
                  _L(f"{now.month}/{now.day} {now.strftime('%H:%M')} 시장 급변 — {name}",
                     f"{now.month}/{now.day} {now.strftime('%H:%M')} Market Swing — {name}"),
-                 color=INK, fontsize=15, fontweight="bold")
-        fig.text(0.03, 0.60, f"{pct:+.2f}%", color=col, fontsize=44, fontweight="bold")
+                 color=INK, fontsize=18, fontweight="bold")
+        fig.text(0.03, 0.60, f"{pct:+.2f}%", color=col, fontsize=54, fontweight="bold")
         if price is not None and prev:
             diff = price - prev
             fig.text(0.03, 0.47, f"{_fmt(price)}  {'▲' if diff >= 0 else '▼'}{abs(diff):,.1f}",
-                     color=INK, fontsize=14)
+                     color=INK, fontsize=17)
         sub = _L(f"임계 ±{abs(thr_pct):.1f}% {'상향' if pct > 0 else '하향'} 돌파",
                  f"threshold ±{abs(thr_pct):.1f}% crossed")
         if resume:
             sub += " · " + resume
-        fig.text(0.03, 0.36, sub, color=MUT, fontsize=10.5)
+        fig.text(0.03, 0.36, sub, color=MUT, fontsize=13)
         if ys and len(ys) >= 3:
             ax = fig.add_axes([0.42, 0.14, 0.55, 0.66])
             ax.set_facecolor(BG)
@@ -316,7 +324,7 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume=""):
                 ax.axhline(thr_v, color=col, lw=1.2, ls="--")
                 ax.text(len(ys) - 1, thr_v,
                         f"{'-' if pct < 0 else '+'}{abs(thr_pct):.1f}% ",
-                        color=col, fontsize=9.5, ha="right",
+                        color=col, fontsize=11.5, ha="right",
                         va="bottom" if pct < 0 else "top")
                 crossed = [i for i, v in enumerate(ys)
                            if (v <= thr_v if pct < 0 else v >= thr_v)]
@@ -325,7 +333,7 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume=""):
             ticks = sorted({0, len(ys) // 3, 2 * len(ys) // 3, len(ys) - 1})
             ax.set_xticks(ticks)
             ax.set_xticklabels([xs[t].strftime("%H:%M") if xs else "" for t in ticks],
-                               color=FAINT, fontsize=9)
+                               color=FAINT, fontsize=11)
             ax.set_yticks([])
             for s in ax.spines.values():
                 s.set_visible(False)

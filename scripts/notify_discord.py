@@ -224,6 +224,18 @@ def _components(buttons):
     return comps or None
 
 
+def _select_component(select, placeholder="📈 지표 차트 바로가기…"):
+    """select=[(라벨, 값)] → String Select 1행(v4 버튼 다이어트 — 기획 ed0e5496).
+    값은 NAVER_LINKS 키를 쓴다(Worker /discord 의 goto_link 가 URL 로 해석).
+    옵션 25개 상한. 봇 경로에서만 부착 — 웹훅 폴백은 send() 가 링크 필드로 강등."""
+    if not select:
+        return None
+    opts = [{"label": str(l)[:100], "value": str(v)[:100]} for l, v in select[:25]]
+    return {"type": 1, "components": [{
+        "type": 3, "custom_id": "goto_link",
+        "placeholder": placeholder[:150], "options": opts}]}
+
+
 def _ensure_thread_member(tid, gid, tok):
     """서버 소유자를 스레드 멤버로 등록 — 스레드 메시지는 '가입자'에게만 알림·푸시가
     가는 디스코드 사양이라, 미가입 상태면 다이제스트가 전부 무음이 된다(실측 원인).
@@ -295,7 +307,7 @@ def _post(url, payload, png, filename, extra_headers=None):
 
 def send(text, png=None, filename="chart.png", title=None, url=None,
          color=None, fields=None, footer=None, timestamp=False, mention=False,
-         env=WEBHOOK_ENV, thread_name=None, buttons=None):
+         env=WEBHOOK_ENV, thread_name=None, buttons=None, select=None):
     """텍스트(+선택 PNG 첨부) 발송. 성공 True / 미설정·실패 False.
 
     png 는 bytes 또는 파일 경로(str) — build_slot_chart_png 가 경로를 반환하므로 둘 다 받는다.
@@ -304,7 +316,9 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     ⚠ 이미지 클릭은 디스코드 정책상 항상 '확대 보기' — 이동은 제목·버튼이 담당.
     mention(E1): True|"everyone"=@everyone / "role:이름"=역할 멘션 / None·False=무멘션.
     buttons(E3): [(라벨, url 또는 "id:custom_id"), …] — 봇 토큰이 있으면 봇 메시지로
-    보내 버튼을 단다(웹훅은 컴포넌트 불가). 봇 경로 실패 시 버튼 없이 웹훅 폴백."""
+    보내 버튼을 단다(웹훅은 컴포넌트 불가). 봇 경로 실패 시 버튼 없이 웹훅 폴백.
+    select(v4): [(라벨, NAVER_LINKS 키)] — 지표 딥링크 드롭다운 1행(버튼 다이어트,
+    기획 ed0e5496). 버튼과 같은 규칙: 봇 경로만, 폴백 시 링크 필드로 강등."""
     hook = _hook(env)
     if not hook:
         return False
@@ -344,28 +358,38 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
             print(f"::warning title=Discord 차트 읽기 실패::{e} — 이미지 없이 발송")
             png = None
 
-    # 봇 경로(E3) — 버튼이 필요하고 봇 토큰이 있으면 봇 메시지로(웹훅은 컴포넌트 불가).
+    # 봇 경로(E3) — 컴포넌트(버튼·드롭다운)가 필요하고 봇 토큰이 있으면 봇 메시지로
+    # (웹훅은 컴포넌트 불가). 행 5개 상한은 디스코드 사양.
     tok = _bot_token()
     comps = _components(buttons)
-    if comps and tok:
+    sel = _select_component(select)
+    allc = ((comps or []) + ([sel] if sel else []))[:5]
+    if allc and tok:
         try:
             _ensure_bot_name(tok)
             cid = tid or _webhook_info(hook).get("channel_id")
             if cid:
-                _post(f"{_API}/channels/{cid}/messages", {**payload, "components": comps},
+                _post(f"{_API}/channels/{cid}/messages", {**payload, "components": allc},
                       png, filename, {"Authorization": f"Bot {tok}"})
+                nbtn = sum(len(r["components"]) for r in (comps or []))
                 print(f"[discord] 발송 성공 ({plen}자{', 이미지 첨부' if png else ''}"
-                      f"{', embed' if title else ''}, 봇+버튼 {len(comps[0]['components'])}개, env={env})")
+                      f"{', embed' if title else ''}, 봇+버튼 {nbtn}개"
+                      f"{'+드롭다운' if sel else ''}, env={env})")
                 return True
         except Exception as e:
-            print(f"[discord] 봇 발송 실패({e}) — 버튼 없이 웹훅 폴백")
+            print(f"[discord] 봇 발송 실패({e}) — 컴포넌트 없이 웹훅 폴백")
 
-    # 웹훅 경로(종전) — 버튼이 빠지므로(웹훅은 컴포넌트 불가) 링크 버튼들을 embed
-    # 필드 한 줄로 자동 변환해 도달을 보장한다(v3 안전망 — 평시 봇 경로에선 미표시).
-    if comps and title:
+    # 웹훅 경로(종전) — 컴포넌트가 빠지므로(웹훅은 컴포넌트 불가) 링크 버튼·드롭다운
+    # 옵션을 embed 필드 한 줄로 자동 변환해 도달을 보장한다(v3 안전망 — 평시 봇 경로에선 미표시).
+    if (comps or sel) and title:
         try:
             links = [f"[{c['label']}]({c['url']})"
-                     for r in comps for c in r["components"] if c.get("url")]
+                     for r in (comps or []) for c in r["components"] if c.get("url")]
+            if sel:
+                for o in sel["components"][0]["options"]:
+                    u = NAVER_LINKS.get(o["value"])
+                    if u:
+                        links.append(f"[{o['label']}]({u})")
             fs = payload["embeds"][0].setdefault("fields", [])
             # 필드당 1024자 제한 — 중간에서 자르면 마크다운 링크가 깨지므로 링크
             # 단위로 청크를 나눠 여러 필드로(최대 3개, 이름은 첫 필드만).

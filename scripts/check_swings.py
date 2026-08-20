@@ -117,8 +117,10 @@ def main():
         # v3 버튼 — 급변 지표의 네이버 증권 원클릭(봇 경로). 웹훅 폴백 시엔
         # notify_discord 가 링크 필드로 자동 변환해 도달을 보장한다.
         _sym2key = {"^KS11": "KOSPI", "^GSPC": "SP500", "KRW=X": "USDKRW"}
+        # v4 버튼 다이어트(기획 ed0e5496) — 위급 채널은 버튼 직행 유지하되 1행 3개 상한
+        # (딥링크 1 + 급변 지표 최대 2). 라벨 등락률은 유지(카드 없이 올 수 있는 채널).
         _btns = [("주식시장", "https://0101-commits.github.io/economic-site/?p=equity")]
-        for _, _, nm, sym, _, pct, _ in hits[:4]:
+        for _, _, nm, sym, _, pct, _ in hits[:2]:
             u = notify_discord.NAVER_LINKS.get(_sym2key.get(sym))
             if u:
                 _btns.append((notify_discord.dir_label(f"N {nm}", pct), u))

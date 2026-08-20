@@ -76,7 +76,7 @@ and are **not** idempotent — do not re-run them.
 | `scripts/send_kakao_digest.py` | KakaoTalk digest sender |
 | `scripts/check_alerts.py` | Stock alert evaluator |
 | `scripts/check_swings.py` | Market swing alert (코스피·S&P500 ±2%, 달러-원 ±1% 즉시 속보; cooldown = `alerts_state.json` `_swings` key) |
-| `scripts/notify_discord.py` | Discord webhook parallel channel (secret `DISCORD_WEBHOOK_URL`; digest/alerts/swings 병행 발송, 미설정 시 no-op). 버튼 라벨 방향 이모지 `direction_emoji`/`dir_label` (E2 표준 ±2%) |
+| `scripts/notify_discord.py` | Discord webhook parallel channel (secret `DISCORD_WEBHOOK_URL`; digest/alerts/swings 병행 발송, 미설정 시 no-op). 버튼 라벨 방향 이모지 `direction_emoji`/`dir_label` (E2 표준 ±2%). v4 버튼 다이어트(기획 ed0e5496): 다이제스트 컴포넌트 = 유틸 버튼 1행(3개) + 지표 드롭다운 `select`(값=NAVER_LINKS 키, Worker `/discord` `goto_link` 가 에페메랄 링크 응답) — 구 16버튼 타일 미러 그리드는 폐기, 등락 정보는 카드 이미지 단독 담당 |
 | `cloudflare-worker/worker.js` | CORS proxy + rate limiting + KakaoTalk cron dispatch |
 | `data.json` | Market data artifact — committed by bot, never edit by hand |
 | `data_meta.json` | Lightweight `lastUpdated` mirror of `data.json` |

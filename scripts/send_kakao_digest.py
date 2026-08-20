@@ -1319,11 +1319,11 @@ def _dc_buttons():
             ("🔄 지금 시세", "id:refresh_quotes")]
 
 
-def _dc_button_rows(data, weekly=False):
-    """v3 버튼 그리드(기획 c661d5b0) — 카드 이미지의 타일(보드)·바(주간) 배열을
-    위치·순서 그대로 미러한 네이버 증권 링크 버튼 + 유틸 행. 라벨은 발송 시점
-    등락 스냅샷(「{이모지} {지표}{등락률}」). 네이버 미제공 지표(구리·밀·옥수수)는 대시보드
-    딥링크로 자리를 채워 4열 배열을 유지한다. 총 ≤5행(다이제스트 16+유틸=19/25)."""
+def _dc_select(data, weekly=False):
+    """v4 지표 드롭다운(기획 ed0e5496 — 버튼 다이어트) — 구 버튼 그리드(v3, 16버튼)를
+    String Select 1행으로 압축. 옵션 = 네이버 제공 지표만(값 = NAVER_LINKS 키,
+    Worker /discord goto_link 가 URL 로 해석해 에페메랄 응답). 라벨은 발송 시점
+    등락 스냅샷(「{이모지} {지표}{등락률}」) — 목록 내 훑어보기 힌트."""
     import discord_card
     import notify_discord
     if weekly:
@@ -1334,16 +1334,8 @@ def _dc_button_rows(data, weekly=False):
             n = (data.get(cat) or {}).get(key) or {}
             seq.append((ko, key, _f(n.get("change") if n.get("change") is not None
                                     else n.get("chgPct"))))
-    rows, cur = [], []
-    for ko, key, chg in seq[:16]:
-        url = notify_discord.NAVER_LINKS.get(key) or DASHBOARD_URL
-        cur.append((notify_discord.dir_label(ko, chg), url))
-        if len(cur) == 4:
-            rows.append(cur)
-            cur = []
-    if cur:
-        rows.append(cur)
-    return rows[:4] + [_dc_buttons()]
+    return [(notify_discord.dir_label(ko, chg), key) for ko, key, chg in seq
+            if key in notify_discord.NAVER_LINKS][:25]
 
 
 def _dc_thread_name(now):
@@ -1398,21 +1390,15 @@ def _send_close_report(data):
         png = discord_card.close_report(citems, now, alerts_cnt=cnt, cal=cal)
     except Exception as e:
         print(f"[discord] 마감 카드 예외({e}) — 필드만 발송")
-    # v3 버튼: 바 차트의 지표 순서를 미러한 네이버 링크 1행 + 유틸 행.
-    _keymap = {"코스피": "KOSPI", "코스닥": "KOSDAQ", "S&P500": "SP500",
-               "나스닥": "NASDAQ", "달러-원": "USDKRW"}
-    nav = []
-    for lab, v, c in citems:
-        u = notify_discord.NAVER_LINKS.get(_keymap.get(lab))
-        if u:
-            nav.append((notify_discord.dir_label(lab, c), u))
+    # v4(버튼 다이어트): 유틸 버튼 1행 + 지표 드롭다운 — 등락 정보는 카드 B 가 담당,
+    # 구 지표 미러 버튼 행은 폐기(기획 ed0e5496).
     ok = notify_discord.send(
         "", png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
         url=DASHBOARD_URL + "?p=market", color=color,
         fields=None if png else rows,
         footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
         timestamp=True, thread_name=_dc_thread_name(now),
-        buttons=([nav[:5]] if nav else []) + [_dc_buttons()])
+        buttons=[_dc_buttons()], select=_dc_select(data))
     if ok:
         _mark_sent_ok()
         print(f"[digest] 장 마감 리포트 발송 완료 (필드 {len(rows)}개)")
@@ -1531,16 +1517,17 @@ def main():
             _dc_color = (notify_discord.COLOR_WEEKLY if _weekly_mode
                          else notify_discord.COLOR_FLAT if _kchg is None or abs(_kchg) < 0.05
                          else notify_discord.COLOR_UP if _kchg >= 0 else notify_discord.COLOR_DOWN)
-            # v3: 카드가 있으면 필드 0개(이미지 최대 노출 — 사용자 결정), 카드 실패
-            # 시에만 종전 텍스트 필드로 폴백. 버튼=타일 미러 그리드(웹훅 폴백 시
-            # notify_discord 가 링크 필드로 자동 변환).
+            # v4(버튼 다이어트, 기획 ed0e5496): 카드가 있으면 필드 0개(이미지 최대
+            # 노출), 카드 실패 시에만 종전 텍스트 필드로 폴백. 컴포넌트 = 유틸 버튼
+            # 1행(3개) + 지표 드롭다운 1행 — 등락 정보는 카드가 단독 담당(구 v3
+            # 타일 미러 그리드 16버튼 폐기). 웹훅 폴백 시 링크 필드로 자동 변환.
             notify_discord.send(
                 "", png=_card_png or _dc_png, title=title, url=DASHBOARD_URL,
                 color=_dc_color,
                 fields=None if _card_png else _dc_fields(blocks, data),
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
                 timestamp=True, thread_name=_dc_thread_name(datetime.datetime.now(KST)),
-                buttons=_dc_button_rows(data, weekly=_weekly_mode))
+                buttons=[_dc_buttons()], select=_dc_select(data, weekly=_weekly_mode))
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 
