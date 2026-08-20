@@ -634,7 +634,14 @@ def _send_template_object(access_token, template, uuids=None):
 
 
 def _is_weekend(now=None):
-    """현재 KST 기준 주말(토·일) 여부. weekday(): 월=0 … 토=5, 일=6."""
+    """'주말 패턴' 발송 여부 = 주말(토·일) 또는 공휴일. weekday(): 월=0 … 토=5, 일=6.
+
+    공휴일(대체·임시 포함)은 KR_HOLIDAY=1 로 판정 — kakao-daily.yml 게이트가
+    Nager.Date API 로 하루 한 번 판정해 주입하는 단일 진실원(2026-08-20 사용자 요청:
+    공휴일엔 주말과 동일하게 11·17시 2회, 카카오·디스코드 공통). 스크립트가 직접
+    API 를 부르지 않는 이유: 게이트(발송 창)와 판정이 어긋나면 슬롯·차트가 엇갈린다."""
+    if os.environ.get("KR_HOLIDAY", "").strip() == "1":
+        return True
     return (now or datetime.datetime.now(KST)).weekday() >= 5
 
 
@@ -1451,7 +1458,7 @@ def main():
         except (OSError, ValueError) as e:
             raise SystemExit(f"[kakao] data.json 읽기 실패({path}): {e}")
 
-        weekend = _is_weekend()                      # 주말(토·일)이면 11·17시만, 사진은 달러원·금
+        weekend = _is_weekend()                      # 주말(토·일)·공휴일(KR_HOLIDAY)이면 11·17시만, 사진은 달러원·금
         apply_live_quotes(data)                      # 본문 수치를 발송 시점 시세로 보정(차트와 동일 출처)
 
         # 장 마감 리포트(E5) — 게이트가 KAKAO_SLOT=close 를 주는 15:40 전용 경로.
