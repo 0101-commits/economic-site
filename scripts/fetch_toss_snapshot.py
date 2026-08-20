@@ -13,12 +13,16 @@
 PC 가 꺼져 있으면 스냅샷이 낡을 뿐이고, fetch_data.py 의 신선도 가드가 낡은 값을
 버리고 기존 소스(pykrx/네이버/Yahoo) 로 그대로 흐른다 — 파이프라인은 멈추지 않는다.
 
-무엇을 담는가 (전부 하루 1~2회면 충분한 것들)
-  · indices      코스피·코스닥 (공식 실시간)
-  · yieldCurveKr 국고채 2/3/5/10/20/30Y — ECOS 만기 라벨 밀림을 교정하는 근거
-  · stockMovers  코스피 상승/하락 Top10 (기준가 기반 등락률)
-  · investorDaily 코스피 투자자별 순매수(억원)
-  · usdkrw       토스 고시 환율 (교차검증용)
+무엇을 담는가
+  · indices        코스피·코스닥 (공식 실시간)
+  · yieldCurveKr   국고채 2/3/5/10/20/30Y — ECOS 만기 라벨 밀림을 교정하는 근거
+  · stockMovers    국내주식 상승/하락 Top10 (코스피+코스닥, 기준가 기반 등락률)
+  · etfMovers      ETF 상승/하락 Top10 (같은 랭킹 응답에서 분리 — 추가 호출 0)
+  · rankings       거래대금 상위 + 토스증권 체결 상위(리테일 인기 프록시)
+  · investorDaily  코스피 투자자별 순매수(억원)
+  · stockData      트래킹 종목별 수급 — 투자자 순매수(주)/공매도/신용/대차/프로그램/경보
+  · marketCalendarKr 전일/당일/익영업일 (휴장 판정 정본)
+  · usdkrw         토스 고시 환율 (교차검증용)
 
 사용
   python scripts/fetch_toss_snapshot.py            # 수집 후 파일만 갱신
@@ -86,38 +90,138 @@ def collect():
             snap["yieldCurveKr"] = yc
             log(f"국고채 {[v for v in cur if v is not None]}")
 
-    movers = {}
-    for side, rank_type in (("kospiGainers", "TOP_GAINERS"), ("kospiLosers", "TOP_LOSERS")):
-        rows = toss_api.rankings(rank_type, "KR", "1d", limit=60)
+    # 등락상위 — 한 랭킹 응답에서 주식(코스피+코스닥)과 ETF 를 함께 뽑는다.
+    # 종전엔 market=="KOSPI" and type=="STOCK" 만 남겨 코스닥이 통째로 빠졌고
+    # ("국내 주식" 라벨과 불일치) ETF 행은 버렸다 — 둘 다 여기서 살린다.
+    movers, etf_movers = {}, {}
+    for stock_key, etf_key, rank_type in (
+            ("kospiGainers", "etfGainers", "TOP_GAINERS"),
+            ("kospiLosers", "etfLosers", "TOP_LOSERS")):
+        rows = toss_api.rankings(rank_type, "KR", "1d", limit=100)
+        if not rows:
+            continue
+        meta = toss_api.stocks([r["code"] for r in rows])
+        stocks_out, etf_out = [], []
+        for r in rows:
+            m = meta.get(r["code"]) or {}
+            row = {"name": m.get("name") or r["code"], "code": r["code"],
+                   "price": r["price"], "chg": r["chg"], "vol": r["vol"],
+                   "market": m.get("market"), "as_of": today}
+            if m.get("market") in ("KOSPI", "KOSDAQ") and m.get("type") == "STOCK":
+                if len(stocks_out) < 10:
+                    stocks_out.append(row)
+            elif m.get("type") == "ETF" and len(etf_out) < 10:
+                etf_out.append(row)
+            if len(stocks_out) >= 10 and len(etf_out) >= 10:
+                break
+        if stocks_out:
+            movers[stock_key] = stocks_out
+        if etf_out:
+            etf_movers[etf_key] = etf_out
+    if movers:
+        snap["stockMovers"] = movers
+        log("등락상위 " + ", ".join(f"{k} {len(v)}건" for k, v in movers.items()))
+    if etf_movers:
+        snap["etfMovers"] = etf_movers
+        log("ETF등락 " + ", ".join(f"{k} {len(v)}건" for k, v in etf_movers.items()))
+
+    # 거래대금 상위 + 토스증권 체결 상위(국내 유일한 리테일 브로커 체결 랭킹)
+    rankings = {}
+    for key, rank_type in (("tradingAmount", "MARKET_TRADING_AMOUNT"),
+                           ("tossAmount", "TOSS_SECURITIES_TRADING_AMOUNT")):
+        rows = toss_api.rankings(rank_type, "KR", "1d", limit=20)
         if not rows:
             continue
         meta = toss_api.stocks([r["code"] for r in rows])
         out = []
         for r in rows:
             m = meta.get(r["code"]) or {}
-            if m.get("market") != "KOSPI" or m.get("type") != "STOCK":
-                continue
             out.append({"name": m.get("name") or r["code"], "code": r["code"],
-                        "price": r["price"], "chg": r["chg"], "vol": r["vol"],
-                        "as_of": today})
-            if len(out) >= 10:
-                break
-        if out:
-            movers[side] = out
-    if movers:
-        snap["stockMovers"] = movers
-        log("등락상위 " + ", ".join(f"{k} {len(v)}건" for k, v in movers.items()))
+                        "price": r["price"], "chg": r["chg"], "amount": r["amount"],
+                        "market": m.get("market"), "type": m.get("type"), "as_of": today})
+        rankings[key] = out
+    if rankings:
+        snap["rankings"] = rankings
+        log("랭킹 " + ", ".join(f"{k} {len(v)}건" for k, v in rankings.items()))
 
     inv = toss_api.index_investor_trading("KOSPI", "1d", max_pages=40)
     if inv:
         snap["investorDaily"] = inv
         log(f"투자자 동향 {len(inv)}일 ({inv[0]['date']} ~ {inv[-1]['date']})")
 
+    sd = collect_stock_data()
+    if sd:
+        snap["stockData"] = sd
+        log(f"종목 수급 {len(sd)}종목")
+
+    cal = toss_api.market_calendar_kr()
+    if cal:
+        snap["marketCalendarKr"] = cal
+        log(f"캘린더 today={cal.get('today')}")
+
     fx = toss_api.exchange_rate("USD", "KRW")
     if fx:
         snap["usdkrw"] = fx
         log(f"USDKRW {fx['midRate']}")
     return snap
+
+
+def _tracking_symbols():
+    """alerts_config.json 트래킹 목록의 KR 심볼(공개 파일 — 보유정보 없음)."""
+    try:
+        with open(os.path.join(ROOT, "alerts_config.json"), encoding="utf-8") as f:
+            items = (json.load(f).get("tracking") or {}).get("items") or []
+    except Exception:                                        # noqa: BLE001
+        return []
+    return [t["symbol"] for t in items
+            if t.get("symbol") and (t.get("market") or "KR").upper() == "KR"]
+
+
+def collect_stock_data(days=20):
+    """트래킹 종목별 수급 5종 + 경보 + 마스터(시총 재료).
+
+    수급 엔드포인트는 전부 KR 전용. ETF 는 커버리지가 갈린다(2026-08-20 실측:
+    investor·credit 은 실데이터, lending·program 은 빈 records) — 빈 항목은
+    넣지 않고, 프론트가 없는 항목의 칸을 숨긴다(날조 금지).
+    """
+    syms = _tracking_symbols()
+    if not syms:
+        return {}
+    meta = toss_api.stocks(syms)
+    out = {}
+    for sym in syms:
+        entry = {}
+        m = meta.get(sym) or {}
+        if m.get("name"):
+            entry["name"], entry["market"] = m["name"], m.get("market")
+            entry["secType"] = m.get("type")
+            if m.get("shares"):
+                entry["shares"] = m["shares"]
+        try:
+            inv = toss_api.stock_investor_trading(sym, max_pages=2)[-days:]
+            if inv:
+                entry["investor"] = inv
+            short = toss_api.stock_short_selling(sym)[-days:]
+            if short:
+                entry["short"] = short
+            credit = toss_api.stock_credit_trades(sym)[-days:]
+            if credit:
+                entry["credit"] = credit
+            lend = toss_api.stock_securities_lending(sym)[-days:]
+            if lend:
+                entry["lending"] = lend
+            prog = toss_api.stock_program_trades(sym)[-days:]
+            if prog:
+                entry["program"] = prog
+            warn = toss_api.stock_warnings(sym)
+            if warn is not None:                 # []=경보 없음(유의미), None=조회 실패
+                entry["warnings"] = warn
+        except Exception as e:                                # noqa: BLE001
+            log(f"수급 {sym} 오류: {e}")
+        if any(k in entry for k in ("investor", "short", "credit", "lending",
+                                    "program", "warnings")):
+            out[sym] = entry
+    return out
 
 
 def git_push():
@@ -156,7 +260,8 @@ def git_push():
 # 값이 하나도 안 바뀐다. fetch_data.py 가 **실제로 소비하는 항목**만 해시해서 같으면
 # 파일을 아예 건드리지 않는다(=커밋 없음). usdkrw 는 24시간 미세하게 흔들리는데
 # 소비처가 없어 해시에서 뺀다 — 넣으면 매 실행이 새 커밋이 된다.
-_HASHED_KEYS = ("indices", "yieldCurveKr", "stockMovers", "investorDaily")
+_HASHED_KEYS = ("indices", "yieldCurveKr", "stockMovers", "etfMovers", "rankings",
+                "investorDaily", "stockData", "marketCalendarKr")
 
 
 def _payload_hash(snap):

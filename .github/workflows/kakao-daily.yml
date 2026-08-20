@@ -111,16 +111,30 @@ jobs:
           H=$(TZ=Asia/Seoul date +%-H)
           M=$(TZ=Asia/Seoul date +%-M)
           DOW=$(TZ=Asia/Seoul date +%u)   # 1=월 … 6=토, 7=일
-          # 공휴일(대체·임시 포함) 판정 — Nager.Date 공개 API(키 불필요): 오늘이 KR
-          # 공휴일이면 HTTP 200, 아니면 204. 실패(타임아웃·5xx)는 평일 취급(fail-open —
-          # 종전 동작 유지, 임시공휴일 미등재도 같은 방향의 안전한 열화: 과다 발송일 뿐 유실 없음).
-          # 예외: 제헌절(07-17)은 2008년부터 공휴일이 아닌데 Nager 가 Public 으로 오등재
+          # 공휴일(대체·임시 포함) 판정 — 1순위: 토스 시장 캘린더(PC 스냅샷의
+          # marketCalendarKr, KRX 정본이라 임시공휴일·제헌절 오등재 문제가 없음).
+          # today.date 가 '오늘'과 일치할 때만 신뢰(수집기 PC 가 꺼져 있으면 낡은 날짜).
+          # 2순위(폴백): Nager.Date 공개 API — 오늘이 KR 공휴일이면 HTTP 200, 아니면 204.
+          # 실패(타임아웃·5xx)는 평일 취급(fail-open: 과다 발송일 뿐 유실 없음).
+          # Nager 예외: 제헌절(07-17)은 2008년부터 공휴일이 아닌데 Public 으로 오등재
           # (2026 실측) — 거래일이므로 평일 취급.
           HOL=0
-          if [ "$DOW" -lt 6 ] && [ "$(TZ=Asia/Seoul date +%m-%d)" != "07-17" ]; then
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
-              "https://date.nager.at/api/v3/IsTodayPublicHoliday/KR?offset=9" || echo 000)
-            [ "$code" = "200" ] && HOL=1
+          if [ "$DOW" -lt 6 ]; then
+            TODAY=$(TZ=Asia/Seoul date +%Y-%m-%d)
+            CAL=$(python3 -c "
+          import json,sys
+          try:
+              c=(json.load(open('toss_snapshot.json',encoding='utf-8')).get('marketCalendarKr') or {}).get('today') or {}
+              print('open' if c.get('open') else 'closed') if c.get('date')=='$TODAY' else print('unknown')
+          except Exception:
+              print('unknown')" 2>/dev/null || echo unknown)
+            if [ "$CAL" = "closed" ]; then
+              HOL=1
+            elif [ "$CAL" = "unknown" ] && [ "$(TZ=Asia/Seoul date +%m-%d)" != "07-17" ]; then
+              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
+                "https://date.nager.at/api/v3/IsTodayPublicHoliday/KR?offset=9" || echo 000)
+              [ "$code" = "200" ] && HOL=1
+            fi
           fi
           if [ "$DOW" -ge 6 ] || [ "$HOL" = "1" ]; then
             HOURS="11 17"                                       # 주말(토·일)·공휴일

@@ -36,6 +36,32 @@ INDICATOR_SYMBOLS = ("KOSPI", "KOSDAQ", "KR_BOND_2Y", "KR_BOND_3Y",
 
 _token = {"value": None, "exp": 0.0}
 
+# 토큰은 client 당 **유효 1개**다(공식 스펙) — 재발급하면 이전 토큰이 즉시 무효가 된다.
+# 스케줄러 수집기와 수동 실행이 몇 초 간격으로 겹치면 서로의 토큰을 죽이므로,
+# 발급받은 토큰을 파일로 공유해 프로세스가 달라도 만료 전까지 재사용한다.
+# (파일이 깨져 있으면 그냥 새로 발급 — best effort)
+_TOKEN_CACHE = os.path.join(
+    os.environ.get("TEMP") or os.environ.get("TMPDIR") or ".", "toss_token_cache.json")
+
+
+def _token_cache_read():
+    try:
+        with open(_TOKEN_CACHE, encoding="utf-8") as f:
+            j = json.load(f)
+        if j.get("cid") == CLIENT_ID and time.time() < float(j.get("exp", 0)) - 60:
+            return j.get("value"), float(j["exp"])
+    except Exception:                                        # noqa: BLE001
+        pass
+    return None, 0.0
+
+
+def _token_cache_write(value, exp):
+    try:
+        with open(_TOKEN_CACHE, "w", encoding="utf-8") as f:
+            json.dump({"cid": CLIENT_ID, "value": value, "exp": exp}, f)
+    except Exception:                                        # noqa: BLE001
+        pass
+
 # 토스 API 는 봇 차단 앞단(Cloudflare)을 두고 있다. GitHub Actions 러너에서
 # `Python-urllib/3.x` UA 로 호출하면 403 Forbidden 이 떨어진다(2026-08-14 실측:
 # 로컬 한국 IP 는 통과, GHA 러너는 전부 403). 브라우저형 헤더를 실어 통과율을 올린다.
@@ -84,6 +110,10 @@ def _access_token():
         return None
     if _token["value"] and time.time() < _token["exp"] - 60:
         return _token["value"]
+    cached, exp = _token_cache_read()
+    if cached:
+        _token["value"], _token["exp"] = cached, exp
+        return cached
     body = urllib.parse.urlencode({
         "grant_type": "client_credentials",
         "client_id": CLIENT_ID,
@@ -112,6 +142,7 @@ def _access_token():
         return None
     _token["value"] = tok
     _token["exp"] = time.time() + float(j.get("expires_in") or 3600)
+    _token_cache_write(tok, _token["exp"])
     return tok
 
 
@@ -151,6 +182,17 @@ def get(path, params=None, retries=2):
             # 429 는 Retry-After 만큼 쉬고 재시도, 그 외 4xx 는 재시도 무의미
             if e.code == 429 and attempt < retries:
                 time.sleep(float(e.headers.get("Retry-After") or 1))
+                continue
+            # 401 = 캐시해 둔 토큰이 다른 프로세스의 재발급으로 무효화됨 → 1회 재발급
+            if e.code == 401 and attempt < retries:
+                _token["value"], _token["exp"] = None, 0.0
+                try:
+                    os.remove(_TOKEN_CACHE)
+                except OSError:
+                    pass
+                tok = _access_token()
+                if not tok or tok == "relay":
+                    return None
                 continue
             log(f"{e.code} {path} {params or ''} — {body}")
             return None
@@ -426,6 +468,99 @@ def stock_short_selling(symbol, max_pages=1):
     return rows
 
 
+# ── 종목별 수급 (KR 전용 — US 심볼은 400 unsupported-market) ─────────────────
+def _int(v):
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
+def _paged_records(path, max_pages=1):
+    rows, until = [], None
+    for _ in range(max_pages):
+        res = get(path, {"until": until} if until else None)
+        recs = (res or {}).get("records") or []
+        if not recs:
+            break
+        rows.extend(recs)
+        until = (res or {}).get("nextUntil")
+        if not until:
+            break
+    return rows
+
+
+def stock_investor_trading(symbol, max_pages=2):
+    """종목별 투자자 순매수 — **주수 단위**(대금 필드 없음, 2026-08-20 실측).
+
+    → [{'date','foreign','inst','retail','fholdRate'}] 과거 → 최신.
+      fholdRate = 외국인 보유율(0~1), 그날 레코드에 있을 때만.
+    """
+    out = []
+    for r in _paged_records(f"/api/v1/stocks/{symbol}/investor-trading", max_pages):
+        d = r.get("date")
+        if not d:
+            continue
+        row = {"date": d,
+               "foreign": _int((r.get("foreigner") or {}).get("netBuyVolume")),
+               "inst": _int((r.get("institution") or {}).get("netBuyVolume")),
+               "retail": _int((r.get("individual") or {}).get("netBuyVolume"))}
+        hold = _f((r.get("foreignerHolding") or {}).get("holdingRate"))
+        if hold is not None:
+            row["fholdRate"] = hold
+        if any(row.get(k) is not None for k in ("foreign", "inst", "retail")):
+            out.append(row)
+    out.sort(key=lambda x: x["date"])
+    return out
+
+
+def stock_credit_trades(symbol, max_pages=1):
+    """신용융자·대주 잔고(T+1) → [{'date','marginBal','marginRate','stockLoanBal'}]."""
+    out = []
+    for r in _paged_records(f"/api/v1/stocks/{symbol}/credit-trades", max_pages):
+        d, ml = r.get("date"), (r.get("marginLoan") or {})
+        if not d or ml.get("balanceQuantity") is None:
+            continue
+        out.append({"date": d, "marginBal": _int(ml.get("balanceQuantity")),
+                    "marginRate": _f(ml.get("balanceRate")),
+                    "stockLoanBal": _int((r.get("stockLoan") or {}).get("balanceQuantity"))})
+    out.sort(key=lambda x: x["date"])
+    return out
+
+
+def stock_securities_lending(symbol, max_pages=1):
+    """대차거래 잔고 → [{'date','bal','amount'}]."""
+    out = []
+    for r in _paged_records(f"/api/v1/stocks/{symbol}/securities-lending", max_pages):
+        d = r.get("date")
+        if not d or r.get("balanceQuantity") is None:
+            continue
+        out.append({"date": d, "bal": _int(r.get("balanceQuantity")),
+                    "amount": _f(r.get("balanceAmount"))})
+    out.sort(key=lambda x: x["date"])
+    return out
+
+
+def stock_program_trades(symbol, max_pages=1):
+    """프로그램매매(차익/비차익 순매수 주수) → [{'date','arb','nonArb'}]."""
+    out = []
+    for r in _paged_records(f"/api/v1/stocks/{symbol}/program-trades", max_pages):
+        d = r.get("date")
+        arb = _int((r.get("arbitrage") or {}).get("netBuyVolume"))
+        non = _int((r.get("nonArbitrage") or {}).get("netBuyVolume"))
+        if not d or (arb is None and non is None):
+            continue
+        out.append({"date": d, "arb": arb, "nonArb": non})
+    out.sort(key=lambda x: x["date"])
+    return out
+
+
+def stock_warnings(symbol):
+    """투자경고/단기과열/정리매매/VI 등 지정 목록. 없으면 [] (None 은 조회 실패)."""
+    res = get(f"/api/v1/stocks/{symbol}/warnings")
+    return res if isinstance(res, list) else None
+
+
 # ── 환율 ────────────────────────────────────────────────────────────────────
 def exchange_rate(base="USD", quote="KRW"):
     """토스 고시 환율 → {'rate':…, 'midRate':…, 'asOf':…} / 실패 시 None."""
@@ -444,6 +579,21 @@ def market_open_kr():
     res = get("/api/v1/market-calendar/KR")
     today = ((res or {}).get("today") or {})
     return bool((today.get("integrated") or {}).get("regularMarket"))
+
+
+def market_calendar_kr():
+    """KR 캘린더(전일/당일/익영업일) 축약 → {'today':{'date','open'}, 'previousBusinessDay':…,
+    'nextBusinessDay':…} / 실패 시 None. open = 정규장 시간대 존재 여부."""
+    res = get("/api/v1/market-calendar/KR")
+    if not res:
+        return None
+    out = {}
+    for key in ("today", "previousBusinessDay", "nextBusinessDay"):
+        node = res.get(key) or {}
+        if node.get("date"):
+            out[key] = {"date": node["date"],
+                        "open": bool((node.get("integrated") or {}).get("regularMarket"))}
+    return out or None
 
 
 if __name__ == "__main__":                       # 자체 점검: python scripts/toss_api.py

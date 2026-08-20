@@ -1484,6 +1484,31 @@ def _send_close_report(data):
         rows.append(("오늘 발동 알림", f"{cnt}건", True))
     except Exception:
         pass                                          # 이력 파일 없으면 필드 생략
+    # 트래킹 종목 외국인 수급 한 줄 (data.stockFlows — 토스 PC 스냅샷, 단위 주수).
+    # 당일 레코드가 있는 종목만 집계 — 스냅샷이 낡았으면 필드 자체를 생략(날조 금지).
+    try:
+        _items = ((data.get("stockFlows") or {}).get("items") or {})
+        _tday = now.strftime("%Y-%m-%d")
+        _fl = []
+        for _sym, _e in _items.items():
+            _inv = _e.get("investor") or []
+            if _inv and _inv[-1].get("date") == _tday and _inv[-1].get("foreign") is not None:
+                _fl.append(((_e.get("name") or _sym), _inv[-1]["foreign"]))
+        if _fl:
+            _fl.sort(key=lambda x: x[1])
+
+            def _shfmt(v):
+                a = abs(v)
+                return (f"{a / 1e4:,.1f}만주" if a >= 1e4 else f"{a:,.0f}주")
+            _parts = []
+            if _fl[-1][1] > 0:
+                _parts.append(f"매수 {_fl[-1][0]} +{_shfmt(_fl[-1][1])}")
+            if _fl[0][1] < 0:
+                _parts.append(f"매도 {_fl[0][0]} −{_shfmt(_fl[0][1])}")
+            if _parts:
+                rows.append(("외국인 수급(관심종목)", " · ".join(_parts), False))
+    except Exception:
+        pass
     cal = _dc_cal_line(data, now + datetime.timedelta(days=1))
     if cal:
         rows.append(("📅 내일", cal, True))

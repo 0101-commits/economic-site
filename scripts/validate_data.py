@@ -147,6 +147,29 @@ def main():
                     warns.append(f"marketHalts.active 형식 오류: {h!r}")
                     break
 
+    # 토스 종목 수급(stockFlows)·랭킹(rankingsKr) — 있으면 형태 점검(비차단 경고).
+    # PC 수집기가 꺼져 있으면 필드 자체가 없는 게 정상이라 부재는 경고하지 않는다.
+    sf = d.get("stockFlows")
+    if sf is not None:
+        items = sf.get("items") if isinstance(sf, dict) else None
+        if not isinstance(items, dict) or not items:
+            warns.append("stockFlows: items dict 아님/비어 있음")
+        else:
+            for sym, e in list(items.items())[:3]:
+                for key in ("investor", "short", "credit", "lending", "program"):
+                    rows = e.get(key)
+                    if rows is not None and (not isinstance(rows, list) or
+                                             any(not r.get("date") for r in rows)):
+                        warns.append(f"stockFlows.{sym}.{key}: date 없는 레코드")
+                        break
+    rk = d.get("rankingsKr")
+    if rk is not None and isinstance(rk, dict):
+        for key in ("tradingAmount", "tossAmount"):
+            rows = rk.get(key)
+            if rows is not None and (not isinstance(rows, list) or
+                                     any(not (r.get("code") and r.get("price")) for r in rows)):
+                warns.append(f"rankingsKr.{key}: code/price 누락 행")
+
     # ── 신선도 계약(dataHealth) 게이트 ────────────────────────────────────
     # 왜: 위의 WARN 은 Actions 로그에만 남아 아무도 읽지 않았고, 그 사이 일본 CPI 가
     # 2021-06, 영국 GDP 가 2020-07 에서 멈춘 채로 몇 년을 통과했다. tier=critical 만

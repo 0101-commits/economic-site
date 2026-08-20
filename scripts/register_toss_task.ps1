@@ -4,7 +4,9 @@
 #
 # 이 PC 는 24시간 켜져 있지 않다. 정시 트리거만으로는 구멍이 생기므로 네 겹으로 덮는다:
 #   · 로그온 +3분   — 켤 때마다 한 번. 지연은 네트워크가 올라올 시간을 준다.
-#   · 평일 09~20시 매시간 — 켜져 있는 동안 장중 시세를 따라간다.
+#   · 평일 09~20시 15분 간격 — 켜져 있는 동안 장중 시세를 따라간다
+#     (2026-08-20 토스 전면 적용 기획 옵션 A: 매시간 → 15분. 커밋은 payloadHash
+#      가드가 무변동을 걸러 주고, 토스 rate limit 은 회당 ~70콜이라 여유가 크다).
 #   · 평일 15:45    — 장 마감 직후 확정 등락 상위·종가.
 #   · StartWhenAvailable — 꺼져 있어 놓친 실행을 켜질 때 따라잡는다(핵심).
 # 배터리에서도 돌고, 실패하면 10분 뒤 3회까지 재시도한다(부팅 직후 네트워크 지연 대비).
@@ -37,7 +39,7 @@ $xml = @"
       <StartBoundary>2026-01-05T09:00:00</StartBoundary>
       <Enabled>true</Enabled>
       <Repetition>
-        <Interval>PT1H</Interval>
+        <Interval>PT15M</Interval>
         <Duration>PT11H</Duration>
         <StopAtDurationEnd>false</StopAtDurationEnd>
       </Repetition>

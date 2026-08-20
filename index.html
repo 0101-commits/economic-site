@@ -2862,6 +2862,24 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </table>
         </div>
       </div>
+
+      <!-- 거래대금·토스 체결 랭킹 (토스증권 Open API — PC 스냅샷, 당일분만) -->
+      <div id="equityRankingsWrap" style="display:none;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;" class="pf-stock-2col">
+        <div class="widget">
+          <div class="widget-title" style="margin-bottom:0;">거래대금 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">시장 전체 · 종목 클릭 → 종목 분석</span></div>
+          <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:var(--font-size-sm);font-family:var(--font-num);margin-top:8px;">
+            <thead><tr style="color:var(--c-txt-muted);font-size:var(--font-size-xs);"><th style="text-align:left;padding:4px 5px;">#</th><th style="text-align:left;padding:4px 5px;">종목</th><th style="text-align:right;padding:4px 5px;">등락</th><th style="text-align:right;padding:4px 5px;">거래대금</th></tr></thead>
+            <tbody id="equityRankAmountTable"></tbody>
+          </table></div>
+        </div>
+        <div class="widget">
+          <div class="widget-title" style="margin-bottom:0;">토스증권 체결 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">리테일 인기 프록시 · 토스 앱 체결대금 기준</span></div>
+          <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:var(--font-size-sm);font-family:var(--font-num);margin-top:8px;">
+            <thead><tr style="color:var(--c-txt-muted);font-size:var(--font-size-xs);"><th style="text-align:left;padding:4px 5px;">#</th><th style="text-align:left;padding:4px 5px;">종목</th><th style="text-align:right;padding:4px 5px;">등락</th><th style="text-align:right;padding:4px 5px;">체결대금</th></tr></thead>
+            <tbody id="equityRankTossTable"></tbody>
+          </table></div>
+        </div>
+      </div>
       </div>
 
       <!-- 원자재 탭 -->

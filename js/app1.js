@@ -4637,7 +4637,16 @@ function buildYieldCurveChart(bondCC) {
   // 수익률 곡선 위젯 제목 업데이트 (yieldCurveChart 가 속한 widget 의 widget-title)
   const wrapper = c1.closest('.widget');
   const wTitleEl = wrapper ? wrapper.querySelector('.widget-title') : null;
-  if(wTitleEl) wTitleEl.textContent = yc.label;
+  if(wTitleEl) {
+    wTitleEl.textContent = yc.label;
+    // 국고채 3년물은 10칸 만기축(1M~30Y)에 자리가 없어 차트 대신 제목 옆에 노출
+    // (data.yieldCurve.kr.extra — 토스증권 공식 값. 축 확장은 구/신 data.json 교차 시
+    //  하드코딩 인덱스(IDX_10Y=7 등)가 어긋나는 정합성 사고라 하지 않는다.)
+    if(cc === 'kr') {
+      const ex3 = ((((window._lastRealDataObj || {}).yieldCurve || {}).kr || {}).extra || {})['3Y'];
+      if(ex3 != null) wTitleEl.innerHTML += ` <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">· 3년 ${(+ex3).toFixed(3)}% (축 외 만기)</span>`;
+    }
+  }
   // 비교 시점 선택 적용 — 1m/3m/6m/1y
   const cmpKey   = _yieldCurveCompareKeys[yieldCurveCompareWindow]   || 'prev_month';
   const cmpLabel = _yieldCurveCompareLabels[yieldCurveCompareWindow] || '1개월전';
@@ -5155,6 +5164,43 @@ function buildEquityPage() {
       ? downMoversETF.map((s,i)=>etfLinkRow(s,i,window.CDN)).join('')
       : noDataETF;
   }
+  buildEquityRankings();
+}
+
+// 거래대금·토스 체결 랭킹 (data.rankingsKr — 토스 PC 스냅샷, fetch_data 가 당일분만 실음).
+// 데이터 없으면 섹션 자체를 숨긴다(수집기 PC 미가동 시 낡은 순위를 보여주지 않음).
+function buildEquityRankings() {
+  const wrap = document.getElementById('equityRankingsWrap');
+  if(!wrap) return;
+  const rk = (window._lastRealDataObj || {}).rankingsKr
+          || (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators ? _latestDataForIndicators.rankingsKr : null);
+  const amtTb = document.getElementById('equityRankAmountTable');
+  const tossTb = document.getElementById('equityRankTossTable');
+  if(!rk || (!rk.tradingAmount?.length && !rk.tossAmount?.length)) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'grid';
+  const fmtAmt = v => v == null ? '—' : (v >= 1e12 ? (v/1e12).toFixed(1)+'조' : Math.round(v/1e8).toLocaleString()+'억');
+  const row = (s, i) => `<tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="equityOpenStockAnalysis('${s.code}','${String(s.name||'').replace(/['"<>\\\\]/g,'')}')" title="종목 분석으로 이동">
+      <td style="padding:4px 5px;color:var(--c-txt-muted);">${i+1}</td>
+      <td style="padding:4px 5px;font-weight:var(--font-weight-medium);">${s.name}${s.type && s.type !== 'STOCK' ? ` <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">${s.type}</span>` : ''}</td>
+      <td style="text-align:right;padding:4px 5px;color:${(s.chg||0) >= 0 ? window.CUP : window.CDN};">${(s.chg||0) >= 0 ? '+' : ''}${(s.chg||0).toFixed(2)}%</td>
+      <td style="text-align:right;padding:4px 5px;color:var(--c-txt-dim);">${fmtAmt(s.amount)}</td>
+    </tr>`;
+  if(amtTb) amtTb.innerHTML = (rk.tradingAmount || []).map(row).join('') || '<tr><td colspan="4" style="padding:10px;text-align:center;color:var(--c-txt-muted);">—</td></tr>';
+  if(tossTb) tossTb.innerHTML = (rk.tossAmount || []).map(row).join('') || '<tr><td colspan="4" style="padding:10px;text-align:center;color:var(--c-txt-muted);">—</td></tr>';
+}
+
+// 랭킹/등락상위 행 → 투자현황 종목 분석 탭 딥링크. 포트폴리오 페이지가 아직 안 만들어졌거나
+// PIN 잠금 해제 대기 중일 수 있어 탭 요소가 생길 때까지 재시도한다(최대 ~6초).
+function equityOpenStockAnalysis(code, name) {
+  try { showPage('portfolio'); } catch(_) { return; }
+  let tries = 0;
+  (function go() {
+    if(typeof pfStockOpen === 'function' && document.getElementById('pfTab-stock')) {
+      try { pfStockOpen({ symbol: code, market: 'KR', name: name || code }); } catch(_) {}
+      return;
+    }
+    if(++tries < 40) setTimeout(go, 150);
+  })();
 }
 // LME 금속 창고 재고 (단위: 톤) — 출처: lme.com 일일 재고 보고서
 // 실데이터 연동: 향후 data.json.lmeInventory 에 자동 갱신 (현재는 LME 공식 보고서 기반 최신 스냅샷)

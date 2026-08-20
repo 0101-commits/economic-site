@@ -855,16 +855,21 @@ async function pfStockOpen(spec, keep) {
     '<div><span style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);">' + pfEsc(name) + '</span> <span style="color:var(--c-txt-muted);font-size:var(--font-size-xs);font-family:var(--font-num);">' + pfEsc(spec.symbol) + ' · ' + (spec.market === 'KR' ? '국내' : '미국') + '</span>' +
     (held && held.qty ? ' <span style="font-size:var(--font-size-xs);background:var(--c-surface);border-radius:20px;padding:2px 10px;color:var(--c-txt-dim);">보유 ' + held.qty + (spec.market === 'KR' ? '주' : ' sh') + '</span>' : '') + '</div>' +
     '<div style="font-family:var(--font-num);font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);">' + (q ? pfFmtPrice(q.price, q.ccy) : '-') + ' ' + (q ? pfChgHtml(q.pct) : '') + '</div></div>' +
+    '<div id="pfStockWarnBadges"></div>' +
     (sigHtml ? '<div style="margin-top:8px;">' + sigHtml + '</div>' : '') +
     '<div id="pfStockLwWrap" style="height:300px;margin-top:10px;"></div>' +
     '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:6px;">' +
     '<span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">일봉 1년 · 신호등은 지표 상태 요약이며 매수/매도 판단이 아닙니다</span>' +
     (held ? '<button onclick="pfOpenChart(\'' + held.id + '\')" style="font-size:var(--font-size-xs);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">🔍 상세 차트(MA·RSI·MACD) →</button>' : '') + '</div>' +
     '</div>' +
+    '<div id="pfStockFlows"></div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="pf-stock-2col">' +
     _pfCard('펀더멘털', '<div id="pfStockFunda" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">불러오는 중…</div>') +
     _pfCard('메르 블로그 언급', '<div id="pfStockMer" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">검색 중…</div>') +
     '</div>';
+
+  /* 수급 패널 + 경보 배지 + 시가총액 (토스 PC 스냅샷 — 트래킹 종목만 커버) */
+  try { _pfFlowsRender(spec, q); } catch (_) {}
 
   /* LWC 인라인 차트 */
   var wrap = document.getElementById('pfStockLwWrap');
@@ -922,5 +927,87 @@ async function pfStockOpen(spec, keep) {
           return '<li style="padding:5px 0;border-bottom:1px dashed var(--c-border);"><a href="' + pfEsc(p.url) + '" target="_blank" rel="noopener" style="color:var(--c-primary);text-decoration:none;">' + pfEsc(p.title) + '</a> <span style="color:var(--c-txt-muted);font-size:var(--font-size-xs);">' + (p.date || '').slice(5, 10) + '</span></li>';
         }).join('') + '</ul><div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;">최근 150건 로컬 검색 · <a href="?p=merblog" style="color:var(--c-primary);">전체기간 검색 →</a></div>'
       : '최근 150건에서 언급 없음 · <a href="?p=merblog" style="color:var(--c-primary);">전체기간 검색 →</a>';
+  });
+}
+
+/* ── 종목 수급 패널 (data.stockFlows — 토스 PC 스냅샷, 트래킹 종목만) ──
+   단위 주의: 토스 종목별 수급은 전부 **주수**(거래대금 아님). 없는 항목은 칸을
+   숨긴다(ETF 는 대차·프로그램이 비어 오는 게 정상 — 날조 금지). */
+var _pfFlowsChart = null;
+function _pfMcapFmt(v) {
+  if (!v || !isFinite(v)) return null;
+  return v >= 1e12 ? (v / 1e12).toFixed(1) + '조' : Math.round(v / 1e8).toLocaleString() + '억';
+}
+function _pfShFmt(v) {
+  if (v == null || !isFinite(v)) return '-';
+  var a = Math.abs(v), s = v < 0 ? '-' : '+';
+  if (a >= 1e8) return s + (a / 1e8).toFixed(1) + '억주';
+  if (a >= 1e4) return s + (a / 1e4).toFixed(1) + '만주';
+  return s + Math.round(a).toLocaleString() + '주';
+}
+function _pfFlowsRender(spec, q) {
+  var box = document.getElementById('pfStockFlows'); if (!box) return;
+  var sf = (_pfData() || {}).stockFlows || {};
+  var e = spec.market === 'KR' ? (sf.items || {})[spec.symbol] : null;
+  var badges = document.getElementById('pfStockWarnBadges');
+
+  /* 헤더 보강: 시가총액 + 외국인 보유율 + 경보 배지 */
+  if (e && badges) {
+    var chips = [];
+    var mcap = (q && q.price && e.shares) ? _pfMcapFmt(q.price * e.shares) : null;
+    if (mcap) chips.push('<span style="font-size:var(--font-size-xs);background:var(--c-surface);border-radius:20px;padding:2px 10px;color:var(--c-txt-dim);">시가총액 ' + mcap + ' <span style="color:var(--c-txt-muted);">(상장주식수×현재가)</span></span>');
+    var inv = e.investor || [];
+    var hold = null;
+    for (var i = inv.length - 1; i >= 0; i--) { if (inv[i].fholdRate != null) { hold = inv[i]; break; } }
+    if (hold) chips.push('<span style="font-size:var(--font-size-xs);background:var(--c-surface);border-radius:20px;padding:2px 10px;color:var(--c-txt-dim);">외국인 보유율 ' + (hold.fholdRate * 100).toFixed(2) + '%</span>');
+    (e.warnings || []).forEach(function (w) {
+      var t = (w && (w.name || w.type || w.title)) || (typeof w === 'string' ? w : '');
+      if (t) chips.push('<span style="font-size:var(--font-size-xs);background:var(--warn-bg,rgba(200,133,0,.15));border-radius:20px;padding:2px 10px;color:var(--color-warning,#c98500);font-weight:var(--font-weight-semibold);">⚠ ' + pfEsc(String(t)) + '</span>');
+    });
+    if (chips.length) badges.innerHTML = '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">' + chips.join('') + '</div>';
+  }
+
+  if (!e || !(e.investor || []).length) { box.innerHTML = ''; return; }
+  var gen = ((sf.generatedAt || '').slice(5, 16)).replace('T', ' ');
+
+  /* 보조 통계 칩: 공매도 비중 · 신용잔고율 · 대차잔고 (있는 것만) */
+  var stat = [];
+  var sh = (e.short || [])[ (e.short || []).length - 1 ];
+  if (sh && sh.volumeRate != null) stat.push('공매도 비중 <b>' + (sh.volumeRate * 100).toFixed(2) + '%</b> <span style="color:var(--c-txt-muted);">(' + (sh.date || '').slice(5) + ')</span>');
+  var cr = (e.credit || [])[ (e.credit || []).length - 1 ];
+  if (cr && cr.marginRate != null && cr.marginBal > 0) stat.push('신용융자 잔고율 <b>' + (cr.marginRate * 100).toFixed(2) + '%</b> <span style="color:var(--c-txt-muted);">(' + (cr.date || '').slice(5) + ')</span>');
+  var ld = (e.lending || [])[ (e.lending || []).length - 1 ];
+  if (ld && ld.bal != null) stat.push('대차잔고 <b>' + _pfShFmt(ld.bal).replace('+', '') + '</b> <span style="color:var(--c-txt-muted);">(' + (ld.date || '').slice(5) + ')</span>');
+  var pg = (e.program || [])[ (e.program || []).length - 1 ];
+  if (pg && (pg.arb != null || pg.nonArb != null)) stat.push('프로그램 순매수 <b>' + _pfShFmt((pg.arb || 0) + (pg.nonArb || 0)) + '</b> <span style="color:var(--c-txt-muted);">(' + (pg.date || '').slice(5) + ')</span>');
+
+  box.innerHTML =
+    '<div class="widget" style="margin-bottom:12px;">' +
+    '<div class="widget-title">수급 — 투자자별 순매수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 주 · 토스증권 Open API · 수집 ' + pfEsc(gen) + '</span></div>' +
+    '<div style="height:190px;"><canvas id="pfFlowsCanvas"></canvas></div>' +
+    (stat.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:var(--font-size-xs);color:var(--c-txt);font-family:var(--font-num);">' + stat.map(function (s) { return '<span>' + s + '</span>'; }).join('') + '</div>' : '') +
+    '</div>';
+
+  if (typeof Chart === 'undefined') return;
+  if (_pfFlowsChart) { try { _pfFlowsChart.destroy(); } catch (_) {} _pfFlowsChart = null; }
+  var cv = document.getElementById('pfFlowsCanvas'); if (!cv) return;
+  var rows = (e.investor || []).slice(-20);
+  var tc = (typeof getThemeColors === 'function') ? getThemeColors() : {};
+  var series = tc.series || [];
+  var mkBar = function (label, key, color) {
+    return { label: label, data: rows.map(function (r) { return r[key]; }),
+             backgroundColor: color, borderWidth: 0, maxBarThickness: 10 };
+  };
+  _pfFlowsChart = new Chart(cv.getContext('2d'), {
+    type: 'bar',
+    data: { labels: rows.map(function (r) { return (r.date || '').slice(5); }),
+            datasets: [mkBar('외국인', 'foreign', series[0] || '#4d78cc'),
+                       mkBar('기관', 'inst', series[1] || '#9a6dd7'),
+                       mkBar('개인', 'retail', series[2] || '#5aa26e')] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                 tooltip: { callbacks: { label: function (c) { return c.dataset.label + ' ' + _pfShFmt(c.raw); } } } },
+      scales: { x: { grid: { display: false }, ticks: { font: { size: 9 }, maxTicksLimit: 10 } },
+                y: { ticks: { font: { size: 9 }, callback: function (v) { return _pfShFmt(v); } } } } }
   });
 }

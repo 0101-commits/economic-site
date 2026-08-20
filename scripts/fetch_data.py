@@ -2011,11 +2011,12 @@ def fetch_toss_kr_indices():
 
 
 def fetch_toss_stock_movers(top_n=10):
-    """코스피 상승/하락 Top N (토스 등락률 순위 + 종목 마스터 조인).
+    """국내주식 상승/하락 Top N (토스 등락률 순위 + 종목 마스터 조인).
 
     토스 rankings 는 marketCountry=KR 단위라 코스피·코스닥이 섞여 온다.
-    /stocks 로 name·market 을 붙인 뒤 KOSPI 보통주만 골라 기존 스키마
-    ({name, code, price, chg, vol, as_of})로 돌려준다.
+    /stocks 로 name·market 을 붙인 뒤 보통주(KOSPI+KOSDAQ)만 골라 기존 스키마
+    ({name, code, price, chg, vol, market, as_of})로 돌려준다.
+    (종전엔 KOSPI 만 남겨 코스닥이 통째로 빠졌다 — "국내 주식" 라벨과 불일치.)
     """
     if not toss_api.enabled():
         return None, None
@@ -2033,11 +2034,11 @@ def fetch_toss_stock_movers(top_n=10):
         out = []
         for r in rows:
             m = meta.get(r["code"]) or {}
-            if m.get("market") != "KOSPI" or m.get("type") != "STOCK":
+            if m.get("market") not in ("KOSPI", "KOSDAQ") or m.get("type") != "STOCK":
                 continue
             out.append({"name": m.get("name") or r["code"], "code": r["code"],
                         "price": r["price"], "chg": r["chg"],
-                        "vol": r["vol"], "as_of": today})
+                        "vol": r["vol"], "market": m.get("market"), "as_of": today})
             if len(out) >= top_n:
                 break
         return out or None
@@ -5298,8 +5299,13 @@ def _kis_parse_mover_row(r):
     }
 
 
-def _is_valid_mover_list(items, min_nonzero=3):
+def _is_valid_mover_list(items, min_nonzero=3, allow_extreme=False):
     """등락 데이터 검증.
+
+    allow_extreme: 토스 공식 랭킹처럼 chg 가 API 의 changeRate 필드에서 온 경우 True.
+    상하한가 과반 규칙은 'KRX 컬럼 어긋남 garbage' 탐지용인데, 코스닥을 포함한 진짜
+    상승 Top10 은 상한가가 과반인 날이 실제로 있다(2026-08-20 실측: 6/10) — 공식
+    소스에는 이 규칙을 적용하지 않는다(vol≈price 정렬 검사는 그대로 적용).
 
     - 최소 min_nonzero 개 종목이 chg!=0 이어야 유효 (랭킹 미동작/올-0 garbage 차단).
     - 거래량(vol)이 현재가(price)와 사실상 동일한 행이 과반이면 컬럼 정렬 오류로 보고
@@ -5336,7 +5342,7 @@ def _is_valid_mover_list(items, min_nonzero=3):
     if misaligned >= max(2, len(items) // 2):
         log(f"[검증] vol≈price 정렬 오류 의심 {misaligned}/{len(items)}건 — 무효 처리(pykrx 폴백 트리거)")
         return False
-    if extreme > len(items) // 2:
+    if extreme > len(items) // 2 and not allow_extreme:
         log(f"[검증] |chg|≥29.5%(상하한가 패턴) {extreme}/{len(items)}건 과반 — 무효 처리(pykrx 폴백 트리거)")
         return False
     return True
@@ -5942,6 +5948,20 @@ def build_data():
         data["fx"] = {k: dict(v) for k, v in FALLBACK["fx"].items()}
     log(f"[FX] USDKRW={data['fx'].get('USDKRW')}")
 
+    # 토스 고시환율 교차검증 — 수집기가 매시간 받아두는데 소비처가 없었다(2026-08-20 감사 A2).
+    # 값을 덮지는 않는다(소스 우선순위 유지); 0.5% 이상 벌어지면 진단에 남겨 이상을 드러낸다.
+    try:
+        _tfx = ((_toss_snapshot(max_age_hours=6) or {}).get("usdkrw") or {}).get("midRate")
+        _cur_fx = (data["fx"].get("USDKRW") or {}).get("rate")
+        if _tfx and _cur_fx:
+            _diff = round((_cur_fx / _tfx - 1) * 100, 2)
+            data.setdefault("diagnostics", {})["fxTossCross"] = {
+                "toss": _tfx, "site": _cur_fx, "diffPct": _diff}
+            if abs(_diff) >= 0.5:
+                log(f"[FX] ⚠ 토스 고시환율과 {_diff:+.2f}% 괴리 (토스 {_tfx} vs 채택 {_cur_fx})")
+    except Exception as e:
+        log(f"[FX] 토스 교차검증 오류(무시): {e}")
+
     # ── 한국 지수·등락상위 (토스증권 Open API — 최우선) ────────
     # 아래 KRX/pykrx/네이버 체인보다 먼저 채운다. 각 블록은 '이미 값이 있으면 건너뜀'
     # 구조라, 토스가 성공하면 자동으로 하위 소스가 생략되고 실패하면 종전대로 흐른다.
@@ -5965,14 +5985,40 @@ def build_data():
         _tl = _sm.get("kospiLosers") if _fresh(_sm.get("kospiLosers")) else None
         if _tg or _tl:
             log("[TOSS] 등락상위 — PC 스냅샷 사용(당일분)")
-    if _is_valid_mover_list(_tg):
+    if _is_valid_mover_list(_tg, allow_extreme=True):
         data["stockMovers"]["kospiGainers"] = _tg
         data["sources"]["stockMovers"] = "토스증권 Open API"
-    if _is_valid_mover_list(_tl):
+    if _is_valid_mover_list(_tl, allow_extreme=True):
         data["stockMovers"]["kospiLosers"] = _tl
         data["sources"].setdefault("stockMovers", "토스증권 Open API")
     if not toss_api.enabled():
         log("[TOSS] TOSS_CLIENT_ID/SECRET 미설정 — 기존 소스 체인 사용")
+
+    # 지수 스냅샷 폴백 — movers·국고채·투자자와 달리 지수만 이 폴백이 빠져 있었다
+    # (수집기가 매시간 받아둔 토스 공식 값이 소비처 없이 버려짐, 2026-08-20 감사 A1).
+    # 등락률(change)의 기준가는 당일이라야 맞으므로 asOf==오늘 + 12시간 이내만 채택.
+    if "KOSPI" not in data["indices"] or "KOSDAQ" not in data["indices"]:
+        _snap_idx = (_toss_snapshot(max_age_hours=12) or {}).get("indices") or {}
+        _today = datetime.now(KST).strftime("%Y-%m-%d")
+        for _name in ("KOSPI", "KOSDAQ"):
+            _e = _snap_idx.get(_name)
+            if _name not in data["indices"] and _e and _e.get("asOf") == _today \
+                    and _e.get("price"):
+                data["indices"][_name] = {"price": _e["price"], "change": _e.get("change", 0.0)}
+                data["sources"].setdefault("indices_kr", "토스증권 Open API (PC 스냅샷)")
+                log(f"[TOSS] {_name} — PC 스냅샷 사용({_e['price']}, {_e.get('change', 0):+.2f}%)")
+
+    # ETF 등락상위 — 토스 랭킹에서 분리 수집한 스냅샷(당일분만). 실패 시 아래
+    # KRX/pykrx/네이버 체인이 종전대로 채운다.
+    _snap_etf = (_toss_snapshot() or {}).get("etfMovers") or {}
+    _today_etf = datetime.now(KST).strftime("%Y-%m-%d")
+    _fresh_etf = lambda rows: rows and all(r.get("as_of") == _today_etf for r in rows)
+    if _fresh_etf(_snap_etf.get("etfGainers")):
+        data["etfMovers"]["etfGainers"] = _snap_etf["etfGainers"]
+        data["sources"]["etfMovers"] = "토스증권 Open API"
+    if _fresh_etf(_snap_etf.get("etfLosers")):
+        data["etfMovers"]["etfLosers"] = _snap_etf["etfLosers"]
+        data["sources"].setdefault("etfMovers", "토스증권 Open API")
 
     # ── 한국 지수 (KRX 공식) ──────────────────────────────────
     krx_available = bool(KRX_API_KEY)
@@ -6025,13 +6071,15 @@ def build_data():
                 log(f"[KRX] 하락종목 {len(losers)}건 garbage — 폴백 트리거")
 
         # ETF 상승/하락 Top10 (KRX OpenAPI — 실패 시 이후 pykrx/Naver 폴백)
-        etf_up, etf_down = fetch_krx_etf_movers(top_n=10)
-        if etf_up:
-            data["etfMovers"]["etfGainers"] = etf_up
-        if etf_down:
-            data["etfMovers"]["etfLosers"] = etf_down
-        if data["etfMovers"].get("etfGainers") or data["etfMovers"].get("etfLosers"):
-            data["sources"].setdefault("etfMovers", "KRX OpenAPI")
+        # 토스 스냅샷이 이미 채웠으면 건너뛴다(덮어쓰기 방지).
+        if not (data["etfMovers"].get("etfGainers") and data["etfMovers"].get("etfLosers")):
+            etf_up, etf_down = fetch_krx_etf_movers(top_n=10)
+            if etf_up and not data["etfMovers"].get("etfGainers"):
+                data["etfMovers"]["etfGainers"] = etf_up
+            if etf_down and not data["etfMovers"].get("etfLosers"):
+                data["etfMovers"]["etfLosers"] = etf_down
+            if data["etfMovers"].get("etfGainers") or data["etfMovers"].get("etfLosers"):
+                data["sources"].setdefault("etfMovers", "KRX OpenAPI")
     else:
         log("[KRX] API 키 없음 — Naver Finance 폴백 시도")
 
@@ -6146,6 +6194,37 @@ def build_data():
     except Exception as e:
         log(f"[투자자] 수집 오류: {e}")
 
+    # ── 토스 스냅샷 신규 블록 (2026-08-20 기획: 종목 수급·랭킹·캘린더) ─────────
+    # 전부 스냅샷 전용 — CI 는 토스를 직접 못 부른다(IP 허용목록). 실패/부재 시
+    # 해당 필드가 비고 프론트가 위젯을 숨긴다(폴백 소스 없음, 날조 금지).
+    try:
+        _snap = _toss_snapshot() or {}
+        _gen = _snap.get("generatedAt")
+        # 종목별 수급(투자자 순매수·공매도·신용·대차·프로그램·경보) — 레코드마다
+        # 날짜가 있어 나이 제한 없이 싣는다(투자자 시계열과 같은 논리).
+        _flows = _snap.get("stockData")
+        if _flows:
+            data["stockFlows"] = {"items": _flows, "generatedAt": _gen,
+                                  "source": "토스증권 Open API (PC 스냅샷)"}
+            data["sources"]["stockFlows"] = "토스증권 Open API (종목별 수급, PC 스냅샷)"
+            log(f"[TOSS] 종목 수급 {len(_flows)}종목")
+        # 거래대금·토스 체결 랭킹 — 순위는 낡으면 오답이라 당일분만.
+        _rk = _snap.get("rankings") or {}
+        _today_rk = datetime.now(KST).strftime("%Y-%m-%d")
+        _rk_fresh = {k: v for k, v in _rk.items()
+                     if v and all(r.get("as_of") == _today_rk for r in v)}
+        if _rk_fresh:
+            data["rankingsKr"] = {**_rk_fresh, "as_of": _today_rk,
+                                  "source": "토스증권 Open API"}
+            data["sources"]["rankingsKr"] = "토스증권 Open API (거래대금·토스 체결 랭킹)"
+            log(f"[TOSS] 랭킹 {list(_rk_fresh)}")
+        # 국내 영업일 캘린더 — 발송 게이트·프론트 참고용. 날짜가 명시돼 있어 그대로 싣는다.
+        _cal = _snap.get("marketCalendarKr")
+        if _cal:
+            data["marketCalendarKr"] = {**_cal, "generatedAt": _gen}
+    except Exception as e:
+        log(f"[TOSS] 신규 블록 소비 오류: {e}")
+
     # ── 해상 운임지수(운송): SCFI/CCFI/BDI 등 — 네이버 시장지표 best-effort ──
     # 실패 시 직전 빌드의 freight 를 보존(있으면) → 일시 실패에도 마지막 값 유지.
     try:
@@ -6189,7 +6268,9 @@ def build_data():
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
     data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
-    data["diagnostics"]["toss"]              = toss_connection_status(data.get("sources"))
+    # diagnostics.toss 는 sources 라벨을 스캔하므로 **모든 소스 대입이 끝난 뒤**
+    # (build_data 말미)에 계산한다 — 여기서 부르면 이 지점 이후에 설정되는
+    # yieldCurve_kr 등이 supplied 에서 영영 빠진다(2026-08-20 감사 B1).
 
     # 신선도 계약(dataHealth)은 여기서 계산하지 않는다 — validate_data.py 가 커밋 직전에
     # 재계산해 되쓴다. 이 자리(수집 중간)에서 계산했을 때 economicIndicators/history/news/
@@ -7171,6 +7252,9 @@ def build_data():
         _reconcile_history_with_spot(data, now)
     except Exception as e:
         log(f"[reconcile] 오류 (무시): {e}")
+
+    # 토스 연결상태 — sources 대입이 전부 끝난 마지막에 계산해야 supplied 가 정확하다.
+    data.setdefault("diagnostics", {})["toss"] = toss_connection_status(data.get("sources"))
 
     return data
 

@@ -213,13 +213,37 @@ instead and hands its result to the cloud pipeline through the repo.
 
 | Piece | What it does |
 |-------|--------------|
-| `scripts/fetch_toss_snapshot.py` | Fetches indices, the KTB curve, gainer/loser rankings, KOSPI investor flows and the USD/KRW quote; writes `toss_snapshot.json`; `--push` commits and pushes it |
+| `scripts/fetch_toss_snapshot.py` | Fetches indices, the KTB curve, gainer/loser rankings (stocks **and** ETFs, KOSPI+KOSDAQ), trading-amount + Toss-retail rankings, KOSPI investor flows, **per-stock flows for the tracked watchlist** (investor/short-selling/credit/lending/program/warnings — `stockData`), the KR market calendar and the USD/KRW quote; writes `toss_snapshot.json`; `--push` commits and pushes it |
 | `scripts/run_toss_snapshot.cmd` | Task Scheduler entry point. **ASCII only** — cmd.exe parses batch files in the OEM code page, so UTF-8 Korean comments get executed as commands (seen as exit 9009) |
 | `scripts/register_toss_task.ps1` | Registers the `EconSite-TossSnapshot` task from XML (PowerShell 5.1's `New-ScheduledTaskTrigger` cannot set a logon `Delay` or a repetition) |
 
 The machine is not on 24/7, so four things cover the gaps: a logon trigger with a 3-minute
-delay, hourly runs on weekdays 09:00–20:00, a 15:45 run right after the close, and
-`StartWhenAvailable` to catch up on anything missed while the PC was off.
+delay, **15-minute** runs on weekdays 09:00–20:00 (2026-08-20, was hourly), a 15:45 run right
+after the close, and `StartWhenAvailable` to catch up on anything missed while the PC was off.
+
+Downstream of the snapshot (2026-08-20 full-adoption plan, artifact bf927a4a):
+- `fetch_data.py` consumes `indices` (same-day only), `etfMovers`, `rankings` →
+  `data.json.rankingsKr` (same-day only), `stockData` → `data.json.stockFlows`
+  (records carry dates, any age), `marketCalendarKr`, and cross-checks `usdkrw`
+  (`diagnostics.fxTossCross`, never overrides). Per-stock flow units are **shares**,
+  not KRW — the Toss endpoints have no amount fields.
+- The frontend renders `stockFlows` in the 종목분석 tab (`_pfFlowsRender` in app6.js:
+  investor bars + short/credit/lending/program chips + warning badges + market cap
+  from `shares × price`) and `rankingsKr` on the equity page (`buildEquityRankings`,
+  rows deep-link to 종목분석). Widgets hide when data is absent — no fallback source.
+- `check_alerts._check_toss_warnings` diffs per-stock `warnings` against
+  `alerts_state.json`'s `_tossWarnings` key and posts designation changes
+  (투자경고/단기과열/…) to the alerts Discord channel. First observation is
+  baseline-only (no spam on reintroduction).
+- The `kakao-daily.yml` holiday gate trusts `marketCalendarKr` first (KRX-accurate)
+  when its `today.date` matches, falling back to Nager.Date otherwise.
+- `_is_valid_mover_list(allow_extreme=True)` is used for Toss rankings: the
+  "limit-up majority = garbage" rule false-positives on real KOSDAQ-inclusive
+  top-10 lists (measured 6/10 on 2026-08-20); official `changeRate` can't have
+  the column-misalignment garbage that rule was built for.
+- Toss issues **one valid token per client** — a re-issue kills the previous token.
+  `toss_api.py` shares tokens across processes via `%TEMP%\toss_token_cache.json`
+  and re-issues once on 401.
 
 Because it runs often, the script hashes only the fields `fetch_data.py` consumes and skips
 rewriting the file when nothing moved — otherwise every run would be a commit. `usdkrw` is

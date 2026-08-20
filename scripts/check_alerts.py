@@ -416,6 +416,57 @@ def _dedup_per_symbol(triggered, snaps):
     return out
 
 
+def _check_toss_warnings(state):
+    """트래킹 종목의 시장 지정(투자경고·단기과열·정리매매·VI 등) **변화**만 통보 (P3-2).
+
+    소스 = data.json.stockFlows(토스 PC 스냅샷, fetch-data 가 실음 — 이 워크플로의
+    체크아웃에 이미 있는 파일이라 네트워크 0). 직전 관측을 alerts_state 의 '_tossWarnings'
+    키에 두고 diff 한다. 첫 관측 종목은 기준선만 기록(재도입 때 기존 지정을 '신규'로
+    도배하지 않기 위함). 스냅샷 주기 특성상 실시간 경보가 아니라 상태 변화 통보다.
+    상태가 바뀌었으면 True(호출측이 _write_state 로 확정)."""
+    try:
+        with open(os.path.join(ROOT, "data.json"), encoding="utf-8") as f:
+            items = ((json.load(f).get("stockFlows") or {}).get("items")) or {}
+    except (OSError, ValueError):
+        return False
+    cur = {}
+    for sym, e in items.items():
+        w = e.get("warnings")
+        if not isinstance(w, list):
+            continue                      # 누락 = 그 종목 조회 실패 → 판단 보류(해제 오통보 방지)
+        labels = sorted({str((x or {}).get("name") or (x or {}).get("type") or x)
+                         for x in w if x})
+        cur[sym] = {"labels": labels, "name": e.get("name") or sym}
+    if not cur:
+        return False
+    prev = state.get("_tossWarnings") or {}
+    msgs = []
+    for sym, e in cur.items():
+        if sym not in prev:
+            continue                      # 첫 관측 — 기준선만
+        old, new = set((prev[sym] or {}).get("labels") or []), set(e["labels"])
+        for t in sorted(new - old):
+            msgs.append(f"⚠ {e['name']}: {t} 지정")
+        for t in sorted(old - new):
+            msgs.append(f"✅ {e['name']}: {t} 해제")
+    new_state = {s: {"labels": e["labels"]} for s, e in cur.items()}
+    changed = new_state != prev
+    state["_tossWarnings"] = new_state
+    if msgs:
+        try:
+            import notify_discord
+            notify_discord.send(
+                "\n".join(msgs[:10]),
+                title="🚧 종목 시장 지정 변경 (투자경고·과열 등)",
+                url="https://0101-commits.github.io/economic-site/?p=portfolio",
+                color=notify_discord.COLOR_ALERT, timestamp=True,
+                footer="토스증권 Open API · PC 스냅샷 경유(시간 지연 가능)",
+                env="DISCORD_WEBHOOK_ALERTS")
+        except Exception as e:                                # noqa: BLE001
+            print(f"[alerts] 지정 변경 통보 실패(무시): {e}")
+    return changed
+
+
 def _write_state(state, alerts, now):
     """유효 알림만 남겨 alerts_state.json 기록(삭제된 알림 이력 정리).
 
@@ -542,6 +593,14 @@ def main():
             state = json.load(f)
     except (OSError, ValueError):
         state = {}
+
+    # 시장 지정(투자경고 등) 변화 통보 — 시세 평가와 독립, 실패해도 본류 무영향.
+    if not IS_TEST:
+        try:
+            if _check_toss_warnings(state):
+                _write_state(state, alerts, now)
+        except Exception as e:                                # noqa: BLE001
+            print(f"[alerts] 지정 변화 점검 오류(무시): {e}")
 
     # 종목별 스냅샷 1회 조회 (알림 여러 개가 같은 종목을 공유)
     snaps = {}
