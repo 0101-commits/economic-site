@@ -83,14 +83,15 @@ def _halt_card(h):
     try:
         import discord_card
         sym = "^KQ11" if h.get("market") == "KOSDAQ" else "^KS11"
-        xs, ys, prev = kakao._yahoo_intraday(sym)
+        # P0(기획 5154773b) — 소스 체인(토스 1분봉→Yahoo→7일 일봉)으로 빈 패널 제거.
+        xs, ys, prev, src = kakao._intraday_chain(sym)
         price = ys[-1] if ys else None
         pct = (price / prev - 1) * 100 if (price and prev) else None
         thr = {1: 8.0, 2: 15.0, 3: 20.0}.get(h.get("stage"), 8.0)
         resume = ("당일 장 종료" if h.get("endOfDay")
                   else f"재개예정 {_hm(h.get('resumeAt'))}")
         return discord_card.swing(f"{h.get('market', '')} 서킷 {h.get('stage', '')}단계",
-                                  price, pct, thr, xs, ys, prev, _now(), resume=resume)
+                                  price, pct, thr, xs, ys, prev, _now(), resume=resume, src=src)
     except Exception as e:
         print(f"[discord] 서킷 카드 예외({e}) — 텍스트만 발송")
         return None

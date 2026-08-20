@@ -756,6 +756,106 @@ def _yahoo_intraday(symbol, rng="1d", interval="5m"):
     return [], [], None
 
 
+# ── 카드용 차트 소스 체인(기획 5154773b P0 — 빈 패널 금지) ─────────────────────
+_TOSS_IDX = {"^KS11": "KOSPI", "^KQ11": "KOSDAQ"}
+
+
+def _toss_index_intraday(symbol):
+    """토스 지수 1분봉(공식·실시간) — (xs, ys, prev). 실패 ([], [], None).
+    CI 에선 toss_api 가 403→Worker 릴레이로 자동 전환(TOSS_RELAY_KEY 필요).
+    스파이크 실측(2026-08-20): 지수 캔들 interval 은 1m/1d 만 지원, 최신→과거 순."""
+    name = _TOSS_IDX.get(symbol)
+    if not name:
+        return [], [], None
+    try:
+        import toss_api
+        if not toss_api.enabled():
+            return [], [], None
+        # count 상한 200(실측 400 은 400 invalid-request) — 최근 200분(~세션 후반 3.3h).
+        # ponytail: 전 세션이 필요하면 페이징 추가, 지금은 급변 맥락용으로 충분.
+        res = toss_api.get(f"/api/v1/market-indicators/{name}/candles",
+                           {"interval": "1m", "count": 200}) or {}
+        cs = ((res.get("result") or {}).get("candles")
+              if isinstance(res.get("result"), dict) else None) or res.get("candles") or []
+        rows = []
+        for c in cs:
+            try:
+                t = datetime.datetime.fromisoformat(str(c.get("timestamp"))[:19])
+                v = float(c.get("closePrice"))
+            except (TypeError, ValueError):
+                continue
+            rows.append((t, v))
+        rows.sort()
+        if not rows:
+            return [], [], None
+        day0 = rows[-1][0].date()                     # 최신 세션만(전일 봉 섞임 방지)
+        rows = [r for r in rows if r[0].date() == day0]
+        # 전일 종가 — 일봉 2개(오늘 진행봉·전일 확정봉)에서.
+        prev = None
+        dres = toss_api.get(f"/api/v1/market-indicators/{name}/candles",
+                            {"interval": "1d", "count": 3}) or {}
+        dcs = ((dres.get("result") or {}).get("candles")
+               if isinstance(dres.get("result"), dict) else None) or dres.get("candles") or []
+        for c in dcs:
+            if str(c.get("timestamp"))[:10] != day0.isoformat():
+                try:
+                    prev = float(c.get("closePrice"))
+                except (TypeError, ValueError):
+                    prev = None
+                break
+        return [r[0] for r in rows], [r[1] for r in rows], prev
+    except Exception as e:
+        print(f"[chart] 토스 지수 분봉 실패({symbol}): {e}")
+        return [], [], None
+
+
+def _daily7(symbol):
+    """7일 일봉 폴백 — (xs, ys, prev). prev=마지막 봉 직전 종가(임계선 기준)."""
+    res = _yahoo_chart_result(symbol, "7d", "1d")
+    if not res:
+        return [], [], None
+    ts = res.get("timestamp") or []
+    closes = (((res.get("indicators") or {}).get("quote") or [{}])[0] or {}).get("close") or []
+    xs, ys = [], []
+    for t, c in zip(ts, closes):
+        if c is None:
+            continue
+        xs.append(datetime.datetime.fromtimestamp(t, KST).replace(tzinfo=None))
+        ys.append(float(c))
+    if len(ys) < 3:
+        return [], [], None
+    return xs, ys, ys[-2]
+
+
+def _intraday_chain(symbol):
+    """급변·서킷·마감 카드용 시계열 — (xs, ys, prev, 폴백라벨).
+    ①국내지수=토스 1분봉 → ②Yahoo 인트라데이 → ③7일 일봉(라벨 '일봉 7D' — 카드가
+    패널에 표기해 인트라데이 오독 방지). 전부 실패 시만 빈값(카드가 종전처럼 패널 생략)."""
+    xs, ys, prev = _toss_index_intraday(symbol)
+    if len(ys) >= _MIN_INTRADAY_PTS:
+        return xs, ys, prev, ""
+    xs, ys, prev = _yahoo_intraday(symbol)
+    if ys:
+        return xs, ys, prev, ""
+    xs, ys, prev = _daily7(symbol)
+    if ys:
+        return xs, ys, prev, "일봉 7D"
+    return [], [], None, ""
+
+
+def _ai_line(data, n=2):
+    """aiBriefing(LLM 3줄 요약, fetch-data 가 매일 생성·커밋) 상위 n줄 — 디스코드
+    embed description 용(기획 5154773b P3). 오늘 자가 아니면 ""(묵은 요약이 '지금
+    시황'처럼 보이지 않게 — 스테일 가드)."""
+    try:
+        ab = data.get("aiBriefing") or {}
+        if str(ab.get("date")) != datetime.datetime.now(KST).strftime("%Y-%m-%d"):
+            return ""
+        return "\n".join(str(x) for x in (ab.get("lines") or [])[:n])
+    except Exception:
+        return ""
+
+
 def _yahoo_live_quote(symbol):
     """발송 시점 시세 — (현재가, 전일 종가 대비 %) 또는 None.
 
@@ -1390,17 +1490,38 @@ def _send_close_report(data):
     kchg = _f((idx.get("KOSPI") or {}).get("change"))
     color = (notify_discord.COLOR_FLAT if kchg is None or abs(kchg) < 0.05
              else notify_discord.COLOR_UP if kchg >= 0 else notify_discord.COLOR_DOWN)
-    # 카드 B(기획 2026-08-11) — 다이버징 바 + 발동 수·내일 일정. 실패 시 필드만(종전 형식).
+    # 카드 B 4분면(기획 5154773b P2) — 바 + 코스피 인트라데이 + 수급 3주체 + 특징주·발동
+    # 종목명. 재료가 결측인 분면은 카드가 생략. 실패 시 필드만(종전 형식).
     png = None
     try:
         import discord_card
-        png = discord_card.close_report(citems, now, alerts_cnt=cnt, cal=cal)
+        _intr = _intraday_chain("^KS11")                 # P0 체인 재사용(빈 패널 금지)
+        _idaily = (data.get("investorTrading") or {}).get("daily") or []
+        _inv = dict(_idaily[-1]) if _idaily else None    # {date, foreign, inst, retail} 억원
+        _sm = data.get("stockMovers") or {}
+        _mv = ((_sm.get("kospiGainers") or [])[:3], (_sm.get("kospiLosers") or [])[:3])
+        _fired = []
+        try:                                             # 발동 알림 '이름' — 설정에서 id→이름
+            cp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "alerts_config.json")
+            with open(cp, encoding="utf-8") as f:
+                _cfg = json.load(f)
+            _nm = {a.get("id"): (a.get("name") or a.get("symbol"))
+                   for a in (_cfg.get("alerts") or [])}
+            today = now.strftime("%Y%m%d")
+            _fired = sorted({str(_nm.get(k)) for k, r in st.items()
+                             if not k.startswith("_") and isinstance(r, dict)
+                             and r.get("date") == today and _nm.get(k)})
+        except Exception:
+            pass
+        png = discord_card.close_report(citems, now, alerts_cnt=cnt, cal=cal,
+                                        intraday=_intr, investor=_inv, movers=_mv,
+                                        fired_names=_fired)
     except Exception as e:
         print(f"[discord] 마감 카드 예외({e}) — 필드만 발송")
     # v4(버튼 다이어트): 유틸 버튼 1행 + 지표 드롭다운 — 등락 정보는 카드 B 가 담당,
-    # 구 지표 미러 버튼 행은 폐기(기획 ed0e5496).
+    # 구 지표 미러 버튼 행은 폐기(기획 ed0e5496). description = AI 요약 1줄(P3).
     ok = notify_discord.send(
-        "", png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
+        _ai_line(data, 1), png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
         url=DASHBOARD_URL + "?p=market", color=color,
         fields=None if png else rows,
         footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
@@ -1516,8 +1637,12 @@ def main():
             try:
                 import discord_card
                 _dc_now = datetime.datetime.now(KST)
-                _card_png = (discord_card.weekly(data, _dc_now) if _weekly_mode
-                             else discord_card.board(data, _dc_now, cal=_dc_cal_line(data)))
+                if _weekly_mode:
+                    # 다음 주 일정은 build_weekly_parts 의 '다음주' 블록 재사용(단일 원천).
+                    _nw = next((v for lab, v in blocks if lab == "다음주"), "")
+                    _card_png = discord_card.weekly(data, _dc_now, next_week=_nw)
+                else:
+                    _card_png = discord_card.board(data, _dc_now, cal=_dc_cal_line(data))
             except Exception as _ce:
                 print(f"[discord] 카드 렌더 예외({_ce}) — 슬롯 차트 폴백")
             _kchg = _f(((data.get("indices") or {}).get("KOSPI") or {}).get("change"))
@@ -1529,7 +1654,8 @@ def main():
             # 1행(3개) + 지표 드롭다운 1행 — 등락 정보는 카드가 단독 담당(구 v3
             # 타일 미러 그리드 16버튼 폐기). 웹훅 폴백 시 링크 필드로 자동 변환.
             notify_discord.send(
-                "", png=_card_png or _dc_png, title=title, url=DASHBOARD_URL,
+                # P3(기획 5154773b) — AI 요약 1~2줄을 description 으로(카드 실패 폴백에도 도달).
+                _ai_line(data), png=_card_png or _dc_png, title=title, url=DASHBOARD_URL,
                 color=_dc_color,
                 fields=None if _card_png else _dc_fields(blocks, data),
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",

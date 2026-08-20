@@ -55,14 +55,38 @@ jobs:
       - name: Install deps
         # pynacl: 카카오 refresh_token 자동 회전 시 GH_SECRETS_PAT 로 시크릿을 갱신하는 데 필요
         # (GitHub Secrets API 는 libsodium 암호화 요구 — kakao-daily.yml 과 동일 배선).
-        # matplotlib: 급변·서킷 디스코드 카드(discord_card.py) 렌더용. 매분 런이라
-        # 한글 폰트 apt 설치는 생략 — 카드는 영문 라벨로 강등된다(기획 2026-08-11).
+        # matplotlib: 종목·급변·서킷 디스코드 카드(discord_card.py) 렌더용.
         run: pip install requests pynacl matplotlib
+
+      # 한글 폰트(기획 5154773b P1) — 디스코드 카드 한글 라벨용. 매분 런이라 apt 설치 대신
+      # 정적 OTF 2종(Noto Sans KR Regular·Bold — 가변폰트는 matplotlib 이 weight 100 으로
+      # 추락해 부적합)을 actions/cache 로 상시 재사용(미스에만 다운로드, ~9MB).
+      # 실패해도 카드는 영문 라벨로 강등될 뿐 발송엔 지장 없음.
+      - name: Korean fonts (cache)
+        id: kofonts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/kofonts
+          key: noto-sans-kr-static-v1
+      - name: Korean fonts (download on cache miss)
+        if: steps.kofonts.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p ~/kofonts
+          for w in Regular Bold; do
+            curl -fsSL --max-time 30 -o ~/kofonts/NotoSansKR-$w.otf \
+              "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/KR/NotoSansKR-$w.otf"
+          done
 
       - name: Check alerts & send KakaoTalk
         env:
           TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
           TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
+          # 토스 릴레이 키(기획 5154773b P0) — CI IP 는 토스 허용목록 밖이라 403 →
+          # toss_api 가 Worker /toss 릴레이로 자동 전환하는 데 필요(미설정이면 Yahoo 폴백).
+          TOSS_RELAY_KEY:     ${{ secrets.TOSS_RELAY_KEY }}
+          # 한글 폰트 디렉터리(위 캐시 스텝) — discord_card._setup 이 직접 등록.
+          KO_FONT_PATH: ~/kofonts
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           # 기본 OFF(2026-07 사용자 결정) — kakao-daily.yml 과 동일 사유(친구 발송 403 무음 폴백).
@@ -97,6 +121,11 @@ jobs:
           HALTS_LIVE: '1'
           TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
           TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
+          # 토스 릴레이 키(기획 5154773b P0) — CI IP 는 토스 허용목록 밖이라 403 →
+          # toss_api 가 Worker /toss 릴레이로 자동 전환하는 데 필요(미설정이면 Yahoo 폴백).
+          TOSS_RELAY_KEY:     ${{ secrets.TOSS_RELAY_KEY }}
+          # 한글 폰트 디렉터리(위 캐시 스텝) — discord_card._setup 이 직접 등록.
+          KO_FONT_PATH: ~/kofonts
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           # 토큰 auto-rotate 용 — kakao-daily.yml 과 동일 배선(미설정이면 조용히 skip).
@@ -123,6 +152,11 @@ jobs:
         env:
           TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
           TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
+          # 토스 릴레이 키(기획 5154773b P0) — CI IP 는 토스 허용목록 밖이라 403 →
+          # toss_api 가 Worker /toss 릴레이로 자동 전환하는 데 필요(미설정이면 Yahoo 폴백).
+          TOSS_RELAY_KEY:     ${{ secrets.TOSS_RELAY_KEY }}
+          # 한글 폰트 디렉터리(위 캐시 스텝) — discord_card._setup 이 직접 등록.
+          KO_FONT_PATH: ~/kofonts
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}

@@ -105,13 +105,14 @@ def main():
     try:
         import notify_discord
         # 카드 D(기획 2026-08-11) — |등락| 최대 심볼을 히어로로, 인트라데이+임계선.
+        # P0(기획 5154773b): 소스 체인(토스 1분봉→Yahoo→7일 일봉)으로 빈 패널 제거.
         # 렌더·시세 실패 시 None → 종전 텍스트 embed 그대로.
         _png = None
         try:
             import discord_card
             _, _, name0, sym0, price0, pct0, thr0 = max(hits, key=lambda h: abs(h[5]))
-            xs, ys, prev = kakao._yahoo_intraday(sym0)
-            _png = discord_card.swing(name0, price0, pct0, thr0, xs, ys, prev, now)
+            xs, ys, prev, _src = kakao._intraday_chain(sym0)
+            _png = discord_card.swing(name0, price0, pct0, thr0, xs, ys, prev, now, src=_src)
         except Exception as _ce:
             print(f"[swings] 카드 렌더 예외({_ce}) — 텍스트만 발송")
         # v3 버튼 — 급변 지표의 네이버 증권 원클릭(봇 경로). 웹훅 폴백 시엔

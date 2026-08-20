@@ -633,6 +633,28 @@ def main():
                 if _n > 1:
                     extra.append(f"이번 달 {_n}번째")
                 _lines.append(ln + (" · " + " · ".join(extra) if extra else ""))
+            # 카드 E(기획 5154773b P1) — 대표 종목(|등락| 최대) 히어로 + 30일 일봉 +
+            # 목표선 + 발동점. 재료는 판정에 쓴 snap 그대로(추가 API 호출 0). 나머지
+            # 종목은 카드 하단 1줄씩. 렌더 실패 시 None → 텍스트 embed 그대로(종전).
+            _png = None
+            try:
+                import discord_card
+                def _snap_of(a):
+                    return snaps.get((a.get("market", "KR"), a.get("symbol")))
+                _cands = [(a, ln) for a, ln in to_send if _snap_of(a)]
+                if _cands:
+                    _ha, _hln = max(_cands, key=lambda t: abs(_snap_of(t[0]).get("pct") or 0))
+                    _hs = _snap_of(_ha)
+                    _hero = {"name": _ha.get("name") or _ha.get("symbol"), "cond": _hln,
+                             "price": _hs.get("price"), "pct": _hs.get("pct"),
+                             "target": _ha.get("value") if _ha.get("type") in PRICE_TYPES else None,
+                             "closes": _hs.get("closes"), "vol_today": _hs.get("vol_today"),
+                             "vol_prev": _hs.get("vol_prev"), "market": _ha.get("market", "KR")}
+                    _others = [l for l in _lines
+                               if not l.startswith(str(_ha.get("name") or _ha.get("symbol")))]
+                    _png = discord_card.stock_alert(_hero, _others, now)
+            except Exception as _ce:
+                print(f"[alerts] 카드 렌더 예외({_ce}) — 텍스트만 발송")
             # v3 버튼 — 발동 종목의 네이버 증권(국내 6자리 코드만, 미국 종목은 미배선).
             # 웹훅 폴백 시 notify_discord 가 링크 필드로 자동 변환.
             _btns = [("투자현황", "https://0101-commits.github.io/economic-site/?p=portfolio")]
@@ -642,7 +664,7 @@ def main():
                     if _u:
                         _btns.append(((f"N {a.get('name') or a.get('symbol')}")[:80], _u))
             notify_discord.send(
-                "\n".join(_lines),
+                "\n".join(_lines), png=_png,
                 title=f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림 — 투자 현황 보기",
                 url="https://0101-commits.github.io/economic-site/?p=portfolio",
                 color=notify_discord.COLOR_TEST if IS_TEST else notify_discord.COLOR_ALERT,
