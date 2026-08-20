@@ -3,7 +3,7 @@
 """디스코드 전용 '시각 보드' 카드 렌더러 (기획 2026-08-11, 아티팩트 e9144cf7).
 
 카드 4종 — 전부 embed 이미지 1장이 본문이 되는 형식(카카오는 무변경):
-  board()        카드 A: 정기 다이제스트 — 히트맵 타일 12(+캡션 4) + 30일 스파크라인 4
+  board()        카드 A: 정기 다이제스트 — 히트맵 타일 12 + 미국채 캡션 + 30일 스파크라인 4
   close_report() 카드 B: 장 마감 — 다이버징 수평 바 + 오늘 발동 알림 수·내일 일정
   weekly()       카드 C: 주간 — 주간 수익률 정렬 다이버징 바
   swing()        카드 D: 급변·서킷 — 히어로 등락률 + 인트라데이 임계선
@@ -117,7 +117,31 @@ def _save(fig, name):
     return path
 
 
-# (한글, 영문, 카테고리, 키) — 카드 A 타일 12(+캡션 4) · 카드 C 상위 12 재사용
+def _us_yield_line(d):
+    """카드 A 하단 캡션 — 미국채 1·5·10·30Y 레벨% + 전일 대비 bp.
+    출처 = data.yieldCurve.us.series(FRED DGS*). 데이터 없으면 ""(캡션 생략)."""
+    try:
+        series = ((d.get("yieldCurve") or {}).get("us") or {}).get("series") or []
+        by = {s.get("tenor"): (s.get("data") or []) for s in series}
+        parts = []
+        for t in ("1Y", "5Y", "10Y", "30Y"):
+            dt = by.get(t) or []
+            last = _f((dt[-1] or {}).get("value")) if dt else None
+            if last is None:
+                continue
+            prev = _f((dt[-2] or {}).get("value")) if len(dt) > 1 else None
+            bp = ""
+            if prev is not None:
+                b = round((last - prev) * 100)
+                bp = f" {'▲' if b > 0 else '▼' if b < 0 else '■'}{abs(b)}bp"
+            parts.append(f"{t} {last:.2f}%{bp}")
+        return (_L("미국채  ", "UST  ") + "  ·  ".join(parts)) if parts else ""
+    except Exception:
+        return ""
+
+
+# (한글, 영문, 카테고리, 키) — 카드 A 타일 12(앞 12개) · 카드 C 상위 12 재사용
+# 뒤 4종(밀·옥수수·은·브렌트)은 카드 미표시 — 드롭다운(_dc_select)용으로만 유지.
 _ASSETS = [("코스피", "KOSPI", "indices", "KOSPI"), ("코스닥", "KOSDAQ", "indices", "KOSDAQ"),
            ("S&P500", "S&P500", "indices", "SP500"), ("나스닥", "NASDAQ", "indices", "NASDAQ"),
            ("닛케이", "Nikkei", "indices", "Nikkei"), ("SOX 반도체", "SOX", "indices", "SOX"),
@@ -133,7 +157,7 @@ def board(d, now, cal=""):
 
     v4(기획 ed0e5496 — 버튼 다이어트): 폐기된 16버튼 그리드의 정보를 카드가 단독
     흡수한다 — 타일 16→12 로 줄여 키우고(4×3), 글자 전반 확대 + dpi 130→160 으로
-    모바일 가독성 확보. 밀려난 저변동 4종(밀·옥수수·은·브렌트)은 하단 캡션 한 줄."""
+    모바일 가독성 확보. 하단 캡션 = 미국채 1·5·10·30Y(_us_yield_line)."""
     try:
         plt, _ = _setup()
         fig = plt.figure(figsize=(10, 7.0), dpi=160)
@@ -167,10 +191,11 @@ def board(d, now, cal=""):
             fig.text(x + 0.012, y + 0.048, _fmt(price), color=INK, fontsize=17, fontweight="bold")
             fig.text(x + w - 0.010, y + 0.014, _chgtxt(chg),
                      color=INK if bgc != TILE else MUT, fontsize=13, fontweight="bold", ha="right")
-        # 타일에서 밀려난 저변동 4종 — 캡션 한 줄(정보 유실 방지).
-        rest = " · ".join(f"{_L(ko, en)} {_chgtxt(_node(d, cat, key)[1]) or '—'}"
-                          for ko, en, cat, key in _ASSETS[12:])
-        fig.text(0.03, 0.395, rest, color=MUT, fontsize=11)
+        # 하단 캡션 — 미국채 1·5·10·30Y(사용자 지정 2026-08-20, 구 원자재 4종 대체).
+        # 밀·옥수수·은·브렌트는 카드에서 제외(은·브렌트는 드롭다운으로 접근 가능).
+        rest = _us_yield_line(d)
+        if rest:
+            fig.text(0.03, 0.395, rest, color=MUT, fontsize=12)
         fig.text(0.03, 0.335, _L("추세 30일", "30-day trend"), color=MUT, fontsize=12)
         sparks = [_ASSETS[0], _ASSETS[2], _ASSETS[6], _ASSETS[8]]  # 코스피·S&P·달러원·금
         for i, (ko, en, cat, key) in enumerate(sparks):
@@ -178,6 +203,13 @@ def board(d, now, cal=""):
             ax.set_facecolor(TILE)
             vs = _hist(d, cat, key)
             if vs:
+                # 상·하단 여백 확보 — 라인·끝점이 라벨(상단)·현재가(하단) 글자 밴드에
+                # 못 들어가게 y 범위를 넓힌다(글자 겹침 방지, 사용자 지적 2026-08-20).
+                lo, hi = min(vs), max(vs)
+                rng = (hi - lo) or (abs(hi) * 0.01) or 1.0
+                ax.set_ylim(lo - 0.50 * rng, hi + 0.60 * rng)
+                pad_x = max(1.0, (len(vs) - 1) * 0.04)
+                ax.set_xlim(-pad_x, (len(vs) - 1) + pad_x)
                 ax.plot(vs, color=LINE, lw=1.6)
                 dirc = UP if vs[-1] >= vs[0] else DN
                 ax.plot(len(vs) - 1, vs[-1], "o", color=dirc, ms=5)
@@ -277,7 +309,7 @@ def weekly(d, now):
                     va="center", ha="left" if c >= 0 else "right", color=INK, fontsize=12.5)
         ax.set_yticks(range(len(rows)))
         ax.set_yticklabels([r[0] for r in rows], color=MUT, fontsize=13)
-        lim = max(abs(r[1]) for r in rows) * 1.35 + 0.2
+        lim = max(abs(r[1]) for r in rows) * 1.55 + 0.2   # 값 글자 확대분 여유(클리핑 방지)
         ax.set_xlim(-lim, lim)
         ax.set_xticks([])
         for s in ax.spines.values():
