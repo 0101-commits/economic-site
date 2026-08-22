@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-22T11:38:54.164344+09:00",
+  "lastUpdated": "2026-08-22T12:38:19.361891+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "pykrx (KRX 정보데이터시스템)",
@@ -31,20 +31,21 @@
     "vkospi": "investing.com KOSPI Volatility (직전 값 보존)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
-    "economicCalendar": "FRED release dates API"
+    "economicCalendar": "FRED release dates API",
+    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
-      "rate": 1385.0,
-      "change": -0.66
+      "rate": 1383.9,
+      "change": -0.74
     },
     "EURKRW": {
-      "rate": 1617.96,
-      "change": -0.73
+      "rate": 1616.67,
+      "change": -0.81
     },
     "JPYKRW": {
-      "rate": 8.714,
-      "change": -0.65
+      "rate": 8.7071,
+      "change": -0.73
     },
     "EURUSD": {
       "rate": 1.1682,
@@ -2883,7 +2884,7 @@
     ],
     "unit": "억원",
     "source": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷)",
-    "lastFetched": "2026-08-22T11:39:16.823912+09:00"
+    "lastFetched": "2026-08-22T12:38:40.857510+09:00"
   },
   "freight": {
     "items": [
@@ -2907,70 +2908,70 @@
       },
       {
         "code": "BDI",
-        "price": 2791.0,
+        "price": 2841.0,
         "change": null,
-        "chgPct": 0.54,
-        "date": "2026-08-20",
+        "chgPct": 1.79,
+        "date": "2026-08-21",
         "name": "BDI 건화물선지수",
         "exchange": "발틱해운거래소(BDI)"
       },
       {
         "code": "BCI",
-        "price": 4429.0,
+        "price": 4552.0,
         "change": null,
-        "chgPct": 1.21,
-        "date": "2026-08-20",
+        "chgPct": 2.78,
+        "date": "2026-08-21",
         "name": "BCI 케이프사이즈지수",
         "exchange": "발틱해운거래소(BDI)"
       },
       {
         "code": "BPI",
-        "price": 2088.0,
+        "price": 2103.0,
         "change": null,
-        "chgPct": -0.9,
-        "date": "2026-08-20",
+        "chgPct": 0.72,
+        "date": "2026-08-21",
         "name": "BPI 파나막스지수",
         "exchange": "발틱해운거래소(BDI)"
       },
       {
         "code": "BSI",
-        "price": 1637.0,
+        "price": 1640.0,
         "change": null,
         "chgPct": 0.18,
-        "date": "2026-08-20",
+        "date": "2026-08-21",
         "name": "BSI 수프라막스지수",
         "exchange": "발틱해운거래소(BDI)"
       },
       {
         "code": "BHI",
-        "price": 871.0,
+        "price": 874.0,
         "change": null,
-        "chgPct": 0.46,
-        "date": "2026-08-20",
+        "chgPct": 0.34,
+        "date": "2026-08-21",
         "name": "BHI 핸디사이즈지수",
         "exchange": "발틱해운거래소(BDI)"
       },
       {
         "code": "BDTI",
-        "price": 2966.0,
+        "price": 3004.0,
         "change": null,
-        "chgPct": 0.3,
-        "date": "2026-08-20",
+        "chgPct": 1.28,
+        "date": "2026-08-21",
         "name": "BDTI 원유유조선지수",
         "exchange": "발틱해운거래소(BDI)"
       },
       {
         "code": "BCTI",
-        "price": 1342.0,
+        "price": 1348.0,
         "change": null,
-        "chgPct": 1.9,
-        "date": "2026-08-20",
+        "chgPct": 0.45,
+        "date": "2026-08-21",
         "name": "BCTI 석유제품선지수",
         "exchange": "발틱해운거래소(BDI)"
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-08-22T11:39:25.508859+09:00"
+    "lastFetched": "2026-08-22T12:38:49.777628+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -16473,21 +16474,6 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
-      },
       "trade_count_kr_rone": {
         "value": 85504.0,
         "prev": 80119.0,
@@ -17001,6 +16987,21 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
+      },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -49591,7 +49592,7 @@
         },
         {
           "date": "2026-08-22",
-          "close": 1385.0
+          "close": 1383.9
         }
       ],
       "EURKRW": [
@@ -54793,7 +54794,7 @@
         },
         {
           "date": "2026-08-21",
-          "close": 1617.96
+          "close": 1616.67
         }
       ],
       "JPYKRW": [
@@ -198996,7 +198997,7 @@
     ],
     "as_of": "2026-08-21",
     "source": "westmetall.com (LME 일일 재고)",
-    "lastFetched": "2026-08-22T11:39:30.004960+09:00"
+    "lastFetched": "2026-08-22T12:38:53.820823+09:00"
   },
   "diagnostics": {
     "stockMoversSource": "pykrx (KRX 정보데이터시스템)",
@@ -199014,10 +199015,11 @@
       "fred_ok": false
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
-    "historySpotSynced": 13,
+    "preservedMetricsDeep": 1,
+    "historySpotSynced": 26,
     "toss": {
       "generatedAt": "2026-08-21T20:00:01.695786+09:00",
-      "ageMinutes": 997.4,
+      "ageMinutes": 1022.5,
       "supplied": [
         "investorTrading",
         "stockFlows",
@@ -199399,7 +199401,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-08-22T12:18:51.597170+09:00"
+    "lastFetched": "2026-08-22T12:44:05.357204+09:00"
   },
   "nps": {
     "allocation": [
@@ -199425,11 +199427,11 @@
       }
     ],
     "source": "fund.nps.or.kr",
-    "lastFetched": "2026-08-22T12:19:15.000129+09:00",
+    "lastFetched": "2026-08-22T12:44:09.449553+09:00",
     "as_of": "2026-05-01"
   },
   "news": {
-    "lastFetched": "2026-08-22T12:35:22.381681+09:00",
+    "lastFetched": "2026-08-22T13:00:27.323763+09:00",
     "채권": [
       {
         "title": "[다음주 경제] 기준금리 동결이냐 인상이냐…작년 출생통계도 발표",
@@ -199502,28 +199504,28 @@
         "pubDate": "Tue, 18 Aug 2026 00:16:18 GMT"
       },
       {
-        "title": "'삼전닉스'가 끌었다…코스피 6,900선 회복",
-        "url": "https://www.yna.co.kr/view/MYH20260821020400038",
-        "isoDate": "2026-08-21",
-        "pubDate": "Fri, 21 Aug 2026 04:00:00 GMT"
+        "title": "[이 시각 시황] 美 증시 약세에 코스피·코스닥 하락…외국인·기관 매도",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EC%9D%B4-%EC%8B%9C%EA%B0%81-%EC%8B%9C%ED%99%A9-%E7%BE%8E-%EC%A6%9D%EC%8B%9C-%EC%95%BD%EC%84%B8%EC%97%90-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%BD%94%EC%8A%A4%EB%8B%A5-%ED%95%98%EB%9D%BD-%EC%99%B8%EA%B5%AD%EC%9D%B8-%EA%B8%B0%EA%B4%80-%EB%A7%A4%EB%8F%84/ar-AA2aBu6f",
+        "isoDate": "2026-08-20",
+        "pubDate": "Thu, 20 Aug 2026 17:42:45 GMT"
       },
       {
-        "title": "[IPO챗] 공모가 희비 갈린 니어스랩·해치텍, 코스닥 입성",
-        "url": "https://www.yna.co.kr/view/AKR20260821045200008",
-        "isoDate": "2026-08-22",
-        "pubDate": "Sat, 22 Aug 2026 09:00:04 +0900"
+        "title": "코스피·코스닥 주간 '동반 상승'…외인 3조 폭풍 매수에 장중 '칠천피'[시황종합]",
+        "url": "https://www.news1.kr/finance/market-exr/6259639",
+        "isoDate": "2026-08-13",
+        "pubDate": "Thu, 13 Aug 2026 21:26:00 GMT"
       },
       {
-        "title": "\"주주환원의 힘\"…美찬바람에도 삼전닉스 강세에 코스피 상승(종합)",
-        "url": "https://www.yna.co.kr/view/AKR20260821084851008",
-        "isoDate": "2026-08-21",
-        "pubDate": "Fri, 21 Aug 2026 16:19:57 +0900"
+        "title": "[EBN 데이터센터] 반도체·방산·자동차 버틴 코스피...바이오·이차전지 급등한 코스닥",
+        "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1719752",
+        "isoDate": "2026-08-10",
+        "pubDate": "Mon, 10 Aug 2026 10:50:00 GMT"
       },
       {
-        "title": "'반도체 제조업' 해치텍, 25일 코스닥 상장",
-        "url": "https://www.yna.co.kr/view/AKR20260821131900008",
-        "isoDate": "2026-08-21",
-        "pubDate": "Fri, 21 Aug 2026 16:09:00 +0900"
+        "title": "코스피, 외국인 1조8000억원 순매수에 6900선 상승…코스닥은 하락 [fn오후시황]",
+        "url": "https://www.msn.com/ko-kr/news/other/%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%99%B8%EA%B5%AD%EC%9D%B8-1%EC%A1%B08000%EC%96%B5%EC%9B%90-%EC%88%9C%EB%A7%A4%EC%88%98%EC%97%90-6900%EC%84%A0-%EC%83%81%EC%8A%B9-%EC%BD%94%EC%8A%A4%EB%8B%A5%EC%9D%80-%ED%95%98%EB%9D%BD-fn%EC%98%A4%ED%9B%84%EC%8B%9C%ED%99%A9/ar-AA2a4plT",
+        "isoDate": "2026-08-14",
+        "pubDate": "Fri, 14 Aug 2026 06:58:00 GMT"
       }
     ],
     "원자재": [
@@ -199717,12 +199719,6 @@
     "유로존": [],
     "한국수출": [
       {
-        "title": "AI 특수가 바꾼 수출 지형… 반도체 초호조에 무역수지 흑자 행진",
-        "url": "https://www.ngetnews.com/news/articleView.html?idxno=552316",
-        "isoDate": "2026-08-11",
-        "pubDate": "Tue, 11 Aug 2026 09:27:00 GMT"
-      },
-      {
         "title": "무역수지 1위 충남수출, 관계기관 힘 모아 활로 확장",
         "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-1%EC%9C%84-%EC%B6%A9%EB%82%A8%EC%88%98%EC%B6%9C-%EA%B4%80%EA%B3%84%EA%B8%B0%EA%B4%80-%ED%9E%98-%EB%AA%A8%EC%95%84-%ED%99%9C%EB%A1%9C-%ED%99%95%EC%9E%A5/ar-AA2axsr2",
         "isoDate": "2026-08-20",
@@ -199745,6 +199741,12 @@
         "url": "https://www.jbnews.com/news/articleView.html?idxno=1509110",
         "isoDate": "2026-08-09",
         "pubDate": "Sun, 09 Aug 2026 10:09:00 GMT"
+      },
+      {
+        "title": "‘수출 강국’ 대한민국은 누가 만들었나 …미싱 소리, 중동 사막바람, 수출 바이어의 절규",
+        "url": "https://shindonga.donga.com/culture/article/all/13/6337036/1",
+        "isoDate": "2026-08-15",
+        "pubDate": "Sat, 15 Aug 2026 06:00:00 GMT"
       }
     ],
     "한국은행": [
@@ -199927,7 +199929,7 @@
         "iso": "2026-10-02"
       }
     ],
-    "lastFetched": "2026-08-22T12:37:28.293165+09:00",
+    "lastFetched": "2026-08-22T13:02:33.191051+09:00",
     "source": "FRED release dates API",
     "backfilled": 3
   },
@@ -200778,21 +200780,21 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-08-22T12:37:28.403934+09:00",
+    "asOf": "2026-08-22T13:02:33.297495+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-08-22",
-    "generatedAt": "2026-08-22 12:37 KST",
+    "generatedAt": "2026-08-22 13:02 KST",
     "lines": [
       "증시 — KOSPI 6,912.95 (▲0.88%), S&P500 7,674.37 (▲0.43%), 나스닥 26,180.46 (▲0.43%)",
-      "환율·금리 — 원/달러 1,385.00원 (▼0.66%), 미국 기준금리 3.63%, VIX 16.01",
+      "환율·금리 — 원/달러 1,383.90원 (▼0.74%), 미국 기준금리 3.63%, VIX 16.01",
       "원자재·심리 — WTI $86.64 (▲0.21%), 금 $4,661.60 (▲1.54%), 공포탐욕 55(greed)"
     ],
     "source": "rule"
   },
   "dataHealth": {
-    "checkedAt": "2026-08-22T03:37:51.618392+00:00",
+    "checkedAt": "2026-08-22T04:02:59.805638+00:00",
     "summary": {
       "total": 136,
       "ok": 121,
@@ -201390,8 +201392,8 @@
       },
       {
         "path": "freight",
-        "asOf": "2026-08-20",
-        "ageDays": 2,
+        "asOf": "2026-08-21",
+        "ageDays": 1,
         "sla": 10,
         "tier": "normal",
         "state": "ok"
