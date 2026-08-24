@@ -689,7 +689,7 @@ def _yahoo_chart_result(symbol, rng="1d", interval="5m"):
     candidates = [
         base,
         # 저장소 전용 Cloudflare 프록시(Yahoo 허용·헤더 주입 → 가장 안정적). 공개 프록시는 폴백.
-        f"https://ecom-dashboard-proxy.baldr0001.workers.dev/?url={quote_plus(base)}",
+        f"https://ecom-dashboard-proxy.e-hcg.workers.dev/?url={quote_plus(base)}",
         f"https://corsproxy.io/?{quote_plus(base)}",
         f"https://api.allorigins.win/raw?url={quote_plus(base)}",
         f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(base)}",

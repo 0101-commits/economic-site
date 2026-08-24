@@ -30,7 +30,7 @@ UA = {"User-Agent": "Mozilla/5.0 (compatible; econ-terminal-linkcheck/1.0; "
 SKIP_PREFIX = (
     "https://fonts.googleapis.com",                       # 폰트 CSS — 로드 실패 시 화면에서 즉시 식별
     "https://fonts.gstatic.com",
-    "https://ecom-dashboard-proxy.baldr0001.workers.dev", # Worker API — 루트 GET 404 가 정상이라 오탐 발생
+    "https://ecom-dashboard-proxy.e-hcg.workers.dev", # Worker API — 루트 GET 404 가 정상이라 오탐 발생
 )
 
 

@@ -73,7 +73,7 @@ IS_TEST = os.environ.get("ALERTS_TEST") == "true"
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
-WORKER = "https://ecom-dashboard-proxy.baldr0001.workers.dev"
+WORKER = "https://ecom-dashboard-proxy.e-hcg.workers.dev"
 
 
 def _now():

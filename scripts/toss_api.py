@@ -80,7 +80,7 @@ _BASE_HEADERS = {
 # 인증 = 전용 공유키 TOSS_RELAY_KEY 의 SHA-256 해시(동기화 키를 재사용하지 않는 이유는
 # 그 키를 프론트도 알고 있어 브라우저에서 릴레이를 부를 수 있게 되기 때문).
 TOSS_RELAY = os.environ.get(
-    "TOSS_RELAY", "https://ecom-dashboard-proxy.baldr0001.workers.dev/toss").strip()
+    "TOSS_RELAY", "https://ecom-dashboard-proxy.e-hcg.workers.dev/toss").strip()
 RELAY_KEY = os.environ.get("TOSS_RELAY_KEY", "").strip()
 _relay_mode = {"on": False}
 

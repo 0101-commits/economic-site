@@ -996,7 +996,7 @@ def _get_via_proxies(target_url, headers=None, timeout=15, expect_json=True):
     headers = headers or {}
     candidates = [
         target_url,
-        f"https://ecom-dashboard-proxy.baldr0001.workers.dev/?url={quote_plus(target_url)}",
+        f"https://ecom-dashboard-proxy.e-hcg.workers.dev/?url={quote_plus(target_url)}",
         f"https://corsproxy.io/?{quote_plus(target_url)}",
         f"https://api.allorigins.win/raw?url={quote_plus(target_url)}",
         f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(target_url)}",

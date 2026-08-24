@@ -97,7 +97,7 @@ Yahoo VIX/MOVE, Stooq 시계열, CNN 공포·탐욕, 환율, 뉴스)를 안정�
   - **Root directory**: `/`
   - **Deploy command**: `npx wrangler deploy` (기본값)
   - **Build command**: 비움
-- 배포 URL: `https://ecom-dashboard-proxy.baldr0001.workers.dev`
+- 배포 URL: `https://ecom-dashboard-proxy.e-hcg.workers.dev`
 
 CLI 로 직접 배포하려면 저장소 루트에서 `npx wrangler deploy` (루트 `wrangler.jsonc` 사용).
 
@@ -106,7 +106,7 @@ CLI 로 직접 배포하려면 저장소 루트에서 `npx wrangler deploy` (루
 `index.html` 상단 상수에 배포 URL 이 연결되어 있습니다:
 
 ```js
-const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.baldr0001.workers.dev';
+const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.e-hcg.workers.dev';
 ```
 
 > 우선순위: `localStorage('cfProxyBase')` → `CF_PROXY_DEFAULT`. 공개 프록시 폴백은

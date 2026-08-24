@@ -9707,7 +9707,7 @@ document.addEventListener('click', (e) => {
 // 중계하므로 모든 클라이언트 페치(Top10·VIX·시계열·뉴스)가 그곳만 사용한다.
 // ⚠ 공개 프록시 폴백은 제거됨(2차 보안 개선 S-3) — 제3자가 시세 응답을 변조할 수 있는
 //   경로였다. Worker 미설정/장애 시 클라이언트 보강은 조용히 스킵되고 data.json 값을 쓴다.
-const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.baldr0001.workers.dev';  // 배포된 Cloudflare Worker 프록시
+const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.e-hcg.workers.dev';  // 배포된 Cloudflare Worker 프록시
 // ── 클라이언트 실시간 보강 (기본 ON) ──────────────────────────────────
 // 왜 기본 ON 인가: 화면을 GitHub Actions 의 data.json 에만 의존하면 '오늘자 실시간'이 안 된다.
 // GitHub Actions 의 고빈도 스케줄 크론(*/10)은 GitHub 측에서 best-effort 라 장중에도 자주
