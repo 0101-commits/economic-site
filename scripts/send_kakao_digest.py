@@ -904,6 +904,11 @@ _LIVE_QUOTES = [
     ("indices", "KOSDAQ", "price", "^KQ11"),
     ("indices", "SP500", "price", "^GSPC"),
     ("indices", "NASDAQ", "price", "^IXIC"),
+    # 닛케이·SOX(2026-08-25) — 디스코드 카드 슬롯 편성이 타일로 쓴다. 특히 닛케이는
+    # 한국 장중과 같은 시간대에 거래되는데 종전엔 보정 대상이 아니라 스냅샷 값이
+    # 그대로 나갔다(실측: data.json 65,599 ▲0.09% vs 라이브 65,801 ▲0.42%).
+    ("indices", "Nikkei", "price", "^N225"),
+    ("indices", "SOX", "price", "^SOX"),
     ("fx", "USDKRW", "rate", "KRW=X"),
     ("fx", "USDJPY", "rate", "JPY=X"),
     ("commodities", "WTI", "price", "CL=F"),
@@ -920,7 +925,7 @@ _LIVE_QUOTES = [
 def apply_live_quotes(d):
     """data.json 스냅샷의 본문용 수치를 발송 시점 Yahoo 시세로 보정(실패 항목은 기존 값 유지)."""
     from concurrent.futures import ThreadPoolExecutor
-    syms = sorted({sym for _, _, _, sym in _LIVE_QUOTES} | {"^VIX"})
+    syms = sorted({sym for _, _, _, sym in _LIVE_QUOTES} | {"^VIX", "DX-Y.NYB", "^TNX"})
     try:
         with ThreadPoolExecutor(max_workers=6) as ex:
             quotes = dict(zip(syms, ex.map(_yahoo_live_quote, syms)))
@@ -955,6 +960,22 @@ def apply_live_quotes(d):
         if not old or abs(vq[0] / old - 1) <= 0.5:
             vix["value"] = vq[0]
             updated.append(f"VIX={vq[0]:.1f}")
+    # 카드 타일 전용 오버레이 — data.json 에 노드가 없거나(달러인덱스) 소스가 지연되는
+    # (미국채 10Y = FRED 2영업일) 항목. discord_card._node 가 이 dict 를 먼저 본다.
+    # d 는 메모리 사본이라 data.json 파일에는 절대 쓰이지 않는다(data.json 은 봇 소유).
+    tiles = d.setdefault("_liveTiles", {})
+    dq = quotes.get("DX-Y.NYB")
+    if dq and dq[0]:
+        tiles["DXY"] = {"value": dq[0], "change": dq[1]}
+        updated.append(f"DXY={dq[0]:.2f}")
+    tq = quotes.get("^TNX")
+    if tq and tq[0]:
+        # ^TNX 의 change 는 '수익률의 %변화'다 — 타일은 bp 를 쓰므로 전일값에서 역산.
+        bp = None
+        if tq[1] is not None and (1 + tq[1] / 100.0):
+            bp = round((tq[0] - tq[0] / (1 + tq[1] / 100.0)) * 100)
+        tiles["US10Y"] = {"value": tq[0], "change": bp}
+        updated.append(f"US10Y={tq[0]:.3f}%")
     if updated:
         print("[live] 발송 시점 시세 보정: " + ", ".join(updated))
 
@@ -1667,7 +1688,10 @@ def main():
                     _nw = next((v for lab, v in blocks if lab == "다음주"), "")
                     _card_png = discord_card.weekly(data, _dc_now, next_week=_nw)
                 else:
-                    _card_png = discord_card.board(data, _dc_now, cal=_dc_cal_line(data))
+                    # 슬롯별 편성(2026-08-25) — 07시엔 한국·일본장이, 14시엔 미국장이
+                    # 멈춰 있어 고정 12타일의 절반이 '안 움직이는 숫자'였다.
+                    _card_png = discord_card.board(data, _dc_now, cal=_dc_cal_line(data),
+                                                   slot=slot, weekend=weekend)
             except Exception as _ce:
                 print(f"[discord] 카드 렌더 예외({_ce}) — 슬롯 차트 폴백")
             _kchg = _f(((data.get("indices") or {}).get("KOSPI") or {}).get("change"))

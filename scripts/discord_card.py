@@ -3,7 +3,7 @@
 """디스코드 전용 '시각 보드' 카드 렌더러 (기획 2026-08-11, 아티팩트 e9144cf7).
 
 카드 4종 — 전부 embed 이미지 1장이 본문이 되는 형식(카카오는 무변경):
-  board()        카드 A: 정기 다이제스트 — 히트맵 타일 12 + 미국채 캡션 + 30일 스파크라인 4
+  board()        카드 A: 정기 다이제스트 — 슬롯별 편성(PROFILES) 타일 + 캡션 + 30일 추세
   close_report() 카드 B: 장 마감 — 다이버징 수평 바 + 오늘 발동 알림 수·내일 일정
   weekly()       카드 C: 주간 — 주간 수익률 정렬 다이버징 바
   swing()        카드 D: 급변·서킷 — 히어로 등락률 + 인트라데이 임계선
@@ -11,8 +11,12 @@
 신뢰성: 모든 공개 함수는 예외를 내부에서 삼키고 None 을 반환 — 호출측이 기존
 embed(필드/슬롯 차트)로 폴백한다. 카드 실패가 알림 실패가 되지 않는다.
 
-색: 상승 #E0443E / 하락 #3E7BE0 (국내 관습) — 디스코드 다크 표면 #313338 기준
-CVD ΔE 24.4 · 대비 3:1+ 검증 통과(기획안 참조). 강도는 표면과의 혼합비(램프)로.
+색: 상승 #E0443E / 하락 #3E7BE0 (국내 관습). 카드 바탕은 흰색(2026-08-25 사용자 지시)
+이라 보조·선·패널 팔레트는 흰 배경 기준으로 다시 골랐다 — 강조색(UP/DN)만 값 유지.
+대비는 본문 4.5:1 / 도형 3:1 을 넘긴다(test_discord_card.py 가 강제). 강도는 혼합비(램프)로.
+
+편성: 카드 A(board)는 슬롯마다 다른 PROFILES 편성을 그린다 — 07시엔 한국·일본장이,
+14시엔 미국장이 멈춰 있어 '안 움직이는 숫자'가 절반을 차지하던 고정 12타일을 대체한다.
 
 폰트: 한글 폰트(Noto Sans CJK KR — kakao-daily.yml 이 설치 / 로컬 Malgun Gothic)를
 찾고, 없으면 영문 라벨로 강등(stock-alerts.yml 은 매분 런이라 폰트 미설치).
@@ -22,14 +26,21 @@ import datetime
 import os
 import tempfile
 
-BG = "#313338"        # 디스코드 다크 embed 표면
-TILE = "#3A3D44"
-INK = "#F2F3F5"
-MUT = "#B5BAC1"
-FAINT = "#7A7F87"
-UP = "#E0443E"
-DN = "#3E7BE0"
-LINE = "#D7DBE1"
+# ── 팔레트(흰 바탕 기준) ──────────────────────────────────────────────────
+# 괄호 안은 BG(#FFFFFF) 대비 WCAG 대비비. 구 다크 표면(#313338)용 값을 그대로 쓰면
+# MUT 1.95:1 · LINE 1.39:1 로 무너지고 TILE 은 흰 카드에 짙은 박스로 남는다.
+BG = "#FFFFFF"        # 카드 바탕
+TILE = "#F1F3F5"      # 보합 타일 · 차트 패널 배경(살짝 내려앉은 면)
+INK = "#000000"       # 메인 텍스트 (21.0:1)
+MUT = "#4A5461"       # 보조 텍스트 — 라벨·캡션·축 (8.7:1)
+FAINT = "#6B7683"     # footer · 눈금 · 0선 (5.0:1)
+LINE = "#3D4752"      # 추세선 · 일봉선 (10.5:1)
+UP = "#E0443E"        # 상승 — 채움색(도형 4.15:1). 사용자 지정: 값 유지
+DN = "#3E7BE0"        # 하락 — 채움색(도형 4.11:1). 사용자 지정: 값 유지
+# 같은 색상의 어두운 변형 — 12pt 내외 '작은 글자'로 등락을 쓸 때만(원색은 4.1:1 로
+# 본문 기준 4.5:1 미달). 채움색은 위 UP/DN 그대로 둔다.
+UP_TXT = "#C4362F"    # (6.0:1)
+DN_TXT = "#2F62BE"    # (6.0:1)
 
 _KO_FONTS = ["Malgun Gothic", "NanumGothic", "Noto Sans CJK KR", "Noto Sans KR"]
 _STATE = {}           # {"plt": module, "ko": bool} — 1회 초기화 캐시
@@ -83,7 +94,49 @@ def _f(v):
         return None
 
 
+# ── 가상 카테고리 어댑터 ──────────────────────────────────────────────────
+# 편성표가 참조하는 타일 중 indices/fx/commodities 에 없는 것들. 새 수집은 없다 —
+# 이미 data.json 에 있는 필드를 타일이 읽는 (값, 등락) 모양으로 바꿔줄 뿐이다.
+_YIELD_KEY = {"US10Y": ("us", "10Y"), "KR10Y": ("kr", "10Y"), "EU10Y": ("eu", "10Y")}
+# jp 는 최신값이 2026-06-01 에서 멈춰 있어(3개월 정지) 타일 편성에 넣지 않는다.
+
+
+def _yield_series(d, key):
+    """yieldCurve.{국가}.series[만기] → [수익률%…] 시간순. 없으면 []."""
+    cc, tenor = _YIELD_KEY.get(key, (None, None))
+    if not cc:
+        return []
+    for s in (((d.get("yieldCurve") or {}).get(cc) or {}).get("series") or []):
+        if s.get("tenor") == tenor:
+            return [v for v in (_f(r.get("value")) for r in (s.get("data") or [])) if v is not None]
+    return []
+
+
+def _dxy_series(d):
+    """달러인덱스 이력. economicIndicators.us.dxy_idx.history 는 {날짜: 값} dict — 키 정렬."""
+    h = ((((d.get("economicIndicators") or {}).get("us") or {}).get("dxy_idx") or {})
+         .get("history") or {})
+    return [v for v in (_f(h[k]) for k in sorted(h)) if v is not None]
+
+
 def _node(d, cat, key):
+    """(현재값, 등락) — 금리만 등락 단위가 %가 아니라 bp.
+
+    라이브 오버레이(_liveTiles)를 먼저 본다: send_kakao_digest.apply_live_quotes 가
+    data.json 에 노드가 없거나(달러인덱스) 소스가 지연되는(미국채 10Y = FRED 2영업일)
+    항목을 발송 시점 시세로 채워 넣는다. 없으면 스냅샷 값으로 내려간다."""
+    lt = (d.get("_liveTiles") or {}).get(key)
+    if lt:
+        return _f(lt.get("value")), _f(lt.get("change"))
+    if cat == "yield":
+        vs = _yield_series(d, key)
+        if not vs:
+            return None, None
+        bp = float(round((vs[-1] - vs[-2]) * 100)) if len(vs) > 1 else None
+        return vs[-1], bp
+    if cat == "macro" and key == "DXY":
+        n = (((d.get("economicIndicators") or {}).get("us") or {}).get("dxy_idx") or {})
+        return _f(n.get("value")), _f(n.get("change"))
     n = (d.get(cat) or {}).get(key) or {}
     price = _f(n.get("price") if n.get("price") is not None else n.get("rate"))
     chg = _f(n.get("change") if n.get("change") is not None else n.get("chgPct"))
@@ -91,6 +144,10 @@ def _node(d, cat, key):
 
 
 def _hist(d, cat, key, days=30):
+    if cat == "yield":
+        return _yield_series(d, key)[-days:]
+    if cat == "macro" and key == "DXY":
+        return _dxy_series(d)[-days:]
     h = ((d.get("history") or {}).get(cat) or {}).get(key) or []
     vals = [_f(r.get("close")) for r in h[-days:]]
     return [v for v in vals if v is not None]
@@ -109,16 +166,49 @@ def _chgtxt(c):
     return f"{a}{abs(c):.2f}%"
 
 
-def _tile_color(c):
-    """등락 → (타일 배경, 라벨 잉크). 방향=색상, 강도=표면과의 혼합비(±3%에서 포화)."""
-    if c is None or abs(c) < 0.05:
-        return TILE, MUT
+def _txt_color(up, flat=False):
+    """작은 글자(14pt bold 미만)용 등락색. 원색 UP/DN 은 흰 바탕에서 4.1:1 이라
+    본문 기준 4.5:1 에 못 미친다 — 같은 색상의 어두운 변형으로. 채움색은 원색 그대로."""
+    if flat:
+        return MUT
+    return UP_TXT if up else DN_TXT
+
+
+def _fmt_tile(cat, v):
+    """타일 현재값 — 금리엔 %를 붙이고, 1 근처인 통화쌍(유로-달러)은 4자리까지."""
+    if v is None:
+        return "—"
+    if cat == "yield":
+        return f"{v:.2f}%"
+    if cat == "fx" and abs(v) < 10:
+        return f"{v:.4f}"
+    return _fmt(v)
+
+
+def _chgtxt_tile(cat, c):
+    """타일 등락 — 금리는 bp, 나머지는 %."""
+    if c is None:
+        return ""
+    if cat != "yield":
+        return _chgtxt(c)
+    a = "▲" if c > 0 else "▼" if c < 0 else "■"
+    return f"{a}{abs(c):.0f}bp"
+
+
+def _tile_color(c, sat=3.0):
+    """등락 → (타일 배경, 잉크, 보합여부). 방향=색상, 강도=표면과의 혼합비.
+
+    sat = 색이 포화하는 등락폭. 지수·원자재 3%, 통화 1%, 달러인덱스 0.8%, 금리 15bp
+    (_sat_of). 금리를 bp 로 넣고 3% 스케일을 그대로 쓰면 평범한 5bp 날이 최대 채도가 된다.
+    '보합여부'를 돌려주는 이유: 호출측이 bgc != TILE 로 보합을 되짚던 색 비교를 없애기 위함."""
+    if c is None or abs(c) < 0.05 * (sat / 3.0):
+        return TILE, MUT, True
     base = UP if c > 0 else DN
-    a = min(0.95, 0.30 + abs(c) / 3.0 * 0.65)
+    a = min(0.95, 0.30 + abs(c) / float(sat) * 0.65)
     rgb = tuple(int(base[i:i + 2], 16) for i in (1, 3, 5))
     bgc = tuple(int(BG[i:i + 2], 16) for i in (1, 3, 5))
     mix = tuple(int(x * a + y * (1 - a)) for x, y in zip(rgb, bgc))
-    return "#%02x%02x%02x" % mix, INK
+    return "#%02x%02x%02x" % mix, INK, False
 
 
 def _footer(fig, now, extra=""):
@@ -138,21 +228,29 @@ def _save(fig, name):
 
 def _us_yield_line(d):
     """카드 A 하단 캡션 — 미국채 1·5·10·30Y 레벨% + 전일 대비 bp.
-    출처 = data.yieldCurve.us.series(FRED DGS*). 데이터 없으면 ""(캡션 생략)."""
+    출처 = data.yieldCurve.us.series(FRED DGS*). 데이터 없으면 ""(캡션 생략).
+
+    10Y 만은 라이브(_liveTiles, ^TNX)가 있으면 그 값을 쓴다 — FRED 는 영업일 2일
+    지연이라, 같은 카드의 10Y 타일(라이브)과 캡션(FRED)이 4.70% vs 4.74% 로 어긋난다."""
     try:
         series = ((d.get("yieldCurve") or {}).get("us") or {}).get("series") or []
         by = {s.get("tenor"): (s.get("data") or []) for s in series}
+        live10 = (d.get("_liveTiles") or {}).get("US10Y") or {}
         parts = []
         for t in ("1Y", "5Y", "10Y", "30Y"):
             dt = by.get(t) or []
             last = _f((dt[-1] or {}).get("value")) if dt else None
+            b = None
+            if last is not None and len(dt) > 1 and _f((dt[-2] or {}).get("value")) is not None:
+                b = round((last - _f((dt[-2] or {}).get("value"))) * 100)
+            if t == "10Y" and _f(live10.get("value")) is not None:
+                last = _f(live10.get("value"))
+                b = _f(live10.get("change"))
             if last is None:
                 continue
-            prev = _f((dt[-2] or {}).get("value")) if len(dt) > 1 else None
             bp = ""
-            if prev is not None:
-                b = round((last - prev) * 100)
-                bp = f" {'▲' if b > 0 else '▼' if b < 0 else '■'}{abs(b)}bp"
+            if b is not None:
+                bp = f" {'▲' if b > 0 else '▼' if b < 0 else '■'}{abs(b):.0f}bp"
             parts.append(f"{t} {last:.2f}%{bp}")
         return (_L("미국채  ", "UST  ") + "  ·  ".join(parts)) if parts else ""
     except Exception:
@@ -170,18 +268,139 @@ _ASSETS = [("코스피", "KOSPI", "indices", "KOSPI"), ("코스닥", "KOSDAQ", "
            ("밀", "Wheat", "commodities", "Wheat"), ("옥수수", "Corn", "commodities", "Corn"),
            ("은", "Silver", "commodities", "Silver"), ("브렌트", "Brent", "commodities", "Brent")]
 
+# ── 타일 카탈로그 ─────────────────────────────────────────────────────────
+# _ASSETS 는 '자산 목록'으로 남긴다(디스코드 지표 드롭다운 _dc_select 와 주간 정렬
+# weekly_rows 가 이 순서를 읽는다). 편성표는 아래 카탈로그의 키를 참조만 하므로
+# 두 기능은 편성이 어떻게 바뀌든 무영향.
+_EXTRA = [("달러인덱스", "Dollar Idx", "macro", "DXY"),
+          ("유로-달러", "EUR/USD", "fx", "EURUSD"),
+          ("상하이", "Shanghai", "indices", "Shanghai"),
+          ("미국채 10Y", "UST 10Y", "yield", "US10Y"),
+          ("한국채 10Y", "KTB 10Y", "yield", "KR10Y"),
+          ("유로 10Y", "Bund 10Y", "yield", "EU10Y")]
+_CATALOG = {key: (ko, en, cat) for ko, en, cat, key in _ASSETS + _EXTRA}
+# 등락 강도가 포화하는 폭 — 카테고리별. 금리는 bp 단위라 스케일이 다르다.
+_SAT = {"fx": 1.0, "yield": 15.0, "macro": 0.8}   # 금리는 bp — 15bp 하루면 주식 3% 급
 
-def board(d, now, cal=""):
+
+def _sat_of(cat):
+    return _SAT.get(cat, 3.0)
+
+
+# ── 슬롯별 편성표 ─────────────────────────────────────────────────────────
+# rows 의 각 줄이 카드의 한 줄이 된다(줄마다 길이가 달라도 됨 — 렌더가 최대 길이로
+# 열 수를 잡는다). spark = 하단 30일 추세 패널. caption = 하단 캡션 종류.
+# 경계는 KST 세션 겹침에서 나온다: 한국 09:00–15:30 · 일본 09:00–15:00 ·
+# 유럽 16:00– · 미국 22:30(서머타임)/23:30.
+PROFILES = {
+    "kr_session": {                                   # 09~15시 — 사용자 지정 편성
+        "title": "장중",
+        "rows": [["KOSPI", "KOSDAQ", "Nikkei"],
+                 ["USDKRW", "USDJPY", "DXY"],
+                 ["Gold", "WTI", "US10Y"]],
+        "spark": ["KOSPI", "SP500", "USDKRW"],
+        "caption": "us_curve",
+    },
+    "pre_kr": {                                       # 07~08시 — 미국장 마감 정산
+        "title": "개장 전",
+        "rows": [["SP500", "NASDAQ", "SOX"],
+                 ["DXY", "USDKRW", "USDJPY"],
+                 ["US10Y", "Gold", "WTI"]],
+        "spark": ["SP500", "NASDAQ", "USDKRW"],
+        "caption": "us_curve",
+    },
+    "kr_close_eu": {                                  # 16~18시 — 마감 확정 + 유럽 개장
+        "title": "마감·유럽",
+        "rows": [["KOSPI", "Nikkei", "Shanghai"],
+                 ["USDKRW", "USDJPY", "DXY"],
+                 ["Gold", "Copper", "WTI"]],
+        "spark": ["KOSPI", "USDKRW", "Gold"],
+        "caption": "us_curve",
+    },
+    "us_pre": {                                       # 19~21시 — 금리·달러 중심
+        "title": "미국 개장 전",
+        "rows": [["US10Y", "KR10Y", "EU10Y"],
+                 ["DXY", "USDKRW", "EURUSD"],
+                 ["Gold", "Silver", "Copper"]],
+        "spark": ["US10Y", "DXY", "Gold"],
+        "caption": "us_curve",
+    },
+    "us_open": {                                      # 22시 — 미국 개장
+        "title": "미국 장중",
+        "rows": [["SP500", "NASDAQ", "SOX"],
+                 ["DXY", "USDKRW", "US10Y"],
+                 ["Gold", "WTI", "NatGas"]],
+        "spark": ["SP500", "NASDAQ", "USDKRW"],
+        "caption": "us_curve",
+    },
+    "weekend": {                                      # 주말·공휴일 11·17시
+        "title": "주말",
+        "rows": [["USDKRW", "USDJPY", "DXY"],
+                 ["Gold", "Silver", "WTI"],
+                 ["US10Y", "KR10Y", "Copper"]],
+        "spark": ["USDKRW", "Gold", "SP500"],
+        "caption": "us_curve",
+    },
+}
+DEFAULT_PROFILE = "kr_session"
+
+
+def _us_regular_session(now):
+    """미국 정규장(현지 09:30~16:00 평일) 여부. 서머타임은 tz 데이터에 맡긴다 —
+    3~11월 22:30 KST / 그 외 23:30 KST 를 직접 계산하면 전환주에 어긋난다.
+    판정 불가(naive datetime·tz 데이터 부재)면 True — h22 를 종전 성격으로 둔다."""
+    try:
+        from zoneinfo import ZoneInfo
+        if now is None or now.tzinfo is None:
+            return True
+        ny = now.astimezone(ZoneInfo("America/New_York"))
+        return ny.weekday() < 5 and (9, 30) <= (ny.hour, ny.minute) < (16, 0)
+    except Exception:
+        return True
+
+
+def profile_for(slot=None, weekend=False, now=None):
+    """슬롯('h07'~'h22') → 편성 키. 모르는 슬롯은 DEFAULT_PROFILE 로 폴백(빈 카드 금지)."""
+    if weekend:
+        return "weekend"
+    hr = None
+    s = str(slot or "").strip().lower()
+    if s.startswith("h") and s[1:].isdigit():
+        hr = int(s[1:])
+    elif now is not None:
+        hr = now.hour
+    if hr is None:
+        return DEFAULT_PROFILE
+    if hr < 9:
+        return "pre_kr"
+    if hr < 16:
+        return "kr_session"
+    if hr < 19:
+        return "kr_close_eu"
+    if hr < 22:
+        return "us_pre"
+    return "us_open" if _us_regular_session(now) else "us_pre"
+
+
+def board(d, now, cal="", slot=None, weekend=False, profile=None):
     """카드 A — 시황 보드. 실패 시 None(호출측이 슬롯 차트로 폴백).
 
-    v4(기획 ed0e5496 — 버튼 다이어트): 폐기된 16버튼 그리드의 정보를 카드가 단독
-    흡수한다 — 타일 16→12 로 줄여 키우고(4×3), 글자 전반 확대 + dpi 130→160 으로
-    모바일 가독성 확보. 하단 캡션 = 미국채 1·5·10·30Y(_us_yield_line)."""
+    v5(슬롯 편성): 고정 12타일(4×3) 대신 PROFILES 의 슬롯별 편성을 그린다 — 07시엔
+    한국·일본장이, 14시엔 미국장이 멈춰 있어 '안 움직이는 숫자'가 절반을 차지하던 문제.
+    rows 의 줄 수·길이를 그대로 따르므로 3×3 도 4×3 도 같은 루프로 나온다.
+    profile 인자는 미리보기·테스트용 강제 지정(운영은 slot/weekend 로 판정)."""
     try:
         plt, _ = _setup()
+        pkey = profile if profile in PROFILES else profile_for(slot, weekend, now)
+        prof = PROFILES.get(pkey) or PROFILES[DEFAULT_PROFILE]
+        grid = [r for r in prof["rows"] if r]
+        cols = max(len(r) for r in grid)
+        rows = len(grid)
+        big = cols <= 3                                # 3열이면 타일이 넓어져 글자를 키운다
+        fs_l, fs_p, fs_c = (14, 21, 14) if big else (13, 17, 13)
         fig = plt.figure(figsize=(10, 7.0), dpi=160)
         fig.patch.set_facecolor(BG)
-        fig.text(0.03, 0.945, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드",
+        fig.text(0.03, 0.945, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드 · {prof['title']}",
                                  f"{now.month}/{now.day} {now.hour}h Market Board"),
                  color=INK, fontsize=19, fontweight="bold")
         mv = ((d.get("sentiment") or {}).get("move")) or {}
@@ -192,33 +411,36 @@ def board(d, now, cal=""):
             head.append((_L("오늘 ", "today ") + cal).strip())
         if head:
             fig.text(0.97, 0.950, " · ".join(head), color=MUT, fontsize=11, ha="right")
-        cols, rows = 4, 3
         gx0, gy0, gw, gh = 0.03, 0.44, 0.94, 0.46
         from matplotlib.patches import FancyBboxPatch
-        for i, (ko, en, cat, key) in enumerate(_ASSETS[:12]):
-            r_, c_ = divmod(i, cols)
-            x = gx0 + c_ * gw / cols
-            y = gy0 + (rows - 1 - r_) * gh / rows
-            w, h = gw / cols - 0.008, gh / rows - 0.016
-            price, chg = _node(d, cat, key)
-            bgc, ink = _tile_color(chg)
-            fig.patches.append(FancyBboxPatch(
-                (x, y), w, h, boxstyle="round,pad=0.004,rounding_size=0.008",
-                transform=fig.transFigure, fc=bgc, ec="none"))
-            fig.text(x + 0.012, y + h - 0.038, _L(ko, en),
-                     color=ink if bgc != TILE else MUT, fontsize=13)
-            fig.text(x + 0.012, y + 0.048, _fmt(price), color=INK, fontsize=17, fontweight="bold")
-            fig.text(x + w - 0.010, y + 0.014, _chgtxt(chg),
-                     color=INK if bgc != TILE else MUT, fontsize=13, fontweight="bold", ha="right")
+        for r_, line in enumerate(grid):
+            for c_, key in enumerate(line):
+                ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+                x = gx0 + c_ * gw / cols
+                y = gy0 + (rows - 1 - r_) * gh / rows
+                w, h = gw / cols - 0.008, gh / rows - 0.016
+                price, chg = _node(d, cat, key)
+                bgc, ink, flat = _tile_color(chg, _sat_of(cat))
+                fig.patches.append(FancyBboxPatch(
+                    (x, y), w, h, boxstyle="round,pad=0.004,rounding_size=0.008",
+                    transform=fig.transFigure, fc=bgc, ec="none"))
+                fig.text(x + 0.012, y + h - 0.040, _L(ko, en), color=ink, fontsize=fs_l)
+                fig.text(x + 0.012, y + 0.050, _fmt_tile(cat, price),
+                         color=INK, fontsize=fs_p, fontweight="bold")
+                fig.text(x + w - 0.010, y + 0.014, _chgtxt_tile(cat, chg),
+                         color=ink, fontsize=fs_c, fontweight="bold", ha="right")
         # 하단 캡션 — 미국채 1·5·10·30Y(사용자 지정 2026-08-20, 구 원자재 4종 대체).
-        # 밀·옥수수·은·브렌트는 카드에서 제외(은·브렌트는 드롭다운으로 접근 가능).
-        rest = _us_yield_line(d)
+        rest = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
         if rest:
             fig.text(0.03, 0.395, rest, color=MUT, fontsize=12)
         fig.text(0.03, 0.335, _L("추세 30일", "30-day trend"), color=MUT, fontsize=12)
-        sparks = [_ASSETS[0], _ASSETS[2], _ASSETS[6], _ASSETS[8]]  # 코스피·S&P·달러원·금
-        for i, (ko, en, cat, key) in enumerate(sparks):
-            ax = fig.add_axes([0.03 + i * 0.2425, 0.075, 0.205, 0.235])
+        sparks = prof.get("spark") or []
+        n = len(sparks)
+        gap = 0.0175
+        sw = (gw - gap * (n - 1)) / n if n else gw
+        for i, key in enumerate(sparks):
+            ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+            ax = fig.add_axes([gx0 + i * (sw + gap), 0.075, sw, 0.235])
             ax.set_facecolor(TILE)
             vs = _hist(d, cat, key)
             if vs:
@@ -230,13 +452,18 @@ def board(d, now, cal=""):
                 pad_x = max(1.0, (len(vs) - 1) * 0.04)
                 ax.set_xlim(-pad_x, (len(vs) - 1) + pad_x)
                 ax.plot(vs, color=LINE, lw=1.6)
-                dirc = UP if vs[-1] >= vs[0] else DN
-                ax.plot(len(vs) - 1, vs[-1], "o", color=dirc, ms=5)
-                p30 = (vs[-1] / vs[0] - 1) * 100 if vs[0] else 0.0
+                up = vs[-1] >= vs[0]
+                ax.plot(len(vs) - 1, vs[-1], "o", color=UP if up else DN, ms=5)
+                # 30일 변화 — 금리는 %가 아니라 bp(4.50→4.74 는 +5.3% 가 아니라 +24bp).
+                if cat == "yield":
+                    p30 = f"{(vs[-1] - vs[0]) * 100:+.0f}bp"
+                else:
+                    p30 = f"{((vs[-1] / vs[0] - 1) * 100 if vs[0] else 0.0):+.1f}%"
                 ax.text(0.05, 0.84, _L(ko, en), transform=ax.transAxes, color=MUT, fontsize=12)
-                ax.text(0.95, 0.84, f"{'+' if p30 >= 0 else ''}{p30:.1f}%", transform=ax.transAxes,
-                        color=dirc, fontsize=12, ha="right", fontweight="bold")
-                ax.text(0.05, 0.08, _fmt(vs[-1]), transform=ax.transAxes, color=INK, fontsize=13)
+                ax.text(0.95, 0.84, p30, transform=ax.transAxes,
+                        color=UP_TXT if up else DN_TXT, fontsize=12, ha="right", fontweight="bold")
+                ax.text(0.05, 0.08, _fmt_tile(cat, vs[-1]), transform=ax.transAxes,
+                        color=INK, fontsize=13)
             ax.set_xticks([]); ax.set_yticks([])
             for s in ax.spines.values():
                 s.set_visible(False)
@@ -264,6 +491,7 @@ def stock_alert(hero, others, now):
         fig.patch.set_facecolor(BG)
         pct = _f(hero.get("pct"))
         col = UP if (pct or 0) > 0 else DN if (pct or 0) < 0 else MUT
+        coltxt = _txt_color((pct or 0) > 0, flat=not (pct or 0))   # 작은 글자용
         base_y = 1 - 0.55 / hgt                       # 제목 줄(높이 가변 보정)
         fig.text(0.03, base_y, _L(f"{now.month}/{now.day} {now.strftime('%H:%M')} 종목 알림",
                                   f"{now.month}/{now.day} {now.strftime('%H:%M')} Stock Alert"),
@@ -302,7 +530,7 @@ def stock_alert(hero, others, now):
             if tgt:
                 ax.axhline(tgt, color=col, lw=1.2, ls="--")
                 ax.text(0.02, tgt, _L(f"목표 {tgt:,.0f} ", f"target {tgt:,.0f} "),
-                        color=col, fontsize=10.5, va="bottom")
+                        color=coltxt, fontsize=10.5, va="bottom")
             ax.plot(len(closes) - 1, closes[-1], "o", color=col, ms=6)
             ax.text(0.02, 0.94, _L("30일 일봉", "30-day daily"), transform=ax.transAxes,
                     color=MUT, fontsize=11, va="top")
@@ -374,7 +602,8 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
             ax2.text(0.03, 0.93, lab, transform=ax2.transAxes, color=MUT, fontsize=11.5, va="top")
             if prev:
                 ax2.text(0.97, 0.93, f"{(ys[-1] / prev - 1) * 100:+.2f}%", transform=ax2.transAxes,
-                         color=dirc, fontsize=12.5, ha="right", va="top", fontweight="bold")
+                         color=_txt_color(dirc == UP), fontsize=12.5,
+                         ha="right", va="top", fontweight="bold")
             ax2.set_xticks([]); ax2.set_yticks([])
             for s in ax2.spines.values():
                 s.set_visible(False)
@@ -413,11 +642,11 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
             ty -= 0.045
             for r in (gain or [])[:3]:
                 fig.text(0.56, ty, f"▲ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%",
-                         color=UP, fontsize=12)
+                         color=UP_TXT, fontsize=12)
                 ty -= 0.042
             for r in (lose or [])[:3]:
                 fig.text(0.56, ty, f"▼ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%",
-                         color=DN, fontsize=12)
+                         color=DN_TXT, fontsize=12)
                 ty -= 0.042
             ty -= 0.015
         if alerts_cnt is not None:
@@ -542,6 +771,7 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src=""):
             return None
         plt, _ = _setup()
         col = UP if pct > 0 else DN
+        coltxt = _txt_color(pct > 0)                   # 작은 글자용
         fig = plt.figure(figsize=(10, 5.0), dpi=130)
         fig.patch.set_facecolor(BG)
         fig.text(0.03, 0.93,
@@ -567,7 +797,7 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src=""):
                 ax.axhline(thr_v, color=col, lw=1.2, ls="--")
                 ax.text(len(ys) - 1, thr_v,
                         f"{'-' if pct < 0 else '+'}{abs(thr_pct):.1f}% ",
-                        color=col, fontsize=11.5, ha="right",
+                        color=coltxt, fontsize=11.5, ha="right",
                         va="bottom" if pct < 0 else "top")
                 crossed = [i for i, v in enumerate(ys)
                            if (v <= thr_v if pct < 0 else v >= thr_v)]
@@ -591,3 +821,43 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src=""):
     except Exception as e:
         print(f"::warning title=디스코드 카드 실패::swing: {e} — 기존 형식 폴백")
         return None
+
+
+# ── 미리보기 CLI ──────────────────────────────────────────────────────────
+# 디스코드로 쏘지 않고 편성을 눈으로 검토하기 위한 진입점.
+#   python scripts/discord_card.py                 # 지금 시각의 프로필
+#   python scripts/discord_card.py kr_session      # 특정 프로필
+#   python scripts/discord_card.py all -o out/     # 6종 전부 파일로
+def _preview(argv):
+    import json
+    import shutil
+    args = [a for a in argv if not a.startswith("-")]
+    out = ""
+    if "-o" in argv:
+        out = argv[argv.index("-o") + 1] if len(argv) > argv.index("-o") + 1 else ""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "data.json"), encoding="utf-8") as f:
+        d = json.load(f)
+    now = datetime.datetime.now()
+    want = args[0] if args else profile_for(now=now)
+    keys = list(PROFILES) if want == "all" else [want]
+    for k in keys:
+        if k not in PROFILES:
+            print(f"알 수 없는 프로필: {k} — 가능: {', '.join(PROFILES)}")
+            return 1
+        p = board(d, now, profile=k)
+        if not p:
+            print(f"{k}: 렌더 실패")
+            return 1
+        if out:
+            os.makedirs(out, exist_ok=True)
+            p2 = os.path.join(out, f"board_{k}.png")
+            shutil.copy(p, p2)
+            p = p2
+        print(f"{k:12} → {p}")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    raise SystemExit(_preview(sys.argv[1:]))

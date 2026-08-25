@@ -76,6 +76,7 @@ and are **not** idempotent — do not re-run them.
 | `scripts/send_kakao_digest.py` | KakaoTalk digest sender |
 | `scripts/check_alerts.py` | Stock alert evaluator |
 | `scripts/check_swings.py` | Market swing alert (코스피·S&P500 ±2%, 달러-원 ±1% 즉시 속보; cooldown = `alerts_state.json` `_swings` key) |
+| `scripts/discord_card.py` | Discord 카드 PNG 렌더러(matplotlib). 바탕 = **흰색**, 팔레트는 흰 배경 대비 기준으로 고정 — UP/DN(`#E0443E`/`#3E7BE0`)은 채움색 전용이고 12pt 내외 작은 글자는 `UP_TXT`/`DN_TXT`를 쓴다(원색은 4.1:1 로 본문 기준 미달). 카드 A(`board`)는 슬롯별 편성 `PROFILES` 6종(`kr_session`/`pre_kr`/`kr_close_eu`/`us_pre`/`us_open`/`weekend`)을 그리고, `profile_for(slot, weekend, now)`가 슬롯→편성을 정한다. 편성표는 `_CATALOG` 키만 참조하므로 `_ASSETS`(드롭다운·주간 정렬용 자산 목록)는 건드리지 말 것. 미리보기 `python scripts/discord_card.py all -o out/`, 가드 `python scripts/tests/test_discord_card.py` |
 | `scripts/notify_discord.py` | Discord webhook parallel channel (secret `DISCORD_WEBHOOK_URL`; digest/alerts/swings 병행 발송, 미설정 시 no-op). 버튼 라벨 방향 이모지 `direction_emoji`/`dir_label` (E2 표준 ±2%). v4 버튼 다이어트(기획 ed0e5496): 다이제스트 컴포넌트 = 유틸 버튼 1행(3개) + 지표 드롭다운 `select`(값=NAVER_LINKS 키, Worker `/discord` `goto_link` 가 에페메랄 링크 응답) — 구 16버튼 타일 미러 그리드는 폐기, 등락 정보는 카드 이미지 단독 담당 |
 | `cloudflare-worker/worker.js` | CORS proxy + rate limiting + KakaoTalk cron dispatch |
 | `data.json` | Market data artifact — committed by bot, never edit by hand |
