@@ -843,6 +843,48 @@ def _intraday_chain(symbol):
     return [], [], None, ""
 
 
+def _session_chain(symbol):
+    """다이제스트 히어로용 시계열 — (xs, ys, prev, 폴백라벨). 당일 '전 구간'이 목적이다.
+
+    _intraday_chain 과 우선순위가 반대인 이유: 토스 1분봉은 count 상한 200 이라 최근
+    3.3시간만 돌려준다(15:39 조회 시 12:11~15:30 — 오전장 누락, 2026-08-25 실측).
+    급변·서킷 카드는 '방금 무슨 일이 났나'라 1분 해상도·최신성이 전 구간보다 중요하므로
+    그쪽은 _intraday_chain 을 그대로 쓴다. 한 함수로 두 요구를 만족시키면 한쪽이 나빠진다."""
+    xs, ys, prev = _yahoo_intraday(symbol)
+    if ys:
+        return xs, ys, prev, ""
+    xs, ys, prev = _toss_index_intraday(symbol)
+    if len(ys) >= _MIN_INTRADAY_PTS:
+        return xs, ys, prev, "1분봉 최근"
+    xs, ys, prev = _daily7(symbol)
+    if ys:
+        return xs, ys, prev, "일봉 7D"
+    return [], [], None, ""
+
+
+def _hero_symbol(key):
+    """타일 키 → 인트라데이 조회 심볼. 기존 두 표(_YH_SYM·_YIELD_INTRADAY_SYM)를 그대로 쓴다."""
+    return _YH_SYM.get(key) or _YIELD_INTRADAY_SYM.get(key) or ""
+
+
+def _build_kakao_card(data, now, slot, weekend):
+    """카톡 피드 이미지 — 디스코드와 같은 편성표(PROFILES)의 정사각 캔버스(기획 d18ebb33 P1).
+
+    히어로 인트라데이는 여기서 조회해 넘긴다(discord_card 는 시세를 직접 조회하지 않는다).
+    실패 시 None → 호출측이 종전 슬롯 차트로 폴백하므로 이미지가 비는 일은 없다.
+    (_dc_cal_line 은 '일정 한 줄' 문구 재사용일 뿐 — 카카오 본문 blocks 는 건드리지 않는다.)"""
+    try:
+        import discord_card
+        pkey = discord_card.profile_for(slot, weekend, now)
+        sym = _hero_symbol(discord_card.HERO.get(pkey, ""))
+        hero = _session_chain(sym) if sym else ([], [], None, "")
+        return discord_card.board(data, now, cal=_dc_cal_line(data), slot=slot,
+                                  weekend=weekend, shape="square", hero=hero)
+    except Exception as e:
+        print(f"::warning title=카톡 카드 실패::{e} — 종전 슬롯 차트로 폴백")
+        return None
+
+
 def _ai_line(data, n=2):
     """aiBriefing(LLM 3줄 요약, fetch-data 가 매일 생성·커밋) 상위 n줄 — 디스코드
     embed description 용(기획 5154773b P3). 오늘 자가 아니면 ""(묵은 요약이 '지금
@@ -1141,6 +1183,17 @@ def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
     except Exception as e:
         print(f"::warning title=차트 누락 폴백::[chart] matplotlib 미설치 — 이미지 생략 ({e})")
         return None
+    # 한글 폰트 — 카드 렌더러와 같은 탐지 경로를 태운다. 종전엔 rcParams 를 건드리지 않아
+    # matplotlib 기본(DejaVu Sans)으로 그려졌고, 그래서 라벨을 영문으로 박아 뒀다.
+    # kakao-daily.yml 이 이 잡에서 이미 fonts-noto-cjk 를 설치한다(디스코드 카드용).
+    ko = {}
+    try:
+        import discord_card
+        discord_card._setup()
+        ko = {k: v[0] for k, v in discord_card._CATALOG.items()}
+        ko.setdefault("JP10Y", "일본채 10Y")   # 재무성 CSV 직접 수집 — 카탈로그엔 없다
+    except Exception as e:
+        print(f"[chart] 한글 폰트 설정 생략({e}) — 영문 라벨 유지")
     h = d.get("history", {}) or {}
 
     def daily_series(cat, key, n=7):
@@ -1160,8 +1213,10 @@ def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
         # 폰트는 채팅방 표시 기준으로 보이도록 크게(2026-06 사용자 요청: 이미지 안 수치가 작음).
         # 이미지(1080px)가 말풍선 폭(약 270dp)으로 1/4 축소되므로, 패널 제목이 카톡 본문
         # 글씨(약 15dp)와 같아 보이려면 26pt(150dpi에서 약 54px)가 필요하다.
-        fig.suptitle(suptitle, fontsize=17, x=0.02, ha="left", weight="bold")
+        sup = " / ".join(ko.get(k, lab) for _c, k, lab in panels) if ko else suptitle
+        fig.suptitle(sup, fontsize=17, x=0.02, ha="left", weight="bold")
         for a, (cat, key, label) in zip(axes, panels):
+            label = ko.get(key, label)
             color = _CHART_COLOR.get(key, "#333333")
             # 국채 수익률 패널은 별도 경로(yieldCurve/economicIndicators) — % 값·bp 변화로 그린다.
             if cat == "yield":
@@ -1199,7 +1254,12 @@ def build_slot_chart_png(d, slot, weekend, out_path="/tmp/kakao_chart.png"):
                 else:                                # 그려진 시계열 처음~끝 기준 추정
                     disp_chg = (ys[-1] / ys[0] - 1) * 100 if ys[0] else 0.0
                     span = "today" if intraday else f"{len(xs)}d"
-                a.set_title(f"{label}   {disp_val:,.2f}  ({disp_chg:+.1f}% / {span})", fontsize=26, loc="left")
+                t = f"{label}   {disp_val:,.2f}  ({disp_chg:+.1f}% / {span})"
+                # 26pt 는 말풍선 축소(1080px → 약 270dp) 후에도 본문 글씨만큼 보이는 크기지만,
+                # 긴 제목은 축 폭을 넘어 오른쪽이 잘렸다("(+0.1% / today" 에서 ')' 크롭 —
+                # 2026-08-25 실측). 넘칠 때만 단계적으로 줄인다 — 짧은 제목은 종전 크기 유지.
+                a.set_title(t, fontsize=(26 if len(t) <= 27 else 22 if len(t) <= 32 else 19),
+                            loc="left")
                 a.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M" if intraday else "%m-%d"))
             else:
                 a.text(0.5, 0.5, f"{label} N/A", ha="center", va="center", fontsize=24)
@@ -1288,7 +1348,24 @@ def build_feed_parts(blocks):
     return desc, items
 
 
-def send_feed(access_token, title, description, image_url, items=None, dims=CHART_PX, uuids=None):
+def _hero_button(slot, weekend, now):
+    """피드 2번째 버튼 — 그 슬롯 히어로 지표의 네이버 페이지. 검증된 링크가 없으면 None.
+    (NAVER_LINKS 는 최종 URL 동일성 + 본문 키워드 2중 검사를 통과한 것만 담고 있다.)"""
+    try:
+        import discord_card
+        import notify_discord
+        key = discord_card.HERO.get(discord_card.profile_for(slot, weekend, now), "")
+        url = notify_discord.NAVER_LINKS.get(key)
+        if not url:
+            return None
+        ko = (discord_card._CATALOG.get(key) or (key,))[0]
+        return {"title": f"{ko} 시세", "link": {"web_url": url, "mobile_web_url": url}}
+    except Exception:
+        return None
+
+
+def send_feed(access_token, title, description, image_url, items=None, dims=CHART_PX,
+              uuids=None, extra_button=None):
     """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼."""
     content = {
         "title": title,
@@ -1303,6 +1380,8 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
         "buttons": [{"title": "대시보드 보기",
                      "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL}}],
     }
+    if extra_button:
+        template["buttons"].append(extra_button)
     if items:
         template["item_content"] = {"items": items[:5]}
     status, j = _send_template_object(access_token, template, uuids=uuids)
@@ -1323,12 +1402,15 @@ def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None
     if not image_url:
         return False
     desc, items = build_feed_parts(blocks)
-    if send_feed(access_token, title, desc, image_url, items=items, uuids=uuids):
+    btn = _hero_button(slot, weekend, datetime.datetime.now(KST))
+    if send_feed(access_token, title, desc, image_url, items=items, uuids=uuids,
+                 extra_button=btn):
         return True
     # 행(item_content)이 거부되면 행 내용을 설명에 합쳐 한 통 더 시도 → 내용 손실 없이 '한 통' 보장.
     print("[kakao] 피드(행 포함) 실패 — 행 내용을 설명으로 합쳐 재시도")
     full_desc = "\n".join([desc] + [f"{it['item']} {it['item_op']}" for it in (items or [])])
-    return send_feed(access_token, title, full_desc, image_url, items=None, uuids=uuids)
+    return send_feed(access_token, title, full_desc, image_url, items=None, uuids=uuids,
+                     extra_button=btn)
 
 
 def send_memo(access_token, text, with_button=True, uuids=None):
@@ -1667,15 +1749,23 @@ def main():
 
         # 디스코드 병행 발송 — 카카오와 완전 독립(토큰 만료·발송 실패와 무관하게 도달).
         # 웹훅(DISCORD_WEBHOOK_URL) 미설정이면 no-op. 차트는 여기서 1회 생성해 카카오 피드에 재사용.
-        _dc_png = None
+        _dc_png = None                               # 카카오 피드 이미지
+        _weekly_mode = title.startswith("주간")
         try:
             import notify_discord
             if _charts_enabled():
-                _dc_png = build_slot_chart_png(data, slot, weekend)
+                # 카톡 이미지도 디스코드와 같은 편성표를 쓴다(기획 d18ebb33 P1) —
+                # 정사각 캔버스에 타일 9 + 히어로 인트라데이 1. 실패하면 종전 슬롯
+                # 차트로 내려간다. 주간 리포트 슬롯은 본문이 '지난 7일'이라 지금 시각
+                # 타일과 어긋나므로 종전 슬롯 차트를 유지한다.
+                _dc_png = (None if _weekly_mode
+                           else _build_kakao_card(data, datetime.datetime.now(KST),
+                                                  slot, weekend))
+                if not _dc_png:
+                    _dc_png = build_slot_chart_png(data, slot, weekend)
             # embed(D1~D4 + E2) — 제목 클릭=대시보드, 필드=강도 기호(⏫⏬)+추세 스파크라인
             # +오늘 일정, 색띠=코스피 방향 동적(상승 빨강/하락 파랑/보합 회색 — 주간은 금색),
             # 버튼(E3)=딥링크 2개+지금 시세(봇 토큰 있을 때만 부착, 없으면 웹훅 그대로).
-            _weekly_mode = title.startswith("주간")
             # 시각 보드 카드(기획 2026-08-11) — 디스코드 본문은 카드 1장(평시=보드 A,
             # 주간=수익률 바 C). 렌더 실패 시 카카오용 슬롯 차트로 폴백해 이미지가
             # 절대 비지 않는다. 카카오 피드는 계속 _dc_png(슬롯 차트)를 쓴다.

@@ -73,7 +73,7 @@ and are **not** idempotent — do not re-run them.
 | `scripts/fetch_data.py` | ~7 000-line data collector; runs in GitHub Actions |
 | `scripts/validate_data.py` | Data integrity gate — blocks bad `data.json` from commit |
 | `scripts/ai_briefing.py` | LLM macro summary → `data.json.aiBriefing` |
-| `scripts/send_kakao_digest.py` | KakaoTalk digest sender |
+| `scripts/send_kakao_digest.py` | KakaoTalk digest sender. 피드 이미지 = `discord_card.board(shape="square")` 정사각 카드(디스코드와 **같은 편성표**를 쓴다) → 실패 시 종전 `build_slot_chart_png` 슬롯 차트 → 실패 시 텍스트. 히어로 인트라데이는 `_session_chain`(Yahoo 5분봉 우선 = 당일 전 구간)이고 급변·마감 카드의 `_intraday_chain`(토스 1분봉 우선 = 최신성)과 **우선순위가 반대다** — 토스는 `count` 상한 200이라 최근 3.3h만 준다. 수신은 “나와의 채팅”(`KAKAO_FRIENDS=0`, 2026-08-25 사용자 결정) — **푸시 알림 없음**이 정상 동작이다 |
 | `scripts/check_alerts.py` | Stock alert evaluator |
 | `scripts/check_swings.py` | Market swing alert (코스피·S&P500 ±2%, 달러-원 ±1% 즉시 속보; cooldown = `alerts_state.json` `_swings` key) |
 | `scripts/discord_card.py` | Discord 카드 PNG 렌더러(matplotlib). 바탕 = **흰색**, 팔레트는 흰 배경 대비 기준으로 고정 — UP/DN(`#E0443E`/`#3E7BE0`)은 채움색 전용이고 12pt 내외 작은 글자는 `UP_TXT`/`DN_TXT`를 쓴다(원색은 4.1:1 로 본문 기준 미달). 카드 A(`board`)는 슬롯별 편성 `PROFILES` 6종(`kr_session`/`pre_kr`/`kr_close_eu`/`us_pre`/`us_open`/`weekend`)을 그리고, `profile_for(slot, weekend, now)`가 슬롯→편성을 정한다. 편성표는 `_CATALOG` 키만 참조하므로 `_ASSETS`(드롭다운·주간 정렬용 자산 목록)는 건드리지 말 것. 미리보기 `python scripts/discord_card.py all -o out/`, 가드 `python scripts/tests/test_discord_card.py` |
@@ -204,7 +204,8 @@ python scripts/validate_data.py   # verify output
 - `KAKAO_REST_API_KEY` + `KAKAO_REFRESH_TOKEN` secrets required
 - Cloudflare Worker cron (`:02 UTC` each slot) fires `repository_dispatch(kakao-send)` → `kakao-daily.yml`
 - Duplicate-send guard: GHA cache marker keyed by `date + slot`; manual `workflow_dispatch` always bypasses
-- Charts use `matplotlib`; slot determines which two tickers to chart (see `kakao-daily.yml` header comments)
+- Charts use `matplotlib`. 피드 이미지는 슬롯 편성(`discord_card.PROFILES`) 기반 정사각 카드가 1순위이고, `SLOT_CHARTS_WEEKDAY`(슬롯별 2티커 라인 차트)는 그 폴백으로 남아 있다 — 카드가 안정될 때까지 삭제하지 말 것
+- 수신 모드는 “나와의 채팅”으로 유지한다(변수 `KAKAO_FRIENDS=0`). 푸시가 필요하면 `KAKAO_SETUP.md ⑤`(보조 계정 + `friends` 재동의)를 따라야 하고, 그때까지 **카톡 무음은 버그가 아니다**. 실시간 알림은 디스코드가 담당
 
 ## Local Toss collector (this PC, not CI)
 

@@ -6,7 +6,8 @@
 
   1) 팔레트 대비 — 흰 바탕에서 본문 4.5:1 / 도형 3:1. 상수를 잘못 만지면 여기서 깨진다.
   2) 편성표 무결성 — PROFILES 가 참조하는 모든 키가 _CATALOG 에 있을 것(오타 = 빈 타일).
-  3) 렌더 스모크 — 저장소의 실제 data.json 으로 6개 프로필 전부 PNG 가 나올 것.
+  3) 렌더 스모크 — 실제 data.json 으로 6프로필 × 2캔버스(가로·정사각) 전부 PNG 가 나올 것.
+  4) 채널 배선 — 히어로 시계열 소스 우선순위와 피드 버튼(카톡 정사각 카드용).
 
 실행: python scripts/tests/test_discord_card.py  (또는 python -m pytest 이 파일)
 """
@@ -16,6 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import discord_card as dc  # noqa: E402  (matplotlib 는 지연 import)
+import send_kakao_digest as skd  # noqa: E402
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -82,6 +84,13 @@ def test_profile_keys_exist_in_catalog():
         keys = [k for row in prof["rows"] for k in row] + list(prof.get("spark") or [])
         for k in keys:
             assert k in dc._CATALOG, f"{pname}: 알 수 없는 타일 키 {k!r}"
+
+
+def test_hero_covers_every_profile():
+    """정사각 카드 하단 패널의 '주인공'. 빠지면 첫 타일로 대체되지만 의도가 아니다."""
+    for p in dc.PROFILES:
+        assert p in dc.HERO, f"{p}: HERO 미지정"
+        assert dc.HERO[p] in dc._CATALOG, f"{p}: HERO 키 {dc.HERO[p]!r} 가 카탈로그에 없다"
 
 
 def test_profile_shape():
@@ -164,9 +173,9 @@ def test_missing_data_is_dash_not_crash():
 
 
 # ── 렌더 스모크 ───────────────────────────────────────────────────────────
-def test_all_profiles_render():
-    """저장소의 실제 data.json 으로 6종 전부 PNG 가 나와야 한다.
-    결측 키·빈 시계열로 죽는 편성을 잡는다."""
+def test_all_profiles_render_both_shapes():
+    """실제 data.json 으로 6프로필 × 2캔버스 전부 PNG 가 나와야 한다.
+    결측 키·빈 시계열로 죽는 편성을 잡는다. 히어로 재료는 네트워크 없이 일봉으로 대신한다."""
     import datetime
     try:
         import matplotlib  # noqa: F401
@@ -177,9 +186,75 @@ def test_all_profiles_render():
         data = json.load(f)
     now = datetime.datetime.now()
     for pname in dc.PROFILES:
-        png = dc.board(data, now, profile=pname)
-        assert png, f"{pname}: 렌더 실패(None) — 카드가 조용히 폴백된다"
-        assert os.path.getsize(png) > 10_000, f"{pname}: PNG 가 너무 작다({png})"
+        hk = dc.HERO[pname]
+        hc = dc._CATALOG[hk][2]
+        vs = dc._hist(data, hc, hk)
+        base = datetime.datetime(now.year, now.month, now.day)
+        hero = ([base + datetime.timedelta(days=i) for i in range(len(vs))],
+                vs, (vs[0] if vs else None), "일봉 30D")
+        for shape, h in (("wide", None), ("square", hero)):
+            png = dc.board(data, now, profile=pname, shape=shape, hero=h)
+            assert png, f"{pname}/{shape}: 렌더 실패(None) — 카드가 조용히 폴백된다"
+            assert os.path.getsize(png) > 10_000, f"{pname}/{shape}: PNG 가 너무 작다({png})"
+
+
+def test_square_survives_missing_hero():
+    """히어로 재료가 없어도(시세 조회 전부 실패) 카드 자체는 살아야 한다 — 패널만 빈다."""
+    try:
+        import matplotlib  # noqa: F401
+    except ImportError:
+        return
+    import datetime
+    with open(os.path.join(_ROOT, "data.json"), encoding="utf-8") as f:
+        data = json.load(f)
+    png = dc.board(data, datetime.datetime.now(), profile="kr_session",
+                   shape="square", hero=None)
+    assert png and os.path.getsize(png) > 10_000
+
+
+# ── 채널 배선 ─────────────────────────────────────────────────────────────
+def test_session_chain_prefers_full_day_source():
+    """다이제스트 히어로는 '당일 전 구간'이 목적이다 — 토스 1분봉(count 상한 200 =
+    최근 3.3h)이 1순위로 잡히면 오전장이 사라진다. Yahoo 5분봉이 먼저여야 한다."""
+    orig = (skd._yahoo_intraday, skd._toss_index_intraday, skd._daily7)
+    calls = []
+    try:
+        def _y(_sym):
+            calls.append("yahoo")
+            return [1, 2, 3], [10.0, 11.0, 12.0], 9.0
+
+        def _t(_sym):
+            calls.append("toss")
+            return [1, 2, 3], [1.0, 2.0, 3.0], 0.5
+
+        skd._yahoo_intraday, skd._toss_index_intraday = _y, _t
+        skd._daily7 = lambda _s: ([], [], None)
+        _xs, ys, _prev, src = skd._session_chain("^KS11")
+        assert calls == ["yahoo"], f"토스가 먼저 불렸다: {calls}"
+        assert ys == [10.0, 11.0, 12.0] and src == ""
+        calls.clear()
+        skd._yahoo_intraday = lambda _s: ([], [], None)      # Yahoo 실패 시에만 토스
+        _xs, ys, _prev, src = skd._session_chain("^KS11")
+        assert calls == ["toss"] and src == "1분봉 최근", (calls, src)
+    finally:
+        skd._yahoo_intraday, skd._toss_index_intraday, skd._daily7 = orig
+
+
+def test_hero_symbol_reuses_existing_tables():
+    assert skd._hero_symbol("KOSPI") == "^KS11"
+    assert skd._hero_symbol("US10Y") == "^TNX"
+    assert skd._hero_symbol("없는키") == ""
+
+
+def test_hero_button_only_for_verified_links():
+    """피드 2번째 버튼 — 네이버 2중 검사를 통과한 링크만. 없으면 버튼을 붙이지 않는다."""
+    import datetime
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    now = datetime.datetime(2026, 8, 25, 15, 0, tzinfo=kst)
+    b = skd._hero_button("h15", False, now)                  # kr_session → KOSPI
+    assert b and "코스피" in b["title"]
+    assert b["link"]["web_url"].startswith("https://finance.naver.com")
+    assert skd._hero_button("h20", False, now) is None       # us_pre → US10Y, 네이버 미제공
 
 
 if __name__ == "__main__":

@@ -379,99 +379,213 @@ def profile_for(slot=None, weekend=False, now=None):
         return "kr_close_eu"
     if hr < 22:
         return "us_pre"
-    return "us_open" if _us_regular_session(now) else "us_pre"
+    # '지금' 이 아니라 '그 슬롯 시각'에 미국장이 열려 있는지를 묻는다 — 오프시간
+    # 미리보기·수동 실행에서 now 가 슬롯과 어긋나면 판정이 뒤집히기 때문.
+    ref = now
+    if now is not None and hr != now.hour:
+        try:
+            ref = now.replace(hour=hr, minute=30, second=0, microsecond=0)
+        except ValueError:
+            ref = now
+    return "us_open" if _us_regular_session(ref) else "us_pre"
 
 
-def board(d, now, cal="", slot=None, weekend=False, profile=None):
+# 프로필마다 '오늘의 주인공' 하나 — 정사각(카톡) 캔버스 하단의 큰 인트라데이 패널.
+HERO = {"kr_session": "KOSPI", "pre_kr": "SP500", "kr_close_eu": "KOSPI",
+        "us_pre": "US10Y", "us_open": "SP500", "weekend": "USDKRW"}
+
+
+def _draw_tiles(fig, d, grid, box, fs):
+    """타일 격자를 box=(x0, y0, w, h) figure 좌표에 그린다. fs=(라벨, 값, 등락) 폰트.
+
+    글자 위치는 타일 높이 비율로 잡는다 — 캔버스(가로 10×7 / 정사각 1:1)마다 타일
+    높이가 달라도 같은 코드로 겹침 없이 배치되게."""
+    from matplotlib.patches import FancyBboxPatch
+    gx0, gy0, gw, gh = box
+    cols = max(len(r) for r in grid)
+    rows = len(grid)
+    fs_l, fs_p, fs_c = fs
+    for r_, line in enumerate(grid):
+        for c_, key in enumerate(line):
+            ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+            x = gx0 + c_ * gw / cols
+            y = gy0 + (rows - 1 - r_) * gh / rows
+            w, h = gw / cols - 0.008, gh / rows - 0.015
+            price, chg = _node(d, cat, key)
+            bgc, ink, _flat = _tile_color(chg, _sat_of(cat))
+            fig.patches.append(FancyBboxPatch(
+                (x, y), w, h, boxstyle="round,pad=0.004,rounding_size=0.009",
+                transform=fig.transFigure, fc=bgc, ec="none"))
+            fig.text(x + 0.013, y + 0.71 * h, _L(ko, en), color=ink, fontsize=fs_l)
+            fig.text(x + 0.013, y + 0.33 * h, _fmt_tile(cat, price),
+                     color=INK, fontsize=fs_p, fontweight="bold")
+            fig.text(x + w - 0.011, y + 0.09 * h, _chgtxt_tile(cat, chg),
+                     color=ink, fontsize=fs_c, fontweight="bold", ha="right")
+
+
+def _meta_line(d, cal):
+    """헤더 우측 보조 — MOVE 지수 + 오늘 일정."""
+    mv = ((d.get("sentiment") or {}).get("move")) or {}
+    head = []
+    if _f(mv.get("value")) is not None:
+        head.append(f"MOVE {mv['value']:.1f} {_chgtxt(_f(mv.get('change')))}".strip())
+    if cal:
+        head.append((_L("오늘 ", "today ") + cal).strip())
+    return " · ".join(head)
+
+
+def board(d, now, cal="", slot=None, weekend=False, profile=None, shape="wide", hero=None):
     """카드 A — 시황 보드. 실패 시 None(호출측이 슬롯 차트로 폴백).
 
-    v5(슬롯 편성): 고정 12타일(4×3) 대신 PROFILES 의 슬롯별 편성을 그린다 — 07시엔
-    한국·일본장이, 14시엔 미국장이 멈춰 있어 '안 움직이는 숫자'가 절반을 차지하던 문제.
-    rows 의 줄 수·길이를 그대로 따르므로 3×3 도 4×3 도 같은 루프로 나온다.
+    편성(v5): 고정 12타일 대신 PROFILES 의 슬롯별 편성을 그린다 — 07시엔 한국·일본장이,
+    14시엔 미국장이 멈춰 있어 '안 움직이는 숫자'가 절반을 차지하던 문제. rows 의 줄 수·
+    길이를 그대로 따르므로 3×3 도 4×3 도 같은 루프로 나온다.
+
+    캔버스(v6): shape="wide"=디스코드 embed(10×7) / "square"=카카오 피드(1080×1080).
+    편성표는 하나이고 캔버스만 둘 — 편성을 바꾸면 두 채널이 함께 바뀐다. 정사각을 쓰는
+    이유는 카톡 말풍선이 폭 고정·높이 비례라 세로가 길면 확대·크롭되기 때문(2026-07-08
+    이력: 1080×1440 → 864×1080 → 1:1). hero=(xs, ys, prev, 라벨) = 정사각 하단 인트라데이
+    재료. 네트워크는 호출측이 담당한다 — 이 모듈은 시세를 직접 조회하지 않는다.
     profile 인자는 미리보기·테스트용 강제 지정(운영은 slot/weekend 로 판정)."""
     try:
         plt, _ = _setup()
         pkey = profile if profile in PROFILES else profile_for(slot, weekend, now)
         prof = PROFILES.get(pkey) or PROFILES[DEFAULT_PROFILE]
-        grid = [r for r in prof["rows"] if r]
-        cols = max(len(r) for r in grid)
-        rows = len(grid)
-        big = cols <= 3                                # 3열이면 타일이 넓어져 글자를 키운다
-        fs_l, fs_p, fs_c = (14, 21, 14) if big else (13, 17, 13)
-        fig = plt.figure(figsize=(10, 7.0), dpi=160)
-        fig.patch.set_facecolor(BG)
-        fig.text(0.03, 0.945, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드 · {prof['title']}",
-                                 f"{now.month}/{now.day} {now.hour}h Market Board"),
-                 color=INK, fontsize=19, fontweight="bold")
-        mv = ((d.get("sentiment") or {}).get("move")) or {}
-        head = []
-        if _f(mv.get("value")) is not None:
-            head.append(f"MOVE {mv['value']:.1f} {_chgtxt(_f(mv.get('change')))}".strip())
-        if cal:
-            head.append((_L("오늘 ", "today ") + cal).strip())
-        if head:
-            fig.text(0.97, 0.950, " · ".join(head), color=MUT, fontsize=11, ha="right")
-        gx0, gy0, gw, gh = 0.03, 0.44, 0.94, 0.46
-        from matplotlib.patches import FancyBboxPatch
-        for r_, line in enumerate(grid):
-            for c_, key in enumerate(line):
-                ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
-                x = gx0 + c_ * gw / cols
-                y = gy0 + (rows - 1 - r_) * gh / rows
-                w, h = gw / cols - 0.008, gh / rows - 0.016
-                price, chg = _node(d, cat, key)
-                bgc, ink, flat = _tile_color(chg, _sat_of(cat))
-                fig.patches.append(FancyBboxPatch(
-                    (x, y), w, h, boxstyle="round,pad=0.004,rounding_size=0.008",
-                    transform=fig.transFigure, fc=bgc, ec="none"))
-                fig.text(x + 0.012, y + h - 0.040, _L(ko, en), color=ink, fontsize=fs_l)
-                fig.text(x + 0.012, y + 0.050, _fmt_tile(cat, price),
-                         color=INK, fontsize=fs_p, fontweight="bold")
-                fig.text(x + w - 0.010, y + 0.014, _chgtxt_tile(cat, chg),
-                         color=ink, fontsize=fs_c, fontweight="bold", ha="right")
-        # 하단 캡션 — 미국채 1·5·10·30Y(사용자 지정 2026-08-20, 구 원자재 4종 대체).
-        rest = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
-        if rest:
-            fig.text(0.03, 0.395, rest, color=MUT, fontsize=12)
-        fig.text(0.03, 0.335, _L("추세 30일", "30-day trend"), color=MUT, fontsize=12)
-        sparks = prof.get("spark") or []
-        n = len(sparks)
-        gap = 0.0175
-        sw = (gw - gap * (n - 1)) / n if n else gw
-        for i, key in enumerate(sparks):
-            ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
-            ax = fig.add_axes([gx0 + i * (sw + gap), 0.075, sw, 0.235])
-            ax.set_facecolor(TILE)
-            vs = _hist(d, cat, key)
-            if vs:
-                # 상·하단 여백 확보 — 라인·끝점이 라벨(상단)·현재가(하단) 글자 밴드에
-                # 못 들어가게 y 범위를 넓힌다(글자 겹침 방지, 사용자 지적 2026-08-20).
-                lo, hi = min(vs), max(vs)
-                rng = (hi - lo) or (abs(hi) * 0.01) or 1.0
-                ax.set_ylim(lo - 0.50 * rng, hi + 0.60 * rng)
-                pad_x = max(1.0, (len(vs) - 1) * 0.04)
-                ax.set_xlim(-pad_x, (len(vs) - 1) + pad_x)
-                ax.plot(vs, color=LINE, lw=1.6)
-                up = vs[-1] >= vs[0]
-                ax.plot(len(vs) - 1, vs[-1], "o", color=UP if up else DN, ms=5)
-                # 30일 변화 — 금리는 %가 아니라 bp(4.50→4.74 는 +5.3% 가 아니라 +24bp).
-                if cat == "yield":
-                    p30 = f"{(vs[-1] - vs[0]) * 100:+.0f}bp"
-                else:
-                    p30 = f"{((vs[-1] / vs[0] - 1) * 100 if vs[0] else 0.0):+.1f}%"
-                ax.text(0.05, 0.84, _L(ko, en), transform=ax.transAxes, color=MUT, fontsize=12)
-                ax.text(0.95, 0.84, p30, transform=ax.transAxes,
-                        color=UP_TXT if up else DN_TXT, fontsize=12, ha="right", fontweight="bold")
-                ax.text(0.05, 0.08, _fmt_tile(cat, vs[-1]), transform=ax.transAxes,
-                        color=INK, fontsize=13)
-            ax.set_xticks([]); ax.set_yticks([])
-            for s in ax.spines.values():
-                s.set_visible(False)
-        _footer(fig, now)
-        return _save(fig, "discord_card_board.png")
+        if shape == "square":
+            return _board_square(plt, d, now, pkey, prof, cal, hero)
+        return _board_wide(plt, d, now, prof, cal)
     except Exception as e:
-        print(f"::warning title=디스코드 카드 실패::board: {e} — 기존 형식 폴백")
+        print(f"::warning title=디스코드 카드 실패::board({shape}): {e} — 기존 형식 폴백")
         return None
+
+
+def _board_wide(plt, d, now, prof, cal):
+    """가로 10×7 @160dpi — 디스코드 embed. 타일 격자 + 미국채 캡션 + 30일 추세 n개."""
+    grid = [r for r in prof["rows"] if r]
+    cols = max(len(r) for r in grid)
+    fs = (14, 21, 14) if cols <= 3 else (13, 17, 13)   # 3열이면 타일이 넓어 글자를 키운다
+    fig = plt.figure(figsize=(10, 7.0), dpi=160)
+    fig.patch.set_facecolor(BG)
+    fig.text(0.03, 0.945, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드 · {prof['title']}",
+                             f"{now.month}/{now.day} {now.hour}h Market Board"),
+             color=INK, fontsize=19, fontweight="bold")
+    meta = _meta_line(d, cal)
+    if meta:
+        fig.text(0.97, 0.950, meta, color=MUT, fontsize=11, ha="right")
+    _draw_tiles(fig, d, grid, (0.03, 0.44, 0.94, 0.46), fs)
+    # 하단 캡션 — 미국채 1·5·10·30Y(사용자 지정 2026-08-20, 구 원자재 4종 대체).
+    rest = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
+    if rest:
+        fig.text(0.03, 0.395, rest, color=MUT, fontsize=12)
+    fig.text(0.03, 0.335, _L("추세 30일", "30-day trend"), color=MUT, fontsize=12)
+    sparks = prof.get("spark") or []
+    n = len(sparks)
+    gap = 0.0175
+    sw = (0.94 - gap * (n - 1)) / n if n else 0.94
+    for i, key in enumerate(sparks):
+        ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+        ax = fig.add_axes([0.03 + i * (sw + gap), 0.075, sw, 0.235])
+        ax.set_facecolor(TILE)
+        vs = _hist(d, cat, key)
+        if vs:
+            # 상·하단 여백 확보 — 라인·끝점이 라벨(상단)·현재가(하단) 글자 밴드에
+            # 못 들어가게 y 범위를 넓힌다(글자 겹침 방지, 사용자 지적 2026-08-20).
+            lo, hi = min(vs), max(vs)
+            rng = (hi - lo) or (abs(hi) * 0.01) or 1.0
+            ax.set_ylim(lo - 0.50 * rng, hi + 0.60 * rng)
+            pad_x = max(1.0, (len(vs) - 1) * 0.04)
+            ax.set_xlim(-pad_x, (len(vs) - 1) + pad_x)
+            ax.plot(vs, color=LINE, lw=1.6)
+            up = vs[-1] >= vs[0]
+            ax.plot(len(vs) - 1, vs[-1], "o", color=UP if up else DN, ms=5)
+            # 30일 변화 — 금리는 %가 아니라 bp(4.50→4.74 는 +5.3% 가 아니라 +24bp).
+            if cat == "yield":
+                p30 = f"{(vs[-1] - vs[0]) * 100:+.0f}bp"
+            else:
+                p30 = f"{((vs[-1] / vs[0] - 1) * 100 if vs[0] else 0.0):+.1f}%"
+            ax.text(0.05, 0.84, _L(ko, en), transform=ax.transAxes, color=MUT, fontsize=12)
+            ax.text(0.95, 0.84, p30, transform=ax.transAxes,
+                    color=UP_TXT if up else DN_TXT, fontsize=12, ha="right", fontweight="bold")
+            ax.text(0.05, 0.08, _fmt_tile(cat, vs[-1]), transform=ax.transAxes,
+                    color=INK, fontsize=13)
+        ax.set_xticks([]); ax.set_yticks([])
+        for s in ax.spines.values():
+            s.set_visible(False)
+    _footer(fig, now)
+    return _save(fig, "discord_card_board.png")
+
+
+def _board_square(plt, d, now, pkey, prof, cal, hero):
+    """정사각 1080×1080 @150dpi — 카카오 피드 한 통의 이미지.
+
+    구성 = 타일 격자 + 미국채 캡션 + 히어로 인트라데이 1개(전 폭). 종전 카톡 이미지는
+    지표 2개짜리 2패널이었다 — 타일이 편성을 담고, 카톡이 잘하던 '오늘 어떻게 움직였나'는
+    패널이 하나로 합쳐지며 오히려 커진다. hero 재료가 없으면 패널만 비고 카드는 산다."""
+    grid = [r for r in prof["rows"] if r]
+    fig = plt.figure(figsize=(7.2, 7.2), dpi=150)
+    fig.patch.set_facecolor(BG)
+    wd = "월화수목금토일"[now.weekday()]
+    fig.text(0.03, 0.955, _L(f"{now.month}/{now.day}({wd}) {now.hour}시 시황 · {prof['title']}",
+                             f"{now.month}/{now.day} {now.hour}h · {prof['title']}"),
+             color=INK, fontsize=20, fontweight="bold")
+    meta = _meta_line(d, cal)
+    if meta:
+        fig.text(0.97, 0.958, meta, color=MUT, fontsize=11.5, ha="right")
+    _draw_tiles(fig, d, grid, (0.03, 0.575, 0.94, 0.345), (13, 19, 13))
+    cap = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
+    if cap:
+        fig.text(0.03, 0.533, cap, color=MUT, fontsize=12)
+
+    hkey = HERO.get(pkey) or (grid[0][0] if grid and grid[0] else None)
+    if not hkey:
+        _footer(fig, now)
+        return _save(fig, "kakao_card_board.png")
+    hko, hen, hcat = _CATALOG.get(hkey, (hkey, hkey, "indices"))
+    hprice, hchg = _node(d, hcat, hkey)
+    xs, ys, prev, src = (hero or ([], [], None, ""))
+    # '오늘'은 구간이 정말 오늘 하루일 때만 쓴다 — 20시 슬롯의 미국채 패널은
+    # 간밤 미국 세션(어제 21:20~오늘 03:55)이라 '오늘'로 적으면 지금 움직이는 중으로 읽힌다.
+    when = _L("오늘", "today")
+    if xs:
+        if xs[0].date() != xs[-1].date():
+            when = _L("간밤", "overnight")
+        elif xs[-1].date() != now.date():
+            when = xs[-1].strftime("%m/%d")
+    fig.text(0.03, 0.475, f"{_L(hko, hen)} {when}" + (f" · {src}" if src else ""),
+             color=MUT, fontsize=12.5)
+    fig.text(0.97, 0.475, f"{_fmt_tile(hcat, hprice)}  {_chgtxt_tile(hcat, hchg)}".strip(),
+             color=_txt_color((hchg or 0) >= 0, flat=hchg is None),
+             fontsize=14, fontweight="bold", ha="right")
+    ax = fig.add_axes([0.03, 0.085, 0.94, 0.375])
+    ax.set_facecolor(TILE)
+    if ys and len(ys) >= 3:
+        lo, hi = min(ys + ([prev] if prev else [])), max(ys + ([prev] if prev else []))
+        rng = (hi - lo) or (abs(hi) * 0.01) or 1.0
+        floor = lo - 0.14 * rng
+        ax.set_ylim(floor, hi + 0.14 * rng)
+        up = (ys[-1] >= prev) if prev else (ys[-1] >= ys[0])
+        ax.plot(range(len(ys)), ys, color=LINE, lw=2.0)
+        ax.fill_between(range(len(ys)), ys, floor, color=UP if up else DN, alpha=0.10)
+        if prev:
+            ax.axhline(prev, color=FAINT, lw=1.0, ls="--")
+            ax.text(0.004, prev, _L("전일 ", "prev ") + _fmt_tile(hcat, prev) + " ",
+                    color=FAINT, fontsize=10.5, va="bottom",
+                    transform=ax.get_yaxis_transform())
+        ax.plot(len(ys) - 1, ys[-1], "o", color=UP if up else DN, ms=7)
+        ticks = sorted({0, len(ys) // 3, 2 * len(ys) // 3, len(ys) - 1})
+        ax.set_xticks(ticks)
+        # 구간이 하루를 넘으면(일봉 폴백) 날짜 눈금 — 인트라데이 오독 방지.
+        xfmt = "%m/%d" if (xs and (xs[-1] - xs[0]).days >= 1) else "%H:%M"
+        ax.set_xticklabels([xs[t].strftime(xfmt) if xs else "" for t in ticks],
+                           color=FAINT, fontsize=11)
+    ax.set_yticks([])
+    ax.grid(axis="y", color="#E4E9EF", lw=0.8)
+    ax.set_axisbelow(True)
+    for s in ax.spines.values():
+        s.set_visible(False)
+    ax.tick_params(length=0)
+    _footer(fig, now)
+    return _save(fig, "kakao_card_board.png")
 
 
 def stock_alert(hero, others, now):
@@ -825,9 +939,10 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src=""):
 
 # ── 미리보기 CLI ──────────────────────────────────────────────────────────
 # 디스코드로 쏘지 않고 편성을 눈으로 검토하기 위한 진입점.
-#   python scripts/discord_card.py                 # 지금 시각의 프로필
-#   python scripts/discord_card.py kr_session      # 특정 프로필
-#   python scripts/discord_card.py all -o out/     # 6종 전부 파일로
+#   python scripts/discord_card.py                     # 지금 시각의 프로필
+#   python scripts/discord_card.py kr_session          # 특정 프로필
+#   python scripts/discord_card.py all -o out/         # 6종 전부 파일로
+#   python scripts/discord_card.py all -o out/ --square  # 카톡용 정사각 캔버스
 def _preview(argv):
     import json
     import shutil
@@ -840,18 +955,29 @@ def _preview(argv):
         d = json.load(f)
     now = datetime.datetime.now()
     want = args[0] if args else profile_for(now=now)
+    shape = "square" if "--square" in argv else "wide"
     keys = list(PROFILES) if want == "all" else [want]
     for k in keys:
         if k not in PROFILES:
             print(f"알 수 없는 프로필: {k} — 가능: {', '.join(PROFILES)}")
             return 1
-        p = board(d, now, profile=k)
+        # 정사각 히어로 패널은 인트라데이가 재료다 — 미리보기는 네트워크를 타지 않으므로
+        # 30일 일봉으로 대신 채운다(레이아웃 확인용). 운영 값은 _build_kakao_card 가 넘긴다.
+        hero = None
+        if shape == "square":
+            hk = HERO.get(k, "")
+            hc = (_CATALOG.get(hk) or ("", "", "indices"))[2]
+            vs = _hist(d, hc, hk)
+            base = datetime.datetime(now.year, now.month, now.day)
+            hero = ([base + datetime.timedelta(days=i) for i in range(len(vs))],
+                    vs, (vs[0] if vs else None), "일봉 30D")
+        p = board(d, now, profile=k, shape=shape, hero=hero)
         if not p:
             print(f"{k}: 렌더 실패")
             return 1
         if out:
             os.makedirs(out, exist_ok=True)
-            p2 = os.path.join(out, f"board_{k}.png")
+            p2 = os.path.join(out, f"board_{k}_{shape}.png")
             shutil.copy(p, p2)
             p = p2
         print(f"{k:12} → {p}")
