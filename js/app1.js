@@ -1256,9 +1256,10 @@ function setReRegionView(view, btn) {
   if(barEl)   barEl.style.display   = _reRegionView==='bar'   ? 'block' : 'none';
   ['reRegionViewNaver','reRegionViewBar'].forEach(id=>{
     const b = document.getElementById(id);
-    if(b) { b.style.background='transparent'; b.style.color='var(--c-txt-dim)'; b.style.borderColor='var(--c-border)'; }
+    if(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false');
+            b.style.background=''; b.style.color=''; b.style.borderColor=''; }
   });
-  if(btn) { btn.style.background='var(--c-accent)'; btn.style.color='#fff'; btn.style.borderColor='var(--c-accent)'; }
+  if(btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
   if(_reRegionView === 'naver') {
     setTimeout(() => buildNaverRegionMap(), 80);
   } else {
@@ -1479,14 +1480,14 @@ function _openRegionHistoryModal(d) {
   document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
     const isActive = b.dataset.period === 'all';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
     const isActive = b.dataset.unit === 'M';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   destroyChart('reHistChart');
   if(typeof _setReHistEmpty==='function') _setReHistEmpty('');
@@ -2334,9 +2335,10 @@ function buildUsOsmRegionMap() {
 function setRePeriod(period, btn) {
   rePeriod = period;
   document.querySelectorAll('#re-kr .widget button').forEach(b=>{
-    if(b.textContent.match(/^[135]년$/)) { b.style.background='transparent'; b.style.color='var(--c-txt-dim)'; }
+    if(b.textContent.match(/^[135]년$/)) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false');
+                                          b.style.background=''; b.style.color=''; }
   });
-  btn.style.background='var(--c-accent)'; btn.style.color='#fff';
+  btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true');
   buildReCharts();
 }
 function setRETab(tab, btn) {
@@ -2946,8 +2948,9 @@ function toggleCustomRange(which, btn) {
   const showing = panel.style.display === 'flex';
   panel.style.display = showing ? 'none' : 'flex';
   if(btn) {
-    btn.style.background = showing ? 'transparent' : getThemeColors().accent+'44';
-    btn.style.color = showing ? '#8d90a2' : '#fff';
+    btn.classList.toggle('active', !showing);
+    btn.setAttribute('aria-expanded', showing ? 'false' : 'true');
+    btn.style.background = ''; btn.style.color = '';
   }
 }
 
@@ -3101,14 +3104,14 @@ function showGlobalIndexDetail(name) {
   document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
     const isActive = b.dataset.period === 'all';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
     const isActive = b.dataset.unit === 'M';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   const modal = document.getElementById('reHistoryChartModal');
   if(modal) modal.style.display = 'flex';
@@ -10161,14 +10164,14 @@ function showMacroHistoryChart(dataPath, title, optsJson) {
   document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
     const isActive = b.dataset.period === 'all';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
     const isActive = b.dataset.unit === 'M';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   const modal = document.getElementById('reHistoryChartModal');
   if(modal) modal.style.display = 'flex';
@@ -10405,14 +10408,14 @@ function showReHistoryChart(key, title, opts) {
   document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
     const isActive = b.dataset.period === 'all';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
     const isActive = b.dataset.unit === 'M';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   modal.style.display = 'flex';
   _renderReHistChart();
@@ -11588,14 +11591,14 @@ function showSentimentDetail(key) {
   document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
     const isActive = b.dataset.period === 'all';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
     const isActive = b.dataset.unit === 'M';
     b.classList.toggle('active', isActive);
-    b.style.background = isActive ? getThemeColors().accent : 'transparent';
-    b.style.color = isActive ? '#fff' : 'var(--c-txt-dim,#a4a8bc)';
+    b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    b.style.background = ''; b.style.color = '';
   });
   const modal = document.getElementById('reHistoryChartModal');
   if(modal) modal.style.display = 'flex';
@@ -13943,6 +13946,8 @@ async function exportSelectedToExcel() {
 // ============================
 function toggleTheme() {
   const isLight = document.documentElement.classList.toggle('light');
+  // SEED 팔레트 전환 — html.light 클래스와 항상 한 쌍으로 움직여야 한다
+  document.documentElement.dataset.seedColorMode = isLight ? 'light-only' : 'dark-only';
   localStorage.setItem('econ_theme', isLight ? 'light' : 'dark');
   const icon  = document.getElementById('themeIcon');
   const label = document.getElementById('themeLabel');
@@ -13961,6 +13966,7 @@ function applyStoredTheme() {
   let sysDark = false;
   try { sysDark = matchMedia('(prefers-color-scheme: dark)').matches; } catch(_) {}
   const useLight = stored ? (stored !== 'dark') : !sysDark;
+  document.documentElement.dataset.seedColorMode = useLight ? 'light-only' : 'dark-only';
   if(useLight) {
     document.documentElement.classList.add('light');
     const icon  = document.getElementById('themeIcon');
@@ -13986,23 +13992,27 @@ var _tcCache = null, _tcKey = '';
 function getThemeColors() {
   const light = document.documentElement.classList.contains('light');
   // 캐시 키에 스킨 포함 — 스킨 전환 직후 어떤 경로로 호출돼도 묵은 색을 재사용하지 않게
-  const key = (light ? 'light' : 'dark') + '|' + (document.documentElement.dataset.skin || '');
+  const key = (light ? 'light' : 'dark') + '|' + (document.documentElement.dataset.skin || '')
+            + '|' + (document.documentElement.dataset.seedColorMode || '');
   if (_tcCache && _tcKey === key) return _tcCache;
   const cs = getComputedStyle(document.documentElement);
   const tok = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
   _tcKey = key;
   _tcCache = {
-    txt:      tok('--color-text-secondary',   light ? '#737373' : '#a3a3a3'),
-    grid:     tok('--color-border',           light ? '#ebebeb' : '#FFFFFF1A'),
-    tooltip:  tok('--color-background-popover', light ? '#ffffff' : '#262626'),
-    ttBorder: tok('--color-border-emphasized', light ? '#d4d4d4' : '#525252'),
-    ttTitle:  tok('--color-text-primary',     light ? '#171717' : '#fafafa'),
-    ttBody:   tok('--color-text-secondary',   light ? '#737373' : '#a3a3a3'),
-    // 등락색은 관습(kr/global)×테마 매트릭스(refreshUpDn)가 단일 출처
+    txt:      tok('--seed-color-fg-neutral-muted',    light ? '#555d6d' : '#dcdee3'),
+    grid:     tok('--seed-color-stroke-neutral-weak', light ? '#dcdee3' : '#393d46'),
+    tooltip:  tok('--seed-color-bg-layer-floating',   light ? '#ffffff' : '#1d2025'),
+    ttBorder: tok('--seed-color-stroke-neutral-weak', light ? '#dcdee3' : '#393d46'),
+    ttTitle:  tok('--seed-color-fg-neutral',          light ? '#1a1c20' : '#f3f4f5'),
+    ttBody:   tok('--seed-color-fg-neutral-muted',    light ? '#555d6d' : '#dcdee3'),
+    // 등락색은 관습(kr/global)×테마 매트릭스(refreshUpDn)가 단일 출처.
+    // 텍스트용(up/down)과 도형·선용(upFill/downFill) 2단 — 도형은 한 단계 진하다.
     up:       window.CUP,
     down:     window.CDN,
-    accent:   tok('--color-accent',           light ? '#00458c' : '#9eb7ff'),
-    primary:  tok('--color-text-accent',      light ? '#00458c' : '#c7d3ff'),
+    upFill:   window.CUPF,
+    downFill: window.CDNF,
+    accent:   tok('--seed-color-fg-brand',            light ? '#135fcd' : '#41a2f9'),
+    primary:  tok('--seed-color-fg-brand',            light ? '#135fcd' : '#41a2f9'),
     // 카테고리 팔레트 — 시리즈 색이 필요할 때 하드코딩 대신 이걸 쓴다
     series:   Array.from({length: 9}, (_, i) =>
                 tok('--color-series-' + (i + 1), '#9eb7ff')),

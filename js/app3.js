@@ -6,24 +6,10 @@
 //  · ↕ 대시보드 홈 위젯 드래그 정렬 (Task 2.2 — localStorage 저장)
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── 공통: 인페이지 토스트 (알림 권한 거부/미지원 폴백) ──────────────────────
-function showToast(msg, ms = 6000) {
-  let host = document.getElementById('econToastHost');
-  if(!host) {
-    host = document.createElement('div');
-    host.id = 'econToastHost';
-    // 라이브 리전 — 자식 토스트 추가가 스크린리더에 자동 낭독됨 (헤드 window.showToast 와 동급 보장)
-    host.setAttribute('role', 'status');
-    host.setAttribute('aria-live', 'polite');
-    host.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:500;display:flex;flex-direction:column;gap:8px;max-width:340px;';
-    document.body.appendChild(host);
-  }
-  const t = document.createElement('div');
-  t.style.cssText = 'background:var(--c-card,#1f2945);border:1px solid var(--c-accent);border-radius:var(--r-sm);padding:10px 14px;font-size:12px;color:var(--c-txt,#e8ebf5);box-shadow:0 8px 24px rgba(0,0,0,.4);line-height:1.5;';
-  t.textContent = msg;
-  host.appendChild(t);
-  setTimeout(() => { try { t.remove(); } catch(_) {} }, ms);
-}
+// ── 공통: 인페이지 토스트 ───────────────────────────────────────────────────
+// 정의는 index.html <head> 의 window.showToast 하나뿐이다(다형 시그니처·하단 중앙·
+// #toastHost·.toast CSS). 여기 있던 두 번째 정의가 그것을 덮어 showToast(msg,'ok')
+// 호출 3곳이 즉시 사라지고 .toast 규칙이 죽은 코드였다 — 제거했다.
 
 // ── 🤖 오늘의 매크로 3줄 요약 배너 ─────────────────────────────────────────
 function renderAiBriefing(b) {

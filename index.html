@@ -158,6 +158,11 @@
      그대로 보였다가 교체되는 결함이 있어 짧은 공백이 낫다(Google Fonts 권장).
      ⚠ 새 아이콘을 쓰려면 여기 icon_names 에도 추가해야 한다(빠지면 이름 텍스트가 그대로 노출). -->
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&icon_names=account_balance,article,calendar_month,candlestick_chart,compare_arrows,dark_mode,edit_note,history_edu,home,home_work,light_mode,menu,menu_open,monitoring,public,refresh,settings,show_chart&display=block" rel="stylesheet"/>
+<!-- @seed-design/css@2.7.0 벤더링본 — scripts/vendor_seed_css.py 산출.
+     CSP 가 style-src 'self' 라 CDN <link> 는 불가하므로 저장소에 둔다.
+     인라인 <style> 보다 앞: 동특이성에서 사이트 규칙이 이겨야 한다(병기 전환기).
+     ?v= 는 .github/workflows/build-frontend.yml 이 커밋 sha 로 갱신. -->
+<link href="css/seed/seed.css?v=00000000" rel="stylesheet"/>
 <!-- Figtree — astryx neutral 테마의 본문/제목 서체. 한글 글리프는 없으므로
      --font-family-body 의 폴백(Pretendard → 시스템 UI → Malgun Gothic)이 받는다.
      구 Inter + Public Sans 2종을 1종으로 줄여 폰트 요청도 절반. -->
@@ -172,6 +177,9 @@
     const sysDark = matchMedia('(prefers-color-scheme: dark)').matches;
     const useDark = saved ? saved === 'dark' : sysDark;
     if(!useDark) document.documentElement.classList.add('light');
+    // SEED 색상 모드 — base.css 는 bare :root 가 라이트다. 사이트 기본은 다크이므로
+    // 첫 페인트 전에 dark-only 를 세워야 한다(안 세우면 라이트 팔레트로 한 프레임 깜빡).
+    document.documentElement.dataset.seedColorMode = useDark ? 'dark-only' : 'light-only';
     // 화면 스킨(색감 프리셋)도 렌더 전 동기 적용 — FOUC 방지. 값: neutral|navy|contrast
     const skin = localStorage.getItem('econ_skin');
     if(skin && skin !== 'neutral') document.documentElement.dataset.skin = skin;
@@ -184,16 +192,28 @@
   (function(){
     // 값 = astryx econ 토큰 --color-market-{up,down}[-kr] 과 1:1 (icon/text stop, 카드 위 AA).
     window._UPDN = {
-      kr:     { dark: ['#ff9e97', '#9eb7ff'], light: ['#89001a', '#00458c'] },
-      global: { dark: ['#84c980', '#ff9e97'], light: ['#0c5700', '#89001a'] }
+      kr:     { dark: ['#ff6e60', '#41a2f9'], light: ['#ca1d13', '#135fcd'] },
+      global: { dark: ['#22b27f', '#ff6e60'], light: ['#00745f', '#ca1d13'] }
+    };
+    // 도형·차트용 한 단계 진한 짝(--c-up-fill/--c-down-fill 과 같은 값).
+    // 700 단계는 라이트 텍스트 대비 3.8:1 로 4.5:1 에 미달하므로 텍스트와 분리한다
+    // (도형 기준은 3:1). SEED 팔레트: 라이트 700 / 다크 600.
+    window._UPDN_FILL = {
+      kr:     { dark: ['#f73526', '#1e82eb'], light: ['#fa342c', '#217cf9'] },
+      global: { dark: ['#1b946d', '#f73526'], light: ['#079171', '#fa342c'] }
     };
     // 앞선 FOUC 방지 블록이 html.light 를 이미 적용했으므로 여기서 테마를 읽어도 안전.
     window.refreshUpDn = function(){
       try {
         var t = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-        var m = window._UPDN[window.econColorConv === 'kr' ? 'kr' : 'global'][t];
-        window.CUP = m[0]; window.CDN = m[1];
-      } catch(_) { window.CUP = '#84c980'; window.CDN = '#ff9e97'; }
+        var c = window.econColorConv === 'kr' ? 'kr' : 'global';
+        var m = window._UPDN[c][t], f = window._UPDN_FILL[c][t];
+        window.CUP = m[0];  window.CDN = m[1];
+        window.CUPF = f[0]; window.CDNF = f[1];
+      } catch(_) {
+        window.CUP = '#22b27f';  window.CDN = '#ff6e60';
+        window.CUPF = '#1b946d'; window.CDNF = '#f73526';
+      }
     };
     try {
       var cc = localStorage.getItem('econ_color_conv') || 'kr';
@@ -203,9 +223,13 @@
     window.refreshUpDn();
   })();
   // 토스트 알림 — 액션 피드백. host 는 최초 호출 시 생성.
-  window.showToast = function(msg, type, ms){
+  // 다형 시그니처 showToast(msg) / (msg, ms) / (msg, type) / (msg, type, ms) —
+  // 호출부 45곳이 두 관습을 섞어 쓴다. 두 번째 인자가 숫자면 지속시간으로 읽는다.
+  window.showToast = function(msg, typeOrMs, ms){
     try {
       if (!document.body) return;
+      var type = typeof typeOrMs === 'string' ? typeOrMs : '';
+      if (typeof typeOrMs === 'number') ms = typeOrMs;
       var host = document.getElementById('toastHost');
       if (!host){ host = document.createElement('div'); host.id = 'toastHost'; document.body.appendChild(host); }
       var t = document.createElement('div');
@@ -213,7 +237,7 @@
       t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite');
       t.textContent = msg; host.appendChild(t);
       requestAnimationFrame(function(){ t.classList.add('show'); });
-      setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 250); }, ms || 2200);
+      setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 250); }, ms || 4000);
     } catch(_) {}
   };
 </script>
@@ -650,6 +674,229 @@
   }
   /* ═══ /skin presets ═══ */
 
+  /* ═══ SEED 브리지 — astryx 이름 → @seed-design/css 토큰 ═══════════════════
+     왜 이 한 겹인가: 사이트의 실제 API 는 --c-* 별칭 20종(사용처 3,532곳)이고 그
+     우변은 astryx --color-* 다. 여기서 --color-* 의 우변만 --seed-* 로 갈아끼우면
+     인라인 style 2,803곳·별칭 사용처 전부를 손대지 않고 12페이지 색이 함께 바뀐다.
+
+     ⚠ 셀렉터 규칙(적대 검증에서 확인된 출시 차단 결함)
+       · html:root{} — :root{} 단독은 astryx html.light{}(동특이성·앞선 순서)에게
+         라이트에서 패배한다. html:root 도 (0,1,1) 이지만 뒤에 오므로 이긴다.
+       · var(--seed-…, #hex) 폴백 — seed.css 로드 실패 시 전면 무색을 막는다.
+         폴백 값은 사이트 기본 테마(다크)다. 로드 실패 시 라이트도 다크색으로
+         일관되게 보이는 편이 색 없는 화면보다 낫다.
+       · 시리즈 9색·스킨 프리셋은 P0 범위 밖 — SEED 에 대응 토큰이 없어 astryx 정의를
+         그대로 쓴다(P4 에서 astryx 블록 삭제와 함께 이관).
+     값 근거: 기획안 §6 · base.css 실측. 등락색은 scripts/vendor_seed_css.py 가 검사. */
+  html:root {
+    /* ── 배경·표면 (SEED 표면 2단: basement → default) ── */
+    --color-background-body:     var(--seed-color-bg-layer-basement, #000000);
+    --color-background-surface:  var(--seed-color-bg-layer-fill, #1d2025);
+    --color-background-card:     var(--seed-color-bg-layer-default, #16171b);
+    --color-background-popover:  var(--seed-color-bg-layer-floating, #1d2025);
+    --color-background-muted:    var(--seed-color-bg-layer-fill, #1d2025);
+    --color-neutral:             var(--seed-color-bg-neutral-weak-alpha, #ffffff20);
+    --color-skeleton:            var(--seed-color-bg-neutral-weak, #2b2e35);
+    --color-overlay:             var(--seed-color-bg-overlay, #00000074);
+    --color-overlay-hover:       var(--seed-color-bg-transparent-pressed, #ffffff0d);
+    --color-overlay-pressed:     var(--seed-color-bg-transparent-selected, #ffffff17);
+    --color-border:              var(--seed-color-stroke-neutral-weak, #393d46);
+    /* emphasized 는 border 보다 강하되 흰색은 아니어야 한다(스크롤바 썸·hover 테두리).
+       역할 토큰 stroke-neutral-solid 는 gray-800(다크 #dcdee3)으로 너무 밝다. */
+    --color-border-emphasized:   var(--seed-color-palette-gray-500, #5b606a);
+
+    /* ── 텍스트 ── */
+    --color-text-primary:        var(--seed-color-fg-neutral, #f3f4f5);
+    --color-text-secondary:      var(--seed-color-fg-neutral-muted, #dcdee3);
+    --color-text-disabled:       var(--seed-color-fg-disabled, #5b606a);
+    /* fg-neutral-subtle(흰 배경 3.42:1)은 텍스트 금지 — placeholder·비활성 전용 */
+    --color-text-gray:           var(--seed-color-fg-neutral-muted, #dcdee3);
+
+    /* ── 상호작용: 브랜드 = blue 재매핑(§6-1). carrot 은 상승 빨강과 같은 난색 ── */
+    --color-accent:              var(--seed-color-fg-brand, #41a2f9);
+    --color-accent-muted:        var(--seed-color-bg-brand-weak, #202742);
+    --color-text-accent:         var(--seed-color-fg-brand, #41a2f9);
+    --color-icon-accent:         var(--seed-color-fg-brand, #41a2f9);
+    --color-on-accent:           var(--seed-color-fg-neutral-inverted, #16171b);
+
+    /* ── 상태색 — 등락 관습(kr/global)과 무관하게 고정 ── */
+    --color-success:             var(--seed-color-fg-positive, #22b27f);
+    --color-error:               var(--seed-color-fg-critical, #ff6e60);
+    --color-warning:             var(--seed-color-fg-warning, #ca901c);
+    --color-error-muted:         var(--seed-color-bg-critical-weak, #322323);
+    --color-success-muted:       var(--seed-color-bg-positive-weak, #202926);
+    --color-warning-muted:       var(--seed-color-bg-warning-weak, #302819);
+    --color-on-success:          var(--seed-color-fg-neutral-inverted, #16171b);
+    --color-on-error:            var(--seed-color-fg-neutral-inverted, #16171b);
+    --color-icon-green:          var(--seed-color-fg-positive, #22b27f);
+    --color-icon-red:            var(--seed-color-fg-critical, #ff6e60);
+    --color-icon-yellow:         var(--seed-color-fg-warning, #ca901c);
+    --color-icon-orange:         var(--seed-color-fg-warning, #ca901c);
+    --color-text-blue:           var(--seed-color-fg-informative, #41a2f9);
+    /* 작은 경고 텍스트는 contrast 단계(라이트 #4f3e1f) — fg-warning 은 ≤13px 에서 부족 */
+    --color-text-yellow:         var(--seed-color-fg-warning-contrast, #e5d49b);
+    --color-text-green:          var(--seed-color-fg-positive, #22b27f);
+    --color-text-red:            var(--seed-color-fg-critical, #ff6e60);
+    --color-background-blue:     var(--seed-color-bg-informative-weak, #202742);
+    --color-background-yellow:   var(--seed-color-bg-warning-weak, #302819);
+    --color-background-green:    var(--seed-color-bg-positive-weak, #202926);
+    --color-background-red:      var(--seed-color-bg-critical-weak, #322323);
+    --color-background-gray:     var(--seed-color-bg-neutral-weak, #2b2e35);
+    --color-border-blue:         var(--seed-color-stroke-informative-weak, #1a4275);
+    --color-border-green:        var(--seed-color-stroke-positive-weak, #20493b);
+    --color-border-red:          var(--seed-color-stroke-critical-weak, #742826);
+    --color-border-yellow:       var(--seed-color-stroke-warning-weak, #543e15);
+
+    /* ── 등락색: 역할 토큰이 아니라 팔레트 직접 참조 ──
+       fg-positive/critical 에 매핑하면 한국 관습(상승 빨강)과 반대가 된다.
+       텍스트는 800(라이트)/700(다크), 도형·차트는 700/600 2단(§6-2).
+       아래는 다크 값이고 라이트는 [data-seed-color-mode="light-only"] 블록이 덮는다.
+       window._UPDN / _UPDN_FILL 과 값이 같아야 한다 — vendor_seed_css.py 가 검사. */
+    --color-market-up:           var(--seed-color-palette-green-700, #22b27f);
+    --color-market-down:         var(--seed-color-palette-red-700, #ff6e60);
+    --color-market-up-kr:        var(--seed-color-palette-red-700, #ff6e60);
+    --color-market-down-kr:      var(--seed-color-palette-blue-700, #41a2f9);
+    --color-market-up-fill:      var(--seed-color-palette-green-600, #1b946d);
+    --color-market-down-fill:    var(--seed-color-palette-red-600, #f73526);
+    --color-market-up-kr-fill:   var(--seed-color-palette-red-600, #f73526);
+    --color-market-down-kr-fill: var(--seed-color-palette-blue-600, #1e82eb);
+
+    /* ── 타이포 스케일 — astryx px → SEED t-스케일(§7). 사용처 1,600곳 무수정 ──
+       10px(--font-size-xs) 은 t1 11px 로 일괄 상향된다. 두 스케일 병존 금지. */
+    --font-size-xs:   var(--seed-font-size-t1, 11px);
+    --font-size-sm:   var(--seed-font-size-t2, 12px);
+    --font-size-md:   var(--seed-font-size-t3, 13px);   /* astryx 미정의였다 — js 3곳이 참조 */
+    --font-size-base: var(--seed-font-size-t4, 14px);
+    --font-size-lg:   var(--seed-font-size-t6, 18px);
+    --font-size-xl:   var(--seed-font-size-t7, 20px);
+    --font-size-2xl:  var(--seed-font-size-t9, 24px);
+    --font-size-3xl:  var(--seed-font-size-t11, 28px);
+    --font-size-4xl:  var(--seed-font-size-t12, 32px);
+    --font-size-5xl:  var(--seed-font-size-t13, 40px);
+    /* SEED 에는 600 이 없다(400/500/700) — semibold 사용처 164곳은 700 으로 간다 */
+    --font-weight-normal:   var(--seed-font-weight-regular, 400);
+    --font-weight-medium:   var(--seed-font-weight-medium, 500);
+    --font-weight-semibold: var(--seed-font-weight-bold, 700);
+    --font-weight-bold:     var(--seed-font-weight-bold, 700);
+
+    /* ── 라운드·요소 높이 (값 동일, 출처만 SEED 로) ── */
+    --radius-none:      var(--seed-radius-r1, 4px);
+    --radius-inner:     var(--seed-radius-r1_5, 6px);
+    --radius-element:   var(--seed-radius-r2_5, 10px);
+    --radius-container: var(--seed-radius-r3, 12px);
+    --radius-full:      var(--seed-radius-full, 9999px);
+    --size-element-sm:  var(--seed-dimension-x7, 28px);
+    --size-element-md:  var(--seed-dimension-x8, 32px);
+    --size-element-lg:  var(--seed-dimension-x9, 36px);
+
+    /* ── 모션 — astryx 95~700ms → SEED d1~d6(50~300ms) ── */
+    --duration-fast-min:   var(--seed-duration-d2, 100ms);
+    --duration-fast:       var(--seed-duration-d3, 150ms);
+    --duration-fast-max:   var(--seed-duration-d4, 200ms);
+    --duration-medium-min: var(--seed-duration-d4, 200ms);
+    --duration-medium:     var(--seed-duration-d6, 300ms);
+    --ease-standard:       var(--seed-timing-function-easing, cubic-bezier(.35, 0, .35, 1));
+
+    /* ── 고도 — 카드는 선만, 그림자는 플로팅에만(§7) ── */
+    --shadow-low:  var(--seed-shadow-s1, 0 1px 4px #00000014);
+    --shadow-med:  var(--seed-shadow-s2, 0 2px 10px #0000001a);
+    --shadow-high: var(--seed-shadow-s3, 0 4px 16px #0000001f);
+  }
+  /* 라이트 전용 등락색 — 텍스트 800 / 도형 700. FOUC 블록이 세우는 속성과 1:1 */
+  html:root[data-seed-color-mode="light-only"] {
+    --color-market-up:           var(--seed-color-palette-green-800, #00745f);
+    --color-market-down:         var(--seed-color-palette-red-800, #ca1d13);
+    --color-market-up-kr:        var(--seed-color-palette-red-800, #ca1d13);
+    --color-market-down-kr:      var(--seed-color-palette-blue-800, #135fcd);
+    --color-market-up-fill:      var(--seed-color-palette-green-700, #079171);
+    --color-market-down-fill:    var(--seed-color-palette-red-700, #fa342c);
+    --color-market-up-kr-fill:   var(--seed-color-palette-red-700, #fa342c);
+    --color-market-down-kr-fill: var(--seed-color-palette-blue-700, #217cf9);
+  }
+
+  /* ═══ SEED 브랜드 토큰 오버라이드 — carrot → blue ═══
+     경제 대시보드에서 주황 버튼은 '상승 신호'로 오독된다(carrot hue 24° ≈ 상승 빨강).
+     ⚠ (0,2,0) 필요: base.css 의 bare :root 라이트 정의를 이겨야 한다.
+     ⚠ 다크 블록도 따로: base.css 다크 블록(0,2,0)에 지면 다크에서 carrot 이 복귀한다. */
+  :root:root {
+    --seed-color-fg-brand:               var(--seed-color-palette-blue-800); /* L #135fcd — 흰 글자 5.92 */
+    --seed-color-fg-brand-contrast:      var(--seed-color-palette-blue-900);
+    --seed-color-bg-brand-solid:         var(--seed-color-palette-blue-800);
+    --seed-color-bg-brand-solid-pressed: var(--seed-color-palette-blue-900);
+    --seed-color-bg-brand-weak:          var(--seed-color-palette-blue-100);
+    --seed-color-bg-brand-weak-pressed:  var(--seed-color-palette-blue-200);
+    --seed-color-stroke-brand-solid:     var(--seed-color-palette-blue-800);
+    --seed-color-stroke-brand-weak:      var(--seed-color-palette-blue-300);
+  }
+  :root:root[data-seed-color-mode="dark-only"] {
+    --seed-color-fg-brand:               var(--seed-color-palette-blue-700); /* D #41a2f9 — on #16171b 6.62 */
+    --seed-color-bg-brand-solid:         var(--seed-color-palette-blue-700);
+    --seed-color-bg-brand-solid-pressed: var(--seed-color-palette-blue-600);
+    --seed-color-stroke-brand-solid:     var(--seed-color-palette-blue-700);
+  }
+  /* action-button.css 가 carrot-200 을 직접 박아둔 곳 — recipe 변수만 덮는다 */
+  .seed-action-button--variant_brandOutline { --track-color: var(--seed-color-palette-blue-200); }
+
+  /* ═══ 홈 그리드 — 문자열 매칭 미디어쿼리의 대체물 ═══════════════════════════
+     현행 반응형은 main div[style*="grid-template-columns:1fr 300px"] 처럼 인라인
+     문자열을 매칭한다(48행). 인라인을 클래스로 바꾸는 순간 그 규칙이 죽으므로,
+     대체물을 먼저 만들어 두고 마크업을 옮기는 단계에서 짝을 지어 지운다
+     (P2 홈 · P3 나머지 11페이지). 지금 지우면 인라인 격자가 반응형을 잃는다.
+
+     컨테이너는 base.css 의 .seed-grid(grid-template-* 를 변수로 받는 껍데기)에
+     사이트가 display:grid·gap·12컬럼·최대폭을 얹는다. 자식은 .sp-{n} 기본,
+     .sp-md-{n}(≥768) · .sp-lg-{n}(≥1280) 로 구간별 span. */
+  .seed-grid.econ-home {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--seed-dimension-x4, 16px);
+    max-width: 1440px;
+    margin-inline: auto;
+  }
+  /* 격자 자식이 내용 최소폭 때문에 열을 밀어내지 않게 — 표·차트 오버플로 예방 */
+  .econ-home > * { min-width: 0; }
+  .sp-1 { grid-column: span 1; }
+  .sp-2 { grid-column: span 2; }
+  .sp-3 { grid-column: span 3; }
+  .sp-4 { grid-column: span 4; }
+  .sp-5 { grid-column: span 5; }
+  .sp-6 { grid-column: span 6; }
+  .sp-7 { grid-column: span 7; }
+  .sp-8 { grid-column: span 8; }
+  .sp-9 { grid-column: span 9; }
+  .sp-10 { grid-column: span 10; }
+  .sp-11 { grid-column: span 11; }
+  .sp-12 { grid-column: span 12; }
+  @media (min-width: 768px) {
+    .sp-md-1 { grid-column: span 1; }
+    .sp-md-2 { grid-column: span 2; }
+    .sp-md-3 { grid-column: span 3; }
+    .sp-md-4 { grid-column: span 4; }
+    .sp-md-5 { grid-column: span 5; }
+    .sp-md-6 { grid-column: span 6; }
+    .sp-md-7 { grid-column: span 7; }
+    .sp-md-8 { grid-column: span 8; }
+    .sp-md-9 { grid-column: span 9; }
+    .sp-md-10 { grid-column: span 10; }
+    .sp-md-11 { grid-column: span 11; }
+    .sp-md-12 { grid-column: span 12; }
+  }
+  @media (min-width: 1280px) {
+    .sp-lg-1 { grid-column: span 1; }
+    .sp-lg-2 { grid-column: span 2; }
+    .sp-lg-3 { grid-column: span 3; }
+    .sp-lg-4 { grid-column: span 4; }
+    .sp-lg-5 { grid-column: span 5; }
+    .sp-lg-6 { grid-column: span 6; }
+    .sp-lg-7 { grid-column: span 7; }
+    .sp-lg-8 { grid-column: span 8; }
+    .sp-lg-9 { grid-column: span 9; }
+    .sp-lg-10 { grid-column: span 10; }
+    .sp-lg-11 { grid-column: span 11; }
+    .sp-lg-12 { grid-column: span 12; }
+  }
+
+
   /* ═══ astryx 토큰 → 레거시 --c-* 별칭 레이어 ═══
      index.html 에는 var(--c-*) 사용처가 2000 곳 넘는다. 전부 고치는 대신
      별칭 한 겹을 두어 astryx 토큰이 단일 출처가 되게 한다.
@@ -661,14 +908,14 @@
     --c-bg:        var(--color-background-body);
     --c-surface:   var(--color-background-surface);
     --c-card:      var(--color-background-card);
-    --c-card-hi:   color-mix(in srgb, var(--color-tint-hover) 8%, var(--color-background-card));
+    --c-card-hi:   var(--seed-color-bg-layer-default-pressed, #2b2e35);
     --c-border:    var(--color-border);
-    --c-border-weak: color-mix(in srgb, var(--color-border) 55%, transparent);
+    --c-border-weak: var(--seed-color-stroke-neutral-subtle, #ffffff0d);
 
     /* 텍스트 — muted 는 카드 위 4.5:1 을 지키려고 secondary 를 배경 쪽으로 10% 만 민다 */
     --c-txt:       var(--color-text-primary);
     --c-txt-dim:   var(--color-text-secondary);
-    --c-txt-muted: color-mix(in srgb, var(--color-text-secondary) 90%, var(--color-background-card));
+    --c-txt-muted: var(--seed-color-fg-neutral-muted, #dcdee3);
 
     /* 상호작용 */
     --c-accent:           var(--color-accent);
@@ -679,6 +926,9 @@
     /* 의미색 — 색은 데이터에만 */
     --c-up:      var(--color-market-up);
     --c-down:    var(--color-market-down);
+    /* 도형·차트용(테두리·막대·선) — 텍스트보다 한 단계 진하다. 값은 window.CUPF/CDNF 와 1:1 */
+    --c-up-fill:   var(--color-market-up-fill);
+    --c-down-fill: var(--color-market-down-fill);
     --c-warn:    var(--color-warning);
     --c-success: var(--color-success);
     --c-error:   var(--color-error);
@@ -736,6 +986,8 @@
   html.kr-colors {
     --c-up:   var(--color-market-up-kr);
     --c-down: var(--color-market-down-kr);
+    --c-up-fill:   var(--color-market-up-kr-fill);
+    --c-down-fill: var(--color-market-down-kr-fill);
   }
 
   /* ═══ 경제지표 팝업(캘린더 플로팅/상세) UX 보강 — additive, 비파괴 ═══ */
@@ -894,7 +1146,7 @@
   /* 모바일에서는 상단 헤더의 날짜·시각(시계)을 숨긴다 — 좁은 화면에서 티커 공간 확보(2026-06 사용자 요청). */
   @media (max-width: 768px) { #clock { display: none !important; } }
   .tab-btn { transition: all .15s; cursor: pointer; }
-  .tab-btn.active { background: #2962ff; color: #fff; }
+  .tab-btn.active { background: var(--c-accent); color: var(--c-on-accent); }
   .tab-btn:not(.active):hover { background: rgba(170, 195, 255, 0.12); }
   /* ═══ 전년 동기(YoY) 비교 — 토글 버튼 + 변화율 배지 (순수 추가) ═══ */
   .yoy-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px;
@@ -902,9 +1154,9 @@
              background: transparent; color: var(--c-txt-dim,#a4a8bc); cursor: pointer;
              font-weight: 600; transition: all .15s; white-space: nowrap; }
   .yoy-btn:not(.active):hover { background: rgba(170,195,255,.12); color: var(--c-txt,#e8ebf5); }
-  .yoy-btn.active { background: var(--c-accent,#2962ff); color: #fff; border-color: var(--c-accent,#2962ff); }
+  .yoy-btn.active { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
   .yoy-btn.indeterminate { background: rgba(41,98,255,.16); color: var(--c-primary,#c8d2ff);
-             border-color: var(--c-accent,#2962ff); border-style: dashed; }
+             border-color: var(--c-accent); border-style: dashed; }
   .yoy-btn .mat { font-size: 14px; }
   html.light .yoy-btn.active { background: var(--c-accent,#356CB5) !important; color: #fff !important; border-color: var(--c-accent,#356CB5) !important; }
   .yoy-badge { position: absolute; top: 6px; right: 8px; z-index: 5; pointer-events: none;
@@ -936,12 +1188,12 @@
   .ticker-item:hover { opacity: 0.75; }
   .ticker-wrap:hover .ticker-scroll { animation-play-state: paused; }
   .news-filter-btn { font-size:var(--fs-label); padding:2px 8px; border-radius:var(--r-xs); cursor:pointer; user-select:none; border:1px solid var(--c-border); color:var(--c-txt-dim); background:var(--c-card); transition:all .15s; }
-  .news-filter-btn.act { background:#2962ff; color:#fff; border-color:#2962ff; }
+  .news-filter-btn.act { background:var(--c-accent); color:var(--c-on-accent); border-color:var(--c-accent); }
   #sidebar.collapsed { width:0 !important; padding:0 !important; overflow:hidden !important; border-right:none !important; }
   .range-reset-btn { background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:0 5px;font-size:var(--fs-label);cursor:pointer;margin-left:6px;line-height:1.2; }
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
   .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #3a4054;border-radius:4px;padding:2px 6px;font-size:11px; }
-  .kpi-clickable:hover { border-color:#2962ff !important; }
+  .kpi-clickable:hover { border-color:var(--c-accent) !important; }
   /* ======= 모바일 반응형 ======= */
   /* 모든 그리드는 모바일에서 자동으로 단일/이중 컬럼으로 축소되어 차트 오버플로우 방지 */
   @media (max-width: 1024px) {
@@ -1085,7 +1337,7 @@
   .home-sec:hover .sec-drag-handle { opacity: 1; background: var(--c-surface,#1a2236); box-shadow: 0 1px 4px rgba(0,0,0,.25); }
   .home-sec .sec-drag-handle:hover { background: var(--c-card-hi,#2a3556); color: var(--c-txt-dim,#a4a8bc); }
   .home-sec.dnd-dragging, .kpi-card.dnd-dragging { opacity: .35; }
-  .home-sec.dnd-over, .kpi-card.dnd-over { outline: 2px dashed #2962ff; outline-offset: 2px; border-radius: 8px; }
+  .home-sec.dnd-over, .kpi-card.dnd-over { outline: 2px dashed var(--c-accent); outline-offset: 2px; border-radius: var(--r-md); }
   /* 홈 위젯 숨김 토글 — 드래그 핸들 옆 눈 아이콘 (2.1 정보 과부하 완화) */
   .home-sec .sec-hide-btn {
     position: absolute; top: 6px; right: 38px; z-index: 6;
@@ -1111,7 +1363,8 @@
     display: inline-block; height: 10px; border-radius: 4px; vertical-align: middle;
     background: linear-gradient(90deg, var(--c-card-hi,#2a3556) 25%, var(--c-border,#3e4870) 50%, var(--c-card-hi,#2a3556) 75%);
     background-size: 200% 100%;
-    animation: skel-shimmer 1.6s ease-in-out infinite;
+    /* 지연 1s — 4초 이내 도착하는 응답에서 셔머가 번쩍이지 않게(SEED loading 패턴) */
+    animation: skel-shimmer 1.6s ease-in-out 1s infinite;
   }
   .skel-row td { padding: 9px 4px !important; }
 
@@ -1119,10 +1372,10 @@
   #mainChart, #fxChart, #bondChart, #equityIndexChart, #comDetailChart, #rePriceChart { cursor: crosshair; }
   .ann-pending {
     display: inline-flex; align-items: center; gap: 5px;
-    font-size: 11px; color: #b6c4ff; background: rgba(41,98,255,.12);
-    border: 1px dashed #2962ff; border-radius: 4px; padding: 2px 8px;
+    font-size: var(--font-size-xs); color: var(--c-primary); background: var(--color-accent-muted);
+    border: 1px dashed var(--c-accent); border-radius: var(--r-xs); padding: 2px 8px;
   }
-  .ann-pending .dot { width: 6px; height: 6px; border-radius: 50%; background: #2962ff; animation: ann-pulse 1.2s ease-in-out infinite; }
+  .ann-pending .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-accent); animation: ann-pulse 1.2s ease-in-out infinite; }
   @keyframes ann-pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
   /* 🚨 시장중단(서킷브레이커·사이드카) 경고 */
   #marketHaltBanner { position: fixed; top: 56px; left: 0; right: 0; z-index: 299; display: none; flex-direction: column; }
@@ -1211,7 +1464,7 @@
 .set-switch input { opacity:0; width:0; height:0; }
 .set-slider { position:absolute; inset:0; background:var(--c-border,#3e4870); border-radius:20px; transition:.2s; cursor:pointer; }
 .set-slider:before { content:""; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#8d90a2; border-radius:50%; transition:.2s; }
-.set-switch input:checked + .set-slider { background:#2962ff; }
+.set-switch input:checked + .set-slider { background:var(--c-accent); }
 .set-switch input:checked + .set-slider:before { transform:translateX(16px); background:#fff; }
 /* 진단 결과 행 */
 .diag-row { display:flex; gap:8px; padding:5px 0; border-bottom:1px dashed var(--c-border,#3e4870); align-items:flex-start; line-height:1.5; }
@@ -1222,12 +1475,12 @@
 .chart-scroll-x { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 @media (max-width:768px) { .chart-scroll-x .chart-scroll-inner { min-width:560px; } }
 /* 1회성 가이드 배너 */
-.guide-banner { display:flex; gap:8px; align-items:flex-start; background:#2962ff14; border:1px solid #2962ff44; border-radius:6px; padding:8px 10px; font-size:11px; color:var(--c-txt-dim,#a4a8bc); margin:8px 0; line-height:1.6; }
+.guide-banner { display:flex; gap:8px; align-items:flex-start; background:var(--color-background-blue); border:1px solid var(--color-border-blue); border-radius:6px; padding:8px 10px; font-size:11px; color:var(--c-txt-dim,#a4a8bc); margin:8px 0; line-height:1.6; }
 .guide-banner b { color:var(--c-txt,#e8ebf5); }
 .guide-x { margin-left:auto; cursor:pointer; color:var(--c-txt-muted); font-weight:700; padding:0 4px; flex-shrink:0; }
 /* 위젯 오류 표시 + 재시도 */
 .widget-err { display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; padding:18px 8px; color:var(--c-txt-muted,#8b90a8); font-size:11px; text-align:center; }
-.widget-err button { font-size:11px; padding:3px 12px; border:1px solid #2962ff; border-radius:4px; background:transparent; color:#2962ff; cursor:pointer; }
+.widget-err button { font-size:var(--font-size-xs); padding:3px 12px; border:1px solid var(--c-accent); border-radius:var(--r-xs); background:transparent; color:var(--c-accent); cursor:pointer; }
 /* 데이터 소스 배너 (실데이터 로드 실패 → Mock 동작 고지) */
 /* top:64px(헤더 바로 아래)는 '글로벌 주요 지수' 위젯 상단을 가렸다(2026-08 감사) — 우하단으로.
    토스트(#toastHost)는 하단 중앙이라 겹치지 않는다. */
@@ -1324,7 +1577,7 @@ html.light .widget-title { color: rgb(53, 108, 181) !important; }
 html.light ::-webkit-scrollbar-thumb:hover { background: #88aacf; }
 
 /* ── 8. 포커스 아웃라인: 다크 모드 accent 색 ────────────────── */
-:focus-visible { outline-color: var(--c-accent, #2962ff); }
+:focus-visible { outline-color: var(--c-accent); }
 
 /* ── 9. 텍스트 선택 하이라이트 통일 ──────────────────────────── */
 ::selection { background: rgba(41, 98, 255, 0.28); color: #fff; }

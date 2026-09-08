@@ -1,0 +1,14 @@
+{
+  "name": "economic-site",
+  "private": true,
+  "description": "UI 게이트(tests/ui) 전용 개발 의존성. 사이트 자체는 빌드가 없는 정적 index.html 이다.",
+  "scripts": {
+    "ui:serve": "python -m http.server 8080 --bind 127.0.0.1",
+    "ui:shots": "node tests/ui/shots.mjs",
+    "seed:vendor": "python scripts/vendor_seed_css.py",
+    "seed:check": "python scripts/check_seed_classes.py"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

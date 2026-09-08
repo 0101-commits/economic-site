@@ -14,10 +14,48 @@ Live site: `https://0101-commits.github.io/economic-site/`
 
 The one exception is the **design-token block**, which is generated — see *Design system* below.
 
-## Design system — astryx (neutral)
+## Design system — SEED (당근) over an astryx-shaped alias layer
 
-The UI follows the astryx design system (`@astryxdesign/*`; local copy at
-`C:\Users\cgpar\astryx`). Three rules carry most of it:
+**Since the SEED 개편 (P0, 2026-09-08) the token source is `@seed-design/css@2.7.0`,
+vendored at `css/seed/seed.css`.** The astryx names are still the site's internal
+API; a bridge block rebinds their right-hand sides to `--seed-*`:
+
+```
+@seed-design/css (css/seed/seed.css)   ← scripts/vendor_seed_css.py 로 갱신
+  → SEED 브리지 (index.html, html:root{})  --color-* / --font-size-* → --seed-*
+    → 별칭 --c-* 20종                       사용처 3,500곳이 여기만 본다
+      → 인라인 style / 클래스
+```
+
+Rules that follow from this:
+
+- **Colors, sizes, radii, motion come from `--seed-*` — but reference them through
+  the existing `--color-*` / `--c-*` names** unless you are writing a new
+  `.econ-*` component or overriding a recipe. Only the bridge and `.econ-*`
+  definitions touch `--seed-*` directly.
+- **Brand is blue, not carrot.** `:root:root{}` + `:root:root[data-seed-color-mode="dark-only"]{}`
+  override the 8 brand tokens (light `blue-800 #135fcd` / dark `blue-700 #41a2f9`).
+  Both blocks are required — dropping either loses to base.css's own definitions.
+- **Market direction uses the palette directly**, never `fg-positive`/`fg-critical`
+  (Korea reads red as *up*). Text = 800 (light) / 700 (dark); shapes and chart
+  lines = one step stronger (`--c-up-fill` / `--c-down-fill`, `window.CUPF`/`CDNF`).
+  `_UPDN`, `_UPDN_FILL`, and the bridge must agree — `vendor_seed_css.py` diffs them.
+- **Theme = two attributes in lockstep**: `html.light` (site) and
+  `html[data-seed-color-mode="light-only"|"dark-only"]` (SEED). Any place that sets
+  one sets the other (FOUC block, `toggleTheme`, `applyStoredTheme`).
+- **Component classes are SEED recipes** (`.seed-badge__root--tone_warning-variant_weak`
+  등). Size/layout are compound classes; state is one style hook (`[data-checked]`,
+  `[aria-selected]`, `[aria-pressed]`, `[data-current]`) plus the matching ARIA.
+  `python scripts/check_seed_classes.py` fails the build on a class the vendored
+  CSS doesn't define.
+- **UI gate before push**: `python -m http.server 8080` then
+  `node tests/ui/shots.mjs --page=<page>` — 16 shots (390/768/1280/1440 × light/dark
+  × kr/global) plus console-error, brand-token and theme-sync assertions.
+- The astryx generated block (`:279-570`) stays as a **dormant fallback** so a name
+  the bridge missed shows its old value instead of nothing; it is deleted in P4 once
+  grep proves coverage. Skin presets (`navy`/`contrast`) are also P4 casualties.
+
+The three astryx rules below still hold — they are the reason SEED was adopted:
 
 1. **Semantic tokens, never hardcoded values.** Colors come from `var(--color-*)`
    (or the legacy `var(--c-*)` alias layer). No hex literals in CSS or in
@@ -28,11 +66,13 @@ The UI follows the astryx design system (`@astryxdesign/*`; local copy at
 3. **Dense data renders as rows, not cards.** `.widget`/`.kpi-card` are widget
    containers; lists and tables are edge-to-edge rows with dividers and
    32–40 px row height. Don't wrap list items in cards.
-4. **Never set `font-size` or `font-weight` by hand.** Use the geometric scale
-   (`--font-size-xs` … `--font-size-5xl`, base 14 × ratio 1.2) or a semantic
-   type style (`--text-body-*`, `--text-supporting-*`, `--text-heading-N-*`).
-   Off-scale values (11, 13, 15, 18, 22 px) are what made the old UI drift by
-   1–2 px between screens.
+4. **Never set `font-size` or `font-weight` by hand.** Use the scale
+   (`--font-size-xs` … `--font-size-5xl`), which the bridge maps onto SEED's
+   t-scale (xs→t1 11px · sm→t2 12 · base→t4 14 · lg→t6 18 · xl→t7 20 · 2xl→t9 24),
+   or a SEED text recipe (`.seed-text--textStyle_t4Bold`). Two scales must not
+   coexist. Weights are 400/500/700 only — SEED has no 600, so `semibold` maps
+   to bold. Off-scale values (11, 13, 15, 18, 22 px hardcoded) are what made the
+   old UI drift by 1–2 px between screens.
 5. **Chart colors come from tokens, never literals.** Categorical series use
    `getThemeColors().series` (9 hues); the interactive blue is
    `getThemeColors().accent`. Market up/down (`window.CUP`/`CDN`) must not be

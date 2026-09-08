@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'js/app[0-9].js'          # min 파일은 매칭 안 됨 → 자기 커밋 재귀 없음
+      - 'css/seed/**'             # 벤더링 CSS 갱신 시 ?v= 캐시버스팅
       - '.github/workflows/build-frontend.yml'
   workflow_dispatch:
 
@@ -42,6 +43,9 @@ jobs:
           # 로더의 BUILD_V 를 소스 커밋 sha 로 — 프로덕션 캐시버스팅
           sed -i -E "s/var BUILD_V = '[0-9a-f]{8}'/var BUILD_V = '${V}'/" index.html
           grep -q "var BUILD_V = '${V}'" index.html   # sed 무매치 침묵 방지
+          # 벤더링 SEED CSS 도 같은 sha 로 — <link href="css/seed/seed.css?v=…">
+          sed -i -E "s#(css/seed/seed\.css\?v=)[0-9a-f]{8}#\1${V}#" index.html
+          grep -q "css/seed/seed.css?v=${V}" index.html
 
       - name: Commit and push
         run: |
