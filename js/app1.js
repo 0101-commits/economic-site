@@ -1992,7 +1992,7 @@ function showSubscriptionDetail(regionKey) {
   // 최근 청약 단지 순위
   body += `<div style="font-weight:var(--font-weight-bold);font-size:12.5px;margin:6px 0 6px;color:var(--c-txt);">🏢 최근 청약 단지 순위</div>`;
   if(liveList && liveList.length) {
-    body += `<div style="overflow-x:auto;"><table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+    body += `<div class="econ-table__scroll"><table class="econ-table">
       <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-xs);">
         <th scope="col" style="text-align:left;padding:5px 0;">단지</th><th scope="col" style="text-align:left;padding:5px;">지역</th>
         <th scope="col" style="text-align:right;padding:5px;">1순위 경쟁률</th><th scope="col" style="text-align:right;padding:5px;">청약일</th>
@@ -2724,7 +2724,8 @@ function _econMirrorState(el) {
   if (el.classList.contains('seed-chip__root')) {
     if (on) el.setAttribute('data-checked', ''); else el.removeAttribute('data-checked');
     el.setAttribute('aria-pressed', on ? 'true' : 'false');
-  } else if (el.classList.contains('seed-chip-tabs__trigger')) {
+  } else if (el.classList.contains('seed-chip-tabs__trigger')
+             || el.classList.contains('seed-tabs__trigger')) {
     el.setAttribute('aria-selected', on ? 'true' : 'false');
   } else if (el.classList.contains('seed-toggle-button')) {
     el.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -2732,7 +2733,7 @@ function _econMirrorState(el) {
 }
 function econInitStateMirror(root) {
   root = root || document.getElementById('mainContent') || document.body;
-  var SEL = '.seed-chip__root, .seed-chip-tabs__trigger, .seed-toggle-button';
+  var SEL = '.seed-chip__root, .seed-chip-tabs__trigger, .seed-tabs__trigger, .seed-toggle-button';
   root.querySelectorAll(SEL).forEach(_econMirrorState);
   try {
     new MutationObserver(function (muts) {
@@ -7865,9 +7866,13 @@ function showCalGridFloating(idx, evt) {
   document.getElementById('calFloatFore').textContent = e.fore || '—';
   _calRenderActual(e, 'calFloat');
   _calRenderFloatSurprise(e);
-  // 플로팅 위치 — 부모 widget 기준 (position:relative 컨테이너)
+  // 좁은 화면에서는 커서 좌표 팝업이 아니라 바텀시트다 — 390px 폭에서 팝업이
+  // 화면 밖으로 밀리거나 손가락 아래에 깔리던 문제(기획안 §10 calendar).
+  const sheet = (window.innerWidth || 1024) < 768;
+  if(sheet) fl.setAttribute('data-sheet', ''); else fl.removeAttribute('data-sheet');
   fl.style.display = 'block';
-  if(evt && evt.clientX != null) {
+  if(sheet) { fl.style.left = ''; fl.style.top = ''; }
+  if(!sheet && evt && evt.clientX != null) {
     const parent = fl.parentElement;  // .widget
     if(parent) {
       const prect = parent.getBoundingClientRect();
@@ -9421,7 +9426,7 @@ function _renderBerkshire() {
     <div class="widget">
       <div class="widget-title">상위 보유 종목 (평가액 기준 Top ${bk.holdings.length})</div>
       <div style="overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;">
+        <table class="econ-table">
           <thead><tr style="border-bottom:1px solid var(--c-border);">
             <th scope="col" style="padding:6px 8px;text-align:left;font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);">#</th>
             <th scope="col" style="padding:6px 8px;text-align:left;font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);">종목</th>
@@ -9494,7 +9499,7 @@ function _renderGlobalInvestor(id) {
     <!-- 보유 자산 / 펀드 구성 -->
     <div class="widget" style="margin-bottom:12px;">
       <div class="widget-title">${id==='frtib'?'펀드 구성':'주요 보유 (Top 10, 공시 기반 추정치)'}</div>
-      <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+      <table class="econ-table">
         <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
           <th scope="col" style="text-align:left;padding:6px 0;">#</th>
           <th scope="col" style="text-align:left;padding:6px;">${id==='frtib'?'펀드':'종목'}</th>
@@ -13167,7 +13172,7 @@ function renderMarketHalts(data) {
         return `<tr><td>${d}</td><td>${typ}</td><td>${esc(h.market)}</td><td>${stage}</td><td>${esc(h.reason)}</td><td>${hhmm(h.triggeredAt)}~${end}</td></tr>`;
       }).join('');
       histBox.innerHTML = `<div style="font-weight:var(--font-weight-semibold);margin-bottom:8px;">⚠️ 과거 매매중단 이력 (서킷브레이커·사이드카)</div>`
-        + `<div style="overflow-x:auto;"><table class="halt-hist-table"><thead><tr><th>일시</th><th>종류</th><th>시장</th><th>단계/방향</th><th>사유</th><th>중단~재개</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        + `<div class="econ-table__scroll"><table class="halt-hist-table econ-table"><thead><tr><th>일시</th><th>종류</th><th>시장</th><th>단계/방향</th><th>사유</th><th>중단~재개</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       histBox.style.display = 'block';
     } else {
       histBox.style.display = 'none';

@@ -1041,6 +1041,47 @@
   .econ-newslist .seed-list-item__root:last-child { border-bottom: none; }
   .econ-newsmore { width: 100%; margin-top: var(--seed-dimension-x2, 8px); }
 
+  /* 폼 입력 — text-input recipe 는 root+value 두 파트를 요구하는데, 프리픽스
+     아이콘이 없는 입력 53개를 두 겹으로 감싸는 것은 얻는 것 없이 DOM 만 늘린다.
+     같은 토큰으로 단일 요소 규칙을 준다(터치 44px·t4·radius r2). */
+  .econ-input {
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 0 var(--seed-dimension-x3, 12px);
+    font-size: var(--seed-font-size-t4);
+    line-height: var(--seed-line-height-t4);
+    font-family: inherit;
+    color: var(--seed-color-fg-neutral, var(--c-txt));
+    background: var(--seed-color-bg-layer-default, var(--c-card));
+    border: 1px solid var(--seed-color-stroke-neutral-weak, var(--c-border));
+    border-radius: var(--seed-radius-r2, 8px);
+  }
+  .econ-input::placeholder { color: var(--seed-color-fg-placeholder); }
+  .econ-input:focus-visible {
+    outline: 2px solid var(--seed-color-stroke-focus-ring);
+    outline-offset: -2px;
+  }
+  textarea.econ-input { min-height: 88px; padding: var(--seed-dimension-x2_5, 10px) var(--seed-dimension-x3, 12px); }
+  /* 캘린더 상세 — <768 바텀시트. bottom-sheet recipe 는 positioner/backdrop
+     구조를 요구하는데 이 팝업은 위젯 안 절대배치라, 같은 토큰으로 시트만 만든다. */
+  #calGridFloating[data-sheet] {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%; max-width: none; max-height: 82dvh;
+    border-radius: var(--seed-radius-r6, 24px) var(--seed-radius-r6, 24px) 0 0;
+    padding-bottom: calc(var(--seed-dimension-x4, 16px) + var(--seed-safe-area-bottom, 0px));
+    z-index: calc(2 + var(--layer-index, 300));
+    box-shadow: var(--seed-shadow-s3, 0 4px 16px #0000001f);
+  }
+  #calGridFloating[data-sheet]::before {
+    content: ''; display: block; width: 40px; height: 4px; margin: 0 auto 12px;
+    border-radius: var(--seed-radius-full); background: var(--seed-color-bg-neutral-weak);
+  }
+
+  /* 1차 탭 바 — recipe 의 __list 를 쓰지 않고(구조 변경 최소화) 밑선만 준다 */
+  .econ-tabsbar { box-shadow: inset 0 -1px var(--seed-color-stroke-neutral-muted); }
+  /* 표는 좁은 카드에서 가로 스크롤 — 래퍼가 없는 곳도 카드가 받아준다 */
+  .widget > .econ-table, .widget .econ-table { max-width: 100%; }
+
   /* 접힌 위젯 — 3상태(unset/collapsed/expanded)의 시각 표현은 기존 규칙 재사용 */
   .w-collapsed .econ-chartcard__canvas,
   .w-collapsed .econ-table__scroll { display: none; }
@@ -1421,9 +1462,9 @@
   .econ-ticker[data-motion="paused"] .ticker-scroll { animation-play-state: paused; }
   /* 모바일에서는 상단 헤더의 날짜·시각(시계)을 숨긴다 — 좁은 화면에서 티커 공간 확보(2026-06 사용자 요청). */
   @media (max-width: 768px) { #clock { display: none !important; } }
-  .tab-btn { transition: all .15s; cursor: pointer; }
+  .tab-btn:not([class*="seed-"]) { transition: all .15s; cursor: pointer; }
   .tab-btn.active:not([class*="seed-"]) { background: var(--c-accent); color: var(--c-on-accent); }
-  .tab-btn:not(.active):hover { background: rgba(170, 195, 255, 0.12); }
+  .tab-btn:not([class*="seed-"]):not(.active):hover { background: rgba(170, 195, 255, 0.12); }
   /* ═══ 전년 동기(YoY) 비교 — 토글 버튼 + 변화율 배지 (순수 추가) ═══ */
   .yoy-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px;
              border: 1px solid var(--c-border,#3e4870); border-radius: var(--r-xs,4px);
@@ -3086,10 +3127,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <div class="page" id="page-market">
       <div id="marketHaltHistory" class="widget" style="display:none;margin-bottom:16px;"></div>
       <div id="marketMainTabs" style="display:flex;gap:6px;margin-bottom:16px;">
-        <button class="tab-btn active" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);background:var(--c-accent);" onclick="setMarketTab('fx',this)">외환</button>
-        <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMarketTab('rate',this)">📈 금리</button>
-        <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMarketTab('bond',this)">📋 채권</button>
-        <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMarketTab('commodity',this)">원자재</button>
+        <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('fx',this)" data-ssr role="tab" aria-selected="true">외환</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('rate',this)" data-ssr role="tab" aria-selected="false">📈 금리</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('bond',this)" data-ssr role="tab" aria-selected="false">📋 채권</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('commodity',this)" data-ssr role="tab" aria-selected="false">원자재</button>
         <a id="naverMarketLink" href="https://finance.naver.com/marketindex/exchangeList.naver" target="_blank" rel="noopener noreferrer" title="현재 탭과 관련된 네이버 금융 시장지표 페이지 열기" style="margin-left:auto;align-self:center;font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;border:1px solid var(--c-accent-container);padding:4px 10px;border-radius:var(--r-sm);white-space:nowrap;">📊 네이버 시장지표 →</a>
       </div>
 
@@ -3113,18 +3154,18 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <button onclick="toggleFxDir()" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">⇄ 역방향</button>
                 </div>
                 <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-                  <button class="tab-btn active" id="fxPeriodBtn1W" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setFxPeriod('1W',this)">1W</button>
-                  <button class="tab-btn" id="fxPeriodBtn1M" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setFxPeriod('1M',this)">1M</button>
-                  <button class="tab-btn" id="fxPeriodBtn3M" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setFxPeriod('3M',this)">3M</button>
-                  <button class="tab-btn" id="fxPeriodBtn1Y" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setFxPeriod('1Y',this)">1Y</button>
+                  <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxPeriodBtn1W" onclick="setFxPeriod('1W',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1W</span></button>
+                  <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxPeriodBtn1M" onclick="setFxPeriod('1M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1M</span></button>
+                  <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxPeriodBtn3M" onclick="setFxPeriod('3M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3M</span></button>
+                  <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxPeriodBtn1Y" onclick="setFxPeriod('1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1Y</span></button>
                   <span style="color:var(--c-border);margin:0 2px;">|</span>
                   <span class="preset-btn-group-fx" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
-                    <button class="preset-btn" onclick="applyChartPresetPeriod('fx','15D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
-                    <button class="preset-btn" onclick="applyChartPresetPeriod('fx','30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">30일</button>
-                    <button class="preset-btn" onclick="applyChartPresetPeriod('fx','1Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-                    <button class="preset-btn" onclick="applyChartPresetPeriod('fx','6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('fx','15D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">15일</span></button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('fx','30D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">30일</span></button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('fx','1Q',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('fx','6M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
                   </span>
-                  <button class="tab-btn" id="fxCustomBtn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setFxPeriod('custom',this)">사용자 지정</button>
+                  <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxCustomBtn" onclick="setFxPeriod('custom',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">사용자 지정</span></button>
                   <span style="width:1px;height:14px;background:var(--c-border);display:inline-block;margin:0 2px;vertical-align:middle;"></span>
                   <button id="fxCompareModeBtn" onclick="toggleChartCompareMode('fx',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                   <button onclick="resetChartCompareMode('fx')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
@@ -3133,9 +3174,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </div>
             </div>
             <div id="fxCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input aria-label="환율 차트 조회 시작일" type="date" id="fxDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+              <input aria-label="환율 차트 조회 시작일" type="date" id="fxDateFrom"/ class="econ-input">
               <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
-              <input aria-label="환율 차트 조회 종료일" type="date" id="fxDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+              <input aria-label="환율 차트 조회 종료일" type="date" id="fxDateTo"/ class="econ-input">
               <button onclick="applyCustomRange('fx')" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
             </div>
             <div id="fxChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:16px;"></div>
@@ -3146,27 +3187,27 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div class="widget-title" id="fxInfoPanelTitle">한미환율 주요 정보</div>
             <div id="fxInfoAsOf" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:6px;">기준 시점: —</div>
-            <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
-              <tr style="border-bottom:1px solid var(--c-border);"><td style="padding:8px 0;color:var(--c-txt-dim);">시가</td><td style="text-align:right;" id="fxInfoOpen">1,488.00</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><td style="padding:8px 0;color:var(--c-txt-dim);">고가</td><td style="text-align:right;" id="fxInfoHigh">1,493.20</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><td style="padding:8px 0;color:var(--c-txt-dim);">저가</td><td style="text-align:right;" id="fxInfoLow">1,485.50</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><td style="padding:8px 0;color:var(--c-txt-dim);">전일 종가</td><td style="text-align:right;" id="fxInfoPrev">1,487.85</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><td style="padding:8px 0;color:var(--c-txt-dim);">52주 고가</td><td style="text-align:right;color:var(--c-down);" id="fxInfo52H">1,520.00</td></tr>
-              <tr><td style="padding:8px 0;color:var(--c-txt-dim);">52주 저가</td><td style="text-align:right;color:var(--c-up);" id="fxInfo52L">1,340.00</td></tr>
+            <table class="econ-table">
+              <tr style="border-bottom:1px solid var(--c-border);"><td>시가</td><td id="fxInfoOpen" class="econ-table--num">1,488.00</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><td>고가</td><td id="fxInfoHigh" class="econ-table--num">1,493.20</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><td>저가</td><td id="fxInfoLow" class="econ-table--num">1,485.50</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><td>전일 종가</td><td id="fxInfoPrev" class="econ-table--num">1,487.85</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><td>52주 고가</td><td id="fxInfo52H" class="econ-table--num">1,520.00</td></tr>
+              <tr><td>52주 저가</td><td id="fxInfo52L" class="econ-table--num">1,340.00</td></tr>
             </table>
           </div>
         </div>
         <div class="widget">
           <div class="widget-title">주요 통화쌍</div>
-          <table style="width:100%;font-size:var(--font-size-base);border-collapse:collapse;">
+          <table class="econ-table">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);letter-spacing:.04em;text-transform:uppercase;">
-                <th scope="col" style="text-align:left;padding:6px 0;">통화쌍</th>
-                <th scope="col" style="text-align:right;padding:6px;">현재가</th>
-                <th scope="col" style="text-align:right;padding:6px;">전일비</th>
-                <th scope="col" style="text-align:right;padding:6px;">등락률</th>
-                <th scope="col" style="text-align:right;padding:6px;">52주 고가</th>
-                <th scope="col" style="text-align:right;padding:6px;">52주 저가</th>
+                <th scope="col">통화쌍</th>
+                <th scope="col" class="econ-table--num">현재가</th>
+                <th scope="col" class="econ-table--num">전일비</th>
+                <th scope="col" class="econ-table--num">등락률</th>
+                <th scope="col" class="econ-table--num">52주 고가</th>
+                <th scope="col" class="econ-table--num">52주 저가</th>
               </tr>
             </thead>
             <tbody id="fxTable"></tbody>
@@ -3206,13 +3247,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- Current rates table -->
         <div class="widget">
           <div class="widget-title">주요국 기준금리 현황 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+          <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-              <th scope="col" style="text-align:left;padding:6px;">국가</th>
-              <th scope="col" style="text-align:right;padding:6px;">현재금리</th>
-              <th scope="col" style="text-align:right;padding:6px;">전회</th>
-              <th scope="col" style="text-align:right;padding:6px;">다음 결정</th>
-              <th scope="col" style="text-align:right;padding:6px;">방향</th>
+              <th scope="col">국가</th>
+              <th scope="col" class="econ-table--num">현재금리</th>
+              <th scope="col" class="econ-table--num">전회</th>
+              <th scope="col" class="econ-table--num">다음 결정</th>
+              <th scope="col" class="econ-table--num">방향</th>
             </tr></thead>
             <tbody id="rateCurrentTable"></tbody>
           </table>
@@ -3229,26 +3270,26 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <div style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" id="bondChartRate">3.02%</div>
               </div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-                <button class="tab-btn active" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setBondPeriod('1M',this)">1M</button>
-                <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setBondPeriod('3M',this)">3M</button>
-                <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setBondPeriod('1Y',this)">1Y</button>
+                <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondPeriod('1M',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1M</span></button>
+                <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondPeriod('3M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3M</span></button>
+                <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondPeriod('1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1Y</span></button>
                 <span style="color:var(--c-border);margin:0 2px;">|</span>
                 <span class="preset-btn-group-bond" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('bond','1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">일주일</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('bond','15D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('bond','30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">30일</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('bond','1Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('bond','6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('bond','1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('bond','1W',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">일주일</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('bond','15D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">15일</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('bond','30D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">30일</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('bond','1Q',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('bond','6M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('bond','1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
                 </span>
-                <button class="tab-btn" id="bondCustomBtn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('bond',this)">📅 기간 지정</button>
+                <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="bondCustomBtn" onclick="toggleCustomRange('bond',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">📅 기간 지정</span></button>
                 <button class="yoy-btn" data-yoy="bondChart" onclick="toggleYoY('bondChart',this)" aria-pressed="false" title="전년 동기 수익률을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
             <div id="bondCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input aria-label="금리 차트 조회 시작일" type="date" id="bondDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+              <input aria-label="금리 차트 조회 시작일" type="date" id="bondDateFrom"/ class="econ-input">
               <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
-              <input aria-label="금리 차트 조회 종료일" type="date" id="bondDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+              <input aria-label="금리 차트 조회 종료일" type="date" id="bondDateTo"/ class="econ-input">
               <button onclick="applyBondCustomRange()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
               <button onclick="resetBondCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
             </div>
@@ -3278,13 +3319,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- Multi-country bond yields table -->
         <div class="widget" style="margin-bottom:12px;">
           <div class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">단위: % (수익률) · 행 클릭 → 위 차트가 해당 국가로 전환</span></div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+          <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-              <th scope="col" style="text-align:left;padding:6px;">국가</th>
-              <th scope="col" style="text-align:right;padding:6px;">10년</th>
-              <th scope="col" style="text-align:right;padding:6px;">2년</th>
-              <th scope="col" style="text-align:right;padding:6px;">스프레드</th>
-              <th scope="col" style="text-align:right;padding:6px;">전일비</th>
+              <th scope="col">국가</th>
+              <th scope="col" class="econ-table--num">10년</th>
+              <th scope="col" class="econ-table--num">2년</th>
+              <th scope="col" class="econ-table--num">스프레드</th>
+              <th scope="col" class="econ-table--num">전일비</th>
             </tr></thead>
             <tbody id="globalBondTable"></tbody>
           </table>
@@ -3292,21 +3333,21 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- Multi-country bonds table -->
         <div class="widget">
           <div id="bondCountryTabs" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-            <button class="tab-btn active" onclick="setBondCountry('kr',this)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">🇰🇷 한국</button>
-            <button class="tab-btn" onclick="setBondCountry('us',this)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇺🇸 미국</button>
-            <button class="tab-btn" onclick="setBondCountry('jp',this)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇯🇵 일본</button>
-            <button class="tab-btn" onclick="setBondCountry('eu',this)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇪🇺 독일</button>
-            <button class="tab-btn" onclick="setBondCountry('uk',this)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇬🇧 영국</button>
+            <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondCountry('kr',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇰🇷 한국</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondCountry('us',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 미국</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondCountry('jp',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇯🇵 일본</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondCountry('eu',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇪🇺 독일</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondCountry('uk',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇬🇧 영국</span></button>
           </div>
           <div class="widget-title"><span id="bondTableTitle">한국 국고채 수익률</span> <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">단위: % (수익률) · 행 클릭 → 차트 업데이트</span></div>
-          <table style="width:100%;font-size:var(--font-size-base);border-collapse:collapse;">
+          <table class="econ-table">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-                <th scope="col" style="text-align:left;padding:6px 0;">만기</th>
-                <th scope="col" style="text-align:right;padding:6px;">수익률</th>
-                <th scope="col" style="text-align:right;padding:6px;">전일비</th>
-                <th scope="col" style="text-align:right;padding:6px;">1주전</th>
-                <th scope="col" style="text-align:right;padding:6px;">1개월전</th>
+                <th scope="col">만기</th>
+                <th scope="col" class="econ-table--num">수익률</th>
+                <th scope="col" class="econ-table--num">전일비</th>
+                <th scope="col" class="econ-table--num">1주전</th>
+                <th scope="col" class="econ-table--num">1개월전</th>
               </tr>
             </thead>
             <tbody id="bondTable"></tbody>
@@ -3325,32 +3366,32 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <div class="widget-title" id="equityChartTitle" style="margin-bottom:0;">KOSPI</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
-              <button class="tab-btn active" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="selectEquityIndex(0,this)">KOSPI</button>
-              <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="selectEquityIndex(1,this)">KOSDAQ</button>
-              <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="selectEquityIndex(2,this)">S&amp;P 500</button>
-              <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="selectEquityIndex(3,this)">NASDAQ</button>
-              <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="selectEquityIndex(4,this)">닛케이</button>
-              <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="selectEquityIndex(5,this)">항셍</button>
+              <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="selectEquityIndex(0,this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">KOSPI</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="selectEquityIndex(1,this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">KOSDAQ</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="selectEquityIndex(2,this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">S&amp;P 500</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="selectEquityIndex(3,this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">NASDAQ</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="selectEquityIndex(4,this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">닛케이</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="selectEquityIndex(5,this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">항셍</span></button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <span role="group" aria-label="봉 단위 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
               <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">단위:</span>
-              <button class="tab-btn eq-unit-btn active" data-unit="1D" id="eqUnit1D" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setEquityPeriod('1D',this)">일</button>
-              <button class="tab-btn eq-unit-btn" data-unit="1W" id="eqUnit1W" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setEquityPeriod('1W',this)">일주일</button>
-              <button class="tab-btn eq-unit-btn" data-unit="1M" id="eqUnit1M" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setEquityPeriod('1M',this)">한달</button>
-              <button class="tab-btn eq-unit-btn" data-unit="1Q" id="eqUnit1Q" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setEquityPeriod('1Q',this)">분기</button>
+              <button class="tab-btn eq-unit-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="1D" id="eqUnit1D" onclick="setEquityPeriod('1D',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">일</span></button>
+              <button class="tab-btn eq-unit-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="1W" id="eqUnit1W" onclick="setEquityPeriod('1W',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">일주일</span></button>
+              <button class="tab-btn eq-unit-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="1M" id="eqUnit1M" onclick="setEquityPeriod('1M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">한달</span></button>
+              <button class="tab-btn eq-unit-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="1Q" id="eqUnit1Q" onclick="setEquityPeriod('1Q',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
               </span>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <span class="preset-btn-group-equity" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
                 <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">기간:</span>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('equity','1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">일주일</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('equity','15D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('equity','30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">30일</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('equity','1Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('equity','6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('equity','1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
+                <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('equity','1W',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">일주일</span></button>
+                <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('equity','15D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">15일</span></button>
+                <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('equity','30D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">30일</span></button>
+                <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('equity','1Q',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+                <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('equity','6M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
+                <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('equity','1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
               </span>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="tab-btn" id="eqCustomBtn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;" onclick="toggleCustomRange('equity',this)">📅 기간 지정</button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="eqCustomBtn" onclick="toggleCustomRange('equity',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">📅 기간 지정</span></button>
               <button id="eqCompareModeBtn" onclick="toggleChartCompareMode('equity',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
               <button onclick="resetChartCompareMode('equity')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
@@ -3360,9 +3401,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </div>
           </div>
           <div id="equityCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-            <input aria-label="주식 차트 조회 시작일" type="date" id="eqDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+            <input aria-label="주식 차트 조회 시작일" type="date" id="eqDateFrom"/ class="econ-input">
             <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
-            <input aria-label="주식 차트 조회 종료일" type="date" id="eqDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+            <input aria-label="주식 차트 조회 종료일" type="date" id="eqDateTo"/ class="econ-input">
             <button onclick="applyEquityCustomRange()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
             <button onclick="resetEquityCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
           </div>
@@ -3388,30 +3429,30 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">기간:</span>
             <span class="preset-btn-group-investor" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
-              <button class="preset-btn" onclick="applyChartPresetPeriod('investor','1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">일주일</button>
-              <button class="preset-btn" onclick="applyChartPresetPeriod('investor','15D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
-              <button class="preset-btn" onclick="applyChartPresetPeriod('investor','30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">30일</button>
-              <button class="preset-btn" onclick="applyChartPresetPeriod('investor','1Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-              <button class="preset-btn" onclick="applyChartPresetPeriod('investor','6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
-              <button class="preset-btn" onclick="applyChartPresetPeriod('investor','1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
+              <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('investor','1W',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">일주일</span></button>
+              <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('investor','15D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">15일</span></button>
+              <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('investor','30D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">30일</span></button>
+              <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('investor','1Q',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+              <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('investor','6M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
+              <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('investor','1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
             </span>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <input aria-label="투자자 수급 조회 시작일" type="date" id="invDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:var(--font-size-sm);" onchange="applyInvestorDateRange()"/>
+            <input aria-label="투자자 수급 조회 시작일" type="date" id="invDateFrom" onchange="applyInvestorDateRange()"/ class="econ-input">
             <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
-            <input aria-label="투자자 수급 조회 종료일" type="date" id="invDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 5px;color:var(--c-txt);font-size:var(--font-size-sm);" onchange="applyInvestorDateRange()"/>
+            <input aria-label="투자자 수급 조회 종료일" type="date" id="invDateTo" onchange="applyInvestorDateRange()"/ class="econ-input">
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <button class="yoy-btn" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
           <div style="position:relative;height:200px;">
             <canvas id="investorChart" role="img" aria-label="투자자별 순매매 동향">투자자 차트</canvas>
           </div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;margin-top:12px;">
+          <table style="margin-top:12px;" class="econ-table">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-                <th scope="col" style="text-align:left;padding:6px 0;">구분</th>
-                <th scope="col" style="text-align:right;padding:6px;">오늘</th>
-                <th scope="col" style="text-align:right;padding:6px;">5일 누계</th>
-                <th scope="col" style="text-align:right;padding:6px;">20일 누계</th>
+                <th scope="col">구분</th>
+                <th scope="col" class="econ-table--num">오늘</th>
+                <th scope="col" class="econ-table--num">5일 누계</th>
+                <th scope="col" class="econ-table--num">20일 누계</th>
               </tr>
             </thead>
             <tbody id="investorSummaryTable"></tbody>
@@ -3428,13 +3469,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+          <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);">
-              <th scope="col" style="text-align:left;padding:5px 0;">#</th>
-              <th scope="col" style="text-align:left;padding:5px;">종목</th>
-              <th scope="col" style="text-align:right;padding:5px;">현재가</th>
-              <th scope="col" style="text-align:right;padding:5px;">등락률</th>
-              <th scope="col" style="text-align:right;padding:5px;">거래량</th>
+              <th scope="col">#</th>
+              <th scope="col">종목</th>
+              <th scope="col" class="econ-table--num">현재가</th>
+              <th scope="col" class="econ-table--num">등락률</th>
+              <th scope="col" class="econ-table--num">거래량</th>
             </tr></thead>
             <tbody id="equityTopGainersTable"><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
@@ -3447,13 +3488,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+          <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);">
-              <th scope="col" style="text-align:left;padding:5px 0;">#</th>
-              <th scope="col" style="text-align:left;padding:5px;">종목</th>
-              <th scope="col" style="text-align:right;padding:5px;">현재가</th>
-              <th scope="col" style="text-align:right;padding:5px;">등락률</th>
-              <th scope="col" style="text-align:right;padding:5px;">거래량</th>
+              <th scope="col">#</th>
+              <th scope="col">종목</th>
+              <th scope="col" class="econ-table--num">현재가</th>
+              <th scope="col" class="econ-table--num">등락률</th>
+              <th scope="col" class="econ-table--num">거래량</th>
             </tr></thead>
             <tbody id="equityTopLosersTable"><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
@@ -3470,12 +3511,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+          <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);">
-              <th scope="col" style="text-align:left;padding:5px 0;">#</th>
-              <th scope="col" style="text-align:left;padding:5px;">종목</th>
-              <th scope="col" style="text-align:right;padding:5px;">현재가</th>
-              <th scope="col" style="text-align:right;padding:5px;">등락률</th>
+              <th scope="col">#</th>
+              <th scope="col">종목</th>
+              <th scope="col" class="econ-table--num">현재가</th>
+              <th scope="col" class="econ-table--num">등락률</th>
             </tr></thead>
             <tbody id="etfTopGainersTable"><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
@@ -3488,12 +3529,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+          <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);">
-              <th scope="col" style="text-align:left;padding:5px 0;">#</th>
-              <th scope="col" style="text-align:left;padding:5px;">종목</th>
-              <th scope="col" style="text-align:right;padding:5px;">현재가</th>
-              <th scope="col" style="text-align:right;padding:5px;">등락률</th>
+              <th scope="col">#</th>
+              <th scope="col">종목</th>
+              <th scope="col" class="econ-table--num">현재가</th>
+              <th scope="col" class="econ-table--num">등락률</th>
             </tr></thead>
             <tbody id="etfTopLosersTable"><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="4"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
@@ -3504,15 +3545,15 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="equityRankingsWrap" style="display:none;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;" class="pf-stock-2col">
         <div class="widget">
           <div class="widget-title" style="margin-bottom:0;">거래대금 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">시장 전체 · 종목 클릭 → 종목 분석</span></div>
-          <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:var(--font-size-sm);font-family:var(--font-num);margin-top:8px;">
-            <thead><tr style="color:var(--c-txt-muted);font-size:var(--font-size-xs);"><th style="text-align:left;padding:4px 5px;">#</th><th style="text-align:left;padding:4px 5px;">종목</th><th style="text-align:right;padding:4px 5px;">등락</th><th style="text-align:right;padding:4px 5px;">거래대금</th></tr></thead>
+          <div style="overflow-x:auto;"><table style="font-family:var(--font-num);margin-top:8px;" class="econ-table">
+            <thead><tr style="color:var(--c-txt-muted);font-size:var(--font-size-xs);"><th>#</th><th>종목</th><th class="econ-table--num">등락</th><th class="econ-table--num">거래대금</th></tr></thead>
             <tbody id="equityRankAmountTable"></tbody>
           </table></div>
         </div>
         <div class="widget">
           <div class="widget-title" style="margin-bottom:0;">토스증권 체결 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">리테일 인기 프록시 · 토스 앱 체결대금 기준</span></div>
-          <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:var(--font-size-sm);font-family:var(--font-num);margin-top:8px;">
-            <thead><tr style="color:var(--c-txt-muted);font-size:var(--font-size-xs);"><th style="text-align:left;padding:4px 5px;">#</th><th style="text-align:left;padding:4px 5px;">종목</th><th style="text-align:right;padding:4px 5px;">등락</th><th style="text-align:right;padding:4px 5px;">체결대금</th></tr></thead>
+          <div style="overflow-x:auto;"><table style="font-family:var(--font-num);margin-top:8px;" class="econ-table">
+            <thead><tr style="color:var(--c-txt-muted);font-size:var(--font-size-xs);"><th>#</th><th>종목</th><th class="econ-table--num">등락</th><th class="econ-table--num">체결대금</th></tr></thead>
             <tbody id="equityRankTossTable"></tbody>
           </table></div>
         </div>
@@ -3535,19 +3576,19 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <div id="comDetail52Range" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">52주 범위: $55 ~ $95</div>
               </div>
               <div style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-                <button class="tab-btn active" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setComPeriod('1M',this)">1M</button>
-                <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setComPeriod('3M',this)">3M</button>
-                <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setComPeriod('1Y',this)">1Y</button>
+                <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setComPeriod('1M',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1M</span></button>
+                <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setComPeriod('3M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3M</span></button>
+                <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setComPeriod('1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1Y</span></button>
                 <span style="color:var(--c-border);margin:0 2px;">|</span>
                 <span class="preset-btn-group-com" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('com','1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">일주일</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('com','15D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('com','30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">30일</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('com','1Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('com','6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
-                  <button class="preset-btn" onclick="applyChartPresetPeriod('com','1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('com','1W',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">일주일</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('com','15D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">15일</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('com','30D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">30일</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('com','1Q',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('com','6M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
+                  <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('com','1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
                 </span>
-                <button class="tab-btn" id="comCustomBtn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('com',this)">📅 기간 지정</button>
+                <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="comCustomBtn" onclick="toggleCustomRange('com',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">📅 기간 지정</span></button>
                 <span style="width:1px;height:16px;background:var(--c-border);margin:0 2px;"></span>
                 <button id="comCompareModeBtn" onclick="toggleComCompareMode(this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                 <button onclick="resetChartCompareMode('com')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
@@ -3555,9 +3596,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </div>
             </div>
             <div id="comCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input aria-label="원자재 차트 조회 시작일" type="date" id="comDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+              <input aria-label="원자재 차트 조회 시작일" type="date" id="comDateFrom"/ class="econ-input">
               <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
-              <input aria-label="원자재 차트 조회 종료일" type="date" id="comDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+              <input aria-label="원자재 차트 조회 종료일" type="date" id="comDateTo"/ class="econ-input">
               <button onclick="applyComCustomRange()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
               <button onclick="resetComCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
             </div>
@@ -3601,13 +3642,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </div>
             <button onclick="resetLmeHighlight()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">강조 해제</button>
           </div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+          <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-              <th scope="col" style="text-align:left;padding:6px 0;">금속</th>
-              <th scope="col" style="text-align:right;padding:6px;">재고량(톤)</th>
-              <th scope="col" style="text-align:right;padding:6px;">전주比</th>
-              <th scope="col" style="text-align:right;padding:6px;">4주전</th>
-              <th scope="col" style="text-align:right;padding:6px;">상태</th>
+              <th scope="col">금속</th>
+              <th scope="col" class="econ-table--num">재고량(톤)</th>
+              <th scope="col" class="econ-table--num">전주比</th>
+              <th scope="col" class="econ-table--num">4주전</th>
+              <th scope="col" class="econ-table--num">상태</th>
             </tr></thead>
             <tbody id="metalInventoryTable"></tbody>
           </table>
@@ -3657,13 +3698,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 →</a>
             </div>
           </div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+          <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);">
-              <th scope="col" style="text-align:left;padding:6px 0;">지수</th>
-              <th scope="col" style="text-align:right;padding:6px;">종가</th>
-              <th scope="col" style="text-align:right;padding:6px;">전일대비</th>
-              <th scope="col" style="text-align:right;padding:6px;">기준일</th>
-              <th scope="col" style="text-align:right;padding:6px;">거래소</th>
+              <th scope="col">지수</th>
+              <th scope="col" class="econ-table--num">종가</th>
+              <th scope="col" class="econ-table--num">전일대비</th>
+              <th scope="col" class="econ-table--num">기준일</th>
+              <th scope="col" class="econ-table--num">거래소</th>
             </tr></thead>
             <tbody id="freightTable"></tbody>
           </table>
@@ -3698,20 +3739,20 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <!-- 국가별 탭 -->
         <div id="macroCountryTabs" style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="tab-btn active" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);background:var(--c-accent);" onclick="setMacroTab('kr',this)">🇰🇷 한국</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTab('us',this)">🇺🇸 미국</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTab('jp',this)">🇯🇵 일본</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTab('cn',this)">🇨🇳 중국</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTab('de',this)">🇩🇪 독일</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTab('uk',this)">🇬🇧 영국</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTab('eu',this)">🇪🇺 유로존</button>
+          <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTab('kr',this)" data-ssr role="tab" aria-selected="true">🇰🇷 한국</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTab('us',this)" data-ssr role="tab" aria-selected="false">🇺🇸 미국</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTab('jp',this)" data-ssr role="tab" aria-selected="false">🇯🇵 일본</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTab('cn',this)" data-ssr role="tab" aria-selected="false">🇨🇳 중국</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTab('de',this)" data-ssr role="tab" aria-selected="false">🇩🇪 독일</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTab('uk',this)" data-ssr role="tab" aria-selected="false">🇬🇧 영국</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTab('eu',this)" data-ssr role="tab" aria-selected="false">🇪🇺 유로존</button>
         </div>
         <!-- 주제별 탭 (hidden by default) -->
         <div id="macroTopicTabs" style="display:none;gap:6px;">
-          <button class="tab-btn active" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);background:var(--c-accent);" onclick="setMacroTopicTab('gdp',this)">📈 GDP</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTopicTab('cpi',this)">🔥 물가(CPI)</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTopicTab('unemp',this)">👷 실업률</button>
-          <button class="tab-btn" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setMacroTopicTab('trade',this)">🚢 수출</button>
+          <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('gdp',this)" data-ssr role="tab" aria-selected="true">📈 GDP</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('cpi',this)" data-ssr role="tab" aria-selected="false">🔥 물가(CPI)</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('unemp',this)" data-ssr role="tab" aria-selected="false">👷 실업률</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('trade',this)" data-ssr role="tab" aria-selected="false">🚢 수출</button>
         </div>
       </div>
       <div id="macroContent"></div>
@@ -3751,14 +3792,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <button onclick="refreshNews('macroNewsFeed','macroNewsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn act" onclick="setNewsFilter('macroNewsFeed','all',this)">전체</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)">🇰🇷 한국</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)">🇺🇸 미국</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','일본경기',this)">🇯🇵 일본</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','중국경기',this)">🇨🇳 중국</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','독일경기',this)">🇩🇪 독일</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','영국경기',this)">🇬🇧 영국</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('macroNewsFeed','유로존',this)">🇪🇺 유로존</span>
+          <button type="button" class="news-filter-btn act seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','all',this)" role="tab" aria-selected="true">전체</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)" role="tab" aria-selected="false">🇰🇷 한국</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)" role="tab" aria-selected="false">🇺🇸 미국</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','일본경기',this)" role="tab" aria-selected="false">🇯🇵 일본</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','중국경기',this)" role="tab" aria-selected="false">🇨🇳 중국</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','독일경기',this)" role="tab" aria-selected="false">🇩🇪 독일</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','영국경기',this)" role="tab" aria-selected="false">🇬🇧 영국</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','유로존',this)" role="tab" aria-selected="false">🇪🇺 유로존</button>
         </div>
         <div id="macroNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
@@ -3767,9 +3808,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <!-- ====== 페이지 4: 경제 캘린더 ====== -->
     <div class="page" id="page-calendar">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-        <select aria-label="경제 캘린더 기간 선택" style="background:var(--c-card);color:var(--c-txt);border:1px solid var(--c-border);padding:5px 10px;border-radius:var(--r-sm);font-size:var(--font-size-sm);" id="calPeriod">
+        <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select aria-label="경제 캘린더 기간 선택" id="calPeriod">
           <option>이번 주</option><option>지난 달</option><option>이번 달</option><option>다음 달</option>
-        </select>
+        </select></span>
         <div style="display:flex;gap:4px;flex-wrap:wrap;">
           <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇰🇷 한국</span>
           <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','US',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇺🇸 미국</span>
@@ -3824,17 +3865,17 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="widget">
         <div class="widget-title">경제 이벤트 일정</div>
         <div style="overflow-x:auto;">
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;min-width:700px;">
+          <table style="min-width:700px;" class="econ-table">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-                <th scope="col" style="text-align:left;padding:6px 8px;">일시</th>
-                <th scope="col" style="text-align:center;padding:6px 8px;">국가</th>
-                <th scope="col" style="text-align:left;padding:6px 8px;">이벤트</th>
-                <th scope="col" style="text-align:center;padding:6px 8px;">중요도</th>
-                <th scope="col" style="text-align:right;padding:6px 8px;">이전값</th>
-                <th scope="col" style="text-align:right;padding:6px 8px;">예측값</th>
-                <th scope="col" style="text-align:right;padding:6px 8px;">실제값</th>
-                <th scope="col" style="text-align:center;padding:6px 8px;width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">🔔</th>
+                <th scope="col">일시</th>
+                <th scope="col">국가</th>
+                <th scope="col">이벤트</th>
+                <th scope="col">중요도</th>
+                <th scope="col" class="econ-table--num">이전값</th>
+                <th scope="col" class="econ-table--num">예측값</th>
+                <th scope="col" class="econ-table--num">실제값</th>
+                <th scope="col" style="width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">🔔</th>
               </tr>
             </thead>
             <tbody id="calendarTable"></tbody>
@@ -3891,10 +3932,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <button onclick="refreshNews('calendarNewsFeed','calendarNewsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn act" onclick="setNewsFilter('calendarNewsFeed','all',this)">전체</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','한국수출',this)">수출입</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','미국CPI',this)">고용/물가</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('calendarNewsFeed','한국은행',this)">통화정책</span>
+          <button type="button" class="news-filter-btn act seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('calendarNewsFeed','all',this)" role="tab" aria-selected="true">전체</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('calendarNewsFeed','한국수출',this)" role="tab" aria-selected="false">수출입</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('calendarNewsFeed','미국CPI',this)" role="tab" aria-selected="false">고용/물가</button>
+          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('calendarNewsFeed','한국은행',this)" role="tab" aria-selected="false">통화정책</button>
         </div>
         <div id="calendarNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
@@ -4726,7 +4767,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="widget">
         <div class="widget-title">🩺 시스템 진단 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">링크·데이터 정확성 자가 점검</span></div>
         <div class="set-desc" style="margin-bottom:10px;">메뉴 라우팅·클릭 핸들러·데이터 신선도·핵심 시계열 정합성·알림 서버 도달·외부 링크 상태를 한 번에 점검합니다. 외부 링크의 실제 상태는 주간 CI 점검 결과(<code>link_status.json</code>)를 표시합니다.</div>
-        <button class="tab-btn" id="diagRunBtn" onclick="runDiagnostics()" style="font-size:var(--font-size-sm);padding:3px 14px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">▶ 진단 실행</button>
+        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="diagRunBtn" onclick="runDiagnostics()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">▶ 진단 실행</span></button>
         <div id="diagResult" style="margin-top:10px;font-size:var(--font-size-sm);"></div>
       </div>
 
@@ -4735,12 +4776,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <div class="page" id="page-investor">
       <!-- 투자자 선택 — 1차 탭 (국민연금 / GPFG / GPIF / FRTIB / CalPERS) -->
       <div id="investorTopTabs" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;border-bottom:1px solid var(--c-border);padding-bottom:10px;">
-        <button class="tab-btn active" id="invTopNps"     style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-on-accent);background:var(--c-accent);" onclick="setInvestor('nps',this)">🇰🇷 국민연금 (NPS)</button>
-        <button class="tab-btn"        id="invTopGpfg"    style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setInvestor('gpfg',this)">🇳🇴 노르웨이 GPFG</button>
-        <button class="tab-btn"        id="invTopGpif"    style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setInvestor('gpif',this)">🇯🇵 일본 GPIF</button>
-        <button class="tab-btn"        id="invTopFrtib"   style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setInvestor('frtib',this)">🇺🇸 미국 FRTIB (TSP)</button>
-        <button class="tab-btn"        id="invTopCalpers" style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setInvestor('calpers',this)">🇺🇸 CalPERS</button>
-        <button class="tab-btn"        id="invTopBerkshire" style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setInvestor('berkshire',this)">🇺🇸 버크셔 해서웨이</button>
+        <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="invTopNps" onclick="setInvestor('nps',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇰🇷 국민연금 (NPS)</span></button>
+        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopGpfg" onclick="setInvestor('gpfg',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇳🇴 노르웨이 GPFG</span></button>
+        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopGpif" onclick="setInvestor('gpif',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇯🇵 일본 GPIF</span></button>
+        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopFrtib" onclick="setInvestor('frtib',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 미국 FRTIB (TSP)</span></button>
+        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopCalpers" onclick="setInvestor('calpers',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 CalPERS</span></button>
+        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopBerkshire" onclick="setInvestor('berkshire',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 버크셔 해서웨이</span></button>
       </div>
 
       <!-- 🌐 글로벌 연기금 자산배분 교차 비교 (4.4) — 5대 기금 단일 통합 차트, 탭과 무관하게 상시 표시 -->
@@ -4762,8 +4803,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="investor-nps-container">
       <!-- 시장지표와 동일하게 좌측 상단에 탭 배치 -->
       <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
-        <button class="tab-btn active" id="npsTab1" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);background:var(--c-accent);" onclick="setNpsTab('overview',this)">운용 현황</button>
-        <button class="tab-btn" id="npsTab2" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setNpsTab('allocation',this)">자산 배분</button>
+        <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="npsTab1" onclick="setNpsTab('overview',this)" data-ssr role="tab" aria-selected="true">운용 현황</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="npsTab2" onclick="setNpsTab('allocation',this)" data-ssr role="tab" aria-selected="false">자산 배분</button>
       </div>
       <div style="display:flex;align-items:center;margin-bottom:12px;">
         <h2 style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);margin:0;">국민연금 투자 현황 <span style="font-size:var(--font-size-sm);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:8px;">출처: 국민연금공단 기금운용본부</span></h2>
@@ -4821,14 +4862,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="widget">
           <div class="widget-title">연도별 성과 요약 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">행 클릭 → 분기별 상세</span></div>
           <div style="overflow-x:auto;">
-            <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;min-width:600px;">
+            <table style="min-width:600px;" class="econ-table">
               <thead>
                 <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-                  <th scope="col" style="text-align:left;padding:6px 8px;">연도</th>
-                  <th scope="col" style="text-align:right;padding:6px 8px;">총 자산 (조원)</th>
-                  <th scope="col" style="text-align:right;padding:6px 8px;">수익률</th>
-                  <th scope="col" style="text-align:right;padding:6px 8px;">운용 수익 (조원)</th>
-                  <th scope="col" style="text-align:left;padding:6px 8px;">비고</th>
+                  <th scope="col">연도</th>
+                  <th scope="col" class="econ-table--num">총 자산 (조원)</th>
+                  <th scope="col" class="econ-table--num">수익률</th>
+                  <th scope="col" class="econ-table--num">운용 수익 (조원)</th>
+                  <th scope="col">비고</th>
                 </tr>
               </thead>
               <tbody id="npsReturnTable"></tbody>
@@ -4856,13 +4897,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
           <div class="widget">
             <div class="widget-title">자산별 비중 상세</div>
-            <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+            <table class="econ-table">
               <thead>
                 <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-                  <th scope="col" style="text-align:left;padding:6px 0;">자산군</th>
-                  <th scope="col" style="text-align:right;padding:6px;">금액 (조원)</th>
-                  <th scope="col" style="text-align:right;padding:6px;">비중</th>
-                  <th scope="col" style="text-align:right;padding:6px;">목표 비중</th>
+                  <th scope="col">자산군</th>
+                  <th scope="col" class="econ-table--num">금액 (조원)</th>
+                  <th scope="col" class="econ-table--num">비중</th>
+                  <th scope="col" class="econ-table--num">목표 비중</th>
                 </tr>
               </thead>
               <tbody id="npsAllocationTable"></tbody>
@@ -4896,24 +4937,24 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
           <div class="widget">
             <div class="widget-title">국내주식 Top 10 보유 종목 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">(2024Q3 기준, 공시 기반)</span></div>
-            <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+            <table class="econ-table">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-                <th scope="col" style="text-align:left;padding:5px 0;">#</th>
-                <th scope="col" style="text-align:left;padding:5px;">종목</th>
-                <th scope="col" style="text-align:right;padding:5px;">비중</th>
-                <th scope="col" style="text-align:right;padding:5px;">평가액(조)</th>
+                <th scope="col">#</th>
+                <th scope="col">종목</th>
+                <th scope="col" class="econ-table--num">비중</th>
+                <th scope="col" class="econ-table--num">평가액(조)</th>
               </tr></thead>
               <tbody id="npsKrStocksTable"></tbody>
             </table>
           </div>
           <div class="widget">
             <div class="widget-title">해외주식 Top 10 보유 종목 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">(2024Q3 기준, 공시 기반)</span></div>
-            <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+            <table class="econ-table">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
-                <th scope="col" style="text-align:left;padding:5px 0;">#</th>
-                <th scope="col" style="text-align:left;padding:5px;">종목</th>
-                <th scope="col" style="text-align:right;padding:5px;">비중</th>
-                <th scope="col" style="text-align:right;padding:5px;">평가액(조)</th>
+                <th scope="col">#</th>
+                <th scope="col">종목</th>
+                <th scope="col" class="econ-table--num">비중</th>
+                <th scope="col" class="econ-table--num">평가액(조)</th>
               </tr></thead>
               <tbody id="npsFxStocksTable"></tbody>
             </table>

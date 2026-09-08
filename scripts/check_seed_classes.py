@@ -110,13 +110,15 @@ def main():
               % ", ".join(solo_empty))
 
     html = read("index.html")
+    # CSS 주석 안의 클래스 언급은 규칙이 아니다 — 오탐을 만든다
+    html_nc = re.sub(r"/\*.*?\*/", "", html, flags=re.S)
     # recipe 와 실제로 싸우는 속성만 문제다 — 색·배경·테두리·글자.
     # position/::after 같은 히트영역 확장은 recipe 와 공존하므로 경고하지 않는다.
     CLASHING = re.compile(r"\b(background|color|border|font-size|font-weight|padding|min-height)\b")
     for cls, site_sel in PAIRED.items():
         if cls not in used:
             continue
-        for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", html):
+        for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", html_nc):
             # 스코프된 셀렉터(.preset-btn:not([class*="seed-"]))는 비켜세운 것이다
             if not re.search(re.escape(site_sel) + r"(?![:.\[\w-])", sel):
                 continue

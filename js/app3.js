@@ -206,7 +206,7 @@ function showRiskDetail() {
   }).join('');
   openInfoModal('🚦 시장 리스크 신호등',
     `${dot(r.light, 9)}종합 <b>${r.score}점</b> · ${_RISK_DESC[r.light]}`,
-    `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+    `<table class="econ-table" style="margin-bottom:10px;">
        <thead><tr>
          <th style="${td}text-align:left;color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);">구성 지표</th>
          <th style="${td}text-align:right;color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);">현재값</th>
