@@ -1428,11 +1428,40 @@ def send_memo(access_token, text, with_button=True, uuids=None):
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
 
 
+def _stale_limit_min(now_kst, weekend):
+    """⚙️ 스테일 경고를 낼 '정상 공백 상한'(분). 공급 케이던스가 시간대마다 다르므로 임계도 나눈다.
+
+    weekend 는 _is_weekend() 값 — 토·일과 공휴일(KR_HOLIDAY=1)을 이미 함께 담고 있다.
+
+    2026-09-08 진단 — 종전의 단일 120분은 장중 기준이었고, 공급이 없는 시간대까지 같은 잣대로
+    재서 구조적 오탐을 냈다(10일간 120분 초과 공백 28건이 전부 장외·주말, 최장 324분).
+
+      · 장중(평일 09~16시·22~07시 KST) = Worker cron 이 경량 런을 5분 주기로 깨우는 구간.
+        여기서 120분이 넘으면 진짜 이상이다 — 종전 값을 그대로 쓴다.
+      · 평일 장외 = 공급이 GHA 시간당 cron 1회뿐이고 풀 런이 44~62분 걸린다. 드롭 한 번이면
+        정상적으로 120분을 넘으므로 240분.
+      · 주말·공휴일 = Worker 가 아예 깨우지 않아(inMarketHours) 공급이 시간당 cron 하나이고,
+        그 cron 의 실측 미발화율이 42%다. 720분.
+
+    카카오/디스코드 제목의 '(수집 N.Nh 전)' 표기는 이 함수를 쓰지 않는다 — 그건 경고가 아니라
+    묵은 수치를 '지금 시황'으로 읽지 않게 하는 정직성 표기라 120분 기준을 유지한다."""
+    if weekend:
+        return 720
+    h = now_kst.hour
+    in_market = h < 7 or 9 <= h < 16 or h >= 22
+    return 120 if in_market else 240
+
+
 def _dispatch_fetch_data():
-    """data.json 스테일(120분+) 시 fetch-data 워크플로를 workflow_dispatch 로 깨운다(P3 자동 복구).
+    """data.json 스테일 시 fetch-data 를 workflow_dispatch 로 깨운다(P3 자동 복구).
 
     kakao-daily.yml 이 GITHUB_TOKEN(permissions.actions: write)을 넘긴다. fetch-data 쪽
-    concurrency 그룹이 동시 실행을 직렬화하므로 중복 트리거도 안전. 실패는 경고만 — 발송을 막지 않는다."""
+    concurrency 그룹이 동시 실행을 직렬화하므로 중복 트리거도 안전. 실패는 경고만 — 발송을 막지 않는다.
+
+    ⚠ inputs.light=true — 반드시 경량 런으로 깨운다(2026-09-08 진단). 종전의 입력 없는
+      dispatch 는 풀 런(실측 44~62분)이라 이번 슬롯 안에 끝나지 못했고, 다음 슬롯이 여전히
+      스테일이라 ⚙️ 경고 → 또 풀 런이 매시간 반복됐다. 경량 런은 1분 미만이라 다음 슬롯에는
+      확실히 신선하고, 갱신 0건이면 커밋조차 하지 않는다(run_light_build)."""
     tok = os.environ.get("GITHUB_TOKEN", "").strip()
     repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
     if not tok or not repo:
@@ -1440,16 +1469,16 @@ def _dispatch_fetch_data():
     try:
         req = urllib.request.Request(
             f"https://api.github.com/repos/{repo}/actions/workflows/fetch-data.yml/dispatches",
-            data=json.dumps({"ref": "main"}).encode("utf-8"),
+            data=json.dumps({"ref": "main", "inputs": {"light": "true"}}).encode("utf-8"),
             headers={"Authorization": f"Bearer {tok}",
                      "Accept": "application/vnd.github+json",
                      "Content-Type": "application/json"},
             method="POST")
         urllib.request.urlopen(req, timeout=15)
-        print("[digest] 스테일 감지 — fetch-data workflow_dispatch 트리거(다음 슬롯부터 정상화)")
+        print("[digest] 스테일 감지 — fetch-data 경량 런 트리거(다음 슬롯부터 정상화)")
         try:
             import notify_discord
-            notify_discord.system("data.json 120분+ 스테일 감지 — fetch-data 를 자동 트리거했습니다. "
+            notify_discord.system("data.json 스테일 감지 — fetch-data 경량 런을 자동 트리거했습니다. "
                                   "이번 발송은 라이브 보정 값으로 진행, 다음 슬롯부터 정상화 예상.")
         except Exception:
             pass
@@ -1740,11 +1769,14 @@ def main():
         if age_min is not None and age_min > 120:
             title += f" (수집 {age_min / 60:.1f}h 전)"
             print(f"::warning title=데이터 스테일::data.json 이 {age_min:.0f}분 전 수집본 — 제목에 표기")
-        # 스테일 자동 복구(P3) — 게이트 120분(2026-08-11 원인 수정): 오프시간 fetch-data 는
-        # 시간당 1회 + 런타임 10~25분이라 나이 60~90분이 '정상'이다(커밋 공백 실측 65~90분
-        # 상시 + 주말 최대 235분). 종전 60분 게이트가 정상 케이던스마다 ⚙️ 경고·재트리거를
-        # 쏘던 원인. 이번 발송은 라이브 보정 값으로 그대로 진행, 실패는 경고만.
-        if age_min is not None and age_min > 120:
+        # 스테일 자동 복구(P3) — 임계는 시간대별이다(_stale_limit_min). 2026-08-11 에 60→120 으로
+        # 올렸는데도 장외·주말 오탐이 남았던 이유는 값이 아니라 '단일 임계'였기 때문이다:
+        # 장중엔 Worker 가 5분마다 경량 런을 깨우지만 장외·주말엔 GHA 시간당 cron 하나뿐이고
+        # 그 cron 의 실측 미발화율이 42%다(2026-09-08 진단, 10일 공백 28건 전부 장외).
+        # 이번 발송은 라이브 보정 값으로 그대로 진행, 실패는 경고만.
+        _stale_lim = _stale_limit_min(_now_kst, weekend)
+        if age_min is not None and age_min > _stale_lim:
+            print(f"[digest] 스테일 {age_min:.0f}분 > 임계 {_stale_lim}분 — 자동 복구 트리거")
             _dispatch_fetch_data()
 
         # 디스코드 병행 발송 — 카카오와 완전 독립(토큰 만료·발송 실패와 무관하게 도달).

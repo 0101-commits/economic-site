@@ -67,8 +67,9 @@ permissions:
   # 토큰 만료(KOE320/322)·회전 실패를 GitHub 이슈 1건으로 통지(send_kakao_digest._gh_issue_notify) —
   # 잡은 green 유지(실패 메일 스팸 방지)하면서 '무음 중단'을 확실히 알리는 유일한 승격 채널.
   issues: write
-  # 스테일 자동 복구(P3) — data.json 이 60분+ 묵으면 스크립트가 fetch-data 를
-  # workflow_dispatch 로 깨운다(send_kakao_digest._dispatch_fetch_data).
+  # 스테일 자동 복구(P3) — data.json 이 시간대별 임계(_stale_limit_min: 장중 120분 /
+  # 평일 장외 240분 / 주말·공휴일 720분)를 넘기면 스크립트가 fetch-data 를 workflow_dispatch
+  # (inputs.light=true → 경량 런 1분 미만)로 깨운다(send_kakao_digest._dispatch_fetch_data).
   actions: write
 
 # 모든 JS 액션(actions/cache@v4 등)을 Node 24 로 강제 실행 — 런 로그의 'Node.js 20 deprecated'
