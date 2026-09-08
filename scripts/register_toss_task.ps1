@@ -21,6 +21,9 @@ $ErrorActionPreference = 'Stop'
 $TaskName = 'EconSite-TossSnapshot'
 $Cmd = Join-Path $PSScriptRoot 'run_toss_snapshot.cmd'
 if (-not (Test-Path $Cmd)) { throw "실행 파일 없음: $Cmd" }
+# 액션은 .cmd 가 아니라 wscript 래퍼다 — 아래 <Actions> 주석 참고.
+$Vbs = Join-Path $PSScriptRoot 'run_toss_snapshot.vbs'
+if (-not (Test-Path $Vbs)) { throw "래퍼 없음: $Vbs" }
 $User = "$env:USERDOMAIN\$env:USERNAME"
 
 $xml = @"
@@ -72,6 +75,8 @@ $xml = @"
     <StartWhenAvailable>true</StartWhenAvailable>
     <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
     <Enabled>true</Enabled>
+    <!-- ⚠ Hidden 은 '스케줄러 UI 목록에서 감추기'일 뿐 콘솔 창과 무관하다.
+         창을 없애는 건 아래 Actions 의 wscript 래퍼다. -->
     <Hidden>false</Hidden>
     <RunOnlyIfIdle>false</RunOnlyIfIdle>
     <WakeToRun>false</WakeToRun>
@@ -83,8 +88,12 @@ $xml = @"
     </RestartOnFailure>
   </Settings>
   <Actions Context="Author">
+    <!-- .cmd 를 직접 액션으로 두면 InteractiveToken 세션에 콘솔 창이 뜬다(하루 45회).
+         wscript //B 는 창을 만들지 않고, 래퍼가 종료 코드를 그대로 돌려주므로
+         RestartOnFailure 도 그대로 작동한다. 창을 보며 디버깅할 땐 .cmd 를 직접 실행. -->
     <Exec>
-      <Command>$Cmd</Command>
+      <Command>wscript.exe</Command>
+      <Arguments>//B //Nologo "$Vbs"</Arguments>
     </Exec>
   </Actions>
 </Task>

@@ -308,7 +308,8 @@ instead and hands its result to the cloud pipeline through the repo.
 | Piece | What it does |
 |-------|--------------|
 | `scripts/fetch_toss_snapshot.py` | Fetches indices, the KTB curve, gainer/loser rankings (stocks **and** ETFs, KOSPI+KOSDAQ), trading-amount + Toss-retail rankings, KOSPI investor flows, **per-stock flows for the tracked watchlist** (investor/short-selling/credit/lending/program/warnings — `stockData`), the KR market calendar and the USD/KRW quote; writes `toss_snapshot.json`; `--push` commits and pushes it |
-| `scripts/run_toss_snapshot.cmd` | Task Scheduler entry point. **ASCII only** — cmd.exe parses batch files in the OEM code page, so UTF-8 Korean comments get executed as commands (seen as exit 9009) |
+| `scripts/run_toss_snapshot.cmd` | The actual runner. **ASCII only** — cmd.exe parses batch files in the OEM code page, so UTF-8 Korean comments get executed as commands (seen as exit 9009) |
+| `scripts/run_toss_snapshot.vbs` | Task Scheduler entry point (`wscript.exe //B //Nologo …vbs`). Runs the `.cmd` with no window and returns its exit code. **`<Hidden>` in the task XML does not hide the console** — it only hides the task in the scheduler UI, so a `.cmd` action under `InteractiveToken` flashed a window 45×/weekday (2026-09-08). Run the `.cmd` directly when you want to watch it |
 | `scripts/register_toss_task.ps1` | Registers the `EconSite-TossSnapshot` task from XML (PowerShell 5.1's `New-ScheduledTaskTrigger` cannot set a logon `Delay` or a repetition) |
 
 The machine is not on 24/7, so four things cover the gaps: a logon trigger with a 3-minute
