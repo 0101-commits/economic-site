@@ -111,14 +111,50 @@ node tests/ui/shots.mjs --page=<id>                  # 16샷 + 콘솔·브랜드
 node tests/ui/interact.mjs                           # SPA 전환·드로어·레일·그룹 기억
 node tests/ui/deadcss.mjs                            # 전환기 셀렉터 잔량(0 이면 규칙 삭제 가능)
 node tests/ui/important.mjs                          # !important 가 아직 인라인을 이기는지
+node tests/ui/gridcheck.mjs                          # 격자·차트높이 클래스의 폭별 계산값 + 가로 넘침
 ```
 
+**레이아웃은 유틸 클래스로 — `grid-template-columns`·차트 높이를 인라인에 쓰지 않는다.**
+P5 에서 인라인 격자 55곳·차트 높이 34곳·카드 여백 7곳을 클래스로 옮겼다.
+
+| 클래스 | 값 | 좁은 화면 |
+|---|---|---|
+| `.g-2` `.g-3` `.g-4` `.g-5` `.g-7` `.g-12` | n열 균등 | g-3·g-4 → ≤1024 2열, g-4 → ≤480 1열, g-2 → ≤1024 1열 |
+| `.g-side` `.g-side-280` `.g-side-320` | 본문 + 우측 패널 | ≤1024 1열 |
+| `.g-side-l` `.g-side-l-300` `.g-side-l-340` | 좌측 패널 + 본문 | g-side-l → ≤1024 1열 |
+| `.g-2-1` `.g-1-2` `.g-3-2` | 비대칭 2열 | ≤1024 1열 |
+| `.g-auto-120…220` | `auto-fit minmax(Npx,1fr)` | 자동 |
+| `.h-200…380` `.mh-280…440` | 차트 래퍼 높이 | ≤1024 에서 축소 |
+| `.pad-8` `.pad-8-10` `.pad-14` `.pad-36-20` | 카드 여백 예외 | ≤1024·≤480 에서 축소 |
+
+값이 인라인에 없으니 반응형이 `!important` 없이 이긴다 — 옛
+`main div[style*="grid-template-columns:1fr 300px"]` 식 **문자열 매칭 셀렉터 48행은
+삭제됐다**. 새 격자를 인라인으로 쓰면 그 화면만 반응형에서 빠진다. 카드 여백 예외는
+`.widget.pad-14`(두 클래스)로 뒤에 오는 기본 padding 을 이기고, 반응형은
+`.widget.widget`(같은 특이성 + 뒤 순서)으로 그것을 다시 덮는다.
+
+**클릭 요소는 처음부터 `<button>`.** `div`/`span` + `onclick` 은 쓰지 않는다. 기존
+것은 P5 에서 전부 전환해 `[role="button"]` = **0**(12페이지 실측)이다.
+- 모양 유지 리셋 = `class="btn-plain"`(인라인 자리엔 `btn-inline`, flex 자식엔
+  `btn-flex`). `:where(.btn-plain)` 로 특이성 0 이라 컴포넌트 클래스(`.ds-item`,
+  `.study-drop` …)가 순서와 무관하게 리셋을 이긴다.
+- **표의 행은 버튼이 될 수 없다.** `tr[onclick]` 은 대표 칸 내용을
+  `<button class="btn-plain btn-inline">` 으로 감싸고 **핸들러를 달지 않는다** —
+  click 이 행으로 버블링돼 기존 onclick 이 돈다(마우스=행 전체, 키보드=Tab+Enter).
+- 다른 컨트롤을 품은 컨테이너도 버튼이 될 수 없다(버튼 안의 버튼). 전역 보강기
+  (`js/app1.js` 접근성 IIFE)가 이제 표 요소·`aria-hidden`·`stopPropagation` 전용
+  핸들러·컨트롤을 품은 요소를 건너뛴다.
+- 위젯 접기는 제목이 아니라 전용 `.w-toggle-btn`(`aria-expanded`)이 담당한다.
+  제목은 마우스 편의용 클릭 영역이다. 헤더 줄 판정은 제목에서 위로 올라가
+  위젯의 직계 자식을 찾는다(깊이 고정이 아니다 — 메인 차트카드가 빠져 있었다).
+
 The `astryx layer` section at the end of `<style>` still holds frame/surface/row
-rules and must stay last. Its `!important` count is down from 210 to ~147; the
-rest is load-bearing — `tests/ui/important.mjs` shows 76 declarations still
-beating inline styles (grid columns, chart heights, card surfaces). Removing
-those means converting the remaining inline layout styles, which is a separate
-job from this design migration.
+rules and must stay last. `!important` 는 174 → 135 로 줄었고, `important.mjs` 로
+재면 **인라인을 이기는 선언은 9개**뿐이다: `prefers-reduced-motion` 의
+`transition-duration`(정당한 용법), `.tab-btn.active` 색 4벌, 모달 카드 그림자 2벌,
+그리고 JS 가 인라인으로 위치를 잡는 `.data-source-popup` 의 좁은 화면 재배치
+(이건 인라인을 이겨야 한다). 남은 `!important` 는 인라인과 싸우지 않는다 —
+지우려면 규칙마다 무엇을 이기려 했는지 개별 확인이 필요하다.
 
 ## Key Files
 

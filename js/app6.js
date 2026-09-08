@@ -258,7 +258,7 @@ function pfBriefRender() {
   }
 
   var tiles = oneLine +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px;">' +
+    '<div class="g-auto-170" style="display:grid;gap:10px;margin-bottom:12px;">' +
     '<div class="kpi-card"><div class="widget-title">총 평가액</div><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (agg.counted ? pfFmtKrw(agg.evalKrw) : '-') + '</div>' +
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">' + (pnl != null ? ('누적 ' + (pnl >= 0 ? '+' : '') + pfFmtKrw(pnl)) : '평단가·수량 입력 시 계산') + '</div>' + evSpark + '</div>' +
     '<div class="kpi-card"><div class="widget-title">오늘 손익 (주가)</div><div class="' + dayCls + '" style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (agg.hasDay ? ((agg.dayPnlKrw >= 0 ? '+' : '') + pfFmtKrw(agg.dayPnlKrw)) : '-') + '</div>' +
@@ -280,9 +280,9 @@ function pfBriefRender() {
       bg = base + alpha; fg = a >= 2.5 ? '#fff' : base;
     }
     var big = (t.ev && agg.evalKrw > 0 && t.ev / agg.evalKrw >= 0.22) ? 'grid-column:span 2;' : '';
-    return '<div role="button" tabindex="0" onclick="pfStockOpenFromTile(\'' + (t.it ? t.it.id : '') + '\')" onkeydown="if(event.key===\'Enter\')this.click()" style="cursor:pointer;border-radius:var(--r-sm);padding:8px 10px;min-height:52px;' + big + 'background:' + bg + ';color:' + fg + ';">' +
-      '<div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + pfEsc(t.name) + '</div>' +
-      '<div style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (p == null ? '—' : (p >= 0 ? '+' : '') + p.toFixed(2) + '%') + '</div></div>';
+    return '<button type="button" class="btn-plain" onclick="pfStockOpenFromTile(\'' + (t.it ? t.it.id : '') + '\')" style="cursor:pointer;border-radius:var(--r-sm);padding:8px 10px;min-height:52px;' + big + 'background:' + bg + ';color:' + fg + ';">' +
+      '<span style="display:block;font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + pfEsc(t.name) + '</span>' +
+      '<span style="display:block;font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (p == null ? '—' : (p >= 0 ? '+' : '') + p.toFixed(2) + '%') + '</span></button>';
   }).join('');
   var heat = _pfCard('보유 종목 오늘 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">색=방향 · 농도=강도(±1/±2.5%) · 탭=종목 분석</span>',
     agg.tiles.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;">' + hm + '</div>'
@@ -291,13 +291,13 @@ function pfBriefRender() {
   /* 오늘의 차트 (P3: 변화량 스코어링으로 VKOSPI vs 환율 자동 선정) + 이번 주 일정 */
   var chartMode = _pfBriefChartMode(d);
   var chart = _pfCard('오늘의 차트 — ' + chartMode.title + ' × 외국인 순매매 (30거래일) ' + _pfI(chartMode.key === 'fx' ? 'fxexpo' : 'varlimit'),
-    '<div style="position:relative;height:220px;"><canvas id="pfBriefChartCanvas" role="img" aria-label="' + chartMode.title + '와 외국인 순매매 30일 비교 차트"></canvas></div>' +
+    '<div class="h-220" style="position:relative;"><canvas id="pfBriefChartCanvas" role="img" aria-label="' + chartMode.title + '와 외국인 순매매 30일 비교 차트"></canvas></div>' +
     '<div id="pfBriefChartNote" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;"></div>');
   var cal = _pfBriefCalendarHtml(d, agg);
   var merBox = '<div class="widget" style="margin-bottom:12px;"><div class="widget-title">오늘의 메르 한 줄</div><div id="pfMerOneLine" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.7;">불러오는 중…</div></div>';
 
   el.innerHTML = tiles + heat +
-    '<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px;" class="pf-brief-2col">' + chart + cal + '</div>' + merBox +
+    '<div class="pf-brief-2col" style="display:grid;gap:12px;">' + chart + cal + '</div>' + merBox +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기준: 시세=무료 소스(지연 가능) · 지표=' + ((d.lastUpdated || '').slice(0, 16).replace('T', ' ') || '-') + ' 빌드 · ' + asof.getHours() + ':' + String(asof.getMinutes()).padStart(2, '0') + ' 렌더</div>';
 
   _pfBriefChartRender(d, chartMode);
@@ -433,7 +433,7 @@ function pfSignalRender() {
   }
   var hot = vkNow != null && vkNow >= 50;
   var chain = _pfCard('외국인은 왜 파는가 — 변동성의 기계적 사슬 ' + _pfI('varlimit'),
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:4px;">' +
+    '<div class="g-auto-140" style="display:grid;gap:8px;margin-top:4px;">' +
     chainNode('① 변동성', vkNow != null ? vkNow.toFixed(1) : '-', 'VKOSPI' + (dailyVol ? ' · 일간 ≈ ' + dailyVol.toFixed(1) + '%' : '') + (vk.stale ? ' · ⏸지연' : ''), hot) +
     chainNode('② VaR 부풀음', ratio ? '×' + ratio.toFixed(1) : '—', ratio ? '연초(' + vkStart.toFixed(0) + ') 대비 위험 계산치 배율 (추정)' : '연초 데이터 없음', hot && ratio != null && ratio > 1.3) +
     chainNode('③ 한도 압박', capPct != null ? (capPct > 0 ? '+' : '') + capPct + '%' : '—', '같은 위험예산으로 담을 수 있는 금액 변화 (추정)', hot && capPct != null && capPct < -20) +
@@ -528,11 +528,11 @@ function pfSignalRender() {
     '<div style="font-size:var(--font-size-sm);">일간변동성 가정 <b id="pfSimVol" style="font-family:var(--font-num);">1.9</b>% ' +
     '<input type="range" min="0.5" max="6" step="0.1" value="1.9" oninput="pfSimUpdate(this.value)" style="vertical-align:middle;width:200px;accent-color:var(--c-accent);" aria-label="일간변동성 가정 슬라이더">' +
     (dailyVol ? ' <button onclick="pfSimUpdate(' + dailyVol.toFixed(1) + ');document.querySelector(\'#pfTab-signal input[type=range]\').value=' + dailyVol.toFixed(1) + '" style="font-size:var(--font-size-xs);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">현재 VKOSPI 수준(' + dailyVol.toFixed(1) + '%)로</button>' : '') + '</div>' +
-    '<div id="pfSimOut" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;font-family:var(--font-num);font-size:var(--font-size-sm);"></div>' +
+    '<div id="pfSimOut" class="g-auto-150" style="display:grid;gap:8px;margin-top:10px;font-family:var(--font-num);font-size:var(--font-size-sm);"></div>' +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">가상 기관(위험예산 100억)의 교육용 계산 — 담을 수 있는 금액 = 예산 ÷ (일간변동성 × 1.645). 시장 전체 매도 물량 예측이 아닙니다.</div>');
 
   el.innerHTML = chain +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="pf-sig-2col">' + vol + inv + fxCard + npsCard + '</div>' +
+    '<div class="pf-sig-2col" style="display:grid;gap:12px;">' + vol + inv + fxCard + npsCard + '</div>' +
     shCard + simCard +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">지표 기준: ' + ((d.lastUpdated || '').slice(0, 16).replace('T', ' ') || '-') + ' 빌드 · ⓘ = 메르식 설명 · 매수/매도 판단은 표기하지 않습니다</div>';
   pfSimUpdate(1.9);
@@ -635,7 +635,7 @@ function pfRiskRender() {
     var varAmt = agg.evalKrw * m.sd * 1.645;
     var cvarAmt = agg.evalKrw * Math.abs(m.cvarR);
     riskCards =
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">' +
+      '<div class="g-auto-220" style="display:grid;gap:10px;">' +
       '<div class="kpi-card"><div class="widget-title">내 1일 95% VaR ' + _pfI('var') + '</div>' +
         '<div class="down-txt" style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">−' + pfFmtKrw(varAmt) + '</div>' +
         '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">"20일 중 1일은 이 이상 잃을 수 있다" · cVaR ' + _pfI('cvar') + ' <b>−' + pfFmtKrw(cvarAmt) + '</b></div>' +
@@ -703,16 +703,16 @@ function pfRiskRender() {
   }).join('');
   var ledCard = _pfCard('배당·입출금 원장 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">이 브라우저에만 저장 · 총 ' + ledger.length + '건</span>',
     '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">' +
-    '<input id="pfLedDate" type="date" value="' + new Date().toISOString().slice(0, 10) + '" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="기록 날짜">' +
-    '<select id="pfLedKind" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="기록 종류"><option value="div">배당</option><option value="dep">입금</option><option value="wd">출금</option></select>' +
-    '<input id="pfLedAmt" type="number" min="0" step="any" placeholder="금액(원)" style="width:110px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="금액">' +
-    '<input id="pfLedMemo" placeholder="메모(선택)" style="width:110px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="메모">' +
+    '<input id="pfLedDate" type="date" value="' + new Date().toISOString().slice(0, 10) + '" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="기록 날짜">' +
+    '<select id="pfLedKind" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="기록 종류"><option value="div">배당</option><option value="dep">입금</option><option value="wd">출금</option></select>' +
+    '<input id="pfLedAmt" type="number" min="0" step="any" placeholder="금액(원)" style="width:110px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="금액">' +
+    '<input id="pfLedMemo" placeholder="메모(선택)" style="width:110px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="메모">' +
     '<button onclick="pfLedgerAdd()" style="font-size:var(--font-size-xs);padding:4px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">＋ 기록</button></div>' +
     (ledRows || '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기록 없음 — 배당을 기록하면 손익 워터폴에 반영됩니다.</div>') +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">입출금 기록은 참고용 — 위 위험 지표는 평가/매입 비율 기반이라 추가매수에는 원래 강건하며, 대규모 입출금 시 벤치마크 비교 왜곡 고지는 기존과 동일.</div>');
 
   el.innerHTML = '<div class="widget-title" style="margin:4px 0 10px;">🧭 메르 위험 패널 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">— 내 계좌를 연기금처럼 본다 · ⓘ = 메르식 설명</span></div>' +
-    riskCards + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;" class="pf-risk-2col">' + (wf || '') + (bias || '') + '</div>' + whatif + ledCard;
+    riskCards + '<div class="pf-risk-2col" style="display:grid;gap:12px;margin-top:12px;">' + (wf || '') + (bias || '') + '</div>' + whatif + ledCard;
   window._pfWhatIfBase = { ev: agg.evalKrw, usd: agg.usdEval };
 }
 /* 원장 저장소 — localStorage 전용(프라이버시: 서버·동기화 페이로드에 절대 미포함) */
@@ -761,7 +761,7 @@ function pfStockRender() {
       '<div class="widget" style="margin-bottom:12px;">' +
       '<div class="widget-title">종목 검색</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
-      '<input id="pfStockQ" placeholder="종목코드/티커/한글명 (예: 005930, AAPL, 삼성전자)" onkeydown="if(event.key===\'Enter\')pfStockSearch()" style="flex:1;min-width:200px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:6px 9px;font-size:var(--font-size-sm);" aria-label="분석할 종목 검색">' +
+      '<input id="pfStockQ" placeholder="종목코드/티커/한글명 (예: 005930, AAPL, 삼성전자)" onkeydown="if(event.key===\'Enter\')pfStockSearch()" style="flex:1;min-width:200px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:6px 9px;font-size:var(--font-size-sm);" aria-label="분석할 종목 검색">' +
       '<button onclick="pfStockSearch()" style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">분석</button></div>' +
       '<div id="pfStockCandidates" style="margin-top:6px;"></div>' +
       (chips ? '<div style="margin-top:8px;font-size:var(--font-size-xs);color:var(--c-txt-muted);">보유·관심: ' + chips + '</div>' : '') +
@@ -857,13 +857,13 @@ async function pfStockOpen(spec, keep) {
     '<div style="font-family:var(--font-num);font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);">' + (q ? pfFmtPrice(q.price, q.ccy) : '-') + ' ' + (q ? pfChgHtml(q.pct) : '') + '</div></div>' +
     '<div id="pfStockWarnBadges"></div>' +
     (sigHtml ? '<div style="margin-top:8px;">' + sigHtml + '</div>' : '') +
-    '<div id="pfStockLwWrap" style="height:300px;margin-top:10px;"></div>' +
+    '<div id="pfStockLwWrap" class="h-300" style="margin-top:10px;"></div>' +
     '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:6px;">' +
     '<span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">일봉 1년 · 신호등은 지표 상태 요약이며 매수/매도 판단이 아닙니다</span>' +
     (held ? '<button onclick="pfOpenChart(\'' + held.id + '\')" style="font-size:var(--font-size-xs);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">🔍 상세 차트(MA·RSI·MACD) →</button>' : '') + '</div>' +
     '</div>' +
     '<div id="pfStockFlows"></div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="pf-stock-2col">' +
+    '<div class="pf-stock-2col" style="display:grid;gap:12px;">' +
     _pfCard('펀더멘털', '<div id="pfStockFunda" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">불러오는 중…</div>') +
     _pfCard('메르 블로그 언급', '<div id="pfStockMer" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">검색 중…</div>') +
     '</div>';
@@ -906,7 +906,7 @@ async function pfStockOpen(spec, keep) {
     var dy = row.divYield != null ? row.divYield : ((price && row.dps) ? row.dps / price * 100 : null);
     function fv(v, suf, nd) { return v == null || !isFinite(v) ? '-' : (+v).toFixed(nd == null ? 1 : nd) + (suf || ''); }
     box.innerHTML =
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-family:var(--font-num);color:var(--c-txt);">' +
+      '<div class="g-2" style="display:grid;gap:6px 14px;font-family:var(--font-num);color:var(--c-txt);">' +
       '<div>PER <b>' + fv(per) + '</b></div>' +
       '<div>PBR <b>' + fv(pbr, '', 2) + '</b></div>' +
       '<div>ROE <b>' + fv(row.roe, '%') + '</b></div>' +

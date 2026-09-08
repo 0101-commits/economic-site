@@ -1077,6 +1077,26 @@
   html.light .clickable-card:hover { background: #d9edf8; }
   /* ======= 기본 스타일 ======= */
   * { box-sizing: border-box; }
+  /* onclick 이 달린 div/span 을 실제 <button> 으로 바꿀 때 쓰는 리셋(P5).
+     UA 버튼 스타일(테두리·배경·가운데 정렬·자체 폰트)을 지워서 바꾸기 전 div/span
+     과 같은 모양을 유지한다. :where() 로 특이성 0 이라, 컴포넌트 클래스
+     (.ds-item·.study-drop 등)가 순서와 무관하게 이 리셋을 이긴다.
+     새 클릭 요소는 처음부터 <button> 으로 쓴다. */
+  :where(.btn-plain) {
+    appearance: none; -webkit-appearance: none;
+    background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
+    font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+    text-align: inherit; line-height: inherit; cursor: pointer;
+    display: block; width: 100%;
+  }
+  .btn-plain.btn-inline { display: inline-block; width: auto; }
+  .btn-plain.btn-flex { display: block; width: auto; min-width: 0; }
+  /* 카드 여백 예외 — 인라인 padding 을 대신한다(P5). 두 클래스라 뒤에 오는
+     .widget/.kpi-card 기본 padding 을 이기고, 반응형은 같은 셀렉터로 뒤에서 덮는다. */
+  .widget.pad-14 { padding: 14px; }
+  .widget.pad-36-20 { padding: 36px 20px; }
+  .kpi-card.pad-8 { padding: 8px; }
+  .kpi-card.pad-8-10 { padding: 8px 10px; }
   body { background: var(--c-bg,#0a0e18); color: var(--c-txt,#e8ebf5); font-family:var(--font-family-body); margin: 0; overflow-x: hidden; }
   .mat { font-family: 'Material Symbols Outlined'; font-size: 18px; line-height: 1; vertical-align: middle; }
   /* ── 헤더 = seed-app-bar. recipe 는 position:absolute·z-index 변수 미정의라
@@ -1131,6 +1151,8 @@
   button, select { font-weight: 500; }
   /* .menu-item 은 JS 훅(9곳)을 위해 클래스만 남기고 시각 규칙은 SEED
      side-navigation-menu-item recipe 로 넘겼다 — 병기하면 recipe 가 덮인다. */
+  /* main 패딩 — 인라인에 있으면 반응형이 !important 로만 이길 수 있다(P5) */
+  main#mainContent { padding: var(--spacing-5); }
   .page { display: none; }
   .page.active { display: block; }
 
@@ -1145,55 +1167,77 @@
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
   .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #3a4054;border-radius:4px;padding:2px 6px;font-size:11px; }
   .kpi-clickable:hover { border-color:var(--c-accent) !important; }
+  /* ======= 레이아웃 유틸 (P5) =======
+     인라인 grid-template-columns / height 를 클래스로 옮긴 결과다. 값이 인라인에
+     없으므로 아래 반응형 규칙은 !important 없이 이긴다 — 옛 `[style*="…"]`
+     문자열 매칭 셀렉터가 사라진 이유. 새 격자는 반드시 이 클래스를 쓴다. */
+  .g-1, .g-2, .g-3, .g-4, .g-5, .g-7, .g-12,
+  .g-2-1, .g-1-2, .g-3-2, .g-side, .g-side-280, .g-side-320,
+  .g-side-l, .g-side-l-300, .g-side-l-340,
+  .g-auto-120, .g-auto-140, .g-auto-150, .g-auto-160, .g-auto-170,
+  .g-auto-180, .g-auto-200, .g-auto-220 { display: grid; }
+  .g-1 { grid-template-columns: 1fr; }
+  .g-2 { grid-template-columns: 1fr 1fr; }
+  .g-3 { grid-template-columns: repeat(3, 1fr); }
+  .g-4 { grid-template-columns: repeat(4, 1fr); }
+  .g-5 { grid-template-columns: repeat(5, 1fr); }
+  .g-7 { grid-template-columns: repeat(7, 1fr); }
+  .g-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .g-2-1 { grid-template-columns: 2fr 1fr; }
+  .g-1-2 { grid-template-columns: 1fr 2fr; }
+  .g-3-2 { grid-template-columns: 3fr 2fr; }
+  .g-side { grid-template-columns: 1fr 300px; }
+  .g-side-280 { grid-template-columns: 1fr 280px; }
+  .g-side-320 { grid-template-columns: 1fr 320px; }
+  .g-side-l { grid-template-columns: 240px 1fr; }
+  .g-side-l-300 { grid-template-columns: 300px 1fr; }
+  .g-side-l-340 { grid-template-columns: 340px 1fr; }
+  .g-auto-120 { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .g-auto-140 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .g-auto-150 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .g-auto-160 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .g-auto-170 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .g-auto-180 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .g-auto-200 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .g-auto-220 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  /* 차트 래퍼 높이 — 숫자는 데스크탑 기준값이고 좁은 화면 축소는 아래 반응형에서 */
+  .h-200 { height: 200px; }
+  .h-220 { height: 220px; }
+  .h-230 { height: 230px; }
+  .h-240 { height: 240px; }
+  .h-260 { height: 260px; }
+  .h-280 { height: 280px; }
+  .h-300 { height: 300px; }
+  .h-340 { height: 340px; }
+  .h-360 { height: 360px; }
+  .h-380 { height: 380px; }
+  .mh-280 { min-height: 280px; }
+  .mh-300 { min-height: 300px; }
+  .mh-380 { min-height: 380px; }
+  .mh-440 { min-height: 440px; }
   /* ======= 모바일 반응형 ======= */
   /* 모든 그리드는 모바일에서 자동으로 단일/이중 컬럼으로 축소되어 차트 오버플로우 방지 */
   @media (max-width: 1024px) {
     /* 태블릿: 4컬럼 → 2컬럼 */
-    main div[style*="grid-template-columns:repeat(4,1fr)"],
-    main div[style*="grid-template-columns: repeat(4,1fr)"] {
-      grid-template-columns: 1fr 1fr !important;
-    }
+    .g-4 { grid-template-columns: 1fr 1fr; }
     /* 메인 차트 + 사이드 패널 → 세로로 */
-    main div[style*="grid-template-columns:1fr 300px"],
-    main div[style*="grid-template-columns:1fr 280px"],
-    main div[style*="grid-template-columns:1fr 320px"],
-    main div[style*="grid-template-columns:2fr 1fr"],
-    main div[style*="grid-template-columns:3fr 2fr"],
-    main div[style*="grid-template-columns:240px 1fr"] {
-      grid-template-columns: 1fr !important;
-    }
+    .g-side, .g-side-280, .g-side-320, .g-2-1, .g-3-2,
+    .g-side-l { grid-template-columns: 1fr; }
   }
   @media (max-width: 1024px) {
     /* (옛 ≤1024 사이드바 오버레이 규칙 제거 — 이제 768/1280 두 구간과 드로어를
        .econ-sidenav 규칙이 담당한다. 여기 남겨두면 !important 로 그것을 덮는다.) */
-    main { padding: 12px !important; min-width: 0; }
-    /* 카드 그리드는 모바일에서도 2~3컬럼 유지 (각 카드를 작게 표시) */
-    main div[style*="grid-template-columns:repeat(4,1fr)"] {
-      display: grid !important;
-      grid-template-columns: 1fr 1fr !important;
-    }
-    main div[style*="grid-template-columns:repeat(3,1fr)"] {
-      display: grid !important;
-      grid-template-columns: 1fr 1fr !important;
-    }
+    main#mainContent { padding: 12px; min-width: 0; }
+    /* 카드 그리드는 모바일에서도 2컬럼 유지 (각 카드를 작게 표시) */
+    .g-3, .g-4 { grid-template-columns: 1fr 1fr; }
     /* 큰 차트/사이드패널 레이아웃만 단일 컬럼으로 */
-    main div[style*="grid-template-columns:1fr 1fr"],
-    main div[style*="grid-template-columns:1fr 300px"],
-    main div[style*="grid-template-columns:1fr 280px"],
-    main div[style*="grid-template-columns:1fr 320px"],
-    main div[style*="grid-template-columns:2fr 1fr"],
-    main div[style*="grid-template-columns:3fr 2fr"],
-    main div[style*="grid-template-columns:240px 1fr"] {
-      display: grid !important;
-      grid-template-columns: 1fr !important;
-    }
+    .g-2 { grid-template-columns: 1fr; }
     /* kpi-card 작게 — 폰트 축소 */
-    .kpi-card { padding: 8px !important; }
+    /* 두 번 쓴 클래스(0,2,0) — 뒤에 오는 .widget,.kpi-card 기본 padding 을
+       !important 없이 이기기 위한 특이성 조정(P5). */
+    .kpi-card.kpi-card { padding: 8px; }
     /* 자손 결합자 — 기준금리 카드의 중첩 flex 안 #kpi-rate-val 까지 포함해 4카드 크기 통일.
        14px 는 등락률(13px)과 1px 차라 위계가 무너져 17px 로 완화. 10px 강제 축소 규칙은 제거. */
-    .kpi-card div[style*="font-size:18px"],
-    .kpi-card div[style*="font-size:22px"] { font-size: 17px !important; }
-    .kpi-card div[style*="font-size:24px"] { font-size: 17px !important; }
     /* 위젯 내부 컨테이너 overflow 방지 */
     .widget, .kpi-card { min-width: 0 !important; max-width: 100% !important; overflow: hidden; }
     .widget > div, .kpi-card > div { min-width: 0 !important; }
@@ -1201,64 +1245,53 @@
     canvas { max-width: 100% !important; max-height: 220px !important; }
     #mainChart { max-height: 280px !important; }
     /* 메인 차트 컨테이너 — 모바일에서 height 절대값 적용 */
-    main div[style*="min-height:380px"] { min-height: 240px !important; height: 240px !important; }
-    main div[style*="height:380px"] { height: 240px !important; min-height: 240px !important; }
-    main div[style*="height:340px"] { height: 220px !important; min-height: 220px !important; }
-    main div[style*="height:300px"] { height: 220px !important; min-height: 220px !important; }
-    main div[style*="height:260px"] { height: 200px !important; min-height: 200px !important; }
-    main div[style*="height:240px"] { height: 180px !important; min-height: 180px !important; }
-    main div[style*="height:220px"] { height: 180px !important; min-height: 180px !important; }
-    main div[style*="height:200px"] { height: 170px !important; min-height: 170px !important; }
-    main div[style*="min-height:440px"] { min-height: 240px !important; height: 240px !important; }
-    main div[style*="min-height:300px"] { min-height: 220px !important; }
+    .mh-380, .mh-440, .h-380 { min-height: 240px; height: 240px; }
+    .h-340, .h-300 { height: 220px; min-height: 220px; }
+    .h-260, .h-230 { height: 200px; min-height: 200px; }
+    .h-240, .h-220 { height: 180px; min-height: 180px; }
+    .h-200 { height: 170px; min-height: 170px; }
+    .mh-300 { min-height: 220px; }
     /* 목록에 없던 값들 — 채권 차트 2종(min-height:280px)·NPS/투자자(height:280px)·
        포트폴리오 종목상세(height:360px)가 축소 규칙에서 빠져 canvas max-height(220px)와
        래퍼 높이가 어긋나 모바일에서 60px+ 빈 공간을 만들었다(2026-08 감사). */
-    main div[style*="min-height:280px"] { min-height: 210px !important; }
-    main div[style*="height:280px"] { height: 210px !important; min-height: 210px !important; }
-    main div[style*="height:360px"] { height: 240px !important; min-height: 240px !important; }
+    .mh-280 { min-height: 210px; }
+    .h-280 { height: 210px; min-height: 210px; }
+    .h-360 { height: 240px; min-height: 240px; }
     /* 가로 스크롤이 필요한 테이블은 명시적으로 처리 */
     main table { font-size: var(--fs-body-sm) !important; }
     /* 모바일에서 가로 wrap 강제 */
-    main div[style*="display:flex"] { flex-wrap: wrap !important; }
+    main div[style*="display:flex"] { flex-wrap: wrap; }
     /* 예외: 3줄 요약의 '1.' 마커와 본문은 한 줄 유지 — 위 wrap 강제가 마커/본문을
        두 줄로 쪼개 카드가 780px 까지 길어졌다(2026-08 감사 B5). */
-    main .ai-brief-line { flex-wrap: nowrap !important; }
+    main .ai-brief-line { flex-wrap: nowrap; }
     /* 캘린더 플로팅 상세 등 절대배치 자식이 위젯 밖으로 나가는 페이지는 클리핑 예외
        (아래 .widget overflow:hidden 의 사각지대 — 2026-08 감사) */
     #page-calendar .widget { overflow: visible; }
   }
   /* 모바일 (900px 이하): 더 강한 패딩 축소·차트 최소화 */
   @media (max-width: 900px) {
-    main { padding: 10px !important; }
+    main#mainContent { padding: 10px; }
   }
   /* 작은 모바일 (480px 미만): 매우 작은 화면 최적화 */
   @media (max-width: 480px) {
-    main div[style*="grid-template-columns:repeat(4,1fr)"] {
-      grid-template-columns: 1fr !important;
-    }
-    .widget { padding: 12px !important; }
+    .g-4 { grid-template-columns: 1fr; }
+    .widget.widget { padding: 12px; }
     canvas { max-height: 180px !important; }
     .data-source-popup { left: 10px !important; right: 10px !important; width: auto !important; }
   }
   /* 데스크탑 화면이지만 매우 큰 차트가 페이지 넘어가는 것을 방지 (1024-1440px 사이) */
   @media (min-width: 769px) and (max-width: 1440px) {
     #mainChart { max-height: 540px !important; }
-    main div[style*="min-height:440px"] { min-height: 300px !important; height: 340px !important; }
+    .mh-440 { min-height: 300px; height: 340px; }
   }
   @media (max-width: 1024px) {
     .data-source-popup { left: 10px !important; right: 10px !important; width: auto !important; }
   }
   /* ======= 모바일 (768px 이하) — 다중 컬럼 그리드를 단일 컬럼으로 (Task 5.1) ======= */
   @media (max-width: 768px) {
-    main div[style*="grid-template-columns:repeat(4,1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
-    main div[style*="grid-template-columns:1fr 300px"],
-    main div[style*="grid-template-columns:300px 1fr"],
-    main div[style*="grid-template-columns:1fr 320px"],
-    main div[style*="grid-template-columns:1fr 1fr"]:not(.keep-cols),
-    main div[style*="grid-template-columns:2fr 1fr"],
-    main div[style*="grid-template-columns:1fr 2fr"],
-    main div[style*="grid-template-columns:repeat(3,1fr)"] { grid-template-columns: 1fr !important; }
+    .g-4 { grid-template-columns: repeat(2, 1fr); }
+    .g-3, .g-2, .g-1-2, .g-2-1, .g-side, .g-side-320,
+    .g-side-l-300 { grid-template-columns: 1fr; }
     /* 고밀도 데이터 테이블 → 위젯 내부 가로 스크롤 카드 */
     .widget { overflow-x: auto; }
     .widget table { min-width: 460px; }
@@ -1570,8 +1603,7 @@ header {
 /* 사이드바 폭(240 / 접힘 56)·배경(tone_neutral)·내부 패딩은 SEED
    side-navigation recipe 가 준다. 옛 !important 3벌은 그것을 전부 덮었다. */
 nav#sidebar { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-main#mainContent { padding: var(--spacing-5); }
-@media (max-width: 768px) { main#mainContent { padding: var(--spacing-3) !important; } }
+@media (max-width: 768px) { main#mainContent { padding: var(--spacing-3); } }
 
 /* 사이드바 항목의 시각 규칙은 SEED side-navigation-menu-item recipe(행 44px,
    [data-current] 선택 상태)로 옮겼다. 여기 있던 36px 행 + .active !important 가
@@ -1590,6 +1622,12 @@ main#mainContent { padding: var(--spacing-5); }
   padding: var(--spacing-4);
   box-shadow: var(--shadow-low) !important;
 }
+/* 강조 좌측 띠 — 위 border !important 가 인라인 border-left 를 지워버려 6곳의
+   띠가 보이지 않았다(P5 실측). 두 클래스 = 더 높은 특이성으로 되살린다. */
+.widget.accent-l, .kpi-card.accent-l { border-left: 3px solid var(--c-accent) !important; }
+.widget.accent-l-up, .kpi-card.accent-l-up { border-left: 3px solid var(--c-up) !important; }
+.widget.accent-l-down, .kpi-card.accent-l-down { border-left: 3px solid var(--c-down) !important; }
+.widget.accent-l-warn, .kpi-card.accent-l-warn { border-left: 3px solid var(--c-warn) !important; }
 .widget-title:not([class*="seed-"]) {
   /* Phase 3 위계 격상: xs(10px)·dim 단일 위계가 212개 위젯을 균일한 회색 텍스처로
      만들었다(감사 C3) — 한 단계 위 크기 + 본문 명도로 섹션 식별성을 올린다. */
@@ -1779,13 +1817,22 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
    접기: .widget-title 클릭 → 본문만 숨김(홈 home-sec '숨기기'와 별개). 펼칠 때
    JS 가 resize 를 쏴 0px 캔버스를 되살린다(restoreHomeSec 와 같은 패턴). */
 .w-toggle { cursor: pointer; user-select: none; }
-.w-toggle:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
-.w-toggle::after { content: '▾'; display: inline-block; margin-left: 6px; opacity: .45;
+/* 실제 토글 버튼 — 제목은 마우스 편의용 클릭 영역이고, 키보드·스크린리더는
+   이 버튼(aria-expanded)을 쓴다. 제목 안의 새로고침 버튼과 형제라서 '버튼 안의
+   버튼' 이 생기지 않는다(P5). */
+.w-toggle-btn { margin-left: 6px; opacity: .45; color: inherit;
+  min-width: var(--size-element-sm, 32px); min-height: var(--size-element-sm, 32px);
   transition: transform var(--duration-fast-min) var(--ease-standard); }
-.widget.w-collapsed .w-toggle::after { transform: rotate(-90deg); }
+.w-toggle-btn::after { content: '▾'; }
+.w-toggle-btn:hover { opacity: .8; }
+.w-toggle-btn:focus-visible { outline: 2px solid var(--seed-color-fg-brand, var(--c-accent)); outline-offset: 2px; }
+.widget.w-collapsed .w-toggle-btn { transform: rotate(-90deg); }
 .widget.w-collapsed > :not(.w-head) { display: none !important; }
 .widget.w-collapsed { padding-bottom: var(--spacing-3); }
-@media (prefers-reduced-motion: reduce) { .w-toggle::after { transition: none; } }
+/* 접힌 위젯의 조작 도구는 감춘다 — 차트가 없는데 기간·지표 셀렉터만 남아 접힌
+   헤더가 250px 를 쓰던 문제(P5 실측). 이름·현재값(.econ-head__main)은 남긴다. */
+.widget.w-collapsed .econ-head__tools { display: none; }
+@media (prefers-reduced-motion: reduce) { .w-toggle-btn { transition: none; } }
 /* 페이지 목차 칩 — 탭(.tab-btn)과 혼동되지 않게 점선 테두리 + 라운드 필 */
 .page-toc { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
   padding: 8px 10px; border: 1px dashed var(--c-border); border-radius: var(--radius-container);
@@ -1834,9 +1881,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 .set-label, .study-dow, label { font-weight: var(--font-weight-medium); }
 
 /* 투자현황 4탭(app6) — 2단 카드 그리드는 모바일에서 1단으로.
-   app6 이 innerHTML inline grid 로 그리므로 !important 로 눌러야 한다. */
+   열 값이 인라인이 아니라 여기 있으므로 !important 가 필요 없다(P5). */
+.pf-brief-2col { grid-template-columns: 1.4fr 1fr; }
+.pf-sig-2col, .pf-risk-2col, .pf-stock-2col { grid-template-columns: 1fr 1fr; }
 @media (max-width: 768px) {
-  .pf-brief-2col, .pf-sig-2col, .pf-risk-2col, .pf-stock-2col { grid-template-columns: 1fr !important; }
+  .pf-brief-2col, .pf-sig-2col, .pf-risk-2col, .pf-stock-2col { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -2012,8 +2061,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div>
 
   <!-- 부동산/거시 지표 시계열 차트 모달 (지표 클릭 시 표시) -->
-  <div id="reHistoryChartModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:310;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
-    <div class="reHistModalCard" style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:18px;width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div id="reHistoryChartModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:310;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeReHistoryChart()">
+    <div class="reHistModalCard" style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
         <div style="min-width:0;">
           <div id="reHistTitle" style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-txt);">지표 추이</div>
@@ -2038,7 +2087,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <button class="reHistUnitBtn u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="H" onclick="setReHistUnit('H',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
         <button class="reHistUnitBtn u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="Y" onclick="setReHistUnit('Y',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
       </div>
-      <div class="reHistChartBox" style="position:relative;flex:1 0 auto;min-height:280px;">
+      <div class="reHistChartBox" style="position:relative;flex:1 0 auto;">
         <canvas role="img" aria-label="부동산 지표 추이 차트" id="reHistChart"></canvas>
         <div id="reHistEmpty" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px;font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.8;"></div>
       </div>
@@ -2048,7 +2097,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div>
 
   <!-- 지역 드릴다운 모달 — 시도 클릭 시 시군구별 변동률 표시 -->
-  <div id="reRegionDrillModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:310;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeRegionDrill()">
+  <div id="reRegionDrillModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:310;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeRegionDrill()">
     <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:18px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:8px;">
         <div style="min-width:0;">
@@ -2067,7 +2116,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div>
 
   <!-- 범용 정보 모달 — 대출 규제 상세 / 청약 경쟁률 지역 상세 등 (클릭 드릴다운) -->
-  <div id="infoDetailModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:320;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeInfoModal()">
+  <div id="infoDetailModal" class="themed-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:320;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this) closeInfoModal()">
     <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:18px;width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:8px;">
         <div style="min-width:0;">
@@ -2081,7 +2130,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div>
 
   <!-- 메인 콘텐츠 -->
-  <main id="mainContent" tabindex="-1" style="flex:1;padding:20px;overflow-x:auto;min-width:0;">
+  <main id="mainContent" tabindex="-1" style="flex:1;overflow-x:auto;min-width:0;">
 
     <!-- ====== 페이지 1: 대시보드 홈 ====== -->
     <div class="page active" id="page-dashboard">
@@ -2465,7 +2514,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="pfTab-holdings" role="tabpanel" style="display:none;">
 
       <!-- 포트폴리오 요약 KPI -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+      <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
         <div class="kpi-card">
           <div class="widget-title">총 평가 금액 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 원 (해외는 환산)</span></div>
           <div id="pfKpiEval" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">-</div>
@@ -2488,7 +2537,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 320px;gap:12px;margin-bottom:16px;align-items:start;" id="pfMainGrid">
+      <div class="g-side-320" style="display:grid;gap:12px;margin-bottom:16px;align-items:start;" id="pfMainGrid">
         <!-- 좌: 종목 리스트 -->
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
@@ -2557,7 +2606,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfPieModeType" onclick="pfSetPieMode('type',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">유형별</span></button>
             </div>
           </div>
-          <div style="position:relative;height:260px;"><canvas role="img" aria-label="포트폴리오 자산 비중 도넛 차트" id="pfPieCanvas"></canvas></div>
+          <div class="h-260" style="position:relative"><canvas role="img" aria-label="포트폴리오 자산 비중 도넛 차트" id="pfPieCanvas"></canvas></div>
           <div id="pfPieEmpty" style="display:none;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:30px 0;">평단가·수량을 입력하면<br>포트폴리오 비중이 표시됩니다.</div>
           <div id="pfPieNote" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;">평가 금액(원화 환산) 기준 · 유형별 = 주식/ETF 구분</div>
         </div>
@@ -2571,7 +2620,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">방문일마다 포트폴리오 스냅샷이 이 브라우저(localStorage)에 기록됩니다</span>
         </div>
         <div id="pfBenchEmpty" style="text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:24px 0;line-height:1.7;">평단가·수량이 입력된 상태로 <b>2일 이상</b> 방문하면<br>내 포트폴리오 수익률 추이를 KOSPI·S&amp;P 500 과 같은 차트에서 비교할 수 있습니다.</div>
-        <div id="pfBenchWrap" style="position:relative;height:240px;display:none;"><canvas role="img" aria-label="포트폴리오 vs KOSPI·S&P500 벤치마크 비교 차트" id="pfBenchChart"></canvas></div>
+        <div class="h-240" id="pfBenchWrap" style="position:relative;display:none"><canvas role="img" aria-label="포트폴리오 vs KOSPI·S&P500 벤치마크 비교 차트" id="pfBenchChart"></canvas></div>
         <div id="pfBenchNote" style="display:none;font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;">내 포트폴리오 = (평가금액/매입금액 − 1), 벤치마크 = 첫 스냅샷일 종가 대비 등락률. 입금/매수로 매입금액이 변하면 단순 비교에 왜곡이 있을 수 있습니다.</div>
       </div>
 
@@ -2627,7 +2676,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div id="pfMaLegend" style="display:none;font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:4px;">
             <span style="color:#f6c026;">━ MA5</span>&nbsp;&nbsp;<span style="color:#e040fb;">━ MA20</span>&nbsp;&nbsp;<span style="color:#26c6da;">━ MA60</span>
           </div>
-          <div id="pfTvMain" style="height:360px;"></div>
+          <div class="h-360" id="pfTvMain"></div>
           <div id="pfTvRsiWrap" style="display:none;"><div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:6px 0 2px;">RSI (14)</div><div id="pfTvRsi" style="height:110px;"></div></div>
           <div id="pfTvMacdWrap" style="display:none;"><div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:6px 0 2px;">MACD (12, 26, 9)</div><div id="pfTvMacd" style="height:130px;"></div></div>
           <div id="pfChartMsg" style="text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:8px 0 0;"></div>
@@ -2699,7 +2748,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- 외환 탭 -->
       <div id="market-fx">
-        <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
+        <div class="g-side-280" style="display:grid;gap:12px;margin-bottom:12px;">
           <div class="widget">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
               <div>
@@ -2743,7 +2792,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button onclick="applyCustomRange('fx')" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
             </div>
             <div id="fxChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:16px;"></div>
-            <div style="position:relative;height:220px;">
+            <div class="h-220" style="position:relative">
               <canvas id="fxChart" role="img" aria-label="USD/KRW 환율 차트">환율 차트</canvas>
             </div>
           </div>
@@ -2802,7 +2851,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
           <div class="chart-scroll-x">
-            <div class="chart-scroll-inner" style="position:relative;height:340px;">
+            <div class="chart-scroll-inner h-340" style="position:relative">
               <canvas id="rateHistoryChart" role="img" aria-label="주요국 기준금리 비교">금리 차트</canvas>
             </div>
           </div>
@@ -2825,7 +2874,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- 채권 탭 (전용 페이지) -->
       <div id="market-bond" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;align-items:stretch;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;align-items:stretch;">
           <div class="widget" style="display:flex;flex-direction:column;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
               <div>
@@ -2857,7 +2906,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button onclick="resetBondCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
             </div>
             <div id="bondChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
-            <div style="position:relative;flex:1;min-height:280px;">
+            <div class="mh-280" style="position:relative;flex:1">
               <canvas id="bondChart" role="img" aria-label="국고채 수익률 차트">국고채 차트</canvas>
             </div>
           </div>
@@ -2873,7 +2922,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </div>
             </div>
             <div class="chart-scroll-x" style="flex:1;display:flex;">
-              <div class="chart-scroll-inner" style="position:relative;flex:1;min-height:280px;">
+              <div class="chart-scroll-inner mh-280" style="position:relative;flex:1">
                 <canvas id="yieldCurveChart" role="img" aria-label="국채 수익률 곡선">수익률 곡선</canvas>
               </div>
             </div>
@@ -2922,7 +2971,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="market-equity" style="display:none;">
         <div class="widget" style="margin-bottom:12px;">
           <div class="widget-title">글로벌 주요 지수 현황</div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="equityCards"></div>
+          <div class="g-3" style="display:grid;gap:8px;" id="equityCards"></div>
         </div>
         <!-- Equity index chart -->
         <div class="widget" style="margin-bottom:12px;">
@@ -2971,7 +3020,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <button onclick="resetEquityCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
           </div>
           <div id="equityChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:16px;display:flex;flex-wrap:wrap;gap:4px;"></div>
-          <div style="position:relative;height:340px;">
+          <div class="h-340" style="position:relative">
             <canvas id="equityIndexChart" role="img" aria-label="주식 지수 차트">지수 차트</canvas>
           </div>
         </div>
@@ -3006,7 +3055,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
-          <div style="position:relative;height:200px;">
+          <div class="h-200" style="position:relative">
             <canvas id="investorChart" role="img" aria-label="투자자별 순매매 동향">투자자 차트</canvas>
           </div>
           <table style="margin-top:12px;" class="econ-table">
@@ -3023,7 +3072,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
 
       <!-- 상승/하락 Top10 (주식) -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+      <div class="g-2" style="display:grid;gap:12px;margin-top:12px;">
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
@@ -3065,7 +3114,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- 상승/하락 Top10 (ETF) — 거래량 데이터 미수집 → 컬럼 생략 -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+      <div class="g-2" style="display:grid;gap:12px;margin-top:12px;">
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
@@ -3105,7 +3154,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- 거래대금·토스 체결 랭킹 (토스증권 Open API — PC 스냅샷, 당일분만) -->
-      <div id="equityRankingsWrap" style="display:none;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;" class="pf-stock-2col">
+      <div id="equityRankingsWrap" style="display:none;gap:12px;margin-top:12px;" class="pf-stock-2col g-2">
         <div class="widget">
           <div class="widget-title" style="margin-bottom:0;">거래대금 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">시장 전체 · 종목 클릭 → 종목 분석</span></div>
           <div style="overflow-x:auto;"><table style="font-family:var(--font-num);margin-top:8px;" class="econ-table">
@@ -3126,7 +3175,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 원자재 탭 -->
       <div id="market-commodity" style="display:none;">
         <!-- Top: 2-panel layout (left=chart, right=clickable list) -->
-        <div style="display:grid;grid-template-columns:1fr 280px;gap:12px;margin-bottom:12px;">
+        <div class="g-side-280" style="display:grid;gap:12px;margin-bottom:12px;">
           <!-- Left: detail chart with header -->
           <div class="widget">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
@@ -3166,7 +3215,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button onclick="resetComCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
             </div>
             <div id="comDetailChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
-            <div style="position:relative;height:300px;">
+            <div class="h-300" style="position:relative">
               <canvas id="comDetailChart" role="img" aria-label="원자재 차트">원자재 차트</canvas>
             </div>
           </div>
@@ -3177,24 +3226,24 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
         </div>
         <!-- Bottom: sector comparison charts 2x2 -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
-            <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
+            <div class="h-240" style="position:relative"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
-            <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
+            <div class="h-240" style="position:relative"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
-            <div style="position:relative;height:240px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
+            <div class="h-240" style="position:relative"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
-            <div style="position:relative;height:240px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
+            <div class="h-240" style="position:relative"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
         <!-- LME 재고 -->
@@ -3228,7 +3277,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.6;margin-bottom:10px;">
             위 LME 재고를 보완하는 외부 데이터 — COMEX 등록/적격 창고 재고, 인수도(delivery) 비율, 콘탱고/백워데이션 구조, 공급 리스크 점수를 금·은·구리·백금·팔라듐·알루미늄별로 매일 갱신해 제공합니다.
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
+          <div class="g-auto-150" style="display:grid;gap:8px;">
             <a href="https://heavymetalstats.com/" target="_blank" rel="noopener noreferrer" style="display:block;padding:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);text-decoration:none;">
               <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">📊 COMEX 재고 대시보드</div>
               <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:3px;">실시간 창고 재고·Coverage Ratio</div>
@@ -3340,7 +3389,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 데이터 소스 연결 상태 -->
         <div class="themed-info-box" style="margin-top:10px;padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-border,var(--c-accent-container));">
           <div style="font-size:var(--font-size-sm);color:var(--c-txt);font-weight:var(--font-weight-semibold);margin-bottom:6px;">🔌 데이터 소스 연결 상태 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">● 연결됨 / ○ 미연결</span></div>
-          <div id="macroApiStatus" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;"></div>
+          <div class="g-2" id="macroApiStatus" style="display:grid;gap:4px 12px;"></div>
         </div>
         <!-- 데이터 부족 안내 -->
         <div id="macroMissingApiInfo" class="themed-info-box" style="margin-top:10px;padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-border,var(--c-accent-container));font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.7;display:none;">
@@ -3375,17 +3424,17 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <option>이번 주</option><option>지난 달</option><option>이번 달</option><option>다음 달</option>
         </select></span>
         <div style="display:flex;gap:4px;flex-wrap:wrap;">
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','KR',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇰🇷 한국</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','US',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇺🇸 미국</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','EU',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇪🇺 유로존</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','JP',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇯🇵 일본</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','CN',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇨🇳 중국</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('cc','UK',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇬🇧 영국</span>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','KR',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇰🇷 한국</button>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','US',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇺🇸 미국</button>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','EU',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇪🇺 유로존</button>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','JP',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇯🇵 일본</button>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','CN',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇨🇳 중국</button>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','UK',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇬🇧 영국</button>
         </div>
         <div style="display:flex;gap:4px;">
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',3,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★★</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',2,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★</span>
-          <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="cal-filter-btn active-filter" onclick="toggleCalFilter('stars',1,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★</span>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('stars',3,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★★</button>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('stars',2,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★</button>
+          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('stars',1,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★</button>
         </div>
       </div>
       <!-- 시각적 캘린더 그리드 -->
@@ -3424,7 +3473,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
       </div>
       <!-- 하이라이트 카드 3개 -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;" id="calHighlights"></div>
+      <div class="g-3" style="display:grid;gap:12px;margin-bottom:16px;" id="calHighlights"></div>
       <div class="widget">
         <div class="widget-title">경제 이벤트 일정</div>
         <div style="overflow-x:auto;">
@@ -3446,7 +3495,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
       </div>
       <!-- 이벤트 클릭 상세 패널 -->
-      <div id="calEventDetail" class="widget" style="margin-top:12px;display:none;border-left:3px solid var(--c-accent);">
+      <div id="calEventDetail" class="widget accent-l" style="margin-top:12px;display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div>
             <span id="calDetailFlag" style="font-size:var(--font-size-lg);"></span>
@@ -3457,16 +3506,16 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <button onclick="document.getElementById('calEventDetail').style.display='none';" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">✕ 닫기</button>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
-          <div class="kpi-card" style="padding:8px;">
+        <div class="g-3" style="display:grid;gap:8px;margin-bottom:12px;">
+          <div class="kpi-card pad-8">
             <div class="cal-val-label" style="font-size:var(--font-size-xs);">이전값</div>
             <div id="calDetailPrev" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);"></div>
           </div>
-          <div class="kpi-card" style="padding:8px;">
+          <div class="kpi-card pad-8">
             <div class="cal-val-label" style="font-size:var(--font-size-xs);">예측값</div>
             <div style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-primary);"><span id="calDetailFore"></span><span id="calDetailForeEq" class="cal-foreeq"></span></div>
           </div>
-          <div id="calDetailActCell" class="kpi-card cal-act-cell" style="padding:8px;">
+          <div id="calDetailActCell" class="kpi-card cal-act-cell pad-8">
             <div class="cal-val-label" style="font-size:var(--font-size-xs);">실제값</div>
             <div style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);"><span id="calDetailArrow" aria-hidden="true" style="margin-right:2px;"></span><span id="calDetailAct"></span><span id="calDetailBadge" style="display:none;"></span></div>
           </div>
@@ -3573,7 +3622,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <button class="study-btn" onclick="styDuplicate()" title="이 회차를 복제">⧉ 복제</button>
                 <button class="study-btn danger" onclick="styDelete()" title="이 회차 삭제">🗑 삭제</button>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
+              <div class="g-auto-150" style="display:grid;gap:8px;">
                 <label style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">날짜
                   <input id="styDate" class="study-field econ-input" type="date" onchange="styPatchField('date',this.value)"/></label>
                 <label style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">시작
@@ -3594,12 +3643,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div class="widget">
               <div class="widget-title">스터디 자료 · 녹화/녹음</div>
 
-              <div class="study-drop" id="styDrop" tabindex="0" role="button"
-                   onclick="document.getElementById('styFileInput').click()"
-                   onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+              <button type="button" class="study-drop btn-plain" id="styDrop"
+                   onclick="document.getElementById('styFileInput').click()">
                 파일을 여기로 끌어다 놓거나 클릭해서 선택<br/>
                 <span style="font-size:var(--font-size-xs);">PDF · 이미지 · 문서 · 영상(mp4/webm) · 음성(mp3/m4a/wav)</span>
-              </div>
+              </button>
               <input id="styFileInput" type="file" multiple style="display:none;" onchange="styAddFiles(this.files); this.value='';"/>
 
               <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
@@ -3665,7 +3713,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
     <!-- ====== 페이지 5: 분석 노트 ====== -->
     <div class="page" id="page-notes">
-      <div style="display:grid;grid-template-columns:240px 1fr;gap:16px;min-height:70vh;">
+      <div class="g-side-l" style="display:grid;gap:16px;min-height:70vh;">
         <!-- 왼쪽: 노트 목록 -->
         <div class="widget" style="display:flex;flex-direction:column;">
           <button onclick="newNote()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:8px 12px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;margin-bottom:8px;">+ 새 노트</button>
@@ -3705,35 +3753,35 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <!-- 상단: 전체 요약 -->
           <div class="widget">
             <div class="widget-title" style="margin-bottom:8px;">📋 전체 요약 / 종합 의견</div>
-            <textarea id="noteBody" placeholder="전체 시장 상황 요약, 종합 투자 의견을 입력하세요..." style="width:100%;min-height:120px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:10px 12px;color:var(--c-txt);font-size:var(--font-size-base);font-family:var(--font-family-body);resize:vertical;line-height:1.7;box-sizing:border-box;"></textarea>
+            <textarea id="noteBody" placeholder="전체 시장 상황 요약, 종합 투자 의견을 입력하세요..." style="width:100%;min-height:120px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:10px 12px;font-size:var(--font-size-base);font-family:var(--font-family-body);resize:vertical;line-height:1.7;box-sizing:border-box;"></textarea>
           </div>
           <!-- 하단: 세부 주제별 섹션 -->
           <div class="widget">
             <div class="widget-title" style="margin-bottom:12px;">📌 세부 주제별 메모</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="g-2" style="display:grid;gap:10px;">
               <div>
                 <div style="font-size:var(--font-size-sm);color:var(--c-primary);font-weight:var(--font-weight-semibold);margin-bottom:4px;">📈 매크로 / 경제지표</div>
-                <textarea id="noteMacro" placeholder="GDP, 물가, 고용 등..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;color:var(--c-txt);font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+                <textarea id="noteMacro" placeholder="GDP, 물가, 고용 등..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
                 <div style="font-size:var(--font-size-sm);color:var(--c-primary);font-weight:var(--font-weight-semibold);margin-bottom:4px;">📊 주식시장</div>
-                <textarea id="noteEquity" placeholder="지수 동향, 섹터 분석..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;color:var(--c-txt);font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+                <textarea id="noteEquity" placeholder="지수 동향, 섹터 분석..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
                 <div style="font-size:var(--font-size-sm);color:var(--c-up);font-weight:var(--font-weight-semibold);margin-bottom:4px;">🏦 금리 / 채권</div>
-                <textarea id="noteBond" placeholder="기준금리, 채권 수익률..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;color:var(--c-txt);font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+                <textarea id="noteBond" placeholder="기준금리, 채권 수익률..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
                 <div style="font-size:var(--font-size-sm);color:#f5a623;font-weight:var(--font-weight-semibold);margin-bottom:4px;">💱 외환 / 환율</div>
-                <textarea id="noteFx" placeholder="USD/KRW, 달러인덱스..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;color:var(--c-txt);font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+                <textarea id="noteFx" placeholder="USD/KRW, 달러인덱스..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
                 <div style="font-size:var(--font-size-sm);color:var(--c-down);font-weight:var(--font-weight-semibold);margin-bottom:4px;">🛢️ 원자재</div>
-                <textarea id="noteCom" placeholder="유가, 금, 원자재 동향..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;color:var(--c-txt);font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+                <textarea id="noteCom" placeholder="유가, 금, 원자재 동향..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
                 <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);margin-bottom:4px;">🏠 부동산</div>
-                <textarea id="noteRE" placeholder="부동산 시장 동향, PIR..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;color:var(--c-txt);font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
+                <textarea id="noteRE" placeholder="부동산 시장 동향, PIR..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
             </div>
           </div>
@@ -3753,7 +3801,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 한국 부동산 탭 -->
       <div id="re-kr">
         <!-- KPI 카드 행 -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+        <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 카드 1: 전국주택가격동향조사 매매가격지수 변동률 (사용자가 reb.or.kr 에서 보는 값) -->
           <button type="button" class="kpi-card kpi-clickable econ-stat" style="" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 변동률 (아파트)',{unit:'% (월간 변동률)'})">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 매매가격지수 변동률 (아파트)</div>
@@ -3775,7 +3823,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div id="reKpiVolMeta" style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);" title="부동산원 거래현황 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE 행정구역별 아파트거래현황 · 단위: 동(호)수</div>
           </button>
-          <div class="kpi-card" style="border-left:3px solid var(--c-down);">
+          <div class="kpi-card accent-l-down">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">서울 PIR (소득대비)</div>
             <div id="reKpiPir" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">19.3<span style="font-size:var(--font-size-base);">배</span></div>
             <div style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);">전년 20.1배</div>
@@ -3784,7 +3832,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
 
         <!-- 차트 섹션 -->
-        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="g-2-1" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 가격지수 추이 차트 -->
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
@@ -3805,7 +3853,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button onclick="resetReCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
             </div>
             <div id="reChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:4px;min-height:16px;display:flex;flex-wrap:wrap;gap:6px;"></div>
-            <div style="position:relative;height:260px;"><canvas role="img" aria-label="지역별 아파트 매매가격지수 차트" id="rePriceChart" style="cursor:crosshair;"></canvas></div>
+            <div class="h-260" style="position:relative"><canvas role="img" aria-label="지역별 아파트 매매가격지수 차트" id="rePriceChart" style="cursor:crosshair;"></canvas></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">💡 차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
           <!-- 지역별 등락 — Naver 지도 (기본) + 바 차트 토글 -->
@@ -3818,34 +3866,34 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </div>
             </div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:6px;">2026년 4월 기준 (한국부동산원 R-ONE)</div>
-            <div id="reRegionNaverContainer" style="position:relative;height:260px;">
+            <div class="h-260" id="reRegionNaverContainer" style="position:relative">
               <div id="reRegionNaverMap" style="width:100%;height:100%;border-radius:var(--r-sm);"></div>
               <div id="reRegionNaverLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--c-surface);border-radius:var(--r-sm);font-size:var(--font-size-sm);color:var(--c-txt-dim);text-align:center;padding:16px;">📡 Naver 지도 로딩 중…</div>
             </div>
-            <div id="reRegionBarContainer" style="position:relative;height:260px;display:none;"><canvas role="img" aria-label="지역별 부동산 지표 비교 차트" id="reRegionChart"></canvas></div>
+            <div class="h-260" id="reRegionBarContainer" style="position:relative;display:none"><canvas role="img" aria-label="지역별 부동산 지표 비교 차트" id="reRegionChart"></canvas></div>
           </div>
         </div>
 
         <!-- 규제 현황 + 데이터 소스 요약 -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
           <div class="widget">
             <div class="widget-title">대출 규제 현황 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">항목 클릭 → 세부 내용</span></div>
             <table class="econ-table">
               <tbody>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('LTV')" title="클릭 → LTV 세부 규제">
-                  <td>LTV <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
+                  <td><button type="button" class="btn-plain btn-inline">LTV <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></td>
                   <td>투기지역 40% / 기타 70%</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('DTI')" title="클릭 → DTI 세부 규제">
-                  <td>DTI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
+                  <td><button type="button" class="btn-plain btn-inline">DTI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></td>
                   <td>투기지역 40% / 기타 50%</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('DSR')" title="클릭 → DSR 세부 규제">
-                  <td>DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
+                  <td><button type="button" class="btn-plain btn-inline">DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></td>
                   <td>40% (1억 초과 대출)</td>
                 </tr>
                 <tr style="cursor:pointer;" onclick="showLoanRegDetail('stress')" title="클릭 → 스트레스 DSR 세부 규제">
-                  <td>스트레스DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
+                  <td><button type="button" class="btn-plain btn-inline">스트레스DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></td>
                   <td>2단계 시행 중</td>
                 </tr>
               </tbody>
@@ -3860,10 +3908,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <th scope="col" class="econ-table--num">추이</th>
               </tr></thead>
               <tbody>
-                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('seoul')" title="클릭 → 서울 세부 지역·단지 순위"><td>서울 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td class="econ-table--num">32.4 : 1</td><td class="up-txt econ-table--num">▲</td></tr>
-                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('gyeonggi')" title="클릭 → 경기/인천 세부 지역·단지 순위"><td>경기/인천 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td class="econ-table--num">8.1 : 1</td><td class="econ-table--num">—</td></tr>
-                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('metro')" title="클릭 → 지방광역시 세부 지역·단지 순위"><td>지방광역시 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td class="econ-table--num">3.2 : 1</td><td class="down-txt econ-table--num">▼</td></tr>
-                <tr style="cursor:pointer;" onclick="showSubscriptionDetail('other')" title="클릭 → 기타 지방 세부 지역·단지 순위"><td>기타 지방 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td class="econ-table--num">1.1 : 1</td><td class="down-txt econ-table--num">▼</td></tr>
+                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('seoul')" title="클릭 → 서울 세부 지역·단지 순위"><td><button type="button" class="btn-plain btn-inline">서울 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></button></td><td class="econ-table--num">32.4 : 1</td><td class="up-txt econ-table--num">▲</td></tr>
+                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('gyeonggi')" title="클릭 → 경기/인천 세부 지역·단지 순위"><td><button type="button" class="btn-plain btn-inline">경기/인천 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></button></td><td class="econ-table--num">8.1 : 1</td><td class="econ-table--num">—</td></tr>
+                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('metro')" title="클릭 → 지방광역시 세부 지역·단지 순위"><td><button type="button" class="btn-plain btn-inline">지방광역시 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></button></td><td class="econ-table--num">3.2 : 1</td><td class="down-txt econ-table--num">▼</td></tr>
+                <tr style="cursor:pointer;" onclick="showSubscriptionDetail('other')" title="클릭 → 기타 지방 세부 지역·단지 순위"><td><button type="button" class="btn-plain btn-inline">기타 지방 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></button></td><td class="econ-table--num">1.1 : 1</td><td class="down-txt econ-table--num">▼</td></tr>
               </tbody>
             </table>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;text-align:right;">출처: <a href="https://www.applyhome.co.kr" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">청약홈</a></div>
@@ -3871,7 +3919,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
 
         <!-- 카테고리별 한국 부동산 상세 지표 (미국 부동산 페이지와 동일한 구조) -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 가격 지수 -->
           <div class="widget">
             <div class="widget-title">🏠 가격 지수</div>
@@ -3943,7 +3991,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
 
         <!-- 거래량 / 공급 그룹 -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
@@ -3998,7 +4046,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
 
         <!-- 한국 부동산 추가 데이터 안내 -->
-        <div class="widget" style="margin-bottom:16px;padding:14px;background:var(--c-card);border:1px solid var(--c-accent-container);">
+        <div class="widget pad-14" style="margin-bottom:16px;background:var(--c-card);border:1px solid var(--c-accent-container);">
           <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">📌 추가 데이터 수집에 필요한 API</div>
           <ul style="margin:0;padding-left:18px;font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.8;">
             <li><strong style="color:var(--c-txt);">한국부동산원 R-ONE OpenAPI</strong> — 전국주택가격동향조사 매매/전세 가격지수·부동산거래현황 (REALESTATE_API_KEY 필요)</li>
@@ -4023,23 +4071,23 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 미국 부동산 탭 -->
       <div id="re-us" style="display:none;">
         <!-- 1) 핵심 KPI 카드 4개 -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-          <div class="kpi-card" style="border-left:3px solid var(--c-accent);">
+        <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
+          <div class="kpi-card accent-l">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Case-Shiller HPI (전국)</div>
             <div id="usKpiCaseShiller" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
             <div id="usKpiCaseShillerChg" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:4px;">FRED: CSUSHPINSA</div>
           </div>
-          <div class="kpi-card" style="border-left:3px solid var(--c-down);">
+          <div class="kpi-card accent-l-down">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">30년 모기지 금리</div>
             <div id="usKpiMortgage30" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
             <div id="usKpiMortgage30Chg" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:4px;">Freddie Mac (FRED)</div>
           </div>
-          <div class="kpi-card" style="border-left:3px solid #f5a623;">
+          <div class="kpi-card accent-l-warn">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">NAHB 주택시장지수</div>
             <div id="usKpiNahb" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
             <div id="usKpiNahbChg" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:4px;">월간 발표 (FRED)</div>
           </div>
-          <div class="kpi-card" style="border-left:3px solid var(--c-up);">
+          <div class="kpi-card accent-l-up">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">주택착공 (Housing Starts)</div>
             <div id="usKpiHousingStarts" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
             <div id="usKpiHousingStartsChg" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:4px;">천 호 (FRED: HOUST)</div>
@@ -4052,32 +4100,32 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div class="widget-title" style="margin-bottom:0;">미국 지역별 Case-Shiller 등락률 (전월比, %) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭/호버 → 추이</span></div>
             <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">2026년 4월 기준 · OpenStreetMap</span>
           </div>
-          <div id="usReRegionOsmContainer" style="position:relative;height:300px;">
+          <div class="h-300" id="usReRegionOsmContainer" style="position:relative">
             <div id="usReRegionOsmMap" style="width:100%;height:100%;border-radius:var(--r-sm);overflow:hidden;"></div>
           </div>
         </div>
 
         <!-- 2) 비교 차트: 전월比 변화율 (한눈에 보는 상승/하락) + 모기지 금리 비교 -->
-        <div style="display:grid;grid-template-columns:3fr 2fr;gap:12px;margin-bottom:16px;">
+        <div class="g-3-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
               <div class="widget-title" style="margin-bottom:0;">📊 전월比 변화율 (한눈에 비교)</div>
               <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">초록 = 상승 / 빨강 = 하락</span>
             </div>
-            <div style="position:relative;height:240px;">
+            <div class="h-240" style="position:relative">
               <canvas id="usReChangeChart" role="img" aria-label="미국 부동산 지표 전월 비교"></canvas>
             </div>
           </div>
           <div class="widget">
             <div class="widget-title">🏦 모기지 금리 (30년 vs 15년)</div>
-            <div style="position:relative;height:240px;">
+            <div class="h-240" style="position:relative">
               <canvas id="usReMortgageChart" role="img" aria-label="모기지 금리 비교"></canvas>
             </div>
           </div>
         </div>
 
         <!-- 3) 카테고리별 지표 그룹 -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 가격 지수 -->
           <div class="widget">
             <div class="widget-title">🏠 주택 가격 지수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열 차트</span></div>
@@ -4150,7 +4198,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
 
         <!-- 4) 거래량 / 공급 그룹 -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 거래량 -->
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></div>
@@ -4346,7 +4394,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">주식 / 채권 / 대체투자 / 기타·혼합 — 비중 정규화(100%) 기준</span>
           </span>
         </summary>
-        <div style="position:relative;height:230px;margin-top:10px;">
+        <div class="h-230" style="position:relative;margin-top:10px">
           <canvas id="globalAllocCompareChart" role="img" aria-label="글로벌 연기금 자산배분 교차 비교">자산배분 비교 차트</canvas>
         </div>
         <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;">
@@ -4366,7 +4414,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- KPI 카드 4개 — 항상 표시 -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+      <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
         <div class="kpi-card">
           <div class="widget-title">총 운용 자산</div>
           <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">1,326.0<span style="font-size:var(--font-size-base);">조원</span></div>
@@ -4391,7 +4439,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- ===== 운용 현황 탭 ===== -->
       <div id="nps-overview">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <div class="widget-title" style="margin-bottom:0;" id="npsReturnChartTitle">연도별 수익률 (%) — 공식 발표</div>
@@ -4400,7 +4448,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <button onclick="setNpsReturnView('quarterly',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기별</button>
               </div>
             </div>
-            <div style="position:relative;height:260px;">
+            <div class="h-260" style="position:relative">
               <canvas id="npsReturnChart" role="img" aria-label="국민연금 연도별 수익률">수익률 차트</canvas>
             </div>
           </div>
@@ -4409,7 +4457,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <div class="widget-title" style="margin-bottom:0;">총 운용자산 추이 (조원)</div>
               <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
-            <div style="position:relative;height:260px;">
+            <div class="h-260" style="position:relative">
               <canvas id="npsAumChart" role="img" aria-label="총 운용자산 추이">AUM 차트</canvas>
             </div>
           </div>
@@ -4443,10 +4491,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- ===== 자산 배분 탭 ===== -->
       <div id="nps-allocation" style="display:none;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="widget">
             <div class="widget-title">자산 배분 현황 (2026년 3월말)</div>
-            <div style="position:relative;height:300px;">
+            <div class="h-300" style="position:relative">
               <canvas id="npsAllocationChart" role="img" aria-label="국민연금 자산배분">자산배분 차트</canvas>
             </div>
           </div>
@@ -4483,13 +4531,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             시작 연도를 클릭하고, 끝 연도를 클릭하면 구간별 증감률이 표시됩니다. (<button onclick="clearNpsMeasure()" style="background:transparent;border:none;color:var(--c-down);cursor:pointer;font-size:var(--font-size-sm);padding:0;">측정 초기화</button>)
           </div>
           <div id="npsMeasureResult" style="display:none;font-size:var(--font-size-sm);margin-bottom:6px;padding:6px 8px;background:var(--c-bg);border-radius:var(--r-xs);"></div>
-          <div style="position:relative;height:260px;">
+          <div class="h-260" style="position:relative">
             <canvas id="npsAllocationTrendChart" role="img" aria-label="자산배분 추이">배분 추이</canvas>
           </div>
           <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;">출처: 국민연금공단 기금운용본부 연차보고서 (2015~2024)</div>
         </div>
         <!-- Top 10 보유 종목 -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+        <div class="g-2" style="display:grid;gap:12px;margin-top:12px;">
           <div class="widget">
             <div class="widget-title">국내주식 Top 10 보유 종목 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">(2024Q3 기준, 공시 기반)</span></div>
             <table class="econ-table">
@@ -4521,7 +4569,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 공식 자료 링크 -->
       <div class="widget">
         <div class="widget-title">공식 자료 바로가기</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+        <div class="g-3" style="display:grid;gap:10px;">
           <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
               <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-primary);margin-bottom:4px;">기금운용 현황</div>
@@ -4579,7 +4627,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <p style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글을 키워드로 찾고 원문을 JSON으로 내려받습니다.</p>
       <div class="mer-searchbar">
         <input id="merQ" type="search" placeholder="예: 물가, 환율, 미국채 10년물" aria-label="검색어"
-               style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 10px;color:var(--c-txt);font-size:var(--font-size-base);"
+               style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 10px;font-size:var(--font-size-base);"
                onkeydown="if(event.key==='Enter')merblogSearch()">
         <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;"><input id="merLive" type="checkbox"> 전체기간 검색(라이브)</label>
         <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">정렬

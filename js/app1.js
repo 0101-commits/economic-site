@@ -658,11 +658,11 @@ function tickerClick(name) {
 function buildTicker() {
   const items = [...tickerData,...tickerData].map(d=>{
     const cc = d.up===null?'color:var(--c-txt-dim)':d.up?'color:var(--c-up)':'color:var(--c-down)';
-    return `<span class="ticker-item" onclick="tickerClick('${d.name.replace(/'/g,"\\'")}')" style="font-size:var(--font-size-sm);display:inline-flex;gap:6px;align-items:center;">
+    return `<button type="button" class="ticker-item btn-plain btn-inline" onclick="tickerClick('${d.name.replace(/'/g,"\\'")}')" style="font-size:var(--font-size-sm);display:inline-flex;gap:6px;align-items:center;">
       <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);text-transform:uppercase;">${d.name}</span>
       <span style="color:var(--c-txt);font-weight:var(--font-weight-medium);">${d.val}</span>
       <span style="${cc};font-size:var(--font-size-sm);">${d.chg}</span>
-    </span>`;
+    </button>`;
   }).join('');
   document.getElementById('ticker').innerHTML = items;
 }
@@ -1838,10 +1838,21 @@ function closeInfoModal() {
 // ── 전역 키보드 접근성: 동적 렌더된 onclick div/span 보강 + Enter/Space 위임 ──
 (function(){
   const INTERACTIVE=/^(A|BUTTON|INPUT|SELECT|TEXTAREA|LABEL|SUMMARY|OPTION)$/;
+  // 표 안에서 role="button" 은 유효하지 않은 역할이다(row/cell 구조를 깬다).
+  // 클릭 가능한 행은 대표 칸에 진짜 <button> 이 들어 있고, click 이 행으로
+  // 버블링되어 같은 핸들러가 돈다 — 행 자체를 포커스 대상으로 만들지 않는다(P5).
+  const TABLE=/^(TR|TD|TH|TBODY|THEAD|TABLE)$/;
   function mark(el){
-    if(INTERACTIVE.test(el.tagName)) return;
+    if(INTERACTIVE.test(el.tagName) || TABLE.test(el.tagName)) return;
+    // 배경 클릭으로 닫는 백드롭·장식 요소는 컨트롤이 아니다
+    if(el.getAttribute('aria-hidden')==='true') return;
     const oc=el.getAttribute('onclick')||'';
     if(/event\.target\s*===\s*this/.test(oc)) return;
+    // 버블링만 막는 핸들러는 아무 동작도 하지 않는다 — 포커스 대상이 되면 안 된다
+    if(/^\s*event\.stopPropagation\(\);?\s*$/.test(oc)) return;
+    // 안에 다른 컨트롤(버튼·링크·입력)이 있으면 이 요소는 버튼이 될 수 없다.
+    // 그런 컨테이너는 대표 요소를 <button> 으로 두고 click 을 버블링시킨다(P5).
+    try { if(el.querySelector('button,a[href],input,select,textarea')) return; } catch(_){}
     if(!el.hasAttribute('tabindex')) el.setAttribute('tabindex','0');
     if(!el.hasAttribute('role')) el.setAttribute('role','button');
   }
@@ -4541,7 +4552,7 @@ function buildFxPage() {
     const h52d = (h52v*dm).toFixed(dec);
     const l52d = (l52v*dm).toFixed(dec);
     return `<tr style="border-bottom:1px solid var(--c-border);cursor:pointer;${i===fxCurrentPair?'border-left:2px solid var(--c-accent)':''}" onclick="selectFxPair(${i},this)">
-      <td style="padding:8px 0;font-weight:var(--font-weight-medium);">${r.displayTitle||r.pair}</td>
+      <td style="padding:8px 0;font-weight:var(--font-weight-medium);"><button type="button" class="btn-plain btn-inline">${r.displayTitle||r.pair}</button></td>
       <td style="text-align:right;padding:8px;">${dispCur}</td>
       <td style="text-align:right;padding:8px;" class="${r.chg>=0?'up-txt':'down-txt'}">${r.chg>=0?'+':''}${(r.chg*dm).toFixed(2)}</td>
       <td style="text-align:right;padding:8px;">${fmtChg(r.pct)}</td>
@@ -4764,7 +4775,7 @@ async function buildBondTimeSeriesFromYC(cc, bondItem) {
 }
 
 function setBondPeriod(p, btn) {
-  document.querySelectorAll('#market-bond .tab-btn').forEach(b=>{b.classList.remove('active');b.style.background='transparent';b.style.color='var(--c-txt-dim)';});
+  document.querySelectorAll('#market-bond .tab-btn').forEach(b=>{b.classList.remove('active');});
   btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='#fff';
   bondPeriodN = p==='1M'?21:p==='3M'?63:252;
   if(bondAllSeries) buildBondChart(bondAllSeries.slice(-bondPeriodN));
@@ -4776,7 +4787,7 @@ function buildBondPage() {
   const tb = document.getElementById('bondTable');
   if(tb) tb.innerHTML = bondItems.map((b,i)=>`
     <tr onclick="selectBond(${i},this)" style="border-bottom:1px solid var(--c-border);cursor:pointer;${i===bondCurrentIdx?'border-left:2px solid var(--c-accent)':''}" title="클릭하면 차트 업데이트">
-      <td style="padding:8px 4px;">${b.label}</td>
+      <td style="padding:8px 4px;"><button type="button" class="btn-plain btn-inline">${b.label}</button></td>
       <td style="text-align:right;padding:8px;">${b.rate}</td>
       <td style="text-align:right;padding:8px;" class="${b.chg.startsWith('-')?'down-txt':'up-txt'}">${b.chg}</td>
       <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${b.w1}</td>
@@ -5007,7 +5018,7 @@ function buildGlobalBondTable() {
     const isSel = b.cc === highlightCC;
     const bg = isSel ? 'background:#2962ff11;border-left:2px solid var(--c-accent);' : '';
     return `<tr onclick="selectGlobalBondCountry('${b.cc}')" title="${b.country} 국채 차트로 보기" style="border-bottom:1px solid var(--c-border);cursor:pointer;${bg}">
-      <td style="padding:8px;">${b.flag} ${b.country}</td>
+      <td style="padding:8px;"><button type="button" class="btn-plain btn-inline">${b.flag} ${b.country}</button></td>
       <td style="text-align:right;padding:8px;font-weight:var(--font-weight-semibold);">${b.y10}</td>
       <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${b.y2}</td>
       <td style="text-align:right;padding:8px;color:${sprdClr};">${b.spread}%p</td>
@@ -5318,7 +5329,7 @@ function setInvestorPeriod(p, btn) {
 function buildEquityPage() {
   // 카드 컴팩트 디자인 — 한눈에 더 많이 보이게
   document.getElementById('equityCards').innerHTML = eqData.map(d=>`
-    <div class="kpi-card" style="padding:8px 10px;">
+    <div class="kpi-card pad-8-10">
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:6px;">
         <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;">${d.name}</div>
         <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:var(--font-size-sm);font-weight:var(--font-weight-medium);white-space:nowrap;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
@@ -5433,7 +5444,7 @@ function buildEquityRankings() {
   const fmtAmt = v => v == null ? '—' : (v >= 1e12 ? (v/1e12).toFixed(1)+'조' : Math.round(v/1e8).toLocaleString()+'억');
   const row = (s, i) => `<tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="equityOpenStockAnalysis('${s.code}','${String(s.name||'').replace(/['"<>\\\\]/g,'')}')" title="종목 분석으로 이동">
       <td style="padding:4px 5px;color:var(--c-txt-muted);">${i+1}</td>
-      <td style="padding:4px 5px;font-weight:var(--font-weight-medium);">${s.name}${s.type && s.type !== 'STOCK' ? ` <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">${s.type}</span>` : ''}</td>
+      <td style="padding:4px 5px;font-weight:var(--font-weight-medium);"><button type="button" class="btn-plain btn-inline">${s.name}${s.type && s.type !== 'STOCK' ? ` <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">${s.type}</span>` : ''}</button></td>
       <td style="text-align:right;padding:4px 5px;color:${(s.chg||0) >= 0 ? window.CUP : window.CDN};">${(s.chg||0) >= 0 ? '+' : ''}${(s.chg||0).toFixed(2)}%</td>
       <td style="text-align:right;padding:4px 5px;color:var(--c-txt-dim);">${fmtAmt(s.amount)}</td>
     </tr>`;
@@ -5926,11 +5937,11 @@ let ensoForecastsExpanded = false;
 function toggleEnsoForecasts() { ensoForecastsExpanded = !ensoForecastsExpanded; renderEnsoCard(); }
 function ensoForecastsHTML(expanded) {
   const head = `
-    <div onclick="toggleEnsoForecasts()" style="cursor:pointer;display:flex;align-items:center;gap:6px;margin-top:14px;padding-top:10px;border-top:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;">
+    <button type="button" class="btn-plain" onclick="toggleEnsoForecasts()" style="cursor:pointer;display:flex;align-items:center;gap:6px;margin-top:14px;padding-top:10px;border-top:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;">
       <span>🌐 다른 기관 예측 더 보기</span>
       <span style="color:var(--c-txt-muted);font-weight:var(--font-weight-semibold);">IRI · ECMWF · JMA</span>
       <span style="margin-left:auto;color:var(--c-txt-muted);">${expanded ? '▲' : '▼'}</span>
-    </div>`;
+    </button>`;
   if (!expanded) return head;
   // NOAA CPC·CFSv2(embed)는 상단 '🔮 공식 예측' 패널로 승격됨 — 여기선 링크 전용 기관만.
   const link = (s) => `<a href="${s.page}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">${s.label} ↗</a>`;
@@ -6107,7 +6118,7 @@ function ensoTrendForecastHTML(live){
   if (hasFc) {
     forecastBlock = `
     <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">🔮 공식 예측 <span style="font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">(NOAA CPC·IRI 확률 — 향후 분기별 국면 전망)</span></div>
-    <div style="position:relative;height:230px;margin-bottom:6px;"><canvas role="img" aria-label="엘니뇨·라니냐 공식 예측 차트" id="ensoForecastChart"></canvas></div>
+    <div class="h-230" style="position:relative;margin-bottom:6px;"><canvas role="img" aria-label="엘니뇨·라니냐 공식 예측 차트" id="ensoForecastChart"></canvas></div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:6px;">
       ${chip(window.CDN,'엘니뇨')}${chip('#8b90a8','중립')}${chip(getThemeColors().accent,'라니냐')}
       <span>막대=각 분기 확률 합 100% · 막대 클릭/hover=상세</span>
@@ -6242,7 +6253,7 @@ function _ensoComBar(c){
             :        `left:calc(50% - 7px);width:14px;`;
   const dirTxt = up ? '▲ 상승압력' : down ? '▼ 하락압력' : '↔ 혼조';
   const volTxt = {'高':'높음','中':'중간','低':'낮음'}[c.vol] || c.vol;
-  return `<div class="enso-com-row" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border);cursor:pointer;">
+  return `<button type="button" class="enso-com-row btn-plain" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--c-border);cursor:pointer;">
     <div style="min-width:88px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">${c.name}</div>
     <div style="position:relative;flex:1;height:16px;background:var(--c-bg);border-radius:4px;">
       <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--c-border);"></div>
@@ -6251,7 +6262,7 @@ function _ensoComBar(c){
     <div style="min-width:64px;text-align:right;font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:${color};">${dirTxt}</div>
     <div style="min-width:16px;font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:var(--c-txt-muted);">${c.vol}</div>
     <span class="enso-chev" style="min-width:12px;font-size:var(--font-size-xs);color:var(--c-txt-muted);">▼</span>
-  </div>
+  </button>
   <div class="enso-com-detail">
     <div style="padding:8px 4px 10px;display:flex;flex-direction:column;gap:5px;font-size:var(--font-size-sm);line-height:1.65;">
       <div style="color:var(--c-txt-dim);"><b style="color:var(--c-txt);">핵심 근거</b> · ${c.note}</div>
@@ -6269,13 +6280,13 @@ function _ensoSectorCols(sectors){
   const mix = sectors.filter(x=>x.effect!=='pos' && x.effect!=='neg');
   const card = (x,color)=>{
     const eff = x.effect==='pos' ? 'pos' : x.effect==='neg' ? 'neg' : 'mixed';
-    return `<div class="enso-com-row" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');" style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${color};border-radius:var(--r-xs);padding:6px 9px;cursor:pointer;">
+    return `<button type="button" class="enso-com-row btn-plain" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');" style="background:var(--c-bg);border:1px solid var(--c-border);border-left:3px solid ${color};border-radius:var(--r-xs);padding:6px 9px;cursor:pointer;">
       <div style="display:flex;align-items:center;gap:6px;">
         <div style="flex:1;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">${x.sector}</div>
         <span class="enso-chev" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▼</span>
       </div>
       <div style="font-size:var(--font-size-sm);color:var(--c-primary);line-height:1.45;margin-top:1px;">${x.tickers}</div>
-    </div>
+    </button>
     <div class="enso-com-detail" style="margin-bottom:6px;">
       <div style="padding:7px 9px 9px;font-size:var(--font-size-sm);line-height:1.6;color:var(--c-txt-dim);background:var(--c-bg);border:1px solid var(--c-border);border-top:none;border-left:3px solid ${color};border-radius:0 0 var(--r-xs) var(--r-xs);">
         <b style="color:${color};">${ENSO_EFFLAB[eff]}</b> · ${x.note}
@@ -6301,7 +6312,7 @@ function renderEnsoCard() {
     tabsEl.innerHTML = Object.keys(ENSO_SCENARIOS).map(k => {
       const on = k === ensoCurrent;
       const s = ENSO_SCENARIOS[k];
-      return `<button class="tab-btn${on ? ' active' : ''}" onclick="setEnsoScenario('${k}',this)" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;background:${on ? 'var(--c-accent)' : 'transparent'};color:${on ? '#fff' : 'var(--c-txt-dim)'};">${s.tab}</button>`;
+      return `<button class="tab-btn${on ? ' active' : ''}" onclick="setEnsoScenario('${k}',this)" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;">${s.tab}</button>`;
     }).join('');
   }
   // 분석 렌즈에 따라 본문 분기 — 'sector'(기존 ①②) | 'macro'(신규 시간축 거시 파급)
@@ -6328,7 +6339,7 @@ function ensoSectorHTML(phaseKey, _live) {
   if (ensoComSort === 'vol')       _coms.sort((a,b)=>(VOLRANK[b.vol]||0)-(VOLRANK[a.vol]||0));
   else if (ensoComSort === 'dir')  _coms.sort((a,b)=>(DIRRANK[a.dir]||9)-(DIRRANK[b.dir]||9));
   else if (ensoComSort === 'name') _coms.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
-  const _comSel = (fn,val,opts)=>`<select onchange="${fn}(this.value)" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);font-size:var(--font-size-xs);padding:2px 6px;cursor:pointer;">${opts.map(([v,l])=>`<option value="${v}"${v===val?' selected':''}>${l}</option>`).join('')}</select>`;
+  const _comSel = (fn,val,opts)=>`<select onchange="${fn}(this.value)" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);font-size:var(--font-size-xs);padding:2px 6px;cursor:pointer;">${opts.map(([v,l])=>`<option value="${v}"${v===val?' selected':''}>${l}</option>`).join('')}</select>`;
   const comControls = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
     <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-bold);">필터</span>
     ${_comSel('setEnsoComFilter',ensoComFilter,[['all','전체 변동성'],['高','높음(高)'],['中','중간(中)'],['低','낮음(低)']])}
@@ -6862,7 +6873,7 @@ function initMacroTopicPage(topic) {
         }).join('')}
         <button onclick="selectAllMacroTopicCountries('${topic}')" style="font-size:var(--font-size-xs);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;margin-left:8px;">전체</button>
       </div>
-      <div style="position:relative;height:280px;"><canvas id="${m.id}"></canvas></div>
+      <div class="h-280" style="position:relative;"><canvas id="${m.id}"></canvas></div>
       <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;text-align:right;">참고: 대표 통계 데이터 (각국 통계청 / OECD)</div>
     </div>`;
   const d0 = macroData['kr'];
@@ -6936,7 +6947,7 @@ function selectAllMacroTopicCountries(topic) {
 }
 function setMacroTab(t,btn){
   macroTab=t;
-  document.querySelectorAll('#macroCountryTabs .tab-btn').forEach(b=>{b.classList.remove('active');b.style.background='transparent';b.style.color='var(--c-txt-dim)';});
+  document.querySelectorAll('#macroCountryTabs .tab-btn').forEach(b=>{b.classList.remove('active');});
   btn.classList.add('active');btn.style.background='var(--c-accent)';btn.style.color='#fff';
   initMacroPage(t);
   // 국가별 뉴스 필터 자동 적용
@@ -7233,7 +7244,7 @@ function buildMacroIndicatorTable() {
     return;
   }
   // 카테고리별 카드 그룹 렌더링 — 카테고리 내에서 다시 토픽별로 sub-grouping
-  const html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">` + cats.map(cat => {
+  const html = `<div class="g-2" style="display:grid;gap:14px;">` + cats.map(cat => {
     const color = macroCatColors[cat] || '#8d90a2';
     // 카테고리 내 indicators 를 토픽별로 다시 그룹화
     const catItems = byCat[cat];
@@ -7262,14 +7273,14 @@ function buildMacroIndicatorTable() {
             }
           }
           const indIdx = macroIndicators.indexOf(r);
-          return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:6px 9px;background:rgba(255,255,255,0.03);border-radius:var(--r-sm);border:1px solid rgba(255,255,255,0.06);cursor:pointer;" title="${r.name} · ${r.src} · ${unitStr||''}${periodStr!=='—'?' · '+periodStr:''}">
-            <div style="font-size:var(--font-size-sm);color:var(--c-txt);">${r.cc}</div>
-            <div style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:${valColor};">${staleMark}${valStr}</div>
-          </div>`;
+          return `<button type="button" class="clickable-card btn-plain" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:6px 9px;background:rgba(255,255,255,0.03);border-radius:var(--r-sm);border:1px solid rgba(255,255,255,0.06);cursor:pointer;" title="${r.name} · ${r.src} · ${unitStr||''}${periodStr!=='—'?' · '+periodStr:''}">
+            <span style="display:block;font-size:var(--font-size-sm);color:var(--c-txt);">${r.cc}</span>
+            <span style="display:block;font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:${valColor};">${staleMark}${valStr}</span>
+          </button>`;
         }).join('');
         return `<div style="background:rgba(255,255,255,0.02);border-radius:var(--r-sm);padding:8px;border-left:3px solid ${color};">
           <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:${color};margin-bottom:6px;">${topic} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">· ${items.length}개국</span></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">${cards}</div>
+          <div class="g-2" style="display:grid;gap:4px;">${cards}</div>
         </div>`;
       }
       // 단일 국가 → 기존 카드 스타일
@@ -7292,7 +7303,7 @@ function buildMacroIndicatorTable() {
       const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:var(--font-size-xs);padding:2px 6px;background:var(--c-accent)22;color:var(--c-accent);border:1px solid var(--c-accent)55;border-radius:var(--r-xs);text-decoration:none;">📎 ${r.linkLabel||'최신 보고서'} →</a>` : '';
       return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:rgba(255,255,255,0.03);border-radius:var(--r-sm);border-left:3px solid ${color};cursor:pointer;" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">${r.cc} ${r.name} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+          <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);"><button type="button" class="btn-plain btn-inline">${r.cc} ${r.name} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></button></div>
           <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;line-height:1.4;">${srcStr} · ${r.freq} · ${periodStr}</div>
           ${unitStr ? `<div style="font-size:var(--font-size-xs);color:var(--c-primary);margin-top:1px;">단위: ${unitStr}</div>`:''}
           ${linkBtn}
@@ -7302,8 +7313,8 @@ function buildMacroIndicatorTable() {
         </div>
       </div>`;
     }).join('');
-    return `<div class="widget" style="padding:14px;">
-      <div class="widget-title" style="color:${color};font-size:var(--font-size-sm);letter-spacing:.08em;">📊 ${cat}</div>
+    return `<div class="widget pad-14">
+      <div class="widget-title" style="font-size:var(--font-size-sm);letter-spacing:.08em;">📊 ${cat}</div>
       <div style="display:flex;flex-direction:column;gap:10px;">${topicHtml}</div>
     </div>`;
   }).join('') + `</div>`;
@@ -7465,7 +7476,7 @@ function initMacroPage(t){
   };
 
   mc.innerHTML= periodRow + `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+    <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>
@@ -7473,7 +7484,7 @@ function initMacroPage(t){
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.gdpSrc,meta.gdpNext)}
         </div>
-        <div style="position:relative;height:260px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
+        <div class="h-260" style="position:relative;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
       </div>
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
@@ -7482,10 +7493,10 @@ function initMacroPage(t){
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.cpiSrc,meta.cpiNext)}
         </div>
-        <div style="position:relative;height:260px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
+        <div class="h-260" style="position:relative;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="g-2" style="display:grid;gap:12px;">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>
@@ -7493,7 +7504,7 @@ function initMacroPage(t){
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.unempSrc,meta.unempNext)}
         </div>
-        <div style="position:relative;height:260px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
+        <div class="h-260" style="position:relative;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
       </div>
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
@@ -7502,7 +7513,7 @@ function initMacroPage(t){
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.tradeSrc,meta.tradeNext)}
         </div>
-        <div style="position:relative;height:260px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
+        <div class="h-260" style="position:relative;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
       </div>
     </div>`;
   // 기간 필터 적용 (분기 기준 N개 데이터)
@@ -7641,11 +7652,13 @@ function toggleCalFilter(type, val, el) {
   if(set.has(val)) {
     if(set.size <= 1) return;   // 최소 1개는 선택 유지
     set.delete(val);
+    el.setAttribute('aria-pressed', 'false');
     el.style.background = 'var(--c-card)';
     el.style.color      = 'var(--c-txt-dim)';
     el.style.border     = '1px solid var(--c-border)';
   } else {
     set.add(val);
+    el.setAttribute('aria-pressed', 'true');
     el.style.background = 'var(--c-accent)';
     el.style.color      = '#fff';
     el.style.border     = 'none';
@@ -7738,7 +7751,7 @@ function buildCalendarGrid(filteredEvents) {
   }
 
   let html = '';
-  html += `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--c-border);border:1px solid var(--c-border);border-radius:var(--r-sm);overflow:hidden;">`;
+  html += `<div class="g-7" style="display:grid;gap:1px;background:var(--c-border);border:1px solid var(--c-border);border-radius:var(--r-sm);overflow:hidden;">`;
   // 요일 헤더
   ['일','월','화','수','목','금','토'].forEach((d,i) => {
     const clr = i===0 ? window.CDN : i===6 ? getThemeColors().accent : 'var(--c-txt-dim,#a4a8bc)';
@@ -7785,7 +7798,7 @@ function buildCalendarGrid(filteredEvents) {
       const starClr = e.stars===3 ? window.CDN : e.stars===2 ? '#f5a623' : '#8d90a2';
       const beatClr = e.beat===1 ? window.CUP : e.beat===-1 ? window.CDN : '#8d90a2';
       const ev_dot = e.act ? `<span style="color:${beatClr};">●</span>` : `<span style="color:var(--c-txt-dim);">○</span>`;
-      html += `<div onclick="showCalGridFloating(${idx}, event)" style="font-size:var(--font-size-xs);line-height:1.4;color:var(--c-txt);background:var(--c-card);border-left:2px solid ${starClr};padding:1px 4px;border-radius:var(--r-xs);margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${e.name}">${ev_dot} ${e.flag||''}${e.name.length>10?e.name.slice(0,10)+'…':e.name}</div>`;
+      html += `<button type="button" class="btn-plain" onclick="showCalGridFloating(${idx}, event)" style="font-size:var(--font-size-xs);line-height:1.4;color:var(--c-txt);background:var(--c-card);border-left:2px solid ${starClr};padding:1px 4px;border-radius:var(--r-xs);margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${e.name}">${ev_dot} ${e.flag||''}${e.name.length>10?e.name.slice(0,10)+'…':e.name}</button>`;
     });
     if(events.length > 3) {
       html += `<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);text-align:center;">+${events.length-3}</div>`;
@@ -8533,7 +8546,7 @@ function buildCalendar(){
       ${dtCell}
       <td style="text-align:center;padding:8px;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
       <td style="padding:8px;">${e.name} <span style="font-size:var(--font-size-xs);color:var(--c-primary);">↓</span></td>
-      <td style="text-align:center;padding:8px;color:#f5a623;">${'★'.repeat(e.stars)}</td>
+      <td style="text-align:center;padding:8px;color:#f5a623;"><button type="button" class="btn-plain btn-inline">${'★'.repeat(e.stars)}</button></td>
       <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${e.prev}</td>
       <td style="text-align:right;padding:8px;color:var(--c-primary);">${e.fore}</td>
       <td style="text-align:right;padding:8px;white-space:nowrap;" ${actStyle}>${e.act||'예정'}${(surp && surp.big) ? `<span title="매크로 서프라이즈 — 예측 대비 ${surp.diffLabel} (${e.beat===1?'호재':'악재'})" style="margin-left:4px;cursor:help;">⚡</span>` : ''}</td>
@@ -8891,14 +8904,14 @@ function renderNoteList(){
   el.innerHTML=notes.map(n=>`
     <div style="display:flex;align-items:flex-start;gap:6px;padding:6px 8px;border-radius:var(--r-sm);border:1px solid ${curNoteId===n.id?'var(--c-accent)':'var(--c-border)'};background:${curNoteId===n.id?'var(--c-accent-container)':'transparent'};">
       <input type="checkbox" class="note-select-cb" data-id="${n.id}" style="cursor:pointer;accent-color:var(--c-accent);margin-top:3px;flex-shrink:0;" onclick="event.stopPropagation()"/>
-      <div onclick="openNote('${n.id}')" style="flex:1;cursor:pointer;min-width:0;">
-        <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-medium);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.title||'(제목 없음)'}</div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <button type="button" class="btn-plain btn-flex" onclick="openNote('${n.id}')" style="flex:1;cursor:pointer;min-width:0;">
+        <span style="display:block;font-size:var(--font-size-sm);font-weight:var(--font-weight-medium);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.title||'(제목 없음)'}</span>
+        <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
           <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${n.date}</span>
           <span style="font-size:var(--font-size-xs);background:var(--c-accent-container);color:var(--c-primary);padding:1px 5px;border-radius:var(--r-xs);">${n.tag||'매크로'}</span>
           ${n.author?`<span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">✍ ${n.author}</span>`:''}
-        </div>
-      </div>
+        </span>
+      </button>
     </div>`).join('') || '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);text-align:center;padding:20px 0;">저장된 노트가 없습니다</div>';
 }
 function setTag(el,tag){
@@ -9386,7 +9399,7 @@ function _renderBerkshire() {
   const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : {};
   const bk = d.berkshire;
   if(!bk || !Array.isArray(bk.holdings) || !bk.holdings.length) {
-    container.innerHTML = `<div class="widget" style="text-align:center;padding:36px 20px;color:var(--c-txt-dim);font-size:var(--font-size-sm);line-height:1.9;">
+    container.innerHTML = `<div class="widget pad-36-20" style="text-align:center;color:var(--c-txt-dim);font-size:var(--font-size-sm);line-height:1.9;">
       버크셔 해서웨이 13F 보유 종목 데이터가 아직 수집되지 않았습니다.<br>
       다음 데이터 갱신(GitHub Actions 주기 실행)에서 SEC EDGAR 13F 공시를 자동 수집합니다.</div>`;
     return;
@@ -9417,7 +9430,7 @@ function _renderBerkshire() {
         <span style="font-size:var(--font-size-sm);color:var(--c-txt-dim);font-weight:var(--font-weight-normal);margin-left:8px;">출처: SEC EDGAR 13F-HR 공시</span>
       </h2>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+    <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
       <div class="kpi-card">
         <div class="widget-title">공시 주식 포트폴리오</div>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${fmtB(bk.totalValueUsd)}</div>
@@ -9474,7 +9487,7 @@ function _renderGlobalInvestor(id) {
       </h2>
     </div>
     <!-- KPI -->
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+    <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
       <div class="kpi-card">
         <div class="widget-title">총 운용 자산 (AUM)</div>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${data.aum_label}</div>
@@ -9502,14 +9515,14 @@ function _renderGlobalInvestor(id) {
       <div style="font-size:var(--font-size-base);color:var(--c-txt);line-height:1.7;">${data.summary}</div>
     </div>
     <!-- 차트 2열 -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
       <div class="widget">
         <div class="widget-title">자산 배분 현황 (${data.aum_asof})</div>
-        <div style="position:relative;height:280px;"><canvas id="${allocChartId}"></canvas></div>
+        <div class="h-280" style="position:relative;"><canvas id="${allocChartId}"></canvas></div>
       </div>
       <div class="widget">
         <div class="widget-title">최근 5년 연도별 수익률 (%)</div>
-        <div style="position:relative;height:280px;"><canvas id="${retChartId}"></canvas></div>
+        <div class="h-280" style="position:relative;"><canvas id="${retChartId}"></canvas></div>
       </div>
     </div>
     <!-- 보유 자산 / 펀드 구성 -->
@@ -9535,7 +9548,7 @@ function _renderGlobalInvestor(id) {
     <!-- 공식 링크 -->
     <div class="widget">
       <div class="widget-title">공식 자료 바로가기</div>
-      <div style="display:grid;grid-template-columns:repeat(${Math.min(data.links.length,3)},1fr);gap:10px;">
+      <div class="g-${Math.min(data.links.length,3)}" style="display:grid;gap:10px;">
         ${data.links.map(l => `
           <a href="${l.url}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
@@ -9619,7 +9632,7 @@ function buildInvestorPage() {
       const profit = +(h.aum * h.ret / 100).toFixed(1);
       const retCls = h.ret >= 0 ? 'up-txt' : 'down-txt';
       return `<tr onclick="showNpsYearDetail(${h.year})" class="hoverable-row" style="border-bottom:1px solid var(--c-border);cursor:pointer;">
-        <td style="padding:8px;">${h.year}</td>
+        <td style="padding:8px;"><button type="button" class="btn-plain btn-inline">${h.year}</button></td>
         <td style="text-align:right;padding:8px;">${h.aum.toLocaleString()}</td>
         <td style="text-align:right;padding:8px;" class="${retCls}">${h.ret>=0?'+':''}${h.ret.toFixed(2)}%</td>
         <td style="text-align:right;padding:8px;color:var(--c-primary);">${profit>=0?'+':''}${profit.toLocaleString()}</td>
@@ -9793,11 +9806,11 @@ function buildSidebarDataSources(d) {
     const dot = s.state==='online' ? '<span style="color:var(--c-up);font-size:var(--font-size-xs);">●</span>'
               : s.state==='partial' ? '<span style="color:#f5a623;font-size:var(--font-size-xs);">◐</span>'
               : '<span style="color:var(--c-down);font-size:var(--font-size-xs);">○</span>';
-    return `<div class="ds-item" onclick="showDataSourceDetail('${src.key}')" style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:var(--r-xs);cursor:pointer;color:#c4cadc;transition:background .1s;" title="클릭하여 상세 보기">
+    return `<button type="button" class="ds-item btn-plain" onclick="showDataSourceDetail('${src.key}')" style="display:flex;align-items:center;gap:6px;border-radius:var(--r-xs);cursor:pointer;color:#c4cadc;transition:background .1s;" title="클릭하여 상세 보기">
       ${dot}
       <span style="flex:1;font-size:var(--font-size-sm);">${src.name}<span style="color:#8d92aa;font-size:var(--font-size-xs);margin-left:4px;">(${src.unit})</span></span>
       <span style="font-size:var(--font-size-xs);color:#8d92aa;">›</span>
-    </div>`;
+    </button>`;
   }).join('');
 }
 
@@ -13028,11 +13041,11 @@ function _tossChipHtml() {
     ? ' · 토스 제공: ' + t.supplied.join(', ') : ' · 전 항목 폴백';
   const tip = label + ' — ' + age + (t.reason ? ' · ' + t.reason : '') + src +
               ' — 클릭하면 시스템 진단';
-  return ' <span class="health-chip" role="button" tabindex="0"' +
+  return ' <button type="button" class="health-chip btn-plain btn-inline"' +
     ' onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
     ` title="${tip.replace(/"/g, '&quot;')}"` +
     ` style="color:${col};border:1px solid ${col};border-radius:var(--r-xs);padding:0 6px;margin-left:6px;cursor:pointer;font-size:var(--font-size-xs);">` +
-    `${off ? '⛔' : '⚠'} ${label}</span>`;
+    `${off ? '⛔' : '⚠'} ${label}</button>`;
 }
 
 /* 지표 신선도 칩 — data.json.dataHealth 요약을 헤더에 노출한다.
@@ -13049,10 +13062,10 @@ function _healthChipHtml() {
   const label = ['지연 ' + (s.stale || 0),
                  s.failed ? '실패 ' + s.failed : '',
                  s.missing ? '누락 ' + s.missing : ''].filter(Boolean).join(' · ');
-  return ' <span class="health-chip" role="button" tabindex="0" onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
+  return ' <button type="button" class="health-chip btn-plain btn-inline" onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
     ` title="정상 ${s.ok} · 보존 ${s.preserved} · 지연 ${s.stale} · 실패 ${s.failed} · 누락 ${s.missing || 0} — 클릭하면 시스템 진단"` +
     ` style="color:${col};border:1px solid ${col};border-radius:var(--r-xs);padding:0 6px;margin-left:6px;cursor:pointer;font-size:var(--font-size-xs);">` +
-    `⚠ ${label}</span>`;
+    `⚠ ${label}</button>`;
 }
 // 탭 상시 오픈 사용 패턴 — 페이지 로드 시점에 동결되지 않도록 경과 시간을 1분마다 재평가
 try { setInterval(renderDataFreshness, 60000); } catch(_) {}
@@ -13997,7 +14010,7 @@ function buildRateCurrentTable() {
     const isSel = rateFilterSet.size === 1 && rateFilterSet.has(r.cc);
     const bg = isSel ? 'background:#2962ff11;border-left:2px solid var(--c-accent);' : '';
     return `<tr onclick="selectRateCountry('${r.cc}')" title="${r.country} 기준금리 차트로 보기" style="border-bottom:1px solid var(--c-border);cursor:pointer;${bg}">
-      <td style="padding:8px;">${r.flag} ${r.country}</td>
+      <td style="padding:8px;"><button type="button" class="btn-plain btn-inline">${r.flag} ${r.country}</button></td>
       <td style="text-align:right;padding:8px;font-weight:var(--font-weight-semibold);color:var(--c-primary);">${r.rate}</td>
       <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${r.prev}</td>
       <td style="text-align:right;padding:8px;color:var(--c-txt-dim);font-size:var(--font-size-sm);">${r.next}</td>

@@ -154,7 +154,7 @@ function mountGuideBanner(anchorEl, key, html, position) {
   var div = document.createElement('div');
   div.className = 'guide-banner';
   div.id = 'guide-' + key;
-  div.innerHTML = '<span>💡</span><span>' + html + '</span><span class="guide-x" onclick="dismissGuide(\'' + key + '\',this)" title="다시 보지 않기">✕</span>';
+  div.innerHTML = '<span>💡</span><span>' + html + '</span><button type="button" class="guide-x btn-plain btn-inline" onclick="dismissGuide(\'' + key + '\',this)" title="다시 보지 않기">✕</button>';
   anchorEl.insertAdjacentElement(position || 'beforebegin', div);
 }
 function _applyDefaultPresetsForActivePage() {
@@ -234,7 +234,7 @@ window.showDataSourceBanner = function () {
   div.id = 'dataSrcBanner';
   div.innerHTML = '⚠ 서버 데이터(data.json)를 불러오지 못해 <b>예시(Mock) 데이터</b>로 표시 중입니다.' +
     '<button onclick="retryLoadRealData(this)" style="font-size:var(--font-size-sm);padding:2px 10px;border:1px solid var(--c-warn);border-radius:var(--r-xs);background:transparent;color:var(--c-warn);cursor:pointer;">↻ 재시도</button>' +
-    '<span style="cursor:pointer;font-weight:var(--font-weight-bold);padding:0 2px;" onclick="this.parentNode.remove()" title="닫기">✕</span>';
+    '<button type="button" class="btn-plain btn-inline" style="cursor:pointer;font-weight:var(--font-weight-bold);padding:0 2px;" onclick="this.parentNode.remove()" title="닫기">✕</button>';
   document.body.appendChild(div);
 };
 window.retryLoadRealData = async function (btn) {
@@ -398,10 +398,10 @@ window.pfRenderCards = function () {
             ' (' + (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2) + '%)</span>';
     }
     return '<div class="pf-card">' +
-      '<div class="pf-card-head" onclick="pfOpenChart(\'' + it.id + '\')">' +
+      '<button type="button" class="pf-card-head btn-plain" onclick="pfOpenChart(\'' + it.id + '\')">' +
         '<span><span class="pf-card-name">' + pfEsc(it.name || it.symbol) + '</span><span class="pf-card-sym">' + pfEsc(it.symbol) + '</span></span>' +
         '<span style="text-align:right;"><span style="font-family:\'Public Sans\';color:var(--c-txt);font-size:var(--font-size-base);">' + (q ? pfFmtPrice(q.price, q.ccy) : '로딩…') + '</span><br>' + (q ? pfChgHtml(q.pct) : '-') + '</span>' +
-      '</div>' +
+      '</button>' +
       '<div class="pf-card-grid">' +
         '<div><label>평단가</label><input type="number" step="any" min="0" value="' + (it.avg != null ? it.avg : '') + '" placeholder="-" onchange="pfUpdateItemField(\'' + it.id + '\',\'avg\',this.value,this)"></div>' +
         '<div><label>수량</label><input type="number" step="any" min="0" value="' + (it.qty != null ? it.qty : '') + '" placeholder="-" onchange="pfUpdateItemField(\'' + it.id + '\',\'qty\',this.value,this)"></div>' +
@@ -633,7 +633,7 @@ function pfExportCsv() {
     card.innerHTML =
       '<div style="font-size:var(--font-size-md);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">🔒 잠긴 페이지</div>' +
       '<div style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-bottom:14px;">' + (id === 'settings' ? '설정' : '투자 현황') + ' 페이지는 비밀번호가 필요합니다.</div>' +
-      '<input type="password" inputmode="numeric" autocomplete="off" aria-label="비밀번호" style="width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:8px 10px;font-size:var(--font-size-md);">' +
+      '<input type="password" inputmode="numeric" autocomplete="off" aria-label="비밀번호" style="width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:8px 10px;font-size:var(--font-size-md);">' +
       '<div data-lock-err style="display:none;color:var(--c-down,#e05555);font-size:var(--font-size-xs);margin-top:6px;">비밀번호가 올바르지 않습니다.</div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">' +
         '<button data-lock-cancel style="border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);border-radius:var(--r-xs);padding:6px 14px;font-size:var(--font-size-sm);cursor:pointer;">취소</button>' +

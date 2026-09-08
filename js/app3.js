@@ -713,17 +713,17 @@ function styRenderList() {
   el.innerHTML = ss.map(function(s) {
     const nFile = (s.files || []).length + (s.links || []).length;
     const open = (s.actions || []).filter(function(a) { return !a.done; }).length;
-    return '<div class="study-list-item' + (s.id === _styState.curId ? ' active' : '') + '"' +
-      ' role="button" tabindex="0" onclick="styOpen(\'' + s.id + '\')"' +
-      ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">' +
-      '<div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-        escapeHtml(s.title || '(제목 없음)') + '</div>' +
-      '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">' +
+    return '<button type="button" class="study-list-item' + (s.id === _styState.curId ? ' active' : '') + ' btn-plain"' +
+      ' onclick="styOpen(\'' + s.id + '\')"' +
+      '>' +
+      '<span style="display:block;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+        escapeHtml(s.title || '(제목 없음)') + '</span>' +
+      '<span style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">' +
         '<span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">' + escapeHtml(s.date || '') + '</span>' +
         (nFile ? '<span class="study-badge">📎 ' + nFile + '</span>' : '') +
         (open ? '<span class="study-badge" style="background:color-mix(in srgb,var(--c-warn) 22%,transparent);color:var(--c-warn);">☐ ' + open + '</span>' : '') +
         (s.tags || []).slice(0, 2).map(function(t) { return '<span class="study-badge">#' + escapeHtml(t) + '</span>'; }).join('') +
-      '</div></div>';
+      '</span></button>';
   }).join('');
 }
 
@@ -1150,8 +1150,9 @@ function _styRenderNotes(txt) {
     e = e.replace(/\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g, function(_m, a, b, c) {
       const sec = c != null ? (+a * 3600 + (+b) * 60 + (+c)) : ((+a) * 60 + (+b));
       const lbl = c != null ? (a + ':' + b + ':' + c) : (a + ':' + b);
-      return '<span class="study-ts" role="button" tabindex="0" onclick="stySeek(' + sec + ')"' +
-             ' onkeydown="if(event.key===\'Enter\'){stySeek(' + sec + ');}" title="이 시점으로 이동">[' + lbl + ']</span>';
+      // 실제 버튼이라 onkeydown 을 두지 않는다 — Enter 는 브라우저가 click 으로 낸다
+      return '<button type="button" class="study-ts btn-plain btn-inline" onclick="stySeek(' + sec + ')"' +
+             ' title="이 시점으로 이동">[' + lbl + ']</button>';
     });
     e = e.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
     if(/^#{2}\s+/.test(ln))      { close(); html += '<div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);margin:10px 0 4px;color:var(--c-txt-dim);">' + e.replace(/^##\s+/, '') + '</div>'; }
@@ -1950,7 +1951,10 @@ var WCOLLAPSE_LS = 'econ_widget_collapse_v2';
 var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트'];   // 제목 부분일치(모든 폭)
 // 모바일(<768)에서만 기본 접힘 — L3(차트·등락·뉴스)은 '왜·어떻게'를 묻는 층이라
 // 첫 스크롤에서 답할 필요가 없다. 사용자가 펼치면 그 선택은 저장된다.
-var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 지수', '등락 Top10', '최신 경제 뉴스'];
+// L2(지수표·분위기)까지 넣은 이유: 390 폭에서 L1+L2 만으로 1,600px 를 써서 홈이
+// 3.7 화면이었다. 값 자체는 상단 브리핑 스트립·KPI 4카드가 이미 한 줄로 보여준다.
+var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 지수', '등락 Top10', '최신 경제 뉴스',
+                                          '글로벌 주요 지수', '시장 분위기'];
 function _wcLoadMap(){
   try { return JSON.parse(localStorage.getItem(WCOLLAPSE_LS) || '{}') || {}; } catch(_) { return {}; }
 }
@@ -1977,9 +1981,22 @@ function _wcSave(s){
   s.forEach(k => { m[k] = 'collapsed'; });
   _wcSaveMap(m);
 }
+// 제목 텍스트 — 안에 든 아이콘 버튼('refresh' 리거처) 텍스트는 뺀다
+function _wcLabel(t){
+  try {
+    var c = t.cloneNode(true);
+    c.querySelectorAll('button,a,select,input,.w-fresh-chip').forEach(function(x){ x.remove(); });
+    return (c.textContent || '').trim().slice(0, 30);
+  } catch(_) { return (t.textContent || '').trim().slice(0, 30); }
+}
 function _wcSetState(w, t, collapsed){
   w.classList.toggle('w-collapsed', collapsed);
-  t.setAttribute('aria-expanded', String(!collapsed));
+  // aria-expanded 는 실제 버튼(.w-toggle-btn)에 둔다 — 제목 div 가 아니라.
+  var btn = t.querySelector('.w-toggle-btn');
+  if(btn){
+    btn.setAttribute('aria-expanded', String(!collapsed));
+    btn.setAttribute('aria-label', (collapsed ? '펼치기: ' : '접기: ') + _wcLabel(t));
+  }
   // 접혀 있던 동안 0px 로 그려진 Chart.js 캔버스 소생 — restoreHomeSec 패턴
   if(!collapsed){ try { window.dispatchEvent(new Event('resize')); } catch(_) {} }
 }
@@ -1990,12 +2007,27 @@ function initWidgetCollapse(){
     if(w.hasAttribute('onclick') || w.tagName === 'DETAILS') return;
     var t = w.querySelector('.widget-title');
     if(!t || t.closest('.widget') !== w) return;
-    // 타이틀이 위젯 직계(단순형)거나 직계 헤더 줄 안(헤더형)인 경우만 — 그 외 구조는 제외
-    var head = (t.parentElement === w) ? t : (t.parentElement.parentElement === w ? t.parentElement : null);
+    // 헤더 줄 = 타이틀에서 위로 올라가 위젯의 직계 자식이 되는 첫 요소.
+    // 깊이 2로 고정돼 있던 탓에 .widget > .econ-head > .econ-head__main > .widget-title
+    // 구조(메인 차트카드)가 빠져 홈 최대 위젯 770px 이 접히지 않았다.
+    var head = null;
+    for(var n = t; n && n !== w; n = n.parentElement){
+      if(n.parentElement === w){ head = n; break; }
+    }
     if(!head) return;
+    // 헤더가 위젯의 유일한 자식이면 접어도 감출 게 없다 — 클릭만 되고 아무 일도
+    // 일어나지 않는 가짜 토글이 생긴다(AI 브리핑 Callout).
+    if(w.children.length < 2) return;
     head.classList.add('w-head');
     t.classList.add('w-toggle');
-    t.setAttribute('role', 'button'); t.setAttribute('tabindex', '0');
+    // 제목 자체를 role="button" 으로 만들면, 제목 안에 든 새로고침 버튼·신선도
+    // 버튼이 '버튼 안의 버튼'이 된다(접근성 트리 파손). 전용 토글 버튼을 하나
+    // 붙이고 제목은 마우스 편의용 클릭 영역으로만 남긴다(P5).
+    var tgBtn = document.createElement('button');
+    tgBtn.type = 'button';
+    tgBtn.className = 'w-toggle-btn btn-plain btn-inline';
+    tgBtn.setAttribute('aria-controls', w.id || '');
+    if(!w.id){ tgBtn.removeAttribute('aria-controls'); }
     var key = (w.closest('.page') ? w.closest('.page').id : 'x') + '|' + (t.textContent || '').trim().slice(0, 40);
     // 미선택(unset) 기본값 — 기본 접힘 목록에 해당하면 접은 상태로 시작한다
     var state = _wcLoadMap()[key];
@@ -2003,18 +2035,17 @@ function initWidgetCollapse(){
     var defaults = WCOLLAPSE_DEFAULT_COLLAPSED.concat(narrow ? WCOLLAPSE_DEFAULT_COLLAPSED_NARROW : []);
     var startCollapsed = state ? state === 'collapsed'
       : defaults.some(function(m){ return (t.textContent || '').indexOf(m) >= 0; });
+    t.appendChild(tgBtn);
+    tgBtn.addEventListener('click', function(ev){ ev.stopPropagation(); onToggle(ev); });
     _wcSetState(w, t, startCollapsed);
     function onToggle(ev){
       // 타이틀 안의 인터랙티브 요소(신선도 칩·링크·버튼)는 통과
-      if(ev.target.closest('button,a,select,input,label,.w-fresh-chip')) return;
+      if(ev.target !== tgBtn && ev.target.closest('button,a,select,input,label,.w-fresh-chip')) return;
       var willCollapse = !w.classList.contains('w-collapsed');
       _wcSetState(w, t, willCollapse);
       var s = _wcLoad(); willCollapse ? s.add(key) : s.delete(key); _wcSave(s);
     }
     t.addEventListener('click', onToggle);
-    t.addEventListener('keydown', function(ev){
-      if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); onToggle(ev); }
-    });
   });
 }
 
@@ -2122,13 +2153,13 @@ function applyWidgetFreshChips(){
     var old = t.querySelector('.w-fresh-chip');
     if(old) old.remove();
     if(!worst) return;
-    var chip = document.createElement('span');
-    chip.className = 'w-fresh-chip';
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'w-fresh-chip btn-plain btn-inline';
     chip.style.color = worst.state === 'stale' ? 'var(--c-warn,#f0c75e)' : 'var(--ind-neg)';
     chip.textContent = worst.state === 'stale' ? ('지연 ' + worst.ageDays + '일')
                      : worst.state === 'failed' ? '수집 실패' : '데이터 없음';
     chip.title = worst.path + ' — 기준일 ' + (worst.asOf || '미상') + ' · 클릭하면 시스템 진단';
-    chip.setAttribute('role', 'button'); chip.setAttribute('tabindex', '0');
     chip.addEventListener('click', function(ev){
       ev.stopPropagation();
       try { showPage('settings'); setTimeout(runDiagnostics, 300); } catch(_) {}

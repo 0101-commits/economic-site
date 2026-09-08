@@ -466,17 +466,17 @@ function pfRenderTable() {
       pnlHtml = `<span class="${cls}"${splitTitle}>${pnlKrw != null ? (pnlNative >= 0 ? '+' : '') + pfFmtKrw(pnlKrw).replace('₩', '₩') : '-'}<br>` +
                 `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%${splitTitle ? ' <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">⇄FX</span>' : ''}</span>`;
     }
-    const groupSel = `<select onchange="pfUpdateItemField('${it.id}','group',this.value)" onclick="event.stopPropagation()" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt-dim);padding:2px 4px;font-size:var(--font-size-sm);max-width:90px;">` +
+    const groupSel = `<select onchange="pfUpdateItemField('${it.id}','group',this.value)" onclick="event.stopPropagation()" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 4px;font-size:var(--font-size-sm);max-width:90px;">` +
       pfState.groups.map(g => `<option value="${g.id}"${g.id === it.group ? ' selected' : ''}>${pfEsc(g.name)}</option>`).join('') + '</select>';
     return `<tr class="hoverable-row" onclick="pfOpenChart('${it.id}')" style="border-bottom:1px solid #1f2430;cursor:pointer;text-align:right;">
-      <td style="text-align:left;padding:7px 4px;">
+      <td style="text-align:left;padding:7px 4px;"><button type="button" class="btn-plain btn-inline">
         <span style="color:var(--c-txt);font-weight:var(--font-weight-semibold);">${pfEsc(it.name || it.symbol)}</span>
         <span style="color:var(--c-txt-muted);font-size:var(--font-size-xs);margin-left:4px;">${pfEsc(it.symbol)} · ${it.market === 'KR' ? (it.secType === 'etf' ? 'ETF' : '주식') : (it.secType === 'etf' ? '미국 ETF' : '미국 주식')}</span>
-      </td>
+      </button></td>
       <td style="padding:7px 4px;font-family:var(--font-num);color:var(--c-txt);">${q ? pfFmtPrice(q.price, q.ccy) : '<span style="color:var(--c-txt-muted);">로딩…</span>'}</td>
       <td style="padding:7px 4px;">${q ? pfChgHtml(q.pct) : '-'}</td>
-      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.avg != null ? it.avg : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','avg',this.value,this)" style="width:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:3px 5px;font-size:var(--font-size-sm);text-align:right;"></td>
-      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.qty != null ? it.qty : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','qty',this.value,this)" style="width:70px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:3px 5px;font-size:var(--font-size-sm);text-align:right;"></td>
+      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.avg != null ? it.avg : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','avg',this.value,this)" style="width:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 5px;font-size:var(--font-size-sm);text-align:right;"></td>
+      <td style="padding:7px 4px;" onclick="event.stopPropagation()"><input type="number" step="any" min="0" value="${it.qty != null ? it.qty : ''}" placeholder="-" onchange="pfUpdateItemField('${it.id}','qty',this.value,this)" style="width:70px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 5px;font-size:var(--font-size-sm);text-align:right;"></td>
       <td style="padding:7px 4px;font-family:var(--font-num);color:var(--c-txt);">${evalNative != null ? pfFmtPrice(evalNative, q.ccy) : '-'}${(evalKrw != null && q && q.ccy === 'USD') ? `<br><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${pfFmtKrw(evalKrw)}</span>` : ''}</td>
       <td style="padding:7px 4px;font-size:var(--font-size-sm);">${pnlHtml}</td>
       <td style="padding:7px 4px;text-align:center;">${groupSel}</td>
