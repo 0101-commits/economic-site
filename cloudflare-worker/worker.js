@@ -962,6 +962,13 @@ function inMarketHours(d) {
   return (h <= 6) || (h >= 13 && h <= 21);
 }
 
+// 🌙 장외 보강 틱 판정 — 장외·주말에 fetch-data 를 깨울 '매시 :35' 창인지.
+//   :36 까지 받는 이유는 매분 cron 의 :35 틱이 드롭돼도 다음 분이 보강하기 때문이고,
+//   슬롯 dedup(_lastHeavySlot)이 두 분에 걸친 중복 발화를 막는다.
+//   자가 점검: node cloudflare-worker/test_offhours_tick.mjs
+export const isOffHoursFetchTick = (d) =>
+  !inMarketHours(d) && d.getUTCMinutes() >= 35 && d.getUTCMinutes() <= 36;
+
 // 📲 카카오 발송 슬롯 판정(KST) — kakao-daily.yml 의 '발송 창 게이트'와 동일 규칙.
 //   • 평일(월~금) 07~22시 매시간 / 주말(토·일) 11·17시.
 // */5 cron 재시도 dispatch 의 게이트로만 쓴다(실제 발송 여부의 단일 진실원은 워크플로 게이트).
@@ -1028,7 +1035,23 @@ async function triggerMarketAlerts(env, includeFetch) {
     console.log('[market-cron] GH_DISPATCH_TOKEN 미설정 — dispatch 생략. (README 참고)');
     return false;
   }
-  if (!inMarketHours(new Date())) return true;   // 장외 — GitHub 깨우지 않음(할 일 없음 = 성공)
+  // 🌙 장외·주말 저빈도 공급 — 매시 :35(UTC) 한 번만 경량 fetch-data 를 깨운다.
+  //   왜: 장외의 유일한 공급원이던 GHA schedule('0 * * * *')의 실측 미발화율이 42%였고
+  //   (19.3h 창에서 정각 런이 잡힌 시각 11개), 깨어나도 풀 런이 44~62분 걸려 data.json 나이가
+  //   쉽게 120분을 넘겼다 — 10일간 120분 초과 공백 28건·최장 324분이 전부 장외·주말이었다
+  //   (2026-09-08 진단). Cloudflare cron 은 드롭이 없으므로 그 구멍을 메운다.
+  //   repository_dispatch 는 워크플로가 FETCH_LIGHT=1 로 판정하므로 런은 1분 미만이고,
+  //   갱신 0건이면 커밋조차 하지 않는다(run_light_build) — 커밋 스팸이 되지 않는다.
+  //   alerts-cron 은 여기서 발화하지 않는다(장이 닫혀 평가할 것이 없다).
+  if (!inMarketHours(new Date())) {
+    if (!includeFetch) return true;              // 5분 슬롯 게이트 밖 — 할 일 없음
+    if (!isOffHoursFetchTick(new Date())) return true;
+    if (await _fetchDataBusy(env)) {
+      console.log('[market-cron] 장외 보강: fetch-data 실행/대기 중 — 이번 시각 dispatch 생략');
+      return true;
+    }
+    return await ghDispatch(env, 'fetch-data', {}, 'ecom-fetch-cron');
+  }
   // alerts-cron — '대기 자리가 이미 찬' 분만 건너뛴다(_alertsWaiting 주석 참고).
   // 이 dispatch 는 어차피 대기 런을 교체 취소시킬 뿐이라 평가 횟수는 늘지 않고 cancelled 만 늘었다.
   // 조회는 ~수백 ms — 1분 주기의 정시성에는 영향 없다.
