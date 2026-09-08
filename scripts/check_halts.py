@@ -75,9 +75,10 @@ def _resolve_msg(h):
             f"{_now().strftime('%H:%M')} 거래 재개\n{DELAY_NOTICE}")
 
 
-def _halt_card(h):
+def _halt_card(h, shape="wide"):
     """서킷 발동 카드(기획 2026-08-11, 카드 D 변형) — 해당 시장 인트라데이 + 단계 임계선.
-    실패·비서킷·시세 없음은 None(종전 텍스트 embed 그대로)."""
+    실패·비서킷·시세 없음은 None(종전 텍스트 embed 그대로).
+    shape="square" = 카카오 피드용 1080²(기획 v3 I1)."""
     if h.get("type") != "circuit":
         return None
     try:
@@ -91,9 +92,40 @@ def _halt_card(h):
         resume = ("당일 장 종료" if h.get("endOfDay")
                   else f"재개예정 {_hm(h.get('resumeAt'))}")
         return discord_card.swing(f"{h.get('market', '')} 서킷 {h.get('stage', '')}단계",
-                                  price, pct, thr, xs, ys, prev, _now(), resume=resume, src=src)
+                                  price, pct, thr, xs, ys, prev, _now(), resume=resume,
+                                  src=src, shape=shape)
     except Exception as e:
         print(f"[discord] 서킷 카드 예외({e}) — 텍스트만 발송")
+        return None
+
+
+def _status_card(h, kind):
+    """상태형 정사각 카드(기획 v3 I1) — 해제·테스트처럼 차트가 의미 없는 통지용.
+    발동→해제 타임라인 + 시장·단계 타일. 실패 시 None(텍스트 폴백)."""
+    try:
+        import discord_card
+        typ = TYPE_KO.get(h.get("type"), h.get("type"))
+        mk = h.get("market", "") or "KOSPI"
+        if kind == "resolve":
+            title = f"{mk} {typ} 해제"
+            state, tone = "거래 재개", "ok"
+            reason = f"{_hm(h.get('triggeredAt'))} 발동 · {_now().strftime('%H:%M')} 재개"
+            tl = [(f"{_hm(h.get('triggeredAt'))} 발동", True),
+                  (f"{_now().strftime('%H:%M')} 해제", True),
+                  ("정상 거래", True)]
+        else:                                          # test
+            title = f"{mk} {typ} 경로 확인"
+            state, tone = "테스트 발송", "info"
+            reason = str(h.get("reason") or "가짜 사건으로 경로만 검증 · 이력 미갱신")
+            tl = [("감지", True), ("발송", True), ("이력 갱신", False)]
+        tiles = [("시장", mk, "", None),
+                 ("종류", str(typ), "", None)]
+        if h.get("stage"):
+            tiles.append(("단계", f"{h.get('stage')}", "단계", None))
+        return discord_card.status(title, state, reason, timeline=tl, tiles=tiles,
+                                   now=_now(), tone=tone)
+    except Exception as e:
+        print(f"[halts] 상태 카드 예외({e}) — 텍스트 폴백")
         return None
 
 
@@ -112,7 +144,7 @@ def _halt_buttons(h):
         return None
 
 
-def _send_all(token, uuids, msg, kind="fire", card=None, buttons=None):
+def _send_all(token, uuids, msg, kind="fire", card=None, buttons=None, kakao_card=None):
     """카카오+디스코드 병행 발송. kind: fire(발동/격상=빨강+@everyone) / resolve(해제=초록)
     / test(회색). card=발동 카드 PNG 경로(없으면 종전 텍스트 embed), buttons=v3 링크 버튼.
     디스코드는 카카오보다 먼저, 예외는 삼킨다(카카오 재시도 로직 무영향).
@@ -130,7 +162,11 @@ def _send_all(token, uuids, msg, kind="fire", card=None, buttons=None):
                             env="DISCORD_WEBHOOK_SWINGS", buttons=buttons)
     except Exception as e:
         print(f"[discord] 병행 발송 예외 무시: {e}")
-    kakao.send_memo(token, msg, with_button=True, uuids=uuids)
+    # 카카오도 카드가 본문(기획 v3 I1) — 발동=사건형(정사각 swing) / 해제·테스트=상태형.
+    lines = msg.split("\n")
+    kakao.send_card(token, lines[0][:44], "\n".join(lines[1:3])[:120],
+                    png=kakao_card, uuids=uuids, kind=f"시장경보({kind})",
+                    buttons=[("시장 지표", "https://0101-commits.github.io/economic-site/?p=market")])
 
 
 def _flush_state(state):
@@ -270,7 +306,8 @@ def main():
         fake = {"type": "circuit", "market": "KOSPI", "stage": 1, "endOfDay": False,
                 "reason": "테스트 — 지수 전일比 -8.0%", "triggeredAt": now.isoformat(),
                 "resumeAt": (now + datetime.timedelta(minutes=30)).isoformat()}
-        _send_all(token, uuids, "[테스트] " + _fire_msg(fake), kind="test")
+        _send_all(token, uuids, "[테스트] " + _fire_msg(fake), kind="test",
+                  kakao_card=_status_card(fake, "test"))
         print("[halts] 테스트 발송 완료 (이력 미갱신)")
         return
 
@@ -356,7 +393,8 @@ def main():
                 esc = h["id"] in escalated_ids
                 try:
                     _send_all(token, uuids, _fire_msg(h, escalated=esc),
-                              card=_halt_card(h), buttons=_halt_buttons(h))
+                              card=_halt_card(h), buttons=_halt_buttons(h),
+                              kakao_card=_halt_card(h, shape="square"))
                     rec["pending"] = False
                     rec["tries"] = 0
                     rec["fireSent"] = True   # 발동 실제 발송 확정 — 이후 '해제' 발송 자격
@@ -376,7 +414,8 @@ def main():
                 rec["resolveTries"] = int(rec.get("resolveTries", 0)) + 1
                 try:
                     _send_all(token, uuids, _resolve_msg(h), kind="resolve",
-                              buttons=_halt_buttons(h))
+                              buttons=_halt_buttons(h),
+                              kakao_card=_status_card(h, "resolve"))
                     rec["resolvedSent"] = True
                     rec["resolvedAt"] = now.isoformat()
                     print(f"[halts] 해제 발송: {hid}")

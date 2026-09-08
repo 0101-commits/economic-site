@@ -42,6 +42,14 @@ DN = "#3E7BE0"        # 하락 — 채움색(도형 4.11:1). 사용자 지정: �
 UP_TXT = "#C4362F"    # (6.0:1)
 DN_TXT = "#2F62BE"    # (6.0:1)
 
+# ── 정사각(카카오) 캔버스 규격 ────────────────────────────────────────────
+# 카톡 말풍선은 카드를 단변 400px 안팎으로 줄여 표시한다(1080 → 2.5배 축소). 축소 후에도
+# 읽히는 하한 = 단변의 2.2%(1080에서 24px) → 150dpi 에서 24 * 72 / 150 = 11.52pt.
+# 정사각 카드의 모든 본문 글자는 SQ_MIN_FS 로 하한이 걸린다(_fs / _draw_cells).
+SQ = (7.2, 7.2)          # 7.2in × 150dpi = 1080px
+SQ_DPI = 150
+SQ_MIN_FS = 11.5
+
 _KO_FONTS = ["Malgun Gothic", "NanumGothic", "Noto Sans CJK KR", "Noto Sans KR"]
 _STATE = {}           # {"plt": module, "ko": bool} — 1회 초기화 캐시
 
@@ -159,6 +167,19 @@ def _fmt(v):
     return f"{v:,.2f}" if v < 100 else f"{v:,.0f}" if v > 5000 else f"{v:,.1f}"
 
 
+def _fmt_cnt(v):
+    """거래량 같은 큰 정수 축약 — 타일 한 칸(약 12자)을 넘기지 않게. 한글은 만/억 단위."""
+    if v is None:
+        return "—"
+    if not _STATE.get("ko"):
+        return f"{v / 1e9:.1f}B" if v >= 1e9 else f"{v / 1e6:.1f}M" if v >= 1e6 else f"{v:,.0f}"
+    if v >= 1e8:
+        return f"{v / 1e8:,.1f}억"
+    if v >= 1e4:
+        return f"{v / 1e4:,.0f}만"
+    return f"{v:,.0f}"
+
+
 def _chgtxt(c):
     if c is None:
         return ""
@@ -211,11 +232,93 @@ def _tile_color(c, sat=3.0):
     return "#%02x%02x%02x" % mix, INK, False
 
 
-def _footer(fig, now, extra=""):
+def _fs(size, square=False):
+    """정사각 카드의 글자 하한(SQ_MIN_FS) 적용 — 축소 말풍선 판독 규격."""
+    return max(float(size), SQ_MIN_FS) if square else float(size)
+
+
+def _sq_fig(plt, title, meta=""):
+    """정사각 카드 공통 골격 1단 — 1080×1080 캔버스 + 제목줄(+ 우측 보조)."""
+    fig = plt.figure(figsize=SQ, dpi=SQ_DPI)
+    fig.patch.set_facecolor(BG)
+    fig.text(0.03, 0.955, str(title)[:44], color=INK,
+             fontsize=_fs(20, True), fontweight="bold")
+    if meta:
+        fig.text(0.97, 0.958, str(meta)[:40], color=MUT,
+                 fontsize=_fs(11.5, True), ha="right")
+    return fig
+
+
+def _sq_panel(fig, box, ys, xs=None, prev=None, up=True, label="", right="",
+              lines=(), src="", area=True):
+    """정사각 카드 공통 골격 3단 — 주 영역(선 그래프 패널). 재료가 없으면 패널만 비고
+    카드는 산다(사건형·지표형이 같은 패널을 쓴다).
+
+    lines = [(값, 색, 라벨)] — 목표선·임계선·전일선처럼 수평 기준선. 첫 원소가 None 인
+    항목은 건너뛴다. up = 상승 방향(채움·끝점 색)."""
+    ax = fig.add_axes(box)
+    ax.set_facecolor(TILE)
+    col = UP if up else DN
+    if label:
+        ax.text(0.012, 1.045, label, transform=ax.transAxes, color=MUT,
+                fontsize=_fs(12.5, True), va="bottom")
+    if right:
+        ax.text(1.0, 1.045, right, transform=ax.transAxes,
+                color=_txt_color(up), fontsize=_fs(13, True),
+                fontweight="bold", ha="right", va="bottom")
+    vals = [v for v in (ys or []) if v is not None]
+    refs = [v for v, _c, _l in lines if v is not None] + ([prev] if prev else [])
+    if len(vals) >= 3:
+        lo, hi = min(vals + refs), max(vals + refs)
+        rng = (hi - lo) or (abs(hi) * 0.01) or 1.0
+        floor = lo - 0.14 * rng
+        ax.set_ylim(floor, hi + 0.16 * rng)
+        ax.plot(range(len(vals)), vals, color=LINE, lw=2.0)
+        if area:
+            ax.fill_between(range(len(vals)), vals, floor, color=col, alpha=0.10)
+        if prev:
+            ax.axhline(prev, color=FAINT, lw=1.0, ls="--")
+            ax.text(0.004, prev, _L("전일 ", "prev ") + _fmt(prev) + " ", color=FAINT,
+                    fontsize=_fs(10.5, True), va="bottom",
+                    transform=ax.get_yaxis_transform())
+        for v, lcol, llab in lines:
+            if v is None:
+                continue
+            ax.axhline(v, color=lcol, lw=1.3, ls="--")
+            if llab:
+                ax.text(0.996, v, llab + " ", color=lcol, fontsize=_fs(11, True),
+                        ha="right", va="bottom", transform=ax.get_yaxis_transform())
+        ax.plot(len(vals) - 1, vals[-1], "o", color=col, ms=7)
+        ticks = sorted({0, len(vals) // 3, 2 * len(vals) // 3, len(vals) - 1})
+        ax.set_xticks(ticks)
+        if xs:
+            xfmt = "%m/%d" if (xs[-1] - xs[0]).days >= 1 else "%H:%M"
+            ax.set_xticklabels([xs[t].strftime(xfmt) if t < len(xs) else "" for t in ticks],
+                               color=FAINT, fontsize=_fs(11, True))
+        else:
+            ax.set_xticklabels([""] * len(ticks))
+        if src:
+            ax.text(0.012, 0.03, src, transform=ax.transAxes, color=FAINT,
+                    fontsize=_fs(10.5, True))
+    else:
+        ax.text(0.5, 0.5, _L("시세 데이터 없음", "no intraday data"), transform=ax.transAxes,
+                color=FAINT, fontsize=_fs(12, True), ha="center", va="center")
+        ax.set_xticks([])
+    ax.set_yticks([])
+    ax.grid(axis="y", color="#E4E9EF", lw=0.8)
+    ax.set_axisbelow(True)
+    for s in ax.spines.values():
+        s.set_visible(False)
+    ax.tick_params(length=0)
+    return ax
+
+
+def _footer(fig, now, extra="", square=False):
     fig.text(0.03, 0.022, _L(f"시세 {now.strftime('%m/%d %H:%M')} 기준 · 무료 시세 지연 가능",
                              f"as of {now.strftime('%m/%d %H:%M')} KST · free quotes may lag") + extra,
-             color=FAINT, fontsize=11)
-    fig.text(0.97, 0.022, "econ dashboard →", color=FAINT, fontsize=11, ha="right")
+             color=FAINT, fontsize=_fs(11, square))
+    fig.text(0.97, 0.022, "econ dashboard →", color=FAINT,
+             fontsize=_fs(11, square), ha="right")
 
 
 def _save(fig, name):
@@ -395,32 +498,58 @@ HERO = {"kr_session": "KOSPI", "pre_kr": "SP500", "kr_close_eu": "KOSPI",
         "us_pre": "US10Y", "us_open": "SP500", "weekend": "USDKRW"}
 
 
-def _draw_tiles(fig, d, grid, box, fs):
+def _draw_cells(fig, grid, box, fs, square=False):
     """타일 격자를 box=(x0, y0, w, h) figure 좌표에 그린다. fs=(라벨, 값, 등락) 폰트.
 
+    grid = [[cell, …], …], cell = (라벨, 값 문자열, 우하단 문자열, 등락값|None, 포화폭).
+    등락값은 색·잉크 결정에만 쓴다(문자열은 호출측이 이미 만들어 넘긴다) — 그래서
+    카탈로그 지표(_draw_tiles)와 사건 타일(종목·목표가·상태)이 같은 코드로 그려진다.
+
     글자 위치는 타일 높이 비율로 잡는다 — 캔버스(가로 10×7 / 정사각 1:1)마다 타일
-    높이가 달라도 같은 코드로 겹침 없이 배치되게."""
+    높이가 달라도 같은 코드로 겹침 없이 배치되게. square=True 면 폰트에
+    SQ_MIN_FS 하한을 걸어 축소 말풍선에서 읽히게 한다."""
     from matplotlib.patches import FancyBboxPatch
     gx0, gy0, gw, gh = box
+    grid = [r for r in grid if r]
+    if not grid:
+        return
     cols = max(len(r) for r in grid)
     rows = len(grid)
-    fs_l, fs_p, fs_c = fs
+    fs_l, fs_p, fs_c = (_fs(f, square) for f in fs)
     for r_, line in enumerate(grid):
-        for c_, key in enumerate(line):
-            ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+        for c_, cell in enumerate(line):
+            label, val, note, chg, sat = cell
             x = gx0 + c_ * gw / cols
             y = gy0 + (rows - 1 - r_) * gh / rows
             w, h = gw / cols - 0.008, gh / rows - 0.015
-            price, chg = _node(d, cat, key)
-            bgc, ink, _flat = _tile_color(chg, _sat_of(cat))
+            bgc, ink, _flat = _tile_color(chg, sat)
             fig.patches.append(FancyBboxPatch(
                 (x, y), w, h, boxstyle="round,pad=0.004,rounding_size=0.009",
                 transform=fig.transFigure, fc=bgc, ec="none"))
-            fig.text(x + 0.013, y + 0.71 * h, _L(ko, en), color=ink, fontsize=fs_l)
-            fig.text(x + 0.013, y + 0.33 * h, _fmt_tile(cat, price),
-                     color=INK, fontsize=fs_p, fontweight="bold")
-            fig.text(x + w - 0.011, y + 0.09 * h, _chgtxt_tile(cat, chg),
-                     color=ink, fontsize=fs_c, fontweight="bold", ha="right")
+            fig.text(x + 0.013, y + 0.71 * h, label, color=ink, fontsize=fs_l)
+            fig.text(x + 0.013, y + 0.33 * h, val, color=INK, fontsize=fs_p, fontweight="bold")
+            if note:
+                fig.text(x + w - 0.011, y + 0.09 * h, note, color=ink,
+                         fontsize=fs_c, fontweight="bold", ha="right")
+
+
+def _cell(label, val, note="", chg=None, sat=3.0):
+    """자유 타일 한 칸 — 사건형·상태형 카드가 쓴다(카탈로그 비의존)."""
+    return (str(label), str(val), str(note), chg, sat)
+
+
+def _draw_tiles(fig, d, grid, box, fs, square=False):
+    """카탈로그 키 격자(편성표) → 셀 격자로 바꿔 _draw_cells 에 넘긴다."""
+    cells = []
+    for line in grid:
+        row = []
+        for key in line:
+            ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+            price, chg = _node(d, cat, key)
+            row.append(_cell(_L(ko, en), _fmt_tile(cat, price),
+                             _chgtxt_tile(cat, chg), chg, _sat_of(cat)))
+        cells.append(row)
+    _draw_cells(fig, cells, box, fs, square=square)
 
 
 def _meta_line(d, cal):
@@ -531,7 +660,7 @@ def _board_square(plt, d, now, pkey, prof, cal, hero):
     meta = _meta_line(d, cal)
     if meta:
         fig.text(0.97, 0.958, meta, color=MUT, fontsize=11.5, ha="right")
-    _draw_tiles(fig, d, grid, (0.03, 0.575, 0.94, 0.345), (13, 19, 13))
+    _draw_tiles(fig, d, grid, (0.03, 0.575, 0.94, 0.345), (13, 19, 13), square=True)
     cap = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
     if cap:
         fig.text(0.03, 0.533, cap, color=MUT, fontsize=12)
@@ -588,17 +717,23 @@ def _board_square(plt, d, now, pkey, prof, cal, hero):
     return _save(fig, "kakao_card_board.png")
 
 
-def stock_alert(hero, others, now):
+def stock_alert(hero, others, now, shape="wide", extra_tiles=None):
     """카드 E — 종목 알림(기획 5154773b P1). 좌 히어로(조건·현재가·등락·거래량) +
     우 30일 일봉 + 목표선(점선) + 발동점 도트, 하단 = 나머지 종목 1줄씩.
 
     hero = {name, cond, price, pct, target(없으면 None), closes(일봉 종가 리스트),
             vol_today, vol_prev, market}, others = [문자열 줄]. 재료는 전부
-    check_alerts.yahoo_snapshot 반환값 — 추가 API 호출 없음. 실패 시 None(텍스트 폴백)."""
+    check_alerts.yahoo_snapshot 반환값 — 추가 API 호출 없음. 실패 시 None(텍스트 폴백).
+
+    shape="square"(기획 v3 I1) = 카카오 피드용 1080². 나머지 종목은 줄글이 아니라
+    타일로 들어가(합본, 최대 6칸) 통 수가 늘어도 사진은 한 장이다.
+    extra_tiles = [(라벨, 값, 우하단, 등락|None)] — 호출측이 시장 맥락·일정을 넣는 자리."""
     try:
         if not hero or hero.get("price") is None:
             return None
         plt, _ = _setup()
+        if shape == "square":
+            return _stock_square(plt, hero, others, now, extra_tiles)
         extra = min(len(others or []), 4)
         hgt = 4.2 + 0.42 * extra
         fig = plt.figure(figsize=(10, hgt), dpi=160)
@@ -662,8 +797,56 @@ def stock_alert(hero, others, now):
         return None
 
 
+def _stock_square(plt, hero, others, now, extra_tiles=None):
+    """사건형 정사각 — 종목 알림. 타일(종목·목표·거래량·동시발동 종목) + 30일 일봉+목표선."""
+    pct = _f(hero.get("pct"))
+    mkt = hero.get("market", "KR")
+    up = (pct or 0) >= 0
+    col = UP if (pct or 0) > 0 else DN if (pct or 0) < 0 else MUT
+    name = str(hero.get("name") or "")[:14]
+    fig = _sq_fig(plt, _L(f"종목 알림 · {name}", f"Stock Alert · {name}"),
+                  now.strftime("%m/%d %H:%M"))
+    fig.text(0.03, 0.905, str(hero.get("cond") or "")[:40], color=MUT, fontsize=_fs(12.5, True))
+
+    def _p(v):
+        return f"{v:,.2f}" if mkt == "US" else f"{v:,.0f}"
+
+    tgt = _f(hero.get("target"))
+    cells = [[_cell(name, _p(hero["price"]), _chgtxt(pct), pct)]]
+    if tgt:
+        gap = (hero["price"] / tgt - 1) * 100 if hero["price"] else None
+        cells[0].append(_cell(_L("목표가", "target"), _p(tgt),
+                              (f"{gap:+.1f}%" if gap is not None else ""), None))
+    vt, vp = _f(hero.get("vol_today")), _f(hero.get("vol_prev"))
+    if vt:
+        # 거래량엔 방향색을 주지 않는다(chg=None) — 붉게 칠하면 '올랐다'로 읽힌다.
+        cells[0].append(_cell(_L("거래량", "volume"), _fmt_cnt(vt),
+                              (_L(f"전일比 {(vt / vp - 1) * 100:+.0f}%", f"{(vt / vp - 1) * 100:+.0f}% d/d")
+                               if vp else ""), None))
+    row2 = [_cell(str(l)[:10], str(v), str(n), c) for l, v, n, c in (extra_tiles or [])[:3]]
+    # 동시 발동 나머지 종목 — 줄글 대신 타일(합본). "삼성전자 71,200 ▲2.4%" 형태를 쪼갠다.
+    for ln in (others or [])[:3]:
+        if len(row2) >= 3:
+            break
+        parts = str(ln).split()
+        row2.append(_cell(parts[0][:10] if parts else "?",
+                          parts[1] if len(parts) > 1 else "",
+                          parts[2] if len(parts) > 2 else "", None))
+    if row2:
+        cells.append(row2)
+    _draw_cells(fig, cells, (0.03, 0.60, 0.94, 0.28), (13, 19, 13), square=True)
+
+    closes = [c for c in (hero.get("closes") or [])[-30:] if c is not None]
+    _sq_panel(fig, [0.03, 0.085, 0.94, 0.44], closes, up=up,
+              label=_L("30일 일봉", "30-day daily"),
+              right=f"{_p(hero['price'])}  {_chgtxt(pct)}".strip(),
+              lines=[(tgt, col, _L(f"목표 {_p(tgt)}", f"target {_p(tgt)}") if tgt else "")])
+    _footer(fig, now, square=True)
+    return _save(fig, "kakao_card_stock.png")
+
+
 def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=None,
-                 movers=None, fired_names=None):
+                 movers=None, fired_names=None, shape="wide"):
     """카드 B — 장 마감 4분면(기획 5154773b P2). 실패 시 None.
 
     좌상 = 다이버징 바(items=[(라벨, 가격, 등락%)]) / 우상 = 코스피 인트라데이
@@ -676,6 +859,8 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
         its = [(l, p, c if c is not None else 0.0) for l, p, c in items if p is not None][::-1]
         if not its:
             return None
+        if shape == "square":
+            return _close_square(plt, its, now, alerts_cnt, cal, intraday, investor, fired_names)
         fig = plt.figure(figsize=(10, 7.4), dpi=160)
         fig.patch.set_facecolor(BG)
         fig.text(0.03, 0.955, _L(f"{now.month}/{now.day} 장 마감 리포트",
@@ -779,6 +964,43 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
         return None
 
 
+def _close_square(plt, its, now, alerts_cnt, cal, intraday, investor, fired_names):
+    """지표형 정사각 — 장 마감(기획 v3 §02 P2). 지수 다이버징 바 + 수급·알림 타일
+    + 코스피 인트라데이. 가로 4분면을 세로 3단으로 접는다."""
+    fig = _sq_fig(plt, _L(f"{now.month}/{now.day} 장 마감", f"{now.month}/{now.day} Market Close"),
+                  now.strftime("%H:%M"))
+    inv = investor or {}
+    cells = [[]]
+    for lab, key, sat in ((_L("외국인", "foreign"), "foreign", 5000.0),
+                          (_L("기관", "inst"), "inst", 5000.0)):
+        v = _f(inv.get(key))
+        if v is not None:
+            cells[0].append(_cell(lab, f"{v:+,.0f}", _L("억원", "0.1bn"), v, sat=sat))
+    if alerts_cnt is not None:
+        nm = ""
+        if fired_names:
+            nm = str(fired_names[0])[:8]
+            if len(fired_names) > 1:
+                nm += _L(f" 외 {len(fired_names) - 1}", f" +{len(fired_names) - 1}")
+        cells[0].append(_cell(_L("오늘 알림", "alerts"), f"{alerts_cnt}", nm, None))
+    if cells[0]:
+        _draw_cells(fig, cells, (0.03, 0.775, 0.94, 0.145), (13, 19, 13), square=True)
+        bar_box, bar_lab = [0.17, 0.475, 0.80, 0.265], 0.755
+    else:
+        bar_box, bar_lab = [0.17, 0.475, 0.80, 0.42], 0.915
+    _bars(fig, bar_box, [(l, c) for l, _p, c in its], square=True, lim_mul=1.35)
+    fig.text(0.03, bar_lab, _L("지수 등락", "index moves"), color=MUT, fontsize=_fs(12.5, True))
+    xs, ys, prev, src = intraday or ([], [], None, "")
+    _sq_panel(fig, [0.03, 0.165, 0.94, 0.245], ys, xs=xs, prev=prev,
+              up=bool(ys) and (ys[-1] >= (prev or ys[0])),
+              label=_L("코스피 오늘", "KOSPI today") + (f" · {src}" if src else ""))
+    if cal:
+        fig.text(0.03, 0.075, _L("내일  ", "tomorrow  ") + str(cal)[:44],
+                 color=INK, fontsize=_fs(12.5, True))
+    _footer(fig, now, square=True)
+    return _save(fig, "kakao_card_close.png")
+
+
 def weekly_rows(d):
     """주간 수익률 정렬 [(ko, en, key, chg%)] — weekly() 차트와 버튼 그리드(v3)가
     같은 순서를 쓰도록 하는 단일 원천."""
@@ -806,7 +1028,30 @@ def _week_flow_line(d):
         return ""
 
 
-def weekly(d, now, next_week=""):
+def _bars(fig, box, rows, square=False, unit="%", nd=2, lim_mul=1.6):
+    """다이버징 수평 바 — rows=[(라벨, 값)]. 주간·마감 카드가 공유한다."""
+    ax = fig.add_axes(box)
+    ax.set_facecolor(BG)
+    vals = [v for _l, v in rows]
+    ax.barh(range(len(rows)), vals, height=0.55,
+            color=[UP if v > 0 else DN if v < 0 else FAINT for v in vals])
+    ax.axvline(0, color=FAINT, lw=1)
+    for i, (_l, v) in enumerate(rows):
+        ax.text(v + (0.08 if v >= 0 else -0.08) * (max(abs(x) for x in vals) or 1) / 2.5, i,
+                f"{v:+.{nd}f}{unit}", va="center", ha="left" if v >= 0 else "right",
+                color=INK, fontsize=_fs(12, square))
+    ax.set_yticks(range(len(rows)))
+    ax.set_yticklabels([l for l, _v in rows], color=MUT, fontsize=_fs(12.5, square))
+    lim = (max(abs(v) for v in vals) or 1) * lim_mul + 0.2
+    ax.set_xlim(-lim, lim)
+    ax.set_xticks([])
+    for s in ax.spines.values():
+        s.set_visible(False)
+    ax.tick_params(length=0)
+    return ax
+
+
+def weekly(d, now, next_week="", shape="wide"):
     """카드 C — 주간 수익률 정렬 바 + 주간 경로 스파크(기획 5154773b P3). 실패 시 None.
 
     스파크(각 자산 6일 종가)는 같은 -2%라도 '내내 하락'과 '금요일 급락'을 구분한다.
@@ -817,6 +1062,8 @@ def weekly(d, now, next_week=""):
         rows = [(_L(ko, en), key, chg) for ko, en, key, chg in weekly_rows(d)]
         if not rows:
             return None
+        if shape == "square":
+            return _weekly_square(plt, d, now, rows, next_week)
         fig = plt.figure(figsize=(10, 6.8), dpi=160)
         fig.patch.set_facecolor(BG)
         wk0 = now - datetime.timedelta(days=now.weekday())
@@ -875,7 +1122,35 @@ def weekly(d, now, next_week=""):
         return None
 
 
-def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src=""):
+def _weekly_square(plt, d, now, rows, next_week):
+    """지표형 정사각 — 주간 리포트(기획 v3 I2). 주간 수익률 다이버징 바 + 수급·일정 타일.
+
+    카톡 주간 슬롯이 옛 2티커 라인 차트로 나가던 것을 대체한다. '지금 시각 타일'이
+    주간 본문과 어긋나던 문제는 타일을 없애는 대신 주간 수치(최고·최저·수급)로 바꿔 푼다."""
+    wk0 = now - datetime.timedelta(days=now.weekday())
+    fig = _sq_fig(plt, _L(f"주간 리포트 · {wk0.month}/{wk0.day}~{now.month}/{now.day}",
+                          f"Weekly · {wk0.month}/{wk0.day}~{now.month}/{now.day}"),
+                  _L("주간 종가 기준", "weekly close"))
+    best, worst = rows[-1], rows[0]
+    cells = [[_cell(_L("최고", "best"), best[0], f"{best[2]:+.2f}%", best[2]),
+              _cell(_L("최저", "worst"), worst[0], f"{worst[2]:+.2f}%", worst[2])]]
+    daily = ((d.get("investorTrading") or {}).get("daily") or [])[-5:]
+    if daily:
+        fo = sum(_f(r.get("foreign")) or 0 for r in daily)
+        cells[0].append(_cell(_L("외국인 5일", "foreign 5d"), f"{fo:+,.0f}",
+                              _L("억원", "0.1bn"), fo, sat=20000.0))
+    _draw_cells(fig, cells, (0.03, 0.775, 0.94, 0.145), (13, 19, 13), square=True)
+    _bars(fig, [0.17, 0.135, 0.80, 0.60], [(l, c) for l, _k, c in rows],
+          square=True, lim_mul=1.3)
+    fig.text(0.03, 0.755, _L("주간 수익률", "weekly returns"), color=MUT, fontsize=_fs(12.5, True))
+    if next_week:
+        fig.text(0.03, 0.075, _L("다음 주  ", "next week  ") + str(next_week)[:46],
+                 color=INK, fontsize=_fs(12.5, True))
+    _footer(fig, now, square=True)
+    return _save(fig, "kakao_card_weekly.png")
+
+
+def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src="", shape="wide"):
     """카드 D — 급변·서킷. 히어로 등락률 + 인트라데이(또는 일봉 폴백) 임계선.
     xs/ys/prev = send_kakao_digest._intraday_chain 반환값(비어 있으면 히어로만 — 최후).
     src = 폴백 라벨('일봉 7D' 등, 기획 5154773b P0) — 패널에 표기해 인트라데이 오독 방지.
@@ -884,6 +1159,8 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src=""):
         if pct is None:
             return None
         plt, _ = _setup()
+        if shape == "square":
+            return _swing_square(plt, name, price, pct, thr_pct, xs, ys, prev, now, resume, src)
         col = UP if pct > 0 else DN
         coltxt = _txt_color(pct > 0)                   # 작은 글자용
         fig = plt.figure(figsize=(10, 5.0), dpi=130)
@@ -934,6 +1211,97 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src=""):
         return _save(fig, "discord_card_swing.png")
     except Exception as e:
         print(f"::warning title=디스코드 카드 실패::swing: {e} — 기존 형식 폴백")
+        return None
+
+
+def _swing_square(plt, name, price, pct, thr_pct, xs, ys, prev, now, resume, src):
+    """사건형 정사각 — 급변·서킷 발동. 히어로 등락률 + 타일 3 + 인트라데이 임계선."""
+    col = UP if pct > 0 else DN
+    fig = _sq_fig(plt, _L(f"시장 급변 · {str(name)[:14]}", f"Market Swing · {str(name)[:14]}"),
+                  now.strftime("%m/%d %H:%M"))
+    fig.text(0.03, 0.845, f"{pct:+.2f}%", color=col, fontsize=_fs(56, True), fontweight="bold")
+    sub = _L(f"임계 ±{abs(thr_pct):.1f}% {'상향' if pct > 0 else '하향'} 돌파",
+             f"threshold ±{abs(thr_pct):.1f}% crossed")
+    if resume:
+        sub += " · " + str(resume)
+    fig.text(0.03, 0.795, sub[:44], color=MUT, fontsize=_fs(12.5, True))
+    thr_v = prev * (1 + (abs(thr_pct) if pct > 0 else -abs(thr_pct)) / 100.0) if prev else None
+    cells = [[_cell(str(name)[:10], _fmt(price) if price is not None else "—",
+                    _chgtxt(pct), pct)]]
+    if prev:
+        cells[0].append(_cell(_L("전일", "prev"), _fmt(prev),
+                              (f"{price - prev:+,.1f}" if price is not None else ""), None))
+        cells[0].append(_cell(_L("임계선", "threshold"), _fmt(thr_v),
+                              f"±{abs(thr_pct):.1f}%", None))
+    _draw_cells(fig, cells, (0.03, 0.60, 0.94, 0.145), (13, 19, 13), square=True)
+    _sq_panel(fig, [0.03, 0.085, 0.94, 0.44], ys, xs=xs, prev=prev, up=pct > 0,
+              label=_L("당일 흐름", "today") + (f" · {src}" if src else ""),
+              right=f"{_fmt(price)}  {_chgtxt(pct)}".strip() if price is not None else "",
+              lines=[(thr_v, col, f"{'+' if pct > 0 else '-'}{abs(thr_pct):.1f}%")])
+    _footer(fig, now, square=True)
+    return _save(fig, "kakao_card_swing.png")
+
+
+def status(title, state, reason="", timeline=None, tiles=None, now=None, tone="ok"):
+    """상태형 정사각 카드(기획 v3 I1) — 차트가 없거나 의미 없는 통지용.
+    서킷 해제·테스트 발송·복구 통지가 쓴다. 실패 시 None(텍스트 폴백).
+
+    title 에는 이모지를 넣지 않는다(카드 폰트에 글리프가 없다 — 본문 제목이 담당).
+    state = 큰 상태 배지 문구("거래 재개"), reason = 그 아래 한 줄,
+    timeline = [(문구, 지남여부)] 최대 4칸, tiles = [(라벨, 값, 우하단, 등락|None)],
+    tone = "ok"(초록 계열=해제·정상) / "warn"(주의) / "info"(회색=테스트·운영)."""
+    try:
+        plt, _ = _setup()
+        now = now or datetime.datetime.now()
+        band = {"ok": "#1F7A4D", "warn": UP_TXT, "info": MUT}.get(tone, MUT)
+        wash = {"ok": "#E4F2EA", "warn": "#FBE7E6", "info": TILE}.get(tone, TILE)
+        fig = _sq_fig(plt, title, now.strftime("%m/%d %H:%M"))
+        from matplotlib.patches import FancyBboxPatch
+        # 세로 배분 — 상태 배지가 주 영역이고, 타임라인·타일이 있으면 그만큼만 내준다.
+        # (요소를 상단에 몰면 아래 절반이 비고, 타일에 남은 높이를 다 주면 한 칸이
+        #  카드 절반을 먹는다 — 2026-09-08 두 번의 실측 결과 고정한 배분.)
+        tl = [t for t in (timeline or []) if t][:4]
+        rows = []
+        if tiles:
+            rows = [[_cell(str(l)[:10], str(v), str(n), c) for l, v, n, c in tiles[:3]]]
+            if len(tiles) > 3:
+                rows.append([_cell(str(l)[:10], str(v), str(n), c) for l, v, n, c in tiles[3:6]])
+        # 남은 세로를 가중치로 나눈다 — 배지 3 : 타임라인 1.2 : 타일행 2.2.
+        # (밴드에 남은 높이를 다 주면 카드 절반이 초록 사각형이 되고, 고정 높이로 두면
+        #  요소가 적은 카드에서 아래가 빈다 — 2026-09-08 실측 후 고정.)
+        gap, top, bot = 0.018, 0.885, 0.075
+        w_band, w_tl, w_tiles = 3.0, 1.2, 2.2 * len(rows)
+        wtot = w_band + (w_tl if tl else 0.0) + w_tiles
+        avail = (top - bot) - gap * ((1 if tl else 0) + (1 if rows else 0))
+        band_h = avail * w_band / wtot
+        tl_h = avail * w_tl / wtot if tl else 0.0
+        tiles_h = avail * w_tiles / wtot if rows else 0.0
+        band_y = top - band_h
+        fig.patches.append(FancyBboxPatch(
+            (0.03, band_y), 0.94, band_h, boxstyle="round,pad=0.004,rounding_size=0.012",
+            transform=fig.transFigure, fc=wash, ec="none"))
+        fig.text(0.06, band_y + band_h * (0.55 if reason else 0.42), str(state)[:22],
+                 color=band, fontsize=_fs(38, True), fontweight="bold")
+        if reason:
+            fig.text(0.06, band_y + band_h * 0.22, str(reason)[:52], color=INK,
+                     fontsize=_fs(13.5, True))
+        if tl:
+            w = (0.94 - 0.012 * (len(tl) - 1)) / len(tl)
+            ty = band_y - gap - tl_h
+            for i_, (txt, done) in enumerate(tl):
+                x = 0.03 + i_ * (w + 0.012)
+                fig.patches.append(FancyBboxPatch(
+                    (x, ty), w, tl_h, boxstyle="round,pad=0.004,rounding_size=0.009",
+                    transform=fig.transFigure, fc=wash if done else TILE, ec="none"))
+                fig.text(x + w / 2, ty + tl_h * 0.38, str(txt)[:16],
+                         color=band if done else MUT, fontsize=_fs(12.5, True),
+                         ha="center", fontweight="bold" if done else "normal")
+        if rows:
+            _draw_cells(fig, rows, (0.03, bot, 0.94, tiles_h), (13, 20, 13), square=True)
+        _footer(fig, now, square=True)
+        return _save(fig, "kakao_card_status.png")
+    except Exception as e:
+        print(f"::warning title=카드 실패::status: {e} — 텍스트 폴백")
         return None
 
 

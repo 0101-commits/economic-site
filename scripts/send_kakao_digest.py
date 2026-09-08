@@ -867,14 +867,20 @@ def _hero_symbol(key):
     return _YH_SYM.get(key) or _YIELD_INTRADAY_SYM.get(key) or ""
 
 
-def _build_kakao_card(data, now, slot, weekend):
+def _build_kakao_card(data, now, slot, weekend, weekly=False, next_week=""):
     """카톡 피드 이미지 — 디스코드와 같은 편성표(PROFILES)의 정사각 캔버스(기획 d18ebb33 P1).
+
+    weekly=True(기획 v3 I2)면 주간 정사각 카드(주간 수익률 바 + 수급·일정 타일)를 그린다 —
+    종전에는 주간 슬롯만 카드를 건너뛰고 옛 2티커 라인 차트로 나갔다. '지금 시각 타일이
+    주간 본문과 어긋난다'는 종전 사유는 타일 내용을 주간 수치로 바꿔서 해소했다.
 
     히어로 인트라데이는 여기서 조회해 넘긴다(discord_card 는 시세를 직접 조회하지 않는다).
     실패 시 None → 호출측이 종전 슬롯 차트로 폴백하므로 이미지가 비는 일은 없다.
     (_dc_cal_line 은 '일정 한 줄' 문구 재사용일 뿐 — 카카오 본문 blocks 는 건드리지 않는다.)"""
     try:
         import discord_card
+        if weekly:
+            return discord_card.weekly(data, now, next_week=next_week, shape="square")
         pkey = discord_card.profile_for(slot, weekend, now)
         sym = _hero_symbol(discord_card.HERO.get(pkey, ""))
         hero = _session_chain(sym) if sym else ([], [], None, "")
@@ -1364,9 +1370,16 @@ def _hero_button(slot, weekend, now):
         return None
 
 
+def kakao_button(title, url):
+    """카카오 피드 버튼 — 이름은 8자 이하 권장(카카오 문서)이라 잘라서 넣는다."""
+    return {"title": str(title)[:8], "link": {"web_url": url, "mobile_web_url": url}}
+
+
 def send_feed(access_token, title, description, image_url, items=None, dims=CHART_PX,
-              uuids=None, extra_button=None):
-    """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼."""
+              uuids=None, extra_button=None, buttons=None):
+    """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
+
+    buttons = [{title, link}] 을 주면 기본 버튼 구성을 그것으로 대체한다(카카오 상한 2개)."""
     content = {
         "title": title,
         "description": description,
@@ -1377,10 +1390,10 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
     template = {
         "object_type": "feed",
         "content": content,
-        "buttons": [{"title": "대시보드 보기",
-                     "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL}}],
+        "buttons": (buttons[:2] if buttons else
+                    [kakao_button("대시보드 보기", DASHBOARD_URL)]),
     }
-    if extra_button:
+    if extra_button and not buttons:
         template["buttons"].append(extra_button)
     if items:
         template["item_content"] = {"items": items[:5]}
@@ -1393,24 +1406,16 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
 
 
 def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None, png=None):
-    """슬롯 차트 생성→업로드→'한 통' 피드 발송. 한 단계라도 실패 시 False(→ 동일 내용 텍스트 폴백).
-    png 를 넘기면 재사용(디스코드 병행 발송과 이중 생성 방지)."""
+    """슬롯 차트 생성→업로드→'한 통' 피드 발송. png 를 넘기면 재사용(디스코드 병행 발송과
+    이중 생성 방지). 실제 발송·폴백은 send_card 가 담당한다(기획 v3 I1 — 단일 진입점)."""
     png = png or build_slot_chart_png(data, slot, weekend)
-    if not png:
-        return False
-    image_url = kakao_upload_image(access_token, png)
-    if not image_url:
-        return False
     desc, items = build_feed_parts(blocks)
+    buttons = [("대시보드 보기", DASHBOARD_URL)]
     btn = _hero_button(slot, weekend, datetime.datetime.now(KST))
-    if send_feed(access_token, title, desc, image_url, items=items, uuids=uuids,
-                 extra_button=btn):
-        return True
-    # 행(item_content)이 거부되면 행 내용을 설명에 합쳐 한 통 더 시도 → 내용 손실 없이 '한 통' 보장.
-    print("[kakao] 피드(행 포함) 실패 — 행 내용을 설명으로 합쳐 재시도")
-    full_desc = "\n".join([desc] + [f"{it['item']} {it['item_op']}" for it in (items or [])])
-    return send_feed(access_token, title, full_desc, image_url, items=None, uuids=uuids,
-                     extra_button=btn)
+    if btn:
+        buttons.append((btn["title"], btn["link"]["web_url"]))
+    return send_card(access_token, title, desc, png=png, uuids=uuids, buttons=buttons,
+                     items=items, kind="정기 시황")
 
 
 def send_memo(access_token, text, with_button=True, uuids=None):
@@ -1426,6 +1431,50 @@ def send_memo(access_token, text, with_button=True, uuids=None):
     if status != 200:
         raise SystemExit(f"[kakao] 메시지 발송 실패: HTTP {status} {j}")
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
+
+
+def _system_notice(text):
+    """운영 통지 — 디스코드 #시스템. 카카오 경로가 열화·실패한 사실 자체를 알린다(기획 v3 I7).
+    통보가 본 경로를 깨면 본말전도라 실패는 조용히 무시."""
+    try:
+        import notify_discord
+        notify_discord.system(text, title="⚙️ 카톡 카드 경고")
+    except Exception:
+        pass
+
+
+def send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
+              fallback_png=None, items=None, kind=""):
+    """카톡 한 통 — 카드 이미지가 본문(기획 v3 I1). 모든 카카오 발송의 단일 진입점.
+
+    3단 폴백(I7): ① 카드 PNG → ② fallback_png(슬롯 라인 차트 등) → ③ 텍스트(제목+캡션).
+    png=None 으로 부르면 '사진 없는 발송'이므로 경고 + #시스템 교차 통보를 남긴다(I5) —
+    라인업에 새 구멍이 생기는 것을 로그·알림에서 바로 보이게 하는 장치다.
+
+    buttons = [(라벨, url)] 최대 2개(카카오 상한, 라벨 8자). 기본 = 대시보드 1개.
+    반환 True/False. 텍스트 폴백까지 실패하면 send_memo 가 SystemExit 를 던진다(호출측이 잡음)."""
+    btns = [kakao_button(t, u) for t, u in (buttons or [])][:2] or None
+    if not png:
+        print(f"::warning title=카드 없는 카톡 발송::{kind or title} — 텍스트로 발송(기획 v3 I5)")
+        _system_notice(f"카톡 '{kind or title}' 발송에 카드가 없습니다 — 텍스트 폴백으로 나갔습니다.")
+    for cand in [p for p in (png, fallback_png) if p]:
+        image_url = kakao_upload_image(access_token, cand)
+        if not image_url:
+            continue
+        if send_feed(access_token, title, caption, image_url, items=items,
+                     uuids=uuids, buttons=btns):
+            return True
+        if items:                                     # 행 거부 — 행 내용을 설명에 합쳐 재시도
+            merged = "\n".join([caption] + [f"{it['item']} {it['item_op']}" for it in items])
+            if send_feed(access_token, title, merged, image_url, items=None,
+                         uuids=uuids, buttons=btns):
+                return True
+    if png or fallback_png:
+        print(f"::warning title=차트 누락 폴백::{kind or title} 카드/업로드 실패 — 텍스트로 발송")
+        _system_notice(f"카톡 '{kind or title}' 카드·업로드 실패 — 텍스트로 발송했습니다.")
+    send_memo(access_token, _pack(title, [caption] if caption else [], TEXT_LIMIT),
+              with_button=True, uuids=uuids)
+    return True
 
 
 def _stale_limit_min(now_kst, weekend):
@@ -1650,6 +1699,8 @@ def _send_close_report(data):
     # 카드 B 4분면(기획 5154773b P2) — 바 + 코스피 인트라데이 + 수급 3주체 + 특징주·발동
     # 종목명. 재료가 결측인 분면은 카드가 생략. 실패 시 필드만(종전 형식).
     png = None
+    # 카드 재료 기본값 — 아래 try 가 중간에 끊겨도 카카오 카드 블록이 미정의 변수를 보지 않게.
+    _intr, _inv, _mv, _fired = None, None, None, []
     try:
         import discord_card
         _intr = _intraday_chain("^KS11")                 # P0 체인 재사용(빈 패널 금지)
@@ -1684,11 +1735,35 @@ def _send_close_report(data):
         footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
         timestamp=True, thread_name=_dc_thread_name(now),
         buttons=[_dc_buttons()], select=_dc_select(data))
-    if ok:
+    # 카카오 병행(기획 v3 §02 P2) — 마감도 카톡으로. 카드는 정사각 변형을 따로 그린다
+    # (가로 4분면은 말풍선에서 축소돼 읽히지 않는다). 실패는 경고만 — 디스코드는 이미 나갔다.
+    kok = False
+    rest_key = os.environ.get("KAKAO_REST_API_KEY", "").strip()
+    refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
+    if rest_key and refresh_token:
+        try:
+            _tok = refresh_access_token(rest_key, refresh_token)
+            _uuids = [f["uuid"] for f in get_friends(_tok)] if _friends_enabled() else []
+            _kpng = None
+            try:
+                import discord_card
+                _kpng = discord_card.close_report(citems, now, alerts_cnt=cnt, cal=cal,
+                                                  intraday=_intr, investor=_inv, movers=_mv,
+                                                  fired_names=_fired, shape="square")
+            except Exception as e:
+                print(f"[kakao] 마감 정사각 카드 예외({e}) — 텍스트 폴백")
+            _cap = " · ".join(f"{lab} {val}" for lab, val, _i in rows[:3])
+            kok = send_card(_tok, f"🔔 {now.month}/{now.day} 장 마감", _cap, png=_kpng,
+                            uuids=_uuids, kind="장 마감",
+                            buttons=[("대시보드", DASHBOARD_URL),
+                                     ("시장 지표", DASHBOARD_URL + "?p=market")])
+        except (SystemExit, Exception) as e:
+            print(f"::warning title=마감 카톡 실패::{e} — 디스코드는 별도 경로로 발송됨")
+    if ok or kok:
         _mark_sent_ok()
-        print(f"[digest] 장 마감 리포트 발송 완료 (필드 {len(rows)}개)")
+        print(f"[digest] 장 마감 리포트 발송 완료 (필드 {len(rows)}개, 카톡={'O' if kok else 'X'})")
     else:
-        print("::warning title=장 마감 리포트 실패::디스코드 발송 실패 — 다음 깨움이 재시도")
+        print("::warning title=장 마감 리포트 실패::양 채널 발송 실패 — 다음 깨움이 재시도")
 
 
 def _mark_sent_ok():
@@ -1790,9 +1865,13 @@ def main():
                 # 정사각 캔버스에 타일 9 + 히어로 인트라데이 1. 실패하면 종전 슬롯
                 # 차트로 내려간다. 주간 리포트 슬롯은 본문이 '지난 7일'이라 지금 시각
                 # 타일과 어긋나므로 종전 슬롯 차트를 유지한다.
-                _dc_png = (None if _weekly_mode
-                           else _build_kakao_card(data, datetime.datetime.now(KST),
-                                                  slot, weekend))
+                # 주간 슬롯도 카드로(기획 v3 I2) — 종전엔 여기서 None 으로 빠져 카톡만
+                # 옛 라인 차트를 받았다. 주간은 주간 전용 정사각 카드를 쓴다.
+                _dc_png = _build_kakao_card(
+                    data, datetime.datetime.now(KST), slot, weekend,
+                    weekly=_weekly_mode,
+                    next_week=(next((v for lab, v in blocks if lab == "다음주"), "")
+                               if _weekly_mode else ""))
                 if not _dc_png:
                     _dc_png = build_slot_chart_png(data, slot, weekend)
             # embed(D1~D4 + E2) — 제목 클릭=대시보드, 필드=강도 기호(⏫⏬)+추세 스파크라인
@@ -1859,7 +1938,8 @@ def main():
             print(f"::warning title=차트 누락 폴백::차트 피드 실패 — 동일 내용 텍스트로 폴백(slot={slot}). "
                   "사유는 앞선 [chart] 경고 참고")
 
-        # ② 최후 폴백: 기본 텍스트 한 통 — 피드와 '동일한 공통 블록(증시~운임)' + '대시보드 보기' 버튼.
+        # ② 차트 비활성(KAKAO_CHARTS=0) 경로 — 사진 없는 발송이 의도인 유일한 자리다
+        #    (기획 v3 I5 화이트리스트). 카드가 있는 평시 경로는 send_chart_feed → send_card 가 담당.
         #    (콘솔 커스텀 템플릿 폴백은 형식이 달라 혼란을 줬으므로 제거 — 2026-06-10 10시 사례)
         send_memo(access_token, build_text_message(title, blocks), with_button=True, uuids=uuids)
         _mark_sent_ok()                              # 텍스트 폴백도 '발송 성공'(실패면 위에서 SystemExit)

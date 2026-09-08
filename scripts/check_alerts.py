@@ -494,6 +494,54 @@ def is_market_open(market, now):
     return False
 
 
+PORTFOLIO_URL = "https://0101-commits.github.io/economic-site/?p=portfolio"
+
+
+def _alert_lines(to_send, snaps, state, now):
+    """발동 줄 + 컨텍스트('목표 대비 %', '이번 달 n번째') — 두 채널이 같은 문구를 쓴다."""
+    mon = now.strftime("%Y%m")
+    out = []
+    for a, ln in to_send:
+        extra = []
+        snap = snaps.get((a.get("market", "KR"), a.get("symbol")))
+        v = a.get("value")
+        if snap and isinstance(v, (int, float)) and v and a.get("type") in PRICE_TYPES:
+            extra.append(f"목표 대비 {(snap['price'] / v - 1) * 100:+.1f}%")
+        n = sum(1 for d in ((state.get(a["id"]) or {}).get("hist") or [])
+                if str(d).startswith(mon)) + 1
+        if n > 1:
+            extra.append(f"이번 달 {n}번째")
+        out.append(ln + (" · " + " · ".join(extra) if extra else ""))
+    return out
+
+
+def _alert_card(to_send, snaps, lines, now, shape="wide"):
+    """카드 E 재료 구성 + 렌더. shape="square" = 카카오 피드용 정사각(기획 v3 I1).
+    재료는 판정에 쓴 snap 그대로 — 추가 API 호출 0. 실패 시 None(호출측이 텍스트 폴백)."""
+    try:
+        import discord_card
+
+        def _snap_of(a):
+            return snaps.get((a.get("market", "KR"), a.get("symbol")))
+
+        cands = [(a, ln) for a, ln in to_send if _snap_of(a)]
+        if not cands:
+            return None
+        ha, hln = max(cands, key=lambda t: abs(_snap_of(t[0]).get("pct") or 0))
+        hs = _snap_of(ha)
+        hero = {"name": ha.get("name") or ha.get("symbol"), "cond": hln,
+                "price": hs.get("price"), "pct": hs.get("pct"),
+                "target": ha.get("value") if ha.get("type") in PRICE_TYPES else None,
+                "closes": hs.get("closes"), "vol_today": hs.get("vol_today"),
+                "vol_prev": hs.get("vol_prev"), "market": ha.get("market", "KR")}
+        others = [l for l in lines
+                  if not l.startswith(str(ha.get("name") or ha.get("symbol")))]
+        return discord_card.stock_alert(hero, others, now, shape=shape)
+    except Exception as e:
+        print(f"[alerts] 카드 렌더 예외({e}) — 텍스트만 발송")
+        return None
+
+
 def _pack_messages(items, header):
     """[(alert, line)] → (packs=[(msg, ids)] ≤MAX_MSGS, packed_ids).
 
@@ -676,47 +724,15 @@ def main():
         try:
             import notify_discord
             _pre = "[테스트] " if IS_TEST else ""
-            # 컨텍스트 강화(E4) — 카카오 문구(line)는 그대로 두고 디스코드에만
-            # '목표 대비 %'와 '이번 달 n번째'(발동 이력)를 덧붙인다.
-            _mon = now.strftime("%Y%m")
-            _lines = []
-            for a, ln in to_send:
-                extra = []
-                _snap = snaps.get((a.get("market", "KR"), a.get("symbol")))
-                _v = a.get("value")
-                if (_snap and isinstance(_v, (int, float)) and _v
-                        and a.get("type") in PRICE_TYPES):
-                    extra.append(f"목표 대비 {(_snap['price'] / _v - 1) * 100:+.1f}%")
-                _n = sum(1 for d in ((state.get(a["id"]) or {}).get("hist") or [])
-                         if str(d).startswith(_mon)) + 1
-                if _n > 1:
-                    extra.append(f"이번 달 {_n}번째")
-                _lines.append(ln + (" · " + " · ".join(extra) if extra else ""))
+            # 컨텍스트 강화(E4) — '목표 대비 %'와 '이번 달 n번째'. 기획 v3 I3 이후로는
+            # 카카오 캡션도 같은 줄을 쓴다(문구 단일 원천 = _alert_lines).
+            _lines = _alert_lines(to_send, snaps, state, now)
             # 카드 E(기획 5154773b P1) — 대표 종목(|등락| 최대) 히어로 + 30일 일봉 +
-            # 목표선 + 발동점. 재료는 판정에 쓴 snap 그대로(추가 API 호출 0). 나머지
-            # 종목은 카드 하단 1줄씩. 렌더 실패 시 None → 텍스트 embed 그대로(종전).
-            _png = None
-            try:
-                import discord_card
-                def _snap_of(a):
-                    return snaps.get((a.get("market", "KR"), a.get("symbol")))
-                _cands = [(a, ln) for a, ln in to_send if _snap_of(a)]
-                if _cands:
-                    _ha, _hln = max(_cands, key=lambda t: abs(_snap_of(t[0]).get("pct") or 0))
-                    _hs = _snap_of(_ha)
-                    _hero = {"name": _ha.get("name") or _ha.get("symbol"), "cond": _hln,
-                             "price": _hs.get("price"), "pct": _hs.get("pct"),
-                             "target": _ha.get("value") if _ha.get("type") in PRICE_TYPES else None,
-                             "closes": _hs.get("closes"), "vol_today": _hs.get("vol_today"),
-                             "vol_prev": _hs.get("vol_prev"), "market": _ha.get("market", "KR")}
-                    _others = [l for l in _lines
-                               if not l.startswith(str(_ha.get("name") or _ha.get("symbol")))]
-                    _png = discord_card.stock_alert(_hero, _others, now)
-            except Exception as _ce:
-                print(f"[alerts] 카드 렌더 예외({_ce}) — 텍스트만 발송")
+            # 목표선 + 발동점. 렌더 실패 시 None → 텍스트 embed 그대로(종전).
+            _png = _alert_card(to_send, snaps, _lines, now)
             # v3 버튼 — 발동 종목의 네이버 증권(국내 6자리 코드만, 미국 종목은 미배선).
             # 웹훅 폴백 시 notify_discord 가 링크 필드로 자동 변환.
-            _btns = [("투자현황", "https://0101-commits.github.io/economic-site/?p=portfolio")]
+            _btns = [("투자현황", PORTFOLIO_URL)]
             for a, _ in to_send:
                 if a.get("market", "KR") == "KR":
                     _u = notify_discord.naver_stock_url(a.get("symbol"))
@@ -787,8 +803,8 @@ def main():
         header += "\n⚠ 전역 알림이 OFF 상태입니다 — 정규 알림은 발송되지 않습니다 (테스트만 동작)"
     if IS_TEST and not triggered:
         # 테스트인데 충족 알림이 없어도 확인 메시지 1통은 보낸다 — '파이프라인 정상' 즉시 검증이 목적.
-        # send_memo 는 발송 실패 시 SystemExit 를 던진다 — 정규 발송 루프(아래)처럼 삼켜 job 을 죽이지
-        # 않는다(테스트 발송 실패가 workflow 실패로 이어지는 것 방지).
+        # send_card 는 최후 텍스트 폴백까지 실패하면 SystemExit 를 던진다 — 정규 발송(아래)처럼
+        # 삼켜 job 을 죽이지 않는다(테스트 발송 실패가 workflow 실패로 이어지는 것 방지).
         _test_msg = f"{header}\n알림 {len(alerts)}건 평가 — 현재 충족 조건 없음 (설정·발송 경로 정상)\n{DELAY_NOTICE}"
         try:
             import notify_discord
@@ -798,14 +814,32 @@ def main():
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
         try:
-            kakao.send_memo(access_token, _test_msg, with_button=True, uuids=uuids)
+            # 상태형 카드(기획 v3 I1) — 차트가 없는 통지도 사진으로. 렌더 실패 시 텍스트.
+            _kpng = None
+            try:
+                import discord_card
+                _kpng = discord_card.status(
+                    "종목 알림 경로 확인", "정상",
+                    f"알림 {len(alerts)}건 평가 · 현재 충족 조건 없음",
+                    timeline=[("설정 읽기", True), ("시세 조회", True), ("발송", True)],
+                    tiles=[("평가", f"{len(alerts)}", "건", None),
+                           ("충족", "0", "건", None),
+                           ("전역 알림", "OFF" if settings.get("enabled") is False else "ON",
+                            "", None)],
+                    now=now, tone="info")
+            except Exception as _ce:
+                print(f"[alerts] 테스트 카드 예외({_ce}) — 텍스트 폴백")
+            kakao.send_card(access_token, "[테스트] 종목 알림 경로 확인", _test_msg,
+                            png=_kpng, uuids=uuids, kind="종목 알림 테스트",
+                            buttons=[("투자현황", PORTFOLIO_URL)])
             print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
         except SystemExit as e:
             print(f"::warning title=테스트 발송 실패::{e} — 토큰/발송 문제 추정(KAKAO_SETUP.md 참고)")
         return
 
     # 발송 통 구성 — MAX_MSGS 초과분은 packed_ids 에서 빠져 미확정으로 남는다(다음 런 재시도).
-    packs, packed_ids = _pack_messages(to_send, header)
+    # 통 쪼개기는 이제 '확정 대상 산정'에만 쓴다 — 발송은 카드 한 통(기획 v3 I1).
+    _packs, packed_ids = _pack_messages(to_send, header)
     sent_syms = {(a.get("market", "KR"), a.get("symbol")) for a, _ in to_send if a["id"] in packed_ids}
     # 확정 대상 = 발송 시도한 종목의 트리거 전부(대표 1줄 + 같은 종목 동시충족 탈락분까지 함께 확정 —
     #   '종목당 1줄' 이력 일관성). 발송 안 된 종목은 확정하지 않아 다음 런에 다시 발송된다.
@@ -821,18 +855,37 @@ def main():
             state[a["id"]] = rec
         _write_state(state, alerts, now)
 
+    # 카카오 발송(기획 v3 I1·I3) — 카드 한 통이 본문. 200자 한도 때문에 여러 통으로
+    # 쪼개던 텍스트 대신, 발동 줄을 캡션 1줄 + 항목 행(최대 5)에 담아 사진 한 장으로 보낸다.
+    # 카드가 합본(대표 + 나머지 종목 타일)이라 통 수를 늘릴 이유가 없다.
+    # packs/packed_ids 는 그대로 '이번 런에 확정할 대상' 기준으로 쓴다(도배 상한 유지).
+    _klines = _alert_lines(to_send, snaps, state, now)
+    _kpng = _alert_card(to_send, snaps, _klines, now, shape="square")
+    _kitems = [{"item": (l.split()[0][:12] if l.split() else "-"),
+                "item_op": " ".join(l.split()[1:])[:40]} for l in _klines[1:6]]
+    _kbtns = [("투자현황", PORTFOLIO_URL)]
+    for a, _ in to_send:
+        if a.get("market", "KR") == "KR":
+            try:
+                import notify_discord as _nd
+                _u = _nd.naver_stock_url(a.get("symbol"))
+            except Exception:
+                _u = None
+            if _u:
+                _kbtns.append((str(a.get("name") or a.get("symbol"))[:8], _u))
+                break                                  # 카카오 버튼은 최대 2개
     sent, delivered_ids, ok = 0, set(), True
-    for msg, ids in packs:
-        try:
-            kakao.send_memo(access_token, msg, with_button=True, uuids=uuids)
-            sent += 1
-            delivered_ids.update(ids)                  # 배달된 '통'의 알림만 확정 대상(부분 실패 중복 방지)
-        except (SystemExit, Exception) as e:   # SystemExit(응답오류) + 전송예외(URLError/timeout — 메모 경로 원예외)
-            # 일부 통 실패해도 job 을 죽이지 않는다(매분 실패 메일·커밋 스텝 스킵 방지).
-            ok = False
-            print(f"::warning title=일부 알림 발송 실패::{e} — {sent}통 발송 후 중단"
-                  f"(배달된 통만 확정, 나머지 다음 런 재시도)")
-            break
+    try:
+        kakao.send_card(access_token, header, _klines[0] if _klines else "",
+                        png=_kpng, uuids=uuids, items=_kitems, buttons=_kbtns,
+                        kind="종목 알림")
+        sent = 1
+        delivered_ids.update(packed_ids)
+    except (SystemExit, Exception) as e:   # SystemExit(응답오류) + 전송예외(URLError/timeout)
+        # 발송 실패는 job 을 죽이지 않는다(매분 실패 메일·커밋 스텝 스킵 방지) — 미확정으로
+        # 남겨 다음 런이 재시도한다.
+        ok = False
+        print(f"::warning title=알림 발송 실패::{e} — 미확정으로 남김(다음 런 재시도)")
 
     if IS_TEST:
         print(f"[alerts] 테스트 발송 완료 — 충족 {len(triggered)}건 / 발송 {len(to_send)}건 (이력 미갱신)")
