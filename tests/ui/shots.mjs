@@ -64,8 +64,11 @@ for (const w of WIDTHS) {
             const r = el.getBoundingClientRect();
             return r.width > 0 && r.height > 0 && (r.height < 44 || r.width < 44);
           }).length;
+        // 타이포 종수 — 아이콘 폰트(.mat 글리프 크기)와 canvas 대체 텍스트는 제외한다.
+        // 그것들은 '글자 크기'가 아니라 아이콘 치수라서 스케일 준수와 무관하다.
         const sizes = new Set();
         document.querySelectorAll('body *').forEach(el => {
+          if (el.classList.contains('mat') || el.tagName === 'CANVAS') return;
           const r = el.getBoundingClientRect();
           if (r.width && r.height && el.textContent && el.children.length === 0) {
             sizes.add(getComputedStyle(el).fontSize);

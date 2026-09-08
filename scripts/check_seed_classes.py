@@ -63,7 +63,9 @@ def used_classes(text):
             for word in re.split(r"[\s,'\"`]+", chunk):
                 if not word.startswith("seed-"):
                     continue
-                (dynamic if "${" in word or "'+" in word else out).add(word)
+                # 조립형: 보간(${}) 이거나 문자열 결합의 조각(끝이 __ / -- 로 잘린 것)
+                is_dyn = "${" in word or "'+" in word or word.endswith(("__", "--", "_", "-"))
+                (dynamic if is_dyn else out).add(word)
     return out, dynamic
 
 
@@ -108,10 +110,21 @@ def main():
               % ", ".join(solo_empty))
 
     html = read("index.html")
+    # recipe 와 실제로 싸우는 속성만 문제다 — 색·배경·테두리·글자.
+    # position/::after 같은 히트영역 확장은 recipe 와 공존하므로 경고하지 않는다.
+    CLASHING = re.compile(r"\b(background|color|border|font-size|font-weight|padding|min-height)\b")
     for cls, site_sel in PAIRED.items():
-        if cls in used and re.search(re.escape(site_sel) + r"\s*[,{]", html):
-            print("3) 경고 — %s 를 채택했는데 사이트 셀렉터 %s 규칙이 남아 있다"
-                  " (동커밋 삭제 또는 :not(.seed-*) 스코프 필요)" % (cls, site_sel))
+        if cls not in used:
+            continue
+        for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", html):
+            # 스코프된 셀렉터(.preset-btn:not([class*="seed-"]))는 비켜세운 것이다
+            if not re.search(re.escape(site_sel) + r"(?![:.\[\w-])", sel):
+                continue
+            if CLASHING.search(body):
+                print("3) 경고 — %s 를 채택했는데 사이트 셀렉터 %s 가 %s 를 준다"
+                      " (동커밋 삭제 또는 :not([class*=\"seed-\"]) 스코프 필요)"
+                      % (cls, site_sel, CLASHING.search(body).group(1)))
+                break
 
     # 4) 브리지 정의명이 astryx 라이트 블록에도 있는지 — html:root 가 이겨야 한다
     m_bridge = re.search(r"html:root \{(.*?)\n  \}", html, re.S)

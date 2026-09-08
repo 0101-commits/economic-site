@@ -16,9 +16,9 @@ function renderAiBriefing(b) {
   const box = document.getElementById('aiBriefingBanner');
   if(!box) return;
   const lines = (b && Array.isArray(b.lines)) ? b.lines.filter(s => s && String(s).trim()) : [];
-  if(!lines.length) { box.style.display = 'none'; return; }
+  if(!lines.length) { box.hidden = true; return; }
   document.getElementById('aiBriefingLines').innerHTML = lines.slice(0, 3).map((s, i) =>
-    `<div class="ai-brief-line" style="display:flex;gap:8px;align-items:flex-start;"><span style="color:var(--c-primary);font-weight:var(--font-weight-bold);flex-shrink:0;">${i + 1}.</span><span style="min-width:0;">${escapeHtml(String(s))}</span></div>`).join('');
+    `<span class="ai-brief-line"><span class="ai-brief-line__no">${i + 1}</span><span style="min-width:0;">${escapeHtml(String(s))}</span></span>`).join('');
   const srcLabel = b.source === 'rule' ? '규칙 기반 요약'
                  : b.source === 'client-rule' ? '실시간 규칙 요약'
                  : (b.source === 'gemini' ? 'Gemini' : b.source === 'openai' ? 'OpenAI' : 'AI');
@@ -36,8 +36,18 @@ function renderAiBriefing(b) {
   document.getElementById('aiBriefingMeta').innerHTML =
     (_isOld ? `<span style="color:var(--c-warn);font-weight:var(--font-weight-semibold);">⚠ ${escapeHtml(_asofTxt)} 생성 (오늘 아님)</span>` : escapeHtml(_asofTxt))
     + ` 기준 스냅샷 · ${srcLabel} · 참고용, 투자 조언 아님`;
-  box.style.borderLeftColor = _isOld ? 'var(--c-warn)' : '';
-  box.style.display = 'block';
+  // 스테일이면 Callout tone 을 magic → warning 으로. 색 하나가 아니라 톤 전체가 바뀐다.
+  const callout = document.getElementById('aiBriefingCallout');
+  if(callout) {
+    const from = _isOld ? 'magic' : 'warning', to = _isOld ? 'warning' : 'magic';
+    ['root', 'title', 'description'].forEach(part => {
+      const el = part === 'root' ? callout : callout.querySelector('.seed-callout__' + part);
+      if(!el) return;
+      el.classList.remove('seed-callout__' + part + '--tone_' + from);
+      el.classList.add('seed-callout__' + part + '--tone_' + to);
+    });
+  }
+  box.hidden = false;
 }
 
 // 3줄 요약을 '지금 화면의 최신 값'으로 직접 조립 — scripts/ai_briefing.py 의 규칙 기반
@@ -157,6 +167,18 @@ function renderRiskLight(d) {
   if(!r) { dot.className = 'risk-dot'; lbl.textContent = '—'; return; }
   dot.className = 'risk-dot ' + r.light;
   lbl.textContent = `${_RISK_LABELS[r.light]} ${Math.round(r.score)}`;
+  // Callout tone = 신호등 색. 점(fg-*)은 그대로 두고 면 톤만 바꾼다.
+  if(chip) {
+    const TONE = { g: 'positive', y: 'warning', r: 'critical' };
+    const want = TONE[r.light] || 'neutral';
+    ['root', 'title', 'description'].forEach(part => {
+      const el = part === 'root' ? chip : chip.querySelector('.seed-callout__' + part);
+      if(!el) return;
+      ['neutral', 'positive', 'warning', 'critical'].forEach(t =>
+        el.classList.remove('seed-callout__' + part + '--tone_' + t));
+      el.classList.add('seed-callout__' + part + '--tone_' + want);
+    });
+  }
   if(chip) {
     chip.title = `${_RISK_DESC[r.light]} · 종합 ${r.score}점 (0 안정 ~ 100 위험) — 클릭: 산출 근거`;
     chip.setAttribute('aria-label', `시장 리스크 신호등: 현재 ${_RISK_LABELS[r.light]}, 종합 ${Math.round(r.score)}점. 클릭하면 산출 근거를 표시합니다`);
@@ -238,33 +260,40 @@ function renderBriefStrip(d) {
   const host = document.getElementById('briefChips');
   if(!host || !d) return;
   const chips = [];
+  // 칩 = seed-chip(outlineWeak·small). 복합 클래스 3개가 다 필요하다 —
+  // --size_small(높이) + --size_small-layout_withText(min-width) + __label--size_small.
+  const CHIP = 'seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText brief-chip';
+  const CHIP_LBL = 'seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak';
   const chip = (onclick, lbl, valHtml, title, aria) =>
-    chips.push(`<button type="button" class="brief-chip u-touch-hit" onclick="${onclick}" title="${escapeHtml(title || '')}" aria-label="${escapeHtml(aria || title || lbl)}"><span class="brief-lbl">${lbl}</span>${valHtml}</button>`);
+    chips.push(`<button type="button" class="${CHIP}" onclick="${onclick}" title="${escapeHtml(title || '')}" aria-label="${escapeHtml(aria || title || lbl)}"><span class="${CHIP_LBL}"><span class="brief-lbl">${lbl}</span>${valHtml}</span></button>`);
   // 데이터 신선도 칩 — 사이드바가 오프캔버스인 모바일에서도 "이 숫자가 언제 것인지" 노출
   try {
     const ts = window._lastServerDataTs || d.lastUpdated || window._lastRealDataTs;
     if(ts) {
       const ageH = (Date.now() - new Date(ts).getTime()) / 36e5;
       if(isFinite(ageH) && ageH >= 0) {
-        const dot = ageH <= 2 ? 'var(--ind-pos)' : ageH <= 26 ? 'var(--c-warn)' : 'var(--ind-neg)';
+        // 신선도는 '지속 상태'라 Badge 다(Snackbar 금지). 라벨 ≤10자.
         const rel = ageH < 1 ? Math.max(1, Math.round(ageH * 60)) + '분 전' : ageH < 48 ? Math.round(ageH) + '시간 전' : Math.round(ageH / 24) + '일 전';
-        chips.push(`<span class="brief-chip" title="${escapeHtml('서버 데이터 기준: ' + new Date(ts).toLocaleString('ko-KR') + ' · 시세 최대 15분 지연')}" aria-label="데이터 ${rel} 갱신"><span aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:${dot};display:inline-block;flex-shrink:0;"></span><span class="brief-lbl">데이터</span><span class="brief-val" style="font-weight:var(--font-weight-medium);">${ageH > 26 ? '⚠ ' : ''}${rel}</span></span>`);
+        const tone = ageH <= 2 ? 'neutral' : ageH <= 26 ? 'warning' : 'critical';
+        chips.push(`<span class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_${tone}-variant_weak" title="${escapeHtml('서버 데이터 기준: ' + new Date(ts).toLocaleString('ko-KR') + ' · 시세 최대 15분 지연')}" aria-label="데이터 ${rel} 갱신">${rel}${ageH > 26 ? ' · 지연' : ''}</span>`);
       }
     }
   } catch(_) {}
   const idx = d.indices || {}, fx = d.fx || {}, sent = d.sentiment || {};
-  const k = idx.KOSPI;
-  if(k && k.price != null) chip("navigateToDetail('equity')", 'KOSPI',
-    `<span class="brief-val">${_bsNum(k.price)}</span>${_bsChgHtml(k.change)}`,
-    'KOSPI — 클릭: 주식시장 상세', `KOSPI ${_bsNum(k.price)}, 등락 ${_bsNum(k.change)}%`);
+  // KOSPI 값 칩은 없다 — 바로 아래 KPI 타일이 같은 숫자를 더 크게 보여준다.
+  // (fold 안에서 KOSPI 가 5회 등장하고 값이 서로 달랐던 문제의 절반이 이 칩이었다)
   const u = fx.USDKRW;
   if(u && u.rate != null) chip("navigateToDetail('fx')", 'USD/KRW',
     `<span class="brief-val">${_bsNum(u.rate)}</span>${_bsChgHtml(u.change)}`,
     '원/달러 환율 — 클릭: 환율 상세', `원 달러 환율 ${_bsNum(u.rate)}원, 등락 ${_bsNum(u.change)}%`);
-  const s = idx.SP500;
-  if(s && s.price != null) chip("navigateToDetail('equity')", 'S&P500',
-    `<span class="brief-val">${_bsNum(s.price)}</span>${_bsChgHtml(s.change)}`,
-    'S&P 500 — 클릭: 주식시장 상세', `S&P500 ${_bsNum(s.price)}, 등락 ${_bsNum(s.change)}%`);
+  // 변동 슬롯 — 자기 이력 z-score 2 이상만 '급변'으로 올린다. 없으면 비운다.
+  // (변화율 상위 3 랭킹은 단위가 다른 지표를 한 줄에 세워 비교 불가였다)
+  try {
+    const zc = _bsZScoreEvent(d);
+    if(zc) chip(zc.onclick, zc.label,
+      `<span class="brief-val">${zc.valTxt}</span><span class="brief-val ${zc.dir > 0 ? 'up-txt' : 'down-txt'}">${zc.dir > 0 ? '▲' : '▼'}급변</span>`,
+      `${zc.title} — 최근 1년 분포에서 ${zc.z.toFixed(1)}σ`, `${zc.label} 급변, ${zc.z.toFixed(1)} 시그마`);
+  } catch(_) {}
   const fg = sent.fear_greed;
   if(fg && fg.value != null) chip("showSentimentDetail('fear_greed')", '공포탐욕',
     `<span class="brief-val">${_bsNum(fg.value, 0)}</span><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${escapeHtml(String(fg.rating || ''))}</span>`,
@@ -289,6 +318,38 @@ function renderBriefStrip(d) {
       `${nx.e.dt} ${nx.e.name} ${'★'.repeat(nx.e.stars || 0)} — 클릭: 경제 캘린더`, `다음 경제 일정: ${dTxt} ${nx.e.name}`);
   }
   if(chips.length) host.innerHTML = chips.join('');
+}
+
+// 변동 슬롯의 근거 — 지표별 일간 변화율을 자기 이력(최대 1년) 분포로 표준화해
+// |z| ≥ 2 인 것 중 가장 큰 하나만 돌려준다. 없으면 null(슬롯을 비운다).
+function _bsZScoreEvent(d) {
+  const H = d.history || {};
+  const CAND = [
+    { label: 'KOSPI',    hist: (H.indices || {}).KOSPI,   cur: (d.indices || {}).KOSPI,  onclick: "navigateToDetail('equity')", title: 'KOSPI 일간 변화' },
+    { label: 'S&P500',   hist: (H.indices || {}).SP500,   cur: (d.indices || {}).SP500,  onclick: "navigateToDetail('equity')", title: 'S&P 500 일간 변화' },
+    { label: 'USD/KRW',  hist: (H.fx || {}).USDKRW,       cur: (d.fx || {}).USDKRW,      onclick: "navigateToDetail('fx')",     title: '원/달러 일간 변화' },
+    { label: 'WTI',      hist: (H.commodities || {}).WTI, cur: (d.commodities || {}).WTI, onclick: "navigateToDetail('commodity')", title: 'WTI 일간 변화' },
+  ];
+  let best = null;
+  CAND.forEach(c => {
+    const closes = (c.hist || []).map(p => +p.close).filter(Number.isFinite).slice(-260);
+    if(closes.length < 60) return;
+    const rets = [];
+    for(let i = 1; i < closes.length; i++) if(closes[i - 1]) rets.push((closes[i] / closes[i - 1] - 1) * 100);
+    if(rets.length < 50) return;
+    const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+    const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) * (b - mean), 0) / rets.length);
+    if(!(sd > 0)) return;
+    const chg = c.cur && (c.cur.change != null ? +c.cur.change : null);
+    if(chg == null || !Number.isFinite(chg)) return;
+    const z = (chg - mean) / sd;
+    if(Math.abs(z) < 2) return;
+    if(!best || Math.abs(z) > Math.abs(best.z)) {
+      best = { label: c.label, onclick: c.onclick, title: c.title, z,
+               dir: chg >= 0 ? 1 : -1, valTxt: (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' };
+    }
+  });
+  return best;
 }
 
 // ── 📐 KPI 5년 백분위 배지 — 현재 값이 최근 5년 일별 분포에서 차지하는 위치 ──
@@ -323,7 +384,7 @@ function updateAiQaVisibility() {
   if(!box) return;
   let has = '';
   try { has = localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey') || ''; } catch(_) {}
-  box.style.display = has ? 'block' : 'none';
+  box.hidden = !has;
 }
 
 // 당일 시장 컨텍스트 스냅샷 — scripts/ai_briefing.py build_snapshot 과 동일 구성 원칙:
@@ -1705,7 +1766,22 @@ function cmpRender() {
 
 // ── ↕ 대시보드 홈 위젯 드래그 정렬 + 표시/숨김 (UX 2.1) ─────────────────────
 const DND_KPI_LS_KEY = 'econ_home_kpi_order_v1';
-const DND_SEC_LS_KEY = 'econ_home_sec_order_v1';
+// 섹션 순서 — v2 로 이행(신설 watch 를 kpi 뒤에 끼워 넣고 미지 id 제거).
+// 초기화가 아니라 이행이다: 사용자가 정렬해 둔 순서를 버리지 않는다.
+const DND_SEC_LS_KEY = 'econ_home_sec_order_v2';
+(function migrateSecOrderV2(){
+  try {
+    if(localStorage.getItem(DND_SEC_LS_KEY)) return;
+    const old = JSON.parse(localStorage.getItem('econ_home_sec_order_v1') || 'null');
+    if(!Array.isArray(old) || !old.length) return;
+    const KNOWN = ['brief','kpi','watch','main','compare','bottom'];
+    const next = old.filter(s => KNOWN.indexOf(s) >= 0);
+    const at = next.indexOf('kpi');
+    if(next.indexOf('watch') < 0) next.splice(at >= 0 ? at + 1 : next.length, 0, 'watch');
+    localStorage.setItem(DND_SEC_LS_KEY, JSON.stringify(next));
+    localStorage.removeItem('econ_home_sec_order_v1');
+  } catch(_) {}
+})();
 const SEC_HIDDEN_LS_KEY = 'econ_home_hidden_v1';
 const SEC_NAMES = { brief: '오늘의 브리핑', kpi: '핵심 지표 KPI', main: '메인 차트', compare: '지표 비교 차트', bottom: '등락 Top10 · 뉴스' };
 let _dndEl = null, _dndType = null;
@@ -1867,9 +1943,40 @@ function initGlobalDelayChip() {
    다시 보일 때 resize 디스패치로 0px 캔버스 소생(restoreHomeSec 와 동일). */
 
 // ── 1) 위젯 접기 — .widget-title 클릭으로 본문만 접힘/펼침 ──────────────
-var WCOLLAPSE_LS = 'econ_widget_collapse_v1';
-function _wcLoad(){ try { return new Set(JSON.parse(localStorage.getItem(WCOLLAPSE_LS) || '[]')); } catch(_) { return new Set(); } }
-function _wcSave(s){ try { localStorage.setItem(WCOLLAPSE_LS, JSON.stringify([...s])); } catch(_) {} }
+// 3상태 접힘 — unset / collapsed / expanded.
+// unset 이 필요한 이유: '기본 접힘' 위젯(지표 비교)을 사용자가 펼친 것과, 아직
+// 아무 선택도 없는 상태를 구분해야 새 기본값이 사용자의 선택을 덮지 않는다.
+var WCOLLAPSE_LS = 'econ_widget_collapse_v2';
+var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트'];   // 제목 부분일치(모든 폭)
+// 모바일(<768)에서만 기본 접힘 — L3(차트·등락·뉴스)은 '왜·어떻게'를 묻는 층이라
+// 첫 스크롤에서 답할 필요가 없다. 사용자가 펼치면 그 선택은 저장된다.
+var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 지수', '등락 Top10', '최신 경제 뉴스'];
+function _wcLoadMap(){
+  try { return JSON.parse(localStorage.getItem(WCOLLAPSE_LS) || '{}') || {}; } catch(_) { return {}; }
+}
+function _wcSaveMap(m){ try { localStorage.setItem(WCOLLAPSE_LS, JSON.stringify(m)); } catch(_) {} }
+(function migrateCollapseV2(){
+  try {
+    if(localStorage.getItem(WCOLLAPSE_LS)) return;
+    const old = JSON.parse(localStorage.getItem('econ_widget_collapse_v1') || 'null');
+    if(!Array.isArray(old)) return;
+    const m = {};
+    old.forEach(k => { m[k] = 'collapsed'; });
+    localStorage.setItem(WCOLLAPSE_LS, JSON.stringify(m));
+    localStorage.removeItem('econ_widget_collapse_v1');
+  } catch(_) {}
+})();
+// 옛 Set 기반 호출부와의 호환 — 읽기는 map, 쓰기는 상태값
+function _wcLoad(){
+  const m = _wcLoadMap();
+  return new Set(Object.keys(m).filter(k => m[k] === 'collapsed'));
+}
+function _wcSave(s){
+  const m = _wcLoadMap();
+  Object.keys(m).forEach(k => { if(m[k] === 'collapsed' && !s.has(k)) m[k] = 'expanded'; });
+  s.forEach(k => { m[k] = 'collapsed'; });
+  _wcSaveMap(m);
+}
 function _wcSetState(w, t, collapsed){
   w.classList.toggle('w-collapsed', collapsed);
   t.setAttribute('aria-expanded', String(!collapsed));
@@ -1890,7 +1997,13 @@ function initWidgetCollapse(){
     t.classList.add('w-toggle');
     t.setAttribute('role', 'button'); t.setAttribute('tabindex', '0');
     var key = (w.closest('.page') ? w.closest('.page').id : 'x') + '|' + (t.textContent || '').trim().slice(0, 40);
-    _wcSetState(w, t, saved.has(key));
+    // 미선택(unset) 기본값 — 기본 접힘 목록에 해당하면 접은 상태로 시작한다
+    var state = _wcLoadMap()[key];
+    var narrow = (window.innerWidth || 1024) < 768;
+    var defaults = WCOLLAPSE_DEFAULT_COLLAPSED.concat(narrow ? WCOLLAPSE_DEFAULT_COLLAPSED_NARROW : []);
+    var startCollapsed = state ? state === 'collapsed'
+      : defaults.some(function(m){ return (t.textContent || '').indexOf(m) >= 0; });
+    _wcSetState(w, t, startCollapsed);
     function onToggle(ev){
       // 타이틀 안의 인터랙티브 요소(신선도 칩·링크·버튼)는 통과
       if(ev.target.closest('button,a,select,input,label,.w-fresh-chip')) return;
@@ -2029,8 +2142,8 @@ function applyWidgetFreshChips(){
 function toggleMainChartMore(btn){
   var row = document.getElementById('mainChartMoreRow');
   if(!row) return;
-  var open = row.style.display === 'none';
-  row.style.display = open ? 'flex' : 'none';
+  var open = row.hidden;                       // hidden 이 열림/닫힘의 단일 계약
+  row.hidden = !open;
   btn.setAttribute('aria-expanded', String(open));
 }
 

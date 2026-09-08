@@ -157,7 +157,7 @@
      용량 90%+ 절감. display=block: 아이콘 폰트는 swap 시 'menu_open' 같은 리거처 원문이
      그대로 보였다가 교체되는 결함이 있어 짧은 공백이 낫다(Google Fonts 권장).
      ⚠ 새 아이콘을 쓰려면 여기 icon_names 에도 추가해야 한다(빠지면 이름 텍스트가 그대로 노출). -->
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&icon_names=account_balance,article,calendar_month,candlestick_chart,chevron_right,compare_arrows,dark_mode,edit_note,history_edu,home,home_work,light_mode,menu,menu_open,monitoring,more_horiz,pause,play_arrow,public,refresh,settings,show_chart&display=block" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&icon_names=account_balance,article,calendar_month,candlestick_chart,chevron_right,close,compare_arrows,dark_mode,edit_note,history_edu,home,home_work,light_mode,menu,menu_open,monitoring,more_horiz,pause,play_arrow,public,refresh,settings,show_chart,swap_horiz&display=block" rel="stylesheet"/>
 <!-- @seed-design/css@2.7.0 벤더링본 — scripts/vendor_seed_css.py 산출.
      CSP 가 style-src 'self' 라 CDN <link> 는 불가하므로 저장소에 둔다.
      인라인 <style> 보다 앞: 동특이성에서 사이트 규칙이 이겨야 한다(병기 전환기).
@@ -233,9 +233,14 @@
       var host = document.getElementById('toastHost');
       if (!host){ host = document.createElement('div'); host.id = 'toastHost'; document.body.appendChild(host); }
       var t = document.createElement('div');
-      t.className = 'toast' + (type ? ' ' + type : '');
+      // Snackbar recipe — 아이콘 variant 로 성공/실패를 구분한다(문구 앞 이모지 대신)
+      var iconVariant = type === 'ok' ? 'positive' : type === 'err' ? 'critical' : 'default';
+      t.className = 'seed-snackbar__root toast' + (type ? ' ' + type : '');
       t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite');
-      t.textContent = msg; host.appendChild(t);
+      t.innerHTML = '<span class="seed-snackbar__prefixIcon seed-snackbar__prefixIcon--variant_' + iconVariant + '" aria-hidden="true"></span>'
+                  + '<span class="seed-snackbar__content"><span class="seed-snackbar__message"></span></span>';
+      t.querySelector('.seed-snackbar__message').textContent = msg;
+      host.appendChild(t);
       requestAnimationFrame(function(){ t.classList.add('show'); });
       setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 250); }, ms || 4000);
     } catch(_) {}
@@ -886,6 +891,160 @@
     .sp-md-12 { grid-column: span 12; }
   }
 
+
+  /* ═══ 홈 3층 컴포넌트 — SEED 에 없는 여섯(표·차트·KPI 타일·스파크라인·티커·바텀내비)만
+     자체 정의하고, 값은 전부 --seed-* 토큰과 recipe 타입 스타일에서 가져온다. ══════ */
+
+  /* .widget 훅(새로고침 주입·접기·DnD)은 유지하되 표면은 안쪽 recipe 가 주는 래퍼 */
+  .widget.econ-flush {
+    background: none !important; border: none !important;
+    box-shadow: none !important; padding: 0 !important;
+  }
+  .econ-home-row { margin-bottom: var(--seed-dimension-x4, 16px); }
+  /* 카드 안에서 쓰는 list-header 는 좌우 패딩을 카드 패딩에 양보한다 */
+  .widget .seed-list-header { padding-inline: 0; }
+  .econ-meta { font-size: var(--seed-font-size-t1); line-height: var(--seed-line-height-t1);
+               color: var(--seed-color-fg-neutral-muted); }
+  .econ-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+             white-space: nowrap; }
+
+  /* 카드 헤더 — 제목 + 도구 한 줄, 좁으면 줄바꿈 */
+  .econ-head { display: flex; align-items: center; justify-content: space-between;
+               gap: var(--seed-dimension-x2, 8px); flex-wrap: wrap; }
+  .econ-head__main { display: flex; align-items: baseline; gap: var(--seed-dimension-x2, 8px);
+                     flex-wrap: wrap; min-width: 0; }
+  .econ-head__title { width: auto; }
+  .econ-head__price { font-size: var(--seed-font-size-t7); font-weight: var(--seed-font-weight-bold);
+                      font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .econ-head__chg { font-size: var(--seed-font-size-t4); font-variant-numeric: tabular-nums; }
+  .econ-head__tools { display: flex; align-items: center; gap: var(--seed-dimension-x1_5, 6px);
+                      flex-wrap: wrap; }
+  .econ-head__drawer { display: flex; align-items: center; gap: var(--seed-dimension-x1_5, 6px);
+                       flex-wrap: wrap; margin: var(--seed-dimension-x2, 8px) 0; }
+  .econ-chipgroup { display: flex; align-items: center; flex-wrap: wrap;
+                    gap: var(--seed-dimension-spacing-x-between-chips, 8px); }
+  .econ-tabs { margin: var(--seed-dimension-x2, 8px) 0; }
+  .econ-date { background: var(--c-bg); border: 1px solid var(--c-border);
+               border-radius: var(--r-xs); padding: 4px 6px; color: var(--c-txt);
+               font-size: var(--seed-font-size-t3); min-height: 32px; }
+
+  /* Callout — recipe 는 배경·톤·간격을 주고, 사이트는 배치만 */
+  .econ-callout { display: flex; text-align: start; cursor: default; }
+  .econ-callout--inline { margin-top: var(--seed-dimension-x2, 8px); }
+  .econ-callout .seed-callout__content { display: flex; flex-direction: column;
+                                         gap: var(--seed-dimension-x1_5, 6px); min-width: 0; }
+  .econ-brief-lines { display: flex; flex-direction: column; gap: var(--seed-dimension-x1, 4px); }
+  /* 3줄 요약의 번호와 본문은 한 줄에 — 예전엔 모바일 wrap 강제가 둘을 쪼갰다 */
+  .ai-brief-line { display: flex; gap: var(--seed-dimension-x2, 8px); align-items: baseline; }
+  .ai-brief-line__no { color: var(--seed-color-fg-neutral-muted); font-weight: var(--seed-font-weight-bold);
+                       flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .econ-qa { border-top: 1px solid var(--c-border); padding-top: var(--seed-dimension-x2_5, 10px);
+             display: flex; flex-direction: column; gap: var(--seed-dimension-x1_5, 6px); }
+  .econ-qa__row { display: flex; gap: var(--seed-dimension-x1_5, 6px); align-items: center; }
+  .econ-qa__field { flex: 1; min-width: 0; }
+  .econ-qa__answer { font-size: var(--seed-font-size-t4); line-height: var(--seed-line-height-t6);
+                     white-space: pre-wrap; }
+  /* 리스크 신호등 — 누를 수 있는 Callout(recipe 가 :is(button,a) 에서 pressed 제공) */
+  .econ-risk { cursor: pointer; min-height: 68px; }
+  .econ-risk__head { display: inline-flex; align-items: center; gap: var(--seed-dimension-x2, 8px); }
+  .econ-risk__val { font-variant-numeric: tabular-nums; }
+
+  /* 칩 스트립 — 넘치면 가로 스크롤 + 양끝 페이드(scroll-fog) */
+  .econ-chipstrip { overflow-x: auto; overflow-y: hidden; }
+  .econ-chipstrip__row { display: flex; align-items: center; flex-wrap: nowrap;
+                         gap: var(--seed-dimension-spacing-x-between-chips, 8px);
+                         padding: 2px 0; }
+  .econ-chipstrip__row > * { flex-shrink: 0; }
+  /* 칩 라벨과 값 사이 간격 — recipe 라벨은 단일 텍스트를 가정한다 */
+  .brief-chip .seed-chip__label { display: inline-flex; align-items: center;
+                                  gap: var(--seed-dimension-x1_5, 6px); }
+  .brief-chip .brief-lbl { color: var(--seed-color-fg-neutral-muted); }
+  .brief-chip .brief-val { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+  /* KPI 스탯 타일 — SEED 에 대응 컴포넌트가 없다(§2) */
+  .econ-stat { display: flex; flex-direction: column; align-items: stretch;
+               gap: var(--seed-dimension-x1, 4px); text-align: left; cursor: pointer;
+               font-family: inherit; }
+  .econ-stat__label { display: flex; align-items: baseline; gap: var(--seed-dimension-x1_5, 6px);
+                      font-size: var(--seed-font-size-t2); font-weight: var(--seed-font-weight-medium);
+                      color: var(--seed-color-fg-neutral-muted); margin-bottom: 0;
+                      text-transform: none; letter-spacing: 0; flex-wrap: wrap; }
+  .econ-stat__unit { font-size: var(--seed-font-size-t1); font-weight: var(--seed-font-weight-regular);
+                     color: var(--seed-color-fg-neutral-muted); }
+  .econ-stat__val { font-size: var(--seed-font-size-t8); line-height: var(--seed-line-height-t8);
+                    font-weight: var(--seed-font-weight-bold); font-family: var(--font-num);
+                    font-variant-numeric: tabular-nums; color: var(--seed-color-fg-neutral); }
+  .econ-stat__valrow { display: flex; align-items: baseline; gap: var(--seed-dimension-x1_5, 6px);
+                       flex-wrap: wrap; }
+  .econ-stat__chg { font-size: var(--seed-font-size-t3); font-weight: var(--seed-font-weight-medium);
+                    font-variant-numeric: tabular-nums; }
+  .econ-stat__spark { position: relative; display: block; height: 40px;
+                      margin-top: var(--seed-dimension-x2, 8px); }
+  @media (max-width: 479px) {
+    .econ-stat__val { font-size: var(--seed-font-size-t6); line-height: var(--seed-line-height-t6); }
+  }
+
+  /* 데이터 표 — 행 36px(손가락 입력 44px), 숫자는 tabular-nums, 선택행은 좌측 2px */
+  .econ-table__scroll { overflow-x: auto; }
+  .econ-table { width: 100%; border-collapse: collapse;
+                font-size: var(--seed-font-size-t2); line-height: var(--seed-line-height-t2); }
+  .econ-table th { text-align: left; font-weight: var(--seed-font-weight-medium);
+                   color: var(--seed-color-fg-neutral-muted); padding: 6px 4px;
+                   border-bottom: 1px solid var(--seed-color-stroke-neutral-weak, var(--c-border)); }
+  .econ-table td { padding: 0 4px; height: 36px; vertical-align: middle;
+                   border-bottom: 1px solid var(--seed-color-stroke-neutral-weak, var(--c-border)); }
+  .econ-table--num { text-align: right; font-variant-numeric: tabular-nums; }
+  .econ-table--tiny { width: 36px; }
+  .econ-table tbody tr[aria-selected="true"] {
+    background: var(--seed-color-bg-brand-weak, var(--c-accent-container));
+    box-shadow: inset 2px 0 0 0 var(--seed-color-fg-brand, var(--c-accent));
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .econ-table tbody tr:hover { background: var(--seed-color-bg-layer-default-pressed, var(--c-card-hi)); }
+  }
+  @media (pointer: coarse) { .econ-table td { height: 44px; } }
+  .econ-tablefoot { margin-top: var(--seed-dimension-x1_5, 6px); }
+
+  /* 시장 분위기 행 — list-item recipe + 값 슬롯. 항목별 의미색은 쓰지 않는다 */
+  .econ-row { padding-inline: 0; cursor: pointer; text-align: left; background: none;
+              border-bottom: 1px solid var(--seed-color-stroke-neutral-subtle, var(--c-border-weak)); }
+  .econ-row:last-of-type { border-bottom: none; }
+  .econ-row__suffix { display: flex; flex-direction: column; align-items: flex-end;
+                      gap: 2px; margin-left: auto; }
+  .econ-row__val { font-size: var(--seed-font-size-t4); font-weight: var(--seed-font-weight-bold);
+                   font-family: var(--font-num); font-variant-numeric: tabular-nums;
+                   color: var(--seed-color-fg-neutral); }
+  .econ-fear { position: relative; width: 52px; height: 52px; flex-shrink: 0;
+               margin-right: var(--seed-dimension-x2_5, 10px); }
+  .econ-sources { padding-top: var(--seed-dimension-x2, 8px); }
+  .econ-sources a { color: var(--seed-color-fg-brand, var(--c-primary)); text-decoration: none; }
+
+  /* 차트 카드 */
+  .econ-chartcard { display: flex; flex-direction: column; }
+  .econ-chartcard__range { min-height: 16px; margin-bottom: var(--seed-dimension-x1_5, 6px);
+                           color: var(--seed-color-fg-brand, var(--c-primary)); }
+  .econ-chartcard__canvas { position: relative; flex: 1; min-height: 380px; }
+  .econ-chartcard__canvas--compare { min-height: 300px; flex: 0 0 auto; height: 300px; }
+
+  /* 비교 차트 셀렉트 — Content recipe 가 없어 네이티브 select 를 trigger 안에 넣는다 */
+  .econ-select { position: relative; max-width: 190px; }
+  .econ-select select { appearance: none; background: transparent; border: none; color: inherit;
+                        font: inherit; width: 100%; padding: 0; cursor: pointer; }
+  .econ-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .econ-dot--a { background: var(--color-series-1); }
+  .econ-dot--b { background: var(--color-series-2); }
+
+  /* 뉴스 목록 — 행(list-item) + 메타(tag-group) */
+  .econ-newslist { display: flex; flex-direction: column; }
+  .econ-newslist .seed-list-item__root { padding-inline: 0; text-decoration: none;
+    border-bottom: 1px solid var(--seed-color-stroke-neutral-subtle, var(--c-border-weak)); }
+  .econ-newslist .seed-list-item__root:last-child { border-bottom: none; }
+  .econ-newsmore { width: 100%; margin-top: var(--seed-dimension-x2, 8px); }
+
+  /* 접힌 위젯 — 3상태(unset/collapsed/expanded)의 시각 표현은 기존 규칙 재사용 */
+  .w-collapsed .econ-chartcard__canvas,
+  .w-collapsed .econ-table__scroll { display: none; }
+
   /* ═══ 사이드 내비 3구간 — SEED side-navigation recipe + 사이트 규칙 ══════════
      ≥1280  펼침 240px(사용자가 접을 수 있다)
      768~1279 아이콘 레일 56px([data-side-navigation-state=collapsed])
@@ -1187,13 +1346,13 @@
   /* 오늘의 브리핑 스트립 — 리스크 신호등 + 핵심 지표 칩 (홈 상단) */
   .brief-strip-row { display:flex; align-items:center; gap:8px; }
   .brief-chip-scroll { display:flex; gap:8px; flex-wrap:wrap; min-width:0; flex:1; }
-  .brief-chip { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  .brief-chip:not([class*="seed-"]) { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
     background:rgba(60,76,110,.32); border:1px solid rgba(170,195,255,.14);
     border-radius:var(--r-full); padding:6px 12px; font-size:var(--fs-body-sm,12px);
     color:var(--c-txt); cursor:pointer; font-family:inherit;
     transition:background var(--t-fast,.12s), transform var(--t-fast,.12s); }
-  .brief-chip:hover { background:rgba(41,98,255,.18); transform:translateY(-1px); }
-  html.light .brief-chip { background:rgba(255,255,255,.55); border-color:rgba(53,108,181,.15); }
+  .brief-chip:not([class*="seed-"]):hover { background:rgba(41,98,255,.18); transform:translateY(-1px); }
+  html.light .brief-chip:not([class*="seed-"]) { background:rgba(255,255,255,.55); border-color:rgba(53,108,181,.15); }
   .brief-lbl { font-size:10px; color:var(--c-txt-dim); text-transform:uppercase; letter-spacing:.04em; }
   .brief-val { font-weight:700; font-family:var(--font-num); }
   /* 리스크 신호등 색 — 위험 의미색은 시장 등락 색상관습(kr-colors 의 --c-up/--c-down 반전)과
@@ -1263,7 +1422,7 @@
   /* 모바일에서는 상단 헤더의 날짜·시각(시계)을 숨긴다 — 좁은 화면에서 티커 공간 확보(2026-06 사용자 요청). */
   @media (max-width: 768px) { #clock { display: none !important; } }
   .tab-btn { transition: all .15s; cursor: pointer; }
-  .tab-btn.active { background: var(--c-accent); color: var(--c-on-accent); }
+  .tab-btn.active:not([class*="seed-"]) { background: var(--c-accent); color: var(--c-on-accent); }
   .tab-btn:not(.active):hover { background: rgba(170, 195, 255, 0.12); }
   /* ═══ 전년 동기(YoY) 비교 — 토글 버튼 + 변화율 배지 (순수 추가) ═══ */
   .yoy-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px;
@@ -1272,7 +1431,7 @@
              font-weight: 600; transition: all .15s; white-space: nowrap; }
   .yoy-btn:not(.active):hover { background: rgba(170,195,255,.12); color: var(--c-txt,#e8ebf5); }
   .yoy-btn.active { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
-  .yoy-btn.indeterminate { background: rgba(41,98,255,.16); color: var(--c-primary,#c8d2ff);
+  .yoy-btn.indeterminate:not([class*="seed-"]) { background: rgba(41,98,255,.16); color: var(--c-primary,#c8d2ff);
              border-color: var(--c-accent); border-style: dashed; }
   .yoy-btn .mat { font-size: 14px; }
   html.light .yoy-btn.active { background: var(--c-accent,#356CB5) !important; color: #fff !important; border-color: var(--c-accent,#356CB5) !important; }
@@ -1289,8 +1448,8 @@
      글자 두께를 올려 체감 대비를 높인다(활성=파란 배경+흰 글씨 구분은 그대로 유지).
      색은 디자인 토큰을 그대로 두고 두께만 조정 → 기존 활성/비활성 로직과 충돌 없음. */
   button, select { font-weight: 500; }
-  .tab-btn, .preset-btn, .invUnitBtn, .news-filter-btn,
-  .reHistPeriodBtn, .reHistUnitBtn, .range-reset-btn { font-weight: 600; letter-spacing: .01em; }
+  .tab-btn:not([class*="seed-"]), .preset-btn:not([class*="seed-"]), .invUnitBtn:not([class*="seed-"]), .news-filter-btn:not([class*="seed-"]),
+  .reHistPeriodBtn:not([class*="seed-"]), .reHistUnitBtn:not([class*="seed-"]), .range-reset-btn { font-weight: 600; letter-spacing: .01em; }
   /* .menu-item 은 JS 훅(9곳)을 위해 클래스만 남기고 시각 규칙은 SEED
      side-navigation-menu-item recipe 로 넘겼다 — 병기하면 recipe 가 덮인다. */
   .page { display: none; }
@@ -1303,8 +1462,8 @@
   .ticker-item { cursor: pointer; }
   .ticker-item:hover { opacity: 0.75; }
   .econ-ticker:hover .ticker-scroll { animation-play-state: paused; }
-  .news-filter-btn { font-size:var(--fs-label); padding:2px 8px; border-radius:var(--r-xs); cursor:pointer; user-select:none; border:1px solid var(--c-border); color:var(--c-txt-dim); background:var(--c-card); transition:all .15s; }
-  .news-filter-btn.act { background:var(--c-accent); color:var(--c-on-accent); border-color:var(--c-accent); }
+  .news-filter-btn:not([class*="seed-"]) { font-size:var(--fs-label); padding:2px 8px; border-radius:var(--r-xs); cursor:pointer; user-select:none; border:1px solid var(--c-border); color:var(--c-txt-dim); background:var(--c-card); transition:all .15s; }
+  .news-filter-btn.act:not([class*="seed-"]) { background:var(--c-accent); color:var(--c-on-accent); border-color:var(--c-accent); }
   .range-reset-btn { background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:0 5px;font-size:var(--fs-label);cursor:pointer;margin-left:6px;line-height:1.2; }
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
   .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #3a4054;border-radius:4px;padding:2px 6px;font-size:11px; }
@@ -1614,26 +1773,26 @@ html.light #dataSrcBanner { background:#fff7e6; color:var(--c-warn,#b8860b); bor
 /* ── 1. 비활성 버튼 hover: 텍스트도 밝아지는 피드백 ─────────────
    tab-btn·preset-btn·단위·기간 버튼이 모두 인라인 color:var(--c-txt-dim)
    을 갖고 있어 CSS :hover 에 !important 없이는 텍스트 색 변경 불가. */
-.tab-btn:not(.active):hover,
-.preset-btn:not(.active):hover,
-.invUnitBtn:not(.active):hover,
-.reHistPeriodBtn:not(.active):hover,
-.reHistUnitBtn:not(.active):hover {
+.tab-btn:not([class*="seed-"]):not(.active):hover,
+.preset-btn:not([class*="seed-"]):not(.active):hover,
+.invUnitBtn:not([class*="seed-"]):not(.active):hover,
+.reHistPeriodBtn:not([class*="seed-"]):not(.active):hover,
+.reHistUnitBtn:not([class*="seed-"]):not(.active):hover {
   color: var(--c-txt, #e8ebf5) !important;
   border-color: rgba(170, 195, 255, 0.32) !important;
 }
 /* preset·단위·기간: 배경도 인라인(transparent) → hover 시 subtle blue */
-.preset-btn:not(.active):hover,
-.invUnitBtn:not(.active):hover,
-.reHistPeriodBtn:not(.active):hover,
-.reHistUnitBtn:not(.active):hover {
+.preset-btn:not([class*="seed-"]):not(.active):hover,
+.invUnitBtn:not([class*="seed-"]):not(.active):hover,
+.reHistPeriodBtn:not([class*="seed-"]):not(.active):hover,
+.reHistUnitBtn:not([class*="seed-"]):not(.active):hover {
   background: rgba(170, 195, 255, 0.12) !important;
 }
 /* 라이트 모드 hover (tab-btn 은 이미 line 336 에 정의됨, 나머지 보강) */
-html.light .preset-btn:not(.active):hover,
-html.light .invUnitBtn:not(.active):hover,
-html.light .reHistPeriodBtn:not(.active):hover,
-html.light .reHistUnitBtn:not(.active):hover {
+html.light .preset-btn:not([class*="seed-"]):not(.active):hover,
+html.light .invUnitBtn:not([class*="seed-"]):not(.active):hover,
+html.light .reHistPeriodBtn:not([class*="seed-"]):not(.active):hover,
+html.light .reHistUnitBtn:not([class*="seed-"]):not(.active):hover {
   background: #d9edf8 !important;
   color: rgb(38, 38, 38) !important;
   border-color: #aac4e6 !important;
@@ -1673,7 +1832,7 @@ html.light .widget-err button:hover {
 .kpi-clickable:hover { transform: translateY(-2px); }
 
 /* ── 6. 라이트 모드: widget-title → accent 파랑으로 ──────────── */
-html.light .widget-title { color: rgb(53, 108, 181) !important; }
+html.light .widget-title:not([class*="seed-"]) { color: rgb(53, 108, 181) !important; }
 
 /* ── 7. 스크롤바 thumb hover ─────────────────────────────────── */
 ::-webkit-scrollbar-thumb:hover { background: #5a6480; }
@@ -1720,11 +1879,15 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
    숨긴 섹션 복원 바는 그대로 동작한다. */
 @media (pointer: coarse) { .home-sec .sec-drag-handle, .home-sec .sec-hide-btn { display: none; } }
 #toastHost { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3000; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
-.toast { background: var(--c-surface,#1a2236); color: var(--c-txt,#e8ebf5); border: 1px solid var(--c-border,#3e4870); border-radius: var(--r-md,12px); padding: 10px 16px; font-size: var(--fs-body,13px); box-shadow: var(--e-2); opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; max-width: min(90vw, 380px); }
+.toast:not([class*="seed-"]) { background: var(--c-surface,#1a2236); color: var(--c-txt,#e8ebf5); border: 1px solid var(--c-border,#3e4870); border-radius: var(--r-md,12px); padding: 10px 16px; font-size: var(--fs-body,13px); box-shadow: var(--e-2); opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; max-width: min(90vw, 380px); }
 .toast.show { opacity: 1; transform: translateY(0); }
-.toast.ok { border-color: var(--c-success,#26a69a); }
-.toast.err { border-color: var(--c-down,#ef5350); }
-html.light .toast { background: #fff; }
+  /* recipe 는 등장 애니메이션을 주지 않는다 — 사이트가 opacity/transform 만 담당 */
+  .toast.seed-snackbar__root { opacity: 0; transform: translateY(8px);
+    transition: opacity var(--duration-fast, 150ms), transform var(--duration-fast, 150ms); }
+  .toast.seed-snackbar__root.show { opacity: 1; transform: translateY(0); }
+.toast.ok:not([class*="seed-"]) { border-color: var(--c-success,#26a69a); }
+.toast.err:not([class*="seed-"]) { border-color: var(--c-down,#ef5350); }
+html.light .toast:not([class*="seed-"]) { background: #fff; }
 [role="dialog"]:focus { outline: none; }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1792,7 +1955,7 @@ main#mainContent { padding: var(--spacing-5); }
   padding: var(--spacing-4);
   box-shadow: var(--shadow-low) !important;
 }
-.widget-title {
+.widget-title:not([class*="seed-"]) {
   /* Phase 3 위계 격상: xs(10px)·dim 단일 위계가 212개 위젯을 균일한 회색 텍스처로
      만들었다(감사 C3) — 한 단계 위 크기 + 본문 명도로 섹션 식별성을 올린다. */
   font-size: var(--font-size-sm);
@@ -1871,16 +2034,19 @@ tr:hover td, .hoverable-row:hover td {
 
 /* ── 4. 컨트롤 ──────────────────────────────────────────────────
    높이 28/32/36 3단, 라디우스 inner, 비활성은 무채색, 활성만 accent. */
-.tab-btn, .preset-btn, .invUnitBtn, .news-filter-btn, .yoy-btn,
-.reHistPeriodBtn, .reHistUnitBtn, .range-reset-btn, .study-btn, .gidx-btn {
+/* 아래 컨트롤 규칙은 recipe 를 채택하지 않은 요소에만 적용한다 — SEED 칩·탭·
+   토글 버튼은 자기 recipe 가 배경·테두리·상태색을 주고, 사이트 규칙이 그것을
+   !important 로 덮으면 채택이 무의미해진다(기획안 위험 R5). */
+.tab-btn:not([class*="seed-"]), .preset-btn:not([class*="seed-"]), .invUnitBtn:not([class*="seed-"]), .news-filter-btn:not([class*="seed-"]), .yoy-btn:not([class*="seed-"]),
+.reHistPeriodBtn:not([class*="seed-"]), .reHistUnitBtn:not([class*="seed-"]), .range-reset-btn, .study-btn, .gidx-btn {
   font-family: inherit;
   border-radius: var(--r-sm) !important;
   transition: background var(--duration-fast-min) var(--ease-standard),
               border-color var(--duration-fast-min) var(--ease-standard),
               color var(--duration-fast-min) var(--ease-standard);
 }
-.tab-btn, .preset-btn, .invUnitBtn, .news-filter-btn,
-.reHistPeriodBtn, .reHistUnitBtn {
+.tab-btn:not([class*="seed-"]), .preset-btn:not([class*="seed-"]), .invUnitBtn:not([class*="seed-"]), .news-filter-btn:not([class*="seed-"]),
+.reHistPeriodBtn:not([class*="seed-"]), .reHistUnitBtn:not([class*="seed-"]) {
   min-height: var(--size-element-sm);
   padding: 0 var(--spacing-3);
   font-size: var(--font-size-sm) !important;
@@ -1889,21 +2055,21 @@ tr:hover td, .hoverable-row:hover td {
   background: transparent !important;
   border: 1px solid var(--c-border) !important;
 }
-.tab-btn:not(.active):hover, .preset-btn:not(.active):hover,
-.invUnitBtn:not(.active):hover, .news-filter-btn:not(.act):hover,
-.reHistPeriodBtn:not(.active):hover, .reHistUnitBtn:not(.active):hover {
+.tab-btn:not([class*="seed-"]):not(.active):hover, .preset-btn:not([class*="seed-"]):not(.active):hover,
+.invUnitBtn:not([class*="seed-"]):not(.active):hover, .news-filter-btn:not([class*="seed-"]):not(.act):hover,
+.reHistPeriodBtn:not([class*="seed-"]):not(.active):hover, .reHistUnitBtn:not([class*="seed-"]):not(.active):hover {
   background: var(--color-overlay-hover) !important;
   color: var(--c-txt) !important;
   border-color: var(--color-border-emphasized) !important;
 }
-.tab-btn.active, .preset-btn.active, .invUnitBtn.active, .news-filter-btn.act,
-.reHistPeriodBtn.active, .reHistUnitBtn.active, .yoy-btn.active,
-button.active, .study-btn.primary {
+.tab-btn.active:not([class*="seed-"]), .preset-btn.active:not([class*="seed-"]), .invUnitBtn.active:not([class*="seed-"]), .news-filter-btn.act:not([class*="seed-"]),
+.reHistPeriodBtn.active:not([class*="seed-"]), .reHistUnitBtn.active:not([class*="seed-"]), .yoy-btn.active:not([class*="seed-"]),
+button.active:not([class*="seed-"]), .study-btn.primary {
   background: var(--c-accent) !important;
   color: var(--c-on-accent) !important;
   border-color: var(--c-accent) !important;
 }
-.yoy-btn.indeterminate {
+.yoy-btn.indeterminate:not([class*="seed-"]) {
   background: var(--color-accent-muted) !important;
   color: var(--c-primary) !important;
   border-color: var(--c-accent) !important;
@@ -1935,7 +2101,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .set-slider:before { background: var(--color-background-surface); }
 
 /* ── 5. 상태 표시 — Badge 는 열거 상태/카운트에만 ──────────────── */
-.brief-chip, .ann-chip, .cal-chip, .study-badge, .kpi-pct-badge, #globalDelayChip {
+.brief-chip:not([class*="seed-"]), .ann-chip, .cal-chip, .study-badge, .kpi-pct-badge, #globalDelayChip {
   background: var(--color-background-gray) !important;
   color: var(--c-txt-dim) !important;
   border: 1px solid var(--c-border) !important;
@@ -1989,14 +2155,14 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: var(--color-background-muted) !important;
   border: 1px solid var(--c-border) !important;
 }
-.toast {
+.toast:not([class*="seed-"]) {
   background: var(--color-background-popover) !important;
   border: 1px solid var(--c-border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-high);
 }
-.toast.ok  { border-color: var(--color-border-green); }
-.toast.err { border-color: var(--color-border-red); }
+.toast.ok:not([class*="seed-"])  { border-color: var(--color-border-green); }
+.toast.err:not([class*="seed-"]) { border-color: var(--color-border-red); }
 
 /* ── 7. 스크롤바 — 4px 은 잡기 어렵다. astryx 컨트롤 감각으로 8px ── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -2316,305 +2482,356 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <!-- ====== 페이지 1: 대시보드 홈 ====== -->
     <div class="page active" id="page-dashboard">
 
-      <!-- 🤖 오늘의 매크로 3줄 요약 (Task 4.2) — data.json 의 aiBriefing 이 있을 때만 표시.
-           scripts/ai_briefing.py 가 GitHub Actions 에서 생성 (LLM 키 없으면 규칙 기반 폴백). -->
-      <div id="aiBriefingBanner" class="widget" style="display:none;margin-bottom:16px;padding:14px 16px;border-left:3px solid var(--c-accent);">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-          <div class="widget-title" style="margin-bottom:0;"><span aria-hidden="true">🤖</span> 오늘의 매크로 3줄 요약</div>
-          <span id="aiBriefingMeta" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span>
-        </div>
-        <div id="aiBriefingLines" style="font-size:var(--font-size-base);line-height:1.8;color:var(--c-txt);"></div>
-        <!-- 💬 AI 브리핑 대화형 질문 — 동기화 키 보유(소유자) 기기에서만 표시. Worker /ai 로 당일 스냅샷 주입 질의 -->
-        <div id="aiQaBox" style="display:none;margin-top:10px;border-top:1px solid var(--c-border);padding-top:10px;">
-          <div id="aiQaAnswer" style="display:none;font-size:12.5px;line-height:1.7;color:var(--c-txt);white-space:pre-wrap;margin-bottom:8px;"></div>
-          <div style="display:flex;gap:6px;">
-            <input id="aiQaInput" type="text" maxlength="300" placeholder="오늘 지표에 대해 AI에게 질문 (예: 환율은 왜 움직였나?)" aria-label="AI에게 오늘 시장에 대해 질문" style="flex:1;min-width:0;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:6px 10px;font-size:var(--font-size-sm);color:var(--c-txt);" onkeydown="if(event.key==='Enter'){aiQaAsk();}"/>
-            <button id="aiQaSendBtn" type="button" onclick="aiQaAsk()" style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent,var(--c-on-accent));cursor:pointer;font-weight:var(--font-weight-semibold);">질문</button>
-          </div>
-          <div id="aiQaMeta" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">※ AI 답변은 참고용이며 투자 조언이 아닙니다</div>
-        </div>
-      </div>
-
-      <!-- 📌 오늘의 브리핑 스트립 — 리스크 신호등 + 오늘의 핵심 수치 칩 (숨김/정렬은 home-sec 시스템 자동 편입) -->
+      <!-- ═══ L1 · 달라진 것 ═══════════════════════════════════════════════════
+           "오늘 무엇이 달라졌나"에만 답한다. AI 3줄(Display Callout) · 리스크
+           신호등(Actionable Callout) · 변화 칩 스트립. fold 안에서 끝난다. -->
       <div class="home-sec" id="homeSecBrief" data-sec="brief" style="position:relative;">
-      <section class="widget" id="todayBriefStrip" aria-label="오늘의 브리핑" style="margin-bottom:16px;padding:10px 14px;">
-        <div class="brief-strip-row" style="padding-right:70px;">
-          <button type="button" class="brief-chip u-touch-hit" id="riskLightChip" onclick="showRiskDetail()" aria-label="시장 리스크 신호등 — 클릭하면 산출 근거를 표시합니다">
-            <span class="risk-dot" id="riskDot" aria-hidden="true"></span>
-            <span class="brief-lbl">시장 리스크</span>
-            <span class="brief-val" id="riskLabel" role="status" aria-live="polite">—</span>
-          </button>
-          <div class="brief-chip-scroll" id="briefChips">
-            <span class="brief-chip" aria-hidden="true"><span class="skel-bar" style="width:90px;"></span></span>
-            <span class="brief-chip" aria-hidden="true"><span class="skel-bar" style="width:90px;"></span></span>
-            <span class="brief-chip" aria-hidden="true"><span class="skel-bar" style="width:120px;"></span></span>
+        <div class="seed-grid econ-home econ-home-row">
+          <!-- L1-a 오늘의 매크로 3줄 요약 — data.json.aiBriefing (scripts/ai_briefing.py).
+               Callout Link Text 는 Nudge 금지라 '질문하기'는 별도 action-button 이다.
+               .widget 래퍼는 새로고침 주입·접기 훅 유지용이고 표면은 recipe 가 준다. -->
+          <div class="sp-12 sp-md-8 sp-lg-8">
+            <div id="aiBriefingBanner" class="widget econ-flush" hidden>
+              <div class="seed-callout__root seed-callout__root--tone_magic econ-callout" id="aiBriefingCallout">
+                <div class="seed-callout__content">
+                  <div class="seed-callout__title seed-callout__title--tone_magic widget-title">오늘의 매크로 3줄 요약</div>
+                  <div id="aiBriefingLines" class="seed-callout__description seed-callout__description--tone_magic econ-brief-lines"></div>
+                  <div id="aiBriefingMeta" class="econ-meta"></div>
+                  <!-- 💬 AI 질문 — 동기화 키 보유(소유자) 기기에서만 표시 -->
+                  <div id="aiQaBox" class="econ-qa" hidden>
+                    <div id="aiQaAnswer" class="econ-qa__answer" hidden></div>
+                    <div class="econ-qa__row">
+                      <span class="seed-text-input__root seed-text-input__root--variant_outline-size_medium econ-qa__field">
+                        <input id="aiQaInput" class="seed-text-input__value" type="text" maxlength="300" placeholder="오늘 지표에 대해 질문 (예: 환율은 왜 움직였나?)" aria-label="AI에게 오늘 시장에 대해 질문" onkeydown="if(event.key==='Enter'){aiQaAsk();}"/>
+                      </span>
+                      <button id="aiQaSendBtn" type="button" onclick="aiQaAsk()" class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_small seed-action-button--size_small-layout_withText">질문하기</button>
+                    </div>
+                    <div id="aiQaMeta" class="econ-meta">AI 답변은 참고용이고 투자 조언이 아니에요</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- L1-b 리스크 신호등 — 누르면 산출 근거. tone 은 renderRiskLight 가 바꾼다.
+               점은 fg-* 색이고 tone 면 위에 얹지 않는다(red-700 on red-100 = 3.38). -->
+          <div class="sp-12 sp-md-4 sp-lg-4">
+            <button type="button" id="riskLightChip" class="seed-callout__root seed-callout__root--tone_neutral econ-callout econ-risk" onclick="showRiskDetail()" aria-label="시장 리스크 신호등 — 누르면 산출 근거를 표시합니다">
+              <span class="seed-callout__content">
+                <span class="seed-callout__title seed-callout__title--tone_neutral econ-risk__head">
+                  <span class="risk-dot" id="riskDot" aria-hidden="true"></span>시장 리스크
+                </span>
+                <span class="seed-callout__description seed-callout__description--tone_neutral econ-risk__val" id="riskLabel" role="status" aria-live="polite">—</span>
+              </span>
+              <span class="seed-suffix-icon mat" aria-hidden="true">chevron_right</span>
+            </button>
+          </div>
+
+          <!-- L1-c 달라진 것 — 신선도 Badge + 고정 칩 2종 + 변동 슬롯(z-score 이벤트).
+               KOSPI 값 칩은 삭제했다(바로 아래 KPI 와 같은 숫자를 두 번 보여주던 자리). -->
+          <div class="sp-12">
+            <section class="widget econ-flush" id="todayBriefStrip" aria-label="오늘 달라진 것">
+              <div class="seed-scroll-fog seed-scroll-fog--hideScrollBar_true econ-chipstrip">
+                <div class="econ-chipstrip__row" id="briefChips">
+                  <span class="seed-skeleton seed-skeleton--radius_full seed-skeleton--tone_neutral" style="width:120px;height:28px;" aria-hidden="true"></span>
+                  <span class="seed-skeleton seed-skeleton--radius_full seed-skeleton--tone_neutral" style="width:150px;height:28px;" aria-hidden="true"></span>
+                  <span class="seed-skeleton seed-skeleton--radius_full seed-skeleton--tone_neutral" style="width:110px;height:28px;" aria-hidden="true"></span>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
-      </section>
       </div><!-- /homeSecBrief -->
 
-      <!-- KPI 카드 4개 — 드래그하여 순서 변경 가능 (Task 2.2) -->
+      <!-- ═══ L2 · 관심 지표 ══════════════════════════════════════════════════
+           "내 관심 지표는 지금 얼마인가". KPI 4 + 글로벌 지수 표 + 시장 분위기. -->
       <div class="home-sec" id="homeSecKpi" data-sec="kpi" style="position:relative;">
-      <div id="homeKpiGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-        <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-kospi" onclick="navigateToDetail('equity')" style="cursor:pointer;transition:border-color .15s;">
-          <div class="widget-title">KOSPI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 지수 / %</span></div>
-          <div id="kpi-kospi-price" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);"><span class="skel-bar" style="width:90px;height:20px;"></span></div>
-          <div id="kpi-kospi-chg" style="font-size:var(--font-size-base);margin-top:4px;"><span class="skel-bar" style="width:56px;"></span></div>
-          <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark1"></canvas></div>
+        <div class="seed-grid econ-home econ-home-row" id="homeKpiGrid">
+          <button type="button" class="kpi-card kpi-clickable econ-stat sp-6 sp-md-3 sp-lg-3" id="kpi-kospi" onclick="navigateToDetail('equity')">
+            <span class="widget-title econ-stat__label">KOSPI <span class="econ-stat__unit">지수 / %</span></span>
+            <span id="kpi-kospi-price" class="econ-stat__val"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:90px;height:22px;" aria-hidden="true"></span></span>
+            <span id="kpi-kospi-chg" class="econ-stat__chg"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56px;height:14px;" aria-hidden="true"></span></span>
+            <span class="econ-stat__spark"><canvas aria-hidden="true" id="spark1"></canvas></span>
+          </button>
+          <button type="button" class="kpi-card kpi-clickable econ-stat sp-6 sp-md-3 sp-lg-3" id="kpi-fx" onclick="navigateToDetail('fx')">
+            <span class="widget-title econ-stat__label">USD / KRW <span class="econ-stat__unit">원/달러</span></span>
+            <span id="kpi-fx-price" class="econ-stat__val"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:90px;height:22px;" aria-hidden="true"></span></span>
+            <span id="kpi-fx-chg" class="econ-stat__chg"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56px;height:14px;" aria-hidden="true"></span></span>
+            <span class="econ-stat__spark"><canvas aria-hidden="true" id="spark2"></canvas></span>
+          </button>
+          <button type="button" class="kpi-card kpi-clickable econ-stat sp-6 sp-md-3 sp-lg-3" id="kpi-rate" onclick="navigateToDetail('rate')">
+            <span class="widget-title econ-stat__label">한국 기준금리 <span class="econ-stat__unit">% (연이율)</span></span>
+            <span class="econ-stat__valrow">
+              <span id="kpi-rate-val" class="econ-stat__val"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:70px;height:22px;" aria-hidden="true"></span></span>
+              <span id="kpi-rate-status" class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_neutral-variant_weak">동결</span>
+            </span>
+            <span class="econ-meta">최근 결정: <span id="kpi-rate-date"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:64px;height:10px;" aria-hidden="true"></span></span></span>
+            <span class="econ-stat__spark"><canvas aria-hidden="true" id="spark-rate"></canvas></span>
+          </button>
+          <button type="button" class="kpi-card kpi-clickable econ-stat sp-6 sp-md-3 sp-lg-3" id="kpi-wti" onclick="navigateToDetail('commodity')">
+            <span class="widget-title econ-stat__label">WTI 유가 <span class="econ-stat__unit">USD/배럴</span></span>
+            <span id="kpi-wti-price" class="econ-stat__val"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:90px;height:22px;" aria-hidden="true"></span></span>
+            <span id="kpi-wti-chg" class="econ-stat__chg"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56px;height:14px;" aria-hidden="true"></span></span>
+            <span class="econ-stat__spark"><canvas aria-hidden="true" id="spark3"></canvas></span>
+          </button>
         </div>
-        <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-fx" onclick="navigateToDetail('fx')" style="cursor:pointer;transition:border-color .15s;">
-          <div class="widget-title">USD / KRW <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 원/달러</span></div>
-          <div id="kpi-fx-price" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);"><span class="skel-bar" style="width:90px;height:20px;"></span></div>
-          <div id="kpi-fx-chg" style="font-size:var(--font-size-base);margin-top:4px;"><span class="skel-bar" style="width:56px;"></span></div>
-          <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark2"></canvas></div>
-        </div>
-        <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-rate" onclick="navigateToDetail('rate')" style="cursor:pointer;transition:border-color .15s;">
-          <div class="widget-title">한국 기준금리 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: % (연이율)</span></div>
-          <div style="display:flex;align-items:baseline;gap:6px;">
-            <div id="kpi-rate-val" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);"><span class="skel-bar" style="width:70px;height:20px;"></span></div>
-            <div id="kpi-rate-status" style="font-size:var(--font-size-xs);color:var(--ind-neu);background:color-mix(in srgb,var(--ind-neu) 13%,transparent);padding:1px 5px;border-radius:var(--r-xs);border:1px solid color-mix(in srgb,var(--ind-neu) 27%,transparent);">동결</div>
-          </div>
-          <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-top:2px;">최근 결정: <span id="kpi-rate-date"><span class="skel-bar" style="width:64px;height:8px;"></span></span></div>
-          <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark-rate"></canvas></div>
-        </div>
-        <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" id="kpi-wti" onclick="navigateToDetail('commodity')" style="cursor:pointer;transition:border-color .15s;">
-          <div class="widget-title">WTI 유가 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: USD/배럴</span></div>
-          <div id="kpi-wti-price" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);"><span class="skel-bar" style="width:90px;height:20px;"></span></div>
-          <div id="kpi-wti-chg" style="font-size:var(--font-size-base);margin-top:4px;"><span class="skel-bar" style="width:56px;"></span></div>
-          <div style="position:relative;height:40px;margin-top:8px;"><canvas aria-hidden="true" id="spark3"></canvas></div>
-        </div>
-      </div>
       </div><!-- /homeSecKpi -->
 
-      <!-- 메인 차트 + 우측 패널 -->
-      <div class="home-sec" id="homeSecMain" data-sec="main" style="position:relative;">
-      <div style="display:grid;grid-template-columns:1fr 300px;gap:12px;margin-bottom:16px;align-items:stretch;">
-        <!-- 메인 캔들 차트 -->
-        <div class="widget" style="display:flex;flex-direction:column;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
-            <div>
-              <span class="widget-title" style="margin-bottom:0;" id="mainChartIndexName">KOSPI 지수</span>
-              <span style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);margin-left:10px;" id="mainChartPriceVal"><span class="skel-bar" style="width:80px;height:18px;" aria-hidden="true"></span></span>
-              <span style="font-size:var(--font-size-base);margin-left:6px;" id="mainChartChangeVal"><span class="skel-bar" style="width:56px;" aria-hidden="true"></span></span>
+      <!-- L2-b·L2-c 관심 지표 — 글로벌 지수 표(비교 기능) + 시장 분위기(행) -->
+      <div class="home-sec" id="homeSecWatch" data-sec="watch" style="position:relative;">
+        <div class="seed-grid econ-home econ-home-row">
+          <div class="sp-12 sp-md-7 sp-lg-7">
+            <div class="widget">
+              <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">글로벌 주요 지수 <span class="econ-stat__unit">지수 / %</span></div>
+              <div class="econ-table__scroll">
+                <table class="econ-table">
+                  <caption class="econ-sr">지수별 현재가와 등락률. 행을 누르면 메인 차트가 바뀝니다.</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">지수</th>
+                      <th scope="col" class="econ-table--num">현재가</th>
+                      <th scope="col" class="econ-table--num">등락률</th>
+                      <th scope="col" class="econ-table--num econ-table--tiny">상세</th>
+                    </tr>
+                  </thead>
+                  <tbody id="globalIndexTable" aria-busy="true">
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:64%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:70%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:52%;height:12px;"></span></td><td></td></tr>
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:48%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:62%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:44%;height:12px;"></span></td><td></td></tr>
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:66%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:48%;height:12px;"></span></td><td></td></tr>
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:60%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:58%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:50%;height:12px;"></span></td><td></td></tr>
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:52%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:64%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:46%;height:12px;"></span></td><td></td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-              <span class="preset-btn-group-main" role="group" aria-label="조회 기간 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
-                <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">기간:</span>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1주</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','15D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">15일</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1개월</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3개월</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">6개월</button>
-                <button class="preset-btn" onclick="applyChartPresetPeriod('main','1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
-              </span>
-              <!-- 저빈도 컨트롤(봉 단위·기간 지정·전년 비교)은 ⋯ 서랍으로 — 컨트롤이 차트보다
-                   먼저 눈에 들어오던 문제(감사: 첫 화면 인터랙티브 34개). 요소는 아래 서랍으로
-                   이동만 했고 핸들러·상태(setPeriodUnit/toggleCustomRange/toggleYoY)는 그대로다. -->
-              <button class="tab-btn" id="mainChartMoreBtn" aria-expanded="false" aria-controls="mainChartMoreRow" title="봉 단위 · 기간 지정 · 전년 비교" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleMainChartMore(this)">⋯</button>
-            </div>
           </div>
-          <div id="mainChartMoreRow" style="display:none;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-              <span role="group" aria-label="봉 단위 선택" style="display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;">
-              <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:2px;">봉 단위:</span>
-              <button class="tab-btn period-unit-btn active" data-unit="1D" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setPeriodUnit('1D',this)">일봉</button>
-              <button class="tab-btn period-unit-btn" data-unit="1W" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1W',this)">주봉</button>
-              <button class="tab-btn period-unit-btn" data-unit="1M" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1M',this)">월봉</button>
-              <button class="tab-btn period-unit-btn" data-unit="1Q" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setPeriodUnit('1Q',this)">분기봉</button>
-              </span>
-              <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="tab-btn" id="mainCustomBtn" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="toggleCustomRange('main',this)"><span aria-hidden="true">📅</span> 기간 지정</button>
-              <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="mainChart" onclick="toggleYoY('mainChart',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
-          </div>
-          <div id="mainCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-            <input aria-label="메인 차트 조회 시작일" type="date" id="mainDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
-            <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
-            <input aria-label="메인 차트 조회 종료일" type="date" id="mainDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
-            <button onclick="applyCustomRange('main')" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
-            <button onclick="resetCustomRange('main')" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
-          </div>
-          <div id="mainChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:16px;"></div>
-          <!-- flex:1 + min-height:0 으로 부모 widget 의 align-items:stretch 에 맞춰
-               우측 카드(글로벌 지수 + 시장 분위기) 와 동일 높이로 자동 스트레치. -->
-          <div style="position:relative;flex:1;min-height:380px;">
-            <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
-          </div>
-        </div>
 
-        <!-- 우측: 글로벌 지수 테이블 -->
-        <div class="widget">
-          <div class="widget-title">글로벌 주요 지수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 지수 / %</span></div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
-            <thead>
-              <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);">
-                <th scope="col" style="text-align:left;padding:4px 0;font-weight:var(--font-weight-semibold);">지수</th>
-                <th scope="col" style="text-align:right;padding:4px 0;font-weight:var(--font-weight-semibold);">현재가</th>
-                <th scope="col" style="text-align:right;padding:4px 0;font-weight:var(--font-weight-semibold);">등락률</th>
-                <th scope="col" style="text-align:right;padding:4px 0;font-weight:var(--font-weight-semibold);width:32px;">상세</th>
-              </tr>
-            </thead>
-            <tbody id="globalIndexTable" style="font-family:var(--font-family-body);" aria-busy="true">
-              <!-- [3차-T20] 초기 스켈레톤 — 첫 페인트 시 빈 표 대신 로딩 형태 표시 -->
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:64%;"></div></td><td><div class="skel-bar" style="width:70%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:52%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:48%;"></div></td><td><div class="skel-bar" style="width:62%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:44%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:56%;"></div></td><td><div class="skel-bar" style="width:66%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:48%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:60%;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:50%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:52%;"></div></td><td><div class="skel-bar" style="width:64%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:46%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:24px;margin-left:auto;"></div></td></tr>
-            </tbody>
-          </table>
-          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">행 클릭: 메인 차트 전환 · 상세: 팝업 차트</div>
-          <div style="border-top:1px solid var(--c-border);margin-top:12px;padding-top:12px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-              <div class="widget-title" id="sentimentTitle" style="margin-bottom:0;">시장 분위기</div>
-              <button onclick="refreshSentiment(this)" class="u-touch-hit" aria-label="시장 분위기 지표 새로고침" title="시장 분위기 지표 다시 불러오기 (V-KOSPI 200·MOVE·Put/Call)" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 6px;font-size:var(--font-size-xs);cursor:pointer;">↻</button>
-            </div>
-            <!-- Fear & Greed 게이지 (클릭 → 상세 모달) -->
-            <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showSentimentDetail('fear_greed')" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;border-radius:var(--r-sm);padding:4px;transition:background 0.15s;" onmouseover="this.style.background='var(--c-card-hi,#2a3556)'" onmouseout="this.style.background='transparent'" title="클릭 → CNN Fear &amp; Greed 추이 및 해석 가이드">
-              <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
-                <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
+          <!-- 시장 분위기 — 카드 5장을 행(list-item)으로. 항목별 의미색은 제거하고
+               임계 초과만 warning badge 로 표시한다(색은 데이터 방향에만). -->
+          <div class="sp-12 sp-md-5 sp-lg-5">
+            <div class="widget">
+              <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head" id="sentimentTitle">시장 분위기
+                <button type="button" onclick="refreshSentiment(this)" class="seed-action-button seed-action-button--variant_ghost seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly" aria-label="시장 분위기 지표 새로고침" title="V-KOSPI 200·MOVE·Put/Call 다시 불러오기"><span class="mat" aria-hidden="true">refresh</span></button>
               </div>
-              <div>
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);text-transform:uppercase;letter-spacing:.04em;">CNN Fear &amp; Greed <span style="font-size:var(--font-size-xs);color:var(--c-primary);" aria-hidden="true">📈</span></div>
-                <div id="fearVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);color:var(--c-txt-dim);font-family:var(--font-num);">—</div>
-                <div id="fearLabel" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);"><span class="skel-bar" style="width:88px;"></span></div>
-                <div id="fearDelta" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">—</div>
+              <button type="button" class="seed-list-item__root econ-row econ-row--fg" onclick="showSentimentDetail('fear_greed')">
+                <span class="seed-list-item__prefix econ-fear">
+                  <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
+                </span>
+                <span class="seed-list-item__content">
+                  <span class="seed-list-item__title">CNN Fear &amp; Greed</span>
+                  <span class="seed-list-item__detail" id="fearLabel">—</span>
+                </span>
+                <span class="seed-list-item__suffix econ-row__suffix">
+                  <span id="fearVal" class="econ-row__val">—</span>
+                  <span id="fearDelta" class="econ-meta">—</span>
+                </span>
+              </button>
+              <button type="button" class="seed-list-item__root econ-row" onclick="showSentimentDetail('vix')">
+                <span class="seed-list-item__content">
+                  <span class="seed-list-item__title">VIX</span>
+                  <span class="seed-list-item__detail">미국 변동성 · 지수</span>
+                </span>
+                <span class="seed-list-item__suffix econ-row__suffix"><span id="dashVix" class="econ-row__val">—</span></span>
+              </button>
+              <button type="button" class="seed-list-item__root econ-row" onclick="showSentimentDetail('vkospi')">
+                <span class="seed-list-item__content">
+                  <span class="seed-list-item__title">V-KOSPI 200</span>
+                  <span class="seed-list-item__detail">코스피200 변동성 · KRX 정식</span>
+                </span>
+                <span class="seed-list-item__suffix econ-row__suffix"><span id="dashVkospi" class="econ-row__val">—</span></span>
+              </button>
+              <button type="button" class="seed-list-item__root econ-row" onclick="showSentimentDetail('move')">
+                <span class="seed-list-item__content">
+                  <span class="seed-list-item__title">MOVE Index</span>
+                  <span class="seed-list-item__detail">미 채권 변동성 · 지수</span>
+                </span>
+                <span class="seed-list-item__suffix econ-row__suffix"><span id="dashMove" class="econ-row__val">—</span></span>
+              </button>
+              <button type="button" class="seed-list-item__root econ-row" onclick="showSentimentDetail('pcr')">
+                <span class="seed-list-item__content">
+                  <span class="seed-list-item__title">Put/Call Ratio</span>
+                  <span class="seed-list-item__detail">옵션 심리 · 배수</span>
+                </span>
+                <span class="seed-list-item__suffix econ-row__suffix"><span id="dashPcr" class="econ-row__val">—</span></span>
+              </button>
+              <button type="button" class="seed-list-item__root econ-row" onclick="showSentimentDetail('hy_spread')">
+                <span class="seed-list-item__content">
+                  <span class="seed-list-item__title">HY Spread</span>
+                  <span class="seed-list-item__detail">미 신용 스프레드 · %p</span>
+                </span>
+                <span class="seed-list-item__suffix econ-row__suffix"><span id="dashHySpread" class="econ-row__val">—</span></span>
+              </button>
+              <div class="econ-meta econ-sources">
+                <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener noreferrer">CNN F&amp;G</a>
+                · <a href="https://finance.yahoo.com/quote/%5EVIX" target="_blank" rel="noopener noreferrer">VIX</a>
+                · <a href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" rel="noopener noreferrer">HY Spread (FRED)</a>
               </div>
-            </div>
-            <!-- 추가 시장 지표 그리드 (5개: VIX, VKOSPI, MOVE, Put/Call, HY Spread) — 클릭 → 상세 -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('vix')" title="클릭 → VIX 추이 및 해석 가이드">
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;">VIX <span style="font-size:var(--font-size-xs);color:var(--c-primary);" aria-hidden="true">📈</span></div>
-                <div id="dashVix" style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-warn);">—</div>
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">미국 변동성 · 지수</div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('vkospi')" title="클릭 → V-KOSPI 200 추이 및 해석 가이드 (한국거래소 코스피200 변동성지수)">
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;">V-KOSPI 200 <span style="font-size:var(--font-size-xs);color:var(--c-primary);" aria-hidden="true">📈</span></div>
-                <div id="dashVkospi" style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-warn);">—</div>
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">코스피200 변동성지수 · KRX 정식</div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('move')" title="클릭 → MOVE 추이 및 해석 가이드">
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;">MOVE Index <span style="font-size:var(--font-size-xs);color:var(--c-primary);" aria-hidden="true">📈</span></div>
-                <div id="dashMove" style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-primary);">—</div>
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">미 채권 변동성 · 지수</div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('pcr')" title="클릭 → Put/Call 비율 추이 및 해석 가이드">
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;">Put/Call Ratio <span style="font-size:var(--font-size-xs);color:var(--c-primary);" aria-hidden="true">📈</span></div>
-                <div id="dashPcr" style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-txt);">—</div>
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">옵션 심리 · 배수</div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="sentiment-card" onclick="showSentimentDetail('hy_spread')" style="grid-column:1/-1;" title="클릭 → HY Spread 추이 및 해석 가이드">
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;">HY Spread <span style="font-size:var(--font-size-xs);color:var(--c-primary);" aria-hidden="true">📈</span></div>
-                <div id="dashHySpread" style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--ind-neg);">—</div>
-                <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">미 신용 스프레드 · %p (국채 대비)</div>
-              </div>
-            </div>
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);line-height:1.5;">
-              <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);text-decoration:none;">CNN F&amp;G</a>
-              · <a href="https://finance.yahoo.com/quote/%5EVIX" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);text-decoration:none;">VIX</a>
-              · <a href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);text-decoration:none;">HY Spread (FRED)</a>
             </div>
           </div>
         </div>
-      </div>
+      </div><!-- /homeSecWatch -->
+
+      <!-- ═══ L3 · 왜·어떻게 ══════════════════════════════════════════════════
+           메인 차트 + 등락 Top10. 기간 프리셋은 조작이므로 Chip 단일 선택이다
+           (Tabs=탐색 / Segmented=조작 의미론 — aria-selected 는 role=tab 필수). -->
+      <div class="home-sec" id="homeSecMain" data-sec="main" style="position:relative;">
+        <div class="seed-grid econ-home econ-home-row">
+          <div class="sp-12 sp-md-8 sp-lg-8">
+            <div class="widget econ-chartcard">
+              <div class="econ-head">
+                <div class="econ-head__main">
+                  <span class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title" id="mainChartIndexName">KOSPI 지수</span>
+                  <span class="econ-head__price" id="mainChartPriceVal"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:80px;height:18px;" aria-hidden="true"></span></span>
+                  <span class="econ-head__chg" id="mainChartChangeVal"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56px;height:14px;" aria-hidden="true"></span></span>
+                </div>
+                <div class="econ-head__tools">
+                  <span class="preset-btn-group-main econ-chipgroup" role="group" aria-label="조회 기간 선택">
+                    <span class="econ-meta">기간</span>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false" onclick="applyChartPresetPeriod('main','1W',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1주</span></button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false" onclick="applyChartPresetPeriod('main','15D',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">15일</span></button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false" onclick="applyChartPresetPeriod('main','30D',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1개월</span></button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false" onclick="applyChartPresetPeriod('main','1Q',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3개월</span></button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false" onclick="applyChartPresetPeriod('main','6M',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">6개월</span></button>
+                    <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false" onclick="applyChartPresetPeriod('main','1Y',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
+                  </span>
+                  <!-- 저빈도 컨트롤(봉 단위·기간 지정·전년 비교)은 ⋯ 서랍 — 컨트롤이 차트보다
+                       먼저 눈에 들어오던 문제. 핸들러·상태는 그대로다. -->
+                  <button class="seed-action-button seed-action-button--variant_ghost seed-action-button--size_small seed-action-button--size_small-layout_iconOnly" id="mainChartMoreBtn" aria-expanded="false" aria-controls="mainChartMoreRow" title="봉 단위 · 기간 지정 · 전년 비교" aria-label="차트 옵션 더보기" onclick="toggleMainChartMore(this)"><span class="mat" aria-hidden="true">more_horiz</span></button>
+                </div>
+              </div>
+              <div id="mainChartMoreRow" class="econ-head__drawer" hidden>
+                <span role="group" aria-label="봉 단위 선택" class="econ-chipgroup">
+                  <span class="econ-meta">봉 단위</span>
+                  <button class="period-unit-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText active" data-unit="1D" data-checked aria-pressed="true" onclick="setPeriodUnit('1D',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">일봉</span></button>
+                  <button class="period-unit-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="1W" aria-pressed="false" onclick="setPeriodUnit('1W',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">주봉</span></button>
+                  <button class="period-unit-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="1M" aria-pressed="false" onclick="setPeriodUnit('1M',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">월봉</span></button>
+                  <button class="period-unit-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="1Q" aria-pressed="false" onclick="setPeriodUnit('1Q',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기봉</span></button>
+                </span>
+                <button class="seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" id="mainCustomBtn" aria-pressed="false" onclick="toggleCustomRange('main',this)">기간 지정</button>
+                <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="mainChart" onclick="toggleYoY('mainChart',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이하고 변화율 배지를 표시">전년 비교</button>
+              </div>
+              <div id="mainCustomRangePanel" class="econ-head__drawer" hidden>
+                <input aria-label="메인 차트 조회 시작일" type="date" id="mainDateFrom" class="econ-date"/>
+                <span class="econ-meta">~</span>
+                <input aria-label="메인 차트 조회 종료일" type="date" id="mainDateTo" class="econ-date"/>
+                <button onclick="applyCustomRange('main')" class="seed-action-button seed-action-button--variant_brandSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText">적용</button>
+                <button onclick="resetCustomRange('main')" class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText">초기화</button>
+              </div>
+              <div id="mainChartRange" class="econ-meta econ-chartcard__range"></div>
+              <div class="econ-chartcard__canvas">
+                <canvas id="mainChart" role="img" aria-label="KOSPI 지수 차트">KOSPI 시계열 차트</canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- L3-b 등락 Top10 — 상승/하락은 콘텐츠 전환이라 chip-tabs, 종류는 Chip -->
+          <div class="sp-12 sp-md-4 sp-lg-4">
+            <div class="widget">
+              <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">등락 Top10</div>
+              <div class="seed-chip-tabs__root seed-chip-tabs__root--contentLayout_hug econ-tabs">
+                <div class="seed-chip-tabs__list seed-chip-tabs__list--size_medium" role="tablist" aria-label="등락 방향">
+                  <button role="tab" id="moverTabUp" aria-selected="true" aria-controls="moverTable" class="seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline active" onclick="setMoverTab('up',this)">▲ 상승</button>
+                  <button role="tab" id="moverTabDown" aria-selected="false" aria-controls="moverTable" class="seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setMoverTab('down',this)">▼ 하락</button>
+                </div>
+              </div>
+              <div class="econ-chipgroup" role="group" aria-label="종목 종류">
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText active" id="moverTypeStock" data-checked aria-pressed="true" onclick="setMoverType('stock',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">주식</span></button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="moverTypeETF" aria-pressed="false" onclick="setMoverType('etf',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">ETF</span></button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="moverTypeAll" aria-pressed="false" onclick="setMoverType('all',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+              </div>
+              <div class="econ-table__scroll">
+                <table class="econ-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">종목</th>
+                      <th scope="col" class="econ-table--num">현재가</th>
+                      <th scope="col" class="econ-table--num">등락률</th>
+                      <th scope="col" class="econ-table--num">거래량</th>
+                    </tr>
+                  </thead>
+                  <tbody id="moverTable" aria-busy="true">
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:58%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:64%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:46%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td></tr>
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:46%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:58%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:50%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td></tr>
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:62%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:60%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:42%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td></tr>
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:50%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:62%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:48%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td></tr>
+                    <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:55%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:44%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="econ-meta econ-tablefoot">
+                기준일 <span id="moverRefDate">—</span> · <span id="moverDataSource">KRX OpenAPI / Naver Finance</span> · 단위 원 / % / 천주
+              </div>
+            </div>
+          </div>
+        </div>
       </div><!-- /homeSecMain -->
 
-      <!-- 🔀 이중축 지표 비교 차트 (Task 3.1) — 서로 다른 두 지표를 좌/우 Y축으로 오버레이 -->
+      <!-- L3-c 지표 비교 — 기본 접힘(3상태 econ_widget_collapse_v2). 접힌 헤더에 현재 쌍 요약 -->
       <div class="home-sec" id="homeSecCompare" data-sec="compare" style="position:relative;">
-      <div class="widget" style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-          <div class="widget-title" style="margin-bottom:0;">지표 비교 차트 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">두 지표 오버레이 — 기본 지수화(=100) 단일축, ⚖ 해제 시 이중 Y축</span></div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-            <span style="font-size:var(--font-size-xs);color:var(--c-accent);">좌축</span>
-            <select aria-label="비교 지표 A 선택 (좌측 Y축)" id="cmpSelA" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid var(--c-accent);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-primary);font-size:var(--font-size-sm);max-width:170px;"></select>
-            <button onclick="cmpSwap()" title="좌/우 지표 교체" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 7px;font-size:var(--font-size-sm);cursor:pointer;">⇄</button>
-            <span style="font-size:var(--font-size-xs);color:var(--c-warn);">우축</span>
-            <select aria-label="비교 지표 B 선택 (우측 Y축)" id="cmpSelB" onchange="cmpOnSelectChange()" style="background:var(--c-bg);border:1px solid var(--c-warn);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-warn);font-size:var(--font-size-sm);max-width:170px;"></select>
-            <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <span id="cmpPeriodBtns">
-              <button class="tab-btn" data-p="3M" onclick="cmpSetPeriod('3M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3개월</button>
-              <button class="tab-btn" data-p="6M" onclick="cmpSetPeriod('6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">6개월</button>
-              <button class="tab-btn active" data-p="1Y" onclick="cmpSetPeriod('1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">1년</button>
-              <button class="tab-btn" data-p="3Y" onclick="cmpSetPeriod('3Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
-              <button class="tab-btn" data-p="ALL" onclick="cmpSetPeriod('ALL',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">전체</button>
+        <div class="widget">
+          <div class="econ-head">
+            <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title">지표 비교 차트 <span class="econ-stat__unit" id="cmpPairSummary">두 지표 오버레이 — 기본 지수화(=100) 단일축</span></div>
+            <div class="econ-head__tools">
+              <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
+                <span class="seed-select-trigger__prefixIcon econ-dot econ-dot--a" aria-hidden="true"></span>
+                <select aria-label="비교 지표 A 선택 (좌측 Y축)" id="cmpSelA" onchange="cmpOnSelectChange()"></select>
+              </span>
+              <button onclick="cmpSwap()" class="seed-action-button seed-action-button--variant_ghost seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly" title="좌/우 지표 교체" aria-label="좌우 지표 교체"><span class="mat" aria-hidden="true">swap_horiz</span></button>
+              <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
+                <span class="seed-select-trigger__prefixIcon econ-dot econ-dot--b" aria-hidden="true"></span>
+                <select aria-label="비교 지표 B 선택 (우측 Y축)" id="cmpSelB" onchange="cmpOnSelectChange()"></select>
+              </span>
+              <span id="cmpPeriodBtns" class="econ-chipgroup" role="group" aria-label="비교 기간 선택">
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="3M" aria-pressed="false" onclick="cmpSetPeriod('3M',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3개월</span></button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="6M" aria-pressed="false" onclick="cmpSetPeriod('6M',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">6개월</span></button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText active" data-p="1Y" data-checked aria-pressed="true" onclick="cmpSetPeriod('1Y',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="3Y" aria-pressed="false" onclick="cmpSetPeriod('3Y',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="ALL" aria-pressed="false" onclick="cmpSetPeriod('ALL',this)"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+              </span>
+              <button id="cmpNormBtn" onclick="cmpToggleNorm()" class="seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" aria-pressed="false" title="두 지표의 시작점을 100으로 환산해 등락률 추이만 비교합니다">지수화 =100</button>
+              <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="compareChart" onclick="toggleYoY('compareChart',this)" aria-pressed="false" title="주 지표(좌측 A)의 전년 동기를 점선으로 오버레이 — 지수화 모드에서는 비활성">전년 비교</button>
+            </div>
+          </div>
+          <div id="cmpPresetRow" class="econ-chipgroup" role="group" aria-label="추천 조합">
+            <span class="econ-meta">추천 조합</span>
+            <button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="cmpApplyPreset('fx.USDKRW','idx.KOSPI')"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">달러환율 ↔ KOSPI</span></button>
+            <button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="cmpApplyPreset('com.Gold','ei.us.dxy_idx')"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">금 ↔ 달러인덱스</span></button>
+            <button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="cmpApplyPreset('ei.us.ff_rate','idx.NASDAQ')"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">미 기준금리 ↔ 나스닥</span></button>
+            <button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="cmpApplyPreset('com.WTI','ei.us.cpi_us')"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">WTI ↔ 미국 CPI</span></button>
+            <button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="cmpApplyPreset('idx.SOX','idx.KOSPI')"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반도체 SOX ↔ KOSPI</span></button>
+          </div>
+          <div class="econ-chartcard__canvas econ-chartcard__canvas--compare">
+            <canvas id="compareChart" role="img" aria-label="이중축 지표 비교 차트">이중축 지표 비교 차트</canvas>
+          </div>
+          <div id="cmpInfo" class="seed-callout__root seed-callout__root--tone_informative econ-callout econ-callout--inline">
+            <span class="seed-callout__content">
+              <span class="seed-callout__description seed-callout__description--tone_informative">두 지표를 겹쳐 볼 수 있어요. 왼쪽·오른쪽 축이 달라서 기울기는 비교하지 마세요</span>
             </span>
-            <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button id="cmpNormBtn" onclick="cmpToggleNorm()" title="두 지표의 시작점을 100으로 환산해 등락률 추이만 비교합니다 — 이중축 스케일 차이로 인한 시각적 착시 제거" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">⚖ 지수화 =100</button>
-            <button class="yoy-btn" data-yoy="compareChart" onclick="toggleYoY('compareChart',this)" aria-pressed="false" title="주 지표(좌측 A)의 전년 동기를 점선으로 오버레이 — 지수화 모드에서는 비활성"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+            <button type="button" class="seed-callout__closeButton seed-callout__closeButton--tone_informative" aria-label="닫기" onclick="econDismissCallout('cmpInfo')"><span class="mat" aria-hidden="true">close</span></button>
           </div>
         </div>
-        <!-- 추천 조합 프리셋 — 한 번 클릭으로 자주 보는 지표 쌍 적용 -->
-        <div id="cmpPresetRow" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-          <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">추천 조합:</span>
-          <button type="button" class="tab-btn" onclick="cmpApplyPreset('fx.USDKRW','idx.KOSPI')" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">달러환율 ↔ KOSPI</button>
-          <button type="button" class="tab-btn" onclick="cmpApplyPreset('com.Gold','ei.us.dxy_idx')" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">금 ↔ 달러인덱스</button>
-          <button type="button" class="tab-btn" onclick="cmpApplyPreset('ei.us.ff_rate','idx.NASDAQ')" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">미 기준금리 ↔ 나스닥</button>
-          <button type="button" class="tab-btn" onclick="cmpApplyPreset('com.WTI','ei.us.cpi_us')" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">WTI ↔ 미국 CPI</button>
-          <button type="button" class="tab-btn" onclick="cmpApplyPreset('idx.SOX','idx.KOSPI')" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반도체 SOX ↔ KOSPI</button>
-        </div>
-        <div style="position:relative;height:300px;">
-          <canvas id="compareChart" role="img" aria-label="이중축 지표 비교 차트">이중축 지표 비교 차트</canvas>
-        </div>
-        <div id="cmpInfo" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;">지표 두 개를 선택하면 좌(파랑)/우(주황) Y축으로 함께 표시됩니다. 예: 미국 기준금리 vs KOSPI</div>
-      </div>
       </div><!-- /homeSecCompare -->
 
-      <!-- 하단: 등락 테이블 + 뉴스 -->
+      <!-- L3-d 최신 경제 뉴스 -->
       <div class="home-sec" id="homeSecBottom" data-sec="bottom" style="position:relative;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <!-- 상승/하락 Top5 -->
         <div class="widget">
-          <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
-            <button class="tab-btn active" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setMoverTab('up',this)">▲ 상승 Top10</button>
-            <button class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverTab('down',this)">▼ 하락 Top10</button>
-            <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button class="tab-btn active" id="moverTypeStock" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);" onclick="setMoverType('stock',this)">주식</button>
-            <button class="tab-btn" id="moverTypeETF" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverType('etf',this)">ETF</button>
-            <button class="tab-btn" id="moverTypeAll" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);" onclick="setMoverType('all',this)">전체</button>
-            <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="margin-left:auto;background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
+          <div class="econ-head">
+            <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title">최신 경제 뉴스</div>
+            <div class="econ-head__tools">
+              <button onclick="refreshNews('newsFeed','newsItems',this)" class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText">새로고침</button>
+            </div>
           </div>
-          <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
-            <thead>
-              <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);">
-                <th scope="col" style="text-align:left;padding:4px 0;font-weight:var(--font-weight-semibold);">종목</th>
-                <th scope="col" style="text-align:right;padding:4px 0;font-weight:var(--font-weight-semibold);">현재가 (원)</th>
-                <th scope="col" style="text-align:right;padding:4px 0;font-weight:var(--font-weight-semibold);">등락률 (%)</th>
-                <th scope="col" style="text-align:right;padding:4px 0;font-weight:var(--font-weight-semibold);">거래량 (천주)</th>
-              </tr>
-            </thead>
-            <tbody id="moverTable" aria-busy="true">
-              <!-- [3차-T21] 초기 스켈레톤 -->
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:58%;"></div></td><td><div class="skel-bar" style="width:64%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:46%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:60%;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:46%;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:50%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:54%;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:62%;"></div></td><td><div class="skel-bar" style="width:60%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:42%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:58%;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:50%;"></div></td><td><div class="skel-bar" style="width:62%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:48%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:52%;margin-left:auto;"></div></td></tr>
-              <tr class="skel-row" aria-hidden="true"><td style="padding:7px 0;"><div class="skel-bar" style="width:55%;"></div></td><td><div class="skel-bar" style="width:56%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:44%;margin-left:auto;"></div></td><td><div class="skel-bar" style="width:56%;margin-left:auto;"></div></td></tr>
-            </tbody>
-          </table>
-          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <span>기준일: <span id="moverRefDate">—</span></span>
-            <span>·</span>
-            <span id="moverDataSource">KRX OpenAPI / Naver Finance</span>
-            <span>·</span>
-            <span>단위: 원 / % / 천주</span>
+          <div class="seed-chip-tabs__root seed-chip-tabs__root--contentLayout_hug econ-tabs">
+            <div class="seed-chip-tabs__list seed-chip-tabs__list--size_medium" role="tablist" aria-label="뉴스 분류" id="newsFilter">
+              <button role="tab" aria-selected="true" aria-controls="newsFeed" class="news-filter-btn act seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','all',this)">전체</button>
+              <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','주식',this)">주식</button>
+              <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','채권',this)">채권</button>
+              <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','외환',this)">외환</button>
+              <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','원자재',this)">원자재</button>
+            </div>
           </div>
+          <div id="newsFeed" class="econ-newslist" role="tabpanel" aria-label="뉴스 목록"></div>
         </div>
-
-        <!-- 뉴스 피드 -->
-        <div class="widget">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">최신 경제 뉴스</div>
-            <button onclick="refreshNews('newsFeed','newsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
-          </div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;" id="newsFilter">
-            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn act" onclick="setNewsFilter('newsFeed','all',this)">전체</span>
-            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('newsFeed','주식',this)">주식</span>
-            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('newsFeed','채권',this)">채권</span>
-            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('newsFeed','외환',this)">외환</span>
-            <span role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="news-filter-btn" onclick="setNewsFilter('newsFeed','원자재',this)">원자재</span>
-          </div>
-          <div id="newsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
-        </div>
-      </div>
       </div><!-- /homeSecBottom -->
     </div><!-- /dashboard -->
 

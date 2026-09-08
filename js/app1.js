@@ -425,8 +425,12 @@ function injectChartRefreshButtons() {
     const btn = document.createElement('button');
     btn.setAttribute('data-chart-refresh', id);
     btn.setAttribute('title', '실시간 데이터 새로고침 (5분마다 자동)');
-    btn.style.cssText = 'margin-left:8px;background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:1px 7px;font-size:10px;cursor:pointer;vertical-align:middle;text-transform:none;letter-spacing:0;';
-    btn.textContent = '↻ 새로고침';
+    // 위젯 새로고침 = ghost 아이콘 버튼(§8 '4양식 → 2양식'). 10px 인라인이
+    // font-size 종수를 늘리던 자리였다.
+    btn.className = 'seed-action-button seed-action-button--variant_ghost'
+                  + ' seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly';
+    btn.setAttribute('aria-label', '이 위젯 데이터 새로고침');
+    btn.innerHTML = '<span class="mat" aria-hidden="true">refresh</span>';
     btn.onclick = (e) => { e.stopPropagation(); refreshChartByCanvasId(id, btn); };
     // 버튼을 widget-title 의 텍스트 흐름에 inline 으로 추가 (display 변경 없음)
     title.appendChild(btn);
@@ -443,7 +447,7 @@ function injectChartRefreshButtons() {
   };
   document.querySelectorAll('.widget').forEach(widget => {
     if(widget.querySelector('button[data-chart-refresh]')) return;  // 1차 패스에서 이미 주입됨
-    if(/새로고침|다시 시도/.test(widget.innerHTML)) return;          // 이미 새로고침/재시도 버튼 존재
+    if(widget.querySelector('[aria-label*="새로고침"],[aria-label*="다시"]')) return;  // 이미 있음
     if(widget.closest('.themed-modal')) return;                      // 모달 내부 카드 제외 (상세 팝업)
     if(widget.closest('#page-study')) return;                        // 스터디 기록은 로컬 저장 데이터 — 시장 새로고침 무의미
     const title = widget.querySelector('.widget-title');
@@ -456,8 +460,12 @@ function injectChartRefreshButtons() {
     const btn = document.createElement('button');
     btn.setAttribute('data-chart-refresh', (tbody && tbody.id) || 'card');
     btn.setAttribute('title', '실시간 데이터 새로고침');
-    btn.style.cssText = 'margin-left:8px;background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:1px 7px;font-size:10px;cursor:pointer;vertical-align:middle;text-transform:none;letter-spacing:0;';
-    btn.textContent = '↻ 새로고침';
+    // 위젯 새로고침 = ghost 아이콘 버튼(§8 '4양식 → 2양식'). 10px 인라인이
+    // font-size 종수를 늘리던 자리였다.
+    btn.className = 'seed-action-button seed-action-button--variant_ghost'
+                  + ' seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly';
+    btn.setAttribute('aria-label', '이 위젯 데이터 새로고침');
+    btn.innerHTML = '<span class="mat" aria-hidden="true">refresh</span>';
     btn.onclick = (e) => { e.stopPropagation(); try { handler(btn); } catch(_) { refreshAllData(btn); } };
     title.appendChild(btn);
   });
@@ -2706,6 +2714,55 @@ function getPeriodData(unit, fromDate, toDate) {
   return { price: priceAll.slice(-n), vol: volAll.slice(-n) };
 }
 
+// ── SEED 상태 훅 미러 ────────────────────────────────────────────────────────
+// 사이트의 활성 표시는 .active(.act) 클래스다. SEED recipe 는 [data-checked]·
+// [aria-selected]·[aria-pressed] 를 읽는다. 토글하는 함수가 17곳이라 한 곳을 고칠
+// 수 없으므로, 클래스 변화를 관찰해 상태 속성으로 미러링한다(단일 지점).
+function _econMirrorState(el) {
+  if (!el || !el.classList) return;
+  var on = el.classList.contains('active') || el.classList.contains('act');
+  if (el.classList.contains('seed-chip__root')) {
+    if (on) el.setAttribute('data-checked', ''); else el.removeAttribute('data-checked');
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
+  } else if (el.classList.contains('seed-chip-tabs__trigger')) {
+    el.setAttribute('aria-selected', on ? 'true' : 'false');
+  } else if (el.classList.contains('seed-toggle-button')) {
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+}
+function econInitStateMirror(root) {
+  root = root || document.getElementById('mainContent') || document.body;
+  var SEL = '.seed-chip__root, .seed-chip-tabs__trigger, .seed-toggle-button';
+  root.querySelectorAll(SEL).forEach(_econMirrorState);
+  try {
+    new MutationObserver(function (muts) {
+      muts.forEach(function (m) {
+        if (m.target && m.target.matches && m.target.matches(SEL)) _econMirrorState(m.target);
+      });
+    }).observe(root, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  } catch (_) {}
+}
+// 닫기 영속 Callout — 한 번 닫으면 다시 띄우지 않는다(Dismissible 규칙)
+var ECON_CALLOUT_DISMISS_KEY = 'econ_guides_v1';
+function econDismissCallout(id) {
+  var el = document.getElementById(id);
+  if (el) el.hidden = true;
+  try {
+    var m = JSON.parse(localStorage.getItem(ECON_CALLOUT_DISMISS_KEY) || '{}') || {};
+    m['callout:' + id] = 1;
+    localStorage.setItem(ECON_CALLOUT_DISMISS_KEY, JSON.stringify(m));
+  } catch (_) {}
+}
+function econRestoreCallouts() {
+  var m = {};
+  try { m = JSON.parse(localStorage.getItem(ECON_CALLOUT_DISMISS_KEY) || '{}') || {}; } catch (_) {}
+  Object.keys(m).forEach(function (k) {
+    if (k.indexOf('callout:') !== 0) return;
+    var el = document.getElementById(k.slice(8));
+    if (el) el.hidden = true;
+  });
+}
+
 // ── 티커 자동 스크롤 정지/재생 ──
 // coarse 포인터에서는 CSS 가 이미 애니메이션을 끄지만, 데스크톱에서도 흐르는 글자를
 // 멈추고 읽을 수단이 필요하다(WCAG 2.2.2 — hover 정지만으로는 키보드 사용자가 못 쓴다).
@@ -3086,10 +3143,13 @@ function toggleCustomRange(which, btn) {
   };
   const panelId = panelMap[which];
   if(!panelId) return;
-  const panel = document.getElementById(panelId);
+  const panel = document.getElementById(panelMap[which]);
   if(!panel) return;
-  const showing = panel.style.display === 'flex';
-  panel.style.display = showing ? 'none' : 'flex';
+  // 메인 차트 패널은 hidden 계약, 나머지 페이지 패널은 아직 display 계약이다
+  const usesHidden = panel.hasAttribute('hidden') || panel.dataset.hiddenContract === '1';
+  const showing = usesHidden ? !panel.hidden : panel.style.display === 'flex';
+  if(usesHidden) { panel.dataset.hiddenContract = '1'; panel.hidden = showing; }
+  else panel.style.display = showing ? 'none' : 'flex';
   if(btn) {
     btn.classList.toggle('active', !showing);
     btn.setAttribute('aria-expanded', showing ? 'false' : 'true');
@@ -3218,16 +3278,18 @@ let mainSelectedGlobalIdx = 0;   // 첫 로드부터 KOSPI 행 강조 — '행 =
 function buildGlobalTable() {
   const tb = document.getElementById('globalIndexTable');
   if(!tb) return;
-  const fmtVal = v => v == null
-    ? '<div class="skel-bar" style="width:60%;margin-left:auto;" aria-hidden="true"></div>'
+  // 선택 행은 aria-sort/aria-selected 로 표현하고 색은 .econ-table 규칙이 준다
+  // (인라인 background + border-left 로 칠하던 것을 상태 속성 한 곳으로).
+  const skel = w => `<span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:${w};height:12px;" aria-hidden="true"></span>`;
+  const fmtVal = v => v == null ? skel('60%')
     : v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
   tb.innerHTML = globalIndices.map((d,i)=>`
-    <tr style="border-bottom:1px solid var(--c-border);${i===mainSelectedGlobalIdx?'background:var(--c-accent-container);border-left:2px solid var(--c-accent)':''}" title="${d.name} — 행 클릭: 메인 차트 전환 / 상세: 팝업 차트">
-      <td style="padding:0;"><button type="button" class="gidx-btn" onclick="selectGlobalIndex(${i},this.closest('tr'))" aria-pressed="${i===mainSelectedGlobalIdx}" aria-label="${d.name} — 메인 차트에 표시">${d.name}</button></td>
-      <td onclick="selectGlobalIndex(${i},this.parentElement)" style="text-align:right;padding:7px 4px;font-size:var(--font-size-sm);font-weight:var(--font-weight-medium);cursor:pointer;">${fmtVal(d.val)}</td>
-      <td onclick="selectGlobalIndex(${i},this.parentElement)" style="text-align:right;padding:7px 4px;cursor:pointer;">${d.chg == null ? '<div class="skel-bar" style="width:44%;margin-left:auto;" aria-hidden="true"></div>' : fmtChg(d.chg)}</td>
-      <td style="text-align:right;padding:7px 4px;">
-        <button onclick="event.stopPropagation(); showGlobalIndexDetail('${d.name}')" class="u-touch-hit" aria-label="${d.name} 상세 차트 팝업" title="상세 차트 팝업" style="background:transparent;border:1px solid var(--c-border);color:var(--c-primary);border-radius:var(--r-xs);padding:2px 6px;font-size:var(--font-size-xs);cursor:pointer;line-height:1;">📊</button>
+    <tr aria-selected="${i===mainSelectedGlobalIdx}" title="${d.name} — 행을 누르면 메인 차트가 바뀌어요">
+      <td><button type="button" class="gidx-btn" onclick="selectGlobalIndex(${i},this.closest('tr'))" aria-pressed="${i===mainSelectedGlobalIdx}" aria-label="${d.name} — 메인 차트에 표시">${d.name}</button></td>
+      <td class="econ-table--num" onclick="selectGlobalIndex(${i},this.parentElement)">${fmtVal(d.val)}</td>
+      <td class="econ-table--num" onclick="selectGlobalIndex(${i},this.parentElement)">${d.chg == null ? skel('44%') : fmtChg(d.chg)}</td>
+      <td class="econ-table--num econ-table--tiny">
+        <button onclick="event.stopPropagation(); showGlobalIndexDetail('${d.name}')" class="seed-action-button seed-action-button--variant_ghost seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly" aria-label="${d.name} 상세 차트" title="상세 차트"><span class="mat" aria-hidden="true">candlestick_chart</span></button>
       </td>
     </tr>`).join('');
   tb.removeAttribute('aria-busy');
@@ -3423,9 +3485,28 @@ function applyFearGreed(d) {
 
 // 시장 분위기 카드 캡션에 기준일(as_of) 표기 — "이 숫자가 언제 것인지"를 카드에서 즉시 인지.
 // 기준일이 3일 넘게 지났으면 경고색 — 수집 실패로 이전 값이 유지 중일 가능성 표시.
+// 임계 초과 표시 — 항목별 의미색 대신 배지 하나. 색은 데이터 방향(등락)에만 쓴다.
+function _sentMark(el, warn) {
+  if(!el) return;
+  el.style.color = '';                       // 옛 의미색 인라인 제거
+  const row = el.closest('.econ-row');
+  if(!row) return;
+  const slot = el.parentElement;
+  let badge = slot.querySelector('.econ-sent-warn');
+  if(warn) {
+    if(!badge) {
+      badge = document.createElement('span');
+      badge.className = 'econ-sent-warn seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_warning-variant_weak';
+      badge.textContent = '임계 초과';
+      slot.appendChild(badge);
+    }
+  } else if(badge) badge.remove();
+}
 function _sentCaption(elId, asOf, base) {
   const el = document.getElementById(elId);
-  const cap = el && el.nextElementSibling;
+  // 값 슬롯 옆이 아니라 같은 행의 설명(list-item__detail)이 캡션이다
+  const row = el && el.closest('.econ-row');
+  const cap = row ? row.querySelector('.seed-list-item__detail') : (el && el.nextElementSibling);
   if(!cap) return;
   const s = asOf != null ? String(asOf) : '';
   if(/^\d{4}-\d{2}-\d{2}/.test(s)) {
@@ -3691,21 +3772,19 @@ function setMoverTab(dir, btn) {
   curMoverTab = dir;
   const widget = btn.closest('.widget');
   // 상승/하락 버튼 only
-  widget.querySelectorAll('.tab-btn').forEach(b=>{
-    if(b.textContent.includes('상승')||b.textContent.includes('하락')) {
-      b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
-    }
-  });
-  btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='#fff';
+  // 상승/하락은 콘텐츠 전환 → chip-tabs(role=tab). 상태는 클래스 하나,
+  // aria-selected 는 _econMirrorState 가 따라온다.
+  widget.querySelectorAll('[role="tab"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
   buildMoverTable(dir);
 }
 function setMoverType(type, btn) {
   curMoverType = type;
   ['moverTypeStock','moverTypeETF','moverTypeAll'].forEach(id=>{
     const b = document.getElementById(id);
-    if(b) { b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)'; }
+    if(b) b.classList.remove('active');
   });
-  btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='#fff';
+  btn.classList.add('active');
   buildMoverTable(curMoverTab);
 }
 
@@ -3763,13 +3842,19 @@ function newsCard(n) {
   const norm = _normalizeNewsUrl(n.url);
   // 속성/본문 컨텍스트 모두 HTML 이스케이프 — URL 은 위 _isSearchOrInvalidNewsUrl 에서 http(s) 만 통과됨
   const safeUrl = escapeHtml(norm.url);
-  return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="news-card-link" style="display:block;text-decoration:none;color:inherit;border-bottom:1px solid var(--c-card);padding-bottom:10px;transition:opacity .15s,background .15s;">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-      <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${escapeHtml(displayTime)}</span>
-      <span style="background:${n.tagClr}22;color:${n.tagClr};font-size:var(--font-size-xs);padding:1px 6px;border-radius:var(--r-xs);border:1px solid ${n.tagClr}44;">${escapeHtml(n.tag)}</span>
-      <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">${norm.label}</span>
-    </div>
-    <div style="font-size:var(--font-size-sm);line-height:1.5;color:var(--c-txt);">${escapeHtml(n.title)}</div>
+  // 행(list-item) + 메타(tag-group). 태그색은 쓰지 않는다 — 색은 데이터 방향에만
+  // (카테고리 색이 등락색과 섞여 '오른 뉴스'처럼 읽히던 문제).
+  return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="news-card-link seed-list-item__root">
+    <span class="seed-list-item__content">
+      <span class="seed-list-item__title">${escapeHtml(n.title)}</span>
+      <span class="seed-tag-group__root--size_t2-truncate_false seed-list-item__detail">
+        <span class="seed-tag-group-item__root seed-tag-group-item__root--size_t2 seed-tag-group-item__root--tone_neutralSubtle"><span class="seed-tag-group-item__label seed-tag-group-item__label--size_t2 seed-tag-group-item__label--tone_neutralSubtle">${escapeHtml(displayTime)}</span></span>
+        <span class="seed-tag-group__separator seed-tag-group__separator--size_t2" aria-hidden="true"></span>
+        <span class="seed-tag-group-item__root seed-tag-group-item__root--size_t2 seed-tag-group-item__root--tone_neutral"><span class="seed-tag-group-item__label seed-tag-group-item__label--size_t2 seed-tag-group-item__label--tone_neutral">${escapeHtml(n.tag)}</span></span>
+        <span class="seed-tag-group__separator seed-tag-group__separator--size_t2" aria-hidden="true"></span>
+        <span class="seed-tag-group-item__root seed-tag-group-item__root--size_t2 seed-tag-group-item__root--tone_neutralSubtle"><span class="seed-tag-group-item__label seed-tag-group-item__label--size_t2 seed-tag-group-item__label--tone_neutralSubtle">${norm.label}</span></span>
+      </span>
+    </span>
   </a>`;
 }
 const newsExpanded = { newsFeed:false, commodityNewsFeed:false, macroNewsFeed:false, calendarNewsFeed:false };
@@ -3783,9 +3868,13 @@ function renderNewsFeedWithPagination(containerId, items) {
   if(safeItems.length === 0) {
     // '로딩 중'과 '결과 0건'을 구분 — 로드가 끝났는데도 영구히 '불러오는 중…'이 남아
     // 사용자에게 수동 새로고침을 지시하던 문제 수정.
+    // 빈 목록에는 사유를 쓴다(정직성 원칙) — '불러오는 중'과 '0건'을 구분
     el.innerHTML = window._newsFetchDone
-      ? '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:12px 0;text-align:center;line-height:1.6;">최근 15일 내 해당 카테고리 기사가 없습니다.</div>'
-      : '<div style="padding:8px 0;"><div class="skel-bar" style="width:92%;height:12px;margin:6px auto;"></div><div class="skel-bar" style="width:84%;height:12px;margin:6px auto;"></div><div class="skel-bar" style="width:88%;height:12px;margin:6px auto;"></div></div>';
+      ? '<div class="econ-meta" style="padding:12px 0;text-align:center;">최근 15일 안에 이 분류의 기사가 없어요</div>'
+      : '<div style="padding:8px 0;display:flex;flex-direction:column;gap:8px;">'
+        + '<span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:92%;height:14px;"></span>'
+        + '<span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:84%;height:14px;"></span>'
+        + '<span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:88%;height:14px;"></span></div>';
     return;
   }
   const expanded = !!newsExpanded[containerId];
@@ -3793,9 +3882,9 @@ function renderNewsFeedWithPagination(containerId, items) {
   const remaining = safeItems.length - visible.length;
   let html = visible.map(newsCard).join('');
   if(remaining > 0) {
-    html += `<button onclick="toggleNewsExpand('${containerId}')" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);cursor:pointer;width:100%;margin-top:4px;">더보기 (${remaining}개 더)</button>`;
+    html += `<button onclick="toggleNewsExpand('${containerId}')" class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_small seed-action-button--size_small-layout_withText econ-newsmore">더 보기 (${remaining}개)</button>`;
   } else if(expanded && safeItems.length > NEWS_PAGE_SIZE) {
-    html += `<button onclick="toggleNewsExpand('${containerId}')" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px;font-size:var(--font-size-sm);cursor:pointer;width:100%;margin-top:4px;">접기 ↑</button>`;
+    html += `<button onclick="toggleNewsExpand('${containerId}')" class="seed-action-button seed-action-button--variant_ghost seed-action-button--size_small seed-action-button--size_small-layout_withText econ-newsmore">접기</button>`;
   }
   el.innerHTML = html;
 }
@@ -3981,7 +4070,7 @@ function renderFiltered(feedId) {
 
 function setNewsFilter(feedId, cat, el) {
   const bar = el.parentElement;
-  bar.querySelectorAll('.news-filter-btn').forEach(b=>b.classList.remove('act'));
+  bar.querySelectorAll('.news-filter-btn').forEach(b=>{ b.classList.remove('act'); });
   el.classList.add('act');
   currentNewsFilter[feedId] = cat;
   newsExpanded[feedId] = false; // reset pagination on filter change
@@ -11263,7 +11352,7 @@ function applySentimentClient(s) {
       const vixCrossOk = !vix || (v / vix >= 0.3 && v / vix <= 4.0);
       if(_isValidVkospi(v) && vixCrossOk) {
         el.textContent = v.toFixed(2);
-        el.style.color = v > 30 ? 'var(--ind-neg)' : v > 20 ? 'var(--c-warn)' : 'var(--ind-pos)';
+        _sentMark(el, v > 30);
       } else {
         el.textContent = '—'; el.style.color = 'var(--c-txt-dim,#a4a8bc)';
       }
@@ -11275,7 +11364,7 @@ function applySentimentClient(s) {
     if(el) {
       el.textContent = s.move.value.toFixed(1);
       const v = s.move.value;
-      el.style.color = v > 120 ? 'var(--ind-neg)' : v > 100 ? 'var(--c-warn)' : 'var(--ind-pos)';
+      _sentMark(el, v > 120);
     }
   }
   // VIX — 클라이언트 보강분을 economicIndicators.us.vix 에 기록(카드/상세 모달이 그 경로를 읽음).
@@ -11298,7 +11387,7 @@ function applySentimentClient(s) {
     if(el) {
       el.textContent = s.vix.value.toFixed(2);
       const v = s.vix.value;
-      el.style.color = v > 25 ? 'var(--ind-neg)' : v > 18 ? 'var(--c-warn)' : 'var(--ind-pos)';
+      _sentMark(el, v > 25);
     }
   }
   if(s.pcr?.value != null) {
@@ -11306,7 +11395,7 @@ function applySentimentClient(s) {
     if(el) {
       el.textContent = s.pcr.value.toFixed(2);
       const v = s.pcr.value;
-      el.style.color = v > 1.1 ? 'var(--ind-neg)' : v < 0.7 ? 'var(--ind-pos)' : 'var(--c-txt,#e8ebf5)';
+      _sentMark(el, v > 1.1 || v < 0.7);
     }
   }
   // Fear & Greed Index — 데이터 도착 시 카드/도넛 갱신
@@ -12506,7 +12595,7 @@ function applyRealData(d) {
     const vixEl = document.getElementById('dashVix');
     if(vixEl) {
       vixEl.textContent = usInd.vix.value.toFixed(2);
-      vixEl.style.color = usInd.vix.value > 25 ? 'var(--ind-neg)' : usInd.vix.value > 18 ? 'var(--c-warn)' : 'var(--ind-pos)';
+      _sentMark(vixEl, usInd.vix.value > 25);
       _sentCaption('dashVix', usInd.vix.period || usInd.vix.as_of, '미국 변동성 · 지수');
     }
   }
@@ -12514,7 +12603,7 @@ function applyRealData(d) {
     const hyEl = document.getElementById('dashHySpread');
     if(hyEl) {
       hyEl.textContent = usInd.hy_spread.value.toFixed(2) + '%';
-      hyEl.style.color = usInd.hy_spread.value > 4 ? 'var(--ind-neg)' : usInd.hy_spread.value > 3 ? 'var(--c-warn)' : 'var(--ind-pos)';
+      _sentMark(hyEl, usInd.hy_spread.value > 4);
       _sentCaption('dashHySpread', usInd.hy_spread.period || usInd.hy_spread.as_of, '미 신용 스프레드 · %p (국채 대비)');
     }
   }
@@ -12530,7 +12619,7 @@ function applyRealData(d) {
       const vixCrossOk = !vix || vix <= 0 || (v / vix >= 0.3 && v / vix <= 4.0);
       if(_isValidVkospi(v) && vixCrossOk) {
         vkEl.textContent = v.toFixed(2);
-        vkEl.style.color = v > 30 ? 'var(--ind-neg)' : v > 20 ? 'var(--c-warn)' : 'var(--ind-pos)';
+        _sentMark(vkEl, v > 30);
       } else {
         vkEl.textContent = '—';
         vkEl.style.color = 'var(--c-txt-dim,#a4a8bc)';
@@ -12543,7 +12632,7 @@ function applyRealData(d) {
     if(el) {
       el.textContent = sentiment.move.value.toFixed(1);
       const v = sentiment.move.value;
-      el.style.color = v > 120 ? 'var(--ind-neg)' : v > 100 ? 'var(--c-warn)' : 'var(--ind-pos)';
+      _sentMark(el, v > 120);
       _sentCaption('dashMove', sentiment.move.as_of, '미 채권 변동성 · 지수');
     }
   }
@@ -12552,7 +12641,7 @@ function applyRealData(d) {
     if(el) {
       el.textContent = sentiment.pcr.value.toFixed(2);
       const v = sentiment.pcr.value;
-      el.style.color = v > 1.1 ? 'var(--ind-neg)' : v < 0.7 ? 'var(--ind-pos)' : 'var(--c-txt,#e8ebf5)';
+      _sentMark(el, v > 1.1 || v < 0.7);
       _sentCaption('dashPcr', sentiment.pcr.as_of, '옵션 심리 · 배수');
     }
   }
@@ -14564,6 +14653,10 @@ window.addEventListener('load', async ()=>{
       setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
     }
   });
+
+  // SEED 상태 훅 미러 + 닫은 Callout 복원
+  try { econInitStateMirror(); } catch(_) {}
+  try { econRestoreCallouts(); } catch(_) {}
 
   // 내비 구간(드로어/레일/펼침) 최초 적용 + 회전·리사이즈 추종
   try { econApplyNavMode(); } catch(_) {}

@@ -202,10 +202,25 @@ window.showWidgetError = function (targetId, opts) {
   opts = opts || {};
   var el = document.getElementById(targetId);
   if (!el) return;
-  var btn = opts.retry ? '<button onclick="' + String(opts.retry).replace(/"/g, '&quot;') + '">↻ 재시도</button>' : '';
-  var block = '<div class="widget-err"><div>⚠ ' + _escT6(opts.title || '데이터를 불러오지 못했습니다') + '</div>' +
-              (opts.detail ? '<div style="font-size:var(--font-size-xs);max-width:92%;">' + _escT6(String(opts.detail).slice(0, 160)) + '</div>' : '') +
-              btn + '</div>';
+  var lastOk = '';
+  try {
+    var lu = (window._latestDataForIndicators || {}).lastUpdated || window._lastServerDataTs;
+    if (lu) lastOk = ' · 마지막 성공 ' + new Date(lu).toLocaleTimeString('ko-KR',
+      { hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch (_) {}
+  var title = _escT6(opts.title || '데이터를 못 받았어요') + lastOk;
+  var detail = opts.detail ? _escT6(String(opts.detail).slice(0, 160)) : '';
+  // 컨테이너가 곧 '다시 받기' 버튼 — recipe 가 :is(button,a) 에서 pressed 를 준다.
+  var tag = opts.retry ? 'button' : 'div';
+  var act = opts.retry ? ' type="button" onclick="' + String(opts.retry).replace(/"/g, '&quot;') + '"' : '';
+  var block = '<' + tag + act + ' class="seed-callout__root seed-callout__root--tone_warning econ-callout widget-err">'
+            + '<span class="seed-callout__content">'
+            + '<span class="seed-callout__title seed-callout__title--tone_warning">' + title + '</span>'
+            + (detail ? '<span class="seed-callout__description seed-callout__description--tone_warning">' + detail + '</span>' : '')
+            + (opts.retry ? '<span class="seed-callout__description seed-callout__description--tone_warning">눌러서 다시 받기</span>' : '')
+            + '</span>'
+            + (opts.retry ? '<span class="seed-suffix-icon mat" aria-hidden="true">refresh</span>' : '')
+            + '</' + tag + '>';
   if (el.tagName === 'TBODY') {
     var cols = 4;
     try { cols = el.closest('table').querySelectorAll('thead th').length || 4; } catch (_) {}

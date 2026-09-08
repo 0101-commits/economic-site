@@ -15,7 +15,7 @@ window.runDiagnostics = async function () {
   var btn = document.getElementById('diagRunBtn');
   if (!out) return;
   if (btn) { btn.disabled = true; btn.textContent = '진단 중…'; }
-  out.innerHTML = '<div class="skel-bar" style="width:60%;"></div>';
+  out.innerHTML = '<span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:60%;height:14px;"></span>';
   var rows = [];
 
   /* 1) 차트 라이브러리 로드 */
