@@ -26,7 +26,7 @@ WEEKEND = 720       # 주말·공휴일 — 공급이 시간당 cron 하나, 실
 
 
 def _at(hour, minute=30):
-    """2026-09-08 은 월요일 — 평일 케이스의 기준일."""
+    """2026-09-08 = 화요일 — 평일 케이스의 기준일."""
     return datetime.datetime(2026, 9, 8, hour, minute, tzinfo=KST)
 
 
@@ -62,7 +62,7 @@ def test_weekend_and_holiday_ignore_hour():
 
 def test_is_weekend_feeds_holiday_flag():
     """호출부가 넘기는 weekend 가 공휴일도 담고 있는지 — 두 함수의 계약 확인."""
-    monday = datetime.datetime(2026, 9, 7, 12, tzinfo=KST)   # 월요일
+    monday = datetime.datetime(2026, 9, 7, 12, tzinfo=KST)   # 2026-09-07 = 월요일
     prev = os.environ.get("KR_HOLIDAY")
     try:
         os.environ.pop("KR_HOLIDAY", None)

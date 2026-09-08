@@ -22,7 +22,7 @@ $TaskName = 'EconSite-TossSnapshot'
 $Cmd = Join-Path $PSScriptRoot 'run_toss_snapshot.cmd'
 if (-not (Test-Path $Cmd)) { throw "실행 파일 없음: $Cmd" }
 # 액션은 .cmd 가 아니라 wscript 래퍼다 — 아래 <Actions> 주석 참고.
-$Vbs = Join-Path $PSScriptRoot 'run_toss_snapshot.vbs'
+$Vbs = Join-Path $PSScriptRoot 'run_hidden.vbs'
 if (-not (Test-Path $Vbs)) { throw "래퍼 없음: $Vbs" }
 $User = "$env:USERDOMAIN\$env:USERNAME"
 
@@ -93,7 +93,7 @@ $xml = @"
          RestartOnFailure 도 그대로 작동한다. 창을 보며 디버깅할 땐 .cmd 를 직접 실행. -->
     <Exec>
       <Command>wscript.exe</Command>
-      <Arguments>//B //Nologo "$Vbs"</Arguments>
+      <Arguments>//B //Nologo "$Vbs" run_toss_snapshot.cmd</Arguments>
     </Exec>
   </Actions>
 </Task>
