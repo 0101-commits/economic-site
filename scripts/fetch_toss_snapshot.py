@@ -240,7 +240,11 @@ def git_push():
         return True
     run("git", "add", "toss_snapshot.json")
     stamp = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
-    c = run("git", "commit", "-m", f"data: 토스 스냅샷 {stamp}")
+    # ⚠ 경로를 명시한다(`-o` = --only). 경로 없는 `git commit` 은 **이미 스테이징된
+    #   다른 변경까지 함께** 커밋한다 — 사람이 `git add` 해 둔 작업이 배경 스케줄러의
+    #   "data: 토스 스냅샷" 커밋에 딸려 들어가 그대로 푸시된 사고가 실제로 있었다
+    #   (2026-09-08, SEED 개편 P0). --only 는 인덱스 상태와 무관하게 이 파일만 담는다.
+    c = run("git", "commit", "-o", "toss_snapshot.json", "-m", f"data: 토스 스냅샷 {stamp}")
     if c.returncode != 0:
         log(f"커밋 실패 — 푸시 중단: {((c.stdout or '') + (c.stderr or '')).strip()[:200]}")
         return False
