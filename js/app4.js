@@ -35,6 +35,7 @@ window.initSettingsPage = function () {
   var ccEl = document.querySelector('input[name="setColorConv"][value="' + cc + '"]');
   if (ccEl) ccEl.checked = true;
   try { econSyncSegmented('setColorConvGroup'); } catch (_) {}
+  try { econSyncAllSwitches(document.getElementById('page-settings')); } catch (_) {}
   var sk = 'neutral';
   try { sk = localStorage.getItem('econ_skin') || 'neutral'; } catch (_) {}
   var skEl = document.querySelector('input[name="setSkin"][value="' + sk + '"]');

@@ -41,13 +41,19 @@ for (const w of WIDTHS) {
         try {
           localStorage.setItem('econ_theme', t);
           localStorage.setItem('econ_color_conv', c);
+          // PIN 관문(투자 현황·설정)을 풀어 둔다 — 안 풀면 showPage 가 대시보드로
+          // 되돌려서 잠긴 페이지를 한 번도 측정하지 못한다(측정값이 홈과 동일해짐)
+          sessionStorage.setItem('econLockOk_v1', '1');
         } catch (_) {}
       }, [theme, conv]);
       const page = await ctx.newPage();
       const errors = [];   // 스크립트 오류 — 게이트 실패 사유
       const net = [];      // 리소스 실패(4xx/5xx·타임아웃) — 16연속 로드가 프록시
                            // 레이트리밋(429)을 때리므로 게이트에서 분리해 집계만 한다
-      const isNet = t => /Failed to load resource|net::ERR|ERR_FAILED|status of \d{3}/.test(t);
+      // 외부 요인으로 분류: 리소스 실패(레이트리밋 등)와, 서드파티 SDK 가 자기
+      // 텔레메트리 엔드포인트로 보내려다 CSP 에 막히는 것(네이버 지도 SDK →
+      // nelo.navercorp.com). 후자는 CSP 가 의도대로 동작한 결과다.
+      const isNet = t => /Failed to load resource|net::ERR|ERR_FAILED|status of \d{3}|Content Security Policy/.test(t);
       page.on('console', m => {
         if (m.type() !== 'error') return;
         const t = m.text().slice(0, 200);

@@ -2743,6 +2743,22 @@ function econInitStateMirror(root) {
     }).observe(root, { subtree: true, attributes: true, attributeFilter: ['class'] });
   } catch (_) {}
 }
+// 스위치 상태 미러 — switchmark recipe 는 [data-checked] 를 자기 요소에서 읽는다.
+// 네이티브 체크박스는 시각적으로 숨겨져 있어(.set-switch input) 상태를 옮겨야 한다.
+function econSyncSwitch(input) {
+  if (!input) return;
+  var mark = input.parentElement && input.parentElement.querySelector('.seed-switchmark__root');
+  if (!mark) return;
+  var thumb = mark.querySelector('.seed-switchmark__thumb');
+  [mark, thumb].forEach(function (el) {
+    if (!el) return;
+    if (input.checked) el.setAttribute('data-checked', ''); else el.removeAttribute('data-checked');
+  });
+}
+function econSyncAllSwitches(root) {
+  (root || document).querySelectorAll('.seed-switch__root input[type="checkbox"]').forEach(econSyncSwitch);
+}
+
 // 닫기 영속 Callout — 한 번 닫으면 다시 띄우지 않는다(Dismissible 규칙)
 var ECON_CALLOUT_DISMISS_KEY = 'econ_guides_v1';
 function econDismissCallout(id) {

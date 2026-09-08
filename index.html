@@ -2891,10 +2891,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
            탭 로직·신규 탭 렌더는 js/app6.js. 기존 포트폴리오 화면은 pfTab-holdings 로 감쌌을 뿐
            마크업·id·핸들러 전부 보존. PIN 관문(showPage)이 페이지 단위라 4탭 모두 잠금 범위. -->
       <div role="tablist" aria-label="투자 현황 탭" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--c-border);padding-bottom:8px;">
-        <button role="tab" id="pfTabBtn-brief" onclick="pfShowTab('brief')" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📊 브리핑</button>
-        <button role="tab" id="pfTabBtn-holdings" onclick="pfShowTab('holdings')" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">💼 포트폴리오</button>
-        <button role="tab" id="pfTabBtn-stock" onclick="pfShowTab('stock')" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🔍 종목 분석</button>
-        <button role="tab" id="pfTabBtn-signal" onclick="pfShowTab('signal')" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🧭 시장 신호</button>
+        <button role="tab" id="pfTabBtn-brief" onclick="pfShowTab('brief')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">📊 브리핑</button>
+        <button role="tab" id="pfTabBtn-holdings" onclick="pfShowTab('holdings')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">💼 포트폴리오</button>
+        <button role="tab" id="pfTabBtn-stock" onclick="pfShowTab('stock')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">🔍 종목 분석</button>
+        <button role="tab" id="pfTabBtn-signal" onclick="pfShowTab('signal')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">🧭 시장 신호</button>
       </div>
       <div id="pfTab-brief" role="tabpanel" style="display:none;"></div>
       <div id="pfTab-stock" role="tabpanel" style="display:none;"></div>
@@ -2931,11 +2931,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
             <span class="widget-title" style="margin-bottom:0;">지정 종목 트래킹</span>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-              <button class="tab-btn" onclick="pfSyncTracking()" title="관심종목·그룹을 서버에 저장해 다른 기기/플랫폼에서도 같은 목록을 봅니다 (평단가·수량은 이 기기에만 저장)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">☁ 목록 저장</button>
-              <button class="tab-btn" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 암호화 동기화 켜둔 경우 함께 복원)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 불러오기</button>
-              <button class="tab-btn" id="pfHoldingsPassBtn" onclick="pfSetHoldingsPass()" title="평단가·수량을 암호화해 기기 간 동기화 — 암호 설정 후 「☁ 목록 저장」하면 암호문으로 함께 저장되고, 다른 기기에서 같은 암호로 「⬇ 불러오기」 시 복원됩니다. 서버엔 암호문만 저장(평문 자산 노출 없음)." style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">🔐 평단가 동기화</button>
-              <button class="tab-btn" onclick="pfRefreshQuotes(true)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">↻ 시세 새로고침</button>
-              <button class="tab-btn" onclick="pfExportCsv()" title="포트폴리오를 CSV 파일로 저장 (Excel 호환)" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ CSV 저장</button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSyncTracking()" title="관심종목·그룹을 서버에 저장해 다른 기기/플랫폼에서도 같은 목록을 봅니다 (평단가·수량은 이 기기에만 저장)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">☁ 목록 저장</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 암호화 동기화 켜둔 경우 함께 복원)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ 불러오기</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfHoldingsPassBtn" onclick="pfSetHoldingsPass()" title="평단가·수량을 암호화해 기기 간 동기화 — 암호 설정 후 「☁ 목록 저장」하면 암호문으로 함께 저장되고, 다른 기기에서 같은 암호로 「⬇ 불러오기」 시 복원됩니다. 서버엔 암호문만 저장(평문 자산 노출 없음)." aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🔐 평단가 동기화</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfRefreshQuotes(true)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">↻ 시세 새로고침</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfExportCsv()" title="포트폴리오를 CSV 파일로 저장 (Excel 호환)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ CSV 저장</span></button>
             </div>
           </div>
           <!-- 상태줄(자동 저장·서버 동기화·시세 기준 시각) — 헤더와 분리해 좌/우 상단 정렬을 통일 -->
@@ -2949,35 +2949,35 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
           <!-- 종목 추가 -->
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;margin-bottom:10px;">
-            <input aria-label="종목 코드 또는 티커 입력" id="pfSymbolInput" placeholder="종목코드/티커 (예: 005930, AAPL)" style="flex:1;min-width:170px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:var(--font-size-sm);" onkeydown="if(event.key==='Enter')pfLookupSymbol()">
-            <button class="tab-btn" onclick="pfLookupSymbol()" style="font-size:var(--font-size-sm);padding:5px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">조회</button>
+            <input aria-label="종목 코드 또는 티커 입력" id="pfSymbolInput" placeholder="종목코드/티커 (예: 005930, AAPL)" style="flex:1;min-width:170px;" onkeydown="if(event.key==='Enter')pfLookupSymbol()" class="econ-input">
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfLookupSymbol()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">조회</span></button>
             <span id="pfLookupResult" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);flex-basis:100%;"></span>
             <div id="pfAddFields" style="display:none;gap:6px;flex-wrap:wrap;align-items:center;flex-basis:100%;">
-              <input aria-label="내 평단가 입력" id="pfAddAvg" type="number" step="any" min="0" placeholder="내 평단가 (선택)" style="width:130px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:var(--font-size-sm);">
-              <input aria-label="보유 수량 입력" id="pfAddQty" type="number" step="any" min="0" placeholder="보유 수량 (선택)" style="width:120px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:var(--font-size-sm);">
-              <select aria-label="추가할 종목의 그룹 선택" id="pfAddGroup" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:var(--font-size-sm);"></select>
-              <button class="tab-btn" onclick="pfAddItem()" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:var(--color-on-success);cursor:pointer;">＋ 추가</button>
+              <input aria-label="내 평단가 입력" id="pfAddAvg" type="number" step="any" min="0" placeholder="내 평단가 (선택)" style="width:130px;" class="econ-input">
+              <input aria-label="보유 수량 입력" id="pfAddQty" type="number" step="any" min="0" placeholder="보유 수량 (선택)" style="width:120px;" class="econ-input">
+              <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select aria-label="추가할 종목의 그룹 선택" id="pfAddGroup"></select></span>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfAddItem()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">＋ 추가</span></button>
             </div>
           </div>
 
           <!-- 종목 표 (모바일 768px 이하에서는 카드 뷰로 대체 — 3차-T22) -->
           <div style="overflow-x:auto;" class="pf-table-wrap">
-            <table class="pf-sticky-first" style="width:100%;border-collapse:collapse;font-size:var(--font-size-sm);min-width:760px;">
+            <table class="pf-sticky-first econ-table" style="min-width:760px;">
               <thead>
                 <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);text-align:right;">
-                  <th scope="col" style="text-align:left;padding:6px 4px;">종목</th>
-                  <th scope="col" style="padding:6px 4px;">현재가</th>
-                  <th scope="col" style="padding:6px 4px;">당일 대비</th>
-                  <th scope="col" style="padding:6px 4px;">내 평단가</th>
-                  <th scope="col" style="padding:6px 4px;">보유 수량</th>
-                  <th scope="col" style="padding:6px 4px;">평가 금액</th>
-                  <th scope="col" style="padding:6px 4px;">평가 손익</th>
-                  <th scope="col" style="padding:6px 4px;text-align:center;">그룹</th>
-                  <th scope="col" style="padding:6px 4px;text-align:center;">관리</th>
+                  <th scope="col">종목</th>
+                  <th scope="col">현재가</th>
+                  <th scope="col">당일 대비</th>
+                  <th scope="col">내 평단가</th>
+                  <th scope="col">보유 수량</th>
+                  <th scope="col">평가 금액</th>
+                  <th scope="col">평가 손익</th>
+                  <th scope="col">그룹</th>
+                  <th scope="col">관리</th>
                 </tr>
               </thead>
               <tbody id="pfTableBody">
-                <tr><td colspan="9" style="padding:18px;text-align:center;color:var(--c-txt-muted);">종목 코드를 조회해 추가하세요. (한국 6자리 코드 / 미국 티커)</td></tr>
+                <tr><td colspan="9">종목 코드를 조회해 추가하세요. (한국 6자리 코드 / 미국 티커)</td></tr>
               </tbody>
             </table>
           </div>
@@ -2990,8 +2990,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <span class="widget-title" style="margin-bottom:0;">자산 비중</span>
             <div style="display:flex;gap:4px;">
-              <button class="tab-btn active" id="pfPieModeItem" onclick="pfSetPieMode('item',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">종목별</button>
-              <button class="tab-btn" id="pfPieModeType" onclick="pfSetPieMode('type',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">유형별</button>
+              <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfPieModeItem" onclick="pfSetPieMode('item',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">종목별</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfPieModeType" onclick="pfSetPieMode('type',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">유형별</span></button>
             </div>
           </div>
           <div style="position:relative;height:260px;"><canvas role="img" aria-label="포트폴리오 자산 비중 도넛 차트" id="pfPieCanvas"></canvas></div>
@@ -3017,8 +3017,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           <span class="widget-title" style="margin-bottom:0;">📲 카카오톡 알림 조건</span>
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-            <button class="tab-btn" onclick="pfSyncAlerts()" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">☁ 서버에 저장</button>
-            <button class="tab-btn" onclick="showPage('settings', document.querySelector('.menu-item[onclick*=settings]'))" title="동기화 키·서버 불러오기·테스트 발송·전역 토글은 설정 페이지에서 관리" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">⚙ 알림 설정 관리 →</button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSyncAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">☁ 서버에 저장</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="showPage('settings', document.querySelector('.menu-item[onclick*=settings]'))" title="동기화 키·서버 불러오기·테스트 발송·전역 토글은 설정 페이지에서 관리" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⚙ 알림 설정 관리 →</span></button>
             <span id="pfSyncStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);"></span>
           </div>
         </div>
@@ -3047,18 +3047,18 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
             <div style="display:flex;gap:4px;" id="pfChartPeriods">
-              <button class="tab-btn" data-p="1D" onclick="pfSetChartPeriod('1D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1일</button>
-              <button class="tab-btn" data-p="1W" onclick="pfSetChartPeriod('1W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1주</button>
-              <button class="tab-btn" data-p="3M" onclick="pfSetChartPeriod('3M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3개월</button>
-              <button class="tab-btn active" data-p="1Y" onclick="pfSetChartPeriod('1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">1년</button>
-              <button class="tab-btn" data-p="3Y" onclick="pfSetChartPeriod('3Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="1D" onclick="pfSetChartPeriod('1D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1일</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="1W" onclick="pfSetChartPeriod('1W',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1주</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="3M" onclick="pfSetChartPeriod('3M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3개월</span></button>
+              <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="1Y" onclick="pfSetChartPeriod('1Y',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-p="3Y" onclick="pfSetChartPeriod('3Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
             </div>
             <!-- 보조지표 토글 (PRD: MA / RSI / MACD On-Off) -->
             <div style="display:flex;gap:4px;align-items:center;">
               <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">보조지표:</span>
-              <button class="tab-btn" id="pfIndMaBtn" onclick="pfToggleInd('ma',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;">MA</button>
-              <button class="tab-btn" id="pfIndRsiBtn" onclick="pfToggleInd('rsi',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;">RSI</button>
-              <button class="tab-btn" id="pfIndMacdBtn" onclick="pfToggleInd('macd',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;">MACD</button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfIndMaBtn" onclick="pfToggleInd('ma',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">MA</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfIndRsiBtn" onclick="pfToggleInd('rsi',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">RSI</span></button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfIndMacdBtn" onclick="pfToggleInd('macd',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">MACD</span></button>
             </div>
           </div>
           <div id="pfMaLegend" style="display:none;font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:4px;">
@@ -3083,7 +3083,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:10px;">
             <div style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:8px;font-weight:var(--font-weight-semibold);">새 알림 추가</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-              <select aria-label="알림 조건 유형 선택" id="pfAlertType" onchange="pfAlertTypeChanged()" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:var(--font-size-sm);">
+              <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select aria-label="알림 조건 유형 선택" id="pfAlertType" onchange="pfAlertTypeChanged()">
                 <option value="price_above">가격이 ~ 이상 (목표가 도달)</option>
                 <option value="price_below">가격이 ~ 이하</option>
                 <option value="pct_change">등락률 도달 (전일 종가 대비 %)</option>
@@ -3092,22 +3092,22 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <option value="vol_surge">거래량 폭등 (전일 대비 %)</option>
                 <option value="golden_cross">이동평균 골든크로스</option>
                 <option value="dead_cross">이동평균 데드크로스</option>
-              </select>
-              <input id="pfAlertValue" type="number" step="any" placeholder="값" style="width:120px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:var(--font-size-sm);">
-              <select id="pfAlertMaPair" style="display:none;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:var(--font-size-sm);">
+              </select></span>
+              <input id="pfAlertValue" type="number" step="any" placeholder="값" style="width:120px;" class="econ-input">
+              <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="pfAlertMaPair" style="display:none;">
                 <option value="5/20">MA5 / MA20 (단기)</option>
                 <option value="20/60" selected>MA20 / MA60 (중기)</option>
-              </select>
-              <select id="pfAlertLimit" title="도배 방지 — 같은 조건의 재발송 제한" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);color:var(--c-txt);padding:5px 8px;font-size:var(--font-size-sm);">
+              </select></span>
+              <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="pfAlertLimit" title="도배 방지 — 같은 조건의 재발송 제한">
                 <option value="daily">하루 1회만</option>
                 <option value="cool60">1시간 쿨다운</option>
-              </select>
+              </select></span>
               <!-- [재알림 옵션] 가격 지정 알림 전용(가격 유형 선택 시에만 표시) — 체크하면 기준선을
                    넘은 채 머무는 동안에도 위 주기(하루 1회/1시간)로 반복 알림. 미체크(기본)는 돌파 시 1회. -->
               <label id="pfAlertRefireWrap" title="충족 지속 중에도 선택한 주기로 반복 알림 (기본: 돌파 시 1회)" style="display:none;align-items:center;gap:4px;font-size:var(--font-size-sm);color:var(--c-txt);cursor:pointer;">
                 <input type="checkbox" id="pfAlertRefire" style="accent-color:var(--c-accent);"> 지속 재알림
               </label>
-              <button class="tab-btn" onclick="pfAddAlert()" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:var(--color-on-success);cursor:pointer;">＋ 추가</button>
+              <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfAddAlert()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">＋ 추가</span></button>
             </div>
             <div id="pfAlertHint" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;">현재가가 입력한 가격 이상이 되면 발송됩니다.</div>
           </div>
@@ -3966,7 +3966,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
           <div class="widget" style="display:flex;flex-direction:column;gap:8px;">
             <div class="widget-title" style="margin-bottom:0;">기록 목록</div>
-            <input id="stySearch" class="study-field" type="search" placeholder="제목 · 태그 · 참석자 · 내용 검색"
+            <input id="stySearch" class="study-field econ-input" type="search" placeholder="제목 · 태그 · 참석자 · 내용 검색"
                    oninput="styRenderList()" aria-label="스터디 기록 검색"/>
             <div id="styList" style="display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto;"></div>
           </div>
@@ -4005,24 +4005,24 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div class="widget">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
                 <span id="styRoundBadge" class="study-badge">—</span>
-                <input id="styTitle" class="study-field" style="flex:1;min-width:180px;font-size:var(--font-size-base);font-weight:var(--font-weight-semibold);"
+                <input id="styTitle" class="study-field econ-input" style="flex:1;min-width:180px;"
                        placeholder="스터디 제목 (예: 3장 금리와 채권가격)" oninput="styPatchField('title',this.value)" aria-label="스터디 제목"/>
                 <button class="study-btn" onclick="styDuplicate()" title="이 회차를 복제">⧉ 복제</button>
                 <button class="study-btn danger" onclick="styDelete()" title="이 회차 삭제">🗑 삭제</button>
               </div>
               <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;">
                 <label style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">날짜
-                  <input id="styDate" class="study-field" type="date" onchange="styPatchField('date',this.value)"/></label>
+                  <input id="styDate" class="study-field econ-input" type="date" onchange="styPatchField('date',this.value)"/></label>
                 <label style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">시작
-                  <input id="styStart" class="study-field" type="time" onchange="styPatchField('start',this.value)"/></label>
+                  <input id="styStart" class="study-field econ-input" type="time" onchange="styPatchField('start',this.value)"/></label>
                 <label style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">종료
-                  <input id="styEnd" class="study-field" type="time" onchange="styPatchField('end',this.value)"/></label>
+                  <input id="styEnd" class="study-field econ-input" type="time" onchange="styPatchField('end',this.value)"/></label>
                 <label style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">장소 / 링크
-                  <input id="styPlace" class="study-field" placeholder="회의실 · Zoom" oninput="styPatchField('place',this.value)"/></label>
+                  <input id="styPlace" class="study-field econ-input" placeholder="회의실 · Zoom" oninput="styPatchField('place',this.value)"/></label>
                 <label style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">참석자 (쉼표 구분)
-                  <input id="styMembers" class="study-field" placeholder="홍길동, 김철수" oninput="styPatchField('members',this.value)"/></label>
+                  <input id="styMembers" class="study-field econ-input" placeholder="홍길동, 김철수" oninput="styPatchField('members',this.value)"/></label>
                 <label style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">태그 (쉼표 구분)
-                  <input id="styTags" class="study-field" placeholder="채권, 금리" oninput="styPatchField('tags',this.value)"/></label>
+                  <input id="styTags" class="study-field econ-input" placeholder="채권, 금리" oninput="styPatchField('tags',this.value)"/></label>
               </div>
               <div id="stySaveState" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;">&nbsp;</div>
             </div>
@@ -4040,8 +4040,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <input id="styFileInput" type="file" multiple style="display:none;" onchange="styAddFiles(this.files); this.value='';"/>
 
               <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-                <input id="styLinkUrl" class="study-field" style="flex:2;min-width:160px;" placeholder="외부 링크 URL (YouTube · Drive · Notion)"/>
-                <input id="styLinkLabel" class="study-field" style="flex:1;min-width:110px;" placeholder="링크 이름 (선택)"/>
+                <input id="styLinkUrl" class="study-field econ-input" style="flex:2;min-width:160px;" placeholder="외부 링크 URL (YouTube · Drive · Notion)"/>
+                <input id="styLinkLabel" class="study-field econ-input" style="flex:1;min-width:110px;" placeholder="링크 이름 (선택)"/>
                 <button class="study-btn" onclick="styAddLink()">+ 링크</button>
               </div>
 
@@ -4050,10 +4050,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="styPlayerName" style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);overflow:hidden;text-overflow:ellipsis;"></div>
                   <div style="display:flex;gap:4px;align-items:center;">
                     <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">배속</span>
-                    <select id="styRate" class="study-field" style="width:auto;padding:3px 6px;" onchange="stySetRate(this.value)" aria-label="재생 배속">
+                    <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="styRate" class="study-field" style="width:auto;" onchange="stySetRate(this.value)" aria-label="재생 배속">
                       <option value="0.75">0.75×</option><option value="1" selected>1×</option>
                       <option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option>
-                    </select>
+                    </select></span>
                     <button class="study-btn" onclick="styClosePlayer()" aria-label="플레이어 닫기">×</button>
                   </div>
                 </div>
@@ -4128,8 +4128,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <!-- 헤더 -->
           <div class="widget" style="display:flex;flex-direction:column;gap:10px;">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <input aria-label="노트 제목" id="noteTitle" type="text" placeholder="노트 제목 *" style="flex:2;min-width:160px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 12px;color:var(--c-txt);font-size:var(--font-size-base);font-family:var(--font-num);font-weight:var(--font-weight-semibold);"/>
-              <input aria-label="노트 작성자" id="noteAuthor" type="text" placeholder="작성자 (필수) *" style="flex:1;min-width:120px;background:var(--c-bg);border:1px solid var(--c-accent-container);border-radius:var(--r-sm);padding:8px 12px;color:var(--c-txt);font-size:var(--font-size-base);"/>
+              <input aria-label="노트 제목" id="noteTitle" type="text" placeholder="노트 제목 *" style="flex:2;min-width:160px;font-family:var(--font-num);"/ class="econ-input">
+              <input aria-label="노트 작성자" id="noteAuthor" type="text" placeholder="작성자 (필수) *" style="flex:1;min-width:120px;"/ class="econ-input">
               <span id="noteDate" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);white-space:nowrap;"></span>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
@@ -4182,8 +4182,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <div class="page" id="page-realestate">
       <!-- 한국/미국 탭 — 좌측 상단 -->
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-        <button class="tab-btn active" id="reitabKR" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);background:var(--c-accent);" onclick="setRETab('kr',this)">🇰🇷 한국</button>
-        <button class="tab-btn" id="reitabUS" style="font-size:var(--font-size-sm);padding:5px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt-dim);background:transparent;" onclick="setRETab('us',this)">🇺🇸 미국</button>
+        <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="reitabKR" onclick="setRETab('kr',this)" data-ssr role="tab" aria-selected="true">🇰🇷 한국</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="reitabUS" onclick="setRETab('us',this)" data-ssr role="tab" aria-selected="false">🇺🇸 미국</button>
       </div>
       <h2 style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);margin:0 0 16px 0;">부동산 시장 현황</h2>
 
@@ -4192,26 +4192,26 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- KPI 카드 행 -->
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
           <!-- 카드 1: 전국주택가격동향조사 매매가격지수 변동률 (사용자가 reb.or.kr 에서 보는 값) -->
-          <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" style="border-left:3px solid var(--c-up);cursor:pointer;" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 변동률 (아파트)',{unit:'% (월간 변동률)'})">
+          <button type="button" class="kpi-card kpi-clickable econ-stat" style="" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 변동률 (아파트)',{unit:'% (월간 변동률)'})">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 매매가격지수 변동률 (아파트)</div>
             <div id="reKpiAptPrice" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
             <div id="reKpiAptPriceMeta" style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);" title="R-ONE 데이터 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
-          </div>
+          </button>
           <!-- 카드 2: 전국주택가격동향조사 전세가격지수 변동률 -->
-          <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" style="border-left:3px solid var(--c-primary);cursor:pointer;" onclick="showReHistoryChart('jns_price_idx_kr', '전국주택가격동향조사 전세가격지수 변동률 (주택종합)', {unit:'% (월간 변동률)'})">
+          <button type="button" class="kpi-card kpi-clickable econ-stat" style="" onclick="showReHistoryChart('jns_price_idx_kr', '전국주택가격동향조사 전세가격지수 변동률 (주택종합)', {unit:'% (월간 변동률)'})">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 전세가격지수 변동률 (주택종합)</div>
             <div id="reKpiAptIdxVal" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
             <div id="reKpiAptIdxChg" style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);" title="R-ONE 데이터 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
-          </div>
+          </button>
           <!-- 카드 3: 부동산거래현황 (한국부동산원 R-ONE) — 국토부 실거래가 API 미수집분 대체 -->
-          <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" class="kpi-card kpi-clickable" style="border-left:3px solid #f5a623;cursor:pointer;" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})">
+          <button type="button" class="kpi-card kpi-clickable econ-stat" style="" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">행정구역별 아파트거래현황 (전국)</div>
             <div id="reKpiVol" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
             <div id="reKpiVolMeta" style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);" title="부동산원 거래현황 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE 행정구역별 아파트거래현황 · 단위: 동(호)수</div>
-          </div>
+          </button>
           <div class="kpi-card" style="border-left:3px solid var(--c-down);">
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">서울 PIR (소득대비)</div>
             <div id="reKpiPir" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">19.3<span style="font-size:var(--font-size-base);">배</span></div>
@@ -4227,17 +4227,17 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
               <div class="widget-title" style="margin-bottom:0;">아파트 가격지수 추이 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 지수 (2021.6=100)</span></div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-                <button onclick="setRePeriod('1y',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">1년</button>
-                <button onclick="setRePeriod('3y',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
-                <button onclick="setRePeriod('5y',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
+                <button onclick="setRePeriod('1y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-checked aria-pressed="true"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
+                <button onclick="setRePeriod('3y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
+                <button onclick="setRePeriod('5y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">5년</span></button>
                 <button id="reCustomBtn" onclick="toggleCustomRange('re',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📅 기간 지정</button>
                 <button class="yoy-btn" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" style="font-size:var(--font-size-xs);padding:2px 8px;" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
             <div id="reCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
-              <input aria-label="부동산 지표 조회 시작일" type="date" id="reDateFrom" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+              <input aria-label="부동산 지표 조회 시작일" type="date" id="reDateFrom"/ class="econ-input">
               <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
-              <input aria-label="부동산 지표 조회 종료일" type="date" id="reDateTo" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 6px;color:var(--c-txt);font-size:var(--font-size-sm);"/>
+              <input aria-label="부동산 지표 조회 종료일" type="date" id="reDateTo"/ class="econ-input">
               <button onclick="applyReCustomRange()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
               <button onclick="resetReCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
             </div>
@@ -4267,40 +4267,40 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
             <div class="widget-title">대출 규제 현황 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">항목 클릭 → 세부 내용</span></div>
-            <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+            <table class="econ-table">
               <tbody>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('LTV')" title="클릭 → LTV 세부 규제">
-                  <td style="padding:8px 0;font-weight:var(--font-weight-medium);color:var(--c-txt-dim);">LTV <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
-                  <td style="padding:8px;font-weight:var(--font-weight-semibold);">투기지역 40% / 기타 70%</td>
+                  <td>LTV <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
+                  <td>투기지역 40% / 기타 70%</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('DTI')" title="클릭 → DTI 세부 규제">
-                  <td style="padding:8px 0;font-weight:var(--font-weight-medium);color:var(--c-txt-dim);">DTI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
-                  <td style="padding:8px;font-weight:var(--font-weight-semibold);">투기지역 40% / 기타 50%</td>
+                  <td>DTI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
+                  <td>투기지역 40% / 기타 50%</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('DSR')" title="클릭 → DSR 세부 규제">
-                  <td style="padding:8px 0;font-weight:var(--font-weight-medium);color:var(--c-txt-dim);">DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
-                  <td style="padding:8px;font-weight:var(--font-weight-semibold);">40% (1억 초과 대출)</td>
+                  <td>DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
+                  <td>40% (1억 초과 대출)</td>
                 </tr>
                 <tr style="cursor:pointer;" onclick="showLoanRegDetail('stress')" title="클릭 → 스트레스 DSR 세부 규제">
-                  <td style="padding:8px 0;font-weight:var(--font-weight-medium);color:var(--c-txt-dim);">스트레스DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
-                  <td style="padding:8px;font-weight:var(--font-weight-semibold);">2단계 시행 중</td>
+                  <td>스트레스DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></td>
+                  <td>2단계 시행 중</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <div class="widget">
             <div class="widget-title">청약 경쟁률 (최근 3개월) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭 → 세부 지역·단지 순위</span></div>
-            <table style="width:100%;font-size:var(--font-size-sm);border-collapse:collapse;">
+            <table class="econ-table">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-xs);">
-                <th scope="col" style="text-align:left;padding:5px 0;">지역</th>
-                <th scope="col" style="text-align:right;padding:5px;">1순위 경쟁률</th>
-                <th scope="col" style="text-align:right;padding:5px;">추이</th>
+                <th scope="col">지역</th>
+                <th scope="col" class="econ-table--num">1순위 경쟁률</th>
+                <th scope="col" class="econ-table--num">추이</th>
               </tr></thead>
               <tbody>
-                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('seoul')" title="클릭 → 서울 세부 지역·단지 순위"><td style="padding:7px 0;">서울 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td style="text-align:right;padding:7px;font-weight:var(--font-weight-semibold);">32.4 : 1</td><td style="text-align:right;padding:7px;" class="up-txt">▲</td></tr>
-                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('gyeonggi')" title="클릭 → 경기/인천 세부 지역·단지 순위"><td style="padding:7px 0;">경기/인천 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td style="text-align:right;padding:7px;font-weight:var(--font-weight-semibold);">8.1 : 1</td><td style="text-align:right;padding:7px;color:var(--c-txt-dim);">—</td></tr>
-                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('metro')" title="클릭 → 지방광역시 세부 지역·단지 순위"><td style="padding:7px 0;">지방광역시 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td style="text-align:right;padding:7px;font-weight:var(--font-weight-semibold);">3.2 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
-                <tr style="cursor:pointer;" onclick="showSubscriptionDetail('other')" title="클릭 → 기타 지방 세부 지역·단지 순위"><td style="padding:7px 0;">기타 지방 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td style="text-align:right;padding:7px;font-weight:var(--font-weight-semibold);">1.1 : 1</td><td style="text-align:right;padding:7px;" class="down-txt">▼</td></tr>
+                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('seoul')" title="클릭 → 서울 세부 지역·단지 순위"><td>서울 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td class="econ-table--num">32.4 : 1</td><td class="up-txt econ-table--num">▲</td></tr>
+                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('gyeonggi')" title="클릭 → 경기/인천 세부 지역·단지 순위"><td>경기/인천 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td class="econ-table--num">8.1 : 1</td><td class="econ-table--num">—</td></tr>
+                <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showSubscriptionDetail('metro')" title="클릭 → 지방광역시 세부 지역·단지 순위"><td>지방광역시 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td class="econ-table--num">3.2 : 1</td><td class="down-txt econ-table--num">▼</td></tr>
+                <tr style="cursor:pointer;" onclick="showSubscriptionDetail('other')" title="클릭 → 기타 지방 세부 지역·단지 순위"><td>기타 지방 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">▸</span></td><td class="econ-table--num">1.1 : 1</td><td class="down-txt econ-table--num">▼</td></tr>
               </tbody>
             </table>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;text-align:right;">출처: <a href="https://www.applyhome.co.kr" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">청약홈</a></div>
@@ -4313,7 +4313,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div class="widget-title">🏠 가격 지수</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 (아파트)',{unit:'지수 (2021.6=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
+              <button type="button" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 (아파트)',{unit:'지수 (2021.6=100)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전국주택가격동향조사 매매가격지수 (아파트) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptSale">—</span></div>
@@ -4322,8 +4322,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="krReAptSaleVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div id="krReAptSaleChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('jns_price_idx_kr','전국주택가격동향조사 전세가격지수 (주택종합)',{unit:'지수 (2026.1=100)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('jns_price_idx_kr','전국주택가격동향조사 전세가격지수 (주택종합)',{unit:'지수 (2026.1=100)'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전국주택가격동향조사 전세가격지수 (주택종합) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptJns">—</span></div>
@@ -4332,8 +4332,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="krReAptJnsVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div id="krReAptJnsChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('pir_seoul','서울 PIR (소득 대비 주택가격)',{unit:'배 (배수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('pir_seoul','서울 PIR (소득 대비 주택가격)',{unit:'배 (배수)'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">서울 PIR (소득 대비 주택가격) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">통계청 가계금융복지 · 연간 · 단위: 배 (소득 대비 배수)</div>
@@ -4342,7 +4342,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt);">19.3배</div>
                   <div style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-dim);">전년 20.1배</div>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -4350,7 +4350,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div class="widget-title">💰 주택담보대출 / 가계부채</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('mortgage_rate_kr','주담대 평균 금리',{unit:'% (연이율)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-down);cursor:pointer;" title="클릭 → 시계열 차트">
+              <button type="button" onclick="showReHistoryChart('mortgage_rate_kr','주담대 평균 금리',{unit:'% (연이율)'})" style="border-left:3px solid var(--c-down);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주담대 평균 금리 (신규) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국은행 ECOS · 월간 · 단위: % (연이율)</div>
@@ -4359,8 +4359,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="krReMortRate" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('household_debt_kr','가계신용 잔액',{unit:'10억원 → 조원 표시'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('household_debt_kr','가계신용 잔액',{unit:'10억원 → 조원 표시'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">가계신용 잔액 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국은행 가계신용 · 분기 · 단위: 조원</div>
@@ -4369,7 +4369,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="krReHouseholdDebt" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
-              </div>
+              </button>
               <div style="padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-border);">
                 <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);line-height:1.6;">
                   💡 <strong style="color:var(--c-txt);">참고</strong>: 가계신용은 가계대출 + 판매신용. 한국은행 분기별 발표.
@@ -4384,7 +4384,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-up);cursor:pointer;" title="클릭 → 시계열 차트">
+              <button type="button" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})" style="border-left:3px solid var(--c-up);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">행정구역별 아파트거래현황 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE 행정구역별 아파트거래현황 · 월간 · 단위: 동(호)수</div>
@@ -4393,8 +4393,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="krReTradeCnt" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">미분양 주택 수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">국토부 통계 · 월간 · 단위: 호 (가구 수)</div>
@@ -4403,14 +4403,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="krReUnsold" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
           <div class="widget">
             <div class="widget-title">🏗️ 주택 공급·임대 지표</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('conversion_rate_kr','전월세전환율 (전국)',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <button type="button" onclick="showReHistoryChart('conversion_rate_kr','전월세전환율 (전국)',{unit:'%'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전월세전환율 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: %</div>
@@ -4419,8 +4419,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="krReConversion" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div id="krReConversionChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">수집 중</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간</div>
@@ -4429,7 +4429,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="krReStart" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div id="krReStartChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">수집 중</div>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -4519,7 +4519,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div class="widget-title">🏠 주택 가격 지수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열 차트</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('case_shiller_national','Case-Shiller 전국 HPI',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
+              <button type="button" onclick="showReHistoryChart('case_shiller_national','Case-Shiller 전국 HPI',{unit:'지수'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">Case-Shiller 전국 HPI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: CSUSHPINSA · <span id="usTableCaseShillerPeriod">—</span></div>
@@ -4528,8 +4528,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableCaseShillerVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableCaseShillerChg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('case_shiller_20city','Case-Shiller 20대도시 HPI',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('case_shiller_20city','Case-Shiller 20대도시 HPI',{unit:'지수'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">Case-Shiller 20대도시 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: SPCS20RSA · <span id="usTableCase20Period">—</span></div>
@@ -4538,8 +4538,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableCase20Val" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableCase20Chg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('nahb_index','NAHB 주택시장지수',{unit:'지수'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('nahb_index','NAHB 주택시장지수',{unit:'지수'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">NAHB 주택시장지수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">건설업체 체감 · <span id="usTableNahbPeriod">—</span></div>
@@ -4548,7 +4548,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableNahbVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableNahbChg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -4556,7 +4556,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div class="widget-title">💰 모기지 금리 (Freddie Mac) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('mortgage_30y','30년 고정 모기지 금리',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-down);cursor:pointer;" title="클릭 → 시계열 차트">
+              <button type="button" onclick="showReHistoryChart('mortgage_30y','30년 고정 모기지 금리',{unit:'%'})" style="border-left:3px solid var(--c-down);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">30년 고정 모기지 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: MORTGAGE30US · 주간 · <span id="usTableMtg30Period">—</span></div>
@@ -4565,8 +4565,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableMtg30Val" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableMtg30Chg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('mortgage_15y','15년 고정 모기지 금리',{unit:'%'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('mortgage_15y','15년 고정 모기지 금리',{unit:'%'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">15년 고정 모기지 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: MORTGAGE15US · 주간 · <span id="usTableMtg15Period">—</span></div>
@@ -4575,7 +4575,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableMtg15Val" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableMtg15Chg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
+              </button>
               <div style="padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-border);">
                 <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);line-height:1.6;">
                   💡 <strong style="color:var(--c-txt);">참고</strong>: 모기지 금리는 매주 목요일 Freddie Mac이 발표.
@@ -4592,7 +4592,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div class="widget-title">📈 주택 거래 활동 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('existing_home_sales','기존주택 판매 (Existing Home Sales)',{unit:'백만 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-up);cursor:pointer;" title="클릭 → 시계열 차트">
+              <button type="button" onclick="showReHistoryChart('existing_home_sales','기존주택 판매 (Existing Home Sales)',{unit:'백만 건 (연환산)'})" style="border-left:3px solid var(--c-up);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">기존주택 판매 (Existing) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: EXHOSLUSM495S · <span id="usTableEHSPeriod">—</span></div>
@@ -4601,8 +4601,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableEHSVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableEHSChg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('new_home_sales','신규주택 판매 (New Home Sales)',{unit:'천 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('new_home_sales','신규주택 판매 (New Home Sales)',{unit:'천 건 (연환산)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">신규주택 판매 (New) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: HSN1F · <span id="usTableNHSPeriod">—</span></div>
@@ -4611,7 +4611,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableNHSVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableNHSChg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -4619,7 +4619,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div class="widget-title">🏗️ 주택 공급 (선행지표) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('housing_starts','주택 착공 (Housing Starts)',{unit:'천 호 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid #f5a623;cursor:pointer;" title="클릭 → 시계열 차트">
+              <button type="button" onclick="showReHistoryChart('housing_starts','주택 착공 (Housing Starts)',{unit:'천 호 (연환산)'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: HOUST · <span id="usTableHStPeriod">—</span></div>
@@ -4628,8 +4628,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableHStVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableHStChg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
-              <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="showReHistoryChart('building_permits','건축 허가 (Building Permits)',{unit:'천 건 (연환산)'})" style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--c-bg);border-radius:var(--r-sm);border-left:3px solid var(--c-primary);cursor:pointer;" title="클릭 → 시계열 차트">
+              </button>
+              <button type="button" onclick="showReHistoryChart('building_permits','건축 허가 (Building Permits)',{unit:'천 건 (연환산)'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">건축 허가 (Permits) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: PERMIT · <span id="usTableBPPeriod">—</span></div>
@@ -4638,7 +4638,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div id="usTableBPVal" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
                   <div id="usTableBPChg" style="font-size:var(--font-size-sm);margin-top:2px;">—</div>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -4666,7 +4666,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div class="set-label">카카오톡 알림 전체 사용</div>
             <div class="set-desc">끄면 서버(GitHub Actions)가 모든 종목 알림 평가·발송을 중단합니다. 「🔔 테스트 발송」은 항상 동작하며, OFF 상태임을 메시지에 표기합니다.</div>
           </div>
-          <label class="set-switch"><input type="checkbox" id="setNotifEnabled" onchange="settingsToggleNotif(this.checked)"><span class="set-slider"></span></label>
+          <label class="seed-switch__root seed-switch__root--size_24 set-switch"><input type="checkbox" id="setNotifEnabled" onchange="settingsToggleNotif(this.checked); econSyncSwitch(this)"><span class="seed-switchmark__root seed-switchmark__root--size_24 seed-switchmark__root--tone_brand set-slider"><span class="seed-switchmark__thumb seed-switchmark__thumb--size_24 seed-switchmark__thumb--tone_brand"></span></span></label>
         </div>
         <div class="set-row">
           <div>
@@ -4680,9 +4680,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:10px;">
           <button id="pfSyncKeyBtn" class="tab-btn" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🔑 동기화 키</button>
-          <button class="tab-btn" onclick="pfPullAlerts()" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">⬇ 서버에서 불러오기</button>
-          <button class="tab-btn" onclick="pfSyncAlerts()" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">☁ 서버에 저장</button>
-          <button class="tab-btn" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid color-mix(in srgb,var(--c-up) 33%,transparent);border-radius:var(--r-xs);background:transparent;color:var(--c-up);cursor:pointer;">🔔 테스트 발송</button>
+          <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfPullAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ 서버에서 불러오기</span></button>
+          <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSyncAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">☁ 서버에 저장</span></button>
+          <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🔔 테스트 발송</span></button>
           <span id="settingsSyncStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);"></span>
         </div>
         <div id="settingsAlertSummary" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:10px;">—</div>
@@ -4691,7 +4691,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--c-border);">
           <div style="display:flex;align-items:center;gap:8px;">
             <div class="set-label" style="font-size:var(--font-size-sm);">📜 최근 발동 이력 (서버 발송 기록)</div>
-            <button class="tab-btn" onclick="loadAlertHistory(true)" title="alerts_state.json 재조회" style="font-size:var(--font-size-xs);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">↻ 새로고침</button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="loadAlertHistory(true)" title="alerts_state.json 재조회" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">↻ 새로고침</span></button>
           </div>
           <div id="alertHistoryList" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:6px;line-height:1.8;">—</div>
         </div>
@@ -4723,16 +4723,16 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="set-row">
           <div><div class="set-label">기본 조회 기간</div><div class="set-desc">기간 프리셋이 있는 차트(대시보드·환율·금리·주식·원자재·투자자)에 페이지 첫 진입 시 1회 적용됩니다. 종목 상세 모달에는 근사 매핑(1개월·분기→3개월 / 반기·1년→1년)으로 적용됩니다.</div></div>
           <span id="setPresetGroup" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
-            <button class="tab-btn" data-preset="" onclick="settingsSetPreset('',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">페이지 기본</button>
-            <button class="tab-btn" data-preset="30D" onclick="settingsSetPreset('30D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1개월</button>
-            <button class="tab-btn" data-preset="1Q" onclick="settingsSetPreset('1Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-            <button class="tab-btn" data-preset="6M" onclick="settingsSetPreset('6M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
-            <button class="tab-btn" data-preset="1Y" onclick="settingsSetPreset('1Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-preset="" onclick="settingsSetPreset('',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">페이지 기본</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-preset="30D" onclick="settingsSetPreset('30D',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1개월</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-preset="1Q" onclick="settingsSetPreset('1Q',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-preset="6M" onclick="settingsSetPreset('6M',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
+            <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-preset="1Y" onclick="settingsSetPreset('1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
           </span>
         </div>
         <div class="set-row">
           <div><div class="set-label">기간 변경 동기화</div><div class="set-desc">한 차트의 기간 프리셋을 누르면 현재 페이지의 다른 프리셋 차트에도 같은 기간을 함께 적용합니다.</div></div>
-          <label class="set-switch"><input type="checkbox" id="setSyncPeriods" onchange="settingsToggleSync(this.checked)"><span class="set-slider"></span></label>
+          <label class="seed-switch__root seed-switch__root--size_24 set-switch"><input type="checkbox" id="setSyncPeriods" onchange="settingsToggleSync(this.checked); econSyncSwitch(this)"><span class="seed-switchmark__root seed-switchmark__root--size_24 seed-switchmark__root--tone_brand set-slider"><span class="seed-switchmark__thumb seed-switchmark__thumb--size_24 seed-switchmark__thumb--tone_brand"></span></span></label>
         </div>
         <div class="set-row">
           <div><div class="set-label">종목 상세 차트 스타일</div><div class="set-desc">투자 현황 종목 상세(모달) 차트의 기본 표시 방식입니다.</div></div>
@@ -4756,8 +4756,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="widget-title">💾 데이터 백업·복구</div>
         <div class="set-desc" style="margin-bottom:10px;">포트폴리오(평단가·수량 포함)·알림·분석 노트·설정 등 이 브라우저에 저장된 <b>모든 사용자 데이터</b>(현재 <span id="setBackupCount">—</span>개 항목)를 파일 하나로 내보내거나 복구합니다. 브라우저 변경·캐시 삭제에 대비하세요.</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-          <button class="tab-btn" onclick="exportAllUserData(false)" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">⬇ JSON 백업</button>
-          <button class="tab-btn" onclick="exportAllUserData(true)" title="AES-256-GCM 으로 암호화해 내보냅니다 — 평단가·수량이 든 파일을 클라우드 등에 보관할 때 권장" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid color-mix(in srgb,var(--c-up) 33%,transparent);border-radius:var(--r-xs);background:transparent;color:var(--c-up);cursor:pointer;">🔐 암호화 백업</button>
+          <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="exportAllUserData(false)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ JSON 백업</span></button>
+          <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="exportAllUserData(true)" title="AES-256-GCM 으로 암호화해 내보냅니다 — 평단가·수량이 든 파일을 클라우드 등에 보관할 때 권장" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🔐 암호화 백업</span></button>
           <label class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;display:inline-block;">↥ 백업 복구<input type="file" accept="application/json,.json" style="display:none;" onchange="importAllUserData(this)"></label>
         </div>
         <div id="setBackupStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:8px;"></div>
@@ -5028,23 +5028,23 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                onkeydown="if(event.key==='Enter')merblogSearch()">
         <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;"><input id="merLive" type="checkbox"> 전체기간 검색(라이브)</label>
         <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">정렬
-          <select id="merSort" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-sm);">
+          <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="merSort">
             <option value="sim">관련도</option><option value="date">최신</option>
-          </select>
+          </select></span>
         </label>
         <button onclick="merblogSearch()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:8px 14px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;">검색</button>
       </div>
       <!-- 필터 바(검색 결과 좁히기): 카테고리 + 날짜 범위. 결과가 있을 때만 노출. -->
       <div id="merFilters" class="mer-searchbar" style="display:none;margin-top:0;">
         <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">분류
-          <select id="merCat" onchange="merblogApplyAndRender()" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-sm);max-width:200px;">
+          <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="merCat" onchange="merblogApplyAndRender()" style="max-width:200px;">
             <option value="">전체</option>
-          </select>
+          </select></span>
         </label>
         <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">기간
-          <input id="merFrom" type="date" onchange="merblogApplyAndRender()" aria-label="시작일" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-sm);">
+          <input id="merFrom" type="date" onchange="merblogApplyAndRender()" aria-label="시작일" class="econ-input">
           <span>~</span>
-          <input id="merTo" type="date" onchange="merblogApplyAndRender()" aria-label="종료일" style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);color:var(--c-txt);padding:4px 6px;font-size:var(--font-size-sm);">
+          <input id="merTo" type="date" onchange="merblogApplyAndRender()" aria-label="종료일" class="econ-input">
         </label>
         <button onclick="merblogClearFilters()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:var(--font-size-sm);cursor:pointer;">필터 초기화</button>
       </div>
@@ -5070,15 +5070,15 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <span style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-txt);">키보드 단축키</span>
       <button onclick="document.getElementById('kbShortcutModal').style.display='none'" style="background:transparent;border:none;color:var(--c-txt-dim);cursor:pointer;font-size:var(--font-size-lg);line-height:1;padding:0 2px;">✕</button>
     </div>
-    <table style="width:100%;border-collapse:collapse;font-size:var(--font-size-sm);color:var(--c-txt-dim);">
-      <tr><td style="padding:4px 10px 4px 0;white-space:nowrap;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">1</kbd>–<kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">8</kbd></td><td>대시보드 → 경제 캘린더 순서 이동</td></tr>
-      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">S</kbd></td><td>스터디 기록</td></tr>
-      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">9</kbd></td><td>분석 노트</td></tr>
-      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">0</kbd></td><td>설정</td></tr>
-      <tr><td colspan="2" style="padding:8px 0 4px;border-top:1px solid var(--c-border);"></td></tr>
-      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">R</kbd></td><td>데이터 새로고침</td></tr>
-      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">?</kbd></td><td>이 도움말 표시 / 닫기</td></tr>
-      <tr><td style="padding:4px 10px 4px 0;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">Esc</kbd></td><td>이 모달 닫기</td></tr>
+    <table class="econ-table">
+      <tr><td style="white-space:nowrap;"><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">1</kbd>–<kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">8</kbd></td><td>대시보드 → 경제 캘린더 순서 이동</td></tr>
+      <tr><td><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">S</kbd></td><td>스터디 기록</td></tr>
+      <tr><td><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">9</kbd></td><td>분석 노트</td></tr>
+      <tr><td><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">0</kbd></td><td>설정</td></tr>
+      <tr><td colspan="2" style="border-top:1px solid var(--c-border);"></td></tr>
+      <tr><td><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">R</kbd></td><td>데이터 새로고침</td></tr>
+      <tr><td><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">?</kbd></td><td>이 도움말 표시 / 닫기</td></tr>
+      <tr><td><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">Esc</kbd></td><td>이 모달 닫기</td></tr>
     </table>
     <p style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:12px;margin-bottom:0;">입력 필드 포커스 중에는 단축키가 비활성화됩니다.</p>
   </div>
