@@ -180,9 +180,10 @@
     // SEED 색상 모드 — base.css 는 bare :root 가 라이트다. 사이트 기본은 다크이므로
     // 첫 페인트 전에 dark-only 를 세워야 한다(안 세우면 라이트 팔레트로 한 프레임 깜빡).
     document.documentElement.dataset.seedColorMode = useDark ? 'dark-only' : 'light-only';
-    // 화면 스킨(색감 프리셋)도 렌더 전 동기 적용 — FOUC 방지. 값: neutral|navy|contrast
-    const skin = localStorage.getItem('econ_skin');
-    if(skin && skin !== 'neutral') document.documentElement.dataset.skin = skin;
+    // 스킨(navy·contrast)은 폐기됐다(결정 D2). 남아 있는 저장값은 지운다 —
+    // data-skin 을 세우면 이제 아무 규칙도 없어 조용히 무시되지만, 키가 남아 있으면
+    // '내 설정이 어딘가 살아 있다'는 오해를 준다.
+    if(localStorage.getItem('econ_skin')) localStorage.removeItem('econ_skin');
   } catch(_){}
 </script>
 <script>
@@ -309,379 +310,17 @@
      여기서 정의하던 색상(bg/card/border/up/down 등)은 Tailwind 클래스로 쓰인 적이 없고,
      실제 테마 색은 아래 <style> 의 CSS 변수(--c-bg, --c-card, --c-up 등)로 관리된다. -->
 <style>
-  /* ═══ astryx econ tokens — GENERATED, 손으로 고치지 말 것 ═══
-     source : C:\Users\cgpar\astryx\econ.theme.ts
-     rebuild: astryx theme build econ.theme.ts --out dist/econ.css
-              && python scripts/build_astryx_tokens.py
-     light-dark()/@scope 는 구형 웹뷰 호환을 위해 두 블록으로 펼쳐 둠. */
-  :root {
-    color-scheme: dark;
-    --font-size-4xs:0.375rem;
-    --font-size-3xs:0.4375rem;
-    --font-size-2xs:0.5rem;
-    --font-size-xs:0.625rem;
-    --font-size-sm:0.75rem;
-    --font-size-base:0.875rem;
-    --font-size-lg:1.0625rem;
-    --font-size-xl:1.25rem;
-    --font-size-2xl:1.5rem;
-    --font-size-3xl:1.8125rem;
-    --font-size-4xl:2.1875rem;
-    --font-size-5xl:2.625rem;
-    --text-heading-1-size:var(--font-size-2xl);
-    --text-heading-1-weight:var(--font-weight-semibold);
-    --text-heading-1-leading:1.3333;
-    --text-heading-2-size:var(--font-size-xl);
-    --text-heading-2-weight:var(--font-weight-semibold);
-    --text-heading-2-leading:1.4;
-    --text-heading-3-size:var(--font-size-lg);
-    --text-heading-3-weight:var(--font-weight-bold);
-    --text-heading-3-leading:1.4118;
-    --text-heading-4-size:var(--font-size-base);
-    --text-heading-4-weight:var(--font-weight-bold);
-    --text-heading-4-leading:1.4286;
-    --text-heading-5-size:var(--font-size-sm);
-    --text-heading-5-weight:var(--font-weight-semibold);
-    --text-heading-5-leading:1.6667;
-    --text-heading-6-size:var(--font-size-xs);
-    --text-heading-6-weight:var(--font-weight-semibold);
-    --text-heading-6-leading:1.6;
-    --text-body-size:var(--font-size-base);
-    --text-body-weight:var(--font-weight-normal);
-    --text-body-leading:1.4286;
-    --text-large-size:var(--font-size-lg);
-    --text-large-weight:var(--font-weight-semibold);
-    --text-large-leading:1.4118;
-    --text-label-size:var(--font-size-base);
-    --text-label-weight:var(--font-weight-medium);
-    --text-label-leading:1.4286;
-    --text-code-size:var(--font-size-base);
-    --text-code-weight:var(--font-weight-normal);
-    --text-code-leading:1.4286;
-    --text-supporting-size:var(--font-size-sm);
-    --text-supporting-weight:var(--font-weight-normal);
-    --text-supporting-leading:1.6667;
-    --text-display-1-size:var(--font-size-5xl);
-    --text-display-1-weight:var(--font-weight-normal);
-    --text-display-1-leading:1.2381;
-    --text-display-2-size:var(--font-size-4xl);
-    --text-display-2-weight:var(--font-weight-normal);
-    --text-display-2-leading:1.2571;
-    --text-display-3-size:var(--font-size-3xl);
-    --text-display-3-weight:var(--font-weight-normal);
-    --text-display-3-leading:1.3793;
-    --duration-fast-min:95ms;
-    --duration-fast:125ms;
-    --duration-fast-max:165ms;
-    --duration-medium-min:225ms;
-    --duration-medium:300ms;
-    --duration-medium-max:400ms;
-    --duration-slow-min:525ms;
-    --duration-slow:700ms;
-    --duration-slow-max:935ms;
-    --font-family-body:Figtree, Pretendard, "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", Roboto, Helvetica, Arial, sans-serif;
-    --font-family-heading:Figtree, Pretendard, "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", Roboto, Helvetica, Arial, sans-serif;
-    --font-family-code:ui-monospace, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    --color-background-surface:#262626;
-    --color-background-body:#171717;
-    --color-background-card:#262626;
-    --color-background-popover:#262626;
-    --color-background-muted:#1b1b1b;
-    --color-accent:#9eb7ff;
-    --color-accent-muted:color-mix(in srgb, #9eb7ff 18%, transparent);
-    --color-neutral:#FFFFFF1A;
-    --color-overlay:#000000CC;
-    --color-overlay-hover:#FFFFFF0D;
-    --color-overlay-pressed:#FFFFFF1A;
-    --color-text-primary:#fafafa;
-    --color-text-secondary:#a3a3a3;
-    --color-text-disabled:#525252;
-    --color-text-accent:#c7d3ff;
-    --color-on-dark:#ffffff;
-    --color-on-light:#171717;
-    --color-on-accent:#171717;
-    --color-on-success:#171717;
-    --color-on-error:#171717;
-    --color-on-warning:#171717;
-    --color-icon-accent:#9eb7ff;
-    --color-icon-primary:#fafafa;
-    --color-icon-secondary:#a3a3a3;
-    --color-icon-disabled:#525252;
-    --color-success:#9fe59b;
-    --color-error:#ffc6c1;
-    --color-warning:#fdcf4f;
-    --color-success-muted:#84c9803D;
-    --color-error-muted:#ff9e973D;
-    --color-warning-muted:#deb4333D;
-    --color-border:#FFFFFF1A;
-    --color-border-emphasized:#525252;
-    --color-skeleton:#525252;
-    --color-shadow:#0000004D;
-    --color-tint-hover:white;
-    --color-background-red:#ff9e973D;
-    --color-border-red:#ff6f6c;
-    --color-icon-red:#ff9e97;
-    --color-text-red:#ffc6c1;
-    --color-background-orange:#ffa2583D;
-    --color-border-orange:#e2883e;
-    --color-icon-orange:#ffa258;
-    --color-text-orange:#ffc9a2;
-    --color-background-yellow:#deb4333D;
-    --color-border-yellow:#c0990e;
-    --color-icon-yellow:#deb433;
-    --color-text-yellow:#fdcf4f;
-    --color-background-green:#84c9803D;
-    --color-border-green:#69ad67;
-    --color-icon-green:#84c980;
-    --color-text-green:#9fe59b;
-    --color-background-teal:#7ec6b83D;
-    --color-border-teal:#63ab9d;
-    --color-icon-teal:#7ec6b8;
-    --color-text-teal:#99e2d3;
-    --color-background-cyan:#83c2d43D;
-    --color-border-cyan:#67a7b8;
-    --color-icon-cyan:#83c2d4;
-    --color-text-cyan:#9edef0;
-    --color-background-blue:#9eb7ff3D;
-    --color-border-blue:#6d9cfe;
-    --color-icon-blue:#9eb7ff;
-    --color-text-blue:#c7d3ff;
-    --color-background-purple:#f297ff3D;
-    --color-border-purple:#dd74f0;
-    --color-icon-purple:#f297ff;
-    --color-text-purple:#fac1ff;
-    --color-background-pink:#ff99c33D;
-    --color-border-pink:#f273aa;
-    --color-icon-pink:#ff99c3;
-    --color-text-pink:#ffc3da;
-    --color-background-gray:var(--color-neutral);
-    --color-border-gray:#262626;
-    --color-icon-gray:#a3a3a3;
-    --color-text-gray:#e5e5e5;
-    --radius-none:0.25rem;
-    --radius-inner:0.375rem;
-    --radius-element:0.625rem;
-    --radius-container:0.75rem;
-    --radius-page:1.75rem;
-    --radius-full:9999px;
-    --shadow-low:0 2px 4px oklch(0 0 0 / 25%), 0 4px 8px oklch(0 0 0 / 40%), inset 0 0 0 1px oklch(1 0 0 / 8%);
-    --shadow-med:0 2px 4px oklch(0 0 0 / 35%), 0 4px 12px oklch(0 0 0 / 50%), inset 0 0 0 1px oklch(1 0 0 / 12%);
-    --shadow-high:0 4px 6px oklch(0 0 0 / 50%), 0 12px 24px oklch(0 0 0 / 70%), inset 0 0 0 1px oklch(1 0 0 / 15%);
-    --shadow-inset-hover:inset 0px 0px 0px 2px #0074e24D;
-    --shadow-inset-selected:inset 0px 0px 0px 2px #0074e280;
-    --shadow-inset-success:inset 0px 0px 0px 2px #1981004D;
-    --shadow-inset-warning:inset 0px 0px 0px 2px #ffce2f4D;
-    --shadow-inset-error:inset 0px 0px 0px 2px #e33f4a4D;
-    --color-market-up:#84c980;
-    --color-market-down:#ff9e97;
-    --color-market-up-kr:#ff9e97;
-    --color-market-down-kr:#9eb7ff;
-    --color-series-1:#9eb7ff;
-    --color-series-2:#ffa258;
-    --color-series-3:#7ec6b8;
-    --color-series-4:#f297ff;
-    --color-series-5:#84c980;
-    --color-series-6:#ff9e97;
-    --color-series-7:#83c2d4;
-    --color-series-8:#ff99c3;
-    --color-series-9:#deb433;
-    --spacing-0:0px;
-    --spacing-1:4px;
-    --spacing-2:8px;
-    --spacing-3:12px;
-    --spacing-4:16px;
-    --spacing-5:20px;
-    --spacing-6:24px;
-    --spacing-7:28px;
-    --spacing-8:32px;
-    --spacing-9:36px;
-    --spacing-10:40px;
-    --spacing-11:44px;
-    --spacing-12:48px;
-    --spacing-0\.5:2px;
-    --spacing-1\.5:6px;
-    --size-element-sm:28px;
-    --size-element-md:32px;
-    --size-element-lg:36px;
-    --font-weight-normal:400;
-    --font-weight-medium:500;
-    --font-weight-semibold:600;
-    --font-weight-bold:700;
-  }
-  html.light {
-    color-scheme: light;
-    --color-background-surface:#ffffff;
-    --color-background-body:#f1f1f1;
-    --color-background-card:#ffffff;
-    --color-background-popover:#ffffff;
-    --color-background-muted:#f1f1f1;
-    --color-accent:#00458c;
-    --color-accent-muted:color-mix(in srgb, #00458c 12%, transparent);
-    --color-neutral:#0000000F;
-    --color-overlay:#00000080;
-    --color-overlay-hover:#0000000D;
-    --color-overlay-pressed:#0000001A;
-    --color-text-primary:#171717;
-    --color-text-secondary:#737373;
-    --color-text-disabled:#a3a3a3;
-    --color-text-accent:#00458c;
-    --color-on-accent:#ffffff;
-    --color-on-success:#ffffff;
-    --color-on-error:#ffffff;
-    --color-icon-accent:#00458c;
-    --color-icon-primary:#171717;
-    --color-icon-secondary:#737373;
-    --color-icon-disabled:#a3a3a3;
-    --color-success:#007004;
-    --color-error:#a50c25;
-    --color-warning:#745b00;
-    --color-success-muted:#c5e5c0;
-    --color-error-muted:#facecb;
-    --color-warning-muted:#f8da9d;
-    --color-border:#ebebeb;
-    --color-border-emphasized:#d4d4d4;
-    --color-skeleton:#ebebeb;
-    --color-shadow:#0000001A;
-    --color-tint-hover:black;
-    --color-background-red:#facecb;
-    --color-border-red:#e6bab8;
-    --color-icon-red:#89001a;
-    --color-text-red:#89001a;
-    --color-background-orange:#fad0b5;
-    --color-border-orange:#e6bda2;
-    --color-icon-orange:#6e3500;
-    --color-text-orange:#6e3500;
-    --color-background-yellow:#f8da9d;
-    --color-border-yellow:#e4c279;
-    --color-icon-yellow:#584400;
-    --color-text-yellow:#584400;
-    --color-background-green:#c5e5c0;
-    --color-border-green:#b2d1ac;
-    --color-icon-green:#0c5700;
-    --color-text-green:#0c5700;
-    --color-background-teal:#a5e3d6;
-    --color-border-teal:#94d6c8;
-    --color-icon-teal:#005348;
-    --color-text-teal:#005348;
-    --color-background-cyan:#a3e0ef;
-    --color-border-cyan:#91d3e3;
-    --color-icon-cyan:#00505f;
-    --color-text-cyan:#00505f;
-    --color-background-blue:#c4ddfb;
-    --color-border-blue:#b1c9e7;
-    --color-icon-blue:#00458c;
-    --color-text-blue:#00458c;
-    --color-background-purple:#eccef3;
-    --color-border-purple:#d8bbdf;
-    --color-icon-purple:#700084;
-    --color-text-purple:#700084;
-    --color-background-pink:#fccadc;
-    --color-border-pink:#e7b7c8;
-    --color-icon-pink:#83004b;
-    --color-text-pink:#83004b;
-    --color-background-gray:#e5e5e5;
-    --color-border-gray:#d4d4d4;
-    --color-icon-gray:#525252;
-    --color-text-gray:#262626;
-    --shadow-low:0 2px 4px oklch(0 0 0 / 5%), 0 4px 8px oklch(0 0 0 / 10%), inset 0 0 0 1px transparent;
-    --shadow-med:0 2px 4px oklch(0 0 0 / 5%), 0 4px 12px oklch(0 0 0 / 10%), inset 0 0 0 1px transparent;
-    --shadow-high:0 4px 6px oklch(0 0 0 / 10%), 0 12px 24px oklch(0 0 0 / 15%), inset 0 0 0 1px transparent;
-    --color-market-up:#0c5700;
-    --color-market-down:#89001a;
-    --color-market-up-kr:#89001a;
-    --color-market-down-kr:#00458c;
-    --color-series-1:#00458c;
-    --color-series-2:#6e3500;
-    --color-series-3:#005348;
-    --color-series-4:#700084;
-    --color-series-5:#0c5700;
-    --color-series-6:#89001a;
-    --color-series-7:#00505f;
-    --color-series-8:#83004b;
-    --color-series-9:#584400;
-  }
-  /* ═══ /astryx econ tokens ═══ */
+  /* ═══ astryx econ tokens — 삭제됨(2026-09-08, SEED 개편 P4) ═══
+     토큰 291개를 정의하던 생성 블록은 이제 없다. 사이트가 참조하는 이름은 아래
+     SEED 브리지가 --seed-* 로 정의한다. 삭제 근거 = 생성 블록만 정의하면서 아직
+     참조되는 이름이 0(scratchpad p4c_coverage.py 방식의 grep 커버리지 검사).
+     되살릴 일이 있으면 태그 seed-p3b 시점의 index.html 을 보면 된다. */
 
-  /* ═══ skin presets (hand-authored) — astryx 토큰 오버라이드 ═══
-     위 생성 블록은 수정 금지 — 스킨은 그 뒤에서 semantic 토큰 값만 덮는다(사용처는 전부
-     var(--color-*) 경유라 이 레이어만으로 전파). 부트스트랩은 <head> FOUC 블록,
-     전환은 settingsSetSkin(js/app4.js) → rebuildChartsForTheme 경로.
-     시장 상승/하락 색(--color-market-*, window._UPDN)은 스킨이 건드리지 않는다. */
-  html[data-skin="navy"]:not(.light) {
-    --color-background-body:#0a0f1e;
-    --color-background-surface:#121a33;
-    --color-background-card:#121a33;
-    --color-background-popover:#17203d;
-    --color-background-muted:#0d1428;
-    --color-border:#9eb7ff21;
-    --color-border-emphasized:#3d4d7a;
-    --color-text-primary:#e8ecf8;
-    --color-text-secondary:#94a1c4;
-    --color-accent:#6fd6e8;
-    --color-accent-muted:color-mix(in srgb, #6fd6e8 18%, transparent);
-    --color-text-accent:#b9ecf6;
-    --color-icon-accent:#6fd6e8;
-    --color-series-1:#6fd6e8;
-    --color-series-2:#e8b45a;
-    --color-series-3:#7ea8e8;
-    --color-series-4:#c9a2ff;
-    --color-series-5:#8fd6a0;
-    --color-series-6:#e88f8a;
-    --color-series-7:#5ab4c9;
-    --color-series-8:#e8a2c0;
-    --color-series-9:#cfc25e;
-  }
-  html[data-skin="navy"].light {
-    /* 라이트 × 네이비 = 옅은 네이비 틴트 — 다크 강제 대신 양 테마 모두 성립 */
-    --color-background-body:#e9edf7;
-    --color-background-muted:#dfe5f2;
-    --color-background-surface:#fbfcff;
-    --color-background-card:#fbfcff;
-    --color-border:#00458c26;
-  }
-  html[data-skin="contrast"]:not(.light) {
-    --color-background-body:#000000;
-    --color-background-surface:#000000;
-    --color-background-card:#000000;
-    --color-background-popover:#0a0a0a;
-    --color-background-muted:#0a0a0a;
-    --color-border:#ffffff59;
-    --color-border-emphasized:#ffffff;
-    --color-text-primary:#ffffff;
-    --color-text-secondary:#d4d4d4;
-    --color-text-disabled:#8a8a8a;
-    --color-series-1:#4da6ff;
-    --color-series-2:#ffb84d;
-    --color-series-3:#33d6b5;
-    --color-series-4:#ff80ff;
-    --color-series-5:#66e05c;
-    --color-series-6:#ff6666;
-    --color-series-7:#66d9ff;
-    --color-series-8:#ff99cc;
-    --color-series-9:#ffe14d;
-  }
-  html[data-skin="contrast"].light {
-    --color-background-body:#ffffff;
-    --color-background-surface:#ffffff;
-    --color-background-card:#ffffff;
-    --color-background-popover:#ffffff;
-    --color-background-muted:#f5f5f5;
-    --color-border:#00000073;
-    --color-border-emphasized:#000000;
-    --color-text-primary:#000000;
-    --color-text-secondary:#333333;
-    --color-text-disabled:#666666;
-    --color-series-1:#0057d8;
-    --color-series-2:#b35c00;
-    --color-series-3:#007a5e;
-    --color-series-4:#a100c2;
-    --color-series-5:#1d7a00;
-    --color-series-6:#c40023;
-    --color-series-7:#00699c;
-    --color-series-8:#c2006b;
-    --color-series-9:#7a6400;
-  }
-  /* ═══ /skin presets ═══ */
+  /* ═══ skin presets(navy·contrast) — 폐기됨(2026-09-08, 결정 D2) ═══
+     세 방향·세 심사가 공통으로 폐기를 권고했다. 스킨은 semantic 토큰을 통째로
+     덮어 SEED 표면 위계(basement/default/fill)를 무너뜨리고, 다크·라이트 × 스킨 3
+     = 6가지 조합을 매 변경마다 확인해야 했다. 저장된 econ_skin 값은 읽는 즉시
+     neutral 로 강제되고 키는 지워진다(js/app4.js settingsSetSkin·마이그레이션). */
 
   /* ═══ SEED 브리지 — astryx 이름 → @seed-design/css 토큰 ═══════════════════
      왜 이 한 겹인가: 사이트의 실제 API 는 --c-* 별칭 20종(사용처 3,532곳)이고 그
@@ -806,6 +445,30 @@
     --duration-medium:     var(--seed-duration-d6, 300ms);
     --ease-standard:       var(--seed-timing-function-easing, cubic-bezier(.35, 0, .35, 1));
 
+    /* ── 간격 4px 스케일 — 값이 SEED dimension 과 같아 출처만 옮긴다 ── */
+    --spacing-1: var(--seed-dimension-x1, 4px);
+    --spacing-2: var(--seed-dimension-x2, 8px);
+    --spacing-3: var(--seed-dimension-x3, 12px);
+    --spacing-4: var(--seed-dimension-x4, 16px);
+    --spacing-5: var(--seed-dimension-x5, 20px);
+    --spacing-6: var(--seed-dimension-x6, 24px);
+    /* 본문 서체 — base.css 에 font-family 선언이 0건이라 사이트가 단일 원천이다.
+       Figtree 는 한글 글리프가 없어 Pretendard 이하 폴백이 실제로 받는다. */
+    --font-family-body: Figtree, Pretendard, "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", Roboto, Helvetica, Arial, sans-serif;
+    --font-family-heading: var(--font-family-body);
+    --duration-slow: var(--seed-duration-d6, 300ms);
+    /* 차트 시리즈 9색 — SEED 에 카테고리 팔레트가 없다(유채 6계열은 brand·등락과
+       충돌). astryx 값을 그대로 이관하고, 라이트는 아래 블록에서 덮는다. */
+    --color-series-1: #9eb7ff;
+    --color-series-2: #ffa258;
+    --color-series-3: #7ec6b8;
+    --color-series-4: #f297ff;
+    --color-series-5: #84c980;
+    --color-series-6: #ff9e97;
+    --color-series-7: #83c2d4;
+    --color-series-8: #ff99c3;
+    --color-series-9: #deb433;
+
     /* ── 고도 — 카드는 선만, 그림자는 플로팅에만(§7) ── */
     --shadow-low:  var(--seed-shadow-s1, 0 1px 4px #00000014);
     --shadow-med:  var(--seed-shadow-s2, 0 2px 10px #0000001a);
@@ -821,6 +484,16 @@
     --color-market-down-fill:    var(--seed-color-palette-red-700, #fa342c);
     --color-market-up-kr-fill:   var(--seed-color-palette-red-700, #fa342c);
     --color-market-down-kr-fill: var(--seed-color-palette-blue-700, #217cf9);
+    /* 시리즈 9색 라이트 — 흰 배경 대비를 위해 한 단계 진한 값(astryx 원본) */
+    --color-series-1: #00458c;
+    --color-series-2: #6e3500;
+    --color-series-3: #005348;
+    --color-series-4: #700084;
+    --color-series-5: #0c5700;
+    --color-series-6: #89001a;
+    --color-series-7: #00505f;
+    --color-series-8: #83004b;
+    --color-series-9: #584400;
   }
 
   /* ═══ SEED 브랜드 토큰 오버라이드 — carrot → blue ═══
@@ -1111,7 +784,7 @@
                  animation: ann-pulse 1.2s ease-in-out infinite; }
   /* 접힘(레일)에서 숨는 것들 — 텍스트 폭이 필요한 블록 */
   .econ-sidenav[data-side-navigation-state="collapsed"] .econ-sidenav__sources,
-  .econ-sidenav[data-side-navigation-state="collapsed"] #globalDelayChip { display: none; }
+  .econ-sidenav[data-side-navigation-state="collapsed"] #globalDelayChip { display: none !important; }
   .econ-sidenav[data-side-navigation-state="collapsed"] .seed-side-navigation__footer { padding-inline: 4px; }
 
   /* 드로어 — <768. 닫힘 상태는 visibility:hidden 으로 탭 순회에서 빠진다
@@ -1374,26 +1047,7 @@
   html.light [style*="background:#262a35"] { background-color: #d9edf8 !important; }
   /* 라이트 테마 — 컴포넌트 오버라이드 */
 
-  .sentiment-card {
-    background: var(--c-surface,#1a2236);
-    border-radius: 4px;
-    padding: 5px 7px;
-    cursor: pointer;
-    transition: background .15s, transform .12s;
-  }
-  .sentiment-card:hover { background: var(--c-card-hi,#2a3556); transform: translateY(-1px); }
-  html.light .sentiment-card { background: #f5f8fc; }
-  html.light .sentiment-card:hover { background: #d9edf8; }
   /* 오늘의 브리핑 스트립 — 리스크 신호등 + 핵심 지표 칩 (홈 상단) */
-  .brief-strip-row { display:flex; align-items:center; gap:8px; }
-  .brief-chip-scroll { display:flex; gap:8px; flex-wrap:wrap; min-width:0; flex:1; }
-  .brief-chip:not([class*="seed-"]) { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
-    background:rgba(60,76,110,.32); border:1px solid rgba(170,195,255,.14);
-    border-radius:var(--r-full); padding:6px 12px; font-size:var(--fs-body-sm,12px);
-    color:var(--c-txt); cursor:pointer; font-family:inherit;
-    transition:background var(--t-fast,.12s), transform var(--t-fast,.12s); }
-  .brief-chip:not([class*="seed-"]):hover { background:rgba(41,98,255,.18); transform:translateY(-1px); }
-  html.light .brief-chip:not([class*="seed-"]) { background:rgba(255,255,255,.55); border-color:rgba(53,108,181,.15); }
   .brief-lbl { font-size:10px; color:var(--c-txt-dim); text-transform:uppercase; letter-spacing:.04em; }
   .brief-val { font-weight:700; font-family:var(--font-num); }
   /* 리스크 신호등 색 — 위험 의미색은 시장 등락 색상관습(kr-colors 의 --c-up/--c-down 반전)과
@@ -1409,8 +1063,6 @@
        스트립을 wrap 시켜 칩 스크롤 영역이 둘째 줄 전체 폭을 쓰게 한다.
        padding-right:70px(✕·⠿ 자리)는 터치에서 오버레이 컨트롤이 사라지므로 불필요. */
     .brief-strip-row { flex-wrap:wrap; padding-right:0 !important; }
-    .brief-chip-scroll { flex-basis:100%; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-    .brief-chip-scroll::-webkit-scrollbar { display:none; }
   }
   /* 데이터 소스 사이드바 항목 호버 — 밝은 글래스 hover */
   .ds-item:hover { background: rgba(255, 255, 255, 0.08); color: #ffffff !important; }
@@ -1462,20 +1114,8 @@
   .econ-ticker[data-motion="paused"] .ticker-scroll { animation-play-state: paused; }
   /* 모바일에서는 상단 헤더의 날짜·시각(시계)을 숨긴다 — 좁은 화면에서 티커 공간 확보(2026-06 사용자 요청). */
   @media (max-width: 768px) { #clock { display: none !important; } }
-  .tab-btn:not([class*="seed-"]) { transition: all .15s; cursor: pointer; }
-  .tab-btn.active:not([class*="seed-"]) { background: var(--c-accent); color: var(--c-on-accent); }
-  .tab-btn:not([class*="seed-"]):not(.active):hover { background: rgba(170, 195, 255, 0.12); }
   /* ═══ 전년 동기(YoY) 비교 — 토글 버튼 + 변화율 배지 (순수 추가) ═══ */
-  .yoy-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px;
-             border: 1px solid var(--c-border,#3e4870); border-radius: var(--r-xs,4px);
-             background: transparent; color: var(--c-txt-dim,#a4a8bc); cursor: pointer;
-             font-weight: 600; transition: all .15s; white-space: nowrap; }
-  .yoy-btn:not(.active):hover { background: rgba(170,195,255,.12); color: var(--c-txt,#e8ebf5); }
-  .yoy-btn.active { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
-  .yoy-btn.indeterminate:not([class*="seed-"]) { background: rgba(41,98,255,.16); color: var(--c-primary,#c8d2ff);
-             border-color: var(--c-accent); border-style: dashed; }
   .yoy-btn .mat { font-size: 14px; }
-  html.light .yoy-btn.active { background: var(--c-accent,#356CB5) !important; color: #fff !important; border-color: var(--c-accent,#356CB5) !important; }
   .yoy-badge { position: absolute; top: 6px; right: 8px; z-index: 5; pointer-events: none;
                font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px;
                border-radius: 999px; letter-spacing: .01em;
@@ -1489,8 +1129,6 @@
      글자 두께를 올려 체감 대비를 높인다(활성=파란 배경+흰 글씨 구분은 그대로 유지).
      색은 디자인 토큰을 그대로 두고 두께만 조정 → 기존 활성/비활성 로직과 충돌 없음. */
   button, select { font-weight: 500; }
-  .tab-btn:not([class*="seed-"]), .preset-btn:not([class*="seed-"]), .invUnitBtn:not([class*="seed-"]), .news-filter-btn:not([class*="seed-"]),
-  .reHistPeriodBtn:not([class*="seed-"]), .reHistUnitBtn:not([class*="seed-"]), .range-reset-btn { font-weight: 600; letter-spacing: .01em; }
   /* .menu-item 은 JS 훅(9곳)을 위해 클래스만 남기고 시각 규칙은 SEED
      side-navigation-menu-item recipe 로 넘겼다 — 병기하면 recipe 가 덮인다. */
   .page { display: none; }
@@ -1503,8 +1141,6 @@
   .ticker-item { cursor: pointer; }
   .ticker-item:hover { opacity: 0.75; }
   .econ-ticker:hover .ticker-scroll { animation-play-state: paused; }
-  .news-filter-btn:not([class*="seed-"]) { font-size:var(--fs-label); padding:2px 8px; border-radius:var(--r-xs); cursor:pointer; user-select:none; border:1px solid var(--c-border); color:var(--c-txt-dim); background:var(--c-card); transition:all .15s; }
-  .news-filter-btn.act:not([class*="seed-"]) { background:var(--c-accent); color:var(--c-on-accent); border-color:var(--c-accent); }
   .range-reset-btn { background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:0 5px;font-size:var(--fs-label);cursor:pointer;margin-left:6px;line-height:1.2; }
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
   .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #3a4054;border-radius:4px;padding:2px 6px;font-size:11px; }
@@ -1664,15 +1300,6 @@
   .home-sec:hover .sec-drag-handle, .home-sec:hover .sec-hide-btn,
   .home-sec:focus-within .sec-drag-handle, .home-sec:focus-within .sec-hide-btn { pointer-events: auto; }
 
-  /* 스켈레톤 로딩 바 (2.2) — 텍스트형 '로딩 중…' 대신 은은한 셔머 플레이스홀더 */
-  @keyframes skel-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-  .skel-bar {
-    display: inline-block; height: 10px; border-radius: 4px; vertical-align: middle;
-    background: linear-gradient(90deg, var(--c-card-hi,#2a3556) 25%, var(--c-border,#3e4870) 50%, var(--c-card-hi,#2a3556) 75%);
-    background-size: 200% 100%;
-    /* 지연 1s — 4초 이내 도착하는 응답에서 셔머가 번쩍이지 않게(SEED loading 패턴) */
-    animation: skel-shimmer 1.6s ease-in-out 1s infinite;
-  }
   .skel-row td { padding: 9px 4px !important; }
 
   /* 차트 구간 측정 어포던스 (2.3) — 측정 가능한 차트는 십자선 커서로 클릭 가능함을 암시 */
@@ -1693,7 +1320,7 @@
   .halt-banner .halt-cd { font-variant-numeric: tabular-nums; font-weight: var(--font-weight-medium); }
   .halt-hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .halt-hist-table th, .halt-hist-table td { padding: 6px 8px; border-bottom: 1px solid var(--c-border,#3a4054); text-align: left; white-space: nowrap; }
-  .halt-hist-table th { color: var(--c-text-dim,#8b93a7); font-weight: 600; }
+  .halt-hist-table th { color: var(--c-txt-dim,#8b93a7); font-weight: 600; }
   @keyframes _spin { to { transform: rotate(360deg); } }
   .spin-anim { animation: _spin .8s linear infinite; display: inline-block; }
 
@@ -1713,14 +1340,11 @@
      좌하단 플로팅이 본문 콘텐츠를 가린다는 피드백으로 사이드바(메뉴바) 내부 정적 배치로 변경. */
   /* 색은 테마 토큰 --c-warn 사용 — #f0c75e 하드코딩은 라이트 카드 위 대비 ~1.6:1 로 안 보였다
      (라이트용 --c-warn:#b8860b 이 이미 정의돼 있는데 미사용이던 문제). */
-  #globalDelayChip {
-    display: inline-flex; align-items: center; gap: 6px;
-    margin: 4px 6px 0; padding: 4px 10px;
-    font-size: 10px; color: var(--c-warn,#f0c75e); background: var(--c-card,#1f2945);
-    border: 1px solid #8a6d1f66; border-radius: 999px;
-    cursor: help; user-select: none;
-  }
-  #globalDelayChip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-warn,#f0c75e); }
+  /* 지연 배지 — 크기·색·라운드는 seed-badge recipe(tone_warning-variant_weak).
+     사이트가 주는 것은 사이드바 안 여백과 커서뿐이다. */
+  #globalDelayChip { margin: 4px 6px 0; cursor: help; user-select: none; }
+  #globalDelayChip .dot { width: 6px; height: 6px; border-radius: 50%;
+    background: var(--seed-color-fg-warning, var(--c-warn)); flex-shrink: 0; margin-right: 4px; }
   /* 사이드바 접힘(아이콘 모드) 시 텍스트 칩은 숨김 */
 
   /* 포트폴리오 인라인 입력 유효성 오류 (3.2) */
@@ -1752,8 +1376,9 @@
   @media (pointer: coarse) {
     /* 좌우 -2px — 버튼 gap(4px)보다 커지면 인접 버튼 히트영역이 겹쳐 오탭 유발.
        preset-btn(기간 프리셋)·yoy-btn(전년 비교)도 확장 대상에 포함. */
-    .tab-btn, .preset-btn, .yoy-btn { position: relative; }
-    .tab-btn::after, .preset-btn::after, .yoy-btn::after { content: ''; position: absolute; inset: -10px -2px; }
+    .tab-btn, .preset-btn, .yoy-btn, .invUnitBtn, .reHistPeriodBtn, .reHistUnitBtn { position: relative; }
+    .tab-btn::after, .preset-btn::after, .yoy-btn::after,
+    .invUnitBtn::after, .reHistPeriodBtn::after, .reHistUnitBtn::after { content: ''; position: absolute; inset: -10px -2px; }
   }
 /* ═══ [3차-T4] 설정·진단·카드뷰·가이드·스크롤차트 공통 스타일 ═══════════════ */
 .set-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--c-border,#3e4870); flex-wrap:wrap; }
@@ -1763,12 +1388,9 @@
 .set-select { background:var(--c-bg,#0a0e18); border:1px solid var(--c-border,#3e4870); border-radius:4px; padding:4px 8px; color:var(--c-txt,#e8ebf5); font-size:11px; }
 .set-radio { font-size:11px; color:var(--c-txt-dim,#a4a8bc); margin-left:10px; cursor:pointer; white-space:nowrap; }
 /* 토글 스위치 */
-.set-switch { position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
-.set-switch input { opacity:0; width:0; height:0; }
-.set-slider { position:absolute; inset:0; background:var(--c-border,#3e4870); border-radius:20px; transition:.2s; cursor:pointer; }
-.set-slider:before { content:""; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#8d90a2; border-radius:50%; transition:.2s; }
-.set-switch input:checked + .set-slider { background:var(--c-accent); }
-.set-switch input:checked + .set-slider:before { transform:translateX(16px); background:#fff; }
+/* 스위치 시각은 seed-switchmark recipe 가 준다 — 여기 남은 것은 네이티브
+   체크박스를 화면에서 숨기는 한 줄뿐(포커스는 유지된다). */
+.set-switch input { position:absolute; opacity:0; width:1px; height:1px; margin:0; }
 /* 진단 결과 행 */
 .diag-row { display:flex; gap:8px; padding:5px 0; border-bottom:1px dashed var(--c-border,#3e4870); align-items:flex-start; line-height:1.5; }
 .diag-ic { width:18px; flex-shrink:0; }
@@ -1782,8 +1404,6 @@
 .guide-banner b { color:var(--c-txt,#e8ebf5); }
 .guide-x { margin-left:auto; cursor:pointer; color:var(--c-txt-muted); font-weight:700; padding:0 4px; flex-shrink:0; }
 /* 위젯 오류 표시 + 재시도 */
-.widget-err { display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; padding:18px 8px; color:var(--c-txt-muted,#8b90a8); font-size:11px; text-align:center; }
-.widget-err button { font-size:var(--font-size-xs); padding:3px 12px; border:1px solid var(--c-accent); border-radius:var(--r-xs); background:transparent; color:var(--c-accent); cursor:pointer; }
 /* 데이터 소스 배너 (실데이터 로드 실패 → Mock 동작 고지) */
 /* top:64px(헤더 바로 아래)는 '글로벌 주요 지수' 위젯 상단을 가렸다(2026-08 감사) — 우하단으로.
    토스트(#toastHost)는 하단 중앙이라 겹치지 않는다. */
@@ -1830,14 +1450,6 @@ html.light #dataSrcBanner { background:#fff7e6; color:var(--c-warn,#b8860b); bor
   background: rgba(170, 195, 255, 0.12) !important;
 }
 /* 라이트 모드 hover (tab-btn 은 이미 line 336 에 정의됨, 나머지 보강) */
-html.light .preset-btn:not([class*="seed-"]):not(.active):hover,
-html.light .invUnitBtn:not([class*="seed-"]):not(.active):hover,
-html.light .reHistPeriodBtn:not([class*="seed-"]):not(.active):hover,
-html.light .reHistUnitBtn:not([class*="seed-"]):not(.active):hover {
-  background: #d9edf8 !important;
-  color: rgb(38, 38, 38) !important;
-  border-color: #aac4e6 !important;
-}
 
 /* ── 2. 사이드바 버튼 hover (테마 토글·수동 새로고침) ──────────── */
 #themeToggleBtn:hover, #globalRefreshBtn:hover {
@@ -1845,28 +1457,12 @@ html.light .reHistUnitBtn:not([class*="seed-"]):not(.active):hover {
   color: var(--c-txt, #e8ebf5) !important;
   border-color: rgba(170, 195, 255, 0.32) !important;
 }
-html.light #themeToggleBtn:hover, html.light #globalRefreshBtn:hover {
-  background: #d9edf8 !important;
-  color: rgb(38, 38, 38) !important;
-  border-color: #aac4e6 !important;
-}
 
 /* ── 3. 뉴스 필터 버튼: 다크 모드 hover ─────────────────────── */
 .news-filter-btn:not(.act):hover {
   background: var(--c-card-hi, #2a3556);
   color: var(--c-txt, #e8ebf5);
   border-color: rgba(170, 195, 255, 0.30);
-}
-html.light .news-filter-btn:not(.act):hover { color: rgb(38, 38, 38) !important; }
-
-/* ── 4. widget-err 버튼 hover ───────────────────────────────── */
-.widget-err button:hover {
-  background: rgba(41, 98, 255, 0.15);
-  color: var(--c-txt, #e8ebf5);
-}
-html.light .widget-err button:hover {
-  background: rgba(53, 108, 181, 0.12);
-  color: rgb(38, 38, 38);
 }
 
 /* ── 5. kpi-clickable: 클릭 암시 lift (transition 은 이미 정의됨) */
@@ -1920,15 +1516,11 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
    숨긴 섹션 복원 바는 그대로 동작한다. */
 @media (pointer: coarse) { .home-sec .sec-drag-handle, .home-sec .sec-hide-btn { display: none; } }
 #toastHost { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3000; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
-.toast:not([class*="seed-"]) { background: var(--c-surface,#1a2236); color: var(--c-txt,#e8ebf5); border: 1px solid var(--c-border,#3e4870); border-radius: var(--r-md,12px); padding: 10px 16px; font-size: var(--fs-body,13px); box-shadow: var(--e-2); opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; max-width: min(90vw, 380px); }
 .toast.show { opacity: 1; transform: translateY(0); }
   /* recipe 는 등장 애니메이션을 주지 않는다 — 사이트가 opacity/transform 만 담당 */
   .toast.seed-snackbar__root { opacity: 0; transform: translateY(8px);
     transition: opacity var(--duration-fast, 150ms), transform var(--duration-fast, 150ms); }
   .toast.seed-snackbar__root.show { opacity: 1; transform: translateY(0); }
-.toast.ok:not([class*="seed-"]) { border-color: var(--c-success,#26a69a); }
-.toast.err:not([class*="seed-"]) { border-color: var(--c-down,#ef5350); }
-html.light .toast:not([class*="seed-"]) { background: #fff; }
 [role="dialog"]:focus { outline: none; }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1950,12 +1542,14 @@ body {
   background-attachment: initial !important;
 }
 h1, h2, h3, h4, h5, h6 { font-family: var(--font-family-heading); color: var(--c-txt); }
-h1 { font-size: var(--text-heading-1-size); font-weight: var(--text-heading-1-weight); line-height: var(--text-heading-1-leading); }
-h2 { font-size: var(--text-heading-2-size); font-weight: var(--text-heading-2-weight); line-height: var(--text-heading-2-leading); }
-h3 { font-size: var(--text-heading-3-size); font-weight: var(--text-heading-3-weight); line-height: var(--text-heading-3-leading); }
-h4 { font-size: var(--text-heading-4-size); font-weight: var(--text-heading-4-weight); line-height: var(--text-heading-4-leading); }
-h5 { font-size: var(--text-heading-5-size); font-weight: var(--text-heading-5-weight); line-height: var(--text-heading-5-leading); }
-h6 { font-size: var(--text-heading-6-size); font-weight: var(--text-heading-6-weight); line-height: var(--text-heading-6-leading); }
+/* 제목 = SEED t-스케일 직접 참조. astryx 의 --text-heading-* 18개를 거치던 것을
+   없앴다 — 스케일이 두 겹이면 어느 쪽이 진짜인지 알 수 없다. */
+h1 { font-size: var(--seed-font-size-t9); line-height: var(--seed-line-height-t9); font-weight: var(--seed-font-weight-bold); }
+h2 { font-size: var(--seed-font-size-t7); line-height: var(--seed-line-height-t7); font-weight: var(--seed-font-weight-bold); }
+h3 { font-size: var(--seed-font-size-t6); line-height: var(--seed-line-height-t6); font-weight: var(--seed-font-weight-bold); }
+h4 { font-size: var(--seed-font-size-t5); line-height: var(--seed-line-height-t5); font-weight: var(--seed-font-weight-bold); }
+h5 { font-size: var(--seed-font-size-t4); line-height: var(--seed-line-height-t4); font-weight: var(--seed-font-weight-bold); }
+h6 { font-size: var(--seed-font-size-t3); line-height: var(--seed-line-height-t3); font-weight: var(--seed-font-weight-bold); }
 ::selection { background: var(--color-accent-muted); color: var(--c-txt); }
 
 /* 숫자 = 고정폭. 주기 갱신 때 자릿수가 흔들리지 않게 */
@@ -2018,13 +1612,6 @@ main#mainContent { padding: var(--spacing-5); }
   box-shadow: var(--shadow-low) !important;
 }
 .link-card { background: var(--c-card); border: 1px solid var(--c-border); border-radius: var(--r-sm); }
-.sentiment-card {
-  background: var(--c-surface) !important;
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-sm);
-  box-shadow: none;
-}
-.sentiment-card:hover { background: var(--c-card-hi) !important; border-color: var(--color-border-emphasized); transform: none !important; }
 /* 카드 안의 서브 표면 */
 .widget [style*="background:var(--c-bg)"], .kpi-card [style*="background:var(--c-bg)"] {
   background: var(--color-background-muted) !important;
@@ -2115,12 +1702,6 @@ button.active:not([class*="seed-"]), .study-btn.primary {
   color: var(--c-primary) !important;
   border-color: var(--c-accent) !important;
 }
-#themeToggleBtn:hover, #globalRefreshBtn:hover, .widget-err button:hover {
-  background: var(--color-overlay-hover) !important;
-  color: var(--c-txt) !important;
-  border-color: var(--color-border-emphasized) !important;
-}
-.widget-err button { border-color: var(--c-border) !important; color: var(--c-primary) !important; }
 
 input[type="text"], input[type="date"], input[type="search"], input[type="number"],
 textarea, select, .set-select, .study-field, .pf-card-grid input {
@@ -2137,12 +1718,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: 2px solid var(--c-accent); outline-offset: -1px;
 }
 *:focus-visible { outline: 2px solid var(--c-accent) !important; outline-offset: 2px; }
-.set-switch input:checked + .set-slider { background: var(--c-accent); }
-.set-slider { background: var(--color-border-emphasized); }
-.set-slider:before { background: var(--color-background-surface); }
 
 /* ── 5. 상태 표시 — Badge 는 열거 상태/카운트에만 ──────────────── */
-.brief-chip:not([class*="seed-"]), .ann-chip, .cal-chip, .study-badge, .kpi-pct-badge, #globalDelayChip {
+.ann-chip, .cal-chip, .study-badge, .kpi-pct-badge {
   background: var(--color-background-gray) !important;
   color: var(--c-txt-dim) !important;
   border: 1px solid var(--c-border) !important;
@@ -2150,8 +1728,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   font-size: var(--font-size-xs);
   transition: background var(--duration-fast-min) var(--ease-standard);
 }
-.brief-chip:hover { background: var(--c-card-hi) !important; transform: none !important; }
-#globalDelayChip { color: var(--color-text-yellow) !important; border-color: var(--color-border-yellow) !important; background: var(--color-background-yellow) !important; }
 .yoy-badge-up   { background: var(--c-up);   border-color: var(--c-up);   color: var(--color-on-success); }
 .yoy-badge-down { background: var(--c-down); border-color: var(--c-down); color: var(--color-on-error); }
 .yoy-badge-none { background: var(--color-background-gray); border-color: var(--c-border); color: var(--c-txt-dim); }
@@ -2175,11 +1751,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   border-radius: var(--r-sm); box-shadow: var(--shadow-med);
 }
 .pf-input-err { border-color: var(--c-error) !important; background: var(--color-error-muted) !important; }
-.skel-bar {
-  background: linear-gradient(90deg, var(--color-skeleton) 25%,
-              var(--color-overlay-hover) 50%, var(--color-skeleton) 75%);
-  background-size: 200% 100%; border-radius: var(--r-xs);
-}
 
 /* ── 6. 오버레이 — 그림자로 띄우고, 블러는 스크림에만 ──────────── */
 .themed-modal {
@@ -2196,14 +1767,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: var(--color-background-muted) !important;
   border: 1px solid var(--c-border) !important;
 }
-.toast:not([class*="seed-"]) {
-  background: var(--color-background-popover) !important;
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-high);
-}
-.toast.ok:not([class*="seed-"])  { border-color: var(--color-border-green); }
-.toast.err:not([class*="seed-"]) { border-color: var(--color-border-red); }
 
 /* ── 7. 스크롤바 — 4px 은 잡기 어렵다. astryx 컨트롤 감각으로 8px ── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -2260,11 +1823,11 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
 /* ── 11. 텍스트 위계 ────────────────────────────────────────────
-   astryx typography: 보조 정보(타임스탬프·출처·캡션)는 supporting 타입. */
+   보조 정보(타임스탬프·출처·캡션)는 SEED t2 Regular + fg-neutral-muted. */
 .set-desc, .cal-figcaption, .study-empty, .pf-card-sym, .brief-lbl {
-  font-size: var(--text-supporting-size);
-  font-weight: var(--text-supporting-weight);
-  line-height: var(--text-supporting-leading);
+  font-size: var(--seed-font-size-t2);
+  font-weight: var(--seed-font-weight-regular);
+  line-height: var(--seed-line-height-t2);
   color: var(--c-txt-muted);
 }
 /* 라벨(폼·범례)은 label 타입 = medium weight */
@@ -2295,7 +1858,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div><!-- /__left -->
   <div class="seed-app-bar__right">
   <!-- 전년 동기(YoY) 비교 글로벌 토글 — 지원 차트 전체에 전년 데이터 오버레이 동시 적용 -->
-  <button id="yoyGlobalBtn" class="yoy-btn" onclick="toggleYoYGlobal()" aria-pressed="false" title="전년 동기 비교 — 지원되는 모든 차트에 전년 데이터를 점선으로 오버레이하고 변화율 배지를 표시합니다." style="flex-shrink:0;">
+  <button id="yoyGlobalBtn" class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" onclick="toggleYoYGlobal()" aria-pressed="false" title="전년 동기 비교 — 지원되는 모든 차트에 전년 데이터를 점선으로 오버레이하고 변화율 배지를 표시합니다." style="flex-shrink:0;">
     <span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span>
   </button>
   <!-- 날짜시각 -->
@@ -2415,7 +1978,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </button>
       <!-- 지연 배지는 사이트 규칙(!important 3건)이 아직 살아 있어 recipe 로 바꾸면
            덮인다 — astryx 레이어를 지우는 P4 에서 seed-badge 로 옮긴다 -->
-      <div id="globalDelayChip" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>시세 최대 15분 지연</div>
+      <div id="globalDelayChip" class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_warning-variant_weak" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>시세 최대 15분 지연</div>
     </div>
   </nav>
 
@@ -2464,16 +2027,16 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 기간/단위 셀렉터 -->
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:var(--font-size-sm);">
         <span style="color:var(--c-txt-dim);">기간:</span>
-        <button class="reHistPeriodBtn active u-touch-hit" data-period="all" onclick="setReHistPeriod('all',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">전체</button>
-        <button class="reHistPeriodBtn u-touch-hit" data-period="1y" onclick="setReHistPeriod('1y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
-        <button class="reHistPeriodBtn u-touch-hit" data-period="3y" onclick="setReHistPeriod('3y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
-        <button class="reHistPeriodBtn u-touch-hit" data-period="5y" onclick="setReHistPeriod('5y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
+        <button class="reHistPeriodBtn active u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-period="all" onclick="setReHistPeriod('all',this)"  data-checked aria-pressed="true"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+        <button class="reHistPeriodBtn u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-period="1y" onclick="setReHistPeriod('1y',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
+        <button class="reHistPeriodBtn u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-period="3y" onclick="setReHistPeriod('3y',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
+        <button class="reHistPeriodBtn u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-period="5y" onclick="setReHistPeriod('5y',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">5년</span></button>
         <span style="color:var(--c-border);margin:0 2px;">|</span>
         <span style="color:var(--c-txt-dim);">단위:</span>
-        <button class="reHistUnitBtn active u-touch-hit" data-unit="M" onclick="setReHistUnit('M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">월</button>
-        <button class="reHistUnitBtn u-touch-hit" data-unit="Q" onclick="setReHistUnit('Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-        <button class="reHistUnitBtn u-touch-hit" data-unit="H" onclick="setReHistUnit('H',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
-        <button class="reHistUnitBtn u-touch-hit" data-unit="Y" onclick="setReHistUnit('Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
+        <button class="reHistUnitBtn active u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="M" onclick="setReHistUnit('M',this)"  data-checked aria-pressed="true"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">월</span></button>
+        <button class="reHistUnitBtn u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="Q" onclick="setReHistUnit('Q',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+        <button class="reHistUnitBtn u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="H" onclick="setReHistUnit('H',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
+        <button class="reHistUnitBtn u-touch-hit seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="Y" onclick="setReHistUnit('Y',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
       </div>
       <div class="reHistChartBox" style="position:relative;flex:1 0 auto;min-height:280px;">
         <canvas role="img" aria-label="부동산 지표 추이 차트" id="reHistChart"></canvas>
@@ -3004,7 +2567,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           <span class="widget-title" style="margin-bottom:0;">📈 수익률 추이 vs 벤치마크 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></span>
-          <button class="yoy-btn" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+          <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">방문일마다 포트폴리오 스냅샷이 이 브라우저(localStorage)에 기록됩니다</span>
         </div>
         <div id="pfBenchEmpty" style="text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:24px 0;line-height:1.7;">평단가·수량이 입력된 상태로 <b>2일 이상</b> 방문하면<br>내 포트폴리오 수익률 추이를 KOSPI·S&amp;P 500 과 같은 차트에서 비교할 수 있습니다.</div>
@@ -3169,7 +2732,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <span style="width:1px;height:14px;background:var(--c-border);display:inline-block;margin:0 2px;vertical-align:middle;"></span>
                   <button id="fxCompareModeBtn" onclick="toggleChartCompareMode('fx',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                   <button onclick="resetChartCompareMode('fx')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
-                  <button class="yoy-btn" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+                  <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
                 </div>
               </div>
             </div>
@@ -3236,7 +2799,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
             <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button class="yoy-btn" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+            <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
           <div class="chart-scroll-x">
             <div class="chart-scroll-inner" style="position:relative;height:340px;">
@@ -3283,7 +2846,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <button class="preset-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="applyChartPresetPeriod('bond','1Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
                 </span>
                 <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="bondCustomBtn" onclick="toggleCustomRange('bond',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">📅 기간 지정</span></button>
-                <button class="yoy-btn" data-yoy="bondChart" onclick="toggleYoY('bondChart',this)" aria-pressed="false" title="전년 동기 수익률을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+                <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="bondChart" onclick="toggleYoY('bondChart',this)" aria-pressed="false" title="전년 동기 수익률을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
             <div id="bondCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -3397,7 +2960,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-card);color:var(--c-primary);cursor:pointer;">↻ 새로고침</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="equityIndexChart" onclick="toggleYoY('equityIndexChart',this)" aria-pressed="false" title="전년 동기 지수를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+              <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="equityIndexChart" onclick="toggleYoY('equityIndexChart',this)" aria-pressed="false" title="전년 동기 지수를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
           </div>
           <div id="equityCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -3420,12 +2983,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <!-- 단위 / 기간 선택 -->
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
             <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">집계 단위:</span>
-            <button class="invUnitBtn active" id="invUnit-D" onclick="setInvestorUnit('D',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">일</button>
-            <button class="invUnitBtn" id="invUnit-W" onclick="setInvestorUnit('W',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">주</button>
-            <button class="invUnitBtn" id="invUnit-M" onclick="setInvestorUnit('M',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">월</button>
-            <button class="invUnitBtn" id="invUnit-Q" onclick="setInvestorUnit('Q',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기</button>
-            <button class="invUnitBtn" id="invUnit-H" onclick="setInvestorUnit('H',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">반기</button>
-            <button class="invUnitBtn" id="invUnit-Y" onclick="setInvestorUnit('Y',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">연</button>
+            <button class="invUnitBtn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="invUnit-D" onclick="setInvestorUnit('D',this)"  data-checked aria-pressed="true"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">일</span></button>
+            <button class="invUnitBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="invUnit-W" onclick="setInvestorUnit('W',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">주</span></button>
+            <button class="invUnitBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="invUnit-M" onclick="setInvestorUnit('M',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">월</span></button>
+            <button class="invUnitBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="invUnit-Q" onclick="setInvestorUnit('Q',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+            <button class="invUnitBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="invUnit-H" onclick="setInvestorUnit('H',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">반기</span></button>
+            <button class="invUnitBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="invUnit-Y" onclick="setInvestorUnit('Y',this)"  aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
             <span style="color:var(--c-border);margin:0 2px;">|</span>
             <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">기간:</span>
             <span class="preset-btn-group-investor" style="display:inline-flex;gap:4px;flex-wrap:wrap;">
@@ -3441,7 +3004,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
             <input aria-label="투자자 수급 조회 종료일" type="date" id="invDateTo" onchange="applyInvestorDateRange()"/ class="econ-input">
             <span style="color:var(--c-border);margin:0 2px;">|</span>
-            <button class="yoy-btn" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+            <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="investorChart" onclick="toggleYoY('investorChart',this)" aria-pressed="false" title="외국인 순매매의 전년 동기 오버레이 — 월/분기/연 단위 + 1년 이상 데이터일 때 동작"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
           <div style="position:relative;height:200px;">
             <canvas id="investorChart" role="img" aria-label="투자자별 순매매 동향">투자자 차트</canvas>
@@ -3592,7 +3155,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <span style="width:1px;height:16px;background:var(--c-border);margin:0 2px;"></span>
                 <button id="comCompareModeBtn" onclick="toggleComCompareMode(this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                 <button onclick="resetChartCompareMode('com')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
-                <button class="yoy-btn" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+                <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
             <div id="comCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -3616,21 +3179,21 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- Bottom: sector comparison charts 2x2 -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" style="padding:2px 8px;" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" style="padding:2px 8px;" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" style="padding:2px 8px;" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" style="padding:2px 8px;" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div style="position:relative;height:240px;"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
@@ -4231,7 +3794,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <button onclick="setRePeriod('3y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
                 <button onclick="setRePeriod('5y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">5년</span></button>
                 <button id="reCustomBtn" onclick="toggleCustomRange('re',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📅 기간 지정</button>
-                <button class="yoy-btn" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" style="font-size:var(--font-size-xs);padding:2px 8px;" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+                <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
             <div id="reCustomRangePanel" style="display:none;margin-bottom:8px;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -4679,7 +4242,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </select>
         </div>
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:10px;">
-          <button id="pfSyncKeyBtn" class="tab-btn" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🔑 동기화 키</button>
+          <button id="pfSyncKeyBtn" class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText" onclick="pfSetSyncKey()" title="Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력">🔑 동기화 키</button>
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfPullAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ 서버에서 불러오기</span></button>
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSyncAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">☁ 서버에 저장</span></button>
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🔔 테스트 발송</span></button>
@@ -4710,14 +4273,6 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span class="seed-segmented-control__indicator" aria-hidden="true"></span>
             <label class="seed-segmented-control__item set-radio"><input type="radio" name="setColorConv" value="kr" onchange="settingsSetColorConv('kr')"> 한국식</label>
             <label class="seed-segmented-control__item set-radio"><input type="radio" name="setColorConv" value="global" onchange="settingsSetColorConv('global')"> 글로벌식</label>
-          </span>
-        </div>
-        <div class="set-row">
-          <div><div class="set-label">화면 스킨</div><div class="set-desc">전체 색감 프리셋입니다. 다크/라이트 테마와 독립적으로 조합되며, 상승·하락 색은 바뀌지 않습니다. 즉시 적용(새로고침 불필요).</div></div>
-          <span id="setSkinGroup" style="display:inline-flex;gap:12px;flex-wrap:wrap;">
-            <label class="set-radio"><input type="radio" name="setSkin" value="neutral" onchange="settingsSetSkin('neutral')"> 기본(무채색)</label>
-            <label class="set-radio"><input type="radio" name="setSkin" value="navy" onchange="settingsSetSkin('navy')"> 네이비 터미널</label>
-            <label class="set-radio"><input type="radio" name="setSkin" value="contrast" onchange="settingsSetSkin('contrast')"> 고대비</label>
           </span>
         </div>
         <div class="set-row">
@@ -4758,7 +4313,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="exportAllUserData(false)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ JSON 백업</span></button>
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="exportAllUserData(true)" title="AES-256-GCM 으로 암호화해 내보냅니다 — 평단가·수량이 든 파일을 클라우드 등에 보관할 때 권장" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🔐 암호화 백업</span></button>
-          <label class="tab-btn" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;display:inline-block;">↥ 백업 복구<input type="file" accept="application/json,.json" style="display:none;" onchange="importAllUserData(this)"></label>
+          <label class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText" style="display:inline-flex;">↥ 백업 복구<input type="file" accept="application/json,.json" style="display:none;" onchange="importAllUserData(this)"></label>
         </div>
         <div id="setBackupStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:8px;"></div>
       </div>
@@ -4852,7 +4407,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:4px;">
               <div class="widget-title" style="margin-bottom:0;">총 운용자산 추이 (조원)</div>
-              <button class="yoy-btn" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+              <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
             <div style="position:relative;height:260px;">
               <canvas id="npsAumChart" role="img" aria-label="총 운용자산 추이">AUM 차트</canvas>
@@ -4921,7 +4476,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <span style="color:var(--c-border);margin:0 2px;">|</span>
               <button onclick="toggleNpsAllocMeasure(this)" id="npsMeasureBtn" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-primary)44;border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">📐 구간 측정</button>
               <span style="color:var(--c-border);margin:0 2px;">|</span>
-              <button class="yoy-btn" data-yoy="npsAllocationTrendChart" onclick="toggleYoY('npsAllocationTrendChart',this)" aria-pressed="false" style="padding:2px 8px;" title="주 자산군의 전년 동기 비중을 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+              <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="npsAllocationTrendChart" onclick="toggleYoY('npsAllocationTrendChart',this)" aria-pressed="false" title="주 자산군의 전년 동기 비중을 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
           </div>
           <div id="npsMeasureInfo" style="display:none;font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:6px;padding:4px 8px;background:var(--c-bg);border-radius:var(--r-xs);">

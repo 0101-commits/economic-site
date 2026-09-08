@@ -36,10 +36,8 @@ window.initSettingsPage = function () {
   if (ccEl) ccEl.checked = true;
   try { econSyncSegmented('setColorConvGroup'); } catch (_) {}
   try { econSyncAllSwitches(document.getElementById('page-settings')); } catch (_) {}
-  var sk = 'neutral';
-  try { sk = localStorage.getItem('econ_skin') || 'neutral'; } catch (_) {}
-  var skEl = document.querySelector('input[name="setSkin"][value="' + sk + '"]');
-  if (skEl) skEl.checked = true;
+  // 스킨 라디오는 폐기됐다(결정 D2) — 남은 저장값만 청소한다
+  try { if (localStorage.getItem('econ_skin')) localStorage.removeItem('econ_skin'); } catch (_) {}
   var ind = { ma: true, rsi: false, macd: false };
   try { ind = JSON.parse(localStorage.getItem('pfIndicators')) || ind; } catch (_) {}
   ['ma', 'rsi', 'macd'].forEach(function (k) {
@@ -108,15 +106,15 @@ window.settingsSetColorConv = function (v) {
   try { if (typeof showToast === 'function') showToast('색상 방향 적용 중… 새로고침', 'ok'); } catch (_) {}
   setTimeout(function () { location.reload(); }, 400);
 };
+// 스킨은 폐기됐다(결정 D2). 함수는 옛 링크·북마크·외부 호출을 위해 남기되
+// 아무 것도 켜지 않고 한 번만 알린다 — 조용히 무시하면 "왜 안 바뀌지"가 된다.
 window.settingsSetSkin = function (v) {
-  // 화면 스킨(색감 프리셋) — 토큰 오버라이드 레이어(index.html skin presets)를 켠다.
-  // 색상 방향(settingsSetColorConv)과 달리 reload 불필요: 스킨은 CUP/CDN(등락색)을 안
-  // 건드리므로 테마 토글과 같은 rebuildChartsForTheme 경로로 차트만 다시 칠하면 된다.
-  v = (v === 'navy' || v === 'contrast') ? v : 'neutral';
-  try { localStorage.setItem('econ_skin', v); } catch (_) {}
-  if (v === 'neutral') delete document.documentElement.dataset.skin;
-  else document.documentElement.dataset.skin = v;
-  try { rebuildChartsForTheme(); } catch (_) {}
+  try { localStorage.removeItem('econ_skin'); } catch (_) {}
+  delete document.documentElement.dataset.skin;
+  if (!window._econSkinNoticed) {
+    window._econSkinNoticed = true;
+    try { if (typeof showToast === 'function') showToast('화면 스킨은 없어졌어요. 다크·라이트 테마만 씁니다', 'ok'); } catch (_) {}
+  }
 };
 window.settingsToggleInd = function (k, on) {
   // 보조지표 SSOT 는 기존 'pfIndicators' — 설정 페이지는 같은 키를 읽고 쓴다

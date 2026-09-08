@@ -128,23 +128,26 @@ def main():
                       % (cls, site_sel, CLASHING.search(body).group(1)))
                 break
 
-    # 4) 브리지 정의명이 astryx 라이트 블록에도 있는지 — html:root 가 이겨야 한다
+    # 4) 브리지가 살아 있는지 + 토큰을 정의하는 html.light 블록이 되살아나지 않았는지.
+    #    P4 에서 astryx 생성 블록을 지웠다. 다시 나타나면 특이성 싸움이 재발한다.
     m_bridge = re.search(r"html:root \{(.*?)\n  \}", html, re.S)
-    m_light = re.search(r"\n  html\.light \{(.*?)\n  \}", html, re.S)
-    if m_bridge and m_light:
-        b = set(re.findall(r"(--[a-z0-9-]+)\s*:", m_bridge.group(1)))
-        l = set(re.findall(r"(--[a-z0-9-]+)\s*:", m_light.group(1)))
-        both = sorted(b & l)
-        if both:
-            # 정상 상태다(브리지가 덮는 것이 목적) — 순서만 확인한다
-            if html.index(m_light.group(0)) > html.index(m_bridge.group(0)):
-                fail = True
-                print("4) 실패 — astryx html.light 블록이 브리지보다 뒤에 있다."
-                      " 동특이성이라 라이트에서 브리지가 패배한다: %d개 이름" % len(both))
-            else:
-                print("4) 브리지가 astryx html.light 보다 뒤 (중복 %d개, 정상)" % len(both))
+    if not m_bridge:
+        fail = True
+        print("4) 실패 — SEED 브리지 블록(html:root{})을 못 찾았다")
     else:
-        print("4) 경고 — 브리지 또는 astryx html.light 블록을 못 찾음")
+        names = set(re.findall(r"(--[a-z0-9-]+)\s*:", m_bridge.group(1)))
+        m_light = re.search(r"\n  html\.light \{(.*?)\n  \}", html, re.S)
+        if m_light:
+            dup = names & set(re.findall(r"(--[a-z0-9-]+)\s*:", m_light.group(1)))
+            if dup and html.index(m_light.group(0)) > html.index(m_bridge.group(0)):
+                fail = True
+                print("4) 실패 — html.light 토큰 블록이 브리지보다 뒤에 있다"
+                      "(동특이성이라 라이트에서 브리지가 패배): %d개" % len(dup))
+            else:
+                print("4) 브리지 %d개 정의 · html.light 블록과 중복 %d개(순서 정상)"
+                      % (len(names), len(dup)))
+        else:
+            print("4) 브리지 %d개 정의 · astryx 토큰 블록 없음(P4 삭제 완료)" % len(names))
 
     ms = re.findall(r"(?:transition|animation)[^;{}]*?\b(\d{2,4})ms", html)
     if ms:

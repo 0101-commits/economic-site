@@ -384,7 +384,11 @@ function pfRenderGroups() {
   if(!el) return;
   const btn = (id, label, extra) => {
     const on = pfActiveGroup === id;
-    return `<button class="tab-btn" onclick="pfSetActiveGroup('${id}')" style="font-size:var(--font-size-sm);padding:3px 10px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;background:${on ? 'var(--c-accent)' : 'transparent'};color:${on ? '#fff' : 'var(--c-txt-dim)'};">${label}</button>${extra || ''}`;
+    // 그룹 선택 = Chip 단일 선택(조작). 색·테두리는 recipe 가 준다 — 인라인으로
+    // 칠하면 [data-checked] 상태를 덮어쓴다.
+    return `<button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSetActiveGroup('${id}')"`
+      + ` aria-pressed="${on ? 'true' : 'false'}"${on ? ' data-checked' : ''}>`
+      + `<span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">${label}</span></button>${extra || ''}`;
   };
   let html = btn('all', '전체');
   pfState.groups.forEach(g => {

@@ -6850,7 +6850,7 @@ function initMacroTopicPage(topic) {
         <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: ${m.unit}</span></div>
         <div style="display:flex;gap:4px;">
           ${periodOpts.map(o=>`<button onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:${macroTopicPeriod===o.key?'var(--c-accent)':'transparent'};color:${macroTopicPeriod===o.key?'#fff':'var(--c-txt-dim)'};cursor:pointer;font-weight:var(--font-weight-medium);">${o.label}</button>`).join('')}
-          <button class="yoy-btn" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+          <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
         </div>
       </div>
       <!-- 국가 필터 (다중선택) — 원자재 차트의 필터처럼 토글 -->
@@ -7470,7 +7470,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>
           ${unitButtons('gdp')}
-          <button class="yoy-btn" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+          <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.gdpSrc,meta.gdpNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="gdpMacro" role="img" aria-label="GDP 차트">GDP</canvas></div>
@@ -7479,7 +7479,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>
           ${unitButtons('cpi')}
-          <button class="yoy-btn" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+          <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.cpiSrc,meta.cpiNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
@@ -7490,7 +7490,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>
           ${unitButtons('unemp')}
-          <button class="yoy-btn" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+          <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.unempSrc,meta.unempNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="unempMacro" role="img" aria-label="실업률 차트">실업률</canvas></div>
@@ -7499,7 +7499,7 @@ function initMacroPage(t){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>
           ${unitButtons('trade')}
-          <button class="yoy-btn" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
+          <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.tradeSrc,meta.tradeNext)}
         </div>
         <div style="position:relative;height:260px;"><canvas id="tradeMacro" role="img" aria-label="수출 차트">수출</canvas></div>
@@ -14252,7 +14252,7 @@ var _tcCache = null, _tcKey = '';
 function getThemeColors() {
   const light = document.documentElement.classList.contains('light');
   // 캐시 키에 스킨 포함 — 스킨 전환 직후 어떤 경로로 호출돼도 묵은 색을 재사용하지 않게
-  const key = (light ? 'light' : 'dark') + '|' + (document.documentElement.dataset.skin || '')
+  const key = (light ? 'light' : 'dark')
             + '|' + (document.documentElement.dataset.seedColorMode || '');
   if (_tcCache && _tcKey === key) return _tcCache;
   const cs = getComputedStyle(document.documentElement);

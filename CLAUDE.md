@@ -14,18 +14,26 @@ Live site: `https://0101-commits.github.io/economic-site/`
 
 The one exception is the **design-token block**, which is generated — see *Design system* below.
 
-## Design system — SEED (당근) over an astryx-shaped alias layer
+## Design system — SEED (당근)
 
-**Since the SEED 개편 (P0, 2026-09-08) the token source is `@seed-design/css@2.7.0`,
-vendored at `css/seed/seed.css`.** The astryx names are still the site's internal
-API; a bridge block rebinds their right-hand sides to `--seed-*`:
+**Since the SEED 개편 (P0–P4, 2026-09-08) the token source is `@seed-design/css@2.7.0`,
+vendored at `css/seed/seed.css`.** The astryx *generator* is gone — its 291-token
+block and the navy/contrast skins were deleted in P4. What remains of astryx is
+its **naming**: the site's internal API is still `--color-*` / `--font-size-*` /
+`--c-*`, and a single bridge block defines those names in terms of `--seed-*`:
 
 ```
 @seed-design/css (css/seed/seed.css)   ← scripts/vendor_seed_css.py 로 갱신
   → SEED 브리지 (index.html, html:root{})  --color-* / --font-size-* → --seed-*
     → 별칭 --c-* 20종                       사용처 3,500곳이 여기만 본다
-      → 인라인 style / 클래스
+      → 인라인 style / 클래스 / SEED recipe
 ```
+
+`scripts/econ.theme.ts` + `build_astryx_tokens.py` are **no longer part of the
+pipeline** — do not regenerate that block. Editing colors means editing the
+bridge. Chart series colors (9 hues, light/dark) live in the bridge as hex,
+because SEED has no categorical palette and its chromatic ramps collide with
+brand/market colors.
 
 Rules that follow from this:
 
@@ -51,9 +59,9 @@ Rules that follow from this:
 - **UI gate before push**: `python -m http.server 8080` then
   `node tests/ui/shots.mjs --page=<page>` — 16 shots (390/768/1280/1440 × light/dark
   × kr/global) plus console-error, brand-token and theme-sync assertions.
-- The astryx generated block (`:279-570`) stays as a **dormant fallback** so a name
-  the bridge missed shows its old value instead of nothing; it is deleted in P4 once
-  grep proves coverage. Skin presets (`navy`/`contrast`) are also P4 casualties.
+- The astryx generated block and the `navy`/`contrast` skins are **deleted** (P4).
+  `econ_skin` is removed from localStorage on read; `settingsSetSkin` is a no-op
+  that says so once. Light/dark are the only themes.
 
 The three astryx rules below still hold — they are the reason SEED was adopted:
 
@@ -79,31 +87,38 @@ The three astryx rules below still hold — they are the reason SEED was adopted
    mixed into a categorical palette — a slice colored red then reads as
    "down" rather than "category 6".
 
-Token pipeline (the only generated artifact in the repo):
+Token pipeline — **there is no generator any more.**
 
 ```
-scripts/econ.theme.ts                        # source of truth — edit this
-  → copy to C:\Users\cgpar\astryx\ (the CLI needs @astryxdesign deps installed there)
-  → node node_modules/@astryxdesign/cli/bin/astryx.mjs theme build econ.theme.ts --out dist/econ.css
-  → python scripts/build_astryx_tokens.py > scripts/_astryx_tokens.css
-  → paste over the `astryx econ tokens` block in index.html
+@seed-design/css@2.7.0  →  scripts/vendor_seed_css.py  →  css/seed/seed.css
+                              (base.css + recipe 41종, 검사 3종)
+index.html  html:root{}      브리지 — 사이트 이름을 --seed-* 로 정의(색 53 + 스케일 30)
+            :root:root{}     브랜드 8토큰 blue 재매핑(+ dark-only 블록)
 ```
 
-`scripts/econ.theme.ts` is vendored here so the theme is versioned with the site;
-the build itself runs from the astryx workspace because that is where the
-`@astryxdesign/*` packages live. Keep the two copies in sync.
+Editing a color = editing the bridge. `scripts/econ.theme.ts`,
+`build_astryx_tokens.py`, `patch_astryx*.py` are **provenance only** — the block
+they produced was deleted in P4 (deletion evidence: no name that only that block
+defined is still referenced). Do not run them.
 
-`build_astryx_tokens.py` merges `theme-neutral` defaults with the `econ`
-overrides and flattens `light-dark()` / `@scope` into plain
-`:root {…}` + `html.light {…}` blocks, because the site has no build step and
-must run on older mobile webviews.
+Gates (run before any push that touches UI):
 
-The `astryx layer` section at the end of `<style>` holds frame/surface/row/
-control rules and must stay last — it overrides the older legacy CSS above it.
+```
+python -m http.server 8080 --bind 127.0.0.1          # 또는 npm run ui:serve
+python scripts/vendor_seed_css.py --check            # 벤더 CSS ↔ _UPDN 팔레트 동기
+python scripts/check_seed_classes.py                 # 미정의 seed-* 클래스 = 0
+node tests/ui/shots.mjs --page=<id>                  # 16샷 + 콘솔·브랜드·테마 어서션
+node tests/ui/interact.mjs                           # SPA 전환·드로어·레일·그룹 기억
+node tests/ui/deadcss.mjs                            # 전환기 셀렉터 잔량(0 이면 규칙 삭제 가능)
+node tests/ui/important.mjs                          # !important 가 아직 인라인을 이기는지
+```
 
-`scripts/patch_astryx.py` and `scripts/patch_astryx_layer.py` are the one-shot
-migration scripts that produced the current state; they are kept for provenance
-and are **not** idempotent — do not re-run them.
+The `astryx layer` section at the end of `<style>` still holds frame/surface/row
+rules and must stay last. Its `!important` count is down from 210 to ~147; the
+rest is load-bearing — `tests/ui/important.mjs` shows 76 declarations still
+beating inline styles (grid columns, chart heights, card surfaces). Removing
+those means converting the remaining inline layout styles, which is a separate
+job from this design migration.
 
 ## Key Files
 
@@ -216,7 +231,8 @@ Deploy: `cd cloudflare-worker && npx wrangler deploy`
   palette array or it will stay stuck on the previous theme's value.
 - **`window._UPDN` mirrors `--color-market-*`** — hex literals are required there
   because the code does `CUP + '22'` alpha concatenation. If the market colors
-  change in `econ.theme.ts`, update `_UPDN` in the same commit.
+  change in the bridge, update `_UPDN`/`_UPDN_FILL` in the same commit —
+  `scripts/vendor_seed_css.py` diffs them against base.css and exits 1 on drift.
 - **Tailwind CDN must not be re-added** — removed intentionally because its runtime JIT uses `eval()`, which violates the site's CSP.
 - **Alpha Vantage** has a 25 calls/day free limit — only fetch on daily triggers (`AV_FETCH_FULL=1`), not on every-hour runs.
 
