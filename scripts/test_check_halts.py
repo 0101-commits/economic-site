@@ -36,10 +36,23 @@ def _stub_send_memo(access_token, text, with_button=True, uuids=None):
     SENT.append(text)
 
 
+def _stub_send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
+                    fallback_png=None, items=None, kind=""):
+    """카카오 발송 단일 진입점 스텁(기획 v3 I1) — 제목+캡션을 종전 텍스트처럼 기록."""
+    if FAIL["on"]:
+        raise SystemExit("[stub] 발송 실패 시뮬레이션")
+    SENT.append("\n".join([title, caption]).strip())
+    return True
+
+
 ch.kakao.refresh_access_token = lambda k, t: "STUB_TOKEN"
 ch.kakao._friends_enabled = lambda: False        # uuids=[] → 메모 경로(스텁이 가로챔)
 ch.kakao.get_friends = lambda t: []
 ch.kakao.send_memo = _stub_send_memo
+ch.kakao.send_card = _stub_send_card
+# 카드 렌더는 매트플롯립·시세 조회를 타므로 테스트에선 끈다(발송 경로 검증이 목적).
+ch._halt_card = lambda h, shape="wide": None
+ch._status_card = lambda h, kind: None
 
 
 # ── 임시 data.json / halts_state.json ───────────────────────────

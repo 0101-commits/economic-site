@@ -90,13 +90,32 @@ def main():
     # 카카오 + 디스코드 병행 — 어느 한쪽이라도 성공하면 쿨다운 확정(같은 급변 재발송 방지).
     # 둘 다 실패한 경우만 미확정 → 다음 분 런이 재시도. job 은 항상 green(실패 메일 방지).
     sent_ok = False
+    # 히어로(|등락| 최대) + 인트라데이는 여기서 1회만 조회해 두 채널이 같은 재료를 쓴다
+    # (기획 v3 I1 — 카톡도 카드가 본문). P0 소스 체인(토스 1분봉→Yahoo→7일 일봉)으로 빈 패널 방지.
+    _, _, name0, sym0, price0, pct0, thr0 = max(hits, key=lambda h: abs(h[5]))
+    xs, ys, prev, _src = [], [], None, ""
+    try:
+        xs, ys, prev, _src = kakao._intraday_chain(sym0)
+    except Exception as _ie:
+        print(f"[swings] 인트라데이 조회 예외({_ie}) — 카드는 히어로만")
+    _lines = msg.split("\n")
     rest_key = os.environ.get("KAKAO_REST_API_KEY", "").strip()
     refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
     if rest_key and refresh_token:
         try:
             access_token = kakao.refresh_access_token(rest_key, refresh_token)
             friends = kakao.get_friends(access_token) if kakao._friends_enabled() else []
-            kakao.send_memo(access_token, msg, with_button=True, uuids=[f["uuid"] for f in friends])
+            _kpng = None
+            try:
+                import discord_card
+                _kpng = discord_card.swing(name0, price0, pct0, thr0, xs, ys, prev, now,
+                                           src=_src, shape="square")
+            except Exception as _ce:
+                print(f"[swings] 정사각 카드 예외({_ce}) — 텍스트 폴백")
+            kakao.send_card(access_token, _lines[0][:44], "\n".join(_lines[1:4])[:120],
+                            png=_kpng, uuids=[f["uuid"] for f in friends], kind="급변 속보",
+                            buttons=[("주식시장",
+                                      "https://0101-commits.github.io/economic-site/?p=equity")])
             sent_ok = True
         except (SystemExit, Exception) as e:
             print(f"::warning title=급변 속보 카카오 실패::{e} — 디스코드 경로 시도")
@@ -110,8 +129,7 @@ def main():
         _png = None
         try:
             import discord_card
-            _, _, name0, sym0, price0, pct0, thr0 = max(hits, key=lambda h: abs(h[5]))
-            xs, ys, prev, _src = kakao._intraday_chain(sym0)
+            # 히어로·인트라데이는 위(카카오 경로 앞)에서 1회 조회한 값을 재사용한다.
             _png = discord_card.swing(name0, price0, pct0, thr0, xs, ys, prev, now, src=_src)
         except Exception as _ce:
             print(f"[swings] 카드 렌더 예외({_ce}) — 텍스트만 발송")
