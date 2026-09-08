@@ -493,8 +493,137 @@ const tickerData = [
   {name:'한국 기준금리', val:'2.75%', chg:'동결', up:null},
   {name:'미 10년물', val:'4.48%', chg:'+0.03', up:true},
 ];
+// ── SEED 내비게이션: 그룹 기억 · 활성 상태 · 3구간 사이드바 · 드로어 ─────────
+// 왜 여기 모았나: 활성 표시가 인라인/클래스/JS 3곳에 흩어져 1분 재렌더마다 어긋났다.
+// 상태는 data-current(+aria-current) 한 쌍뿐이고, 그 쌍을 세우는 곳은 showPage 하나다.
+
+var ECON_NAV_LAST_KEY = 'econ_nav_last';
+// 그룹 기본 진입 페이지. 거시는 캘린더 우선 — 아침 동선의 첫 질문이 "오늘 일정"이다.
+var ECON_NAV_GROUPS = {
+  home:   ['dashboard'],
+  market: ['equity', 'market', 'investor'],
+  assets: ['realestate', 'portfolio'],   // portfolio 는 PIN 관문이라 기본값에서 뒤로
+  macro:  ['calendar', 'macro'],
+  record: ['study', 'notes', 'merblog'],
+};
+var ECON_NAV_LOCKED = ['portfolio', 'settings'];   // 마지막 방문 기억에서 제외
+
+function _econNavGroupOf(id) {
+  for (var g in ECON_NAV_GROUPS) if (ECON_NAV_GROUPS[g].indexOf(id) >= 0) return g;
+  return null;
+}
+function _econNavLast() {
+  try { return JSON.parse(localStorage.getItem(ECON_NAV_LAST_KEY) || '{}') || {}; }
+  catch (_) { return {}; }
+}
+function _econNavRemember(id) {
+  var g = _econNavGroupOf(id);
+  if (!g || ECON_NAV_LOCKED.indexOf(id) >= 0) return;   // 잠금 페이지는 기억하지 않는다
+  var m = _econNavLast();
+  m[g] = id;
+  try { localStorage.setItem(ECON_NAV_LAST_KEY, JSON.stringify(m)); } catch (_) {}
+}
+
+// 사이드바 항목 클릭 — <a href="?p=x"> 의 기본 동작(전체 재로드)을 막고 SPA 전환
+function econNav(id, el) {
+  showPage(id, el);
+  return false;
+}
+// 바텀 내비 탭 — 그룹의 마지막 방문 페이지(없으면 기본값)로
+function econNavGroup(group, el) {
+  var list = ECON_NAV_GROUPS[group] || ['dashboard'];
+  var last = _econNavLast()[group];
+  var id = (last && list.indexOf(last) >= 0) ? last : list[0];
+  showPage(id, (typeof menuItemFor === 'function' ? menuItemFor(id) : null) || null);
+  return false;
+}
+
+// 활성 표시 — 사이드바 항목 3요소(root·prefixIcon·label) + 바텀 내비 탭
+function _econSyncNavCurrent(id) {
+  document.querySelectorAll('#sidebar [data-nav]').forEach(function (a) {
+    var on = a.getAttribute('data-nav') === id;
+    if (on) { a.setAttribute('data-current', ''); a.setAttribute('aria-current', 'page'); }
+    else { a.removeAttribute('data-current'); a.removeAttribute('aria-current'); }
+    a.querySelectorAll('.seed-side-navigation-menu-item__prefixIcon, .seed-side-navigation-menu-item__label')
+      .forEach(function (p) { if (on) p.setAttribute('data-current', ''); else p.removeAttribute('data-current'); });
+  });
+  var group = _econNavGroupOf(id);
+  document.querySelectorAll('#econBottomNav [data-navgroup]').forEach(function (t) {
+    if (t.getAttribute('data-navgroup') === group) { t.setAttribute('data-current', ''); t.setAttribute('aria-current', 'page'); }
+    else { t.removeAttribute('data-current'); t.removeAttribute('aria-current'); }
+  });
+}
+
+// ── 사이드바 3구간 상태 ──────────────────────────────────────────────────────
+// COLLAPSED 속성은 recipe 가 root·content·groupLabel·trigger·item·prefixIcon·label
+// 각각에서 읽는다 — 한 곳만 세우면 라벨이 남거나 폭이 어긋난다.
+var _ECON_COLLAPSE_TARGETS =
+  '.seed-side-navigation__content, .seed-side-navigation__groupLabel, .seed-side-navigation__trigger,'
+  + '.seed-side-navigation-menu-item__root, .seed-side-navigation-menu-item__prefixIcon,'
+  + '.seed-side-navigation-menu-item__label, .seed-side-navigation-menu-item__suffixIcon';
+function _econNavMode() {
+  var w = window.innerWidth || document.documentElement.clientWidth;
+  return w < 768 ? 'drawer' : (w < 1280 ? 'rail' : 'wide');
+}
+function _econSetSidebarCollapsed(collapsed) {
+  var sb = document.getElementById('sidebar');
+  if (!sb) return;
+  var apply = function (el) {
+    if (collapsed) el.setAttribute('data-side-navigation-state', 'collapsed');
+    else el.removeAttribute('data-side-navigation-state');
+  };
+  apply(sb);
+  sb.querySelectorAll(_ECON_COLLAPSE_TARGETS).forEach(apply);
+  sb.querySelectorAll('.seed-side-navigation-menu-item__root').forEach(function (it) {
+    var lbl = it.querySelector('.seed-side-navigation-menu-item__label');
+    if (!lbl) return;
+    if (collapsed) it.setAttribute('title', lbl.textContent.trim());
+    else if (!it.dataset.keepTitle) it.removeAttribute('title');
+  });
+  var icon = document.getElementById('sidebarToggleIcon');
+  if (icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
+  _syncSidebarAria();
+}
+// 드로어 등록은 1회 — 열림 판정은 data-drawer-open, 닫기는 closeSidebarMobile
+function _econRegisterDrawer() {
+  var sb = document.getElementById('sidebar');
+  if (!sb || sb._econOverlayCfg || !window.econOverlay) return;
+  econOverlay.register({
+    el: sb, role: false, openAttr: 'data-drawer-open',
+    onClose: function () { econOpenDrawer(false); },
+  });
+}
+function econOpenDrawer(open) {
+  _econRegisterDrawer();
+  var sb = document.getElementById('sidebar');
+  var backdrop = document.getElementById('sidebarBackdrop');
+  var more = document.getElementById('econMoreTab');
+  if (!sb) return;
+  if (open) sb.setAttribute('data-drawer-open', ''); else sb.removeAttribute('data-drawer-open');
+  if (backdrop) backdrop.hidden = !open;
+  if (more) more.setAttribute('aria-expanded', open ? 'true' : 'false');
+  _syncSidebarAria();
+}
+// 구간 전환 — 리사이즈·회전·최초 로드에서 같은 규칙을 적용한다
+function econApplyNavMode() {
+  // 최초 진입 시 활성 표시 동기 — 기본 페이지는 showPage 를 거치지 않으므로
+  // 바텀 내비 탭이 아무것도 선택되지 않은 상태로 남았다.
+  try {
+    var cur = document.querySelector('.page.active');
+    if (cur) _econSyncNavCurrent(cur.id.replace(/^page-/, ''));
+  } catch (_) {}
+  var mode = _econNavMode();
+  var sb = document.getElementById('sidebar');
+  if (!sb) return;
+  if (mode !== 'drawer') econOpenDrawer(false);
+  if (mode === 'rail') _econSetSidebarCollapsed(true);
+  else if (mode === 'wide') _econSetSidebarCollapsed(sb._econUserCollapsed === true);
+  else _econSetSidebarCollapsed(false);   // 드로어는 항상 라벨을 보여준다
+}
+
 function menuItemFor(pageId) {
-  return document.querySelector(`.menu-item[onclick*="'${pageId}'"]`);
+  return document.querySelector('#sidebar [data-nav="' + pageId + '"]')
+      || document.querySelector(`.menu-item[onclick*="'${pageId}'"]`);
 }
 function marketTabBtn(tab) {
   return document.querySelector(`#page-market > div:first-child button[onclick*="'${tab}'"]`);
@@ -840,8 +969,11 @@ function showPage(id, el) {
   if(!document.getElementById('page-'+id)) id = 'dashboard';
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  document.querySelectorAll('.menu-item').forEach(m=>{ m.classList.remove('active'); m.removeAttribute('aria-current'); });
-  if(el) { el.classList.add('active'); el.setAttribute('aria-current','page'); }
+  // 활성 표시는 data-current(+aria-current) 한 쌍이 단일 원천 — 사이드바 3요소와
+  // 바텀 내비 탭을 함께 세운다. el 이 없어도(딥링크·단축키) id 로 찾아 세운다.
+  document.querySelectorAll('.menu-item').forEach(m=>{ m.classList.remove('active'); });
+  if(el && el.classList) el.classList.add('active');
+  try { _econSyncNavCurrent(id); _econNavRemember(id); } catch(_) {}
   try { const _main = document.getElementById('mainContent'); if(_main) _main.focus({ preventScroll: true }); } catch(_) {}
   // 메뉴 전환 시 최상단으로 스크롤
   try {
@@ -882,36 +1014,24 @@ function showPage(id, el) {
   collapseSidebarAfterNav();
 }
 
-// 메뉴 클릭 후 사이드바 자동 숨김
+// 메뉴 이동 후 사이드바 정리 — 드로어는 항상 닫고, 데스크톱 자동 접힘은 설정 게이트.
 function collapseSidebarAfterNav() {
   const sb = document.getElementById('sidebar');
   if(!sb) return;
-  // 모바일에서 열려있으면 닫기 + 백드롭도 닫기
-  if(sb.classList.contains('mobile-open')) {
-    sb.classList.remove('mobile-open');
-    const backdrop = document.getElementById('sidebarBackdrop');
-    if(backdrop) backdrop.style.display = 'none';
-  }
-  // 데스크탑에서 접기
-  if(!sb.classList.contains('collapsed')) {
-    sb.classList.add('collapsed');
-    const icon = document.getElementById('sidebarToggleIcon');
-    if(icon) icon.textContent = 'menu';
-  }
-  _syncSidebarAria();
+  if(_econNavMode() === 'drawer') { econOpenDrawer(false); return; }
+  // 자동 접힘은 기본 꺼짐(econ_settings_v1.ui.navAutoCollapse). 예전엔 딥링크 진입에서도
+  // 접혀서 "메뉴가 없어졌다"로 읽혔다 — 켠 사용자만 접힌다.
+  let auto = false;
+  try { auto = !!(window.econSettings && econSettings.get('ui.navAutoCollapse')); } catch(_) {}
+  if(auto && _econNavMode() === 'wide') { sb._econUserCollapsed = true; _econSetSidebarCollapsed(true); }
+  else _syncSidebarAria();
 }
 
-// 타이틀 클릭 → 대시보드 홈으로 이동 + 사이드바 자동 펼침
+// 타이틀 클릭 → 대시보드 홈 + (넓은 화면이면) 사이드바 펼침
 function goHome() {
-  const homeBtn = document.querySelector('.menu-item[onclick*="dashboard"]');
-  showPage('dashboard', homeBtn);
-  // 사이드바가 접혀 있으면 펼치기
+  showPage('dashboard', menuItemFor('dashboard'));
   const sb = document.getElementById('sidebar');
-  if(sb && sb.classList.contains('collapsed')) {
-    sb.classList.remove('collapsed');
-    const icon = document.getElementById('sidebarToggleIcon');
-    if(icon) icon.textContent = 'menu_open';
-  }
+  if(sb && _econNavMode() === 'wide') { sb._econUserCollapsed = false; _econSetSidebarCollapsed(false); }
 }
 
 let rePeriod = '1y';
@@ -1637,11 +1757,13 @@ function closeInfoModal() {
     {id:'pfAlertModal',         label:'pfAlertModalName'},
   ];
   let active=null, lastFocus=null;
+  const EXTRA=[];   // econOverlay.register 로 뒤늦게 붙는 오버레이(드로어 등)
   const SEL='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
   function focusables(m){ return Array.prototype.filter.call(m.querySelectorAll(SEL), el=>el.offsetWidth||el.offsetHeight||el.getClientRects().length); }
   function onKey(e){
     if(!active) return;
     if(e.key==='Escape'){
+      if(active._econOverlayClose){ e.preventDefault(); active._econOverlayClose(); return; }
       const cb=active.querySelector('button[aria-label="닫기"]')||active.querySelector('[onclick*="lose"]');
       if(cb){ e.preventDefault(); cb.click(); } else { active.style.display='none'; }
     } else if(e.key==='Tab'){
@@ -1651,7 +1773,13 @@ function closeInfoModal() {
       else { if(document.activeElement===last || !active.contains(document.activeElement)){ e.preventDefault(); first.focus(); } }
     }
   }
-  function shown(m){ const d=m.style.display; return !!d && d!=='none'; }
+  // 표시 판정 — display 계열(구 모달)과 hidden/데이터 속성 계열(SEED 오버레이) 둘 다.
+  function shown(m){
+    if(m.hasAttribute('hidden')) return false;
+    const cfg=m._econOverlayCfg;
+    if(cfg && cfg.openAttr) return m.hasAttribute(cfg.openAttr);
+    const d=m.style.display; return !!d && d!=='none';
+  }
   function activate(m){
     if(active===m) return;
     if(!active) lastFocus=document.activeElement;
@@ -1666,6 +1794,25 @@ function closeInfoModal() {
     if(lastFocus && lastFocus.focus){ try{ lastFocus.focus(); }catch(_){} }
     lastFocus=null;
   }
+  function register(cfg){
+    const m=(typeof cfg.id==='string') ? document.getElementById(cfg.id) : cfg.el;
+    if(!m) return null;
+    m._econOverlayCfg=cfg;
+    if(cfg.role!==false){ m.setAttribute('role', cfg.role||'dialog'); m.setAttribute('aria-modal','true'); }
+    if(cfg.label && document.getElementById(cfg.label)) m.setAttribute('aria-labelledby', cfg.label);
+    if(cfg.onClose) m._econOverlayClose=cfg.onClose;
+    new MutationObserver(()=>{ if(shown(m)) activate(m); else if(active===m) deactivate(); })
+      .observe(m,{attributes:true, attributeFilter:['style','hidden', cfg.openAttr||'data-state']});
+    if(shown(m)) activate(m);
+    return m;
+  }
+  window.econOverlay = {
+    register: register,
+    // 열기·닫기는 hidden 속성이 계약이다 — recipe 는 닫힘 규칙을 주지 않는다
+    open(el){ el=(typeof el==='string')?document.getElementById(el):el; if(el){ el.hidden=false; el.style.setProperty('--layer-index','300'); } },
+    close(el){ el=(typeof el==='string')?document.getElementById(el):el; if(el) el.hidden=true; },
+    current(){ return active; },
+  };
   function init(){
     MODALS.forEach(cfg=>{
       const m=document.getElementById(cfg.id); if(!m) return;
@@ -2559,49 +2706,45 @@ function getPeriodData(unit, fromDate, toDate) {
   return { price: priceAll.slice(-n), vol: volAll.slice(-n) };
 }
 
+// ── 티커 자동 스크롤 정지/재생 ──
+// coarse 포인터에서는 CSS 가 이미 애니메이션을 끄지만, 데스크톱에서도 흐르는 글자를
+// 멈추고 읽을 수단이 필요하다(WCAG 2.2.2 — hover 정지만으로는 키보드 사용자가 못 쓴다).
+function toggleTickerMotion() {
+  const strip = document.getElementById('econTicker');
+  const btn = document.getElementById('tickerPauseBtn');
+  if (!strip || !btn) return;
+  const paused = strip.getAttribute('data-motion') === 'paused';
+  if (paused) strip.removeAttribute('data-motion');
+  else strip.setAttribute('data-motion', 'paused');
+  btn.setAttribute('aria-pressed', paused ? 'false' : 'true');
+  const label = paused ? '티커 자동 스크롤 정지' : '티커 자동 스크롤 재생';
+  btn.setAttribute('aria-label', label);
+  btn.setAttribute('title', label);
+  const icon = btn.querySelector('.mat');
+  if (icon) icon.textContent = paused ? 'pause' : 'play_arrow';
+}
+
 // ── 사이드바 토글 ──
 function _syncSidebarAria() {
   const sb = document.getElementById('sidebar');
   const btn = document.querySelector('button[onclick="toggleSidebar()"]');
   if(!sb || !btn) return;
-  const isMobile = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
-  const expanded = isMobile ? sb.classList.contains('mobile-open') : !sb.classList.contains('collapsed');
+  const expanded = _econNavMode() === 'drawer'
+    ? sb.hasAttribute('data-drawer-open')
+    : sb.getAttribute('data-side-navigation-state') !== 'collapsed';
   btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
 }
+// 햄버거 — 구간에 따라 뜻이 다르다: 드로어 열기/닫기(<768) vs 레일 접기/펼치기
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
-  const icon = document.getElementById('sidebarToggleIcon');
-  const backdrop = document.getElementById('sidebarBackdrop');
   if(!sb) return;
-  // 1024px 이하(태블릿/모바일)에서는 mobile-open 클래스로 슬라이드 인/아웃, 데스크탑에서는 collapsed
-  const isMobile = window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
-  if(isMobile) {
-    const opening = !sb.classList.contains('mobile-open');
-    sb.classList.toggle('mobile-open');
-    if(backdrop) backdrop.style.display = opening ? 'block' : 'none';
-    if(icon) icon.textContent = opening ? 'menu_open' : 'menu';
-    // 데스크탑 collapsed 상태도 항상 해제 (모바일과 데스크탑 충돌 방지)
-    sb.classList.remove('collapsed');
-    _syncSidebarAria();
-    return;
-  }
-  // 데스크탑
-  if(backdrop) backdrop.style.display = 'none';
-  sb.classList.remove('mobile-open');
-  const collapsed = sb.classList.toggle('collapsed');
-  if(icon) icon.textContent = collapsed ? 'menu' : 'menu_open';
-  _syncSidebarAria();
+  if(_econNavMode() === 'drawer') { econOpenDrawer(!sb.hasAttribute('data-drawer-open')); return; }
+  const collapsed = sb.getAttribute('data-side-navigation-state') !== 'collapsed';
+  sb._econUserCollapsed = collapsed;
+  _econSetSidebarCollapsed(collapsed);
 }
 
-function closeSidebarMobile() {
-  const sb = document.getElementById('sidebar');
-  const backdrop = document.getElementById('sidebarBackdrop');
-  const icon = document.getElementById('sidebarToggleIcon');
-  if(sb) sb.classList.remove('mobile-open');
-  if(backdrop) backdrop.style.display = 'none';
-  if(icon) icon.textContent = 'menu';
-  _syncSidebarAria();
-}
+function closeSidebarMobile() { econOpenDrawer(false); }
 
 // ============================
 // 차트 기간 프리셋 (일주일/15일/30일/분기/반기/연)
@@ -12891,9 +13034,13 @@ function renderMarketHalts(data) {
       ? `${hhmm(h.triggeredAt)} 매매중단 → 당일 장 종료`
       : `${hhmm(h.triggeredAt)} 중단 → <span class="halt-cd" data-resume="${esc(h.resumeAt || '')}">${hhmm(h.resumeAt)} 재개예정</span>`;
     const approx = h.approx ? ' · 추정' : '';
-    return `<div class="halt-banner ${cls}" data-id="${esc(h.id)}">`
-      + `<span>${icon} ${esc(h.market)} ${typ}${stage} 발동 — ${esc(h.reason)} · ${when}${approx}</span>`
-      + `<button class="halt-x" title="닫기" onclick="dismissHalt('${esc(h.id)}')">✕</button></div>`;
+    // 전역 경보 = page-banner(solid). 서킷브레이커는 critical, 사이드카는 warning.
+    const tone = cls === 'circuit' ? 'critical' : 'warning';
+    return `<div class="seed-page-banner__root seed-page-banner__root--tone_${tone}-variant_solid halt-banner ${cls}" data-id="${esc(h.id)}">`
+      + `<div class="seed-page-banner__content"><span class="seed-page-banner__description">`
+      + `${icon} ${esc(h.market)} ${typ}${stage} 발동 — ${esc(h.reason)} · ${when}${approx}</span></div>`
+      + `<button class="seed-page-banner__closeButton seed-page-banner__closeButton--tone_${tone}-variant_solid halt-x"`
+      + ` aria-label="닫기" title="닫기" onclick="dismissHalt('${esc(h.id)}')">✕</button></div>`;
   }).join('');
 
   const show = visible.length > 0;
@@ -12901,8 +13048,8 @@ function renderMarketHalts(data) {
   // 파이프라인 경고 배너(#pipelineWarnBanner)와 겹치지 않게 공통 스택/paddingTop 보정으로 위임.
   // (_syncTopBanners 미정의 환경에서는 기존 로직 그대로 폴백 — 동작 불변.)
   if (typeof _syncTopBanners === 'function') _syncTopBanners();
-  else if (layout) layout.style.paddingTop = show ? (56 + banner.offsetHeight) + 'px' : '56px';
-  if (badge) badge.style.display = active.length > 0 ? 'inline-block' : 'none';
+  else if (layout) layout.style.paddingTop = 'calc(var(--frame-top) + ' + (show ? banner.offsetHeight : 0) + 'px)';
+  if (badge) badge.hidden = !(active.length > 0);
 
   // 재개까지 카운트다운(1초 간격)
   if (_haltCountdownTimer) { clearInterval(_haltCountdownTimer); _haltCountdownTimer = null; }
@@ -12956,13 +13103,15 @@ function dismissHalt(id) {
 // #appLayout paddingTop 을 '56 + 두 배너 높이 합'으로 맞춘다(renderMarketHalts 의 기존
 // 56px 보정을 포괄 대체 — 둘 다 숨김이면 정확히 기존과 같은 56px).
 function _syncTopBanners() {
-  const layout = document.getElementById('appLayout');
+  // 오프셋의 단일 원천은 CSS 변수다(index.html --frame-*). JS 는 '측정해야만 아는 값'
+  // 두 개만 세우고, 본문 padding·사이드바 높이·스크롤 보정은 CSS 가 계산한다.
   const halt = document.getElementById('marketHaltBanner');
   const pipe = document.getElementById('pipelineWarnBanner');
+  const root = document.documentElement;
   const haltH = halt ? halt.offsetHeight : 0;              // display:none 이면 0
-  if (pipe) pipe.style.top = (56 + haltH) + 'px';
-  const pipeH = pipe ? pipe.offsetHeight : 0;
-  if (layout) layout.style.paddingTop = (56 + haltH + pipeH) + 'px';
+  root.style.setProperty('--frame-halt', haltH + 'px');
+  const pipeH = pipe ? pipe.offsetHeight : 0;              // top 은 CSS 가 --frame-halt 로 잡는다
+  root.style.setProperty('--frame-banners', (haltH + pipeH) + 'px');
 }
 
 var _PIPE_WARN_DISMISS_KEY = 'econ_pipeline_warn_dismissed';
@@ -13001,9 +13150,10 @@ async function _checkWorkerPipelineHealth() {
       try { when = new Date(lf.t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }); } catch (_) {}
       sub = ' · 최근 24시간 내 알림 발송 트리거 실패가 감지되었습니다' + (when ? ' (마지막 ' + when + ')' : '') + ' — 카카오 알림이 누락될 수 있어요.';
     }
-    pipe.innerHTML = '<div class="halt-banner sidecar">'
-      + '<span>' + msg + sub + '</span>'
-      + '<button class="halt-x" title="닫기" onclick="dismissPipelineWarn()">✕</button></div>';
+    pipe.innerHTML = '<div class="seed-page-banner__root seed-page-banner__root--tone_warning-variant_weak halt-banner sidecar">'
+      + '<div class="seed-page-banner__content"><span class="seed-page-banner__description">' + msg + sub + '</span></div>'
+      + '<button class="seed-page-banner__closeButton seed-page-banner__closeButton--tone_warning-variant_weak halt-x"'
+      + ' aria-label="닫기" title="닫기" onclick="dismissPipelineWarn()">✕</button></div>';
     pipe.style.display = 'flex';
     _syncTopBanners();
   } catch (_) { /* 조회 실패 무시 — 대시보드 렌더에는 영향 없음 */ }
@@ -14414,6 +14564,10 @@ window.addEventListener('load', async ()=>{
       setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
     }
   });
+
+  // 내비 구간(드로어/레일/펼침) 최초 적용 + 회전·리사이즈 추종
+  try { econApplyNavMode(); } catch(_) {}
+  window.addEventListener('resize', () => { try { econApplyNavMode(); } catch(_) {} });
 
   // 창 크기 변경 시 즉시 차트 리사이즈
   let _rszTimer;

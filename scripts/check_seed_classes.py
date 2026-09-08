@@ -51,14 +51,20 @@ CLASS_CONTEXTS = (
 
 
 def used_classes(text):
-    """마크업·JS 의 클래스 자리에서 seed-* 토큰을 모은다."""
-    out = set()
+    """마크업·JS 의 클래스 자리에서 seed-* 토큰을 모은다.
+
+    템플릿 리터럴로 조립되는 이름(`--tone_${tone}-variant_solid`)은 정적으로
+    검증할 수 없다 — 따로 모아 리포트만 한다(무시하면 오타를 놓치고, 실패로
+    치면 정상 코드가 게이트를 막는다).
+    """
+    out, dynamic = set(), set()
     for pat in CLASS_CONTEXTS:
         for chunk in re.findall(pat, text):
             for word in re.split(r"[\s,'\"`]+", chunk):
-                if word.startswith("seed-"):
-                    out.add(word)
-    return out
+                if not word.startswith("seed-"):
+                    continue
+                (dynamic if "${" in word or "'+" in word else out).add(word)
+    return out, dynamic
 
 
 def main():
@@ -76,10 +82,13 @@ def main():
             empty.add(cls)
 
     fail = False
-    used = {}
+    used, dyn = {}, {}
     for rel in SOURCES:
-        for cls in used_classes(read(rel)):
+        static, dynamic = used_classes(read(rel))
+        for cls in static:
             used.setdefault(cls, set()).add(rel)
+        for cls in dynamic:
+            dyn.setdefault(cls, set()).add(rel)
 
     unknown = {c: v for c, v in used.items() if c not in defined}
     if unknown:
@@ -89,6 +98,9 @@ def main():
             print("   %-60s %s" % (c, ", ".join(sorted(unknown[c]))))
     else:
         print("1) 미정의 seed-* 클래스 0 (사용 %d종)" % len(used))
+    if dyn:
+        print("1b) 조립형 이름 %d개 — 정적 검증 불가, 육안 확인 대상: %s"
+              % (len(dyn), ", ".join(sorted(dyn))))
 
     solo_empty = sorted(c for c in used if c in empty and c in defined)
     if solo_empty:

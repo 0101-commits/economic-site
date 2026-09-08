@@ -44,8 +44,15 @@ for (const w of WIDTHS) {
         } catch (_) {}
       }, [theme, conv]);
       const page = await ctx.newPage();
-      const errors = [];
-      page.on('console', m => { if (m.type() === 'error') errors.push(m.text().slice(0, 200)); });
+      const errors = [];   // 스크립트 오류 — 게이트 실패 사유
+      const net = [];      // 리소스 실패(4xx/5xx·타임아웃) — 16연속 로드가 프록시
+                           // 레이트리밋(429)을 때리므로 게이트에서 분리해 집계만 한다
+      const isNet = t => /Failed to load resource|net::ERR|ERR_FAILED|status of \d{3}/.test(t);
+      page.on('console', m => {
+        if (m.type() !== 'error') return;
+        const t = m.text().slice(0, 200);
+        (isNet(t) ? net : errors).push(t);
+      });
       page.on('pageerror', e => errors.push('pageerror: ' + String(e).slice(0, 200)));
       await page.goto(`${BASE}/index.html?p=${PAGE}`, { waitUntil: 'load', timeout: 60000 });
       await page.waitForTimeout(3500);  // 데이터 페치 + 차트 렌더
@@ -79,10 +86,10 @@ for (const w of WIDTHS) {
       });
       const file = join(OUT, `${w}-${theme}-${conv}.png`);
       await page.screenshot({ path: file, fullPage: false });
-      report.push({ w, theme, conv, errors, ...m });
+      report.push({ w, theme, conv, errors, net, ...m });
       console.log(`${w}-${theme}-${conv}  brand=${m.brand} up=${m.up} mode=${m.seedMode} ` +
                   `seedCss=${m.seedLoaded} <44px=${m.smallTargets} fs=${m.fontSizes.length} ` +
-                  `h=${m.scrollHeight} err=${errors.length}`);
+                  `h=${m.scrollHeight} err=${errors.length} net=${net.length}`);
       if (errors.length) console.log('   ! ' + errors.slice(0, 3).join('\n   ! '));
       await ctx.close();
     }

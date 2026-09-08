@@ -20,8 +20,21 @@ window.initSettingsPage = function () {
   var st = document.querySelector('input[name="setPfStyle"][value="' + (s.chart.pfStyle || 'candle') + '"]');
   if (st) st.checked = true;
   var cc = window.econColorConv || 'kr';
+  // segmented-control 상태 동기 — recipe 는 [data-checked] 와 --segment-index 를 읽는다.
+  // (:has() 는 구형 웹뷰 지원 대상이 아니라 상태를 JS 가 세운다)
+  window.econSyncSegmented = function (rootId) {
+    var root = document.getElementById(rootId);
+    if (!root) return;
+    var items = root.querySelectorAll('.seed-segmented-control__item');
+    items.forEach(function (it, i) {
+      var input = it.querySelector('input[type="radio"]');
+      if (input && input.checked) { it.setAttribute('data-checked', ''); root.style.setProperty('--segment-index', i); }
+      else it.removeAttribute('data-checked');
+    });
+  };
   var ccEl = document.querySelector('input[name="setColorConv"][value="' + cc + '"]');
   if (ccEl) ccEl.checked = true;
+  try { econSyncSegmented('setColorConvGroup'); } catch (_) {}
   var sk = 'neutral';
   try { sk = localStorage.getItem('econ_skin') || 'neutral'; } catch (_) {}
   var skEl = document.querySelector('input[name="setSkin"][value="' + sk + '"]');
@@ -88,6 +101,7 @@ window.settingsToggleSync = function (on) { econSettings.patch({ chart: { syncPe
 window.settingsSetPfStyle = function (v) { econSettings.patch({ chart: { pfStyle: v === 'line' ? 'line' : 'candle' } }); };
 window.settingsSetColorConv = function (v) {
   v = (v === 'global') ? 'global' : 'kr';
+  try { econSyncSegmented('setColorConvGroup'); } catch (_) {}
   if (v === (window.econColorConv || 'kr')) return;
   try { localStorage.setItem('econ_color_conv', v); } catch (_) {}
   try { if (typeof showToast === 'function') showToast('색상 방향 적용 중… 새로고침', 'ok'); } catch (_) {}
@@ -470,19 +484,13 @@ window.addEventListener('load', function() {
     var _VALID = ['dashboard','portfolio','equity','macro','market','investor','realestate','calendar','study','notes','merblog','settings'];
     var p = new URLSearchParams(location.search).get('p');
     if(p && _VALID.indexOf(p) >= 0 && p !== 'dashboard') {
-      var mEl = Array.from(document.querySelectorAll('.menu-item')).find(function(m) {
-        return (m.getAttribute('onclick') || '').indexOf("'" + p + "'") >= 0;
-      });
-      showPage(p, mEl || null);
+      showPage(p, (typeof menuItemFor === 'function' ? menuItemFor(p) : null) || null);
     }
     window.addEventListener('popstate', function() {
       try {
         var pg = new URLSearchParams(location.search).get('p') || 'dashboard';
         if(_VALID.indexOf(pg) >= 0) {
-          var el = Array.from(document.querySelectorAll('.menu-item')).find(function(m) {
-            return (m.getAttribute('onclick') || '').indexOf("'" + pg + "'") >= 0;
-          });
-          showPage(pg, el || null);
+          showPage(pg, (typeof menuItemFor === 'function' ? menuItemFor(pg) : null) || null);
         }
       } catch(_) {}
     });
@@ -499,10 +507,7 @@ document.addEventListener('keydown', function(e) {
   var id = PAGE_MAP[e.key];
   if(id) {
     e.preventDefault();
-    var menuEl = Array.from(document.querySelectorAll('.menu-item')).find(function(m) {
-      return (m.getAttribute('onclick') || '').indexOf("'" + id + "'") >= 0;
-    });
-    showPage(id, menuEl || null);
+    showPage(id, (typeof menuItemFor === 'function' ? menuItemFor(id) : null) || null);
     return;
   }
   if(e.key === 'r' || e.key === 'R') {
@@ -654,8 +659,8 @@ function pfExportCsv() {
   window.addEventListener('load', function() {
     try {
       document.querySelectorAll('.menu-item').forEach(function(m) {
-        var oc = m.getAttribute('onclick') || '';
-        if(LOCKED.some(function(p) { return oc.indexOf("'" + p + "'") >= 0; })) {
+        var nav = m.getAttribute('data-nav') || m.getAttribute('onclick') || '';
+        if(LOCKED.some(function(p) { return nav === p || nav.indexOf("'" + p + "'") >= 0; })) {
           var s = document.createElement('span');
           s.textContent = ' 🔒';
           s.setAttribute('aria-label', '비밀번호 잠금');
