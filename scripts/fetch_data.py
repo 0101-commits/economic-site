@@ -2048,6 +2048,53 @@ def fetch_toss_stock_movers(top_n=10):
     return gainers, losers
 
 
+def _investor_align_portal(inv, days=10):
+    """investorTrading 의 최근 `days` 영업일을 **포털(네이버) 기준값으로 정렬**하고 교차검증을 기록한다.
+
+    왜: 수집 경로가 실행 환경에 따라 갈린다(허용 IP PC = 토스, CI = pykrx/네이버). 그런데
+    토스와 네이버는 같은 날 수천억 단위로 다른 값을 낸다(2026-09-10 기관 -134 vs +5,744억
+    — 집계 유니버스 차이). 그 결과 사이트·알림 숫자가 실행마다 바뀌고 포털·언론 수치와도
+    어긋났다. 사용자가 대조하는 값이 포털값이므로 **최근 구간의 표시값을 그쪽으로 고정**한다.
+    (400일 히스토리 전체를 네이버로 재수집하면 매 빌드 30페이지 스크레이핑이라 최근분만 정렬.)
+
+    네이버 파싱 실패 시 아무것도 바꾸지 않는다 — 값을 지우거나 추정하지 않는다.
+    """
+    try:
+        import investor_flows
+        nav = investor_flows.naver_daily("KOSPI")[-days:]
+    except Exception as e:                                   # noqa: BLE001
+        log(f"[투자자] 포털 정렬 생략(네이버 조회 실패: {e})")
+        return inv
+    if not nav:
+        return inv
+    daily = list(inv.get("daily") or [])
+    src_rows = {r.get("date"): r for r in daily if isinstance(r, dict)}
+    cross, replaced = [], 0
+    for n in nav:
+        old = src_rows.get(n["date"])
+        if old is not None:
+            bad = investor_flows.gross_mismatch(n, old)
+            ok, worst = investor_flows.agree(n, old)
+            cross.append({"date": n["date"], "agree": ok,
+                          "maxDiffPct": round(worst * 100, 1), "gross": bad})
+            old.update({k: n[k] for k in ("foreign", "inst", "retail")})
+            replaced += 1
+        else:
+            daily.append({"date": n["date"], "foreign": n["foreign"],
+                          "inst": n["inst"], "retail": n["retail"]})
+            replaced += 1
+    daily.sort(key=lambda r: r.get("date") or "")
+    inv["daily"] = daily
+    inv["recentSource"] = "네이버 금융(KOSPI 투자자별 매매동향, 포털·언론 기준)"
+    inv["recentDays"] = replaced
+    inv["crossCheck"] = cross
+    _dis = [c for c in cross if c.get("gross")]
+    inv["source"] = f"{inv.get('source', '')} + 최근 {replaced}일 네이버 기준 정렬".strip(" +")
+    log(f"[투자자] 최근 {replaced}일 포털 기준 정렬 — 교차검증 불일치 {len(_dis)}건"
+        + (f" ({_dis[0]['date']}: {_dis[0]['gross']})" if _dis else ""))
+    return inv
+
+
 def fetch_toss_investor_trading(lookback_days=400, prev_daily=None):
     """코스피 투자자별 순매수(억원) — 토스 공식. 직전 빌드 시계열과 병합해 길이를 유지한다.
 
@@ -6187,6 +6234,7 @@ def build_data():
         if not (inv and inv.get("daily")):
             inv = fetch_investor_trading()
         if inv and inv.get("daily"):
+            inv = _investor_align_portal(inv)
             data["investorTrading"] = inv
             data["sources"]["investorTrading"] = inv.get("source", "pykrx")
         else:
@@ -6265,6 +6313,11 @@ def build_data():
     data["diagnostics"]["stockMoversSource"] = data["sources"].get("stockMovers", "FAILED")
     data["diagnostics"]["etfMoversSource"]   = data["sources"].get("etfMovers",   "FAILED")
     data["diagnostics"]["investorTradingDays"] = len((data.get("investorTrading") or {}).get("daily", []))
+    # 포털(네이버) ↔ 토스 교차검증 불일치 일수 — 알림은 불일치일의 숫자를 싣지 않는다(_verified_investor).
+    _xc = (data.get("investorTrading") or {}).get("crossCheck") or []
+    if _xc:
+        data["diagnostics"]["investorCrossChecked"] = len(_xc)
+        data["diagnostics"]["investorCrossMismatch"] = sum(1 for c in _xc if c.get("gross"))
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
     data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE

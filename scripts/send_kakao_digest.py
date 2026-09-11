@@ -476,6 +476,12 @@ def build_digest_parts(d):
                  and it.get("price") is not None), None)
     if scfi:
         blocks.append(("운임", f"SCFI {_num(scfi['price'])}{_a1(scfi.get('chgPct'))}{_stale_tag(scfi.get('date'), now)}"))
+    # 투자자 수급(코스피) — **확정치만** 싣는다. KRX 확정은 18시 이후라 그 전 슬롯에선 줄이
+    # 아예 없다(잠정치를 확정처럼 보여 "알림 값이 실제와 다르다"가 났던 게 이 블록의 이유).
+    _inv = _verified_investor()
+    if _inv and _inv.get("confirmed"):
+        blocks.append(("수급", f"외국인 {_inv['foreign']:+,.0f}억 · 기관 {_inv['inst']:+,.0f}억"
+                               f" ({str(_inv['date'])[5:]} 확정)"))
     return title, blocks
 
 
@@ -1633,8 +1639,33 @@ def _dc_thread_name(now):
     return f"📅 {now.month}/{now.day} 시황"
 
 
+def _verified_investor(market="KOSPI"):
+    """오늘자 검증 통과 수급 → {date, foreign, inst, retail, reason, ...} / 없으면 None.
+
+    네이버(포털·언론 기준)값을 토스로 교차검증한 것만 통과시킨다. 실패는 조용히 None —
+    카드·필드에서 수급을 빼고 '집계 중'으로 적는다(틀린 숫자 노출 금지).
+    """
+    try:
+        import investor_flows
+        return investor_flows.verified_latest(market)
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[수급] 검증 조회 실패({e}) — 수급 표기 생략")
+        return None
+
+
+def _investor_row(inv):
+    """텍스트 필드용 수급 한 줄 — (라벨, 값, inline). 미검증이면 '집계 중'."""
+    if not inv:
+        return ("투자자 수급", "집계 중(확정 전)", False)
+    asof = " ".join(x for x in (str(inv.get("date") or "")[5:], inv.get("reason") or "") if x)
+    return ("투자자 수급(코스피)",
+            f"외국인 {inv['foreign']:+,.0f}억 · 기관 {inv['inst']:+,.0f}억"
+            + (f" ({asof})" if asof else ""),
+            False)
+
+
 def _send_close_report(data):
-    """장 마감 리포트(E5) — 15:40 KST 전용 슬롯(close). 디스코드 전용(카카오 무변경),
+    """장 마감 리포트(E5) — 16:40 KST 전용 슬롯(close). 디스코드 전용(카카오 무변경),
     당일 스레드의 '마침표': 마감 지수 + 오늘 발동 알림 수 + 내일 주요 일정."""
     import notify_discord
     now = datetime.datetime.now(KST)
@@ -1690,6 +1721,9 @@ def _send_close_report(data):
                 rows.append(("외국인 수급(관심종목)", " · ".join(_parts), False))
     except Exception:
         pass
+    # 시장 전체 수급(외국인·기관) — 라이브 교차검증본. 카드와 텍스트 필드가 같은 값을 쓴다.
+    _inv = _verified_investor()
+    rows.append(_investor_row(_inv))
     cal = _dc_cal_line(data, now + datetime.timedelta(days=1))
     if cal:
         rows.append(("📅 내일", cal, True))
@@ -1700,12 +1734,10 @@ def _send_close_report(data):
     # 종목명. 재료가 결측인 분면은 카드가 생략. 실패 시 필드만(종전 형식).
     png = None
     # 카드 재료 기본값 — 아래 try 가 중간에 끊겨도 카카오 카드 블록이 미정의 변수를 보지 않게.
-    _intr, _inv, _mv, _fired = None, None, None, []
+    _intr, _mv, _fired = None, None, []          # _inv 는 위에서 이미 검증본으로 확정
     try:
         import discord_card
         _intr = _intraday_chain("^KS11")                 # P0 체인 재사용(빈 패널 금지)
-        _idaily = (data.get("investorTrading") or {}).get("daily") or []
-        _inv = dict(_idaily[-1]) if _idaily else None    # {date, foreign, inst, retail} 억원
         _sm = data.get("stockMovers") or {}
         _mv = ((_sm.get("kospiGainers") or [])[:3], (_sm.get("kospiLosers") or [])[:3])
         _fired = []

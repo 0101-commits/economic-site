@@ -931,7 +931,8 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
                 s.set_visible(False)
             ax3.tick_params(length=0)
             fig.text(0.115, 0.435, _L("투자자 순매수(코스피, 억원)", "net buy (KOSPI, 0.1bn KRW)")
-                     + (f" · {inv.get('date')}" if inv.get("date") else ""),
+                     + (f" · {inv.get('date')}" if inv.get("date") else "")
+                     + (f" {inv.get('reason')}" if inv.get("reason") else ""),
                      color=MUT, fontsize=12)
         # ── 우하: 특징주 top3 + 오늘 발동 알림 + 내일 일정
         ty = 0.435
@@ -970,12 +971,16 @@ def _close_square(plt, its, now, alerts_cnt, cal, intraday, investor, fired_name
     fig = _sq_fig(plt, _L(f"{now.month}/{now.day} 장 마감", f"{now.month}/{now.day} Market Close"),
                   now.strftime("%H:%M"))
     inv = investor or {}
+    # as-of 라벨 필수 — 정사각 카드엔 날짜 칸이 없어 '언제 기준 수급인지' 확인이 불가능했다.
+    # (확정치는 KRX 18시 이후 — 잠정 값을 확정처럼 읽히게 두면 실제 값과 어긋난다.)
+    _asof = " ".join(x for x in (str(inv.get("date") or "")[5:], inv.get("reason") or "") if x)
+    _unit = _L("억원", "0.1bn") + (f" · {_asof}" if _asof else "")
     cells = [[]]
     for lab, key, sat in ((_L("외국인", "foreign"), "foreign", 5000.0),
                           (_L("기관", "inst"), "inst", 5000.0)):
         v = _f(inv.get(key))
         if v is not None:
-            cells[0].append(_cell(lab, f"{v:+,.0f}", _L("억원", "0.1bn"), v, sat=sat))
+            cells[0].append(_cell(lab, f"{v:+,.0f}", _unit, v, sat=sat))
     if alerts_cnt is not None:
         nm = ""
         if fired_names:
@@ -1013,17 +1018,43 @@ def weekly_rows(d):
     return rows
 
 
-def _week_flow_line(d):
-    """주간 수급 합계 캡션(기획 5154773b P3) — investorTrading.daily 최근 5영업일
-    외국인·기관 순매수 합(억원). 결측이면 ""."""
+def _week_flow_5d(d):
+    """주간 수급 5영업일 합 → {from, to, foreign, inst} / 없으면 None.
+
+    소스는 investor_flows(네이버 = 포털·언론 기준) — 일별 타일과 같은 기준이어야 한다.
+    조회 실패 시 data.json.investorTrading 으로 폴백하되, 그때는 집계 구간을 캡션에 적어
+    '어디까지 더한 값'인지 숨기지 않는다.
+    """
     try:
-        daily = ((d.get("investorTrading") or {}).get("daily") or [])[-5:]
-        if not daily:
+        import investor_flows
+        w = investor_flows.week_sum("KOSPI", 5)
+        if w:
+            return w
+    except Exception:                                        # noqa: BLE001
+        pass
+    daily = [r for r in ((d.get("investorTrading") or {}).get("daily") or [])
+             if _f(r.get("foreign")) is not None and _f(r.get("inst")) is not None][-5:]
+    if not daily:
+        return None
+    return {"from": daily[0].get("date"), "to": daily[-1].get("date"), "days": len(daily),
+            "foreign": sum(_f(r.get("foreign")) for r in daily),
+            "inst": sum(_f(r.get("inst")) for r in daily)}
+
+
+def _week_flow_line(d):
+    """주간 수급 합계 캡션(기획 5154773b P3) — 최근 5영업일 외국인·기관 순매수 합(억원).
+
+    집계 구간(MM-DD~MM-DD)을 함께 적는다 — 구간을 안 적으면 '5일'이 어느 5일인지
+    확인할 방법이 없어 실제 값 대조가 불가능했다. 결측이면 "".
+    """
+    try:
+        w = _week_flow_5d(d)
+        if not w:
             return ""
-        fo = sum(_f(r.get("foreign")) or 0 for r in daily)
-        it = sum(_f(r.get("inst")) or 0 for r in daily)
-        return _L(f"주간 수급(코스피 5일): 외국인 {fo:+,.0f}억 · 기관 {it:+,.0f}억",
-                  f"weekly net buy (KOSPI 5d): foreign {fo:+,.0f} · inst {it:+,.0f} (0.1bn KRW)")
+        fo, it = w["foreign"], w["inst"]
+        span = f"{str(w.get('from') or '')[5:]}~{str(w.get('to') or '')[5:]}"
+        return _L(f"주간 수급(코스피 {span}): 외국인 {fo:+,.0f}억 · 기관 {it:+,.0f}억",
+                  f"weekly net buy (KOSPI {span}): foreign {fo:+,.0f} · inst {it:+,.0f} (0.1bn KRW)")
     except Exception:
         return ""
 
@@ -1134,11 +1165,12 @@ def _weekly_square(plt, d, now, rows, next_week):
     best, worst = rows[-1], rows[0]
     cells = [[_cell(_L("최고", "best"), best[0], f"{best[2]:+.2f}%", best[2]),
               _cell(_L("최저", "worst"), worst[0], f"{worst[2]:+.2f}%", worst[2])]]
-    daily = ((d.get("investorTrading") or {}).get("daily") or [])[-5:]
-    if daily:
-        fo = sum(_f(r.get("foreign")) or 0 for r in daily)
+    _w5 = _week_flow_5d(d)
+    if _w5:
+        fo = _w5["foreign"]
+        _span = f"{str(_w5.get('from') or '')[5:]}~{str(_w5.get('to') or '')[5:]}"
         cells[0].append(_cell(_L("외국인 5일", "foreign 5d"), f"{fo:+,.0f}",
-                              _L("억원", "0.1bn"), fo, sat=20000.0))
+                              _L("억원", "0.1bn") + f" · {_span}", fo, sat=20000.0))
     _draw_cells(fig, cells, (0.03, 0.775, 0.94, 0.145), (13, 19, 13), square=True)
     _bars(fig, [0.17, 0.135, 0.80, 0.60], [(l, c) for l, _k, c in rows],
           square=True, lim_mul=1.3)
