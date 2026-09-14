@@ -48,6 +48,10 @@ GROSS_PCT = 0.35
 GROSS_ABS = 1000.0          # 절대차가 이 미만(억원)이면 상대차가 커도 오류로 보지 않는다
 GROSS_SIGN_FLOOR = 1000.0   # 이 미만(억원)은 부호 뒤집힘을 오류로 보지 않는다(0 근처 노이즈)
 
+# 확정치 판정 — KRX 확정은 18시 이후 공표, 토스 updatedAt 은 20:00 고정 크론.
+CONFIRM_TOSS_HOUR = 18      # 토스 updatedAt 이 이 시각 이후면 확정
+CONFIRM_CLOCK_HOUR = 19     # updatedAt 이 없어도(스냅샷 경로) 이 시각 이후면 확정
+
 _NAVER_SOSOK = {"KOSPI": "01", "KOSDAQ": "02"}
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
@@ -238,11 +242,14 @@ def verified_latest(market="KOSPI", today=None, now=None):
             return None
         ok, worst = agree(nav, tos)
         out["agree"], out["maxDiffPct"] = ok, round(worst * 100, 1)
-        upd = str(tos.get("updatedAt") or "")
-        m = re.match(r"^\d{4}-\d\d-\d\dT(\d\d):", upd)
-        out["confirmed"] = bool(m) and int(m.group(1)) >= 18
-    else:
-        out["confirmed"] = now.hour >= 19
+    # 확정 판정은 **시계가 기본**이고 토스 updatedAt 은 그것을 앞당기는 보조 신호다.
+    # (CI 에선 토스 라이브가 403 이라 교차검증이 스냅샷 경로를 타는데, 스냅샷 행에는
+    #  updatedAt 이 없다. 판정이 updatedAt 에만 매달려 있으면 20시에도 '잠정'이 되어
+    #  확정 수급 줄이 프로덕션에서 영영 안 뜬다 — 2026-09-11 20시 런 실측.)
+    upd = str((tos or {}).get("updatedAt") or "")
+    m = re.match(r"^\d{4}-\d\d-\d\dT(\d\d):", upd)
+    out["confirmed"] = bool(m and int(m.group(1)) >= CONFIRM_TOSS_HOUR) or (
+        today == now.strftime("%Y-%m-%d") and now.hour >= CONFIRM_CLOCK_HOUR)
     out["reason"] = ("확정" if out["confirmed"] else "잠정")
     log(f"{market} {today} 외국인 {out['foreign']:+,.0f} 기관 {out['inst']:+,.0f} "
         f"개인 {out['retail']:+,.0f}억 ({out['reason']}, 일치={out['agree']}, "

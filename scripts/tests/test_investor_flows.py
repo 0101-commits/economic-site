@@ -74,6 +74,33 @@ def test_verified_latest_uses_naver_values(monkeypatch):
     assert out["agree"] is False and out["maxDiffPct"] == 5.9       # 값은 싣되 불일치는 기록
 
 
+def test_confirmed_by_clock_when_snapshot_has_no_updated_at(monkeypatch):
+    """CI 회귀 가드 — 토스 403 → 스냅샷(updatedAt 없음) 경로에서도 19시 이후면 확정.
+
+    2026-09-11 20시 런 실측: updatedAt 에만 의존해 20시에도 '잠정'이 되어
+    확정 수급 줄이 한 번도 실리지 않았다.
+    """
+    import datetime as _dt
+    monkeypatch.setattr(inf, "naver_daily", lambda *a, **k: [NAV])
+    monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: [dict(TOS, updatedAt=None)])
+    at20 = _dt.datetime(2026, 9, 11, 20, 5, tzinfo=inf.KST)
+    out = inf.verified_latest("KOSPI", today="2026-09-11", now=at20)
+    assert out["confirmed"] is True and out["reason"] == "확정"
+    at17 = _dt.datetime(2026, 9, 11, 17, 5, tzinfo=inf.KST)
+    assert inf.verified_latest("KOSPI", today="2026-09-11", now=at17)["reason"] == "잠정"
+
+
+def test_confirmed_clock_rule_needs_same_day(monkeypatch):
+    """어제 날짜를 오늘 20시에 조회해도 '확정'을 자칭하지 않는다."""
+    import datetime as _dt
+    monkeypatch.setattr(inf, "naver_daily", lambda *a, **k: [dict(NAV, date="2026-09-10")])
+    monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: [
+        dict(TOS, date="2026-09-10", updatedAt=None)])
+    out = inf.verified_latest("KOSPI", today="2026-09-10",
+                              now=_dt.datetime(2026, 9, 11, 20, 5, tzinfo=inf.KST))
+    assert out["confirmed"] is False
+
+
 def test_verified_latest_none_when_today_row_missing(monkeypatch):
     monkeypatch.setattr(inf, "naver_daily", lambda *a, **k: [NAV])   # 09-11 만 있음
     monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: [TOS])
