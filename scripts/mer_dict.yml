@@ -1,0 +1,885 @@
+# 메르 리스크 렌즈 — 정규화 사전
+# 자유 서술 from/to/indicator/asset 문자열을 정식 ID 하나로 접는다.
+# 근거: 기획안 §3.7 ① — 810개 엣지에서 문자열이 같은 쌍은 최대 n=2. 사전 없이는 히트맵이 통째로 빈다.
+# aliases 는 정규식(대소문자 무시, 부분 일치). entities 순서대로 첫 일치가 이긴다(specific → generic).
+# layer: cause(원인) → market(시장 변수) → channel(창구) → asset(자산)
+# dataKind: close(history.*[{date,close}]) | map({date:val}) | curve(yieldCurve) | sentiment | jgb(mer_series) | none
+version: v0.3
+updated: 2026-09-15
+layers: [cause, market, channel, asset]
+
+entities:
+
+# ───────────────────────── market · 금리
+- id: us10y
+  label: 미국채 10년물
+  layer: market
+  unit: '%'
+  dataKind: curve
+  dataPath: yieldCurve.us:10Y
+  plausible: [2, 8]
+  aliases:
+    - '미국\s*(국채|채)\s*10년'
+    - '미\s*10년(물|국채)'
+    - 'US\s*10Y'
+    - '10년물\s*(국채)?\s*금리'
+    - '미국채\s*10'
+    - '미국\s*10년물'
+    - '^금리\s*(상승|하락|급등|급락|폭등)'
+    - '텀\s*프리미엄'
+    - 'term\s*premium'
+    - '(장기|시장|국채)\s*금리'
+    - '미국\s*금리'
+- id: us30y
+  label: 미국채 30년물
+  layer: market
+  unit: '%'
+  dataKind: curve
+  dataPath: yieldCurve.us:30Y
+  plausible: [2, 9]
+  aliases:
+    - '미국\s*(국채|채)\s*30년'
+    - '미\s*30년(물|국채)'
+    - '30년물\s*(실질)?\s*금리'
+    - '초장기\s*(국채|금리)'
+- id: us2y
+  label: 미국채 2년물
+  layer: market
+  unit: '%'
+  dataKind: curve
+  dataPath: yieldCurve.us:2Y
+  plausible: [1, 8]
+  aliases:
+    - '미국\s*(국채|채)\s*2년'
+    - '2년물\s*금리'
+    - '단기\s*국채\s*금리'
+- id: t10y2y
+  label: 미 장단기 금리차
+  layer: market
+  unit: '%p'
+  dataKind: map
+  dataPath: economicIndicators.us.t10y2y_us
+  plausible: [-3, 3]
+  aliases:
+    - '장단기\s*(금리)?\s*역전'
+    - '수익률\s*곡선'
+    - '일드\s*커브'
+    - '금리\s*역전'
+- id: jgb30y
+  label: 일본국채 30년물
+  layer: market
+  unit: '%'
+  dataKind: jgb
+  dataPath: mer_series.jgb:30Y
+  plausible: [0.5, 8]
+  aliases:
+    - '일본\s*(국채|초장기국채)\s*30년'
+    - 'JGB\s*30'
+    - '일본\s*30년물'
+- id: jgb10y
+  label: 일본국채 10년물
+  layer: market
+  unit: '%'
+  dataKind: jgb
+  dataPath: mer_series.jgb:10Y
+  plausible: [0, 5]
+  aliases:
+    - '일본\s*(국채|채)\s*10년'
+    - 'JGB\s*10'
+    - '일본국채\s*금리'
+    - '일본\s*(장기)?\s*금리'
+- id: kr10y
+  label: 한국 국고채 10년물
+  layer: market
+  unit: '%'
+  dataKind: curve
+  dataPath: yieldCurve.kr:10Y
+  plausible: [1, 8]
+  aliases:
+    - '한국\s*(국채|국고채)\s*10년'
+    - '국고채\s*10'
+    - '한국\s*장기\s*금리'
+- id: corp3yAA
+  label: 회사채 AA- 3년
+  layer: market
+  unit: '%'
+  dataKind: curve
+  dataPath: yieldCurve.kr.corp:corp3yAA
+  plausible: [1, 10]
+  aliases:
+    - '회사채\s*(AA|금리)'
+    - '한전\s*회사채'
+    - '크레딧\s*스프레드'
+- id: hy_spread
+  label: 미 하이일드 스프레드
+  layer: market
+  unit: '%'
+  dataKind: map
+  dataPath: economicIndicators.us.hy_spread
+  plausible: [1, 15]
+  aliases:
+    - '하이일드'
+    - '신용\s*스프레드'
+    - '정크\s*본드'
+    - 'HY\s*스프레드'
+- id: ff_target
+  label: 미 기준금리(FFR)
+  layer: cause
+  unit: '%'
+  dataKind: map
+  dataPath: economicIndicators.us.ff_target
+  plausible: [0, 10]
+  aliases:
+    - '(미국|미)\s*기준금리'
+    - '연준\s*(기준)?\s*금리'
+    - 'FOMC'
+    - '연준\s*(금리)?\s*(인하|인상|정책|피벗)'
+    - '포워드\s*가이던스'
+    - '금리\s*(인하|인상)'
+- id: boj_rate
+  label: 일본은행 기준금리
+  layer: cause
+  unit: '%'
+  dataKind: none
+  dataPath: economicIndicators.jp.base_rate_jp
+  plausible: [0, 5]
+  aliases:
+    - '일본\s*기준금리'
+    - '일본은행'
+    - 'BOJ'
+    - '일본\s*(금리)?\s*인상'
+- id: bok_rate
+  label: 한국은행 기준금리
+  layer: cause
+  unit: '%'
+  dataKind: none
+  dataPath: economicIndicators.kr.base_rate_kr
+  plausible: [0, 8]
+  aliases:
+    - '한국\s*기준금리'
+    - '한국은행'
+    - '한은'
+    - 'BOK'
+
+# ───────────────────────── market · 환율
+- id: usdkrw
+  label: 원달러 환율
+  layer: market
+  unit: 원
+  dataKind: close
+  dataPath: history.fx.USDKRW
+  plausible: [800, 2500]
+  aliases:
+    - '원\s*달러'
+    - '원/달러'
+    - '달러\s*원'
+    - 'USDKRW'
+    - '원화\s*(가치|강세|약세|절상|절하)'
+    - '^원화$'
+    - '(원화)?\s*환율'
+- id: usdjpy
+  label: 엔달러 환율
+  layer: market
+  unit: 엔
+  dataKind: close
+  dataPath: history.fx.USDJPY
+  plausible: [70, 300]
+  aliases:
+    - '엔\s*달러'
+    - '달러\s*엔'
+    - '엔/달러'
+    - 'USDJPY'
+    - '엔화\s*(가치|강세|약세|환율|급등)'
+    - '^엔화$'
+- id: dxy
+  label: 달러인덱스
+  layer: market
+  unit: idx
+  dataKind: map
+  dataPath: economicIndicators.us.dxy_idx
+  plausible: [60, 140]
+  aliases:
+    - '달러\s*인덱스'
+    - 'DXY'
+    - '달러\s*(강세|약세|가치|패권|지위)'
+    - '기축통화'
+    - '^달러$'
+
+# ───────────────────────── market · 물가·유동성·변동성
+- id: core_cpi_us
+  label: 미 근원CPI
+  layer: market
+  unit: '%'
+  dataKind: none
+  dataPath: economicIndicators.us.cpi_us
+  plausible: [0, 10]
+  aliases:
+    - '근원\s*CPI'
+    - 'Core\s*(CPI|PPI)'
+    - '미국?\s*CPI'
+    - '소비자물가'
+    - 'CPI'
+- id: pce_us
+  label: 미 PCE
+  layer: market
+  unit: '%'
+  dataKind: none
+  dataPath: economicIndicators.us.pce_us
+  plausible: [0, 10]
+  aliases:
+    - 'PCE'
+    - '연준\s*물가\s*목표'
+- id: inflation
+  label: 인플레이션
+  layer: market
+  dataKind: none
+  aliases:
+    - '인플레이션'
+    - '기대\s*인플레'
+    - 'BEI'
+    - '디플레'
+    - '물가'
+- id: reserves
+  label: 미 지급준비금
+  layer: market
+  unit: 조달러
+  dataKind: none
+  aliases:
+    - '지급\s*준비금'
+    - '지준'
+    - 'WRESBAL'
+- id: rrp
+  label: 미 역레포(RRP)
+  layer: market
+  unit: 억달러
+  dataKind: none
+  aliases:
+    - '역레포'
+    - 'RRP'
+    - '레포\s*(시장|금리|급등|활용)'
+    - 'FIMA'
+- id: tga
+  label: 재무부 일반계정(TGA)
+  layer: market
+  unit: 억달러
+  dataKind: none
+  aliases:
+    - 'TGA'
+    - '재무부\s*(일반)?\s*계정'
+- id: liquidity
+  label: 시장 유동성
+  layer: market
+  dataKind: none
+  aliases:
+    - '유동성'
+    - '스텔스\s*QE'
+    - '양적\s*(완화|긴축)'
+    - '^QE$'
+    - '^QT$'
+    - '자금\s*경색'
+- id: vix
+  label: VIX
+  layer: market
+  unit: idx
+  dataKind: map
+  dataPath: economicIndicators.us.vix
+  plausible: [8, 100]
+  aliases:
+    - 'VIX'
+    - '변동성\s*지수'
+- id: vkospi
+  label: VKOSPI
+  layer: market
+  unit: idx
+  dataKind: sentiment
+  dataPath: sentiment.vkospi
+  plausible: [8, 100]
+  aliases:
+    - 'VKOSPI'
+    - '코스피\s*변동성'
+- id: volatility
+  label: 시장 변동성
+  layer: market
+  dataKind: none
+  aliases:
+    - '변동성'
+    - 'MOVE\s*지수'
+
+# ───────────────────────── cause · 정책·지정학·재정
+- id: hormuz
+  label: 호르무즈 봉쇄
+  layer: cause
+  aliases:
+    - '호르무즈'
+    - '해협\s*(봉쇄|개방|폐쇄)'
+    - '수에즈'
+    - '홍해'
+    - '항로\s*우회'
+- id: geopolitics
+  label: 지정학 충돌
+  layer: cause
+  aliases:
+    - '전쟁'
+    - '이란'
+    - '이스라엘'
+    - '러시아'
+    - '우크라이나'
+    - '후티'
+    - '드론\s*공격'
+    - '지정학'
+    - '중동'
+    - '대만\s*(해협|침공)'
+- id: tariff
+  label: 관세·수출통제
+  layer: cause
+  aliases:
+    - '관세'
+    - '무역\s*(전쟁|분쟁|장벽|협상|갈등)'
+    - '보복'
+    - '수출\s*(통제|규제|금지)'
+    - '희토류\s*(통제|수출)'
+    - '엔티티\s*리스트'
+- id: fiscal
+  label: 재정적자·국채 발행
+  layer: cause
+  aliases:
+    - '재정\s*(적자|지출|건전성)'
+    - '국가\s*부채'
+    - '국채\s*(발행|공급|물량|증발)'
+    - '이자\s*비용'
+    - '셧다운'
+    - '부채\s*한도'
+    - '리펀딩'
+    - 'TBAC'
+    - 'T-bill'
+    - '자금조달\s*계획'
+    - '조달\s*(비용|한계)'
+- id: buyback
+  label: 재무부 바이백
+  layer: cause
+  aliases:
+    - '바이백'
+    - 'buyback'
+    - '국채\s*매입'
+- id: regulation
+  label: 제도·규제 변경
+  layer: cause
+  aliases:
+    - 'DSR'
+    - 'LTV'
+    - '주담대\s*한도'
+    - '대출\s*(규제|한도|제한)'
+    - '업틱룰'
+    - '공매도'
+    - 'ESR'
+    - 'SMR'
+    - '지급여력'
+    - 'MACR'
+    - 'IRA'
+    - '세액공제'
+    - '스트레스\s*테스트'
+    - '규제\s*(지역|강화|완화|불확실성)'
+    - '시행령'
+    - '법안'
+    - '고시'
+    - '의무화'
+    - '보유세'
+    - '종부세'
+    - '양도세'
+    - '취득세'
+    - '공정시장가액'
+    - '현실화율'
+    - 'CBAM'
+    - '클로처'
+    - '필리버스터'
+    - '^규제$'
+- id: us_politics
+  label: 미 정치·선거
+  layer: cause
+  aliases:
+    - '중간\s*선거'
+    - '트럼프'
+    - '공화당'
+    - '민주당'
+    - '(상원|하원|의회)'
+    - '게리맨더링'
+    - 'TACO'
+- id: employment
+  label: 미 고용·실업률
+  layer: market
+  unit: '%'
+  dataKind: none
+  aliases:
+    - '실업률'
+    - '고용\s*(지표|시장|보고서)'
+    - '비농업'
+    - '에반스\s*룰'
+- id: fed_policy
+  label: 연준 정책 전환
+  layer: cause
+  aliases:
+    - 'QT\s*중단'
+    - '연준\s*(대차대조표|스탠스)'
+    - '통화\s*정책'
+- id: ai_capex
+  label: AI 캐펙스·데이터센터
+  layer: cause
+  aliases:
+    - 'AI\s*(캐펙스|CAPEX|투자|확산|붐|버블|수요|안전)'
+    - '데이터\s*센터'
+    - 'GPU'
+    - '오픈AI'
+    - 'OpenAI'
+    - '순환\s*(금융|거래)'
+    - '^AI'
+- id: energy_demand
+  label: 전력 수요·공급
+  layer: cause
+  aliases:
+    - '전력\s*(수요|공급|망|요금|부족|소비)'
+    - 'firm'
+    - '원전\s*(재가동|건설|수출|가동)'
+    - '송전'
+- id: china_policy
+  label: 중국 정책·자본통제
+  layer: cause
+  aliases:
+    - '중국\s*(정부|당국|정책|규제|덤핑|비협조|자본)'
+    - '시진핑'
+    - '위안화'
+    - '인민은행'
+- id: japan_policy
+  label: 일본 정책·개입
+  layer: cause
+  aliases:
+    - '일본\s*(정부|재무성|당국|정책|지급여력)'
+    - '외환\s*개입'
+    - '환율\s*개입'
+    - '다카이치'
+- id: korea_policy
+  label: 한국 정책
+  layer: cause
+  aliases:
+    - '한국\s*(정부|당국|정책)'
+    - '외환\s*당국'
+    - '금융위'
+    - '금감원'
+    - '생산적\s*금융'
+    - 'ISA'
+    - '농지\s*(전수|처분)'
+
+# ───────────────────────── channel · 창구
+- id: nps_flow
+  label: 국민연금 리밸런싱
+  layer: channel
+  aliases:
+    - '국민\s*연금'
+    - '연기금'
+    - 'NPS'
+    - '리밸런싱'
+    - 'SAA'
+    - 'TAA'
+- id: foreign_flow
+  label: 외국인 수급
+  layer: channel
+  aliases:
+    - '외국인'
+    - 'VaR'
+    - '위험\s*예산'
+- id: program_trade
+  label: 프로그램 매매
+  layer: channel
+  aliases:
+    - '프로그램\s*(매매|비차익|차익)'
+    - '비차익'
+    - '패시브'
+- id: etf_2x
+  label: 레버리지 ETF
+  layer: channel
+  aliases:
+    - '2배\s*ETF'
+    - '2X'
+    - '단일\s*종목\s*(2배|레버리지)'
+    - '레버리지\s*ETF'
+    - '일일\s*리밸런싱'
+- id: trs_china
+  label: 중국 TRS
+  layer: channel
+  aliases:
+    - 'TRS'
+    - '총수익\s*스왑'
+- id: carry_trade
+  label: 엔캐리 트레이드
+  layer: channel
+  aliases:
+    - '엔\s*캐리'
+    - '캐리\s*(트레이드|청산)'
+    - '엔\s*스퀴즈'
+    - '숏\s*(커버|손절)'
+- id: margin_call
+  label: 담보·강제청산
+  layer: channel
+  aliases:
+    - '강제\s*청산'
+    - '마진\s*콜'
+    - '반대\s*매매'
+    - '디레버리징'
+    - '담보'
+- id: adr_arb
+  label: ADR 차익거래
+  layer: channel
+  aliases:
+    - 'ADR'
+- id: retail_flow
+  label: 개인 수급
+  layer: channel
+  aliases:
+    - '개인\s*(투자자|매수|매도|자금|여력|적정)'
+    - '예탁금'
+    - '신용\s*융자'
+- id: fx_hedge
+  label: 환헤지·역송금
+  layer: channel
+  aliases:
+    - '환\s*헤지'
+    - '헤지\s*비율'
+    - '역송금'
+    - '달러\s*환전'
+    - '주주\s*환원'
+    - 'WGBI'
+- id: private_credit
+  label: 사모대출·BDC
+  layer: channel
+  aliases:
+    - '사모\s*(대출|신용)'
+    - 'BDC'
+    - 'PIK'
+    - '환매\s*(한도|중단|게이트)'
+    - 'Mark\s*to\s*Model'
+
+# ───────────────────────── asset · 지수·업종·원자재
+- id: kospi
+  label: 코스피
+  layer: asset
+  unit: p
+  dataKind: close
+  dataPath: history.indices.KOSPI
+  plausible: [1000, 20000]
+  aliases:
+    - '코스피'
+    - 'KOSPI'
+    - '국내\s*(증시|주식|장)'
+    - '한국\s*(증시|주식|주가)'
+    - '국장'
+- id: kosdaq
+  label: 코스닥
+  layer: asset
+  dataKind: close
+  dataPath: history.indices.KOSDAQ
+  plausible: [300, 3000]
+  aliases:
+    - '코스닥'
+    - 'KOSDAQ'
+- id: us_equity
+  label: 미국 증시
+  layer: asset
+  dataKind: close
+  dataPath: history.indices.SP500
+  plausible: [1000, 20000]
+  aliases:
+    - 'S&P'
+    - 'SP500'
+    - '나스닥'
+    - 'NASDAQ'
+    - '미국\s*(증시|주식|주가|장)'
+    - '미장'
+    - '기술주'
+    - '성장주'
+    - '다우'
+- id: nikkei
+  label: 일본 증시
+  layer: asset
+  dataKind: close
+  dataPath: history.indices.Nikkei
+  plausible: [10000, 120000]
+  aliases:
+    - '닛케이'
+    - '일본\s*(증시|주식|주가)'
+- id: china_equity
+  label: 중국 증시
+  layer: asset
+  dataKind: close
+  dataPath: history.indices.Shanghai
+  plausible: [1000, 10000]
+  aliases:
+    - '상해'
+    - '상하이'
+    - '홍콩'
+    - '중국\s*(증시|주식)'
+- id: semis
+  label: 반도체
+  layer: asset
+  dataKind: close
+  dataPath: history.indices.SOX
+  plausible: [500, 30000]
+  aliases:
+    - '반도체'
+    - 'SOX'
+    - '필라델피아'
+    - 'HBM'
+    - 'D램'
+    - 'DRAM'
+    - '낸드'
+    - '삼성전자'
+    - 'SK\s*하이닉스'
+    - '하이닉스'
+    - 'CXMT'
+    - '엔비디아'
+    - 'NVIDIA'
+    - 'TSMC'
+    - '파운드리'
+- id: ships
+  label: 조선
+  layer: asset
+  aliases:
+    - '조선'
+    - '한화오션'
+    - 'HD현대'
+    - '삼성중공업'
+    - '신조선가'
+    - '중고선가'
+    - '톤마일'
+    - '선박'
+    - 'VLCC'
+- id: defense
+  label: 방산
+  layer: asset
+  aliases:
+    - '방산'
+    - '한화에어로'
+    - '현대로템'
+    - '무기\s*(수출|계약)'
+- id: nuclear
+  label: 원전·전력주
+  layer: asset
+  aliases:
+    - '원전'
+    - '원자력'
+    - '두산에너빌리티'
+    - '오클로'
+    - 'Oklo'
+    - '한전'
+- id: banks
+  label: 은행·금융주
+  layer: asset
+  aliases:
+    - '은행'
+    - '금융주'
+    - '생보'
+    - '보험사'
+    - '증권사'
+- id: realestate
+  label: 부동산
+  layer: asset
+  aliases:
+    - '부동산'
+    - '아파트'
+    - '주택'
+    - '전세'
+    - '월세'
+    - '농지'
+    - '분양'
+- id: ust
+  label: 미국채(자산)
+  layer: asset
+  aliases:
+    - '미국채\s*(수요|매수|투자|보유|시장)'
+    - '국채\s*(수요|매수|투자)'
+    - '채권\s*(가격|평가손|수요)'
+    - '^미국채$'
+    - '^미국\s*국채$'
+    - '안전\s*자산'
+- id: gold
+  label: 금
+  layer: asset
+  dataKind: close
+  dataPath: history.commodities.Gold
+  plausible: [500, 15000]
+  aliases:
+    - '금\s*(가격|값|시세|수요)'
+    - '귀금속'
+    - '골드'
+    - '김치\s*프리미엄'
+    - '^금$'
+- id: silver
+  label: 은
+  layer: asset
+  dataKind: close
+  dataPath: history.commodities.Silver
+  plausible: [5, 300]
+  aliases:
+    - '은\s*(가격|값|수요|공급)'
+    - '^은$'
+- id: copper
+  label: 구리·비철
+  layer: asset
+  dataKind: close
+  dataPath: history.commodities.Copper
+  plausible: [1, 20]
+  aliases:
+    - '구리'
+    - '비철'
+    - 'LME'
+    - '알루미늄'
+    - '니켈'
+    - '아연'
+- id: oil
+  label: 원유·유가
+  layer: asset
+  unit: $
+  dataKind: close
+  dataPath: history.commodities.WTI
+  plausible: [20, 300]
+  aliases:
+    - '국제\s*유가'
+    - 'WTI'
+    - '브렌트'
+    - '원유'
+    - '두바이'
+    - '정제\s*마진'
+    - '경유'
+    - '나프타'
+    - '중질유'
+    - '유가'
+- id: gasoline
+  label: 미 휘발유
+  layer: asset
+  unit: $
+  dataKind: close
+  dataPath: history.commodities.Gasoline
+  plausible: [1, 10]
+  aliases:
+    - '휘발유'
+    - '갤런'
+    - '주유소'
+- id: lng
+  label: LNG·천연가스
+  layer: asset
+  dataKind: close
+  dataPath: history.commodities.NatGas
+  plausible: [0.5, 60]
+  aliases:
+    - 'LNG'
+    - '천연\s*가스'
+    - 'JKM'
+    - '가스\s*(가격|공급)'
+- id: crypto
+  label: 비트코인·암호화폐
+  layer: asset
+  aliases:
+    - '비트\s*코인'
+    - 'BTC'
+    - '암호\s*화폐'
+    - '가상\s*자산'
+    - '스테이블\s*코인'
+    - '클라리티'
+    - '코인'
+- id: agri
+  label: 농산물·비료
+  layer: asset
+  aliases:
+    - '농산물'
+    - '비료'
+    - '요소'
+    - '곡물'
+    - '대두'
+    - '옥수수'
+- id: rare_earth
+  label: 희토류·전략광물
+  layer: asset
+  aliases:
+    - '희토류'
+    - 'NdPr'
+    - '디스프로슘'
+    - '중희토'
+    - '텅스텐'
+    - '코발트'
+    - '리튬'
+    - '영구\s*자석'
+    - '헬륨'
+    - '삼중수소'
+- id: autos
+  label: 자동차·2차전지
+  layer: asset
+  aliases:
+    - '자동차'
+    - '현대차'
+    - '기아'
+    - '2차\s*전지'
+    - '배터리'
+    - 'ESS'
+    - '전기차'
+- id: bio
+  label: 바이오·제약
+  layer: asset
+  aliases:
+    - '바이오'
+    - '제약'
+    - '신약'
+    - '임상'
+- id: freight_rate
+  label: 해상운임
+  layer: asset
+  aliases:
+    - 'SCFI'
+    - 'CCFI'
+    - 'BDI'
+    - '운임'
+    - '해운'
+    - '용선료'
+
+# ───────────────────────── 전이 경로 프리셋 (기획안 §3.3, 5구간 교차 병합본)
+# 통계로 재발견하지 않는다 — 자유 서술 사슬은 문자열이 일치하지 않아 병합이 0으로 떨어진다.
+# 여기 적힌 순서가 블록 ②의 「경로 하이라이트」이고, n·logNos 는 집계기가
+# 추출 chain 문자열에 이 ID가 2개 이상 등장하는 글을 세어 붙인다.
+chains:
+- id: C1
+  label: 재정 눈덩이
+  steps: [us10y, fiscal, ust, us10y]
+  note: 금리↑ → 이자비용↑ → 적자↑ → 국채 발행↑ → 국채가 흔해짐 → 금리↑
+- id: C2
+  label: 바이백 되돌이표
+  steps: [us10y, buyback, fiscal, us10y]
+  note: 금리 급등 → 바이백 확대 → 단기채 조달 → 만기 단축·텀프리미엄↑ → 금리 재상승
+- id: C3
+  label: 유동성 3형제
+  steps: [rrp, tga, reserves, liquidity, fed_policy]
+  note: RRP 소진 → TGA 재건 → 지급준비금 하회 → 레포 급증 → QT 중단 → QE 탐색
+- id: C4
+  label: 변동성 → 기계적 매도
+  steps: [vkospi, foreign_flow, kospi, volatility]
+  note: VKOSPI↑ → VaR 부풀음 → 위험예산 초과 → 외국인 축소 → 지수↓ → 변동성↑
+- id: C5
+  label: 봉쇄 파편
+  steps: [hormuz, oil, lng, agri, rare_earth, semis]
+  note: 봉쇄 → 원유·LNG / 나프타→플라스틱 / 황·요소→비료 / 헬륨→반도체 / 중질유→경유
+- id: C6
+  label: 엔 스퀴즈
+  steps: [usdjpy, japan_policy, carry_trade, jgb30y, us_equity]
+  note: 엔 약세 → 개입 → 숏 손절 도미노 → 엔 급등 → 캐리 청산 → 위험자산 디레버리징
+- id: C7
+  label: 레버리지 증폭
+  steps: [etf_2x, semis, volatility, regulation]
+  note: 2배 ETF 허용 → 유입 → 종가 변동성↑ → 서킷 빈발 → 규제 → 청산은 2배로
+- id: C8
+  label: 규제 풍선(부동산)
+  steps: [regulation, realestate, banks]
+  note: 규제지역 지정 → 인근 급등 → 확대 → 대출 한도 축소 → 보유세 인상
+- id: C9
+  label: 사모대출 이연
+  steps: [private_credit, hy_spread, banks]
+  note: PIK 이연 → 만기도래 급증 → 연장 거절 → 환매 한도 초과 → 게이트
+- id: C10
+  label: 톤마일 수혜
+  steps: [hormuz, freight_rate, ships]
+  note: 우회 항로 → 톤마일↑ → 중고선가가 신조선가 역전 → 한국 조선

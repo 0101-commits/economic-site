@@ -170,6 +170,29 @@ def main():
                                      any(not (r.get("code") and r.get("price")) for r in rows)):
                 warns.append(f"rankingsKr.{key}: code/price 누락 행")
 
+    # 메르 리스크 렌즈 집계(mer_signals.json) — P2 산출물, 있으면 형태만 점검(비차단 경고).
+    # 파일이 없으면(P2 미실행) 조용히 통과 — data.json 커밋 게이트와는 무관한 산출물이다.
+    mer_path = os.path.join(os.path.dirname(__file__), "..", "mer_signals.json")
+    if os.path.exists(mer_path):
+        try:
+            with open(mer_path, encoding="utf-8") as f:
+                mer = json.load(f)
+        except (OSError, ValueError) as e:
+            warns.append(f"mer_signals.json 파싱 실패: {e}")
+            mer = None
+        if isinstance(mer, dict):
+            for key in ("indicators", "impacts", "graph", "stance", "regime", "lens"):
+                if key not in mer:
+                    warns.append(f"mer_signals.json: 필수 키 누락 ({key})")
+            graph = mer.get("graph") or {}
+            node_ids = {n.get("id") for n in graph.get("nodes") or [] if isinstance(n, dict)}
+            for n in graph.get("nodes") or []:
+                if isinstance(n, dict) and n.get("layer") not in ("cause", "market", "channel", "asset"):
+                    warns.append(f"mer_signals.json: graph.nodes layer 이상값 ({n.get('id')}={n.get('layer')!r})")
+            for e in graph.get("edges") or []:
+                if isinstance(e, dict) and (e.get("from") not in node_ids or e.get("to") not in node_ids):
+                    warns.append(f"mer_signals.json: graph.edges from/to 가 nodes 에 없음 ({e.get('from')}→{e.get('to')})")
+
     # ── 신선도 계약(dataHealth) 게이트 ────────────────────────────────────
     # 왜: 위의 WARN 은 Actions 로그에만 남아 아무도 읽지 않았고, 그 사이 일본 CPI 가
     # 2021-06, 영국 GDP 가 2020-07 에서 멈춘 채로 몇 년을 통과했다. tier=critical 만
