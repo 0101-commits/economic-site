@@ -171,15 +171,27 @@ def _gemini_once(model, prompt):
     return r.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
+def _gemini_with_retry(model, prompt):
+    """429(쿼터)·503(과부하)은 글의 문제가 아니라 순간 상태다 — 한 번은 물러섰다 다시 친다.
+    백필 349편에서 429 가 1건, -latest 별칭에서 503 이 3건 관측됐다(2026-09-15)."""
+    for attempt in range(2):
+        try:
+            return _gemini_once(model, prompt)
+        except requests.HTTPError as e:
+            if attempt or getattr(e.response, "status_code", None) not in (429, 503):
+                raise
+            time.sleep(20)
+
+
 def call_gemini(prompt):
     try:
-        return _gemini_once(GEMINI_MODEL, prompt)
+        return _gemini_with_retry(GEMINI_MODEL, prompt)
     except requests.HTTPError as e:
         # 404 = 그 모델이 퇴역했다는 뜻. 편마다 같은 404 를 맞기보다 별칭으로 넘어간다.
         if getattr(e.response, "status_code", None) != 404 or GEMINI_FALLBACK == GEMINI_MODEL:
             raise
         log(f"  {GEMINI_MODEL} 404(퇴역) — {GEMINI_FALLBACK} 로 폴백")
-        return _gemini_once(GEMINI_FALLBACK, prompt)
+        return _gemini_with_retry(GEMINI_FALLBACK, prompt)
 
 
 def provider():
