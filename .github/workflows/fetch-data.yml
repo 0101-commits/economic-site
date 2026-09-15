@@ -212,6 +212,7 @@ jobs:
       #    키가 둘 다 없으면 조용히 건너뛰고 캐시를 보존한다.
       #    --limit 로 회차를 묶어 70분 timeout 안에 끝낸다(백필 361편은 여러 회차에 걸쳐 소진).
       - name: Extract 메르 글 구조화 (일일 런)
+        id: mer_extract
         if: env.FETCH_LIGHT != '1' && (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
         env:
@@ -222,6 +223,7 @@ jobs:
       # 📈 메르 리스크 렌즈 공백 시계열(JGB 1/10/30Y·NPS·운임·LME 재고) — mer_series.json.
       # 개별 항목 실패 시 기존 값 보존, 전체 실패해도 exit 0(continue-on-error 는 이중 안전장치).
       - name: Fetch 메르 렌즈 시계열
+        id: mer_series
         if: env.FETCH_LIGHT != '1'
         continue-on-error: true
         run: python scripts/fetch_mer_series.py
@@ -230,9 +232,41 @@ jobs:
       #    + scripts/mer_dict.yml → mer_signals.json. 키 불요, 네트워크 불요.
       #    반드시 fetch_data.py · fetch_mer_series.py 뒤에 온다(둘의 산출을 조인한다).
       - name: Aggregate 메르 리스크 렌즈
+        id: mer_aggregate
         if: env.FETCH_LIGHT != '1'
         continue-on-error: true
         run: python scripts/mer_aggregate.py
+
+      # 🔕 메르 파이프라인 3스텝 실패 알림 — 위 세 스텝은 continue-on-error 라 실패해도
+      #    conclusion 이 'success' 로 덮여 런 전체가 초록색으로 보인다(2026-09-15 실측:
+      #    PyYAML 미설치로 mer_aggregate.py 가 ModuleNotFoundError 로 죽고, GEMINI_API_KEY
+      #    401 로 mer_extract.py 추출이 40편 전부 실패했는데도 런은 success 였다).
+      #    continue-on-error 는 conclusion 만 덮어쓰고 outcome 에는 실제 결과가 남으므로
+      #    steps.<id>.outcome 을 봐야 한다 — conclusion 을 보면 이 조건은 영원히 참이 안 된다.
+      #    이 알림 스텝 자체도 continue-on-error 를 둔다 — 경고 채널이 본 파이프라인(커밋)을
+      #    막으면 본말전도다(notify_discord.system() 주석과 같은 원칙).
+      - name: Notify 메르 파이프라인 실패
+        if: always() && (steps.mer_extract.outcome == 'failure' || steps.mer_series.outcome == 'failure' || steps.mer_aggregate.outcome == 'failure')
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
+          MER_EXTRACT_OUTCOME: ${{ steps.mer_extract.outcome }}
+          MER_SERIES_OUTCOME: ${{ steps.mer_series.outcome }}
+          MER_AGGREGATE_OUTCOME: ${{ steps.mer_aggregate.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python -c "
+          import os, sys
+          sys.path.insert(0, 'scripts')
+          import notify_discord as N
+          parts = [
+              'mer_extract: ' + os.environ.get('MER_EXTRACT_OUTCOME', '?'),
+              'mer_series: ' + os.environ.get('MER_SERIES_OUTCOME', '?'),
+              'mer_aggregate: ' + os.environ.get('MER_AGGREGATE_OUTCOME', '?'),
+              '런: ' + os.environ.get('RUN_URL', '?'),
+          ]
+          N.system(chr(10).join(parts), title='⚙️ 메르 파이프라인 스텝 실패')
+          "
 
       # 📑 종목 펀더멘털 (fundamentals.json) — 일일 풀런에서만. 관심목록(alerts_config.json
       # tracking) 대상 KR=OpenDART / US=yfinance. 키 미설정·개별 실패 = 기존 값 보존.

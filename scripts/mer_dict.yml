@@ -204,6 +204,13 @@ entities:
     - '달러\s*(강세|약세|가치|패권|지위)'
     - '기축통화'
     - '^달러$'
+- id: fx_reserves
+  label: 외환보유고
+  layer: market
+  dataKind: none
+  aliases:
+    - '외환\s*보유고'
+    - '외화\s*보유고'
 
 # ───────────────────────── market · 물가·유동성·변동성
 - id: core_cpi_us
@@ -229,6 +236,15 @@ entities:
   aliases:
     - 'PCE'
     - '연준\s*물가\s*목표'
+- id: gdp_growth_us
+  label: 미 GDP 성장률
+  layer: market
+  unit: '%'
+  dataKind: map
+  dataPath: economicIndicators.us.gdp_growth_us
+  plausible: [-15, 40]
+  aliases:
+    - 'GDP\s*성장률'
 - id: inflation
   label: 인플레이션
   layer: market
@@ -304,6 +320,27 @@ entities:
   aliases:
     - '변동성'
     - 'MOVE\s*지수'
+- id: current_account_kr
+  label: 한국 경상수지
+  layer: market
+  unit: 백만달러
+  dataKind: map
+  dataPath: economicIndicators.kr.current_account_kr
+  plausible: [-15000, 60000]
+  aliases:
+    - '경상수지'
+- id: trade_surplus_us_kr
+  label: 대미 무역흑자
+  layer: market
+  dataKind: none
+  aliases:
+    - '대미\s*무역\s*흑자'
+- id: kr_exports
+  label: 한국 수출
+  layer: market
+  dataKind: none
+  aliases:
+    - '한국\s*수출'
 
 # ───────────────────────── cause · 정책·지정학·재정
 - id: hormuz
@@ -329,6 +366,7 @@ entities:
     - '지정학'
     - '중동'
     - '대만\s*(해협|침공)'
+    - 'IMEC'
 - id: tariff
   label: 관세·수출통제
   layer: cause
@@ -339,6 +377,7 @@ entities:
     - '수출\s*(통제|규제|금지)'
     - '희토류\s*(통제|수출)'
     - '엔티티\s*리스트'
+    - '종합무역법'
 - id: fiscal
   label: 재정적자·국채 발행
   layer: cause
@@ -354,6 +393,7 @@ entities:
     - 'T-bill'
     - '자금조달\s*계획'
     - '조달\s*(비용|한계)'
+    - '재정\s*확장\s*정책'
 - id: buyback
   label: 재무부 바이백
   layer: cause
@@ -383,6 +423,7 @@ entities:
     - '법안'
     - '고시'
     - '의무화'
+    - '상장적격성'
     - '보유세'
     - '종부세'
     - '양도세'
@@ -404,6 +445,7 @@ entities:
     - '(상원|하원|의회)'
     - '게리맨더링'
     - 'TACO'
+    - '^미국$'
 - id: employment
   label: 미 고용·실업률
   layer: market
@@ -414,6 +456,7 @@ entities:
     - '고용\s*(지표|시장|보고서)'
     - '비농업'
     - '에반스\s*룰'
+    - '^고용$'
 - id: fed_policy
   label: 연준 정책 전환
   layer: cause
@@ -421,6 +464,7 @@ entities:
     - 'QT\s*중단'
     - '연준\s*(대차대조표|스탠스)'
     - '통화\s*정책'
+    - '테이퍼링'
 - id: ai_capex
   label: AI 캐펙스·데이터센터
   layer: cause
@@ -432,6 +476,15 @@ entities:
     - 'OpenAI'
     - '순환\s*(금융|거래)'
     - '^AI'
+    - '피지컬\s*AI'
+    - 'TPU'
+    - 'AGI'
+    - '팔란티어'
+    - '앤트로픽'
+    - '엔트로픽'
+    - 'xAI'
+    - '알파벳'
+    - '휴머노이드'
 - id: energy_demand
   label: 전력 수요·공급
   layer: cause
@@ -440,6 +493,7 @@ entities:
     - 'firm'
     - '원전\s*(재가동|건설|수출|가동)'
     - '송전'
+    - '우주\s*태양광'
 - id: china_policy
   label: 중국 정책·자본통제
   layer: cause
@@ -448,6 +502,7 @@ entities:
     - '시진핑'
     - '위안화'
     - '인민은행'
+    - '^중국$'
 - id: japan_policy
   label: 일본 정책·개입
   layer: cause
@@ -456,6 +511,7 @@ entities:
     - '외환\s*개입'
     - '환율\s*개입'
     - '다카이치'
+    - '중의원'
 - id: korea_policy
   label: 한국 정책
   layer: cause
@@ -479,6 +535,7 @@ entities:
     - '리밸런싱'
     - 'SAA'
     - 'TAA'
+    - '기금\s*운용수익률'
 - id: foreign_flow
   label: 외국인 수급
   layer: channel
@@ -486,6 +543,7 @@ entities:
     - '외국인'
     - 'VaR'
     - '위험\s*예산'
+    - '자금\s*이탈'
 - id: program_trade
   label: 프로그램 매매
   layer: channel
@@ -525,6 +583,7 @@ entities:
     - '반대\s*매매'
     - '디레버리징'
     - '담보'
+    - '증거금'
 - id: adr_arb
   label: ADR 차익거래
   layer: channel
@@ -547,6 +606,7 @@ entities:
     - '달러\s*환전'
     - '주주\s*환원'
     - 'WGBI'
+    - '외환\s*스와프'
 - id: private_credit
   label: 사모대출·BDC
   layer: channel
@@ -571,6 +631,9 @@ entities:
     - '국내\s*(증시|주식|장)'
     - '한국\s*(증시|주식|주가)'
     - '국장'
+    - '^주가$'
+    - '^주식시장$'
+    - '^주식$'
 - id: kosdaq
   label: 코스닥
   layer: asset
@@ -596,6 +659,7 @@ entities:
     - '기술주'
     - '성장주'
     - '다우'
+    - '^해외\s*주식$'
 - id: nikkei
   label: 일본 증시
   layer: asset
@@ -605,6 +669,7 @@ entities:
   aliases:
     - '닛케이'
     - '일본\s*(증시|주식|주가)'
+    - '일본\s*(5대\s*)?종합상사'
 - id: china_equity
   label: 중국 증시
   layer: asset
@@ -638,6 +703,7 @@ entities:
     - 'NVIDIA'
     - 'TSMC'
     - '파운드리'
+    - '파두'
 - id: ships
   label: 조선
   layer: asset
@@ -651,6 +717,7 @@ entities:
     - '톤마일'
     - '선박'
     - 'VLCC'
+    - '미쓰이\s*E&S'
 - id: defense
   label: 방산
   layer: asset
@@ -659,6 +726,17 @@ entities:
     - '한화에어로'
     - '현대로템'
     - '무기\s*(수출|계약)'
+    - '안두릴'
+    - 'LIG\s*넥스원'
+    - '한화시스템'
+    - '풍산'
+- id: space_industry
+  label: 우주산업
+  layer: asset
+  dataKind: none
+  aliases:
+    - '스페이스X'
+    - 'SpaceX'
 - id: nuclear
   label: 원전·전력주
   layer: asset
@@ -669,6 +747,7 @@ entities:
     - '오클로'
     - 'Oklo'
     - '한전'
+    - 'UEC'
 - id: banks
   label: 은행·금융주
   layer: asset
@@ -689,6 +768,7 @@ entities:
     - '월세'
     - '농지'
     - '분양'
+    - '롯데건설'
 - id: ust
   label: 미국채(자산)
   layer: asset
@@ -699,6 +779,14 @@ entities:
     - '^미국채$'
     - '^미국\s*국채$'
     - '안전\s*자산'
+    - '미국\s*(국)?채\s*매도'
+- id: kr_bond
+  label: 한국 국채(자산)
+  layer: asset
+  dataKind: none
+  aliases:
+    - '^한국\s*국채$'
+    - '^한국국채$'
 - id: gold
   label: 금
   layer: asset
@@ -720,6 +808,19 @@ entities:
   aliases:
     - '은\s*(가격|값|수요|공급)'
     - '^은$'
+- id: sulfuric_acid
+  label: 황산
+  layer: asset
+  dataKind: none
+  aliases:
+    - '황산'
+- id: iron_ore
+  label: 철광석·철강
+  layer: asset
+  dataKind: none
+  aliases:
+    - '철광석'
+    - '후판\s*가격'
 - id: copper
   label: 구리·비철
   layer: asset
@@ -751,6 +852,10 @@ entities:
     - '나프타'
     - '중질유'
     - '유가'
+    - '의무\s*비축(량)?'
+    - 'MOPS'
+    - '항공유'
+    - '석유제품'
 - id: gasoline
   label: 미 휘발유
   layer: asset
@@ -808,6 +913,8 @@ entities:
     - '영구\s*자석'
     - '헬륨'
     - '삼중수소'
+    - 'TMC'
+    - 'CRML'
 - id: autos
   label: 자동차·2차전지
   layer: asset
@@ -819,6 +926,9 @@ entities:
     - '배터리'
     - 'ESS'
     - '전기차'
+    - 'CATL'
+    - '테슬라'
+    - 'LG\s*에너지솔루션'
 - id: bio
   label: 바이오·제약
   layer: asset
@@ -837,6 +947,7 @@ entities:
     - '운임'
     - '해운'
     - '용선료'
+    - 'HMM'
 
 # ───────────────────────── 전이 경로 프리셋 (기획안 §3.3, 5구간 교차 병합본)
 # 통계로 재발견하지 않는다 — 자유 서술 사슬은 문자열이 일치하지 않아 병합이 0으로 떨어진다.
