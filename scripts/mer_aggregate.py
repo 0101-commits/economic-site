@@ -458,7 +458,11 @@ def main():
             "state": entity_state.get(nid, "unknown"), "view": view,
         })
     layer_order = {"cause": 0, "market": 1, "channel": 2, "asset": 3}
-    nodes.sort(key=lambda n: (layer_order.get(n["layer"], 9), -edge_count_by_node[n["id"]]))
+    # id 를 마지막 타이브레이크로 둔다. node_ids 는 집합이라 순회 순서가 프로세스마다
+    # 달라지고, 같은 계층·같은 엣지 수인 노드끼리 순서가 매 실행 뒤바뀐다.
+    # 그러면 내용이 안 변해도 파일이 매번 달라져 파이프라인이 빈 커밋을 계속 만든다.
+    nodes.sort(key=lambda n: (layer_order.get(n["layer"], 9),
+                              -edge_count_by_node[n["id"]], n["id"]))
 
     edges = []
     for im in impacts_out:
