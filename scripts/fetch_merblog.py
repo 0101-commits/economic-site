@@ -1,15 +1,17 @@
 """메르 블로그(ranto28) 최근글 스냅샷 → merblog.json.
    네트워크 실패 시 기존 파일 보존(날조 금지)."""
 import os, sys, json, time
+from datetime import datetime, timedelta
 import requests
 sys.path.insert(0, os.path.dirname(__file__))
 import merblog_lib as M
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'merblog.json')
 BLOG_ID = M.BLOG_ID
-RECENT_TARGET = 150     # 메타 수집 목표
-FULLTEXT_TOP = 20       # 원문 채울 최신 개수
+RECENT_DAYS = 365       # 메타 수집 목표 — 최근 365일 전량(연 813편 규모)
+FULLTEXT_TOP = 20       # 원문 채울 최신 개수 — 공개 저장소라 원문 전량 커밋 금지(D2), 늘리지 말 것
 PAGE_SIZE = 30
+PAGE_CAP = 40           # 813편 / 30건 ≈ 28페이지 필요분 + 여유
 API_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15'
 POST_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 
@@ -21,24 +23,38 @@ def _get(url, ua, referer=None, timeout=15):
     r.raise_for_status()
     return r
 
-def fetch_recent(target):
-    """post-list 페이징으로 최근글 메타 target개."""
+def fetch_recent(days):
+    """post-list 페이징으로 최근 `days`일 이내 글 메타 전량.
+       date 가 없는 항목은 컷오프 판정에서 제외(버리지 않고 포함)."""
     posts, page = [], 1
     ref = f'https://m.blog.naver.com/{BLOG_ID}'
-    while len(posts) < target and page <= 20:
+    cutoff = datetime.now(M.KST) - timedelta(days=days)
+    while page <= PAGE_CAP:
         url = (f'https://m.blog.naver.com/api/blogs/{BLOG_ID}/post-list'
                f'?categoryNo=0&itemCount={PAGE_SIZE}&page={page}')
         data = _get(url, API_UA, ref).json()
         items = (data.get('result') or {}).get('items') or []
         if not items:
             break
+        stop = False
         for it in items:
             if not it.get('logNo'):  # logNo 없는 항목은 스킵(.../None URL 방지)
                 continue
-            posts.append(M.norm_post(it, 'postlist'))
+            p = M.norm_post(it, 'postlist')
+            if p['date']:
+                try:
+                    pdate = datetime.fromisoformat(p['date'])
+                except ValueError:
+                    pdate = None
+                if pdate and pdate < cutoff:
+                    stop = True
+                    break
+            posts.append(p)
+        if stop:
+            break
         page += 1
         time.sleep(0.3)
-    return posts[:target]
+    return posts
 
 def fill_fulltext(posts, top):
     for p in posts[:top]:
@@ -53,7 +69,7 @@ def fill_fulltext(posts, top):
 
 def main():
     try:
-        posts = fetch_recent(RECENT_TARGET)
+        posts = fetch_recent(RECENT_DAYS)
         if not posts:
             raise RuntimeError('수집 0건 — 기존 파일 보존')
         posts = fill_fulltext(posts, FULLTEXT_TOP)

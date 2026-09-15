@@ -12,6 +12,7 @@ index.html, 카톡 다이제스트)에서 필요한데, 각자 자기 기준을 
 """
 import fnmatch
 import json
+import os
 import re
 import sys
 from datetime import date, datetime
@@ -61,6 +62,8 @@ SLA_RULES = [
     ("nps",                              400, "normal"),
     ("berkshire",                        200, "normal"),    # SEC 13F — 분기 공시
     ("lmeInventory",                     7,   "normal"),    # Westmetall 일일 재고
+    ("mer_series",                       7,   "normal"),    # 메르 렌즈 자가축적 시계열(파일 자체 판정은 아래 EXTERNAL_FILES)
+    ("mer_signals",                      7,   "normal"),    # 메르 렌즈 집계 산출(P2) — 동일
     ("subscription",                     40,  "normal"),
     ("climate.*",                        45,  "normal"),
     ("news",                             2,   "important"),
@@ -251,6 +254,40 @@ def build_health(data, today=None, sources=None):
     }
 
 
+# ── 독립 파일 신선도 ─────────────────────────────────────────────────────
+# mer_series.json/mer_signals.json 은 data.json 에 병합되지 않는 별도 산출물이라
+# 위 SLA_RULES(경로 기반, data.json 내부 전용) 로는 판정할 수 없다 — 파일 자체의
+# 최상위 asOf 로 직접 판정한다. mer_signals.json 은 P2(집계)에서 생성될 예정이라
+# 아직 없을 수 있음 — 그때는 에러가 아니라 skip.
+EXTERNAL_FILES = [
+    ("mer_series.json", 7),
+    ("mer_signals.json", 7),
+]
+
+
+def check_external_files(root="."):
+    out = []
+    for name, sla_days in EXTERNAL_FILES:
+        path = os.path.join(root, name)
+        if not os.path.exists(path):
+            out.append({"file": name, "state": "skip", "reason": "파일 없음(미생성)"})
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                node = json.load(f)
+        except (OSError, ValueError) as e:
+            out.append({"file": name, "state": "unknown", "reason": str(e)})
+            continue
+        asof = _extract_asof(node)
+        if asof is None:
+            out.append({"file": name, "state": "unknown", "asOf": None})
+            continue
+        age = (date.today() - asof).days
+        out.append({"file": name, "state": "stale" if age > sla_days else "ok",
+                    "asOf": asof.isoformat(), "ageDays": age, "sla": sla_days})
+    return out
+
+
 def _demo():
     """자체 점검 — 규칙·파서가 깨지면 여기서 걸린다."""
     assert _parse_date("2026-08-04") == date(2026, 8, 4)
@@ -295,6 +332,10 @@ def _demo():
     # critical 이 늦으면 blocking 에 들어간다
     sample["history"]["indices"]["KOSPI"] = [{"date": "2026-07-01", "close": 1}]
     assert build_health(sample, today=date(2026, 8, 4))["blocking"] == ["history.indices.KOSPI"]
+
+    # 독립 파일 신선도 — 없는 파일은 skip(에러 아님)
+    res = check_external_files(root="__no_such_dir__")
+    assert {r["file"]: r["state"] for r in res} == {"mer_series.json": "skip", "mer_signals.json": "skip"}
     print("data_sla self-check OK")
 
 
@@ -309,3 +350,6 @@ if __name__ == "__main__":
         for it in h["items"]:
             if it["state"] != "ok":
                 print(f"  {it['state']:9s} {it['path']:44s} asOf={it['asOf']} age={it['ageDays']} sla={it['sla']} tier={it['tier']}")
+        for r in check_external_files():
+            print(f"  [external] {r['file']:20s} state={r['state']} "
+                  f"asOf={r.get('asOf')} age={r.get('ageDays')} sla={r.get('sla')} reason={r.get('reason', '')}")

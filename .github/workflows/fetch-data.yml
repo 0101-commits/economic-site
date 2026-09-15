@@ -204,6 +204,33 @@ jobs:
         continue-on-error: true
         run: python scripts/fetch_merblog.py
 
+      # 🧠 메르 글 구조화 추출 — merblog.json 신규분 → mer_extract_cache.jsonl.
+      #    ANTHROPIC_API_KEY 가 있으면 그것을, 없으면 기존 GEMINI_API_KEY 로 돈다(결정 D1).
+      #    키가 둘 다 없으면 조용히 건너뛰고 캐시를 보존한다.
+      #    --limit 로 회차를 묶어 70분 timeout 안에 끝낸다(백필 361편은 여러 회차에 걸쳐 소진).
+      - name: Extract 메르 글 구조화 (일일 런)
+        if: env.FETCH_LIGHT != '1' && (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/mer_extract.py --limit 40
+
+      # 📈 메르 리스크 렌즈 공백 시계열(JGB 1/10/30Y·NPS·운임·LME 재고) — mer_series.json.
+      # 개별 항목 실패 시 기존 값 보존, 전체 실패해도 exit 0(continue-on-error 는 이중 안전장치).
+      - name: Fetch 메르 렌즈 시계열
+        if: env.FETCH_LIGHT != '1'
+        continue-on-error: true
+        run: python scripts/fetch_mer_series.py
+
+      # 🧭 메르 리스크 렌즈 집계 — mer_extract_cache.jsonl(커밋됨) + data.json + mer_series.json
+      #    + scripts/mer_dict.yml → mer_signals.json. 키 불요, 네트워크 불요.
+      #    반드시 fetch_data.py · fetch_mer_series.py 뒤에 온다(둘의 산출을 조인한다).
+      - name: Aggregate 메르 리스크 렌즈
+        if: env.FETCH_LIGHT != '1'
+        continue-on-error: true
+        run: python scripts/mer_aggregate.py
+
       # 📑 종목 펀더멘털 (fundamentals.json) — 일일 풀런에서만. 관심목록(alerts_config.json
       # tracking) 대상 KR=OpenDART / US=yfinance. 키 미설정·개별 실패 = 기존 값 보존.
       - name: Fetch fundamentals (일일 런)
@@ -240,15 +267,17 @@ jobs:
           branch="${GITHUB_REF_NAME:-main}"
           # ⚠ halts_state.json 은 여기서 커밋하지 않는다 — 소유권이 stock-alerts.yml 로 단일화됨
           #   (두 워크플로가 같은 상태 파일을 커밋하면 push 경쟁 + 서킷브레이커 중복 발송 위험).
-          if git diff --quiet -- data.json data_meta.json && git diff --staged --quiet -- data.json data_meta.json; then
+          WATCH="data.json data_meta.json merblog.json mer_signals.json mer_series.json mer_extract_cache.jsonl"
+          if git diff --quiet -- $WATCH && git diff --staged --quiet -- $WATCH; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
           msg="data: 시장 데이터 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
-          cp data.json /tmp/data.json.run
-          cp data_meta.json /tmp/data_meta.json.run
-          git add data.json data_meta.json
-          [ -f merblog.json ] && git add merblog.json || true
-          [ -f fundamentals.json ] && git add fundamentals.json || true
+          # 재시도 루프의 reset --hard 는 추적 파일을 전부 되돌린다 —
+          # 이 런이 만든 산출물은 전부 백업해 두고 되돌린 뒤 다시 얹는다.
+          # (data.json 만 백업하던 시절엔 merblog.json 변경분이 재시도 때 조용히 사라졌다.)
+          ARTIFACTS="data.json data_meta.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl"
+          for f in $ARTIFACTS; do [ -f "$f" ] && cp "$f" "/tmp/$f.run" || true; done
+          for f in $ARTIFACTS; do [ -f "$f" ] && git add "$f" || true; done
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then
@@ -257,12 +286,9 @@ jobs:
             echo "push 실패 (시도 ${attempt}) — 원격 ${branch} 최신 위에 산출물만 재적용"
             git fetch origin "${branch}" || true
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
-            cp /tmp/data.json.run data.json
-            cp /tmp/data_meta.json.run data_meta.json
-            git add data.json data_meta.json
-            [ -f merblog.json ] && git add merblog.json || true
-          [ -f fundamentals.json ] && git add fundamentals.json || true
-            if git diff --staged --quiet -- data.json data_meta.json; then
+            for f in $ARTIFACTS; do [ -f "/tmp/$f.run" ] && cp "/tmp/$f.run" "$f" || true; done
+            for f in $ARTIFACTS; do [ -f "$f" ] && git add "$f" || true; done
+            if git diff --staged --quiet -- $WATCH; then
               echo "원격이 이미 최신 — 종료"; exit 0
             fi
             git commit -m "$msg" -q || true
