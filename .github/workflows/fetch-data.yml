@@ -125,7 +125,10 @@ jobs:
         #    (시크릿 미설정 시 익명 접근을 시도하나 KRX 가 거부 → 투자자별 데이터가 비게 됨.)
         #    beautifulsoup4/lxml: 투자자별 순매매 Naver 폴백 파서 + 운임지수 스크래핑에 사용.
         #    (pykrx 의 전이 의존성에 기대지 않고 명시 설치 — Naver 폴백이 'bs4 미설치'로 비는 일 방지.)
-        run: pip install requests yfinance "pykrx==1.2.8" beautifulsoup4 lxml
+        #    PyYAML: scripts/mer_aggregate.py 가 정규화 사전(scripts/mer_dict.yml)을 읽는다.
+        #    빠지면 집계 스텝이 ModuleNotFoundError 로 죽어 mer_signals.json 이 영영 갱신되지 않는다
+        #    (continue-on-error 라 런은 성공으로 보이므로 조용히 멈춘다 — 2026-09-15 실측).
+        run: pip install requests yfinance "pykrx==1.2.8" beautifulsoup4 lxml PyYAML
 
       # KIS 토큰 영속 캐시 — 한국투자증권 API 는 토큰 1일 1회 발급 권장 (24h 유효).
       # 잦은 발급 시 카카오톡 알람·이용 제한이 발생하므로 GHA cache 액션으로

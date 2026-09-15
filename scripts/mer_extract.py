@@ -330,6 +330,14 @@ def main():
         except Exception as e:                        # noqa: BLE001 — 한 편 실패가 회차를 깨지 않는다
             fail += 1
             log(f"  실패 {log_no}: {type(e).__name__}: {str(e)[:120]}")
+            # 인증 실패는 글의 문제가 아니라 키의 문제다. 남은 편수만큼 같은 401 을
+            # 되풀이해 봐야 로그만 길어지고, 런은 continue-on-error 라 성공으로 보여
+            # 원인이 묻힌다(2026-09-15 실측: GHA GEMINI_API_KEY 가 401, 40편 전부 실패).
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status in (401, 403):
+                log(f"!! {name} 키 인증 실패({status}) — 남은 {len(todo) - i}편 건너뜀. "
+                    f"키를 갱신하거나 ANTHROPIC_API_KEY 를 등록해야 추출이 돈다.")
+                break
         if i % 10 == 0 or i == len(todo):
             write_cache(list(by_log.values()))        # 중간 저장 — 타임아웃에도 진척이 남는다
             log(f"  {i}/{len(todo)} 처리 (성공 {ok} 실패 {fail})")
