@@ -312,6 +312,16 @@ jobs:
           # 재시도 루프의 reset --hard 는 추적 파일을 전부 되돌린다 —
           # 이 런이 만든 산출물은 전부 백업해 두고 되돌린 뒤 다시 얹는다.
           # (data.json 만 백업하던 시절엔 merblog.json 변경분이 재시도 때 조용히 사라졌다.)
+          # 커밋 직전 JSON 무결성 검사 — 충돌 마커가 박힌 산출물을 올려 사이트를 깨뜨린
+          # 사고가 있었다(2026-09-15: 배경 스케줄러의 git pull --rebase --autostash 가
+          # 생성 파일에 마커를 남겼고 그대로 커밋돼 메르 렌즈가 빈 화면이 됐다).
+          # 깨진 파일은 스테이징에서 빼고 통지한다 — 커밋 자체는 막지 않는다(시세는 올라가야 한다).
+          for f in data.json data_meta.json merblog.json fundamentals.json mer_signals.json mer_series.json; do
+            [ -f "$f" ] || continue
+            python -c "import json,sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$f" && continue
+            echo "::error::$f 가 유효한 JSON 이 아니다 — 이번 커밋에서 제외한다"
+            git checkout HEAD -- "$f" 2>/dev/null || true
+          done
           ARTIFACTS="data.json data_meta.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl"
           for f in $ARTIFACTS; do [ -f "$f" ] && cp "$f" "/tmp/$f.run" || true; done
           for f in $ARTIFACTS; do [ -f "$f" ] && git add "$f" || true; done
