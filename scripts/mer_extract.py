@@ -74,7 +74,10 @@ def one_liner_last(text):
     if not ms:
         return None
     tail = text[ms[-1].end():]
-    tail = re.split(r"\s*PS\s*\)", tail)[0]
+    # 대소문자를 무시해야 한다 — 이 블로그는 소문자 `ps)` 를 흔히 쓰고, 대문자만 잡던
+    # 정규식 탓에 PS 노트와 유튜브 링크가 한줄 코멘트에 통째로 붙었다
+    # (2026-09-15 표본 검수에서 발견, 캐시 736편 중 21편이 오염돼 있었다).
+    tail = re.split(r"\s*PS\s*\)", tail, flags=re.IGNORECASE)[0]
     tail = re.sub(r"\s+", " ", tail).strip()
     return tail or None
 
@@ -300,6 +303,19 @@ def write_cache(rows):
     os.replace(tmp, CACHE)
 
 
+def is_systemic_failure(auth_dead, ok, fail):
+    """이 회차가 "키·모델이 죽어서" 실패한 것인지 판정한다.
+
+    GHA 스텝이 continue-on-error 라 exit 0 이면 워크플로가 초록으로 남고
+    "며칠째 0건 추출"이 아무에게도 안 보인다(2026-09-15 실측 — GEMINI_API_KEY 401 로
+    40편 전부 실패했는데 런은 success 였다). 그래서 체계적 실패만 종료코드로 알린다.
+
+    개별 글의 실패로는 울리지 않는다 — 원문이 96자뿐인 글 하나 때문에 알림이 가면
+    사람이 알림을 끄게 되고, 그러면 진짜 고장도 같이 묻힌다.
+    """
+    return bool(auth_dead) or (ok == 0 and fail >= 5)
+
+
 def fetch_body(log_no):
     url = f"https://blog.naver.com/PostView.naver?blogId={M.BLOG_ID}&logNo={log_no}"
     r = requests.get(url, headers={"User-Agent": POST_UA}, timeout=20)
@@ -342,6 +358,7 @@ def main():
 
     by_log = {str(r.get("logNo")): r for r in rows}
     ok = fail = dropped_total = 0
+    auth_dead = False
     for i, p in enumerate(todo, 1):
         log_no = str(p["logNo"])
         try:
@@ -364,6 +381,7 @@ def main():
             if status in (401, 403):
                 log(f"!! {name} 키 인증 실패({status}) — 남은 {len(todo) - i}편 건너뜀. "
                     f"키를 갱신하거나 ANTHROPIC_API_KEY 를 등록해야 추출이 돈다.")
+                auth_dead = True
                 break
         if i % 10 == 0 or i == len(todo):
             write_cache(list(by_log.values()))        # 중간 저장 — 타임아웃에도 진척이 남는다
@@ -372,6 +390,10 @@ def main():
 
     write_cache(list(by_log.values()))
     log(f"완료 — 성공 {ok} · 실패 {fail} · 인용 미검증으로 버린 항목 {dropped_total} · 캐시 {len(by_log)}편")
+
+    if is_systemic_failure(auth_dead, ok, fail):
+        log("!! 체계적 실패 — exit 2 로 알린다(워크플로 알림 스텝이 이 결과를 읽는다)")
+        return 2
     return 0
 
 

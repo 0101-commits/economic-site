@@ -126,3 +126,28 @@ def test_skip_category_excludes_non_economic_only():
 def test_strip_fence_handles_code_block():
     assert X._strip_fence('```json\n{"a": 1}\n```') == '{"a": 1}'
     assert X._strip_fence('설명 문장 {"a": 1} 꼬리') == '{"a": 1}'
+
+
+# ── ⑤ 체계적 실패만 종료코드로 알린다 ─────────────────────────────────────
+def test_systemic_failure_fires_on_dead_key():
+    """키가 죽으면 한 편만 시도하고 끊겨도 알려야 한다 — 남은 편을 안 돌았을 뿐 고장이다."""
+    assert X.is_systemic_failure(True, 0, 1)
+    assert X.is_systemic_failure(True, 3, 7)
+
+
+def test_systemic_failure_ignores_single_bad_post():
+    """원문이 96자뿐인 글 하나로 알림이 가면 사람이 알림을 꺼 버린다 — 그러면 진짜 고장도 묻힌다."""
+    assert not X.is_systemic_failure(False, 0, 1)
+    assert not X.is_systemic_failure(False, 0, 4)
+
+
+def test_systemic_failure_fires_when_nothing_survives():
+    """5편 이상 시도해 한 편도 못 건졌으면 글의 문제가 아니라 파이프라인의 문제다."""
+    assert X.is_systemic_failure(False, 0, 5)
+    assert X.is_systemic_failure(False, 0, 40)
+
+
+def test_systemic_failure_quiet_on_partial_success():
+    """일부라도 성공했으면 파이프라인은 살아 있다 — 울리지 않는다."""
+    assert not X.is_systemic_failure(False, 1, 39)
+    assert not X.is_systemic_failure(False, 348, 1)
