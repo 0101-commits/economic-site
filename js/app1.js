@@ -512,7 +512,7 @@ var ECON_NAV_GROUPS = {
   market: ['equity', 'market', 'investor'],
   assets: ['realestate', 'portfolio'],   // portfolio 는 PIN 관문이라 기본값에서 뒤로
   macro:  ['calendar', 'macro'],
-  record: ['study', 'notes', 'merblog'],
+  record: ['study', 'notes', 'merblog', 'merlens'],
 };
 var ECON_NAV_LOCKED = ['portfolio', 'settings'];   // 마지막 방문 기억에서 제외
 
@@ -973,6 +973,10 @@ function showPage(id, el) {
     const _prev = document.querySelector('.page.active');
     if(_prev && _prev.id === 'page-portfolio' && id !== 'portfolio' && typeof pfWarnUnsavedOnLeave === 'function') pfWarnUnsavedOnLeave();
   } catch(_) {}
+  // 메르 블로그 검색 별칭(P5-1) — page-merblog 는 merlens 의 "글 찾기" 탭으로 흡수됐다.
+  // 옛 북마크·사이드바·단축키가 여전히 'merblog' 로 들어오므로 여기서 merlens+search 로 돌린다.
+  var _merWantSearchTab = false;
+  if(id === 'merblog') { id = 'merlens'; _merWantSearchTab = true; }
   // 잘못된 id 로 호출돼도 빈 화면이 되지 않게 대상 존재를 먼저 확인하고 없으면 dashboard 폴백
   if(!document.getElementById('page-'+id)) id = 'dashboard';
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1013,11 +1017,22 @@ function showPage(id, el) {
   if(id==='settings') { try { initSettingsPage(); } catch(e) { console.warn('settings init', e); } }
   if(id==='investor') { setTimeout(()=>{ buildInvestorPage(); try { buildGlobalAllocCompare(); } catch(e) { console.warn('globalAlloc', e); } },50); }
   if(id==='realestate') { setRETab('kr', document.getElementById('reitabKR')); setTimeout(buildReCharts, 80); }
-  if(id==='merblog') { try { merblogInit(); } catch(e) { console.warn('merblog init', e); } }
+  if(id==='merlens') {
+    // 별칭이 아니면 ?t=search 딥링크(사이드바·북마크)로도 검색 탭을 연다.
+    // 실제 렌더 트리거는 _merShowTab 이 전담 — 'board' 로 열릴 때만 merlensInit() 이 돈다
+    // (검색 탭만 볼 때 전이경로 SVG 등 6블록을 전부 그리지 않는다).
+    if(!_merWantSearchTab) { try { _merWantSearchTab = (new URLSearchParams(location.search).get('t') === 'search'); } catch(_) {} }
+    if(_merWantSearchTab) { try { merblogInit(); } catch(e) { console.warn('merblog init', e); } }   // 검색 스냅샷 예열(기존 동작 보존)
+    try { if(typeof _merShowTab === 'function') _merShowTab(_merWantSearchTab ? 'search' : 'board', true); } catch(e) { console.warn('merlens init', e); }
+  }
   // [3차-T5] 페이지 공통 훅 — 기본 조회 기간 1회 적용 + 1회성 가이드 배너 (T6에서 정의)
   try { if (typeof econPageHook === 'function') econPageHook(id); } catch(_) {}
-  // URL 딥링크 — 페이지 전환마다 ?p=<id> 반영 (뒤로/앞으로 지원)
-  try { history.replaceState(null, '', location.pathname + '?p=' + id); } catch(_) {}
+  // URL 딥링크 — 페이지 전환마다 ?p=<id> 반영 (뒤로/앞으로 지원). merlens 의 글 찾기 탭은 &t=search 도 함께.
+  try {
+    var _url = location.pathname + '?p=' + id;
+    if(id === 'merlens' && _merWantSearchTab) _url += '&t=search';
+    history.replaceState(null, '', _url);
+  } catch(_) {}
   // 메뉴 클릭 후 사이드바 자동 숨김 (모바일/데스크탑 공통)
   collapseSidebarAfterNav();
 }
@@ -12988,6 +13003,7 @@ function applyRealData(d) {
   try { renderRiskLight(d); } catch(_) {}
   try { renderKpiPctBadges(d); } catch(_) {}
   try { updateAiQaVisibility(); } catch(_) {}
+  try { if (typeof merlensOnMarketData === 'function') merlensOnMarketData(d); } catch(_) {}
 }
 
 // ── 데이터 신선도 표시 (단일 출처) ──────────────────────────────

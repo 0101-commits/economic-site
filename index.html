@@ -157,7 +157,7 @@
      용량 90%+ 절감. display=block: 아이콘 폰트는 swap 시 'menu_open' 같은 리거처 원문이
      그대로 보였다가 교체되는 결함이 있어 짧은 공백이 낫다(Google Fonts 권장).
      ⚠ 새 아이콘을 쓰려면 여기 icon_names 에도 추가해야 한다(빠지면 이름 텍스트가 그대로 노출). -->
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&icon_names=account_balance,article,calendar_month,candlestick_chart,chevron_right,close,compare_arrows,dark_mode,edit_note,history_edu,home,home_work,light_mode,menu,menu_open,monitoring,more_horiz,pause,play_arrow,public,refresh,settings,show_chart,swap_horiz&display=block" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&icon_names=account_balance,article,calendar_month,candlestick_chart,chevron_right,close,compare_arrows,dark_mode,edit_note,history_edu,home,home_work,insights,light_mode,menu,menu_open,monitoring,more_horiz,pause,play_arrow,public,refresh,settings,show_chart,swap_horiz&display=block" rel="stylesheet"/>
 <!-- @seed-design/css@2.7.0 벤더링본 — scripts/vendor_seed_css.py 산출.
      CSP 가 style-src 'self' 라 CDN <link> 는 불가하므로 저장소에 둔다.
      인라인 <style> 보다 앞: 동특이성에서 사이트 규칙이 이겨야 한다(병기 전환기).
@@ -1530,13 +1530,58 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 .mer-searchbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
 .mer-searchbar input[type=search]{flex:1;min-width:220px}
 .mer-item{border:1px solid var(--c-border);border-radius:var(--r-sm);padding:12px;margin:8px 0;background:var(--c-card,transparent)}
-.mer-item h3{margin:0 0 4px;font-size:14px;color:var(--c-txt)}
-.mer-item .mer-meta{font-size:11px;color:var(--c-txt-dim);margin-bottom:6px}
-.mer-item .mer-excerpt{font-size:12px;line-height:1.6;color:var(--c-txt)}
-.mer-item .mer-full{white-space:pre-wrap;font-size:12px;line-height:1.7;margin-top:8px;color:var(--c-txt);
+.mer-item h3{margin:0 0 4px;font-size:var(--font-size-base);color:var(--c-txt)}
+.mer-item .mer-meta{font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:6px}
+.mer-item .mer-excerpt{font-size:var(--font-size-sm);line-height:1.6;color:var(--c-txt)}
+.mer-item .mer-full{white-space:pre-wrap;font-size:var(--font-size-sm);line-height:1.7;margin-top:8px;color:var(--c-txt);
   max-height:420px;overflow:auto;border-top:1px dashed var(--c-border);padding-top:8px}
 .mer-item a{color:var(--c-accent)}
-.mer-item button{background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 10px;font-size:11px;cursor:pointer;margin-top:4px}
+.mer-item button{background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 10px;font-size:var(--font-size-xs);cursor:pointer;margin-top:4px}
+
+/* ── 14. 🧭 메르 리스크 렌즈 ── */
+.mer-gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:4px}
+.mer-gauge-wrap svg{max-width:100%;height:auto}
+.mer-gauge-val{font-size:var(--font-size-2xl);font-weight:700;color:var(--c-txt)}
+.mer-gauge-label{font-size:var(--font-size-sm);color:var(--c-txt-dim)}
+.mer-regime-strip{display:flex;gap:2px;overflow-x:auto}
+.mer-regime-cell{flex:1;min-width:64px;border-radius:var(--r-xs);padding:6px 8px;text-align:center;color:#fff}
+.mer-regime-cell .mer-regime-m{font-size:var(--font-size-xs);opacity:.85;display:block}
+.mer-regime-cell .mer-regime-f{font-size:var(--font-size-sm);font-weight:700;display:block}
+.mer-ladder-cell{white-space:nowrap}
+.mer-source-quote{font-size:var(--font-size-base);line-height:1.6;color:var(--c-txt);border-left:3px solid var(--c-accent);padding-left:10px;margin:0 0 10px}
+.mer-source-meta{font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;flex-direction:column;gap:8px}
+.mer-fresh-bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px}
+.mer-comment-box{font-size:var(--font-size-sm);color:var(--c-txt);line-height:1.6}
+.mer-panel-title{font-size:var(--font-size-sm);font-weight:700;color:var(--c-txt);margin-bottom:4px}
+.mer-stub{font-size:var(--font-size-sm);color:var(--c-txt-dim);padding:20px 0;text-align:center}
+.mer-dim{opacity:.45}
+/* ── P3 2부: 전이경로맵·매트릭스·타임라인·이벤트 ── */
+.mer-graph-svg{width:100%;height:auto;display:block}
+.mer-graph-edge{opacity:.55}
+.mer-graph-edge:hover,.mer-graph-edge:focus-visible,.mer-graph-edge--selected{opacity:1}
+.mer-graph-dim{opacity:.18}
+.mer-graph-hot .mer-node-box{stroke-width:3}
+#merGraphMobile{display:none}
+@media (max-width:768px){ #merGraphSvgWrap{display:none} #merGraphMobile{display:block} }
+.mer-chain-group{margin-bottom:14px}
+.mer-chain-title{font-size:var(--font-size-sm);font-weight:700;color:var(--c-txt);margin-bottom:4px}
+.mer-chain-step{border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:var(--font-size-sm);color:var(--c-txt);margin-bottom:4px;text-align:center}
+.mer-chain-step--hot{border-color:var(--color-warning);border-width:2px;font-weight:700;background:color-mix(in srgb, var(--color-warning) 12%, transparent)}
+.mer-chain-arrow{text-align:center;color:var(--c-txt-dim);font-size:var(--font-size-xs);margin:-2px 0}
+.mer-matrix-cell{padding:0;text-align:center}
+.mer-matrix-btn{min-width:44px;font-weight:700;font-size:var(--font-size-xs);padding:4px 6px;border-radius:var(--r-xs);width:100%}
+.mer-matrix-sum{padding:4px 6px;min-width:52px}
+.mer-matrix-sum .mer-matrix-bar{height:6px;border-radius:var(--r-full);background:var(--c-accent);margin-bottom:2px}
+.mer-matrix-sum span{font-size:var(--font-size-xs);color:var(--c-txt-dim)}
+.mer-matrix-footrow th,.mer-matrix-footrow td{border-top:2px solid var(--c-border)}
+.mer-stance-cell{text-align:center;white-space:nowrap}
+.mer-stance-cell--empty{color:var(--c-txt-dim)}
+.mer-counter-row{padding:8px 0;border-top:1px solid var(--c-border)}
+.mer-counter-row:first-child{border-top:none}
+.mer-counter-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.mer-counter-bar-wrap{height:8px;border-radius:var(--r-full);background:var(--c-border);overflow:hidden}
+.mer-counter-bar{height:100%;background:var(--c-accent);border-radius:var(--r-full)}
+.mer-counter-days{font-size:var(--font-size-sm);color:var(--c-txt);margin-top:4px}
 
 /* ═══════════════ 2026-07 고도화 (접근성·UX·색상관습) ═══════════════ */
 /* 다크 카드(#1f2945) 위 WCAG AA — #e01f1f/#1976d2 는 3.0~3.1:1 미달이라 상향(5.19:1/5.69:1) */
@@ -1999,9 +2044,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">edit_note</span>
           <span class="seed-side-navigation-menu-item__label">분석 노트</span>
         </a>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=merblog" data-nav="merblog" data-navgroup="record" onclick="return econNav('merblog',this)">
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=merlens&t=search" data-nav="merblog" data-navgroup="record" onclick="return econNav('merblog',this)">
           <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">article</span>
           <span class="seed-side-navigation-menu-item__label">메르 블로그 검색</span>
+        </a>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=merlens" data-nav="merlens" data-navgroup="record" onclick="return econNav('merlens',this)">
+          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">insights</span>
+          <span class="seed-side-navigation-menu-item__label">메르 렌즈</span>
         </a>
       </div>
       <!-- 데이터 소스 — 접힘(rail)에서는 숨는다 -->
@@ -2167,17 +2216,28 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
 
           <!-- L1-b 리스크 신호등 — 누르면 산출 근거. tone 은 renderRiskLight 가 바꾼다.
-               점은 fg-* 색이고 tone 면 위에 얹지 않는다(red-700 on red-100 = 3.38). -->
+               점은 fg-* 색이고 tone 면 위에 얹지 않는다(red-700 on red-100 = 3.38).
+               옆의 메르 렌즈 칩(merMriChip)은 별개 층 — _merRenderMriChip(app7.js)이 채우고,
+               mer_signals.json 을 못 읽으면 숨긴다(합산 금지, 기획안 §1 원칙 3). -->
           <div class="sp-12 sp-md-4 sp-lg-4">
-            <button type="button" id="riskLightChip" class="seed-callout__root seed-callout__root--tone_neutral econ-callout econ-risk" onclick="showRiskDetail()" aria-label="시장 리스크 신호등 — 누르면 산출 근거를 표시합니다">
-              <span class="seed-callout__content">
-                <span class="seed-callout__title seed-callout__title--tone_neutral econ-risk__head">
-                  <span class="risk-dot" id="riskDot" aria-hidden="true"></span>시장 리스크
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <button type="button" id="riskLightChip" class="seed-callout__root seed-callout__root--tone_neutral econ-callout econ-risk" onclick="showRiskDetail()" aria-label="시장 리스크 신호등 — 누르면 산출 근거를 표시합니다">
+                <span class="seed-callout__content">
+                  <span class="seed-callout__title seed-callout__title--tone_neutral econ-risk__head">
+                    <span class="risk-dot" id="riskDot" aria-hidden="true"></span>시장 리스크
+                  </span>
+                  <span class="seed-callout__description seed-callout__description--tone_neutral econ-risk__val" id="riskLabel" role="status" aria-live="polite">—</span>
                 </span>
-                <span class="seed-callout__description seed-callout__description--tone_neutral econ-risk__val" id="riskLabel" role="status" aria-live="polite">—</span>
-              </span>
-              <span class="seed-suffix-icon mat" aria-hidden="true">chevron_right</span>
-            </button>
+                <span class="seed-suffix-icon mat" aria-hidden="true">chevron_right</span>
+              </button>
+              <button type="button" id="merMriChip" class="seed-callout__root seed-callout__root--tone_neutral econ-callout econ-risk" style="display:none;" onclick="showPage('merlens', menuItemFor('merlens'))" aria-label="메르 리스크 렌즈 — 누르면 상세 화면으로 이동합니다">
+                <span class="seed-callout__content">
+                  <span class="seed-callout__title seed-callout__title--tone_neutral econ-risk__head">메르 렌즈</span>
+                  <span class="seed-callout__description seed-callout__description--tone_neutral econ-risk__val" id="merMriChipVal" role="status" aria-live="polite">—</span>
+                </span>
+                <span class="seed-suffix-icon mat" aria-hidden="true">chevron_right</span>
+              </button>
+            </div>
           </div>
 
           <!-- L1-c 달라진 것 — 신선도 Badge + 고정 칩 2종 + 변동 슬롯(z-score 이벤트).
@@ -4622,46 +4682,174 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="investor-berkshire-container" style="display:none;"></div>
     </div><!-- /investor -->
 
-    <div class="page" id="page-merblog">
-      <div class="widget-title">📝 메르 블로그 검색</div>
-      <p style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글을 키워드로 찾고 원문을 JSON으로 내려받습니다.</p>
-      <div class="mer-searchbar">
-        <input id="merQ" type="search" placeholder="예: 물가, 환율, 미국채 10년물" aria-label="검색어"
-               style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 10px;font-size:var(--font-size-base);"
-               onkeydown="if(event.key==='Enter')merblogSearch()">
-        <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;"><input id="merLive" type="checkbox"> 전체기간 검색(라이브)</label>
-        <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">정렬
-          <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="merSort">
-            <option value="sim">관련도</option><option value="date">최신</option>
-          </select></span>
-        </label>
-        <button onclick="merblogSearch()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:8px 14px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;">검색</button>
+    <!-- page-merblog 는 P5-1(2026-09-15)에서 page-merlens 의 "글 찾기" 탭(#merlensTab-search)으로
+         이식됐다. ?p=merblog 는 showPage() 별칭이 merlens+search 로 돌려보내 이 컨테이너는 항상 비어
+         있다 — 지우면 옛 북마크·사이드바 딥링크가 죽으므로(빈 페이지가 죽은 링크보다 안전) 유지. -->
+    <div class="page" id="page-merblog"></div><!-- /merblog -->
+
+    <div class="page" id="page-merlens">
+      <div class="widget-title">🧭 메르 리스크 렌즈</div>
+      <p style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글에서 뽑은 임계선·전이경로를 시장 데이터와 대조하고, 원문을 검색합니다.</p>
+
+      <!-- 탭: 보드(6블록) / 글 찾기(구 page-merblog 이식, P5-1) — 로직은 app7.js _merShowTab, app1.js merblog* 그대로 -->
+      <div role="tablist" aria-label="메르 리스크 렌즈 보기 전환" class="seed-tabs__root" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--c-border);padding-bottom:8px;">
+        <button type="button" role="tab" id="merlensTabBtn-board" onclick="_merShowTab('board')" class="seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="true">🧭 보드</button>
+        <button type="button" role="tab" id="merlensTabBtn-search" onclick="_merShowTab('search')" class="seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">📝 글 찾기</button>
       </div>
-      <!-- 필터 바(검색 결과 좁히기): 카테고리 + 날짜 범위. 결과가 있을 때만 노출. -->
-      <div id="merFilters" class="mer-searchbar" style="display:none;margin-top:0;">
-        <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">분류
-          <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="merCat" onchange="merblogApplyAndRender()" style="max-width:200px;">
-            <option value="">전체</option>
-          </select></span>
-        </label>
-        <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">기간
-          <input id="merFrom" type="date" onchange="merblogApplyAndRender()" aria-label="시작일" class="econ-input">
-          <span>~</span>
-          <input id="merTo" type="date" onchange="merblogApplyAndRender()" aria-label="종료일" class="econ-input">
-        </label>
-        <button onclick="merblogClearFilters()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:var(--font-size-sm);cursor:pointer;">필터 초기화</button>
+
+      <div id="merlensTab-search" role="tabpanel" style="display:none;">
+        <p style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글을 키워드로 찾고 원문을 JSON으로 내려받습니다.</p>
+        <div class="mer-searchbar">
+          <input id="merQ" type="search" placeholder="예: 물가, 환율, 미국채 10년물" aria-label="검색어"
+                 style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 10px;font-size:var(--font-size-base);"
+                 onkeydown="if(event.key==='Enter')merblogSearch()">
+          <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;"><input id="merLive" type="checkbox"> 전체기간 검색(라이브)</label>
+          <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">정렬
+            <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="merSort">
+              <option value="sim">관련도</option><option value="date">최신</option>
+            </select></span>
+          </label>
+          <button onclick="merblogSearch()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:8px 14px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;">검색</button>
+        </div>
+        <!-- 필터 바(검색 결과 좁히기): 카테고리 + 날짜 범위. 결과가 있을 때만 노출. -->
+        <div id="merFilters" class="mer-searchbar" style="display:none;margin-top:0;">
+          <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">분류
+            <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select id="merCat" onchange="merblogApplyAndRender()" style="max-width:200px;">
+              <option value="">전체</option>
+            </select></span>
+          </label>
+          <label style="font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;align-items:center;gap:4px;">기간
+            <input id="merFrom" type="date" onchange="merblogApplyAndRender()" aria-label="시작일" class="econ-input">
+            <span>~</span>
+            <input id="merTo" type="date" onchange="merblogApplyAndRender()" aria-label="종료일" class="econ-input">
+          </label>
+          <button onclick="merblogClearFilters()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:var(--font-size-sm);cursor:pointer;">필터 초기화</button>
+        </div>
+        <div id="merStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:8px;" role="status" aria-live="polite"></div>
+        <!-- 일괄 선택/다운로드 바: 결과가 있을 때만 노출. -->
+        <div id="merBulk" style="display:none;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-card,transparent);">
+          <label style="font-size:var(--font-size-sm);color:var(--c-txt);display:flex;align-items:center;gap:5px;cursor:pointer;"><input id="merSelAll" type="checkbox" onchange="merblogToggleAll(this)"> 전체 선택</label>
+          <span id="merSelCount" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">0개 선택</span>
+          <span style="flex:1;"></span>
+          <button id="merDlSel" onclick="merblogDownloadSelected()" disabled style="background:transparent;color:var(--c-txt);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 12px;font-size:var(--font-size-sm);cursor:pointer;">선택 항목 원문 JSON ⬇</button>
+          <button id="merDl" onclick="merblogDownloadJson()" disabled style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;">전체 결과 원문 JSON ⬇</button>
+        </div>
+        <div id="merResults"></div>
+      </div><!-- /merlensTab-search -->
+
+      <div id="merlensTab-board" role="tabpanel">
+      <div id="merlensError" class="seed-callout__root seed-callout__root--tone_critical econ-callout" style="display:none;">
+        <div class="seed-callout__content">
+          <div class="seed-callout__description seed-callout__description--tone_critical">집계 파일을 불러오지 못했습니다.</div>
+        </div>
       </div>
-      <div id="merStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:8px;" role="status" aria-live="polite"></div>
-      <!-- 일괄 선택/다운로드 바: 결과가 있을 때만 노출. -->
-      <div id="merBulk" style="display:none;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;padding:8px 10px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-card,transparent);">
-        <label style="font-size:var(--font-size-sm);color:var(--c-txt);display:flex;align-items:center;gap:5px;cursor:pointer;"><input id="merSelAll" type="checkbox" onchange="merblogToggleAll(this)"> 전체 선택</label>
-        <span id="merSelCount" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">0개 선택</span>
-        <span style="flex:1;"></span>
-        <button id="merDlSel" onclick="merblogDownloadSelected()" disabled style="background:transparent;color:var(--c-txt);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 12px;font-size:var(--font-size-sm);cursor:pointer;">선택 항목 원문 JSON ⬇</button>
-        <button id="merDl" onclick="merblogDownloadJson()" disabled style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;">전체 결과 원문 JSON ⬇</button>
+      <div id="merlensFresh" class="mer-fresh-bar"></div>
+
+      <!-- ① 리스크 게이지 -->
+      <div class="widget" id="merlensGauge">
+        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">리스크 게이지</div>
+        <div class="g-2" id="merlensGaugeRow">
+          <div class="mer-gauge-wrap"><div id="merlensGaugeMarket"></div><div class="mer-gauge-label">시장 지수 (기존 리스크 신호등)</div></div>
+          <div class="mer-gauge-wrap"><div id="merlensGaugeMri"></div><div class="mer-gauge-label">메르 리스크 지수 (MRI)</div></div>
+        </div>
+        <div id="merlensMriTrend" style="margin-top:8px;"></div>
+        <div id="merlensMriChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
+        <div class="mer-panel-title" style="margin-top:14px;">국면 스트립 <span class="econ-stat__unit" id="merlensRegimeNote"></span></div>
+        <div class="mer-regime-strip" id="merlensRegime"></div>
+        <div class="mer-panel-title" style="margin-top:14px;">최근 한줄</div>
+        <div class="mer-comment-box" id="merlensComment"></div>
       </div>
-      <div id="merResults"></div>
-    </div><!-- /merblog -->
+
+      <!-- ③ 트리거 모니터 -->
+      <div class="widget" id="merlensMonitor">
+        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">트리거 모니터</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;" id="merlensMonitorFilters"></div>
+        <div class="econ-table__scroll">
+          <table class="econ-table">
+            <caption class="econ-sr">지표별 트리거 래더와 상태. 지표명을 누르면 출처 패널이 열립니다.</caption>
+            <thead>
+              <tr>
+                <th scope="col">지표</th>
+                <th scope="col" class="econ-table--num">현재값</th>
+                <th scope="col">래더</th>
+                <th scope="col">가장 가까운 레벨</th>
+                <th scope="col">상태</th>
+                <th scope="col">최근 출처</th>
+              </tr>
+            </thead>
+            <tbody id="merlensMonitorBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ③-b 소형 다중 차트 -->
+      <div class="widget" id="merlensPanels">
+        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">민감도 패널 <span class="econ-stat__unit">1년 추이 · 트리거 레벨(점선)</span></div>
+        <div class="g-3" id="merlensPanelsGrid"></div>
+      </div>
+
+      <!-- 출처 패널 -->
+      <div class="widget g-side-320" id="merlensSource" style="display:grid;">
+        <div>
+          <div class="widget-title" style="margin-bottom:6px;">출처</div>
+          <blockquote class="mer-source-quote" id="merlensSourceQuote">표에서 지표를 선택하면 관련 인용이 여기 표시됩니다.</blockquote>
+          <div id="merlensSourceFull" style="white-space:pre-wrap;font-size:var(--font-size-sm);line-height:1.7;color:var(--c-txt);max-height:360px;overflow:auto;display:none;border-top:1px dashed var(--c-border);padding-top:8px;"></div>
+        </div>
+        <div class="mer-source-meta" id="merlensSourceMeta"></div>
+      </div>
+
+      <!-- ② 전이 경로 맵 -->
+      <div class="widget" id="merlensGraph">
+        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">전이 경로 맵</div>
+        <p style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:0 0 8px;">테두리=트리거 상태(점선 N/A) · 우측 배지=뷰(OW/N/UW) · 선 굵기=근거 건수 · 색=방향. 노드·엣지를 클릭하면 출처가 열립니다.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+          <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
+            <select id="merGraphPreset" onchange="_merGraphSetPreset(this.value)" aria-label="경로 프리셋 선택"><option value="">경로 프리셋 — 전체</option></select>
+          </span>
+          <div id="merGraphHorizonChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        </div>
+        <div id="merGraphSvgWrap"></div>
+        <div id="merGraphMobile"></div>
+      </div>
+
+      <!-- ④ 민감도 매트릭스 -->
+      <div class="widget" id="merlensMatrix">
+        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">민감도 매트릭스 <span class="econ-stat__unit">빈 칸=언급 없음</span></div>
+        <div id="merMatrixHorizonChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        <div class="econ-table__scroll" id="merMatrixTableWrap"></div>
+      </div>
+
+      <!-- ⑤ 뷰 타임라인 + ⑤-b 팩터 스코어카드 -->
+      <div class="widget" id="merlensStance">
+        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">뷰 타임라인 · 팩터 스코어카드</div>
+        <div class="g-2-1">
+          <div class="econ-table__scroll" id="merStanceTableWrap"></div>
+          <div>
+            <div class="mer-panel-title">팩터 스코어카드</div>
+            <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select" style="margin-bottom:8px;display:inline-block;">
+              <select id="merFactorAssetSel" aria-label="스코어카드 자산 선택"></select>
+            </span>
+            <div id="merFactorCardBody"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑥ 이벤트 캘린더 + ⑥-b 재고 일수 -->
+      <div class="widget" id="merlensEvents">
+        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">이벤트·재고</div>
+        <div class="g-2">
+          <div>
+            <div class="mer-panel-title">이벤트 캘린더</div>
+            <div id="merEventsCal"></div>
+          </div>
+          <div>
+            <div class="mer-panel-title">재고 일수 <span class="econ-stat__unit">100일 스케일</span></div>
+            <div id="merCountersBox"></div>
+          </div>
+        </div>
+      </div>
+      </div><!-- /merlensTab-board -->
+    </div><!-- /merlens -->
 
   </main>
 </div>
@@ -4700,7 +4888,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   var BUILD_V = '8d084ee3'; /* BUILD_V:auto — build-frontend.yml 이 갱신 */
   var dev = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
             && !/[?&]bundle=1/.test(location.search);
-  for (var i = 1; i <= 6; i++) {
+  for (var i = 1; i <= 7; i++) {
     var f = dev ? 'js/app' + i + '.js?v=' + Date.now()
                 : 'js/app' + i + '.min.js?v=' + BUILD_V;
     document.write('<script src="' + f + '"><\/script>');

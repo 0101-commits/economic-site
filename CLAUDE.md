@@ -164,6 +164,11 @@ rules and must stay last. `!important` 는 174 → 135 로 줄었고, `important
 | `scripts/fetch_data.py` | ~7 000-line data collector; runs in GitHub Actions |
 | `scripts/validate_data.py` | Data integrity gate — blocks bad `data.json` from commit |
 | `scripts/ai_briefing.py` | LLM macro summary → `data.json.aiBriefing` |
+| `scripts/fetch_merblog.py` + `scripts/merblog_lib.py` | 메르 블로그(ranto28) 최근 365일 메타 + 최신 20편 원문 → `merblog.json`. 공개 저장소라 원문 전량 커밋 금지 |
+| `scripts/mer_extract.py` | 메르 글 → 구조화 JSON(`mer_extract_cache.jsonl`). 인용은 80자 이하 + **원문 실재 검증 통과분만** 저장(날조 차단), 원문 자체는 저장 안 함(공개 저장소). 키는 `ANTHROPIC_API_KEY` → `GEMINI_API_KEY` 순, 둘 다 없으면 건너뛰고 캐시 보존. `--limit N` 으로 백필을 회차로 쪼갠다 |
+| `scripts/mer_aggregate.py` + `scripts/mer_dict.yml` | 추출 캐시 + `data.json` + `mer_series.json` 을 정규화 사전으로 접어 `mer_signals.json` 생성. 사전 없이는 히트맵이 통째로 빈다(자유 서술 from/to 는 810건 중 distinct 766). 트리거 레벨은 단위·범위 게이트를 통과한 것만 차트에 그린다 |
+| `scripts/fetch_mer_series.py` | 메르 리스크 렌즈 공백 시계열 → `mer_series.json`(JGB 1/10/30Y 전량 재구축 + NPS·SCFI·LME 자가축적) |
+| `mer_signals.json` | 메르 리스크 렌즈 집계 산출 — `?p=merlens` 화면(`js/app7.js`)의 유일한 데이터원 |
 | `scripts/send_kakao_digest.py` | KakaoTalk sender. **모든 카카오 발송의 단일 진입점 = `send_card()`**(기획 v3 I1): 카드 PNG → 슬롯 라인 차트 → 텍스트 3단 폴백, 버튼 2개·라벨 8자 (카카오 상한), `png=None` 으로 부르면 경고 + 디스코드 `#시스템` 교차 통보(사진 없는 경로가 생기는 것을 보이게 하는 장치). 피드 이미지 = `discord_card.board(shape="square")` 정사각 카드(디스코드와 **같은 편성표**) → 실패 시 `build_slot_chart_png` → 텍스트. **주간 슬롯도 카드**(`_build_kakao_card(weekly=True)` → `discord_card.weekly(shape="square")`) — 옛 `None if _weekly_mode` 분기는 제거됐다. 장 마감(**16:40**, 2026-09-11 15:40→이동)은 디스코드+카카오 병행. **수급(외국인·기관)은 `investor_flows.verified_latest()` 로 발송 직전 라이브 조회** — 네이버(포털·언론 기준)값을 토스로 교차검증해 통과분만 싣고, 오늘 날짜 행이 없거나 총체적 불일치면 숫자 대신 '집계 중'을 적는다(옛 `investorTrading.daily[-1]` 직참은 날짜 검증이 없어 어제 수급이 오늘 카드로 나갔다). 히어로 인트라데이는 `_session_chain`(Yahoo 5분봉 우선 = 당일 전 구간)이고 급변·마감 카드의 `_intraday_chain`(토스 1분봉 우선 = 최신성)과 **우선순위가 반대다**. 수신은 “나와의 채팅”(`KAKAO_FRIENDS=0`) — **푸시 알림 없음**이 정상 동작이다 |
 | `scripts/check_alerts.py` | Stock alert evaluator. 카카오는 카드 한 통(`_alert_card(shape="square")` = 대표 종목 + 나머지 종목 타일 합본) + 항목 행 5줄로 보낸다 — 200자 한도 때문에 여러 통으로 쪼개던 텍스트는 폐기(`_pack_messages` 는 이제 '확정 대상 산정'용). 발동 줄 문구 단일 원천 = `_alert_lines` |
 | `scripts/check_swings.py` | Market swing alert (코스피·S&P500 ±2%, 달러-원 ±1% 즉시 속보; cooldown = `alerts_state.json` `_swings` key) |

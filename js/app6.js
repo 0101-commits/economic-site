@@ -184,8 +184,25 @@ function pfMerLoad() {
     .catch(function () { return null; });
   return _pfMerCache;
 }
+// mer_signals.json(P2, 376편 구조화) 을 조용히 곁들여 쓴다 — 실패해도 절대 reject 하지 않는다
+// (Promise.all 에서 merblog.json 폴백 경로를 죽이지 않기 위함). app7.js 의 캐시를 그대로 쓴다.
+function _pfMerSignalsSafe() {
+  if (typeof _merFetchSignals !== 'function') return Promise.resolve(null);
+  return _merFetchSignals().catch(function () { return null; });
+}
 function pfMerOneLiner(mer) {
-  // 최신 글에서 「한줄 코멘트.」 마커 뒤 문장 추출 (fullText 보유분 우선)
+  // mer_signals.json.posts[] 는 서버가 마지막 매치로 뽑은 one_liner 를 이미 들고 있다(재수록 오탐 없음).
+  // 최신 date 부터 역순으로 값이 있는 첫 글을 쓴다. 없으면(파일 미로딩/실패) merblog.json 정규식 폴백(기존 동작).
+  if (_merSignalsData && _merSignalsData.posts && _merSignalsData.posts.length) {
+    var sPosts = _merSignalsData.posts;
+    for (var k = sPosts.length - 1; k >= 0; k--) {
+      var sp = sPosts[k];
+      if (sp.one_liner) {
+        return { text: sp.one_liner, title: sp.title, date: (sp.date || '').slice(0, 10), url: 'https://blog.naver.com/ranto28/' + sp.logNo };
+      }
+    }
+  }
+  // 폴백: 원문 20건 정규식(첫 매치 — A/S 글의 재수록 옛 코멘트를 집을 수 있음, 알려진 한계)
   var posts = (mer && mer.posts) || [];
   for (var i = 0; i < posts.length; i++) {
     var p = posts[i], txt = p.fullText || '';
@@ -208,9 +225,20 @@ function pfFundaLoad() {
 }
 var PF_ALIAS = { 'SK하이닉스': ['하이닉스'], '삼성전자': ['삼전'] };
 function pfMerMentions(mer, name, symbol) {
-  var posts = (mer && mer.posts) || [];
   var keys = [name].concat(PF_ALIAS[name] || []).filter(Boolean);
   if (symbol && /^[A-Z]{1,5}$/.test(symbol)) keys.push(symbol);
+  // mer_signals.json 376편(title/topics/risk_flags) 대상 — 원문 20건 한정이던 기존 동작보다
+  // 결과가 늘 수 있어 최신순 상위 5건으로 자른다.
+  if (_merSignalsData && _merSignalsData.posts && _merSignalsData.posts.length) {
+    var sHits = _merSignalsData.posts.filter(function (p) {
+      var hay = (p.title || '') + ' ' + (p.topics || []).join(' ') + ' ' + (p.risk_flags || []).join(' ');
+      for (var i = 0; i < keys.length; i++) { if (keys[i] && hay.indexOf(keys[i]) >= 0) return true; }
+      return false;
+    }).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+    return sHits.slice(0, 5).map(function (p) { return { title: p.title, date: p.date, url: 'https://blog.naver.com/ranto28/' + p.logNo }; });
+  }
+  // 폴백: 원문 20건 indexOf(기존 동작)
+  var posts = (mer && mer.posts) || [];
   var hits = [];
   posts.forEach(function (p) {
     var hay = (p.title || '') + ' ' + (p.excerpt || '') + ' ' + (p.fullText || '');
@@ -315,7 +343,8 @@ function pfBriefRender() {
         '<li style="padding:6px 0;border-bottom:1px dashed var(--c-border);font-size:var(--font-size-sm);"><b>' + ed.slice(5).replace('-', '/') + ' (' + wd + ')</b> 🇺🇸 ' + pfEsc(sym) + ' 실적 발표 <span style="color:var(--c-txt-muted);font-size:var(--font-size-xs);">보유·관심 종목</span></li>');
     });
   });
-  pfMerLoad().then(function (mer) {
+  Promise.all([pfMerLoad(), _pfMerSignalsSafe()]).then(function (r) {
+    var mer = r[0];
     var box = document.getElementById('pfMerOneLine'); if (!box) return;
     var one = pfMerOneLiner(mer);
     box.innerHTML = one
@@ -554,29 +583,56 @@ function pfSimUpdate(v) {
     cell('기준(1.9%) 대비', (pct >= 0 ? '+' : '') + pct.toFixed(0) + '%', _pfTone(pct)) +
     cell(pct < 0 ? '기계적 매도 압력' : '추가 편입 여력', (delta >= 0 ? '+' : '') + Math.round(delta).toLocaleString('ko-KR') + '억', _pfTone(delta));
 }
+// id 가 mer_signals.json.indicators 에 없는 항목(예: nps_flow — 그래프 노드뿐, 시계열 없음)은
+// 관련 impacts 인용의 logNo 를 센다. 있으면 postDates(트리거 관측일)를 그대로 쓴다.
+function _merIndicatorPostCount(id) {
+  if (!_merSignalsData) return 0;
+  var ind = (_merSignalsData.indicators || []).find(function (i) { return i.id === id; });
+  if (ind) return (ind.postDates || []).length;
+  var seen = {};
+  (_merSignalsData.impacts || []).forEach(function (im) {
+    if (im.from === id || im.to === id) (im.quotes || []).forEach(function (q) { if (q.logNo) seen[q.logNo] = true; });
+  });
+  return Object.keys(seen).length;
+}
+function _pfSignalMerBadgesApply(counts) {
+  var titles = document.querySelectorAll('#pfTab-signal .widget-title');
+  titles.forEach(function (t) {
+    var key = t.textContent.indexOf('변동성') === 0 ? 'vkospi'
+            : t.textContent.indexOf('환율') === 0 ? 'fx'
+            : t.textContent.indexOf('국민연금') === 0 ? 'nps' : null;
+    if (key && counts[key] && !t.querySelector('.pf-mer-badge')) {
+      t.insertAdjacentHTML('beforeend',
+        ' <a class="pf-mer-badge" href="?p=merlens" style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-primary);text-decoration:none;">📝 관련 메르 글 ' + counts[key] + '건</a>');
+    }
+  });
+}
 function _pfSignalMerBadges() {
-  // 글→지표 자동 태깅 (P2): 최신 원문 20건에서 지표 키워드 검출 → 카드 제목 옆 배지
-  pfMerLoad().then(function (mer) {
-    if (_pfActiveTab !== 'signal' || !mer) return;
-    var posts = (mer.posts || []).filter(function (p) { return p.fullText; });
-    var rules = [
-      { re: /VKOSPI|변동성지수|변동성이/, sel: 'vkospi' },
-      { re: /환율|원화|원\/달러|달러원/, sel: 'fx' },
-      { re: /국민연금|연기금/, sel: 'nps' }
-    ];
-    var counts = { vkospi: 0, fx: 0, nps: 0 };
-    posts.forEach(function (p) {
-      rules.forEach(function (r) { if (r.re.test(p.fullText)) counts[r.sel]++; });
-    });
-    var titles = document.querySelectorAll('#pfTab-signal .widget-title');
-    titles.forEach(function (t) {
-      var key = t.textContent.indexOf('변동성') === 0 ? 'vkospi'
-              : t.textContent.indexOf('환율') === 0 ? 'fx'
-              : t.textContent.indexOf('국민연금') === 0 ? 'nps' : null;
-      if (key && counts[key] && !t.querySelector('.pf-mer-badge')) {
-        t.insertAdjacentHTML('beforeend',
-          ' <a class="pf-mer-badge" href="?p=merblog" style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-primary);text-decoration:none;">📝 관련 메르 글 ' + counts[key] + '건</a>');
-      }
+  // 글→지표 자동 태깅: mer_signals.json(376편 구조화, P2) 우선 — indicators[].postDates 로 센다.
+  _pfMerSignalsSafe().then(function (signals) {
+    if (_pfActiveTab !== 'signal') return;
+    if (signals) {
+      _pfSignalMerBadgesApply({
+        vkospi: _merIndicatorPostCount('vkospi'),
+        fx: _merIndicatorPostCount('usdkrw'),
+        nps: _merIndicatorPostCount('nps_flow'),
+      });
+      return;
+    }
+    // 폴백(파일 없음/실패): merblog.json 원문 20건 정규식(기존 동작)
+    pfMerLoad().then(function (mer) {
+      if (_pfActiveTab !== 'signal' || !mer) return;
+      var posts = (mer.posts || []).filter(function (p) { return p.fullText; });
+      var rules = [
+        { re: /VKOSPI|변동성지수|변동성이/, sel: 'vkospi' },
+        { re: /환율|원화|원\/달러|달러원/, sel: 'fx' },
+        { re: /국민연금|연기금/, sel: 'nps' }
+      ];
+      var counts = { vkospi: 0, fx: 0, nps: 0 };
+      posts.forEach(function (p) {
+        rules.forEach(function (r) { if (r.re.test(p.fullText)) counts[r.sel]++; });
+      });
+      _pfSignalMerBadgesApply(counts);
     });
   });
 }
@@ -919,7 +975,8 @@ async function pfStockOpen(spec, keep) {
   });
 
   /* 메르 언급 */
-  pfMerLoad().then(function (mer) {
+  Promise.all([pfMerLoad(), _pfMerSignalsSafe()]).then(function (r) {
+    var mer = r[0];
     var box = document.getElementById('pfStockMer'); if (!box || _pfStockCur !== spec) return;
     var hits = pfMerMentions(mer, name, spec.symbol);
     box.innerHTML = hits.length

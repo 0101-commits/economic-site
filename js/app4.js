@@ -495,7 +495,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // ═══ URL 딥링크 + popstate ════════════════════════════════════════════════════
 window.addEventListener('load', function() {
   try {
-    var _VALID = ['dashboard','portfolio','equity','macro','market','investor','realestate','calendar','study','notes','merblog','settings'];
+    var _VALID = ['dashboard','portfolio','equity','macro','market','investor','realestate','calendar','study','notes','merblog','merlens','settings'];
     var p = new URLSearchParams(location.search).get('p');
     if(p && _VALID.indexOf(p) >= 0 && p !== 'dashboard') {
       showPage(p, (typeof menuItemFor === 'function' ? menuItemFor(p) : null) || null);
@@ -517,7 +517,7 @@ document.addEventListener('keydown', function(e) {
   if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if((document.activeElement || {}).isContentEditable) return;
   if(e.ctrlKey || e.altKey || e.metaKey) return;
-  var PAGE_MAP = {'1':'dashboard','2':'portfolio','3':'equity','4':'macro','5':'market','6':'investor','7':'realestate','8':'calendar','9':'notes','0':'settings','s':'study','S':'study'};
+  var PAGE_MAP = {'1':'dashboard','2':'portfolio','3':'equity','4':'macro','5':'market','6':'investor','7':'realestate','8':'calendar','9':'notes','0':'settings','s':'study','S':'study','m':'merlens','M':'merlens'};
   var id = PAGE_MAP[e.key];
   if(id) {
     e.preventDefault();

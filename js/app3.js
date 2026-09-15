@@ -183,6 +183,8 @@ function renderRiskLight(d) {
     chip.title = `${_RISK_DESC[r.light]} · 종합 ${r.score}점 (0 안정 ~ 100 위험) — 클릭: 산출 근거`;
     chip.setAttribute('aria-label', `시장 리스크 신호등: 현재 ${_RISK_LABELS[r.light]}, 종합 ${Math.round(r.score)}점. 클릭하면 산출 근거를 표시합니다`);
   }
+  // 메르 리스크 렌즈 칩(P4-2, app7.js) — 시장 실측 신호등과 병렬 표기, 합산하지 않는다.
+  try { if(typeof _merRenderMriChip === 'function') _merRenderMriChip(); } catch(_) {}
 }
 
 function showRiskDetail() {
@@ -1948,7 +1950,7 @@ function initGlobalDelayChip() {
 // unset 이 필요한 이유: '기본 접힘' 위젯(지표 비교)을 사용자가 펼친 것과, 아직
 // 아무 선택도 없는 상태를 구분해야 새 기본값이 사용자의 선택을 덮지 않는다.
 var WCOLLAPSE_LS = 'econ_widget_collapse_v2';
-var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트'];   // 제목 부분일치(모든 폭)
+var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트', '이벤트·재고'];   // 제목 부분일치(모든 폭)
 // 모바일(<768)에서만 기본 접힘 — L3(차트·등락·뉴스)은 '왜·어떻게'를 묻는 층이라
 // 첫 스크롤에서 답할 필요가 없다. 사용자가 펼치면 그 선택은 저장된다.
 // L2(지수표·분위기)까지 넣은 이유: 390 폭에서 L1+L2 만으로 1,600px 를 써서 홈이
@@ -2071,6 +2073,13 @@ var PAGE_TOC = {
     { label: '수익률',     m: '연도별 수익률' },
     { label: '자산 배분',  m: '자산 배분 현황' },
     { label: '보유 종목',  m: '국내주식 Top 10' } ] },
+  'page-merlens':    { title: '메르 렌즈', items: [
+    { label: '리스크 게이지', sel: '#merlensGauge' },
+    { label: '전이 경로',    sel: '#merlensGraph' },
+    { label: '트리거 모니터', sel: '#merlensMonitor' },
+    { label: '민감도',      sel: '#merlensMatrix' },
+    { label: '뷰 타임라인',  sel: '#merlensStance' },
+    { label: '이벤트·재고',  sel: '#merlensEvents' } ] },
 };
 function _tocTarget(page, it){
   if(it.sel) return page.querySelector(it.sel);
