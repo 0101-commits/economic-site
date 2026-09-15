@@ -48,7 +48,11 @@ POST_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 ANTHROPIC_MODEL = os.environ.get("MER_EXTRACT_MODEL", "claude-opus-5")
-GEMINI_MODEL = os.environ.get("MER_EXTRACT_GEMINI_MODEL", "gemini-2.0-flash")
+# Google 은 모델을 조용히 퇴역시킨다 — gemini-2.0-flash 도 2.5-flash 도 지금은 404 다
+# (2026-09-15 실측, 신규 키 기준). 고정 모델을 먼저 쓰되 404 면 별칭으로 물러선다.
+# `-latest` 별칭은 살아 있지만 과부하 503 이 잦아 1순위로 두지 않는다(3/3 실패 실측).
+GEMINI_MODEL = os.environ.get("MER_EXTRACT_GEMINI_MODEL", "gemini-3.1-flash-lite")
+GEMINI_FALLBACK = "gemini-flash-lite-latest"
 
 
 def log(msg):
@@ -154,9 +158,9 @@ def call_anthropic(prompt):
     return "".join(b.get("text", "") for b in r.json().get("content", []))
 
 
-def call_gemini(prompt):
+def _gemini_once(model, prompt):
     r = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
         params={"key": GEMINI_KEY},
         json={"contents": [{"parts": [{"text": prompt}]}],
               "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2000,
@@ -165,6 +169,17 @@ def call_gemini(prompt):
     )
     r.raise_for_status()
     return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def call_gemini(prompt):
+    try:
+        return _gemini_once(GEMINI_MODEL, prompt)
+    except requests.HTTPError as e:
+        # 404 = 그 모델이 퇴역했다는 뜻. 편마다 같은 404 를 맞기보다 별칭으로 넘어간다.
+        if getattr(e.response, "status_code", None) != 404 or GEMINI_FALLBACK == GEMINI_MODEL:
+            raise
+        log(f"  {GEMINI_MODEL} 404(퇴역) — {GEMINI_FALLBACK} 로 폴백")
+        return _gemini_once(GEMINI_FALLBACK, prompt)
 
 
 def provider():

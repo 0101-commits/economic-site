@@ -192,19 +192,37 @@ def _llm_prompt(snap):
     )
 
 
+# Google 이 모델을 조용히 퇴역시킨다 — gemini-2.0-flash 는 404 다(2026-09-15 실측).
+# 이 브리핑이 몇 달째 규칙 폴백으로만 돌던 원인은 죽은 키와 죽은 모델 둘이었다.
+# 고정 모델을 먼저 쓰고 404 면 별칭으로 물러선다.
+GEMINI_MODELS = ("gemini-3.1-flash-lite", "gemini-flash-lite-latest")
+
+
+def _gemini_call(model, prompt):
+    r = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        params={"key": GEMINI_API_KEY},
+        json={"contents": [{"parts": [{"text": prompt}]}],
+              "generationConfig": {"temperature": 0.4, "maxOutputTokens": 400}},
+        timeout=40,
+    )
+    r.raise_for_status()
+    return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
 def try_gemini(snap):
     if not GEMINI_API_KEY:
         return None
     try:
-        r = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-            params={"key": GEMINI_API_KEY},
-            json={"contents": [{"parts": [{"text": _llm_prompt(snap)}]}],
-                  "generationConfig": {"temperature": 0.4, "maxOutputTokens": 400}},
-            timeout=40,
-        )
-        r.raise_for_status()
-        text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        text = None
+        for i, model in enumerate(GEMINI_MODELS):
+            try:
+                text = _gemini_call(model, _llm_prompt(snap))
+                break
+            except requests.HTTPError as he:
+                if i == len(GEMINI_MODELS) - 1 or getattr(he.response, "status_code", None) != 404:
+                    raise
+                log(f"Gemini {model} 404(퇴역) — 다음 모델로")
         lines = [ln.strip().lstrip("0123456789.-•* ") for ln in text.strip().splitlines() if ln.strip()]
         if len(lines) >= 3:
             log("Gemini 요약 생성 성공")
