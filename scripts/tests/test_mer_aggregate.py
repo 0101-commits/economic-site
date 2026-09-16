@@ -107,3 +107,60 @@ def test_boundary_current_equals_level_is_deterministic():
     crossed = (th["dir"] == "up" and current >= th["level"]) or \
               (th["dir"] == "down" and current <= th["level"])
     assert crossed is True
+
+
+# ── 실측 조인 회귀(2026-09-16) ─────────────────────────────────────────────
+# data.json·mer_series.json 에 값이 있는데 dataKind 가 none 이라 비어 있던 지표를 붙이며
+# 드러난 오탐 3종을 고정한다: 시각→레벨, 선복량(TEU)→지수 임계, 지수 레벨→% 임계.
+FREIGHT = {"id": "freight_rate", "unit": "idx", "plausible": [100, 12000]}
+BOJ = {"id": "boj_rate", "unit": "%", "plausible": [0, 5]}
+
+
+def test_classify_threshold_clock_time_is_calendar():
+    assert ma.classify_threshold("3시 30분", BOJ)["kind"] == "calendar"
+
+
+def test_classify_threshold_teu_not_index_level():
+    assert ma.classify_threshold("400만 TEU", FREIGHT)["kind"] == "qualitative"
+
+
+def test_yoy_iso_and_ecos_keys():
+    iso = ma._yoy([("2025-08-01", 100.0), ("2026-08-01", 103.0)])
+    ecos = ma._yoy([("202508", 100.0), ("202608", 103.0)])
+    assert iso == [("2026-08-01", 3.0)] and ecos == [("202608", 3.0)]
+
+
+def test_yoy_drops_month_without_base():
+    assert ma._yoy([("2026-08-01", 103.0)]) == []
+
+
+def test_join_series_yoy_converts_index_to_percent():
+    ent = {"dataKind": "map", "transform": "yoy", "dataPath": "economicIndicators.us.cpi_us"}
+    data = {"economicIndicators": {"us": {"cpi_us": {"history": {
+        "2025-08-01": 320.0, "2026-08-01": 336.0}}}}}
+    current, pts = ma.join_series(ent, data, {})
+    assert current == {"value": 5.0, "asOf": "2026-08-01"} and len(pts) == 1
+
+
+def test_join_series_meritems_reads_mer_series():
+    ent = {"dataKind": "meritems", "dataPath": "mer_series.freight:SCFI"}
+    mer = {"freight": [{"date": "2026-09-11", "items": {"SCFI": 3662.18, "BDI": 3360.0}}]}
+    current, _ = ma.join_series(ent, {}, mer)
+    assert current == {"value": 3662.18, "asOf": "2026-09-11"}
+
+
+def test_dict_wires_every_datapath_to_a_join_kind():
+    """dataPath 는 있는데 dataKind 가 none 이면 화면에 영영 값이 안 뜬다 — 재발 방지."""
+    entities = ma.load_dict()[1]
+    orphans = [e["id"] for e in entities
+               if e.get("dataPath") and (e.get("dataKind") or "none") == "none"]
+    assert orphans == []
+
+
+def test_join_series_meritems_reads_nps_alloc_bag():
+    """NPS 는 items 가 아니라 alloc 키로 쌓인다 — 두 형태 모두 받아야 한다."""
+    ent = {"dataKind": "meritems", "dataPath": "mer_series.npsAllocation:국내주식"}
+    mer = {"npsAllocation": [{"date": "2026-06-01", "as_of": "2026-06-01",
+                              "alloc": {"국내주식": 29.1, "해외주식": 35.4}}]}
+    current, _ = ma.join_series(ent, {}, mer)
+    assert current == {"value": 29.1, "asOf": "2026-06-01"}

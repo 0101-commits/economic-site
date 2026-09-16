@@ -87,3 +87,14 @@ if __name__ == '__main__':
         if name.startswith('test_') and callable(fn):
             fn(); print('ok', name)
     print('ALL PASS')
+
+def test_renormalize_nps_folds_collection_dates_into_as_of():
+    """분기 공시를 수집일로 쌓으면 같은 값이 매일 한 건씩 불어난다 — as_of 로 접는다."""
+    arr = [{'date': '2026-09-15', 'as_of': '2026-06-01', 'alloc': {'국내주식': 29.1}},
+           {'date': '2026-09-16', 'as_of': '2026-06-01', 'alloc': {'국내주식': 29.1}}]
+    out = S.renormalize_nps(arr)
+    assert len(out) == 1 and out[0]['date'] == '2026-06-01'
+
+def test_renormalize_nps_keeps_entry_without_as_of():
+    out = S.renormalize_nps([{'date': '2026-09-16', 'alloc': {'국내주식': 29.1}}])
+    assert out == [{'date': '2026-09-16', 'alloc': {'국내주식': 29.1}}]

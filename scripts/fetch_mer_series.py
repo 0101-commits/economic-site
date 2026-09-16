@@ -107,6 +107,17 @@ def append_dated(arr, entry, cap=SERIES_CAP):
     return arr[-cap:]
 
 
+def renormalize_nps(arr):
+    """과거분 보정 — 수집일로 쌓인 NPS 항목을 as_of(분기 기준일) 키로 되돌려 중복을 접는다."""
+    out = {}
+    for e in arr or []:
+        if not isinstance(e, dict):
+            continue
+        d = e.get('as_of') or e.get('date')
+        out[d] = {**e, 'date': d}
+    return [out[k] for k in sorted(out) if k]
+
+
 def _default():
     return {'jgb': {'1Y': [], '10Y': [], '30Y': []}, 'npsAllocation': [], 'freight': [], 'lmeInventory': []}
 
@@ -143,8 +154,9 @@ def main():
         try:
             alloc = {a['asset']: a['pct'] for a in ((d.get('nps') or {}).get('allocation') or []) if a.get('asset')}
             if alloc:
-                entry = {'date': _today_kst(), 'as_of': (d.get('nps') or {}).get('as_of'), 'alloc': alloc}
-                out['npsAllocation'] = append_dated(out['npsAllocation'], entry)
+                as_of = (d.get('nps') or {}).get('as_of')
+                entry = {'date': as_of or _today_kst(), 'as_of': as_of, 'alloc': alloc}
+                out['npsAllocation'] = append_dated(renormalize_nps(out['npsAllocation']), entry)
         except Exception as e:
             print(f'[fetch_mer_series] npsAllocation 실패: {e} — 기존 값 보존', file=sys.stderr)
 
@@ -160,8 +172,9 @@ def main():
         try:
             lme = (d.get('lmeInventory') or {}).get('data') or []
             litems = {it['name']: it.get('cur') for it in lme if it.get('name')}
+            ldate = (d.get('lmeInventory') or {}).get('as_of') or _today_kst()
             if litems:
-                out['lmeInventory'] = append_dated(out['lmeInventory'], {'date': _today_kst(), 'items': litems})
+                out['lmeInventory'] = append_dated(out['lmeInventory'], {'date': ldate, 'items': litems})
         except Exception as e:
             print(f'[fetch_mer_series] lmeInventory 실패: {e} — 기존 값 보존', file=sys.stderr)
 

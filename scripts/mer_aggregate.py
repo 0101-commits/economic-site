@@ -17,7 +17,7 @@ import json
 import re
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import yaml
 
@@ -107,12 +107,13 @@ _RE_CALENDAR = re.compile(
     r"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{4}[-/.]\d{1,2}\b"
     r"|\d+\s*월\s*\d+\s*일|\d+\s*월(?!\s*\d*\s*(달러|원|엔|%))|\d{4}\s*년"
     r"|분기|발효|시행|만기"
+    r"|\d+\s*시\s*\d+\s*분"
 )
 _RE_QUAL_REJECT = re.compile(r"[÷×]|배(?!럴)|\d+\s*번|\d+\s*표|%p|bp")
 # 재고 일수 블록에 실릴 자격 — 「버틸 수 있는 잔여량」을 말하는 것만.
 _RE_STOCKPILE = re.compile(r"비축|재고|보관|저장|보유\s*물량|커버|공급\s*여력|소진")
 _RE_NUMBER = re.compile(r"(-?\d+(?:\.\d+)?)")
-_RE_UNIT = re.compile(r"(%|원|달러|엔)")
+_RE_UNIT = re.compile(r"(%|원|달러|엔|TEU)")
 _UNIT_ALIAS = {"달러": "$"}
 
 
@@ -168,6 +169,20 @@ def _dig(node, path):
     return node
 
 
+def _yoy(pts):
+    """월간 인덱스 시계열 → 전년동월 대비 %. 12개월 전 실측이 없는 달은 버린다(보간·외삽 금지).
+    CPIAUCSL·PCEPI 처럼 data.json 이 지수(레벨)로 주는데 글의 임계는 '%' 로 적힌 지표 전용."""
+    by_date = dict(pts)
+    out = []
+    for d, v in pts:
+        if not (len(d) >= 6 and d[:4].isdigit()):
+            continue
+        base = by_date.get(str(int(d[:4]) - 1) + d[4:])   # 'YYYY-MM-DD'(FRED)·'YYYYMM'(ECOS) 공통
+        if base:
+            out.append((d, round((v / base - 1) * 100, 2)))
+    return out
+
+
 def join_series(entity, data, mer_series):
     """entity.dataKind 에 따라 (current, history_points[(date,value)]) 를 돌려준다.
     조인 불가면 (None, [])."""
@@ -197,10 +212,26 @@ def join_series(entity, data, mer_series):
         node = _dig(data, dp)
         arr = node if isinstance(node, list) else []
         pts = [(p["date"], p["close"]) for p in arr if isinstance(p, dict) and p.get("close") is not None]
+    elif kind == "meritems":
+        # mer_series.<name>:<item> — fetch_mer_series.py 가 [{date, items:{...}}] 로 자가축적하는 계열
+        path, item = dp.split(":")
+        arr = mer_series.get(path.split(".", 1)[1], []) if isinstance(mer_series, dict) else []
+        pts = []
+        for p in arr:
+            if not isinstance(p, dict):
+                continue
+            bag = p.get("items") or p.get("alloc")   # freight·lme 는 items, NPS 는 alloc
+            if isinstance(bag, dict) and isinstance(bag.get(item), (int, float)):
+                pts.append((p["date"], bag[item]))
     elif kind in ("map", "sentiment"):
         node = _dig(data, dp)
         hist = node.get("history", {}) if isinstance(node, dict) else {}
         pts = list(hist.items()) if isinstance(hist, dict) else []
+
+    pts = [(d, v) for d, v in pts if isinstance(v, (int, float))]
+    if entity.get("transform") == "yoy":
+        pts.sort(key=lambda x: x[0])
+        pts = _yoy(pts)
 
     if not pts:
         return None, []

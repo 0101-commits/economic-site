@@ -3,9 +3,11 @@
 # 근거: 기획안 §3.7 ① — 810개 엣지에서 문자열이 같은 쌍은 최대 n=2. 사전 없이는 히트맵이 통째로 빈다.
 # aliases 는 정규식(대소문자 무시, 부분 일치). entities 순서대로 첫 일치가 이긴다(specific → generic).
 # layer: cause(원인) → market(시장 변수) → channel(창구) → asset(자산)
-# dataKind: close(history.*[{date,close}]) | map({date:val}) | curve(yieldCurve) | sentiment | jgb(mer_series) | none
-version: v0.3
-updated: 2026-09-15
+# dataKind: close(history.*[{date,close}]) | map({date:val}) | curve(yieldCurve) | sentiment
+#           | jgb(mer_series.jgb:<tenor>) | meritems(mer_series.<name>:<item>) | none
+# transform: yoy — 지수(index) 시계열을 전년동월 대비 %로 바꾼다. 임계가 %로 적힌 지표 전용.
+version: v0.4
+updated: 2026-09-16
 layers: [cause, market, channel, asset]
 
 entities:
@@ -140,7 +142,7 @@ entities:
   label: 일본은행 기준금리
   layer: cause
   unit: '%'
-  dataKind: none
+  dataKind: map
   dataPath: economicIndicators.jp.base_rate_jp
   plausible: [0, 5]
   aliases:
@@ -152,13 +154,13 @@ entities:
   label: 한국은행 기준금리
   layer: cause
   unit: '%'
-  dataKind: none
+  dataKind: map
   dataPath: economicIndicators.kr.base_rate_kr
   plausible: [0, 8]
   aliases:
     - '한국\s*기준금리'
-    - '한국은행'
-    - '한은'
+    - '한국은행(?!\s*물가)'
+    - '한은(?!\s*물가)'
     - 'BOK'
 
 # ───────────────────────── market · 환율
@@ -214,10 +216,12 @@ entities:
 
 # ───────────────────────── market · 물가·유동성·변동성
 - id: core_cpi_us
-  label: 미 근원CPI
+  # 원천은 FRED:CPIAUCSL(헤드라인 지수) — 근원 계열은 data.json 에 없다. 라벨을 실제 원천에 맞춘다.
+  label: 미 CPI(전년비)
   layer: market
   unit: '%'
-  dataKind: none
+  dataKind: map
+  transform: yoy
   dataPath: economicIndicators.us.cpi_us
   plausible: [0, 10]
   aliases:
@@ -227,15 +231,30 @@ entities:
     - '소비자물가'
     - 'CPI'
 - id: pce_us
-  label: 미 PCE
+  # 원천은 FRED:PCEPI(헤드라인 지수).
+  label: 미 PCE(전년비)
   layer: market
   unit: '%'
-  dataKind: none
+  dataKind: map
+  transform: yoy
   dataPath: economicIndicators.us.pce_us
   plausible: [0, 10]
   aliases:
     - 'PCE'
     - '연준\s*물가\s*목표'
+- id: cpi_kr
+  # 원천은 ECOS:901Y009(소비자물가지수) — 지수라 전년비로 환산해 쓴다.
+  label: 한국 CPI(전년비)
+  layer: market
+  unit: '%'
+  dataKind: map
+  transform: yoy
+  dataPath: economicIndicators.kr.cpi_kr
+  plausible: [-5, 15]
+  aliases:
+    - '한국은행\s*물가\s*목표'
+    - '한국\s*(소비자)?\s*물가'
+    - '국내\s*물가\s*(상승률|목표)?'
 - id: gdp_growth_us
   label: 미 GDP 성장률
   layer: market
@@ -320,6 +339,18 @@ entities:
   aliases:
     - '변동성'
     - 'MOVE\s*지수'
+- id: lme_copper
+  # fetch_mer_series.py 가 westmetall LME 일일 재고를 자가축적한다(data.json.lmeInventory 경유).
+  label: LME 구리 재고
+  layer: market
+  unit: 톤
+  dataKind: meritems
+  dataPath: mer_series.lmeInventory:Copper
+  plausible: [0, 2000000]
+  aliases:
+    - 'LME\s*(구리|동)?\s*재고'
+    - '구리\s*재고'
+    - '비철\s*재고'
 - id: current_account_kr
   label: 한국 경상수지
   layer: market
@@ -450,7 +481,9 @@ entities:
   label: 미 고용·실업률
   layer: market
   unit: '%'
-  dataKind: none
+  dataKind: map
+  dataPath: economicIndicators.us.unemployment
+  plausible: [0, 20]
   aliases:
     - '실업률'
     - '고용\s*(지표|시장|보고서)'
@@ -525,6 +558,18 @@ entities:
     - '농지\s*(전수|처분)'
 
 # ───────────────────────── channel · 창구
+- id: nps_kr_equity
+  # 분기 공시(fund.nps.or.kr) — as_of 기준으로 쌓인다. 리밸런싱 압력의 실측 대용.
+  label: 국민연금 국내주식 비중
+  layer: channel
+  unit: '%'
+  dataKind: meritems
+  dataPath: mer_series.npsAllocation:국내주식
+  plausible: [0, 60]
+  aliases:
+    - '국민\s*연금\s*국내\s*주식'
+    - '연기금\s*국내\s*주식'
+    - '기금운용\s*국내\s*주식'
 - id: nps_flow
   label: 국민연금 리밸런싱
   layer: channel
@@ -938,8 +983,12 @@ entities:
     - '신약'
     - '임상'
 - id: freight_rate
-  label: 해상운임
+  label: 해상운임(SCFI)
   layer: asset
+  unit: p
+  dataKind: meritems
+  dataPath: mer_series.freight:SCFI
+  plausible: [100, 12000]
   aliases:
     - 'SCFI'
     - 'CCFI'
