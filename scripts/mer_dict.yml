@@ -4,9 +4,10 @@
 # aliases 는 정규식(대소문자 무시, 부분 일치). entities 순서대로 첫 일치가 이긴다(specific → generic).
 # layer: cause(원인) → market(시장 변수) → channel(창구) → asset(자산)
 # dataKind: close(history.*[{date,close}]) | map({date:val}) | curve(yieldCurve) | sentiment
-#           | jgb(mer_series.jgb:<tenor>) | meritems(mer_series.<name>:<item>) | none
+#           | jgb(mer_series.jgb:<tenor>) | meritems(mer_series.<name>:<item>)
+#           | rows(<path>:<field> — [{date, field}] 행 배열) | none
 # transform: yoy — 지수(index) 시계열을 전년동월 대비 %로 바꾼다. 임계가 %로 적힌 지표 전용.
-version: v0.4
+version: v0.6
 updated: 2026-09-16
 layers: [cause, market, channel, asset]
 
@@ -278,7 +279,9 @@ entities:
   label: 미 지급준비금
   layer: market
   unit: 조달러
-  dataKind: none
+  dataKind: map
+  dataPath: economicIndicators.us.reserves_us
+  scale: 0.000001
   aliases:
     - '지급\s*준비금'
     - '지준'
@@ -287,7 +290,9 @@ entities:
   label: 미 역레포(RRP)
   layer: market
   unit: 억달러
-  dataKind: none
+  dataKind: map
+  dataPath: economicIndicators.us.rrp_us
+  scale: 10
   aliases:
     - '역레포'
     - 'RRP'
@@ -297,7 +302,9 @@ entities:
   label: 재무부 일반계정(TGA)
   layer: market
   unit: 억달러
-  dataKind: none
+  dataKind: map
+  dataPath: economicIndicators.us.tga_us
+  scale: 0.01
   aliases:
     - 'TGA'
     - '재무부\s*(일반)?\s*계정'
@@ -333,9 +340,13 @@ entities:
     - 'VKOSPI'
     - '코스피\s*변동성'
 - id: volatility
-  label: 시장 변동성
+  # 원천 yfinance ^MOVE — 채권 변동성. plausible 은 두지 않는다: '변동성 40' 같은 임계가
+  # VIX 를 가리키는지 MOVE 를 가리키는지 글만으로 못 가르기 때문(값만 싣고 상태는 N/A).
+  label: 시장 변동성(MOVE)
   layer: market
-  dataKind: none
+  unit: p
+  dataKind: sentiment
+  dataPath: sentiment.move
   aliases:
     - '변동성'
     - 'MOVE\s*지수'
@@ -582,8 +593,12 @@ entities:
     - 'TAA'
     - '기금\s*운용수익률'
 - id: foreign_flow
-  label: 외국인 수급
+  # KRX 투자자별 순매수(억원, 음수=순매도). 흐름이라 plausible 은 두지 않는다.
+  label: 외국인 순매수
   layer: channel
+  unit: 억원
+  dataKind: rows
+  dataPath: investorTrading.daily:foreign
   aliases:
     - '외국인'
     - 'VaR'
@@ -803,8 +818,13 @@ entities:
     - '보험사'
     - '증권사'
 - id: realestate
-  label: 부동산
+  # FRED:QKRN628BIS — 전국 주거용 가격지수(분기). 글의 '15억' 류 임계는 단위(원)가 달라
+  # 자동으로 정성 처리된다. plausible 없음 = 값만 싣는다.
+  label: 부동산(전국 주택가격지수)
   layer: asset
+  unit: p
+  dataKind: map
+  dataPath: realestate.kr.apt_price_idx_kr
   aliases:
     - '부동산'
     - '아파트'
@@ -935,8 +955,11 @@ entities:
     - '클라리티'
     - '코인'
 - id: agri
-  label: 농산물·비료
+  # 곡물 대표로 옥수수 선물 하나만 싣는다(비료·요소는 별도 소스 없음) — 라벨에 명시.
+  label: 농산물(옥수수)
   layer: asset
+  dataKind: close
+  dataPath: history.commodities.Corn
   aliases:
     - '농산물'
     - '비료'

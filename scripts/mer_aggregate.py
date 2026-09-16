@@ -212,6 +212,12 @@ def join_series(entity, data, mer_series):
         node = _dig(data, dp)
         arr = node if isinstance(node, list) else []
         pts = [(p["date"], p["close"]) for p in arr if isinstance(p, dict) and p.get("close") is not None]
+    elif kind == "rows":
+        # <path>:<field> — investorTrading.daily 처럼 [{date, field...}] 인 행 배열
+        path, field = dp.split(":")
+        arr = _dig(data, path)
+        pts = [(p["date"], p[field]) for p in (arr if isinstance(arr, list) else [])
+               if isinstance(p, dict) and isinstance(p.get(field), (int, float))]
     elif kind == "meritems":
         # mer_series.<name>:<item> — fetch_mer_series.py 가 [{date, items:{...}}] 로 자가축적하는 계열
         path, item = dp.split(":")
@@ -229,6 +235,8 @@ def join_series(entity, data, mer_series):
         pts = list(hist.items()) if isinstance(hist, dict) else []
 
     pts = [(d, v) for d, v in pts if isinstance(v, (int, float))]
+    if entity.get("scale"):   # 원천 단위가 제각각인 계열을 한 판에 올릴 때만 쓴다
+        pts = [(d, round(v * entity["scale"], 4)) for d, v in pts]
     if entity.get("transform") == "yoy":
         pts.sort(key=lambda x: x[0])
         pts = _yoy(pts)
@@ -241,10 +249,15 @@ def join_series(entity, data, mer_series):
 
 
 def history_1y(pts, as_of):
-    try:
-        cutoff = (datetime.fromisoformat(as_of) - timedelta(days=365)).date().isoformat()
-    except (ValueError, TypeError):
-        return [{"date": d, "value": v} for d, v in pts]
+    # ECOS 계열은 'YYYYMM' 이라 fromisoformat 이 죽는다 — 그 경우 통째로 돌려주면
+    # 「1년」 이라 써 놓고 10년치를 그리게 된다. 키 포맷대로 잘라낸다.
+    if isinstance(as_of, str) and len(as_of) == 6 and as_of.isdigit():
+        cutoff = str(int(as_of[:4]) - 1) + as_of[4:]
+    else:
+        try:
+            cutoff = (datetime.fromisoformat(as_of) - timedelta(days=365)).date().isoformat()
+        except (ValueError, TypeError):
+            return [{"date": d, "value": v} for d, v in pts]
     return [{"date": d, "value": v} for d, v in pts if d >= cutoff]
 
 

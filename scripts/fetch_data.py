@@ -1498,6 +1498,12 @@ def fetch_fred_economic_indicators():
         "claims_us":   ("ICSA",            "미국 신규 실업수당 청구 (주간, 명)"),
         "t10y2y_us":   ("T10Y2Y",          "미국 장단기 금리차 10Y-2Y (일간, %p)"),
         "sentiment_us":("UMCSENT",         "미국 소비자심리지수 (미시간대)"),
+        # ── 2026-09 신규: 유동성 3형제(메르 렌즈 사슬 C3) ────────────────
+        # 단위가 서로 다르다 — RRP 는 십억USD, TGA·지준은 백만USD. 여기서는 FRED 원값을
+        # 그대로 싣고, 나란히 놓고 읽는 메르 렌즈 쪽 사전이 scale 로 십억USD 로 맞춘다.
+        "rrp_us":      ("RRPONTSYD",       "미 역레포 잔액 (일간, 십억USD)"),
+        "tga_us":      ("WTREGEN",         "미 재무부 일반계정 TGA (주간, 백만USD)"),
+        "reserves_us": ("WRESBAL",         "미 지급준비금 잔액 (주간, 백만USD)"),
     }
     # 시리즈별 빈도에 맞는 limit (분기/연 단위 차트 표시 위해 5년치 이상 확보)
     # daily 시리즈: 1300 (≈5년), monthly: 60 (5년), quarterly: 20 (5년)
@@ -1508,6 +1514,9 @@ def fetch_fred_economic_indicators():
         "t10y2y_us":   1300,   # 일간 — 침체 신호 곡선은 5년치가 있어야 의미가 있다
         "claims_us":   260,    # 주간 5년치
         "sentiment_us": 60,    # 월간 5년치
+        "rrp_us":      1300,   # 일간 5년치
+        "tga_us":      260,    # 주간 5년치
+        "reserves_us": 260,    # 주간 5년치
         "us10y":       60,   # GS10 is monthly
         "us2y":        60,
         "ff_rate":     60,

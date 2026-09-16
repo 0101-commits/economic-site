@@ -164,3 +164,25 @@ def test_join_series_meritems_reads_nps_alloc_bag():
                               "alloc": {"국내주식": 29.1, "해외주식": 35.4}}]}
     current, _ = ma.join_series(ent, {}, mer)
     assert current == {"value": 29.1, "asOf": "2026-06-01"}
+
+
+def test_join_series_rows_reads_field_from_row_list():
+    ent = {"dataKind": "rows", "dataPath": "investorTrading.daily:foreign"}
+    data = {"investorTrading": {"daily": [
+        {"date": "2026-09-15", "foreign": 100.0, "inst": -5.0},
+        {"date": "2026-09-16", "foreign": -14733.0, "inst": 10725.0}]}}
+    current, pts = ma.join_series(ent, data, {})
+    assert current == {"value": -14733.0, "asOf": "2026-09-16"} and len(pts) == 2
+
+
+def test_join_series_scale_converts_fred_unit_to_dict_unit():
+    """FRED 원단위(백만USD)를 사전이 선언한 단위(억달러)로 맞춘다 — 유동성 3형제."""
+    ent = {"dataKind": "map", "dataPath": "economicIndicators.us.tga_us", "scale": 0.01}
+    data = {"economicIndicators": {"us": {"tga_us": {"history": {"2026-09-09": 883335.0}}}}}
+    assert ma.join_series(ent, data, {})[0] == {"value": 8833.35, "asOf": "2026-09-09"}
+
+
+def test_history_1y_cuts_yyyymm_series():
+    """'YYYYMM' 키를 못 자르면 「1년」 이라 써 놓고 10년치를 그린다."""
+    pts = [("202401", 1), ("202506", 2), ("202509", 3), ("202608", 4)]
+    assert [p["date"] for p in ma.history_1y(pts, "202608")] == ["202509", "202608"]
