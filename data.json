@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-16T21:33:00.524082+09:00",
+  "lastUpdated": "2026-09-16T22:16:49.208315+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "pykrx (KRX 정보데이터시스템)",
@@ -20,7 +20,7 @@
     "pmi": "S&P Global PMI(웹) 우선 + FRED OECD BCI 폴백 + ECOS BSI(한국)",
     "uk_base_rate": "BoE IADB:IUMABEDR",
     "economicIndicators_kr": "ECOS API (ecos.bok.or.kr)",
-    "yieldCurve_kr": "토스증권 Open API (국고채 10Y, 20Y, 2Y, 30Y, 5Y) + ECOS API (817Y002): 1Y(010190000), 2Y(010195000), 10Y(010210000), 20Y(010220000), 30Y(010230000), 5Y(010200001), 회사채3Y(AA-)(010300000)",
+    "yieldCurve_kr": "토스증권 Open API (국고채 10Y, 20Y, 2Y, 30Y, 5Y) + ECOS API (817Y002): 1Y(010190000), 2Y(010195000), 10Y(010210000), 20Y(010220000), 30Y(010230000), 5Y(010200001)",
     "yieldCurve_eu": "ECB Data Portal (AAA 국채 수익률 곡선)",
     "yieldCurve_uk": "Bank of England IADB (제로쿠폰 국채 수익률)",
     "realestate_kr": "R-ONE API (reb.or.kr)",
@@ -33,28 +33,29 @@
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
-    "economicCalendar": "FRED release dates API"
+    "economicCalendar": "FRED release dates API",
+    "yieldCurve_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
-      "rate": 1367.18,
-      "change": 0.31
+      "rate": 1368.18,
+      "change": 0.39
     },
     "EURKRW": {
-      "rate": 1577.45,
-      "change": 0.25
+      "rate": 1578.61,
+      "change": 0.37
     },
     "JPYKRW": {
-      "rate": 8.8114,
-      "change": 0.26
+      "rate": 8.8145,
+      "change": 0.31
     },
     "EURUSD": {
       "rate": 1.1538,
-      "change": -0.06
+      "change": -0.02
     },
     "USDJPY": {
-      "rate": 155.16,
-      "change": 0.05
+      "rate": 155.22,
+      "change": 0.08
     }
   },
   "indices": {
@@ -89,76 +90,76 @@
   },
   "commodities": {
     "Gold": {
-      "price": 4380.9,
-      "change": 0.31
+      "price": 4387.0,
+      "change": 0.45
     },
     "Silver": {
-      "price": 65.09,
-      "change": -0.03
+      "price": 65.04,
+      "change": -0.11
     },
     "Platinum": {
-      "price": 1790.5,
-      "change": -0.46
+      "price": 1790.7,
+      "change": -0.45
     },
     "Palladium": {
-      "price": 1316.5,
-      "change": -0.68
+      "price": 1314.5,
+      "change": -0.83
     },
     "Copper": {
-      "price": 6.52,
-      "change": 0.49
+      "price": 6.49,
+      "change": 0.15
     },
     "WTI": {
-      "price": 103.56,
-      "change": -1.16
+      "price": 103.87,
+      "change": -0.87
     },
     "Brent": {
-      "price": 107.18,
-      "change": -0.9
+      "price": 107.47,
+      "change": -0.63
     },
     "NatGas": {
       "price": 2.97,
-      "change": 1.61
+      "change": 1.54
     },
     "Gasoline": {
       "price": 3.21,
-      "change": -0.85
+      "change": -0.81
     },
     "HeatingOil": {
-      "price": 5.02,
-      "change": 0.93
+      "price": 4.99,
+      "change": 0.39
     },
     "Aluminum": {
-      "price": 3455.25,
-      "change": 1.03
+      "price": 3443.0,
+      "change": 0.67
     },
     "Wheat": {
-      "price": 725.75,
-      "change": -0.85
+      "price": 727.0,
+      "change": -0.68
     },
     "Corn": {
-      "price": 534.0,
-      "change": -0.56
+      "price": 535.25,
+      "change": -0.33
     },
     "Soybean": {
-      "price": 1323.75,
-      "change": 0.15
+      "price": 1326.75,
+      "change": 0.38
     },
     "Rice": {
       "price": 15.79,
       "change": -1.19
     },
     "Coffee": {
-      "price": 280.6,
-      "change": -0.97
+      "price": 280.5,
+      "change": -1.01
     },
     "Sugar": {
-      "price": 18.78,
-      "change": -0.63
+      "price": 18.97,
+      "change": 0.37
     },
     "Cocoa": {
-      "price": 5909.0,
-      "change": 0.84
+      "price": 5996.0,
+      "change": 2.32
     },
     "Dubai": {
       "price": 77.13,
@@ -2863,7 +2864,7 @@
     ],
     "unit": "억원",
     "source": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷) + 최근 10일 네이버 기준 정렬",
-    "lastFetched": "2026-09-16T21:33:10.992838+09:00",
+    "lastFetched": "2026-09-16T22:17:02.655965+09:00",
     "recentSource": "네이버 금융(KOSPI 투자자별 매매동향, 포털·언론 기준)",
     "recentDays": 10,
     "crossCheck": [
@@ -3014,7 +3015,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-09-16T21:33:18.712978+09:00"
+    "lastFetched": "2026-09-16T22:17:11.967613+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -7026,13 +7027,14 @@
         }
       },
       "retail_us": {
-        "value": 660047.0,
-        "period": "2026-07-01",
+        "value": 668877.0,
+        "period": "2026-08-01",
         "desc": "미국 소매판매 (수정후, 백만USD)",
         "source": "FRED:RSXFS",
         "history": {
-          "2026-07-01": 660047.0,
-          "2026-06-01": 665054.0,
+          "2026-08-01": 668877.0,
+          "2026-07-01": 660638.0,
+          "2026-06-01": 665247.0,
           "2026-05-01": 663604.0,
           "2026-04-01": 657830.0,
           "2026-03-01": 653772.0,
@@ -7042,8 +7044,8 @@
           "2025-11-01": 634477.0,
           "2025-10-01": 631346.0,
           "2025-09-01": 632395.0,
-          "2025-08-01": 632149.0,
-          "2025-07-01": 628581.0,
+          "2025-08-01": 630770.0,
+          "2025-07-01": 629146.0,
           "2025-06-01": 620791.0,
           "2025-05-01": 616540.0,
           "2025-04-01": 624272.0,
@@ -7089,8 +7091,7 @@
           "2021-12-01": 547277.0,
           "2021-11-01": 551082.0,
           "2021-10-01": 545361.0,
-          "2021-09-01": 536651.0,
-          "2021-08-01": 532477.0
+          "2021-09-01": 536651.0
         }
       },
       "nfp_us": {
@@ -13106,7 +13107,7 @@
           "2026-09-11": 99.12,
           "2026-09-14": 99.46,
           "2026-09-15": 99.65,
-          "2026-09-16": 99.718
+          "2026-09-16": 99.725
         }
       },
       "pmi_us": {
@@ -33792,7 +33793,7 @@
           ]
         }
       ],
-      "source": "토스증권 Open API (국고채 10Y, 20Y, 2Y, 30Y, 5Y) + ECOS API (817Y002): 1Y(010190000), 2Y(010195000), 10Y(010210000), 20Y(010220000), 30Y(010230000), 5Y(010200001), 회사채3Y(AA-)(010300000)",
+      "source": "토스증권 Open API (국고채 10Y, 20Y, 2Y, 30Y, 5Y) + ECOS API (817Y002): 1Y(010190000), 2Y(010195000), 10Y(010210000), 20Y(010220000), 30Y(010230000), 5Y(010200001)",
       "extra": {
         "3Y": 4.09
       },
@@ -51518,7 +51519,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 1367.18
+          "close": 1368.18
         }
       ],
       "EURKRW": [
@@ -56720,7 +56721,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 1577.45
+          "close": 1578.61
         }
       ],
       "JPYKRW": [
@@ -61922,7 +61923,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 8.8114
+          "close": 8.8145
         }
       ],
       "EURUSD": [
@@ -72326,7 +72327,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 155.16
+          "close": 155.22
         }
       ]
     },
@@ -111962,7 +111963,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 4380.9
+          "close": 4387.0
         }
       ],
       "Silver": [
@@ -116992,7 +116993,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 65.09
+          "close": 65.04
         }
       ],
       "Platinum": [
@@ -122022,7 +122023,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 1790.5
+          "close": 1790.7
         }
       ],
       "Palladium": [
@@ -127048,7 +127049,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 1316.5
+          "close": 1314.5
         }
       ],
       "Copper": [
@@ -132082,7 +132083,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 6.52
+          "close": 6.49
         }
       ],
       "WTI": [
@@ -137112,7 +137113,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 103.56
+          "close": 103.87
         }
       ],
       "Brent": [
@@ -142146,7 +142147,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 107.18
+          "close": 107.47
         }
       ],
       "NatGas": [
@@ -157248,7 +157249,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 5.02
+          "close": 4.99
         }
       ],
       "Aluminum": [
@@ -162274,7 +162275,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 3455.25
+          "close": 3443.0
         }
       ],
       "Wheat": [
@@ -167300,7 +167301,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 725.75
+          "close": 727.0
         }
       ],
       "Corn": [
@@ -172326,7 +172327,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 534.0
+          "close": 535.25
         }
       ],
       "Soybean": [
@@ -177352,7 +177353,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 1323.75
+          "close": 1326.75
         }
       ],
       "Rice": [
@@ -187412,7 +187413,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 280.6
+          "close": 280.5
         }
       ],
       "Sugar": [
@@ -192446,7 +192447,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 18.78
+          "close": 18.97
         }
       ],
       "Cocoa": [
@@ -197476,7 +197477,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 5909.0
+          "close": 5996.0
         }
       ],
       "Dubai": [
@@ -205066,7 +205067,7 @@
         },
         {
           "date": "2026-09-16",
-          "close": 75643.1797
+          "close": 75678.2891
         }
       ]
     }
@@ -205896,8 +205897,8 @@
   "diagnostics": {
     "fxTossCross": {
       "toss": 1371.98,
-      "site": 1367.18,
-      "diffPct": -0.35
+      "site": 1368.18,
+      "diffPct": -0.28
     },
     "stockMoversSource": "pykrx (KRX 정보데이터시스템)",
     "etfMoversSource": "토스증권 Open API",
@@ -205916,10 +205917,11 @@
       "fred_ok": false
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
-    "historySpotSynced": 23,
+    "preservedMetricsDeep": 1,
+    "historySpotSynced": 19,
     "toss": {
       "generatedAt": "2026-09-16T20:00:01.256865+09:00",
-      "ageMinutes": 134.8,
+      "ageMinutes": 146.7,
       "supplied": [
         "etfMovers",
         "indices_kr",
@@ -208698,7 +208700,7 @@
     ],
     "as_of": "2026-09-15",
     "source": "westmetall.com (LME 일일 재고)",
-    "lastFetched": "2026-09-16T21:33:23.826759+09:00"
+    "lastFetched": "2026-09-16T22:17:17.279221+09:00"
   },
   "subscription": {
     "byRegion": {
@@ -209072,7 +209074,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-09-16T22:12:03.677574+09:00"
+    "lastFetched": "2026-09-16T22:23:06.714372+09:00"
   },
   "nps": {
     "allocation": [
@@ -209098,11 +209100,11 @@
       }
     ],
     "source": "fund.nps.or.kr",
-    "lastFetched": "2026-09-16T22:12:26.350954+09:00",
+    "lastFetched": "2026-09-16T22:23:10.618430+09:00",
     "as_of": "2026-06-01"
   },
   "news": {
-    "lastFetched": "2026-09-16T22:12:45.031377+09:00",
+    "lastFetched": "2026-09-16T22:23:28.189773+09:00",
     "채권": [
       {
         "title": "FOMC 관망 속 국고채 금리 하락…3년물 연 4.053%(종합)",
@@ -209175,16 +209177,16 @@
         "pubDate": "Wed, 16 Sep 2026 00:36:00 GMT"
       },
       {
-        "title": "[EBN 데이터센터] 코스피 대형주 혼조, 코스닥은 로봇·반도체 장비 강세",
-        "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1724280",
-        "isoDate": "2026-09-15",
-        "pubDate": "Tue, 15 Sep 2026 07:44:00 GMT"
-      },
-      {
         "title": "중동 리스크·금리 부담에 코스피 3%↓…코스닥 소부장 강세[장중시황]",
         "url": "https://www.msn.com/ko-kr/news/living/%EC%A4%91%EB%8F%99-%EB%A6%AC%EC%8A%A4%ED%81%AC-%EA%B8%88%EB%A6%AC-%EB%B6%80%EB%8B%B4%EC%97%90-%EC%BD%94%EC%8A%A4%ED%94%BC-3-%EC%BD%94%EC%8A%A4%EB%8B%A5-%EC%86%8C%EB%B6%80%EC%9E%A5-%EA%B0%95%EC%84%B8-%EC%9E%A5%EC%A4%91%EC%8B%9C%ED%99%A9/ar-AA2boeGu",
         "isoDate": "2026-09-01",
         "pubDate": "Tue, 01 Sep 2026 20:02:00 GMT"
+      },
+      {
+        "title": "[EBN 데이터센터] 코스피 대형주 혼조, 코스닥은 로봇·반도체 장비 강세",
+        "url": "https://www.ebn.co.kr/news/articleView.html?idxno=1724280",
+        "isoDate": "2026-09-15",
+        "pubDate": "Tue, 15 Sep 2026 07:44:00 GMT"
       }
     ],
     "원자재": [
@@ -209262,6 +209264,18 @@
     ],
     "한국GDP": [
       {
+        "title": "씨티, 올해 명목 GDP 성장률 전망치 20.7→25.0% 상향",
+        "url": "https://www.yna.co.kr/view/AKR20260909147500002",
+        "isoDate": "2026-09-09",
+        "pubDate": "Wed, 09 Sep 2026 09:27:00 GMT"
+      },
+      {
+        "title": "[다음주 경제] 취업자 얼마나 늘었을까…2분기 GDP 성장률 잠정치 주목",
+        "url": "https://www.yna.co.kr/view/AKR20260905014100002",
+        "isoDate": "2026-09-05",
+        "pubDate": "Sat, 05 Sep 2026 01:55:00 GMT"
+      },
+      {
         "title": "2분기 명목 GDP 성장률 9.2%…47년 만에 최고치",
         "url": "https://www.hankyung.com/article/2026090800077",
         "isoDate": "2026-09-08",
@@ -209278,26 +209292,20 @@
         "url": "https://www.hankyung.com/article/202609089991Y",
         "isoDate": "2026-09-08",
         "pubDate": "Tue, 08 Sep 2026 01:02:00 GMT"
-      },
-      {
-        "title": "한국은행, 2분기 실질 GDP 성장률 0.6퍼센트 기록… 견조한 흐름 지속",
-        "url": "https://www.msn.com/ko-kr/news/other/%ED%95%9C%EA%B5%AD%EC%9D%80%ED%96%89-2%EB%B6%84%EA%B8%B0-%EC%8B%A4%EC%A7%88-gdp-%EC%84%B1%EC%9E%A5%EB%A5%A0-06%ED%8D%BC%EC%84%BC%ED%8A%B8-%EA%B8%B0%EB%A1%9D-%EA%B2%AC%EC%A1%B0%ED%95%9C-%ED%9D%90%EB%A6%84-%EC%A7%80%EC%86%8D/ar-AA2bLC8j",
-        "isoDate": "2026-09-07",
-        "pubDate": "Mon, 07 Sep 2026 17:55:18 GMT"
       }
     ],
     "미국CPI": [
-      {
-        "title": "미국 CPI 3.4%…트루플레이션은 2.33% 제시",
-        "url": "https://www.tokenpost.kr/news/economy/406969",
-        "isoDate": "2026-09-12",
-        "pubDate": "Sat, 12 Sep 2026 15:53:00 GMT"
-      },
       {
         "title": "미국 인플레이션 재가열…Fed 금리인상 확률 90% 육박",
         "url": "https://chaovietnam.co.kr/187857/",
         "isoDate": "2026-09-11",
         "pubDate": "Fri, 11 Sep 2026 16:59:00 GMT"
+      },
+      {
+        "title": "미국 CPI 3.4%…트루플레이션은 2.33% 제시",
+        "url": "https://www.tokenpost.kr/news/economy/406969",
+        "isoDate": "2026-09-12",
+        "pubDate": "Sat, 12 Sep 2026 15:53:00 GMT"
       },
       {
         "title": "미국 8월 근원 CPI 상승률 예상치 소폭 웃돌아...9월 금리인상 확률 87%",
@@ -209368,8 +209376,8 @@
       {
         "title": "9월 독일 경기예측 지수 34.7·0.5P↑…\"현황지수는 대폭 개선\"",
         "url": "https://www.msn.com/ko-kr/news/world/9%EC%9B%94-%EB%8F%85%EC%9D%BC-%EA%B2%BD%EA%B8%B0%EC%98%88%EC%B8%A1-%EC%A7%80%EC%88%98-347-05p-%ED%98%84%ED%99%A9%EC%A7%80%EC%88%98%EB%8A%94-%EB%8C%80%ED%8F%AD-%EA%B0%9C%EC%84%A0/ar-AA2cj3Kw",
-        "isoDate": "2026-09-15",
-        "pubDate": "Tue, 15 Sep 2026 18:25:27 GMT"
+        "isoDate": "2026-09-16",
+        "pubDate": "Wed, 16 Sep 2026 03:25:00 GMT"
       },
       {
         "title": "독일 연방하원 의원 韓국세청 첫 방문…K-세정·AI 전환 교류",
@@ -209422,20 +209430,14 @@
         "url": "https://www.newspim.com/news/view/20260901001229",
         "isoDate": "2026-09-01",
         "pubDate": "Tue, 01 Sep 2026 02:56:00 GMT"
-      },
-      {
-        "title": "ECB, 물가 반등 배후로 '호르무즈 차질' 지목…수요 과열 아닌 공급 충격",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/ecb-%EB%AC%BC%EA%B0%80-%EB%B0%98%EB%93%B1-%EB%B0%B0%ED%9B%84%EB%A1%9C-%ED%98%B8%EB%A5%B4%EB%AC%B4%EC%A6%88-%EC%B0%A8%EC%A7%88-%EC%A7%80%EB%AA%A9-%EC%88%98%EC%9A%94-%EA%B3%BC%EC%97%B4-%EC%95%84%EB%8B%8C-%EA%B3%B5%EA%B8%89-%EC%B6%A9%EA%B2%A9/ar-AA2bLk88",
-        "isoDate": "2026-09-07",
-        "pubDate": "Mon, 07 Sep 2026 11:35:00 GMT"
       }
     ],
     "한국수출": [
       {
-        "title": "반도체가 수출의 절반∙∙∙ 한국 경제, AI 호황의 빛과 그림자",
-        "url": "https://www.leadeconomy.co.kr/news/articleView.html?idxno=9677",
-        "isoDate": "2026-09-11",
-        "pubDate": "Fri, 11 Sep 2026 04:36:00 GMT"
+        "title": "트럼프, 연준과 금리인하 갈등…韓 무역수지 흑자 '좌불안석'",
+        "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/%ED%8A%B8%EB%9F%BC%ED%94%84-%EC%97%B0%EC%A4%80%EA%B3%BC-%EA%B8%88%EB%A6%AC%EC%9D%B8%ED%95%98-%EA%B0%88%EB%93%B1-%E9%9F%93-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-%ED%9D%91%EC%9E%90-%EC%A2%8C%EB%B6%88%EC%95%88%EC%84%9D/ar-AA2ce9le",
+        "isoDate": "2026-09-14",
+        "pubDate": "Mon, 14 Sep 2026 20:05:23 GMT"
       },
       {
         "title": "[속보] 8월 무역수지 347.5억달러 흑자…3개월 연속 300억달러 이상",
@@ -209444,16 +209446,16 @@
         "pubDate": "Tue, 01 Sep 2026 02:02:00 GMT"
       },
       {
+        "title": "반도체가 수출의 절반∙∙∙ 한국 경제, AI 호황의 빛과 그림자",
+        "url": "https://www.leadeconomy.co.kr/news/articleView.html?idxno=9677",
+        "isoDate": "2026-09-11",
+        "pubDate": "Fri, 11 Sep 2026 04:36:00 GMT"
+      },
+      {
         "title": "1~10일 수출, 350억 달러로 또 최대치… 무역수지까지 사상 최대 흑자",
         "url": "https://www.hankookilbo.com/news/article/A2026091109360005122",
         "isoDate": "2026-09-11",
         "pubDate": "Fri, 11 Sep 2026 02:52:00 GMT"
-      },
-      {
-        "title": "트럼프, 연준과 금리인하 갈등…韓 무역수지 흑자 '좌불안석'",
-        "url": "https://www.msn.com/ko-kr/%EC%A0%95%EC%B9%98/%EC%A0%95%EB%B6%80%EA%B8%B0%EA%B4%80/%ED%8A%B8%EB%9F%BC%ED%94%84-%EC%97%B0%EC%A4%80%EA%B3%BC-%EA%B8%88%EB%A6%AC%EC%9D%B8%ED%95%98-%EA%B0%88%EB%93%B1-%E9%9F%93-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-%ED%9D%91%EC%9E%90-%EC%A2%8C%EB%B6%88%EC%95%88%EC%84%9D/ar-AA2ce9le",
-        "isoDate": "2026-09-14",
-        "pubDate": "Mon, 14 Sep 2026 20:05:23 GMT"
       },
       {
         "title": "한국, 곡물생산 96% ‘쌀’…농축산물 무역수지 적자 세계 5위",
@@ -209648,7 +209650,7 @@
         "iso": "2026-10-30"
       }
     ],
-    "lastFetched": "2026-09-16T22:14:52.223687+09:00",
+    "lastFetched": "2026-09-16T22:26:44.297891+09:00",
     "source": "FRED release dates API",
     "backfilled": 4
   },
@@ -210499,21 +210501,21 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-09-16T22:14:54.514749+09:00",
+    "asOf": "2026-09-16T22:26:44.390130+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-09-16",
-    "generatedAt": "2026-09-16 22:16 KST",
+    "generatedAt": "2026-09-16 22:27 KST",
     "lines": [
-      "미국 증시 하락에도 코스피가 6700선을 회복하며 강세를 보인 점이 이례적이며, 이는 외국인 매도세 속에서도 반도체 대형주 중심의 저가 매수세가 유입된 결과입니다.",
-      "원달러 환율이 1367원대로 상승하며 외국인 자금 이탈 압력이 지속되고 있어, 환율 변동성이 국내 증시의 추가 상승을 제한하는 주요 변수로 작용할 전망입니다.",
-      "내일은 외국인 투자자의 순매매 추이를 확인하여 반도체 중심의 수급 개선세가 지속될 수 있을지 여부를 반드시 점검해야 합니다."
+      "미국 증시의 하락에도 불구하고 코스피가 6700선을 회복하며 강세를 보인 점이 이례적이며, 이는 외국인 매도세 속에서도 반도체 대형주 중심의 수급 개선이 시장을 방어하고 있음을 시사합니다.",
+      "환율이 1368원대로 상승하며 원화 약세가 지속되고 있어 외국인 투자자의 추가 이탈 가능성을 경계해야 하며, 이는 국내 증시의 상단을 제한하는 주요 요인이 될 것입니다.",
+      "변동성 지수인 VIX와 공포·탐욕 지수가 공포 구간에 머물러 있는 만큼, 시장의 심리적 안정을 확인할 수 있는 미국 국채 금리 변화를 내일 주의 깊게 살펴봐야 합니다."
     ],
     "source": "gemini"
   },
   "dataHealth": {
-    "checkedAt": "2026-09-16T13:16:14.440577+00:00",
+    "checkedAt": "2026-09-16T13:27:39.259163+00:00",
     "summary": {
       "total": 144,
       "ok": 130,
@@ -211055,8 +211057,8 @@
       },
       {
         "path": "economicIndicators.us.retail_us",
-        "asOf": "2026-07-01",
-        "ageDays": 77,
+        "asOf": "2026-08-01",
+        "ageDays": 46,
         "sla": 100,
         "tier": "normal",
         "state": "ok"
