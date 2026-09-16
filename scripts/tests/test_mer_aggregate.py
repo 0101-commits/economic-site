@@ -186,3 +186,22 @@ def test_history_1y_cuts_yyyymm_series():
     """'YYYYMM' 키를 못 자르면 「1년」 이라 써 놓고 10년치를 그린다."""
     pts = [("202401", 1), ("202506", 2), ("202509", 3), ("202608", 4)]
     assert [p["date"] for p in ma.history_1y(pts, "202608")] == ["202509", "202608"]
+
+
+def test_liquidity_and_kr_entities_declare_scale_matching_their_unit():
+    """FRED 원단위(백만·십억USD)와 사전 표기 단위가 다르면 자릿수가 통째로 틀린다.
+    실측값으로 환산 결과의 자릿수를 고정한다."""
+    ents = {e["id"]: e for e in ma.load_dict()[1]}
+    cases = [  # (id, FRED 원값, 기대 환산값)
+        ("rrp",         0.700,           7.0),        # 십억USD → 억달러
+        ("tga",         883335.0,        8833.35),    # 백만USD → 억달러
+        ("reserves",    2991310.0,       2.9913),     # 백만USD → 조달러
+        ("fx_reserves", 421968.5648,     4219.6856),  # 백만USD → 억달러
+        ("kr_exports",  100558300000.0,  1005.583),   # USD → 억달러
+    ]
+    for eid, raw, want in cases:
+        e = ents[eid]
+        path = e["dataPath"].split(".")
+        node = {"history": {"2026-09-09": raw}}
+        data = {path[0]: {path[1]: {path[2]: node}}}
+        assert ma.join_series(e, data, {})[0]["value"] == want, eid

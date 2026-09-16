@@ -1597,6 +1597,13 @@ FRED_INTL_INDICATORS = {
         "gdp_yoy":      ("CLVMNACSCAB1GQDE",  "독일 실질GDP 성장률 (YoY %)", "pc1"),
         "unemployment": ("LRHUTTTTDEM156S",   "독일 실업률"),
     },
+    # 한국 — ECOS 가 주 소스라 여기엔 ECOS 에 없는 것만 둔다(키는 {key}_kr 로 붙는다).
+    "kr": {
+        "fx_reserves":  ("TRESEGKRM052N",     "한국 외환보유액 (금 제외, IMF IFS, 백만USD)"),
+        # 상품수출액(월간, USD). 같은 계열의 원화 표시본(XTEXVA01KRM664S)과 나눈 함의환율이
+        # 2026-06 실측 평균환율과 0.05% 안에서 일치해 단위·빈도를 확인했다.
+        "exports":      ("XTEXVA01KRM667S",   "한국 상품수출액 (월간, USD)"),
+    },
     "uk": {
         "gdp":          ("NGDPRSAXDCGBQ",     "영국 실질GDP (분기, IMF)"),
         "gdp_yoy":      ("NGDPRSAXDCGBQ",     "영국 실질GDP 성장률 (YoY %)", "pc1"),
@@ -5575,7 +5582,7 @@ def fetch_all_historical_data():
     data.json 의 history 필드에 저장되어 프런트엔드 차트에서 사용.
     """
     log("[YF-HIST] 시계열 데이터 수집 시작 (5년치 일별 종가)")
-    out = {"fx": {}, "indices": {}, "commodities": {}}
+    out = {"fx": {}, "indices": {}, "commodities": {}, "crypto": {}}
     fx_map = {
         "USDKRW": "KRW=X",
         "EURKRW": "EURKRW=X",
@@ -5643,7 +5650,17 @@ def fetch_all_historical_data():
             log(f"[YF-HIST] COM {name}({sym}): {len(h)} bars")
         else:
             log(f"[YF-HIST] COM {name}({sym}): 데이터 없음")
-    log(f"[YF-HIST] 완료: fx={len(out['fx'])}, indices={len(out['indices'])}, commodities={len(out['commodities'])}")
+    # 암호화폐 — 메르 렌즈의 crypto 노드가 값 없이 떠 있어 추가(2026-09-16).
+    # 24/7 시장이라 주말 봉도 들어온다(주식 계열과 날짜 축이 다르다는 점만 유의).
+    for name, sym in {"BTC": "BTC-USD"}.items():
+        h = fetch_yf_history(sym, period="5y")
+        if h:
+            out["crypto"][name] = h
+            log(f"[YF-HIST] CRYPTO {name}({sym}): {len(h)} bars")
+        else:
+            log(f"[YF-HIST] CRYPTO {name}({sym}): 데이터 없음")
+    log(f"[YF-HIST] 완료: fx={len(out['fx'])}, indices={len(out['indices'])}, "
+        f"commodities={len(out['commodities'])}, crypto={len(out['crypto'])}")
     return out
 
 
@@ -6524,7 +6541,7 @@ def build_data():
         log("[FRED] 국제 경제 지표 수집 시작")
         intl_data = fetch_fred_intl_indicators()
         for cc, ind in intl_data.items():
-            data["economicIndicators"][cc] = ind
+            data["economicIndicators"].setdefault(cc, {}).update(ind)
         if intl_data:
             data["sources"]["economicIndicators_intl"] = "FRED API (OECD/IMF/Eurostat 시리즈)"
 

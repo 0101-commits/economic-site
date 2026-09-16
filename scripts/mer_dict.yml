@@ -7,7 +7,7 @@
 #           | jgb(mer_series.jgb:<tenor>) | meritems(mer_series.<name>:<item>)
 #           | rows(<path>:<field> — [{date, field}] 행 배열) | none
 # transform: yoy — 지수(index) 시계열을 전년동월 대비 %로 바꾼다. 임계가 %로 적힌 지표 전용.
-version: v0.6
+version: v0.7
 updated: 2026-09-16
 layers: [cause, market, channel, asset]
 
@@ -208,9 +208,13 @@ entities:
     - '기축통화'
     - '^달러$'
 - id: fx_reserves
-  label: 외환보유고
+  # FRED 중계 IMF IFS(월간 백만USD) → 글의 표기 단위(억달러)로 환산. 2026-07 = 4,219억달러.
+  label: 한국 외환보유액
   layer: market
-  dataKind: none
+  unit: 억달러
+  dataKind: map
+  dataPath: economicIndicators.kr.fx_reserves_kr
+  scale: 0.01
   aliases:
     - '외환\s*보유고'
     - '외화\s*보유고'
@@ -378,9 +382,13 @@ entities:
   aliases:
     - '대미\s*무역\s*흑자'
 - id: kr_exports
-  label: 한국 수출
+  # FRED 중계 IMTS 월간 상품수출액(USD) → 억달러. 2026-06 = 1,006억달러.
+  label: 한국 상품수출액
   layer: market
-  dataKind: none
+  unit: 억달러
+  dataKind: map
+  dataPath: economicIndicators.kr.exports_kr
+  scale: 0.00000001
   aliases:
     - '한국\s*수출'
 
@@ -944,8 +952,12 @@ entities:
     - 'JKM'
     - '가스\s*(가격|공급)'
 - id: crypto
-  label: 비트코인·암호화폐
+  # yfinance BTC-USD 일봉(24/7 시장이라 주말 봉도 들어온다). 스테이블코인·알트는 별도 소스 없음.
+  label: 비트코인(BTC)
   layer: asset
+  unit: $
+  dataKind: close
+  dataPath: history.crypto.BTC
   aliases:
     - '비트\s*코인'
     - 'BTC'
