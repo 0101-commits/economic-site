@@ -65,6 +65,7 @@ DASHBOARD_URL = "https://0101-commits.github.io/economic-site/"
 KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이
+KAKAO_FEED_ROWS = 5  # 피드 item_content.items 표시 한도 — 넘으면 뒤 행이 잘린다
 # 발송 '성공' 센티널 — 워크플로(kakao-daily.yml)가 이 파일의 존재로만 '발송됨' 마커를 캐시한다.
 # (스크립트는 알림 스팸 방지를 위해 실패해도 exit 0 이므로, 종료코드로는 성공을 알 수 없다.)
 SENT_OK_PATH = ".kakao_sent_ok"
@@ -1351,13 +1352,21 @@ def build_feed_parts(blocks):
     """공통 블록 → 피드용 (description, items).
 
     설명(2줄): 증시(코스피·S&P) / 환율(달러-원·달러-엔) — 헤드라인.
-    행(item): 심리 / 에너지 / 금속 / 곡물 / 운임 — 카카오 피드 행 한도(5개)와 일치.
-    일곱 카테고리가 항상 한 통에 모두 담기며, 행 값이 길어 뒤가 잘리는 일이 없게 배치한다."""
-    # 앞 두 블록=설명(헤드라인), 나머지=행 — 일간(증시·환율 / 심리~운임 5행)과
+    행(item): 심리 / 에너지 / 금속 / 곡물 / 운임 / 수급 — 카카오 피드 행 한도는 5개다.
+
+    ⚠ 행이 한도를 넘으면 '뒤에서 자르지 않는다'. 블록 순서상 맨 뒤인 수급이 매번
+    탈락했기 때문이다(2026-09-17 실측): 수급 블록은 KRX 확정치가 나오는 18시 이후
+    슬롯에만 붙는데, 붙는 순간 항상 6번째라 100% 잘려 나갔다. '확정치만 싣는다'고
+    공들여 만든 블록이 한 번도 도착하지 않았다.
+    → 한도를 넘으면 뒤 두 행을 한 행으로 합쳐 둘 다 살린다."""
+    # 앞 두 블록=설명(헤드라인), 나머지=행 — 일간(증시·환율 / 심리~수급)과
     # 주간 리포트(주간증시·주간환율 / 원자재·다음주 일정)가 같은 규칙을 쓴다.
     desc = "\n".join(v for _, v in blocks[:2] if v)
-    items = [{"item": lab, "item_op": v} for lab, v in blocks[2:] if v]
-    return desc, items
+    rows = [(lab, v) for lab, v in blocks[2:] if v]
+    while len(rows) > KAKAO_FEED_ROWS:            # 초과분은 버리지 않고 앞 행에 접는다
+        (l1, v1), (l2, v2) = rows[-2], rows[-1]
+        rows[-2:] = [(f"{l1}·{l2}", f"{v1} / {v2}")]
+    return desc, [{"item": lab, "item_op": v} for lab, v in rows]
 
 
 def _hero_button(slot, weekend, now):
