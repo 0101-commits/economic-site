@@ -49,6 +49,9 @@ DN_TXT = "#2F62BE"    # (6.0:1)
 SQ = (7.2, 7.2)          # 7.2in × 150dpi = 1080px
 SQ_DPI = 150
 SQ_MIN_FS = 11.5
+# 타일 행(y0=0.775, pad 0.004 → 실하단 0.771)과 그 아래 차트 축(상단 0.732) 사이의
+# 라벨 띠 한가운데. 여기에 va="center" 로 놓아야 글자가 타일 안으로 파고들지 않는다.
+SEC_LAB_Y = 0.7515
 
 _KO_FONTS = ["Malgun Gothic", "NanumGothic", "Noto Sans CJK KR", "Noto Sans KR"]
 _STATE = {}           # {"plt": module, "ko": bool} — 1회 초기화 캐시
@@ -237,15 +240,72 @@ def _fs(size, square=False):
     return max(float(size), SQ_MIN_FS) if square else float(size)
 
 
+def _text_w(fig, s, fontsize, weight="normal"):
+    """s 를 그렸을 때 차지하는 가로 폭(figure 폭 대비 비율 0~1). Agg 렌더러로 실측."""
+    if not s:
+        return 0.0
+    t = fig.text(0, 0, str(s), fontsize=fontsize, fontweight=weight)
+    try:
+        return t.get_window_extent(renderer=fig.canvas.get_renderer()).width / fig.bbox.width
+    except Exception:
+        # 렌더러를 못 얻는 환경 — 한글 1자 ≈ 1em 가정의 보수적 근사(과대 추정 쪽).
+        return len(str(s)) * (fontsize / 72.0) / fig.get_figwidth()
+    finally:
+        t.remove()
+
+
+def _clip(fig, s, max_frac, fontsize, weight="normal"):
+    """max_frac(figure 폭 비율) 안에 들어가게 뒤를 잘라 말줄임표를 붙인다.
+
+    글자수(`[:N]`)로 자르면 한글·숫자·이모지·비율기호의 폭이 제각각이라 같은 N 이어도
+    어떤 문구는 카드 밖으로 넘치고 어떤 문구는 옆 글자를 파고든다 — 2026-09-17 실측에서
+    정사각 보드 6종의 제목↔보조가 최대 221px 겹쳤고, 마감 카드의 발동 종목 줄은 캔버스를
+    159px 넘어갔다. 그래서 자르는 기준을 글자수가 아니라 '실제 렌더 폭'으로 바꾼다."""
+    s = str(s or "")
+    if not s or _text_w(fig, s, fontsize, weight) <= max_frac:
+        return s
+    lo, hi = 0, len(s)
+    while lo < hi:                                    # 들어가는 최대 길이를 이분 탐색
+        mid = (lo + hi + 1) // 2
+        if _text_w(fig, s[:mid] + "…", fontsize, weight) <= max_frac:
+            lo = mid
+        else:
+            hi = mid - 1
+    return (s[:lo].rstrip() + "…") if lo else ""
+
+
+def _head(fig, title, meta="", fs_t=20, fs_m=11.5, y=0.955, square=True):
+    """카드 머리글 — 왼쪽 제목 + 오른쪽 보조를 한 줄에서 폭으로 나눠 쓴다.
+
+    둘 다 같은 줄(0.03~0.97)을 쓰는데 종전엔 각자 글자수로만 잘라서 서로 파고들었다.
+    제목에 최대 0.62 를 주고, 보조는 '제목이 실제로 쓴 폭'을 뺀 나머지만 쓴다."""
+    fs_t, fs_m = _fs(fs_t, square), _fs(fs_m, square)
+    t = _clip(fig, title, 0.62, fs_t, "bold")
+    fig.text(0.03, y, t, color=INK, fontsize=fs_t, fontweight="bold")
+    if meta:
+        room = max(0.94 - _text_w(fig, t, fs_t, "bold") - 0.03, 0.0)   # 제목 뒤 남은 폭
+        # 보조는 " · " 로 이어 붙인 조각들(MOVE · 오늘 일정)이다. 폭이 모자라면 글자를
+        # 자르는 대신 뒤 조각을 통째로 버린다 — "오늘 미…" 처럼 반쯤 잘린 일정은
+        # 정보가 아니라 노이즈고, 앞 조각(MOVE)까지 밀려 나가게 만든다.
+        segs = [s for s in str(meta).split(" · ") if s]
+        m = ""
+        while segs:
+            cand = " · ".join(segs)
+            if _text_w(fig, cand, fs_m) <= room:
+                m = cand
+                break
+            segs.pop()
+        if not m:                                     # 첫 조각조차 안 들어가면 그것만 줄여서
+            m = _clip(fig, str(meta).split(" · ")[0], room, fs_m)
+        if m:
+            fig.text(0.97, y + 0.003, m, color=MUT, fontsize=fs_m, ha="right")
+
+
 def _sq_fig(plt, title, meta=""):
     """정사각 카드 공통 골격 1단 — 1080×1080 캔버스 + 제목줄(+ 우측 보조)."""
     fig = plt.figure(figsize=SQ, dpi=SQ_DPI)
     fig.patch.set_facecolor(BG)
-    fig.text(0.03, 0.955, str(title)[:44], color=INK,
-             fontsize=_fs(20, True), fontweight="bold")
-    if meta:
-        fig.text(0.97, 0.958, str(meta)[:40], color=MUT,
-                 fontsize=_fs(11.5, True), ha="right")
+    _head(fig, title, meta)
     return fig
 
 
@@ -278,16 +338,23 @@ def _sq_panel(fig, box, ys, xs=None, prev=None, up=True, label="", right="",
             ax.fill_between(range(len(vals)), vals, floor, color=col, alpha=0.10)
         if prev:
             ax.axhline(prev, color=FAINT, lw=1.0, ls="--")
-            ax.text(0.004, prev, _L("전일 ", "prev ") + _fmt(prev) + " ", color=FAINT,
+            # 기준선 라벨엔 패널색 배경을 깐다 — 시세가 그 자리를 지나면 글자 위로
+            # 선이 그어져 숫자를 못 읽는다(2026-09-17 급변·마감 카드 실측).
+            # 배경을 깔면 글자 양끝 여백은 bbox 가 맡는다 — 종전의 앞뒤 공백은 배경
+            # 사각형까지 늘려 패널 경계 밖으로 흰 조각을 남긴다. 좌표도 한 칸 안으로.
+            ax.text(0.008, prev, _L("전일 ", "prev ") + _fmt(prev), color=FAINT,
                     fontsize=_fs(10.5, True), va="bottom",
+                    bbox=dict(facecolor=TILE, edgecolor="none", pad=1.0),
                     transform=ax.get_yaxis_transform())
         for v, lcol, llab in lines:
             if v is None:
                 continue
             ax.axhline(v, color=lcol, lw=1.3, ls="--")
             if llab:
-                ax.text(0.996, v, llab + " ", color=lcol, fontsize=_fs(11, True),
-                        ha="right", va="bottom", transform=ax.get_yaxis_transform())
+                ax.text(0.99, v, llab, color=lcol, fontsize=_fs(11, True),
+                        ha="right", va="bottom",
+                        bbox=dict(facecolor=TILE, edgecolor="none", pad=1.0),
+                        transform=ax.get_yaxis_transform())
         ax.plot(len(vals) - 1, vals[-1], "o", color=col, ms=7)
         ticks = sorted({0, len(vals) // 3, 2 * len(vals) // 3, len(vals) - 1})
         ax.set_xticks(ticks)
@@ -526,11 +593,17 @@ def _draw_cells(fig, grid, box, fs, square=False):
             fig.patches.append(FancyBboxPatch(
                 (x, y), w, h, boxstyle="round,pad=0.004,rounding_size=0.009",
                 transform=fig.transFigure, fc=bgc, ec="none"))
-            fig.text(x + 0.013, y + 0.71 * h, label, color=ink, fontsize=fs_l)
-            fig.text(x + 0.013, y + 0.33 * h, val, color=INK, fontsize=fs_p, fontweight="bold")
+            # 한 칸 안에서 쓸 수 있는 가로 폭(좌 0.013 / 우 0.011 여백). 종목명·기간
+            # 문자열은 길이가 제각각이라 글자수로 자르면 타일 밖으로 삐져나가 옆 칸
+            # 글자와 겹친다 — 실제 렌더 폭으로 자른다.
+            iw = max(w - 0.024, 0.0)
+            fig.text(x + 0.013, y + 0.71 * h, _clip(fig, label, iw, fs_l),
+                     color=ink, fontsize=fs_l)
+            fig.text(x + 0.013, y + 0.33 * h, _clip(fig, val, iw, fs_p, "bold"),
+                     color=INK, fontsize=fs_p, fontweight="bold")
             if note:
-                fig.text(x + w - 0.011, y + 0.09 * h, note, color=ink,
-                         fontsize=fs_c, fontweight="bold", ha="right")
+                fig.text(x + w - 0.011, y + 0.09 * h, _clip(fig, note, iw, fs_c, "bold"),
+                         color=ink, fontsize=fs_c, fontweight="bold", ha="right")
 
 
 def _cell(label, val, note="", chg=None, sat=3.0):
@@ -595,12 +668,9 @@ def _board_wide(plt, d, now, prof, cal):
     fs = (14, 21, 14) if cols <= 3 else (13, 17, 13)   # 3열이면 타일이 넓어 글자를 키운다
     fig = plt.figure(figsize=(10, 7.0), dpi=160)
     fig.patch.set_facecolor(BG)
-    fig.text(0.03, 0.945, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드 · {prof['title']}",
-                             f"{now.month}/{now.day} {now.hour}h Market Board"),
-             color=INK, fontsize=19, fontweight="bold")
-    meta = _meta_line(d, cal)
-    if meta:
-        fig.text(0.97, 0.950, meta, color=MUT, fontsize=11, ha="right")
+    _head(fig, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드 · {prof['title']}",
+                  f"{now.month}/{now.day} {now.hour}h Market Board"),
+          _meta_line(d, cal), fs_t=19, fs_m=11, y=0.945, square=False)
     _draw_tiles(fig, d, grid, (0.03, 0.44, 0.94, 0.46), fs)
     # 하단 캡션 — 미국채 1·5·10·30Y(사용자 지정 2026-08-20, 구 원자재 4종 대체).
     rest = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
@@ -654,12 +724,9 @@ def _board_square(plt, d, now, pkey, prof, cal, hero):
     fig = plt.figure(figsize=(7.2, 7.2), dpi=150)
     fig.patch.set_facecolor(BG)
     wd = "월화수목금토일"[now.weekday()]
-    fig.text(0.03, 0.955, _L(f"{now.month}/{now.day}({wd}) {now.hour}시 시황 · {prof['title']}",
-                             f"{now.month}/{now.day} {now.hour}h · {prof['title']}"),
-             color=INK, fontsize=20, fontweight="bold")
-    meta = _meta_line(d, cal)
-    if meta:
-        fig.text(0.97, 0.958, meta, color=MUT, fontsize=11.5, ha="right")
+    _head(fig, _L(f"{now.month}/{now.day}({wd}) {now.hour}시 시황 · {prof['title']}",
+                  f"{now.month}/{now.day} {now.hour}h · {prof['title']}"),
+          _meta_line(d, cal))
     _draw_tiles(fig, d, grid, (0.03, 0.575, 0.94, 0.345), (13, 19, 13), square=True)
     cap = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
     if cap:
@@ -697,8 +764,11 @@ def _board_square(plt, d, now, pkey, prof, cal, hero):
         ax.fill_between(range(len(ys)), ys, floor, color=UP if up else DN, alpha=0.10)
         if prev:
             ax.axhline(prev, color=FAINT, lw=1.0, ls="--")
-            ax.text(0.004, prev, _L("전일 ", "prev ") + _fmt_tile(hcat, prev) + " ",
+            # 패널색 배경을 깔아 준다 — 기준선 라벨이 패널 왼쪽 끝에 붙는데, 장 초반
+            # 시세가 그 자리를 지나면 글자 위로 선이 그어져 숫자가 안 읽힌다(실측).
+            ax.text(0.008, prev, _L("전일 ", "prev ") + _fmt_tile(hcat, prev),
                     color=FAINT, fontsize=10.5, va="bottom",
+                    bbox=dict(facecolor=TILE, edgecolor="none", pad=1.0),
                     transform=ax.get_yaxis_transform())
         ax.plot(len(ys) - 1, ys[-1], "o", color=UP if up else DN, ms=7)
         ticks = sorted({0, len(ys) // 3, 2 * len(ys) // 3, len(ys) - 1})
@@ -747,7 +817,7 @@ def stock_alert(hero, others, now, shape="wide", extra_tiles=None):
                  color=INK, fontsize=18, fontweight="bold")
         # 좌 히어로 — 조건 문구·현재가·등락·거래량(전일比)
         body_top = base_y - 0.14 * (4.2 / hgt)
-        fig.text(0.03, body_top, str(hero.get("cond") or hero.get("name") or "")[:46],
+        fig.text(0.03, body_top, _clip(fig, hero.get("cond") or hero.get("name") or "", 0.38, 13),
                  color=MUT, fontsize=13)
         mkt = hero.get("market", "KR")
         ptxt = f"{hero['price']:,.2f}" if mkt == "US" else f"{hero['price']:,.0f}"
@@ -779,7 +849,8 @@ def stock_alert(hero, others, now, shape="wide", extra_tiles=None):
             if tgt:
                 ax.axhline(tgt, color=col, lw=1.2, ls="--")
                 ax.text(0.02, tgt, _L(f"목표 {tgt:,.0f} ", f"target {tgt:,.0f} "),
-                        color=coltxt, fontsize=10.5, va="bottom")
+                        color=coltxt, fontsize=10.5, va="bottom",
+                        bbox=dict(facecolor=TILE, edgecolor="none", pad=1.0))
             ax.plot(len(closes) - 1, closes[-1], "o", color=col, ms=6)
             ax.text(0.02, 0.94, _L("30일 일봉", "30-day daily"), transform=ax.transAxes,
                     color=MUT, fontsize=11, va="top")
@@ -788,7 +859,7 @@ def stock_alert(hero, others, now, shape="wide", extra_tiles=None):
             s.set_visible(False)
         # 하단 — 동시 발동 나머지 종목
         for i, ln in enumerate((others or [])[:4]):
-            fig.text(0.03, (0.42 * (extra - i) + 0.42) / hgt, "· " + str(ln)[:80],
+            fig.text(0.03, (0.42 * (extra - i) + 0.42) / hgt, _clip(fig, "· " + str(ln), 0.38, 12.5),
                      color=INK, fontsize=12.5)
         _footer(fig, now)
         return _save(fig, "discord_card_stock.png")
@@ -806,7 +877,8 @@ def _stock_square(plt, hero, others, now, extra_tiles=None):
     name = str(hero.get("name") or "")[:14]
     fig = _sq_fig(plt, _L(f"종목 알림 · {name}", f"Stock Alert · {name}"),
                   now.strftime("%m/%d %H:%M"))
-    fig.text(0.03, 0.905, str(hero.get("cond") or "")[:40], color=MUT, fontsize=_fs(12.5, True))
+    fig.text(0.03, 0.905, _clip(fig, hero.get("cond") or "", 0.94, _fs(12.5, True)),
+         color=MUT, fontsize=_fs(12.5, True))
 
     def _p(v):
         return f"{v:,.2f}" if mkt == "US" else f"{v:,.0f}"
@@ -935,29 +1007,30 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
                      + (f" {inv.get('reason')}" if inv.get("reason") else ""),
                      color=MUT, fontsize=12)
         # ── 우하: 특징주 top3 + 오늘 발동 알림 + 내일 일정
-        ty = 0.435
+        # 줄을 먼저 모아 놓고 남은 세로에 맞춰 간격을 정한다 — 종전처럼 고정 간격으로
+        # 쌓으면 특징주 6줄 + 알림 + 종목명 + 일정이 다 찼을 때 마지막 줄이 y=0.028 까지
+        # 내려가 footer(y=0.022)를 파고들었다(2026-09-17 실측: 82×18px 겹침).
+        RX, RW = 0.56, 0.41                           # 우측 열 시작 x / 캔버스 안 가용 폭
+        stack = []
         gain, lose = (movers or ([], []))
         if gain or lose:
-            fig.text(0.56, ty, _L("특징주(코스피)", "KOSPI movers"), color=MUT, fontsize=12)
-            ty -= 0.045
+            stack.append((_L("특징주(코스피)", "KOSPI movers"), MUT))
             for r in (gain or [])[:3]:
-                fig.text(0.56, ty, f"▲ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%",
-                         color=UP_TXT, fontsize=12)
-                ty -= 0.042
+                stack.append((f"▲ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%", UP_TXT))
             for r in (lose or [])[:3]:
-                fig.text(0.56, ty, f"▼ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%",
-                         color=DN_TXT, fontsize=12)
-                ty -= 0.042
-            ty -= 0.015
+                stack.append((f"▼ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%", DN_TXT))
         if alerts_cnt is not None:
-            head = _L(f"오늘 발동 알림 {alerts_cnt}건", f"alerts fired today: {alerts_cnt}")
-            fig.text(0.56, ty, head, color=MUT, fontsize=12)
-            ty -= 0.045
+            stack.append((_L(f"오늘 발동 알림 {alerts_cnt}건", f"alerts fired today: {alerts_cnt}"), MUT))
             if fired_names:
-                fig.text(0.56, ty, " · ".join(fired_names[:6])[:52], color=INK, fontsize=12)
-                ty -= 0.05
+                # 글자수로 자르면 종목명이 길 때 캔버스를 넘어간다(실측 159px 이탈) — 폭으로 자른다.
+                stack.append((" · ".join(str(n) for n in fired_names[:6]), INK))
         if cal:
-            fig.text(0.56, ty, _L("내일 ", "tomorrow ") + cal, color=INK, fontsize=12)
+            stack.append((_L("내일 ", "tomorrow ") + str(cal), INK))
+        if stack:
+            top, floor = 0.435, 0.075                 # floor = footer(0.022) 위 안전 여백
+            step = min(0.045, (top - floor) / len(stack))
+            for i, (txt, tcol) in enumerate(stack):
+                fig.text(RX, top - i * step, _clip(fig, txt, RW, 12), color=tcol, fontsize=12)
         _footer(fig, now)
         return _save(fig, "discord_card_close.png")
     except Exception as e:
@@ -990,17 +1063,21 @@ def _close_square(plt, its, now, alerts_cnt, cal, intraday, investor, fired_name
         cells[0].append(_cell(_L("오늘 알림", "alerts"), f"{alerts_cnt}", nm, None))
     if cells[0]:
         _draw_cells(fig, cells, (0.03, 0.775, 0.94, 0.145), (13, 19, 13), square=True)
-        bar_box, bar_lab = [0.17, 0.475, 0.80, 0.265], 0.755
+        # 타일 아래 라벨 띠 — 타일 실하단(0.775-pad 0.004=0.771)과 바 축 상단 사이를 비워
+        # 그 한가운데에 세로 중앙정렬로 놓는다. 종전(베이스라인 0.755)엔 글자 윗부분이
+        # 타일 안으로 22px 들어가 잘려 보였다(2026-09-17 실측).
+        bar_box, bar_lab = [0.17, 0.468, 0.80, 0.264], SEC_LAB_Y
     else:
-        bar_box, bar_lab = [0.17, 0.475, 0.80, 0.42], 0.915
+        bar_box, bar_lab = [0.17, 0.475, 0.80, 0.42], 0.925
     _bars(fig, bar_box, [(l, c) for l, _p, c in its], square=True, lim_mul=1.35)
-    fig.text(0.03, bar_lab, _L("지수 등락", "index moves"), color=MUT, fontsize=_fs(12.5, True))
+    fig.text(0.03, bar_lab, _L("지수 등락", "index moves"), color=MUT,
+             fontsize=_fs(12.5, True), va="center")
     xs, ys, prev, src = intraday or ([], [], None, "")
     _sq_panel(fig, [0.03, 0.165, 0.94, 0.245], ys, xs=xs, prev=prev,
               up=bool(ys) and (ys[-1] >= (prev or ys[0])),
               label=_L("코스피 오늘", "KOSPI today") + (f" · {src}" if src else ""))
     if cal:
-        fig.text(0.03, 0.075, _L("내일  ", "tomorrow  ") + str(cal)[:44],
+        fig.text(0.03, 0.075, _clip(fig, _L("내일  ", "tomorrow  ") + str(cal), 0.94, _fs(12.5, True)),
                  color=INK, fontsize=_fs(12.5, True))
     _footer(fig, now, square=True)
     return _save(fig, "kakao_card_close.png")
@@ -1144,7 +1221,7 @@ def weekly(d, now, next_week="", shape="wide"):
         if flow:
             fig.text(0.03, 0.115, flow, color=MUT, fontsize=12)
         if next_week:
-            fig.text(0.03, 0.068, _L("다음 주  ", "next week  ") + str(next_week)[:70],
+            fig.text(0.03, 0.068, _clip(fig, _L("다음 주  ", "next week  ") + str(next_week), 0.94, 12),
                      color=MUT, fontsize=12)
         _footer(fig, now)
         return _save(fig, "discord_card_weekly.png")
@@ -1172,11 +1249,13 @@ def _weekly_square(plt, d, now, rows, next_week):
         cells[0].append(_cell(_L("외국인 5일", "foreign 5d"), f"{fo:+,.0f}",
                               _L("억원", "0.1bn") + f" · {_span}", fo, sat=20000.0))
     _draw_cells(fig, cells, (0.03, 0.775, 0.94, 0.145), (13, 19, 13), square=True)
-    _bars(fig, [0.17, 0.135, 0.80, 0.60], [(l, c) for l, _k, c in rows],
+    _bars(fig, [0.17, 0.135, 0.80, 0.597], [(l, c) for l, _k, c in rows],
           square=True, lim_mul=1.3)
-    fig.text(0.03, 0.755, _L("주간 수익률", "weekly returns"), color=MUT, fontsize=_fs(12.5, True))
+    fig.text(0.03, SEC_LAB_Y, _L("주간 수익률", "weekly returns"), color=MUT,
+             fontsize=_fs(12.5, True), va="center")
     if next_week:
-        fig.text(0.03, 0.075, _L("다음 주  ", "next week  ") + str(next_week)[:46],
+        fig.text(0.03, 0.075, _clip(fig, _L("다음 주  ", "next week  ") + str(next_week), 0.94,
+                            _fs(12.5, True)),
                  color=INK, fontsize=_fs(12.5, True))
     _footer(fig, now, square=True)
     return _save(fig, "kakao_card_weekly.png")
@@ -1256,7 +1335,8 @@ def _swing_square(plt, name, price, pct, thr_pct, xs, ys, prev, now, resume, src
              f"threshold ±{abs(thr_pct):.1f}% crossed")
     if resume:
         sub += " · " + str(resume)
-    fig.text(0.03, 0.795, sub[:44], color=MUT, fontsize=_fs(12.5, True))
+    fig.text(0.03, 0.795, _clip(fig, sub, 0.94, _fs(12.5, True)),
+         color=MUT, fontsize=_fs(12.5, True))
     thr_v = prev * (1 + (abs(thr_pct) if pct > 0 else -abs(thr_pct)) / 100.0) if prev else None
     cells = [[_cell(str(name)[:10], _fmt(price) if price is not None else "—",
                     _chgtxt(pct), pct)]]
@@ -1312,10 +1392,11 @@ def status(title, state, reason="", timeline=None, tiles=None, now=None, tone="o
         fig.patches.append(FancyBboxPatch(
             (0.03, band_y), 0.94, band_h, boxstyle="round,pad=0.004,rounding_size=0.012",
             transform=fig.transFigure, fc=wash, ec="none"))
-        fig.text(0.06, band_y + band_h * (0.55 if reason else 0.42), str(state)[:22],
+        fig.text(0.06, band_y + band_h * (0.55 if reason else 0.42),
+                 _clip(fig, state, 0.88, _fs(38, True), "bold"),
                  color=band, fontsize=_fs(38, True), fontweight="bold")
         if reason:
-            fig.text(0.06, band_y + band_h * 0.22, str(reason)[:52], color=INK,
+            fig.text(0.06, band_y + band_h * 0.22, _clip(fig, reason, 0.88, _fs(13.5, True)), color=INK,
                      fontsize=_fs(13.5, True))
         if tl:
             w = (0.94 - 0.012 * (len(tl) - 1)) / len(tl)
@@ -1325,7 +1406,7 @@ def status(title, state, reason="", timeline=None, tiles=None, now=None, tone="o
                 fig.patches.append(FancyBboxPatch(
                     (x, ty), w, tl_h, boxstyle="round,pad=0.004,rounding_size=0.009",
                     transform=fig.transFigure, fc=wash if done else TILE, ec="none"))
-                fig.text(x + w / 2, ty + tl_h * 0.38, str(txt)[:16],
+                fig.text(x + w / 2, ty + tl_h * 0.38, _clip(fig, txt, w - 0.02, _fs(12.5, True)),
                          color=band if done else MUT, fontsize=_fs(12.5, True),
                          ha="center", fontweight="bold" if done else "normal")
         if rows:

@@ -570,7 +570,9 @@ def _pack_messages(items, header):
         if len(cur) + len(add) <= budget:
             cur += add
         else:                                          # 한 줄이 그 자체로 너무 긴 경우 자름
-            cur += add[:budget - len(cur)]
+            # max(0, …) 없이 쓰면 남은 자리가 음수일 때 add[:-n] 이 되어 '뒤에서 n자를
+            # 뺀 거의 전체 줄'이 붙는다 — 자르려던 자리에서 오히려 한도를 넘긴다.
+            cur += add[:max(0, budget - len(cur))]
         cur_ids.append(a["id"])
     if len(packs) < MAX_MSGS:
         flush()
