@@ -148,6 +148,31 @@ function formatAxisLabelOmitYear(label, allLabels) {
   if(m) return m[1] + '월';
   return str;
 }
+// ============================
+// 지표 표기 자릿수 — 단일 원천
+// ============================
+// 같은 지표가 화면 위치마다 다른 자릿수로 나오던 것을 여기로 모은다. 종전에는
+// 세 경로가 각자 포맷했다: 티커(min·max 둘 다 지정 → 1,385.00), 3줄 요약과
+// 브리핑 칩(max 만 지정 → 1,385). 금은 티커만 1자리라 $4,390.6 과 $4,381.80 이
+// 한 화면에 같이 떴다. 축 라벨용 fmtNum 과는 목적이 다르다 — 축은 trailing zero
+// 를 지우는 게 맞고(1500.00 → 1500), 화면 수치는 자릿수가 고정돼야 훑어 읽힌다.
+const INDICATOR_DECIMALS = {
+  index:  2,   // KOSPI·KOSDAQ·S&P500·NASDAQ·닛케이·상하이
+  fx:     2,   // 원/달러, 원/유로
+  oil:    2,   // WTI·Brent
+  gold:   2,   // 금 — 티커만 1자리였다
+  rate:   2,   // 기준금리·국채 수익률
+  pct:    2,   // 등락률 등 백분율
+  ratio:  2,   // VIX·PCR 같은 배수
+  count:  0,   // 공포탐욕 지수처럼 정수로 읽는 값
+};
+// v 를 kind 의 자릿수로 고정해 찍는다. trailing zero 를 남기는 것이 요점이다.
+// kind 를 모르면 index 로 본다(대부분의 화면 수치가 2자리다).
+function fmtIndicator(v, kind) {
+  if (v == null || isNaN(+v)) return '—';
+  const d = INDICATOR_DECIMALS[kind] != null ? INDICATOR_DECIMALS[kind] : INDICATOR_DECIMALS.index;
+  return (+v).toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
 // Y축 숫자 라벨 정리 — JS 부동소수점 오차(3.60000000000000005) 제거 + 단위 추가
 // 정밀도: 명시 시 그 자릿수 / 자동 시 값에 비례 (FX 1504.94 등은 2자리 유지).
 // trailing zero 는 parseFloat 으로 자연 제거 (1500.00 → "1500", 2.40 → "2.4").
@@ -12177,9 +12202,9 @@ function applyRealData(d) {
   const fx  = d.fx        || {};
   const com = d.commodities || {};
 
-  const fmt = (v, dec) => v != null
-    ? v.toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec})
-    : null;
+  // 자릿수는 INDICATOR_DECIMALS 가 정한다 — 종전엔 호출부마다 손으로 적어서
+  // 같은 금값이 티커 $4,390.6 / 요약 $4,381.80 으로 갈렸다.
+  const fmt = (v, kind) => v != null ? fmtIndicator(v, kind) : null;
   const fmtPct = v => v != null
     ? (v >= 0 ? `+${v.toFixed(2)}%` : `${v.toFixed(2)}%`)
     : null;
@@ -12191,16 +12216,16 @@ function applyRealData(d) {
   const krRate = _ecosKrPre.base_rate_kr;
   const us10y  = _ecosUsPre.us10y;
   const tickerMap = {
-    'KOSPI':    idx.KOSPI   && {val: fmt(idx.KOSPI.price,2),   chg: fmtPct(idx.KOSPI.change),   up: idx.KOSPI.change   >= 0},
-    'KOSDAQ':   idx.KOSDAQ  && {val: fmt(idx.KOSDAQ.price,2),  chg: fmtPct(idx.KOSDAQ.change),  up: idx.KOSDAQ.change  >= 0},
-    'USD/KRW':  fx.USDKRW   && {val: fmt(fx.USDKRW.rate,2),   chg: fmtPct(fx.USDKRW.change),   up: fx.USDKRW.change   >= 0},
-    'EUR/KRW':  fx.EURKRW   && {val: fmt(fx.EURKRW.rate,2),   chg: fmtPct(fx.EURKRW.change),   up: fx.EURKRW.change   >= 0},
-    'WTI':      com.WTI     && {val: '$'+fmt(com.WTI.price,2), chg: fmtPct(com.WTI.change),     up: com.WTI.change     >= 0},
-    'BRENT':    com.Brent   && {val: '$'+fmt(com.Brent.price,2),chg: fmtPct(com.Brent.change),  up: com.Brent.change   >= 0},
-    '금(Gold)': com.Gold    && {val: '$'+fmt(com.Gold.price,1), chg: fmtPct(com.Gold.change),   up: com.Gold.change    >= 0},
-    'S&P 500':  idx.SP500   && {val: fmt(idx.SP500.price,2),   chg: fmtPct(idx.SP500.change),   up: idx.SP500.change   >= 0},
-    'NASDAQ':   idx.NASDAQ  && {val: fmt(idx.NASDAQ.price,2),  chg: fmtPct(idx.NASDAQ.change),  up: idx.NASDAQ.change  >= 0},
-    '닛케이':   idx.Nikkei  && {val: fmt(idx.Nikkei.price,2),  chg: fmtPct(idx.Nikkei.change),  up: idx.Nikkei.change  >= 0},
+    'KOSPI':    idx.KOSPI   && {val: fmt(idx.KOSPI.price,'index'),   chg: fmtPct(idx.KOSPI.change),   up: idx.KOSPI.change   >= 0},
+    'KOSDAQ':   idx.KOSDAQ  && {val: fmt(idx.KOSDAQ.price,'index'),  chg: fmtPct(idx.KOSDAQ.change),  up: idx.KOSDAQ.change  >= 0},
+    'USD/KRW':  fx.USDKRW   && {val: fmt(fx.USDKRW.rate,'fx'),   chg: fmtPct(fx.USDKRW.change),   up: fx.USDKRW.change   >= 0},
+    'EUR/KRW':  fx.EURKRW   && {val: fmt(fx.EURKRW.rate,'fx'),   chg: fmtPct(fx.EURKRW.change),   up: fx.EURKRW.change   >= 0},
+    'WTI':      com.WTI     && {val: '$'+fmt(com.WTI.price,'oil'), chg: fmtPct(com.WTI.change),     up: com.WTI.change     >= 0},
+    'BRENT':    com.Brent   && {val: '$'+fmt(com.Brent.price,'oil'),chg: fmtPct(com.Brent.change),  up: com.Brent.change   >= 0},
+    '금(Gold)': com.Gold    && {val: '$'+fmt(com.Gold.price,'gold'), chg: fmtPct(com.Gold.change),   up: com.Gold.change    >= 0},
+    'S&P 500':  idx.SP500   && {val: fmt(idx.SP500.price,'index'),   chg: fmtPct(idx.SP500.change),   up: idx.SP500.change   >= 0},
+    'NASDAQ':   idx.NASDAQ  && {val: fmt(idx.NASDAQ.price,'index'),  chg: fmtPct(idx.NASDAQ.change),  up: idx.NASDAQ.change  >= 0},
+    '닛케이':   idx.Nikkei  && {val: fmt(idx.Nikkei.price,'index'),  chg: fmtPct(idx.Nikkei.change),  up: idx.Nikkei.change  >= 0},
     '한국 기준금리': krRate?.value != null && (() => {
       // 직전 값 추출 — history 에서 가장 최근의 다른 값
       let prev = krRate.value;
@@ -12213,7 +12238,7 @@ function applyRealData(d) {
       }
       const dir = prev > krRate.value ? '인하↓' : prev < krRate.value ? '인상↑' : '동결';
       const up = prev < krRate.value ? true : prev > krRate.value ? false : null;
-      return { val: krRate.value.toFixed(2) + '%', chg: dir, up };
+      return { val: fmtIndicator(krRate.value,'rate') + '%', chg: dir, up };
     })(),
     '미 10년물': us10y?.value != null && (() => {
       // 직전월 vs 현재월 변화량
@@ -12226,7 +12251,7 @@ function applyRealData(d) {
           if(cur != null && prv != null) chgPp = +(cur - prv).toFixed(2);
         }
       }
-      return { val: us10y.value.toFixed(2) + '%', chg: (chgPp>=0?'+':'') + chgPp.toFixed(2), up: chgPp >= 0 };
+      return { val: fmtIndicator(us10y.value,'rate') + '%', chg: (chgPp>=0?'+':'') + chgPp.toFixed(2), up: chgPp >= 0 };
     })(),
   };
   tickerData.forEach(t => { if (tickerMap[t.name]) Object.assign(t, tickerMap[t.name]); });

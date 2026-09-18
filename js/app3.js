@@ -57,20 +57,22 @@ function composeClientBriefingLines() {
   const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : {};
   const idx = d.indices || {}, fx = d.fx || {}, com = d.commodities || {};
   const eiUs = (d.economicIndicators || {}).us || {};
-  const num = (v, nd) => (v == null || isNaN(+v)) ? '—' : (+v).toLocaleString('ko-KR', { maximumFractionDigits: nd != null ? nd : 2 });
+  // 티커와 같은 자릿수 표를 본다 — 종전엔 여기만 trailing zero 를 지워서
+  // 원/달러가 티커 1,385.00 / 요약 1,385 로 갈렸다.
+  const num = (v, kind) => _bsNum(v, kind);
   const chg = v => (v == null || isNaN(+v)) ? '—' : `${+v >= 0 ? '▲' : '▼'}${Math.abs(+v).toFixed(2)}%`;
   const k = idx.KOSPI || {}, s = idx.SP500 || {}, n = idx.NASDAQ || {};
-  const line1 = `증시 — KOSPI ${num(k.price)} (${chg(k.change)}), S&P500 ${num(s.price)} (${chg(s.change)}), 나스닥 ${num(n.price)} (${chg(n.change)})`;
+  const line1 = `증시 — KOSPI ${num(k.price,'index')} (${chg(k.change)}), S&P500 ${num(s.price,'index')} (${chg(s.change)}), 나스닥 ${num(n.price,'index')} (${chg(n.change)})`;
   const u = fx.USDKRW || {};
-  let line2 = `환율·금리 — 원/달러 ${num(u.rate)}원 (${chg(u.change)})`;
+  let line2 = `환율·금리 — 원/달러 ${num(u.rate,'fx')}원 (${chg(u.change)})`;
   const ff = eiUs.ff_rate && eiUs.ff_rate.value;
   const vix = eiUs.vix && eiUs.vix.value;
-  if(ff != null) line2 += `, 미국 기준금리 ${num(ff)}%`;
-  if(vix != null) line2 += `, VIX ${num(vix)}`;
+  if(ff != null) line2 += `, 미국 기준금리 ${num(ff,'rate')}%`;
+  if(vix != null) line2 += `, VIX ${num(vix,'ratio')}`;
   const w = com.WTI || {}, g = com.Gold || {};
-  let line3 = `원자재·심리 — WTI $${num(w.price)} (${chg(w.change)}), 금 $${num(g.price)} (${chg(g.change)})`;
+  let line3 = `원자재·심리 — WTI $${num(w.price,'oil')} (${chg(w.change)}), 금 $${num(g.price,'gold')} (${chg(g.change)})`;
   const fg = (d.sentiment || {}).fear_greed || {};
-  if(fg.value != null) line3 += `, 공포탐욕 ${num(fg.value, 0)}(${fg.rating || '—'})`;
+  if(fg.value != null) line3 += `, 공포탐욕 ${num(fg.value, 'count')}(${fg.rating || '—'})`;
   return [line1, line2, line3];
 }
 
@@ -224,7 +226,12 @@ function showRiskDetail() {
 }
 
 // ── 📌 오늘의 브리핑 스트립 ────────────────────────────────────────────────
-function _bsNum(v, nd) { return (v == null || isNaN(+v)) ? '—' : (+v).toLocaleString('ko-KR', { maximumFractionDigits: nd != null ? nd : 2 }); }
+// 자릿수는 app1 의 INDICATOR_DECIMALS 가 정한다(단일 원천). app1 이 아직 없으면
+// 종전 동작으로 떨어진다 — 로더가 파일별 독립 스크립트라 순서를 가정하지 않는다.
+function _bsNum(v, kind) {
+  if (typeof fmtIndicator === 'function') return fmtIndicator(v, kind);
+  return (v == null || isNaN(+v)) ? '—' : (+v).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+}
 function _bsChgHtml(v) {
   if(v == null || isNaN(+v)) return '';
   const up = +v >= 0;
@@ -286,8 +293,8 @@ function renderBriefStrip(d) {
   // (fold 안에서 KOSPI 가 5회 등장하고 값이 서로 달랐던 문제의 절반이 이 칩이었다)
   const u = fx.USDKRW;
   if(u && u.rate != null) chip("navigateToDetail('fx')", 'USD/KRW',
-    `<span class="brief-val">${_bsNum(u.rate)}</span>${_bsChgHtml(u.change)}`,
-    '원/달러 환율 — 클릭: 환율 상세', `원 달러 환율 ${_bsNum(u.rate)}원, 등락 ${_bsNum(u.change)}%`);
+    `<span class="brief-val">${_bsNum(u.rate,'fx')}</span>${_bsChgHtml(u.change)}`,
+    '원/달러 환율 — 클릭: 환율 상세', `원 달러 환율 ${_bsNum(u.rate,'fx')}원, 등락 ${_bsNum(u.change,'pct')}%`);
   // 변동 슬롯 — 자기 이력 z-score 2 이상만 '급변'으로 올린다. 없으면 비운다.
   // (변화율 상위 3 랭킹은 단위가 다른 지표를 한 줄에 세워 비교 불가였다)
   try {
@@ -298,14 +305,14 @@ function renderBriefStrip(d) {
   } catch(_) {}
   const fg = sent.fear_greed;
   if(fg && fg.value != null) chip("showSentimentDetail('fear_greed')", '공포탐욕',
-    `<span class="brief-val">${_bsNum(fg.value, 0)}</span><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${escapeHtml(String(fg.rating || ''))}</span>`,
-    'CNN Fear & Greed — 클릭: 상세', `공포탐욕지수 ${_bsNum(fg.value, 0)} ${String(fg.rating || '')}`);
+    `<span class="brief-val">${_bsNum(fg.value,'count')}</span><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${escapeHtml(String(fg.rating || ''))}</span>`,
+    'CNN Fear & Greed — 클릭: 상세', `공포탐욕지수 ${_bsNum(fg.value,'count')} ${String(fg.rating || '')}`);
   try {
     const daily = (d.investorTrading || {}).daily || [];
     const last = daily[daily.length - 1];
     if(last && last.foreign != null) {
       const f = +last.foreign;
-      const fmt = Math.abs(f) >= 10000 ? (f / 10000).toFixed(1) + '조' : _bsNum(f, 0) + '억';
+      const fmt = Math.abs(f) >= 10000 ? (f / 10000).toFixed(1) + '조' : _bsNum(f,'count') + '억';
       chip("showPage('investor', menuItemFor('investor'))", '외국인',
         `<span class="brief-val ${f >= 0 ? 'up-txt' : 'down-txt'}">${f >= 0 ? '+' : ''}${fmt}</span>`,
         `외국인 KOSPI 순매매 ${last.date || ''} (원) — 클릭: 주요 투자자`, `외국인 순매매 ${f >= 0 ? '순매수' : '순매도'} ${fmt}원`);

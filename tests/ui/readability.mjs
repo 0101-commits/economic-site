@@ -165,12 +165,10 @@ for (const page of PAGES) {
     if (got.smallTextRatio > LIMITS.smallTextRatio) bad.push(`G2 12px 미만 ${(got.smallTextRatio * 100).toFixed(1)}%`);
     if (!got.koreanWebfont)                          bad.push('G3 한글 웹폰트 미로드');
     if (got.maxCharsPerLine > LIMITS.maxCharsPerLine) bad.push(`G4 줄길이 ${got.maxCharsPerLine}자`);
-    // G6 은 아직 경고다 — 원인(js/app1.js:154 fmtNum 이 trailing zero 를 지운다)은
-    // 밝혀졌지만 지표별 자릿수 테이블로 호출처를 모으는 P1-3 이 남아 있다.
-    // 그 작업이 끝나면 아래 한 줄을 bad.push 로 올린다.
-    const warn = got.decimalClashes.length ? [`G6 자릿수 불일치 ${got.decimalClashes.length}건 (P1-3 미구현)`] : [];
+    // G6 — P1-3(INDICATOR_DECIMALS 단일 원천)이 들어간 뒤로는 실패다.
+    if (got.decimalClashes.length) bad.push(`G6 자릿수 불일치 ${got.decimalClashes.length}건`);
 
-    results.push({ page, theme: actualTheme, ...got, bad, warn });
+    results.push({ page, theme: actualTheme, ...got, bad, warn: [] });
     if (bad.length) failed++;
     await ctx.close();
   }

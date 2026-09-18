@@ -34,6 +34,13 @@ def log(msg):
 
 
 def _num(v, nd=2):
+    """화면 수치 표기 — 자릿수를 고정하고 trailing zero 를 남긴다.
+
+    프런트의 INDICATOR_DECIMALS(js/app1.js)와 같은 규칙이어야 한다. 같은 지표가
+    서버 요약과 티커에서 다른 자릿수로 나오면 같은 숫자가 둘로 보인다.
+    현재 규칙은 지수·환율·유가·금·금리 2자리, 공포탐욕 0자리다 — 지표별로
+    다른 자릿수를 쓰게 되면 그 표와 여기를 같은 커밋에서 함께 고칠 것.
+    """
     try:
         return f"{float(v):,.{nd}f}"
     except (TypeError, ValueError):
