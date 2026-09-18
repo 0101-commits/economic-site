@@ -1819,6 +1819,34 @@ nav#sidebar { backdrop-filter: none !important; -webkit-backdrop-filter: none !i
 .econ-scrollhint > .econ-scrollhint__tag { position: absolute; bottom: 2px; right: 4px; z-index: 1;
                           font-size: var(--font-size-xs); color: var(--c-txt-dim);
                           background: var(--c-card); border-radius: var(--r-xs); padding: 0 4px; }
+@media (max-width: 767px) {
+  /* 6열이 390 에 들어가느라 한 행이 191px 로 접혔다(출처 셀 59px 에 인용문 40자).
+     '가장 가까운 레벨'과 '출처'는 숨긴다 — 행을 누르면 출처 패널이 열리고,
+     래더 막대가 이미 임계까지의 거리를 그림으로 보여준다. */
+  #merlensMonitor th:nth-child(4), #merlensMonitor td:nth-child(4),
+  #merlensMonitor th:nth-child(6), #merlensMonitor td:nth-child(6) { display: none; }
+  /* 래더 SVG 는 150px 고정폭이라 상태 배지를 화면 밖으로 밀어냈다 — viewBox 가 있으니
+     폭만 줄이면 그림은 그대로 눌린다. 상태는 배지 한 칸이라 반드시 보여야 한다. */
+  #merlensMonitor th:nth-child(3), #merlensMonitor td.mer-ladder-cell { width: 92px; }
+  #merlensMonitor .mer-ladder-cell svg { width: 92px; height: 20px; display: block; }
+  /* 네 열(지표·현재값·래더·상태)이 390 안에 다 들어가게 폭을 못박는다 —
+     상태 배지가 가로 스크롤 뒤에 숨으면 표를 읽는 이유가 사라진다. */
+  /* table-layout:auto 는 max-width 를 무시한다 — 고정 레이아웃이라야 폭이 먹는다 */
+  #merlensMonitor table { table-layout: fixed; width: 100%; max-width: 100%; min-width: 0; }
+  #merlensMonitor th:nth-child(1), #merlensMonitor td:nth-child(1) {
+    width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #merlensMonitor th:nth-child(2), #merlensMonitor td:nth-child(2) { width: 78px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* 7637.7598 이 두 줄로 접히던 자리 */
+  #merlensMonitor th:nth-child(5), #merlensMonitor td:nth-child(5) { width: 44px; }
+}
+/* 메르 렌즈 모바일 요약 — 트리거 모니터가 390 에서 7,444px(전체의 69%)였다 */
+.mer-monitor-summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+                       margin-bottom: 10px; font-size: var(--font-size-sm); color: var(--c-txt); }
+.mer-monitor-summary .mer-sum-num { font-family: var(--font-num); font-weight: var(--font-weight-bold); }
+.mer-monitor-summary .mer-sum-item { display: inline-flex; gap: 4px; align-items: baseline; }
+.mer-more { margin-top: 10px; width: 100%; padding: 9px 12px; border: 1px dashed var(--c-border);
+            border-radius: var(--r-xs); background: transparent; color: var(--c-primary);
+            cursor: pointer; font-size: var(--font-size-sm); }
 /* 지표 검색 오버레이(IA v3 P5) */
 .econ-search { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 400;
                display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; }
@@ -5026,6 +5054,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- ③ 트리거 모니터 -->
       <div class="widget" id="merlensMonitor">
         <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">트리거 모니터</h3>
+        <!-- 한 줄 요약 — 48지표를 다 읽기 전에 '지금 몇 개가 걸렸나'부터 말한다(모바일 요약) -->
+        <div id="merlensMonitorSummary" class="mer-monitor-summary"></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;" id="merlensMonitorFilters"></div>
         <div class="econ-table__scroll">
           <table class="econ-table">

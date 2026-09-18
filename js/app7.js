@@ -300,6 +300,31 @@ function _merMonitorRowHtml(ind) {
     '</tr>';
 }
 var _merMonitorIndicators = [];
+var _merMonitorAll = false;          // 좁은 화면에서 '전체 보기'를 눌렀는지
+var MER_MOBILE_ROWS = 8;             // 좁은 화면 기본 노출 행 수
+function _merNarrow() { return (window.innerWidth || 1024) < 768; }
+
+// 48지표를 다 읽기 전에 '지금 몇 개가 걸렸나'부터 말한다. 모바일 요약의 핵심 한 줄.
+function _merRenderMonitorSummary() {
+  var box = document.getElementById('merlensMonitorSummary');
+  if (!box) return;
+  var n = { crossed: 0, near: 0, below: 0, unknown: 0 };
+  _merMonitorIndicators.forEach(function (i) { if (n[i.state] != null) n[i.state]++; });
+  var top = _merMonitorIndicators.filter(function (i) { return i.state === 'crossed' || i.state === 'near'; })
+                                 .slice(0, 3).map(function (i) { return i.label; });
+  var item = function (label, v, tone) {
+    return '<span class="mer-sum-item"><span style="color:var(--c-txt-dim);">' + label + '</span>' +
+           '<span class="mer-sum-num"' + (tone ? ' style="color:' + tone + ';"' : '') + '>' + v + '</span></span>';
+  };
+  box.innerHTML =
+    item('돌파', n.crossed, 'var(--c-up)') +
+    item('주시', n.near, 'var(--c-warn,#f0c75e)') +
+    item('정상', n.below) +
+    item('N/A', n.unknown) +
+    (top.length ? '<span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">· 가장 가까운 것: ' +
+       _merEsc(top.join(' · ')) + '</span>' : '');
+}
+
 function _merRenderMonitor(d) {
   _merMonitorIndicators = (d.indicators || []).slice().sort(function (a, b) {
     var da = (a.nearest && a.nearest.distancePct != null) ? a.nearest.distancePct : Infinity;
@@ -316,13 +341,32 @@ function _merRenderMonitor(d) {
     }).join('');
     filtBox.dataset.built = '1';
   }
+  _merRenderMonitorSummary();
   _merRenderMonitorBody();
 }
 function _merRenderMonitorBody() {
   var body = document.getElementById('merlensMonitorBody');
   if (!body) return;
   var list = _merMonitorIndicators.filter(function (ind) { return _merMonitorFilter === 'all' || ind.state === _merMonitorFilter; });
-  body.innerHTML = list.map(_merMonitorRowHtml).join('') || '<tr><td colspan="6" style="color:var(--c-txt-dim);">해당 상태의 지표가 없습니다.</td></tr>';
+  // 좁은 화면에서는 임계에 가까운 순으로 앞의 8개만 편다(48행 전부면 7,400px).
+  // 정렬이 이미 '가장 가까운 레벨까지의 거리'순이라, 앞이 곧 급한 것이다.
+  var limited = (_merNarrow() && !_merMonitorAll) ? list.slice(0, MER_MOBILE_ROWS) : list;
+  body.innerHTML = limited.map(_merMonitorRowHtml).join('') || '<tr><td colspan="6" style="color:var(--c-txt-dim);">해당 상태의 지표가 없습니다.</td></tr>';
+  var host = body.closest('.widget');
+  var more = host ? host.querySelector('.mer-more') : null;
+  var hidden = list.length - limited.length;
+  if (hidden > 0) {
+    if (!more) {
+      more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'mer-more';
+      more.addEventListener('click', function () { _merMonitorAll = true; _merRenderMonitorBody(); });
+      (host.querySelector('.econ-table__scroll') || host).insertAdjacentElement('afterend', more);
+    }
+    more.textContent = '나머지 ' + hidden + '개 지표 보기';
+  } else if (more && !(_merNarrow() && !_merMonitorAll)) {
+    more.remove();
+  }
 }
 function _merSetMonitorFilter(state, btn) {
   _merMonitorFilter = state;
@@ -340,7 +384,8 @@ function _merPickPanelIndicators(d) {
     var pb = MER_STATE_PRIORITY[b.state] != null ? MER_STATE_PRIORITY[b.state] : 9;
     return pa - pb;
   });
-  return arr.slice(0, 8);
+  // 좁은 화면에서 8개는 1,639px 다 — 상태가 급한 3개만 편다(나머지는 모니터 표에 있다)
+  return arr.slice(0, ((window.innerWidth || 1024) < 768) ? 3 : 8);
 }
 function _merRenderPanels(d) {
   var grid = document.getElementById('merlensPanelsGrid');
