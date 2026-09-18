@@ -515,9 +515,36 @@ def _alert_lines(to_send, snaps, state, now):
     return out
 
 
-def _alert_card(to_send, snaps, lines, now, shape="wide"):
+def _cond_short(a, brief=False):
+    """발동 조건만 한 조각으로 — 종목명·현재가·등락률은 카드 타일이 이미 들고 있다.
+
+    brief=True 는 기준선 값을 뺀 유형만("목표가"·"신고가"). 나머지 종목 타일은 한 칸이
+    10자 남짓이라 값까지 넣으면 그 칸에서 조건이 잘린다 — 기준선 값이 필요한 건 대표
+    종목뿐이고, 그건 캡션과 목표선이 맡는다.
+
+    발송 문구(_alert_lines)는 '이름 가격(등락) 조건' 한 줄이라 카드가 그 문장을 다시
+    쪼개 쓰면 등락률·조건이 타일 폭에서 잘려 나갔다(2026-09-18 실측: 나머지 종목 칸이
+    '412,000원(+5…' / '52주' 만 남았다). 카드는 문장이 아니라 이 조각을 받는다."""
+    t, v, m = a.get("type"), a.get("value"), a.get("market", "KR")
+    if t == "price_above":
+        return "목표가" if (brief or v is None) else f"목표가 {_fmt_price(v, m)}"
+    if t == "price_below":
+        return "지정가" if (brief or v is None) else f"지정가 {_fmt_price(v, m)}"
+    if t == "pct_change":
+        return "등락률" if (brief or v is None) else f"등락률 {v:+g}%"
+    if brief:
+        return {"high52": "신고가", "low52": "신저가", "vol_surge": "거래량",
+                "golden_cross": "골든크로스", "dead_cross": "데드크로스"}.get(t, "")
+    return {"high52": "52주 신고가", "low52": "52주 신저가", "vol_surge": "거래량 급증",
+            "golden_cross": "골든크로스", "dead_cross": "데드크로스"}.get(t, "")
+
+
+def _alert_card(to_send, snaps, now, shape="wide"):
     """카드 E 재료 구성 + 렌더. shape="square" = 카카오 피드용 정사각(기획 v3 I1).
-    재료는 판정에 쓴 snap 그대로 — 추가 API 호출 0. 실패 시 None(호출측이 텍스트 폴백)."""
+
+    재료는 판정에 쓴 snap 그대로 — 추가 API 호출 0. 실패 시 None(호출측이 텍스트 폴백).
+    나머지 종목은 **구조화 튜플**로 넘긴다(이름·가격·등락률·조건) — 문자열로 만들었다가
+    카드가 공백으로 되쪼개던 경로를 없앴다. 등락률을 같이 넘기므로 방향색도 살아난다."""
     try:
         import discord_card
 
@@ -527,15 +554,17 @@ def _alert_card(to_send, snaps, lines, now, shape="wide"):
         cands = [(a, ln) for a, ln in to_send if _snap_of(a)]
         if not cands:
             return None
-        ha, hln = max(cands, key=lambda t: abs(_snap_of(t[0]).get("pct") or 0))
+        ha, _hln = max(cands, key=lambda t: abs(_snap_of(t[0]).get("pct") or 0))
         hs = _snap_of(ha)
-        hero = {"name": ha.get("name") or ha.get("symbol"), "cond": hln,
+        hero = {"name": ha.get("name") or ha.get("symbol"), "cond": _cond_short(ha),
                 "price": hs.get("price"), "pct": hs.get("pct"),
                 "target": ha.get("value") if ha.get("type") in PRICE_TYPES else None,
                 "closes": hs.get("closes"), "vol_today": hs.get("vol_today"),
                 "vol_prev": hs.get("vol_prev"), "market": ha.get("market", "KR")}
-        others = [l for l in lines
-                  if not l.startswith(str(ha.get("name") or ha.get("symbol")))]
+        others = [(a.get("name") or a.get("symbol"),
+                   _fmt_price(_snap_of(a)["price"], a.get("market", "KR")),
+                   _snap_of(a).get("pct"), _cond_short(a, brief=True))
+                  for a, _ in cands if a is not ha]
         return discord_card.stock_alert(hero, others, now, shape=shape)
     except Exception as e:
         print(f"[alerts] 카드 렌더 예외({e}) — 텍스트만 발송")
@@ -731,7 +760,7 @@ def main():
             _lines = _alert_lines(to_send, snaps, state, now)
             # 카드 E(기획 5154773b P1) — 대표 종목(|등락| 최대) 히어로 + 30일 일봉 +
             # 목표선 + 발동점. 렌더 실패 시 None → 텍스트 embed 그대로(종전).
-            _png = _alert_card(to_send, snaps, _lines, now)
+            _png = _alert_card(to_send, snaps, now)
             # v3 버튼 — 발동 종목의 네이버 증권(국내 6자리 코드만, 미국 종목은 미배선).
             # 웹훅 폴백 시 notify_discord 가 링크 필드로 자동 변환.
             _btns = [("투자현황", PORTFOLIO_URL)]
@@ -862,9 +891,11 @@ def main():
     # 카드가 합본(대표 + 나머지 종목 타일)이라 통 수를 늘릴 이유가 없다.
     # packs/packed_ids 는 그대로 '이번 런에 확정할 대상' 기준으로 쓴다(도배 상한 유지).
     _klines = _alert_lines(to_send, snaps, state, now)
-    _kpng = _alert_card(to_send, snaps, _klines, now, shape="square")
-    _kitems = [{"item": (l.split()[0][:12] if l.split() else "-"),
-                "item_op": " ".join(l.split()[1:])[:40]} for l in _klines[1:6]]
+    _kpng = _alert_card(to_send, snaps, now, shape="square")
+    # 행 표기는 카카오 규격 창구(kakao.kakao_item)로 — 자르는 지점이 여기와 카카오
+    # 렌더러 두 곳에 있으면 무엇이 보일지 예측할 수 없었다(종전 이름 12자·값 40자 임의 상한).
+    _kitems = [kakao.kakao_item(l.split()[0] if l.split() else "-",
+                                " ".join(l.split()[1:])) for l in _klines[1:6]]
     _kbtns = [("투자현황", PORTFOLIO_URL)]
     for a, _ in to_send:
         if a.get("market", "KR") == "KR":

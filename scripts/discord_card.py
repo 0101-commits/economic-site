@@ -224,11 +224,16 @@ def _tile_color(c, sat=3.0):
 
     sat = 색이 포화하는 등락폭. 지수·원자재 3%, 통화 1%, 달러인덱스 0.8%, 금리 15bp
     (_sat_of). 금리를 bp 로 넣고 3% 스케일을 그대로 쓰면 평범한 5bp 날이 최대 채도가 된다.
-    '보합여부'를 돌려주는 이유: 호출측이 bgc != TILE 로 보합을 되짚던 색 비교를 없애기 위함."""
+    '보합여부'를 돌려주는 이유: 호출측이 bgc != TILE 로 보합을 되짚던 색 비교를 없애기 위함.
+
+    ⚠ 하한은 0.30 → 0.10 이다(2026-09-18). 방향은 화살표가 이미 말하므로 색이 할 일은
+    크기 전달뿐인데, 하한 0.30 은 0.16% 짜리 움직임도 곧장 뚜렷한 분홍으로 칠해 상승장에
+    6칸이 '붉은 벽'이 됐다 — 무엇이 큰 움직임인지가 색에서 사라진 상태였다. 0.10 이면
+    0.2% 는 거의 흰색이고 2% 넘는 칸만 한눈에 들어온다(포화점 sat 은 그대로)."""
     if c is None or abs(c) < 0.05 * (sat / 3.0):
         return TILE, MUT, True
     base = UP if c > 0 else DN
-    a = min(0.95, 0.30 + abs(c) / float(sat) * 0.65)
+    a = min(0.95, 0.10 + abs(c) / float(sat) * 0.85)
     rgb = tuple(int(base[i:i + 2], 16) for i in (1, 3, 5))
     bgc = tuple(int(BG[i:i + 2], 16) for i in (1, 3, 5))
     mix = tuple(int(x * a + y * (1 - a)) for x, y in zip(rgb, bgc))
@@ -649,16 +654,21 @@ def _draw_cells(fig, grid, box, fs, square=False, note_inline=False):
                            + _text_w(fig, note, f_c, "bold") + 0.012) > iw:
                 # 한 줄에 값과 등락이 같이 안 들어가는 좁은 칸(3열 이상)은 세 줄로 내린다.
                 # 값을 '82,4…' 로 자르는 것보다 글자를 조금 줄이는 쪽이 낫다.
+                # 줄인 뒤에도 하한(SQ_MIN_FS)은 다시 걸어야 한다 — 종전엔 이 경로만
+                # _fs 를 우회해 정사각 카드에 11.2pt(축소 화면 5.8px)가 섞였다.
                 inline = False
-                f_p, f_c = f_p * 0.85, f_c * 0.8
+                f_p, f_c = _fs(f_p * 0.85, square), _fs(f_c * 0.8, square)
             y_lab, y_val = (0.72, 0.30) if inline else (0.72, 0.36)
             fig.text(x + 0.013, y + y_lab * h, _clip(fig, label, iw, f_l),
                      color=ink, fontsize=f_l)
             if inline:
                 fig.text(x + 0.013, y + y_val * h, val, color=INK,
                          fontsize=f_p, fontweight="bold")
-                fig.text(x + w - 0.011, y + y_val * h, note,
-                         color=ink, fontsize=f_c, fontweight="bold", ha="right")
+                # 등락률은 값 바로 오른쪽에 붙인다 — 칸 오른쪽 끝에 고정하면 한 쌍의
+                # 숫자를 읽는 데 시선이 칸 폭(가로 카드에서 750px)을 건넜다(2026-09-18).
+                # 들어가는지는 위 폭 검사가 이미 봤다(안 들어가면 세 줄로 내려간다).
+                fig.text(x + 0.013 + _text_w(fig, val, f_p, "bold") + 0.012,
+                         y + y_val * h, note, color=ink, fontsize=f_c, fontweight="bold")
             else:
                 fig.text(x + 0.013, y + y_val * h, _clip(fig, val, iw, f_p, "bold"),
                          color=INK, fontsize=f_p, fontweight="bold")
@@ -824,13 +834,24 @@ def _board_square(plt, d, now, pkey, prof, cal, hero):
     return _save(fig, "kakao_card_board.png")
 
 
+def _other(o):
+    """동시 발동 종목 한 건 → (이름, 가격문자열, 등락률, 조건). 튜플 계약 단일 해석기."""
+    if isinstance(o, (list, tuple)):
+        o = list(o) + [None] * (4 - len(o))
+        return str(o[0] or ""), str(o[1] or ""), _f(o[2]), str(o[3] or "")
+    return str(o or ""), "", None, ""                 # 방어용 — 문자열이 들어오면 이름으로만
+
+
 def stock_alert(hero, others, now, shape="wide", extra_tiles=None):
     """카드 E — 종목 알림(기획 5154773b P1). 좌 히어로(조건·현재가·등락·거래량) +
     우 30일 일봉 + 목표선(점선) + 발동점 도트, 하단 = 나머지 종목 1줄씩.
 
     hero = {name, cond, price, pct, target(없으면 None), closes(일봉 종가 리스트),
-            vol_today, vol_prev, market}, others = [문자열 줄]. 재료는 전부
-    check_alerts.yahoo_snapshot 반환값 — 추가 API 호출 없음. 실패 시 None(텍스트 폴백).
+            vol_today, vol_prev, market}, others = [(이름, 가격문자열, 등락률, 조건)].
+    재료는 전부 check_alerts.yahoo_snapshot 반환값 — 추가 API 호출 없음. 실패 시 None.
+
+    ⚠ others 를 완성된 문장으로 받던 종전 계약은 폐기했다 — 카드가 그 문장을 공백으로
+    되쪼개 타일에 넣는 바람에 등락률·조건·방향색이 잘려 나갔다(2026-09-18 실측).
 
     shape="square"(기획 v3 I1) = 카카오 피드용 1080². 나머지 종목은 줄글이 아니라
     타일로 들어가(합본, 최대 6칸) 통 수가 늘어도 사진은 한 장이다.
@@ -849,8 +870,12 @@ def stock_alert(hero, others, now, shape="wide", extra_tiles=None):
         col = UP if (pct or 0) > 0 else DN if (pct or 0) < 0 else MUT
         coltxt = _txt_color((pct or 0) > 0, flat=not (pct or 0))   # 작은 글자용
         base_y = 1 - 0.55 / hgt                       # 제목 줄(높이 가변 보정)
-        fig.text(0.03, base_y, _L(f"{now.month}/{now.day} {now.strftime('%H:%M')} 종목 알림",
-                                  f"{now.month}/{now.day} {now.strftime('%H:%M')} Stock Alert"),
+        # 제목에 종목명을 박는다 — 조건 문구(cond)가 '목표가 78,000원' 처럼 조건만
+        # 남으면서 히어로 종목 이름이 wide 카드 어디에도 없어졌다(2026-09-18).
+        _hn = str(hero.get("name") or "")[:14]
+        fig.text(0.03, base_y,
+                 _L(f"{now.month}/{now.day} {now.strftime('%H:%M')} 종목 알림 · {_hn}",
+                    f"{now.month}/{now.day} {now.strftime('%H:%M')} Stock Alert · {_hn}"),
                  color=INK, fontsize=18, fontweight="bold")
         # 좌 히어로 — 조건 문구·현재가·등락·거래량(전일比)
         body_top = base_y - 0.14 * (4.2 / hgt)
@@ -894,9 +919,12 @@ def stock_alert(hero, others, now, shape="wide", extra_tiles=None):
         ax.set_xticks([]); ax.set_yticks([])
         for s in ax.spines.values():
             s.set_visible(False)
-        # 하단 — 동시 발동 나머지 종목
-        for i, ln in enumerate((others or [])[:4]):
-            fig.text(0.03, (0.42 * (extra - i) + 0.42) / hgt, _clip(fig, "· " + str(ln), 0.38, 12.5),
+        # 하단 — 동시 발동 나머지 종목. 차트 아래라 폭은 카드 전체를 쓴다(종전 0.38 은
+        # 히어로 칼럼 폭이라 이름·가격까지만 남기고 등락률·조건을 잘라 먹었다).
+        for i, o in enumerate((others or [])[:4]):
+            nm, px, opct, ocond = _other(o)
+            txt = " ".join(x for x in (f"· {nm}", px, _chgtxt(opct), ocond and f"· {ocond}") if x)
+            fig.text(0.03, (0.42 * (extra - i) + 0.42) / hgt, _clip(fig, txt, 0.94, 12.5),
                      color=INK, fontsize=12.5)
         _footer(fig, now)
         return _save(fig, "discord_card_stock.png")
@@ -933,18 +961,27 @@ def _stock_square(plt, hero, others, now, extra_tiles=None):
                               (_L(f"{vt / vp:.1f}배", f"{vt / vp:.1f}x")
                                if vp else ""), None))
     row2 = [_cell(str(l)[:10], str(v), str(n), c) for l, v, n, c in (extra_tiles or [])[:3]]
-    # 동시 발동 나머지 종목 — 줄글 대신 타일(합본). "삼성전자 71,200 ▲2.4%" 형태를 쪼갠다.
-    for ln in (others or [])[:3]:
+    # 동시 발동 나머지 종목 — 구조화 튜플을 그대로 타일로. 등락률(색 포함)과 조건이 남는다.
+    for o in (others or [])[:3]:
         if len(row2) >= 3:
             break
-        parts = str(ln).split()
-        row2.append(_cell(parts[0][:10] if parts else "?",
-                          parts[1] if len(parts) > 1 else "",
-                          parts[2] if len(parts) > 2 else "", None))
+        nm, px, opct, ocond = _other(o)
+        lab = f"{nm} {ocond}".strip()
+        # 한 칸에 들어가는 라벨은 11자 남짓이다(3열 × 13.5pt). 이름과 조건이 함께
+        # 안 들어가면 조건을 버린다 — 이름이 잘리면('LG에너지솔…') 어느 종목인지
+        # 알 수 없고, 조건은 발송 본문 줄과 피드 행이 이미 나른다.
+        row2.append(_cell(nm if len(lab) > 11 else lab, px, _chgtxt(opct), opct))
+    # 두 줄을 한 번에 그리면 글자 크기가 같아져, 셋째 칸 라벨('SK하이닉스 52주 신고가')이
+    # 히어로 줄 기준 18pt 로 잘린다. 줄마다 따로 그려 아래 줄만 글자를 줄인다 — 기하는
+    # 종전과 같다(전체 0.28 높이를 두 줄이 반씩).
     if row2:
-        cells.append(row2)
-    _draw_cells(fig, cells, (0.03, 0.60, 0.94, 0.28), (18, 24, 18), square=True,
-                note_inline=True)
+        _draw_cells(fig, [cells[0]], (0.03, 0.74, 0.94, 0.14), (18, 24, 18),
+                    square=True, note_inline=True)
+        _draw_cells(fig, [row2], (0.03, 0.60, 0.94, 0.14), (13.5, 19, 14),
+                    square=True, note_inline=True)
+    else:
+        _draw_cells(fig, cells, (0.03, 0.60, 0.94, 0.28), (18, 24, 18), square=True,
+                    note_inline=True)
 
     closes = [c for c in (hero.get("closes") or [])[-30:] if c is not None]
     _sq_panel(fig, [0.03, 0.085, 0.94, 0.44], closes, up=up,
@@ -953,6 +990,28 @@ def _stock_square(plt, hero, others, now, extra_tiles=None):
               lines=[(tgt, col, _L(f"목표 {_p(tgt)}", f"target {_p(tgt)}") if tgt else "")])
     _footer(fig, now, square=True)
     return _save(fig, "kakao_card_stock.png")
+
+
+def _close_stack(movers, alerts_cnt, fired_names, cal):
+    """마감 카드 우하 분면의 [(문구, 색)] — 특징주·발동 알림·내일 일정.
+
+    figure 를 만들기 전에 불린다(줄이 하나도 없으면 캔버스를 낮춰야 하므로). 자르기는
+    그리는 쪽에서 실제 렌더 폭(_clip)으로 한다 — 여기선 문구만 만든다."""
+    stack = []
+    gain, lose = (movers or ([], []))
+    if gain or lose:
+        stack.append((_L("특징주(코스피)", "KOSPI movers"), MUT))
+        for r in (gain or [])[:3]:
+            stack.append((f"▲ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%", UP_TXT))
+        for r in (lose or [])[:3]:
+            stack.append((f"▼ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%", DN_TXT))
+    if alerts_cnt is not None:
+        stack.append((_L(f"오늘 발동 알림 {alerts_cnt}건", f"alerts fired today: {alerts_cnt}"), MUT))
+        if fired_names:
+            stack.append((" · ".join(str(n) for n in fired_names[:6]), INK))
+    if cal:
+        stack.append((_L("내일 ", "tomorrow ") + str(cal), INK))
+    return stack
 
 
 def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=None,
@@ -971,13 +1030,32 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
             return None
         if shape == "square":
             return _close_square(plt, its, now, alerts_cnt, cal, intraday, investor, fired_names)
-        fig = plt.figure(figsize=(10, 7.4), dpi=160)
+        # ── 재료를 먼저 세고 캔버스 높이를 정한다(2026-09-18). 종전엔 높이가 7.4 로 고정이라
+        #    인트라데이·수급·특징주가 전부 없는 날엔 하단 45%가 빈 채로 나갔다 — 디스코드는
+        #    이미지를 폭에 맞춰 축소하므로, 빈 자리만큼 글자가 작아진다(읽히는 크기가 준다).
+        xs, ys, prev, src = intraday or ([], [], None, "")
+        inv = investor or {}
+        vals = [(l, v) for l, v in ((_L("외국인", "foreign"), _f(inv.get("foreign"))),
+                                    (_L("기관", "inst"), _f(inv.get("inst"))),
+                                    (_L("개인", "retail"), _f(inv.get("retail"))))
+                if v is not None]
+        stack = _close_stack(movers, alerts_cnt, fired_names, cal)
+        # 수급 바가 있는 날만 아래 '행'이 생긴다. 우하 텍스트 몇 줄은 행을 차지할 이유가
+        # 없어서, 없으면 상단 아래에 붙이고 캔버스를 줄 수만큼만 늘린다.
+        has_bottom = bool(vals)
+        hgt = 7.4 if has_bottom else max(4.2, min(7.4, 4.3 + 0.33 * len(stack)))
+        fig = plt.figure(figsize=(10, hgt), dpi=160)
         fig.patch.set_facecolor(BG)
-        fig.text(0.03, 0.955, _L(f"{now.month}/{now.day} 장 마감 리포트",
-                                 f"{now.month}/{now.day} Market Close"),
+        # 제목·상단 분면의 '인치' 위치는 높이와 무관하게 같다(위에서부터 재는 값) — 비율로
+        # 고정하면 캔버스가 짧아질 때 제목이 위로 튀거나 분면이 footer 를 파고든다.
+        fig.text(0.03, 1 - 0.333 / hgt, _L(f"{now.month}/{now.day} 장 마감 리포트",
+                                           f"{now.month}/{now.day} Market Close"),
                  color=INK, fontsize=18, fontweight="bold")
-        # ── 좌상: 다이버징 바(종전 유지·축소 배치)
-        ax = fig.add_axes([0.115, 0.545, 0.40, 0.345])
+        _ty, _th = 1 - 3.367 / hgt, 2.553 / hgt       # 상단 분면 y·높이(인치 환산 고정)
+        # ── 좌상: 다이버징 바. 우상 인트라데이가 없으면 오른쪽 절반이 빈 칸으로 남으므로
+        #    바가 전폭을 쓴다(같은 캔버스에서 막대와 숫자가 커진다).
+        _has_intra = bool(ys and len(ys) >= 3)
+        ax = fig.add_axes([0.115, _ty, 0.40 if _has_intra else 0.80, _th])
         ax.set_facecolor(BG)
         chgs = [c for _, _, c in its]
         ax.barh(range(len(its)), chgs, height=0.55,
@@ -995,9 +1073,8 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
             s.set_visible(False)
         ax.tick_params(length=0)
         # ── 우상: 코스피 인트라데이(소스 체인 — 빈 패널 금지)
-        xs, ys, prev, src = intraday or ([], [], None, "")
-        if ys and len(ys) >= 3:
-            ax2 = fig.add_axes([0.60, 0.545, 0.37, 0.345])
+        if _has_intra:
+            ax2 = fig.add_axes([0.60, _ty, 0.37, _th])
             ax2.set_facecolor(TILE)
             lo, hi = min(ys + ([prev] if prev else [])), max(ys + ([prev] if prev else []))
             rng = (hi - lo) or (abs(hi) * 0.01) or 1.0
@@ -1017,11 +1094,6 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
             for s in ax2.spines.values():
                 s.set_visible(False)
         # ── 좌하: 투자자 순매수 3주체(코스피, 억원)
-        inv = investor or {}
-        vals = [(_L("외국인", "foreign"), _f(inv.get("foreign"))),
-                (_L("기관", "inst"), _f(inv.get("inst"))),
-                (_L("개인", "retail"), _f(inv.get("retail")))]
-        vals = [(l, v) for l, v in vals if v is not None]
         if vals:
             ax3 = fig.add_axes([0.115, 0.135, 0.34, 0.28])
             ax3.set_facecolor(BG)
@@ -1048,25 +1120,13 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
         # 줄을 먼저 모아 놓고 남은 세로에 맞춰 간격을 정한다 — 종전처럼 고정 간격으로
         # 쌓으면 특징주 6줄 + 알림 + 종목명 + 일정이 다 찼을 때 마지막 줄이 y=0.028 까지
         # 내려가 footer(y=0.022)를 파고들었다(2026-09-17 실측: 82×18px 겹침).
-        RX, RW = 0.56, 0.41                           # 우측 열 시작 x / 캔버스 안 가용 폭
-        stack = []
-        gain, lose = (movers or ([], []))
-        if gain or lose:
-            stack.append((_L("특징주(코스피)", "KOSPI movers"), MUT))
-            for r in (gain or [])[:3]:
-                stack.append((f"▲ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%", UP_TXT))
-            for r in (lose or [])[:3]:
-                stack.append((f"▼ {str(r.get('name'))[:10]} {abs(_f(r.get('chg')) or 0):.1f}%", DN_TXT))
-        if alerts_cnt is not None:
-            stack.append((_L(f"오늘 발동 알림 {alerts_cnt}건", f"alerts fired today: {alerts_cnt}"), MUT))
-            if fired_names:
-                # 글자수로 자르면 종목명이 길 때 캔버스를 넘어간다(실측 159px 이탈) — 폭으로 자른다.
-                stack.append((" · ".join(str(n) for n in fired_names[:6]), INK))
-        if cal:
-            stack.append((_L("내일 ", "tomorrow ") + str(cal), INK))
         if stack:
-            top, floor = 0.435, 0.075                 # floor = footer(0.022) 위 안전 여백
-            step = min(0.045, (top - floor) / len(stack))
+            if has_bottom:
+                RX, RW, top = 0.56, 0.41, 0.435       # 우측 열 시작 x / 가용 폭 / 첫 줄
+            else:
+                RX, RW, top = 0.115, 0.86, _ty - 0.45 / hgt   # 상단 분면 바로 아래, 전폭
+            floor = 0.075                             # footer(0.022) 위 안전 여백
+            step = min(0.33 / hgt, (top - floor) / len(stack))
             for i, (txt, tcol) in enumerate(stack):
                 fig.text(RX, top - i * step, _clip(fig, txt, RW, 12), color=tcol, fontsize=12)
         _footer(fig, now)

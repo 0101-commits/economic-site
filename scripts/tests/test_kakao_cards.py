@@ -119,7 +119,7 @@ def test_render_all_three_shapes():
             {"name": "삼성전자", "cond": "목표가 70,000 상향 돌파", "price": 71200, "pct": 2.4,
              "target": 70000, "closes": [68000 + i * 100 for i in range(30)],
              "vol_today": 18500000, "vol_prev": 12100000, "market": "KR"},
-            ["SK하이닉스 402,000 ▲3.1%"], now, shape="square",
+            [("SK하이닉스", "402,000원", 3.1, "신고가")], now, shape="square",
             extra_tiles=[("코스피", "3,214", "▲0.62%", 0.62)]),
         "사건형(급변)": lambda: dc.swing("코스피", 3288.4, -2.35, 2.0, xs, ys, 3366.0, now,
                                      src="토스 1분봉", shape="square"),

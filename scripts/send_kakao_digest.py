@@ -385,13 +385,40 @@ def _stale_tag(s, now):
     return "·전일" if days == 1 else f"·{d.month}/{d.day}"
 
 
-def build_digest_parts(d):
+# 카드 타일 키 → 본문 지표 라벨. 두 쪽에 같이 나오는 지표만 담는다(중복 제거 대상).
+# 금리·SOX·상하이·유로달러는 본문 블록에 아예 없으므로 여기 없다.
+_CARD_DUP_LABEL = {"KOSPI": "코스피", "KOSDAQ": "코스닥", "SP500": "S&P", "NASDAQ": "나스닥",
+                   "USDKRW": "달러-원", "USDJPY": "달러-엔", "WTI": "WTI",
+                   "NatGas": "천연가스", "Gold": "금", "Copper": "구리"}
+
+
+def _card_tile_labels(slot, weekend, now):
+    """이번 슬롯 카드가 이미 타일로 보여주는 지표의 본문 라벨 집합.
+
+    카드(편성표)와 본문(블록)은 서로를 모르는 두 원천이라, 장중 편성에서는 카드 타일 6종 중
+    4종이 피드 설명·행에 그대로 한 번 더 실렸다 — 한 통 안 표시 슬롯 12개 중 5개가 같은 숫자
+    (2026-09-18 실측). 카드가 실제로 렌더된 경우에만 호출측이 이 집합을 빼고 본문을 만든다."""
+    try:
+        import discord_card
+        prof = discord_card.PROFILES.get(discord_card.profile_for(slot, weekend, now)) or {}
+        keys = [k for row in (prof.get("rows") or []) for k in row]
+        return {_CARD_DUP_LABEL[k] for k in keys if k in _CARD_DUP_LABEL}
+    except Exception as e:
+        print(f"[digest] 카드 타일 목록 조회 실패({e}) — 중복 제거 생략")
+        return set()
+
+
+def build_digest_parts(d, drop=()):
     """data.json → (제목, 공통 블록 [(라벨, 값), ...]).
 
     공통 내용(모든 슬롯 동일):
       증시(코스피·S&P) / 환율(달러-원·달러-엔) / 심리(공포탐욕·VIX·VKOSPI)
       / 에너지(WTI·천연가스) / 금속(금·구리) / 곡물(옥수수·밀·대두) / 운임(SCFI).
-    피드·텍스트 등 모든 발송 경로가 이 한 곳의 결과만 쓰므로 경로별 내용 차이가 생길 수 없다."""
+    피드·텍스트 등 모든 발송 경로가 이 한 곳의 결과만 쓰므로 경로별 내용 차이가 생길 수 없다.
+
+    drop = 빼고 만들 지표 라벨 집합(카드가 이미 보여주는 것 — _card_tile_labels). 문자열을
+    만든 뒤 잘라내지 않고 **조립 단계에서** 빼므로, 한 지표가 빠져 블록이 비면 블록 자체가
+    사라진다(텍스트 폴백 경로는 drop 없이 불러 전체를 싣는다)."""
     idx  = d.get("indices", {}) or {}
     fx   = d.get("fx", {}) or {}
     com  = d.get("commodities", {}) or {}
@@ -405,21 +432,23 @@ def build_digest_parts(d):
     wd = "월화수목금토일"[now.weekday()]
     title = f"{now.month}/{now.day}({wd}) {now.hour}시 시황"
 
+    drop = set(drop or ())
+
     def ip(label, key, nd=0):
         o = idx.get(key)
-        if not o or o.get("price") is None:
+        if label in drop or not o or o.get("price") is None:
             return None
         return f"{label} {_num(o['price'], nd)}{_a1(o.get('change'))}"
 
     def fxp(label, key, nd=1):
         o = fx.get(key)
-        if not o or o.get("rate") is None:
+        if label in drop or not o or o.get("rate") is None:
             return None
         return f"{label} {_num(o['rate'], nd)}{_a1(o.get('change'))}"
 
     def cp(label, key, nd=1):
         o = com.get(key)
-        if not o or o.get("price") is None:
+        if label in drop or not o or o.get("price") is None:
             return None
         return f"{label} {_num(o['price'], nd)}{_a1(o.get('change'))}"
 
@@ -555,13 +584,20 @@ def build_weekly_parts(d, now):
 
 
 def _pack(prefix, lines, limit):
-    """prefix 뒤에 줄을 한도 내에서 채워 한 문자열로(못 들어가는 줄은 생략)."""
-    msg = prefix
+    """prefix 뒤에 줄을 한도 내에서 채워 한 문자열로.
+
+    못 들어간 줄은 버리되 '외 N항목'을 남긴다 — 종전엔 한도 초과 줄을 아무 표시 없이
+    버려서, 받는 쪽은 뒷 블록(에너지·금속·곡물·운임)이 아예 없는 날과 자리가 없어
+    잘린 날을 구별할 수 없었다(2026-09-18). 꼬리표 자리는 미리 비워 두고 채운다."""
+    lines = [ln for ln in lines if ln]
+    msg, left = prefix, len(lines)
     for ln in lines:
         add = ln if not msg else "\n" + ln
-        if len(msg) + len(add) <= limit:
+        tail = len(f" 외 {left - 1}항목") if left > 1 else 0
+        if len(msg) + len(add) + tail <= limit:
             msg += add
-    return msg
+            left -= 1
+    return msg + (f" 외 {left}항목" if left else "")
 
 
 def build_text_message(title, blocks, limit=TEXT_LIMIT):
@@ -1366,7 +1402,7 @@ def build_feed_parts(blocks):
     while len(rows) > KAKAO_FEED_ROWS:            # 초과분은 버리지 않고 앞 행에 접는다
         (l1, v1), (l2, v2) = rows[-2], rows[-1]
         rows[-2:] = [(f"{l1}·{l2}", f"{v1} / {v2}")]
-    return desc, [{"item": lab, "item_op": v} for lab, v in rows]
+    return desc, [kakao_item(lab, v) for lab, v in rows]
 
 
 def _hero_button(slot, weekend, now):
@@ -1383,6 +1419,26 @@ def _hero_button(slot, weekend, now):
         return {"title": f"{ko} 시세", "link": {"web_url": url, "mobile_web_url": url}}
     except Exception:
         return None
+
+
+KAKAO_ITEM_LABEL = 8     # 행 이름 — 카카오가 한 줄로만 표시한다(넘치면 말줄임)
+# 행 값 상한은 '안전 레일'로 넉넉히 둔다 — 카카오의 실제 표시 한도를 아직 실측하지 않았고,
+# 모르는 상태에서 짧게 자르면 렌더러가 보여줄 수 있었던 글자를 우리 손으로 버린다.
+# 다음 발송 1회를 수신 화면으로 재서 확정할 것(그때 이 값만 바꾸면 전 경로가 따라온다).
+KAKAO_ITEM_VALUE = 60
+
+
+def kakao_item(label, value):
+    """피드 행 한 줄 {item, item_op} — 카카오 표기 규격의 단일 창구.
+
+    카카오는 행 이름·값을 각각 한 줄로만 렌더하고 넘치면 스스로 말줄임한다. 자르는 지점이
+    코드와 렌더러 두 곳에 있으면 무엇이 보일지 예측할 수 없다(종목 알림은 40자, 다이제스트는
+    무제한으로 달랐다 — 2026-09-18). 상한을 여기 한 곳에 두고, 자를 때는 말줄임표를 남겨
+    '잘렸다'가 보이게 한다."""
+    def cut(s, n):
+        s = " ".join(str(s or "").split())
+        return s if len(s) <= n else s[:n - 1].rstrip() + "…"
+    return {"item": cut(label, KAKAO_ITEM_LABEL), "item_op": cut(value, KAKAO_ITEM_VALUE)}
 
 
 def kakao_button(title, url):
@@ -1599,9 +1655,16 @@ def _dc_cal_line(d, tgt=None):
         return ""
 
 
+DC_FIELD_INLINE_MAX = 24        # 이 길이까지만 2열 그리드에 넣는다(넘으면 전폭 한 줄)
+
+
 def _dc_fields(blocks, d):
-    """카카오 공통 blocks → 디스코드 필드(E2): 강도 기호 변환 + 추세 스파크라인 + 오늘 일정."""
-    fs = [(lab, _dc_intensity(v), True) for lab, v in blocks if v]
+    """카카오 공통 blocks → 디스코드 필드(E2): 강도 기호 변환 + 추세 스파크라인 + 오늘 일정.
+
+    긴 블록은 inline 을 끈다 — inline 필드는 폭이 화면 1/3 이라 '증시' 한 칸에 4종목
+    76자를 넣으면 3~4줄로 제멋대로 접히고 숫자 정렬이 사라진다(2026-09-18). 이 경로는
+    카드 렌더가 실패한 날에만 나오는 폴백이라, 그날 가장 읽혀야 하는 화면이다."""
+    fs = [(lab, _dc_intensity(v), len(v) <= DC_FIELD_INLINE_MAX) for lab, v in blocks if v]
     hi = (d.get("history") or {}).get("indices") or {}
     sp = []
     for lab, key in (("코스피", "KOSPI"), ("나스닥", "NASDAQ")):
@@ -1648,18 +1711,25 @@ def _dc_thread_name(now):
     return f"📅 {now.month}/{now.day} 시황"
 
 
+_INV_CACHE = {}
+
+
 def _verified_investor(market="KOSPI"):
     """오늘자 검증 통과 수급 → {date, foreign, inst, retail, reason, ...} / 없으면 None.
 
     네이버(포털·언론 기준)값을 토스로 교차검증한 것만 통과시킨다. 실패는 조용히 None —
     카드·필드에서 수급을 빼고 '집계 중'으로 적는다(틀린 숫자 노출 금지).
-    """
+    프로세스당 1회만 조회한다 — build_digest_parts 를 전체용·피드용으로 두 번 부르면서
+    같은 네트워크 조회를 두 번 하지 않게(값이 달라지면 두 경로가 어긋난다)."""
+    if market in _INV_CACHE:
+        return _INV_CACHE[market]
     try:
         import investor_flows
-        return investor_flows.verified_latest(market)
+        _INV_CACHE[market] = investor_flows.verified_latest(market)
     except Exception as e:                                   # noqa: BLE001
         print(f"[수급] 검증 조회 실패({e}) — 수급 표기 생략")
-        return None
+        _INV_CACHE[market] = None
+    return _INV_CACHE[market]
 
 
 def _investor_row(inv):
@@ -1898,6 +1968,7 @@ def main():
         # 디스코드 병행 발송 — 카카오와 완전 독립(토큰 만료·발송 실패와 무관하게 도달).
         # 웹훅(DISCORD_WEBHOOK_URL) 미설정이면 no-op. 차트는 여기서 1회 생성해 카카오 피드에 재사용.
         _dc_png = None                               # 카카오 피드 이미지
+        _card_ok = False                             # 편성표 카드 렌더 성공 여부
         _weekly_mode = title.startswith("주간")
         try:
             import notify_discord
@@ -1913,6 +1984,7 @@ def main():
                     weekly=_weekly_mode,
                     next_week=(next((v for lab, v in blocks if lab == "다음주"), "")
                                if _weekly_mode else ""))
+                _card_ok = bool(_dc_png)             # 편성표 카드가 실제로 그려졌나(중복 제거 조건)
                 if not _dc_png:
                     _dc_png = build_slot_chart_png(data, slot, weekend)
             # embed(D1~D4 + E2) — 제목 클릭=대시보드, 필드=강도 기호(⏫⏬)+추세 스파크라인
@@ -1970,8 +2042,22 @@ def main():
         # ① 기본(통일) 형식 = '한 통' 피드: 슬롯별 차트 이미지 + 증시·환율(설명)
         #    + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
         #    차트는 당일 인트라데이, 없으면 7일 일봉 폴백.
+        # 피드 전용 본문 — 카드가 타일로 보여주는 지표는 빼고 조립한다(중복 제거).
+        # 카드가 실패해 슬롯 라인 차트로 내려간 경우엔 편성표와 무관한 2티커 차트라
+        # 그대로 전체를 싣는다. 텍스트 폴백(②③)도 계속 전체 blocks 를 쓴다.
+        feed_blocks = blocks
+        if _card_ok and not _weekly_mode:
+            _drop = _card_tile_labels(slot, weekend, _now_kst)
+            if _drop:
+                _fb = build_digest_parts(data, drop=_drop)[1]
+                if _fb:
+                    feed_blocks = _fb
+                    print(f"[digest] 카드 중복 제거: {', '.join(sorted(_drop))} → 본문 블록 "
+                          f"{len(blocks)}→{len(_fb)}개")
+
         if _charts_enabled():
-            if send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=uuids, png=_dc_png):
+            if send_chart_feed(access_token, data, title, feed_blocks, slot, weekend,
+                               uuids=uuids, png=_dc_png):
                 _mark_sent_ok()                      # 실제 발송 성공 — 여기서만 센티널 생성
                 print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
                 return
