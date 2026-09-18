@@ -1782,6 +1782,11 @@ nav#sidebar { backdrop-filter: none !important; -webkit-backdrop-filter: none !i
 .widget.accent-l-up, .kpi-card.accent-l-up { border-left: 3px solid var(--c-up) !important; }
 .widget.accent-l-down, .kpi-card.accent-l-down { border-left: 3px solid var(--c-down) !important; }
 .widget.accent-l-warn, .kpi-card.accent-l-warn { border-left: 3px solid var(--c-warn) !important; }
+/* 위젯 제목을 div → h3 로 올렸다(IA v3 P1: 문서 구조·목차·스크린리더).
+   UA 기본 여백·크기만 되돌리고, 색·자간은 아래 기존 규칙과 seed 레시피가 그대로 그린다. */
+h3.widget-title { margin-top: 0; margin-bottom: var(--spacing-3); font-size: var(--font-size-sm); }
+h3.widget-title[class*="seed-"] { font-size: inherit; }
+
 .widget-title:not([class*="seed-"]) {
   /* Phase 3 위계 격상: xs(10px)·dim 단일 위계가 212개 위젯을 균일한 회색 텍스처로
      만들었다(감사 C3) — 한 단계 위 크기 + 본문 명도로 섹션 식별성을 올린다. */
@@ -2299,6 +2304,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
     <!-- ====== 페이지 1: 대시보드 홈 ====== -->
     <div class="page active" id="page-dashboard">
+      <h2 class="sr-only">대시보드 홈</h2>
 
       <!-- ═══ L1 · 달라진 것 ═══════════════════════════════════════════════════
            "오늘 무엇이 달라졌나"에만 답한다. AI 3줄(Display Callout) · 리스크
@@ -2398,7 +2404,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span class="econ-stat__spark"><canvas aria-hidden="true" id="spark-rate"></canvas></span>
           </button>
           <button type="button" class="kpi-card kpi-clickable econ-stat sp-6 sp-md-3 sp-lg-3" id="kpi-wti" onclick="navigateToDetail('commodity')">
-            <span class="widget-title econ-stat__label">WTI 유가 <span class="econ-stat__unit">USD/배럴</span></span>
+            <span class="widget-title econ-stat__label">WTI 원유 <span class="econ-stat__unit">USD/배럴</span></span>
             <span id="kpi-wti-price" class="econ-stat__val"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:90px;height:22px;" aria-hidden="true"></span></span>
             <span id="kpi-wti-chg" class="econ-stat__chg"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56px;height:14px;" aria-hidden="true"></span></span>
             <span class="econ-stat__spark"><canvas aria-hidden="true" id="spark3"></canvas></span>
@@ -2411,7 +2417,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="seed-grid econ-home econ-home-row">
           <div class="sp-12 sp-md-7 sp-lg-7">
             <div class="widget">
-              <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">글로벌 주요 지수 <span class="econ-stat__unit">지수 / %</span></div>
+              <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">글로벌 지수 <span class="econ-stat__unit">지수 / %</span></h3>
               <div class="econ-table__scroll">
                 <table class="econ-table">
                   <caption class="econ-sr">지수별 현재가와 등락률. 행을 누르면 메인 차트가 바뀝니다.</caption>
@@ -2439,9 +2445,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                임계 초과만 warning badge 로 표시한다(색은 데이터 방향에만). -->
           <div class="sp-12 sp-md-5 sp-lg-5">
             <div class="widget">
-              <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head" id="sentimentTitle">시장 분위기
+              <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head" id="sentimentTitle">시장 분위기
                 <button type="button" onclick="refreshSentiment(this)" class="seed-action-button seed-action-button--variant_ghost seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly" aria-label="시장 분위기 지표 새로고침" title="V-KOSPI 200·MOVE·Put/Call 다시 불러오기"><span class="mat" aria-hidden="true">refresh</span></button>
-              </div>
+              </h3>
               <button type="button" class="seed-list-item__root econ-row econ-row--fg" onclick="showSentimentDetail('fear_greed')">
                 <span class="seed-list-item__prefix econ-fear">
                   <canvas id="fearChart" role="img" aria-label="공포탐욕 지수">공포탐욕 지수</canvas>
@@ -2509,7 +2515,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div class="widget econ-chartcard">
               <div class="econ-head">
                 <div class="econ-head__main">
-                  <span class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title" id="mainChartIndexName">KOSPI 지수</span>
+                  <span class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title" id="mainChartIndexName">KOSPI 추이</span>
                   <span class="econ-head__price" id="mainChartPriceVal"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:80px;height:18px;" aria-hidden="true"></span></span>
                   <span class="econ-head__chg" id="mainChartChangeVal"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56px;height:14px;" aria-hidden="true"></span></span>
                 </div>
@@ -2556,7 +2562,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <!-- L3-b 등락 Top10 — 상승/하락은 콘텐츠 전환이라 chip-tabs, 종류는 Chip -->
           <div class="sp-12 sp-md-4 sp-lg-4">
             <div class="widget">
-              <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">등락 Top10</div>
+              <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">등락 Top10</h3>
               <div class="seed-chip-tabs__root seed-chip-tabs__root--contentLayout_hug econ-tabs">
                 <div class="seed-chip-tabs__list seed-chip-tabs__list--size_medium" role="tablist" aria-label="등락 방향">
                   <button role="tab" id="moverTabUp" aria-selected="true" aria-controls="moverTable" class="seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline active" onclick="setMoverTab('up',this)">▲ 상승</button>
@@ -2599,7 +2605,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="home-sec" id="homeSecCompare" data-sec="compare" style="position:relative;">
         <div class="widget">
           <div class="econ-head">
-            <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title">지표 비교 차트 <span class="econ-stat__unit" id="cmpPairSummary">두 지표 오버레이 — 기본 지수화(=100) 단일축</span></div>
+            <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title">지표 비교 차트 <span class="econ-stat__unit" id="cmpPairSummary">두 지표 오버레이 — 기본 지수화(=100) 단일축</span></h3>
             <div class="econ-head__tools">
               <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
                 <span class="seed-select-trigger__prefixIcon econ-dot econ-dot--a" aria-hidden="true"></span>
@@ -2645,7 +2651,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="home-sec" id="homeSecBottom" data-sec="bottom" style="position:relative;">
         <div class="widget">
           <div class="econ-head">
-            <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title">최신 경제 뉴스</div>
+            <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title">최신 경제 뉴스</h3>
             <div class="econ-head__tools">
               <button onclick="refreshNews('newsFeed','newsItems',this)" class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText">새로고침</button>
             </div>
@@ -2672,6 +2678,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           alerts_config.json 을 평가해 카카오톡 발송 — scripts/check_alerts.py)
          ============================================================ -->
     <div class="page" id="page-portfolio">
+      <h2 class="sr-only">투자 현황</h2>
       <!-- 데이터 지연 안내(PRD 필수 상시 노출)는 페이지별 배너 대신
            전 페이지 공통의 글로벌 상태 칩(#globalDelayChip, 좌하단 고정)으로 일원화됨 (UX 2.4) -->
 
@@ -2692,22 +2699,22 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 포트폴리오 요약 KPI -->
       <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
         <div class="kpi-card">
-          <div class="widget-title">총 평가 금액 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 원 (해외는 환산)</span></div>
+          <h3 class="widget-title">총 평가 금액 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 원 (해외는 환산)</span></h3>
           <div id="pfKpiEval" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">-</div>
           <div id="pfKpiEvalSub" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">보유 종목 없음</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">총 매입 금액 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 원</span></div>
+          <h3 class="widget-title">총 매입 금액 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 원</span></h3>
           <div id="pfKpiCost" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">-</div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">평단가 × 수량 합계</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">평가 손익 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 원</span></div>
+          <h3 class="widget-title">평가 손익 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 원</span></h3>
           <div id="pfKpiPnl" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">-</div>
           <div id="pfKpiPnlSub" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">실시간 연동</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">총 수익률 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: %</span></div>
+          <h3 class="widget-title">총 수익률 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: %</span></h3>
           <div id="pfKpiPct" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">-</div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">(평가-매입)/매입</div>
         </div>
@@ -2791,7 +2798,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 📈 수익률 추이 vs 벤치마크 (3.2) — 방문일별 스냅샷 기반, KOSPI·S&P500 오버레이 -->
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
-          <span class="widget-title" style="margin-bottom:0;">📈 수익률 추이 vs 벤치마크 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></span>
+          <span class="widget-title" style="margin-bottom:0;">수익률 추이 vs 벤치마크 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></span>
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">방문일마다 포트폴리오 스냅샷이 이 브라우저(localStorage)에 기록됩니다</span>
         </div>
@@ -2803,7 +2810,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 카카오 알림 요약/동기화 -->
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
-          <span class="widget-title" style="margin-bottom:0;">📲 카카오톡 알림 조건</span>
+          <span class="widget-title" style="margin-bottom:0;">카카오톡 알림 조건</span>
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
             <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSyncAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">☁ 서버에 저장</span></button>
             <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="showPage('settings', document.querySelector('.menu-item[onclick*=settings]'))" title="동기화 키·서버 불러오기·테스트 발송·전역 토글은 설정 페이지에서 관리" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⚙ 알림 설정 관리 →</span></button>
@@ -2910,7 +2917,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <!-- 📈 주식시장 — '시장 지표'의 주식시장 탭을 별도 메뉴/페이지로 분리 (사용자 요청).
          실제 콘텐츠(#market-equity)는 페이지 로드 시 스크립트가 page-market 에서 이 셸로
          이동시킨다 (마크업 대이동 없이 분리 — 기존 id/핸들러 전부 보존). -->
-    <div class="page" id="page-equity"></div>
+    <div class="page" id="page-equity">
+      <h2 class="sr-only">주식시장</h2></div>
 
     <div class="page" id="page-market">
       <div id="marketHaltHistory" class="widget" style="display:none;margin-bottom:16px;"></div>
@@ -2928,7 +2936,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
               <div>
-                <div class="widget-title" style="margin-bottom:0;" id="fxChartTitle">USD / KRW</div>
+                <h3 class="widget-title" style="margin-bottom:0;" id="fxChartTitle">USD / KRW</h3>
                 <div style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" id="fxChartPrice">1,489.64</div>
                 <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);" id="fxChartUnit">단위: 원/달러 (KRW per 1 USD)</div>
               </div>
@@ -2973,7 +2981,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </div>
           </div>
           <div class="widget">
-            <div class="widget-title" id="fxInfoPanelTitle">한미환율 주요 정보</div>
+            <h3 class="widget-title" id="fxInfoPanelTitle">한미환율 주요 정보</h3>
             <div id="fxInfoAsOf" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:6px;">기준 시점: —</div>
             <table class="econ-table">
               <tr style="border-bottom:1px solid var(--c-border);"><td>시가</td><td id="fxInfoOpen" class="econ-table--num">1,488.00</td></tr>
@@ -2986,7 +2994,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
         </div>
         <div class="widget">
-          <div class="widget-title">주요 통화쌍</div>
+          <h3 class="widget-title">주요 통화쌍</h3>
           <table class="econ-table">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);letter-spacing:.04em;text-transform:uppercase;">
@@ -3008,7 +3016,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- Country filter checkboxes -->
         <div class="widget" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-            <div class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</div>
+            <h3 class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</h3>
             <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns">
               <button onclick="toggleRateFilter('kr',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">🇰🇷 한국</button>
               <button onclick="toggleRateFilter('us',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:var(--color-on-success);cursor:pointer;">🇺🇸 미국</button>
@@ -3034,7 +3042,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <!-- Current rates table -->
         <div class="widget">
-          <div class="widget-title">주요국 기준금리 현황 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></div>
+          <h3 class="widget-title">주요국 기준금리 현황 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">행 클릭 → 위 차트가 해당 국가로 전환</span></h3>
           <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
               <th scope="col">국가</th>
@@ -3054,7 +3062,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget" style="display:flex;flex-direction:column;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
               <div>
-                <div class="widget-title" style="margin-bottom:0;" id="bondChartTitle">10년 국고채 수익률</div>
+                <h3 class="widget-title" style="margin-bottom:0;" id="bondChartTitle">10년 국고채 수익률</h3>
                 <div style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" id="bondChartRate">3.02%</div>
               </div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
@@ -3088,7 +3096,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
           <div class="widget" style="display:flex;flex-direction:column;">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-              <div class="widget-title" style="margin-bottom:0;">미국 국채 수익률 곡선 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: % (수익률)</span></div>
+              <h3 class="widget-title" style="margin-bottom:0;">미국 국채 수익률 곡선 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: % (수익률)</span></h3>
               <!-- 비교 시점 선택 (스냅샷 1개월전, 3개월전, 6개월전, 1년전) -->
               <div id="yieldCurveCompareBtns" style="display:flex;gap:3px;flex-wrap:wrap;">
                 <button onclick="setYieldCurveCompare('1m',this)" class="ycCompareBtn active" data-cmp="1m" style="font-size:var(--font-size-xs);padding:2px 7px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">1개월</button>
@@ -3106,7 +3114,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <!-- Multi-country bond yields table -->
         <div class="widget" style="margin-bottom:12px;">
-          <div class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">단위: % (수익률) · 행 클릭 → 위 차트가 해당 국가로 전환</span></div>
+          <h3 class="widget-title">주요국 10년물 국채 수익률 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">단위: % (수익률) · 행 클릭 → 위 차트가 해당 국가로 전환</span></h3>
           <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
               <th scope="col">국가</th>
@@ -3127,7 +3135,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondCountry('eu',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇪🇺 독일</span></button>
             <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setBondCountry('uk',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇬🇧 영국</span></button>
           </div>
-          <div class="widget-title"><span id="bondTableTitle">한국 국고채 수익률</span> <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">단위: % (수익률) · 행 클릭 → 차트 업데이트</span></div>
+          <h3 class="widget-title"><span id="bondTableTitle">한국 국고채 수익률</span> <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">단위: % (수익률) · 행 클릭 → 차트 업데이트</span></h3>
           <table class="econ-table">
             <thead>
               <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
@@ -3146,13 +3154,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 주식시장 탭 -->
       <div id="market-equity" style="display:none;">
         <div class="widget" style="margin-bottom:12px;">
-          <div class="widget-title">글로벌 주요 지수 현황</div>
+          <h3 class="widget-title">글로벌 지수 현황</h3>
           <div class="g-3" style="display:grid;gap:8px;" id="equityCards"></div>
         </div>
         <!-- Equity index chart -->
         <div class="widget" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-            <div class="widget-title" id="equityChartTitle" style="margin-bottom:0;">KOSPI</div>
+            <h3 class="widget-title" id="equityChartTitle" style="margin-bottom:0;">KOSPI</h3>
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
               <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="selectEquityIndex(0,this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">KOSPI</span></button>
               <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="selectEquityIndex(1,this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">KOSDAQ</span></button>
@@ -3202,7 +3210,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-            <div class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">코스피 기준 · 단위: 억원</span></div>
+            <h3 class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">코스피 기준 · 단위: 억원</span></h3>
             <a href="https://finance.naver.com/sise/investorDealTrendDay.naver?sosok=01" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;border:1px solid var(--c-accent-container);padding:3px 8px;border-radius:var(--r-xs);">네이버 →</a>
           </div>
           <!-- 단위 / 기간 선택 -->
@@ -3251,7 +3259,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="g-2" style="display:grid;gap:12px;margin-top:12px;">
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
+            <h3 class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
               <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
@@ -3270,7 +3278,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></div>
+            <h3 class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
               <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
@@ -3293,7 +3301,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="g-2" style="display:grid;gap:12px;margin-top:12px;">
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
+            <h3 class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
               <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
@@ -3311,7 +3319,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></div>
+            <h3 class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
               <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
@@ -3332,14 +3340,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 거래대금·토스 체결 랭킹 (토스증권 Open API — PC 스냅샷, 당일분만) -->
       <div id="equityRankingsWrap" style="display:none;gap:12px;margin-top:12px;" class="pf-stock-2col g-2">
         <div class="widget">
-          <div class="widget-title" style="margin-bottom:0;">거래대금 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">시장 전체 · 종목 클릭 → 종목 분석</span></div>
+          <h3 class="widget-title" style="margin-bottom:0;">거래대금 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">시장 전체 · 종목 클릭 → 종목 분석</span></h3>
           <div style="overflow-x:auto;"><table style="font-family:var(--font-num);margin-top:8px;" class="econ-table">
             <thead><tr style="color:var(--c-txt-muted);font-size:var(--font-size-xs);"><th>#</th><th>종목</th><th class="econ-table--num">등락</th><th class="econ-table--num">거래대금</th></tr></thead>
             <tbody id="equityRankAmountTable"></tbody>
           </table></div>
         </div>
         <div class="widget">
-          <div class="widget-title" style="margin-bottom:0;">토스증권 체결 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">리테일 인기 프록시 · 토스 앱 체결대금 기준</span></div>
+          <h3 class="widget-title" style="margin-bottom:0;">토스증권 체결 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">리테일 인기 프록시 · 토스 앱 체결대금 기준</span></h3>
           <div style="overflow-x:auto;"><table style="font-family:var(--font-num);margin-top:8px;" class="econ-table">
             <thead><tr style="color:var(--c-txt-muted);font-size:var(--font-size-xs);"><th>#</th><th>종목</th><th class="econ-table--num">등락</th><th class="econ-table--num">체결대금</th></tr></thead>
             <tbody id="equityRankTossTable"></tbody>
@@ -3356,7 +3364,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
               <div>
-                <div class="widget-title" style="margin-bottom:0;" id="comDetailTitle">WTI 원유</div>
+                <h3 class="widget-title" style="margin-bottom:0;" id="comDetailTitle">WTI 원유</h3>
                 <div style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" id="comDetailPrice">$62.35</div>
               </div>
               <div>
@@ -3397,37 +3405,37 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
           <!-- Right: clickable category list -->
           <div class="widget" style="overflow-y:auto;max-height:400px;">
-            <div class="widget-title">원자재 현물 가격 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">클릭 → 차트 업데이트</span></div>
+            <h3 class="widget-title">원자재 현물 가격 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">클릭 → 차트 업데이트</span></h3>
             <div id="commodityList"></div>
           </div>
         </div>
         <!-- Bottom: sector comparison charts 2x2 -->
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">두바이·휘발유·난방유는 우측 목록/비교차트</span></div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><h3 class="widget-title" style="margin-bottom:0;">에너지 (WTI·Brent·천연가스) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">두바이·휘발유·난방유는 우측 목록/비교차트</span></h3><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="energyChart" onclick="toggleYoY('energyChart',this)" aria-pressed="false" title="WTI(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div class="h-240" style="position:relative"><canvas id="energyChart" role="img" aria-label="에너지 차트">에너지</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><h3 class="widget-title" style="margin-bottom:0;">귀금속 (금·은·백금·팔라듐)</h3><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="preciousChart" onclick="toggleYoY('preciousChart',this)" aria-pressed="false" title="금(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div class="h-240" style="position:relative"><canvas id="preciousChart" role="img" aria-label="귀금속 차트">귀금속</canvas></div>
           </div>
         </div>
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><h3 class="widget-title" style="margin-bottom:0;">비철금속 (구리·알루미늄·아연·니켈)</h3><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="baseMetalChart" onclick="toggleYoY('baseMetalChart',this)" aria-pressed="false" title="구리(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div class="h-240" style="position:relative"><canvas id="baseMetalChart" role="img" aria-label="비철금속 차트">비철금속</canvas></div>
           </div>
           <div class="widget">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><div class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</div><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><h3 class="widget-title" style="margin-bottom:0;">농산물 (밀·옥수수·콩·쌀)</h3><a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">네이버 →</a><button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="agriChart" onclick="toggleYoY('agriChart',this)" aria-pressed="false" title="밀(주 시리즈)의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button></div>
             <div class="h-240" style="position:relative"><canvas id="agriChart" role="img" aria-label="농산물 차트">농산물</canvas></div>
           </div>
         </div>
         <!-- LME 재고 -->
         <div class="widget" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">LME 금속 창고 재고 현황
+            <h3 class="widget-title" style="margin-bottom:0;">LME 금속 창고 재고 현황
               <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-txt-muted);margin-left:6px;">단위: 톤 · 행 클릭 → 비철금속 차트 강조</span>
-            </div>
+            </h3>
             <button onclick="resetLmeHighlight()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">강조 해제</button>
           </div>
           <table class="econ-table">
@@ -3445,9 +3453,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- ⚙️ Heavy Metal Stats — COMEX·LME 금속 재고/스퀴즈 심층 분석 (외부 참조) -->
         <div class="widget" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">⚙️ Heavy Metal Stats — 금속 재고·스퀴즈 심층 분석
+            <h3 class="widget-title" style="margin-bottom:0;">Heavy Metal Stats — 금속 재고·스퀴즈 심층 분석
               <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-txt-muted);margin-left:6px;">COMEX·LME·SHFE 창고 재고 · Coverage Ratio · Term Structure · 공급 리스크</span>
-            </div>
+            </h3>
             <a href="https://heavymetalstats.com/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;white-space:nowrap;">heavymetalstats.com →</a>
           </div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.6;margin-bottom:10px;">
@@ -3478,9 +3486,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 운송 운임지수 (해상운임) -->
         <div class="widget" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;">🚢 운송 운임지수 (해상운임)
+            <h3 class="widget-title" style="margin-bottom:0;">운송 운임지수 (해상운임)
               <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-txt-muted);margin-left:6px;">SCFI·CCFI·BDI 계열 · 단위: 지수(pt)</span>
-            </div>
+            </h3>
             <div style="display:flex;gap:6px;align-items:center;">
               <button onclick="refreshFreight(this)" title="네이버 시장지표에서 운임지수 동기화" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
               <a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 →</a>
@@ -3500,9 +3508,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 🌊 엘니뇨·라니냐 기후 영향 분석 (원자재 수급·가격 변동성 → 주가/산업 연동) -->
         <div class="widget" id="ensoCard" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-            <div class="widget-title" style="margin-bottom:0;">🌊 엘니뇨·라니냐 기후·거시 분석
+            <h3 class="widget-title" style="margin-bottom:0;">엘니뇨·라니냐 기후·거시 분석
               <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-txt-muted);margin-left:6px;">ENSO 국면 → 원자재·섹터 & 시간축 거시 파급(단·중·장기)</span>
-            </div>
+            </h3>
             <div id="ensoScenarioTabs" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
           </div>
           <div id="ensoCardBody"></div>
@@ -3549,7 +3557,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 주요 경제 지표 — 카테고리별 카드 (미국 부동산 페이지와 동일한 UI) -->
       <div style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
-          <div class="widget-title" style="margin-bottom:0;">📊 주요 경제 지표 전체 (실시간)</div>
+          <h3 class="widget-title" style="margin-bottom:0;">주요 경제 지표 전체 (실시간)</h3>
           <div style="display:flex;gap:4px;flex-wrap:wrap;" id="macroIndCountryFilter">
             <button class="macro-ind-filter active" data-cc="all" onclick="filterMacroIndicators('all',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">전체</button>
             <button class="macro-ind-filter" data-cc="🇰🇷" onclick="filterMacroIndicators('🇰🇷',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇰🇷 한국</button>
@@ -3576,7 +3584,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <div class="widget" style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div class="widget-title" style="margin-bottom:0;">거시경제 관련 뉴스</div>
+          <h3 class="widget-title" style="margin-bottom:0;">거시경제 관련 뉴스</h3>
           <button onclick="refreshNews('macroNewsFeed','macroNewsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
@@ -3595,6 +3603,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
     <!-- ====== 페이지 4: 경제 캘린더 ====== -->
     <div class="page" id="page-calendar">
+      <h2 class="sr-only">경제 일정</h2>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
         <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select aria-label="경제 캘린더 기간 선택" id="calPeriod">
           <option>이번 주</option><option>지난 달</option><option>이번 달</option><option>다음 달</option>
@@ -3616,7 +3625,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 시각적 캘린더 그리드 -->
       <div class="widget" style="margin-bottom:16px;position:relative;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-          <div class="widget-title" style="margin-bottom:0;" id="calGridTitle">월 캘린더</div>
+          <h3 class="widget-title" style="margin-bottom:0;" id="calGridTitle">월 캘린더</h3>
           <div style="display:flex;gap:6px;align-items:center;">
             <button onclick="calGridMove(-1)" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">← 이전</button>
             <button onclick="calGridToday()" style="background:var(--c-accent);border:1px solid var(--c-accent);color:var(--c-on-accent);border-radius:var(--r-xs);padding:3px 14px;font-size:var(--font-size-sm);cursor:pointer;font-weight:var(--font-weight-semibold);" title="오늘 날짜로 이동">📅 오늘</button>
@@ -3651,7 +3660,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 하이라이트 카드 3개 -->
       <div class="g-3" style="display:grid;gap:12px;margin-bottom:16px;" id="calHighlights"></div>
       <div class="widget">
-        <div class="widget-title">경제 이벤트 일정</div>
+        <h3 class="widget-title">경제 이벤트 일정</h3>
         <div style="overflow-x:auto;">
           <table style="min-width:700px;" class="econ-table">
             <thead>
@@ -3716,7 +3725,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <div class="widget" style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div class="widget-title" style="margin-bottom:0;">경제 이벤트 관련 뉴스</div>
+          <h3 class="widget-title" style="margin-bottom:0;">경제 이벤트 관련 뉴스</h3>
           <button onclick="refreshNews('calendarNewsFeed','calendarNewsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">↻ 새로고침</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
@@ -3731,6 +3740,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
     <!-- ====== 페이지 4b: 스터디 기록 ====== -->
     <div class="page" id="page-study">
+      <h2 class="sr-only">스터디 기록</h2>
       <div class="study-split">
 
         <!-- ─── 좌측: 캘린더 + 세션 목록 ─── -->
@@ -3753,14 +3763,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
 
           <div class="widget" style="display:flex;flex-direction:column;gap:8px;">
-            <div class="widget-title" style="margin-bottom:0;">기록 목록</div>
+            <h3 class="widget-title" style="margin-bottom:0;">기록 목록</h3>
             <input id="stySearch" class="study-field econ-input" type="search" placeholder="제목 · 태그 · 참석자 · 내용 검색"
                    oninput="styRenderList()" aria-label="스터디 기록 검색"/>
             <div id="styList" style="display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto;"></div>
           </div>
 
           <div class="widget" style="display:flex;flex-direction:column;gap:8px;">
-            <div class="widget-title" style="margin-bottom:0;">데이터 관리</div>
+            <h3 class="widget-title" style="margin-bottom:0;">데이터 관리</h3>
             <div id="styQuota" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);line-height:1.6;">저장 용량 확인 중…</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="study-btn" onclick="styExport(false)" title="기록 텍스트만 JSON 으로 저장 (파일 제외, 가벼움)">↓ 기록 내보내기</button>
@@ -3817,7 +3827,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
             <!-- ② 자료 · 녹화/녹음 -->
             <div class="widget">
-              <div class="widget-title">스터디 자료 · 녹화/녹음</div>
+              <h3 class="widget-title">스터디 자료 · 녹화/녹음</h3>
 
               <button type="button" class="study-drop btn-plain" id="styDrop"
                    onclick="document.getElementById('styFileInput').click()">
@@ -3857,7 +3867,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <!-- ③ 요약(회의록) -->
             <div class="widget">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <div class="widget-title" style="margin-bottom:0;">스터디 요약 (회의록)</div>
+                <h3 class="widget-title" style="margin-bottom:0;">스터디 요약 (회의록)</h3>
                 <div style="display:flex;gap:5px;flex-wrap:wrap;">
                   <button class="study-btn" onclick="styInsertTemplate()" title="안건·논의·결론·액션 템플릿 삽입">▤ 템플릿</button>
                   <button class="study-btn" id="styAiBtn" onclick="styAiSummarize()" title="메모·자료 목록을 바탕으로 회의록 초안 생성">✨ AI 요약 초안</button>
@@ -3889,6 +3899,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
     <!-- ====== 페이지 5: 분석 노트 ====== -->
     <div class="page" id="page-notes">
+      <h2 class="sr-only">분석 노트</h2>
       <div class="g-side-l" style="display:grid;gap:16px;min-height:70vh;">
         <!-- 왼쪽: 노트 목록 -->
         <div class="widget" style="display:flex;flex-direction:column;">
@@ -3899,7 +3910,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             ↥ JSON 가져오기
             <input type="file" accept=".json,application/json" onchange="importNotesJsonFile(this)" style="display:none;"/>
           </label>
-          <div class="widget-title">저장된 노트 <span id="noteSelCount" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);"></span></div>
+          <h3 class="widget-title">저장된 노트 <span id="noteSelCount" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);"></span></h3>
           <div id="noteList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
           <!-- 백업 복원 패널 (브라우저 로컬 스토리지 내 자동 백업 슬롯) -->
           <details style="margin-top:8px;border-top:1px solid var(--c-border);padding-top:8px;">
@@ -3928,12 +3939,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
           <!-- 상단: 전체 요약 -->
           <div class="widget">
-            <div class="widget-title" style="margin-bottom:8px;">📋 전체 요약 / 종합 의견</div>
+            <h3 class="widget-title" style="margin-bottom:8px;">전체 요약 / 종합 의견</h3>
             <textarea id="noteBody" placeholder="전체 시장 상황 요약, 종합 투자 의견을 입력하세요..." style="width:100%;min-height:120px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:10px 12px;font-size:var(--font-size-base);font-family:var(--font-family-body);resize:vertical;line-height:1.7;box-sizing:border-box;"></textarea>
           </div>
           <!-- 하단: 세부 주제별 섹션 -->
           <div class="widget">
-            <div class="widget-title" style="margin-bottom:12px;">📌 세부 주제별 메모</div>
+            <h3 class="widget-title" style="margin-bottom:12px;">세부 주제별 메모</h3>
             <div class="g-2" style="display:grid;gap:10px;">
               <div>
                 <div style="font-size:var(--font-size-sm);color:var(--c-primary);font-weight:var(--font-weight-semibold);margin-bottom:4px;">📈 매크로 / 경제지표</div>
@@ -4012,7 +4023,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <!-- 가격지수 추이 차트 -->
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
-              <div class="widget-title" style="margin-bottom:0;">아파트 가격지수 추이 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 지수 (2021.6=100)</span></div>
+              <h3 class="widget-title" style="margin-bottom:0;">아파트 가격지수 추이 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 지수 (2021.6=100)</span></h3>
               <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
                 <button onclick="setRePeriod('1y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-checked aria-pressed="true"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
                 <button onclick="setRePeriod('3y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
@@ -4035,7 +4046,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <!-- 지역별 등락 — Naver 지도 (기본) + 바 차트 토글 -->
           <div class="widget" style="position:relative;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
-              <div class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭 → 시군구 상세</span></div>
+              <h3 class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭 → 시군구 상세</span></h3>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 <button id="reRegionViewNaver" onclick="setReRegionView('naver',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;" title="Naver 지도">🗺️ 지도</button>
                 <button id="reRegionViewBar" onclick="setReRegionView('bar',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">📊 바 차트</button>
@@ -4053,7 +4064,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 규제 현황 + 데이터 소스 요약 -->
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
           <div class="widget">
-            <div class="widget-title">대출 규제 현황 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">항목 클릭 → 세부 내용</span></div>
+            <h3 class="widget-title">대출 규제 현황 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">항목 클릭 → 세부 내용</span></h3>
             <table class="econ-table">
               <tbody>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('LTV')" title="클릭 → LTV 세부 규제">
@@ -4076,7 +4087,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </table>
           </div>
           <div class="widget">
-            <div class="widget-title">청약 경쟁률 (최근 3개월) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭 → 세부 지역·단지 순위</span></div>
+            <h3 class="widget-title">청약 경쟁률 (최근 3개월) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭 → 세부 지역·단지 순위</span></h3>
             <table class="econ-table">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-xs);">
                 <th scope="col">지역</th>
@@ -4098,7 +4109,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 가격 지수 -->
           <div class="widget">
-            <div class="widget-title">🏠 가격 지수</div>
+            <h3 class="widget-title">가격 지수</h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 (아파트)',{unit:'지수 (2021.6=100)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4135,7 +4146,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
           <!-- 모기지 / 대출 -->
           <div class="widget">
-            <div class="widget-title">💰 주택담보대출 / 가계부채</div>
+            <h3 class="widget-title">주택담보대출 / 가계부채</h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('mortgage_rate_kr','주담대 평균 금리',{unit:'% (연이율)'})" style="border-left:3px solid var(--c-down);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4169,7 +4180,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 거래량 / 공급 그룹 -->
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="widget">
-            <div class="widget-title">📈 주택 거래 활동</div>
+            <h3 class="widget-title">주택 거래 활동</h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})" style="border-left:3px solid var(--c-up);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4195,7 +4206,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
 
           <div class="widget">
-            <div class="widget-title">🏗️ 주택 공급·임대 지표</div>
+            <h3 class="widget-title">주택 공급·임대 지표</h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('conversion_rate_kr','전월세전환율 (전국)',{unit:'%'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4273,7 +4284,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 1.5) 미국 지역별 주택가격 등락률 지도 (OpenStreetMap) -->
         <div class="widget" style="position:relative;margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
-            <div class="widget-title" style="margin-bottom:0;">미국 지역별 Case-Shiller 등락률 (전월比, %) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭/호버 → 추이</span></div>
+            <h3 class="widget-title" style="margin-bottom:0;">미국 지역별 Case-Shiller 등락률 (전월比, %) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭/호버 → 추이</span></h3>
             <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">2026년 4월 기준 · OpenStreetMap</span>
           </div>
           <div class="h-300" id="usReRegionOsmContainer" style="position:relative">
@@ -4285,7 +4296,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="g-3-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-              <div class="widget-title" style="margin-bottom:0;">📊 전월比 변화율 (한눈에 비교)</div>
+              <h3 class="widget-title" style="margin-bottom:0;">전월比 변화율 (한눈에 비교)</h3>
               <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">초록 = 상승 / 빨강 = 하락</span>
             </div>
             <div class="h-240" style="position:relative">
@@ -4293,7 +4304,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </div>
           </div>
           <div class="widget">
-            <div class="widget-title">🏦 모기지 금리 (30년 vs 15년)</div>
+            <h3 class="widget-title">모기지 금리 (30년 vs 15년)</h3>
             <div class="h-240" style="position:relative">
               <canvas id="usReMortgageChart" role="img" aria-label="모기지 금리 비교"></canvas>
             </div>
@@ -4304,7 +4315,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 가격 지수 -->
           <div class="widget">
-            <div class="widget-title">🏠 주택 가격 지수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열 차트</span></div>
+            <h3 class="widget-title">주택 가격 지수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열 차트</span></h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('case_shiller_national','Case-Shiller 전국 HPI',{unit:'지수'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4341,7 +4352,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
           <!-- 모기지 금리 -->
           <div class="widget">
-            <div class="widget-title">💰 모기지 금리 (Freddie Mac) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></div>
+            <h3 class="widget-title">모기지 금리 (Freddie Mac) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('mortgage_30y','30년 고정 모기지 금리',{unit:'%'})" style="border-left:3px solid var(--c-down);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4377,7 +4388,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 거래량 -->
           <div class="widget">
-            <div class="widget-title">📈 주택 거래 활동 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></div>
+            <h3 class="widget-title">주택 거래 활동 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('existing_home_sales','기존주택 판매 (Existing Home Sales)',{unit:'백만 건 (연환산)'})" style="border-left:3px solid var(--c-up);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4404,7 +4415,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
           <!-- 공급 -->
           <div class="widget">
-            <div class="widget-title">🏗️ 주택 공급 (선행지표) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></div>
+            <h3 class="widget-title">주택 공급 (선행지표) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">클릭 → 시계열</span></h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('housing_starts','주택 착공 (Housing Starts)',{unit:'천 호 (연환산)'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4444,10 +4455,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
     <!-- ====== 페이지: 설정 (3차-T3) — 알림·차트 규칙·백업·진단 중앙 관리 ====== -->
     <div class="page" id="page-settings">
+      <h2 class="sr-only">설정</h2>
 
       <!-- 위젯 1: 알림 규칙 관리 -->
       <div class="widget" style="margin-bottom:14px;">
-        <div class="widget-title">🔔 알림 규칙 관리</div>
+        <h3 class="widget-title">알림 규칙 관리</h3>
         <div class="set-row">
           <div>
             <div class="set-label">카카오톡 알림 전체 사용</div>
@@ -4487,7 +4499,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- 위젯 2: 차트 공통 규칙 -->
       <div class="widget" style="margin-bottom:14px;">
-        <div class="widget-title">📈 차트 공통 규칙</div>
+        <h3 class="widget-title">차트 공통 규칙</h3>
         <div class="set-row">
           <div><div class="set-label">상승·하락 색상 방향</div><div class="set-desc">한국식은 <b style="color:var(--c-up)">빨강=상승</b> / <b style="color:var(--c-down)">파랑=하락</b>, 글로벌식은 초록=상승/빨강=하락입니다. 변경 시 차트를 다시 그리기 위해 페이지가 새로고침됩니다.</div></div>
           <!-- 색상 관습 = segmented-control(2항목·조작 의미론). recipe 는 크기 변형이
@@ -4532,7 +4544,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- 위젯 3: 데이터 백업·복구 -->
       <div class="widget" style="margin-bottom:14px;">
-        <div class="widget-title">💾 데이터 백업·복구</div>
+        <h3 class="widget-title">데이터 백업·복구</h3>
         <div class="set-desc" style="margin-bottom:10px;">포트폴리오(평단가·수량 포함)·알림·분석 노트·설정 등 이 브라우저에 저장된 <b>모든 사용자 데이터</b>(현재 <span id="setBackupCount">—</span>개 항목)를 파일 하나로 내보내거나 복구합니다. 브라우저 변경·캐시 삭제에 대비하세요.</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="exportAllUserData(false)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ JSON 백업</span></button>
@@ -4544,7 +4556,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- 위젯 4: 시스템 진단 (3차 신규 요청 — 링크·데이터 정확성 검토) -->
       <div class="widget">
-        <div class="widget-title">🩺 시스템 진단 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">링크·데이터 정확성 자가 점검</span></div>
+        <h3 class="widget-title">시스템 진단 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">링크·데이터 정확성 자가 점검</span></h3>
         <div class="set-desc" style="margin-bottom:10px;">메뉴 라우팅·클릭 핸들러·데이터 신선도·핵심 시계열 정합성·알림 서버 도달·외부 링크 상태를 한 번에 점검합니다. 외부 링크의 실제 상태는 주간 CI 점검 결과(<code>link_status.json</code>)를 표시합니다.</div>
         <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="diagRunBtn" onclick="runDiagnostics()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">▶ 진단 실행</span></button>
         <div id="diagResult" style="margin-top:10px;font-size:var(--font-size-sm);"></div>
@@ -4571,7 +4583,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 🌐 글로벌 연기금 자산배분 교차 비교 (4.4) — 5대 기금 단일 통합 차트, 탭과 무관하게 상시 표시 -->
       <details class="widget" style="margin-bottom:14px;" open>
         <summary style="cursor:pointer;list-style:none;">
-          <span class="widget-title" style="margin-bottom:0;">🌐 글로벌 연기금 자산배분 교차 비교
+          <span class="widget-title" style="margin-bottom:0;">글로벌 연기금 자산배분 교차 비교
             <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">주식 / 채권 / 대체투자 / 기타·혼합 — 비중 정규화(100%) 기준</span>
           </span>
         </summary>
@@ -4597,22 +4609,22 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- KPI 카드 4개 — 항상 표시 -->
       <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
         <div class="kpi-card">
-          <div class="widget-title">총 운용 자산</div>
+          <h3 class="widget-title">총 운용 자산</h3>
           <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">1,326.0<span style="font-size:var(--font-size-base);">조원</span></div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">2026년 3월말 기준</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">2025년 수익률</div>
+          <h3 class="widget-title">2025년 수익률</h3>
           <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+13.42%</div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">연간 수익률 (잠정)</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">설립이후 연평균</div>
+          <h3 class="widget-title">설립이후 연평균</h3>
           <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+6.21%</div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">1988~2025 연환산</div>
         </div>
         <div class="kpi-card">
-          <div class="widget-title">최근 5년 누적</div>
+          <h3 class="widget-title">최근 5년 누적</h3>
           <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+52.8%</div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">2021~2025 누적</div>
         </div>
@@ -4623,7 +4635,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-              <div class="widget-title" style="margin-bottom:0;" id="npsReturnChartTitle">연도별 수익률 (%) — 공식 발표</div>
+              <h3 class="widget-title" style="margin-bottom:0;" id="npsReturnChartTitle">연도별 수익률 (%) — 공식 발표</h3>
               <div style="display:flex;gap:4px;">
                 <button onclick="setNpsReturnView('annual',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">연간</button>
                 <button onclick="setNpsReturnView('quarterly',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기별</button>
@@ -4635,7 +4647,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
           <div class="widget">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:4px;">
-              <div class="widget-title" style="margin-bottom:0;">총 운용자산 추이 (조원)</div>
+              <h3 class="widget-title" style="margin-bottom:0;">총 운용자산 추이 (조원)</h3>
               <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="npsAumChart" onclick="toggleYoY('npsAumChart',this)" aria-pressed="false" title="전년 대비 운용자산 증감률 배지 + 전년선 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
             <div class="h-260" style="position:relative">
@@ -4644,7 +4656,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
         </div>
         <div class="widget">
-          <div class="widget-title">연도별 성과 요약 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">행 클릭 → 분기별 상세</span></div>
+          <h3 class="widget-title">연도별 성과 요약 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);font-style:italic;">행 클릭 → 분기별 상세</span></h3>
           <div style="overflow-x:auto;">
             <table style="min-width:600px;" class="econ-table">
               <thead>
@@ -4663,7 +4675,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 연도별 분기 상세 드릴다운 -->
         <div class="widget" id="npsYearDetail" style="margin-top:12px;display:none;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div class="widget-title" style="margin-bottom:0;" id="npsYearDetailTitle">연도별 상세</div>
+            <h3 class="widget-title" style="margin-bottom:0;" id="npsYearDetailTitle">연도별 상세</h3>
             <button onclick="document.getElementById('npsYearDetail').style.display='none'" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">✕ 닫기</button>
           </div>
           <div style="position:relative;height:180px;"><canvas role="img" aria-label="연기금 연도별 수익률 상세 차트" id="npsYearDetailChart"></canvas></div>
@@ -4674,13 +4686,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="nps-allocation" style="display:none;">
         <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="widget">
-            <div class="widget-title">자산 배분 현황 (2026년 3월말)</div>
+            <h3 class="widget-title">자산 배분 현황 (2026년 3월말)</h3>
             <div class="h-300" style="position:relative">
               <canvas id="npsAllocationChart" role="img" aria-label="국민연금 자산배분">자산배분 차트</canvas>
             </div>
           </div>
           <div class="widget">
-            <div class="widget-title">자산별 비중 상세</div>
+            <h3 class="widget-title">자산별 비중 상세</h3>
             <table class="econ-table">
               <thead>
                 <tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
@@ -4697,7 +4709,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-            <div class="widget-title" style="margin-bottom:0;">자산군별 운용 비중 추이 (연도별 %)</div>
+            <h3 class="widget-title" style="margin-bottom:0;">자산군별 운용 비중 추이 (연도별 %)</h3>
             <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
               <button onclick="setNpsAllocPeriod('all',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">전체</button>
               <button onclick="setNpsAllocPeriod('5y',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
@@ -4720,7 +4732,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- Top 10 보유 종목 -->
         <div class="g-2" style="display:grid;gap:12px;margin-top:12px;">
           <div class="widget">
-            <div class="widget-title">국내주식 Top 10 보유 종목 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">(2024Q3 기준, 공시 기반)</span></div>
+            <h3 class="widget-title">국내주식 Top 10 보유 종목 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">(2024Q3 기준, 공시 기반)</span></h3>
             <table class="econ-table">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
                 <th scope="col">#</th>
@@ -4732,7 +4744,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </table>
           </div>
           <div class="widget">
-            <div class="widget-title">해외주식 Top 10 보유 종목 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">(2024Q3 기준, 공시 기반)</span></div>
+            <h3 class="widget-title">해외주식 Top 10 보유 종목 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">(2024Q3 기준, 공시 기반)</span></h3>
             <table class="econ-table">
               <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
                 <th scope="col">#</th>
@@ -4749,7 +4761,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- 공식 자료 링크 -->
       <div class="widget">
-        <div class="widget-title">공식 자료 바로가기</div>
+        <h3 class="widget-title">공식 자료 바로가기</h3>
         <div class="g-3" style="display:grid;gap:10px;">
           <a href="https://fund.nps.or.kr/oprtprcn/ivsmprcn/getOHED0016M0.do" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
             <div class="link-card">
@@ -4806,10 +4818,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <!-- page-merblog 는 P5-1(2026-09-15)에서 page-merlens 의 "글 찾기" 탭(#merlensTab-search)으로
          이식됐다. ?p=merblog 는 showPage() 별칭이 merlens+search 로 돌려보내 이 컨테이너는 항상 비어
          있다 — 지우면 옛 북마크·사이드바 딥링크가 죽으므로(빈 페이지가 죽은 링크보다 안전) 유지. -->
-    <div class="page" id="page-merblog"></div><!-- /merblog -->
+    <div class="page" id="page-merblog">
+      <h2 class="sr-only">글 찾기</h2></div><!-- /merblog -->
 
     <div class="page" id="page-merlens">
-      <div class="widget-title">🧭 메르 리스크 렌즈</div>
+      <h3 class="widget-title">메르 리스크 렌즈</h3>
       <p class="econ-prose" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글에서 뽑은 임계선·전이경로를 시장 데이터와 대조하고, 원문을 검색합니다.</p>
 
       <!-- 탭: 보드(6블록) / 글 찾기(구 page-merblog 이식, P5-1) — 로직은 app7.js _merShowTab, app1.js merblog* 그대로 -->
@@ -4868,7 +4881,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- ① 리스크 게이지 -->
       <div class="widget" id="merlensGauge">
-        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">리스크 게이지</div>
+        <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">리스크 게이지</h3>
         <div class="g-2" id="merlensGaugeRow">
           <div class="mer-gauge-wrap"><div id="merlensGaugeMarket"></div><div class="mer-gauge-label">시장 지수 (기존 리스크 신호등)</div></div>
           <div class="mer-gauge-wrap"><div id="merlensGaugeMri"></div><div class="mer-gauge-label">메르 리스크 지수 (MRI)</div></div>
@@ -4883,7 +4896,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- ③ 트리거 모니터 -->
       <div class="widget" id="merlensMonitor">
-        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">트리거 모니터</div>
+        <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">트리거 모니터</h3>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;" id="merlensMonitorFilters"></div>
         <div class="econ-table__scroll">
           <table class="econ-table">
@@ -4905,14 +4918,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- ③-b 소형 다중 차트 -->
       <div class="widget" id="merlensPanels">
-        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">민감도 패널 <span class="econ-stat__unit">1년 추이 · 트리거 레벨(점선)</span></div>
+        <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">민감도 패널 <span class="econ-stat__unit">1년 추이 · 트리거 레벨(점선)</span></h3>
         <div class="g-3" id="merlensPanelsGrid"></div>
       </div>
 
       <!-- 출처 패널 -->
       <div class="widget g-side-320" id="merlensSource" style="display:grid;">
         <div>
-          <div class="widget-title" style="margin-bottom:6px;">출처</div>
+          <h3 class="widget-title" style="margin-bottom:6px;">출처</h3>
           <blockquote class="mer-source-quote" id="merlensSourceQuote">표에서 지표를 선택하면 관련 인용이 여기 표시됩니다.</blockquote>
           <div id="merlensSourceFull" style="white-space:pre-wrap;font-size:var(--font-size-sm);line-height:1.7;color:var(--c-txt);max-height:360px;overflow:auto;display:none;border-top:1px dashed var(--c-border);padding-top:8px;"></div>
         </div>
@@ -4921,7 +4934,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- ② 전이 경로 맵 -->
       <div class="widget" id="merlensGraph">
-        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">전이 경로 맵</div>
+        <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">전이 경로 맵</h3>
         <p class="econ-prose" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:0 0 8px;">테두리=트리거 상태(점선 N/A) · 우측 배지=뷰(OW/N/UW) · 선 굵기=근거 건수 · 색=방향. 노드·엣지를 클릭하면 출처가 열립니다.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
           <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
@@ -4935,14 +4948,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- ④ 민감도 매트릭스 -->
       <div class="widget" id="merlensMatrix">
-        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">민감도 매트릭스 <span class="econ-stat__unit">빈 칸=언급 없음</span></div>
+        <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">민감도 매트릭스 <span class="econ-stat__unit">빈 칸=언급 없음</span></h3>
         <div id="merMatrixHorizonChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
         <div class="econ-table__scroll" id="merMatrixTableWrap"></div>
       </div>
 
       <!-- ⑤ 뷰 타임라인 + ⑤-b 팩터 스코어카드 -->
       <div class="widget" id="merlensStance">
-        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">뷰 타임라인 · 팩터 스코어카드</div>
+        <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">뷰 타임라인 · 팩터 스코어카드</h3>
         <div class="g-2-1">
           <div class="econ-table__scroll" id="merStanceTableWrap"></div>
           <div>
@@ -4957,7 +4970,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
       <!-- ⑥ 이벤트 캘린더 + ⑥-b 재고 일수 -->
       <div class="widget" id="merlensEvents">
-        <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">이벤트·재고</div>
+        <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">이벤트·재고</h3>
         <div class="g-2">
           <div>
             <div class="mer-panel-title">이벤트 캘린더</div>

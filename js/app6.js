@@ -767,7 +767,7 @@ function pfRiskRender() {
     (ledRows || '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기록 없음 — 배당을 기록하면 손익 워터폴에 반영됩니다.</div>') +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">입출금 기록은 참고용 — 위 위험 지표는 평가/매입 비율 기반이라 추가매수에는 원래 강건하며, 대규모 입출금 시 벤치마크 비교 왜곡 고지는 기존과 동일.</div>');
 
-  el.innerHTML = '<div class="widget-title" style="margin:4px 0 10px;">🧭 메르 위험 패널 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">— 내 계좌를 연기금처럼 본다 · ⓘ = 메르식 설명</span></div>' +
+  el.innerHTML = '<div class="widget-title" style="margin:4px 0 10px;">메르 위험 패널 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">— 내 계좌를 연기금처럼 본다 · ⓘ = 메르식 설명</span></div>' +
     riskCards + '<div class="pf-risk-2col" style="display:grid;gap:12px;margin-top:12px;">' + (wf || '') + (bias || '') + '</div>' + whatif + ledCard;
   window._pfWhatIfBase = { ev: agg.evalKrw, usd: agg.usdEval };
 }

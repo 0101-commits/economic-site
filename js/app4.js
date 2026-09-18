@@ -177,10 +177,51 @@ function _applyDefaultPresetsForActivePage() {
     window._presetSyncing = false;
   });
 }
+// 동적으로 그려지는 위젯 제목에도 heading 구실을 준다(IA v3 P1).
+// 정적 마크업은 h3 로 올렸지만, JS 템플릿이 만드는 제목은 문자열이라 태그를 바꾸기
+// 어렵다 — 같은 뜻을 role/aria-level 로 준다. KPI 숫자 카드의 라벨은 제외한다.
+window.econMarkHeadings = function (root) {
+  try {
+    var scope = root || document;
+    scope.querySelectorAll('.widget-title').forEach(function (el) {
+      if (/^H[1-6]$/.test(el.tagName)) return;
+      if (el.getAttribute('role') === 'heading') return;
+      if (el.classList.contains('econ-stat__label')) return;
+      if (el.closest('.kpi-card')) return;
+      el.setAttribute('role', 'heading');
+      el.setAttribute('aria-level', '3');
+    });
+  } catch (_) {}
+};
+
+// 화면은 데이터가 늦게 도착한 뒤에도 제목을 새로 그린다 — 한 번의 훅으로는 놓친다.
+// 본문에 붙는 노드를 지켜보다가 새 위젯 제목에만 heading 구실을 준다(디바운스 200ms).
+(function observeHeadings() {
+  try {
+    var pending = null;
+    var mo = new MutationObserver(function () {
+      if (pending) return;
+      pending = setTimeout(function () {
+        pending = null;
+        try { econMarkHeadings(document.getElementById('mainContent')); } catch (_) {}
+      }, 200);
+    });
+    var start = function () {
+      var root = document.getElementById('mainContent');
+      if (!root) return;
+      mo.observe(root, { childList: true, subtree: true });
+      try { econMarkHeadings(root); } catch (_) {}
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
+  } catch (_) {}
+})();
+
 window.econPageHook = function (id) {
   // 페이지별 init 이 setTimeout(…, 50) 으로 늦게 도는 구조 → 한 박자(400ms) 뒤 실행
   setTimeout(function () {
     try { _applyDefaultPresetsForActivePage(); } catch (_) {}
+    try { econMarkHeadings(document.querySelector('.page.active')); } catch (_) {}
     try {
       if (id === 'dashboard') {
         mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',

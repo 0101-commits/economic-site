@@ -7463,7 +7463,7 @@ function buildMacroIndicatorTable() {
       </div>`;
     }).join('');
     return `<div class="widget pad-14">
-      <div class="widget-title" style="font-size:var(--font-size-sm);letter-spacing:.08em;">📊 ${cat}</div>
+      <div class="widget-title" style="font-size:var(--font-size-sm);letter-spacing:.08em;">${cat}</div>
       <div style="display:flex;flex-direction:column;gap:10px;">${topicHtml}</div>
     </div>`;
   }).join('') + `</div>`;
@@ -8966,7 +8966,7 @@ function insertIndicatorSnapshot() {
     if(idx[k] && idx[k].price != null) rows.push(`| ${lab} | ${fmt(idx[k].price)}${chg(idx[k].change)} |`);
   });
   if(fx.USDKRW && fx.USDKRW.rate != null) rows.push(`| USD/KRW | ${fmt(fx.USDKRW.rate, 1)}${chg(fx.USDKRW.change)} |`);
-  [['WTI','WTI 유가'],['Gold','금'],['Copper','구리']].forEach(([k, lab]) => {
+  [['WTI','WTI 원유'],['Gold','금'],['Copper','구리']].forEach(([k, lab]) => {
     if(com[k] && com[k].price != null) rows.push(`| ${lab} | ${fmt(com[k].price)}${chg(com[k].change)} |`);
   });
   const fg = d.sentiment && d.sentiment.fear_greed;

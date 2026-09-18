@@ -1965,8 +1965,11 @@ var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트', '이벤트·재고'];
 // 첫 스크롤에서 답할 필요가 없다. 사용자가 펼치면 그 선택은 저장된다.
 // L2(지수표·분위기)까지 넣은 이유: 390 폭에서 L1+L2 만으로 1,600px 를 써서 홈이
 // 3.7 화면이었다. 값 자체는 상단 브리핑 스트립·KPI 4카드가 이미 한 줄로 보여준다.
-var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 지수', '등락 Top10', '최신 경제 뉴스',
-                                          '글로벌 주요 지수', '시장 분위기'];
+// ⚠ 이 목록은 '제목 텍스트 부분일치'로 위젯을 고른다 — 제목을 고치면 여기도 고쳐야 한다
+// (IA v3 P1 에서 'KOSPI 지수'→'KOSPI 추이', '글로벌 주요 지수'→'글로벌 지수'로 바뀌었고,
+//  그때 이 목록을 빠뜨려 390 홈이 1,763 → 3,696px 로 부풀었다).
+var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 추이', '등락 Top10', '최신 경제 뉴스',
+                                          '글로벌 지수', '시장 분위기'];
 function _wcLoadMap(){
   try { return JSON.parse(localStorage.getItem(WCOLLAPSE_LS) || '{}') || {}; } catch(_) { return {}; }
 }
