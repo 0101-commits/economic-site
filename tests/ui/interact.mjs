@@ -142,13 +142,29 @@ const spaAlive = page => page.evaluate(() => window.__spaMarker === 1);
 // ── 4) 티커 정지 버튼 · 테마 토글 두 속성 동기 ───────────────────────────────
 {
   const { ctx, page, errors } = await open(1440);
-  await page.click('#tickerPauseBtn');
-  await page.waitForTimeout(200);
-  const paused = await page.evaluate(() => ({
+  // 자동 스크롤은 기본이 정지다(2026-09-18). 움직임은 켠 사람의 선택으로만 살아나고
+  // 그 선택은 localStorage 에 남는다. aria-pressed 는 '정지 상태'를 뜻한다.
+  const snap = () => page.evaluate(() => ({
     motion: document.getElementById('econTicker').getAttribute('data-motion'),
     pressed: document.getElementById('tickerPauseBtn').getAttribute('aria-pressed'),
+    play: getComputedStyle(document.querySelector('.ticker-scroll')).animationPlayState,
+    stored: (() => { try { return localStorage.getItem('econ_ticker_motion'); } catch (_) { return 'ERR'; } })(),
   }));
-  ok(paused.motion === 'paused' && paused.pressed === 'true', '티커 정지 버튼이 상태를 세우지 않는다');
+  const idle = await snap();
+  ok(idle.motion === null && idle.pressed === 'true' && idle.play === 'paused',
+     `티커가 기본으로 멈춰 있지 않다 (motion=${idle.motion} play=${idle.play})`);
+
+  await page.click('#tickerPauseBtn');
+  await page.waitForTimeout(200);
+  const playing = await snap();
+  ok(playing.motion === 'playing' && playing.pressed === 'false' && playing.stored === 'playing',
+     `티커 재생 버튼이 상태를 세우지 않는다 (motion=${playing.motion} stored=${playing.stored})`);
+
+  await page.click('#tickerPauseBtn');
+  await page.waitForTimeout(200);
+  const repaused = await snap();
+  ok(repaused.motion === null && repaused.pressed === 'true' && repaused.stored === 'paused',
+     `티커 정지 버튼이 상태를 되돌리지 않는다 (motion=${repaused.motion} stored=${repaused.stored})`);
 
   await page.click('#themeToggleBtn');
   await page.waitForTimeout(400);

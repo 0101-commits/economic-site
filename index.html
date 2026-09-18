@@ -1200,7 +1200,13 @@
     .econ-ticker__viewport .ticker-scroll { animation: none; }
     .econ-ticker__viewport { overflow-x: auto; }
   }
-  .econ-ticker[data-motion="paused"] .ticker-scroll { animation-play-state: paused; }
+  /* 자동 스크롤은 기본이 정지다. 읽는 도중 글자가 지나가면 눈이 줄을 놓치고,
+     읽으려면 한 바퀴를 기다려야 한다. 움직임을 원하는 사람만 버튼으로 켜고,
+     그 선택은 localStorage('econ_ticker_motion')에 남는다(applyStoredTickerMotion).
+     JS 로드 전에도 멈춰 있도록 정지를 CSS 기본값으로 둔다. */
+  .ticker-scroll { animation-play-state: paused; }
+  .econ-ticker[data-motion="playing"] .ticker-scroll { animation-play-state: running; }
+  .econ-ticker[data-motion="playing"]:hover .ticker-scroll { animation-play-state: paused; }
   /* 모바일에서는 상단 헤더의 날짜·시각(시계)을 숨긴다 — 좁은 화면에서 티커 공간 확보(2026-06 사용자 요청). */
   @media (max-width: 768px) { #clock { display: none !important; } }
   /* ═══ 전년 동기(YoY) 비교 — 토글 버튼 + 변화율 배지 (순수 추가) ═══ */
@@ -1273,6 +1279,12 @@
   .g-auto-200 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
   .g-auto-220 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
   /* 차트 래퍼 높이 — 숫자는 데스크탑 기준값이고 좁은 화면 축소는 아래 반응형에서 */
+  /* Chart.js 는 canvas 를 부모에 맞추지만 그 리사이즈가 한 프레임 늦는다. 페이지를
+     전환한 직후에는 canvas 가 아직 옛 폭(예: 731px)을 들고 있어서, 좁아진 칸
+     (382px)을 밀고 격자 전체를 넘치게 만든다. 칸이 canvas 를 따라가지 않도록
+     최소폭을 풀고 넘치는 동안은 잘라 둔다 — 리사이즈가 끝나면 원래대로 보인다. */
+  :where(.h-200, .h-220, .h-230, .h-240, .h-260, .h-280, .h-300, .h-340, .h-360, .h-380,
+         .mh-280, .mh-300, .mh-380, .mh-440) { min-width: 0; overflow: hidden; }
   .h-200 { height: 200px; }
   .h-220 { height: 220px; }
   .h-230 { height: 230px; }
@@ -2066,9 +2078,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   <div class="econ-ticker__viewport">
     <div class="ticker-scroll" id="ticker"></div>
   </div>
+  <!-- 기본이 정지이므로 초기 버튼은 '재생'이다. aria-pressed 는 '정지 상태'를 뜻한다. -->
   <button type="button" id="tickerPauseBtn" class="econ-ticker__pause" onclick="toggleTickerMotion()"
-          aria-pressed="false" aria-label="티커 자동 스크롤 정지" title="티커 자동 스크롤 정지">
-    <span aria-hidden="true" class="mat">pause</span>
+          aria-pressed="true" aria-label="티커 자동 스크롤 재생" title="티커 자동 스크롤 재생">
+    <span aria-hidden="true" class="mat">play_arrow</span>
   </button>
 </div>
 

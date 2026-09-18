@@ -30,6 +30,9 @@ for (const w of WIDTHS) {
   page.on('pageerror', e => push(String(e.message || e)));
   page.on('console', m => { if (m.type() === 'error') push(m.text()); });
   await page.goto(`${BASE}/index.html?p=dashboard`, { waitUntil: 'load', timeout: 60000 });
+  // 웹폰트가 붙기 전에 재면 폴백 글꼴 폭으로 표가 넓어져 없는 넘침이 잡힌다
+  // (Pretendard 자체 호스팅 후 실제로 그렇게 잡혔다 — 실브라우저에서는 0).
+  await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
   await page.waitForTimeout(2200);
   const seen = new Map();
   let overflow = [];

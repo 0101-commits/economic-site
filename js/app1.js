@@ -2846,20 +2846,40 @@ function econRestoreCallouts() {
 // ── 티커 자동 스크롤 정지/재생 ──
 // coarse 포인터에서는 CSS 가 이미 애니메이션을 끄지만, 데스크톱에서도 흐르는 글자를
 // 멈추고 읽을 수단이 필요하다(WCAG 2.2.2 — hover 정지만으로는 키보드 사용자가 못 쓴다).
-function toggleTickerMotion() {
+// 티커 자동 스크롤 — 기본은 정지다(움직이는 글자는 읽으려면 기다려야 한다).
+// 켠 사람의 선택만 기억하고, 접근성 설정으로 모션을 줄인 환경에서는 켜지 않는다.
+// CSS 쪽 기본값도 정지라 JS 로드 전에도 움직이지 않는다.
+const TICKER_MOTION_KEY = 'econ_ticker_motion';
+function _tickerReducedMotion() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; }
+}
+function _applyTickerMotion(playing) {
   const strip = document.getElementById('econTicker');
   const btn = document.getElementById('tickerPauseBtn');
   if (!strip || !btn) return;
-  const paused = strip.getAttribute('data-motion') === 'paused';
-  if (paused) strip.removeAttribute('data-motion');
-  else strip.setAttribute('data-motion', 'paused');
-  btn.setAttribute('aria-pressed', paused ? 'false' : 'true');
-  const label = paused ? '티커 자동 스크롤 정지' : '티커 자동 스크롤 재생';
+  if (playing) strip.setAttribute('data-motion', 'playing');
+  else strip.removeAttribute('data-motion');
+  // aria-pressed 는 '정지 상태'를 뜻한다 — 눌려 있으면 멈춰 있다.
+  btn.setAttribute('aria-pressed', playing ? 'false' : 'true');
+  const label = playing ? '티커 자동 스크롤 정지' : '티커 자동 스크롤 재생';
   btn.setAttribute('aria-label', label);
   btn.setAttribute('title', label);
   const icon = btn.querySelector('.mat');
-  if (icon) icon.textContent = paused ? 'pause' : 'play_arrow';
+  if (icon) icon.textContent = playing ? 'pause' : 'play_arrow';
 }
+function applyStoredTickerMotion() {
+  let stored = null;
+  try { stored = localStorage.getItem(TICKER_MOTION_KEY); } catch (_) {}
+  _applyTickerMotion(stored === 'playing' && !_tickerReducedMotion());
+}
+function toggleTickerMotion() {
+  const strip = document.getElementById('econTicker');
+  if (!strip) return;
+  const playing = strip.getAttribute('data-motion') !== 'playing';
+  _applyTickerMotion(playing);
+  try { localStorage.setItem(TICKER_MOTION_KEY, playing ? 'playing' : 'paused'); } catch (_) {}
+}
+applyStoredTickerMotion();
 
 // ── 사이드바 토글 ──
 function _syncSidebarAria() {
