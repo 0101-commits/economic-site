@@ -204,24 +204,63 @@ window.econMarkHeadings = function (root) {
       pending = setTimeout(function () {
         pending = null;
         try { econMarkHeadings(document.getElementById('mainContent')); } catch (_) {}
+        try { econMarkSources(document.getElementById('mainContent')); } catch (_) {}
       }, 200);
     });
     var start = function () {
       var root = document.getElementById('mainContent');
       if (!root) return;
       mo.observe(root, { childList: true, subtree: true });
-      try { econMarkHeadings(root); } catch (_) {}
+      try { econMarkHeadings(root); econMarkSources(root); } catch (_) {}
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
     else start();
   } catch (_) {}
 })();
 
+// 같은 지표가 여러 화면에 뜬다 — 어느 쪽이 원본인지 화면이 말하게 한다(IA v3 P2).
+// 제목이 레지스트리의 라벨/옛 이름과 정확히 일치하고 지금 화면이 그 지표의 원본이
+// 아니면 제목 옆에 '<원본 화면 이름> ›' 을 단다. 원본 화면에서는 아무 것도 안 붙는다.
+window.econMarkSources = function (root) {
+  try {
+    if (!window.ECON_IND) return;
+    var scope = root || document;
+    var activePage = (document.querySelector('.page.active') || {}).id || '';
+    activePage = activePage.replace(/^page-/, '');
+    scope.querySelectorAll('.widget-title').forEach(function (el) {
+      if (el.querySelector('.econ-src')) return;
+      // 제목의 순수 텍스트만 — 안에 든 단위칩·버튼 글자는 뺀다
+      var clone = el.cloneNode(true);
+      clone.querySelectorAll('button,a,select,input,.econ-stat__unit,.w-fresh-chip').forEach(function (x) { x.remove(); });
+      var name = (clone.textContent || '').trim();
+      if (!name || name.length > 24) return;
+      var row = window.ECON_IND.find(name);
+      if (!row || !row.canonical) return;
+      // 이미 클릭 가능한 카드(홈 KPI 버튼 등) 안에는 넣지 않는다 — 버튼 안의 버튼이 된다.
+      // 그런 카드는 클릭 자체가 원본으로 가므로 링크가 없어도 길이 있다.
+      if (el.closest('button, a, [onclick], .clickable-card, .kpi-clickable')) return;
+      var target = econCanonicalPage(row.canonical);
+      if (!target || target === activePage) return;
+      var a = document.createElement('a');
+      a.className = 'econ-src';
+      a.href = '?p=' + target;
+      a.textContent = econPageLabel(target) + ' ›';
+      a.title = name + ' 의 원본 화면으로 이동';
+      a.addEventListener('click', function (ev) {
+        ev.preventDefault(); ev.stopPropagation();
+        try { gotoCanonical(row.canonical); } catch (_) {}
+      });
+      el.appendChild(a);
+    });
+  } catch (_) {}
+};
+
 window.econPageHook = function (id) {
   // 페이지별 init 이 setTimeout(…, 50) 으로 늦게 도는 구조 → 한 박자(400ms) 뒤 실행
   setTimeout(function () {
     try { _applyDefaultPresetsForActivePage(); } catch (_) {}
     try { econMarkHeadings(document.querySelector('.page.active')); } catch (_) {}
+    try { econMarkSources(document.querySelector('.page.active')); } catch (_) {}
     try {
       if (id === 'dashboard') {
         mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',

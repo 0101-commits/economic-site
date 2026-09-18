@@ -746,6 +746,23 @@ function gotoCanonical(canonical) {
   showPage(page, menuItemFor(page));
   return true;
 }
+// canonical 문자열 → 그 원본이 사는 페이지 id. gotoCanonical 과 같은 표를 쓴다.
+function econCanonicalPage(canonical) {
+  if (!canonical) return null;
+  const [page, frag] = String(canonical).split('#');
+  if (page === 'market') return (frag === 'index' || frag === 'equity') ? 'equity' : 'market';
+  if (page === 'flow') return 'investor';
+  return document.getElementById('page-' + page) ? page : null;
+}
+// 화면에 보이는 메뉴 이름 — 링크 문구에 쓴다('주식시장 ›').
+function econPageLabel(pageId) {
+  try {
+    const el = document.querySelector('[data-nav="' + pageId + '"] .seed-side-navigation-menu-item__label');
+    if (el) return el.textContent.trim();
+  } catch (_) {}
+  return pageId;
+}
+
 function tickerClick(name) {
   const row = window.ECON_IND && window.ECON_IND.find(name);
   if (row && gotoCanonical(row.canonical)) return;
@@ -1031,22 +1048,16 @@ function _yoyInitGlobalBtn(){
   _yoyUpdateGlobalBtn(onCount > 0 && onCount < YOY_CHARTS.length);
 }
 window.addEventListener('load', _yoyInitGlobalBtn);
+// 홈 KPI 카드가 '원본 화면'으로 가는 경로. 목적지 표는 gotoCanonical 하나뿐이고
+// 여기서는 지수 화면의 첫 탭을 고르는 것만 더한다(IA v3 P2).
 function navigateToDetail(target) {
-  if(target==='equity') {   // 주식시장은 별도 페이지로 분리됨
-    showPage('equity', menuItemFor('equity'));
+  gotoCanonical('market#' + target);
+  if(target === 'equity' || target === 'index') {
     setTimeout(()=>{
       const eqBtns=document.querySelectorAll('#market-equity .tab-btn');
       if(eqBtns[0]) selectEquityIndex(0, eqBtns[0]);
     }, 150);
-    return;
   }
-  showPage('market', menuItemFor('market'));
-  setTimeout(()=>{
-    if(target==='fx')        { setMarketTab('fx',   marketTabBtn('fx')); }
-    else if(target==='rate') { setMarketTab('rate', marketTabBtn('rate')); }
-    else if(target==='bond') { setMarketTab('bond', marketTabBtn('bond')); }
-    else if(target==='commodity') { setMarketTab('commodity', marketTabBtn('commodity')); }
-  }, 80);
 }
 
 // 📈 주식시장 페이지 분리 — page-market 안의 #market-equity 콘텐츠를 전용 페이지 셸
@@ -7364,6 +7375,11 @@ function _macroGroupKey(r) {
   return r.name;
 }
 
+// 거시 분류 중 원본이 다른 화면에 있는 것들(IA v3 P2 단일 원천 지도).
+// 나머지 분류(경기·물가·고용·무역·통화·소비)는 거시 화면 자신이 원본이라 링크가 없다.
+var MACRO_CAT_CANONICAL = { '금리': 'market#bond', '외환': 'market#fx',
+                            '부동산': 'realestate', '시장': 'dashboard#mood' };
+
 function buildMacroIndicatorTable() {
   const root = document.getElementById('macroIndCardsRoot');
   if(!root) return;
@@ -7462,8 +7478,15 @@ function buildMacroIndicatorTable() {
         </div>
       </div>`;
     }).join('');
+    // 이 분류의 원본이 다른 화면이면 제목 옆에 그 화면으로 가는 링크를 단다(IA v3 P2).
+    // 거시에도 금리·외환·부동산·시장 지표가 섞여 있는데, 그 값들의 원본은 각자 다른 화면이다.
+    const catSrc = MACRO_CAT_CANONICAL[cat];
+    const catLink = catSrc
+      ? `<a class="econ-src" href="?p=${econCanonicalPage(catSrc)}" title="${cat} 지표의 원본 화면"
+            onclick="event.preventDefault();event.stopPropagation();gotoCanonical('${catSrc}');">${econPageLabel(econCanonicalPage(catSrc))} ›</a>`
+      : '';
     return `<div class="widget pad-14">
-      <div class="widget-title" style="font-size:var(--font-size-sm);letter-spacing:.08em;">${cat}</div>
+      <div class="widget-title" style="font-size:var(--font-size-sm);letter-spacing:.08em;">${cat}${catLink}</div>
       <div style="display:flex;flex-direction:column;gap:10px;">${topicHtml}</div>
     </div>`;
   }).join('') + `</div>`;

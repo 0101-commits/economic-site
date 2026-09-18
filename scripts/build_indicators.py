@@ -332,6 +332,9 @@ def build(data, mer):
         return row["id"] if row["id"] in mer_ids else None
 
     datasets = [
+        {"id": "global_indices", "label": "글로벌 지수", "asset": "index",
+         "canonical": "market#index", "data": "indices",
+         "aliases": ["글로벌 지수", "글로벌 지수 현황", "글로벌 주요 지수"]},
         {"id": "kospi_movers", "label": "등락 Top10", "asset": "equity",
          "canonical": "market#equity", "data": "stockMovers"},
         {"id": "etf_movers", "label": "ETF 등락", "asset": "equity",

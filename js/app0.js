@@ -10,7 +10,7 @@
  *   merLens    mer_signals.json 의 같은 지표 id
  *   onScreen   false = 수집은 되는데 아직 어느 화면에도 없다(처리 대상)
  *
- * 생성 시각 기준 지표 122 · 데이터셋 15 · 미노출 15.
+ * 생성 시각 기준 지표 122 · 데이터셋 16 · 미노출 15.
  */
 (function () {
   var ROWS = [
@@ -138,6 +138,7 @@
     {"id": "vkospi", "label": "V-KOSPI", "asset": "sentiment", "data": "sentiment.vkospi", "tier": 2, "canonical": "dashboard#mood", "merLens": "vkospi"},
   ];
   var SETS = [
+    {"id": "global_indices", "label": "글로벌 지수", "asset": "index", "canonical": "market#index", "data": "indices", "aliases": ["글로벌 지수", "글로벌 지수 현황", "글로벌 주요 지수"], "kind": "dataset", "tier": 2},
     {"id": "kospi_movers", "label": "등락 Top10", "asset": "equity", "canonical": "market#equity", "data": "stockMovers", "kind": "dataset", "tier": 2},
     {"id": "etf_movers", "label": "ETF 등락", "asset": "equity", "canonical": "market#equity", "data": "etfMovers", "kind": "dataset", "tier": 2},
     {"id": "rankings_kr", "label": "거래대금·토스 체결 순위", "asset": "equity", "canonical": "market#equity", "data": "rankingsKr", "kind": "dataset", "tier": 2},
