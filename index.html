@@ -157,7 +157,10 @@
      용량 90%+ 절감. display=block: 아이콘 폰트는 swap 시 'menu_open' 같은 리거처 원문이
      그대로 보였다가 교체되는 결함이 있어 짧은 공백이 낫다(Google Fonts 권장).
      ⚠ 새 아이콘을 쓰려면 여기 icon_names 에도 추가해야 한다(빠지면 이름 텍스트가 그대로 노출). -->
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&icon_names=account_balance,article,calendar_month,candlestick_chart,chevron_right,close,compare_arrows,dark_mode,edit_note,history_edu,home,home_work,insights,light_mode,menu,menu_open,monitoring,more_horiz,pause,play_arrow,public,refresh,settings,show_chart,swap_horiz&display=block" rel="stylesheet"/>
+<!-- ⚠ icon_names= 는 서브셋 목록이다. 여기 없는 아이콘을 .mat 으로 쓰면 폰트가
+     리거처를 못 만들어 이름이 그대로 글자로 찍힌다(헤더에 거대한 "SEARCH" 가 뜬 원인).
+     새 아이콘을 쓰면 반드시 이 목록에 알파벳 순으로 추가할 것. -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&icon_names=account_balance,article,calendar_month,candlestick_chart,chevron_right,close,compare_arrows,dark_mode,edit_note,event,history,history_edu,home,home_work,insights,light_mode,menu,menu_open,monitoring,more_horiz,pause,play_arrow,public,refresh,search,settings,show_chart,star,swap_horiz&display=block" rel="stylesheet"/>
 <!-- @seed-design/css@2.7.0 벤더링본 — scripts/vendor_seed_css.py 산출.
      CSP 가 style-src 'self' 라 CDN <link> 는 불가하므로 저장소에 둔다.
      인라인 <style> 보다 앞: 동특이성에서 사이트 규칙이 이겨야 한다(병기 전환기).
@@ -1784,6 +1787,38 @@ nav#sidebar { backdrop-filter: none !important; -webkit-backdrop-filter: none !i
 .widget.accent-l-warn, .kpi-card.accent-l-warn { border-left: 3px solid var(--c-warn) !important; }
 /* 위젯 제목을 div → h3 로 올렸다(IA v3 P1: 문서 구조·목차·스크린리더).
    UA 기본 여백·크기만 되돌리고, 색·자간은 아래 기존 규칙과 seed 레시피가 그대로 그린다. */
+/* ── 모바일 정리(2026-09-18 감사) ─────────────────────────────────────────
+   접힌 위젯이 제목 줄만 남기고도 86px 를 먹었다. 제목·단위·원본 링크·별·새로고침이
+   좁은 폭에서 두 줄로 감겼기 때문이다. 접혔을 때는 한 줄로 고정하고 군더더기를 감춘다. */
+@media (max-width: 767px) {
+  .widget.w-collapsed { padding: 8px 12px; }
+  .widget.w-collapsed .w-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .widget.w-collapsed .widget-title { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
+                                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                                      margin-bottom: 0; }
+  .widget.w-collapsed .widget-title .econ-stat__unit,
+  .widget.w-collapsed .widget-title .econ-src,
+  .widget.w-collapsed .widget-title .w-fresh-chip { display: none; }
+  /* 접힘 줄의 오른쪽 차례: 관심 별 → 새로고침 → 펼침 화살표 */
+  .widget.w-collapsed .widget-title .econ-fav { order: 1; margin-left: auto; }
+  .widget.w-collapsed .widget-title [data-chart-refresh],
+  .widget.w-collapsed .widget-title button[aria-label*="새로고침"] { order: 2; }
+  .widget.w-collapsed .w-toggle-btn { order: 3; margin-left: 4px; }
+  /* 브리핑 칩이 글자를 말없이 잘라 먹었다 — 말줄임으로 '더 있다'를 보이게 한다 */
+  .brief-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  /* 표가 390 에서 마지막 열(등락률·누계)을 잘라 먹었다 — 한 단계 작은 글자와
+     좁은 셀 여백으로 열을 더 넣는다(스케일 안의 값만 쓴다). */
+  .widget table { font-size: var(--font-size-xs); }
+  .widget table th, .widget table td { padding-left: 6px; padding-right: 6px; }
+}
+/* 가로로 넘치는 표 — 잘린 줄 모르고 보던 것을 가장자리 그라데이션과 안내로 알린다 */
+.econ-scrollhint { position: relative; }
+.econ-scrollhint::after { content: ''; position: absolute; top: 0; right: 0; width: 18px; height: 100%;
+                          pointer-events: none;
+                          background: linear-gradient(to right, transparent, var(--c-card)); }
+.econ-scrollhint > .econ-scrollhint__tag { position: absolute; bottom: 2px; right: 4px; z-index: 1;
+                          font-size: var(--font-size-xs); color: var(--c-txt-dim);
+                          background: var(--c-card); border-radius: var(--r-xs); padding: 0 4px; }
 /* 지표 검색 오버레이(IA v3 P5) */
 .econ-search { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 400;
                display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; }
@@ -2248,7 +2283,6 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <span class="seed-side-navigation-menu-item__label">투자 현황</span>
         </a>
       </div>
-    </div>
     </div>
     <!-- 푸터 — 설정·테마·지연 배지·새로고침 (접힘에서도 아이콘으로 남는다) -->
     <div class="seed-side-navigation__footer econ-sidenav__footer">

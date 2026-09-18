@@ -7373,7 +7373,15 @@ const macroCatColors = {
 let _macroIndFilter = 'all';
 // 거시 지표 카드가 10개 분류 55장으로 한 번에 펼쳐져 있었다(IA v3 진단 D2).
 // 분류를 고르면 그 질문 하나만 남는다. 고른 값은 기억한다.
-let _macroCatFilter = (function(){ try { return localStorage.getItem('econ_macro_cat') || 'all'; } catch(_) { return 'all'; } })();
+let _macroCatFilter = (function(){
+  // 좁은 화면에서는 기본이 '전체'면 47카드가 7.6 화면으로 이어진다 — 첫 분류만 펼친다.
+  // 사용자가 고른 값이 있으면 그것이 이긴다.
+  try {
+    var saved = localStorage.getItem('econ_macro_cat');
+    if (saved) return saved;
+    return ((window.innerWidth || 1024) < 768) ? '경기' : 'all';
+  } catch(_) { return 'all'; }
+})();
 function setMacroCatFilter(cat, btn) {
   _macroCatFilter = cat;
   try { localStorage.setItem('econ_macro_cat', cat); } catch(_) {}

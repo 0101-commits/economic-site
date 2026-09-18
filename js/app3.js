@@ -1969,7 +1969,11 @@ var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트', '이벤트·재고'];
 // (IA v3 P1 에서 'KOSPI 지수'→'KOSPI 추이', '글로벌 주요 지수'→'글로벌 지수'로 바뀌었고,
 //  그때 이 목록을 빠뜨려 390 홈이 1,763 → 3,696px 로 부풀었다).
 var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 추이', '등락 Top10', '최신 경제 뉴스',
-                                          '글로벌 지수', '시장 분위기'];
+                                          '글로벌 지수', '시장 분위기',
+                                          // 메르 렌즈는 390 에서 18화면이었다 — 무거운 4블록은 접고 시작한다
+                                          '전이 경로 맵', '민감도 매트릭스', '뷰 타임라인', '이벤트·재고',
+                                          // 주식시장은 표 6개 83행이 한 화면에 이어졌다 — 대표 2표만 펼친다
+                                          'ETF 상승', 'ETF 하락', '거래대금 Top20', '토스증권 체결'];
 function _wcLoadMap(){
   try { return JSON.parse(localStorage.getItem(WCOLLAPSE_LS) || '{}') || {}; } catch(_) { return {}; }
 }

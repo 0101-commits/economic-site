@@ -227,6 +227,7 @@ window.econMarkHeadings = function (root) {
         try { econMarkContext(document.getElementById('mainContent')); } catch (_) {}
         try { econMarkFavorites(document.getElementById('mainContent')); } catch (_) {}
         try { econMakeTablesSortable(document.getElementById('mainContent')); } catch (_) {}
+        try { econMarkScrollables(document.getElementById('mainContent')); } catch (_) {}
       }, 200);
     });
     var start = function () {
@@ -327,6 +328,7 @@ window.econPageHook = function (id) {
     try { econMarkContext(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkFavorites(document.querySelector('.page.active')); } catch (_) {}
     try { econMakeTablesSortable(document.querySelector('.page.active')); } catch (_) {}
+    try { econMarkScrollables(document.querySelector('.page.active')); } catch (_) {}
     try {
       if (id === 'dashboard') {
         mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',
@@ -1137,7 +1139,32 @@ function pfExportCsv() {
     if (/^[+\-]?\d+(\.\d+)?$/.test(t)) return parseFloat(t);
     return null;
   }
-  window.econMakeTablesSortable = function (root) {
+  // 가로로 넘치는 표에 '밀어서 볼 수 있다'는 표시를 단다(모바일 감사 2026-09-18).
+// 넘치는 표는 오른쪽 열이 그냥 잘려 보여서, 값이 없는 것과 구분되지 않았다.
+window.econMarkScrollables = function (root) {
+  try {
+    var narrow = (window.innerWidth || 1024) < 768;
+    (root || document).querySelectorAll('table').forEach(function (tb) {
+      var wrap = tb.parentElement;
+      if (!wrap) return;
+      var st = getComputedStyle(wrap);
+      if (st.overflowX !== 'auto' && st.overflowX !== 'scroll') return;
+      var over = wrap.scrollWidth > wrap.clientWidth + 4;
+      wrap.classList.toggle('econ-scrollhint', over && narrow);
+      var tag = wrap.querySelector('.econ-scrollhint__tag');
+      if (over && narrow) {
+        if (!tag) {
+          tag = document.createElement('span');
+          tag.className = 'econ-scrollhint__tag';
+          tag.textContent = '← 밀어서 보기';
+          wrap.appendChild(tag);
+        }
+      } else if (tag) { tag.remove(); }
+    });
+  } catch (_) {}
+};
+
+window.econMakeTablesSortable = function (root) {
     try {
       (root || document).querySelectorAll('table').forEach(function (tb) {
         if (tb.dataset.econSort) return;
