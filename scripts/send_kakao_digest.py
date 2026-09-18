@@ -597,7 +597,14 @@ def _pack(prefix, lines, limit):
         if len(msg) + len(add) + tail <= limit:
             msg += add
             left -= 1
-    return msg + (f" 외 {left}항목" if left else "")
+    if not left:
+        return msg
+    # 한 줄도 못 들어간 경우엔 위 예약이 돌지 않았으므로 여기서 다시 한도를 맞춘다
+    # (prefix 가 한도에 가까운 호출 — 실측 _pack('P'*195, ['abcdefghij'], 200) → 201자).
+    tail = f" 외 {left}항목"
+    if len(msg) + len(tail) > limit:
+        msg = msg[:max(0, limit - len(tail))]
+    return msg + tail
 
 
 def build_text_message(title, blocks, limit=TEXT_LIMIT):
@@ -1394,11 +1401,16 @@ def build_feed_parts(blocks):
     탈락했기 때문이다(2026-09-17 실측): 수급 블록은 KRX 확정치가 나오는 18시 이후
     슬롯에만 붙는데, 붙는 순간 항상 6번째라 100% 잘려 나갔다. '확정치만 싣는다'고
     공들여 만든 블록이 한 번도 도착하지 않았다.
-    → 한도를 넘으면 뒤 두 행을 한 행으로 합쳐 둘 다 살린다."""
-    # 앞 두 블록=설명(헤드라인), 나머지=행 — 일간(증시·환율 / 심리~수급)과
-    # 주간 리포트(주간증시·주간환율 / 원자재·다음주 일정)가 같은 규칙을 쓴다.
-    desc = "\n".join(v for _, v in blocks[:2] if v)
-    rows = [(lab, v) for lab, v in blocks[2:] if v]
+    → 한도를 넘으면 뒤 두 행을 한 행으로 합쳐 둘 다 살린다.
+
+    ⚠ 설명/행을 **라벨로** 가른다(위치 blocks[:2] 아님 — 2026-09-18). 카드 중복 제거로
+    환율 블록이 통째로 빠지는 슬롯(장중·마감·주말은 달러-원·달러-엔이 둘 다 카드 타일)에서
+    위치로 가르면 심리가 조용히 헤드라인으로 승격되고 행이 하나 줄었다."""
+    desc_rows = [(lab, v) for lab, v in blocks if v and lab in DESC_LABELS]
+    rows = [(lab, v) for lab, v in blocks if v and lab not in DESC_LABELS]
+    if not desc_rows and rows:                    # 헤드라인 후보가 다 빠진 날은 첫 행을 올린다
+        desc_rows, rows = rows[:1], rows[1:]
+    desc = "\n".join(v for _, v in desc_rows)
     while len(rows) > KAKAO_FEED_ROWS:            # 초과분은 버리지 않고 앞 행에 접는다
         (l1, v1), (l2, v2) = rows[-2], rows[-1]
         rows[-2:] = [(f"{l1}·{l2}", f"{v1} / {v2}")]
@@ -1421,7 +1433,13 @@ def _hero_button(slot, weekend, now):
         return None
 
 
-KAKAO_ITEM_LABEL = 8     # 행 이름 — 카카오가 한 줄로만 표시한다(넘치면 말줄임)
+# 피드 설명(헤드라인)으로 올라가는 블록 라벨 — 일간·주간 공통. 나머지는 행이 된다.
+DESC_LABELS = ("증시", "환율", "주간증시", "주간환율")
+
+# 행 이름 상한도 값과 같은 이유로 안전 레일이다 — 8자로 뒀더니 공백을 품은 ETF 이름이
+# 'TIGER 미…' 로 잘렸다(실측). 모르는 상태에서 짧게 자르면 카카오가 보여줄 수 있었던
+# 글자를 우리가 버린다. 실제 표시 한도는 발송 1회로 재서 확정할 것.
+KAKAO_ITEM_LABEL = 20
 # 행 값 상한은 '안전 레일'로 넉넉히 둔다 — 카카오의 실제 표시 한도를 아직 실측하지 않았고,
 # 모르는 상태에서 짧게 자르면 렌더러가 보여줄 수 있었던 글자를 우리 손으로 버린다.
 # 다음 발송 1회를 수신 화면으로 재서 확정할 것(그때 이 값만 바꾸면 전 경로가 따라온다).
@@ -1476,17 +1494,23 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
     return True
 
 
-def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None, png=None):
+def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None, png=None,
+                    full_blocks=None):
     """슬롯 차트 생성→업로드→'한 통' 피드 발송. png 를 넘기면 재사용(디스코드 병행 발송과
-    이중 생성 방지). 실제 발송·폴백은 send_card 가 담당한다(기획 v3 I1 — 단일 진입점)."""
+    이중 생성 방지). 실제 발송·폴백은 send_card 가 담당한다(기획 v3 I1 — 단일 진입점).
+
+    blocks = 카드와 중복을 뺀 피드 본문. full_blocks = 중복 제거 전 전체 —
+    **사진이 실패해 텍스트로 내려갈 때 쓴다.** 이미지가 없는 순간엔 카드가 들고 있던
+    코스피·환율이 아무 데도 없게 되므로, 그 경로만 전체를 싣는다(2026-09-18 리뷰 지적)."""
     png = png or build_slot_chart_png(data, slot, weekend)
     desc, items = build_feed_parts(blocks)
+    text = build_text_message(title, full_blocks or blocks)
     buttons = [("대시보드 보기", DASHBOARD_URL)]
     btn = _hero_button(slot, weekend, datetime.datetime.now(KST))
     if btn:
         buttons.append((btn["title"], btn["link"]["web_url"]))
     return send_card(access_token, title, desc, png=png, uuids=uuids, buttons=buttons,
-                     items=items, kind="정기 시황")
+                     items=items, kind="정기 시황", text=text)
 
 
 def send_memo(access_token, text, with_button=True, uuids=None):
@@ -1515,7 +1539,7 @@ def _system_notice(text):
 
 
 def send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
-              fallback_png=None, items=None, kind=""):
+              fallback_png=None, items=None, kind="", text=None):
     """카톡 한 통 — 카드 이미지가 본문(기획 v3 I1). 모든 카카오 발송의 단일 진입점.
 
     3단 폴백(I7): ① 카드 PNG → ② fallback_png(슬롯 라인 차트 등) → ③ 텍스트(제목+캡션).
@@ -1543,7 +1567,10 @@ def send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
     if png or fallback_png:
         print(f"::warning title=차트 누락 폴백::{kind or title} 카드/업로드 실패 — 텍스트로 발송")
         _system_notice(f"카톡 '{kind or title}' 카드·업로드 실패 — 텍스트로 발송했습니다.")
-    send_memo(access_token, _pack(title, [caption] if caption else [], TEXT_LIMIT),
+    # text = 사진 없이 내려갈 때의 전문(호출측이 전체 블록으로 만든 것). 없으면 캡션.
+    # ⚠ 캡션은 피드용이라 카드와 중복을 뺀 내용이다 — 그걸 그대로 텍스트로 보내면
+    #   카드가 들고 있던 지표(코스피·환율)가 통째로 빠진 메시지가 나간다(리뷰 지적).
+    send_memo(access_token, text or _pack(title, [caption] if caption else [], TEXT_LIMIT),
               with_button=True, uuids=uuids)
     return True
 
@@ -2057,7 +2084,7 @@ def main():
 
         if _charts_enabled():
             if send_chart_feed(access_token, data, title, feed_blocks, slot, weekend,
-                               uuids=uuids, png=_dc_png):
+                               uuids=uuids, png=_dc_png, full_blocks=blocks):
                 _mark_sent_ok()                      # 실제 발송 성공 — 여기서만 센티널 생성
                 print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
                 return

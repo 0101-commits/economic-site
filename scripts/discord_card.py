@@ -653,11 +653,15 @@ def _draw_cells(fig, grid, box, fs, square=False, note_inline=False):
             if inline and (_text_w(fig, val, f_p, "bold")
                            + _text_w(fig, note, f_c, "bold") + 0.012) > iw:
                 # 한 줄에 값과 등락이 같이 안 들어가는 좁은 칸(3열 이상)은 세 줄로 내린다.
-                # 값을 '82,4…' 로 자르는 것보다 글자를 조금 줄이는 쪽이 낫다.
-                # 줄인 뒤에도 하한(SQ_MIN_FS)은 다시 걸어야 한다 — 종전엔 이 경로만
-                # _fs 를 우회해 정사각 카드에 11.2pt(축소 화면 5.8px)가 섞였다.
+                # 세 줄이면 값과 등락이 각자 한 줄을 쓰므로 폭 때문에 글자를 줄일 이유가
+                # 없다 — 종전엔 여기서 0.85/0.8 로 줄여, 히어로 등락률이 14.4pt(축소 화면
+                # 7.5px)까지 내려가 판독 하한 9px 아래로 떨어졌다(2026-09-18 게이트 적발).
+                # 세로가 모자란 칸에서만 줄인다(라벨+값+등락 3줄 높이 vs 칸 높이).
                 inline = False
-                f_p, f_c = _fs(f_p * 0.85, square), _fs(f_c * 0.8, square)
+                need = (f_l + f_p + f_c) / 72.0 * fig.dpi * 1.35
+                if need > h * fig.bbox.height:
+                    sc = max(0.7, h * fig.bbox.height / need)
+                    f_p, f_c = _fs(f_p * sc, square), _fs(f_c * sc, square)
             y_lab, y_val = (0.72, 0.30) if inline else (0.72, 0.36)
             fig.text(x + 0.013, y + y_lab * h, _clip(fig, label, iw, f_l),
                      color=ink, fontsize=f_l)
@@ -975,7 +979,10 @@ def _stock_square(plt, hero, others, now, extra_tiles=None):
     # 히어로 줄 기준 18pt 로 잘린다. 줄마다 따로 그려 아래 줄만 글자를 줄인다 — 기하는
     # 종전과 같다(전체 0.28 높이를 두 줄이 반씩).
     if row2:
-        _draw_cells(fig, [cells[0]], (0.03, 0.74, 0.94, 0.14), (18, 24, 18),
+        # 값 24pt 로는 히어로 칸('78,500' + '▲3.20%')이 한 줄에 안 들어가 세 줄로
+        # 내려가고, 칸 높이가 3줄에 모자라 등락률이 14.4pt(축소 7.5px)까지 줄었다.
+        # 21pt 면 한 줄로 들어가고 등락률이 18pt(9.4px)를 지킨다.
+        _draw_cells(fig, [cells[0]], (0.03, 0.735, 0.94, 0.145), (18, 21, 18),
                     square=True, note_inline=True)
         _draw_cells(fig, [row2], (0.03, 0.60, 0.94, 0.14), (13.5, 19, 14),
                     square=True, note_inline=True)

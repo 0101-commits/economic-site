@@ -50,6 +50,11 @@ HERO = {"name": "삼성전자", "cond": "목표가 78,000원", "price": 78500, "
 OTHERS = [("SK하이닉스", "412,000원", 5.1, "신고가"),
           ("NAVER", "198,000원", -2.4, "지정가"),
           ("LG에너지솔루션", "393,000원", -0.75, "데드크로스")]
+# 카드별 '주 숫자' — 이 글자들만 축소 후 9px 하한을 적용한다(보조 정보는 제외).
+MAIN_NUMBERS = {
+    "종목(정사각)": ("78,500", "▲3.20%"),
+    "급변(정사각)": ("+2.40%", "6,860"),
+}
 
 
 def _data():
@@ -73,23 +78,55 @@ def test_other_symbol_tiles_keep_change_pct(dc):
         lab = next((s for s in txts if s.startswith(nm[:4])), "")
         check(f"타일 이름 온전 {nm}", lab.startswith(nm) and not lab.endswith("…"),
               f"라벨='{lab}'")
-    # 등락률 셋 다 그려졌나 — 방향 기호 + 소수 2자리
-    pcts = [s for s in txts if s.startswith(("▲", "▼")) and s.endswith("%")]
-    check("나머지 종목 등락률 3건", len(pcts) >= 4, f"발견 {len(pcts)}건(히어로 포함)")
+    # 등락률은 건별로 확인한다 — 개수만 세면 어느 종목이 빠졌는지 못 잡는다.
+    for nm, _px, pct, _cond in OTHERS:
+        want = dc._chgtxt(pct)
+        check(f"타일 등락률 {nm}", want in txts, f"'{want}' 없음")
+    # 가격도 건별로(잘리면 '412,00…' 이 되어 원문과 다르다)
+    for nm, px, _pct, _cond in OTHERS:
+        check(f"타일 가격 {nm}", px in txts, f"'{px}' 없음")
     dc._STATE["plt"].close(fig)
 
 
 # ── ② 중복 ────────────────────────────────────────────────────────────────
 def test_feed_body_excludes_card_tiles(kakao):
-    """카드 타일 지표가 피드 본문(설명·행)에 다시 실리지 않는다."""
+    """카드 타일 지표는 피드 본문에서 빠지고, 남아야 하는 것은 남는다.
+
+    ⚠ '빠졌다'만 보면 항진명제다(조립 단계에서 빼므로 구성상 항상 참). 그래서 빠진
+    것과 **남은 것**을 함께 본다 — 중복 제거가 블록을 통째로 지워 헤드라인이 심리로
+    승격되거나, 사진 실패 시 텍스트가 카드 내용을 잃는 경로(아래)가 실제 위험이었다.
+    수급은 네트워크를 타므로 스텁으로 고정한다(조회 실패에 따라 행 수가 흔들리면
+    행 접기 경로가 검사되지 않는다)."""
     d = _data()
-    drop = kakao._card_tile_labels("h10", False, NOW)
-    check("카드 타일 목록 조회", bool(drop), f"drop={sorted(drop)}")
-    _t, blocks = kakao.build_digest_parts(d, drop=drop)
-    desc, items = kakao.build_feed_parts(blocks)
-    body = desc + " " + " ".join(f"{i['item']} {i['item_op']}" for i in items)
-    dup = sorted(lab for lab in drop if lab in body)
-    check("피드 본문 ↔ 카드 타일 중복 0", not dup, f"중복={dup}")
+    orig = kakao._verified_investor
+    kakao._verified_investor = lambda market="KOSPI": {
+        "date": "2026-09-18", "foreign": -12450, "inst": 8320, "retail": 4130,
+        "confirmed": True, "reason": ""}
+    try:
+        drop = kakao._card_tile_labels("h10", False, NOW)
+        check("카드 타일 목록 조회", bool(drop), f"drop={sorted(drop)}")
+        _t, full = kakao.build_digest_parts(d)
+        _t2, blocks = kakao.build_digest_parts(d, drop=drop)
+        desc, items = kakao.build_feed_parts(blocks)
+        body = desc + " " + " ".join(f"{i['item']} {i['item_op']}" for i in items)
+        dup = sorted(lab for lab in drop if lab in body)
+        check("피드 본문 ↔ 카드 타일 중복 0", not dup, f"중복={dup}")
+        # 헤드라인은 라벨로 고른다 — 환율 블록이 통째로 빠져도 심리가 승격되지 않는다.
+        head_labels = [lab for lab, v in blocks if v and lab in kakao.DESC_LABELS]
+        check("헤드라인은 증시·환율 뿐", all(l in kakao.DESC_LABELS for l in head_labels)
+              and desc.count("\n") + 1 == len(head_labels), f"헤드라인={head_labels}")
+        check("심리는 헤드라인에 없다", "공포탐욕" not in desc, desc[:40])
+        # 카드에 없는 블록은 살아 있어야 한다
+        keep = [lab for lab, v in full if v and lab not in ("증시", "환율")]
+        gone = [lab for lab in keep if lab not in [l for l, v in blocks if v]]
+        check("카드에 없는 블록 보존", not gone, f"사라진 블록={gone}")
+        check("행 한도 준수", len(items) <= kakao.KAKAO_FEED_ROWS, f"행 {len(items)}개")
+        # 사진이 실패해 텍스트로 내려가는 경로는 **전체** 블록을 실어야 한다.
+        text = kakao.build_text_message("제목", full)
+        for lab in ("증시",):
+            check(f"텍스트 폴백에 {lab} 포함", f"〔{lab}〕" in text, text[:60])
+    finally:
+        kakao._verified_investor = orig
 
 
 # ── ③ 축소 판독 ───────────────────────────────────────────────────────────
@@ -109,10 +146,16 @@ def test_bubble_legibility(dc, cards):
         low = [p for p in pts if p < floor - 0.01]
         check(f"글자 하한 {name}", not low,
               f"하한 {floor}pt 미달 {len(low)}건 (최소 {min(pts):.1f}pt)")
-        if square:                                    # 주 숫자는 축소 후에도 9px 이상
-            top = sorted(_screen_px(t, fig) for _o, t in _texts(fig))[-3:]
-            check(f"주 숫자 판독 {name}", min(top) >= READABLE_PX,
-                  f"상위 3개 {[round(x, 1) for x in top]}px (하한 {READABLE_PX})")
+        if square and name in MAIN_NUMBERS:
+            # '가장 큰 글자 3개'로는 검증이 안 된다 — 값이 하한까지 줄어도 무관한 라벨이
+            # 크면 통과한다. 그 카드의 주 숫자를 문자열로 찾아 그 글자만 잰다.
+            want = MAIN_NUMBERS[name]
+            found = {t.get_text(): _screen_px(t, fig) for _o, t in _texts(fig)
+                     if t.get_text() in want}
+            missing = [w for w in want if w not in found]
+            small = {s: round(p, 1) for s, p in found.items() if p < READABLE_PX}
+            check(f"주 숫자 판독 {name}", not missing and not small,
+                  f"누락={missing} 9px미달={small} 측정={{{', '.join(f'{k}:{v:.1f}px' for k, v in found.items())}}}")
         dc._STATE["plt"].close(fig)
 
 
@@ -169,6 +212,10 @@ def test_truncation_is_announced(kakao):
     check("생략 고지 표시", "외 " in msg and "항목" in msg, msg[-14:])
     full = kakao.build_text_message("제목", [("증시", "코스피 3,150▲1.2%")])
     check("다 들어가면 고지 없음", "항목" not in full, full)
+    # 경계 — prefix 가 한도에 거의 찬 경우에도 꼬리표가 한도를 넘기지 않는다.
+    edge = kakao._pack("P" * 195, ["abcdefghij"], 200)
+    check("꼬리표 경계 한도 준수", len(edge) <= 200, f"{len(edge)}자")
+    check("꼬리표 경계 고지 유지", edge.endswith("외 1항목"), edge[-12:])
 
 
 # ── 렌더 헬퍼 ─────────────────────────────────────────────────────────────
@@ -215,6 +262,10 @@ def main():
              ("나스닥", 25100, -1.2), ("달러-원", 1383.8, 0.27)]
     hero_sq = ([NOW - datetime.timedelta(minutes=5 * i) for i in range(40)][::-1],
                [6800 + i * 2 for i in range(40)], 6790.0, "토스 1분봉")
+    # 보드 카드의 주 숫자는 그날 시세라 data.json 에서 뽑는다(하드코딩하면 게이트가 썩는다).
+    _bp, _bc = dc._node(d, "indices", "KOSPI")
+    MAIN_NUMBERS["보드(정사각)"] = tuple(
+        x for x in (dc._fmt_tile("indices", _bp), dc._chgtxt_tile("indices", _bc)) if x)
     cards = {
         "보드(정사각)": lambda: dc.board(d, NOW, shape="square", profile="kr_session",
                                      hero=hero_sq),

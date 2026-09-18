@@ -539,6 +539,18 @@ def _cond_short(a, brief=False):
             "golden_cross": "골든크로스", "dead_cross": "데드크로스"}.get(t, "")
 
 
+def _other_row(a, snap, brief=True):
+    """종목 한 건 → (이름, 가격문자열, 등락률, 조건). 카드 타일·피드 행이 함께 쓴다.
+
+    가격이 없으면 None — 한 종목의 결측이 카드 전체를 텍스트 폴백으로 떨어뜨리지 않게
+    (이 함수를 부르는 쪽의 try 범위가 카드 전체다)."""
+    px, pct = (snap or {}).get("price"), (snap or {}).get("pct")
+    if not isinstance(px, (int, float)):
+        return None
+    return (str(a.get("name") or a.get("symbol")), _fmt_price(px, a.get("market", "KR")),
+            pct if isinstance(pct, (int, float)) else None, _cond_short(a, brief=brief))
+
+
 def _alert_card(to_send, snaps, now, shape="wide"):
     """카드 E 재료 구성 + 렌더. shape="square" = 카카오 피드용 정사각(기획 v3 I1).
 
@@ -561,10 +573,10 @@ def _alert_card(to_send, snaps, now, shape="wide"):
                 "target": ha.get("value") if ha.get("type") in PRICE_TYPES else None,
                 "closes": hs.get("closes"), "vol_today": hs.get("vol_today"),
                 "vol_prev": hs.get("vol_prev"), "market": ha.get("market", "KR")}
-        others = [(a.get("name") or a.get("symbol"),
-                   _fmt_price(_snap_of(a)["price"], a.get("market", "KR")),
-                   _snap_of(a).get("pct"), _cond_short(a, brief=True))
-                  for a, _ in cands if a is not ha]
+        # 정사각(카톡)은 한 칸이 11자라 조건을 약어로, 가로(디스코드)는 줄이 카드 전폭을
+        # 쓰므로 조건을 그대로 적는다("신고가" vs "52주 신고가").
+        others = [o for o in (_other_row(a, _snap_of(a), brief=(shape == "square"))
+                              for a, _ in cands if a is not ha) if o]
         return discord_card.stock_alert(hero, others, now, shape=shape)
     except Exception as e:
         print(f"[alerts] 카드 렌더 예외({e}) — 텍스트만 발송")
@@ -892,10 +904,16 @@ def main():
     # packs/packed_ids 는 그대로 '이번 런에 확정할 대상' 기준으로 쓴다(도배 상한 유지).
     _klines = _alert_lines(to_send, snaps, state, now)
     _kpng = _alert_card(to_send, snaps, now, shape="square")
-    # 행 표기는 카카오 규격 창구(kakao.kakao_item)로 — 자르는 지점이 여기와 카카오
-    # 렌더러 두 곳에 있으면 무엇이 보일지 예측할 수 없었다(종전 이름 12자·값 40자 임의 상한).
-    _kitems = [kakao.kakao_item(l.split()[0] if l.split() else "-",
-                                " ".join(l.split()[1:])) for l in _klines[1:6]]
+    # 행도 구조화 데이터로 만든다 — 발동 줄을 공백으로 쪼개던 종전 방식은 이름이 '첫
+    # 공백 토큰'이 되어, 공백을 품은 ETF 이름이 전부 'PLUS'/'TIGER'/'RISE' 로 나갔고
+    # 실제 종목명은 값 앞머리에 묻혔다(2026-09-18 리뷰 지적, 등록 알림 10건 전부 해당).
+    # 표기는 카카오 규격 창구(kakao.kakao_item) 한 곳에서만 자른다.
+    _krows = [r for r in (_other_row(a, snaps.get((a.get("market", "KR"), a.get("symbol"))),
+                                     brief=True) for a, _ in to_send[1:6]) if r]
+    # 값 표기는 발동 줄과 같은 모양 — "412,000원(+5.1%) 신고가"
+    _kitems = [kakao.kakao_item(
+        nm, " ".join(x for x in (px + (f"({pct:+.1f}%)" if pct is not None else ""), cond) if x))
+        for nm, px, pct, cond in _krows]
     _kbtns = [("투자현황", PORTFOLIO_URL)]
     for a, _ in to_send:
         if a.get("market", "KR") == "KR":
