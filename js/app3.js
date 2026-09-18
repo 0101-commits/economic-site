@@ -60,7 +60,8 @@ function composeClientBriefingLines() {
   // 티커와 같은 자릿수 표를 본다 — 종전엔 여기만 trailing zero 를 지워서
   // 원/달러가 티커 1,385.00 / 요약 1,385 로 갈렸다.
   const num = (v, kind) => _bsNum(v, kind);
-  const chg = v => (v == null || isNaN(+v)) ? '—' : `${+v >= 0 ? '▲' : '▼'}${Math.abs(+v).toFixed(2)}%`;
+  const chg = v => (typeof fmtChgText === 'function') ? fmtChgText(v)
+    : ((v == null || isNaN(+v)) ? '—' : `${+v >= 0 ? '▲' : '▼'} ${Math.abs(+v).toFixed(2)}%`);
   const k = idx.KOSPI || {}, s = idx.SP500 || {}, n = idx.NASDAQ || {};
   const line1 = `증시 — KOSPI ${num(k.price,'index')} (${chg(k.change)}), S&P500 ${num(s.price,'index')} (${chg(s.change)}), 나스닥 ${num(n.price,'index')} (${chg(n.change)})`;
   const u = fx.USDKRW || {};
@@ -234,8 +235,11 @@ function _bsNum(v, kind) {
 }
 function _bsChgHtml(v) {
   if(v == null || isNaN(+v)) return '';
-  const up = +v >= 0;
-  return `<span class="${up ? 'up-txt' : 'down-txt'}" style="font-size:var(--font-size-sm);">${up ? '▲' : '▼'} ${up ? '+' : '-'}${Math.abs(+v).toFixed(2)}%</span>`;
+  // 표기 규칙은 app1 의 fmtChgText 가 정한다(방향은 ▲▼ 하나만). 없으면 종전 동작.
+  const body = (typeof fmtChgText === 'function')
+    ? fmtChgText(v)
+    : `${+v >= 0 ? '▲' : '▼'} ${Math.abs(+v).toFixed(2)}%`;
+  return `<span class="${+v >= 0 ? 'up-txt' : 'down-txt'}" style="font-size:var(--font-size-sm);">${body}</span>`;
 }
 // 다음 예정 이벤트 — 서버 병합 포함 calEvents 에서 실적(act) 없는 미래 이벤트 중 가장 임박한 것.
 // 동일 날짜에 여러 건이면 중요도(★) 높은 쪽 우선.
@@ -289,12 +293,11 @@ function renderBriefStrip(d) {
     }
   } catch(_) {}
   const idx = d.indices || {}, fx = d.fx || {}, sent = d.sentiment || {};
-  // KOSPI 값 칩은 없다 — 바로 아래 KPI 타일이 같은 숫자를 더 크게 보여준다.
-  // (fold 안에서 KOSPI 가 5회 등장하고 값이 서로 달랐던 문제의 절반이 이 칩이었다)
-  const u = fx.USDKRW;
-  if(u && u.rate != null) chip("navigateToDetail('fx')", 'USD/KRW',
-    `<span class="brief-val">${_bsNum(u.rate,'fx')}</span>${_bsChgHtml(u.change)}`,
-    '원/달러 환율 — 클릭: 환율 상세', `원 달러 환율 ${_bsNum(u.rate,'fx')}원, 등락 ${_bsNum(u.change,'pct')}%`);
+  // KOSPI·USD/KRW 값 칩은 없다 — 바로 아래 KPI 타일이 같은 숫자를 더 크게 보여준다.
+  // (fold 안에서 KOSPI 가 5회 등장하고 값이 서로 달랐던 문제의 절반이 이 칩이었다.
+  //  USD/KRW 칩은 같은 이유로 2026-09-18 에 뺐다 — 칩과 타일이 세로로 맞붙어
+  //  1,384.98 ▲ 0.35% 가 두 줄 연속으로 보였다.)
+  // 이 줄에는 KPI 타일에 없는 것만 남긴다: 급변·공포탐욕·수급·다음 일정.
   // 변동 슬롯 — 자기 이력 z-score 2 이상만 '급변'으로 올린다. 없으면 비운다.
   // (변화율 상위 3 랭킹은 단위가 다른 지표를 한 줄에 세워 비교 불가였다)
   try {

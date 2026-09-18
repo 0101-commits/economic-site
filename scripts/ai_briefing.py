@@ -48,9 +48,15 @@ def _num(v, nd=2):
 
 
 def _chg(v):
+    """등락 표기 — 방향은 ▲▼ 하나가 말하고 숫자는 절댓값만 적는다.
+
+    프런트의 fmtChgText(js/app1.js)와 같은 규칙이어야 한다. 3줄 요약은 서버가
+    만든 문장과 클라이언트 재조립이 같은 자리에 들어가므로, 기호 뒤 공백까지
+    같아야 새로고침 전후로 표기가 흔들리지 않는다.
+    """
     try:
         f = float(v)
-        return f"{'▲' if f >= 0 else '▼'}{abs(f):.2f}%"
+        return f"{'▲' if f >= 0 else '▼'} {abs(f):.2f}%"
     except (TypeError, ValueError):
         return "—"
 

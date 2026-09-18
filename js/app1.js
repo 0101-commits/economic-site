@@ -30,9 +30,21 @@ function calcAvgLine(data) {
   return data.map(()=>+avg.toFixed(4));
 }
 
-function fmtChg(v) {
-  const cls = v>=0?'up-txt':'down-txt', sym = v>=0?'▲':'▼';
-  return `<span class="${cls}">${sym} ${v>=0?'+':''}${v.toFixed(2)}%</span>`;
+// ============================
+// 등락 표기 — 단일 규칙
+// ============================
+// 방향은 ▲▼ 하나가 말한다. 부호(+/-)를 같이 붙이면 같은 방향을 두 번,
+// 색까지 세 번 말하게 된다("▲ +0.35%"). 숫자는 절댓값만 적는다.
+// 종전에는 한 화면에 ▲▼ 13회·부호 51회가 섞여 있었다(2026-09-18 실측).
+// 텍스트가 필요한 곳은 fmtChgText, 색까지 입힐 곳은 fmtChg 를 쓴다.
+function fmtChgText(v, unit) {
+  if (v == null || isNaN(+v)) return '—';
+  const u = unit != null ? unit : '%';
+  return `${+v >= 0 ? '▲' : '▼'} ${Math.abs(+v).toFixed(2)}${u}`;
+}
+function fmtChg(v, unit) {
+  if (v == null || isNaN(+v)) return '<span>—</span>';
+  return `<span class="${+v >= 0 ? 'up-txt' : 'down-txt'}">${fmtChgText(v, unit)}</span>`;
 }
 
 // ============================
@@ -3467,7 +3479,7 @@ function selectGlobalIndex(idx, el) {
   const changeEl= document.getElementById('mainChartChangeVal');
   if(nameEl)  nameEl.textContent = d.name + ' 지수';
   if(priceEl && d.val != null) priceEl.textContent = d.val.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-  if(changeEl && d.chg != null){ changeEl.textContent = (d.chg>=0?'▲ +':'▼ ')+Math.abs(d.chg).toFixed(2)+'%'; changeEl.className=d.chg>=0?'up-txt':'down-txt'; changeEl.style.cssText='font-size:13px;margin-left:6px;'; }
+  if(changeEl && d.chg != null){ changeEl.textContent = fmtChgText(d.chg); changeEl.className=d.chg>=0?'up-txt':'down-txt'; changeEl.style.cssText='font-size:var(--font-size-md);margin-left:6px;'; }
   // 스크린리더용 차트 설명 동적 갱신
   try {
     const cv = document.getElementById('mainChart');
@@ -4505,7 +4517,7 @@ function updateFxHeader() {
     chgEl.style.fontSize = '14px';
     const chgAbs = Math.abs((pair.chg || 0) * dm);
     const pctAbs = Math.abs(pair.pct || 0);
-    chgEl.textContent = (up ? '▲ ' : '▼ ') + chgAbs.toFixed(2) + ' (' + (up ? '+' : '-') + pctAbs.toFixed(2) + '%)';
+    chgEl.textContent = fmtChgText(up ? chgAbs : -chgAbs, '') + ' (' + pctAbs.toFixed(2) + '%)';
   }
 
   // 52주 범위
@@ -12205,9 +12217,9 @@ function applyRealData(d) {
   // 자릿수는 INDICATOR_DECIMALS 가 정한다 — 종전엔 호출부마다 손으로 적어서
   // 같은 금값이 티커 $4,390.6 / 요약 $4,381.80 으로 갈렸다.
   const fmt = (v, kind) => v != null ? fmtIndicator(v, kind) : null;
-  const fmtPct = v => v != null
-    ? (v >= 0 ? `+${v.toFixed(2)}%` : `${v.toFixed(2)}%`)
-    : null;
+  // 등락 표기는 fmtChgText 한 곳이 정한다 — 티커만 부호형(+0.35%)이라
+  // 같은 화면의 카드(▲ 0.35%)와 표기가 갈렸다.
+  const fmtPct = v => v != null ? fmtChgText(v) : null;
 
   // ── 티커 바 업데이트 ──────────────────────────
   // 금리/채권 티커 — 하드코딩 값(2.75%, 4.48%) 대신 data.json 실데이터 사용
@@ -12320,13 +12332,13 @@ function applyRealData(d) {
     if (cEl) {
       const up = changePct >= 0;
       cEl.className = up ? 'up-txt' : 'down-txt';
-      cEl.style.cssText = 'font-size:13px;margin-top:4px;';
-      cEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(changePct).toFixed(2) + '%';
+      cEl.style.cssText = 'font-size:var(--font-size-md);margin-top:4px;';
+      cEl.textContent = fmtChgText(changePct);
     }
   };
-  if (idx.KOSPI)   kpiUpd('kpi-kospi-price', 'kpi-kospi-chg', fmt(idx.KOSPI.price, 2),   idx.KOSPI.change);
-  if (fx.USDKRW)  kpiUpd('kpi-fx-price',    'kpi-fx-chg',    fmt(fx.USDKRW.rate, 2),    fx.USDKRW.change);
-  if (com.WTI)    kpiUpd('kpi-wti-price',   'kpi-wti-chg',   '$'+fmt(com.WTI.price, 2), com.WTI.change);
+  if (idx.KOSPI)   kpiUpd('kpi-kospi-price', 'kpi-kospi-chg', fmt(idx.KOSPI.price, 'index'), idx.KOSPI.change);
+  if (fx.USDKRW)  kpiUpd('kpi-fx-price',    'kpi-fx-chg',    fmt(fx.USDKRW.rate, 'fx'),  fx.USDKRW.change);
+  if (com.WTI)    kpiUpd('kpi-wti-price',   'kpi-wti-chg',   '$'+fmt(com.WTI.price, 'oil'), com.WTI.change);
 
   // ── 한국 기준금리 KPI 카드 — ECOS 데이터로 최신값 반영 ──────────
   const ecosKr = (d.economicIndicators || {}).kr || {};
@@ -12515,9 +12527,9 @@ function applyRealData(d) {
     if (phEl) phEl.textContent = fmt(idx.KOSPI.price, 2);
     if (chEl) {
       const up = idx.KOSPI.change >= 0;
-      chEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(idx.KOSPI.change).toFixed(2) + '%';
+      chEl.textContent = fmtChgText(idx.KOSPI.change);
       chEl.className = up ? 'up-txt' : 'down-txt';
-      chEl.style.cssText = 'font-size:13px;margin-left:6px;';
+      chEl.style.cssText = 'font-size:var(--font-size-md);margin-left:6px;';
     }
   }
 
@@ -12895,7 +12907,7 @@ function applyRealData(d) {
     if(!vEl || !data) return;
     const valStr = fmt ? fmt(data.value) : (data.value?.toFixed(1) ?? '—');
     vEl.textContent = valStr;
-    const chgStr = data.chg != null ? `${data.chg>=0?'▲ +':'▼ '}${Math.abs(data.chg).toFixed(2)}%` : '';
+    const chgStr = data.chg != null ? fmtChgText(data.chg) : '';
     if(cEl && data.chg != null) {
       cEl.textContent = chgStr + (data.period ? ` (${data.period})` : '');
       cEl.style.color = data.chg >= 0 ? window.CUP : window.CDN;
@@ -12929,7 +12941,7 @@ function applyRealData(d) {
     if(tvEl) tvEl.textContent = valStr;
     if(tcEl) {
       if(data.chg != null) {
-        tcEl.textContent = `${data.chg>=0?'▲ +':'▼ '}${Math.abs(data.chg).toFixed(2)}%`;
+        tcEl.textContent = fmtChgText(data.chg);
         tcEl.style.color = data.chg >= 0 ? window.CUP : window.CDN;
       } else { tcEl.textContent = '—'; }
     }
@@ -13472,8 +13484,8 @@ async function loadRealtimeFx() {
   if (kpiFxChgEl) {
     const up = (fxPairs[0].pct || 0) >= 0;
     kpiFxChgEl.className = up ? 'up-txt' : 'down-txt';
-    kpiFxChgEl.style.cssText = 'font-size:13px;margin-top:4px;';
-    kpiFxChgEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(fxPairs[0].pct || 0).toFixed(2) + '%';
+    kpiFxChgEl.style.cssText = 'font-size:var(--font-size-md);margin-top:4px;';
+    kpiFxChgEl.textContent = fmtChgText(fxPairs[0].pct || 0);
   }
   // 티커 바의 USD/KRW · EUR/KRW 갱신 (값+일변화율)
   const setTickerFx = (name, pairIdx) => {

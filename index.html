@@ -1631,6 +1631,20 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
    keep-all 은 한글 단어가 줄 끝에서 쪼개지지 않게, anywhere 는 URL·긴 영문이
    칸을 밀고 나가지 않게 — 둘은 짝이다. */
 .econ-prose{max-width:42em;line-height:1.7;word-break:keep-all;overflow-wrap:anywhere;font-variant-numeric:normal}
+/* 데이터 오기 전 자리 — 제목만 있는 빈 틀이 화면 절반을 차지하던 것을 대신한다.
+   :empty 라서 첫 렌더가 들어오는 순간 저절로 사라진다(해제 코드가 필요 없다).
+   높이를 미리 잡아 두므로 데이터가 도착해도 아래 내용이 튀지 않는다. */
+.econ-await:empty{display:block;min-height:96px;border-radius:var(--r-xs);
+  background:linear-gradient(90deg,var(--c-surface) 25%,var(--c-card-hi) 37%,var(--c-surface) 63%);
+  background-size:400% 100%;animation:econ-await-shimmer 1.4s ease-in-out infinite}
+/* tbody 는 table-row-group 이라 min-height 가 먹지 않는다 — 자리는 ::after 가 만든다. */
+tbody.econ-await:empty{min-height:0;background:none;animation:none}
+tbody.econ-await:empty::after{content:'';display:block;height:96px;border-radius:var(--r-xs);
+  background:linear-gradient(90deg,var(--c-surface) 25%,var(--c-card-hi) 37%,var(--c-surface) 63%);
+  background-size:400% 100%;animation:econ-await-shimmer 1.4s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){tbody.econ-await:empty::after{animation:none}}
+@keyframes econ-await-shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+@media (prefers-reduced-motion: reduce){.econ-await:empty{animation:none}}
 .mer-source-quote{font-size:var(--font-size-base);line-height:1.6;color:var(--c-txt);border-left:3px solid var(--c-accent);padding-left:10px;margin:0 0 10px;max-width:42em;word-break:keep-all;overflow-wrap:anywhere}
 .mer-source-meta{font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;flex-direction:column;gap:8px}
 .mer-fresh-bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px}
@@ -2393,7 +2407,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                       <th scope="col" class="econ-table--num econ-table--tiny">상세</th>
                     </tr>
                   </thead>
-                  <tbody id="globalIndexTable" aria-busy="true">
+                  <tbody id="globalIndexTable" class="econ-await" aria-busy="true">
                     <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:64%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:70%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:52%;height:12px;"></span></td><td></td></tr>
                     <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:48%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:62%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:44%;height:12px;"></span></td><td></td></tr>
                     <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:66%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:48%;height:12px;"></span></td><td></td></tr>
@@ -2548,7 +2562,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                       <th scope="col" class="econ-table--num">거래량</th>
                     </tr>
                   </thead>
-                  <tbody id="moverTable" aria-busy="true">
+                  <tbody id="moverTable" class="econ-await" aria-busy="true">
                     <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:58%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:64%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:46%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td></tr>
                     <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:46%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:58%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:50%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td></tr>
                     <tr class="skel-row" aria-hidden="true"><td><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:62%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:60%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:42%;height:12px;"></span></td><td class="econ-table--num"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56%;height:12px;"></span></td></tr>
@@ -2629,7 +2643,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','원자재',this)">원자재</button>
             </div>
           </div>
-          <div id="newsFeed" class="econ-newslist" role="tabpanel" aria-label="뉴스 목록"></div>
+          <div id="newsFeed" class="econ-newslist econ-await" role="tabpanel" aria-label="뉴스 목록"></div>
         </div>
       </div><!-- /homeSecBottom -->
     </div><!-- /dashboard -->
