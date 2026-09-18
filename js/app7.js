@@ -222,7 +222,9 @@ function _merRenderRegime(d) {
     var f = dominant[i] || '—';
     var idx = factors.indexOf(f);
     var colorVar = 'var(--color-series-' + (((idx >= 0 ? idx : 0) % 4) + 1) + ')';
-    return '<div class="mer-regime-cell" style="background:' + colorVar + '">' +
+    // 색을 그대로 깔면 본문색이든 흰색이든 글자가 진다 — 옅게 깔아 글자에 자리를 준다.
+    var bg = 'color-mix(in srgb, ' + colorVar + ' 30%, transparent)';
+    return '<div class="mer-regime-cell" style="background:' + bg + '">' +
       '<span class="mer-regime-m">' + _merEsc(m) + '</span>' +
       '<span class="mer-regime-f">' + _merEsc(f) + '</span></div>';
   }).join('');
@@ -746,11 +748,15 @@ function _merMatrixCellHtml(cell) {
   if (!cell) return '<td class="mer-matrix-cell"></td>';
   var up = cell.dir === '+', down = cell.dir === '-';
   var color = up ? 'var(--c-up)' : down ? 'var(--c-down)' : 'var(--c-txt-dim)';
-  var alpha = cell.strength >= 3 ? 55 : cell.strength === 2 ? 35 : 15;
+  // 라이트에서 --c-up/--c-down 은 800 단계(진함)라 55% 면 배경이 거의 원색이 되어
+  // 어떤 글자색도 진다. 강도 구분은 유지하면서 배경을 옅게 깐다.
+  var alpha = cell.strength >= 3 ? 28 : cell.strength === 2 ? 20 : 12;
   var arrow = up ? '▲' : down ? '▼' : '±';
   return '<td class="mer-matrix-cell"><button type="button" class="btn-plain btn-inline mer-matrix-btn" ' +
     'data-mer-row="' + _merEsc(cell.row) + '" data-mer-col="' + _merEsc(cell.col) + '" ' +
-    'style="background:color-mix(in srgb, ' + color + ' ' + alpha + '%, transparent);color:' + color + ';" ' +
+    // 배경과 글자가 같은 색이면 알파를 낮춰도 3.5:1 을 못 넘는다. 방향은 ▲▼ 와
+    // 배경 색조가 말하고, 글자는 본문색으로 읽히게 둔다.
+    'style="background:color-mix(in srgb, ' + color + ' ' + alpha + '%, transparent);color:var(--c-txt);" ' +
     'title="' + _merEsc(cell.row + ' → ' + cell.col + ' · n=' + cell.n) + '" ' +
     'onclick="_merMatrixOpenCell(\'' + _merEsc(cell.row) + '\',\'' + _merEsc(cell.col) + '\',this)">' + arrow + ' ' + cell.n + '</button></td>';
 }

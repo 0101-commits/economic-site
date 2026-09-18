@@ -1819,7 +1819,7 @@ function renderHiddenSecBar() {
   if(!bar) {
     bar = document.createElement('div');
     bar.id = 'hiddenSecBar';
-    bar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--c-txt-dim,#a4a8bc);margin-bottom:10px;';
+    bar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:var(--font-size-xs);color:var(--c-txt-dim,#a4a8bc);margin-bottom:10px;';
     page.insertBefore(bar, page.firstChild);
   }
   bar.innerHTML = '<span>숨긴 위젯:</span>' + hidden.map(k =>

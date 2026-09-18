@@ -166,6 +166,10 @@
 <!-- Figtree — astryx neutral 테마의 본문/제목 서체. 한글 글리프는 없으므로
      --font-family-body 의 폴백(Pretendard → 시스템 UI → Malgun Gothic)이 받는다.
      구 Inter + Public Sans 2종을 1종으로 줄여 폰트 요청도 절반. -->
+<!-- 본문 한글 서체 — 자체 호스팅(css/fonts/pretendard/, dynamic subset 92벌).
+     unicode-range 로 쪼개져 있어 실제로 쓰인 글자 범위의 파일만 내려온다. -->
+<link href="css/fonts/pretendard-variable.css" rel="stylesheet"/>
+<!-- 수치 전용 — 본문은 Pretendard 가 받고 Figtree 는 --font-num 에서만 쓴다. -->
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <!-- 브라우저 UI(스크롤바·폼 컨트롤)도 테마 추종 -->
 <meta name="color-scheme" content="light dark"/>
@@ -411,8 +415,13 @@
 
     /* ── 타이포 스케일 — astryx px → SEED t-스케일(§7). 사용처 1,600곳 무수정 ──
        10px(--font-size-xs) 은 t1 11px 로 일괄 상향된다. 두 스케일 병존 금지. */
-    --font-size-xs:   var(--seed-font-size-t1, 11px);
-    --font-size-sm:   var(--seed-font-size-t2, 12px);
+    /* xs·sm 은 t1(11px)·t2(12px) 였다. 화면 텍스트 요소의 27~42%가 12px 미만이라
+       본문 등급(base 14px)보다 작은 글씨가 화면을 덮고 있었다 — 인라인 font-size
+       867곳이 등급 축을 우회해 생긴 결과다. 그 867곳을 고치는 대신 스케일을
+       한 칸씩 올린다(11→12, 12→13). 인라인은 토큰을 가리키므로 같이 따라온다.
+       md 는 base 와 겹치지 않게 t3 그대로 둔다. */
+    --font-size-xs:   var(--seed-font-size-t2, 12px);
+    --font-size-sm:   var(--seed-font-size-t3, 13px);
     --font-size-md:   var(--seed-font-size-t3, 13px);   /* astryx 미정의였다 — js 3곳이 참조 */
     --font-size-base: var(--seed-font-size-t4, 14px);
     --font-size-lg:   var(--seed-font-size-t6, 18px);
@@ -421,6 +430,26 @@
     --font-size-3xl:  var(--seed-font-size-t11, 28px);
     --font-size-4xl:  var(--seed-font-size-t12, 32px);
     --font-size-5xl:  var(--seed-font-size-t13, 40px);
+    /* ── 본문 행간 — SEED 기본은 t1~t14 가 전부 1.25~1.38 로 1.4 미만이다 ──
+       한글은 라틴보다 글자당 밀도가 높아 그 행간에서 줄이 붙어 보인다. 본문이
+       쓰는 t1~t6 만 1.5 이상으로 올리고, 제목용 t7 이상은 SEED 값을 그대로 둔다.
+       SEED 의 clamp(min, preferred, max) 에서 -static 은 min·max 경계에만 쓰이고
+       실제로 나오는 값은 가운데 rem 항이다. 그래서 둘 다 고쳐야 한다 —
+       -static 만 바꾸면 경계만 넓어지고 행간은 그대로다(실측 확인).
+       이걸 안 하면 각 블록이 line-height:1.6~1.7 을 따로 얹어 정의가 갈라진다. */
+    --seed-line-height-t1-static: 17px;   /* 11px → 1.55 */
+    --seed-line-height-t2-static: 19px;   /* 12px → 1.58 */
+    --seed-line-height-t3-static: 20px;   /* 13px → 1.54 */
+    --seed-line-height-t4-static: 22px;   /* 14px → 1.57 */
+    --seed-line-height-t5-static: 25px;   /* 16px → 1.56 */
+    --seed-line-height-t6-static: 27px;   /* 18px → 1.50 */
+    /* rem 으로 두는 이유 = 브라우저 기본 글꼴 크기 설정을 따라가게(접근성). */
+    --seed-line-height-t1: clamp(calc(var(--seed-line-height-t1-static) * var(--seed-line-height-limit-min, 1)), calc(1.0625rem * var(--seed-font-size-multiplier, 1)), calc(var(--seed-line-height-t1-static) * var(--seed-line-height-limit-max, 1)));
+    --seed-line-height-t2: clamp(calc(var(--seed-line-height-t2-static) * var(--seed-line-height-limit-min, 1)), calc(1.1875rem * var(--seed-font-size-multiplier, 1)), calc(var(--seed-line-height-t2-static) * var(--seed-line-height-limit-max, 1)));
+    --seed-line-height-t3: clamp(calc(var(--seed-line-height-t3-static) * var(--seed-line-height-limit-min, 1)), calc(1.25rem * var(--seed-font-size-multiplier, 1)), calc(var(--seed-line-height-t3-static) * var(--seed-line-height-limit-max, 1)));
+    --seed-line-height-t4: clamp(calc(var(--seed-line-height-t4-static) * var(--seed-line-height-limit-min, 1)), calc(1.375rem * var(--seed-font-size-multiplier, 1)), calc(var(--seed-line-height-t4-static) * var(--seed-line-height-limit-max, 1)));
+    --seed-line-height-t5: clamp(calc(var(--seed-line-height-t5-static) * var(--seed-line-height-limit-min, 1)), calc(1.5625rem * var(--seed-font-size-multiplier, 1)), calc(var(--seed-line-height-t5-static) * var(--seed-line-height-limit-max, 1)));
+    --seed-line-height-t6: clamp(calc(var(--seed-line-height-t6-static) * var(--seed-line-height-limit-min, 1)), calc(1.6875rem * var(--seed-font-size-multiplier, 1)), calc(var(--seed-line-height-t6-static) * var(--seed-line-height-limit-max, 1)));
     /* SEED 에는 600 이 없다(400/500/700) — semibold 사용처 164곳은 700 으로 간다 */
     --font-weight-normal:   var(--seed-font-weight-regular, 400);
     --font-weight-medium:   var(--seed-font-weight-medium, 500);
@@ -453,8 +482,10 @@
     --spacing-5: var(--seed-dimension-x5, 20px);
     --spacing-6: var(--seed-dimension-x6, 24px);
     /* 본문 서체 — base.css 에 font-family 선언이 0건이라 사이트가 단일 원천이다.
-       Figtree 는 한글 글리프가 없어 Pretendard 이하 폴백이 실제로 받는다. */
-    --font-family-body: Figtree, Pretendard, "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", Roboto, Helvetica, Arial, sans-serif;
+       Pretendard Variable 을 css/fonts/ 에서 자체 호스팅한다(dynamic subset 92벌).
+       전에는 Figtree 만 실어서 한글이 방문자 OS 폰트(Win=맑은 고딕)로 떨어졌고,
+       한 문장 안에서 한글과 숫자의 x-height·획 굵기가 어긋났다. */
+    --font-family-body: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", Roboto, Helvetica, Arial, sans-serif;
     --font-family-heading: var(--font-family-body);
     --duration-slow: var(--seed-duration-d6, 300ms);
     /* 차트 시리즈 9색 — SEED 에 카테고리 팔레트가 없다(유채 6계열은 brand·등락과
@@ -509,15 +540,49 @@
     --seed-color-bg-brand-weak-pressed:  var(--seed-color-palette-blue-200);
     --seed-color-stroke-brand-solid:     var(--seed-color-palette-blue-800);
     --seed-color-stroke-brand-weak:      var(--seed-color-palette-blue-300);
+    /* ── 보조 텍스트·상태색 — 작은 글씨에서 WCAG AA(4.5)를 넘기는 단계로 ──
+       SEED 기본은 보조 텍스트가 gray-700(#868b94)이라 라이트에서 3.42:1 이다.
+       이 색을 쓰는 recipe(.seed-list-item__detail, .seed-tag-group-item__label
+       등 55곳)가 전부 미달이었다. 한 단계 내려 gray-800(5.9:1)으로 통일한다.
+       상태색도 같은 이유로 700 → 800 이다: 본문 11~12px 에 얹히므로
+       green-700(3.73) · red-700(3.53) 으로는 통과하지 못한다.
+       ⚠ 여기(0,2,0)에 둬야 한다 — base.css 의 라이트 정의가 같은 (0,2,0) 이라
+       브리지의 html:root(0,1,1)에 두면 진다(실측으로 확인).
+       다크는 배경이 어두워 700 이 충분하므로 아래 dark-only 에서 되돌린다. */
+    --seed-color-fg-neutral-subtle: var(--seed-color-palette-gray-800);
+    --color-success: var(--seed-color-palette-green-800, #00745f);
+    --color-error:   var(--seed-color-palette-red-800, #ca1d13);
+    --color-warning: var(--seed-color-palette-yellow-800, #755b22);
   }
   :root:root[data-seed-color-mode="dark-only"] {
     --seed-color-fg-brand:               var(--seed-color-palette-blue-700); /* D #41a2f9 — on #16171b 6.62 */
     --seed-color-bg-brand-solid:         var(--seed-color-palette-blue-700);
     --seed-color-bg-brand-solid-pressed: var(--seed-color-palette-blue-600);
     --seed-color-stroke-brand-solid:     var(--seed-color-palette-blue-700);
+    /* 보조 텍스트·상태색은 다크에서 700 으로 되돌린다 — 어두운 배경 위에서는
+       700 이 이미 AA 를 넘고, 라이트용 800 을 그대로 쓰면 오히려 묻힌다.
+       (0,3,0) 이라 위쪽 html:root(0,1,1) 의 라이트 값을 이긴다. */
+    --seed-color-fg-neutral-subtle: var(--seed-color-palette-gray-700);
+    --color-success: var(--seed-color-palette-green-700, #079171);
+    --color-error:   var(--seed-color-palette-red-700, #fa342c);
+    --color-warning: var(--seed-color-palette-yellow-700, #9b7821);
   }
   /* action-button.css 가 carrot-200 을 직접 박아둔 곳 — recipe 변수만 덮는다 */
   .seed-action-button--variant_brandOutline { --track-color: var(--seed-color-palette-blue-200); }
+
+  /* side-navigation.css 가 비활성 아이콘에 gray-600 을 직접 박아둔 곳.
+     라이트에서 1.97:1 이라 아이콘 14개가 배경에 묻혔다(비텍스트 기준 3:1 미달).
+     보조 텍스트와 같은 단계로 올린다 — 현재 항목은 [data-current] 가 계속 이긴다. */
+  .seed-side-navigation-menu-item__prefixIcon { color: var(--seed-color-fg-neutral-subtle); }
+
+  /* brandSolid 버튼 글자는 SEED 가 static-white 로 못박아 둔다. 다크 브랜드가
+     blue-700(#41a2f9)이라 흰 글자는 2.71:1 이다 — 배경이 밝을수록 흰 글자가 진다.
+     다크에서만 글자를 검정으로 뒤집는다(7.6:1). 브랜드 색 자체는 그대로다.
+     ⚠ gray-1000 은 테마마다 뒤집히는 이름이라(다크에서 #f3f4f5) 여기선 못 쓴다 —
+       배경이 고정 hex 이므로 글자도 고정색이어야 한다. */
+  :root[data-seed-color-mode="dark-only"] .seed-action-button--variant_brandSolid {
+    color: var(--seed-color-palette-static-black);
+  }
 
   /* ═══ 홈 그리드 — 문자열 매칭 미디어쿼리의 대체물 ═══════════════════════════
      현행 반응형은 main div[style*="grid-template-columns:1fr 300px"] 처럼 인라인
@@ -658,7 +723,9 @@
   }
 
   /* 데이터 표 — 행 36px(손가락 입력 44px), 숫자는 tabular-nums, 선택행은 좌측 2px */
-  .econ-table__scroll { overflow-x: auto; }
+  /* min-width:0 이 없으면 격자·플렉스 칸 안에서 overflow-x 가 작동하지 않는다 —
+     칸의 최소폭이 표의 min-content 로 잡혀 스크롤 대신 컨테이너를 밀어낸다. */
+  .econ-table__scroll { overflow-x: auto; min-width: 0; }
   .econ-table { width: 100%; border-collapse: collapse;
                 font-size: var(--seed-font-size-t2); line-height: var(--seed-line-height-t2); }
   .econ-table th { text-align: left; font-weight: var(--seed-font-weight-medium);
@@ -926,7 +993,9 @@
     --fs-title-lg: var(--font-size-lg);    /* 17 */
     --fs-headline: var(--font-size-xl);    /* 20 */
     --fs-display:  var(--font-size-2xl);   /* 24 */
-    --font-num:    var(--font-family-body);
+    /* 수치 전용 — Figtree 는 한글 글리프가 없으므로 숫자·기호에만 쓴다.
+       숫자 폭이 흔들리지 않게 쓰는 쪽에서 tabular-nums 를 함께 건다(.econ-num). */
+    --font-num:    Figtree, "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
     /* ── 프레임 예산 — 상단 오프셋의 단일 원천 ──
        고정 헤더(56) + 티커 스트립(32) + 배너 스택(JS 측정)을 모두 여기서 합산한다.
@@ -954,11 +1023,11 @@
   @media (prefers-color-scheme: dark){ :root:not(.light){ --ind-pos:#34d399; --ind-neg:#f87171; --ind-neu:#cbd5e1; } }
   .cal-vals{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
   .cal-val-cell{ text-align:center; padding:6px 4px; background:var(--modal-surface,var(--c-bg)); border-radius:var(--r-xs); }
-  .cal-val-label{ color:var(--c-txt-dim); font-size:10px; }
+  .cal-val-label{ color:var(--c-txt-dim); font-size:var(--font-size-xs); }
   .cal-act-cell .cal-val-label{ font-weight:600; }
   .cal-act-cell .cal-val-num{ font-size:1.25em; }
-  .cal-foreeq{ color:var(--c-txt-muted); font-size:0.625rem; margin-left:3px; }
-  .cal-chip{ display:inline-block; background:var(--chip-bg,#e0f2fe); color:var(--chip-fg,#0369a1); font-size:0.625rem; padding:2px 6px; border-radius:9999px; margin-left:4px; vertical-align:middle; white-space:nowrap; }
+  .cal-foreeq{ color:var(--c-txt-muted); font-size:var(--font-size-xs); margin-left:3px; }
+  .cal-chip{ display:inline-block; background:var(--chip-bg,#e0f2fe); color:var(--chip-fg,#0369a1); font-size:var(--font-size-xs); padding:2px 6px; border-radius:9999px; margin-left:4px; vertical-align:middle; white-space:nowrap; }
   .cal-figcaption{ font-size:0.75rem; color:#6b7280; font-style:italic; margin:0 0 4px; padding:0; }
   .cal-iconbtn{ min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:0; }
   @media (max-width:380px){ .cal-vals{ grid-template-columns:1fr; } }
@@ -966,10 +1035,10 @@
   .study-split{ display:grid; grid-template-columns:340px 1fr; gap:16px; align-items:start; }
   @media (max-width:1024px){ .study-split{ grid-template-columns:1fr; } }
   .study-cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
-  .study-dow{ text-align:center; font-size:10px; font-weight:600; color:var(--c-txt-muted); padding:4px 0; }
+  .study-dow{ text-align:center; font-size:var(--font-size-xs); font-weight:600; color:var(--c-txt-muted); padding:4px 0; }
   .study-day{ position:relative; min-height:38px; border-radius:var(--r-xs); background:var(--c-surface); border:1px solid transparent;
               display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; cursor:pointer;
-              font-size:11px; color:var(--c-txt); transition:background var(--t-fast),border-color var(--t-fast); }
+              font-size:var(--font-size-xs); color:var(--c-txt); transition:background var(--t-fast),border-color var(--t-fast); }
   .study-day:hover{ background:var(--c-card-hi); }
   .study-day.is-empty{ background:transparent; cursor:default; }
   .study-day.is-today{ border-color:var(--c-accent); font-weight:700; }
@@ -981,7 +1050,7 @@
                     border:1px solid var(--c-border-weak,var(--c-border)); background:var(--c-surface); transition:background var(--t-fast); }
   .study-list-item:hover{ background:var(--c-card-hi); }
   .study-list-item.active{ border-color:var(--c-accent); background:var(--c-accent-container,rgba(41,98,255,.18)); }
-  .study-badge{ display:inline-flex; align-items:center; gap:3px; font-size:10px; padding:1px 6px; border-radius:var(--r-full);
+  .study-badge{ display:inline-flex; align-items:center; gap:3px; font-size:var(--font-size-xs); padding:1px 6px; border-radius:var(--r-full);
                 background:var(--chip-bg); color:var(--chip-fg); white-space:nowrap; }
   .study-field{ background:var(--c-surface); border:1px solid var(--c-border); border-radius:var(--r-sm); color:var(--c-txt);
                 padding:6px 8px; font-size:12px; font-family:inherit; width:100%; }
@@ -1048,7 +1117,7 @@
   /* 라이트 테마 — 컴포넌트 오버라이드 */
 
   /* 오늘의 브리핑 스트립 — 리스크 신호등 + 핵심 지표 칩 (홈 상단) */
-  .brief-lbl { font-size:10px; color:var(--c-txt-dim); text-transform:uppercase; letter-spacing:.04em; }
+  .brief-lbl { font-size:var(--font-size-xs); color:var(--c-txt-dim); text-transform:uppercase; letter-spacing:.04em; }
   .brief-val { font-weight:700; font-family:var(--font-num); }
   /* 리스크 신호등 색 — 위험 의미색은 시장 등락 색상관습(kr-colors 의 --c-up/--c-down 반전)과
      무관하게 항상 초록/호박/빨강 고정. (--c-down 사용 금지: 한국관습 모드에서 파랑이 됨) */
@@ -1056,7 +1125,7 @@
   .risk-dot.g { background:#26a69a; } .risk-dot.y { background:var(--c-warn); } .risk-dot.r { background:#ef5350; }
   html.light .risk-dot.g { background:#1e8e83; } html.light .risk-dot.r { background:#db2f11; }
   /* KPI 5년 백분위 배지 */
-  .kpi-pct-badge { display:inline-block; font-size:9px; font-weight:600; color:var(--c-txt-dim);
+  .kpi-pct-badge { display:inline-block; font-size:var(--font-size-xs); font-weight:600; color:var(--c-txt-dim);
     border:1px solid var(--c-border); border-radius:var(--r-full); padding:1px 6px; margin-left:6px; vertical-align:middle; }
   @media (max-width:768px){
     /* 리스크 칩(고정폭)이 한 줄을 선점해 칩 스트립이 125px 로 압사하던 문제(감사 B1) —
@@ -1137,7 +1206,7 @@
   /* ═══ 전년 동기(YoY) 비교 — 토글 버튼 + 변화율 배지 (순수 추가) ═══ */
   .yoy-btn .mat { font-size: 14px; }
   .yoy-badge { position: absolute; top: 6px; right: 8px; z-index: 5; pointer-events: none;
-               font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px;
+               font-size: var(--font-size-xs); font-weight: 700; line-height: 1; padding: 3px 7px;
                border-radius: 999px; letter-spacing: .01em;
                border: 1px solid transparent; backdrop-filter: blur(2px); }
   .yoy-badge-up   { color: #fff; background: var(--c-up,#26a69a);  border-color: var(--c-up,#26a69a); }
@@ -1165,7 +1234,7 @@
   .econ-ticker:hover .ticker-scroll { animation-play-state: paused; }
   .range-reset-btn { background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:0 5px;font-size:var(--fs-label);cursor:pointer;margin-left:6px;line-height:1.2; }
   .range-reset-btn:hover { color:#ef5350; border-color:#ef5350; }
-  .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #3a4054;border-radius:4px;padding:2px 6px;font-size:11px; }
+  .ann-chip { display:inline-flex;align-items:center;gap:4px;margin-right:8px;background:#262a35;border:1px solid #3a4054;border-radius:4px;padding:2px 6px;font-size:var(--font-size-xs); }
   .kpi-clickable:hover { border-color:var(--c-accent) !important; }
   /* ======= 레이아웃 유틸 (P5) =======
      인라인 grid-template-columns / height 를 클래스로 옮긴 결과다. 값이 인라인에
@@ -1183,15 +1252,18 @@
   .g-5 { grid-template-columns: repeat(5, 1fr); }
   .g-7 { grid-template-columns: repeat(7, 1fr); }
   .g-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
-  .g-2-1 { grid-template-columns: 2fr 1fr; }
-  .g-1-2 { grid-template-columns: 1fr 2fr; }
-  .g-3-2 { grid-template-columns: 3fr 2fr; }
-  .g-side { grid-template-columns: 1fr 300px; }
-  .g-side-280 { grid-template-columns: 1fr 280px; }
-  .g-side-320 { grid-template-columns: 1fr 320px; }
-  .g-side-l { grid-template-columns: 240px 1fr; }
-  .g-side-l-300 { grid-template-columns: 300px 1fr; }
-  .g-side-l-340 { grid-template-columns: 340px 1fr; }
+  /* minmax(0,·) 가 없으면 격자 칸의 최소폭이 '내용만큼'이라, 안에 든 표가 넓어지는
+     즉시 칸이 컨테이너를 밀고 나간다(.econ-table__scroll 의 가로 스크롤도 안 먹는다).
+     폰트 등급을 한 칸 올리자 메르 렌즈 뷰 타임라인에서 325px 넘침으로 드러났다. */
+  .g-2-1 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .g-1-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+  .g-3-2 { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  .g-side { grid-template-columns: minmax(0, 1fr) 300px; }
+  .g-side-280 { grid-template-columns: minmax(0, 1fr) 280px; }
+  .g-side-320 { grid-template-columns: minmax(0, 1fr) 320px; }
+  .g-side-l { grid-template-columns: 240px minmax(0, 1fr); }
+  .g-side-l-300 { grid-template-columns: 300px minmax(0, 1fr); }
+  .g-side-l-340 { grid-template-columns: 340px minmax(0, 1fr); }
   .g-auto-120 { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
   .g-auto-140 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
   .g-auto-150 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
@@ -1417,9 +1489,9 @@
 .set-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--c-border,#3e4870); flex-wrap:wrap; }
 .set-row:last-of-type { border-bottom:none; }
 .set-label { font-size:12px; font-weight:600; color:var(--c-txt,#e8ebf5); }
-.set-desc { font-size:10px; color:var(--c-txt-muted,#8b90a8); line-height:1.6; margin-top:2px; max-width:540px; }
-.set-select { background:var(--c-bg,#0a0e18); border:1px solid var(--c-border,#3e4870); border-radius:4px; padding:4px 8px; color:var(--c-txt,#e8ebf5); font-size:11px; }
-.set-radio { font-size:11px; color:var(--c-txt-dim,#a4a8bc); margin-left:10px; cursor:pointer; white-space:nowrap; }
+.set-desc { font-size:var(--font-size-xs); color:var(--c-txt-muted,#8b90a8); line-height:1.6; margin-top:2px; max-width:540px; }
+.set-select { background:var(--c-bg,#0a0e18); border:1px solid var(--c-border,#3e4870); border-radius:4px; padding:4px 8px; color:var(--c-txt,#e8ebf5); font-size:var(--font-size-xs); }
+.set-radio { font-size:var(--font-size-xs); color:var(--c-txt-dim,#a4a8bc); margin-left:10px; cursor:pointer; white-space:nowrap; }
 /* 토글 스위치 */
 /* 스위치 시각은 seed-switchmark recipe 가 준다 — 여기 남은 것은 네이티브
    체크박스를 화면에서 숨기는 한 줄뿐(포커스는 유지된다). */
@@ -1427,20 +1499,23 @@
 /* 진단 결과 행 */
 .diag-row { display:flex; gap:8px; padding:5px 0; border-bottom:1px dashed var(--c-border,#3e4870); align-items:flex-start; line-height:1.5; }
 .diag-ic { width:18px; flex-shrink:0; }
-.diag-t { font-weight:600; color:var(--c-txt,#e8ebf5); min-width:110px; flex-shrink:0; font-size:11px; }
-.diag-d { color:var(--c-txt-dim,#a4a8bc); word-break:break-all; font-size:11px; }
+.diag-t { font-weight:600; color:var(--c-txt,#e8ebf5); min-width:110px; flex-shrink:0; font-size:var(--font-size-xs); }
+.diag-d { color:var(--c-txt-dim,#a4a8bc); word-break:break-all; font-size:var(--font-size-xs); }
 /* 와이드 차트 모바일 가로 스크롤 */
 .chart-scroll-x { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 @media (max-width:768px) { .chart-scroll-x .chart-scroll-inner { min-width:560px; } }
 /* 1회성 가이드 배너 */
-.guide-banner { display:flex; gap:8px; align-items:flex-start; background:var(--color-background-blue); border:1px solid var(--color-border-blue); border-radius:6px; padding:8px 10px; font-size:11px; color:var(--c-txt-dim,#a4a8bc); margin:8px 0; line-height:1.6; }
+.guide-banner { display:flex; gap:8px; align-items:flex-start; background:var(--color-background-blue); border:1px solid var(--color-border-blue); border-radius:6px; padding:8px 10px; font-size:var(--font-size-xs); color:var(--c-txt-dim,#a4a8bc); margin:8px 0; line-height:1.6; }
 .guide-banner b { color:var(--c-txt,#e8ebf5); }
-.guide-x { margin-left:auto; cursor:pointer; color:var(--c-txt-muted); font-weight:700; padding:0 4px; flex-shrink:0; }
+/* ✕ 는 글리프 하나지만 배너 문구가 길면 flex 가 이 칸부터 줄인다(shrink:0 도
+   내용 최소폭까지는 줄어든다). 폰트 등급이 한 칸 올라가며 18px 칸에 33px 글리프가
+   들어가 가로 넘침으로 잡혔다 — 필요한 만큼을 명시해 둔다. */
+.guide-x { margin-left:auto; cursor:pointer; color:var(--c-txt-muted); font-weight:700; padding:0 4px; flex-shrink:0; min-width:2em; text-align:center; }
 /* 위젯 오류 표시 + 재시도 */
 /* 데이터 소스 배너 (실데이터 로드 실패 → Mock 동작 고지) */
 /* top:64px(헤더 바로 아래)는 '글로벌 주요 지수' 위젯 상단을 가렸다(2026-08 감사) — 우하단으로.
    토스트(#toastHost)는 하단 중앙이라 겹치지 않는다. */
-#dataSrcBanner { position:fixed; bottom:16px; right:12px; z-index:1200; background:#33271a; border:1px solid #f0c75e66; color:#f0c75e; border-radius:6px; padding:8px 12px; font-size:11px; display:flex; gap:10px; align-items:center; box-shadow:0 4px 14px #0006; max-width:min(92vw,420px); flex-wrap:wrap; }
+#dataSrcBanner { position:fixed; bottom:16px; right:12px; z-index:1200; background:#33271a; border:1px solid #f0c75e66; color:#f0c75e; border-radius:6px; padding:8px 12px; font-size:var(--font-size-xs); display:flex; gap:10px; align-items:center; box-shadow:0 4px 14px #0006; max-width:min(92vw,420px); flex-wrap:wrap; }
 /* 라이트: 배경만 바꾸고 글자색 #f0c75e 를 남기면 '노란 배경 위 노란 글자'가 된다 — 토큰으로 보정 */
 html.light #dataSrcBanner { background:#fff7e6; color:var(--c-warn,#b8860b); border-color:#b8860b66; }
 /* 포트폴리오 모바일 카드 뷰 */
@@ -1448,11 +1523,11 @@ html.light #dataSrcBanner { background:#fff7e6; color:var(--c-warn,#b8860b); bor
 .pf-card { border:1px solid var(--c-border,#3e4870); border-radius:8px; padding:10px 12px; margin-bottom:8px; background:var(--c-bg,#0a0e18); }
 .pf-card-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; cursor:pointer; }
 .pf-card-name { font-weight:600; font-size:13px; color:var(--c-txt,#e8ebf5); }
-.pf-card-sym { font-size:10px; color:var(--c-txt-muted,#8b90a8); margin-left:4px; }
-.pf-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin-top:8px; font-size:11px; }
-.pf-card-grid label { color:var(--c-txt-muted,#8b90a8); display:block; font-size:9px; margin-bottom:2px; }
-.pf-card-grid input { width:100%; background:var(--c-bg,#0a0e18); border:1px solid var(--c-border,#3e4870); border-radius:4px; color:var(--c-txt,#e8ebf5); font-size:11px; padding:3px 6px; text-align:right; box-sizing:border-box; }
-.pf-card-foot { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px; margin-top:8px; font-size:11px; }
+.pf-card-sym { font-size:var(--font-size-xs); color:var(--c-txt-muted,#8b90a8); margin-left:4px; }
+.pf-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; margin-top:8px; font-size:var(--font-size-xs); }
+.pf-card-grid label { color:var(--c-txt-muted,#8b90a8); display:block; font-size:var(--font-size-xs); margin-bottom:2px; }
+.pf-card-grid input { width:100%; background:var(--c-bg,#0a0e18); border:1px solid var(--c-border,#3e4870); border-radius:4px; color:var(--c-txt,#e8ebf5); font-size:var(--font-size-xs); padding:3px 6px; text-align:right; box-sizing:border-box; }
+.pf-card-foot { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px; margin-top:8px; font-size:var(--font-size-xs); }
 @media (max-width:768px) {
   .pf-table-wrap { display:none; }     /* 표 → 카드 전환 */
   #pfCardList { display:block; }
@@ -1544,14 +1619,22 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 .mer-gauge-val{font-size:var(--font-size-2xl);font-weight:700;color:var(--c-txt)}
 .mer-gauge-label{font-size:var(--font-size-sm);color:var(--c-txt-dim)}
 .mer-regime-strip{display:flex;gap:2px;overflow-x:auto}
-.mer-regime-cell{flex:1;min-width:64px;border-radius:var(--r-xs);padding:6px 8px;text-align:center;color:#fff}
+/* 국면 칩 — 예전엔 시리즈 색을 통째로 깔고 흰 글자를 얹어 1.97:1 이었다(다크 24곳).
+   시리즈 색은 파스텔이라 흰 글자가 항상 진다. 배경을 옅게 깔고 글자는 본문색으로
+   되돌린다 — 국면 구분은 색조가 그대로 하고, 글자는 읽힌다. */
+.mer-regime-cell{flex:1;min-width:64px;border-radius:var(--r-xs);padding:6px 8px;text-align:center;color:var(--c-txt)}
 .mer-regime-cell .mer-regime-m{font-size:var(--font-size-xs);opacity:.85;display:block}
 .mer-regime-cell .mer-regime-f{font-size:var(--font-size-sm);font-weight:700;display:block}
 .mer-ladder-cell{white-space:nowrap}
-.mer-source-quote{font-size:var(--font-size-base);line-height:1.6;color:var(--c-txt);border-left:3px solid var(--c-accent);padding-left:10px;margin:0 0 10px}
+/* 산문 한 줄 — 한글은 30~45자가 적정인데 위젯 폭을 그대로 쓰면 100자를 넘는다
+   (메르 렌즈 범례 실측 104자). 줄이 길면 눈이 다음 줄 첫 글자를 놓친다.
+   keep-all 은 한글 단어가 줄 끝에서 쪼개지지 않게, anywhere 는 URL·긴 영문이
+   칸을 밀고 나가지 않게 — 둘은 짝이다. */
+.econ-prose{max-width:42em;line-height:1.7;word-break:keep-all;overflow-wrap:anywhere;font-variant-numeric:normal}
+.mer-source-quote{font-size:var(--font-size-base);line-height:1.6;color:var(--c-txt);border-left:3px solid var(--c-accent);padding-left:10px;margin:0 0 10px;max-width:42em;word-break:keep-all;overflow-wrap:anywhere}
 .mer-source-meta{font-size:var(--font-size-sm);color:var(--c-txt-dim);display:flex;flex-direction:column;gap:8px}
 .mer-fresh-bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px}
-.mer-comment-box{font-size:var(--font-size-sm);color:var(--c-txt);line-height:1.6}
+.mer-comment-box{max-width:42em;font-size:var(--font-size-sm);color:var(--c-txt);line-height:1.6}
 .mer-panel-title{font-size:var(--font-size-sm);font-weight:700;color:var(--c-txt);margin-bottom:4px}
 .mer-stub{font-size:var(--font-size-sm);color:var(--c-txt-dim);padding:20px 0;text-align:center}
 .mer-dim{opacity:.45}
@@ -1910,7 +1993,10 @@ main#mainContent > * { max-width: var(--frame-content-max); margin-inline: auto;
 /* ── 10. 한국어 줄바꿈 ──────────────────────────────────────────
    브라우저 기본값은 한글을 글자 단위로 끊는다("코스피 지" / "수").
    어절 단위로 끊고, 정말 안 들어가는 긴 토큰만 강제로 자른다.      */
-body { word-break: keep-all; overflow-wrap: break-word; }
+body { word-break: keep-all; overflow-wrap: break-word;
+       /* 숫자 폭 고정 — 대시보드는 세로로 늘어선 수치를 훑어 읽는다. 비례폭이면
+          1 과 8 의 폭이 달라 자릿수가 어긋나 보인다. 산문은 .econ-prose 가 되돌린다. */
+       font-variant-numeric: tabular-nums; }
 /* 숫자·티커·URL 은 어절 규칙에서 제외 — 셀 안에서 통째로 유지 */
 table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
@@ -2897,7 +2983,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button onclick="toggleRateFilter('kr',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">🇰🇷 한국</button>
               <button onclick="toggleRateFilter('us',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:var(--color-on-success);cursor:pointer;">🇺🇸 미국</button>
               <button onclick="toggleRateFilter('eu',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-primary);border-radius:var(--r-xs);background:var(--c-primary)33;color:var(--c-primary);cursor:pointer;">🇪🇺 유로존</button>
-              <button onclick="toggleRateFilter('jp',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid #f5a623;border-radius:var(--r-xs);background:#f5a62333;color:#f5a623;cursor:pointer;">🇯🇵 일본</button>
+              <button onclick="toggleRateFilter('jp',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid #f5a623;border-radius:var(--r-xs);background:#f5a62333;color:var(--c-warn);cursor:pointer;">🇯🇵 일본</button>
               <button onclick="toggleRateFilter('uk',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-down);border-radius:var(--r-xs);background:color-mix(in srgb,var(--c-down) 20%,transparent);color:var(--c-down);cursor:pointer;">🇬🇧 영국</button>
             </div>
           </div>
@@ -3832,7 +3918,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <textarea id="noteBond" placeholder="기준금리, 채권 수익률..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
-                <div style="font-size:var(--font-size-sm);color:#f5a623;font-weight:var(--font-weight-semibold);margin-bottom:4px;">💱 외환 / 환율</div>
+                <div style="font-size:var(--font-size-sm);color:var(--c-warn);font-weight:var(--font-weight-semibold);margin-bottom:4px;">💱 외환 / 환율</div>
                 <textarea id="noteFx" placeholder="USD/KRW, 달러인덱스..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
@@ -4689,7 +4775,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
     <div class="page" id="page-merlens">
       <div class="widget-title">🧭 메르 리스크 렌즈</div>
-      <p style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글에서 뽑은 임계선·전이경로를 시장 데이터와 대조하고, 원문을 검색합니다.</p>
+      <p class="econ-prose" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글에서 뽑은 임계선·전이경로를 시장 데이터와 대조하고, 원문을 검색합니다.</p>
 
       <!-- 탭: 보드(6블록) / 글 찾기(구 page-merblog 이식, P5-1) — 로직은 app7.js _merShowTab, app1.js merblog* 그대로 -->
       <div role="tablist" aria-label="메르 리스크 렌즈 보기 전환" class="seed-tabs__root" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--c-border);padding-bottom:8px;">
@@ -4698,7 +4784,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <div id="merlensTab-search" role="tabpanel" style="display:none;">
-        <p style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글을 키워드로 찾고 원문을 JSON으로 내려받습니다.</p>
+        <p class="econ-prose" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin:-6px 0 12px;">경제 블로거 "메르"(ranto28) 글을 키워드로 찾고 원문을 JSON으로 내려받습니다.</p>
         <div class="mer-searchbar">
           <input id="merQ" type="search" placeholder="예: 물가, 환율, 미국채 10년물" aria-label="검색어"
                  style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px 10px;font-size:var(--font-size-base);"
@@ -4801,7 +4887,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- ② 전이 경로 맵 -->
       <div class="widget" id="merlensGraph">
         <div class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">전이 경로 맵</div>
-        <p style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:0 0 8px;">테두리=트리거 상태(점선 N/A) · 우측 배지=뷰(OW/N/UW) · 선 굵기=근거 건수 · 색=방향. 노드·엣지를 클릭하면 출처가 열립니다.</p>
+        <p class="econ-prose" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:0 0 8px;">테두리=트리거 상태(점선 N/A) · 우측 배지=뷰(OW/N/UW) · 선 굵기=근거 건수 · 색=방향. 노드·엣지를 클릭하면 출처가 열립니다.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
           <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
             <select id="merGraphPreset" onchange="_merGraphSetPreset(this.value)" aria-label="경로 프리셋 선택"><option value="">경로 프리셋 — 전체</option></select>
@@ -4871,7 +4957,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <tr><td><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">?</kbd></td><td>이 도움말 표시 / 닫기</td></tr>
       <tr><td><kbd style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-size:var(--font-size-sm);">Esc</kbd></td><td>이 모달 닫기</td></tr>
     </table>
-    <p style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:12px;margin-bottom:0;">입력 필드 포커스 중에는 단축키가 비활성화됩니다.</p>
+    <p class="econ-prose" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:12px;margin-bottom:0;">입력 필드 포커스 중에는 단축키가 비활성화됩니다.</p>
   </div>
 </div>
 

@@ -684,7 +684,7 @@ function pfRenderBench() {
     const isFlat = a => a && a.filter(v => v != null).length > 0 && a.every(v => v == null || Math.abs(v) < 0.005);
     const baseNote = '내 포트폴리오 = (평가금액/매입금액 − 1), 벤치마크 = 첫 스냅샷일 종가 대비 등락률. 입금/매수로 매입금액이 변하면 단순 비교에 왜곡이 있을 수 있습니다.';
     note.innerHTML = baseNote + (isFlat(sp)
-      ? '<br><span style="color:#f5a623;">※ S&amp;P 500 등 해외 지수는 한국보다 약 1거래일 늦게 갱신됩니다 — 추적 기간이 짧으면 미국 증시 종가 변동이 없어 0%(평탄)로 보일 수 있고, 미국 거래일이 쌓이면 자동으로 채워집니다.</span>'
+      ? '<br><span style="color:var(--c-warn);">※ S&amp;P 500 등 해외 지수는 한국보다 약 1거래일 늦게 갱신됩니다 — 추적 기간이 짧으면 미국 증시 종가 변동이 없어 0%(평탄)로 보일 수 있고, 미국 거래일이 쌓이면 자동으로 채워집니다.</span>'
       : '');
   }
   if(charts['pfBenchChart']) { try { charts['pfBenchChart'].destroy(); } catch(_) {} }
