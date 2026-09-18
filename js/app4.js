@@ -500,11 +500,14 @@ window.addEventListener('load', function() {
     if(p && _VALID.indexOf(p) >= 0 && p !== 'dashboard') {
       showPage(p, (typeof menuItemFor === 'function' ? menuItemFor(p) : null) || null);
     }
+    // 2차 탭(&t=)도 복원한다 — 첫 진입과 뒤로가기 양쪽(IA v3 P0.5)
+    if(typeof econApplyTabFromUrl === 'function') econApplyTabFromUrl(p || 'dashboard');
     window.addEventListener('popstate', function() {
       try {
         var pg = new URLSearchParams(location.search).get('p') || 'dashboard';
         if(_VALID.indexOf(pg) >= 0) {
           showPage(pg, (typeof menuItemFor === 'function' ? menuItemFor(pg) : null) || null);
+          if(typeof econApplyTabFromUrl === 'function') econApplyTabFromUrl(pg);
         }
       } catch(_) {}
     });

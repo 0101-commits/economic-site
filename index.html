@@ -849,8 +849,8 @@
   .econ-navdot { width: 8px; height: 8px; border-radius: 50%;
                  background: var(--seed-color-fg-critical, #ff6e60);
                  animation: ann-pulse 1.2s ease-in-out infinite; }
-  /* 접힘(레일)에서 숨는 것들 — 텍스트 폭이 필요한 블록 */
-  .econ-sidenav[data-side-navigation-state="collapsed"] .econ-sidenav__sources,
+  /* 접힘(레일)에서 숨는 것 — 텍스트 폭이 필요한 블록.
+     데이터 소스 목록은 설정 > 시스템 진단으로 옮겨서 여기서 빠졌다(IA v3 P0.5). */
   .econ-sidenav[data-side-navigation-state="collapsed"] #globalDelayChip { display: none !important; }
   .econ-sidenav[data-side-navigation-state="collapsed"] .seed-side-navigation__footer { padding-inline: 4px; }
 
@@ -2105,7 +2105,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <span class="seed-side-navigation-menu-item__label" data-current>대시보드 홈</span>
         </a>
       </div>
-      <!-- 시장 -->
+      <!-- 시장 — 값이 움직이는 것 (지수·주식·환율·금리·원자재) -->
       <div class="seed-side-navigation__group">
         <div class="seed-side-navigation__groupLabel">시장</div>
         <a class="seed-side-navigation-menu-item__root menu-item" href="?p=equity" data-nav="equity" data-navgroup="market" onclick="return econNav('equity',this)">
@@ -2117,61 +2117,64 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <span class="seed-side-navigation-menu-item__label">시장 지표</span>
           <span class="seed-side-navigation-menu-item__suffixIcon econ-navdot" id="marketHaltBadge" hidden aria-hidden="true"></span>
         </a>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=investor" data-nav="investor" data-navgroup="market" onclick="return econNav('investor',this)">
-          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">account_balance</span>
-          <span class="seed-side-navigation-menu-item__label">주요 투자자</span>
-        </a>
       </div>
-      <!-- 자산 (투자 현황은 PIN 관문) -->
-      <div class="seed-side-navigation__group">
-        <div class="seed-side-navigation__groupLabel">자산</div>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=portfolio" data-nav="portfolio" data-navgroup="assets" onclick="return econNav('portfolio',this)">
-          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">monitoring</span>
-          <span class="seed-side-navigation-menu-item__label">투자 현황</span>
-        </a>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=realestate" data-nav="realestate" data-navgroup="assets" onclick="return econNav('realestate',this)">
-          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">home_work</span>
-          <span class="seed-side-navigation-menu-item__label">부동산</span>
-        </a>
-      </div>
-      <!-- 거시 -->
+      <!-- 거시 — 발표되는 것 (지표·일정) -->
       <div class="seed-side-navigation__group">
         <div class="seed-side-navigation__groupLabel">거시</div>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=calendar" data-nav="calendar" data-navgroup="macro" onclick="return econNav('calendar',this)">
-          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">calendar_month</span>
-          <span class="seed-side-navigation-menu-item__label">경제 캘린더</span>
-        </a>
         <a class="seed-side-navigation-menu-item__root menu-item" href="?p=macro" data-nav="macro" data-navgroup="macro" onclick="return econNav('macro',this)">
           <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">public</span>
           <span class="seed-side-navigation-menu-item__label">거시경제</span>
         </a>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=calendar" data-nav="calendar" data-navgroup="macro" onclick="return econNav('calendar',this)">
+          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">calendar_month</span>
+          <span class="seed-side-navigation-menu-item__label">경제 일정</span>
+        </a>
       </div>
-      <!-- 기록 -->
+      <!-- 부동산 -->
       <div class="seed-side-navigation__group">
-        <div class="seed-side-navigation__groupLabel">기록</div>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=study" data-nav="study" data-navgroup="record" onclick="return econNav('study',this)">
-          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">history_edu</span>
-          <span class="seed-side-navigation-menu-item__label">스터디 기록</span>
+        <div class="seed-side-navigation__groupLabel">부동산</div>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=realestate" data-nav="realestate" data-navgroup="realestate" onclick="return econNav('realestate',this)">
+          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">home_work</span>
+          <span class="seed-side-navigation-menu-item__label">부동산</span>
         </a>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=notes" data-nav="notes" data-navgroup="record" onclick="return econNav('notes',this)">
-          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">edit_note</span>
-          <span class="seed-side-navigation-menu-item__label">분석 노트</span>
+      </div>
+      <!-- 수급 — 누가 사고 파는가 (연기금·투자자별·종목 자금) -->
+      <div class="seed-side-navigation__group">
+        <div class="seed-side-navigation__groupLabel">수급</div>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=investor" data-nav="investor" data-navgroup="flow" onclick="return econNav('investor',this)">
+          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">account_balance</span>
+          <span class="seed-side-navigation-menu-item__label">주요 투자자</span>
         </a>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=merlens&t=search" data-nav="merblog" data-navgroup="record" onclick="return econNav('merblog',this)">
-          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">article</span>
-          <span class="seed-side-navigation-menu-item__label">메르 블로그 검색</span>
-        </a>
-        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=merlens" data-nav="merlens" data-navgroup="record" onclick="return econNav('merlens',this)">
+      </div>
+      <!-- 해석 — 읽고 쓰는 것 -->
+      <div class="seed-side-navigation__group">
+        <div class="seed-side-navigation__groupLabel">해석</div>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=merlens" data-nav="merlens" data-navgroup="interpret" onclick="return econNav('merlens',this)">
           <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">insights</span>
           <span class="seed-side-navigation-menu-item__label">메르 렌즈</span>
         </a>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=merlens&t=search" data-nav="merblog" data-navgroup="interpret" onclick="return econNav('merblog',this)">
+          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">article</span>
+          <span class="seed-side-navigation-menu-item__label">글 찾기</span>
+        </a>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=notes" data-nav="notes" data-navgroup="interpret" onclick="return econNav('notes',this)">
+          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">edit_note</span>
+          <span class="seed-side-navigation-menu-item__label">분석 노트</span>
+        </a>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=study" data-nav="study" data-navgroup="interpret" onclick="return econNav('study',this)">
+          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">history_edu</span>
+          <span class="seed-side-navigation-menu-item__label">스터디 기록</span>
+        </a>
       </div>
-      <!-- 데이터 소스 — 접힘(rail)에서는 숨는다 -->
-      <div class="seed-side-navigation__group econ-sidenav__sources">
-        <div class="seed-side-navigation__groupLabel">데이터 소스<span title="● 정상 · ◐ 부분연결 · ○ 미연결" style="margin-left:6px;color:var(--c-txt-muted);cursor:help;">ⓘ</span></div>
-        <div id="sidebarDataSourceList" style="font-size:var(--font-size-sm);padding:0 6px;display:flex;flex-direction:column;gap:2px;"></div>
-        <div id="dataSourceInfo" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);padding:8px 6px;line-height:1.6;">업데이트 대기중…</div>
+      <!-- MY — P4 에서 우측 레일로 옮겨질 자리. 지금은 메뉴에 둔다 -->
+      <div class="seed-side-navigation__group">
+        <div class="seed-side-navigation__groupLabel">MY</div>
+        <a class="seed-side-navigation-menu-item__root menu-item" href="?p=portfolio" data-nav="portfolio" data-navgroup="my" onclick="return econNav('portfolio',this)">
+          <span class="seed-side-navigation-menu-item__prefixIcon mat" aria-hidden="true">monitoring</span>
+          <span class="seed-side-navigation-menu-item__label">투자 현황</span>
+        </a>
       </div>
+    </div>
     </div>
     <!-- 푸터 — 설정·테마·지연 배지·새로고침 (접힘에서도 아이콘으로 남는다) -->
     <div class="seed-side-navigation__footer econ-sidenav__footer">
@@ -2202,11 +2205,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <a href="?p=equity" class="econ-bottom-nav__item" data-navgroup="market" onclick="return econNavGroup('market',this)">
       <span class="mat" aria-hidden="true">show_chart</span><span class="econ-bottom-nav__label">시장</span>
     </a>
-    <a href="?p=realestate" class="econ-bottom-nav__item" data-navgroup="assets" onclick="return econNavGroup('assets',this)">
-      <span class="mat" aria-hidden="true">home_work</span><span class="econ-bottom-nav__label">자산</span>
+    <a href="?p=macro" class="econ-bottom-nav__item" data-navgroup="macro" onclick="return econNavGroup('macro',this)">
+      <span class="mat" aria-hidden="true">public</span><span class="econ-bottom-nav__label">거시</span>
     </a>
-    <a href="?p=calendar" class="econ-bottom-nav__item" data-navgroup="macro" onclick="return econNavGroup('macro',this)">
-      <span class="mat" aria-hidden="true">calendar_month</span><span class="econ-bottom-nav__label">거시</span>
+    <a href="?p=realestate" class="econ-bottom-nav__item" data-navgroup="realestate" onclick="return econNavGroup('realestate',this)">
+      <span class="mat" aria-hidden="true">home_work</span><span class="econ-bottom-nav__label">부동산</span>
     </a>
     <button type="button" class="econ-bottom-nav__item" id="econMoreTab" onclick="toggleSidebar()" aria-expanded="false" aria-controls="sidebar">
       <span class="mat" aria-hidden="true">more_horiz</span><span class="econ-bottom-nav__label">더보기</span>
@@ -4545,6 +4548,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="set-desc" style="margin-bottom:10px;">메뉴 라우팅·클릭 핸들러·데이터 신선도·핵심 시계열 정합성·알림 서버 도달·외부 링크 상태를 한 번에 점검합니다. 외부 링크의 실제 상태는 주간 CI 점검 결과(<code>link_status.json</code>)를 표시합니다.</div>
         <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="diagRunBtn" onclick="runDiagnostics()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">▶ 진단 실행</span></button>
         <div id="diagResult" style="margin-top:10px;font-size:var(--font-size-sm);"></div>
+        <!-- 데이터 소스 상태 — 사이드바에 상시 노출되던 것을 여기로 옮겼다(IA v3 P0.5).
+             사용자 화면에는 값 옆 as-of 배지만 남기고, 수집기 상태는 진단에서 본다. -->
+        <div class="seed-side-navigation__groupLabel" style="margin-top:14px;">데이터 소스<span title="● 정상 · ◐ 부분연결 · ○ 미연결" style="margin-left:6px;color:var(--c-txt-muted);cursor:help;">ⓘ</span></div>
+        <div id="sidebarDataSourceList" style="font-size:var(--font-size-sm);padding:0 6px;display:flex;flex-direction:column;gap:2px;"></div>
+        <div id="dataSourceInfo" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);padding:8px 6px;line-height:1.6;">업데이트 대기중…</div>
       </div>
 
     </div>
@@ -5001,7 +5009,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   var BUILD_V = '48bb6cdd'; /* BUILD_V:auto — build-frontend.yml 이 갱신 */
   var dev = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
             && !/[?&]bundle=1/.test(location.search);
-  for (var i = 1; i <= 7; i++) {
+  // 0 = 지표 레지스트리(js/app0.js, scripts/build_indicators.py 가 생성). app1 보다 먼저 선다.
+  for (var i = 0; i <= 7; i++) {
     var f = dev ? 'js/app' + i + '.js?v=' + Date.now()
                 : 'js/app' + i + '.min.js?v=' + BUILD_V;
     document.write('<script src="' + f + '"><\/script>');

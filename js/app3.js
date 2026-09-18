@@ -1530,12 +1530,12 @@ function cmpColorB() { return document.documentElement.classList.contains('light
 let _cmpState = { a: 'idx.KOSPI', b: 'idx.SP500', period: '1Y', norm: true };
 let _cmpInited = false, _cmpLastTs = null;
 
-const _CMP_LABELS = {
-  KOSPI:'KOSPI', KOSDAQ:'KOSDAQ', SP500:'S&P 500', NASDAQ:'NASDAQ', Nikkei:'닛케이 225', Shanghai:'상하이종합', SOX:'필라델피아 반도체',
-  USDKRW:'USD/KRW', EURKRW:'EUR/KRW', JPYKRW:'JPY(100)/KRW', EURUSD:'EUR/USD', USDJPY:'USD/JPY',
-  Gold:'금', Silver:'은', Copper:'구리', WTI:'WTI 유가', Brent:'브렌트유', NatGas:'천연가스',
-  Wheat:'밀', Corn:'옥수수', Soybean:'대두', Coffee:'커피', Sugar:'설탕',
-};
+// 표기는 레지스트리(js/app0.js)가 단일 원천이다 — 여기 따로 두던 라벨 24종은
+// 'WTI 유가' vs 'WTI 원유' 처럼 화면마다 이름이 갈리던 원인이었다(IA v3 P0).
+function _cmpLabel(key, fallback) {
+  const row = window.ECON_IND && window.ECON_IND.get(String(key).toLowerCase());
+  return (row && row.label) || fallback || key;
+}
 
 // 선택 가능한 지표 카탈로그 — data.json 의 일별 시계열 + 경제지표 history 맵
 function _cmpCatalog() {
@@ -1543,9 +1543,9 @@ function _cmpCatalog() {
   if(!d) return [];
   const out = [];
   const hist = d.history || {};
-  Object.keys(hist.indices || {}).forEach(k => out.push({ key: 'idx.' + k, label: _CMP_LABELS[k] || k, group: '주가지수' }));
-  Object.keys(hist.fx || {}).forEach(k => out.push({ key: 'fx.' + k, label: _CMP_LABELS[k] || k, group: '환율' }));
-  Object.keys(hist.commodities || {}).forEach(k => out.push({ key: 'com.' + k, label: _CMP_LABELS[k] || k, group: '원자재' }));
+  Object.keys(hist.indices || {}).forEach(k => out.push({ key: 'idx.' + k, label: _cmpLabel(k), group: '주가지수' }));
+  Object.keys(hist.fx || {}).forEach(k => out.push({ key: 'fx.' + k, label: _cmpLabel(k), group: '환율' }));
+  Object.keys(hist.commodities || {}).forEach(k => out.push({ key: 'com.' + k, label: _cmpLabel(k), group: '원자재' }));
   const ei = d.economicIndicators || {};
   const ccName = { us: '🇺🇸', kr: '🇰🇷', jp: '🇯🇵', eu: '🇪🇺', cn: '🇨🇳', de: '🇩🇪', uk: '🇬🇧' };
   Object.keys(ei).forEach(cc => {

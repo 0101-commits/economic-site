@@ -544,12 +544,16 @@ const tickerData = [
 
 var ECON_NAV_LAST_KEY = 'econ_nav_last';
 // 그룹 기본 진입 페이지. 거시는 캘린더 우선 — 아침 동선의 첫 질문이 "오늘 일정"이다.
+// IA v3 P0.5 — 1차 축은 자산군·성격이다(시장=값이 움직이는 것, 거시=발표되는 것,
+// 수급=누가 사고 파는가, 해석=읽고 쓰는 것). 각 배열의 첫 항목이 그룹 기본 진입 화면.
 var ECON_NAV_GROUPS = {
-  home:   ['dashboard'],
-  market: ['equity', 'market', 'investor'],
-  assets: ['realestate', 'portfolio'],   // portfolio 는 PIN 관문이라 기본값에서 뒤로
-  macro:  ['calendar', 'macro'],
-  record: ['study', 'notes', 'merblog', 'merlens'],
+  home:       ['dashboard'],
+  market:     ['equity', 'market'],
+  macro:      ['macro', 'calendar'],
+  realestate: ['realestate'],
+  flow:       ['investor'],
+  interpret:  ['merlens', 'merblog', 'notes', 'study'],
+  my:         ['portfolio'],            // P4 에서 우측 레일로 옮긴다
 };
 var ECON_NAV_LOCKED = ['portfolio', 'settings'];   // 마지막 방문 기억에서 제외
 
@@ -673,24 +677,79 @@ function menuItemFor(pageId) {
 function marketTabBtn(tab) {
   return document.querySelector(`#page-market > div:first-child button[onclick*="'${tab}'"]`);
 }
-function tickerClick(name) {
-  if(name==='KOSPI'||name==='KOSDAQ') {
-    showPage('dashboard', menuItemFor('dashboard'));
-  } else if(name==='USD/KRW'||name==='EUR/KRW') {
-    showPage('market', menuItemFor('market'));
-    setTimeout(()=>setMarketTab('fx', marketTabBtn('fx')),60);
-  } else if(name==='한국 기준금리') {
-    showPage('market', menuItemFor('market'));
-    setTimeout(()=>setMarketTab('rate', marketTabBtn('rate')),60);
-  } else if(name==='미 10년물') {
-    showPage('market', menuItemFor('market'));
-    setTimeout(()=>setMarketTab('bond', marketTabBtn('bond')),60);
-  } else if(name==='S&P 500'||name==='NASDAQ'||name==='닛케이') {
-    showPage('equity', menuItemFor('equity'));   // 주식시장 별도 페이지
-  } else if(name==='WTI'||name==='BRENT'||name==='금(Gold)') {
-    showPage('market', menuItemFor('market'));
-    setTimeout(()=>setMarketTab('commodity', marketTabBtn('commodity')),60);
+// ── 주소 = 화면 상태 (IA v3 P0.5) ──────────────────────────────────────────
+// 2차 탭이 display 토글만 해서 딥링크·뒤로가기·북마크·알림 링크가 탭을 잃었다.
+// 페이지(?p=)와 2차 탭(&t=)을 여기 한 곳에서 주소에 싣고, 주소에서 화면을 복원한다.
+var ECON_TABS = {
+  market: {
+    valid: ['fx', 'rate', 'bond', 'commodity'],
+    get: function () { return typeof marketTab !== 'undefined' ? marketTab : null; },
+    apply: function (t) { setMarketTab(t, marketTabBtn(t)); }
+  },
+  macro: {
+    valid: ['kr', 'us', 'jp', 'cn', 'de', 'uk', 'eu'],
+    get: function () { return typeof macroTab !== 'undefined' ? macroTab : null; },
+    apply: function (t) {
+      var btn = document.querySelector('#macroCountryTabs .tab-btn[onclick*="\'' + t + '\'"]');
+      if (btn) setMacroTab(t, btn);
+    }
+  },
+  realestate: {
+    valid: ['kr', 'us'],
+    get: function () { return window._reTab || null; },
+    apply: function (t) { setRETab(t, document.getElementById(t === 'us' ? 'reitabUS' : 'reitabKR')); }
+  },
+  merlens: {
+    valid: ['board', 'search'],
+    get: function () { return window._merActiveTab || null; },
+    apply: function (t) { if (typeof _merShowTab === 'function') _merShowTab(t, true); }
   }
+};
+// 탭을 바꾼 쪽에서 부른다 — 지금 보고 있는 화면의 탭일 때만 주소를 고친다.
+function econSetTabParam(page, tab) {
+  try {
+    var u = new URL(location.href);
+    if ((u.searchParams.get('p') || 'dashboard') !== page) return;
+    if (u.searchParams.get('t') === tab) return;
+    u.searchParams.set('t', tab);
+    history.replaceState(null, '', u.pathname + u.search);
+  } catch (_) {}
+}
+// 딥링크·뒤로가기로 들어온 주소의 &t= 를 그 페이지 탭에 적용한다(페이지 init 뒤).
+function econApplyTabFromUrl(page) {
+  var spec = ECON_TABS[page];
+  if (!spec) return;
+  var t = null;
+  try { t = new URLSearchParams(location.search).get('t'); } catch (_) {}
+  if (!t || spec.valid.indexOf(t) < 0 || spec.get() === t) return;
+  setTimeout(function () { try { spec.apply(t); } catch (e) { console.warn('tab from url', e); } }, 90);
+}
+
+// 지표의 원본 화면(canonical)으로 보낸다 — 'market#fx' 같은 문자열 하나가 목적지다.
+// 화면마다 이름-분기를 적던 자리를 레지스트리(js/app0.js)가 대신한다(IA v3 P0).
+function gotoCanonical(canonical) {
+  if (!canonical) return false;
+  const [page, frag] = String(canonical).split('#');
+  if (page === 'market') {
+    // 지수·개별종목의 원본은 '주식시장' 페이지다(시장 지표에서 분리돼 있다)
+    if (frag === 'index' || frag === 'equity') {
+      showPage('equity', menuItemFor('equity'));
+      return true;
+    }
+    showPage('market', menuItemFor('market'));
+    if (['fx', 'rate', 'bond', 'commodity'].indexOf(frag) >= 0) {
+      setTimeout(() => setMarketTab(frag, marketTabBtn(frag)), 60);
+    }
+    return true;
+  }
+  if (!document.getElementById('page-' + page)) return false;
+  showPage(page, menuItemFor(page));
+  return true;
+}
+function tickerClick(name) {
+  const row = window.ECON_IND && window.ECON_IND.find(name);
+  if (row && gotoCanonical(row.canonical)) return;
+  showPage('dashboard', menuItemFor('dashboard'));   // 레지스트리에 없는 이름 = 홈
 }
 function buildTicker() {
   const items = [...tickerData,...tickerData].map(d=>{
@@ -1013,6 +1072,9 @@ function showPage(id, el) {
   // 메르 블로그 검색 별칭(P5-1) — page-merblog 는 merlens 의 "글 찾기" 탭으로 흡수됐다.
   // 옛 북마크·사이드바·단축키가 여전히 'merblog' 로 들어오므로 여기서 merlens+search 로 돌린다.
   var _merWantSearchTab = false;
+  var _wasOnMerlens = false;
+  try { _wasOnMerlens = !!(document.querySelector('.page.active') || {}).id
+        && document.querySelector('.page.active').id === 'page-merlens'; } catch(_) {}
   if(id === 'merblog') { id = 'merlens'; _merWantSearchTab = true; }
   // 잘못된 id 로 호출돼도 빈 화면이 되지 않게 대상 존재를 먼저 확인하고 없으면 dashboard 폴백
   if(!document.getElementById('page-'+id)) id = 'dashboard';
@@ -1058,17 +1120,30 @@ function showPage(id, el) {
     // 별칭이 아니면 ?t=search 딥링크(사이드바·북마크)로도 검색 탭을 연다.
     // 실제 렌더 트리거는 _merShowTab 이 전담 — 'board' 로 열릴 때만 merlensInit() 이 돈다
     // (검색 탭만 볼 때 전이경로 SVG 등 6블록을 전부 그리지 않는다).
-    if(!_merWantSearchTab) { try { _merWantSearchTab = (new URLSearchParams(location.search).get('t') === 'search'); } catch(_) {} }
+    // ?t=search 는 '밖에서 들어올 때'의 딥링크다. 이미 렌즈를 보고 있는데 메뉴에서
+    // 다시 '메르 렌즈'를 누른 것이면 주소에 남은 search 를 따라가지 않고 보드로 연다.
+    if(!_merWantSearchTab && !_wasOnMerlens) {
+      try { _merWantSearchTab = (new URLSearchParams(location.search).get('t') === 'search'); } catch(_) {}
+    }
     if(_merWantSearchTab) { try { merblogInit(); } catch(e) { console.warn('merblog init', e); } }   // 검색 스냅샷 예열(기존 동작 보존)
     try { if(typeof _merShowTab === 'function') _merShowTab(_merWantSearchTab ? 'search' : 'board', true); } catch(e) { console.warn('merlens init', e); }
   }
   // [3차-T5] 페이지 공통 훅 — 기본 조회 기간 1회 적용 + 1회성 가이드 배너 (T6에서 정의)
   try { if (typeof econPageHook === 'function') econPageHook(id); } catch(_) {}
-  // URL 딥링크 — 페이지 전환마다 ?p=<id> 반영 (뒤로/앞으로 지원). merlens 의 글 찾기 탭은 &t=search 도 함께.
+  // URL 딥링크 — 페이지 전환마다 ?p=<id>&t=<2차 탭>. 같은 주소면 기록을 늘리지 않고,
+  // 달라질 때만 pushState 해서 브라우저 뒤로가기가 화면 전환을 되짚는다(IA v3 P0.5).
   try {
     var _url = location.pathname + '?p=' + id;
-    if(id === 'merlens' && _merWantSearchTab) _url += '&t=search';
-    history.replaceState(null, '', _url);
+    var _tab = null;
+    try {
+      var _cur = new URLSearchParams(location.search);
+      if((_cur.get('p') || 'dashboard') === id) _tab = _cur.get('t');   // 같은 페이지면 탭 유지
+    } catch(_) {}
+    // 메르 렌즈는 이 호출이 어느 탭을 여는지 이미 정해져 있다(별칭·딥링크) — 주소도 그걸 따른다.
+    if(id === 'merlens') _tab = _merWantSearchTab ? 'search' : 'board';
+    else if(!_tab && ECON_TABS[id] && ECON_TABS[id].get) _tab = ECON_TABS[id].get();
+    if(_tab && ECON_TABS[id] && ECON_TABS[id].valid.indexOf(_tab) >= 0) _url += '&t=' + _tab;
+    if(location.pathname + location.search !== _url) history.pushState(null, '', _url);
   } catch(_) {}
   // 메뉴 클릭 후 사이드바 자동 숨김 (모바일/데스크탑 공통)
   collapseSidebarAfterNav();
@@ -2560,6 +2635,7 @@ function setRePeriod(period, btn) {
   buildReCharts();
 }
 function setRETab(tab, btn) {
+  window._reTab = tab;
   const kr = document.getElementById('re-kr');
   const us = document.getElementById('re-us');
   if(kr) kr.style.display = tab==='kr' ? 'block' : 'none';
@@ -2570,6 +2646,7 @@ function setRETab(tab, btn) {
   if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='#fff'; }
   if(tab==='kr') setTimeout(buildReCharts, 50);
   if(tab==='us') setTimeout(()=>{ buildUsReCharts(); buildUsOsmRegionMap(); }, 50);
+  econSetTabParam('realestate', tab);
   // 탭 전환 후 차트 새로고침 버튼 주입
   setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
 }
@@ -4312,6 +4389,7 @@ function setMarketTab(tab, btn) {
     if(nl && NAVER_MARKET_LINKS[tab]) nl.href = NAVER_MARKET_LINKS[tab];
   } catch(_) {}
   setTimeout(()=>initMarketPage(),50);
+  econSetTabParam('market', tab);   // 탭도 주소에 싣는다(딥링크·뒤로가기)
   // 탭 전환 후 새로 표시된 차트에도 새로고침 버튼 주입 (페이지 로드 후 처음 활성화되는 탭 보강)
   setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
 }
@@ -7033,6 +7111,7 @@ function setMacroTab(t,btn){
     if(btnCat === filterCat) b.classList.add('act'); else b.classList.remove('act');
   });
   renderFiltered('macroNewsFeed');
+  econSetTabParam('macro', t);
   // 탭 전환 후 차트 새로고침 버튼 주입
   setTimeout(() => { try { injectChartRefreshButtons(); } catch(_){} }, 200);
 }
@@ -7085,6 +7164,8 @@ const macroMeta = {
 // fmt: 값 포맷터 함수
 // unit: 단위/기준 (사용자가 한눈에 확인할 수 있도록 표기)
 const macroIndicators = [
+  // 카드를 지운 지표 3건 — fetch_data 가 수집하지 않아 화면에 영구 '—' 로만 떴다(IA v3 P0).
+  // 되살리려면 수집부터: cn.ip_cn · jp.cpi_jp · jp.ip_jp (FRED OECD MEI / 총무성 계열).
   // 한국 (ECOS)
   {name:'GDP 성장률 (전기비)',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',unit:'% (전기비)',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
@@ -7124,7 +7205,6 @@ const macroIndicators = [
   // 중국 (FRED 국제 시리즈)
   {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
   {name:'GDP 성장률',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'% (YoY, 명목 USD)',dataPath:'economicIndicators.cn.gdp_yoy_cn',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
-  {name:'산업생산지수',cc:'🇨🇳',cat:'경기',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.ip_cn',fmt:v=>v?.toFixed(2)},
   {name:'제조업 PMI·경기지수',cc:'🇨🇳',cat:'경기',src:'OECD (FRED BSCICP02CNM460S)',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.cn.pmi_cn',fmt:v=>v?.toFixed(1),
     link:'http://www.stats.gov.cn/english/PressRelease/',linkLabel:'NBS 발표문'},
@@ -7151,13 +7231,10 @@ const macroIndicators = [
   // 일본 (FRED 국제 시리즈)
   {name:'GDP 성장률',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.jp.gdp_yoy_jp',fmt:v=>v==null?'—':(+v).toFixed(1)+'%',
     link:'https://www.esri.cao.go.jp/jp/sna/menu.html',linkLabel:'내각부 발표'},
-  {name:'소비자물가지수',cc:'🇯🇵',cat:'물가',src:'총무성 (FRED)',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v?.toFixed(2),
-    link:'https://www.stat.go.jp/data/cpi/',linkLabel:'총무성 통계국'},
   {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',unit:'% (15-64세, 계절조정)',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%',
     link:'https://www.stat.go.jp/data/roudou/',linkLabel:'노동력조사'},
   {name:'기준금리 (BOJ)',cc:'🇯🇵',cat:'통화',src:'일본은행 (BOJ+FRED)',freq:'연8회',unit:'% (무담보 익일물)',dataPath:'economicIndicators.jp.base_rate_jp',fmt:v=>v?.toFixed(2)+'%',
     link:'https://www.boj.or.jp/en/mopo/mpmdeci/state_all/index.htm',linkLabel:'BOJ 정책결정'},
-  {name:'산업생산지수',cc:'🇯🇵',cat:'경기',src:'OECD MEI (FRED: JPNPROINDMISMEI)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.jp.ip_jp',fmt:v=>v?.toFixed(2)},
   // 독일 (FRED 국제 시리즈)
   {name:'소비자물가지수',cc:'🇩🇪',cat:'물가',src:'Destatis (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.de.cpi_de',fmt:v=>v?.toFixed(2)},
   {name:'GDP 성장률',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.de.gdp_yoy_de',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
@@ -9879,7 +9956,7 @@ function buildSidebarDataSources(d) {
     const dot = s.state==='online' ? '<span style="color:var(--c-success);font-size:var(--font-size-xs);" title="정상">●</span>'
               : s.state==='partial' ? '<span style="color:var(--c-warn);font-size:var(--font-size-xs);" title="일부 지연">◐</span>'
               : '<span style="color:var(--c-error);font-size:var(--font-size-xs);" title="응답 없음">○</span>';
-    return `<button type="button" class="ds-item btn-plain" onclick="showDataSourceDetail('${src.key}')" style="display:flex;align-items:center;gap:6px;border-radius:var(--r-xs);cursor:pointer;color:var(--c-txt);transition:background .1s;" title="클릭하여 상세 보기">
+    return `<button type="button" class="ds-item btn-plain" onclick="showDataSourceDetail('${src.key}', this)" style="display:flex;align-items:center;gap:6px;border-radius:var(--r-xs);cursor:pointer;color:var(--c-txt);transition:background .1s;" title="클릭하여 상세 보기">
       ${dot}
       <span style="flex:1;font-size:var(--font-size-sm);">${src.name}<span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);margin-left:4px;">(${src.unit})</span></span>
       <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">›</span>
@@ -9887,7 +9964,20 @@ function buildSidebarDataSources(d) {
   }).join('');
 }
 
-function showDataSourceDetail(key) {
+function showDataSourceDetail(key, btn) {
+  // 목록이 설정 > 시스템 진단으로 옮겨져서(IA v3 P0.5) 팝업도 사이드바 좌표가 아니라
+  // 누른 항목 옆에 선다. 좌표를 못 구하면 CSS 기본값(좌상단)을 그대로 쓴다.
+  try {
+    const anchor = btn || (window.event && window.event.currentTarget);
+    const pop = document.getElementById('dataSourceDetailPopup');
+    if(anchor && anchor.getBoundingClientRect && pop) {
+      const r = anchor.getBoundingClientRect();
+      const left = Math.min(Math.max(8, r.right + 8), window.innerWidth - 396);
+      const top  = Math.min(Math.max(8, r.top), window.innerHeight - 120);
+      pop.style.left = left + 'px';
+      pop.style.top  = top + 'px';
+    }
+  } catch(_) {}
   const src = dataSourceMeta.find(s=>s.key===key);
   if(!src) return;
   const d = _latestDataForIndicators || {};
@@ -10034,7 +10124,7 @@ document.addEventListener('click', (e) => {
   const p = document.getElementById('dataSourceDetailPopup');
   if(!p || p.style.display === 'none') return;
   if(p.contains(e.target)) return;
-  if(e.target.closest('#sidebarDataSourceList')) return;
+  if(e.target.closest('#sidebarDataSourceList')) return;   // 목록은 설정 화면에 있다
   p.style.display = 'none';
 });
 

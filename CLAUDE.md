@@ -156,6 +156,33 @@ rules and must stay last. `!important` 는 174 → 135 로 줄었고, `important
 (이건 인라인을 이겨야 한다). 남은 `!important` 는 인라인과 싸우지 않는다 —
 지우려면 규칙마다 무엇을 이기려 했는지 개별 확인이 필요하다.
 
+## 지표 레지스트리 — 한 지표 = 한 행 (IA 개편 v3 P0)
+
+분류 체계가 코드 안에 7개 따로 있었다(사이드바 그룹 · 비교차트 카탈로그 85 · 거시 카테고리
+10×50 · 메르 렌즈 레이어 4×48 · 뉴스 16 · 분석 노트 4 · `sources` 33). 서로 매핑이 없어
+KOSPI 가 14곳, USD/KRW 가 12곳에 각각 원본처럼 떴고(`js/app3.js:296` 주석이 그 증상을 이미
+기록해 뒀다), 반대로 수집만 하고 화면에 없는 데이터가 남았다. 이제 한 지표는 한 행이다.
+
+```
+data.json + js/app1.js(macroIndicators) + mer_signals.json
+  → scripts/build_indicators.py   (규칙 + 사람이 내린 결정: tier · canonical · news · 별칭)
+    → js/app0.js  window.ECON_IND   ← 화면은 여기만 본다
+```
+
+- **`js/app0.js` 는 생성물이다. 손으로 고치지 말 것.** 재생성 `python scripts/build_indicators.py`,
+  게이트 `python scripts/build_indicators.py --check`(드리프트 · 죽은 경로 · 죽은 카드 0).
+- 행의 필드: `asset`(자산군 = 1차 네비 축) · `topic`(거시 주제 탭) · **`tier`**(1 대표/홈 · 2 주요 ·
+  3 상세표) · **`canonical`**(원본 화면; 다른 화면의 같은 값은 요약이고 원본으로 연결한다) ·
+  `news`(`data.json.news` 16주제 중 맥락 한 줄을 뽑을 키) · `data`/`series`/`alsoData` · `merLens` ·
+  `aliases`(화면마다 갈리던 옛 표기) · `onScreen:false`(수집만 되고 화면 없음).
+- **지표 이름을 화면에 새로 적지 말 것** — `ECON_IND.label(id)` 또는 `ECON_IND.find('옛 이름')`.
+  'WTI 유가' vs 'WTI 원유' 같은 갈림이 여기서 끝난다.
+- **원본 화면으로 보내는 라우팅은 `gotoCanonical(canonical)` 하나다**(`js/app1.js`). 티커 클릭의
+  이름-분기 15줄이 이걸로 대체됐다. 새 진입점도 이름이 아니라 `canonical` 을 넘긴다.
+- 파일명이 `app0` 인 이유: 로더(index.html)와 `build-frontend.yml` 의 `js/app[0-9].js` 글롭에
+  그대로 걸려 minify·캐시버스팅·로드 순서가 따라온다. 0 이라 app1 보다 먼저 실행된다.
+- 기획 원문 `docs/superpowers/specs/2026-09-18-ia-restructure-design.md`.
+
 ## Key Files
 
 | File | Role |
