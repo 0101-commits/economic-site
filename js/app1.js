@@ -768,8 +768,31 @@ function tickerClick(name) {
   if (row && gotoCanonical(row.canonical)) return;
   showPage('dashboard', menuItemFor('dashboard'));   // 레지스트리에 없는 이름 = 홈
 }
+// 화면 주제에 맞는 티커만 남긴다(IA v3 P3). 12종 고정 띠는 어느 화면에서나 같은 값을
+// 보여줘서, 그 화면에서 정작 봐야 할 지표와 자리를 다퉜다. 홈에서는 전부 보여준다.
+var TICKER_SCOPE = {
+  equity:     ['KOSPI', 'KOSDAQ', 'S&P 500', 'NASDAQ', '닛케이'],
+  market:     null,                                  // 시장 지표는 탭에 따라 다르므로 전부
+  macro:      ['한국 기준금리', '미 10년물', 'USD/KRW', 'KOSPI'],
+  realestate: ['한국 기준금리', '미 10년물', 'USD/KRW', 'KOSPI'],
+  investor:   ['KOSPI', 'KOSDAQ', 'USD/KRW', '미 10년물'],
+  calendar:   ['KOSPI', 'USD/KRW', '한국 기준금리', '미 10년물'],
+  merlens:    ['USD/KRW', '미 10년물', 'WTI', '금(Gold)'],
+  notes:      ['KOSPI', 'USD/KRW'],
+  study:      ['KOSPI', 'USD/KRW'],
+};
+function _tickerRows() {
+  try {
+    var page = (document.querySelector('.page.active') || {}).id || '';
+    var scope = TICKER_SCOPE[page.replace(/^page-/, '')];
+    if (!scope) return tickerData;
+    var picked = tickerData.filter(function (d) { return scope.indexOf(d.name) >= 0; });
+    return picked.length ? picked : tickerData;
+  } catch (_) { return tickerData; }
+}
 function buildTicker() {
-  const items = [...tickerData,...tickerData].map(d=>{
+  const rows = _tickerRows();
+  const items = [...rows,...rows].map(d=>{
     const cc = d.up===null?'color:var(--c-txt-dim)':d.up?'color:var(--c-up)':'color:var(--c-down)';
     return `<button type="button" class="ticker-item btn-plain btn-inline" onclick="tickerClick('${d.name.replace(/'/g,"\\'")}')" style="font-size:var(--font-size-sm);display:inline-flex;gap:6px;align-items:center;">
       <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);text-transform:uppercase;">${d.name}</span>
@@ -1140,6 +1163,7 @@ function showPage(id, el) {
     try { if(typeof _merShowTab === 'function') _merShowTab(_merWantSearchTab ? 'search' : 'board', true); } catch(e) { console.warn('merlens init', e); }
   }
   // [3차-T5] 페이지 공통 훅 — 기본 조회 기간 1회 적용 + 1회성 가이드 배너 (T6에서 정의)
+  try { if (typeof buildTicker === 'function') buildTicker(); } catch(_) {}   // 화면 주제에 맞는 티커
   try { if (typeof econPageHook === 'function') econPageHook(id); } catch(_) {}
   // URL 딥링크 — 페이지 전환마다 ?p=<id>&t=<2차 탭>. 같은 주소면 기록을 늘리지 않고,
   // 달라질 때만 pushState 해서 브라우저 뒤로가기가 화면 전환을 되짚는다(IA v3 P0.5).

@@ -180,6 +180,25 @@ function _applyDefaultPresetsForActivePage() {
 // 동적으로 그려지는 위젯 제목에도 heading 구실을 준다(IA v3 P1).
 // 정적 마크업은 h3 로 올렸지만, JS 템플릿이 만드는 제목은 문자열이라 태그를 바꾸기
 // 어렵다 — 같은 뜻을 role/aria-level 로 준다. KPI 숫자 카드의 라벨은 제외한다.
+// 제목에서 '지표 이름'만 뽑는다 — 단위칩·신선도칩·백분위 배지·새로고침 버튼처럼
+// 나중에 덧붙는 것들을 빼야 레지스트리와 이름이 맞는다(IA v3 P1~P3 공통).
+window.econTitleText = function (el) {
+  try {
+    var out = '';
+    el.childNodes.forEach(function (n) { if (n.nodeType === 3) out += n.nodeValue; });
+    out = out.trim();
+    if (out) return out;
+    var clone = el.cloneNode(true);
+    clone.querySelectorAll('button,a,select,input,.econ-stat__unit,.w-fresh-chip,.econ-src').forEach(function (x) { x.remove(); });
+    return (clone.textContent || '').trim();
+  } catch (_) { return (el.textContent || '').trim(); }
+};
+// data.json 은 app1 의 최상위 var 로만 있고 window 에 붙지 않는다 — 안전하게 집어온다.
+window.econData = function () {
+  try { return (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) || null; }
+  catch (_) { return null; }
+};
+
 window.econMarkHeadings = function (root) {
   try {
     var scope = root || document;
@@ -205,6 +224,7 @@ window.econMarkHeadings = function (root) {
         pending = null;
         try { econMarkHeadings(document.getElementById('mainContent')); } catch (_) {}
         try { econMarkSources(document.getElementById('mainContent')); } catch (_) {}
+        try { econMarkContext(document.getElementById('mainContent')); } catch (_) {}
       }, 200);
     });
     var start = function () {
@@ -230,9 +250,7 @@ window.econMarkSources = function (root) {
     scope.querySelectorAll('.widget-title').forEach(function (el) {
       if (el.querySelector('.econ-src')) return;
       // 제목의 순수 텍스트만 — 안에 든 단위칩·버튼 글자는 뺀다
-      var clone = el.cloneNode(true);
-      clone.querySelectorAll('button,a,select,input,.econ-stat__unit,.w-fresh-chip').forEach(function (x) { x.remove(); });
-      var name = (clone.textContent || '').trim();
+      var name = econTitleText(el);
       if (!name || name.length > 24) return;
       var row = window.ECON_IND.find(name);
       if (!row || !row.canonical) return;
@@ -255,12 +273,56 @@ window.econMarkSources = function (root) {
   } catch (_) {}
 };
 
+// 숫자 옆에 '왜' 한 줄 — 레지스트리의 news 키로 data.json.news 에서 최신 기사 제목을
+// 가져와 KPI 카드 아래에 붙인다(IA v3 P3). 규칙 기반이라 인과를 지어내지 않는다:
+// 문구는 '관련 뉴스'이고, 7일보다 오래된 기사면 아예 붙이지 않는다(침묵 > 낡은 맥락).
+window.econNewsLineFor = function (row) {
+  try {
+    if (!row || !row.news) return null;
+    var d = econData() || {};
+    var list = (d.news || {})[row.news];
+    if (!Array.isArray(list) || !list.length) return null;
+    var top = list[0];
+    if (!top || !top.title) return null;
+    if (top.isoDate) {
+      var age = (Date.now() - new Date(top.isoDate + 'T00:00:00+09:00').getTime()) / 86400000;
+      if (!(age >= 0) || age > 7) return null;
+    }
+    return top;
+  } catch (_) { return null; }
+};
+window.econMarkContext = function (root) {
+  try {
+    if (!window.ECON_IND) return;
+    var scope = root || document;
+    scope.querySelectorAll('.kpi-card .econ-stat__label').forEach(function (label) {
+      var card = label.closest('.kpi-card');
+      if (!card) return;
+      var row = window.ECON_IND.find(econTitleText(label));
+      var news = row && econNewsLineFor(row);
+      var slot = card.querySelector('.econ-why');
+      if (!news) { if (slot) slot.remove(); return; }
+      if (!slot) {
+        slot = document.createElement('span');
+        slot.className = 'econ-why';
+        var spark = card.querySelector('.econ-stat__spark');
+        card.insertBefore(slot, spark || null);
+      }
+      if (slot.dataset.title === news.title) return;
+      slot.dataset.title = news.title;
+      slot.textContent = news.title;
+      slot.title = '관련 뉴스 · ' + (news.isoDate || '') + ' — ' + news.title;
+    });
+  } catch (_) {}
+};
+
 window.econPageHook = function (id) {
   // 페이지별 init 이 setTimeout(…, 50) 으로 늦게 도는 구조 → 한 박자(400ms) 뒤 실행
   setTimeout(function () {
     try { _applyDefaultPresetsForActivePage(); } catch (_) {}
     try { econMarkHeadings(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkSources(document.querySelector('.page.active')); } catch (_) {}
+    try { econMarkContext(document.querySelector('.page.active')); } catch (_) {}
     try {
       if (id === 'dashboard') {
         mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',

@@ -10,7 +10,7 @@
  *   merLens    mer_signals.json 의 같은 지표 id
  *   onScreen   false = 수집은 되는데 아직 어느 화면에도 없다(처리 대상)
  *
- * 생성 시각 기준 지표 122 · 데이터셋 16 · 미노출 15.
+ * 생성 시각 기준 지표 122 · 데이터셋 19 · 미노출 15.
  */
 (function () {
   var ROWS = [
@@ -138,15 +138,18 @@
     {"id": "vkospi", "label": "V-KOSPI", "asset": "sentiment", "data": "sentiment.vkospi", "tier": 2, "canonical": "dashboard#mood", "merLens": "vkospi"},
   ];
   var SETS = [
+    {"id": "macro_indicators", "label": "주요 경제 지표 전체", "asset": "macro", "canonical": "macro", "data": "economicIndicators", "aliases": ["주요 경제 지표 전체 (실시간)", "주요 경제 지표 전체", "주요 경제 지표"], "kind": "dataset", "tier": 2},
+    {"id": "market_mood", "label": "시장 분위기", "asset": "sentiment", "canonical": "dashboard#mood", "data": "sentiment", "aliases": ["시장 분위기"], "kind": "dataset", "tier": 2},
+    {"id": "apt_price_kr", "label": "아파트 가격지수 추이", "asset": "realestate", "canonical": "realestate", "data": "realestate.kr", "aliases": ["아파트 가격지수 추이", "아파트 가격지수"], "kind": "dataset", "tier": 2},
     {"id": "global_indices", "label": "글로벌 지수", "asset": "index", "canonical": "market#index", "data": "indices", "aliases": ["글로벌 지수", "글로벌 지수 현황", "글로벌 주요 지수"], "kind": "dataset", "tier": 2},
     {"id": "kospi_movers", "label": "등락 Top10", "asset": "equity", "canonical": "market#equity", "data": "stockMovers", "kind": "dataset", "tier": 2},
     {"id": "etf_movers", "label": "ETF 등락", "asset": "equity", "canonical": "market#equity", "data": "etfMovers", "kind": "dataset", "tier": 2},
     {"id": "rankings_kr", "label": "거래대금·토스 체결 순위", "asset": "equity", "canonical": "market#equity", "data": "rankingsKr", "kind": "dataset", "tier": 2},
     {"id": "investor_trading", "label": "투자자별 순매매", "asset": "flow", "canonical": "flow#investor", "data": "investorTrading", "kind": "dataset", "tier": 2, "merLens": "foreign_flow"},
     {"id": "stock_flows", "label": "종목별 수급·공매도·신용", "asset": "flow", "canonical": "flow#stock", "data": "stockFlows", "kind": "dataset", "tier": 2},
-    {"id": "nps", "label": "국민연금 자산배분", "asset": "flow", "canonical": "flow#nps", "data": "nps", "kind": "dataset", "tier": 2, "merLens": "nps_kr_equity"},
+    {"id": "nps", "label": "국민연금 자산배분", "asset": "flow", "canonical": "flow#nps", "data": "nps", "aliases": ["국민연금 자산배분", "자산 배분 현황"], "kind": "dataset", "tier": 2, "merLens": "nps_kr_equity"},
     {"id": "lme_inventory", "label": "LME 금속 재고", "asset": "commodity", "canonical": "market#commodity", "data": "lmeInventory", "kind": "dataset", "tier": 2, "merLens": "lme_copper"},
-    {"id": "freight", "label": "해상운임 지수", "asset": "commodity", "canonical": "market#commodity", "data": "freight", "kind": "dataset", "tier": 2, "merLens": "freight_rate"},
+    {"id": "freight", "label": "해상운임 지수", "asset": "commodity", "canonical": "market#commodity", "data": "freight", "aliases": ["해상운임 지수", "운송 운임지수 (해상운임)", "운송 운임지수"], "kind": "dataset", "tier": 2, "merLens": "freight_rate"},
     {"id": "subscription", "label": "청약 경쟁률", "asset": "realestate", "canonical": "realestate#kr", "data": "subscription", "kind": "dataset", "tier": 2},
     {"id": "economic_calendar", "label": "경제 일정", "asset": "macro", "canonical": "macro#calendar", "data": "economicCalendar", "kind": "dataset", "tier": 2},
     {"id": "market_calendar_kr", "label": "장 운영 일정", "asset": "macro", "canonical": "macro#calendar", "data": "marketCalendarKr", "kind": "dataset", "tier": 2},

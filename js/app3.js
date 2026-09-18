@@ -2144,37 +2144,37 @@ function buildPageTocs(){
   });
 }
 
-// ── 3) 위젯 신선도 칩 — dataHealth(stale/failed/missing)를 대표 위젯 타이틀에 노출 ──
-var WIDGET_FRESH_MAP = [
-  { pid: 'page-dashboard',  m: '시장 분위기',        pre: ['sentiment.'] },
-  { pid: 'page-dashboard',  m: 'Top10',              pre: ['stockMovers.', 'etfMovers.'] },
-  { pid: 'page-market',     m: '운송 운임지수',       pre: ['freight'] },
-  { pid: 'page-macro',      m: '주요 경제 지표 전체', pre: ['economicIndicators.'] },
-  { pid: 'page-investor',   m: '자산 배분 현황',      pre: ['nps'] },
-  { pid: 'page-investor',   m: '글로벌 연기금',       pre: ['berkshire'] },
-  { pid: 'page-realestate', m: '아파트 가격지수',     pre: ['realestate.kr.'] },
-];
-function applyWidgetFreshChips(){
+// ── 3) 위젯 신선도 칩 — dataHealth 를 '그 지표를 보여주는 제목' 옆에 붙인다 ──────
+// 옛 방식은 (페이지, 제목 문자열, 경로 접두) 7쌍을 손으로 적어둔 표였다. 지표 레지스트리가
+// 생기면서 그 표가 필요 없어졌다 — 제목이 어떤 지표인지 레지스트리가 알고, 그 지표의
+// data 경로가 dataHealth 항목과 맞으면 칩을 단다(IA v3 P3). 정상이면 아무 것도 안 붙인다.
+function _healthWorstFor(dataPath){
   var h = window._dataHealth;
-  // 방어: 구버전 dataHealth(4건짜리 — 판정 시점 버그 시절 산출물)로는 위젯 판정을 하지 않는다
-  if(!h || !Array.isArray(h.items) || h.items.length < 5) return;
-  WIDGET_FRESH_MAP.forEach(function(cfg){
-    var page = document.getElementById(cfg.pid);
-    if(!page) return;
-    var t = null, ts = page.querySelectorAll('.widget-title');
-    for(var i = 0; i < ts.length; i++){
-      if((ts[i].textContent || '').indexOf(cfg.m) !== -1){ t = ts[i]; break; }
-    }
-    if(!t) return;
-    var worst = null;
-    h.items.forEach(function(it){
-      if(it.state !== 'stale' && it.state !== 'failed' && it.state !== 'missing') return;
-      if(!cfg.pre.some(function(p){ return it.path === p || it.path.indexOf(p) === 0; })) return;
-      if(!worst || (it.ageDays || 9999) > (worst.ageDays || 9999)) worst = it;
-    });
+  if(!h || !Array.isArray(h.items) || h.items.length < 5 || !dataPath) return null;
+  var worst = null;
+  h.items.forEach(function(it){
+    if(it.state !== 'stale' && it.state !== 'failed' && it.state !== 'missing') return;
+    var p = it.path || '';
+    var hit = (p === dataPath)
+           || dataPath.indexOf(p + '.') === 0 || dataPath.indexOf(p + ':') === 0
+           || p.indexOf(dataPath + '.') === 0 || p.indexOf(dataPath + ':') === 0;
+    if(!hit) return;
+    if(!worst || (it.ageDays || 9999) > (worst.ageDays || 9999)) worst = it;
+  });
+  return worst;
+}
+function applyWidgetFreshChips(root){
+  if(!window.ECON_IND) return;
+  var scope = root || document;
+  scope.querySelectorAll('.widget-title').forEach(function(t){
+    var name = (typeof econTitleText === 'function') ? econTitleText(t) : (t.textContent || '').trim();
+    if(!name || name.length > 24) return;
+    var row = window.ECON_IND.find(name);
+    if(!row) return;
     var old = t.querySelector('.w-fresh-chip');
     if(old) old.remove();
-    if(!worst) return;
+    var worst = _healthWorstFor(row.data);
+    if(!worst) return;   // 정상일 때는 침묵한다 — 늘 떠 있는 칩은 경고가 아니다
     var chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'w-fresh-chip btn-plain btn-inline';

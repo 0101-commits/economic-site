@@ -1785,6 +1785,10 @@ nav#sidebar { backdrop-filter: none !important; -webkit-backdrop-filter: none !i
 /* 위젯 제목을 div → h3 로 올렸다(IA v3 P1: 문서 구조·목차·스크린리더).
    UA 기본 여백·크기만 되돌리고, 색·자간은 아래 기존 규칙과 seed 레시피가 그대로 그린다. */
 /* 원본 화면 링크 — 같은 지표가 여러 화면에 뜰 때, 요약 쪽 제목 옆에만 붙는다(IA v3 P2) */
+/* 숫자 밑 한 줄 맥락 — '왜 움직였나'를 관련 뉴스 제목으로만 말한다(IA v3 P3) */
+.econ-why { display: block; margin-top: 4px; font-size: var(--font-size-xs); color: var(--c-txt-dim);
+            line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            max-width: 100%; text-align: left; }
 .econ-src { margin-left: 8px; font-size: var(--font-size-xs); font-weight: var(--font-weight-normal);
             letter-spacing: 0; text-transform: none; color: var(--c-txt-dim); text-decoration: none;
             border-bottom: 1px dotted var(--c-border); white-space: nowrap; }
