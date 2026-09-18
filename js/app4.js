@@ -226,6 +226,7 @@ window.econMarkHeadings = function (root) {
         try { econMarkSources(document.getElementById('mainContent')); } catch (_) {}
         try { econMarkContext(document.getElementById('mainContent')); } catch (_) {}
         try { econMarkFavorites(document.getElementById('mainContent')); } catch (_) {}
+        try { econMakeTablesSortable(document.getElementById('mainContent')); } catch (_) {}
       }, 200);
     });
     var start = function () {
@@ -325,6 +326,7 @@ window.econPageHook = function (id) {
     try { econMarkSources(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkContext(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkFavorites(document.querySelector('.page.active')); } catch (_) {}
+    try { econMakeTablesSortable(document.querySelector('.page.active')); } catch (_) {}
     try {
       if (id === 'dashboard') {
         mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',
@@ -1003,4 +1005,170 @@ function pfExportCsv() {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
+})();
+
+/* ── 전역 검색 · 목적 프리셋 · 표 정렬 (IA v3 P5) ─────────────────────────
+   찾을 방법이 없었다(D12): 전역 검색 0 · 정렬 가능한 표 0 · 지표 즐겨찾기 0.
+   셋 다 지표 레지스트리 위에서 한 번에 선다. */
+(function econFind() {
+  // 목적 프리셋 — 지표를 찾아다니지 않고 질문을 고른다. 각 질문은 그 답이 있는
+  // 화면(+탭·필터)으로 데려간다. 조건은 사람 말로 적는다.
+  var PRESETS = [
+    { q: '오늘 뭐가 움직였나', cond: '등락률 · 오늘', go: function () { gotoCanonical('market#equity'); } },
+    { q: '금리는 어디로',     cond: '국고·미국채 · 곡선', go: function () { gotoCanonical('market#bond'); } },
+    { q: '환율 부담',         cond: 'USD/KRW · 최근 추이', go: function () { gotoCanonical('market#fx'); } },
+    { q: '원자재 충격',       cond: '에너지·금속 · 재고', go: function () { gotoCanonical('market#commodity'); } },
+    { q: '물가 온도',         cond: 'CPI·PPI · 전년비', go: function () { showPage('macro', menuItemFor('macro')); setTimeout(function () { try { setMacroCatFilter('물가'); } catch (_) {} }, 400); } },
+    { q: '고용은 버티나',     cond: '실업률·고용 지표', go: function () { showPage('macro', menuItemFor('macro')); setTimeout(function () { try { setMacroCatFilter('고용'); } catch (_) {} }, 400); } },
+    { q: '외국인은 사는가',   cond: '투자자별 순매매', go: function () { gotoCanonical('flow'); } },
+    { q: '부동산 온도',       cond: '가격지수·거래·대출', go: function () { showPage('realestate', menuItemFor('realestate')); } }
+  ];
+
+  var overlay, input, results, items = [], cursor = -1;
+
+  function rowsFor(q) {
+    var out = [];
+    if (!window.ECON_IND) return out;
+    var needle = String(q || '').trim().toLowerCase();
+    if (!needle) {
+      PRESETS.forEach(function (p) { out.push({ kind: 'preset', preset: p }); });
+      return out;
+    }
+    window.ECON_IND.rows.concat(window.ECON_IND.datasets).forEach(function (r) {
+      var hay = [r.label, r.id].concat(r.aliases || [], r.keywords || []).join(' ').toLowerCase();
+      if (hay.indexOf(needle) >= 0) out.push({ kind: 'ind', row: r });
+    });
+    PRESETS.forEach(function (p) {
+      if ((p.q + ' ' + p.cond).toLowerCase().indexOf(needle) >= 0) out.push({ kind: 'preset', preset: p });
+    });
+    out.sort(function (a, b) {
+      var at = a.kind === 'ind' ? (a.row.tier || 9) : 0;
+      var bt = b.kind === 'ind' ? (b.row.tier || 9) : 0;
+      return at - bt;
+    });
+    return out.slice(0, 12);
+  }
+
+  function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function paint(q) {
+    items = rowsFor(q);
+    cursor = items.length ? 0 : -1;
+    if (!items.length) {
+      results.innerHTML = '<div class="econ-search__hint">맞는 지표가 없습니다. 이름 일부만 적어도 됩니다(예: 금리).</div>';
+      return;
+    }
+    var head = q ? '' : '<div class="econ-search__hint">질문으로 찾기 — 무엇이 궁금한지 고르세요</div>';
+    results.innerHTML = head + items.map(function (it, i) {
+      if (it.kind === 'preset') {
+        return '<button type="button" role="option" data-i="' + i + '" aria-selected="' + (i === cursor) + '">' +
+               '<span>' + esc(it.preset.q) + '</span>' +
+               '<span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">' + esc(it.preset.cond) + '</span></button>';
+      }
+      var r = it.row;
+      var where = (typeof econCanonicalPage === 'function') ? econCanonicalPage(r.canonical) : null;
+      return '<button type="button" role="option" data-i="' + i + '" aria-selected="' + (i === cursor) + '">' +
+             '<span>' + esc(r.label) + (r.unit ? ' <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">' + esc(r.unit) + '</span>' : '') + '</span>' +
+             '<span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">' +
+             esc(where && typeof econPageLabel === 'function' ? econPageLabel(where) : '') + '</span></button>';
+    }).join('');
+  }
+
+  function pick(i) {
+    var it = items[i];
+    if (!it) return;
+    close();
+    if (it.kind === 'preset') { try { it.preset.go(); } catch (_) {} return; }
+    try { gotoCanonical(it.row.canonical); } catch (_) {}
+  }
+
+  function open() {
+    if (!overlay) return;
+    overlay.hidden = false;
+    input.value = '';
+    paint('');
+    setTimeout(function () { try { input.focus(); } catch (_) {} }, 20);
+  }
+  function close() { if (overlay) overlay.hidden = true; }
+  window.econOpenSearch = open;
+
+  function start() {
+    overlay = document.getElementById('econSearchOverlay');
+    input = document.getElementById('econSearchInput');
+    results = document.getElementById('econSearchResults');
+    if (!overlay || !input || !results) return;
+    var btn = document.getElementById('econSearchBtn');
+    if (btn) btn.addEventListener('click', open);
+    overlay.addEventListener('click', function (ev) { if (ev.target === overlay) close(); });
+    input.addEventListener('input', function () { paint(input.value); });
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') { close(); return; }
+      if (ev.key === 'Enter') { ev.preventDefault(); pick(cursor); return; }
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        if (!items.length) return;
+        cursor = (cursor + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
+        results.querySelectorAll('[role="option"]').forEach(function (b) {
+          b.setAttribute('aria-selected', String(Number(b.dataset.i) === cursor));
+        });
+      }
+    });
+    results.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-i]');
+      if (b) pick(Number(b.dataset.i));
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key !== '/' || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+      var tag = (document.activeElement || {}).tagName || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if ((document.activeElement || {}).isContentEditable) return;
+      ev.preventDefault();
+      open();
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+
+  /* 표 정렬 — 정렬 가능한 표가 하나도 없었다. 머리글을 누르면 그 열로 정렬한다.
+     숫자는 숫자로(부호·쉼표·%·원 제거), 나머지는 문자열로 비교한다.
+     colspan 이 있는 표, 4행 미만, 이미 자체 정렬을 가진 표는 건드리지 않는다. */
+  function cellNum(td) {
+    var t = (td.textContent || '').replace(/[,\s%원$]/g, '').replace(/[()]/g, '');
+    if (/^[+\-]?\d+(\.\d+)?$/.test(t)) return parseFloat(t);
+    return null;
+  }
+  window.econMakeTablesSortable = function (root) {
+    try {
+      (root || document).querySelectorAll('table').forEach(function (tb) {
+        if (tb.dataset.econSort) return;
+        var head = tb.tHead && tb.tHead.rows[0];
+        var body = tb.tBodies && tb.tBodies[0];
+        if (!head || !body || body.rows.length < 4) return;
+        if (head.querySelector('[colspan]') || body.querySelector('[colspan]')) return;
+        tb.dataset.econSort = '1';
+        Array.prototype.forEach.call(head.cells, function (th, idx) {
+          th.setAttribute('aria-sort', 'none');
+          th.tabIndex = 0;
+          var run = function () {
+            var dir = th.getAttribute('aria-sort') === 'ascending' ? -1 : 1;
+            Array.prototype.forEach.call(head.cells, function (o) { o.setAttribute('aria-sort', 'none'); });
+            th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+            var rows = Array.prototype.slice.call(body.rows);
+            rows.sort(function (a, b) {
+              var ca = a.cells[idx], cb = b.cells[idx];
+              if (!ca || !cb) return 0;
+              var na = cellNum(ca), nb = cellNum(cb);
+              if (na != null && nb != null) return (na - nb) * dir;
+              return String(ca.textContent).localeCompare(String(cb.textContent), 'ko') * dir;
+            });
+            rows.forEach(function (r) { body.appendChild(r); });
+          };
+          th.addEventListener('click', run);
+          th.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); run(); }
+          });
+        });
+      });
+    } catch (_) {}
+  };
 })();

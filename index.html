@@ -1784,6 +1784,28 @@ nav#sidebar { backdrop-filter: none !important; -webkit-backdrop-filter: none !i
 .widget.accent-l-warn, .kpi-card.accent-l-warn { border-left: 3px solid var(--c-warn) !important; }
 /* 위젯 제목을 div → h3 로 올렸다(IA v3 P1: 문서 구조·목차·스크린리더).
    UA 기본 여백·크기만 되돌리고, 색·자간은 아래 기존 규칙과 seed 레시피가 그대로 그린다. */
+/* 지표 검색 오버레이(IA v3 P5) */
+.econ-search { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 400;
+               display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; }
+/* display:flex 가 [hidden] 의 UA display:none 을 이긴다 — 닫힌 오버레이가 화면 전체의
+   클릭을 삼켜 SPA 전환이 막혔다(interact 게이트가 잡아냄). 클래스 특이성으로 되돌린다. */
+.econ-search[hidden], .econ-rail-panel[hidden] { display: none; }
+.econ-search__box { width: min(560px, 92vw); background: var(--c-card); border: 1px solid var(--c-border);
+                    border-radius: var(--r-sm); padding: 12px; box-shadow: 0 16px 48px rgba(0,0,0,.35); }
+.econ-search__box input { background: var(--c-bg); border: 1px solid var(--c-border); border-radius: var(--r-xs);
+                          color: var(--c-txt); padding: 10px 12px; font-size: var(--font-size-base); }
+.econ-search__results { margin-top: 10px; max-height: 46vh; overflow-y: auto; }
+.econ-search__results button { display: flex; width: 100%; justify-content: space-between; gap: 10px;
+                               align-items: center; padding: 9px 8px; background: transparent; border: none;
+                               border-bottom: 1px solid var(--c-border); color: var(--c-txt); cursor: pointer;
+                               text-align: left; font-size: var(--font-size-sm); }
+.econ-search__results button:hover, .econ-search__results button[aria-selected="true"] { background: var(--c-bg-hover, rgba(127,127,127,.12)); }
+.econ-search__hint { color: var(--c-txt-dim); font-size: var(--font-size-xs); padding: 8px 4px; }
+/* 정렬 가능한 표 머리(IA v3 P5) */
+th[aria-sort] { cursor: pointer; user-select: none; }
+th[aria-sort]:hover { color: var(--c-primary); }
+th[aria-sort="ascending"]::after { content: ' 91'; color: var(--c-primary); }
+th[aria-sort="descending"]::after { content: ' 93'; color: var(--c-primary); }
 /* MY 레일(IA v3 P4) — 아이콘 56 은 자리를 차지하고, 패널 312 는 본문 위에 얹는다.
    1024 이하에서는 숨긴다(좁은 화면은 바텀 내비가 같은 일을 한다). */
 .econ-rail { position: fixed; right: 0; top: var(--frame-top-total); width: 56px;
@@ -2109,6 +2131,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
   </div>
   </div><!-- /__left -->
   <div class="seed-app-bar__right">
+  <!-- 전역 검색 — 지표 이름으로 찾아 원본 화면으로 간다(IA v3 P5). 단축키 /, Esc 로 닫기 -->
+  <button id="econSearchBtn" class="u-touch" aria-label="지표 검색" title="지표 검색 (단축키 /)"
+          style="background:transparent;border:none;color:var(--c-txt-dim);cursor:pointer;padding:4px;display:flex;align-items:center;border-radius:var(--r-xs);flex-shrink:0;">
+    <span aria-hidden="true" class="mat" style="font-size:var(--font-size-xl);">search</span>
+  </button>
+
   <!-- 전년 동기(YoY) 비교 글로벌 토글 — 지원 차트 전체에 전년 데이터 오버레이 동시 적용 -->
   <button id="yoyGlobalBtn" class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" onclick="toggleYoYGlobal()" aria-pressed="false" title="전년 동기 비교 — 지원되는 모든 차트에 전년 데이터를 점선으로 오버레이하고 변화율 배지를 표시합니다." style="flex-shrink:0;">
     <span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span>
@@ -2241,6 +2269,16 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="globalDelayChip" class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_warning-variant_weak" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>시세 최대 15분 지연</div>
     </div>
   </nav>
+
+  <!-- 지표 검색 오버레이(IA v3 P5) — 레지스트리 122지표가 검색 대상이고,
+       고르면 그 지표의 원본 화면으로 간다. -->
+  <div id="econSearchOverlay" class="econ-search" hidden role="dialog" aria-modal="true" aria-label="지표 검색">
+    <div class="econ-search__box">
+      <input id="econSearchInput" type="search" autocomplete="off" placeholder="지표 이름으로 찾기 — 예: 환율, 기준금리, WTI"
+             aria-label="지표 이름" style="width:100%;" />
+      <div id="econSearchResults" class="econ-search__results" role="listbox" aria-label="검색 결과"></div>
+    </div>
+  </div>
 
   <!-- MY 레일 — 개인 영역은 페이지가 아니라 패널이다(IA v3 P4).
        아이콘 56px 만 자리를 차지하고, 펼친 패널 312px 는 본문 위에 얹힌다(폭 불변). -->

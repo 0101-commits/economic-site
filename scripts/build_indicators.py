@@ -128,6 +128,24 @@ ALIASES = {
     "us10y": ["미 10년물", "미국 10년물", "미국채 10년물"],
 }
 
+# 검색어(전역 검색 전용). aliases 와 달리 화면 제목 매칭에는 쓰지 않는다 —
+# '환율' 같은 말은 사람이 검색창에 치는 말이지, 위젯 제목이 아니기 때문이다.
+KEYWORDS = {
+    "usdkrw": ["환율", "달러", "원달러", "달러원"],
+    "eurkrw": ["유로 환율"], "usdjpy": ["엔화", "엔 환율"], "jpykrw": ["엔화", "엔 환율"],
+    "base_rate_kr": ["기준금리", "한국은행", "금리"],
+    "base_rate_us": ["미국 금리", "연준", "FOMC"], "ff_target": ["연준", "정책금리", "FOMC"],
+    "us10y": ["미국 금리", "국채", "장기금리"], "kr10y": ["국고채", "국채", "금리"],
+    "wti": ["유가", "기름값", "원유"], "brent": ["유가", "원유"],
+    "gold": ["금값", "귀금속"], "silver": ["은값", "귀금속"], "copper": ["구리", "비철"],
+    "kospi": ["코스피", "주가", "증시"], "kosdaq": ["코스닥", "주가", "증시"],
+    "sp500": ["미국 증시", "미장"], "nasdaq": ["나스닥", "미국 증시", "미장"],
+    "cpi_kr": ["물가", "인플레이션"], "cpi_us": ["물가", "인플레이션", "미국 물가"],
+    "unemployment_kr": ["고용", "실업"], "unemployment_us": ["고용", "실업"],
+    "vix": ["변동성", "공포"], "vkospi": ["변동성", "공포"],
+    "btc": ["비트코인", "코인", "가상자산"],
+}
+
 # 화면 없이 수집만 되는 것들의 처리 결정(D10). 기획 §C3 의 "결정 필요" 3건.
 COLLECT_ONLY = {
     "btc": "시장>지수 탭에 가상자산 카드 1장으로 노출 예정(P3). 그때까지 수집만.",
@@ -246,6 +264,8 @@ def build(data, mer):
             kw["news"] = news
         if kw["id"] in ALIASES:
             kw["aliases"] = ALIASES[kw["id"]]
+        if kw["id"] in KEYWORDS:
+            kw["keywords"] = KEYWORDS[kw["id"]]
         if kw["id"] in COLLECT_ONLY:
             kw["collectOnly"] = COLLECT_ONLY[kw["id"]]
         rows.append(kw)
