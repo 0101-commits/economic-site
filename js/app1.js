@@ -1119,6 +1119,7 @@ function showPage(id, el) {
   document.querySelectorAll('.menu-item').forEach(m=>{ m.classList.remove('active'); });
   if(el && el.classList) el.classList.add('active');
   try { _econSyncNavCurrent(id); _econNavRemember(id); } catch(_) {}
+  try { if (typeof econRecentPush === 'function') econRecentPush(id); } catch(_) {}   // 최근 본 화면(MY 레일)
   try { const _main = document.getElementById('mainContent'); if(_main) _main.focus({ preventScroll: true }); } catch(_) {}
   // 메뉴 전환 시 최상단으로 스크롤
   try {
@@ -7370,6 +7371,14 @@ const macroCatColors = {
   '부동산':   '#b6c4ff', '소비': window.CUP,
 };
 let _macroIndFilter = 'all';
+// 거시 지표 카드가 10개 분류 55장으로 한 번에 펼쳐져 있었다(IA v3 진단 D2).
+// 분류를 고르면 그 질문 하나만 남는다. 고른 값은 기억한다.
+let _macroCatFilter = (function(){ try { return localStorage.getItem('econ_macro_cat') || 'all'; } catch(_) { return 'all'; } })();
+function setMacroCatFilter(cat, btn) {
+  _macroCatFilter = cat;
+  try { localStorage.setItem('econ_macro_cat', cat); } catch(_) {}
+  buildMacroIndicatorTable();
+}
 
 function filterMacroIndicators(cc, btn) {
   _macroIndFilter = cc;
@@ -7433,7 +7442,18 @@ function buildMacroIndicatorTable() {
     return;
   }
   // 카테고리별 카드 그룹 렌더링 — 카테고리 내에서 다시 토픽별로 sub-grouping
-  const html = `<div class="g-2" style="display:grid;gap:14px;">` + cats.map(cat => {
+  // 분류 칩 — '전체'는 남겨두되, 하나를 고르면 그 분류만 그린다
+  const chipRow = `<div class="econ-catchips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">`
+    + ['all'].concat(cats).map(c => {
+        const on = (_macroCatFilter === c) || (_macroCatFilter === 'all' && c === 'all');
+        const label = c === 'all' ? `전체 ${cats.length}분류` : `${c} ${byCat[c].length}`;
+        return `<button type="button" class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText${on ? ' active' : ''}"
+          onclick="setMacroCatFilter('${c}', this)" aria-pressed="${on}"${on ? ' data-checked' : ''}
+          ><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">${label}</span></button>`;
+      }).join('')
+    + `</div>`;
+  const shownCats = (_macroCatFilter !== 'all' && byCat[_macroCatFilter]) ? [_macroCatFilter] : cats;
+  const html = chipRow + `<div class="g-2" style="display:grid;gap:14px;">` + shownCats.map(cat => {
     const color = macroCatColors[cat] || '#8d90a2';
     // 카테고리 내 indicators 를 토픽별로 다시 그룹화
     const catItems = byCat[cat];

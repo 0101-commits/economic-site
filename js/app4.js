@@ -225,6 +225,7 @@ window.econMarkHeadings = function (root) {
         try { econMarkHeadings(document.getElementById('mainContent')); } catch (_) {}
         try { econMarkSources(document.getElementById('mainContent')); } catch (_) {}
         try { econMarkContext(document.getElementById('mainContent')); } catch (_) {}
+        try { econMarkFavorites(document.getElementById('mainContent')); } catch (_) {}
       }, 200);
     });
     var start = function () {
@@ -323,6 +324,7 @@ window.econPageHook = function (id) {
     try { econMarkHeadings(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkSources(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkContext(document.querySelector('.page.active')); } catch (_) {}
+    try { econMarkFavorites(document.querySelector('.page.active')); } catch (_) {}
     try {
       if (id === 'dashboard') {
         mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',
@@ -829,4 +831,176 @@ function pfExportCsv() {
       });
     } catch(_) {}
   });
+})();
+
+/* ── MY 레일 (IA v3 P4) ───────────────────────────────────────────────────
+   개인 영역이 페이지로 갇혀 있었다(투자 현황·캘린더·노트가 각각 별도 화면).
+   레일은 아이콘 56px 만 자리를 차지하고, 패널 312px 는 본문 위에 얹힌다.
+   상태는 전부 localStorage — 서버로 나가는 것은 없다. */
+(function econRail() {
+  var FAV_KEY = 'econ_fav_v1';
+  var RECENT_KEY = 'econ_recent_v1';
+  var _open = null;
+
+  function favs() {
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]') || []; } catch (_) { return []; }
+  }
+  function saveFavs(list) {
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(list.slice(0, 40))); } catch (_) {}
+  }
+  window.econToggleFav = function (id) {
+    var list = favs();
+    var i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1); else list.unshift(id);
+    saveFavs(list);
+    if (_open === 'fav') render('fav');
+    return favs().indexOf(id) >= 0;
+  };
+  window.econRecentPush = function (pageId) {
+    try {
+      var list = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || [];
+      list = list.filter(function (x) { return x !== pageId; });
+      list.unshift(pageId);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 8)));
+    } catch (_) {}
+  };
+
+  // 위젯 제목 옆 별 — 레지스트리가 아는 지표에만 붙는다(이름 매칭은 econTitleText 공통 규칙)
+  window.econMarkFavorites = function (root) {
+    try {
+      if (!window.ECON_IND) return;
+      var set = favs();
+      (root || document).querySelectorAll('.widget-title').forEach(function (t) {
+        if (t.closest('button, a, [onclick], .clickable-card, .kpi-clickable')) return;
+        var row = window.ECON_IND.find(econTitleText(t));
+        var btn = t.querySelector('.econ-fav');
+        if (!row) { if (btn) btn.remove(); return; }
+        if (!btn) {
+          btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'econ-fav';
+          btn.addEventListener('click', function (ev) {
+            ev.stopPropagation(); ev.preventDefault();
+            var on = econToggleFav(row.id);
+            btn.setAttribute('aria-pressed', String(on));
+            btn.textContent = on ? '★' : '☆';
+          });
+          t.appendChild(btn);
+        }
+        var on = set.indexOf(row.id) >= 0;
+        btn.setAttribute('aria-pressed', String(on));
+        btn.title = (on ? '관심에서 빼기: ' : '관심에 담기: ') + row.label;
+        btn.textContent = on ? '★' : '☆';
+      });
+    } catch (_) {}
+  };
+
+  var TITLES = { fav: '관심 지표', recent: '최근 본 화면', cal: '오늘 일정', pf: '투자 현황' };
+  var PAGE_LABEL = {
+    dashboard: '대시보드 홈', equity: '주식시장', market: '시장 지표', macro: '거시경제',
+    calendar: '경제 일정', realestate: '부동산', investor: '주요 투자자', notes: '분석 노트',
+    study: '스터디 기록', merlens: '메르 렌즈', portfolio: '투자 현황', settings: '설정'
+  };
+
+  function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function valueOf(row) {
+    try {
+      var d = econData();
+      if (!d || !row || !row.data) return '';
+      var node = d, parts = String(row.data).split(':')[0].split('.');
+      for (var i = 0; i < parts.length; i++) { node = node && node[parts[i]]; }
+      if (node == null) return '';
+      var v = (typeof node === 'object') ? (node.value != null ? node.value : node.price) : node;
+      return (v == null) ? '' : (typeof v === 'number' ? v.toLocaleString() : String(v).slice(0, 14));
+    } catch (_) { return ''; }
+  }
+
+  function render(kind) {
+    var body = document.getElementById('econRailBody');
+    var title = document.getElementById('econRailTitle');
+    if (!body || !title) return;
+    title.textContent = TITLES[kind] || '';
+    if (kind === 'fav') {
+      var list = favs();
+      if (!list.length) {
+        body.innerHTML = '<div class="rail-empty">관심 지표가 없습니다.<br>지표 제목 옆의 별을 누르면 여기에 모입니다.</div>';
+        return;
+      }
+      body.innerHTML = list.map(function (id) {
+        var row = window.ECON_IND && window.ECON_IND.get(id);
+        if (!row) return '';
+        return '<div class="rail-row"><button type="button" class="btn-plain" data-goto="' + esc(row.canonical) + '"' +
+               ' style="text-align:left;flex:1;cursor:pointer;color:var(--c-txt);">' + esc(row.label) + '</button>' +
+               '<span style="font-family:var(--font-num);color:var(--c-txt-dim);">' + esc(valueOf(row)) + '</span></div>';
+      }).join('');
+      return;
+    }
+    if (kind === 'recent') {
+      var r = [];
+      try { r = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') || []; } catch (_) {}
+      if (!r.length) { body.innerHTML = '<div class="rail-empty">아직 둘러본 화면이 없습니다.</div>'; return; }
+      body.innerHTML = r.map(function (p) {
+        return '<div class="rail-row"><button type="button" class="btn-plain" data-page="' + esc(p) + '"' +
+               ' style="text-align:left;flex:1;cursor:pointer;color:var(--c-txt);">' + esc(PAGE_LABEL[p] || p) + '</button></div>';
+      }).join('');
+      return;
+    }
+    if (kind === 'cal') {
+      var d = econData();
+      var ev = (d && d.economicCalendar && d.economicCalendar.events) || [];
+      var today = new Date().toISOString().slice(0, 10);
+      var next = ev.filter(function (e) { return String(e.iso || e.date || '').slice(0, 10) >= today; })
+                   .sort(function (a, b) { return String(a.iso || a.date).localeCompare(String(b.iso || b.date)); })
+                   .slice(0, 6);
+      if (!next.length) { body.innerHTML = '<div class="rail-empty">예정된 일정이 없습니다.</div>'; return; }
+      body.innerHTML = '<div class="rail-empty" style="margin-bottom:8px;">앞으로 ' + next.length + '건</div>' +
+        next.map(function (e) {
+          var stars = '★'.repeat(Math.max(0, Math.min(3, e.stars || 0)));
+          return '<div class="rail-row"><span style="flex:1;">' + esc(e.name || e.title || '') +
+                 (stars ? ' <span style="color:var(--c-warn,#f0c75e);">' + stars + '</span>' : '') + '</span>' +
+                 '<span style="color:var(--c-txt-dim);white-space:nowrap;">' + esc(e.dt || e.iso || '') + '</span></div>';
+        }).join('') +
+        '<button type="button" class="btn-plain" data-page="calendar" style="margin-top:10px;color:var(--c-primary);cursor:pointer;">전체 일정 보기 &rsaquo;</button>';
+      return;
+    }
+    body.innerHTML = '<div class="rail-empty">가상 포트폴리오와 종목 알림은 잠금 화면에 있습니다.</div>' +
+      '<button type="button" class="btn-plain" data-page="portfolio" style="margin-top:10px;color:var(--c-primary);cursor:pointer;">투자 현황 열기 &rsaquo;</button>';
+  }
+
+  function toggle(kind) {
+    var panel = document.getElementById('econRailPanel');
+    if (!panel) return;
+    if (_open === kind) { panel.hidden = true; _open = null; }
+    else { render(kind); panel.hidden = false; _open = kind; }
+    document.querySelectorAll('#econRail .econ-rail__btn').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.rail === _open));
+    });
+  }
+
+  function start() {
+    var rail = document.getElementById('econRail');
+    if (!rail) return;
+    document.body.classList.add('has-rail');
+    rail.addEventListener('click', function (ev) {
+      var b = ev.target.closest('.econ-rail__btn');
+      if (b) toggle(b.dataset.rail);
+    });
+    var close = document.getElementById('econRailClose');
+    if (close) close.addEventListener('click', function () { toggle(_open); });
+    var panel = document.getElementById('econRailPanel');
+    if (panel) panel.addEventListener('click', function (ev) {
+      var goto = ev.target.closest('[data-goto]');
+      if (goto) { try { gotoCanonical(goto.dataset.goto); } catch (_) {} return; }
+      var page = ev.target.closest('[data-page]');
+      if (page) { try { showPage(page.dataset.page, menuItemFor(page.dataset.page)); } catch (_) {} }
+    });
+    try { econMarkFavorites(document.getElementById('mainContent')); } catch (_) {}
+    try {
+      var cur = (document.querySelector('.page.active') || {}).id || '';
+      if (cur) econRecentPush(cur.replace(/^page-/, ''));
+    } catch (_) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();

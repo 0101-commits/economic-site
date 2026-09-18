@@ -1784,6 +1784,38 @@ nav#sidebar { backdrop-filter: none !important; -webkit-backdrop-filter: none !i
 .widget.accent-l-warn, .kpi-card.accent-l-warn { border-left: 3px solid var(--c-warn) !important; }
 /* 위젯 제목을 div → h3 로 올렸다(IA v3 P1: 문서 구조·목차·스크린리더).
    UA 기본 여백·크기만 되돌리고, 색·자간은 아래 기존 규칙과 seed 레시피가 그대로 그린다. */
+/* MY 레일(IA v3 P4) — 아이콘 56 은 자리를 차지하고, 패널 312 는 본문 위에 얹는다.
+   1024 이하에서는 숨긴다(좁은 화면은 바텀 내비가 같은 일을 한다). */
+.econ-rail { position: fixed; right: 0; top: var(--frame-top-total); width: 56px;
+             height: calc(100vh - var(--frame-top-total)); background: var(--c-card);
+             border-left: 1px solid var(--c-border); display: flex; flex-direction: column;
+             align-items: center; gap: 2px; padding-top: 8px; z-index: 180; }
+.econ-rail__btn { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;
+                  background: transparent; border: none; border-radius: var(--r-sm);
+                  color: var(--c-txt-dim); cursor: pointer; }
+.econ-rail__btn:hover, .econ-rail__btn:focus-visible { background: var(--c-bg-hover, rgba(127,127,127,.12)); color: var(--c-primary); outline: none; }
+.econ-rail__btn[aria-pressed="true"] { background: var(--c-bg-hover, rgba(127,127,127,.12)); color: var(--c-primary); }
+.econ-rail-panel { position: fixed; right: 56px; top: var(--frame-top-total); width: 312px;
+                   height: calc(100vh - var(--frame-top-total)); background: var(--c-card);
+                   border-left: 1px solid var(--c-border); z-index: 181; overflow-y: auto;
+                   box-shadow: -8px 0 24px rgba(0,0,0,.18); }
+.econ-rail-panel__head { display: flex; align-items: center; justify-content: space-between;
+                         padding: 12px 14px; border-bottom: 1px solid var(--c-border);
+                         position: sticky; top: 0; background: var(--c-card); }
+.econ-rail-panel__title { font-size: var(--font-size-base); font-weight: var(--font-weight-bold); color: var(--c-txt); }
+.econ-rail-panel__body { padding: 12px 14px; font-size: var(--font-size-sm); color: var(--c-txt); }
+.econ-rail-panel__body .rail-row { display: flex; justify-content: space-between; gap: 8px; align-items: center;
+                                   padding: 8px 4px; border-bottom: 1px solid var(--c-border); }
+.econ-rail-panel__body .rail-empty { color: var(--c-txt-dim); line-height: 1.6; }
+body.has-rail #appLayout { padding-right: 56px; }
+@media (max-width: 1024px) {
+  .econ-rail, .econ-rail-panel { display: none; }
+  body.has-rail #appLayout { padding-right: 0; }
+}
+/* 위젯 제목의 관심 별 — 레지스트리 지표에만 붙는다 */
+.econ-fav { margin-left: 6px; background: transparent; border: none; cursor: pointer;
+            color: var(--c-txt-muted); font-size: var(--font-size-sm); line-height: 1; padding: 0 2px; }
+.econ-fav[aria-pressed="true"] { color: var(--c-warn, #f0c75e); }
 /* 원본 화면 링크 — 같은 지표가 여러 화면에 뜰 때, 요약 쪽 제목 옆에만 붙는다(IA v3 P2) */
 /* 숫자 밑 한 줄 맥락 — '왜 움직였나'를 관련 뉴스 제목으로만 말한다(IA v3 P3) */
 .econ-why { display: block; margin-top: 4px; font-size: var(--font-size-xs); color: var(--c-txt-dim);
@@ -2209,6 +2241,22 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="globalDelayChip" class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_warning-variant_weak" title="본 정보는 최대 15분 지연된 데이터 기준입니다.&#10;무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.&#10;(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)"><span class="dot"></span>시세 최대 15분 지연</div>
     </div>
   </nav>
+
+  <!-- MY 레일 — 개인 영역은 페이지가 아니라 패널이다(IA v3 P4).
+       아이콘 56px 만 자리를 차지하고, 펼친 패널 312px 는 본문 위에 얹힌다(폭 불변). -->
+  <div id="econRail" class="econ-rail" aria-label="내 화면">
+    <button type="button" class="econ-rail__btn" data-rail="fav" title="관심 지표" aria-label="관심 지표"><span class="mat" aria-hidden="true">star</span></button>
+    <button type="button" class="econ-rail__btn" data-rail="recent" title="최근 본 화면" aria-label="최근 본 화면"><span class="mat" aria-hidden="true">history</span></button>
+    <button type="button" class="econ-rail__btn" data-rail="cal" title="오늘 일정" aria-label="오늘 일정"><span class="mat" aria-hidden="true">event</span></button>
+    <button type="button" class="econ-rail__btn" data-rail="pf" title="투자 현황" aria-label="투자 현황"><span class="mat" aria-hidden="true">monitoring</span></button>
+  </div>
+  <aside id="econRailPanel" class="econ-rail-panel" hidden aria-label="내 화면 패널">
+    <div class="econ-rail-panel__head">
+      <span id="econRailTitle" class="econ-rail-panel__title">관심 지표</span>
+      <button type="button" class="btn-plain" id="econRailClose" aria-label="패널 닫기" title="닫기">✕</button>
+    </div>
+    <div id="econRailBody" class="econ-rail-panel__body"></div>
+  </aside>
 
   <!-- 모바일 바텀 내비게이션 — SEED 에 CSS 배포가 없어(React Not Planned) 토큰만으로 자체 정의.
        라벨은 무채색·아이콘만 브랜드색(라벨까지 파랗게 하면 대비 3.95:1 로 미달) -->
