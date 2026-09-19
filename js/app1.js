@@ -199,6 +199,7 @@ const INDICATOR_DECIMALS = {
   rate:   2,   // 기준금리·국채 수익률
   pct:    2,   // 등락률 등 백분율
   ratio:  2,   // VIX·PCR 같은 배수
+  aum:    1,   // 기금 운용규모(조원) — 표는 0자리, 카드는 1자리로 갈려 있었다
   count:  0,   // 공포탐욕 지수처럼 정수로 읽는 값
 };
 // v 를 kind 의 자릿수로 고정해 찍는다. trailing zero 를 남기는 것이 요점이다.
@@ -3522,8 +3523,7 @@ function buildGlobalTable() {
   tb.innerHTML = globalIndices.map((d,i)=>`
     <tr aria-selected="${i===mainSelectedGlobalIdx}" title="${d.name} — 행을 누르면 메인 차트가 바뀌어요">
       <td><button type="button" class="gidx-btn" onclick="selectGlobalIndex(${i},this.closest('tr'))" aria-pressed="${i===mainSelectedGlobalIdx}" aria-label="${d.name} — 메인 차트에 표시">${d.name}</button></td>
-      <td class="econ-table--num" onclick="selectGlobalIndex(${i},this.parentElement)">${fmtVal(d.val)}</td>
-      <td class="econ-table--num" onclick="selectGlobalIndex(${i},this.parentElement)">${d.chg == null ? skel('44%') : fmtChg(d.chg)}</td>
+      <td class="econ-table--num" onclick="selectGlobalIndex(${i},this.parentElement)"><span class="econ-numcell"><span class="econ-numcell__val">${fmtVal(d.val)}</span><span class="econ-numcell__chg">${d.chg == null ? skel('44%') : fmtChg(d.chg)}</span></span></td>
       <td class="econ-table--num econ-table--tiny">
         <button onclick="event.stopPropagation(); showGlobalIndexDetail('${d.name}')" class="seed-action-button seed-action-button--variant_ghost seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly" aria-label="${d.name} 상세 차트" title="상세 차트"><span class="mat" aria-hidden="true">candlestick_chart</span></button>
       </td>
@@ -5543,7 +5543,7 @@ function buildEquityPage() {
         <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;">${d.name}</div>
         <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:var(--font-size-sm);font-weight:var(--font-weight-medium);white-space:nowrap;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
       </div>
-      <div style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);margin-top:2px;">${d.val.toLocaleString()}</div>
+      <div style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);font-variant-numeric:tabular-nums;margin-top:2px;">${fmtIndicator(d.val,'index')}</div>
     </div>`).join('');
   // 기본은 KOSPI 실제 시계열 사용 (data.json.history)
   const real = getHistoricalSeries('indices', 'KOSPI');
@@ -6603,7 +6603,7 @@ function buildCommodityPage() {
     cats.forEach(cat => {
       const rows = comData.map((r,i)=>({r,i})).filter(o => o.r.cat === cat);
       if(!rows.length) return;
-      html += `<div style="padding:8px 0 4px;font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:#854f0b;letter-spacing:.05em;border-bottom:1px solid var(--c-border);margin-bottom:4px;">${catLabel[cat]||cat}</div>`;
+      html += `<div style="padding:8px 0 4px;font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:var(--c-txt-dim);letter-spacing:.05em;border-bottom:1px solid var(--c-border);margin-bottom:4px;">${catLabel[cat]||cat}</div>`;
       rows.forEach(({r,i})=>{
         const checked = comSelectedIdx.has(i) ? 'checked' : '';
         html += `<label style="display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--c-border);padding:6px 4px;cursor:pointer;" title="${r.name}">
@@ -7519,7 +7519,7 @@ function buildMacroIndicatorTable() {
           </button>`;
         }).join('');
         return `<div style="background:rgba(255,255,255,0.02);border-radius:var(--r-sm);padding:8px;border-left:3px solid ${color};">
-          <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:${color};margin-bottom:6px;">${topic} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">· ${items.length}개국</span></div>
+          <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">${topic} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">· ${items.length}개국</span></div>
           <div class="g-2" style="display:grid;gap:4px;">${cards}</div>
         </div>`;
       }
@@ -9907,9 +9907,9 @@ function buildInvestorPage() {
       const retCls = h.ret >= 0 ? 'up-txt' : 'down-txt';
       return `<tr onclick="showNpsYearDetail(${h.year})" class="hoverable-row" style="border-bottom:1px solid var(--c-border);cursor:pointer;">
         <td style="padding:8px;"><button type="button" class="btn-plain btn-inline">${h.year}</button></td>
-        <td style="text-align:right;padding:8px;">${h.aum.toLocaleString()}</td>
+        <td style="text-align:right;padding:8px;">${fmtIndicator(h.aum,'aum')}</td>
         <td style="text-align:right;padding:8px;" class="${retCls}">${h.ret>=0?'+':''}${h.ret.toFixed(2)}%</td>
-        <td class="c-opt" style="text-align:right;padding:8px;color:var(--c-primary);">${profit>=0?'+':''}${profit.toLocaleString()}</td>
+        <td class="c-opt" style="text-align:right;padding:8px;color:var(--c-primary);">${profit>=0?'+':''}${fmtIndicator(profit,'aum')}</td>
         <td class="c-opt" style="padding:8px;color:var(--c-txt-dim);font-size:var(--font-size-sm);">${h.note}</td>
       </tr>`;
     }).join('');
@@ -11762,8 +11762,8 @@ const SENTIMENT_GUIDES = {
         <li><span style="color:var(--c-up);">● 12~15</span> — 정상 (역사적 평균 부근)</li>
         <li><span style="color:var(--c-warn);">● 15~20</span> — 시장 과열 시작 (조정 위험 증가)</li>
         <li><span style="color:var(--c-down);">● 20~30</span> — 시장 과열 / 불안 (변동성 확대)</li>
-        <li><span style="color:#b91c1c;">● 30~40</span> — 패닉 진입 (대규모 매도)</li>
-        <li><span style="color:#b91c1c;">● 40 이상</span> — 시스템 위기 (2008 금융위기 ~80, 2020 코로나 82.7 최고)</li>
+        <li><span style="color:var(--ind-neg);">● 30~40</span> — 패닉 진입 (대규모 매도)</li>
+        <li><span style="color:var(--ind-neg);">● 40 이상</span> — 시스템 위기 (2008 금융위기 ~80, 2020 코로나 82.7 최고)</li>
       </ul>
       <strong style="color:var(--c-primary);">💡 활용:</strong> VIX 가 급등하면 풋옵션 매수/안전자산(국채, 금) 선호, VIX 가 낮을 때 콜옵션/위험자산 매수 전략이 일반적입니다.
     `,
@@ -11783,7 +11783,7 @@ const SENTIMENT_GUIDES = {
         <li><span style="color:var(--c-up);">● 15~20</span> — 정상 범위</li>
         <li><span style="color:var(--c-warn);">● 20~30</span> — 시장 과열 (조정 위험)</li>
         <li><span style="color:var(--c-down);">● 30~40</span> — 변동성 확대 (불안 심리)</li>
-        <li><span style="color:#b91c1c;">● 40 이상</span> — 패닉 (2008년 79, 2020년 코로나 69 최고)</li>
+        <li><span style="color:var(--ind-neg);">● 40 이상</span> — 패닉 (2008년 79, 2020년 코로나 69 최고)</li>
       </ul>
       <strong style="color:var(--c-primary);">💡 활용:</strong> VIX 와 비교하여 한국시장 고유의 변동성 변화를 측정. KSVKOSPI - VIX > 5 이면 한국 시장 특이 위험 신호.
     `,
@@ -11803,7 +11803,7 @@ const SENTIMENT_GUIDES = {
         <li><span style="color:var(--c-up);">● 70~100</span> — 정상 (역사적 평균 부근)</li>
         <li><span style="color:var(--c-warn);">● 100~130</span> — 채권 변동성 확대 (금리 인상/인하 사이클 전환기)</li>
         <li><span style="color:var(--c-down);">● 130~150</span> — 채권시장 불안 (2022~2023 금리인상 시기)</li>
-        <li><span style="color:#b91c1c;">● 150 이상</span> — 채권 패닉 (2008 금융위기 250+, 2023.03 SVB 사태 200)</li>
+        <li><span style="color:var(--ind-neg);">● 150 이상</span> — 채권 패닉 (2008 금융위기 250+, 2023.03 SVB 사태 200)</li>
       </ul>
       <strong style="color:var(--c-primary);">💡 활용:</strong> MOVE 가 높을수록 채권 금리 급변동 위험. 통화정책 회의 직전 상승 흔함. VIX 와 동반 상승 시 시스템 위험.
     `,
@@ -11815,17 +11815,17 @@ const SENTIMENT_GUIDES = {
     dataPath: 'sentiment.pcr',
     color: '#9b59b6',  // 보라색 — 라이트/다크 모드 양쪽에서 명확히 보임
     guide: `
-      <strong style="color:#9b59b6;">📊 Put/Call Ratio 란?</strong><br>
+      <strong style="color:var(--c-txt);">📊 Put/Call Ratio 란?</strong><br>
       풋옵션(매도 권리) 거래량 ÷ 콜옵션(매수 권리) 거래량. 시장의 <strong>약세/강세 심리</strong>를 반영하는 역방향 지표입니다.<br><br>
       <strong>해석 기준:</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
         <li><span style="color:var(--c-up);">● 0.5 이하</span> — 콜옵션 과열 (극단적 낙관) → <em>역방향 신호: 조정 가능성</em></li>
         <li><span style="color:var(--c-up);">● 0.5~0.7</span> — 강세 심리 (콜옵션 우세)</li>
-        <li><span style="color:#9b59b6;">● 0.7~1.0</span> — 균형 / 정상</li>
+        <li><span style="color:var(--c-txt);">● 0.7~1.0</span> — 균형 / 정상</li>
         <li><span style="color:var(--c-warn);">● 1.0~1.2</span> — 약세 심리 (풋옵션 우세, 헷지 수요 ↑)</li>
         <li><span style="color:var(--c-down);">● 1.2 이상</span> — 극단적 약세 → <em>역방향 신호: 단기 바닥 가능성</em></li>
       </ul>
-      <strong style="color:#9b59b6;">💡 활용:</strong> 역방향 지표 — PCR 이 극단치(매우 높음/매우 낮음)일 때 단기 추세 반전 신호로 활용. 일별 변동성 크므로 5일 이동평균 권장.
+      <strong style="color:var(--c-txt);">💡 활용:</strong> 역방향 지표 — PCR 이 극단치(매우 높음/매우 낮음)일 때 단기 추세 반전 신호로 활용. 일별 변동성 크므로 5일 이동평균 권장.
     `,
   },
   hy_spread: {
@@ -11843,7 +11843,7 @@ const SENTIMENT_GUIDES = {
         <li><span style="color:var(--c-up);">● 3~4%p</span> — 정상 (역사적 평균 부근)</li>
         <li><span style="color:var(--c-warn);">● 4~6%p</span> — 신용 우려 확산 (경기 둔화 우려)</li>
         <li><span style="color:var(--c-down);">● 6~8%p</span> — 신용시장 불안 (디폴트 우려)</li>
-        <li><span style="color:#b91c1c;">● 8%p 이상</span> — 신용 위기 (2008 금융위기 21%, 2020 코로나 11%, 2016 에너지 위기 9%)</li>
+        <li><span style="color:var(--ind-neg);">● 8%p 이상</span> — 신용 위기 (2008 금융위기 21%, 2020 코로나 11%, 2016 에너지 위기 9%)</li>
       </ul>
       <strong style="color:var(--c-primary);">💡 활용:</strong> 경기침체 선행지표. 스프레드가 1년 내 3%p → 7%p 이상 급등 시 침체 가능성 ↑. VIX, MOVE 와 동반 상승 시 시스템 위험.
     `,
@@ -11863,7 +11863,7 @@ const SENTIMENT_GUIDES = {
         <li><span style="color:var(--c-warn);">● 25~44 (공포)</span> — 시장 약세 심리, 변동성 확대</li>
         <li><span style="color:var(--c-primary);">● 45~54 (중립)</span> — 균형 상태</li>
         <li><span style="color:var(--c-up);">● 55~74 (탐욕)</span> — 시장 강세 심리</li>
-        <li><span style="color:#0f6e56;">● 75~100 (극도 탐욕)</span> — 과열 신호 (역방향, 조정 가능성)</li>
+        <li><span style="color:var(--ind-pos);">● 75~100 (극도 탐욕)</span> — 과열 신호 (역방향, 조정 가능성)</li>
       </ul>
       <strong style="color:var(--c-primary);">💡 활용:</strong> 역발상 지표로 활용 — 극단치(20 이하 / 80 이상) 진입 시 단기 추세 반전 가능성. 단일 지표보다는 VIX·PCR 과 함께 종합 판단.
     `,
@@ -11883,7 +11883,7 @@ const MACRO_GUIDES = {
       <li><span style="color:var(--c-up);">● 0~2%</span> — 안정 (목표 부근)</li>
       <li><span style="color:var(--c-warn);">● 2~3%</span> — 정상 인플레이션</li>
       <li><span style="color:var(--c-down);">● 3~5%</span> — 인플레이션 우려 (금리인상 압력)</li>
-      <li><span style="color:#b91c1c;">● 5% 이상</span> — 고물가 (2022~2023 미국 9.1%, 한국 6.3% 최고치)</li>
+      <li><span style="color:var(--ind-neg);">● 5% 이상</span> — 고물가 (2022~2023 미국 9.1%, 한국 6.3% 최고치)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> Fed/한은 통화정책 결정의 1순위 지표. 근원 CPI(에너지/식품 제외)와 함께 봐야 정확.`,
 
@@ -11891,11 +11891,11 @@ const MACRO_GUIDES = {
     국내총생산의 전년동기 또는 전기 대비 변화율. 경제 활동의 규모를 측정.<br><br>
     <strong>해석 기준 (전년동기비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● -2% 이하</span> — 심각한 경기침체 (recession)</li>
+      <li><span style="color:var(--ind-neg);">● -2% 이하</span> — 심각한 경기침체 (recession)</li>
       <li><span style="color:var(--c-down);">● -2~0%</span> — 침체 (2분기 연속 마이너스 = 기술적 침체)</li>
       <li><span style="color:var(--c-warn);">● 0~1%</span> — 저성장 (스태그플레이션 우려)</li>
       <li><span style="color:var(--c-up);">● 1~3%</span> — 정상 성장 (선진국 평균)</li>
-      <li><span style="color:#0f6e56;">● 3% 이상</span> — 고성장 (한국 잠재성장률 2.0%, 미국 2.5% 부근)</li>
+      <li><span style="color:var(--ind-pos);">● 3% 이상</span> — 고성장 (한국 잠재성장률 2.0%, 미국 2.5% 부근)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 분기별 발표. 한국 잠재성장률 ~2.0%, 그 이하면 경기 둔화 신호.`,
 
@@ -11907,7 +11907,7 @@ const MACRO_GUIDES = {
       <li><span style="color:var(--c-up);">● 한국 3~4% / 미국 4~5%</span> — 정상</li>
       <li><span style="color:var(--c-warn);">● 한국 4~5% / 미국 5~6%</span> — 경기둔화 신호</li>
       <li><span style="color:var(--c-down);">● 한국 5% 이상 / 미국 6% 이상</span> — 경기침체 진입</li>
-      <li><span style="color:#b91c1c;">● 미국 7% 이상</span> — 침체 확정 (2008 10%, 2020 14.7% 코로나)</li>
+      <li><span style="color:var(--ind-neg);">● 미국 7% 이상</span> — 침체 확정 (2008 10%, 2020 14.7% 코로나)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> Sahm Rule — 실업률 3M평균이 12개월 최저치 대비 +0.5%p 이상 상승 시 침체 신호.`,
 
@@ -11915,11 +11915,11 @@ const MACRO_GUIDES = {
     중앙은행이 시중은행에 적용하는 금리. 통화정책의 핵심 도구.<br><br>
     <strong>해석 기준 (중립금리: 한국 ~2.5%, 미국 ~3%):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● 0~0.5%</span> — 양적완화/제로금리 (경기 부양 모드)</li>
+      <li><span style="color:var(--ind-neg);">● 0~0.5%</span> — 양적완화/제로금리 (경기 부양 모드)</li>
       <li><span style="color:var(--c-down);">● 0.5~2%</span> — 완화적 통화정책</li>
       <li><span style="color:var(--c-warn);">● 2~3%</span> — 중립 부근</li>
       <li><span style="color:var(--c-up);">● 3~5%</span> — 긴축 (인플레이션 억제)</li>
-      <li><span style="color:#0f6e56;">● 5% 이상</span> — 강한 긴축 (2023 미국 5.5%, 한국 3.5%)</li>
+      <li><span style="color:var(--ind-pos);">● 5% 이상</span> — 강한 긴축 (2023 미국 5.5%, 한국 3.5%)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 채권시장, 환율, 부동산, 주식 전반에 영향. 금리 인상기 = 채권가격 하락 / 인하기 = 채권가격 상승.`,
 
@@ -11962,11 +11962,11 @@ const MACRO_GUIDES = {
     월간 신고된 부동산 매매계약 건수. 시장 활성도와 수요·공급 균형을 판단하는 1차 지표.<br><br>
     <strong>해석 기준 (한국 전국 월간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● 3만 건 이하</span> — 거래 절벽 (2022~2023 침체기, 2~3만 건)</li>
+      <li><span style="color:var(--ind-neg);">● 3만 건 이하</span> — 거래 절벽 (2022~2023 침체기, 2~3만 건)</li>
       <li><span style="color:var(--c-down);">● 3~5만 건</span> — 위축 (수요 부족)</li>
       <li><span style="color:var(--c-warn);">● 5~7만 건</span> — 정상 (10년 평균 6.5만 부근)</li>
       <li><span style="color:var(--c-up);">● 7~10만 건</span> — 활황</li>
-      <li><span style="color:#0f6e56;">● 10만 건 이상</span> — 과열 (2020 코로나 저금리기 11만+)</li>
+      <li><span style="color:var(--ind-pos);">● 10만 건 이상</span> — 과열 (2020 코로나 저금리기 11만+)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 가격지수에 약 3개월 선행. 거래량 ↓ + 가격 ↓ = 침체 진입, 거래량 ↑ + 가격 보합 = 회복 신호. 자료: 국토교통부 실거래가공개시스템.`,
 
@@ -11974,7 +11974,7 @@ const MACRO_GUIDES = {
     정부가 발급한 신규 주택 건설 허가 건수. 향후 1~3년 후 공급량을 예측하는 선행지표.<br><br>
     <strong>해석 기준 (한국 연간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● 30만 호 이하</span> — 공급 절벽 우려 (3년 후 가격 급등 위험)</li>
+      <li><span style="color:var(--ind-neg);">● 30만 호 이하</span> — 공급 절벽 우려 (3년 후 가격 급등 위험)</li>
       <li><span style="color:var(--c-down);">● 30~40만 호</span> — 위축 (2022~2023 ~40만 호)</li>
       <li><span style="color:var(--c-warn);">● 40~50만 호</span> — 정상 (적정공급 50만 호 추정)</li>
       <li><span style="color:var(--c-up);">● 50만 호 이상</span> — 충분 (2015~2017 ~70만 호 사상 최대)</li>
@@ -11985,7 +11985,7 @@ const MACRO_GUIDES = {
     실제 공사가 시작된 신규 주택의 건설 호수. 인허가보다 더 확실한 공급 선행지표 (1~2년 후 입주).<br><br>
     <strong>해석 기준 (한국 연간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● 25만 호 이하</span> — 공급 절벽 (2~3년 후 시장 압박)</li>
+      <li><span style="color:var(--ind-neg);">● 25만 호 이하</span> — 공급 절벽 (2~3년 후 시장 압박)</li>
       <li><span style="color:var(--c-down);">● 25~35만 호</span> — 위축</li>
       <li><span style="color:var(--c-warn);">● 35~45만 호</span> — 정상</li>
       <li><span style="color:var(--c-up);">● 45만 호 이상</span> — 충분 (2015~2017 60만+)</li>
@@ -11996,23 +11996,23 @@ const MACRO_GUIDES = {
     국가의 대외 거래 결과 — 상품·서비스 수출입 + 본원·이전소득 합산. 흑자/적자가 환율·외환보유고 결정 요인.<br><br>
     <strong>해석 기준 (한국 월간, 억 달러):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● -50억 달러 이하</span> — 큰 적자 (외환위기 위험)</li>
+      <li><span style="color:var(--ind-neg);">● -50억 달러 이하</span> — 큰 적자 (외환위기 위험)</li>
       <li><span style="color:var(--c-down);">● -50~0</span> — 적자</li>
       <li><span style="color:var(--c-warn);">● 0~50</span> — 소폭 흑자</li>
       <li><span style="color:var(--c-up);">● 50~100</span> — 양호한 흑자</li>
-      <li><span style="color:#0f6e56;">● 100억 달러 이상</span> — 큰 흑자 (한국 평균 50~80억)</li>
+      <li><span style="color:var(--ind-pos);">● 100억 달러 이상</span> — 큰 흑자 (한국 평균 50~80억)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 흑자 지속 = 원화 강세 압력, 적자 지속 = 원화 약세 압력. 한국은 12개월 누적 600~700억 달러 흑자가 정상. 자료: 한국은행 ECOS.`,
 
-  exports: `<strong style="color:#0f6e56;">📊 수출 (월간 무역수지) 란?</strong><br>
+  exports: `<strong style="color:var(--ind-pos);">📊 수출 (월간 무역수지) 란?</strong><br>
     당월 상품 수출 총액. 한국 경제는 GDP의 ~40% 가 수출 → 핵심 경기 지표.<br><br>
     <strong>해석 기준 (한국 월간, 억 달러):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● 450억 달러 이하</span> — 수출 부진 (반도체 다운사이클 등)</li>
+      <li><span style="color:var(--ind-neg);">● 450억 달러 이하</span> — 수출 부진 (반도체 다운사이클 등)</li>
       <li><span style="color:var(--c-down);">● 450~550</span> — 위축</li>
       <li><span style="color:var(--c-warn);">● 550~600</span> — 정상</li>
       <li><span style="color:var(--c-up);">● 600~700</span> — 호조</li>
-      <li><span style="color:#0f6e56;">● 700억 달러 이상</span> — 사상 최고 수준 (2024~25 반도체 슈퍼사이클)</li>
+      <li><span style="color:var(--ind-pos);">● 700억 달러 이상</span> — 사상 최고 수준 (2024~25 반도체 슈퍼사이클)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 반도체 비중 약 20~25%. 전년동기비 (YoY) 와 함께 보면 추세 판단. 무역수지 (수출-수입) 흑자 = 원화 강세 요인. 자료: 산업통상자원부 / 관세청.`,
 
@@ -12020,11 +12020,11 @@ const MACRO_GUIDES = {
     광공업(제조업+광업) 생산활동 수준. 2020 = 100 기준. 경기변동의 동행지표.<br><br>
     <strong>해석 기준 (전년동기비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● -5% 이하</span> — 심각한 침체 (2008/2020 -10%대)</li>
+      <li><span style="color:var(--ind-neg);">● -5% 이하</span> — 심각한 침체 (2008/2020 -10%대)</li>
       <li><span style="color:var(--c-down);">● -5~0%</span> — 침체</li>
       <li><span style="color:var(--c-warn);">● 0~3%</span> — 저성장</li>
       <li><span style="color:var(--c-up);">● 3~7%</span> — 정상~호조</li>
-      <li><span style="color:#0f6e56;">● 7% 이상</span> — 호황 (반도체 등 IT 강한 증가세)</li>
+      <li><span style="color:var(--ind-pos);">● 7% 이상</span> — 호황 (반도체 등 IT 강한 증가세)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 제조업 PMI, 수출, GDP 와 동조. 한국은 제조업 비중 ~27% (선진국 평균 15% 대비 高). 자료: 통계청 / 한국은행 ECOS.`,
 
@@ -12032,11 +12032,11 @@ const MACRO_GUIDES = {
     소매업체의 매출액 변동. 가계 소비 지출 = GDP의 ~50%. 내수 경기 핵심 지표.<br><br>
     <strong>해석 기준 (전년동기비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● -5% 이하</span> — 소비 절벽 (불황)</li>
+      <li><span style="color:var(--ind-neg);">● -5% 이하</span> — 소비 절벽 (불황)</li>
       <li><span style="color:var(--c-down);">● -5~0%</span> — 소비 위축</li>
       <li><span style="color:var(--c-warn);">● 0~3%</span> — 약한 회복</li>
       <li><span style="color:var(--c-up);">● 3~6%</span> — 정상</li>
-      <li><span style="color:#0f6e56;">● 6% 이상</span> — 강한 소비 (인플레 우려)</li>
+      <li><span style="color:var(--ind-pos);">● 6% 이상</span> — 강한 소비 (인플레 우려)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 고용·임금·심리지표와 연동. 명목 지수와 실질 지수 (인플레 제외)를 함께 봐야 정확. 자료: 통계청 / 한국은행 ECOS.`,
 
@@ -12048,7 +12048,7 @@ const MACRO_GUIDES = {
       <li><span style="color:var(--c-up);">● 5~10배</span> — 보통</li>
       <li><span style="color:var(--c-warn);">● 10~15배</span> — 부담</li>
       <li><span style="color:var(--c-down);">● 15~20배</span> — 과열 (서울 2024~25 19배대)</li>
-      <li><span style="color:#b91c1c;">● 20배 이상</span> — 매우 위험 (홍콩 23배, 시드니 13배)</li>
+      <li><span style="color:var(--ind-neg);">● 20배 이상</span> — 매우 위험 (홍콩 23배, 시드니 13배)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 한국 전국 평균 ~10배, 서울 ~19배 → 서울 양극화 심화. 자료: KB부동산 / 통계청 가계금융복지.`,
 
@@ -12059,7 +12059,7 @@ const MACRO_GUIDES = {
       <li><span style="color:var(--c-up);">● 50% 이하</span> — 매우 안정</li>
       <li><span style="color:var(--c-warn);">● 50~80%</span> — 정상 (선진국 평균)</li>
       <li><span style="color:var(--c-down);">● 80~100%</span> — 위험 수준</li>
-      <li><span style="color:#b91c1c;">● 100% 이상</span> — 심각 (한국 2024 ~95%, 호주 110%, 스위스 130%)</li>
+      <li><span style="color:var(--ind-neg);">● 100% 이상</span> — 심각 (한국 2024 ~95%, 호주 110%, 스위스 130%)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 한국은 부동산 담보대출이 ~60%. 금리 인상 시 가계의 이자부담 ↑ → 소비 위축. 자료: 한국은행 ECOS.`,
 
@@ -12067,11 +12067,11 @@ const MACRO_GUIDES = {
     구매관리자지수. 신규수주·생산·고용·재고·납기 5개 항목 가중평균. 50 기준.<br><br>
     <strong>해석 기준 (S&P Global / ISM):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:#b91c1c;">● 45 이하</span> — 강한 위축 (불황 신호)</li>
+      <li><span style="color:var(--ind-neg);">● 45 이하</span> — 강한 위축 (불황 신호)</li>
       <li><span style="color:var(--c-down);">● 45~50</span> — 위축 (50 미만이면 제조업 경기 축소)</li>
       <li><span style="color:var(--c-warn);">● 50~52</span> — 보합</li>
       <li><span style="color:var(--c-up);">● 52~55</span> — 정상 성장</li>
-      <li><span style="color:#0f6e56;">● 55 이상</span> — 강한 확장</li>
+      <li><span style="color:var(--ind-pos);">● 55 이상</span> — 강한 확장</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 50 기준선 돌파/하향이 추세 전환 시그널. 매월 1일 첫 영업일 발표 (가장 빠른 경기지표). 자료: S&P Global / ISM.`,
 
@@ -12082,7 +12082,7 @@ const MACRO_GUIDES = {
       <li><span style="color:var(--c-down);">● -2% 이하</span> — 매우 긴축 (2022~23 미국 -3%, 사상 최초)</li>
       <li><span style="color:var(--c-warn);">● -2~3%</span> — 긴축</li>
       <li><span style="color:var(--c-up);">● 3~8%</span> — 정상</li>
-      <li><span style="color:#0f6e56;">● 8% 이상</span> — 강한 완화 (2020 코로나 25%+)</li>
+      <li><span style="color:var(--ind-pos);">● 8% 이상</span> — 강한 완화 (2020 코로나 25%+)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 인플레이션 선행지표. M2 ↑ → 12~18개월 후 인플레 ↑. Fed/한은의 양적완화·긴축 효과를 가시화. 자료: Fed (FRED: M2SL) / 한국은행 ECOS.`,
 
@@ -12093,8 +12093,8 @@ const MACRO_GUIDES = {
       <li><span style="color:var(--c-down);">● 90 이하</span> — 달러 약세 (신흥국 자금유입)</li>
       <li><span style="color:var(--c-warn);">● 90~100</span> — 보합</li>
       <li><span style="color:var(--c-up);">● 100~105</span> — 정상~소폭 강세</li>
-      <li><span style="color:#0f6e56;">● 105 이상</span> — 강한 달러 (한국 원화 약세, 신흥국 자본유출)</li>
-      <li><span style="color:#b91c1c;">● 110 이상</span> — 매우 강함 (2022 114, 1985 165 사상 최고)</li>
+      <li><span style="color:var(--ind-pos);">● 105 이상</span> — 강한 달러 (한국 원화 약세, 신흥국 자본유출)</li>
+      <li><span style="color:var(--ind-neg);">● 110 이상</span> — 매우 강함 (2022 114, 1985 165 사상 최고)</li>
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 원자재 가격과 역의 상관. 달러 ↑ = 금/원유 가격 ↓ (달러 표시). Fed 금리 ↑ = 달러 ↑. 자료: ICE / Fed.`,
 };
@@ -12559,6 +12559,37 @@ function applyRealData(d) {
     if (k && idx[k]) { g.val = idx[k].price; g.chg = idx[k].change; }
   });
 
+  // ── 52주 위치 바 — 값 카드 안에서 1년 범위 대비 현재 위치를 보여준다(§C7) ────
+  // 데이터는 이미 있는 history(일별 종가)를 쓴다. 252 거래일이 1년이고, 그보다 짧으면
+  // 있는 만큼으로 계산하되 60일 미만이면 그리지 않는다(범위라고 부를 수 없다).
+  const econRangeBar = (cardId, cat, name, cur, kind) => {
+    try {
+      const card = document.getElementById(cardId);
+      if (!card || cur == null || !isFinite(+cur)) return;
+      const ser = (typeof getHistoricalSeries === 'function') ? getHistoricalSeries(cat, name) : null;
+      if (!ser || ser.length < 60) return;
+      const ys = ser.slice(-252).map(p => +p.y).filter(v => isFinite(v));
+      if (ys.length < 60) return;
+      const lo = Math.min(...ys), hi = Math.max(...ys);
+      if (!(hi > lo)) return;
+      const pct = Math.max(0, Math.min(100, ((+cur - lo) / (hi - lo)) * 100));
+      let bar = card.querySelector('.econ-range');
+      if (!bar) {
+        bar = document.createElement('span');
+        bar.className = 'econ-range';
+        bar.innerHTML = '<span class="econ-range__track"><span class="econ-range__dot"></span></span>' +
+                        '<span class="econ-range__ends"><span class="lo"></span><span class="hi"></span></span>';
+        const spark = card.querySelector('.econ-stat__spark');
+        card.insertBefore(bar, spark || null);
+      }
+      bar.querySelector('.econ-range__dot').style.left = pct.toFixed(1) + '%';
+      bar.querySelector('.lo').textContent = fmt(lo, kind);
+      bar.querySelector('.hi').textContent = fmt(hi, kind);
+      bar.title = '52주 범위 ' + fmt(lo, kind) + ' ~ ' + fmt(hi, kind) +
+                  ' · 현재 위치 ' + Math.round(pct) + '%';
+    } catch (_) {}
+  };
+
   // ── 대시보드 KPI 카드 DOM 업데이트 ──────────────
   const kpiUpd = (priceId, chgId, priceStr, changePct) => {
     const pEl = document.getElementById(priceId);
@@ -12574,6 +12605,10 @@ function applyRealData(d) {
   if (idx.KOSPI)   kpiUpd('kpi-kospi-price', 'kpi-kospi-chg', fmt(idx.KOSPI.price, 'index'), idx.KOSPI.change);
   if (fx.USDKRW)  kpiUpd('kpi-fx-price',    'kpi-fx-chg',    fmt(fx.USDKRW.rate, 'fx'),  fx.USDKRW.change);
   if (com.WTI)    kpiUpd('kpi-wti-price',   'kpi-wti-chg',   '$'+fmt(com.WTI.price, 'oil'), com.WTI.change);
+  // 52주 위치 바(§C7) — history 1년 구간의 최저·최고 사이에서 현재가가 어디인지.
+  if (idx.KOSPI)  econRangeBar('kpi-kospi', 'indices', 'KOSPI', idx.KOSPI.price, 'index');
+  if (fx.USDKRW)  econRangeBar('kpi-fx', 'fx', 'USDKRW', fx.USDKRW.rate, 'fx');
+  if (com.WTI)    econRangeBar('kpi-wti', 'commodities', 'WTI', com.WTI.price, 'oil');
 
   // ── 한국 기준금리 KPI 카드 — ECOS 데이터로 최신값 반영 ──────────
   const ecosKr = (d.economicIndicators || {}).kr || {};

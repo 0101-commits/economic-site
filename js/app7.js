@@ -302,6 +302,8 @@ function _merMonitorRowHtml(ind) {
 var _merMonitorIndicators = [];
 var _merMonitorAll = false;          // 좁은 화면에서 '전체 보기'를 눌렀는지
 var MER_MOBILE_ROWS = 8;             // 좁은 화면 기본 노출 행 수
+var MER_DESKTOP_ROWS = 16;           // 1440 기본 노출 행 수(§C6). 48행 전부면 1,942px 다.
+                                     // 정렬이 '임계까지의 거리'순이라 앞이 곧 급한 것이다.
 function _merNarrow() { return (window.innerWidth || 1024) < 768; }
 
 // 48지표를 다 읽기 전에 '지금 몇 개가 걸렸나'부터 말한다. 모바일 요약의 핵심 한 줄.
@@ -350,7 +352,8 @@ function _merRenderMonitorBody() {
   var list = _merMonitorIndicators.filter(function (ind) { return _merMonitorFilter === 'all' || ind.state === _merMonitorFilter; });
   // 좁은 화면에서는 임계에 가까운 순으로 앞의 8개만 편다(48행 전부면 7,400px).
   // 정렬이 이미 '가장 가까운 레벨까지의 거리'순이라, 앞이 곧 급한 것이다.
-  var limited = (_merNarrow() && !_merMonitorAll) ? list.slice(0, MER_MOBILE_ROWS) : list;
+  var cap = _merNarrow() ? MER_MOBILE_ROWS : MER_DESKTOP_ROWS;
+  var limited = _merMonitorAll ? list : list.slice(0, cap);
   body.innerHTML = limited.map(_merMonitorRowHtml).join('') || '<tr><td colspan="6" style="color:var(--c-txt-dim);">해당 상태의 지표가 없습니다.</td></tr>';
   var host = body.closest('.widget');
   var more = host ? host.querySelector('.mer-more') : null;
@@ -364,7 +367,7 @@ function _merRenderMonitorBody() {
       (host.querySelector('.econ-table__scroll') || host).insertAdjacentElement('afterend', more);
     }
     more.textContent = '나머지 ' + hidden + '개 지표 보기';
-  } else if (more && !(_merNarrow() && !_merMonitorAll)) {
+  } else if (more && _merMonitorAll) {
     more.remove();
   }
 }

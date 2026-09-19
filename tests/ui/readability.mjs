@@ -120,9 +120,13 @@ function collect() {
   // G6 — 같은 지표가 화면 두 곳에서 다른 자릿수로 나오는가.
   // 천단위 쉼표가 붙은 값만 본다. 쉼표 없는 정수는 개수·연도·순위·날짜 조각이 섞여
   // 들어와 "10: 0/2자리" 같은 오탐만 남긴다(첫 판에서 8건 전부 그것이었다).
+  // 산문은 세지 않는다 — 뉴스 제목·요약에 박힌 숫자("원·달러 1,380원 돌파")는
+  // 우리가 포맷한 값이 아니라 남의 문장이다. 값 슬롯끼리만 비교한다(2026-09-19).
+  const PROSE = '.econ-why, .note-line, .news-item, .brief-item, .mer-quote, li, p, blockquote';
   const seen = {};
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let n; (n = walk.nextNode());) {
+    if (n.parentElement && n.parentElement.closest(PROSE)) continue;
     for (const m of n.textContent.match(/\d{1,3}(,\d{3})+(\.\d+)?/g) || []) {
       const body = m.replace(/,/g, '');
       const dec  = (body.split('.')[1] || '').length;

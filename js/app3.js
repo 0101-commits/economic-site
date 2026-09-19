@@ -1940,6 +1940,40 @@ function initHomeDnd() {
 // 카드마다 흩어져 있던 '15분 지연' 경고문을 단일 상시 표시 칩으로 일원화.
 // 좌하단 플로팅이 본문을 가린다는 피드백으로 사이드바 정적 마크업으로 이전됨 —
 // 이 함수는 마크업 누락 시에만 사이드바에 보강 삽입하는 안전망.
+/* ── 시장 상태 배지(기획안 §C4) ────────────────────────────────────────
+   왜: 우리 화면의 숫자는 소스마다 갱신 주기가 다르다(10분·1시간·일 1회·PC 스냅샷).
+   "지금 보는 값이 어느 장의 것인가"를 먼저 말해야 나머지 as-of 표기가 의미를 갖는다.
+   휴장 판정은 data.json.marketCalendarKr(KRX 확정) 를 먼저 믿고, 날짜가 오늘이
+   아니면 주말만 걸러낸다(Nager 폴백은 여기 두지 않는다 — 배지 하나가 네트워크를
+   부르지 않게). KRX 정규장 09:00~15:30, 애프터마켓은 20:00 까지(2026 확대). */
+function econMarketStatus(now) {
+  var d = new Date(now || Date.now());
+  // KST 고정 — 로컬 시간대가 무엇이든 한국장 기준으로 읽는다
+  var kst = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + (9 * 3600000));
+  var dow = kst.getDay(), hm = kst.getHours() * 60 + kst.getMinutes();
+  var ymd = kst.getFullYear() + '-' + String(kst.getMonth() + 1).padStart(2, '0') + '-' + String(kst.getDate()).padStart(2, '0');
+  var holiday = false;
+  try {
+    var cal = (typeof econData === 'function' ? econData() : null);
+    var t = cal && cal.marketCalendarKr && cal.marketCalendarKr.today;
+    if (t && t.date === ymd) holiday = (t.open === false);
+  } catch (_) {}
+  if (dow === 0 || dow === 6 || holiday) return { label: '휴장', open: false, hint: '주말·공휴일 — 직전 거래일 종가' };
+  if (hm >= 540 && hm <= 930)  return { label: 'KRX 정규장', open: true,  hint: '09:00~15:30 · 시세 최대 15분 지연' };
+  if (hm > 930 && hm <= 1200)  return { label: '애프터마켓', open: true,  hint: '15:40~20:00 시간외 단일가' };
+  if (hm > 1200 || hm < 540)   return { label: '장마감', open: false, hint: '정규장 종료 — 종가 기준' };
+  return { label: '장마감', open: false, hint: '' };
+}
+function renderMarketStatus() {
+  var el = document.getElementById('mktStatus');
+  if (!el) return;
+  var s = econMarketStatus();
+  el.textContent = s.label;
+  el.hidden = false;
+  el.dataset.open = s.open ? '1' : '0';
+  el.title = s.label + (s.hint ? ' — ' + s.hint : '');
+}
+
 function initGlobalDelayChip() {
   if(document.getElementById('globalDelayChip')) return;
   const sb = document.getElementById('sidebar');
@@ -1960,7 +1994,10 @@ function initGlobalDelayChip() {
 // unset 이 필요한 이유: '기본 접힘' 위젯(지표 비교)을 사용자가 펼친 것과, 아직
 // 아무 선택도 없는 상태를 구분해야 새 기본값이 사용자의 선택을 덮지 않는다.
 var WCOLLAPSE_LS = 'econ_widget_collapse_v2';
-var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트', '이벤트·재고'];   // 제목 부분일치(모든 폭)
+var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트', '이벤트·재고',
+  // §C6(2026-09-19) — 메르 렌즈 1440 이 7.45화면이었다(벤치 네이버 PC 홈 5.6 · 토스 홈 5.7).
+  // 매트릭스는 '언급 없음' 빈 칸이 대부분이라 펼친 채 둘 이유가 가장 약하다.
+  '민감도 매트릭스'];   // 제목 부분일치(모든 폭)
 // 모바일(<768)에서만 기본 접힘 — L3(차트·등락·뉴스)은 '왜·어떻게'를 묻는 층이라
 // 첫 스크롤에서 답할 필요가 없다. 사용자가 펼치면 그 선택은 저장된다.
 // L2(지수표·분위기)까지 넣은 이유: 390 폭에서 L1+L2 만으로 1,600px 를 써서 홈이
@@ -1973,7 +2010,11 @@ var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 추이', '등락 Top10', '최�
                                           // 메르 렌즈는 390 에서 18화면이었다 — 무거운 4블록은 접고 시작한다
                                           '전이 경로 맵', '민감도 매트릭스', '뷰 타임라인', '이벤트·재고',
                                           // 주식시장은 표 6개 83행이 한 화면에 이어졌다 — 대표 2표만 펼친다
-                                          'ETF 상승', 'ETF 하락', '거래대금 Top20', '토스증권 체결'];
+                                          'ETF 상승', 'ETF 하락', '거래대금 Top20', '토스증권 체결',
+                                          // §C6(2026-09-19) — 390 에서 거시 4.5화면 · 부동산 4.2화면(M5 기준 4.0).
+                                          // 뉴스 625px · 청약 299px · 공급 213px 는 '왜·어떻게' 층이라 첫 스크롤에서
+                                          // 답할 필요가 없다. 펼친 선택은 그대로 저장된다.
+                                          '거시경제 관련 뉴스', '청약 경쟁률', '주택 공급·임대 지표'];
 function _wcLoadMap(){
   try { return JSON.parse(localStorage.getItem(WCOLLAPSE_LS) || '{}') || {}; } catch(_) { return {}; }
 }
@@ -2167,18 +2208,35 @@ function _healthWorstFor(dataPath){
   });
   return worst;
 }
+/* 이 위젯이 보여주는 값의 기준 시점 — 지표별 as_of 가 있으면 그것, 없으면
+   파이프라인 갱신 시각. 화면에는 띄우지 않고 data-asof/title 로만 남긴다(§C4).
+   "정상이면 침묵" 원칙과 "언제 것인지 알 수 있어야 한다"를 동시에 만족시키는 방법:
+   눈에 보이는 경고는 이상할 때만, 확인 수단(툴팁·게이트)은 항상. */
+function _globalAsOf(){
+  try {
+    var d = (typeof econData === 'function') ? econData() : null;
+    return (d && (d.lastUpdated || d.generatedAt)) ||
+           (window._lastServerDataTs || window._lastRealDataTs || '');
+  } catch(_) { return ''; }
+}
+function _stampAsOf(t, asof, note){
+  if(!t) return;
+  var v = asof || _globalAsOf();
+  if(!v) return;
+  t.dataset.asof = String(v);
+  var txt = '기준 시점 ' + String(v).replace('T', ' ').slice(0, 16);
+  t.title = note ? (txt + ' · ' + note) : txt;
+}
 function applyWidgetFreshChips(root){
-  if(!window.ECON_IND) return;
   var scope = root || document;
   scope.querySelectorAll('.widget-title').forEach(function(t){
     var name = (typeof econTitleText === 'function') ? econTitleText(t) : (t.textContent || '').trim();
-    if(!name || name.length > 24) return;
-    var row = window.ECON_IND.find(name);
-    if(!row) return;
+    var row = (window.ECON_IND && name && name.length <= 24) ? window.ECON_IND.find(name) : null;
     var old = t.querySelector('.w-fresh-chip');
     if(old) old.remove();
-    var worst = _healthWorstFor(row.data);
-    if(!worst) return;   // 정상일 때는 침묵한다 — 늘 떠 있는 칩은 경고가 아니다
+    var worst = row ? _healthWorstFor(row.data) : null;
+    if(!worst) { _stampAsOf(t, null); return; }   // 정상일 때는 침묵한다 — 늘 떠 있는 칩은 경고가 아니다
+    _stampAsOf(t, worst.asOf, worst.state === 'stale' ? ('지연 ' + worst.ageDays + '일') : worst.state);
     var chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'w-fresh-chip btn-plain btn-inline';
@@ -2210,6 +2268,7 @@ window.addEventListener('load', () => {
   try { initWidgetCollapse(); } catch(_) {}   // Phase 3 — 위젯 접기
   try { buildPageTocs(); } catch(_) {}        // Phase 3 — 페이지 목차 칩
   try { initGlobalDelayChip(); } catch(_) {}
+  try { renderMarketStatus(); setInterval(renderMarketStatus, 60000); } catch(_) {}   // §C4 시장 상태
   // data.json 이 이미 적용된 경우(applyRealData 가 먼저 돈 경우) 비교 차트 즉시 초기화
   try { initCompareTool(); } catch(_) {}
   // 📌 브리핑 스트립 — 데이터 도착 전에도 '다음 일정' 칩은 정적 calEvents 로 선표시

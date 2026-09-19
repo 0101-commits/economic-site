@@ -178,7 +178,10 @@ function collect(a) {
 
   // M5 · M6 — 길이와 첫 데이터까지의 거리
   const y = e => Math.round(e.getBoundingClientRect().top + window.scrollY);
-  const dataEls = [...active.querySelectorAll('canvas,table,.econ-row,svg')].filter(visible).map(y);
+  // 값 카드도 데이터다 — 차트·표만 세면 KPI 4카드로 시작하는 화면이 "데이터 없음"으로
+  // 잡힌다(2026-09-19). 벤치마크의 첫 지수 스트립(네이버 m 142px)도 값 카드다.
+  const dataEls = [...active.querySelectorAll('canvas,table,.econ-row,svg,.kpi-card,.econ-stat,.econ-num,.econ-data')]
+    .filter(visible).map(y);
   const firstData = dataEls.length ? Math.min(...dataEls) : null;
 
   // M7 — 가로 넘침 (의도된 가로 스크롤 영역은 뺀다)

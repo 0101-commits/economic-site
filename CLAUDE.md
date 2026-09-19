@@ -114,7 +114,27 @@ node tests/ui/important.mjs                          # !important 가 아직 인
 node tests/ui/gridcheck.mjs                          # 격자·차트높이 클래스의 폭별 계산값 + 가로 넘침
 node tests/ui/readability.mjs                        # 데스크톱 1440 가독성 G1~G6
 node tests/ui/mobile-readability.mjs                 # 390 모바일 가독성 M1~M7 (10페이지 × 라이트/다크)
+node tests/ui/uxgates.mjs                            # G7~G9·M8 (1440·390, 10페이지)
 ```
+
+**데스크톱이 모바일보다 작았다 (기획안 `docs/superpowers/specs/2026-09-19-readability-ux-plan-design.md`).**
+9/18 에 모바일만 한 칸 올린 결과 1440 본문이 12px/w400 731곳으로 390(14px)보다 작아져 있었다.
+브리지의 데스크톱 스케일을 xs 12→13 · sm 13→14 · md 13→14 로 올려 맞췄다(base 14 는 그대로 —
+16 으로 올리면 화면이 길어져 G9 와 충돌한다). 표는 셀 t3·머리 t2 로, 11px 를 직접 물고 있던
+배지·단위 recipe 는 t2 로 올렸다. 텍스트 위계는 `--c-txt`(gray-1000) / `--c-txt-dim`(gray-900) /
+`--c-txt-muted`(gray-800) 세 단이다 — 전에는 dim 과 muted 가 같은 토큰이라 두 단이었다.
+`fg-neutral-subtle`(3.42:1)은 여전히 텍스트 금지.
+
+**홈은 3열이다(§C8).** 글로벌 지수 목록은 `homeSecWatch` 가 아니라 **`homeSecMain` 안**에 있다 —
+좌 목록(sp-lg-3) · 중 메인 차트(sp-lg-6) · 우 등락 Top10(sp-lg-3), 우측 개인화는 MY 레일.
+목록 행 클릭은 페이지 이동이 아니라 `selectGlobalIndex` 로 **중앙 차트만 바꾼다**. 목록의 현재가·
+등락률은 한 칸에 값 위·등락 아래(`.econ-numcell`)다 — 좁은 칼럼에서 두 줄로 깨지던 자리다.
+
+`uxgates.mjs` 의 네 기준: **G7** 토큰을 거치지 않은 글자색 0(브라우저 기본 링크색·계열색 리터럴) ·
+**G8** 데이터 위젯의 `data-asof` 각인 100% + 시장 상태 배지(표시는 "정상이면 침묵", 확인 수단은 항상) ·
+**G9** 화면수 1440 ≤5.5 · 390 ≤4.0(벤치 실측: Npay PC 홈 5.6 · 토스 홈 5.7) ·
+**M8** 첫 데이터까지 420px(첫 화면의 절반). 산문 줄은 `.note-line`/`.econ-prose` 가 44em 에서 접는다.
+`.econ-data` 는 표도 차트도 아니지만 값이 들어 있는 블록의 표식이다(캘린더 격자) — 게이트가 '데이터'로 센다.
 
 **모바일은 따로 잰다 (기획안 1xWjJ5MM).** `readability.mjs` 는 1440 에서 두 페이지만 보고,
 그 둘이 하필 390 에서도 대비 미달 0 인 페이지였다 — 나머지 8페이지의 36곳이 게이트 밖에 있었다.

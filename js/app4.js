@@ -327,6 +327,7 @@ window.econPageHook = function (id) {
     try { econMarkHeadings(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkSources(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkContext(document.querySelector('.page.active')); } catch (_) {}
+    try { applyWidgetFreshChips(document.querySelector('.page.active')); } catch (_) {}   // §C4 as-of 각인
     try { econMarkFavorites(document.querySelector('.page.active')); } catch (_) {}
     try { econMakeTablesSortable(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkScrollables(document.querySelector('.page.active')); } catch (_) {}
