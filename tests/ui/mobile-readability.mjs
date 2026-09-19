@@ -142,8 +142,11 @@ function collect(a) {
 
   // M3 — 탭 타깃. 히트 영역을 ::after 로 넓힌 것은 통과여야 하므로 의사요소까지 본다.
   const taps = [];
+  // 남의 위젯(네이버 지도 SDK)이 심는 저작권·약관 링크는 우리 DOM 이 아니다 — 세지 않는다.
+  const THIRD_PARTY = '#reRegionNaverMap, .nmap, [class^="nmap"], iframe';
   active.querySelectorAll('button,a[href],input,select,textarea,[role="button"],summary').forEach(e => {
     if (!visible(e)) return;
+    if (e.closest(THIRD_PARTY)) return;
     const r = e.getBoundingClientRect();
     let w = r.width, h = r.height;
     for (const pe of ['::after', '::before']) {

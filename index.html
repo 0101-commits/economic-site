@@ -2095,6 +2095,9 @@ body.has-rail #appLayout { padding-right: 56px; }
             letter-spacing: 0; text-transform: none; color: var(--c-txt-dim); text-decoration: none;
             border-bottom: 1px dotted var(--c-border); white-space: nowrap; }
 .econ-src:hover, .econ-src:focus-visible { color: var(--c-primary); border-bottom-color: var(--c-primary); outline: none; }
+/* 손가락 입력에서 원본 링크가 16px 높이였다(M3 하한 24) — 글자 크기는 그대로 두고
+   눌리는 영역만 넓힌다. */
+@media (pointer: coarse) { .econ-src { display: inline-flex; align-items: center; min-height: 24px; } }
 h3.widget-title { margin-top: 0; margin-bottom: var(--spacing-3); font-size: var(--font-size-sm); }
 h3.widget-title[class*="seed-"] { font-size: inherit; }
 
