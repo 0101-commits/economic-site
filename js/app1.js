@@ -202,6 +202,28 @@ const INDICATOR_DECIMALS = {
   aum:    1,   // 기금 운용규모(조원) — 표는 0자리, 카드는 1자리로 갈려 있었다
   count:  0,   // 공포탐욕 지수처럼 정수로 읽는 값
 };
+// 채움색 위의 글자색 — 명도로 고른다(대비가 큰 쪽을 고른다).
+// 다크에서 하락 파랑(#41a2f9) 채움 + 흰 글자가 2.71:1 이었다(G1, 부동산 지도 마커 24곳).
+// 채움색은 테마에 따라 뒤집히므로(CUP/CDN) 글자색을 고정하면 한쪽 테마가 반드시 깨진다.
+function _onFill(fill) {
+  try {
+    var c = String(fill).trim(), r, g, b;
+    if (c[0] === '#') {
+      var h = c.slice(1);
+      if (h.length === 3) h = h.split('').map(function (x) { return x + x; }).join('');
+      r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+    } else {
+      var m = c.match(/\d+/g);
+      if (!m || m.length < 3) return '#ffffff';
+      r = +m[0]; g = +m[1]; b = +m[2];
+    }
+    var lin = function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    var L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    var onWhite = 1.05 / (L + 0.05);          // 흰 글자 대비
+    var onDark = (L + 0.05) / 0.0575;         // 어두운 글자(#16171b) 대비
+    return onDark > onWhite ? '#16171b' : '#ffffff';
+  } catch (_) { return '#ffffff'; }
+}
 // v 를 kind 의 자릿수로 고정해 찍는다. trailing zero 를 남기는 것이 요점이다.
 // kind 를 모르면 index 로 본다(대부분의 화면 수치가 2자리다).
 function fmtIndicator(v, kind) {
@@ -1639,7 +1661,7 @@ function buildOsmRegionMap() {
     const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
     const icon = L.divIcon({
       className: 'osm-region-marker',
-      html: `<div style="background:${color};color:#fff;padding:3px 7px;border-radius:var(--r-md);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
+      html: `<div style="background:${color};color:${_onFill(color)};padding:3px 7px;border-radius:var(--r-md);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
         <div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);">${d.label}</div>
         <div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);">${valStr}</div>
       </div>`,
@@ -1758,7 +1780,7 @@ async function buildNaverRegionMap() {
       position: new naver.maps.LatLng(ll.lat, ll.lng),
       map: _naverRegionMap,
       icon: {
-        content: `<div style="background:${color};color:#fff;padding:4px 8px;border-radius:var(--r-lg);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;cursor:pointer;line-height:1.2;">
+        content: `<div style="background:${color};color:${_onFill(color)};padding:4px 8px;border-radius:var(--r-lg);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;cursor:pointer;line-height:1.2;">
           <div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);">${d.label}</div>
           <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);">${valStr}</div>
         </div>`,
@@ -2670,7 +2692,7 @@ function buildUsOsmRegionMap() {
     const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
     const icon = L.divIcon({
       className: 'osm-us-region-marker',
-      html: `<div style="background:${color};color:#fff;padding:3px 7px;border-radius:var(--r-md);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
+      html: `<div style="background:${color};color:${_onFill(color)};padding:3px 7px;border-radius:var(--r-md);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
         <div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);">${d.code}</div>
         <div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);">${valStr}</div>
       </div>`,
@@ -6179,7 +6201,7 @@ const ENSO_STANCE = {
 };
 function _ensoStanceChip(stance) {
   const s = ENSO_STANCE[stance] || ENSO_STANCE.mixed;
-  return `<span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:#fff;background:${s.color};border-radius:var(--r-full);padding:1px 8px;white-space:nowrap;">${s.label}</span>`;
+  return `<span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:${_onFill(s.color)};background:${s.color};border-radius:var(--r-full);padding:1px 8px;white-space:nowrap;">${s.label}</span>`;
 }
 // 분석 렌즈 탭 — 'sector'(기존 ①②) | 'macro'(신규 시간축 거시 파급)
 function ensoLensTabsHTML() {
@@ -6291,7 +6313,7 @@ function ensoHeadlineHTML(live){
     <span style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);color:${col};line-height:1;">${v>=0?'+':''}${v.toFixed(2)}<span style="font-size:var(--font-size-base);font-weight:var(--font-weight-semibold);">°C</span></span>
     <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:200px;">
       <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">
-        <span style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:#fff;background:${col};border-radius:var(--r-full);padding:1px 10px;">${strl?strl+' ':''}${phl}</span>
+        <span style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:${_onFill(col)};background:${col};border-radius:var(--r-full);padding:1px 10px;">${strl?strl+' ':''}${phl}</span>
         <span style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">ONI ${live.oni.asOf||''} · 추세 ${arrow} ${trend}${wk!==null?` · 주간 Niño3.4 ${wk>=0?'+':''}${wk.toFixed(1)}°C`:''}</span>
       </div>
       <div style="font-size:var(--font-size-sm);color:var(--c-txt);line-height:1.5;">${plain}</div>
