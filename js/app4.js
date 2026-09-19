@@ -15,7 +15,7 @@ window.initSettingsPage = function () {
   document.querySelectorAll('#setPresetGroup .tab-btn').forEach(function (b) {
     var on = (b.dataset.preset || '') === (s.chart.defaultPreset || '');
     b.style.background = on ? getThemeColors().accent : 'transparent';
-    b.style.color = on ? '#fff' : '#8d90a2';
+    b.style.color = on ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
   });
   var st = document.querySelector('input[name="setPfStyle"][value="' + (s.chart.pfStyle || 'candle') + '"]');
   if (st) st.checked = true;
@@ -129,7 +129,7 @@ window.settingsSetPreset = function (p, btn) {
   document.querySelectorAll('#setPresetGroup .tab-btn').forEach(function (b) {
     var on = b === btn;
     b.style.background = on ? getThemeColors().accent : 'transparent';
-    b.style.color = on ? '#fff' : '#8d90a2';
+    b.style.color = on ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
   });
   // 페이지별 '1회 적용' 플래그 리셋 → 다음 진입 시 새 기본 기간이 다시 적용되게
   document.querySelectorAll('[data-default-applied]').forEach(function (el) { delete el.dataset.defaultApplied; });
@@ -228,6 +228,7 @@ window.econMarkHeadings = function (root) {
         try { econMarkFavorites(document.getElementById('mainContent')); } catch (_) {}
         try { econMakeTablesSortable(document.getElementById('mainContent')); } catch (_) {}
         try { econMarkScrollables(document.getElementById('mainContent')); } catch (_) {}
+        try { econFoldControls(document.getElementById('mainContent')); } catch (_) {}
       }, 200);
     });
     var start = function () {
@@ -329,6 +330,7 @@ window.econPageHook = function (id) {
     try { econMarkFavorites(document.querySelector('.page.active')); } catch (_) {}
     try { econMakeTablesSortable(document.querySelector('.page.active')); } catch (_) {}
     try { econMarkScrollables(document.querySelector('.page.active')); } catch (_) {}
+    try { econFoldControls(document.querySelector('.page.active')); } catch (_) {}
     try {
       if (id === 'dashboard') {
         mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',
@@ -1163,6 +1165,147 @@ window.econMarkScrollables = function (root) {
     });
   } catch (_) {}
 };
+
+/* ── 좁은 화면 컨트롤 접기 (기획안 1xWjJ5MM P4) ──────────────────────────
+   390 에서 첫 화면의 38~62%를 버튼이 먹고 있었다(realestate 430/699px). 지표를 보려면
+   컨트롤 한 화면을 먼저 지나야 한다는 뜻이다. 데스크톱은 그대로 두고, ≤480 에서만
+   「선택지 묶음」을 「지금 고른 것 ▾」 한 줄로 접는다. 누르면 원래 묶음이 그대로
+   펼쳐진다 — DOM 도 핸들러도 건드리지 않고 표시만 바꾼다(hidden 토글).
+
+   접는 대상을 좁게 잡는 이유: 버튼 4개 이상이라는 조건만으로는 「저장/불러오기」 같은
+   동작 버튼 줄, 링크 목록, 지표 값 카드까지 접힌다(첫 판에서 35개 중 23개가 그랬다).
+   접힌 값이 무엇인지 말할 수 없으면 접으면 안 된다 — 그래서 **선택된 항목이 실제로
+   있는 묶음**만 접는다. 선택 표시(active/aria-pressed/data-checked/aria-selected)가
+   그 묶음이 선택지라는 유일한 증거다.
+
+   MutationObserver 재진입 주의: 이 함수는 #mainContent 의 childList 를 보는 관찰자가
+   부른다. 여기서 DOM 을 건드리면 관찰자가 다시 깨어나 무한 회전한다(첫 판은 5Hz 로
+   계속 돌았다). 그래서 ① 값이 바뀔 때만 쓰고 ② 실제로 고칠 게 있을 때만 DOM 을
+   만지며 ③ 관찰자는 econFoldControls 가 만든 변경을 무시하도록 _foldBusy 로 잠근다. */
+window._foldBusy = false;
+window.econFoldControls = function (root) {
+  if (window._foldBusy) return;
+  try {
+    var narrow = window.matchMedia && window.matchMedia('(max-width: 480px)').matches;
+    var isActive = function (b) {
+      return b.classList.contains('active') || b.getAttribute('aria-pressed') === 'true' ||
+             b.hasAttribute('data-checked') || b.getAttribute('aria-selected') === 'true';
+    };
+    var labelOf = function (btns) {
+      return btns.filter(isActive).slice(0, 3)
+        .map(function (b) { return (b.textContent || '').trim().replace(/\s+/g, ' '); })
+        .filter(Boolean).join(' · ').slice(0, 28);
+    };
+    // 후보는 버튼의 부모뿐이다 — 위젯 안 모든 div·span 을 훑으면 22,000줄 DOM 에서
+    // 변경마다 수만 개를 읽는다.
+    var groups = new Set();
+    (root || document).querySelectorAll('.widget button, .widget [role="tab"]').forEach(function (b0) {
+      if (b0.parentElement) groups.add(b0.parentElement);
+    });
+    // 바깥 묶음이 이미 후보면 안쪽은 접지 않는다 — 한 번에 걸러야 한다. 처리 순서에
+    // 기대면(이번 판에서 실제로 그랬다) 안쪽이 먼저 잡혀 이중으로 접힌다:
+    // 「KOSPI ▾」 를 펼쳤더니 그 안에 또 「일 ▾」 가 있는 상태가 된다.
+    // 요약 줄 자신도 button 이다 — 세면 부모의 버튼 개수가 부풀어 부모까지 후보가 되고,
+    // 그 결과 접힌 줄 안에 또 접힌 줄이 생긴다(실측: 홈의 econ-head__tools).
+    var btnsOf = function (g) {
+      return Array.prototype.filter.call(g.children, function (c) {
+        if (c.classList && c.classList.contains('ctl-fold__sum')) return false;
+        return c.tagName === 'BUTTON' || c.getAttribute('role') === 'tab';
+      });
+    };
+    // 접을 자격이 있는 묶음만 먼저 추린 뒤, 그 안쪽에 있는 것은 뺀다. 자격 없는 조상을
+    // 기준으로 빼면 안쪽까지 같이 빠져 아무것도 접히지 않는다.
+    var cands = [];
+    groups.forEach(function (g) {
+      if (g.classList.contains('ctl-fold__sum')) return;
+      var bs = btnsOf(g);
+      if (bs.length >= 4 && (bs.some(isActive) || g.previousElementSibling &&
+          g.previousElementSibling.classList &&
+          g.previousElementSibling.classList.contains('ctl-fold__sum'))) cands.push(g);
+    });
+    var outer = cands.filter(function (g) {
+      return !cands.some(function (o) { return o !== g && o.contains(g); });
+    });
+    var work = [];
+    outer.forEach(function (grp) {
+      var btns = btnsOf(grp);
+      var sum = grp.previousElementSibling;
+      var made = sum && sum.classList && sum.classList.contains('ctl-fold__sum') ? sum : null;
+      if (!narrow || !btns.some(isActive)) {         // 넓어졌거나 선택지 묶음이 아니다
+        if (made) work.push({ grp: grp, made: made, op: 'undo' });
+        return;
+      }
+      var label = labelOf(btns);
+      if (made) {
+        var now = made.querySelector('.ctl-fold__now');
+        if (now && now.textContent !== label) work.push({ made: made, label: label, op: 'relabel' });
+        return;
+      }
+      work.push({ grp: grp, btns: btns, label: label, op: 'fold' });
+    });
+    if (!work.length) return;
+
+    window._foldBusy = true;
+    work.forEach(function (w) {
+      if (w.op === 'undo') {
+        w.made.remove(); w.grp.hidden = false; w.grp.classList.remove('ctl-fold__body');
+        return;
+      }
+      if (w.op === 'relabel') { w.made.querySelector('.ctl-fold__now').textContent = w.label; return; }
+      var grp = w.grp;
+      // 안쪽에 먼저 접힌 줄이 남아 있으면 지운다 — 바깥이 나중에 자격을 얻는 순서
+      // (차트가 그려지며 active 가 붙는다)에서 이중 접기가 생긴다.
+      grp.querySelectorAll('.ctl-fold__sum').forEach(function (o) {
+        var body = o.nextElementSibling;
+        if (body && body.classList.contains('ctl-fold__body')) {
+          body.hidden = false; body.classList.remove('ctl-fold__body');
+        }
+        o.remove();
+      });
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ctl-fold__sum btn-plain';
+      b.setAttribute('aria-expanded', 'false');
+      // 낭독기에는 값만 읽히면 무엇의 요약인지 알 수 없다 — 이름을 따로 준다.
+      b.setAttribute('aria-label', '컨트롤 펼치기 — 현재 ' + (w.label || '선택 없음'));
+      grp.id = grp.id || ('ctlfold-' + Math.random().toString(36).slice(2, 8));
+      b.setAttribute('aria-controls', grp.id);
+      b.innerHTML = '<span class="ctl-fold__now"></span><span aria-hidden="true">▾</span>';
+      b.querySelector('.ctl-fold__now').textContent = w.label;
+      b.addEventListener('click', function () {
+        var open = grp.hidden;
+        window._foldBusy = true;
+        grp.hidden = !open;
+        b.setAttribute('aria-expanded', String(open));
+        // 접는 순간 라벨을 다시 계산한다 — 펼친 채 다른 값을 고르면 핸들러가
+        // class/style 만 바꾸는 경우가 많아 관찰자(childList)가 깨지 않는다.
+        if (!open) {
+          var nl = labelOf(Array.prototype.filter.call(grp.children, function (c) {
+            if (c.classList && c.classList.contains('ctl-fold__sum')) return false;
+            return c.tagName === 'BUTTON' || c.getAttribute('role') === 'tab';
+          }));
+          var now = b.querySelector('.ctl-fold__now');
+          if (now.textContent !== nl) now.textContent = nl;
+          b.setAttribute('aria-label', '컨트롤 펼치기 — 현재 ' + (nl || '선택 없음'));
+        }
+        setTimeout(function () { window._foldBusy = false; }, 0);
+      });
+      grp.classList.add('ctl-fold__body');
+      grp.hidden = true;
+      grp.parentNode.insertBefore(b, grp);
+    });
+    setTimeout(function () { window._foldBusy = false; }, 0);
+  } catch (_) { window._foldBusy = false; }
+};
+
+// 폭이 바뀌면 관찰자를 기다리지 않고 직접 되돌린다(가로 회전·창 확대).
+if (window.matchMedia) {
+  try {
+    window.matchMedia('(max-width: 480px)').addEventListener('change', function () {
+      try { econFoldControls(document.getElementById('mainContent')); } catch (_) {}
+    });
+  } catch (_) {}
+}
 
 window.econMakeTablesSortable = function (root) {
     try {

@@ -305,6 +305,7 @@ function pfBriefRender() {
       var up = p >= 0, a = Math.abs(p);
       var alpha = a >= 2.5 ? '' : (a >= 1 ? '55' : '22');
       var base = up ? (window.CUP || '#d13c3c') : (window.CDN || '#2a78d6');
+      /* 여기 흰색은 accent 위가 아니라 '진한 등락색 칸 위'다 — 테마와 무관하게 흰 글자가 맞다 */
       bg = base + alpha; fg = a >= 2.5 ? '#fff' : base;
     }
     var big = (t.ev && agg.evalKrw > 0 && t.ev / agg.evalKrw >= 0.22) ? 'grid-column:span 2;' : '';

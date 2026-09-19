@@ -1612,7 +1612,7 @@ function initCompareTool() {
       const act = b.dataset.p === _cmpState.period;
       b.classList.toggle('active', act);
       b.style.background = act ? getThemeColors().accent : 'transparent';
-      b.style.color = act ? '#fff' : '#8d90a2';
+      b.style.color = act ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
     });
     _cmpSyncNormBtn();
   }
@@ -1667,7 +1667,7 @@ function cmpSetPeriod(p, btn) {
     b.classList.remove('active');
     b.style.background = 'transparent'; b.style.color = 'var(--c-txt-dim)';
   });
-  if(btn) { btn.classList.add('active'); btn.style.background = 'var(--c-accent)'; btn.style.color = '#fff'; }
+  if(btn) { btn.classList.add('active'); btn.style.background = 'var(--c-accent)'; btn.style.color = 'var(--c-on-accent)'; }
   cmpRender();
 }
 

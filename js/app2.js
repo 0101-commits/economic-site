@@ -552,7 +552,7 @@ function pfSetPieMode(mode, btn) {
   document.querySelectorAll('#pfPieModeItem,#pfPieModeType').forEach(b => {
     const on = b === btn;
     b.style.background = on ? getThemeColors().accent : 'transparent';
-    b.style.color = on ? '#fff' : '#8d90a2';
+    b.style.color = on ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
   });
   pfRenderPie();
 }
@@ -731,7 +731,7 @@ function pfOpenChart(itemId) {
         document.querySelectorAll('#pfChartPeriods .tab-btn').forEach(b => {
           const on = b.dataset.p === pfChart.period;
           b.style.background = on ? getThemeColors().accent : 'transparent';
-          b.style.color = on ? '#fff' : '#8d90a2';
+          b.style.color = on ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
         });
       } catch (_) {}
     }
@@ -756,7 +756,7 @@ function pfSetChartPeriod(p, btn) {
   document.querySelectorAll('#pfChartPeriods .tab-btn').forEach(b => {
     const on = b === btn;
     b.style.background = on ? getThemeColors().accent : 'transparent';
-    b.style.color = on ? '#fff' : '#8d90a2';
+    b.style.color = on ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
   });
   pfLoadChart();
 }
@@ -771,7 +771,7 @@ function pfApplyIndButtons() {
     const b = document.getElementById(id);
     if(!b) return;
     b.style.background = pfInd[k] ? getThemeColors().accent : 'transparent';
-    b.style.color = pfInd[k] ? '#fff' : '#8d90a2';
+    b.style.color = pfInd[k] ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
   });
 }
 // 네이버 국내 일봉 OHLCV — 신규 상장 ETF 등 Yahoo 에 없는 한국 종목의 차트 폴백
