@@ -6,6 +6,7 @@
 //   S13  천단위 구분기호            — 정수부 4자리 이상 수치에 콤마가 붙는다(연도·날짜 제외)
 //   S15  레지스트리 표기 커버리지   — 지표 행의 decimals 100% (데이터셋 묶음 행은 제외)
 //   S16  52주 범위는 실측값         — 현재가가 52주 고·저 범위 안에 있다(하드코딩 상수 금지)
+//   S17  퍼센트 자릿수              — 한 화면의 % 표기가 2종 이하(4% · 4.1% · 0.977% 혼재 금지)
 //
 // usage: node tests/ui/structure.mjs [--base=http://127.0.0.1:8080/index.html]
 import { chromium } from 'playwright';
@@ -135,12 +136,40 @@ async function gateRange52(browser) {
   return pass;
 }
 
+// ── S17 퍼센트 자릿수 ─────────────────────────────────────────────────────────
+// 한 화면 안에서 같은 성격의 % 가 4% · 4.1% · 5.29% · 0.977% 로 갈리면 훑어 읽을 수 없다.
+async function gatePercentDecimals(browser) {
+  let ok = true;
+  for (const pg of ['merlens', 'macro']) {
+    const { ctx, page } = await open(browser, 'p=' + pg);
+    const r = await page.evaluate(() => {
+      const cells = [...document.querySelectorAll('td, .econ-num, .econ-numcell, .econ-stat__unit')]
+        .map(e => (e.innerText || '').trim())
+        .filter(t => /^[\d,.()+-]*\d%$/.test(t));
+      const dec = {};
+      cells.forEach(t => {
+        const n = t.replace(/[()%\s,+-]/g, '').split('.');
+        const d = n[1] ? n[1].length : 0;
+        dec[d] = (dec[d] || 0) + 1;
+      });
+      return { total: cells.length, kinds: Object.keys(dec).length, dec, sample: cells.slice(0, 6) };
+    });
+    await ctx.close();
+    const pass = r.total === 0 || r.kinds <= 2;   // 0자리(정수 %)와 2자리 공존까지는 허용
+    ok = ok && pass;
+    console.log(`S17 ${pg} % 자릿수 — ${r.total}개 중 ${r.kinds}종 ${JSON.stringify(r.dec)}  ${pass ? 'PASS' : 'FAIL'}`);
+    if (!pass) console.log('    예:', JSON.stringify(r.sample));
+  }
+  return ok;
+}
+
 const browser = await chromium.launch({ headless: true });
 const results = [
   await gateFormatMatch(browser),
   await gateThousandSep(browser),
   await gateRegistryCoverage(browser),
   await gateRange52(browser),
+  await gatePercentDecimals(browser),
 ];
 await browser.close();
 const pass = results.every(Boolean);

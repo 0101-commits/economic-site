@@ -286,15 +286,18 @@ function _merMonitorRowHtml(ind) {
   var dim = stale6m ? ' mer-dim' : '';
   // 값은 천단위를 붙여 찍는다(기획 2026-09-21 구조 통일 S1/S13) — 종전엔 숫자를 문자열에 그대로
   // 이어 붙여 7704.82 · 8200 · 1372.93원 처럼 다른 화면과 표기가 갈렸다.
-  var _mn = function (v) {
+  // 퍼센트는 2자리로 **고정**한다 — 한 열 안에서 4% · 4.1% · 5.29% · 0.977% 가 섞여 있었다(자릿수 4종).
+  // 그 밖의 값은 크기에 따라 최대 자릿수만 둔다(지수·가격은 자리가 제각각이라 고정할 수 없다).
+  var _mn = function (v, isPct) {
     if (v == null || isNaN(+v)) return '—';
+    if (isPct) return (+v).toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     var d = Math.abs(+v) >= 100 ? 2 : 4;
-    var s = (+v).toLocaleString('ko-KR', { maximumFractionDigits: d });
-    return s;
+    return (+v).toLocaleString('ko-KR', { maximumFractionDigits: d });
   };
-  var cur = ind.current ? (_mn(ind.current.value) + (ind.unit || '')) : '—';
+  var _isPct = (ind.unit || '').indexOf('%') >= 0;
+  var cur = ind.current ? (_mn(ind.current.value, _isPct) + (ind.unit || '')) : '—';
   var nearestTxt = (ind.nearest && ind.nearest.level != null)
-    ? (_mn(ind.nearest.level) + (ind.unit || '') + ' <span class="econ-stat__unit">(' +
+    ? (_mn(ind.nearest.level, _isPct) + (ind.unit || '') + ' <span class="econ-stat__unit">(' +
        (ind.nearest.distancePct != null ? ind.nearest.distancePct.toFixed(1) + '%)</span>' : '—)</span>'))
     : '—';
   var srcTxt = t ? (_merEsc(t.date || '') + ' · ' + _merEsc((t.quote || '').slice(0, 40)) +
