@@ -751,9 +751,21 @@ def _draw_tiles(fig, d, grid, box, fs, square=False, note_inline=True):
 
 
 def _meta_line(d, cal):
-    """헤더 우측 보조 — MOVE 지수 + 오늘 일정."""
-    mv = ((d.get("sentiment") or {}).get("move")) or {}
+    """헤더 우측 보조 — 리스크 지수(MRI) + MOVE 지수 + 오늘 일정.
+
+    MRI 는 send_kakao_digest.load_mri 가 발송 직전에 _mri 로 주입한다(mer_signals.json
+    은 별도 파일이라 여기서 직접 읽지 않는다). 지금까지 카드에 '오늘이 평소보다 위험한
+    국면인가'를 말해 주는 숫자가 없었다(기획안 D8)."""
     head = []
+    mri = d.get("_mri") or {}
+    if _f(mri.get("score")) is not None:
+        # MRI 는 0~100 점수라 변화도 '점'이다 — _chgtxt 를 쓰면 % 가 붙어 거짓이 된다.
+        dl = _f(mri.get("delta"))
+        dtxt = ""
+        if dl is not None and abs(dl) >= 1:
+            dtxt = f" {'▲' if dl > 0 else '▼'}{abs(dl):.0f}" + _L("(30일)", "(30d)")
+        head.append((_L("리스크 ", "risk ") + f"{mri['score']:.0f}" + dtxt).strip())
+    mv = ((d.get("sentiment") or {}).get("move")) or {}
     if _f(mv.get("value")) is not None:
         head.append(f"MOVE {mv['value']:.1f} {_chgtxt(_f(mv.get('change')))}".strip())
     if cal:
