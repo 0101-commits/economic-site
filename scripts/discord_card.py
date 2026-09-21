@@ -622,6 +622,31 @@ HERO = {"kr_session": "KOSPI", "pre_kr": "SP500", "kr_close_eu": "KOSPI",
 ANOMALY_MIN_Z = 2.0
 
 
+def anomalies(d, keys, min_z=ANOMALY_MIN_Z):
+    """이례적으로 움직인 자산 전부 → [(키, z)] |z| 내림차순. 없으면 [].
+
+    주인공은 1등 하나지만, '오늘 이례 2건'처럼 몇 건인지는 말해 줘야 한다 —
+    하나만 보여주면 그날이 한 자산의 문제인지 시장 전체의 문제인지 구별되지 않는다."""
+    out = []
+    for key in keys:
+        ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+        _price, chg = _node(d, cat, key)
+        if chg is None or cat not in ("indices", "fx", "commodities"):
+            continue
+        hist = ((d.get("history") or {}).get(cat) or {}).get(key)
+        if not isinstance(hist, list):
+            continue
+        try:
+            import volatility as vol
+            z = vol.zscore(chg, [h.get("close") for h in hist], exclude_last=False)
+        except Exception:                                    # noqa: BLE001
+            continue
+        if z is not None and abs(z) >= min_z:
+            out.append((key, z))
+    out.sort(key=lambda t: -abs(t[1]))
+    return out
+
+
 def anomaly(d, keys, min_z=ANOMALY_MIN_Z):
     """그날 가장 이례적으로 움직인 자산 → (키, z) 또는 None.
 
@@ -647,6 +672,22 @@ def anomaly(d, keys, min_z=ANOMALY_MIN_Z):
         if best is None or abs(z) > abs(best[1]):
             best = (key, z)
     return best
+
+
+def focus_all(d, prof, pkey, allowed=None):
+    """focus_of 와 같은 후보 풀에서 이례 자산 **전부** → [(키, z)]. 없으면 []."""
+    static = HERO.get(pkey) or ((prof.get("rows") or [[None]])[0] or [None])[0]
+    pool = [k for row in (prof.get("rows") or []) for k in row]
+    pool += list(prof.get("spark") or [])
+    if static:
+        pool.append(static)
+    seen, cands = set(), []
+    for k in pool:
+        if k in seen or (allowed is not None and k not in allowed):
+            continue
+        seen.add(k)
+        cands.append(k)
+    return anomalies(d, cands)
 
 
 def _draw_cells(fig, grid, box, fs, square=False, note_inline=False):

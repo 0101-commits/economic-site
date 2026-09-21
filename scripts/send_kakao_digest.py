@@ -979,25 +979,141 @@ def _hero_symbol(key):
     return _YH_SYM.get(key) or _YIELD_INTRADAY_SYM.get(key) or ""
 
 
+# 카드 카탈로그 키 → data.news 의 주제 키. 이례 자산이 정해지면 그 주제의 최신
+# 헤드라인 한 건을 붙여 '왜 움직였나'의 실마리를 준다. 매핑이 없는 키는 뉴스 없이 간다.
+# (주제 시도 순서, 제목 키워드) — 주제만으로는 거짓 맥락이 붙는다. 실측(2026-09-21):
+# 귀금속·비철금속 주제가 0건이라 원자재로 폴백했더니 금·구리 이례에 "원유자금 대출한도"
+# 기사가 붙었다. 주제가 맞아도 제목에 그 자산 키워드가 없으면 채택하지 않는다.
+# 키워드가 빈 목록이면 주제만으로 통과(그 주제 자체가 곧 그 자산인 경우).
+FOCUS_NEWS_TOPIC = {
+    "USDKRW": (["외환"], ["환율", "원/달러", "달러"]),
+    "USDJPY": (["외환"], ["엔", "엔화"]),
+    "EURUSD": (["외환"], ["유로"]),
+    "DXY": (["외환"], ["달러인덱스", "달러 인덱스", "달러지수"]),
+    "KOSPI": (["주식"], ["코스피", "증시"]),
+    "KOSDAQ": (["주식"], ["코스닥"]),
+    "SP500": (["주식"], ["S&P", "뉴욕", "미 증시", "미국 증시"]),
+    "NASDAQ": (["주식"], ["나스닥", "기술주"]),
+    "SOX": (["주식"], ["반도체"]),
+    "Nikkei": (["일본경기", "주식"], ["닛케이", "일본"]),
+    "Shanghai": (["중국경기"], []),
+    "US10Y": (["채권"], ["금리", "국채", "국고채"]),
+    "KR10Y": (["채권", "한국은행"], ["금리", "국고채"]),
+    "EU10Y": (["채권"], ["금리", "국채"]),
+    "Gold": (["귀금속", "원자재"], ["금값", "금 값", "골드", "금 가격"]),
+    "Silver": (["귀금속", "원자재"], ["은값", "은 가격", "실버"]),
+    "Copper": (["비철금속", "원자재"], ["구리", "전기동"]),
+    "WTI": (["원유"], ["유가", "원유", "WTI", "석유"]),
+    "Brent": (["원유"], ["유가", "원유", "브렌트"]),
+    "NatGas": (["원자재"], ["가스", "LNG"]),
+    "Wheat": (["원자재"], ["밀", "소맥", "곡물"]),
+    "Corn": (["원자재"], ["옥수수", "곡물"]),
+    "Soybean": (["원자재"], ["대두", "콩", "곡물"]),
+}
+# ⚠ 실제 사슬에 등장하는 step id 만 적는다. 없는 id 를 적으면 조용히 매칭이 안 될 뿐
+# 티가 안 난다 — 2026-09-21 실측으로 usdkrw·kr10y·dxy·lme_copper 는 어느 사슬에도
+# 없어서 지웠다(달러-원은 사슬 대신 외환 뉴스가 맥락을 준다).
+FOCUS_CHAIN_STEP = {
+    "USDJPY": "usdjpy", "KOSPI": "kospi", "US10Y": "us10y",
+    "WTI": "oil", "Brent": "oil", "NatGas": "lng", "SOX": "semis",
+    "Wheat": "agri", "Corn": "agri", "Soybean": "agri",
+}
+
+
+def focus_news(data, key, days=2):
+    """이례 자산의 주제 최신 뉴스 한 건 → (제목, url) 또는 None.
+
+    같은 주제라도 며칠 묵은 기사는 오늘 움직임의 설명이 못 되므로 days 안으로 제한한다."""
+    topics, kws = FOCUS_NEWS_TOPIC.get(key) or ([], [])
+    try:
+        cutoff = (datetime.datetime.now(KST).date()
+                  - datetime.timedelta(days=days)).isoformat()
+        for topic in topics:
+            for it in ((data.get("news") or {}).get(topic) or []):
+                if not isinstance(it, dict) or not it.get("title"):
+                    continue
+                if str(it.get("isoDate") or "")[:10] < cutoff:
+                    continue                                 # 묵은 기사는 오늘의 설명이 못 된다
+                title = str(it["title"]).strip()
+                if kws and not any(k in title for k in kws):
+                    continue                                 # 주제는 맞아도 그 자산 얘기가 아니다
+                return title[:70], (it.get("url") or "")
+    except Exception:                                        # noqa: BLE001
+        return None
+    return None
+
+
+def focus_chain(key):
+    """이례 자산이 등장하는 메르 사슬의 설명 한 줄 → (라벨, 설명) 또는 None.
+
+    여러 사슬에 걸리면 언급 횟수(n)가 가장 많은 것 — 그 사람이 가장 자주 쓴 설명이다."""
+    step = FOCUS_CHAIN_STEP.get(key)
+    if not step:
+        return None
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mer_signals.json")
+        with open(path, encoding="utf-8") as f:
+            chains = (json.load(f) or {}).get("chains") or []
+        hit = [c for c in chains
+               if any(s.get("id") == step for s in (c.get("steps") or []))
+               and c.get("note")]
+        if not hit:
+            return None
+        best = max(hit, key=lambda c: c.get("n") or 0)
+        return str(best.get("label") or ""), str(best.get("note") or "")
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[digest] 사슬 조회 실패({e})")
+        return None
+
+
+def focus_field(data, key, z, extra=0):
+    """오늘의 이례 한 필드 → (라벨, 값, inline) 또는 None.
+
+    카드가 '얼마나 움직였나'를 그리고, 이 필드는 '왜 중요한가·무슨 일이 있었나'를 적는다.
+    셋 다 없으면 필드를 만들지 않는다 — 제목이 이미 배수를 말했다."""
+    try:
+        import discord_card
+        if z is None or not key:
+            return None
+        ko = (discord_card._CATALOG.get(key) or (key,))[0]
+        lines = [f"**{ko}** 평소의 {abs(z):.1f}배 움직임"
+                 + (f" · 오늘 이례 {extra + 1}건" if extra else "")]
+        ch = focus_chain(key)
+        if ch:
+            lines.append(f"↳ {ch[1]}  _({ch[0]})_")
+        nw = focus_news(data, key)
+        if nw:
+            lines.append(f"📰 [{nw[0]}]({nw[1]})" if nw[1] else f"📰 {nw[0]}")
+        return ("🔎 오늘의 이례", "\n".join(lines), False) if len(lines) > 1 else None
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[digest] 이례 필드 생성 실패({e})")
+        return None
+
+
 def pick_focus(data, slot, weekend, now):
     """그날 카드의 주인공 → (키, z|None). 두 카드(디스코드·카카오)가 같은 값을 쓰게 한다.
 
     이례적인 날에는 그날 가장 크게 움직인 자산이 히어로 패널·추세 첫 칸·타일을 가져간다
     (기획안 확장, 2026-09-21). 후보를 '인트라데이를 그릴 수 있는 키'로 제한하는 이유는
     여기서만 심볼 표를 알기 때문이다 — 심볼이 없는 키를 주인공으로 뽑으면 빈 패널이 된다.
-    실패하면 (None, None) 을 돌려 카드가 종전 고정 주인공으로 가게 둔다."""
+    반환 = (키, z|None, 추가 이례 건수). 실패하면 (None, None, 0) 을 돌려
+    카드가 종전 고정 주인공으로 가게 둔다."""
     try:
         import discord_card
         allowed = set(_YH_SYM) | set(_YIELD_INTRADAY_SYM)
         pkey = discord_card.profile_for(slot, weekend, now)
         prof = discord_card.PROFILES.get(pkey) or discord_card.PROFILES[discord_card.DEFAULT_PROFILE]
+        hits = discord_card.focus_all(data, prof, pkey, allowed=allowed)
+        if hits:
+            key, z = hits[0]
+            print(f"[digest] 오늘의 주인공 교체: {key} (z {z:+.1f}σ)"
+                  + (f", 이례 {len(hits)}건" if len(hits) > 1 else ""))
+            return key, z, len(hits) - 1
         key, z = discord_card.focus_of(data, prof, pkey, allowed=allowed)
-        if z is not None:
-            print(f"[digest] 오늘의 주인공 교체: {key} (z {z:+.1f}σ)")
-        return key, z
+        return key, z, 0
     except Exception as e:                                   # noqa: BLE001
         print(f"[digest] 주인공 선정 실패({e}) — 고정 편성 유지")
-        return None, None
+        return None, None, 0
 
 
 def _build_kakao_card(data, now, slot, weekend, weekly=False, next_week="", focus=None):
@@ -2151,7 +2267,7 @@ def main():
         _card_ok = False                             # 편성표 카드 렌더 성공 여부
         _weekly_mode = title.startswith("주간")
         # 그날의 주인공을 한 번만 고른다 — 두 채널 카드가 같은 자산을 가리켜야 한다.
-        _focus = (None, None) if _weekly_mode else pick_focus(
+        _focus = (None, None, 0) if _weekly_mode else pick_focus(
             data, slot, weekend, datetime.datetime.now(KST))
         try:
             import notify_discord
@@ -2167,7 +2283,7 @@ def main():
                     weekly=_weekly_mode,
                     next_week=(next((v for lab, v in blocks if lab == "다음주"), "")
                                if _weekly_mode else ""),
-                    focus=_focus if _focus[0] else None)
+                    focus=_focus[:2] if _focus[0] else None)
                 _card_ok = bool(_dc_png)             # 편성표 카드가 실제로 그려졌나(중복 제거 조건)
                 if not _dc_png:
                     _dc_png = build_slot_chart_png(data, slot, weekend)
@@ -2190,7 +2306,7 @@ def main():
                     # 멈춰 있어 고정 12타일의 절반이 '안 움직이는 숫자'였다.
                     _card_png = discord_card.board(data, _dc_now, cal=_dc_cal_line(data),
                                                    slot=slot, weekend=weekend,
-                                                   focus=_focus if _focus[0] else None)
+                                                   focus=_focus[:2] if _focus[0] else None)
             except Exception as _ce:
                 print(f"[discord] 카드 렌더 예외({_ce}) — 슬롯 차트 폴백")
             _kchg = _f(((data.get("indices") or {}).get("KOSPI") or {}).get("change"))
@@ -2209,6 +2325,11 @@ def main():
                 _nf = _news_field(data)
                 if _nf:
                     _fields = (_fields or []) + [_nf]
+            # 이례적인 날에만 붙는 한 필드 — 카드는 '얼마나 움직였나'를 그리고
+            # 이 줄은 '왜 중요한가(메르 사슬) · 무슨 일이 있었나(주제 뉴스)'를 적는다.
+            _ff = focus_field(data, _focus[0], _focus[1], _focus[2]) if _focus[0] else None
+            if _ff:
+                _fields = (_fields or []) + [_ff]
             # 모바일 알림 미리보기에 보이는 것은 제목 한 줄뿐이다 — 이례적인 날은
             # 그 한 줄이 '무슨 일이 있었나'를 말해야 한다(기획안 원칙 4).
             _title = title
