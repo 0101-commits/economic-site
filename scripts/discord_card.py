@@ -1601,6 +1601,101 @@ def status(title, state, reason="", timeline=None, tiles=None, now=None, tone="o
         return None
 
 
+def surprise(ev, why, now=None, hist=None, shape="wide"):
+    """카드 E — 경제지표 발표 결과(기획안 P4). 실패 시 None(텍스트 폴백).
+
+    ev = economicCalendar 이벤트 dict(name·act·fore·prev·stars·dt).
+    why = 근거 한 줄(check_releases.judge 가 만든 것).
+    hist = 그 지표의 과거 관측값 목록 — 있으면 하단에 분포 띠를 그려 '오늘 값이 과거
+           어디쯤인지'를 숫자가 아니라 위치로 보여준다.
+
+    구성: 실제치 히어로 → 직전·예상·실제 3점 비교 → 과거 분포 띠.
+    수치를 나열하지 않고 '예상과 실제 사이의 거리'를 길이로 보이게 하는 것이 요점이다."""
+    try:
+        import check_releases as cr
+        plt, _ = _setup()
+        now = now or datetime.datetime.now()
+        act = cr._num(ev.get("act"))
+        if act is None:
+            return None
+        fore, prev = cr._num(ev.get("fore")), cr._num(ev.get("prev"))
+        stars = "★" * int(ev.get("stars") or 0)
+        name = str(ev.get("name") or "")
+        # 서프라이즈 방향 — 예상보다 높으면 위쪽 색, 낮으면 아래쪽 색. 예상이 없으면
+        # 분포에서의 위치로 대신한다. '좋다/나쁘다'는 지표마다 달라 색에 담지 않는다.
+        up = (act > fore) if fore is not None else bool(hist and act > (sum(hist) / len(hist)))
+        col, coltxt = (UP, _txt_color(True)) if up else (DN, _txt_color(False))
+
+        square = shape == "square"
+        if square:
+            fig = _sq_fig(plt, f"{name[:18]} {stars}".strip(), now.strftime("%m/%d %H:%M"))
+            y_hero, y_why, ax_box, strip_box = 0.80, 0.755, [0.06, 0.40, 0.88, 0.26], [0.06, 0.16, 0.88, 0.10]
+            fs_hero, fs_why = _fs(46, True), _fs(13, True)
+        else:
+            fig = plt.figure(figsize=(10, 5.0), dpi=130)
+            fig.patch.set_facecolor(BG)
+            _head(fig, f"{name} {stars}".strip(), str(ev.get("dt") or ""),
+                  fs_t=19, fs_m=11, y=0.93, square=False)
+            y_hero, y_why, ax_box, strip_box = 0.66, 0.58, [0.06, 0.28, 0.88, 0.22], [0.06, 0.12, 0.88, 0.08]
+            fs_hero, fs_why = 46, 13
+
+        fig.text(0.06, y_hero, str(ev.get("act")), color=col,
+                 fontsize=fs_hero, fontweight="bold")
+        fig.text(0.06, y_why, _clip(fig, why, 0.88, fs_why), color=INK, fontsize=fs_why)
+
+        # 직전·예상·실제 3점 비교 — 값이 있는 것만. 한 축에 얹어 거리를 눈으로 본다.
+        pts = [(lab, v) for lab, v in ((_L("직전", "prev"), prev),
+                                       (_L("예상", "fore"), fore),
+                                       (_L("실제", "act"), act)) if v is not None]
+        if len(pts) >= 2:
+            ax = fig.add_axes(ax_box)
+            ax.set_facecolor(BG)
+            lo, hi = min(v for _, v in pts), max(v for _, v in pts)
+            pad = (hi - lo) * 0.35 or (abs(hi) * 0.1) or 1.0
+            ax.set_xlim(lo - pad, hi + pad)
+            ax.set_ylim(-0.6, len(pts) - 0.4)
+            for i_, (lab, v) in enumerate(pts):
+                y = len(pts) - 1 - i_
+                is_act = lab in ("실제", "act")
+                ax.plot([lo - pad, v], [y, y], color=col if is_act else LINE,
+                        lw=3.0 if is_act else 1.2, alpha=1.0 if is_act else 0.35)
+                ax.plot(v, y, "o", color=col if is_act else LINE, ms=9 if is_act else 6)
+                ax.text(lo - pad, y + 0.22, lab, color=MUT, fontsize=_fs(12, square))
+                ax.text(v, y + 0.22, f" {v:g}", color=coltxt if is_act else INK,
+                        fontsize=_fs(12.5, square), fontweight="bold")
+            ax.set_yticks([])
+            ax.set_xticks([])
+            for s in ax.spines.values():
+                s.set_visible(False)
+
+        # 과거 분포 띠 — 오늘 값이 최저~최고 사이 어디에 꽂히는지.
+        vals = [v for v in (hist or []) if v is not None]
+        if len(vals) >= cr.MIN_HISTORY:
+            ax2 = fig.add_axes(strip_box)
+            ax2.set_facecolor(TILE)
+            lo, hi = min(vals), max(vals)
+            ax2.set_xlim(lo, hi)
+            ax2.set_ylim(0, 1)
+            for v in vals:
+                ax2.plot([v, v], [0.15, 0.85], color=LINE, lw=0.8, alpha=0.25)
+            ax2.plot([act, act], [0.0, 1.0], color=col, lw=2.6)
+            ax2.text(lo, 1.15, f"{lo:g}", color=FAINT, fontsize=_fs(10.5, square),
+                     transform=ax2.get_xaxis_transform())
+            ax2.text(hi, 1.15, f"{hi:g}", color=FAINT, fontsize=_fs(10.5, square),
+                     ha="right", transform=ax2.get_xaxis_transform())
+            ax2.text(0.0, -0.55, _L(f"과거 {len(vals)}회 분포", f"past {len(vals)}"),
+                     color=MUT, fontsize=_fs(11, square), transform=ax2.transAxes)
+            ax2.set_xticks([])
+            ax2.set_yticks([])
+            for s in ax2.spines.values():
+                s.set_visible(False)
+        _footer(fig, now, square=square)
+        return _save(fig, "kakao_card_surprise.png" if square else "discord_card_surprise.png")
+    except Exception as e:                                   # noqa: BLE001
+        print(f"::warning title=카드 실패::surprise: {e} — 텍스트 폴백")
+        return None
+
+
 # ── 미리보기 CLI ──────────────────────────────────────────────────────────
 # 디스코드로 쏘지 않고 편성을 눈으로 검토하기 위한 진입점.
 #   python scripts/discord_card.py                     # 지금 시각의 프로필
