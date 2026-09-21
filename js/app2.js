@@ -1015,6 +1015,7 @@ const PF_ALERT_LABEL = {
   price_above: v => `가격 ≥ ${(+v).toLocaleString()}`,
   price_below: v => `가격 ≤ ${(+v).toLocaleString()}`,
   pct_change:  v => `등락률 ${v > 0 ? '+' : ''}${v}% 도달`,
+  z_move:      v => `평소의 ${v || 2}배 움직임`,
   high52:      () => '52주 신고가',
   low52:       () => '52주 신저가',
   vol_surge:   v => `거래량 전일比 ${v || 300}%↑`,
@@ -1050,7 +1051,8 @@ function pfAlertTypeChanged() {
   const val = document.getElementById('pfAlertValue');
   const ma = document.getElementById('pfAlertMaPair');
   const hint = document.getElementById('pfAlertHint');
-  const needVal = (t === 'price_above' || t === 'price_below' || t === 'pct_change' || t === 'vol_surge');
+  const needVal = (t === 'price_above' || t === 'price_below' || t === 'pct_change'
+                   || t === 'vol_surge' || t === 'z_move');
   val.style.display = needVal ? 'inline-block' : 'none';
   ma.style.display = (t === 'golden_cross' || t === 'dead_cross') ? 'inline-block' : 'none';
   // [재알림 옵션] 가격 유형에서만 체크박스 노출 — 이벤트형은 도배방지 주기가 이미 반복을 관장한다.
@@ -1060,6 +1062,7 @@ function pfAlertTypeChanged() {
     price_above: '현재가가 입력한 가격 이상이 되면 발송됩니다. 기본은 돌파 시 1회(회복 후 재돌파 시 재발송) — 「지속 재알림」을 켜면 충족 지속 중에도 선택한 주기로 반복 알림.',
     price_below: '현재가가 입력한 가격 이하가 되면 발송됩니다. 기본은 돌파 시 1회(회복 후 재돌파 시 재발송) — 「지속 재알림」을 켜면 충족 지속 중에도 선택한 주기로 반복 알림.',
     pct_change: '전일 종가 대비 등락률이 입력값에 도달하면 발송. 양수=상승(예: 5), 음수=하락(예: -3).',
+    z_move: '그 종목의 평소 하루 움직임(최근 250거래일 표준편차) 대비 몇 배인지로 판정합니다. 입력 2 = 평소의 2배(양방향). 고정 %와 달리 변동성이 큰 종목과 잔잔한 종목이 비슷한 빈도로 울립니다.',
     high52: '현재가가 최근 52주 최고가를 넘으면 발송됩니다.',
     low52: '현재가가 최근 52주 최저가를 밑돌면 발송됩니다.',
     vol_surge: '당일 거래량이 전일 거래량의 입력%(기본 300=3배) 이상이면 발송됩니다.',

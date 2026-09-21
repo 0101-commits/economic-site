@@ -291,6 +291,18 @@ def evaluate(alert, snap):
         if (v > 0 and pct >= v) or (v < 0 and pct <= v):
             return f"{head} 등락률 {v:+g}% 도달"
         return None
+    if t == "z_move":
+        # 그 종목의 평소 하루 움직임(σ) 대비 몇 배인가(기획안 P6). 고정 %를 쓰면
+        # 종목마다 드물기가 천차만별이라, 변동성 큰 ETF 는 매주 울리고 잔잔한 ETF 는
+        # 영영 안 울렸다. 보유 ETF 10종에 걸려 있던 pct_change −10% 는 2개월간
+        # 한 번도 발동하지 않은 사실상 죽은 규칙이었다.
+        import volatility as vol
+        thr = abs(v) if v else 2.0
+        z = vol.zscore(pct, snap.get("closes"))
+        if z is None or abs(z) < thr:
+            return None
+        ph = vol.rank_phrase(pct, snap.get("closes"))
+        return f"{head} 평소의 {abs(z):.1f}배 움직임" + (f" · {ph}" if ph else "")
     if t == "high52":
         highs = snap["highs"]
         if len(highs) >= 60 and price >= max(highs[:-1]):
