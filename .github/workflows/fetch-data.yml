@@ -309,6 +309,19 @@ jobs:
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
         run: python scripts/check_releases.py
 
+      # 🎯 메르 리스크 렌즈 임계 돌파(기획안 P5) — 새로 넘은 선만 1통. 이 저장소에서
+      #    '왜 중요한가'를 말할 수 있는 유일한 재료(임계선마다 의미·인용이 붙어 있다)다.
+      #    위 'Aggregate 메르 리스크 렌즈' 스텝이 mer_signals.json 을 갱신한 뒤라야
+      #    판정이 의미 있으므로 여기 둔다. 첫 실행은 시딩(기록만, 발송 없음).
+      - name: Check 메르 임계 돌파
+        if: env.FETCH_LIGHT != '1'
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_SWINGS: ${{ secrets.DISCORD_WEBHOOK_SWINGS }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+        run: python scripts/check_mer_thresholds.py
+
       # 🚨 시장중단(서킷브레이커) 카카오톡 발송 스텝은 stock-alerts.yml 로 이관됨(2026-07) —
       #    본 워크플로의 실효 주기(성공 런 소요 12~57분)로는 발동→알림 지연이 15분+ 이었기 때문.
       #    중복 발송 방지를 위해 halts_state.json 소유권도 stock-alerts 로 단일화(여기선 커밋 안 함).
