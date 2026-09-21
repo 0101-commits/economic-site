@@ -11,6 +11,9 @@
 지원 조건(type):
   price_above / price_below — 목표 가격 도달(이상/이하)
   pct_change               — 전일 종가 대비 등락률 도달(양수=상승, 음수=하락)
+  z_move                   — 그 종목의 평소 하루 움직임(최근 250거래일 σ) 대비 value 배
+                             (고정 %는 종목마다 드물기가 천차만별 — 보유 ETF 10종의 σ가
+                              0.83%~5.07%로 6배 차이다. 상장 초기라 σ를 못 내면 ±5% 폴백)
   high52 / low52           — 52주 신고가/신저가 도달
   vol_surge                — 당일 거래량이 전일 거래량의 value%(기본 300) 이상
   golden_cross/dead_cross  — 이동평균선(maShort/maLong) 골든/데드크로스 발생일
@@ -54,6 +57,9 @@ TEXT_LIMIT = 200          # 카카오 텍스트 템플릿 길이 제한
 MAX_MSGS = 3              # 1회 실행당 최대 발송 통수(폭주 방지)
 GIVE_UP_TRIES = 3         # 발송 실패 재시도 상한 — 이 횟수 넘게 실패하면 이력 확정(무한 재시도·크래시 스팸 방지)
 DELAY_NOTICE = "※ 무료 시세 기준(지연 가능)"
+# z_move 알림이 σ 를 못 구할 때(상장 60거래일 미만) 쓰는 고정 임계. 폴백이 없으면
+# 그 종목 알림이 조용히 영영 안 울린다 — 토스증권의 가격 변동 알림 기준과 같은 5%.
+Z_FALLBACK_PCT = 5.0
 # 시세 오염 방어 — 무료 프록시가 0/오종목/캐시된 이상치를 돌려줄 수 있다.
 # 전일 종가 대비 이 %를 넘게 벌어진 스냅샷은 오염 의심으로 폐기한다. 단 '상·하한폭'이 시장마다
 # 다르다: 국내(KR)는 ±30% 제한이 있어 50%면 충분하지만, 미국(US)은 상·하한이 없어 바이오·소형주가
@@ -299,7 +305,14 @@ def evaluate(alert, snap):
         import volatility as vol
         thr = abs(v) if v else 2.0
         z = vol.zscore(pct, snap.get("closes"))
-        if z is None or abs(z) < thr:
+        if z is None:
+            # 표본 부족(상장 60거래일 미만)이면 σ 를 못 낸다. 여기서 그냥 None 을
+            # 돌려주면 그 종목의 알림이 '조용히 영영 안 울리는' 상태가 된다 —
+            # pct_change −10% 가 죽어 있던 것과 같은 실패다. 고정 %로 폴백한다.
+            # 5% 는 토스증권의 가격 변동 알림 기준과 같다.
+            return (f"{head} {Z_FALLBACK_PCT:g}% 이상 움직임(상장 초기 — 변동성 표본 부족)"
+                    if abs(pct) >= Z_FALLBACK_PCT else None)
+        if abs(z) < thr:
             return None
         ph = vol.rank_phrase(pct, snap.get("closes"))
         return f"{head} 평소의 {abs(z):.1f}배 움직임" + (f" · {ph}" if ph else "")
