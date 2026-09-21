@@ -7343,14 +7343,18 @@ def build_data():
 # ============================================================
 # 카테고리 키 = 프론트엔드 newsItems/commodityNewsItems/macroNewsItems/calendarNewsItems
 # 의 item.cat 필드와 1:1 매칭. 갱신 시 cat 별로 최대 5건씩 가져와 frontend 에 주입.
+# ⚠ 쿼리는 감이 아니라 실측으로 고른다. 2026-09-21 Bing 실측: 같은 주제라도
+# "금 시세 골드"는 최근 15일 기사가 3건인데 "금값 국제 금시세"는 9건, "LME 구리 가격
+# 동향"은 7건인데 "구리 가격"은 10건이었다. 전문어·혼합어를 넣을수록 결과가 옛것으로
+# 밀린다. 쿼리를 바꿀 때는 '최근 15일 통과 건수'를 세어 보고 바꿀 것.
 NEWS_CATEGORY_QUERIES = {
     "채권":       "한국 국채 금리 동향",
     "외환":       "원달러 환율 시황",
     "주식":       "코스피 코스닥 시황",
     "원자재":     "WTI 국제유가 동향",
     "원유":       "WTI Brent 국제유가",
-    "귀금속":     "금 시세 골드",
-    "비철금속":   "LME 구리 가격 동향",
+    "귀금속":     "금값 국제 금시세",
+    "비철금속":   "구리 가격",
     "한국GDP":    "한국 GDP 성장률",
     "미국CPI":    "미국 CPI 인플레이션",
     "중국경기":   "중국 경기 PMI",
@@ -7366,12 +7370,18 @@ NEWS_CATEGORY_QUERIES = {
 # Google/Bing 이 혼합어·전문어 쿼리(예: 'LME 구리 가격 동향', '영국 경기 BOE')에서 전패해
 # 6개 카테고리가 빈 배열로 배포되던 문제(2026-08 감사). 발행사 직행 RSS 는 키·프록시가
 # 필요 없고 GHA 러너 차단 사례가 없어 최후 폴백으로 쓴다. 풀은 런당 1회만 페치.
+# 아래 3종은 2026-09-21 실측으로 추가했다 — 기존 5종 389건에 금속·일본 기사가
+# 0건이라 귀금속·비철금속·일본경기가 폴백으로도 못 채워졌다. 후보를 재보고 실제로
+# 해당 주제를 주는 것만 넣었다(머니투데이·이데일리·서울경제는 403/404/차단).
 _KEYLESS_RSS_FEEDS = (
     "https://www.yna.co.kr/rss/economy.xml",
     "https://www.yna.co.kr/rss/international.xml",
+    "https://www.yna.co.kr/rss/industry.xml",        # 비철·산업(실측 비철 1건)
+    "https://www.yna.co.kr/rss/news.xml",            # 종합(실측 일본 3건)
     "https://www.mk.co.kr/rss/30100041/",
     "https://www.hankyung.com/feed/economy",
     "https://www.hankyung.com/feed/finance",
+    "https://www.hankyung.com/feed/international",   # 국제(실측 일본 2건)
 )
 # 카테고리별 제목 매칭 키워드 (any-match). 풀이 일반 경제기사라 변별력 있는 단어만.
 _KEYLESS_CATEGORY_KEYWORDS = {
@@ -7380,18 +7390,48 @@ _KEYLESS_CATEGORY_KEYWORDS = {
     "주식":     ("코스피", "코스닥", "증시"),
     "원자재":   ("유가", "원자재", "WTI", "원유"),
     "원유":     ("유가", "원유", "WTI", "브렌트"),
-    "귀금속":   ("금값", "금 시세", "귀금속", "금괴"),
-    "비철금속": ("구리", "니켈", "알루미늄", "아연", "LME", "비철", "광물", "제련"),
+    "귀금속":   ("금값", "금 시세", "금시세", "귀금속", "금괴", "골드바", "금 가격"),
+    "비철금속": ("구리", "구리값", "니켈", "알루미늄", "아연", "LME", "비철", "광물", "제련"),
     "한국GDP":  ("GDP", "성장률"),
     "미국CPI":  ("미국 물가", "CPI", "인플레이션", "연준", "파월", "연방준비", "물가"),
     "중국경기": ("중국",),
-    "일본경기": ("일본", "BOJ", "엔화", "엔저"),
+    "일본경기": ("일본", "BOJ", "엔화", "엔저", "닛케이", "일본은행"),
     "독일경기": ("독일",),
     "영국경기": ("영국", "BOE", "파운드", "영란은행"),
     "유로존":   ("유로", "ECB"),
     "한국수출": ("수출", "무역수지", "통관"),
     "한국은행": ("한국은행", "기준금리", "금통위"),
 }
+# 오탐 차단 — 위 키워드는 부분 문자열 매칭이라 다른 단어 안에 들어가면 그대로 걸린다.
+# 실측(2026-09-21): "고인 보험금, 유가족이 찾고 받기 쉬워졌다"가 '유가'에 걸려 원유
+# 기사로 배포됐고, 그것이 이례 알림의 '왜 움직였나' 자리에 붙었다 — 없느니만 못하다.
+# (키워드, 그 키워드가 들어간 오탐 어휘들). 제목에 오탐 어휘가 있으면 그 키워드는 무효.
+_KEYWORD_FALSE_FRIENDS = {
+    "유가": ("유가족", "유가증권"),
+    "금리": ("요금리", "대금리"),
+    "구리": ("구리시", "너구리"),
+    "은":   ("은행", "은퇴", "은밀"),
+    "일본": ("일본어",),
+}
+
+
+def _kw_hit(title, kws):
+    """제목이 키워드 중 하나에 실제로 걸리는지 — 오탐 어휘는 제외하고 판정."""
+    for k in kws:
+        if k not in title:
+            continue
+        bad = _KEYWORD_FALSE_FRIENDS.get(k)
+        if bad and all(k in b for b in bad):
+            # 그 키워드의 모든 출현이 오탐 어휘 안이면 진짜 매칭이 아니다.
+            stripped = title
+            for b in bad:
+                stripped = stripped.replace(b, "")
+            if k not in stripped:
+                continue
+        return True
+    return False
+
+
 _keyless_pool_cache = None
 
 
@@ -7594,6 +7634,16 @@ def fetch_news_articles(query, count=5, timeout=10):
     """Google News RSS 에서 query 에 매칭되는 최신 기사 리스트 반환.
 
     GHA 러너 IP가 Google News에 차단되는 케이스 회피 — 직접 → CORS 프록시 폴백.
+
+    ⚠ 알려진 손실(2026-09-21 실측): Google 이 RSS 링크를 `news.google.com/rss/articles/
+    CBMi…` 형식으로 바꾼 뒤 _extract_real_url 의 1~3단계가 전부 실패한다 — description
+    에 외부 링크가 없고, base64 디코드가 안 되며, HTTP 리다이렉트를 따라가도 원문이
+    아니라 google 페이지가 나온다(JS 기반 이동). 그래서 여기서 15건을 수집해도
+    _is_good_article_url 이 전량 버린다. **모든 카테고리가 이 손실을 겪고 있고**,
+    Bing·키리스 RSS 가 잘 잡히는 주제만 티가 안 났을 뿐이다.
+    원문 복원에는 Google 내부 batchexecute API 가 필요한데 비공식이라 자주 깨지고
+    기사당 요청이 하나씩 더 붙는다(런당 80~240회). 그래서 복원하지 않고, 쿼리·소스
+    다변화로 메운다. 이 전제가 바뀌면(디코드가 다시 되면) 커버리지가 크게 는다.
 
     반환: [{"title": str, "url": str, "isoDate": "YYYY-MM-DD", "pubDate": str}]
     """
@@ -7880,7 +7930,7 @@ def fetch_news_all_feeds():
             kws = _KEYLESS_CATEGORY_KEYWORDS.get(cat) or (query.split()[0],)
             try:
                 for pa in fetch_keyless_rss_pool():
-                    if any(k in pa["title"] for k in kws) and _filter_keep(pa) \
+                    if _kw_hit(pa["title"], kws) and _filter_keep(pa) \
                             and pa["url"] not in seen_urls:
                         articles.append(pa)
                         seen_urls.add(pa["url"])
