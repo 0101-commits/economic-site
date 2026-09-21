@@ -508,11 +508,13 @@ def _sat_of(cat):
 # 타일을 6개로 줄이면 한 칸이 1.5배 넓어지고 글자를 1.6배로 키울 수 있다 — 빠진 지표는
 # 카드 대신 대시보드 버튼·드롭다운이 받는다.
 PROFILES = {
-    "kr_session": {                                   # 09~15시 — 사용자 지정 편성
+    "kr_session": {                                   # 09~15시 — 장중
+        # 6타일 → 4타일(2026-09-21 기획안 P2). 한국 장중에 실제로 움직이는 것은 네 개뿐이고,
+        # 나머지 두 칸을 채우려다 한 칸이 좁아져 글자가 작아졌다. 달러-엔 자리에 닛케이를
+        # 넣은 것은 실측 때문이다 — 코스피와 동시간 상관이 닛케이 +0.765 로 가장 높다.
         "title": "장중",
         "rows": [["KOSPI", "KOSDAQ"],
-                 ["USDKRW", "USDJPY"],
-                 ["WTI", "US10Y"]],
+                 ["USDKRW", "Nikkei"]],
         "spark": ["KOSPI", "SP500", "USDKRW"],
         "caption": "us_curve",
     },
@@ -525,8 +527,12 @@ PROFILES = {
         "caption": "us_curve",
     },
     "kr_close_eu": {                                  # 16~18시 — 마감 확정 + 유럽 개장
+        # 상하이종합을 닛케이로 교체(2026-09-21 기획안 D3). 상하이는 코스피와 동시간
+        # 상관이 +0.525 이고 전일→당일 예측력은 −0.10 으로 사실상 없다. 게다가 이 슬롯은
+        # 코스피가 이미 마감(15:30)한 뒤라 그 시간에 상하이 숫자로 할 수 있는 일이 없다.
+        # 닛케이는 같은 시간대에 거래되고 동시간 상관이 +0.765 로 가장 높다.
         "title": "마감·유럽",
-        "rows": [["KOSPI", "Shanghai"],
+        "rows": [["KOSPI", "Nikkei"],
                  ["USDKRW", "USDJPY"],
                  ["Copper", "WTI"]],
         "spark": ["KOSPI", "USDKRW", "SP500"],
@@ -636,7 +642,9 @@ def _draw_cells(fig, grid, box, fs, square=False, note_inline=False):
     fs_l, fs_p, fs_c = (_fs(f, square) for f in fs)
     for r_, line in enumerate(grid):
         for c_, cell in enumerate(line):
-            label, val, note, chg, sat = cell
+            # badge 는 나중에 붙은 6번째 필드 — 옛 5튜플도 그대로 받는다.
+            label, val, note, chg, sat = cell[:5]
+            badge = cell[5] if len(cell) > 5 else ""
             x = gx0 + c_ * gw / cols
             y = gy0 + (rows - 1 - r_) * gh / rows
             w, h = gw / cols - 0.008, gh / rows - 0.015
@@ -663,7 +671,17 @@ def _draw_cells(fig, grid, box, fs, square=False, note_inline=False):
                     sc = max(0.7, h * fig.bbox.height / need)
                     f_p, f_c = _fs(f_p * sc, square), _fs(f_c * sc, square)
             y_lab, y_val = (0.72, 0.30) if inline else (0.72, 0.36)
-            fig.text(x + 0.013, y + y_lab * h, _clip(fig, label, iw, f_l),
+            # 라벨이 쓰는 폭 — badge 가 있으면 그만큼 줄여 둘이 겹치지 않게 한다.
+            lab_w = iw
+            if badge:
+                bw = _text_w(fig, badge, f_c)
+                lab_w = max(iw - bw - 0.010, 0.0)
+                # 우상단 = 라벨과 같은 높이의 반대쪽 끝. 값·등락 자리를 건드리지 않는
+                # 유일한 빈 자리다. 색은 타일 잉크(라벨과 동일) — 진한 배경 칸에서
+                # FAINT 를 쓰면 대비가 무너져 읽히지 않는다(실측).
+                fig.text(x + w - 0.011, y + y_lab * h, badge,
+                         color=ink, fontsize=f_c, ha="right")
+            fig.text(x + 0.013, y + y_lab * h, _clip(fig, label, lab_w, f_l),
                      color=ink, fontsize=f_l)
             if inline:
                 fig.text(x + 0.013, y + y_val * h, val, color=INK,
@@ -681,15 +699,44 @@ def _draw_cells(fig, grid, box, fs, square=False, note_inline=False):
                              color=ink, fontsize=f_c, fontweight="bold", ha="right")
 
 
-def _cell(label, val, note="", chg=None, sat=3.0):
-    """자유 타일 한 칸 — 사건형·상태형 카드가 쓴다(카탈로그 비의존)."""
-    return (str(label), str(val), str(note), chg, sat)
+def _cell(label, val, note="", chg=None, sat=3.0, badge=""):
+    """자유 타일 한 칸 — 사건형·상태형 카드가 쓴다(카탈로그 비의존).
+
+    badge = 칸 우상단의 작은 보조 표기(비어 있으면 안 그린다). 지표 타일은 여기에
+    이례성(σ 배수)을 넣는다 — 값·등락률 자리를 건드리지 않고 '평소보다 큰가'를
+    같은 칸 안에서 읽게 하려는 것(기획안 P2)."""
+    return (str(label), str(val), str(note), chg, sat, str(badge))
+
+
+# 우상단 σ 배지를 다는 하한. 이보다 평범한 움직임엔 아무것도 쓰지 않는다 — 모든 칸에
+# 숫자를 하나 더 얹으면 '무엇이 이례적인가'가 다시 사라진다(타일 색과 같은 원리).
+BADGE_MIN_Z = 1.5
+
+
+def _tile_badge(d, cat, key, chg):
+    """타일 우상단 배지 — "2.4σ" 또는 "". 이례성이 뚜렷할 때만 값을 돌려준다.
+
+    σ 는 data.json 의 일봉 이력에서 구한다(indices·fx·commodities). 금리는 등락이
+    bp 라 같은 이력에 없고, macro 는 이력 자체가 없어 배지를 달지 않는다 — 없는 값을
+    지어내느니 칸을 비워 둔다."""
+    if chg is None or cat not in ("indices", "fx", "commodities"):
+        return ""
+    hist = ((d.get("history") or {}).get(cat) or {}).get(key)
+    if not isinstance(hist, list):
+        return ""
+    try:
+        import volatility as vol
+        z = vol.zscore(chg, [h.get("close") for h in hist], exclude_last=False)
+    except Exception:                                    # noqa: BLE001
+        return ""
+    return f"{abs(z):.1f}σ" if z is not None and abs(z) >= BADGE_MIN_Z else ""
 
 
 def _draw_tiles(fig, d, grid, box, fs, square=False, note_inline=True):
     """카탈로그 키 격자(편성표) → 셀 격자로 바꿔 _draw_cells 에 넘긴다.
 
-    지표 타일의 우하단은 언제나 등락률이라 기본값이 note_inline=True 다."""
+    지표 타일의 우하단은 언제나 등락률이라 기본값이 note_inline=True 다.
+    우상단에는 이례적인 칸에만 σ 배지가 붙는다(_tile_badge)."""
     cells = []
     for line in grid:
         row = []
@@ -697,7 +744,8 @@ def _draw_tiles(fig, d, grid, box, fs, square=False, note_inline=True):
             ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
             price, chg = _node(d, cat, key)
             row.append(_cell(_L(ko, en), _fmt_tile(cat, price),
-                             _chgtxt_tile(cat, chg), chg, _sat_of(cat)))
+                             _chgtxt_tile(cat, chg), chg, _sat_of(cat),
+                             _tile_badge(d, cat, key, chg)))
         cells.append(row)
     _draw_cells(fig, cells, box, fs, square=square, note_inline=note_inline)
 
@@ -1378,8 +1426,12 @@ def _weekly_square(plt, d, now, rows, next_week):
     return _save(fig, "kakao_card_weekly.png")
 
 
-def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src="", shape="wide"):
+def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src="", shape="wide",
+          why=""):
     """카드 D — 급변·서킷. 히어로 등락률 + 인트라데이(또는 일봉 폴백) 임계선.
+    why = 이례성 한 줄("z −2.6σ · 최근 1년 중 4번째로 큰 하락") — 있으면 보조줄을
+    '임계 ±N% 돌파' 대신 이것으로 바꾼다. 임계값은 이제 자산의 σ 에서 나오므로
+    숫자만 적어서는 그게 큰 움직임인지 알 수 없기 때문(기획안 P2).
     xs/ys/prev = send_kakao_digest._intraday_chain 반환값(비어 있으면 히어로만 — 최후).
     src = 폴백 라벨('일봉 7D' 등, 기획 5154773b P0) — 패널에 표기해 인트라데이 오독 방지.
     x축 눈금은 구간 폭으로 자동(하루 안=HH:MM, 여러 날=M/D). 실패 시 None."""
@@ -1388,7 +1440,8 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src="", shape
             return None
         plt, _ = _setup()
         if shape == "square":
-            return _swing_square(plt, name, price, pct, thr_pct, xs, ys, prev, now, resume, src)
+            return _swing_square(plt, name, price, pct, thr_pct, xs, ys, prev, now, resume,
+                                 src, why)
         col = UP if pct > 0 else DN
         coltxt = _txt_color(pct > 0)                   # 작은 글자용
         fig = plt.figure(figsize=(10, 5.0), dpi=130)
@@ -1402,8 +1455,8 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src="", shape
             diff = price - prev
             fig.text(0.03, 0.47, f"{_fmt(price)}  {'▲' if diff >= 0 else '▼'}{abs(diff):,.1f}",
                      color=INK, fontsize=17)
-        sub = _L(f"임계 ±{abs(thr_pct):.1f}% {'상향' if pct > 0 else '하향'} 돌파",
-                 f"threshold ±{abs(thr_pct):.1f}% crossed")
+        sub = why or _L(f"임계 ±{abs(thr_pct):.1f}% {'상향' if pct > 0 else '하향'} 돌파",
+                        f"threshold ±{abs(thr_pct):.1f}% crossed")
         if resume:
             sub += " · " + resume
         fig.text(0.03, 0.36, sub, color=MUT, fontsize=13)
@@ -1442,14 +1495,14 @@ def swing(name, price, pct, thr_pct, xs, ys, prev, now, resume="", src="", shape
         return None
 
 
-def _swing_square(plt, name, price, pct, thr_pct, xs, ys, prev, now, resume, src):
+def _swing_square(plt, name, price, pct, thr_pct, xs, ys, prev, now, resume, src, why=""):
     """사건형 정사각 — 급변·서킷 발동. 히어로 등락률 + 타일 3 + 인트라데이 임계선."""
     col = UP if pct > 0 else DN
     fig = _sq_fig(plt, _L(f"시장 급변 · {str(name)[:14]}", f"Market Swing · {str(name)[:14]}"),
                   now.strftime("%m/%d %H:%M"))
     fig.text(0.03, 0.845, f"{pct:+.2f}%", color=col, fontsize=_fs(56, True), fontweight="bold")
-    sub = _L(f"임계 ±{abs(thr_pct):.1f}% {'상향' if pct > 0 else '하향'} 돌파",
-             f"threshold ±{abs(thr_pct):.1f}% crossed")
+    sub = why or _L(f"임계 ±{abs(thr_pct):.1f}% {'상향' if pct > 0 else '하향'} 돌파",
+                    f"threshold ±{abs(thr_pct):.1f}% crossed")
     if resume:
         sub += " · " + str(resume)
     fig.text(0.03, 0.795, _clip(fig, sub, 0.94, _fs(12.5, True)),
