@@ -128,7 +128,10 @@ jobs:
         #    PyYAML: scripts/mer_aggregate.py 가 정규화 사전(scripts/mer_dict.yml)을 읽는다.
         #    빠지면 집계 스텝이 ModuleNotFoundError 로 죽어 mer_signals.json 이 영영 갱신되지 않는다
         #    (continue-on-error 라 런은 성공으로 보이므로 조용히 멈춘다 — 2026-09-15 실측).
-        run: pip install requests yfinance "pykrx==1.2.8" beautifulsoup4 lxml PyYAML
+        #    matplotlib: 알림 카드 렌더(discord_card). 이 워크플로가 check_releases·
+        #    check_mer_thresholds 를 돌리는데, 없으면 카드가 조용히 텍스트로 강등된다
+        #    (두 스크립트의 렌더 실패는 예외를 삼키므로 로그를 봐야만 알 수 있다).
+        run: pip install requests yfinance "pykrx==1.2.8" beautifulsoup4 lxml PyYAML matplotlib
 
       # KIS 토큰 영속 캐시 — 한국투자증권 API 는 토큰 1일 1회 발급 권장 (24h 유효).
       # 잦은 발급 시 카카오톡 알람·이용 제한이 발생하므로 GHA cache 액션으로
@@ -147,6 +150,25 @@ jobs:
           key: kis-token-${{ github.run_id }}
           restore-keys: |
             kis-token-
+
+      # 한글 폰트 — 알림 카드의 한글 라벨용. apt 대신 정적 OTF 2종을 actions/cache 로
+      # 재사용한다(stock-alerts.yml 과 같은 키라 캐시를 공유). 실패해도 카드가 영문
+      # 라벨로 강등될 뿐 발송엔 지장 없음.
+      - name: Korean fonts (cache)
+        if: env.FETCH_LIGHT != '1'
+        id: kofonts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/kofonts
+          key: noto-sans-kr-static-v1
+      - name: Korean fonts (download on cache miss)
+        if: env.FETCH_LIGHT != '1' && steps.kofonts.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p ~/kofonts
+          for w in Regular Bold; do
+            curl -fsSL --max-time 30 -o ~/kofonts/NotoSansKR-$w.otf               "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/KR/NotoSansKR-$w.otf"
+          done
 
       # 실 제조업 PMI(50기준) 웹 스크래핑 영속 캐시 — 스크래핑 성공값을 런 간 보존해
       # 소스 일시 차단 시에도 BCI 로 깜빡이지 않고 최신 PMI 를 유지한다.
@@ -307,6 +329,7 @@ jobs:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KO_FONT_PATH: ~/kofonts
         run: python scripts/check_releases.py
 
       # 🎯 메르 리스크 렌즈 임계 돌파(기획안 P5) — 새로 넘은 선만 1통. 이 저장소에서
@@ -320,6 +343,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_WEBHOOK_SWINGS: ${{ secrets.DISCORD_WEBHOOK_SWINGS }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          KO_FONT_PATH: ~/kofonts
         run: python scripts/check_mer_thresholds.py
 
       # 🚨 시장중단(서킷브레이커) 카카오톡 발송 스텝은 stock-alerts.yml 로 이관됨(2026-07) —
