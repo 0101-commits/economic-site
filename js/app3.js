@@ -277,8 +277,18 @@ function renderBriefStrip(d) {
   // --size_small(높이) + --size_small-layout_withText(min-width) + __label--size_small.
   const CHIP = 'seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText brief-chip';
   const CHIP_LBL = 'seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak';
-  const chip = (onclick, lbl, valHtml, title, aria) =>
-    chips.push(`<button type="button" class="${CHIP}" onclick="${onclick}" title="${escapeHtml(title || '')}" aria-label="${escapeHtml(aria || title || lbl)}"><span class="${CHIP_LBL}"><span class="brief-lbl">${lbl}</span>${valHtml}</span></button>`);
+  // 화면을 옮기는 칩은 링크로 낸다(기획 2026-09-21 C11) — 버튼이면 새 탭·주소 복사가 안 된다.
+  // 같은 자리에서 패널만 여는 칩(showSentimentDetail 등)은 버튼 그대로다.
+  const chip = (onclick, lbl, valHtml, title, aria) => {
+    // 화면을 옮기는 두 어법 — showPage('x') 와 navigateToDetail('x')(= market 화면의 해당 탭).
+    const m = /^showPage\('([a-z]+)'/.exec(onclick || '')
+           || (/^navigateToDetail\(/.test(onclick || '') ? [null, 'market'] : null);
+    const inner = `<span class="${CHIP_LBL}"><span class="brief-lbl">${lbl}</span>${valHtml}</span>`;
+    const attrs = `class="${CHIP}" title="${escapeHtml(title || '')}" aria-label="${escapeHtml(aria || title || lbl)}"`;
+    chips.push(m
+      ? `<a href="?p=${m[1]}" ${attrs} onclick="${onclick};return false;">${inner}</a>`
+      : `<button type="button" ${attrs} onclick="${onclick}">${inner}</button>`);
+  };
   // 데이터 신선도 칩 — 사이드바가 오프캔버스인 모바일에서도 "이 숫자가 언제 것인지" 노출
   try {
     const ts = window._lastServerDataTs || d.lastUpdated || window._lastRealDataTs;
@@ -732,7 +742,7 @@ function styRenderList() {
         escapeHtml(s.title || '(제목 없음)') + '</span>' +
       '<span style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">' +
         '<span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">' + escapeHtml(s.date || '') + '</span>' +
-        (nFile ? '<span class="study-badge">📎 ' + nFile + '</span>' : '') +
+        (nFile ? '<span class="study-badge">' + nFile + '</span>' : '') +
         (open ? '<span class="study-badge" style="background:color-mix(in srgb,var(--c-warn) 22%,transparent);color:var(--c-warn);">☐ ' + open + '</span>' : '') +
         (s.tags || []).slice(0, 2).map(function(t) { return '<span class="study-badge">#' + escapeHtml(t) + '</span>'; }).join('') +
       '</span></button>';

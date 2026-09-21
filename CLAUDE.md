@@ -115,7 +115,30 @@ node tests/ui/gridcheck.mjs                          # 격자·차트높이 클�
 node tests/ui/readability.mjs                        # 데스크톱 1440 가독성 G1~G6
 node tests/ui/mobile-readability.mjs                 # 390 모바일 가독성 M1~M7 (10페이지 × 라이트/다크)
 node tests/ui/uxgates.mjs                            # G7~G9·M8 (1440·390, 10페이지)
+node tests/ui/interaction.mjs                        # G10·G11 조작·전환(유휴 DOM · 보기 전환의 주소 반영·복원)
 ```
+
+**주소가 화면 상태다 (기획 `docs/superpowers/specs/2026-09-21-interaction-ux-plan-design.md`).**
+`js/app1.js` 의 **`ECON_VIEW`** 가 화면별 보기 상태를 한 곳에서 정의한다 — `t`(2차 탭) · `v`(보기 전환) ·
+`f`(필터·분류) · `r`(기간). 규칙 셋: **화면 이동 = pushState**(showPage) · **보기 전환 = replaceState**
+(`econSetViewParam`) · **순간 UI(오버레이·레일·위젯 접기) = 주소에 안 넣는다**. 새 보기 상태를 만들면
+레지스트리에 축을 등록하고(`get`/`apply`/`valid`) 상태를 바꾸는 함수에서 `econSetViewParam` 을 부른다.
+정렬(`s`)은 일부러 뺀다 — 표가 화면당 11~15개라 안정된 키가 없다.
+
+**화면은 가만히 있어야 한다.** `js/app4.js` 의 마킹 함수들(`econMarkFavorites` 등)은 **멱등**이어야 한다 —
+값이 같아도 `textContent` 를 다시 쓰면 텍스트 노드가 교체되고, 그것이 childList 변경이라
+같은 파일의 MutationObserver 가 200ms 뒤 다시 그 함수를 부른다(자기 유발 루프). 이 루프가 유휴 20초
+DOM 변경 2,884건 중 97.8% 였고, 멱등화 뒤 64건이 됐다. 게이트 = `tests/ui/interaction.mjs` G10.
+
+**값 갱신 하이라이트** = `.econ-flash-up/dn`(0.8s). `js/app4.js` 막필의 옵저버가 숫자가 실제로
+달라졌을 때만 붙인다 — class 만 건드리므로(attributes) 스스로를 다시 깨우지 않는다.
+
+**표 정렬 표식은 리터럴 문자로** 적는다(`⇅`/`▲`/`▼`). 예전엔 CSS 이스케이프 `\2191` 이었는데
+8진 이스케이프로 해석돼 제어문자 + "91" 이 열 머리에 찍혔다. 좁은 화면에서는 표식을 절대 위치로
+겹쳐 놓는다 — 그냥 작게만 하면 6열 표가 390을 9px 넘는다(M4).
+
+**화면을 옮기는 컨트롤은 `<a href="?p=…">`** 이다(티커·브리핑 칩·사이드바·하단 탭바). 핸들러는 그대로
+두고 `onclick` 이 `return false` 로 기본 이동만 막는다 — 새 탭·주소 복사·가운데 클릭이 따라온다.
 
 **데스크톱이 모바일보다 작았다 (기획안 `docs/superpowers/specs/2026-09-19-readability-ux-plan-design.md`).**
 9/18 에 모바일만 한 칸 올린 결과 1440 본문이 12px/w400 731곳으로 390(14px)보다 작아져 있었다.

@@ -604,7 +604,7 @@ function _pfSignalMerBadgesApply(counts) {
             : t.textContent.indexOf('국민연금') === 0 ? 'nps' : null;
     if (key && counts[key] && !t.querySelector('.pf-mer-badge')) {
       t.insertAdjacentHTML('beforeend',
-        ' <a class="pf-mer-badge" href="?p=merlens" style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-primary);text-decoration:none;">📝 관련 메르 글 ' + counts[key] + '건</a>');
+        ' <a class="pf-mer-badge" href="?p=merlens" style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-primary);text-decoration:none;">관련 메르 글 ' + counts[key] + '건</a>');
     }
   });
 }

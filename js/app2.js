@@ -840,7 +840,7 @@ async function pfLoadChart() {
   if(candles.length < 2) {
     // [3차-T17] 실패 시 재시도 버튼 — 일시적 네트워크 오류를 모달 재오픈 없이 복구
     msg.innerHTML = '차트 데이터를 불러오지 못했습니다. (심볼: ' + pfEsc(sym) + ') ' +
-      '<button onclick="pfLoadChart()" style="font-size:var(--font-size-sm);padding:2px 10px;margin-left:6px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">↻ 재시도</button>';
+      '<button onclick="pfLoadChart()" style="font-size:var(--font-size-sm);padding:2px 10px;margin-left:6px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">재시도</button>';
     pfChart.candles = null;
     return;
   }

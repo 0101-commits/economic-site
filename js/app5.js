@@ -67,7 +67,7 @@ window.runDiagnostics = async function () {
     if (window._lastRealDataTs && window._lastRealDataTs === meta.lastUpdated)
       rows.push(_row('ok', '화면 데이터', '화면에 로드된 데이터 = 서버 최신본 일치'));
     else if (window._lastRealDataTs)
-      rows.push(_row('warn', '화면 데이터', '화면 데이터가 서버 최신본과 다릅니다 — 새로고침(↻) 권장'));
+      rows.push(_row('warn', '화면 데이터', '화면 데이터가 서버 최신본과 다릅니다 — 새로고침 권장'));
     else
       rows.push(_row('warn', '화면 데이터', '실데이터 미로드 — 예시(Mock) 데이터 표시 중'));
   }

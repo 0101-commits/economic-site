@@ -291,7 +291,7 @@ function _a11ySay(msg) {
 function _refreshFeedback(btn, state, msg) {
   if(!btn) return;
   if(!btn._refreshOrig) {
-    btn._refreshOrig = (btn.textContent || '↻ 새로고침').trim();
+    btn._refreshOrig = (btn.textContent || '새로고침').trim();
     btn._refreshOrigBg = btn.style.background || '';
     btn._refreshOrigBorder = btn.style.borderColor || '';
     btn._refreshOrigColor = btn.style.color || '';
@@ -301,7 +301,7 @@ function _refreshFeedback(btn, state, msg) {
   const restore = (delay) => {
     btn._refreshTimer = setTimeout(() => {
       try {
-        btn.textContent      = btn._refreshOrig || '↻ 새로고침';
+        btn.textContent      = btn._refreshOrig || '새로고침';
         btn.style.background = btn._refreshOrigBg || '';
         btn.style.borderColor= btn._refreshOrigBorder || '';
         btn.style.color      = btn._refreshOrigColor || '';
@@ -345,7 +345,7 @@ function _refreshFeedback(btn, state, msg) {
     _a11ySay(msg ? ('데이터 갱신 실패 — ' + msg) : '데이터 갱신 실패');
     restore(2200);
   } else if(state === 'reset') {
-    btn.textContent      = btn._refreshOrig || '↻ 새로고침';
+    btn.textContent      = btn._refreshOrig || '새로고침';
     btn.style.background = btn._refreshOrigBg || '';
     btn.style.borderColor= btn._refreshOrigBorder || '';
     btn.style.color      = btn._refreshOrigColor || '';
@@ -725,51 +725,143 @@ function marketTabBtn(tab) {
 }
 // ── 주소 = 화면 상태 (IA v3 P0.5) ──────────────────────────────────────────
 // 2차 탭이 display 토글만 해서 딥링크·뒤로가기·북마크·알림 링크가 탭을 잃었다.
-// 페이지(?p=)와 2차 탭(&t=)을 여기 한 곳에서 주소에 싣고, 주소에서 화면을 복원한다.
-var ECON_TABS = {
+// 페이지(?p=)와 **화면 안 보기 상태**(t/v/f/r)를 여기 한 곳에서 주소에 싣고, 주소에서 화면을 복원한다.
+//
+//   t = 2차 탭   v = 같은 화면의 보기 전환   f = 필터·분류   r = 기간
+//
+// 규칙 셋(기획 2026-09-21 C2): 화면 이동 = pushState(showPage) · 보기 전환 = replaceState ·
+// 순간 UI(오버레이·레일·위젯 접기) = 주소에 넣지 않는다. 뒤로가기는 화면 단위로만 돌아야 하고,
+// 필터를 열 번 만진 뒤 뒤로가기가 그 열 칸을 거슬러 가면 안 된다.
+// 벤치 실측: 네이버는 화면 안 조작 9/20 을 pushState, 토스는 4건 replaceState — 그런데 토스는
+// replace 만 써서 뒤로가기가 about:blank 로 나간다. 그래서 '이동은 push, 보기는 replace' 로 갈랐다.
+//
+// 정렬(s)은 넣지 않았다 — 표가 화면당 11~15개라 "어느 표의 몇 번째 열"을 가리킬 안정된 키가 없다.
+var ECON_VIEW = {
   market: {
-    valid: ['fx', 'rate', 'bond', 'commodity'],
-    get: function () { return typeof marketTab !== 'undefined' ? marketTab : null; },
-    apply: function (t) { setMarketTab(t, marketTabBtn(t)); }
+    t: {
+      valid: ['fx', 'rate', 'bond', 'commodity'],
+      get: function () { return typeof marketTab !== 'undefined' ? marketTab : null; },
+      apply: function (t) { setMarketTab(t, marketTabBtn(t)); }
+    }
   },
   macro: {
-    valid: ['kr', 'us', 'jp', 'cn', 'de', 'uk', 'eu'],
-    get: function () { return typeof macroTab !== 'undefined' ? macroTab : null; },
-    apply: function (t) {
-      var btn = document.querySelector('#macroCountryTabs .tab-btn[onclick*="\'' + t + '\'"]');
-      if (btn) setMacroTab(t, btn);
+    t: {
+      valid: ['kr', 'us', 'jp', 'cn', 'de', 'uk', 'eu'],
+      get: function () { return typeof macroTab !== 'undefined' ? macroTab : null; },
+      apply: function (t) {
+        var btn = document.querySelector('#macroCountryTabs .tab-btn[onclick*="\'' + t + '\'"]');
+        if (btn) setMacroTab(t, btn);
+      }
+    },
+    v: {
+      valid: ['country', 'topic'],
+      get: function () { return typeof macroViewMode !== 'undefined' ? macroViewMode : null; },
+      apply: function (v) {
+        var btns = document.querySelectorAll('#macroViewToggle button');
+        var btn = btns[v === 'topic' ? 1 : 0];
+        if (btn) setMacroViewMode(v, btn);
+      }
+    },
+    // 분류 이름은 데이터에서 나온다(고정 목록이 없다) — 없는 값이면 apply 가 조용히 무시한다.
+    f: {
+      get: function () { return typeof _macroCatFilter !== 'undefined' ? _macroCatFilter : null; },
+      apply: function (f) {
+        if (f !== 'all' && !document.querySelector('.econ-catchips [onclick*="\'' + f + '\'"]')) return;
+        setMacroCatFilter(f, null);
+      }
     }
   },
   realestate: {
-    valid: ['kr', 'us'],
-    get: function () { return window._reTab || null; },
-    apply: function (t) { setRETab(t, document.getElementById(t === 'us' ? 'reitabUS' : 'reitabKR')); }
+    t: {
+      valid: ['kr', 'us'],
+      get: function () { return window._reTab || null; },
+      apply: function (t) { setRETab(t, document.getElementById(t === 'us' ? 'reitabUS' : 'reitabKR')); }
+    }
   },
   merlens: {
-    valid: ['board', 'search'],
-    get: function () { return window._merActiveTab || null; },
-    apply: function (t) { if (typeof _merShowTab === 'function') _merShowTab(t, true); }
+    t: {
+      valid: ['board', 'search'],
+      get: function () { return window._merActiveTab || null; },
+      apply: function (t) { if (typeof _merShowTab === 'function') _merShowTab(t, true); }
+    },
+    f: {
+      valid: ['all', 'crossed', 'near', 'below', 'unknown'],
+      get: function () { return typeof _merMonitorFilter !== 'undefined' ? _merMonitorFilter : null; },
+      apply: function (f) {
+        var btn = document.querySelector('[data-mer-filter="' + f + '"]');
+        if (btn && typeof _merSetMonitorFilter === 'function') _merSetMonitorFilter(f, btn);
+      }
+    }
+  },
+  equity: {
+    // 지수는 인덱스가 아니라 **버튼 이름**으로 싣는다 — eqData 순서가 바뀌어도 링크가 살아남는다.
+    f: {
+      get: function () { return econEquityIndexSlug(); },
+      apply: function (f) {
+        var btn = econEquityIndexBtn(f);
+        if (btn) btn.click();
+      }
+    },
+    r: {
+      valid: ['1D', '1W', '1M', '1Q'],
+      get: function () { return typeof equityPeriodUnit !== 'undefined' ? equityPeriodUnit : null; },
+      apply: function (r) {
+        var btn = document.querySelector('#market-equity .eq-unit-btn[onclick*="\'' + r + '\'"]');
+        if (btn) btn.click();
+      }
+    }
   }
 };
-// 탭을 바꾼 쪽에서 부른다 — 지금 보고 있는 화면의 탭일 때만 주소를 고친다.
-function econSetTabParam(page, tab) {
+
+// 지수 버튼의 이름을 주소에 쓸 수 있는 짧은 값으로 — 'S&P 500' → 'sp500', '닛케이' → '닛케이'.
+function econIndexSlug(name) {
+  return String(name || '').trim().toLowerCase().replace(/[\s&.]/g, '');
+}
+function econEquityIndexBtns() {
+  return Array.prototype.filter.call(
+    document.querySelectorAll('#market-equity .tab-btn'),
+    function (b) { return ['KOSPI', 'KOSDAQ', 'S&P 500', 'NASDAQ', '닛케이', '항셍'].indexOf((b.textContent || '').trim()) >= 0; }
+  );
+}
+function econEquityIndexSlug() {
+  var on = econEquityIndexBtns().filter(function (b) { return b.classList.contains('active'); })[0];
+  return on ? econIndexSlug(on.textContent) : null;
+}
+function econEquityIndexBtn(slug) {
+  return econEquityIndexBtns().filter(function (b) { return econIndexSlug(b.textContent) === slug; })[0] || null;
+}
+
+// 보기 상태를 바꾼 쪽에서 부른다 — 지금 보고 있는 화면일 때만 주소를 고친다(replaceState).
+function econSetViewParam(page, axis, value) {
   try {
     var u = new URL(location.href);
     if ((u.searchParams.get('p') || 'dashboard') !== page) return;
-    if (u.searchParams.get('t') === tab) return;
-    u.searchParams.set('t', tab);
+    var val = (value == null || value === '') ? null : String(value);
+    if (u.searchParams.get(axis) === val) return;
+    if (val === null) u.searchParams.delete(axis); else u.searchParams.set(axis, val);
     history.replaceState(null, '', u.pathname + u.search);
   } catch (_) {}
 }
-// 딥링크·뒤로가기로 들어온 주소의 &t= 를 그 페이지 탭에 적용한다(페이지 init 뒤).
-function econApplyTabFromUrl(page) {
-  var spec = ECON_TABS[page];
+function econSetTabParam(page, tab) { econSetViewParam(page, 't', tab); }   // 옛 이름(호출부 3곳)
+
+// 딥링크·뒤로가기로 들어온 주소의 t/v/f/r 을 화면에 적용한다(페이지 init 뒤).
+// 적용 순서가 t → v → f → r 인 이유: 탭이 먼저 서야 그 안의 필터 버튼이 DOM 에 있다.
+function econApplyViewFromUrl(page) {
+  var spec = ECON_VIEW[page];
   if (!spec) return;
-  var t = null;
-  try { t = new URLSearchParams(location.search).get('t'); } catch (_) {}
-  if (!t || spec.valid.indexOf(t) < 0 || spec.get() === t) return;
-  setTimeout(function () { try { spec.apply(t); } catch (e) { console.warn('tab from url', e); } }, 90);
+  var q;
+  try { q = new URLSearchParams(location.search); } catch (_) { return; }
+  ['t', 'v', 'f', 'r'].forEach(function (axis, i) {
+    var ax = spec[axis];
+    if (!ax) return;
+    var val = q.get(axis);
+    if (!val) return;
+    if (ax.valid && ax.valid.indexOf(val) < 0) { console.warn('알 수 없는 보기 값', axis, val); return; }
+    if (ax.get && ax.get() === val) return;
+    setTimeout(function () { try { ax.apply(val); } catch (e) { console.warn('view from url', axis, e); } }, 90 + i * 60);
+  });
 }
+function econApplyTabFromUrl(page) { econApplyViewFromUrl(page); }   // 옛 이름(호출부 2곳)
 
 // 지표의 원본 화면(canonical)으로 보낸다 — 'market#fx' 같은 문자열 하나가 목적지다.
 // 화면마다 이름-분기를 적던 자리를 레지스트리(js/app0.js)가 대신한다(IA v3 P0).
@@ -836,15 +928,25 @@ function _tickerRows() {
     return picked.length ? picked : tickerData;
   } catch (_) { return tickerData; }
 }
+// 티커 항목의 주소 — 레지스트리가 아는 이름이면 그 지표의 원본 화면, 모르는 이름이면 대시보드.
+function econTickerHref(name) {
+  try {
+    var row = window.ECON_IND && window.ECON_IND.find(name);
+    var page = row && row.canonical && typeof econCanonicalPage === 'function' ? econCanonicalPage(row.canonical) : null;
+    return '?p=' + (page || 'dashboard');
+  } catch (_) { return '?p=dashboard'; }
+}
 function buildTicker() {
   const rows = _tickerRows();
   const items = [...rows,...rows].map(d=>{
     const cc = d.up===null?'color:var(--c-txt-dim)':d.up?'color:var(--c-up)':'color:var(--c-down)';
-    return `<button type="button" class="ticker-item btn-plain btn-inline" onclick="tickerClick('${d.name.replace(/'/g,"\\'")}')" style="font-size:var(--font-size-sm);display:inline-flex;gap:6px;align-items:center;">
+    // 티커 항목은 링크다(기획 2026-09-21 C11) — 버튼이면 새 탭·주소 복사·가운데 클릭이 안 된다.
+    // href 는 지표의 원본 화면, 실제 이동은 기존 tickerClick(SPA 전환)이 맡고 기본 동작은 막는다.
+    return `<a href="${econTickerHref(d.name)}" class="ticker-item btn-plain btn-inline" onclick="tickerClick('${d.name.replace(/'/g,"\\'")}');return false;" style="font-size:var(--font-size-sm);display:inline-flex;gap:6px;align-items:center;">
       <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);text-transform:uppercase;">${d.name}</span>
       <span style="color:var(--c-txt);font-weight:var(--font-weight-medium);">${d.val}</span>
       <span style="${cc};font-size:var(--font-size-sm);">${d.chg}</span>
-    </button>`;
+    </a>`;
   }).join('');
   document.getElementById('ticker').innerHTML = items;
 }
@@ -1157,7 +1259,10 @@ function showPage(id, el) {
         && document.querySelector('.page.active').id === 'page-merlens'; } catch(_) {}
   if(id === 'merblog') { id = 'merlens'; _merWantSearchTab = true; }
   // 잘못된 id 로 호출돼도 빈 화면이 되지 않게 대상 존재를 먼저 확인하고 없으면 dashboard 폴백
-  if(!document.getElementById('page-'+id)) id = 'dashboard';
+  // 없는 화면으로 들어오면 대시보드로 보낸다 — 다만 **조용히 보내지 않는다**(기획 2026-09-21 C7).
+  // 벤치 6벌 중 오류를 말해준 화면은 토스 모바일 하나뿐이었다. 주소가 틀렸다는 사실은 화면이 말해야 한다.
+  var _unknownPage = null;
+  if(!document.getElementById('page-'+id)) { _unknownPage = id; id = 'dashboard'; }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   // 활성 표시는 data-current(+aria-current) 한 쌍이 단일 원천 — 사이드바 3요소와
@@ -1216,19 +1321,58 @@ function showPage(id, el) {
   // 달라질 때만 pushState 해서 브라우저 뒤로가기가 화면 전환을 되짚는다(IA v3 P0.5).
   try {
     var _url = location.pathname + '?p=' + id;
-    var _tab = null;
+    var _spec = ECON_VIEW[id] || {};
+    var _same = false, _cur = null;
     try {
-      var _cur = new URLSearchParams(location.search);
-      if((_cur.get('p') || 'dashboard') === id) _tab = _cur.get('t');   // 같은 페이지면 탭 유지
+      _cur = new URLSearchParams(location.search);
+      _same = (_cur.get('p') || 'dashboard') === id;   // 같은 페이지면 보기 상태를 유지한다
     } catch(_) {}
+    var _tab = _same ? _cur.get('t') : null;
     // 메르 렌즈는 이 호출이 어느 탭을 여는지 이미 정해져 있다(별칭·딥링크) — 주소도 그걸 따른다.
     if(id === 'merlens') _tab = _merWantSearchTab ? 'search' : 'board';
-    else if(!_tab && ECON_TABS[id] && ECON_TABS[id].get) _tab = ECON_TABS[id].get();
-    if(_tab && ECON_TABS[id] && ECON_TABS[id].valid.indexOf(_tab) >= 0) _url += '&t=' + _tab;
+    else if(!_tab && _spec.t && _spec.t.get) _tab = _spec.t.get();
+    if(_tab && _spec.t && _spec.t.valid.indexOf(_tab) >= 0) _url += '&t=' + _tab;
+    // v/f/r 은 사용자가 만진 값만 따라온다(같은 화면으로 다시 들어올 때). 새 화면이면 깨끗이 시작한다.
+    if(_same) ['v','f','r'].forEach(function(ax){
+      var v = _cur.get(ax);
+      if(v && _spec[ax]) _url += '&' + ax + '=' + encodeURIComponent(v);
+    });
     if(location.pathname + location.search !== _url) history.pushState(null, '', _url);
   } catch(_) {}
+  // 없는 주소로 들어온 것이면 그 사실을 화면이 말한다(C7).
+  if(_unknownPage) econNoticeUnknownPage(_unknownPage);
   // 메뉴 클릭 후 사이드바 자동 숨김 (모바일/데스크탑 공통)
   collapseSidebarAfterNav();
+}
+
+// 없는 화면 주소로 들어왔을 때의 안내 — 대시보드를 조용히 렌더하지 않는다(기획 2026-09-21 C7).
+// 자동으로 사라지지 않는다. 사용자가 닫거나 다른 화면으로 가면 없어진다.
+function econNoticeUnknownPage(name) {
+  try {
+    var main = document.getElementById('mainContent');
+    if(!main) return;
+    var old = document.getElementById('econUnknownPage');
+    if(old) old.remove();
+    var box = document.createElement('div');
+    box.id = 'econUnknownPage';
+    box.className = 'econ-notice';
+    box.setAttribute('role', 'status');
+    var msg = document.createElement('span');
+    msg.textContent = '‘' + String(name).slice(0, 40) + '’ 화면이 없습니다 — 대시보드로 왔습니다.';
+    var open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'btn-plain econ-notice__act';
+    open.textContent = '전체 화면 보기';
+    open.addEventListener('click', function(){ try { econOpenSearch(); } catch(_) {} });
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn-plain econ-notice__x';
+    close.setAttribute('aria-label', '안내 닫기');
+    close.textContent = '×';
+    close.addEventListener('click', function(){ box.remove(); });
+    box.appendChild(msg); box.appendChild(open); box.appendChild(close);
+    main.insertBefore(box, main.firstChild);
+  } catch(_) {}
 }
 
 // 메뉴 이동 후 사이드바 정리 — 드로어는 항상 닫고, 데스크톱 자동 접힘은 설정 게이트.
@@ -1615,7 +1759,7 @@ function onNaverMapsAuthFailure() {
         Naver 지도 API 인증 실패. 바 차트로 자동 전환합니다.
       </div>
       <div style="display:flex;gap:6px;margin-top:4px;">
-        <button onclick="setReRegionView('bar', document.getElementById('reRegionViewBar'))" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);border-radius:var(--r-xs);cursor:pointer;">📊 바 차트 사용</button>
+        <button onclick="setReRegionView('bar', document.getElementById('reRegionViewBar'))" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);border-radius:var(--r-xs);cursor:pointer;">바 차트 사용</button>
       </div>`;
   }
 }
@@ -1735,7 +1879,7 @@ async function buildNaverRegionMap() {
         </div>
         <div style="display:flex;gap:6px;margin-top:4px;">
           <!-- 구 'osm'/'map' 버튼은 setReRegionView 가 'naver' 로 매핑해 같은 오류 화면으로 되돌아오는 루프였음 — 유일한 탈출구인 바 차트로 교체 -->
-          <button onclick="setReRegionView('bar', document.getElementById('reRegionViewBar'))" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);border-radius:var(--r-xs);cursor:pointer;">📊 바 차트로 보기</button>
+          <button onclick="setReRegionView('bar', document.getElementById('reRegionViewBar'))" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);border-radius:var(--r-xs);cursor:pointer;">바 차트로 보기</button>
         </div>`;
     }
     return;
@@ -3589,7 +3733,7 @@ function _renderReHistChartIndex(histName) {
   const guideEl = document.getElementById('reHistGuide');
   if(titleEl) titleEl.textContent = title;
   // 가이드: 글로벌 지수 일반 안내
-  const guideHtml = `<strong style="color:var(--c-primary);">📊 ${title} 이란?</strong><br>
+  const guideHtml = `<strong style="color:var(--c-primary);">${title} 이란?</strong><br>
     각 국가/시장의 대표 주가지수. 시장 전체의 흐름과 투자자 심리를 반영합니다.<br><br>
     <strong>해석:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -4002,7 +4146,7 @@ function buildMoverTable(dir) {
          ${diagLine}`;
     tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--c-txt-dim);font-size:var(--font-size-sm);">
       ${stateMsg}
-      <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:4px 12px;font-size:var(--font-size-sm);cursor:pointer;">↻ 다시 시도</button>
+      <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:4px 12px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button>
       <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버에서 직접 보기 →</a>
     </td></tr>`;
     // 자동 트리거: 빈 데이터일 때 백그라운드에서 1회만 페치 시도 (무한 루프 방지)
@@ -5367,6 +5511,7 @@ function buildEquityIndexChart(series) {
 
 function selectEquityIndex(idx, btn) {
   equityCurrentIdx = idx;
+  if(btn) econSetViewParam('equity', 'f', econIndexSlug(btn.textContent));
   const d = eqData[idx];
   const titleEl = document.getElementById('equityChartTitle');
   if(titleEl) setWidgetTitleText(titleEl, d.name);
@@ -5433,6 +5578,7 @@ function setEquityPeriod(p, btn) {
   // Legacy 호환: '1W' → '1W', '1M' → '1M', '3M' → '1M', '1Y' → '1Q', '1D' → '1D'
   const unitMap = {'1D':'1D','1W':'1W','1M':'1M','1Q':'1Q','3M':'1M','1Y':'1Q'};
   equityPeriodUnit = unitMap[p] || '1D';
+  econSetViewParam('equity', 'r', equityPeriodUnit);
   if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
   renderEquityChart();
 }
@@ -5611,8 +5757,8 @@ function buildEquityPage() {
   // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
-  const noData = `<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button onclick="retryEquityMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">↻ 다시 시도</button></td></tr>`;
-  const noDataETF = `<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">↻ 다시 시도</button></td></tr>`;
+  const noData = `<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button onclick="retryEquityMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button></td></tr>`;
+  const noDataETF = `<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button></td></tr>`;
   const _volFmt = v => {
     if(v == null || v === '' || v === '—') return '—';
     const n = typeof v === 'string' ? parseFloat(v.replace(/[,K천주]/g,'')) : v;
@@ -7024,6 +7170,7 @@ let macroTab='kr';
 let macroViewMode='country';
 function setMacroViewMode(mode, btn) {
   macroViewMode = mode;
+  econSetViewParam('macro', 'v', mode);   // 보기 전환도 주소에 남는다(C2)
   document.querySelectorAll('#macroViewToggle button').forEach(b => {
     b.style.background = 'transparent'; b.style.color = 'var(--c-txt-dim)'; b.style.border = '1px solid var(--c-border)';
   });
@@ -7430,6 +7577,7 @@ let _macroCatFilter = (function(){
 function setMacroCatFilter(cat, btn) {
   _macroCatFilter = cat;
   try { localStorage.setItem('econ_macro_cat', cat); } catch(_) {}
+  econSetViewParam('macro', 'f', cat);
   buildMacroIndicatorTable();
 }
 
@@ -7562,7 +7710,7 @@ function buildMacroIndicatorTable() {
         } else { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       } else if(!r.dataPath) { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       const indIdx = macroIndicators.indexOf(r);
-      const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:var(--font-size-xs);padding:2px 6px;background:var(--c-accent)22;color:var(--c-accent);border:1px solid var(--c-accent)55;border-radius:var(--r-xs);text-decoration:none;">📎 ${r.linkLabel||'최신 보고서'} →</a>` : '';
+      const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:var(--font-size-xs);padding:2px 6px;background:var(--c-accent)22;color:var(--c-accent);border:1px solid var(--c-accent)55;border-radius:var(--r-xs);text-decoration:none;">${r.linkLabel||'최신 보고서'} →</a>` : '';
       return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:rgba(255,255,255,0.03);border-radius:var(--r-sm);border-left:3px solid ${color};cursor:pointer;" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
           <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);"><button type="button" class="btn-plain btn-inline">${r.cc} ${r.name} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></button></div>
@@ -10250,7 +10398,7 @@ function showDataSourceDetail(key, btn) {
       <div style="color:var(--c-txt-dim);font-size:var(--font-size-xs);margin-top:2px;">${status.label||'—'}</div>
     </div>
     <div style="margin-bottom:8px;color:var(--c-txt);font-size:var(--font-size-sm);">${src.desc}</div>
-    <div style="margin-bottom:6px;font-weight:var(--font-weight-semibold);color:var(--c-txt);font-size:var(--font-size-sm);">📊 가져오는 데이터:</div>
+    <div style="margin-bottom:6px;font-weight:var(--font-weight-semibold);color:var(--c-txt);font-size:var(--font-size-sm);">가져오는 데이터:</div>
     <ul style="margin:0 0 10px 18px;padding:0;color:var(--c-primary);font-size:var(--font-size-xs);">
       ${src.fetched.map(f=>`<li>${f}</li>`).join('')}
     </ul>
@@ -10761,7 +10909,7 @@ function _renderReHistChartMacro() {
   const noteEl  = document.getElementById('reHistNote');
   const guideEl = document.getElementById('reHistGuide');
   if(titleEl) titleEl.textContent = title;
-  const linkHtml = opts.link ? `<a href="${opts.link}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-left:8px;font-size:var(--font-size-xs);padding:2px 8px;background:var(--c-accent)22;color:var(--c-accent);border:1px solid var(--c-accent)55;border-radius:var(--r-xs);text-decoration:none;">📎 ${opts.linkLabel||'최신 보고서'} →</a>` : '';
+  const linkHtml = opts.link ? `<a href="${opts.link}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-left:8px;font-size:var(--font-size-xs);padding:2px 8px;background:var(--c-accent)22;color:var(--c-accent);border:1px solid var(--c-accent)55;border-radius:var(--r-xs);text-decoration:none;">${opts.linkLabel||'최신 보고서'} →</a>` : '';
   if(metaEl) metaEl.innerHTML = `<span style="color:var(--c-primary);">단위:</span> ${unit||'—'} &nbsp; <span style="color:var(--c-primary);">출처:</span> ${opts.src||'—'}${linkHtml}`;
   // 매크로 지표의 해석 가이드 표시
   const macroGuide = _getMacroGuide(dataPath, title);
@@ -11776,7 +11924,7 @@ const SENTIMENT_GUIDES = {
     dataPath: 'economicIndicators.us.vix',
     color: '#f5a623',
     guide: `
-      <strong style="color:var(--c-warn);">📊 VIX 란?</strong><br>
+      <strong style="color:var(--c-warn);">VIX 란?</strong><br>
       S&P500 옵션의 향후 30일간 내재변동성을 지수화한 것으로, 시장의 <strong>"공포 지수"</strong>로 불립니다.<br><br>
       <strong>해석 기준 (역사적 평균 ~19):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11797,7 +11945,7 @@ const SENTIMENT_GUIDES = {
     dataPath: 'sentiment.vkospi',
     color: '#f5a623',
     guide: `
-      <strong style="color:var(--c-warn);">📊 KSVKOSPI (V-KOSPI 200) 란?</strong><br>
+      <strong style="color:var(--c-warn);">KSVKOSPI (V-KOSPI 200) 란?</strong><br>
       한국거래소(KRX) 가 정식 발표하는 KOSPI 200 옵션의 30일 내재변동성. 한국 시장의 <strong>변동성/공포 지수</strong>로, VIX의 한국판입니다. 네이버에서 보는 finance.naver.com/sise/sise_index.naver?code=KSVKOSPI 과 동일.<br><br>
       <strong>해석 기준 (역사적 평균 ~17):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11817,7 +11965,7 @@ const SENTIMENT_GUIDES = {
     dataPath: 'sentiment.move',
     color: '#b6c4ff',
     guide: `
-      <strong style="color:var(--c-primary);">📊 MOVE Index 란?</strong><br>
+      <strong style="color:var(--c-primary);">MOVE Index 란?</strong><br>
       미국 국채 옵션의 내재변동성. 채권시장의 <strong>"VIX"</strong>로, 금리 변동성과 통화정책 불확실성을 측정합니다.<br><br>
       <strong>해석 기준 (역사적 평균 ~80):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11837,7 +11985,7 @@ const SENTIMENT_GUIDES = {
     dataPath: 'sentiment.pcr',
     color: '#9b59b6',  // 보라색 — 라이트/다크 모드 양쪽에서 명확히 보임
     guide: `
-      <strong style="color:var(--c-txt);">📊 Put/Call Ratio 란?</strong><br>
+      <strong style="color:var(--c-txt);">Put/Call Ratio 란?</strong><br>
       풋옵션(매도 권리) 거래량 ÷ 콜옵션(매수 권리) 거래량. 시장의 <strong>약세/강세 심리</strong>를 반영하는 역방향 지표입니다.<br><br>
       <strong>해석 기준:</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11857,7 +12005,7 @@ const SENTIMENT_GUIDES = {
     dataPath: 'economicIndicators.us.hy_spread',
     color: window.CDN,
     guide: `
-      <strong style="color:var(--c-down);">📊 HY Spread 란?</strong><br>
+      <strong style="color:var(--c-down);">HY Spread 란?</strong><br>
       미국 하이일드(투기등급) 회사채 수익률과 동일 만기 국채 수익률의 차이. 신용시장의 <strong>위험 프리미엄</strong>을 측정합니다.<br><br>
       <strong>해석 기준 (역사적 평균 ~5%p):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11877,7 +12025,7 @@ const SENTIMENT_GUIDES = {
     dataPath: 'sentiment.fear_greed',
     color: window.CUP,
     guide: `
-      <strong style="color:var(--c-up);">📊 Fear &amp; Greed Index 란?</strong><br>
+      <strong style="color:var(--c-up);">Fear &amp; Greed Index 란?</strong><br>
       CNN Money 가 7가지 시장 지표(주가 모멘텀·강도·폭·풋콜비율·정크본드 수요·시장 변동성·안전자산 수요)를 종합한 <strong>시장 심리 지표</strong>. 0~100 점수로 표현됩니다.<br><br>
       <strong>해석 기준:</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11897,7 +12045,7 @@ const SENTIMENT_GUIDES = {
 // ============================
 const MACRO_GUIDES = {
   // ──────── 거시경제 ────────
-  cpi: `<strong style="color:var(--c-down);">📊 CPI (소비자물가지수) 란?</strong><br>
+  cpi: `<strong style="color:var(--c-down);">CPI (소비자물가지수) 란?</strong><br>
     가계가 소비하는 상품·서비스 가격의 변동을 측정. 인플레이션의 핵심 지표.<br><br>
     <strong>해석 기준 (전년동기비, 한국 목표 2%):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11909,7 +12057,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> Fed/한은 통화정책 결정의 1순위 지표. 근원 CPI(에너지/식품 제외)와 함께 봐야 정확.`,
 
-  gdp: `<strong style="color:var(--c-up);">📊 GDP 성장률 이란?</strong><br>
+  gdp: `<strong style="color:var(--c-up);">GDP 성장률 이란?</strong><br>
     국내총생산의 전년동기 또는 전기 대비 변화율. 경제 활동의 규모를 측정.<br><br>
     <strong>해석 기준 (전년동기비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11921,7 +12069,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 분기별 발표. 한국 잠재성장률 ~2.0%, 그 이하면 경기 둔화 신호.`,
 
-  unemployment: `<strong style="color:var(--c-warn);">📊 실업률 이란?</strong><br>
+  unemployment: `<strong style="color:var(--c-warn);">실업률 이란?</strong><br>
     경제활동인구 중 실업자 비율. 노동시장 건강성과 경기 사이클을 반영.<br><br>
     <strong>해석 기준 (한국 자연실업률 ~3%, 미국 ~4.5%):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11933,7 +12081,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> Sahm Rule — 실업률 3M평균이 12개월 최저치 대비 +0.5%p 이상 상승 시 침체 신호.`,
 
-  base_rate: `<strong style="color:var(--c-primary);">📊 기준금리 (정책금리) 란?</strong><br>
+  base_rate: `<strong style="color:var(--c-primary);">기준금리 (정책금리) 란?</strong><br>
     중앙은행이 시중은행에 적용하는 금리. 통화정책의 핵심 도구.<br><br>
     <strong>해석 기준 (중립금리: 한국 ~2.5%, 미국 ~3%):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11945,7 +12093,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 채권시장, 환율, 부동산, 주식 전반에 영향. 금리 인상기 = 채권가격 하락 / 인하기 = 채권가격 상승.`,
 
-  hpi: `<strong style="color:var(--c-up);">📊 주택가격지수 (HPI) 란?</strong><br>
+  hpi: `<strong style="color:var(--c-up);">주택가격지수 (HPI) 란?</strong><br>
     주택 매매가격의 시계열 변화. 한국 R-ONE은 2021.6=100 기준, 미국 Case-Shiller는 1990=100 기준.<br><br>
     <strong>해석:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11956,7 +12104,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 주담대 금리, 가계부채, 인구 변화와 함께 종합 판단. 한국 2022년 정점 후 -10% 조정 → 2024년 회복.`,
 
-  mortgage_rate: `<strong style="color:var(--c-down);">📊 모기지 / 주담대 금리 이란?</strong><br>
+  mortgage_rate: `<strong style="color:var(--c-down);">모기지 / 주담대 금리 이란?</strong><br>
     주택구입자금 대출의 평균 금리. 한국 신규 주담대, 미국 30년 고정 모기지가 대표.<br><br>
     <strong>해석 기준:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11967,7 +12115,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 기준금리 + 스프레드 = 모기지 금리. Fed 정책 변화 직후 시장에 반영. 한국 코픽스(COFIX) 기준 변동금리 영향.`,
 
-  unsold: `<strong style="color:var(--c-down);">📊 미분양 주택 수 란?</strong><br>
+  unsold: `<strong style="color:var(--c-down);">미분양 주택 수 란?</strong><br>
     분양 후 매각되지 않은 주택의 누적 호수. 공급 과잉/수요 부족의 핵심 지표.<br><br>
     <strong>해석 기준 (한국 전국):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11980,7 +12128,7 @@ const MACRO_GUIDES = {
 
   vix: SENTIMENT_GUIDES.vix.guide,
 
-  trade_count: `<strong style="color:var(--c-up);">📊 주택 거래량 (매매) 란?</strong><br>
+  trade_count: `<strong style="color:var(--c-up);">주택 거래량 (매매) 란?</strong><br>
     월간 신고된 부동산 매매계약 건수. 시장 활성도와 수요·공급 균형을 판단하는 1차 지표.<br><br>
     <strong>해석 기준 (한국 전국 월간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -11992,7 +12140,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 가격지수에 약 3개월 선행. 거래량 ↓ + 가격 ↓ = 침체 진입, 거래량 ↑ + 가격 보합 = 회복 신호. 자료: 국토교통부 실거래가공개시스템.`,
 
-  permit: `<strong style="color:var(--c-warn);">📊 주택 인허가 (Permits) 란?</strong><br>
+  permit: `<strong style="color:var(--c-warn);">주택 인허가 (Permits) 란?</strong><br>
     정부가 발급한 신규 주택 건설 허가 건수. 향후 1~3년 후 공급량을 예측하는 선행지표.<br><br>
     <strong>해석 기준 (한국 연간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12003,7 +12151,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 미분양과 함께 보면 정확. 인허가 ↓ + 미분양 ↑ = 단기 공급과잉, 인허가 ↓ + 미분양 ↓ = 향후 가격 상승 압력. 자료: 국토교통부.`,
 
-  start: `<strong style="color:var(--c-primary);">📊 주택 착공 (Starts) 란?</strong><br>
+  start: `<strong style="color:var(--c-primary);">주택 착공 (Starts) 란?</strong><br>
     실제 공사가 시작된 신규 주택의 건설 호수. 인허가보다 더 확실한 공급 선행지표 (1~2년 후 입주).<br><br>
     <strong>해석 기준 (한국 연간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12014,7 +12162,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 미국은 'Housing Starts' (FRED: HOUST) 로 발표. 인허가 → 착공 → 준공 (입주) 순으로 약 12~18개월 시차. 자료: 국토교통부.`,
 
-  current_account: `<strong style="color:var(--c-up);">📊 경상수지 란?</strong><br>
+  current_account: `<strong style="color:var(--c-up);">경상수지 란?</strong><br>
     국가의 대외 거래 결과 — 상품·서비스 수출입 + 본원·이전소득 합산. 흑자/적자가 환율·외환보유고 결정 요인.<br><br>
     <strong>해석 기준 (한국 월간, 억 달러):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12026,7 +12174,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 흑자 지속 = 원화 강세 압력, 적자 지속 = 원화 약세 압력. 한국은 12개월 누적 600~700억 달러 흑자가 정상. 자료: 한국은행 ECOS.`,
 
-  exports: `<strong style="color:var(--ind-pos);">📊 수출 (월간 무역수지) 란?</strong><br>
+  exports: `<strong style="color:var(--ind-pos);">수출 (월간 무역수지) 란?</strong><br>
     당월 상품 수출 총액. 한국 경제는 GDP의 ~40% 가 수출 → 핵심 경기 지표.<br><br>
     <strong>해석 기준 (한국 월간, 억 달러):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12038,7 +12186,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 반도체 비중 약 20~25%. 전년동기비 (YoY) 와 함께 보면 추세 판단. 무역수지 (수출-수입) 흑자 = 원화 강세 요인. 자료: 산업통상자원부 / 관세청.`,
 
-  ip: `<strong style="color:var(--c-warn);">📊 산업생산지수 (IP) 란?</strong><br>
+  ip: `<strong style="color:var(--c-warn);">산업생산지수 (IP) 란?</strong><br>
     광공업(제조업+광업) 생산활동 수준. 2020 = 100 기준. 경기변동의 동행지표.<br><br>
     <strong>해석 기준 (전년동기비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12050,7 +12198,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 제조업 PMI, 수출, GDP 와 동조. 한국은 제조업 비중 ~27% (선진국 평균 15% 대비 高). 자료: 통계청 / 한국은행 ECOS.`,
 
-  retail: `<strong style="color:var(--c-up);">📊 소매판매액지수 란?</strong><br>
+  retail: `<strong style="color:var(--c-up);">소매판매액지수 란?</strong><br>
     소매업체의 매출액 변동. 가계 소비 지출 = GDP의 ~50%. 내수 경기 핵심 지표.<br><br>
     <strong>해석 기준 (전년동기비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12062,7 +12210,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 고용·임금·심리지표와 연동. 명목 지수와 실질 지수 (인플레 제외)를 함께 봐야 정확. 자료: 통계청 / 한국은행 ECOS.`,
 
-  pir: `<strong style="color:var(--c-down);">📊 PIR (Price-to-Income Ratio) 이란?</strong><br>
+  pir: `<strong style="color:var(--c-down);">PIR (Price-to-Income Ratio) 이란?</strong><br>
     중위 주택가격 ÷ 가구 중위소득. 가구 평균소득으로 주택을 사는데 몇 년 걸리는지의 배수.<br><br>
     <strong>해석 기준 (서울 기준):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12074,7 +12222,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 한국 전국 평균 ~10배, 서울 ~19배 → 서울 양극화 심화. 자료: KB부동산 / 통계청 가계금융복지.`,
 
-  household_debt: `<strong style="color:var(--c-down);">📊 가계신용 (가계부채) 란?</strong><br>
+  household_debt: `<strong style="color:var(--c-down);">가계신용 (가계부채) 란?</strong><br>
     가계가 진 모든 빚 — 은행·비은행 대출 + 신용카드 미결제 잔액. GDP 대비 비율로 평가.<br><br>
     <strong>해석 기준 (GDP 대비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12085,7 +12233,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 한국은 부동산 담보대출이 ~60%. 금리 인상 시 가계의 이자부담 ↑ → 소비 위축. 자료: 한국은행 ECOS.`,
 
-  pmi: `<strong style="color:var(--c-primary);">📊 제조업 PMI 란?</strong><br>
+  pmi: `<strong style="color:var(--c-primary);">제조업 PMI 란?</strong><br>
     구매관리자지수. 신규수주·생산·고용·재고·납기 5개 항목 가중평균. 50 기준.<br><br>
     <strong>해석 기준 (S&P Global / ISM):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12097,7 +12245,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 50 기준선 돌파/하향이 추세 전환 시그널. 매월 1일 첫 영업일 발표 (가장 빠른 경기지표). 자료: S&P Global / ISM.`,
 
-  m2: `<strong style="color:var(--c-primary);">📊 M2 통화량 이란?</strong><br>
+  m2: `<strong style="color:var(--c-primary);">M2 통화량 이란?</strong><br>
     M1 (현금+요구불예금) + 저축성예금 + MMF + 단기금융상품. 시중 유동성의 폭넓은 측정치.<br><br>
     <strong>해석 (전년동기비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12108,7 +12256,7 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">💡 활용:</strong> 인플레이션 선행지표. M2 ↑ → 12~18개월 후 인플레 ↑. Fed/한은의 양적완화·긴축 효과를 가시화. 자료: Fed (FRED: M2SL) / 한국은행 ECOS.`,
 
-  dxy: `<strong style="color:var(--c-up);">📊 달러 인덱스 (DXY) 란?</strong><br>
+  dxy: `<strong style="color:var(--c-up);">달러 인덱스 (DXY) 란?</strong><br>
     미 달러 vs 6개 주요통화 (유로 57.6%, 엔 13.6%, 파운드 11.9%, CAD/SEK/CHF) 의 가중 환율. 글로벌 달러 강세 측정.<br><br>
     <strong>해석 기준:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
@@ -12246,7 +12394,7 @@ function _renderReHistChartSentiment(guide) {
         }
       } else if(isSentimentClientKey) {
         // 합성 fallback 제거 이후: 페치 모두 실패 시 명확한 안내
-        noteEl.innerHTML = `<span style="color:var(--c-down,var(--c-error));">⚠️ 데이터 수집 실패</span> — 브라우저 환경에서 외부 API 접근이 차단되었거나 일시적 응답 없음. <a href="javascript:void(0)" onclick="(function(){var b=event.target;b.textContent='⟳ 페치 중…';fetchSentimentClient().then(applySentimentClient).then(function(){b.textContent='✓ 갱신 시도 완료';}).catch(function(){b.textContent='✗ 실패';});})()" style="color:var(--c-primary);text-decoration:underline;">↻ 다시 시도</a>`;
+        noteEl.innerHTML = `<span style="color:var(--c-down,var(--c-error));">⚠️ 데이터 수집 실패</span> — 브라우저 환경에서 외부 API 접근이 차단되었거나 일시적 응답 없음. <a href="javascript:void(0)" onclick="(function(){var b=event.target;b.textContent='⟳ 페치 중…';fetchSentimentClient().then(applySentimentClient).then(function(){b.textContent='✓ 갱신 시도 완료';}).catch(function(){b.textContent='✗ 실패';});})()" style="color:var(--c-primary);text-decoration:underline;">다시 시도</a>`;
         // 자동으로 1회 재시도
         if(typeof fetchSentimentClient === 'function') {
           fetchSentimentClient().then(applySentimentClient).catch(()=>{});
@@ -12928,7 +13076,7 @@ function applyRealData(d) {
     return `<tr><td colspan="${cols}" style="padding:14px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">
       <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
       ${diagLine}
-      <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">↻ 다시 시도</button>
+      <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button>
       <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
     </td></tr>`;
   };
@@ -12954,7 +13102,7 @@ function applyRealData(d) {
     return `<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">
       <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
       ${diagLine}
-      <button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">↻ 다시 시도</button>
+      <button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button>
       <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
     </td></tr>`;
   };

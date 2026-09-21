@@ -384,7 +384,7 @@ window.showDataSourceBanner = function () {
   var div = document.createElement('div');
   div.id = 'dataSrcBanner';
   div.innerHTML = '⚠ 서버 데이터(data.json)를 불러오지 못해 <b>예시(Mock) 데이터</b>로 표시 중입니다.' +
-    '<button onclick="retryLoadRealData(this)" style="font-size:var(--font-size-sm);padding:2px 10px;border:1px solid var(--c-warn);border-radius:var(--r-xs);background:transparent;color:var(--c-warn);cursor:pointer;">↻ 재시도</button>' +
+    '<button onclick="retryLoadRealData(this)" style="font-size:var(--font-size-sm);padding:2px 10px;border:1px solid var(--c-warn);border-radius:var(--r-xs);background:transparent;color:var(--c-warn);cursor:pointer;">재시도</button>' +
     '<button type="button" class="btn-plain btn-inline" style="cursor:pointer;font-weight:var(--font-weight-bold);padding:0 2px;" onclick="this.parentNode.remove()" title="닫기">✕</button>';
   document.body.appendChild(div);
 };
@@ -399,7 +399,7 @@ window.retryLoadRealData = async function (btn) {
     if (b) b.remove();
     if (typeof showToast === 'function') showToast('서버 데이터 연결 복구 — 실데이터로 전환되었습니다.');
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = '↻ 재시도'; }
+    if (btn) { btn.disabled = false; btn.textContent = '재시도'; }
     if (typeof showToast === 'function') showToast('아직 연결 불가 — 잠시 후 다시 시도하세요.');
   }
 };
@@ -650,6 +650,9 @@ window.addEventListener('load', function() {
     var p = new URLSearchParams(location.search).get('p');
     if(p && _VALID.indexOf(p) >= 0 && p !== 'dashboard') {
       showPage(p, (typeof menuItemFor === 'function' ? menuItemFor(p) : null) || null);
+    } else if(p && _VALID.indexOf(p) < 0) {
+      // 화이트리스트 밖 주소는 showPage 까지 가지도 않는다 — 여기서도 안내해야 조용한 폴백이 없다(C7).
+      if(typeof econNoticeUnknownPage === 'function') econNoticeUnknownPage(p);
     }
     // 2차 탭(&t=)도 복원한다 — 첫 진입과 뒤로가기 양쪽(IA v3 P0.5)
     if(typeof econApplyTabFromUrl === 'function') econApplyTabFromUrl(p || 'dashboard');
@@ -785,7 +788,7 @@ function pfExportCsv() {
     var card = document.createElement('div');
     card.style.cssText = 'background:var(--modal-bg,var(--c-card));border:1px solid var(--modal-border,var(--c-border));border-radius:var(--r-sm);padding:22px 24px;width:min(320px,90vw);box-shadow:0 8px 32px rgba(0,0,0,.4);';
     card.innerHTML =
-      '<div style="font-size:var(--font-size-md);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">🔒 잠긴 페이지</div>' +
+      '<div style="font-size:var(--font-size-md);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">잠긴 페이지</div>' +
       '<div style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-bottom:14px;">' + (id === 'settings' ? '설정' : '투자 현황') + ' 페이지는 비밀번호가 필요합니다.</div>' +
       '<input type="password" inputmode="numeric" autocomplete="off" aria-label="비밀번호" style="width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:8px 10px;font-size:var(--font-size-md);">' +
       '<div data-lock-err style="display:none;color:var(--c-down,#e05555);font-size:var(--font-size-xs);margin-top:6px;">비밀번호가 올바르지 않습니다.</div>' +
@@ -830,8 +833,10 @@ function pfExportCsv() {
         var nav = m.getAttribute('data-nav') || m.getAttribute('onclick') || '';
         if(LOCKED.some(function(p) { return nav === p || nav.indexOf("'" + p + "'") >= 0; })) {
           var s = document.createElement('span');
-          s.textContent = ' 🔒';
-          s.setAttribute('aria-label', '비밀번호 잠금');
+          s.className = 'mat';
+          s.textContent = 'lock';
+          s.setAttribute('aria-hidden', 'true');
+          m.setAttribute('title', '비밀번호 잠금');
           s.style.cssText = 'font-size:var(--font-size-xs);opacity:.55;';
           m.appendChild(s);
         }
@@ -872,6 +877,18 @@ function pfExportCsv() {
     } catch (_) {}
   };
 
+  // 별 하나를 지금 상태로 칠한다 — **값이 다를 때만 쓴다**.
+  // textContent 를 무조건 다시 쓰면 텍스트 노드가 교체되고, 그게 childList 변경이라
+  // observeHeadings 의 옵저버가 깨어나 200ms 뒤 이 함수를 다시 부른다 = 자기 유발 루프.
+  // 그 루프가 유휴 20초 DOM 변경 2,884건 중 2,820건(97.8%)이었다(기획 2026-09-21 D1).
+  function paintFav(btn, on, label) {
+    var mark = on ? '★' : '☆';
+    var tip = (on ? '관심에서 빼기: ' : '관심에 담기: ') + label;
+    if (btn.getAttribute('aria-pressed') !== String(on)) btn.setAttribute('aria-pressed', String(on));
+    if (btn.getAttribute('title') !== tip) btn.setAttribute('title', tip);
+    if (btn.textContent !== mark) btn.textContent = mark;
+  }
+
   // 위젯 제목 옆 별 — 레지스트리가 아는 지표에만 붙는다(이름 매칭은 econTitleText 공통 규칙)
   window.econMarkFavorites = function (root) {
     try {
@@ -888,16 +905,11 @@ function pfExportCsv() {
           btn.className = 'econ-fav';
           btn.addEventListener('click', function (ev) {
             ev.stopPropagation(); ev.preventDefault();
-            var on = econToggleFav(row.id);
-            btn.setAttribute('aria-pressed', String(on));
-            btn.textContent = on ? '★' : '☆';
+            paintFav(btn, econToggleFav(row.id), row.label);
           });
           t.appendChild(btn);
         }
-        var on = set.indexOf(row.id) >= 0;
-        btn.setAttribute('aria-pressed', String(on));
-        btn.title = (on ? '관심에서 빼기: ' : '관심에 담기: ') + row.label;
-        btn.textContent = on ? '★' : '☆';
+        paintFav(btn, set.indexOf(row.id) >= 0, row.label);
       });
     } catch (_) {}
   };
@@ -1342,4 +1354,117 @@ window.econMakeTablesSortable = function (root) {
       });
     } catch (_) {}
   };
+})();
+
+// ═══ 값 갱신 하이라이트 (기획 2026-09-21 C3) ══════════════════════════════════
+// 숫자가 **실제로 달라졌을 때만** 그 자리를 0.8초 빛낸다. 네이버가 값마다 붙이는
+// highlight-fade-up/down 과 같은 장치이고, 우리는 측정 당시 값 갱신에 붙은 애니가 0건이었다.
+//
+// 주의 — 이 옵저버는 childList·characterData 만 본다. 하이라이트는 class 를 건드리므로
+// (attributes) 스스로를 다시 깨우지 않는다. D1 의 자기 유발 루프를 되풀이하지 않기 위한 조건이다.
+(function econFlashOnChange() {
+  try {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // 값이 사는 자리만 — 표 전체를 대상으로 하면 정렬 한 번에 화면이 통째로 번쩍인다.
+    var SEL = '.kpi-card .econ-stat__value, .econ-numcell, .econ-row__val, .ticker-item,'
+            + ' #mainChartPriceVal, #mainChartChangeVal, .econ-stat__delta';
+    var last = new WeakMap();
+    var num = function (el) {
+      var t = (el.textContent || '').replace(/[,\s]/g, '');
+      var m = t.match(/-?\d+(\.\d+)?/);
+      return m ? parseFloat(m[0]) : null;
+    };
+    var flash = function (el, up) {
+      var cls = up ? 'econ-flash-up' : 'econ-flash-dn';
+      el.classList.remove('econ-flash-up', 'econ-flash-dn');
+      void el.offsetWidth;                       // 같은 값이 연속으로 와도 애니를 다시 튼다
+      el.classList.add(cls);
+      setTimeout(function () { el.classList.remove(cls); }, 850);
+    };
+    var scan = function (root) {
+      var list = (root || document).querySelectorAll(SEL);
+      Array.prototype.forEach.call(list, function (el) {
+        var v = num(el);
+        if (v === null) return;
+        var prev = last.get(el);
+        last.set(el, v);
+        if (prev === undefined || prev === v) return;
+        flash(el, v > prev);
+      });
+    };
+    var pending = null;
+    var mo = new MutationObserver(function () {
+      if (pending) return;
+      pending = setTimeout(function () { pending = null; scan(document); }, 120);
+    });
+    var start = function () {
+      scan(document);                            // 첫 값을 기준으로 삼는다(첫 렌더는 빛나지 않는다)
+      mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
+  } catch (_) {}
+})();
+
+// ═══ 끝내 오지 않는 차트 자리 (기획 2026-09-21 C3) ═════════════════════════════
+// 차트 스켈레톤(canvas:not([width]))은 그려지는 순간 저절로 풀린다. 문제는 영영 안 오는 경우 —
+// 그 자리는 계속 반짝이기만 한다. 화면에 들어온 canvas 만 지켜보다가 8초가 지나도 비어 있으면
+// 반짝임을 멈추고 무슨 일이 났는지 적는다. '다시 시도'는 그 위젯이 이미 가진 새로고침 버튼을 누른다.
+(function econChartTimeout() {
+  try {
+    var WAIT = 8000;
+    var seen = new WeakSet();
+    var mark = function (cv) {
+      if (cv.getAttribute('width') || !cv.isConnected) return;     // 그 사이 그려졌다
+      var box = cv.getBoundingClientRect();
+      if (box.width < 40 || box.height < 24) return;               // 스파크라인 같은 작은 자리는 제외
+      var host = cv.parentElement;
+      if (!host || host.querySelector('.econ-failed')) return;
+      var note = document.createElement('div');
+      note.className = 'econ-failed';
+      note.setAttribute('role', 'status');
+      var msg = document.createElement('span');
+      msg.textContent = '차트를 불러오지 못했습니다.';
+      note.appendChild(msg);
+      var widget = cv.closest('.widget');
+      var refresh = widget && widget.querySelector('[aria-label*="새로고침"], [title*="새로고침"]');
+      if (refresh) {
+        var again = document.createElement('button');
+        again.type = 'button';
+        again.className = 'btn-plain econ-failed__act';
+        again.textContent = '다시 시도';
+        again.addEventListener('click', function () {
+          note.remove();
+          try { refresh.click(); } catch (_) {}
+        });
+        note.appendChild(again);
+      }
+      cv.classList.add('econ-await-off');                          // 반짝임만 끈다(자리는 유지)
+      host.appendChild(note);
+    };
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting || seen.has(e.target)) return;
+        seen.add(e.target);
+        var cv = e.target;
+        setTimeout(function () { try { mark(cv); } catch (_) {} }, WAIT);
+      });
+    }, { rootMargin: '0px' });
+    var watch = function () {
+      document.querySelectorAll('canvas:not([width])').forEach(function (cv) {
+        if (!seen.has(cv)) io.observe(cv);
+      });
+    };
+    var start = function () {
+      watch();
+      // 화면을 옮기거나 위젯을 펼치면 새 canvas 가 생긴다 — 그때마다 감시 목록을 넓힌다.
+      var pending = null;
+      new MutationObserver(function () {
+        if (pending) return;
+        pending = setTimeout(function () { pending = null; watch(); }, 500);
+      }).observe(document.body, { childList: true, subtree: true });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
+  } catch (_) {}
 })();

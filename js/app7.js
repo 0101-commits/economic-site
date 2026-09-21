@@ -9,7 +9,8 @@
 // §6.0 대조표 — JSON 키·enum 은 그대로, 화면 글자만 여기서 정한다.
 var MER_LABELS = {
   state: { below: '정상', near: '주시', crossed: '돌파', unknown: 'N/A' },
-  view:  { '-2': '강한 UW', '-1': 'UW', '0': 'N', '1': 'OW', '2': '강한 OW' },
+  // 비중 표기는 우리말로 — 이전 'OW'/'UW'/'N' 은 해독 키가 화면 어디에도 없었다(기획 2026-09-21 C8).
+  view:  { '-2': '강한 축소', '-1': '축소', '0': '중립', '1': '확대', '2': '강한 확대' },
   layer: { cause: '원인', market: '시장 변수', channel: '창구', asset: '자산' },
   kind:  { level: '레벨', calendar: '캘린더', counter: '재고 일수', qualitative: '정성' },
 };
@@ -373,6 +374,7 @@ function _merRenderMonitorBody() {
 }
 function _merSetMonitorFilter(state, btn) {
   _merMonitorFilter = state;
+  if (typeof econSetViewParam === 'function') econSetViewParam('merlens', 'f', state);
   var box = document.getElementById('merlensMonitorFilters');
   if (box) box.querySelectorAll('[data-mer-filter]').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
   _merRenderMonitorBody();
@@ -907,7 +909,7 @@ function _merRenderStanceTimeline(d) {
       '<td class="econ-table--num" style="color:' + avgColor + ';">' + (a.avg12m != null ? a.avg12m.toFixed(2) : '—') + '</td>' +
       '<td class="econ-table--num" style="color:' + lastColor + ';font-weight:700;">' + (a.last != null ? _merEsc(String(lastLabel)) : '—') + '</td></tr>';
   }).join('');
-  wrap.innerHTML = '<table class="econ-table mer-stance-table"><caption class="econ-sr">자산별 최근 12개월 뷰 타임라인. ◆=반전 시점, n 상위 12개 자산만 표시.</caption>' +
+  wrap.innerHTML = '<table class="econ-table mer-stance-table"><caption class="econ-sr">자산별 최근 12개월 뷰 타임라인. 확대·축소는 투자 비중 방향을 뜻한다. ◆=반전 시점, n 상위 12개 자산만 표시.</caption>' +
     '<thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
 }
 function _merStanceOpenMonth(assetId, ym, triggerEl) {
