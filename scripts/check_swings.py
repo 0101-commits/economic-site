@@ -107,9 +107,11 @@ def main():
             continue                     # 같은 방향은 하루 1회
         arrow = "▲" if pct > 0 else "▼"
         nd = 1 if sym == "KRW=X" else 0              # 환율만 소수 1자리, 지수는 정수(단위 없음)
+        # 줄에는 z 만 붙인다 — 서수 표현("최근 1년 중 N번째")은 제목이 담당한다.
         line = f"{name} {snap['price']:,.{nd}f} {arrow}{abs(pct):.1f}%"
-        if why:
-            line += f"  ({why})"
+        zpart = next((p for p in why.split(" · ") if p.startswith("z ")), "")
+        if zpart:
+            line += f"  ({zpart})"
         hits.append((key, line, name, sym, snap["price"], pct, thr, why))
         print(f"[swings] 급변 감지: {line} — 임계 ±{thr:.2f}%")
 
@@ -187,8 +189,10 @@ def main():
             _head += f" — {_rank}"
         elif why0:
             _head += f" — 평소 움직임의 {abs(pct0) / max(thr0 / Z_THRESHOLD, 1e-9):.1f}배"
+        # description 은 줄 목록만. 종전엔 why0 를 앞에 한 번 더 붙여, 같은 근거 문구가
+        # 제목·description·본문 줄에 세 번 나왔다(실측). 카드가 본문이므로 텍스트는 짧게.
         if notify_discord.send(
-                ((why0 + "\n\n") if why0 else "") + "\n".join(h[1] for h in hits), png=_png,
+                "\n".join(h[1] for h in hits), png=_png,
                 title=_head[:256],
                 url="https://0101-commits.github.io/economic-site/?p=equity",
                 color=notify_discord.COLOR_FIRE, footer=ca.DELAY_NOTICE,
