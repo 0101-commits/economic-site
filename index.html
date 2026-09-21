@@ -2144,6 +2144,9 @@ body.has-rail #appLayout { padding-right: 56px; }
 /* 손가락 입력에서 원본 링크가 16px 높이였다(M3 하한 24) — 글자 크기는 그대로 두고
    눌리는 영역만 넓힌다. */
 @media (pointer: coarse) { .econ-src { display: inline-flex; align-items: center; min-height: 24px; } }
+/* ⚠ `.widget-title` 은 두 역할을 겹쳐 쓴다 — 위젯 제목(h3, 700)과 **KPI 카드 라벨**
+   (span.widget-title.econ-stat__label, 600). 구조 감사에서 '제목 굵기가 두 종류'로 잡힌 것은
+   이 겹쳐쓰기 때문이고, 굵기 자체는 역할에 맞는 값이다. 통일 대상은 굵기가 아니라 클래스 분리다. */
 h3.widget-title { margin-top: 0; margin-bottom: var(--spacing-3); font-size: var(--font-size-sm); }
 h3.widget-title[class*="seed-"] { font-size: inherit; }
 
@@ -3427,8 +3430,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <th scope="col" class="econ-table--num">현재가</th>
                 <th scope="col" class="econ-table--num">전일비</th>
                 <th scope="col" class="econ-table--num">등락률</th>
-                <th scope="col" class="econ-table--num">52주 고가</th>
-                <th scope="col" class="econ-table--num">52주 저가</th>
+                <th scope="col" class="econ-table--num c-opt">52주 고가</th>
+                <th scope="col" class="econ-table--num c-opt">52주 저가</th>
               </tr>
             </thead>
             <tbody id="fxTable"></tbody>

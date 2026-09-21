@@ -224,12 +224,43 @@ function _onFill(fill) {
     return onDark > onWhite ? '#16171b' : '#ffffff';
   } catch (_) { return '#ffffff'; }
 }
+// ── 표기 단일 진입점 (기획 2026-09-21 구조 통일 S1) ────────────────────────────
+// 자릿수를 정하는 경로가 여덟이었다. 가장 넓은 것이 하드코딩 toFixed 285곳이고, 그 결과
+// 같은 USD/KRW 가 화면마다 1,372.58 / 1,372.6 / 1372.6 / 1,372.58원 네 모양으로 나왔다.
+// 이제 자릿수·단위는 지표가 들고 있다(js/app0.js 의 decimals·unit, 생성기가 채운다).
+//
+//   econFmt('usdkrw', 1373.02)              → '1,373.02'
+//   econFmt('usdkrw', 1373.02, {unit:true}) → '1,373.02원'
+//   econFmt('jpykrw', 8.7226)               → '8.7226'   (예전엔 8.72 로 잘렸다)
+//   econFmt('index', 7007.72)               → '7,007.72' (레지스트리에 없는 이름은 kind 로 본다)
+//
+// 값을 바꾸지 않는 얇은 층이다 — 기존 포매터들은 여기에 위임만 한다.
+function econFmtSpec(key) {
+  try {
+    var row = window.ECON_IND && window.ECON_IND.get ? (window.ECON_IND.get(key) || window.ECON_IND.find(key)) : null;
+    if (row && row.decimals != null) return { decimals: row.decimals, unit: row.unit || '' };
+  } catch (_) {}
+  var d = INDICATOR_DECIMALS[key];
+  return { decimals: d != null ? d : INDICATOR_DECIMALS.index, unit: '' };
+}
+function econFmt(key, v, opts) {
+  if (v == null || isNaN(+v)) return (opts && opts.empty) || '—';
+  var spec = econFmtSpec(key);
+  var d = (opts && opts.decimals != null) ? opts.decimals : spec.decimals;
+  var out = (+v).toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  if (opts && opts.unit && spec.unit) out += (spec.unit === '$' ? '' : '') + spec.unit;
+  return out;
+}
+// 등락은 한 모양으로 — ▲/▼ + 절댓값 + 단위. 부호형(+1.65%)과 괄호형((+1.65%))이 섞여 있었다.
+function econFmtChg(v, unit) {
+  if (v == null || isNaN(+v)) return '—';
+  return (v >= 0 ? '▲ ' : '▼ ') + Math.abs(+v).toFixed(2) + (unit == null ? '%' : unit);
+}
+
 // v 를 kind 의 자릿수로 고정해 찍는다. trailing zero 를 남기는 것이 요점이다.
 // kind 를 모르면 index 로 본다(대부분의 화면 수치가 2자리다).
 function fmtIndicator(v, kind) {
-  if (v == null || isNaN(+v)) return '—';
-  const d = INDICATOR_DECIMALS[kind] != null ? INDICATOR_DECIMALS[kind] : INDICATOR_DECIMALS.index;
-  return (+v).toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  return econFmt(kind, v);   // 표기는 econFmt 한 곳에서만 정한다(S1)
 }
 // Y축 숫자 라벨 정리 — JS 부동소수점 오차(3.60000000000000005) 제거 + 단위 추가
 // 정밀도: 명시 시 그 자릿수 / 자동 시 값에 비례 (FX 1504.94 등은 2자리 유지).
@@ -4843,28 +4874,32 @@ function updateFxHeader() {
     chgEl.textContent = fmtChgText(up ? chgAbs : -chgAbs, '') + ' (' + pctAbs.toFixed(2) + '%)';
   }
 
-  // 52주 범위
+  // 52주 범위 — history 에서 실제로 센다(기획 2026-09-21 구조 통일).
+  // 종전엔 세 분기 모두 pair.h52/l52 를 읽었는데 그 값은 정의부의 하드코딩 상수이고 갱신되지 않았다.
+  // 그래서 100 JPY/KRW 현재가 872 에 '52주 저가 920' 같은 모순이 화면에 떴다.
+  const _r52 = econRange52('history.fx.' + (pair.pair || '').replace('/', ''));
   if (rngEl) {
     if (fxInverted && isKrwDenom) {
-      const h52v = parseFloat((pair.h52||'0').replace(/,/g,''));
-      const l52v = parseFloat((pair.l52||'0').replace(/,/g,''));
+      const h52v = _r52 ? _r52.hi : parseFloat((pair.h52||'0').replace(/,/g,''));
+      const l52v = _r52 ? _r52.lo : parseFloat((pair.l52||'0').replace(/,/g,''));
       const base = pair.pair.split('/')[0];
       const decI = base==='JPY' ? 2 : 4;
       const h52i = l52v>0 ? (1000/l52v).toFixed(decI) : '-';
       const l52i = h52v>0 ? (1000/h52v).toFixed(decI) : '-';
       rngEl.textContent = '52주 범위: ' + l52i + ' ~ ' + h52i;
     } else if (fxInverted) {
-      const h52v = parseFloat((pair.h52||'0').replace(/,/g,''));
-      const l52v = parseFloat((pair.l52||'0').replace(/,/g,''));
+      const h52v = _r52 ? _r52.hi : parseFloat((pair.h52||'0').replace(/,/g,''));
+      const l52v = _r52 ? _r52.lo : parseFloat((pair.l52||'0').replace(/,/g,''));
       const hi = l52v>0 ? (1/l52v).toFixed(6) : '-';
       const lo = h52v>0 ? (1/h52v).toFixed(6) : '-';
       rngEl.textContent = '52주 범위: ' + lo + ' ~ ' + hi;
     } else {
-      // 정방향: displayMult 반영
-      const h52v = parseFloat((pair.h52||'0').replace(/,/g,''));
-      const l52v = parseFloat((pair.l52||'0').replace(/,/g,''));
+      // 정방향: displayMult 반영. 천단위 구분기호를 붙인다 — toFixed 는 1554.48 처럼 콤마 없이 남는다.
+      const h52v = _r52 ? _r52.hi : parseFloat((pair.h52||'0').replace(/,/g,''));
+      const l52v = _r52 ? _r52.lo : parseFloat((pair.l52||'0').replace(/,/g,''));
       const dec = (h52v*dm) < 10 ? 4 : 2;
-      rngEl.textContent = '52주 범위: ' + (l52v*dm).toFixed(dec) + ' ~ ' + (h52v*dm).toFixed(dec);
+      const _f = v => (v*dm).toLocaleString('ko-KR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+      rngEl.textContent = '52주 범위: ' + _f(l52v) + ' ~ ' + _f(h52v);
     }
   }
 
@@ -4901,6 +4936,32 @@ function updateFxHeader() {
   }
 }
 
+// 52주 고가·저가는 history 에서 센다(기획 2026-09-21 구조 통일).
+// 종전엔 fxPairs/comData 의 하드코딩 초기값이 그대로 화면에 남아 있었다 — 100 JPY/KRW 현재가가
+// 872 인데 '52주 저가' 가 920 으로 떠서 현재가가 저가보다 낮은 모순이 보였다. 값이 없으면 비운다.
+function econRange52(seriesPath) {
+  try {
+    var d = econData();
+    if (!d) return null;
+    var cur = d;
+    var parts = String(seriesPath).split('.');
+    for (var i = 0; i < parts.length; i++) { cur = cur && cur[parts[i]]; }
+    if (!Array.isArray(cur) || !cur.length) return null;
+    var cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 1);
+    var lo = null, hi = null;
+    for (var j = 0; j < cur.length; j++) {
+      var pt = cur[j];
+      var v = pt && typeof pt === 'object' ? pt.close : pt;
+      if (v == null || isNaN(+v)) continue;
+      if (pt && pt.date && new Date(pt.date) < cutoff) continue;
+      v = +v;
+      if (lo == null || v < lo) lo = v;
+      if (hi == null || v > hi) hi = v;
+    }
+    return (lo == null || hi == null) ? null : { lo: lo, hi: hi };
+  } catch (_) { return null; }
+}
+
 function buildFxPage() {
   // 초기 진입 시 현재 선택된 페어의 실제 시계열 사용
   const fxNames = ['USDKRW','EURKRW','JPYKRW','EURUSD','USDJPY'];
@@ -4922,17 +4983,19 @@ function buildFxPage() {
     const dispRate = rawRate * dm;
     const dec = dispRate < 10 ? 4 : 2;
     const dispCur = dispRate.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
-    const h52v = parseFloat((r.h52||'0').replace(/,/g,''));
-    const l52v = parseFloat((r.l52||'0').replace(/,/g,''));
-    const h52d = (h52v*dm).toFixed(dec);
-    const l52d = (l52v*dm).toFixed(dec);
+    // 52주 범위 — history 에서 실제로 센다. 없으면 '—'(하드코딩 상수를 쓰지 않는다).
+    const _fxKey = (r.pair || '').replace('/', '');
+    const _rng = econRange52('history.fx.' + _fxKey);
+    const _fmt52 = v => (v * dm).toLocaleString('ko-KR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    const h52d = _rng ? _fmt52(_rng.hi) : '—';
+    const l52d = _rng ? _fmt52(_rng.lo) : '—';
     return `<tr style="border-bottom:1px solid var(--c-border);cursor:pointer;${i===fxCurrentPair?'border-left:2px solid var(--c-accent)':''}" onclick="selectFxPair(${i},this)">
       <td style="padding:8px 0;font-weight:var(--font-weight-medium);"><button type="button" class="btn-plain btn-inline">${r.displayTitle||r.pair}</button></td>
       <td style="text-align:right;padding:8px;">${dispCur}</td>
-      <td style="text-align:right;padding:8px;" class="${r.chg>=0?'up-txt':'down-txt'}">${r.chg>=0?'+':''}${(r.chg*dm).toFixed(2)}</td>
+      <td style="text-align:right;padding:8px;" class="${r.chg>=0?'up-txt':'down-txt'}">${r.chg>=0?'+':''}${(+r.chg).toFixed(2)}%</td>
       <td style="text-align:right;padding:8px;">${fmtChg(r.pct)}</td>
-      <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${h52d}</td>
-      <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${l52d}</td>
+      <td class="c-opt" style="text-align:right;padding:8px;color:var(--c-txt-dim);">${h52d}</td>
+      <td class="c-opt" style="text-align:right;padding:8px;color:var(--c-txt-dim);">${l52d}</td>
     </tr>`;
   }).join('');
 }
@@ -12621,7 +12684,14 @@ function applyRealData(d) {
 
   // 자릿수는 INDICATOR_DECIMALS 가 정한다 — 종전엔 호출부마다 손으로 적어서
   // 같은 금값이 티커 $4,390.6 / 요약 $4,381.80 으로 갈렸다.
-  const fmt = (v, kind) => v != null ? fmtIndicator(v, kind) : null;
+  // kind 자리에 숫자를 넘기는 호출이 11곳 있었고(fmt(v,4) 등) INDICATOR_DECIMALS[4] 가
+  // undefined 라 전부 2자리로 폴백했다 — JPY(100)/KRW 8.7226 이 8.73 으로, EUR/USD 1.1477 이
+  // 1.15 로 잘려 나갔다. data.json 이 가진 정밀도를 화면이 버리고 있었다(구조 통일 U1-C3).
+  // 이제 숫자면 그 자릿수로, 문자열이면 지표/kind 의 자릿수로 찍는다.
+  const fmt = (v, kind) => {
+    if (v == null) return null;
+    return typeof kind === 'number' ? econFmt(null, v, { decimals: kind }) : econFmt(kind, v);
+  };
   // 등락 표기는 fmtChgText 한 곳이 정한다 — 티커만 부호형(+0.35%)이라
   // 같은 화면의 카드(▲ 0.35%)와 표기가 갈렸다.
   const fmtPct = v => v != null ? fmtChgText(v) : null;
@@ -12691,6 +12761,10 @@ function applyRealData(d) {
     [fx.USDJPY, 4, v => ({cur: fmt(v.rate,2),  chg: v.change, pct: v.change})],
   ];
   fxMap.forEach(([src, i, mapper]) => { if (src) Object.assign(fxPairs[i], mapper(src)); });
+  // 값을 갈아끼웠으면 표도 다시 그린다 — 실시간 갱신 경로(아래 updateFxRealtime)에는 이 호출이
+  // 있는데 data.json 적용 경로에는 없어서, 카드는 새 값인데 FX 표만 이전 스냅샷에 머물렀다.
+  // 실측(2026-09-21): 상태 JPY/KRW=8.7226 · EUR/USD=1.1477 인데 표는 870.00 · 1.1500 이었다.
+  if (document.getElementById('market-fx') && typeof buildFxPage === 'function') buildFxPage();
 
   // ── 원자재 데이터 업데이트 ───────────────────
   // comData 인덱스: 0:WTI 1:Brent 2:두바이 3:금 4:은 5:백금 6:구리 7:알루미늄 8:아연 9:니켈

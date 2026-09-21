@@ -235,6 +235,49 @@ def tier_of(ind_id):
     return 3
 
 
+# ── 표기 규칙 — 자릿수·단위는 지표가 정한다 (기획 2026-09-21 구조 통일 S1) ────────
+# 왜 여기인가: 자릿수를 정하는 경로가 코드 안에 8가지 있었고 가장 넓은 것이 하드코딩
+# toFixed 285곳이었다. 같은 USD/KRW 가 화면마다 1,372.58 / 1,372.6 / 1372.6 / 1,372.58원
+# 네 모양으로 나왔다. 표기는 화면이 아니라 지표가 정하는 것이 맞다.
+#   decimals  소수 자릿수(고정 — trailing zero 를 남긴다. 훑어 읽으려면 자리가 고정돼야 한다)
+#   unit      값 뒤에 붙는 단위. 표에서는 열 머리로 올라가고 카드에서는 값 옆에 붙는다
+#   scale     {"by": 배율, "unit": 바꾼 단위} — 원 단위 값을 조원으로 줄여 보일 때
+FORMAT_BY_ASSET = {
+    "index":     {"decimals": 2},
+    "fx":        {"decimals": 2, "unit": "원"},
+    "commodity": {"decimals": 2, "unit": "$"},
+    "rate":      {"decimals": 2, "unit": "%"},
+    "macro":     {"decimals": 1},
+    "realestate": {"decimals": 1},
+    "sentiment": {"decimals": 2},
+    "flow":      {"decimals": 0},
+    "equity":    {"decimals": 0, "unit": "원"},
+}
+# 자산군 기본값을 뒤집는 지표. data.json 이 이미 갖고 있는 정밀도를 화면이 버리지 않게 한다.
+FORMAT_BY_ID = {
+    "jpykrw":     {"decimals": 4, "unit": "원"},   # 8.7226 — 2자리면 8.72 로 잘린다
+    "eurusd":     {"decimals": 4, "unit": ""},     # 1.1477 — 통화쌍이라 원이 아니다
+    "usdjpy":     {"decimals": 2, "unit": "엔"},
+    "fear_greed": {"decimals": 0, "unit": ""},
+    "vkospi":     {"decimals": 2, "unit": ""},
+    "vix":        {"decimals": 2, "unit": ""},
+    "nps_aum":    {"decimals": 1, "unit": "조원"},
+    "btc":        {"decimals": 0, "unit": "$"},
+}
+
+
+def format_of(ind_id, asset, unit_hint=None):
+    """지표 하나의 표기 규칙 — id 결정이 자산군 기본값을 이긴다."""
+    out = dict(FORMAT_BY_ASSET.get(asset) or {})
+    out.update(FORMAT_BY_ID.get(ind_id) or {})
+    # 수집원이 단위를 들고 온 경우(거시 지표) 그것을 쓴다 — 우리가 지어내지 않는다.
+    if unit_hint and not FORMAT_BY_ID.get(ind_id, {}).get("unit"):
+        out["unit"] = unit_hint
+    if out.get("unit") == "":
+        out.pop("unit")
+    return out
+
+
 def news_of(ind_id, asset):
     return NEWS_BY_ID.get(ind_id) or NEWS_BY_ASSET.get(asset)
 
@@ -268,6 +311,14 @@ def build(data, mer):
             kw["keywords"] = KEYWORDS[kw["id"]]
         if kw["id"] in COLLECT_ONLY:
             kw["collectOnly"] = COLLECT_ONLY[kw["id"]]
+        # 표기(S1) — 자릿수는 항상, 단위는 아는 것만. 화면은 이 두 값만 보고 숫자를 찍는다.
+        fmt = format_of(kw["id"], kw["asset"], kw.get("unit"))
+        if fmt.get("decimals") is not None:
+            kw["decimals"] = fmt["decimals"]
+        if fmt.get("unit"):
+            kw["unit"] = fmt["unit"]
+        if fmt.get("scale"):
+            kw["scale"] = fmt["scale"]
         rows.append(kw)
 
     # 지수 · 환율 · 원자재 — data.json 의 현재값 + history 시계열

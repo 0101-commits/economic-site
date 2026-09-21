@@ -284,9 +284,17 @@ function _merMonitorRowHtml(ind) {
   var stale6m = false;
   if (t && t.date) { try { stale6m = (Date.now() - new Date(t.date).getTime()) / 86400000 > 182; } catch (_) {} }
   var dim = stale6m ? ' mer-dim' : '';
-  var cur = ind.current ? (ind.current.value + (ind.unit || '')) : '—';
+  // 값은 천단위를 붙여 찍는다(기획 2026-09-21 구조 통일 S1/S13) — 종전엔 숫자를 문자열에 그대로
+  // 이어 붙여 7704.82 · 8200 · 1372.93원 처럼 다른 화면과 표기가 갈렸다.
+  var _mn = function (v) {
+    if (v == null || isNaN(+v)) return '—';
+    var d = Math.abs(+v) >= 100 ? 2 : 4;
+    var s = (+v).toLocaleString('ko-KR', { maximumFractionDigits: d });
+    return s;
+  };
+  var cur = ind.current ? (_mn(ind.current.value) + (ind.unit || '')) : '—';
   var nearestTxt = (ind.nearest && ind.nearest.level != null)
-    ? (ind.nearest.level + (ind.unit || '') + ' <span class="econ-stat__unit">(' +
+    ? (_mn(ind.nearest.level) + (ind.unit || '') + ' <span class="econ-stat__unit">(' +
        (ind.nearest.distancePct != null ? ind.nearest.distancePct.toFixed(1) + '%)</span>' : '—)</span>'))
     : '—';
   var srcTxt = t ? (_merEsc(t.date || '') + ' · ' + _merEsc((t.quote || '').slice(0, 40)) +
