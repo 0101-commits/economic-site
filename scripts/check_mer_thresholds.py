@@ -96,9 +96,15 @@ def find_new(signals, prev, now=None):
         if age is not None and age > MAX_AGE_DAYS:
             continue                                 # 묵은 관측치로 '방금 돌파'를 말하지 않는다
         before = set(prev.get(key) or [])
+        # 같은 레벨이 사전에 여러 번 등록돼 있다(같은 선을 다른 글에서 다른 말로 설명).
+        # 예: 미국채 10년물 5.0% 이 두 항목. 레벨 단위로 한 번만 보낸다 — 안 그러면
+        # 한 통에 똑같은 줄이 두 번 들어간다(실측).
+        seen_lv = set()
         for lv, meaning, quote in levels:
-            if lv not in before:
-                hits.append((ind, lv, meaning, quote))
+            if lv in before or lv in seen_lv:
+                continue
+            seen_lv.add(lv)
+            hits.append((ind, lv, meaning, quote))
     return hits, state, seeding
 
 
@@ -108,6 +114,22 @@ def _load(path, default):
             return json.load(f)
     except (OSError, ValueError):
         return default
+
+
+def ladder(ind, cur, n=4):
+    """임계 사다리 → [(문구, 넘었나)] 최대 n칸. 카드의 타임라인 칸을 채운다.
+
+    그 지표에 걸린 선들을 순서대로 놓고 어디까지 왔는지 보인다 — 돌파 한 건만
+    보여주면 '이게 몇 번째 선인지'를 알 수 없다. 현재값에 가까운 선 위주로 고른다."""
+    unit = str(ind.get("unit") or "")
+    lvs = sorted({_f(t.get("level")) for t in (ind.get("thresholds") or [])
+                  if t.get("kind") == "level" and _f(t.get("level")) is not None})
+    if len(lvs) < 2:
+        return None                                  # 선이 하나뿐이면 사다리가 아니다
+    if len(lvs) > n:                                 # 현재값에 가까운 것만 남긴다
+        lvs = sorted(lvs, key=lambda v: abs(v - cur))[:n]
+        lvs.sort()
+    return [(f"{v:g}{unit}", cur >= v) for v in lvs]
 
 
 def _fmt(ind, lv, meaning):
@@ -157,12 +179,15 @@ def main():
         try:
             import discord_card
             cur = _f((ind0.get("current") or {}).get("value"))
+            unit = str(ind0.get("unit") or "")
             png = discord_card.status(
-                f"{ind0.get('label')} {lv0:g}{ind0.get('unit') or ''} 돌파",
-                f"{cur:g}{ind0.get('unit') or ''}", meaning0 or quote0[:80],
-                tiles=[("현재", f"{cur:g}", str(ind0.get("unit") or ""), None),
-                       ("임계", f"{lv0:g}", str(ind0.get("unit") or ""), None),
-                       ("기준일", str((ind0.get("current") or {}).get("asOf") or "—"), "", None)],
+                f"{ind0.get('label')} {lv0:g}{unit} 돌파",
+                f"{cur:g}{unit}", meaning0 or quote0[:80],
+                timeline=ladder(ind0, cur),
+                tiles=[("현재", f"{cur:g}{unit}", "", None),
+                       ("직전 기록", str((ind0.get("current") or {}).get("asOf") or "—"), "", None),
+                       # 레벨 기준으로 센다 — 같은 선이 사전에 두 번 등록된 경우가 있다
+                       ("넘은 선", f"{len({lv for lv, _, _ in crossed_levels(ind0)})}개", "", None)],
                 now=now, tone="warn")
         except Exception as e:                       # noqa: BLE001
             print(f"[mer] 카드 렌더 예외({e}) — 텍스트만 발송")
@@ -217,6 +242,23 @@ def demo():
     assert hits == [] and st3 == {"a": [4.0]}
     hits, _, _ = find_new(sig2, st3, now)
     assert [h[1] for h in hits] == [6.0]
+
+    # 같은 레벨이 사전에 두 번 등록돼 있어도 한 번만 보낸다(실측 결함 — 미국채 10년물 5.0%)
+    dup = {"indicators": [{"id": "d", "label": "d", "unit": "%",
+                           "current": {"value": 6.0, "asOf": "2026-09-20"},
+                           "thresholds": [
+                               {"kind": "level", "level": 5.0, "dir": "up", "meaning": "m1", "quote": "q1"},
+                               {"kind": "level", "level": 5.0, "dir": "up", "meaning": "m2", "quote": "q2"}]}]}
+    hits, _, _ = find_new(dup, {"d": []}, now)
+    assert len(hits) == 1, hits
+
+    # 사다리 — 선이 둘 이상일 때만, 넘은 것/아닌 것 구분
+    lad = ladder(ind("a", 5.0, [(4.0, "up"), (6.0, "up")]), 5.0)
+    assert lad == [("4%", True), ("6%", False)], lad
+    assert ladder(ind("a", 5.0, [(4.0, "up")]), 5.0) is None
+    # 선이 많으면 현재값에 가까운 4개만
+    many = ind("a", 5.0, [(v, "up") for v in (1, 2, 3, 4, 6, 7, 8)])
+    assert len(ladder(many, 5.0)) == 4
 
     # 묵은 관측치는 '방금 돌파'로 보내지 않는다
     old = {"indicators": [ind("a", 6.5, [(4.0, "up"), (6.0, "up")], as_of="2026-01-01")]}
