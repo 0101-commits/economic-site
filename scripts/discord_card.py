@@ -612,8 +612,41 @@ def profile_for(slot=None, weekend=False, now=None):
 
 
 # 프로필마다 '오늘의 주인공' 하나 — 정사각(카톡) 캔버스 하단의 큰 인트라데이 패널.
+# 평범한 날의 기본값이다. 이례적인 날은 아래 anomaly() 가 고른 자산이 이 자리를 가져간다.
 HERO = {"kr_session": "KOSPI", "pre_kr": "SP500", "kr_close_eu": "KOSPI",
         "us_pre": "US10Y", "us_open": "SP500", "weekend": "USDKRW"}
+
+# 주인공을 바꿀 만큼 이례적이라고 볼 하한. 타일 배지(1.5σ)보다 높게 잡는다 —
+# 배지는 '눈길을 끄는 정도'지만 주인공 교체는 '오늘 카드가 무엇에 관한 것인가'를
+# 바꾸는 일이라 더 확실할 때만 한다. 2.0σ 는 정규분포 기준 상위 4.6%다.
+ANOMALY_MIN_Z = 2.0
+
+
+def anomaly(d, keys, min_z=ANOMALY_MIN_Z):
+    """그날 가장 이례적으로 움직인 자산 → (키, z) 또는 None.
+
+    keys 안에서만 고른다 — 호출측이 '차트를 그릴 수 있는 것'만 넘기기 때문이다
+    (인트라데이 심볼이 없는 키를 주인공으로 뽑으면 빈 패널이 된다).
+    금리(bp)·macro 는 일봉 이력이 없어 z 를 못 내므로 자연히 빠진다."""
+    best = None
+    for key in keys:
+        ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+        _price, chg = _node(d, cat, key)
+        if chg is None or cat not in ("indices", "fx", "commodities"):
+            continue
+        hist = ((d.get("history") or {}).get(cat) or {}).get(key)
+        if not isinstance(hist, list):
+            continue
+        try:
+            import volatility as vol
+            z = vol.zscore(chg, [h.get("close") for h in hist], exclude_last=False)
+        except Exception:                                    # noqa: BLE001
+            continue
+        if z is None or abs(z) < min_z:
+            continue
+        if best is None or abs(z) > abs(best[1]):
+            best = (key, z)
+    return best
 
 
 def _draw_cells(fig, grid, box, fs, square=False, note_inline=False):
@@ -773,8 +806,48 @@ def _meta_line(d, cal):
     return " · ".join(head)
 
 
-def board(d, now, cal="", slot=None, weekend=False, profile=None, shape="wide", hero=None):
+def focus_of(d, prof, pkey, allowed=None):
+    """그 슬롯 카드의 '주인공' 키 → (키, z|None). 이례적인 날엔 그날 자산으로 바뀐다.
+
+    후보는 그 편성이 이미 보여주는 것(타일 + 추세) + 고정 주인공이다. 편성 밖 자산까지
+    끌어오면 본문 수치와 그림이 따로 놀아서다. allowed 를 주면 그 안에서만 고른다 —
+    호출측이 '인트라데이를 그릴 수 있는 키'를 넘긴다(없는 키를 뽑으면 빈 패널이 된다).
+
+    반환 z 가 None 이면 평범한 날(고정 주인공)이라는 뜻이다."""
+    static = HERO.get(pkey) or ((prof.get("rows") or [[None]])[0] or [None])[0]
+    pool = [k for row in (prof.get("rows") or []) for k in row]
+    pool += list(prof.get("spark") or [])
+    if static:
+        pool.append(static)
+    seen, cands = set(), []
+    for k in pool:
+        if k in seen or (allowed is not None and k not in allowed):
+            continue
+        seen.add(k)
+        cands.append(k)
+    hit = anomaly(d, cands)
+    return (hit[0], hit[1]) if hit else (static, None)
+
+
+def focus_note(d, key, z, with_name=True):
+    """주인공 교체 사유 한 줄. 평범한 날이면 "".
+
+    with_name=True  → "달러-원 평소의 2.4배"  (추세 라벨 옆 — 무엇인지 밝혀야 한다)
+    with_name=False → "평소의 2.4배"          (히어로 패널 라벨 — 이미 이름이 앞에 있다)"""
+    if z is None or not key:
+        return ""
+    ko, en, _cat = _CATALOG.get(key, (key, key, "indices"))
+    tail = _L(f"평소의 {abs(z):.1f}배", f"{abs(z):.1f}x usual")
+    return f"{_L(ko, en)} {tail}" if with_name else tail
+
+
+def board(d, now, cal="", slot=None, weekend=False, profile=None, shape="wide", hero=None,
+          focus=None):
     """카드 A — 시황 보드. 실패 시 None(호출측이 슬롯 차트로 폴백).
+
+    focus=(키, z) — 그날의 주인공. 주면 정사각 히어로 패널과 가로 추세 첫 칸이 그것을
+    따르고, 그 자산이 편성 타일에 없으면 마지막 타일과 바꿔 수치도 함께 보이게 한다.
+    안 주면 focus_of 로 직접 고른다(미리보기·테스트 경로).
 
     편성(v5): 고정 12타일 대신 PROFILES 의 슬롯별 편성을 그린다 — 07시엔 한국·일본장이,
     14시엔 미국장이 멈춰 있어 '안 움직이는 숫자'가 절반을 차지하던 문제. rows 의 줄 수·
@@ -790,30 +863,48 @@ def board(d, now, cal="", slot=None, weekend=False, profile=None, shape="wide", 
         plt, _ = _setup()
         pkey = profile if profile in PROFILES else profile_for(slot, weekend, now)
         prof = PROFILES.get(pkey) or PROFILES[DEFAULT_PROFILE]
+        fkey, fz = focus if focus else focus_of(d, prof, pkey)
+        # 주인공이 편성 타일에 없으면 마지막 칸과 바꾼다 — 그림만 그 자산이고 숫자가
+        # 없으면 "왜 이게 주인공인지"를 카드 안에서 확인할 수 없다. 원본 PROFILES 는
+        # 건드리지 않는다(모듈 전역이라 다음 호출에 새어 나간다).
+        prof = dict(prof)
+        rows = [list(r) for r in (prof.get("rows") or [])]
+        if fz is not None and fkey and rows and not any(fkey in r for r in rows):
+            rows[-1][-1] = fkey
+            prof["rows"] = rows
+        if fz is not None and fkey:                      # 추세 첫 칸도 주인공으로
+            sp = [k for k in (prof.get("spark") or []) if k != fkey]
+            prof["spark"] = [fkey] + sp[:max(len(prof.get("spark") or []) - 1, 0)]
         if shape == "square":
-            return _board_square(plt, d, now, pkey, prof, cal, hero)
-        return _board_wide(plt, d, now, prof, cal)
+            # 히어로 라벨은 이미 자산명으로 시작한다 — 이름을 또 넣으면 두 번 나온다.
+            return _board_square(plt, d, now, pkey, prof, cal, hero, fkey,
+                                 focus_note(d, fkey, fz, with_name=False))
+        return _board_wide(plt, d, now, prof, cal, focus_note(d, fkey, fz))
     except Exception as e:
         print(f"::warning title=디스코드 카드 실패::board({shape}): {e} — 기존 형식 폴백")
         return None
 
 
-def _board_wide(plt, d, now, prof, cal):
-    """가로 10×7 @160dpi — 디스코드 embed. 타일 격자 + 미국채 캡션 + 30일 추세 n개."""
+def _board_wide(plt, d, now, prof, cal, note=""):
+    """가로 10×7 @160dpi — 디스코드 embed. 타일 격자 + 미국채 캡션 + 30일 추세 n개.
+    note = 그날 주인공 사유 한 줄(있으면 제목 옆에 붙인다)."""
     grid = [r for r in prof["rows"] if r]
     cols = max(len(r) for r in grid)
     fs = (14, 21, 14) if cols <= 3 else (13, 17, 13)   # 3열이면 타일이 넓어 글자를 키운다
     fig = plt.figure(figsize=(10, 7.0), dpi=160)
     fig.patch.set_facecolor(BG)
-    _head(fig, _L(f"{now.month}/{now.day} {now.hour}시 시황 보드 · {prof['title']}",
-                  f"{now.month}/{now.day} {now.hour}h Market Board"),
-          _meta_line(d, cal), fs_t=19, fs_m=11, y=0.945, square=False)
+    _t = _L(f"{now.month}/{now.day} {now.hour}시 시황 보드 · {prof['title']}",
+            f"{now.month}/{now.day} {now.hour}h Market Board")
+    _head(fig, _t, _meta_line(d, cal), fs_t=19, fs_m=11, y=0.945, square=False)
     _draw_tiles(fig, d, grid, (0.03, 0.44, 0.94, 0.46), fs)
     # 하단 캡션 — 미국채 1·5·10·30Y(사용자 지정 2026-08-20, 구 원자재 4종 대체).
     rest = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
     if rest:
         fig.text(0.03, 0.395, rest, color=MUT, fontsize=12)
-    fig.text(0.03, 0.335, _L("추세 30일", "30-day trend"), color=MUT, fontsize=12)
+    # 추세 첫 칸이 곧 오늘의 주인공이라 사유를 여기에 붙인다 — 제목에 붙이면
+    # 폭을 넘겨 잘린다(실측: "달러-원 평소의 3...."로 끊겼다).
+    _tl = _L("추세 30일", "30-day trend") + (f"   ·   오늘 {note}" if note else "")
+    fig.text(0.03, 0.335, _tl, color=MUT, fontsize=12)
     sparks = prof.get("spark") or []
     n = len(sparks)
     gap = 0.0175
@@ -851,7 +942,7 @@ def _board_wide(plt, d, now, prof, cal):
     return _save(fig, "discord_card_board.png")
 
 
-def _board_square(plt, d, now, pkey, prof, cal, hero):
+def _board_square(plt, d, now, pkey, prof, cal, hero, fkey=None, note=""):
     """정사각 1080×1080 @150dpi — 카카오 피드 한 통의 이미지.
 
     구성 = 타일 격자 + 히어로 인트라데이 1개(전 폭). 종전 카톡 이미지는 지표 2개짜리
@@ -865,13 +956,14 @@ def _board_square(plt, d, now, pkey, prof, cal, hero):
     fig = plt.figure(figsize=(7.2, 7.2), dpi=150)
     fig.patch.set_facecolor(BG)
     wd = "월화수목금토일"[now.weekday()]
-    _head(fig, _L(f"{now.month}/{now.day}({wd}) {now.hour}시 시황 · {prof['title']}",
-                  f"{now.month}/{now.day} {now.hour}h · {prof['title']}"),
-          _meta_line(d, cal))
+    _t = _L(f"{now.month}/{now.day}({wd}) {now.hour}시 시황 · {prof['title']}",
+            f"{now.month}/{now.day} {now.hour}h · {prof['title']}")
+    _head(fig, _t, _meta_line(d, cal))
     # 캡션이 빠진 자리를 타일이 가져간다 — 6타일(2열) × 늘어난 높이라야 글자가 커진다.
     _draw_tiles(fig, d, grid, (0.03, 0.50, 0.94, 0.43), (20, 30, 21), square=True)
 
-    hkey = HERO.get(pkey) or (grid[0][0] if grid and grid[0] else None)
+    # 주인공은 호출측(board)이 고른다 — 이례적인 날엔 그날 자산이 온다.
+    hkey = fkey or HERO.get(pkey) or (grid[0][0] if grid and grid[0] else None)
     if not hkey:
         _footer(fig, now)
         return _save(fig, "kakao_card_board.png")
@@ -891,7 +983,8 @@ def _board_square(plt, d, now, pkey, prof, cal, hero):
     # 달라서 포매터를 넘긴다.
     _up = (ys[-1] >= prev) if (ys and prev) else bool(ys) and ys[-1] >= ys[0]
     _sq_panel(fig, [0.03, 0.09, 0.94, 0.355], ys, xs=xs, prev=prev, up=_up,
-              label=f"{_L(hko, hen)} {when}" + (f" · {src}" if src else ""),
+              label=f"{_L(hko, hen)} {when}" + (f" · {note}" if note else "")
+                    + (f" · {src}" if src else ""),
               right=f"{_fmt_tile(hcat, hprice)}  {_chgtxt_tile(hcat, hchg)}".strip(),
               fmt=lambda v: _fmt_tile(hcat, v))
     _footer(fig, now, square=True)

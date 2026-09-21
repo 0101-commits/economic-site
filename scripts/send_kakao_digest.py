@@ -979,7 +979,28 @@ def _hero_symbol(key):
     return _YH_SYM.get(key) or _YIELD_INTRADAY_SYM.get(key) or ""
 
 
-def _build_kakao_card(data, now, slot, weekend, weekly=False, next_week=""):
+def pick_focus(data, slot, weekend, now):
+    """그날 카드의 주인공 → (키, z|None). 두 카드(디스코드·카카오)가 같은 값을 쓰게 한다.
+
+    이례적인 날에는 그날 가장 크게 움직인 자산이 히어로 패널·추세 첫 칸·타일을 가져간다
+    (기획안 확장, 2026-09-21). 후보를 '인트라데이를 그릴 수 있는 키'로 제한하는 이유는
+    여기서만 심볼 표를 알기 때문이다 — 심볼이 없는 키를 주인공으로 뽑으면 빈 패널이 된다.
+    실패하면 (None, None) 을 돌려 카드가 종전 고정 주인공으로 가게 둔다."""
+    try:
+        import discord_card
+        allowed = set(_YH_SYM) | set(_YIELD_INTRADAY_SYM)
+        pkey = discord_card.profile_for(slot, weekend, now)
+        prof = discord_card.PROFILES.get(pkey) or discord_card.PROFILES[discord_card.DEFAULT_PROFILE]
+        key, z = discord_card.focus_of(data, prof, pkey, allowed=allowed)
+        if z is not None:
+            print(f"[digest] 오늘의 주인공 교체: {key} (z {z:+.1f}σ)")
+        return key, z
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[digest] 주인공 선정 실패({e}) — 고정 편성 유지")
+        return None, None
+
+
+def _build_kakao_card(data, now, slot, weekend, weekly=False, next_week="", focus=None):
     """카톡 피드 이미지 — 디스코드와 같은 편성표(PROFILES)의 정사각 캔버스(기획 d18ebb33 P1).
 
     weekly=True(기획 v3 I2)면 주간 정사각 카드(주간 수익률 바 + 수급·일정 타일)를 그린다 —
@@ -993,11 +1014,15 @@ def _build_kakao_card(data, now, slot, weekend, weekly=False, next_week=""):
         import discord_card
         if weekly:
             return discord_card.weekly(data, now, next_week=next_week, shape="square")
-        pkey = discord_card.profile_for(slot, weekend, now)
-        sym = _hero_symbol(discord_card.HERO.get(pkey, ""))
+        fkey, fz = focus if focus else (None, None)
+        if not fkey:
+            pkey = discord_card.profile_for(slot, weekend, now)
+            fkey = discord_card.HERO.get(pkey, "")
+        sym = _hero_symbol(fkey)
         hero = _session_chain(sym) if sym else ([], [], None, "")
         return discord_card.board(data, now, cal=_dc_cal_line(data), slot=slot,
-                                  weekend=weekend, shape="square", hero=hero)
+                                  weekend=weekend, shape="square", hero=hero,
+                                  focus=(fkey, fz) if fkey else None)
     except Exception as e:
         print(f"::warning title=카톡 카드 실패::{e} — 종전 슬롯 차트로 폴백")
         return None
@@ -2125,6 +2150,9 @@ def main():
         _dc_png = None                               # 카카오 피드 이미지
         _card_ok = False                             # 편성표 카드 렌더 성공 여부
         _weekly_mode = title.startswith("주간")
+        # 그날의 주인공을 한 번만 고른다 — 두 채널 카드가 같은 자산을 가리켜야 한다.
+        _focus = (None, None) if _weekly_mode else pick_focus(
+            data, slot, weekend, datetime.datetime.now(KST))
         try:
             import notify_discord
             if _charts_enabled():
@@ -2138,7 +2166,8 @@ def main():
                     data, datetime.datetime.now(KST), slot, weekend,
                     weekly=_weekly_mode,
                     next_week=(next((v for lab, v in blocks if lab == "다음주"), "")
-                               if _weekly_mode else ""))
+                               if _weekly_mode else ""),
+                    focus=_focus if _focus[0] else None)
                 _card_ok = bool(_dc_png)             # 편성표 카드가 실제로 그려졌나(중복 제거 조건)
                 if not _dc_png:
                     _dc_png = build_slot_chart_png(data, slot, weekend)
@@ -2160,7 +2189,8 @@ def main():
                     # 슬롯별 편성(2026-08-25) — 07시엔 한국·일본장이, 14시엔 미국장이
                     # 멈춰 있어 고정 12타일의 절반이 '안 움직이는 숫자'였다.
                     _card_png = discord_card.board(data, _dc_now, cal=_dc_cal_line(data),
-                                                   slot=slot, weekend=weekend)
+                                                   slot=slot, weekend=weekend,
+                                                   focus=_focus if _focus[0] else None)
             except Exception as _ce:
                 print(f"[discord] 카드 렌더 예외({_ce}) — 슬롯 차트 폴백")
             _kchg = _f(((data.get("indices") or {}).get("KOSPI") or {}).get("change"))
@@ -2179,10 +2209,21 @@ def main():
                 _nf = _news_field(data)
                 if _nf:
                     _fields = (_fields or []) + [_nf]
+            # 모바일 알림 미리보기에 보이는 것은 제목 한 줄뿐이다 — 이례적인 날은
+            # 그 한 줄이 '무슨 일이 있었나'를 말해야 한다(기획안 원칙 4).
+            _title = title
+            if _focus[1] is not None:
+                try:
+                    import discord_card as _dcm
+                    _n = _dcm.focus_note(data, _focus[0], _focus[1])
+                    if _n:
+                        _title = f"{title} · {_n}"
+                except Exception:                            # noqa: BLE001
+                    pass
             notify_discord.send(
                 # P3(기획 5154773b) — AI 요약을 description 으로(카드 실패 폴백에도 도달).
                 _ai_line(data, 3 if _is_brief else 2),
-                png=_card_png or _dc_png, title=title, url=DASHBOARD_URL,
+                png=_card_png or _dc_png, title=_title, url=DASHBOARD_URL,
                 color=_dc_color,
                 fields=_fields,
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
