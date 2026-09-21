@@ -221,17 +221,36 @@ def verified_latest(market="KOSPI", today=None, now=None):
     """
     now = now or datetime.datetime.now(KST)
     today = today or now.strftime("%Y-%m-%d")
+    nav = None
     try:
         nrows = naver_daily(market, bizdate=today.replace("-", ""))
+        nav = next((r for r in reversed(nrows) if r["date"] == today), None)
+        if not nav:
+            log(f"네이버에 {today} 행 없음")
     except Exception as e:                                   # noqa: BLE001
         log(f"네이버 조회 실패: {e}")
-        return None
-    nav = next((r for r in reversed(nrows) if r["date"] == today), None)
-    if not nav:
-        log(f"네이버에 {today} 행 없음 — 수급 표기 생략")
-        return None
     trows = toss_daily(market)
     tos = next((r for r in reversed(trows) if r["date"] == today), None)
+    if not nav:
+        # 네이버 단독 실패로 수급을 통째로 버리지 않는다. 2026-09-21 실측: 네이버
+        # investorDealTrendDay 가 HTTP 410(Gone) 으로 제거됐다(.naver·.nhn·레퍼러 모두
+        # 동일). 그대로 두면 수급 줄이 영영 안 뜨는데, 그 침묵은 '수급이 없는 날'과
+        # 구별되지 않는다. 토스가 오늘 행을 가지고 있으면 그 값을 쓰되, 교차검증을
+        # 못 했다는 사실을 primary/cross/agree 에 남겨 카드·본문이 그대로 밝히게 한다.
+        if not tos:
+            log("네이버·토스 모두 오늘 행 없음 — 수급 표기 생략")
+            return None
+        out = {"date": today, "primary": "toss", "cross": None, "agree": None,
+               "maxDiffPct": None, "confirmed": False, "reason": ""}
+        out.update({k: tos[k] for k in _KEYS})
+        upd = str(tos.get("updatedAt") or "")
+        m = re.match(r"^\d{4}-\d\d-\d\dT(\d\d):", upd)
+        out["confirmed"] = bool(m and int(m.group(1)) >= CONFIRM_TOSS_HOUR) or (
+            today == now.strftime("%Y-%m-%d") and now.hour >= CONFIRM_CLOCK_HOUR)
+        out["reason"] = ("확정" if out["confirmed"] else "잠정") + " · 토스 단독"
+        log(f"{market} {today} 토스 단독 외국인 {out['foreign']:+,.0f} "
+            f"기관 {out['inst']:+,.0f}억 ({out['reason']})")
+        return out
     out = {"date": today, "primary": "naver", "cross": "toss" if tos else None,
            "agree": None, "maxDiffPct": None, "confirmed": False, "reason": ""}
     out.update({k: nav[k] for k in _KEYS})
@@ -263,11 +282,15 @@ def week_sum(market="KOSPI", days=5):
     주간 카드용. 일별 표시와 **같은 소스(네이버)** 를 쓴다 — 종전엔 주간 합계는 토스
     시계열, 일별 타일은 다른 값이라 같은 카드 안에서 기준이 갈렸다.
     """
+    rows = []
     try:
         rows = naver_daily(market)[-days:]
     except Exception as e:                                   # noqa: BLE001
-        log(f"주간 합계 조회 실패: {e}")
-        return None
+        log(f"주간 합계 네이버 조회 실패: {e} — 토스로 폴백")
+    if len(rows) < days:
+        # 네이버가 죽어 있을 때(2026-09-21 HTTP 410) 주간 합계까지 사라지지 않게.
+        # 일별 표시도 같은 상황이면 토스를 쓰므로 소스가 갈리지 않는다.
+        rows = toss_daily(market)[-days:]
     if len(rows) < days:
         return None
     return {"from": rows[0]["date"], "to": rows[-1]["date"], "days": len(rows),

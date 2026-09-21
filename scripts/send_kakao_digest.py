@@ -561,8 +561,10 @@ def build_digest_parts(d, drop=(), slot=None):
     # 아예 없다(잠정치를 확정처럼 보여 "알림 값이 실제와 다르다"가 났던 게 이 블록의 이유).
     _inv = _verified_investor()
     if _inv and _inv.get("confirmed"):
+        # 꼬리표는 investor_flows 가 판정한 문구를 그대로 쓴다 — '확정'을 하드코딩하면
+        # 교차검증을 못 한 날(네이버 410 으로 토스 단독인 경우)에도 확정처럼 보인다.
         blocks.append(("수급", f"외국인 {_inv['foreign']:+,.0f}억 · 기관 {_inv['inst']:+,.0f}억"
-                               f" ({str(_inv['date'])[5:]} 확정)"))
+                               f" ({str(_inv['date'])[5:]} {_inv.get('reason') or '확정'})"))
     # 오늘(22시 슬롯은 오늘 밤) 주요 지표 발표 — 별 2개 이상만. 재료는 이미 있었는데
     # 카드 헤더에만 쓰였고 본문엔 없었다.
     cal = _dc_cal_line(d)

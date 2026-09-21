@@ -114,6 +114,27 @@ def test_verified_latest_none_on_gross_mismatch(monkeypatch):
     assert inf.verified_latest("KOSPI", today="2026-09-11") is None
 
 
+def test_verified_latest_falls_back_to_toss(monkeypatch):
+    """네이버가 죽어도 수급이 사라지지 않는다 — 2026-09-21 실측: investorDealTrendDay 가
+    HTTP 410(Gone). 그대로 두면 수급 줄이 영영 안 뜨는데, 그 침묵은 '수급이 없는 날'과
+    구별되지 않는다. 토스 값을 쓰되 교차검증을 못 했다는 사실을 표기에 남긴다."""
+    import datetime as _dt
+
+    def _gone(*a, **k):
+        raise OSError("HTTP Error 410: 410")
+    monkeypatch.setattr(inf, "naver_daily", _gone)
+    monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: [TOS])
+    out = inf.verified_latest("KOSPI", today="2026-09-11",
+                              now=_dt.datetime(2026, 9, 11, 20, 5, tzinfo=inf.KST))
+    assert out and out["primary"] == "toss" and out["cross"] is None
+    assert out["agree"] is None
+    assert "토스 단독" in out["reason"], out["reason"]
+    assert out["foreign"] == TOS["foreign"]
+    # 네이버도 토스도 오늘 행이 없으면 종전대로 침묵한다(값을 지어내지 않는다).
+    monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: [])
+    assert inf.verified_latest("KOSPI", today="2026-09-11") is None
+
+
 def test_verified_latest_allows_naver_only(monkeypatch):
     """토스 키가 없는 환경(CI) — 교차검증 불가라도 포털값은 '틀린 값'이 아니다."""
     monkeypatch.setattr(inf, "naver_daily", lambda *a, **k: [NAV])
@@ -151,7 +172,14 @@ def test_week_sum_needs_full_window(monkeypatch):
     w = inf.week_sum("KOSPI", 5)
     assert w["days"] == 5 and w["from"] == "2026-09-04" and w["to"] == "2026-09-08"
     assert w["foreign"] == NAV["foreign"] * 5
+    # 네이버 창이 모자라면 토스로 폴백한다(2026-09-21: 네이버 410 Gone).
+    trows = [dict(NAV, date=f"2026-09-1{i}") for i in range(1, 6)]
     monkeypatch.setattr(inf, "naver_daily", lambda *a, **k: rows[:3])
+    monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: trows)
+    w = inf.week_sum("KOSPI", 5)
+    assert w["days"] == 5 and w["from"] == "2026-09-11", w
+    # 둘 다 모자라면 여전히 None — 3일치를 5일 합계라고 부르지 않는다.
+    monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: trows[:2])
     assert inf.week_sum("KOSPI", 5) is None
 
 
