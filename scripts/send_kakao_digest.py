@@ -2049,9 +2049,13 @@ def main():
         # 다음 스케줄부터 자동으로 발송된다. (토큰 만료 등 '진짜 오류'는 아래에서 그대로 실패 처리.)
         missing = [n for n, v in (("KAKAO_REST_API_KEY", rest_key),
                                   ("KAKAO_REFRESH_TOKEN", refresh_token)) if not v]
-        print(f"::warning title=Kakao 미설정::{', '.join(missing)} 시크릿이 아직 없어 발송을 건너뜁니다. "
-              "설정 방법은 KAKAO_SETUP.md 참고. (워크플로는 정상 종료 — 실패 알림 없음)")
-        return
+        print(f"::warning title=Kakao 미설정::{', '.join(missing)} 시크릿이 아직 없어 카카오 발송을 "
+              "건너뜁니다. 설정 방법은 KAKAO_SETUP.md 참고. (워크플로는 정상 종료 — 실패 알림 없음)")
+    # ⚠ 여기서 return 하지 않는다. 종전엔 카카오 시크릿이 없으면 그대로 끝나서 디스코드
+    #   다이제스트까지 함께 멈췄다 — 이 모듈이 "디스코드 병행 발송은 카카오와 완전 독립"이라고
+    #   적어 둔 것과 어긋난다. 시크릿을 재발급하려고 잠깐 지우기만 해도 두 채널이 동시에
+    #   조용해지는데, 그 침묵은 '조용한 시장'과 구별되지 않는다(기획안 설계 원칙 10).
+    kakao_ready = bool(rest_key and refresh_token)
 
     # 토큰 재발급·발송 실패는 '매 슬롯(평일 16회) 실행'이라 job 실패 시 GitHub 실패 알림 메일이
     # 슬롯마다 쏟아진다. (2026-07-08 18:00 KST~ KAKAO_REFRESH_TOKEN 만료/회전 추정으로 전 슬롯
@@ -2184,6 +2188,12 @@ def main():
                 buttons=[_dc_buttons()], select=_dc_select(data, weekly=_weekly_mode))
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
+
+        if not kakao_ready:
+            # 디스코드는 위에서 이미 나갔다. 카카오 시크릿만 없으니 여기서 끝낸다 —
+            # 센티널(.kakao_sent_ok)은 만들지 않아 백업 깨움이 재시도한다.
+            print("[kakao] 시크릿 미설정 — 디스코드만 발송하고 종료")
+            return
 
         access_token = refresh_access_token(rest_key, refresh_token)
 
