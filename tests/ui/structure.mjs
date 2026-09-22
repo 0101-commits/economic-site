@@ -7,6 +7,7 @@
 //   S15  레지스트리 표기 커버리지   — 지표 행의 decimals 100% (데이터셋 묶음 행은 제외)
 //   S16  52주 범위는 실측값         — 현재가가 52주 고·저 범위 안에 있다(하드코딩 상수 금지)
 //   S17  퍼센트 자릿수              — 한 화면의 % 표기가 2종 이하(4% · 4.1% · 0.977% 혼재 금지)
+//   S18  미노출 지표 0              — 수집만 하고 어느 화면에도 없는 지표가 없다
 //
 // usage: node tests/ui/structure.mjs [--base=http://127.0.0.1:8080/index.html]
 import { chromium } from 'playwright';
@@ -163,6 +164,24 @@ async function gatePercentDecimals(browser) {
   return ok;
 }
 
+// ── S18 수집만 하고 화면 없는 지표 ────────────────────────────────────────────
+// 매일 받아오면서 어디에도 안 보이는 데이터가 남아 있으면 그건 만든 적 없는 화면과 같다.
+async function gateHiddenIndicators(browser) {
+  const { ctx, page } = await open(browser, 'p=dashboard');
+  const r = await page.evaluate(() => {
+    const R = window.ECON_IND;
+    if (!R) return { err: 'ECON_IND 없음' };
+    const hidden = R.rows.filter(x => x.onScreen === false && !x.collectOnly).map(x => x.id);
+    return { hidden };
+  });
+  await ctx.close();
+  if (r.err) { console.log('S18 미노출 지표 — ' + r.err + '  FAIL'); return false; }
+  const pass = r.hidden.length === 0;
+  console.log(`S18 수집만 하고 화면 없는 지표 — ${r.hidden.length}건  ${pass ? 'PASS' : 'FAIL'}`);
+  if (!pass) console.log('   ', JSON.stringify(r.hidden.slice(0, 8)));
+  return pass;
+}
+
 const browser = await chromium.launch({ headless: true });
 const results = [
   await gateFormatMatch(browser),
@@ -170,6 +189,7 @@ const results = [
   await gateRegistryCoverage(browser),
   await gateRange52(browser),
   await gatePercentDecimals(browser),
+  await gateHiddenIndicators(browser),
 ];
 await browser.close();
 const pass = results.every(Boolean);

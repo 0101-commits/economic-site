@@ -4921,8 +4921,10 @@ function updateFxHeader() {
   setNum('fxInfoLow',  fxInverted ? high : low);
   setNum('fxInfoPrev', prevClose);
 
-  const h52v = parseFloat((pair.h52||'0').replace(/,/g,''));
-  const l52v = parseFloat((pair.l52||'0').replace(/,/g,''));
+  // 상세 블록의 52주도 history 실측을 쓴다 — pair.h52/l52 는 정의부 상수다(구조 통일 S1).
+  const _d52 = econRange52('history.fx.' + (pair.pair || '').replace('/', ''));
+  const h52v = _d52 ? _d52.hi : parseFloat((pair.h52||'0').replace(/,/g,''));
+  const l52v = _d52 ? _d52.lo : parseFloat((pair.l52||'0').replace(/,/g,''));
   if (fxInverted) {
     const e52H = document.getElementById('fxInfo52H');
     const e52L = document.getElementById('fxInfo52L');
@@ -5934,7 +5936,19 @@ function updateComHeader(c) {
     chgEl.style.fontSize = '14px';
     chgEl.textContent = (c.up ? '▲ ' : '▼ ') + c.chg;
   }
-  if(rngEl) rngEl.textContent = '52주 범위: ' + (c.l52||'-') + ' ~ ' + (c.h52||'-');
+  // 52주 범위 — FX 와 같은 문제였다: comData 정의부의 하드코딩 상수가 그대로 떴다.
+  // history 에서 실제로 세고, 없으면 지어내지 않고 '—' 를 쓴다(구조 통일 S1).
+  if(rngEl) {
+    const _k = typeof comHistoryKey === 'function' ? comHistoryKey(c.name) : null;
+    const _r = _k ? econRange52('history.commodities.' + _k) : null;
+    if(_r) {
+      const _u = (c.price || '').trim().charAt(0) === '$' ? '$' : '';
+      const _f = v => _u + v.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      rngEl.textContent = '52주 범위: ' + _f(_r.lo) + ' ~ ' + _f(_r.hi);
+    } else {
+      rngEl.textContent = '52주 범위: —';
+    }
+  }
 }
 
 // 원자재 이름 → data.json.history.commodities 키 매핑
@@ -7483,6 +7497,39 @@ const macroIndicators = [
   {name:'2년 국채',cc:'🇺🇸',cat:'금리',src:'연준 (FRED: GS2)',freq:'일간',unit:'% (수익률)',dataPath:'economicIndicators.us.us2y',fmt:v=>v?.toFixed(2)+'%'},
   {name:'VIX 변동성',cc:'🇺🇸',cat:'시장',src:'CBOE (FRED: VIXCLS)',freq:'일간',unit:'지수 (S&P500 30일 내재변동성)',dataPath:'economicIndicators.us.vix',fmt:v=>v?.toFixed(2)},
   {name:'HY 크레딧 스프레드',cc:'🇺🇸',cat:'시장',src:'BofA (FRED: BAMLH0A0HYM2)',freq:'일간',unit:'%p (국채 대비)',dataPath:'economicIndicators.us.hy_spread',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'아파트 거래량 (전국)',cc:'🇰🇷',cat:'부동산',src:'한국부동산원 R-ONE',freq:'월간',unit:'동(호)수',
+   dataPath:'realestate.kr.trade_count_kr_rone',fmt:v=>v==null?'—':Math.round(v).toLocaleString('ko-KR')+'건'},
+  // ── 수집만 되고 화면이 없던 지표(구조 통일 S5) ─────────────────────────────
+  // 레지스트리가 onScreen:false 로 들고 있던 14건이다. 값은 이미 data.json 에 있었고
+  // 표에 올릴 자리만 없었다 — 이 배열이 거시 '전체 지표' 표의 유일한 원천이다.
+  {name:'GDP (연환산)',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: GDP)',freq:'분기',unit:'조 달러',
+   dataPath:'economicIndicators.us.gdp_us',fmt:v=>v==null?'—':(v/1000).toFixed(2)+'조'},
+  {name:'장단기 금리차 (10Y-2Y)',cc:'🇺🇸',cat:'금리',src:'FRED: T10Y2Y',freq:'일간',unit:'%p',
+   dataPath:'economicIndicators.us.t10y2y_us',fmt:v=>v==null?'—':(+v).toFixed(2)+'%p'},
+  {name:'신규 실업수당 청구',cc:'🇺🇸',cat:'고용',src:'DOL (FRED: ICSA)',freq:'주간',unit:'명',
+   dataPath:'economicIndicators.us.claims_us',fmt:v=>v==null?'—':Math.round(v).toLocaleString('ko-KR')+'명'},
+  {name:'소비자심리지수 (미시간대)',cc:'🇺🇸',cat:'소비',src:'UMich (FRED: UMCSENT)',freq:'월간',unit:'지수 (1966=100)',
+   dataPath:'economicIndicators.us.sentiment_us',fmt:v=>v==null?'—':(+v).toFixed(1)},
+  {name:'역레포 잔액 (RRP)',cc:'🇺🇸',cat:'통화',src:'FRED: RRPONTSYD',freq:'일간',unit:'십억 달러',
+   dataPath:'economicIndicators.us.rrp_us',fmt:v=>v==null?'—':(+v).toFixed(2)+'B'},
+  {name:'재무부 일반계정 (TGA)',cc:'🇺🇸',cat:'통화',src:'FRED: WTREGEN',freq:'주간',unit:'십억 달러',
+   dataPath:'economicIndicators.us.tga_us',fmt:v=>v==null?'—':(v/1000).toFixed(1)+'B'},
+  {name:'지급준비금 잔액',cc:'🇺🇸',cat:'통화',src:'FRED: WRESBAL',freq:'주간',unit:'조 달러',
+   dataPath:'economicIndicators.us.reserves_us',fmt:v=>v==null?'—':(v/1e6).toFixed(2)+'조'},
+  {name:'달러 인덱스 (브로드)',cc:'🇺🇸',cat:'외환',src:'FRED: DTWEXBGS',freq:'월간',unit:'지수 (2006=100)',
+   dataPath:'economicIndicators.us.broad_dollar',fmt:v=>v==null?'—':(+v).toFixed(2)},
+  {name:'국채 10년 (월평균)',cc:'🇯🇵',cat:'금리',src:'FRED: IRLTLT01JPM156N',freq:'월간',unit:'%',
+   dataPath:'economicIndicators.jp.bond10y_jp',fmt:v=>v==null?'—':(+v).toFixed(2)+'%'},
+  {name:'실질 GDP',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',unit:'십억 유로',
+   dataPath:'economicIndicators.eu.gdp_eu',fmt:v=>v==null?'—':(v/1000).toFixed(1)+'B'},
+  {name:'GDP (명목, USD)',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'조 달러',
+   dataPath:'economicIndicators.cn.gdp_cn',fmt:v=>v==null?'—':(v/1e12).toFixed(2)+'조'},
+  {name:'실질 GDP',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'십억 유로',
+   dataPath:'economicIndicators.de.gdp_de',fmt:v=>v==null?'—':(v/1000).toFixed(1)+'B'},
+  {name:'실질 GDP',cc:'🇬🇧',cat:'경기',src:'ONS (IMF)',freq:'분기',unit:'십억 파운드',
+   dataPath:'economicIndicators.uk.gdp_uk',fmt:v=>v==null?'—':(v/1000).toFixed(1)+'B'},
+  {name:'외환보유액 (금 제외)',cc:'🇰🇷',cat:'외환',src:'IMF IFS (FRED)',freq:'월간',unit:'십억 달러',
+   dataPath:'economicIndicators.kr.fx_reserves_kr',fmt:v=>v==null?'—':(v/1000).toFixed(1)+'B'},
   {name:'달러 인덱스 (DXY)',cc:'🇺🇸',cat:'외환',src:'ICE / yfinance DX-Y.NYB',freq:'일간',unit:'지수 (1973=100, ICE 발표)',dataPath:'economicIndicators.us.dxy_idx',fmt:v=>v?.toFixed(2),
    link:'https://finance.yahoo.com/quote/DX-Y.NYB',linkLabel:'Yahoo Finance DXY'},
   {name:'Case-Shiller HPI',cc:'🇺🇸',cat:'부동산',src:'S&P (FRED: CSUSHPINSA)',freq:'월간',unit:'지수 (2000.1=100)',dataPath:'realestate.us.case_shiller_national',fmt:v=>v?.toFixed(1)},
@@ -7677,6 +7724,12 @@ function _macroGroupKey(r) {
 var MACRO_CAT_CANONICAL = { '금리': 'market#bond', '외환': 'market#fx',
                             '부동산': 'realestate', '시장': 'dashboard#mood' };
 
+// 좁은 화면에서 접어 둔 나머지 카드를 편다(구조 통일 S5). 한 번 펴면 그 세션 동안 유지된다.
+function macroShowAllCards() {
+  window._macroShowAllCards = true;
+  try { buildMacroIndicatorTable(); } catch (_) {}
+}
+
 function buildMacroIndicatorTable() {
   const root = document.getElementById('macroIndCardsRoot');
   if(!root) return;
@@ -7720,7 +7773,13 @@ function buildMacroIndicatorTable() {
   const html = chipRow + `<div class="g-2" style="display:grid;gap:14px;">` + shownCats.map(cat => {
     const color = macroCatColors[cat] || '#8d90a2';
     // 카테고리 내 indicators 를 토픽별로 다시 그룹화
-    const catItems = byCat[cat];
+    // 좁은 화면에서는 분류 안 카드를 일부만 편다(구조 통일 S5 — 수집만 하던 15건을 올리면서
+    // '경기'가 1,097px 가 됐고 390 거시가 4.05화면이 됐다, M5 상한 4.0).
+    // 접는 게 아니라 '나머지 보기'다 — 접으면 기본 분류를 아예 못 본다.
+    var _narrowCards = (window.innerWidth || 1024) <= 480 && !window._macroShowAllCards;
+    const _allItems = byCat[cat];
+    const catItems = _narrowCards ? _allItems.slice(0, 6) : _allItems;
+    const _restCount = _allItems.length - catItems.length;
     const topicGroups = {};
     catItems.forEach(r => {
       const key = _macroGroupKey(r);
@@ -7796,6 +7855,9 @@ function buildMacroIndicatorTable() {
     return `<div class="widget pad-14">
       <div class="widget-title" style="font-size:var(--font-size-sm);letter-spacing:.08em;">${cat}${catLink}</div>
       <div style="display:flex;flex-direction:column;gap:10px;">${topicHtml}</div>
+      ${_restCount > 0 ? `<button type="button" class="btn-plain econ-morecards" onclick="macroShowAllCards()"
+        style="margin-top:10px;color:var(--c-primary);cursor:pointer;font-size:var(--font-size-sm);min-height:32px;">
+        나머지 ${_restCount}개 보기</button>` : ''}
     </div>`;
   }).join('') + `</div>`;
   root.innerHTML = html;
@@ -8028,7 +8090,10 @@ function initMacroPage(t){
             y:{
               ticks:{color:tc.txt,font:{size:10}},
               grid:{color:tc.grid},
-              beginAtZero: false,
+              // 막대는 0에서 시작해야 길이 비교가 왜곡되지 않는다(구조 통일 S4).
+              // isBar 인자는 있었는데 쓰이지 않아 gdpMacro 가 0 아닌 축에 그려지고 있었다.
+              // 선은 그대로 값 범위를 쓴다 — 0 을 강제하면 변동이 뭉개진다(아래 수출 yMin 주석 참조).
+              beginAtZero: !!isBar,
               ...(yMin != null ? {suggestedMin: yMin} : {}),
             }},
     plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:color,borderColor:tc.ttBorder,borderWidth:1}}

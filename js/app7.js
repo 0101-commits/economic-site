@@ -291,8 +291,11 @@ function _merMonitorRowHtml(ind) {
   var _mn = function (v, isPct) {
     if (v == null || isNaN(+v)) return '—';
     if (isPct) return (+v).toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    var d = Math.abs(+v) >= 100 ? 2 : 4;
-    return (+v).toLocaleString('ko-KR', { maximumFractionDigits: d });
+    // 소수가 있는 값만 자릿수를 고정한다(min=max) — max 만 주면 7,764.70 이 7,764.7 로 줄어
+    // 같은 값이 두 곳에서 1자리/2자리로 갈린다. 반대로 정수(8,200)에 .00 을 붙이면 트리거
+    // 레벨 텍스트(정수 그대로)와 또 어긋난다. 둘 다 G6 가 잡는다 — 그래서 값의 모양을 따른다.
+    var d = Number.isInteger(+v) ? 0 : (Math.abs(+v) >= 100 ? 2 : 4);
+    return (+v).toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
   };
   var _isPct = (ind.unit || '').indexOf('%') >= 0;
   var cur = ind.current ? (_mn(ind.current.value, _isPct) + (ind.unit || '')) : '—';

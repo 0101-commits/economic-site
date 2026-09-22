@@ -419,7 +419,7 @@ def build(data, mer):
         {"id": "etf_movers", "label": "ETF 등락", "asset": "equity",
          "canonical": "market#equity", "data": "etfMovers"},
         {"id": "rankings_kr", "label": "거래대금·토스 체결 순위", "asset": "equity",
-         "canonical": "market#equity", "data": "rankingsKr"},
+         "canonical": "market#equity", "data": "rankingsKr", "optional": True},
         {"id": "investor_trading", "label": "투자자별 순매매", "asset": "flow",
          "canonical": "flow#investor", "data": "investorTrading"},
         {"id": "stock_flows", "label": "종목별 수급·공매도·신용", "asset": "flow",
@@ -527,6 +527,10 @@ def main():
 
     problems = []
     for row in rows + datasets:
+        # optional = 수집원이 조건부다(예: rankingsKr 는 토스 스냅샷 수집기가 켜져 있을 때만 실린다).
+        # 없는 것이 정상인 자리를 '죽은 경로'로 세면 게이트가 늘 빨갛고, 그러면 아무도 안 본다.
+        if row.get("optional"):
+            continue
         if row.get("data") and not has_path(data, row["data"]):
             problems.append("죽은 경로: %s (%s)" % (row["data"], row["id"]))
     on_screen_paths = {r["dataPath"] for r in macro_rows() if r["dataPath"]}
