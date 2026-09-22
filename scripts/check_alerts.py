@@ -576,6 +576,26 @@ def _other_row(a, snap, brief=True):
             pct if isinstance(pct, (int, float)) else None, _cond_short(a, brief=brief))
 
 
+def _alert_hero(to_send, snaps):
+    """카드 히어로와 **같은 기준**(|등락| 최대)으로 고른 대표 종목 → (이름, 네이버 URL).
+
+    사진·제목을 눌렀을 때 갈 곳의 단일 원천이다(2026-09-22). 카드가 A 종목을 크게
+    그려 놓고 링크는 B 로 가면 그건 다른 알림을 말하는 것이다. 국내 6자리 코드만
+    네이버 페이지가 있으므로 미국 종목이면 (이름, None) 이다."""
+    try:
+        import notify_discord
+        cands = [a for a, _ln in to_send if snaps.get((a.get("market", "KR"), a.get("symbol")))]
+        if not cands:
+            return "", None
+        ha = max(cands, key=lambda a: abs(
+            (snaps.get((a.get("market", "KR"), a.get("symbol"))) or {}).get("pct") or 0))
+        nm = str(ha.get("name") or ha.get("symbol") or "")
+        return nm, (notify_discord.naver_stock_url(ha.get("symbol"))
+                    if ha.get("market", "KR") == "KR" else None)
+    except Exception:                                    # noqa: BLE001
+        return "", None
+
+
 def _alert_card(to_send, snaps, now, shape="wide"):
     """카드 E 재료 구성 + 렌더. shape="square" = 카카오 피드용 정사각(기획 v3 I1).
 
@@ -800,16 +820,22 @@ def main():
             _png = _alert_card(to_send, snaps, now)
             # v3 버튼 — 발동 종목의 네이버 증권(국내 6자리 코드만, 미국 종목은 미배선).
             # 웹훅 폴백 시 notify_discord 가 링크 필드로 자동 변환.
-            _btns = [("투자현황", PORTFOLIO_URL)]
+            # 순서를 뒤집었다(2026-09-22) — 발동 종목이 앞, 투자현황(대시보드)이 뒤.
+            # 알림을 받고 가장 먼저 하는 일은 그 종목을 보는 것이다.
+            _btns = []
             for a, _ in to_send:
                 if a.get("market", "KR") == "KR":
                     _u = notify_discord.naver_stock_url(a.get("symbol"))
                     if _u:
                         _btns.append(((f"N {a.get('name') or a.get('symbol')}")[:80], _u))
+            _btns.append(("투자현황", PORTFOLIO_URL))
+            _hnm, _hurl = _alert_hero(to_send, snaps)
             notify_discord.send(
                 "\n".join(_lines), png=_png,
-                title=f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림 — 투자 현황 보기",
-                url="https://0101-commits.github.io/economic-site/?p=portfolio",
+                title=(f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"
+                       + (f" — {_hnm} 시세 보기" if _hurl else " — 투자 현황 보기")),
+                # 제목 클릭 = 카드가 크게 그린 그 종목의 네이버 증권. 투자현황은 버튼.
+                url=_hurl or "https://0101-commits.github.io/economic-site/?p=portfolio",
                 color=notify_discord.COLOR_TEST if IS_TEST else notify_discord.COLOR_ALERT,
                 footer=DELAY_NOTICE, timestamp=True, env="DISCORD_WEBHOOK_ALERTS",
                 # 도달 티어 T2(E1) — @종목알림 역할 멘션(셀프 구독형). 테스트는 무멘션.
@@ -939,22 +965,15 @@ def main():
     _kitems = [kakao.kakao_item(
         nm, " ".join(x for x in (px + (f"({pct:+.1f}%)" if pct is not None else ""), cond) if x))
         for nm, px, pct, cond in _krows]
-    _kbtns = [("투자현황", PORTFOLIO_URL)]
-    for a, _ in to_send:
-        if a.get("market", "KR") == "KR":
-            try:
-                import notify_discord as _nd
-                _u = _nd.naver_stock_url(a.get("symbol"))
-            except Exception:
-                _u = None
-            if _u:
-                _kbtns.append((str(a.get("name") or a.get("symbol"))[:8], _u))
-                break                                  # 카카오 버튼은 최대 2개
+    # 사진 탭 = 카드가 크게 그린 그 종목의 네이버 증권, 투자현황은 버튼(2026-09-22).
+    # 카카오 버튼은 최대 2개라 [대표 종목, 투자현황] 순 — 앞이 더 자주 눌린다.
+    _khnm, _khurl = _alert_hero(to_send, snaps)
+    _kbtns = ([(_khnm[:8], _khurl)] if _khurl else []) + [("투자현황", PORTFOLIO_URL)]
     sent, delivered_ids, ok = 0, set(), True
     try:
         kakao.send_card(access_token, header, _klines[0] if _klines else "",
                         png=_kpng, uuids=uuids, items=_kitems, buttons=_kbtns,
-                        kind="종목 알림")
+                        kind="종목 알림", link_url=_khurl)
         sent = 1
         delivered_ids.update(packed_ids)
     except (SystemExit, Exception) as e:   # SystemExit(응답오류) + 전송예외(URLError/timeout)

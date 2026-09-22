@@ -90,3 +90,29 @@ def test_kakao_feed_link_defaults_to_dashboard():
     """링크를 못 구한 날에도 사진 탭이 죽으면 안 된다(대시보드로 떨어진다)."""
     assert K.hero_link([]) is None
     assert K._hero_button([]) is None
+
+
+# ── 종목 알림 — 카드 히어로와 링크가 같은 종목이어야 한다 ────────────────────
+SNAPS = {("KR", "005930"): {"pct": 2.0, "price": 78000, "closes": [1] * 30},
+         ("KR", "000660"): {"pct": -5.4, "price": 412000, "closes": [1] * 30},
+         ("US", "AAPL"): {"pct": 9.9, "price": 230, "closes": [1] * 30}}
+TO_SEND = [({"name": "삼성전자", "symbol": "005930", "market": "KR"}, "l1"),
+           ({"name": "SK하이닉스", "symbol": "000660", "market": "KR"}, "l2")]
+
+
+def test_alert_hero_matches_card_hero_rule():
+    """링크 대상 = 카드가 크게 그린 종목(|등락| 최대). 둘이 갈리면 다른 알림을 말한다."""
+    import check_alerts as CA
+    nm, url = CA._alert_hero(TO_SEND, SNAPS)
+    assert nm == "SK하이닉스", nm                       # |−5.4| > |+2.0|
+    assert url == "https://finance.naver.com/item/main.naver?code=000660"
+
+
+def test_alert_hero_is_safe_when_nothing_links():
+    """미국 종목·스냅 결측·빈 입력에서 예외 없이 (이름, None)."""
+    import check_alerts as CA
+    assert CA._alert_hero([({"name": "애플", "symbol": "AAPL", "market": "US"}, "l")],
+                          SNAPS) == ("애플", None)
+    assert CA._alert_hero([], SNAPS) == ("", None)
+    assert CA._alert_hero([({"name": "X", "symbol": "999999", "market": "KR"}, "l")],
+                          {}) == ("", None)
