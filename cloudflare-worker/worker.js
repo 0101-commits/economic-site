@@ -1384,6 +1384,15 @@ export default {
   },
 
   async fetch(request, env, ctx) {
+    // 🩺 GET /discord/health — Interactions 배선 점검용. 디스코드 앱의 verify_key 와
+    //    워커가 들고 있는 DISCORD_PUBLIC_KEY 가 같은지 대조하려면 한쪽 값을 볼 수 있어야
+    //    하는데, 워커 시크릿은 밖에서 읽을 수 없다. 공개키는 본래 공개값(디스코드 포털에
+    //    그대로 적혀 있다)이라 **앞 12자만** 낸다 — 대조에는 충분하고 전문은 남기지 않는다.
+    //    scripts/discord_diag.py 가 이 값을 읽어 원인을 ①URL ②키 로 가른다.
+    if (request.method === 'GET' && new URL(request.url).pathname === '/discord/health') {
+      const pub = (env && env.DISCORD_PUBLIC_KEY || '').trim();
+      return jsonResponse({ hasKey: !!pub, publicKeyPrefix: pub.slice(0, 12) }, 200, GET_CORS);
+    }
     // CORS preflight — [이슈8] POST 엔드포인트는 출처 제한 CORS(postCors), 그 외는 퍼블릭 GET_CORS.
     if (request.method === 'OPTIONS') {
       const _p = new URL(request.url).pathname;
