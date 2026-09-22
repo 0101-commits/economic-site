@@ -169,3 +169,34 @@ def test_go_page_takes_no_url_parameter():
     assert "q.get('k')" in html and "q.get('s')" in html
     assert "q.get('url')" not in html and "q.get('to')" not in html
     assert "[0-9]{6}" in html          # 종목은 6자리 숫자만
+
+
+# ── 디스코드 링크는 상호작용에 기대지 않는다 ────────────────────────────────
+def test_link_buttons_are_plain_urls():
+    """지표 링크는 URL 버튼이어야 한다 — custom_id 면 Interactions 경로에 목숨이 걸린다.
+
+    2026-09-22 실측: 드롭다운(goto_link)과 '지금 시세'(refresh_quotes)가 둘 다
+    "애플리케이션이 적시에 응답하지 않았어요" 로 죽었다. 링크를 주는 데 왕복이 필요할
+    이유가 없다 — 카드 칸이 16종에서 3~6종으로 줄어 버튼으로 충분하다.
+    """
+    links = K.card_links(DATA, "h09", False, NOW.replace(hour=9))
+    rows = N._components([K._dc_link_buttons(links), K._dc_buttons()])
+    link_row = rows[0]["components"]
+    assert link_row, "지표 버튼이 비었다"
+    for c in link_row:
+        assert c["style"] == 5 and c.get("url"), c      # style 5 = URL 버튼
+        assert "custom_id" not in c
+    assert len(link_row) <= 5                            # 디스코드 행당 5개 상한
+
+
+def test_link_buttons_follow_card_order():
+    """버튼 순서 = 카드 읽는 순서(주인공 먼저)."""
+    links = K.card_links(DATA, "h12", False, NOW, focus_key="USDKRW")
+    labs = [lab for lab, _u in K._dc_link_buttons(links)]
+    assert "달러-원" in labs[0], labs
+
+
+def test_senders_do_not_use_the_dropdown():
+    """발송 경로가 다시 드롭다운으로 돌아가면 같은 장애가 재발한다."""
+    src = open(os.path.join(ROOT, "scripts", "send_kakao_digest.py"), encoding="utf-8").read()
+    assert "select=_dc_select" not in src, "발송 경로가 드롭다운을 다시 쓰고 있다"

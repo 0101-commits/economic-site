@@ -2076,11 +2076,25 @@ def hero_link(links):
 
 
 def _dc_select(data, weekly=False, links=None):
-    """v4 지표 드롭다운(기획 ed0e5496 — 버튼 다이어트) — 구 버튼 그리드(v3, 16버튼)를
-    String Select 1행으로 압축. 옵션 = 그 카드에 그려진 지표(card_links 단일 원천)."""
+    """지표 드롭다운(기획 ed0e5496) — 옵션 = 그 카드에 그려진 지표(card_links 단일 원천).
+
+    ⚠ 2026-09-22 이후 발송 경로는 이걸 쓰지 않는다. 드롭다운은 선택을 Worker /discord
+    로 되돌려받아야 링크를 답할 수 있는데(goto_link), 그 Interactions 경로가 죽으면
+    목록의 **모든 링크가 한꺼번에** 죽는다("애플리케이션이 적시에 응답하지 않았어요").
+    링크를 주는 데 왕복이 필요할 이유가 없어 URL 버튼(_dc_link_buttons)으로 바꿨다.
+    함수는 Worker 의 goto_link 가 아직 살아 있어 남겨 둔다(수동 점검·회귀 검사용)."""
     src = links if links is not None else card_links(
         data, None, False, datetime.datetime.now(KST), weekly=weekly)
     return [(lab, key) for lab, key, _u in src]
+
+
+def _dc_link_buttons(links):
+    """카드 칸 → 디스코드 URL 버튼 한 행(최대 5). 상호작용이 전혀 필요 없다.
+
+    URL 버튼(style 5)은 디스코드가 직접 열어 주므로 Interactions 엔드포인트·봇 응답
+    시간과 무관하다. 드롭다운은 한 번 눌러 목록을 열고 다시 골라야 했는데, 카드 칸이
+    16종에서 3~6종으로 줄어(card_links) 버튼 다이어트의 전제도 사라졌다 — 한 번에 간다."""
+    return [(lab, url) for lab, _key, url in (links or [])[:5]]
 
 
 def _dc_thread_name(now):
@@ -2232,7 +2246,9 @@ def _send_close_report(data):
         fields=None if png else rows,
         footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
         timestamp=True, thread_name=_dc_thread_name(now),
-        buttons=[_dc_buttons()], select=_dc_select(data, links=_links))
+        # 지표 링크는 URL 버튼 1행 — 드롭다운(goto_link)은 Interactions 왕복이 필요해
+        # 그 경로가 죽으면 링크가 전부 죽는다(2026-09-22 실측).
+        buttons=[_dc_link_buttons(_links), _dc_buttons()])
     # 카카오 병행(기획 v3 §02 P2) — 마감도 카톡으로. 카드는 정사각 변형을 따로 그린다
     # (가로 4분면은 말풍선에서 축소돼 읽히지 않는다). 실패는 경고만 — 디스코드는 이미 나갔다.
     kok = False
@@ -2455,8 +2471,7 @@ def main():
                 fields=_fields,
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
                 timestamp=True, thread_name=_dc_thread_name(datetime.datetime.now(KST)),
-                buttons=[_dc_buttons()], select=_dc_select(data, weekly=_weekly_mode,
-                                                           links=_links))
+                buttons=[_dc_link_buttons(_links), _dc_buttons()])
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 
