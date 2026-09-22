@@ -7707,8 +7707,14 @@ function filterMacroIndicators(cc, btn) {
 function _macroGroupKey(r) {
   const dp = (r.dataPath || '').toLowerCase();
   const nm = (r.name || '').toLowerCase();
-  if(dp.includes('gdp') || nm.includes('gdp') || nm.includes('성장률')) return 'GDP';
+  // 성장률(%)과 규모(조·B)은 다른 지표다 — 한 줄에 두면 미국 1.5% 옆에 32.49조가 서서
+  // 국기만 보이는 가로 배열에서 무엇이 무엇인지 읽을 수 없다(구조 통일 S5).
+  if(nm.includes('성장률')) return 'GDP 성장률';
+  if(dp.includes('gdp') || nm.includes('gdp')) return 'GDP 규모';
   if(dp.includes('cpi') || nm.includes('cpi') || nm.includes('소비자물가') || nm.includes('hicp')) return 'CPI';
+  // '실업수당'은 실업률과 다른 지표다(단위도 %가 아니라 명). 한 그룹으로 묶으면
+  // 국기만 보이는 가로 배열에 들어가 미국 실업률 4.10% 옆에 196,000명이 나란히 선다(구조 통일 S5).
+  if(nm.includes('수당')) return r.name;
   if(dp.includes('unemploy') || dp.includes('unemp') || nm.includes('실업')) return '실업률';
   if(dp.includes('exports') || nm.includes('수출')) return '수출';
   if(dp.includes('base_rate') || dp.includes('ff_rate') || nm.includes('기준금리') || nm.includes('정책금리') || nm.includes('ffr') || nm.includes('ecb') || nm.includes('boj') || nm.includes('boe')) return '기준금리';
