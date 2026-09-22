@@ -2,9 +2,15 @@ name: Discord Interactions 진단 (manual)
 
 # 버튼이 "애플리케이션이 적시에 응답하지 않았어요" 로 죽을 때 원인을 가른다.
 # 봇 토큰은 이 저장소 시크릿에만 있어 로컬에서 앱 설정을 읽을 수 없다 — 그래서 여기서 돈다.
-# 읽기 전용이고 토큰·공개키 전문은 출력하지 않는다(공개키는 앞 12자만 대조용).
+# 기본은 읽기 전용. fix=true 일 때만 interactions_endpoint_url 을 워커 주소로 PATCH 한다.
+# 토큰·공개키 전문은 어느 모드에서도 출력하지 않는다(공개키는 앞 12자만 대조용).
 on:
   workflow_dispatch:
+    inputs:
+      fix:
+        description: 'Interactions Endpoint URL 을 워커 주소로 교정한다'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -21,4 +27,4 @@ jobs:
       - name: 앱 설정 대조
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-        run: python scripts/discord_diag.py
+        run: python scripts/discord_diag.py ${{ inputs.fix && '--fix' || '' }}

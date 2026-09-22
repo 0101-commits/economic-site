@@ -31,6 +31,17 @@ def _get(url, headers=None, timeout=20):
         return json.load(r)
 
 
+def _patch(url, payload, headers):
+    """PATCH — 엔드포인트를 저장하면 디스코드가 그 자리에서 PING 을 쏜다.
+    워커가 PONG(type 1) 을 못 돌려주면 디스코드가 저장을 거부하므로, 성공 = 왕복 검증 완료."""
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=data, headers={**headers,
+                                                          "Content-Type": "application/json"},
+                                 method="PATCH")
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.load(r)
+
+
 def main():
     tok = (os.environ.get("DISCORD_BOT_TOKEN") or "").strip()
     if not tok:
@@ -75,8 +86,29 @@ def main():
         print(f"워커 health 조회 실패({type(e).__name__}) — 워커 배포 여부 확인")
         ok = False
 
-    print("판정: " + ("설정 일치 — 다른 원인" if ok else "위 항목을 고치면 해결된다"))
-    return 0
+    if ok:
+        print("판정: 설정 일치 — 다른 원인")
+        return 0
+
+    if "--fix" not in sys.argv:
+        print("판정: 위 항목을 고치면 해결된다 (--fix 로 엔드포인트 교정 가능)")
+        return 0
+
+    if (url or "").rstrip("/") == EXPECTED:
+        print("--fix: 엔드포인트는 이미 맞다 — 공개키 문제는 워커 시크릿을 갈아야 한다")
+        return 1
+    try:
+        _patch(f"{API}/applications/@me", {"interactions_endpoint_url": EXPECTED},
+               {"Authorization": f"Bot {tok}", "User-Agent": "ecom-diag"})
+    except urllib.error.HTTPError as e:
+        # 디스코드는 PING 왕복이 실패하면 여기서 거부한다 — 워커가 살아 있는지부터 본다.
+        print(f"--fix 실패 HTTP {e.code}: {e.read()[:300].decode('utf-8', 'replace')}")
+        return 1
+    after = _get(f"{API}/applications/@me", {"Authorization": f"Bot {tok}",
+                                             "User-Agent": "ecom-diag"})
+    now = after.get("interactions_endpoint_url") or "(비어 있음)"
+    print(f"--fix 적용 → interactions URL = {now}")
+    return 0 if str(now).rstrip("/") == EXPECTED else 1
 
 
 if __name__ == "__main__":
