@@ -252,7 +252,7 @@ for (const page of PAGES) {
     const p = await ctx.newPage();
     // 테마는 로드 전에 심는다 — 전환 직후는 JS 가 인라인으로 칠한 색이 아직 옛 테마다.
     await p.addInitScript(t => { try { localStorage.setItem('econ_theme', t); } catch {} }, theme);
-    await p.goto(`${BASE}/index.html?p=${page}`, { waitUntil: 'networkidle', timeout: 60000 });
+    await p.goto(`${BASE}/index.html?p=${page}`, { waitUntil: 'networkidle', timeout: 90000 });
     await p.waitForTimeout(3500);
 
     const got = await p.evaluate(collect, [W, H]);

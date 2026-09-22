@@ -1273,6 +1273,36 @@ function navigateToDetail(target) {
   }
 })();
 
+/* 지금 열려 있지 않은 화면의 캔버스에는 차트를 만들지 않는다 (구조 통일 U10).
+   실측: 어느 화면을 열든 차트 7개(compareChart · spark1~3 · spark-rate · fxChart ·
+   rateHistoryChart · fearChart)가 항상 생성됐다 — 캔버스가 한 개도 없는 분석 노트·
+   스터디 기록에서도 살아 있었다. 안 보이는 캔버스에 그린 그림은 아무도 못 보는데
+   데이터가 갱신될 때마다 다시 그려졌고, 그 사이 값이 바뀌면 나중에 그 화면을 열었을 때
+   낡은 그림이 남아 있었다(FX 표가 카드보다 오래된 값을 보이던 자리가 이 계열이다).
+   화면을 열면 econChartFlush() 가 밀어둔 것만 그린다. */
+var _econChartPending = Object.create(null);
+function econChartLive(canvasId, redraw) {
+  var cv = document.getElementById(canvasId);
+  if(!cv) return null;
+  var pg = cv.closest ? cv.closest('.page') : null;
+  if(pg && !pg.classList.contains('active')) {
+    if(redraw) _econChartPending[canvasId] = redraw;   // 마지막 요청 하나만 들고 있는다
+    return null;
+  }
+  delete _econChartPending[canvasId];
+  return cv;
+}
+function econChartFlush() {
+  Object.keys(_econChartPending).forEach(function(k){
+    var cv = document.getElementById(k);
+    var pg = cv && cv.closest ? cv.closest('.page') : null;
+    if(!cv || !pg || !pg.classList.contains('active')) return;
+    var fn = _econChartPending[k];
+    delete _econChartPending[k];
+    try { fn(); } catch(e) { console.warn('chart flush', k, e); }
+  });
+}
+
 function showPage(id, el) {
   // 잠금 페이지(투자 현황·설정) 게이트 — 모든 진입(메뉴·?p= 딥링크·popstate·키보드)이
   // showPage 를 지나므로 관문은 여기 한 곳. 비밀번호 확인 성공 시 econLockGate 가 재호출한다.
@@ -1370,6 +1400,9 @@ function showPage(id, el) {
     });
     if(location.pathname + location.search !== _url) history.pushState(null, '', _url);
   } catch(_) {}
+  // 이 화면 때문에 미뤄 뒀던 차트를 그린다(U10) — 화면별 빌더(위 setTimeout 50)가 먼저 돌고,
+  // 그래도 안 그려진 것만 남는다.
+  setTimeout(econChartFlush, 120);
   // 없는 주소로 들어온 것이면 그 사실을 화면이 말한다(C7).
   if(_unknownPage) econNoticeUnknownPage(_unknownPage);
   // 메뉴 클릭 후 사이드바 자동 숨김 (모바일/데스크탑 공통)
@@ -3007,7 +3040,8 @@ function buildUsReCharts() {
 // 스파크라인 차트
 // ============================
 function sparkline(id, series, color) {
-  const ctx = document.getElementById(id);
+  // 지금 열린 화면의 캔버스가 아니면 미뤄 둔다(U10).
+  const ctx = econChartLive(id, function(){ sparkline(id, series, color); });
   if(!ctx) return;
   // 같은 캔버스에 이미 차트가 있으면 먼저 파괴 — Chart.js "Canvas is already in use" 오류 방지.
   // charts[id] 추적분 + Chart.getChart(canvas) 로 미추적 인스턴스까지 모두 정리한다.
@@ -3860,9 +3894,10 @@ function selectGlobalIndex(idx, el) {
 // 없으면 빈 게이지(회색) 로 표시. 합성 더미 62 제거.
 // ============================
 function buildFearChart() {
-  destroyChart('fearChart');
-  const ctx = document.getElementById('fearChart');
+  // 안 열린 화면이면 미뤄 둔다(U10).
+  const ctx = econChartLive('fearChart', buildFearChart);
   if(!ctx) return;
+  destroyChart('fearChart');
   const d = (typeof _latestDataForIndicators !== 'undefined') ? _latestDataForIndicators : null;
   const fg = d?.sentiment?.fear_greed;
   const val = (fg && typeof fg.value === 'number' && fg.value >= 0 && fg.value <= 100) ? fg.value : null;
@@ -3957,9 +3992,10 @@ function _sentCaption(elId, asOf, base) {
 
 // 한국 기준금리 KPI 카드 — 최근 8년 기준금리 추이 미니 차트
 function buildRateKpiSparkline() {
-  destroyChart('spark-rate');
-  const ctx = document.getElementById('spark-rate');
+  // 안 열린 화면이면 미뤄 둔다(U10).
+  const ctx = econChartLive('spark-rate', buildRateKpiSparkline);
   if(!ctx) return;
+  destroyChart('spark-rate');
   // rateHistoryData.kr 사용 (연도별)
   const data = rateHistoryData.kr || [];
   const labels = rateHistoryData.labels || [];
@@ -4194,10 +4230,10 @@ function buildMoverTable(dir) {
   }
   tb.innerHTML = data.map(d=>`
     <tr style="border-bottom:1px solid var(--c-border);">
-      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${d.name}</a>${d.type==='etf'?'<span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-left:4px;">ETF</span>':''}</td>
+      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="${d.name} — 네이버 증권에서 보기">${d.name}</a>${d.type==='etf'?'<span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-left:4px;">ETF</span>':''}</td>
       <td style="text-align:right;padding:5px;">${d.price}</td>
       <td style="text-align:right;padding:5px;" class="${isUp?'up-txt':'down-txt'}">${d.chg}</td>
-      <td style="text-align:right;padding:5px;color:var(--c-txt-dim);">${d.vol||''}</td>
+      <td style="text-align:right;padding:5px;color:var(--c-txt-dim);">${d.vol||'—'}</td>
     </tr>`).join('');
   tb.removeAttribute('aria-busy');
 }
@@ -4697,10 +4733,11 @@ let fxCurrentPair = 0;   // index into fxPairs
 let fxAllSeries = null;  // full 252-day series for current pair
 
 function buildFxChart(seriesData) {
+  // 안 열린 화면이면 미뤄 둔다(U10) — 시장 화면을 열 때 initMarketPage 가 다시 부른다.
+  const ctx = econChartLive('fxChart', function(){ buildFxChart(seriesData); });
+  if(!ctx) return;
   fxAnnotations=[]; fxPending=null;
   destroyChart('fxChart');
-  const ctx = document.getElementById('fxChart');
-  if(!ctx) return;
   const pair = fxPairs[fxCurrentPair];
   const isKrwDenom = pair.pair.endsWith('/KRW');
   const dm = pair.displayMult || 1;
@@ -5649,9 +5686,11 @@ function setEquityPeriod(p, btn) {
 }
 
 function buildInvestorChart() {
-  destroyChart('investorChart');
-  const ctx=document.getElementById('investorChart');
+  // 안 열린 화면이면 미뤄 둔다(U10) — 캔버스는 주식시장 화면에 있는데
+  // 시장 화면의 수급 갱신이 이 함수를 같이 부르고 있었다.
+  const ctx = econChartLive('investorChart', buildInvestorChart);
   if(!ctx) return;
+  destroyChart('investorChart');
   // 실데이터(data.json.investorTrading) 미수집 시 — 더미를 그리지 않고 안내 표시
   if(!investorRawData || !investorRawData.length) {
     // 서버 진단(diagnostics.investorTradingReason)이 있으면 actionable 사유를 그대로 노출.
@@ -9949,10 +9988,13 @@ let _currentInvestor = 'nps';
 function setInvestor(id, btn) {
   _currentInvestor = id;
   // 최상위 탭 활성화 UI
+  // 활성 표시는 클래스 하나(.tab-btn.active)가 단일 원천이다 — 인라인 색을 같이 쓰면
+  // 부품(seed-tabs)의 규격을 인라인이 이겨 같은 탭이 화면마다 다르게 보인다(구조 통일 U9).
   document.querySelectorAll('#investorTopTabs .tab-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+    b.classList.remove('active'); b.style.removeProperty('background'); b.style.removeProperty('color');
+    if(b.getAttribute('aria-selected') !== 'false') b.setAttribute('aria-selected','false');
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); btn.setAttribute('aria-selected','true'); }
   // 컨테이너 표시 전환
   ['nps','gpfg','gpif','frtib','calpers','berkshire'].forEach(k => {
     const el = document.getElementById('investor-'+k+'-container');
@@ -14585,9 +14627,10 @@ function setRatePeriod(period, btn) {
 }
 
 function buildRateHistoryChart() {
-  destroyChart('rateHistoryChart');
-  const ctx = document.getElementById('rateHistoryChart');
+  // 안 열린 화면이면 미뤄 둔다(U10).
+  const ctx = econChartLive('rateHistoryChart', buildRateHistoryChart);
   if(!ctx) return;
+  destroyChart('rateHistoryChart');
   const allLabels = rateHistoryData.labels;
   const n = ratePeriodSlice==='1y' ? 2 : ratePeriodSlice==='3y' ? 4 : ratePeriodSlice==='5y' ? 6 : allLabels.length;
   const sliceFrom = Math.max(0, allLabels.length - n);
@@ -15128,15 +15171,34 @@ function initStaticRealEstateFallbacks() {
     if (group.length < 2 || !group.some(b => b.classList.contains('active'))) return null;
     return group;
   }
+  // `.tab-btn` 은 **두 가지 부품**에 붙어 있다 — 화면 내용을 통째로 바꾸는 2차 탭
+  // (`seed-tabs__trigger`, role=tab + aria-selected) 과 차트·목록의 대상·기간을 고르는 칩
+  // (`seed-chip__root`, aria-pressed). 종전엔 이 보강기가 둘을 가리지 않고 전부 tablist 로
+  // 만들어, 기간 칩(1W·1M·3M)이 aria-pressed 와 role=tab/aria-selected 를 **동시에** 달고
+  // 있었다. 읽기 도구에는 모순이고, 화면에는 같은 역할이 두 부품으로 보이는 원인이었다
+  // (구조 통일 U9). 부품이 스스로 밝힌 역할을 그대로 따른다.
+  function _isChipGroup(group) {
+    return group.some(b => b.classList.contains('seed-chip__root') || b.hasAttribute('aria-pressed'));
+  }
   function decorateAllTabGroups() {
     document.querySelectorAll('.tab-btn.active').forEach(activeBtn => {
       const group = _tabGroup(activeBtn);
       if (!group) return;
       const parent = activeBtn.parentElement;
+      if (_isChipGroup(group)) {
+        // 고르기 묶음 — 눌린 상태는 aria-pressed 하나로만 말한다.
+        if (!parent.getAttribute('role')) parent.setAttribute('role', 'group');
+        group.forEach(b => {
+          const on = b.classList.contains('active') ? 'true' : 'false';
+          if (b.getAttribute('aria-pressed') !== on) b.setAttribute('aria-pressed', on);
+        });
+        return;
+      }
       if (!parent.getAttribute('role')) parent.setAttribute('role', 'tablist');
       group.forEach(b => {
         if (!b.getAttribute('role')) b.setAttribute('role', 'tab');
-        b.setAttribute('aria-selected', b.classList.contains('active') ? 'true' : 'false');
+        const on = b.classList.contains('active') ? 'true' : 'false';
+        if (b.getAttribute('aria-selected') !== on) b.setAttribute('aria-selected', on);
       });
     });
   }

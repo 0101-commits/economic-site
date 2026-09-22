@@ -815,6 +815,18 @@
                    border-bottom: 1px solid var(--seed-color-stroke-neutral-weak, var(--c-border)); }
   .econ-table--num { text-align: right; font-variant-numeric: tabular-nums; }
   .econ-table--tiny { width: 36px; }
+  /* 이름→값 두 칸 표의 첫 칸은 행 머리다(S3). `<table>` 을 머리 없이 배치용으로만 쓰던
+     4곳을 th[scope=row] 로 세워 읽기 도구가 '시가 · 1,488.00' 으로 짝지어 읽는다.
+     보이는 모양은 td 와 같게 맞춘다 — 열 머리(작고 흐린 글자)가 아니라 값의 이름이다. */
+  .econ-table th[scope="row"] { height: 36px; padding: 0 4px; text-align: left;
+                                font-weight: var(--seed-font-weight-regular);
+                                font-size: var(--seed-font-size-t3); line-height: var(--seed-line-height-t3);
+                                color: inherit; }
+  @media (pointer: coarse) { .econ-table th[scope="row"] { height: 44px; } }
+  /* 표 행 높이를 한 표 안에서 36px 로 맞추려고 이름 칸을 한 줄로 고정해 봤는데 되돌렸다
+     (2026-09-22 실측): 홈의 등락 Top10 은 칸 폭이 230px 인데 이름을 안 접으면 표가 282px 가
+     되어 가로 스크롤이 생기고 '거래량' 열이 통째로 가려진다. 값을 가리는 쪽이 행이 15px
+     높아지는 쪽보다 나쁘다. 좁은 칸의 줄바꿈은 결함이 아니라 칸 폭이 하는 일이다. */
   .econ-table tbody tr[aria-selected="true"] {
     background: var(--seed-color-bg-brand-weak, var(--c-accent-container));
     box-shadow: inset 2px 0 0 0 var(--seed-color-fg-brand, var(--c-accent));
@@ -3412,12 +3424,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <h3 class="widget-title" id="fxInfoPanelTitle">한미환율 주요 정보</h3>
             <div id="fxInfoAsOf" class="note-line" style="margin-bottom:6px;">기준 시점: —</div>
             <table class="econ-table">
-              <tr style="border-bottom:1px solid var(--c-border);"><td>시가</td><td id="fxInfoOpen" class="econ-table--num">1,488.00</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><td>고가</td><td id="fxInfoHigh" class="econ-table--num">1,493.20</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><td>저가</td><td id="fxInfoLow" class="econ-table--num">1,485.50</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><td>전일 종가</td><td id="fxInfoPrev" class="econ-table--num">1,487.85</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><td>52주 고가</td><td id="fxInfo52H" class="econ-table--num">1,520.00</td></tr>
-              <tr><td>52주 저가</td><td id="fxInfo52L" class="econ-table--num">1,340.00</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">시가</th><td id="fxInfoOpen" class="econ-table--num">1,488.00</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">고가</th><td id="fxInfoHigh" class="econ-table--num">1,493.20</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">저가</th><td id="fxInfoLow" class="econ-table--num">1,485.50</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">전일 종가</th><td id="fxInfoPrev" class="econ-table--num">1,487.85</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">52주 고가</th><td id="fxInfo52H" class="econ-table--num">1,520.00</td></tr>
+              <tr><th scope="row">52주 저가</th><td id="fxInfo52L" class="econ-table--num">1,340.00</td></tr>
             </table>
           </div>
         </div>
@@ -4496,19 +4508,19 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <table class="econ-table">
               <tbody>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('LTV')" title="클릭 → LTV 세부 규제">
-                  <td><button type="button" class="btn-plain btn-inline">LTV <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></td>
+                  <th scope="row"><button type="button" class="btn-plain btn-inline">LTV <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></th>
                   <td>투기지역 40% / 기타 70%</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('DTI')" title="클릭 → DTI 세부 규제">
-                  <td><button type="button" class="btn-plain btn-inline">DTI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></td>
+                  <th scope="row"><button type="button" class="btn-plain btn-inline">DTI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></th>
                   <td>투기지역 40% / 기타 50%</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="showLoanRegDetail('DSR')" title="클릭 → DSR 세부 규제">
-                  <td><button type="button" class="btn-plain btn-inline">DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></td>
+                  <th scope="row"><button type="button" class="btn-plain btn-inline">DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></th>
                   <td>40% (1억 초과 대출)</td>
                 </tr>
                 <tr style="cursor:pointer;" onclick="showLoanRegDetail('stress')" title="클릭 → 스트레스 DSR 세부 규제">
-                  <td><button type="button" class="btn-plain btn-inline">스트레스DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></td>
+                  <th scope="row"><button type="button" class="btn-plain btn-inline">스트레스DSR <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">ⓘ</span></button></th>
                   <td>2단계 시행 중</td>
                 </tr>
               </tbody>
@@ -5001,13 +5013,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <!-- ====== 페이지 6: 주요 투자자 (국민연금 + 글로벌 대형 연기금) ====== -->
     <div class="page" id="page-investor">
       <!-- 투자자 선택 — 1차 탭 (국민연금 / GPFG / GPIF / FRTIB / CalPERS) -->
-      <div id="investorTopTabs" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;border-bottom:1px solid var(--c-border);padding-bottom:10px;">
-        <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="invTopNps" onclick="setInvestor('nps',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇰🇷 국민연금 (NPS)</span></button>
-        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopGpfg" onclick="setInvestor('gpfg',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇳🇴 노르웨이 GPFG</span></button>
-        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopGpif" onclick="setInvestor('gpif',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇯🇵 일본 GPIF</span></button>
-        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopFrtib" onclick="setInvestor('frtib',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 미국 FRTIB (TSP)</span></button>
-        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopCalpers" onclick="setInvestor('calpers',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 CalPERS</span></button>
-        <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        id="invTopBerkshire" onclick="setInvestor('berkshire',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 버크셔 해서웨이</span></button>
+      <div id="investorTopTabs" role="tablist" aria-label="투자자 선택 탭" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;border-bottom:1px solid var(--c-border);padding-bottom:10px;">
+        <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="invTopNps" onclick="setInvestor('nps',this)" data-ssr role="tab" aria-selected="true">🇰🇷 국민연금 (NPS)</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="invTopGpfg" onclick="setInvestor('gpfg',this)" data-ssr role="tab" aria-selected="false">🇳🇴 노르웨이 GPFG</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="invTopGpif" onclick="setInvestor('gpif',this)" data-ssr role="tab" aria-selected="false">🇯🇵 일본 GPIF</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="invTopFrtib" onclick="setInvestor('frtib',this)" data-ssr role="tab" aria-selected="false">🇺🇸 미국 FRTIB (TSP)</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="invTopCalpers" onclick="setInvestor('calpers',this)" data-ssr role="tab" aria-selected="false">🇺🇸 CalPERS</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="invTopBerkshire" onclick="setInvestor('berkshire',this)" data-ssr role="tab" aria-selected="false">🇺🇸 버크셔 해서웨이</button>
       </div>
 
       <!-- 🌐 글로벌 연기금 자산배분 교차 비교 (4.4) — 5대 기금 단일 통합 차트, 탭과 무관하게 상시 표시 -->

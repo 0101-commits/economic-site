@@ -123,10 +123,23 @@ function collect() {
   // 산문은 세지 않는다 — 뉴스 제목·요약에 박힌 숫자("원·달러 1,380원 돌파")는
   // 우리가 포맷한 값이 아니라 남의 문장이다. 값 슬롯끼리만 비교한다(2026-09-19).
   const PROSE = '.econ-why, .note-line, .news-item, .brief-item, .mer-quote, li, p, blockquote';
+  // 수량 열(거래량·거래대금·체결대금·순매매)은 뺀다. 여기 들어오는 값은 가격이 아니라
+  // 주식 수·금액이라 자릿수를 가격과 맞출 이유가 없는데, 정수부가 우연히 겹치면
+  // "금 4,379.30 ↔ 거래량 4,379" 처럼 서로 관계없는 두 지표가 불일치로 잡힌다(2026-09-22 실측).
+  const QTY = /거래량|거래대금|체결대금|순매매|수량/;
+  function inQuantityColumn(el) {
+    const td = el && el.closest ? el.closest('td, th') : null;
+    if (!td || !td.parentElement) return false;
+    const i = [...td.parentElement.children].indexOf(td);
+    const table = td.closest('table');
+    const head = table && table.querySelectorAll('thead th')[i];
+    return !!head && QTY.test(head.textContent || '');
+  }
   const seen = {};
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let n; (n = walk.nextNode());) {
     if (n.parentElement && n.parentElement.closest(PROSE)) continue;
+    if (inQuantityColumn(n.parentElement)) continue;
     for (const m of n.textContent.match(/\d{1,3}(,\d{3})+(\.\d+)?/g) || []) {
       const body = m.replace(/,/g, '');
       const dec  = (body.split('.')[1] || '').length;
@@ -159,7 +172,9 @@ for (const page of PAGES) {
     const p = await ctx.newPage();
     // 테마는 로드 전에 심는다 — 전환 직후는 JS 가 인라인으로 칠한 색이 아직 옛 테마다.
     await p.addInitScript(t => { try { localStorage.setItem('econ_theme', t); } catch {} }, theme);
-    await p.goto(`${BASE}/index.html?p=${page}`, { waitUntil: 'networkidle' });
+    // 라이브 API 를 프록시로 부르는 화면이라 networkidle 이 늦게 온다 — 기준은 그대로 두고
+    // 기다리는 시간만 늘린다(기본 30초에서 외부 응답이 느린 날 통째로 떨어졌다).
+    await p.goto(`${BASE}/index.html?p=${page}`, { waitUntil: 'networkidle', timeout: 90000 });
     await p.waitForTimeout(3500);
 
     const got = await p.evaluate(collect);

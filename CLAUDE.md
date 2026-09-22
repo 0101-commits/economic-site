@@ -116,6 +116,7 @@ node tests/ui/readability.mjs                        # 데스크톱 1440 가독�
 node tests/ui/mobile-readability.mjs                 # 390 모바일 가독성 M1~M7 (10페이지 × 라이트/다크)
 node tests/ui/uxgates.mjs                            # G7~G9·M8 (1440·390, 10페이지)
 node tests/ui/interaction.mjs                        # G10·G11 조작·전환(유휴 DOM · 보기 전환의 주소 반영·복원)
+node tests/ui/structure.mjs                          # S10~S22 구조 통일(표기·화면 머리·탭 부품·차트 규격)
 ```
 
 **주소가 화면 상태다 (기획 `docs/superpowers/specs/2026-09-21-interaction-ux-plan-design.md`).**
@@ -124,6 +125,32 @@ node tests/ui/interaction.mjs                        # G10·G11 조작·전환(�
 (`econSetViewParam`) · **순간 UI(오버레이·레일·위젯 접기) = 주소에 안 넣는다**. 새 보기 상태를 만들면
 레지스트리에 축을 등록하고(`get`/`apply`/`valid`) 상태를 바꾸는 함수에서 `econSetViewParam` 을 부른다.
 정렬(`s`)은 일부러 뺀다 — 표가 화면당 11~15개라 안정된 키가 없다.
+
+**화면 머리는 열 화면 모두 한 벌이다** — 본문 첫 줄이 `nav.page-toc`(= `h2.page-toc-h` 화면 이름 +
+섹션 바로가기)다. 새 화면을 만들면 `js/app3.js` 의 **`PAGE_TOC`** 에 등록한다. 화면 이름을
+`h2.sr-only` 로만 적지 말 것 — 읽기 도구에만 이름이 있는 화면과 눈에도 있는 화면이 섞이면
+"여기가 어디인지"를 확인하는 방법이 화면마다 달라진다(2026-09-22 실측: 10화면 중 5:5). 게이트 S19.
+
+**`.tab-btn` 은 두 부품에 붙는다 — 역할이 부품을 정한다.** 화면 내용을 통째로 바꾸는 2차 탭은
+`seed-tabs__trigger` + `role=tab` + `aria-selected`, 차트·목록의 대상·기간을 고르는 칩은
+`seed-chip__root` + 부모 `role=group` + `aria-pressed`. 접근성 보강기(`js/app1.js`)는 둘을 가려
+장식한다 — 예전엔 칩 묶음까지 tablist 로 만들어 기간 칩이 `aria-pressed` 와 `aria-selected` 를
+동시에 달고 있었다. **활성 표시는 `.tab-btn.active` 하나가 단일 원천이다** — 인라인 색을 덧칠하면
+부품 규격을 인라인이 이겨 같은 탭이 화면마다 다르게 보인다. 게이트 S20.
+
+**차트 범례는 이름 붙은 계열이 2개 이상이면 켠다.** 메르 렌즈 패널 8개가 계열 3~6개(본선 + 임계
+점선 + 글 발행일)인데 범례를 숨겨, 그 점선이 무엇인지 화면 어디에도 없었다. 전역 플러그인으로
+옵션을 일괄 수정하지 말 것 — Chart 4.4.1 의 옵션 해석기가 scriptable 옵션 차트에서
+`t.startsWith is not a function` 으로 죽는다(실측). 규칙은 게이트 S21 이 강제한다.
+
+**안 열린 화면의 캔버스에는 차트를 만들지 않는다.** `econChartLive(canvasId, redraw)` 로 캔버스를
+얻고, 없으면(= 다른 화면) 그냥 반환한다 — `showPage` 끝의 `econChartFlush()` 가 화면을 열 때
+밀린 것만 그린다. 종전엔 어느 화면을 열든 차트 7개가 생성됐고, 캔버스가 0개인 분석 노트에서도
+살아 있었다. 게이트 S22(부팅 중 홈이 잠깐 활성인 동안 만들어지는 2개까지 허용).
+
+**이름→값 2칸 표의 첫 칸은 `th[scope="row"]`** 다. `<table>` 을 머리 없이 배치용으로만 쓰면
+두 번째 칸의 값이 무엇인지 마크업에 안 적힌다. 보이는 머리줄을 새로 세울 때는 화면 길이를 같이
+본다 — 렌즈 화면은 표 머리 2줄(66px)만으로 G9(1440 ≤5.5화면)를 넘었다.
 
 **화면은 가만히 있어야 한다.** `js/app4.js` 의 마킹 함수들(`econMarkFavorites` 등)은 **멱등**이어야 한다 —
 값이 같아도 `textContent` 를 다시 쓰면 텍스트 노드가 교체되고, 그것이 childList 변경이라
@@ -421,7 +448,7 @@ instead and hands its result to the cloud pipeline through the repo.
 | `scripts/fetch_toss_snapshot.py` | Fetches indices, the KTB curve, gainer/loser rankings (stocks **and** ETFs, KOSPI+KOSDAQ), trading-amount + Toss-retail rankings, KOSPI investor flows, **per-stock flows for the tracked watchlist** (investor/short-selling/credit/lending/program/warnings — `stockData`), the KR market calendar and the USD/KRW quote; writes `toss_snapshot.json`; `--push` commits and pushes it |
 | `scripts/run_toss_snapshot.cmd` | The actual runner. **ASCII only** — cmd.exe parses batch files in the OEM code page, so UTF-8 Korean comments get executed as commands (seen as exit 9009) |
 | `scripts/run_hidden.vbs` | Task Scheduler entry point for every local task (`wscript.exe //B //Nologo run_hidden.vbs <name>.cmd`). Runs the named `.cmd` in the same folder with no window and returns its exit code, so `RestartOnFailure` still works. **`<Hidden>` in the task XML does not hide the console** — it only hides the task in the scheduler UI, so a `.cmd` action under `InteractiveToken` flashed a window 45×/weekday (2026-09-08). Run the `.cmd` directly when you want to watch it |
-| `scripts/verify_pipeline_fix.py` + `run_verify_fix.cmd` + `register_verify_task.ps1` | Post-fix observation for the 2026-09-08 change (task `EconSite-FixVerify`: today 16:45 once, then daily 09:10). Measures `data.json` commit gaps against the *slot-time* threshold, counts `fetch-data` `workflow_dispatch` runs (the only proxy for ⚙️ warnings — Discord is not readable and actor cannot separate bot from human), counts off-hours `:35` top-ups, and reads the Toss task's exit codes; reports to Discord `#시스템`. Delete when the observation is done: `register_verify_task.ps1 -Remove` |
+| `scripts/verify_pipeline_fix.py` + `run_verify_fix.cmd` + `register_verify_task.ps1` | **관측 종료 — 예약 작업 `EconSite-FixVerify` 는 2026-09-22 삭제했다**(1주 실측에서 최대 간격 101분, 스테일 경고 0건·자동 디스패치 0건). 스크립트는 남겨 둔다: 같은 종류의 관측이 다시 필요하면 `register_verify_task.ps1` 로 되살린다. Post-fix observation for the 2026-09-08 change. Measures `data.json` commit gaps against the *slot-time* threshold, counts `fetch-data` `workflow_dispatch` runs (the only proxy for ⚙️ warnings — Discord is not readable and actor cannot separate bot from human), counts off-hours `:35` top-ups, and reads the Toss task's exit codes; reports to Discord `#시스템`. |
 | `scripts/register_toss_task.ps1` | Registers the `EconSite-TossSnapshot` task from XML (PowerShell 5.1's `New-ScheduledTaskTrigger` cannot set a logon `Delay` or a repetition) |
 
 The machine is not on 24/7, so four things cover the gaps: a logon trigger with a 3-minute

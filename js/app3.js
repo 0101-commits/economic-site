@@ -1709,8 +1709,13 @@ function _cmpCutoff(period) {
 }
 
 function cmpRender() {
-  const canvas = document.getElementById('compareChart');
-  if(!canvas || typeof Chart === 'undefined') return;
+  if(typeof Chart === 'undefined') return;
+  // 안 열린 화면의 캔버스면 미뤄 둔다(구조 통일 U10) — 비교 차트는 홈에만 있는데
+  // 어느 화면을 열어도 258개 라벨로 다시 그려지고 있었다.
+  const canvas = (typeof econChartLive === 'function')
+    ? econChartLive('compareChart', cmpRender)
+    : document.getElementById('compareChart');
+  if(!canvas) return;
   const cutoff = _cmpCutoff(_cmpState.period);
   const filt = s => cutoff ? s.filter(p => p.d >= cutoff) : s;
   const A = filt(_cmpSeries(_cmpState.a)), B = filt(_cmpSeries(_cmpState.b));
@@ -2125,7 +2130,36 @@ function initWidgetCollapse(){
 
 // ── 2) 페이지 목차 칩 — 긴 페이지 상단에 섹션 바로가기 (h2 로 문서 아웃라인 복구) ──
 // 대상은 title 텍스트 부분일치로 찾는다 — id 하드코딩보다 마크업 변경에 강하다.
+// 화면 머리는 열 곳 모두 같은 한 줄이다(구조 통일 S6). 실측에서 10화면이 정확히 반반으로
+// 갈려 있었다 — 다섯은 여기 등록돼 화면 이름이 눈에 보였고, 나머지 다섯은 `h2.sr-only` 라
+// 읽기 도구에만 이름이 있었다. 화면을 옮겼을 때 "여기가 어디인지"를 눈으로 확인할 수 있는
+// 화면과 없는 화면이 섞여 있던 것이 '화면마다 시작이 다르다'의 실체였다.
 var PAGE_TOC = {
+  'page-dashboard':  { title: '대시보드 홈', items: [
+    { label: '핵심 지표',   sel: '#homeSecKpi' },
+    { label: 'AI 브리핑',   sel: '#homeSecBrief' },
+    { label: '시장 분위기', sel: '#homeSecWatch' },
+    { label: '지수·등락',   sel: '#homeSecMain' },
+    { label: '지표 비교',   sel: '#homeSecCompare' },
+    { label: '뉴스',        sel: '#homeSecBottom' } ] },
+  'page-equity':     { title: '주식시장', items: [
+    { label: '글로벌 지수', m: '글로벌 지수 현황' },
+    { label: '수급',        m: '투자자별 순매매' },
+    { label: '등락 Top10',  m: 'KOSPI 상승 Top10' },
+    { label: 'ETF',         m: 'ETF 상승 Top10' },
+    { label: '거래대금',    m: '거래대금 Top20' },
+    { label: '체결 Top20',  m: '토스증권 체결 Top20' } ] },
+  'page-calendar':   { title: '경제 일정', items: [
+    { label: '캘린더',   m: '캘린더' },
+    { label: '일정 표',  m: '경제 이벤트 일정' },
+    { label: '관련 뉴스', m: '경제 이벤트 관련 뉴스' } ] },
+  'page-notes':      { title: '분석 노트', items: [
+    { label: '저장된 노트', m: '저장된 노트' },
+    { label: '전체 요약',   m: '전체 요약' },
+    { label: '세부 메모',   m: '세부 주제별 메모' } ] },
+  'page-study':      { title: '스터디 기록', items: [
+    { label: '기록 목록',   m: '기록 목록' },
+    { label: '데이터 관리', m: '데이터 관리' } ] },
   'page-market':     { title: '시장 지표', items: [
     { label: 'LME 재고',   m: 'LME 금속 창고 재고', tabText: '원자재' },
     { label: '금속 심층',  m: 'Heavy Metal Stats',  tabText: '원자재' },
@@ -2200,6 +2234,10 @@ function buildPageTocs(){
       bar.appendChild(a);
     });
     page.insertBefore(bar, page.firstElementChild);
+    // 같은 이름을 읽기 도구에만 적어 두던 숨은 제목은 걷어낸다 — 이제 목차 머리가
+    // 그 이름을 눈에도 적는다. 둘 다 두면 한 화면에 제목이 두 번 들린다.
+    var srH = page.querySelector('h2.sr-only');
+    if(srH && (srH.textContent || '').trim() === cfg.title) srH.remove();
   });
 }
 

@@ -253,7 +253,9 @@ function _merLadderSvg(ind) {
   var W = 150, H = 22;
   var levels = (ind.thresholds || []).filter(function (t) { return t.kind === 'level' && t.level != null; });
   var cur = ind.current ? ind.current.value : null;
-  if (!levels.length) return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"></svg>';
+  // 레벨 임계선이 없는 지표(캘린더·재고일수·정성)는 래더를 그릴 게 없다. 빈 svg 를 두면
+  // 칸이 그냥 비어 '값이 없는 것'과 '아직 안 온 것'을 구별할 수 없다(구조 통일 S3, 실측 16칸).
+  if (!levels.length) return '<span class="mer-dim" title="레벨 임계선이 없는 지표입니다">—</span>';
   var vals = levels.map(function (t) { return t.level; });
   if (cur != null) vals = vals.concat([cur]);
   var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
@@ -451,7 +453,17 @@ function _merRenderPanels(d) {
       options: {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: false } },
+        // 범례는 계열이 2개 이상일 때만 (차트 규격 S4). 이 패널은 본선 외에
+        // 임계선(점선)과 '글 발행일'(삼각점)이 최대 5개까지 더 붙는데, 범례를 숨겨 두는
+        // 동안은 그 점선이 무엇인지 화면 어디에도 없었다.
+        plugins: {
+          legend: {
+            // 패널 8개가 세로로 쌓이는 화면이라 범례 한 줄이 화면 길이에 그대로 더해진다
+            // (G9 = 1440 에서 5.5화면). 읽히는 선에서 가장 얇게 — 상자 8px · 글자 9 · 여백 2.
+            display: datasets.length >= 2, position: 'top', align: 'start',
+            labels: { color: tc.txt, boxWidth: 8, boxHeight: 8, font: { size: 9 }, padding: 6, pointStyle: 'line' },
+          },
+        },
         scales: {
           x: { ticks: { maxTicksLimit: 6, color: tc.txt }, grid: { color: tc.grid } },
           y: { ticks: { color: tc.txt }, grid: { color: tc.grid } },
@@ -960,7 +972,7 @@ function _merRenderFactorCard(d) {
 function _merFactorRowHtml(assetId, f, idx) {
   var tone = MER_FACTOR_STATUS_TONE[f.status] || 'neutral';
   return '<tr onclick="_merFactorOpen(\'' + _merEsc(assetId) + '\',' + idx + ',this)" style="cursor:pointer;">' +
-    '<td><button type="button" class="btn-plain btn-inline">' + _merEsc(f.factor) + '</button></td>' +
+    '<th scope="row"><button type="button" class="btn-plain btn-inline">' + _merEsc(f.factor) + '</button></th>' +
     '<td><span class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_' + tone + '-variant_weak">' +
     (MER_FACTOR_STATUS_LABEL[f.status] || f.status) + '</span></td></tr>';
 }
@@ -971,7 +983,15 @@ function _merRenderFactorCardBody(assetId) {
   var bulls = [], bears = [];
   list.forEach(function (f, idx) { (f.side === 'bull' ? bulls : bears).push([f, idx]); });
   function section(title, arr) {
-    return '<div class="mer-panel-title" style="margin-top:10px;">' + title + '</div><table class="econ-table"><tbody>' +
+    // 열 머리가 없던 표다 — `<table>` 을 배치용으로만 쓰면 두 번째 칸의 배지가 무엇을
+    // 뜻하는지 화면에 안 적힌다(구조 통일 S3, 실측 4곳 중 2곳이 여기).
+    // 열 머리가 없던 표다 — 두 번째 칸의 배지가 무엇을 뜻하는지 마크업에 안 적혀 있었다.
+    // 보이는 머리줄을 세우면 한 표당 33px 이 붙어 렌즈 화면이 G9(1440 ≤5.5화면)를 넘는다.
+    // 그래서 이름은 caption 과 행 머리로 적는다 — 읽기 도구는 '요인 · 상태' 로 짝지어 읽고,
+    // 눈으로는 바로 위 '강세 요인 / 약세 요인' 제목이 이미 그 말을 하고 있다.
+    return '<div class="mer-panel-title" style="margin-top:10px;">' + title + '</div>' +
+      '<table class="econ-table"><caption class="econ-sr">' + title + ' — 왼쪽 칸이 요인, 오른쪽 칸이 현재 상태.</caption>' +
+      '<tbody>' +
       (arr.map(function (pair) { return _merFactorRowHtml(assetId, pair[0], pair[1]); }).join('') ||
         '<tr><td colspan="2" style="color:var(--c-txt-dim);">없음</td></tr>') + '</tbody></table>';
   }

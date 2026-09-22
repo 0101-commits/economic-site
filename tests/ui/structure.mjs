@@ -8,6 +8,10 @@
 //   S16  52주 범위는 실측값         — 현재가가 52주 고·저 범위 안에 있다(하드코딩 상수 금지)
 //   S17  퍼센트 자릿수              — 한 화면의 % 표기가 2종 이하(4% · 4.1% · 0.977% 혼재 금지)
 //   S18  미노출 지표 0              — 수집만 하고 어느 화면에도 없는 지표가 없다
+//   S19  화면 머리 한 벌             — 열 화면 모두 첫 줄이 `nav.page-toc` + 보이는 화면 이름
+//   S20  탭 부품 한 벌               — 한 묶음이 chip 과 tabs 를 섞지 않고, chip 은 tablist 가 아니다
+//   S21  차트 범례 규칙              — 이름 붙은 계열 2개 이상이면 범례가 보인다
+//   S22  안 열린 화면의 차트 0       — 지금 화면 밖 캔버스에 새로 그려진 차트가 없다
 //
 // usage: node tests/ui/structure.mjs [--base=http://127.0.0.1:8080/index.html]
 import { chromium } from 'playwright';
@@ -182,6 +186,107 @@ async function gateHiddenIndicators(browser) {
   return pass;
 }
 
+
+// ── S19 화면 머리 한 벌 ───────────────────────────────────────────────────────
+// 실측(2026-09-22): 열 화면이 정확히 반반으로 갈려 있었다 — 다섯은 `nav.page-toc` 로 화면
+// 이름이 눈에 보였고, 나머지 다섯은 `h2.sr-only` 라 읽기 도구에만 이름이 있었다.
+// 화면을 옮겼을 때 "여기가 어디인지"를 눈으로 확인할 수 있는 화면과 없는 화면이 섞여 있었다.
+async function gatePageHead(browser) {
+  const pages = ['dashboard','market','macro','realestate','equity','investor','calendar','merlens','notes','study'];
+  let ok = true;
+  for (const p of pages) {
+    const { ctx, page } = await open(browser, 'p=' + p);
+    const r = await page.evaluate((pid) => {
+      const root = document.getElementById('page-' + pid);
+      if (!root) return { err: '화면 없음' };
+      const first = [...root.children].find(e => { const q = e.getBoundingClientRect(); return q.width > 0 && q.height > 0; });
+      const toc = root.querySelector(':scope > nav.page-toc');
+      const h = toc && toc.querySelector('.page-toc-h');
+      const vis = h && h.getBoundingClientRect().height > 0;
+      return { firstIsToc: !!(first && first === toc), title: h ? (h.textContent || '').trim() : null, vis: !!vis };
+    }, p);
+    await ctx.close();
+    const good = !r.err && r.firstIsToc && r.vis && !!r.title;
+    if (!good) ok = false;
+    console.log(`S19 ${p} 화면 머리 — ${r.err || ((r.firstIsToc ? '첫 줄 목차' : '첫 줄이 목차가 아님') + ' · 이름 ' + (r.title || '없음'))}  ${good ? 'PASS' : 'FAIL'}`);
+  }
+  return ok;
+}
+
+// ── S20 탭 부품 한 벌 ─────────────────────────────────────────────────────────
+// `.tab-btn` 은 두 부품에 붙는다 — 화면 내용을 바꾸는 2차 탭(seed-tabs__trigger)과
+// 대상·기간을 고르는 칩(seed-chip__root). 한 묶음 안에서 둘이 섞이면 안 되고,
+// 칩 묶음은 tablist 가 아니다(칩은 aria-pressed 로 말한다).
+async function gateTabParts(browser) {
+  const pages = ['dashboard','market','macro','realestate','equity','investor','calendar','merlens','notes','study'];
+  let ok = true, groups = 0, bad = [];
+  for (const p of pages) {
+    const { ctx, page } = await open(browser, 'p=' + p);
+    const r = await page.evaluate((pid) => {
+      const root = document.getElementById('page-' + pid);
+      if (!root) return [];
+      const vis = el => { const q = el.getBoundingClientRect(); return q.width > 0 && q.height > 0; };
+      const seen = new Map();
+      [...root.querySelectorAll('.tab-btn')].filter(vis).forEach(b => {
+        const w = b.parentElement;
+        if (!seen.has(w)) seen.set(w, { chip: 0, tabs: 0, bare: 0, role: w.getAttribute('role'), id: w.id || (w.className || '').slice(0, 20) });
+        const g = seen.get(w);
+        if (b.classList.contains('seed-chip__root')) g.chip++;
+        else if (b.classList.contains('seed-tabs__trigger')) g.tabs++;
+        else g.bare++;
+      });
+      return [...seen.values()];
+    }, p);
+    await ctx.close();
+    r.forEach(g => {
+      groups++;
+      const mixed = [g.chip, g.tabs, g.bare].filter(n => n > 0).length > 1;
+      const chipAsTablist = g.chip > 0 && g.role === 'tablist';
+      if (mixed || chipAsTablist) { ok = false; bad.push(`${p}/${g.id} ${JSON.stringify(g)}`); }
+    });
+  }
+  console.log(`S20 탭 부품 한 벌 — 묶음 ${groups}개 중 섞임 ${bad.length}건  ${ok ? 'PASS' : 'FAIL'}`);
+  bad.slice(0, 6).forEach(b => console.log('   ', b));
+  return ok;
+}
+
+// ── S21 차트 범례 / S22 안 열린 화면의 차트 ───────────────────────────────────
+// S21: 계열이 2개 이상인데 범례를 숨기면 점선·삼각점이 무엇인지 화면 어디에도 없다
+//      (메르 렌즈 패널 8개가 계열 3~6개인데 전부 숨김이었다).
+// S22: 어느 화면을 열든 차트 7개가 항상 생성됐다 — 캔버스가 0개인 분석 노트에서도.
+//      부팅 때 홈이 잠깐 활성인 동안 만들어지는 것(2개)까지가 허용선이다.
+async function gateChartSpec(browser) {
+  const pages = ['dashboard','market','macro','realestate','equity','investor','calendar','merlens','notes','study'];
+  let ok = true;
+  for (const p of pages) {
+    const { ctx, page } = await open(browser, 'p=' + p);
+    const r = await page.evaluate((pid) => {
+      const root = document.getElementById('page-' + pid);
+      const reg = (typeof charts !== 'undefined') ? charts : (window.charts || {});
+      const noLegend = [], offPage = [];
+      Object.keys(reg).forEach(k => {
+        const c = reg[k];
+        if (!c || !c.config || !c.canvas) return;
+        const inPage = !!(root && root.contains(c.canvas));
+        if (!inPage) { offPage.push(k); return; }
+        const named = ((c.data && c.data.datasets) || []).filter(d => d && d.label).length;
+        const lg = c.options && c.options.plugins && c.options.plugins.legend;
+        const shown = lg ? lg.display !== false : true;
+        if (named >= 2 && !shown) noLegend.push(k + '(' + named + '계열)');
+      });
+      return { noLegend, offPage };
+    }, p);
+    await ctx.close();
+    const legendOk = r.noLegend.length === 0;
+    const offOk = r.offPage.length <= 2;
+    if (!legendOk || !offOk) ok = false;
+    console.log(`S21/S22 ${p} — 범례 빠진 다계열 ${r.noLegend.length}건 · 화면 밖 차트 ${r.offPage.length}개(한도 2)  ${legendOk && offOk ? 'PASS' : 'FAIL'}`);
+    if (!legendOk) console.log('   ', r.noLegend.join(', '));
+    if (!offOk) console.log('   ', r.offPage.join(', '));
+  }
+  return ok;
+}
+
 const browser = await chromium.launch({ headless: true });
 const results = [
   await gateFormatMatch(browser),
@@ -190,6 +295,9 @@ const results = [
   await gateRange52(browser),
   await gatePercentDecimals(browser),
   await gateHiddenIndicators(browser),
+  await gatePageHead(browser),
+  await gateTabParts(browser),
+  await gateChartSpec(browser),
 ];
 await browser.close();
 const pass = results.every(Boolean);
