@@ -116,6 +116,7 @@ def main():
         print(f"[swings] 급변 감지: {line} — 임계 ±{thr:.2f}%")
 
     if not hits:
+        print(f"[swings] 규칙 {len(SWING_RULES)}건 평가 — 발동 0건")
         return
 
     msg = (f"⚡ {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 시장 급변\n"

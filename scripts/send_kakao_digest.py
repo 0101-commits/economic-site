@@ -1673,6 +1673,8 @@ def build_feed_parts(blocks):
     rows = [(lab, v) for lab, v in blocks if v and lab not in DESC_LABELS]
     if not desc_rows and rows:                    # 헤드라인 후보가 다 빠진 날은 첫 행을 올린다
         desc_rows, rows = rows[:1], rows[1:]
+    if len(desc_rows) > DESC_MAX:                 # 주말처럼 후보가 셋인 슬롯 — 뒤는 행으로
+        desc_rows, rows = desc_rows[:DESC_MAX], desc_rows[DESC_MAX:] + rows
     desc = "\n".join(v for _, v in desc_rows)
     while len(rows) > KAKAO_FEED_ROWS:            # 초과분은 버리지 않고 앞 행에 접는다
         (l1, v1), (l2, v2) = rows[-2], rows[-1]
@@ -1697,7 +1699,12 @@ def _hero_button(slot, weekend, now):
 
 
 # 피드 설명(헤드라인)으로 올라가는 블록 라벨 — 일간·주간 공통. 나머지는 행이 된다.
-DESC_LABELS = ("증시", "환율", "주간증시", "주간환율")
+# ⚠ SLOT_BLOCKS 의 라벨과 같은 글자여야 한다. 2026-09-21 편성 개편에서 "증시" 가
+#   "국내증시"/"미국증시" 로 갈라졌는데 여기가 따라오지 않아, 이후 모든 슬롯의
+#   헤드라인이 환율 한 줄로 쪼그라들고 지수가 아래 행으로 내려갔다(실측 2026-09-22).
+#   행 한도(5)까지 밀려 수급·일정이 접히는 부작용도 같이 났다.
+DESC_LABELS = ("국내증시", "미국증시", "환율", "주간증시", "주간환율")
+DESC_MAX = 2                                  # 헤드라인 줄 수 상한 — 넘치면 행으로 내려간다
 
 # 행 이름 상한도 값과 같은 이유로 안전 레일이다 — 8자로 뒀더니 공백을 품은 ETF 이름이
 # 'TIGER 미…' 로 잘렸다(실측). 모르는 상태에서 짧게 자르면 카카오가 보여줄 수 있었던

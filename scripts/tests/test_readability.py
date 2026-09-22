@@ -19,6 +19,7 @@ test_card_layout.py 는 '겹치지 않는가'를 본다. 이 파일은 '읽히�
 import datetime
 import json
 import os
+import re
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -63,7 +64,7 @@ def _data():
 
 
 # ── ① 정보 보존 ───────────────────────────────────────────────────────────
-def test_other_symbol_tiles_keep_change_pct(dc):
+def gate_other_symbol_tiles_keep_change_pct(dc):
     """나머지 종목 타일이 등락률을 잃지 않는다.
 
     종전엔 완성된 발동 문장을 공백으로 쪼개 타일에 넣어 '412,000원(+5…' 만 남았다.
@@ -89,7 +90,7 @@ def test_other_symbol_tiles_keep_change_pct(dc):
 
 
 # ── ② 중복 ────────────────────────────────────────────────────────────────
-def test_feed_body_excludes_card_tiles(kakao):
+def gate_feed_body_excludes_card_tiles(kakao):
     """카드 타일 지표는 피드 본문에서 빠지고, 남아야 하는 것은 남는다.
 
     ⚠ '빠졌다'만 보면 항진명제다(조립 단계에서 빼므로 구성상 항상 참). 그래서 빠진
@@ -116,14 +117,26 @@ def test_feed_body_excludes_card_tiles(kakao):
         check("헤드라인은 증시·환율 뿐", all(l in kakao.DESC_LABELS for l in head_labels)
               and desc.count("\n") + 1 == len(head_labels), f"헤드라인={head_labels}")
         check("심리는 헤드라인에 없다", "공포탐욕" not in desc, desc[:40])
-        # 카드에 없는 블록은 살아 있어야 한다
-        keep = [lab for lab, v in full if v and lab not in ("증시", "환율")]
-        gone = [lab for lab in keep if lab not in [l for l, v in blocks if v]]
-        check("카드에 없는 블록 보존", not gone, f"사라진 블록={gone}")
+        # 블록이 통째로 사라져도 되는 경우는 '그 안의 지표가 전부 카드 타일일 때' 뿐이다.
+        # (라벨 목록을 손으로 적어 두면 편성 개편 때마다 게이트가 조용히 썩는다 —
+        #  실제로 "증시"가 "국내증시"로 갈린 뒤 이 줄이 통과만 하고 있었다.)
+        alive = [l for l, v in blocks if v]
+        bad = []
+        for lab, v in full:
+            if not v or lab in alive:
+                continue
+            rest = v
+            for n in drop:
+                rest = re.sub(re.escape(n) + r"\s*\S+", "", rest)
+            if rest.strip():
+                bad.append(f"{lab}({rest.strip()})")
+        check("카드에 없는 블록 보존", not bad, f"내용 잃은 블록={bad}")
         check("행 한도 준수", len(items) <= kakao.KAKAO_FEED_ROWS, f"행 {len(items)}개")
         # 사진이 실패해 텍스트로 내려가는 경로는 **전체** 블록을 실어야 한다.
         text = kakao.build_text_message("제목", full)
-        for lab in ("증시",):
+        # 200자 한도가 있어 전부는 못 싣는다 — 카드가 보여주던 것(헤드라인 블록)만 본다.
+        # 라벨을 손으로 적지 않고 kakao.DESC_LABELS 에서 끌어와야 편성 개편에 따라온다.
+        for lab, _v in [b for b in full if b[1] and b[0] in kakao.DESC_LABELS]:
             check(f"텍스트 폴백에 {lab} 포함", f"〔{lab}〕" in text, text[:60])
     finally:
         kakao._verified_investor = orig
@@ -135,7 +148,7 @@ def _screen_px(t, fig):
     return t.get_fontsize() / 72.0 * fig.dpi * BUBBLE_SCALE
 
 
-def test_bubble_legibility(dc, cards):
+def gate_bubble_legibility(dc, cards):
     for name, make in cards.items():
         fig = _fig_of(dc, make)
         if fig is None:
@@ -166,7 +179,7 @@ def _lum(hexs):
     return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
 
 
-def test_saturation_carries_magnitude(dc):
+def gate_saturation_carries_magnitude(dc):
     """색은 방향이 아니라 크기를 말해야 한다 — 작은 등락은 흰 바탕에 가깝고,
     큰 등락만 눈에 들어와야 한다. 하한 0.30 시절엔 0.2% 도 뚜렷한 분홍이었다."""
     small, _i1, _f1 = dc._tile_color(0.2, 3.0)
@@ -181,7 +194,7 @@ def test_saturation_carries_magnitude(dc):
 
 
 # ── ⑤ 여백 ────────────────────────────────────────────────────────────────
-def test_no_empty_band(dc, cards):
+def gate_no_empty_band(dc, cards):
     """캔버스를 세로 4등분했을 때 잉크(글자·타일)가 없는 구간이 없다.
 
     디스코드·카톡은 이미지를 폭에 맞춰 축소하므로, 빈 띠는 그만큼 글자를 작게 만든다."""
@@ -205,7 +218,7 @@ def test_no_empty_band(dc, cards):
 
 
 # ── ⑥ 잘림 고지 ───────────────────────────────────────────────────────────
-def test_truncation_is_announced(kakao):
+def gate_truncation_is_announced(kakao):
     blocks = [(f"블록{i}", f"지표{i} " + "9" * 40) for i in range(6)]
     msg = kakao.build_text_message("제목", blocks)
     check("200자 한도 준수", len(msg) <= kakao.TEXT_LIMIT, f"{len(msg)}자")
@@ -278,20 +291,30 @@ def main():
                                     6700.0, NOW, src="토스 1분봉", shape="square"),
     }
     print("① 정보 보존")
-    test_other_symbol_tiles_keep_change_pct(dc)
+    gate_other_symbol_tiles_keep_change_pct(dc)
     print("② 중복")
-    test_feed_body_excludes_card_tiles(kakao)
+    gate_feed_body_excludes_card_tiles(kakao)
     print("③ 축소 판독")
-    test_bubble_legibility(dc, cards)
+    gate_bubble_legibility(dc, cards)
     print("④ 강도 대비")
-    test_saturation_carries_magnitude(dc)
+    gate_saturation_carries_magnitude(dc)
     print("⑤ 여백")
-    test_no_empty_band(dc, cards)
+    gate_no_empty_band(dc, cards)
     print("⑥ 잘림 고지")
-    test_truncation_is_announced(kakao)
+    gate_truncation_is_announced(kakao)
     plt.close("all")
     print(f"실패 {len(FAILED)}건" + (": " + ", ".join(FAILED) if FAILED else ""))
     return 1 if FAILED else 0
+
+
+def test_readability_gates():
+    """pytest 진입점 — 게이트는 main() 하나로 돈다.
+
+    게이트들이 서로 렌더 재료(figure·카드 사전)를 넘겨 받아서 픽스처로 쪼갤 수 없다.
+    종전엔 게이트 함수 이름이 test_ 로 시작해 pytest 가 개별 수집했고, 인자(dc/kakao)를
+    픽스처로 못 찾아 6건이 '에러'로 죽어 있었다 — 게이트가 도는 줄 알았는데 안 돌았다.
+    """
+    assert main() == 0, f"가독성 게이트 실패: {', '.join(FAILED)}"
 
 
 if __name__ == "__main__":

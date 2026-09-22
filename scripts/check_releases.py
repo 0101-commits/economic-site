@@ -172,6 +172,9 @@ def main():
     hits = [(ev, why) for ev, why in collect(data, today)
             if f"{ev.get('name')}:{today}" not in seen]
     if not hits:
+        # 조용히 return 하면 로그가 '돌았는데 해당 없음'과 '일찍 죽었다'를 구별 못 한다.
+        print(f"[releases] 오늘 발표 {len(data.get('economicCalendar') or [])}건 평가 — "
+              f"발송 0건(기준 미달/중복)")
         return
 
     ev0, why0 = hits[0]

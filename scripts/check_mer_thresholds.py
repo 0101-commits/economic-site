@@ -163,6 +163,7 @@ def main():
         return
     if not hits:
         _save()                                      # 되돌아온(다시 내려간) 선도 반영한다
+        print(f"[mer] 지표 {len(signals.get('indicators') or [])}개 평가 — 새 돌파 0건")
         return
 
     hits = hits[:MAX_PER_RUN]
