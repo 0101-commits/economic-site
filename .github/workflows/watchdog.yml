@@ -1,0 +1,58 @@
+name: Watchdog (알림 파이프라인 상시 감시)
+
+# 이 저장소에서 가장 위험한 실패는 시끄러운 실패가 아니라 침묵이다.
+# 2026-08-19 에 생긴 좀비 queued 런 하나가 Cloudflare Worker 의 dispatch 게이트를
+# 34일간 막았고, 그동안 장중 매분 평가가 통째로 멈춰 있었다 — 워크플로는 전부 초록이었고
+# 아무 알림도 오지 않았다. 실패 런이 아예 안 생겼으므로 실패 알림으로는 잡을 수 없었다.
+#
+# 그래서 감시가 두 갈래다:
+#   failure  런이 실패하면 즉시(workflow_run) — 어느 스텝이 죽었는지까지 적어 보낸다.
+#   silence  30분마다 '최근 런이 있는가'를 본다 — 트리거 자체가 끊긴 경우를 잡는다.
+#
+# ⚠ 이 워크플로는 감시 대상에 자기 자신을 넣지 않는다(실패 통지가 실패를 낳는 고리 방지).
+on:
+  workflow_run:
+    workflows:
+      - "Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)"
+      - "Stock Alerts (KakaoTalk, 장중 5분)"
+      - "KakaoTalk Digest (평일 07-22 매시간 · 주말 11·17 KST)"
+    types: [completed]
+  schedule:
+    # 30분마다. GHA schedule 은 best-effort 라 한두 번 누락돼도 다음 회차가 본다 —
+    # 임계(장중 15분·장외 120분)가 그 누락을 이미 흡수하도록 잡혀 있다.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read          # 다른 워크플로의 런·잡 조회에 필요
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    # 실패 통지는 실제로 실패한 런에 대해서만. 성공·취소·건너뜀은 조용히 끝낸다.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'failure'
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      # 의존성 설치 없음 — watchdog 의 임포트 사슬(check_alerts → send_kakao_digest →
+      # kwmatch, toss_api, notify_discord)은 표준 라이브러리만 쓴다. 설치 단계를 넣으면
+      # 그 단계가 감시자를 멈추는 새 실패 지점이 된다.
+      - name: 감시
+        env:
+          WATCHDOG_MODE: ${{ github.event_name == 'workflow_run' && 'failure' || 'silence' }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          WF_URL: ${{ github.event.workflow_run.html_url }}
+          WF_RUN_ID: ${{ github.event.workflow_run.id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+        run: python scripts/watchdog.py
