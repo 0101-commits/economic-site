@@ -13,8 +13,14 @@ name: Stock Alerts (KakaoTalk, 장중 5분)
 #   런당 ~40초·직렬(concurrency)이라 매분 dispatch 도 안전, 공개 repo 라 Actions 분 무료.
 on:
   schedule:
-    - cron: '*/5 0-6 * * 1-5'    # 한국 장중 (00:00–06:55 UTC = 09:00–15:55 KST)
-    - cron: '*/5 13-21 * * 1-5'  # 미국 장중 (13:00–21:55 UTC = 22:00–06:55 KST)
+    # ⚠ 분 목록을 나열한다(*/5 대신). GitHub schedule 은 best-effort 라 개별 발화가 자주
+    #   드롭되는데, 2026-09-22 진단에서 Worker 의 alerts-cron dispatch 가 34일간 좀비
+    #   queued 런에 막혀 있었고 그동안 이 schedule 만 남았다 — 8/20 이후 실측으로
+    #   repository_dispatch 3건 대 schedule 97건, 하루 3~4회꼴이다. 그 상태에서도 장중
+    #   공백이 크지 않도록 발화 기회를 늘린다(kakao-daily 가 같은 이유로 쓰는 방식).
+    #   중복 발화는 check_alerts 의 도배 방지(met/date/ts)와 concurrency 가 흡수한다.
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 0-6 * * 1-5'    # 한국 장중 (09:00–15:55 KST)
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 13-21 * * 1-5'  # 미국 장중 (22:00–06:55 KST)
   workflow_dispatch: {}
   # 🔔 두 가지 repository_dispatch:
   #   • alerts-test — 프런트 '테스트 발송' 버튼 → Worker POST /portfolio/test. 장중/쿨다운 가드를

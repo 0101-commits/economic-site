@@ -990,10 +990,18 @@ function inKakaoSlot(d) {
 //   = fail-open(dispatch 진행) — 최악의 경우에도 기존 동작과 동일하다. GH_DISPATCH_TOKEN 재사용.
 //   (2026-08-07) stock-alerts 도 같은 병을 앓아 이 헬퍼를 워크플로 인자화했다 — 아래
 //   _alertsWaiting 주석 참고.
-async function _wfBusy(env, wfFile, statuses, ua) {
+//   ⚠ maxAgeMin — '좀비 런'을 무시하는 나이 상한. GitHub 이 런을 완료로 처리하고도
+//   워크플로 런 목록 API 에서 계속 queued 로 돌려주는 경우가 있다(2026-09-22 실측:
+//   stock-alerts 런 32214780733 이 08-19 부터 34일째 queued, `gh run cancel` 은
+//   "Cannot cancel a workflow run that is completed" 로 거부). 그 한 건이 게이트를
+//   영구히 참으로 만들어 alerts-cron dispatch 가 34일간 전부 생략됐고, 종목 알림·급변
+//   속보·서킷브레이커가 미발화율 높은 GHA schedule 에만 매달렸다(8/20 이후 실측:
+//   repository_dispatch 3건 vs schedule 97건). 나이를 넘긴 대기 런은 없는 셈 친다.
+async function _wfBusy(env, wfFile, statuses, ua, maxAgeMin) {
+  const cutoff = maxAgeMin ? Date.now() - maxAgeMin * 60000 : null;
   const check = async (status) => {
     const r = await fetch(
-      `https://api.github.com/repos/${GH_REPO}/actions/workflows/${wfFile}/runs?status=${status}&per_page=1`, {
+      `https://api.github.com/repos/${GH_REPO}/actions/workflows/${wfFile}/runs?status=${status}&per_page=5`, {
       headers: {
         'Authorization': 'Bearer ' + env.GH_DISPATCH_TOKEN,
         'Accept': 'application/vnd.github+json',
@@ -1004,7 +1012,13 @@ async function _wfBusy(env, wfFile, statuses, ua) {
     });
     if (!r.ok) return false;                       // 403/404/5xx → fail-open
     const j = await r.json().catch(() => null);
-    return !!(j && Number(j.total_count) > 0);
+    const runs = (j && j.workflow_runs) || [];
+    if (!runs.length) return false;
+    if (!cutoff) return Number(j.total_count) > 0;
+    return runs.some((run) => {
+      const t = Date.parse(run.created_at || '');
+      return !Number.isNaN(t) && t >= cutoff;      // 신선한 대기 런만 '바쁨'으로 본다
+    });
   };
   try {
     const hits = await Promise.all(statuses.map(check));
@@ -1012,7 +1026,9 @@ async function _wfBusy(env, wfFile, statuses, ua) {
   } catch (_) { return false; }                    // 네트워크/타임아웃 → fail-open
 }
 
-const _fetchDataBusy = (env) => _wfBusy(env, 'fetch-data.yml', ['in_progress', 'queued'], 'ecom-fetch-cron');
+// 90분 = 풀 런 실측 최대(57분) + 여유. 그보다 오래 걸린 런은 timeout-minutes(70)에
+// 걸려 이미 끝났어야 하므로 좀비로 본다.
+const _fetchDataBusy = (env) => _wfBusy(env, 'fetch-data.yml', ['in_progress', 'queued'], 'ecom-fetch-cron', 90);
 
 // 🔍 stock-alerts 에 '이미 대기 중인 런'이 있는지 조회 — cancelled 양산 차단 게이트.
 //   GitHub concurrency 는 그룹당 '실행 1 + 대기 1'만 유지하고 그 위로 오는 dispatch 가
@@ -1023,7 +1039,9 @@ const _fetchDataBusy = (env) => _wfBusy(env, 'fetch-data.yml', ['in_progress', '
 //   취소되지 않으므로, 그것까지 막으면 정시성만 잃고 얻는 게 없다. 대기 자리가 이미
 //   찼을 때만 건너뛴다 = 정시성(최악 ~2분) 유지 + cancelled 0.
 //   fail-open(조회 실패 → false = dispatch 진행)은 _fetchDataBusy 와 동일 원칙.
-const _alertsWaiting = (env) => _wfBusy(env, 'stock-alerts.yml', ['queued', 'pending'], 'ecom-alert-cron');
+// 10분 = 정상 런(25~45초)의 10배 이상. 러너 기아로 밀려도 이 안에서 소화되고,
+// 그보다 오래 대기로 남아 있으면 좀비다(위 maxAgeMin 주석 참고).
+const _alertsWaiting = (env) => _wfBusy(env, 'stock-alerts.yml', ['queued', 'pending'], 'ecom-alert-cron', 10);
 
 // 🔔 종목 알림(alerts-cron) + 서킷브레이커 데이터 갱신(fetch-data) on-demand 실행.
 // GHA schedule 드롭 영향을 받지 않는다. alerts-cron 은 장중 '매분'(알림 도착 최악 ~2분),
