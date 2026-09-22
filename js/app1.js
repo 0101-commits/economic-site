@@ -601,19 +601,23 @@ function setWidgetTitleText(el, text) {
 // ============================
 // 티커 바
 // ============================
+// name 은 내부 키다(갱신 맵·화면별 범위·클릭 주소가 이 글자로 짝을 맞춘다).
+// 화면에 쓰는 이름은 id 로 레지스트리에서 꺼낸다 — 종전엔 여기 글자가 그대로 떠서
+// 티커만 'BRENT'·'금(Gold)'·'미 10년물'이고 같은 지표의 화면은 '브렌트유'·'금'·
+// '미국 국채 10Y' 였다(실측 12종 중 6종 불일치, 구조 통일 S25).
 const tickerData = [
-  {name:'KOSPI', val:'7,612.51', chg:'-4.62%', up:false},
-  {name:'KOSDAQ', val:'1,143.35', chg:'-4.01%', up:false},
-  {name:'USD/KRW', val:'1,489.64', chg:'+0.00%', up:true},
-  {name:'EUR/KRW', val:'1,744.95', chg:'+0.00%', up:true},
-  {name:'WTI', val:'$62.35', chg:'-0.55%', up:false},
-  {name:'BRENT', val:'$65.80', chg:'-0.48%', up:false},
-  {name:'금(Gold)', val:'$3,241.5', chg:'+0.30%', up:true},
-  {name:'S&P 500', val:'5,659.91', chg:'+0.21%', up:true},
-  {name:'NASDAQ', val:'26,635', chg:'+0.18%', up:true},
-  {name:'닛케이', val:'61,687', chg:'+0.45%', up:true},
-  {name:'한국 기준금리', val:'2.75%', chg:'동결', up:null},
-  {name:'미 10년물', val:'4.48%', chg:'+0.03', up:true},
+  {id:'kospi',        name:'KOSPI', val:'7,612.51', chg:'-4.62%', up:false},
+  {id:'kosdaq',       name:'KOSDAQ', val:'1,143.35', chg:'-4.01%', up:false},
+  {id:'usdkrw',       name:'USD/KRW', val:'1,489.64', chg:'+0.00%', up:true},
+  {id:'eurkrw',       name:'EUR/KRW', val:'1,744.95', chg:'+0.00%', up:true},
+  {id:'wti',          name:'WTI', val:'$62.35', chg:'-0.55%', up:false},
+  {id:'brent',        name:'BRENT', val:'$65.80', chg:'-0.48%', up:false},
+  {id:'gold',         name:'금(Gold)', val:'$3,241.5', chg:'+0.30%', up:true},
+  {id:'sp500',        name:'S&P 500', val:'5,659.91', chg:'+0.21%', up:true},
+  {id:'nasdaq',       name:'NASDAQ', val:'26,635', chg:'+0.18%', up:true},
+  {id:'nikkei',       name:'닛케이', val:'61,687', chg:'+0.45%', up:true},
+  {id:'base_rate_kr', name:'한국 기준금리', val:'2.75%', chg:'동결', up:null},
+  {id:'us10y',        name:'미 10년물', val:'4.48%', chg:'+0.03', up:true},
 ];
 // ── SEED 내비게이션: 그룹 기억 · 활성 상태 · 3구간 사이드바 · 드로어 ─────────
 // 왜 여기 모았나: 활성 표시가 인라인/클래스/JS 3곳에 흩어져 1분 재렌더마다 어긋났다.
@@ -932,9 +936,10 @@ function econPageLabel(pageId) {
   return pageId;
 }
 
-function tickerClick(name) {
-  const row = window.ECON_IND && window.ECON_IND.find(name);
-  if (row && gotoCanonical(row.canonical)) return;
+// 티커 항목은 레지스트리 id 로 지목한다 — 화면에 보이는 글자가 바뀜어도 주소가 따라 깨지지 않는다.
+function tickerClick(id) {
+  const c = window.ECON_IND && window.ECON_IND.canonicalOf(id);
+  if (c && gotoCanonical(c)) return;
   showPage('dashboard', menuItemFor('dashboard'));   // 레지스트리에 없는 이름 = 홈
 }
 // 화면 주제에 맞는 티커만 남긴다(IA v3 P3). 12종 고정 띠는 어느 화면에서나 같은 값을
@@ -960,12 +965,17 @@ function _tickerRows() {
   } catch (_) { return tickerData; }
 }
 // 티커 항목의 주소 — 레지스트리가 아는 이름이면 그 지표의 원본 화면, 모르는 이름이면 대시보드.
-function econTickerHref(name) {
+function econTickerHref(id) {
   try {
-    var row = window.ECON_IND && window.ECON_IND.find(name);
-    var page = row && row.canonical && typeof econCanonicalPage === 'function' ? econCanonicalPage(row.canonical) : null;
+    var c = window.ECON_IND && window.ECON_IND.canonicalOf(id);
+    var page = c && typeof econCanonicalPage === 'function' ? econCanonicalPage(c) : null;
     return '?p=' + (page || 'dashboard');
   } catch (_) { return '?p=dashboard'; }
+}
+// 티커에 뜨는 이름 = 레지스트리 label. 레지스트리에 없으면 내부 키를 그대로 쓴다.
+function econTickerLabel(d) {
+  try { return window.ECON_IND ? window.ECON_IND.label(d.id, d.name) : d.name; }
+  catch (_) { return d.name; }
 }
 function buildTicker() {
   const rows = _tickerRows();
@@ -973,8 +983,8 @@ function buildTicker() {
     const cc = d.up===null?'color:var(--c-txt-dim)':d.up?'color:var(--c-up)':'color:var(--c-down)';
     // 티커 항목은 링크다(기획 2026-09-21 C11) — 버튼이면 새 탭·주소 복사·가운데 클릭이 안 된다.
     // href 는 지표의 원본 화면, 실제 이동은 기존 tickerClick(SPA 전환)이 맡고 기본 동작은 막는다.
-    return `<a href="${econTickerHref(d.name)}" class="ticker-item btn-plain btn-inline" onclick="tickerClick('${d.name.replace(/'/g,"\\'")}');return false;" style="font-size:var(--font-size-sm);display:inline-flex;gap:6px;align-items:center;">
-      <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);text-transform:uppercase;">${d.name}</span>
+    return `<a href="${econTickerHref(d.id)}" class="ticker-item btn-plain btn-inline" onclick="tickerClick('${d.id}');return false;" style="font-size:var(--font-size-sm);display:inline-flex;gap:6px;align-items:center;">
+      <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);text-transform:uppercase;">${econTickerLabel(d)}</span>
       <span style="color:var(--c-txt);font-weight:var(--font-weight-medium);">${d.val}</span>
       <span style="${cc};font-size:var(--font-size-sm);">${d.chg}</span>
     </a>`;
@@ -1280,23 +1290,56 @@ function navigateToDetail(target) {
    데이터가 갱신될 때마다 다시 그려졌고, 그 사이 값이 바뀌면 나중에 그 화면을 열었을 때
    낡은 그림이 남아 있었다(FX 표가 카드보다 오래된 값을 보이던 자리가 이 계열이다).
    화면을 열면 econChartFlush() 가 밀어둔 것만 그린다. */
+/* 5차: '열린 화면'만으로는 부족했다 — 열린 화면 안에도 안 보이는 칸이 있다.
+   실측(2026-09-22): market 의 금리 탭(#market-rate, display:none)에 rateHistoryChart 가,
+   홈의 접힌 비교 칸에 compareChart 가 그려지고 있었다. 판정은 offsetParent 하나로 한다
+   (탭·details·숨긴 섹션을 한꺼번에 가린다). 칸이 열리는 순간은 ResizeObserver 가 알려준다 —
+   탭 전환 함수마다 flush 를 부르면 새 탭을 만들 때 또 빠뜨린다. */
 var _econChartPending = Object.create(null);
+var _econChartRO = null;
+function _econChartWatch(cv) {
+  if(typeof ResizeObserver !== 'function') return;
+  if(!_econChartRO) _econChartRO = new ResizeObserver(function(entries){
+    for(var i=0;i<entries.length;i++) {
+      if(entries[i].target.offsetParent !== null) { econChartFlush(); return; }
+    }
+  });
+  try { _econChartRO.observe(cv); } catch(_) {}
+}
+function _econChartShown(cv) {
+  var pg = cv.closest ? cv.closest('.page') : null;
+  if(pg && !pg.classList.contains('active')) return false;
+  return cv.offsetParent !== null;
+}
+/* 한 묶음에서 하나만 고르는 칩 — 선택은 `.active` + aria-pressed 한 쌍으로만 말한다.
+   종전엔 묶음마다 인라인 background/color 를 직접 칠했다: 부품 규격을 인라인이 이겨
+   같은 역할 버튼이 화면마다 다른 모양이 됐고, 읽기 도구는 무엇이 골라졌는지 몰랐다. */
+function econChipSelect(sel, btn) {
+  document.querySelectorAll(sel).forEach(function (b) {
+    b.classList.remove('active');
+    b.removeAttribute('data-checked');
+    b.style.removeProperty('background');
+    b.style.removeProperty('color');
+    if (b.getAttribute('aria-pressed') !== 'false') b.setAttribute('aria-pressed', 'false');
+  });
+  if (btn) { btn.classList.add('active'); btn.setAttribute('data-checked', ''); btn.setAttribute('aria-pressed', 'true'); }
+}
+
 function econChartLive(canvasId, redraw) {
   var cv = document.getElementById(canvasId);
   if(!cv) return null;
-  var pg = cv.closest ? cv.closest('.page') : null;
-  if(pg && !pg.classList.contains('active')) {
-    if(redraw) _econChartPending[canvasId] = redraw;   // 마지막 요청 하나만 들고 있는다
+  if(!_econChartShown(cv)) {
+    if(redraw) { _econChartPending[canvasId] = redraw; _econChartWatch(cv); }   // 마지막 요청 하나만 들고 있는다
     return null;
   }
   delete _econChartPending[canvasId];
+  if(_econChartRO) { try { _econChartRO.unobserve(cv); } catch(_) {} }
   return cv;
 }
 function econChartFlush() {
   Object.keys(_econChartPending).forEach(function(k){
     var cv = document.getElementById(k);
-    var pg = cv && cv.closest ? cv.closest('.page') : null;
-    if(!cv || !pg || !pg.classList.contains('active')) return;
+    if(!cv || !_econChartShown(cv)) return;
     var fn = _econChartPending[k];
     delete _econChartPending[k];
     try { fn(); } catch(e) { console.warn('chart flush', k, e); }
@@ -4667,10 +4710,13 @@ function setMarketTab(tab, btn) {
   marketTab = tab;
   // 탭 리셋 — 시장중단 이력(#marketHaltHistory) 추가로 div:first-child 가 탭바를 안 가리켜 회귀했던 것 수정.
   const _tabBar = document.getElementById('marketMainTabs') || (btn && btn.parentElement);
+  // 활성 표시는 `.tab-btn.active` 하나가 단일 원천이다(구조 통일 S20) — 인라인 색을 덧칠하면
+  // 부품 규격을 인라인이 이겨 같은 탭이 화면마다 다르게 보인다. setInvestor 와 같은 자리였다.
   if(_tabBar) _tabBar.querySelectorAll('.tab-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+    b.classList.remove('active'); b.style.removeProperty('background'); b.style.removeProperty('color');
+    if(b.getAttribute('aria-selected') !== 'false') b.setAttribute('aria-selected','false');
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); btn.setAttribute('aria-selected','true'); }
   ['fx','rate','bond','commodity'].forEach(t=>{
     const el=document.getElementById('market-'+t);
     if(el) el.style.display = t===tab?'block':'none';
@@ -4687,39 +4733,39 @@ function setMarketTab(tab, btn) {
 }
 // FX 및 원자재 데이터 (applyRealData에서 업데이트됨)
 let fxPairs=[
-  {pair:'USD/KRW', cur:'1,489.64', chg:0, pct:0, h52:'1,520.00', l52:'1,340.00', displayMult:1,   displayTitle:'USD / KRW'},
-  {pair:'EUR/KRW', cur:'1,744.95', chg:0, pct:0, h52:'1,780.00', l52:'1,590.00', displayMult:1,   displayTitle:'EUR / KRW'},
-  {pair:'JPY/KRW', cur:'9.4400',   chg:0, pct:0, h52:'10.5000',  l52:'9.2000',   displayMult:100, displayTitle:'100 JPY / KRW'},
-  {pair:'EUR/USD', cur:'1.1720',   chg:0, pct:0, h52:'1.2000',   l52:'1.0500',   displayMult:1,   displayTitle:'EUR / USD'},
-  {pair:'USD/JPY', cur:'158.00',   chg:0, pct:0, h52:'162.00',   l52:'144.00',   displayMult:1,   displayTitle:'USD / JPY'},
+  {pair:'USD/KRW', cur:'1,489.64', chg:0, pct:0, displayMult:1,   displayTitle:'USD / KRW'},
+  {pair:'EUR/KRW', cur:'1,744.95', chg:0, pct:0, displayMult:1,   displayTitle:'EUR / KRW'},
+  {pair:'JPY/KRW', cur:'9.4400',   chg:0, pct:0,   displayMult:100, displayTitle:'100 JPY / KRW'},
+  {pair:'EUR/USD', cur:'1.1720',   chg:0, pct:0,   displayMult:1,   displayTitle:'EUR / USD'},
+  {pair:'USD/JPY', cur:'158.00',   chg:0, pct:0,   displayMult:1,   displayTitle:'USD / JPY'},
 ];
 let comData=[
   // 원유
-  {name:'WTI 원유',          price:'$62.35',    chg:'-0.55%', up:false, unit:'$/bbl', cat:'oil',    h52:'$95.00', l52:'$55.00'},
-  {name:'Brent 원유',         price:'$65.80',    chg:'-0.48%', up:false, unit:'$/bbl', cat:'oil',    h52:'$98.00', l52:'$58.00'},
-  {name:'두바이 현물유',       price:'$64.10',    chg:'-0.41%', up:false, unit:'$/bbl', cat:'oil',    h52:'$96.00', l52:'$57.00'},
+  {name:'WTI 원유',          price:'$62.35',    chg:'-0.55%', up:false, unit:'$/bbl', cat:'oil'},
+  {name:'Brent 원유',         price:'$65.80',    chg:'-0.48%', up:false, unit:'$/bbl', cat:'oil'},
+  {name:'두바이 현물유',       price:'$64.10',    chg:'-0.41%', up:false, unit:'$/bbl', cat:'oil'},
   // 귀금속
-  {name:'금 (Gold)',          price:'$3,241.50', chg:'+0.30%', up:true,  unit:'$/oz',  cat:'metal',  h52:'$3,500', l52:'$2,100'},
-  {name:'은 (Silver)',        price:'$32.48',    chg:'+0.55%', up:true,  unit:'$/oz',  cat:'metal',  h52:'$36.00', l52:'$22.00'},
-  {name:'백금 (Platinum)',    price:'$985.00',   chg:'+0.18%', up:true,  unit:'$/oz',  cat:'metal',  h52:'$1,100', l52:'$850'},
+  {name:'금 (Gold)',          price:'$3,241.50', chg:'+0.30%', up:true,  unit:'$/oz',  cat:'metal'},
+  {name:'은 (Silver)',        price:'$32.48',    chg:'+0.55%', up:true,  unit:'$/oz',  cat:'metal'},
+  {name:'백금 (Platinum)',    price:'$985.00',   chg:'+0.18%', up:true,  unit:'$/oz',  cat:'metal'},
   // 비철금속
-  {name:'구리 (Copper)',      price:'$4.65',     chg:'-0.82%', up:false, unit:'$/lb',  cat:'base',   h52:'$5.20',  l52:'$3.80'},
-  {name:'알루미늄',           price:'$2,248',    chg:'+0.21%', up:true,  unit:'$/톤',  cat:'base',   h52:'$2,600', l52:'$2,100'},
-  {name:'아연 (Zinc)',        price:'$2,912',    chg:'-0.35%', up:false, unit:'$/톤',  cat:'base',   h52:'$3,200', l52:'$2,400'},
-  {name:'니켈 (Nickel)',      price:'$16,820',   chg:'-1.12%', up:false, unit:'$/톤',  cat:'base',   h52:'$21,000',l52:'$14,500'},
+  {name:'구리 (Copper)',      price:'$4.65',     chg:'-0.82%', up:false, unit:'$/lb',  cat:'base'},
+  {name:'알루미늄',           price:'$2,248',    chg:'+0.21%', up:true,  unit:'$/톤',  cat:'base'},
+  {name:'아연 (Zinc)',        price:'$2,912',    chg:'-0.35%', up:false, unit:'$/톤',  cat:'base'},
+  {name:'니켈 (Nickel)',      price:'$16,820',   chg:'-1.12%', up:false, unit:'$/톤',  cat:'base'},
   // 에너지·농산물
-  {name:'천연가스',           price:'$2.18',     chg:'-1.24%', up:false, unit:'$/MMBtu',cat:'energy', h52:'$4.50',  l52:'$1.80'},
-  {name:'밀 (Wheat)',         price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu',  cat:'agri',   h52:'$7.20',  l52:'$4.80'},
-  {name:'옥수수 (Corn)',       price:'$4.42',     chg:'+0.68%', up:true,  unit:'$/bu',  cat:'agri',   h52:'$5.20',  l52:'$3.85'},
-  {name:'콩 (Soybean)',       price:'$10.48',    chg:'-0.29%', up:false, unit:'$/bu',  cat:'agri',   h52:'$12.10', l52:'$9.20'},
-  {name:'쌀 (Rice)',          price:'$16.50',    chg:'+0.42%', up:true,  unit:'$/cwt', cat:'agri',   h52:'$19.80', l52:'$14.20'},
+  {name:'천연가스',           price:'$2.18',     chg:'-1.24%', up:false, unit:'$/MMBtu',cat:'energy'},
+  {name:'밀 (Wheat)',         price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu',  cat:'agri'},
+  {name:'옥수수 (Corn)',       price:'$4.42',     chg:'+0.68%', up:true,  unit:'$/bu',  cat:'agri'},
+  {name:'콩 (Soybean)',       price:'$10.48',    chg:'-0.29%', up:false, unit:'$/bu',  cat:'agri'},
+  {name:'쌀 (Rice)',          price:'$16.50',    chg:'+0.42%', up:true,  unit:'$/cwt', cat:'agri'},
   // ── 추가 원자재 (index 15+; 기존 0~14 인덱스 보존) ──
-  {name:'팔라듐 (Palladium)', price:'$985.00',   chg:'+0.00%', up:true,  unit:'$/oz',   cat:'metal',  h52:'$1,250', l52:'$850'},
-  {name:'휘발유 (Gasoline)',  price:'$2.10',     chg:'+0.00%', up:true,  unit:'$/gal',  cat:'energy', h52:'$2.80',  l52:'$1.70'},
-  {name:'난방유 (Heating Oil)',price:'$2.40',    chg:'+0.00%', up:true,  unit:'$/gal',  cat:'energy', h52:'$3.10',  l52:'$2.00'},
-  {name:'커피 (Coffee)',      price:'320.0¢',    chg:'+0.00%', up:true,  unit:'¢/lb',   cat:'agri',   h52:'440¢',   l52:'180¢'},
-  {name:'설탕 (Sugar)',       price:'18.50¢',    chg:'+0.00%', up:true,  unit:'¢/lb',   cat:'agri',   h52:'24¢',    l52:'15¢'},
-  {name:'코코아 (Cocoa)',     price:'$8,500',    chg:'+0.00%', up:true,  unit:'$/MT',   cat:'agri',   h52:'$12,000',l52:'$6,000'},
+  {name:'팔라듐 (Palladium)', price:'$985.00',   chg:'+0.00%', up:true,  unit:'$/oz',   cat:'metal'},
+  {name:'휘발유 (Gasoline)',  price:'$2.10',     chg:'+0.00%', up:true,  unit:'$/gal',  cat:'energy'},
+  {name:'난방유 (Heating Oil)',price:'$2.40',    chg:'+0.00%', up:true,  unit:'$/gal',  cat:'energy'},
+  {name:'커피 (Coffee)',      price:'320.0¢',    chg:'+0.00%', up:true,  unit:'¢/lb',   cat:'agri'},
+  {name:'설탕 (Sugar)',       price:'18.50¢',    chg:'+0.00%', up:true,  unit:'¢/lb',   cat:'agri'},
+  {name:'코코아 (Cocoa)',     price:'$8,500',    chg:'+0.00%', up:true,  unit:'$/MT',   cat:'agri'},
 ];
 let eqData=[
   {name:'KOSPI',  val:7612.51, chg:-4.62},{name:'KOSDAQ',val:1143.35, chg:-4.01},
@@ -4914,29 +4960,27 @@ function updateFxHeader() {
   // 52주 범위 — history 에서 실제로 센다(기획 2026-09-21 구조 통일).
   // 종전엔 세 분기 모두 pair.h52/l52 를 읽었는데 그 값은 정의부의 하드코딩 상수이고 갱신되지 않았다.
   // 그래서 100 JPY/KRW 현재가 872 에 '52주 저가 920' 같은 모순이 화면에 떴다.
+  // 5차: history 가 없을 때의 도피처를 정의부 상수(pair.h52/l52)에서 '—' 로 바꿈.
+  // 상수는 갱신되지 않아서 '실측값처럼 보이는 지어낸 값'이 된다 — 원자재 쪽은 이미 '—' 를 쓴다.
   const _r52 = econRange52('history.fx.' + (pair.pair || '').replace('/', ''));
   if (rngEl) {
-    if (fxInverted && isKrwDenom) {
-      const h52v = _r52 ? _r52.hi : parseFloat((pair.h52||'0').replace(/,/g,''));
-      const l52v = _r52 ? _r52.lo : parseFloat((pair.l52||'0').replace(/,/g,''));
+    if (!_r52) {
+      rngEl.textContent = '52주 범위: —';
+    } else if (fxInverted && isKrwDenom) {
       const base = pair.pair.split('/')[0];
       const decI = base==='JPY' ? 2 : 4;
-      const h52i = l52v>0 ? (1000/l52v).toFixed(decI) : '-';
-      const l52i = h52v>0 ? (1000/h52v).toFixed(decI) : '-';
+      const h52i = _r52.lo>0 ? (1000/_r52.lo).toFixed(decI) : '—';
+      const l52i = _r52.hi>0 ? (1000/_r52.hi).toFixed(decI) : '—';
       rngEl.textContent = '52주 범위: ' + l52i + ' ~ ' + h52i;
     } else if (fxInverted) {
-      const h52v = _r52 ? _r52.hi : parseFloat((pair.h52||'0').replace(/,/g,''));
-      const l52v = _r52 ? _r52.lo : parseFloat((pair.l52||'0').replace(/,/g,''));
-      const hi = l52v>0 ? (1/l52v).toFixed(6) : '-';
-      const lo = h52v>0 ? (1/h52v).toFixed(6) : '-';
+      const hi = _r52.lo>0 ? (1/_r52.lo).toFixed(6) : '—';
+      const lo = _r52.hi>0 ? (1/_r52.hi).toFixed(6) : '—';
       rngEl.textContent = '52주 범위: ' + lo + ' ~ ' + hi;
     } else {
       // 정방향: displayMult 반영. 천단위 구분기호를 붙인다 — toFixed 는 1554.48 처럼 콤마 없이 남는다.
-      const h52v = _r52 ? _r52.hi : parseFloat((pair.h52||'0').replace(/,/g,''));
-      const l52v = _r52 ? _r52.lo : parseFloat((pair.l52||'0').replace(/,/g,''));
-      const dec = (h52v*dm) < 10 ? 4 : 2;
+      const dec = (_r52.hi*dm) < 10 ? 4 : 2;
       const _f = v => (v*dm).toLocaleString('ko-KR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-      rngEl.textContent = '52주 범위: ' + _f(l52v) + ' ~ ' + _f(h52v);
+      rngEl.textContent = '52주 범위: ' + _f(_r52.lo) + ' ~ ' + _f(_r52.hi);
     }
   }
 
@@ -4960,18 +5004,17 @@ function updateFxHeader() {
 
   // 상세 블록의 52주도 history 실측을 쓴다 — pair.h52/l52 는 정의부 상수다(구조 통일 S1).
   const _d52 = econRange52('history.fx.' + (pair.pair || '').replace('/', ''));
-  const h52v = _d52 ? _d52.hi : parseFloat((pair.h52||'0').replace(/,/g,''));
-  const l52v = _d52 ? _d52.lo : parseFloat((pair.l52||'0').replace(/,/g,''));
-  if (fxInverted) {
-    const e52H = document.getElementById('fxInfo52H');
-    const e52L = document.getElementById('fxInfo52L');
-    if (h52v>0 && e52L) e52L.textContent = fmt(toDisplay(h52v), dispDec);
-    if (l52v>0 && e52H) e52H.textContent = fmt(toDisplay(l52v), dispDec);
+  const e52H = document.getElementById('fxInfo52H');
+  const e52L = document.getElementById('fxInfo52L');
+  if (!_d52) {
+    if (e52H) e52H.textContent = '—';
+    if (e52L) e52L.textContent = '—';
+  } else if (fxInverted) {
+    if (e52L) e52L.textContent = fmt(toDisplay(_d52.hi), dispDec);
+    if (e52H) e52H.textContent = fmt(toDisplay(_d52.lo), dispDec);
   } else {
-    const e52H = document.getElementById('fxInfo52H');
-    const e52L = document.getElementById('fxInfo52L');
-    if (e52H) e52H.textContent = fmt(h52v*dm, dispDec);
-    if (e52L) e52L.textContent = fmt(l52v*dm, dispDec);
+    if (e52H) e52H.textContent = fmt(_d52.hi*dm, dispDec);
+    if (e52L) e52L.textContent = fmt(_d52.lo*dm, dispDec);
   }
 }
 
@@ -5448,6 +5491,8 @@ function setBondSubTab(tab, btn) {
   setMarketTab(target, newBtn || btn);
 }
 
+// 국가 필터는 여러 개를 켜고 끄는 묶음이다(칩과 다름). 색은 차트 선 색과 짝이라 유지하되,
+// 켜짐/꺼짐은 aria-pressed 로도 말한다 — 색만으로 말하면 읽기 도구는 무엇이 켜졌는지 모른다(S26).
 function toggleRateFilter(cc, btn) {
   if(rateFilterSet.has(cc)) {
     if(rateFilterSet.size<=1) return;
@@ -5459,6 +5504,7 @@ function toggleRateFilter(cc, btn) {
     btn.style.background=rateColors[cc]+'44';
     btn.style.opacity='1';
   }
+  btn.setAttribute('aria-pressed', String(rateFilterSet.has(cc)));
   buildRateHistoryChart();
 }
 
@@ -7287,10 +7333,13 @@ let macroViewMode='country';
 function setMacroViewMode(mode, btn) {
   macroViewMode = mode;
   econSetViewParam('macro', 'v', mode);   // 보기 전환도 주소에 남는다(C2)
+  // 활성 표시는 `.tab-btn.active` + aria-selected 한 쌍뿐이다(S20).
   document.querySelectorAll('#macroViewToggle button').forEach(b => {
-    b.style.background = 'transparent'; b.style.color = 'var(--c-txt-dim)'; b.style.border = '1px solid var(--c-border)';
+    b.classList.remove('active');
+    b.style.removeProperty('background'); b.style.removeProperty('color'); b.style.removeProperty('border');
+    if (b.getAttribute('aria-selected') !== 'false') b.setAttribute('aria-selected', 'false');
   });
-  btn.style.background = 'var(--c-accent)'; btn.style.color = 'var(--c-on-accent)'; btn.style.border = '1px solid var(--c-accent)';
+  if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
   const countryTabs = document.getElementById('macroCountryTabs');
   const topicTabs   = document.getElementById('macroTopicTabs');
   const indicatorDetails = document.querySelector('#page-macro details');
@@ -7352,7 +7401,7 @@ function initMacroTopicPage(topic) {
   mc.innerHTML = `
     <div class="widget">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-        <div class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: ${m.unit}</span></div>
+        <h3 class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: ${m.unit}</span></h3>
         <div style="display:flex;gap:4px;">
           ${periodOpts.map(o=>`<button onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:${macroTopicPeriod===o.key?'var(--c-accent)':'transparent'};color:${macroTopicPeriod===o.key? 'var(--c-on-accent)':'var(--c-txt-dim)'};cursor:pointer;font-weight:var(--font-weight-medium);">${o.label}</button>`).join('')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
@@ -7732,13 +7781,7 @@ function setMacroCatFilter(cat, btn) {
 
 function filterMacroIndicators(cc, btn) {
   _macroIndFilter = cc;
-  document.querySelectorAll('.macro-ind-filter').forEach(b => {
-    const isAct = b === btn;
-    b.classList.toggle('active', isAct);
-    b.style.background = isAct ? getThemeColors().accent : 'transparent';
-    b.style.color = isAct ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
-    b.style.borderColor = isAct ? getThemeColors().accent : '#2a2e3d';
-  });
+  econChipSelect('.macro-ind-filter', btn);
   buildMacroIndicatorTable();
 }
 
@@ -7898,7 +7941,7 @@ function buildMacroIndicatorTable() {
             onclick="event.preventDefault();event.stopPropagation();gotoCanonical('${catSrc}');">${econPageLabel(econCanonicalPage(catSrc))} ›</a>`
       : '';
     return `<div class="widget pad-14">
-      <div class="widget-title" style="font-size:var(--font-size-sm);letter-spacing:.08em;">${cat}${catLink}</div>
+      <h3 class="widget-title" style="font-size:var(--font-size-sm);letter-spacing:.08em;">${cat}${catLink}</h3>
       <div style="display:flex;flex-direction:column;gap:10px;">${topicHtml}</div>
       ${_restCount > 0 ? `<button type="button" class="btn-plain econ-morecards" onclick="macroShowAllCards()"
         style="margin-top:10px;color:var(--c-primary);cursor:pointer;font-size:var(--font-size-sm);min-height:32px;">
@@ -7945,10 +7988,7 @@ function buildMacroIndicatorTable() {
 let macroCountryPeriod = 'all'; // 'all' | '4' (1년) | '8' (2년) | '12' (3년)
 function setMacroCountryPeriod(p, btn) {
   macroCountryPeriod = p;
-  document.querySelectorAll('.macro-country-period').forEach(b=>{
-    b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
-  });
-  if(btn) { btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  econChipSelect('.macro-country-period', btn);
   initMacroPage(macroTab);
 }
 
@@ -7961,10 +8001,7 @@ const macroChartUnit = { gdp:'Q', cpi:'M', unemp:'Q', trade:'Q' };
 function setMacroChartUnit(chart, unit, btn) {
   macroChartUnit[chart] = unit;
   // 같은 차트의 모든 단위 버튼 비활성화
-  document.querySelectorAll(`.macro-chart-unit[data-chart="${chart}"]`).forEach(b=>{
-    b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
-  });
-  if(btn) { btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  econChipSelect(`.macro-chart-unit[data-chart="${chart}"]`, btn);
   initMacroPage(macroTab);
 }
 
@@ -8046,9 +8083,13 @@ function initMacroPage(t){
     {key:'12', label:'최근 3년'},
     {key:'all',label:'전체'},
   ];
+  // 기간 고르기는 칩 한 벌이다(구조 통일 S26) — 인라인 색으로만 고른 걸 말하면
+  // 읽기 도구는 무엇이 골라졌는지 모르고, 같은 역할 버튼이 화면마다 다른 모양이 된다.
   const periodRow = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
     <span style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">조회 기간:</span>
-    ${periodOpts.map(o=>`<button class="macro-country-period" onclick="setMacroCountryPeriod('${o.key}',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:${macroCountryPeriod===o.key?'var(--c-accent)':'transparent'};color:${macroCountryPeriod===o.key? 'var(--c-on-accent)':'var(--c-txt-dim)'};cursor:pointer;">${o.label}</button>`).join('')}
+    <span class="econ-chipgroup" role="group" aria-label="거시 지표 조회 기간 선택">
+    ${periodOpts.map(o=>`<button class="macro-country-period tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText${macroCountryPeriod===o.key?' active':''}" onclick="setMacroCountryPeriod('${o.key}',this)" aria-pressed="${macroCountryPeriod===o.key}"${macroCountryPeriod===o.key?' data-checked':''}><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">${o.label}</span></button>`).join('')}
+    </span>
   </div>`;
   // 차트별 단위 선택 버튼 생성 (월/분기/연)
   // 차트별 가능 단위: GDP/실업률/수출은 분기 데이터(Q/Y), CPI는 월간 데이터(M/Q/Y)
@@ -8060,9 +8101,9 @@ function initMacroPage(t){
   };
   const unitButtons = (chart) => {
     const opts = unitOpts[chart] || [];
-    return `<div style="display:flex;gap:3px;align-items:center;">
+    return `<div style="display:flex;gap:3px;align-items:center;" class="econ-chipgroup" role="group" aria-label="${chart} 차트 단위 선택">
       <span style="font-size:var(--font-size-sm);color:var(--c-txt-muted);font-weight:var(--font-weight-medium);margin-right:2px;">단위:</span>
-      ${opts.map(o=>`<button class="macro-chart-unit" data-chart="${chart}" data-unit="${o.k}" onclick="setMacroChartUnit('${chart}','${o.k}',this)" style="font-size:var(--font-size-xs);padding:2px 7px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:${macroChartUnit[chart]===o.k?'var(--c-accent)':'transparent'};color:${macroChartUnit[chart]===o.k? 'var(--c-on-accent)':'var(--c-txt-dim)'};cursor:pointer;">${o.l}</button>`).join('')}
+      ${opts.map(o=>`<button class="macro-chart-unit tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText${macroChartUnit[chart]===o.k?' active':''}" data-chart="${chart}" data-unit="${o.k}" onclick="setMacroChartUnit('${chart}','${o.k}',this)" aria-pressed="${macroChartUnit[chart]===o.k}"${macroChartUnit[chart]===o.k?' data-checked':''}><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">${o.l}</span></button>`).join('')}
     </div>`;
   };
 
@@ -8070,7 +8111,7 @@ function initMacroPage(t){
     <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
-          <div class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</div>
+          <h3 class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</h3>
           ${unitButtons('gdp')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.gdpSrc,meta.gdpNext)}
@@ -8079,7 +8120,7 @@ function initMacroPage(t){
       </div>
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
-          <div class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</div>
+          <h3 class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</h3>
           ${unitButtons('cpi')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.cpiSrc,meta.cpiNext)}
@@ -8090,7 +8131,7 @@ function initMacroPage(t){
     <div class="g-2" style="display:grid;gap:12px;">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
-          <div class="widget-title" style="margin-bottom:0;">실업률 (%)</div>
+          <h3 class="widget-title" style="margin-bottom:0;">실업률 (%)</h3>
           ${unitButtons('unemp')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="unempMacro" onclick="toggleYoY('unempMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.unempSrc,meta.unempNext)}
@@ -8099,7 +8140,7 @@ function initMacroPage(t){
       </div>
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
-          <div class="widget-title" style="margin-bottom:0;">수출 (억 달러)</div>
+          <h3 class="widget-title" style="margin-bottom:0;">수출 (억 달러)</h3>
           ${unitButtons('trade')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="tradeMacro" onclick="toggleYoY('tradeMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.tradeSrc,meta.tradeNext)}
@@ -10052,28 +10093,28 @@ function _renderBerkshire() {
     </div>
     <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
       <div class="kpi-card">
-        <div class="widget-title">공시 주식 포트폴리오</div>
+        <span class="widget-title econ-stat__label">공시 주식 포트폴리오</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${fmtB(bk.totalValueUsd)}</div>
         <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">13F 평가액 합계</div>
       </div>
       <div class="kpi-card">
-        <div class="widget-title">보유 종목 수</div>
+        <span class="widget-title econ-stat__label">보유 종목 수</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${bk.holdingsCount != null ? bk.holdingsCount : bk.holdings.length}<span style="font-size:var(--font-size-base);">종목</span></div>
         <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">상위 ${bk.holdings.length}개 표시</div>
       </div>
       <div class="kpi-card">
-        <div class="widget-title">최대 보유 종목</div>
+        <span class="widget-title econ-stat__label">최대 보유 종목</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${escapeHtml(top1.ticker || top1.name || '—')}</div>
         <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">비중 ${top1.pct != null ? (+top1.pct).toFixed(1) + '%' : '—'}</div>
       </div>
       <div class="kpi-card">
-        <div class="widget-title">보고 기준일</div>
+        <span class="widget-title econ-stat__label">보고 기준일</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${escapeHtml(bk.reportDate || '—')}</div>
         <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">공시일 ${escapeHtml(bk.filedDate || '—')}</div>
       </div>
     </div>
     <div class="widget">
-      <div class="widget-title">상위 보유 종목 (평가액 기준 Top ${bk.holdings.length})</div>
+      <h3 class="widget-title">상위 보유 종목 (평가액 기준 Top ${bk.holdings.length})</h3>
       <div style="overflow-x:auto;">
         <table class="econ-table">
           <thead><tr style="border-bottom:1px solid var(--c-border);">
@@ -10109,45 +10150,45 @@ function _renderGlobalInvestor(id) {
     <!-- KPI -->
     <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
       <div class="kpi-card">
-        <div class="widget-title">총 운용 자산 (AUM)</div>
+        <span class="widget-title econ-stat__label">총 운용 자산 (AUM)</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${data.aum_label}</div>
         <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">${data.aum_asof}</div>
       </div>
       <div class="kpi-card">
-        <div class="widget-title">최근 회계연도 수익률</div>
+        <span class="widget-title econ-stat__label">최근 회계연도 수익률</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="${data.return_2024>=0?'up-txt':'down-txt'}">${data.return_2024>=0?'+':''}${data.return_2024.toFixed(2)}%</div>
         <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">2024 (공식 발표)</div>
       </div>
       <div class="kpi-card">
-        <div class="widget-title">설립이후 연평균</div>
+        <span class="widget-title econ-stat__label">설립이후 연평균</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+${data.cagr_since_inception.toFixed(2)}%</div>
         <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">${data.inception}~ 연환산</div>
       </div>
       <div class="kpi-card">
-        <div class="widget-title">5년 평균 (2020~2024)</div>
+        <span class="widget-title econ-stat__label">5년 평균 (2020~2024)</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+${(((data.return_2020+data.return_2021+data.return_2022+data.return_2023+data.return_2024)/5)).toFixed(2)}%</div>
         <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">단순 평균</div>
       </div>
     </div>
     <!-- 요약 -->
     <div class="widget" style="margin-bottom:12px;">
-      <div class="widget-title">기금 개요</div>
+      <h3 class="widget-title">기금 개요</h3>
       <div style="font-size:var(--font-size-base);color:var(--c-txt);line-height:1.7;">${data.summary}</div>
     </div>
     <!-- 차트 2열 -->
     <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
       <div class="widget">
-        <div class="widget-title">자산 배분 현황 (${data.aum_asof})</div>
+        <h3 class="widget-title">자산 배분 현황 (${data.aum_asof})</h3>
         <div class="h-280" style="position:relative;"><canvas id="${allocChartId}"></canvas></div>
       </div>
       <div class="widget">
-        <div class="widget-title">최근 5년 연도별 수익률 (%)</div>
+        <h3 class="widget-title">최근 5년 연도별 수익률 (%)</h3>
         <div class="h-280" style="position:relative;"><canvas id="${retChartId}"></canvas></div>
       </div>
     </div>
     <!-- 보유 자산 / 펀드 구성 -->
     <div class="widget" style="margin-bottom:12px;">
-      <div class="widget-title">${id==='frtib'?'펀드 구성':'주요 보유 (Top 10, 공시 기반 추정치)'}</div>
+      <h3 class="widget-title">${id==='frtib'?'펀드 구성':'주요 보유 (Top 10, 공시 기반 추정치)'}</h3>
       <table class="econ-table">
         <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
           <th scope="col" style="text-align:left;padding:6px 0;">#</th>
@@ -10167,7 +10208,7 @@ function _renderGlobalInvestor(id) {
     </div>
     <!-- 공식 링크 -->
     <div class="widget">
-      <div class="widget-title">공식 자료 바로가기</div>
+      <h3 class="widget-title">공식 자료 바로가기</h3>
       <div class="g-${Math.min(data.links.length,3)}" style="display:grid;gap:10px;">
         ${data.links.map(l => `
           <a href="${l.url}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
@@ -14618,11 +14659,7 @@ function initInvestorDateDefaults() {
 let ratePeriodSlice = 'all';
 function setRatePeriod(period, btn) {
   ratePeriodSlice = period;
-  ['ratePeriodAll','ratePeriod5y','ratePeriod3y','ratePeriod1y'].forEach(id=>{
-    const b = document.getElementById(id);
-    if(b) { b.style.background = 'transparent'; b.style.color = 'var(--c-txt-dim)'; }
-  });
-  if(btn) { btn.style.background = 'var(--c-accent)'; btn.style.color = 'var(--c-on-accent)'; }
+  econChipSelect('.rate-period-chip', btn);
   buildRateHistoryChart();
 }
 
@@ -15085,10 +15122,12 @@ function normalizeToPercent(data) {
 function toggleChartCompareMode(chartKey, btn) {
   chartCompareModes[chartKey] = !chartCompareModes[chartKey];
   const active = chartCompareModes[chartKey];
+  // 켜짐/꺼짐을 색으로만 말하지 않는다 — aria-pressed 를 같이 세운다(S26).
   if(btn) {
     btn.style.background = active ? getThemeColors().accent+'22' : 'transparent';
     btn.style.color = active ? getThemeColors().accent : '#8d90a2';
     btn.style.border = active ? '1px solid var(--c-accent)' : '1px solid var(--c-border)';
+    btn.setAttribute('aria-pressed', String(active));
   }
   applyChartCompareMode(chartKey, active);
 }
@@ -15096,7 +15135,7 @@ function toggleChartCompareMode(chartKey, btn) {
 function resetChartCompareMode(chartKey) {
   chartCompareModes[chartKey] = false;
   const btn = document.getElementById(chartKey === 'equity' ? 'eqCompareModeBtn' : chartKey === 'fx' ? 'fxCompareModeBtn' : 'comCompareModeBtn');
-  if(btn) { btn.style.background='transparent'; btn.style.color='var(--c-txt-dim)'; btn.style.border='1px solid var(--c-border)'; }
+  if(btn) { btn.style.background='transparent'; btn.style.color='var(--c-txt-dim)'; btn.style.border='1px solid var(--c-border)'; btn.setAttribute('aria-pressed','false'); }
   applyChartCompareMode(chartKey, false);
 }
 
@@ -15180,6 +15219,20 @@ function initStaticRealEstateFallbacks() {
   function _isChipGroup(group) {
     return group.some(b => b.classList.contains('seed-chip__root') || b.hasAttribute('aria-pressed'));
   }
+  // 부모가 칩만(+구분선 같은 장식) 담고 있는가 — 실행 버튼이 섞였으면 고르기 묶음이 아니다.
+  function _isPureChipParent(parent) {
+    return [...parent.children].every(el => {
+      if (!el.matches) return true;
+      if (el.matches('button, [role=button], a')) {
+        return el.classList.contains('seed-chip__root') || el.classList.contains('seed-tabs__trigger');
+      }
+      if (el.matches('span, div')) {
+        const inner = el.querySelectorAll('button, [role=button], a');
+        return [...inner].every(b => b.classList.contains('seed-chip__root') || b.classList.contains('seed-tabs__trigger'));
+      }
+      return true;
+    });
+  }
   function decorateAllTabGroups() {
     document.querySelectorAll('.tab-btn.active').forEach(activeBtn => {
       const group = _tabGroup(activeBtn);
@@ -15187,7 +15240,10 @@ function initStaticRealEstateFallbacks() {
       const parent = activeBtn.parentElement;
       if (_isChipGroup(group)) {
         // 고르기 묶음 — 눌린 상태는 aria-pressed 하나로만 말한다.
-        if (!parent.getAttribute('role')) parent.setAttribute('role', 'group');
+        // 부모에 role=group 을 붙이는 건 그 부모가 '고르기 묶음 그 자체'일 때만이다.
+        // 차트 도구줄처럼 칩과 실행 버튼(초기화·새로고침)이 섞인 부모에 붙이면,
+        // 읽기 도구에 "여기 버튼은 다 고르기"라고 거짓말을 한다(실측 market·equity, S26).
+        if (!parent.getAttribute('role') && _isPureChipParent(parent)) parent.setAttribute('role', 'group');
         group.forEach(b => {
           const on = b.classList.contains('active') ? 'true' : 'false';
           if (b.getAttribute('aria-pressed') !== on) b.setAttribute('aria-pressed', on);

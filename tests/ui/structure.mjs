@@ -12,6 +12,10 @@
 //   S20  탭 부품 한 벌               — 한 묶음이 chip 과 tabs 를 섞지 않고, chip 은 tablist 가 아니다
 //   S21  차트 범례 규칙              — 이름 붙은 계열 2개 이상이면 범례가 보인다
 //   S22  안 열린 화면의 차트 0       — 지금 화면 밖 캔버스에 새로 그려진 차트가 없다
+//   S23  위젯 이름 줄 한 벌        — 위젯 이름이 모두 제목 태그다(화면 훑기 목록에 빠지는 이름 0)
+//   S24  안 보이는 칸의 차트 0   — 열린 화면 안에서도 닫힌 탭·접힌 칸에는 그리지 않는다
+//   S25  티커 이름은 레지스트리   — 띄는 12종이 tier 1 집합이고 이름이 레지스트리 label 과 같다
+//   S26  고르기 묶음은 부품으로   — role=group·tablist 안 버튼은 선택 상태를 aria 로 말한다
 //
 // usage: node tests/ui/structure.mjs [--base=http://127.0.0.1:8080/index.html]
 import { chromium } from 'playwright';
@@ -287,6 +291,114 @@ async function gateChartSpec(browser) {
   return ok;
 }
 
+// S23 — 위젯 이름 줄은 제목 태그다. KPI 카드 라벨(.econ-stat__label)은 역할이 달라 제외한다.
+// 실측(2026-09-22): 거시 화면은 위젯 16개 중 14개가 훑기 목록 밖에 있었다 — 같은 클래스가
+// h3·div·span 세 태그로 갈려서, 위젯을 찾는 방법이 화면마다 달랐다.
+async function gateWidgetTitleTag(browser) {
+  const pages = ['dashboard','market','equity','macro','calendar','realestate','investor','merlens','notes','study'];
+  let ok = true;
+  for (const p of pages) {
+    const { ctx, page } = await open(browser, 'p=' + p);
+    const bad = await page.evaluate(() => {
+      const act = document.querySelector('.page.active');
+      if (!act) return [];
+      const vis = el => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+      return [...act.querySelectorAll('.widget-title')]
+        .filter(vis)
+        .filter(el => !el.classList.contains('econ-stat__label'))
+        .filter(el => !/^H[1-6]$/.test(el.tagName))
+        .map(el => el.tagName.toLowerCase() + ':' + (el.innerText || '').trim().split('\n')[0].slice(0, 24));
+    });
+    await ctx.close();
+    if (bad.length) ok = false;
+    console.log(`S23 ${p} — 훑기 목록에 빠진 위젯 이름 ${bad.length}개  ${bad.length ? 'FAIL' : 'PASS'}`);
+    if (bad.length) console.log('   ', bad.join(' | '));
+  }
+  return ok;
+}
+
+// S24 — 열린 화면 안에도 안 보이는 칸이 있다. 실측: market 의 금리 탭(display:none)에
+// rateHistoryChart 가, 홈의 접힌 비교 칸에 compareChart 가 그려져 있었다.
+async function gateHiddenPanelCharts(browser) {
+  const pages = ['dashboard','market','equity','macro','calendar','realestate','investor','merlens','notes','study'];
+  let ok = true;
+  for (const p of pages) {
+    const { ctx, page } = await open(browser, 'p=' + p);
+    const bad = await page.evaluate(() => {
+      const reg = (typeof charts !== 'undefined') ? charts : (window.charts || {});
+      const out = [];
+      Object.keys(reg).forEach(k => {
+        const c = reg[k];
+        if (!c || !c.canvas) return;
+        const pg = c.canvas.closest ? c.canvas.closest('.page') : null;
+        if (!pg || !pg.classList.contains('active')) return;   // 화면 밖은 S22 가 잰다
+        if (c.canvas.offsetParent === null) out.push(k);
+      });
+      return out;
+    });
+    await ctx.close();
+    if (bad.length) ok = false;
+    console.log(`S24 ${p} — 안 보이는 칸의 차트 ${bad.length}개  ${bad.length ? 'FAIL' : 'PASS'}`);
+    if (bad.length) console.log('   ', bad.join(', '));
+  }
+  return ok;
+}
+
+// S25 — 티커에 뜨는 이름은 레지스트리가 단일 원천이다. 실측(고치기 전): 12종 중 6종이
+// 티커만 다른 이름이었다('BRENT'↔'브렌트유' · '금(Gold)'↔'금' · '미 10년물'↔'미국 국채 10Y' 등).
+async function gateTickerLabels(browser) {
+  const { ctx, page } = await open(browser, 'p=dashboard');
+  const r = await page.evaluate(() => {
+    const E = window.ECON_IND;
+    const rows = (typeof tickerData !== 'undefined') ? tickerData : [];
+    const ids = rows.map(d => d.id);
+    const tier1 = E.tier(1).map(r => r.id).sort();
+    const shown = [...document.querySelectorAll('#ticker .ticker-item')]
+      .map(a => (a.firstElementChild ? a.firstElementChild.textContent : '').trim());
+    const want = rows.map(d => E.label(d.id, d.name));
+    return {
+      missingId: rows.filter(d => !d.id || !E.get(d.id)).map(d => d.name),
+      tierGap: tier1.filter(i => ids.indexOf(i) < 0).concat(ids.filter(i => tier1.indexOf(i) < 0)),
+      drift: shown.filter(t => t && want.indexOf(t) < 0),
+    };
+  });
+  await ctx.close();
+  const ok = !r.missingId.length && !r.tierGap.length && !r.drift.length;
+  console.log(`S25 티커 — 레지스트리 밖 ${r.missingId.length}·tier1 불일치 ${r.tierGap.length}·이름 드리프트 ${r.drift.length}  ${ok ? 'PASS' : 'FAIL'}`);
+  if (!ok) console.log('   ', JSON.stringify(r));
+  return ok;
+}
+
+// S26 — 고르기 묶음(role=group·tablist)의 버튼은 선택 상태를 aria 로 말한다.
+// 실측(고치기 전): 거시 조회 기간·차트 단위·지표 나라 거르개·보기 방식, 시장 금리 기간이
+// 전부 인라인 background 색으로만 '골라짐'을 표시해서, 읽기 도구는 무엇이 골라졌는지 몰랐고
+// 같은 역할 버튼의 높이가 23·24·27·30·32px 로 갈렸다.
+async function gateSelectParts(browser) {
+  const pages = ['dashboard','market','equity','macro','calendar','realestate','investor','merlens','notes','study'];
+  let ok = true;
+  for (const p of pages) {
+    const { ctx, page } = await open(browser, 'p=' + p);
+    const bad = await page.evaluate(() => {
+      const act = document.querySelector('.page.active');
+      if (!act) return [];
+      const vis = el => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+      const out = [];
+      act.querySelectorAll('[role=group], [role=tablist]').forEach(g => {
+        const want = g.getAttribute('role') === 'tablist' ? 'aria-selected' : 'aria-pressed';
+        [...g.querySelectorAll('button, [role=button], [role=tab]')].filter(vis).forEach(b => {
+          if (!b.hasAttribute(want)) out.push((g.id || g.className.split(' ')[0] || '?') + '/' + (b.innerText || '').trim().slice(0, 10));
+        });
+      });
+      return out;
+    });
+    await ctx.close();
+    if (bad.length) ok = false;
+    console.log(`S26 ${p} — 선택 상태를 말하지 않는 버튼 ${bad.length}개  ${bad.length ? 'FAIL' : 'PASS'}`);
+    if (bad.length) console.log('   ', bad.slice(0, 10).join(' | '));
+  }
+  return ok;
+}
+
 const browser = await chromium.launch({ headless: true });
 const results = [
   await gateFormatMatch(browser),
@@ -298,6 +410,10 @@ const results = [
   await gatePageHead(browser),
   await gateTabParts(browser),
   await gateChartSpec(browser),
+  await gateWidgetTitleTag(browser),
+  await gateHiddenPanelCharts(browser),
+  await gateTickerLabels(browser),
+  await gateSelectParts(browser),
 ];
 await browser.close();
 const pass = results.every(Boolean);

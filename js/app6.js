@@ -54,7 +54,7 @@ function _pfHistTail(histObjOrArr, n) {
 }
 function _pfCard(title, bodyHtml, extra) {
   return '<div class="widget" style="margin-bottom:12px;' + (extra || '') + '">' +
-    (title ? '<div class="widget-title">' + title + '</div>' : '') + bodyHtml + '</div>';
+    (title ? '<h3 class="widget-title">' + title + '</h3>' : '') + bodyHtml + '</div>';
 }
 
 /* ── 포트폴리오 집계 (pfRenderSummary 로직의 읽기전용 사본) ── */
@@ -287,13 +287,13 @@ function pfBriefRender() {
 
   var tiles = oneLine +
     '<div class="g-auto-170" style="display:grid;gap:10px;margin-bottom:12px;">' +
-    '<div class="kpi-card"><div class="widget-title">총 평가액</div><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (agg.counted ? pfFmtKrw(agg.evalKrw) : '-') + '</div>' +
+    '<div class="kpi-card"><span class="widget-title econ-stat__label">총 평가액</span><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (agg.counted ? pfFmtKrw(agg.evalKrw) : '-') + '</div>' +
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">' + (pnl != null ? ('누적 ' + (pnl >= 0 ? '+' : '') + pfFmtKrw(pnl)) : '평단가·수량 입력 시 계산') + '</div>' + evSpark + '</div>' +
-    '<div class="kpi-card"><div class="widget-title">오늘 손익 (주가)</div><div class="' + dayCls + '" style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (agg.hasDay ? ((agg.dayPnlKrw >= 0 ? '+' : '') + pfFmtKrw(agg.dayPnlKrw)) : '-') + '</div>' +
+    '<div class="kpi-card"><span class="widget-title econ-stat__label">오늘 손익 (주가)</span><div class="' + dayCls + '" style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (agg.hasDay ? ((agg.dayPnlKrw >= 0 ? '+' : '') + pfFmtKrw(agg.dayPnlKrw)) : '-') + '</div>' +
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">전일 종가 대비 · 시세 기준</div></div>' +
-    '<div class="kpi-card"><div class="widget-title">환율 USDKRW ' + _pfI('fxexpo') + '</div><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (fxObj.rate != null ? (+fxObj.rate).toFixed(1) : '-') + '</div>' +
+    '<div class="kpi-card"><span class="widget-title econ-stat__label">환율 USDKRW ' + _pfI('fxexpo') + '</span><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (fxObj.rate != null ? (+fxObj.rate).toFixed(1) : '-') + '</div>' +
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">내 USD 노출 ' + (agg.evalKrw > 0 ? Math.round(agg.usdEval / agg.evalKrw * 100) + '%' : '-') + '</div>' + _pfSpark(fxHistVals, 'var(--c-txt-muted)') + '</div>' +
-    '<div class="kpi-card"><div class="widget-title">VKOSPI ' + _pfI('vkospi') + '</div><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (vk.value != null ? vk.value : '-') + '</div>' +
+    '<div class="kpi-card"><span class="widget-title econ-stat__label">VKOSPI ' + _pfI('vkospi') + '</span><div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">' + (vk.value != null ? vk.value : '-') + '</div>' +
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">' + vkNote + '</div>' + _pfSpark(vkHistVals, 'var(--color-warning,#c98500)') + '</div>' +
     '</div>';
 
@@ -323,7 +323,7 @@ function pfBriefRender() {
     '<div class="h-220" style="position:relative;"><canvas id="pfBriefChartCanvas" role="img" aria-label="' + chartMode.title + '와 외국인 순매매 30일 비교 차트"></canvas></div>' +
     '<div id="pfBriefChartNote" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;"></div>');
   var cal = _pfBriefCalendarHtml(d, agg);
-  var merBox = '<div class="widget" style="margin-bottom:12px;"><div class="widget-title">오늘의 메르 한 줄</div><div id="pfMerOneLine" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.7;">불러오는 중…</div></div>';
+  var merBox = '<div class="widget" style="margin-bottom:12px;"><h3 class="widget-title">오늘의 메르 한 줄</h3><div id="pfMerOneLine" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.7;">불러오는 중…</div></div>';
 
   el.innerHTML = tiles + heat +
     '<div class="pf-brief-2col" style="display:grid;gap:12px;">' + chart + cal + '</div>' + merBox +
@@ -693,11 +693,11 @@ function pfRiskRender() {
     var cvarAmt = agg.evalKrw * Math.abs(m.cvarR);
     riskCards =
       '<div class="g-auto-220" style="display:grid;gap:10px;">' +
-      '<div class="kpi-card"><div class="widget-title">내 1일 95% VaR ' + _pfI('var') + '</div>' +
+      '<div class="kpi-card"><span class="widget-title econ-stat__label">내 1일 95% VaR ' + _pfI('var') + '</span>' +
         '<div class="down-txt" style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">−' + pfFmtKrw(varAmt) + '</div>' +
         '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">"20일 중 1일은 이 이상 잃을 수 있다" · cVaR ' + _pfI('cvar') + ' <b>−' + pfFmtKrw(cvarAmt) + '</b></div>' +
         '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">= 평가액 × 일간변동성 ' + (m.sd * 100).toFixed(2) + '% × 1.645 · 스냅샷 ' + m.n + '일 · 정규분포 가정, 최악을 보증하지 않음</div></div>' +
-      '<div class="kpi-card"><div class="widget-title">위험조정수익률 — 두 렌즈</div>' +
+      '<div class="kpi-card"><span class="widget-title econ-stat__label">위험조정수익률 — 두 렌즈</span>' +
         '<div style="display:flex;gap:16px;font-family:var(--font-num);">' +
         '<span><b style="font-size:var(--font-size-xl);">' + (sharpe != null ? sharpe.toFixed(2) : '-') + '</b><br><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">샤프 ' + _pfI('sharpe') + '<br>국민연금 방식</span></span>' +
         '<span><b style="font-size:var(--font-size-xl);">' + (sortino != null ? sortino.toFixed(2) : '-') + '</b><br><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">소르티노 ' + _pfI('sortino') + '<br>연기금 방식</span></span>' +
@@ -768,7 +768,7 @@ function pfRiskRender() {
     (ledRows || '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기록 없음 — 배당을 기록하면 손익 워터폴에 반영됩니다.</div>') +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">입출금 기록은 참고용 — 위 위험 지표는 평가/매입 비율 기반이라 추가매수에는 원래 강건하며, 대규모 입출금 시 벤치마크 비교 왜곡 고지는 기존과 동일.</div>');
 
-  el.innerHTML = '<div class="widget-title" style="margin:4px 0 10px;">메르 위험 패널 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">— 내 계좌를 연기금처럼 본다 · ⓘ = 메르식 설명</span></div>' +
+  el.innerHTML = '<h3 class="widget-title" style="margin:4px 0 10px;">메르 위험 패널 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">— 내 계좌를 연기금처럼 본다 · ⓘ = 메르식 설명</span></h3>' +
     riskCards + '<div class="pf-risk-2col" style="display:grid;gap:12px;margin-top:12px;">' + (wf || '') + (bias || '') + '</div>' + whatif + ledCard;
   window._pfWhatIfBase = { ev: agg.evalKrw, usd: agg.usdEval };
 }
@@ -816,7 +816,7 @@ function pfStockRender() {
     }).join(' ');
     el.innerHTML =
       '<div class="widget" style="margin-bottom:12px;">' +
-      '<div class="widget-title">종목 검색</div>' +
+      '<h3 class="widget-title">종목 검색</h3>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
       '<input id="pfStockQ" placeholder="종목코드/티커/한글명 (예: 005930, AAPL, 삼성전자)" onkeydown="if(event.key===\'Enter\')pfStockSearch()" style="flex:1;min-width:200px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:6px 9px;font-size:var(--font-size-sm);" aria-label="분석할 종목 검색">' +
       '<button onclick="pfStockSearch()" style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">분석</button></div>' +
@@ -1041,7 +1041,7 @@ function _pfFlowsRender(spec, q) {
 
   box.innerHTML =
     '<div class="widget" style="margin-bottom:12px;">' +
-    '<div class="widget-title">수급 — 투자자별 순매수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 주 · 토스증권 Open API · 수집 ' + pfEsc(gen) + '</span></div>' +
+    '<h3 class="widget-title">수급 — 투자자별 순매수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 주 · 토스증권 Open API · 수집 ' + pfEsc(gen) + '</span></h3>' +
     '<div style="height:190px;"><canvas id="pfFlowsCanvas"></canvas></div>' +
     (stat.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:var(--font-size-xs);color:var(--c-txt);font-family:var(--font-num);">' + stat.map(function (s) { return '<span>' + s + '</span>'; }).join('') + '</div>' : '') +
     '</div>';

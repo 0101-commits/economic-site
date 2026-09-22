@@ -116,7 +116,7 @@ node tests/ui/readability.mjs                        # 데스크톱 1440 가독�
 node tests/ui/mobile-readability.mjs                 # 390 모바일 가독성 M1~M7 (10페이지 × 라이트/다크)
 node tests/ui/uxgates.mjs                            # G7~G9·M8 (1440·390, 10페이지)
 node tests/ui/interaction.mjs                        # G10·G11 조작·전환(유휴 DOM · 보기 전환의 주소 반영·복원)
-node tests/ui/structure.mjs                          # S10~S22 구조 통일(표기·화면 머리·탭 부품·차트 규격)
+node tests/ui/structure.mjs                          # S10~S26 구조 통일(표기·화면 머리·탭/고르기 부품·차트 규격·티커 이름)
 ```
 
 **주소가 화면 상태다 (기획 `docs/superpowers/specs/2026-09-21-interaction-ux-plan-design.md`).**
@@ -151,6 +151,37 @@ node tests/ui/structure.mjs                          # S10~S22 구조 통일(표
 **이름→값 2칸 표의 첫 칸은 `th[scope="row"]`** 다. `<table>` 을 머리 없이 배치용으로만 쓰면
 두 번째 칸의 값이 무엇인지 마크업에 안 적힌다. 보이는 머리줄을 새로 세울 때는 화면 길이를 같이
 본다 — 렌즈 화면은 표 머리 2줄(66px)만으로 G9(1440 ≤5.5화면)를 넘었다.
+
+**위젯 이름 줄은 `h3`, KPI 카드 라벨은 `.econ-stat__label`** 이다. `.widget-title` 은 두 역할을
+겸하는 클래스라 태그로 갈라야 한다 — 위젯 이름을 `div`/`span` 으로 적으면 화면 훑기(heading) 목록에서
+그 상자가 통째로 빠진다(실측 2026-09-22: 거시 화면 위젯 16개 중 14개가 목록 밖, 사이트 합계 17개).
+KPI 카드 라벨을 `h3` 로 올리는 것도 틀렸다 — 그건 제목이 아니라 큰 숫자의 설명이다. 게이트 S23.
+
+**안 보이는 캔버스에는 차트를 만들지 않는다 — 판정은 `offsetParent` 다.** `.page.active` 만 보면
+열린 화면 안의 **닫힌 탭·접힌 칸**을 놓친다(실측: market 금리 탭의 `rateHistoryChart`, 홈 접힌 칸의
+`compareChart`). `econChartLive(id, redraw)` 가 미뤄 두고, 칸이 열리는 순간은 `ResizeObserver` 가
+알려 `econChartFlush()` 를 부른다. **탭 전환 함수마다 flush 를 부르는 길은 쓰지 말 것** — 새 탭을
+만들 때 또 빠뜨리는 종류의 규칙이다. 게이트 S24.
+
+**티커에 뜨는 이름은 `ECON_IND.label(id)` 에서 꺼낸다.** `tickerData` 의 `name` 은 갱신 맵·화면별
+범위(`TICKER_SCOPE`)가 쓰는 **내부 키**이고 화면에 쓰는 글자가 아니다. 종전엔 그 키가 그대로 떠서
+같은 지표가 티커에서만 다른 이름이었다(실측 12종 중 6종: `BRENT`↔브렌트유 · `금(Gold)`↔금 ·
+`미 10년물`↔미국 국채 10Y). 링크·클릭도 이름이 아니라 id → `canonicalOf(id)` 다. 띄는 12종은
+레지스트리 **tier 1** 집합과 같아야 한다. 게이트 S25.
+
+**하나만 고르는 버튼은 부품으로 말한다 — 인라인 색으로 칠하지 말 것.** 선택은 `.active` +
+`aria-pressed`(칩) 또는 `aria-selected`(탭) 한 쌍이 단일 원천이고, 묶음 전체는 `econChipSelect(sel, btn)`
+하나를 쓴다. 인라인으로 칠하면 부품 규격을 인라인이 이겨 같은 역할 버튼의 높이가 화면마다
+갈리고(실측 23·24·27·30·32·34·36px), 읽기 도구는 무엇이 골라졌는지 모른다. 색에 **뜻이 있는**
+묶음(금리 나라 필터 = 차트 선 색)은 색을 유지하되 `aria-pressed` 를 같이 세운다. 게이트 S26.
+
+**`role=group` 은 그 부모가 고르기 묶음 그 자체일 때만 붙인다.** `js/app1.js` 의 접근성 보강기는
+칩 묶음의 부모를 장식하는데, 그 부모가 차트 도구줄이면 칩과 실행 버튼(`초기화`·`새로고침`)이 섞인다 —
+읽기 도구에 "여기 버튼은 전부 고르기"라고 거짓말이 된다. `_isPureChipParent` 로 거른다.
+
+**52주 범위는 `history` 가 없으면 `—` 다.** 정의부 상수로 도피하지 말 것 — 그 상수는 갱신되지 않아
+"실측값처럼 보이는 지어낸 값"이 된다. `fxPairs`/`comData` 의 `h52`/`l52` 필드는 2026-09-22 에
+전부 지웠다(읽는 곳 0곳). `index.html` 의 초기 표기도 숫자가 아니라 `—` 로 둔다. 게이트 S16.
 
 **화면은 가만히 있어야 한다.** `js/app4.js` 의 마킹 함수들(`econMarkFavorites` 등)은 **멱등**이어야 한다 —
 값이 같아도 `textContent` 를 다시 쓰면 텍스트 노드가 교체되고, 그것이 childList 변경이라

@@ -158,11 +158,9 @@
     {"id": "ai_briefing", "label": "AI 브리핑", "asset": "macro", "canonical": "dashboard", "data": "aiBriefing", "kind": "dataset", "tier": 2},
     {"id": "market_halts", "label": "서킷브레이커·사이드카", "asset": "equity", "canonical": "global-banner", "data": "marketHalts", "kind": "dataset", "tier": 2},
   ];
-  var byId = {}, byPath = {}, byName = {};
+  var byId = {}, byName = {};
   ROWS.concat(SETS).forEach(function (r) {
     byId[r.id] = r;
-    if (r.data) byPath[r.data] = r;
-    (r.alsoData || []).forEach(function (p) { byPath[p] = r; });
     [r.label].concat(r.aliases || []).forEach(function (n) {
       if (n && !byName[n]) byName[n] = r;
     });
@@ -171,14 +169,16 @@
     rows: ROWS,
     datasets: SETS,
     get: function (id) { return byId[id] || null; },
-    byPath: function (path) { return byPath[path] || null; },
     /* 화면에 쓰인 문자열(라벨·옛 이름)로 행을 찾는다 — 표기 통일의 대조표 */
     find: function (name) { return byName[name] || byId[name] || null; },
+    /* 화면에 쓸 이름은 여기서만 꺼낸다 — 티커가 이걸 안 쓰고 자기 글자를 들고 있어
+       같은 지표가 띄는 곣마다 이름이 갈렸다(실측 12종 중 6종). */
     label: function (id, fallback) { return (byId[id] && byId[id].label) || fallback || id; },
     tier: function (n) { return ROWS.filter(function (r) { return r.tier === n; }); },
-    asset: function (a) { return ROWS.filter(function (r) { return r.asset === a; }); },
-    topic: function (t) { return ROWS.filter(function (r) { return r.topic === t; }); },
-    canonicalOf: function (id) { return (byId[id] || {}).canonical || null; },
-    newsKeyOf: function (id) { return (byId[id] || {}).news || null; }
+    canonicalOf: function (id) { return (byId[id] || {}).canonical || null; }
   };
+  /* 뺀 문(byPath·asset·topic·newsKeyOf)은 둔다 — 부르는 곳이 한 군데도 없으면
+     쓰는 쪽은 나름대로 또 직접 걸러서 단일 원천이 두 갈래가 된다. 필요해지면
+     그 색인(byPath)도 같이 걷어냈다 — 읽는 곳 없는 색인은 comData 의 죽은 h52/l52 와
+     같은 계열이다. 필요해지면 ROWS 를 돌면서 두 줄이면 되살린다. */
 })();

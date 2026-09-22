@@ -2789,7 +2789,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div id="aiBriefingBanner" class="widget econ-flush" hidden>
               <div class="seed-callout__root seed-callout__root--tone_magic econ-callout" id="aiBriefingCallout">
                 <div class="seed-callout__content">
-                  <div class="seed-callout__title seed-callout__title--tone_magic widget-title">오늘의 매크로 3줄 요약</div>
+                  <h3 class="seed-callout__title seed-callout__title--tone_magic widget-title" style="margin-bottom:0;">오늘의 매크로 3줄 요약</h3>
                   <div id="aiBriefingLines" class="seed-callout__description seed-callout__description--tone_magic econ-brief-lines"></div>
                   <div id="aiBriefingMeta" class="econ-meta"></div>
                   <!-- 💬 AI 질문 — 동기화 키 보유(소유자) 기기에서만 표시 -->
@@ -2954,7 +2954,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div class="widget econ-chartcard">
               <div class="econ-head">
                 <div class="econ-head__main">
-                  <span class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title" id="mainChartIndexName">KOSPI 추이</span>
+                  <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title" id="mainChartIndexName" style="margin-bottom:0;">KOSPI 추이</h3>
                   <span class="econ-head__price" id="mainChartPriceVal"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:80px;height:18px;" aria-hidden="true"></span></span>
                   <span class="econ-head__chg" id="mainChartChangeVal"><span class="seed-skeleton seed-skeleton--radius_8 seed-skeleton--tone_neutral" style="width:56px;height:14px;" aria-hidden="true"></span></span>
                 </div>
@@ -3163,7 +3163,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 좌: 종목 리스트 -->
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
-            <span class="widget-title" style="margin-bottom:0;">지정 종목 트래킹</span>
+            <h3 class="widget-title" style="margin-bottom:0;">지정 종목 트래킹</h3>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
               <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSyncTracking()" title="관심종목·그룹을 서버에 저장해 다른 기기/플랫폼에서도 같은 목록을 봅니다 (평단가·수량은 이 기기에만 저장)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">☁ 목록 저장</span></button>
               <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfPullTracking(false)" title="서버에 저장된 관심목록을 이 기기로 불러옵니다 (평단가·수량은 암호화 동기화 켜둔 경우 함께 복원)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ 불러오기</span></button>
@@ -3222,7 +3222,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 우: 자산 비중 파이 차트 -->
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <span class="widget-title" style="margin-bottom:0;">자산 비중</span>
+            <h3 class="widget-title" style="margin-bottom:0;">자산 비중</h3>
             <div style="display:flex;gap:4px;">
               <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfPieModeItem" onclick="pfSetPieMode('item',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">종목별</span></button>
               <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="pfPieModeType" onclick="pfSetPieMode('type',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">유형별</span></button>
@@ -3237,7 +3237,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 📈 수익률 추이 vs 벤치마크 (3.2) — 방문일별 스냅샷 기반, KOSPI·S&P500 오버레이 -->
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
-          <span class="widget-title" style="margin-bottom:0;">수익률 추이 vs 벤치마크 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></span>
+          <h3 class="widget-title" style="margin-bottom:0;">수익률 추이 vs 벤치마크 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></h3>
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="pfBenchChart" onclick="toggleYoY('pfBenchChart',this)" aria-pressed="false" title="내 포트폴리오의 전년 동기 수익률을 점선으로 오버레이 (1년 이상 스냅샷 필요)"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">방문일마다 포트폴리오 스냅샷이 이 브라우저(localStorage)에 기록됩니다</span>
         </div>
@@ -3249,7 +3249,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 카카오 알림 요약/동기화 -->
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
-          <span class="widget-title" style="margin-bottom:0;">카카오톡 알림 조건</span>
+          <h3 class="widget-title" style="margin-bottom:0;">카카오톡 알림 조건</h3>
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
             <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSyncAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">☁ 서버에 저장</span></button>
             <a href="?p=settings" class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="showPage('settings', menuItemFor('settings'));return false;" title="동기화 키·서버 불러오기·테스트 발송·전역 토글은 설정 페이지에서 관리" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⚙ 알림 설정 관리 →</span></a>
@@ -3364,8 +3364,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="marketHaltHistory" class="widget" style="display:none;margin-bottom:16px;"></div>
       <div id="marketMainTabs" style="display:flex;gap:6px;margin-bottom:16px;">
         <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('fx',this)" data-ssr role="tab" aria-selected="true">외환</button>
-        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('rate',this)" data-ssr role="tab" aria-selected="false">📈 금리</button>
-        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('bond',this)" data-ssr role="tab" aria-selected="false">📋 채권</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('rate',this)" data-ssr role="tab" aria-selected="false">금리</button>
+        <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('bond',this)" data-ssr role="tab" aria-selected="false">채권</button>
         <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('commodity',this)" data-ssr role="tab" aria-selected="false">원자재</button>
         <a id="naverMarketLink" href="https://finance.naver.com/marketindex/exchangeList.naver" target="_blank" rel="noopener noreferrer" title="현재 탭과 관련된 네이버 금융 시장지표 페이지 열기" style="margin-left:auto;align-self:center;font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;border:1px solid var(--c-accent-container);padding:4px 10px;border-radius:var(--r-sm);white-space:nowrap;">네이버 시장지표 →</a>
       </div>
@@ -3382,7 +3382,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </div>
               <div>
                 <div class="up-txt" style="font-size:var(--font-size-base);" id="fxChartChange">▲ 1.80 (+0.12%)</div>
-                <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);" id="fxChart52Range">52주 범위: 1,340.00 ~ 1,520.00</div>
+                <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);" id="fxChart52Range">52주 범위: —</div>
               </div>
               <div style="margin-left:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
                 <div style="display:flex;gap:4px;">
@@ -3403,7 +3403,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   </span>
                   <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxCustomBtn" onclick="setFxPeriod('custom',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">사용자 지정</span></button>
                   <span style="width:1px;height:14px;background:var(--c-border);display:inline-block;margin:0 2px;vertical-align:middle;"></span>
-                  <button id="fxCompareModeBtn" onclick="toggleChartCompareMode('fx',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
+                  <button id="fxCompareModeBtn" aria-pressed="false" onclick="toggleChartCompareMode('fx',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                   <button onclick="resetChartCompareMode('fx')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
                   <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
                 </div>
@@ -3428,8 +3428,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">고가</th><td id="fxInfoHigh" class="econ-table--num">1,493.20</td></tr>
               <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">저가</th><td id="fxInfoLow" class="econ-table--num">1,485.50</td></tr>
               <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">전일 종가</th><td id="fxInfoPrev" class="econ-table--num">1,487.85</td></tr>
-              <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">52주 고가</th><td id="fxInfo52H" class="econ-table--num">1,520.00</td></tr>
-              <tr><th scope="row">52주 저가</th><td id="fxInfo52L" class="econ-table--num">1,340.00</td></tr>
+              <tr style="border-bottom:1px solid var(--c-border);"><th scope="row">52주 고가</th><td id="fxInfo52H" class="econ-table--num">—</td></tr>
+              <tr><th scope="row">52주 저가</th><td id="fxInfo52L" class="econ-table--num">—</td></tr>
             </table>
           </div>
         </div>
@@ -3457,20 +3457,20 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="widget" style="margin-bottom:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
             <h3 class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</h3>
-            <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns">
-              <button onclick="toggleRateFilter('kr',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">🇰🇷 한국</button>
-              <button onclick="toggleRateFilter('us',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:var(--color-on-success);cursor:pointer;">🇺🇸 미국</button>
-              <button onclick="toggleRateFilter('eu',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-primary);border-radius:var(--r-xs);background:var(--c-primary)33;color:var(--c-primary);cursor:pointer;">🇪🇺 유로존</button>
-              <button onclick="toggleRateFilter('jp',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid #f5a623;border-radius:var(--r-xs);background:#f5a62333;color:var(--c-warn);cursor:pointer;">🇯🇵 일본</button>
-              <button onclick="toggleRateFilter('uk',this)" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-down);border-radius:var(--r-xs);background:color-mix(in srgb,var(--c-down) 20%,transparent);color:var(--c-down);cursor:pointer;">🇬🇧 영국</button>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns" role="group" aria-label="비교할 나라 고르기">
+              <button onclick="toggleRateFilter('kr',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">🇰🇷 한국</button>
+              <button onclick="toggleRateFilter('us',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:var(--color-on-success);cursor:pointer;">🇺🇸 미국</button>
+              <button onclick="toggleRateFilter('eu',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-primary);border-radius:var(--r-xs);background:var(--c-primary)33;color:var(--c-primary);cursor:pointer;">🇪🇺 유로존</button>
+              <button onclick="toggleRateFilter('jp',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid #f5a623;border-radius:var(--r-xs);background:#f5a62333;color:var(--c-warn);cursor:pointer;">🇯🇵 일본</button>
+              <button onclick="toggleRateFilter('uk',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-down);border-radius:var(--r-xs);background:color-mix(in srgb,var(--c-down) 20%,transparent);color:var(--c-down);cursor:pointer;">🇬🇧 영국</button>
             </div>
           </div>
-          <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+          <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap;" class="econ-chipgroup" role="group" aria-label="기준금리 조회 기간 선택">
             <span style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">기간:</span>
-            <button onclick="setRatePeriod('all',this)" id="ratePeriodAll" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">전체</button>
-            <button onclick="setRatePeriod('5y',this)" id="ratePeriod5y" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
-            <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
-            <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년</button>
+            <button onclick="setRatePeriod('all',this)" id="ratePeriodAll" class="rate-period-chip tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText active" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+            <button onclick="setRatePeriod('5y',this)" id="ratePeriod5y" class="rate-period-chip tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">5년</span></button>
+            <button onclick="setRatePeriod('3y',this)" id="ratePeriod3y" class="rate-period-chip tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
+            <button onclick="setRatePeriod('1y',this)" id="ratePeriod1y" class="rate-period-chip tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
             <span class="ctl-sep" aria-hidden="true"></span>
             <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="rateHistoryChart" onclick="toggleYoY('rateHistoryChart',this)" aria-pressed="false" title="주 국가의 전년 동기 기준금리를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           </div>
@@ -3628,7 +3628,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </span>
               <span class="ctl-sep" aria-hidden="true"></span>
               <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="eqCustomBtn" onclick="toggleCustomRange('equity',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">기간 지정</span></button>
-              <button id="eqCompareModeBtn" onclick="toggleChartCompareMode('equity',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
+              <button id="eqCompareModeBtn" aria-pressed="false" onclick="toggleChartCompareMode('equity',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
               <button onclick="resetChartCompareMode('equity')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
               <span class="ctl-sep" aria-hidden="true"></span>
               <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-card);color:var(--c-primary);cursor:pointer;">새로고침</button>
@@ -3809,7 +3809,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </div>
               <div>
                 <div id="comDetailChange" class="down-txt" style="font-size:var(--font-size-base);">▼ -0.55%</div>
-                <div id="comDetail52Range" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">52주 범위: $55 ~ $95</div>
+                <div id="comDetail52Range" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">52주 범위: —</div>
               </div>
               <div style="margin-left:auto;display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
                 <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setComPeriod('1M',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1M</span></button>
@@ -3826,7 +3826,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 </span>
                 <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="comCustomBtn" onclick="toggleCustomRange('com',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">기간 지정</span></button>
                 <span style="width:1px;height:16px;background:var(--c-border);margin:0 2px;"></span>
-                <button id="comCompareModeBtn" onclick="toggleComCompareMode(this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
+                <button id="comCompareModeBtn" aria-pressed="false" onclick="toggleComCompareMode(this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
                 <button onclick="resetChartCompareMode('com')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
                 <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
@@ -3969,10 +3969,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
     <div class="page" id="page-macro">
       <!-- 뷰 모드 토글 + 탭 (좌측 정렬) -->
       <div style="display:flex;align-items:center;justify-content:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px;">
-        <div style="display:flex;gap:4px;" id="macroViewToggle">
-          <button id="macroViewCountry" onclick="setMacroViewMode('country',this)" style="font-size:var(--font-size-sm);padding:5px 14px;border-radius:20px;border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;font-weight:var(--font-weight-semibold);">국가별</button>
-          <button id="macroViewTopic"   onclick="setMacroViewMode('topic',this)"   style="font-size:var(--font-size-sm);padding:5px 14px;border-radius:20px;border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">주제별</button>
+        <div style="display:flex;gap:4px;" id="macroViewToggle" role="tablist" aria-label="거시 화면 보기 방식">
+          <button id="macroViewCountry" onclick="setMacroViewMode('country',this)" class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug active" role="tab" aria-selected="true">국가별</button>
+          <button id="macroViewTopic"   onclick="setMacroViewMode('topic',this)"   class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" role="tab" aria-selected="false">주제별</button>
         </div>
+        <!-- 보기 방식(탭)과 나라(탭)가 같은 줄에 나란히 서면 9칸짜리 한 줄로 읽힌다 — 구분선을 둔다 -->
+        <span class="ctl-sep" aria-hidden="true"></span>
         <!-- 국가별 탭 -->
         <div id="macroCountryTabs" style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTab('kr',this)" data-ssr role="tab" aria-selected="true">🇰🇷 한국</button>
@@ -3998,15 +4000,15 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
           <h3 class="widget-title" style="margin-bottom:0;">주요 경제 지표 전체 (실시간)</h3>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;" id="macroIndCountryFilter">
-            <button class="macro-ind-filter active" data-cc="all" onclick="filterMacroIndicators('all',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">전체</button>
-            <button class="macro-ind-filter" data-cc="🇰🇷" onclick="filterMacroIndicators('🇰🇷',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇰🇷 한국</button>
-            <button class="macro-ind-filter" data-cc="🇺🇸" onclick="filterMacroIndicators('🇺🇸',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇺🇸 미국</button>
-            <button class="macro-ind-filter" data-cc="🇪🇺" onclick="filterMacroIndicators('🇪🇺',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇪🇺 유로존</button>
-            <button class="macro-ind-filter" data-cc="🇯🇵" onclick="filterMacroIndicators('🇯🇵',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇯🇵 일본</button>
-            <button class="macro-ind-filter" data-cc="🇨🇳" onclick="filterMacroIndicators('🇨🇳',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇨🇳 중국</button>
-            <button class="macro-ind-filter" data-cc="🇩🇪" onclick="filterMacroIndicators('🇩🇪',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇩🇪 독일</button>
-            <button class="macro-ind-filter" data-cc="🇬🇧" onclick="filterMacroIndicators('🇬🇧',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">🇬🇧 영국</button>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;" id="macroIndCountryFilter" role="group" aria-label="지표 목록 나라 거르기">
+            <button class="macro-ind-filter tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText active" data-cc="all" onclick="filterMacroIndicators('all',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+            <button class="macro-ind-filter tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-cc="🇰🇷" onclick="filterMacroIndicators('🇰🇷',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇰🇷 한국</span></button>
+            <button class="macro-ind-filter tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-cc="🇺🇸" onclick="filterMacroIndicators('🇺🇸',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 미국</span></button>
+            <button class="macro-ind-filter tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-cc="🇪🇺" onclick="filterMacroIndicators('🇪🇺',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇪🇺 유로존</span></button>
+            <button class="macro-ind-filter tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-cc="🇯🇵" onclick="filterMacroIndicators('🇯🇵',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇯🇵 일본</span></button>
+            <button class="macro-ind-filter tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-cc="🇨🇳" onclick="filterMacroIndicators('🇨🇳',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇨🇳 중국</span></button>
+            <button class="macro-ind-filter tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-cc="🇩🇪" onclick="filterMacroIndicators('🇩🇪',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇩🇪 독일</span></button>
+            <button class="macro-ind-filter tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-cc="🇬🇧" onclick="filterMacroIndicators('🇬🇧',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇬🇧 영국</span></button>
           </div>
         </div>
         <div id="macroIndCardsRoot"></div>
@@ -5025,9 +5027,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 🌐 글로벌 연기금 자산배분 교차 비교 (4.4) — 5대 기금 단일 통합 차트, 탭과 무관하게 상시 표시 -->
       <details class="widget" style="margin-bottom:14px;" open>
         <summary style="cursor:pointer;list-style:none;">
-          <span class="widget-title" style="margin-bottom:0;">글로벌 연기금 자산배분 교차 비교
+          <h3 class="widget-title" style="margin-bottom:0;">글로벌 연기금 자산배분 교차 비교
             <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">주식 / 채권 / 대체투자 / 기타·혼합 — 비중 정규화(100%) 기준</span>
-          </span>
+          </h3>
         </summary>
         <div class="h-230" style="position:relative;margin-top:10px">
           <canvas id="globalAllocCompareChart" role="img" aria-label="글로벌 연기금 자산배분 교차 비교">자산배분 비교 차트</canvas>
