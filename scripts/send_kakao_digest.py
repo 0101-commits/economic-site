@@ -58,6 +58,8 @@ import urllib.parse
 import urllib.request
 import urllib.error
 
+import kwmatch
+
 DASHBOARD_URL = "https://0101-commits.github.io/economic-site/"
 KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
@@ -1035,7 +1037,8 @@ def focus_news(data, key, days=2):
                 if str(it.get("isoDate") or "")[:10] < cutoff:
                     continue                                 # 묵은 기사는 오늘의 설명이 못 된다
                 title = str(it["title"]).strip()
-                if kws and not any(k in title for k in kws):
+                # 부분 문자열 오탐 제외 — "중금리대출"이 US10Y 의 근거로 붙던 실측(2026-09-22).
+                if kws and not kwmatch.hit(title, kws):
                     continue                                 # 주제는 맞아도 그 자산 얘기가 아니다
                 return title[:70], (it.get("url") or "")
     except Exception:                                        # noqa: BLE001

@@ -51,3 +51,27 @@ def test_every_category_keyword_set_is_nonempty():
 def test_queries_and_keywords_cover_same_categories():
     """쿼리 표와 키워드 표가 어긋나면 그 카테고리는 폴백 없이 조용히 빈다."""
     assert set(F.NEWS_CATEGORY_QUERIES) == set(F._KEYLESS_CATEGORY_KEYWORDS)
+
+
+def test_matcher_is_single_source():
+    """fetch_data 와 send_kakao_digest 가 같은 판정기를 써야 한다.
+
+    두 곳이 각자 `k in title` 이던 시절, fetch_data 만 고쳐 놓고 이례 알림의
+    '왜 움직였나'에는 "'우수 온투업자'…중금리대출 활성화"가 US10Y 근거로 붙었다.
+    """
+    import kwmatch
+    assert F._kw_hit is not None and F._KEYWORD_FALSE_FRIENDS is kwmatch.FALSE_FRIENDS
+    assert not kwmatch.hit("'우수 온투업자' 자기자금 투자한도 40%로↑…중금리대출 활성화",
+                           ["금리", "국채", "국고채"])
+    assert kwmatch.hit("국고채 금리 대체로 상승", ["금리", "국채", "국고채"])
+
+
+def test_focus_news_uses_the_matcher():
+    """focus_news 의 키워드 게이트가 오탐 어휘를 통과시키지 않는다."""
+    import send_kakao_digest as K
+    data = {"news": {"채권": [{"title": "'우수 온투업자' 자기자금 투자한도 40%로↑…중금리대출 활성화",
+                              "url": "u", "isoDate": "2099-01-01"}]}}
+    assert K.focus_news(data, "US10Y") is None
+    data["news"]["채권"].append({"title": "미 국채 금리 급등", "url": "u2",
+                                "isoDate": "2099-01-01"})
+    assert K.focus_news(data, "US10Y")[0] == "미 국채 금리 급등"

@@ -7406,30 +7406,16 @@ _KEYLESS_CATEGORY_KEYWORDS = {
 # 실측(2026-09-21): "고인 보험금, 유가족이 찾고 받기 쉬워졌다"가 '유가'에 걸려 원유
 # 기사로 배포됐고, 그것이 이례 알림의 '왜 움직였나' 자리에 붙었다 — 없느니만 못하다.
 # (키워드, 그 키워드가 들어간 오탐 어휘들). 제목에 오탐 어휘가 있으면 그 키워드는 무효.
-_KEYWORD_FALSE_FRIENDS = {
-    "유가": ("유가족", "유가증권"),
-    "금리": ("요금리", "대금리"),
-    "구리": ("구리시", "너구리"),
-    "은":   ("은행", "은퇴", "은밀"),
-    "일본": ("일본어",),
-}
+# 오탐 표·판정은 scripts/kwmatch.py 단일 원천 — send_kakao_digest.focus_news 도 같은 것을 쓴다
+# (종전엔 두 곳이 각자 `k in title` 이라 한쪽만 고쳐도 다른 쪽에서 같은 오탐이 계속 났다).
+import kwmatch as _kwmatch
+
+_KEYWORD_FALSE_FRIENDS = _kwmatch.FALSE_FRIENDS
 
 
 def _kw_hit(title, kws):
     """제목이 키워드 중 하나에 실제로 걸리는지 — 오탐 어휘는 제외하고 판정."""
-    for k in kws:
-        if k not in title:
-            continue
-        bad = _KEYWORD_FALSE_FRIENDS.get(k)
-        if bad and all(k in b for b in bad):
-            # 그 키워드의 모든 출현이 오탐 어휘 안이면 진짜 매칭이 아니다.
-            stripped = title
-            for b in bad:
-                stripped = stripped.replace(b, "")
-            if k not in stripped:
-                continue
-        return True
-    return False
+    return _kwmatch.hit(title, kws)
 
 
 _keyless_pool_cache = None
