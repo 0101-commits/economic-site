@@ -32,12 +32,28 @@ def _digest_data():
 
 
 def test_select_labels_have_direction_emoji():
+    """라벨 = 방향 이모지 + 이름 + 등락률.
+
+    ⚠ 2026-09-22 계약 변경 — 드롭다운은 **그 카드에 그려진 지표만** 싣는다(card_links).
+    종전엔 _ASSETS 16종 전부라 사진에 없는 지표가 절반이었다. 그래서 기본 편성
+    (kr_session = 코스피·코스닥·달러-원·닛케이)에 없는 S&P500·나스닥은 더 이상
+    여기 없는 것이 정상이다 — 그건 미국장 슬롯 카드의 칸이다.
+    """
     opts = skd._dc_select(_digest_data())
     labels = [lab for lab, _ in opts]
     assert "📈 코스피 +1.8%" in labels
     assert "⏬ 코스닥 -2.3%" in labels
-    assert "⏫ S&P500 +2.0%" in labels
-    assert "➖ 나스닥" in labels
+    assert "➖ 달러-원" in labels                      # 값 없으면 등락률 없이 이름만
+    assert not [l for l in labels if "S&P500" in l], labels
+
+
+def test_select_follows_the_us_slot_card():
+    """미국장 편성 카드에서는 그 카드의 칸(S&P·나스닥 등)이 목록이 된다."""
+    import datetime
+    now = datetime.datetime(2026, 9, 22, 7, 0, tzinfo=skd.KST)
+    links = skd.card_links(_digest_data(), "h07", False, now)
+    labels = [lab for lab, _k, _u in links]
+    assert any("S&P500" in l for l in labels), labels
 
 
 def test_select_values_all_resolvable():

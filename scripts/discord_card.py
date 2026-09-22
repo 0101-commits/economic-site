@@ -622,6 +622,21 @@ HERO = {"kr_session": "KOSPI", "pre_kr": "SP500", "kr_close_eu": "KOSPI",
 ANOMALY_MIN_Z = 2.0
 
 
+def shown_keys(prof, hero_key=None):
+    """카드가 실제로 보여 주는 지표 키 — 히어로 먼저, 그다음 타일(좌→우·위→아래).
+
+    알림 링크 목록의 단일 원천이다. 링크가 카드와 **같은 순서·같은 구성**이어야
+    "사진에서 본 그 칸"을 목록에서 눈으로 찾을 수 있다. 카드에 없는 지표를 목록에
+    섞으면(종전 드롭다운은 _ASSETS 16종 전부였다) 사진과 목록이 다른 것을 말한다.
+    스파크라인은 캡션 영역의 보조선이라 제외한다 — 칸으로 보이지 않는다."""
+    out, seen = [], set()
+    for k in ([hero_key] if hero_key else []) + [k for row in (prof.get("rows") or []) for k in row]:
+        if k and k not in seen:
+            seen.add(k)
+            out.append(k)
+    return out
+
+
 def anomalies(d, keys, min_z=ANOMALY_MIN_Z):
     """이례적으로 움직인 자산 전부 → [(키, z)] |z| 내림차순. 없으면 [].
 

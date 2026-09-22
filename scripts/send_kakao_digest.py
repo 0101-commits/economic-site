@@ -1699,20 +1699,19 @@ def build_feed_parts(blocks):
     return desc, [kakao_item(lab, v) for lab, v in rows]
 
 
-def _hero_button(slot, weekend, now):
-    """피드 2번째 버튼 — 그 슬롯 히어로 지표의 네이버 페이지. 검증된 링크가 없으면 None.
-    (NAVER_LINKS 는 최종 URL 동일성 + 본문 키워드 2중 검사를 통과한 것만 담고 있다.)"""
-    try:
-        import discord_card
-        import notify_discord
-        key = discord_card.HERO.get(discord_card.profile_for(slot, weekend, now), "")
-        url = notify_discord.NAVER_LINKS.get(key)
-        if not url:
-            return None
-        ko = (discord_card._CATALOG.get(key) or (key,))[0]
-        return {"title": f"{ko} 시세", "link": {"web_url": url, "mobile_web_url": url}}
-    except Exception:
+def _hero_button(links):
+    """피드 첫 버튼 — 카드가 말하는 지표의 네이버 증권 페이지(없으면 None).
+
+    ⚠ 종전엔 편성표의 **고정** 히어로(HERO[프로필])를 썼다. 그날 이례 자산으로 주인공이
+    바뀌어도 버튼은 그대로라, 카드는 달러-원을 그려 놓고 버튼은 '코스피 시세'였다
+    (2026-09-22 12시 실측 — USDKRW z −2.8σ). 이제 카드와 같은 목록(card_links)의
+    첫 줄을 쓴다. 라벨은 카카오 8자 상한이라 '시세'만 붙여 짧게 둔다."""
+    if not links:
         return None
+    lab, key, url = links[0]
+    import discord_card
+    ko = (discord_card._CATALOG.get(key) or (key,))[0]
+    return {"title": f"{ko} 시세", "link": {"web_url": url, "mobile_web_url": url}}
 
 
 # 피드 설명(헤드라인)으로 올라가는 블록 라벨 — 일간·주간 공통. 나머지는 행이 된다.
@@ -1752,16 +1751,19 @@ def kakao_button(title, url):
 
 
 def send_feed(access_token, title, description, image_url, items=None, dims=CHART_PX,
-              uuids=None, extra_button=None, buttons=None):
-    """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 심리·에너지·금속·곡물·운임(행) + '대시보드 보기' 버튼.
+              uuids=None, extra_button=None, buttons=None, link_url=None):
+    """피드 한 통 — 차트 이미지 + 제목 + 증시·환율(설명) + 행 + 버튼.
 
-    buttons = [{title, link}] 을 주면 기본 버튼 구성을 그것으로 대체한다(카카오 상한 2개)."""
+    buttons = [{title, link}] 을 주면 기본 버튼 구성을 그것으로 대체한다(카카오 상한 2개).
+    link_url = **사진·제목을 눌렀을 때 갈 곳**(2026-09-22). 카드가 말하는 지표의 네이버
+    증권 페이지를 넣는다 — 종전엔 무조건 대시보드였다. 대시보드는 버튼이 담당한다."""
+    _lk = link_url or DASHBOARD_URL
     content = {
         "title": title,
         "description": description,
         "image_url": image_url,
         "image_width": dims[0], "image_height": dims[1],
-        "link": {"web_url": DASHBOARD_URL, "mobile_web_url": DASHBOARD_URL},
+        "link": {"web_url": _lk, "mobile_web_url": _lk},
     }
     template = {
         "object_type": "feed",
@@ -1782,7 +1784,7 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
 
 
 def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None, png=None,
-                    full_blocks=None):
+                    full_blocks=None, links=None):
     """슬롯 차트 생성→업로드→'한 통' 피드 발송. png 를 넘기면 재사용(디스코드 병행 발송과
     이중 생성 방지). 실제 발송·폴백은 send_card 가 담당한다(기획 v3 I1 — 단일 진입점).
 
@@ -1792,12 +1794,17 @@ def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None
     png = png or build_slot_chart_png(data, slot, weekend)
     desc, items = build_feed_parts(blocks)
     text = build_text_message(title, full_blocks or blocks)
-    buttons = [("대시보드 보기", DASHBOARD_URL)]
-    btn = _hero_button(slot, weekend, datetime.datetime.now(KST))
+    # 사진 탭 = 카드가 말하는 지표의 네이버 페이지, 대시보드는 버튼(2026-09-22 사용자 요청).
+    # 버튼은 카카오 상한 2개라 [지표 시세, 대시보드 보기] 순서 — 앞이 더 자주 눌린다.
+    links = links if links is not None else card_links(
+        data, slot, weekend, datetime.datetime.now(KST))
+    buttons = []
+    btn = _hero_button(links)
     if btn:
         buttons.append((btn["title"], btn["link"]["web_url"]))
+    buttons.append(("대시보드 보기", DASHBOARD_URL))
     return send_card(access_token, title, desc, png=png, uuids=uuids, buttons=buttons,
-                     items=items, kind="정기 시황", text=text)
+                     items=items, kind="정기 시황", text=text, link_url=hero_link(links))
 
 
 def send_memo(access_token, text, with_button=True, uuids=None):
@@ -1826,7 +1833,7 @@ def _system_notice(text):
 
 
 def send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
-              fallback_png=None, items=None, kind="", text=None):
+              fallback_png=None, items=None, kind="", text=None, link_url=None):
     """카톡 한 통 — 카드 이미지가 본문(기획 v3 I1). 모든 카카오 발송의 단일 진입점.
 
     3단 폴백(I7): ① 카드 PNG → ② fallback_png(슬롯 라인 차트 등) → ③ 텍스트(제목+캡션).
@@ -1834,6 +1841,7 @@ def send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
     라인업에 새 구멍이 생기는 것을 로그·알림에서 바로 보이게 하는 장치다.
 
     buttons = [(라벨, url)] 최대 2개(카카오 상한, 라벨 8자). 기본 = 대시보드 1개.
+    link_url = 사진을 눌렀을 때 갈 곳(없으면 대시보드) — 카드가 말하는 지표의 네이버 페이지.
     반환 True/False. 텍스트 폴백까지 실패하면 send_memo 가 SystemExit 를 던진다(호출측이 잡음)."""
     btns = [kakao_button(t, u) for t, u in (buttons or [])][:2] or None
     if not png:
@@ -1844,12 +1852,12 @@ def send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
         if not image_url:
             continue
         if send_feed(access_token, title, caption, image_url, items=items,
-                     uuids=uuids, buttons=btns):
+                     uuids=uuids, buttons=btns, link_url=link_url):
             return True
         if items:                                     # 행 거부 — 행 내용을 설명에 합쳐 재시도
             merged = "\n".join([caption] + [f"{it['item']} {it['item_op']}" for it in items])
             if send_feed(access_token, title, merged, image_url, items=None,
-                         uuids=uuids, buttons=btns):
+                         uuids=uuids, buttons=btns, link_url=link_url):
                 return True
     if png or fallback_png:
         print(f"::warning title=차트 누락 폴백::{kind or title} 카드/업로드 실패 — 텍스트로 발송")
@@ -1999,23 +2007,44 @@ def _dc_buttons():
             ("🔄 지금 시세", "id:refresh_quotes")]
 
 
-def _dc_select(data, weekly=False):
-    """v4 지표 드롭다운(기획 ed0e5496 — 버튼 다이어트) — 구 버튼 그리드(v3, 16버튼)를
-    String Select 1행으로 압축. 옵션 = 네이버 제공 지표만(값 = NAVER_LINKS 키,
-    Worker /discord goto_link 가 URL 로 해석해 에페메랄 응답). 라벨은 발송 시점
-    등락 스냅샷(「{이모지} {지표}{등락률}」) — 목록 내 훑어보기 힌트."""
+def card_links(data, slot, weekend, now, focus_key=None, weekly=False):
+    """카드에 보이는 지표 → [(라벨, 키, URL)] — **카드와 같은 순서**(히어로 먼저).
+
+    알림의 링크 단일 원천(2026-09-22). 사진의 칸을 직접 누를 수 있는 채널은 없다 —
+    디스코드는 이미지 클릭이 항상 '확대 보기'이고 카카오 피드도 칸별 링크가 없다.
+    그래서 '그 칸의 링크'를 카드와 같은 구성·같은 순서의 목록으로 옆에 세운다.
+    네이버에 페이지가 없는 지표(미국채 10Y·국고채 10Y 등)는 빠진다 — 깨진 링크보다
+    없는 편이 낫다. 라벨에는 발송 시점 등락률을 붙여 목록에서 바로 훑을 수 있게 한다."""
     import discord_card
     import notify_discord
     if weekly:
         seq = [(ko, key, chg) for ko, en, key, chg in discord_card.weekly_rows(data)]
     else:
+        pkey = discord_card.profile_for(slot, weekend, now)
+        prof = (discord_card.PROFILES.get(pkey)
+                or discord_card.PROFILES[discord_card.DEFAULT_PROFILE])
+        hero = focus_key or discord_card.HERO.get(pkey)
         seq = []
-        for ko, en, cat, key in discord_card._ASSETS:
+        for key in discord_card.shown_keys(prof, hero):
+            ko, _en, cat = discord_card._CATALOG.get(key, (key, key, "indices"))
             n = (data.get(cat) or {}).get(key) or {}
             seq.append((ko, key, _f(n.get("change") if n.get("change") is not None
                                     else n.get("chgPct"))))
-    return [(notify_discord.dir_label(ko, chg), key) for ko, key, chg in seq
-            if key in notify_discord.NAVER_LINKS][:25]
+    return [(notify_discord.dir_label(ko, chg), key, notify_discord.NAVER_LINKS[key])
+            for ko, key, chg in seq if key in notify_discord.NAVER_LINKS][:25]
+
+
+def hero_link(links):
+    """카드 링크 목록의 첫 줄 = 사진을 눌렀을 때 갈 곳. 없으면 None(대시보드 폴백)."""
+    return links[0][2] if links else None
+
+
+def _dc_select(data, weekly=False, links=None):
+    """v4 지표 드롭다운(기획 ed0e5496 — 버튼 다이어트) — 구 버튼 그리드(v3, 16버튼)를
+    String Select 1행으로 압축. 옵션 = 그 카드에 그려진 지표(card_links 단일 원천)."""
+    src = links if links is not None else card_links(
+        data, None, False, datetime.datetime.now(KST), weekly=weekly)
+    return [(lab, key) for lab, key, _u in src]
 
 
 def _dc_thread_name(now):
@@ -2153,13 +2182,21 @@ def _send_close_report(data):
         print(f"[discord] 마감 카드 예외({e}) — 필드만 발송")
     # v4(버튼 다이어트): 유틸 버튼 1행 + 지표 드롭다운 — 등락 정보는 카드 B 가 담당,
     # 구 지표 미러 버튼 행은 폐기(기획 ed0e5496). description = AI 요약 1줄(P3).
+    # 마감 카드는 코스피·코스닥·미 지수 네 칸이 본문이다 — 링크 목록도 그 네 칸으로.
+    # 제목 클릭은 코스피 네이버 페이지, 대시보드는 버튼(2026-09-22 사용자 요청).
+    _links = [(notify_discord.dir_label(lab, chg), key, notify_discord.NAVER_LINKS[key])
+              for lab, key, chg in (("코스피", "KOSPI", _f((idx.get("KOSPI") or {}).get("change"))),
+                                    ("코스닥", "KOSDAQ", _f((idx.get("KOSDAQ") or {}).get("change"))),
+                                    ("S&P500", "SP500", _f((idx.get("SP500") or {}).get("change"))),
+                                    ("나스닥", "NASDAQ", _f((idx.get("NASDAQ") or {}).get("change"))))
+              if key in notify_discord.NAVER_LINKS]
     ok = notify_discord.send(
-        _ai_line(data, 1), png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 시장 지표 보기",
-        url=DASHBOARD_URL + "?p=market", color=color,
+        _ai_line(data, 1), png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 코스피 시세 보기",
+        url=hero_link(_links) or DASHBOARD_URL + "?p=market", color=color,
         fields=None if png else rows,
         footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
         timestamp=True, thread_name=_dc_thread_name(now),
-        buttons=[_dc_buttons()], select=_dc_select(data))
+        buttons=[_dc_buttons()], select=_dc_select(data, links=_links))
     # 카카오 병행(기획 v3 §02 P2) — 마감도 카톡으로. 카드는 정사각 변형을 따로 그린다
     # (가로 4분면은 말풍선에서 축소돼 읽히지 않는다). 실패는 경고만 — 디스코드는 이미 나갔다.
     kok = False
@@ -2178,10 +2215,12 @@ def _send_close_report(data):
             except Exception as e:
                 print(f"[kakao] 마감 정사각 카드 예외({e}) — 텍스트 폴백")
             _cap = " · ".join(f"{lab} {val}" for lab, val, _i in rows[:3])
+            _hb = _hero_button(_links)
             kok = send_card(_tok, f"🔔 {now.month}/{now.day} 장 마감", _cap, png=_kpng,
                             uuids=_uuids, kind="장 마감",
-                            buttons=[("대시보드", DASHBOARD_URL),
-                                     ("시장 지표", DASHBOARD_URL + "?p=market")])
+                            link_url=hero_link(_links),
+                            buttons=([(_hb["title"], _hb["link"]["web_url"])] if _hb else [])
+                                    + [("대시보드 보기", DASHBOARD_URL)])
         except (SystemExit, Exception) as e:
             print(f"::warning title=마감 카톡 실패::{e} — 디스코드는 별도 경로로 발송됨")
     if ok or kok:
@@ -2293,6 +2332,10 @@ def main():
         # 그날의 주인공을 한 번만 고른다 — 두 채널 카드가 같은 자산을 가리켜야 한다.
         _focus = (None, None, 0) if _weekly_mode else pick_focus(
             data, slot, weekend, datetime.datetime.now(KST))
+        # 카드에 그려질 지표 → 링크 목록. 두 채널(디스코드 드롭다운·카톡 버튼/사진 탭)이
+        # 같은 목록을 써야 "사진에서 본 그 칸"이 양쪽에서 같은 자리에 있다.
+        _links = card_links(data, slot, weekend, datetime.datetime.now(KST),
+                            focus_key=_focus[0], weekly=_weekly_mode)
         try:
             import notify_discord
             if _charts_enabled():
@@ -2368,12 +2411,16 @@ def main():
             notify_discord.send(
                 # P3(기획 5154773b) — AI 요약을 description 으로(카드 실패 폴백에도 도달).
                 _ai_line(data, 3 if _is_brief else 2),
-                png=_card_png or _dc_png, title=_title, url=DASHBOARD_URL,
+                # 제목 클릭 = 카드가 말하는 지표의 네이버 증권(2026-09-22 사용자 요청).
+                # 대시보드는 아래 버튼이 담당한다.
+                png=_card_png or _dc_png, title=_title,
+                url=hero_link(_links) or DASHBOARD_URL,
                 color=_dc_color,
                 fields=_fields,
                 footer=f"시세 {datetime.datetime.now(KST).strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
                 timestamp=True, thread_name=_dc_thread_name(datetime.datetime.now(KST)),
-                buttons=[_dc_buttons()], select=_dc_select(data, weekly=_weekly_mode))
+                buttons=[_dc_buttons()], select=_dc_select(data, weekly=_weekly_mode,
+                                                           links=_links))
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 
@@ -2413,7 +2460,7 @@ def main():
 
         if _charts_enabled():
             if send_chart_feed(access_token, data, title, feed_blocks, slot, weekend,
-                               uuids=uuids, png=_dc_png, full_blocks=blocks):
+                               uuids=uuids, png=_dc_png, full_blocks=blocks, links=_links):
                 _mark_sent_ok()                      # 실제 발송 성공 — 여기서만 센티널 생성
                 print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
                 return

@@ -75,10 +75,21 @@ def dir_label(name, c):
 # ── 네이버 증권 딥링크(기획 c661d5b0 v3) ──────────────────────────────────
 # 2026-08-11 2중 검사(최종 URL 동일성 + 본문 키워드) 통과분만 등록한다.
 # 네이버는 미제공 지표를 404 대신 타 페이지로 조용히 리다이렉트하므로(소프트 200 —
-# VKOSPI 가 코스피로 302 하던 실측) 후보 추가는 반드시 같은 2중 검사를 먼저 거칠 것.
-# 미제공 확정: VKOSPI·MOVE·PutCall·HY·SCFI·구리·밀·옥수수(전 경로 리다이렉트/404).
+# VKOSPI 가 코스피로 302 하던 실측) 후보 추가는 반드시 검사를 먼저 거칠 것.
+#
+# ⚠ 2026-09-22 실측 — 네이버가 finance.naver.com 을 stock.naver.com(Npay 증권)으로
+#   전면 이전했다. 아래 레거시 URL 은 전부 301 로 새 페이지에 정확히 도착하므로 그대로
+#   둔다. 새 주소로 바꾸지 않는 이유는 검사 때문이다: 새 사이트는 SPA 셸이라 어느
+#   지표든 <title> 이 "Npay 증권" 하나뿐이고 본문에 지표명이 없다 — 본문 키워드 검사가
+#   통째로 무력해져 죽은 링크와 산 링크가 구별되지 않는다. 레거시 URL 은 서버 렌더라
+#   check_links.py 의 탐지력이 살아 있다.
+#   새 사이트에서 쓸 수 있는 판별은 '요청한 경로에 머무르는가 vs 루트(/)로 튕기는가'다 —
+#   미제공 지표(미국채 10Y·국고채 10Y·달러인덱스)는 전부 stock.naver.com/ 루트로 튕긴다.
+# 미제공 확정(2026-09-22 재확인): VKOSPI·MOVE·PutCall·HY·SCFI·밀·옥수수(404),
+#   US10Y·KR10Y·EU10Y·DXY(루트 리다이렉트 — 네이버에 해당 페이지가 없다).
 # 이 dict 의 URL 은 check_links.py 가 주기 점검한다(개편 감지).
 _NF = "https://finance.naver.com"
+_NS = "https://stock.naver.com"
 NAVER_LINKS = {
     "KOSPI": _NF + "/sise/sise_index.naver?code=KOSPI",
     "KOSDAQ": _NF + "/sise/sise_index.naver?code=KOSDAQ",
@@ -86,10 +97,16 @@ NAVER_LINKS = {
     "NASDAQ": _NF + "/world/sise.naver?symbol=NAS@IXIC",
     "Nikkei": _NF + "/world/sise.naver?symbol=NII@NI225",
     "SOX": _NF + "/world/sise.naver?symbol=NAS@SOX",
+    # 2026-09-22 추가 — 카드 타일에 매번 그려지는데 링크가 없던 셋.
+    "Shanghai": _NF + "/world/sise.naver?symbol=SHS@000001",
     "USDKRW": _NF + "/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW",
     "USDJPY": _NF + "/marketindex/worldExchangeDetail.naver?marketindexCd=FX_USDJPY",
+    "EURUSD": _NF + "/marketindex/worldExchangeDetail.naver?marketindexCd=FX_EURUSD",
     "Gold": _NF + "/marketindex/worldGoldDetail.naver?marketindexCd=CMDT_GC",
     "Silver": _NF + "/marketindex/worldGoldDetail.naver?marketindexCd=CMDT_SI",
+    # 구리만 새 주소다 — 레거시 경로(worldDailyQuote?marketindexCd=CMDT_CDY)는 410 이고
+    # 새 사이트에는 페이지가 생겼다. 예전 '미제공' 판정은 레거시 기준이었다.
+    "Copper": _NS + "/marketindex/metals/HGcv1/price",
     "WTI": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=OIL_CL",
     "Brent": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=OIL_BRT",
     "NatGas": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=CMDT_NG",

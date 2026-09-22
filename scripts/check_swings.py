@@ -40,6 +40,9 @@ SWING_RULES = [
     ("S&P500", "^GSPC", "US", 2.0),
     ("달러-원", "KRW=X", "ANY", 1.0),
 ]
+# 야후 심볼 → NAVER_LINKS 키. 카카오·디스코드 두 경로가 같은 표를 봐야 한 알림 안에서
+# 사진 탭·버튼·제목이 다른 곳으로 가지 않는다(2026-09-22 — 종전엔 디스코드에만 있었다).
+_SYM2KEY = {"^KS11": "KOSPI", "^GSPC": "SP500", "KRW=X": "USDKRW"}
 Z_THRESHOLD = 2.5                        # |z| 이 값 이상이면 발동(기획안 T1)
 FLOOR_PCT = 0.5                          # z 가 아무리 커도 이보다 작게 움직였으면 안 보낸다
 # σ 정규화의 알려진 함정 — 위기 국면에선 σ 가 같이 부풀어 임계가 올라가고, 정작 시장이
@@ -148,10 +151,14 @@ def main():
                                            src=_src, shape="square", why=why0)
             except Exception as _ce:
                 print(f"[swings] 정사각 카드 예외({_ce}) — 텍스트 폴백")
+            import notify_discord as _nd
+            _url0 = _nd.NAVER_LINKS.get(_SYM2KEY.get(sym0))
+            # 사진 탭 = 급변한 그 지표의 네이버 페이지, 대시보드는 버튼(2026-09-22).
+            _btn0 = [(f"{name0} 시세", _url0)] if _url0 else []
             kakao.send_card(access_token, _lines[0][:44], "\n".join(_lines[1:4])[:120],
                             png=_kpng, uuids=[f["uuid"] for f in friends], kind="급변 속보",
-                            buttons=[("주식시장",
-                                      "https://0101-commits.github.io/economic-site/?p=equity")])
+                            link_url=_url0,
+                            buttons=_btn0 + [("대시보드 보기", kakao.DASHBOARD_URL)])
             sent_ok = True
         except (SystemExit, Exception) as e:
             print(f"::warning title=급변 속보 카카오 실패::{e} — 디스코드 경로 시도")
@@ -172,14 +179,16 @@ def main():
             print(f"[swings] 카드 렌더 예외({_ce}) — 텍스트만 발송")
         # v3 버튼 — 급변 지표의 네이버 증권 원클릭(봇 경로). 웹훅 폴백 시엔
         # notify_discord 가 링크 필드로 자동 변환해 도달을 보장한다.
-        _sym2key = {"^KS11": "KOSPI", "^GSPC": "SP500", "KRW=X": "USDKRW"}
         # v4 버튼 다이어트(기획 ed0e5496) — 위급 채널은 버튼 직행 유지하되 1행 3개 상한
-        # (딥링크 1 + 급변 지표 최대 2). 라벨 등락률은 유지(카드 없이 올 수 있는 채널).
-        _btns = [("주식시장", "https://0101-commits.github.io/economic-site/?p=equity")]
+        # (급변 지표 최대 2 + 대시보드 1). 라벨 등락률은 유지(카드 없이 올 수 있는 채널).
+        # 순서를 뒤집었다(2026-09-22): 급변한 지표가 앞, 대시보드가 뒤 — 종전엔 첫 버튼이
+        # 대시보드라 '그 지표를 보러 가는' 동선이 한 칸 뒤였다.
+        _btns = []
         for _, _, nm, sym, _, pct, _, _ in hits[:2]:
-            u = notify_discord.NAVER_LINKS.get(_sym2key.get(sym))
+            u = notify_discord.NAVER_LINKS.get(_SYM2KEY.get(sym))
             if u:
                 _btns.append((notify_discord.dir_label(f"N {nm}", pct), u))
+        _btns.append(("대시보드", "https://0101-commits.github.io/economic-site/?p=equity"))
         # 제목=결론 한 줄(기획안 원칙 4) — "언제 급변"이 아니라 "무엇이 얼마나 이례적으로".
         # 근거는 자연어 서수를 먼저 쓰고(금융 저널리즘 관행), 없으면 σ 배수로 적는다.
         # why0 = "z −2.6σ · 최근 1년 중 4번째로 큰 하락" — 서수 조각만 뽑아 쓴다
@@ -195,7 +204,9 @@ def main():
         if notify_discord.send(
                 "\n".join(h[1] for h in hits), png=_png,
                 title=_head[:256],
-                url="https://0101-commits.github.io/economic-site/?p=equity",
+                # 제목 클릭 = 급변한 지표의 네이버 증권. 대시보드는 버튼(2026-09-22).
+                url=(notify_discord.NAVER_LINKS.get(_SYM2KEY.get(sym0))
+                     or "https://0101-commits.github.io/economic-site/?p=equity"),
                 color=notify_discord.COLOR_FIRE, footer=ca.DELAY_NOTICE,
                 timestamp=True, mention=True, env="DISCORD_WEBHOOK_SWINGS",
                 buttons=_btns):

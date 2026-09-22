@@ -247,14 +247,24 @@ def test_hero_symbol_reuses_existing_tables():
 
 
 def test_hero_button_only_for_verified_links():
-    """피드 2번째 버튼 — 네이버 2중 검사를 통과한 링크만. 없으면 버튼을 붙이지 않는다."""
+    """피드 첫 버튼 — 네이버 검사를 통과한 링크만. 하나도 없으면 버튼을 붙이지 않는다.
+
+    ⚠ 2026-09-22 계약 변경 — _hero_button 은 이제 슬롯이 아니라 **카드 링크 목록**을
+    받는다(card_links). 편성표의 고정 히어로를 쓰던 종전에는, 그날 이례 자산으로
+    카드 주인공이 바뀌어도 버튼은 그대로라 카드와 버튼이 다른 지표를 가리켰다.
+    us_pre 의 히어로 US10Y 는 여전히 네이버 미제공이라 목록에서 빠지고, 같은 카드의
+    다음 칸(달러-원)이 대표가 된다 — 버튼이 사라지는 대신 옆 칸으로 떨어진다.
+    """
     import datetime
     kst = datetime.timezone(datetime.timedelta(hours=9))
     now = datetime.datetime(2026, 8, 25, 15, 0, tzinfo=kst)
-    b = skd._hero_button("h15", False, now)                  # kr_session → KOSPI
+    data = {"indices": {}, "fx": {}, "commodities": {}, "yield": {}, "macro": {}}
+    b = skd._hero_button(skd.card_links(data, "h15", False, now))   # kr_session → KOSPI
     assert b and "코스피" in b["title"]
     assert b["link"]["web_url"].startswith("https://finance.naver.com")
-    assert skd._hero_button("h20", False, now) is None       # us_pre → US10Y, 네이버 미제공
+    us = skd._hero_button(skd.card_links(data, "h20", False, now))  # us_pre → US10Y 미제공
+    assert us and "달러-원" in us["title"], us
+    assert skd._hero_button([]) is None                             # 목록이 비면 버튼 없음
 
 
 if __name__ == "__main__":
