@@ -116,3 +116,56 @@ def test_alert_hero_is_safe_when_nothing_links():
     assert CA._alert_hero([], SNAPS) == ("", None)
     assert CA._alert_hero([({"name": "X", "symbol": "999999", "market": "KR"}, "l")],
                           {}) == ("", None)
+
+
+# ── 카카오 링크 도메인 제약 ────────────────────────────────────────────────
+# 카카오톡 link.web_url 은 앱에 등록된 사이트 도메인이어야 한다. 미등록 도메인을 넣으면
+# 카카오가 도메인만 갈아 끼우고 경로는 남겨 GitHub 404 가 된다(2026-09-22 13:16 실측:
+# finance.naver.com/sise/sise_index.naver?code=KOSPI
+#   → 0101-commits.github.io/sise/sise_index.naver?code=KOSPI).
+GO = K.DASHBOARD_URL + "go.html"
+
+
+def test_kakao_links_never_leave_the_registered_domain():
+    """카톡에 실리는 모든 링크는 등록 도메인이어야 한다 — 하나라도 새면 404 가 뜬다."""
+    for key, url in N.NAVER_LINKS.items():
+        got = K.kakao_link(url)
+        assert got.startswith(K.DASHBOARD_URL), f"{key}: {got}"
+        assert got == f"{GO}?k={key}"
+    assert K.kakao_link("https://finance.naver.com/item/main.naver?code=000660") == f"{GO}?s=000660"
+
+
+def test_kakao_link_passes_own_domain_through():
+    """우리 도메인은 중계할 이유가 없다 — 한 번 더 튕기면 느려지기만 한다."""
+    assert K.kakao_link(K.DASHBOARD_URL + "?p=market") == K.DASHBOARD_URL + "?p=market"
+    assert K.kakao_link(None) == K.DASHBOARD_URL
+    assert K.kakao_link("") == K.DASHBOARD_URL
+
+
+def test_kakao_link_refuses_unknown_external():
+    """화이트리스트 밖 외부 URL 은 대시보드로 — 우리 도메인이 중계기가 되면 안 된다."""
+    assert K.kakao_link("https://example.com/evil") == K.DASHBOARD_URL
+    assert K.kakao_button("x", "https://example.com/evil")["link"]["web_url"] == K.DASHBOARD_URL
+
+
+def test_kakao_button_always_converts():
+    """버튼도 같은 관문을 지난다(종전엔 버튼만 네이버 생 URL 이었다)."""
+    b = K.kakao_button("코스피 시세", N.NAVER_LINKS["KOSPI"])
+    assert b["link"]["web_url"] == f"{GO}?k=KOSPI"
+    assert b["link"]["web_url"] == b["link"]["mobile_web_url"]
+
+
+def test_go_page_is_in_sync_with_naver_links():
+    """go.html 은 생성물 — NAVER_LINKS 와 어긋나면 중계가 대시보드로 떨어진다."""
+    import subprocess
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "build_go_page.py"),
+                        "--check"], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_go_page_takes_no_url_parameter():
+    """열린 리다이렉트 방지 — go.html 은 키/종목코드만 받고 URL 은 받지 않는다."""
+    html = open(os.path.join(ROOT, "go.html"), encoding="utf-8").read()
+    assert "q.get('k')" in html and "q.get('s')" in html
+    assert "q.get('url')" not in html and "q.get('to')" not in html
+    assert "[0-9]{6}" in html          # 종목은 6자리 숫자만

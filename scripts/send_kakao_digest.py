@@ -1745,9 +1745,45 @@ def kakao_item(label, value):
     return {"item": cut(label, KAKAO_ITEM_LABEL), "item_op": cut(value, KAKAO_ITEM_VALUE)}
 
 
+GO_URL = DASHBOARD_URL + "go.html"
+
+
+def kakao_link(url):
+    """카카오에 넣어도 되는 URL 로 바꾼다 — 외부 도메인은 go.html 중계를 거친다.
+
+    ⚠ 카카오톡 link.web_url 은 **앱에 등록된 사이트 도메인**이어야 한다. 미등록
+    도메인을 넣으면 카카오가 도메인만 등록된 것으로 조용히 바꾸고 경로는 그대로 둔다 —
+    finance.naver.com/sise/sise_index.naver?code=KOSPI 가
+    0101-commits.github.io/sise/sise_index.naver?code=KOSPI 가 되어 GitHub 404 가
+    떴다(2026-09-22 13:16 발송본 실측). KAKAO_SETUP.md 에 적혀 있던 함정이다.
+    디스코드는 이 제약이 없으므로 **카카오 경로에서만** 이 함수를 통과시킨다.
+
+    되돌리기 쉬운 형태로 둔다: NAVER_LINKS 의 값이면 키로, 종목 URL 이면 코드로 바꿔
+    넘기고, 그 외 우리 도메인은 그대로 둔다(중계할 이유가 없다)."""
+    u = str(url or "").strip()
+    if not u or u.startswith(DASHBOARD_URL):
+        return u or DASHBOARD_URL
+    try:
+        import notify_discord
+        for k, v in notify_discord.NAVER_LINKS.items():
+            if v == u:
+                return f"{GO_URL}?k={k}"
+        import re
+        m = re.search(r"/item/main\.naver\?code=(\d{6})$", u)
+        if m:
+            return f"{GO_URL}?s={m.group(1)}"
+    except Exception:                                    # noqa: BLE001
+        pass
+    # 화이트리스트 밖 외부 URL — 카카오가 도메인을 갈아 끼워 404 를 만드느니 대시보드로.
+    print(f"::warning title=카톡 링크 미등록 도메인::{u[:80]} — 대시보드로 대체")
+    return DASHBOARD_URL
+
+
 def kakao_button(title, url):
-    """카카오 피드 버튼 — 이름은 8자 이하 권장(카카오 문서)이라 잘라서 넣는다."""
-    return {"title": str(title)[:8], "link": {"web_url": url, "mobile_web_url": url}}
+    """카카오 피드 버튼 — 이름은 8자 이하 권장(카카오 문서)이라 잘라서 넣는다.
+    링크는 kakao_link 를 거친다(미등록 도메인 → go.html 중계)."""
+    u = kakao_link(url)
+    return {"title": str(title)[:8], "link": {"web_url": u, "mobile_web_url": u}}
 
 
 def send_feed(access_token, title, description, image_url, items=None, dims=CHART_PX,
@@ -1757,7 +1793,7 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
     buttons = [{title, link}] 을 주면 기본 버튼 구성을 그것으로 대체한다(카카오 상한 2개).
     link_url = **사진·제목을 눌렀을 때 갈 곳**(2026-09-22). 카드가 말하는 지표의 네이버
     증권 페이지를 넣는다 — 종전엔 무조건 대시보드였다. 대시보드는 버튼이 담당한다."""
-    _lk = link_url or DASHBOARD_URL
+    _lk = kakao_link(link_url or DASHBOARD_URL)
     content = {
         "title": title,
         "description": description,
