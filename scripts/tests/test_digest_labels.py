@@ -57,3 +57,21 @@ def test_headline_overflow_goes_to_rows():
     desc, items = K.build_feed_parts(blocks)
     assert len(desc.split("\n")) == K.DESC_MAX
     assert "c 3" in " ".join(i["item_op"] for i in items)
+
+
+def test_news_field_is_sorted_by_time_not_title():
+    """같은 날 기사끼리 제목 가나다순으로 뽑히면 안 된다(isoDate 는 날짜뿐이다)."""
+    data = {"news": {"주식": [
+        {"title": "ㄱ 오래된 기사", "url": "u1", "isoDate": "2026-09-22",
+         "pubDate": "Tue, 22 Sep 2026 01:00:00 +0900"},
+        {"title": "ㅎ 최신 기사", "url": "u2", "isoDate": "2026-09-22",
+         "pubDate": "Tue, 22 Sep 2026 09:30:00 +0900"},
+    ]}}
+    _lab, val, _inline = K._news_field(data, 1)
+    assert "최신 기사" in val, val
+
+
+def test_news_field_survives_missing_pubdate():
+    """pubDate 가 없는 소스도 날짜로 떨어져 살아 있어야 한다."""
+    data = {"news": {"주식": [{"title": "날짜만 있는 기사", "url": "u", "isoDate": "2026-09-22"}]}}
+    assert "날짜만 있는 기사" in K._news_field(data, 1)[1]

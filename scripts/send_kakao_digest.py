@@ -1175,6 +1175,20 @@ def load_mri(data):
         print(f"[digest] MRI 로드 실패({e}) — 헤더 표기 생략")
 
 
+def _news_sort_key(it):
+    """정렬용 발행 시각 — isoDate 는 날짜뿐이라 같은 날 기사끼리는 제목 가나다순이
+    돼 버린다(실측 2026-09-22: 07시 뉴스 두 줄이 시장과 무관한 기사로 고정돼 있었다).
+    RSS 의 pubDate 에는 시각이 있으니 그걸 먼저 쓰고, 없으면 날짜로 떨어진다."""
+    import email.utils
+    p = str(it.get("pubDate") or "").strip()
+    if p:
+        try:
+            return email.utils.parsedate_to_datetime(p).astimezone(KST).isoformat()
+        except Exception:                                    # noqa: BLE001
+            pass
+    return str(it.get("isoDate") or "")[:10]
+
+
 def _news_field(data, n=2):
     """오늘·어제 뉴스 상위 n건 → (라벨, 값, inline) 또는 None.
 
@@ -1188,7 +1202,7 @@ def _news_field(data, n=2):
                 continue                                     # lastFetched 같은 스칼라 키
             for it in items[:3]:
                 if isinstance(it, dict) and it.get("title") and it.get("isoDate"):
-                    rows.append((str(it["isoDate"])[:10], str(it["title"]).strip(),
+                    rows.append((_news_sort_key(it), str(it["title"]).strip(),
                                  it.get("url") or ""))
         if not rows:
             return None
