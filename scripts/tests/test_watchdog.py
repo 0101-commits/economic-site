@@ -32,27 +32,42 @@ def _trigger_names():
 
 
 def test_trigger_names_match_actual_workflows():
-    """workflow_run 의 이름이 실제 워크플로 name 과 한 글자도 달라선 안 된다."""
-    actual = {_wf_name(f) for f, _n, _l, _i in W.WATCH}
+    """workflow_run 의 이름이 실제 워크플로 name 과 한 글자도 달라선 안 된다.
+
+    즉시 통지 대상(instant=True)만 트리거 목록에 있어야 한다 — 산발 실패가 정상인
+    워크플로까지 넣으면 감시자가 늑대를 부르고, 그러면 아무도 안 읽는다.
+    """
+    actual = {_wf_name(k) for k, _n, _l, _i, inst in W.WATCH if inst}
     assert set(_trigger_names()) == actual, f"{sorted(_trigger_names())} != {sorted(actual)}"
 
 
 def test_watched_workflow_files_exist():
-    for fname, _n, _l, _i in W.WATCH:
-        assert os.path.exists(os.path.join(WFDIR, fname)), fname
+    """파일명으로 지정한 대상은 실제 파일이 있어야 한다(숫자 id 는 GitHub 관리 워크플로)."""
+    for key, _n, _l, _i, _inst in W.WATCH:
+        if key.isdigit():
+            continue
+        assert os.path.exists(os.path.join(WFDIR, key)), key
 
 
 def test_watchdog_does_not_watch_itself():
     """자기 실패를 자기가 통지하면 실패가 실패를 낳는다."""
-    assert "watchdog.yml" not in [f for f, _n, _l, _i in W.WATCH]
+    assert "watchdog.yml" not in [k for k, _n, _l, _i, _inst in W.WATCH]
     assert _wf_name("watchdog.yml") not in _trigger_names()
 
 
 def test_silence_thresholds_are_sane():
     """장중 임계가 장외보다 빡빡해야 한다(장외엔 안 도는 게 정상이거나 훨씬 드물다)."""
-    for _f, name, live, idle in W.WATCH:
+    for _k, name, live, idle, _inst in W.WATCH:
         assert live and live > 0, name
         assert idle is None or idle >= live, name
+
+
+def test_cancelled_is_not_a_failure():
+    """concurrency 가 앞 런을 밀어낸 취소를 실패로 세면 상시 오경보가 된다.
+
+    실측: pages 배포는 데이터 커밋마다 돌아 최근 10건 중 취소가 늘 섞여 있다.
+    """
+    assert "cancelled" in W.OK_CONCLUSIONS
 
 
 def test_selftest_passes():

@@ -30,17 +30,28 @@ import notify_discord
 KST = datetime.timezone(datetime.timedelta(hours=9))
 API = "https://api.github.com"
 
-# 감시 대상 — (워크플로 파일, 표시명, 장중 임계(분), 장외 임계(분)).
-# 임계는 '이보다 오래 아무 런도 없으면 멈춘 것으로 본다'. 장중 stock-alerts 는 Worker cron
-# 이 매분 깨우므로 10분이면 충분히 느슨하고, 장외엔 아예 안 도는 게 정상이라 감시하지 않는다.
+# 감시 대상 — (워크플로 키, 표시명, 장중 임계(분), 장외 임계(분), 즉시 통지?).
+# 키는 워크플로 파일명, 또는 저장소에 파일이 없는 GitHub 관리 워크플로의 숫자 id.
+# 임계는 '이보다 오래 아무 런도 없으면 멈춘 것으로 본다'.
+#
 # 임계는 '거짓 경보를 절대 내지 않는 선'으로 넉넉히 잡는다 — 늑대를 부르는 감시자는
 # 곧 무시당한다. 여기서 잡으려는 것은 '몇 분 늦었다'가 아니라 '며칠째 멈췄다'이다.
+#
+# 즉시 통지(instant)가 False 면 workflow_run 트리거 목록에 넣지 않는다 —
+# 산발 실패가 정상인 워크플로는 '연속 실패'로만 본다.
 WATCH = [
-    ("stock-alerts.yml", "장중 알림 평가", 15, None),   # 장외엔 안 도는 게 정상
-    ("fetch-data.yml", "시장 데이터 수집", 30, 120),
-    ("kakao-daily.yml", "다이제스트 게이트", 30, 120),
+    ("stock-alerts.yml", "장중 알림 평가", 15, None, True),    # 장외엔 안 도는 게 정상
+    ("fetch-data.yml", "시장 데이터 수집", 30, 120, True),
+    ("kakao-daily.yml", "다이제스트 게이트", 30, 120, True),
+    # 사이트 배포(GitHub 관리 워크플로 — 저장소에 파일이 없어 숫자 id 로 조회한다).
+    # 데이터 커밋마다 돌고 동시 배포는 서로를 취소하므로 산발 실패·취소가 정상이다.
+    # 그래서 즉시 통지에서 빼고 '연속 실패'와 '아예 안 돈다'만 본다 — 배포가 멈추면
+    # data.json 이 갱신돼도 화면은 옛 값에 멈춘다.
+    ("268675167", "사이트 배포", 60, 180, False),
 ]
-# 최근 런 몇 개를 실패율 판정에 쓰나 — 한두 건 실패는 일시적 네트워크라 울리지 않는다.
+# 실패로 세지 않는 결론 — cancelled 는 concurrency 그룹이 앞 런을 밀어낸 정상 동작이고
+# (pages 배포·fetch-data 에서 상시 발생), skipped 는 게이트가 통과시키지 않은 것이다.
+OK_CONCLUSIONS = ("success", "skipped", "cancelled")
 RECENT_N = 10
 FAIL_RATIO = 0.5
 
@@ -70,7 +81,7 @@ def _age_min(iso, now):
 
 def _threshold(wf, now):
     """그 워크플로가 지금 '돌고 있어야 하는가' → 임계(분) 또는 None(감시 안 함)."""
-    _f, _name, live, idle = wf
+    _k, _name, live, idle, _inst = wf
     return live if (ca.is_market_open("KR", now) or ca.is_market_open("US", now)) else idle
 
 
@@ -79,12 +90,12 @@ def check_silence(now=None):
     now = now or datetime.datetime.now(datetime.timezone.utc)
     out = []
     for wf in WATCH:
-        fname, name, _live, _idle = wf
+        key, name, _live, _idle, _inst = wf
         thr = _threshold(wf, now.astimezone(KST))
         if thr is None:
             continue                                  # 지금은 안 도는 게 정상인 시간대
         try:
-            runs = (_api(f"/repos/{_repo()}/actions/workflows/{fname}/runs"
+            runs = (_api(f"/repos/{_repo()}/actions/workflows/{key}/runs"
                          f"?per_page={RECENT_N}") or {}).get("workflow_runs") or []
         except (urllib.error.URLError, OSError, ValueError) as e:
             out.append((name, f"런 조회 실패 — {type(e).__name__}"))
@@ -97,7 +108,7 @@ def check_silence(now=None):
             out.append((name, f"마지막 런이 {age:.0f}분 전 (임계 {thr}분) — 트리거가 끊겼다"))
             continue
         done = [r for r in runs if r.get("status") == "completed"]
-        bad = [r for r in done if r.get("conclusion") not in ("success", "skipped")]
+        bad = [r for r in done if r.get("conclusion") not in OK_CONCLUSIONS]
         if done and len(bad) / len(done) >= FAIL_RATIO:
             out.append((name, f"최근 {len(done)}건 중 {len(bad)}건 실패 — 연속 실패"))
     return out
@@ -154,6 +165,8 @@ def demo():
     night = datetime.datetime(2026, 9, 22, 10, 0, tzinfo=datetime.timezone.utc)  # 19시 KST
     assert _threshold(WATCH[0], night.astimezone(KST)) is None, "장외 stock-alerts 는 감시 제외"
     assert _threshold(WATCH[1], night.astimezone(KST)) == 120
+    assert [w[0] for w in WATCH if not w[4]] == ["268675167"], "즉시 통지 제외는 pages 뿐"
+    assert "cancelled" in OK_CONCLUSIONS, "concurrency 취소를 실패로 세면 상시 오경보다"
     # 시계 어긋남으로 미래 시각이 와도 '음수 나이'가 되면 안 된다(임계 비교가 뒤집힌다).
     fut = (now + datetime.timedelta(minutes=5)).isoformat()
     assert _age_min(fut, now) == 0.0
