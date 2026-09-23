@@ -357,6 +357,7 @@ def _a1(c):
     c = _f(c)
     if c is None:
         return ""
+    c = round(c, 1) + 0.0          # -0.04 → '▲-0.0%' 이던 것(실측 S&P) — 반올림 후 부호로 판정
     return f"▲{c:.1f}%" if c >= 0 else f"▼{abs(c):.1f}%"
 
 
@@ -1760,7 +1761,9 @@ def _hero_button(links):
     lab, key, url = links[0]
     import discord_card
     ko = (discord_card._CATALOG.get(key) or (key,))[0]
-    return {"title": f"{ko} 시세", "link": {"web_url": url, "mobile_web_url": url}}
+    # 8자를 넘으면 '시세'를 뺀다 — 잘라서 'S&P500 시'로 나갔다(2026-09-23 실측).
+    t = f"{ko} 시세" if len(ko) <= 5 else ko
+    return {"title": t, "link": {"web_url": url, "mobile_web_url": url}}
 
 
 # 피드 설명(헤드라인)으로 올라가는 블록 라벨 — 일간·주간 공통. 나머지는 행이 된다.
@@ -1818,7 +1821,7 @@ def kakao_link(url):
             if v == u:
                 return f"{GO_URL}?k={k}"
         import re
-        m = re.search(r"/item/main\.naver\?code=(\d{6})$", u)
+        m = re.search(r"/item/main\.naver\?code=([0-9A-Z]{6})$", u)
         if m:
             return f"{GO_URL}?s={m.group(1)}"
     except Exception:                                    # noqa: BLE001

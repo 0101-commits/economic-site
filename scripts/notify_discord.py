@@ -24,6 +24,7 @@ footer: 항상 신선도 한 줄("시세 HH:MM 기준…" 또는 DELAY_NOTICE).
   (+스레드 멤버 푸시) / T4 운영=무멘션. mention 파라미터: True|"everyone"|"role:이름"|None.
 """
 import os
+import re
 import json
 import uuid
 import datetime
@@ -116,7 +117,8 @@ NAVER_LINKS = {
 def naver_stock_url(code):
     """국내 종목(6자리 코드) 네이버 페이지 — 형식이 아니면 None(깨진 링크 방지)."""
     c = str(code or "").strip()
-    return f"{_NF}/item/main.naver?code={c}" if c.isdigit() and len(c) == 6 else None
+    # 신형 ETF 는 영문이 섞인 6자리다(0018Z0 등, 2026-09-23 실측 — 숫자만 받아 링크가 빠졌다).
+    return f"{_NF}/item/main.naver?code={c}" if re.fullmatch(r"[0-9A-Z]{6}", c) else None
 
 # 시맨틱 컬러(D1) — 메시지 글자색은 디스코드가 지원하지 않아(ANSI 코드블록은 모바일 미표시)
 # embed 색띠가 표준. 알림 성격별 고정 팔레트:

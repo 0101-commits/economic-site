@@ -67,7 +67,7 @@ var DASH = {dash_js};
   var s = q.get('s') || '';
   var to = null;
   if (k && Object.prototype.hasOwnProperty.call(LINKS, k)) to = LINKS[k];
-  else if (/^[0-9]{{6}}$/.test(s)) to = {stock_js} + s;   // 국내 종목 6자리만
+  else if (/^[0-9A-Z]{{6}}$/.test(s)) to = {stock_js} + s;   // 국내 종목 6자리(신형 ETF 는 영문 포함)
   if (!to) {{
     to = DASH;
     document.getElementById('msg').textContent = '대시보드로 이동 중…';
