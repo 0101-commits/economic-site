@@ -36,3 +36,30 @@ st = {"x": rec}
 assert not ca.should_send({"id": "x", "type": "z_move", "limit": "cool60", "market": "KR"}, st, now)
 assert ca.should_send({"id": "x", "type": "high52", "limit": "cool60", "market": "KR"}, st, now)
 print("ok")
+
+# ④ 같은 날 주인공 반복 — 더 커지지 않으면 건너뛰고, 0.5σ 이상 커지면 다시 주인공
+import json as _json                   # noqa: E402
+import tempfile                        # noqa: E402
+import send_kakao_digest as sk         # noqa: E402
+assert sk._repeat("USDKRW", -3.0, {"USDKRW": -2.8})
+assert not sk._repeat("USDKRW", -3.4, {"USDKRW": -2.8})       # 확대
+assert not sk._repeat("USDKRW", 2.9, {"USDKRW": -2.8})        # 방향 전환
+assert not sk._repeat("KOSPI", 2.5, {"USDKRW": -2.8})
+_p = os.path.join(tempfile.mkdtemp(), "f.json")
+_t = datetime.datetime(2026, 9, 22, 12, 2, tzinfo=KST)
+sk.record_focus(("USDKRW", -2.8), _t, path=_p)
+sk.record_focus(("KOSPI", None), _t, path=_p)                  # 고정 주인공은 기록 안 함
+assert sk.load_focus_seen(_t, path=_p) == {"USDKRW": -2.8}
+assert sk.load_focus_seen(_t + datetime.timedelta(days=1), path=_p) == {}   # 날짜 바뀌면 초기화
+
+# pick_focus 가 seen 을 받아 반복 자산을 고정 주인공으로 돌린다(합성 데이터)
+_d = {"fx": {"USDKRW": {"rate": 1350.0, "change": -1.6}},
+      "indices": {"KOSPI": {"price": 7000.0, "change": 0.1}},
+      "history": {"fx": {"USDKRW": [{"date": "2026-09-22", "close": 1380 + (i % 3)} for i in range(300)]
+                         + [{"date": _t.strftime("%Y-%m-%d"), "close": 1350.0}]}}}
+_d["history"]["fx"]["USDKRW"][-1]["date"] = datetime.datetime.now(KST).strftime("%Y-%m-%d")
+k1 = sk.pick_focus(_d, "h12", False, _t)[0]
+k2 = sk.pick_focus(_d, "h12", False, _t, seen={"USDKRW": sk.pick_focus(_d, "h12", False, _t)[1] or -9})[0]
+assert k1 == "USDKRW", k1
+assert k2 == "KOSPI", k2
+print("ok ④")

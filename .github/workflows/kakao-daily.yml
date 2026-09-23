@@ -219,6 +219,17 @@ jobs:
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
         run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk || echo "::warning::한글 폰트 설치 실패 — 카드 영문 라벨로 강등"
 
+      # 오늘 이미 주인공이었던 자산(.kakao_focus.json) — 같은 움직임이 슬롯마다 카드를
+      # 독차지하지 않게 앞 슬롯 기록을 넘겨받는다(send_kakao_digest.pick_focus 의 seen).
+      # 캐시는 키가 불변이라 슬롯마다 새 키로 저장하고, 복원은 당일 접두어의 최신본을 쓴다.
+      - name: 주인공 기록 복원
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .kakao_focus.json
+          key: kakao-focus-${{ steps.gate.outputs.date }}-${{ github.run_id }}
+          restore-keys: kakao-focus-${{ steps.gate.outputs.date }}-
+
       - name: Send KakaoTalk digest
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
         env:
@@ -254,6 +265,14 @@ jobs:
           # 종료코드로는 성공을 알 수 없다 — 종전처럼 무조건 touch 하면 실패 슬롯까지 '발송됨'으로
           # 캐시돼 그 슬롯의 재시도(백업 스케줄)가 하루 종일 차단되는 무음 유실이 났다.
           if [ -f .kakao_sent_ok ]; then touch .kakao_sent_marker; fi
+
+      - name: 주인공 기록 저장
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true' && hashFiles('.kakao_focus.json') != ''
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .kakao_focus.json
+          key: kakao-focus-${{ steps.gate.outputs.date }}-${{ github.run_id }}
 
       # 💚 일일 운영 하트비트(기획안 P6) — 07시 슬롯에 붙여 하루 한 번만 나간다.
       #    알림이 안 오는 상황(수집 중단·토큰 만료)과 조용한 시장을 구별하기 위한 줄이다.

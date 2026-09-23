@@ -1093,26 +1093,75 @@ def focus_field(data, key, z, extra=0):
         return None
 
 
-def pick_focus(data, slot, weekend, now):
+# 같은 날 이미 주인공이었던 자산을 다시 주인공으로 세우는 조건 — 같은 방향으로 |z| 가
+# 이만큼 더 커졌을 때만('더 벌어졌다'). 그 밖엔 다음 이례 자산이나 고정 주인공이 받는다.
+# 2026-09-22 달러-원은 12·19·22시 세 통 연속 주인공이었다(z −2.8 → −3.4 → −3.0).
+FOCUS_ESCALATE_Z = 0.5
+FOCUS_PATH = ".kakao_focus.json"   # 워크플로가 actions/cache 로 슬롯 간에 넘겨준다(당일 키)
+
+
+def load_focus_seen(now, path=FOCUS_PATH):
+    """오늘 이미 주인공이었던 자산 → {키: z}. 파일이 없거나 날짜가 다르면 {}."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            j = json.load(f)
+        return dict(j.get("shown") or {}) if j.get("date") == now.strftime("%Y%m%d") else {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def record_focus(focus, now, path=FOCUS_PATH):
+    """발송 성공 후 — 이례로 교체된 주인공(z 있음)만 기록한다. 실패는 경고만."""
+    key, z = (focus or (None, None))[:2]
+    if not key or z is None:
+        return
+    seen = load_focus_seen(now, path)
+    seen[key] = z
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"date": now.strftime("%Y%m%d"), "shown": seen}, f)
+    except OSError as e:
+        print(f"::warning title=주인공 기록 실패::{e} — 다음 슬롯에 같은 주인공이 반복될 수 있음")
+
+
+def _repeat(key, z, seen):
+    """오늘 같은 방향으로 이미 주인공이었고 그 뒤로 충분히 커지지 않았으면 True."""
+    prev = seen.get(key)
+    return (prev is not None and (prev > 0) == (z > 0)
+            and abs(z) < abs(prev) + FOCUS_ESCALATE_Z)
+
+
+def pick_focus(data, slot, weekend, now, seen=None):
     """그날 카드의 주인공 → (키, z|None). 두 카드(디스코드·카카오)가 같은 값을 쓰게 한다.
 
     이례적인 날에는 그날 가장 크게 움직인 자산이 히어로 패널·추세 첫 칸·타일을 가져간다
     (기획안 확장, 2026-09-21). 후보를 '인트라데이를 그릴 수 있는 키'로 제한하는 이유는
     여기서만 심볼 표를 알기 때문이다 — 심볼이 없는 키를 주인공으로 뽑으면 빈 패널이 된다.
+
+    seen = 오늘 이미 주인공이었던 {키: z}(load_focus_seen). 같은 움직임이 슬롯마다 카드를
+    독차지하지 않게, 더 커지지 않은 반복은 건너뛴다(_repeat) — 다음 이례 자산이 있으면 그것,
+    없으면 고정 주인공. 건너뛴 자산도 타일에는 남고 σ 배지가 붙는다.
+
     반환 = (키, z|None, 추가 이례 건수). 실패하면 (None, None, 0) 을 돌려
     카드가 종전 고정 주인공으로 가게 둔다."""
     try:
         import discord_card
+        seen = seen or {}
         allowed = set(_YH_SYM) | set(_YIELD_INTRADAY_SYM)
         pkey = discord_card.profile_for(slot, weekend, now)
         prof = discord_card.PROFILES.get(pkey) or discord_card.PROFILES[discord_card.DEFAULT_PROFILE]
         hits = discord_card.focus_all(data, prof, pkey, allowed=allowed)
-        if hits:
-            key, z = hits[0]
+        fresh = [(k, z) for k, z in hits if not _repeat(k, z, seen)]
+        for k, z in hits:
+            if (k, z) not in fresh:
+                print(f"[digest] 주인공 반복 건너뜀: {k} (z {z:+.1f}σ, 앞 슬롯 {seen[k]:+.1f}σ)")
+        if fresh:
+            key, z = fresh[0]
             print(f"[digest] 오늘의 주인공 교체: {key} (z {z:+.1f}σ)"
                   + (f", 이례 {len(hits)}건" if len(hits) > 1 else ""))
             return key, z, len(hits) - 1
-        key, z = discord_card.focus_of(data, prof, pkey, allowed=allowed)
+        key, z = discord_card.focus_of(data, prof, pkey,
+                                       allowed=allowed - {k for k, _ in hits})
         return key, z, 0
     except Exception as e:                                   # noqa: BLE001
         print(f"[digest] 주인공 선정 실패({e}) — 고정 편성 유지")
@@ -2383,7 +2432,8 @@ def main():
         _weekly_mode = title.startswith("주간")
         # 그날의 주인공을 한 번만 고른다 — 두 채널 카드가 같은 자산을 가리켜야 한다.
         _focus = (None, None, 0) if _weekly_mode else pick_focus(
-            data, slot, weekend, datetime.datetime.now(KST))
+            data, slot, weekend, datetime.datetime.now(KST),
+            seen=load_focus_seen(datetime.datetime.now(KST)))
         # 카드에 그려질 지표 → 링크 목록. 두 채널(디스코드 드롭다운·카톡 버튼/사진 탭)이
         # 같은 목록을 써야 "사진에서 본 그 칸"이 양쪽에서 같은 자리에 있다.
         _links = card_links(data, slot, weekend, datetime.datetime.now(KST),
@@ -2513,6 +2563,7 @@ def main():
             if send_chart_feed(access_token, data, title, feed_blocks, slot, weekend,
                                uuids=uuids, png=_dc_png, full_blocks=blocks, links=_links):
                 _mark_sent_ok()                      # 실제 발송 성공 — 여기서만 센티널 생성
+                record_focus(_focus, datetime.datetime.now(KST))
                 print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
                 return
             # 차트 없는 발송으로 열화되는 순간 — 로그를 훑지 않아도 런 요약(Annotations)에 바로 보이게.
@@ -2524,6 +2575,7 @@ def main():
         #    (콘솔 커스텀 템플릿 폴백은 형식이 달라 혼란을 줬으므로 제거 — 2026-06-10 10시 사례)
         send_memo(access_token, build_text_message(title, blocks), with_button=True, uuids=uuids)
         _mark_sent_ok()                              # 텍스트 폴백도 '발송 성공'(실패면 위에서 SystemExit)
+        record_focus(_focus, datetime.datetime.now(KST))
         print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
     except SystemExit as e:
         print(f"::warning title=Kakao 발송 건너뜀::{e} — 토큰 만료/회전 또는 발송 실패 추정. "
