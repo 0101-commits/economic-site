@@ -26,7 +26,7 @@
     alerts_state.json 의 met 필드에 매 런 기록된다(발송 여부와 무관).
   이벤트형(pct_change/high52/low52/vol_surge/golden_cross/dead_cross):
     limit="daily"  → 같은 알림은 하루(KST) 1회만 발송
-    limit="cool60" → 발송 후 1시간 동안 같은 알림 재발송 금지
+    limit="cool60" → 발송 후 1시간 동안 같은 알림 재발송 금지(z_move 는 예외 — 늘 하루 1회)
   종목당 1줄 — 한 종목에서 여러 조건이 동시 충족되면 현재가에 '가장 근접한' 1건만
     발송한다(가격 사다리 동시 충족 시 폭주 방지). 미발송 건도 이력(met/date/ts)은 갱신.
   발송 이력은 alerts_state.json 에 기록되고 워크플로가 커밋해 런 간 보존된다.
@@ -360,7 +360,9 @@ def _daily_key(market, now):
 def should_send(alert, state, now):
     """이벤트형(52주/크로스/등락률/거래량) 쿨다운 가드. 가격 기준선은 교차감지로 별도 처리."""
     rec = state.get(alert["id"]) or {}
-    if alert.get("limit") == "cool60":
+    # z_move 는 '오늘 등락률'이라 한번 넘으면 그날 내내 참이다 — cool60 이면 같은 종목·같은
+    # 문구가 매시간 반복됐다(2026-09-22 RISE 버크셔 10:40~14:43 5통, 실측). 하루 1회로 고정.
+    if alert.get("limit") == "cool60" and alert.get("type") != "z_move":
         return (now.timestamp() - float(rec.get("ts") or 0)) >= 3600
     return rec.get("date") != _daily_key(alert.get("market", "KR"), now)   # 기본: 하루 1회
 

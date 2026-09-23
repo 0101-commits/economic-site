@@ -67,6 +67,16 @@ def _breach(pct, closes, fallback_thr):
     return abs(pct) >= thr, thr, vol.sigma_line(pct, closes)
 
 
+def _move_day(market, now):
+    """쿨다운 키의 '하루' — 등락률 기준 봉이 바뀌는 시점에 맞춘다.
+
+    KR 은 KST 달력일. US·환율(ANY)은 KST-9h — 야후의 미국장 세션·환율 일봉이 KST 09시에
+    넘어가서다. KST 달력일을 쓰면 자정에 키만 바뀌고 등락률은 그대로라 같은 급변이 또
+    나갔다(2026-09-22 10:40 달러-원 ▼ → 09-23 00:00 같은 움직임 재발송, 실측)."""
+    base = now if market == "KR" else now - datetime.timedelta(hours=9)
+    return base.strftime("%Y-%m-%d")
+
+
 def _session_open(market, now):
     if market == "ANY":
         return ca.is_market_open("KR", now) or ca.is_market_open("US", now)
@@ -78,7 +88,6 @@ def main():
         print("[swings] 테스트 dispatch — 급변 속보는 건너뜀(정규 cron 만 평가)")
         return
     now = datetime.datetime.now(KST)
-    day = now.strftime("%Y-%m-%d")
 
     try:
         with open(STATE_PATH, encoding="utf-8") as f:
@@ -105,7 +114,7 @@ def main():
         if not fired:
             continue
         direction = "up" if pct > 0 else "down"
-        key = f"{sym}:{direction}:{day}"
+        key = f"{sym}:{direction}:{_move_day(market, now)}"
         if key in swings:
             continue                     # 같은 방향은 하루 1회
         arrow = "▲" if pct > 0 else "▼"
@@ -216,8 +225,10 @@ def main():
     if not sent_ok:
         return
 
-    # 발송 성공 후에만 쿨다운 확정 — 당일 키만 남겨 상태 파일이 자라지 않게 한다.
-    swings = {k: v for k, v in swings.items() if k.endswith(day)}
+    # 발송 성공 후에만 쿨다운 확정 — 어제·오늘 키만 남겨 상태 파일이 자라지 않게 한다.
+    # (US·환율 키는 KST-9h 날짜라 KST 오전엔 '어제' 날짜다 — 당일 키만 남기면 지워져 재발송된다.)
+    keep = (now - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    swings = {k: v for k, v in swings.items() if k.rsplit(":", 1)[-1] >= keep}
     for h in hits:
         swings[h[0]] = now.isoformat()
     state["_swings"] = swings

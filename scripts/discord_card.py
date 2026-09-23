@@ -637,6 +637,20 @@ def shown_keys(prof, hero_key=None):
     return out
 
 
+def _stale_fx(cat, hist, today=None):
+    """환율 일봉이 KST 오늘 것이 아니면 True — 주인공 후보에서 뺀다.
+
+    야후 환율의 하루는 UTC 기준이라 KST 09시에야 넘어간다. 그 전(07·09시 슬롯)의 등락률은
+    **어제 한국 장중에 이미 알린 움직임**인데, 종전엔 그걸로 또 주인공을 바꿔 원달러 카드가
+    다섯 통 연속 나갔다(2026-09-22 12·19·22시 → 09-23 07·09시 실측). 지수는 07시의 간밤
+    미국장이 새 소식이라 이 규칙을 적용하지 않는다."""
+    if cat != "fx" or not hist:
+        return False
+    today = today or datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=9))).strftime("%Y-%m-%d")
+    return str(hist[-1].get("date") or "") < today
+
+
 def anomalies(d, keys, min_z=ANOMALY_MIN_Z):
     """이례적으로 움직인 자산 전부 → [(키, z)] |z| 내림차순. 없으면 [].
 
@@ -649,7 +663,7 @@ def anomalies(d, keys, min_z=ANOMALY_MIN_Z):
         if chg is None or cat not in ("indices", "fx", "commodities"):
             continue
         hist = ((d.get("history") or {}).get(cat) or {}).get(key)
-        if not isinstance(hist, list):
+        if not isinstance(hist, list) or _stale_fx(cat, hist):
             continue
         try:
             import volatility as vol
@@ -675,7 +689,7 @@ def anomaly(d, keys, min_z=ANOMALY_MIN_Z):
         if chg is None or cat not in ("indices", "fx", "commodities"):
             continue
         hist = ((d.get("history") or {}).get(cat) or {}).get(key)
-        if not isinstance(hist, list):
+        if not isinstance(hist, list) or _stale_fx(cat, hist):
             continue
         try:
             import volatility as vol
