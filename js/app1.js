@@ -10664,7 +10664,17 @@ const CF_PROXY_DEFAULT = 'https://ecom-dashboard-proxy.e-hcg.workers.dev';  // �
 //   문제도 대부분 사라진다. 모든 클라 페치는 try/catch + 죽은 엔드포인트 자동 차단(아래 플래그)
 //   으로 조용히 실패하므로, 보강을 켜도 콘솔 에러가 폭주하지 않는다.
 // 끄려면(서버 data.json 전용 모드): 콘솔에서 localStorage.setItem('realtimeBoost','0') 후 새로고침.
-window._REALTIME_BOOST = (function(){ try { return localStorage.getItem('realtimeBoost') !== '0'; } catch(_) { return true; } })();
+// 자동화 브라우저(Playwright 등, navigator.webdriver)는 기본 OFF — 보이는 탭 하나가 로드 84건+분당 32건을
+// 프록시로 쏘는데, 캡처·검증 세션이 이를 수십 번 반복해 Workers 무료 한도(계정 전체 10만/일)를 넘겼다
+// (2026-09-22 120,005건). 테스트에서 보강 경로가 필요하면 localStorage.setItem('realtimeBoost','1').
+window._REALTIME_BOOST = (function(){
+  try {
+    const v = localStorage.getItem('realtimeBoost');
+    if(v === '0') return false;
+    if(v === '1') return true;
+  } catch(_) {}
+  return !navigator.webdriver;
+})();
 function _cfProxyBase() {
   try { return (localStorage.getItem('cfProxyBase') || CF_PROXY_DEFAULT || '').trim().replace(/\/+$/,''); }
   catch(_) { return (CF_PROXY_DEFAULT || '').replace(/\/+$/,''); }
@@ -14477,7 +14487,8 @@ async function loadFreshNews() {
       const v = localStorage.getItem('newsClientFetch');
       if(v === '1') return true;
       if(v === '0') return false;
-      return !!(typeof _cfProxyBase === 'function' && _cfProxyBase());
+      // 보강 OFF(자동화 브라우저 포함)면 뉴스도 끈다 — 탭당 프록시 호출의 3분의 1이 뉴스 RSS 였다.
+      return !!window._REALTIME_BOOST && !!(typeof _cfProxyBase === 'function' && _cfProxyBase());
     } catch(_) { return false; }
   })();
   if(_newsClientOn) for (const [arrName, queries] of Object.entries(NEWS_QUERIES)) {
