@@ -197,6 +197,12 @@ on-demand 실행은 스케줄 드롭의 영향을 받지 않아 **즉시** 돌�
   2. 이 저장소의 [`root-site/index.html`](root-site/index.html) 파일을 새 저장소 루트에 복사
   3. 새 저장소 Settings → Pages → Deploy from a branch → `main` 선택
   → 이후 루트 접속이 대시보드(`/economic-site/`)로 자동 리다이렉트되어 404 가 사라집니다.
+  - ⚠ **이 저장소의 이름을 바꾸지 마세요.** 2026-06-12 에 만든 것이 `ecom-kakaotalk` 으로 이름이 바뀌어
+    있었고, 그 순간 사용자 사이트 루트가 사라져 카톡 말풍선 탭이 다시 GitHub 404 로 갔습니다
+    (2026-09-24 실측 — 페이지 자체는 `/ecom-kakaotalk/` 에서 멀쩡히 200 이라 눈에 띄지 않음).
+    GitHub Pages 사용자 사이트는 **저장소 이름이 곧 주소**라, 이름이 `<계정>.github.io` 가 아니면
+    루트에 아무것도 뜨지 않습니다. 되돌리기: `gh repo rename 0101-commits.github.io -R 0101-commits/<현재이름> --yes`
+    → `gh api -X POST repos/0101-commits/0101-commits.github.io/pages/builds` → `curl -I https://0101-commits.github.io/` 가 200.
 - **데이터 기준**: 발송 시점에 저장소에 커밋된 최신 `data.json`(장중 약 10분 주기 갱신본)을 사용합니다.
 - **`refresh_token` 만료**: `refresh_token` 은 발급 시점부터 **약 2개월 고정 만료**입니다 — 사용한다고
   연장되지 않습니다. 대신 잔여 유효기간이 **1개월 미만**이 되면 카카오가 토큰 갱신 응답에 **새
