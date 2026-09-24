@@ -15,7 +15,7 @@ import json
 import os
 import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 # ── 신선도 규칙 ────────────────────────────────────────────────────────────
 # (glob 패턴, 허용 나이(일), 등급). 위에서부터 첫 매치를 쓴다 — 좁은 패턴을 먼저 둘 것.
@@ -38,39 +38,47 @@ SLA_RULES = [
     ("history.fx.USDKRW",                4,   "critical"),
     ("history.indices.*",                4,   "important"),
     ("history.fx.*",                     4,   "important"),
-    ("history.commodities.Dubai",        70,  "normal"),     # FRED 월간 시리즈
+    ("history.commodities.Dubai",        None, "normal"),    # FRED 월간 — 주기에서 도출
     ("history.commodities.*",            5,   "important"),
 
     # 장중 스냅샷
     ("stockMovers.*",                    4,   "important"),
     ("etfMovers.*",                      4,   "important"),
+    ("rankingsKr.*",                     4,   "important"),
     ("investorTrading",                  6,   "important"),
     ("sentiment.*",                      4,   "important"),
     ("freight",                          10,  "normal"),
     ("marketHalts",                      400, "normal"),
 
-    # 거시 — 분기 지표를 먼저 좁게 잡는다
-    ("economicIndicators.*.gdp*",        200, "normal"),
-    ("economicIndicators.kr.household_debt_kr", 200, "normal"),
+    # 거시 — 일간 시리즈만 명시, 나머지는 주기에서 도출(None)
     ("economicIndicators.us.vix",        6,   "important"),
     ("economicIndicators.us.hy_spread",  6,   "normal"),
-    ("economicIndicators.*",             100, "normal"),
-
-    ("realestate.us.case_shiller*",      150, "normal"),
-    ("realestate.*",                     100, "normal"),
+    ("economicIndicators.us.broad_dollar", 10, "normal"),  # FRED H.10 — 주 1회(월) 전주분 공표
+    ("economicIndicators.*",             None, "normal"),
+    ("realestate.*",                     None, "normal"),
     ("yieldCurve.*",                     6,   "important"),
     ("nps",                              400, "normal"),
     ("berkshire",                        200, "normal"),    # SEC 13F — 분기 공시
     ("lmeInventory",                     7,   "normal"),    # Westmetall 일일 재고
-    ("mer_series",                       7,   "normal"),    # 메르 렌즈 자가축적 시계열(파일 자체 판정은 아래 EXTERNAL_FILES)
-    ("mer_signals",                      7,   "normal"),    # 메르 렌즈 집계 산출(P2) — 동일
+    ("mer_series",                       7,   "normal"),
+    ("mer_signals",                      7,   "normal"),
     ("subscription",                     40,  "normal"),
-    ("climate.*",                        45,  "normal"),
+    ("climate.*",                        None, "normal"),
     ("news",                             2,   "important"),
-    ("economicCalendar",                 3,   "normal"),
+    ("economicCalendar",                 10,  "normal"),   # as-of = 지난 발표 중 가장 최근(주 단위로 있다)
+    ("marketCalendarKr",                 4,   "normal"),
     ("aiBriefing",                       2,   "normal"),
 ]
 
+# 주기별 허용치 — '기간이 끝난 날'부터 센다(2026-09-24 개편). 종전엔 기간 시작일(월 1일·
+# 분기 첫날·연 1월 1일)부터 세면서 경로마다 100·150·200 일을 손으로 맞췄고, 연간 지표
+# (중국 GDP)·월간 곡선(일본 10년물)이 상시 '지연'으로 떠 경고 9건 중 5건이 거짓이었다.
+# 값 = 공표 지연 + 여유. 월간 70 = 대부분 다음 달 중순~말 공표, 분기 120, 연간 300.
+CADENCE_SLA = {"daily": 4, "weekly": 12, "monthly": 70, "quarterly": 120, "annual": 300}
+_PERIOD_MONTHS = {"monthly": 1, "quarterly": 3, "annual": 12}
+# 주기 허용치에 더하는 경로별 공표 지연(일). 케이스실러는 두 달 뒤 마지막 화요일 공표라
+# 월간 70 일로는 정상 갱신 중에도 지연으로 뜬다.
+EXTRA_LAG = [("realestate.us.case_shiller*", 30)]
 DEFAULT_SLA = (60, "normal")
 
 # as-of 로 인정하는 키 (우선순위 순)
@@ -79,7 +87,8 @@ DEFAULT_SLA = (60, "normal")
 #   빈 배열) 등 8개 원자 블록이 수집 시각으로 자기 신선도를 증명해 영원히 ok 였다(2026-08 감사).
 #   lastFetched 를 빼면 items/daily/events 등 내용 날짜 경로로 내려가고, 그것도 없으면
 #   unknown 으로 정직하게 보고된다.
-_ASOF_KEYS = ("as_of", "asOf", "period", "date", "lastUpdated", "checkedAt")
+_ASOF_KEYS = ("as_of", "asOf", "asof", "period", "date", "iso", "isoDate", "weekEnding",
+              "reportDate", "filedDate", "lastUpdated", "checkedAt")
 
 
 def _parse_date(s):
@@ -99,29 +108,39 @@ def _parse_date(s):
     m = re.match(r"^(\d{4})Q([1-4])$", s)
     if m:
         return date(int(m.group(1)), int(m.group(2)) * 3 - 2, 1)
+    # ONI 계절 코드 'JAS 2026' → 가운데 달(8월). NDJ 는 12월, DJF 는 1월(해당 연도).
+    m = re.match(r"^([A-Z]{3})\s+(\d{4})$", s)
+    if m and m.group(1) in _SEASON_MID:
+        return date(int(m.group(2)), _SEASON_MID[m.group(1)], 1)
     return None
 
 
+_SEASON_MID = {"DJF": 1, "JFM": 2, "FMA": 3, "MAM": 4, "AMJ": 5, "MJJ": 6,
+               "JJA": 7, "JAS": 8, "ASO": 9, "SON": 10, "OND": 11, "NDJ": 12}
+
+
+def _past(d):
+    """미래 날짜는 as-of 가 아니다 — 경제 캘린더의 다음 달 일정이 '최신'으로 잡혀
+    영원히 ok 가 되는 것을 막는다."""
+    return d if d and d <= date.today() else None
+
+
 def _extract_asof(node):
-    """지표 노드에서 as-of 날짜를 뽑는다. dict/list 형태를 모두 다룬다."""
+    """지표 노드에서 as-of 날짜를 뽑는다. dict/list 형태를 모두 다룬다(미래 날짜 제외)."""
     if isinstance(node, list):
         # [{date: ...}, ...] 시계열 — 뒤쪽이 최신
-        for item in reversed(node[-3:]):
-            if isinstance(item, dict):
-                d = _extract_asof(item)
-                if d:
-                    return d
-        return None
+        ds = [d for d in (_extract_asof(i) for i in node[-40:] if isinstance(i, (dict, list))) if d]
+        return max(ds) if ds else None
     if not isinstance(node, dict):
         return None
     for k in _ASOF_KEYS:
-        d = _parse_date(node.get(k))
+        d = _past(_parse_date(node.get(k)))
         if d:
             return d
     # history 가 {날짜: 값} 형태면 최대 키가 as-of
     hist = node.get("history")
     if isinstance(hist, dict) and hist:
-        ds = [x for x in (_parse_date(k) for k in hist) if x]
+        ds = [x for x in (_past(_parse_date(k)) for k in hist) if x]
         if ds:
             return max(ds)
     if isinstance(hist, list) and hist:
@@ -150,8 +169,76 @@ def _rule_for(path):
     return DEFAULT_SLA
 
 
+def _history_dates(node):
+    """노드의 시계열 날짜들(정렬). {날짜: 값}·[{date: …}]·노드 자체가 리스트인 경우,
+    그리고 자식들이 각자 history 를 가진 묶음(예: 주별 HPI 51개)이면 첫 자식 것."""
+    if isinstance(node, list):
+        return sorted(d for d in (_parse_date(p.get("date")) for p in node if isinstance(p, dict)) if d)
+    if not isinstance(node, dict):
+        return []
+    if "history" not in node:
+        for v in node.values():
+            if isinstance(v, dict) and "history" in v:
+                return _history_dates(v)
+        return []
+    h = node.get("history")
+    if isinstance(h, dict):
+        ds = [_parse_date(k) for k in h]
+    elif isinstance(h, list):
+        ds = [_parse_date(p.get("date")) for p in h if isinstance(p, dict)]
+    else:
+        return []
+    return sorted(d for d in ds if d)
+
+
+def infer_cadence(node, asof_raw=None):
+    """지표의 공표 주기. 우선순위: 노드의 cadence 선언 → history 간격 중앙값 → period 형식."""
+    if isinstance(node, dict) and node.get("cadence") in CADENCE_SLA:
+        return node["cadence"]
+    ds = _history_dates(node)[-13:]
+    if len(ds) >= 3:
+        gaps = sorted((b - a).days for a, b in zip(ds, ds[1:]))
+        g = gaps[len(gaps) // 2]
+        if g <= 4:
+            return "daily"
+        if g <= 10:
+            return "weekly"
+        if g <= 45:
+            return "monthly"
+        if g <= 140:
+            return "quarterly"
+        return "annual"
+    if isinstance(asof_raw, str):
+        if re.match(r"^[A-Z]{3}\s+\d{4}$", asof_raw):     # ONI 계절(3개월 이동평균, 매월 갱신)
+            return "monthly"
+        if re.match(r"^\d{4}Q[1-4]$", asof_raw):
+            return "quarterly"
+        if re.match(r"^\d{4}[-.]?\d{2}$", asof_raw):
+            return "monthly"
+    return None
+
+
+def _period_end(asof, cadence):
+    """기간 시작일(as-of) → 기간 마지막 날. 일간·주간은 as-of 가 곧 그 날."""
+    n = _PERIOD_MONTHS.get(cadence)
+    if not n:
+        return asof
+    y, m = asof.year, asof.month + n
+    while m > 12:
+        y, m = y + 1, m - 12
+    return date(y, m, 1) - timedelta(days=1)
+
+
+def _raw_asof(node):
+    if isinstance(node, dict):
+        for k in _ASOF_KEYS:
+            if isinstance(node.get(k), str):
+                return node[k]
+    return None
+
+
 # 블록 전체가 하나의 지표로 취급되는 최상위 키 (내부를 쪼개지 않는다)
-_ATOMIC_TOPS = ("freight", "investorTrading", "news", "economicCalendar",
+_ATOMIC_TOPS = ("freight", "investorTrading", "news", "economicCalendar", "marketCalendarKr",
                 "nps", "subscription", "marketHalts", "aiBriefing", "lmeInventory")
 _SKIP_TOPS = ("lastUpdated", "sources", "diagnostics", "dataHealth")
 # 현재가 스냅샷 블록 — 자체 날짜 필드가 없고 신선도는 같은 심볼의 history 가 대변한다.
@@ -161,7 +248,20 @@ _SPOT_TOPS = ("indices", "commodities", "fx")
 # SLA 는 '존재하는 키'만 순회하므로 통째 실종은 보이지 않는다 — 여기 있는 키가
 # data 에 없으면 state="missing" 으로 보고한다. (실측: berkshire 가 SEC 13F 실패 +
 # prev 에도 없어 키째 사라졌는데 몇 달간 아무도 몰랐다 — 2026-08 감사.)
-_EXPECTED_TOPS = ("berkshire", "lmeInventory")
+_EXPECTED_TOPS = ("berkshire", "lmeInventory",
+                  # 프런트가 읽는데 수집 실패 시 키째 사라지는 경로(2026-09-24 감사 F6) — 화면에서는
+                  # 빈 카드·시드값 지도·안 그려지는 차트로 보였고 판정표에는 흔적이 없었다.
+                  "sentiment.pcr", "realestate.kr.region", "realestate.kr.region_sub",
+                  "commoditiesKr", "climate.enso.forecast")
+
+
+def _get_path(data, path):
+    cur = data
+    for part in path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
 
 
 def _walk_paths(data):
@@ -198,11 +298,22 @@ def build_health(data, today=None, sources=None):
     for path, node in _walk_paths(data):
         sla_days, tier = _rule_for(path)
         asof = _extract_asof(node)
+        cadence = infer_cadence(node, _raw_asof(node))
         top = path.split(".")[0]
         src = sources.get(top) or sources.get(path) or ""
         preserved = "보존" in str(src)
         if asof is None:
             state, age = "unknown", None
+        elif sla_days is None:
+            # 주기 도출 — 기간이 끝난 날부터 센다. 주기를 모르면 종전 기본값(시작일 기준).
+            if cadence in CADENCE_SLA:
+                sla_days = CADENCE_SLA[cadence] + next(
+                    (d for pat, d in EXTRA_LAG if fnmatch.fnmatchcase(path, pat)), 0)
+                age = (today - _period_end(asof, cadence)).days
+            else:
+                sla_days = DEFAULT_SLA[0]
+                age = (today - asof).days
+            state = "stale" if age > sla_days else "ok"
         else:
             age = (today - asof).days
             state = "stale" if age > sla_days else "ok"
@@ -215,14 +326,24 @@ def build_health(data, today=None, sources=None):
             "sla": sla_days,
             "tier": tier,
             "state": state,
+            "cadence": cadence,
         })
 
     # 통째 실종 감지 — 있어야 할 최상위 블록이 키째 없으면 missing
-    for top in _EXPECTED_TOPS:
-        if top not in data:
-            sla_days, tier = _rule_for(top)
-            items.append({"path": top, "asOf": None, "ageDays": None,
+    for path in _EXPECTED_TOPS:
+        if _get_path(data, path) in (None, {}, []):
+            sla_days, tier = _rule_for(path)
+            items.append({"path": path, "asOf": None, "ageDays": None,
                           "sla": sla_days, "tier": tier, "state": "missing"})
+
+    # 현재가 블록 — 판정은 history 가 대변하지만, 수집 실패로 직전 값을 되살린 leaf
+    # (stale=True, fetch_data._prev_spot)는 여기서 드러낸다. 종전엔 하드코딩 상수가
+    # 들어가도 판정표에 흔적이 없었다(2026-09-24 감사 F11·F13).
+    for top in _SPOT_TOPS:
+        for name, leaf in (data.get(top) or {}).items():
+            if isinstance(leaf, dict) and leaf.get("stale"):
+                items.append({"path": f"{top}.{name}", "asOf": leaf.get("asOf"), "ageDays": None,
+                              "sla": None, "tier": "important", "state": "preserved"})
 
     # 소스 자체가 실패를 자백한 경우 — diagnostics.*Source == "FAILED"
     failed_tops = set()
@@ -304,8 +425,17 @@ def _demo():
 
     assert _rule_for("history.indices.KOSPI") == (4, "critical")
     assert _rule_for("history.indices.Nikkei") == (4, "important")
-    assert _rule_for("economicIndicators.uk.gdp_uk")[0] == 200      # 분기 규칙이 먼저 매치
-    assert _rule_for("economicIndicators.jp.cpi_jp") == (100, "normal")
+    assert _rule_for("economicIndicators.uk.gdp_uk") == (None, "normal")   # 주기에서 도출
+    assert _rule_for("economicIndicators.us.vix") == (6, "important")
+    # 주기 추정 + 기간 종료일 기준 판정
+    assert _parse_date("JAS 2026") == date(2026, 8, 1)
+    assert infer_cadence({"history": {"2026-01-01": 1, "2026-02-01": 1, "2026-03-01": 1}}) == "monthly"
+    assert infer_cadence({"period": "2026Q2"}, "2026Q2") == "quarterly"
+    assert infer_cadence([{"date": "2026-01-01"}, {"date": "2026-02-01"}, {"date": "2026-03-01"}]) == "monthly"
+    assert _period_end(date(2026, 6, 1), "monthly") == date(2026, 6, 30)
+    assert _period_end(date(2025, 1, 1), "annual") == date(2025, 12, 31)
+    # 미래 날짜는 as-of 가 아니다(경제 캘린더의 다음 달 일정)
+    assert _extract_asof({"events": [{"iso": "2000-01-05"}, {"iso": "2999-01-01"}]}) == date(2000, 1, 5)
     assert _rule_for("전혀없는.경로") == DEFAULT_SLA
 
     sample = {
@@ -315,14 +445,20 @@ def _demo():
         "diagnostics": {"stockMoversSource": "FAILED"},
         "sources": {"sentiment": "이전 빌드 보존 ← prev"},
     }
+    sample["economicIndicators"] = {
+        "cn": {"gdp_cn": {"period": "2025-01-01", "history": {"2023-01-01": 1, "2024-01-01": 1, "2025-01-01": 1}}},
+        "kr": {"exports_kr": {"period": "2026-04-01", "history": {"2026-02-01": 1, "2026-03-01": 1, "2026-04-01": 1}}},
+    }
     h = build_health(sample, today=date(2026, 8, 4))
     by = {i["path"]: i for i in h["items"]}
     assert by["history.indices.KOSPI"]["state"] == "ok", by["history.indices.KOSPI"]
+    assert by["economicIndicators.cn.gdp_cn"]["state"] == "ok", by["economicIndicators.cn.gdp_cn"]      # 연간, 연말+216일
+    assert by["economicIndicators.kr.exports_kr"]["state"] == "stale", by["economicIndicators.kr.exports_kr"]  # 월간, 4월말+95일
     assert by["sentiment.vkospi"]["state"] == "stale", by["sentiment.vkospi"]
     assert by["stockMovers.kospiGainers"]["state"] == "failed", by["stockMovers.kospiGainers"]
     assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
     assert by["lmeInventory"]["state"] == "missing", by["lmeInventory"]
-    assert h["summary"]["missing"] == 2
+    assert h["summary"]["missing"] == 2 + 5          # berkshire·lme + 화면 공백 경로 5
     # lmeInventory 는 원자 블록 — as_of 로 블록 단위 판정
     assert _extract_asof({"data": [{"cur": 1}], "as_of": "2026-08-03"}) == date(2026, 8, 3)
     # lastFetched(수집 시각)는 as-of 로 인정하지 않는다 — 내용 날짜 items 로 내려가야 함

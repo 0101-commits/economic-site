@@ -202,3 +202,17 @@ def test_digest_row_carries_asof():
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def test_portal_daily_falls_back_to_krx_when_naver_gone(monkeypatch):
+    """네이버 410(2026-09-21) 이후 포털 기준은 data.json 의 KRX 확정치(krxDaily)다."""
+    import investor_flows as f
+
+    def gone(*a, **k):
+        raise RuntimeError("HTTP Error 410: Gone")
+    monkeypatch.setattr(f, "naver_daily", gone)
+    monkeypatch.setattr(f, "_krx_daily_from_data",
+                        lambda market="KOSPI": [{"date": "2026-09-23", "foreign": -3420.0,
+                                                 "inst": 4074.0, "retail": -700.0}])
+    rows, src = f.portal_daily("KOSPI")
+    assert src == "krx" and rows[0]["inst"] == 4074.0

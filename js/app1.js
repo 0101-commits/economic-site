@@ -5238,12 +5238,12 @@ function bondLabelToTenorIdx(label) {
 }
 
 // 채권 시계열 클라이언트 페치 + 표시
-// 우선순위: data.json.yieldCurve[cc].series → data.json.yieldCurve[cc].current → 하드코딩 yieldCurveData[cc]
+// data.json.yieldCurve[cc].series 만 쓴다. 없으면 '시계열 없음' 오버레이.
 async function buildBondTimeSeriesFromYC(cc, bondItem) {
   destroyChart('bondChart');
   const d = _latestDataForIndicators || {};
   const fromData = (d.yieldCurve || {})[cc];
-  // 매핑: bondCountries.eu → yieldCurveData.de
+  // bondCountries 키 = yieldCurveData 키 (eu = 유로존 AAA)
   const fallbackKey = yieldCurveCC(cc);
   const fromLocal = yieldCurveData[fallbackKey];
   const yc = fromData || fromLocal;
@@ -5264,33 +5264,8 @@ async function buildBondTimeSeriesFromYC(cc, bondItem) {
       return;
     }
   }
-  // 2) yieldCurve.current + prev_month 있으면 보간 (라인은 표시되지만 한 달치만)
-  if(Array.isArray(yc.current)) {
-    const tenorIdx = bondLabelToTenorIdx(bondItem.label);
-    const lookupIdx = tenorIdx >= 0 ? tenorIdx : 7; // default to 10Y
-    const cur = yc.current[lookupIdx];
-    const prv = yc.prev_month?.[lookupIdx];
-    if(cur != null) {
-      const today = new Date();
-      const fmt = d => d.toISOString().slice(0,10);
-      // 1개월 데이터: prev_month → current 선형 보간
-      const tween = [];
-      const targetDays = Math.max(bondPeriodN, 21);
-      for(let i=targetDays;i>=0;i--) {
-        const dt = new Date(today); dt.setDate(today.getDate()-i);
-        const t = i / targetDays;
-        // prv → cur 으로 부드러운 보간 + 작은 노이즈 (실제같이 보이게)
-        const baseV = prv != null ? prv + (cur - prv) * (1 - t) : cur;
-        // 노이즈: ±0.5bp 수준 (yields 변동성이 작은편)
-        const noise = (Math.sin(i * 0.7) + Math.cos(i * 1.3)) * 0.008;
-        tween.push({x: fmt(dt), y: +(baseV + noise).toFixed(3)});
-      }
-      hideNoDataOverlay('bondChart');
-      bondAllSeries = tween;
-      buildBondChart(bondAllSeries.slice(-bondPeriodN));
-      return;
-    }
-  }
+  // (삭제) 2) current·prev_month 사이를 선형 보간하고 사인파 노이즈를 얹어 '실제같이'
+  //  보이게 만든 가짜 시계열이 있었다(2026-09-24 감사). 시계열이 없으면 없다고 말한다.
   showNoDataOverlay('bondChart', `${bondItem.label} 국채 시계열이 없습니다.`);
 }
 
@@ -5342,52 +5317,16 @@ function buildBondPage() {
 // data.json 의 yieldCurve.<cc>.current / .prev_month 로 덮어쓸 수 있음 (applyRealData 에서 처리)
 const yieldCurveTerms = ['1M','3M','6M','1Y','2Y','5Y','7Y','10Y','20Y','30Y'];
 // 다중 시점 비교: 1m/3m/6m/1y 전 — applyRealData 가 data.json.yieldCurve.<cc>.prev_3m 등으로 덮어쓸 수 있음
+// 수익률 곡선 — 값은 전부 data.json.yieldCurve 에서 온다(applyRealData). 종전엔 여기에
+// 5개국 × 5시점 상수 곡선이 있었고, 수집되지 않는 prev_3m/6m/1y 와 'de'(데이터 키는 'eu')
+// 자리를 그 상수가 메워 실제 데이터처럼 그려졌다(2026-09-24 감사 F7). 없는 값은 비운다.
+const _ycEmpty = (label) => ({ current:null, prev_month:null, prev_3m:null, prev_6m:null, prev_1y:null, label, source:'' });
 const yieldCurveData = {
-  us: {
-    current:    [5.32, 5.28, 5.21, 5.05, 4.85, 4.45, 4.42, 4.48, 4.51, 4.47],
-    prev_month: [5.30, 5.27, 5.20, 5.10, 4.92, 4.52, 4.48, 4.38, 4.60, 4.56],
-    prev_3m:    [5.28, 5.25, 5.18, 5.08, 4.88, 4.50, 4.45, 4.42, 4.65, 4.60],
-    prev_6m:    [5.20, 5.18, 5.10, 5.00, 4.75, 4.35, 4.30, 4.30, 4.55, 4.50],
-    prev_1y:    [4.95, 4.90, 4.80, 4.65, 4.40, 4.20, 4.15, 4.20, 4.45, 4.40],
-    label: '🇺🇸 미국 국채 수익률 곡선',
-    source: 'FRED (DGS1MO, DGS3MO, DGS6MO, DGS1, DGS2, DGS5, DGS7, DGS10, DGS20, DGS30)',
-  },
-  kr: {
-    current:    [null, 2.74, 2.73, 2.71, 2.78, 2.87, 2.95, 3.02, 3.12, 3.18],
-    prev_month: [null, 2.69, 2.71, 2.69, 2.71, 2.79, 2.86, 2.92, 3.04, 3.11],
-    prev_3m:    [null, 2.78, 2.79, 2.76, 2.81, 2.90, 2.97, 3.05, 3.14, 3.20],
-    prev_6m:    [null, 2.90, 2.92, 2.90, 2.95, 3.02, 3.08, 3.15, 3.22, 3.28],
-    prev_1y:    [null, 3.25, 3.28, 3.27, 3.32, 3.40, 3.45, 3.52, 3.60, 3.65],
-    label: '🇰🇷 한국 국고채 수익률 곡선',
-    source: '한국은행 ECOS API (817Y002: 시장금리 일별)',
-  },
-  jp: {
-    current:    [null, 0.21, 0.30, 0.38, 0.42, 0.78, 0.92, 1.05, 1.68, 2.12],
-    prev_month: [null, 0.18, 0.27, 0.34, 0.38, 0.72, 0.85, 0.98, 1.61, 2.08],
-    prev_3m:    [null, 0.15, 0.22, 0.30, 0.34, 0.65, 0.78, 0.92, 1.55, 2.02],
-    prev_6m:    [null, 0.10, 0.16, 0.24, 0.30, 0.55, 0.68, 0.80, 1.42, 1.85],
-    prev_1y:    [null, 0.04, 0.10, 0.18, 0.24, 0.42, 0.55, 0.68, 1.28, 1.68],
-    label: '🇯🇵 일본 국채 수익률 곡선',
-    source: 'FRED + 일본은행 (참고치)',
-  },
-  uk: {
-    current:    [4.62, 4.55, 4.42, 4.30, 4.12, 4.25, 4.30, 4.38, 4.55, 4.65],
-    prev_month: [4.65, 4.58, 4.45, 4.35, 4.20, 4.31, 4.35, 4.42, 4.58, 4.62],
-    prev_3m:    [4.70, 4.62, 4.50, 4.40, 4.25, 4.35, 4.40, 4.45, 4.60, 4.65],
-    prev_6m:    [4.80, 4.72, 4.60, 4.48, 4.35, 4.45, 4.50, 4.55, 4.70, 4.75],
-    prev_1y:    [4.55, 4.50, 4.42, 4.35, 4.20, 4.35, 4.45, 4.52, 4.68, 4.72],
-    label: '🇬🇧 영국 국채 수익률 곡선',
-    source: 'FRED + Bank of England',
-  },
-  de: {
-    current:    [2.55, 2.48, 2.32, 2.22, 2.18, 2.35, 2.45, 2.52, 2.68, 2.78],
-    prev_month: [2.62, 2.55, 2.40, 2.30, 2.28, 2.42, 2.50, 2.58, 2.72, 2.80],
-    prev_3m:    [2.70, 2.62, 2.48, 2.38, 2.35, 2.48, 2.55, 2.62, 2.76, 2.83],
-    prev_6m:    [2.80, 2.72, 2.58, 2.48, 2.45, 2.58, 2.65, 2.72, 2.85, 2.92],
-    prev_1y:    [3.00, 2.90, 2.75, 2.65, 2.60, 2.70, 2.78, 2.85, 2.98, 3.05],
-    label: '🇩🇪 독일 국채 수익률 곡선',
-    source: 'FRED (참고치)',
-  },
+  us: _ycEmpty('🇺🇸 미국 국채 수익률 곡선'),
+  kr: _ycEmpty('🇰🇷 한국 국고채 수익률 곡선'),
+  jp: _ycEmpty('🇯🇵 일본 국채 수익률 곡선'),
+  uk: _ycEmpty('🇬🇧 영국 국채 수익률 곡선'),
+  eu: _ycEmpty('🇪🇺 유로존(AAA) 국채 수익률 곡선'),
 };
 // 비교 시점 (1m=1개월전, 3m=3개월전, 6m=6개월전, 1y=1년전)
 let yieldCurveCompareWindow = '1m';
@@ -5406,9 +5345,10 @@ function setYieldCurveCompare(win, btn) {
     buildYieldCurveChart(bondCountryCurrent || 'us');
   }
 }
-// bondCountries 키 (eu=독일) → yieldCurveData 키 매핑
+// bondCountries 키와 yieldCurveData 키는 같다(eu = 유로존 AAA 곡선). 종전 'de' 매핑은
+// 데이터에 없는 키라 유로존 곡선이 항상 상수였다.
 function yieldCurveCC(bondCC) {
-  return bondCC === 'eu' ? 'de' : bondCC;
+  return bondCC === 'de' ? 'eu' : bondCC;
 }
 
 function buildYieldCurveChart(bondCC) {
@@ -5431,17 +5371,31 @@ function buildYieldCurveChart(bondCC) {
     }
   }
   // 비교 시점 선택 적용 — 1m/3m/6m/1y
+  // 비교 시점 버튼 — 그 시점 곡선이 수집된 경우에만 켠다(없는 비교를 상수로 채우지 않는다)
+  const _hasCurve = a => Array.isArray(a) && a.some(v => v != null);
+  document.querySelectorAll('.ycCompareBtn').forEach(btn => {
+    const ok = _hasCurve(yc[_yieldCurveCompareKeys[btn.dataset.cmp]]);
+    btn.disabled = !ok;
+    btn.title = ok ? '' : '이 시점 곡선은 아직 수집되지 않았습니다';
+    btn.style.opacity = ok ? '' : '0.4';
+  });
+  if(!_hasCurve(yc.current)) {
+    showNoDataOverlay('yieldCurveChart', '수익률 곡선 데이터가 아직 수집되지 않았습니다.');
+    return;
+  }
+  hideNoDataOverlay('yieldCurveChart');
   const cmpKey   = _yieldCurveCompareKeys[yieldCurveCompareWindow]   || 'prev_month';
   const cmpLabel = _yieldCurveCompareLabels[yieldCurveCompareWindow] || '1개월전';
-  const cmpData  = yc[cmpKey] || yc.prev_month || [];
+  const cmpData  = _hasCurve(yc[cmpKey]) ? yc[cmpKey] : null;
+  const _ycSets = [
+    {label: yc.asOf ? '현재 (' + yc.asOf + ')' : '현재', data: yc.current, borderColor:getThemeColors().accent, backgroundColor:getThemeColors().accent+'15', borderWidth:2, pointRadius:3, tension:0.3, spanGaps:true, fill:true},
+  ];
+  if(cmpData) _ycSets.push({label:cmpLabel,  data: cmpData,    borderColor:'#8d90a2', borderWidth:1.5, pointRadius:2, tension:0.3, borderDash:[6,4], spanGaps:true});
   charts['yieldCurveChart'] = new Chart(c1, {
     type:'line',
     data:{
       labels: yieldCurveTerms,
-      datasets: [
-        {label:'현재',    data: yc.current, borderColor:getThemeColors().accent, backgroundColor:getThemeColors().accent+'15', borderWidth:2, pointRadius:3, tension:0.3, spanGaps:true, fill:true},
-        {label:cmpLabel,  data: cmpData,    borderColor:'#8d90a2', borderWidth:1.5, pointRadius:2, tension:0.3, borderDash:[6,4], spanGaps:true},
-      ],
+      datasets: _ycSets,
     },
     options:{responsive:true,maintainAspectRatio:false,
       scales:{x:{ticks:{color:'#b6bbcf',font:{size:10}},grid:{color:'#4a526888'}},
@@ -7289,45 +7243,9 @@ const macroData = {
 
 // 한국 GDP 전기비 fallback (data.json 에 gdp_kr 이 없을 때 사용)
 // 23Q1 ~ 26Q1 (한국은행 ECOS 200Y104 시리즈 추정값)
-const KR_GDP_QOQ_FALLBACK = {
-  value: 0.8,
-  period: '202601',
-  desc: '한국 실질GDP 성장률 (전기비)',
-  source: 'fallback:hardcoded-2026Q1',
-  history: { '23Q1':0.4,'23Q2':0.6,'23Q3':0.7,'23Q4':0.6,'24Q1':1.3,'24Q2':-0.2,'24Q3':0.1,'24Q4':0.1,'25Q1':0.3,'25Q2':0.5,'25Q3':0.4,'25Q4':0.5,'26Q1':0.8 }
-};
-
-// 누락 지표 fallback — data.json 에 값 없을 때 사용 (TODO: scripts/fetch_data.py 의 ECOS 코드 매핑 보강)
-const KR_FALLBACKS = {
-  // 소매판매액지수 (KOSIS DT_2KAA503 / ECOS 901Y100) — 2020=100 기준
-  retail_kr: {
-    value: 104.8, period: '202603',
-    desc: '한국 소매판매액지수 (월간, 2020=100)',
-    source: 'fallback (실데이터 미연결)',
-    history: {'2024-01':101.2,'2024-04':101.8,'2024-07':102.1,'2024-10':102.4,'2025-01':103.0,'2025-04':103.5,'2025-07':103.8,'2025-10':104.1,'2026-01':104.5,'2026-03':104.8}
-  },
-  // 실업률 (계절조정, 월간) — KOSIS DT_1DA7022 / ECOS 200Y004
-  unemployment_kr: {
-    value: 2.7, period: '202603',
-    desc: '한국 실업률 (계절조정, %)',
-    source: 'fallback (실데이터 미연결)',
-    history: {'2024-01':3.0,'2024-04':2.8,'2024-07':2.7,'2024-10':2.8,'2025-01':2.9,'2025-04':2.8,'2025-07':2.7,'2025-10':2.7,'2026-01':2.7,'2026-03':2.7}
-  },
-  // 수출 (월간, 백만달러) — ECOS 403Y003 / 산업통상자원부
-  exports_kr: {
-    value: 63500, period: '202603',
-    desc: '한국 수출 (월간, 백만달러)',
-    source: 'fallback (실데이터 미연결)',
-    history: {'2024-01':54700,'2024-04':56200,'2024-07':57400,'2024-10':58800,'2025-01':59500,'2025-04':60500,'2025-07':61200,'2025-10':62000,'2026-01':62800,'2026-03':63500}
-  },
-  // 산업생산지수 — ECOS 901Y033 / KOSIS DT_1F31
-  ip_kr_fb: {
-    value: 108.2, period: '202603',
-    desc: '한국 산업생산지수 (광공업, 2020=100)',
-    source: 'fallback (실데이터 미연결)',
-    history: {'2024-01':104.0,'2024-04':105.2,'2024-07':105.8,'2024-10':106.3,'2025-01':106.9,'2025-04':107.2,'2025-07':107.5,'2025-10':107.8,'2026-01':108.0,'2026-03':108.2}
-  },
-};
+// (삭제) KR_GDP_QOQ_FALLBACK · KR_FALLBACKS — 한국 GDP·소매판매·실업률·수출·산업생산이
+// data.json 에 없을 때 대신 넣던 상수 값과 '지어낸 매끄러운 history'였다(2026-09-24 감사).
+// 실데이터가 빠지면 표는 '—' 를 보여야 한다. 없는 값을 있는 것처럼 그리지 않는다.
 let macroTab='kr';
 let macroViewMode='country';
 function setMacroViewMode(mode, btn) {
@@ -7564,7 +7482,8 @@ const macroIndicators = [
   {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
   {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.kr.ppi_kr',fmt:v=>v?.toFixed(2)},
   {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'수출',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v?.toLocaleString()},
+  {name:'수출',cc:'🇰🇷',cat:'무역',src:'FRED (IMF IMTS)',freq:'월간',unit:'억달러',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v!=null?Math.round(v/1e8).toLocaleString():'—'},
+  {name:'수출금액지수',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS (관세청 통관)',freq:'월간',unit:'2020=100',dataPath:'economicIndicators.kr.exports_idx_kr',fmt:v=>v!=null?v.toFixed(1):'—'},
   {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
   {name:'제조업 PMI·경기지수',cc:'🇰🇷',cat:'경기',src:'OECD (FRED BSCICP02KRM460S) · ECOS BSI 보조',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.kr.pmi_kr',fmt:v=>v?.toFixed(1),
@@ -12769,17 +12688,8 @@ function applyRealData(d) {
     });
     d = merged;
   }
-  // 한국 누락 지표 fallback — data.json 에 없으면 하드코딩 값 주입
   if(!d.economicIndicators) d.economicIndicators = {};
   if(!d.economicIndicators.kr) d.economicIndicators.kr = {};
-  if(d.economicIndicators.kr.gdp_kr == null) d.economicIndicators.kr.gdp_kr = KR_GDP_QOQ_FALLBACK;
-  if(d.economicIndicators.kr.retail_kr == null) d.economicIndicators.kr.retail_kr = KR_FALLBACKS.retail_kr;
-  if(d.economicIndicators.kr.unemployment_kr == null) d.economicIndicators.kr.unemployment_kr = KR_FALLBACKS.unemployment_kr;
-  if(d.economicIndicators.kr.exports_kr == null) d.economicIndicators.kr.exports_kr = KR_FALLBACKS.exports_kr;
-  // ip_kr 은 이미 data.json 에 있을 수 있으나 가끔 value:null 이므로 그것도 처리
-  if(d.economicIndicators.kr.ip_kr == null || d.economicIndicators.kr.ip_kr.value == null) {
-    d.economicIndicators.kr.ip_kr = KR_FALLBACKS.ip_kr_fb;
-  }
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
   // 🤖 오늘의 매크로 3줄 요약 — 서버(scripts/ai_briefing.py)가 생성한 aiBriefing 이 있을 때만 배너 표시.
@@ -13176,6 +13086,7 @@ function applyRealData(d) {
         row.spread = (has(IDX_10Y) && has(IDX_2Y)) ? fmtSpread(cur[IDX_10Y], cur[IDX_2Y]) : '—';
         row.chg = '—';                                   // 전일比는 아직 수집 대상이 아니다
       }
+      row.chg = '—';                                     // us·kr 도 전일比는 수집 대상이 아니다(초기 상수 제거)
       if(yc.label) row.country = yc.label;                // '독일' → '유로존(AAA)'
     });
     // 국가별 만기 테이블(bondCountries)도 같은 이유로 데이터 구동으로 바꾼다.
@@ -13640,11 +13551,14 @@ function applyRealData(d) {
 
   // 미국 국채 수익률 곡선 데이터 (FRED 우선)
   const yc = d.yieldCurve || {};
-  for(const cc of ['us','kr','jp','uk','de']) {
+  for(const cc of ['us','kr','jp','uk','eu']) {
     if(yc[cc] && Array.isArray(yc[cc].current)) {
-      yieldCurveData[cc].current    = yc[cc].current;
-      yieldCurveData[cc].prev_month = yc[cc].prev_month || yieldCurveData[cc].prev_month;
+      for(const k of ['current','prev_month','prev_3m','prev_6m','prev_1y'])
+        yieldCurveData[cc][k] = Array.isArray(yc[cc][k]) ? yc[cc][k] : null;
       if(yc[cc].source) yieldCurveData[cc].source = yc[cc].source;
+      // 기준일 = 곡선 series 의 마지막 관측일(가장 늦은 만기 기준)
+      const last = (yc[cc].series || []).map(s => ((s.data || []).slice(-1)[0] || {}).date).filter(Boolean).sort().pop();
+      yieldCurveData[cc].asOf = last || null;
     }
   }
   // 채권 탭이 현재 표시 중이면 차트 재렌더
@@ -13762,7 +13676,7 @@ function renderDataFreshness() {
    LIVE 는 기본 상태이므로 칩을 띄우지 않는다 — 정상일 때 조용해야 경고가 눈에 띈다. */
 function _tossChipHtml() {
   const t = window._tossStatus;
-  if (!t || !t.state || t.state === 'LIVE') return '';
+  if (!t || !t.state || t.state === 'LIVE' || t.state === 'IDLE') return '';   // IDLE = 휴장·장외, 결함 아님
   const off = t.state === 'OFFLINE';
   const col = off ? 'var(--ind-neg)' : 'var(--c-warn,#f0c75e)';
   const label = off ? '토스 연결 끊김' : '토스 지연';

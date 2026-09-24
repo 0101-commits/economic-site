@@ -88,6 +88,72 @@ def fetch_oecd(key, n=60):
     return sorted(out)
 
 
+# ── ONS (영국 통계청) ─────────────────────────────────────────────────────
+# https://www.ons.gov.uk/<path>/data — 무인증 JSON. 노동시장 지표는 3개월 이동 평균이라
+# label 이 '2026 MAY-JUL' 형태다 — 기간의 마지막 달(7월)을 as-of 로 쓴다. FRED 의 OECD 판
+# (LRHUTTTTGBM156S)은 같은 값을 두 달 늦게 싣는다(2026-09-24 실측: FRED 5월 / ONS 7월).
+ONS_SERIES = {
+    "unemployment_uk": ("employmentandlabourmarket/peoplenotinwork/unemployment/timeseries/mgsx/lms",
+                        "영국 실업률 (16세+, 계절조정, 3개월 이동 %)"),
+}
+_MON = {m: i for i, m in enumerate(
+    ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"), 1)}
+
+
+def _ons_period(label):
+    """'2026 MAY-JUL' → '2026-07', '2025 NOV-JAN' → '2026-01', '2026 JUN' → '2026-06'."""
+    parts = str(label).split()
+    if len(parts) != 2 or not parts[0].isdigit():
+        return None
+    y, rng = int(parts[0]), parts[1].split("-")
+    a, b = _MON.get(rng[0]), _MON.get(rng[-1])
+    if not a or not b:
+        return None
+    if b < a:
+        y += 1
+    return f"{y:04d}-{b:02d}"
+
+
+def fetch_ons(path, n=60):
+    j = _get_json(f"https://www.ons.gov.uk/{path}/data")
+    out = []
+    for m in (j.get("months") or [])[-n:]:
+        p = _ons_period(m.get("label") or m.get("date"))
+        try:
+            v = float(m.get("value"))
+        except (TypeError, ValueError):
+            continue
+        if p:
+            out.append((p, v))
+    return sorted(out)
+
+
+# ── 일본은행(BOJ) 시계열 API ──────────────────────────────────────────────
+# https://www.stat-search.boj.or.jp/api/v1/getDataCode — 무인증. 정책금리(무담보 콜 익일물
+# 유도목표)를 따르는 실제 콜금리 일별 평균을 월평균으로 접는다. 종전엔 FRED 의 OECD 판
+# (IRSTCI01JPM156N, 2~3개월 지연) 위에 코드 안 결정표(_BOJ_KNOWN)를 덮어써서 사람이
+# 고치지 않으면 갱신되지 않았다(2026-09-24 감사 F5).
+BOJ_SERIES = {
+    "base_rate_jp": ("FM01/STRDCLUCON", "일본 정책금리 (무담보 콜 익일물 평균, 월평균 %)"),
+}
+
+
+def fetch_boj(key, n=60):
+    from datetime import date
+    db, code = key.split("/")
+    y = date.today().year - 5
+    j = _get_json("https://www.stat-search.boj.or.jp/api/v1/getDataCode"
+                  f"?format=json&lang=en&db={db}&code={code}&startDate={y}01")
+    vals = ((j.get("RESULTSET") or [{}])[0].get("VALUES")) or {}
+    by_month = {}
+    for d, v in zip(vals.get("SURVEY_DATES") or [], vals.get("VALUES") or []):
+        if v is None:
+            continue
+        k = f"{str(d)[:4]}-{str(d)[4:6]}"
+        by_month.setdefault(k, []).append(float(v))
+    return sorted((k, round(sum(v) / len(v), 3)) for k, v in by_month.items())[-n:]
+
+
 def _node(obs, desc, source):
     if not obs:
         return None
@@ -103,17 +169,20 @@ def _node(obs, desc, source):
 
 
 # 지표 키 → 소속 국가코드 (economicIndicators 의 하위 키)
-_CC_OF = {"unemployment_eu": "eu", "cpi_cn": "cn", "cpi_uk": "uk"}
+_CC_OF = {"unemployment_eu": "eu", "cpi_cn": "cn", "cpi_uk": "uk", "unemployment_uk": "uk",
+          "base_rate_jp": "jp"}
 
 
 def fetch_all(log=print):
     """{cc: {지표키: node}} 반환. 개별 실패는 건너뛴다 — 하나가 죽어도 나머지는 살린다."""
     out = {}
-    jobs = [("ECB", fetch_ecb, ECB_SERIES), ("OECD", fetch_oecd, OECD_SERIES)]
+    jobs = [("ECB", fetch_ecb, ECB_SERIES), ("OECD", fetch_oecd, OECD_SERIES), ("ONS", fetch_ons, ONS_SERIES),
+            ("BOJ", fetch_boj, BOJ_SERIES)]
     for tag, fn, table in jobs:
         for name, (key, desc) in table.items():
             try:
-                src = f"{tag}:{key.split('/')[-1]}"
+                seg = key.split('/')
+                src = f"{tag}:{seg[-2].upper() if tag == 'ONS' else seg[-1]}"   # ONS 는 경로 끝이 데이터셋(lms)
                 node = _node(fn(key), desc, src)
                 if node:
                     out.setdefault(_CC_OF[name], {})[name] = node
@@ -131,7 +200,10 @@ def _demo():
     n = _node([("2026-05", 1.2), ("2026-06", 1.0)], "d", "s")
     assert n["value"] == 1.0 and n["period"] == "2026-06-01" and len(n["history"]) == 2
     assert _node([], "d", "s") is None
-    assert set(_CC_OF) == set(ECB_SERIES) | set(OECD_SERIES)
+    assert set(_CC_OF) == set(ECB_SERIES) | set(OECD_SERIES) | set(ONS_SERIES) | set(BOJ_SERIES)
+    assert _ons_period("2026 MAY-JUL") == "2026-07"
+    assert _ons_period("2025 NOV-JAN") == "2026-01"
+    assert _ons_period("2026 JUN") == "2026-06"
     print("intl_sources self-check OK")
 
 

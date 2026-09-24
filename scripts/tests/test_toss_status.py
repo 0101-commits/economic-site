@@ -40,18 +40,61 @@ def test_live_when_fresh():
     assert r["supplied"] == ["investorTrading", "stockMovers"]
 
 
-def test_stale_between_2h_and_96h():
-    _snap({"generatedAt": GEN})
-    r = toss_connection_status(SOURCES, now=BASE + timedelta(hours=10))
+# 장중 기준 시각 — 2026-08-13(목) 08:30 에 마지막으로 쓰인 스냅샷.
+GEN_AM = "2026-08-13T08:30:00+09:00"
+BASE_AM = datetime.fromisoformat(GEN_AM)
+
+
+def test_stale_when_market_hours_and_old():
+    """영업일 장중에 2시간 넘게 안 바뀌었으면 PC 미가동이다."""
+    _snap({"generatedAt": GEN_AM})
+    r = toss_connection_status(SOURCES, now=BASE_AM + timedelta(hours=3))   # 목 11:30
     assert r["state"] == "STALE"
     assert "PC 미가동" in r["reason"]
 
 
 def test_boundary_2h_is_still_live():
-    _snap({"generatedAt": GEN})
-    assert toss_connection_status(SOURCES, now=BASE + timedelta(hours=2))["state"] == "LIVE"
+    _snap({"generatedAt": GEN_AM})
+    assert toss_connection_status(SOURCES, now=BASE_AM + timedelta(hours=2))["state"] == "LIVE"
     assert toss_connection_status(
-        SOURCES, now=BASE + timedelta(hours=2, minutes=1))["state"] == "STALE"
+        SOURCES, now=BASE_AM + timedelta(hours=2, minutes=1))["state"] == "STALE"
+
+
+def test_idle_on_weekend_night():
+    """금요일 밤 → 토요일 새벽. 수집기는 변경 없으면 파일을 안 쓰므로 늙는 게 정상."""
+    _snap({"generatedAt": GEN})                                        # 금 20:44
+    r = toss_connection_status(SOURCES, now=BASE + timedelta(hours=10))  # 토 06:44
+    assert r["state"] == "IDLE", r
+    assert "휴장" in r["reason"]
+
+
+def test_idle_on_holiday_by_calendar_today():
+    """2026-09-24(목, 추석) 실측 재현 — 캘린더가 오늘 휴장이라고 말한다."""
+    _snap({"generatedAt": "2026-09-24T09:00:01+09:00",
+           "marketCalendarKr": {"today": {"date": "2026-09-24", "open": False},
+                                "previousBusinessDay": {"date": "2026-09-23", "open": True},
+                                "nextBusinessDay": {"date": "2026-09-28", "open": True}}})
+    r = toss_connection_status(SOURCES, now=datetime.fromisoformat("2026-09-24T15:22:00+09:00"))
+    assert r["state"] == "IDLE", r
+    assert "2026-09-23" in r["reason"]
+
+
+def test_idle_on_holiday_by_yesterdays_calendar():
+    """PC 가 전날부터 꺼져 캘린더가 어제 것이어도 nextBusinessDay 로 휴장을 안다."""
+    _snap({"generatedAt": "2026-09-23T20:00:00+09:00",
+           "marketCalendarKr": {"today": {"date": "2026-09-23", "open": True},
+                                "nextBusinessDay": {"date": "2026-09-28", "open": True}}})
+    r = toss_connection_status(SOURCES, now=datetime.fromisoformat("2026-09-25T11:00:00+09:00"))
+    assert r["state"] == "IDLE", r
+
+
+def test_stale_on_next_business_day():
+    """전날 캘린더가 '다음 영업일=오늘'이라고 했는데 장중에 안 바뀌면 STALE."""
+    _snap({"generatedAt": "2026-09-22T20:00:00+09:00",
+           "marketCalendarKr": {"today": {"date": "2026-09-22", "open": True},
+                                "nextBusinessDay": {"date": "2026-09-23", "open": True}}})
+    r = toss_connection_status(SOURCES, now=datetime.fromisoformat("2026-09-23T11:00:00+09:00"))
+    assert r["state"] == "STALE", r
 
 
 def test_offline_beyond_96h():

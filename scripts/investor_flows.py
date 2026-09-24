@@ -109,6 +109,40 @@ def naver_daily(market="KOSPI", bizdate=None, timeout=15):
     return rows
 
 
+def _krx_daily_from_data(market="KOSPI"):
+    """fetch-data 가 pykrx(KRX 로그인)로 받아 data.json 에 실은 KRX 확정 수급 → 같은 형태.
+
+    네이버 investorDealTrendDay 가 2026-09-21 HTTP 410 으로 사라진 뒤의 포털 기준 대체다 —
+    네이버가 보여주던 값이 곧 KRX 집계라 기준이 같다. 알림 스크립트에 pykrx·로그인을
+    끌어오지 않으려고(6초+) 파이프라인이 이미 받아 둔 행을 읽는다. KOSPI 만.
+    """
+    if market != "KOSPI":
+        return []
+    import json
+    import os
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            rows = ((json.load(f).get("investorTrading") or {}).get("krxDaily")) or []
+    except Exception as e:                                   # noqa: BLE001
+        log(f"data.json KRX 수급 읽기 실패: {e}")
+        return []
+    return sorted((r for r in rows if isinstance(r, dict) and r.get("date")
+                   and all(isinstance(r.get(k), (int, float)) for k in _KEYS)),
+                  key=lambda r: r["date"])
+
+
+def portal_daily(market="KOSPI", bizdate=None):
+    """포털·언론 기준 일별 수급 — 네이버 → (실패·빈 응답) KRX 확정치(data.json). (rows, 출처)."""
+    try:
+        rows = naver_daily(market, bizdate=bizdate)
+        if rows:
+            return rows, "naver"
+    except Exception as e:                                   # noqa: BLE001
+        log(f"네이버 조회 실패: {e} — KRX 확정치(data.json)로")
+    return _krx_daily_from_data(market), "krx"
+
+
 def _toss_snapshot_daily(market="KOSPI", days=10):
     """PC 수집기가 커밋한 `toss_snapshot.json` 의 investorDaily → 같은 형태.
 
@@ -221,14 +255,10 @@ def verified_latest(market="KOSPI", today=None, now=None):
     """
     now = now or datetime.datetime.now(KST)
     today = today or now.strftime("%Y-%m-%d")
-    nav = None
-    try:
-        nrows = naver_daily(market, bizdate=today.replace("-", ""))
-        nav = next((r for r in reversed(nrows) if r["date"] == today), None)
-        if not nav:
-            log(f"네이버에 {today} 행 없음")
-    except Exception as e:                                   # noqa: BLE001
-        log(f"네이버 조회 실패: {e}")
+    nrows, psrc = portal_daily(market, bizdate=today.replace("-", ""))
+    nav = next((r for r in reversed(nrows) if r["date"] == today), None)
+    if not nav:
+        log(f"포털 기준({psrc})에 {today} 행 없음")
     trows = toss_daily(market)
     tos = next((r for r in reversed(trows) if r["date"] == today), None)
     if not nav:
@@ -251,7 +281,7 @@ def verified_latest(market="KOSPI", today=None, now=None):
         log(f"{market} {today} 토스 단독 외국인 {out['foreign']:+,.0f} "
             f"기관 {out['inst']:+,.0f}억 ({out['reason']})")
         return out
-    out = {"date": today, "primary": "naver", "cross": "toss" if tos else None,
+    out = {"date": today, "primary": psrc, "cross": "toss" if tos else None,
            "agree": None, "maxDiffPct": None, "confirmed": False, "reason": ""}
     out.update({k: nav[k] for k in _KEYS})
     if tos:
@@ -282,11 +312,7 @@ def week_sum(market="KOSPI", days=5):
     주간 카드용. 일별 표시와 **같은 소스(네이버)** 를 쓴다 — 종전엔 주간 합계는 토스
     시계열, 일별 타일은 다른 값이라 같은 카드 안에서 기준이 갈렸다.
     """
-    rows = []
-    try:
-        rows = naver_daily(market)[-days:]
-    except Exception as e:                                   # noqa: BLE001
-        log(f"주간 합계 네이버 조회 실패: {e} — 토스로 폴백")
+    rows = portal_daily(market)[0][-days:]
     if len(rows) < days:
         # 네이버가 죽어 있을 때(2026-09-21 HTTP 410) 주간 합계까지 사라지지 않게.
         # 일별 표시도 같은 상황이면 토스를 쓰므로 소스가 갈리지 않는다.

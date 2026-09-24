@@ -19,7 +19,7 @@ import os
 import re
 import sys
 import time as _time
-import requests
+import requests as _requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote_plus
@@ -31,6 +31,51 @@ import intl_sources
 import toss_api
 
 KST = timezone(timedelta(hours=9))
+
+class _HostBreaker:
+    """호스트별 서킷브레이커 — 이 모듈의 requests.* 호출만 감싼다(라이브러리 전역 패치 아님).
+
+    왜: 한국 공공 API(ECOS·KOSIS·R-ONE·data.go.kr)가 한꺼번에 미응답이면 호출마다
+    timeout 을 기다려 ECOS 한 구간에서만 37분을 썼고, 풀 런이 70분 timeout 으로 통째
+    버려졌다(2026-09-24 CI 실측 3런). 같은 호스트에서 연결 실패가 연속 3회면 그 런의
+    나머지 호출은 즉시 실패시킨다 — 각 수집 함수의 기존 except·보존 경로가 그대로 받는다.
+    읽기 timeout·HTTP 오류는 세지 않는다(연결은 되는 호스트).
+    """
+    CONNECT_LIMIT = 3   # 순간 끊김으로 FRED(50+ 시리즈) 같은 호스트가 통째 막히지 않게 3회
+
+    def __init__(self):
+        self.fails, self.dead = {}, set()
+
+    def __getattr__(self, name):                      # exceptions, Session 등은 원본 그대로
+        return getattr(_requests, name)
+
+    def _call(self, fn, url, *a, **kw):
+        from urllib.parse import urlsplit
+        host = urlsplit(str(url)).hostname or ""
+        if host in self.dead:
+            raise _requests.exceptions.ConnectionError(f"[breaker] {host} — 이번 런 차단(연결 실패 연속)")
+        try:
+            r = fn(url, *a, **kw)
+        except _requests.exceptions.ConnectionError:
+            n = self.fails[host] = self.fails.get(host, 0) + 1
+            if n >= self.CONNECT_LIMIT and host not in self.dead:
+                self.dead.add(host)
+                log(f"[breaker] {host} 연결 실패 {n}회 연속 — 이번 런 남은 호출 건너뜀")
+            raise
+        self.fails[host] = 0
+        return r
+
+    def get(self, url, *a, **kw):
+        return self._call(_requests.get, url, *a, **kw)
+
+    def post(self, url, *a, **kw):
+        return self._call(_requests.post, url, *a, **kw)
+
+    def head(self, url, *a, **kw):
+        return self._call(_requests.head, url, *a, **kw)
+
+
+requests = _HostBreaker()
 
 # KIS 토큰 영속 캐시 — GitHub Actions cache 액션이 보관해서 24시간 재사용
 KIS_TOKEN_FILE = os.environ.get("KIS_TOKEN_FILE", ".kis_token_cache.json")
@@ -82,30 +127,18 @@ EXIM_BASE       = "https://www.koreaexim.go.kr/site/program/financial/exchangeJS
 ALPHAVANTAGE_BASE = "https://www.alphavantage.co/query"
 BOE_IADB_BASE     = "https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp"
 
-FALLBACK = {
-    "fx": {
-        "USDKRW": {"rate": 1490.00, "change": 0.0},
-        "EURKRW": {"rate": 1745.00, "change": 0.0},
-        "JPYKRW": {"rate": 10.30,   "change": 0.0},
-        "EURUSD": {"rate": 1.1720,  "change": 0.0},
-        "USDJPY": {"rate": 144.70,  "change": 0.0},
-    },
-    "indices": {
-        "KOSPI":    {"price": 7600.00,  "change": 0.0},
-        "KOSDAQ":   {"price": 1140.00,  "change": 0.0},
-        "SP500":    {"price": 5650.00,  "change": 0.0},
-        "NASDAQ":   {"price": 26500.00, "change": 0.0},
-        "Nikkei":   {"price": 61000.00, "change": 0.0},
-        "Shanghai": {"price": 4100.00,  "change": 0.0},
-    },
-    "commodities": {
-        "Gold":   {"price": 3200.00, "change": 0.0},
-        "Silver": {"price": 32.50,   "change": 0.0},
-        "Copper": {"price": 4.60,    "change": 0.0},
-        "WTI":    {"price": 62.00,   "change": 0.0},
-        "Brent":  {"price": 65.50,   "change": 0.0},
-    },
-}
+# (삭제) FALLBACK 상수표 — 소스가 전부 실패하면 USDKRW 1490·KOSPI 7600 같은 옛 숫자를
+# change 0.0 과 함께 주입했다. 화면은 이것을 실제 값과 구별할 수 없었다(2026-09-24 감사 F11).
+# 이제는 직전 빌드 값을 '낡음(stale)' 표시와 함께 되살리고, 그것도 없으면 비운다.
+def _prev_spot(prev, group, name):
+    """직전 data.json 의 현재가를 되살린다 — 등락률은 오늘 것이 아니므로 None, stale=True."""
+    v = ((prev or {}).get(group) or {}).get(name)
+    if not isinstance(v, dict) or (v.get("price") is None and v.get("rate") is None):
+        return None
+    out = dict(v)
+    out["change"] = None
+    out["stale"] = True
+    return out
 
 
 # 로그 레다크션 대상 시크릿 — ECOS 처럼 키가 URL '경로'에 들어가는 API 는 예외 메시지
@@ -1668,7 +1701,7 @@ def fetch_fred_yield_curve_us():
     series_used = []
     series_data = []  # 각 만기별 시계열
     for label, sid in terms:
-        obs = fetch_fred_series(sid, limit=252)  # ~1년
+        obs = fetch_fred_series(sid, limit=280)  # ~13개월(1년 비교점 확보)
         if not obs:
             current.append(None)
             prev_month.append(None)
@@ -1838,7 +1871,7 @@ def fetch_ecos_yield_curve_kr():
             prev_month[slot] = round(prev_val, 3) if prev_val is not None else None
             # 시계열 데이터 (차트용)
             ts = []
-            for row in rows_sorted[-252:]:  # 최근 1년
+            for row in rows_sorted[-280:]:  # 최근 1년
                 v = _parse_num(row.get("DATA_VALUE"))
                 t = row.get("TIME")
                 if v is not None and t and len(t) == 8:
@@ -1888,7 +1921,7 @@ def fetch_ecos_yield_curve_kr():
             else:
                 prev_val = _parse_num(rows_sorted[0].get("DATA_VALUE"))
             ts = []
-            for row in rows_sorted[-252:]:  # 최근 1년
+            for row in rows_sorted[-280:]:  # 최근 1년
                 v = _parse_num(row.get("DATA_VALUE"))
                 t = row.get("TIME")
                 if v is not None and t and len(t) == 8:
@@ -1967,6 +2000,28 @@ def _toss_snapshot(max_age_hours=None):
     return snap
 
 
+def _kr_session_date(now=None):
+    """한국 증시의 '최근 거래일'(YYYY-MM-DD). 토스 캘린더가 오늘 것이면 그것을 믿고
+    (휴장이면 직전 영업일), 없으면 주말만 거른다(공휴일은 캘린더 없이는 모른다).
+
+    왜: 스냅샷 가드가 '오늘 자'만 받으면 휴장일엔 정확히 날짜가 적힌 직전 거래일
+    목록까지 버리고, 반대로 수집일을 as_of 로 적던 시절엔 전일 목록이 오늘로 통과했다.
+    기준을 '오늘'이 아니라 '최근 거래일'로 두면 둘 다 맞는다.
+    """
+    now = now or datetime.now(KST)
+    today = now.strftime("%Y-%m-%d")
+    cal = (_toss_snapshot() or {}).get("marketCalendarKr") or {}
+    t = cal.get("today") or {}
+    if t.get("date") == today:
+        if t.get("open") is False:
+            return (cal.get("previousBusinessDay") or {}).get("date") or today
+        return today
+    d = now
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d.strftime("%Y-%m-%d")
+
+
 # 스냅샷 신선도가 곧 토스 연결상태다 — 수집기 PC 가 꺼져 있으면 파일이 늙는다.
 # LIVE 2시간은 수집기 스케줄(평일 09~20시 매시)보다 한 텀 넉넉하게 잡은 값이고,
 # STALE 96시간은 국고채 가드(_toss_snapshot(max_age_hours=96))와 맞춘 것이다.
@@ -1974,12 +2029,35 @@ _TOSS_LIVE_MAX_H = 2
 _TOSS_STALE_MAX_H = 96
 
 
+def _toss_change_expected(snap, now=None):
+    """지금 스냅샷이 바뀌고 있어야 하는가 — 한국 영업일 09:10~16:00(장중 + 마감 직후).
+
+    휴장 판정은 스냅샷 캘린더를 쓴다. 오늘 것이면 today.open, 전날 것이면
+    nextBusinessDay 가 오늘보다 뒤인지로 본다(PC 가 전날부터 꺼져 있어도 판정된다).
+    캘린더가 없으면 주말만 휴장으로 친다.
+    """
+    now = now or datetime.now(KST)
+    today = now.strftime("%Y-%m-%d")
+    cal = (snap or {}).get("marketCalendarKr") or {}
+    t = cal.get("today") or {}
+    nxt = (cal.get("nextBusinessDay") or {}).get("date")
+    if t.get("date") == today:
+        business = t.get("open") is not False
+    elif nxt and t.get("date") and t["date"] < today:
+        business = nxt <= today
+    else:
+        business = now.weekday() < 5
+    hm = now.hour * 60 + now.minute
+    return business and 9 * 60 + 10 <= hm <= 16 * 60
+
+
 def toss_connection_status(sources=None, now=None):
     """토스 연결상태 → {state, generatedAt, ageMinutes, supplied, reason}.
 
     state 는 프론트 배지가 그대로 쓴다.
       LIVE    수집기 정상, 스냅샷 전 항목 유효
-      STALE   스냅샷이 늙음 — 신선도 가드를 통과한 항목만 쓰이고 나머지는 폴백
+      IDLE    휴장·장외라 스냅샷이 안 바뀌는 게 정상(수집기는 변경 없으면 파일을 안 쓴다)
+      STALE   바뀌어야 할 시간(영업일 장중)에 늙음 — 수집기 PC 미가동 추정
       OFFLINE 스냅샷 없음/파싱 불가/96시간 초과 — 전 항목 폴백
 
     supplied 는 이번 수집에서 실제로 토스가 채운 블록. sources 라벨을 그대로 읽으므로
@@ -2001,6 +2079,12 @@ def toss_connection_status(sources=None, now=None):
     age_min = max(0.0, delta.total_seconds() / 60)
     if age_min <= _TOSS_LIVE_MAX_H * 60:
         state, reason = "LIVE", ""
+    elif age_min <= _TOSS_STALE_MAX_H * 60 and not _toss_change_expected(snap, now):
+        # 수집기는 내용이 안 바뀌면 파일을 다시 쓰지 않는다(generatedAt 도 그대로). 그래서
+        # 휴장일·장외에는 PC 가 멀쩡히 돌아도 스냅샷이 늙는다 — 이것을 'PC 미가동'으로
+        # 부르던 것이 2026-09-24 추석 오진이다(수집기 로그는 15분마다 exit 0).
+        state = "IDLE"
+        reason = f"휴장·장외 — 마지막 거래일 {_kr_session_date(now)} 기준 값 유지"
     elif age_min <= _TOSS_STALE_MAX_H * 60:
         state, reason = "STALE", "수집기 PC 미가동 — 신선도 가드를 통과한 항목만 사용"
     else:
@@ -2036,7 +2120,9 @@ def fetch_toss_stock_movers(top_n=10):
     """
     if not toss_api.enabled():
         return None, None
-    today = datetime.now(KST).strftime("%Y-%m-%d")
+    # as_of = 목록이 가리키는 거래일(휴장·장전엔 직전 거래일). 수집일을 적으면 전일 랭킹이
+    # 오늘 것으로 통과한다(2026-09-24 추석 실측). 수집기 fetch_toss_snapshot 과 같은 규칙.
+    today = _kr_session_date()
 
     def _side(rank_type):
         try:
@@ -2075,13 +2161,28 @@ def _investor_align_portal(inv, days=10):
 
     네이버 파싱 실패 시 아무것도 바꾸지 않는다 — 값을 지우거나 추정하지 않는다.
     """
+    import investor_flows
+    label = "네이버 금융(KOSPI 투자자별 매매동향, 포털·언론 기준)"
     try:
-        import investor_flows
         nav = investor_flows.naver_daily("KOSPI")[-days:]
     except Exception as e:                                   # noqa: BLE001
-        log(f"[투자자] 포털 정렬 생략(네이버 조회 실패: {e})")
-        return inv
+        log(f"[투자자] 네이버 조회 실패: {e} — KRX(pykrx) 확정치로 정렬")
+        nav = []
+    # KRX 확정치 — 네이버가 보여주던 값의 원천. 네이버가 2026-09-21 HTTP 410 으로 사라진 뒤
+    # 교차검증이 토스 단일로 무너져 있었다. data.json 에 krxDaily 로도 실어 알림 스크립트
+    # (pykrx 를 싣지 않는다)가 포털 기준으로 읽게 한다.
+    krx = []
+    try:
+        krx = (_fetch_investor_pykrx(lookback_days=20) or {}).get("daily") or []
+        krx = [{k: r[k] for k in ("date", "foreign", "inst", "retail")} for r in krx][-days:]
+    except Exception as e:                                   # noqa: BLE001
+        log(f"[투자자] KRX(pykrx) 조회 실패: {e}")
+    if krx:
+        inv["krxDaily"] = krx
+    if not nav and krx:
+        nav, label = krx, "KRX 정보데이터시스템(pykrx, 확정치)"
     if not nav:
+        log("[투자자] 포털·KRX 모두 실패 — 정렬 생략(토스 단독)")
         return inv
     daily = list(inv.get("daily") or [])
     src_rows = {r.get("date"): r for r in daily if isinstance(r, dict)}
@@ -2101,11 +2202,11 @@ def _investor_align_portal(inv, days=10):
             replaced += 1
     daily.sort(key=lambda r: r.get("date") or "")
     inv["daily"] = daily
-    inv["recentSource"] = "네이버 금융(KOSPI 투자자별 매매동향, 포털·언론 기준)"
+    inv["recentSource"] = label
     inv["recentDays"] = replaced
     inv["crossCheck"] = cross
     _dis = [c for c in cross if c.get("gross")]
-    inv["source"] = f"{inv.get('source', '')} + 최근 {replaced}일 네이버 기준 정렬".strip(" +")
+    inv["source"] = f"{inv.get('source', '')} + 최근 {replaced}일 {label.split('(')[0]} 기준 정렬".strip(" +")
     log(f"[투자자] 최근 {replaced}일 포털 기준 정렬 — 교차검증 불일치 {len(_dis)}건"
         + (f" ({_dis[0]['date']}: {_dis[0]['gross']})" if _dis else ""))
     return inv
@@ -2212,7 +2313,7 @@ def fetch_ecb_yield_curve_eu():
         cur[slot] = round(rows[-1][1], 3)
         prv[slot] = round(rows[-22][1], 3) if len(rows) > 21 else round(rows[0][1], 3)
         series.append({"tenor": tenor, "label": tenor, "ecb_key": _ECB_YC.format(tenor),
-                       "data": [{"date": d, "value": round(v, 3)} for d, v in rows[-252:]]})
+                       "data": [{"date": d, "value": round(v, 3)} for d, v in rows[-280:]]})
     if not any(v is not None for v in cur):
         log("[ECB-YC] 유로존 곡선 수집 실패")
         return None
@@ -2230,7 +2331,7 @@ def fetch_boe_yield_curve_uk():
         try:
             r = requests.get(BOE_IADB_BASE, timeout=25,
                              headers={"User-Agent": "Mozilla/5.0 (economic-site fetch)"},
-                             params={"csv.x": "yes", "Datefrom": "01/Aug/2025",
+                             params={"csv.x": "yes", "Datefrom": (now - timedelta(days=420)).strftime("%d/%b/%Y"),
                                      "Dateto": now.strftime("%d/%b/%Y"), "SeriesCodes": code,
                                      "UsingCodes": "Y", "CSVF": "TT", "VPD": "Y"})
             r.raise_for_status()
@@ -2255,7 +2356,7 @@ def fetch_boe_yield_curve_uk():
         cur[slot] = round(rows[-1][1], 3)
         prv[slot] = round(rows[-22][1], 3) if len(rows) > 21 else round(rows[0][1], 3)
         series.append({"tenor": tenor, "label": tenor, "boe_series": code,
-                       "data": [{"date": d, "value": round(v, 3)} for d, v in rows[-252:]]})
+                       "data": [{"date": d, "value": round(v, 3)} for d, v in rows[-280:]]})
     if not any(v is not None for v in cur):
         return None
     log(f"[BOE-YC] 영국 {[f'{t}={v}' for t, v in zip(_YC_TERMS, cur) if v is not None]}")
@@ -2277,9 +2378,18 @@ def _merge_toss_yield_curve(kr_block, toss_kr):
             prv[slot] = toss_kr["prev_month"][slot]
             replaced.add(label)
     base["current"], base["prev_month"] = cur, prv
-    # 시계열도 같은 만기는 토스 것으로 교체 (ECOS 시계열은 라벨이 어긋나 있었다)
+    # 시계열도 같은 만기는 토스 것으로 교체하되, 토스 캔들은 200개(약 9개월)가 상한이라
+    # 그보다 앞 구간은 ECOS 것을 이어 붙인다 — 1년 전 비교점(prev_1y)이 여기서 나온다.
+    ecos_by_tenor = {s.get("tenor"): s for s in (base.get("series") or [])}
     kept = [s for s in (base.get("series") or []) if s.get("tenor") not in replaced]
-    base["series"] = kept + toss_kr["series"]
+    spliced = []
+    for ts in toss_kr["series"]:
+        tdata = ts.get("data") or []
+        first = tdata[0]["date"] if tdata else None
+        older = [p for p in ((ecos_by_tenor.get(ts.get("tenor")) or {}).get("data") or [])
+                 if first and str(p.get("date", "")) < first]
+        spliced.append({**ts, "data": older + tdata})
+    base["series"] = kept + spliced
     if toss_kr.get("extra"):
         base["extra"] = {**(base.get("extra") or {}), **toss_kr["extra"]}
     base["source"] = ("토스증권 Open API (국고채 " + ", ".join(sorted(replaced)) + ")"
@@ -3271,28 +3381,17 @@ def fetch_ecos_economic_indicators():
     r = _ecos_latest("301Y013", "000000", "M", "한국 경상수지 (백만달러)", "301Y013")
     if r: result["current_account_kr"] = r; log(f"[ECOS] 경상수지: {r['value']} ({r['period']})")
 
-    # 수출 - 관세청 통관 (백만달러) - 901Y011 (수출입물량/금액지수) or 401Y013/401Y014 (실제 수출액)
-    r, used_stat, used_item = _ecos_try_multi(
-        ["401Y014", "401Y013", "401Y015", "401Y016", "901Y011"],
-        ["AAA", "EXP", "000", "1000", "FIEED", "A0000"],
-        "M", "한국 수출금액 (백만달러)", "EXPORTS",
-    )
+    # 수출금액지수(관세청 통관, 2020=100, USD 기준) — 403Y001 총지수(*AA).
+    # 종전엔 401Y013·401Y014·401Y015·401Y016·901Y011 을 시도했는데 다섯 표 모두 ECOS 에
+    # 존재하지 않아(StatisticTableList INFO-200, 2026-09-24 실측) 매 런 '미수집'이었다.
+    # 달러 금액(exports_kr)은 FRED IMTS 가 담당하고(2~3개월 지연), 이 지수가 적시성을 맡는다.
+    r = _ecos_latest("403Y001", "*AA", "M", "한국 수출금액지수 (통관, 2020=100)", "403Y001")
     if r:
-        r["source"] = f"ECOS:{used_stat}"
-        result["exports_kr"] = r
-        log(f"[ECOS] 수출: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
+        r["unit"] = "2020=100"
+        result["exports_idx_kr"] = r
+        log(f"[ECOS] 수출금액지수: {r['value']} ({r['period']})")
     else:
-        # 코드 조합 전패 시 100대 통계지표 이름 매칭 폴백.
-        # ⚠ 키워드 '수출' 단독은 '수출입물가지수' 같은 물가 지표에 오매칭될 수 있어
-        #   금액 지표 명칭('수출총액'/'수출입총액')만 시도한다.
-        for kw in ("수출총액", "수출입총액"):
-            r = _ecos_key_statistic(kw, "한국 수출금액 (백만달러)", "EXPORTS")
-            if r:
-                result["exports_kr"] = r
-                log(f"[ECOS] 수출: {r['value']} ({r['period']}) — KeyStatisticList 폴백({kw})")
-                break
-        else:
-            log("[ECOS] 수출: StatisticSearch·KeyStatisticList 모두 실패 — 미수집")
+        log("[ECOS] 수출금액지수(403Y001) 미수집")
 
     # ─── 부동산 (KR) ──────────────────────────────────────────
     # 주담대 평균금리 - 121Y006 (예금은행 가중평균금리), item: 종류별 코드
@@ -3334,8 +3433,11 @@ def fetch_ecos_economic_indicators():
 # ============================================================
 # R-ONE API (한국부동산원 부동산 가격지수)
 # ============================================================
+_RONE_MAX_PSIZE = 1000   # 신 API 한도 — 넘으면 ERROR-336 으로 통째 거부된다
+
+
 def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None,
-                    period_type="M", start_prd=None, end_prd=None, limit=24):
+                    period_type="M", start_prd=None, end_prd=None, limit=24, page=1):
     """R-ONE 신 OpenAPI (SttsApiTblData) 호출.
 
     stats_id: 통계 ID (예: A_2024_00026 전국주택가격동향조사 매매가격지수)
@@ -3361,10 +3463,24 @@ def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None
     # 단일 문자("M"/"Q"/"Y"/"W")를 그대로 보내면 모든 STATBL_ID 가 빈 응답을 반환하므로
     # (유효한 통계표 ID 도 동일) 반드시 2글자 코드로 매핑해야 한다.
     cycle_code = {"M": "MM", "Q": "QQ", "Y": "YY", "W": "WK"}.get(period_type, period_type)
+    if limit > _RONE_MAX_PSIZE:
+        # 시군구 전체 행(limit 6000)을 한 번에 달라고 해 매 런 'ERROR-336 데이터요청은 한번에
+        # 최대 1,000건' 으로 거부됐다 → 시도·시군구 지도가 늘 시드값이었다(2026-09-24 CI 실측).
+        # 1,000건씩 끝 페이지(1,000 미만)까지 이어 받는다.
+        out = []
+        for pg in range(1, limit // _RONE_MAX_PSIZE + 2):
+            rows = fetch_rone_stats(stats_id, item_code1, item_code2, item_code3, period_type,
+                                    start_prd, end_prd, limit=_RONE_MAX_PSIZE, page=pg)
+            if not rows:
+                break
+            out.extend(rows if isinstance(rows, list) else [rows])
+            if len(out) >= limit or (isinstance(rows, list) and len(rows) < _RONE_MAX_PSIZE):
+                break
+        return out or None
     params = {
         "KEY":        REALESTATE_API_KEY,
         "Type":       "json",
-        "pIndex":     1,
+        "pIndex":     page,
         "pSize":      limit,
         "STATBL_ID":  stats_id,
         "DTACYCLE_CD": cycle_code,
@@ -4177,50 +4293,6 @@ def fetch_applyhome_subscription(max_items=200):
             }, " | ".join(diag)
     log(f"[청약홈] 수집 실패 — {' | '.join(diag)}")
     return {}, " | ".join(diag)
-
-
-def fetch_molit_apt_trade_count(months_back=3):
-    """국토교통부_아파트 매매 실거래가 자료 — 최근 N개월 전국 거래량 합계.
-    Returns: dict with monthly counts {YYYYMM: count, ...}
-    """
-    if not DATA_GO_KR_API_KEY:
-        log("[MOLIT] DATA_GO_KR_API_KEY 없음 — 아파트 실거래 건너뜀")
-        return None
-    # 전국 17개 시도 코드 (LAWD_CD 앞 2자리)
-    sido_codes = ["11", "26", "27", "28", "29", "30", "31", "36",
-                  "41", "43", "44", "46", "47", "48", "50", "51", "52"]
-    now = datetime.now(KST)
-    results = {}
-    for offset in range(months_back):
-        y = now.year
-        m = now.month - offset
-        while m <= 0:
-            m += 12
-            y -= 1
-        ym = f"{y:04d}{m:02d}"
-        total = 0
-        ok = 0
-        for sido in sido_codes:
-            data = fetch_data_go_kr(
-                "/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
-                {"LAWD_CD": sido, "DEAL_YMD": ym, "numOfRows": 1, "pageNo": 1},
-            )
-            if not data:
-                continue
-            try:
-                total_cnt = int(
-                    data.get("response", {})
-                    .get("body", {})
-                    .get("totalCount", 0)
-                )
-                total += total_cnt
-                ok += 1
-            except (TypeError, ValueError):
-                continue
-        if ok > 0:
-            results[ym] = total
-            log(f"[MOLIT] {ym} 전국 아파트 매매 거래: {total:,}건 ({ok}/{len(sido_codes)} 시도)")
-    return results if results else None
 
 
 # ============================================================
@@ -5900,6 +5972,51 @@ def _preserve_indicators_deep(data, prev, container_keys, fresh_label="이전 �
 # ============================================================
 # 메인 빌드
 # ============================================================
+def _yield_curve_compare_points(data):
+    """수익률곡선 비교점 prev_3m / prev_6m / prev_1y 를 series 에서 계산해 싣는다.
+
+    왜: 화면의 3·6·12개월 비교 버튼은 이 필드가 없어 코드 상수 곡선을 그렸다
+    (2026-09-24 감사 F7). series 에 이미 1년치(252점)가 있으니 만들어 넣으면 된다.
+    기준은 각 만기의 마지막 관측일에서 N개월 전 이하의 마지막 점. 시계열이 그만큼
+    거슬러 올라가지 않으면 None — 없는 점은 비워 둔다(화면이 버튼을 끈다).
+    """
+    def _back(d, months):
+        y, m = d.year, d.month - months
+        while m <= 0:
+            y, m = y - 1, m + 12
+        import calendar as _cal
+        return d.replace(year=y, month=m, day=min(d.day, _cal.monthrange(y, m)[1]))
+
+    for cc, yc in (data.get("yieldCurve") or {}).items():
+        if not isinstance(yc, dict) or not isinstance(yc.get("series"), list):
+            continue
+        out = {k: [None] * len(_YC_TERMS) for k in ("prev_3m", "prev_6m", "prev_1y")}
+        for srs in yc["series"]:
+            t = srs.get("tenor") or srs.get("label")
+            if t not in _YC_TERMS:
+                continue
+            pts = []
+            for p in srs.get("data") or []:
+                try:
+                    pts.append((datetime.strptime(str(p["date"])[:10], "%Y-%m-%d").date(),
+                                float(p["value"])))
+                except (KeyError, TypeError, ValueError):
+                    continue
+            pts.sort()
+            if len(pts) < 2:
+                continue
+            last = pts[-1][0]
+            for key, months in (("prev_3m", 3), ("prev_6m", 6), ("prev_1y", 12)):
+                target = _back(last, months)
+                if pts[0][0] > target:
+                    continue
+                cand = [v for dt, v in pts if dt <= target]
+                if cand:
+                    out[key][_YC_TERMS.index(t)] = round(cand[-1], 3)
+        for k, v in out.items():
+            yc[k] = v if any(x is not None for x in v) else None
+
+
 def _reconcile_history_with_spot(data, now):
     """차트 끝점을 실시간 spot 값과 일치시킨다 (공통 보정).
 
@@ -6017,8 +6134,10 @@ def build_data():
             data["fx"].get("USDJPY", {}).get("change", 0), 2
         )
     else:
-        data["sources"]["fx"] = "fallback"
-        data["fx"] = {k: dict(v) for k, v in FALLBACK["fx"].items()}
+        # 환율 소스 전멸 — 직전 값을 stale 로. 직전도 없으면 비워 두고 validate 가 커밋을 막는다.
+        _fx_prev = {k: _prev_spot(prev, "fx", k) for k in ("USDKRW", "EURKRW", "JPYKRW", "EURUSD", "USDJPY")}
+        data["fx"] = {k: v for k, v in _fx_prev.items() if v}
+        data["sources"]["fx"] = "이전 빌드 보존(환율 소스 전멸)" if data["fx"] else "수집 실패"
     log(f"[FX] USDKRW={data['fx'].get('USDKRW')}")
 
     # 토스 고시환율 교차검증 — 수집기가 매시간 받아두는데 소비처가 없었다(2026-08-20 감사 A2).
@@ -6052,12 +6171,12 @@ def build_data():
     if not (_tg or _tl):
         _snap = _toss_snapshot() or {}
         _sm = _snap.get("stockMovers") or {}
-        _today = datetime.now(KST).strftime("%Y-%m-%d")
+        _today = _kr_session_date()
         _fresh = lambda rows: rows and all(r.get("as_of") == _today for r in rows)
         _tg = _sm.get("kospiGainers") if _fresh(_sm.get("kospiGainers")) else None
         _tl = _sm.get("kospiLosers") if _fresh(_sm.get("kospiLosers")) else None
         if _tg or _tl:
-            log("[TOSS] 등락상위 — PC 스냅샷 사용(당일분)")
+            log(f"[TOSS] 등락상위 — PC 스냅샷 사용(거래일 {_today})")
     if _is_valid_mover_list(_tg, allow_extreme=True):
         data["stockMovers"]["kospiGainers"] = _tg
         data["sources"]["stockMovers"] = "토스증권 Open API"
@@ -6072,7 +6191,7 @@ def build_data():
     # 등락률(change)의 기준가는 당일이라야 맞으므로 asOf==오늘 + 12시간 이내만 채택.
     if "KOSPI" not in data["indices"] or "KOSDAQ" not in data["indices"]:
         _snap_idx = (_toss_snapshot(max_age_hours=12) or {}).get("indices") or {}
-        _today = datetime.now(KST).strftime("%Y-%m-%d")
+        _today = _kr_session_date()
         for _name in ("KOSPI", "KOSDAQ"):
             _e = _snap_idx.get(_name)
             if _name not in data["indices"] and _e and _e.get("asOf") == _today \
@@ -6084,7 +6203,7 @@ def build_data():
     # ETF 등락상위 — 토스 랭킹에서 분리 수집한 스냅샷(당일분만). 실패 시 아래
     # KRX/pykrx/네이버 체인이 종전대로 채운다.
     _snap_etf = (_toss_snapshot() or {}).get("etfMovers") or {}
-    _today_etf = datetime.now(KST).strftime("%Y-%m-%d")
+    _today_etf = _kr_session_date()
     _fresh_etf = lambda rows: rows and all(r.get("as_of") == _today_etf for r in rows)
     if _fresh_etf(_snap_etf.get("etfGainers")):
         data["etfMovers"]["etfGainers"] = _snap_etf["etfGainers"]
@@ -6095,6 +6214,7 @@ def build_data():
 
     # ── 한국 지수 (KRX 공식) ──────────────────────────────────
     krx_available = bool(KRX_API_KEY)
+    _krx_idx_ok = False          # 라벨은 '키가 있나'가 아니라 'KRX 가 실제로 채웠나'로 정한다
     if krx_available:
         log("[KRX] API 키 감지 → 한국 지수·원자재는 KRX 공식 데이터 사용")
         # ⚠ 토스가 이미 채웠으면 덮어쓰지 않는다 — KRX OpenAPI 는 전일 확정치(일봉)라
@@ -6103,11 +6223,13 @@ def build_data():
             kospi = krx_index("/idx/kospi_dd_trd", "코스피")
             if kospi:
                 data["indices"]["KOSPI"] = {"price": kospi["price"], "change": kospi["change"]}
+                _krx_idx_ok = True
                 log(f"[KRX] KOSPI: {kospi['price']} ({kospi['change']:+.2f}%)")
         if "KOSDAQ" not in data["indices"]:
             kosdaq = krx_index("/idx/kosdaq_dd_trd", "코스닥")
             if kosdaq:
                 data["indices"]["KOSDAQ"] = {"price": kosdaq["price"], "change": kosdaq["change"]}
+                _krx_idx_ok = True
                 log(f"[KRX] KOSDAQ: {kosdaq['price']} ({kosdaq['change']:+.2f}%)")
 
         # ── KOSPI 상승/하락 Top10 ──
@@ -6284,7 +6406,7 @@ def build_data():
             log(f"[TOSS] 종목 수급 {len(_flows)}종목")
         # 거래대금·토스 체결 랭킹 — 순위는 낡으면 오답이라 당일분만.
         _rk = _snap.get("rankings") or {}
-        _today_rk = datetime.now(KST).strftime("%Y-%m-%d")
+        _today_rk = _kr_session_date()
         _rk_fresh = {k: v for k, v in _rk.items()
                      if v and all(r.get("as_of") == _today_rk for r in v)}
         if _rk_fresh:
@@ -6365,7 +6487,7 @@ def build_data():
         )
 
     # ── 한국 지수 yfinance 폴백 ───────────────────────────────
-    # ⚠️ pykrx·yfinance 동시 실패 시 FALLBACK 주입은 change 를 None 으로 바꿔 넣는다(날조 방지 —
+    # ⚠️ pykrx·yfinance 동시 실패 시 직전 값을 change=None·stale 로 되살린다(날조 방지 —
     #    SOX 선례와 같은 원칙). 종전처럼 change:0.0 을 그대로 넣으면 market_halts 의 have_index 가
     #    항상 True 가 되어 stale 가드가 영구 사문화된다 — 실제 -10% 폭락 + 수집장애가 겹치면
     #    서킷브레이커 미감지인데 데이터는 멀쩡한 척 위장하는 최악 조합. price 는 프론트 표시용 유지.
@@ -6375,19 +6497,19 @@ def build_data():
             data["indices"]["KOSPI"] = q
             log(f"[yf] KOSPI: {q['price']} ({q['change']:+.2f}%)")
         else:
-            fb = dict(FALLBACK["indices"]["KOSPI"])
-            fb["change"] = None                # 등락률 날조 금지 → marketHalts.stale 로 이어짐
-            data["indices"]["KOSPI"] = fb
-            log("[yf] KOSPI: 수집 실패 — FALLBACK(price 표시용, change=None)")
+            fb = _prev_spot(prev, "indices", "KOSPI")   # change=None → marketHalts.stale
+            if fb:
+                data["indices"]["KOSPI"] = fb
+            log("[yf] KOSPI: 수집 실패 — " + ("직전 값 stale 보존" if fb else "직전 값도 없음, 생략"))
     if "KOSDAQ" not in data["indices"]:
         q = fetch_yf("^KQ11")
         if q:
             data["indices"]["KOSDAQ"] = q
         else:
-            fb = dict(FALLBACK["indices"]["KOSDAQ"])
-            fb["change"] = None                # 등락률 날조 금지 → marketHalts.stale 로 이어짐
-            data["indices"]["KOSDAQ"] = fb
-            log("[yf] KOSDAQ: 수집 실패 — FALLBACK(price 표시용, change=None)")
+            fb = _prev_spot(prev, "indices", "KOSDAQ")   # change=None → marketHalts.stale
+            if fb:
+                data["indices"]["KOSDAQ"] = fb
+            log("[yf] KOSDAQ: 수집 실패 — " + ("직전 값 stale 보존" if fb else "직전 값도 없음, 생략"))
 
     # ── 해외 지수 (yfinance) ──────────────────────────────────
     intl_indices = {
@@ -6402,17 +6524,18 @@ def build_data():
         if q:
             data["indices"][name] = q
             log(f"[yf] {name}: {q['price']} ({q['change']:+.2f}%)")
-        elif name in FALLBACK["indices"]:
-            data["indices"][name] = dict(FALLBACK["indices"][name])
-            log(f"[yf] {name}: fallback 사용")
         else:
-            # SOX 등 신규 지수는 하드코드 FALLBACK 을 두지 않는다(날조 방지) —
-            # 이번 런 미수집이면 키 자체를 생략하고 프론트가 '—' 처리.
-            log(f"[yf] {name}: 수집 실패 — FALLBACK 없음, 이번 런 생략")
+            fb = _prev_spot(prev, "indices", name)
+            if fb:
+                data["indices"][name] = fb
+            log(f"[yf] {name}: 수집 실패 — " + ("직전 값 stale 보존" if fb else "생략"))
 
-    data["sources"]["indices"] = (
-        "KRX OpenAPI (KR) + yfinance (해외)" if krx_available else "yfinance"
-    )
+    # 출처 라벨 = 실제로 값을 채운 경로. 종전엔 KRX 키 존재만 보고 'KRX OpenAPI' 라 적어,
+    # 키가 7일간 전건 401 인데도(2026-09-24 CI 실측) 화면 출처는 KRX 였다.
+    _kr_src = ("토스증권 Open API" if data["sources"].get("indices_kr") else
+               "KRX OpenAPI" if _krx_idx_ok else
+               "직전 값(수집 실패)" if (data["indices"].get("KOSPI") or {}).get("stale") else "yfinance")
+    data["sources"]["indices"] = f"{_kr_src} (KR) + yfinance (해외)"
 
     # ── 원자재: KRX 금·석유 → yfinance ────────────────────────
     if krx_available:
@@ -6460,11 +6583,15 @@ def build_data():
         if q:
             data["commodities"][name] = q
             log(f"[yf] {name}: {q['price']} ({q['change']:+.2f}%)")
-        elif name in FALLBACK["commodities"]:
-            data["commodities"][name] = dict(FALLBACK["commodities"][name])
+        else:
+            fb = _prev_spot(prev, "commodities", name)
+            if fb:
+                data["commodities"][name] = fb
+                log(f"[yf] {name}: 수집 실패 — 직전 값 stale 보존")
 
     data["sources"]["commodities"] = (
-        "KRX OpenAPI (한국 금·석유) + yfinance (국제·농산물·비철금속)" if krx_available else "yfinance"
+        "KRX OpenAPI (한국 금·석유) + yfinance (국제·농산물·비철금속)"
+        if ("GoldKRW" in data["commodities"] or "OilKR" in data["commodities"]) else "yfinance"
     )
 
     # ── FRED 경제 지표 (미국) ─────────────────────────────────
@@ -6553,46 +6680,13 @@ def build_data():
             for cc, ind in alt.items():
                 data["economicIndicators"].setdefault(cc, {}).update(ind)
             if alt:
-                data["sources"]["economicIndicators_intl_alt"] = "ECB Data Portal + OECD SDMX"
+                data["sources"]["economicIndicators_intl_alt"] = "ECB Data Portal + OECD SDMX + ONS + BOJ"
         except Exception as e:
             log(f"[INTL-ALT] 대체 소스 수집 실패: {e}")
 
-        # ── BOJ 정책금리 확정값 오버라이드 ─────────────────────────────
-        # IRSTCI01JPM156N (OECD 월간) 은 2~3개월 지연됨. 확정된 BOJ 결정을 직접 반영해
-        # 최신 정책금리가 항상 올바르게 표시되도록 함. FRED 가 따라잡으면 자동으로 무효화.
-        _BOJ_KNOWN = {  # YYYY-MM-01 (FRED 월간 키 형식) : 금리(%)
-            "2016-02-01": -0.10,  # NIRP 도입
-            "2024-03-01":  0.10,  # NIRP 종료
-            "2024-07-01":  0.25,  # 1차 인상
-            "2025-01-01":  0.50,  # 2차 인상
-            "2026-06-01":  1.00,  # 3차 인상 (2026-06-16 결정)
-        }
-        try:
-            jp_node = data.get("economicIndicators", {}).get("jp", {})
-            rate_node = jp_node.get("base_rate_jp", {})
-            if rate_node:
-                hist = dict(rate_node.get("history") or {})
-                for k, v in _BOJ_KNOWN.items():
-                    hist[k] = v  # 확정값으로 항상 덮어씀
-                known_latest = max(_BOJ_KNOWN.keys())
-                rate_node["value"] = _BOJ_KNOWN[known_latest]
-                rate_node["period"] = known_latest
-                rate_node["history"] = dict(sorted(hist.items(), reverse=True))
-                rate_node["source"] = "FRED:IRSTCI01JPM156N + BOJ confirmed decisions"
-                rate_node["desc"] = "일본 정책금리 (BOJ 무담보 익일물 유도목표)"
-                log(f"[BOJ] 정책금리 오버라이드: {rate_node['value']}% (period={known_latest})")
-            else:
-                known_latest = max(_BOJ_KNOWN.keys())
-                data["economicIndicators"].setdefault("jp", {})["base_rate_jp"] = {
-                    "value": _BOJ_KNOWN[known_latest],
-                    "period": known_latest,
-                    "desc": "일본 정책금리 (BOJ 무담보 익일물 유도목표)",
-                    "source": "BOJ confirmed decisions",
-                    "history": dict(sorted(_BOJ_KNOWN.items(), reverse=True)),
-                }
-                log(f"[BOJ] 정책금리 신규 생성: {_BOJ_KNOWN[known_latest]}% (FRED 데이터 없음)")
-        except Exception as _boj_err:
-            log(f"[BOJ] 정책금리 오버라이드 오류: {_boj_err}")
+        # (삭제) BOJ 정책금리 확정값 오버라이드(_BOJ_KNOWN) — 코드 안 결정표가 FRED 값을 항상
+        # 덮어써 사람이 표를 고치지 않으면 갱신되지 않았다. 이제 intl_sources 가 BOJ 시계열
+        # API(무담보 콜 익일물 일별)로 직접 싣는다. 그것도 실패하면 FRED 값이 stale 로 드러난다.
 
         # ── FOMC 목표금리 ff_target 보정 — DFEDTARU 지연 보완 ────────
         # DFEDTARU 는 결정 즉시 반영되므로 지연이 없지만, 가끔 fetch 실패 시
@@ -6788,22 +6882,50 @@ def build_data():
             data["yieldCurve"][_cc] = _blk
             data["sources"][f"yieldCurve_{_cc}"] = _blk["source"]
 
-    # 일본은 공개 일별 곡선이 없다 — 이미 수집한 FRED 월별 10년물만 곡선의 10Y 칸에 싣는다.
-    # (한 점짜리 '곡선'이지만, 화면의 하드코딩 1.05% 를 실제 값으로 바꾸는 게 목적이다.)
-    _jp10 = ((data.get("economicIndicators") or {}).get("jp") or {}).get("bond10y_jp") or {}
-    _jp10v = _jp10.get("value")
-    if _jp10v is not None:
-        _jp_cur = [None] * 10
-        _jp_cur[_YC_TERMS.index("10Y")] = round(float(_jp10v), 3)
-        _hist = sorted((_jp10.get("history") or {}).items())
+    # 일본 — 재무성(MOF) 일별 JGB 1/10/30Y 를 쓴다. fetch_mer_series.py 가 매 풀 런
+    # mer_series.json 에 쌓고 있었는데(400점) 곡선은 FRED 월별 10년물 한 점만 써서
+    # SLA 6일에 상시 '지연'이었다(2026-09-24 감사 F4). 파일이 없으면 종전 FRED 월별.
+    _jgb = {}
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "mer_series.json"), encoding="utf-8") as _f:
+            _jgb = (json.load(_f) or {}).get("jgb") or {}
+    except Exception as _e:
+        log(f"[YC-jp] mer_series.json 읽기 실패: {_e} — FRED 월별로 폴백")
+    _jgb = {t: [p for p in v if isinstance(p, dict) and p.get("value") is not None]
+            for t, v in _jgb.items() if t in _YC_TERMS and isinstance(v, list)}
+    _jgb = {t: v for t, v in _jgb.items() if len(v) >= 22}
+    if _jgb:
+        _jp_cur, _jp_prv = [None] * 10, [None] * 10
+        for _t, _pts in _jgb.items():
+            _i = _YC_TERMS.index(_t)
+            _jp_cur[_i] = round(float(_pts[-1]["value"]), 3)
+            _jp_prv[_i] = round(float(_pts[-22]["value"]), 3)   # 약 1개월(21영업일) 전
         data["yieldCurve"]["jp"] = {
-            "current": _jp_cur, "prev_month": [None] * 10,
-            "series": ([{"tenor": "10Y", "label": "10Y",
-                         "data": [{"date": k, "value": v} for k, v in _hist]}] if _hist else []),
+            "current": _jp_cur, "prev_month": _jp_prv,
+            "series": [{"tenor": t, "label": t, "data": _jgb[t]}
+                       for t in _YC_TERMS if t in _jgb],
             "label": "일본",
-            "source": _jp10.get("source") or "FRED (일본 10년 국채, 월별)",
+            "source": "재무성(MOF) 국채 금리 일별 (jgbcm)",
         }
-        log(f"[YC-jp] 일본 10Y={_jp_cur[_YC_TERMS.index('10Y')]} (월별)")
+        data["sources"]["yieldCurve_jp"] = "재무성(MOF) 국채 금리 일별 (jgbcm)"
+        log(f"[YC-jp] 일본 {sorted(_jgb)} 일별 (마지막 {max(v[-1]['date'] for v in _jgb.values())})")
+    else:
+        _jp10 = ((data.get("economicIndicators") or {}).get("jp") or {}).get("bond10y_jp") or {}
+        _jp10v = _jp10.get("value")
+        if _jp10v is not None:
+            _jp_cur = [None] * 10
+            _jp_cur[_YC_TERMS.index("10Y")] = round(float(_jp10v), 3)
+            _hist = sorted((_jp10.get("history") or {}).items())
+            data["yieldCurve"]["jp"] = {
+                "current": _jp_cur, "prev_month": [None] * 10,
+                "series": ([{"tenor": "10Y", "label": "10Y",
+                             "data": [{"date": k, "value": v} for k, v in _hist]}] if _hist else []),
+                "label": "일본",
+                "source": _jp10.get("source") or "FRED (일본 10년 국채, 월별)",
+                "cadence": "monthly",
+            }
+            log(f"[YC-jp] 일본 10Y={_jp_cur[_YC_TERMS.index('10Y')]} (월별 폴백)")
 
     # ── R-ONE 부동산 지표 (한국부동산원) ─────────────────────
     # R-ONE 우선 → 실패/키없음이면 ECOS KB 시리즈로 폴백 (사용자 화면 비지 않도록)
@@ -6985,34 +7107,9 @@ def build_data():
         data["realestate"]["kr"]["trade_count_kr"] = rone_trade
         data["sources"]["realestate_kr_trade"] = "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)"
         log(f"[거래량] R-ONE 행정구역별 아파트거래현황 사용: {rone_trade.get('period')} {rone_trade.get('value')}")
-    # MOLIT 실거래가 — 실제 비영(非零) 데이터가 있을 때만 (더 세분화된 아파트 실거래) 우선 사용
-    if DATA_GO_KR_API_KEY:
-        try:
-            log("[MOLIT] 국토부 아파트 매매 실거래 거래량 수집 시작")
-            apt_trades = fetch_molit_apt_trade_count(months_back=6)
-            if apt_trades:
-                apt_trades = {k: v for k, v in apt_trades.items() if v and v > 0}
-            if apt_trades:
-                sorted_keys = sorted(apt_trades.keys())
-                latest = sorted_keys[-1]
-                prev = sorted_keys[-2] if len(sorted_keys) > 1 else None
-                cur_cnt = apt_trades[latest]
-                prev_cnt = apt_trades[prev] if prev else None
-                chg = round((cur_cnt - prev_cnt) / prev_cnt * 100, 2) if prev_cnt else None
-                data["realestate"]["kr"]["trade_count_kr"] = {
-                    "value": cur_cnt, "prev": prev_cnt, "chg": chg, "period": latest,
-                    "desc": "전국 아파트 매매 실거래 건수",
-                    "source": "data.go.kr (MOLIT 1613000)",
-                    "history": apt_trades,
-                }
-                data["sources"]["realestate_molit"] = "data.go.kr (국토부 실거래가)"
-                log(f"[MOLIT] 성공(우선 적용): {latest} {cur_cnt:,}건 (prev {prev}: {prev_cnt:,}건)")
-            else:
-                log("[MOLIT] 최근 6개월 실거래 0 — R-ONE 부동산거래현황 값 유지")
-        except Exception as e:
-            log(f"[MOLIT] 오류: {e}")
-    else:
-        log("[MOLIT] DATA_GO_KR_API_KEY 없음 — R-ONE 부동산거래현황 값 유지")
+    # (삭제) MOLIT 실거래 보강 — 시도 2자리 LAWD_CD 로 불러(API 는 시군구 5자리 요구) 연결돼도
+    # 항상 0건이었고, 미응답일 땐 102회 × 20초 = 34분을 써서 풀 런 70분 타임아웃의 주원인이었다
+    # (2026-09-24 CI 실측 9/29 런). 성공 분기는 직전 data.json 을 담은 prev 변수까지 덮어썼다.
 
     # ── 청약홈 분양정보 (지역별 드릴다운용) ──────────────────
     # 프론트 '청약 경쟁률' 지역 클릭 시 최근 분양 단지를 지역별로 보여주기 위함.
@@ -7331,9 +7428,15 @@ def build_data():
         _reconcile_history_with_spot(data, now)
     except Exception as e:
         log(f"[reconcile] 오류 (무시): {e}")
+    try:
+        _yield_curve_compare_points(data)
+    except Exception as e:
+        log(f"[YC] 비교점 계산 오류: {e}")
 
     # 토스 연결상태 — sources 대입이 전부 끝난 마지막에 계산해야 supplied 가 정확하다.
     data.setdefault("diagnostics", {})["toss"] = toss_connection_status(data.get("sources"))
+    if requests.dead:
+        data["diagnostics"]["deadHosts"] = sorted(requests.dead)
 
     return data
 

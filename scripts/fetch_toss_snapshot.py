@@ -53,6 +53,14 @@ def log(msg):
     print(f"[toss-snap] {msg}", flush=True)
 
 
+def _session_from_calendar(cal, today):
+    """캘린더로 최근 거래일을 고른다 — 오늘이 휴장이면 직전 영업일."""
+    t = (cal or {}).get("today") or {}
+    if t.get("date") == today and t.get("open") is False:
+        return ((cal.get("previousBusinessDay") or {}).get("date")) or today
+    return today
+
+
 def collect():
     """실패한 항목은 넣지 않는다 — 부분 성공도 그대로 쓸모가 있다(날조 금지)."""
     today = datetime.now(KST).strftime("%Y-%m-%d")
@@ -66,6 +74,13 @@ def collect():
     if idx:
         snap["indices"] = idx
         log(f"지수 {list(idx)}")
+
+    # 랭킹·등락상위의 as_of = 그 목록이 가리키는 거래일. 종전엔 수집일(today)을 적어
+    # 휴장일·장전 런에 전일 랭킹이 '오늘 것'으로 표시됐다(2026-09-24 추석 실측:
+    # indices.asOf=09-23 인데 stockMovers.as_of=09-24). 지수 asOf 가 거래소가 준 날짜라
+    # 가장 정확하고, 없으면 캘린더(휴장이면 직전 영업일), 그것도 없으면 today.
+    cal = toss_api.market_calendar_kr()
+    session = (idx.get("KOSPI") or {}).get("asOf") or _session_from_calendar(cal, today)
 
     spot = toss_api.indicator_prices([s for _, s, _ in BOND_SLOTS] + ["KR_BOND_3Y"])
     if spot:
@@ -106,7 +121,7 @@ def collect():
             m = meta.get(r["code"]) or {}
             row = {"name": m.get("name") or r["code"], "code": r["code"],
                    "price": r["price"], "chg": r["chg"], "vol": r["vol"],
-                   "market": m.get("market"), "as_of": today}
+                   "market": m.get("market"), "as_of": session}
             if m.get("market") in ("KOSPI", "KOSDAQ") and m.get("type") == "STOCK":
                 if len(stocks_out) < 10:
                     stocks_out.append(row)
@@ -138,7 +153,7 @@ def collect():
             m = meta.get(r["code"]) or {}
             out.append({"name": m.get("name") or r["code"], "code": r["code"],
                         "price": r["price"], "chg": r["chg"], "amount": r["amount"],
-                        "market": m.get("market"), "type": m.get("type"), "as_of": today})
+                        "market": m.get("market"), "type": m.get("type"), "as_of": session})
         rankings[key] = out
     if rankings:
         snap["rankings"] = rankings
@@ -154,7 +169,6 @@ def collect():
         snap["stockData"] = sd
         log(f"종목 수급 {len(sd)}종목")
 
-    cal = toss_api.market_calendar_kr()
     if cal:
         snap["marketCalendarKr"] = cal
         log(f"캘린더 today={cal.get('today')}")
