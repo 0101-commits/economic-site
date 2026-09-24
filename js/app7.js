@@ -355,7 +355,7 @@ function _merRenderMonitor(d) {
     var opts = [['all', '전체'], ['crossed', '돌파'], ['near', '주시'], ['below', '정상'], ['unknown', 'N/A']];
     filtBox.innerHTML = opts.map(function (o) {
       return '<button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" ' +
-        'data-mer-filter="' + o[0] + '" aria-pressed="' + (o[0] === 'all' ? 'true' : 'false') + '" onclick="_merSetMonitorFilter(\'' + o[0] + '\',this)">' +
+        'data-mer-filter="' + o[0] + '" aria-pressed="' + (o[0] === (_merMonitorFilter || 'all') ? 'true" data-checked="' : 'false') + '" onclick="_merSetMonitorFilter(\'' + o[0] + '\',this)">' +
         '<span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">' + o[1] + '</span></button>';
     }).join('');
     filtBox.dataset.built = '1';
@@ -392,7 +392,7 @@ function _merSetMonitorFilter(state, btn) {
   _merMonitorFilter = state;
   if (typeof econSetViewParam === 'function') econSetViewParam('merlens', 'f', state);
   var box = document.getElementById('merlensMonitorFilters');
-  if (box) box.querySelectorAll('[data-mer-filter]').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+  if (box) econChipSelect('#merlensMonitorFilters [data-mer-filter]', btn || box.querySelector('[data-mer-filter="' + state + '"]'));
   _merRenderMonitorBody();
 }
 
@@ -582,14 +582,16 @@ function _merBuildHorizonChips(containerId, setterFnName) {
   var opts = [['all', '전체'], ['단기', '단기'], ['중기', '중기'], ['장기', '장기']];
   box.innerHTML = opts.map(function (o) {
     return '<button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" ' +
-      'data-mer-hz="' + o[0] + '" aria-pressed="' + (o[0] === 'all' ? 'true' : 'false') + '" onclick="' + setterFnName + '(\'' + o[0] + '\',this)">' +
+      'data-mer-hz="' + o[0] + '" aria-pressed="' + (o[0] === 'all' ? 'true" data-checked="' : 'false') + '" onclick="' + setterFnName + '(\'' + o[0] + '\',this)">' +
       '<span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">' + o[1] + '</span></button>';
   }).join('');
   box.dataset.built = '1';
 }
 function _merChipPress(containerId, btn) {
   var box = document.getElementById(containerId);
-  if (box) box.querySelectorAll('[data-mer-hz]').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+  // 선택은 .active 하나 — aria-pressed 만 바꾸면 SEED 칩(recipe 는 [data-checked] 를 본다)이 골라진 것을
+  // 그리지 않는다(2026-09-24 실측: 골라진 칩과 아닌 칩의 계산 스타일이 같았다). econChipSelect 가 셋 다 세운다.
+  if (box) econChipSelect('#' + containerId + ' [data-mer-hz]', btn);
 }
 
 /* ── ② 전이 경로 맵 ─────────────────────────────────────────────── */

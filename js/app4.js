@@ -384,7 +384,7 @@ window.showDataSourceBanner = function () {
   var div = document.createElement('div');
   div.id = 'dataSrcBanner';
   div.innerHTML = '⚠ 서버 데이터(data.json)를 불러오지 못해 <b>예시(Mock) 데이터</b>로 표시 중입니다.' +
-    '<button onclick="retryLoadRealData(this)" style="font-size:var(--font-size-sm);padding:2px 10px;border:1px solid var(--c-warn);border-radius:var(--r-xs);background:transparent;color:var(--c-warn);cursor:pointer;">재시도</button>' +
+    '<button onclick="retryLoadRealData(this)" class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText">재시도</button>' +
     '<button type="button" class="btn-plain btn-inline" style="cursor:pointer;font-weight:var(--font-weight-bold);padding:0 2px;" onclick="this.parentNode.remove()" title="닫기">✕</button>';
   document.body.appendChild(div);
 };
@@ -793,8 +793,8 @@ function pfExportCsv() {
       '<input type="password" inputmode="numeric" autocomplete="off" aria-label="비밀번호" style="width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:8px 10px;font-size:var(--font-size-md);">' +
       '<div data-lock-err style="display:none;color:var(--c-down,#e05555);font-size:var(--font-size-xs);margin-top:6px;">비밀번호가 올바르지 않습니다.</div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">' +
-        '<button data-lock-cancel style="border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);border-radius:var(--r-xs);padding:6px 14px;font-size:var(--font-size-sm);cursor:pointer;">취소</button>' +
-        '<button data-lock-ok style="border:none;background:var(--c-accent,var(--c-primary));color:var(--c-on-accent,#fff);border-radius:var(--r-xs);padding:6px 14px;font-size:var(--font-size-sm);cursor:pointer;">확인</button>' +
+        '<button data-lock-cancel class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText">취소</button>' +
+        '<button data-lock-ok class="seed-action-button seed-action-button--variant_brandSolid seed-action-button--size_small seed-action-button--size_small-layout_withText">확인</button>' +
       '</div>';
     _overlay.appendChild(card);
     document.body.appendChild(_overlay);
@@ -908,6 +908,7 @@ function pfExportCsv() {
             paintFav(btn, econToggleFav(row.id), row.label);
           });
           t.appendChild(btn);
+          if (window.econOrderTools) window.econOrderTools(t);
         }
         paintFav(btn, set.indexOf(row.id) >= 0, row.label);
       });
@@ -1428,6 +1429,8 @@ window.econMakeTablesSortable = function (root) {
       note.appendChild(msg);
       var widget = cv.closest('.widget');
       var refresh = widget && widget.querySelector('[aria-label*="새로고침"], [title*="새로고침"]');
+      // 위젯 새로고침이 없으면(6차 D2 이후 전용 핸들러 있는 위젯만 가진다) 전체 새로고침으로 다시 시도.
+      if (!refresh && typeof window.refreshAllData === 'function') refresh = { click: function () { window.refreshAllData(); } };
       if (refresh) {
         var again = document.createElement('button');
         again.type = 'button';

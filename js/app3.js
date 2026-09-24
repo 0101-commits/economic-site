@@ -2115,6 +2115,7 @@ function initWidgetCollapse(){
     var startCollapsed = state ? state === 'collapsed'
       : defaults.some(function(m){ return (t.textContent || '').indexOf(m) >= 0; });
     t.appendChild(tgBtn);
+    if(window.econOrderTools) window.econOrderTools(t);
     tgBtn.addEventListener('click', function(ev){ ev.stopPropagation(); onToggle(ev); });
     _wcSetState(w, t, startCollapsed);
     function onToggle(ev){

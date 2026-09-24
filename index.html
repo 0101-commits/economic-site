@@ -1777,7 +1777,7 @@ html.light #dataSrcBanner { background:#fff7e6; color:var(--c-warn,#b8860b); bor
 }
 
 /* ── 3. 뉴스 필터 버튼: 다크 모드 hover ─────────────────────── */
-.news-filter-btn:not(.act):hover {
+.news-filter-btn:not(.act):not([class*="seed-"]):hover {
   background: var(--c-card-hi, #2a3556);
   color: var(--c-txt, #e8ebf5);
   border-color: rgba(170, 195, 255, 0.30);
@@ -1787,7 +1787,7 @@ html.light #dataSrcBanner { background:#fff7e6; color:var(--c-warn,#b8860b); bor
 .kpi-clickable:hover { transform: translateY(-2px); }
 
 /* ── 6. 라이트 모드: widget-title → accent 파랑으로 ──────────── */
-html.light .widget-title:not([class*="seed-"]) { color: rgb(53, 108, 181) !important; }
+/* (2026-09-24 6차 C1) 라이트 제목 파랑 덮어쓰기 삭제 — 제목은 무채색(색=데이터). */
 
 /* ── 7. 스크롤바 thumb hover ─────────────────────────────────── */
 ::-webkit-scrollbar-thumb:hover { background: #5a6480; }
@@ -2156,22 +2156,34 @@ body.has-rail #appLayout { padding-right: 56px; }
 /* 손가락 입력에서 원본 링크가 16px 높이였다(M3 하한 24) — 글자 크기는 그대로 두고
    눌리는 영역만 넓힌다. */
 @media (pointer: coarse) { .econ-src { display: inline-flex; align-items: center; min-height: 24px; } }
-/* ⚠ `.widget-title` 은 두 역할을 겹쳐 쓴다 — 위젯 제목(h3, 700)과 **KPI 카드 라벨**
-   (span.widget-title.econ-stat__label, 600). 구조 감사에서 '제목 굵기가 두 종류'로 잡힌 것은
-   이 겹쳐쓰기 때문이고, 굵기 자체는 역할에 맞는 값이다. 통일 대상은 굵기가 아니라 클래스 분리다. */
-h3.widget-title { margin-top: 0; margin-bottom: var(--spacing-3); font-size: var(--font-size-sm); }
-h3.widget-title[class*="seed-"] { font-size: inherit; }
-
-.widget-title:not([class*="seed-"]) {
-  /* Phase 3 위계 격상: xs(10px)·dim 단일 위계가 212개 위젯을 균일한 회색 텍스처로
-     만들었다(감사 C3) — 한 단계 위 크기 + 본문 명도로 섹션 식별성을 올린다. */
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--c-txt) !important;
-  margin-bottom: var(--spacing-3);
-}
+/* 위젯 제목 한 벌(6차 C1, 2026-09-24). 종전엔 seed 클래스 유무로 두 규칙이 갈려
+   71개가 14px/600/파랑/대문자, 14개가 700/검정이었다 — 600 은 SEED 에 없고, 파란 제목은
+   링크 파랑과 같은 계열이라 '누를 수 있는 제목'으로 읽혔다(벤치 3표면 제목은 전부 검정 700).
+   KPI 카드 라벨(span.widget-title.econ-stat__label)은 제목이 아니라 큰 숫자의 설명 → 500·dim.
+   도구(별·새로고침·접기)는 제목 줄 오른쪽 끝에 모인다 — 순서는 econOrderTools(js/app1.js). */
+h3.widget-title { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px;
+                  margin-top: 0; margin-bottom: var(--spacing-3);
+                  font-size: var(--font-size-sm); font-weight: 700; letter-spacing: 0;
+                  text-transform: none; color: var(--c-txt); }
+h3.widget-title > .econ-tools-start { margin-left: auto; }
+/* 제목 줄 도구 = 아이콘 버튼 28 한 크기(6차 §4.3). 별(14)·접기(28/r0)·새로고침(32/pill)이 셋이었다. */
+h3.widget-title > .econ-fav, h3.widget-title > .w-toggle-btn, h3.widget-title > [data-chart-refresh] {
+  width: 28px; height: 28px; min-width: 28px; padding: 0; flex: 0 0 28px;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: var(--seed-radius-full, 9999px); }
+/* 차례는 DOM(econOrderTools)과 같게 — 나중에 끼어든 메타(원본 링크·신선도 칩)가 도구 뒤로 가지 않게 */
+h3.widget-title > .econ-fav { order: 91; }
+h3.widget-title > [data-chart-refresh], h3.widget-title > button[aria-label*="새로고침"] { order: 92; }
+h3.widget-title > .w-toggle-btn { order: 93; }
+/* 크기 이탈 정리(6차 S29): 실행 버튼은 28·32·36 세 값 */
+.home-sec .sec-hide-btn { width: 28px; height: 28px; }
+.mer-more { height: 36px; padding-top: 0; padding-bottom: 0; }
+.study-btn { height: 32px; padding-top: 0; padding-bottom: 0; }
+/* 캘린더 필터 칩: 칩 사이 8(§4.4). 좁은 화면은 두 줄로 감기지 않고 한 줄 가로 스크롤(첫 데이터 M8) */
+.cal-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 480px) { .cal-chips { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+                            .cal-chips > * { flex: 0 0 auto; } }
+.widget-title.econ-stat__label { font-size: var(--font-size-xs); font-weight: 500;
+                                 letter-spacing: 0; text-transform: none; color: var(--c-txt-dim); }
 /* 클릭 가능한 카드: 들어올리지 말고 테두리로 알린다(모션 최소화) */
 .kpi-card.kpi-clickable, .clickable-card, .link-card {
   transition: border-color var(--duration-fast-min) var(--ease-standard),
@@ -2672,7 +2684,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div id="reHistMeta"  style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:2px;">—</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <button class="u-touch-hit" onclick="event.stopPropagation();refreshReHistoryChart(this)" title="데이터 다시 불러오기" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
+          <button class="u-touch-hit seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="event.stopPropagation();refreshReHistoryChart(this)" title="데이터 다시 불러오기">새로고침</button>
           <button class="u-touch" aria-label="닫기" onclick="closeReHistoryChart()" style="background:transparent;border:none;color:var(--c-txt-dim);font-size:var(--font-size-2xl);cursor:pointer;line-height:1;padding:0 4px;">×</button>
         </div>
       </div>
@@ -3002,10 +3014,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="sp-12 sp-md-4 sp-lg-3">
             <div class="widget">
               <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">등락 Top10</h3>
-              <div class="seed-chip-tabs__root seed-chip-tabs__root--contentLayout_hug econ-tabs">
-                <div class="seed-chip-tabs__list seed-chip-tabs__list--size_medium" role="tablist" aria-label="등락 방향">
-                  <button role="tab" id="moverTabUp" aria-selected="true" aria-controls="moverTable" class="seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline active" onclick="setMoverTab('up',this)">▲ 상승</button>
-                  <button role="tab" id="moverTabDown" aria-selected="false" aria-controls="moverTable" class="seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setMoverTab('down',this)">▼ 하락</button>
+              <div class="econ-tabs">
+                <div class="econ-chipgroup" role="group" aria-label="등락 방향">
+                  <button id="moverTabUp" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText active" onclick="setMoverTab('up',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">▲ 상승</span></button>
+                  <button id="moverTabDown" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setMoverTab('down',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">▼ 하락</span></button>
                 </div>
               </div>
               <div class="econ-chipgroup" role="group" aria-label="종목 종류">
@@ -3095,13 +3107,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <button onclick="refreshNews('newsFeed','newsItems',this)" class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText">새로고침</button>
             </div>
           </div>
-          <div class="seed-chip-tabs__root seed-chip-tabs__root--contentLayout_hug econ-tabs">
-            <div class="seed-chip-tabs__list seed-chip-tabs__list--size_medium" role="tablist" aria-label="뉴스 분류" id="newsFilter">
-              <button role="tab" aria-selected="true" aria-controls="newsFeed" class="news-filter-btn act seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','all',this)">전체</button>
-              <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','주식',this)">주식</button>
-              <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','채권',this)">채권</button>
-              <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','외환',this)">외환</button>
-              <button role="tab" aria-selected="false" aria-controls="newsFeed" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('newsFeed','원자재',this)">원자재</button>
+          <div class="econ-tabs">
+            <div class="econ-chipgroup" role="group" aria-label="뉴스 분류" id="newsFilter">
+              <button class="news-filter-btn act seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('newsFeed','all',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+              <button class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('newsFeed','주식',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">주식</span></button>
+              <button class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('newsFeed','채권',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">채권</span></button>
+              <button class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('newsFeed','외환',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">외환</span></button>
+              <button class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('newsFeed','원자재',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">원자재</span></button>
             </div>
           </div>
           <div id="newsFeed" class="econ-newslist econ-await" role="tabpanel" aria-label="뉴스 목록"></div>
@@ -3386,8 +3398,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </div>
               <div style="margin-left:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
                 <div style="display:flex;gap:4px;">
-                  <button onclick="refreshFxData(this)" title="실시간 환율 + 일별 변화율 갱신" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
-                  <button onclick="toggleFxDir()" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">⇄ 역방향</button>
+                  <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshFxData(this)" title="실시간 환율 + 일별 변화율 갱신">새로고침</button>
+                  <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="toggleFxDir()">⇄ 역방향</button>
                 </div>
                 <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
                   <button class="tab-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxPeriodBtn1W" onclick="setFxPeriod('1W',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1W</span></button>
@@ -3403,8 +3415,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   </span>
                   <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxCustomBtn" onclick="setFxPeriod('custom',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">사용자 지정</span></button>
                   <span style="width:1px;height:14px;background:var(--c-border);display:inline-block;margin:0 2px;vertical-align:middle;"></span>
-                  <button id="fxCompareModeBtn" aria-pressed="false" onclick="toggleChartCompareMode('fx',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
-                  <button onclick="resetChartCompareMode('fx')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
+                  <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="fxCompareModeBtn" onclick="toggleChartCompareMode('fx',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">% 비교</span></button>
+                  <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="resetChartCompareMode('fx')">초기화</button>
                   <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="fxChart" onclick="toggleYoY('fxChart',this)" aria-pressed="false" title="전년 동기 환율을 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
                 </div>
               </div>
@@ -3413,7 +3425,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <input aria-label="환율 차트 조회 시작일" type="date" id="fxDateFrom"/ class="econ-input">
               <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
               <input aria-label="환율 차트 조회 종료일" type="date" id="fxDateTo"/ class="econ-input">
-              <button onclick="applyCustomRange('fx')" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
+              <button class="seed-action-button seed-action-button--variant_neutralSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="applyCustomRange('fx')">적용</button>
             </div>
             <div id="fxChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:16px;"></div>
             <div class="h-220" style="position:relative">
@@ -3458,11 +3470,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
             <h3 class="widget-title" style="margin-bottom:0;">주요국 기준금리 역사적 비교</h3>
             <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rateFilterBtns" role="group" aria-label="비교할 나라 고르기">
-              <button onclick="toggleRateFilter('kr',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">🇰🇷 한국</button>
-              <button onclick="toggleRateFilter('us',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-up);border-radius:var(--r-xs);background:var(--c-up);color:var(--color-on-success);cursor:pointer;">🇺🇸 미국</button>
-              <button onclick="toggleRateFilter('eu',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-primary);border-radius:var(--r-xs);background:var(--c-primary)33;color:var(--c-primary);cursor:pointer;">🇪🇺 유로존</button>
-              <button onclick="toggleRateFilter('jp',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid #f5a623;border-radius:var(--r-xs);background:#f5a62333;color:var(--c-warn);cursor:pointer;">🇯🇵 일본</button>
-              <button onclick="toggleRateFilter('uk',this)" aria-pressed="true" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-down);border-radius:var(--r-xs);background:color-mix(in srgb,var(--c-down) 20%,transparent);color:var(--c-down);cursor:pointer;">🇬🇧 영국</button>
+              <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleRateFilter('kr',this)" style="border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇰🇷 한국</span></button>
+              <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleRateFilter('us',this)" style="border:1px solid var(--c-up);background:var(--c-up);color:var(--color-on-success);" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 미국</span></button>
+              <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleRateFilter('eu',this)" style="border:1px solid var(--c-primary);background:var(--c-primary)33;color:var(--c-primary);" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇪🇺 유로존</span></button>
+              <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleRateFilter('jp',this)" style="border:1px solid #f5a623;background:#f5a62333;color:var(--c-warn);" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇯🇵 일본</span></button>
+              <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleRateFilter('uk',this)" style="border:1px solid var(--c-down);background:color-mix(in srgb,var(--c-down) 20%,transparent);color:var(--c-down);" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇬🇧 영국</span></button>
             </div>
           </div>
           <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap;" class="econ-chipgroup" role="group" aria-label="기준금리 조회 기간 선택">
@@ -3526,8 +3538,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <input aria-label="금리 차트 조회 시작일" type="date" id="bondDateFrom"/ class="econ-input">
               <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
               <input aria-label="금리 차트 조회 종료일" type="date" id="bondDateTo"/ class="econ-input">
-              <button onclick="applyBondCustomRange()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
-              <button onclick="resetBondCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
+              <button class="seed-action-button seed-action-button--variant_neutralSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="applyBondCustomRange()">적용</button>
+              <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="resetBondCustomRange()">초기화</button>
             </div>
             <div id="bondChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
             <div class="mh-280" style="position:relative;flex:1">
@@ -3539,10 +3551,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <h3 class="widget-title" style="margin-bottom:0;">미국 국채 수익률 곡선 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: % (수익률)</span></h3>
               <!-- 비교 시점 선택 (스냅샷 1개월전, 3개월전, 6개월전, 1년전) -->
               <div id="yieldCurveCompareBtns" style="display:flex;gap:3px;flex-wrap:wrap;">
-                <button onclick="setYieldCurveCompare('1m',this)" class="ycCompareBtn active" data-cmp="1m" style="font-size:var(--font-size-xs);padding:2px 7px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">1개월</button>
-                <button onclick="setYieldCurveCompare('3m',this)" class="ycCompareBtn"        data-cmp="3m" style="font-size:var(--font-size-xs);padding:2px 7px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3개월</button>
-                <button onclick="setYieldCurveCompare('6m',this)" class="ycCompareBtn"        data-cmp="6m" style="font-size:var(--font-size-xs);padding:2px 7px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">6개월</button>
-                <button onclick="setYieldCurveCompare('1y',this)" class="ycCompareBtn"        data-cmp="1y" style="font-size:var(--font-size-xs);padding:2px 7px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">1년전</button>
+                <button onclick="setYieldCurveCompare('1m',this)" class="ycCompareBtn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-cmp="1m" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1개월</span></button>
+                <button onclick="setYieldCurveCompare('3m',this)" class="ycCompareBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        data-cmp="3m" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3개월</span></button>
+                <button onclick="setYieldCurveCompare('6m',this)" class="ycCompareBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        data-cmp="6m" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">6개월</span></button>
+                <button onclick="setYieldCurveCompare('1y',this)" class="ycCompareBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText"        data-cmp="1y" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년전</span></button>
               </div>
             </div>
             <div class="chart-scroll-x" style="flex:1;display:flex;">
@@ -3628,10 +3640,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </span>
               <span class="ctl-sep" aria-hidden="true"></span>
               <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="eqCustomBtn" onclick="toggleCustomRange('equity',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">기간 지정</span></button>
-              <button id="eqCompareModeBtn" aria-pressed="false" onclick="toggleChartCompareMode('equity',this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
-              <button onclick="resetChartCompareMode('equity')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
+              <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="eqCompareModeBtn" onclick="toggleChartCompareMode('equity',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">% 비교</span></button>
+              <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="resetChartCompareMode('equity')">초기화</button>
               <span class="ctl-sep" aria-hidden="true"></span>
-              <button onclick="refreshAllData(this)" title="실시간 데이터 새로고침" style="font-size:var(--font-size-sm);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-card);color:var(--c-primary);cursor:pointer;">새로고침</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshAllData(this)" title="실시간 데이터 새로고침">새로고침</button>
               <span class="ctl-sep" aria-hidden="true"></span>
               <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="equityIndexChart" onclick="toggleYoY('equityIndexChart',this)" aria-pressed="false" title="전년 동기 지수를 점선으로 오버레이하고 변화율 배지를 표시"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
@@ -3640,8 +3652,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <input aria-label="주식 차트 조회 시작일" type="date" id="eqDateFrom"/ class="econ-input">
             <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
             <input aria-label="주식 차트 조회 종료일" type="date" id="eqDateTo"/ class="econ-input">
-            <button onclick="applyEquityCustomRange()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
-            <button onclick="resetEquityCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
+            <button class="seed-action-button seed-action-button--variant_neutralSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="applyEquityCustomRange()">적용</button>
+            <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="resetEquityCustomRange()">초기화</button>
           </div>
           <div id="equityChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:16px;display:flex;flex-wrap:wrap;gap:4px;"></div>
           <div class="h-340" style="position:relative">
@@ -3701,7 +3713,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <h3 class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
-              <button onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침">새로고침</button>
               <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
@@ -3720,7 +3732,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <h3 class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
-              <button onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침">새로고침</button>
               <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
@@ -3743,7 +3755,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <h3 class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
-              <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화">새로고침</button>
               <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
@@ -3761,7 +3773,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <h3 class="widget-title" style="margin-bottom:0;">ETF 하락 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
-              <button onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshETFFromClient(this)" title="네이버에서 실시간 ETF 동기화">새로고침</button>
               <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
             </div>
           </div>
@@ -3826,8 +3838,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 </span>
                 <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="comCustomBtn" onclick="toggleCustomRange('com',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">기간 지정</span></button>
                 <span style="width:1px;height:16px;background:var(--c-border);margin:0 2px;"></span>
-                <button id="comCompareModeBtn" aria-pressed="false" onclick="toggleComCompareMode(this)" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">% 비교</button>
-                <button onclick="resetChartCompareMode('com')" style="font-size:var(--font-size-xs);padding:3px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-muted);cursor:pointer;">초기화</button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="comCompareModeBtn" onclick="toggleComCompareMode(this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">% 비교</span></button>
+                <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="resetChartCompareMode('com')">초기화</button>
                 <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="comDetailChart" onclick="toggleYoY('comDetailChart',this)" aria-pressed="false" title="주 원자재의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
@@ -3835,8 +3847,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <input aria-label="원자재 차트 조회 시작일" type="date" id="comDateFrom"/ class="econ-input">
               <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
               <input aria-label="원자재 차트 조회 종료일" type="date" id="comDateTo"/ class="econ-input">
-              <button onclick="applyComCustomRange()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
-              <button onclick="resetComCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
+              <button class="seed-action-button seed-action-button--variant_neutralSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="applyComCustomRange()">적용</button>
+              <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="resetComCustomRange()">초기화</button>
             </div>
             <div id="comDetailChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:6px;min-height:20px;display:flex;flex-wrap:wrap;gap:4px;"></div>
             <div class="h-300" style="position:relative">
@@ -3876,7 +3888,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <h3 class="widget-title" style="margin-bottom:0;">LME 금속 창고 재고 현황
               <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-txt-muted);margin-left:6px;">단위: 톤 · 행 클릭 → 비철금속 차트 강조</span>
             </h3>
-            <button onclick="resetLmeHighlight()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">강조 해제</button>
+            <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="resetLmeHighlight()">강조 해제</button>
           </div>
           <table class="econ-table">
             <thead><tr style="color:var(--c-txt-dim);border-bottom:1px solid var(--c-border);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);text-transform:uppercase;">
@@ -3930,7 +3942,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-txt-muted);margin-left:6px;">SCFI·CCFI·BDI 계열 · 단위: 지수(pt)</span>
             </h3>
             <div style="display:flex;gap:6px;align-items:center;">
-              <button onclick="refreshFreight(this)" title="네이버 시장지표에서 운임지수 동기화" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshFreight(this)" title="네이버 시장지표에서 운임지수 동기화">새로고침</button>
               <a href="https://finance.naver.com/marketindex/" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 →</a>
             </div>
           </div>
@@ -4027,17 +4039,17 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="widget" style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <h3 class="widget-title" style="margin-bottom:0;">거시경제 관련 뉴스</h3>
-          <button onclick="refreshNews('macroNewsFeed','macroNewsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
+          <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshNews('macroNewsFeed','macroNewsItems',this)">새로고침</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-          <button type="button" class="news-filter-btn act seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','all',this)" role="tab" aria-selected="true">전체</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)" role="tab" aria-selected="false">🇰🇷 한국</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)" role="tab" aria-selected="false">🇺🇸 미국</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','일본경기',this)" role="tab" aria-selected="false">🇯🇵 일본</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','중국경기',this)" role="tab" aria-selected="false">🇨🇳 중국</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','독일경기',this)" role="tab" aria-selected="false">🇩🇪 독일</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','영국경기',this)" role="tab" aria-selected="false">🇬🇧 영국</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('macroNewsFeed','유로존',this)" role="tab" aria-selected="false">🇪🇺 유로존</button>
+          <button type="button" class="news-filter-btn act seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('macroNewsFeed','all',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('macroNewsFeed','한국GDP',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇰🇷 한국</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('macroNewsFeed','미국CPI',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 미국</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('macroNewsFeed','일본경기',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇯🇵 일본</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('macroNewsFeed','중국경기',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇨🇳 중국</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('macroNewsFeed','독일경기',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇩🇪 독일</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('macroNewsFeed','영국경기',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇬🇧 영국</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('macroNewsFeed','유로존',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇪🇺 유로존</span></button>
         </div>
         <div id="macroNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
@@ -4050,18 +4062,18 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select"><select aria-label="경제 캘린더 기간 선택" id="calPeriod">
           <option>이번 주</option><option>지난 달</option><option>이번 달</option><option>다음 달</option>
         </select></span>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;">
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','KR',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇰🇷 한국</button>
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','US',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇺🇸 미국</button>
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','EU',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇪🇺 유로존</button>
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','JP',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇯🇵 일본</button>
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','CN',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇨🇳 중국</button>
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('cc','UK',this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">🇬🇧 영국</button>
+        <div class="cal-chips" role="group" aria-label="나라 고르기">
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleCalFilter('cc','KR',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇰🇷 한국</span></button>
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleCalFilter('cc','US',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇺🇸 미국</span></button>
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleCalFilter('cc','EU',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇪🇺 유로존</span></button>
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleCalFilter('cc','JP',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇯🇵 일본</span></button>
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleCalFilter('cc','CN',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇨🇳 중국</span></button>
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleCalFilter('cc','UK',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🇬🇧 영국</span></button>
         </div>
-        <div style="display:flex;gap:4px;">
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('stars',3,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★★</button>
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('stars',2,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★★</button>
-          <button type="button" class="cal-filter-btn active-filter btn-plain btn-inline" aria-pressed="true" onclick="toggleCalFilter('stars',1,this)" style="background:var(--c-accent);color:var(--c-on-accent);font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);cursor:pointer;user-select:none;">★</button>
+        <div class="cal-chips" role="group" aria-label="중요도 고르기">
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="true" onclick="toggleCalFilter('stars',3,this)" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">★★★</span></button>
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="true" onclick="toggleCalFilter('stars',2,this)" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">★★</span></button>
+          <button type="button" class="cal-filter-btn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="true" onclick="toggleCalFilter('stars',1,this)" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">★</span></button>
         </div>
       </div>
       <!-- 시각적 캘린더 그리드 -->
@@ -4069,9 +4081,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
           <h3 class="widget-title" style="margin-bottom:0;" id="calGridTitle">월 캘린더</h3>
           <div style="display:flex;gap:6px;align-items:center;">
-            <button onclick="calGridMove(-1)" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">← 이전</button>
-            <button onclick="calGridToday()" style="background:var(--c-accent);border:1px solid var(--c-accent);color:var(--c-on-accent);border-radius:var(--r-xs);padding:3px 14px;font-size:var(--font-size-sm);cursor:pointer;font-weight:var(--font-weight-semibold);" title="오늘 날짜로 이동">오늘</button>
-            <button onclick="calGridMove(1)" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다음 →</button>
+            <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="calGridMove(-1)">← 이전</button>
+            <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="calGridToday()" title="오늘 날짜로 이동">오늘</button>
+            <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="calGridMove(1)">다음 →</button>
           </div>
         </div>
         <div id="calGridContainer" class="econ-data" style="position:relative;"></div>
@@ -4129,8 +4141,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span id="calDetailName" style="font-size:var(--font-size-base);font-weight:var(--font-weight-semibold);margin-left:6px;"></span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <button onclick="event.stopPropagation();refreshCalEventDetail(this)" title="데이터 다시 불러오기" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
-            <button onclick="document.getElementById('calEventDetail').style.display='none';" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">✕ 닫기</button>
+            <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="event.stopPropagation();refreshCalEventDetail(this)" title="데이터 다시 불러오기">새로고침</button>
+            <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="document.getElementById('calEventDetail').style.display='none';">✕ 닫기</button>
           </div>
         </div>
         <div class="g-3" style="display:grid;gap:8px;margin-bottom:12px;">
@@ -4151,14 +4163,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">과거 추이 (참고용 대표 데이터)</div>
           <div style="display:flex;gap:4px;font-size:var(--font-size-xs);">
             <span style="color:var(--c-txt-dim);align-self:center;">기간:</span>
-            <button class="calDetailPeriodBtn active" data-period="all" onclick="setCalDetailPeriod('all',this)" style="padding:2px 6px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;font-size:var(--font-size-xs);">전체</button>
-            <button class="calDetailPeriodBtn" data-period="3y" onclick="setCalDetailPeriod('3y',this)" style="padding:2px 6px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;font-size:var(--font-size-xs);">3년</button>
-            <button class="calDetailPeriodBtn" data-period="1y" onclick="setCalDetailPeriod('1y',this)" style="padding:2px 6px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;font-size:var(--font-size-xs);">1년</button>
+            <button class="calDetailPeriodBtn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-period="all" onclick="setCalDetailPeriod('all',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+            <button class="calDetailPeriodBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-period="3y" onclick="setCalDetailPeriod('3y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
+            <button class="calDetailPeriodBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-period="1y" onclick="setCalDetailPeriod('1y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
             <span style="color:var(--c-border);margin:0 2px;align-self:center;">|</span>
             <span style="color:var(--c-txt-dim);align-self:center;">단위:</span>
-            <button class="calDetailUnitBtn active" data-unit="M" onclick="setCalDetailUnit('M',this)" style="padding:2px 6px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;font-size:var(--font-size-xs);">월</button>
-            <button class="calDetailUnitBtn" data-unit="Q" onclick="setCalDetailUnit('Q',this)" style="padding:2px 6px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;font-size:var(--font-size-xs);">분기</button>
-            <button class="calDetailUnitBtn" data-unit="Y" onclick="setCalDetailUnit('Y',this)" style="padding:2px 6px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;font-size:var(--font-size-xs);">연</button>
+            <button class="calDetailUnitBtn active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="M" onclick="setCalDetailUnit('M',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">월</span></button>
+            <button class="calDetailUnitBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="Q" onclick="setCalDetailUnit('Q',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기</span></button>
+            <button class="calDetailUnitBtn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-unit="Y" onclick="setCalDetailUnit('Y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연</span></button>
           </div>
         </div>
         <div style="position:relative;height:180px;"><canvas role="img" aria-label="경제 캘린더 지표 상세 차트" id="calDetailChart"></canvas></div>
@@ -4168,13 +4180,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="widget" style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <h3 class="widget-title" style="margin-bottom:0;">경제 이벤트 관련 뉴스</h3>
-          <button onclick="refreshNews('calendarNewsFeed','calendarNewsItems',this)" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">새로고침</button>
+          <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshNews('calendarNewsFeed','calendarNewsItems',this)">새로고침</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-          <button type="button" class="news-filter-btn act seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('calendarNewsFeed','all',this)" role="tab" aria-selected="true">전체</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('calendarNewsFeed','한국수출',this)" role="tab" aria-selected="false">수출입</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('calendarNewsFeed','미국CPI',this)" role="tab" aria-selected="false">고용/물가</button>
-          <button type="button" class="news-filter-btn seed-chip-tabs__trigger seed-chip-tabs__trigger--size_medium seed-chip-tabs__trigger--variant_neutralOutline" onclick="setNewsFilter('calendarNewsFeed','한국은행',this)" role="tab" aria-selected="false">통화정책</button>
+          <button type="button" class="news-filter-btn act seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('calendarNewsFeed','all',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('calendarNewsFeed','한국수출',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">수출입</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('calendarNewsFeed','미국CPI',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">고용/물가</span></button>
+          <button type="button" class="news-filter-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setNewsFilter('calendarNewsFeed','한국은행',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">통화정책</span></button>
         </div>
         <div id="calendarNewsFeed" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
@@ -4345,9 +4357,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="g-side-l" style="display:grid;gap:16px;min-height:70vh;">
         <!-- 왼쪽: 노트 목록 -->
         <div class="widget" style="display:flex;flex-direction:column;">
-          <button onclick="newNote()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:8px 12px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;margin-bottom:8px;">+ 새 노트</button>
-          <button onclick="exportSelectedToExcel()" style="background:transparent;color:var(--c-up);border:1px solid color-mix(in srgb,var(--c-up) 33%,transparent);border-radius:var(--r-sm);padding:7px 12px;font-size:var(--font-size-sm);cursor:pointer;margin-bottom:6px;">↓ Excel 저장</button>
-          <button onclick="exportNotesJsonFile()" style="background:transparent;color:var(--c-primary);border:1px solid var(--c-accent-container);border-radius:var(--r-sm);padding:7px 12px;font-size:var(--font-size-sm);cursor:pointer;margin-bottom:6px;" title="모든 노트를 JSON 으로 백업 — 다른 기기/브라우저로 이동 시 보존">💾 전체 JSON 백업</button>
+          <button class="seed-action-button seed-action-button--variant_brandSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="newNote()" style="margin-bottom:8px;">+ 새 노트</button>
+          <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="exportSelectedToExcel()" style="margin-bottom:6px;">↓ Excel 저장</button>
+          <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="exportNotesJsonFile()" style="margin-bottom:6px;" title="모든 노트를 JSON 으로 백업 — 다른 기기/브라우저로 이동 시 보존">💾 전체 JSON 백업</button>
           <label style="background:transparent;color:var(--c-primary);border:1px solid var(--c-accent-container);border-radius:var(--r-sm);padding:7px 12px;font-size:var(--font-size-sm);cursor:pointer;margin-bottom:12px;text-align:center;display:block;">
             ↥ JSON 가져오기
             <input type="file" accept=".json,application/json" onchange="importNotesJsonFile(this)" style="display:none;"/>
@@ -4373,10 +4385,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <span id="noteDate" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);white-space:nowrap;"></span>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
-              <button onclick="insertIndicatorSnapshot()" title="현재 대시보드의 핵심 지표 수치를 노트 본문에 표로 박제합니다 — 시점 기록용" style="background:transparent;color:var(--c-up);border:1px solid color-mix(in srgb,var(--c-up) 33%,transparent);border-radius:var(--r-sm);padding:6px 12px;font-size:var(--font-size-sm);cursor:pointer;">📌 지표 스냅샷</button>
-              <button onclick="exportNoteToText()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 12px;font-size:var(--font-size-sm);cursor:pointer;">↓ TXT</button>
-              <button onclick="deleteNote()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 14px;font-size:var(--font-size-sm);cursor:pointer;">삭제</button>
-              <button onclick="saveNote()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:6px 14px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;">저장</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="insertIndicatorSnapshot()" title="현재 대시보드의 핵심 지표 수치를 노트 본문에 표로 박제합니다 — 시점 기록용">📌 지표 스냅샷</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="exportNoteToText()">↓ TXT</button>
+              <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="deleteNote()">삭제</button>
+              <button class="seed-action-button seed-action-button--variant_brandSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="saveNote()">저장</button>
             </div>
           </div>
           <!-- 상단: 전체 요약 -->
@@ -4470,7 +4482,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <button onclick="setRePeriod('1y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-checked aria-pressed="true"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">1년</span></button>
                 <button onclick="setRePeriod('3y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
                 <button onclick="setRePeriod('5y',this)"  class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">5년</span></button>
-                <button id="reCustomBtn" onclick="toggleCustomRange('re',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;">기간 지정</button>
+                <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" id="reCustomBtn" onclick="toggleCustomRange('re',this)">기간 지정</button>
                 <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="rePriceChart" onclick="toggleYoY('rePriceChart',this)" aria-pressed="false" title="전국 매매가격의 전년 동기를 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
               </div>
             </div>
@@ -4478,8 +4490,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <input aria-label="부동산 지표 조회 시작일" type="date" id="reDateFrom"/ class="econ-input">
               <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">~</span>
               <input aria-label="부동산 지표 조회 종료일" type="date" id="reDateTo"/ class="econ-input">
-              <button onclick="applyReCustomRange()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">적용</button>
-              <button onclick="resetReCustomRange()" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:3px 8px;font-size:var(--font-size-sm);cursor:pointer;">초기화</button>
+              <button class="seed-action-button seed-action-button--variant_neutralSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="applyReCustomRange()">적용</button>
+              <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="resetReCustomRange()">초기화</button>
             </div>
             <div id="reChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:4px;min-height:16px;display:flex;flex-wrap:wrap;gap:6px;"></div>
             <div class="h-260" style="position:relative"><canvas role="img" aria-label="지역별 아파트 매매가격지수 차트" id="rePriceChart" style="cursor:crosshair;"></canvas></div>
@@ -4490,8 +4502,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
               <h3 class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭 → 시군구 상세</span></h3>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                <button id="reRegionViewNaver" onclick="setReRegionView('naver',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;" title="Naver 지도">🗺️ 지도</button>
-                <button id="reRegionViewBar" onclick="setReRegionView('bar',this)" style="font-size:var(--font-size-xs);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">바 차트</button>
+                <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="reRegionViewNaver" onclick="setReRegionView('naver',this)" title="Naver 지도" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🗺️ 지도</span></button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="reRegionViewBar" onclick="setReRegionView('bar',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">바 차트</span></button>
               </div>
             </div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:6px;">2026년 4월 기준 (한국부동산원 R-ONE)</div>
@@ -5081,8 +5093,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <h3 class="widget-title" style="margin-bottom:0;" id="npsReturnChartTitle">연도별 수익률 (%) — 공식 발표</h3>
               <div style="display:flex;gap:4px;">
-                <button onclick="setNpsReturnView('annual',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">연간</button>
-                <button onclick="setNpsReturnView('quarterly',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">분기별</button>
+                <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-nps-ret onclick="setNpsReturnView('annual',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">연간</span></button>
+                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-nps-ret onclick="setNpsReturnView('quarterly',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">분기별</span></button>
               </div>
             </div>
             <div class="h-260" style="position:relative">
@@ -5120,7 +5132,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="widget" id="npsYearDetail" style="margin-top:12px;display:none;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <h3 class="widget-title" style="margin-bottom:0;" id="npsYearDetailTitle">연도별 상세</h3>
-            <button onclick="document.getElementById('npsYearDetail').style.display='none'" style="background:transparent;border:1px solid var(--c-border);color:var(--c-txt-dim);border-radius:var(--r-xs);padding:2px 8px;font-size:var(--font-size-sm);cursor:pointer;">✕ 닫기</button>
+            <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="document.getElementById('npsYearDetail').style.display='none'">✕ 닫기</button>
           </div>
           <div class="note-line" id="npsYearDetailSummary" style="margin-bottom:8px;"></div>
           <div style="position:relative;height:180px;"><canvas role="img" aria-label="연기금 연도별 수익률 상세 차트" id="npsYearDetailChart"></canvas></div>
@@ -5156,11 +5168,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <h3 class="widget-title" style="margin-bottom:0;">자산군별 운용 비중 추이 (연도별 %)</h3>
             <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-              <button onclick="setNpsAllocPeriod('all',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">전체</button>
-              <button onclick="setNpsAllocPeriod('5y',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">5년</button>
-              <button onclick="setNpsAllocPeriod('3y',this)" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-txt-dim);cursor:pointer;">3년</button>
+              <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-nps-alloc onclick="setNpsAllocPeriod('all',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">전체</span></button>
+              <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-nps-alloc onclick="setNpsAllocPeriod('5y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">5년</span></button>
+              <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" data-nps-alloc onclick="setNpsAllocPeriod('3y',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">3년</span></button>
               <span class="ctl-sep" aria-hidden="true"></span>
-              <button onclick="toggleNpsAllocMeasure(this)" id="npsMeasureBtn" style="font-size:var(--font-size-sm);padding:2px 8px;border:1px solid var(--c-primary)44;border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">📐 구간 측정</button>
+              <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="toggleNpsAllocMeasure(this)" id="npsMeasureBtn" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">📐 구간 측정</span></button>
               <span class="ctl-sep" aria-hidden="true"></span>
               <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="npsAllocationTrendChart" onclick="toggleYoY('npsAllocationTrendChart',this)" aria-pressed="false" title="주 자산군의 전년 동기 비중을 점선으로 오버레이"><span aria-hidden="true" class="mat" style="font-size:var(--font-size-base);">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
             </div>
@@ -5288,7 +5300,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <option value="sim">관련도</option><option value="date">최신</option>
             </select></span>
           </label>
-          <button onclick="merblogSearch()" style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:8px 14px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;">검색</button>
+          <button class="seed-action-button seed-action-button--variant_brandSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="merblogSearch()">검색</button>
         </div>
         <!-- 필터 바(검색 결과 좁히기): 카테고리 + 날짜 범위. 결과가 있을 때만 노출. -->
         <div id="merFilters" class="mer-searchbar" style="display:none;margin-top:0;">
@@ -5302,7 +5314,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span>~</span>
             <input id="merTo" type="date" onchange="merblogApplyAndRender()" aria-label="종료일" class="econ-input">
           </label>
-          <button onclick="merblogClearFilters()" style="background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:var(--font-size-sm);cursor:pointer;">필터 초기화</button>
+          <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="merblogClearFilters()">필터 초기화</button>
         </div>
         <div id="merStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:8px;" role="status" aria-live="polite"></div>
         <!-- 일괄 선택/다운로드 바: 결과가 있을 때만 노출. -->
@@ -5310,8 +5322,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <label style="font-size:var(--font-size-sm);color:var(--c-txt);display:flex;align-items:center;gap:5px;cursor:pointer;"><input id="merSelAll" type="checkbox" onchange="merblogToggleAll(this)"> 전체 선택</label>
           <span id="merSelCount" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">0개 선택</span>
           <span style="flex:1;"></span>
-          <button id="merDlSel" onclick="merblogDownloadSelected()" disabled style="background:transparent;color:var(--c-txt);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 12px;font-size:var(--font-size-sm);cursor:pointer;">선택 항목 원문 JSON ⬇</button>
-          <button id="merDl" onclick="merblogDownloadJson()" disabled style="background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);cursor:pointer;">전체 결과 원문 JSON ⬇</button>
+          <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" id="merDlSel" onclick="merblogDownloadSelected()" disabled>선택 항목 원문 JSON ⬇</button>
+          <button class="seed-action-button seed-action-button--variant_neutralSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" id="merDl" onclick="merblogDownloadJson()" disabled>전체 결과 원문 JSON ⬇</button>
         </div>
         <div id="merResults"></div>
       </div><!-- /merlensTab-search -->

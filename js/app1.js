@@ -533,6 +533,9 @@ function injectChartRefreshButtons() {
     // 이미 새로고침 버튼이 있는지 확인 (텍스트 매칭)
     if(widget.querySelector('button[data-chart-refresh]')) return;
     if(widget.innerHTML.includes('새로고침')) return;  // 이미 다른 새로고침 버튼 존재
+    // 전용 재요청 핸들러가 있는 차트만(6차 D2). 핸들러 없는 차트의 버튼은 전체 새로고침으로
+    // 떨어져 '이 위젯'을 다시 받는 게 아니었다 — 벤치 3표면도 수동 새로고침 버튼이 없다.
+    if(!_refreshHandlerMap[id]) return;
     // widget-title 또는 헤더 영역 찾기
     const title = widget.querySelector('.widget-title');
     if(!title) return;
@@ -546,14 +549,14 @@ function injectChartRefreshButtons() {
     btn.setAttribute('aria-label', '이 위젯 데이터 새로고침');
     btn.innerHTML = '<span class="mat" aria-hidden="true">refresh</span>';
     btn.onclick = (e) => { e.stopPropagation(); refreshChartByCanvasId(id, btn); };
-    // 버튼을 widget-title 의 텍스트 흐름에 inline 으로 추가 (display 변경 없음)
     title.appendChild(btn);
+    econOrderTools(title);
   });
 
-  // ── 2차 패스: 나머지 '모든 카드(.widget)' 에 KOSPI 와 동일한 새로고침 버튼 주입 ──
-  // (사용자 요청: 사이트 내 전체 카드에 동일 새로고침 기능.) 데이터 테이블 카드는 표별
-  // 전용 핸들러를, 그 외(정적/소형차트 포함)는 전체 새로고침(refreshAllData)을 사용한다.
-  // 모두 _refreshFeedback 상태머신을 거치므로 KOSPI 버튼과 동일한 로딩→갱신 인터랙션을 갖는다.
+  // ── 2차 패스: 전용 재요청 핸들러가 있는 표 카드·AI 요약에만 새로고침 버튼 주입 ──
+  // 종전엔 '모든 카드'에 붙이고 나머지는 전체 새로고침(refreshAllData)으로 떨어뜨렸다 — 화면에
+  // refresh 아이콘이 83개였고 대부분 같은 data.json 을 다시 그릴 뿐이었다(6차 D2, 2026-09-24).
+  // 전체 새로고침은 사이드바 '새로고침' 한 곳이 맡는다.
   const _tableRefreshMap = {
     equityTopGainersTable: retryEquityMovers, equityTopLosersTable: retryEquityMovers,
     etfTopGainersTable: refreshETFFromClient, etfTopLosersTable: refreshETFFromClient,
@@ -570,7 +573,8 @@ function injectChartRefreshButtons() {
     // 매크로 3줄 요약 배너는 전용 경량 핸들러 — 전체 새로고침(수십 페치) 대신 요약만 즉시 재조립.
     const tbody = widget.querySelector('table tbody[id]');
     const handler = (widget.id === 'aiBriefingBanner' && typeof refreshAiBriefing === 'function') ? ((b)=>refreshAiBriefing(b))
-                  : (tbody && _tableRefreshMap[tbody.id]) ? _tableRefreshMap[tbody.id] : ((b)=>refreshAllData(b));
+                  : (tbody && _tableRefreshMap[tbody.id]) ? _tableRefreshMap[tbody.id] : null;
+    if(!handler) return;
     const btn = document.createElement('button');
     btn.setAttribute('data-chart-refresh', (tbody && tbody.id) || 'card');
     btn.setAttribute('title', '실시간 데이터 새로고침');
@@ -582,8 +586,27 @@ function injectChartRefreshButtons() {
     btn.innerHTML = '<span class="mat" aria-hidden="true">refresh</span>';
     btn.onclick = (e) => { e.stopPropagation(); try { handler(btn); } catch(_) { refreshAllData(btn); } };
     title.appendChild(btn);
+    econOrderTools(title);
   });
 }
+
+// 위젯 제목 줄의 도구 차례를 한 곳에서 정한다(6차 C2): 별 → 새로고침 → 접기, 제목 줄 오른쪽 끝.
+// 세 주입기(새로고침 여기 · 접기 app3 · 별 app4)가 서로 모르고 appendChild 해서 차례가
+// 31가지였다(2026-09-24 실측). **멱등** — 차례가 이미 맞으면 DOM 을 건드리지 않는다
+// (app4 의 MutationObserver 가 childList 변경에 다시 깨어나는 자기 유발 루프 방지, G10).
+function econOrderTools(t) {
+  if(!t) return;
+  const kids = Array.prototype.slice.call(t.children);
+  const isFav = (e) => e.classList.contains('econ-fav');
+  const isTg  = (e) => e.classList.contains('w-toggle-btn');
+  const isRef = (e) => !isFav(e) && !isTg(e) && e.matches('[data-chart-refresh], button[aria-label*="새로고침"]');
+  const want = kids.filter(isFav).concat(kids.filter(isRef), kids.filter(isTg));
+  if(!want.length) return;
+  const tail = kids.slice(kids.length - want.length);
+  if(!want.every((e, i) => tail[i] === e)) want.forEach((e) => t.appendChild(e));
+  want.forEach((e, i) => { if(e.classList.contains('econ-tools-start') !== (i === 0)) e.classList.toggle('econ-tools-start', i === 0); });
+}
+window.econOrderTools = econOrderTools;
 
 // .widget-title 의 동적 텍스트만 교체하고, injectChartRefreshButtons 가 주입한 '↻ 새로고침'
 // 버튼 등 자식 엘리먼트는 보존한다. (과거 결함: bondChartTitle/equityChartTitle/comDetailTitle
@@ -1314,6 +1337,10 @@ function _econChartShown(cv) {
 /* 한 묶음에서 하나만 고르는 칩 — 선택은 `.active` + aria-pressed 한 쌍으로만 말한다.
    종전엔 묶음마다 인라인 background/color 를 직접 칠했다: 부품 규격을 인라인이 이겨
    같은 역할 버튼이 화면마다 다른 모양이 됐고, 읽기 도구는 무엇이 골라졌는지 몰랐다. */
+// 칩 부품 클래스·라벨(템플릿 문자열용). 인라인 style 로 칩을 칠하지 말 것 — 선택은 .active 하나,
+// aria-pressed·data-checked 는 _econMirrorState 가 따라온다(6차 C3).
+const CHIP_CLS = 'seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText';
+function chipLabel(t) { return '<span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">' + t + '</span>'; }
 function econChipSelect(sel, btn) {
   document.querySelectorAll(sel).forEach(function (b) {
     b.classList.remove('active');
@@ -1842,12 +1869,7 @@ function setReRegionView(view, btn) {
   const barEl   = document.getElementById('reRegionBarContainer');
   if(naverEl) naverEl.style.display = _reRegionView==='naver' ? 'block' : 'none';
   if(barEl)   barEl.style.display   = _reRegionView==='bar'   ? 'block' : 'none';
-  ['reRegionViewNaver','reRegionViewBar'].forEach(id=>{
-    const b = document.getElementById(id);
-    if(b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false');
-            b.style.background=''; b.style.color=''; b.style.borderColor=''; }
-  });
-  if(btn) { btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true'); }
+  econChipSelect('#reRegionViewNaver, #reRegionViewBar', btn || document.getElementById(_reRegionView === 'bar' ? 'reRegionViewBar' : 'reRegionViewNaver'));
   if(_reRegionView === 'naver') {
     setTimeout(() => buildNaverRegionMap(), 80);
   } else {
@@ -4260,7 +4282,7 @@ function buildMoverTable(dir) {
          ${diagLine}`;
     tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--c-txt-dim);font-size:var(--font-size-sm);">
       ${stateMsg}
-      <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:4px 12px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button>
+      <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="manualRetryMovers(this)" style="margin-top:6px;">다시 시도</button>
       <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버에서 직접 보기 →</a>
     </td></tr>`;
     // 자동 트리거: 빈 데이터일 때 백그라운드에서 1회만 페치 시도 (무한 루프 방지)
@@ -4290,8 +4312,7 @@ function setMoverTab(dir, btn) {
   // 상승/하락 버튼 only
   // 상승/하락은 콘텐츠 전환 → chip-tabs(role=tab). 상태는 클래스 하나,
   // aria-selected 는 _econMirrorState 가 따라온다.
-  widget.querySelectorAll('[role="tab"]').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  econChipSelect('#moverTabUp, #moverTabDown', btn);   // 상승/하락 = 같은 표의 행을 거르는 칩(6차 D3)
   buildMoverTable(dir);
 }
 function setMoverType(type, btn) {
@@ -4586,8 +4607,8 @@ function renderFiltered(feedId) {
 
 function setNewsFilter(feedId, cat, el) {
   const bar = el.parentElement;
-  bar.querySelectorAll('.news-filter-btn').forEach(b=>{ b.classList.remove('act'); });
-  el.classList.add('act');
+  bar.querySelectorAll('.news-filter-btn').forEach(b=>{ b.classList.remove('act', 'active'); });
+  el.classList.add('act', 'active');
   currentNewsFilter[feedId] = cat;
   newsExpanded[feedId] = false; // reset pagination on filter change
   renderFiltered(feedId);
@@ -5338,9 +5359,7 @@ function setYieldCurveCompare(win, btn) {
   yieldCurveCompareWindow = win;
   document.querySelectorAll('.ycCompareBtn').forEach(b => {
     const active = b.dataset.cmp === win;
-    b.classList.toggle('active', active);
-    b.style.background = active ? getThemeColors().accent : 'transparent';
-    b.style.color      = active ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
+    b.classList.toggle('active', active);   // aria-pressed·data-checked 는 _econMirrorState 가 따라온다
   });
   // 현재 선택된 국가로 차트 재빌드
   if(typeof buildYieldCurveChart === 'function' && typeof bondCountryCurrent !== 'undefined') {
@@ -5460,7 +5479,8 @@ function toggleRateFilter(cc, btn) {
     btn.style.background=rateColors[cc]+'44';
     btn.style.opacity='1';
   }
-  btn.setAttribute('aria-pressed', String(rateFilterSet.has(cc)));
+  // 색은 차트 선 색이라 뜻이 있다(유지). 선택 상태는 부품이 말한다.
+  btn.classList.toggle('active', rateFilterSet.has(cc));
   buildRateHistoryChart();
 }
 
@@ -5863,8 +5883,8 @@ function buildEquityPage() {
   // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
   const gainTb = document.getElementById('equityTopGainersTable');
   const loseTb = document.getElementById('equityTopLosersTable');
-  const noData = `<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button onclick="retryEquityMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button></td></tr>`;
-  const noDataETF = `<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button></td></tr>`;
+  const noData = `<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="retryEquityMovers(this)" style="margin-top:6px;">다시 시도</button></td></tr>`;
+  const noDataETF = `<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshETFFromClient(this)" style="margin-top:6px;">다시 시도</button></td></tr>`;
   const _volFmt = v => {
     if(v == null || v === '' || v === '—') return '—';
     const n = typeof v === 'string' ? parseFloat(v.replace(/[,K천주]/g,'')) : v;
@@ -6471,9 +6491,9 @@ function _ensoStanceChip(stance) {
 function ensoLensTabsHTML() {
   const t = (key, icon, label) => {
     const on = ensoView === key;
-    return `<button onclick="setEnsoView('${key}')" style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);padding:6px 14px;border:none;border-bottom:2px solid ${on?'var(--c-accent)':'transparent'};background:transparent;color:${on?'var(--c-txt)':'var(--c-txt-muted)'};cursor:pointer;">${icon} ${label}</button>`;
+    return `<button type="button" onclick="setEnsoView('${key}')" class="${on?'active ':''}${CHIP_CLS}" aria-pressed="${on}"${on?' data-checked':''}>${chipLabel(label)}</button>`;
   };
-  return `<div style="display:flex;gap:4px;border-bottom:1px solid var(--c-border);margin:2px 0 12px;">${t('sector','🛢️','원자재·섹터')}${t('macro','🌐','시간축 거시 파급')}</div>`;
+  return `<div class="econ-chipgroup" role="group" aria-label="분석 렌즈" style="display:flex;gap:8px;margin:2px 0 12px;">${t('sector','','원자재·섹터')}${t('macro','','시간축 거시 파급')}</div>`;
 }
 function setEnsoView(key) {
   if (key === 'sector' || key === 'macro') ensoView = key;
@@ -6807,7 +6827,7 @@ function renderEnsoCard() {
     tabsEl.innerHTML = Object.keys(ENSO_SCENARIOS).map(k => {
       const on = k === ensoCurrent;
       const s = ENSO_SCENARIOS[k];
-      return `<button class="tab-btn${on ? ' active' : ''}" onclick="setEnsoScenario('${k}',this)" style="font-size:var(--font-size-sm);padding:3px 12px;border:1px solid var(--c-border);border-radius:var(--r-xs);cursor:pointer;">${s.tab}</button>`;
+      return `<button type="button" class="tab-btn${on ? ' active' : ''} ${CHIP_CLS}" onclick="setEnsoScenario('${k}',this)" aria-pressed="${on}"${on ? ' data-checked' : ''}>${chipLabel(s.tab)}</button>`;
     }).join('');
   }
   // 분석 렌즈에 따라 본문 분기 — 'sector'(기존 ①②) | 'macro'(신규 시간축 거시 파급)
@@ -7288,7 +7308,7 @@ function initMacroTopicPage(topic) {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
         <h3 class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: ${m.unit}</span></h3>
         <div style="display:flex;gap:4px;">
-          ${periodOpts.map(o=>`<button onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" style="font-size:var(--font-size-sm);padding:3px 10px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:${macroTopicPeriod===o.key?'var(--c-accent)':'transparent'};color:${macroTopicPeriod===o.key? 'var(--c-on-accent)':'var(--c-txt-dim)'};cursor:pointer;font-weight:var(--font-weight-medium);">${o.label}</button>`).join('')}
+          ${periodOpts.map(o=>{ const on = macroTopicPeriod===o.key; return `<button type="button" onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" class="${on?'active ':''}${CHIP_CLS}" aria-pressed="${on}"${on?' data-checked':''}>${chipLabel(o.label)}</button>`; }).join('')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
         </div>
       </div>
@@ -7297,9 +7317,10 @@ function initMacroTopicPage(topic) {
         <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-right:4px;">국가:</span>
         ${allCountries.map(cc => {
           const on = selSet.has(cc);
-          return `<button onclick="toggleMacroTopicCountry('${cc}','${topic}',this)" data-cc="${cc}" style="font-size:var(--font-size-sm);padding:2px 8px;border-radius:var(--r-xs);border:1px solid ${on?colors[cc]:'var(--c-border)'};background:${on?colors[cc]+'22':'transparent'};color:${on?colors[cc]:'var(--c-txt-dim)'};cursor:pointer;font-weight:var(--font-weight-medium);">${flags[cc]}</button>`;
+          // 나라 색 = 차트 선 색이라 뜻이 있다(유지). 크기·모서리·선택 표식은 칩 부품이 정한다.
+          return `<button type="button" onclick="toggleMacroTopicCountry('${cc}','${topic}',this)" data-cc="${cc}" class="${on?'active ':''}${CHIP_CLS}" aria-pressed="${on}"${on?' data-checked':''} style="border-color:${on?colors[cc]:'var(--c-border)'};background:${on?colors[cc]+'22':'transparent'};color:${on?colors[cc]:'var(--c-txt-dim)'};">${chipLabel(flags[cc])}</button>`;
         }).join('')}
-        <button onclick="selectAllMacroTopicCountries('${topic}')" style="font-size:var(--font-size-xs);padding:2px 8px;border-radius:var(--r-xs);border:1px solid var(--c-border);background:transparent;color:var(--c-txt-dim);cursor:pointer;margin-left:8px;">전체</button>
+        <button type="button" onclick="selectAllMacroTopicCountries('${topic}')" class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" style="margin-left:8px;">전체</button>
       </div>
       <div class="h-280" style="position:relative;"><canvas id="${m.id}"></canvas></div>
       <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;text-align:right;">참고: 대표 통계 데이터 (각국 통계청 / OECD)</div>
@@ -8173,16 +8194,10 @@ function toggleCalFilter(type, val, el) {
   if(set.has(val)) {
     if(set.size <= 1) return;   // 최소 1개는 선택 유지
     set.delete(val);
-    el.setAttribute('aria-pressed', 'false');
-    el.style.background = 'var(--c-card)';
-    el.style.color      = 'var(--c-txt-dim)';
-    el.style.border     = '1px solid var(--c-border)';
+    el.classList.remove('active');
   } else {
     set.add(val);
-    el.setAttribute('aria-pressed', 'true');
-    el.style.background = 'var(--c-accent)';
-    el.style.color      = 'var(--c-on-accent)';
-    el.style.border     = 'none';
+    el.classList.add('active');
   }
   buildCalendar();
 }
@@ -9124,18 +9139,12 @@ let _calDetailState = { idx:null, period:'all', timeUnit:'M' };
 
 function setCalDetailPeriod(p, btn) {
   _calDetailState.period = p;
-  document.querySelectorAll('.calDetailPeriodBtn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)'; b.style.borderColor='var(--c-border)';
-  });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; btn.style.borderColor='var(--c-accent)'; }
+  econChipSelect('.calDetailPeriodBtn', btn);
   _renderCalDetailChart();
 }
 function setCalDetailUnit(u, btn) {
   _calDetailState.timeUnit = u;
-  document.querySelectorAll('.calDetailUnitBtn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)'; b.style.borderColor='var(--c-border)';
-  });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; btn.style.borderColor='var(--c-accent)'; }
+  econChipSelect('.calDetailUnitBtn', btn);
   _renderCalDetailChart();
 }
 
@@ -9604,10 +9613,7 @@ const npsFxStocks = [
 let npsReturnView = 'annual';
 function setNpsReturnView(view, btn) {
   npsReturnView = view;
-  btn.closest('.widget').querySelectorAll('button').forEach(b=>{
-    b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
-  });
-  btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)';
+  econChipSelect('[data-nps-ret]', btn);
   buildNpsReturnChart();
 }
 
@@ -9694,9 +9700,7 @@ function buildNpsAllocTrendChart() {
 }
 function setNpsAllocPeriod(period, btn) {
   npsAllocPeriod = period;
-  const container = btn.closest('.widget');
-  if(container) container.querySelectorAll('button').forEach(b=>{ b.style.background='transparent'; b.style.color='var(--c-txt-dim)'; });
-  btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)';
+  econChipSelect('[data-nps-alloc]', btn);
   buildNpsAllocTrendChart();
 }
 
@@ -13247,7 +13251,7 @@ function applyRealData(d) {
     return `<tr><td colspan="${cols}" style="padding:14px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">
       <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
       ${diagLine}
-      <button onclick="manualRetryMovers(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button>
+      <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="manualRetryMovers(this)" style="margin-top:6px;">다시 시도</button>
       <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
     </td></tr>`;
   };
@@ -13273,7 +13277,7 @@ function applyRealData(d) {
     return `<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">
       <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
       ${diagLine}
-      <button onclick="refreshETFFromClient(this)" style="margin-top:6px;background:var(--c-accent);color:var(--c-on-accent);border:none;border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">다시 시도</button>
+      <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshETFFromClient(this)" style="margin-top:6px;">다시 시도</button>
       <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
     </td></tr>`;
   };
@@ -14719,11 +14723,7 @@ function toggleNpsAllocMeasure(btn) {
   npsMeasureStart = null;
   const info   = document.getElementById('npsMeasureInfo');
   const result = document.getElementById('npsMeasureResult');
-  if(btn) {
-    btn.style.background = npsMeasureMode ? '#b6c4ff22' : 'transparent';
-    btn.style.border     = npsMeasureMode ? '1px solid var(--c-primary)' : '1px solid #b6c4ff44';
-    btn.style.color      = npsMeasureMode ? '#b6c4ff' : '#b6c4ff';
-  }
+  if(btn) btn.classList.toggle('active', npsMeasureMode);   // 칩 부품(aria-pressed 는 미러)
   if(info)   info.style.display   = npsMeasureMode ? 'block' : 'none';
   if(result) result.style.display = 'none';
   buildNpsAllocTrendChart();
@@ -15093,19 +15093,14 @@ function toggleChartCompareMode(chartKey, btn) {
   chartCompareModes[chartKey] = !chartCompareModes[chartKey];
   const active = chartCompareModes[chartKey];
   // 켜짐/꺼짐을 색으로만 말하지 않는다 — aria-pressed 를 같이 세운다(S26).
-  if(btn) {
-    btn.style.background = active ? getThemeColors().accent+'22' : 'transparent';
-    btn.style.color = active ? getThemeColors().accent : '#8d90a2';
-    btn.style.border = active ? '1px solid var(--c-accent)' : '1px solid var(--c-border)';
-    btn.setAttribute('aria-pressed', String(active));
-  }
+  if(btn) btn.classList.toggle('active', active);   // 칩 부품 — aria-pressed·data-checked 는 미러가 세운다
   applyChartCompareMode(chartKey, active);
 }
 
 function resetChartCompareMode(chartKey) {
   chartCompareModes[chartKey] = false;
   const btn = document.getElementById(chartKey === 'equity' ? 'eqCompareModeBtn' : chartKey === 'fx' ? 'fxCompareModeBtn' : 'comCompareModeBtn');
-  if(btn) { btn.style.background='transparent'; btn.style.color='var(--c-txt-dim)'; btn.style.border='1px solid var(--c-border)'; btn.setAttribute('aria-pressed','false'); }
+  if(btn) btn.classList.remove('active');
   applyChartCompareMode(chartKey, false);
 }
 
