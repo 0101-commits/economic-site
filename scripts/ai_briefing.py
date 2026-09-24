@@ -246,6 +246,54 @@ def try_gemini(snap):
     return None
 
 
+# ── 슬롯 한 문장(2026-09-24 알림 개편 B1) ────────────────────────────────────
+# 위 3줄 요약은 fetch-data 가 하루 한 번 만든다. 그 문장을 07·09·12·19·22시 알림이 똑같이
+# 실어서, 15시에 쓴 "내일 장중 확인" 이 22시에도 나갔고 본문 숫자(1368원대)와 카드 숫자
+# (1,369.2)가 어긋났다. 알림은 발송 직전에 **그 카드의 숫자만** 주고 한 문장을 받는다.
+# 실패·검증 탈락은 "" — 호출측이 문장 없이 보낸다(틀린 문장보다 없는 편이 낫다).
+SLOT_LINE_MAX = 70
+# 발송 시각과 무관하게 참이어야 하는 문장만 받는다 — 상대 시점어는 시각이 지나면 거짓이 된다.
+# 권유는 어미로 막는다 — '순매수·순매도'는 수급 사실이라 막으면 안 된다(리뷰 지적).
+SLOT_LINE_BANNED = ("내일", "모레", "연휴", "다음 주", "다음주", "이번 주말",
+                    "매수하세요", "매도하세요", "매수 추천", "매도 추천", "매수 기회", "사세요", "파세요")
+
+
+def slot_line_ok(s):
+    """알림 한 문장 검증 — 길이·상대 시점어·투자 권유·여러 줄."""
+    s = (s or "").strip()
+    return (8 <= len(s) <= SLOT_LINE_MAX and "\n" not in s
+            and not any(w in s for w in SLOT_LINE_BANNED))
+
+
+def slot_line(slot_name, facts, timeout=15):
+    """카드 숫자(facts, 한 줄 문자열) → 한 문장 또는 "". 키가 없으면 호출하지 않는다."""
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key or not facts:
+        return ""
+    prompt = ("다음은 한국 개인투자자에게 보내는 '" + str(slot_name) + "' 시장 알림 카드의 숫자다.\n"
+              + str(facts) + "\n"
+              "이 숫자만 근거로 지금 가장 중요한 흐름 하나를 한국어 한 문장(" + str(SLOT_LINE_MAX - 10)
+              + "자 이내)으로 써라. 규칙: 주어진 숫자 외의 수치 금지, '내일·연휴·다음 주' 같은 시점 표현 금지, "
+              "매수·매도 권유 금지, 머리말·따옴표 없이 문장만.")
+    for model in GEMINI_MODELS:
+        try:
+            r = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                headers={"x-goog-api-key": key},       # URL 에 넣으면 오류 문구에 키가 찍힌다
+                json={"contents": [{"parts": [{"text": prompt}]}],
+                      "generationConfig": {"temperature": 0.3, "maxOutputTokens": 120}},
+                timeout=timeout)
+            if r.status_code == 404:
+                continue                                     # 퇴역 모델 — 별칭으로
+            r.raise_for_status()
+            text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip().strip('"“”')
+            return text if slot_line_ok(text) else ""
+        except Exception as e:                               # noqa: BLE001
+            log(f"슬롯 문장 실패({model}): {e}")
+            return ""
+    return ""
+
+
 def try_openai(snap):
     if not OPENAI_API_KEY:
         return None

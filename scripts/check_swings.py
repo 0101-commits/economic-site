@@ -163,7 +163,7 @@ def main():
             import notify_discord as _nd
             _url0 = _nd.NAVER_LINKS.get(_SYM2KEY.get(sym0))
             # 사진 탭 = 급변한 그 지표의 네이버 페이지, 대시보드는 버튼(2026-09-22).
-            _btn0 = [(f"{name0} 시세", _url0)] if _url0 else []
+            _btn0 = [(kakao.quote_btn_title(name0), _url0)] if _url0 else []
             kakao.send_card(access_token, _lines[0][:44], "\n".join(_lines[1:4])[:120],
                             png=_kpng, uuids=[f["uuid"] for f in friends], kind="급변 속보",
                             link_url=_url0,
@@ -196,7 +196,8 @@ def main():
         for _, _, nm, sym, _, pct, _, _ in hits[:2]:
             u = notify_discord.NAVER_LINKS.get(_SYM2KEY.get(sym))
             if u:
-                _btns.append((notify_discord.dir_label(f"N {nm}", pct), u))
+                # 등락률은 카드·제목이 이미 말한다(2026-09-24 A5) — 이모지 + 이름만.
+                _btns.append((f"{notify_discord.direction_emoji(pct)} N {nm}", u))
         _btns.append(("대시보드", "https://0101-commits.github.io/economic-site/?p=equity"))
         # 제목=결론 한 줄(기획안 원칙 4) — "언제 급변"이 아니라 "무엇이 얼마나 이례적으로".
         # 근거는 자연어 서수를 먼저 쓰고(금융 저널리즘 관행), 없으면 σ 배수로 적는다.

@@ -524,8 +524,47 @@ def is_market_open(market, now):
 PORTFOLIO_URL = "https://0101-commits.github.io/economic-site/?p=portfolio"
 
 
-def _alert_lines(to_send, snaps, state, now):
-    """발동 줄 + 컨텍스트('목표 대비 %', '이번 달 n번째') — 두 채널이 같은 문구를 쓴다."""
+# 시장 대비의 기준 지수 — 종목 알림이 '그 종목의 사건'인지 '시장이 다 오른 날'인지 가르는 재료.
+BENCH = {"KR": ("^KS11", "코스피"), "US": ("^GSPC", "S&P")}
+
+
+def _bench_pcts(markets):
+    """{시장: 지수 등락%} — 조회 실패한 시장은 빠진다(문구도 빠진다)."""
+    out = {}
+    for m in sorted(set(markets)):
+        sym = (BENCH.get(m) or (None,))[0]
+        if not sym:
+            continue
+        try:
+            snap = yahoo_snapshot(sym)
+            if snap and snap.get("pct") is not None:
+                out[m] = float(snap["pct"])
+        except Exception as e:                                # noqa: BLE001
+            print(f"[alerts] 기준 지수 조회 실패({sym}): {e}")
+    return out
+
+
+def _next_level(a, alerts, price):
+    """같은 종목·같은 방향의 다음 가격 알림 값 — 가격이 아직 닿지 않은 가장 가까운 것."""
+    t = a.get("type")
+    if t not in PRICE_TYPES or price is None:
+        return None
+    vs = [b.get("value") for b in (alerts or [])
+          if b is not a and b.get("symbol") == a.get("symbol") and b.get("type") == t
+          and isinstance(b.get("value"), (int, float))]
+    if t == "price_above":
+        vs = [v for v in vs if v > price]
+        return min(vs) if vs else None
+    vs = [v for v in vs if v < price]
+    return max(vs) if vs else None
+
+
+def _alert_lines(to_send, snaps, state, now, bench=None, alerts=None):
+    """발동 줄 + 컨텍스트('목표 대비 %', '이번 달 n번째') — 두 채널이 같은 문구를 쓴다.
+
+    2026-09-24 B8 — 두 조각을 더한다. 「코스피 대비 +2.3%p」(bench = {시장: 지수 등락%})는
+    시장이 같이 오른 날의 종목 알림을 가려내고, 「다음 85,000원 (+3.2%)」(alerts = 전체 설정)은
+    다음에 무엇이 울릴지 알려준다. 재료가 없으면 조각을 생략한다."""
     mon = now.strftime("%Y%m")
     out = []
     for a, ln in to_send:
@@ -534,6 +573,12 @@ def _alert_lines(to_send, snaps, state, now):
         v = a.get("value")
         if snap and isinstance(v, (int, float)) and v and a.get("type") in PRICE_TYPES:
             extra.append(f"목표 대비 {(snap['price'] / v - 1) * 100:+.1f}%")
+        m = a.get("market", "KR")
+        if snap and snap.get("pct") is not None and (bench or {}).get(m) is not None:
+            extra.append(f"{BENCH[m][1]} 대비 {float(snap['pct']) - bench[m]:+.1f}%p")
+        nxt = _next_level(a, alerts, (snap or {}).get("price"))
+        if nxt is not None:
+            extra.append(f"다음 {_fmt_price(nxt, m)} ({(nxt / snap['price'] - 1) * 100:+.1f}%)")
         n = sum(1 for d in ((state.get(a["id"]) or {}).get("hist") or [])
                 if str(d).startswith(mon)) + 1
         if n > 1:
@@ -806,6 +851,8 @@ def main():
 
     # 종목당 1줄 — 동시 충족(사다리/이벤트)을 현재가 최근접 1건으로 축약
     to_send = _dedup_per_symbol(triggered, snaps)
+    # 기준 지수 등락(B8) — 두 채널 문구가 같은 값을 쓰도록 한 번만 조회한다.
+    _bench = _bench_pcts(a.get("market", "KR") for a, _ in to_send) if to_send else {}
 
     # 디스코드 병행 발송 — 카카오 시크릿/토큰 상태와 무관하게 도달(채널 이중화). 실패·미설정 무시.
     # 카카오 쪽 이력(met/date/ts) 확정에는 관여하지 않는다 — 도배 방지 기준은 카카오 경로 그대로.
@@ -816,7 +863,7 @@ def main():
             _pre = "[테스트] " if IS_TEST else ""
             # 컨텍스트 강화(E4) — '목표 대비 %'와 '이번 달 n번째'. 기획 v3 I3 이후로는
             # 카카오 캡션도 같은 줄을 쓴다(문구 단일 원천 = _alert_lines).
-            _lines = _alert_lines(to_send, snaps, state, now)
+            _lines = _alert_lines(to_send, snaps, state, now, bench=_bench, alerts=alerts)
             # 카드 E(기획 5154773b P1) — 대표 종목(|등락| 최대) 히어로 + 30일 일봉 +
             # 목표선 + 발동점. 렌더 실패 시 None → 텍스트 embed 그대로(종전).
             _png = _alert_card(to_send, snaps, now)
@@ -830,7 +877,8 @@ def main():
                     _u = notify_discord.naver_stock_url(a.get("symbol"))
                     if _u:
                         _btns.append(((f"N {a.get('name') or a.get('symbol')}")[:80], _u))
-            _btns.append(("투자현황", PORTFOLIO_URL))
+            # 종목 2 + 투자현황 — 종전엔 종목 3개가 [:3] 을 다 먹어 투자현황이 빠졌다(2026-09-24).
+            _btns = _btns[:2] + [("투자현황", PORTFOLIO_URL)]
             _hnm, _hurl = _alert_hero(to_send, snaps)
             notify_discord.send(
                 "\n".join(_lines), png=_png,
@@ -955,7 +1003,7 @@ def main():
     # 쪼개던 텍스트 대신, 발동 줄을 캡션 1줄 + 항목 행(최대 5)에 담아 사진 한 장으로 보낸다.
     # 카드가 합본(대표 + 나머지 종목 타일)이라 통 수를 늘릴 이유가 없다.
     # packs/packed_ids 는 그대로 '이번 런에 확정할 대상' 기준으로 쓴다(도배 상한 유지).
-    _klines = _alert_lines(to_send, snaps, state, now)
+    _klines = _alert_lines(to_send, snaps, state, now, bench=_bench, alerts=alerts)
     _kpng = _alert_card(to_send, snaps, now, shape="square")
     # 행도 구조화 데이터로 만든다 — 발동 줄을 공백으로 쪼개던 종전 방식은 이름이 '첫
     # 공백 토큰'이 되어, 공백을 품은 ETF 이름이 전부 'PLUS'/'TIGER'/'RISE' 로 나갔고

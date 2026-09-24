@@ -105,6 +105,56 @@ def _f(v):
         return None
 
 
+# ── 알림 표기 단일 원천(2026-09-24 알림 개편 A8·B6) ─────────────────────────
+# 카드·카톡 본문·디스코드 필드가 기간·기준일·휴장을 각자 만들던 것을 여기 한 곳으로 모은다.
+# 한 통 안에서 두 형식(「9/14~9/17」과 「09-17~09-23」)이 보이면 그 자리가 버그다.
+# 이 모듈은 matplotlib 을 지연 로드하므로 send_kakao_digest 가 가볍게 import 할 수 있다.
+def _as_date(s):
+    try:
+        return datetime.datetime.strptime(str(s)[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def stale_tag(s, now):
+    """기준일 꼬리표 — 오늘이면 "", 어제면 "·전일", 그 전이면 "·M/D". 파싱 실패는 ""."""
+    d = _as_date(s)
+    if d is None or now is None:
+        return ""
+    days = (now.date() - d).days
+    if days <= 0:
+        return ""
+    return "·전일" if days == 1 else f"·{d.month}/{d.day}"
+
+
+def period_label(a, b):
+    """기간 표기 "M/D~M/D" — date·datetime·'YYYY-MM-DD' 문자열 모두 받는다."""
+    def md(x):
+        x = x if hasattr(x, "month") else _as_date(x)
+        return f"{x.month}/{x.day}" if x else "?"
+    return f"{md(a)}~{md(b)}"
+
+
+def week_period(now):
+    """주간 리포트 기간 — 발송일 포함 7일(now-6일 ~ now). 본문 제목·카드가 같이 쓴다."""
+    return period_label(now - datetime.timedelta(days=6), now)
+
+
+def kr_closed(d, now):
+    """오늘 한국장이 휴장이면 직전 영업일('YYYY-MM-DD'), 아니면 "".
+
+    marketCalendarKr 는 fetch 가 매일 만든다(토스 영업일 달력). 주말은 달력이 없어도
+    휴장이 자명하지만 여기서는 '달력이 오늘을 휴장이라고 말한 경우'만 본다 — 달력이
+    어제 것이면(수집 정체) 판정하지 않는다. 모르면 비운다."""
+    cal = (d or {}).get("marketCalendarKr") or {}
+    today = cal.get("today") or {}
+    if now is None or str(today.get("date") or "") != now.strftime("%Y-%m-%d"):
+        return ""
+    if today.get("open") is not False:
+        return ""
+    return str((cal.get("previousBusinessDay") or {}).get("date") or "")
+
+
 # ── 가상 카테고리 어댑터 ──────────────────────────────────────────────────
 # 편성표가 참조하는 타일 중 indices/fx/commodities 에 없는 것들. 새 수집은 없다 —
 # 이미 data.json 에 있는 필드를 타일이 읽는 (값, 등락) 모양으로 바꿔줄 뿐이다.
@@ -168,6 +218,11 @@ def _fmt(v):
     if v is None:
         return "—"
     return f"{v:,.2f}" if v < 100 else f"{v:,.0f}" if v > 5000 else f"{v:,.1f}"
+
+
+def _fmt_diff(v):
+    """변화폭 — 100 이상이면 정수(「+2,300」), 아니면 소수 1~2자리. 「+2,300.0」 방지."""
+    return f"{v:+,.0f}" if abs(v) >= 100 else f"{v:+,.2f}" if abs(v) < 10 else f"{v:+,.1f}"
 
 
 def _fmt_cnt(v):
@@ -436,7 +491,7 @@ def _save(fig, name):
     return path
 
 
-def _us_yield_line(d):
+def _us_yield_line(d, now=None):
     """카드 A 하단 캡션 — 미국채 1·5·10·30Y 레벨% + 전일 대비 bp.
     출처 = data.yieldCurve.us.series(FRED DGS*). 데이터 없으면 ""(캡션 생략).
 
@@ -462,7 +517,14 @@ def _us_yield_line(d):
             if b is not None:
                 bp = f" {'▲' if b > 0 else '▼' if b < 0 else '■'}{abs(b):.0f}bp"
             parts.append(f"{t} {last:.2f}%{bp}")
-        return (_L("미국채  ", "UST  ") + "  ·  ".join(parts)) if parts else ""
+        # 장단기(10Y−2Y) — 경기 국면을 읽는 기본 재료인데 어느 알림에도 없었다(2026-09-24 B10).
+        two = [r for r in (by.get("2Y") or []) if _f(r.get("value")) is not None]
+        ten = [r for r in (by.get("10Y") or []) if _f(r.get("value")) is not None]
+        if two and ten:
+            parts.append(_L("장단기 ", "10s2s ") + f"{(_f(ten[-1]['value']) - _f(two[-1]['value'])) * 100:+.0f}bp")
+        # 기준일 — FRED 는 1~2영업일 늦다. 날짜 없이 '■0bp'를 보이면 '안 움직였다'로 읽힌다.
+        tag = stale_tag(ten[-1].get("date"), now) if (ten and now) else ""
+        return (_L(f"미국채{tag}  ", "UST  ") + "  ·  ".join(parts)) if parts else ""
     except Exception:
         return ""
 
@@ -719,6 +781,96 @@ def focus_all(d, prof, pkey, allowed=None):
     return anomalies(d, cands)
 
 
+# ── 시장 전체 이례 판정(2026-09-24 알림 개편 B2) ─────────────────────────────
+# anomalies() 는 '주인공 후보'라 인트라데이를 그릴 수 있는 카드 키만 본다. 그런데 제목·헤더
+# 배지가 말해야 하는 것은 '오늘 시장에서 무엇이 평소와 달랐나'다 — 9/24 에 MOVE(채권
+# 변동성)가 +21.5% 뛰었는데 카드 키가 아니어서 알림은 '이례 0건'이었다. 여기선 심리·금리를
+# 더해 본다. 주인공 선정(pick_focus)은 종전대로 anomalies() 를 쓴다(빈 패널 방지).
+# (sentiment 키, 카드 이름, 영문, 제목용 짧은 이름)
+_SENT_Z = {"MOVE": ("move", "채권변동성 MOVE", "bond vol MOVE", "채권변동성"),
+           "VKOSPI": ("vkospi", "VKOSPI", "VKOSPI", "VKOSPI")}
+_YIELD_Z = ("US10Y", "KR10Y")
+Z_WINDOW = 250
+Z_MIN_SAMPLES = 60
+
+
+def _sd(xs):
+    import statistics
+    xs = [x for x in xs if x is not None][-Z_WINDOW:]
+    return statistics.pstdev(xs) if len(xs) >= Z_MIN_SAMPLES else None
+
+
+def _fresh(asof, now):
+    """기준일이 오늘·어제면 True — 그보다 묵은 값의 '오늘 변화'는 이례 판정에 넣지 않는다."""
+    dd = _as_date(asof)
+    return dd is not None and now is not None and (now.date() - dd).days <= 1
+
+
+def _extra_z(d, key, now):
+    """심리·금리 한 지표 → (z, 등락 문자열) 또는 None."""
+    if key in _SENT_Z:
+        n = ((d.get("sentiment") or {}).get(_SENT_Z[key][0])) or {}
+        chg, hist = _f(n.get("change")), n.get("history") or {}
+        if chg is None or not isinstance(hist, dict) or not _fresh(n.get("as_of"), now):
+            return None
+        vs = [_f(hist[k]) for k in sorted(hist)]
+        vs = [v for v in vs if v]
+        sd = _sd([(b / a - 1) * 100 for a, b in zip(vs, vs[1:]) if a])
+        return (chg / sd, f"{chg:+.1f}%") if sd else None
+    if key in _YIELD_Z:
+        _p, bp = _node(d, "yield", key)
+        asof = tile_asof(d, "yield", key, now)
+        if bp is None or (asof is not None and not _fresh(asof, now)):
+            return None
+        vs = _yield_series(d, key)
+        sd = _sd([(b - a) * 100 for a, b in zip(vs, vs[1:])])
+        return (bp / sd, f"{bp:+.0f}bp") if sd else None
+    return None
+
+
+def market_anomalies(d, keys=(), now=None, min_z=ANOMALY_MIN_Z):
+    """카드 키 + 심리(MOVE·VKOSPI) + 금리(미·한 10Y) → [(키, z, 한글 이름, 등락, 영문 이름)].
+
+    이름은 한글로 돌려준다 — 제목·본문은 폰트와 무관한 텍스트다. 카드(그림)만 한글 폰트가
+    없을 때 영문으로 내려가야 하므로 anomaly_badge(card=True) 가 그때 영문을 고른다.
+    (2026-09-24 실측: 텍스트 경로가 _L 을 타서 제목에 'bond vol MOVE' 가 들어갈 뻔했다.)"""
+    now = now or datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+    out = []
+    for key, z in anomalies(d, [k for k in keys if k not in _YIELD_Z], min_z=min_z):
+        ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
+        out.append((key, z, ko, _chgtxt_tile(cat, _node(d, cat, key)[1]), en))
+    for key in list(_SENT_Z) + list(_YIELD_Z):
+        r = _extra_z(d, key, now)
+        if r and abs(r[0]) >= min_z:
+            ko, en = (_SENT_Z[key][1:3] if key in _SENT_Z else _CATALOG[key][:2])
+            out.append((key, r[0], ko, r[1], en))
+    out.sort(key=lambda t: -abs(t[1]))
+    return out
+
+
+def repeat_hit(key, z, seen, esc=0.5):
+    """오늘 같은 방향으로 이미 알렸고 그 뒤 |z| 가 esc 이상 커지지 않았으면 True.
+
+    MOVE·VKOSPI 는 하루 한 값이라 막지 않으면 여섯 통 제목이 전부 같은 이례로 시작한다 —
+    9/23 에 주인공(달러-원) 재탕을 막은 규칙을 제목·헤더 배지에도 그대로 쓴다."""
+    prev = (seen or {}).get(key)
+    return (prev is not None and z is not None and (prev > 0) == (z > 0)
+            and abs(z) < abs(prev) + esc)
+
+
+def anomaly_badge(hit, card=True, short=False):
+    """이례 한 조각. card=True → 카드 헤더(폰트 없으면 영문), short=True → 제목용 짧은 형식.
+
+    카드: "채권변동성 MOVE +21.5% 평소의 4.0배" / 제목: "채권변동성 +21.5%(평소 4.0배)"."""
+    key, z, ko, chg, en = hit
+    if short:
+        nm = _SENT_Z[key][3] if key in _SENT_Z else ko
+        return f"{nm} {chg}(평소 {abs(z):.1f}배)"
+    if card and not _STATE.get("ko"):
+        return f"{en} {chg} {abs(z):.1f}x usual"
+    return f"{ko} {chg} 평소의 {abs(z):.1f}배"
+
+
 def _draw_cells(fig, grid, box, fs, square=False, note_inline=False):
     """타일 격자를 box=(x0, y0, w, h) figure 좌표에 그린다. fs=(라벨, 값, 등락) 폰트.
 
@@ -835,25 +987,52 @@ def _tile_badge(d, cat, key, chg):
     return f"{abs(z):.1f}σ" if z is not None and abs(z) >= BADGE_MIN_Z else ""
 
 
-def _draw_tiles(fig, d, grid, box, fs, square=False, note_inline=True):
+_KR_KEYS = ("KOSPI", "KOSDAQ")
+
+
+def tile_asof(d, cat, key, now):
+    """타일 값의 기준일('YYYY-MM-DD') — 발송 시점 값이면 None.
+
+    두 경우만 날짜가 있다(2026-09-24 알림 개편 A3). ① 금리: yieldCurve 는 FRED·ECOS 일별이라
+    라이브 오버레이(_liveTiles)가 없으면 1~2일 전 값이다 — 이틀 연속 같은 값이면 '■0bp'가
+    되어 '안 움직였다'로 읽혔다. ② 한국 지수: 휴장일엔 직전 영업일 종가가 오늘 값처럼 나갔다.
+    나머지는 apply_live_quotes 가 발송 시점 시세로 덮으므로 날짜를 달지 않는다."""
+    if (d.get("_liveTiles") or {}).get(key):
+        return None
+    if cat == "yield":
+        cc, tenor = _YIELD_KEY.get(key, (None, None))
+        for se in (((d.get("yieldCurve") or {}).get(cc) or {}).get("series") or []):
+            if se.get("tenor") == tenor:
+                rows = [r for r in (se.get("data") or []) if _f(r.get("value")) is not None]
+                return str(rows[-1].get("date")) if rows else None
+        return None
+    if key in _KR_KEYS:
+        return kr_closed(d, now) or None
+    return None
+
+
+def _draw_tiles(fig, d, grid, box, fs, square=False, note_inline=True, now=None):
     """카탈로그 키 격자(편성표) → 셀 격자로 바꿔 _draw_cells 에 넘긴다.
 
     지표 타일의 우하단은 언제나 등락률이라 기본값이 note_inline=True 다.
-    우상단에는 이례적인 칸에만 σ 배지가 붙는다(_tile_badge)."""
+    우상단에는 이례적인 칸에만 σ 배지가 붙는다(_tile_badge).
+    기준일이 오늘이 아닌 칸은 라벨 끝에 「·9/22」를 붙인다(tile_asof) — 본문 심리 블록이
+    쓰는 stale_tag 와 같은 함수라 카드와 본문의 꼬리표가 어긋나지 않는다."""
     cells = []
     for line in grid:
         row = []
         for key in line:
             ko, en, cat = _CATALOG.get(key, (key, key, "indices"))
             price, chg = _node(d, cat, key)
-            row.append(_cell(_L(ko, en), _fmt_tile(cat, price),
+            tag = stale_tag(tile_asof(d, cat, key, now), now) if now else ""
+            row.append(_cell(_L(ko, en) + tag, _fmt_tile(cat, price),
                              _chgtxt_tile(cat, chg), chg, _sat_of(cat),
                              _tile_badge(d, cat, key, chg)))
         cells.append(row)
     _draw_cells(fig, cells, box, fs, square=square, note_inline=note_inline)
 
 
-def _meta_line(d, cal):
+def _meta_line(d, cal, badge=""):
     """헤더 우측 보조 — 리스크 지수(MRI) + MOVE 지수 + 오늘 일정.
 
     MRI 는 send_kakao_digest.load_mri 가 발송 직전에 _mri 로 주입한다(mer_signals.json
@@ -868,9 +1047,10 @@ def _meta_line(d, cal):
         if dl is not None and abs(dl) >= 1:
             dtxt = f" {'▲' if dl > 0 else '▼'}{abs(dl):.0f}" + _L("(30일)", "(30d)")
         head.append((_L("리스크 ", "risk ") + f"{mri['score']:.0f}" + dtxt).strip())
-    mv = ((d.get("sentiment") or {}).get("move")) or {}
-    if _f(mv.get("value")) is not None:
-        head.append(f"MOVE {mv['value']:.1f} {_chgtxt(_f(mv.get('change')))}".strip())
+    # MOVE 를 늘 싣던 자리(2026-09-24 A2) — 그날 가장 큰 이례 한 건으로 바꿨다. 고정 지표는
+    # 매번 같은 자리에 같은 회색으로 있어 정작 이례적인 날에도 눈에 띄지 않았다.
+    if badge:
+        head.append(badge)
     if cal:
         head.append((_L("오늘 ", "today ") + cal).strip())
     return " · ".join(head)
@@ -912,7 +1092,7 @@ def focus_note(d, key, z, with_name=True):
 
 
 def board(d, now, cal="", slot=None, weekend=False, profile=None, shape="wide", hero=None,
-          focus=None):
+          focus=None, seen=None):
     """카드 A — 시황 보드. 실패 시 None(호출측이 슬롯 차트로 폴백).
 
     focus=(키, z) — 그날의 주인공. 주면 정사각 히어로 패널과 가로 추세 첫 칸이 그것을
@@ -945,17 +1125,25 @@ def board(d, now, cal="", slot=None, weekend=False, profile=None, shape="wide", 
         if fz is not None and fkey:                      # 추세 첫 칸도 주인공으로
             sp = [k for k in (prof.get("spark") or []) if k != fkey]
             prof["spark"] = [fkey] + sp[:max(len(prof.get("spark") or []) - 1, 0)]
+        # 휴장일 평일은 편성 이름을 '휴장'으로 — 카드가 어제 종가를 오늘 장중처럼 보이지 않게.
+        if kr_closed(d, now) and now.weekday() < 5:
+            prof["title"] = _L("휴장", "KR holiday")
+        # 헤더 우측 배지 = 주인공이 아닌 것 중 가장 큰 이례 1건(주인공은 히어로가 이미 말한다).
+        keys = [k for r in (prof.get("rows") or []) for k in r]
+        hits = [h for h in market_anomalies(d, keys, now=now)
+                if h[0] != fkey and not repeat_hit(h[0], h[1], seen)]
+        badge = anomaly_badge(hits[0]) if hits else ""
         if shape == "square":
             # 히어로 라벨은 이미 자산명으로 시작한다 — 이름을 또 넣으면 두 번 나온다.
             return _board_square(plt, d, now, pkey, prof, cal, hero, fkey,
-                                 focus_note(d, fkey, fz, with_name=False))
-        return _board_wide(plt, d, now, prof, cal, focus_note(d, fkey, fz))
+                                 focus_note(d, fkey, fz, with_name=False), badge=badge)
+        return _board_wide(plt, d, now, prof, cal, focus_note(d, fkey, fz), badge=badge)
     except Exception as e:
         print(f"::warning title=디스코드 카드 실패::board({shape}): {e} — 기존 형식 폴백")
         return None
 
 
-def _board_wide(plt, d, now, prof, cal, note=""):
+def _board_wide(plt, d, now, prof, cal, note="", badge=""):
     """가로 10×7 @160dpi — 디스코드 embed. 타일 격자 + 미국채 캡션 + 30일 추세 n개.
     note = 그날 주인공 사유 한 줄(있으면 제목 옆에 붙인다)."""
     grid = [r for r in prof["rows"] if r]
@@ -963,12 +1151,14 @@ def _board_wide(plt, d, now, prof, cal, note=""):
     fs = (14, 21, 14) if cols <= 3 else (13, 17, 13)   # 3열이면 타일이 넓어 글자를 키운다
     fig = plt.figure(figsize=(10, 7.0), dpi=160)
     fig.patch.set_facecolor(BG)
-    _t = _L(f"{now.month}/{now.day} {now.hour}시 시황 보드 · {prof['title']}",
-            f"{now.month}/{now.day} {now.hour}h Market Board")
-    _head(fig, _t, _meta_line(d, cal), fs_t=19, fs_m=11, y=0.945, square=False)
-    _draw_tiles(fig, d, grid, (0.03, 0.44, 0.94, 0.46), fs)
+    # 제목에서 '18시'를 뺐다(2026-09-24 A1) — 시각은 footer 가 분 단위로 이미 말하고,
+    # 제목 자리는 '어느 시장 국면인가'(편성 이름)가 쓴다.
+    _t = _L(f"{now.month}/{now.day} {prof['title']} 시황 보드",
+            f"{now.month}/{now.day} Market Board · {prof['title']}")
+    _head(fig, _t, _meta_line(d, cal, badge), fs_t=19, fs_m=11, y=0.945, square=False)
+    _draw_tiles(fig, d, grid, (0.03, 0.44, 0.94, 0.46), fs, now=now)
     # 하단 캡션 — 미국채 1·5·10·30Y(사용자 지정 2026-08-20, 구 원자재 4종 대체).
-    rest = _us_yield_line(d) if prof.get("caption") == "us_curve" else ""
+    rest = _us_yield_line(d, now) if prof.get("caption") == "us_curve" else ""
     if rest:
         fig.text(0.03, 0.395, rest, color=MUT, fontsize=12)
     # 추세 첫 칸이 곧 오늘의 주인공이라 사유를 여기에 붙인다 — 제목에 붙이면
@@ -1012,7 +1202,7 @@ def _board_wide(plt, d, now, prof, cal, note=""):
     return _save(fig, "discord_card_board.png")
 
 
-def _board_square(plt, d, now, pkey, prof, cal, hero, fkey=None, note=""):
+def _board_square(plt, d, now, pkey, prof, cal, hero, fkey=None, note="", badge=""):
     """정사각 1080×1080 @150dpi — 카카오 피드 한 통의 이미지.
 
     구성 = 타일 격자 + 히어로 인트라데이 1개(전 폭). 종전 카톡 이미지는 지표 2개짜리
@@ -1026,11 +1216,11 @@ def _board_square(plt, d, now, pkey, prof, cal, hero, fkey=None, note=""):
     fig = plt.figure(figsize=(7.2, 7.2), dpi=150)
     fig.patch.set_facecolor(BG)
     wd = "월화수목금토일"[now.weekday()]
-    _t = _L(f"{now.month}/{now.day}({wd}) {now.hour}시 시황 · {prof['title']}",
-            f"{now.month}/{now.day} {now.hour}h · {prof['title']}")
-    _head(fig, _t, _meta_line(d, cal))
+    _t = _L(f"{now.month}/{now.day}({wd}) {prof['title']} 시황",
+            f"{now.month}/{now.day} · {prof['title']}")
+    _head(fig, _t, _meta_line(d, cal, badge))
     # 캡션이 빠진 자리를 타일이 가져간다 — 6타일(2열) × 늘어난 높이라야 글자가 커진다.
-    _draw_tiles(fig, d, grid, (0.03, 0.50, 0.94, 0.43), (20, 30, 21), square=True)
+    _draw_tiles(fig, d, grid, (0.03, 0.50, 0.94, 0.43), (20, 30, 21), square=True, now=now)
 
     # 주인공은 호출측(board)이 고른다 — 이례적인 날엔 그날 자산이 온다.
     hkey = fkey or HERO.get(pkey) or (grid[0][0] if grid and grid[0] else None)
@@ -1122,7 +1312,7 @@ def stock_alert(hero, others, now, shape="wide", extra_tiles=None):
         if vt:
             vs = _L(f"거래량 {vt:,.0f}", f"vol {vt:,.0f}")
             if vp:
-                vs += _L(f" (전일比 {(vt / vp - 1) * 100:+.0f}%)", f" ({(vt / vp - 1) * 100:+.0f}% d/d)")
+                vs += _L(f" (전일 대비 {(vt / vp - 1) * 100:+.0f}%)", f" ({(vt / vp - 1) * 100:+.0f}% d/d)")
             fig.text(0.03, body_top - 0.54 * (4.2 / hgt), vs, color=MUT, fontsize=12)
         # 우 30일 일봉 + 목표선 + 발동점
         closes = [c for c in (hero.get("closes") or [])[-30:] if c is not None]
@@ -1184,7 +1374,7 @@ def _stock_square(plt, hero, others, now, extra_tiles=None):
     vt, vp = _f(hero.get("vol_today")), _f(hero.get("vol_prev"))
     if vt:
         # 거래량엔 방향색을 주지 않는다(chg=None) — 붉게 칠하면 '올랐다'로 읽힌다.
-        cells[0].append(_cell(_L("거래량(전일比)", "volume (d/d)"), _fmt_cnt(vt),
+        cells[0].append(_cell(_L("거래량 전일 대비", "volume (d/d)"), _fmt_cnt(vt),
                               (_L(f"{vt / vp:.1f}배", f"{vt / vp:.1f}x")
                                if vp else ""), None))
     row2 = [_cell(str(l)[:10], str(v), str(n), c) for l, v, n, c in (extra_tiles or [])[:3]]
@@ -1316,9 +1506,15 @@ def close_report(items, now, alerts_cnt=None, cal="", intraday=None, investor=No
             ax2.plot(len(ys) - 1, ys[-1], "o", color=dirc, ms=5)
             lab = _L("코스피 오늘", "KOSPI today") + (f" · {src}" if src else "")
             ax2.text(0.03, 0.93, lab, transform=ax2.transAxes, color=MUT, fontsize=11.5, va="top")
-            if prev:
-                ax2.text(0.97, 0.93, f"{(ys[-1] / prev - 1) * 100:+.2f}%", transform=ax2.transAxes,
-                         color=_txt_color(dirc == UP), fontsize=12.5,
+            # 등락은 왼쪽 바와 같은 숫자를 쓴다(2026-09-24 A6). 종전엔 인트라데이 마지막 점과
+            # 그 체인의 전일값으로 따로 계산해, 한 카드에 코스피 등락률이 두 값(+0.93% / +0.22%)
+            # 으로 찍혔다. 인트라데이 마지막 점은 수집 지연만큼 종가와 어긋난다.
+            _kc = next((c for l, _p, c in its if l in ("코스피", "KOSPI")), None)
+            if _kc is None and prev:
+                _kc = (ys[-1] / prev - 1) * 100
+            if _kc is not None:
+                ax2.text(0.97, 0.93, f"{_kc:+.2f}%", transform=ax2.transAxes,
+                         color=_txt_color(_kc >= 0), fontsize=12.5,
                          ha="right", va="top", fontweight="bold")
             ax2.set_xticks([]); ax2.set_yticks([])
             for s in ax2.spines.values():
@@ -1405,7 +1601,10 @@ def _close_square(plt, its, now, alerts_cnt, cal, intraday, investor, fired_name
         bar_box, bar_lab = [0.26, 0.468, 0.71, 0.264], SEC_LAB_Y
     else:
         bar_box, bar_lab = [0.26, 0.475, 0.71, 0.42], 0.925
-    _bars(fig, bar_box, [(l, c) for l, _p, c in its], square=True, lim_mul=1.9)
+    # 가격을 같이 싣는다(2026-09-24 A6) — 가로 카드엔 있고 정사각엔 없어 카톡 수신자만
+    # 「코스피 +0.93%」를 보고 레벨을 몰랐다. 칸이 좁아 여백을 조금 더 준다.
+    _bars(fig, bar_box, [(l, c) for l, _p, c in its], square=True, lim_mul=2.6,
+          texts=[f"{_fmt(p)} {c:+.2f}%" for _l, p, c in its])
     fig.text(0.03, bar_lab, _L("지수 등락", "index moves"), color=MUT,
              fontsize=_fs(17, True), va="center")
     xs, ys, prev, src = intraday or ([], [], None, "")
@@ -1469,15 +1668,16 @@ def _week_flow_line(d):
         if not w:
             return ""
         fo, it = w["foreign"], w["inst"]
-        span = f"{str(w.get('from') or '')[5:]}~{str(w.get('to') or '')[5:]}"
+        span = period_label(w.get("from"), w.get("to"))
         return _L(f"주간 수급(코스피 {span}): 외국인 {fo:+,.0f}억 · 기관 {it:+,.0f}억",
                   f"weekly net buy (KOSPI {span}): foreign {fo:+,.0f} · inst {it:+,.0f} (0.1bn KRW)")
     except Exception:
         return ""
 
 
-def _bars(fig, box, rows, square=False, unit="%", nd=2, lim_mul=1.6):
-    """다이버징 수평 바 — rows=[(라벨, 값)]. 주간·마감 카드가 공유한다."""
+def _bars(fig, box, rows, square=False, unit="%", nd=2, lim_mul=1.6, texts=None):
+    """다이버징 수평 바 — rows=[(라벨, 값)]. 주간·마감 카드가 공유한다.
+    texts = 행별 값 문구(없으면 「+0.93%」). 마감 카드는 가격을 함께 싣는다."""
     ax = fig.add_axes(box)
     ax.set_facecolor(BG)
     vals = [v for _l, v in rows]
@@ -1486,7 +1686,8 @@ def _bars(fig, box, rows, square=False, unit="%", nd=2, lim_mul=1.6):
     ax.axvline(0, color=FAINT, lw=1)
     for i, (_l, v) in enumerate(rows):
         ax.text(v + (0.08 if v >= 0 else -0.08) * (max(abs(x) for x in vals) or 1) / 2.5, i,
-                f"{v:+.{nd}f}{unit}", va="center", ha="left" if v >= 0 else "right",
+                (texts[i] if texts else f"{v:+.{nd}f}{unit}"),
+                va="center", ha="left" if v >= 0 else "right",
                 color=INK, fontsize=_fs(18, square))
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([l for l, _v in rows], color=MUT, fontsize=_fs(18, square))
@@ -1514,10 +1715,9 @@ def weekly(d, now, next_week="", shape="wide"):
             return _weekly_square(plt, d, now, rows, next_week)
         fig = plt.figure(figsize=(10, 6.8), dpi=160)
         fig.patch.set_facecolor(BG)
-        wk0 = now - datetime.timedelta(days=now.weekday())
+        _pl = week_period(now)
         fig.text(0.03, 0.945,
-                 _L(f"주간 리포트 — {wk0.month}/{wk0.day}~{now.month}/{now.day} 수익률",
-                    f"Weekly — {wk0.month}/{wk0.day}~{now.month}/{now.day} returns"),
+                 _L(f"주간 리포트 — {_pl} 수익률", f"Weekly — {_pl} returns"),
                  color=INK, fontsize=18, fontweight="bold")
         ax = fig.add_axes([0.16, 0.185, 0.58, 0.70])
         ax.set_facecolor(BG)
@@ -1575,9 +1775,8 @@ def _weekly_square(plt, d, now, rows, next_week):
 
     카톡 주간 슬롯이 옛 2티커 라인 차트로 나가던 것을 대체한다. '지금 시각 타일'이
     주간 본문과 어긋나던 문제는 타일을 없애는 대신 주간 수치(최고·최저·수급)로 바꿔 푼다."""
-    wk0 = now - datetime.timedelta(days=now.weekday())
-    fig = _sq_fig(plt, _L(f"주간 리포트 · {wk0.month}/{wk0.day}~{now.month}/{now.day}",
-                          f"Weekly · {wk0.month}/{wk0.day}~{now.month}/{now.day}"),
+    _pl = week_period(now)
+    fig = _sq_fig(plt, _L(f"주간 리포트 · {_pl}", f"Weekly · {_pl}"),
                   _L("주간 종가 기준", "weekly close"))
     best, worst = rows[-1], rows[0]
     cells = [[_cell(_L("최고", "best"), best[0], f"{best[2]:+.2f}%", best[2]),
@@ -1585,7 +1784,7 @@ def _weekly_square(plt, d, now, rows, next_week):
     _w5 = _week_flow_5d(d)
     if _w5:
         fo = _w5["foreign"]
-        _span = f"{str(_w5.get('from') or '')[5:]}~{str(_w5.get('to') or '')[5:]}"
+        _span = period_label(_w5.get("from"), _w5.get("to"))
         cells[0].append(_cell(_L("외국인 5일", "foreign 5d"), f"{fo:+,.0f}",
                               _L("억원", "0.1bn") + f" · {_span}", fo, sat=20000.0))
     _draw_cells(fig, cells, (0.03, 0.775, 0.94, 0.145), (15, 22, 13), square=True)
@@ -1687,7 +1886,7 @@ def _swing_square(plt, name, price, pct, thr_pct, xs, ys, prev, now, resume, src
                     _chgtxt(pct), pct)]]
     if prev:
         cells[0].append(_cell(_L("전일", "prev"), _fmt(prev),
-                              (f"{price - prev:+,.1f}" if price is not None else ""), None))
+                              (_fmt_diff(price - prev) if price is not None else ""), None))
         cells[0].append(_cell(_L("임계선", "threshold"), _fmt(thr_v),
                               f"±{abs(thr_pct):.1f}%", None))
     _draw_cells(fig, cells, (0.03, 0.60, 0.94, 0.145), (18, 24, 18), square=True,
@@ -1806,6 +2005,10 @@ def surprise(ev, why, now=None, hist=None, shape="wide"):
                  fontsize=fs_hero, fontweight="bold")
         fig.text(0.06, y_why, _clip(fig, why, 0.88, fs_why), color=INK, fontsize=fs_why)
 
+        # 분포 띠가 없는 날은 3점 비교가 그 자리까지 쓴다(2026-09-24 A7) — 종전엔 정사각
+        # 캔버스 하단 55%가 빈 채로 나가 말풍선에서 글자가 그만큼 작아졌다.
+        if len([v for v in (hist or []) if v is not None]) < cr.MIN_HISTORY:
+            ax_box = [ax_box[0], strip_box[1], ax_box[2], ax_box[1] + ax_box[3] - strip_box[1]]
         # 직전·예상·실제 3점 비교 — 값이 있는 것만. 한 축에 얹어 거리를 눈으로 본다.
         pts = [(lab, v) for lab, v in ((_L("직전", "prev"), prev),
                                        (_L("예상", "fore"), fore),

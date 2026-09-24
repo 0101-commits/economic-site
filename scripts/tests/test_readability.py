@@ -128,6 +128,8 @@ def gate_feed_body_excludes_card_tiles(kakao):
             rest = v
             for n in drop:
                 rest = re.sub(re.escape(n) + r"\s*\S+", "", rest)
+            # 휴장 꼬리표「(9/23 마감)」는 지표가 아니다 — 카드 타일 라벨 「코스피·전일」이 같은 말을 한다.
+            rest = re.sub(r"\(\d{1,2}/\d{1,2} 마감\)", "", rest)
             if rest.strip():
                 bad.append(f"{lab}({rest.strip()})")
         check("카드에 없는 블록 보존", not bad, f"내용 잃은 블록={bad}")

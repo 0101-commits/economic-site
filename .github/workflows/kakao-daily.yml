@@ -242,6 +242,9 @@ jobs:
           # 동일 패턴(11·17시 슬롯, 사진 달러원·금)으로 발송(카카오·디스코드 공통).
           KR_HOLIDAY: ${{ steps.gate.outputs.holiday }}
           KAKAO_CHARTS: ${{ vars.KAKAO_CHARTS || '1' }}
+          # 슬롯 한 문장(2026-09-24 알림 개편 B1) — 발송 직전 그 카드 숫자로 한 문장을 받는다.
+          # 미설정·실패면 오늘 3줄 요약 중 검증 통과한 줄, 그것도 없으면 문장 없이 발송.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # 디스코드 병행 발송(notify_discord) — 미설정이면 카카오 단독으로 종전과 동일.
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           # 파이프라인 경고 채널(D8 — 스테일 자동복구·토큰 만료 통지)

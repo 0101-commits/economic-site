@@ -168,7 +168,8 @@ def test_go_page_takes_no_url_parameter():
     html = open(os.path.join(ROOT, "go.html"), encoding="utf-8").read()
     assert "q.get('k')" in html and "q.get('s')" in html
     assert "q.get('url')" not in html and "q.get('to')" not in html
-    assert "[0-9]{6}" in html          # 종목은 6자리 숫자만
+    # 종목은 6자리 — 신형 ETF 는 영문이 섞인다(0018Z0, 2026-09-23 계약 변경). 소문자·기호는 막는다.
+    assert "^[0-9A-Z]{6}$" in html
 
 
 # ── 디스코드 링크는 상호작용에 기대지 않는다 ────────────────────────────────

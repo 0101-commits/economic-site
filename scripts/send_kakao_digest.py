@@ -373,20 +373,18 @@ def _stale_tag(s, now):
     """항목별 신선도 라벨(P2) — as_of/date 가 오늘이 아니면 '·전일'/'·M/D' 를 돌려준다.
 
     라이브 보정 항목(증시·환율·원자재)은 발송 시점 시세라 무표기, 스냅샷 항목(심리·운임)만
-    기준일을 밝혀 묵은 수치가 '지금 시황'처럼 읽히지 않게 한다. 파싱 실패는 무표기(기존 동작)."""
-    try:
-        d = datetime.datetime.strptime(str(s)[:10], "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        return ""
-    days = (now.date() - d).days
-    if days <= 0:
-        return ""
-    return "·전일" if days == 1 else f"·{d.month}/{d.day}"
+    기준일을 밝혀 묵은 수치가 '지금 시황'처럼 읽히지 않게 한다. 파싱 실패는 무표기(기존 동작).
+    구현은 discord_card.stale_tag 하나다 — 카드 타일 꼬리표와 같은 함수(2026-09-24 A3)."""
+    import discord_card
+    return discord_card.stale_tag(s, now)
 
 
 # 카드 타일 키 → 본문 지표 라벨. 두 쪽에 같이 나오는 지표만 담는다(중복 제거 대상).
-# 금리·SOX·상하이·유로달러는 본문 블록에 아예 없으므로 여기 없다.
+# 닛케이·SOX·상하이는 2026-09-21 편성 개편으로 본문(아시아·미국증시)에 들어왔는데 여기가
+# 따라오지 않아, 장중 카톡에 닛케이가 카드와 본문에 두 번 실렸다(2026-09-24 실측).
+# 금리·유로달러는 본문에서 지표 이름이 다르거나(미국채10Y) 없으므로 여기 없다.
 _CARD_DUP_LABEL = {"KOSPI": "코스피", "KOSDAQ": "코스닥", "SP500": "S&P", "NASDAQ": "나스닥",
+                   "SOX": "SOX", "Nikkei": "닛케이", "Shanghai": "상하이",
                    "USDKRW": "달러-원", "USDJPY": "달러-엔", "WTI": "WTI",
                    "NatGas": "천연가스", "Gold": "금", "Copper": "구리"}
 
@@ -425,8 +423,19 @@ SLOT_BLOCKS = {
             "에너지", "금속", "운임"),                        # 주말·공휴일 1회 — 넓게
 }
 # 슬롯을 모르는 경로(수동 실행·마감 리포트·테스트)는 전부 싣는다 — 종전 동작.
+# 곡물 블록은 2026-09-24 에 뺐다 — 어느 슬롯 편성에도 없어 한 번도 발송된 적이 없었다.
 ALL_BLOCKS = ("국내증시", "미국증시", "아시아", "환율", "금리", "심리",
-              "에너지", "금속", "곡물", "운임", "수급", "일정")
+              "에너지", "금속", "운임", "수급", "일정")
+# 수급을 '잠정'으로라도 싣는 슬롯(2026-09-24 B5). 확정치(KRX 18시)만 싣던 규칙 때문에
+# 12시 편성에 수급이 있어도 한 번도 붙지 않았다. 잠정치는 꼬리표(investor_flows 판정 —
+# 「잠정 · 토스 단독」 등)를 그대로 달아 확정으로 읽히지 않게 한다. 교차검증 자체가 실패한
+# 날은 종전대로 싣지 않는다(틀린 숫자 금지).
+PROVISIONAL_FLOW_SLOTS = ("h12",)
+
+# 알림 제목의 슬롯 이름(2026-09-24 A1) — 제목에서 '18시'를 빼고 이 이름을 쓴다.
+SLOT_NAME = {"h07": "개장 전", "h09": "개장", "h12": "장중", "h19": "저녁",
+             "h22": "미국장", "h11": "주말", "close": "마감"}
+TITLE_MAX = 48          # 폰 알림 미리보기 한 줄 폭 — 넘는 사실은 뒤에서부터 뺀다
 
 
 def build_digest_parts(d, drop=(), slot=None):
@@ -452,8 +461,11 @@ def build_digest_parts(d, drop=(), slot=None):
     # (정시 발송에선 슬롯 시각 == now 시각이라 동일하지만, 수동·지연 등으로 어긋나도 시각이 거짓이 되지 않게.
     #  과거 토 15:02 발송이 '17시'로 표기된 사례 방지 — 트리거 게이트 보강과 함께 이중 안전장치.)
     now = datetime.datetime.now(KST)
-    wd = "월화수목금토일"[now.weekday()]
-    title = f"{now.month}/{now.day}({wd}) {now.hour}시 시황"
+    import discord_card as _dc
+    # 기본 제목 = 날짜 + 슬롯 이름. 헤드라인(무엇이 움직였나)은 main 이 주인공을 고른 뒤
+    # headline() 으로 붙인다 — 여기서는 주인공을 모른다.
+    title = f"{now.month}/{now.day} {_slot_name(slot, False, d, now)}"
+    _closed = _dc.kr_closed(d, now)                  # 휴장일이면 직전 영업일
 
     drop = set(drop or ())
 
@@ -478,7 +490,10 @@ def build_digest_parts(d, drop=(), slot=None):
     blocks = []
     kr_eq = [p for p in (ip("코스피", "KOSPI"), ip("코스닥", "KOSDAQ")) if p]
     if kr_eq:
-        blocks.append(("국내증시", " ".join(kr_eq)))
+        # 휴장일 — 값은 직전 영업일 종가다. 라벨은 편성·설명 매칭 키라 건드리지 않고 값 끝에 적는다.
+        _cd = _dc._as_date(_closed)
+        tail = f" ({_cd.month}/{_cd.day} 마감)" if _cd else ""
+        blocks.append(("국내증시", " ".join(kr_eq) + tail))
     # 간밤 미국장 — SOX 를 함께 싣는다. 전일 SOX 등락과 당일 코스피 등락의 상관이
     # +0.44 로 S&P(+0.37)·나스닥(+0.41)보다 높다(2026-09-21 실측, 최근 250거래일).
     us_eq = [p for p in (ip("S&P", "SP500"), ip("나스닥", "NASDAQ"), ip("SOX", "SOX")) if p]
@@ -512,6 +527,11 @@ def build_digest_parts(d, drop=(), slot=None):
         rate.append(f"한국채10Y {kr10:.2f}%")
     if us10 is not None and kr10 is not None:
         rate.append(f"한미차 {(us10 - kr10) * 100:+.0f}bp")
+    _us2 = next((_f(x.get("value")) for se in ((yc.get("us") or {}).get("series") or [])
+                 if se.get("tenor") == "2Y"
+                 for x in reversed(se.get("data") or []) if _f(x.get("value")) is not None), None)
+    if us10 is not None and _us2 is not None:
+        rate.append(f"장단기 {(us10 - _us2) * 100:+.0f}bp")      # 미 10Y−2Y (B10)
     if rate:
         blocks.append(("금리", " ".join(rate)))
     pl = []
@@ -551,9 +571,6 @@ def build_digest_parts(d, drop=(), slot=None):
     metal = [p for p in (cp("금", "Gold", 0), cp("구리", "Copper", 2)) if p]
     if metal:
         blocks.append(("금속", " ".join(metal)))
-    grain = [p for p in (cp("옥수수", "Corn", 0), cp("밀", "Wheat", 0), cp("대두", "Soybean", 0)) if p]
-    if grain:
-        blocks.append(("곡물", " ".join(grain)))
     # 해상 운임 — 상하이컨테이너운임지수(SCFI). freight.items 는 change 대신 chgPct(%) 사용.
     scfi = next((it for it in ((d.get("freight", {}) or {}).get("items") or [])
                  if isinstance(it, dict) and it.get("code") == "SCFI"
@@ -563,7 +580,8 @@ def build_digest_parts(d, drop=(), slot=None):
     # 투자자 수급(코스피) — **확정치만** 싣는다. KRX 확정은 18시 이후라 그 전 슬롯에선 줄이
     # 아예 없다(잠정치를 확정처럼 보여 "알림 값이 실제와 다르다"가 났던 게 이 블록의 이유).
     _inv = _verified_investor()
-    if _inv and _inv.get("confirmed"):
+    if _inv and (_inv.get("confirmed")
+                 or str(slot or "").strip().lower() in PROVISIONAL_FLOW_SLOTS):
         # 꼬리표는 investor_flows 가 판정한 문구를 그대로 쓴다 — '확정'을 하드코딩하면
         # 교차검증을 못 한 날(네이버 410 으로 토스 단독인 경우)에도 확정처럼 보인다.
         blocks.append(("수급", f"외국인 {_inv['foreign']:+,.0f}억 · 기관 {_inv['inst']:+,.0f}억"
@@ -625,6 +643,11 @@ def build_weekly_parts(d, now):
         blocks.append(("주간환율", fxl))
     if cml:
         blocks.append(("주간원자재", cml))
+    # 건화물 운임(BDI) — 주 1회 보는 게 맞는 값이라 주간 리포트에만 싣는다(2026-09-24 B10).
+    bdi = next((it for it in ((d.get("freight") or {}).get("items") or [])
+                if isinstance(it, dict) and it.get("code") == "BDI" and it.get("price") is not None), None)
+    if bdi:
+        blocks.append(("운임", f"BDI {_num(bdi['price'])}{_a1(bdi.get('chgPct'))}{_stale_tag(bdi.get('date'), now)}"))
     # 다음 주 주요 일정 — economicCalendar.events(dt='MM.DD HH:MM', 연도 없음)에서
     # 오늘 초과~7일 이내·별 많은 순 상위 3건. 연도는 현재 연도로 두되 연말 롤오버만 보정.
     evs = []
@@ -643,8 +666,8 @@ def build_weekly_parts(d, now):
     evs.sort()
     if evs:
         blocks.append(("다음주", " · ".join(f"{ed.month}/{ed.day} {name}" for _, ed, name in evs[:3])))
-    start = now.date() - datetime.timedelta(days=6)  # 일요일 발송 기준 지난 월~일
-    title = f"주간 시황 {start.month}/{start.day}~{now.month}/{now.day}"
+    import discord_card as _dc
+    title = f"주간 시황 {_dc.week_period(now)}"      # 카드 제목과 같은 함수(A8)
     return title, blocks
 
 
@@ -1094,6 +1117,192 @@ def focus_field(data, key, z, extra=0):
         return None
 
 
+# ── 제목·문맥 행(2026-09-24 알림 개편 A1·A4·B3·B4) ───────────────────────────
+# 폰 알림창이 보여주는 것은 제목 한 줄이다. 종전 제목 「9/24(목) 18시 시황」은 여섯 통이
+# 시각만 달라 시장 정보가 0이었다. 제목 = 날짜 + 슬롯 이름 + 그 통의 결론 1~3조각.
+def _slot_name(slot, weekend, d, now):
+    import discord_card
+    if now.weekday() < 5 and (discord_card.kr_closed(d, now)
+                              or os.environ.get("KR_HOLIDAY", "").strip() == "1"):
+        return "휴장"
+    if weekend:
+        return "주말"
+    return SLOT_NAME.get(str(slot or "").strip().lower(), "시황")
+
+
+def _short_chg(cat, c):
+    """제목용 짧은 등락 — 금리는 bp, 나머지는 소수 1자리 %."""
+    if c is None:
+        return ""
+    return f"{c:+.0f}bp" if cat == "yield" else f"{c:+.1f}%"
+
+
+def _fit(base, facts, limit=TITLE_MAX):
+    """base 뒤에 사실을 ' · '로 붙이되 한도를 넘는 사실부터 뺀다(앞이 더 중요하다)."""
+    out = base
+    for f in facts:
+        if f and len(out) + 3 + len(f) <= limit:
+            out += " · " + f
+    return out
+
+
+def headline(d, slot, weekend, now, focus=None, extra="", base=None, seen=None):
+    """알림 제목 — 두 채널 공통. 사실 순서 = 이례 1건 → 주인공 → extra(수급 등) → 두 번째 움직임.
+
+    이례는 discord_card.market_anomalies(카드 키 + 심리·금리)에서 고른다 — 주인공 후보보다
+    넓다. 9/24 처럼 MOVE 만 튄 날도 제목이 그것을 말한다. seen(오늘 이미 알린 {키: z})에
+    있는 이례는 더 커지지 않았으면 건너뛴다.
+
+    반환 (제목, 쓴 이례 (키, z) 또는 None) — 호출측이 발송 성공 후 record_focus 로 기록한다."""
+    import discord_card as dc
+    base = base or f"{now.month}/{now.day} {_slot_name(slot, weekend, d, now)}"
+    hit = None
+    try:
+        # 마감은 16시대 편성(코스피·닛케이·환율)을 쓴다 — 발송 시각이 아니라 그 통의 성격으로.
+        pkey = "kr_close_eu" if slot == "close" else dc.profile_for(slot, weekend, now)
+        prof = dc.PROFILES.get(pkey) or dc.PROFILES[dc.DEFAULT_PROFILE]
+        keys = [k for r in (prof.get("rows") or []) for k in r]
+        fkey, fz = (focus or (None, None))[:2]
+        facts, used = [], set()
+        if fkey and fz is not None and dc.kr_closed(d, now) and fkey in dc._KR_KEYS:
+            fz = None                                # 휴장일 — 어제 움직임을 오늘 이례로 쓰지 않는다
+        if fkey and fz is not None:
+            ko, _en, cat = dc._CATALOG.get(fkey, (fkey, fkey, "indices"))
+            facts.append(f"{ko} {_short_chg(cat, dc._node(d, cat, fkey)[1])}(평소 {abs(fz):.1f}배)")
+            used.add(fkey)
+        else:
+            hits = [h for h in dc.market_anomalies(d, keys, now=now)
+                    if not dc.repeat_hit(h[0], h[1], seen, FOCUS_ESCALATE_Z)]
+            if hits:
+                facts.append(dc.anomaly_badge(hits[0], card=False, short=True))
+                used.add(hits[0][0])
+                hit = (hits[0][0], hits[0][1])
+        closed = dc.kr_closed(d, now)
+        hero = fkey or dc.HERO.get(pkey)
+        movers = []
+        for k in dict.fromkeys([hero] + keys):
+            if not k or k in used:
+                continue
+            ko, _en, cat = dc._CATALOG.get(k, (k, k, "indices"))
+            p, c = dc._node(d, cat, k)
+            if c is None and p is None:
+                continue
+            # 묵은 값(금리 FRED 1~2일 지연)의 '변화'는 제목에 올리지 않는다 — '+0bp' 가 된다.
+            asof = dc.tile_asof(d, cat, k, now)
+            if asof and not (closed and k in dc._KR_KEYS) and not dc._fresh(asof, now):
+                continue
+            if closed and k in dc._KR_KEYS:          # 휴장 — 등락 대신 직전 마감 레벨
+                _cd = dc._as_date(closed)
+                txt = f"{ko} {dc._fmt(p)}" + (f"({_cd.month}/{_cd.day} 마감)" if _cd else "")
+            else:
+                if c is None:
+                    continue
+                txt = f"{ko} {_short_chg(cat, c)}"
+            movers.append((k == hero, abs(c or 0) / dc._sat_of(cat), txt))
+        first = [m for m in movers if m[0]]
+        rest = sorted((m for m in movers if not m[0]), key=lambda m: -m[1])
+        seq = [m[2] for m in first[:1]] + ([extra] if extra else []) + [m[2] for m in rest[:1]]
+        return _fit(base, facts + seq), hit
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[digest] 헤드라인 생성 실패({e}) — 기본 제목")
+        return base, None
+
+
+def range_pos(d, key):
+    """52주 범위 안 위치 한 조각 → "코스피 52주 신고가" / "달러-원 52주 고점 대비 -3.2%" / "".
+
+    등락률은 그날 하루의 정보다. 7,081 이 사상 최고인지, 1,369 가 연고점 근처인지는
+    카드 어디에도 없었다(B3). 일봉 200개 미만이면 말하지 않는다."""
+    try:
+        import discord_card as dc
+        ko, _en, cat = dc._CATALOG.get(key, (key, key, "indices"))
+        h = ((d.get("history") or {}).get(cat) or {}).get(key)
+        if not isinstance(h, list):
+            return ""
+        # 행 수가 아니라 날짜로 자른다 — 매일 행이 있는 자산(BTC)은 250행이 8개월이다.
+        cut = (datetime.datetime.now(KST).date() - datetime.timedelta(days=365)).isoformat()
+        vs = [v for v in (_f(r.get("close")) for r in h
+                          if isinstance(r, dict) and str(r.get("date") or "") >= cut) if v]
+        if len(vs) < 200:
+            return ""
+        last = _f(dc._node(d, cat, key)[0]) or vs[-1]
+        hi, lo = max(vs + [last]), min(vs + [last])
+        if last >= hi * 0.999:
+            return f"{ko} 52주 신고가"
+        if last <= lo * 1.001:
+            return f"{ko} 52주 신저가"
+        return f"{ko} 52주 고점 대비 {(last / hi - 1) * 100:+.1f}%"
+    except Exception as e:                                   # noqa: BLE001 — 발송을 막지 않는다
+        print(f"[digest] 52주 위치 계산 실패({e})")
+        return ""
+
+
+# 슬롯 → 뉴스 주제(시도 순서). 종전 뉴스 두 건은 16주제 전체 최신순이라 07시 미국장 정산
+# 알림에 "영국 EU 재가입" 기사가 붙었다(2026-09-24 실측, B4). 이례 자산이 있으면 그 자산의
+# 주제 뉴스(focus_news)가 먼저다.
+SLOT_NEWS_TOPICS = {
+    "h07": ("주식", "채권", "외환"), "h09": ("주식", "외환"), "h12": ("주식", "외환"),
+    "h19": ("채권", "원유", "외환", "비철금속"), "h22": ("주식", "채권", "미국CPI"),
+    "h11": ("주식", "외환", "채권"), "close": ("주식",),
+}
+NEWS_MAX_DAYS = 2
+
+
+def slot_news(d, slot, focus_key=None, n=1, now=None):
+    """그 슬롯 주제의 최근 뉴스 → [(제목, url)] 최대 n건. 실패는 [] — 뉴스 형식 이상이
+    발송 전체(두 채널)를 멈추지 않게 한다."""
+    try:
+        return _slot_news(d, slot, focus_key, n, now)
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[digest] 슬롯 뉴스 실패({e})")
+        return []
+
+
+def _slot_news(d, slot, focus_key=None, n=1, now=None):
+    out, seen = [], set()
+    if focus_key:
+        nw = focus_news(d, focus_key)
+        if nw:
+            out.append(nw)
+            seen.add(nw[0][:20])
+    now = now or datetime.datetime.now(KST)
+    cutoff = (now.date() - datetime.timedelta(days=NEWS_MAX_DAYS)).isoformat()
+    rows = []
+    for topic in SLOT_NEWS_TOPICS.get(str(slot or "").lower(), ("주식",)):
+        items = (d.get("news") or {}).get(topic)
+        for it in (items if isinstance(items, list) else [])[:5]:
+            if (isinstance(it, dict) and it.get("title")
+                    and str(it.get("isoDate") or "")[:10] >= cutoff):
+                rows.append((_news_sort_key(it), str(it["title"]).strip(), it.get("url") or ""))
+    for _k, title, url in sorted(rows, reverse=True):
+        if len(out) >= n:
+            break
+        if title[:20] in seen:
+            continue
+        seen.add(title[:20])
+        out.append((title[:70], url))
+    return out[:n]
+
+
+def slot_ai_line(d, slot, title, blocks):
+    """그 통의 숫자만으로 만든 한 문장(B1). 실패하면 오늘 3줄 요약 중 검증을 통과한 첫 줄, 없으면 ""."""
+    try:
+        import ai_briefing as ab
+    except Exception as e:                                   # noqa: BLE001
+        print(f"[digest] ai_briefing 로드 실패({e})")
+        return ""
+    facts = title + " | " + " | ".join(f"{lab} {v}" for lab, v in blocks if v)
+    line = ab.slot_line(_slot_name(slot, False, d, datetime.datetime.now(KST)), facts)
+    if line:
+        return line
+    ai = d.get("aiBriefing") or {}
+    if str(ai.get("date")) == datetime.datetime.now(KST).strftime("%Y-%m-%d"):
+        for ln in ai.get("lines") or []:
+            if ab.slot_line_ok(str(ln)):
+                return str(ln)
+    return ""
+
+
 # 같은 날 이미 주인공이었던 자산을 다시 주인공으로 세우는 조건 — 같은 방향으로 |z| 가
 # 이만큼 더 커졌을 때만('더 벌어졌다'). 그 밖엔 다음 이례 자산이나 고정 주인공이 받는다.
 # 2026-09-22 달러-원은 12·19·22시 세 통 연속 주인공이었다(z −2.8 → −3.4 → −3.0).
@@ -1126,10 +1335,10 @@ def record_focus(focus, now, path=FOCUS_PATH):
 
 
 def _repeat(key, z, seen):
-    """오늘 같은 방향으로 이미 주인공이었고 그 뒤로 충분히 커지지 않았으면 True."""
-    prev = seen.get(key)
-    return (prev is not None and (prev > 0) == (z > 0)
-            and abs(z) < abs(prev) + FOCUS_ESCALATE_Z)
+    """오늘 같은 방향으로 이미 주인공이었고 그 뒤로 충분히 커지지 않았으면 True.
+    판정은 discord_card.repeat_hit 하나 — 제목·헤더 배지와 같은 규칙이다."""
+    import discord_card
+    return discord_card.repeat_hit(key, z, seen, FOCUS_ESCALATE_Z)
 
 
 def pick_focus(data, slot, weekend, now, seen=None):
@@ -1169,7 +1378,8 @@ def pick_focus(data, slot, weekend, now, seen=None):
         return None, None, 0
 
 
-def _build_kakao_card(data, now, slot, weekend, weekly=False, next_week="", focus=None):
+def _build_kakao_card(data, now, slot, weekend, weekly=False, next_week="", focus=None,
+                      seen=None):
     """카톡 피드 이미지 — 디스코드와 같은 편성표(PROFILES)의 정사각 캔버스(기획 d18ebb33 P1).
 
     weekly=True(기획 v3 I2)면 주간 정사각 카드(주간 수익률 바 + 수급·일정 타일)를 그린다 —
@@ -1191,7 +1401,7 @@ def _build_kakao_card(data, now, slot, weekend, weekly=False, next_week="", focu
         hero = _session_chain(sym) if sym else ([], [], None, "")
         return discord_card.board(data, now, cal=_dc_cal_line(data), slot=slot,
                                   weekend=weekend, shape="square", hero=hero,
-                                  focus=(fkey, fz) if fkey else None)
+                                  focus=(fkey, fz) if fkey else None, seen=seen)
     except Exception as e:
         print(f"::warning title=카톡 카드 실패::{e} — 종전 슬롯 차트로 폴백")
         return None
@@ -1239,11 +1449,16 @@ def _news_sort_key(it):
     return str(it.get("isoDate") or "")[:10]
 
 
-def _news_field(data, n=2):
+def _news_field(data, n=2, slot=None, focus_key=None):
     """오늘·어제 뉴스 상위 n건 → (라벨, 값, inline) 또는 None.
 
     data.news 는 주제별 리스트 16종인데 발송 경로가 한 번도 쓰지 않았다(기획안 D7).
-    주제를 섞어 최신순으로 뽑고, 제목은 잘리지 않게 60자로 자른다."""
+    주제를 섞어 최신순으로 뽑고, 제목은 잘리지 않게 60자로 자른다.
+    slot 을 주면 그 슬롯 주제만(slot_news, 2026-09-24 B4) — 발송 경로는 늘 slot 을 준다."""
+    if slot:
+        picked = [f"· [{t[:60]}]({u})" if u else f"· {t[:60]}"
+                  for t, u in slot_news(data, slot, focus_key, n)]
+        return ("📰 뉴스", "\n".join(picked), False) if picked else None
     try:
         news = data.get("news") or {}
         rows = []
@@ -1721,7 +1936,7 @@ def kakao_upload_image(access_token, png_path):
     return None
 
 
-def build_feed_parts(blocks):
+def build_feed_parts(blocks, desc_lines=None):
     """공통 블록 → 피드용 (description, items).
 
     설명(2줄): 증시(코스피·S&P) / 환율(달러-원·달러-엔) — 헤드라인.
@@ -1736,6 +1951,15 @@ def build_feed_parts(blocks):
     ⚠ 설명/행을 **라벨로** 가른다(위치 blocks[:2] 아님 — 2026-09-18). 카드 중복 제거로
     환율 블록이 통째로 빠지는 슬롯(장중·마감·주말은 달러-원·달러-엔이 둘 다 카드 타일)에서
     위치로 가르면 심리가 조용히 헤드라인으로 승격되고 행이 하나 줄었다."""
+    # desc_lines(2026-09-24 A4) — 사진 아래 두 줄에 '카드가 못 하는 말'(한 문장 요약·이유·
+    # 뉴스)을 싣는다. 있으면 지표 블록은 전부 행으로 간다. 없으면 종전처럼 지표가 설명이다.
+    lines = [x for x in (desc_lines or []) if x][:DESC_MAX]
+    if lines:
+        rows = [(lab, v) for lab, v in blocks if v]
+        while len(rows) > KAKAO_FEED_ROWS:
+            (l1, v1), (l2, v2) = rows[-2], rows[-1]
+            rows[-2:] = [(f"{l1}·{l2}", f"{v1} / {v2}")]
+        return "\n".join(lines), [kakao_item(lab, v) for lab, v in rows]
     desc_rows = [(lab, v) for lab, v in blocks if v and lab in DESC_LABELS]
     rows = [(lab, v) for lab, v in blocks if v and lab not in DESC_LABELS]
     if not desc_rows and rows:                    # 헤드라인 후보가 다 빠진 날은 첫 행을 올린다
@@ -1761,9 +1985,17 @@ def _hero_button(links):
     lab, key, url = links[0]
     import discord_card
     ko = (discord_card._CATALOG.get(key) or (key,))[0]
-    # 8자를 넘으면 '시세'를 뺀다 — 잘라서 'S&P500 시'로 나갔다(2026-09-23 실측).
-    t = f"{ko} 시세" if len(ko) <= 5 else ko
-    return {"title": t, "link": {"web_url": url, "mobile_web_url": url}}
+    return {"title": quote_btn_title(ko), "link": {"web_url": url, "mobile_web_url": url}}
+
+
+KAKAO_BTN_MAX = 8                             # 카카오 버튼 라벨 상한(넘으면 잘린다)
+
+
+def quote_btn_title(name):
+    """'코스피 시세' — 8자를 넘으면 '시세'를 뺀다. 잘라서 'S&P500 시'로 나갔다(2026-09-23).
+    급변·다이제스트가 같이 쓴다(급변 경로만 이 규칙이 빠져 있었다, 2026-09-24)."""
+    t = f"{name} 시세"
+    return t if len(t) <= KAKAO_BTN_MAX else str(name)[:KAKAO_BTN_MAX]
 
 
 # 피드 설명(헤드라인)으로 올라가는 블록 라벨 — 일간·주간 공통. 나머지는 행이 된다.
@@ -1872,7 +2104,7 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
 
 
 def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None, png=None,
-                    full_blocks=None, links=None):
+                    full_blocks=None, links=None, desc_lines=None):
     """슬롯 차트 생성→업로드→'한 통' 피드 발송. png 를 넘기면 재사용(디스코드 병행 발송과
     이중 생성 방지). 실제 발송·폴백은 send_card 가 담당한다(기획 v3 I1 — 단일 진입점).
 
@@ -1880,7 +2112,7 @@ def send_chart_feed(access_token, data, title, blocks, slot, weekend, uuids=None
     **사진이 실패해 텍스트로 내려갈 때 쓴다.** 이미지가 없는 순간엔 카드가 들고 있던
     코스피·환율이 아무 데도 없게 되므로, 그 경로만 전체를 싣는다(2026-09-18 리뷰 지적)."""
     png = png or build_slot_chart_png(data, slot, weekend)
-    desc, items = build_feed_parts(blocks)
+    desc, items = build_feed_parts(blocks, desc_lines)
     text = build_text_message(title, full_blocks or blocks)
     # 사진 탭 = 카드가 말하는 지표의 네이버 페이지, 대시보드는 버튼(2026-09-22 사용자 요청).
     # 버튼은 카카오 상한 2개라 [지표 시세, 대시보드 보기] 순서 — 앞이 더 자주 눌린다.
@@ -2046,6 +2278,20 @@ def _dc_intensity(v):
     return re.sub(r"([▲▼])(\d+(?:\.\d+)?)%", rep, v)
 
 
+def kr_events(day):
+    """규칙으로 정해지는 한국 일정(2026-09-24 B7) → [이벤트 dict]. economicCalendar 는 미국
+    중심이라 '오늘'·'내일' 줄이 비는 날이 많았다. 날짜를 지어낼 수 없는 일정(금통위 등)은
+    넣지 않는다 — 규칙이 확실한 것만: 매월 둘째 목요일 옵션 만기(3·6·9·12월은 선물 동시 만기).
+    그날이 휴장이면 거래소가 앞당기지만 그 달력은 여기 없으니, 휴장일 판정은 호출측 몫이다."""
+    out = []
+    if day.weekday() == 3 and 8 <= day.day <= 14:
+        quad = day.month in (3, 6, 9, 12)
+        out.append({"dt": f"{day.month:02d}.{day.day:02d} 15:20", "cc": "KR",
+                    "name": "선물·옵션 동시만기" if quad else "옵션 만기",
+                    "stars": 3 if quad else 2})
+    return out
+
+
 def _dc_cal_line(d, tgt=None):
     """경제 캘린더에서 tgt일(기본 오늘) 별점 최상위 1건 → "US CPI 21:30 ★★★" (없으면 '')."""
     try:
@@ -2053,6 +2299,7 @@ def _dc_cal_line(d, tgt=None):
         tgt = tgt or datetime.datetime.now(KST)
         key = f"{tgt.month:02d}.{tgt.day:02d}"
         todays = [e for e in ev if str(e.get("dt", "")).startswith(key)]
+        todays += kr_events(tgt.date() if hasattr(tgt, "date") else tgt)
         if not todays:
             return ""
         e = max(todays, key=lambda x: (x.get("stars") or 0))
@@ -2091,8 +2338,8 @@ def _dc_fields(blocks, d):
 
 def _dc_buttons():
     """다이제스트·마감 리포트 공통 버튼(E3) — 봇 토큰 있을 때만 실제로 붙는다."""
-    return [("🌐 대시보드", DASHBOARD_URL), ("📊 시장 지표", DASHBOARD_URL + "?p=market"),
-            ("🔄 지금 시세", "id:refresh_quotes")]
+    # '시장 지표'는 대시보드와 한 화면 차이라 뺐다(2026-09-24 A5) — 버튼 8개 → 7개.
+    return [("🌐 대시보드", DASHBOARD_URL), ("🔄 지금 시세", "id:refresh_quotes")]
 
 
 def card_links(data, slot, weekend, now, focus_key=None, weekly=False):
@@ -2118,7 +2365,9 @@ def card_links(data, slot, weekend, now, focus_key=None, weekly=False):
             n = (data.get(cat) or {}).get(key) or {}
             seq.append((ko, key, _f(n.get("change") if n.get("change") is not None
                                     else n.get("chgPct"))))
-    return [(notify_discord.dir_label(ko, chg), key, notify_discord.NAVER_LINKS[key])
+    # 라벨에서 등락률을 뺐다(2026-09-24 A5) — 같은 숫자가 카드 타일에 이미 크게 있다.
+    # 방향 이모지는 남긴다(숫자가 아니라 버튼을 훑을 때의 표지다, 2026-08-15 기획).
+    return [(f"{notify_discord.direction_emoji(chg)} {ko}", key, notify_discord.NAVER_LINKS[key])
             for ko, key, chg in seq if key in notify_discord.NAVER_LINKS][:25]
 
 
@@ -2186,6 +2435,23 @@ def _investor_row(inv):
             f"외국인 {inv['foreign']:+,.0f}억 · 기관 {inv['inst']:+,.0f}억"
             + (f" ({asof})" if asof else ""),
             False)
+
+
+# 가격제한폭 ±30% — 이보다 큰 등락은 상장 첫날(제한폭 없음)뿐이다. 9/24 마감 카드의
+# '특징주(코스피)' 1위가 코스닥 신규상장 +280% 였다(B9). 시장 표기가 있으면 코스피만 남긴다.
+MOVER_MAX_PCT = 30.01
+
+
+def _kospi_movers(rows):
+    out = []
+    for r in rows or []:
+        c = _f((r or {}).get("chg"))
+        if c is None or abs(c) > MOVER_MAX_PCT:
+            continue
+        if r.get("market") and str(r["market"]).upper() != "KOSPI":
+            continue
+        out.append(r)
+    return out
 
 
 def _send_close_report(data):
@@ -2263,7 +2529,7 @@ def _send_close_report(data):
         import discord_card
         _intr = _intraday_chain("^KS11")                 # P0 체인 재사용(빈 패널 금지)
         _sm = data.get("stockMovers") or {}
-        _mv = ((_sm.get("kospiGainers") or [])[:3], (_sm.get("kospiLosers") or [])[:3])
+        _mv = (_kospi_movers(_sm.get("kospiGainers"))[:3], _kospi_movers(_sm.get("kospiLosers"))[:3])
         _fired = []
         try:                                             # 발동 알림 '이름' — 설정에서 id→이름
             cp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "alerts_config.json")
@@ -2286,14 +2552,23 @@ def _send_close_report(data):
     # 구 지표 미러 버튼 행은 폐기(기획 ed0e5496). description = AI 요약 1줄(P3).
     # 마감 카드는 코스피·코스닥·미 지수 네 칸이 본문이다 — 링크 목록도 그 네 칸으로.
     # 제목 클릭은 코스피 네이버 페이지, 대시보드는 버튼(2026-09-22 사용자 요청).
-    _links = [(notify_discord.dir_label(lab, chg), key, notify_discord.NAVER_LINKS[key])
+    # 라벨은 이모지 + 이름만(A5) — 등락률은 카드 바가 이미 말한다.
+    _links = [(f"{notify_discord.direction_emoji(chg)} {lab}", key, notify_discord.NAVER_LINKS[key])
               for lab, key, chg in (("코스피", "KOSPI", _f((idx.get("KOSPI") or {}).get("change"))),
                                     ("코스닥", "KOSDAQ", _f((idx.get("KOSDAQ") or {}).get("change"))),
                                     ("S&P500", "SP500", _f((idx.get("SP500") or {}).get("change"))),
                                     ("나스닥", "NASDAQ", _f((idx.get("NASDAQ") or {}).get("change"))))
               if key in notify_discord.NAVER_LINKS]
+    # 제목 = 결론(A1) — 코스피 등락 + 외국인 수급. 제목 클릭은 여전히 코스피 네이버 페이지.
+    # 잠정치는 제목에서도 잠정이라고 적는다 — 폰 미리보기엔 본문 꼬리표가 안 보인다.
+    _flow_txt = ((f"외국인 {_inv['foreign']:+,.0f}억" + ("" if _inv.get("confirmed") else "(잠정)"))
+                 if _inv and _inv.get("foreign") is not None else "")
+    _ctitle, _chit = headline(data, "close", False, now, extra=_flow_txt,
+                              base=f"{now.month}/{now.day} 마감", seen=load_focus_seen(now))
+    _cai = slot_ai_line(data, "close", _ctitle, [(r[0], r[1]) for r in rows])
     ok = notify_discord.send(
-        _ai_line(data, 1), png=png, title=f"🔔 {now.month}/{now.day} 장 마감 요약 — 코스피 시세 보기",
+        _cai,
+        png=png, title=f"🔔 {_ctitle}",
         url=hero_link(_links) or DASHBOARD_URL + "?p=market", color=color,
         fields=None if png else rows,
         footer=f"시세 {now.strftime('%H:%M')} 기준(발송 직전 보정) · 무료 시세 지연 가능",
@@ -2318,9 +2593,12 @@ def _send_close_report(data):
                                                   fired_names=_fired, shape="square")
             except Exception as e:
                 print(f"[kakao] 마감 정사각 카드 예외({e}) — 텍스트 폴백")
-            _cap = " · ".join(f"{lab} {val}" for lab, val, _i in rows[:3])
+            # 캡션 = 카드가 못 하는 말(A4) — 한 문장 + 마감 주제 뉴스. 둘 다 없을 때만 지수 요약.
+            _cn = slot_news(data, "close", None, 1)
+            _cap = "\n".join(x for x in (_cai, _cn[0][0] if _cn else "") if x) or \
+                " · ".join(f"{lab} {val}" for lab, val, _i in rows[:3])
             _hb = _hero_button(_links)
-            kok = send_card(_tok, f"🔔 {now.month}/{now.day} 장 마감", _cap, png=_kpng,
+            kok = send_card(_tok, f"🔔 {_ctitle}", _cap, png=_kpng,
                             uuids=_uuids, kind="장 마감",
                             link_url=hero_link(_links),
                             buttons=([(_hb["title"], _hb["link"]["web_url"])] if _hb else [])
@@ -2329,6 +2607,7 @@ def _send_close_report(data):
             print(f"::warning title=마감 카톡 실패::{e} — 디스코드는 별도 경로로 발송됨")
     if ok or kok:
         _mark_sent_ok()
+        record_focus(_chit, now)                     # 마감 제목 이례도 저녁 슬롯에 반복하지 않게
         print(f"[digest] 장 마감 리포트 발송 완료 (필드 {len(rows)}개, 카톡={'O' if kok else 'X'})")
     else:
         print("::warning title=장 마감 리포트 실패::양 채널 발송 실패 — 다음 깨움이 재시도")
@@ -2415,8 +2694,9 @@ def main():
             age_min = (datetime.datetime.now(KST) - lu.astimezone(KST)).total_seconds() / 60
         except (ValueError, TypeError):
             age_min = None
+        _stale_sfx = ""                              # 헤드라인을 붙인 뒤 맨 끝에 단다
         if age_min is not None and age_min > 120:
-            title += f" (수집 {age_min / 60:.1f}h 전)"
+            _stale_sfx = f" (수집 {age_min / 60:.1f}h 전)"
             print(f"::warning title=데이터 스테일::data.json 이 {age_min:.0f}분 전 수집본 — 제목에 표기")
         # 스테일 자동 복구(P3) — 임계는 시간대별이다(_stale_limit_min). 2026-08-11 에 60→120 으로
         # 올렸는데도 장외·주말 오탐이 남았던 이유는 값이 아니라 '단일 임계'였기 때문이다:
@@ -2431,16 +2711,31 @@ def main():
         # 디스코드 병행 발송 — 카카오와 완전 독립(토큰 만료·발송 실패와 무관하게 도달).
         # 웹훅(DISCORD_WEBHOOK_URL) 미설정이면 no-op. 차트는 여기서 1회 생성해 카카오 피드에 재사용.
         _dc_png = None                               # 카카오 피드 이미지
+        _dc_ok = False                               # 디스코드 발송 성공 여부(반복 억제 기록용)
         _card_ok = False                             # 편성표 카드 렌더 성공 여부
         _weekly_mode = title.startswith("주간")
         # 그날의 주인공을 한 번만 고른다 — 두 채널 카드가 같은 자산을 가리켜야 한다.
+        _seen = load_focus_seen(datetime.datetime.now(KST))
         _focus = (None, None, 0) if _weekly_mode else pick_focus(
-            data, slot, weekend, datetime.datetime.now(KST),
-            seen=load_focus_seen(datetime.datetime.now(KST)))
+            data, slot, weekend, datetime.datetime.now(KST), seen=_seen)
         # 카드에 그려질 지표 → 링크 목록. 두 채널(디스코드 드롭다운·카톡 버튼/사진 탭)이
         # 같은 목록을 써야 "사진에서 본 그 칸"이 양쪽에서 같은 자리에 있다.
         _links = card_links(data, slot, weekend, datetime.datetime.now(KST),
                             focus_key=_focus[0], weekly=_weekly_mode)
+        # 제목 = 결론(2026-09-24 A1) — 두 채널이 같은 제목을 쓴다. 주간은 기간 제목 그대로.
+        _hhit = None
+        if not _weekly_mode:
+            title, _hhit = headline(data, slot, weekend, _now_kst, focus=_focus[:2], base=title,
+                                    seen=_seen)
+        title += _stale_sfx
+        # 카드가 못 하는 말(A4·B1·B3·B4) — 한 문장 요약 / 이유(사슬) 또는 뉴스 / 52주 위치.
+        _ai1 = slot_ai_line(data, slot, title, blocks)
+        _chain = focus_chain(_focus[0]) if (_focus[0] and _focus[1] is not None) else None
+        _news1 = slot_news(data, "h11" if weekend else slot,
+                           _focus[0] if _focus[1] is not None else None, 1)
+        _why = (_chain[1] if _chain else (_news1[0][0] if _news1 else ""))
+        _hero_key = _focus[0] or None
+        _rp = "" if _weekly_mode else range_pos(data, _hero_key) if _hero_key else ""
         try:
             import notify_discord
             if _charts_enabled():
@@ -2455,7 +2750,7 @@ def main():
                     weekly=_weekly_mode,
                     next_week=(next((v for lab, v in blocks if lab == "다음주"), "")
                                if _weekly_mode else ""),
-                    focus=_focus[:2] if _focus[0] else None)
+                    focus=_focus[:2] if _focus[0] else None, seen=_seen)
                 _card_ok = bool(_dc_png)             # 편성표 카드가 실제로 그려졌나(중복 제거 조건)
                 if not _dc_png:
                     _dc_png = build_slot_chart_png(data, slot, weekend)
@@ -2478,7 +2773,8 @@ def main():
                     # 멈춰 있어 고정 12타일의 절반이 '안 움직이는 숫자'였다.
                     _card_png = discord_card.board(data, _dc_now, cal=_dc_cal_line(data),
                                                    slot=slot, weekend=weekend,
-                                                   focus=_focus[:2] if _focus[0] else None)
+                                                   focus=_focus[:2] if _focus[0] else None,
+                                                   seen=_seen)
             except Exception as _ce:
                 print(f"[discord] 카드 렌더 예외({_ce}) — 슬롯 차트 폴백")
             _kchg = _f(((data.get("indices") or {}).get("KOSPI") or {}).get("change"))
@@ -2489,33 +2785,34 @@ def main():
             # 노출), 카드 실패 시에만 종전 텍스트 필드로 폴백. 컴포넌트 = 유틸 버튼
             # 1행(3개) + 지표 드롭다운 1행 — 등락 정보는 카드가 단독 담당(구 v3
             # 타일 미러 그리드 16버튼 폐기). 웹훅 폴백 시 링크 필드로 자동 변환.
-            # 개장 전 슬롯은 브리핑이라 본문이 더 길다(기획안 P3): AI 요약을 3줄 전부 싣고
-            # 뉴스 2건을 필드로 붙인다. 다른 슬롯은 종전대로 2줄·필드 없음 — 카드가 본문이다.
+            # 개장 전 슬롯은 브리핑이라 뉴스를 2건 싣는다(다른 슬롯 1건). description 은
+            # 슬롯 한 문장 하나다(2026-09-24 B1) — 하루 1회 만든 3줄 요약은 시점어가 굳어
+            # 22시에도 '내일 장중'을 말했다. 문장이 없으면 비운다(틀린 문장보다 낫다).
             _is_brief = slot == "h07"
             _fields = None if _card_png else _dc_fields(blocks, data)
-            if _is_brief:
-                _nf = _news_field(data)
-                if _nf:
-                    _fields = (_fields or []) + [_nf]
             # 이례적인 날에만 붙는 한 필드 — 카드는 '얼마나 움직였나'를 그리고
             # 이 줄은 '왜 중요한가(메르 사슬) · 무슨 일이 있었나(주제 뉴스)'를 적는다.
             _ff = focus_field(data, _focus[0], _focus[1], _focus[2]) if _focus[0] else None
             if _ff:
                 _fields = (_fields or []) + [_ff]
-            # 모바일 알림 미리보기에 보이는 것은 제목 한 줄뿐이다 — 이례적인 날은
-            # 그 한 줄이 '무슨 일이 있었나'를 말해야 한다(기획안 원칙 4).
+            # 뉴스는 모든 슬롯에 — 그 슬롯 주제로(B4). 이례 필드가 이미 실은 기사는 뺀다.
+            _nf = _news_field(data, 2 if _is_brief else 1, slot="h11" if weekend else slot)
+            if _nf and _ff:
+                _nf = (_nf[0], "\n".join(ln for ln in _nf[1].split("\n")
+                                          if ln[3:25] not in _ff[1]), _nf[2])
+            if _nf and _nf[1]:
+                _fields = (_fields or []) + [_nf]
+            if _rp:
+                _fields = (_fields or []) + [("📍 위치", _rp, True)]
+            # 수급은 카드 타일이 아니다 — 카드가 본문일 때도 필드로 싣는다(종전엔 빠졌다).
+            _flow = dict(blocks).get("수급")
+            if _card_png and _flow:
+                _fields = (_fields or []) + [("수급(코스피)", _flow, False)]
+            # 제목은 headline() 이 이미 결론을 담았다(종전의 focus_note 덧붙이기는 그 안으로).
             _title = title
-            if _focus[1] is not None:
-                try:
-                    import discord_card as _dcm
-                    _n = _dcm.focus_note(data, _focus[0], _focus[1])
-                    if _n:
-                        _title = f"{title} · {_n}"
-                except Exception:                            # noqa: BLE001
-                    pass
-            notify_discord.send(
-                # P3(기획 5154773b) — AI 요약을 description 으로(카드 실패 폴백에도 도달).
-                _ai_line(data, 3 if _is_brief else 2),
+            _dc_ok = notify_discord.send(
+                # 슬롯 한 문장(B1) — 그 카드의 숫자만으로 만든다. 없으면 비운다.
+                _ai1,
                 # 제목 클릭 = 카드가 말하는 지표의 네이버 증권(2026-09-22 사용자 요청).
                 # 대시보드는 아래 버튼이 담당한다.
                 png=_card_png or _dc_png, title=_title,
@@ -2528,6 +2825,10 @@ def main():
         except Exception as _dce:
             print(f"[discord] 병행 발송 예외 무시: {_dce}")
 
+        if _dc_ok:
+            # 반복 억제 기록은 채널과 무관하다 — 디스코드만 나간 날도 다음 슬롯이 알아야 한다.
+            record_focus(_focus, datetime.datetime.now(KST))
+            record_focus(_hhit, datetime.datetime.now(KST))
         if not kakao_ready:
             # 디스코드는 위에서 이미 나갔다. 카카오 시크릿만 없으니 여기서 끝낸다 —
             # 센티널(.kakao_sent_ok)은 만들지 않아 백업 깨움이 재시도한다.
@@ -2563,10 +2864,15 @@ def main():
                           f"{len(blocks)}→{len(_fb)}개")
 
         if _charts_enabled():
+            # 행 여유가 있으면 52주 위치를 한 행으로(B3) — 지표 행을 밀어내지는 않는다.
+            if _rp and len([b for b in feed_blocks if b[1]]) < KAKAO_FEED_ROWS:
+                feed_blocks = list(feed_blocks) + [("위치", _rp)]
             if send_chart_feed(access_token, data, title, feed_blocks, slot, weekend,
-                               uuids=uuids, png=_dc_png, full_blocks=blocks, links=_links):
+                               uuids=uuids, png=_dc_png, full_blocks=blocks, links=_links,
+                               desc_lines=([_ai1, _why] if not _weekly_mode else None)):
                 _mark_sent_ok()                      # 실제 발송 성공 — 여기서만 센티널 생성
                 record_focus(_focus, datetime.datetime.now(KST))
+                record_focus(_hhit, datetime.datetime.now(KST))    # 제목 이례도 하루 한 번
                 print(f"[kakao] 발송 완료 (차트 피드 한 통, slot={slot})")
                 return
             # 차트 없는 발송으로 열화되는 순간 — 로그를 훑지 않아도 런 요약(Annotations)에 바로 보이게.
@@ -2579,6 +2885,7 @@ def main():
         send_memo(access_token, build_text_message(title, blocks), with_button=True, uuids=uuids)
         _mark_sent_ok()                              # 텍스트 폴백도 '발송 성공'(실패면 위에서 SystemExit)
         record_focus(_focus, datetime.datetime.now(KST))
+        record_focus(_hhit, datetime.datetime.now(KST))
         print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
     except SystemExit as e:
         print(f"::warning title=Kakao 발송 건너뜀::{e} — 토큰 만료/회전 또는 발송 실패 추정. "

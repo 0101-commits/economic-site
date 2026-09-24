@@ -336,7 +336,7 @@ data.json + js/app1.js(macroIndicators) + mer_signals.json
 - **타일 색은 방향이 아니라 크기를 말한다**(2026-09-18). `_tile_color` 채도 하한은 **0.10**이다 — 0.30 이던 때는 0.16% 움직임도 곧장 뚜렷한 분홍이 되어 상승장에 6칸이 '붉은 벽'이었다(크기 정보가 색에서 사라진 상태). 방향은 `▲/▼` 가 이미 말한다. 등락률은 칸 오른쪽 끝이 아니라 **값 바로 옆**에 붙는다(한 쌍의 숫자를 읽는 데 시선이 칸 폭을 건너지 않게).
 - **캔버스 높이는 재료 수가 정한다** — `close_report` 는 수급 바가 없으면 7.4→4.2~7.4 로 줄이고, 인트라데이가 없으면 다이버징 바가 전폭을 쓴다. 디스코드는 이미지를 폭에 맞춰 축소하므로 빈 띠는 그만큼 글자를 작게 만든다.
 `SQ_MIN_FS`(13pt)는 하한일 뿐 목표가 아니다 — 카드별 폰트는 호출부 `fs=(라벨, 값, 등락)` 가 정한다. 세 줄로 내려가는 좁은 칸 경로도 이 하한을 다시 건다(종전엔 그 경로만 우회해 11.2pt 가 섞였다). |
-| `scripts/notify_discord.py` | Discord webhook parallel channel (secret `DISCORD_WEBHOOK_URL`; digest/alerts/swings 병행 발송, 미설정 시 no-op). 버튼 라벨 방향 이모지 `direction_emoji`/`dir_label` (E2 표준 ±2%). v4 버튼 다이어트(기획 ed0e5496): 다이제스트 컴포넌트 = 유틸 버튼 1행(3개) + 지표 드롭다운 `select`(값=NAVER_LINKS 키, Worker `/discord` `goto_link` 가 에페메랄 링크 응답) — 구 16버튼 타일 미러 그리드는 폐기, 등락 정보는 카드 이미지 단독 담당 |
+| `scripts/notify_discord.py` | Discord webhook parallel channel (secret `DISCORD_WEBHOOK_URL`; digest/alerts/swings 병행 발송, 미설정 시 no-op). 버튼 라벨 방향 이모지 `direction_emoji`/`dir_label` (E2 표준 ±2%). 다이제스트 컴포넌트 = 지표 URL 버튼 1행(`card_links`, 카드와 같은 순서·라벨은 이모지+이름) + 유틸 버튼 1행 2개(2026-09-24 — `시장 지표` 제거). 드롭다운(`goto_link`)은 2026-09-22 에 발송 경로에서 빠졌다(Interactions 왕복 의존). 구 16버튼 타일 미러 그리드는 폐기, 등락 정보는 카드 이미지 단독 담당 |
 | `cloudflare-worker/worker.js` | CORS proxy + rate limiting + KakaoTalk cron dispatch |
 | `data.json` | Market data artifact — committed by bot, never edit by hand |
 | `data_meta.json` | Lightweight `lastUpdated` mirror of `data.json` |
@@ -467,6 +467,12 @@ python scripts/validate_data.py   # verify output
 - Charts use `matplotlib`. 피드 이미지는 슬롯 편성(`discord_card.PROFILES`) 기반 정사각 카드가 1순위이고, `SLOT_CHARTS_WEEKDAY`(슬롯별 2티커 라인 차트)는 그 폴백으로 남아 있다 — 카드가 안정될 때까지 삭제하지 말 것
 - **카카오 발송은 전부 카드(사진)가 본문이다**(기획 v3 — 정기 시황·주간·종목·급변·서킷 발동/해제·테스트·장 마감). 새 발송을 추가할 때는 `kakao.send_card()` 를 쓰고 정사각 카드를 함께 만들 것 — `send_memo` 직접 호출은 `scripts/tests/test_kakao_cards.py` 가 실패시킨다
 - 수신 모드는 “나와의 채팅”으로 유지한다(변수 `KAKAO_FRIENDS=0`). 푸시가 필요하면 `KAKAO_SETUP.md ⑤`(보조 계정 + `friends` 재동의)를 따라야 하고, 그때까지 **카톡 무음은 버그가 아니다**. 실시간 알림은 디스코드가 담당
+- **알림 글의 역할 분담(2026-09-24 개편, 게이트 `scripts/tests/test_alert_redesign.py`)** — 카드 = 얼마나 움직였나, 글 = 카드가 못 하는 말. 규칙:
+  - **제목은 `send_kakao_digest.headline()` 하나**(정기·마감, 두 채널 공통): `M/D 슬롯이름 · 이례 1건 · 주인공 · 두 번째 움직임`, `TITLE_MAX`=48자. 제목에 시각(`18시 시황`)을 쓰지 않는다. 이례는 `discord_card.market_anomalies()`(카드 키 + MOVE·VKOSPI·미/한 10Y) — 주인공 후보(`anomalies()`, 인트라데이 가능한 키만)보다 넓다. 같은 날 같은 이례는 `repeat_hit()` 로 한 번만(`.kakao_focus.json` 에 제목 이례도 기록)
+  - **카톡 사진 아래 두 줄 = `slot_ai_line()`(그 카드 숫자로 Gemini 한 문장, `kakao-daily.yml` 에 `GEMINI_API_KEY`) + 이유(메르 사슬) 또는 슬롯 주제 뉴스(`slot_news`)**. 지표 블록은 전부 행으로. AI 문장은 `ai_briefing.slot_line_ok` 가 상대 시점어(내일·연휴·다음 주)·권유를 거른다 — 실패하면 문장 없이 보낸다
+  - **표기 단일 원천은 `discord_card`**: `stale_tag`(기준일 꼬리표 — 본문 `_stale_tag` 도 이걸 부른다) · `period_label`/`week_period`(기간) · `kr_closed`(휴장 = `marketCalendarKr.today.open is False`) · `tile_asof`(금리 FRED 지연·휴장 지수 타일에 `·9/22` 꼬리표). 묵은 값의 변화는 제목에 올리지 않는다(`■0bp` 방지)
+  - 디스코드 지표 버튼 라벨은 **방향 이모지 + 이름만**(등락률은 카드가 한 번만 말한다), 유틸 버튼 2개(대시보드·지금 시세). 카톡 버튼 라벨은 `quote_btn_title()`(8자 — 급변 경로 포함)
+  - 수급은 12시 슬롯만 잠정으로 싣는다(`PROVISIONAL_FLOW_SLOTS`, 꼬리표는 `investor_flows` 판정 그대로). 교차검증 실패는 종전대로 생략. 마감 특징주는 `_kospi_movers()`(±30% 초과 = 상장 첫날·코스닥 제외)
 
 ## Local Toss collector (this PC, not CI)
 

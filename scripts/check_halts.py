@@ -106,7 +106,15 @@ def _status_card(h, kind):
         import discord_card
         typ = TYPE_KO.get(h.get("type"), h.get("type"))
         mk = h.get("market", "") or "KOSPI"
-        if kind == "resolve":
+        if kind == "fire":                             # 사이드카 발동 · 서킷 차트 실패 폴백
+            circuit = h.get("type") == "circuit"
+            title = f"{mk} {typ} 발동"
+            state, tone = ("매매 정지" if circuit else "프로그램매매 정지"), "warn"
+            nxt = ("당일 장 종료" if h.get("endOfDay")
+                   else f"{_hm(h.get('resumeAt'))} 재개예정" if h.get("resumeAt") else "재개 대기")
+            reason = " · ".join(x for x in (str(h.get("reason") or ""), nxt) if x)
+            tl = [(f"{_hm(h.get('triggeredAt'))} 발동", True), (nxt, False)]
+        elif kind == "resolve":
             title = f"{mk} {typ} 해제"
             state, tone = "거래 재개", "ok"
             reason = f"{_hm(h.get('triggeredAt'))} 발동 · {_now().strftime('%H:%M')} 재개"
@@ -394,7 +402,10 @@ def main():
                 try:
                     _send_all(token, uuids, _fire_msg(h, escalated=esc),
                               card=_halt_card(h), buttons=_halt_buttons(h),
-                              kakao_card=_halt_card(h, shape="square"))
+                              # 사이드카는 차트 카드가 없다(_halt_card 는 서킷 전용) — 상태 카드로.
+                              # 종전엔 카톡이 텍스트 폴백 + #시스템 경고로 나갔다(2026-09-24).
+                              kakao_card=(_halt_card(h, shape="square")
+                                          or _status_card(h, "fire")))
                     rec["pending"] = False
                     rec["tries"] = 0
                     rec["fireSent"] = True   # 발동 실제 발송 확정 — 이후 '해제' 발송 자격
