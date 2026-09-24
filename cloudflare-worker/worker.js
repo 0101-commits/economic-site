@@ -969,6 +969,20 @@ function inMarketHours(d) {
 export const isOffHoursFetchTick = (d) =>
   !inMarketHours(d) && d.getUTCMinutes() >= 35 && d.getUTCMinutes() <= 36;
 
+// 🧱 풀 런(뉴스·거시·부동산·곡선 전부) 틱 — 매시 :07~:08(UTC), 일일 창(UTC 0·7·13시 = KST
+//   09·16·22시)에는 'daily'(Alpha Vantage·ENSO·메르 추출·펀더멘털 포함).
+//   왜: 풀 런을 GitHub schedule 에만 맡겼더니 7일 실측 의도 86회/일 중 9~17회만 발화했고
+//   KST 09:05·16:05 일일 cron 은 한 번도 안 돌았다(2026-09-24 CI 실측 1,278런). 경량 런처럼
+//   Cloudflare cron → repository_dispatch 로 깨운다. 워크플로가 client_payload.mode 로 가른다.
+//   :08 까지 받는 이유는 :07 틱 드롭 보강 — _lastFullSlot 이 시간당 1회로 막는다.
+//   자가 점검: node cloudflare-worker/test_offhours_tick.mjs
+export const fullFetchMode = (d) => {
+  const m = d.getUTCMinutes();
+  if (m < 7 || m > 8) return null;
+  return [0, 7, 13].includes(d.getUTCHours()) ? 'daily' : 'full';
+};
+let _lastFullSlot = '';
+
 // 📲 카카오 발송 슬롯 판정(KST) — kakao-daily.yml 의 '발송 창 게이트'와 동일 규칙.
 //   • 평일(월~금) 07~22시 매시간 / 주말(토·일) 11·17시.
 // */5 cron 재시도 dispatch 의 게이트로만 쓴다(실제 발송 여부의 단일 진실원은 워크플로 게이트).
@@ -1378,6 +1392,16 @@ export default {
       //   통째로 누락해도(실측 2026-06-26 KST 18시 사례) 슬롯을 놓치지 않도록, 슬롯 시각이면 dispatch.
       //   워크플로 발송 창 게이트 + 슬롯 dedup 마커 + concurrency 직렬화가 멱등성을 보장한다.
       if (doHeavy && inKakaoSlot(now)) ctx.waitUntil(triggerKakaoDispatch(env, cron));
+      // 🧱 풀/일일 런 — 경량 런과 concurrency 그룹이 달라 실행 중 판정(_fetchDataBusy)을 쓰지
+      //   않는다(경량 1분 런에 막혀 시간 슬롯을 통째로 놓치지 않게). 풀 그룹은 대기 1개로 직렬화.
+      const fullMode = fullFetchMode(now);
+      const fullKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-${now.getUTCHours()}`;
+      if (fullMode && env && env.GH_DISPATCH_TOKEN && _lastFullSlot !== fullKey) {
+        const prevFull = _lastFullSlot;
+        _lastFullSlot = fullKey;
+        ctx.waitUntil(ghDispatch(env, 'fetch-data', { mode: fullMode }, 'ecom-fetch-cron')
+          .then((ok) => { if (ok === false) _lastFullSlot = prevFull; }));
+      }
     } else {
       ctx.waitUntil(triggerKakaoDispatch(env, cron)); // 기존 hourly cron → 카카오 시황 다이제스트
     }

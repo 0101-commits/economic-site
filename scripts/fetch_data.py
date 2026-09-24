@@ -5932,6 +5932,32 @@ def _restore_missing_metrics(cur_node, prev_node):
     return restored
 
 
+def _accumulate_short_histories(data, prev, containers=("economicIndicators",),
+                                short=12, cap=60):
+    """history 가 `short` 점 미만인 leaf 를 직전 빌드 history 와 합친다(같은 source 일 때만).
+    현재 값이 우선, cap 개까지 최신순 유지. Returns: 합친 leaf 수."""
+    n = 0
+    for ck in containers:
+        for grp, leaves in ((data.get(ck) or {}).items()):
+            pgrp = ((prev or {}).get(ck) or {}).get(grp) or {}
+            if not isinstance(leaves, dict):
+                continue
+            for key, leaf in leaves.items():
+                pleaf = pgrp.get(key)
+                if not (isinstance(leaf, dict) and isinstance(pleaf, dict)):
+                    continue
+                h, ph = leaf.get("history"), pleaf.get("history")
+                if not (isinstance(h, dict) and isinstance(ph, dict)) or len(h) >= short:
+                    continue
+                if leaf.get("source") != pleaf.get("source"):
+                    continue
+                merged = {**ph, **h}
+                if len(merged) > len(h):
+                    leaf["history"] = dict(sorted(merged.items())[-cap:])
+                    n += 1
+    return n
+
+
 def _preserve_indicators_deep(data, prev, container_keys, fresh_label="이전 빌드 보존(지표)"):
     """지표 컨테이너(economicIndicators 등) 내부를 leaf 단위로 직전 빌드에서 보강.
 
@@ -7372,6 +7398,18 @@ def build_data():
             dg["preservedMetricsDeep"] = deep
     except Exception as e:
         log(f"[preserve-deep] 머지 오류 (무시): {e}")
+
+    # ── 한 점짜리 history 누적 ────────────────────────────────────────
+    # ECOS KeyStatisticList(GDP·소매판매·실업률·가계신용)와 PMI 스크래핑은 응답이 '최신값
+    # 하나'라 매 런 history 를 1점으로 덮어써 추세 차트를 그릴 수 없었다(2026-08 감사 S10,
+    # 2026-09-24 재확인). 같은 소스일 때만 직전 빌드 history 와 합친다 — 소스가 바뀌면
+    # 키 형식(YYYY-MM-01 / YYYYMM / YYYYQn)이 섞일 수 있어 합치지 않는다.
+    try:
+        _acc = _accumulate_short_histories(data, prev)
+        if _acc:
+            log(f"[history-acc] 한 점짜리 history {_acc}개 지표를 직전 빌드와 합침")
+    except Exception as e:
+        log(f"[history-acc] 오류 (무시): {e}")
 
     # ── 단종/초장기 지연 PMI 정리 (preserve 부활 차단) ─────────────────
     # fetch_pmi_indicators 가 단종 시리즈(일본/중국 CLI 등, 400일+ 지연)를 폐기해도,

@@ -4,7 +4,7 @@
 // 2026-09-08 진단의 원인(장외 공백 최장 324분)이 그대로 돌아온다.
 //
 // 실행: node cloudflare-worker/test_offhours_tick.mjs
-import { isOffHoursFetchTick } from './worker.js';
+import { isOffHoursFetchTick, fullFetchMode } from './worker.js';
 
 const at = (dowUtcDate, hUtc, mUtc) => new Date(Date.UTC(2026, 8, dowUtcDate, hUtc, mUtc));
 // 2026-09: 07일=월 … 11일=금, 12일=토, 13일=일
@@ -32,6 +32,14 @@ check('평일 UTC 12:35 (장외 끝)', isOffHoursFetchTick(at(FRI, 12, 35)), tru
 check('토요일 UTC 02:35', isOffHoursFetchTick(at(SAT, 2, 35)), true);
 check('일요일 UTC 15:35', isOffHoursFetchTick(at(SUN, 15, 35)), true);
 check('일요일 UTC 15:00', isOffHoursFetchTick(at(SUN, 15, 0)), false);
+
+// 풀/일일 런 틱 — 매시 :07·:08 만, UTC 0·7·13시는 daily(KST 09·16·22시 일일 갱신).
+check('UTC 03:07 → full', fullFetchMode(at(MON, 3, 7)), 'full');
+check('UTC 03:08 → full(드롭 보강)', fullFetchMode(at(MON, 3, 8)), 'full');
+check('UTC 03:09 → 없음', fullFetchMode(at(MON, 3, 9)), null);
+check('UTC 00:07 → daily', fullFetchMode(at(MON, 0, 7)), 'daily');
+check('UTC 13:07 → daily', fullFetchMode(at(SUN, 13, 7)), 'daily');
+check('UTC 07:06 → 없음', fullFetchMode(at(MON, 7, 6)), null);
 
 // 하루 발화 횟수 = 장외 시간 수. 평일 장중은 UTC 00–06(7h) + 13–21(9h) = 16h 이므로
 // 장외는 UTC 07–12(= KST 16–21시)와 22–23(= KST 07–08시) 여덟 시각이다. 주말은 24시각.

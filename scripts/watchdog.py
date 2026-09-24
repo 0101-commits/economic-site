@@ -79,9 +79,24 @@ def _age_min(iso, now):
     return max(0.0, (now - t).total_seconds() / 60.0)
 
 
+def _kakao_active(now):
+    """다이제스트 게이트(kakao-daily)가 지금 돌고 있어야 하는가(KST).
+
+    Worker 가 발송 슬롯 시각(평일 07~22시, 주말 11·17시)에만 5분마다 깨운다. 그 밖은 런이
+    없는 게 정상인데 장외 임계(120분)로 재서, 새벽 03~06시에 '침묵 감지'를 3번 보냈다
+    (2026-09-22·23 실측 — 전부 오탐). 첫 런 여유 30분, 마지막 슬롯 뒤 한 시간까지 본다.
+    """
+    hm = now.hour * 60 + now.minute
+    if now.weekday() >= 5:
+        return any(h * 60 + 30 <= hm < (h + 2) * 60 for h in (11, 17))
+    return 7 * 60 + 30 <= hm < 24 * 60
+
+
 def _threshold(wf, now):
     """그 워크플로가 지금 '돌고 있어야 하는가' → 임계(분) 또는 None(감시 안 함)."""
-    _k, _name, live, idle, _inst = wf
+    key, _name, live, idle, _inst = wf
+    if key == "kakao-daily.yml" and not _kakao_active(now):
+        return None
     return live if (ca.is_market_open("KR", now) or ca.is_market_open("US", now)) else idle
 
 
@@ -166,6 +181,12 @@ def demo():
     assert _threshold(WATCH[0], night.astimezone(KST)) is None, "장외 stock-alerts 는 감시 제외"
     assert _threshold(WATCH[1], night.astimezone(KST)) == 120
     assert [w[0] for w in WATCH if not w[4]] == ["268675167"], "즉시 통지 제외는 pages 뿐"
+    kakao = next(w for w in WATCH if w[0] == "kakao-daily.yml")
+    dawn = datetime.datetime(2026, 9, 22, 18, 30, tzinfo=datetime.timezone.utc)  # 수 03:30 KST
+    assert _threshold(kakao, dawn.astimezone(KST)) is None, "새벽엔 다이제스트 게이트가 안 도는 게 정상"
+    sat = datetime.datetime(2026, 9, 26, 5, 0, tzinfo=datetime.timezone.utc)     # 토 14:00 KST
+    assert _threshold(kakao, sat.astimezone(KST)) is None, "주말 11·17시 슬롯 사이는 감시 제외"
+    assert _threshold(kakao, now.astimezone(KST)) == 30, "평일 장중엔 감시"
     assert "cancelled" in OK_CONCLUSIONS, "concurrency 취소를 실패로 세면 상시 오경보다"
     # 시계 어긋남으로 미래 시각이 와도 '음수 나이'가 되면 안 된다(임계 비교가 뒤집힌다).
     fut = (now + datetime.timedelta(minutes=5)).isoformat()

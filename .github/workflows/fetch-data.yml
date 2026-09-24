@@ -49,6 +49,9 @@ on:
   #    이 지연 때문에 stock-alerts.yml(장중 5분 주기, HALTS_LIVE 라이브 감지)로 이관됐고, 여기서는
   #    data.json.marketHalts(프론트 배너용)만 생성한다. fetch_data 부분실패 시 이전값 보존이라
   #    schedule 과 겹쳐도 멱등·안전.
+  #    client_payload.mode: 없음 = 경량(5분) · 'full' = 매시 풀 런 · 'daily' = 일일 런(KST 09·16·22시).
+  #    풀·일일도 Worker 가 깨운다 — GHA schedule 은 7일 실측 의도의 10~20%만 발화했고
+  #    09:05·16:05 일일 cron 은 한 번도 안 돌았다(2026-09-24). 아래 schedule 은 백업으로 남긴다.
   repository_dispatch:
     types: [fetch-data]
   # ── 코드/워크플로 변경 시 즉시 데이터 재생성 ──
@@ -73,7 +76,7 @@ on:
 # inputs.light=true 인 workflow_dispatch(스테일 자동 복구)도 경량 그룹이다 — 풀 런과 같은
 # 그룹에 넣으면 진행 중인 풀 런 뒤에서 대기하다 교체 취소돼, 복구용 런이 도착하지 못한다.
 concurrency:
-  group: market-data-fetch-${{ github.event_name == 'push' && 'push' || ((github.event_name == 'repository_dispatch' || github.event.inputs.light == 'true' || startsWith(github.event.schedule, '10,25,40,55')) && 'light' || 'full') }}
+  group: market-data-fetch-${{ github.event_name == 'push' && 'push' || (((github.event_name == 'repository_dispatch' && github.event.client_payload.mode != 'full' && github.event.client_payload.mode != 'daily') || github.event.inputs.light == 'true' || startsWith(github.event.schedule, '10,25,40,55')) && 'light' || 'full') }}
   cancel-in-progress: false
 
 permissions:
@@ -96,7 +99,7 @@ jobs:
       #   inputs.light=true 도 경량이다 — send_kakao_digest._dispatch_fetch_data(스테일 자동 복구)가
       #   이 입력을 켜서 부른다. 종전처럼 풀 런으로 깨우면 44~62분이 걸려 그 슬롯 안에 못 끝나고,
       #   다음 슬롯이 여전히 스테일이라 ⚙️ 경고 → 또 풀 런이 매시간 반복됐다(2026-09-08 진단).
-      FETCH_LIGHT: ${{ (github.event_name == 'repository_dispatch' || github.event.inputs.light == 'true' || startsWith(github.event.schedule, '10,25,40,55')) && '1' || '' }}
+      FETCH_LIGHT: ${{ ((github.event_name == 'repository_dispatch' && github.event.client_payload.mode != 'full' && github.event.client_payload.mode != 'daily') || github.event.inputs.light == 'true' || startsWith(github.event.schedule, '10,25,40,55')) && '1' || '' }}
     # 행 방지 — 성공 런 실측 소요 12~57분. 외부 API 행으로 러너를 물고 늘어지면
     # concurrency 직렬화 때문에 후속 런까지 전부 밀리므로 상한을 둔다(기본 360분은 사실상 무제한).
     # ⚠ 70분(구 45분): 자체 실측 최대(57분)보다 짧은 45분 상한이 '정상 꼬리 런'을 매일 2~5건씩
@@ -221,7 +224,7 @@ jobs:
           # 일일 갱신 트리거 (KST 09:05/16:05/22:05) 시점에 Alpha Vantage 보강을 강제 활성화.
           # 매시간 cron 에서는 기본 비활성 (rate-limit 보호). 코드 자동 감지도 있음.
           # (일일 cron 을 :05 로 분리했으므로 — 위 schedule 주석 참고 — 이 비교가 실제로 참이 된다.)
-          AV_FETCH_FULL: ${{ (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *') && '1' || '' }}
+          AV_FETCH_FULL: ${{ (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event.client_payload.mode == 'daily') && '1' || '' }}
         run: python scripts/fetch_data.py
 
       - name: Fetch 메르 블로그 스냅샷
@@ -235,7 +238,7 @@ jobs:
       #    --limit 로 회차를 묶어 70분 timeout 안에 끝낸다(백필 361편은 여러 회차에 걸쳐 소진).
       - name: Extract 메르 글 구조화 (일일 런)
         id: mer_extract
-        if: env.FETCH_LIGHT != '1' && (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event_name == 'workflow_dispatch')
+        if: env.FETCH_LIGHT != '1' && (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event.client_payload.mode == 'daily' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -293,7 +296,7 @@ jobs:
       # 📑 종목 펀더멘털 (fundamentals.json) — 일일 풀런에서만. 관심목록(alerts_config.json
       # tracking) 대상 KR=OpenDART / US=yfinance. 키 미설정·개별 실패 = 기존 값 보존.
       - name: Fetch fundamentals (일일 런)
-        if: env.FETCH_LIGHT != '1' && (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event_name == 'workflow_dispatch')
+        if: env.FETCH_LIGHT != '1' && (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event.client_payload.mode == 'daily' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
         env:
           OPENDART_API_KEY: ${{ secrets.OPENDART_API_KEY }}
