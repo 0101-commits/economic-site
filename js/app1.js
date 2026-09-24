@@ -3000,9 +3000,9 @@ function setRETab(tab, btn) {
   if(kr) kr.style.display = tab==='kr' ? 'block' : 'none';
   if(us) us.style.display = tab==='us' ? 'block' : 'none';
   document.querySelectorAll('#page-realestate .tab-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+    b.classList.remove('active');
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   if(tab==='kr') setTimeout(buildReCharts, 50);
   if(tab==='us') setTimeout(()=>{ buildUsReCharts(); buildUsOsmRegionMap(); }, 50);
   econSetTabParam('realestate', tab);
@@ -3386,13 +3386,9 @@ function applyChartPresetPeriod(chartName, preset, btn) {
   const groupSel = `.preset-btn-group-${chartName} .preset-btn`;
   document.querySelectorAll(groupSel).forEach(b => {
     b.classList.remove('active');
-    b.style.background = 'transparent';
-    b.style.color = 'var(--c-txt-dim,#a4a8bc)';
   });
   if(btn) {
     btn.classList.add('active');
-    btn.style.background = 'var(--c-accent)';
-    btn.style.color = 'var(--c-on-accent)';
   }
   // 차트별 적용
   if(chartName === 'main') {
@@ -3661,9 +3657,9 @@ function initMainChart(unit, customPriceData) {
 function setPeriodUnit(unit, btn) {
   mainPeriodUnit = unit;
   document.querySelectorAll('#page-dashboard .period-unit-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+    b.classList.remove('active');
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   initMainChart(unit);
 }
 
@@ -4895,10 +4891,10 @@ function selectFxPair(idx, el) {
 function setFxPeriod(p, btn) {
   document.querySelectorAll('#market-fx .tab-btn').forEach(b=>{
     if(['1W','1M','3M','1Y','사용자 지정'].includes(b.textContent.trim())) {
-      b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+      b.classList.remove('active');
     }
   });
-  btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)';
+  btn.classList.add('active');
   const panel = document.getElementById('fxCustomRangePanel');
   if(p === 'custom') {
     if(panel) panel.style.display='flex';
@@ -5189,9 +5185,9 @@ function setBondCountry(cc, btn) {
   if (!bondCountries[cc]) return;
   bondCountryCurrent = cc;
   document.querySelectorAll('#bondCountryTabs .tab-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+    b.classList.remove('active');
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   bondItems = bondCountries[cc].items;
   bondCurrentIdx = bondCountries[cc].defaultIdx;
   const titleEl = document.getElementById('bondTableTitle');
@@ -5294,7 +5290,7 @@ async function buildBondTimeSeriesFromYC(cc, bondItem) {
 
 function setBondPeriod(p, btn) {
   document.querySelectorAll('#market-bond .tab-btn').forEach(b=>{b.classList.remove('active');});
-  btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)';
+  btn.classList.add('active');
   bondPeriodN = p==='1M'?21:p==='3M'?63:252;
   if(bondAllSeries) buildBondChart(bondAllSeries.slice(-bondPeriodN));
 }
@@ -5641,10 +5637,10 @@ function selectEquityIndex(idx, btn) {
   if(titleEl) setWidgetTitleText(titleEl, d.name);
   document.querySelectorAll('#market-equity .tab-btn').forEach(b=>{
     if(['KOSPI','KOSDAQ','S&P 500','NASDAQ','닛케이','항셍'].includes(b.textContent.trim())) {
-      b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+      b.classList.remove('active');
     }
   });
-  btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)';
+  btn.classList.add('active');
   // 실제 시계열 우선 (data.json.history.indices), 없으면 안내 표시
   const idxNames = ['KOSPI','KOSDAQ','SP500','NASDAQ','Nikkei','Shanghai'];
   const real = getHistoricalSeries('indices', idxNames[idx]);
@@ -5697,13 +5693,13 @@ function resetEquityCustomRange() {
 function setEquityPeriod(p, btn) {
   // 단위 버튼만 비활성화 (지수 선택 버튼 / 비교 버튼은 그대로)
   document.querySelectorAll('#market-equity .eq-unit-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+    b.classList.remove('active');
   });
   // Legacy 호환: '1W' → '1W', '1M' → '1M', '3M' → '1M', '1Y' → '1Q', '1D' → '1D'
   const unitMap = {'1D':'1D','1W':'1W','1M':'1M','1Q':'1Q','3M':'1M','1Y':'1Q'};
   equityPeriodUnit = unitMap[p] || '1D';
   econSetViewParam('equity', 'r', equityPeriodUnit);
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   renderEquityChart();
 }
 
@@ -5801,9 +5797,9 @@ function buildInvestorChart() {
 function setInvestorUnit(unit, btn) {
   investorUnitCur = unit;
   document.querySelectorAll('.invUnitBtn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+    b.classList.remove('active');
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   buildInvestorChart();
 }
 
@@ -5823,9 +5819,9 @@ function setInvestorPeriod(p, btn) {
   investorUnitCur = u;
   ['invPeriod1D','invPeriod5D','invPeriod1M'].forEach(id=>{
     const b=document.getElementById(id);
-    if(b){b.classList.remove('active');b.style.background='transparent';b.style.color='var(--c-txt-dim)';}
+    if(b){b.classList.remove('active');}
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   buildInvestorChart();
 }
 
@@ -6178,10 +6174,10 @@ function selectCommodity(idx, el) {
 function setComPeriod(p, btn) {
   document.querySelectorAll('#market-commodity .tab-btn').forEach(b=>{
     if(['1M','3M','1Y'].includes(b.textContent.trim())) {
-      b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+      b.classList.remove('active');
     }
   });
-  btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)';
+  btn.classList.add('active');
   comPeriodN = p==='1M'?21:p==='3M'?63:252;
   buildComDetailChartMulti();
 }
@@ -7267,13 +7263,9 @@ function setMacroViewMode(mode, btn) {
 function setMacroTopicTab(topic, btn) {
   document.querySelectorAll('#macroTopicTabs .tab-btn').forEach(b=>{
     b.classList.remove('active');
-    b.style.background='transparent';
-    b.style.color='var(--c-txt-dim,#a4a8bc)';
   });
   if(btn) {
     btn.classList.add('active');
-    btn.style.background='var(--c-accent)';
-    btn.style.color='var(--c-on-accent)';
   }
   initMacroTopicPage(topic);
 }
@@ -7395,7 +7387,7 @@ function selectAllMacroTopicCountries(topic) {
 function setMacroTab(t,btn){
   macroTab=t;
   document.querySelectorAll('#macroCountryTabs .tab-btn').forEach(b=>{b.classList.remove('active');});
-  btn.classList.add('active');btn.style.background='var(--c-accent)';btn.style.color='var(--c-on-accent)';
+  btn.classList.add('active');
   initMacroPage(t);
   // 국가별 뉴스 필터 자동 적용
   const macroNewsMap = {kr:'한국GDP', us:'미국CPI', eu:'유로존', cn:'중국경기', jp:'일본경기', de:'독일경기', uk:'영국경기'};
@@ -7763,7 +7755,7 @@ function buildMacroIndicatorTable() {
       }).join('')
     + `</div>`;
   const shownCats = (_macroCatFilter !== 'all' && byCat[_macroCatFilter]) ? [_macroCatFilter] : cats;
-  const html = chipRow + `<div class="g-2" style="display:grid;gap:14px;">` + shownCats.map(cat => {
+  const html = chipRow + `<div class="g-2">` + shownCats.map(cat => {
     const color = macroCatColors[cat] || '#8d90a2';
     // 카테고리 내 indicators 를 토픽별로 다시 그룹화
     // 좁은 화면에서는 분류 안 카드를 일부만 편다(구조 통일 S5 — 수집만 하던 15건을 올리면서
@@ -7805,7 +7797,7 @@ function buildMacroIndicatorTable() {
         }).join('');
         return `<div>
           <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">${topic} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">· ${items.length}개국</span></div>
-          <div class="g-2" style="display:grid;gap:4px;">${cards}</div>
+          <div class="g-2" style="gap:4px;">${cards}</div>
         </div>`;
       }
       // 단일 국가 → 기존 카드 스타일
@@ -8013,7 +8005,7 @@ function initMacroPage(t){
   };
 
   mc.innerHTML= periodRow + `
-    <div class="g-2" style="display:grid;gap:12px;margin-bottom:12px;">
+    <div class="g-2" style="margin-bottom:var(--gap-w);">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <h3 class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</h3>
@@ -8033,7 +8025,7 @@ function initMacroPage(t){
         <div class="h-260" style="position:relative;"><canvas id="cpiMacro" role="img" aria-label="CPI 차트">CPI</canvas></div>
       </div>
     </div>
-    <div class="g-2" style="display:grid;gap:12px;">
+    <div class="g-2">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
           <h3 class="widget-title" style="margin-bottom:0;">실업률 (%)</h3>
@@ -8285,7 +8277,7 @@ function buildCalendarGrid(filteredEvents) {
   }
 
   let html = '';
-  html += `<div class="g-7" style="display:grid;gap:1px;background:var(--c-border);border:1px solid var(--c-border);border-radius:var(--r-sm);overflow:hidden;">`;
+  html += `<div class="g-7" style="gap:1px;background:var(--c-border);border:1px solid var(--c-border);border-radius:var(--r-sm);overflow:hidden;">`;
   // 요일 헤더
   ['일','월','화','수','목','금','토'].forEach((d,i) => {
     const clr = i===0 ? window.CDN : i===6 ? getThemeColors().accent : 'var(--c-txt-dim,#a4a8bc)';
@@ -9707,9 +9699,9 @@ function setNpsTab(tab, btn) {
   npsTabCurrent = tab;
   // 신규 최상위 탭 (invTop*) 을 건드리지 않도록 NPS 내부 탭만 스코프
   document.querySelectorAll('#investor-nps-container > div:first-of-type .tab-btn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim)';
+    b.classList.remove('active');
   });
-  btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)';
+  btn.classList.add('active');
   // 탭 컨텐츠 전환
   const ov = document.getElementById('nps-overview');
   const al = document.getElementById('nps-allocation');
@@ -9979,7 +9971,7 @@ function _renderBerkshire() {
         <span style="font-size:var(--font-size-sm);color:var(--c-txt-dim);font-weight:var(--font-weight-normal);margin-left:8px;">출처: SEC EDGAR 13F-HR 공시</span>
       </h2>
     </div>
-    <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
+    <div class="g-4" style="margin-bottom:var(--gap-w);">
       <div class="kpi-card">
         <span class="widget-title econ-stat__label">공시 주식 포트폴리오</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${fmtB(bk.totalValueUsd)}</div>
@@ -10036,7 +10028,7 @@ function _renderGlobalInvestor(id) {
       </h2>
     </div>
     <!-- KPI -->
-    <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
+    <div class="g-4" style="margin-bottom:var(--gap-w);">
       <div class="kpi-card">
         <span class="widget-title econ-stat__label">총 운용 자산 (AUM)</span>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">${data.aum_label}</div>
@@ -10064,7 +10056,7 @@ function _renderGlobalInvestor(id) {
       <div style="font-size:var(--font-size-base);color:var(--c-txt);line-height:1.7;">${data.summary}</div>
     </div>
     <!-- 차트 2열 -->
-    <div class="g-2" style="display:grid;gap:12px;margin-bottom:16px;">
+    <div class="g-2" style="margin-bottom:var(--gap-w);">
       <div class="widget">
         <h3 class="widget-title">자산 배분 현황 (${data.aum_asof})</h3>
         <div class="h-280" style="position:relative;"><canvas id="${allocChartId}"></canvas></div>
@@ -11199,17 +11191,17 @@ function _fmtDateLabel(dt, timeUnit, raw) {
 function setReHistPeriod(p, btn) {
   _reHistState.period = p;
   document.querySelectorAll('.reHistPeriodBtn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim,#a4a8bc)';
+    b.classList.remove('active');
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   _renderReHistDispatch();
 }
 function setReHistUnit(u, btn) {
   _reHistState.timeUnit = u;
   document.querySelectorAll('.reHistUnitBtn').forEach(b=>{
-    b.classList.remove('active'); b.style.background='transparent'; b.style.color='var(--c-txt-dim,#a4a8bc)';
+    b.classList.remove('active');
   });
-  if(btn) { btn.classList.add('active'); btn.style.background='var(--c-accent)'; btn.style.color='var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   _renderReHistDispatch();
 }
 function _renderReHistDispatch() {

@@ -1675,9 +1675,8 @@ function cmpSetPeriod(p, btn) {
   try { localStorage.setItem(CMP_LS_KEY, JSON.stringify(_cmpState)); } catch(_) {}
   document.querySelectorAll('#cmpPeriodBtns .tab-btn').forEach(b => {
     b.classList.remove('active');
-    b.style.background = 'transparent'; b.style.color = 'var(--c-txt-dim)';
   });
-  if(btn) { btn.classList.add('active'); btn.style.background = 'var(--c-accent)'; btn.style.color = 'var(--c-on-accent)'; }
+  if(btn) { btn.classList.add('active'); }
   cmpRender();
 }
 
@@ -1687,10 +1686,8 @@ function _cmpSyncNormBtn() {
   const btn = document.getElementById('cmpNormBtn');
   if(!btn) return;
   const on = !!_cmpState.norm;
-  // 토글 활성은 accent — 상승색(CUP) 오용은 '상승'으로 오독되고 다크 하드코딩은 라이트에서 깨짐
-  btn.style.background = on ? 'var(--c-accent)' : 'transparent';
-  btn.style.borderColor = on ? 'var(--c-accent)' : 'var(--c-border)';
-  btn.style.color = on ? 'var(--c-on-accent,#fff)' : 'var(--c-txt-dim)';
+  // seed-toggle-button — .active 하나가 aria-pressed 를 따라 세운다(인라인 칠하기 금지, 6차 C3)
+  btn.classList.toggle('active', on);
   btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 function cmpToggleNorm() {

@@ -10,7 +10,7 @@
 //   S33  숫자 블록               — KPI·안쪽 카드 값 크기 ∈ {14, 18, 24}, 등락은 값 아래, 카드 상자 2벌(A·B)
 //   S34  표                      — 머리 글자 한 벌(정의표 제외), 빈칸 문자는 — 하나(– · N/A 0)
 //   S35  간격                    — 위젯 padding 한 값, 격자(g-*) gap 한 값
-//   S36  화면 머리               — page-toc 가 보이고(390 포함), 머리(page-toc~탭 줄)가 ≤ 101px
+//   S36  화면 머리               — page-toc 가 보이고(390 포함), 머리(page-toc~탭 줄)가 ≤ 117px(57+16+44)
 //
 // usage: node tests/ui/components.mjs [--base=http://127.0.0.1:8080/index.html] [--only=S27,S28]
 import { chromium } from 'playwright';
@@ -149,7 +149,7 @@ function probe() {
   act.querySelectorAll('.widget').forEach(w => { if (!vis(w) || w.classList.contains('w-collapsed') || w.classList.contains('econ-flush')) return; const p = getComputedStyle(w).padding; pads[p] = (pads[p] || 0) + 1; });
   act.querySelectorAll('[class*="g-"]').forEach(g => {
     if (!vis(g) || ![...g.classList].some(c => /^g-(\d|side|auto)/.test(c))) return;
-    if (![...g.children].some(ch => ch.matches('.widget, .kpi-card, section, .home-sec'))) return;   // 위젯을 품은 격자만
+    if (![...g.children].some(ch => ch.matches('.widget, .kpi-card:not(.pad-8):not(.pad-8-10), section, .home-sec'))) return;   // 위젯을 품은 격자만(안쪽 상자 B 격자 제외)
     const k = getComputedStyle(g).columnGap; gaps[k] = (gaps[k] || 0) + 1;
   });
   out.S35 = { pads, gaps, bad: [].concat(Object.keys(pads).length > 1 ? ['padding ' + JSON.stringify(pads)] : [], Object.keys(gaps).length > 1 ? ['gap ' + JSON.stringify(gaps)] : []) };
@@ -166,7 +166,7 @@ function probe() {
     while (nx && !vis(nx)) nx = nx.nextElementSibling;
     if (nx && (nx.getAttribute('role') === 'tablist' || nx.querySelector(':scope > [role=tablist], :scope > .seed-tabs__root'))) bottom = nx.getBoundingClientRect().bottom;
     const h = Math.round(bottom - top);
-    if (h > 101) s36.push('머리 ' + h + 'px');
+    if (h > 117) s36.push('머리 ' + h + 'px');   // 목차 57 + 간격 16 + 탭 한 줄 44 — 기획 §4.9 의 101 은 간격을 빠뜨린 값
   }
   out.S36 = { bad: s36 };
   return out;

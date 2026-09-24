@@ -117,6 +117,7 @@ node tests/ui/mobile-readability.mjs                 # 390 모바일 가독성 M
 node tests/ui/uxgates.mjs                            # G7~G9·M8 (1440·390, 10페이지)
 node tests/ui/interaction.mjs                        # G10·G11 조작·전환(유휴 DOM · 보기 전환의 주소 반영·복원)
 node tests/ui/structure.mjs                          # S10~S26 구조 통일(표기·화면 머리·탭/고르기 부품·차트 규격·티커 이름)
+node tests/ui/components.mjs                         # S27~S36 컴포넌트 규격(제목·도구 차례·버튼/칩/탭·숫자·표·간격·화면 머리)
 ```
 
 **주소가 화면 상태다 (기획 `docs/superpowers/specs/2026-09-21-interaction-ux-plan-design.md`).**
@@ -174,6 +175,25 @@ KPI 카드 라벨을 `h3` 로 올리는 것도 틀렸다 — 그건 제목이 �
 하나를 쓴다. 인라인으로 칠하면 부품 규격을 인라인이 이겨 같은 역할 버튼의 높이가 화면마다
 갈리고(실측 23·24·27·30·32·34·36px), 읽기 도구는 무엇이 골라졌는지 모른다. 색에 **뜻이 있는**
 묶음(금리 나라 필터 = 차트 선 색)은 색을 유지하되 `aria-pressed` 를 같이 세운다. 게이트 S26.
+
+**컴포넌트 규격은 부품이 강제한다 (6차, `docs/superpowers/specs/2026-09-24-component-spec-consistency-design.md` §4).**
+규칙만 있고 부품이 없으면 위젯 93개가 각자 만든다 — 그게 6차 실측의 갈림(제목 두 벌·도구 차례 31가지·버튼 높이 21가지)이었다.
+- **위젯 제목** = `h3.widget-title` 한 규칙(14px/700/`--c-txt`, 대문자·자간·파랑 없음). 제목 줄은 flex 이고
+  **도구(별 → 새로고침 → 접기)는 `econOrderTools(title)`(js/app1.js)** 가 끝에 모은다 — 새 도구를 제목에
+  붙이면 이 함수를 부른다(멱등이라 옵저버 루프 없음). 도구 아이콘은 28px.
+- **새로고침 버튼은 전용 재요청 핸들러가 있는 위젯에만**(`_refreshHandlerMap`·표 맵·AI 요약). 전체 새로고침은
+  사이드바 한 곳. 차트 실패 '다시 시도'는 위젯 버튼이 없으면 전체 새로고침으로 떨어진다.
+- **실행 버튼** = `seed-action-button` xsmall 32(기본 neutralWeak, 되돌리기 neutralOutline, 화면 주 행동만
+  brandSolid). **고르기** = `seed-chip__root` small 32(템플릿은 `CHIP_CLS`·`chipLabel()`). 인라인 style 로
+  버튼·칩을 만들지 말 것. **탭** = `seed-tabs__trigger` 라인탭만(박스·필 탭 없음). 같은 표의 행만 바꾸면 칩이다.
+- **선택 표시는 `.active` 하나** — `_econMirrorState` 가 aria-pressed/aria-selected·data-checked 를 따라 세운다.
+  핸들러에서 `style.background='var(--c-accent)'` 로 칠하지 말 것(6차에 20여 곳 제거). aria-pressed 만 바꾸면
+  SEED 칩은 골라진 것을 그리지 않는다(recipe 는 `[data-checked]` 를 본다 — 메르 렌즈 칩 버그의 원인).
+- **숫자 블록** = `.econ-num--l/m/s`(24/18/14) + `.econ-num__chg`(값 **아래**). KPI 라벨 `.econ-stat__label` 13/500/dim.
+- **카드 상자는 두 벌** — A `.widget`/`.kpi-card`(16·r12), B `.econ-inner`(위젯 안 값 묶음, 8·10·r6).
+- **표 빈칸은 `—` 하나**, 표별 머리 CSS 금지(`.econ-table` 한 벌). **간격** = `--gap-w`(1440 16 · ≤480 12),
+  `.g-*` 격자가 gap 을 가진다 — 인라인 `gap:12px` 쓰지 말 것. `.pad-14` 폐지.
+- **화면 머리** = 목차 + 탭 한 줄(≤117px). 390 에서도 목차를 숨기지 않는다. 좁은 화면에서 탭이 감기면 한 줄 가로 스크롤.
 
 **`role=group` 은 그 부모가 고르기 묶음 그 자체일 때만 붙인다.** `js/app1.js` 의 접근성 보강기는
 칩 묶음의 부모를 장식하는데, 그 부모가 차트 도구줄이면 칩과 실행 버튼(`초기화`·`새로고침`)이 섞인다 —

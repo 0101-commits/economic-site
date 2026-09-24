@@ -34,8 +34,7 @@ function _merShowTab(name, noUrl) {
     var btn = document.getElementById('merlensTabBtn-' + t);
     if (btn) {
       var on = (t === name);
-      btn.style.background = on ? 'var(--c-accent)' : 'transparent';
-      btn.style.color = on ? 'var(--c-on-accent)' : 'var(--c-txt-dim)';
+      btn.classList.toggle('active', on);   // 선택 표시는 부품(.active → aria·data-checked)
       btn.setAttribute('aria-selected', on ? 'true' : 'false');
     }
   });
