@@ -37,7 +37,7 @@ on:
     - cron: '30 0 * * *'     # KST 09:30 (UTC 00:30) — 9AM 데이터 미수집 대비 보강
     # (삭제 2026-09-24) - cron: '5 7 * * *' — 일일 런은 Worker daily dispatch(:07)가 담당. 겹치면 AV·메르 추출이 두 번 돈다
     - cron: '30 7 * * *'     # KST 16:30 (UTC 07:30) — 4PM 데이터 미수집 대비 보강
-    # (삭제 2026-09-24) - cron: '5 13 * * *' — 일일 런은 Worker daily dispatch(:07)가 담당. 겹치면 AV·메르 추출이 두 번 돈다
+    - cron: '5 13 * * *'     # KST 22:05 — 일일 런 백업(7일 실측 유일하게 발화하던 일일 cron). 주 경로는 Worker daily dispatch
     - cron: '30 13 * * *'    # KST 22:30 (UTC 13:30) — 10PM 데이터 미수집 대비 보강
   workflow_dispatch:        # 수동 실행 허용
     inputs:
