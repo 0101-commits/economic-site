@@ -99,7 +99,7 @@ TOPIC_TAB = {
 # 라벨 표기 단일화(D5). 화면마다 달리 부르던 이름을 여기로 모은다.
 LABEL = {
     "KOSPI": "KOSPI", "KOSDAQ": "KOSDAQ", "SP500": "S&P 500", "NASDAQ": "NASDAQ",
-    "Nikkei": "닛케이 225", "Shanghai": "상하이종합", "SOX": "필라델피아 반도체",
+    "Nikkei": "닛케이 225", "Shanghai": "상하이종합", "SOX": "필라델피아 반도체", "HSI": "항셍",
     "USDKRW": "USD/KRW", "EURKRW": "EUR/KRW", "JPYKRW": "JPY(100)/KRW",
     "EURUSD": "EUR/USD", "USDJPY": "USD/JPY",
     "Gold": "금", "Silver": "은", "Platinum": "백금", "Palladium": "팔라듐",

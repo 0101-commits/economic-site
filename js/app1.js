@@ -1,23 +1,4 @@
-// ============================
-// 헬퍼: Mock 시계열 생성
-// ============================
-function genSeries(base, days, vol=0.008) {
-  let v = base;
-  const arr = Array.from({length:days}, (_,i) => {
-    v *= (1 + (Math.random()-0.48)*vol);
-    const d = new Date(); d.setDate(d.getDate()-(days-i));
-    return { x: d.toISOString().slice(0,10), y: +v.toFixed(2) };
-  });
-  // 마지막 포인트를 base 근처로 정착시키기 위해 시리즈 전체를 스케일링
-  // (현재 가격과 차트 끝값 불일치 방지)
-  const last = arr[arr.length-1].y;
-  if (last > 0 && Math.abs(last - base) / base > 0.01) {
-    const scale = base / last;
-    const dec = base < 50 ? 4 : 2;
-    arr.forEach(p => { p.y = +(p.y * scale).toFixed(dec); });
-  }
-  return arr;
-}
+// (삭제) genSeries — Math.random 가짜 시계열 생성기, 호출 0건(2026-09-24 감사)
 // Chart.js labels/values 분리 헬퍼 (날짜 어댑터 없이도 정상 렌더링)
 function sl(s) { return s.map(d=>d.x); }
 function sv(s) { return s.map(d=>d.y); }
@@ -1931,7 +1912,7 @@ function buildOsmRegionMap() {
     const ll = krRegionLatLng[d.code];
     if(!ll) return;
     const color = _regionColorForVal(d.val);
-    const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
+    const valStr = _usValStr(d.val);
     const icon = L.divIcon({
       className: 'osm-region-marker',
       html: `<div style="background:${color};color:${_onFill(color)};padding:3px 7px;border-radius:var(--r-md);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
@@ -2047,7 +2028,7 @@ async function buildNaverRegionMap() {
     const ll = krRegionLatLng[d.code];
     if(!ll) return;
     const color = _regionColorForVal(d.val);
-    const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
+    const valStr = _usValStr(d.val);
     // 커스텀 HTML 마커
     const marker = new naver.maps.Marker({
       position: new naver.maps.LatLng(ll.lat, ll.lng),
@@ -2143,11 +2124,12 @@ function _getSubRegions(code) {
     const d = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) || {};
     const rs = ((d.realestate || {}).kr || {}).region_sub;
     const live = rs && rs[code];
-    if(live && Array.isArray(live.subs) && live.subs.length && live.subs.length >= seedCount) {
-      return live;  // 라이브가 시드 이상으로 완전할 때만 라이브 사용 (실데이터 우선)
-    }
+    if(live && Array.isArray(live.subs) && live.subs.length) return live;
   } catch(_){}
-  return seed;
+  // 시드(krSubRegionData)는 손으로 넣은 값에 'R-ONE' 출처가 붙어 떴다(2026-09-24 감사) — 라이브가
+  // 없으면 드릴다운 대신 가격지수 추이 모달로 간다(_onRegionClick 의 else 경로).
+  void seed; void seedCount;
+  return null;
 }
 
 // 지역(시도) 클릭 공통 핸들러 — 시군구 데이터가 있으면 드릴다운, 없으면 가격지수 추이 모달.
@@ -2465,10 +2447,10 @@ function showLoanRegDetail(type) {
 // 단지 순위는 서버가 청약홈(data.go.kr)에서 수집한 data.json.subscription 을 우선 사용하고,
 // 미수집 시 세부 지역 구조 + 청약홈 링크로 안내한다(허위 수치 제시 금지).
 const SUBSCRIPTION_DETAIL = {
-  seoul:    { label:'서울', rate:'32.4 : 1', subs:['강남3구(강남·서초·송파)','마용성(마포·용산·성동)','노도강(노원·도봉·강북)','금관구(금천·관악·구로)','기타 한강이북'] },
-  gyeonggi: { label:'경기/인천', rate:'8.1 : 1', subs:['과천·성남·하남(고가권)','수원·용인·화성','인천 송도/청라','김포·파주·평택','남양주·고양'] },
-  metro:    { label:'지방광역시', rate:'3.2 : 1', subs:['부산','대구','대전','광주','울산'] },
-  other:    { label:'기타 지방', rate:'1.1 : 1', subs:['세종','강원','충청','전라','경상·제주'] },
+  seoul:    { label:'서울', rate:null, subs:['강남3구(강남·서초·송파)','마용성(마포·용산·성동)','노도강(노원·도봉·강북)','금관구(금천·관악·구로)','기타 한강이북'] },
+  gyeonggi: { label:'경기/인천', rate:null, subs:['과천·성남·하남(고가권)','수원·용인·화성','인천 송도/청라','김포·파주·평택','남양주·고양'] },
+  metro:    { label:'지방광역시', rate:null, subs:['부산','대구','대전','광주','울산'] },
+  other:    { label:'기타 지방', rate:null, subs:['세종','강원','충청','전라','경상·제주'] },
 };
 function showSubscriptionDetail(regionKey) {
   const r = SUBSCRIPTION_DETAIL[regionKey];
@@ -2477,7 +2459,7 @@ function showSubscriptionDetail(regionKey) {
   const sub = ((_latestDataForIndicators||{}).subscription) || {};
   const liveList = (sub.byRegion && Array.isArray(sub.byRegion[regionKey])) ? sub.byRegion[regionKey] : null;
 
-  let body = `<div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:8px;">세부 지역 · ${r.label} 1순위 평균 경쟁률 <b style="color:var(--c-primary);">${r.rate}</b> <span style="color:var(--c-txt-dim);">(최근 경향, 참고)</span></div>`;
+  let body = `<div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:8px;">세부 지역 · ${r.label} 1순위 평균 경쟁률 <b>${r.rate || '—'}</b> <span style="color:var(--c-txt-dim);">(경쟁률은 수집 경로가 없다 — 종전 표기는 상수였다)</span></div>`;
   // 세부 지역 칩
   body += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">` +
     r.subs.map(s=>`<span style="background:var(--c-card-hi);border:1px solid var(--c-border);border-radius:var(--r-lg);padding:4px 11px;font-size:11.5px;color:var(--c-txt);">${s}</span>`).join('') +
@@ -2531,8 +2513,11 @@ function buildKoreaRegionMap() {
   if(regionCtx) {
     destroyChart('reRegionChart');
     // 정렬: 등락률 내림차순
-    const sorted = krRegionData.slice().sort((a,b)=>b.val-a.val);
-    charts['reRegionChart'] = new Chart(regionCtx, {
+    const sorted = krRegionData.filter(r => r.val != null).sort((a,b)=>b.val-a.val);
+    if(!sorted.length) {
+      showNoDataOverlay('reRegionChart', '시도별 등락률이 이번 수집에 없습니다(R-ONE 미응답) — 다음 수집에서 채워집니다.');
+    } else hideNoDataOverlay('reRegionChart');
+    if(sorted.length) charts['reRegionChart'] = new Chart(regionCtx, {
       type:'bar',
       data:{labels:sorted.map(r=>r.label), datasets:[{
         data:sorted.map(r=>r.val),
@@ -2578,7 +2563,7 @@ function buildKoreaRegionMap() {
     svgHtml += `<path d="${s.path}" fill="${fill}" stroke="${stroke}" stroke-width="1.2" stroke-linejoin="round" data-code="${s.code}" data-label="${s.label}" data-val="${d.val}" class="kr-region-shape" style="cursor:pointer;transition:opacity .15s, filter .15s;" filter="url(#regionShadow)"/>`;
     // 라벨 (중심점에 표시)
     svgHtml += `<text x="${s.labelX}" y="${s.labelY - 2}" text-anchor="middle" font-size="10" font-weight="700" fill="#fff" pointer-events="none" style="text-shadow:0 1px 2px rgba(0,0,0,.6);">${s.label}</text>`;
-    svgHtml += `<text x="${s.labelX}" y="${s.labelY + 11}" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" pointer-events="none" style="text-shadow:0 1px 2px rgba(0,0,0,.6);">${(d.val>=0?'+':'')+d.val.toFixed(2)+'%'}</text>`;
+    svgHtml += `<text x="${s.labelX}" y="${s.labelY + 11}" text-anchor="middle" font-size="9" font-weight="600" fill="#fff" pointer-events="none" style="text-shadow:0 1px 2px rgba(0,0,0,.6);">${_usValStr(d.val)}</text>`;
   });
   // 범례 — 화면 아래쪽
   svgHtml += `<g transform="translate(15,485)">
@@ -2608,7 +2593,7 @@ function _showRegionTooltip(e, el) {
   const code = el.dataset.code;
   const d = krRegionData.find(r => r.code === code);
   if(!d) return;
-  const valStr = (d.val>=0?'+':'')+d.val.toFixed(2)+'%';
+  const valStr = _usValStr(d.val);
   document.getElementById('reRegionTooltipTitle').textContent = d.label;
   const valEl = document.getElementById('reRegionTooltipVal');
   valEl.textContent = valStr;
@@ -4788,10 +4773,12 @@ let comData=[
   {name:'설탕 (Sugar)',       price:'18.50¢',    chg:'+0.00%', up:true,  unit:'¢/lb',   cat:'agri'},
   {name:'코코아 (Cocoa)',     price:'$8,500',    chg:'+0.00%', up:true,  unit:'$/MT',   cat:'agri'},
 ];
+// 값은 data.json.indices 에서만 온다(항셍 = indices.HSI). 종전 초기값(KOSPI 7,612 등)은 로드 전이나
+// 키가 빠진 런에 그대로 남았고, 항셍 23,500 은 매핑이 없어 늘 떠 있었다(2026-09-24 감사).
 let eqData=[
-  {name:'KOSPI',  val:7612.51, chg:-4.62},{name:'KOSDAQ',val:1143.35, chg:-4.01},
-  {name:'S&P 500',val:5659.91, chg:+0.21},{name:'NASDAQ',val:26635.22,chg:+0.18},
-  {name:'닛케이',  val:61687.05,chg:+0.45},{name:'항셍',   val:23500.0, chg:-0.88},
+  {name:'KOSPI',  val:null, chg:null},{name:'KOSDAQ', val:null, chg:null},
+  {name:'S&P 500',val:null, chg:null},{name:'NASDAQ', val:null, chg:null},
+  {name:'닛케이',  val:null, chg:null},{name:'항셍',   val:null, chg:null},
 ];
 
 // ── FX 방향 토글 ──
@@ -5642,7 +5629,7 @@ function selectEquityIndex(idx, btn) {
   });
   btn.classList.add('active');
   // 실제 시계열 우선 (data.json.history.indices), 없으면 안내 표시
-  const idxNames = ['KOSPI','KOSDAQ','SP500','NASDAQ','Nikkei','Shanghai'];
+  const idxNames = ['KOSPI','KOSDAQ','SP500','NASDAQ','Nikkei','HSI'];   // 6번째 카드는 항셍 — 종전엔 상하이 시계열을 그렸다
   const real = getHistoricalSeries('indices', idxNames[idx]);
   if(real && real.length > 1) {
     equityAllSeries = real;
@@ -5831,7 +5818,7 @@ function buildEquityPage() {
     <div class="kpi-card pad-8-10">
       <div class="econ-stat__label" style="white-space:nowrap;">${d.name}</div>
       <div class="econ-num econ-num--m" style="margin-top:2px;">${fmtIndicator(d.val,'index')}</div>
-      <div class="${d.chg>=0?'up-txt':'down-txt'} econ-num__chg">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
+      <div class="${d.chg==null?'':d.chg>=0?'up-txt':'down-txt'} econ-num__chg">${d.chg==null?'—':(d.chg>=0?'▲':'▼')+' '+Math.abs(d.chg).toFixed(2)+'%'}</div>
     </div>`).join('');
   // 기본은 KOSPI 실제 시계열 사용 (data.json.history)
   const real = getHistoricalSeries('indices', 'KOSPI');
@@ -7174,56 +7161,59 @@ function resetLmeHighlight() {
 // ============================
 // 거시경제 페이지
 // ============================
-// 거시 데이터 — 분기·월간 히스토리. data.json 실데이터가 들어오면 applyMacroDataFromReal() 가 덮어씀.
-// 23Q1 ~ 26Q1 (분기), 24.01 ~ 26.03 (월간)
-const macroData = {
-  kr:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
-       gdp:[0.4,0.6,0.7,0.6,1.3,-0.2,0.1,0.1,0.3,0.5,0.4,0.5,0.8],   // 한국 실질 GDP 전기비 (분기, %)
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
-       cpi:[2.8,3.1,2.7,2.4,2.0,1.9,2.2,2.1,2.1,2.0,1.9,1.9,2.0,2.1],
-       unemp:[2.9,2.8,2.7,2.6,2.7,2.8,2.9,3.0,3.0,2.9,2.8,2.8,2.7,2.7],
-       exports:[575,568,582,601,590,610,598,617,605,622,628,615,624,635] },
-  us:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
-       gdp:[2.2,2.1,4.9,3.4,1.6,3.0,2.8,2.3,2.0,1.9,1.7,2.1,2.1],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
-       cpi:[3.1,3.5,3.3,2.9,2.4,2.7,2.9,2.8,2.7,2.6,2.5,2.5,2.4,2.4],
-       unemp:[3.7,3.8,3.7,3.7,3.9,4.1,4.0,4.1,4.1,4.0,4.0,3.9,3.9,3.9],
-       exports:[2530,2480,2510,2560,2470,2520,2490,2540,2530,2560,2570,2550,2565,2580] },
-  eu:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
-       gdp:[1.3,0.6,0.0,-0.1,0.4,0.3,0.9,1.1,0.6,0.4,0.5,0.7,0.6],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
-       cpi:[2.8,2.4,2.6,2.6,1.7,2.3,2.5,2.3,2.2,2.1,2.0,2.1,2.0,2.0],
-       unemp:[6.5,6.5,6.4,6.2,6.0,6.1,6.2,6.1,6.0,5.9,5.9,5.9,5.8,5.8],
-       exports:[2100,2080,2120,2090,2150,2110,2130,2160,2140,2165,2180,2155,2170,2185] },
-  cn:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
-       gdp:[4.5,6.3,4.9,5.2,5.3,4.7,4.6,5.0,4.8,4.7,4.6,4.8,5.1],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
-       cpi:[-0.8,0.1,0.3,0.5,-0.4,0.2,0.5,0.1,0.3,0.4,0.2,0.3,0.4,0.5],
-       unemp:[5.2,5.2,5.0,5.1,5.0,5.1,5.2,5.3,5.2,5.1,5.0,5.1,5.0,5.0],
-       exports:[3200,3150,3180,3220,3100,3190,3210,3240,3230,3250,3270,3245,3260,3290] },
-  jp:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
-       gdp:[2.7,2.2,2.4,1.3,-0.9,2.9,1.1,1.4,0.8,1.0,0.5,0.7,-0.2],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
-       cpi:[2.2,2.7,2.5,2.8,2.4,2.9,3.6,3.7,3.4,3.2,3.0,2.9,2.8,2.7],
-       unemp:[2.4,2.6,2.5,2.4,2.6,2.5,2.4,2.5,2.5,2.5,2.4,2.4,2.4,2.4],
-       exports:[807,795,819,835,782,810,792,825,815,830,838,820,832,845] },
-  de:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
-       gdp:[-0.1,-0.2,-0.1,-0.3,0.2,0.0,-0.3,-0.2,0.1,0.2,0.3,0.3,0.4],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
-       cpi:[2.9,2.2,2.4,2.3,1.6,2.2,2.3,2.3,2.2,2.1,2.0,2.0,1.9,1.9],
-       unemp:[3.0,3.1,3.0,3.1,3.4,3.4,3.4,3.6,3.5,3.5,3.4,3.4,3.4,3.3],
-       exports:[1340,1320,1360,1350,1290,1310,1295,1330,1310,1335,1350,1320,1340,1365] },
-  uk:{ gdpLabels:['23Q1','23Q2','23Q3','23Q4','24Q1','24Q2','24Q3','24Q4','25Q1','25Q2','25Q3','25Q4','26Q1'],
-       gdp:[0.1,0.3,0.0,0.3,0.7,0.5,0.3,0.4,0.5,0.6,0.5,0.6,0.7],
-       cpiLabels:['24.01','24.03','24.05','24.07','24.09','24.11','25.01','25.03','25.05','25.07','25.09','25.11','26.01','26.03'],
-       cpi:[4.0,3.2,2.0,2.2,1.7,2.6,3.0,2.8,2.6,2.4,2.3,2.3,2.2,2.1],
-       unemp:[3.9,4.2,4.0,4.4,4.4,4.3,4.4,4.4,4.3,4.3,4.2,4.2,4.1,4.1],
-       exports:[680,670,690,685,665,675,670,680,685,695,700,690,695,705] },
-};
-// 미국 데이터: GDP는 분기당 % 연환산. 한국형 전기비(%)로 호환되도록 그대로 사용.
+// 거시 데이터 — 분기(GDP·실업·수출 — 실업·수출은 월값의 분기 평균)·월간(CPI) 격자. 값은 전부 data.json.economicIndicators 의
+// history 에서 applyMacroDataFromReal() 이 채운다. 종전엔 7개국 × 4지표를 손으로 넣은 숫자가
+// '각국 통계청/OECD' 출처로 떠 있었고, 주석이 말하던 덮어쓰기 함수는 존재하지 않았다(2026-09-24 감사).
+// 데이터가 없는 나라·지표는 null — 선이 그려지지 않는다.
+const MACRO_CCS = ['kr','us','eu','cn','jp','de','uk'];
+const macroData = Object.fromEntries(MACRO_CCS.map(cc => [cc, {gdpLabels:[], gdp:[], cpiLabels:[], cpi:[], unemp:[], exports:[]}]));
+// 계열 정의가 나라마다 다른 곳은 범례에 적는다(같은 축에 다른 정의를 몰래 섞지 않는다).
+const MACRO_DEF_NOTE = { gdp: { kr:' (전기비)', us:' (연율 전기비)', cn:' (연간)' }, exports: { kr:' (월평균)' } };
+function applyMacroDataFromReal(d) {
+  const e = (d && d.economicIndicators) || {};
+  const node = (cc, key) => ((e[cc] || {})[key]) || null;
+  const pad = n => String(n).padStart(2, '0');
+  // history 키 → 월('YYYY-MM') / 분기('YYYYQn')
+  const toMonth = k => { k = String(k); let m = k.match(/^(\d{4})-(\d{2})/) || k.match(/^(\d{4})(\d{2})$/); return m ? `${m[1]}-${m[2]}` : null; };
+  const toQuarter = k => { k = String(k); let m = k.match(/^(\d{4})Q([1-4])$/); if(m) return `${m[1]}Q${m[2]}`;
+    const mm = toMonth(k); return mm ? `${mm.slice(0,4)}Q${Math.floor((+mm.slice(5,7) - 1) / 3) + 1}` : null; };
+  const series = (n, keyFn) => { const out = {}; Object.entries((n && n.history) || {}).forEach(([k, v]) => { const kk = keyFn(k); if(kk && v != null && !isNaN(v)) out[kk] = Math.round(v * 100) / 100; }); return out; };
+  const yoy = m => { const out = {}; Object.keys(m).forEach(k => { const [y, mo] = k.split('-'); const p = m[`${+y - 1}-${mo}`]; if(p) out[k] = +((m[k] / p - 1) * 100).toFixed(2); }); return out; };
+  const GDP = { kr:'gdp_kr', us:'gdp_growth_us', eu:'gdp_yoy_eu', de:'gdp_yoy_de', uk:'gdp_yoy_uk', jp:'gdp_yoy_jp', cn:'gdp_yoy_cn' };
+  const CPI_IDX = { us:'cpi_us', kr:'cpi_kr', eu:'cpi_eu', de:'cpi_de' };       // 지수 → 전년비 계산
+  const CPI_YOY = { cn:'cpi_cn', uk:'cpi_uk' };                                  // 이미 전년비
+  const UNEMP = { us:'unemployment', kr:'unemployment_kr', eu:'unemployment_eu', jp:'unemployment_jp', de:'unemployment_de', uk:'unemployment_uk' };
+  const q = {}, mCpi = {}, mUn = {}, mEx = {};
+  MACRO_CCS.forEach(cc => {
+    q[cc] = GDP[cc] ? series(node(cc, GDP[cc]), toQuarter) : {};
+    mCpi[cc] = CPI_IDX[cc] ? yoy(series(node(cc, CPI_IDX[cc]), toMonth)) : CPI_YOY[cc] ? series(node(cc, CPI_YOY[cc]), toMonth) : {};
+    mUn[cc] = UNEMP[cc] ? series(node(cc, UNEMP[cc]), toMonth) : {};
+    mEx[cc] = {};
+  });
+  Object.entries(series(node('kr', 'exports_kr'), toMonth)).forEach(([k, v]) => { mEx.kr[k] = +(v / 1e8).toFixed(0); });   // USD → 억$
+  // 실업·수출은 화면이 분기 격자(gdpLabels)에 맞춰 그린다 — 월값을 분기 평균으로 접는다.
+  const toQ = m => { const acc = {}; Object.entries(m).forEach(([k, v]) => { const qq = toQuarter(k); (acc[qq] = acc[qq] || []).push(v); });
+    return Object.fromEntries(Object.entries(acc).map(([k, vs]) => [k, +(vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(2)])); };
+  const qUn = {}, qEx = {};
+  MACRO_CCS.forEach(cc => { qUn[cc] = toQ(mUn[cc]); qEx[cc] = toQ(mEx[cc]); });
+  // 격자 — 분기 13개·월 26개, 끝은 데이터가 있는 가장 늦은 칸
+  const lastOf = maps => maps.flatMap(m => Object.keys(m)).sort().pop();
+  const qEnd = lastOf([...Object.values(q), ...Object.values(qUn), ...Object.values(qEx)]), mEnd = lastOf(Object.values(mCpi));
+  if(!qEnd && !mEnd) return false;
+  const qGrid = [], mGrid = [];
+  if(qEnd) { let y = +qEnd.slice(0,4), n = +qEnd.slice(5); for(let i = 0; i < 13; i++) { qGrid.unshift(`${y}Q${n}`); if(--n < 1) { n = 4; y--; } } }
+  if(mEnd) { let y = +mEnd.slice(0,4), mo = +mEnd.slice(5,7); for(let i = 0; i < 26; i++) { mGrid.unshift(`${y}-${pad(mo)}`); if(--mo < 1) { mo = 12; y--; } } }
+  const qLabels = qGrid.map(k => `${k.slice(2,4)}Q${k.slice(5)}`), mLabels = mGrid.map(k => `${k.slice(2,4)}.${k.slice(5,7)}`);
+  MACRO_CCS.forEach(cc => {
+    const t = macroData[cc];
+    t.gdpLabels = qLabels; t.gdp = qGrid.map(k => q[cc][k] ?? null);
+    t.cpiLabels = mLabels; t.cpi = mGrid.map(k => mCpi[cc][k] ?? null);
+    t.unemp = qGrid.map(k => qUn[cc][k] ?? null);
+    t.exports = qGrid.map(k => qEx[cc][k] ?? null);
+  });
+  return true;
+}
 
-// 한국 GDP 전기비 fallback (data.json 에 gdp_kr 이 없을 때 사용)
-// 23Q1 ~ 26Q1 (한국은행 ECOS 200Y104 시리즈 추정값)
 // (삭제) KR_GDP_QOQ_FALLBACK · KR_FALLBACKS — 한국 GDP·소매판매·실업률·수출·산업생산이
 // data.json 에 없을 때 대신 넣던 상수 값과 '지어낸 매끄러운 history'였다(2026-09-24 감사).
 // 실데이터가 빠지면 표는 '—' 를 보여야 한다. 없는 값을 있는 것처럼 그리지 않는다.
@@ -7313,7 +7303,7 @@ function initMacroTopicPage(topic) {
         <button type="button" onclick="selectAllMacroTopicCountries('${topic}')" class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" style="margin-left:8px;">전체</button>
       </div>
       <div class="h-280" style="position:relative;"><canvas id="${m.id}"></canvas></div>
-      <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;text-align:right;">참고: 대표 통계 데이터 (각국 통계청 / OECD)</div>
+      <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;text-align:right;">출처: FRED·ECOS·ECB·OECD·ONS 수집값(지표별 원천은 거시 표) · 빈 선 = 미수집</div>
     </div>`;
   const d0 = macroData['kr'];
   const allLabels = d0[m.labels];
@@ -7322,7 +7312,7 @@ function initMacroTopicPage(topic) {
   const tc = getThemeColors();
   const selectedCountries = allCountries.filter(cc => selSet.has(cc));
   const datasets = selectedCountries.map(cc => ({
-    label: flags[cc],
+    label: flags[cc] + (((MACRO_DEF_NOTE[m.key] || {})[cc]) || ''),
     data: (macroData[cc][m.key] || []).slice(-n),
     borderColor: colors[cc],
     backgroundColor: colors[cc] + '22',
@@ -8141,39 +8131,9 @@ function initMacroPage(t){
 // 경제 캘린더
 // ============================
 // calEvents: cc = 국가코드, stars = 중요도(1~3)
-const calEvents=[
-  // 4월 (이번 달)
-  {dt:'04.30 09:00',cc:'KR',flag:'🇰🇷',name:'한국 산업생산지수',       stars:2,prev:'+1.2%',fore:'+0.9%', act:'+1.4%', beat:1},
-  {dt:'04.30 21:30',cc:'US',flag:'🇺🇸',name:'미국 PCE 물가지수',       stars:3,prev:'2.5%', fore:'2.4%',  act:'2.3%',  beat:1},
-  // 5월 (다음 달)
-  {dt:'05.01 09:00',cc:'KR',flag:'🇰🇷',name:'한국 소비자물가지수(CPI)',  stars:3,prev:'2.1%', fore:'2.0%',  act:'2.1%',beat:0},
-  {dt:'05.02 15:00',cc:'US',flag:'🇺🇸',name:'미국 비농업고용(NFP)',      stars:3,prev:'275K', fore:'240K',  act:'+177K', beat:1},
-  {dt:'05.03 22:00',cc:'US',flag:'🇺🇸',name:'미국 실업률',              stars:3,prev:'3.9%', fore:'3.9%',  act:'4.2%',  beat:-1},
-  {dt:'05.06 10:00',cc:'KR',flag:'🇰🇷',name:'한국은행 금통위 회의',      stars:3,prev:'2.75%',fore:'2.75%', act:'2.50%', beat:0},
-  {dt:'05.07 16:00',cc:'EU',flag:'🇪🇺',name:'ECB 통화정책회의',         stars:3,prev:'2.25%',fore:'2.00%', act:'2.00%', beat:0},
-  {dt:'05.08 21:30',cc:'US',flag:'🇺🇸',name:'미국 CPI (전월비)',        stars:3,prev:'0.4%', fore:'0.3%',  act:'-0.1%', beat:1},
-  {dt:'05.09 09:00',cc:'KR',flag:'🇰🇷',name:'한국 수출입 동향',         stars:2,prev:'+3.1%',fore:'+2.8%', act:'+3.7%', beat:1},
-  {dt:'05.12 09:30',cc:'CN',flag:'🇨🇳',name:'중국 CPI (전년비)',        stars:2,prev:'0.1%', fore:'0.2%',  act:'-0.1%', beat:-1},
-  {dt:'05.13 10:00',cc:'JP',flag:'🇯🇵',name:'일본 GDP (전기비)',        stars:3,prev:'-0.1%',fore:'+0.1%', act:'-0.2%', beat:-1},
-  {dt:'05.14 21:30',cc:'US',flag:'🇺🇸',name:'미국 생산자물가지수(PPI)', stars:2,prev:'0.2%', fore:'0.2%',  act:'-0.5%', beat:1},
-  {dt:'05.15 22:00',cc:'US',flag:'🇺🇸',name:'미국 소매판매',           stars:2,prev:'-0.1%',fore:'+0.4%', act:'+0.1%', beat:-1},
-  {dt:'05.20 10:00',cc:'KR',flag:'🇰🇷',name:'한국 1분기 GDP (확정)',    stars:3,prev:'+0.7%',fore:'+0.7%', act:'',   beat:null},
-  {dt:'05.22 20:30',cc:'EU',flag:'🇪🇺',name:'유로존 CPI (전년비)',      stars:3,prev:'2.2%', fore:'2.1%',  act:'',   beat:null},
-  {dt:'05.28 21:30',cc:'US',flag:'🇺🇸',name:'미국 1분기 GDP (2차)',     stars:3,prev:'0.5%', fore:'2.0%',  act:'1.6%',beat:-1},
-  // 6월
-  {dt:'06.02 21:30',cc:'US',flag:'🇺🇸',name:'미국 비농업고용(NFP)',      stars:3,prev:'210K',fore:'200K',act:'',beat:null},
-  {dt:'06.02 21:30',cc:'US',flag:'🇺🇸',name:'미국 실업률',              stars:3,prev:'4.0%', fore:'4.0%', act:'',beat:null},
-  {dt:'06.04 09:00',cc:'KR',flag:'🇰🇷',name:'한국 5월 소비자물가(CPI)',   stars:3,prev:'2.1%', fore:'2.0%', act:'',beat:null},
-  {dt:'06.05 20:00',cc:'EU',flag:'🇪🇺',name:'ECB 통화정책회의',          stars:3,prev:'2.00%',fore:'2.00%',act:'2.00%',beat:0},
-  {dt:'06.11 02:00',cc:'US',flag:'🇺🇸',name:'미국 FOMC 회의',           stars:3,prev:'3.75%',fore:'3.75%',act:'3.75%',beat:0},
-  {dt:'06.12 21:30',cc:'US',flag:'🇺🇸',name:'미국 CPI (전년비)',         stars:3,prev:'3.2%', fore:'3.1%', act:'',beat:null},
-  {dt:'06.16 14:00',cc:'JP',flag:'🇯🇵',name:'일본 BOJ 금리결정',        stars:3,prev:'0.50%',fore:'0.50%',act:'1.00%',beat:1},
-  {dt:'06.19 12:00',cc:'UK',flag:'🇬🇧',name:'영국 BOE 금리결정',        stars:3,prev:'4.50%',fore:'4.25%',act:'',beat:null},
-  {dt:'06.20 09:00',cc:'KR',flag:'🇰🇷',name:'한국은행 금통위 회의',      stars:3,prev:'2.75%',fore:'2.50%',act:'',beat:null},
-  {dt:'06.23 10:00',cc:'KR',flag:'🇰🇷',name:'한국 5월 수출입 동향',     stars:2,prev:'+2.8%',fore:'+3.0%',act:'',beat:null},
-  {dt:'06.24 02:00',cc:'CN',flag:'🇨🇳',name:'중국 1년물 LPR 결정',     stars:2,prev:'3.10%',fore:'3.10%',act:'',beat:null},
-  {dt:'06.26 21:30',cc:'US',flag:'🇺🇸',name:'미국 PCE 물가지수',       stars:3,prev:'2.5%', fore:'2.4%', act:'',beat:null},
-];
+// 이벤트는 서버 캘린더(data.json.economicCalendar)만 쓴다. 종전엔 4~6월 이벤트 29건이 prev·fore·act
+// 까지 손으로 들어 있었고 연도가 없어 매년 4~6월에 다시 떴다(2026-09-24 감사).
+const calEvents=[];
 
 // ── 캘린더 필터 상태 ──────────────────────────────
 let calFilterCC    = new Set(['KR','US','EU','CN','JP','UK']);
@@ -8455,7 +8415,7 @@ function showCalGridFloating(idx, evt) {
   destroyChart('calFloatChart');
   const ctx = document.getElementById('calFloatChart');
   if(ctx) {
-    const hist = (typeof _calGetChartSeries === 'function') ? _calGetChartSeries(e) : calHistoryData[e.name];
+    const hist = _calGetChartSeries(e);
     if(hist) {
       const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55'};
       charts['calFloatChart'] = new Chart(ctx, {
@@ -8525,8 +8485,7 @@ async function refreshCalFloatingPopup(btn) {
       try {
         destroyChart('calFloatChart');
         const ctx = document.getElementById('calFloatChart');
-        const hist = (typeof _calGetChartSeries === 'function') ? _calGetChartSeries(e)
-                   : ((typeof calHistoryData !== 'undefined') ? calHistoryData[e.name] : null);
+        const hist = _calGetChartSeries(e);
         if(ctx && hist) {
           const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55'};
           charts['calFloatChart'] = new Chart(ctx, {
@@ -8814,21 +8773,8 @@ function autoBackfillCalendarActuals() {
     if(backfilledFromJson) continue;
     // 2) data.json 매칭 실패 → 기존 하드코드 act 유지 (작년에 입력된 값일 수 있어 안내 가치는 떨어지지만 fallback)
     if(e.act && e.act !== '예정' && e.act !== '') continue;
-    // 3) calHistoryData 마지막 값으로 백필 (data.json 미연동인 경우 최후 폴백)
-    const hist = calHistoryData[e.name];
-    if(hist && hist.vals && hist.vals.length) {
-      const lastVal = hist.vals[hist.vals.length - 1];
-      const unit = hist.unit || '';
-      const sign = (e.name.includes('GDP') || e.name.includes('수출') || e.name.includes('산업생산')) ? (lastVal>=0?'+':'') : '';
-      e.act = sign + lastVal.toFixed(/금리|FOMC|금통위|BOJ|BOE|LPR|ECB/.test(e.name) ? 2 : 1) + unit;
-      const foreNum = parseFloat(String(e.fore||'').replace(/[%+]/g,''));
-      if(!isNaN(foreNum)) {
-        if(Math.abs(lastVal - foreNum) < 0.05) e.beat = 0;
-        else if(/CPI|PPI|물가|실업|미분양/.test(e.name)) e.beat = (lastVal < foreNum) ? 1 : -1;
-        else e.beat = (lastVal > foreNum) ? 1 : -1;
-      }
-      updated++;
-    }
+    // (삭제) 3) calHistoryData(손으로 넣은 시계열)의 마지막 값을 '실제치'로 적던 최후 폴백 —
+    //  발표치가 없으면 비워 둔다(2026-09-24 감사).
   }
   if(updated > 0) {
     if(overrode > 0) console.info(`[Calendar] ${updated}개 이벤트 actual 백필 (stale 하드코드 ${overrode}개 덮어씀)`);
@@ -8881,8 +8827,8 @@ function _calGetChartSeries(e) {
       }
     }
   }
-  // 폴백: 하드코드된 calHistoryData
-  return (typeof calHistoryData !== 'undefined') ? calHistoryData[e.name] : null;
+  // 시계열이 없으면 차트를 그리지 않는다 — calHistoryData 는 단위·색 메타로만 쓴다(값은 손입력이었다).
+  return null;
 }
 
 // data.json.economicCalendar.events 를 calEvents 에 머지
@@ -9611,6 +9557,10 @@ function buildNpsReturnChart() {
   destroyChart('npsReturnChart');
   const retCtx = document.getElementById('npsReturnChart');
   if(!retCtx) return;
+  // 연도별은 공단 공시(npsHistory), 분기별(npsQuarterlyData)은 출처·기준일이 없는 손입력이다
+  // (2026-09-24 감사) — 제목에 그 차이를 적는다. 검증된 공시가 붙기 전까지 '참고치'.
+  const _t = document.getElementById('npsReturnChartTitle');
+  if(_t) setWidgetTitleText(_t, npsReturnView === 'annual' ? '연도별 수익률 (%) — 공식 발표' : '분기별 수익률 (%) — 참고치(출처·기준일 미확인)');
   if(npsReturnView==='annual') {
     charts['npsReturnChart'] = new Chart(retCtx,{type:'bar',
       data:{labels:npsHistory.map(h=>h.year),
@@ -12666,6 +12616,12 @@ function applyRealData(d) {
   if(!d.economicIndicators.kr) d.economicIndicators.kr = {};
   _latestDataForIndicators = d;
   buildMacroIndicatorTable();
+  try {
+    if(applyMacroDataFromReal(d)) {
+      const mp = document.getElementById('page-macro');
+      if(mp && mp.classList.contains('active') && typeof initMacroPage === 'function') initMacroPage(macroTab);
+    }
+  } catch(e) { console.warn('[macro] 실데이터 격자 구성 실패', e); }
   // 🤖 오늘의 매크로 3줄 요약 — 서버(scripts/ai_briefing.py)가 생성한 aiBriefing 이 있을 때만 배너 표시.
   // (과거 클라이언트측 AI 시황 요약은 사용자 요청으로 제거 — 카카오톡 발송과 병행하여 서버 생성분만 렌더.)
   try { renderAiBriefing(d.aiBriefing); } catch(_) {}
@@ -12682,7 +12638,13 @@ function applyRealData(d) {
   // 부동산 시도별 변동률 — 라이브(R-ONE) 값으로 krRegionData 갱신 (있을 때만; 시군구는 _getSubRegions 가 처리)
   try {
     const reg = ((d.realestate||{}).kr||{}).region;
+    // 시도별 값이 없으면 시드(손으로 넣은 '2026년 4월' 값)를 비운다 — 지도는 회색, 값은 '—'.
+    if(!(Array.isArray(reg) && reg.length) && typeof krRegionData !== 'undefined') {
+      krRegionData.forEach(r => { r.val = null; r.history = []; });
+      window._krRegionLive = false;
+    }
     if(Array.isArray(reg) && reg.length && typeof krRegionData !== 'undefined') {
+      window._krRegionLive = true;
       const byCode = {}; reg.forEach(r => { if(r && r.code != null && typeof r.val === 'number') byCode[r.code] = r.val; });
       krRegionData.forEach(r => { if(byCode[r.code] != null) r.val = byCode[r.code]; });
       const rp = document.getElementById('page-realestate');
@@ -12865,7 +12827,7 @@ function applyRealData(d) {
   comMap.forEach(([src, i, mapper]) => { if (src && comData[i]) Object.assign(comData[i], mapper(src)); });
 
   // ── 주식 지수 카드 데이터 업데이트 ───────────
-  const eqKey = {'KOSPI':'KOSPI','KOSDAQ':'KOSDAQ','S&P 500':'SP500','NASDAQ':'NASDAQ','닛케이':'Nikkei'};
+  const eqKey = {'KOSPI':'KOSPI','KOSDAQ':'KOSDAQ','S&P 500':'SP500','NASDAQ':'NASDAQ','닛케이':'Nikkei','항셍':'HSI'};
   eqData.forEach(g => {
     const k = eqKey[g.name];
     if (k && idx[k]) { g.val = idx[k].price; g.chg = idx[k].change; }

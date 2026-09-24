@@ -10,7 +10,7 @@
  *   merLens    mer_signals.json 의 같은 지표 id
  *   onScreen   false = 수집은 되는데 아직 어느 화면에도 없다(처리 대상)
  *
- * 생성 시각 기준 지표 122 · 데이터셋 19 · 미노출 0.
+ * 생성 시각 기준 지표 123 · 데이터셋 19 · 미노출 0.
  */
 (function () {
   var ROWS = [
@@ -75,6 +75,7 @@
     {"id": "cpi_uk", "label": "소비자물가지수", "unit": "지수 (2015=100)", "asset": "macro", "topic": "price", "cat": "물가", "country": "uk", "data": "economicIndicators.uk.cpi_uk", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "current_account_kr", "label": "경상수지", "unit": "백만달러", "asset": "macro", "topic": "trade", "cat": "무역", "country": "kr", "data": "economicIndicators.kr.current_account_kr", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1, "merLens": "current_account_kr"},
     {"id": "dxy_idx", "label": "달러 인덱스 (DXY)", "unit": "지수 (1973=100, ICE 발표)", "asset": "macro", "topic": "trade", "cat": "외환", "country": "us", "data": "economicIndicators.us.dxy_idx", "onScreen": true, "tier": 3, "canonical": "market#fx", "decimals": 1, "merLens": "dxy"},
+    {"id": "exports_idx_kr", "label": "수출금액지수", "unit": "2020=100", "asset": "macro", "topic": "trade", "cat": "무역", "country": "kr", "data": "economicIndicators.kr.exports_idx_kr", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "ff_rate", "label": "기준금리 (FFR)", "unit": "% (연이율)", "asset": "macro", "topic": "money", "cat": "통화", "country": "us", "data": "economicIndicators.us.ff_rate", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "fx_reserves_kr", "label": "외환보유액 (금 제외)", "unit": "십억 달러", "asset": "macro", "topic": "trade", "cat": "외환", "country": "kr", "data": "economicIndicators.kr.fx_reserves_kr", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1, "merLens": "fx_reserves"},
     {"id": "gdp_cn", "label": "GDP (명목, USD)", "unit": "조 달러", "asset": "macro", "topic": "growth", "cat": "경기", "country": "cn", "data": "economicIndicators.cn.gdp_cn", "onScreen": true, "tier": 3, "canonical": "macro", "news": "중국경기", "decimals": 1},

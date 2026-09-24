@@ -5686,6 +5686,7 @@ def fetch_all_historical_data():
         "Nikkei":   "^N225",
         "Shanghai": "000001.SS",
         "SOX":      "^SOX",   # 필라델피아 반도체지수 (지수 현재가 목록과 동일 심볼)
+        "HSI":      "^HSI",   # 항셍 — 주식 화면 지수 차트
     }
     for name, sym in idx_map.items():
         h = None
@@ -6555,6 +6556,7 @@ def build_data():
         "Nikkei":   "^N225",
         "Shanghai": "000001.SS",
         "SOX":      "^SOX",   # 필라델피아 반도체지수 — 한국 수출·반도체 사이클 선행 신호
+        "HSI":      "^HSI",   # 항셍 — 주식 화면 지수 카드(종전엔 상수 23,500 이 떠 있었다)
     }
     for name, sym in intl_indices.items():
         q = fetch_yf(sym)

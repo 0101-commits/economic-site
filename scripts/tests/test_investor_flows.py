@@ -123,6 +123,9 @@ def test_verified_latest_falls_back_to_toss(monkeypatch):
     def _gone(*a, **k):
         raise OSError("HTTP Error 410: 410")
     monkeypatch.setattr(inf, "naver_daily", _gone)
+    # 포털 기준의 두 번째 창구(data.json 의 KRX 확정치)도 없는 상황 — 실제 data.json 에
+    # 기대지 않게 비운다(첫 운영 런 이후 krxDaily 가 생겨 이 테스트가 환경에 따라 갈렸다).
+    monkeypatch.setattr(inf, "_krx_daily_from_data", lambda market="KOSPI": [])
     monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: [TOS])
     # KRX 확정치(data.json krxDaily)도 없는 날 — 실제 data.json 을 읽으면 그날 행이 있어
     # 토스 단독 경로가 검사되지 않는다(ac048698 이후 KRX 가 먼저다).
