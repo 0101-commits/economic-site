@@ -5833,11 +5833,9 @@ function buildEquityPage() {
   // 카드 컴팩트 디자인 — 한눈에 더 많이 보이게
   document.getElementById('equityCards').innerHTML = eqData.map(d=>`
     <div class="kpi-card pad-8-10">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:6px;">
-        <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;">${d.name}</div>
-        <div class="${d.chg>=0?'up-txt':'down-txt'}" style="font-size:var(--font-size-sm);font-weight:var(--font-weight-medium);white-space:nowrap;">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
-      </div>
-      <div style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);font-variant-numeric:tabular-nums;margin-top:2px;">${fmtIndicator(d.val,'index')}</div>
+      <div class="econ-stat__label" style="white-space:nowrap;">${d.name}</div>
+      <div class="econ-num econ-num--m" style="margin-top:2px;">${fmtIndicator(d.val,'index')}</div>
+      <div class="${d.chg>=0?'up-txt':'down-txt'} econ-num__chg">${d.chg>=0?'▲':'▼'} ${Math.abs(d.chg).toFixed(2)}%</div>
     </div>`).join('');
   // 기본은 KOSPI 실제 시계열 사용 (data.json.history)
   const real = getHistoricalSeries('indices', 'KOSPI');
@@ -7800,12 +7798,12 @@ function buildMacroIndicatorTable() {
             }
           }
           const indIdx = macroIndicators.indexOf(r);
-          return `<button type="button" class="clickable-card btn-plain" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:6px 9px;background:rgba(255,255,255,0.03);border-radius:var(--r-sm);border:1px solid rgba(255,255,255,0.06);cursor:pointer;" title="${r.name} · ${r.src} · ${unitStr||''}${periodStr!=='—'?' · '+periodStr:''}">
+          return `<button type="button" class="clickable-card btn-plain econ-inner" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" title="${r.name} · ${r.src} · ${unitStr||''}${periodStr!=='—'?' · '+periodStr:''}">
             <span style="display:block;font-size:var(--font-size-sm);color:var(--c-txt);">${r.cc}</span>
             <span style="display:block;font-size:var(--font-size-base);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:${valColor};">${staleMark}${valStr}</span>
           </button>`;
         }).join('');
-        return `<div style="background:rgba(255,255,255,0.02);border-radius:var(--r-sm);padding:8px;border-left:3px solid ${color};">
+        return `<div>
           <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">${topic} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">· ${items.length}개국</span></div>
           <div class="g-2" style="display:grid;gap:4px;">${cards}</div>
         </div>`;
@@ -7828,7 +7826,7 @@ function buildMacroIndicatorTable() {
       } else if(!r.dataPath) { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       const indIdx = macroIndicators.indexOf(r);
       const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:var(--font-size-xs);padding:2px 6px;background:var(--c-accent)22;color:var(--c-accent);border:1px solid var(--c-accent)55;border-radius:var(--r-xs);text-decoration:none;">${r.linkLabel||'최신 보고서'} →</a>` : '';
-      return `<div class="clickable-card" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:rgba(255,255,255,0.03);border-radius:var(--r-sm);border-left:3px solid ${color};cursor:pointer;" title="클릭 → 시계열 차트">
+      return `<div class="clickable-card econ-inner" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
           <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);"><button type="button" class="btn-plain btn-inline">${r.cc} ${r.name} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></button></div>
           <div class="note-line" style="margin-top:2px;">${srcStr} · ${r.freq} · ${periodStr}</div>

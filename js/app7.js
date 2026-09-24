@@ -8,7 +8,7 @@
 
 // §6.0 대조표 — JSON 키·enum 은 그대로, 화면 글자만 여기서 정한다.
 var MER_LABELS = {
-  state: { below: '정상', near: '주시', crossed: '돌파', unknown: 'N/A' },
+  state: { below: '정상', near: '주시', crossed: '돌파', unknown: '판정 불가' },
   // 비중 표기는 우리말로 — 이전 'OW'/'UW'/'N' 은 해독 키가 화면 어디에도 없었다(기획 2026-09-21 C8).
   view:  { '-2': '강한 축소', '-1': '축소', '0': '중립', '1': '확대', '2': '강한 확대' },
   layer: { cause: '원인', market: '시장 변수', channel: '창구', asset: '자산' },
@@ -164,8 +164,8 @@ function _merGaugeSvg(value) {
       '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="var(--c-txt)"/>'
     : '';
   return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h +
-    '" role="img" aria-label="게이지 값 ' + (hasVal ? Math.round(v) : 'N/A') + '">' + arcs + needle + '</svg>' +
-    '<div class="mer-gauge-val">' + (hasVal ? Math.round(v) : 'N/A') + '</div>';
+    '" role="img" aria-label="게이지 값 ' + (hasVal ? Math.round(v) : '—') + '">' + arcs + needle + '</svg>' +
+    '<div class="mer-gauge-val">' + (hasVal ? Math.round(v) : '—') + '</div>';
 }
 
 function _merRenderGauges(d) {
@@ -339,7 +339,7 @@ function _merRenderMonitorSummary() {
     item('돌파', n.crossed, 'var(--c-up)') +
     item('주시', n.near, 'var(--c-warn,#f0c75e)') +
     item('정상', n.below) +
-    item('N/A', n.unknown) +
+    item('판정 불가', n.unknown) +
     (top.length ? '<span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">· 가장 가까운 것: ' +
        _merEsc(top.join(' · ')) + '</span>' : '');
 }
@@ -352,7 +352,7 @@ function _merRenderMonitor(d) {
   });
   var filtBox = document.getElementById('merlensMonitorFilters');
   if (filtBox && !filtBox.dataset.built) {
-    var opts = [['all', '전체'], ['crossed', '돌파'], ['near', '주시'], ['below', '정상'], ['unknown', 'N/A']];
+    var opts = [['all', '전체'], ['crossed', '돌파'], ['near', '주시'], ['below', '정상'], ['unknown', '판정 불가']];
     filtBox.innerHTML = opts.map(function (o) {
       return '<button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" ' +
         'data-mer-filter="' + o[0] + '" aria-pressed="' + (o[0] === (_merMonitorFilter || 'all') ? 'true" data-checked="' : 'false') + '" onclick="_merSetMonitorFilter(\'' + o[0] + '\',this)">' +
@@ -912,7 +912,7 @@ function _merMonthCell(asset, ym) {
   var last = null;
   (asset.series || []).forEach(function (s) { if ((s.date || '').indexOf(ym) === 0 && (!last || s.date >= last.date)) last = s; });
   var reversal = (asset.reversals || []).some(function (rd) { return (rd || '').indexOf(ym) === 0; });
-  if (!last) return '<td class="mer-stance-cell mer-stance-cell--empty">–</td>';
+  if (!last) return '<td class="mer-stance-cell mer-stance-cell--empty">—</td>';
   var v = last.view;
   var color = v > 0 ? 'var(--c-up)' : v < 0 ? 'var(--c-down)' : 'var(--c-txt-dim)';
   var bold = Math.abs(v) === 2;

@@ -779,12 +779,13 @@
                gap: var(--seed-dimension-x1, 4px); text-align: left; cursor: pointer;
                font-family: inherit; }
   .econ-stat__label { display: flex; align-items: baseline; gap: var(--seed-dimension-x1_5, 6px);
-                      font-size: var(--seed-font-size-t2); font-weight: var(--seed-font-weight-medium);
-                      color: var(--seed-color-fg-neutral-muted); margin-bottom: 0;
+                      font-size: var(--font-size-xs); font-weight: var(--seed-font-weight-medium);
+                      color: var(--c-txt-dim); margin-bottom: 0;
                       text-transform: none; letter-spacing: 0; flex-wrap: wrap; }
   .econ-stat__unit { font-size: var(--seed-font-size-t2); font-weight: var(--seed-font-weight-regular);
                      color: var(--seed-color-fg-neutral-muted); }
-  .econ-stat__val { font-size: var(--seed-font-size-t8); line-height: var(--seed-line-height-t8);
+  /* 숫자 블록 3크기(6차 §4.5): L 24 = 화면 첫 KPI · M 18 = 위젯 안 대표값 · S 14 = 표·목록·안쪽 카드 */
+  .econ-stat__val { font-size: var(--seed-font-size-t9); line-height: var(--seed-line-height-t9, 32px);
                     font-weight: var(--seed-font-weight-bold); font-family: var(--font-num);
                     font-variant-numeric: tabular-nums; color: var(--seed-color-fg-neutral); }
   .econ-stat__valrow { display: flex; align-items: baseline; gap: var(--seed-dimension-x1_5, 6px);
@@ -1258,6 +1259,21 @@
   .widget.pad-36-20 { padding: 36px 20px; }
   .kpi-card.pad-8 { padding: 8px; }
   .kpi-card.pad-8-10 { padding: 8px 10px; }
+  /* 카드 상자 2벌(6차 §4.6): A = .widget/.kpi-card(16 · r12 · 테두리) · B = 위젯 **안**의 값 묶음.
+     B 는 배경을 body 색으로 한 단 낮추고 테두리는 약하게 — 리터럴 rgba(255,255,255,.03) 가 라이트에서
+     안 보이던 자리다. */
+  .econ-inner { padding: 8px 10px; border-radius: var(--r-sm); background: var(--c-bg);
+                border: 1px solid var(--c-border-weak, var(--c-border)); }
+  .kpi-card.pad-8, .kpi-card.pad-8-10 { padding: 8px 10px; border-radius: var(--r-sm) !important;
+                box-shadow: none !important; }
+  /* 숫자 블록 부품 — 값 굵게, 등락은 한 단 작게 값 **아래**(벤치 3표면 공통) */
+  .econ-num { font-family: var(--font-num); font-variant-numeric: tabular-nums;
+              font-weight: var(--font-weight-bold); color: var(--c-txt); }
+  .econ-num--l { font-size: var(--seed-font-size-t9); line-height: 32px; }
+  .econ-num--m { font-size: var(--font-size-lg); line-height: 24px; }
+  .econ-num--s { font-size: var(--font-size-sm); }
+  .econ-num__chg { font-size: var(--font-size-xs); font-weight: var(--font-weight-medium);
+                   font-variant-numeric: tabular-nums; }
   body { background: var(--c-bg,#0a0e18); color: var(--c-txt,#e8ebf5); font-family:var(--font-family-body); margin: 0; overflow-x: hidden; }
   .mat { font-family: 'Material Symbols Outlined'; font-size: 18px; line-height: 1; vertical-align: middle; }
   /* ── 헤더 = seed-app-bar. recipe 는 position:absolute·z-index 변수 미정의라
@@ -1594,8 +1610,9 @@
   /* 배너 색·패딩·닫기 버튼은 seed-page-banner recipe 가 준다(tone_critical/warning
      × variant_solid/weak). 여기 남은 것은 recipe 에 없는 카운트다운 숫자 표시뿐. */
   .halt-banner .halt-cd { font-variant-numeric: tabular-nums; font-weight: var(--font-weight-medium); }
-  .halt-hist-table { width: 100%; border-collapse: collapse; font-size:var(--font-size-xs); }
-  .halt-hist-table th, .halt-hist-table td { padding: 6px 8px; border-bottom: 1px solid var(--c-border,#3a4054); text-align: left; white-space: nowrap; }
+  /* 글자 크기·머리 굵기는 .econ-table 한 벌을 따른다(6차 C7 — 이 표만 12/600 좌정렬이었다) */
+  .halt-hist-table { width: 100%; border-collapse: collapse; }
+  .halt-hist-table th, .halt-hist-table td { white-space: nowrap; }
   /* 390 에서는 nowrap 이 사유 칸 하나로 표를 208px 넘기게 만든다 — 줄바꿈을 허용하고
      여백을 줄인다. 행 수가 적은 표라 세로로 조금 길어지는 편이 옆으로 미는 것보다 낫다. */
   @media (max-width: 480px) {
@@ -1605,7 +1622,7 @@
     .halt-hist-table th, .halt-hist-table td { white-space: normal; padding: 5px 2px;
       word-break: keep-all; overflow-wrap: anywhere; }
   }
-  .halt-hist-table th { color: var(--c-txt-dim,#8b93a7); font-weight: 600; }
+  /* 머리 색·굵기는 .econ-table 한 벌(6차 C7) */
   @keyframes _spin { to { transform: rotate(360deg); } }
   .spin-anim { animation: _spin .8s linear infinite; display: inline-block; }
 
@@ -4445,27 +4462,27 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
           <!-- 카드 1: 전국주택가격동향조사 매매가격지수 변동률 (사용자가 reb.or.kr 에서 보는 값) -->
           <button type="button" class="kpi-card kpi-clickable econ-stat" style="" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 변동률 (아파트)',{unit:'% (월간 변동률)'})">
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 매매가격지수 변동률 (아파트)</div>
+            <div class="econ-stat__label" style="margin-bottom:4px;">전국주택가격동향조사 매매가격지수 변동률 (아파트)</div>
             <div id="reKpiAptPrice" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
             <div id="reKpiAptPriceMeta" style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);" title="R-ONE 데이터 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </button>
           <!-- 카드 2: 전국주택가격동향조사 전세가격지수 변동률 -->
           <button type="button" class="kpi-card kpi-clickable econ-stat" style="" onclick="showReHistoryChart('jns_price_idx_kr', '전국주택가격동향조사 전세가격지수 변동률 (주택종합)', {unit:'% (월간 변동률)'})">
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">전국주택가격동향조사 전세가격지수 변동률 (주택종합)</div>
+            <div class="econ-stat__label" style="margin-bottom:4px;">전국주택가격동향조사 전세가격지수 변동률 (주택종합)</div>
             <div id="reKpiAptIdxVal" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
             <div id="reKpiAptIdxChg" style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);" title="R-ONE 데이터 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE (전국주택가격동향조사) · 단위: 전월比 %</div>
           </button>
           <!-- 카드 3: 부동산거래현황 (한국부동산원 R-ONE) — 국토부 실거래가 API 미수집분 대체 -->
           <button type="button" class="kpi-card kpi-clickable econ-stat" style="" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})">
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">행정구역별 아파트거래현황 (전국)</div>
+            <div class="econ-stat__label" style="margin-bottom:4px;">행정구역별 아파트거래현황 (전국)</div>
             <div id="reKpiVol" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
             <div id="reKpiVolMeta" style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);" title="부동산원 거래현황 페치 중…"><span class="skel-bar" style="width:110px;"></span></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">출처: 한국부동산원 R-ONE 행정구역별 아파트거래현황 · 단위: 동(호)수</div>
           </button>
           <div class="kpi-card accent-l-down">
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">서울 PIR (소득대비)</div>
+            <div class="econ-stat__label" style="margin-bottom:4px;">서울 PIR (소득대비)</div>
             <div id="reKpiPir" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">19.3<span style="font-size:var(--font-size-base);">배</span></div>
             <div style="font-size:var(--font-size-sm);margin-top:4px;color:var(--c-txt-dim);">전년 20.1배</div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">통계청 가계금융복지</div>
@@ -4716,22 +4733,22 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 1) 핵심 KPI 카드 4개 -->
         <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
           <div class="kpi-card accent-l">
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Case-Shiller HPI (전국)</div>
+            <div class="econ-stat__label" style="margin-bottom:4px;">Case-Shiller HPI (전국)</div>
             <div id="usKpiCaseShiller" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
             <div id="usKpiCaseShillerChg" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:4px;">FRED: CSUSHPINSA</div>
           </div>
           <div class="kpi-card accent-l-down">
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">30년 모기지 금리</div>
+            <div class="econ-stat__label" style="margin-bottom:4px;">30년 모기지 금리</div>
             <div id="usKpiMortgage30" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
             <div id="usKpiMortgage30Chg" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:4px;">Freddie Mac (FRED)</div>
           </div>
           <div class="kpi-card accent-l-warn">
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">NAHB 주택시장지수</div>
+            <div class="econ-stat__label" style="margin-bottom:4px;">NAHB 주택시장지수</div>
             <div id="usKpiNahb" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
             <div id="usKpiNahbChg" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:4px;">월간 발표 (FRED)</div>
           </div>
           <div class="kpi-card accent-l-up">
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">주택착공 (Housing Starts)</div>
+            <div class="econ-stat__label" style="margin-bottom:4px;">주택착공 (Housing Starts)</div>
             <div id="usKpiHousingStarts" style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">—</div>
             <div id="usKpiHousingStartsChg" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:4px;">천 호 (FRED: HOUST)</div>
           </div>
@@ -5066,22 +5083,22 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="g-4" style="display:grid;gap:12px;margin-bottom:16px;">
         <div class="kpi-card">
           <h3 class="widget-title">총 운용 자산</h3>
-          <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">1,326.0<span style="font-size:var(--font-size-base);">조원</span></div>
+          <div style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">1,326.0<span style="font-size:var(--font-size-base);">조원</span></div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">2026년 3월말 기준</div>
         </div>
         <div class="kpi-card">
           <h3 class="widget-title">2025년 수익률</h3>
-          <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+13.42%</div>
+          <div style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+13.42%</div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">연간 수익률 (잠정)</div>
         </div>
         <div class="kpi-card">
           <h3 class="widget-title">설립이후 연평균</h3>
-          <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+6.21%</div>
+          <div style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+6.21%</div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">1988~2025 연환산</div>
         </div>
         <div class="kpi-card">
           <h3 class="widget-title">최근 5년 누적</h3>
-          <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+52.8%</div>
+          <div style="font-size:var(--font-size-2xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);" class="up-txt">+52.8%</div>
           <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:4px;">2021~2025 누적</div>
         </div>
       </div>
