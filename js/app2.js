@@ -1395,7 +1395,9 @@ async function pfPullTracking(auto) {
     const _kh = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : '';
     // 이 기기에 동기화 키가 없으면 서버는 401 을 준다 → 원인을 명확히 안내(다른 기기에서 저장한 목록을
     // 새 기기에서 불러오려면 ⚙ 설정에서 동일한 동기화 키를 먼저 입력해야 한다).
-    if(!_kh && !auto) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
+    // 키가 없으면 자동 복원도 부르지 않는다 — 서버는 무조건 401 을 주고, 그 실패가 키 없는 모든 방문자의
+    // 콘솔에 찍혔다(2026-09-24 프로덕션 순찰). 종전 가드는 수동(!auto) 호출만 막고 있었다.
+    if(!_kh) { if(!auto && st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
     // 키 해시는 헤더로만 전송 (위 pfPullAlerts 와 동일 — URL 로그 유출 방지, Worker 배포 확인됨)
     const r = await fetch(base + '/portfolio', { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
     if(r.status === 401 || r.status === 403) { if(!auto && st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = window.CDN; } return; }

@@ -132,13 +132,14 @@ window.runDiagnostics = async function () {
     }
   } catch (e) { rows.push(_row('err', '시계열 정합성', '검사 실패: ' + _esc(e.message))); }
 
-  /* 7) 알림 서버(Worker) 도달 — 응답 자체(HTTP 상태)만 확인. [이슈1] GET /portfolio 는 이제 인증 필요라
-        keyHash 없이 호출하면 401 이 정상(도달 확인엔 충분 — 5xx 만 오류로 본다). */
+  /* 7) 알림 서버(Worker) 도달 — 응답 자체(HTTP 상태)만 확인. 인증이 필요 없는 공개 경로 /discord/health 를 부른다.
+        종전엔 인증 필요한 GET /portfolio 를 키 없이 불러 401 로 '도달'을 판정했는데, 그 401 이 진단을 열 때마다
+        콘솔 오류로 찍혀 진짜 오류와 섞였다(2026-09-24 프로덕션 순찰). 5xx 만 오류로 본다. */
   try {
     var base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
     if (!base) rows.push(_row('warn', '알림 서버', 'Worker 프록시 미설정'));
     else {
-      var wr = await fetch(base + '/portfolio', { signal: AbortSignal.timeout(8000) });
+      var wr = await fetch(base + '/discord/health', { signal: AbortSignal.timeout(8000) });
       rows.push(_row(wr.status < 500 ? 'ok' : 'warn', '알림 서버',
         _esc(base.replace(/^https?:\/\//, '')) + ' 응답 HTTP ' + wr.status + (wr.status < 500 ? ' — 도달 정상' : ' — 서버 오류')));
     }
