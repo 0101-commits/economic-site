@@ -1,4 +1,7 @@
 name: Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)
+# 런 제목에 풀·일일 표식 — Worker 의 경량 과밀 판정(_isLightRun)이 이 표식으로 풀 런을 걸러낸다.
+# (name 은 kakao-daily 의 workflow_run 이 문자열로 참조하므로 바꾸지 않는다 — run-name 은 별개.)
+run-name: ${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.mode == 'full' || github.event.client_payload.mode == 'daily') && format('fetch-data [full] {0}', github.event.client_payload.mode) || github.workflow }}
 
 # 자동 실행 스케줄 (UTC 기준; GitHub Actions 는 UTC 만 인식)
 # 1) 매 시간 정각 — 24시간 시세 베이스라인 갱신
@@ -30,11 +33,11 @@ on:
     #   않았고(fetch_data.py 의 PMI 게이트에서 2026-06-10 실측·확인된 동작), 그 결과 아래
     #   AV_FETCH_FULL 스위치가 한 번도 켜진 적 없는 죽은 코드였다(2026-07 감사). :05 는 매시간(:00)·
     #   장중(*/15 → :00/:15/:30/:45) 어느 cron 과도 겹치지 않아 일일 런이 독립 발화한다.
-    - cron: '5 0 * * *'      # KST 09:05 (UTC 00:05) — 매일 아침 종합 갱신
+    # (삭제 2026-09-24) - cron: '5 0 * * *' — 일일 런은 Worker daily dispatch(:07)가 담당. 겹치면 AV·메르 추출이 두 번 돈다
     - cron: '30 0 * * *'     # KST 09:30 (UTC 00:30) — 9AM 데이터 미수집 대비 보강
-    - cron: '5 7 * * *'      # KST 16:05 (UTC 07:05) — 한국 장 마감 직후 종합 갱신
+    # (삭제 2026-09-24) - cron: '5 7 * * *' — 일일 런은 Worker daily dispatch(:07)가 담당. 겹치면 AV·메르 추출이 두 번 돈다
     - cron: '30 7 * * *'     # KST 16:30 (UTC 07:30) — 4PM 데이터 미수집 대비 보강
-    - cron: '5 13 * * *'     # KST 22:05 (UTC 13:05) — 매일 저녁 종합 갱신 (당일 발표 반영)
+    # (삭제 2026-09-24) - cron: '5 13 * * *' — 일일 런은 Worker daily dispatch(:07)가 담당. 겹치면 AV·메르 추출이 두 번 돈다
     - cron: '30 13 * * *'    # KST 22:30 (UTC 13:30) — 10PM 데이터 미수집 대비 보강
   workflow_dispatch:        # 수동 실행 허용
     inputs:

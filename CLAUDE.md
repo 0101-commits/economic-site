@@ -393,6 +393,28 @@ GitHub Actions (fetch_data.py)
 
 The script **preserves previous values** on partial failure — individual API errors don't blank the data.
 
+**데이터 신선도 규칙 (2026-09-24 개편, 기획 "데이터 전수 검사·신선도 고도화").**
+- **값을 지어내지 않는다.** 하드코딩 폴백 상수(`FALLBACK` 표·프런트 `KR_FALLBACKS`·수익률곡선 상수·
+  보간+노이즈 시계열·환율 시가/고가/저가·아연/니켈 합성선)는 전부 삭제됐다. 현재가 수집이 실패하면
+  `_prev_spot` 이 직전 값을 `stale:true`·`change:null`·`staleSince` 로 되살리고(4일 상한), 판정표가
+  `preserved` 로 드러낸다. 다시 넣지 말 것.
+- **as-of 는 소스가 준 날짜만.** 토스 랭킹·등락상위의 `as_of` 는 수집일이 아니라 거래일이고
+  (`_kr_session_date`: 캘린더가 휴장이라면 직전 영업일), 스냅샷 소비 가드도 '오늘'이 아니라 '최근 거래일'이다.
+- **판정표(`scripts/data_sla.py`)는 주기에서 SLA 를 도출한다** — 경로 규칙의 일수가 `None` 이면
+  `infer_cadence`(노드 `cadence` → history 간격 → period 형식)로 월간·분기·연간을 알아내고 **기간
+  종료일부터** `CADENCE_SLA` 로 잰다. 새 저빈도 지표에 경로별 일수를 손으로 맞추지 말 것.
+  프런트가 읽는데 키째 사라질 수 있는 경로는 `_EXPECTED_TOPS`(점 경로)에 넣어야 missing 으로 잡힌다.
+- **호스트 서킷브레이커** — `fetch_data.py` 의 모듈 `requests` 는 `_HostBreaker` 다. 같은 호스트에서
+  ConnectTimeout 3회 연속이면 그 런의 나머지 호출은 즉시 실패(ECOS·R-ONE·data.go.kr 동시 장애로
+  70분 timeout 이 나던 경로). 차단 호스트는 `diagnostics.deadHosts`.
+- **풀 런도 Worker 가 깨운다** — Worker 매분 cron 이 매시 :07(:08 보강) `fetch-data` 를
+  `client_payload.mode='full'`, UTC 0·7·13시엔 `'daily'`(AV·ENSO·메르 추출·펀더멘털)로 dispatch 한다.
+  GHA schedule 은 7일 실측 의도의 10~20%만 발화해 백업으로만 남겼고, 일일 cron 3개는 중복을 막으려고
+  지웠다. 풀·일일 런은 `run-name` 에 `[full]` 이 붙고, Worker 의 경량 과밀 판정(`_isLightRun`)은 그
+  표식이 없는 dispatch 런만 센다(풀 런이 경량 5분 런을 굶기지 않게).
+- 수급 포털 기준: 네이버 `investorDealTrendDay` 410(2026-09-21) 이후 KRX(pykrx) 확정치로 정렬하고
+  `investorTrading.krxDaily` 에 실어 `investor_flows.portal_daily()` 가 읽는다.
+
 ## Cloudflare Worker
 
 Deployed from `cloudflare-worker/`. Acts as:
@@ -530,8 +552,10 @@ missing the script exits 1 with a log line and the pipeline just falls back.
 
 `fetch_data.toss_connection_status()` turns the snapshot's `generatedAt` into
 `data.json.diagnostics.toss` = `{state, generatedAt, ageMinutes, supplied, reason}`.
-`state` is `LIVE` (≤2 h, one scheduler tick of slack), `STALE` (≤96 h — the same bound as the
-yield-curve guard), or `OFFLINE` (missing / unparsable / older). `supplied` is read back out of
+`state` is `LIVE` (≤2 h, one scheduler tick of slack), `IDLE` (older, but it is a KR holiday /
+weekend / outside 09:10–16:00 — the collector does not rewrite an unchanged file, so an aging snapshot
+is normal; 2026-09-24), `STALE` (≤96 h during business-day market hours — the collector PC is likely
+off), or `OFFLINE` (missing / unparsable / older). `IDLE` is silent in the UI like `LIVE`. `supplied` is read back out of
 `data["sources"]`, so a block only counts as Toss-provided when the label says it actually was.
 
 `_tossChipHtml()` (`js/app1.js`) renders it next to the header timestamp and **stays silent on
@@ -539,8 +563,8 @@ yield-curve guard), or `OFFLINE` (missing / unparsable / older). `supplied` is r
 invisible: when the collector PC is off, indices/KTB/rankings/investor flows quietly switch to
 pykrx/yfinance while the numbers on screen look unchanged.
 
-Regression test: `python scripts/tests/test_toss_status.py` (8 cases — boundaries, missing
-snapshot, unparsable timestamp, and clock skew producing a negative age).
+Regression test: `python scripts/tests/test_toss_status.py` (12 cases — boundaries, missing
+snapshot, unparsable timestamp, clock skew, weekend/holiday IDLE via today or yesterday's calendar).
 
 **Toss daily candles are an integrated session** (pre-market + regular + after-hours), so
 their close is not the base price percentage moves are quoted against. Use `rankings()`'s

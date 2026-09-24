@@ -1011,11 +1011,11 @@ function inKakaoSlot(d) {
 //   영구히 참으로 만들어 alerts-cron dispatch 가 34일간 전부 생략됐고, 종목 알림·급변
 //   속보·서킷브레이커가 미발화율 높은 GHA schedule 에만 매달렸다(8/20 이후 실측:
 //   repository_dispatch 3건 vs schedule 97건). 나이를 넘긴 대기 런은 없는 셈 친다.
-async function _wfBusy(env, wfFile, statuses, ua, maxAgeMin) {
+async function _wfBusy(env, wfFile, statuses, ua, maxAgeMin, runFilter) {
   const cutoff = maxAgeMin ? Date.now() - maxAgeMin * 60000 : null;
   const check = async (status) => {
     const r = await fetch(
-      `https://api.github.com/repos/${GH_REPO}/actions/workflows/${wfFile}/runs?status=${status}&per_page=5`, {
+      `https://api.github.com/repos/${GH_REPO}/actions/workflows/${wfFile}/runs?status=${status}&per_page=${runFilter ? 20 : 5}`, {
       headers: {
         'Authorization': 'Bearer ' + env.GH_DISPATCH_TOKEN,
         'Accept': 'application/vnd.github+json',
@@ -1026,9 +1026,9 @@ async function _wfBusy(env, wfFile, statuses, ua, maxAgeMin) {
     });
     if (!r.ok) return false;                       // 403/404/5xx → fail-open
     const j = await r.json().catch(() => null);
-    const runs = (j && j.workflow_runs) || [];
+    const runs = ((j && j.workflow_runs) || []).filter(runFilter || (() => true));
     if (!runs.length) return false;
-    if (!cutoff) return Number(j.total_count) > 0;
+    if (!cutoff) return runFilter ? true : Number(j.total_count) > 0;
     return runs.some((run) => {
       const t = Date.parse(run.created_at || '');
       return !Number.isNaN(t) && t >= cutoff;      // 신선한 대기 런만 '바쁨'으로 본다
@@ -1042,7 +1042,11 @@ async function _wfBusy(env, wfFile, statuses, ua, maxAgeMin) {
 
 // 90분 = 풀 런 실측 최대(57분) + 여유. 그보다 오래 걸린 런은 timeout-minutes(70)에
 // 걸려 이미 끝났어야 하므로 좀비로 본다.
-const _fetchDataBusy = (env) => _wfBusy(env, 'fetch-data.yml', ['in_progress', 'queued'], 'ecom-fetch-cron', 90);
+// 경량 그룹 런만 센다 — 풀·일일 런(run-name 에 '[full]', schedule·push)은 concurrency 그룹이 달라
+// 경량 런을 막지 않는데, 종전처럼 워크플로 전체를 보면 매시 풀 런(12분+)이 도는 동안 장중 5분
+// 경량 dispatch 가 전부 '실행 중 — 생략'으로 굶는다(2026-09-24 리뷰).
+const _isLightRun = (run) => run.event === 'repository_dispatch' && !/\[full\]/.test(run.display_title || '');
+const _fetchDataBusy = (env) => _wfBusy(env, 'fetch-data.yml', ['in_progress', 'queued'], 'ecom-fetch-cron', 90, _isLightRun);
 
 // 🔍 stock-alerts 에 '이미 대기 중인 런'이 있는지 조회 — cancelled 양산 차단 게이트.
 //   GitHub concurrency 는 그룹당 '실행 1 + 대기 1'만 유지하고 그 위로 오는 dispatch 가

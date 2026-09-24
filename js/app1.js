@@ -2767,6 +2767,10 @@ const usRegionMapShapes = [
 
 let _usReRegionTooltipChart = null;
 
+// 미국 주별 값은 FHFA 분기 등락률(전분기比)이다. 색 구간(_regionColorForVal)은 한국 월간 등락
+// (±0.3%) 기준이라 월 환산(÷3)해서 칠한다. 값이 없으면 회색·'—'.
+const _usRegionColor = v => _regionColorForVal(v == null ? null : v / 3);
+const _usValStr = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
 function buildUsRegionMap() {
   const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2', grid:'#2a2e3d55', tooltip:'#262a35', ttTitle:'#dfe2f2', ttBorder:'#2a2e3d', ttBody:'#dfe2f2'};
   const svgEl = document.getElementById('usReRegionMap');
@@ -2786,14 +2790,14 @@ function buildUsRegionMap() {
   usRegionMapShapes.forEach(s => {
     const d = usRegionData.find(r => r.code === s.code);
     if(!d) return;
-    const fill = _regionColorForVal(d.val);
+    const fill = _usRegionColor(d.val);
     svgHtml += `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="3" fill="${fill}" stroke="${tc.txt}" stroke-width="0.8" data-code="${s.code}" data-label="${s.label}" data-val="${d.val}" class="us-region-shape" style="cursor:pointer;transition:opacity .15s, filter .15s;" filter="url(#usRegionShadow)"/>`;
     // 작은 주는 라벨 생략
     if(s.w >= 35 && s.h >= 25) {
       const fontSize = s.w < 50 ? 8 : 9;
       svgHtml += `<text x="${s.x + s.w/2}" y="${s.y + s.h/2 + 2}" text-anchor="middle" font-size="${fontSize}" font-weight="700" fill="#fff" pointer-events="none" style="text-shadow:0 1px 2px rgba(0,0,0,.6);">${s.label}</text>`;
       if(s.w >= 55 && s.h >= 40) {
-        svgHtml += `<text x="${s.x + s.w/2}" y="${s.y + s.h/2 + 13}" text-anchor="middle" font-size="8" fill="#fff" pointer-events="none" style="text-shadow:0 1px 2px rgba(0,0,0,.6);">${(d.val>=0?'+':'')+d.val.toFixed(2)+'%'}</text>`;
+        svgHtml += `<text x="${s.x + s.w/2}" y="${s.y + s.h/2 + 13}" text-anchor="middle" font-size="8" fill="#fff" pointer-events="none" style="text-shadow:0 1px 2px rgba(0,0,0,.6);">${_usValStr(d.val)}</text>`;
       }
     }
   });
@@ -2830,7 +2834,7 @@ function _showUsRegionTooltip(e, el) {
   const code = el.dataset.code;
   const d = usRegionData.find(r => r.code === code);
   if(!d) return;
-  const valStr = (d.val>=0?'+':'')+d.val.toFixed(2)+'%';
+  const valStr = _usValStr(d.val);
   document.getElementById('usReRegionTooltipTitle').textContent = d.label + ' (' + d.region + ')';
   const valEl = document.getElementById('usReRegionTooltipVal');
   valEl.textContent = valStr;
@@ -2939,8 +2943,8 @@ function buildUsOsmRegionMap() {
   usRegionData.forEach(d => {
     const ll = usRegionLatLng[d.code];
     if(!ll) return;
-    const color = _regionColorForVal(d.val);
-    const valStr = (d.val >= 0 ? '+' : '') + d.val.toFixed(2) + '%';
+    const color = _usRegionColor(d.val);
+    const valStr = _usValStr(d.val);
     const icon = L.divIcon({
       className: 'osm-us-region-marker',
       html: `<div style="background:${color};color:${_onFill(color)};padding:3px 7px;border-radius:var(--r-md);font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;line-height:1.2;cursor:pointer;">
@@ -4751,8 +4755,8 @@ let comData=[
   // 비철금속
   {name:'구리 (Copper)',      price:'$4.65',     chg:'-0.82%', up:false, unit:'$/lb',  cat:'base'},
   {name:'알루미늄',           price:'$2,248',    chg:'+0.21%', up:true,  unit:'$/톤',  cat:'base'},
-  {name:'아연 (Zinc)',        price:'$2,912',    chg:'-0.35%', up:false, unit:'$/톤',  cat:'base'},
-  {name:'니켈 (Nickel)',      price:'$16,820',   chg:'-1.12%', up:false, unit:'$/톤',  cat:'base'},
+  {name:'아연 (Zinc)',        price:'—',         chg:'—',      up:false, unit:'$/톤',  cat:'base'},   // 가격 소스 없음(상수였다)
+  {name:'니켈 (Nickel)',      price:'—',         chg:'—',      up:false, unit:'$/톤',  cat:'base'},
   // 에너지·농산물
   {name:'천연가스',           price:'$2.18',     chg:'-1.24%', up:false, unit:'$/MMBtu',cat:'energy'},
   {name:'밀 (Wheat)',         price:'$5.84',     chg:'+1.10%', up:true,  unit:'$/bu',  cat:'agri'},
@@ -4987,8 +4991,6 @@ function updateFxHeader() {
   // 정보 패널 (시가/고가/저가/전일종가/52주)
   const prevClose = baseRate / (1 + (pair.pct || 0) / 100);
   const fmt = (v, d) => v.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
-  const high  = Math.max(baseRate, prevClose) * 1.003;
-  const low   = Math.min(baseRate, prevClose) * 0.997;
 
   const toDisplay = v => {
     if (!fxInverted) return v * dm;
@@ -4997,9 +4999,9 @@ function updateFxHeader() {
   };
   const dispDec = fxInverted ? (isKrwDenom ? (pair.pair.split('/')[0]==='JPY'?2:4) : 6) : ((baseRate*dm)<10?4:2);
   const setNum = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = fmt(toDisplay(v), dispDec); };
-  setNum('fxInfoOpen', prevClose);
-  setNum('fxInfoHigh', fxInverted ? low : high);
-  setNum('fxInfoLow',  fxInverted ? high : low);
+  // 시가·고가·저가는 수집하지 않는다(history 는 종가만). 종전엔 현재가 ×1.003/×0.997 로
+  // 고가·저가를, 전일 종가로 시가를 매번 지어냈다(2026-09-24 감사) — 없는 값은 '—'.
+  ['fxInfoOpen', 'fxInfoHigh', 'fxInfoLow'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = '—'; });
   setNum('fxInfoPrev', prevClose);
 
   // 상세 블록의 52주도 history 실측을 쓴다 — pair.h52/l52 는 정의부 상수다(구조 통일 S1).
@@ -7042,43 +7044,8 @@ function buildBaseMetalChart(days) {
     });
     anyReal = true;
   }
-  // 아연 / 니켈: yfinance 심볼 없음 → comData 의 현재 가격을 마지막 점으로 사용한 합성 시계열
-  // (LME 5년 평균 ~ 현재 가격 사이를 부드럽게 보간하여 트렌드 표시)
-  function _synthesizeMetalSeries(currentPrice, baseAvg, n) {
-    // 현재 가격에서 baseAvg 까지의 트렌드를 노이즈와 함께 생성
-    if(currentPrice == null) return null;
-    const out = [];
-    for(let i=0;i<n;i++) {
-      const t = i/(n-1);
-      const trend = baseAvg + (currentPrice - baseAvg) * t;
-      const noise = (Math.sin(i*0.4) + Math.cos(i*0.7)) * (currentPrice * 0.015);
-      out.push(+(trend + noise).toFixed(2));
-    }
-    return out;
-  }
-  // comData[8] = 아연, comData[9] = 니켈
-  const zincItem  = (typeof comData!=='undefined') ? comData[8] : null;
-  const nickelItem= (typeof comData!=='undefined') ? comData[9] : null;
-  if(labels.length) {
-    const zincPrice = zincItem ? parseFloat((zincItem.price||'').replace(/[^\d.-]/g,'')) : null;
-    const nickelPrice = nickelItem ? parseFloat((nickelItem.price||'').replace(/[^\d.-]/g,'')) : null;
-    if(zincPrice && !isNaN(zincPrice)) {
-      const zincSeries = _synthesizeMetalSeries(zincPrice, zincPrice*0.92, labels.length);
-      datasets.push({
-        label:'아연(Zinc) $/톤', data: zincSeries,
-        borderColor:window.CUP, borderWidth:2, pointRadius:0, fill:false, tension:0.3,
-        borderDash:[6,3], yAxisID:'yAluminum',
-      });
-    }
-    if(nickelPrice && !isNaN(nickelPrice)) {
-      const nickelSeries = _synthesizeMetalSeries(nickelPrice, nickelPrice*0.88, labels.length);
-      datasets.push({
-        label:'니켈(Nickel) $/톤', data: nickelSeries,
-        borderColor:'#b6c4ff', borderWidth:2, pointRadius:0, fill:false, tension:0.3,
-        borderDash:[2,3], yAxisID:'yAluminum',
-      });
-    }
-  }
+  // (삭제) 아연·니켈 — 수집 소스가 없어 정의부 상수 가격 위에 추세+사인파 노이즈로 합성한
+  // 가짜 선을 그렸다(2026-09-24 감사). 소스가 생기기 전까지 그리지 않는다(재고는 LME 표가 실측).
   if(!anyReal && !datasets.length) {
     showNoDataOverlay('baseMetalChart', '비철금속 시계열 데이터가 아직 수집되지 않았습니다.');
     return;
@@ -7805,7 +7772,7 @@ function buildMacroIndicatorTable() {
               valStr = r.fmt ? r.fmt(node.value) : node.value;
               if(node.period) periodStr = node.period;
               if(node.unit) unitStr = node.unit;
-              if(node.stale) { staleMark = '⚠'; valColor = 'var(--c-warn,#f0c75e)'; }
+              if(node.stale || _dhStale(r.dataPath)) { staleMark = '⚠'; valColor = 'var(--c-warn,#f0c75e)'; }
               else { valColor = 'var(--c-txt,#e8ebf5)'; }
             } else {
               missingApis.add(`${r.cc} ${r.name} (${r.src})`);
@@ -7834,7 +7801,7 @@ function buildMacroIndicatorTable() {
           // 데이터가 자체 단위/출처를 제공하면 우선 사용 (실 PMI 50기준 vs OECD BCI 100기준 구분).
           if(node.unit) unitStr = node.unit;
           if(node.source) srcStr = node.source;
-          if(node.stale) { periodStr += ' · ⚠ 갱신 지연'; valColor = 'var(--c-warn,#f0c75e)'; }
+          if(node.stale || _dhStale(r.dataPath)) { periodStr += ' · ⚠ 갱신 지연'; valColor = 'var(--c-warn,#f0c75e)'; }
           else { valColor = 'var(--c-txt,#e8ebf5)'; }
         } else { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       } else if(!r.dataPath) { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
@@ -10222,27 +10189,35 @@ function buildInvestorPage() {
   }
 
   if(npsTabCurrent === 'allocation') {
+    // 비중은 data.json.nps.allocation(fund.nps.or.kr 수집)이 있으면 그것 — 정의부 npsAllocation 의
+    // 비중·금액은 옛 공시 상수라 포트폴리오 브리핑(같은 data.json 을 씀)과 값이 갈렸다(2026-09-24 감사).
+    // 수집값엔 금액이 없어 금액 칸은 '—', 목표 비중(정책 상수)은 유지한다.
+    const _live = (((_latestDataForIndicators || {}).nps || {}).allocation) || [];
+    const alloc = _live.length ? npsAllocation.map(a => {
+      const hit = _live.find(x => x.asset === a.asset);
+      return hit ? {...a, pct: hit.pct, amount: null} : {...a, pct: null, amount: null};
+    }).filter(a => a.pct != null) : npsAllocation;
     // 자산 배분 도넛
     const allocCtx = document.getElementById('npsAllocationChart');
     if(allocCtx) charts['npsAllocationChart'] = new Chart(allocCtx,{
       type:'doughnut',
-      data:{ labels:npsAllocation.map(a=>a.asset),
-             datasets:[{ data:npsAllocation.map(a=>a.amount),
-               backgroundColor:npsAllocation.map(a=>a.color),
+      data:{ labels:alloc.map(a=>a.asset),
+             datasets:[{ data:alloc.map(a=>a.pct),
+               backgroundColor:alloc.map(a=>a.color),
                borderWidth:0 }] },
       options:{ responsive:true, maintainAspectRatio:false, cutout:'55%',
         plugins:{ legend:{display:true,position:'right',labels:{color:'#b6bbcf',font:{size:11},boxWidth:12,padding:10}},
-                  tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}조원 (${(c.raw/1326.0*100).toFixed(1)}%)`}} }
+                  tooltip:{callbacks:{label:c=>`${c.label}: ${(+c.raw).toFixed(1)}%`}} }
       }
     });
     // 자산별 비중 테이블
     const tb2 = document.getElementById('npsAllocationTable');
-    if(tb2) tb2.innerHTML = npsAllocation.map(a=>{
+    if(tb2) tb2.innerHTML = alloc.map(a=>{
       const diff = a.pct - a.target;
       const diffStr = (diff>=0?'+':'')+diff.toFixed(1)+'%p';
       return `<tr style="border-bottom:1px solid var(--c-border);">
         <td style="padding:8px 0;"><span style="display:inline-block;width:10px;height:10px;background:${a.color};border-radius:var(--r-xs);margin-right:6px;vertical-align:middle;"></span>${a.asset}</td>
-        <td style="text-align:right;padding:8px;font-weight:var(--font-weight-medium);">${a.amount}</td>
+        <td style="text-align:right;padding:8px;font-weight:var(--font-weight-medium);">${a.amount != null ? a.amount : '—'}</td>
         <td style="text-align:right;padding:8px;color:var(--c-primary);">${a.pct.toFixed(1)}%</td>
         <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${a.target.toFixed(1)}% <span style="font-size:var(--font-size-xs);color:${diff>=0?window.CUP:window.CDN};">(${diffStr})</span></td>
       </tr>`;
@@ -12688,6 +12663,11 @@ function applyRealData(d) {
     });
     d = merged;
   }
+  // 신선도 판정표·시장 캘린더는 이 함수 안의 표·배지가 그리면서 읽는다 — 부분 병합 직후에 세팅한다
+  // (종전엔 끝부분에서 세팅돼 첫 렌더의 거시표가 판정표 없이 그려졌다).
+  window._dataHealth = d.dataHealth || window._dataHealth || null;
+  window._mktCal = d.marketCalendarKr || window._mktCal || null;
+  window._kospiLast = ((((d.history || {}).indices || {}).KOSPI || []).slice(-1)[0] || {}).date || null;
   if(!d.economicIndicators) d.economicIndicators = {};
   if(!d.economicIndicators.kr) d.economicIndicators.kr = {};
   _latestDataForIndicators = d;
@@ -12713,6 +12693,26 @@ function applyRealData(d) {
       krRegionData.forEach(r => { if(byCode[r.code] != null) r.val = byCode[r.code]; });
       const rp = document.getElementById('page-realestate');
       if(rp && rp.classList.contains('active') && typeof buildKoreaRegionMap === 'function') { try { buildKoreaRegionMap(); } catch(_){} }
+    }
+  } catch(_) {}
+
+  // 미국 주별 지도 — FHFA 주별 HPI(realestate.us.case_shiller_state, 51개 주·분기)로 교체한다.
+  // 종전엔 교체 코드가 없어 usRegionData 의 손으로 넣은 등락률·추이가 늘 떠 있었다(2026-09-24 감사).
+  // 데이터에 없는 주는 값을 비운다(null → 회색) — 시드값을 실측처럼 두지 않는다.
+  try {
+    const st = ((d.realestate || {}).us || {}).case_shiller_state;
+    if(st && typeof st === 'object' && Object.keys(st).length && typeof usRegionData !== 'undefined') {
+      usRegionData.forEach(r => {
+        const n = st[r.code];
+        if(n && typeof n.chg === 'number') {
+          r.val = n.chg;
+          const ks = Object.keys(n.history || {}).sort();
+          if(ks.length) r.history = ks.slice(-10).map(k => n.history[k]);
+          r.period = n.period || null;
+        } else { r.val = null; r.history = []; }
+      });
+      const rp = document.getElementById('page-realestate');
+      if(rp && rp.classList.contains('active') && typeof buildUsRegionMap === 'function') { try { buildUsRegionMap(); } catch(_){} }
     }
   } catch(_) {}
 
@@ -13009,6 +13009,28 @@ function applyRealData(d) {
         usRow.dir = (prev > cur ? '인하↓' : prev < cur ? '인상↑' : '동결↔');
       }
     }
+    // 유로존·일본·영국 — 종전엔 kr·us 만 갱신돼 나머지 셋은 정의부 상수였다(일본 0.50%·영국 4.50%
+    // 가 실제 1.00%·3.75% 인데 그대로 떠 있었다, 2026-09-24 감사). 같은 방식으로 데이터에서 채운다.
+    const _econ = d.economicIndicators || {};
+    [['eu', (_econ.eu || {}).base_rate_eu], ['jp', (_econ.jp || {}).base_rate_jp], ['uk', (_econ.uk || {}).base_rate_uk]].forEach(([cc, node]) => {
+      const row = currentRates.find(r => r.cc === cc);
+      if(!row) return;
+      if(!(node && node.value != null)) { row.rate = row.prev = '—'; row.dir = '—'; return; }
+      const cur = node.value;
+      let prev = cur;
+      const ps = Object.keys(node.history || {}).sort();
+      for(let i = ps.length - 1; i >= 0; i--) {
+        const v = node.history[ps[i]];
+        if(v != null && Math.abs(v - cur) > 0.001) { prev = v; break; }
+      }
+      row.rate = formatRate(cur); row.prev = formatRate(prev);
+      row.dir = (prev > cur ? '인하↓' : prev < cur ? '인상↑' : '동결↔');
+      if(Array.isArray(rateHistoryData[cc])) rateHistoryData[cc][rateHistoryData[cc].length - 1] = cur;
+    });
+    // 다음 회의일은 정의부 상수라 지나면 거짓이 된다 — 지난 날짜는 비운다.
+    const _todayDot = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '.');
+    currentRates.forEach(r => { if(r.next && r.next !== '—' && r.next < _todayDot) r.next = '—'; });
+    if(Array.isArray(rateHistoryData.labels) && rateHistoryData.labels.length) rateHistoryData.labels[rateHistoryData.labels.length - 1] = '현재';
     // rateHistoryData 의 us 마지막 값도 갱신 (대시보드/페이지 일관성)
     if(usFf?.value != null && typeof rateHistoryData !== 'undefined' && Array.isArray(rateHistoryData.us)) {
       rateHistoryData.us[rateHistoryData.us.length-1] = usFf.value;
@@ -13323,7 +13345,11 @@ function applyRealData(d) {
   }
   // ── 수집 실패로 이전 빌드 값이 보존된 경우 '이전 값 유지' 배지 표시 (멱등) ──
   try {
-    const stale = /보존|preserved|stale/i.test(String((d.sources || {}).sentiment || ''));
+    // 심리지표 출처 라벨은 블록 단위(sources.sentiment)가 아니라 지표별(vkospi·move·pcr·fear_greed)로
+    // 적힌다 — 종전엔 없는 키를 봐서 배지가 절대 켜지지 않았다. 판정표의 preserved 도 본다.
+    const _src = d.sources || {};
+    const stale = ['sentiment', 'vkospi', 'move', 'pcr', 'fear_greed'].some(k => /보존|preserved/i.test(String(_src[k] || '')))
+               || ((d.dataHealth || {}).items || []).some(it => /^sentiment\./.test(it.path || '') && it.state === 'preserved');
     const tEl = document.getElementById('sentimentTitle');
     if(tEl) {
       let b = document.getElementById('sentStaleBadge');
@@ -13650,6 +13676,23 @@ function _dsSlots() {
   }
   return { j: document.getElementById('dsJsonFresh'), r: document.getElementById('dsRtFresh') };
 }
+// 판정표(dataHealth)가 이 지표를 지연·실패로 보는가 — 거시표 '⚠ 갱신 지연' 의 판정 원천.
+// 종전엔 leaf.stale 만 봤는데 그 필드를 가진 지표가 0개라 표시가 한 번도 뜨지 않았다.
+function _dhStale(p) {
+  return ((window._dataHealth || {}).items || []).some(it => it.path === p && (it.state === 'stale' || it.state === 'failed'));
+}
+/* 시세 기준일 — 헤더의 시각은 '파이프라인이 돈 시각'(수집)이고, 화면의 시세가 언제 장
+   것인지는 따로 적는다. 휴장일엔 오늘 수집해도 값은 직전 거래일 것이다(2026-09-24 추석:
+   '09/24 업데이트' 아래 09-23 값이 오늘 것처럼 보였다). */
+function _sessionBasisHtml() {
+  const cal = window._mktCal;
+  const todayK = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const closed = !!(cal && cal.today && cal.today.date === todayK && cal.today.open === false);
+  const sess = closed ? ((cal.previousBusinessDay || {}).date || window._kospiLast) : window._kospiLast;
+  if (!sess) return '';
+  const tip = closed ? '오늘은 국내 증시 휴장 — 국내 시세는 직전 거래일 값입니다' : '국내 시세의 마지막 거래일';
+  return ` <span class="econ-meta" title="${tip}">· 국내 시세 ${sess.slice(5).replace('-', '/')} 기준${closed ? ' (오늘 휴장)' : ''}</span>`;
+}
 function renderDataFreshness() {
   const s = _dsSlots();
   const ts = window._lastServerDataTs || window._lastRealDataTs;
@@ -13663,7 +13706,7 @@ function renderDataFreshness() {
   s.j.innerHTML =
     `<span style="color:${dotColor};font-size:var(--font-size-xs);">●</span> ` +
     dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) +
-    ' 업데이트' + ageTxt + _tossChipHtml() + _healthChipHtml();
+    ' 수집' + ageTxt + _sessionBasisHtml() + _tossChipHtml() + _healthChipHtml();
   const host = document.getElementById('dataSourceInfo');
   if(host) host.title = ageH > 26 ? '⚠ 데이터 수집 파이프라인이 멈춰 있을 수 있습니다 — 설정 > 시스템 진단 확인' : '';
   try { applyWidgetFreshChips(); } catch(_) {}   // Phase 3 — 위젯 타이틀 옆 신선도 칩
@@ -13702,10 +13745,12 @@ function _healthChipHtml() {
   const h = window._dataHealth;
   if (!h || !h.summary) return '';
   const s = h.summary;
-  const bad = (s.stale || 0) + (s.failed || 0) + (s.missing || 0);
+  // 보존 = 이번 수집이 실패해 직전 값을 보여주는 중(현재가 포함) — 숫자는 멀쩡해 보이므로 센다.
+  const bad = (s.stale || 0) + (s.failed || 0) + (s.missing || 0) + (s.preserved || 0);
   if (!bad) return '';
   const col = (s.failed || s.missing || (h.blocking || []).length) ? 'var(--ind-neg)' : 'var(--c-warn,#f0c75e)';
-  const label = ['지연 ' + (s.stale || 0),
+  const label = [s.stale ? '지연 ' + s.stale : '',
+                 s.preserved ? '보존 ' + s.preserved : '',
                  s.failed ? '실패 ' + s.failed : '',
                  s.missing ? '누락 ' + s.missing : ''].filter(Boolean).join(' · ');
   return ' <button type="button" class="health-chip btn-plain btn-inline" onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +

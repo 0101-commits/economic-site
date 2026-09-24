@@ -119,10 +119,14 @@ _SEASON_MID = {"DJF": 1, "JFM": 2, "FMA": 3, "MAM": 4, "AMJ": 5, "MJJ": 6,
                "JJA": 7, "JAS": 8, "ASO": 9, "SON": 10, "OND": 11, "NDJ": 12}
 
 
+_TODAY = [None]   # build_health 가 판정 기준일을 넣는다(러너는 UTC — KST 오늘 값을 미래로 버리지 않게)
+
+
 def _past(d):
     """미래 날짜는 as-of 가 아니다 — 경제 캘린더의 다음 달 일정이 '최신'으로 잡혀
-    영원히 ok 가 되는 것을 막는다."""
-    return d if d and d <= date.today() else None
+    영원히 ok 가 되는 것을 막는다. 하루 여유는 UTC 러너가 KST 오늘 날짜를 받는 경우."""
+    ref = _TODAY[0] or date.today()
+    return d if d and d <= ref + timedelta(days=1) else None
 
 
 def _extract_asof(node):
@@ -293,6 +297,7 @@ def _walk_paths(data):
 def build_health(data, today=None, sources=None):
     """data.json dict → dataHealth 블록. fetch_data.py 와 validate_data.py 가 공유한다."""
     today = today or date.today()
+    _TODAY[0] = today
     sources = sources if sources is not None else (data.get("sources") or {})
     items = []
     for path, node in _walk_paths(data):

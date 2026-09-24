@@ -39,7 +39,7 @@ class _HostBreaker:
     timeout 을 기다려 ECOS 한 구간에서만 37분을 썼고, 풀 런이 70분 timeout 으로 통째
     버려졌다(2026-09-24 CI 실측 3런). 같은 호스트에서 연결 실패가 연속 3회면 그 런의
     나머지 호출은 즉시 실패시킨다 — 각 수집 함수의 기존 except·보존 경로가 그대로 받는다.
-    읽기 timeout·HTTP 오류는 세지 않는다(연결은 되는 호스트).
+    연결 시간초과(ConnectTimeout)만 센다 — 읽기 timeout·연결 끊김·HTTP 오류는 연결은 되는 호스트다.
     """
     CONNECT_LIMIT = 3   # 순간 끊김으로 FRED(50+ 시리즈) 같은 호스트가 통째 막히지 않게 3회
 
@@ -56,7 +56,9 @@ class _HostBreaker:
             raise _requests.exceptions.ConnectionError(f"[breaker] {host} — 이번 런 차단(연결 실패 연속)")
         try:
             r = fn(url, *a, **kw)
-        except _requests.exceptions.ConnectionError:
+        except _requests.exceptions.ConnectTimeout:
+            # 연결 시간초과만 센다 — 호스트 자체가 안 받는 상태. RemoteDisconnected·reset 은
+            # R-ONE·EXIM 이 평소에도 내고 재시도로 살아나는 오류라 세면 멀쩡한 호스트를 끊는다.
             n = self.fails[host] = self.fails.get(host, 0) + 1
             if n >= self.CONNECT_LIMIT and host not in self.dead:
                 self.dead.add(host)
@@ -135,9 +137,16 @@ def _prev_spot(prev, group, name):
     v = ((prev or {}).get(group) or {}).get(name)
     if not isinstance(v, dict) or (v.get("price") is None and v.get("rate") is None):
         return None
+    # 나이 상한 — 보존이 매 런 이어지면 몇 주 된 값도 되살아난다. 처음 보존된 날을 적고
+    # 4일(주말+연휴 여유)을 넘기면 비운다(화면은 '—', 판정표엔 흔적이 남는다).
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    since = v.get("staleSince") if v.get("stale") else today
+    if since and (datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(since, "%Y-%m-%d")).days > 4:
+        return None
     out = dict(v)
     out["change"] = None
     out["stale"] = True
+    out["staleSince"] = since
     return out
 
 
@@ -6072,6 +6081,8 @@ def _reconcile_history_with_spot(data, now):
             if not isinstance(arr, list) or not arr:
                 continue
             spot_obj = spot_map.get(name) or {}
+            if spot_obj.get("stale"):
+                continue   # 직전 값 보존분을 '오늘 점'으로 붙이면 신선도 판정이 속는다
             spot = spot_obj.get(field)
             try:
                 spot = float(spot)
@@ -6819,7 +6830,7 @@ def build_data():
                               ("NATURAL_GAS", "NaturalGas")]:
                 # 기존 가격이 비어있거나 변동률이 0인 경우만 보강
                 cur = data.get("commodities", {}).get(key) or {}
-                if cur.get("price") and cur.get("change", 0) != 0:
+                if cur.get("price") and cur.get("change") not in (None, 0) and not cur.get("stale"):
                     continue
                 av_com = fetch_av_commodity(func)
                 if av_com:
@@ -8590,6 +8601,8 @@ def build_light_data():
         if price_too:
             node[field] = q["price"]
         node["change"] = q["change"]
+        node.pop("stale", None)          # 새 시세가 들어왔다 — 풀 런이 남긴 '직전 값 보존' 표식 해제
+        node.pop("staleSince", None)
         updated[0] += 1
 
     for key, sym in _LIGHT_INDICES:

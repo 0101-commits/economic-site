@@ -2245,20 +2245,37 @@ function buildPageTocs(){
 // 옛 방식은 (페이지, 제목 문자열, 경로 접두) 7쌍을 손으로 적어둔 표였다. 지표 레지스트리가
 // 생기면서 그 표가 필요 없어졌다 — 제목이 어떤 지표인지 레지스트리가 알고, 그 지표의
 // data 경로가 dataHealth 항목과 맞으면 칩을 단다(IA v3 P3). 정상이면 아무 것도 안 붙인다.
-function _healthWorstFor(dataPath){
+// 판정표 항목이 이 지표 경로에 해당하는가. 현재가(indices.KOSPI 등)는 판정표에서
+// history.indices.KOSPI 로 판정되므로 그 경로도 같은 지표로 본다(2026-09-24 — 종전엔
+// 현재가 위젯이 판정과 영영 매칭되지 않아 기준일이 늘 '수집 시각'이었다).
+function _healthHit(p, dataPath){
+  var cands = [dataPath, 'history.' + dataPath];
+  return cands.some(function(dp){
+    return p === dp || dp.indexOf(p + '.') === 0 || dp.indexOf(p + ':') === 0
+        || p.indexOf(dp + '.') === 0 || p.indexOf(dp + ':') === 0;
+  });
+}
+function _healthItemsFor(dataPath){
   var h = window._dataHealth;
-  if(!h || !Array.isArray(h.items) || h.items.length < 5 || !dataPath) return null;
+  if(!h || !Array.isArray(h.items) || h.items.length < 5 || !dataPath) return [];
+  return h.items.filter(function(it){ return _healthHit(it.path || '', dataPath); });
+}
+function _healthWorstFor(dataPath){
   var worst = null;
-  h.items.forEach(function(it){
+  _healthItemsFor(dataPath).forEach(function(it){
     if(it.state !== 'stale' && it.state !== 'failed' && it.state !== 'missing') return;
-    var p = it.path || '';
-    var hit = (p === dataPath)
-           || dataPath.indexOf(p + '.') === 0 || dataPath.indexOf(p + ':') === 0
-           || p.indexOf(dataPath + '.') === 0 || p.indexOf(dataPath + ':') === 0;
-    if(!hit) return;
     if(!worst || (it.ageDays || 9999) > (worst.ageDays || 9999)) worst = it;
   });
   return worst;
+}
+/* 정상인 지표의 데이터 기준일 — 판정표가 준 as-of 중 가장 늦은 것. 없으면 null
+   (그때만 전역 수집 시각으로 내려간다). */
+function _healthAsOfFor(dataPath){
+  var best = null;
+  _healthItemsFor(dataPath).forEach(function(it){
+    if(it.asOf && (!best || it.asOf > best)) best = it.asOf;
+  });
+  return best;
 }
 /* 이 위젯이 보여주는 값의 기준 시점 — 지표별 as_of 가 있으면 그것, 없으면
    파이프라인 갱신 시각. 화면에는 띄우지 않고 data-asof/title 로만 남긴다(§C4).
@@ -2287,7 +2304,9 @@ function applyWidgetFreshChips(root){
     var old = t.querySelector('.w-fresh-chip');
     if(old) old.remove();
     var worst = row ? _healthWorstFor(row.data) : null;
-    if(!worst) { _stampAsOf(t, null); return; }   // 정상일 때는 침묵한다 — 늘 떠 있는 칩은 경고가 아니다
+    // 정상일 때는 침묵한다 — 늘 떠 있는 칩은 경고가 아니다. 대신 기준일은 수집 시각이 아니라
+    // 그 지표의 as-of 로 새긴다(툴팁·data-asof).
+    if(!worst) { _stampAsOf(t, row ? _healthAsOfFor(row.data) : null, row ? '데이터 기준일' : ''); return; }
     _stampAsOf(t, worst.asOf, worst.state === 'stale' ? ('지연 ' + worst.ageDays + '일') : worst.state);
     var chip = document.createElement('button');
     chip.type = 'button';
