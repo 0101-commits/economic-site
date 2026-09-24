@@ -10,6 +10,8 @@
        공개 CORS 프록시(allorigins/codetabs/corsproxy)는 제거됨 — 제3자가 응답 본문(시세 숫자)을
        변조할 수 있는 경로라 폴백 가치 대비 리스크가 컸다. 전용 Worker 단일 경로로 일원화.
        (localStorage 'cfProxyBase' 로 다른 프록시를 지정하면 여기에 도메인을 추가해야 함)
+       kr-col-ext.nelo.navercorp.com = 네이버 지도 SDK 가 스스로 보내는 오류 로그 수집처(보내기만 하고 받는 값 없음).
+       막아 두면 부동산 화면을 열 때마다 콘솔 CSP 오류가 찍혀 진짜 오류를 가렸다(2026-09-24 순찰).
      · frame-ancestors 는 meta CSP 에서 무시되므로 클릭재킹 방어는 아래 JS 프레임버스트로 완화. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
@@ -18,7 +20,7 @@
   font-src 'self' data: https://fonts.gstatic.com;
   img-src 'self' data: blob: https:;
   media-src 'self' data: blob:;
-  connect-src 'self' https://ecom-dashboard-proxy.e-hcg.workers.dev https://stooq.com https://stooq.pl https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://open.er-api.com https://production.dataviz.cnn.io https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net;
+  connect-src 'self' https://ecom-dashboard-proxy.e-hcg.workers.dev https://stooq.com https://stooq.pl https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://open.er-api.com https://production.dataviz.cnn.io https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net https://kr-col-ext.nelo.navercorp.com;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
