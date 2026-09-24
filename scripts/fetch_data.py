@@ -6982,6 +6982,18 @@ def build_data():
     else:
         log("[R-ONE] API 키 없음 — ECOS 폴백 시도")
     # ECOS 폴백: 매매/전세 가격지수가 모두 비어있을 때만
+    # R-ONE 이 이번 런에 안 닿으면(호스트 차단 등) 같은 기준(R-ONE)의 직전 값을 먼저 유지한다.
+    # 종전엔 곧장 ECOS·FRED 폴백으로 내려가 더 낡고 기준도 다른 값(2026-01 KB)이 직전
+    # R-ONE 값(2026-08)을 덮어썼다(2026-09-24 첫 운영 런 실측).
+    if not re_diag["rone_ok"]:
+        _prev_re = ((prev or {}).get("realestate") or {}).get("kr") or {}
+        _kept = [k for k, v in _prev_re.items() if k not in re_data and isinstance(v, dict)
+                 and str(v.get("source", "")).startswith("R-ONE")]
+        for k in _kept:
+            re_data[k] = _prev_re[k]
+        if _kept:
+            data["sources"]["realestate_kr"] = "이전 빌드 보존 ← R-ONE (이번 런 연결 실패)"
+            log(f"[R-ONE] 연결 실패 — 직전 R-ONE 값 {len(_kept)}개 유지: {_kept}")
     if (not re_data.get("apt_price_idx_kr")) or (not re_data.get("jns_price_idx_kr")):
         re_diag["ecos_tried"] = True
         try:
