@@ -1047,6 +1047,11 @@ async function _wfBusy(env, wfFile, statuses, ua, maxAgeMin, runFilter) {
 // 경량 dispatch 가 전부 '실행 중 — 생략'으로 굶는다(2026-09-24 리뷰).
 const _isLightRun = (run) => run.event === 'repository_dispatch' && !/\[full\]/.test(run.display_title || '');
 const _fetchDataBusy = (env) => _wfBusy(env, 'fetch-data.yml', ['in_progress', 'queued'], 'ecom-fetch-cron', 90, _isLightRun);
+// 풀 런 중복 방지 — 최근 30분 안에 만들어진 '[full]' 런이 있으면(진행·대기·완료 무관) 이번 시간은 끝난 것.
+// isolate 메모리(_lastFullSlot)만으론 부족했다: Cloudflare cron 호출이 서로 다른 isolate 에서 돌아
+// :07·:08 틱이 둘 다 발화해 풀 런이 시간당 두 번 떴다(2026-09-24 14:07·14:08 실측).
+const _fullRecent = (env) => _wfBusy(env, 'fetch-data.yml', ['in_progress', 'queued', 'completed'], 'ecom-fetch-cron', 30,
+  (run) => /\[full\]/.test(run.display_title || ''));
 
 // 🔍 stock-alerts 에 '이미 대기 중인 런'이 있는지 조회 — cancelled 양산 차단 게이트.
 //   GitHub concurrency 는 그룹당 '실행 1 + 대기 1'만 유지하고 그 위로 오는 dispatch 가
@@ -1403,8 +1408,11 @@ export default {
       if (fullMode && env && env.GH_DISPATCH_TOKEN && _lastFullSlot !== fullKey) {
         const prevFull = _lastFullSlot;
         _lastFullSlot = fullKey;
-        ctx.waitUntil(ghDispatch(env, 'fetch-data', { mode: fullMode }, 'ecom-fetch-cron')
-          .then((ok) => { if (ok === false) _lastFullSlot = prevFull; }));
+        ctx.waitUntil((async () => {
+          if (await _fullRecent(env)) { console.log('[full-cron] 최근 30분 내 풀 런 존재 — 생략'); return; }
+          const ok = await ghDispatch(env, 'fetch-data', { mode: fullMode }, 'ecom-fetch-cron');
+          if (ok === false) _lastFullSlot = prevFull;
+        })());
       }
     } else {
       ctx.waitUntil(triggerKakaoDispatch(env, cron)); // 기존 hourly cron → 카카오 시황 다이제스트
