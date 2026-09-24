@@ -1296,7 +1296,10 @@ def slot_ai_line(d, slot, title, blocks):
     if line:
         return line
     ai = d.get("aiBriefing") or {}
-    if str(ai.get("date")) == datetime.datetime.now(KST).strftime("%Y-%m-%d"):
+    # 폴백은 LLM 이 쓴 문장일 때만 — 규칙 기반 요약은 「환율·금리 — 원/달러 1,365.66원(▲0.04%)」
+    # 같은 수집 시점 숫자 나열이라 발송 시점 카드(+1.3%)와 어긋난다(2026-09-24 라이브 실측).
+    if (str(ai.get("source")) in ("gemini", "openai")
+            and str(ai.get("date")) == datetime.datetime.now(KST).strftime("%Y-%m-%d")):
         for ln in ai.get("lines") or []:
             if ab.slot_line_ok(str(ln)):
                 return str(ln)
@@ -1576,9 +1579,15 @@ def apply_live_quotes(d):
         print(f"[live] 시세 보정 실패(전체 생략): {e}")
         return
     updated = []
+    import discord_card
+    _closed = discord_card.kr_closed(d, datetime.datetime.now(KST))
     for cat, key, field, sym in _LIVE_QUOTES:
         q = quotes.get(sym)
         if not q:
+            continue
+        # 휴장일 한국 지수 — 야후는 전일 종가를 '오늘 0%'로 돌려준다. 보정하면 직전 영업일
+        # 등락(+0.9%)이 ▲0.0% 로 지워진다(2026-09-24 라이브 실측). 스냅샷을 그대로 둔다.
+        if _closed and key in discord_card._KR_KEYS:
             continue
         price, pct = q
         node = (d.get(cat) or {}).get(key)

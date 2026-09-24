@@ -124,6 +124,9 @@ def test_verified_latest_falls_back_to_toss(monkeypatch):
         raise OSError("HTTP Error 410: 410")
     monkeypatch.setattr(inf, "naver_daily", _gone)
     monkeypatch.setattr(inf, "toss_daily", lambda *a, **k: [TOS])
+    # KRX 확정치(data.json krxDaily)도 없는 날 — 실제 data.json 을 읽으면 그날 행이 있어
+    # 토스 단독 경로가 검사되지 않는다(ac048698 이후 KRX 가 먼저다).
+    monkeypatch.setattr(inf, "_krx_daily_from_data", lambda *a, **k: [])
     out = inf.verified_latest("KOSPI", today="2026-09-11",
                               now=_dt.datetime(2026, 9, 11, 20, 5, tzinfo=inf.KST))
     assert out and out["primary"] == "toss" and out["cross"] is None

@@ -154,8 +154,12 @@ def test_slot_line_rejects_relative_time_and_advice():
 def test_slot_ai_fallback_skips_stale_sentences(monkeypatch):
     monkeypatch.setattr(ab, "slot_line", lambda *a, **kw: "")
     d = _data()
-    d["aiBriefing"] = {"date": TODAY, "lines": ["내일 장중 지표를 확인해야 합니다", "원화 약세가 이어졌다"]}
+    d["aiBriefing"] = {"date": TODAY, "source": "gemini",
+                       "lines": ["내일 장중 지표를 확인해야 합니다", "원화 약세가 이어졌다"]}
     assert k.slot_ai_line(d, "h09", "제목", []) == "원화 약세가 이어졌다"
+    d["aiBriefing"]["source"] = "rule"                     # 규칙 기반 나열문은 폴백하지 않는다
+    assert k.slot_ai_line(d, "h09", "제목", []) == ""
+    d["aiBriefing"]["source"] = "gemini"
     d["aiBriefing"]["date"] = YDAY
     assert k.slot_ai_line(d, "h09", "제목", []) == ""
 
@@ -211,9 +215,13 @@ def test_slot_line_allows_net_buying_fact():
 
 
 def test_circuit_fallback_card_uses_circuit_wording(monkeypatch):
-    import importlib
-    import check_halts as ch
-    ch = importlib.reload(ch)                 # test_check_halts 가 _status_card 를 스텁으로 덮는다
+    # test_check_halts 가 모듈 전역(_status_card·STATE_PATH)을 스텁으로 덮는다. reload 하면 그
+    # 스텁까지 풀려 그 테스트가 실제 halts_state.json·data.json 에 쓴다 — 별도 이름으로 따로 올린다.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "check_halts_isolated", os.path.join(os.path.dirname(k.__file__), "check_halts.py"))
+    ch = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ch)
     got = {}
     # 다른 테스트가 sys.modules 의 discord_card 를 바꿔 끼우므로 '지금 import 되는 것'을 패치한다.
     monkeypatch.setattr(sys.modules["discord_card"], "status", lambda title, state, reason, **kw: got.update(
@@ -233,3 +241,14 @@ def test_alert_lines_add_market_relative_and_next_level():
     ln = ca._alert_lines([(a1, "삼성전자 82,000원(+3.0%)")], snaps, {}, NOW,
                          bench={"KR": 1.0}, alerts=[a1, a2])[0]
     assert "코스피 대비 +2.0%p" in ln and "다음 85,000원" in ln, ln
+
+
+def test_live_quotes_skip_kr_indices_on_holiday(monkeypatch):
+    """휴장일 야후 '0%' 가 직전 영업일 등락을 지우지 않는다."""
+    monkeypatch.setattr(k, "_yahoo_live_quote", lambda sym: (3000.0, 0.0) if sym == "^KS11" else None)
+    d = _data(open_today=False)
+    k.apply_live_quotes(d)
+    assert d["indices"]["KOSPI"]["change"] == 0.2
+    d = _data(open_today=True)
+    k.apply_live_quotes(d)
+    assert d["indices"]["KOSPI"]["change"] == 0.0
