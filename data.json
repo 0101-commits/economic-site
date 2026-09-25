@@ -1,12 +1,11 @@
 {
-  "lastUpdated": "2026-09-26T00:17:03.966664+09:00",
+  "lastUpdated": "2026-09-26T00:07:54.745907+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
-    "stockMovers": "토스증권 Open API",
-    "etfMovers": "토스증권 Open API",
+    "stockMovers": "pykrx (KRX 정보데이터시스템)",
+    "etfMovers": "KRX OpenAPI",
     "investorTrading": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷) + 최근 10일 KRX 정보데이터시스템 기준 정렬",
     "stockFlows": "토스증권 Open API (종목별 수급, PC 스냅샷)",
-    "rankingsKr": "토스증권 Open API (거래대금·토스 체결 랭킹)",
     "freight": "해상운임 스크래핑(네이버/StockQ/SSE)",
     "lmeInventory": "westmetall.com (LME 일일 재고)",
     "indices": "yfinance (KR) + yfinance (해외)",
@@ -27,7 +26,6 @@
     "move": "yfinance ^MOVE",
     "fear_greed": "CNN Fear & Greed Index",
     "realestate_kr_trade": "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)",
-    "subscription": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
     "nps": "fund.nps.or.kr",
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "vkospi": "investing.com KOSPI Volatility (직전 값 보존)",
@@ -38,20 +36,20 @@
   },
   "fx": {
     "USDKRW": {
-      "rate": 1357.3,
-      "change": -0.71
+      "rate": 1356.62,
+      "change": -0.76
     },
     "EURKRW": {
-      "rate": 1544.74,
+      "rate": 1543.97,
       "change": -0.59
     },
     "JPYKRW": {
-      "rate": 8.6249,
-      "change": 0.21
+      "rate": 8.6206,
+      "change": 0.11
     },
     "EURUSD": {
       "rate": 1.1381,
-      "change": 0.16
+      "change": 0.17
     },
     "USDJPY": {
       "rate": 157.37,
@@ -68,12 +66,12 @@
       "change": 1.21
     },
     "SP500": {
-      "price": 7720.81,
-      "change": 0.22
+      "price": 7724.61,
+      "change": 0.27
     },
     "NASDAQ": {
-      "price": 27006.31,
-      "change": 0.25
+      "price": 27024.63,
+      "change": 0.32
     },
     "Nikkei": {
       "price": 66364.2,
@@ -84,8 +82,8 @@
       "change": -1.26
     },
     "SOX": {
-      "price": 12621.44,
-      "change": 1.03
+      "price": 12664.04,
+      "change": 1.37
     },
     "HSI": {
       "price": 24510.09,
@@ -94,76 +92,76 @@
   },
   "commodities": {
     "Gold": {
-      "price": 4314.8,
-      "change": 0.21
+      "price": 4312.8,
+      "change": 0.16
     },
     "Silver": {
-      "price": 64.68,
-      "change": 0.93
+      "price": 64.56,
+      "change": 0.73
     },
     "Platinum": {
-      "price": 1777.6,
-      "change": 1.46
+      "price": 1784.0,
+      "change": 1.83
     },
     "Palladium": {
-      "price": 1260.5,
-      "change": -0.16
+      "price": 1262.5,
+      "change": 0.0
     },
     "Copper": {
-      "price": 6.76,
-      "change": 0.27
+      "price": 6.75,
+      "change": 0.09
     },
     "WTI": {
-      "price": 94.06,
-      "change": 1.01
+      "price": 93.87,
+      "change": 0.81
     },
     "Brent": {
-      "price": 98.78,
-      "change": -6.54
+      "price": 99.38,
+      "change": -5.97
     },
     "NatGas": {
       "price": 3.18,
-      "change": -2.78
+      "change": -2.6
     },
     "Gasoline": {
-      "price": 3.22,
-      "change": -1.1
+      "price": 3.24,
+      "change": -0.6
     },
     "HeatingOil": {
-      "price": 4.55,
-      "change": 1.78
+      "price": 4.56,
+      "change": 1.97
     },
     "Aluminum": {
-      "price": 3460.0,
-      "change": 0.07
+      "price": 3468.0,
+      "change": 0.3
     },
     "Wheat": {
-      "price": 690.25,
-      "change": -0.22
+      "price": 690.0,
+      "change": -0.25
     },
     "Corn": {
-      "price": 521.25,
-      "change": 0.29
+      "price": 522.25,
+      "change": 0.48
     },
     "Soybean": {
-      "price": 1305.25,
-      "change": -0.02
+      "price": 1307.0,
+      "change": 0.11
     },
     "Rice": {
-      "price": 16.53,
-      "change": 0.55
+      "price": 16.49,
+      "change": 0.27
     },
     "Coffee": {
-      "price": 280.55,
-      "change": 1.43
+      "price": 279.7,
+      "change": 1.12
     },
     "Sugar": {
-      "price": 18.59,
-      "change": -0.21
+      "price": 18.66,
+      "change": 0.16
     },
     "Cocoa": {
-      "price": 5483.0,
-      "change": -1.98
+      "price": 5562.0,
+      "change": -0.57
     },
     "Dubai": {
       "price": 77.13,
@@ -173,343 +171,312 @@
   "stockMovers": {
     "kospiGainers": [
       {
-        "name": "와이즈플래닛컴퍼니",
-        "code": "0010S0",
-        "price": 45700.0,
-        "chg": 280.83,
-        "vol": 26080671.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "티엔엔터테인먼트",
-        "code": "131100",
-        "price": 3120.0,
-        "chg": 30.0,
-        "vol": 137268.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "씨싸이트",
-        "code": "109670",
-        "price": 11400.0,
-        "chg": 29.98,
-        "vol": 898662.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "HT로보틱스",
-        "code": "396300",
-        "price": 6010.0,
-        "chg": 29.94,
-        "vol": 12897056.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "우리넷",
-        "code": "115440",
-        "price": 12120.0,
-        "chg": 29.9,
-        "vol": 7090222.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
         "name": "SH에너지화학",
         "code": "002360",
         "price": 2610.0,
         "chg": 23.11,
         "vol": 1374746.0,
-        "market": "KOSPI",
         "as_of": "2026-09-23"
       },
       {
-        "name": "아스플로",
-        "code": "159010",
-        "price": 29400.0,
-        "chg": 21.23,
-        "vol": 925696.0,
-        "market": "KOSDAQ",
+        "name": "KSS해운",
+        "code": "044450",
+        "price": 11860.0,
+        "chg": 17.89,
+        "vol": 892666.0,
         "as_of": "2026-09-23"
       },
       {
-        "name": "에이에프더블류",
-        "code": "312610",
-        "price": 106.0,
-        "chg": 19.1,
-        "vol": 5506283.0,
-        "market": "KOSDAQ",
+        "name": "OCI홀딩스",
+        "code": "010060",
+        "price": 206000.0,
+        "chg": 9.57,
+        "vol": 435108.0,
         "as_of": "2026-09-23"
       },
       {
-        "name": "카페24",
-        "code": "042000",
-        "price": 17830.0,
-        "chg": 18.86,
-        "vol": 1677550.0,
-        "market": "KOSDAQ",
+        "name": "깨끗한나라우",
+        "code": "004545",
+        "price": 3575.0,
+        "chg": 8.17,
+        "vol": 1053.0,
         "as_of": "2026-09-23"
       },
       {
-        "name": "레메디",
-        "code": "387690",
-        "price": 18390.0,
-        "chg": 18.49,
-        "vol": 7782429.0,
-        "market": "KOSDAQ",
+        "name": "케이씨텍",
+        "code": "281820",
+        "price": 86800.0,
+        "chg": 7.69,
+        "vol": 298491.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "유니퀘스트",
+        "code": "077500",
+        "price": 9190.0,
+        "chg": 7.61,
+        "vol": 805775.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "LS에코에너지",
+        "code": "229640",
+        "price": 64000.0,
+        "chg": 7.56,
+        "vol": 634008.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "성문전자우",
+        "code": "014915",
+        "price": 5200.0,
+        "chg": 7.22,
+        "vol": 760.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "일진전기",
+        "code": "103590",
+        "price": 81700.0,
+        "chg": 6.8,
+        "vol": 999539.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "한화솔루션",
+        "code": "009830",
+        "price": 29200.0,
+        "chg": 6.38,
+        "vol": 3892862.0,
         "as_of": "2026-09-23"
       }
     ],
     "kospiLosers": [
       {
-        "name": "디에이테크놀로지",
-        "code": "196490",
-        "price": 202.0,
-        "chg": -96.68,
-        "vol": 3277513.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "아이오케이이엔엠",
-        "code": "078860",
-        "price": 2700.0,
-        "chg": -19.4,
-        "vol": 165306.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "네오사피엔스",
-        "code": "0161M0",
-        "price": 24800.0,
-        "chg": -19.34,
-        "vol": 8433669.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "앱튼",
-        "code": "270520",
-        "price": 2020.0,
-        "chg": -16.35,
-        "vol": 1717544.0,
-        "market": "KOSDAQ",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "비케이홀딩스",
-        "code": "050090",
-        "price": 717.0,
-        "chg": -15.34,
-        "vol": 251358.0,
-        "market": "KOSDAQ",
+        "name": "계양전기",
+        "code": "012200",
+        "price": 3235.0,
+        "chg": -15.31,
+        "vol": 3032328.0,
         "as_of": "2026-09-23"
       },
       {
         "name": "대양금속",
         "code": "009190",
-        "price": 963.0,
-        "chg": -14.85,
+        "price": 965.0,
+        "chg": -14.68,
         "vol": 3661310.0,
-        "market": "KOSPI",
         "as_of": "2026-09-23"
       },
       {
-        "name": "국영지앤엠",
-        "code": "006050",
-        "price": 3500.0,
-        "chg": -13.68,
-        "vol": 151848.0,
-        "market": "KOSDAQ",
+        "name": "현대제철",
+        "code": "004020",
+        "price": 31950.0,
+        "chg": -10.25,
+        "vol": 1259436.0,
         "as_of": "2026-09-23"
       },
       {
-        "name": "계양전기",
-        "code": "012200",
-        "price": 3300.0,
-        "chg": -13.61,
-        "vol": 3032328.0,
-        "market": "KOSPI",
+        "name": "SHD",
+        "code": "001770",
+        "price": 4275.0,
+        "chg": -9.04,
+        "vol": 150793.0,
         "as_of": "2026-09-23"
       },
       {
-        "name": "광진실업",
-        "code": "026910",
-        "price": 2590.0,
-        "chg": -13.23,
-        "vol": 1677028.0,
-        "market": "KOSDAQ",
+        "name": "신풍",
+        "code": "002870",
+        "price": 1119.0,
+        "chg": -8.88,
+        "vol": 453408.0,
         "as_of": "2026-09-23"
       },
       {
-        "name": "블루엠텍",
-        "code": "439580",
-        "price": 2710.0,
-        "chg": -13.14,
-        "vol": 1839482.0,
-        "market": "KOSDAQ",
+        "name": "현대건설",
+        "code": "000720",
+        "price": 121100.0,
+        "chg": -7.77,
+        "vol": 1201523.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "GS건설",
+        "code": "006360",
+        "price": 34600.0,
+        "chg": -7.61,
+        "vol": 2377160.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "대우건설",
+        "code": "047040",
+        "price": 17440.0,
+        "chg": -7.23,
+        "vol": 10155479.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "SGC에너지",
+        "code": "005090",
+        "price": 48900.0,
+        "chg": -6.86,
+        "vol": 218773.0,
+        "as_of": "2026-09-23"
+      },
+      {
+        "name": "혜인",
+        "code": "003010",
+        "price": 9340.0,
+        "chg": -6.41,
+        "vol": 343262.0,
         "as_of": "2026-09-23"
       }
     ]
   },
   "etfMovers": {
-    "etfLosers": [
-      {
-        "name": "TIGER 코리아원자력",
-        "code": "0091P0",
-        "price": 17350.0,
-        "chg": -5.83,
-        "vol": 3691564.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "PLUS 삼성전자선물단일종목인버스2X",
-        "code": "0193L0",
-        "price": 7525.0,
-        "chg": -5.76,
-        "vol": 1388573.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "SOL 한국원자력SMR",
-        "code": "0092B0",
-        "price": 15885.0,
-        "chg": -5.1,
-        "vol": 233748.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 원자력SMR",
-        "code": "0098F0",
-        "price": 16140.0,
-        "chg": -4.97,
-        "vol": 1524651.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "ACE 원자력TOP10",
-        "code": "433500",
-        "price": 58280.0,
-        "chg": -4.7,
-        "vol": 100166.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 건설",
-        "code": "117700",
-        "price": 6960.0,
-        "chg": -4.65,
-        "vol": 3146164.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "PLUS K방산레버리지",
-        "code": "0104G0",
-        "price": 5325.0,
-        "chg": -4.65,
-        "vol": 85127.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "TIGER 원유선물Enhanced(H)",
-        "code": "130680",
-        "price": 7600.0,
-        "chg": -4.58,
-        "vol": 44369.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX WTI원유선물(H)",
-        "code": "261220",
-        "price": 26095.0,
-        "chg": -4.57,
-        "vol": 99739.0,
-        "market": "KOSPI",
-        "as_of": "2026-09-23"
-      }
-    ],
     "etfGainers": [
       {
         "name": "HANARO 반도체핵심공정주도주",
         "code": "476260",
         "price": 14355.0,
         "chg": 6.81,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "TIGER 반도체TOP10레버리지",
         "code": "488080",
         "price": 40000.0,
         "chg": 6.51,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "KODEX 반도체레버리지",
         "code": "494310",
         "price": 93440.0,
         "chg": 6.13,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "PLUS 삼성전자단일종목레버리지",
         "code": "0193K0",
         "price": 14010.0,
         "chg": 5.94,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "TIGER 삼성전자단일종목레버리지",
         "code": "0195R0",
         "price": 12680.0,
         "chg": 5.75,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "KODEX 삼성전자단일종목레버리지",
         "code": "0193W0",
         "price": 13950.0,
         "chg": 5.68,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "SOL 반도체전공정",
         "code": "475300",
         "price": 24645.0,
         "chg": 5.64,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "RISE 삼성전자단일종목레버리지",
         "code": "0192M0",
         "price": 12980.0,
         "chg": 5.49,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "1Q 삼성전자선물단일종목레버리지",
         "code": "0198B0",
         "price": 13250.0,
         "chg": 5.41,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
       },
       {
         "name": "KODEX 미국AI메모리TOP2플러스",
         "code": "0238F0",
         "price": 11020.0,
         "chg": 5.4,
-        "as_of": "2026-09-25"
+        "as_of": "2026-09-26"
+      }
+    ],
+    "etfLosers": [
+      {
+        "name": "TIGER 코리아원자력",
+        "code": "0091P0",
+        "price": 17350.0,
+        "chg": -5.83,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "PLUS 삼성전자선물단일종목인버스2X",
+        "code": "0193L0",
+        "price": 7525.0,
+        "chg": -5.76,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "SOL 한국원자력SMR",
+        "code": "0092B0",
+        "price": 15885.0,
+        "chg": -5.11,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "KODEX 원자력SMR",
+        "code": "0098F0",
+        "price": 16140.0,
+        "chg": -4.97,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "ACE 원자력TOP10",
+        "code": "433500",
+        "price": 58280.0,
+        "chg": -4.7,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "KODEX 건설",
+        "code": "117700",
+        "price": 6960.0,
+        "chg": -4.66,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "PLUS K방산레버리지",
+        "code": "0104G0",
+        "price": 5325.0,
+        "chg": -4.66,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "TIGER 원유선물Enhanced(H)",
+        "code": "130680",
+        "price": 7600.0,
+        "chg": -4.58,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "KODEX WTI원유선물(H)",
+        "code": "261220",
+        "price": 26095.0,
+        "chg": -4.57,
+        "as_of": "2026-09-26"
+      },
+      {
+        "name": "KODEX 200선물인버스2X",
+        "code": "252670",
+        "price": 67.0,
+        "chg": -4.29,
+        "as_of": "2026-09-26"
       }
     ]
   },
@@ -2921,7 +2888,7 @@
     ],
     "unit": "억원",
     "source": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷) + 최근 10일 KRX 정보데이터시스템 기준 정렬",
-    "lastFetched": "2026-09-25T23:08:14.210143+09:00",
+    "lastFetched": "2026-09-26T00:08:18.816264+09:00",
     "krxDaily": [
       {
         "date": "2026-09-10",
@@ -3134,7 +3101,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-09-25T23:08:24.299876+09:00"
+    "lastFetched": "2026-09-26T00:08:26.276144+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -10112,11 +10079,12 @@
         }
       },
       "sentiment_us": {
-        "value": 55.2,
-        "period": "2026-07-01",
+        "value": 51.7,
+        "period": "2026-08-01",
         "desc": "미국 소비자심리지수 (미시간대)",
         "source": "FRED:UMCSENT",
         "history": {
+          "2026-08-01": 51.7,
           "2026-07-01": 55.2,
           "2026-06-01": 49.5,
           "2026-05-01": 44.8,
@@ -10175,8 +10143,7 @@
           "2021-12-01": 70.6,
           "2021-11-01": 67.4,
           "2021-10-01": 71.7,
-          "2021-09-01": 72.8,
-          "2021-08-01": 70.3
+          "2021-09-01": 72.8
         }
       },
       "rrp_us": {
@@ -11966,9 +11933,9 @@
         }
       },
       "dxy_idx": {
-        "value": 100.94,
-        "change": -0.33,
-        "period": "2026-09-25",
+        "value": 100.96,
+        "change": -0.31,
+        "period": "2026-09-26",
         "desc": "달러 인덱스 (DXY, ICE 1973=100)",
         "source": "yfinance DX-Y.NYB",
         "history": {
@@ -13228,7 +13195,7 @@
           "2026-09-22": 100.6,
           "2026-09-23": 101.1,
           "2026-09-24": 101.29,
-          "2026-09-25": 100.943
+          "2026-09-25": 100.964
         }
       },
       "pmi_us": {
@@ -30053,10 +30020,6 @@
           "ecos_item": "010190000",
           "data": [
             {
-              "date": "2025-08-21",
-              "value": 2.266
-            },
-            {
               "date": "2025-08-22",
               "value": 2.269
             },
@@ -31132,10 +31095,6 @@
           "toss_symbol": "KR_BOND_2Y",
           "data": [
             {
-              "date": "2025-08-21",
-              "value": 2.377
-            },
-            {
               "date": "2025-08-22",
               "value": 2.382
             },
@@ -32206,10 +32165,6 @@
           "label": "5Y",
           "toss_symbol": "KR_BOND_5Y",
           "data": [
-            {
-              "date": "2025-08-21",
-              "value": 2.605
-            },
             {
               "date": "2025-08-22",
               "value": 2.624
@@ -33282,10 +33237,6 @@
           "toss_symbol": "KR_BOND_10Y",
           "data": [
             {
-              "date": "2025-08-21",
-              "value": 2.845
-            },
-            {
               "date": "2025-08-22",
               "value": 2.86
             },
@@ -34357,10 +34308,6 @@
           "toss_symbol": "KR_BOND_20Y",
           "data": [
             {
-              "date": "2025-08-21",
-              "value": 2.856
-            },
-            {
               "date": "2025-08-22",
               "value": 2.871
             },
@@ -35431,10 +35378,6 @@
           "label": "30Y",
           "toss_symbol": "KR_BOND_30Y",
           "data": [
-            {
-              "date": "2025-08-21",
-              "value": 2.75
-            },
             {
               "date": "2025-08-22",
               "value": 2.766
@@ -36513,10 +36456,6 @@
           "label": "회사채3Y(AA-)",
           "ecos_item": "010300000",
           "data": [
-            {
-              "date": "2025-08-21",
-              "value": 2.921
-            },
             {
               "date": "2025-08-22",
               "value": 2.932
@@ -60240,7 +60179,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 1356.7
+          "close": 1356.62
         }
       ],
       "EURKRW": [
@@ -65442,7 +65381,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 1544.06
+          "close": 1543.97
         }
       ],
       "JPYKRW": [
@@ -70644,7 +70583,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 8.6282
+          "close": 8.6206
         }
       ],
       "EURUSD": [
@@ -81048,7 +80987,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 157.24
+          "close": 157.37
         }
       ]
     },
@@ -95876,7 +95815,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 7703.03
+          "close": 7724.61
         }
       ],
       "NASDAQ": [
@@ -100898,7 +100837,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 26952.94
+          "close": 27024.63
         }
       ],
       "Nikkei": [
@@ -115664,7 +115603,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 12621.44
+          "close": 12664.04
         }
       ],
       "HSI": [
@@ -125614,7 +125553,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 4312.5
+          "close": 4312.8
         }
       ],
       "Silver": [
@@ -130644,7 +130583,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 64.36
+          "close": 64.56
         }
       ],
       "Platinum": [
@@ -135674,7 +135613,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 1777.6
+          "close": 1784.0
         }
       ],
       "Palladium": [
@@ -140700,7 +140639,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 1260.5
+          "close": 1262.5
         }
       ],
       "Copper": [
@@ -150764,7 +150703,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 93.34
+          "close": 93.87
         }
       ],
       "Brent": [
@@ -155798,7 +155737,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 98.78
+          "close": 99.38
         }
       ],
       "NatGas": [
@@ -160832,7 +160771,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 3.2
+          "close": 3.18
         }
       ],
       "Gasoline": [
@@ -165866,7 +165805,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 3.22
+          "close": 3.24
         }
       ],
       "HeatingOil": [
@@ -170900,7 +170839,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 4.55
+          "close": 4.56
         }
       ],
       "Aluminum": [
@@ -175926,7 +175865,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 3460.0
+          "close": 3468.0
         }
       ],
       "Wheat": [
@@ -180952,7 +180891,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 685.75
+          "close": 690.0
         }
       ],
       "Corn": [
@@ -185978,7 +185917,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 516.5
+          "close": 522.25
         }
       ],
       "Soybean": [
@@ -191004,7 +190943,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 1299.25
+          "close": 1307.0
         }
       ],
       "Rice": [
@@ -196030,7 +195969,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 16.53
+          "close": 16.49
         }
       ],
       "Coffee": [
@@ -201064,7 +201003,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 280.55
+          "close": 279.7
         }
       ],
       "Sugar": [
@@ -206098,7 +206037,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 18.59
+          "close": 18.66
         }
       ],
       "Cocoa": [
@@ -211128,7 +211067,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 5483.0
+          "close": 5562.0
         }
       ],
       "Dubai": [
@@ -218718,7 +218657,7 @@
         },
         {
           "date": "2026-09-25",
-          "close": 83536.4766
+          "close": 83939.6797
         }
       ]
     }
@@ -218727,7 +218666,7 @@
     "move": {
       "value": 104.58,
       "change": 9.56,
-      "as_of": "2026-09-25",
+      "as_of": "2026-09-26",
       "source": "yfinance ^MOVE",
       "history": {
         "2024-09-25": 91.64,
@@ -219230,10 +219169,10 @@
       }
     },
     "fear_greed": {
-      "value": 38.7,
+      "value": 37.9,
       "prev": 36.1,
       "rating": "fear",
-      "as_of": "2026-09-25",
+      "as_of": "2026-09-26",
       "history": {
         "2025-09-25": 50.66,
         "2025-09-26": 51.29,
@@ -219485,7 +219424,8 @@
         "2026-09-22": 35.03,
         "2026-09-23": 32.54,
         "2026-09-24": 35.74,
-        "2026-09-25": 38.66
+        "2026-09-25": 37.91,
+        "2026-09-26": 37.94
       },
       "source": "CNN Fear & Greed Index"
     },
@@ -221842,414 +221782,6 @@
     "generatedAt": "2026-09-25T09:00:01.686965+09:00",
     "source": "토스증권 Open API (PC 스냅샷)"
   },
-  "rankingsKr": {
-    "tradingAmount": [
-      {
-        "name": "삼성전자",
-        "code": "005930",
-        "price": 286500.0,
-        "chg": 3.61,
-        "amount": 8678331045250.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "SK하이닉스",
-        "code": "000660",
-        "price": 1863000.0,
-        "chg": 1.25,
-        "amount": 8365735202500.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 200",
-        "code": "069500",
-        "price": 113145.0,
-        "chg": 1.13,
-        "amount": 2387313148570.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "TIGER 200",
-        "code": "102110",
-        "price": 113360.0,
-        "chg": 1.05,
-        "amount": 1764630908484.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "삼성전기",
-        "code": "009150",
-        "price": 1501000.0,
-        "chg": 1.0,
-        "amount": 1430524383000.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 레버리지",
-        "code": "122630",
-        "price": 116975.0,
-        "chg": 2.25,
-        "amount": 1335872239203.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "삼성전자우",
-        "code": "005935",
-        "price": 222000.0,
-        "chg": 4.96,
-        "amount": 1275752692946.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "와이즈플래닛컴퍼니",
-        "code": "0010S0",
-        "price": 45700.0,
-        "chg": 280.83,
-        "amount": 1108909285550.0,
-        "market": "KOSDAQ",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "TIGER 미국나스닥100",
-        "code": "133690",
-        "price": 184985.0,
-        "chg": 0.89,
-        "amount": 1032745600296.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "SK스퀘어",
-        "code": "402340",
-        "price": 1181000.0,
-        "chg": 4.23,
-        "amount": 1018996139000.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "두산에너빌리티",
-        "code": "034020",
-        "price": 82700.0,
-        "chg": -4.39,
-        "amount": 754461475300.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "TIGER 미국S&P500",
-        "code": "360750",
-        "price": 26200.0,
-        "chg": -0.09,
-        "amount": 709676705417.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 미국나스닥100",
-        "code": "379810",
-        "price": 27665.0,
-        "chg": 0.89,
-        "amount": 632070514507.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX CD금리액티브(합성)",
-        "code": "459580",
-        "price": 1075795.0,
-        "chg": 0.0,
-        "amount": 541385995807.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 인버스",
-        "code": "114800",
-        "price": 966.0,
-        "chg": -1.22,
-        "amount": 537366142295.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 미국S&P500",
-        "code": "379800",
-        "price": 23810.0,
-        "chg": 0.04,
-        "amount": 493770441075.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "삼성SDI",
-        "code": "006400",
-        "price": 521000.0,
-        "chg": -1.51,
-        "amount": 367614356500.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "NAVER",
-        "code": "035420",
-        "price": 196000.0,
-        "chg": -2.48,
-        "amount": 354519281650.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "원익IPS",
-        "code": "240810",
-        "price": 132400.0,
-        "chg": 1.61,
-        "amount": 353053961450.0,
-        "market": "KOSDAQ",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "현대차",
-        "code": "005380",
-        "price": 357000.0,
-        "chg": -0.97,
-        "amount": 337457918000.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      }
-    ],
-    "tossAmount": [
-      {
-        "name": "삼성전자",
-        "code": "005930",
-        "price": 286500.0,
-        "chg": 3.61,
-        "amount": 596677704250.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "SK하이닉스",
-        "code": "000660",
-        "price": 1863000.0,
-        "chg": 1.25,
-        "amount": 461766277500.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "와이즈플래닛컴퍼니",
-        "code": "0010S0",
-        "price": 45700.0,
-        "chg": 280.83,
-        "amount": 134031068450.0,
-        "market": "KOSDAQ",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "삼성전기",
-        "code": "009150",
-        "price": 1501000.0,
-        "chg": 1.0,
-        "amount": 110873585500.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "두산에너빌리티",
-        "code": "034020",
-        "price": 82700.0,
-        "chg": -4.39,
-        "amount": 91302811750.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "SK스퀘어",
-        "code": "402340",
-        "price": 1181000.0,
-        "chg": 4.23,
-        "amount": 52112149000.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "삼성전자우",
-        "code": "005935",
-        "price": 222000.0,
-        "chg": 4.96,
-        "amount": 51764101500.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 레버리지",
-        "code": "122630",
-        "price": 116975.0,
-        "chg": 2.25,
-        "amount": 48268314204.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 반도체레버리지",
-        "code": "494310",
-        "price": 93440.0,
-        "chg": 6.13,
-        "amount": 40154826939.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "현대차",
-        "code": "005380",
-        "price": 357000.0,
-        "chg": -0.97,
-        "amount": 34859100000.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "TIGER 반도체TOP10레버리지",
-        "code": "488080",
-        "price": 40000.0,
-        "chg": 6.51,
-        "amount": 30291152797.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "KODEX 인버스",
-        "code": "114800",
-        "price": 966.0,
-        "chg": -1.22,
-        "amount": 29564347719.0,
-        "market": "KOSPI",
-        "type": "ETF",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "빛샘전자",
-        "code": "072950",
-        "price": 14030.0,
-        "chg": 7.92,
-        "amount": 25117832605.0,
-        "market": "KOSDAQ",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "네오사피엔스",
-        "code": "0161M0",
-        "price": 24800.0,
-        "chg": -19.34,
-        "amount": 24694024300.0,
-        "market": "KOSDAQ",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "NAVER",
-        "code": "035420",
-        "price": 196000.0,
-        "chg": -2.48,
-        "amount": 22460471800.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "대우건설",
-        "code": "047040",
-        "price": 17700.0,
-        "chg": -5.85,
-        "amount": 21702216185.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "대한광통신",
-        "code": "010170",
-        "price": 17720.0,
-        "chg": -0.5,
-        "amount": 21410126795.0,
-        "market": "KOSDAQ",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "엑스게이트",
-        "code": "356680",
-        "price": 18320.0,
-        "chg": 10.76,
-        "amount": 20637764225.0,
-        "market": "KOSDAQ",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "노타",
-        "code": "486990",
-        "price": 20400.0,
-        "chg": -9.53,
-        "amount": 18992525545.0,
-        "market": "KOSDAQ",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      },
-      {
-        "name": "삼성SDI",
-        "code": "006400",
-        "price": 521000.0,
-        "chg": -1.51,
-        "amount": 18292812500.0,
-        "market": "KOSPI",
-        "type": "STOCK",
-        "as_of": "2026-09-23"
-      }
-    ],
-    "as_of": "2026-09-23",
-    "source": "토스증권 Open API"
-  },
   "marketCalendarKr": {
     "today": {
       "date": "2026-09-25",
@@ -222312,11 +221844,11 @@
     ],
     "as_of": "2026-09-24",
     "source": "westmetall.com (LME 일일 재고)",
-    "lastFetched": "2026-09-25T23:08:28.180153+09:00"
+    "lastFetched": "2026-09-26T00:08:32.263338+09:00"
   },
   "diagnostics": {
-    "stockMoversSource": "토스증권 Open API",
-    "etfMoversSource": "토스증권 Open API",
+    "stockMoversSource": "pykrx (KRX 정보데이터시스템)",
+    "etfMoversSource": "KRX OpenAPI",
     "investorTradingDays": 400,
     "investorCrossChecked": 10,
     "investorCrossMismatch": 6,
@@ -222331,400 +221863,20 @@
       "fred_tried": false,
       "fred_ok": false
     },
-    "subscription": "OK ApplyhomeInfoDetailSvc 60건",
+    "subscription": "ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoSvc HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | ApplyhomeInfoSvc HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"} ",
     "preservedMetricsDeep": 1,
-    "historySpotSynced": 28,
+    "historySpotSynced": 27,
     "toss": {
       "generatedAt": "2026-09-25T09:00:01.686965+09:00",
-      "ageMinutes": 858.4,
+      "ageMinutes": 917.1,
       "supplied": [
-        "etfMovers",
         "investorTrading",
-        "rankingsKr",
         "stockFlows",
-        "stockMovers",
         "yieldCurve_kr"
       ],
       "state": "IDLE",
-      "reason": "휴장·장외 — 마지막 거래일 2026-09-23 기준 값 유지"
-    },
-    "deadHosts": [
-      "www.yna.co.kr"
-    ]
-  },
-  "subscription": {
-    "byRegion": {
-      "seoul": [
-        {
-          "name": "브라운스톤 월곡 센트럴",
-          "area": "서울",
-          "date": "2026-08-28",
-          "rate": null
-        },
-        {
-          "name": "쌍용 더 플래티넘 서대문",
-          "area": "서울",
-          "date": "2026-08-14",
-          "rate": null
-        },
-        {
-          "name": "더샵 신길센트럴시티(조합원 취소분)",
-          "area": "서울",
-          "date": "2026-08-07",
-          "rate": null
-        },
-        {
-          "name": "써밋 클라비온",
-          "area": "서울",
-          "date": "2026-08-07",
-          "rate": null
-        },
-        {
-          "name": "충정로역자이르네",
-          "area": "서울",
-          "date": "2026-08-07",
-          "rate": null
-        },
-        {
-          "name": "월계 중흥S-클래스 리비에르",
-          "area": "서울",
-          "date": "2026-07-16",
-          "rate": null
-        },
-        {
-          "name": "동작 센트럴 동문 디 이스트",
-          "area": "서울",
-          "date": "2026-07-02",
-          "rate": null
-        },
-        {
-          "name": "장위 푸르지오 마크원",
-          "area": "서울",
-          "date": "2026-06-19",
-          "rate": null
-        },
-        {
-          "name": "드파인 아르티아",
-          "area": "서울",
-          "date": "2026-06-19",
-          "rate": null
-        },
-        {
-          "name": "북서울자이 폴라리스(보류지)",
-          "area": "서울",
-          "date": "2026-06-12",
-          "rate": null
-        },
-        {
-          "name": "써밋 더힐",
-          "area": "서울",
-          "date": "2026-05-15",
-          "rate": null
-        },
-        {
-          "name": "아크로 리버스카이",
-          "area": "서울",
-          "date": "2026-05-13",
-          "rate": null
-        },
-        {
-          "name": "더 리치먼드 미아",
-          "area": "서울",
-          "date": "2026-04-27",
-          "rate": null
-        },
-        {
-          "name": "공덕역자이르네",
-          "area": "서울",
-          "date": "2026-04-17",
-          "rate": null
-        },
-        {
-          "name": "라클라체자이드파인",
-          "area": "서울",
-          "date": "2026-04-03",
-          "rate": null
-        }
-      ],
-      "gyeonggi": [
-        {
-          "name": "시흥하중지구 A-4블록 신혼희망타운(공공분양) 추가입주자모집",
-          "area": "경기",
-          "date": "2026-09-18",
-          "rate": null
-        },
-        {
-          "name": "광명 시티프라디움 에듀하임",
-          "area": "경기",
-          "date": "2026-09-18",
-          "rate": null
-        },
-        {
-          "name": "숭의역 노르웨이숲 더 스카이",
-          "area": "인천",
-          "date": "2026-09-18",
-          "rate": null
-        },
-        {
-          "name": "화서역 호수공원 아너스빌",
-          "area": "경기",
-          "date": "2026-09-11",
-          "rate": null
-        },
-        {
-          "name": "힐스테이트 고덕엘리스트 A65BL 공공분양주택",
-          "area": "경기",
-          "date": "2026-09-11",
-          "rate": null
-        },
-        {
-          "name": "힐스테이트 고덕엘리스트 A12BL 공공분양주택",
-          "area": "경기",
-          "date": "2026-09-11",
-          "rate": null
-        },
-        {
-          "name": "더샵 분당하이스트",
-          "area": "경기",
-          "date": "2026-09-11",
-          "rate": null
-        },
-        {
-          "name": "중동역 다채로움 더원",
-          "area": "경기",
-          "date": "2026-09-10",
-          "rate": null
-        },
-        {
-          "name": "오남역 서희스타힐스 여의재 3단지 (조합원 취소분)",
-          "area": "경기",
-          "date": "2026-09-09",
-          "rate": null
-        },
-        {
-          "name": "시흥 은계 에피트(조합원 취소분)",
-          "area": "경기",
-          "date": "2026-09-04",
-          "rate": null
-        },
-        {
-          "name": "더샵 여주역더퍼스트",
-          "area": "경기",
-          "date": "2026-09-03",
-          "rate": null
-        },
-        {
-          "name": "남양주진접2지구 A-4블록 신혼희망타운(공공분양) 잔여세대 추가입주자모집공고",
-          "area": "경기",
-          "date": "2026-08-31",
-          "rate": null
-        },
-        {
-          "name": "인천계양지구 A6블록 공공분양주택(본청약)",
-          "area": "인천",
-          "date": "2026-08-31",
-          "rate": null
-        },
-        {
-          "name": "양주회천지구 A-26블록 공공분양주택",
-          "area": "경기",
-          "date": "2026-08-27",
-          "rate": null
-        },
-        {
-          "name": "의정부우정 A2블록 공공분양주택(본청약)",
-          "area": "경기",
-          "date": "2026-08-26",
-          "rate": null
-        }
-      ],
-      "metro": [
-        {
-          "name": "에코델타시티 금강펜테리움 에코리버",
-          "area": "부산",
-          "date": "2026-09-18",
-          "rate": null
-        },
-        {
-          "name": "더샵 시에르네(조합원취소분)(2회차)",
-          "area": "울산",
-          "date": "2026-09-18",
-          "rate": null
-        },
-        {
-          "name": "쌍용 더 플래티넘 센텀",
-          "area": "부산",
-          "date": "2026-09-18",
-          "rate": null
-        },
-        {
-          "name": "문수로 비스타 더파크",
-          "area": "울산",
-          "date": "2026-09-11",
-          "rate": null
-        },
-        {
-          "name": "남울산 노르웨이숲(조합원 취소분)(2회차)",
-          "area": "울산",
-          "date": "2026-09-04",
-          "rate": null
-        },
-        {
-          "name": "대전 경남아너스빌 센텀스카이",
-          "area": "대전",
-          "date": "2026-09-03",
-          "rate": null
-        },
-        {
-          "name": "올 뉴 챔피언스시티 1차",
-          "area": "광주",
-          "date": "2026-09-02",
-          "rate": null
-        },
-        {
-          "name": "그랑라크 에일린의 뜰",
-          "area": "울산",
-          "date": "2026-09-02",
-          "rate": null
-        },
-        {
-          "name": "문수데시앙2단지 공가세대 일반공급",
-          "area": "울산",
-          "date": "2026-08-28",
-          "rate": null
-        },
-        {
-          "name": "제일풍경채 첨단3지구(A6BL)",
-          "area": "광주",
-          "date": "2026-08-14",
-          "rate": null
-        },
-        {
-          "name": "달서자이 제니크",
-          "area": "대구",
-          "date": "2026-08-06",
-          "rate": null
-        },
-        {
-          "name": "두산위브더제니스 대연",
-          "area": "부산",
-          "date": "2026-07-30",
-          "rate": null
-        },
-        {
-          "name": "더샵 트리센트",
-          "area": "부산",
-          "date": "2026-07-24",
-          "rate": null
-        },
-        {
-          "name": "부산 장안지구 B-2블록 중흥S-클래스(본청약)",
-          "area": "부산",
-          "date": "2026-07-10",
-          "rate": null
-        },
-        {
-          "name": "센텀 엘카사",
-          "area": "울산",
-          "date": "2026-07-03",
-          "rate": null
-        }
-      ],
-      "other": [
-        {
-          "name": "진주 판문지구 레이크써밋 웰가",
-          "area": "경남",
-          "date": "2026-09-18",
-          "rate": null
-        },
-        {
-          "name": "삼천 하늘채 라비엘",
-          "area": "전북",
-          "date": "2026-09-18",
-          "rate": null
-        },
-        {
-          "name": "천안 용곡 두산위브(조합원 취소분)",
-          "area": "충남",
-          "date": "2026-09-17",
-          "rate": null
-        },
-        {
-          "name": "천안 아이파크 시티 4단지",
-          "area": "충남",
-          "date": "2026-09-04",
-          "rate": null
-        },
-        {
-          "name": "두정역 푸르지오 그랑피크",
-          "area": "충남",
-          "date": "2026-09-04",
-          "rate": null
-        },
-        {
-          "name": "천안 아이파크 시티 3단지",
-          "area": "충남",
-          "date": "2026-09-04",
-          "rate": null
-        },
-        {
-          "name": "포레나힐스테이트 진주",
-          "area": "경남",
-          "date": "2026-08-14",
-          "rate": null
-        },
-        {
-          "name": "아르티엠 라 테라스",
-          "area": "전북",
-          "date": "2026-08-14",
-          "rate": null
-        },
-        {
-          "name": "세종 우미 린 센터파크(행정중심복합도시 5-2생활권 S1블록, 글미마을 9단지)",
-          "area": "세종",
-          "date": "2026-07-31",
-          "rate": null
-        },
-        {
-          "name": "아산테크노밸리 더원 7차 (Ab4BL)",
-          "area": "충남",
-          "date": "2026-07-27",
-          "rate": null
-        },
-        {
-          "name": "센트레빌 아스테리움 거제",
-          "area": "경남",
-          "date": "2026-07-24",
-          "rate": null
-        },
-        {
-          "name": "리쉐스302",
-          "area": "강원",
-          "date": "2026-07-24",
-          "rate": null
-        },
-        {
-          "name": "창원 한신더휴 메가센텀",
-          "area": "경남",
-          "date": "2026-07-16",
-          "rate": null
-        },
-        {
-          "name": "춘천 리버뷰 아이파크",
-          "area": "강원",
-          "date": "2026-07-10",
-          "rate": null
-        },
-        {
-          "name": "업성 푸르지오 레이크시티 2단지",
-          "area": "충남",
-          "date": "2026-07-10",
-          "rate": null
-        }
-      ]
-    },
-    "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-09-25T23:15:17.182976+09:00"
+      "reason": "휴장·장외 — 마지막 거래일 2026-09-25 기준 값 유지"
+    }
   },
   "nps": {
     "allocation": [
@@ -222750,50 +221902,44 @@
       }
     ],
     "source": "fund.nps.or.kr",
-    "lastFetched": "2026-09-25T23:15:21.571461+09:00",
+    "lastFetched": "2026-09-26T00:13:15.311861+09:00",
     "as_of": "2026-06-01"
   },
   "news": {
-    "lastFetched": "2026-09-25T23:15:38.979554+09:00",
+    "lastFetched": "2026-09-26T00:13:32.735369+09:00",
     "채권": [
       {
-        "title": "“시장 익숙하지 않은 영역 진입”…美 30년물 금리 2004년 이래 최고치",
-        "url": "https://www.mk.co.kr/news/economy/12161243",
+        "title": "美 장기금리 상승의 국내 영향은?…\"환율↑·외인 자본 유출\"",
+        "url": "https://www.yna.co.kr/view/AKR20260919035800008",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 07:55:16 +09:00"
+        "pubDate": "Fri, 25 Sep 2026 10:00:01 +0900"
       },
       {
-        "title": "美 30년물 국채 수익률 5.44%…저금리시대 종말 신호",
-        "url": "https://www.hankyung.com/article/202609245261i",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 20:53:40 +0900"
-      },
-      {
-        "title": "\"월급 꼬박 이체했는데\"…금리 우대 못 받은 황당한 이유",
-        "url": "https://www.hankyung.com/article/202609229909i",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 16:10:01 +0900"
-      },
-      {
-        "title": "美 10년물 국채금리 5.079%로 폭등…PMI호조로 인플레압력 부각",
-        "url": "https://www.hankyung.com/article/202609244510i",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 00:56:49 +0900"
-      },
-      {
-        "title": "손절매 쏟아지는 채권, 10년 금리 5.2%…메타, 인텔 폭등 지속 [김현석의 월스트리트나우]",
-        "url": "https://www.hankyung.com/article/202609255572i",
+        "title": "주식·채권도 코인으로…STO 제도화에 조각투자 시대 '성큼'",
+        "url": "https://www.yna.co.kr/view/AKR20260922097400008",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 08:30:35 +0900"
+        "pubDate": "Fri, 25 Sep 2026 08:00:02 +0900"
+      },
+      {
+        "title": "연휴 뒤 채권시장 변수는…미중 정상회담·유가·10월 발행물량",
+        "url": "https://www.yna.co.kr/view/AKR20260921153900008",
+        "isoDate": "2026-09-24",
+        "pubDate": "Thu, 24 Sep 2026 09:00:01 +0900"
+      },
+      {
+        "title": "\"외상값 못받는 중소기업들\"…매출채권보험 사고액 4년새 65%↑",
+        "url": "https://www.yna.co.kr/view/AKR20260923141100001",
+        "isoDate": "2026-09-24",
+        "pubDate": "Thu, 24 Sep 2026 05:20:00 +0900"
+      },
+      {
+        "title": "국고채 금리 유가 하락에 동반 하락…3년물 연 4.006%(종합)",
+        "url": "https://www.yna.co.kr/view/AKR20260923163051008",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 17:14:01 +0900"
       }
     ],
     "외환": [
-      {
-        "title": "미국 긴축 재개에 원달러 환율 1,380원 돌파",
-        "url": "https://www.junggi.co.kr/news/articleView.html?idxno=37830",
-        "isoDate": "2026-09-18",
-        "pubDate": "Fri, 18 Sep 2026 03:47:00 GMT"
-      },
       {
         "title": "유가 100달러 돌파에 원달러 환율 1339.2원 사수… 중동 불안에 원자재 시장 흔들",
         "url": "https://www.junggi.co.kr/news/articleView.html?idxno=37739",
@@ -222801,16 +221947,28 @@
         "pubDate": "Fri, 11 Sep 2026 04:05:00 GMT"
       },
       {
-        "title": "“달러 쌀 때 들어두자”…원화 강세에 다시 뜨는 달러보험",
-        "url": "https://www.mk.co.kr/news/economy/12161323",
+        "title": "수은, 멕시코 대외무역개발은행과 1억달러 금융협력",
+        "url": "https://www.yna.co.kr/view/AKR20260924040400002",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 13:24:18 +09:00"
+        "pubDate": "Fri, 25 Sep 2026 15:45:01 +0900"
       },
       {
-        "title": "[표] 외국환율고시표",
-        "url": "https://www.mk.co.kr/news/economy/12160476",
-        "isoDate": "2026-09-23",
-        "pubDate": "Wed, 23 Sep 2026 16:02:35 +09:00"
+        "title": "美 장기금리 상승의 국내 영향은?…\"환율↑·외인 자본 유출\"",
+        "url": "https://www.yna.co.kr/view/AKR20260919035800008",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 10:00:01 +0900"
+      },
+      {
+        "title": "[4만달러 눈 앞] ③ K자 양극화 심화…반도체는 잔치, 서민·청년은 시름",
+        "url": "https://www.yna.co.kr/view/AKR20260922159900002",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 08:00:14 +0900"
+      },
+      {
+        "title": "[4만달러 눈 앞] ① 3%대 성장에 국민소득 도약…12년 만에 새 문턱",
+        "url": "https://www.yna.co.kr/view/AKR20260923045600002",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 08:00:11 +0900"
       }
     ],
     "주식": [
@@ -222847,80 +222005,98 @@
     ],
     "원자재": [
       {
-        "title": "\"GPU를 원유처럼 거래\"…CME, 엔비디아 H100·B200 선물 출시 임박 [김주완의 글로벌머니 X파일]",
-        "url": "https://www.hankyung.com/article/202609221656i",
+        "title": "이란전쟁 초반 수준으로 되돌아간 中 국내유가…7월보다 22%↑",
+        "url": "https://www.yna.co.kr/view/AKR20260924045200083",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 07:00:11 +0900"
+        "pubDate": "Thu, 24 Sep 2026 18:09:59 +0900"
       },
       {
-        "title": "\"채권의 시대 끝났다…자산배분 새 공식은 '주식·원자재·에너지'\"",
-        "url": "https://www.hankyung.com/article/202609255381i",
-        "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 08:00:31 +0900"
-      },
-      {
-        "title": "유가 뛰자 채권·주식 동반 충격…개장 전 밀린 나스닥 선물[뉴욕증시 브리핑]",
-        "url": "https://www.hankyung.com/article/202609245297i",
+        "title": "연휴 뒤 채권시장 변수는…미중 정상회담·유가·10월 발행물량",
+        "url": "https://www.yna.co.kr/view/AKR20260921153900008",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 22:24:05 +0900"
+        "pubDate": "Thu, 24 Sep 2026 09:00:01 +0900"
       },
       {
-        "title": "아람코 \"호르무즈 막혀도 韓·日 원유 공급…우회로도 검토\"",
-        "url": "https://www.hankyung.com/article/202609245294i",
+        "title": "국고채 금리 유가 하락에 동반 하락…3년물 연 4.006%(종합)",
+        "url": "https://www.yna.co.kr/view/AKR20260923163051008",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 17:14:01 +0900"
+      },
+      {
+        "title": "사우디 원유 수출길 바꾸자 오만만 '포화'…유조선 용선료 급등",
+        "url": "https://www.yna.co.kr/view/AKR20260925036000079",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 09:00:03 +0900"
+        "pubDate": "Fri, 25 Sep 2026 16:43:26 +0900"
+      },
+      {
+        "title": "아람코 \"동서 파이프라인 차질 수일내 복구…원유 공급 계속\"",
+        "url": "https://www.yna.co.kr/view/AKR20260925024300073",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 12:29:33 +0900"
       }
     ],
     "원유": [
       {
-        "title": "\"GPU를 원유처럼 거래\"…CME, 엔비디아 H100·B200 선물 출시 임박 [김주완의 글로벌머니 X파일]",
-        "url": "https://www.hankyung.com/article/202609221656i",
+        "title": "이란전쟁 초반 수준으로 되돌아간 中 국내유가…7월보다 22%↑",
+        "url": "https://www.yna.co.kr/view/AKR20260924045200083",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 07:00:11 +0900"
+        "pubDate": "Thu, 24 Sep 2026 18:09:59 +0900"
       },
       {
-        "title": "유가 뛰자 채권·주식 동반 충격…개장 전 밀린 나스닥 선물[뉴욕증시 브리핑]",
-        "url": "https://www.hankyung.com/article/202609245297i",
+        "title": "연휴 뒤 채권시장 변수는…미중 정상회담·유가·10월 발행물량",
+        "url": "https://www.yna.co.kr/view/AKR20260921153900008",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 22:24:05 +0900"
+        "pubDate": "Thu, 24 Sep 2026 09:00:01 +0900"
       },
       {
-        "title": "아람코 \"호르무즈 막혀도 韓·日 원유 공급…우회로도 검토\"",
-        "url": "https://www.hankyung.com/article/202609245294i",
+        "title": "국고채 금리 유가 하락에 동반 하락…3년물 연 4.006%(종합)",
+        "url": "https://www.yna.co.kr/view/AKR20260923163051008",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 17:14:01 +0900"
+      },
+      {
+        "title": "사우디 원유 수출길 바꾸자 오만만 '포화'…유조선 용선료 급등",
+        "url": "https://www.yna.co.kr/view/AKR20260925036000079",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 09:00:03 +0900"
+        "pubDate": "Fri, 25 Sep 2026 16:43:26 +0900"
+      },
+      {
+        "title": "아람코 \"동서 파이프라인 차질 수일내 복구…원유 공급 계속\"",
+        "url": "https://www.yna.co.kr/view/AKR20260925024300073",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 12:29:33 +0900"
       }
     ],
     "귀금속": [
       {
-        "title": "하락한 국제 금값…국내 금시세는?",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%ED%95%98%EB%9D%BD%ED%95%9C-%EA%B5%AD%EC%A0%9C-%EA%B8%88%EA%B0%92-%EA%B5%AD%EB%82%B4-%EA%B8%88%EC%8B%9C%EC%84%B8%EB%8A%94/ar-AA2cM1IY",
-        "isoDate": "2026-09-22",
-        "pubDate": "Tue, 22 Sep 2026 15:53:34 GMT"
+        "title": "오늘 금시세 상승…순금 1돈 금값 85.4만원, 달러·유가 하락 영향",
+        "url": "https://www.thefairnews.co.kr/news/articleView.html?idxno=88481",
+        "isoDate": "2026-09-18",
+        "pubDate": "Fri, 18 Sep 2026 03:01:00 GMT"
       },
       {
         "title": "오늘(25일) 금시세 하락…순금 한 돈 금값 82.9만원",
         "url": "https://www.thefairnews.co.kr/news/articleView.html?idxno=89008",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 17:45:00 GMT"
-      },
-      {
-        "title": "[금값시세] 금시세 1돈",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EA%B8%88%EA%B0%92%EC%8B%9C%EC%84%B8-%EA%B8%88%EC%8B%9C%EC%84%B8-1%EB%8F%88/ar-AA2cXrgE",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 18:36:37 GMT"
-      },
-      {
-        "title": "오늘 금시세 하락…순금 한 돈 금값 83.6만원, 18K·14K 가격은",
-        "url": "https://www.thefairnews.co.kr/news/articleView.html?idxno=88948",
-        "isoDate": "2026-09-23",
-        "pubDate": "Wed, 23 Sep 2026 08:15:00 GMT"
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 07:45:00 GMT"
       },
       {
         "title": "오늘 금시세, 순금 한 돈 82만원…국제 금값 하락에 국내 금값도 약세",
         "url": "https://www.job-post.co.kr/news/articleView.html?idxno=227501",
         "isoDate": "2026-09-15",
         "pubDate": "Tue, 15 Sep 2026 03:40:00 GMT"
+      },
+      {
+        "title": "[오늘 금시세]긴축 완화 기대에 금값 ‘껑충’…국내 금 2.02% ↑",
+        "url": "https://www.namdonews.com/news/articleView.html?idxno=923845",
+        "isoDate": "2026-09-18",
+        "pubDate": "Fri, 18 Sep 2026 02:17:00 GMT"
+      },
+      {
+        "title": "힘 잃은 국제 금값…국내 금시세는?",
+        "url": "https://www.msn.com/ko-kr/news/other/%ED%9E%98-%EC%9E%83%EC%9D%80-%EA%B5%AD%EC%A0%9C-%EA%B8%88%EA%B0%92-%EA%B5%AD%EB%82%B4-%EA%B8%88%EC%8B%9C%EC%84%B8%EB%8A%94/ar-AA2cdtJv",
+        "isoDate": "2026-09-15",
+        "pubDate": "Tue, 15 Sep 2026 00:56:00 GMT"
       }
     ],
     "비철금속": [
@@ -222943,16 +222119,16 @@
         "pubDate": "Tue, 15 Sep 2026 14:36:00 GMT"
       },
       {
-        "title": "AI발 수요 증가에 금값 된 구리…트럼프관세 공포에 사재기 극성",
-        "url": "https://www.edaily.co.kr/News/Read?newsId=05172566645578808",
-        "isoDate": "2026-09-10",
-        "pubDate": "Thu, 10 Sep 2026 00:38:00 GMT"
-      },
-      {
         "title": "공급 부족과 수요 소폭 개선으로 구리 가격 상승 전망 [SMM 구리 모닝 미팅 요약]",
         "url": "https://news.metal.com/ko/newscontent/104124574-%EA%B3%B5%EA%B8%89-%EB%B6%80%EC%A1%B1%EA%B3%BC-%EC%88%98%EC%9A%94-%EC%86%8C%ED%8F%AD-%EA%B0%9C%EC%84%A0%EC%9C%BC%EB%A1%9C-%EA%B5%AC%EB%A6%AC-%EA%B0%80%EA%B2%A9-%EC%83%81%EC%8A%B9-%EC%A0%84%EB%A7%9D-smm-%EA%B5%AC%EB%A6%AC-%EB%AA%A8%EB%8B%9D-%EB%AF%B8%ED%8C%85-%EC%9A%94%EC%95%BD",
         "isoDate": "2026-09-21",
         "pubDate": "Mon, 21 Sep 2026 02:02:00 GMT"
+      },
+      {
+        "title": "구리 가격 하락폭 제한적, 재생 구리봉 업체들은 여전히 관망세 [SMM 재생 구리 일일 리뷰]",
+        "url": "https://news.metal.com/ko/newscontent/104131396-%EA%B5%AC%EB%A6%AC-%EA%B0%80%EA%B2%A9-%ED%95%98%EB%9D%BD%ED%8F%AD-%EC%A0%9C%ED%95%9C%EC%A0%81-%EC%9E%AC%EC%83%9D-%EA%B5%AC%EB%A6%AC%EB%B4%89-%EC%97%85%EC%B2%B4%EB%93%A4%EC%9D%80-%EC%97%AC%EC%A0%84%ED%9E%88-%EA%B4%80%EB%A7%9D%EC%84%B8-smm-%EC%9E%AC%EC%83%9D-%EA%B5%AC%EB%A6%AC-%EC%9D%BC%EC%9D%BC-%EB%A6%AC%EB%B7%B0",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 00:24:00 GMT"
       }
     ],
     "한국GDP": [
@@ -222982,9 +222158,9 @@
       },
       {
         "title": "다음주 주목해야할 한국경제 이슈…ADB 한국 성장률 전망·금융안정·2차 국민참여성장펀드",
-        "url": "https://biz.heraldcorp.com/article/10879078",
-        "isoDate": "2026-09-19",
-        "pubDate": "Sat, 19 Sep 2026 04:02:00 GMT"
+        "url": "https://www.msn.com/ko-kr/news/other/%EB%8B%A4%EC%9D%8C%EC%A3%BC-%EC%A3%BC%EB%AA%A9%ED%95%B4%EC%95%BC%ED%95%A0-%ED%95%9C%EA%B5%AD%EA%B2%BD%EC%A0%9C-%EC%9D%B4%EC%8A%88-adb-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%A0%84%EB%A7%9D-%EA%B8%88%EC%9C%B5%EC%95%88%EC%A0%95-2%EC%B0%A8-%EA%B5%AD%EB%AF%BC%EC%B0%B8%EC%97%AC%EC%84%B1%EC%9E%A5%ED%8E%80%EB%93%9C/ar-AA2cx0l3",
+        "isoDate": "2026-09-18",
+        "pubDate": "Fri, 18 Sep 2026 19:01:07 GMT"
       }
     ],
     "미국CPI": [
@@ -223001,16 +222177,16 @@
         "pubDate": "Sat, 12 Sep 2026 15:53:00 GMT"
       },
       {
+        "title": "美 근원 CPI 예상 웃돌아…금리인상 확률 90% 육박",
+        "url": "https://www.msn.com/ko-kr/news/other/%E7%BE%8E-%EA%B7%BC%EC%9B%90-cpi-%EC%98%88%EC%83%81-%EC%9B%83%EB%8F%8C%EC%95%84-%EA%B8%88%EB%A6%AC%EC%9D%B8%EC%83%81-%ED%99%95%EB%A5%A0-90-%EC%9C%A1%EB%B0%95/ar-AA2c1v5B",
+        "isoDate": "2026-09-11",
+        "pubDate": "Fri, 11 Sep 2026 16:33:00 GMT"
+      },
+      {
         "title": "미국 8월 근원 CPI 예상 상회…9월 금리 인상 확률 86%대 급등",
         "url": "https://www.specialtimes.co.kr/news/articleView.html?idxno=461846",
         "isoDate": "2026-09-11",
         "pubDate": "Fri, 11 Sep 2026 23:20:00 GMT"
-      },
-      {
-        "title": "美 근원 CPI 예상 웃돌아…금리인상 확률 90% 육박",
-        "url": "https://www.hankyung.com/article/202609119853i",
-        "isoDate": "2026-09-11",
-        "pubDate": "Fri, 11 Sep 2026 16:33:00 GMT"
       },
       {
         "title": "미국 8월 근원 CPI 상승률 예상치 소폭 웃돌아...9월 금리인상 확률 87%",
@@ -223021,56 +222197,80 @@
     ],
     "중국경기": [
       {
-        "title": "\"왜 중국 대신 한국 선택해야 하나\"…정부가 꺼낸 '비장의 카드'",
-        "url": "https://www.hankyung.com/article/202609255748i",
+        "title": "중국산이 한국산으로?…'국산둔갑 우회수출' 6년 새 12배 증가",
+        "url": "https://www.yna.co.kr/view/AKR20260923170900001",
+        "isoDate": "2026-09-24",
+        "pubDate": "Thu, 24 Sep 2026 07:30:00 +0900"
+      },
+      {
+        "title": "中, 남중국해서 필리핀 선박 물자 보급 막아…갈등 재발",
+        "url": "https://www.yna.co.kr/view/AKR20260925040600083",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 16:08:29 +0900"
+        "pubDate": "Fri, 25 Sep 2026 18:40:18 +0900"
       },
       {
-        "title": "[속보] 머스크 \"시진핑은 뛰어난 지도자…중국 엄청나게 번영\"",
-        "url": "https://www.hankyung.com/article/2026092449617",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 11:48:21 +0900"
-      },
-      {
-        "title": "\"중국산만 쓰더니 갑자기 왜?\"…테슬라, 韓 공장 찾아다닌 이유",
-        "url": "https://www.hankyung.com/article/202609233829i",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 09:30:01 +0900"
-      },
-      {
-        "title": "시진핑 \"美 중국 투자 환영…中 기업도 미국서 대우받아야\"",
-        "url": "https://www.hankyung.com/article/2026092553507",
+        "title": "\"EU, 영국에 中자동차 관세 인상 촉구\"…'對중국 압박' 고조",
+        "url": "https://www.yna.co.kr/view/AKR20260925034000009",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 00:28:41 +0900"
+        "pubDate": "Fri, 25 Sep 2026 16:13:57 +0900"
       },
       {
-        "title": "[속보] 시진핑 \"중국의 위대한 부흥과 MAGA 함께 갈 수 있어\"",
-        "url": "https://www.hankyung.com/article/2026092453377",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 23:55:08 +0900"
+        "title": "네팔·중국 대홍수 한달…8천명 사망·실종 속 막막한 피해 복구",
+        "url": "https://www.yna.co.kr/view/AKR20260924039200104",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 08:13:01 +0900"
+      },
+      {
+        "title": "[미중정상회담] 9년전 시진핑에 중국어 노래 불러준 트럼프 손녀 전면에",
+        "url": "https://www.yna.co.kr/view/AKR20260925002000071",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 01:38:08 +0900"
       }
     ],
     "일본경기": [
       {
-        "title": "\"주문 감당하기 힘들 지경\"…한국·일본 빈틈 노렸더니 '대박'",
-        "url": "https://www.hankyung.com/article/202609233120i",
+        "title": "다시 고개 든 엔저…日 \"트럼프, 우려 표명\" 이례적 공개",
+        "url": "https://www.yna.co.kr/view/AKR20260925030000073",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 14:00:01 +0900"
+        "pubDate": "Fri, 25 Sep 2026 14:24:12 +0900"
       },
       {
-        "title": "일본, 이탈리아는 하는데 한국은 왜 못하나…뉴욕 시장 겨냥한 도전",
-        "url": "https://www.hankyung.com/article/202609255409i",
+        "title": "[4만달러 눈 앞] ⑤ '5040클럽'은 美·獨 등 5개국뿐…'저성장·엔저' 日은 빠져",
+        "url": "https://www.yna.co.kr/view/AKR20260919050700073",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 06:23:57 +0900"
+        "pubDate": "Fri, 25 Sep 2026 08:00:15 +0900"
+      },
+      {
+        "title": "\"짧은 연휴에 유류할증료 부담\"…일본·중국 등 단거리 여행 증가",
+        "url": "https://www.yna.co.kr/view/AKR20260923155600030",
+        "isoDate": "2026-09-24",
+        "pubDate": "Thu, 24 Sep 2026 08:11:01 +0900"
+      },
+      {
+        "title": "[아시안게임] 한국 야구, 일본에 0-5 완패…빈타에 병살타 3개로 패배 자초(종합)",
+        "url": "https://www.yna.co.kr/view/AKR20260925044551007",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 22:00:46 +0900"
+      },
+      {
+        "title": "[아시안게임] 한국 여자축구, 우즈베크 잡고 준결승행…일본과 격돌",
+        "url": "https://www.yna.co.kr/view/AKR20260925045000007",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 21:29:54 +0900"
       }
     ],
     "독일경기": [
       {
         "title": "9월 독일 경기예측 지수 34.7·0.5P↑…\"현황지수는 대폭 개선\"",
         "url": "https://www.msn.com/ko-kr/news/world/9%EC%9B%94-%EB%8F%85%EC%9D%BC-%EA%B2%BD%EA%B8%B0%EC%98%88%EC%B8%A1-%EC%A7%80%EC%88%98-347-05p-%ED%98%84%ED%99%A9%EC%A7%80%EC%88%98%EB%8A%94-%EB%8C%80%ED%8F%AD-%EA%B0%9C%EC%84%A0/ar-AA2cj3Kw",
-        "isoDate": "2026-09-15",
-        "pubDate": "Tue, 15 Sep 2026 18:25:27 GMT"
+        "isoDate": "2026-09-16",
+        "pubDate": "Wed, 16 Sep 2026 04:10:00 GMT"
+      },
+      {
+        "title": "독일식 과거사 청산…105세 나치 부역자 '살인방조' 수사",
+        "url": "https://www.yna.co.kr/view/AKR20260925023200009",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 10:52:32 +0900"
       },
       {
         "title": "\"독일·대만 벤치마킹했다더니\"…보상 쏙 뺀 '무늬만 해외식'?",
@@ -223079,20 +222279,39 @@
         "pubDate": "Thu, 24 Sep 2026 10:00:17 +0900"
       }
     ],
-    "영국경기": [],
+    "영국경기": [
+      {
+        "title": "백악관, 오픈AI·앤트로픽에 \"영국 사전검증 거부하라\" 압박",
+        "url": "https://www.yna.co.kr/view/AKR20260925042900009",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 20:15:56 +0900"
+      },
+      {
+        "title": "\"EU, 영국에 中자동차 관세 인상 촉구\"…'對중국 압박' 고조",
+        "url": "https://www.yna.co.kr/view/AKR20260925034000009",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 16:13:57 +0900"
+      },
+      {
+        "title": "'빚더미' 맨유, 9천만 파운드 추가 대출…총부채 2조원 돌파",
+        "url": "https://www.yna.co.kr/view/AKR20260925037700007",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 17:21:39 +0900"
+      }
+    ],
     "유로존": [],
     "한국수출": [
-      {
-        "title": "경남 무역수지 47개월 연속 흑자…승용차·무기류 수출 견인",
-        "url": "https://www.msn.com/ko-kr/autos/%EC%9D%BC%EB%B0%98/%EA%B2%BD%EB%82%A8-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-47%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%ED%9D%91%EC%9E%90-%EC%8A%B9%EC%9A%A9%EC%B0%A8-%EB%AC%B4%EA%B8%B0%EB%A5%98-%EC%88%98%EC%B6%9C-%EA%B2%AC%EC%9D%B8/ar-AA2cnbNj",
-        "isoDate": "2026-09-17",
-        "pubDate": "Thu, 17 Sep 2026 02:13:46 GMT"
-      },
       {
         "title": "경남 8월 누계 수출 299억 달러…무역수지 47개월 연속 흑자",
         "url": "https://www.msn.com/ko-kr/news/other/%EA%B2%BD%EB%82%A8-8%EC%9B%94-%EB%88%84%EA%B3%84-%EC%88%98%EC%B6%9C-299%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-47%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%ED%9D%91%EC%9E%90/ar-AA2coAdZ",
         "isoDate": "2026-09-17",
         "pubDate": "Thu, 17 Sep 2026 03:31:00 GMT"
+      },
+      {
+        "title": "경남 무역수지 47개월 연속 흑자…승용차·무기류 수출 견인",
+        "url": "https://www.msn.com/ko-kr/autos/%EC%9D%BC%EB%B0%98/%EA%B2%BD%EB%82%A8-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-47%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%ED%9D%91%EC%9E%90-%EC%8A%B9%EC%9A%A9%EC%B0%A8-%EB%AC%B4%EA%B8%B0%EB%A5%98-%EC%88%98%EC%B6%9C-%EA%B2%AC%EC%9D%B8/ar-AA2cnbNj",
+        "isoDate": "2026-09-17",
+        "pubDate": "Thu, 17 Sep 2026 02:13:46 GMT"
       },
       {
         "title": "9월 1~20일 수출 714억 달러 '역대 최대'… 반도체는 또 실적 경신",
@@ -223125,19 +222344,7 @@
   "economicCalendar": {
     "events": [
       {
-        "dt": "09.11 21:30",
-        "cc": "US",
-        "name": "미국 CPI (전월비)",
-        "stars": 3,
-        "prev": "+0.1%",
-        "fore": "+0.1%",
-        "act": "+0.4%",
-        "beat": -1,
-        "source": "FRED:release_id=10",
-        "iso": "2026-09-11"
-      },
-      {
-        "dt": "09.11 21:30",
+        "dt": "09.14 21:30",
         "cc": "US",
         "name": "미국 PPI",
         "stars": 2,
@@ -223146,7 +222353,7 @@
         "act": "+0.4%",
         "beat": -1,
         "source": "FRED:release_id=18",
-        "iso": "2026-09-11"
+        "iso": "2026-09-14"
       },
       {
         "dt": "09.18 21:30",
@@ -223291,11 +222498,23 @@
         "beat": null,
         "source": "FRED:release_id=50",
         "iso": "2026-11-06"
+      },
+      {
+        "dt": "11.10 21:30",
+        "cc": "US",
+        "name": "미국 CPI (전월비)",
+        "stars": 3,
+        "prev": "",
+        "fore": "",
+        "act": "",
+        "beat": null,
+        "source": "FRED:release_id=10",
+        "iso": "2026-11-10"
       }
     ],
-    "lastFetched": "2026-09-25T23:18:27.248992+09:00",
+    "lastFetched": "2026-09-26T00:17:06.913235+09:00",
     "source": "FRED release dates API",
-    "backfilled": 3
+    "backfilled": 2
   },
   "climate": {
     "enso": {
@@ -224144,24 +223363,24 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-09-26T00:17:04.025804+09:00",
+    "asOf": "2026-09-26T00:17:07.019139+09:00",
     "stale": false
   },
   "aiBriefing": {
-    "date": "2026-09-25",
-    "generatedAt": "2026-09-25 23:19 KST",
+    "date": "2026-09-26",
+    "generatedAt": "2026-09-26 00:17 KST",
     "lines": [
-      "원/달러 환율이 0.75% 하락하며 원화 강세가 나타나 외국인 수급 개선 기대감이 커지고 있습니다.",
-      "미국 30년물 국채 금리가 2004년 이후 최고치를 기록해 글로벌 자산 가격 변동성이 확대될 수 있습니다.",
-      "내일은 미국 국채 금리 움직임이 국내 채권 및 주식 시장의 외국인 자금 이탈에 미칠 영향을 확인해야 합니다."
+      "증시 — KOSPI 7,080.92 (▲ 0.90%), S&P500 7,724.61 (▲ 0.27%), 나스닥 27,024.63 (▲ 0.32%)",
+      "환율·금리 — 원/달러 1,356.62원 (▼ 0.76%), 미국 기준금리 3.63%, VIX 14.21",
+      "원자재·심리 — WTI $93.87 (▲ 0.81%), 금 $4,312.80 (▲ 0.16%), 공포탐욕 38(fear)"
     ],
-    "source": "gemini"
+    "source": "rule"
   },
   "dataHealth": {
-    "checkedAt": "2026-09-25T15:17:04.649316+00:00",
+    "checkedAt": "2026-09-25T15:17:57.263781+00:00",
     "summary": {
-      "total": 149,
-      "ok": 141,
+      "total": 146,
+      "ok": 138,
       "preserved": 0,
       "stale": 2,
       "failed": 0,
@@ -224238,8 +223457,8 @@
       },
       {
         "path": "aiBriefing",
-        "asOf": "2026-09-25",
-        "ageDays": 0,
+        "asOf": "2026-09-26",
+        "ageDays": -1,
         "sla": 2,
         "tier": "normal",
         "state": "ok",
@@ -224661,8 +223880,8 @@
       },
       {
         "path": "economicIndicators.us.dxy_idx",
-        "asOf": "2026-09-25",
-        "ageDays": 0,
+        "asOf": "2026-09-26",
+        "ageDays": -1,
         "sla": 4,
         "tier": "normal",
         "state": "ok",
@@ -224796,8 +224015,8 @@
       },
       {
         "path": "economicIndicators.us.sentiment_us",
-        "asOf": "2026-07-01",
-        "ageDays": 56,
+        "asOf": "2026-08-01",
+        "ageDays": 25,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224859,8 +224078,8 @@
       },
       {
         "path": "etfMovers.etfGainers",
-        "asOf": "2026-09-25",
-        "ageDays": 0,
+        "asOf": "2026-09-26",
+        "ageDays": -1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224868,8 +224087,8 @@
       },
       {
         "path": "etfMovers.etfLosers",
-        "asOf": "2026-09-23",
-        "ageDays": 2,
+        "asOf": "2026-09-26",
+        "ageDays": -1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -225236,24 +224455,6 @@
         "cadence": null
       },
       {
-        "path": "rankingsKr.tossAmount",
-        "asOf": "2026-09-23",
-        "ageDays": 2,
-        "sla": 4,
-        "tier": "important",
-        "state": "ok",
-        "cadence": null
-      },
-      {
-        "path": "rankingsKr.tradingAmount",
-        "asOf": "2026-09-23",
-        "ageDays": 2,
-        "sla": 4,
-        "tier": "important",
-        "state": "ok",
-        "cadence": null
-      },
-      {
         "path": "realestate.kr.apt_price_idx_kr",
         "asOf": "2026-08-01",
         "ageDays": 25,
@@ -225399,8 +224600,8 @@
       },
       {
         "path": "sentiment.fear_greed",
-        "asOf": "2026-09-25",
-        "ageDays": 0,
+        "asOf": "2026-09-26",
+        "ageDays": -1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -225408,8 +224609,8 @@
       },
       {
         "path": "sentiment.move",
-        "asOf": "2026-09-25",
-        "ageDays": 0,
+        "asOf": "2026-09-26",
+        "ageDays": -1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -225448,15 +224649,6 @@
         "ageDays": 2,
         "sla": 4,
         "tier": "important",
-        "state": "ok",
-        "cadence": null
-      },
-      {
-        "path": "subscription",
-        "asOf": "2026-09-18",
-        "ageDays": 7,
-        "sla": 40,
-        "tier": "normal",
         "state": "ok",
         "cadence": null
       },
