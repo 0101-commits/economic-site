@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-27T00:37:01.283435+09:00",
+  "lastUpdated": "2026-09-27T01:07:58.710758+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "pykrx (KRX 정보데이터시스템)",
@@ -27,12 +27,12 @@
     "move": "yfinance ^MOVE",
     "fear_greed": "CNN Fear & Greed Index",
     "realestate_kr_trade": "R-ONE 행정구역별 아파트거래현황 (reb.or.kr)",
+    "subscription": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
     "nps": "fund.nps.or.kr",
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
-    "economicCalendar": "FRED release dates API",
-    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
+    "economicCalendar": "FRED release dates API"
   },
   "fx": {
     "USDKRW": {
@@ -2888,7 +2888,7 @@
     ],
     "unit": "억원",
     "source": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷) + 최근 10일 KRX 정보데이터시스템 기준 정렬",
-    "lastFetched": "2026-09-27T00:08:22.822897+09:00",
+    "lastFetched": "2026-09-27T01:08:22.262780+09:00",
     "krxDaily": [
       {
         "date": "2026-09-10",
@@ -3101,7 +3101,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-09-27T00:08:32.764220+09:00"
+    "lastFetched": "2026-09-27T01:08:31.420128+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -18599,6 +18599,21 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
+      },
       "trade_count_kr_rone": {
         "value": 77762.0,
         "prev": 85504.0,
@@ -19114,21 +19129,6 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
-      },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -218641,7 +218641,7 @@
         },
         {
           "date": "2026-09-26",
-          "close": 84019.1797
+          "close": 84106.9375
         }
       ]
     }
@@ -219463,7 +219463,7 @@
         "2026-09-22": 35.03,
         "2026-09-23": 32.54,
         "2026-09-24": 35.74,
-        "2026-09-25": 36.91,
+        "2026-09-25": 37.0,
         "2026-09-26": 37.0
       },
       "source": "CNN Fear & Greed Index"
@@ -221827,7 +221827,7 @@
     ],
     "as_of": "2026-09-25",
     "source": "westmetall.com (LME 일일 재고)",
-    "lastFetched": "2026-09-27T00:08:36.681050+09:00"
+    "lastFetched": "2026-09-27T01:08:36.176604+09:00"
   },
   "diagnostics": {
     "stockMoversSource": "pykrx (KRX 정보데이터시스템)",
@@ -221846,12 +221846,11 @@
       "fred_tried": false,
       "fred_ok": false
     },
-    "subscription": "ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoDetailSvc 200 no-data tc=0 {\"currentCount\":0,\"data\":[],\"matchCount\":0,\"page\":1,\"perPage\":200,\"totalCount\":0}  | ApplyhomeInfoSvc HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | ApplyhomeInfoSvc HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"}  | 15110480 HTTP404 {\"code\":-3,\"msg\":\"등록되지 않은 서비스 입니다.\"} ",
-    "preservedMetricsDeep": 1,
+    "subscription": "OK ApplyhomeInfoDetailSvc 60건",
     "historySpotSynced": 14,
     "toss": {
       "generatedAt": "2026-09-25T09:00:01.686965+09:00",
-      "ageMinutes": 2357.6,
+      "ageMinutes": 2419.0,
       "supplied": [
         "investorTrading",
         "stockFlows",
@@ -221860,6 +221859,380 @@
       "state": "IDLE",
       "reason": "휴장·장외 — 마지막 거래일 2026-09-25 기준 값 유지"
     }
+  },
+  "subscription": {
+    "byRegion": {
+      "seoul": [
+        {
+          "name": "브라운스톤 월곡 센트럴",
+          "area": "서울",
+          "date": "2026-08-28",
+          "rate": null
+        },
+        {
+          "name": "쌍용 더 플래티넘 서대문",
+          "area": "서울",
+          "date": "2026-08-14",
+          "rate": null
+        },
+        {
+          "name": "더샵 신길센트럴시티(조합원 취소분)",
+          "area": "서울",
+          "date": "2026-08-07",
+          "rate": null
+        },
+        {
+          "name": "써밋 클라비온",
+          "area": "서울",
+          "date": "2026-08-07",
+          "rate": null
+        },
+        {
+          "name": "충정로역자이르네",
+          "area": "서울",
+          "date": "2026-08-07",
+          "rate": null
+        },
+        {
+          "name": "월계 중흥S-클래스 리비에르",
+          "area": "서울",
+          "date": "2026-07-16",
+          "rate": null
+        },
+        {
+          "name": "동작 센트럴 동문 디 이스트",
+          "area": "서울",
+          "date": "2026-07-02",
+          "rate": null
+        },
+        {
+          "name": "장위 푸르지오 마크원",
+          "area": "서울",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "드파인 아르티아",
+          "area": "서울",
+          "date": "2026-06-19",
+          "rate": null
+        },
+        {
+          "name": "북서울자이 폴라리스(보류지)",
+          "area": "서울",
+          "date": "2026-06-12",
+          "rate": null
+        },
+        {
+          "name": "써밋 더힐",
+          "area": "서울",
+          "date": "2026-05-15",
+          "rate": null
+        },
+        {
+          "name": "아크로 리버스카이",
+          "area": "서울",
+          "date": "2026-05-13",
+          "rate": null
+        },
+        {
+          "name": "더 리치먼드 미아",
+          "area": "서울",
+          "date": "2026-04-27",
+          "rate": null
+        },
+        {
+          "name": "공덕역자이르네",
+          "area": "서울",
+          "date": "2026-04-17",
+          "rate": null
+        },
+        {
+          "name": "라클라체자이드파인",
+          "area": "서울",
+          "date": "2026-04-03",
+          "rate": null
+        }
+      ],
+      "gyeonggi": [
+        {
+          "name": "시흥하중지구 A-4블록 신혼희망타운(공공분양) 추가입주자모집",
+          "area": "경기",
+          "date": "2026-09-18",
+          "rate": null
+        },
+        {
+          "name": "광명 시티프라디움 에듀하임",
+          "area": "경기",
+          "date": "2026-09-18",
+          "rate": null
+        },
+        {
+          "name": "숭의역 노르웨이숲 더 스카이",
+          "area": "인천",
+          "date": "2026-09-18",
+          "rate": null
+        },
+        {
+          "name": "화서역 호수공원 아너스빌",
+          "area": "경기",
+          "date": "2026-09-11",
+          "rate": null
+        },
+        {
+          "name": "힐스테이트 고덕엘리스트 A65BL 공공분양주택",
+          "area": "경기",
+          "date": "2026-09-11",
+          "rate": null
+        },
+        {
+          "name": "힐스테이트 고덕엘리스트 A12BL 공공분양주택",
+          "area": "경기",
+          "date": "2026-09-11",
+          "rate": null
+        },
+        {
+          "name": "더샵 분당하이스트",
+          "area": "경기",
+          "date": "2026-09-11",
+          "rate": null
+        },
+        {
+          "name": "중동역 다채로움 더원",
+          "area": "경기",
+          "date": "2026-09-10",
+          "rate": null
+        },
+        {
+          "name": "오남역 서희스타힐스 여의재 3단지 (조합원 취소분)",
+          "area": "경기",
+          "date": "2026-09-09",
+          "rate": null
+        },
+        {
+          "name": "시흥 은계 에피트(조합원 취소분)",
+          "area": "경기",
+          "date": "2026-09-04",
+          "rate": null
+        },
+        {
+          "name": "더샵 여주역더퍼스트",
+          "area": "경기",
+          "date": "2026-09-03",
+          "rate": null
+        },
+        {
+          "name": "남양주진접2지구 A-4블록 신혼희망타운(공공분양) 잔여세대 추가입주자모집공고",
+          "area": "경기",
+          "date": "2026-08-31",
+          "rate": null
+        },
+        {
+          "name": "인천계양지구 A6블록 공공분양주택(본청약)",
+          "area": "인천",
+          "date": "2026-08-31",
+          "rate": null
+        },
+        {
+          "name": "양주회천지구 A-26블록 공공분양주택",
+          "area": "경기",
+          "date": "2026-08-27",
+          "rate": null
+        },
+        {
+          "name": "의정부우정 A2블록 공공분양주택(본청약)",
+          "area": "경기",
+          "date": "2026-08-26",
+          "rate": null
+        }
+      ],
+      "metro": [
+        {
+          "name": "에코델타시티 금강펜테리움 에코리버",
+          "area": "부산",
+          "date": "2026-09-18",
+          "rate": null
+        },
+        {
+          "name": "더샵 시에르네(조합원취소분)(2회차)",
+          "area": "울산",
+          "date": "2026-09-18",
+          "rate": null
+        },
+        {
+          "name": "쌍용 더 플래티넘 센텀",
+          "area": "부산",
+          "date": "2026-09-18",
+          "rate": null
+        },
+        {
+          "name": "문수로 비스타 더파크",
+          "area": "울산",
+          "date": "2026-09-11",
+          "rate": null
+        },
+        {
+          "name": "남울산 노르웨이숲(조합원 취소분)(2회차)",
+          "area": "울산",
+          "date": "2026-09-04",
+          "rate": null
+        },
+        {
+          "name": "대전 경남아너스빌 센텀스카이",
+          "area": "대전",
+          "date": "2026-09-03",
+          "rate": null
+        },
+        {
+          "name": "올 뉴 챔피언스시티 1차",
+          "area": "광주",
+          "date": "2026-09-02",
+          "rate": null
+        },
+        {
+          "name": "그랑라크 에일린의 뜰",
+          "area": "울산",
+          "date": "2026-09-02",
+          "rate": null
+        },
+        {
+          "name": "문수데시앙2단지 공가세대 일반공급",
+          "area": "울산",
+          "date": "2026-08-28",
+          "rate": null
+        },
+        {
+          "name": "제일풍경채 첨단3지구(A6BL)",
+          "area": "광주",
+          "date": "2026-08-14",
+          "rate": null
+        },
+        {
+          "name": "달서자이 제니크",
+          "area": "대구",
+          "date": "2026-08-06",
+          "rate": null
+        },
+        {
+          "name": "두산위브더제니스 대연",
+          "area": "부산",
+          "date": "2026-07-30",
+          "rate": null
+        },
+        {
+          "name": "더샵 트리센트",
+          "area": "부산",
+          "date": "2026-07-24",
+          "rate": null
+        },
+        {
+          "name": "부산 장안지구 B-2블록 중흥S-클래스(본청약)",
+          "area": "부산",
+          "date": "2026-07-10",
+          "rate": null
+        },
+        {
+          "name": "센텀 엘카사",
+          "area": "울산",
+          "date": "2026-07-03",
+          "rate": null
+        }
+      ],
+      "other": [
+        {
+          "name": "진주 판문지구 레이크써밋 웰가",
+          "area": "경남",
+          "date": "2026-09-18",
+          "rate": null
+        },
+        {
+          "name": "삼천 하늘채 라비엘",
+          "area": "전북",
+          "date": "2026-09-18",
+          "rate": null
+        },
+        {
+          "name": "천안 용곡 두산위브(조합원 취소분)",
+          "area": "충남",
+          "date": "2026-09-17",
+          "rate": null
+        },
+        {
+          "name": "천안 아이파크 시티 4단지",
+          "area": "충남",
+          "date": "2026-09-04",
+          "rate": null
+        },
+        {
+          "name": "두정역 푸르지오 그랑피크",
+          "area": "충남",
+          "date": "2026-09-04",
+          "rate": null
+        },
+        {
+          "name": "천안 아이파크 시티 3단지",
+          "area": "충남",
+          "date": "2026-09-04",
+          "rate": null
+        },
+        {
+          "name": "포레나힐스테이트 진주",
+          "area": "경남",
+          "date": "2026-08-14",
+          "rate": null
+        },
+        {
+          "name": "아르티엠 라 테라스",
+          "area": "전북",
+          "date": "2026-08-14",
+          "rate": null
+        },
+        {
+          "name": "세종 우미 린 센터파크(행정중심복합도시 5-2생활권 S1블록, 글미마을 9단지)",
+          "area": "세종",
+          "date": "2026-07-31",
+          "rate": null
+        },
+        {
+          "name": "아산테크노밸리 더원 7차 (Ab4BL)",
+          "area": "충남",
+          "date": "2026-07-27",
+          "rate": null
+        },
+        {
+          "name": "센트레빌 아스테리움 거제",
+          "area": "경남",
+          "date": "2026-07-24",
+          "rate": null
+        },
+        {
+          "name": "리쉐스302",
+          "area": "강원",
+          "date": "2026-07-24",
+          "rate": null
+        },
+        {
+          "name": "창원 한신더휴 메가센텀",
+          "area": "경남",
+          "date": "2026-07-16",
+          "rate": null
+        },
+        {
+          "name": "춘천 리버뷰 아이파크",
+          "area": "강원",
+          "date": "2026-07-10",
+          "rate": null
+        },
+        {
+          "name": "업성 푸르지오 레이크시티 2단지",
+          "area": "충남",
+          "date": "2026-07-10",
+          "rate": null
+        }
+      ]
+    },
+    "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
+    "lastFetched": "2026-09-27T01:16:18.521875+09:00"
   },
   "nps": {
     "allocation": [
@@ -221885,11 +222258,11 @@
       }
     ],
     "source": "fund.nps.or.kr",
-    "lastFetched": "2026-09-27T00:15:13.477816+09:00",
+    "lastFetched": "2026-09-27T01:16:21.780411+09:00",
     "as_of": "2026-06-01"
   },
   "news": {
-    "lastFetched": "2026-09-27T00:15:29.253509+09:00",
+    "lastFetched": "2026-09-27T01:16:38.554820+09:00",
     "채권": [
       {
         "title": "[다음주 경제] 반도체 생산 얼마나 늘었나…물가·금리 지표도 발표",
@@ -221924,10 +222297,16 @@
     ],
     "외환": [
       {
-        "title": "중동 긴장 재고조에 유가 ↑…원달러 환율 1340원대 등락",
-        "url": "https://www.junggi.co.kr/news/articleView.html?idxno=37758",
-        "isoDate": "2026-09-14",
-        "pubDate": "Mon, 14 Sep 2026 04:06:00 GMT"
+        "title": "미국 긴축 재개에 원달러 환율 1,380원 돌파",
+        "url": "https://www.junggi.co.kr/news/articleView.html?idxno=37830",
+        "isoDate": "2026-09-18",
+        "pubDate": "Fri, 18 Sep 2026 03:47:00 GMT"
+      },
+      {
+        "title": "원달러 환율 하락하며 8월 수출입물가 동반 하락",
+        "url": "https://www.junggi.co.kr/news/articleView.html?idxno=37776",
+        "isoDate": "2026-09-15",
+        "pubDate": "Tue, 15 Sep 2026 03:23:00 GMT"
       },
       {
         "title": "환율 하락에 항공주는 웃고 해운주 울고…식음료는 딜레마",
@@ -221946,15 +222325,15 @@
         "url": "https://www.yna.co.kr/view/AKR20260919035800008",
         "isoDate": "2026-09-25",
         "pubDate": "Fri, 25 Sep 2026 10:00:01 +0900"
-      },
-      {
-        "title": "[4만달러 눈 앞] ③ K자 양극화 심화…반도체는 잔치, 서민·청년은 시름",
-        "url": "https://www.yna.co.kr/view/AKR20260922159900002",
-        "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 08:00:14 +0900"
       }
     ],
     "주식": [
+      {
+        "title": "[마감시황] AI 투심 흔들리자…코스피 3% 급락, 6684선 마감",
+        "url": "https://www.newspim.com/news/view/20260914000811",
+        "isoDate": "2026-09-13",
+        "pubDate": "Sun, 13 Sep 2026 23:46:00 GMT"
+      },
       {
         "title": "[마감시황] 코스피, 장중 상승폭 반납해 7010선 강보합⋯ 코스닥 0.23%↓",
         "url": "https://www.msn.com/ko-kr/news/other/%EB%A7%88%EA%B0%90%EC%8B%9C%ED%99%A9-%EC%BD%94%EC%8A%A4%ED%94%BC-%EC%9E%A5%EC%A4%91-%EC%83%81%EC%8A%B9%ED%8F%AD-%EB%B0%98%EB%82%A9%ED%95%B4-7010%EC%84%A0-%EA%B0%95%EB%B3%B4%ED%95%A9-%EC%BD%94%EC%8A%A4%EB%8B%A5-0-23/ar-AA2cJwCb",
@@ -221962,10 +222341,10 @@
         "pubDate": "Tue, 22 Sep 2026 08:56:00 GMT"
       },
       {
-        "title": "(마감시황) 코스피, AI 훈풍에도 유가 반등에 발목…7,010선 강보합",
-        "url": "https://www.news2day.co.kr/article/20260922500245",
+        "title": "[마감시황] 코스피, 美 AI 훈풍에 7170선 찍고 ‘털썩’…상승폭 반납하며 7017선 턱걸이",
+        "url": "https://www.hanyangeconomy.com/news/articleView.html?idxno=10200",
         "isoDate": "2026-09-22",
-        "pubDate": "Tue, 22 Sep 2026 09:11:00 GMT"
+        "pubDate": "Tue, 22 Sep 2026 11:13:00 GMT"
       },
       {
         "title": "[개장 시황]코스피, '7,100선' 껑충…코스피·코스닥 동반 강세 출발",
@@ -221978,12 +222357,6 @@
         "url": "https://www.shinailbo.co.kr/news/articleView.html?idxno=5065593",
         "isoDate": "2026-09-23",
         "pubDate": "Wed, 23 Sep 2026 08:58:00 GMT"
-      },
-      {
-        "title": "[마감 시황] 코스피 7,000선 탈환, 코스닥 동반 상승…원/달러 환율은 하락 마감",
-        "url": "https://www.businesskorea.co.kr/news/articleView.html?idxno=277453",
-        "isoDate": "2026-09-21",
-        "pubDate": "Mon, 21 Sep 2026 09:44:00 GMT"
       }
     ],
     "원자재": [
@@ -222064,16 +222437,16 @@
         "pubDate": "Sat, 19 Sep 2026 17:00:00 GMT"
       },
       {
-        "title": "오늘 금시세, 순금 한 돈 82만원…국제 금값 하락에 국내 금값도 약세",
-        "url": "https://www.job-post.co.kr/news/articleView.html?idxno=227501",
-        "isoDate": "2026-09-15",
-        "pubDate": "Tue, 15 Sep 2026 03:40:00 GMT"
-      },
-      {
         "title": "[금값시세] 금시세 18k",
         "url": "https://www.msn.com/ko-kr/news/other/%EA%B8%88%EA%B0%92%EC%8B%9C%EC%84%B8-%EA%B8%88%EC%8B%9C%EC%84%B8-18k/ar-AA2cZHBd",
         "isoDate": "2026-09-25",
         "pubDate": "Fri, 25 Sep 2026 19:24:10 GMT"
+      },
+      {
+        "title": "오늘 금시세, 순금 한 돈 82만원…국제 금값 하락에 국내 금값도 약세",
+        "url": "https://www.job-post.co.kr/news/articleView.html?idxno=227501",
+        "isoDate": "2026-09-15",
+        "pubDate": "Tue, 15 Sep 2026 03:40:00 GMT"
       },
       {
         "title": "힘 잃은 국제 금값…국내 금시세는?",
@@ -222134,16 +222507,16 @@
         "pubDate": "Wed, 23 Sep 2026 02:18:00 GMT"
       },
       {
-        "title": "다음주 주목해야할 한국경제 이슈…ADB 한국 성장률 전망·금융안정·2차 국민참여성장펀드",
-        "url": "https://biz.heraldcorp.com/article/10879078",
-        "isoDate": "2026-09-19",
-        "pubDate": "Sat, 19 Sep 2026 04:02:00 GMT"
-      },
-      {
         "title": "씨티 “반도체 호황 2028년까지…한국 성장률 3%대 지속”",
         "url": "https://www.msn.com/ko-kr/news/other/%EC%94%A8%ED%8B%B0-%EB%B0%98%EB%8F%84%EC%B2%B4-%ED%98%B8%ED%99%A9-2028%EB%85%84%EA%B9%8C%EC%A7%80-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-3-%EB%8C%80-%EC%A7%80%EC%86%8D/ar-AA2csycv",
         "isoDate": "2026-09-18",
         "pubDate": "Fri, 18 Sep 2026 01:42:00 GMT"
+      },
+      {
+        "title": "ADB, 올해 한국 성장률 3.2%로 상향… 내년도 2.3%",
+        "url": "https://www.newscj.com/news/articleView.html?idxno=3435059",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 05:32:00 GMT"
       }
     ],
     "미국CPI": [
@@ -222477,7 +222850,7 @@
         "iso": "2026-11-10"
       }
     ],
-    "lastFetched": "2026-09-27T00:17:34.980632+09:00",
+    "lastFetched": "2026-09-27T01:18:59.914518+09:00",
     "source": "FRED release dates API",
     "backfilled": 2
   },
@@ -223328,24 +223701,24 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-09-27T00:37:01.328498+09:00",
+    "asOf": "2026-09-27T01:19:00.049887+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-09-27",
-    "generatedAt": "2026-09-27 00:18 KST",
+    "generatedAt": "2026-09-27 01:19 KST",
     "lines": [
-      "원/달러 환율이 0.92% 하락하며 원화 강세가 뚜렷해졌고, 이는 수입 비용 절감 효과를 통해 국내 항공주 등 관련 업종의 수익성 개선 기대감을 높이고 있습니다.",
-      "외국인 투자자가 최근 5일간 2조 6천억 원 이상 순매도하며 시장 이탈 흐름을 보이고 있어, 환율 하락에도 불구하고 국내 증시의 수급 부담은 여전히 지속될 전망입니다.",
-      "시장의 공포 심리가 37.0으로 '공포' 단계에 머물러 있는 만큼, 내일은 미국 시장의 변동성과 함께 외국인의 순매수 전환 여부를 집중적으로 확인해야 합니다."
+      "원/달러 환율이 0.92% 하락하며 원화 강세가 뚜렷해졌고, 이는 수입 물가 안정과 외국인 자금 유입을 유도해 국내 증시의 투자 심리 개선에 긍정적으로 작용할 전망입니다.",
+      "미국 증시와 코스피가 동반 상승하며 위험자산 선호 심리가 회복되고 있으나, 공포·탐욕 지수가 37로 여전히 공포 구간에 머물러 있어 시장의 변동성에 주의가 필요합니다.",
+      "최근 5일간 외국인이 2조 6천억 원 이상 순매도한 흐름이 환율 하락을 계기로 매수 전환될지 여부와 향후 발표될 주요 경제 지표들의 변화를 지속적으로 확인해야 합니다."
     ],
     "source": "gemini"
   },
   "dataHealth": {
-    "checkedAt": "2026-09-26T15:37:01.945983+00:00",
+    "checkedAt": "2026-09-26T16:19:50.936263+00:00",
     "summary": {
-      "total": 146,
-      "ok": 138,
+      "total": 147,
+      "ok": 139,
       "preserved": 0,
       "stale": 2,
       "failed": 0,
@@ -224614,6 +224987,15 @@
         "ageDays": 3,
         "sla": 4,
         "tier": "important",
+        "state": "ok",
+        "cadence": null
+      },
+      {
+        "path": "subscription",
+        "asOf": "2026-09-18",
+        "ageDays": 8,
+        "sla": 40,
+        "tier": "normal",
         "state": "ok",
         "cadence": null
       },
