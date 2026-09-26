@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-26T08:42:25.127645+09:00",
+  "lastUpdated": "2026-09-26T09:08:24.202352+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "pykrx (KRX 정보데이터시스템)",
@@ -7,6 +7,7 @@
     "investorTrading": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷) + 최근 10일 KRX 정보데이터시스템 기준 정렬",
     "stockFlows": "토스증권 Open API (종목별 수급, PC 스냅샷)",
     "freight": "해상운임 스크래핑(네이버/StockQ/SSE)",
+    "lmeInventory": "westmetall.com (LME 일일 재고)",
     "indices": "yfinance (KR) + yfinance (해외)",
     "commodities": "yfinance",
     "economicIndicators_us": "FRED API (stlouisfed.org)",
@@ -2887,7 +2888,7 @@
     ],
     "unit": "억원",
     "source": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷) + 최근 10일 KRX 정보데이터시스템 기준 정렬",
-    "lastFetched": "2026-09-26T08:42:42.282978+09:00",
+    "lastFetched": "2026-09-26T09:08:44.327652+09:00",
     "krxDaily": [
       {
         "date": "2026-09-10",
@@ -3100,7 +3101,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-09-26T08:42:49.905698+09:00"
+    "lastFetched": "2026-09-26T09:08:53.949704+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -211351,10 +211352,6 @@
     "crypto": {
       "BTC": [
         {
-          "date": "2021-09-25",
-          "close": 42716.5938
-        },
-        {
           "date": "2021-09-26",
           "close": 43208.5391
         },
@@ -218655,8 +218652,8 @@
           "close": 84379.0625
         },
         {
-          "date": "2026-09-25",
-          "close": 84064.3281
+          "date": "2026-09-26",
+          "close": 84062.6406
         }
       ]
     }
@@ -219229,7 +219226,6 @@
       "rating": "fear",
       "as_of": "2026-09-26",
       "history": {
-        "2025-09-25": 50.66,
         "2025-09-26": 51.29,
         "2025-09-29": 50.97,
         "2025-09-30": 51.4,
@@ -221800,50 +221796,50 @@
     "data": [
       {
         "name": "Copper",
-        "cur": 251175,
-        "wkChg": -4725,
-        "m4ago": 387300,
+        "cur": 251500,
+        "wkChg": -3600,
+        "m4ago": 385100,
         "status": "down"
       },
       {
         "name": "Aluminum",
         "cur": 241375,
         "wkChg": -1225,
-        "m4ago": 339250,
+        "m4ago": 338000,
         "status": "down"
       },
       {
         "name": "Zinc",
-        "cur": 123200,
-        "wkChg": 8950,
-        "m4ago": 108400,
+        "cur": 121600,
+        "wkChg": 6300,
+        "m4ago": 108325,
         "status": "up"
       },
       {
         "name": "Nickel",
-        "cur": 278898,
-        "wkChg": 108,
+        "cur": 284946,
+        "wkChg": 6120,
         "m4ago": 278064,
         "status": "up"
       },
       {
         "name": "Lead",
-        "cur": 364075,
-        "wkChg": -11525,
-        "m4ago": 284350,
+        "cur": 362525,
+        "wkChg": -11100,
+        "m4ago": 314000,
         "status": "down"
       },
       {
         "name": "Tin",
         "cur": 4590,
-        "wkChg": -375,
-        "m4ago": 8460,
+        "wkChg": -265,
+        "m4ago": 8660,
         "status": "down"
       }
     ],
-    "as_of": "2026-09-24",
+    "as_of": "2026-09-25",
     "source": "westmetall.com (LME 일일 재고)",
-    "lastFetched": "2026-09-26T08:08:57.096715+09:00"
+    "lastFetched": "2026-09-26T09:08:58.596227+09:00"
   },
   "diagnostics": {
     "stockMoversSource": "pykrx (KRX 정보데이터시스템)",
@@ -221866,7 +221862,7 @@
     "historySpotSynced": 13,
     "toss": {
       "generatedAt": "2026-09-25T09:00:01.686965+09:00",
-      "ageMinutes": 1433.5,
+      "ageMinutes": 1458.0,
       "supplied": [
         "investorTrading",
         "stockFlows",
@@ -221874,11 +221870,7 @@
       ],
       "state": "IDLE",
       "reason": "휴장·장외 — 마지막 거래일 2026-09-25 기준 값 유지"
-    },
-    "deadHosts": [
-      "www.westmetall.com",
-      "www.yna.co.kr"
-    ]
+    }
   },
   "subscription": {
     "byRegion": {
@@ -222252,7 +222244,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-09-26T08:49:55.562008+09:00"
+    "lastFetched": "2026-09-26T09:15:13.246924+09:00"
   },
   "nps": {
     "allocation": [
@@ -222278,44 +222270,50 @@
       }
     ],
     "source": "fund.nps.or.kr",
-    "lastFetched": "2026-09-26T08:49:59.054797+09:00",
+    "lastFetched": "2026-09-26T09:15:17.297147+09:00",
     "as_of": "2026-06-01"
   },
   "news": {
-    "lastFetched": "2026-09-26T08:50:14.770754+09:00",
+    "lastFetched": "2026-09-26T09:15:34.068181+09:00",
     "채권": [
       {
-        "title": "“시장 익숙하지 않은 영역 진입”…美 30년물 금리 2004년 이래 최고치",
-        "url": "https://www.mk.co.kr/news/economy/12161243",
+        "title": "[다음주 경제] 반도체 생산 얼마나 늘었나…물가·금리 지표도 발표",
+        "url": "https://www.yna.co.kr/view/AKR20260926014400002",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 08:23:49 +0900"
+      },
+      {
+        "title": "'자산토큰화반' 신설한 한은, 국채 토큰화 속도내나",
+        "url": "https://www.yna.co.kr/view/AKR20260923196200002",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 05:51:00 +0900"
+      },
+      {
+        "title": "美 장기금리 상승의 국내 영향은?…\"환율↑·외인 자본 유출\"",
+        "url": "https://www.yna.co.kr/view/AKR20260919035800008",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 07:55:16 +09:00"
+        "pubDate": "Fri, 25 Sep 2026 10:00:01 +0900"
       },
       {
-        "title": "금리 올려도 안 풀리는 엔캐리…최대 2조달러 '청산 시한폭탄' 커지나 [김주완의 글로벌머니 X파일]",
-        "url": "https://www.hankyung.com/article/202609232798i",
-        "isoDate": "2026-09-26",
-        "pubDate": "Sat, 26 Sep 2026 07:00:04 +0900"
+        "title": "주식·채권도 코인으로…STO 제도화에 조각투자 시대 '성큼'",
+        "url": "https://www.yna.co.kr/view/AKR20260922097400008",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 08:00:02 +0900"
       },
       {
-        "title": "국채 고금리? \"정상화 과정\"…AI 채권은 \"비중 축소\" [박신영의 개장전 요것만]",
-        "url": "https://www.hankyung.com/article/202609266127i",
-        "isoDate": "2026-09-26",
-        "pubDate": "Sat, 26 Sep 2026 00:48:29 +0900"
-      },
-      {
-        "title": "美 30년물 국채 수익률 5.44%…저금리시대 종말 신호",
-        "url": "https://www.hankyung.com/article/202609245261i",
+        "title": "연휴 뒤 채권시장 변수는…미중 정상회담·유가·10월 발행물량",
+        "url": "https://www.yna.co.kr/view/AKR20260921153900008",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 20:53:40 +0900"
-      },
-      {
-        "title": "\"월급 꼬박 이체했는데\"…금리 우대 못 받은 황당한 이유",
-        "url": "https://www.hankyung.com/article/202609229909i",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 16:10:01 +0900"
+        "pubDate": "Thu, 24 Sep 2026 09:00:01 +0900"
       }
     ],
     "외환": [
+      {
+        "title": "미국 긴축 재개에 원달러 환율 1,380원 돌파",
+        "url": "https://www.junggi.co.kr/news/articleView.html?idxno=37830",
+        "isoDate": "2026-09-18",
+        "pubDate": "Fri, 18 Sep 2026 03:47:00 GMT"
+      },
       {
         "title": "원달러 환율 하락하며 8월 수출입물가 동반 하락",
         "url": "https://www.junggi.co.kr/news/articleView.html?idxno=37776",
@@ -222323,30 +222321,42 @@
         "pubDate": "Tue, 15 Sep 2026 03:23:00 GMT"
       },
       {
-        "title": "“달러 쌀 때 들어두자”…원화 강세에 다시 뜨는 달러보험",
-        "url": "https://www.mk.co.kr/news/economy/12161323",
+        "title": "수은, 멕시코 대외무역개발은행과 1억달러 금융협력",
+        "url": "https://www.yna.co.kr/view/AKR20260924040400002",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 13:24:18 +09:00"
+        "pubDate": "Fri, 25 Sep 2026 15:45:01 +0900"
       },
       {
-        "title": "[표] 외국환율고시표",
-        "url": "https://www.mk.co.kr/news/economy/12160476",
-        "isoDate": "2026-09-23",
-        "pubDate": "Wed, 23 Sep 2026 16:02:35 +09:00"
+        "title": "美 장기금리 상승의 국내 영향은?…\"환율↑·외인 자본 유출\"",
+        "url": "https://www.yna.co.kr/view/AKR20260919035800008",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 10:00:01 +0900"
       },
       {
-        "title": "금리 올려도 안 풀리는 엔캐리…최대 2조달러 '청산 시한폭탄' 커지나 [김주완의 글로벌머니 X파일]",
-        "url": "https://www.hankyung.com/article/202609232798i",
-        "isoDate": "2026-09-26",
-        "pubDate": "Sat, 26 Sep 2026 07:00:04 +0900"
+        "title": "[4만달러 눈 앞] ③ K자 양극화 심화…반도체는 잔치, 서민·청년은 시름",
+        "url": "https://www.yna.co.kr/view/AKR20260922159900002",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 08:00:14 +0900"
       }
     ],
     "주식": [
+      {
+        "title": "[마감시황] 코스피, 유가·금리 안정에 6900선 ‘바싹’",
+        "url": "https://www.hanyangeconomy.com/news/articleView.html?idxno=10166",
+        "isoDate": "2026-09-18",
+        "pubDate": "Fri, 18 Sep 2026 10:20:00 GMT"
+      },
       {
         "title": "[개장 시황]코스피, '7,100선' 껑충…코스피·코스닥 동반 강세 출발",
         "url": "https://www.businesskorea.co.kr/news/articleView.html?idxno=277613",
         "isoDate": "2026-09-23",
         "pubDate": "Wed, 23 Sep 2026 04:02:00 GMT"
+      },
+      {
+        "title": "[마감시황] 코스피, 美 AI 훈풍에 7170선 찍고 ‘털썩’…상승폭 반납하며 7017선 턱걸이",
+        "url": "https://www.hanyangeconomy.com/news/articleView.html?idxno=10200",
+        "isoDate": "2026-09-22",
+        "pubDate": "Tue, 22 Sep 2026 11:13:00 GMT"
       },
       {
         "title": "[마감시황] 코스피, 장중 상승폭 반납해 7010선 강보합⋯ 코스닥 0.23%↓",
@@ -222359,79 +222369,73 @@
         "url": "https://www.businesskorea.co.kr/news/articleView.html?idxno=277453",
         "isoDate": "2026-09-21",
         "pubDate": "Mon, 21 Sep 2026 09:44:00 GMT"
-      },
-      {
-        "title": "[개장시황] 코스피 2.18% 급등 6861…삼성전기 4.96%↑",
-        "url": "https://www.jabon.co.kr/news/articleView.html?idxno=6982",
-        "isoDate": "2026-09-18",
-        "pubDate": "Fri, 18 Sep 2026 03:00:00 GMT"
-      },
-      {
-        "title": "[마감시황] 코스피, 기관 '사자' 힘입어 7080선…4거래일 연속 상승",
-        "url": "https://www.shinailbo.co.kr/news/articleView.html?idxno=5065593",
-        "isoDate": "2026-09-23",
-        "pubDate": "Wed, 23 Sep 2026 08:58:00 GMT"
       }
     ],
     "원자재": [
       {
-        "title": "\"GPU를 원유처럼 거래\"…CME, 엔비디아 H100·B200 선물 출시 임박 [김주완의 글로벌머니 X파일]",
-        "url": "https://www.hankyung.com/article/202609221656i",
+        "title": "이란전쟁 초반 수준으로 되돌아간 中 국내유가…7월보다 22%↑",
+        "url": "https://www.yna.co.kr/view/AKR20260924045200083",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 07:00:11 +0900"
+        "pubDate": "Thu, 24 Sep 2026 18:09:59 +0900"
       },
       {
-        "title": "\"채권의 시대 끝났다…자산배분 새 공식은 '주식·원자재·에너지'\"",
-        "url": "https://www.hankyung.com/article/202609255381i",
-        "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 08:00:31 +0900"
-      },
-      {
-        "title": "유가 뛰자 채권·주식 동반 충격…개장 전 밀린 나스닥 선물[뉴욕증시 브리핑]",
-        "url": "https://www.hankyung.com/article/202609245297i",
+        "title": "연휴 뒤 채권시장 변수는…미중 정상회담·유가·10월 발행물량",
+        "url": "https://www.yna.co.kr/view/AKR20260921153900008",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 22:24:05 +0900"
+        "pubDate": "Thu, 24 Sep 2026 09:00:01 +0900"
       },
       {
-        "title": "아람코 \"호르무즈 막혀도 韓·日 원유 공급…우회로도 검토\"",
-        "url": "https://www.hankyung.com/article/202609245294i",
-        "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 09:00:03 +0900"
+        "title": "국고채 금리 유가 하락에 동반 하락…3년물 연 4.006%(종합)",
+        "url": "https://www.yna.co.kr/view/AKR20260923163051008",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 17:14:01 +0900"
+      },
+      {
+        "title": "\"이란 원유 실은 유조선, 미 해군에 나포돼 본토 입항 임박\"",
+        "url": "https://www.yna.co.kr/view/AKR20260926018600009",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 08:58:47 +0900"
+      },
+      {
+        "title": "뉴욕증시, 호르무즈 협상 기대·유가 하락에 상승 마감",
+        "url": "https://www.yna.co.kr/view/AKR20260926007500072",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 05:17:48 +0900"
       }
     ],
     "원유": [
       {
-        "title": "\"GPU를 원유처럼 거래\"…CME, 엔비디아 H100·B200 선물 출시 임박 [김주완의 글로벌머니 X파일]",
-        "url": "https://www.hankyung.com/article/202609221656i",
+        "title": "이란전쟁 초반 수준으로 되돌아간 中 국내유가…7월보다 22%↑",
+        "url": "https://www.yna.co.kr/view/AKR20260924045200083",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 07:00:11 +0900"
+        "pubDate": "Thu, 24 Sep 2026 18:09:59 +0900"
       },
       {
-        "title": "유가 뛰자 채권·주식 동반 충격…개장 전 밀린 나스닥 선물[뉴욕증시 브리핑]",
-        "url": "https://www.hankyung.com/article/202609245297i",
+        "title": "연휴 뒤 채권시장 변수는…미중 정상회담·유가·10월 발행물량",
+        "url": "https://www.yna.co.kr/view/AKR20260921153900008",
         "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 22:24:05 +0900"
+        "pubDate": "Thu, 24 Sep 2026 09:00:01 +0900"
       },
       {
-        "title": "아람코 \"호르무즈 막혀도 韓·日 원유 공급…우회로도 검토\"",
-        "url": "https://www.hankyung.com/article/202609245294i",
-        "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 09:00:03 +0900"
+        "title": "국고채 금리 유가 하락에 동반 하락…3년물 연 4.006%(종합)",
+        "url": "https://www.yna.co.kr/view/AKR20260923163051008",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 17:14:01 +0900"
+      },
+      {
+        "title": "\"이란 원유 실은 유조선, 미 해군에 나포돼 본토 입항 임박\"",
+        "url": "https://www.yna.co.kr/view/AKR20260926018600009",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 08:58:47 +0900"
+      },
+      {
+        "title": "뉴욕증시, 호르무즈 협상 기대·유가 하락에 상승 마감",
+        "url": "https://www.yna.co.kr/view/AKR20260926007500072",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 05:17:48 +0900"
       }
     ],
     "귀금속": [
-      {
-        "title": "오늘 금시세 상승…순금 1돈 금값 85.4만원, 달러·유가 하락 영향",
-        "url": "https://www.thefairnews.co.kr/news/articleView.html?idxno=88481",
-        "isoDate": "2026-09-18",
-        "pubDate": "Fri, 18 Sep 2026 03:01:00 GMT"
-      },
-      {
-        "title": "하락한 국제 금값…국내 금시세는?",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%ED%95%98%EB%9D%BD%ED%95%9C-%EA%B5%AD%EC%A0%9C-%EA%B8%88%EA%B0%92-%EA%B5%AD%EB%82%B4-%EA%B8%88%EC%8B%9C%EC%84%B8%EB%8A%94/ar-AA2cM1IY",
-        "isoDate": "2026-09-22",
-        "pubDate": "Tue, 22 Sep 2026 15:53:34 GMT"
-      },
       {
         "title": "오늘(25일) 금시세 하락…순금 한 돈 금값 82.9만원",
         "url": "https://www.thefairnews.co.kr/news/articleView.html?idxno=89008",
@@ -222439,16 +222443,28 @@
         "pubDate": "Fri, 25 Sep 2026 07:45:00 GMT"
       },
       {
+        "title": "오늘 금시세 하락…순금 한 돈 금값 83.6만원, 18K·14K 가격은",
+        "url": "https://www.thefairnews.co.kr/news/articleView.html?idxno=88948",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 08:15:00 GMT"
+      },
+      {
+        "title": "[오늘 금시세]긴축 완화 기대에 금값 ‘껑충’…국내 금 2.02% ↑",
+        "url": "https://www.namdonews.com/news/articleView.html?idxno=923845",
+        "isoDate": "2026-09-18",
+        "pubDate": "Fri, 18 Sep 2026 02:17:00 GMT"
+      },
+      {
+        "title": "[금값시세] 금시세 18k",
+        "url": "https://www.msn.com/ko-kr/news/other/%EA%B8%88%EA%B0%92%EC%8B%9C%EC%84%B8-%EA%B8%88%EC%8B%9C%EC%84%B8-18k/ar-AA2cRjb5",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 18:26:10 GMT"
+      },
+      {
         "title": "오늘 금시세, 순금 한 돈 82만원…국제 금값 하락에 국내 금값도 약세",
         "url": "https://www.job-post.co.kr/news/articleView.html?idxno=227501",
         "isoDate": "2026-09-15",
         "pubDate": "Tue, 15 Sep 2026 03:40:00 GMT"
-      },
-      {
-        "title": "힘 잃은 국제 금값…국내 금시세는?",
-        "url": "https://www.msn.com/ko-kr/news/other/%ED%9E%98-%EC%9E%83%EC%9D%80-%EA%B5%AD%EC%A0%9C-%EA%B8%88%EA%B0%92-%EA%B5%AD%EB%82%B4-%EA%B8%88%EC%8B%9C%EC%84%B8%EB%8A%94/ar-AA2cdtJv",
-        "isoDate": "2026-09-15",
-        "pubDate": "Tue, 15 Sep 2026 00:56:00 GMT"
       }
     ],
     "비철금속": [
@@ -222492,9 +222508,9 @@
       },
       {
         "title": "피치, 올해 한국 성장률 전망치 3.5%로 대폭 상향",
-        "url": "https://www.msn.com/ko-kr/money/%EC%9D%BC%EB%B0%98/%ED%94%BC%EC%B9%98-%EC%98%AC%ED%95%B4-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%A0%84%EB%A7%9D%EC%B9%98-3-5-%EB%A1%9C-%EB%8C%80%ED%8F%AD-%EC%83%81%ED%96%A5/ar-AA2cNgS9",
-        "isoDate": "2026-09-22",
-        "pubDate": "Tue, 22 Sep 2026 20:24:31 GMT"
+        "url": "https://www.msn.com/ko-kr/news/other/피치-올해-한국-성장률-전망치-3-5-로-대폭-상향/ar-AA2cNgS9",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 05:25:00 GMT"
       },
       {
         "title": "\"AI 반도체 수출·내수 회복\"…ADB, 올해 한국 성장률 3.2% 전망",
@@ -222510,23 +222526,23 @@
       },
       {
         "title": "다음주 주목해야할 한국경제 이슈…ADB 한국 성장률 전망·금융안정·2차 국민참여성장펀드",
-        "url": "https://www.msn.com/ko-kr/news/other/%EB%8B%A4%EC%9D%8C%EC%A3%BC-%EC%A3%BC%EB%AA%A9%ED%95%B4%EC%95%BC%ED%95%A0-%ED%95%9C%EA%B5%AD%EA%B2%BD%EC%A0%9C-%EC%9D%B4%EC%8A%88-adb-%ED%95%9C%EA%B5%AD-%EC%84%B1%EC%9E%A5%EB%A5%A0-%EC%A0%84%EB%A7%9D-%EA%B8%88%EC%9C%B5%EC%95%88%EC%A0%95-2%EC%B0%A8-%EA%B5%AD%EB%AF%BC%EC%B0%B8%EC%97%AC%EC%84%B1%EC%9E%A5%ED%8E%80%EB%93%9C/ar-AA2cx0l3",
-        "isoDate": "2026-09-18",
-        "pubDate": "Fri, 18 Sep 2026 19:01:07 GMT"
+        "url": "https://biz.heraldcorp.com/article/10879078",
+        "isoDate": "2026-09-19",
+        "pubDate": "Sat, 19 Sep 2026 04:02:00 GMT"
       }
     ],
     "미국CPI": [
-      {
-        "title": "미국 인플레이션 재가열…Fed 금리인상 확률 90% 육박",
-        "url": "https://chaovietnam.co.kr/187857/",
-        "isoDate": "2026-09-11",
-        "pubDate": "Fri, 11 Sep 2026 19:19:00 GMT"
-      },
       {
         "title": "미국 CPI 3.4%…트루플레이션은 2.33% 제시",
         "url": "https://www.tokenpost.kr/news/economy/406969",
         "isoDate": "2026-09-12",
         "pubDate": "Sat, 12 Sep 2026 15:53:00 GMT"
+      },
+      {
+        "title": "미국 인플레이션 재가열…Fed 금리인상 확률 90% 육박",
+        "url": "https://chaovietnam.co.kr/187857/",
+        "isoDate": "2026-09-11",
+        "pubDate": "Fri, 11 Sep 2026 19:19:00 GMT"
       },
       {
         "title": "美 근원 CPI 예상 웃돌아…금리인상 확률 90% 육박",
@@ -222549,62 +222565,80 @@
     ],
     "중국경기": [
       {
-        "title": "\"왜 중국 대신 한국 선택해야 하나\"…정부가 꺼낸 '비장의 카드'",
-        "url": "https://www.hankyung.com/article/202609255748i",
+        "title": "치솟은 유류할증료 동남아 직격…일본·중국 항공여객은 20%대↑",
+        "url": "https://www.yna.co.kr/view/AKR20260923162000003",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 08:05:01 +0900"
+      },
+      {
+        "title": "중국산이 한국산으로?…'국산둔갑 우회수출' 6년 새 12배 증가",
+        "url": "https://www.yna.co.kr/view/AKR20260923170900001",
+        "isoDate": "2026-09-24",
+        "pubDate": "Thu, 24 Sep 2026 07:30:00 +0900"
+      },
+      {
+        "title": "[미중정상회담] 인민복 내세운 中복식외교…\"멜라니아·이방카도 중국풍 의상\"",
+        "url": "https://www.yna.co.kr/view/AKR20260926017500083",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 08:58:04 +0900"
+      },
+      {
+        "title": "트럼프 \"시진핑과 11월 중국·12월 미국에서 또 만날 것\"",
+        "url": "https://www.yna.co.kr/view/AKR20260926003600071",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 02:35:35 +0900"
+      },
+      {
+        "title": "中, 남중국해서 필리핀 선박 물자 보급 막아…갈등 재발",
+        "url": "https://www.yna.co.kr/view/AKR20260925040600083",
         "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 16:08:29 +0900"
-      },
-      {
-        "title": "[속보] 머스크 \"시진핑은 뛰어난 지도자…중국 엄청나게 번영\"",
-        "url": "https://www.hankyung.com/article/2026092449617",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 11:48:21 +0900"
-      },
-      {
-        "title": "\"중국산만 쓰더니 갑자기 왜?\"…테슬라, 韓 공장 찾아다닌 이유",
-        "url": "https://www.hankyung.com/article/202609233829i",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 09:30:01 +0900"
-      },
-      {
-        "title": "시진핑 \"美 중국 투자 환영…中 기업도 미국서 대우받아야\"",
-        "url": "https://www.hankyung.com/article/2026092553507",
-        "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 00:28:41 +0900"
-      },
-      {
-        "title": "[속보] 시진핑 \"중국의 위대한 부흥과 MAGA 함께 갈 수 있어\"",
-        "url": "https://www.hankyung.com/article/2026092453377",
-        "isoDate": "2026-09-24",
-        "pubDate": "Thu, 24 Sep 2026 23:55:08 +0900"
+        "pubDate": "Fri, 25 Sep 2026 18:40:18 +0900"
       }
     ],
     "일본경기": [
+      {
+        "title": "치솟은 유류할증료 동남아 직격…일본·중국 항공여객은 20%대↑",
+        "url": "https://www.yna.co.kr/view/AKR20260923162000003",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 08:05:01 +0900"
+      },
+      {
+        "title": "美재무 \"日 경제 기초여건 반영한 엔화 강세 바람직\"",
+        "url": "https://www.yna.co.kr/view/AKR20260926002300071",
+        "isoDate": "2026-09-26",
+        "pubDate": "Sat, 26 Sep 2026 02:08:23 +0900"
+      },
+      {
+        "title": "다시 고개 든 엔저…日 \"트럼프, 우려 표명\" 이례적 공개",
+        "url": "https://www.yna.co.kr/view/AKR20260925030000073",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 14:24:12 +0900"
+      },
+      {
+        "title": "[4만달러 눈 앞] ⑤ '5040클럽'은 美·獨 등 5개국뿐…'저성장·엔저' 日은 빠져",
+        "url": "https://www.yna.co.kr/view/AKR20260919050700073",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 08:00:15 +0900"
+      },
       {
         "title": "\"주문 감당하기 힘들 지경\"…한국·일본 빈틈 노렸더니 '대박'",
         "url": "https://www.hankyung.com/article/202609233120i",
         "isoDate": "2026-09-25",
         "pubDate": "Fri, 25 Sep 2026 14:00:01 +0900"
-      },
-      {
-        "title": "트럼프 \"엔저 우려\"…한마디에 엔화 156엔대로 급등",
-        "url": "https://www.hankyung.com/article/202609266259i",
-        "isoDate": "2026-09-26",
-        "pubDate": "Sat, 26 Sep 2026 07:44:32 +0900"
-      },
-      {
-        "title": "일본, 이탈리아는 하는데 한국은 왜 못하나…뉴욕 시장 겨냥한 도전",
-        "url": "https://www.hankyung.com/article/202609255409i",
-        "isoDate": "2026-09-25",
-        "pubDate": "Fri, 25 Sep 2026 06:23:57 +0900"
       }
     ],
     "독일경기": [
       {
         "title": "9월 독일 경기예측 지수 34.7·0.5P↑…\"현황지수는 대폭 개선\"",
         "url": "https://www.msn.com/ko-kr/news/world/9%EC%9B%94-%EB%8F%85%EC%9D%BC-%EA%B2%BD%EA%B8%B0%EC%98%88%EC%B8%A1-%EC%A7%80%EC%88%98-347-05p-%ED%98%84%ED%99%A9%EC%A7%80%EC%88%98%EB%8A%94-%EB%8C%80%ED%8F%AD-%EA%B0%9C%EC%84%A0/ar-AA2cj3Kw",
-        "isoDate": "2026-09-16",
-        "pubDate": "Wed, 16 Sep 2026 04:10:00 GMT"
+        "isoDate": "2026-09-15",
+        "pubDate": "Tue, 15 Sep 2026 18:25:27 GMT"
+      },
+      {
+        "title": "독일식 과거사 청산…105세 나치 부역자 '살인방조' 수사",
+        "url": "https://www.yna.co.kr/view/AKR20260925023200009",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 10:52:32 +0900"
       },
       {
         "title": "\"독일·대만 벤치마킹했다더니\"…보상 쏙 뺀 '무늬만 해외식'?",
@@ -222613,7 +222647,20 @@
         "pubDate": "Thu, 24 Sep 2026 10:00:17 +0900"
       }
     ],
-    "영국경기": [],
+    "영국경기": [
+      {
+        "title": "백악관, 오픈AI·앤트로픽에 \"영국 사전검증 거부하라\" 압박",
+        "url": "https://www.yna.co.kr/view/AKR20260925042900009",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 20:15:56 +0900"
+      },
+      {
+        "title": "\"EU, 영국에 中자동차 관세 인상 촉구\"…'對중국 압박' 고조",
+        "url": "https://www.yna.co.kr/view/AKR20260925034000009",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 16:13:57 +0900"
+      }
+    ],
     "유로존": [],
     "한국수출": [
       {
@@ -222623,12 +222670,6 @@
         "pubDate": "Thu, 17 Sep 2026 02:13:46 GMT"
       },
       {
-        "title": "경남 8월 누계 수출 299억 달러…무역수지 47개월 연속 흑자",
-        "url": "https://www.msn.com/ko-kr/news/other/%EA%B2%BD%EB%82%A8-8%EC%9B%94-%EB%88%84%EA%B3%84-%EC%88%98%EC%B6%9C-299%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-47%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%ED%9D%91%EC%9E%90/ar-AA2coAdZ",
-        "isoDate": "2026-09-17",
-        "pubDate": "Thu, 17 Sep 2026 03:31:00 GMT"
-      },
-      {
         "title": "9월 1~20일 수출 714억 달러 '역대 최대'… 반도체는 또 실적 경신",
         "url": "https://www.hankookilbo.com/news/article/A2026092109330005363",
         "isoDate": "2026-09-21",
@@ -222636,9 +222677,15 @@
       },
       {
         "title": "日 8월 무역수지, 유가 급등으로 1.1조엔 적자... 4개월 연속",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%E6%97%A5-8%EC%9B%94-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-%EC%9C%A0%EA%B0%80-%EA%B8%89%EB%93%B1%EC%9C%BC%EB%A1%9C-1-1%EC%A1%B0%EC%97%94-%EC%A0%81%EC%9E%90-4%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D/ar-AA2cukR4",
+        "url": "https://www.msn.com/ko-kr/news/other/%E6%97%A5-8%EC%9B%94-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-%EC%9C%A0%EA%B0%80-%EA%B8%89%EB%93%B1%EC%9C%BC%EB%A1%9C-11%EC%A1%B0%EC%97%94-%EC%A0%81%EC%9E%90-4%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D/ar-AA2cukR4",
         "isoDate": "2026-09-18",
         "pubDate": "Fri, 18 Sep 2026 00:09:00 GMT"
+      },
+      {
+        "title": "경남 8월 누계 수출 299억 달러…무역수지 47개월 연속 흑자",
+        "url": "https://www.msn.com/ko-kr/news/other/%EA%B2%BD%EB%82%A8-8%EC%9B%94-%EB%88%84%EA%B3%84-%EC%88%98%EC%B6%9C-299%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-47%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%ED%9D%91%EC%9E%90/ar-AA2coAdZ",
+        "isoDate": "2026-09-17",
+        "pubDate": "Thu, 17 Sep 2026 03:31:00 GMT"
       },
       {
         "title": "전북 수출 8개월 연속 증가… 독일 수출 353% 급증",
@@ -222827,7 +222874,7 @@
         "iso": "2026-11-10"
       }
     ],
-    "lastFetched": "2026-09-26T08:53:30.897106+09:00",
+    "lastFetched": "2026-09-26T09:18:02.545215+09:00",
     "source": "FRED release dates API",
     "backfilled": 2
   },
@@ -223678,21 +223725,21 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-09-26T08:53:30.999869+09:00",
+    "asOf": "2026-09-26T09:18:04.193690+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-09-26",
-    "generatedAt": "2026-09-26 08:54 KST",
+    "generatedAt": "2026-09-26 09:18 KST",
     "lines": [
-      "원/달러 환율이 0.86% 하락하며 원화 강세가 나타난 가운데, 엔화 급등에 따른 엔캐리 트레이드 청산 우려가 커지며 외국인 수급 이탈 지속 여부를 예의주시해야 합니다.",
-      "글로벌 금융시장의 변동성을 키우는 엔캐리 청산 이슈는 한국 증시의 외국인 자금 유출을 가속화할 수 있는 핵심 리스크로 작용할 가능성이 높습니다.",
-      "내일은 시장의 공포 심리를 반영하는 공포탐욕지수 변화와 함께 외국인 순매매 추이를 확인하여 투자 심리 회복 여부를 점검해야 합니다."
+      "원/달러 환율이 0.86% 급락하며 원화 가치가 상승했는데, 이는 외국인 수급 개선과 한국 증시의 가격 부담 완화로 이어질 수 있는 긍정적 신호입니다.",
+      "미국 증시가 호르무즈 협상 기대와 유가 하락에 힘입어 상승했으나, 공포·탐욕 지수는 여전히 공포 수준에 머물러 있어 시장의 심리적 경계감은 지속되고 있습니다.",
+      "향후 외국인 순매도세가 진정되는지 확인해야 하며, 미·중 정상회담 관련 후속 보도와 그에 따른 글로벌 지정학적 리스크 완화 여부를 면밀히 주시해야 합니다."
     ],
     "source": "gemini"
   },
   "dataHealth": {
-    "checkedAt": "2026-09-25T23:54:17.843841+00:00",
+    "checkedAt": "2026-09-26T00:18:57.843631+00:00",
     "summary": {
       "total": 147,
       "ok": 139,
@@ -223731,7 +223778,7 @@
       {
         "path": "economicIndicators.kr.exports_kr",
         "asOf": "2026-06-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 70,
         "tier": "normal",
         "state": "stale",
@@ -223740,7 +223787,7 @@
       {
         "path": "realestate.kr.conversion_rate_kr",
         "asOf": "2024-04-01",
-        "ageDays": 878,
+        "ageDays": 879,
         "sla": 70,
         "tier": "normal",
         "state": "stale",
@@ -223773,7 +223820,7 @@
       {
         "path": "aiBriefing",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 2,
         "tier": "normal",
         "state": "ok",
@@ -223782,7 +223829,7 @@
       {
         "path": "climate.enso",
         "asOf": "2026-09-16",
-        "ageDays": 9,
+        "ageDays": 10,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -223791,7 +223838,7 @@
       {
         "path": "climate.impact",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223800,7 +223847,7 @@
       {
         "path": "economicCalendar",
         "asOf": "2026-09-18",
-        "ageDays": 7,
+        "ageDays": 8,
         "sla": 10,
         "tier": "normal",
         "state": "ok",
@@ -223809,7 +223856,7 @@
       {
         "path": "economicIndicators.cn.cpi_cn",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223818,7 +223865,7 @@
       {
         "path": "economicIndicators.cn.gdp_cn",
         "asOf": "2025-01-01",
-        "ageDays": 268,
+        "ageDays": 269,
         "sla": 300,
         "tier": "normal",
         "state": "ok",
@@ -223827,7 +223874,7 @@
       {
         "path": "economicIndicators.cn.gdp_yoy_cn",
         "asOf": "2025-01-01",
-        "ageDays": 268,
+        "ageDays": 269,
         "sla": 300,
         "tier": "normal",
         "state": "ok",
@@ -223836,7 +223883,7 @@
       {
         "path": "economicIndicators.cn.pmi_cn",
         "asOf": "2026-08-01",
-        "ageDays": 55,
+        "ageDays": 56,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -223845,7 +223892,7 @@
       {
         "path": "economicIndicators.de.cpi_de",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223854,7 +223901,7 @@
       {
         "path": "economicIndicators.de.gdp_de",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -223863,7 +223910,7 @@
       {
         "path": "economicIndicators.de.gdp_yoy_de",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -223872,7 +223919,7 @@
       {
         "path": "economicIndicators.de.pmi_de",
         "asOf": "2026-09-01",
-        "ageDays": 24,
+        "ageDays": 25,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -223881,7 +223928,7 @@
       {
         "path": "economicIndicators.de.unemployment_de",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223890,7 +223937,7 @@
       {
         "path": "economicIndicators.eu.base_rate_eu",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "normal",
         "state": "ok",
@@ -223899,7 +223946,7 @@
       {
         "path": "economicIndicators.eu.cpi_eu",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223908,7 +223955,7 @@
       {
         "path": "economicIndicators.eu.gdp_eu",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -223917,7 +223964,7 @@
       {
         "path": "economicIndicators.eu.gdp_yoy_eu",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -223926,7 +223973,7 @@
       {
         "path": "economicIndicators.eu.pmi_eu",
         "asOf": "2026-09-01",
-        "ageDays": 24,
+        "ageDays": 25,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -223935,7 +223982,7 @@
       {
         "path": "economicIndicators.eu.unemployment_eu",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223944,7 +223991,7 @@
       {
         "path": "economicIndicators.jp.base_rate_jp",
         "asOf": "2026-09-01",
-        "ageDays": -5,
+        "ageDays": -4,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223953,7 +224000,7 @@
       {
         "path": "economicIndicators.jp.bond10y_jp",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223962,7 +224009,7 @@
       {
         "path": "economicIndicators.jp.gdp_jp",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -223971,7 +224018,7 @@
       {
         "path": "economicIndicators.jp.gdp_yoy_jp",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -223980,7 +224027,7 @@
       {
         "path": "economicIndicators.jp.pmi_jp",
         "asOf": "2026-09-01",
-        "ageDays": 24,
+        "ageDays": 25,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -223989,7 +224036,7 @@
       {
         "path": "economicIndicators.jp.unemployment_jp",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -223998,7 +224045,7 @@
       {
         "path": "economicIndicators.kr.base_rate_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224007,7 +224054,7 @@
       {
         "path": "economicIndicators.kr.cpi_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224016,7 +224063,7 @@
       {
         "path": "economicIndicators.kr.current_account_kr",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224025,7 +224072,7 @@
       {
         "path": "economicIndicators.kr.exports_idx_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224034,7 +224081,7 @@
       {
         "path": "economicIndicators.kr.fx_reserves_kr",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224043,7 +224090,7 @@
       {
         "path": "economicIndicators.kr.gdp_kr",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -224052,7 +224099,7 @@
       {
         "path": "economicIndicators.kr.household_debt_kr",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -224061,7 +224108,7 @@
       {
         "path": "economicIndicators.kr.ip_kr",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224070,7 +224117,7 @@
       {
         "path": "economicIndicators.kr.mortgage_rate_kr",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224079,7 +224126,7 @@
       {
         "path": "economicIndicators.kr.pmi_kr",
         "asOf": "2026-08-01",
-        "ageDays": 55,
+        "ageDays": 56,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -224088,7 +224135,7 @@
       {
         "path": "economicIndicators.kr.ppi_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224097,7 +224144,7 @@
       {
         "path": "economicIndicators.kr.retail_kr",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224106,7 +224153,7 @@
       {
         "path": "economicIndicators.kr.unemployment_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224115,7 +224162,7 @@
       {
         "path": "economicIndicators.uk.base_rate_uk",
         "asOf": "2026-08-31",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224124,7 +224171,7 @@
       {
         "path": "economicIndicators.uk.cpi_uk",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224133,7 +224180,7 @@
       {
         "path": "economicIndicators.uk.gdp_uk",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -224142,7 +224189,7 @@
       {
         "path": "economicIndicators.uk.gdp_yoy_uk",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -224151,7 +224198,7 @@
       {
         "path": "economicIndicators.uk.pmi_uk",
         "asOf": "2026-09-01",
-        "ageDays": 24,
+        "ageDays": 25,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -224160,7 +224207,7 @@
       {
         "path": "economicIndicators.uk.unemployment_uk",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224169,7 +224216,7 @@
       {
         "path": "economicIndicators.us.broad_dollar",
         "asOf": "2026-09-18",
-        "ageDays": 7,
+        "ageDays": 8,
         "sla": 10,
         "tier": "normal",
         "state": "ok",
@@ -224178,7 +224225,7 @@
       {
         "path": "economicIndicators.us.claims_us",
         "asOf": "2026-09-19",
-        "ageDays": 6,
+        "ageDays": 7,
         "sla": 12,
         "tier": "normal",
         "state": "ok",
@@ -224187,7 +224234,7 @@
       {
         "path": "economicIndicators.us.cpi_us",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224196,7 +224243,7 @@
       {
         "path": "economicIndicators.us.dxy_idx",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 4,
         "tier": "normal",
         "state": "ok",
@@ -224205,7 +224252,7 @@
       {
         "path": "economicIndicators.us.ff_rate",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224214,7 +224261,7 @@
       {
         "path": "economicIndicators.us.ff_target",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "normal",
         "state": "ok",
@@ -224223,7 +224270,7 @@
       {
         "path": "economicIndicators.us.gdp_growth_us",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -224232,7 +224279,7 @@
       {
         "path": "economicIndicators.us.gdp_us",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 120,
         "tier": "normal",
         "state": "ok",
@@ -224241,7 +224288,7 @@
       {
         "path": "economicIndicators.us.hy_spread",
         "asOf": "2026-09-24",
-        "ageDays": 1,
+        "ageDays": 2,
         "sla": 6,
         "tier": "normal",
         "state": "ok",
@@ -224250,7 +224297,7 @@
       {
         "path": "economicIndicators.us.ip_us",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224259,7 +224306,7 @@
       {
         "path": "economicIndicators.us.m2_us",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224268,7 +224315,7 @@
       {
         "path": "economicIndicators.us.nfp_us",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224277,7 +224324,7 @@
       {
         "path": "economicIndicators.us.pce_us",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224286,7 +224333,7 @@
       {
         "path": "economicIndicators.us.pmi_us",
         "asOf": "2026-09-01",
-        "ageDays": 24,
+        "ageDays": 25,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -224295,7 +224342,7 @@
       {
         "path": "economicIndicators.us.ppi_us",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224304,7 +224351,7 @@
       {
         "path": "economicIndicators.us.reserves_us",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 12,
         "tier": "normal",
         "state": "ok",
@@ -224313,7 +224360,7 @@
       {
         "path": "economicIndicators.us.retail_us",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224322,7 +224369,7 @@
       {
         "path": "economicIndicators.us.rrp_us",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "normal",
         "state": "ok",
@@ -224331,7 +224378,7 @@
       {
         "path": "economicIndicators.us.sentiment_us",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224340,7 +224387,7 @@
       {
         "path": "economicIndicators.us.t10y2y_us",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "normal",
         "state": "ok",
@@ -224349,7 +224396,7 @@
       {
         "path": "economicIndicators.us.tga_us",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 12,
         "tier": "normal",
         "state": "ok",
@@ -224358,7 +224405,7 @@
       {
         "path": "economicIndicators.us.unemployment",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224367,7 +224414,7 @@
       {
         "path": "economicIndicators.us.us10y",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224376,7 +224423,7 @@
       {
         "path": "economicIndicators.us.us2y",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224385,7 +224432,7 @@
       {
         "path": "economicIndicators.us.vix",
         "asOf": "2026-09-22",
-        "ageDays": 3,
+        "ageDays": 4,
         "sla": 6,
         "tier": "important",
         "state": "ok",
@@ -224394,7 +224441,7 @@
       {
         "path": "etfMovers.etfGainers",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224403,7 +224450,7 @@
       {
         "path": "etfMovers.etfLosers",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224412,7 +224459,7 @@
       {
         "path": "freight",
         "asOf": "2026-09-24",
-        "ageDays": 1,
+        "ageDays": 2,
         "sla": 10,
         "tier": "normal",
         "state": "ok",
@@ -224421,7 +224468,7 @@
       {
         "path": "history.commodities.Aluminum",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224430,7 +224477,7 @@
       {
         "path": "history.commodities.Brent",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224439,7 +224486,7 @@
       {
         "path": "history.commodities.Cocoa",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224448,7 +224495,7 @@
       {
         "path": "history.commodities.Coffee",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224457,7 +224504,7 @@
       {
         "path": "history.commodities.Copper",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224466,7 +224513,7 @@
       {
         "path": "history.commodities.Corn",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224475,7 +224522,7 @@
       {
         "path": "history.commodities.Dubai",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224484,7 +224531,7 @@
       {
         "path": "history.commodities.Gasoline",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224493,7 +224540,7 @@
       {
         "path": "history.commodities.Gold",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224502,7 +224549,7 @@
       {
         "path": "history.commodities.HeatingOil",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224511,7 +224558,7 @@
       {
         "path": "history.commodities.NatGas",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224520,7 +224567,7 @@
       {
         "path": "history.commodities.Palladium",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224529,7 +224576,7 @@
       {
         "path": "history.commodities.Platinum",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224538,7 +224585,7 @@
       {
         "path": "history.commodities.Rice",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224547,7 +224594,7 @@
       {
         "path": "history.commodities.Silver",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224556,7 +224603,7 @@
       {
         "path": "history.commodities.Soybean",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224565,7 +224612,7 @@
       {
         "path": "history.commodities.Sugar",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224574,7 +224621,7 @@
       {
         "path": "history.commodities.WTI",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224583,7 +224630,7 @@
       {
         "path": "history.commodities.Wheat",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 5,
         "tier": "important",
         "state": "ok",
@@ -224591,7 +224638,7 @@
       },
       {
         "path": "history.crypto.BTC",
-        "asOf": "2026-09-25",
+        "asOf": "2026-09-26",
         "ageDays": 0,
         "sla": 60,
         "tier": "normal",
@@ -224601,7 +224648,7 @@
       {
         "path": "history.fx.EURKRW",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224610,7 +224657,7 @@
       {
         "path": "history.fx.EURUSD",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224619,7 +224666,7 @@
       {
         "path": "history.fx.JPYKRW",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224628,7 +224675,7 @@
       {
         "path": "history.fx.USDJPY",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224637,7 +224684,7 @@
       {
         "path": "history.fx.USDKRW",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "critical",
         "state": "ok",
@@ -224646,7 +224693,7 @@
       {
         "path": "history.indices.HSI",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224655,7 +224702,7 @@
       {
         "path": "history.indices.KOSDAQ",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224664,7 +224711,7 @@
       {
         "path": "history.indices.KOSPI",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 4,
         "tier": "critical",
         "state": "ok",
@@ -224673,7 +224720,7 @@
       {
         "path": "history.indices.NASDAQ",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224682,7 +224729,7 @@
       {
         "path": "history.indices.Nikkei",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224691,7 +224738,7 @@
       {
         "path": "history.indices.SOX",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224700,7 +224747,7 @@
       {
         "path": "history.indices.SP500",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "critical",
         "state": "ok",
@@ -224709,7 +224756,7 @@
       {
         "path": "history.indices.Shanghai",
         "asOf": "2026-09-24",
-        "ageDays": 1,
+        "ageDays": 2,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224718,7 +224765,7 @@
       {
         "path": "investorTrading",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 6,
         "tier": "important",
         "state": "ok",
@@ -224726,7 +224773,7 @@
       },
       {
         "path": "lmeInventory",
-        "asOf": "2026-09-24",
+        "asOf": "2026-09-25",
         "ageDays": 1,
         "sla": 7,
         "tier": "normal",
@@ -224736,7 +224783,7 @@
       {
         "path": "marketCalendarKr",
         "asOf": "2026-09-25",
-        "ageDays": 0,
+        "ageDays": 1,
         "sla": 4,
         "tier": "normal",
         "state": "ok",
@@ -224745,7 +224792,7 @@
       {
         "path": "marketHalts",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 400,
         "tier": "normal",
         "state": "ok",
@@ -224754,7 +224801,7 @@
       {
         "path": "news",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 2,
         "tier": "important",
         "state": "ok",
@@ -224763,7 +224810,7 @@
       {
         "path": "nps",
         "asOf": "2026-06-01",
-        "ageDays": 116,
+        "ageDays": 117,
         "sla": 400,
         "tier": "normal",
         "state": "ok",
@@ -224772,7 +224819,7 @@
       {
         "path": "realestate.kr.apt_price_idx_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224781,7 +224828,7 @@
       {
         "path": "realestate.kr.jns_price_idx_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224790,7 +224837,7 @@
       {
         "path": "realestate.kr.start_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224799,7 +224846,7 @@
       {
         "path": "realestate.kr.trade_count_kr",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224808,7 +224855,7 @@
       {
         "path": "realestate.kr.trade_count_kr_rone",
         "asOf": "2026-07-01",
-        "ageDays": 56,
+        "ageDays": 57,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224817,7 +224864,7 @@
       {
         "path": "realestate.kr.unsold_kr",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224826,7 +224873,7 @@
       {
         "path": "realestate.us.building_permits",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224835,7 +224882,7 @@
       {
         "path": "realestate.us.case_shiller_20city",
         "asOf": "2026-06-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 100,
         "tier": "normal",
         "state": "ok",
@@ -224844,7 +224891,7 @@
       {
         "path": "realestate.us.case_shiller_national",
         "asOf": "2026-06-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 100,
         "tier": "normal",
         "state": "ok",
@@ -224853,7 +224900,7 @@
       {
         "path": "realestate.us.case_shiller_state",
         "asOf": "2026-04-01",
-        "ageDays": 87,
+        "ageDays": 88,
         "sla": 150,
         "tier": "normal",
         "state": "ok",
@@ -224862,7 +224909,7 @@
       {
         "path": "realestate.us.existing_home_sales",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224871,7 +224918,7 @@
       {
         "path": "realestate.us.housing_starts",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224880,7 +224927,7 @@
       {
         "path": "realestate.us.mortgage_15y",
         "asOf": "2026-09-24",
-        "ageDays": 1,
+        "ageDays": 2,
         "sla": 12,
         "tier": "normal",
         "state": "ok",
@@ -224889,7 +224936,7 @@
       {
         "path": "realestate.us.mortgage_30y",
         "asOf": "2026-09-24",
-        "ageDays": 1,
+        "ageDays": 2,
         "sla": 12,
         "tier": "normal",
         "state": "ok",
@@ -224898,7 +224945,7 @@
       {
         "path": "realestate.us.nahb_index",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224907,7 +224954,7 @@
       {
         "path": "realestate.us.new_home_sales",
         "asOf": "2026-08-01",
-        "ageDays": 25,
+        "ageDays": 26,
         "sla": 70,
         "tier": "normal",
         "state": "ok",
@@ -224916,7 +224963,7 @@
       {
         "path": "sentiment.fear_greed",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224925,7 +224972,7 @@
       {
         "path": "sentiment.move",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224934,7 +224981,7 @@
       {
         "path": "sentiment.vkospi",
         "asOf": "2026-09-26",
-        "ageDays": -1,
+        "ageDays": 0,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224943,7 +224990,7 @@
       {
         "path": "stockFlows.items",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 60,
         "tier": "normal",
         "state": "ok",
@@ -224952,7 +224999,7 @@
       {
         "path": "stockMovers.kospiGainers",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224961,7 +225008,7 @@
       {
         "path": "stockMovers.kospiLosers",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 4,
         "tier": "important",
         "state": "ok",
@@ -224970,7 +225017,7 @@
       {
         "path": "subscription",
         "asOf": "2026-09-18",
-        "ageDays": 7,
+        "ageDays": 8,
         "sla": 40,
         "tier": "normal",
         "state": "ok",
@@ -224979,7 +225026,7 @@
       {
         "path": "yieldCurve.eu",
         "asOf": "2026-09-24",
-        "ageDays": 1,
+        "ageDays": 2,
         "sla": 6,
         "tier": "important",
         "state": "ok",
@@ -224988,7 +225035,7 @@
       {
         "path": "yieldCurve.jp",
         "asOf": "2026-09-24",
-        "ageDays": 1,
+        "ageDays": 2,
         "sla": 6,
         "tier": "important",
         "state": "ok",
@@ -224997,7 +225044,7 @@
       {
         "path": "yieldCurve.kr",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 6,
         "tier": "important",
         "state": "ok",
@@ -225006,7 +225053,7 @@
       {
         "path": "yieldCurve.uk",
         "asOf": "2026-09-23",
-        "ageDays": 2,
+        "ageDays": 3,
         "sla": 6,
         "tier": "important",
         "state": "ok",
@@ -225015,7 +225062,7 @@
       {
         "path": "yieldCurve.us",
         "asOf": "2026-09-24",
-        "ageDays": 1,
+        "ageDays": 2,
         "sla": 6,
         "tier": "important",
         "state": "ok",
