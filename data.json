@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-09-27T21:35:58.161280+09:00",
+  "lastUpdated": "2026-09-27T22:07:53.438355+09:00",
   "sources": {
     "fx": "open.er-api.com + yfinance",
     "stockMovers": "pykrx (KRX 정보데이터시스템)",
@@ -32,7 +32,8 @@
     "history": "yfinance (FX/Indices/Commodities 5Y daily)",
     "commodity_Dubai": "FRED POILDUBUSDM (두바이 현물유, 월간)",
     "news": "Google News RSS + Bing News + Naver (서버측 페치)",
-    "economicCalendar": "FRED release dates API"
+    "economicCalendar": "FRED release dates API",
+    "realestate_partial": "이전 빌드 보존(지표): 1개 지표 보강"
   },
   "fx": {
     "USDKRW": {
@@ -2888,7 +2889,7 @@
     ],
     "unit": "억원",
     "source": "토스증권 Open API (KOSPI 투자자별 매매동향, PC 스냅샷) + 최근 10일 KRX 정보데이터시스템 기준 정렬",
-    "lastFetched": "2026-09-27T21:08:23.524331+09:00",
+    "lastFetched": "2026-09-27T22:08:12.731468+09:00",
     "krxDaily": [
       {
         "date": "2026-09-10",
@@ -3101,7 +3102,7 @@
       }
     ],
     "source": "해상운임 스크래핑(네이버/StockQ/SSE)",
-    "lastFetched": "2026-09-27T21:08:31.327717+09:00"
+    "lastFetched": "2026-09-27T22:08:20.131615+09:00"
   },
   "economicIndicators": {
     "us": {
@@ -18599,21 +18600,6 @@
         "desc": "주택 착공 실적 (전국)",
         "source": "R-ONE:A_2024_00057"
       },
-      "conversion_rate_kr": {
-        "value": 5.96,
-        "prev": 5.26354493848615,
-        "chg": 13.28,
-        "period": "202404",
-        "history": {
-          "202401": 5.3131309621243,
-          "202402": 5.25698419759622,
-          "202403": 5.26354493848615,
-          "202404": 5.96257296613408
-        },
-        "region": "전국",
-        "desc": "전월세전환율 (전국, 월)",
-        "source": "R-ONE:T241163133546529"
-      },
       "trade_count_kr_rone": {
         "value": 77762.0,
         "prev": 85504.0,
@@ -19129,6 +19115,21 @@
         "region": "전국",
         "desc": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)",
         "source": "R-ONE:A_2024_00549"
+      },
+      "conversion_rate_kr": {
+        "value": 5.96,
+        "prev": 5.26354493848615,
+        "chg": 13.28,
+        "period": "202404",
+        "history": {
+          "202401": 5.3131309621243,
+          "202402": 5.25698419759622,
+          "202403": 5.26354493848615,
+          "202404": 5.96257296613408
+        },
+        "region": "전국",
+        "desc": "전월세전환율 (전국, 월)",
+        "source": "R-ONE:T241163133546529"
       }
     }
   },
@@ -218641,7 +218642,7 @@
         },
         {
           "date": "2026-09-27",
-          "close": 84993.3828
+          "close": 84705.6406
         }
       ]
     }
@@ -221826,7 +221827,7 @@
     ],
     "as_of": "2026-09-25",
     "source": "westmetall.com (LME 일일 재고)",
-    "lastFetched": "2026-09-27T21:08:36.586513+09:00"
+    "lastFetched": "2026-09-27T22:08:26.499701+09:00"
   },
   "diagnostics": {
     "stockMoversSource": "pykrx (KRX 정보데이터시스템)",
@@ -221846,10 +221847,11 @@
       "fred_ok": false
     },
     "subscription": "OK ApplyhomeInfoDetailSvc 60건",
+    "preservedMetricsDeep": 1,
     "historySpotSynced": 14,
     "toss": {
       "generatedAt": "2026-09-25T09:00:01.686965+09:00",
-      "ageMinutes": 3618.5,
+      "ageMinutes": 3679.8,
       "supplied": [
         "investorTrading",
         "stockFlows",
@@ -222231,7 +222233,7 @@
       ]
     },
     "source": "청약홈(한국부동산원, data.go.kr) APT 분양정보",
-    "lastFetched": "2026-09-27T21:15:04.615402+09:00"
+    "lastFetched": "2026-09-27T22:16:04.182319+09:00"
   },
   "nps": {
     "allocation": [
@@ -222257,11 +222259,11 @@
       }
     ],
     "source": "fund.nps.or.kr",
-    "lastFetched": "2026-09-27T21:15:08.600895+09:00",
+    "lastFetched": "2026-09-27T22:16:07.573425+09:00",
     "as_of": "2026-06-01"
   },
   "news": {
-    "lastFetched": "2026-09-27T21:15:26.156104+09:00",
+    "lastFetched": "2026-09-27T22:16:24.467697+09:00",
     "채권": [
       {
         "title": "예탁원, 결제촉진대금에 증권납부 허용…국채 담보인정 최대 98%",
@@ -222316,6 +222318,12 @@
     ],
     "주식": [
       {
+        "title": "[개장시황] 코스피, 美 FOMC 경계 숨고르기…6600 보합권 등락",
+        "url": "https://www.newspim.com/news/view/20260916000151",
+        "isoDate": "2026-09-16",
+        "pubDate": "Wed, 16 Sep 2026 08:04:00 GMT"
+      },
+      {
         "title": "[마감시황] AI 투심 흔들리자…코스피 3% 급락, 6684선 마감",
         "url": "https://www.newspim.com/news/view/20260914000811",
         "isoDate": "2026-09-13",
@@ -222328,22 +222336,16 @@
         "pubDate": "Tue, 22 Sep 2026 02:07:00 GMT"
       },
       {
-        "title": "(마감시황) 코스피, AI 훈풍에도 유가 반등에 발목…7,010선 강보합",
-        "url": "https://www.news2day.co.kr/article/20260922500245",
-        "isoDate": "2026-09-22",
-        "pubDate": "Tue, 22 Sep 2026 09:11:00 GMT"
-      },
-      {
         "title": "[개장 시황]코스피, '7,100선' 껑충…코스피·코스닥 동반 강세 출발",
         "url": "https://www.businesskorea.co.kr/news/articleView.html?idxno=277613",
         "isoDate": "2026-09-23",
         "pubDate": "Wed, 23 Sep 2026 04:02:00 GMT"
       },
       {
-        "title": "[마감 시황] 코스피 7,000선 탈환, 코스닥 동반 상승…원/달러 환율은 하락 마감",
-        "url": "https://www.businesskorea.co.kr/news/articleView.html?idxno=277453",
-        "isoDate": "2026-09-21",
-        "pubDate": "Mon, 21 Sep 2026 09:44:00 GMT"
+        "title": "(마감시황) 코스피, AI 훈풍에도 유가 반등에 발목…7,010선 강보합",
+        "url": "https://www.news2day.co.kr/article/20260922500245",
+        "isoDate": "2026-09-22",
+        "pubDate": "Tue, 22 Sep 2026 09:11:00 GMT"
       }
     ],
     "원자재": [
@@ -222424,16 +222426,16 @@
         "pubDate": "Sat, 19 Sep 2026 17:00:00 GMT"
       },
       {
-        "title": "[금값시세] 금시세 1돈",
-        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%EA%B8%88%EA%B0%92%EC%8B%9C%EC%84%B8-%EA%B8%88%EC%8B%9C%EC%84%B8-1%EB%8F%88/ar-AA2d331L",
-        "isoDate": "2026-09-26",
-        "pubDate": "Sat, 26 Sep 2026 19:39:52 GMT"
-      },
-      {
         "title": "오늘 금시세, 순금 한 돈 82만원…국제 금값 하락에 국내 금값도 약세",
         "url": "https://www.job-post.co.kr/news/articleView.html?idxno=227501",
         "isoDate": "2026-09-15",
         "pubDate": "Tue, 15 Sep 2026 03:40:00 GMT"
+      },
+      {
+        "title": "힘 잃은 국제 금값…국내 금시세는?",
+        "url": "https://www.msn.com/ko-kr/news/other/%ED%9E%98-%EC%9E%83%EC%9D%80-%EA%B5%AD%EC%A0%9C-%EA%B8%88%EA%B0%92-%EA%B5%AD%EB%82%B4-%EA%B8%88%EC%8B%9C%EC%84%B8%EB%8A%94/ar-AA2cdtJv",
+        "isoDate": "2026-09-15",
+        "pubDate": "Tue, 15 Sep 2026 00:56:00 GMT"
       }
     ],
     "비철금속": [
@@ -222450,22 +222452,16 @@
         "pubDate": "Tue, 15 Sep 2026 14:36:00 GMT"
       },
       {
-        "title": "[美특징주] 구리 가격 상승에 프리포트-맥모란 등 구리주 강세",
-        "url": "https://www.msn.com/ko-kr/money/%ED%88%AC%EC%9E%90/%E7%BE%8E%ED%8A%B9%EC%A7%95%EC%A3%BC-%EA%B5%AC%EB%A6%AC-%EA%B0%80%EA%B2%A9-%EC%83%81%EC%8A%B9%EC%97%90-%ED%94%84%EB%A6%AC%ED%8F%AC%ED%8A%B8-%EB%A7%A5%EB%AA%A8%EB%9E%80-%EB%93%B1-%EA%B5%AC%EB%A6%AC%EC%A3%BC-%EA%B0%95%EC%84%B8/ar-AA2crAht",
-        "isoDate": "2026-09-17",
-        "pubDate": "Thu, 17 Sep 2026 09:52:06 GMT"
-      },
-      {
         "title": "[5016]JX금속｜AI 소재보다 지금은 구리 가격? 이익 구조로 철저 분석",
         "url": "https://note.com/tettei_bunseki/n/ndd138bd3f338?hl=ko",
         "isoDate": "2026-09-24",
         "pubDate": "Thu, 24 Sep 2026 21:01:00 GMT"
       },
       {
-        "title": "공급 부족과 수요 소폭 개선으로 구리 가격 상승 전망 [SMM 구리 모닝 미팅 요약]",
-        "url": "https://news.metal.com/ko/newscontent/104124574-%EA%B3%B5%EA%B8%89-%EB%B6%80%EC%A1%B1%EA%B3%BC-%EC%88%98%EC%9A%94-%EC%86%8C%ED%8F%AD-%EA%B0%9C%EC%84%A0%EC%9C%BC%EB%A1%9C-%EA%B5%AC%EB%A6%AC-%EA%B0%80%EA%B2%A9-%EC%83%81%EC%8A%B9-%EC%A0%84%EB%A7%9D-smm-%EA%B5%AC%EB%A6%AC-%EB%AA%A8%EB%8B%9D-%EB%AF%B8%ED%8C%85-%EC%9A%94%EC%95%BD",
-        "isoDate": "2026-09-21",
-        "pubDate": "Mon, 21 Sep 2026 02:02:00 GMT"
+        "title": "구리→유가→금…경기 따라 돈 몰리는 원자재, 지금은 어디쯤?",
+        "url": "https://www.seoul.co.kr/news/economy/finance/2026/09/23/20260923500245",
+        "isoDate": "2026-09-25",
+        "pubDate": "Fri, 25 Sep 2026 02:59:00 GMT"
       }
     ],
     "한국GDP": [
@@ -222476,16 +222472,16 @@
         "pubDate": "Sat, 19 Sep 2026 04:02:00 GMT"
       },
       {
-        "title": "\"AI 반도체 수출·내수 회복\"…ADB, 올해 한국 성장률 3.2% 전망",
-        "url": "https://www.youthdaily.co.kr/news/article.html?no=227548",
-        "isoDate": "2026-09-23",
-        "pubDate": "Wed, 23 Sep 2026 02:18:00 GMT"
-      },
-      {
         "title": "[글로벌 리포트] 주요 기관, 올해 한국 성장률 전망 잇따라 상향…OECD 3.7%로 가장 높아",
         "url": "https://www.koreapost.co.kr/news/articleView.html?idxno=89121",
         "isoDate": "2026-09-24",
         "pubDate": "Thu, 24 Sep 2026 08:37:00 GMT"
+      },
+      {
+        "title": "\"AI 반도체 수출·내수 회복\"…ADB, 올해 한국 성장률 3.2% 전망",
+        "url": "https://www.youthdaily.co.kr/news/article.html?no=227548",
+        "isoDate": "2026-09-23",
+        "pubDate": "Wed, 23 Sep 2026 02:18:00 GMT"
       },
       {
         "title": "피치, 올해 한국 성장률 전망치 3.5%로 대폭 상향",
@@ -222508,6 +222504,12 @@
         "pubDate": "Sat, 12 Sep 2026 00:12:00 GMT"
       },
       {
+        "title": "CPI 한 번에 움직이지 않는다… 워시가 밝힌 다음 금리 결정의 진짜 기준",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/cpi-%ED%95%9C-%EB%B2%88%EC%97%90-%EC%9B%80%EC%A7%81%EC%9D%B4%EC%A7%80-%EC%95%8A%EB%8A%94%EB%8B%A4-%EC%9B%8C%EC%8B%9C%EA%B0%80-%EB%B0%9D%ED%9E%8C-%EB%8B%A4%EC%9D%8C-%EA%B8%88%EB%A6%AC-%EA%B2%B0%EC%A0%95%EC%9D%98-%EC%A7%84%EC%A7%9C-%EA%B8%B0%EC%A4%80/vi-AA2coz1m",
+        "isoDate": "2026-09-16",
+        "pubDate": "Wed, 16 Sep 2026 21:41:19 GMT"
+      },
+      {
         "title": "[다음주 경제] 반도체 생산 얼마나 늘었나…물가·금리 지표도 발표",
         "url": "https://www.yna.co.kr/view/AKR20260926014400002",
         "isoDate": "2026-09-26",
@@ -222524,12 +222526,6 @@
         "url": "https://www.hankyung.com/article/202609277387i",
         "isoDate": "2026-09-27",
         "pubDate": "Sun, 27 Sep 2026 14:01:39 +0900"
-      },
-      {
-        "title": "7000선 회복한 코스피…PCE 물가지수·마이크론 실적 주목 [주간전망]",
-        "url": "https://www.hankyung.com/article/2026092664736",
-        "isoDate": "2026-09-27",
-        "pubDate": "Sun, 27 Sep 2026 08:00:12 +0900"
       }
     ],
     "중국경기": [
@@ -222627,12 +222623,6 @@
         "pubDate": "Thu, 17 Sep 2026 02:13:46 GMT"
       },
       {
-        "title": "9월 1~20일 수출 714억 달러 '역대 최대'… 반도체는 또 실적 경신",
-        "url": "https://www.hankookilbo.com/news/article/A2026092109330005363",
-        "isoDate": "2026-09-21",
-        "pubDate": "Mon, 21 Sep 2026 03:06:00 GMT"
-      },
-      {
         "title": "경남 8월 누계 수출 299억 달러…무역수지 47개월 연속 흑자",
         "url": "https://www.msn.com/ko-kr/news/other/%EA%B2%BD%EB%82%A8-8%EC%9B%94-%EB%88%84%EA%B3%84-%EC%88%98%EC%B6%9C-299%EC%96%B5-%EB%8B%AC%EB%9F%AC-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-47%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D-%ED%9D%91%EC%9E%90/ar-AA2coAdZ",
         "isoDate": "2026-09-17",
@@ -222640,9 +222630,15 @@
       },
       {
         "title": "日 8월 무역수지, 유가 급등으로 1.1조엔 적자... 4개월 연속",
-        "url": "https://www.msn.com/ko-kr/news/other/%E6%97%A5-8%EC%9B%94-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-%EC%9C%A0%EA%B0%80-%EA%B8%89%EB%93%B1%EC%9C%BC%EB%A1%9C-11%EC%A1%B0%EC%97%94-%EC%A0%81%EC%9E%90-4%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D/ar-AA2cukR4",
+        "url": "https://www.msn.com/ko-kr/money/%EA%B2%BD%EC%A0%9C/%E6%97%A5-8%EC%9B%94-%EB%AC%B4%EC%97%AD%EC%88%98%EC%A7%80-%EC%9C%A0%EA%B0%80-%EA%B8%89%EB%93%B1%EC%9C%BC%EB%A1%9C-1-1%EC%A1%B0%EC%97%94-%EC%A0%81%EC%9E%90-4%EA%B0%9C%EC%9B%94-%EC%97%B0%EC%86%8D/ar-AA2cukR4",
         "isoDate": "2026-09-18",
         "pubDate": "Fri, 18 Sep 2026 00:09:00 GMT"
+      },
+      {
+        "title": "9월 1~20일 수출 714억 달러 '역대 최대'… 반도체는 또 실적 경신",
+        "url": "https://www.hankookilbo.com/news/article/A2026092109330005363",
+        "isoDate": "2026-09-21",
+        "pubDate": "Mon, 21 Sep 2026 03:06:00 GMT"
       },
       {
         "title": "전북 수출 8개월 연속 증가… 독일 수출 353% 급증",
@@ -222837,7 +222833,7 @@
         "iso": "2026-11-10"
       }
     ],
-    "lastFetched": "2026-09-27T21:18:31.644151+09:00",
+    "lastFetched": "2026-09-27T22:19:50.675427+09:00",
     "source": "FRED release dates API",
     "backfilled": 2
   },
@@ -223688,21 +223684,21 @@
         "resolvedAt": "2026-06-26T15:24:05.613369+09:00"
       }
     ],
-    "asOf": "2026-09-27T21:35:58.222752+09:00",
+    "asOf": "2026-09-27T22:19:52.946973+09:00",
     "stale": false
   },
   "aiBriefing": {
     "date": "2026-09-27",
-    "generatedAt": "2026-09-27 21:19 KST",
+    "generatedAt": "2026-09-27 22:20 KST",
     "lines": [
-      "원/달러 환율이 0.92% 급락하며 원화 강세가 나타나 외국인 수급 개선 기대감이 커졌으나, 최근 5일간 2.6조 원 규모의 외국인 순매도세가 지속되고 있어 주의가 필요합니다.",
-      "환율 하락은 수입 물가 안정과 외국인 자금 유입에 긍정적이나, 누적된 매도 물량이 해소되지 않는다면 코스피의 7000선 안착은 제한적인 흐름을 보일 가능성이 높습니다.",
-      "내일은 시장의 방향성을 결정할 핵심 변수인 미국의 고용지표 발표를 확인하며, 마이크론 실적과 국제유가 변동이 국내 반도체 및 에너지 관련주에 미칠 영향을 주시해야 합니다."
+      "원/달러 환율이 0.92% 급락하며 원화 강세가 나타나 외국인 수급 개선 기대감이 커졌으나, 여전히 5일간 2조 원 넘는 순매도세가 지속되고 있어 추세 전환 확인이 필요합니다.",
+      "국제 유가가 0.76% 하락하며 인플레이션 압력이 다소 완화된 점은 한국 수출 기업의 비용 부담을 줄여 증시에 긍정적인 요인으로 작용할 것으로 분석됩니다.",
+      "내일은 코스피 7000선 안착 여부를 결정지을 마이크론의 실적 흐름과 함께 시장의 방향성을 좌우할 주요 고용지표 발표를 면밀히 확인해야 합니다."
     ],
     "source": "gemini"
   },
   "dataHealth": {
-    "checkedAt": "2026-09-27T12:35:58.835211+00:00",
+    "checkedAt": "2026-09-27T13:20:38.723290+00:00",
     "summary": {
       "total": 147,
       "ok": 139,
