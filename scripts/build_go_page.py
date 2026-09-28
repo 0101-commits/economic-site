@@ -7,7 +7,7 @@
   미등록 도메인을 넣으면 카카오가 조용히 도메인만 등록된 것으로 바꾸고 경로는 그대로
   둔다 — finance.naver.com/sise/sise_index.naver?code=KOSPI 가
   0101-commits.github.io/sise/sise_index.naver?code=KOSPI 로 바뀌어 GitHub 404 가 떴다
-  (13:16 발송본). KAKAO_SETUP.md 에 이미 적혀 있던 함정인데 링크를 네이버로 돌리면서
+  (13:16 발송본). docs/KAKAO_SETUP.md 에 이미 적혀 있던 함정인데 링크를 네이버로 돌리면서
   놓쳤다. 디스코드는 이 제약이 없어 직접 링크를 그대로 쓴다.
 
 해결: 등록된 도메인 위에 중계 페이지를 두고 카카오만 여기를 거친다.

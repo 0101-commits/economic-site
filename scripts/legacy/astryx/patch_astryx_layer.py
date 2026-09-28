@@ -21,7 +21,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[3]  # scripts/legacy/astryx → 저장소 루트
 HTML = ROOT / "index.html"
 
 # ── 삭제할 레거시 구간 (시작 마커 … 끝 마커, 둘 다 포함) ────────────────────

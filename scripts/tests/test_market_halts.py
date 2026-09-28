@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """market_halts 단위 테스트 — pytest 없이 직접 실행.
-실행: python scripts/test_market_halts.py  (성공 시 'ALL PASS')."""
+실행: python scripts/tests/test_market_halts.py  (성공 시 'ALL PASS')."""
 import os
 import sys
 import datetime
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 # 스크레이프(네트워크) 비활성 — 1겹(지수) 로직만 결정적으로 테스트
 os.environ.pop("NAVER_CLIENT_ID", None)
 os.environ.pop("NAVER_CLIENT_SECRET", None)

@@ -18,7 +18,7 @@ name: KakaoTalk Digest (평일 07-22 매시간 · 주말 11·17 KST)
 # ⏰ 트리거 우선순위 (GitHub schedule 이 best-effort 라 며칠씩 누락되는 문제 해소):
 #   1) repository_dispatch(kakao-send) ← Cloudflare Worker 의 Cron Trigger 가 각 슬롯 :02(UTC)에
 #      호출 → 잡 기동·발송까지 약 1분이 걸려 카카오 도착이 :03 부근이 된다. ★ 주 경로.
-#      (설정: 저장소 루트 wrangler.jsonc 의 triggers.crons + Worker 시크릿 GH_DISPATCH_TOKEN. KAKAO_SETUP.md 참고)
+#      (설정: 저장소 루트 wrangler.jsonc 의 triggers.crons + Worker 시크릿 GH_DISPATCH_TOKEN. docs/KAKAO_SETUP.md 참고)
 #   2) schedule(백업) — Worker 가 멈춰도 발송이 끊기지 않게, 한 슬롯 시각 안에서 매시 :07·:22·:37·:52
 #      네 번 깨운다. GitHub schedule 의 드롭·지연을 다중 발화 + 슬롯 마커(중복 방지)로 흡수한다.
 #   3) workflow_dispatch — 수동 즉시.
@@ -28,7 +28,7 @@ name: KakaoTalk Digest (평일 07-22 매시간 · 주말 11·17 KST)
 #   하루 슬롯당 한 번만 발송(중복 방지). 수동 실행도 슬롯 시각이면 그 슬롯 마커를 공유(자동 트리거와의
 #   중복 방지) — 비슬롯 시각 수동만 마커 없이 항상 발송.
 #
-# 사전 설정 — 저장소 루트 KAKAO_SETUP.md 참고:
+# 사전 설정 — docs/KAKAO_SETUP.md 참고:
 #   Settings → Secrets and variables → Actions: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (필수)
 #   (선택) 변수 KAKAO_CHARTS=0 으로 차트 끄기.
 on:
@@ -247,7 +247,7 @@ jobs:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_DIGEST_THREADS: ${{ vars.DISCORD_DIGEST_THREADS || '1' }}
           # 기본 OFF(2026-07 사용자 결정) — 현재 토큰에 friends 스코프가 없어 친구 발송이 매번
-          # HTTP 403 → 무음 폴백만 반복했다. KAKAO_SETUP.md ⑤ 재동의 후 저장소 변수
+          # HTTP 403 → 무음 폴백만 반복했다. docs/KAKAO_SETUP.md ⑤ 재동의 후 저장소 변수
           # KAKAO_FRIENDS=1 을 설정하면 재활성화된다.
           KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}
           # 토큰 auto-rotate 용 — 카카오가 refresh_token 을 회전할 때(만료 1개월 전) 새 토큰을

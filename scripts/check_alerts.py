@@ -917,7 +917,7 @@ def main():
     refresh_token = os.environ.get("KAKAO_REFRESH_TOKEN", "").strip()
     if not rest_key or not refresh_token:
         print("::warning title=Kakao 미설정::KAKAO_REST_API_KEY/KAKAO_REFRESH_TOKEN 시크릿이 없어 "
-              "알림 발송을 건너뜁니다 (KAKAO_SETUP.md 참고).")
+              "알림 발송을 건너뜁니다 (docs/KAKAO_SETUP.md 참고).")
         if not IS_TEST:
             _write_state(state, alerts, now)          # 재무장 상태만 저장(발송분은 미확정 → 다음 런 재시도)
         return
@@ -939,7 +939,7 @@ def main():
         print(f"[alerts] 수신: 친구 {len(uuids)}명")
     else:
         print("::warning title=푸시 미도달 가능::수신 친구 0명 → '나에게 보내기(메모)'로 발송합니다. "
-              "메모는 푸시 알림이 울리지 않습니다(friends scope 필요 — KAKAO_SETUP.md ⑤).")
+              "메모는 푸시 알림이 울리지 않습니다(friends scope 필요 — docs/KAKAO_SETUP.md ⑤).")
 
     prefix = "[테스트] " if IS_TEST else ""
     header = f"{prefix}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"
@@ -978,7 +978,7 @@ def main():
                             buttons=[("투자현황", PORTFOLIO_URL)])
             print(f"[alerts] 테스트 발송 — 평가 {len(alerts)}건, 충족 0건 (확인 메시지 발송)")
         except SystemExit as e:
-            print(f"::warning title=테스트 발송 실패::{e} — 토큰/발송 문제 추정(KAKAO_SETUP.md 참고)")
+            print(f"::warning title=테스트 발송 실패::{e} — 토큰/발송 문제 추정(docs/KAKAO_SETUP.md 참고)")
         return
 
     # 발송 통 구성 — MAX_MSGS 초과분은 packed_ids 에서 빠져 미확정으로 남는다(다음 런 재시도).

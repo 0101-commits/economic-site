@@ -194,7 +194,7 @@ on-demand 실행은 스케줄 드롭의 영향을 받지 않아 **즉시** 돌�
   로 보냅니다. 카카오 도메인 등록은 경로(`/economic-site/`)를 붙일 수 없어 코드로는 바꿀 수 없고,
   GitHub Pages **사용자 사이트 저장소가 없으면** 그 루트가 404 입니다. 해결(1회, 약 2분):
   1. GitHub 에 새 공개 저장소 **`0101-commits.github.io`** 생성 (이름이 정확히 이래야 합니다)
-  2. 이 저장소의 [`root-site/index.html`](root-site/index.html) 파일을 새 저장소 루트에 복사
+  2. 이 저장소의 [`root-site/index.html`](../root-site/index.html) 파일을 새 저장소 루트에 복사
   3. 새 저장소 Settings → Pages → Deploy from a branch → `main` 선택
   → 이후 루트 접속이 대시보드(`/economic-site/`)로 자동 리다이렉트되어 404 가 사라집니다.
   - ⚠ **이 저장소의 이름을 바꾸지 마세요.** 2026-06-12 에 만든 것이 `ecom-kakaotalk` 으로 이름이 바뀌어

@@ -1,25 +1,65 @@
 # economic-site
 
-경제 대시보드 (GitHub Pages 정적 사이트 + GitHub Actions 데이터 수집 + Cloudflare Worker 프록시)
+한국 경제 대시보드 — GitHub Pages 정적 사이트 + GitHub Actions 데이터 수집 + Cloudflare Worker 프록시.
+
+- 사이트: <https://0101-commits.github.io/economic-site/>
+- 빌드 단계 없음: `index.html` + `js/app*.js` 를 직접 고치면 push 즉시 반영됩니다(`*.min.js` 는 CI 가 생성).
+- 개발 규칙 전체(디자인 토큰·게이트·데이터 신선도): **[CLAUDE.md](CLAUDE.md)**
+
+## 구조
+
+```
+economic-site/
+├─ index.html              화면 전체(스타일·마크업·로더) — GitHub Pages 진입점
+├─ go.html                 카톡 링크 경유 리다이렉트(생성물: scripts/build_go_page.py)
+├─ og-cover.png            공유 미리보기 이미지
+├─ js/                     앱 스크립트 app0~7(.min.js 는 CI 생성) — js/README.md
+├─ css/                    seed/ = SEED 벤더 CSS, fonts/ = 웹폰트
+├─ scripts/                데이터 수집·검증·알림 발송(Python) + 로컬 토스 수집기(.cmd/.ps1/.vbs)
+│  ├─ tests/               스크립트 단위 테스트
+│  └─ legacy/astryx/       폐기된 astryx 토큰 생성기 — 기록용, 실행 금지
+├─ tests/ui/               Playwright UI 게이트(.mjs)
+├─ cloudflare-worker/      CORS 프록시·AI 중계·카톡 cron Worker — cloudflare-worker/README.md
+├─ root-site/              사용자 루트 페이지(0101-commits.github.io) 리다이렉트 원본
+├─ docs/                   운영 가이드·기획서 — docs/README.md
+├─ .github/workflows/      수집·발송·알림·빌드 워크플로 8종
+└─ *.json / *.jsonl        봇이 커밋하는 데이터 산출물(아래 표) — 손으로 고치지 말 것
+```
+
+루트의 데이터 파일은 사이트(`fetch('data.json')` 등)·워크플로·Worker 가 **루트 경로로 직접 읽기 때문에** 폴더로 옮기지 않습니다.
+
+| 파일 | 만드는 곳 | 용도 |
+|---|---|---|
+| `data.json` · `data_meta.json` | `scripts/fetch_data.py` | 시장 데이터 본체 · 갱신 시각 |
+| `toss_snapshot.json` | `scripts/fetch_toss_snapshot.py`(로컬 PC) | 토스 Open API 수집분 |
+| `mer_signals.json` · `mer_series.json` · `mer_extract_cache.jsonl` · `merblog.json` | `scripts/mer_*.py` · `fetch_merblog.py` | 메르 리스크 렌즈 |
+| `fundamentals.json` | `scripts/fetch_fundamentals.py` | 종목 펀더멘털 |
+| `link_status.json` | `scripts/check_links.py` | 외부 링크 점검 결과 |
+| `alerts_config.json` | Worker `POST /portfolio` | 종목 알림 **조건**(보유 정보 없음) |
+| `alerts_state.json` · `halts_state.json` · `releases_state.json` | 알림 스크립트 | 중복 발송 방지 상태 |
+| `wrangler.jsonc` · `package.json` | 사람 | Worker 배포 설정 · UI 게이트 의존성 |
 
 ## 주요 문서
-- **[STOCK_ALERTS.md](STOCK_ALERTS.md)** — 📈 투자 현황(가상 포트폴리오) & 카카오톡 종목 알림 설정
-- **[KAKAO_SETUP.md](KAKAO_SETUP.md)** — 📲 카카오톡 시황 다이제스트(평일 16회·주말 2회) 설정
-- **[cloudflare-worker/README.md](cloudflare-worker/README.md)** — CORS 프록시 Worker 배포
-- **[IMPROVEMENTS.md](IMPROVEMENTS.md)** — 🛠 고도화 반영 현황 및 로드맵 (보안·UX·기능)
 
-## 📚 스터디 기록 (메뉴: 경제 캘린더 아래, 단축키 `S`, 딥링크 `?p=study`)
-스터디 모임 이력을 회차별로 남기는 화면. 좌측 월간 캘린더에서 날짜를 고르고, 우측에서 자료·녹화본·회의록을 관리합니다.
+| 문서 | 내용 |
+|---|---|
+| [docs/KAKAO_SETUP.md](docs/KAKAO_SETUP.md) | 카카오톡 시황 다이제스트 설정(토큰 발급·시크릿·재동의) |
+| [docs/STOCK_ALERTS.md](docs/STOCK_ALERTS.md) | 투자 현황(가상 포트폴리오) & 카카오톡 종목 알림 |
+| [docs/STUDY_LOG.md](docs/STUDY_LOG.md) | 스터디 기록 페이지(브라우저 로컬 저장) |
+| [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) | 고도화 반영 현황 및 로드맵 |
+| [cloudflare-worker/README.md](cloudflare-worker/README.md) | CORS 프록시 Worker 배포 |
+| [docs/README.md](docs/README.md) | 기획서·설계 문서 목록 |
 
-- **저장 위치는 전부 브라우저 로컬** — 메타데이터(제목·참석자·회의록·액션아이템)는 `localStorage['econ_study_v1']`,
-  업로드한 파일 실체는 `IndexedDB(econStudyDB/files)`. **서버로 전송되지 않으며 저장소에도 커밋되지 않습니다.**
-- 다른 기기로 옮기려면 **데이터 관리 → 파일 포함 백업**(JSON, Base64 내장) 후 가져오기. 용량이 부담되면
-  **기록 내보내기**(텍스트만)를 쓰고 영상은 YouTube·Drive **외부 링크**로 등록하세요.
-- 녹화/녹음 파일은 인라인 재생 + 배속 조절이 가능하고, **⏱ 현재 시점 메모** 버튼이 회의록에 `[mm:ss]` 를 남깁니다.
-  회의록의 `[mm:ss]` 를 클릭하면 그 시점으로 이동합니다.
-- **✨ AI 요약 초안** 은 Worker `POST /ai` 를 사용하며 동기화 키(`ALERTS_SYNC_KEY` 해시)가 등록된 기기에서만
-  동작합니다. 키가 없거나 호출이 실패하면 회의록을 서버로 보내지 않고 로컬 규칙 기반으로 정리합니다.
-- 이 기능 때문에 CSP 에 `media-src 'self' data: blob:` 가 추가되었습니다(로컬 blob 미디어 재생용).
+## 로컬 실행과 점검
+
+```bash
+python -m http.server 8080 --bind 127.0.0.1           # http://127.0.0.1:8080 에서 확인
+python scripts/validate_data.py                       # data.json 정합성
+python scripts/check_seed_classes.py                  # 미정의 seed-* 클래스 0
+node tests/ui/shots.mjs --page=<id>                   # UI 16샷 게이트(npm i 필요)
+```
+
+전체 게이트 목록은 [CLAUDE.md](CLAUDE.md) 「Gates」 절을 따릅니다.
 
 ## 🔐 보안 고지
 - **`alerts_config.json` 은 공개 저장소에 의도적으로 포함됩니다.** 이 파일은 카카오톡 종목 알림의
