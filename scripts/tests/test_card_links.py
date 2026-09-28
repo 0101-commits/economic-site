@@ -58,16 +58,58 @@ def test_hero_follows_the_day_focus():
     assert "달러-원" in btn["title"]
 
 
-def test_every_link_is_a_verified_naver_url():
-    """네이버 페이지가 없는 지표는 빠진다 — 깨진 링크보다 없는 편이 낫다."""
+def test_every_link_is_that_indicators_page():
+    """각 칸의 링크 = 그 지표의 페이지(네이버, 없으면 대시보드의 같은 지표 화면)."""
     for slot, hr in (("h07", 7), ("h09", 9), ("h19", 19), ("h22", 22)):
         for _lab, key, url in K.card_links(DATA, slot, False, NOW.replace(hour=hr)):
-            assert url == N.NAVER_LINKS[key]
-            assert url.startswith("https://finance.naver.com") or \
-                   url.startswith("https://stock.naver.com"), url
-    # h19/h22 의 히어로 US10Y 는 네이버에 페이지가 없다 — 빠지고 다음 칸이 대표가 된다.
-    assert "US10Y" not in N.NAVER_LINKS
-    assert K.card_links(DATA, "h19", False, NOW.replace(hour=19))[0][1] == "USDKRW"
+            assert url == N.asset_link(key)
+            assert url.startswith(("https://finance.naver.com", "https://stock.naver.com",
+                                   N.DASHBOARD)), url
+
+
+def test_us_pre_photo_opens_the_treasury_chart():
+    """2026-09-28 사용자 제보 — 카드 주인공이 미국채 10Y 인데 사진·버튼이 달러-원 네이버
+    차트로 갔다. 종전 규칙이 '네이버 페이지가 없으면 빼고 다음 칸을 대표로'였고,
+    US10Y 가 미제공으로 잘못 판정돼 있었다(09-28 CI 실측으로 페이지 확인)."""
+    now = NOW.replace(hour=19)
+    assert DC.profile_for("h19", False, now) == "us_pre"
+    links = K.card_links(DATA, "h19", False, now)
+    assert links[0][1] == "US10Y", links
+    assert K.hero_link(links) == N.NAVER_LINKS["US10Y"]
+    assert "US10YT=RR" in K.hero_link(links)
+    btn = K._hero_button(links)
+    assert btn and "미국채" in btn["title"], btn
+    assert K.kakao_link(K.hero_link(links)) == f"{K.DASHBOARD_URL}go.html?k=US10Y"
+
+
+def test_photo_link_is_always_the_card_hero():
+    """사진·첫 버튼은 카드가 크게 그린 지표로만 간다 — 어느 편성·어느 주인공이든.
+    카드 키가 링크로 안 풀리면 목록에서 빠지고 다음 칸이 대표가 된다(= 이번 결함의 경로)."""
+    for key in DC._CATALOG:
+        assert N.asset_link(key), f"{key}: 네이버·대시보드 어디에도 링크가 없다"
+    for pkey, hero in DC.HERO.items():
+        prof = DC.PROFILES[pkey]
+        for focus in [hero] + DC.shown_keys(prof, hero):
+            slot = {"kr_session": "h12", "pre_kr": "h07", "kr_close_eu": "h16",
+                    "us_pre": "h19", "us_open": "h22", "weekend": "h11"}[pkey]
+            hr = int(slot[1:])
+            links = K.card_links(DATA, slot, pkey == "weekend", NOW.replace(hour=hr),
+                                 focus_key=focus)
+            assert links[0][1] == focus, (pkey, focus, links[0])
+            assert K.hero_link(links) == N.asset_link(focus)
+
+
+def test_dashboard_fallback_is_the_same_indicator_screen():
+    """대시보드로 가는 칸은 그 지표의 원본 화면(ECON_IND canonical)이어야 한다."""
+    import re
+    js = open(os.path.join(ROOT, "js", "app0.js"), encoding="utf-8").read()
+    canon = {m.group(1): m.group(2) for m in re.finditer(
+        r'\{"id": "([^"]+)"[^{}]*?"canonical": "([^"]+)"', js)}
+    for key, url in N.DASH_LINKS.items():
+        assert key not in N.NAVER_LINKS, f"{key}: 네이버가 있으면 대시보드로 보내지 않는다"
+        page, tab = canon[key.lower()].split("#")
+        assert url == f"{N.DASHBOARD}?p={page}&t={tab}", (key, url)
+        assert K.kakao_link(url) == url                  # 우리 도메인 — 중계 없이 그대로
 
 
 def test_dropdown_mirrors_the_link_list():

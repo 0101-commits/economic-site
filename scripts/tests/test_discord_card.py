@@ -252,8 +252,9 @@ def test_hero_button_only_for_verified_links():
     ⚠ 2026-09-22 계약 변경 — _hero_button 은 이제 슬롯이 아니라 **카드 링크 목록**을
     받는다(card_links). 편성표의 고정 히어로를 쓰던 종전에는, 그날 이례 자산으로
     카드 주인공이 바뀌어도 버튼은 그대로라 카드와 버튼이 다른 지표를 가리켰다.
-    us_pre 의 히어로 US10Y 는 여전히 네이버 미제공이라 목록에서 빠지고, 같은 카드의
-    다음 칸(달러-원)이 대표가 된다 — 버튼이 사라지는 대신 옆 칸으로 떨어진다.
+    ⚠ 2026-09-28 — us_pre 의 히어로 US10Y 는 '네이버 미제공'으로 잘못 판정돼 목록에서
+    빠졌고, 버튼이 옆 칸(달러-원)으로 떨어졌다(사용자 제보). 이제 네이버 미국채 10년
+    페이지로 간다 — 버튼은 다른 지표로 떨어지지 않는다.
     """
     import datetime
     kst = datetime.timezone(datetime.timedelta(hours=9))
@@ -262,8 +263,9 @@ def test_hero_button_only_for_verified_links():
     b = skd._hero_button(skd.card_links(data, "h15", False, now))   # kr_session → KOSPI
     assert b and "코스피" in b["title"]
     assert b["link"]["web_url"].startswith("https://finance.naver.com")
-    us = skd._hero_button(skd.card_links(data, "h20", False, now))  # us_pre → US10Y 미제공
-    assert us and "달러-원" in us["title"], us
+    us = skd._hero_button(skd.card_links(data, "h20", False, now))  # us_pre → US10Y
+    assert us and "미국채" in us["title"], us
+    assert "US10YT=RR" in us["link"]["web_url"], us
     assert skd._hero_button([]) is None                             # 목록이 비면 버튼 없음
 
 

@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: '0 21 * * 0'   # 매주 월요일 06:00 KST (UTC 일요일 21:00)
   workflow_dispatch:        # 수동 실행 허용 (최초 1회 수동 실행 권장)
+    inputs:
+      probe:
+        description: '후보 링크 사전 검사(공백 구분 URL) — 넣으면 점검·커밋 없이 로그만 남긴다'
+        required: false
+        default: ''
 
 concurrency:
   group: link-check
@@ -31,10 +36,19 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Probe candidate links
+        if: ${{ inputs.probe }}
+        env:
+          PROBE: ${{ inputs.probe }}
+        run: python scripts/check_links.py --probe $PROBE
+
       - name: Run link checker
+        if: ${{ !inputs.probe }}
         run: python scripts/check_links.py
 
       - name: Commit link_status.json
+        # 검사 모드·브랜치 실행은 main 에 쓰지 않는다(브랜치 커밋이 main 으로 새지 않게).
+        if: ${{ !inputs.probe && github.ref == 'refs/heads/main' }}
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'

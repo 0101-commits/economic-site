@@ -2357,8 +2357,12 @@ def card_links(data, slot, weekend, now, focus_key=None, weekly=False):
     알림의 링크 단일 원천(2026-09-22). 사진의 칸을 직접 누를 수 있는 채널은 없다 —
     디스코드는 이미지 클릭이 항상 '확대 보기'이고 카카오 피드도 칸별 링크가 없다.
     그래서 '그 칸의 링크'를 카드와 같은 구성·같은 순서의 목록으로 옆에 세운다.
-    네이버에 페이지가 없는 지표(미국채 10Y·국고채 10Y 등)는 빠진다 — 깨진 링크보다
-    없는 편이 낫다. 라벨에는 발송 시점 등락률을 붙여 목록에서 바로 훑을 수 있게 한다."""
+
+    ⚠ 첫 줄은 **항상 카드의 주인공**이다(2026-09-28). 종전엔 네이버 페이지가 없는 지표를
+    목록에서 빼서, us_pre 편성(주인공 미국채 10Y)의 사진·버튼이 다음 칸인 달러-원으로
+    갔다. 이제 각 칸은 notify_discord.asset_link — 네이버, 없으면 대시보드의 같은 지표
+    화면 — 로 풀린다. 못 푸는 키는 빠지므로, 카드 키가 전부 풀리는 것을
+    test_card_links.test_photo_link_is_always_the_card_hero 가 강제한다."""
     import discord_card
     import notify_discord
     if weekly:
@@ -2376,12 +2380,14 @@ def card_links(data, slot, weekend, now, focus_key=None, weekly=False):
                                     else n.get("chgPct"))))
     # 라벨에서 등락률을 뺐다(2026-09-24 A5) — 같은 숫자가 카드 타일에 이미 크게 있다.
     # 방향 이모지는 남긴다(숫자가 아니라 버튼을 훑을 때의 표지다, 2026-08-15 기획).
-    return [(f"{notify_discord.direction_emoji(chg)} {ko}", key, notify_discord.NAVER_LINKS[key])
-            for ko, key, chg in seq if key in notify_discord.NAVER_LINKS][:25]
+    return [(f"{notify_discord.direction_emoji(chg)} {ko}", key, url)
+            for ko, key, chg in seq
+            for url in (notify_discord.asset_link(key),) if url][:25]
 
 
 def hero_link(links):
-    """카드 링크 목록의 첫 줄 = 사진을 눌렀을 때 갈 곳. 없으면 None(대시보드 폴백)."""
+    """카드 링크 목록의 첫 줄 = 사진을 눌렀을 때 갈 곳 = 카드 주인공의 차트. 없으면 None(대시보드).
+    첫 줄이 주인공인 것은 card_links 가 보장한다(카드 키는 전부 asset_link 로 풀린다)."""
     return links[0][2] if links else None
 
 
@@ -2393,9 +2399,11 @@ def _dc_select(data, weekly=False, links=None):
     목록의 **모든 링크가 한꺼번에** 죽는다("애플리케이션이 적시에 응답하지 않았어요").
     링크를 주는 데 왕복이 필요할 이유가 없어 URL 버튼(_dc_link_buttons)으로 바꿨다.
     함수는 Worker 의 goto_link 가 아직 살아 있어 남겨 둔다(수동 점검·회귀 검사용)."""
+    import notify_discord
     src = links if links is not None else card_links(
         data, None, False, datetime.datetime.now(KST), weekly=weekly)
-    return [(lab, key) for lab, key, _u in src]
+    # goto_link 는 네이버 표만 푼다 — 대시보드로 풀리는 칸(밀·옥수수)은 드롭다운에 싣지 않는다.
+    return [(lab, key) for lab, key, _u in src if key in notify_discord.NAVER_LINKS]
 
 
 def _dc_link_buttons(links):
