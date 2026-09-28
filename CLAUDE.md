@@ -29,7 +29,7 @@ its **naming**: the site's internal API is still `--color-*` / `--font-size-*` /
       → 인라인 style / 클래스 / SEED recipe
 ```
 
-`scripts/econ.theme.ts` + `build_astryx_tokens.py` are **no longer part of the
+`scripts/legacy/astryx/`(`econ.theme.ts` + `build_astryx_tokens.py`) is **no longer part of the
 pipeline** — do not regenerate that block. Editing colors means editing the
 bridge. Chart series colors (9 hues, light/dark) live in the bridge as hex,
 because SEED has no categorical palette and its chromatic ramps collide with
@@ -96,8 +96,8 @@ index.html  html:root{}      브리지 — 사이트 이름을 --seed-* 로 정�
             :root:root{}     브랜드 8토큰 blue 재매핑(+ dark-only 블록)
 ```
 
-Editing a color = editing the bridge. `scripts/econ.theme.ts`,
-`build_astryx_tokens.py`, `patch_astryx*.py` are **provenance only** — the block
+Editing a color = editing the bridge. `scripts/legacy/astryx/`(`econ.theme.ts`,
+`build_astryx_tokens.py`, `patch_astryx*.py`) are **provenance only** — the block
 they produced was deleted in P4 (deletion evidence: no name that only that block
 defined is still referenced). Do not run them.
 
@@ -512,7 +512,7 @@ python scripts/validate_data.py   # verify output
 - Duplicate-send guard: GHA cache marker keyed by `date + slot`; manual `workflow_dispatch` always bypasses
 - Charts use `matplotlib`. 피드 이미지는 슬롯 편성(`discord_card.PROFILES`) 기반 정사각 카드가 1순위이고, `SLOT_CHARTS_WEEKDAY`(슬롯별 2티커 라인 차트)는 그 폴백으로 남아 있다 — 카드가 안정될 때까지 삭제하지 말 것
 - **카카오 발송은 전부 카드(사진)가 본문이다**(기획 v3 — 정기 시황·주간·종목·급변·서킷 발동/해제·테스트·장 마감). 새 발송을 추가할 때는 `kakao.send_card()` 를 쓰고 정사각 카드를 함께 만들 것 — `send_memo` 직접 호출은 `scripts/tests/test_kakao_cards.py` 가 실패시킨다
-- 수신 모드는 “나와의 채팅”으로 유지한다(변수 `KAKAO_FRIENDS=0`). 푸시가 필요하면 `KAKAO_SETUP.md ⑤`(보조 계정 + `friends` 재동의)를 따라야 하고, 그때까지 **카톡 무음은 버그가 아니다**. 실시간 알림은 디스코드가 담당
+- 수신 모드는 “나와의 채팅”으로 유지한다(변수 `KAKAO_FRIENDS=0`). 푸시가 필요하면 `docs/KAKAO_SETUP.md ⑤`(보조 계정 + `friends` 재동의)를 따라야 하고, 그때까지 **카톡 무음은 버그가 아니다**. 실시간 알림은 디스코드가 담당
 - **알림 글의 역할 분담(2026-09-24 개편, 게이트 `scripts/tests/test_alert_redesign.py`)** — 카드 = 얼마나 움직였나, 글 = 카드가 못 하는 말. 규칙:
   - **제목은 `send_kakao_digest.headline()` 하나**(정기·마감, 두 채널 공통): `M/D 슬롯이름 · 이례 1건 · 주인공 · 두 번째 움직임`, `TITLE_MAX`=48자. 제목에 시각(`18시 시황`)을 쓰지 않는다. 이례는 `discord_card.market_anomalies()`(카드 키 + MOVE·VKOSPI·미/한 10Y) — 주인공 후보(`anomalies()`, 인트라데이 가능한 키만)보다 넓다. 같은 날 같은 이례는 `repeat_hit()` 로 한 번만(`.kakao_focus.json` 에 제목 이례도 기록)
   - **카톡 사진 아래 두 줄 = `slot_ai_line()`(그 카드 숫자로 Gemini 한 문장, `kakao-daily.yml` 에 `GEMINI_API_KEY`) + 이유(메르 사슬) 또는 슬롯 주제 뉴스(`slot_news`)**. 지표 블록은 전부 행으로. AI 문장은 `ai_briefing.slot_line_ok` 가 상대 시점어(내일·연휴·다음 주)·권유를 거른다 — 실패하면 문장 없이 보낸다

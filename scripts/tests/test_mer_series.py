@@ -1,5 +1,5 @@
 import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import fetch_mer_series as S
 
 def test_parse_wareki_reiwa():

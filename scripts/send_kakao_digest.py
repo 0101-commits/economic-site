@@ -6,7 +6,7 @@
   * 친구에게 보내기(우선) — 앱과 연결·동의된 카카오톡 친구가 있으면 그 친구들에게 발송.
     일반 메시지처럼 '푸시 알림'이 울린다. (2026-06 사용자 요청: 나에게 보내기는 내가 보낸
     메시지라 알림이 없음 → 보조 계정을 발신자로 두고 본 계정을 친구로 수신.)
-    검수 전 앱은 '팀 멤버'로 등록된 친구만 조회된다. 설정 절차는 KAKAO_SETUP.md ⑤ 참고.
+    검수 전 앱은 '팀 멤버'로 등록된 친구만 조회된다. 설정 절차는 docs/KAKAO_SETUP.md ⑤ 참고.
     쿼터: 발신자당 일 100건·발신자→수신자 쌍당 일 20건 — 평일 6회 발송 기준 여유가 크다.
   * 나에게 보내기(폴백) — 친구가 없거나 friends 동의가 없으면 종전대로 '나와의 채팅'으로.
 
@@ -46,7 +46,7 @@
   * 모든 단계가 같은 build_digest_parts() 의 내용을 쓰므로, 최후 폴백(텍스트)도
     이미지 유무만 다를 뿐 '내용 구성'은 동일하다.
 
-설정 방법(1회): 저장소 루트 KAKAO_SETUP.md 참고.
+설정 방법(1회): docs/KAKAO_SETUP.md 참고.
 """
 import os
 import re
@@ -221,7 +221,7 @@ def _update_github_secret(name, value):
     repo = os.environ.get("GITHUB_REPOSITORY", "").strip()   # Actions 가 자동 제공 "owner/name"
     if not pat or not repo:
         print("::warning title=토큰 자동회전 불가::GH_SECRETS_PAT 미설정 — 회전된 refresh_token 을 "
-              "자동 저장하지 못했습니다. 기존 토큰은 ~1개월 유효하나, KAKAO_SETUP.md 절차로 수동 갱신 필요.")
+              "자동 저장하지 못했습니다. 기존 토큰은 ~1개월 유효하나, docs/KAKAO_SETUP.md 절차로 수동 갱신 필요.")
         return False
     try:
         import base64
@@ -303,9 +303,9 @@ def refresh_access_token(rest_key, refresh_token):
     }, what="토큰 재발급")
     if status != 200 or not j.get("access_token"):
         # 400 응답의 error_code 를 메시지에 명시 — KOE320/KOE322 는 refresh_token 자체가 만료/무효라
-        # 재시도로는 절대 복구되지 않는다(KAKAO_SETUP.md ③ 재발급이 유일한 해법임을 바로 알 수 있게).
+        # 재시도로는 절대 복구되지 않는다(docs/KAKAO_SETUP.md ③ 재발급이 유일한 해법임을 바로 알 수 있게).
         ecode = str(j.get("error_code") or "")
-        hint = (" — refresh_token 만료 — KAKAO_SETUP.md 재발급 필요"
+        hint = (" — refresh_token 만료 — docs/KAKAO_SETUP.md 재발급 필요"
                 if ecode in ("KOE320", "KOE322") else "")
         if ecode in ("KOE320", "KOE322"):
             # 재시도 불가능한 '토큰 사망' — 이 순간부터 모든 카카오 발송(다이제스트·종목·서킷)이
@@ -315,7 +315,7 @@ def refresh_access_token(rest_key, refresh_token):
                 "🚨 카카오 refresh_token 만료 — 카톡 알림 전체 중단 (재발급 필요)",
                 f"카카오 토큰 재발급이 `HTTP {status} {ecode}` 로 실패해 시황 다이제스트·종목 알림·"
                 f"서킷브레이커 알림이 모두 중단된 상태입니다.\n\n"
-                f"**복구 방법**: `KAKAO_SETUP.md` ③ 절차로 refresh_token 을 재발급해 "
+                f"**복구 방법**: `docs/KAKAO_SETUP.md` ③ 절차로 refresh_token 을 재발급해 "
                 f"저장소 Secret `KAKAO_REFRESH_TOKEN` 을 교체하세요. 교체 즉시 다음 런부터 복구됩니다.\n\n"
                 f"응답: `{j}`")
         raise SystemExit(f"[kakao] access_token 재발급 실패: HTTP {status}"
@@ -328,13 +328,13 @@ def refresh_access_token(rest_key, refresh_token):
         # GH_SECRETS_PAT 없거나 실패하면 경고만 — 기존 토큰이 회전 후 ~1개월 유효해 발송은 안 끊긴다.
         if not _update_github_secret("KAKAO_REFRESH_TOKEN", j["refresh_token"]):
             print("::warning title=KAKAO_REFRESH_TOKEN 회전됨::카카오가 refresh_token 을 회전했으나 "
-                  "자동 반영에 실패했습니다. 기존 토큰은 약 1개월 더 유효 — 그 안에 KAKAO_SETUP.md 절차로 "
+                  "자동 반영에 실패했습니다. 기존 토큰은 약 1개월 더 유효 — 그 안에 docs/KAKAO_SETUP.md 절차로 "
                   "GitHub Secret 을 갱신하세요.")
             # 아직 발송이 살아있는 '지금'이 통지 적기 — 1개월 뒤 만료되면 그때는 전 채널 무음 중단이다.
             _gh_issue_notify(
                 "⚠️ 카카오 refresh_token 회전 자동반영 실패 — 1개월 내 수동 갱신 필요",
                 "카카오가 refresh_token 을 회전 발급했지만 GitHub Secret 자동 갱신(GH_SECRETS_PAT)이 "
-                "실패했습니다. 기존 토큰은 약 1개월 더 유효하며, 그 안에 `KAKAO_SETUP.md` ③ 절차로 "
+                "실패했습니다. 기존 토큰은 약 1개월 더 유효하며, 그 안에 `docs/KAKAO_SETUP.md` ③ 절차로 "
                 "`KAKAO_REFRESH_TOKEN` Secret 을 갱신하지 않으면 카톡 알림 전체가 중단됩니다.\n\n"
                 "GH_SECRETS_PAT 시크릿(이 저장소 Secrets: write 권한 fine-grained PAT)을 점검하세요.")
     return j["access_token"]
@@ -711,7 +711,7 @@ def _friends_enabled():
 def get_friends(access_token):
     """'친구에게 보내기' 수신자 목록 — 앱과 연결되고 친구 목록 제공(friends)에 동의한 카카오톡 친구.
 
-    검수 전 앱은 '팀 멤버'로 등록된 친구만 조회된다(설정 절차: KAKAO_SETUP.md ⑤).
+    검수 전 앱은 '팀 멤버'로 등록된 친구만 조회된다(설정 절차: docs/KAKAO_SETUP.md ⑤).
     friends 동의가 없으면(HTTP 403) 빈 목록 — 이때는 종전 '나에게 보내기'로 발송하므로,
     보조 계정·동의 설정을 마치기 전에도 기존 동작이 그대로 유지된다."""
     try:
@@ -727,7 +727,7 @@ def get_friends(access_token):
         # ::warning 으로 승격해 런 Annotations 첫 화면에서 보이게 한다(2026-07 감사: 매 런 재현 확인).
         print(f"::warning title=친구 발송 미동작::친구 목록 조회 불가 HTTP {status}({j.get('msg', j)}) — "
               "'나에게 보내기'로 폴백(푸시 알림 없음). friends 스코프 동의로 refresh_token 을 "
-              "재발급해야 복구됩니다(KAKAO_SETUP.md ⑤). 친구 발송을 안 쓰면 변수 KAKAO_FRIENDS=0 으로 끄세요.")
+              "재발급해야 복구됩니다(docs/KAKAO_SETUP.md ⑤). 친구 발송을 안 쓰면 변수 KAKAO_FRIENDS=0 으로 끄세요.")
         return []
     return [el for el in (j.get("elements") or []) if isinstance(el, dict) and el.get("uuid")]
 
@@ -2048,7 +2048,7 @@ def kakao_link(url):
     도메인을 넣으면 카카오가 도메인만 등록된 것으로 조용히 바꾸고 경로는 그대로 둔다 —
     finance.naver.com/sise/sise_index.naver?code=KOSPI 가
     0101-commits.github.io/sise/sise_index.naver?code=KOSPI 가 되어 GitHub 404 가
-    떴다(2026-09-22 13:16 발송본 실측). KAKAO_SETUP.md 에 적혀 있던 함정이다.
+    떴다(2026-09-22 13:16 발송본 실측). docs/KAKAO_SETUP.md 에 적혀 있던 함정이다.
     디스코드는 이 제약이 없으므로 **카카오 경로에서만** 이 함수를 통과시킨다.
 
     되돌리기 쉬운 형태로 둔다: NAVER_LINKS 의 값이면 키로, 종목 URL 이면 코드로 바꿔
@@ -2651,12 +2651,12 @@ def main():
     if not rest_key or not refresh_token:
         # 시크릿 미설정 = 아직 설정 전(또는 설정 진행 중). 이때 워크플로를 '실패'로 끝내면 매 스케줄마다
         # GitHub 가 'run failed' 알림 메일을 보내 사용자를 괴롭힌다. 따라서 이 경우엔 경고만 남기고
-        # 정상 종료(exit 0)한다 — KAKAO_SETUP.md 의 ③~④(refresh_token 발급·시크릿 등록)를 마치면
+        # 정상 종료(exit 0)한다 — docs/KAKAO_SETUP.md 의 ③~④(refresh_token 발급·시크릿 등록)를 마치면
         # 다음 스케줄부터 자동으로 발송된다. (토큰 만료 등 '진짜 오류'는 아래에서 그대로 실패 처리.)
         missing = [n for n, v in (("KAKAO_REST_API_KEY", rest_key),
                                   ("KAKAO_REFRESH_TOKEN", refresh_token)) if not v]
         print(f"::warning title=Kakao 미설정::{', '.join(missing)} 시크릿이 아직 없어 카카오 발송을 "
-              "건너뜁니다. 설정 방법은 KAKAO_SETUP.md 참고. (워크플로는 정상 종료 — 실패 알림 없음)")
+              "건너뜁니다. 설정 방법은 docs/KAKAO_SETUP.md 참고. (워크플로는 정상 종료 — 실패 알림 없음)")
     # ⚠ 여기서 return 하지 않는다. 종전엔 카카오 시크릿이 없으면 그대로 끝나서 디스코드
     #   다이제스트까지 함께 멈췄다 — 이 모듈이 "디스코드 병행 발송은 카카오와 완전 독립"이라고
     #   적어 둔 것과 어긋난다. 시크릿을 재발급하려고 잠깐 지우기만 해도 두 채널이 동시에
@@ -2667,7 +2667,7 @@ def main():
     # 슬롯마다 쏟아진다. (2026-07-08 18:00 KST~ KAKAO_REFRESH_TOKEN 만료/회전 추정으로 전 슬롯
     # 실패가 연속 발생해 실패 알림이 도배된 사건.) check_alerts.py 와 동일하게 SystemExit 를 삼켜
     # ::warning + 정상 종료(exit 0)로 알림 스팸을 막는다. 단, 이는 '증상(스팸)'만 멈추는 것 —
-    # 토큰 만료면 KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신해야 실제 발송이 복구된다.
+    # 토큰 만료면 docs/KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신해야 실제 발송이 복구된다.
     # ⚠ data.json 로드·라이브 보정·본문 구성도 try 안에 둔다 — 종전엔 try '밖'이라 여기서의 예외
     #   (일시 네트워크 장애·데이터 이상)가 미포획 traceback → job 실패 → 실패 메일로 새던 구멍이었다.
     #   센티널(.kakao_sent_ok)이 없으므로 백업 깨움이 같은 슬롯을 재시도한다(무음 유실 아님).
@@ -2906,13 +2906,13 @@ def main():
         print(f"[kakao] 발송 완료 (텍스트 폴백, slot={slot})")
     except SystemExit as e:
         print(f"::warning title=Kakao 발송 건너뜀::{e} — 토큰 만료/회전 또는 발송 실패 추정. "
-              "KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신하면 다음 슬롯부터 발송이 복구됩니다. "
+              "docs/KAKAO_SETUP.md ③ 절차로 KAKAO_REFRESH_TOKEN 시크릿을 갱신하면 다음 슬롯부터 발송이 복구됩니다. "
               "(워크플로는 정상 종료 — 매 슬롯 실패 알림 메일 방지)")
         _step_summary(f"❌ 카카오 발송 건너뜀: {e}")
         try:
             import notify_discord
             notify_discord.system(f"카카오 다이제스트 발송 실패(토큰 만료/발송 오류 추정): {e}\n"
-                                  "디스코드 발송은 별도 경로라 정상일 수 있음. KAKAO_SETUP.md ③ 참고.")
+                                  "디스코드 발송은 별도 경로라 정상일 수 있음. docs/KAKAO_SETUP.md ③ 참고.")
         except Exception:
             pass
     except Exception as e:

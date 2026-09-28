@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """check_halts 카카오 발송/상태 로직 테스트 — pytest 없이 직접 실행.
-실행: python scripts/test_check_halts.py  (성공 시 'ALL PASS').
+실행: python scripts/tests/test_check_halts.py  (성공 시 'ALL PASS').
 
 핵심 회귀: '발동'을 실제로 못 보낸 사건에 '해제'만 발송되는 유령 알림 방지(fireSent 게이트).
 카카오 네트워크 발송은 스텁으로 대체해 결정적으로 검증한다."""
@@ -11,7 +11,7 @@ import json
 import tempfile
 import datetime
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 try:                                    # Windows cp949 콘솔에서도 한글/em-dash 로그 깨지지 않게
     sys.stdout.reconfigure(encoding="utf-8")
 except (AttributeError, ValueError):

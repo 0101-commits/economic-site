@@ -22,9 +22,9 @@ import shutil
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[3]  # scripts/legacy/astryx → 저장소 루트
 HTML = ROOT / "index.html"
-TOKENS = ROOT / "scripts" / "_astryx_tokens.css"   # build_astryx_tokens.py 산출물
+TOKENS = Path(__file__).resolve().parent / "_astryx_tokens.css"   # build_astryx_tokens.py 산출물
 
 # ── style="" 속성 안에서만 치환할 구 팔레트 → 토큰 매핑 ──────────────────────
 HEX_MAP = {

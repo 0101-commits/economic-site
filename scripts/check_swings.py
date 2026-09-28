@@ -172,7 +172,7 @@ def main():
         except (SystemExit, Exception) as e:
             print(f"::warning title=급변 속보 카카오 실패::{e} — 디스코드 경로 시도")
     else:
-        print("::warning title=Kakao 미설정::급변 속보 카카오 건너뜀 (KAKAO_SETUP.md 참고)")
+        print("::warning title=Kakao 미설정::급변 속보 카카오 건너뜀 (docs/KAKAO_SETUP.md 참고)")
     try:
         import notify_discord
         # 카드 D(기획 2026-08-11) — |등락| 최대 심볼을 히어로로, 인트라데이+임계선.

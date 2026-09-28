@@ -25,7 +25,7 @@ import re
 import shutil
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[3]  # scripts/legacy/astryx → 저장소 루트
 HTML = ROOT / "index.html"
 
 SCALE = [
