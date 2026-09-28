@@ -111,8 +111,6 @@ NAVER_CLIENT_SECRET= os.environ.get("NAVER_CLIENT_SECRET","").strip()
 
 KRX_BASE     = "http://data-dbg.krx.co.kr/svc/apis"
 KIS_BASE     = "https://openapi.koreainvestment.com:9443"
-# 신규: 산업통상자원부 광물자원공사 원자재 가격 (motir.go.kr)
-MOTIR_BASE   = "https://www.motir.go.kr"
 FRED_BASE    = "https://api.stlouisfed.org/fred"
 ECOS_BASE    = "https://ecos.bok.or.kr/api"
 # R-ONE 공식 OpenAPI 엔드포인트 (2023~ 신 버전)
@@ -4389,57 +4387,6 @@ def fetch_exim_intl_rate():
 
 
 # ============================================================
-# 산업통상자원부 — motir.go.kr 원자재 가격 (광물자원공사)
-# ============================================================
-def fetch_motir_commodities():
-    """광물자원공사(MOTIR) 일일 원자재 가격 크롤링.
-
-    https://www.motir.go.kr/kor/contents/103
-    페이지에서 비철금속/귀금속/희소금속 일일 가격을 추출.
-    Returns: {item: {price, change, unit, as_of}} or None
-    """
-    try:
-        import re as _re
-        r = requests.get(
-            f"{MOTIR_BASE}/kor/contents/103",
-            timeout=20,
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; FinanceCrawler/1.0)",
-                "Accept-Language": "ko-KR,ko;q=0.9",
-            },
-            verify=False,
-        )
-        if r.status_code != 200:
-            log(f"[MOTIR] HTTP {r.status_code}")
-            return None
-        r.encoding = "utf-8"
-        html = r.text
-        items = {}
-        # 표 형식 추출 — 일반적으로 <tr>품목명</td><td>가격</td><td>변동</td>...
-        # 우선 광물자원 공시 형식 패턴 시도
-        # 패턴: <td>구리</td><td>9,234.50</td><td>+0.45%</td>
-        rows = _re.findall(
-            r'<t[dh][^>]*>\s*(구리|알루미늄|아연|니켈|납|주석|금|은|백금|팔라듐|텅스텐|몰리브덴|망간|리튬|코발트|희토류)[^<]*</t[dh]>'
-            r'\s*(?:<t[dh][^>]*>[^<]*</t[dh]>)*?'
-            r'\s*<t[dh][^>]*>([\d,\.]+)</t[dh]>',
-            html, _re.DOTALL,
-        )
-        for name, price_str in rows:
-            v = _parse_num(price_str)
-            if v and v > 0:
-                items[name] = {"price": v, "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
-                               "source": "motir.go.kr 광물자원공사"}
-        if items:
-            log(f"[MOTIR] {len(items)}개 원자재 가격 수집 ({', '.join(items.keys())[:60]})")
-            return items
-        log("[MOTIR] 표 형식 매칭 실패 — HTML 구조 변경 가능")
-        return None
-    except Exception as e:
-        log(f"[MOTIR] 크롤링 오류: {e}")
-        return None
-
-
-# ============================================================
 # 국민연금 자산배분 (NPS) — fund.nps.or.kr 공시
 # ============================================================
 # ============================================================
@@ -7196,16 +7143,6 @@ def build_data():
                     log(f"[EXIM] 환율 검증 데이터: USD={exim_map.get('USD')}, EUR={exim_map.get('EUR')}, JPY={exim_map.get('JPY')}")
         except Exception as e:
             log(f"[EXIM] 환율 오류: {e}")
-
-    # ── 광물자원공사 (motir.go.kr) 원자재 가격 크롤링 ──────────
-    try:
-        log("[MOTIR] 광물자원공사 원자재 가격 수집 시작")
-        motir_data = fetch_motir_commodities()
-        if motir_data:
-            data["commoditiesKr"] = motir_data
-            data["sources"]["commoditiesKr"] = "motir.go.kr 광물자원공사"
-    except Exception as e:
-        log(f"[MOTIR] 오류: {e}")
 
     # ── 국민연금 자산배분 (NPS) ──────────────────────
     try:

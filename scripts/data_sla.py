@@ -77,8 +77,10 @@ SLA_RULES = [
 CADENCE_SLA = {"daily": 4, "weekly": 12, "monthly": 70, "quarterly": 120, "annual": 300}
 _PERIOD_MONTHS = {"monthly": 1, "quarterly": 3, "annual": 12}
 # 주기 허용치에 더하는 경로별 공표 지연(일). 케이스실러는 두 달 뒤 마지막 화요일 공표라
-# 월간 70 일로는 정상 갱신 중에도 지연으로 뜬다.
-EXTRA_LAG = [("realestate.us.case_shiller*", 30)]
+# 월간 70 일로는 정상 갱신 중에도 지연으로 뜬다. 한국 수출 달러액(FRED XTEXVA01KRM667S,
+# OECD MEI)은 약 3개월 늦다 — 2026-09-28 에 원천 최신이 6월이라 90일째 '지연'으로 떴지만
+# 수집은 정상이었다(적시성은 ECOS 수출금액지수 exports_idx_kr 가 맡는다).
+EXTRA_LAG = [("realestate.us.case_shiller*", 30), ("economicIndicators.kr.exports_kr", 60)]
 DEFAULT_SLA = (60, "normal")
 
 # as-of 로 인정하는 키 (우선순위 순)
@@ -274,7 +276,7 @@ _EXPECTED_TOPS = ("berkshire", "lmeInventory",
                   # 프런트가 읽는데 수집 실패 시 키째 사라지는 경로(2026-09-24 감사 F6) — 화면에서는
                   # 빈 카드·시드값 지도·안 그려지는 차트로 보였고 판정표에는 흔적이 없었다.
                   "sentiment.pcr", "realestate.kr.region", "realestate.kr.region_sub",
-                  "commoditiesKr", "climate.enso.forecast")
+                  "climate.enso.forecast")
 
 
 def _get_path(data, path):
@@ -472,18 +474,20 @@ def _demo():
     }
     sample["economicIndicators"] = {
         "cn": {"gdp_cn": {"period": "2025-01-01", "history": {"2023-01-01": 1, "2024-01-01": 1, "2025-01-01": 1}}},
-        "kr": {"exports_kr": {"period": "2026-04-01", "history": {"2026-02-01": 1, "2026-03-01": 1, "2026-04-01": 1}}},
+        "kr": {"cpi_kr": {"period": "2026-04-01", "history": {"2026-02-01": 1, "2026-03-01": 1, "2026-04-01": 1}},
+               "exports_kr": {"period": "2026-04-01", "history": {"2026-02-01": 1, "2026-03-01": 1, "2026-04-01": 1}}},
     }
     h = build_health(sample, today=date(2026, 8, 4))
     by = {i["path"]: i for i in h["items"]}
     assert by["history.indices.KOSPI"]["state"] == "ok", by["history.indices.KOSPI"]
     assert by["economicIndicators.cn.gdp_cn"]["state"] == "ok", by["economicIndicators.cn.gdp_cn"]      # 연간, 연말+216일
-    assert by["economicIndicators.kr.exports_kr"]["state"] == "stale", by["economicIndicators.kr.exports_kr"]  # 월간, 4월말+95일
+    assert by["economicIndicators.kr.cpi_kr"]["state"] == "stale", by["economicIndicators.kr.cpi_kr"]  # 월간, 4월말+95일
+    assert by["economicIndicators.kr.exports_kr"]["state"] == "ok", by["economicIndicators.kr.exports_kr"]  # 같은 95일이나 원천 3개월 지연(EXTRA_LAG)
     assert by["sentiment.vkospi"]["state"] == "stale", by["sentiment.vkospi"]
     assert by["stockMovers.kospiGainers"]["state"] == "failed", by["stockMovers.kospiGainers"]
     assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
     assert by["lmeInventory"]["state"] == "missing", by["lmeInventory"]
-    assert h["summary"]["missing"] == 2 + 5          # berkshire·lme + 화면 공백 경로 5
+    assert h["summary"]["missing"] == 2 + 4          # berkshire·lme + 화면 공백 경로 4
     # lmeInventory 는 원자 블록 — as_of 로 블록 단위 판정
     assert _extract_asof({"data": [{"cur": 1}], "as_of": "2026-08-03"}) == date(2026, 8, 3)
     # lastFetched(수집 시각)는 as-of 로 인정하지 않는다 — 내용 날짜 items 로 내려가야 함
