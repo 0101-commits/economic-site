@@ -166,6 +166,24 @@ def _extract_asof(node):
     return max(ds) if ds else None
 
 
+# 거래일에만 값이 생기는 시장 경로 — 나이를 달력일이 아니라 평일 수로 센다. 달력일로 세면
+# 2026-09-28(월) 아침, 추석 휴장(9/24·25)+주말 뒤 마지막 거래일 9/23 KOSPI 가 5일로 찍혀
+# critical 게이트가 수집을 매번 막았다. 평일 4일이면 설 연휴(평일 3일 휴장) 뒤 첫 장 아침도 통과.
+# ponytail: 공휴일 표 없이 주말만 거른다 — 평일 4일 넘게 쉬는 휴장이 생기면 KRX 휴장일 표로.
+TRADING_DAY_PATHS = ("history.indices.*", "history.fx.*", "history.commodities.*",
+                     "stockMovers.*", "etfMovers.*", "rankingsKr.*", "investorTrading",
+                     "sentiment.*", "yieldCurve.*")
+
+
+def _weekdays_between(a, b):
+    """a 다음 날부터 b 까지의 평일 수."""
+    n, d = 0, a
+    while d < b:
+        d += timedelta(days=1)
+        n += d.weekday() < 5
+    return n
+
+
 def _rule_for(path):
     for pat, days, tier in SLA_RULES:
         if fnmatch.fnmatchcase(path, pat):
@@ -320,7 +338,9 @@ def build_health(data, today=None, sources=None):
                 age = (today - asof).days
             state = "stale" if age > sla_days else "ok"
         else:
-            age = (today - asof).days
+            age = (_weekdays_between(asof, today)
+                   if any(fnmatch.fnmatchcase(path, p) for p in TRADING_DAY_PATHS)
+                   else (today - asof).days)
             state = "stale" if age > sla_days else "ok"
         if preserved and state == "ok":
             state = "preserved"
@@ -473,6 +493,9 @@ def _demo():
     # critical 이 늦으면 blocking 에 들어간다
     sample["history"]["indices"]["KOSPI"] = [{"date": "2026-07-01", "close": 1}]
     assert build_health(sample, today=date(2026, 8, 4))["blocking"] == ["history.indices.KOSPI"]
+    # 추석 휴장+주말 뒤 월요일 아침: 마지막 거래일 9/23 은 달력 5일이지만 평일 3일 → 통과
+    sample["history"]["indices"]["KOSPI"] = [{"date": "2026-09-23", "close": 1}]
+    assert "history.indices.KOSPI" not in build_health(sample, today=date(2026, 9, 28))["blocking"]
 
     # 독립 파일 신선도 — 없는 파일은 skip(에러 아님)
     res = check_external_files(root="__no_such_dir__")
