@@ -70,6 +70,101 @@ def test_failure_streak_notifies_first_only(monkeypatch):
     assert W._streak_continues("123", "3") is False
 
 
+def test_worker_dispatch_matches_trigger():
+    """Worker 가 30분마다 보내는 event_type 이 watchdog.yml 의 repository_dispatch types 와 같아야 한다.
+
+    어긋나면 dispatch 는 204 로 성공하고 워크플로만 안 깨어난다 — 아무 오류도 없다.
+    """
+    worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"), encoding="utf-8").read()
+    m = re.search(r"ghDispatch\(env, '([\w-]+)', \{\}, 'ecom-watchdog-cron'\)", worker)
+    assert m, "Worker 의 watchdog dispatch 가 없다"
+    assert re.search(r"repository_dispatch:\s*\n\s*types:\s*\[\s*%s\s*\]" % re.escape(m.group(1)),
+                     WATCHDOG_YML), m.group(1)
+
+
+def _silence(monkeypatch, runs, prev_ago=30, success_ago=None, thr=lambda _wf, _t: 30):
+    """WATCH 한 종으로 check_silence 를 돌린다. 지금 = 12:00 UTC(21:00 KST), 직전 감시 = prev_ago 분 전."""
+    import datetime as dt
+    now = dt.datetime(2026, 9, 28, 12, 0, tzinfo=dt.timezone.utc)
+    iso = lambda m: (now - dt.timedelta(minutes=m)).isoformat()
+    runs = [dict(r) for r in runs]
+    for r in runs:
+        ago = r.pop("ago")
+        r.setdefault("status", "completed")
+        r["created_at"], r["updated_at"] = iso(ago), iso(r.pop("done", ago))
+    monkeypatch.setattr(W, "WATCH", [("x.yml", "X", 30, 30, True)])
+    monkeypatch.setattr(W, "_threshold", thr)
+    monkeypatch.setattr(W, "_prev_check",
+                        lambda: None if prev_ago is None else now - dt.timedelta(minutes=prev_ago))
+    ok = {"workflow_runs": [{"updated_at": iso(success_ago)}]} if success_ago is not None else {}
+    monkeypatch.setattr(W, "_api", lambda p: ok if "status=success" in p else {"workflow_runs": runs})
+    return W.check_silence(now)
+
+
+def test_silence_quiet_after_recovery(monkeypatch):
+    """최신 런이 성공이면 앞에 실패가 여럿 남아 있어도 울리지 않는다(종전 '10건 중 절반' 판정은 울렸다)."""
+    runs = [{"ago": 2, "conclusion": "success"}] + [{"ago": 5 * i, "conclusion": "failure"} for i in range(1, 8)]
+    assert _silence(monkeypatch, runs) == []
+
+
+FRESH_STREAK = [{"ago": 1, "done": 1, "conclusion": "failure"},     # 3번째 실패 = 1분 전에 끝남
+                {"ago": 6, "done": 5, "conclusion": "failure"},
+                {"ago": 11, "done": 10, "conclusion": "failure"},
+                {"ago": 16, "done": 15, "conclusion": "success"}]
+
+
+def test_silence_streak_notified_once(monkeypatch):
+    """연속 실패는 직전 감시 뒤에 시작됐을 때만 — 바로 뒤 감시(:04 이중 발화·백업 겹침)는 다시 안 울린다."""
+    assert len(_silence(monkeypatch, FRESH_STREAK, prev_ago=30)) == 1
+    assert _silence(monkeypatch, FRESH_STREAK, prev_ago=0.5) == []
+
+
+def test_silence_long_streak_reminds_every_3h(monkeypatch):
+    """쪽 전체가 실패면 마지막 성공 시각이 기준 — 3시간 경계를 넘는 감시에서만 다시 알린다."""
+    all_fail = [{"ago": 5 * i + 1, "done": 5 * i, "conclusion": "failure"} for i in range(W.RECENT_N)]
+    assert _silence(monkeypatch, all_fail, success_ago=100) == []
+    assert len(_silence(monkeypatch, all_fail, success_ago=185)) == 1
+
+
+def test_silence_stall_first_then_reminder(monkeypatch):
+    """끊김은 처음 볼 때 + 3시간 경계마다. 이어지는 동안 매 회차 @멘션하지 않는다."""
+    assert len(_silence(monkeypatch, [{"ago": 45, "conclusion": "success"}])) == 1   # 15분째, 직전 감시 땐 없었다
+    assert _silence(monkeypatch, [{"ago": 95, "conclusion": "success"}]) == []       # 65분째
+    assert len(_silence(monkeypatch, [{"ago": 215, "conclusion": "success"}])) == 1  # 185분째
+
+
+def test_silence_backup_schedule_still_first_alerts(monkeypatch):
+    """Worker 가 죽어 백업 schedule 만 도는 경우(간격 4시간) — 창 방식은 첫 통지를 거의 놓쳤다."""
+    assert len(_silence(monkeypatch, [{"ago": 130, "conclusion": "success"}], prev_ago=240)) == 1
+
+
+def test_silence_first_check_of_watch_window(monkeypatch):
+    """직전 감시 땐 감시 시간대 밖(임계 None)이었다면 오래된 끊김도 지금이 첫 통지다(장 시작 09:03 등)."""
+    thr = lambda _wf, t: 30 if (t.hour, t.minute) >= (21, 0) else None   # 21:00 KST 부터 감시
+    assert len(_silence(monkeypatch, [{"ago": 300, "conclusion": "success"}], thr=thr)) == 1
+
+
+def test_silence_threshold_tightening_first_alerts(monkeypatch):
+    """장 시작에 임계가 120→30 으로 조여지는 감시 — 직전 감시 땐 '그 시점 임계'로 정상이었으니 첫 통지다.
+
+    지금 임계로 되짚으면 '그때도 끊김'이 되어 첫 통지를 삼켰다(fetch-data 07:00 정지 → 10:33 첫 통지).
+    """
+    thr = lambda _wf, t: 30 if (t.hour, t.minute) >= (21, 0) else 120
+    assert len(_silence(monkeypatch, [{"ago": 60, "conclusion": "success"}], thr=thr)) == 1
+
+
+def test_silence_run_fails_when_notify_fails(monkeypatch):
+    """통지에 실패한 silence 런이 성공으로 끝나면 다음 감시가 '이미 알렸다'고 친다 — 실패로 끝내야 한다."""
+    import pytest
+    monkeypatch.setenv("WATCHDOG_MODE", "silence")
+    monkeypatch.setattr(W, "check_silence", lambda: [("X", "끊김")])
+    monkeypatch.setattr(W.notify_discord, "system", lambda *a, **k: False)
+    with pytest.raises(SystemExit):
+        W.main()
+    monkeypatch.setattr(W.notify_discord, "system", lambda *a, **k: True)
+    W.main()                                                         # 통지 성공이면 정상 종료
+
+
 def test_watched_workflow_files_exist():
     """파일명으로 지정한 대상은 실제 파일이 있어야 한다(숫자 id 는 GitHub 관리 워크플로)."""
     for key, _n, _l, _i, _inst in W.WATCH:

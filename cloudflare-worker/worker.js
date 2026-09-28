@@ -982,6 +982,7 @@ export const fullFetchMode = (d) => {
   return [0, 7, 13].includes(d.getUTCHours()) ? 'daily' : 'full';
 };
 let _lastFullSlot = '';
+let _lastWatchSlot = '';
 
 // 📲 카카오 발송 슬롯 판정(KST) — kakao-daily.yml 의 '발송 창 게이트'와 동일 규칙.
 //   • 평일(월~금) 07~22시 매시간 / 주말(토·일) 11·17시.
@@ -1175,63 +1176,6 @@ async function _discordVerify(request, rawBody, env) {
   }
 }
 
-// 토스증권 Open API 토큰 — 워커 격리(isolate)당 1회 발급해 재사용(만료 60초 전 갱신).
-// env.TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 미설정이면 null → 호출측이 Yahoo 로 흐른다.
-let _tossTok = { v: null, exp: 0 };
-async function _tossToken(env) {
-  const id = (env && env.TOSS_CLIENT_ID || '').trim();
-  const sec = (env && env.TOSS_CLIENT_SECRET || '').trim();
-  if (!id || !sec) { console.error('[toss] 자격증명 미주입 id=' + (!!id) + ' sec=' + (!!sec)); return null; }
-  if (_tossTok.v && Date.now() < _tossTok.exp - 60000) return _tossTok.v;
-  try {
-    const r = await fetch('https://openapi.tossinvest.com/oauth2/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: sec }),
-    });
-    const txt = await r.text();
-    let j = null;
-    try { j = JSON.parse(txt); } catch (_) { /* HTML 차단 페이지 등 */ }
-    if (!j || !j.access_token) {
-      console.error('[toss] 토큰 실패 status=' + r.status + ' body=' + txt.slice(0, 200));
-      return null;
-    }
-    _tossTok = { v: j.access_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000 };
-    return _tossTok.v;
-  } catch (e) {
-    console.error('[toss] 토큰 실패', e && e.message);
-    return null;
-  }
-}
-
-// 국내 지수 실시간(토스 공식) → {price, pct} / 실패 시 null.
-// 등락률 필드가 없어 일봉 2개(현재봉·전일봉)로 직접 계산한다.
-const TOSS_INDEX = { '^KS11': 'KOSPI', '^KQ11': 'KOSDAQ' };
-async function _tossIndexQuote(sym, env) {
-  const name = TOSS_INDEX[sym];
-  const tok = name ? await _tossToken(env) : null;
-  if (!tok) return null;
-  try {
-    const h = { Authorization: 'Bearer ' + tok };
-    const [cr, pr] = await Promise.all([
-      fetch(`https://openapi.tossinvest.com/api/v1/market-indicators/${name}/candles?interval=1d&count=3`, { headers: h }),
-      fetch(`https://openapi.tossinvest.com/api/v1/market-indicators/prices?symbols=${name}`, { headers: h }),
-    ]);
-    const cj = await cr.json();
-    const pj = await pr.json();
-    const cs = cj && cj.result && cj.result.candles;      // 최신 → 과거 순
-    if (!Array.isArray(cs) || cs.length < 2) return null;
-    const live = pj && pj.result && pj.result[0] && Number(pj.result[0].lastPrice);
-    const price = (live > 0) ? live : Number(cs[0].closePrice);
-    const prev = Number(cs[1].closePrice);
-    if (!(price > 0) || !(prev > 0)) return null;
-    return { price, pct: (price / prev - 1) * 100 };
-  } catch (e) {
-    console.error('[toss] 지수 조회 실패', e && e.message);
-    return null;
-  }
-}
-
 async function _discordQuote(label, env) {
   const [sym, nd] = DISCORD_QUOTES[label] || [];
   if (!sym) return `알 수 없는 지표: ${label}`;
@@ -1241,9 +1185,6 @@ async function _discordQuote(label, env) {
     const nav = DISCORD_NAVER[label] ? ` · [네이버 ↗](${DISCORD_NAVER[label]})` : '';
     return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}${nav}\n※ 무료 시세 기준(지연 가능) · [대시보드](https://0101-commits.github.io/economic-site/)`;
   };
-  // 국내 지수는 토스증권 공식 실시간 우선 (Yahoo 국내 지수는 지연·결측이 잦다)
-  const t = await _tossIndexQuote(sym, env);
-  if (t) return _fmt(t.price, t.pct);
   try {
     // range=1d — 이때 chartPreviousClose 가 '직전 거래일 종가'다. 5d 로 부르면 5일 전
     // 종가가 되어 등락률이 주간 수익률로 부풀던 버그(실측 ▲16.51%) 방지.
@@ -1257,51 +1198,6 @@ async function _discordQuote(label, env) {
     return _fmt(price, prev ? ((price / prev - 1) * 100) : null);
   } catch (e) {
     return `${label} 시세 조회 실패: ${e && e.message}`;
-  }
-}
-
-// 토스 릴레이가 통과시키는 읽기 전용 경로. 계좌·주문 계열(/orders, /holdings,
-// /buying-power, /conditional-orders …)은 **절대 넣지 말 것** — 같은 자격증명으로
-// 실제 주문이 나갈 수 있다. 정규식은 전체 일치(^…$)만 허용한다.
-const TOSS_RELAY_ALLOW = [
-  /^\/api\/v1\/prices$/,
-  /^\/api\/v1\/candles$/,
-  /^\/api\/v1\/stocks$/,
-  /^\/api\/v1\/rankings$/,
-  /^\/api\/v1\/exchange-rate$/,
-  /^\/api\/v1\/market-calendar\/(KR|US)$/,
-  /^\/api\/v1\/market-indicators\/prices$/,
-  /^\/api\/v1\/market-indicators\/[A-Z0-9_]{1,20}\/(candles|investor-trading)$/,
-  /^\/api\/v1\/stocks\/[A-Za-z0-9.]{1,12}\/(investor-trading|short-selling|program-trades|credit-trades|securities-lending|warnings)$/,
-];
-
-async function handleTossRelay(request, env) {
-  // 인증 = 전용 공유키의 SHA-256 해시 (GH secret TOSS_RELAY_KEY ↔ Worker secret 동일 값).
-  // 동기화 키(ALERTS_SYNC_KEY)를 재사용하지 않는 이유: 그 키는 프론트가 쥐고 있어
-  // 브라우저에서도 이 릴레이를 부를 수 있게 되고, 릴레이는 서버 전용이어야 한다.
-  const want = (env && env.TOSS_RELAY_KEY || '').trim();
-  if (!want) return jsonResponse({ error: 'relay_not_configured' }, 503);
-  const got = String(request.headers.get('X-Relay-Key-Hash') || '').toLowerCase();
-  if (!got || got !== await _sha256Hex(want)) return jsonResponse({ error: 'unauthorized' }, 401);
-  const u = new URL(request.url);
-  const path = u.searchParams.get('_path') || '';
-  if (!TOSS_RELAY_ALLOW.some((re) => re.test(path))) {
-    return jsonResponse({ error: 'path not allowed' }, 403);
-  }
-  const tok = await _tossToken(env);
-  if (!tok) return jsonResponse({ error: 'toss credentials unavailable' }, 503);
-  const qs = new URLSearchParams();
-  for (const [k, v] of u.searchParams) if (k !== '_path') qs.set(k, v);
-  const target = 'https://openapi.tossinvest.com' + path + (qs.toString() ? '?' + qs : '');
-  try {
-    const r = await fetch(target, { headers: { Authorization: 'Bearer ' + tok } });
-    const body = await r.text();
-    return new Response(body, {
-      status: r.status,
-      headers: { ...GET_CORS, ...SECURITY_HEADERS, 'content-type': 'application/json; charset=utf-8' },
-    });
-  } catch (e) {
-    return jsonResponse({ error: String((e && e.message) || e) }, 502);
   }
 }
 
@@ -1414,6 +1310,17 @@ export default {
           if (ok === false) _lastFullSlot = prevFull;
         })());
       }
+      // 🐕 watchdog 침묵 감시 — 30분마다(:03, 드롭 보강 :04). GHA schedule(*/30)은 실측 3~5시간에
+      //   한 번만 발화해 '30분 감시'가 아니었다(2026-09-28). 이벤트 이름은 watchdog.yml 의
+      //   repository_dispatch types 와 같아야 한다(scripts/tests/test_watchdog.py).
+      const watchKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}-${now.getUTCHours()}-${Math.floor(min / 30)}`;
+      if (min % 30 >= 3 && min % 30 <= 4 && _lastWatchSlot !== watchKey) {
+        const prevWatch = _lastWatchSlot;
+        _lastWatchSlot = watchKey;
+        ctx.waitUntil((async () => {
+          if (await ghDispatch(env, 'watchdog', {}, 'ecom-watchdog-cron') === false) _lastWatchSlot = prevWatch;
+        })());
+      }
     } else {
       ctx.waitUntil(triggerKakaoDispatch(env, cron)); // 기존 hourly cron → 카카오 시황 다이제스트
     }
@@ -1496,15 +1403,6 @@ export default {
         out.geminiTest = await _testGemini(geminiKey);
       }
       return jsonResponse(out);
-    }
-    // 📈 토스증권 릴레이 (GET /toss) — GitHub Actions 러너 IP 는 토스 앞단 봇 차단에
-    //    걸려 403 이 난다(2026-08-14 실측). 워커가 토큰을 쥐고 대신 호출한다.
-    //    ⚠ 자격증명이 주문 권한까지 포함하므로 **읽기 전용 시장 데이터 경로만** 통과시킨다.
-    //      화이트리스트에 없는 경로는 403. 인증은 기존 동기화 키(X-Sync-Key-Hash).
-    if (reqUrl.pathname === '/toss') {
-      const rl = await _rateLimited(env, 'PROXY_LIMITER', request, false);
-      if (rl) return rl;
-      return handleTossRelay(request, env);
     }
     // 📝 메르 블로그 라이브 검색 (GET /merblog) — 공개 데이터, GET_CORS('*') 그대로 사용
     if (reqUrl.pathname === '/merblog') {

@@ -13,10 +13,14 @@
 
 두 가지 모드:
   failure  워크플로 런이 실패했을 때 즉시(workflow_run 트리거). 어느 스텝이 죽었는지까지.
-  silence  주기적으로 '최근 런이 있는가'를 본다(schedule). dispatch 가 끊기면 실패 런이
-           생기지 않으므로 failure 모드로는 절대 못 잡는다.
+  silence  30분마다 '최근 런이 있는가'를 본다(Worker cron → repository_dispatch, GHA schedule 은
+           Worker 가 죽었을 때의 백업). dispatch 가 끊기면 실패 런이 생기지 않으므로 failure
+           모드로는 절대 못 잡는다. 같은 조건은 처음 볼 때 + REMIND_MIN 경계마다만 알린다
+           (판정 기준은 '직전 silence 감시' — 감시 간격이 30분이든 백업의 몇 시간이든 성립).
 
-안전: 어떤 실패도 exit 0 — 감시자가 job 을 빨갛게 만들면 그 자체가 소음이 된다.
+안전: failure 모드는 어떤 실패도 exit 0 — 감시자가 job 을 빨갛게 만들면 그 자체가 소음이 된다.
+  silence 모드만 통지 실패·예외를 exit 1 로 끝낸다 — 성공으로 끝나면 다음 감시가 그 런을
+  '직전 감시'로 세어 못 알린 조건을 이미 알린 것으로 친다(_prev_check 는 성공 런만 본다).
 """
 import os
 import json
@@ -52,8 +56,11 @@ WATCH = [
 # 실패로 세지 않는 결론 — cancelled 는 concurrency 그룹이 앞 런을 밀어낸 정상 동작이고
 # (pages 배포·fetch-data 에서 상시 발생), skipped 는 게이트가 통과시키지 않은 것이다.
 OK_CONCLUSIONS = ("success", "skipped", "cancelled")
-RECENT_N = 10
-FAIL_RATIO = 0.5
+RECENT_N = 50             # pages 배포는 취소 런이 대부분이라 쪽이 넉넉해야 실패 연속을 끝까지 본다
+STREAK_MIN = 3            # 최신 런부터 이만큼 연속 실패여야 '연속 실패'(복구된 뒤엔 울리지 않는다)
+# 이어지는 조건의 재통지 간격. 종전 판정('최근 10건 중 절반 실패')은 조건이 남은 동안 매 회차
+# @멘션이었고, 복구 뒤에도 실패가 절반 남아 한 번 더 울렸다(2026-09-28 검토).
+REMIND_MIN = 180
 
 
 def _api(path):
@@ -79,6 +86,60 @@ def _age_min(iso, now):
     return max(0.0, (now - t).total_seconds() / 60.0)
 
 
+def _due(over, prev_over):
+    """조건이 지금 over 분째, 직전 silence 감시 때는 prev_over 분째 — 지금 알릴 차례인가.
+
+    prev_over 가 None 이거나 음수면 직전 감시 때는 조건이 아니었다(또는 모른다) → 첫 통지.
+    이어지는 조건은 REMIND_MIN 경계를 넘을 때만 다시 알린다. 고정 창(over % 180 < 31)은 감시가
+    정확히 30분마다 한 번 돌 때만 맞았다 — 백업 schedule(3~5시간 간격)이면 첫 통지를 거의 놓치고,
+    두 감시가 한 창에 들면 두 번 울렸다. 모르면 알린다(침묵보다 중복).
+    """
+    if over is None:
+        return False
+    if prev_over is None or prev_over < 0:
+        return True
+    return over // REMIND_MIN > prev_over // REMIND_MIN
+
+
+def _prev_check():
+    """직전 silence 감시가 실제로 시작된 시각(UTC) — 없거나 조회 실패면 None.
+
+    이벤트로 서버에서 거른다. failure 모드 런(workflow_run)도 success 로 끝나므로, 종목 알림이
+    매분 실패하는 동안 한 쪽(20건)을 전부 채워 silence 런이 밀려나면 매 회차 '처음 본 조건'이
+    됐다(2026-09-28 리뷰). silence 런은 통지에 실패하면 실패로 끝나(main) 여기서 빠진다.
+    시각은 created_at 이 아니라 run_started_at — 러너 대기 동안 시작된 조건을 두 번 알리지 않게.
+    """
+    me = str(os.environ.get("GITHUB_RUN_ID") or "")
+    best = None
+    for ev in ("repository_dispatch", "schedule", "workflow_dispatch"):
+        try:
+            runs = (_api(f"/repos/{_repo()}/actions/workflows/watchdog.yml/runs"
+                         f"?status=success&event={ev}&per_page=2") or {}).get("workflow_runs") or []
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+        for r in runs:
+            if str(r.get("id")) == me:
+                continue
+            try:
+                t = datetime.datetime.fromisoformat(
+                    str(r.get("run_started_at") or r.get("created_at")).replace("Z", "+00:00"))
+            except ValueError:
+                break
+            best = t if best is None or t > best else best
+            break
+    return best
+
+
+def _last_success_age(key, now):
+    """마지막 성공 런이 끝난 지 몇 분 — 조회 실패·기록 없음은 None."""
+    try:
+        runs = (_api(f"/repos/{_repo()}/actions/workflows/{key}/runs"
+                     f"?status=success&per_page=1") or {}).get("workflow_runs") or []
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    return _age_min(runs[0].get("updated_at"), now) if runs else None
+
+
 def _kakao_active(now):
     """다이제스트 게이트(kakao-daily)가 지금 돌고 있어야 하는가(KST).
 
@@ -89,7 +150,9 @@ def _kakao_active(now):
     hm = now.hour * 60 + now.minute
     if now.weekday() >= 5:
         return any(h * 60 + 30 <= hm < (h + 2) * 60 for h in (11, 17))
-    return 7 * 60 + 30 <= hm < 24 * 60
+    # Worker 는 22:59 까지만 깨운다(worker.js inKakaoSlot). 23시 이후엔 US 장중 임계 30분이 걸려
+    # 23:33 감시가 매일 '끊김'을 냈다(2026-09-28 리뷰에서 재현).
+    return 7 * 60 + 30 <= hm < 23 * 60
 
 
 def _threshold(wf, now):
@@ -103,12 +166,18 @@ def _threshold(wf, now):
 def check_silence(now=None):
     """멈춘 워크플로 목록 → [(표시명, 사유)]. 조회 실패는 사유로 남긴다(조용히 넘기지 않는다)."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
+    prev = _prev_check()
+    gap = (now - prev).total_seconds() / 60.0 if prev else None
     out = []
     for wf in WATCH:
         key, name, _live, _idle, _inst = wf
         thr = _threshold(wf, now.astimezone(KST))
         if thr is None:
             continue                                  # 지금은 안 도는 게 정상인 시간대
+        # 직전 감시 때의 '그 시점 임계' — 장 시작(09:00·22:30)에 120→30 으로 조여지면 지금 임계로
+        # 되짚은 값은 '그때도 끊김'이 돼 첫 통지를 삼켰다(2026-09-28 리뷰에서 재현).
+        thr_prev = _threshold(wf, prev.astimezone(KST)) if prev else None
+        watched = gap is not None and thr_prev is not None
         try:
             runs = (_api(f"/repos/{_repo()}/actions/workflows/{key}/runs"
                          f"?per_page={RECENT_N}") or {}).get("workflow_runs") or []
@@ -120,12 +189,21 @@ def check_silence(now=None):
             continue
         age = _age_min(runs[0].get("created_at"), now)
         if age is not None and age > thr:
-            out.append((name, f"마지막 런이 {age:.0f}분 전 (임계 {thr}분) — 트리거가 끊겼다"))
+            if _due(age - thr, (age - gap - thr_prev) if watched else None):
+                out.append((name, f"마지막 런이 {age:.0f}분 전 (임계 {thr}분) — 트리거가 끊겼다"))
             continue
-        done = [r for r in runs if r.get("status") == "completed"]
-        bad = [r for r in done if r.get("conclusion") not in OK_CONCLUSIONS]
-        if done and len(bad) / len(done) >= FAIL_RATIO:
-            out.append((name, f"최근 {len(done)}건 중 {len(bad)}건 실패 — 연속 실패"))
+        done = [r for r in runs if r.get("status") == "completed"
+                and r.get("conclusion") not in ("cancelled", "skipped")]
+        streak = next((i for i, r in enumerate(done)
+                       if r.get("conclusion") in OK_CONCLUSIONS), len(done))
+        if streak < STREAK_MIN:
+            continue
+        # 조건 시작 = 연속 실패가 STREAK_MIN 에 닿은 런이 끝난 때. 쪽 전체가 실패면 그 런이 쪽 밖이라
+        # 마지막 성공 시각(없으면 쪽의 가장 오래된 실패)으로 갈음한다 — 리마인드 주기만 조금 밀린다.
+        since = (_age_min(done[streak - STREAK_MIN].get("updated_at"), now) if streak < len(done)
+                 else _last_success_age(key, now) or _age_min(done[-1].get("created_at"), now))
+        if _due(since, (since - gap) if (watched and since is not None) else None):
+            out.append((name, f"최근 {streak}건 연속 실패 — 이어지면 {REMIND_MIN // 60}시간마다 다시 알림"))
     return out
 
 
@@ -191,9 +269,13 @@ def main():
         return
     body = "\n".join(f"· **{n}** — {why}" for n, why in stalled)
     print(f"[watchdog] 침묵 감지 {len(stalled)}건: {[n for n, _ in stalled]}")
-    notify_discord.system(
+    ok = notify_discord.system(
         body + "\n\n트리거(Cloudflare Worker cron / GHA schedule)를 확인하세요.",
         title="🔇 알림 파이프라인 침묵", color=notify_discord.COLOR_FIRE, mention=True)
+    if not ok:
+        # 통지를 못 했는데 success 로 끝나면 다음 감시가 이 런을 '직전 감시'로 보고 이미 알린
+        # 것으로 친다 — 최대 3시간 무통지. 실패로 끝내 _prev_check 에서 빠지게 한다.
+        raise SystemExit("[watchdog] 침묵 통지 실패 — 이 런은 감시로 세지 않는다")
 
 
 def demo():
@@ -210,6 +292,10 @@ def demo():
     assert _threshold(kakao, sat.astimezone(KST)) is None, "주말 11·17시 슬롯 사이는 감시 제외"
     assert _threshold(kakao, now.astimezone(KST)) == 30, "평일 장중엔 감시"
     assert "cancelled" in OK_CONCLUSIONS, "concurrency 취소를 실패로 세면 상시 오경보다"
+    assert _due(5, -25) and not _due(40, 10), "직전 감시 뒤 시작만 첫 통지"
+    assert _due(185, 155) and not _due(215, 185), "이어지면 3시간 경계마다"
+    assert _due(100, -140), "백업 schedule(4시간 간격)도 첫 통지를 놓치지 않는다"
+    assert _due(400, None) and not _due(None, 30)
     # 시계 어긋남으로 미래 시각이 와도 '음수 나이'가 되면 안 된다(임계 비교가 뒤집힌다).
     fut = (now + datetime.timedelta(minutes=5)).isoformat()
     assert _age_min(fut, now) == 0.0
@@ -224,4 +310,8 @@ if __name__ == "__main__":
         try:
             main()
         except Exception as e:                        # noqa: BLE001
-            print(f"[watchdog] 예외 무시({type(e).__name__}: {e}) — 감시자는 job 을 깨지 않는다")
+            print(f"[watchdog] 예외({type(e).__name__}: {e})")
+            # failure 모드는 초록으로 끝낸다(감시자가 job 을 깨면 그 자체가 소음). silence 는 실패로 —
+            # 성공으로 끝나면 다음 감시가 이 런을 '직전 감시'로 세어 조건을 이미 알린 것으로 친다.
+            if (os.environ.get("WATCHDOG_MODE") or "silence").strip() != "failure":
+                raise SystemExit(1)
