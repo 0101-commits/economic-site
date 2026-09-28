@@ -1,6 +1,8 @@
-name: Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)
+name: Market Data Fetch
+# ⚠ name 에 + / * ? [ ] ! 를 넣지 말 것 — watchdog 의 workflow_run.workflows 가 이름을 glob 패턴으로
+#   해석해 옛 이름("…10min + Daily 9AM/4PM/10PM KST")은 한 번도 매칭되지 않았다(2026-09-22~28,
+#   fetch-data 실패 즉시 통지 0건 — scripts/tests/test_watchdog.py 가 막는다).
 # 런 제목에 풀·일일 표식 — Worker 의 경량 과밀 판정(_isLightRun)이 이 표식으로 풀 런을 걸러낸다.
-# (name 은 kakao-daily 의 workflow_run 이 문자열로 참조하므로 바꾸지 않는다 — run-name 은 별개.)
 run-name: ${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.mode == 'full' || github.event.client_payload.mode == 'daily') && format('fetch-data [full] {0}', github.event.client_payload.mode) || github.workflow }}
 
 # 자동 실행 스케줄 (UTC 기준; GitHub Actions 는 UTC 만 인식)

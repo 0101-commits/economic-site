@@ -13,7 +13,7 @@ name: Watchdog (알림 파이프라인 상시 감시)
 on:
   workflow_run:
     workflows:
-      - "Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)"
+      - "Market Data Fetch"
       - "Stock Alerts (KakaoTalk, 장중 5분)"
       - "KakaoTalk Digest (평일 07-22 매시간 · 주말 11·17 KST)"
     types: [completed]
@@ -52,6 +52,7 @@ jobs:
           WF_NAME: ${{ github.event.workflow_run.name }}
           WF_URL: ${{ github.event.workflow_run.html_url }}
           WF_RUN_ID: ${{ github.event.workflow_run.id }}
+          WF_ID: ${{ github.event.workflow_run.workflow_id }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}

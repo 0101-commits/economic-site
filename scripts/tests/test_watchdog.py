@@ -41,6 +41,35 @@ def test_trigger_names_match_actual_workflows():
     assert set(_trigger_names()) == actual, f"{sorted(_trigger_names())} != {sorted(actual)}"
 
 
+def test_trigger_names_have_no_glob_chars():
+    """workflows: 는 이름을 glob 패턴으로 본다 — 글자가 같아도 + / * ? [ ] ! 가 있으면 안 걸린다.
+
+    실측: "…10min + Daily 9AM/4PM/10PM KST" 는 위 문자열 일치 테스트를 통과했지만
+    2026-09-22~28 fetch-data 실패 즉시 통지가 0건이었다(kakao-daily 의 같은 트리거는 6월부터 0회).
+    """
+    for n in _trigger_names():
+        assert not set(n) & set("+/*?[]!\\"), n
+
+
+def test_failure_streak_notifies_first_only(monkeypatch):
+    """연속 실패는 첫 건만 — 직전 완료 런(취소 제외)이 실패면 생략, 성공이면 통지."""
+    runs = {"workflow_runs": [
+        {"id": 3, "conclusion": "failure"},     # 지금 런
+        {"id": 2, "conclusion": "cancelled"},   # concurrency 취소는 건너뛴다
+        {"id": 1, "conclusion": "failure"},
+    ]}
+    monkeypatch.setattr(W, "_api", lambda _p: runs)
+    assert W._streak_continues("123", "3") is True
+    runs["workflow_runs"][2]["conclusion"] = "success"
+    assert W._streak_continues("123", "3") is False
+    assert W._streak_continues("", "3") is False            # id 없으면 통지(침묵보다 중복)
+
+    def boom(_p):
+        raise OSError("down")
+    monkeypatch.setattr(W, "_api", boom)
+    assert W._streak_continues("123", "3") is False
+
+
 def test_watched_workflow_files_exist():
     """파일명으로 지정한 대상은 실제 파일이 있어야 한다(숫자 id 는 GitHub 관리 워크플로)."""
     for key, _n, _l, _i, _inst in W.WATCH:

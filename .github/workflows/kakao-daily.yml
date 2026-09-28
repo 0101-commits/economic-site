@@ -21,8 +21,9 @@ name: KakaoTalk Digest (평일 07-22 매시간 · 주말 11·17 KST)
 #      (설정: 저장소 루트 wrangler.jsonc 의 triggers.crons + Worker 시크릿 GH_DISPATCH_TOKEN. KAKAO_SETUP.md 참고)
 #   2) schedule(백업) — Worker 가 멈춰도 발송이 끊기지 않게, 한 슬롯 시각 안에서 매시 :07·:22·:37·:52
 #      네 번 깨운다. GitHub schedule 의 드롭·지연을 다중 발화 + 슬롯 마커(중복 방지)로 흡수한다.
-#   3) workflow_run — 데이터 수집(fetch-data) 완료 시에도 깨워 보조(타깃 시각일 때만 발송).
-#   4) workflow_dispatch — 수동 즉시.
+#   3) workflow_dispatch — 수동 즉시.
+#   (fetch-data 완료 workflow_run 트리거는 2026-06-09 부터 이름 glob 불일치로 한 번도 발화하지
+#    않아 2026-09-28 삭제 — 1)·2)가 이미 슬롯을 덮는다.)
 #   어느 경로로 깨워지든 아래 '발송 창' 게이트가 타깃 시각만 통과시키고, actions/cache 마커(슬롯+날짜)로
 #   하루 슬롯당 한 번만 발송(중복 방지). 수동 실행도 슬롯 시각이면 그 슬롯 마커를 공유(자동 트리거와의
 #   중복 방지) — 비슬롯 시각 수동만 마커 없이 항상 발송.
@@ -55,9 +56,6 @@ on:
     #   알림 숫자가 포털·언론 확정치와 어긋났다. 수급은 교차검증 통과분만 싣고(investor_flows),
     #   확정(18시 이후)은 이후 시간대 다이제스트의 '수급' 줄이 담당한다.
     - cron: '40 7 * * 1-5'
-  workflow_run:
-    workflows: ["Market Data Fetch (Market-hours 10min + Daily 9AM/4PM/10PM KST)"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       close:
@@ -89,17 +87,13 @@ concurrency:
 
 jobs:
   send-digest:
-    # workflow_run 게이트 — fetch-data 가 '성공 완료'했을 때만 연쇄 기동(취소·실패 런은 무시).
-    # types: [completed] 는 cancelled/failure 도 포함하므로, 필터 없이는 취소된 수집 런까지
-    # 발송 잡을 깨워 러너를 낭비했다. (시각 게이트는 아래 스텝이 별도로 판정.)
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     # 발송 1회는 정상적으로 2~3분 — 프록시 폴백·재시도가 전부 걸려도 10분이면 충분하다.
     # 행이 걸린 잡이 기본 한도(6시간)까지 러너를 점유하지 않게 상한을 둔다.
     timeout-minutes: 10
     steps:
       # ── 발송 창(window) 게이트 ── (게이트가 '발송 여부'의 단일 진실원)
-      # 모든 자동 트리거(repository_dispatch=Cloudflare cron / schedule / workflow_run)는
+      # 모든 자동 트리거(repository_dispatch=Cloudflare cron / schedule)는
       # '지금이 타깃 시각'일 때만 통과한다. 타깃 시각(KST)은 요일별로 다르다 — 평일 07~22시 매시간, 주말 11·17시.
       #   ※ 과거엔 repository_dispatch 를 무조건 통과시키고 '가장 가까운 슬롯'으로 스냅했으나,
       #     Worker cron 이 옛 스케줄(매시간)로 남아 비-슬롯 시각에 dispatch 하면 엉뚱한 시각·라벨로

@@ -145,12 +145,34 @@ def _failed_steps(run_id):
     return out
 
 
+def _streak_continues(wf_id, run_id):
+    """이 런 직전의 완료 런도 실패였는가 — 연속 실패는 첫 건만 즉시 통지한다.
+
+    fetch-data 는 장중 5분마다 돌아 30분 연속 실패면 11건이다(2026-09-28 09:00~09:30 실측).
+    건마다 울리면 늑대가 된다. 이어지는 실패는 silence 모드의 '연속 실패' 판정이 본다.
+    조회 실패는 False(통지) — 침묵보다 중복이 낫다.
+    """
+    if not wf_id:
+        return False
+    try:
+        runs = (_api(f"/repos/{_repo()}/actions/workflows/{wf_id}/runs"
+                     f"?status=completed&per_page={RECENT_N}") or {}).get("workflow_runs") or []
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+    prev = [r for r in runs if str(r.get("id")) != str(run_id)
+            and r.get("conclusion") not in ("cancelled", "skipped")]
+    return bool(prev) and prev[0].get("conclusion") == "failure"
+
+
 def main():
     mode = (os.environ.get("WATCHDOG_MODE") or "silence").strip()
     if mode == "failure":
         name = os.environ.get("WF_NAME") or "(이름 없음)"
         url = os.environ.get("WF_URL") or ""
         rid = os.environ.get("WF_RUN_ID") or ""
+        if _streak_continues(os.environ.get("WF_ID"), rid):
+            print(f"[watchdog] {name} 연속 실패 — 첫 건에 이미 통지, 이번은 생략")
+            return
         steps = _failed_steps(rid) if rid else []
         body = f"**{name}** 런이 실패했습니다."
         if steps:
