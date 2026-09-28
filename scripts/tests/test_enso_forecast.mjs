@@ -2,8 +2,8 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 
-// Extract the ENSO forecast/diagram block from index.html and eval it in a stubbed scope.
-const html = fs.readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+// Extract the ENSO forecast/diagram block from js/app1.js (moved out of index.html by the js/ split) and eval it in a stubbed scope.
+const html = fs.readFileSync(new URL('../../js/app1.js', import.meta.url), 'utf8');
 function slice(marker, endMarker) {
   const i = html.indexOf(marker); const j = html.indexOf(endMarker, i);
   if (i < 0 || j < 0) throw new Error('markers not found: ' + marker);
@@ -62,12 +62,13 @@ console.log('Task2 OK');
 // --- Task 3: forecast panel ---
 const M3 = fn(...Object.values(scope));
 const collapsed = M3.ensoForecastsHTML(false);
-assert.ok(collapsed.includes('기상청 예측'), 'panel header present when collapsed');
-assert.ok(!collapsed.includes('<img'), 'no images rendered when collapsed (lazy)');
+// CFSv2·CPC 이미지는 상단 '🔮 공식 예측' 패널로 승격됐다 — 이 접이식 패널은 링크 전용 기관만.
+assert.ok(collapsed.includes('다른 기관 예측'), 'panel header present when collapsed');
+assert.ok(!collapsed.includes('<a '), 'no links rendered when collapsed (lazy)');
 const open = M3.ensoForecastsHTML(true);
-assert.ok(open.includes('cfsv2fcst/imagesInd3/nino34Mon.gif'), 'embeds verified CFSv2 plume');
-assert.ok(open.includes('/archives/enso/roni/images/'), 'embeds CPC probability (year-built)');
+assert.ok(!open.includes('<img'), 'link-only panel embeds no images');
 assert.ok(open.includes('iri.columbia.edu') && open.includes('charts.ecmwf.int') && open.includes('jma.go.jp'), 'links IRI/ECMWF/JMA');
-assert.ok(open.includes('onerror='), 'images have onerror fallback');
 assert.ok(open.includes('rel="noopener noreferrer"'), 'external links are safe');
+assert.ok(M3.ensoForecastSources.some(s => (s.embed || '').includes('cfsv2fcst/imagesInd3/nino34Mon.gif')), 'CFSv2 plume source kept');
+assert.ok(M3.cpcProbUrl(2026).includes('/archives/enso/roni/images/2026/'), 'CPC probability URL is year-built');
 console.log('Task3 OK');

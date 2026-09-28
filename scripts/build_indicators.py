@@ -568,4 +568,5 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")  # Windows cp949 콘솔에서도 UTF-8 로 출력
     sys.exit(main())

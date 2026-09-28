@@ -159,7 +159,8 @@ def test_go_page_is_in_sync_with_naver_links():
     """go.html 은 생성물 — NAVER_LINKS 와 어긋나면 중계가 대시보드로 떨어진다."""
     import subprocess
     r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "build_go_page.py"),
-                        "--check"], capture_output=True, text=True, encoding="utf-8")
+                        "--check"], capture_output=True, text=True, encoding="utf-8",
+                       env={**os.environ, "PYTHONIOENCODING": "utf-8"})  # Windows 자식은 cp949 로 출력한다
     assert r.returncode == 0, r.stdout + r.stderr
 
 

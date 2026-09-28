@@ -10,7 +10,7 @@
  *   merLens    mer_signals.json 의 같은 지표 id
  *   onScreen   false = 수집은 되는데 아직 어느 화면에도 없다(처리 대상)
  *
- * 생성 시각 기준 지표 123 · 데이터셋 19 · 미노출 0.
+ * 생성 시각 기준 지표 124 · 데이터셋 19 · 미노출 0.
  */
 (function () {
   var ROWS = [
@@ -22,6 +22,7 @@
     {"id": "shanghai", "label": "상하이종합", "asset": "index", "data": "indices.Shanghai", "series": "history.indices.Shanghai", "tier": 2, "canonical": "market#index", "news": "주식", "decimals": 2, "merLens": "china_equity"},
     {"id": "sox", "label": "필라델피아 반도체", "asset": "index", "data": "indices.SOX", "series": "history.indices.SOX", "tier": 2, "canonical": "market#index", "news": "주식", "decimals": 2, "merLens": "semis"},
     {"id": "btc", "label": "BTC", "asset": "index", "data": "history.crypto.BTC", "series": "history.crypto.BTC", "tier": 3, "canonical": "market#index", "news": "주식", "keywords": ["비트코인", "코인", "가상자산"], "collectOnly": "시장>지수 탭에 가상자산 카드 1장으로 노출 예정(P3). 그때까지 수집만.", "decimals": 0, "unit": "$", "merLens": "crypto"},
+    {"id": "hsi", "label": "항셍", "asset": "index", "data": "indices.HSI", "series": "history.indices.HSI", "tier": 3, "canonical": "market#index", "news": "주식", "decimals": 2},
     {"id": "eurkrw", "label": "EUR/KRW", "asset": "fx", "data": "fx.EURKRW", "series": "history.fx.EURKRW", "tier": 1, "canonical": "market#fx", "news": "외환", "aliases": ["EUR/KRW", "EUR / KRW"], "keywords": ["유로 환율"], "decimals": 2, "unit": "원"},
     {"id": "usdkrw", "label": "USD/KRW", "asset": "fx", "data": "fx.USDKRW", "series": "history.fx.USDKRW", "tier": 1, "canonical": "market#fx", "news": "외환", "aliases": ["USD/KRW", "USD / KRW", "달러/원"], "keywords": ["환율", "달러", "원달러", "달러원"], "decimals": 2, "unit": "원", "merLens": "usdkrw"},
     {"id": "eurusd", "label": "EUR/USD", "asset": "fx", "data": "fx.EURUSD", "series": "history.fx.EURUSD", "tier": 2, "canonical": "market#fx", "news": "외환", "decimals": 4},
