@@ -193,8 +193,8 @@ jobs:
 
       - name: Fetch market data
         env:
-          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
-          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
+          # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
+          # 토스 값은 PC 스냅샷(toss_snapshot.json) 경유, 라이브 지수는 Yahoo.
           KRX_API_KEY:        ${{ secrets.KRX_API_KEY }}
           # KRX 정보데이터시스템 로그인 (pykrx 1.2.x) — 2026 부터 KRX 가 로그인을 요구.
           # data.krx.co.kr 무료 회원가입 후 아이디/비밀번호를 Secrets(KRX_ID, KRX_PW)에 등록하면

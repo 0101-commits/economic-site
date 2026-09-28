@@ -900,7 +900,7 @@ _TOSS_IDX = {"^KS11": "KOSPI", "^KQ11": "KOSDAQ"}
 
 def _toss_index_intraday(symbol):
     """토스 지수 1분봉(공식·실시간) — (xs, ys, prev). 실패 ([], [], None).
-    CI 에선 toss_api 가 403→Worker 릴레이로 자동 전환(TOSS_RELAY_KEY 필요).
+    CI 에는 토스 자격증명이 없어 곧장 ([], [], None) — Yahoo 체인이 받는다(PC 로컬 실행 전용).
     스파이크 실측(2026-08-20): 지수 캔들 interval 은 1m/1d 만 지원, 최신→과거 순."""
     name = _TOSS_IDX.get(symbol)
     if not name:

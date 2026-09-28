@@ -402,6 +402,10 @@ GitHub Actions (fetch_data.py)
    `_toss_snapshot()` with per-item freshness guards (movers same-day only, yield curve
    96 h, investor series any age since it carries dates). PC off → guards drop the stale
    parts and the chain below runs. See *Local Toss collector* at the end of this file.
+   Workflows therefore **do not pass** `TOSS_CLIENT_ID`/`TOSS_CLIENT_SECRET` (2026-09-28) —
+   `toss_api.enabled()` is False in CI and every Toss call falls straight through to the
+   snapshot/Yahoo chain. The Worker `/toss` relay was deleted the same day (it only ever
+   returned 503). Do not re-add either: order-capable credentials in CI buy nothing.
 1. **pykrx** (`pykrx==1.2.8` pinned) — KRX official (KOSPI/KOSDAQ/Top10/investor flows)
 2. **yfinance** — overseas indices, commodities, FX fallback
 3. **FRED API** — US macro indicators

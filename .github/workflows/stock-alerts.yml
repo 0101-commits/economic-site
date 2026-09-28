@@ -86,11 +86,8 @@ jobs:
 
       - name: Check alerts & send KakaoTalk
         env:
-          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
-          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
-          # 토스 릴레이 키(기획 5154773b P0) — CI IP 는 토스 허용목록 밖이라 403 →
-          # toss_api 가 Worker /toss 릴레이로 자동 전환하는 데 필요(미설정이면 Yahoo 폴백).
-          TOSS_RELAY_KEY:     ${{ secrets.TOSS_RELAY_KEY }}
+          # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
+          # 토스 값은 PC 스냅샷(toss_snapshot.json) 경유, 라이브 지수는 Yahoo.
           # 한글 폰트 디렉터리(위 캐시 스텝) — discord_card._setup 이 직접 등록.
           KO_FONT_PATH: ~/kofonts
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
@@ -125,11 +122,8 @@ jobs:
         continue-on-error: true
         env:
           HALTS_LIVE: '1'
-          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
-          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
-          # 토스 릴레이 키(기획 5154773b P0) — CI IP 는 토스 허용목록 밖이라 403 →
-          # toss_api 가 Worker /toss 릴레이로 자동 전환하는 데 필요(미설정이면 Yahoo 폴백).
-          TOSS_RELAY_KEY:     ${{ secrets.TOSS_RELAY_KEY }}
+          # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
+          # 토스 값은 PC 스냅샷(toss_snapshot.json) 경유, 라이브 지수는 Yahoo.
           # 한글 폰트 디렉터리(위 캐시 스텝) — discord_card._setup 이 직접 등록.
           KO_FONT_PATH: ~/kofonts
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
@@ -156,11 +150,8 @@ jobs:
       - name: Check market swings & send KakaoTalk (급변 속보)
         continue-on-error: true
         env:
-          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
-          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
-          # 토스 릴레이 키(기획 5154773b P0) — CI IP 는 토스 허용목록 밖이라 403 →
-          # toss_api 가 Worker /toss 릴레이로 자동 전환하는 데 필요(미설정이면 Yahoo 폴백).
-          TOSS_RELAY_KEY:     ${{ secrets.TOSS_RELAY_KEY }}
+          # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
+          # 토스 값은 PC 스냅샷(toss_snapshot.json) 경유, 라이브 지수는 Yahoo.
           # 한글 폰트 디렉터리(위 캐시 스텝) — discord_card._setup 이 직접 등록.
           KO_FONT_PATH: ~/kofonts
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}

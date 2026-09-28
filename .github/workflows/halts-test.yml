@@ -21,8 +21,8 @@ jobs:
       - name: Test Kakao halt alert
         env:
           HALTS_TEST: '1'
-          TOSS_CLIENT_ID:     ${{ secrets.TOSS_CLIENT_ID }}
-          TOSS_CLIENT_SECRET: ${{ secrets.TOSS_CLIENT_SECRET }}
+          # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
+          # 토스 값은 PC 스냅샷(toss_snapshot.json) 경유, 라이브 지수는 Yahoo.
           KAKAO_REST_API_KEY:  ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
