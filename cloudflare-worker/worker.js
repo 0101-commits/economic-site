@@ -1147,6 +1147,10 @@ const DISCORD_ASSET_LINKS = {
   WTI: ['WTI', 'https://finance.naver.com/marketindex/worldOilDetail.naver?marketindexCd=OIL_CL'],
   Brent: ['브렌트', 'https://finance.naver.com/marketindex/worldOilDetail.naver?marketindexCd=OIL_BRT'],
   NatGas: ['천연가스', 'https://finance.naver.com/marketindex/worldOilDetail.naver?marketindexCd=CMDT_NG'],
+  US10Y: ['미국채 10Y', 'https://stock.naver.com/marketindex/bond/US10YT=RR/price'],
+  KR10Y: ['한국채 10Y', 'https://stock.naver.com/marketindex/bond/KR10YT=RR/price'],
+  EU10Y: ['유로 10Y', 'https://stock.naver.com/marketindex/bond/DE10YT=RR/price'],
+  DXY: ['달러인덱스', 'https://stock.naver.com/marketindex/exchange/.DXY/price'],
 };
 // 지표별 네이버 증권 딥링크(기획 c661d5b0 v3) — scripts/notify_discord.NAVER_LINKS 와
 // 동일 검증(2중 검사 통과분만). 개편 감지는 check_links.py 가 담당.

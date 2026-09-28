@@ -85,10 +85,15 @@ def dir_label(name, c):
 #   통째로 무력해져 죽은 링크와 산 링크가 구별되지 않는다. 레거시 URL 은 서버 렌더라
 #   check_links.py 의 탐지력이 살아 있다.
 #   새 사이트에서 쓸 수 있는 판별은 '요청한 경로에 머무르는가 vs 루트(/)로 튕기는가'다 —
-#   미제공 지표(미국채 10Y·국고채 10Y·달러인덱스)는 전부 stock.naver.com/ 루트로 튕긴다.
-# 미제공 확정(2026-09-22 재확인): VKOSPI·MOVE·PutCall·HY·SCFI·밀·옥수수(404),
-#   US10Y·KR10Y·EU10Y·DXY(루트 리다이렉트 — 네이버에 해당 페이지가 없다).
-# 이 dict 의 URL 은 check_links.py 가 주기 점검한다(개편 감지).
+#   없는 코드(metals/ZZZZcv1 대조군)는 stock.naver.com/ 루트로 307 한다.
+# ⚠ 2026-09-28 정정 — 09-22 의 'US10Y·KR10Y·EU10Y·DXY 미제공' 판정은 틀렸다(또는 그 뒤에
+#   생겼다). CI 실측(check_links.py --probe, Link Check run 36408691685): 아래 bond/.DXY
+#   주소는 데스크톱 200 에 머물고, 카카오 인앱 UA 는 m.stock.naver.com 의 같은 지표로 가서
+#   제목이 '미국 국채 10년 / 한국 국채 10년 / 독일 국채 10년 / 달러인덱스 - Npay 증권' 이다.
+#   목록에서 빠져 있던 탓에 us_pre 카드(주인공 미국채 10Y)의 사진·버튼이 달러-원으로 갔다.
+# 미제공 확정: VKOSPI·MOVE·PutCall·HY·SCFI(404), 밀·옥수수(agricultural/ZWcv1·ZCcv1 →
+#   루트, 2026-09-28) — 이 둘은 DASH_LINKS 가 대시보드의 같은 지표 화면으로 보낸다.
+# 이 dict 의 URL 은 check_links.py 가 주기 점검한다(개편 감지 + 루트 튕김 = 끊김).
 _NF = "https://finance.naver.com"
 _NS = "https://stock.naver.com"
 NAVER_LINKS = {
@@ -111,7 +116,32 @@ NAVER_LINKS = {
     "WTI": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=OIL_CL",
     "Brent": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=OIL_BRT",
     "NatGas": _NF + "/marketindex/worldOilDetail.naver?marketindexCd=CMDT_NG",
+    # 2026-09-28 추가 — 금리·달러 편성(us_pre·weekend)의 칸. 새 사이트 주소(레거시 페이지 없음).
+    "US10Y": _NS + "/marketindex/bond/US10YT=RR/price",
+    "KR10Y": _NS + "/marketindex/bond/KR10YT=RR/price",
+    # 카드의 '유로 10Y' 값은 ECB 유로존 AAA 곡선 10Y 다. 네이버에는 그 곡선이 없어 카드 영문
+    # 라벨(Bund 10Y)대로 유로 금리의 벤치마크인 독일 국채 10년에 잇는다(수준은 몇 bp 다르다).
+    "EU10Y": _NS + "/marketindex/bond/DE10YT=RR/price",
+    "DXY": _NS + "/marketindex/exchange/.DXY/price",
 }
+
+
+# 네이버에 페이지가 없는 카드 지표 → **같은 지표의** 대시보드 화면(ECON_IND canonical).
+# 종전 규칙은 '없으면 목록에서 빼고 다음 칸을 대표로'였다 — 그래서 카드가 미국채 10Y 를
+# 크게 그려 놓고 사진·버튼은 달러-원 네이버 차트로 갔다(2026-09-28 사용자 제보, us_pre 편성).
+# 링크는 다른 지표로 대체하지 않는다. 우리 도메인이라 카카오 중계(go.html)도 필요 없다.
+DASHBOARD = "https://0101-commits.github.io/economic-site/"
+# 새 카드 키가 네이버·대시보드 어느 쪽에도 없으면 test_card_links 가 실패한다.
+DASH_LINKS = {
+    "Wheat": DASHBOARD + "?p=market&t=commodity",
+    "Corn": DASHBOARD + "?p=market&t=commodity",
+}
+
+
+def asset_link(key):
+    """카드 지표 키 → 그 지표의 차트 페이지. 네이버 우선, 없으면 대시보드의 같은 지표 화면.
+    모르는 키는 None — 호출측이 다른 지표로 떨어뜨리지 않게 '없음'을 그대로 돌려준다."""
+    return NAVER_LINKS.get(key) or DASH_LINKS.get(key)
 
 
 def naver_stock_url(code):

@@ -8,7 +8,7 @@
 
 분류 기준:
   ok     — 2xx/3xx
-  broken — 404/410, DNS 실패 (링크 교체 필요)
+  broken — 404/410, DNS 실패, 알림 딥링크가 사이트 첫 화면으로 튕김(code "root") (링크 교체 필요)
   manual — 403/405/406/429/5xx/타임아웃 등 봇 차단·일시 장애 가능성 (사람이 확인)
 실행: python scripts/check_links.py   (항상 exit 0 — 보고서 성격, 빌드를 깨지 않음)
 """
@@ -34,6 +34,17 @@ SKIP_PREFIX = (
 )
 
 
+def naver_urls():
+    """알림 딥링크(notify_discord.NAVER_LINKS) — 없는 지표를 루트로 튕기는 사이트라 따로 판정한다."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import notify_discord
+        return set(notify_discord.NAVER_LINKS.values())
+    except Exception as e:
+        print(f"[links] NAVER_LINKS 로드 실패 무시: {e}")
+        return set()
+
+
 def extract_urls():
     urls = set()
     for path in FILES:
@@ -49,22 +60,28 @@ def extract_urls():
     # 디스코드 알림의 네이버 딥링크(notify_discord.NAVER_LINKS)도 점검 — 네이버는
     # 없는 지표를 404 대신 타 페이지로 조용히 리다이렉트하므로(소프트 200) 여기서
     # 최소한 broken/manual 전환이라도 감지한다(기획 c661d5b0 v3).
-    try:
-        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        import notify_discord
-        urls.update(notify_discord.NAVER_LINKS.values())
-    except Exception as e:
-        print(f"[links] NAVER_LINKS 로드 실패 무시: {e}")
+    urls.update(naver_urls())
     return sorted(urls)
 
 
-def probe(url):
-    """HEAD 우선, HEAD 거부(403/405/501)·실패 시 GET 으로 1회 재시도."""
+def _bounced_to_root(url, final):
+    """딥링크가 사이트 첫 화면으로 튕겼는가 — stock.naver.com 은 없는 지표를 루트로 307 한다
+    (2026-09-28 대조군 metals/ZZZZcv1 실측). 상태는 200 이라 코드로는 안 잡힌다."""
+    from urllib.parse import urlsplit
+    a, b = urlsplit(url), urlsplit(final or url)
+    return a.path.strip("/") != "" and b.path.strip("/") == ""
+
+
+def probe(url, root_check=False):
+    """HEAD 우선, HEAD 거부(403/405/501)·실패 시 GET 으로 1회 재시도.
+    root_check=True 면 루트로 튕긴 2xx 를 'root'(끊김)로 돌려준다."""
     t0 = time.time()
     for method in ("HEAD", "GET"):
         req = urllib.request.Request(url, headers=UA, method=method)
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                if root_check and _bounced_to_root(url, r.geturl()):
+                    return "root", int((time.time() - t0) * 1000)
                 return r.status, int((time.time() - t0) * 1000)
         except urllib.error.HTTPError as e:
             if method == "HEAD" and e.code in (403, 405, 501):
@@ -87,14 +104,15 @@ def classify(code):
         if code in (404, 410):
             return "broken"
         return "manual"              # 403/405/429/5xx — 봇 차단·일시 장애 가능
-    return "broken" if code == "dns" else "manual"
+    return "broken" if code in ("dns", "root") else "manual"
 
 
 def main():
     urls = extract_urls()
+    naver = naver_urls()
     results = []
     for u in urls:
-        code, ms = probe(u)
+        code, ms = probe(u, root_check=u in naver)
         status = classify(code)
         results.append({"url": u, "code": code, "status": status, "ms": ms})
         icon = {"ok": "✅", "manual": "⚠️", "broken": "❌"}[status]
