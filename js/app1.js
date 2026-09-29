@@ -5040,7 +5040,7 @@ function updateFxHeader() {
   // 그래서 100 JPY/KRW 현재가 872 에 '52주 저가 920' 같은 모순이 화면에 떴다.
   // 5차: history 가 없을 때의 도피처를 정의부 상수(pair.h52/l52)에서 '—' 로 바꿈.
   // 상수는 갱신되지 않아서 '실측값처럼 보이는 지어낸 값'이 된다 — 원자재 쪽은 이미 '—' 를 쓴다.
-  const _r52 = econRange52('history.fx.' + (pair.pair || '').replace('/', ''));
+  const _r52 = econRange52('history.fx.' + (pair.pair || '').replace('/', ''), pair.cur);
   if (rngEl) {
     if (!_r52) {
       rngEl.textContent = '52주 범위: —';
@@ -5079,7 +5079,7 @@ function updateFxHeader() {
   setNum('fxInfoPrev', prevClose);
 
   // 상세 블록의 52주도 history 실측을 쓴다 — pair.h52/l52 는 정의부 상수다(구조 통일 S1).
-  const _d52 = econRange52('history.fx.' + (pair.pair || '').replace('/', ''));
+  const _d52 = econRange52('history.fx.' + (pair.pair || '').replace('/', ''), pair.cur);
   const e52H = document.getElementById('fxInfo52H');
   const e52L = document.getElementById('fxInfo52L');
   if (!_d52) {
@@ -5097,7 +5097,9 @@ function updateFxHeader() {
 // 52주 고가·저가는 history 에서 센다(기획 2026-09-21 구조 통일).
 // 종전엔 fxPairs/comData 의 하드코딩 초기값이 그대로 화면에 남아 있었다 — 100 JPY/KRW 현재가가
 // 872 인데 '52주 저가' 가 920 으로 떠서 현재가가 저가보다 낮은 모순이 보였다. 값이 없으면 비운다.
-function econRange52(seriesPath) {
+// cur = 지금 값(문자열 '1,354.98' · '$91.82' 도 됨) — 실시간 값이 52주 저·고를 살짝 벗어나는 날(2026-09-29 EUR/KRW
+// 1541.08 vs 저 1541.81)이 있어, 범위는 지금 값을 품는다. 금융 사이트의 52주 저가는 오늘 값으로 갱신되는 게 맞다.
+function econRange52(seriesPath, curVal) {
   try {
     var d = econData();
     if (!d) return null;
@@ -5116,7 +5118,10 @@ function econRange52(seriesPath) {
       if (lo == null || v < lo) lo = v;
       if (hi == null || v > hi) hi = v;
     }
-    return (lo == null || hi == null) ? null : { lo: lo, hi: hi };
+    if (lo == null || hi == null) return null;
+    var cv = curVal == null ? NaN : +String(curVal).replace(/[^\d.\-]/g, '');
+    if (isFinite(cv) && cv > 0) { if (cv < lo) lo = cv; if (cv > hi) hi = cv; }
+    return { lo: lo, hi: hi };
   } catch (_) { return null; }
 }
 
@@ -5143,7 +5148,7 @@ function buildFxPage() {
     const dispCur = dispRate.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
     // 52주 범위 — history 에서 실제로 센다. 없으면 '—'(하드코딩 상수를 쓰지 않는다).
     const _fxKey = (r.pair || '').replace('/', '');
-    const _rng = econRange52('history.fx.' + _fxKey);
+    const _rng = econRange52('history.fx.' + _fxKey, r.cur);
     const _fmt52 = v => (v * dm).toLocaleString('ko-KR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
     const h52d = _rng ? _fmt52(_rng.hi) : '—';
     const l52d = _rng ? _fmt52(_rng.lo) : '—';
@@ -6053,7 +6058,7 @@ function updateComHeader(c) {
   // history 에서 실제로 세고, 없으면 지어내지 않고 '—' 를 쓴다(구조 통일 S1).
   if(rngEl) {
     const _k = typeof comHistoryKey === 'function' ? comHistoryKey(c.name) : null;
-    const _r = _k ? econRange52('history.commodities.' + _k) : null;
+    const _r = _k ? econRange52('history.commodities.' + _k, c.price) : null;
     if(_r) {
       const _u = (c.price || '').trim().charAt(0) === '$' ? '$' : '';
       const _f = v => _u + v.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -13597,14 +13602,7 @@ function applyRealData(d) {
   try { renderKpiPctBadges(d); } catch(_) {}
   try { updateAiQaVisibility(); } catch(_) {}
   try { if (typeof merlensOnMarketData === 'function') merlensOnMarketData(d); } catch(_) {}
-  // 원자재 탭이 보이는 상태면 표·섹터 차트·엘니뇨 카드를 다시 그린다 — ?p=market&t=commodity 딥링크로
-  // 곧장 들어오면 buildCommodityPage 가 data.json 도착 전에 돌아 차트 6개가 '데이터 추가 필요'로 남았다
-  // (실측 2026-09-29, 홈→시장지표→원자재 경로는 정상). loadRealData 의 활성 화면 재렌더는 두 번째
-  // 갱신부터만 돌기 때문에 첫 도착은 여기서 받는다. 판정은 offsetParent — 닫힌 탭이면 그리지 않는다(S24).
-  try {
-    var _comPane = document.getElementById('market-commodity');
-    if (_comPane && _comPane.offsetParent !== null && typeof buildCommodityPage === 'function') buildCommodityPage();
-  } catch(_) {}
+  // (원자재 딥링크 빈 차트는 loadRealData 의 '첫 도착 재렌더'가 맡는다 — 2026-09-29 근본 수정. 여기서 따로 그리면 두 번 그린다.)
   // 화면 결론 줄 — 새 값으로 다시 쓴다(홈 KPI 글자는 위에서 이미 갱신됐다)
   try { econLeadsRefresh(); } catch(_) {}
 }
@@ -13742,8 +13740,11 @@ async function loadRealData() {
     applyRealData(data);
     try { window._lastRealDataObj = data; renderMarketHalts(data); } catch(_) {}
     window._lastRealDataTs = newTs;
-    // lastUpdated 가 변경되었을 때만 활성 페이지 차트 재빌드 (불필요한 렌더 방지)
-    if(prevTs && newTs && prevTs !== newTs) {
+    // lastUpdated 가 바뀌었을 때만 활성 화면을 다시 그린다(불필요한 렌더 방지) — **첫 도착도 포함**.
+    // 종전엔 prevTs 가 있어야만 돌아서, 딥링크로 곧장 연 화면은 빌더(showPage +50ms)가 data.json 보다
+    // 먼저 돌면 차트가 '데이터 추가 필요'로 남았다(라이브 실측 2026-09-29: ?p=equity 두 차트 20초 뒤에도 빈 채,
+    // 로컬은 자료가 빨라 재현 안 됨). 원자재 탭도 같은 뿌리였다.
+    if(newTs && prevTs !== newTs) {
       try {
         const activePage = document.querySelector('.page.active');
         if(activePage) {
@@ -13752,7 +13753,8 @@ async function loadRealData() {
           else if(id === 'page-market')    { try { initMarketPage(); } catch(_) {} }
           else if(id === 'page-equity')    { try { buildEquityPage(); } catch(_) {} }
           else if(id === 'page-macro')     { try { initMacroPage(macroTab); } catch(_) {} }
-          else if(id === 'page-realestate'){ try { buildReCharts(); if(typeof buildUsReCharts === 'function') buildUsReCharts(); } catch(_) {} }
+          // 부동산은 보이는 탭만 — 숨은 탭 캔버스에 차트를 만들면 S24 위반(첫 도착 재렌더가 켜진 뒤 실측 2개)
+          else if(id === 'page-realestate'){ try { if (window._reTab === 'us') { if(typeof buildUsReCharts === 'function') buildUsReCharts(); } else buildReCharts(); } catch(_) {} }
           else if(id === 'page-investor')  { try { buildInvestorPage(); } catch(_) {} }
         }
       } catch(_) {}
@@ -15689,7 +15691,7 @@ function _leadMarket() {
     var NAME = { 'USD/KRW': '달러/원', 'EUR/KRW': '유로/원', 'JPY/KRW': '엔/원(100엔)', 'EUR/USD': '유로/달러', 'USD/JPY': '달러/엔' };
     var cur = parseFloat(String(p.cur).replace(/,/g, '')) * (p.displayMult || 1);
     var curTxt = cur < 10 ? cur.toFixed(4) : cur.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    var range = (typeof econRange52 === 'function') ? econRange52('history.fx.' + p.pair.replace('/', '')) : null;
+    var range = (typeof econRange52 === 'function') ? econRange52('history.fx.' + p.pair.replace('/', ''), p.cur) : null;
     var pos = '';
     if (range && range.hi > range.lo) {
       var pct = Math.round((parseFloat(String(p.cur).replace(/,/g, '')) - range.lo) / (range.hi - range.lo) * 100);

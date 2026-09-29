@@ -119,6 +119,7 @@ node tests/ui/interaction.mjs                        # G10·G11 조작·전환(�
 node tests/ui/structure.mjs                          # S10~S26 구조 통일(표기·화면 머리·탭/고르기 부품·차트 규격·티커 이름)
 node tests/ui/components.mjs                         # S27~S36 컴포넌트 규격(제목·도구 차례·버튼/칩/탭·숫자·표·간격·화면 머리)
 node tests/ui/readability2.mjs                       # R1~R8 가독성 골격(결론 줄·첫 판정·화면수·글자색/크기·상태색·이름 반복·빈 차트·말 사전)
+node tests/ui/firstload.mjs                          # data.json 을 4초 늦춰 딥링크 첫 도착 뒤 차트가 그려지는지(라이브는 늘 늦다 — 로컬에선 재현 안 됨)
 ```
 
 **주소가 화면 상태다 (기획 `docs/superpowers/specs/2026-09-21-interaction-ux-plan-design.md`).**
