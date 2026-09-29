@@ -2006,10 +2006,9 @@ function initGlobalDelayChip() {
 // unset 이 필요한 이유: '기본 접힘' 위젯(지표 비교)을 사용자가 펼친 것과, 아직
 // 아무 선택도 없는 상태를 구분해야 새 기본값이 사용자의 선택을 덮지 않는다.
 var WCOLLAPSE_LS = 'econ_widget_collapse_v2';
-var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트', '이벤트·재고',
-  // §C6(2026-09-19) — 메르 렌즈 1440 이 7.45화면이었다(벤치 네이버 PC 홈 5.6 · 토스 홈 5.7).
-  // 매트릭스는 '언급 없음' 빈 칸이 대부분이라 펼친 채 둘 이유가 가장 약하다.
-  '민감도 매트릭스'];   // 제목 부분일치(모든 폭)
+// 메르 렌즈의 '이벤트·재고'·'민감도 매트릭스'는 2026-09-29 개편으로 접힘 묶음(.econ-fold) 뒤로 갔다 —
+// 접힘을 열었는데 그 안의 위젯이 또 접혀 있으면 두 번 눌러야 하므로 여기서 뺐다.
+var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트'];   // 제목 부분일치(모든 폭)
 // 모바일(<768)에서만 기본 접힘 — L3(차트·등락·뉴스)은 '왜·어떻게'를 묻는 층이라
 // 첫 스크롤에서 답할 필요가 없다. 사용자가 펼치면 그 선택은 저장된다.
 // L2(지수표·분위기)까지 넣은 이유: 390 폭에서 L1+L2 만으로 1,600px 를 써서 홈이
@@ -2019,8 +2018,7 @@ var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트', '이벤트·재고',
 //  그때 이 목록을 빠뜨려 390 홈이 1,763 → 3,696px 로 부풀었다).
 var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 추이', '등락 Top10', '최신 경제 뉴스',
                                           '글로벌 지수', '시장 분위기',
-                                          // 메르 렌즈는 390 에서 18화면이었다 — 무거운 4블록은 접고 시작한다
-                                          '전이 경로 맵', '민감도 매트릭스', '뷰 타임라인', '이벤트·재고',
+                                          // (메르 렌즈 무거운 4블록은 접힘 묶음이 맡는다 — 2026-09-29)
                                           // 주식시장은 표 6개 83행이 한 화면에 이어졌다 — 대표 2표만 펼친다
                                           'ETF 상승', 'ETF 하락', '거래대금 Top20', '토스증권 체결',
                                           // §C6(2026-09-19) — 390 에서 거시 4.5화면 · 부동산 4.2화면(M5 기준 4.0).
@@ -2177,13 +2175,12 @@ var PAGE_TOC = {
     { label: '수익률',     m: '연도별 수익률' },
     { label: '자산 배분',  m: '자산 배분 현황' },
     { label: '보유 종목',  m: '국내주식 Top 10' } ] },
+  // 2026-09-29 가독성 개편 — 무거운 블록 7개는 접힘 묶음 뒤로 갔다. 목차는 첫 화면의 네 층만 가리킨다.
   'page-merlens':    { title: '메르 렌즈', items: [
-    { label: '리스크 게이지', sel: '#merlensGauge' },
-    { label: '전이 경로',    sel: '#merlensGraph' },
-    { label: '트리거 모니터', sel: '#merlensMonitor' },
-    { label: '민감도',      sel: '#merlensMatrix' },
-    { label: '뷰 타임라인',  sel: '#merlensStance' },
-    { label: '이벤트·재고',  sel: '#merlensEvents' } ] },
+    { label: '오늘의 결론', sel: '#merlensLead' },
+    { label: '지금 볼 것',  sel: '#merlensWatch' },
+    { label: '전이 경로',   sel: '#merlensChain' },
+    { label: '전체 자료',   sel: '#merlensFolds' } ] },
 };
 function _tocTarget(page, it){
   if(it.sel) return page.querySelector(it.sel);
@@ -2260,8 +2257,14 @@ function _healthItemsFor(dataPath){
 }
 function _healthWorstFor(dataPath){
   var worst = null;
-  _healthItemsFor(dataPath).forEach(function(it){
+  var items = _healthItemsFor(dataPath);
+  // 부분 결측은 카드 전체의 결측이 아니다 — climate.enso 가 정상인데 하위 climate.enso.forecast 하나가
+  // missing 이라고 엘니뇨 카드 제목에 '데이터 없음' 칩이 붙었다(실측 2026-09-29). 상위 경로가 ok 인
+  // missing 은 건너뛴다(stale·failed 는 그대로 — 그건 있는 자료가 늦거나 깨진 것이다).
+  var okPaths = items.filter(function(it){ return it.state === 'ok' && it.path; }).map(function(it){ return it.path; });
+  items.forEach(function(it){
     if(it.state !== 'stale' && it.state !== 'failed' && it.state !== 'missing') return;
+    if(it.state === 'missing' && okPaths.some(function(p){ return (it.path || '').indexOf(p + '.') === 0; })) return;
     if(!worst || (it.ageDays || 9999) > (worst.ageDays || 9999)) worst = it;
   });
   return worst;

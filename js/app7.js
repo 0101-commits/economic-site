@@ -8,7 +8,7 @@
 
 // §6.0 대조표 — JSON 키·enum 은 그대로, 화면 글자만 여기서 정한다.
 var MER_LABELS = {
-  state: { below: '정상', near: '주시', crossed: '돌파', unknown: '판정 불가' },
+  state: { below: '정상', near: '주시', crossed: '돌파', unknown: '자료 없음' },   // 상태어 4(기획 2026-09-29 §6)
   // 비중 표기는 우리말로 — 이전 'OW'/'UW'/'N' 은 해독 키가 화면 어디에도 없었다(기획 2026-09-21 C8).
   view:  { '-2': '강한 축소', '-1': '축소', '0': '중립', '1': '확대', '2': '강한 확대' },
   layer: { cause: '원인', market: '시장 변수', channel: '창구', asset: '자산' },
@@ -73,17 +73,9 @@ function merlensInit() {
 
 function _merRenderAll(d) {
   _merRenderFresh(d);
-  _merRenderGauges(d);
-  _merRenderRegime(d);
-  _merRenderComment(d);
-  _merRenderMonitor(d);
-  _merRenderPanels(d);
-  // P3 2부
-  _merRenderGraph(d);
-  _merRenderMatrix(d);
-  _merRenderStanceTimeline(d);
-  _merRenderFactorCard(d);
-  _merRenderEvents(d);
+  _merRenderLead(d);
+  _merRenderMonitor(d);              // 표는 가볍고 필터 축(f)이 여기를 본다 — 접혀 있어도 미리 그린다
+  econFoldReapply('merlensFolds');   // 열려 있던 무거운 블록(맵·패널·매트릭스·타임라인·이벤트)만 다시 그린다
 }
 // ── 홈 L1-b 리스크 신호등 옆 MRI 칩(P4-2) — app3.js renderRiskLight() 말미가 매번 부른다.
 // 시장 실측 신호등과는 별개 층(기획안 §1 원칙 3) — 합산하지 않고 병렬 표기만 한다.
@@ -104,12 +96,11 @@ function _merRenderMriChip() {
 
 // data.json 은 별도 파이프라인이라 ?p=merlens 딥링크로 곧장 들어오면 loadRealData 의 적용 함수가
 // 아직 안 끝났을 수 있다 — 그 적용 함수 말미(app1.js, renderRiskLight 옆)가 매번 이걸 부른다.
-// 페이지가 이미 렌더돼 있고(= merlensInit 통과) 지금 활성일 때만 시세 의존 블록만 다시 그린다.
+// 페이지가 이미 렌더돼 있고(= merlensInit 통과) 지금 활성일 때만 시세 기준시점 줄을 다시 쓴다.
 function merlensOnMarketData() {
   var page = document.getElementById('page-merlens');
   if (!page || !page.classList.contains('active') || !_merSignalsData) return;
   _merRenderFresh(_merSignalsData);
-  _merRenderGauges(_merSignalsData);
 }
 
 // ── 헤더 · 기준시점 (§6.4) ──────────────────────────────────────────
@@ -134,66 +125,232 @@ function _merRenderFresh(d) {
     '<span>사전 ' + _merEsc(d.dictVersion || '—') + '</span>' + badge;
 }
 
-// ── 블록 ① 리스크 게이지 ────────────────────────────────────────────
-function _merGaugeSvg(value) {
-  var w = 160, h = 100, cx = w / 2, cy = h - 8, r = w / 2 - 14;
-  var toXY = function (deg) {
-    var rad = deg * Math.PI / 180;
-    return [cx + r * Math.cos(rad), cy - r * Math.sin(rad)];
-  };
-  var bands = [
-    { from: 0, to: 35, color: 'var(--color-success)' },
-    { from: 35, to: 65, color: 'var(--color-warning)' },
-    { from: 65, to: 100, color: 'var(--color-error)' },
-  ];
-  var arcs = bands.map(function (b) {
-    var a1 = 180 - b.from / 100 * 180, a2 = 180 - b.to / 100 * 180;
-    var p1 = toXY(a1), p2 = toXY(a2);
-    return '<path d="M ' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) +
-      ' A ' + r + ' ' + r + ' 0 0 1 ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1) +
-      '" fill="none" stroke="' + b.color + '" stroke-width="14"/>';
-  }).join('');
-  var hasVal = value != null && isFinite(value);
-  var v = hasVal ? Math.max(0, Math.min(100, value)) : 0;
-  var needleDeg = 180 - v / 100 * 180;
-  var nxy = toXY(needleDeg);
-  var needle = hasVal
-    ? '<line x1="' + cx + '" y1="' + cy + '" x2="' + nxy[0].toFixed(1) + '" y2="' + nxy[1].toFixed(1) +
-      '" stroke="var(--c-txt)" stroke-width="2.5" stroke-linecap="round"/>' +
-      '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="var(--c-txt)"/>'
-    : '';
-  return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h +
-    '" role="img" aria-label="게이지 값 ' + (hasVal ? Math.round(v) : '—') + '">' + arcs + needle + '</svg>' +
-    '<div class="mer-gauge-val">' + (hasVal ? Math.round(v) : '—') + '</div>';
+// ── 오늘의 결론(기획 2026-09-29 §5.2) — 결론 줄 → 숫자 칸 4 → 지금 볼 것 3 → 발동 중인 사슬 → 접힘 묶음 ──
+// 종전 보드는 4,913px(5.5화면)·버튼 163·글자색 10종이었고, 돌파 지표 7개가 표 맨 아래(1,361~1,470px)에 있었다.
+// 반원 게이지 2개는 폐지(결정 D1) — 시장 지수는 홈 신호등이, MRI 는 여기 첫 칸이 말한다.
+// 「그래서」 문장은 새 수집 없이 사전 문장을 조합한다(결정 D3): thresholds[].meaning + chains[].label·note + 글 날짜.
+var MER_FOLDS = [
+  { id: 'monitor', label: '트리거 모니터 전체',      panel: 'merlensMonitor' },
+  { id: 'graph',   label: '전이 경로 맵',            panel: 'merlensGraph' },
+  { id: 'panels',  label: '민감도 패널',             panel: 'merlensPanels' },
+  { id: 'matrix',  label: '민감도 매트릭스',         panel: 'merlensMatrix' },
+  { id: 'stance',  label: '뷰 타임라인·팩터',        panel: 'merlensStance' },
+  { id: 'events',  label: '이벤트·재고',             panel: 'merlensEvents' },
+  { id: 'regime',  label: '국면 스트립·최근 한 줄',   panel: 'merlensRegimeBox' },
+  { id: 'source',  label: '출처',                    panel: 'merlensSource' },
+];
+// 접힘이 열리는 순간에만 무거운 블록을 그린다(S22·S24). 트리거 표는 가벼워서 _merRenderAll 이 미리 그린다.
+function _merFoldOpen(id) {
+  var d = _merSignalsData;
+  if (!d) return;
+  if (id === 'graph') _merRenderGraph(d);
+  else if (id === 'panels') _merRenderPanels(d);
+  else if (id === 'matrix') _merRenderMatrix(d);
+  else if (id === 'stance') { _merRenderStanceTimeline(d); _merRenderFactorCard(d); }
+  else if (id === 'events') _merRenderEvents(d);
+  else if (id === 'regime') { _merRenderRegime(d); _merRenderComment(d); }
+}
+econFoldSetup('merlensFolds', 'merlens', _merFoldOpen);
+
+// 숫자 표기 — 천단위·자릿수 규칙은 표와 카드가 같은 함수를 쓴다(S13·S17).
+// 퍼센트는 2자리 고정(한 열 안에서 4% · 4.1% · 5.29% 가 섞이던 것). 그 밖은 값의 모양을 따른다 —
+// max 만 주면 7,764.70 이 7,764.7 로 줄고, 정수에 .00 을 붙이면 트리거 레벨 텍스트와 어긋난다.
+function _merNum(v, isPct) {
+  if (v == null || isNaN(+v)) return '—';
+  if (isPct) return (+v).toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var d = Number.isInteger(+v) ? 0 : (Math.abs(+v) >= 100 ? 2 : 4);
+  return (+v).toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function _merIsPct(ind) { return (ind.unit || '').indexOf('%') >= 0; }
+function _merValTxt(ind) { return (ind.current && ind.current.value != null) ? _merNum(ind.current.value, _merIsPct(ind)) + (ind.unit || '') : '—'; }
+function _merMD(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? (+m[2]) + '/' + (+m[3]) : (iso || ''); }
+function _merR(v) { return v == null ? '—' : String(Math.round(v)); }
+function _merHotIds(d) { var s = {}; (d.chains || []).forEach(function (c) { if (c.hotStep) s[c.hotStep] = true; }); return s; }
+
+// 지금 볼 것 — 사슬 발동 지표 먼저, 다음은 임계에 가까운 순. 레벨 임계가 있고 값이 있는 돌파·주시만.
+function _merWatchList(d) {
+  var hot = _merHotIds(d);
+  return (d.indicators || []).filter(function (i) {
+    return i.nearest && i.nearest.level != null && i.current && i.current.value != null && (i.state === 'crossed' || i.state === 'near');
+  }).sort(function (a, b) {
+    var ha = hot[a.id] ? 0 : 1, hb = hot[b.id] ? 0 : 1;
+    if (ha !== hb) return ha - hb;
+    return Math.abs(a.nearest.distancePct) - Math.abs(b.nearest.distancePct);
+  });
+}
+// 최근 한 달 글에서 가장 잦은 국면 요인 n개 (regime.counts 마지막 달)
+function _merRegimeTop(d, n) {
+  var r = d.regime || {}, counts = r.counts || [], factors = r.factors || [];
+  var last = counts[counts.length - 1];
+  if (!last || !factors.length) return [];
+  return factors.map(function (f, i) { return { f: f, c: last[i] || 0 }; })
+    .filter(function (x) { return x.c > 0; })
+    .sort(function (a, b) { return b.c - a.c; }).slice(0, n).map(function (x) { return x.f; });
+}
+// 「그래서」 — 임계 사전 문장(meaning) + 이 지표가 든 사슬 + 마지막 글 날짜. 사전에 없으면 없다고 적는다.
+function _merSoText(ind, d) {
+  var lv = (ind.thresholds || []).filter(function (t) { return t.kind === 'level' && t.level === ind.nearest.level && t.meaning; })
+    .sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })[0];
+  var parts = [];
+  if (lv) parts.push(_merEsc(lv.meaning));
+  var chain = (d.chains || []).filter(function (c) { return (c.steps || []).some(function (s) { return s.id === ind.id; }); })
+    .sort(function (a, b) { return ((b.hotStep === ind.id) - (a.hotStep === ind.id)) || ((b.n || 0) - (a.n || 0)); })[0];
+  if (chain) parts.push('경로 「' + _merEsc(chain.label) + '」' + (chain.hotStep === ind.id ? ' 발동 칸' : ''));
+  var last = (ind.postDates || []).slice().sort().pop() || (lv && lv.date);
+  if (last) parts.push('메르 글 ' + _merMD(last));
+  return '<b>그래서</b> ' + (parts.length ? parts.join(' · ') : '연결된 사전 문장 없음');
+}
+// 범위 바 — 임계 세로선 + 현재값 점(상태색은 점에만). 양끝은 임계·현재값을 20% 여유로 감싼 값.
+function _merRangeHTML(ind) {
+  var isPct = _merIsPct(ind);
+  var cur = ind.current.value, th = ind.nearest.level;
+  var levels = (ind.thresholds || []).filter(function (t) { return t.kind === 'level' && t.level != null; }).map(function (t) { return t.level; });
+  var vals = levels.concat([cur, th]);
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  var pad = (hi - lo) * 0.2 || Math.abs(th) * 0.05 || 1;
+  lo -= pad; hi += pad;
+  var pos = function (v) { return Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100)).toFixed(1); };
+  var dist = ind.nearest.distancePct;
+  var distTxt = dist == null ? '' : (ind.state === 'crossed' ? Math.abs(dist).toFixed(1) + '% 위' : Math.abs(dist).toFixed(1) + '% 남음');
+  var nice = function (v) { return _merNum(+Number(v).toPrecision(3), isPct); };
+  return '<span class="econ-range econ-range--th" role="img" aria-label="현재 ' + _merValTxt(ind) + ', 임계 ' + _merNum(th, isPct) + (distTxt ? ' ' + distTxt : '') + '">' +
+    '<span class="econ-range__track"><span class="econ-range__th" style="left:' + pos(th) + '%"></span>' +
+    '<span class="econ-range__dot ' + (ind.state === 'crossed' ? 'crossed' : ind.state === 'near' ? 'near' : '') + '" style="left:' + pos(cur) + '%"></span></span>' +
+    '<span class="econ-range__ends"><span>' + nice(lo) + '</span><span>임계 ' + _merNum(th, isPct) + (distTxt ? ' · ' + distTxt : '') + '</span><span>' + nice(hi) + '</span></span></span>';
 }
 
-function _merRenderGauges(d) {
-  var mktBox = document.getElementById('merlensGaugeMarket');
-  var mriBox = document.getElementById('merlensGaugeMri');
-  var mktData = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) || null;
-  var mktScore = null;
-  try { var r = (typeof computeRiskScore === 'function') ? computeRiskScore(mktData) : null; mktScore = r ? r.score : null; } catch (_) {}
-  var lens = d.lens || {};
-  if (mktBox) mktBox.innerHTML = _merGaugeSvg(mktScore);
-  if (mriBox) mriBox.innerHTML = _merGaugeSvg(lens.score);
-
-  var trendBox = document.getElementById('merlensMriTrend');
-  if (trendBox) {
-    var tc = (typeof getThemeColors === 'function') ? getThemeColors() : null;
-    var series = (lens.history30d || []).map(function (p) { return p.score; });
-    var svg = (typeof _pfSpark === 'function') ? _pfSpark(series, tc ? tc.accent : 'var(--c-accent)') : '';
-    trendBox.innerHTML = svg ? '<div class="mer-panel-title">MRI 30일 추이</div>' + svg : '';
+// 결론 줄 — 위험 지수와 한 달 변화, 임계를 넘은 대표 지표 둘. 값·방향어는 굵게만(방향색은 배지 3개가 맡는다, R5).
+function _merLeadHTML(d) {
+  var lens = d.lens || {}, hist = lens.history30d || [];
+  var score = lens.score, first = hist.length ? hist[0].score : null;
+  if (score == null) return '<p class="econ-lead"><b>자료 없음</b> — 집계 ' + _merEsc(d.asOf ? d.asOf.slice(0, 10) : '—') + '</p>';
+  var delta = first != null ? Math.round(score - first) : null;
+  var moveTxt = delta == null ? '' : ', 한 달 전 ' + Math.round(first) + '에서 ' + (delta > 0 ? '올라옴' : delta < 0 ? '내려옴' : '그대로');
+  var crossed = _merWatchList(d).filter(function (i) { return i.state === 'crossed'; }).slice(0, 2);
+  var tail;
+  if (!crossed.length) tail = ' — 임계를 넘은 지표 없음';
+  else {
+    var seg = crossed.map(function (i, k) {
+      var lv = _merNum(i.nearest.level, _merIsPct(i));
+      return '<b>' + _merEsc(i.label) + ' ' + _merEsc(_merValTxt(i)) + '</b>' + (k === 0 ? '가 임계 ' + lv + (crossed.length > 1 ? '을 넘었고' : '을 넘음') : '도 임계 ' + lv + ' 위');
+    });
+    tail = ' — ' + seg.join(' ');
   }
+  var kw = _merRegimeTop(d, 3);
+  var sub = kw.length ? '<span class="econ-lead__sub">최근 한 달 글의 국면 키워드 ' + kw.map(_merEsc).join(' · ') + '</span>' : '';
+  return '<p class="econ-lead">위험 지수 <b>' + Math.round(score) + '</b>' + moveTxt + tail + sub + '</p>';
+}
 
-  var chipsBox = document.getElementById('merlensMriChips');
-  if (chipsBox) {
-    var comps = lens.components || {};
-    var CHIP_LABEL = { thresholdsCrossed: '임계 돌파', negativeStance30d: '부정 스탠스(30일)', riskFlags30d: '리스크 플래그(30일)' };
-    chipsBox.innerHTML = Object.keys(CHIP_LABEL).map(function (k) {
-      if (comps[k] == null) return '';
-      return '<span class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_neutral-variant_weak">' +
-        _merEsc(CHIP_LABEL[k]) + ' ' + comps[k] + '</span>';
-    }).join('');
+// 숫자 칸 4 — 위험 지수(스파크라인) · 돌파/주시 · 발동 중인 사슬 · 다음 일정
+function _merKpisHTML(d) {
+  var lens = d.lens || {}, comps = lens.components || {}, hist = lens.history30d || [], inds = d.indicators || [];
+  var cell = function (l, v, c) { return '<div class="econ-kpi"><div class="econ-kpi__l">' + l + '</div><div class="econ-kpi__v">' + v + '</div><div class="econ-kpi__c">' + c + '</div></div>'; };
+  var n = { crossed: 0, near: 0, below: 0, unknown: 0 };
+  inds.forEach(function (i) { if (n[i.state] != null) n[i.state]++; });
+  var first = hist.length ? hist[0].score : null;
+  var delta = (lens.score != null && first != null) ? Math.round(lens.score - first) : null;
+  var spark = (typeof _pfSpark === 'function') ? _pfSpark(hist.map(function (p) { return p.score; }), 'var(--c-txt-dim)', 110, 30) : '';
+  var v1 = lens.score == null ? '자료 없음'
+    : '<span class="econ-num econ-num--l">' + Math.round(lens.score) + '</span>' +
+      (delta != null ? '<small>' + (delta > 0 ? '▲' : delta < 0 ? '▼' : '') + Math.abs(delta) + ' · 30일</small>' : '') +
+      (spark ? '<span class="econ-kpi__spark">' + spark + '</span>' : '');
+  var c1 = '임계 ' + _merR(comps.thresholdsCrossed) + ' · 부정 뷰 ' + _merR(comps.negativeStance30d) + ' · 위험 요인 ' + _merR(comps.riskFlags30d) + ' — 100점 만점';
+  var hot = (d.chains || []).filter(function (c) { return c.hotStep; }).sort(function (a, b) { return (b.n || 0) - (a.n || 0); });
+  var v3 = hot.length ? _merEsc(hot[0].label) + (hot.length > 1 ? '<small>외 ' + (hot.length - 1) + '</small>' : '') : '없음';
+  var c3 = hot.length ? '글 ' + (hot[0].n || 0) + '편 · ' + _merEsc(hot[0].note || '') : '사슬 ' + (d.chains || []).length + '개 중 발동 단계 없음';
+  var today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+  var ev = (d.events || []).filter(function (e) { return e.date >= today; }).sort(function (a, b) { return a.date.localeCompare(b.date); });
+  var evDay = ev.length ? ev.filter(function (e) { return e.date === ev[0].date; }) : [];
+  var v4 = ev.length ? '<span class="econ-num">' + _merMD(ev[0].date) + '</span><small>' + evDay.length + '건</small>' : '없음';
+  var c4 = ev.length ? evDay.map(function (e) { return _merEsc(e.label); }).join(' · ') : '예정된 일정 없음';
+  return '<div class="econ-kpis">' +
+    cell('위험 지수 MRI', v1, c1) +
+    cell('돌파 · 주시', '<span class="econ-num econ-num--l">' + n.crossed + '</span><small>돌파</small> <span class="econ-num econ-num--l">' + n.near + '</span><small>주시</small>',
+         '지표 ' + inds.length + ' 중 정상 ' + n.below + ' · <b>자료 없음 ' + n.unknown + '</b>') +
+    cell('발동 중인 전이 경로', v3, c3) +
+    cell('다음 일정', v4, c4) +
+    '</div>';
+}
+
+// 지금 볼 것 3 — 카드 전체가 버튼: 트리거 표와 출처를 펴고 그 지표의 인용을 연다.
+function _merWatchHTML(d) {
+  var list = _merWatchList(d).slice(0, 3);
+  if (!list.length) return '<h4 class="econ-sec__h">지금 볼 것<span>임계 근처 지표 없음</span></h4>';
+  var nCross = (d.indicators || []).filter(function (i) { return i.state === 'crossed'; }).length;
+  return '<h4 class="econ-sec__h">지금 볼 것 ' + list.length + '개<span>사슬 발동 지표 먼저, 다음은 임계에 가까운 순 · 돌파 ' + nCross + '건 중</span></h4>' +
+    '<div class="econ-watch">' + list.map(function (ind) {
+      return '<button type="button" class="econ-watch__card" onclick="_merWatchOpen(\'' + ind.id + '\',this)">' +
+        '<div class="econ-watch__t"><span class="econ-watch__name">' + _merEsc(ind.label) + '</span>' + _merStateBadge(ind.state) + '</div>' +
+        '<div class="econ-watch__v"><span class="econ-num econ-num--l">' + _merEsc(_merValTxt(ind)) + '</span><small>' + _merMD(ind.current.asOf) + '</small></div>' +
+        _merRangeHTML(ind) +
+        '<div class="econ-watch__so">' + _merSoText(ind, d) + '</div></button>';
+    }).join('') + '</div>';
+}
+function _merWatchOpen(id, el) {
+  econFoldToggle('merlensFolds', 'monitor', true);
+  econFoldToggle('merlensFolds', 'source', true);
+  _merOpenSource(id, el);
+  var panel = document.getElementById('merlensSource');
+  if (panel) { try { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {} }
+}
+
+// 발동 중인 사슬(hotStep 있는 것, 최대 3) — 색 칸 = 지금 임계를 넘은 단계. 되풀이 칸은 이름을 반복하지 않는다.
+function _merChainHTML(d) {
+  var byId = {};
+  (d.indicators || []).forEach(function (i) { byId[i.id] = i; });
+  var all = d.chains || [];
+  var hotAll = all.filter(function (c) { return c.hotStep; }).sort(function (a, b) { return (b.n || 0) - (a.n || 0); });
+  // 같은 발동 칸에서 갈라지는 사슬(C1·C2 모두 미국채 10년물에서 출발)은 글이 많은 하나만 편다 —
+  // 같은 지표 이름이 첫 화면에 네 번 나오던 것을 세 번(결론 줄·카드·사슬)으로 (R6).
+  var seenHot = {};
+  var hot = hotAll.filter(function (c) { if (seenHot[c.hotStep]) return false; seenHot[c.hotStep] = true; return true; }).slice(0, 3);
+  if (!hot.length) return '<h4 class="econ-sec__h">발동 중인 전이 경로<span>사슬 ' + all.length + '개 모두 발동 단계 없음 — 전체는 전이 경로 맵</span></h4>';
+  var html = '<h4 class="econ-sec__h">발동 중인 전이 경로 ' + hotAll.length + '개<span>색 칸 = 지금 임계를 넘은 단계' + (hotAll.length > hot.length ? ' · 같은 칸에서 갈라지는 사슬은 하나만' : '') + '</span></h4>';
+  html += hot.map(function (c) {
+    var seen = {};
+    var steps = (c.steps || []).map(function (st) {
+      var ind = byId[st.id];
+      var repeat = !!seen[st.id];
+      seen[st.id] = true;
+      if (repeat) return '<div class="econ-chain__st">되풀이<small>첫 칸으로</small></div>';
+      var on = ind ? ind.state === 'crossed' : st.id === c.hotStep;
+      var sub = (ind && ind.current && ind.current.value != null)
+        ? _merEsc(_merValTxt(ind)) + (ind.nearest && ind.nearest.level != null ? ' · 임계 ' + _merNum(ind.nearest.level, _merIsPct(ind)) + ' ' + (MER_LABELS.state[ind.state] || '') : '')
+        : '';
+      return '<div class="econ-chain__st' + (on ? ' on' : '') + '">' + _merEsc(st.label) + (sub ? '<small>' + sub + '</small>' : '') + '</div>';
+    });
+    return '<div class="econ-cap">' + _merEsc(c.id + ' ' + c.label) + ' · 글 ' + (c.n || 0) + '편</div>' +
+      '<div class="econ-chain">' + steps.join('<div class="econ-chain__ar" aria-hidden="true">→</div>') + '</div>' +
+      (c.note ? '<div class="econ-cap">' + _merEsc(c.note) + '</div>' : '');
+  }).join('');
+  if (all.length > hot.length) html += '<div class="econ-cap">나머지 사슬 ' + (all.length - hot.length) + '개' + (hotAll.length > hot.length ? '(발동 ' + (hotAll.length - hot.length) + ' 포함)' : '') + '는 전이 경로 맵에서 본다</div>';
+  return html;
+}
+
+function _merRenderLead(d) {
+  var asof = document.getElementById('merlensAsof');
+  if (asof) asof.textContent = '기준 ' + (d.asOf ? d.asOf.slice(0, 16).replace('T', ' ') : '—') +
+    ' · 글 ' + ((d.coverage && d.coverage.posts) || (d.posts || []).length) + '편 · 지표 ' + (d.indicators || []).length + ' · 사전 ' + (d.dictVersion || '—');
+  var box = document.getElementById('merlensLeadBox');
+  if (box) box.innerHTML = _merLeadHTML(d);
+  var kp = document.getElementById('merlensKpis');
+  if (kp) kp.innerHTML = _merKpisHTML(d);
+  var w = document.getElementById('merlensWatch');
+  if (w) w.innerHTML = _merWatchHTML(d);
+  var ch = document.getElementById('merlensChain');
+  if (ch) ch.innerHTML = _merChainHTML(d);
+  var folds = document.getElementById('merlensFolds');
+  if (folds) {
+    var today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+    var counts = {
+      monitor: (d.indicators || []).length,
+      graph: (d.graph && d.graph.nodes ? d.graph.nodes.length + '노드' : ''),
+      panels: _merPickPanelIndicators(d).length,
+      events: (d.events || []).filter(function (e) { return e.date >= today; }).length,
+    };
+    folds.innerHTML = econFoldHTML('merlensFolds', MER_FOLDS.map(function (f) {
+      return counts[f.id] ? Object.assign({ count: counts[f.id] }, f) : f;
+    }));
   }
 }
 
@@ -285,19 +442,7 @@ function _merMonitorRowHtml(ind) {
   var stale6m = false;
   if (t && t.date) { try { stale6m = (Date.now() - new Date(t.date).getTime()) / 86400000 > 182; } catch (_) {} }
   var dim = stale6m ? ' mer-dim' : '';
-  // 값은 천단위를 붙여 찍는다(기획 2026-09-21 구조 통일 S1/S13) — 종전엔 숫자를 문자열에 그대로
-  // 이어 붙여 7704.82 · 8200 · 1372.93원 처럼 다른 화면과 표기가 갈렸다.
-  // 퍼센트는 2자리로 **고정**한다 — 한 열 안에서 4% · 4.1% · 5.29% · 0.977% 가 섞여 있었다(자릿수 4종).
-  // 그 밖의 값은 크기에 따라 최대 자릿수만 둔다(지수·가격은 자리가 제각각이라 고정할 수 없다).
-  var _mn = function (v, isPct) {
-    if (v == null || isNaN(+v)) return '—';
-    if (isPct) return (+v).toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    // 소수가 있는 값만 자릿수를 고정한다(min=max) — max 만 주면 7,764.70 이 7,764.7 로 줄어
-    // 같은 값이 두 곳에서 1자리/2자리로 갈린다. 반대로 정수(8,200)에 .00 을 붙이면 트리거
-    // 레벨 텍스트(정수 그대로)와 또 어긋난다. 둘 다 G6 가 잡는다 — 그래서 값의 모양을 따른다.
-    var d = Number.isInteger(+v) ? 0 : (Math.abs(+v) >= 100 ? 2 : 4);
-    return (+v).toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d });
-  };
+  var _mn = _merNum;   // 표기 규칙은 _merNum 한 곳(카드·결론 줄과 공유)
   var _isPct = (ind.unit || '').indexOf('%') >= 0;
   var cur = ind.current ? (_mn(ind.current.value, _isPct) + (ind.unit || '')) : '—';
   var nearestTxt = (ind.nearest && ind.nearest.level != null)
@@ -319,7 +464,7 @@ var _merMonitorIndicators = [];
 var _merMonitorAll = false;          // 좁은 화면에서 '전체 보기'를 눌렀는지
 var MER_MOBILE_ROWS = 8;             // 좁은 화면 기본 노출 행 수
 var MER_DESKTOP_ROWS = 16;           // 1440 기본 노출 행 수(§C6). 48행 전부면 1,942px 다.
-                                     // 정렬이 '임계까지의 거리'순이라 앞이 곧 급한 것이다.
+                                     // 정렬이 상태(돌파 먼저) → 거리순이라 앞이 곧 급한 것이다.
 function _merNarrow() { return (window.innerWidth || 1024) < 768; }
 
 // 48지표를 다 읽기 전에 '지금 몇 개가 걸렸나'부터 말한다. 모바일 요약의 핵심 한 줄.
@@ -338,20 +483,25 @@ function _merRenderMonitorSummary() {
     item('돌파', n.crossed, 'var(--c-up)') +
     item('주시', n.near, 'var(--c-warn,#f0c75e)') +
     item('정상', n.below) +
-    item('판정 불가', n.unknown) +
+    item('자료 없음', n.unknown) +
     (top.length ? '<span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">· 가장 가까운 것: ' +
        _merEsc(top.join(' · ')) + '</span>' : '');
 }
 
 function _merRenderMonitor(d) {
+  // 돌파 → 주시 → 정상 → 자료 없음, 그 안에서 임계까지의 거리순. 종전엔 거리(부호 있는 %)만으로 정렬해
+  // 돌파 지표 7개가 표 맨 아래(1,361~1,470px)에 있었다(실측 2026-09-29).
   _merMonitorIndicators = (d.indicators || []).slice().sort(function (a, b) {
-    var da = (a.nearest && a.nearest.distancePct != null) ? a.nearest.distancePct : Infinity;
-    var db = (b.nearest && b.nearest.distancePct != null) ? b.nearest.distancePct : Infinity;
+    var pa = MER_STATE_PRIORITY[a.state] != null ? MER_STATE_PRIORITY[a.state] : 9;
+    var pb = MER_STATE_PRIORITY[b.state] != null ? MER_STATE_PRIORITY[b.state] : 9;
+    if (pa !== pb) return pa - pb;
+    var da = (a.nearest && a.nearest.distancePct != null) ? Math.abs(a.nearest.distancePct) : Infinity;
+    var db = (b.nearest && b.nearest.distancePct != null) ? Math.abs(b.nearest.distancePct) : Infinity;
     return da - db;
   });
   var filtBox = document.getElementById('merlensMonitorFilters');
   if (filtBox && !filtBox.dataset.built) {
-    var opts = [['all', '전체'], ['crossed', '돌파'], ['near', '주시'], ['below', '정상'], ['unknown', '판정 불가']];
+    var opts = [['all', '전체'], ['crossed', '돌파'], ['near', '주시'], ['below', '정상'], ['unknown', '자료 없음']];
     filtBox.innerHTML = opts.map(function (o) {
       return '<button type="button" class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" ' +
         'data-mer-filter="' + o[0] + '" aria-pressed="' + (o[0] === (_merMonitorFilter || 'all') ? 'true" data-checked="' : 'false') + '" onclick="_merSetMonitorFilter(\'' + o[0] + '\',this)">' +

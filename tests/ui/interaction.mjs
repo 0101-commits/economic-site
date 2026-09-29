@@ -32,7 +32,10 @@ const VIEWS = [
   { page: 'equity',  axis: 'r', pick: `#market-equity .eq-unit-btn`, nth: 2 },
   { page: 'macro',   axis: 'v', pick: `#macroViewToggle button`, nth: 1, expect: 'topic' },
   { page: 'macro',   axis: 'f', pick: `.econ-catchips button`, nth: 2 },
-  { page: 'merlens', axis: 'f', pick: `[data-mer-filter="crossed"]`, expect: 'crossed' },
+  // 2026-09-29 개편 — 트리거 표는 접힘 묶음 뒤에 있다. pre = 먼저 누를 것(접힘 열기).
+  { page: 'merlens', axis: 'f', pre: `#merlensFolds [data-fold="monitor"]`, pick: `[data-mer-filter="crossed"]`, expect: 'crossed' },
+  { page: 'merlens', axis: 'v', pick: `#merlensFolds [data-fold="events"]`, expect: 'events' },
+  { page: 'market',  axis: 'v', q: 'p=market&t=commodity', pick: `#ensoFolds [data-fold="basis"]`, expect: 'basis' },
 ];
 
 const wait = (p, ms) => p.waitForTimeout(ms);
@@ -86,9 +89,15 @@ async function gateIdle(browser) {
 async function gateViewParams(browser) {
   let ok = true;
   for (const v of VIEWS) {
-    const { ctx, page } = await open(browser, 'p=' + v.page);
+    const { ctx, page } = await open(browser, v.q || ('p=' + v.page));
     let line = `G11 ${v.page}.${v.axis}`;
     try {
+      if (v.pre) {
+        const pre = page.locator(v.pre).first();
+        await pre.scrollIntoViewIfNeeded({ timeout: 8000 });
+        await pre.click({ timeout: 8000 });
+        await wait(page, 800);
+      }
       const before = new URL(page.url()).searchParams.get(v.axis);
       const loc = v.text
         ? page.locator(v.pick, { hasText: v.text }).first()

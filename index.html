@@ -1845,10 +1845,6 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 .mer-item button{background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 10px;font-size:var(--font-size-xs);cursor:pointer;margin-top:4px}
 
 /* ── 14. 🧭 메르 리스크 렌즈 ── */
-.mer-gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:4px}
-.mer-gauge-wrap svg{max-width:100%;height:auto}
-.mer-gauge-val{font-size:var(--font-size-2xl);font-weight:700;color:var(--c-txt)}
-.mer-gauge-label{font-size:var(--font-size-sm);color:var(--c-txt-dim)}
 .mer-regime-strip{display:flex;gap:2px;overflow-x:auto}
 /* 국면 칩 — 예전엔 시리즈 색을 통째로 깔고 흰 글자를 얹어 1.97:1 이었다(다크 24곳).
    시리즈 색은 파스텔이라 흰 글자가 항상 진다. 배경을 옅게 깔고 글자는 본문색으로
@@ -1911,6 +1907,81 @@ canvas.econ-await-off{animation:none;background:var(--c-surface)}
 .mer-panel-title{font-size:var(--font-size-sm);font-weight:700;color:var(--c-txt);margin-bottom:4px}
 .mer-stub{font-size:var(--font-size-sm);color:var(--c-txt-dim);padding:20px 0;text-align:center}
 .mer-dim{opacity:.45}
+
+/* ── 15. 가독성 부품 — 골격 한 벌(기획 2026-09-29 §6) ──
+   화면·위젯은 같은 차례로 말한다: 머리 → 결론 줄 → 숫자 칸 3~4 → 지금 볼 것 3~5 → 도식 하나 → 접힘 묶음 → 출처.
+   글자색은 본문·dim·muted 세 벌, 방향색은 값과 방향어에만(화면당 2곳). 크기는 사이트 스케일만 쓴다. */
+.econ-lead{font-size:var(--font-size-lg);font-weight:700;line-height:1.4;letter-spacing:-0.3px;margin:4px 0 12px;max-width:60em;color:var(--c-txt);word-break:keep-all;overflow-wrap:anywhere}
+.econ-lead__sub{display:block;font-size:var(--font-size-sm);font-weight:400;color:var(--c-txt-dim);margin-top:4px;letter-spacing:0}
+.econ-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--c-border);border-radius:var(--r-sm);overflow:hidden;margin-bottom:14px}
+.econ-kpi{padding:10px 14px;background:var(--c-bg);border-right:1px solid var(--c-border);min-width:0}
+.econ-kpi:last-child{border-right:0}
+.econ-kpi__l{font-size:var(--font-size-sm);color:var(--c-txt-dim);font-weight:500;display:flex;justify-content:space-between;gap:6px}
+.econ-kpi__v{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin:2px 0;font-size:var(--font-size-lg);font-weight:700;line-height:1.3}
+.econ-kpi__v small{font-size:var(--font-size-sm);font-weight:500;color:var(--c-txt-dim)}
+.econ-kpi__c{font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.45}
+.econ-kpi__c b{color:var(--c-txt);font-weight:700}
+.econ-kpi__spark{display:block;width:110px;height:30px;max-width:100%}
+@media (max-width:768px){
+  .econ-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .econ-kpi:nth-child(2n){border-right:0}
+  .econ-kpi:nth-child(-n+2){border-bottom:1px solid var(--c-border)}
+}
+@media (max-width:480px){.econ-kpi__l span{display:none}}   /* 좁은 폭에서 라벨 꼬리표(범례)는 설명 줄이 대신 말한다 */
+.econ-sec{margin-top:14px}
+.econ-sec__h{font-size:var(--font-size-base);font-weight:700;margin:0 0 8px;color:var(--c-txt);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.econ-sec__h span{font-weight:400;color:var(--c-txt-dim);font-size:var(--font-size-sm)}
+.econ-cap{font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:8px;line-height:1.45}
+/* 방향 바 — 중앙선 기준 왼쪽 상승(빨강) · 오른쪽 하락(파랑) · 길이 3단(45·28·14%) · 혼조는 회색 중앙 */
+.econ-dir{position:relative;display:block;height:10px;background:var(--c-bg);border-radius:5px;overflow:hidden;min-width:60px}
+.econ-dir::before{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--c-txt-muted)}
+.econ-dir i{position:absolute;top:0;bottom:0;border-radius:5px;width:14%}
+.econ-dir i.up{right:50%;background:var(--c-up-fill)}
+.econ-dir i.down{left:50%;background:var(--c-down-fill)}
+.econ-dir i.mid{left:50%;transform:translateX(-50%);background:var(--c-txt-muted)}
+.econ-dir i[data-lv="3"]{width:45%}
+.econ-dir i[data-lv="2"]{width:28%}
+.econ-dir-row{display:grid;grid-template-columns:minmax(72px,96px) minmax(80px,130px) 1fr;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--c-border);font-size:var(--font-size-sm)}
+.econ-dir-row:first-of-type{border-top:0}
+.econ-dir-row__name{font-weight:700;color:var(--c-txt)}
+.econ-dir-row__note{color:var(--c-txt-dim);min-width:0}
+.econ-dir-row--sec{grid-template-columns:56px 1fr}
+.econ-dir-row--sec small{font-weight:400;color:var(--c-txt-dim);margin-left:6px}
+.econ-colh{display:flex;justify-content:space-between;font-size:var(--font-size-sm);font-weight:700;color:var(--c-txt-dim);padding:0 0 4px}
+.econ-colh span{font-weight:400}
+/* 범위 바(임계) — 52주 바(.econ-range) 확장: 높이 8 · 점 14 · 임계 세로선 2px · 상태색은 점에만 */
+.econ-range--th{margin:8px 0 2px}
+.econ-range--th .econ-range__track{height:8px;background:var(--c-bg);overflow:visible}
+.econ-range--th .econ-range__dot{width:14px;height:14px;margin-top:-7px;margin-left:-7px;background:var(--c-txt-dim);border:2px solid var(--c-card);box-shadow:0 0 0 1px var(--c-border)}
+.econ-range--th .econ-range__dot.crossed{background:var(--c-up)}
+.econ-range--th .econ-range__dot.near{background:var(--color-warning)}
+.econ-range__th{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--c-txt)}
+.econ-range--th .econ-range__ends{margin-top:5px;font-size:var(--font-size-sm)}   /* 화면 글자 크기 5종 안에(R4) */
+.econ-fold + .mer-fresh-bar{margin:12px 0 0}
+/* 볼 것 카드 — 3열 같은 높이 · 이름+상태 배지 / 값+기준시점 / 범위 바 / 「그래서」 한 줄 · 카드 전체가 버튼 */
+.econ-watch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap-w,12px)}
+.econ-watch__card{display:block;width:100%;text-align:left;border:1px solid var(--c-border);border-radius:var(--r-sm);padding:12px 14px;background:var(--c-card);color:var(--c-txt);font:inherit;cursor:pointer}
+.econ-watch__card:hover,.econ-watch__card:focus-visible{border-color:var(--c-accent)}
+.econ-watch__t{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.econ-watch__name{font-weight:700}
+.econ-watch__v{margin-top:2px}
+.econ-watch__v small{font-size:var(--font-size-sm);font-weight:500;color:var(--c-txt-dim);margin-left:6px}
+.econ-watch__so{font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:8px;line-height:1.45}
+.econ-watch__so b{color:var(--c-txt)}
+@media (max-width:768px){.econ-watch{grid-template-columns:1fr}}
+/* 한 줄 사슬 — 칸 4~5 + 화살표 · 발동 칸만 연한 바탕 */
+.econ-chain{display:flex;align-items:stretch;margin-top:6px;overflow-x:auto}
+.econ-chain__st{flex:1;min-width:112px;background:var(--c-bg);border:1px solid var(--c-border);padding:8px 10px;font-size:var(--font-size-sm);font-weight:700;text-align:center;color:var(--c-txt)}
+.econ-chain__st small{display:block;font-size:var(--font-size-sm);font-weight:400;color:var(--c-txt-dim);margin-top:2px}
+.econ-chain__st:first-child{border-radius:var(--r-sm) 0 0 var(--r-sm)}
+.econ-chain__st:last-child{border-radius:0 var(--r-sm) var(--r-sm) 0}
+.econ-chain__st.on{background:var(--c-accent-container);border-color:var(--c-accent)}
+.econ-chain__ar{width:22px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--c-txt-muted)}
+/* 접힘 묶음 — 알약 하나 = 패널 하나(aria-controls). 열기 전엔 패널 내용을 만들지 않는다 */
+.econ-fold{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--c-border)}
+.econ-fold__panel:not(.open){display:none}
+.econ-fold__panel{margin-top:12px}
+.econ-fold__panel.widget{margin-top:var(--gap-w,16px)}
 /* ── P3 2부: 전이경로맵·매트릭스·타임라인·이벤트 ── */
 .mer-graph-svg{width:100%;height:auto;display:block}
 .mer-graph-edge{opacity:.55}
@@ -3986,16 +4057,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <!-- 🌊 엘니뇨·라니냐 기후 영향 분석 (원자재 수급·가격 변동성 → 주가/산업 연동) -->
         <div class="widget" id="ensoCard" style="margin-bottom:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-            <h3 class="widget-title" style="margin-bottom:0;">엘니뇨·라니냐 기후·거시 분석
-              <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-normal);color:var(--c-txt-muted);margin-left:6px;">ENSO 국면 → 원자재·섹터 & 시간축 거시 파급(단·중·장기)</span>
-            </h3>
-            <div id="ensoScenarioTabs" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
-          </div>
+          <!-- 골격(기획 2026-09-29 §5.1): 머리(이름 + 기준시점 꼬리표) → 결론 줄 → 숫자 칸 4 → 원자재 두 열 → 국내 섹터 → 접힘 묶음.
+               본문은 renderEnsoCard(app1.js) 가 그린다. 출처 패널만 정적 — 접힘 「출처·산출 방법」이 연다. -->
+          <h3 class="widget-title">엘니뇨·라니냐 <span class="econ-stat__unit" id="ensoAsof"></span></h3>
           <div id="ensoCardBody"></div>
-          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:10px;line-height:1.6;">
-            ※ 국면별 영향은 과거 ENSO 사이클의 <b>전형적 패턴</b>이며 실시간 예보가 아닙니다. 실제 가격은 재고·달러·OPEC+·지정학 등 복합 요인에 좌우됩니다 — 투자 참고용.
-            실시간 감시: <a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/ensostuff/ONI_v5.php" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">NOAA CPC (ONI 지수)</a> ·
+          <div id="ensoFold-src" class="econ-fold__panel econ-cap">
+            국면별 영향은 과거 ENSO 사이클의 <b>전형적 패턴</b>이며 실시간 예보가 아닙니다. 실제 가격은 재고·달러·OPEC+·지정학 등 복합 요인에 좌우됩니다 — 투자 참고용.
+            관측 원본: <a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/ensostuff/ONI_v5.php" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">NOAA CPC (ONI 지수)</a> ·
             <a href="https://www.weather.go.kr/w/obs-climate/climate/elnino-lanina.do" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">기상청 엘니뇨·라니냐</a>
             · <a href="https://www.cpc.ncep.noaa.gov/data/indices/wksst9120.for" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">NOAA 주간 Niño 3.4</a>
             · <a href="https://ds.data.jma.go.jp/tcc/tcc/products/elnino/" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">JMA El Niño</a>
@@ -5361,25 +5429,28 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="seed-callout__description seed-callout__description--tone_critical">집계 파일을 불러오지 못했습니다.</div>
         </div>
       </div>
-      <div id="merlensFresh" class="mer-fresh-bar"></div>
+      <!-- 오늘의 결론(기획 2026-09-29 §5.2) — 결론 줄 → 숫자 칸 4 → 지금 볼 것 3 → 발동 중인 사슬 → 접힘 묶음.
+           반원 게이지 2개는 폐지(결정 D1). 아래 위젯 7개는 접힘 패널(.econ-fold__panel) — 열기 전엔 그리지 않는다. -->
+      <div class="widget" id="merlensLead">
+        <h3 class="widget-title">메르 렌즈 — 오늘의 결론 <span class="econ-stat__unit" id="merlensAsof"></span></h3>
+        <div id="merlensLeadBox"></div>
+        <div id="merlensKpis"></div>
+        <div class="econ-sec" id="merlensWatch"></div>
+        <div class="econ-sec" id="merlensChain"></div>
+        <div class="econ-fold" id="merlensFolds"></div>
+        <div id="merlensFresh" class="mer-fresh-bar"></div>
+      </div>
 
-      <!-- ① 리스크 게이지 -->
-      <div class="widget" id="merlensGauge">
-        <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">리스크 게이지</h3>
-        <div class="g-2" id="merlensGaugeRow">
-          <div class="mer-gauge-wrap"><div id="merlensGaugeMarket"></div><div class="mer-gauge-label">시장 지수 (기존 리스크 신호등)</div></div>
-          <div class="mer-gauge-wrap"><div id="merlensGaugeMri"></div><div class="mer-gauge-label">메르 리스크 지수 (MRI)</div></div>
-        </div>
-        <div id="merlensMriTrend" style="margin-top:8px;"></div>
-        <div id="merlensMriChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
-        <div class="mer-panel-title" style="margin-top:14px;">국면 스트립 <span class="econ-stat__unit" id="merlensRegimeNote"></span></div>
+      <!-- 국면 스트립 · 최근 한 줄 (구 게이지 위젯의 나머지) -->
+      <div class="widget econ-fold__panel" id="merlensRegimeBox">
+        <h3 class="widget-title">국면 스트립 · 최근 한 줄 <span class="econ-stat__unit" id="merlensRegimeNote"></span></h3>
         <div class="mer-regime-strip" id="merlensRegime"></div>
-        <div class="mer-panel-title" style="margin-top:14px;">최근 한줄</div>
+        <div class="mer-panel-title" style="margin-top:14px;">최근 한 줄</div>
         <div class="mer-comment-box" id="merlensComment"></div>
       </div>
 
       <!-- ③ 트리거 모니터 -->
-      <div class="widget" id="merlensMonitor">
+      <div class="widget econ-fold__panel" id="merlensMonitor">
         <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">트리거 모니터</h3>
         <!-- 한 줄 요약 — 48지표를 다 읽기 전에 '지금 몇 개가 걸렸나'부터 말한다(모바일 요약) -->
         <div id="merlensMonitorSummary" class="mer-monitor-summary"></div>
@@ -5403,13 +5474,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- ③-b 소형 다중 차트 -->
-      <div class="widget" id="merlensPanels">
+      <div class="widget econ-fold__panel" id="merlensPanels">
         <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">민감도 패널 <span class="econ-stat__unit">1년 추이 · 트리거 레벨(점선)</span></h3>
         <div class="g-3" id="merlensPanelsGrid"></div>
       </div>
 
       <!-- 출처 패널 -->
-      <div class="widget g-side-320" id="merlensSource">
+      <div class="widget g-side-320 econ-fold__panel" id="merlensSource">
         <div>
           <h3 class="widget-title" style="margin-bottom:6px;">출처</h3>
           <blockquote class="mer-source-quote" id="merlensSourceQuote">표에서 지표를 선택하면 관련 인용이 여기 표시됩니다.</blockquote>
@@ -5419,9 +5490,9 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- ② 전이 경로 맵 -->
-      <div class="widget" id="merlensGraph">
+      <div class="widget econ-fold__panel" id="merlensGraph">
         <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">전이 경로 맵</h3>
-        <p class="econ-prose" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:0 0 8px;">테두리=트리거 상태(점선 N/A) · 우측 배지=뷰(OW/N/UW) · 선 굵기=근거 건수 · 색=방향. 노드·엣지를 클릭하면 출처가 열립니다.</p>
+        <p class="econ-prose" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:0 0 8px;">테두리=트리거 상태(점선은 자료 없음) · 오른쪽 배지=뷰(확대·중립·축소) · 선 굵기=근거 건수 · 색=방향. 노드·선을 누르면 출처가 열립니다.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
           <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
             <select id="merGraphPreset" onchange="_merGraphSetPreset(this.value)" aria-label="경로 프리셋 선택"><option value="">경로 프리셋 — 전체</option></select>
@@ -5433,14 +5504,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- ④ 민감도 매트릭스 -->
-      <div class="widget" id="merlensMatrix">
+      <div class="widget econ-fold__panel" id="merlensMatrix">
         <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">민감도 매트릭스 <span class="econ-stat__unit">빈 칸=언급 없음</span></h3>
         <div id="merMatrixHorizonChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
         <div class="econ-table__scroll" id="merMatrixTableWrap"></div>
       </div>
 
       <!-- ⑤ 뷰 타임라인 + ⑤-b 팩터 스코어카드 -->
-      <div class="widget" id="merlensStance">
+      <div class="widget econ-fold__panel" id="merlensStance">
         <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">뷰 타임라인 · 팩터 스코어카드</h3>
         <div class="g-2-1">
           <div class="econ-table__scroll" id="merStanceTableWrap"></div>
@@ -5455,7 +5526,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
 
       <!-- ⑥ 이벤트 캘린더 + ⑥-b 재고 일수 -->
-      <div class="widget" id="merlensEvents">
+      <div class="widget econ-fold__panel" id="merlensEvents">
         <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head">이벤트·재고</h3>
         <div class="g-2">
           <div>

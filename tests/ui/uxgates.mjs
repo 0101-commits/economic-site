@@ -65,7 +65,8 @@ const MEASURE = (rawList) => {
 
   // G9 · M8
   const y = e => Math.round(e.getBoundingClientRect().top + window.scrollY);
-  const dataEls = [...active.querySelectorAll('canvas,table,.econ-row,svg,.kpi-card,.econ-stat,.econ-num,.econ-data')]
+  // .econ-lead(결론 줄) · .econ-kpi(숫자 칸)도 데이터다 — 2026-09-29 골격에서 첫 데이터는 말로 된 결론 문장이다.
+  const dataEls = [...active.querySelectorAll('canvas,table,.econ-row,svg,.kpi-card,.econ-stat,.econ-num,.econ-data,.econ-lead,.econ-kpi')]
     .filter(vis).map(y);
 
   return {
