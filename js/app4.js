@@ -743,14 +743,17 @@ function pfExportCsv() {
 }
 
 // ═══ 페이지 잠금 (투자 현황·설정) ═══════════════════════════════════════════════
-// 열람 방지용 클라이언트 게이트. 비밀번호는 SHA-256 해시로만 보관(공개 저장소 — 평문 금지).
+// 열람 방지용 클라이언트 게이트(화면 가림막일 뿐 보안 경계가 아니다 — sessionStorage 한 줄로 우회된다).
+// 비밀번호는 PBKDF2-SHA256(무작위 salt) 해시로만 보관(공개 저장소 — 평문 금지). 값은
+// `node scripts/make_lock_hash.mjs` 가 출력한 줄을 아래 LOCK 에 붙여 넣는다. LOCK=null 이면 잠금 해제 불가.
+// ⚠ 이 해시는 공개 파일에 있어 짧은 PIN 은 오프라인 대입으로 풀린다 — 다른 곳(평단가 동기화 암호 등)에 재사용 금지.
 // 해제 상태는 sessionStorage 에만 유지 → 탭을 닫으면 다시 잠긴다.
 // 모든 진입이 showPage() 를 지나므로(메뉴·?p= 딥링크·popstate·키보드 단축키) 관문은 app1.js
 // showPage 상단의 econLockGate 호출 한 곳이다. 개발자도구로 우회는 가능하나, 민감 데이터
 // (평단가·수량)는 각 브라우저 localStorage 에만 있어 '어깨너머 열람 방지' 목적에는 충분.
 (function() {
   var LOCKED = ['portfolio', 'settings'];
-  var HASH = '54bb6a0d2ea7d49744e886aa20859d70b6fc4ee0b9f144353ecb4b39195767f3';
+  var LOCK = null;   // { salt: '<hex>', iter: 600000, hash: '<hex>' } — scripts/make_lock_hash.mjs 로 생성
   var SS_KEY = 'econLockOk_v1';
 
   function unlocked() { try { return sessionStorage.getItem(SS_KEY) === '1'; } catch(_) { return false; } }
@@ -762,9 +765,12 @@ function pfExportCsv() {
     return true;
   };
 
-  function sha256Hex(s) {
+  function pbkdf2Hex(s) {
     if(!(window.crypto && crypto.subtle)) return Promise.reject(new Error('insecure context'));
-    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)).then(function(buf) {
+    var salt = new Uint8Array(LOCK.salt.match(/../g).map(function(h) { return parseInt(h, 16); }));
+    return crypto.subtle.importKey('raw', new TextEncoder().encode(s), 'PBKDF2', false, ['deriveBits']).then(function(k) {
+      return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: LOCK.iter, hash: 'SHA-256' }, k, 256);
+    }).then(function(buf) {
       return Array.prototype.map.call(new Uint8Array(buf), function(b) {
         return ('0' + b.toString(16)).slice(-2);
       }).join('');
@@ -790,7 +796,7 @@ function pfExportCsv() {
     card.innerHTML =
       '<div style="font-size:var(--font-size-md);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">잠긴 페이지</div>' +
       '<div style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-bottom:14px;">' + (id === 'settings' ? '설정' : '투자 현황') + ' 페이지는 비밀번호가 필요합니다.</div>' +
-      '<input type="password" inputmode="numeric" autocomplete="off" aria-label="비밀번호" style="width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:8px 10px;font-size:var(--font-size-md);">' +
+      '<input type="password" autocomplete="off" aria-label="비밀번호" style="width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:8px 10px;font-size:var(--font-size-md);">' +
       '<div data-lock-err style="display:none;color:var(--c-down,#e05555);font-size:var(--font-size-xs);margin-top:6px;">비밀번호가 올바르지 않습니다.</div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">' +
         '<button data-lock-cancel class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText">취소</button>' +
@@ -801,10 +807,17 @@ function pfExportCsv() {
 
     var input = card.querySelector('input');
     var err = card.querySelector('[data-lock-err]');
+    if(!LOCK) {   // PIN 미설정 — 옛 해시는 뚫려 폐기됐다(2026-09-29). 설정 전까지는 열 수 없다.
+      err.textContent = 'PIN 미설정 → 설정 필요: node scripts/make_lock_hash.mjs 로 만든 줄을 js/app4.js 의 LOCK 에 넣고 배포하세요.';
+      err.style.display = 'block';
+      input.disabled = true;
+      card.querySelector('[data-lock-ok]').disabled = true;
+    }
     function submit() {
+      if(!LOCK) return;
       var v = input.value || '';
-      sha256Hex(v).then(function(h) {
-        if(h === HASH) {
+      pbkdf2Hex(v).then(function(h) {
+        if(h === LOCK.hash) {
           try { sessionStorage.setItem(SS_KEY, '1'); } catch(_) {}
           closeModal();
           showPage(id, el);

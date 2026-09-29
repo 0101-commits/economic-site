@@ -1478,7 +1478,7 @@ async function pfPullTracking(auto) {
 }
 
 // ── 🔐 평단가·수량 E2E 암호화 동기화 ──────────────────────────────────────────
-// 평단가/수량/매입환율은 공개 저장소(alerts_config.json)에 평문으로 올리지 않는다.
+// 평단가/수량/매입환율은 공개 저장소(alerts_config.json)에 올리지 않는다(암호문도 — 2026-09-29 부터 Worker KV 에만 저장).
 // 사용자 암호로 이 기기에서 AES-GCM 암호화한 '불투명 블록'만 서버에 저장하고, 다른 기기에서
 // 같은 암호로 복호화한다. 암호는 이 기기 localStorage 에만 둔다(이 기기엔 이미 평문 보유정보가
 // 있으므로 위협이 늘지 않음 — E2E 의 보호 대상은 서버/공개 repo 사본이다).
@@ -1502,14 +1502,13 @@ function pfUpdateHoldingsSyncUI() {
 }
 async function pfSetHoldingsPass() {
   const on = !!pfGetHoldingsPass();
-  const p = await pfAskText('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 암호문은 공개 저장소에 올라가므로, 짧거나 흔한 암호는\n  오프라인 무차별 대입으로 평단가·수량이 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), { type: 'password' });
+  const p = await pfAskText('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· ⚠ 페이지 잠금 PIN 과 다른 암호를 쓰세요 — 잠금 PIN 해시는 공개 파일이라 풀릴 수 있습니다.\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버(동기화 키로 잠긴 Worker 저장소)엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 짧거나 흔한 암호는 서버 사본이 새면 대입으로 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), { type: 'password' });
   if (p === null) return;
   try {
     if (!p.trim()) { localStorage.removeItem('pfHoldingsPass'); if(typeof showToast==='function') showToast('평단가 동기화 해제 — 이후 「☁ 목록 저장」에서 평단가/수량은 서버에 올라가지 않습니다.', 4000); }
     else {
-      // 암호문이 공개 repo 에 커밋되는 구조라 최소 길이를 강제한다 — PBKDF2 600k 라도
-      // 사전 단어/짧은 암호는 오프라인 대입에 뚫린다(감사 확인 사항).
-      // 하한 6자 = 사이트 잠금 PIN 과 같은 암호를 쓰려는 사용자 결정(2026-08-12). 짧을수록 대입에 약함.
+      // 최소 길이 강제 — PBKDF2 600k 라도 사전 단어/짧은 암호는 오프라인 대입에 뚫린다(감사 확인 사항).
+      // 하한 6자(2026-08-12 사용자 결정). 잠금 PIN 과 같은 암호를 쓰던 방식은 폐기 — 그 PIN 으로 암호문이 풀렸다(2026-09-29 감사).
       if (p.trim().length < 6) { if(typeof showToast==='function') showToast('⚠ 암호가 너무 짧습니다(6자 미만) — 설정되지 않았습니다. 12자 이상을 권장합니다.', 5000); return; }
       if (p.trim().length < 12 && typeof showToast==='function') showToast('ℹ 12자 미만 암호는 권장하지 않습니다 — 길수록 안전합니다.', 4000);
       localStorage.setItem('pfHoldingsPass', p); if(typeof showToast==='function') showToast('평단가 동기화 암호 설정 완료 — 「☁ 목록 저장」 시 평단가/수량이 암호화돼 함께 저장됩니다.', 4000);

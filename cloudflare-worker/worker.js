@@ -567,7 +567,10 @@ async function _testGemini(key) {
 //   필수 시크릿: ALERTS_SYNC_KEY — body.keyHash(SHA-256) 가 일치해야 저장 허용.
 //     미설정 시 쓰기 자체가 비활성화된다(fail-closed — 무인증 쓰기 개방 방지).
 //   주의: 평단가/수량은 프론트가 보내지 않는다(공개 저장소) — 알림 조건만 저장.
+//   암호화 보유정보(encHoldings)는 공개 파일에 넣지 않고 KV(ECON_PORTFOLIO)에만 둔다(2026-09-29).
+//   공개 저장소에 있으면 누구나 오프라인 대입을 할 수 있었다(감사: 잠금 PIN 과 같은 암호 → 복호화 성공).
 const ALERTS_CONFIG_PATH = 'alerts_config.json';
+const ENC_HOLDINGS_KV_KEY = 'portfolio:encHoldings';
 const ALERT_TYPES = ['price_above', 'price_below', 'pct_change', 'high52', 'low52',
                      'vol_surge', 'golden_cross', 'dead_cross'];
 
@@ -676,8 +679,8 @@ function _sanitizeTracking(raw) {
 }
 
 // 🔐 E2E 암호화 보유정보(평단가/수량/매입환율) — 클라이언트가 사용자 암호로 AES-GCM 암호화한
-//   불투명 암호문 블록만 받는다. 평문 보유정보는 절대 담기지 않으므로 공개 저장소에도 안전.
-//   서버는 복호화하지 않으며(키 없음), 형태·길이만 검증해 그대로 보존한다.
+//   불투명 암호문 블록만 받는다. 서버는 복호화하지 않으며(키 없음), 형태·길이만 검증해 KV 에 보존한다.
+//   암호문이라도 공개 저장소에 두면 대입 공격 재료가 되므로 alerts_config.json 에는 쓰지 않는다.
 function _sanitizeEncHoldings(raw) {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.alg !== 'AES-256-GCM' || raw.kdf !== 'PBKDF2-SHA256') return null;
@@ -724,19 +727,19 @@ async function handlePortfolioGet(request, env) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   // [이슈1] 무인증 조회 차단 — POST 와 동일한 ALERTS_SYNC_KEY 검증 적용. 키 미설정→503,
   //   불일치→401 (_verifySyncKey 동일 패턴).
-  // [보안] keyHash 는 커스텀 헤더 X-Sync-Key-Hash 를 1순위로 읽는다 — 쿼리스트링(?keyHash=…)은
-  //   접근 로그·브라우저 히스토리·Referer 에 재사용 가능한 베어러로 남기 때문. 쿼리 폴백은
-  //   구클라이언트(헤더 미전송 프론트) 하위호환용이며, 프론트 전환 완료 후 제거 예정.
-  const _kh = request.headers.get('X-Sync-Key-Hash')
-           || new URL(request.url).searchParams.get('keyHash');
-  const denied = await _verifySyncKey({ keyHash: _kh }, env);
+  // [보안] keyHash 는 커스텀 헤더 X-Sync-Key-Hash 로만 받는다 — 쿼리스트링(?keyHash=…)은
+  //   접근 로그·브라우저 히스토리·Referer 에 재사용 가능한 베어러로 남기 때문(2026-09-29 쿼리 폴백 제거).
+  const denied = await _verifySyncKey({ keyHash: request.headers.get('X-Sync-Key-Hash') }, env);
   if (denied) return denied;
   let cfgRes;
   try { cfgRes = await _readAlertsConfig(env); }
   catch (e) { return jsonResponse({ error: 'github_read_failed', detail: String((e && e.message) || e) }, 502); }
   const { found, cfg } = cfgRes;
-  if (!found || !cfg) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, encHoldings: null, updatedAt: null });
-  return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, tracking: cfg.tracking || null, encHoldings: cfg.encHoldings || null, updatedAt: cfg.updatedAt || null });
+  let encHoldings = null;
+  try { encHoldings = env.ECON_PORTFOLIO ? _sanitizeEncHoldings(await env.ECON_PORTFOLIO.get(ENC_HOLDINGS_KV_KEY, 'json')) : null; }
+  catch (_) { /* KV 장애 → 보유정보만 빠지고 알림 설정은 그대로 준다 */ }
+  if (!found || !cfg) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, encHoldings, updatedAt: null });
+  return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, tracking: cfg.tracking || null, encHoldings, updatedAt: cfg.updatedAt || null });
 }
 
 // SHA-256 hex — 동기화 키 해시 검증용
@@ -779,23 +782,28 @@ async function handlePortfolioPost(request, env) {
   let settings = (body.settings && typeof body.settings === 'object') ? _sanitizeSettings(body.settings) : null;
   // 📋 관심목록 — body.tracking 이 있으면 갱신, 없으면 기존 저장본을 보존(부분 저장 시 유실 방지).
   let tracking = _sanitizeTracking(body.tracking);
-  // 🔐 암호화 보유정보 — 동일 원칙(부분 저장 시 보존). 평문 아님(불투명 암호문).
-  let encHoldings = _sanitizeEncHoldings(body.encHoldings);
+  // 🔐 암호화 보유정보 — 동봉됐을 때만 KV 에 덮어쓴다. 미동봉이면 KV 기존본을 건드리지 않는다(부분 저장 시 보존).
+  //   공개 파일(alerts_config.json)에는 절대 쓰지 않는다. 파일 커밋보다 먼저 써서, KV 실패가 조용히 묻히지 않게 한다.
+  const encHoldings = _sanitizeEncHoldings(body.encHoldings);
+  if (encHoldings) {
+    if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
+    try { await env.ECON_PORTFOLIO.put(ENC_HOLDINGS_KV_KEY, JSON.stringify(encHoldings)); }
+    catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+  }
   // 기존 파일 sha 조회(업데이트 시 필수) → PUT 커밋
   const cur = await _ghContents(env, 'GET');
   const sha = (cur.status === 200 && cur.json && cur.json.sha) ? cur.json.sha : undefined;
-  if ((tracking === null || encHoldings === null || settings === null) && cur.status === 200 && cur.json && cur.json.content) {
+  if ((tracking === null || settings === null) && cur.status === 200 && cur.json && cur.json.content) {
     try {
       const _bin = atob(String(cur.json.content).replace(/\n/g, ''));
       const _bytes = Uint8Array.from(_bin, c => c.charCodeAt(0));
       const _prev = JSON.parse(new TextDecoder().decode(_bytes));
       if (tracking === null && _prev && _prev.tracking) tracking = _sanitizeTracking(_prev.tracking);
-      if (encHoldings === null && _prev && _prev.encHoldings) encHoldings = _sanitizeEncHoldings(_prev.encHoldings);
       if (settings === null && _prev && _prev.settings) settings = _sanitizeSettings(_prev.settings);
     } catch (_) { /* 이전 본 파싱 실패 시 보존 생략 */ }
   }
   if (settings === null) settings = _sanitizeSettings(null);   // 기존 본도 없음 → 기본값(ON/daily)
-  const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts, ...(tracking ? { tracking } : {}), ...(encHoldings ? { encHoldings } : {}) };
+  const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts, ...(tracking ? { tracking } : {}) };
   const content = JSON.stringify(cfg, null, 2) + '\n';
   // UTF-8 안전 base64 인코딩 (한글 종목명 포함) — 스프레드 인자 한도 회피를 위해 청크 처리
   const bytes = new TextEncoder().encode(content);
@@ -1384,7 +1392,7 @@ export default {
     const reqUrl = new URL(request.url);
     // 📲 투자 현황 — 저장된 카카오 알림 설정 조회 (GET /portfolio)
     if (reqUrl.pathname === '/portfolio') {
-      return handlePortfolioGet(request, env);   // [이슈1] request 전달 — keyHash 쿼리 검증에 필요
+      return handlePortfolioGet(request, env);   // [이슈1] request 전달 — X-Sync-Key-Hash 헤더 검증에 필요
     }
     // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.
     // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.

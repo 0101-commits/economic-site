@@ -450,12 +450,13 @@ Deployed from `cloudflare-worker/`. Acts as:
 - **POST /ai** — proxies AI API calls with rate limiting
 - **Cron triggers** → `repository_dispatch(kakao-send)` to GitHub, which fires `kakao-daily.yml`
 
-Deploy: `cd cloudflare-worker && npx wrangler deploy`
+Deploy: `npx wrangler deploy` (config = repo-root `wrangler.jsonc`). Pushes to main are also auto-deployed by Workers Builds (deploy times track bot commits ~1 min later, 2026-09-29 실측), so a manual deploy of unpushed code is overwritten by the next bot commit.
 
 ## Important Constraints
 
 - **Never hardcode API keys** — this is a public repository. All keys via GitHub Secrets only. The guard pattern is `if not API_KEY: skip/return`.
-- **`alerts_config.json` is intentionally public** — it stores only alert *conditions* (symbol/name/market/target) and the watchlist. It contains **no personal holdings** (no average cost, quantity, or purchase FX); the frontend never sends those and the Worker commits whitelisted fields only. Both `GET`/`POST /portfolio` require the `ALERTS_SYNC_KEY` (SHA-256) auth.
+- **`alerts_config.json` is intentionally public** — it stores only alert *conditions* (symbol/name/market/target) and the watchlist. It contains **no personal holdings** (no average cost, quantity, or purchase FX); the frontend never sends those and the Worker commits whitelisted fields only. Both `GET`/`POST /portfolio` require the `ALERTS_SYNC_KEY` (SHA-256) auth — `GET` takes it **only** from the `X-Sync-Key-Hash` header (the `?keyHash=` query form was removed 2026-09-29).
+  **The E2E-encrypted holdings blob (`encHoldings`) lives in Worker KV (`ECON_PORTFOLIO`, key `portfolio:encHoldings`), never in this file** — until 2026-09-29 it was committed here, and a public ciphertext is offline brute-force material (the audit decrypted it with the lock PIN). Do not re-add it to the file or to the Worker's merge-with-previous logic. The page lock (`js/app4.js` `LOCK`) is a UI curtain only: its PBKDF2 hash is public, so its PIN must not be reused as the holdings password. New PIN → `node scripts/make_lock_hash.mjs`.
 - **`data.json` is bot-owned** — only `fetch_data.py` writes it. The commit step uses a 5-retry push loop with `reset --hard origin/main` + re-apply to survive concurrent bot pushes.
 - **`concurrency: group:`** in all three data workflows prevents simultaneous pushes that would cause non-fast-forward rejections.
 - **`validate_data.py` is a hard gate** — it runs before the commit step. If it exits non-zero, `data.json` is not committed and the previous good version is preserved.
