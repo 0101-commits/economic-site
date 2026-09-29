@@ -35,6 +35,8 @@ const VIEWS = [
   // 2026-09-29 개편 — 트리거 표는 접힘 묶음 뒤에 있다. pre = 먼저 누를 것(접힘 열기).
   { page: 'merlens', axis: 'f', pre: `#merlensFolds [data-fold="monitor"]`, pick: `[data-mer-filter="crossed"]`, expect: 'crossed' },
   { page: 'merlens', axis: 'v', pick: `#merlensFolds [data-fold="events"]`, expect: 'events' },
+  // 2026-09-29 라이브 모니터에서 잡힘 — ?p=realestate&t=us 가 kr 로 되돌아갔다(화면 초기화가 kr 을 강제). 복원 검사가 지킨다.
+  { page: 'realestate', axis: 't', pick: `#reitabUS`, expect: 'us' },
   { page: 'market',  axis: 'v', q: 'p=market&t=commodity', pick: `#ensoFolds [data-fold="basis"]`, expect: 'basis' },
 ];
 

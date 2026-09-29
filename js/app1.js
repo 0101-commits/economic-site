@@ -1473,7 +1473,12 @@ function showPage(id, el) {
   if(id==='notes') { loadNotes(); }
   if(id==='settings') { try { initSettingsPage(); } catch(e) { console.warn('settings init', e); } }
   if(id==='investor') { setTimeout(()=>{ buildInvestorPage(); try { buildGlobalAllocCompare(); } catch(e) { console.warn('globalAlloc', e); } },50); }
-  if(id==='realestate') { setRETab('kr', document.getElementById('reitabKR')); setTimeout(buildReCharts, 80); }
+  if(id==='realestate') {
+    // 주소의 t= 를 먹는다 — 종전엔 늘 'kr' 로 초기화해 ?p=realestate&t=us 딥링크가 kr 로 되돌아갔다(라이브 모니터 2026-09-29).
+    var _reT = 'kr';
+    try { if (new URLSearchParams(location.search).get('t') === 'us') _reT = 'us'; } catch(_) {}
+    setRETab(_reT, document.getElementById(_reT === 'us' ? 'reitabUS' : 'reitabKR')); setTimeout(buildReCharts, 80);
+  }
   if(id==='merlens') {
     // 별칭이 아니면 ?t=search 딥링크(사이드바·북마크)로도 검색 탭을 연다.
     // 실제 렌더 트리거는 _merShowTab 이 전담 — 'board' 로 열릴 때만 merlensInit() 이 돈다
@@ -6493,7 +6498,7 @@ function ensoMacroHTML(phaseKey, live) {
   const cols = `minmax(116px,1.5fr) repeat(${horizons.length},1fr)`;
   const head = `<div style="display:grid;grid-template-columns:${cols};gap:3px;margin-bottom:4px;">
     <div></div>
-    ${horizons.map(hk => { const h = node[hk]; return `<div title="${_ensoAttr(h.mechanism)}" style="text-align:center;font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-txt);line-height:1.2;">${h.icon||''} ${HLAB[hk]||hk}<div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">${h.timeframe||''}</div></div>`; }).join('')}
+    ${horizons.map(hk => { const h = node[hk]; return `<div title="${_ensoAttr(h.mechanism)}" style="text-align:center;font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-txt);line-height:1.2;">${HLAB[hk]||hk}<div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">${h.timeframe||''}</div></div>`; }).join('')}
   </div>`;
   const hmRows = [];
   horizons.forEach((hk,hi) => (node[hk].assets||[]).forEach(a => hmRows.push({name:a.name, hi, stance:a.stance, note:a.note})));
@@ -6518,7 +6523,7 @@ function ensoMacroHTML(phaseKey, live) {
       <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:${conf.c};border:1px solid ${conf.c}66;border-radius:var(--r-full);padding:1px 8px;">${conf.t}</span>
     </div>
     ${gauge}${legend}
-    <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin:-4px 0 8px;">행 = 자산/섹터 · 열 = 영향 시점(단·중·장기) · 색 = 위험🔴/기회🔵/혼조🟠 · hover = 근거</div>
+    <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin:-4px 0 8px;">행 = 자산/섹터 · 열 = 영향 시점(단·중·장기) · 색 = 위험(빨강)/기회(파랑)/혼조(주황) · 마우스를 올리면 근거</div>
     ${heatmap}
     ${footer}
   </div>`;
