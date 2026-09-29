@@ -47,11 +47,11 @@ WATCH = [
     ("stock-alerts.yml", "장중 알림 평가", 15, None, True),    # 장외엔 안 도는 게 정상
     ("fetch-data.yml", "시장 데이터 수집", 30, 120, True),
     ("kakao-daily.yml", "다이제스트 게이트", 30, 120, True),
-    # 사이트 배포(GitHub 관리 워크플로 — 저장소에 파일이 없어 숫자 id 로 조회한다).
-    # 데이터 커밋마다 돌고 동시 배포는 서로를 취소하므로 산발 실패·취소가 정상이다.
+    # 사이트 배포(pages.yml — 2026-09-29 legacy pages-build-deployment(id 268675167)에서 전환).
+    # 데이터 커밋마다 돌고 대기 배포는 최신 1건으로 접히므로 산발 실패·취소가 정상이다.
     # 그래서 즉시 통지에서 빼고 '연속 실패'와 '아예 안 돈다'만 본다 — 배포가 멈추면
     # data.json 이 갱신돼도 화면은 옛 값에 멈춘다.
-    ("268675167", "사이트 배포", 60, 180, False),
+    ("pages.yml", "사이트 배포", 60, 180, False),
 ]
 # 실패로 세지 않는 결론 — cancelled 는 concurrency 그룹이 앞 런을 밀어낸 정상 동작이고
 # (pages 배포·fetch-data 에서 상시 발생), skipped 는 게이트가 통과시키지 않은 것이다.
@@ -284,7 +284,7 @@ def demo():
     night = datetime.datetime(2026, 9, 22, 10, 0, tzinfo=datetime.timezone.utc)  # 19시 KST
     assert _threshold(WATCH[0], night.astimezone(KST)) is None, "장외 stock-alerts 는 감시 제외"
     assert _threshold(WATCH[1], night.astimezone(KST)) == 120
-    assert [w[0] for w in WATCH if not w[4]] == ["268675167"], "즉시 통지 제외는 pages 뿐"
+    assert [w[0] for w in WATCH if not w[4]] == ["pages.yml"], "즉시 통지 제외는 pages 뿐"
     kakao = next(w for w in WATCH if w[0] == "kakao-daily.yml")
     dawn = datetime.datetime(2026, 9, 22, 18, 30, tzinfo=datetime.timezone.utc)  # 수 03:30 KST
     assert _threshold(kakao, dawn.astimezone(KST)) is None, "새벽엔 다이제스트 게이트가 안 도는 게 정상"

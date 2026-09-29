@@ -1,0 +1,50 @@
+name: Pages Deploy
+# 사이트 배포 — 허용 목록(scripts/collect_site.mjs)만 올린다. 종전 build_type=legacy 는 저장소
+# 루트 전체(CLAUDE.md·docs·scripts·tests …)를 공개 URL 로 내보냈다(2026-09-29 전환).
+#
+# ⚠ GITHUB_TOKEN 으로 한 push 는 on: push 를 깨우지 않는다 — 봇 데이터 커밋이 배포로 이어지려면
+#   그 커밋을 만드는 워크플로의 '완료'(workflow_run)로 깨워야 한다. 이름은 glob 패턴으로 해석되고
+#   한 글자만 달라도 조용히 안 걸린다(scripts/tests/test_watchdog.py 가 실제 name 과 대조한다).
+#   Stock Alerts 는 일부러 뺐다 — 하루 ~960런 중 커밋은 ~1건이고, 그 alerts_state.json 은
+#   장중 5분마다 도는 Market Data Fetch 의 다음 배포에 실려 나간다.
+on:
+  push:
+    branches: [main]
+    paths-ignore:                 # 사람·PAT 커밋 중 사이트에 안 올라가는 파일만 바뀐 경우
+      - 'toss_snapshot.json'      # PC 토스 수집기(하루 ~40회)
+      - 'alerts_config.json'      # Worker /portfolio
+  workflow_run:
+    workflows:
+      - "Market Data Fetch"
+      - "Build Frontend (minify js)"
+      - "Link Check (외부 링크 주간 점검)"
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 진행 중 배포는 끝까지 두고, 대기는 최신 1건으로 접힌다(밀려난 대기 런 = cancelled, 정상).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - name: 허용 목록 수집 + 위생 검사
+        run: node scripts/collect_site.mjs
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -51,6 +51,21 @@ def test_trigger_names_have_no_glob_chars():
         assert not set(n) & set("+/*?[]!\\"), n
 
 
+def test_pages_deploy_triggers_match_actual_workflows():
+    """pages.yml 의 workflow_run 이름이 어긋나면 봇 데이터 커밋이 배포로 안 이어지고 사이트가 옛 값에 멈춘다.
+
+    GITHUB_TOKEN 커밋은 on: push 를 깨우지 않아 이 트리거가 봇 데이터의 유일한 배포 경로다.
+    """
+    yml = open(os.path.join(WFDIR, "pages.yml"), encoding="utf-8").read()
+    block = yml.split("workflows:", 1)[1].split("types:", 1)[0]
+    names = [m.group(1) for m in re.finditer(r'^\s*-\s*"(.+)"\s*$', block, re.M)]
+    actual = {_wf_name(f) for f in os.listdir(WFDIR) if f.endswith(".yml")}
+    assert "Market Data Fetch" in names
+    for n in names:
+        assert n in actual, n
+        assert not set(n) & set("+/*?[]!\\"), n
+
+
 def test_failure_streak_notifies_first_only(monkeypatch):
     """연속 실패는 첫 건만 — 직전 완료 런(취소 제외)이 실패면 생략, 성공이면 통지."""
     runs = {"workflow_runs": [
