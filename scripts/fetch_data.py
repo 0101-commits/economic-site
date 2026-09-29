@@ -2157,21 +2157,34 @@ def fetch_toss_stock_movers(top_n=10):
     return gainers, losers
 
 
-def _investor_align_portal(inv, days=10):
-    """investorTrading 의 최근 `days` 영업일을 **포털(네이버) 기준값으로 정렬**하고 교차검증을 기록한다.
+def _investor_align_portal(inv, prev_daily=None, days=10, backfill=40):
+    """investorTrading 을 **포털(네이버) 기준값으로 정렬**하고 교차검증을 기록한다.
 
-    왜: 수집 경로가 실행 환경에 따라 갈린다(허용 IP PC = 토스, CI = pykrx/네이버). 그런데
-    토스와 네이버는 같은 날 수천억 단위로 다른 값을 낸다(2026-09-10 기관 -134 vs +5,744억
-    — 집계 유니버스 차이). 그 결과 사이트·알림 숫자가 실행마다 바뀌고 포털·언론 수치와도
-    어긋났다. 사용자가 대조하는 값이 포털값이므로 **최근 구간의 표시값을 그쪽으로 고정**한다.
-    (400일 히스토리 전체를 네이버로 재수집하면 매 빌드 30페이지 스크레이핑이라 최근분만 정렬.)
+    왜: 바탕 시계열은 토스인데, 토스 투자자 동향은 **KRX + 넥스트레이드(NXT) 합산**이고
+    포털·언론은 KRX 만 센다. NXT 개장(2025-03-04) 전까지 둘은 정확히 같고 그 뒤로 벌어져
+    2026-06-02 엔 외국인 −79,246 vs −63,035억이었다(2026-09-29 네이버 날짜별 대조).
+    종전엔 최근 10일만 포털값으로 바꿨고, 그 행마저 다음 런에 토스 병합(스냅샷 400일)이
+    다시 덮어 10일 창을 벗어나는 순간 토스값으로 되돌아갔다 — 사이트 차트가 10일 전후로
+    기준이 갈리고 주·월 합계가 두 기준을 섞었다.
 
-    네이버 파싱 실패 시 아무것도 바꾸지 않는다 — 값을 지우거나 추정하지 않는다.
+    규칙: 포털값으로 정렬된 행(`src: "naver"`)은 토스가 덮지 못한다(직전 빌드에서 복원).
+    최근 `days` 영업일은 매 런 다시 받고(장중 잠정치·사후 정정), 아직 토스값인 행은 런마다
+    `backfill` 개씩 최신부터 포털값으로 바꾼다. 네이버 실패 시 최근분만 KRX(pykrx)로
+    정렬하고 `src: "krx"` 로 남겨 다음 런에 다시 시도한다. 값을 지우거나 추정하지 않는다.
     """
     import investor_flows
-    label = "네이버 금융(KOSPI 투자자별 매매동향, 포털·언론 기준)"
+    keys = ("foreign", "inst", "retail")
+    daily = [dict(r) for r in (inv.get("daily") or []) if isinstance(r, dict) and r.get("date")]
+    base = {r["date"]: dict(r) for r in daily}              # 교차검증용 원본(토스 또는 KRX)
+    rows = {r["date"]: r for r in daily}
+    restored = 0
+    for p in prev_daily or []:
+        if isinstance(p, dict) and p.get("src") == "naver" and p.get("date") in rows:
+            rows[p["date"]].update({k: p[k] for k in keys}, src="naver")
+            restored += 1
+    label, src = "네이버 증권(KOSPI 투자자별 매매동향, KRX 기준)", "naver"
     try:
-        nav = investor_flows.naver_daily("KOSPI")[-days:]
+        nav = investor_flows.naver_daily("KOSPI", days=days)
     except Exception as e:                                   # noqa: BLE001
         log(f"[투자자] 네이버 조회 실패: {e} — KRX(pykrx) 확정치로 정렬")
         nav = []
@@ -2187,34 +2200,42 @@ def _investor_align_portal(inv, days=10):
     if krx:
         inv["krxDaily"] = krx
     if not nav and krx:
-        nav, label = krx, "KRX 정보데이터시스템(pykrx, 확정치)"
-    if not nav:
-        log("[투자자] 포털·KRX 모두 실패 — 정렬 생략(토스 단독)")
-        return inv
-    daily = list(inv.get("daily") or [])
-    src_rows = {r.get("date"): r for r in daily if isinstance(r, dict)}
-    cross, replaced = [], 0
+        nav, label, src = krx, "KRX 정보데이터시스템(pykrx, 확정치)", "krx"
+    cross = []
     for n in nav:
-        old = src_rows.get(n["date"])
-        if old is not None:
+        old = base.get(n["date"])
+        if old is not None and not old.get("src"):          # 복원된 포털 행끼리는 비교하지 않는다
             bad = investor_flows.gross_mismatch(n, old)
             ok, worst = investor_flows.agree(n, old)
             cross.append({"date": n["date"], "agree": ok,
                           "maxDiffPct": round(worst * 100, 1), "gross": bad})
-            old.update({k: n[k] for k in ("foreign", "inst", "retail")})
-            replaced += 1
-        else:
-            daily.append({"date": n["date"], "foreign": n["foreign"],
-                          "inst": n["inst"], "retail": n["retail"]})
-            replaced += 1
-    daily.sort(key=lambda r: r.get("date") or "")
-    inv["daily"] = daily
+        rows.setdefault(n["date"], {"date": n["date"]}).update({k: n[k] for k in keys}, src=src)
+    filled = 0
+    if src == "naver" and nav:
+        todo = sorted((d for d, r in rows.items() if r.get("src") != "naver"), reverse=True)
+        for d in todo[:backfill]:
+            try:
+                n = investor_flows.naver_day("KOSPI", d.replace("-", ""))
+            except Exception as e:                           # noqa: BLE001
+                log(f"[투자자] 네이버 백필 중단({d}): {e}")
+                break
+            if n:
+                rows[d].update({k: n[k] for k in keys}, src="naver")
+                filled += 1
+    if not nav and not restored:
+        log("[투자자] 포털·KRX 모두 실패 — 정렬 생략(토스 단독)")
+        return inv
+    inv["daily"] = [rows[d] for d in sorted(rows)]
+    n_portal = sum(1 for r in inv["daily"] if r.get("src") == "naver")
+    rest = len(inv["daily"]) - n_portal
     inv["recentSource"] = label
-    inv["recentDays"] = replaced
+    inv["recentDays"] = len(nav)
     inv["crossCheck"] = cross
     _dis = [c for c in cross if c.get("gross")]
-    inv["source"] = f"{inv.get('source', '')} + 최근 {replaced}일 {label.split('(')[0]} 기준 정렬".strip(" +")
-    log(f"[투자자] 최근 {replaced}일 포털 기준 정렬 — 교차검증 불일치 {len(_dis)}건"
+    inv["source"] = ("네이버 증권 KOSPI 투자자별 매매동향(KRX 기준, 넥스트레이드 제외)"
+                     + (f" {n_portal}일 + {inv.get('source', '')} {rest}일" if rest else ""))
+    log(f"[투자자] 포털 기준 {n_portal}/{len(inv['daily'])}일 (복원 {restored} · 최근 {len(nav)} {src}"
+        f" · 백필 {filled}) — 교차검증 불일치 {len(_dis)}건"
         + (f" ({_dis[0]['date']}: {_dis[0]['gross']})" if _dis else ""))
     return inv
 
@@ -6367,7 +6388,7 @@ def build_data():
         if not (inv and inv.get("daily")):
             inv = fetch_investor_trading()
         if inv and inv.get("daily"):
-            inv = _investor_align_portal(inv)
+            inv = _investor_align_portal(inv, _prev_daily)
             data["investorTrading"] = inv
             data["sources"]["investorTrading"] = inv.get("source", "pykrx")
         else:

@@ -210,6 +210,105 @@ if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
 
 
+class _Resp:
+    def __init__(self, body):
+        self.body = body
+
+    def read(self):
+        return self.body
+
+
+def _fake_naver(table, calls=None):
+    """m.stock.naver.com …/trend?bizdate= 흉내 — 표에 없는 날은 휴장일처럼 0·0·0."""
+    import json
+
+    def _open(req, timeout=None):
+        bd = req.full_url.rsplit("bizdate=", 1)[1]
+        if calls is not None:
+            calls.append(bd)
+        f, i, p = table.get(bd, (0, 0, 0))
+        return _Resp(json.dumps({"bizdate": bd, "foreignValue": f"{f:+,}",
+                                 "institutionalValue": f"{i:+,}",
+                                 "personalValue": f"{p:+,}"}).encode())
+    return _open
+
+
+def test_naver_day_parses_mobile_api(monkeypatch):
+    """네이버 증권 모바일 API(2026-09-29 실측: 09-28 = KRX 확정치와 억원 단위로 일치)."""
+    monkeypatch.setattr(inf.urllib.request, "urlopen",
+                        _fake_naver({"20260928": (-32682, -10169, 26467)}))
+    assert inf.naver_day("KOSPI", "20260928") == {
+        "date": "2026-09-28", "foreign": -32682.0, "inst": -10169.0, "retail": 26467.0}
+    assert inf.naver_day("KOSPI", "20260925") is None          # 추석 — 0·0·0
+
+
+def test_naver_daily_skips_weekends_and_holidays(monkeypatch):
+    calls = []
+    monkeypatch.setattr(inf.urllib.request, "urlopen", _fake_naver({
+        "20260928": (-32682, -10169, 26467),
+        "20260923": (-4942, 3189, -14649),
+        "20260922": (494, -1295, -15643)}, calls))
+    rows = inf.naver_daily("KOSPI", bizdate="20260928", days=3)
+    assert [r["date"] for r in rows] == ["2026-09-22", "2026-09-23", "2026-09-28"]
+    assert rows[-1]["foreign"] == -32682.0
+    assert "20260927" not in calls and "20260926" not in calls   # 주말은 부르지 않는다
+
+
+def _align(monkeypatch, toss, prev, recent, day_table, krx=None, days=1, backfill=10):
+    import fetch_data as fd
+    monkeypatch.setattr(fd, "_fetch_investor_pykrx",
+                        lambda lookback_days=20: {"daily": krx or []})
+    if recent is None:
+        def _gone(*a, **k):
+            raise OSError("HTTP Error 410")
+        monkeypatch.setattr(inf, "naver_daily", _gone)
+    else:
+        monkeypatch.setattr(inf, "naver_daily", lambda *a, **k: [dict(r) for r in recent])
+    monkeypatch.setattr(inf, "naver_day",
+                        lambda m, bd, timeout=10: day_table.get(bd) and dict(day_table[bd]))
+    return fd._investor_align_portal({"daily": [dict(r) for r in toss], "source": "토스"},
+                                     prev, days=days, backfill=backfill)
+
+
+def _r(d, f, i, p, **kw):
+    return dict({"date": d, "foreign": f, "inst": i, "retail": p}, **kw)
+
+
+def test_align_portal_rows_survive_toss_merge_and_history_backfills(monkeypatch):
+    """근본 원인 회귀 가드(2026-09-29): 토스 = KRX+넥스트레이드 합산, 포털 = KRX.
+
+    종전엔 최근 10일만 포털값으로 바꿨고, 그 행도 다음 런 토스 병합이 다시 덮어 10일 창을
+    벗어나면 토스값으로 되돌아갔다. 포털 행은 토스가 못 덮고, 나머지는 백필로 채워져야 한다.
+    """
+    toss = [_r("2026-06-02", -79246, -3499, 84221), _r("2026-09-17", -27630, 4068, 6545),
+            _r("2026-09-22", 1644, -809, -17373), _r("2026-09-28", -36202, -14704, 34637)]
+    prev = [_r("2026-09-22", 494, -1295, -15643, src="naver")]           # 직전 빌드에서 정렬됨
+    recent = [_r("2026-09-28", -32682, -10169, 26467)]
+    table = {"20260917": _r("2026-09-17", -22546, 2480, 3020),
+             "20260602": _r("2026-06-02", -63035, -546, 63537)}
+    out = _align(monkeypatch, toss, prev, recent, table)
+    by = {r["date"]: r for r in out["daily"]}
+    assert by["2026-09-22"]["foreign"] == 494 and by["2026-09-22"]["src"] == "naver"
+    assert by["2026-09-28"]["foreign"] == -32682
+    assert by["2026-09-17"]["foreign"] == -22546                         # 백필
+    assert by["2026-06-02"]["foreign"] == -63035
+    assert all(r["src"] == "naver" for r in out["daily"])
+    # 교차검증은 이번에 받은 포털값 vs 토스 원본 — 복원된 포털 행끼리 비교하지 않는다
+    assert [c["date"] for c in out["crossCheck"]] == ["2026-09-28"]
+
+
+def test_align_portal_krx_fallback_is_retried_next_run(monkeypatch):
+    """네이버가 죽으면 최근분만 KRX 로(src=krx), 백필 없음, 기존 포털 행은 그대로."""
+    toss = [_r("2026-09-22", 1644, -809, -17373), _r("2026-09-28", -36202, -14704, 34637)]
+    prev = [_r("2026-09-22", 494, -1295, -15643, src="naver")]
+    krx = [_r("2026-09-28", -32682.0, -10168.8, 26466.7)]
+    out = _align(monkeypatch, toss, prev, None, {}, krx=krx)
+    by = {r["date"]: r for r in out["daily"]}
+    assert by["2026-09-28"]["src"] == "krx" and by["2026-09-28"]["inst"] == -10168.8
+    assert by["2026-09-22"]["src"] == "naver" and by["2026-09-22"]["foreign"] == 494
+    assert out["krxDaily"] == krx
+
+
 def test_portal_daily_falls_back_to_krx_when_naver_gone(monkeypatch):
     """네이버 410(2026-09-21) 이후 포털 기준은 data.json 의 KRX 확정치(krxDaily)다."""
     import investor_flows as f

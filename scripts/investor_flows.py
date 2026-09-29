@@ -16,6 +16,8 @@
    | 09-10 | 기관 | -134 | +5,744 | -5,878 |
 
    KOSDAQ 도 수백억씩 어긋난다. 집계 유니버스/정의 차이이지 타이밍 문제가 아니다.
+   (2026-09-29 특정: **토스 = KRX + 넥스트레이드(NXT) 합산, 포털·언론 = KRX 만.** 넥스트레이드
+   개장일 2025-03-04 전까지는 두 값이 정확히 같다 — 2025-02-26~28 차 0, 03-04 부터 차 발생.)
 3. 알림은 `data.json` 의 investorTrading 마지막 행을 **날짜 검증 없이** 그대로 썼다.
    묵은 수집본이면 어제 수급이 오늘 카드에 실린다.
 
@@ -29,9 +31,9 @@
 * 엄격 일치 여부는 값을 죽이지 않고 `agree`/`maxDiffPct` 로 함께 돌려준다.
   (`TOL_ABS`/`TOL_PCT` 한 줄만 바꾸면 "완전 일치만 표기" 정책으로 조일 수 있다.)
 
-`fetch_data.fetch_naver_investor_trading` 과 파서가 겹치지만 역할이 다르다 — 저쪽은
-400영업일 히스토리 백필(페이지네이션·스케일 추정 포함), 이쪽은 최근 10영업일 검증.
-알림 스크립트가 `fetch_data` 를 import 하면 pykrx·KRX 로그인까지 끌려와 6초+ 걸린다.
+네이버 창구는 `naver_day`/`naver_daily` 하나다 — `fetch_data._investor_align_portal` 도 이것으로
+사이트 시계열을 정렬·백필한다. 알림 스크립트가 `fetch_data` 를 import 하면 pykrx·KRX 로그인까지
+끌려와 6초+ 걸린다.
 """
 
 import datetime
@@ -52,7 +54,7 @@ GROSS_SIGN_FLOOR = 1000.0   # 이 미만(억원)은 부호 뒤집힘을 오류�
 CONFIRM_TOSS_HOUR = 18      # 토스 updatedAt 이 이 시각 이후면 확정
 CONFIRM_CLOCK_HOUR = 19     # updatedAt 이 없어도(스냅샷 경로) 이 시각 이후면 확정
 
-_NAVER_SOSOK = {"KOSPI": "01", "KOSDAQ": "02"}
+_NAVER_MARKETS = ("KOSPI", "KOSDAQ")
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 
@@ -73,47 +75,56 @@ def _num(s):
         return None
 
 
-def naver_daily(market="KOSPI", bizdate=None, timeout=15):
-    """네이버 '일별 투자자별 매매동향' 최근 10영업일 → [{date, foreign, inst, retail, other}] 오름차순.
+def naver_day(market, bizdate, timeout=10):
+    """네이버 증권 하루치 투자자별 순매수(억원) → {date, foreign, inst, retail} / 휴장일·형태 변동 None.
 
-    표 구조(중첩 헤더): 날짜 | 개인 | 외국인 | 기관계 | 기관 6개 소분류 | 기타법인 = 11칸.
-    캡션 단위는 억원(2026-09-11 실측). 형태가 달라지면 빈 리스트 — 추정하지 않는다.
+    `m.stock.naver.com/api/index/{KOSPI|KOSDAQ}/trend?bizdate=YYYYMMDD` — PC 표
+    (investorDealTrendDay)가 2026-09-21 HTTP 410 으로 사라진 뒤 Npay 증권 앱·웹이 쓰는 창구.
+    단위 억원(2026-09-29 실측: 09-28 개인 +26,467 · 외국인 −32,682 · 기관 −10,169 = KRX 확정치).
+    휴장일·주말에도 200 을 주고 값이 0·0·0 이라 그것을 '없음'으로 읽는다.
     """
-    sosok = _NAVER_SOSOK.get(market)
-    if not sosok:
-        return []
-    bizdate = bizdate or datetime.datetime.now(KST).strftime("%Y%m%d")
-    url = ("https://finance.naver.com/sise/investorDealTrendDay.naver"
-           f"?bizdate={bizdate}&sosok={sosok}&page=1")
+    import json
+    url = f"https://m.stock.naver.com/api/index/{market}/trend?bizdate={bizdate}"
     req = urllib.request.Request(url, headers={"User-Agent": _UA,
                                                "Accept-Language": "ko-KR,ko;q=0.9"})
-    html = urllib.request.urlopen(req, timeout=timeout).read().decode("euc-kr", "replace")
-    if "억원" not in html:                       # 단위 캡션이 사라지면 값 의미를 보증할 수 없다
-        log("네이버 표 단위 캡션(억원) 미확인 — 파싱 중단")
+    j = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+    if not isinstance(j, dict) or j.get("bizdate") != bizdate:
+        return None
+    vals = [_num(j.get(k)) for k in ("foreignValue", "institutionalValue", "personalValue")]
+    if any(v is None for v in vals) or not any(vals):
+        return None
+    f, i, p = vals
+    return {"date": f"{bizdate[:4]}-{bizdate[4:6]}-{bizdate[6:]}",
+            "foreign": f, "inst": i, "retail": p}
+
+
+def naver_daily(market="KOSPI", bizdate=None, days=10, timeout=10):
+    """네이버 증권 최근 `days` 영업일 → [{date, foreign, inst, retail}] 오름차순.
+
+    하루 한 번 호출이라 주말은 부르지 않고, 휴장일(0·0·0)은 건너뛰며 거슬러 올라간다.
+    통신 오류는 그대로 올린다 — 호출측(portal_daily)이 KRX 확정치로 폴백한다.
+    """
+    if market not in _NAVER_MARKETS:
         return []
+    d = datetime.datetime.strptime(
+        bizdate or datetime.datetime.now(KST).strftime("%Y%m%d"), "%Y%m%d").date()
     rows = []
-    for tr in re.findall(r"<tr.*?</tr>", html, re.S):
-        cells = [re.sub(r"<[^>]+>", "", c) for c in re.findall(r"<t[hd].*?</t[hd]>", tr, re.S)]
-        if len(cells) < 11:
-            continue
-        d = re.sub(r"\s", "", cells[0])
-        if not re.match(r"^\d\d\.\d\d\.\d\d$", d):
-            continue
-        vals = [_num(cells[i]) for i in (1, 2, 3, 10)]
-        if any(v is None for v in vals):
-            continue
-        retail, foreign, inst, other = vals
-        rows.append({"date": "20" + d.replace(".", "-"), "foreign": foreign,
-                     "inst": inst, "retail": retail, "other": other})
-    rows.sort(key=lambda r: r["date"])
-    return rows
+    for _ in range(days * 2 + 7):                  # 추석·설 연휴(평일 3일) 여유
+        if len(rows) >= days:
+            break
+        if d.weekday() < 5:
+            r = naver_day(market, d.strftime("%Y%m%d"), timeout)
+            if r:
+                rows.append(r)
+        d -= datetime.timedelta(days=1)
+    return rows[::-1]
 
 
 def _krx_daily_from_data(market="KOSPI"):
     """fetch-data 가 pykrx(KRX 로그인)로 받아 data.json 에 실은 KRX 확정 수급 → 같은 형태.
 
-    네이버 investorDealTrendDay 가 2026-09-21 HTTP 410 으로 사라진 뒤의 포털 기준 대체다 —
-    네이버가 보여주던 값이 곧 KRX 집계라 기준이 같다. 알림 스크립트에 pykrx·로그인을
+    네이버 조회가 실패할 때의 포털 기준 대체다 — 네이버가 보여주는 값이 곧 KRX 집계라
+    기준이 같다(외국인합계 정의 차로 ±수십억, 드물게 수천억 어긋난다). 알림 스크립트에 pykrx·로그인을
     끌어오지 않으려고(6초+) 파이프라인이 이미 받아 둔 행을 읽는다. KOSPI 만.
     """
     if market != "KOSPI":
