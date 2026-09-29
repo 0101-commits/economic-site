@@ -197,8 +197,16 @@ KPI 카드 라벨을 `h3` 로 올리는 것도 틀렸다 — 그건 제목이 �
   한자 등급(高中低) · OW/UW · 호재/악재/혼재 는 쓰지 않는다. 상태 배지는 SEED badge tone critical/warning/neutral, 화면당 critical ≤3.
 - **딥링크 첫 도착** — `applyRealData` 말미가 보이는 원자재 탭을 다시 그린다(`?p=market&t=commodity` 로 곧장 오면
   차트 6개가 비어 있던 버그). `loadRealData` 의 활성 화면 재렌더는 두 번째 갱신부터만 돈다는 걸 기억할 것.
-- 게이트 `tests/ui/readability2.mjs` R1~R8. 통과선을 강제하는 화면은 파일의 `STRICT_DEFAULT`(P0 = 원자재 탭 엘니뇨 카드 ·
-  메르 렌즈) — 단계가 넓어질 때 같이 넓힌다. 나머지 화면은 측정만 하고 `warn` 으로 알린다.
+- **화면 결론 줄은 한 함수가 쓴다** — `econLeadsRefresh()`(js/app1.js 끝, 화면별 `_lead*` 빌더 7개)가 목차 바로 아래
+  `p.econ-lead--page` 를 만든다. 부르는 곳은 셋뿐: `showPage` 끝 · `applyRealData` 끝 · `econSetViewParam`(보기 전환).
+  문장은 그 화면이 이미 계산한 값(KPI 카드 글자 · `eqData` · `macroData` · `fxPairs` · `currentRates` · `globalBonds` ·
+  `comData` · `npsHistory` · `realestate` · `calEvents`)에서만 만든다 — 새 수집 0, 값이 없으면 「자료 없음」.
+- **셋째 층은 접힘 뒤로** — 거시 `#macroFolds`(전체 지표·뉴스), 원자재 `#comFolds`(섹터 차트 4·LME·금속·운임),
+  시장 지표 `#marketFolds`(매매중단 이력, 탭 아래). 이 셋은 주소에 싣지 않는다(macro.v 는 보기 방식, market.v 는 엘니뇨 접힘이 쓴다).
+  닫힌 접힘 안의 차트는 만들지 않는다(`sectorChart` 가 `offsetParent` 를 봄) — 열릴 때 onOpen 이 다시 그린다.
+- 게이트 `tests/ui/readability2.mjs` R1~R8 — 14화면 × 1440/390 전부 통과선(P2·P3, 2026-09-29). R4 는 내용 글자만
+  (버튼·탭·칩·아이콘·배지·콜아웃 제외), R5 는 배지 + 방향색 **말**(숫자 등락은 값), R6 는 라벨로 선 이름만, R7 은 보이는
+  덧판만, R8 은 외부 링크 글자 제외. 사이트 안 이모지는 전부 걷어냈다(국기만 남김) — 새 위젯에 이모지 제목을 달지 말 것.
 
 **컴포넌트 규격은 부품이 강제한다 (6차, `docs/superpowers/specs/2026-09-24-component-spec-consistency-design.md` §4).**
 규칙만 있고 부품이 없으면 위젯 93개가 각자 만든다 — 그게 6차 실측의 갈림(제목 두 벌·도구 차례 31가지·버튼 높이 21가지)이었다.

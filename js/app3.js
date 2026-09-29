@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 // 대시보드 확장 기능 모음
 //  · 🤖 오늘의 매크로 3줄 요약 배너 (Task 4.2 — scripts/ai_briefing.py 산출물 렌더)
-//  · 🔔 경제 캘린더 ★★★ 이벤트 발표 알림 (Task 2.3 — Notification API)
+//  · 경제 캘린더 ★★★ 이벤트 발표 알림 (Task 2.3 — Notification API)
 //  · 🔀 이중축 지표 비교 차트 (Task 3.1)
 //  · ↕ 대시보드 홈 위젯 드래그 정렬 (Task 2.2 — localStorage 저장)
 // ════════════════════════════════════════════════════════════════════════════
@@ -34,7 +34,7 @@ function renderAiBriefing(b) {
     if(/^\d{2}:\d{2}$/.test(_t)) _asofTxt += ` ${_t}`;
   }
   document.getElementById('aiBriefingMeta').innerHTML =
-    (_isOld ? `<span style="color:var(--c-warn);font-weight:var(--font-weight-semibold);">⚠ ${escapeHtml(_asofTxt)} 생성 (오늘 아님)</span>` : escapeHtml(_asofTxt))
+    (_isOld ? `<span style="color:var(--c-warn);font-weight:var(--font-weight-semibold);">${escapeHtml(_asofTxt)} 생성 (오늘 아님)</span>` : escapeHtml(_asofTxt))
     + ` 기준 스냅샷 · ${srcLabel} · 참고용, 투자 조언 아님`;
   // 스테일이면 Callout tone 을 magic → warning 으로. 색 하나가 아니라 톤 전체가 바뀐다.
   const callout = document.getElementById('aiBriefingCallout');
@@ -94,7 +94,7 @@ async function refreshAiBriefing(btn) {
   }
 }
 
-// ── 🚦 시장 리스크 신호등 + 📌 오늘의 브리핑 스트립 ─────────────────────────
+// ── 시장 리스크 신호등 + 오늘의 브리핑 스트립 ─────────────────────────
 // 8개 구성 지표를 0~100 위험 점수로 합성 — 고정 임계값 대신 각 지표의 자기 이력
 // 백분위(가용 창 기준)를 사용해 수집 소스의 척도 변화에 강건하다. 결측 지표는
 // 가중치 재정규화로 제외 (VKOSPI 는 이력 30일·척도 비표준이라 산식에서 의도적 제외).
@@ -209,7 +209,7 @@ function showRiskDetail() {
       <td style="${td}text-align:right;color:var(--c-txt-dim);">${Math.round(c.w * 100)}%</td>
     </tr>`;
   }).join('');
-  openInfoModal('🚦 시장 리스크 신호등',
+  openInfoModal('시장 리스크 신호등',
     `${dot(r.light, 9)}종합 <b>${r.score}점</b> · ${_RISK_DESC[r.light]}`,
     `<table class="econ-table" style="margin-bottom:10px;">
        <thead><tr>
@@ -226,7 +226,7 @@ function showRiskDetail() {
      </div>`);
 }
 
-// ── 📌 오늘의 브리핑 스트립 ────────────────────────────────────────────────
+// ── 오늘의 브리핑 스트립 ────────────────────────────────────────────────
 // 자릿수는 app1 의 INDICATOR_DECIMALS 가 정한다(단일 원천). app1 이 아직 없으면
 // 종전 동작으로 떨어진다 — 로더가 파일별 독립 스크립트라 순서를 가정하지 않는다.
 function _bsNum(v, kind) {
@@ -398,7 +398,7 @@ function renderKpiPctBadges(d) {
   });
 }
 
-// ── 💬 AI 브리핑 대화형 질문 — Worker /ai question 모드 (동기화 키 보유 기기 전용) ──
+// ── AI 브리핑 대화형 질문 — Worker /ai question 모드 (동기화 키 보유 기기 전용) ──
 let _aiQaBusy = false, _aiQaLastTs = 0;
 
 function updateAiQaVisibility() {
@@ -479,7 +479,7 @@ async function aiQaAsk() {
   const keyHash = await pfGetSyncKeyHash();
   if(!keyHash) {
     out.style.display = 'block';
-    out.textContent = '🔑 동기화 키가 필요합니다 — ⚙ 설정 페이지의 [🔑 동기화 키] 버튼으로 등록하세요.';
+    out.textContent = '동기화 키가 필요합니다 — ⚙ 설정 페이지의 [동기화 키] 버튼으로 등록하세요.';
     return;
   }
   _aiQaBusy = true; _aiQaLastTs = now;
@@ -508,10 +508,10 @@ async function aiQaAsk() {
         no_ai_available: 'Worker 에 AI 엔진(GEMINI_API_KEY 등)이 설정되지 않았습니다.',
         forbidden_origin: '이 도메인에서는 사용할 수 없습니다 (GitHub Pages 원본에서 이용).',
       };
-      out.textContent = '⚠ ' + (msgMap[code] || '일시적으로 사용할 수 없습니다 — 잠시 후 질문해 주세요.');
+      out.textContent = '' + (msgMap[code] || '일시적으로 사용할 수 없습니다 — 잠시 후 질문해 주세요.');
     }
   } catch(_) {
-    out.textContent = '⚠ 네트워크 오류 — 잠시 후 질문해 주세요.';
+    out.textContent = '네트워크 오류 — 잠시 후 질문해 주세요.';
   } finally {
     _aiQaBusy = false;
     btn.disabled = false; input.disabled = false; btn.textContent = prevTxt;
@@ -520,7 +520,7 @@ async function aiQaAsk() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 📚 스터디 기록 (page-study)
+// 스터디 기록 (page-study)
 //   설계: 메타데이터(제목·참석자·회의록·액션아이템)는 localStorage,
 //         업로드 파일(영상·음성·문서) 실체는 IndexedDB blob 으로 분리 저장한다.
 //         localStorage 는 5MB 한도라 미디어를 담을 수 없고, IndexedDB 는 수 GB 까지
@@ -618,7 +618,7 @@ function stySave(store, quiet) {
     if(!quiet) _stySaveState('저장됨 · ' + new Date().toLocaleTimeString('ko-KR'));
     return true;
   } catch(e) {
-    _stySaveState('⚠ 저장 실패 — 브라우저 저장 공간이 부족할 수 있습니다');
+    _stySaveState('저장 실패 — 브라우저 저장 공간이 부족할 수 있습니다');
     if(typeof showToast === 'function') showToast('스터디 기록 저장 실패 — 저장 공간을 확인하세요.');
     return false;
   }
@@ -804,7 +804,7 @@ function styRenderFiles() {
   }).join('');
   html += links.map(function(l) {
     return '<div class="study-file">' +
-      '<span aria-hidden="true">🔗</span>' +
+      '<span aria-hidden="true"></span>' +
       '<a class="study-file-name" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener noreferrer"' +
       ' title="' + escapeHtml(l.url) + '" style="color:var(--c-accent);">' + escapeHtml(l.label || l.url) + '</a>' +
       '<button class="study-btn danger" onclick="styRemoveLink(\'' + l.lid + '\')" title="삭제">×</button>' +
@@ -1285,7 +1285,7 @@ async function styAiSummarize() {
     try { keyHash = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : null; } catch(_) {}
     if(!keyHash) {
       apply(_styLocalSummary(s), 'AI 미사용 · 규칙 기반 자동 정리');
-      if(typeof showToast === 'function') showToast('동기화 키가 없어 규칙 기반으로 정리했습니다. (⚙ 설정 → 🔑 동기화 키 등록 시 AI 사용)', 5000);
+      if(typeof showToast === 'function') showToast('동기화 키가 없어 규칙 기반으로 정리했습니다. (⚙ 설정 → 동기화 키 등록 시 AI 사용)', 5000);
       return;
     }
     const snapshot = {
@@ -1415,7 +1415,7 @@ function styImport(input) {
       // 파일 복원 실패를 조용히 넘기면 사용자는 기기 이관 후 첨부가 사라진 것을 뒤늦게 발견한다.
       showToast('가져오기 완료 — 기록 ' + p.sessions.length + '건' +
                 (fileOk ? ' · 파일 ' + fileOk + '개' : '') +
-                (fileFail ? ' · ⚠ 파일 ' + fileFail + '개 복원 실패(백업에 파일이 없거나 손상)' : '') + '.',
+                (fileFail ? ' · 파일 ' + fileFail + '개 복원 실패(백업에 파일이 없거나 손상)' : '') + '.',
                 fileFail ? 6000 : 3000);
     }
   };
@@ -1450,7 +1450,7 @@ function initStudyPage() {
   styRenderAll();
 }
 
-// ── 🔔 경제 캘린더 ★★★ 이벤트 발표 알림 ──────────────────────────────────
+// ── 경제 캘린더 ★★★ 이벤트 발표 알림 ──────────────────────────────────
 const CAL_ALERTS_LS_KEY = 'econ_cal_alerts_v1';
 
 function _calAlertsLoad() {
@@ -1489,7 +1489,7 @@ function toggleCalAlert(calIdx, btn) {
         showToast('브라우저 알림이 차단되어 페이지 내 토스트로 알려드립니다.');
       }
     }
-    showToast(`🔔 '${e.name}' 발표 시 알림을 보냅니다. (페이지가 열려 있는 동안)`, 4000);
+    showToast(`'${e.name}' 발표 시 알림을 보냅니다. (페이지가 열려 있는 동안)`, 4000);
   }
   // 벨 상태 갱신 — 캘린더 페이지가 활성일 때만 재렌더
   try {
@@ -2013,12 +2013,16 @@ var WCOLLAPSE_DEFAULT_COLLAPSED = ['지표 비교 차트'];   // 제목 부분�
 // 첫 스크롤에서 답할 필요가 없다. 사용자가 펼치면 그 선택은 저장된다.
 // L2(지수표·분위기)까지 넣은 이유: 390 폭에서 L1+L2 만으로 1,600px 를 써서 홈이
 // 3.7 화면이었다. 값 자체는 상단 브리핑 스트립·KPI 4카드가 이미 한 줄로 보여준다.
-// ⚠ 이 목록은 '제목 텍스트 부분일치'로 위젯을 고른다 — 제목을 고치면 여기도 고쳐야 한다
+// 이 목록은 '제목 텍스트 부분일치'로 위젯을 고른다 — 제목을 고치면 여기도 고쳐야 한다
 // (IA v3 P1 에서 'KOSPI 지수'→'KOSPI 추이', '글로벌 주요 지수'→'글로벌 지수'로 바뀌었고,
 //  그때 이 목록을 빠뜨려 390 홈이 1,763 → 3,696px 로 부풀었다).
 var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 추이', '등락 Top10', '최신 경제 뉴스',
                                           '글로벌 지수', '시장 분위기',
                                           // (메르 렌즈 무거운 4블록은 접힘 묶음이 맡는다 — 2026-09-29)
+                                          // 2026-09-29 가독성 P2·P3 — 390 화면수 ≤3.0(R3). 주식 Top10 4표(486px×4) ·
+                                          // 투자자 성과 요약(514) · 부동산 하위 3위젯 · 원자재 섹터 차트 4·LME·금속·운임.
+                                          'Top10', '연도별 성과 요약', '주택담보대출', '주택 거래', '대출 규제', '지역별 등락률',
+                                          '원자재 현물 가격',   // 원자재 탭 390 = 3.4화면 → 표(400px)를 접어 3.0 아래로. 값은 WTI 차트 머리와 결론 줄이 말한다
                                           // 주식시장은 표 6개 83행이 한 화면에 이어졌다 — 대표 2표만 펼친다
                                           'ETF 상승', 'ETF 하락', '거래대금 Top20', '토스증권 체결',
                                           // §C6(2026-09-19) — 390 에서 거시 4.5화면 · 부동산 4.2화면(M5 기준 4.0).
@@ -2217,6 +2221,11 @@ function buildPageTocs(){
           requestAnimationFrame(function(){
             var el = _tocTarget(page, it);
             if(!el) return;
+            // 접힘 묶음(.econ-fold) 안이면 먼저 편다 — 알약(aria-controls)을 눌러 주소 v= 도 따라간다
+            var panel = el.closest ? el.closest('.econ-fold__panel') : null;
+            if(panel && !panel.classList.contains('open') && panel.id){
+              var pill = page.querySelector('.econ-fold__btn[aria-controls="' + panel.id + '"]'); if(pill) pill.click();
+            }
             // 접힌 위젯이면 펼치고 이동
             if(el.classList && el.classList.contains('w-collapsed')){
               var tg = el.querySelector('.w-toggle'); if(tg) tg.click();
@@ -2343,7 +2352,7 @@ window.addEventListener('load', () => {
   try { renderMarketStatus(); setInterval(renderMarketStatus, 60000); } catch(_) {}   // §C4 시장 상태
   // data.json 이 이미 적용된 경우(applyRealData 가 먼저 돈 경우) 비교 차트 즉시 초기화
   try { initCompareTool(); } catch(_) {}
-  // 📌 브리핑 스트립 — 데이터 도착 전에도 '다음 일정' 칩은 정적 calEvents 로 선표시
+  // 브리핑 스트립 — 데이터 도착 전에도 '다음 일정' 칩은 정적 calEvents 로 선표시
   try { renderBriefStrip(_latestDataForIndicators || {}); } catch(_) {}
   try { renderRiskLight(_latestDataForIndicators); } catch(_) {}
   try { updateAiQaVisibility(); } catch(_) {}

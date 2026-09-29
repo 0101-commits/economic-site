@@ -31,7 +31,7 @@ const VIEWS = [
   { page: 'equity',  axis: 'f', pick: `#market-equity .tab-btn`, text: 'KOSDAQ', expect: 'kosdaq' },
   { page: 'equity',  axis: 'r', pick: `#market-equity .eq-unit-btn`, nth: 2 },
   { page: 'macro',   axis: 'v', pick: `#macroViewToggle button`, nth: 1, expect: 'topic' },
-  { page: 'macro',   axis: 'f', pick: `.econ-catchips button`, nth: 2 },
+  { page: 'macro',   axis: 'f', pre: `#macroFolds [data-fold="all"]`, pick: `.econ-catchips button`, nth: 2 },   // 분류 칩은 접힘 「전체 지표」 안
   // 2026-09-29 개편 — 트리거 표는 접힘 묶음 뒤에 있다. pre = 먼저 누를 것(접힘 열기).
   { page: 'merlens', axis: 'f', pre: `#merlensFolds [data-fold="monitor"]`, pick: `[data-mer-filter="crossed"]`, expect: 'crossed' },
   { page: 'merlens', axis: 'v', pick: `#merlensFolds [data-fold="events"]`, expect: 'events' },

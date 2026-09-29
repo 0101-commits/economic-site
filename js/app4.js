@@ -154,7 +154,7 @@ function mountGuideBanner(anchorEl, key, html, position) {
   var div = document.createElement('div');
   div.className = 'guide-banner';
   div.id = 'guide-' + key;
-  div.innerHTML = '<span>💡</span><span>' + html + '</span><button type="button" class="guide-x btn-plain btn-inline" onclick="dismissGuide(\'' + key + '\',this)" title="다시 보지 않기">✕</button>';
+  div.innerHTML = '<span>' + html + '</span><button type="button" class="guide-x btn-plain btn-inline" onclick="dismissGuide(\'' + key + '\',this)" title="다시 보지 않기">✕</button>';
   anchorEl.insertAdjacentElement(position || 'beforebegin', div);
 }
 function _applyDefaultPresetsForActivePage() {

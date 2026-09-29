@@ -76,7 +76,7 @@
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebSite","name":"경제현황 터미널","url":"https://0101-commits.github.io/economic-site/","inLanguage":"ko-KR","description":"KOSPI·환율·금리·원자재·부동산·연기금을 한 화면에서 보는 개인 경제현황 터미널"}
 </script>
-<!-- 인라인 SVG 파비콘(📈) — favicon.ico 404 제거 -->
+<!-- 인라인 SVG 파비콘() — favicon.ico 404 제거 -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E"/>
 <!-- ⛔ Tailwind Play CDN 제거됨 (의도적) — 근본 원인 제거:
      · 이 페이지는 Tailwind '유틸리티 클래스'(flex/grid/p-4/bg-* 등)를 단 하나도 쓰지 않는다.
@@ -158,8 +158,8 @@
 <!-- icon_names 서브셋(알파벳순 필수) — 전체 가변 아이콘 폰트(200KB+) 대신 실사용 16종만 받아
      용량 90%+ 절감. display=block: 아이콘 폰트는 swap 시 'menu_open' 같은 리거처 원문이
      그대로 보였다가 교체되는 결함이 있어 짧은 공백이 낫다(Google Fonts 권장).
-     ⚠ 새 아이콘을 쓰려면 여기 icon_names 에도 추가해야 한다(빠지면 이름 텍스트가 그대로 노출). -->
-<!-- ⚠ icon_names= 는 서브셋 목록이다. 여기 없는 아이콘을 .mat 으로 쓰면 폰트가
+     새 아이콘을 쓰려면 여기 icon_names 에도 추가해야 한다(빠지면 이름 텍스트가 그대로 노출). -->
+<!-- icon_names= 는 서브셋 목록이다. 여기 없는 아이콘을 .mat 으로 쓰면 폰트가
      리거처를 못 만들어 이름이 그대로 글자로 찍힌다(헤더에 거대한 "SEARCH" 가 뜬 원인).
      새 아이콘을 쓰면 반드시 이 목록에 알파벳 순으로 추가할 것. -->
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&icon_names=account_balance,article,calendar_month,candlestick_chart,chevron_right,close,compare_arrows,dark_mode,edit_note,event,history,history_edu,home,home_work,insights,light_mode,lock,menu,menu_open,monitoring,more_horiz,pause,play_arrow,public,refresh,search,settings,show_chart,star,swap_horiz&display=block" rel="stylesheet"/>
@@ -336,7 +336,7 @@
      우변은 astryx --color-* 다. 여기서 --color-* 의 우변만 --seed-* 로 갈아끼우면
      인라인 style 2,803곳·별칭 사용처 전부를 손대지 않고 12페이지 색이 함께 바뀐다.
 
-     ⚠ 셀렉터 규칙(적대 검증에서 확인된 출시 차단 결함)
+     셀렉터 규칙(적대 검증에서 확인된 출시 차단 결함)
        · html:root{} — :root{} 단독은 astryx html.light{}(동특이성·앞선 순서)에게
          라이트에서 패배한다. html:root 도 (0,1,1) 이지만 뒤에 오므로 이긴다.
        · var(--seed-…, #hex) 폴백 — seed.css 로드 실패 시 전면 무색을 막는다.
@@ -596,8 +596,8 @@
 
   /* ═══ SEED 브랜드 토큰 오버라이드 — carrot → blue ═══
      경제 대시보드에서 주황 버튼은 '상승 신호'로 오독된다(carrot hue 24° ≈ 상승 빨강).
-     ⚠ (0,2,0) 필요: base.css 의 bare :root 라이트 정의를 이겨야 한다.
-     ⚠ 다크 블록도 따로: base.css 다크 블록(0,2,0)에 지면 다크에서 carrot 이 복귀한다. */
+     (0,2,0) 필요: base.css 의 bare :root 라이트 정의를 이겨야 한다.
+     다크 블록도 따로: base.css 다크 블록(0,2,0)에 지면 다크에서 carrot 이 복귀한다. */
   :root:root {
     --seed-color-fg-brand:               var(--seed-color-palette-blue-800); /* L #135fcd — 흰 글자 5.92 */
     --seed-color-fg-brand-contrast:      var(--seed-color-palette-blue-900);
@@ -613,7 +613,7 @@
        등 55곳)가 전부 미달이었다. 한 단계 내려 gray-800(5.9:1)으로 통일한다.
        상태색도 같은 이유로 700 → 800 이다: 본문 11~12px 에 얹히므로
        green-700(3.73) · red-700(3.53) 으로는 통과하지 못한다.
-       ⚠ 여기(0,2,0)에 둬야 한다 — base.css 의 라이트 정의가 같은 (0,2,0) 이라
+       여기(0,2,0)에 둬야 한다 — base.css 의 라이트 정의가 같은 (0,2,0) 이라
        브리지의 html:root(0,1,1)에 두면 진다(실측으로 확인).
        다크는 배경이 어두워 700 이 충분하므로 아래 dark-only 에서 되돌린다. */
     --seed-color-fg-neutral-subtle: var(--seed-color-palette-gray-800);
@@ -653,7 +653,7 @@
   /* brandSolid 버튼 글자는 SEED 가 static-white 로 못박아 둔다. 다크 브랜드가
      blue-700(#41a2f9)이라 흰 글자는 2.71:1 이다 — 배경이 밝을수록 흰 글자가 진다.
      다크에서만 글자를 검정으로 뒤집는다(7.6:1). 브랜드 색 자체는 그대로다.
-     ⚠ gray-1000 은 테마마다 뒤집히는 이름이라(다크에서 #f3f4f5) 여기선 못 쓴다 —
+     gray-1000 은 테마마다 뒤집히는 이름이라(다크에서 #f3f4f5) 여기선 못 쓴다 —
        배경이 고정 hex 이므로 글자도 고정색이어야 한다. */
   :root[data-seed-color-mode="dark-only"] .seed-action-button--variant_brandSolid {
     color: var(--seed-color-palette-static-black);
@@ -1609,7 +1609,7 @@
   @keyframes ann-pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
   /* 🚨 시장중단(서킷브레이커·사이드카) 경고 */
   #marketHaltBanner { position: fixed; top: var(--frame-top); left: 0; right: 0; z-index: 298; display: none; flex-direction: column; }
-  /* ⚠️ 알림 파이프라인 경고 배너 — 시장중단 배너 '아래'에 스택(top 은 JS _syncTopBanners 가 보정) */
+  /* 알림 파이프라인 경고 배너 — 시장중단 배너 '아래'에 스택(top 은 JS _syncTopBanners 가 보정) */
   #pipelineWarnBanner { position: fixed; top: calc(var(--frame-top) + var(--frame-halt)); left: 0; right: 0; z-index: 297; display: none; flex-direction: column; }
   /* 배너 색·패딩·닫기 버튼은 seed-page-banner recipe 가 준다(tone_critical/warning
      × variant_solid/weak). 여기 남은 것은 recipe 에 없는 카운트다운 숫자 표시뿐. */
@@ -1832,7 +1832,7 @@ html.light .ann-chip { color: rgb(53, 108, 181); }
 /* ── 12. 다크 모드: 테이블 행 hover ──────────────────────────── */
 tr:hover td { background: rgba(170, 195, 255, 0.05); }
 
-/* ── 13. 📝 메르 블로그 검색 페이지 ───────────────────────────── */
+/* ── 13. 메르 블로그 검색 페이지 ───────────────────────────── */
 .mer-searchbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
 .mer-searchbar input[type=search]{flex:1;min-width:220px}
 .mer-item{border:1px solid var(--c-border);border-radius:var(--r-sm);padding:12px;margin:8px 0;background:var(--c-card,transparent)}
@@ -1844,7 +1844,7 @@ tr:hover td { background: rgba(170, 195, 255, 0.05); }
 .mer-item a{color:var(--c-accent)}
 .mer-item button{background:transparent;color:var(--c-txt-dim);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 10px;font-size:var(--font-size-xs);cursor:pointer;margin-top:4px}
 
-/* ── 14. 🧭 메르 리스크 렌즈 ── */
+/* ── 14. 메르 리스크 렌즈 ── */
 .mer-regime-strip{display:flex;gap:2px;overflow-x:auto}
 /* 국면 칩 — 예전엔 시리즈 색을 통째로 깔고 흰 글자를 얹어 1.97:1 이었다(다크 24곳).
    시리즈 색은 파스텔이라 흰 글자가 항상 진다. 배경을 옅게 깔고 글자는 본문색으로
@@ -1982,6 +1982,16 @@ canvas.econ-await-off{animation:none;background:var(--c-surface)}
 .econ-fold__panel:not(.open){display:none}
 .econ-fold__panel{margin-top:12px}
 .econ-fold__panel.widget{margin-top:var(--gap-w,16px)}
+/* 화면 결론 줄 — 목차(nav.page-toc) 바로 아래 한 문장. econLeadsRefresh(app1.js) 가 화면·자료 갱신마다 다시 쓴다 */
+.econ-lead--page{margin:-2px 0 14px}
+/* 시장 분위기 행 제목은 본문 크기 — 화면 글자 크기 5종 안에(R4). list-item recipe 의 t5(16) 대신 t4(14) */
+#page-dashboard .seed-list-item__title{font-size:var(--font-size-base)}
+/* 좁은 폭 — 원자재 방향 줄은 이름·막대 한 줄, 이유는 아래 줄(3열 격자면 줄마다 65px 였다) */
+@media (max-width:480px){
+  .econ-dir-row{grid-template-columns:minmax(72px,96px) 1fr;row-gap:2px}
+  .econ-dir-row__note{grid-column:1 / -1}
+  .econ-dir-row--sec{grid-template-columns:56px 1fr}
+}
 /* ── P3 2부: 전이경로맵·매트릭스·타임라인·이벤트 ── */
 .mer-graph-svg{width:100%;height:auto;display:block}
 .mer-graph-edge{opacity:.55}
@@ -2186,7 +2196,7 @@ th[aria-sort]:hover { color: var(--c-primary); }
    ① 정렬 가능: 얙은 ⇅ 로 "이 머리는 눌린다"를 알린다(실측에서는 이 표식이 없어
       50~93개 열 중 어느 것이 눌리는지 화면이 말하지 않았다) ② 오름차순 ▲ ③ 내림차순 ▼.
    글자가 아니라 ::after 라서 셀 텍스트를 오염시키지 않는다(G6 자릿수 검사와 충돌 없음).
-   ⚠ 문자는 **리터럴로** 적는다 — 전엔 CSS 이스케이프였는데 8진 이스케이프로 해석돼
+   문자는 **리터럴로** 적는다 — 전엔 CSS 이스케이프였는데 8진 이스케이프로 해석돼
    제어문자 + "91" 이 화면에 찍혔다(정렬하면 열 머리에 '91'/'93' 이 보였다). */
 th[aria-sort="none"]::after { content: ' ⇅'; color: var(--c-txt-muted); font-size: var(--font-size-xs); }
 th[aria-sort="ascending"]::after { content: ' ▲'; color: var(--c-primary); font-size: var(--font-size-xs); }
@@ -2609,7 +2619,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 </div>
 
 <div id="marketHaltBanner" role="alert" aria-live="assertive"></div>
-<!-- ⚠️ 알림 파이프라인 경고 — Worker 헬스(GET /)의 ghTokenValid===false(GH 토큰 만료 확정)일 때만 표시 -->
+<!-- 알림 파이프라인 경고 — Worker 헬스(GET /)의 ghTokenValid===false(GH 토큰 만료 확정)일 때만 표시 -->
 <div id="pipelineWarnBanner" role="alert" aria-live="polite"></div>
 
 <!-- ====== 레이아웃 ====== -->
@@ -2818,7 +2828,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div id="reDrillMeta" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:2px;">—</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <button id="reDrillTrendBtn" class="u-touch-hit" onclick="_drillShowTrend()" title="해당 시도 가격지수 추이 보기" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">📈 추이</button>
+          <button id="reDrillTrendBtn" class="u-touch-hit" onclick="_drillShowTrend()" title="해당 시도 가격지수 추이 보기" style="background:var(--c-card);color:var(--c-primary);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:3px 10px;font-size:var(--font-size-sm);cursor:pointer;">추이</button>
           <button class="u-touch" aria-label="닫기" onclick="closeRegionDrill()" style="background:transparent;border:none;color:var(--c-txt-dim);font-size:var(--font-size-2xl);cursor:pointer;line-height:1;padding:0 4px;">×</button>
         </div>
       </div>
@@ -2902,7 +2912,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <h3 class="seed-callout__title seed-callout__title--tone_magic widget-title" style="margin-bottom:0;">오늘의 매크로 3줄 요약</h3>
                   <div id="aiBriefingLines" class="seed-callout__description seed-callout__description--tone_magic econ-brief-lines"></div>
                   <div id="aiBriefingMeta" class="econ-meta"></div>
-                  <!-- 💬 AI 질문 — 동기화 키 보유(소유자) 기기에서만 표시 -->
+                  <!-- AI 질문 — 동기화 키 보유(소유자) 기기에서만 표시 -->
                   <div id="aiQaBox" class="econ-qa" hidden>
                     <div id="aiQaAnswer" class="econ-qa__answer" hidden></div>
                     <div class="econ-qa__row">
@@ -3237,7 +3247,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div role="tablist" aria-label="투자 현황 탭" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--c-border);padding-bottom:8px;">
         <button role="tab" id="pfTabBtn-brief" onclick="pfShowTab('brief')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">브리핑</button>
         <button role="tab" id="pfTabBtn-holdings" onclick="pfShowTab('holdings')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">💼 포트폴리오</button>
-        <button role="tab" id="pfTabBtn-stock" onclick="pfShowTab('stock')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">🔍 종목 분석</button>
+        <button role="tab" id="pfTabBtn-stock" onclick="pfShowTab('stock')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">종목 분석</button>
         <button role="tab" id="pfTabBtn-signal" onclick="pfShowTab('signal')" class=" seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" data-ssr aria-selected="false">시장 신호</button>
       </div>
       <div id="pfTab-brief" role="tabpanel" style="display:none;"></div>
@@ -3326,7 +3336,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </table>
           </div>
           <div id="pfCardList"></div>
-          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;">행 클릭 = 상세 차트 · 🔔 = 카카오 알림 조건 · 평단가/수량은 셀에서 바로 수정됩니다. <b>「☁ 목록 저장」</b>을 누르면 관심종목·그룹이 서버에 저장돼 다른 기기/플랫폼에서 <b>「⬇ 불러오기」</b>로 같은 목록을 볼 수 있습니다(동기화 키 필요 · ⚙ 설정). 평단가·수량은 공개 노출 방지를 위해 이 브라우저(localStorage)에만 저장됩니다.</div>
+          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;">행 클릭 = 상세 차트 · = 카카오 알림 조건 · 평단가/수량은 셀에서 바로 수정됩니다. <b>「☁ 목록 저장」</b>을 누르면 관심종목·그룹이 서버에 저장돼 다른 기기/플랫폼에서 <b>「⬇ 불러오기」</b>로 같은 목록을 볼 수 있습니다(동기화 키 필요 · ⚙ 설정). 평단가·수량은 공개 노출 방지를 위해 이 브라우저(localStorage)에만 저장됩니다.</div>
         </div>
 
         <!-- 우: 자산 비중 파이 차트 -->
@@ -3344,7 +3354,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
       </div>
 
-      <!-- 📈 수익률 추이 vs 벤치마크 (3.2) — 방문일별 스냅샷 기반, KOSPI·S&P500 오버레이 -->
+      <!-- 수익률 추이 vs 벤치마크 (3.2) — 방문일별 스냅샷 기반, KOSPI·S&P500 오버레이 -->
       <div class="widget" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
           <h3 class="widget-title" style="margin-bottom:0;">수익률 추이 vs 벤치마크 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">KOSPI · S&amp;P 500 대비 초과수익(알파) 측정</span></h3>
@@ -3366,7 +3376,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span id="pfSyncStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);"></span>
           </div>
         </div>
-        <div id="pfAlertSummary" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">설정된 알림이 없습니다. 종목 행의 🔔 버튼으로 추가하세요.</div>
+        <div id="pfAlertSummary" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">설정된 알림이 없습니다. 종목 행의 버튼으로 추가하세요.</div>
         <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">
           알림은 장중 <b>매분</b> 서버(GitHub Actions)가 조건을 평가해 카카오톡으로 발송합니다(조건 충족 후 보통 1~2분 내 안내). <b>발송되려면 반드시 「☁ 서버에 저장」을 눌러야 합니다.</b>
           도배 방지: 알림별로 <b>하루 1회</b> 또는 <b>1시간 쿨다운</b> 중 선택. 알림 메시지에는 무료 시세 지연 가능 고지가 함께 표기됩니다.
@@ -3420,7 +3430,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div id="pfAlertModal" style="display:none;position:fixed;inset:0;z-index:310;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="if(event.target===this)pfCloseAlerts()">
         <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,94vw);max-height:90vh;overflow-y:auto;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <span style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-txt);">🔔 <span id="pfAlertModalName">-</span> 카카오 알림</span>
+            <span style="font-size:var(--font-size-base);font-weight:var(--font-weight-bold);color:var(--c-txt);"><span id="pfAlertModalName">-</span> 카카오 알림</span>
             <button class="u-touch" aria-label="닫기" onclick="pfCloseAlerts()" style="background:transparent;border:none;color:var(--c-txt-dim);font-size:var(--font-size-xl);cursor:pointer;line-height:1;">✕</button>
           </div>
           <div id="pfAlertList" style="margin-bottom:12px;"></div>
@@ -3464,14 +3474,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       </div>
     </div>
 
-    <!-- 📈 주식시장 — '시장 지표'의 주식시장 탭을 별도 메뉴/페이지로 분리 (사용자 요청).
+    <!-- 주식시장 — '시장 지표'의 주식시장 탭을 별도 메뉴/페이지로 분리 (사용자 요청).
          실제 콘텐츠(#market-equity)는 페이지 로드 시 스크립트가 page-market 에서 이 셸로
          이동시킨다 (마크업 대이동 없이 분리 — 기존 id/핸들러 전부 보존). -->
     <div class="page" id="page-equity">
       <h2 class="sr-only">주식시장</h2></div>
 
     <div class="page" id="page-market">
-      <div id="marketHaltHistory" class="widget" style="display:none;margin-bottom:16px;"></div>
       <div id="marketMainTabs" style="display:flex;gap:6px;margin-bottom:16px;">
         <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('fx',this)" data-ssr role="tab" aria-selected="true">외환</button>
         <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMarketTab('rate',this)" data-ssr role="tab" aria-selected="false">금리</button>
@@ -3959,6 +3968,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div id="commodityList"></div>
           </div>
         </div>
+        <!-- 접힘 「상세 차트·재고·운임」(기획 2026-09-29 §6) — 섹터 차트 4·LME·금속 심층·운임은 셋째 층. 390 에서 이 탭이 8.4화면이었다.
+             닫힌 동안 차트는 만들지 않는다(sectorChart 가 offsetParent 를 본다), 열리면 _comFoldOpen 이 buildCommodityPage 를 다시 부른다. -->
+        <div class="econ-fold" id="comFolds" style="margin:0 0 var(--gap-w);padding-top:0;border-top:0"></div>
+        <div id="comFold-detail" class="econ-fold__panel">
         <!-- Bottom: sector comparison charts 2x2 -->
         <div class="g-2" style="margin-bottom:var(--gap-w);">
           <div class="widget">
@@ -3998,7 +4011,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </tr></thead>
             <tbody id="metalInventoryTable"></tbody>
           </table>
-          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;"><span id="metalInventoryNote">⚠ 정적 스냅샷(자동 갱신 아님) — 최신 수치는 원본 확인:</span> <a href="https://www.lme.com/en/metals/reports" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">lme.com/metals/reports</a></div>
+          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;"><span id="metalInventoryNote">정적 스냅샷(자동 갱신 아님) — 최신 수치는 원본 확인:</span> <a href="https://www.lme.com/en/metals/reports" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">lme.com/metals/reports</a></div>
         </div>
         <!-- ⚙️ Heavy Metal Stats — COMEX·LME 금속 재고/스퀴즈 심층 분석 (외부 참조) -->
         <div class="widget" style="margin-bottom:12px;">
@@ -4017,15 +4030,15 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:3px;">실시간 창고 재고·Coverage Ratio</div>
             </a>
             <a href="https://www.heavymetalstats.com/precious-metals" target="_blank" rel="noopener noreferrer" style="display:block;padding:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);text-decoration:none;">
-              <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">🥇 귀금속·구리 데이터</div>
+              <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">귀금속·구리 데이터</div>
               <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:3px;">금·은·백금·구리 가격/재고</div>
             </a>
             <a href="https://www.heavymetalstats.com/learn" target="_blank" rel="noopener noreferrer" style="display:block;padding:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);text-decoration:none;">
-              <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">📚 지표 해설</div>
+              <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">지표 해설</div>
               <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:3px;">Coverage·Term Structure·Risk Score</div>
             </a>
             <a href="https://heavymetalstats.com/blog" target="_blank" rel="noopener noreferrer" style="display:block;padding:10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);text-decoration:none;">
-              <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">📰 분석 블로그·스퀴즈 알림</div>
+              <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">분석 블로그·스퀴즈 알림</div>
               <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:3px;">Squeeze Alerts·시장 분석</div>
             </a>
           </div>
@@ -4055,7 +4068,8 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <tbody id="freightTable"></tbody>
           </table>
         </div>
-        <!-- 🌊 엘니뇨·라니냐 기후 영향 분석 (원자재 수급·가격 변동성 → 주가/산업 연동) -->
+        </div><!-- /comFold-detail -->
+        <!-- 엘니뇨·라니냐 기후 영향 분석 (원자재 수급·가격 변동성 → 주가/산업 연동) -->
         <div class="widget" id="ensoCard" style="margin-bottom:12px;">
           <!-- 골격(기획 2026-09-29 §5.1): 머리(이름 + 기준시점 꼬리표) → 결론 줄 → 숫자 칸 4 → 원자재 두 열 → 국내 섹터 → 접힘 묶음.
                본문은 renderEnsoCard(app1.js) 가 그린다. 출처 패널만 정적 — 접힘 「출처·산출 방법」이 연다. -->
@@ -4070,6 +4084,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
         </div>
       </div>
+      <!-- 과거 매매중단 이력 — 셋째 층(이력)이라 탭 내용 아래에 둔다. 종전엔 탭 위에 있어 네 탭 모두 첫 화면을
+           383px(390 에선 1,015px) 잡아먹었다(실측 2026-09-29). 기본 접힘(WCOLLAPSE_DEFAULT_COLLAPSED '매매중단 이력'). -->
+      <div class="econ-fold" id="marketFolds"></div>
+      <div id="marketHaltHistory" class="widget" style="display:none;margin-top:16px;"></div>
     </div><!-- /market -->
 
     <!-- ====== 페이지 3: 거시경제 ====== -->
@@ -4094,17 +4112,18 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <!-- 주제별 탭 (hidden by default) -->
         <div id="macroTopicTabs" style="display:none;gap:6px;">
-          <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('gdp',this)" data-ssr role="tab" aria-selected="true">📈 GDP</button>
-          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('cpi',this)" data-ssr role="tab" aria-selected="false">🔥 물가(CPI)</button>
-          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('unemp',this)" data-ssr role="tab" aria-selected="false">👷 실업률</button>
-          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('trade',this)" data-ssr role="tab" aria-selected="false">🚢 수출</button>
+          <button class="tab-btn active seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('gdp',this)" data-ssr role="tab" aria-selected="true">GDP</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('cpi',this)" data-ssr role="tab" aria-selected="false">물가(CPI)</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('unemp',this)" data-ssr role="tab" aria-selected="false">실업률</button>
+          <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" onclick="setMacroTopicTab('trade',this)" data-ssr role="tab" aria-selected="false">수출</button>
         </div>
       </div>
       <div id="macroContent"></div>
 
-      <!-- 주요 경제 지표 목록 (FRED / 각국 통계청 기반) -->
-      <!-- 주요 경제 지표 — 카테고리별 카드 (미국 부동산 페이지와 동일한 UI) -->
-      <div style="margin-top:12px;">
+      <!-- 접힘 묶음(기획 2026-09-29 §6) — 전체 지표 카드와 뉴스는 셋째 층. 1440 에서 4.6화면이던 것을 첫 화면 차트 4 + 결론 줄로 줄인다.
+           패널은 열기 전엔 그대로(카드는 데이터 도착 때 그려지지만 가벼움), 주소 v= 로 열린 상태를 기억한다(ECON_VIEW macro.v). -->
+      <div class="econ-fold" id="macroFolds"></div>
+      <div id="macroFold-all" class="econ-fold__panel" style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
           <h3 class="widget-title" style="margin-bottom:0;">주요 경제 지표 전체 (실시간)</h3>
           <div style="display:flex;gap:4px;flex-wrap:wrap;" id="macroIndCountryFilter" role="group" aria-label="지표 목록 나라 거르기">
@@ -4121,17 +4140,17 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div id="macroIndCardsRoot"></div>
         <!-- 데이터 소스 연결 상태 -->
         <div class="themed-info-box" style="margin-top:10px;padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-border,var(--c-accent-container));">
-          <div style="font-size:var(--font-size-sm);color:var(--c-txt);font-weight:var(--font-weight-semibold);margin-bottom:6px;">🔌 데이터 소스 연결 상태 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">● 연결됨 / ○ 미연결</span></div>
+          <div style="font-size:var(--font-size-sm);color:var(--c-txt);font-weight:var(--font-weight-semibold);margin-bottom:6px;">데이터 소스 연결 상태 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">● 연결됨 / ○ 미연결</span></div>
           <div class="g-2" id="macroApiStatus" style="gap:4px 12px;"></div>
         </div>
         <!-- 데이터 부족 안내 -->
         <div id="macroMissingApiInfo" class="themed-info-box" style="margin-top:10px;padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-border,var(--c-accent-container));font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.7;display:none;">
-          <strong style="color:var(--c-txt);">📌 추가로 필요한 API/데이터 소스 (현재 빈 지표):</strong>
+          <strong style="color:var(--c-txt);">추가로 필요한 API/데이터 소스 (현재 빈 지표):</strong>
           <ul id="macroMissingApiList" style="margin:6px 0 0 16px;padding:0;color:var(--c-primary);"></ul>
         </div>
       </div>
 
-      <div class="widget" style="margin-top:12px;">
+      <div class="widget econ-fold__panel" id="macroFold-news" style="margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <h3 class="widget-title" style="margin-bottom:0;">거시경제 관련 뉴스</h3>
           <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshNews('macroNewsFeed','macroNewsItems',this)">새로고침</button>
@@ -4221,7 +4240,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <th scope="col" class="econ-table--num">이전값</th>
                 <th scope="col" class="econ-table--num c-opt">예측값</th>
                 <th scope="col" class="econ-table--num">실제값</th>
-                <th scope="col" style="width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">🔔</th>
+                <th scope="col" style="width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">알림</th>
               </tr>
             </thead>
             <tbody id="calendarTable"></tbody>
@@ -4340,7 +4359,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div>
           <div id="styEmpty" class="widget">
             <div class="study-empty">
-              <div style="font-size:var(--font-size-4xl);line-height:1;margin-bottom:8px;" aria-hidden="true">📚</div>
+              <div style="font-size:var(--font-size-4xl);line-height:1;margin-bottom:8px;" aria-hidden="true"></div>
               왼쪽 캘린더에서 날짜를 고르고<br/><b>+ 선택한 날짜에 스터디 기록</b> 을 눌러 시작하세요.<br/>
               <span style="font-size:var(--font-size-sm);">자료·녹화본 업로드 → 재생하며 타임스탬프 메모 → 회의록 자동 정리</span>
             </div>
@@ -4454,19 +4473,19 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="widget" style="display:flex;flex-direction:column;">
           <button class="seed-action-button seed-action-button--variant_brandSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="newNote()" style="margin-bottom:8px;">+ 새 노트</button>
           <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="exportSelectedToExcel()" style="margin-bottom:6px;">↓ Excel 저장</button>
-          <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="exportNotesJsonFile()" style="margin-bottom:6px;" title="모든 노트를 JSON 으로 백업 — 다른 기기/브라우저로 이동 시 보존">💾 전체 JSON 백업</button>
+          <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="exportNotesJsonFile()" style="margin-bottom:6px;" title="모든 노트를 JSON 으로 백업 — 다른 기기/브라우저로 이동 시 보존">전체 JSON 백업</button>
           <label style="background:transparent;color:var(--c-primary);border:1px solid var(--c-accent-container);border-radius:var(--r-sm);padding:7px 12px;font-size:var(--font-size-sm);cursor:pointer;margin-bottom:12px;text-align:center;display:block;">
-            ↥ JSON 가져오기
+            JSON 가져오기
             <input type="file" accept=".json,application/json" onchange="importNotesJsonFile(this)" style="display:none;"/>
           </label>
           <h3 class="widget-title">저장된 노트 <span id="noteSelCount" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);"></span></h3>
           <div id="noteList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
           <!-- 백업 복원 패널 (브라우저 로컬 스토리지 내 자동 백업 슬롯) -->
           <details style="margin-top:8px;border-top:1px solid var(--c-border);padding-top:8px;">
-            <summary style="font-size:var(--font-size-sm);color:var(--c-txt-dim);cursor:pointer;user-select:none;">🔄 자동 백업 복원 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">(저장 시마다 자동 생성)</span></summary>
+            <summary style="font-size:var(--font-size-sm);color:var(--c-txt-dim);cursor:pointer;user-select:none;">자동 백업 복원 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">(저장 시마다 자동 생성)</span></summary>
             <div id="noteBackupList" style="margin-top:6px;"></div>
             <div class="note-line" style="margin-top:6px;">
-              ⚠️ 노트는 브라우저 로컬에만 저장됩니다. 브라우저 데이터 삭제·시크릿 모드·다른 기기 사용 시 사라질 수 있으니<br>중요한 노트는 <strong>JSON 백업</strong> 또는 <strong>Excel 저장</strong> 으로 외부 보관을 권장합니다.
+              노트는 브라우저 로컬에만 저장됩니다. 브라우저 데이터 삭제·시크릿 모드·다른 기기 사용 시 사라질 수 있으니<br>중요한 노트는 <strong>JSON 백업</strong> 또는 <strong>Excel 저장</strong> 으로 외부 보관을 권장합니다.
             </div>
           </details>
         </div>
@@ -4480,7 +4499,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               <span id="noteDate" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);white-space:nowrap;"></span>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
-              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="insertIndicatorSnapshot()" title="현재 대시보드의 핵심 지표 수치를 노트 본문에 표로 박제합니다 — 시점 기록용">📌 지표 스냅샷</button>
+              <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="insertIndicatorSnapshot()" title="현재 대시보드의 핵심 지표 수치를 노트 본문에 표로 박제합니다 — 시점 기록용">지표 스냅샷</button>
               <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="exportNoteToText()">↓ TXT</button>
               <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="deleteNote()">삭제</button>
               <button class="seed-action-button seed-action-button--variant_brandSolid seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="saveNote()">저장</button>
@@ -4496,7 +4515,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <h3 class="widget-title" style="margin-bottom:12px;">세부 주제별 메모</h3>
             <div class="g-2" style="gap:10px;">
               <div>
-                <div style="font-size:var(--font-size-sm);color:var(--c-primary);font-weight:var(--font-weight-semibold);margin-bottom:4px;">📈 매크로 / 경제지표</div>
+                <div style="font-size:var(--font-size-sm);color:var(--c-txt);font-weight:var(--font-weight-semibold);margin-bottom:4px;">매크로 / 경제지표</div>
                 <textarea id="noteMacro" placeholder="GDP, 물가, 고용 등..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
@@ -4504,19 +4523,19 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <textarea id="noteEquity" placeholder="지수 동향, 섹터 분석..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
-                <div style="font-size:var(--font-size-sm);color:var(--c-up);font-weight:var(--font-weight-semibold);margin-bottom:4px;">🏦 금리 / 채권</div>
+                <div style="font-size:var(--font-size-sm);color:var(--c-txt);font-weight:var(--font-weight-semibold);margin-bottom:4px;">금리 / 채권</div>
                 <textarea id="noteBond" placeholder="기준금리, 채권 수익률..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
-                <div style="font-size:var(--font-size-sm);color:var(--c-warn);font-weight:var(--font-weight-semibold);margin-bottom:4px;">💱 외환 / 환율</div>
+                <div style="font-size:var(--font-size-sm);color:var(--c-txt);font-weight:var(--font-weight-semibold);margin-bottom:4px;">외환 / 환율</div>
                 <textarea id="noteFx" placeholder="USD/KRW, 달러인덱스..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
-                <div style="font-size:var(--font-size-sm);color:var(--c-down);font-weight:var(--font-weight-semibold);margin-bottom:4px;">🛢️ 원자재</div>
+                <div style="font-size:var(--font-size-sm);color:var(--c-down);font-weight:var(--font-weight-semibold);margin-bottom:4px;">원자재</div>
                 <textarea id="noteCom" placeholder="유가, 금, 원자재 동향..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
               <div>
-                <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);margin-bottom:4px;">🏠 부동산</div>
+                <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);font-weight:var(--font-weight-semibold);margin-bottom:4px;">부동산</div>
                 <textarea id="noteRE" placeholder="부동산 시장 동향, PIR..." style="width:100%;min-height:90px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:var(--font-size-sm);font-family:var(--font-family-body);resize:vertical;line-height:1.6;box-sizing:border-box;"></textarea>
               </div>
             </div>
@@ -4590,14 +4609,14 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </div>
             <div id="reChartRange" style="font-size:var(--font-size-sm);color:var(--c-primary);margin-bottom:4px;min-height:16px;display:flex;flex-wrap:wrap;gap:6px;"></div>
             <div class="h-260" style="position:relative"><canvas role="img" aria-label="지역별 아파트 매매가격지수 차트" id="rePriceChart" style="cursor:crosshair;"></canvas></div>
-            <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">💡 차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
+            <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
           <!-- 지역별 등락 — Naver 지도 (기본) + 바 차트 토글 -->
           <div class="widget" style="position:relative;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
               <h3 class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭 → 시군구 상세</span></h3>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="reRegionViewNaver" onclick="setReRegionView('naver',this)" title="Naver 지도" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🗺️ 지도</span></button>
+                <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="reRegionViewNaver" onclick="setReRegionView('naver',this)" title="Naver 지도" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">지도</span></button>
                 <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="reRegionViewBar" onclick="setReRegionView('bar',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">바 차트</span></button>
               </div>
             </div>
@@ -4662,7 +4681,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('apt_price_idx_kr','전국주택가격동향조사 매매가격지수 (아파트)',{unit:'지수 (2021.6=100)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전국주택가격동향조사 매매가격지수 (아파트) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전국주택가격동향조사 매매가격지수 (아파트) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptSale">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4672,7 +4691,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('jns_price_idx_kr','전국주택가격동향조사 전세가격지수 (주택종합)',{unit:'지수 (2026.1=100)'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전국주택가격동향조사 전세가격지수 (주택종합) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전국주택가격동향조사 전세가격지수 (주택종합) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE · 단위: 지수 (2021.6=100) · <span id="krRePeriodAptJns">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4682,7 +4701,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('pir_seoul','서울 PIR (소득 대비 주택가격)',{unit:'배 (배수)'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">서울 PIR (소득 대비 주택가격) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">서울 PIR (소득 대비 주택가격) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">통계청 가계금융복지 · 연간 · 단위: 배 (소득 대비 배수)</div>
                 </div>
                 <div style="text-align:right;">
@@ -4699,7 +4718,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('mortgage_rate_kr','주담대 평균 금리',{unit:'% (연이율)'})" style="border-left:3px solid var(--c-down);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주담대 평균 금리 (신규) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주담대 평균 금리 (신규) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국은행 ECOS · 월간 · 단위: % (연이율)</div>
                 </div>
                 <div style="text-align:right;">
@@ -4709,7 +4728,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('household_debt_kr','가계신용 잔액',{unit:'10억원 → 조원 표시'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">가계신용 잔액 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">가계신용 잔액 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국은행 가계신용 · 분기 · 단위: 조원</div>
                 </div>
                 <div style="text-align:right;">
@@ -4719,7 +4738,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <div style="padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-border);">
                 <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);line-height:1.6;">
-                  💡 <strong style="color:var(--c-txt);">참고</strong>: 가계신용은 가계대출 + 판매신용. 한국은행 분기별 발표.
+                  <strong style="color:var(--c-txt);">참고</strong>: 가계신용은 가계대출 + 판매신용. 한국은행 분기별 발표.
                 </div>
               </div>
             </div>
@@ -4733,7 +4752,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('trade_count_kr','행정구역별 아파트거래현황 (전국·동(호)수)',{unit:'동(호)수 (월별)'})" style="border-left:3px solid var(--c-up);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">행정구역별 아파트거래현황 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">행정구역별 아파트거래현황 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원 R-ONE 행정구역별 아파트거래현황 · 월간 · 단위: 동(호)수</div>
                 </div>
                 <div style="text-align:right;">
@@ -4743,7 +4762,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">미분양 주택 수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">미분양 주택 수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">국토부 통계 · 월간 · 단위: 호 (가구 수)</div>
                 </div>
                 <div style="text-align:right;">
@@ -4759,7 +4778,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('conversion_rate_kr','전월세전환율 (전국)',{unit:'%'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전월세전환율 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전월세전환율 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: %</div>
                 </div>
                 <div style="text-align:right;">
@@ -4769,7 +4788,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간</div>
                 </div>
                 <div style="text-align:right;">
@@ -4785,7 +4804,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <!-- 설정 안내는 접어 둔다 — 시세를 보러 온 화면에서 390 기준 356px(0.4화면)를
              차지하고 있었고, 바로 아래 「실시간 데이터 활성화 방법」이 이미 details 다. -->
         <details class="widget pad-14" style="margin-bottom:16px;background:var(--c-card);border:1px solid var(--c-accent-container);">
-          <summary style="cursor:pointer;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">📌 추가 데이터 수집에 필요한 API</summary>
+          <summary style="cursor:pointer;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">추가 데이터 수집에 필요한 API</summary>
           <ul class="econ-prose" style="margin:0;padding-left:18px;font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.8;">
             <li><strong style="color:var(--c-txt);">한국부동산원 R-ONE OpenAPI</strong> — 전국주택가격동향조사 매매/전세 가격지수·부동산거래현황 (REALESTATE_API_KEY 필요)</li>
             <li><strong style="color:var(--c-txt);">국토교통부 실거래가 API</strong> — 아파트 매매 실거래 건수 보강 (data.go.kr, 신고 lag 으로 미수집 시 R-ONE 거래현황 사용)</li>
@@ -4797,7 +4816,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
         <!-- 데이터 활성화 안내 (접힌 상태) -->
         <details class="widget" style="margin-bottom:0;">
-          <summary style="cursor:pointer;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt-dim);padding:4px 0;">🔑 실시간 데이터 활성화 방법 (클릭하여 펼치기)</summary>
+          <summary style="cursor:pointer;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt-dim);padding:4px 0;">실시간 데이터 활성화 방법 (클릭하여 펼치기)</summary>
           <div class="econ-prose" style="margin-top:10px;font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.9;">
             1. <strong style="color:var(--c-txt);">공공데이터포털</strong> (<a href="https://www.data.go.kr" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">data.go.kr</a>) 에서 부동산원 API 키 발급<br>
             2. GitHub Repository Settings → Secrets → <code style="background:var(--c-surface);padding:1px 4px;border-radius:var(--r-xs);color:var(--c-primary);">REALESTATE_API_KEY</code> 등록<br>
@@ -4870,7 +4889,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('case_shiller_national','Case-Shiller 전국 HPI',{unit:'지수'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">Case-Shiller 전국 HPI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">Case-Shiller 전국 HPI <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: CSUSHPINSA · <span id="usTableCaseShillerPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4880,7 +4899,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('case_shiller_20city','Case-Shiller 20대도시 HPI',{unit:'지수'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">Case-Shiller 20대도시 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">Case-Shiller 20대도시 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: SPCS20RSA · <span id="usTableCase20Period">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4890,7 +4909,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('nahb_index','NAHB 주택시장지수',{unit:'지수'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">NAHB 주택시장지수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">NAHB 주택시장지수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">건설업체 체감 · <span id="usTableNahbPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4907,7 +4926,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('mortgage_30y','30년 고정 모기지 금리',{unit:'%'})" style="border-left:3px solid var(--c-down);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">30년 고정 모기지 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">30년 고정 모기지 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: MORTGAGE30US · 주간 · <span id="usTableMtg30Period">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4917,7 +4936,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('mortgage_15y','15년 고정 모기지 금리',{unit:'%'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">15년 고정 모기지 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">15년 고정 모기지 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: MORTGAGE15US · 주간 · <span id="usTableMtg15Period">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4927,7 +4946,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <div style="padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-border);">
                 <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);line-height:1.6;">
-                  💡 <strong style="color:var(--c-txt);">참고</strong>: 모기지 금리는 매주 목요일 Freddie Mac이 발표.
+                  <strong style="color:var(--c-txt);">참고</strong>: 모기지 금리는 매주 목요일 Freddie Mac이 발표.
                   <br>30년 - 15년 스프레드: <span id="usMtgSpread" style="color:var(--c-primary);font-weight:var(--font-weight-semibold);">—</span>
                 </div>
               </div>
@@ -4943,7 +4962,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('existing_home_sales','기존주택 판매 (Existing Home Sales)',{unit:'백만 건 (연환산)'})" style="border-left:3px solid var(--c-up);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">기존주택 판매 (Existing) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">기존주택 판매 (Existing) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: EXHOSLUSM495S · <span id="usTableEHSPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4953,7 +4972,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('new_home_sales','신규주택 판매 (New Home Sales)',{unit:'천 건 (연환산)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">신규주택 판매 (New) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">신규주택 판매 (New) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: HSN1F · <span id="usTableNHSPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4970,7 +4989,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('housing_starts','주택 착공 (Housing Starts)',{unit:'천 호 (연환산)'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: HOUST · <span id="usTableHStPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4980,7 +4999,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
               </button>
               <button type="button" onclick="showReHistoryChart('building_permits','건축 허가 (Building Permits)',{unit:'천 건 (연환산)'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">건축 허가 (Permits) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">📈</span></div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">건축 허가 (Permits) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
                   <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">FRED: PERMIT · <span id="usTableBPPeriod">—</span></div>
                 </div>
                 <div style="text-align:right;">
@@ -4994,7 +5013,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
         <!-- 안내 -->
         <details class="widget" style="margin-bottom:0;">
-          <summary style="cursor:pointer;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt-dim);padding:4px 0;">🔑 실시간 데이터 활성화 방법 (클릭하여 펼치기)</summary>
+          <summary style="cursor:pointer;font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt-dim);padding:4px 0;">실시간 데이터 활성화 방법 (클릭하여 펼치기)</summary>
           <div style="margin-top:10px;padding:10px;background:var(--c-card);border-radius:var(--r-sm);border:1px solid var(--c-accent-container);">
             <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);line-height:1.8;">
               <strong style="color:var(--c-txt);">FRED API 키</strong> (<a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">stlouisfed.org</a>)를 GitHub Secrets의 <code style="background:var(--c-surface);padding:1px 4px;border-radius:var(--r-xs);color:var(--c-primary);">FRED_API_KEY</code>에 등록하면 위 지표가 자동 수집됩니다.
@@ -5014,7 +5033,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="set-row">
           <div>
             <div class="set-label">카카오톡 알림 전체 사용</div>
-            <div class="set-desc">끄면 서버(GitHub Actions)가 모든 종목 알림 평가·발송을 중단합니다. 「🔔 테스트 발송」은 항상 동작하며, OFF 상태임을 메시지에 표기합니다.</div>
+            <div class="set-desc">끄면 서버(GitHub Actions)가 모든 종목 알림 평가·발송을 중단합니다. 「테스트 발송」은 항상 동작하며, OFF 상태임을 메시지에 표기합니다.</div>
           </div>
           <label class="seed-switch__root seed-switch__root--size_24 set-switch"><input type="checkbox" id="setNotifEnabled" onchange="settingsToggleNotif(this.checked); econSyncSwitch(this)"><span class="seed-switchmark__root seed-switchmark__root--size_24 seed-switchmark__root--tone_brand set-slider"><span class="seed-switchmark__thumb seed-switchmark__thumb--size_24 seed-switchmark__thumb--tone_brand"></span></span></label>
         </div>
@@ -5029,11 +5048,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </select>
         </div>
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:10px;">
-          <button id="pfSyncKeyBtn" class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText" onclick="pfSetSyncKey()" title="동기화 키(처음 받은 키 또는 내가 바꾼 암호) 넣기">🔑 동기화 키</button>
+          <button id="pfSyncKeyBtn" class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText" onclick="pfSetSyncKey()" title="동기화 키(처음 받은 키 또는 내가 바꾼 암호) 넣기">동기화 키</button>
           <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText" onclick="pfChangeSyncKey()" title="동기화 키를 내가 정한 암호로 바꾸기 — 바꾸면 다른 기기는 새 암호를 다시 넣어야 합니다">키 바꾸기</button>
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfPullAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ 서버에서 불러오기</span></button>
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfSyncAlerts()" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">☁ 서버에 저장</span></button>
-          <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🔔 테스트 발송</span></button>
+          <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="pfTestAlerts()" title="저장된 알림 조건을 즉시 1회 평가·발송해 설정을 바로 검증" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">테스트 발송</span></button>
           <span id="settingsSyncStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);"></span>
         </div>
         <div id="settingsAlertSummary" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:10px;">—</div>
@@ -5046,7 +5065,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
           <div id="alertHistoryList" style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-top:6px;line-height:1.8;">—</div>
         </div>
-        <div class="set-desc" style="margin-top:8px;">개별 종목 알림의 추가·삭제는 「투자 현황」 페이지 종목 행의 🔔 버튼에서 합니다. <b>전역 토글·기본 주기를 바꾼 뒤에도 「☁ 서버에 저장」을 눌러야 서버에 반영됩니다.</b></div>
+        <div class="set-desc" style="margin-top:8px;">개별 종목 알림의 추가·삭제는 「투자 현황」 페이지 종목 행의 버튼에서 합니다. <b>전역 토글·기본 주기를 바꾼 뒤에도 「☁ 서버에 저장」을 눌러야 서버에 반영됩니다.</b></div>
       </div>
 
       <!-- 위젯 2: 차트 공통 규칙 -->
@@ -5101,7 +5120,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="exportAllUserData(false)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">⬇ JSON 백업</span></button>
           <button class="tab-btn seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="exportAllUserData(true)" title="AES-256-GCM 으로 암호화해 내보냅니다 — 평단가·수량이 든 파일을 클라우드 등에 보관할 때 권장" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">🔐 암호화 백업</span></button>
-          <label class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText" style="display:inline-flex;">↥ 백업 복구<input type="file" accept="application/json,.json" style="display:none;" onchange="importAllUserData(this)"></label>
+          <label class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText" style="display:inline-flex;">백업 복구<input type="file" accept="application/json,.json" style="display:none;" onchange="importAllUserData(this)"></label>
         </div>
         <div id="setBackupStatus" style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-top:8px;"></div>
       </div>
@@ -5132,7 +5151,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <button class="tab-btn seed-tabs__trigger seed-tabs__trigger--size_medium seed-tabs__trigger--triggerLayout_hug" id="invTopBerkshire" onclick="setInvestor('berkshire',this)" data-ssr role="tab" aria-selected="false">🇺🇸 버크셔 해서웨이</button>
       </div>
 
-      <!-- 🌐 글로벌 연기금 자산배분 교차 비교 (4.4) — 5대 기금 단일 통합 차트, 탭과 무관하게 상시 표시 -->
+      <!-- 글로벌 연기금 자산배분 교차 비교 (4.4) — 5대 기금 단일 통합 차트, 탭과 무관하게 상시 표시 -->
       <details class="widget" style="margin-bottom:14px;" open>
         <summary style="cursor:pointer;list-style:none;">
           <h3 class="widget-title" style="margin-bottom:0;">글로벌 연기금 자산배분 교차 비교

@@ -32,9 +32,9 @@ const SCREENS = {
   'merlens':          { q: 'p=merlens' },
   'merlens-search':   { q: 'p=merlens&t=search', lead: false },
 };
-// 통과선을 강제하는 화면 — P0(2026-09-29): 엘니뇨 카드(원자재 탭) · 메르 렌즈. P2·P3 에서 넓힌다.
-// 원자재 탭은 카드(#ensoCard) 기준으로 R1·R2·R5·R6 를 재고, 화면수(R3)는 탭 전체라 P2 몫이다.
-const STRICT_DEFAULT = ['market-commodity', 'merlens'];
+// 통과선을 강제하는 화면 — P0(2026-09-29) 엘니뇨 카드(원자재 탭) · 메르 렌즈 → P2·P3(같은 날) 전 화면.
+// 원자재 탭은 R1·R2·R5·R6 를 카드(#ensoCard) 기준으로 재고, 화면수(R3)는 탭 전체를 잰다.
+const STRICT_DEFAULT = Object.keys(SCREENS);
 const STRICT = arg('strict', '') === 'all' ? Object.keys(SCREENS) : (arg('strict', '') ? arg('strict', '').split(',') : STRICT_DEFAULT);
 const ONLY = arg('screen', '') ? arg('screen', '').split(',') : Object.keys(SCREENS);
 
@@ -67,9 +67,12 @@ function collect(cardSel) {
   const within = (el, px) => (el.getBoundingClientRect().top + scrollY - top0) < px;
   const textEls = [...scope.querySelectorAll('*')].filter(e => {
     const r = e.getBoundingClientRect();
-    return r.width && r.height && vis(e) && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+    return r.width && r.height && vis(e) && e.tagName !== 'CANVAS' && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
   });
   const first = textEls.filter(e => within(e, 900));
+  // R4 는 '내용 글자'의 색·크기다 — 부품(버튼·탭·칩·아이콘 글꼴)과 상태 배지·콜아웃은 각자 규격(S27~S36 · R5)이 따로 잰다.
+  const isControl = e => !!e.closest('button, [role=tab], [role=button], .seed-chip__root, .seed-badge__root, .seed-callout__root, .mat, select, input, .w-fresh-chip');
+  const content = first.filter(e => !isControl(e));
 
   // R1 · R2
   const lead = [...scope.querySelectorAll('.econ-lead')].find(vis) || null;
@@ -80,38 +83,43 @@ function collect(cardSel) {
 
   // R4
   const colors = new Set(), sizes = new Set();
-  first.forEach(e => { const cs = getComputedStyle(e); colors.add(cs.color); sizes.add(cs.fontSize); });
+  content.forEach(e => { const cs = getComputedStyle(e); colors.add(cs.color); sizes.add(cs.fontSize); });
 
-  // R5 — 배지(critical·warning) + 방향색 글자(up/down 클래스가 붙은 텍스트 요소)
+  // R5 — 배지(critical·warning) + 방향색 **말**(상방·수혜처럼 글자에 색을 입힌 것). 숫자 등락(▲0.3%·+13%)은 값이라 세지 않는다.
   const badges = first.filter(e => /seed-badge__root--tone_(critical|warning)/.test(e.className) || (e.closest && e.closest('.seed-badge__root--tone_critical-variant_weak, .seed-badge__root--tone_warning-variant_weak')));
   const badgeRoots = new Set(badges.map(e => e.closest('.seed-badge__root') || e));
-  const dirTxt = first.filter(e => e.matches('.up-txt, .down-txt, b.up-txt, b.down-txt') && !e.closest('.ticker, .ticker-strip, #tickerStrip, .econ-kpi__c, td'));
+  const isNumeric = t => /^[▲▼△▽+\-−]?\s*[\d,.]+/.test(t) || /^[▲▼△▽]/.test(t);
+  const dirTxt = first.filter(e => e.matches('.up-txt, .down-txt, b.up-txt, b.down-txt') && !e.closest('.ticker, .ticker-strip, #tickerStrip, .econ-kpi__c, td') && !isNumeric(e.textContent.trim()));
   const status = badgeRoots.size + dirTxt.length;
 
   // R6 — 지표 이름 반복: 레지스트리 라벨 + 메르 지표 라벨을 첫 900px 텍스트 요소에서 센다
   const names = new Set();
   try { (window.ECON_IND && window.ECON_IND.all ? window.ECON_IND.all() : []).forEach(r => r.label && names.add(r.label)); } catch (_) {}
   try { ((window._merSignalsData || {}).indicators || []).forEach(i => i.label && names.add(i.label)); } catch (_) {}
+  // '라벨로 선' 이름만 센다(글자가 이름과 같은 요소). 문장 속에 든 이름(「KOSPI 추이」·「코스피 기준」)은 반복이 아니라 주어다.
   const rep = {};
   first.forEach(e => {
-    const t = [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join(' ');
-    names.forEach(nm => { if (nm.length >= 2 && t.includes(nm)) rep[nm] = (rep[nm] || 0) + 1; });
+    const t = [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join(' ').replace(/\s+/g, ' ').trim();
+    if (names.has(t)) rep[t] = (rep[t] || 0) + 1;
   });
   const worstRep = Object.entries(rep).sort((a, b) => b[1] - a[1])[0] || null;
 
   // R7 — 보이는 캔버스 중 그려지지 않은 것(width 없음) 또는 '데이터 추가 필요' 덧판이 있는 것
   const canv = [...pg.querySelectorAll('canvas')].filter(vis);
-  const empty = canv.filter(c => !c.getAttribute('width') || +c.getAttribute('width') === 0 || (c.parentElement && c.parentElement.querySelector('.no-data-overlay')));
+  // 덧판(.no-data-overlay)은 숨긴 채 남아 있을 수 있다 — 보이는 덧판만 '빈 차트'다.
+  const overlayOn = c => { const o = c.parentElement && c.parentElement.querySelector('.no-data-overlay'); return !!(o && vis(o) && o.getBoundingClientRect().height > 0); };
+  const empty = canv.filter(c => !c.getAttribute('width') || +c.getAttribute('width') === 0 || overlayOn(c));
 
-  // R8 — 말 사전: 상태어 {돌파·주시·정상·자료 없음} · 방향어 {상방·하방·혼조} 밖의 판정어, 이모지(국기 제외), 한자 등급
+  // R8 — 말 사전: 상태어 {돌파·주시·정상·자료 없음} · 방향어 {상방·하방·혼조} 밖의 판정어, 이모지(국기 제외), 한자 등급.
+  // 외부 링크 글자(뉴스 제목)는 남이 쓴 말이라 빼고 잰다.
   const RE_EMOJI = /[\u{1F300}-\u{1F5FF}\u{1F900}-\u{1FAFF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
   const RE_FLAG = /[\u{1F1E6}-\u{1F1FF}]/u;
   const RE_BAD = /[高中低]|(^|[^A-Za-z])(OW|UW)([^A-Za-z]|$)|판정 불가|호재|악재|혼재|↔/;
   const vocab = [];
-  textEls.forEach(e => {
+  textEls.filter(e => !e.closest('a[href^="http"]')).forEach(e => {
     const t = [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join(' ').trim();
     if (!t) return;
-    const t2 = t.replace(/[☆★]/g, '');   // 위젯 도구(즐겨찾기 별)는 판정어가 아니다
+    const t2 = t.replace(/[☆★✕×]/g, '');   // 위젯 도구(즐겨찾기 별·닫기)는 판정어가 아니다
     if ((RE_EMOJI.test(t2) && !RE_FLAG.test(t2)) || RE_BAD.test(t2)) vocab.push(t.slice(0, 40));
   });
 
@@ -135,7 +143,8 @@ for (const key of ONLY) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: 'ko-KR', timezoneId: 'Asia/Seoul', isMobile: w < 500, hasTouch: w < 500 });
     const page = await ctx.newPage();
     const errs = [];
-    page.on('pageerror', e => errs.push(String(e.message).slice(0, 120)));
+    // 남의 스크립트(네이버 지도 SDK 가 localhost 에서 키 검증에 실패해 던지는 것)는 이 화면의 잘못이 아니다
+    page.on('pageerror', e => { if (/oapi\.map\.naver\.com|maps\.js/.test(e.stack || '')) return; errs.push(String(e.message).slice(0, 120)); });
     try {
       await page.goto(`${BASE}/?${sc.q}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForTimeout(8000);   // R7 — 딥링크 8초 뒤
@@ -149,7 +158,7 @@ for (const key of ONLY) {
         else if (r.firstJudge > LIMITS.firstJudgePx) bad.push(`R2 첫 판정 ${r.firstJudge}px (상한 ${LIMITS.firstJudgePx})`);
       }
       const capS = w === 1440 ? LIMITS.screensDesktop : LIMITS.screensMobile;
-      if (r.screens > capS && !sc.card) bad.push(`R3 화면수 ${r.screens} (상한 ${capS})`);
+      if (r.screens > capS) bad.push(`R3 화면수 ${r.screens} (상한 ${capS})`);   // 카드 기준 화면(원자재 탭)도 화면수는 탭 전체
       if (r.colors > LIMITS.colors) bad.push(`R4 글자색 ${r.colors}종 (상한 ${LIMITS.colors})`);
       if (r.sizes > LIMITS.sizes) bad.push(`R4 글자크기 ${r.sizes}종 ${JSON.stringify(r.sizeList)} (상한 ${LIMITS.sizes})`);
       if (r.status > LIMITS.statusMarks) bad.push(`R5 상태 표시 ${r.status}개 ${JSON.stringify(r.statusEx)} (상한 ${LIMITS.statusMarks})`);
