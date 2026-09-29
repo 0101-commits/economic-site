@@ -479,7 +479,7 @@ async function aiQaAsk() {
   const keyHash = await pfGetSyncKeyHash();
   if(!keyHash) {
     out.style.display = 'block';
-    out.textContent = '🔑 동기화 키가 필요합니다 — 투자 현황 페이지의 [🔑 동기화 키] 버튼으로 등록하세요.';
+    out.textContent = '🔑 동기화 키가 필요합니다 — ⚙ 설정 페이지의 [🔑 동기화 키] 버튼으로 등록하세요.';
     return;
   }
   _aiQaBusy = true; _aiQaLastTs = now;
@@ -1285,7 +1285,7 @@ async function styAiSummarize() {
     try { keyHash = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : null; } catch(_) {}
     if(!keyHash) {
       apply(_styLocalSummary(s), 'AI 미사용 · 규칙 기반 자동 정리');
-      if(typeof showToast === 'function') showToast('동기화 키가 없어 규칙 기반으로 정리했습니다. (투자 현황 → 🔑 동기화 키 등록 시 AI 사용)', 5000);
+      if(typeof showToast === 'function') showToast('동기화 키가 없어 규칙 기반으로 정리했습니다. (⚙ 설정 → 🔑 동기화 키 등록 시 AI 사용)', 5000);
       return;
     }
     const snapshot = {

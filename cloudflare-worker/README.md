@@ -79,7 +79,18 @@ Yahoo VIX/MOVE, Stooq 시계열, CNN 공포·탐욕, 환율, 뉴스)를 안정�
   ```sh
   npx wrangler secret put ALERTS_SYNC_KEY   # 충분히 긴 랜덤 문자열 (예: openssl rand -hex 24)
   ```
-  설정 후 프론트 '투자 현황' 페이지의 🔑 동기화 키 버튼에 동일 키를 입력하세요.
+  설정 후 사이트 ⚙ 설정 페이지의 🔑 동기화 키 버튼에 동일 키를 입력하세요.
+- **동기화 키 바꾸기 / 잊었을 때** — 사이트 ⚙ 설정의 「키 바꾸기」가 `POST /sync-key`
+  (헤더 `X-Sync-Key-Hash` = 지금 키 해시, 본문 `{newKeyHash}`)로 새 암호의 SHA-256 을 KV
+  `ECON_PORTFOLIO` 의 `auth:syncKeyHash` 에 저장합니다. 이 값이 있으면 시크릿보다 우선하고, 모든 인증
+  경로(`/portfolio` GET·POST, `/portfolio/test`, `/ai`, `/sync-key`)가 `_verifySyncKey` 한 곳에서
+  같은 규칙을 씁니다. 본문에 `newKeyHash` 가 없으면 확인만 합니다(사이트의 「PIN 잊음」). KV 는 지역 간
+  전파에 최대 1분이 걸려, 바꾼 직후 잠깐은 다른 지역에서 옛 키가 통할 수 있습니다.
+  **바꾼 암호를 잊으면** KV 값을 지워 시크릿 `ALERTS_SYNC_KEY` 로 되돌립니다(저장소 루트에서):
+  ```sh
+  npx wrangler kv key delete --binding ECON_PORTFOLIO --remote auth:syncKeyHash
+  ```
+  시크릿 값도 모르면 새로 정합니다: `npx wrangler secret put ALERTS_SYNC_KEY`. 어느 쪽이든 각 기기의 🔑 에 그 키를 다시 넣습니다.
 - **토큰 권한 분리(선택)** — `GH_ALERTS_TOKEN` 시크릿(Contents RW, 이 저장소 한정)을
   추가하면 `alerts_config.json` 커밋에는 그것만 쓰이고, `GH_DISPATCH_TOKEN` 은
   dispatch 전용으로 권한을 낮출 수 있습니다. 미설정 시 기존처럼 공용.

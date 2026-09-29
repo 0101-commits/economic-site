@@ -748,23 +748,69 @@ async function _sha256Hex(s) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// 동기화 키 검증 — fail-closed. 키 시크릿 미설정이면 쓰기 자체를 차단하고(503),
-// 설정 시에는 프론트가 보낸 SHA-256 해시(keyHash)가 일치해야만 통과(401).
-// 구버전 평문 body.key 호환은 제거됨 — 프론트는 이미 해시 전송으로 전환 완료.
+// 사이트에서 바꾼 동기화 키의 해시(POST /sync-key 가 쓴다). 있으면 시크릿 ALERTS_SYNC_KEY 보다 우선.
+// 암호를 잊으면 이 키를 지워 시크릿으로 되돌린다 — cloudflare-worker/README.md「동기화 키」.
+const SYNC_KEY_KV_KEY = 'auth:syncKeyHash';
+const HEX64 = /^[0-9a-f]{64}$/;
+
+// 기대 해시는 이 한 곳에서만 정한다: KV(사이트에서 바꾼 키) → 없으면 시크릿의 해시 → 둘 다 없으면 ''.
+// KV 읽기 오류는 그대로 던진다 — 바꾼 뒤의 키 대신 옛 시크릿으로 조용히 되돌아가면 안 된다.
+async function _expectedSyncKeyHash(env) {
+  const kv = env.ECON_PORTFOLIO ? await env.ECON_PORTFOLIO.get(SYNC_KEY_KV_KEY) : null;
+  if (kv && HEX64.test(kv)) return kv;
+  // 시크릿 양끝 공백/개행 제거 — `wrangler secret put` 로 붙여넣을 때 끼는 후행 개행이
+  // 프론트(k.trim())와의 해시 불일치를 일으켜 정상 키도 401 이 되던 문제 수정.
+  return env.ALERTS_SYNC_KEY ? _sha256Hex(String(env.ALERTS_SYNC_KEY).trim()) : '';
+}
+
+// 상수 시간 비교 — 앞에서부터 몇 글자가 맞는지 응답 시간으로 새지 않게.
+function _hexEq(a, b) {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
+// 동기화 키 검증 — 인증이 필요한 모든 경로(/portfolio GET·POST, /portfolio/test, /ai, /sync-key)가 이것만 부른다.
+// fail-closed: 기대 해시가 없으면 503, 불일치 401. 프론트가 보낸 SHA-256 해시(keyHash)만 받는다.
 async function _verifySyncKey(body, env) {
-  if (!env || !env.ALERTS_SYNC_KEY) {
+  let expected;
+  try { expected = env ? await _expectedSyncKeyHash(env) : ''; }
+  catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
+  if (!expected) {
     return jsonResponse({
       error: 'sync_key_not_configured',
       message: 'Worker 시크릿 ALERTS_SYNC_KEY 가 설정되지 않아 저장이 비활성화되어 있습니다. ' +
                'wrangler secret put ALERTS_SYNC_KEY 로 설정 후 프론트 🔑 버튼에 동일 키를 입력하세요.',
     }, 503);
   }
-  // 시크릿 양끝 공백/개행 제거 — `wrangler secret put` 로 키를 붙여넣을 때 흔히 끼는
-  // 후행 개행이 프론트(키 입력 시 k.trim())와의 해시 불일치를 일으켜 정상 키도 401 이 되던 문제 수정.
-  const expected = await _sha256Hex(String(env.ALERTS_SYNC_KEY).trim());
-  const okHash = body && body.keyHash && String(body.keyHash).toLowerCase() === expected;
-  if (!okHash) return jsonResponse({ error: 'unauthorized' }, 401);
+  if (!_hexEq(String((body && body.keyHash) || '').toLowerCase(), expected)) {
+    return jsonResponse({ error: 'unauthorized' }, 401);
+  }
   return null;   // 통과
+}
+
+// 🔑 동기화 키 바꾸기 — POST /sync-key
+//   헤더 X-Sync-Key-Hash = 지금 키의 해시, 본문 { newKeyHash } = 새 암호의 SHA-256 → KV 에 저장.
+//   본문에 newKeyHash 가 없으면 확인만 한다(사이트의 'PIN 잊음' — 키가 맞는지만 보고 아무것도 안 바꾼다).
+//   레이트리밋은 POST 공통 관문(AI_LIMITER)이 건다. 서버는 해시만 받으므로 길이 규칙은 프론트가 건다.
+async function handleSyncKey(request, env) {
+  const raw = await request.text();
+  if (raw.length > 1000) return jsonResponse({ error: 'payload_too_large' }, 413);
+  let body;
+  try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
+  const denied = await _verifySyncKey({ keyHash: request.headers.get('X-Sync-Key-Hash') }, env);
+  if (denied) return denied;
+  if (!body || body.newKeyHash === undefined) return jsonResponse({ ok: true, changed: false });
+  const nh = String(body.newKeyHash || '').toLowerCase();
+  // 빈 문자열의 해시는 거부 — 프론트 버그로 빈 암호가 서버 키가 되는 길을 막는다.
+  if (!HEX64.test(nh) || nh === 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855') {
+    return jsonResponse({ error: 'invalid_new_key_hash' }, 400);
+  }
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
+  try { await env.ECON_PORTFOLIO.put(SYNC_KEY_KV_KEY, nh); }
+  catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+  return jsonResponse({ ok: true, changed: true });
 }
 
 async function handlePortfolioPost(request, env) {
@@ -1351,7 +1397,7 @@ export default {
     // CORS preflight — [이슈8] POST 엔드포인트는 출처 제한 CORS(postCors), 그 외는 퍼블릭 GET_CORS.
     if (request.method === 'OPTIONS') {
       const _p = new URL(request.url).pathname;
-      const _isPost = (_p === '/ai' || _p === '/portfolio' || _p === '/portfolio/test');
+      const _isPost = (_p === '/ai' || _p === '/portfolio' || _p === '/portfolio/test' || _p === '/sync-key');
       return new Response(null, { headers: _isPost ? postCors(request) : GET_CORS });
     }
 
@@ -1382,8 +1428,11 @@ export default {
       } else if (purl.pathname === '/portfolio/test') {
         // 🔔 알림 테스트 발송 — stock-alerts 워크플로 즉시 1회 실행
         resp = await handlePortfolioTest(request, env);
+      } else if (purl.pathname === '/sync-key') {
+        // 🔑 동기화 키 바꾸기 / 확인(PIN 잊음)
+        resp = await handleSyncKey(request, env);
       } else {
-        resp = jsonResponse({ error: 'POST is only supported at /ai, /portfolio or /portfolio/test' }, 404);
+        resp = jsonResponse({ error: 'POST is only supported at /ai, /portfolio, /portfolio/test or /sync-key' }, 404);
       }
       return _withCors(resp, pc);   // [이슈8] 핸들러 응답의 CORS 를 POST 정책으로 통일
     }
@@ -1392,6 +1441,10 @@ export default {
     const reqUrl = new URL(request.url);
     // 📲 투자 현황 — 저장된 카카오 알림 설정 조회 (GET /portfolio)
     if (reqUrl.pathname === '/portfolio') {
+      // 동기화 키를 사이트에서 사람이 고른 암호로 바꿀 수 있게 되어(POST /sync-key), 무제한 GET 은
+      // 온라인 대입 창구가 된다 — POST 와 같은 분당 10회(fail-closed)를 건다.
+      const rl = await _rateLimited(env, 'AI_LIMITER', request, true);
+      if (rl) return rl;
       return handlePortfolioGet(request, env);   // [이슈1] request 전달 — X-Sync-Key-Hash 헤더 검증에 필요
     }
     // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.

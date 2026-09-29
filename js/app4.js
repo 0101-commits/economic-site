@@ -743,20 +743,25 @@ function pfExportCsv() {
 }
 
 // ═══ 페이지 잠금 (투자 현황·설정) ═══════════════════════════════════════════════
-// 열람 방지용 클라이언트 게이트(화면 가림막일 뿐 보안 경계가 아니다 — sessionStorage 한 줄로 우회된다).
-// 비밀번호는 PBKDF2-SHA256(무작위 salt) 해시로만 보관(공개 저장소 — 평문 금지). 값은
-// `node scripts/make_lock_hash.mjs` 가 출력한 줄을 아래 LOCK 에 붙여 넣는다. LOCK=null 이면 잠금 해제 불가.
-// ⚠ 이 해시는 공개 파일에 있어 짧은 PIN 은 오프라인 대입으로 풀린다 — 다른 곳(평단가 동기화 암호 등)에 재사용 금지.
+// 이 기기 화면 가림막일 뿐 보안 경계가 아니다 — 개발자도구에서 sessionStorage 한 줄로 우회된다.
+// 막는 것은 '어깨너머 열람'이고, 서버 쪽 자료(관심목록·암호문·AI)는 동기화 키가 지킨다.
+// PIN 은 기기마다 사이트에서 정한다: localStorage PIN_KEY = { salt, iter, hash }
+// (PBKDF2-SHA256, 무작위 16바이트 salt). 공개 파일에는 아무 값도 없다.
+// PIN 을 잊으면 동기화 키를 넣고, Worker(POST /sync-key, 확인만)가 맞다고 하면 이 기기 PIN 을 지우고 새로 정한다.
 // 해제 상태는 sessionStorage 에만 유지 → 탭을 닫으면 다시 잠긴다.
 // 모든 진입이 showPage() 를 지나므로(메뉴·?p= 딥링크·popstate·키보드 단축키) 관문은 app1.js
-// showPage 상단의 econLockGate 호출 한 곳이다. 개발자도구로 우회는 가능하나, 민감 데이터
-// (평단가·수량)는 각 브라우저 localStorage 에만 있어 '어깨너머 열람 방지' 목적에는 충분.
+// showPage 상단의 econLockGate 호출 한 곳이다.
 (function() {
   var LOCKED = ['portfolio', 'settings'];
-  var LOCK = null;   // { salt: '<hex>', iter: 600000, hash: '<hex>' } — scripts/make_lock_hash.mjs 로 생성
+  var PIN_KEY = 'econLockPin_v2';
   var SS_KEY = 'econLockOk_v1';
+  var ITER = 600000;
 
   function unlocked() { try { return sessionStorage.getItem(SS_KEY) === '1'; } catch(_) { return false; } }
+  function loadPin() {
+    try { var p = JSON.parse(localStorage.getItem(PIN_KEY) || 'null'); return (p && p.salt && p.hash && p.iter) ? p : null; }
+    catch(_) { return null; }
+  }
 
   // showPage 에서 호출 — true 반환 시 전환 중단(모달이 성공하면 showPage 재호출)
   window.econLockGate = function(id, el) {
@@ -765,15 +770,28 @@ function pfExportCsv() {
     return true;
   };
 
-  function pbkdf2Hex(s) {
+  function toHex(u8) {
+    return Array.prototype.map.call(u8, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  }
+  function pbkdf2Hex(s, saltHex, iter) {
     if(!(window.crypto && crypto.subtle)) return Promise.reject(new Error('insecure context'));
-    var salt = new Uint8Array(LOCK.salt.match(/../g).map(function(h) { return parseInt(h, 16); }));
+    var salt = new Uint8Array(saltHex.match(/../g).map(function(h) { return parseInt(h, 16); }));
     return crypto.subtle.importKey('raw', new TextEncoder().encode(s), 'PBKDF2', false, ['deriveBits']).then(function(k) {
-      return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: LOCK.iter, hash: 'SHA-256' }, k, 256);
-    }).then(function(buf) {
-      return Array.prototype.map.call(new Uint8Array(buf), function(b) {
-        return ('0' + b.toString(16)).slice(-2);
-      }).join('');
+      return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' }, k, 256);
+    }).then(function(buf) { return toHex(new Uint8Array(buf)); });
+  }
+  // 동기화 키 확인만 — 본문에 newKeyHash 가 없으면 Worker 는 아무것도 바꾸지 않는다. 반환: HTTP 상태
+  function checkSyncKey(k) {
+    var base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+    return pfSha256Hex(k).then(function(h) {
+      return fetch(base + '/sync-key', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-Sync-Key-Hash': h },
+        body: '{}',
+        signal: AbortSignal.timeout(15000),
+      });
+    }).then(function(r) {
+      return r.json().catch(function() { return {}; }).then(function(j) { return (r.ok && j.ok) ? 200 : (r.status || 0); });
     });
   }
 
@@ -784,59 +802,107 @@ function pfExportCsv() {
   }
   function onEsc(e) { if(e.key === 'Escape') { e.stopPropagation(); closeModal(); } }
 
+  var BTN = 'seed-action-button seed-action-button--size_small seed-action-button--size_small-layout_withText seed-action-button--variant_';
+
   function openModal(id, el) {
     if(_overlay) { var i0 = _overlay.querySelector('input'); if(i0) i0.focus(); return; }
+    var name = id === 'settings' ? '설정' : '투자 현황';
     _overlay = document.createElement('div');
     _overlay.setAttribute('role', 'dialog');
     _overlay.setAttribute('aria-modal', 'true');
     _overlay.setAttribute('aria-label', '잠금 해제');
     _overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
     var card = document.createElement('div');
-    card.style.cssText = 'background:var(--modal-bg,var(--c-card));border:1px solid var(--modal-border,var(--c-border));border-radius:var(--r-sm);padding:22px 24px;width:min(320px,90vw);box-shadow:0 8px 32px rgba(0,0,0,.4);';
-    card.innerHTML =
-      '<div style="font-size:var(--font-size-md);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">잠긴 페이지</div>' +
-      '<div style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-bottom:14px;">' + (id === 'settings' ? '설정' : '투자 현황') + ' 페이지는 비밀번호가 필요합니다.</div>' +
-      '<input type="password" autocomplete="off" aria-label="비밀번호" style="width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:8px 10px;font-size:var(--font-size-md);">' +
-      '<div data-lock-err style="display:none;color:var(--c-down,#e05555);font-size:var(--font-size-xs);margin-top:6px;">비밀번호가 올바르지 않습니다.</div>' +
-      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">' +
-        '<button data-lock-cancel class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_small seed-action-button--size_small-layout_withText">취소</button>' +
-        '<button data-lock-ok class="seed-action-button seed-action-button--variant_brandSolid seed-action-button--size_small seed-action-button--size_small-layout_withText">확인</button>' +
-      '</div>';
+    card.style.cssText = 'background:var(--modal-bg,var(--c-card));border:1px solid var(--modal-border,var(--c-border));border-radius:var(--r-sm);padding:22px 24px;width:min(340px,90vw);box-shadow:0 8px 32px rgba(0,0,0,.4);';
     _overlay.appendChild(card);
     document.body.appendChild(_overlay);
-
-    var input = card.querySelector('input');
-    var err = card.querySelector('[data-lock-err]');
-    if(!LOCK) {   // PIN 미설정 — 옛 해시는 뚫려 폐기됐다(2026-09-29). 설정 전까지는 열 수 없다.
-      err.textContent = 'PIN 미설정 → 설정 필요: node scripts/make_lock_hash.mjs 로 만든 줄을 js/app4.js 의 LOCK 에 넣고 배포하세요.';
-      err.style.display = 'block';
-      input.disabled = true;
-      card.querySelector('[data-lock-ok]').disabled = true;
-    }
-    function submit() {
-      if(!LOCK) return;
-      var v = input.value || '';
-      pbkdf2Hex(v).then(function(h) {
-        if(h === LOCK.hash) {
-          try { sessionStorage.setItem(SS_KEY, '1'); } catch(_) {}
-          closeModal();
-          showPage(id, el);
-        } else {
-          err.style.display = 'block';
-          input.value = '';
-          input.focus();
-        }
-      }).catch(function() {
-        err.textContent = '이 환경(비보안 컨텍스트)에서는 잠금 해제를 지원하지 않습니다. https 로 접속하세요.';
-        err.style.display = 'block';
-      });
-    }
-    card.querySelector('[data-lock-ok]').addEventListener('click', submit);
-    card.querySelector('[data-lock-cancel]').addEventListener('click', closeModal);
-    input.addEventListener('keydown', function(e) { if(e.key === 'Enter') submit(); });
     _overlay.addEventListener('mousedown', function(e) { if(e.target === _overlay) closeModal(); });
     document.addEventListener('keydown', onEsc, true);
-    setTimeout(function() { input.focus(); }, 30);
+
+    function pass() {
+      try { sessionStorage.setItem(SS_KEY, '1'); } catch(_) {}
+      closeModal();
+      showPage(id, el);
+    }
+
+    // mode: unlock(PIN 넣기) · setup(이 기기 PIN 정하기) · forgot(동기화 키로 PIN 지우기)
+    function render(mode, note) {
+      var m = {
+        unlock: ['잠긴 페이지', name + ' 페이지는 이 기기 PIN 이 필요합니다.', ['PIN'], '확인'],
+        setup:  ['이 기기 PIN 설정', '이 브라우저에서 투자 현황·설정을 열 때 쓸 PIN 을 정하세요. 4자 이상, 숫자·글자 모두 됩니다. 기기마다 따로 정합니다.', ['새 PIN', 'PIN 한 번 더'], '설정'],
+        forgot: ['PIN 다시 정하기', '동기화 키(처음 받은 키 또는 내가 바꾼 암호)를 넣으세요. 맞으면 이 기기 PIN 을 지우고 새로 정합니다.', ['동기화 키'], '확인'],
+      }[mode];
+      card.innerHTML =
+        '<div style="font-size:var(--font-size-md);font-weight:var(--font-weight-semibold);color:var(--c-txt);margin-bottom:6px;">' + m[0] + '</div>' +
+        '<div style="font-size:var(--font-size-sm);color:var(--c-txt-muted);margin-bottom:6px;line-height:1.5;">' + (note ? note + ' ' : '') + m[1] + '</div>' +
+        m[2].map(function(l) {
+          return '<input type="password" autocomplete="off" aria-label="' + l + '" placeholder="' + l + '" style="width:100%;box-sizing:border-box;margin-top:8px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:8px 10px;font-size:var(--font-size-md);color:var(--c-txt);">';
+        }).join('') +
+        '<div data-lock-err role="alert" style="display:none;color:var(--c-down);font-size:var(--font-size-xs);margin-top:6px;"></div>' +
+        '<div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:14px;">' +
+          (mode === 'unlock' ? '<button type="button" data-lock-forgot class="' + BTN + 'ghost" style="margin-right:auto;">PIN 잊음</button>' : '') +
+          '<button type="button" data-lock-cancel class="' + BTN + 'neutralOutline">' + (mode === 'forgot' ? '뒤로' : '취소') + '</button>' +
+          '<button type="button" data-lock-ok class="' + BTN + 'brandSolid">' + m[3] + '</button>' +
+        '</div>';
+      var inputs = Array.prototype.slice.call(card.querySelectorAll('input'));
+      var err = card.querySelector('[data-lock-err]');
+      var okBtn = card.querySelector('[data-lock-ok]');
+      var busy = false;
+      function fail(msg) {
+        err.textContent = msg;
+        err.style.display = 'block';
+        inputs[0].focus();
+      }
+      function run(p, offline) {
+        busy = true; okBtn.disabled = true;
+        p.catch(function() { fail(offline); }).then(function() { busy = false; if(okBtn.isConnected) okBtn.disabled = false; });
+      }
+      function submit() {
+        if(busy) return;
+        var v = inputs.map(function(i) { return i.value || ''; });
+        if(mode === 'setup') {
+          if(v[0].length < 4) return fail('4자 이상으로 정하세요.');
+          if(v[0] !== v[1]) return fail('두 번 넣은 PIN 이 다릅니다.');
+          var salt = toHex(crypto.getRandomValues(new Uint8Array(16)));
+          run(pbkdf2Hex(v[0], salt, ITER).then(function(h) {
+            localStorage.setItem(PIN_KEY, JSON.stringify({ salt: salt, iter: ITER, hash: h }));
+            pass();
+          }), '이 환경(https 아님)에서는 잠금을 쓸 수 없습니다. https 로 접속하세요.');
+        } else if(mode === 'unlock') {
+          var p = loadPin();
+          if(!p) return render('setup');
+          run(pbkdf2Hex(v[0], p.salt, p.iter).then(function(h) {
+            if(h === p.hash) pass();
+            else { inputs[0].value = ''; fail('PIN 이 맞지 않습니다.'); }
+          }), '이 환경(https 아님)에서는 잠금 해제를 지원하지 않습니다. https 로 접속하세요.');
+        } else {
+          if(!v[0].trim()) return fail('동기화 키를 넣으세요.');
+          run(checkSyncKey(v[0].trim()).then(function(st) {
+            if(st === 200) {
+              try { localStorage.removeItem(PIN_KEY); } catch(_) {}
+              render('setup', '동기화 키가 맞습니다 — 이 기기 PIN 을 지웠습니다.');
+            } else if(st === 401) fail('동기화 키가 맞지 않습니다.');
+            else if(st === 429) fail('시도가 너무 많습니다. 1분 뒤 다시 해 보세요.');
+            else fail('서버 확인에 실패했습니다 (HTTP ' + st + ').');
+          }), '서버에 연결하지 못했습니다. 인터넷 연결을 확인하세요.');
+        }
+      }
+      okBtn.addEventListener('click', submit);
+      card.querySelector('[data-lock-cancel]').addEventListener('click', function() {
+        if(mode === 'forgot') render(loadPin() ? 'unlock' : 'setup'); else closeModal();
+      });
+      var fg = card.querySelector('[data-lock-forgot]');
+      if(fg) fg.addEventListener('click', function() { render('forgot'); });
+      inputs.forEach(function(inp, i) {
+        inp.addEventListener('keydown', function(e) {
+          if(e.key !== 'Enter') return;
+          e.preventDefault();
+          if(i < inputs.length - 1) inputs[i + 1].focus(); else submit();
+        });
+      });
+      setTimeout(function() { if(inputs[0].isConnected) inputs[0].focus(); }, 30);
+    }
+    render(loadPin() ? 'unlock' : 'setup');
   }
 
   // 메뉴에 잠금 표시 — 어떤 메뉴가 보호되는지 시각적 안내
@@ -849,7 +915,7 @@ function pfExportCsv() {
           s.className = 'mat';
           s.textContent = 'lock';
           s.setAttribute('aria-hidden', 'true');
-          m.setAttribute('title', '비밀번호 잠금');
+          m.setAttribute('title', 'PIN 잠금');
           s.style.cssText = 'font-size:var(--font-size-xs);opacity:.55;';
           m.appendChild(s);
         }

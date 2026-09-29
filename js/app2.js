@@ -1179,8 +1179,8 @@ function pfUpdateSyncKeyBtn() {
   const has = (typeof pfHasSyncKey === 'function') ? pfHasSyncKey() : false;
   b.textContent = has ? '🔑 동기화 키 ✓' : '🔑 동기화 키';
   b.style.color = has ? window.CUP : 'var(--c-txt-dim)';
-  b.title = has ? '동기화 키 저장됨 (해시로만 보관) — 변경하려면 클릭'
-                : 'Worker 시크릿 ALERTS_SYNC_KEY 를 설정한 경우 동일한 키 입력';
+  b.title = has ? '이 기기에 동기화 키 저장됨 (해시로만 보관) — 다시 넣으려면 클릭'
+                : '동기화 키(처음 받은 키 또는 내가 바꾼 암호) 넣기';
 }
 // 페이지 내 입력 모달 — window.prompt 대체. 카카오톡·네이버 인앱 웹뷰는 prompt/confirm 을
 // 무시(즉시 null)하는 경우가 있어, 모바일에서 "눌러도 아무 일도 안 남"으로 나타난다.
@@ -1221,7 +1221,7 @@ function pfAskText(msg, opts) {
 }
 async function pfSetSyncKey() {
   const has = !!(localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey'));
-  const k = await pfAskText(`동기화 키 (Worker 시크릿 ALERTS_SYNC_KEY 와 동일하게 — 미설정 시 비워두기)${has ? '\n※ 현재 키가 저장되어 있습니다 (보안을 위해 해시로만 보관되어 표시 불가)' : ''}`, { type: 'password' });
+  const k = await pfAskText(`동기화 키(처음 받은 키 또는 내가 바꾼 암호)를 넣으세요. 붙여넣기도 됩니다.\n비워 두고 확인하면 이 기기에서 지웁니다.${has ? '\n※ 이 기기에 키가 저장되어 있습니다 (해시로만 보관해 보여 드릴 수 없습니다)' : ''}`, { type: 'password' });
   if(k === null) return;
   try {
     localStorage.removeItem('pfSyncKey');   // 평문 잔존 제거
@@ -1230,6 +1230,46 @@ async function pfSetSyncKey() {
     pfUpdateSyncKeyBtn();
     if(typeof showToast === 'function') showToast('동기화 키가 SHA-256 해시로 안전하게 저장되었습니다.');
   } catch(_) {}
+}
+// 🔑 키 바꾸기 — 이 기기에 저장된 지금 키(해시)로 인증하고 새 암호의 해시를 Worker(KV)에 등록한다.
+//   서버는 해시만 받으므로 길이 규칙은 여기서 건다. 해시 규칙은 pfSetSyncKey 와 같다(trim 뒤 SHA-256) —
+//   다른 기기에서 🔑 에 새 암호를 넣었을 때 같은 해시가 나와야 한다.
+async function pfChangeSyncKey() {
+  const st = _pfSyncStatusEl();
+  const say = (t, c) => { if(st) { st.textContent = t; st.style.color = c; } };
+  const cur = await pfGetSyncKeyHash();
+  if(!cur) { say('먼저 🔑 동기화 키에 지금 키를 넣으세요.', window.CDN); return; }
+  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+  if(!base) { say('Worker 프록시 미설정', window.CDN); return; }
+  const a = await pfAskText('새 동기화 암호 (12자 이상)\n\n· 폰에서도 치기 쉽게 서로 상관없는 단어 3~4개를 띄어 쓴 문장처럼 길게 만들면 좋습니다(짧은 이름·생일·흔한 문구는 피하세요).\n· 잠금 PIN·다른 사이트 암호와 다르게 정하세요.\n· 바꾸면 다른 기기(폰 등)는 🔑 동기화 키에 새 암호를 다시 넣어야 합니다.', { type: 'password' });
+  if(a === null) return;
+  const nk = a.trim();
+  if(nk.length < 12) { say('키 바꾸기 취소 — 12자 이상이어야 합니다.', window.CDN); return; }
+  const b = await pfAskText('새 암호를 한 번 더 넣으세요.', { type: 'password' });
+  if(b === null) return;
+  if(b.trim() !== nk) { say('키 바꾸기 취소 — 두 번 넣은 암호가 다릅니다.', window.CDN); return; }
+  say('키 바꾸는 중…', 'var(--c-txt-dim)');
+  try {
+    const nh = await pfSha256Hex(nk);
+    const r = await fetch(base + '/sync-key', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'X-Sync-Key-Hash': cur },
+      body: JSON.stringify({ newKeyHash: nh }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const j = await r.json().catch(() => ({}));
+    if(r.ok && j.ok && j.changed) {
+      localStorage.setItem('pfSyncKeyHash', nh);
+      localStorage.removeItem('pfSyncKey');
+      pfUpdateSyncKeyBtn();
+      say('키를 바꿨습니다. 다른 기기(폰 등)는 🔑 동기화 키에 새 암호를 다시 넣으세요.', window.CUP);
+    } else {
+      say('키 바꾸기 실패: ' + (r.status === 401 ? '이 기기에 저장된 키가 서버와 다릅니다 — 🔑 에 지금 키를 먼저 넣으세요' :
+                               r.status === 429 ? '시도가 너무 많습니다 — 1분 뒤 다시' : (j.error || ('HTTP ' + r.status))), window.CDN);
+    }
+  } catch(_) {
+    say('키 바꾸기 실패 — 네트워크 오류', window.CDN);
+  }
 }
 // [3차-T13] 동기화 상태 표시 대상 선택 — 설정 페이지가 활성일 땐 그쪽 상태줄을 우선 사용.
 // 같은 함수(pfSyncAlerts 등)를 포트폴리오·설정 두 화면에서 공유하기 위한 어댑터.
@@ -1502,7 +1542,7 @@ function pfUpdateHoldingsSyncUI() {
 }
 async function pfSetHoldingsPass() {
   const on = !!pfGetHoldingsPass();
-  const p = await pfAskText('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· ⚠ 페이지 잠금 PIN 과 다른 암호를 쓰세요 — 잠금 PIN 해시는 공개 파일이라 풀릴 수 있습니다.\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버(동기화 키로 잠긴 Worker 저장소)엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 짧거나 흔한 암호는 서버 사본이 새면 대입으로 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), { type: 'password' });
+  const p = await pfAskText('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· ⚠ 페이지 잠금 PIN·동기화 키와 다른 암호를 쓰세요.\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버(동기화 키로 잠긴 Worker 저장소)엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 짧거나 흔한 암호는 서버 사본이 새면 대입으로 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), { type: 'password' });
   if (p === null) return;
   try {
     if (!p.trim()) { localStorage.removeItem('pfHoldingsPass'); if(typeof showToast==='function') showToast('평단가 동기화 해제 — 이후 「☁ 목록 저장」에서 평단가/수량은 서버에 올라가지 않습니다.', 4000); }
