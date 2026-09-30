@@ -280,7 +280,10 @@ _EXPECTED_TOPS = ("berkshire", "lmeInventory",
                   # 2026-09-30 사용자 결정(D1): sentiment.pcr · realestate.kr.conversion_rate_kr ·
                   # climate.enso.forecast 는 원천이 없거나 화면 필수가 아니라 기대 목록에서 뺐다
                   # (없는 걸 매 런 '실종'으로 세면 경고가 상시라 진짜 실종이 묻힌다).
-                  "realestate.kr.region", "realestate.kr.region_sub")
+                  "realestate.kr.region", "realestate.kr.region_sub",
+                  # A19(2026-09-30): 프런트(주식시장 시장 폭·업종 등락)가 읽기 시작해 기대 목록에 넣음 —
+                  #   KRX /sto/·/idx/ 승인이 풀리면 채워지고, 그 전엔 실종으로 드러나는 것이 맞다.
+                  "marketBreadth", "sectorMoves")
 # A19 marketBreadth · sectorMoves 는 프런트가 읽기 시작하면 여기에 넣는다(리드가 프런트 연결 뒤 추가).
 # 읽는 화면이 없는데 넣으면 KRX 승인 전 매 런 missing 2줄이 상시 경고가 된다.
 
