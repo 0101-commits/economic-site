@@ -29,6 +29,7 @@ import climate_impact
 import data_sla
 import intl_sources
 import toss_api
+import twelvedata
 
 KST = timezone(timedelta(hours=9))
 
@@ -2251,6 +2252,9 @@ def _investor_align_portal(inv, prev_daily=None, days=10, backfill=40):
             ok, worst = investor_flows.agree(n, old)
             cross.append({"date": n["date"], "agree": ok,
                           "maxDiffPct": round(worst * 100, 1), "gross": bad})
+        elif old is None:
+            # 둘째 원천(토스·KRX)에 이 날 행이 없다 — 불일치가 아니라 '검증 불가'로 따로 센다.
+            cross.append({"date": n["date"], "verified": "unavailable", "gross": None})
         rows.setdefault(n["date"], {"date": n["date"]}).update({k: n[k] for k in keys}, src=src)
     filled = 0
     if src == "naver" and nav:
@@ -3108,7 +3112,14 @@ def fetch_ecos_series(stat_code, item_code="", freq="A", start_period=None, end_
         r = requests.get(url, timeout=15)
         r.raise_for_status()
         data = r.json()
-        rows = data.get("StatisticSearch", {}).get("row", [])
+        ss = data.get("StatisticSearch")
+        if not ss:
+            # 왜: ECOS 는 코드가 틀려도 HTTP 200 + RESULT(INFO-200 등)로 답한다. 여기서 말없이
+            # None 을 돌려 4런 내내 폴백 줄만 찍혔다 — 어느 표·항목을 무슨 사유로 거부했는지 한 줄 남긴다.
+            res = data.get("RESULT") or {}
+            log(f"[ECOS] {stat_code}/{item_code or '-'} StatisticSearch 없음: {res.get('CODE')} {res.get('MESSAGE')}")
+            return None
+        rows = ss.get("row", [])
         return rows if rows else None
     except Exception as e:
         log(f"[ECOS] {stat_code} 오류: {e}")
@@ -3246,11 +3257,11 @@ def fetch_ecos_economic_indicators():
 
     # ─── 경기 ───
     # GDP 성장률 (전기비 또는 전년동기비)
-    # 200Y001 (실질GDP, 분기, 원계열 = 100), 200Y002 (계절조정), 200Y005 (성장률)
-    # item code: 10101 (GDP), 10111 (GDP, 계절조정), AAA (전체)
+    # 정식 표 = 200Y102 item 10111 '국내총생산(GDP)(실질, 계절조정, 전기비)' %.
+    # 옛 후보(200Y104·200Y005…)는 전부 빈 응답이라 매 런 KeyStatisticList(1점) 폴백이었다(2026-09-30 sample 키 실측).
     r, used_stat, used_item = _ecos_try_multi(
-        ["200Y104", "200Y005", "200Y002", "200Y001"],
-        ["10101", "10111", "1000", "0000", "AAA", "GDP"],
+        ["200Y102", "200Y104", "200Y005", "200Y002", "200Y001"],
+        ["10111", "10101", "1000", "0000", "AAA", "GDP"],
         "Q", "한국 실질GDP 성장률(전기비)", "GDP",
     )
     if r:
@@ -3279,10 +3290,11 @@ def fetch_ecos_economic_indicators():
         result["ip_kr"] = r
         log(f"[ECOS] 산업생산: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
 
-    # 소매판매 - 901Y028 (서비스업 동향) / 901Y055 (소매판매액지수)
+    # 소매판매 - 정식 표 = 901Y100 '소매판매액지수' 총지수(G0) × 계절조정지수(T3), 2020=100.
+    # 둘째 축(T1 경상·T2 불변·T3 계절조정)을 안 주면 한 달에 세 줄이 섞이므로 "G0/T3" 로 둘 다 준다.
     r, used_stat, used_item = _ecos_try_multi(
-        ["901Y028", "901Y055", "901Y027"],
-        ["I71BC", "RT00", "A00", "AAA", "0", "1", "I71BC1"],
+        ["901Y100", "901Y028", "901Y055", "901Y027"],
+        ["G0/T3", "I71BC", "RT00", "A00", "AAA", "0", "1", "I71BC1"],
         "M", "한국 소매판매액지수", "RETAIL",
     )
     if r:
@@ -3306,10 +3318,12 @@ def fetch_ecos_economic_indicators():
     # ⚠ 주의: I61EC = 고용률(%) 약 62%, I61G/I61F = 실업률(%) 약 3%
     # 값 범위로 판단하여 실업률만 채택 (0~10% 범위)
     # 후보 item 코드 시도 후 값이 0~15 범위에 들어오는 것만 채택
-    candidates = ["I61G", "I61F", "I61BB", "I61EAA", "I61CA"]
+    # 정식 = I61BC(실업률) × I28A(원계열). 화면의 기존 값(KeyStatisticList 2.0)이 원계열이라 끊김 없이 이어진다.
+    candidates = ["I61BC/I28A", "I61G", "I61F", "I61BB", "I61EAA", "I61CA"]
     chosen = None
     for item in candidates:
-        r = _ecos_latest("901Y027", item, "M", "한국 실업률 (계절조정)", "UNEMP")
+        _d = "한국 실업률 (원계열)" if item == "I61BC/I28A" else "한국 실업률 (계절조정)"
+        r = _ecos_latest("901Y027", item, "M", _d, "UNEMP")
         if r and r.get("value") is not None and 0 < r["value"] < 15:
             chosen = (r, item)
             break
@@ -3363,13 +3377,13 @@ def fetch_ecos_economic_indicators():
         result["mortgage_rate_kr"] = r
         log(f"[ECOS] 주담대 금리: {r['value']} ({r['period']}) item={used_item}")
 
-    # 가계신용 잔액 - 151Y005 (가계신용)
+    # 가계신용 잔액 - 정식 표 = 151Y001 item 1000000 '가계신용'(십억원, 분기). 151Y005 류는 빈 응답.
     # 명시 항목 코드가 전부 빗나가는 사례가 확인됨(런 로그에 가계신용 줄 자체가 없음) —
     # ① 항목 코드 미지정("")으로 전체 항목을 받아 ITEM_NAME1='가계신용' 을 이름으로 매칭,
     # ② 그래도 실패하면 100대 통계지표(KeyStatisticList)에서 이름으로 최신값 폴백.
     r, used_stat, used_item = _ecos_try_multi(
-        ["151Y005", "151Y009", "151Y013"],
-        ["1100000", "AAA", "1000", "0000", "1A0", ""],
+        ["151Y001", "151Y005", "151Y009", "151Y013"],
+        ["1000000", "1100000", "AAA", "1000", "0000", "1A0", ""],
         "Q", "한국 가계신용 잔액 (10억원)", "HOUSEHOLD_DEBT",
         name_filter="가계신용",
     )
@@ -3445,9 +3459,17 @@ def fetch_rone_stats(stats_id, item_code1=None, item_code2=None, item_code3=None
         "WRTTIME_IDTFR_ID_FROM": start_prd,
         "WRTTIME_IDTFR_ID_TO":   end_prd,
     }
+    if start_prd == end_prd:
+        # 한 시점은 WRTTIME_IDTFR_ID 로 준다 — 서버는 _FROM/_TO 를 무시하고 2003년부터 전부 준다
+        # (키 없이 실측 2026-09-30: 범위 202607~202608 → 56,148행·첫 행 200311, 단일 202608 → 236행).
+        del params["WRTTIME_IDTFR_ID_FROM"], params["WRTTIME_IDTFR_ID_TO"]
+        params["WRTTIME_IDTFR_ID"] = start_prd
     if item_code1: params["ITM_ID"]    = item_code1
     if item_code2: params["CLS_ID"]    = item_code2
     if item_code3: params["CLS_ID_2"]  = item_code3
+    if start_prd == end_prd:
+        from urllib.parse import urlencode
+        log(f"[R-ONE-new] 요청 {RONE_BASE}/SttsApiTblData.do?{urlencode({k: v for k, v in params.items() if k != 'KEY'})}")
     # 신 API: https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do
     # 응답 구조 케이스:
     #   1) {"SttsApiTblData": [{"head":[...]}, {"row":[...]}]}  → 정상
@@ -3872,6 +3894,9 @@ RONE_SIDO_CODE = [
 ]
 
 
+_RONE_SIDO_SUFFIX = ("특별자치시", "특별자치도", "특별시", "광역시", "도")
+
+
 def _rone_classify_region(full_name, short_name):
     """R-ONE 지역 행을 (시도코드, 시군구표시명) 으로 분류.
 
@@ -3883,7 +3908,9 @@ def _rone_classify_region(full_name, short_name):
              분류 불가(전국/수도권/지방권 등)면 (None, None).
     """
     path = (full_name or "").strip()
-    tokens = [t for t in path.replace(",", " ").split() if t]
+    # CLS_FULLNM 은 '서울>강북지역' 처럼 '>' 로 잇는다(2026-09-30 실측). 공백만 나누면 한 토큰이 되어
+    # 모든 행이 '시도 자체'로 분류됐고 region_sub 가 매 런 0개(시드 폴백)였다.
+    tokens = [t for t in re.split(r"[>,\s]+", path) if t]
     if not tokens:
         tokens = [(short_name or "").strip()] if short_name else []
     if not tokens:
@@ -3895,7 +3922,9 @@ def _rone_classify_region(full_name, short_name):
     sido_code = None
     for i, tok in enumerate(tokens):
         for name, code in RONE_SIDO_CODE:
-            if tok.startswith(name):
+            # 시도명 그대로이거나 공식 접미사로 끝날 때만 시도로 본다 — 접두어만 보면 '경기>광주시'
+            # 의 광주시가 광주광역시로, '전남광주>광주' 의 전남광주가 전남으로 잡힌다.
+            if tok == name or (tok.startswith(name) and tok.endswith(_RONE_SIDO_SUFFIX)):
                 sido_idx, sido_code = i, code
                 break
         if sido_code:
@@ -3903,8 +3932,18 @@ def _rone_classify_region(full_name, short_name):
     if sido_code is None:
         return None, None
     sub_tokens = tokens[sido_idx + 1:]
-    sub_name = " ".join(sub_tokens).strip()
-    return sido_code, sub_name
+    if not sub_tokens:
+        return sido_code, ""
+    # 권역(강북지역·경부1권·도심권)은 시군구가 아니다 — 끝에서부터 시·군·구로 끝나는 토큰만
+    # 이어 붙인다('경기>경부1권>성남시>분당구' → '성남시 분당구', 시드와 같은 표기).
+    tail = []
+    for t in reversed(sub_tokens):
+        if not t.endswith(("시", "군", "구")):
+            break
+        tail.insert(0, t)
+    if not tail:
+        return None, None   # 권역 집계행
+    return sido_code, " ".join(tail)
 
 
 def fetch_rone_sigungu_breakdown():
@@ -3921,22 +3960,40 @@ def fetch_rone_sigungu_breakdown():
     # 매매가격지수_아파트 통계표 후보 (fetch_realestate_kr 와 동일 우선순위)
     sid_candidates = ["A_2024_00045", "A_2025_00131", "A_2024_00026", "A_2022_00026"]
     now = datetime.now(KST)
-    start_prd = (now - timedelta(days=210)).strftime("%Y%m")  # 최근 ~7개월
     end_prd = now.strftime("%Y%m")
+    # 7개월 범위 한 번(6,000행) 대신 한 달씩 받는다 — 범위는 서버가 무시해 6,000행이 전부 2003년대였다.
+    # 한 달 = 그 달 전 지역(~240행). 공표가 익월 중순이라 이번 달부터 거슬러 값 있는 두 달을 찾는다.
+    months = []
+    for back in range(4):
+        y, m = now.year, now.month - back
+        if m <= 0:
+            y, m = y - 1, m + 12
+        months.append(f"{y}{m:02d}")
     rows = None
     used_sid = None
     for sid in sid_candidates:
-        try:
-            r = fetch_rone_stats(sid, period_type="M", start_prd=start_prd, end_prd=end_prd, limit=6000)
-        except Exception as e:
-            log(f"[R-ONE-시군구] {sid} 오류: {e}")
-            continue
-        if r and len(r) > 50:  # 전 지역 × 수개월이면 수백 행
-            rows, used_sid = r, sid
+        got = []
+        for prd in months:
+            try:
+                r = fetch_rone_stats(sid, period_type="M", start_prd=prd, end_prd=prd, limit=_RONE_MAX_PSIZE)
+            except Exception as e:
+                log(f"[R-ONE-시군구] {sid} {prd} 오류: {e}")
+                continue
+            if r:
+                got.append(r if isinstance(r, list) else [r])
+                if len(got) == 2:
+                    break
+        if len(got) == 2 and len(got[0]) > 50:  # 한 달 전 지역이면 수백 행
+            rows, used_sid = got[0] + got[1], sid
             break
     if not rows:
         log("[R-ONE-시군구] 지역 행 수집 실패 — region_sub 미생성(시드 폴백)")
         return {}
+    # 다음 CI 런이 실제 응답 모양을 알려주도록 표본 3행만 남긴다(키 목록 + 지역명 두 필드).
+    log(f"[R-ONE-시군구] {used_sid} 행 키={sorted(rows[0].keys())}")
+    for row in rows[:3]:
+        log(f"[R-ONE-시군구]   표본 CLS_FULLNM={row.get('CLS_FULLNM')!r} CLS_NM={row.get('CLS_NM')!r} "
+            f"시점={row.get('WRTTIME_IDTFR_ID')}")
 
     # (시도코드, 시군구명) → {period: value}
     region_hist = {}     # 시도 자체: code -> {period: value}
@@ -3955,6 +4012,11 @@ def fetch_rone_sigungu_breakdown():
             region_hist.setdefault(code, {})[period] = val
         else:
             sub_hist.setdefault(code, {}).setdefault(sub, {})[period] = val
+    # 구가 있는 시(성남시)는 구 행(성남시 분당구…)과 겹친다 — 시드처럼 구 단위만 남긴다.
+    for subs in sub_hist.values():
+        for nm in list(subs):
+            if any(o.startswith(nm + " ") for o in subs):
+                subs.pop(nm)
 
     def _mom_pct(hist):
         ks = sorted(hist.keys())
@@ -5727,7 +5789,7 @@ def _is_effectively_empty(val):
     return False
 
 
-def _mark_preserved(node):
+def _mark_preserved(node, reason=None):
     """직전 빌드에서 되살린 값에 preserved 표식을 단다 — 판정표(data_sla)가 '이번 런 미수집'을 읽는다.
 
     지표 잎(value 보유 dict)엔 직접, 자식이 전부 dict 인 컨테이너(국가·지역)는 내려가 잎마다,
@@ -5738,12 +5800,80 @@ def _mark_preserved(node):
     if not isinstance(node, dict) or not node:
         return node
     if "value" not in node and all(isinstance(v, dict) for v in node.values()):
-        return {k: _mark_preserved(v) for k, v in node.items()}
+        return {k: _mark_preserved(v, reason) for k, v in node.items()}
     out = dict(node)
+    if reason == "lane":
+        # 설계상 건너뛴 월간 묶음(FETCH_MACRO=0) — 실패가 아니므로 preserved 를 달지 않는다.
+        # data_sla 는 preserved:True 만 '이번 런 미수집'으로 센다. lane 잎이 매시 '보존'으로 뜨면 안 된다.
+        out.pop("preserved", None)
+        out.pop("preservedAt", None)
+        out["preserved_reason"] = "lane"
+        return out
+    out.pop("preserved_reason", None)   # 일일 런이 못 받아 되살린 lane 잎은 이제 진짜 미수집이다
     out["preserved"] = True
     out["preservedAt"] = ((node.get("preserved") and node.get("preservedAt"))
                           or datetime.now(KST).isoformat(timespec="seconds"))
     return out
+
+
+def _src_of(v):
+    return str(v.get("source", "")) if isinstance(v, dict) else ""
+
+
+# 월간 거시 묶음(A8). 시간별 풀 런(FETCH_MACRO=0)은 이 묶음들을 건너뛰고 직전 값을
+# preserved_reason="lane" 으로 잇는다 — 하루 3회 일일 런(FETCH_MACRO=1)이 새로 받는다.
+# 왜: 매시 풀 런이 월간 지표까지 다시 불러 ECOS·R-ONE 이 6런 중 3런 서킷브레이커에 걸렸다.
+# 값 = (컨테이너, 그룹(None=전부), 잎 판정) — 이 묶음이 채우는 잎을 고르는 규칙.
+# 제외: FRED 미국 지표(VIX·HY 등 일별)·수익률곡선은 매시 필요. ENSO 는 이미 일일 런(AV_FETCH_FULL)
+# 에서만 받고 climate_impact 는 네트워크 없는 계산이라 뺐다.
+MACRO_SECTIONS = {
+    # FRED 국제(OECD/IMF) + ECB·OECD·ONS·BOJ + DBnomics 일본 CPI + BoE 보강. kr 의 FRED 잎도 이 묶음.
+    "intl":   ("economicIndicators", ("jp", "eu", "cn", "uk", "de", "kr"),
+               lambda g, k, v: not k.startswith("pmi_") and (g != "kr" or _src_of(v).startswith("FRED"))),
+    "pmi":    ("economicIndicators", None, lambda g, k, v: k.startswith("pmi_")),        # 국가별 PMI
+    "ecos":   ("economicIndicators", ("kr",),                                             # ECOS 거시 + KOSIS 소매
+               lambda g, k, v: not k.startswith("pmi_") and not _src_of(v).startswith("FRED")),
+    "rone":   ("realestate", ("kr",), lambda g, k, v: True),   # R-ONE 가격지수·시군구 지도 + ECOS/FRED 폴백
+    "fredre": ("realestate", ("us",), lambda g, k, v: True),   # FRED 미국 부동산
+}
+
+
+def _macro_leaves(prev, name):
+    ck, groups, pred = MACRO_SECTIONS[name]
+    for g, leaves in ((prev or {}).get(ck) or {}).items():
+        if (groups and g not in groups) or not isinstance(leaves, dict):
+            continue
+        for k, v in leaves.items():
+            if v and pred(g, k, v):
+                yield ck, g, k, v
+
+
+def _macro_lane_plan(prev):
+    """이번 런에 새로 받을 거시 묶음 집합. FETCH_MACRO≠0 이면 전부."""
+    if os.environ.get("FETCH_MACRO", "1").strip() != "0":
+        return set(MACRO_SECTIONS)
+    def marked(v):   # 잎 자체 또는 한 단계 아래(region_sub 의 시도별 칸)에 preserved:True
+        return isinstance(v, dict) and (v.get("preserved") is True or any(
+            isinstance(c, dict) and c.get("preserved") is True for c in v.values()))
+    run = set()
+    for name in MACRO_SECTIONS:
+        leaves = [v for *_, v in _macro_leaves(prev, name)]
+        # 직전에 없거나(첫 런), 일일 런이 못 받아 되살린 잎(preserved:True)이 있으면 이 묶음만 매시 재시도.
+        if not leaves or any(marked(v) for v in leaves):
+            run.add(name)
+    return run
+
+
+def _carry_lane(data, prev, skipped):
+    """건너뛴 묶음의 잎을 직전 빌드에서 lane 표식으로 잇는다(이번 런에 채워진 잎은 그대로). Returns: 잎 수."""
+    n = 0
+    for name in skipped:
+        for ck, g, k, v in _macro_leaves(prev, name):
+            grp = data.setdefault(ck, {}).setdefault(g, {})
+            if _is_effectively_empty(grp.get(k)):
+                grp[k] = _mark_preserved(v, reason="lane")
+                n += 1
+    return n
 
 
 def _preserve_from_prev(data, prev, keys, fresh_label=None):
@@ -6075,11 +6205,46 @@ def _alert_dead_sources(ss):
             rec["alertedAt"] = datetime.now(KST).isoformat(timespec="seconds")
 
 
+def _pykrx_runs(prev_runs, ok):
+    """pykrx 가용 누계 {ok, fail} 에 이번 런 1회를 더한다(직전 값이 없거나 깨졌으면 0부터)."""
+    p = prev_runs if isinstance(prev_runs, dict) else {}
+    return {"ok": int(p.get("ok") or 0) + bool(ok), "fail": int(p.get("fail") or 0) + (not ok)}
+
+
+def _apply_twelvedata(data, intl_indices):
+    """Twelve Data 2순위(A11) — 풀 런에서만 런당 한 번 부른다(무료 일 800크레딧·심볼 1개=1크레딧, 경량 런 제외).
+    교차검증 결과를 diagnostics.indexCross 에 싣고, yfinance 가 이번 런에 못 준 지수(없음·직전 값 stale)만
+    Twelve Data 값으로 채운다 — 직전 값을 stale 로 되살리는 것보다 오늘 값이 낫다."""
+    if not twelvedata.enabled():
+        return
+    td = twelvedata.quote(list(intl_indices.values()), log=log)
+    if not td:
+        return
+    idx = data.setdefault("indices", {})
+    yq = {sym: idx[name] for name, sym in intl_indices.items()
+          if idx.get(name) and not idx[name].get("stale")}
+    data.setdefault("diagnostics", {})["indexCross"] = twelvedata.cross_check(yq, td)
+    filled = []
+    for name, sym in intl_indices.items():
+        t = td.get(sym)
+        if t and (not idx.get(name) or idx[name].get("stale")):
+            chg = t.get("change_pct")
+            idx[name] = {"price": round(t["price"], 2),
+                         "change": round(chg, 2) if chg is not None else None,
+                         "source": "Twelve Data"}
+            filled.append(name)
+    if filled:
+        data.setdefault("sources", {})["indices_td"] = f"Twelve Data (yfinance 실패분: {', '.join(filled)})"
+        log(f"[TD] yfinance 실패분 Twelve Data 로 채움: {filled}")
+
+
 def build_data():
     now = datetime.now(KST)
     prev = _load_prev_data("data.json")
     if prev:
         log(f"[prev-data] 이전 빌드 로드 OK (lastUpdated={prev.get('lastUpdated','')[:16]})")
+    _macro = _macro_lane_plan(prev)
+    log(f"[lane] 거시 묶음 이번 런 수집: {sorted(_macro) or '없음'} (FETCH_MACRO={os.environ.get('FETCH_MACRO', '1')})")
     data = {
         "lastUpdated": now.isoformat(),
         "sources": {},
@@ -6463,11 +6628,18 @@ def build_data():
     # 포털(네이버) ↔ 토스 교차검증 불일치 일수 — 알림은 불일치일의 숫자를 싣지 않는다(_verified_investor).
     _xc = (data.get("investorTrading") or {}).get("crossCheck") or []
     if _xc:
-        data["diagnostics"]["investorCrossChecked"] = len(_xc)
+        _ua = sum(1 for c in _xc if c.get("verified") == "unavailable")
+        data["diagnostics"]["investorCrossChecked"] = len(_xc) - _ua   # 실제로 대조한 날만 — 일치율 분모
         data["diagnostics"]["investorCrossMismatch"] = sum(1 for c in _xc if c.get("gross"))
+        data["diagnostics"]["investorCrossUnavailable"] = _ua
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
     data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
+    # pykrx 가용률(런 누계, A17) — import 성공은 거의 늘 True 라 신호가 안 된다(KRX 로그인 거부 시
+    # 빈 응답). 이번 런에 KRX 확정 수급(krxDaily)을 실제로 받았으면 ok. 직전 누계에 더한다.
+    data["diagnostics"]["pykrxRuns"] = _pykrx_runs(
+        ((prev or {}).get("diagnostics") or {}).get("pykrxRuns"),
+        bool(_PYKRX_AVAILABLE and (data.get("investorTrading") or {}).get("krxDaily")))
     # diagnostics.toss 는 sources 라벨을 스캔하므로 **모든 소스 대입이 끝난 뒤**
     # (build_data 말미)에 계산한다 — 여기서 부르면 이 지점 이후에 설정되는
     # yieldCurve_kr 등이 supplied 에서 영영 빠진다(2026-08-20 감사 B1).
@@ -6529,6 +6701,8 @@ def build_data():
             if fb:
                 data["indices"][name] = fb
             log(f"[yf] {name}: 수집 실패 — " + ("직전 값 stale 보존" if fb else "생략"))
+
+    _apply_twelvedata(data, intl_indices)
 
     # 출처 라벨 = 실제로 값을 채운 경로. 종전엔 KRX 키 존재만 보고 'KRX OpenAPI' 라 적어,
     # 키가 7일간 전건 401 인데도(2026-09-24 CI 실측) 화면 출처는 KRX 였다.
@@ -6655,7 +6829,7 @@ def build_data():
             log(f"[yf-VIX] 오류: {e}")
         # 미국 부동산 지표
         log("[FRED] 미국 부동산 지표 수집 시작")
-        re_us_data = fetch_fred_realestate_us()
+        re_us_data = fetch_fred_realestate_us() if "fredre" in _macro else {}
         data["realestate"]["us"] = re_us_data
         data["sources"]["realestate_us"] = "FRED API (stlouisfed.org)"
         # 미국 국채 수익률 곡선 (10년물 외 1M~30Y)
@@ -6666,7 +6840,7 @@ def build_data():
             data["sources"]["yieldCurve_us"] = "FRED API (DGS1MO~DGS30)"
         # 국제 경제 지표 (일본/유로존/중국/독일/영국 OECD/IMF 시리즈)
         log("[FRED] 국제 경제 지표 수집 시작")
-        intl_data = fetch_fred_intl_indicators()
+        intl_data = fetch_fred_intl_indicators() if "intl" in _macro else {}
         for cc, ind in intl_data.items():
             data["economicIndicators"].setdefault(cc, {}).update(ind)
         if intl_data:
@@ -6676,7 +6850,7 @@ def build_data():
         # 유로존 실업률(FRED 2023-01 사망)·중국 CPI(2025-04)·영국 CPI(2025-03) 담당.
         # FRED 블록 뒤에 병합해, FRED 가 되살아나도 최신 소스가 이기게 한다.
         try:
-            alt = intl_sources.fetch_all(log=log)
+            alt = intl_sources.fetch_all(log=log) if "intl" in _macro else {}
             for cc, ind in alt.items():
                 data["economicIndicators"].setdefault(cc, {}).update(ind)
             if alt:
@@ -6747,7 +6921,7 @@ def build_data():
         # PMI 지표 — 국가별 제조업 PMI (OECD BSCICP02 via FRED)
         log("[PMI] 국가별 제조업 PMI 수집 시작")
         try:
-            pmi_data = fetch_pmi_indicators()
+            pmi_data = fetch_pmi_indicators() if "pmi" in _macro else {}
             for cc, ind in pmi_data.items():
                 data["economicIndicators"].setdefault(cc, {}).update(ind)
             if pmi_data:
@@ -6758,7 +6932,7 @@ def build_data():
         # UK BOE Bank Rate 보강 (FRED IRSTCB01GBM156N 가 누락된 경우)
         try:
             uk_node = data["economicIndicators"].get("uk", {}) or {}
-            if not (uk_node.get("base_rate_uk") or {}).get("value"):
+            if "intl" in _macro and not (uk_node.get("base_rate_uk") or {}).get("value"):
                 log("[BoE] UK base_rate_uk 누락 → Bank of England IADB 직접 페치")
                 boe = fetch_boe_bank_rate()
                 if boe:
@@ -6770,7 +6944,7 @@ def build_data():
         log("[FRED] API 키 없음 — 미국 지표 건너뜀")
 
     # 일본 CPI — 무인증 소스라 FRED 키 게이트 밖에 둔다. 실패하면 preserve-deep 이 직전 값을 되살린다.
-    _cpi_jp = fetch_dbnomics_cpi_jp()
+    _cpi_jp = fetch_dbnomics_cpi_jp() if "intl" in _macro else None
     if _cpi_jp:
         data["economicIndicators"].setdefault("jp", {})["cpi_jp"] = _cpi_jp
 
@@ -6778,7 +6952,7 @@ def build_data():
     # ── ECOS 경제 지표 (한국은행) ─────────────────────────────
     if ECOS_API_KEY:
         log("[ECOS] 한국 경제 지표 수집 시작")
-        ecos_data = fetch_ecos_economic_indicators()
+        ecos_data = fetch_ecos_economic_indicators() if "ecos" in _macro else {}
         # 병합(update)이어야 한다 — 통째 대입은 위에서 채운 pmi_kr(7개국 PMI 패널의 한국값)을
         # 지워 '한국 PMI 가 항상 — 로 비는' 버그가 됐었다 (2026-06-10 데이터로 확인).
         data["economicIndicators"].setdefault("kr", {}).update(ecos_data)
@@ -6786,7 +6960,7 @@ def build_data():
         # 소매판매액지수가 ECOS 에서 누락되면 KOSIS API 로 보강.
         # KOSIS 가 실패(서버 다운/타임아웃/빈 응답)하면 직전 data.json 의 retail_kr 을
         # 그대로 유지(Fallback)해, ECOS 등 먼저 수집한 지표가 정상 커밋되도록 한다.
-        if not (ecos_data.get("retail_kr") or {}).get("value") and KOSIS_API_KEY:
+        if "ecos" in _macro and not (ecos_data.get("retail_kr") or {}).get("value") and KOSIS_API_KEY:
             log("[KOSIS] retail_kr 누락 → KOSIS 보강 시도")
             kosis_retail = None
             try:
@@ -6899,7 +7073,10 @@ def build_data():
     re_data = {}
     re_diag = {"rone_tried": False, "rone_ok": False, "ecos_tried": False, "ecos_ok": False,
                "fred_tried": False, "fred_ok": False}
-    if REALESTATE_API_KEY:
+    _rone_on = "rone" in _macro
+    if not _rone_on:
+        log("[R-ONE] 이번 런은 월간 묶음 건너뜀(FETCH_MACRO=0) — 직전 값을 lane 으로 잇는다")
+    elif REALESTATE_API_KEY:
         log("[R-ONE] 한국 부동산 지표 수집 시작")
         re_diag["rone_tried"] = True
         re_data = fetch_realestate_kr() or {}
@@ -6915,7 +7092,7 @@ def build_data():
     # R-ONE 이 이번 런에 안 닿으면(호스트 차단 등) 같은 기준(R-ONE)의 직전 값을 먼저 유지한다.
     # 종전엔 곧장 ECOS·FRED 폴백으로 내려가 더 낡고 기준도 다른 값(2026-01 KB)이 직전
     # R-ONE 값(2026-08)을 덮어썼다(2026-09-24 첫 운영 런 실측).
-    if not re_diag["rone_ok"]:
+    if _rone_on and not re_diag["rone_ok"]:
         _prev_re = ((prev or {}).get("realestate") or {}).get("kr") or {}
         _kept = [k for k, v in _prev_re.items() if k not in re_data and isinstance(v, dict)
                  and str(v.get("source", "")).startswith("R-ONE")]
@@ -6924,7 +7101,7 @@ def build_data():
         if _kept:
             data["sources"]["realestate_kr"] = "이전 빌드 보존 ← R-ONE (이번 런 연결 실패)"
             log(f"[R-ONE] 연결 실패 — 직전 R-ONE 값 {len(_kept)}개 유지: {_kept}")
-    if (not re_data.get("apt_price_idx_kr")) or (not re_data.get("jns_price_idx_kr")):
+    if _rone_on and ((not re_data.get("apt_price_idx_kr")) or (not re_data.get("jns_price_idx_kr"))):
         re_diag["ecos_tried"] = True
         try:
             ecos_fb = fetch_realestate_kr_ecos_fallback()
@@ -6942,7 +7119,7 @@ def build_data():
             log(f"[RE-FB] 오류: {e}")
     # FRED(BIS) 폴백: 매매가격지수가 여전히 비어있으면 BIS 한국 주거용 부동산 지수로 보강.
     # R-ONE/ECOS 가 모두 실패하는 환경에서도 FRED 는 안정적이라 사용자 화면이 비지 않도록 함.
-    if not re_data.get("apt_price_idx_kr"):
+    if _rone_on and not re_data.get("apt_price_idx_kr"):
         re_diag["fred_tried"] = True
         try:
             fred_fb = fetch_fred_realestate_kr()
@@ -6963,6 +7140,13 @@ def build_data():
     data["realestate"]["kr"] = re_data
     # 진단 노드에 미수집 사유 기록 — 프론트엔드/사용자가 어떤 단계가 실패했는지 확인 가능
     data.setdefault("diagnostics", {})["realestate_kr"] = re_diag
+
+    # 건너뛴 월간 묶음은 여기서(거시 구간 끝, 캘린더 백필·보존 단계 전) 직전 값을 lane 으로 잇는다 —
+    # 뒤의 보존 단계가 비었다고 보고 preserved:True 를 달기 전에 채워 둔다.
+    _lane_n = _carry_lane(data, prev, set(MACRO_SECTIONS) - _macro)
+    data["diagnostics"]["macroLane"] = {"fetched": sorted(_macro), "carried": _lane_n}
+    if _lane_n:
+        log(f"[lane] 건너뛴 묶음 잎 {_lane_n}개를 직전 값으로 이음")
 
     # ── VKOSPI (KOSPI200 변동성 지수) — 시장 분위기 ────────
     try:

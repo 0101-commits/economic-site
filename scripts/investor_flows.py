@@ -258,8 +258,10 @@ def gross_mismatch(a, b, gross_pct=GROSS_PCT):
 def verified_latest(market="KOSPI", today=None, now=None):
     """오늘자 검증 통과 수급 → dict, 아니면 None.
 
-    반환: {date, foreign, inst, retail, primary, cross, agree, maxDiffPct, confirmed, reason}
+    반환: {date, foreign, inst, retail, primary, cross, agree, maxDiffPct, verified, confirmed, reason}
     - 값은 **네이버(포털·언론 기준)**. 토스는 교차검증용.
+    - verified: 둘째 원천과 대조해 통과하면 True, 둘째 원천이 없으면 문자열 "unavailable"(검증 불가).
+      불일치(총체적 오류)는 None 반환이라 False 는 없다 — False 로 두면 '틀림'과 '못 봄'이 섞인다.
     - 오늘 날짜 행이 없으면 None(= 묵은 값 금지).
     - 토스 키가 없어 교차검증이 불가하면 agree=None 으로 통과시킨다(네이버 단독값은
       사용자가 대조하는 그 값이라 '틀린 값'이 아니다).
@@ -282,7 +284,7 @@ def verified_latest(market="KOSPI", today=None, now=None):
             log("네이버·토스 모두 오늘 행 없음 — 수급 표기 생략")
             return None
         out = {"date": today, "primary": "toss", "cross": None, "agree": None,
-               "maxDiffPct": None, "confirmed": False, "reason": ""}
+               "maxDiffPct": None, "verified": "unavailable", "confirmed": False, "reason": ""}
         out.update({k: tos[k] for k in _KEYS})
         upd = str(tos.get("updatedAt") or "")
         m = re.match(r"^\d{4}-\d\d-\d\dT(\d\d):", upd)
@@ -293,7 +295,8 @@ def verified_latest(market="KOSPI", today=None, now=None):
             f"기관 {out['inst']:+,.0f}억 ({out['reason']})")
         return out
     out = {"date": today, "primary": psrc, "cross": "toss" if tos else None,
-           "agree": None, "maxDiffPct": None, "confirmed": False, "reason": ""}
+           "agree": None, "maxDiffPct": None, "verified": True if tos else "unavailable",
+           "confirmed": False, "reason": ""}
     out.update({k: nav[k] for k in _KEYS})
     if tos:
         bad = gross_mismatch(nav, tos)
