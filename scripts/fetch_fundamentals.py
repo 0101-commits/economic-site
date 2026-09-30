@@ -55,6 +55,8 @@ def load_symbols():
     for it in items:
         sym = str(it.get("symbol") or "").strip()
         mkt = it.get("market")
+        if it.get("secType") == "etf":
+            continue  # ETF 는 DART corp_code·재무제표가 없다 — 대상에서 뺀다(매 런 corpCode zip 재다운 방지)
         if mkt == "KR" and len(sym) == 6 and sym.isdigit():
             kr.append({"code": sym, "name": it.get("name") or sym})
         elif mkt == "US" and sym:
@@ -183,7 +185,8 @@ def fetch_us_one(yahoo_sym):
     t = yf.Ticker(yahoo_sym)
     try:
         info = t.info or {}
-    except Exception:
+    except Exception as e:  # 429·JSON 오류를 삼키면 '비어있음'과 구분이 안 된다
+        log(f"[FUNDA] US {yahoo_sym} info 실패: {type(e).__name__}: {str(e)[:80]}")
         info = {}
     out = {}
     for src, dst in [("trailingPE", "per"), ("trailingEps", "eps"), ("priceToBook", "pbr"),
@@ -217,7 +220,7 @@ def fetch_us_one(yahoo_sym):
 def main():
     prev = load_json(OUT_PATH) or {}
     kr_items, us_items = load_symbols()
-    log(f"[FUNDA] 대상: KR {len(kr_items)}종목, US {len(us_items)}종목")
+    log(f"[FUNDA] 대상: KR {len(kr_items)}종목, US {len(us_items)}종목 (ETF 제외 — 관심목록의 개별 종목만)")
     out = {
         "asOf": datetime.now(KST).isoformat(timespec="seconds"),
         "kr": dict(prev.get("kr") or {}),
