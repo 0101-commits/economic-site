@@ -1,0 +1,57 @@
+name: Notice Check
+
+# API 제공기관 공지판을 주 1회 읽어 새 공지 중 수집기에 영향 있을 법한 것만 #시스템 으로 알린다.
+# (EXIM 도메인 변경을 놓친 사고 재발 방지) 상태는 scripts/notices_state.json 에 커밋.
+on:
+  schedule:
+    - cron: '20 0 * * 1'   # 매주 월요일 09:20 KST
+  workflow_dispatch:
+
+concurrency:
+  group: notice-check
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check-notices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run notice checker
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
+        run: python scripts/check_notices.py
+
+      - name: Commit notices_state.json
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add scripts/notices_state.json
+          if git diff --cached --quiet -- scripts/notices_state.json; then
+            echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
+          fi
+          git commit -m "chore: 원천 공지 감시 상태 갱신" -q
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then echo "push 성공 (시도 ${attempt})"; exit 0; fi
+            echo "push 실패 (시도 ${attempt}) — rebase 후 재시도"
+            git pull --rebase origin main || true
+            sleep $((attempt * 3))
+          done
+          echo "::error::notices_state.json push 실패 (재시도 소진)"; exit 1
