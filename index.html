@@ -1945,6 +1945,11 @@ canvas.econ-await-off{animation:none;background:var(--c-surface)}
 .econ-dir-row:first-of-type{border-top:0}
 .econ-dir-row__name{font-weight:700;color:var(--c-txt)}
 .econ-dir-row__note{color:var(--c-txt-dim);min-width:0}
+/* 시장 폭 한 줄 = 시장 이름 + 상승·하락·보합·상한·하한 종목 수(숫자만 굵게, 방향색은 .up-txt/.down-txt) */
+.eq-breadth__row{display:flex;align-items:baseline;gap:4px 10px;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--c-border);font-size:var(--font-size-sm);color:var(--c-txt-dim)}
+.eq-breadth__row:first-child{border-top:0}
+.eq-breadth__row .econ-stat__label{min-width:56px}
+.eq-breadth__row b{font-family:var(--font-num);font-variant-numeric:tabular-nums}
 .econ-dir-row--sec{grid-template-columns:56px 1fr}
 .econ-dir-row--sec small{font-weight:400;color:var(--c-txt-dim);margin-left:6px}
 .econ-colh{display:flex;justify-content:space-between;font-size:var(--font-size-sm);font-weight:700;color:var(--c-txt-dim);padding:0 0 4px}
@@ -3760,6 +3765,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <canvas id="equityIndexChart" role="img" aria-label="주식 지수 차트">지수 차트</canvas>
           </div>
         </div>
+        <!-- 업종 등락 (KRX 전일 확정치, data.sectorMoves) — 자료 없으면 숨김 -->
+        <div class="widget" id="equitySectorWrap" style="display:none;margin-bottom:12px;">
+          <h3 class="widget-title">업종 등락 (전일) <span class="econ-stat__unit" id="equitySectorAsOf"></span></h3>
+          <div class="econ-data" id="equitySectorList"></div>
+        </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
             <h3 class="widget-title" style="margin-bottom:0;">투자자별 순매매 동향 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">코스피 기준 · 단위: 억원</span></h3>
@@ -3807,11 +3817,18 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </table>
         </div>
 
-      <!-- 상승/하락 Top10 (주식) -->
+      <!-- 상승/하락 Top10 (주식) — KOSPI | KOSDAQ 고르기(KOSDAQ = KRX 전일 확정치, 자료 있을 때만 보임) -->
+      <div id="equityMoverMktBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-top:var(--gap-w);">
+        <span role="group" aria-label="등락 Top10 시장 고르기" style="display:inline-flex;gap:4px;">
+          <button type="button" class="tab-btn eqMktChip active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setEquityMoverMkt('KOSPI',this)" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">KOSPI</span></button>
+          <button type="button" class="tab-btn eqMktChip seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" onclick="setEquityMoverMkt('KOSDAQ',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">KOSDAQ</span></button>
+        </span>
+        <span id="equityMoverKq" style="display:none;"><span id="equityMoverAsOf" class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_neutral-variant_weak" title="한국거래소 전일 종가 기준 확정치">전일 확정</span></span>
+      </div>
       <div class="g-2" style="margin-top:var(--gap-w);">
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <h3 class="widget-title" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></h3>
+            <h3 class="widget-title" id="equityGainTitle" style="margin-bottom:0;">KOSPI 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
               <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침">새로고침</button>
               <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
@@ -3830,7 +3847,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <h3 class="widget-title" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></h3>
+            <h3 class="widget-title" id="equityLoseTitle" style="margin-bottom:0;">KOSPI 하락 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권</span></h3>
             <div style="display:flex;gap:6px;align-items:center;">
               <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="retryEquityMovers(this)" title="실시간 Top10 새로고침">새로고침</button>
               <a href="https://finance.naver.com/sise/sise_fall.naver" target="_blank" rel="noopener noreferrer" style="font-size:var(--font-size-sm);color:var(--c-primary);text-decoration:none;">네이버 전체 →</a>
@@ -3847,6 +3864,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <tbody id="equityTopLosersTable"><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr><tr class="skel-row" aria-hidden="true"><td colspan="5"><div style="display:flex;justify-content:space-between;gap:10px;"><span class="skel-bar" style="width:38%;height:11px;"></span><span class="skel-bar" style="width:18%;height:11px;"></span><span class="skel-bar" style="width:14%;height:11px;"></span><span class="skel-bar" style="width:16%;height:11px;"></span></div></td></tr></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- 시장 폭 (KRX 전일 확정치, data.marketBreadth) — 자료 없으면 숨김 -->
+      <div class="widget" id="equityBreadth" style="display:none;margin-top:var(--gap-w);">
+        <h3 class="widget-title">시장 폭 <span class="econ-stat__unit" id="equityBreadthAsOf"></span></h3>
+        <div class="econ-data" id="equityBreadthRows"></div>
       </div>
 
       <!-- 상승/하락 Top10 (ETF) — 거래량 데이터 미수집 → 컬럼 생략 -->
@@ -4753,30 +4776,31 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                   <div style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
                 </div>
               </button>
-              <button type="button" onclick="showReHistoryChart('unsold_kr','미분양 주택 수',{unit:'호 (가구 수)'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
-                <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">미분양 주택 수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
-                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">국토부 통계 · 월간 · 단위: 호 (가구 수)</div>
-                </div>
-                <div style="text-align:right;">
-                  <div id="krReUnsold" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
-                  <div style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);" title="시계열 데이터 수집 전입니다">—</div>
-                </div>
-              </button>
             </div>
           </div>
 
+          <!-- 전세 두 표 (R-ONE) — 옛 「미분양 주택 수」「주택 착공」 카드는 표를 잘못 짚은 이름이었다(2026-09-30) -->
           <div class="widget">
-            <h3 class="widget-title">주택 공급·임대 지표</h3>
+            <h3 class="widget-title">전세 가격 지표</h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <button type="button" onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
+              <button type="button" onclick="showReHistoryChart('avg_jeonse_price_kr','아파트 평균 전세가격 (전국)',{unit:'천원'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
-                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간</div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">아파트 평균 전세가격 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
+                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 원자료 단위: 천원</div>
                 </div>
                 <div style="text-align:right;">
-                  <div id="krReStart" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
-                  <div id="krReStartChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">수집 중</div>
+                  <div id="krReAvgJeonse" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
+                  <div id="krReAvgJeonseChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">—</div>
+                </div>
+              </button>
+              <button type="button" onclick="showReHistoryChart('semi_jeonse_idx_kr','준전세가격지수 (전국)',{unit:'지수 (2026.06=100)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
+                <div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">준전세가격지수 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
+                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 2026.06=100</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReSemiJeonse" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
+                  <div id="krReSemiJeonseChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">—</div>
                 </div>
               </button>
             </div>

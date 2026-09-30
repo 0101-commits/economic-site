@@ -337,7 +337,7 @@ function renderBriefStrip(d) {
     const dTxt = dLeft === 0 ? '오늘' : dLeft === 1 ? '내일' : `D-${dLeft}`;
     chip("showPage('calendar', menuItemFor('calendar'))", '다음 일정',
       `<span class="brief-val" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(`${nx.e.flag || ''} ${dTxt} · ${nx.e.name}`)}</span>`,
-      `${nx.e.dt} ${nx.e.name} ${'★'.repeat(nx.e.stars || 0)} — 클릭: 경제 캘린더`, `다음 경제 일정: ${dTxt} ${nx.e.name}`);
+      `${calDtText(nx.e)} ${nx.e.name} ${'★'.repeat(nx.e.stars || 0)} — 클릭: 경제 캘린더`, `다음 경제 일정: ${dTxt} ${nx.e.name}`);
   }
   if(chips.length) host.innerHTML = chips.join('');
 }
@@ -2025,10 +2025,11 @@ var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 추이', '등락 Top10', '최�
                                           '원자재 현물 가격',   // 원자재 탭 390 = 3.4화면 → 표(400px)를 접어 3.0 아래로. 값은 WTI 차트 머리와 결론 줄이 말한다
                                           // 주식시장은 표 6개 83행이 한 화면에 이어졌다 — 대표 2표만 펼친다
                                           'ETF 상승', 'ETF 하락', '거래대금 Top20', '토스증권 체결',
+                                          '업종 등락',   // KRX 전일 업종 10줄(≈360px) — 390 화면수 상한을 지키려 접어 둔다
                                           // §C6(2026-09-19) — 390 에서 거시 4.5화면 · 부동산 4.2화면(M5 기준 4.0).
                                           // 뉴스 625px · 청약 299px · 공급 213px 는 '왜·어떻게' 층이라 첫 스크롤에서
                                           // 답할 필요가 없다. 펼친 선택은 그대로 저장된다.
-                                          '거시경제 관련 뉴스', '청약 경쟁률', '주택 공급·임대 지표',
+                                          '거시경제 관련 뉴스', '청약 경쟁률', '전세 가격 지표',
                                           // 구조 통일 S5(2026-09-21) — 수집만 하던 지표 15건을 이 표에 올리면서
                                           // 카드가 47→62 로 늘어 390 거시가 4.05화면이 됐다(M5 상한 4.0).
                                           // 값은 위 국가·주제 차트가 이미 보여준다 — 전체 목록은 펼쳐서 본다.
@@ -2305,16 +2306,20 @@ function _healthChipEl(it, cls){
   });
   return chip;
 }
-// 한국 부동산 카드는 위젯 제목이 아니라 값 칸(id)이 지표 하나다 — 값 칸 → 판정표 경로.
-var _KR_RE_HEALTH = { krReAptSaleVal:'realestate.kr.apt_price_idx_kr', krReAptJnsVal:'realestate.kr.jns_price_idx_kr',
-  krReTradeCnt:'realestate.kr.trade_count_kr', krReUnsold:'realestate.kr.unsold_kr', krReStart:'realestate.kr.start_kr' };
-function applyKrReHealthChips(){
-  Object.keys(_KR_RE_HEALTH).forEach(function(id){
+// 제목이 아니라 값 칸(id)이 지표 하나인 자리 — 값 칸 → 판정표 경로. 칩은 그 칸의 부모 끝에 붙는다
+// (부동산 카드 · 주식시장 KOSDAQ 등락 기준일 꼬리표 · 시장 폭 줄 · 업종 등락 기준일 꼬리표).
+var _ID_HEALTH = { krReAptSaleVal:'realestate.kr.apt_price_idx_kr', krReAptJnsVal:'realestate.kr.jns_price_idx_kr',
+  krReTradeCnt:'realestate.kr.trade_count_kr', krReAvgJeonse:'realestate.kr.avg_jeonse_price_kr',
+  krReSemiJeonse:'realestate.kr.semi_jeonse_idx_kr',
+  equityMoverAsOf:'stockMovers.kosdaqGainers', equityBreadthKospi:'marketBreadth.kospi',
+  equityBreadthKosdaq:'marketBreadth.kosdaq', equitySectorAsOf:'sectorMoves' };
+function applyIdHealthChips(){
+  Object.keys(_ID_HEALTH).forEach(function(id){
     var el = document.getElementById(id);
     if(!el) return;
     var old = el.parentNode.querySelector('.w-fresh-chip[data-for="' + id + '"]');
     if(old) old.remove();
-    var it = _healthWorstFor(_KR_RE_HEALTH[id]);
+    var it = _healthWorstFor(_ID_HEALTH[id]);
     var chip = it ? _healthChipEl(it, 'w-fresh-chip') : null;
     if(!chip) return;
     chip.dataset['for'] = id;
@@ -2343,7 +2348,8 @@ function _globalAsOf(){
 }
 function _stampAsOf(t, asof, note){
   if(!t) return;
-  var v = asof || _globalAsOf();
+  // data-asof-own = 위젯이 자기 자료의 기준일을 이미 아는 경우(전일 확정치 등) — 수집 시각보다 그것을 쓴다
+  var v = asof || t.dataset.asofOwn || _globalAsOf();
   if(!v) return;
   t.dataset.asof = String(v);
   var txt = '기준 시점 ' + String(v).replace('T', ' ').slice(0, 16);
@@ -2365,7 +2371,7 @@ function applyWidgetFreshChips(root){
     if(!chip) { _stampAsOf(t, row ? _healthAsOfFor(row.data) : null, '데이터 기준일'); return; }
     t.appendChild(chip);
   });
-  try { applyKrReHealthChips(); } catch(_) {}  // 부동산 카드는 제목이 아니라 값 칸 기준
+  try { applyIdHealthChips(); } catch(_) {}  // 부동산 카드·시장 폭 등은 제목이 아니라 값 칸 기준
 }
 
 

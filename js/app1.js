@@ -5936,26 +5936,9 @@ function buildEquityPage() {
       }
     }).catch(()=>{});
   }
-  // Top10 상승/하락 — applyRealData가 채운 upMoversStock/downMoversStock 재사용
-  const gainTb = document.getElementById('equityTopGainersTable');
-  const loseTb = document.getElementById('equityTopLosersTable');
-  const noData = `<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="retryEquityMovers(this)" style="margin-top:6px;">다시 시도</button></td></tr>`;
+  // Top10 상승/하락(주식) — 시장 고르기(KOSPI|KOSDAQ)·시장 폭·업종까지 한 함수가 그린다
+  buildEquityMoverTables();
   const noDataETF = `<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshETFFromClient(this)" style="margin-top:6px;">다시 시도</button></td></tr>`;
-  const _volFmt = v => {
-    if(v == null || v === '' || v === '—') return '—';
-    const n = typeof v === 'string' ? parseFloat(v.replace(/[,K천주]/g,'')) : v;
-    if(!n || isNaN(n)) return (typeof v === 'string' ? v : '—');
-    if(n >= 1000) return Math.round(n/1000).toLocaleString() + 'K';
-    return n.toLocaleString();
-  };
-  // 주식 행: 거래량 포함 (5컬럼)
-  const stockLinkRow = (s, i, color) => `<tr style="border-bottom:1px solid var(--c-border);">
-        <td style="padding:5px;color:var(--c-txt-muted);">${i+1}</td>
-        <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
-        <td style="text-align:right;padding:5px;">${s.price}</td>
-        <td style="text-align:right;padding:5px;color:${color};">${s.chg}</td>
-        <td style="text-align:right;padding:5px;color:var(--c-txt-dim);font-size:var(--font-size-sm);">${_volFmt(s.vol)}</td>
-      </tr>`;
   // ETF 행: 거래량 데이터 없음 → 4컬럼만
   const etfLinkRow = (s, i, color) => `<tr style="border-bottom:1px solid var(--c-border);">
         <td style="padding:5px;color:var(--c-txt-muted);">${i+1}</td>
@@ -5963,16 +5946,6 @@ function buildEquityPage() {
         <td style="text-align:right;padding:5px;">${s.price}</td>
         <td style="text-align:right;padding:5px;color:${color};">${s.chg}</td>
       </tr>`;
-  if(gainTb) {
-    gainTb.innerHTML = upMoversStock.length > 0
-      ? upMoversStock.map((s,i)=>stockLinkRow(s,i,window.CUP)).join('')
-      : noData;
-  }
-  if(loseTb) {
-    loseTb.innerHTML = downMoversStock.length > 0
-      ? downMoversStock.map((s,i)=>stockLinkRow(s,i,window.CDN)).join('')
-      : noData;
-  }
   // ETF Top10 상승/하락 (주식시장 탭) — 거래량 데이터 없음
   const etfGainTb = document.getElementById('etfTopGainersTable');
   const etfLoseTb = document.getElementById('etfTopLosersTable');
@@ -6009,6 +5982,127 @@ function buildEquityRankings() {
     </tr>`;
   if(amtTb) amtTb.innerHTML = (rk.tradingAmount || []).map(row).join('') || '<tr><td colspan="4" style="padding:10px;text-align:center;color:var(--c-txt-muted);">—</td></tr>';
   if(tossTb) tossTb.innerHTML = (rk.tossAmount || []).map(row).join('') || '<tr><td colspan="4" style="padding:10px;text-align:center;color:var(--c-txt-muted);">—</td></tr>';
+}
+
+// ── 등락 Top10 시장 고르기(KOSPI|KOSDAQ) · 시장 폭 · 업종 등락 — KRX 전일 확정치 ──
+// KOSDAQ 표 = stockMovers.kosdaqGainers/Losers, 시장 폭 = marketBreadth, 업종 = sectorMoves.
+// 셋 다 첫 수집 전·실패 시 키째 없을 수 있다 → 고르기 칩·위젯을 숨긴다(다른 값으로 메우지 않는다).
+let _eqMoverMkt = 'KOSPI';
+const _PRESERVED_CHIP = '<span class="w-fresh-chip" style="color:var(--c-warn);cursor:default;" title="이번 수집이 실패해 직전 값을 보여줍니다">이전 값</span>';
+function _eqMd(iso) { const m = /^\d{4}-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[1] + '.' + m[2] : String(iso || ''); }
+function _eqVolFmt(v) {
+  if(v == null || v === '' || v === '—') return '—';
+  const n = typeof v === 'string' ? parseFloat(v.replace(/[,K천주]/g,'')) : v;
+  if(!n || isNaN(n)) return (typeof v === 'string' ? v : '—');
+  if(n >= 1000) return Math.round(n/1000).toLocaleString() + 'K';
+  return n.toLocaleString();
+}
+// 주식 행: 거래량 포함 (5컬럼)
+function _eqStockRow(s, i, color) {
+  return `<tr style="border-bottom:1px solid var(--c-border);">
+        <td style="padding:5px;color:var(--c-txt-muted);">${i+1}</td>
+        <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a>${s.preserved ? _PRESERVED_CHIP : ''}</td>
+        <td style="text-align:right;padding:5px;">${s.price}</td>
+        <td style="text-align:right;padding:5px;color:${color};">${s.chg}</td>
+        <td style="text-align:right;padding:5px;color:var(--c-txt-dim);font-size:var(--font-size-sm);">${_eqVolFmt(s.vol)}</td>
+      </tr>`;
+}
+// KOSPI 표(기본) — applyRealData 가 채운 upMoversStock/downMoversStock 재사용
+function _eqRenderKospiTables() {
+  const gainTb = document.getElementById('equityTopGainersTable');
+  const loseTb = document.getElementById('equityTopLosersTable');
+  const noData = `<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">네이버 증권에서 데이터 가져오는 중…<br><button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="retryEquityMovers(this)" style="margin-top:6px;">다시 시도</button></td></tr>`;
+  if(gainTb) gainTb.innerHTML = upMoversStock.length ? upMoversStock.map((s,i)=>_eqStockRow(s,i,window.CUP)).join('') : noData;
+  if(loseTb) loseTb.innerHTML = downMoversStock.length ? downMoversStock.map((s,i)=>_eqStockRow(s,i,window.CDN)).join('') : noData;
+}
+function setEquityMoverMkt(mkt, btn) {
+  _eqMoverMkt = mkt;
+  econChipSelect('.eqMktChip', btn);
+  buildEquityMoverTables();
+}
+// kospiRender: KOSPI 일 때 표를 그리는 쪽(applyRealData 는 자기 행 양식을 넘긴다). 없으면 기본 양식.
+function buildEquityMoverTables(kospiRender) {
+  const mv = (_latestDataForIndicators || {}).stockMovers || {};
+  const hasKq = !!((mv.kosdaqGainers || []).length || (mv.kosdaqLosers || []).length);
+  const bar = document.getElementById('equityMoverMktBar');
+  if(bar) bar.style.display = hasKq ? 'flex' : 'none';
+  if(!hasKq && _eqMoverMkt === 'KOSDAQ') {
+    _eqMoverMkt = 'KOSPI';
+    econChipSelect('.eqMktChip', document.querySelector('.eqMktChip'));
+  }
+  const isKq = _eqMoverMkt === 'KOSDAQ';
+  const kqWrap = document.getElementById('equityMoverKq');
+  if(kqWrap) kqWrap.style.display = isKq ? '' : 'none';
+  const titles = [document.getElementById('equityGainTitle'), document.getElementById('equityLoseTitle')];
+  titles.forEach((t, i) => setWidgetTitleText(t, `${_eqMoverMkt} ${i ? '하락' : '상승'} Top10 `));
+  if(!isKq) {
+    titles.forEach(t => { if(t) delete t.dataset.asofOwn; });
+    (kospiRender || _eqRenderKospiTables)();
+  } else {
+    const asOf = ((mv.kosdaqGainers || [])[0] || (mv.kosdaqLosers || [])[0] || {}).as_of || '';
+    const asEl = document.getElementById('equityMoverAsOf');
+    if(asEl) asEl.textContent = '전일 확정' + (asOf ? ' · ' + _eqMd(asOf) : '');
+    titles.forEach(t => { if(t && asOf) { t.dataset.asofOwn = asOf; t.dataset.asof = asOf; } });
+    const fmt = s => ({
+      name: s.name, code: s.code || '', vol: s.vol, preserved: s.preserved === true,
+      price: s.price != null && isFinite(s.price) ? Number(s.price).toLocaleString() : '—',
+      chg: s.chg != null && isFinite(s.chg) ? (s.chg >= 0 ? '+' : '') + Number(s.chg).toFixed(2) + '%' : '—',
+    });
+    const none = '<tr><td colspan="5" style="padding:10px;text-align:center;color:var(--c-txt-muted);">—</td></tr>';
+    const gainTb = document.getElementById('equityTopGainersTable');
+    const loseTb = document.getElementById('equityTopLosersTable');
+    if(gainTb) gainTb.innerHTML = (mv.kosdaqGainers || []).slice(0,10).map((s,i)=>_eqStockRow(fmt(s),i,window.CUP)).join('') || none;
+    if(loseTb) loseTb.innerHTML = (mv.kosdaqLosers || []).slice(0,10).map((s,i)=>_eqStockRow(fmt(s),i,window.CDN)).join('') || none;
+  }
+  buildMarketBreadth();
+  buildSectorMoves();
+  // 다시 그린 줄에서 떨어져 나간 「이전 값」·「검증 필요」 칩을 되붙인다(칩은 데이터 도착·화면 전환 때만 붙으므로)
+  if(typeof applyIdHealthChips === 'function') { try { applyIdHealthChips(); } catch(_) {} }
+}
+// 시장 폭 — 상승·하락·보합·상한·하한 종목 수. 숫자만(상승=빨강, 하락=파랑).
+function buildMarketBreadth() {
+  const w = document.getElementById('equityBreadth');
+  if(!w) return;
+  const mb = (_latestDataForIndicators || {}).marketBreadth || null;
+  const mkts = mb ? [['kospi','KOSPI'], ['kosdaq','KOSDAQ']].filter(([k]) => mb[k] && mb[k].up != null) : [];
+  w.style.display = mkts.length ? '' : 'none';
+  if(!mkts.length) return;
+  const n = v => v == null ? '—' : Number(v).toLocaleString();
+  const asOf = mkts.map(([k]) => mb[k].as_of).filter(Boolean).sort().pop() || '';
+  const u = document.getElementById('equityBreadthAsOf');
+  if(u) u.textContent = asOf ? '전일 확정 · ' + _eqMd(asOf) : '전일 확정';
+  const t = w.querySelector('.widget-title');
+  if(t && asOf) { t.dataset.asofOwn = asOf; t.dataset.asof = asOf; }
+  document.getElementById('equityBreadthRows').innerHTML = mkts.map(([k, label]) => {
+    const b = mb[k];
+    return `<div class="eq-breadth__row"><span class="econ-stat__label">${label}</span>` +
+      `<span id="equityBreadth${label.charAt(0) + label.slice(1).toLowerCase()}">` +
+      `상승 <b class="up-txt">${n(b.up)}</b> · 하락 <b class="down-txt">${n(b.down)}</b> · 보합 <b>${n(b.flat)}</b> · ` +
+      `상한 <b class="up-txt">${n(b.limitUp)}</b> · 하한 <b class="down-txt">${n(b.limitDown)}</b></span></div>`;
+  }).join('');
+}
+// 업종 등락(전일) — 방향 바(.econ-dir) 부품. 10개를 넘으면 상위 5 · 하위 5 만.
+function buildSectorMoves() {
+  const w = document.getElementById('equitySectorWrap');
+  if(!w) return;
+  const sm = (_latestDataForIndicators || {}).sectorMoves || null;
+  const items = (sm && Array.isArray(sm.items)) ? sm.items.filter(it => it && it.name && isFinite(it.chg_pct)) : [];
+  w.style.display = items.length ? '' : 'none';
+  if(!items.length) return;
+  const shown = items.length > 10 ? items.slice(0, 5).concat(items.slice(-5)) : items;
+  const max = Math.max.apply(null, shown.map(it => Math.abs(it.chg_pct))) || 1;
+  const u = document.getElementById('equitySectorAsOf');
+  if(u) u.textContent = (items.length > 10 ? '상위·하위 5 · ' : '') + '전일 확정' + (sm.as_of ? ' · ' + _eqMd(sm.as_of) : '');
+  const t = w.querySelector('.widget-title');
+  if(t && sm.as_of) { t.dataset.asofOwn = sm.as_of; t.dataset.asof = sm.as_of; }
+  document.getElementById('equitySectorList').innerHTML = shown.map(it => {
+    const c = Number(it.chg_pct), dir = c > 0 ? 'up' : c < 0 ? 'down' : 'mid';
+    const txt = (c > 0 ? '+' : '') + c.toFixed(2) + '%';
+    const name = escapeHtml(String(it.name));
+    return `<div class="econ-dir-row"><span class="econ-dir-row__name">${name}</span>` +
+      `<span class="econ-dir" role="img" aria-label="${name} ${txt}"><i class="${dir}" style="width:${Math.max(2, Math.round(Math.abs(c) / max * 50))}%"></i></span>` +
+      `<span class="econ-dir-row__note econ-num ${dir === 'up' ? 'up-txt' : dir === 'down' ? 'down-txt' : ''}"${it.close != null ? ` title="종가 ${Number(it.close).toLocaleString()}"` : ''}>${txt}</span></div>`;
+  }).join('');
 }
 
 // 랭킹/등락상위 행 → 투자현황 종목 분석 탭 딥링크. 포트폴리오 페이지가 아직 안 만들어졌거나
@@ -8080,6 +8174,16 @@ function calCountryLabel(cc, flag) {
   const name = calCountryName[cc] || cc;
   return `${flag||''} ${name}`.trim();
 }
+// 표시용 일시·기준 기간 — dt 자체는 중복 판정·정렬 키라 바꾸지 않는다.
+function calDtText(e) { return e.approx ? e.dt.replace(' ', ' ~') : e.dt; }
+function calRefText(e) {
+  const m = /^\d{4}-(\d{2})$/.exec(e.ref || '');
+  return m ? parseInt(m[1], 10) + '월분' : (e.ref || '');
+}
+function calNameHtml(e) {
+  const r = calRefText(e);
+  return r ? `${e.name} <span class="econ-stat__unit">${r}</span>` : e.name;
+}
 
 // 캘린더 그리드 상태 (이번 달 기준)
 let _calGridMonth = new Date().getMonth() + 1; // 1~12
@@ -8307,8 +8411,8 @@ function showCalGridFloating(idx, evt) {
   if(!fl) return;
   _calFloatPrevFocus = document.activeElement;   // 닫을 때 포커스 복원용
   _calFloatingState.idx = idx;  // 새로고침 시 참조용
-  document.getElementById('calFloatFlag').textContent = calCountryLabel(e.cc, e.flag) + ' · ' + e.dt + ' · ' + '★'.repeat(e.stars);
-  document.getElementById('calFloatName').textContent = e.name;
+  document.getElementById('calFloatFlag').textContent = calCountryLabel(e.cc, e.flag) + ' · ' + calDtText(e) + ' · ' + '★'.repeat(e.stars);
+  document.getElementById('calFloatName').textContent = e.name + (calRefText(e) ? ' (' + calRefText(e) + ')' : '');
   document.getElementById('calFloatPrev').textContent = e.prev || '—';
   document.getElementById('calFloatFore').textContent = e.fore || '—';
   _calRenderActual(e, 'calFloat');
@@ -8397,8 +8501,8 @@ async function refreshCalFloatingPopup(btn) {
       const prevEl = document.getElementById('calFloatPrev');
       const foreEl = document.getElementById('calFloatFore');
       const actEl  = document.getElementById('calFloatAct');
-      if(flagEl) flagEl.textContent = calCountryLabel(e.cc, e.flag) + ' · ' + e.dt + ' · ' + '★'.repeat(e.stars);
-      if(nameEl) nameEl.textContent = e.name;
+      if(flagEl) flagEl.textContent = calCountryLabel(e.cc, e.flag) + ' · ' + calDtText(e) + ' · ' + '★'.repeat(e.stars);
+      if(nameEl) nameEl.textContent = e.name + (calRefText(e) ? ' (' + calRefText(e) + ')' : '');
       if(prevEl) prevEl.textContent = e.prev || '—';
       if(foreEl) foreEl.textContent = e.fore || '—';
       try { _calRenderActual(e, 'calFloat'); } catch(_){}
@@ -8565,6 +8669,9 @@ function _calFmtValue(val, fmt) {
 // 캘린더 이벤트명 → data.json 노드 경로 + 포맷.
 // fmt: 'mom1'/'yoy1' = 변화율 계산 (인덱스에서 추출), 'pct2'/'raw1' = 값 그대로.
 // mode: 'mom'/'yoy'/'delta' = history 에서 변화율 계산, null = node.value 또는 history[key] 그대로.
+// 국내·ECB·BOJ 공식 일정표 이름(「한국은행 금통위 (통화정책방향)」「ECB 통화정책 결정」「일본은행(BOJ) 금융정책결정회합」
+// 「한국 소비자물가동향」「한국 고용동향」「한국 산업활동동향」)은 일부러 넣지 않는다 — 발표일이 기준 기간과 달라
+// 지표 history 로 발표치를 짐작하면 틀린 값을 적는다. 이름이 정확히 맞아야만 백필되므로 여기 없으면 비워 둔다.
 const CAL_BACKFILL_MAP = {
   // 한국 (ECOS — CPI 는 인덱스 레벨, GDP fallback 은 이미 QoQ %)
   '한국은행 금통위 회의':       { path: 'economicIndicators.kr.base_rate_kr', fmt: 'pct2', mode: null },
@@ -8812,6 +8919,8 @@ function mergeServerCalendar() {
       beat: ev.beat || null,
       _src: ev.source || 'server',
       _iso: ev.iso || '',
+      approx: ev.timeApprox === true,   // 발표 시각이 관례 추정 → 시각 앞 '~'
+      ref: ev.refPeriod || '',          // 기준 기간(예: 2026-08 → 「8월분」)
     });
     existing.add(key);
     added++;
@@ -8911,13 +9020,13 @@ function buildCalendar(){
   document.getElementById('calHighlights').innerHTML = upcoming.slice(0,3).map(e=>`
     <div class="kpi-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-        <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${calCountryLabel(e.cc, e.flag)} · ${e.dt}</span>
+        <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${calCountryLabel(e.cc, e.flag)} · ${calDtText(e)}</span>
         <span style="color:var(--c-txt-dim);font-size:var(--font-size-sm);">${'★'.repeat(e.stars)}</span>
       </div>
-      <div style="font-size:var(--font-size-base);font-weight:var(--font-weight-medium);line-height:1.4;">${e.name}</div>
+      <div style="font-size:var(--font-size-base);font-weight:var(--font-weight-medium);line-height:1.4;">${calNameHtml(e)}</div>
       <div style="display:flex;gap:12px;margin-top:8px;font-size:var(--font-size-sm);color:var(--c-txt-dim);">
-        <span>이전: <strong style="color:var(--c-txt);">${e.prev}</strong></span>
-        <span>예측: <strong style="color:var(--c-primary);">${e.fore}</strong></span>
+        <span>이전: <strong style="color:var(--c-txt);">${e.prev || '—'}</strong></span>
+        <span>예측: <strong style="color:var(--c-primary);">${e.fore || '—'}</strong></span>
       </div>
     </div>`).join('') || '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);grid-column:1/-1;text-align:center;padding:20px;">해당 조건의 예정 이벤트가 없습니다</div>';
 
@@ -8941,8 +9050,8 @@ function buildCalendar(){
       ? 'background:rgba(41,98,255,0.10);border-left:3px solid var(--c-accent);border-bottom:1px solid var(--c-border);cursor:pointer;'
       : (surpStyle || 'border-bottom:1px solid var(--c-border);cursor:pointer;');
     const dtCell = isToday
-      ? `<td style="padding:8px;font-weight:var(--font-weight-semibold);color:var(--c-primary);">${e.dt} <span style="font-size:var(--font-size-xs);background:var(--c-accent);color:var(--c-on-accent);padding:1px 5px;border-radius:var(--r-sm);margin-left:4px;font-weight:var(--font-weight-semibold);">오늘</span></td>`
-      : `<td style="padding:8px;">${e.dt}</td>`;
+      ? `<td style="padding:8px;font-weight:var(--font-weight-semibold);color:var(--c-primary);">${calDtText(e)} <span style="font-size:var(--font-size-xs);background:var(--c-accent);color:var(--c-on-accent);padding:1px 5px;border-radius:var(--r-sm);margin-left:4px;font-weight:var(--font-weight-semibold);">오늘</span></td>`
+      : `<td style="padding:8px;">${calDtText(e)}</td>`;
     // ★★★ 이벤트만 발표 알림 토글 제공 (Task 2.3) — 구독 상태는 localStorage 기반
     const bellCell = e.stars >= 3
       ? `<td style="text-align:center;padding:4px;"><button onclick="event.stopPropagation();toggleCalAlert(${calIdx},this)" title="${calAlertSubscribed(e) ? '알림 해제' : '발표 시 브라우저 알림 받기 (페이지가 열려 있는 동안)'}" style="background:transparent;border:none;cursor:pointer;font-size:var(--font-size-base);line-height:1;padding:2px;${calAlertSubscribed(e) ? '' : 'opacity:.45;filter:grayscale(1);'}">알림</button></td>`
@@ -8950,10 +9059,10 @@ function buildCalendar(){
     return `<tr style="${rowStyle}" onclick="showCalendarEventDetail(${calIdx})" title="클릭하여 과거 추이 보기">
       ${dtCell}
       <td style="text-align:center;padding:8px;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
-      <td style="padding:8px;">${e.name} <span style="font-size:var(--font-size-xs);color:var(--c-primary);">↓</span></td>
+      <td style="padding:8px;">${calNameHtml(e)} <span style="font-size:var(--font-size-xs);color:var(--c-primary);">↓</span></td>
       <td style="text-align:center;padding:8px;color:var(--c-txt-dim);"><button type="button" class="btn-plain btn-inline">${'★'.repeat(e.stars)}</button></td>
-      <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${e.prev}</td>
-      <td class="c-opt" style="text-align:right;padding:8px;color:var(--c-primary);">${e.fore}</td>
+      <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${e.prev || '—'}</td>
+      <td class="c-opt" style="text-align:right;padding:8px;color:var(--c-primary);">${e.fore || '—'}</td>
       <td style="text-align:right;padding:8px;white-space:nowrap;" ${actStyle}>${e.act||'예정'}${(surp && surp.big) ? `<span title="매크로 서프라이즈 — 예측 대비 ${surp.diffLabel} (${e.beat===1?'호재':'악재'})" style="margin-left:4px;cursor:help;">⚡</span>` : ''}</td>
       ${bellCell}
     </tr>`;}).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--c-txt-muted);">해당 조건의 이벤트가 없습니다</td></tr>`;
@@ -9032,7 +9141,7 @@ function showCalendarEventDetail(idx) {
   });
   panel.style.display = 'block';
   document.getElementById('calDetailFlag').textContent = calCountryLabel(e.cc, e.flag);
-  document.getElementById('calDetailName').textContent = e.name + ' · ' + e.dt;
+  document.getElementById('calDetailName').textContent = e.name + (calRefText(e) ? ' (' + calRefText(e) + ')' : '') + ' · ' + calDtText(e);
   document.getElementById('calDetailPrev').textContent = e.prev || '—';
   document.getElementById('calDetailFore').textContent = e.fore || '—';
   const actEl = document.getElementById('calDetailAct');
@@ -11211,18 +11320,6 @@ function _renderReHistChart() {
     values = [1859, 1869, 1875, 1867, 1853, 1862, 1875, 1886, 1882, 1896, 1913, 1927, 1921, 1935, 1948, 1962];
     dataSource = '내장 시계열 (한국은행 가계신용, 단위: 조원)';
   }
-  // 7) 미분양 주택 폴백 (호)
-  if(!values.length && key === 'unsold_kr') {
-    labels = ['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03','26.05'];
-    values = [66388, 61811, 62489, 64964, 74037, 66776, 70173, 71400, 72100, 68500, 65300, 63800, 61400];
-    dataSource = '내장 시계열 (국토부 미분양 통계)';
-  }
-  // 8) 착공 폴백 (호)
-  if(!values.length && key === 'start_kr') {
-    labels = ['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03','26.05'];
-    values = [12378, 9542,  11856, 8923,  16320, 10800, 14200, 12500, 15600, 11800, 13900, 11700, 13400];
-    dataSource = '내장 시계열 (한국부동산원 주택 착공)';
-  }
   // 9) 미국 주별 HPI 폴백 — FRED 실데이터(case_shiller_state) 미수집 시, 지도에 내장된
   //    history 로라도 차트가 보이게 한다(클릭 시 빈 차트 방지). FRED 연동 후 실데이터로 대체됨.
   if(!values.length && /^case_shiller_[A-Z]{2}$/.test(key) && typeof usRegionData !== 'undefined') {
@@ -12055,17 +12152,6 @@ const MACRO_GUIDES = {
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 기준금리 + 스프레드 = 모기지 금리. Fed 정책 변화 직후 시장에 반영. 한국 코픽스(COFIX) 기준 변동금리 영향.`,
 
-  unsold: `<strong style="color:var(--c-down);">미분양 주택 수 란?</strong><br>
-    분양 후 매각되지 않은 주택의 누적 호수. 공급 과잉/수요 부족의 핵심 지표.<br><br>
-    <strong>해석 기준 (한국 전국):</strong>
-    <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--c-up);">● 3만 호 이하</span> — 공급 부족 (수요 우위)</li>
-      <li><span style="color:var(--c-up);">● 3~5만 호</span> — 정상 (역사적 평균 부근)</li>
-      <li><span style="color:var(--c-warn);">● 5~7만 호</span> — 공급 과잉 우려</li>
-      <li><span style="color:var(--c-down);">● 7만 호 이상</span> — 심각한 침체 (2023년 6.8만, 2009년 16.5만 최고)</li>
-    </ul>
-    <strong style="color:var(--c-primary);">활용:</strong> 준공 후 미분양(악성)이 1만 호 초과 시 시장 침체. 지방 미분양 ↑ = 부동산 양극화 심화.`,
-
   vix: SENTIMENT_GUIDES.vix.guide,
 
   trade_count: `<strong style="color:var(--c-up);">주택 거래량 (매매) 란?</strong><br>
@@ -12220,7 +12306,6 @@ function _getMacroGuide(dataPath, title) {
   if(dp.includes('unemploy') || dp.includes('unemp') || t.includes('실업')) return MACRO_GUIDES.unemployment;
   if(dp.includes('base_rate') || dp.includes('ff_rate') || dp.includes('us10y') || dp.includes('us2y') || t.includes('기준금리') || t.includes('정책금리') || t.includes('국채')) return MACRO_GUIDES.base_rate;
   if(dp.includes('mortgage') || t.includes('모기지') || t.includes('주담대')) return MACRO_GUIDES.mortgage_rate;
-  if(dp.includes('unsold') || t.includes('미분양')) return MACRO_GUIDES.unsold;
   if(dp.includes('trade_count') || t.includes('거래량')) return MACRO_GUIDES.trade_count;
   if(dp.includes('permit') || t.includes('인허가')) return MACRO_GUIDES.permit;
   if(dp.includes('start') || t.includes('착공') || t.includes('housing start')) return MACRO_GUIDES.start;
@@ -12456,6 +12541,14 @@ function _fgLabel(fg) {
 // 🤖 (구) AI 시황 요약 함수들 제거됨 — 사이트 내 'AI 요약 생성' 기능은 삭제되었다(사용자 요청).
 // 대신 매일 오전 10시(KST) data.json 요약을 카카오톡으로 자동 발송한다
 // (scripts/send_kakao_digest.py + .github/workflows/kakao-daily.yml).
+
+// 천원 단위 금액 → 「3억 83만원」(만원 미만 반올림). R-ONE 평균 전세가격 카드용.
+function fmtKrwFromThousand(v) {
+  if(v == null || !isFinite(v)) return '—';
+  const man = Math.round(Number(v) / 10), eok = Math.floor(man / 10000), rest = man % 10000;
+  if(!eok) return rest.toLocaleString() + '만원';
+  return eok + '억' + (rest ? ' ' + rest.toLocaleString() + '만원' : '원');
+}
 
 function applyRealData(d) {
   if (!d) return;
@@ -13082,16 +13175,19 @@ function applyRealData(d) {
       <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
     </td></tr>`;
   };
-  if (gainTb) {
-    gainTb.innerHTML = movers.kospiGainers && movers.kospiGainers.length
-      ? movers.kospiGainers.map((s,i)=>renderStockRow(s,i,'up')).join('')
-      : renderEmptyMoverCell(5, 'KOSPI 상승 Top10');
-  }
-  if (loseTb) {
-    loseTb.innerHTML = movers.kospiLosers && movers.kospiLosers.length
-      ? movers.kospiLosers.map((s,i)=>renderStockRow(s,i,'down')).join('')
-      : renderEmptyMoverCell(5, 'KOSPI 하락 Top10');
-  }
+  // KOSDAQ 을 고른 상태면 KOSPI 행으로 덮지 않는다 — 고르기·시장 폭·업종은 한 함수가 그린다
+  buildEquityMoverTables(() => {
+    if (gainTb) {
+      gainTb.innerHTML = movers.kospiGainers && movers.kospiGainers.length
+        ? movers.kospiGainers.map((s,i)=>renderStockRow(s,i,'up')).join('')
+        : renderEmptyMoverCell(5, 'KOSPI 상승 Top10');
+    }
+    if (loseTb) {
+      loseTb.innerHTML = movers.kospiLosers && movers.kospiLosers.length
+        ? movers.kospiLosers.map((s,i)=>renderStockRow(s,i,'down')).join('')
+        : renderEmptyMoverCell(5, 'KOSPI 하락 Top10');
+    }
+  });
   // ETF Top10 테이블 (거래량 없음 → 4컬럼)
   const etfGainTb = document.getElementById('etfTopGainersTable');
   const etfLoseTb = document.getElementById('etfTopLosersTable');
@@ -13327,11 +13423,13 @@ function applyRealData(d) {
       metaEl.style.color = 'var(--c-txt-dim)';
     }
   }
-  if (reKr.unsold_kr) {
-    setKrReCard('krReUnsold', null, null, reKr.unsold_kr, v=>v?.toLocaleString()+'호');
+  // R-ONE 전국 아파트 평균 전세가격(천원) · 준전세가격지수(2026.06=100). 옛 키 unsold_kr·start_kr 는
+  // 표를 잘못 짚은 이름이었다(미분양·착공이 아니라 이 두 표) — 2026-09-30 수집기가 키를 바꿨다.
+  if (reKr.avg_jeonse_price_kr) {
+    setKrReCard('krReAvgJeonse', 'krReAvgJeonseChg', null, reKr.avg_jeonse_price_kr, fmtKrwFromThousand);
   }
-  if (reKr.start_kr) {
-    setKrReCard('krReStart', 'krReStartChg', null, reKr.start_kr, v=>v?.toLocaleString());
+  if (reKr.semi_jeonse_idx_kr) {
+    setKrReCard('krReSemiJeonse', 'krReSemiJeonseChg', null, reKr.semi_jeonse_idx_kr, v => v == null ? '—' : Number(v).toFixed(1));
   }
 
   // ── FRED 미국 부동산 지표 → re-us KPI 카드 + 상세 테이블 ──
