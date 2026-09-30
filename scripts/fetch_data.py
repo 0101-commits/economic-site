@@ -22,6 +22,7 @@ import time as _time
 import requests as _requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
+from datetime import date as date_cls   # 'date' 는 이 파일 곳곳에서 지역 변수 이름이다
 from urllib.parse import quote_plus
 from xml.etree import ElementTree as ET
 import fetch_climate
@@ -221,14 +222,19 @@ def _parse_num(s):
 # ============================================================
 # KRX OpenAPI 호출 헬퍼
 # ============================================================
-# 첫 401 뒤로는 이번 런의 KRX OpenAPI 호출을 모두 건너뛴다. 키가 있어도 서비스 이용신청이
-# 승인되지 않으면 모든 엔드포인트가 401 이라, 가드가 없으면 날짜 되짚기까지 런마다 25콜을 버렸다.
-_KRX_AUTH_DENIED = False
+# 401 을 받은 엔드포인트는 이번 런에 다시 부르지 않는다(가드가 없으면 날짜 되짚기까지 런마다 25콜을 버렸다).
+# 엔드포인트별이다 — 이용신청은 서비스마다 따로 승인되므로, 한 곳(예: 승인 전 /sto/ 일별매매)의 401 이
+# 승인된 지수·금·유가·ETF 까지 막으면 안 된다. 종전엔 첫 401 하나로 그 런의 KRX 호출을 전부 끊었다.
+_KRX_DENIED = set()
+# 같은 런 안의 (엔드포인트, 날짜) 응답 — A19 등락 종목 수·업종이 등락상위·지수 폴백과 같은 표를 다시 부르지 않게.
+# 빈 응답(아직 안 나온 날짜)도 담는다. 예외·401 은 담지 않는다.
+_KRX_ROWS = {}
 
 
 def fetch_krx(endpoint, bas_dd):
-    global _KRX_AUTH_DENIED
-    if not KRX_API_KEY or _KRX_AUTH_DENIED:
+    if (endpoint, bas_dd) in _KRX_ROWS:
+        return _KRX_ROWS[(endpoint, bas_dd)]
+    if not KRX_API_KEY or endpoint in _KRX_DENIED:
         return None
     try:
         r = requests.get(
@@ -238,12 +244,13 @@ def fetch_krx(endpoint, bas_dd):
             timeout=20,
         )
         if r.status_code == 401:
-            _KRX_AUTH_DENIED = True
-            log("[KRX] 인증 거부(401) — 이번 런 KRX OpenAPI 호출 중단(서비스 이용신청 승인 필요)")
+            _KRX_DENIED.add(endpoint)
+            log(f"[KRX] {endpoint} 인증 거부(401) — 이번 런 이 엔드포인트 호출 중단(서비스 이용신청 승인 필요)")
             return None
         r.raise_for_status()
         data = r.json()
         rows = data.get("OutBlock_1") or data.get("OutBlock") or []
+        _KRX_ROWS[(endpoint, bas_dd)] = rows or None
         return rows if rows else None
     except Exception as e:
         log(f"[KRX] {endpoint} 오류: {e}")
@@ -1031,24 +1038,188 @@ def fetch_krx_stock_movers(market="kospi", top_n=10):
     if not rows:
         log(f"[KRX] {endpoint} 데이터 없음 — Naver Finance 폴백 시도")
         return fetch_naver_stock_movers(market=market, top_n=top_n)
-    parsed = []
-    for row in rows:
-        name = row.get("ISU_NM") or row.get("ISU_SRT_CD") or ""
-        code = (row.get("ISU_SRT_CD") or "").strip()
-        price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
-        chg_rt = _parse_num(row.get("FLUC_RT"))
-        vol = _parse_num(row.get("ACML_VOL"))
-        if price and price > 0 and chg_rt is not None:
-            parsed.append({"name": name, "code": code, "price": price, "chg": chg_rt, "vol": vol or 0, "as_of": basd})
-    if not parsed:
+    gainers, losers = _krx_movers(_krx_stock_rows(rows, basd, market.upper()), top_n)
+    if not gainers:
         log(f"[KRX] {endpoint} 파싱 실패 — Naver Finance 폴백 시도")
         return fetch_naver_stock_movers(market=market, top_n=top_n)
-    sorted_asc  = sorted(parsed, key=lambda x: x["chg"])
-    sorted_desc = sorted(parsed, key=lambda x: x["chg"], reverse=True)
-    gainers = sorted_desc[:top_n]
-    losers  = sorted_asc[:top_n]
-    log(f"[KRX] {market.upper()} 상승Top{top_n}: {gainers[0]['name']} +{gainers[0]['chg']}%" if gainers else "[KRX] 상승 종목 없음")
+    log(f"[KRX] {market.upper()} 상승Top{top_n}: {gainers[0]['name']} +{gainers[0]['chg']}%")
     return gainers, losers
+
+
+# ── KRX 일별매매정보 행 해석 (A19) ────────────────────────────────────────
+# 필드는 KRX OpenAPI 명세(유가증권·코스닥 일별매매정보 OutBlock_1) 그대로: 종목코드 ISU_CD, 거래량
+# ACC_TRDVOL, 소속부 SECT_TP_NM. 종전 코드는 ISU_SRT_CD·ACML_VOL(종목기본정보·다른 API 이름)을 읽어
+# 코드가 빈칸, 거래량이 0 이었다. 명세에 상·하한가 구분 필드는 없다 — 호가단위로 직접 판정한다.
+def _krx_asof(rows, basd):
+    """응답의 BAS_DD(기준일자)를 as-of 로. 없으면 요청 날짜."""
+    b = str((rows[0] if rows else {}).get("BAS_DD") or "")
+    return f"{b[:4]}-{b[4:6]}-{b[6:8]}" if re.fullmatch(r"\d{8}", b) else basd
+
+
+def _krx_stock_rows(rows, basd, market):
+    """일별매매정보 행 → [{name, code, price, chg, vol, market, as_of, sect, base}]. 종가·등락률 없는 행은 버린다."""
+    asof = _krx_asof(rows, basd)
+    out = []
+    for row in rows or []:
+        price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
+        chg = _parse_num(row.get("FLUC_RT"))
+        if not price or price <= 0 or chg is None:
+            continue
+        cmp_ = _parse_num(row.get("CMPPREVDD_PRC"))
+        # 기준가 = 종가 − 대비(권리락 등으로 전일 종가와 다를 수 있어 대비가 정확하다). 대비의 부호는 등락률을
+        # 따른다(부호 없는 값이 와도 하락 종목 기준가가 뒤집히지 않게). 대비가 없으면 등락률로 역산.
+        base = (price - (abs(cmp_) if chg >= 0 else -abs(cmp_)) if cmp_ is not None
+                else price / (1 + chg / 100))
+        out.append({
+            "name": (row.get("ISU_NM") or "").strip(),
+            "code": (row.get("ISU_CD") or row.get("ISU_SRT_CD") or "").strip(),
+            "price": price, "chg": chg,
+            "vol": _parse_num(row.get("ACC_TRDVOL") or row.get("ACML_VOL")) or 0,
+            "market": market, "as_of": asof,
+            "sect": (row.get("SECT_TP_NM") or "").strip(),
+            "base": int(round(base)),
+        })
+    return out
+
+
+def _krx_movers(parsed, top_n=10):
+    """등락률 상위·하위 top_n. 거래 없는 종목·SPAC·관리종목은 뺀다(소속부 SECT_TP_NM·이름으로 판정)."""
+    ok = [r for r in parsed if r["vol"] > 0 and "스팩" not in r["name"]
+          and not any(x in r["sect"] for x in ("SPAC", "관리"))]
+    keep = ("name", "code", "price", "chg", "vol", "market", "as_of")
+    trim = lambda rs: [{k: r[k] for k in keep} for r in rs]
+    return (trim(sorted(ok, key=lambda x: x["chg"], reverse=True)[:top_n]),
+            trim(sorted(ok, key=lambda x: x["chg"])[:top_n]))
+
+
+def _krx_tick(p):
+    """호가가격단위(2023-01-25 부터 코스피·코스닥 공통)."""
+    for lim, tick in ((2000, 1), (5000, 5), (20000, 10), (50000, 50), (200000, 100), (500000, 500)):
+        if p < lim:
+            return tick
+    return 1000
+
+
+def _krx_limits(b):
+    """기준가 → (상한가, 하한가). 가격제한폭 = 기준가×0.3 을 기준가의 호가단위 미만 절사, 상한가는 제 가격대
+    호가단위로 한 번 더 절사(기준가 9,980 → 폭 2,990 → 상한 12,970 · 하한 6,990). 하한가는 절사가 필요 없다 —
+    폭이 기준가 호가단위의 배수이고 아래 가격대 호가단위는 그 약수다. 정수 연산이라 부동소수 오차가 없다."""
+    t = _krx_tick(b)
+    w = b * 3 // (10 * t) * t
+    u = b + w
+    return u // _krx_tick(u) * _krx_tick(u), b - w
+
+
+def _krx_breadth(parsed):
+    """상승·하락·보합·상한가·하한가 종목 수. 거래 없는 종목(거래정지 등)은 세지 않는다.
+
+    상·하한가는 종가 = 한도 가격일 때만. 등락률 29.5% 문턱은 100원 미만 종목(기준가 34 → 상한 44 = +29.4%)을
+    놓치고, '한도 근처 이상'으로 세면 30% 제한이 없는 신규상장 첫날(60~400%)·정리매매가 상·하한가로 잡힌다.
+    """
+    out = {"up": 0, "down": 0, "flat": 0, "limitUp": 0, "limitDown": 0}
+    for r in parsed:
+        if r["vol"] <= 0:
+            continue
+        c = int(round(r["price"]))
+        up, down = _krx_limits(r["base"])
+        out["up" if r["chg"] > 0 else "down" if r["chg"] < 0 else "flat"] += 1
+        if r["chg"] > 0 and c == up:
+            out["limitUp"] += 1
+        elif r["chg"] < 0 and c == down:
+            out["limitDown"] += 1
+    return out
+
+
+# 코스피 업종지수 — 구 명칭(KSIC 기반)과 가운뎃점 명칭을 함께 둔다. 비교는 공백·가운뎃점을 뺀 글자로.
+# 제조업(제조)은 업종 대부분을 묶은 상위 지수라 뺐다. 2026-11 거래소 자체 분류(KRICS) 도입으로 이름이
+# 바뀌면 여기 없는 이름이 diagnostics.sectorMovesUnmatched 에 뜬다 — 그걸 보고 목록을 고칠 것.
+_KOSPI_SECTOR_NAMES = (
+    "음식료품", "섬유의복", "종이목재", "화학", "의약품", "비금속광물", "철강금속", "기계", "전기전자",
+    "의료정밀", "운수장비", "유통업", "전기가스업", "건설업", "운수창고업", "통신업", "금융업", "은행",
+    "증권", "보험", "서비스업",
+    "음식료·담배", "섬유·의류", "종이·목재", "제약", "비금속", "금속", "기계·장비", "의료·정밀기기",
+    "운송장비·부품", "유통", "전기·가스", "건설", "운송·창고", "통신", "금융", "IT 서비스", "일반서비스",
+    "오락·문화", "부동산",
+)
+_idx_key = lambda n: re.sub(r"[\s·ㆍ]", "", n or "")
+_KOSPI_SECTOR_KEYS = {_idx_key(n) for n in _KOSPI_SECTOR_NAMES}
+_KOSPI_SECTOR_SKIP = {_idx_key(n) for n in ("제조업", "제조")}
+
+
+def _krx_sector_moves(rows, basd):
+    """코스피 시리즈 일별시세(/idx/kospi_dd_trd) → ({as_of, items[{name, close, chg_pct}]}, 모르는 이름들).
+    업종 행이 하나도 없으면 (None, 모르는 이름들)."""
+    items, unknown = [], []
+    for row in rows or []:
+        nm = (row.get("IDX_NM") or "").strip()
+        key = _idx_key(nm)
+        if key not in _KOSPI_SECTOR_KEYS:
+            if nm and not nm.startswith("코스피") and key not in _KOSPI_SECTOR_SKIP:
+                unknown.append(nm)
+            continue
+        close, chg = _parse_num(row.get("CLSPRC_IDX")), _parse_num(row.get("FLUC_RT"))
+        if close and close > 0 and chg is not None:
+            items.append({"name": nm, "close": round(close, 2), "chg_pct": round(chg, 2)})
+    if not items:
+        return None, unknown
+    items.sort(key=lambda x: x["chg_pct"], reverse=True)
+    return {"as_of": _krx_asof(rows, basd), "items": items}, unknown
+
+
+def _krx_a19(data, prev):
+    """코스닥 등락상위·등락 종목 수(코스피·코스닥)·코스피 업종 등락 — KRX OpenAPI 만(전일 확정치).
+
+    못 받은 칸은 직전 빌드 값을 preserved 표식으로 잇는다(키가 없거나 401 이면 전부 보존).
+    코스닥 등락상위는 행마다 preserved 를 단다 — 목록이라 잎 표식을 달 곳이 없고, stockMovers 소스 라벨을
+    '보존'으로 바꾸면 토스에서 새로 받은 코스피 목록까지 보존으로 읽힌다.
+    """
+    prev = prev or {}
+    breadth = {}
+    for mk, ep in (("kospi", "/sto/stk_bydd_trd"), ("kosdaq", "/sto/ksq_bydd_trd")):
+        rows, basd = fetch_krx_latest(ep)
+        parsed = _krx_stock_rows(rows, basd, mk.upper()) if rows else []
+        b = _krx_breadth(parsed)
+        if b["up"] + b["down"] + b["flat"]:
+            breadth[mk] = {**b, "as_of": parsed[0]["as_of"]}
+        elif parsed:        # 행은 왔는데 거래 있는 종목이 0 — 거래량 칸 이름이 바뀐 것. 0 을 새 값으로 싣지 않는다
+            log(f"[KRX] {ep}: 거래 있는 종목 0/{len(parsed)} — 등락 종목 수 미수집 처리")
+        if mk == "kosdaq":
+            g, l = _krx_movers(parsed) if parsed else ([], [])
+            for key, lst in (("kosdaqGainers", g), ("kosdaqLosers", l)):
+                # 판정표가 이 목록을 코스피 목록의 소스 라벨·FAILED 로 읽지 않게 경로별 소스를 단다
+                if _is_valid_mover_list(lst, allow_extreme=True):   # 공식 등락률 — 상한가 과반인 날이 실제로 있다
+                    data["stockMovers"][key] = lst
+                    data["sources"][f"stockMovers.{key}"] = "KRX OpenAPI"
+                else:
+                    old = (prev.get("stockMovers") or {}).get(key)
+                    if _is_valid_mover_list(old, allow_extreme=True):
+                        at = (old[0].get("preserved") and old[0].get("preservedAt")) or datetime.now(KST).isoformat(timespec="seconds")
+                        data["stockMovers"][key] = [dict(r, preserved=True, preservedAt=at) for r in old]
+                        data["sources"][f"stockMovers.{key}"] = "이전 빌드 보존 ← KRX OpenAPI"
+                        log(f"[KRX] {key}: 이번 런 미수집 — 직전 값 보존")
+    pb = prev.get("marketBreadth") or {}
+    mb = {"source": "KRX OpenAPI (일별매매정보, 거래 있는 종목)"}
+    for mk in ("kospi", "kosdaq"):
+        if mk in breadth:
+            mb[mk] = breadth[mk]
+            log(f"[KRX] 등락 종목 수 {mk}: {breadth[mk]}")
+        elif isinstance(pb.get(mk), dict):
+            mb[mk] = _mark_preserved(pb[mk])
+    if len(mb) > 1:
+        data["marketBreadth"] = mb
+
+    rows, basd = fetch_krx_latest("/idx/kospi_dd_trd")
+    sm, unknown = _krx_sector_moves(rows, basd) if rows else (None, [])
+    if unknown:
+        data.setdefault("diagnostics", {})["sectorMovesUnmatched"] = sorted(set(unknown))[:30]
+        log(f"[KRX] 업종 목록에 없는 코스피 지수명 {len(set(unknown))}개: {sorted(set(unknown))[:8]}")
+    if sm:
+        data["sectorMoves"] = {**sm, "source": "KRX OpenAPI (코스피 시리즈 일별시세)"}
+        log(f"[KRX] 업종 등락 {len(sm['items'])}개 (기준 {sm['as_of']})")
+    elif not rows and isinstance(prev.get("sectorMoves"), dict) and prev["sectorMoves"].get("items"):
+        # 못 받았을 때만 잇는다. 받았는데 업종 이름이 하나도 안 맞으면(분류 개편) 옛 목록을 잇지 않고
+        # missing 으로 둔다 — 개편 전 업종을 계속 띄우면 그게 곧 틀린 화면이다(sectorMovesUnmatched 가 새 이름).
+        data["sectorMoves"] = _mark_preserved(prev["sectorMoves"])
 
 
 def _naver_session():
@@ -1249,7 +1420,7 @@ def fetch_krx_etf_movers(top_n=10):
             parsed = []
             for row in rows:
                 name = row.get("ISU_NM") or ""
-                code = (row.get("ISU_SRT_CD") or "").strip()
+                code = (row.get("ISU_CD") or row.get("ISU_SRT_CD") or "").strip()   # 명세 = ISU_CD
                 price = _parse_num(row.get("TDD_CLSPRC") or row.get("CLSPRC"))
                 chg_rt = _parse_num(row.get("FLUC_RT"))
                 # FLUC_RT 가 0 또는 누락된 경우 CMPPREVDD_PRC (전일대비)와 가격으로 직접 계산
@@ -3162,7 +3333,8 @@ def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=60, name_fil
         "value": val,
         "period": latest.get("TIME"),
         "desc": desc,
-        "source": f"ECOS:{source_id}",
+        # 호출부 셋(BSI·부동산 ECOS 폴백 둘)이 'ECOS:…' 를 붙여 넘겨 'ECOS:ECOS:512Y013/…' 가 됐다 — 한 번만 붙인다
+        "source": source_id if str(source_id).startswith("ECOS:") else f"ECOS:{source_id}",
         "history": history,
     }
 
@@ -3816,22 +3988,35 @@ def fetch_realestate_kr():
     # 주: '주택 인허가/준공'(permit/complete)은 국토교통부(MOLIT) 통계라 R-ONE OpenAPI 에
     #     존재하지 않아 항상 빈 응답이었다(프론트의 '주택 인허가' 차트가 비어 보이던 원인).
     #     → 인허가는 아래 '전월세전환율'(R-ONE 실제 제공 지표)로 대체한다. 준공은 제거.
+    # 2026-09-30 정정: 두 표는 미분양·착공이 아니었다. 실측 표 이름 A_2024_00064 =「(월) 평균전세가격_아파트」(천원),
+    # A_2024_00057 =「(월) 준전세가격지수_아파트」(2026.06=100) — 그래서 '미분양 300,828호'·'착공 100.44'로 찍혔다.
+    # 옛 키(unsold_kr·start_kr)는 묘비(_TOMBSTONED)가 preserve 부활을 막는다. 진짜 미분양 표는 아래 목록 탐침이 찾는다.
     extra_stats = [
-        # (key,          desc,                       statbl_id)
-        ("unsold_kr",    "전국 미분양 주택 수",        "A_2024_00064"),
-        ("start_kr",     "주택 착공 실적 (전국)",      "A_2024_00057"),
+        # (key,                   desc,                                   statbl_id,      unit)
+        ("avg_jeonse_price_kr", "전국 아파트 평균 전세가격(천원)",            "A_2024_00064", "천원"),
+        ("semi_jeonse_idx_kr",  "전국 아파트 준전세가격지수(2026.06=100)",   "A_2024_00057", "2026.06=100"),
     ]
-    for key, desc, statbl_id in extra_stats:
+    for key, desc, statbl_id, unit in extra_stats:
         try:
             picked = fetch_rone_nationwide_latest(statbl_id, limit=300)
             if not picked:
                 log(f"[R-ONE] {statbl_id} ({key}): 응답 없음/전국행 없음 — 건너뜀")
                 continue
-            picked.update({"region": "전국", "desc": desc, "source": f"R-ONE:{statbl_id}"})
+            picked.update({"region": "전국", "desc": desc, "unit": unit, "source": f"R-ONE:{statbl_id}"})
             result[key] = picked
             log(f"[R-ONE] {key} ({statbl_id}): {picked['value']} ({picked['period']})")
         except Exception as e:
             log(f"[R-ONE] {key} ({statbl_id}) 오류: {e}")
+
+    # ─── 표 목록 탐침(일일 런 1회) — 진짜 미분양·착공·인허가·준공 표가 R-ONE 에 있는지 CI 로그로 확인 ──
+    # 키가 없으면 목록 함수가 빈 목록을 돌려준다. 값은 싣지 않는다(로그만).
+    if os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes"):
+        try:
+            hits = [(sid, nm) for sid, nm in fetch_rone_table_catalog("", None, limit=1000)
+                    if re.search("미분양|착공|인허가|준공", nm)]
+            log(f"[R-ONE-probe] 이름에 미분양·착공·인허가·준공이 든 표 {len(hits)}건: {hits[:40]}")
+        except Exception as e:
+            log(f"[R-ONE-probe] 표 목록 오류(무시): {e}")
 
     # ─── 전월세전환율 (전국, 월) — '주택 인허가'(R-ONE 미제공) 대체 지표 ──
     # 전세보증금을 월세로 전환할 때 적용되는 연이율(%). 시장금리·임대차 수급을 반영하는
@@ -4789,10 +4974,8 @@ def fetch_vkospi():
                     val = _parse_num(row.get("CLSPRC_IDX"))
                     chg = _parse_num(row.get("FLUC_RT"))
                     if _is_valid_vkospi(val):
-                        _basd = str(basd or "")
-                        iso = (f"{_basd[:4]}-{_basd[4:6]}-{_basd[6:8]}"
-                               if len(_basd) == 8 and _basd.isdigit()
-                               else datetime.now(KST).strftime("%Y-%m-%d"))
+                        # fetch_krx_latest 의 basd 는 'YYYY-MM-DD' 라 종전 8자리 판정이 늘 빗나가 오늘 날짜가 찍혔다
+                        iso = _krx_asof(rows, basd)
                         log(f"[KSVKOSPI] KRX {_ep}: {nm} = {val} ({chg}%)")
                         return _attach_history({"value": round(val, 2), "change": round(chg or 0.0, 2), "as_of": iso, "source": "KRX OpenAPI", "symbol": "KSVKOSPI"})
                     elif val:
@@ -6476,6 +6659,13 @@ def build_data():
     else:
         log("[KRX] API 키 없음 — Naver Finance 폴백 시도")
 
+    # ── 코스닥 등락상위·등락 종목 수·코스피 업종 등락 (A19, KRX OpenAPI 전일 확정치) ──
+    # 키가 없거나 승인 전(401)이면 호출 없이 직전 값만 잇는다.
+    try:
+        _krx_a19(data, prev)
+    except Exception as e:
+        log(f"[KRX] A19 (코스닥 등락상위·등락 종목 수·업종) 오류: {e}")
+
     # 주식 상승/하락 Top10 — 다중 폴백 (pykrx → KIS → Naver)
     # 우선순위:
     #   1) pykrx: KRX 정보데이터시스템 직접 호출 — 키 없음·차단 없음·품질 최고
@@ -7477,7 +7667,21 @@ def build_data():
     # 프런트엔드 calEvents (하드코드) 와 머지되어 UI 에 표시됨.
     try:
         log("[Calendar] 경제 캘린더 수집 시작 (FRED release dates)")
-        cal_data = fetch_economic_calendar()
+        cal_data = fetch_economic_calendar() or {"events": [], "lastFetched": now.isoformat(), "source": "FRED"}
+        # 비미국 일정(A19) — 금통위·ECB·BOJ·국가데이터처 공식 페이지. 일일 런에서만 새로 받는다.
+        _prev_ev = ((prev or {}).get("economicCalendar") or {}).get("events") or []
+        try:
+            _intl, _cst = fetch_intl_calendar(
+                _prev_ev, os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes"))
+            data.setdefault("diagnostics", {})["calendarIntl"] = _cst
+            log(f"[Calendar] 비미국 일정 {len(_intl)}건 {_cst}")
+        except Exception as e:
+            log(f"[Calendar] 비미국 일정 오류: {e} — 직전 비미국 일정을 보존 표식으로 잇는다")
+            _lo = (now.date() - timedelta(days=_CAL_BACK)).isoformat()
+            _intl = [dict(x, preserved=True, preservedAt=x.get("preservedAt") or now.isoformat(timespec="seconds"))
+                     for x in _prev_ev if not str(x.get("source", "")).startswith("FRED:")
+                     and (x.get("iso") or "") >= _lo]
+        _calendar_block(cal_data, _intl, _prev_ev)
         if cal_data:
             # 서버측 자동 백필 — 과거 이벤트의 prev/fore/act 값을 economicIndicators 에서 채움
             try:
@@ -7522,6 +7726,9 @@ def build_data():
                 "stockMovers.kospiLosers",
                 "etfMovers.etfGainers",
                 "etfMovers.etfLosers",
+                # A19 — 칸별 보존은 _krx_a19 가 한다. 여기는 그 함수가 예외로 블록째 못 만든 경우의 안전망.
+                "marketBreadth",
+                "sectorMoves",
                 # 뉴스 — Google/Naver/Bing 모두 실패 시 직전 값 유지
                 "news",
                 # 경제 캘린더 — FRED 실패 시 직전 값 유지
@@ -7613,6 +7820,9 @@ def build_data():
         "economicIndicators.jp": ("ip_jp",),
         # NAHBMMI 는 FRED 400, 폴백 MSACSR 은 다른 지표(재고 개월 수)였다 — 대체 소스 없음.
         "realestate.us": ("nahb_index",),
+        # R-ONE 표 오인(2026-09-30): 두 표는 평균전세가격·준전세가격지수였다 → avg_jeonse_price_kr·semi_jeonse_idx_kr
+        # 로 옮겼다. 옛 키가 lane·preserve 로 되살아나 '미분양 300,828호'가 다시 뜨지 않게 묻는다.
+        "realestate.kr": ("unsold_kr", "start_kr"),
     }
     try:
         removed = []
@@ -8725,6 +8935,186 @@ def fetch_economic_calendar():
         "lastFetched": datetime.now(KST).isoformat(),
         "source": "FRED release dates API",
     }
+
+
+# ── 비미국 경제 일정 (A19) — 각 기관 공식 일정 페이지(무키 HTML) ─────────────────────────
+# 일일 런에서만 다시 받는다(연간 일정이라 거의 안 바뀐다). 매시 런은 직전 값을 잇되, 직전에 없거나
+# 보존(preserved) 표식이 남은 원천만 다시 묻는다(거시 lane 과 같은 규칙).
+# 이름은 캘린더 백필 표(CALENDAR_INDICATOR_MAP·프런트 CAL_BACKFILL_MAP)에 없는 것으로 둔다 — 그 표는
+# '발표일 이하 최신 관측'을 실적으로 쓰는데, 원천이 아직 안 따라온 회차에 지난달 값이 실적으로 찍힌다.
+# 시각: ECB 결정은 14:15 CET/CEST 고정 공표. 금통위·BOJ 는 고정 공표 시각이 없어 timeApprox=True
+# (금통위 = 회의 시작 09:00, BOJ = 통상 정오 전후).
+_CAL_BACK, _CAL_AHEAD = 14, 75      # 회의는 6~8주 간격 — FRED(45일)보다 멀리 봐야 다음 회의가 보인다
+_CAL_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                         "(KHTML, like Gecko) Chrome/121.0 Safari/537.36"}
+_BOK_MPC_URL = "https://www.bok.or.kr/portal/singl/crncyPolicyDrcMtg/listYear.do?mtgSe=A&menuNo=200755"
+_ECB_MPM_URL = "https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html"
+_BOJ_MPM_URL = "https://www.boj.or.jp/en/mopo/mpmsche_minu/index.htm"
+_KOSTAT_URL = "https://mods.go.kr/newsPln.es?mid=a10305000000&oa_mm=ALL"   # 국가데이터처(옛 통계청) 연간 보도계획
+# 보도자료명 → (이름, 별). '2026년 8월 소비자물가동향'·'2025년 12월 및 연간 고용동향' 꼴만 잡는다.
+_KOSTAT_PICK = {"소비자물가동향": ("한국 소비자물가동향", 3), "고용동향": ("한국 고용동향", 2),
+                "산업활동동향": ("한국 산업활동동향", 2)}
+_EN_MONTHS = {m: i for i, m in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
+
+
+def _cal_event(cc, name, stars, d, hhmm, source, **extra):
+    return {"dt": f"{d.month:02d}.{d.day:02d} {hhmm}", "cc": cc, "name": name, "stars": stars,
+            "prev": "", "fore": "", "act": "", "beat": None, "source": source, "iso": d.isoformat(), **extra}
+
+
+def _ecb_kst(d):
+    """ECB 결정 공표 14:15 CET(+8h) / CEST(+7h) → KST. 유럽 서머타임 = 3월·10월 마지막 일요일 사이."""
+    last_sun = lambda m: date_cls(d.year, m, 31) - timedelta(days=(date_cls(d.year, m, 31).weekday() + 1) % 7)
+    return "21:15" if last_sun(3) <= d < last_sun(10) else "22:15"
+
+
+def _parse_bok_mpc(html_text, source=_BOK_MPC_URL):
+    """한국은행 통화정책방향 회의 연간 일정 — 연도 = 선택된 <option>, 행 = '<th scope=row>01월 15일(목)'."""
+    y = re.search(r'<option value="(\d{4})"\s*selected', html_text)
+    if not y:
+        return []
+    return [_cal_event("KR", "한국은행 금통위 (통화정책방향)", 3, date_cls(int(y.group(1)), int(m), int(dd)),
+                       "09:00", source, timeApprox=True)
+            for m, dd in re.findall(r'<th scope="row">\s*(\d{1,2})월\s*(\d{1,2})일', html_text)]
+
+
+def _parse_ecb_mpm(html_text):
+    """ECB 이사회 일정 <dt>dd/mm/yyyy</dt><dd>…</dd> — 통화정책 회의 중 기자회견이 있는 날(결정 공표일)."""
+    out = []
+    for dd, mm, yy, txt in re.findall(r"<dt>\s*(\d{2})/(\d{2})/(\d{4})\s*</dt>\s*<dd>(.*?)</dd>", html_text, re.S):
+        t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", txt)).lower()
+        if "monetary policy meeting" in t and "non-monetary" not in t and "press conference" in t:
+            d = date_cls(int(yy), int(mm), int(dd))
+            out.append(_cal_event("EU", "ECB 통화정책 결정", 3, d, _ecb_kst(d), _ECB_MPM_URL))
+    return out
+
+
+def _parse_boj_mpm(html_text):
+    """BOJ 금융정책결정회합 — <h2 id="p2026"> 뒤 표의 각 행 첫 칸 'Apr. 27 (Mon.), 28 (Tues.)' 의 마지막 날(결정일)."""
+    out = []
+    parts = re.split(r'<h2 id="p(\d{4})">', html_text)
+    for year, body in zip(parts[1::2], parts[2::2]):
+        tbl = re.search(r"<tbody>(.*?)</tbody>", body, re.S)
+        for tr in re.findall(r"<tr>(.*?)</tr>", tbl.group(1) if tbl else "", re.S):
+            td = re.search(r"<td[^>]*>(.*?)</td>", tr, re.S)
+            cell = re.sub(r"\[PDF[^\]]*\]", "", re.sub(r"<[^>]+>", " ", td.group(1))) if td else ""
+            mon, last = None, None
+            for mname, day in re.findall(r"(?:([A-Z][a-z]{2,4})\.?\s+)?(\d{1,2})\s*\(", cell):
+                mon = _EN_MONTHS.get(mname[:3].lower(), mon) if mname else mon
+                last = (mon, int(day))
+            if last and last[0]:
+                out.append(_cal_event("JP", "일본은행(BOJ) 금융정책결정회합", 3,
+                                      date_cls(int(year), last[0], last[1]), "12:00", _BOJ_MPM_URL, timeApprox=True))
+    return out
+
+
+def _parse_kostat_plan(html_text):
+    """국가데이터처 연간 보도계획 표 — 보도일자 'MM.DD.(요일)'·보도시간·보도자료명. 소비자물가·고용·산업활동만."""
+    y = re.search(r"<h3>\s*(\d{4})년 [^<]*보도계획\s*</h3>", html_text)
+    if not y:
+        return []
+    out = []
+    for mm, dd, hhmm, title in re.findall(
+            r"<td[^>]*>\s*(\d{2})\.(\d{2})\.\([^)]*\)\s*</td>\s*<td[^>]*>\s*(\d{2}:\d{2})\s*</td>\s*<td[^>]*>(.*?)</td>",
+            html_text, re.S):
+        t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", title)).strip()
+        m = re.fullmatch(r"(\d{4})년 (\d{1,2})월 (?:및 연간 )?(소비자물가동향|고용동향|산업활동동향)", t)
+        if m:
+            name, stars = _KOSTAT_PICK[m.group(3)]
+            out.append(_cal_event("KR", name, stars, date_cls(int(y.group(1)), int(mm), int(dd)), hhmm,
+                                  _KOSTAT_URL, refPeriod=f"{m.group(1)}-{int(m.group(2)):02d}"))
+    return out
+
+
+def _cal_get(url):
+    r = requests.get(url, headers=_CAL_UA, timeout=25)
+    r.raise_for_status()
+    return r.content.decode("utf-8", "replace")
+
+
+def _cal_sources(today):
+    """(원천 키, 이벤트 source 접두사, 가져오기 함수). 금통위는 연말이 창에 걸리면 이듬해 쪽도 본다(비어 있어도 됨)."""
+    def bok():
+        evs = _parse_bok_mpc(_cal_get(_BOK_MPC_URL))
+        if (today + timedelta(days=_CAL_AHEAD)).year > today.year:
+            try:
+                nxt = f"{_BOK_MPC_URL}&pYear={today.year + 1}"
+                evs += _parse_bok_mpc(_cal_get(nxt), source=nxt)
+            except Exception as e:
+                log(f"[Calendar] 금통위 {today.year + 1} 일정 오류(무시): {e}")
+        return evs
+    return (("bok", _BOK_MPC_URL, bok),
+            ("ecb", _ECB_MPM_URL, lambda: _parse_ecb_mpm(_cal_get(_ECB_MPM_URL))),
+            ("boj", _BOJ_MPM_URL, lambda: _parse_boj_mpm(_cal_get(_BOJ_MPM_URL))),
+            ("kostat", _KOSTAT_URL, lambda: _parse_kostat_plan(_cal_get(_KOSTAT_URL))))
+
+
+def fetch_intl_calendar(prev_events, daily, today=None):
+    """비미국 일정 → (events, status). status[원천] = 건수 | 'carried'(이번 런 안 물음) | 'failed'·'empty'(보존)."""
+    today = today or datetime.now(KST).date()
+    lo = (today - timedelta(days=_CAL_BACK)).isoformat()
+    hi = (today + timedelta(days=_CAL_AHEAD)).isoformat()
+    in_win = lambda e: lo <= (e.get("iso") or "") <= hi
+    events, status = [], {}
+    for key, prefix, get in _cal_sources(today):
+        old = [e for e in prev_events or [] if str(e.get("source", "")).startswith(prefix) and in_win(e)]
+        if not daily and old and not any(e.get("preserved") for e in old):
+            events += old
+            status[key] = "carried"
+            continue
+        try:
+            fresh = [e for e in get() if in_win(e)]
+            status[key] = len(fresh) or "empty"
+        except Exception as e:
+            log(f"[Calendar] {key} 일정 오류: {e}")
+            fresh, status[key] = [], "failed"
+        if fresh:
+            # 지난 회의는 이어 둔다 — ECB 페이지는 앞으로의 일정만 싣는다(지난 결정일이 14일 창에서 사라지지 않게).
+            # 지난 일정은 바뀌지 않으므로 보존 표식을 떼고 잇는다(표식이 남으면 매시 재조회가 창을 벗어날 때까지 돈다).
+            got = {(e.get("iso"), e.get("name")) for e in fresh}
+            events += fresh + [{k: v for k, v in e.items() if k not in ("preserved", "preservedAt")}
+                               for e in old if (e.get("iso") or "") < today.isoformat()
+                               and (e.get("iso"), e.get("name")) not in got]
+        else:   # 창 안에 회의·발표가 늘 있다 — 0건은 페이지 구조가 바뀐 것. 직전 값을 보존 표식으로 잇는다.
+            at = datetime.now(KST).isoformat(timespec="seconds")
+            events += [dict(e, preserved=True, preservedAt=e.get("preservedAt") or at) for e in old]
+    return events, status
+
+
+def _merge_calendar(fred_events, intl_events, prev_events, today=None):
+    """FRED(미국) + 비미국 일정 합치기. FRED 가 비면 직전 FRED 일정을 보존 표식으로 잇는다(비미국만 남아
+    블록이 '비어 있지 않음'이 되면 블록째 보존이 안 돌아 미국 일정이 사라진다). (iso, 이름) 중복 제거."""
+    if not fred_events:
+        today = today or datetime.now(KST).date()
+        lo = (today - timedelta(days=_CAL_BACK)).isoformat()
+        at = datetime.now(KST).isoformat(timespec="seconds")
+        fred_events = [dict(e, preserved=True, preservedAt=e.get("preservedAt") or at)
+                       for e in prev_events or []
+                       if str(e.get("source", "")).startswith("FRED:") and (e.get("iso") or "") >= lo]
+    seen, out = set(), []
+    for e in list(fred_events) + list(intl_events):
+        k = (e.get("iso"), e.get("name"))
+        if k not in seen:
+            seen.add(k)
+            out.append(e)
+    out.sort(key=lambda e: (e.get("iso") or "", e.get("dt") or ""))
+    return out
+
+
+def _calendar_block(cal_data, intl_events, prev_events, today=None):
+    """FRED 캘린더 블록(cal_data)에 비미국 일정을 합친다(제자리 수정).
+
+    미국 일정(블록의 본체)을 직전 값으로 이었으면 블록째 preserved 를 단다 — 판정표는 캘린더를 한 덩어리로 보고
+    블록 표식만 읽는다. 비미국 일정만 새로 받아 블록이 '비어 있지 않음'이 되면 종전의 블록째 보존이 안 돌아
+    FRED 장애가 ok 로 보였다."""
+    cal_data["events"] = _merge_calendar(cal_data.get("events") or [], intl_events, prev_events, today)
+    if intl_events:
+        cal_data["source"] = f"{cal_data.get('source') or 'FRED'} + 한국은행·ECB·BOJ·국가데이터처 공식 일정"
+    kept = [e for e in cal_data["events"] if e.get("preserved") and str(e.get("source", "")).startswith("FRED:")]
+    if kept:
+        cal_data["preserved"], cal_data["preservedAt"] = True, kept[0]["preservedAt"]
+    return cal_data
 
 
 # ── 경량(라이트) 빌드 — 장중 고빈도 '시세 전용' 경로 (2026-07 고도화) ──────────────

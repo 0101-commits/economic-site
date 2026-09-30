@@ -64,11 +64,14 @@ def test_krx_401_stops_further_calls(monkeypatch):
 
     monkeypatch.setattr(fd, "requests", _Fake())
     monkeypatch.setattr(fd, "KRX_API_KEY", "k" * 12)
-    monkeypatch.setattr(fd, "_KRX_AUTH_DENIED", False)
+    monkeypatch.setattr(fd, "_KRX_DENIED", set())
+    monkeypatch.setattr(fd, "_KRX_ROWS", {})
+    # 이용신청은 서비스별이라 401 도 엔드포인트별로 막는다(A19) — 한 엔드포인트에 한 번, 날짜 되짚기는 안 한다
     assert fd.fetch_krx("/idx/kospi_dd_trd", "20260929") is None
+    assert fd.fetch_krx("/idx/kospi_dd_trd", "20260928") is None
     assert fd.fetch_krx("/gen/gold_bydd_trd", "20260929") is None
     assert fd.fetch_krx_latest("/etp/etf_bydd_trd") == (None, None)
-    assert len(calls) == 1
+    assert len(calls) == 3
 
 
 def test_restore_marks_preserved_and_leaves_prev_untouched():

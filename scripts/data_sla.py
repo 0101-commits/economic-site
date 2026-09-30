@@ -45,6 +45,8 @@ SLA_RULES = [
     ("stockMovers.*",                    4,   "important"),
     ("etfMovers.*",                      4,   "important"),
     ("rankingsKr.*",                     4,   "important"),
+    ("marketBreadth*",                   4,   "important"),  # A19 KRX 등락 종목 수(전일 확정치) — 블록째 missing 도 같은 등급
+    ("sectorMoves",                      4,   "important"),  # A19 코스피 업종 등락
     ("investorTrading",                  6,   "important"),
     ("sentiment.*",                      4,   "important"),
     ("freight",                          10,  "normal"),
@@ -174,7 +176,7 @@ def _extract_asof(node):
 # ponytail: 공휴일 표 없이 주말만 거른다 — 평일 4일 넘게 쉬는 휴장이 생기면 KRX 휴장일 표로.
 TRADING_DAY_PATHS = ("history.indices.*", "history.fx.*", "history.commodities.*",
                      "stockMovers.*", "etfMovers.*", "rankingsKr.*", "investorTrading",
-                     "sentiment.*", "yieldCurve.*")
+                     "sentiment.*", "yieldCurve.*", "marketBreadth.*", "sectorMoves")
 
 
 def _weekdays_between(a, b):
@@ -263,7 +265,7 @@ def _raw_asof(node):
 
 # 블록 전체가 하나의 지표로 취급되는 최상위 키 (내부를 쪼개지 않는다)
 _ATOMIC_TOPS = ("freight", "investorTrading", "news", "economicCalendar", "marketCalendarKr",
-                "nps", "subscription", "marketHalts", "aiBriefing", "lmeInventory")
+                "nps", "subscription", "marketHalts", "aiBriefing", "lmeInventory", "sectorMoves")
 _SKIP_TOPS = ("lastUpdated", "sources", "diagnostics", "dataHealth")
 # 현재가 스냅샷 블록 — 자체 날짜 필드가 없고 신선도는 같은 심볼의 history 가 대변한다.
 # 여기서 판정하면 심볼마다 'unknown' 이 중복으로 쌓여 요약이 무의미해진다.
@@ -279,18 +281,20 @@ _EXPECTED_TOPS = ("berkshire", "lmeInventory",
                   # climate.enso.forecast 는 원천이 없거나 화면 필수가 아니라 기대 목록에서 뺐다
                   # (없는 걸 매 런 '실종'으로 세면 경고가 상시라 진짜 실종이 묻힌다).
                   "realestate.kr.region", "realestate.kr.region_sub")
+# A19 marketBreadth · sectorMoves 는 프런트가 읽기 시작하면 여기에 넣는다(리드가 프런트 연결 뒤 추가).
+# 읽는 화면이 없는데 넣으면 KRX 승인 전 매 런 missing 2줄이 상시 경고가 된다.
 
 # ── 합리 범위표 (A9) ───────────────────────────────────────────────────────
 # (glob 경로, 하한, 상한, 하루 최대 변화율 %(없으면 None), 메모). 값이 범위를 벗어나면
 # state="suspect"(검증 필요). 왜: as-of 가 신선해도 값 자체가 엉뚱한 칸(호수 자리의 지수값,
-# 단위가 다른 표)이면 신선도 판정은 ok 로 통과한다 — 2026-09-30 실측: unsold_kr 300,827.99
-# (호수 상한 초과), start_kr 100.44(지수값이 호수 칸에). 차단은 하지 않는다(경고만).
+# 단위가 다른 표)이면 신선도 판정은 ok 로 통과한다 — 2026-09-30 첫 포착: '미분양' 300,827.99 · '착공' 100.44 는
+# 표 오인이었다(실제 = 평균전세가격 천원 · 준전세가격지수) → 키를 바로잡고 새 키에 범위를 건다. 차단은 하지 않는다(경고만).
 # 값은 leaf 의 value → price → rate 순, 수익률곡선은 current 리스트 전체를 본다.
 # ⚠ cpi 는 나라마다 단위가 다르다(cn·uk = 전년동월비 %, us·eu·de·kr = 지수 수준 120~334)라
 #   전체 glob 을 걸면 거짓 경보가 난다 — yoy 인 나라만 명시.
 RANGE_RULES = [
-    ("realestate.kr.unsold_kr",         0,     150000, None, "호수 — 표 정의·단위 확인 중"),
-    ("realestate.kr.start_kr",          1000,  200000, None, "호수 — 지수값이 호수 칸에 든 정황"),
+    ("realestate.kr.avg_jeonse_price_kr", 50000, 1000000, None, "천원 — 전국 아파트 평균 전세가격(R-ONE A_2024_00064)"),
+    ("realestate.kr.semi_jeonse_idx_kr",  50,    200,     None, "지수 2026.06=100 — 전국 아파트 준전세가격지수(A_2024_00057)"),
     ("fx.USDKRW",                       800,   2500,   None, "원/달러"),
     ("indices.KOSPI",                   1000,  10000,  None, "코스피 지수"),
     ("sentiment.vkospi",                5,     100,    None, "변동성지수"),
@@ -298,6 +302,7 @@ RANGE_RULES = [
     ("yieldCurve.*",                    -2,    20,     None, "금리 %"),
     ("economicIndicators.cn.cpi_*",     -5,    30,     None, "전년동월비 %"),
     ("economicIndicators.uk.cpi_*",     -5,    30,     None, "전년동월비 %"),
+    ("marketBreadth.*",                 0,     3000,   None, "종목 수(up·down·flat·limitUp·limitDown)"),
 ]
 
 
@@ -353,6 +358,8 @@ def _range_checks(data):
             cur = node.get("current")
             vals = [_num(v) for v in cur] if isinstance(cur, list) else \
                    [next((_num(node.get(k)) for k in ("value", "price", "rate") if _num(node.get(k)) is not None), None)]
+            if vals == [None] and "up" in node:   # 값 칸이 없는 개수 묶음(A19 marketBreadth.*)
+                vals = [_num(node.get(k)) for k in ("up", "down", "flat", "limitUp", "limitDown")]
             vals = [v for v in vals if v is not None]
             why = next((f"{v:g} 가 합리 범위 {lo}~{hi} 밖" for v in vals if not lo <= v <= hi), None)
             prev, v0 = _num(node.get("prev")), vals[0] if vals else None
@@ -381,11 +388,16 @@ def build_health(data, today=None, sources=None):
         asof = _extract_asof(node)
         cadence = infer_cadence(node, _raw_asof(node))
         top = path.split(".")[0]
-        src = sources.get(top) or sources.get(path) or ""
+        # 경로 자신의 소스 라벨이 먼저다 — 한 블록에 원천이 둘인 곳(stockMovers: 코스피=토스, 코스닥=KRX)에서
+        # 한쪽의 '보존' 라벨이 다른 쪽까지 보존으로 읽히지 않게. 점 경로 키는 A19 전엔 없었다(종전 판정 불변).
+        src = sources.get(path) or sources.get(top) or ""
         # 보존 판정 두 갈래: sources 라벨의 '보존' 또는 leaf 자체의 preserved 표식(fetch_data 가
         # 직전 빌드에서 되살린 leaf 에 단다 — 이번 런에 수집되지 않았다는 사실이 as-of 가
         # SLA 안이라는 이유로 가려지지 않게).
-        leaf_preserved = isinstance(node, dict) and node.get("preserved") is True
+        # 목록 잎(stockMovers.kosdaqGainers)은 행마다 표식이 달린다 — 전부 달렸으면 보존.
+        leaf_preserved = (isinstance(node, dict) and node.get("preserved") is True) or (
+            isinstance(node, list) and bool(node)
+            and all(isinstance(r, dict) and r.get("preserved") is True for r in node))
         preserved = "보존" in str(src) or leaf_preserved
         if asof is None:
             state, age = "unknown", None
@@ -441,7 +453,7 @@ def build_health(data, today=None, sources=None):
         if isinstance(v, str) and v.upper() == "FAILED" and k.endswith("Source"):
             failed_tops.add(k[:-6])          # stockMoversSource → stockMovers
     for it in items:
-        if it["path"].split(".")[0] in failed_tops:
+        if it["path"].split(".")[0] in failed_tops and it["path"] not in sources:   # 자기 소스가 있으면 따로 판정
             it["state"] = "failed"
 
     # 합리 범위 — 신선해도 값이 엉뚱하면 suspect. failed·missing 은 더 나쁜 상태라 덮지 않는다.
@@ -562,6 +574,8 @@ def _demo():
     assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
     assert by["lmeInventory"]["state"] == "missing", by["lmeInventory"]
     assert h["summary"]["missing"] == 2 + 2          # berkshire·lme + 화면 공백 경로 2(region·region_sub)
+    assert "marketBreadth" not in by and "sectorMoves" not in by    # A19 — 프런트가 읽기 전엔 기대 목록 밖
+    assert _rule_for("marketBreadth") == (4, "important") and _rule_for("marketBreadth.kospi") == (4, "important")
     for gone in ("sentiment.pcr", "climate.enso.forecast", "realestate.kr.conversion_rate_kr"):
         assert gone not in by, gone                    # 2026-09-30 D1: 기대 목록에서 제외
     # lmeInventory 는 원자 블록 — as_of 로 블록 단위 판정
@@ -584,17 +598,44 @@ def _demo():
     assert v["state"] == "preserved" and v.get("preserved") is True and h2["summary"]["preserved"] == 1, v
     assert h2["blocking"] == []
     # 합리 범위 — 범위 밖은 suspect(사유 포함, 차단 아님). fx 는 걷기 대상이 아니어도 잡힌다
-    s3 = {"realestate": {"kr": {"unsold_kr": {"period": "202608", "value": 300827.99},
-                                "start_kr": {"period": "202608", "value": 100.44}}},
+    s3 = {"realestate": {"kr": {"avg_jeonse_price_kr": {"period": "202608", "value": 3008.28},   # 천원 자리에 만원값
+                                "semi_jeonse_idx_kr": {"period": "202608", "value": 1004.4}}},
           "fx": {"USDKRW": {"rate": 5000}}, "indices": {"KOSPI": {"price": 6902.9}},
           "yieldCurve": {"us": {"current": [4.0, 25.0]}},
           "sentiment": {"vkospi": {"as_of": "2026-08-04", "value": 44.7}}}
     h3 = build_health(s3, today=date(2026, 8, 4))
     b = {i["path"]: i for i in h3["items"]}
-    for p in ("realestate.kr.unsold_kr", "realestate.kr.start_kr", "fx.USDKRW", "yieldCurve.us"):
+    for p in ("realestate.kr.avg_jeonse_price_kr", "realestate.kr.semi_jeonse_idx_kr", "fx.USDKRW", "yieldCurve.us"):
         assert b[p]["state"] == "suspect" and b[p]["reason"], (p, b[p])
     assert "indices.KOSPI" not in b and b["sentiment.vkospi"]["state"] == "ok"
     assert h3["summary"]["suspect"] == 4 and h3["blocking"] == []
+    # 오인됐던 실측값은 새 키에선 정상 범위다(평균전세가격 3억 원 · 준전세지수 100.44)
+    ok3 = {"realestate": {"kr": {"avg_jeonse_price_kr": {"period": "202608", "value": 300827.99},
+                                 "semi_jeonse_idx_kr": {"period": "202608", "value": 100.44}}}}
+    assert _range_checks(ok3) == {}
+
+    # A19 — 등락 종목 수(평일 수로 셈)·업종(원자 블록)·코스닥 목록 행 보존·종목 수 범위
+    s4 = {"marketBreadth": {"kospi": {"up": 500, "down": 300, "flat": 50, "limitUp": 2, "limitDown": 0,
+                                      "as_of": "2026-09-25"},
+                            "kosdaq": {"up": 5000, "down": 1, "flat": 1, "limitUp": 0, "limitDown": 0,
+                                       "as_of": "2026-09-25"},
+                            "source": "KRX"},
+          "sectorMoves": {"as_of": "2026-09-25", "items": [{"name": "화학", "close": 1.0, "chg_pct": 1.0}]},
+          "stockMovers": {"kosdaqGainers": [{"as_of": "2026-09-25", "chg": 30, "preserved": True}],
+                          "kospiGainers": [{"as_of": "2026-09-25", "chg": 3}]}}
+    b4 = {i["path"]: i for i in build_health(s4, today=date(2026, 9, 28))["items"]}   # 금→월 = 평일 1일
+    assert b4["marketBreadth.kospi"]["state"] == "ok" and b4["sectorMoves"]["state"] == "ok", b4
+    assert b4["marketBreadth.kosdaq"]["state"] == "suspect", b4["marketBreadth.kosdaq"]   # 5000 > 3000
+    assert b4["stockMovers.kosdaqGainers"]["state"] == "preserved", b4["stockMovers.kosdaqGainers"]
+    assert b4["stockMovers.kospiGainers"]["state"] == "ok"
+    # 한 블록 두 원천 — 코스피(토스) 실패·보존이 제 소스를 가진 코스닥(KRX) 목록으로 번지지 않는다
+    s5 = {"stockMovers": {"kospiGainers": [{"as_of": "2026-09-25"}], "kosdaqGainers": [{"as_of": "2026-09-25"}]},
+          "sources": {"stockMovers.kosdaqGainers": "KRX OpenAPI"}, "diagnostics": {"stockMoversSource": "FAILED"}}
+    b5 = {i["path"]: i for i in build_health(s5, today=date(2026, 9, 28))["items"]}
+    assert b5["stockMovers.kospiGainers"]["state"] == "failed" and b5["stockMovers.kosdaqGainers"]["state"] == "ok"
+    s5["sources"]["stockMovers"], s5["diagnostics"] = "이전 빌드 보존 ← 토스증권", {}
+    b5 = {i["path"]: i for i in build_health(s5, today=date(2026, 9, 28))["items"]}
+    assert b5["stockMovers.kospiGainers"]["state"] == "preserved" and b5["stockMovers.kosdaqGainers"]["state"] == "ok"
 
     # 독립 파일 신선도 — 없는 파일은 skip(에러 아님)
     res = check_external_files(root="__no_such_dir__")

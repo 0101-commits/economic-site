@@ -481,7 +481,9 @@ The script **preserves previous values** on partial failure — individual API e
   무관하게 `preserved` 로 센다(종전엔 건강표가 직전 값 12개를 정상으로 셌다). 수집 주기 묶음(아래)이 일부러 건너뛴
   잎은 `preserved_reason: "lane"` 만 붙고 `preserved` 는 아니다 — 화면 칩은 `preserved === true` 만 본다.
 - **합리 범위표(`RANGE_RULES`, data_sla.py)** — 범위 밖 값은 `state: suspect`(검증 필요, `reason`)로 두고 저장은 한다.
-  validate 는 경고만. 첫 포착 = 미분양 300,828호·착공 100.44(표 정의·단위 확인 중). 새 지표는 여기에 하한·상한을 함께 넣는다.
+  validate 는 경고만. 첫 포착 = 「미분양 300,828호·착공 100.44」 — 실측 결과 R-ONE 표 오인(A_2024_00064 는 아파트 평균
+  전세가격(천원), A_2024_00057 은 준전세가격지수)이라 `avg_jeonse_price_kr`·`semi_jeonse_idx_kr` 로 개명·정상 판정. 진짜 미분양·착공
+  표는 R-ONE 에 없을 수 있다(`[R-ONE-probe]` 일일 로그로 탐색 중, 대체 후보 = 국토부 통계누리 hRsId=32, API 없음). 새 지표는 여기에 하한·상한을 함께 넣는다.
 - **수집 주기 묶음(lane).** 매시 풀 런(`mode=full`)은 `FETCH_MACRO=0` 으로 거시·부동산 5묶음(`MACRO_SECTIONS`:
   intl·pmi·ecos·rone·fredre)을 건너뛰고 직전 값을 잇는다. 일일 런 3회(`mode=daily`, `FETCH_MACRO=1`)가 매일 재시도.
   직전 런에서 `preserved: true` 로 남은 잎이 있는 묶음만 매시 다시 받는다. `diagnostics.macroLane={fetched,carried}`.
