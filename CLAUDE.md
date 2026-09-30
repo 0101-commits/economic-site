@@ -607,6 +607,14 @@ Toss Open API binds every client to an **IP allowlist** (WTS → 설정 → Open
 There is no CIDR or wildcard entry, so CI can never be allowlisted. The collector runs here
 instead and hands its result to the cloud pipeline through the repo.
 
+**2026-09-30 부터 수집기는 둘이다.** 주(primary) = Oracle Cloud 무료 등급 Ubuntu 서버(고정 IP, systemd 타이머
+15분, `scripts/server/`, 설치·운영 안내 `docs/TOSS_SERVER.md`, 접속키는 사용자 PC `Downloads\ssh-key-2026-09-30.key`,
+`ubuntu@` 계정). 대기(standby) = 이 PC(`TOSS_SNAPSHOT_ROLE=standby` 사용자 환경변수): origin 스냅샷의 `host` 가
+자기와 다르고 40분 이내면 수집을 건너뛴다. 왜 둘을 동시에 돌리지 않는가 — 토스는 클라이언트당 토큰 1개라 재발급이
+상대 토큰을 즉시 무효화한다(`token-revoked` 실측). 서버 쪽 함정: 저장소는 `--depth 1` 로만 복제(전체 14,500커밋은
+1vCPU 에서 index-pack 10분+), 실행 스크립트는 매번 `origin/main` 으로 강제 복귀(rebase 충돌을 방치하면 detached
+HEAD 로 매 실행 실패). 서버 비밀값은 `/etc/economic-site/toss.env`(600) 한 곳.
+
 | Piece | What it does |
 |-------|--------------|
 | `scripts/fetch_toss_snapshot.py` | Fetches indices, the KTB curve, gainer/loser rankings (stocks **and** ETFs, KOSPI+KOSDAQ), trading-amount + Toss-retail rankings, KOSPI investor flows, **per-stock flows for the tracked watchlist** (investor/short-selling/credit/lending/program/warnings — `stockData`), the KR market calendar and the USD/KRW quote; writes `toss_snapshot.json`; `--push` commits and pushes it |
