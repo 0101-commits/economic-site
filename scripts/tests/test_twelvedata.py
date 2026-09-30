@@ -64,6 +64,57 @@ def test_rate_guard(monkeypatch):
     assert td.quote(["^GSPC"], log=lambda *_: None) == {} and len(calls) == 1
 
 
+def _seq(monkeypatch, fn, calls):
+    monkeypatch.setattr(td.time, "sleep", lambda *_: None)
+    def get(url, params=None, timeout=None):
+        calls.append(params)
+        return R(fn(params))
+    monkeypatch.setattr(td.requests, "get", get)
+
+
+def test_top_level_error_falls_back_per_symbol(monkeypatch):
+    setup(monkeypatch)
+    calls = []
+    def fn(p):
+        if "," in p["symbol"]:
+            return {"code": 400, "message": "bad symbol", "status": "error"}
+        return {"symbol": p["symbol"], "close": "10", "previous_close": "10", "datetime": "d"}
+    _seq(monkeypatch, fn, calls)
+    out = td.quote(["^N225", "^HSI"], log=lambda *_: None)
+    assert out["^N225"]["price"] == 10 and out["^HSI"]["price"] == 10 and len(calls) == 3
+
+
+def test_proxy_for_failed_us_index(monkeypatch):
+    setup(monkeypatch)
+    calls = []
+    def fn(p):
+        s = p["symbol"]
+        if s == "SPX,N225":
+            return {"SPX": {"status": "error", "message": "plan"}, "N225": {"close": "1", "previous_close": "1"}}
+        if s == "SPY":
+            return {"symbol": "SPY", "close": "500", "previous_close": "495", "percent_change": "1.0"}
+        return {"status": "error", "message": "x"}
+    _seq(monkeypatch, fn, calls)
+    out = td.quote(["^GSPC", "^N225"], log=lambda *_: None)
+    assert "^GSPC" not in out and out["^N225"]["price"] == 1
+    px = out["_proxies"]["^GSPC"]
+    assert px["proxy"] == "SPY" and px["fill_ok"] is False
+    r = td.cross_check({"^GSPC": {"price": 5000, "change": 0.8}}, out)
+    assert r[-1]["proxy"] == "SPY" and r[-1]["ok"]
+
+
+def test_shanghai_exchange_form(monkeypatch):
+    setup(monkeypatch)
+    calls = []
+    def fn(p):
+        if p.get("exchange") == "XSHG":
+            return {"symbol": "000001", "close": "3000", "previous_close": "3000"}
+        return {"status": "error", "message": "bad"}
+    _seq(monkeypatch, fn, calls)
+    out = td.quote(["000001.SS"], log=lambda *_: None)
+    assert out["000001.SS"]["price"] == 3000
+
+
 def test_cross_check():
     r = td.cross_check({"^GSPC": {"price": 100}, "^HSI": 200},
                        {"^GSPC": {"price": 100.5}, "^HSI": {"price": 205}, "^N225": {"price": 1}})
