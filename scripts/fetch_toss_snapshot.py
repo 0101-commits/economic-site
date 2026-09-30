@@ -241,6 +241,9 @@ def collect_stock_data(days=20):
     return out
 
 
+_LAST_PAYLOAD = ""   # 마지막으로 저장한 스냅샷 본문 — rebase 충돌 복구 때 다시 쓴다
+
+
 def git_push():
     """toss_snapshot.json 만 커밋·푸시. 봇 커밋과 충돌해도 rebase 로 흡수된다."""
     def run(*args):
@@ -268,7 +271,16 @@ def git_push():
     for attempt in range(3):
         # --autostash: 다른 작업으로 워킹트리가 더러워도 rebase 가 멈추지 않게 한다.
         # (이 스크립트는 PC 가 켜질 때마다 배경에서 돌아 — 사람이 편집 중일 수 있다.)
-        run("git", "pull", "--rebase", "--autostash", "-q")
+        pr = run("git", "pull", "--rebase", "--autostash", "-q")
+        if pr.returncode != 0:
+            # 왜: rebase 충돌(같은 파일을 다른 수집기가 먼저 푸시)은 사람이 풀 일이 아니다 — 원격을 이기게 두고
+            #   방금 만든 스냅샷을 그 위에 다시 커밋한다. 방치하면 detached HEAD 로 남아 이후 실행이 전부 실패한다.
+            run("git", "rebase", "--abort"); run("git", "checkout", "-q", "-f", "main")
+            run("git", "fetch", "-q", "origin", "main"); run("git", "reset", "-q", "--hard", "origin/main")
+            with open(OUT, "w", encoding="utf-8") as f:
+                f.write(_LAST_PAYLOAD)
+            run("git", "add", "toss_snapshot.json")
+            run("git", "commit", "-o", "toss_snapshot.json", "-m", f"data: 토스 스냅샷 {stamp}")
         r = run("git", "push", "-q")
         if r.returncode == 0:
             log("푸시 완료")
@@ -368,8 +380,10 @@ def main():
         # fetch_data 의 신선도 가드가 '방금 받은 값'으로 오인한다(정직성 우선).
         log("데이터 변동 없음 — 파일 재작성 생략")
     else:
+        global _LAST_PAYLOAD
+        _LAST_PAYLOAD = json.dumps(snap, ensure_ascii=False, separators=(",", ":"))
         with open(OUT, "w", encoding="utf-8") as f:
-            json.dump(snap, f, ensure_ascii=False, separators=(",", ":"))
+            f.write(_LAST_PAYLOAD)
         log(f"저장 {OUT} ({os.path.getsize(OUT) // 1024}KB, 항목 {payload_keys})")
     # 푸시 여부는 해시가 아니라 **git 상태**가 정한다. 해시로 파일 재작성을 건너뛰었더라도
     # 직전 실행이 푸시에 실패했으면 워킹트리가 dirty 인 채로 남아 있고, 그걸 계속

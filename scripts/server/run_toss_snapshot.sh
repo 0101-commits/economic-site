@@ -24,7 +24,12 @@ if [ "$(cat "$STAMP" 2>/dev/null)" != "$MONTH" ]; then
   echo "$MONTH" >"$STAMP"
 fi
 
-git pull --rebase --autostash -q || echo "[warn] git pull 실패 - 로컬 기준으로 계속"
+# 왜: 이 서버는 지킬 로컬 변경이 없다(스냅샷은 매번 새로 만든다). pull --rebase 가 PC 수집기의 동시 푸시와
+#   충돌하면 미해결 상태·detached HEAD 로 남아 다음 실행이 전부 exit 3 이었다(2026-09-30 실측).
+#   → 항상 origin/main 으로 강제 복귀. 토큰 캐시(untracked)는 reset --hard 가 건드리지 않는다.
+git rebase --abort >/dev/null 2>&1; git merge --abort >/dev/null 2>&1
+git checkout -q -f main 2>/dev/null
+git fetch -q origin main && git reset -q --hard origin/main || echo "[warn] origin 동기화 실패 - 로컬 기준으로 계속"
 python3 scripts/fetch_toss_snapshot.py --push
 RC=$?
 echo "[$(date '+%F %T %Z')] exit $RC"
