@@ -225,7 +225,6 @@ jobs:
           # Alpha Vantage API — 미국 경제지표/원자재/FX 보강 (일 25회 한도)
           # https://www.alphavantage.co/support/#api-key 에서 발급
           # Secrets 미설정 시 Alpha Vantage 보강은 건너뜀 (코드에 기본 키 하드코딩 금지 — 공개 저장소).
-          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
           # 일일 갱신 트리거 (KST 09:05/16:05/22:05) 시점에 Alpha Vantage 보강을 강제 활성화.
           # 매시간 cron 에서는 기본 비활성 (rate-limit 보호). 코드 자동 감지도 있음.
           # (일일 cron 을 :05 로 분리했으므로 — 위 schedule 주석 참고 — 이 비교가 실제로 참이 된다.)
@@ -395,7 +394,19 @@ jobs:
             echo "push 실패 (시도 ${attempt}) — 원격 ${branch} 최신 위에 산출물만 재적용"
             git fetch origin "${branch}" || true
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
-            for f in $ARTIFACTS; do [ -f "/tmp/$f.run" ] && cp "/tmp/$f.run" "$f" || true; done
+            # 왜: 실측 2026-09-30 — 풀 런 재시도가 그 사이 푸시된 경량 런의 최신 시세를
+            #   (백업본 통째 덮어쓰기로) 더 오래된 값으로 되돌렸다. data.json 만 병합한다:
+            #   reset 직후 워킹트리의 data.json 이 origin 본이므로 run 본과 비교해 새 시세를 살린다.
+            #   (data_meta.json 은 병합기가 lastUpdated 에 맞춰 다시 쓰므로 그 뒤에 cp 하지 않는다.)
+            for f in $ARTIFACTS; do
+              [ "$f" = "data.json" ] && continue
+              [ "$f" = "data_meta.json" ] && [ -f "/tmp/data.json.run" ] && continue
+              [ -f "/tmp/$f.run" ] && cp "/tmp/$f.run" "$f" || true
+            done
+            if [ -f "/tmp/data.json.run" ]; then
+              cp data.json /tmp/data.json.origin 2>/dev/null || true
+              python scripts/merge_newer.py "/tmp/data.json.run" /tmp/data.json.origin data.json || cp "/tmp/data.json.run" data.json
+            fi
             for f in $ARTIFACTS; do [ -f "$f" ] && git add "$f" || true; done
             if git diff --staged --quiet -- $WATCH; then
               echo "원격이 이미 최신 — 종료"; exit 0
