@@ -64,7 +64,10 @@ def _session_from_calendar(cal, today):
 def collect():
     """실패한 항목은 넣지 않는다 — 부분 성공도 그대로 쓸모가 있다(날조 금지)."""
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    snap = {"generatedAt": datetime.now(KST).isoformat(), "source": "토스증권 Open API"}
+    # host: 어느 수집기가 만든 파일인지(pc/oracle). _HASHED_KEYS 밖이라 해시에 안 들어간다.
+    snap = {"generatedAt": datetime.now(KST).isoformat(), "source": "토스증권 Open API",
+            "host": os.environ.get("TOSS_SNAPSHOT_HOST", "pc")}
+    log(f"host={snap['host']}")
 
     idx = {}
     for name in ("KOSPI", "KOSDAQ"):
@@ -325,12 +328,34 @@ def _notify_failure():
         log(f"실패 알림 불가(무시): {e}")
 
 
+# 토스는 client 당 토큰 1개라 두 수집기가 번갈아 재발급하면 서로의 토큰을 죽인다.
+# standby 역할은 다른 수집기의 스냅샷이 신선하면(40분 이내) 아예 호출하지 않고 물러난다.
+STANDBY_FRESH_MIN = 40
+
+
+def _other_collector_alive():
+    """origin/main 의 스냅샷이 '다른 host' 가 만든 40분 이내 것이면 True."""
+    try:
+        subprocess.run(["git", "fetch", "-q", "origin"], cwd=ROOT, capture_output=True, timeout=60)
+        r = subprocess.run(["git", "show", "origin/main:toss_snapshot.json"], cwd=ROOT,
+                           capture_output=True, text=True, encoding="utf-8", timeout=30)
+        d = json.loads(r.stdout)
+        me = os.environ.get("TOSS_SNAPSHOT_HOST", "pc")
+        age = datetime.now(KST) - datetime.fromisoformat(d["generatedAt"])
+        return d.get("host") not in (None, me) and age < timedelta(minutes=STANDBY_FRESH_MIN)
+    except Exception:                                        # noqa: BLE001
+        return False                                         # 판단 불가면 평소대로 수집
+
+
 def main():
     if not toss_api.enabled():
         log("TOSS_CLIENT_ID/SECRET 미설정 — 종료")
         return 1
+    if os.environ.get("TOSS_SNAPSHOT_ROLE", "primary") == "standby" and _other_collector_alive():
+        log("다른 수집기 가동 중 — 건너뜀")
+        return 0
     snap = collect()
-    payload_keys = [k for k in snap if k not in ("generatedAt", "source")]
+    payload_keys = [k for k in snap if k not in ("generatedAt", "source", "host")]
     if not payload_keys:
         log("수집 0건 — 파일 미갱신 (허용 IP 목록에 이 PC 의 공인 IP 가 있는지 확인)")
         # 배경 작업이라 아무도 로그를 안 본다. 가장 흔한 원인(공인 IP 변경으로 허용 목록
