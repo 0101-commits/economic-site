@@ -384,8 +384,11 @@ jobs:
             git checkout HEAD -- "$f" 2>/dev/null || true
           done
           ARTIFACTS="data.json data_meta.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json"
-          for f in $ARTIFACTS; do [ -f "$f" ] && cp "$f" "/tmp/$f.run" || true; done
-          for f in $ARTIFACTS; do [ -f "$f" ] && git add "$f" || true; done
+          # 왜: 이번 런이 실제로 바꾼 산출물만 백업·재적용한다 — 안 바뀐 파일까지 되돌려 쓰면
+          #   재시도 때 다른 런(풀/경량)이 방금 올린 merblog·mer_series·fundamentals 가 옛것으로 돌아간다.
+          CHANGED=$( (git diff --name-only -- $ARTIFACTS; git ls-files --others --exclude-standard -- $ARTIFACTS) | sort -u )
+          for f in $CHANGED; do [ -f "$f" ] && cp "$f" "/tmp/$f.run" || true; done
+          for f in $CHANGED; do [ -f "$f" ] && git add "$f" || true; done
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then
@@ -398,7 +401,7 @@ jobs:
             #   (백업본 통째 덮어쓰기로) 더 오래된 값으로 되돌렸다. data.json 만 병합한다:
             #   reset 직후 워킹트리의 data.json 이 origin 본이므로 run 본과 비교해 새 시세를 살린다.
             #   (data_meta.json 은 병합기가 lastUpdated 에 맞춰 다시 쓰므로 그 뒤에 cp 하지 않는다.)
-            for f in $ARTIFACTS; do
+            for f in $CHANGED; do
               [ "$f" = "data.json" ] && continue
               [ "$f" = "data_meta.json" ] && [ -f "/tmp/data.json.run" ] && continue
               [ -f "/tmp/$f.run" ] && cp "/tmp/$f.run" "$f" || true
@@ -407,7 +410,7 @@ jobs:
               cp data.json /tmp/data.json.origin 2>/dev/null || true
               python scripts/merge_newer.py "/tmp/data.json.run" /tmp/data.json.origin data.json || cp "/tmp/data.json.run" data.json
             fi
-            for f in $ARTIFACTS; do [ -f "$f" ] && git add "$f" || true; done
+            for f in $CHANGED; do [ -f "$f" ] && git add "$f" || true; done
             if git diff --staged --quiet -- $WATCH; then
               echo "원격이 이미 최신 — 종료"; exit 0
             fi
