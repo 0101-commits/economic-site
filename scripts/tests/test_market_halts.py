@@ -230,6 +230,39 @@ def test_prev_business_day_from_calendar():
     assert [h["stage"] for h in out["active"]] == [1], out
 
 
+# ── 명시 삭제: 7/16 이전 산식 버그가 남긴 가짜 서킷 2건 (근거 = Yahoo ^KS11 일봉 저가, 전일 종가 대비) ──
+FAKE_IDS = ["circuit-KOSPI-20260714", "circuit-KOSPI-20260716"]
+REAL_IDS = ["circuit-KOSPI-20260626", "circuit-KOSPI-20260702", "circuit-KOSPI-20260713",
+            "circuit-KOSPI-20260728", "circuit-KOSPI-20260729", "circuit-KOSDAQ-20260729"]
+
+
+def _rec(hid):
+    return {"id": hid, "source": "index", "reason": "KOSPI 지수 전일比 -8.52%"}
+
+
+def test_false_halts_dropped_from_history():
+    prev = {"marketHalts": {"active": [], "history": [_rec(i) for i in FAKE_IDS + REAL_IDS]}}
+    out = mh.detect_market_halts({"indices": {}}, prev, now=NOW)
+    assert [h["id"] for h in out["history"]] == REAL_IDS, out
+
+
+def test_false_halt_in_prev_active_not_carried_or_archived():
+    """이월 경로 — 가짜가 prev active 에 남아 있어도 active 로 이월되지 않고 history 로도 새지 않는다."""
+    prev = {"marketHalts": {"active": [dict(_rec(FAKE_IDS[0]), endOfDay=True, triggeredAt="2026-06-23T10:00:00+09:00")],
+                            "history": []}}
+    out = mh.detect_market_halts({"indices": {}}, prev, now=NOW)
+    assert out["active"] == [] and out["history"] == [], out
+
+
+def test_false_halt_table_has_reason():
+    assert set(mh._FALSE_HALTS) == set(FAKE_IDS)
+    assert all(len(why) > 20 for why in mh._FALSE_HALTS.values())
+
+
+def test_real_halts_untouched_by_blocklist():
+    assert not set(REAL_IDS) & set(mh._FALSE_HALTS)
+
+
 def run():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

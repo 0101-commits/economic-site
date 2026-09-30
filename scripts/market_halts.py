@@ -30,6 +30,14 @@ SIDECAR_HALT_MIN = 5
 # ponytail: 현물 대리 문턱 — 선물 시세를 받게 되면 선물 ±5/6% 로 바꾼다.
 SIDECAR_CORROB_PCT = 2.5
 SRC_RANK = {"krx": 3, "naver": 2, "index": 2, "news": 1}
+# 가짜로 확정된 과거 서킷 기록 — 이력·이월에서 뺀다(2026-09-30). 근거 = Yahoo ^KS11 일봉의 그날 저가(전일 종가 대비).
+# 산식 버그가 남긴 것이고(check_halts._yahoo_quote docstring), 과거 저가 자료가 파이프라인에 없어 규칙으로 재판정하지
+# 못한다 — 그래서 id 를 명시한다. 새 항목은 같은 방식의 실측 근거 없이는 넣지 말 것.
+_FALSE_HALTS = {
+    "circuit-KOSPI-20260714": "기록 2단계 -15.08%, 그날 저가 -5.26%·종가 +0.73% — 1단계(-8%)에도 닿은 적 없음. "
+                              "원인: 5일 누적 등락 + 전일 등락률 재사용(7/16 이전)",
+    "circuit-KOSPI-20260716": "기록 1단계 -8.14%, 그날 저가 -7.60%(실제 전일比 -7.34%). 원인: 5일 전 종가를 전일로 쓴 버그",
+}
 
 
 def _log(msg):
@@ -187,8 +195,9 @@ def detect_market_halts(data, prev, now=None):
     """data(이번 빌드)+prev(직전 data.json) → marketHalts dict."""
     now = now or datetime.datetime.now(KST)
     prev_halts = (prev or {}).get("marketHalts") or {}
-    # 교차검증 없이 들어간 옛 뉴스 사건(2026-09-30 오탐 2건)은 이월·이력에서 뺀다 — 화면 '매매중단 이력'에 남지 않게.
-    trusted = lambda h: isinstance(h, dict) and (h.get("source") != "news" or h.get("corroborated"))
+    # 교차검증 없이 들어간 옛 뉴스 사건(2026-09-30 오탐 2건)과 _FALSE_HALTS 는 이월·이력에서 뺀다 — 화면 '매매중단 이력'에 남지 않게.
+    trusted = lambda h: (isinstance(h, dict) and h.get("id") not in _FALSE_HALTS
+                         and (h.get("source") != "news" or h.get("corroborated")))
     prev_active = {h["id"]: h for h in prev_halts.get("active", []) if trusted(h) and h.get("id")}
     history = [h for h in prev_halts.get("history", []) if trusted(h)]
 
