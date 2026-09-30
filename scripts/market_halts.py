@@ -25,6 +25,10 @@ CB_RULES = [
     (1, -8.0, 20, 10, False),
 ]
 SIDECAR_HALT_MIN = 5
+# 뉴스 사이드카를 믿는 지수 등락 하한(|전일比 %|). 사이드카 = KOSPI200 선물 ±5%(KOSDAQ: 선물 ±6% + 150지수 ±3%)
+# 라 현물 지수도 크게 움직인 날에만 가능하다. 헤드라인은 '발동'이 부정문·회고 기사에도 들어간다(2026-09-30).
+# ponytail: 현물 대리 문턱 — 선물 시세를 받게 되면 선물 ±5/6% 로 바꾼다.
+SIDECAR_CORROB_PCT = 2.5
 SRC_RANK = {"krx": 3, "naver": 2, "index": 2, "news": 1}
 
 
@@ -36,6 +40,13 @@ def _halt_id(typ, market, day):
     return f"{typ}-{market}-{day}"
 
 
+def _in_session(now):
+    """KRX 정규장(평일 09:00~15:30 KST) 여부. 공휴일은 모른다(지수가 안 움직여 문턱에서 걸린다)."""
+    t = now.astimezone(KST)
+    hm = t.hour * 60 + t.minute
+    return t.weekday() < 5 and 9 * 60 <= hm <= 15 * 60 + 30
+
+
 def cb_from_index(market, change_pct, now):
     """지수 등락률(전일比 %) → 서킷브레이커 사건 dict 또는 None. 가장 심각한 충족 단계."""
     # 오염 방어: 지수 하루 변동은 이론상 -30% 미만이 불가능(3단계 -20% 서 당일 거래 종료).
@@ -45,12 +56,10 @@ def cb_from_index(market, change_pct, now):
     # 🛡 세션 게이트 ①: KRX 정규장(평일 09:00~15:30 KST) 밖에서는 지수기반 CB 를 만들지 않는다.
     #    실증: 2026-07-02 15:43 KST 장마감 후 오염 데이터(-8.00%)로 오발송(해제까지 발송) 사건 +
     #    주말 hourly 런이 금요일 -8% '종가'를 보고 오발동하는 것 방지. now 는 주입형이라 테스트 가능.
+    if not _in_session(now):
+        return None
     t = now.astimezone(KST)
-    if t.weekday() >= 5:                              # 토(5)·일(6)
-        return None
     hm = t.hour * 60 + t.minute
-    if not (9 * 60 <= hm <= 15 * 60 + 30):            # 09:00~15:30 밖
-        return None
     for stage, thr, halt_min, auc_min, eod in CB_RULES:
         if change_pct <= thr:
             # 🛡 세션 게이트 ②: KRX 규정상 1·2단계는 14:50 이후 발동 불가(3단계=endOfDay 만
@@ -153,9 +162,10 @@ def detect_market_halts(data, prev, now=None):
     """data(이번 빌드)+prev(직전 data.json) → marketHalts dict."""
     now = now or datetime.datetime.now(KST)
     prev_halts = (prev or {}).get("marketHalts") or {}
-    prev_active = {h["id"]: h for h in prev_halts.get("active", [])
-                   if isinstance(h, dict) and h.get("id")}
-    history = [h for h in prev_halts.get("history", []) if isinstance(h, dict)]
+    # 교차검증 없이 들어간 옛 뉴스 사건(2026-09-30 오탐 2건)은 이월·이력에서 뺀다 — 화면 '매매중단 이력'에 남지 않게.
+    trusted = lambda h: isinstance(h, dict) and (h.get("source") != "news" or h.get("corroborated"))
+    prev_active = {h["id"]: h for h in prev_halts.get("active", []) if trusted(h) and h.get("id")}
+    history = [h for h in prev_halts.get("history", []) if trusted(h)]
 
     candidates = []
     indices = data.get("indices") or {}
@@ -179,10 +189,28 @@ def detect_market_halts(data, prev, now=None):
         ev = cb_from_index(market, (indices.get(market) or {}).get("change"), now)
         if ev:
             candidates.append(ev)
+    # 뉴스는 사건을 만들지 못하고 확인만 한다(2026-09-30 오발송: 「사이드카는 한 차례도 발동(되지 않았다)」
+    # 기사 하나로 19:48 에 사이드카 + 서킷 1단계가 나갔다 — 그날 KOSPI -0.48%).
+    #   서킷: 같은 id 의 지수 사건(-8%·세션 게이트 통과)이 있을 때만.
+    #   사이드카: 정규장 중 + 같은 시장 지수가 ±SIDECAR_CORROB_PCT 이상 움직였을 때만.
+    index_ids = {ev["id"] for ev in candidates}
     try:
-        candidates.extend(scrape_market_halts(now) or [])
+        news = scrape_market_halts(now) or []
     except Exception as e:
         _log(f"[halts] 스크레이프 실패(무시): {e}")
+        news = []
+    for ev in news:
+        m = ev.get("market")
+        chg = (indices.get(m) or {}).get("change")
+        if ev.get("type") == "circuit":
+            ok = ev["id"] in index_ids
+        else:
+            ok = (_in_session(now) and _idx_value(m) is not None
+                  and chg is not None and abs(chg) >= SIDECAR_CORROB_PCT)
+        if ok:
+            candidates.append(dict(ev, corroborated=True))
+        else:
+            _log(f"[halts] 뉴스 {ev.get('type')} 무시: 지수 교차검증 실패({m} {chg}%): {ev.get('reason', '')[:40]}")
 
     by_id = {}
     for ev in candidates:

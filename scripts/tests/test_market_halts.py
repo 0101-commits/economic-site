@@ -114,6 +114,63 @@ def test_merge_endofday_or():
     assert merged["triggeredAt"] == ev1["triggeredAt"]                  # 시작시각은 이른 값 유지
 
 
+# ── 회귀: 뉴스 오탐 (2026-09-30 실사건) ──
+# 19:44 기사 「사이드카도 멈춘 9월 코스피 … 이달 매수·매도 사이드카는 한 차례도 발동(되지 않았다)」가
+# '발동' 부분일치로 사이드카 + 서킷 1단계 둘 다 발송됐다. 그날 KOSPI 는 -0.48%.
+def _news(typ, market="KOSPI", t=None):
+    t = t or NOW
+    return {"id": mh._halt_id(typ, market, t.strftime("%Y%m%d")), "type": typ, "market": market,
+            "stage": 1 if typ == "circuit" else None, "direction": "down",
+            "reason": "이달 매수·매도 사이드카는 한 차례도 발동", "triggeredAt": t.isoformat(),
+            "resumeAt": (t + datetime.timedelta(minutes=5)).isoformat(),
+            "endOfDay": False, "source": "news", "approx": True}
+
+
+def _with_news(events, fn):
+    orig = mh.scrape_market_halts
+    mh.scrape_market_halts = lambda now: [dict(e) for e in events]
+    try:
+        return fn()
+    finally:
+        mh.scrape_market_halts = orig
+
+
+def test_news_ignored_after_close_quiet_day():
+    now = datetime.datetime(2026, 9, 30, 19, 48, tzinfo=KST)
+    d = {"indices": {"KOSPI": {"price": 3400, "change": -0.48},
+                     "KOSDAQ": {"price": 900, "change": 0.72}}}
+    out = _with_news([_news("sidecar", t=now), _news("circuit", t=now)],
+                     lambda: mh.detect_market_halts(d, {}, now=now))
+    assert out["active"] == [], out
+
+
+def test_news_ignored_in_session_quiet_day():
+    d = {"indices": {"KOSPI": {"price": 3400, "change": -0.48}}}
+    out = _with_news([_news("sidecar"), _news("circuit")],
+                     lambda: mh.detect_market_halts(d, {}, now=NOW))
+    assert out["active"] == [], out
+
+
+def test_news_sidecar_accepted_on_big_move():
+    d = {"indices": {"KOSPI": {"price": 3400, "change": 4.2}}}
+    out = _with_news([_news("sidecar")], lambda: mh.detect_market_halts(d, {}, now=NOW))
+    assert [h["type"] for h in out["active"]] == ["sidecar"], out
+
+
+def test_news_circuit_needs_index_cb():
+    d = {"indices": {"KOSPI": {"price": 3400, "change": -5.0}}}           # -8% 미달
+    out = _with_news([_news("circuit")], lambda: mh.detect_market_halts(d, {}, now=NOW))
+    assert out["active"] == [], out
+
+
+def test_uncorroborated_news_dropped_from_history():
+    prev = {"marketHalts": {"active": [], "history": [
+        dict(_news("sidecar"), resolvedAt=NOW.isoformat()),
+        {"id": "circuit-KOSPI-20260626", "source": "index", "reason": "KOSPI 지수 전일比 -8.52%"}]}}
+    out = mh.detect_market_halts({"indices": {}}, prev, now=NOW)
+    assert [h["id"] for h in out["history"]] == ["circuit-KOSPI-20260626"], out
+
+
 def run():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
