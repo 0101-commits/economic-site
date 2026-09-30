@@ -399,10 +399,12 @@ data.json + js/app1.js(macroIndicators) + mer_signals.json
 
 | Workflow | Schedule | Secret dependencies |
 |----------|----------|---------------------|
-| `fetch-data.yml` | Every 10 min (market hours), hourly (off-hours), daily KST 09/16/22 | `KRX_ID`, `KRX_PW`, `FRED_API_KEY`, `ECOS_API_KEY`, `REALESTATE_API_KEY`, `KOSIS_API_KEY`, `ALPHAVANTAGE_API_KEY`, `DATA_GO_KR_API_KEY`, `KIS_APP_KEY`/`KIS_APP_SECRET` (optional), `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET` (optional), `GEMINI_API_KEY`/`OPENAI_API_KEY` (for AI briefing) |
+| `fetch-data.yml` | Every 10 min (market hours), hourly (off-hours), daily KST 09/16/22 | `KRX_ID`, `KRX_PW`, `FRED_API_KEY`, `ECOS_API_KEY`, `REALESTATE_API_KEY`, `KOSIS_API_KEY`, `DATA_GO_KR_API_KEY`, `TWELVEDATA_API_KEY` (optional, 해외지수 2순위), `KIS_APP_KEY`/`KIS_APP_SECRET` (optional), `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET` (optional), `GEMINI_API_KEY`/`OPENAI_API_KEY` (for AI briefing) |
 | `kakao-daily.yml` | Weekdays 07–22 KST hourly, weekends **and KR public holidays** 11 & 17 KST (Sunday 17h = weekly report mode; holiday detection = gate step via Nager.Date API, fail-open to weekday, `KR_HOLIDAY` env → script) | `KAKAO_REST_API_KEY`, `KAKAO_REFRESH_TOKEN` |
 | `stock-alerts.yml` | Every 5 min during KR/US market hours | same Kakao secrets |
 | `link-check.yml` | Periodic | none |
+| `notice-check.yml` (Notice Check) | Mon 09:20 KST | `DISCORD_WEBHOOK_SYSTEM`, `GEMINI_API_KEY`(없으면 키워드만) — 제공기관 공지판 새 글 중 주소·종료·한도 관련만 #시스템 |
+| `health-report.yml` (Health Report) | 1일 09:30 KST | `DISCORD_WEBHOOK_SYSTEM` — 지표 146 상태·원천별 실패·교차검증·전월 대비 한 통 |
 
 Trigger `fetch-data` or `kakao-daily` manually via **Actions → workflow_dispatch** for testing.
 
@@ -445,8 +447,11 @@ GitHub Actions (fetch_data.py)
 4. **ECOS API** — Bank of Korea data
 5. **R-ONE API** — Korean real estate indices
 6. **KOSIS API** — Korean statistics
-7. **Alpha Vantage** — US macro/commodity/FX supplement (25/day limit; only on daily runs via `AV_FETCH_FULL=1`)
-8. **Naver/yfinance fallbacks** — when primary sources fail
+7. **DBnomics** (keyless) — 일본 CPI(`STATJP/CPIm`, 총무성 원본; FRED OECD 계열은 2021 종료). 일본 IIP 는 대체 없음(묘비)
+8. **Twelve Data** (optional key) — 해외지수 6종 2순위·대조(`scripts/twelvedata.py`, 풀 런 1회, 일 800 크레딧)
+9. **Naver/yfinance fallbacks** — when primary sources fail
+
+(Alpha Vantage 는 2026-09-30 제거 — 키를 한 번도 등록하지 않았고 일 25건이라 가치가 없었다. `AV_FETCH_FULL` env 는 「일일 런」 표식으로만 남아 있다.)
 
 The script **preserves previous values** on partial failure — individual API errors don't blank the data.
 
@@ -469,6 +474,43 @@ The script **preserves previous values** on partial failure — individual API e
   GHA schedule 은 7일 실측 의도의 10~20%만 발화해 백업으로만 남겼고, 일일 cron 3개는 중복을 막으려고
   지웠다. 풀·일일 런은 `run-name` 에 `[full]` 이 붙고, Worker 의 경량 과밀 판정(`_isLightRun`)은 그
   표식이 없는 dispatch 런만 센다(풀 런이 경량 5분 런을 굶기지 않게).
+- **실패는 산출물에 남긴다(2026-09-30).** `_HostBreaker` 가 호스트별 calls/fails/lastError/lastOkAt 을 세어
+  `diagnostics.sourceStatus` 에 쓴다(4xx·5xx 응답도 실패, 이번 런에 안 부른 호스트는 직전 값 유지, `consecutiveFailRuns`
+  이월). 100런 연속 전부 실패면 #시스템에 「제외 후보」 1회 알림(`_alert_dead_sources`). 로그에 키 글자를 찍지 않는다.
+- **직전 값으로 되살린 잎엔 `preserved: true`·`preservedAt`(처음 못 받은 시각)** 이 붙고, 판정표는 이것을 as-of 나이와
+  무관하게 `preserved` 로 센다(종전엔 건강표가 직전 값 12개를 정상으로 셌다). 수집 주기 묶음(아래)이 일부러 건너뛴
+  잎은 `preserved_reason: "lane"` 만 붙고 `preserved` 는 아니다 — 화면 칩은 `preserved === true` 만 본다.
+- **합리 범위표(`RANGE_RULES`, data_sla.py)** — 범위 밖 값은 `state: suspect`(검증 필요, `reason`)로 두고 저장은 한다.
+  validate 는 경고만. 첫 포착 = 미분양 300,828호·착공 100.44(표 정의·단위 확인 중). 새 지표는 여기에 하한·상한을 함께 넣는다.
+- **수집 주기 묶음(lane).** 매시 풀 런(`mode=full`)은 `FETCH_MACRO=0` 으로 거시·부동산 5묶음(`MACRO_SECTIONS`:
+  intl·pmi·ecos·rone·fredre)을 건너뛰고 직전 값을 잇는다. 일일 런 3회(`mode=daily`, `FETCH_MACRO=1`)가 매일 재시도.
+  직전 런에서 `preserved: true` 로 남은 잎이 있는 묶음만 매시 다시 받는다. `diagnostics.macroLane={fetched,carried}`.
+  왜: 월간 표를 매시 다시 묻다가 ECOS·R-ONE 이 6런 중 3런 통째 차단됐다(2026-09-30 실측).
+- **KRX Open API 401 은 승인 문제다** — 키(`KRX_API_KEY`)는 등록돼 있고 서비스별 이용신청(KOSPI 지수·파생상품지수·
+  일반상품·ETF)이 승인돼야 한다. 첫 401 뒤 그 런의 KRX 호출은 건너뛴다(`_KRX_AUTH_DENIED`, 런당 25회→1회).
+  ETF 경로는 `/etp/etf_bydd_trd`(`/eto/` 는 404).
+- **ECOS 한국 4종의 정식 표** = GDP `200Y102/10111`(실질·계절조정·전기비), 소매 `901Y100/G0/T3`, 실업률
+  `901Y027/I61BC/I28A`(원계열), 가계신용 `151Y001/1000000`. ITEM_CODE2 축이 있는 표는 `"G0/T3"` 처럼 두 코드를 붙여
+  보내야 같은 시점 행이 섞이지 않는다. 종전 코드는 전부 INFO-200(자료 없음)이라 KeyStatisticList 폴백(최신값 1개)만 타
+  history 가 1점이었다.
+- **R-ONE 은 날짜 범위(FROM/TO)를 무시한다** — `WRTTIME_IDTFR_ID` 단일 월로 물어야 한다(범위로 물으면 2003년부터 오래된
+  순 56,148행). `CLS_FULLNM` 은 `>` 구분자(`서울>강북지역>…`).
+- **수출입은행 API 주소는 `oapi.koreaexim.go.kr`** (옛 www 주소 2026-04-30 종료 — 5개월간 연결 실패로만 남았던 원인).
+- **푸시 재시도는 `scripts/merge_newer.py` 로 병합한다** — reset 뒤 풀 런 산출물을 통째로 덮으면 그사이 경량 런이 올린
+  최신 시세가 되돌아간다(2026-09-30 실측). 시세 3블록·토스 4블록·history 를 시각 기준으로 합치고 `data_meta.json` 도
+  맞춘다. 재시도 백업·재적용은 이번 런이 실제로 바꾼 산출물(`CHANGED`)만.
+- **이력은 `history.json` 으로 분리(A14).** `data.json.history` 는 계열마다 끝 400점(`HISTORY_TAIL` — σ 251종가·52주
+  365일·BTC 매일봉이 요구하는 최소), 전체는 `history.json`(일일 런에서만 다시 씀, `historyVersion` 으로 캐시 버스팅).
+  프런트는 첫 화면을 data.json 만으로 그리고 `loadHistoryData()` 가 나중에 이어 붙인다. data.json 을 쓰는 다섯 곳
+  (fetch_data 2·merge_newer·validate_data·ai_briefing)은 전부 `separators=(",", ":")` — 하나만 `indent=2` 로 돌아가면
+  파일이 다시 4.8MB 가 된다(`scripts/tests/test_history_split.py` 가 지킨다). 일일 런은 그날 data.json 을 gzip 으로
+  Release `snapshots` 에 올린다(400일 보관).
+- **토스 수집기는 둘(집 PC + 고정 IP 서버, `scripts/server/`, `docs/TOSS_SERVER.md`)** 이지만 토스는 클라이언트당 토큰이
+  1개라 동시에 돌면 서로 끊는다 → 서버 `TOSS_SNAPSHOT_ROLE=primary`, PC 는 `standby`(origin 스냅샷 `host` 가 다르고
+  40분 이내면 건너뜀). 스냅샷 `host` 필드는 해시에서 제외.
+- **지표 제외(2026-09-30 사용자 결정 D1)**: 풋콜비율·전월세전환율·엘니뇨 공식 예측 확률표는 화면·판정표에서 뺐다(무료 공식
+  경로 없음). 버크셔 13F 는 미확보로 유지(고정 IP 서버에서 재시험 예정). NAHB 주택시장지수도 제거(FRED 종료, 그 자리에
+  MSACSR 이 잘못 표시되고 있었다).
 - 수급 포털 기준 = 네이버 증권 API(PC 표 `investorDealTrendDay` 는 2026-09-21 410). `_investor_align_portal` 이
   토스 바탕 시계열의 **모든 날짜**를 네이버값으로 바꾸고 `src: "naver"` 를 단다 — 이 행은 다음 런의 토스
   병합이 덮지 못하게 직전 빌드에서 복원한다(종전엔 최근 10일만 바꿔 창을 벗어나면 토스값으로 되돌아갔다).
@@ -524,7 +566,6 @@ Deploy: `npx wrangler deploy` (config = repo-root `wrangler.jsonc`). Pushes to m
   change in the bridge, update `_UPDN`/`_UPDN_FILL` in the same commit —
   `scripts/vendor_seed_css.py` diffs them against base.css and exits 1 on drift.
 - **Tailwind CDN must not be re-added** — removed intentionally because its runtime JIT uses `eval()`, which violates the site's CSP.
-- **Alpha Vantage** has a 25 calls/day free limit — only fetch on daily triggers (`AV_FETCH_FULL=1`), not on every-hour runs.
 
 ## Local Development
 
