@@ -51,7 +51,9 @@ chmod 700 "$ENV_DIR/git-cred.sh"
 echo "[3/6] 저장소"
 CRED="credential.helper=$ENV_DIR/git-cred.sh"
 if [ -d "$DIR/.git" ]; then git -C "$DIR" -c "$CRED" pull --rebase --autostash -q
-else git -c "$CRED" clone -q "$REPO_URL" "$DIR"; fi
+# 왜: 이 저장소는 커밋 14,500개(data.json 매시 커밋)라 전체 복제는 1vCPU 서버에서 index-pack 만 10분+ 걸려
+#   설치가 3/6 에서 멈춘 것처럼 보였다(2026-09-30 실측). 스냅샷 푸시엔 최신 1커밋만 있으면 된다.
+else git -c "$CRED" clone -q --depth 1 --single-branch --branch main "$REPO_URL" "$DIR"; fi
 git -C "$DIR" config credential.helper "$ENV_DIR/git-cred.sh"
 git -C "$DIR" config user.name ecom-collector
 git -C "$DIR" config user.email ecom-collector@users.noreply.github.com
