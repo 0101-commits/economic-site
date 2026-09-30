@@ -15,8 +15,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 STATE = os.path.join(ROOT, "scripts", "health_report_state.json")
 # data.json state → 보고 라벨 (순서 = 표시 순서)
+# 왜: 판정표 상태는 ok·stale·preserved·missing·failed·unknown·suspect(범위 밖) — 목록에 없는 상태가 나오면
+#   next() 가 StopIteration 으로 죽는다(2026-09-30 첫 실행 실측: suspect 누락). 마지막 항목이 나머지를 받는다.
 LABELS = [("정상", ("ok",)), ("지연", ("stale",)), ("보존", ("preserved",)),
-          ("미확보", ("missing",)), ("검증 필요", ("failed", "unknown"))]
+          ("미확보", ("missing",)), ("검증 필요", ("suspect", "failed", "unknown"))]
 MAX_ITEMS = 15
 
 
@@ -90,7 +92,7 @@ def build_text(cur, dif, month):
     L.append("")
     L.append(f"■ 비정상 항목 {len(cur['bad'])}건")
     for b in cur["bad"][:MAX_ITEMS]:
-        st = next(lab for lab, sts in LABELS if b["state"] in sts)
+        st = next((lab for lab, sts in LABELS if b["state"] in sts), str(b.get("state")))
         L.append(f"- {_label(b['path'])} : {st}")
     if len(cur["bad"]) > MAX_ITEMS:
         L.append(f"- 외 {len(cur['bad']) - MAX_ITEMS}건")
