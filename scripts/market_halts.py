@@ -47,6 +47,31 @@ def _in_session(now):
     return t.weekday() < 5 and 9 * 60 <= hm <= 15 * 60 + 30
 
 
+def _prev_business_day(sources, now):
+    """직전 영업일(YYYY-MM-DD). 오늘 날짜가 맞는 marketCalendarKr 이 있으면 그것, 없으면 평일 역산
+    (공휴일 다음 날은 휴일을 짚어 종가를 못 찾는다 → 감지 보류. 날조보다 누락이 낫다)."""
+    today = now.astimezone(KST).date()
+    for src in sources:
+        cal = (src or {}).get("marketCalendarKr") or {}
+        if (cal.get("today") or {}).get("date") == today.isoformat():
+            d = (cal.get("previousBusinessDay") or {}).get("date")
+            if d:
+                return d
+    d = today - datetime.timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= datetime.timedelta(days=1)
+    return d.isoformat()
+
+
+def _close_on(sources, market, day):
+    """이력(history.indices.<시장>)에서 그 날짜의 종가. 배열 순서가 아니라 날짜로 찾는다."""
+    for src in sources:
+        for r in reversed((((src or {}).get("history") or {}).get("indices") or {}).get(market) or []):
+            if isinstance(r, dict) and r.get("date") == day and r.get("close"):
+                return float(r["close"])
+    return None
+
+
 def cb_from_index(market, change_pct, now):
     """지수 등락률(전일比 %) → 서킷브레이커 사건 dict 또는 None. 가장 심각한 충족 단계."""
     # 오염 방어: 지수 하루 변동은 이론상 -30% 미만이 불가능(3단계 -20% 서 당일 거래 종료).
@@ -178,15 +203,30 @@ def detect_market_halts(data, prev, now=None):
         e = indices.get(m) or {}
         return e.get("price") if e.get("price") is not None else e.get("value")
 
-    # 지수 등락률이 둘 다 없으면(또는 값이 None 으로 오염) 감지가 '깜깜이'로 돈 것 → stale 로 표시해
+    # 🛡 전일 종가는 '직전 영업일 날짜'로 이력에서 찾아 등락률을 직접 계산한다 — 공급원의 change 와
+    #    일봉 배열 순서(rows[-2])를 믿지 않는다. 2026-07-29 실사건: 개장 무렵 Yahoo 일봉이 7/28 봉을
+    #    7/29 날짜로 내보내 전일이 7/27 로 밀렸고, 장이 +1.5% 인 09:12 에 KOSPI -10.84%(=전일 등락률)
+    #    1단계, 09:45 KOSDAQ 1단계, 11:20·12:23 두 시장 2단계가 전부 가짜로 나갔다. 7/14 09:02 도 같은 모양.
+    #    종가를 못 찾으면 감지 보류(stale) — 가짜 서킷보다 누락이 낫다.
+    srcs = (data, prev or {})
+    prev_day = _prev_business_day(srcs, now)
+
+    def _change(m):
+        price, pc = _idx_value(m), _close_on(srcs, m, prev_day)
+        if price is None or not pc:
+            return None
+        chg = (float(price) / pc - 1) * 100
+        src = (indices.get(m) or {}).get("change")
+        if src is not None and abs(src - chg) > 0.5:
+            _log(f"[halts] {m} 등락률 불일치: 공급원 {src:.2f}% / {prev_day} 종가 기준 {chg:.2f}% (후자 사용)")
+        return chg
+
+    changes = {m: _change(m) for m in ("KOSPI", "KOSDAQ")}
+    # 등락률을 하나도 못 구하면 감지가 '깜깜이'로 돈 것 → stale 로 표시해
     # 소비측(check_halts)이 지수기반 신규 발동을 보류하게 한다(부분실패로 보존된 옛 값 오탐 방지).
-    have_index = any((indices.get(m) or {}).get("change") is not None
-                     and _idx_value(m) is not None
-                     for m in ("KOSPI", "KOSDAQ"))
+    have_index = any(c is not None for c in changes.values())
     for market in ("KOSPI", "KOSDAQ"):
-        if _idx_value(market) is None:                 # 값 오염 → change 불신, 감지 스킵
-            continue
-        ev = cb_from_index(market, (indices.get(market) or {}).get("change"), now)
+        ev = cb_from_index(market, changes[market], now)
         if ev:
             candidates.append(ev)
     # 뉴스는 사건을 만들지 못하고 확인만 한다(2026-09-30 오발송: 「사이드카는 한 차례도 발동(되지 않았다)」
@@ -201,16 +241,15 @@ def detect_market_halts(data, prev, now=None):
         news = []
     for ev in news:
         m = ev.get("market")
-        chg = (indices.get(m) or {}).get("change")
+        chg = changes.get(m)
         if ev.get("type") == "circuit":
             ok = ev["id"] in index_ids
         else:
-            ok = (_in_session(now) and _idx_value(m) is not None
-                  and chg is not None and abs(chg) >= SIDECAR_CORROB_PCT)
+            ok = _in_session(now) and chg is not None and abs(chg) >= SIDECAR_CORROB_PCT
         if ok:
             candidates.append(dict(ev, corroborated=True))
         else:
-            _log(f"[halts] 뉴스 {ev.get('type')} 무시: 지수 교차검증 실패({m} {chg}%): {ev.get('reason', '')[:40]}")
+            _log(f"[halts] 뉴스 {ev.get('type')} 무시: 지수 교차검증 실패({m} {chg if chg is None else round(chg, 2)}%): {ev.get('reason', '')[:40]}")
 
     by_id = {}
     for ev in candidates:
