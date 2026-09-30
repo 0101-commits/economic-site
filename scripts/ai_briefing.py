@@ -348,8 +348,8 @@ def main():
     }
     try:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
-            # fetch_data.py 와 동일한 포맷 유지 (diff 최소화)
-            json.dump(d, f, ensure_ascii=False, indent=2)
+            # data.json 기록자 공통 압축 형식 — 하나라도 indent 로 쓰면 1.5MB 목표가 깨진다(test_history_split 이 고정)
+            json.dump(d, f, ensure_ascii=False, separators=(",", ":"))
         log(f"aiBriefing 갱신 완료 (source={source})")
     except Exception as e:  # noqa: BLE001
         log(f"data.json 저장 실패: {e}")

@@ -222,12 +222,15 @@ jobs:
           # https://developers.naver.com/apps/ 에서 발급, 일 25,000회 무료
           NAVER_CLIENT_ID:    ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-          # Alpha Vantage API — 미국 경제지표/원자재/FX 보강 (일 25회 한도)
-          # https://www.alphavantage.co/support/#api-key 에서 발급
-          # Secrets 미설정 시 Alpha Vantage 보강은 건너뜀 (코드에 기본 키 하드코딩 금지 — 공개 저장소).
-          # 일일 갱신 트리거 (KST 09:05/16:05/22:05) 시점에 Alpha Vantage 보강을 강제 활성화.
-          # 매시간 cron 에서는 기본 비활성 (rate-limit 보호). 코드 자동 감지도 있음.
-          # (일일 cron 을 :05 로 분리했으므로 — 위 schedule 주석 참고 — 이 비교가 실제로 참이 된다.)
+          # Twelve Data — 해외지수 6종 2순위·대조(풀 런 1회, 일 800 크레딧). 미설정이면 건너뜀 (선택)
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          # 수집 주기 묶음(lane): 매시 풀 런(mode=full)은 거시·부동산 5묶음(fetch_data MACRO_SECTIONS)을
+          # 건너뛰고 직전 값을 잇는다(preserved_reason=lane). 일일 런 3회(mode=daily)가 매일 재시도하고,
+          # 직전 런에 못 받은 잎(preserved:true)이 있는 묶음만 매시 다시 받는다. 왜: 월간 표를 매시 다시
+          # 묻다가 ECOS·R-ONE 이 6런 중 3런 통째 차단됐다(2026-09-30 실측). schedule·push·수동 런은 1.
+          FETCH_MACRO: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.mode == 'full') && '0' || '1' }}
+          # AV_FETCH_FULL = 「일일 런」 표식 (Alpha Vantage 는 2026-09-30 제거, 이름만 남음).
+          # 일일 cron 을 :05 로 분리했으므로 — 위 schedule 주석 참고 — 이 비교가 실제로 참이 된다.
           AV_FETCH_FULL: ${{ (github.event.schedule == '5 0 * * *' || github.event.schedule == '5 7 * * *' || github.event.schedule == '5 13 * * *' || github.event.client_payload.mode == 'daily') && '1' || '' }}
         run: python scripts/fetch_data.py
 
@@ -365,7 +368,7 @@ jobs:
           branch="${GITHUB_REF_NAME:-main}"
           # ⚠ halts_state.json 은 여기서 커밋하지 않는다 — 소유권이 stock-alerts.yml 로 단일화됨
           #   (두 워크플로가 같은 상태 파일을 커밋하면 push 경쟁 + 서킷브레이커 중복 발송 위험).
-          WATCH="data.json data_meta.json merblog.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json"
+          WATCH="data.json data_meta.json history.json merblog.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json"
           if git diff --quiet -- $WATCH && git diff --staged --quiet -- $WATCH; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
@@ -377,13 +380,13 @@ jobs:
           # 사고가 있었다(2026-09-15: 배경 스케줄러의 git pull --rebase --autostash 가
           # 생성 파일에 마커를 남겼고 그대로 커밋돼 메르 렌즈가 빈 화면이 됐다).
           # 깨진 파일은 스테이징에서 빼고 통지한다 — 커밋 자체는 막지 않는다(시세는 올라가야 한다).
-          for f in data.json data_meta.json merblog.json fundamentals.json mer_signals.json mer_series.json; do
+          for f in data.json data_meta.json history.json merblog.json fundamentals.json mer_signals.json mer_series.json; do
             [ -f "$f" ] || continue
             python -c "import json,sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$f" && continue
             echo "::error::$f 가 유효한 JSON 이 아니다 — 이번 커밋에서 제외한다"
             git checkout HEAD -- "$f" 2>/dev/null || true
           done
-          ARTIFACTS="data.json data_meta.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json"
+          ARTIFACTS="data.json data_meta.json history.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json"
           # 왜: 이번 런이 실제로 바꾼 산출물만 백업·재적용한다 — 안 바뀐 파일까지 되돌려 쓰면
           #   재시도 때 다른 런(풀/경량)이 방금 올린 merblog·mer_series·fundamentals 가 옛것으로 돌아간다.
           CHANGED=$( (git diff --name-only -- $ARTIFACTS; git ls-files --others --exclude-standard -- $ARTIFACTS) | sort -u )
@@ -418,3 +421,30 @@ jobs:
             sleep $((attempt * 3))
           done
           echo "::error::data.json push 실패 (재시도 소진)"; exit 1
+
+      # 일일 스냅샷 보관 — 왜: data.json 은 런마다 덮어써져 "그날 화면"을 되살릴 길이 없다.
+      #   일일 런(client_payload.mode=daily, UTC 0·7·13시 = KST 09·16·22시)마다 커밋이 끝난 data.json 을
+      #   Release `snapshots` 에 data-YYYY-MM-DD.json.gz 로 덮어쓴다(--clobber) → 그날 마지막 일일 런본이 남는다.
+      #   날짜는 UTC 다 — 일일 런 시각대(UTC 0~13시)에선 KST 날짜와 같다.
+      #   커밋이 아니라 Release asset 인 이유: 연 약 90MB 가 git 이력에 영구히 쌓이지 않게. 400일 보관(약 100MB).
+      #   5년 이력은 스냅샷에 없다 — 오래된 구간은 불변이라 그때의 history.json 으로 채운다.
+      #   GITHUB_TOKEN 으로 만든 태그·릴리스는 다른 워크플로를 깨우지 않고, --prerelease 라 'Latest' 로 안 뜬다.
+      #   실패해도 데이터 커밋은 이미 끝났으므로 런을 실패로 만들지 않는다(continue-on-error).
+      #   권한은 워크플로 머리의 permissions: contents: write 가 준다.
+      - name: 일일 스냅샷 보관 (Release asset)
+        if: github.event.client_payload.mode == 'daily'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          D=$(date -u +%F); CUT=$(date -u -d '400 days ago' +%F)
+          gh release view snapshots >/dev/null 2>&1 || gh release create snapshots --prerelease \
+            --title "Daily data snapshots" --notes "data-YYYY-MM-DD.json.gz = 그날(UTC) 마지막 일일 런의 data.json. 400일 보관. 5년 이력은 history.json 으로 채운다."
+          gzip -9 -c data.json > "data-$D.json.gz"
+          gh release upload snapshots "data-$D.json.gz" --clobber
+          # 400일 지난 것만 지운다 — 이름이 data-YYYY-MM-DD.json.gz 꼴이 아닌 자산은 건드리지 않는다.
+          gh release view snapshots --json assets --jq '.assets[].name' | while read -r n; do
+            [[ "$n" =~ ^data-([0-9]{4}-[0-9]{2}-[0-9]{2})\.json\.gz$ ]] || continue
+            if [[ "${BASH_REMATCH[1]}" < "$CUT" ]]; then gh release delete-asset snapshots "$n" -y; fi
+          done

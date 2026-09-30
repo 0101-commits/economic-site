@@ -218,7 +218,7 @@ def merge_into_data_json(path="data.json"):
         return False
     climate["impact"] = build_impact(climate["enso"])
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(d, f, ensure_ascii=False, indent=2)
+        json.dump(d, f, ensure_ascii=False, separators=(",", ":"))   # data.json 기록자 공통 압축 형식
     imp = climate["impact"]
     print(f"[climate_impact] impact 병합 완료: activePhase={imp['activePhase']}, "
           f"intensity={imp['intensity']}, asOf={imp['asOf']!r}")

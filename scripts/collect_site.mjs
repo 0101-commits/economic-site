@@ -19,7 +19,7 @@ const SITE = path.join(ROOT, '_site');
 const FILES = [
   'index.html', 'go.html', 'og-cover.png',
   'data.json', 'data_meta.json', 'merblog.json', 'mer_signals.json',
-  'fundamentals.json', 'link_status.json', 'alerts_state.json',
+  'fundamentals.json', 'link_status.json', 'alerts_state.json', 'history.json',
 ];
 const DIRS = { js: ['.js'], css: ['.css', '.woff2'] };
 

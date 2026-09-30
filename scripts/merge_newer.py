@@ -72,7 +72,7 @@ def main(run_p, origin_p, out_p):
             origin = json.load(f)
         before = run.get("lastUpdated")
         merged = merge(run, origin)
-        payload = json.dumps(merged, ensure_ascii=False, indent=2)
+        payload = json.dumps(merged, ensure_ascii=False, separators=(",", ":"))
         with open(out_p, "w", encoding="utf-8") as f:
             f.write(payload)
         meta = {"lastUpdated": merged.get("lastUpdated"), "bytes": os.path.getsize(out_p)}

@@ -7369,7 +7369,7 @@ const macroIndicators = [
   {name:'GDP 성장률 (전기비)',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',unit:'% (전기비)',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
   {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.kr.ppi_kr',fmt:v=>v?.toFixed(2)},
-  {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (원계열)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'수출',cc:'🇰🇷',cat:'무역',src:'FRED (IMF IMTS)',freq:'월간',unit:'억달러',dataPath:'economicIndicators.kr.exports_kr',fmt:v=>v!=null?Math.round(v/1e8).toLocaleString():'—'},
   {name:'수출금액지수',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS (관세청 통관)',freq:'월간',unit:'2020=100',dataPath:'economicIndicators.kr.exports_idx_kr',fmt:v=>v!=null?v.toFixed(1):'—'},
   {name:'경상수지',cc:'🇰🇷',cat:'무역',src:'한국은행 ECOS',freq:'월간',unit:'백만달러',dataPath:'economicIndicators.kr.current_account_kr',fmt:v=>v?.toLocaleString()},
@@ -13586,6 +13586,49 @@ function _healthChipHtml() {
 // 탭 상시 오픈 사용 패턴 — 페이지 로드 시점에 동결되지 않도록 경과 시간을 1분마다 재평가
 try { setInterval(renderDataFreshness, 60000); } catch(_) {}
 
+// 이력 분리(A14) — data.json 은 계열마다 끝 400점만 싣고, 그 앞의 5년은 history.json 에 있다.
+// 왜: 매 갱신 4.86MB 를 받던 data.json 을 1.27MB 로 줄인다. 긴 차트(대시보드 1M·1Q, 지수 모달 전체,
+//     환율 2Y·5Y, 1년 넘은 전년비)는 첫 화면을 그린 뒤 history.json 을 한 번 받아 앞부분을 이어 붙인다.
+// 병합은 날짜 기준 — 꼬리 첫 날짜보다 앞선 점만 history 에서 가져오고, 겹치는 구간은 data.json(더 새것)이 이긴다.
+//   꼬리 길이를 몰라도 되므로 수집기의 HISTORY_TAIL 이 바뀌어도 여기는 그대로다.
+// 이번 data.json 에 없는 계열은 없는 대로 둔다(옛 이력만으로 되살리지 않는다 — 값 날조 금지).
+// var: 위쪽 최상위 코드가 먼저 닿아도 let 의 TDZ 로 스크립트 블록이 죽지 않게(_tcCache 사고와 같은 이유).
+var _historyFull = null, _historyTried = false;
+function _mergeHistoryInto(data, hist) {
+  if (!hist || !data || !data.history) return;
+  Object.keys(hist).forEach(cat => {
+    const dc = data.history[cat], hc = hist[cat];
+    if (!dc || !hc) return;
+    Object.keys(hc).forEach(k => {
+      const tail = dc[k];
+      if (!Array.isArray(tail) || !tail.length || !Array.isArray(hc[k])) return;
+      const first = tail[0].date;
+      dc[k] = hc[k].filter(p => p && p.date < first).concat(tail);
+    });
+  });
+}
+// 페이지당 한 번. 버전이 없으면(분리 전 data.json) 부르지 않는다. 404·시간 초과·파싱 실패면 아무것도
+// 하지 않는다 — 차트는 꼬리 400점으로 그대로 그린다. 도착하면 기존 재렌더 경로(_lastRealDataTs 비우기 →
+// loadRealData)를 다시 탄다: 같은 data.json 이 HTTP 캐시에서 나와 병합 + 활성 화면 재렌더가 된다.
+// ponytail: 실패하면 새로고침까지 꼬리만 쓴다. 모바일 끊김이 잦으면 다음 data.json 갱신 때 1회 재시도로 올린다.
+function loadHistoryData(version) {
+  if (!version || _historyTried) return;
+  _historyTried = true;
+  fetchWithRetry('./history.json?v=' + encodeURIComponent(version), { timeoutMs: 20000, retries: 1 })
+    .then(r => r.ok ? r.json() : null)
+    .then(h => {
+      if (!h || !h.history) return;
+      _historyFull = h.history;
+      window._lastRealDataTs = null;
+      return loadRealData().then(() => {
+        // 도착 전에 열어 둔 지수 모달은 꼬리로 그려져 있다 — 한 번 다시 그린다.
+        const k = _reHistState.key || '', m = document.getElementById('reHistoryChartModal');
+        if (k.indexOf('__index_') === 0 && m && m.style.display === 'flex') _renderReHistChartIndex(k.slice(8));
+      });
+    })
+    .catch(() => {});
+}
+
 async function loadRealData() {
   try {
     // 경량 메타 선조회(~100B) — lastUpdated 가 그대로면 3.6MB 본체 재다운로드를 생략한다.
@@ -13614,6 +13657,9 @@ async function loadRealData() {
       : await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) return;
     const data = await r.json();
+    // applyRealData 는 history 를 카테고리 단위 얕은 병합({...prev[k], ...v})해 새 꼬리가 전체를 덮는다 —
+    // 갱신마다 다시 붙여야 긴 차트가 안 줄어든다. applyRealData 앞이라 KOSPI 해시·mainAllData 도 전체 계열로 잡힌다.
+    _mergeHistoryInto(data, _historyFull);
     // 신규 데이터의 lastUpdated 가 동일하면 (변화 없음) 차트 재빌드 생략
     const prevTs = window._lastRealDataTs;
     const newTs  = data?.lastUpdated || null;
@@ -13638,6 +13684,8 @@ async function loadRealData() {
           else if(id === 'page-investor')  { try { buildInvestorPage(); } catch(_) {} }
         }
       } catch(_) {}
+      // 첫 화면을 그린 뒤 긴 이력을 미리 받는다(필요 시점이 아니라 지금 — 대시보드가 이미 1M·1Q 단위를 준다).
+      loadHistoryData(data.historyVersion);
     }
   } catch {
     // data.json 없음 — Mock 데이터로 동작. [3차-T18] 사용자에게 명시 + 재시도 제공

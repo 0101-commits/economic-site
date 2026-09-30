@@ -193,6 +193,22 @@ def main():
                 if isinstance(e, dict) and (e.get("from") not in node_ids or e.get("to") not in node_ids):
                     warns.append(f"mer_signals.json: graph.edges from/to 가 nodes 에 없음 ({e.get('from')}→{e.get('to')})")
 
+    # 이력 분리(A14) — history.json(5년 전체)은 data.json(끝 400점)의 짝이다. 비차단 경고만 낸다.
+    # data.json 에 historyVersion 이 있을 때만 본다(분리 전·롤아웃 중엔 짝이 아직 없다).
+    # data.json 과 같은 자리(cwd)에서 읽는다. 깨진 파일은 커밋 스텝 무결성 루프가 커밋에서 뺀다.
+    hv = d.get("historyVersion")
+    if hv:
+        try:
+            with open("history.json", encoding="utf-8") as f:
+                hj = json.load(f)
+            n = len(((hj.get("history") or {}).get("indices") or {}).get("KOSPI") or [])
+            if n < 1000:
+                warns.append(f"history.json: KOSPI {n}점 — 5년 이력이 아니다(1,000점 미만)")
+            if hj.get("lastUpdated") != hv:
+                warns.append(f"history.json: lastUpdated {hj.get('lastUpdated')} ≠ data.json historyVersion {hv}")
+        except (OSError, ValueError, AttributeError) as e:
+            warns.append(f"history.json 읽기 실패: {e}")
+
     # ── 신선도 계약(dataHealth) 게이트 ────────────────────────────────────
     # 왜: 위의 WARN 은 Actions 로그에만 남아 아무도 읽지 않았고, 그 사이 일본 CPI 가
     # 2021-06, 영국 GDP 가 2020-07 에서 멈춘 채로 몇 년을 통과했다. tier=critical 만
@@ -208,7 +224,7 @@ def main():
         health = data_sla.build_health(d)
         d["dataHealth"] = health
         with open("data.json", "w", encoding="utf-8") as f:
-            json.dump(d, f, ensure_ascii=False, indent=2)   # fetch_data.py 와 동일 포맷
+            json.dump(d, f, ensure_ascii=False, separators=(",", ":"))   # data.json 기록자 공통 압축 형식(test_history_split 이 고정)
     except Exception as e:
         # 진단 기능이 배포 자체를 막으면 안 된다 — 직전 빌드의 dataHealth 라도 쓴다.
         warns.append(f"dataHealth 계산 불가: {e}")

@@ -5705,6 +5705,39 @@ def fetch_all_historical_data():
     return out
 
 
+# data.json 에 남기는 일봉 수. 소비처 최대 요구: σ 251종가(volatility.WINDOW=250),
+# 52주 365일(range_pos·econRange52·mer history1y), BTC 는 매일봉이라 365점.
+# 400점보다 긴 이력이 필요한 새 소비처는 history.json 을 읽는다(A14).
+HISTORY_TAIL = 400
+
+
+def split_history(d, prev, daily):
+    """d["history"](5년)를 history.json(전체) 과 data.json(끝 HISTORY_TAIL점) 으로 나눈다.
+    직렬화 직전에 부른다. history.json 은 일일 런·파일 없음·버전 없음일 때만 다시 쓴다."""
+    full = d.get("history") or {}
+    d["history"] = {c: {k: v[-HISTORY_TAIL:] for k, v in m.items()} for c, m in full.items()}
+    hv = (prev or {}).get("historyVersion")
+    if full and (daily or not hv or not os.path.exists("history.json")):
+        try:
+            with open("history.json", encoding="utf-8") as f:
+                old = json.load(f).get("history") or {}
+        except (OSError, ValueError):
+            old = {}
+        for c, m in old.items():          # 이번 런에 빠졌거나 크게 짧아진 계열은 직전 파일 유지(5년 차트 보존)
+            for k, ov in m.items():
+                nv = full.setdefault(c, {}).get(k)
+                if not nv or len(nv) < 0.9 * len(ov):
+                    full[c][k] = ov
+        hv = d["lastUpdated"]
+        # 직렬화 먼저 → 쓰기(부분 기록 방지, data.json 과 같은 이유)
+        payload = json.dumps({"lastUpdated": hv, "history": full},
+                             ensure_ascii=False, separators=(",", ":"))
+        with open("history.json", "w", encoding="utf-8") as f:
+            f.write(payload)
+    if hv:
+        d["historyVersion"] = hv
+
+
 # ============================================================
 # 이전 data.json 로드 — 일부 fetch 실패해도 직전 값 보존
 # ============================================================
@@ -8776,7 +8809,7 @@ def run_light_build():
         print(f"[light-halts] 감지 skipped: {_e}")
     # 직렬화를 먼저 끝내고 쓴다 — 중간에 TypeError 가 나도 기존 data.json 이 반쯤 잘린
     # 채로 남지 않는다(스트리밍 json.dump 는 파일을 이미 잘라놓은 뒤 죽는다).
-    _payload = json.dumps(d, ensure_ascii=False, indent=2)
+    _payload = json.dumps(d, ensure_ascii=False, separators=(",", ":"))
     with open("data.json", "w", encoding="utf-8") as f:
         f.write(_payload)
     meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize("data.json")}
@@ -8844,9 +8877,13 @@ if __name__ == "__main__":
         _prev_mh = (_load_prev_data("data.json") or {}).get("marketHalts")
         if isinstance(_prev_mh, dict):
             d["marketHalts"] = _prev_mh
+    # 📚 이력 분리(A14) — 모든 preserve/merge·끝점 동기화가 끝난 뒤, 직렬화 직전.
+    # data.json 엔 계열마다 끝 HISTORY_TAIL점, 5년 전체는 history.json(일일 런에서만 재작성).
+    split_history(d, _load_prev_data("data.json"),
+                  os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes"))
     output_path = "data.json"
     # 직렬화 → 쓰기 순서 (위 run_light_build 와 동일 이유: 부분 기록 방지)
-    _payload = json.dumps(d, ensure_ascii=False, indent=2)
+    _payload = json.dumps(d, ensure_ascii=False, separators=(",", ":"))
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(_payload)
     # 경량 메타 파일(~100B) — 프런트 loadRealData() 가 이것만 선조회해 lastUpdated 가 그대로면
