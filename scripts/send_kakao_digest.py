@@ -1502,6 +1502,43 @@ def _ai_line(data, n=2):
         return ""
 
 
+def _kr_calendar():
+    """data.json.marketCalendarKr — 없으면 {}. 알림·다이제스트는 저장소 체크아웃에서 돈다."""
+    try:
+        with open(DATA_PATH, encoding="utf-8") as f:
+            return json.load(f).get("marketCalendarKr") or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def yahoo_prev_bar_ok(symbol, days, today):
+    """Yahoo 일봉 날짜(거래소 현지, 오름차순)에서 등락률의 두 봉 days[-2] → days[-1] 이 이어진
+    영업일인가. 기준가를 배열 위치가 아니라 날짜로 확인한다 — yahoo_snapshot·_yahoo_live_quote 공용.
+
+    개장 무렵 Yahoo ^KS11 일봉이 전일 봉을 빼고 그 값을 오늘 날짜로 내보낸다(2026-07-29 가짜 서킷
+    4건과 같은 응답). 그때 rows[-2] 는 이틀 전 종가다 — 급변 속보 8/6 「코스피 ▲2.0%」(실제 ▼1.7%)·
+    8/7 「▼3.7%」(실제 ▲0.95%)·8/12 「▲2.1%」(실제 ▲1.4%), 8/19 09시 시황 「▲0.8%」(실제 ▼1.5%).
+    직전 영업일 = 국내(^KS11·^KQ11·.KS·.KQ)는 오늘 날짜가 맞는 marketCalendarKr, 그 밖은 직전 평일.
+    ponytail: 해외는 휴장 달력이 없어 연휴 다음 날도 False(보류)다 — 가짜 등락률보다 누락. 해외 알림이
+    연휴 뒤에 빠지는 것이 문제 되면 거래소 달력을 붙인다."""
+    if len(days) < 2:
+        return True
+    want = None
+    if days[-1] == today and (symbol in ("^KS11", "^KQ11") or symbol.endswith((".KS", ".KQ"))):
+        cal = _kr_calendar()
+        if (cal.get("today") or {}).get("date") == today.isoformat():
+            want = (cal.get("previousBusinessDay") or {}).get("date")
+    if not want:
+        d = days[-1] - datetime.timedelta(days=1)
+        while d.weekday() >= 5:
+            d -= datetime.timedelta(days=1)
+        want = d.isoformat()
+    if days[-2].isoformat() == want:
+        return True
+    print(f"[quote] {symbol} 기준 봉 {days[-2]} ≠ 직전 영업일 {want} — 전일 봉 누락 의심, 등락률 보류")
+    return False
+
+
 def _yahoo_live_quote(symbol):
     """발송 시점 시세 — (현재가, 전일 종가 대비 %) 또는 None.
 
@@ -1521,8 +1558,15 @@ def _yahoo_live_quote(symbol):
     if not res:
         return None
     meta = res.get("meta") or {}
-    closes = [c for c in ((((res.get("indicators") or {}).get("quote") or [{}])[0]) or {})
-              .get("close") or [] if c is not None]
+    rows = [(t, c) for t, c in zip(res.get("timestamp") or [], ((((res.get("indicators") or {})
+            .get("quote") or [{}])[0]) or {}).get("close") or []) if c is not None]
+    closes = [c for _, c in rows]
+    gmtoff = int(meta.get("gmtoffset") or 0)
+    _day = lambda epoch: datetime.datetime.fromtimestamp(
+        int(epoch) + gmtoff, datetime.timezone.utc).date()
+    if not yahoo_prev_bar_ok(symbol, [_day(t) for t, _ in rows],
+                             _day(datetime.datetime.now(datetime.timezone.utc).timestamp())):
+        return None                  # data.json 값·등락률 한 쌍을 그대로 둔다(apply_live_quotes)
     price = _f(meta.get("regularMarketPrice"))
     if price is None:
         price = closes[-1] if closes else None

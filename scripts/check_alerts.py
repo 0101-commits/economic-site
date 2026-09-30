@@ -173,9 +173,13 @@ def yahoo_snapshot(symbol):
     gmtoff = int(meta.get("gmtoffset") or 0)
     _day = lambda epoch: datetime.datetime.fromtimestamp(
         int(epoch) + gmtoff, datetime.timezone.utc).date()
-    fresh = _day(rows[-1][0]) == _day(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    today = _day(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    fresh = _day(rows[-1][0]) == today
     # 전일 종가: 마지막 봉이 오늘 라이브 봉이면 그 직전 봉, 아니면(장전·휴장) 마지막 확정 봉
     # (이때 price 도 그 종가라 pct=0 — 장전 스테일 데이터로 등락률 알림이 서지 않게).
+    # 직전 봉이 직전 영업일이 아니면(개장 무렵 전일 봉 누락) 스냅샷 없음 — 가짜 급변보다 누락.
+    if fresh and not kakao.yahoo_prev_bar_ok(symbol, [_day(r[0]) for r in rows[-2:]], today):
+        return None
     prev = rows[-2][4] if fresh else rows[-1][4]
     closes = [r[4] for r in rows]
     closes[-1] = float(price)  # 마지막 봉은 '현재가' 기준 (장중 라이브 반영)
