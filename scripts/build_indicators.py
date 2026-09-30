@@ -27,6 +27,8 @@ import os
 import re
 import sys
 
+import data_sla
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "js", "app0.js")
 
@@ -155,7 +157,6 @@ KEYWORDS = {
 # 화면 없이 수집만 되는 것들의 처리 결정(D10). 기획 §C3 의 "결정 필요" 3건.
 COLLECT_ONLY = {
     "btc": "시장>지수 탭에 가상자산 카드 1장으로 노출 예정(P3). 그때까지 수집만.",
-    "conversion_rate_kr": "2026-09-30 사용자 결정 D1 — 화면에서 뺐다(R-ONE 2024-04 이후 갱신 없음). 수집은 남아 있다.",
     "pmi_kr_bsi": "pmi_kr(OECD BCI)가 있을 때만 따로 저장되는 보조 계열 — pmi_kr 가 비면 ECOS BSI 가 그 자리를 채운다.",
 }
 
@@ -368,6 +369,8 @@ def build(data, mer):
     for cc in ei:
         for key in ei[cc]:
             path = "economicIndicators.%s.%s" % (cc, key)
+            if data_sla.is_tombstoned(path):     # 폐기 지표 — 옛 data.json 에 남아 있어도 행을 세우지 않는다
+                continue
             row = by_path.get(path)
             desc = (ei[cc][key] or {}).get("desc")
             cat = (row or {}).get("cat") or ""
@@ -384,6 +387,8 @@ def build(data, mer):
             if not isinstance(block[key], dict) or not ({"value", "period"} & set(block[key])):
                 continue
             path = "realestate.%s.%s" % (cc, key)
+            if data_sla.is_tombstoned(path):
+                continue
             row = by_path.get(path)
             base = re.sub(r"_(kr|us)$", "", key.lower())
             rid = "%s_%s" % (base, cc)

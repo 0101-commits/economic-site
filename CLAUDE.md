@@ -513,7 +513,10 @@ The script **preserves previous values** on partial failure — individual API e
   40분 이내면 건너뜀). 스냅샷 `host` 필드는 해시에서 제외.
 - **지표 제외(2026-09-30 사용자 결정 D1)**: 풋콜비율·전월세전환율·엘니뇨 공식 예측 확률표는 화면·판정표에서 뺐다(무료 공식
   경로 없음). 버크셔 13F 는 미확보로 유지(고정 IP 서버에서 재시험 예정). NAHB 주택시장지수도 제거(FRED 종료, 그 자리에
-  MSACSR 이 잘못 표시되고 있었다).
+  MSACSR 이 잘못 표시되고 있었다). 전월세전환율은 수집(R-ONE 카탈로그 검색)도 지웠다 — 옛 data.json·lane·preserve 로
+  되살아나지 않게 **묘비 표 `data_sla.TOMBSTONED`**(단일 원천) 에 올렸고, 같은 표를 `fetch_data`(모든 preserve 뒤
+  `drop_tombstoned`)·판정표(`_walk_paths`)·지표 레지스트리(`build_indicators`)가 본다. 지표를 뺄 때는 수집 블록 삭제 +
+  이 표에 한 줄이다(`scripts/tests/test_tombstone.py`).
 - 수급 포털 기준 = 네이버 증권 API(PC 표 `investorDealTrendDay` 는 2026-09-21 410). `_investor_align_portal` 이
   토스 바탕 시계열의 **모든 날짜**를 네이버값으로 바꾸고 `src: "naver"` 를 단다 — 이 행은 다음 런의 토스
   병합이 덮지 못하게 직전 빌드에서 복원한다(종전엔 최근 10일만 바꿔 창을 벗어나면 토스값으로 되돌아갔다).

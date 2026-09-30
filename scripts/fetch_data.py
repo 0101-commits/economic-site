@@ -2701,7 +2701,7 @@ def fetch_fred_realestate_us():
         "new_home_sales":        (["HSN1F", "HSN1FNSA"],              "신규주택판매 (천 건, 연환산)"),
         # (삭제) nahb_index — NAHBMMI 는 FRED 에서 매 런 400(시리즈 없음)이고, 폴백 MSACSR 은
         # '신규주택 재고 개월 수'라 다른 지표였다(8.5 가 'NAHB 주택시장지수'로 표시됐다).
-        # 대체 소스가 없어 지표째 뺀다 — 묘비(_TOMBSTONED)가 preserve 부활을 막는다.
+        # 대체 소스가 없어 지표째 뺀다 — 묘비(data_sla.TOMBSTONED)가 preserve 부활을 막는다.
     }
     result = {}
     for key, (series_ids, desc) in indicators.items():
@@ -3987,10 +3987,10 @@ def fetch_realestate_kr():
     # 모두 전국(CLS_ID=500001) 으로 한정해 최신값을 추출 (가격지수와 동일 메커니즘).
     # 주: '주택 인허가/준공'(permit/complete)은 국토교통부(MOLIT) 통계라 R-ONE OpenAPI 에
     #     존재하지 않아 항상 빈 응답이었다(프론트의 '주택 인허가' 차트가 비어 보이던 원인).
-    #     → 인허가는 아래 '전월세전환율'(R-ONE 실제 제공 지표)로 대체한다. 준공은 제거.
+    #     → 인허가·준공은 제거. (대체로 넣었던 전월세전환율도 2026-09-30 사용자 결정 D1 로 뺐다 — 묘비.)
     # 2026-09-30 정정: 두 표는 미분양·착공이 아니었다. 실측 표 이름 A_2024_00064 =「(월) 평균전세가격_아파트」(천원),
     # A_2024_00057 =「(월) 준전세가격지수_아파트」(2026.06=100) — 그래서 '미분양 300,828호'·'착공 100.44'로 찍혔다.
-    # 옛 키(unsold_kr·start_kr)는 묘비(_TOMBSTONED)가 preserve 부활을 막는다. 진짜 미분양 표는 아래 목록 탐침이 찾는다.
+    # 옛 키(unsold_kr·start_kr)는 묘비(data_sla.TOMBSTONED)가 preserve 부활을 막는다. 진짜 미분양 표는 아래 목록 탐침이 찾는다.
     extra_stats = [
         # (key,                   desc,                                   statbl_id,      unit)
         ("avg_jeonse_price_kr", "전국 아파트 평균 전세가격(천원)",            "A_2024_00064", "천원"),
@@ -4017,27 +4017,6 @@ def fetch_realestate_kr():
             log(f"[R-ONE-probe] 이름에 미분양·착공·인허가·준공이 든 표 {len(hits)}건: {hits[:40]}")
         except Exception as e:
             log(f"[R-ONE-probe] 표 목록 오류(무시): {e}")
-
-    # ─── 전월세전환율 (전국, 월) — '주택 인허가'(R-ONE 미제공) 대체 지표 ──
-    # 전세보증금을 월세로 전환할 때 적용되는 연이율(%). 시장금리·임대차 수급을 반영하는
-    # 의미 있는 시장 지표로, R-ONE 이 실제 제공한다. 등록 차수에 따라 STATBL_ID 가 바뀌므로
-    # 카탈로그 검색(이름='전월세전환율')으로 유효한 통계표를 자동 탐색한다.
-    try:
-        conv = None
-        conv_id = None
-        for sid, nm in fetch_rone_table_catalog("전월세전환율", "MM"):
-            conv = fetch_rone_nationwide_latest(sid, limit=300)
-            if conv:
-                conv_id = sid
-                break
-        if conv:
-            conv.update({"region": "전국", "desc": "전월세전환율 (전국, 월)", "source": f"R-ONE:{conv_id}"})
-            result["conversion_rate_kr"] = conv
-            log(f"[R-ONE] conversion_rate_kr ({conv_id}): {conv['value']} ({conv['period']})")
-        else:
-            log("[R-ONE] 전월세전환율: 카탈로그 검색 실패 — 건너뜀 (프론트 '수집 중' 표시)")
-    except Exception as e:
-        log(f"[R-ONE] 전월세전환율 오류: {e}")
 
     # ─── 거래량: (월) 행정구역별 아파트거래현황 (A_2024_00549) ──
     # 전국(CLS_ID=500001) + ITM_ID=100001(동(호)수) 로 한정. 면적(100002) 항목과 섞이지 않게 ITM 필수.
@@ -7813,26 +7792,9 @@ def build_data():
     # preserve-deep 이 '현재 빌드에 없고 prev 에 있는 leaf'를 무조건 복원하므로, 표에서
     # 지워도 직전 data.json 의 묵은 값(일본 CPI 2021-06 등)이 매 런 되살아난다(재현 확인,
     # 2026-08 감사). 모든 preserve 이후인 여기서 명시적으로 제거한다.
-    # 대체 소스가 생기면 이 목록에서 빼면 된다. (eu 실업률·uk/cn CPI 는 intl_sources 가,
-    # 일본 CPI 는 DBnomics 가 같은 키를 다시 채우므로 묘비 대상이 아니다.)
-    _TOMBSTONED = {
-        # JPNPROINDMISMEI(2024-03 종료), OECD 도 같은 상류. DBnomics 검색에도 최신 계열 없음(2026-09-30).
-        "economicIndicators.jp": ("ip_jp",),
-        # NAHBMMI 는 FRED 400, 폴백 MSACSR 은 다른 지표(재고 개월 수)였다 — 대체 소스 없음.
-        "realestate.us": ("nahb_index",),
-        # R-ONE 표 오인(2026-09-30): 두 표는 평균전세가격·준전세가격지수였다 → avg_jeonse_price_kr·semi_jeonse_idx_kr
-        # 로 옮겼다. 옛 키가 lane·preserve 로 되살아나 '미분양 300,828호'가 다시 뜨지 않게 묻는다.
-        "realestate.kr": ("unsold_kr", "start_kr"),
-    }
+    # 목록은 data_sla.TOMBSTONED — 판정표·지표 레지스트리도 같은 표를 본다(대체 소스가 생기면 거기서 뺀다).
     try:
-        removed = []
-        for path, mkeys in _TOMBSTONED.items():
-            top, sub = path.split(".")
-            node = (data.get(top) or {}).get(sub)
-            if isinstance(node, dict):
-                for mk in mkeys:
-                    if node.pop(mk, None) is not None:
-                        removed.append(f"{path}.{mk}")
+        removed = data_sla.drop_tombstoned(data)
         if removed:
             log(f"[tombstone] 폐기 지표 제거: {', '.join(removed)} — 프론트는 '—' 표시")
     except Exception as e:

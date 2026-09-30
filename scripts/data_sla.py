@@ -318,6 +318,41 @@ def _get_path(data, path):
     return cur
 
 
+# 폐기(묘비) 지표 — 수집 소스가 없어 지표째 뺀 잎. 한 곳에서 정의해 fetch_data(preserve·lane 부활 차단)·
+# 판정표(_walk_paths)·지표 레지스트리(build_indicators)가 같이 본다. 값 = {부모 경로: (잎 키, …)}.
+# 대체 소스가 생기면 여기서 뺀다. (eu 실업률·uk/cn CPI 는 intl_sources 가, 일본 CPI 는 DBnomics 가
+# 같은 키를 다시 채우므로 묘비 대상이 아니다.)
+TOMBSTONED = {
+    # JPNPROINDMISMEI(2024-03 종료), OECD 도 같은 상류. DBnomics 검색에도 최신 계열 없음(2026-09-30).
+    "economicIndicators.jp": ("ip_jp",),
+    # NAHBMMI 는 FRED 400, 폴백 MSACSR 은 다른 지표(재고 개월 수)였다 — 대체 소스 없음.
+    "realestate.us": ("nahb_index",),
+    # R-ONE 표 오인(2026-09-30): 두 표는 평균전세가격·준전세가격지수였다 → avg_jeonse_price_kr·semi_jeonse_idx_kr
+    # 로 옮겼다. 옛 키가 lane·preserve 로 되살아나 '미분양 300,828호'가 다시 뜨지 않게 묻는다.
+    # conversion_rate_kr: 사용자 결정 D1(2026-09-30) — 전월세전환율은 무료 공식 경로가 없다(R-ONE 2024-04 이후 갱신 없음).
+    "realestate.kr": ("unsold_kr", "start_kr", "conversion_rate_kr"),
+}
+
+
+def is_tombstoned(path):
+    """'realestate.kr.conversion_rate_kr' → True. 부모 경로 + 잎 키로 묘비 표를 본다."""
+    parent, _, leaf = path.rpartition(".")
+    return leaf in TOMBSTONED.get(parent, ())
+
+
+def drop_tombstoned(data):
+    """묘비 잎을 data 에서 뺀다(제자리). 모든 preserve·lane 이음 뒤에 불러야 한다. Returns: 뺀 경로 목록."""
+    removed = []
+    for parent, leaves in TOMBSTONED.items():
+        top, sub = parent.split(".")
+        node = (data.get(top) or {}).get(sub)
+        if isinstance(node, dict):
+            for leaf in leaves:
+                if node.pop(leaf, None) is not None:
+                    removed.append(f"{parent}.{leaf}")
+    return removed
+
+
 def _walk_paths(data):
     """SLA 판정 대상 경로를 만든다. 지표 단위(리프 dict)까지만 내려간다."""
     out = []
@@ -337,7 +372,7 @@ def _walk_paths(data):
                       and not any(a in v for a in _ASOF_KEYS))
             if nested:
                 for k2, v2 in v.items():          # 2단 중첩 (지역/그룹 → 지표)
-                    if isinstance(v2, (dict, list)):
+                    if isinstance(v2, (dict, list)) and not is_tombstoned(f"{top}.{k}.{k2}"):
                         out.append((f"{top}.{k}.{k2}", v2))
             else:
                 out.append((f"{top}.{k}", v))

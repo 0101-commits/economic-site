@@ -10,7 +10,7 @@
  *   merLens    mer_signals.json 의 같은 지표 id
  *   onScreen   false = 수집은 되는데 아직 어느 화면에도 없다(처리 대상)
  *
- * 생성 시각 기준 지표 125 · 데이터셋 19 · 미노출 2.
+ * 생성 시각 기준 지표 124 · 데이터셋 19 · 미노출 1.
  */
 (function () {
   var ROWS = [
@@ -126,7 +126,6 @@
     {"id": "building_permits_us", "label": "건축허가 (천 건, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.building_permits", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "case_shiller_20city_us", "label": "Case-Shiller 20대도시 HPI", "asset": "realestate", "topic": "us", "data": "realestate.us.case_shiller_20city", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "case_shiller_national_us", "label": "Case-Shiller HPI", "asset": "realestate", "topic": "us", "data": "realestate.us.case_shiller_national", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
-    {"id": "conversion_rate_kr", "label": "전월세전환율 (전국, 월)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.conversion_rate_kr", "onScreen": false, "tier": 3, "canonical": "realestate", "collectOnly": "2026-09-30 사용자 결정 D1 — 화면에서 뺐다(R-ONE 2024-04 이후 갱신 없음). 수집은 남아 있다.", "decimals": 1},
     {"id": "existing_home_sales_us", "label": "기존주택판매 (백만 건, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.existing_home_sales", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "housing_starts_us", "label": "주택착공 (천 호, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.housing_starts", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "jns_price_idx_kr", "label": "전국주택가격동향조사 주택종합 전세가격지수", "asset": "realestate", "topic": "kr", "data": "realestate.kr.jns_price_idx_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
