@@ -576,7 +576,7 @@ def _demo():
     assert by["stockMovers.kospiGainers"]["state"] == "failed", by["stockMovers.kospiGainers"]
     assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
     assert by["lmeInventory"]["state"] == "missing", by["lmeInventory"]
-    assert h["summary"]["missing"] == 2 + 2          # berkshire·lme + 화면 공백 경로 2(region·region_sub)
+    assert h["summary"]["missing"] == 2 + 4          # berkshire·lme + 화면 공백 경로 2(region·region_sub)
     assert "marketBreadth" not in by and "sectorMoves" not in by    # A19 — 프런트가 읽기 전엔 기대 목록 밖
     assert _rule_for("marketBreadth") == (4, "important") and _rule_for("marketBreadth.kospi") == (4, "important")
     for gone in ("sentiment.pcr", "climate.enso.forecast", "realestate.kr.conversion_rate_kr"):
