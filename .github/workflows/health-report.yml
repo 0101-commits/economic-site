@@ -1,0 +1,60 @@
+name: Health Report
+
+# 월 1회 데이터 건강 보고(A18) — #시스템 채널로 발송하고 다음 달 비교용 상태를 커밋한다.
+on:
+  schedule:
+    - cron: '30 0 1 * *'   # 매월 1일 09:30 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: health-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install chart deps
+        run: pip install matplotlib requests
+
+      - name: Install Korean fonts
+        # 실패해도 카드가 영문 라벨로 강등될 뿐 발송엔 지장 없음.
+        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk || echo "::warning::한글 폰트 설치 실패 - 카드 영문 라벨로 강등"
+
+      - name: Send health report
+        env:
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/health_report.py
+
+      - name: Commit health_report_state.json
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add scripts/health_report_state.json
+          if git diff --cached --quiet -- scripts/health_report_state.json; then
+            echo "변경 사항 없음 - 커밋 건너뜀"; exit 0
+          fi
+          git commit -m "chore: 월간 데이터 건강 보고 상태 갱신" -q
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then echo "push 성공 (시도 ${attempt})"; exit 0; fi
+            echo "push 실패 (시도 ${attempt}) - rebase 후 재시도"
+            git pull --rebase origin main || true
+            sleep $((attempt * 3))
+          done
+          echo "::error::health_report_state.json push 실패 (재시도 소진)"; exit 1
