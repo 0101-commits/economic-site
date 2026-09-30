@@ -10,7 +10,7 @@
  *   merLens    mer_signals.json 의 같은 지표 id
  *   onScreen   false = 수집은 되는데 아직 어느 화면에도 없다(처리 대상)
  *
- * 생성 시각 기준 지표 124 · 데이터셋 19 · 미노출 0.
+ * 생성 시각 기준 지표 125 · 데이터셋 19 · 미노출 2.
  */
 (function () {
   var ROWS = [
@@ -47,6 +47,7 @@
     {"id": "corn", "label": "옥수수", "asset": "commodity", "data": "commodities.Corn", "series": "history.commodities.Corn", "tier": 3, "canonical": "market#commodity", "news": "원자재", "decimals": 2, "unit": "$", "merLens": "agri"},
     {"id": "dubai", "label": "Dubai", "asset": "commodity", "data": "commodities.Dubai", "series": "history.commodities.Dubai", "tier": 3, "canonical": "market#commodity", "news": "원자재", "decimals": 2, "unit": "$"},
     {"id": "gasoline", "label": "Gasoline", "asset": "commodity", "data": "commodities.Gasoline", "series": "history.commodities.Gasoline", "tier": 3, "canonical": "market#commodity", "news": "원자재", "decimals": 2, "unit": "$", "merLens": "gasoline"},
+    {"id": "goldkrw", "label": "금 현물 (KRX)", "asset": "commodity", "data": "commodities.GoldKRW", "series": "history.commodities.GoldKRW", "tier": 3, "canonical": "market#commodity", "news": "원자재", "decimals": 0, "unit": "원"},
     {"id": "heatingoil", "label": "HeatingOil", "asset": "commodity", "data": "commodities.HeatingOil", "series": "history.commodities.HeatingOil", "tier": 3, "canonical": "market#commodity", "news": "원자재", "decimals": 2, "unit": "$"},
     {"id": "palladium", "label": "팔라듐", "asset": "commodity", "data": "commodities.Palladium", "series": "history.commodities.Palladium", "tier": 3, "canonical": "market#commodity", "news": "귀금속", "decimals": 2, "unit": "$"},
     {"id": "platinum", "label": "백금", "asset": "commodity", "data": "commodities.Platinum", "series": "history.commodities.Platinum", "tier": 3, "canonical": "market#commodity", "news": "귀금속", "decimals": 2, "unit": "$"},
@@ -91,7 +92,7 @@
     {"id": "gdp_yoy_eu", "label": "GDP 성장률", "unit": "% (YoY, 실질)", "asset": "macro", "topic": "growth", "cat": "경기", "country": "eu", "data": "economicIndicators.eu.gdp_yoy_eu", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "gdp_yoy_jp", "label": "GDP 성장률", "unit": "% (YoY, 실질)", "asset": "macro", "topic": "growth", "cat": "경기", "country": "jp", "data": "economicIndicators.jp.gdp_yoy_jp", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "gdp_yoy_uk", "label": "GDP 성장률", "unit": "% (YoY, 실질)", "asset": "macro", "topic": "growth", "cat": "경기", "country": "uk", "data": "economicIndicators.uk.gdp_yoy_uk", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
-    {"id": "household_debt_kr", "label": "한국 가계신용 잔액 (10억원) — KeyStat:가계신용", "unit": null, "asset": "macro", "topic": "growth", "cat": null, "country": "kr", "data": "economicIndicators.kr.household_debt_kr", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
+    {"id": "household_debt_kr", "label": "한국 가계신용 잔액 (10억원)", "unit": null, "asset": "macro", "topic": "growth", "cat": null, "country": "kr", "data": "economicIndicators.kr.household_debt_kr", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "hy_spread", "label": "HY 크레딧 스프레드", "unit": "%p (국채 대비)", "asset": "macro", "topic": "growth", "cat": "시장", "country": "us", "data": "economicIndicators.us.hy_spread", "onScreen": true, "tier": 3, "canonical": "market#bond", "decimals": 1, "merLens": "hy_spread"},
     {"id": "ip_kr", "label": "산업생산지수", "unit": "지수 (2020=100)", "asset": "macro", "topic": "growth", "cat": "경기", "country": "kr", "data": "economicIndicators.kr.ip_kr", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "ip_us", "label": "산업생산지수", "unit": "지수 (2017=100, 계절조정)", "asset": "macro", "topic": "growth", "cat": "경기", "country": "us", "data": "economicIndicators.us.ip_us", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
@@ -104,6 +105,7 @@
     {"id": "pmi_eu", "label": "제조업 PMI·경기지수", "unit": "지수", "asset": "macro", "topic": "growth", "cat": "경기", "country": "eu", "data": "economicIndicators.eu.pmi_eu", "onScreen": true, "tier": 3, "canonical": "macro", "news": "유로존", "decimals": 1},
     {"id": "pmi_jp", "label": "제조업 PMI·경기지수", "unit": "지수", "asset": "macro", "topic": "growth", "cat": "경기", "country": "jp", "data": "economicIndicators.jp.pmi_jp", "onScreen": true, "tier": 3, "canonical": "macro", "news": "일본경기", "decimals": 1},
     {"id": "pmi_kr", "label": "제조업 PMI·경기지수", "unit": "지수", "asset": "macro", "topic": "growth", "cat": "경기", "country": "kr", "data": "economicIndicators.kr.pmi_kr", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
+    {"id": "pmi_kr_bsi", "label": "한국 제조업 BSI (업황 실적)", "unit": null, "asset": "macro", "topic": "growth", "cat": null, "country": "kr", "data": "economicIndicators.kr.pmi_kr_bsi", "onScreen": false, "tier": 3, "canonical": "macro", "collectOnly": "pmi_kr(OECD BCI)가 있을 때만 따로 저장되는 보조 계열 — pmi_kr 가 비면 ECOS BSI 가 그 자리를 채운다.", "decimals": 1},
     {"id": "pmi_uk", "label": "제조업 PMI·경기지수", "unit": "지수", "asset": "macro", "topic": "growth", "cat": "경기", "country": "uk", "data": "economicIndicators.uk.pmi_uk", "onScreen": true, "tier": 3, "canonical": "macro", "news": "영국경기", "decimals": 1},
     {"id": "pmi_us", "label": "제조업 PMI·경기지수", "unit": "지수", "asset": "macro", "topic": "growth", "cat": "경기", "country": "us", "data": "economicIndicators.us.pmi_us", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "ppi_kr", "label": "생산자물가지수 (PPI)", "unit": "지수 (2015=100)", "asset": "macro", "topic": "price", "cat": "물가", "country": "kr", "data": "economicIndicators.kr.ppi_kr", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
@@ -124,8 +126,7 @@
     {"id": "building_permits_us", "label": "건축허가 (천 건, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.building_permits", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "case_shiller_20city_us", "label": "Case-Shiller 20대도시 HPI", "asset": "realestate", "topic": "us", "data": "realestate.us.case_shiller_20city", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "case_shiller_national_us", "label": "Case-Shiller HPI", "asset": "realestate", "topic": "us", "data": "realestate.us.case_shiller_national", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
-    {"id": "case_shiller_state_us", "label": "case_shiller_state", "asset": "realestate", "topic": "us", "data": "realestate.us.case_shiller_state", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
-    {"id": "conversion_rate_kr", "label": "전월세전환율 (전국, 월)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.conversion_rate_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
+    {"id": "conversion_rate_kr", "label": "전월세전환율 (전국, 월)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.conversion_rate_kr", "onScreen": false, "tier": 3, "canonical": "realestate", "collectOnly": "2026-09-30 사용자 결정 D1 — 화면에서 뺐다(R-ONE 2024-04 이후 갱신 없음). 수집은 남아 있다.", "decimals": 1},
     {"id": "existing_home_sales_us", "label": "기존주택판매 (백만 건, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.existing_home_sales", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "housing_starts_us", "label": "주택착공 (천 호, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.housing_starts", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "jns_price_idx_kr", "label": "전국주택가격동향조사 주택종합 전세가격지수", "asset": "realestate", "topic": "kr", "data": "realestate.kr.jns_price_idx_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},

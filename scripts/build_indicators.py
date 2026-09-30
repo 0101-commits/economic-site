@@ -109,6 +109,12 @@ LABEL = {
     "Wheat": "밀", "Corn": "옥수수", "Soybean": "대두", "Rice": "쌀",
     "Coffee": "커피", "Sugar": "설탕", "Cotton": "면화", "Cocoa": "코코아",
     "vix": "VIX", "vkospi": "V-KOSPI", "move": "MOVE", "fear_greed": "공포·탐욕 지수",
+    "GoldKRW": "금 현물 (KRX)",
+    # 수집원 desc 가 단위를 이름에 붙이거나(천원·2026.06=100) 나라를 뺀 것을 화면 이름으로 고친 결정.
+    # 2026-09-30 까지는 js/app0.js 에 손으로 적혀 있었다(재생성하면 사라져 --check 가 빨갰다).
+    "cpi_jp": "일본 소비자물가(전년비)",
+    "avg_jeonse_price_kr": "아파트 평균 전세가격 (전국)",
+    "semi_jeonse_idx_kr": "준전세가격지수 (전국)",
 }
 
 # 옛 이름 → 새 이름. 화면이 같은 대상을 달리 부르던 표기를 여기 모은다(D5).
@@ -149,6 +155,8 @@ KEYWORDS = {
 # 화면 없이 수집만 되는 것들의 처리 결정(D10). 기획 §C3 의 "결정 필요" 3건.
 COLLECT_ONLY = {
     "btc": "시장>지수 탭에 가상자산 카드 1장으로 노출 예정(P3). 그때까지 수집만.",
+    "conversion_rate_kr": "2026-09-30 사용자 결정 D1 — 화면에서 뺐다(R-ONE 2024-04 이후 갱신 없음). 수집은 남아 있다.",
+    "pmi_kr_bsi": "pmi_kr(OECD BCI)가 있을 때만 따로 저장되는 보조 계열 — pmi_kr 가 비면 ECOS BSI 가 그 자리를 채운다.",
 }
 
 ASSET_ORDER = ["index", "equity", "fx", "rate", "commodity", "macro", "realestate",
@@ -263,6 +271,7 @@ FORMAT_BY_ID = {
     "vix":        {"decimals": 2, "unit": ""},
     "nps_aum":    {"decimals": 1, "unit": "조원"},
     "btc":        {"decimals": 0, "unit": "$"},
+    "goldkrw":    {"decimals": 0, "unit": "원"},   # KRX 금시장 원/g — 자산군 기본값 '$' 가 아니다
 }
 
 
@@ -371,12 +380,14 @@ def build(data, mer):
     for cc in data.get("realestate", {}):
         block = data["realestate"][cc] or {}
         for key in block:
-            if not isinstance(block[key], dict):
+            # 지표 = 값·기간을 가진 dict. 지역 코드가 키인 드릴다운 사전(region_sub·case_shiller_state)은 아니다.
+            if not isinstance(block[key], dict) or not ({"value", "period"} & set(block[key])):
                 continue
             path = "realestate.%s.%s" % (cc, key)
             row = by_path.get(path)
             base = re.sub(r"_(kr|us)$", "", key.lower())
-            add(id="%s_%s" % (base, cc), label=(row or {}).get("name") or
+            rid = "%s_%s" % (base, cc)
+            add(id=rid, label=LABEL.get(rid) or (row or {}).get("name") or
                 block[key].get("desc") or key, asset="realestate",
                 topic=cc, data=path, onScreen=bool(row) or on_screen(key))
 

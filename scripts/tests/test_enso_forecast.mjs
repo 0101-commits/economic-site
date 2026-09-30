@@ -22,53 +22,47 @@ const ensoPhaseLabel    = p => ({elnino:'엘니뇨',lanina:'라니냐',neutral:'
 const ensoStrengthLabel = s => ({weak:'약한',moderate:'중간',strong:'강한',very_strong:'매우 강한',neutral:''})[s] || '';
 const ensoTrendLabel    = t => ({warming:'따뜻해지는 추세',cooling:'차가워지는 추세',steady:'안정적'})[t] || '';
 const scope = { ENSO_SCENARIOS, ensoPhaseLabel, ensoStrengthLabel, ensoTrendLabel, Date };
-const fn = new Function(...Object.keys(scope), block + '\n;return {cpcProbUrl, ensoDiagramState, ensoForecastSources, ensoLogicDiagramHTML, ensoForecastsHTML};');
+const fn = new Function(...Object.keys(scope), block + '\n;return {cpcProbUrl, ensoForecastSources};');
 const M = fn(...Object.values(scope));
 
-// cpcProbUrl
+// 2026-09-29 가독성 개편(8d46e21a)이 도식(ensoDiagramState·ensoLogicDiagramHTML)과 접이식 예측 패널
+// (ensoForecastsHTML)을 지우고 결론 줄·숫자 칸·기관 링크 부품으로 바꿨다. 지키던 성질은 그대로 옮긴다:
+// 실측 국면·ONI 표시 / 자료 없으면 국면을 지어내지 않음 / 외부 링크 안전 / 기관 3지역 / CPC·CFSv2 소스.
+const card = slice('// ── 카드 본문(기획 2026-09-29 §5.1)', 'function ensoCompareHTML');
+const cardScope = { ...scope, ensoCurrent: 'lanina', ensoForecastSources: M.ensoForecastSources };
+const C = new Function(...Object.keys(cardScope), card +
+  '\n;return {ensoLeadHTML, ensoKpisHTML, ensoAgencyLinksHTML};')(...Object.values(cardScope));
+const S = { commodities: [{ name: '대두', dir: 'up', vol: '高', note: '' }, { name: '원유', dir: 'down', vol: '中', note: '' }],
+            sectors: [], overallVol: '中' };
+
+// sources / CPC
 assert.strictEqual(M.cpcProbUrl(2026),
   'https://www.cpc.ncep.noaa.gov/archives/enso/roni/images/2026/enso-probs-current.png');
-
-// ensoDiagramState — live
-const live = M.ensoDiagramState({oni:{value:0.48, asOf:'MAM 2026'}, phase:'neutral', strength:'neutral', trend:'warming'});
-assert.strictEqual(live.hasData, true);
-assert.strictEqual(live.oniText, '+0.48℃');
-assert.strictEqual(live.phaseLabel, '중립');
-assert.strictEqual(live.trendLabel, '따뜻해지는 추세');
-assert.ok(live.topCommodities.length <= 3);
-
-// ensoDiagramState — no data (never fabricate)
-const none = M.ensoDiagramState(null);
-assert.strictEqual(none.hasData, false);
-assert.strictEqual(none.phaseKey, null);
-
-// sources config covers all three regions
 const regions = M.ensoForecastSources.map(s => s.region).join(' ');
-assert.ok(/미국/.test(regions) && /유럽/.test(regions) && /일본/.test(regions));
-console.log('Task1 OK');
+assert.ok(/미국/.test(regions) && /유럽/.test(regions) && /일본/.test(regions), 'sources cover US/EU/JP');
+assert.ok(M.ensoForecastSources.some(s => (s.embed || '').includes('cfsv2fcst/imagesInd3/nino34Mon.gif')), 'CFSv2 plume source kept');
+console.log('sources OK');
 
-// --- Task 2: logic diagram ---
-const M2 = fn(...Object.values(scope));  // re-eval after impl includes ensoLogicDiagramHTML
-const dHtml = M2.ensoLogicDiagramHTML({oni:{value:-1.1,asOf:'MAM 2026'}, phase:'lanina', strength:'moderate', trend:'cooling'});
-assert.ok(dHtml.includes('라니냐'), 'diagram shows live phase label');
-assert.ok(dHtml.includes('-1.10℃'), 'diagram shows live ONI');
-assert.ok(dHtml.includes('overflow-x:auto'), 'diagram horizontally scrollable, never forces page hscroll');
-assert.ok(dHtml.includes('var(--c-accent)'), 'active phase node highlighted when hasData');
-const dNone = M2.ensoLogicDiagramHTML(null);
-assert.ok(dNone.includes('관측 대기'), 'no-data diagram shows 관측 대기, not a fabricated phase');
-assert.ok(!dNone.includes('엘니뇨') && !dNone.includes('라니냐'), 'no-data diagram does not assert a phase');
-console.log('Task2 OK');
+// live — 실측 국면과 ONI 를 말한다
+const live = { oni: { value: -1.1, asOf: 'MAM 2026' }, phase: 'lanina', strength: 'moderate', trend: 'cooling' };
+const kLive = C.ensoKpisHTML(S, live);
+assert.ok(kLive.includes('라니냐'), 'kpi shows live phase');
+assert.ok(kLive.includes('-1.10'), 'kpi shows live ONI');
+assert.ok(C.ensoLeadHTML(S, live).includes('라니냐</b>가 진행 중'), 'lead states the live phase');
+console.log('live OK');
 
-// --- Task 3: forecast panel ---
-const M3 = fn(...Object.values(scope));
-const collapsed = M3.ensoForecastsHTML(false);
-// CFSv2·CPC 이미지는 상단 '🔮 공식 예측' 패널로 승격됐다 — 이 접이식 패널은 링크 전용 기관만.
-assert.ok(collapsed.includes('다른 기관 예측'), 'panel header present when collapsed');
-assert.ok(!collapsed.includes('<a '), 'no links rendered when collapsed (lazy)');
-const open = M3.ensoForecastsHTML(true);
-assert.ok(!open.includes('<img'), 'link-only panel embeds no images');
-assert.ok(open.includes('iri.columbia.edu') && open.includes('charts.ecmwf.int') && open.includes('jma.go.jp'), 'links IRI/ECMWF/JMA');
-assert.ok(open.includes('rel="noopener noreferrer"'), 'external links are safe');
-assert.ok(M3.ensoForecastSources.some(s => (s.embed || '').includes('cfsv2fcst/imagesInd3/nino34Mon.gif')), 'CFSv2 plume source kept');
-assert.ok(M3.cpcProbUrl(2026).includes('/archives/enso/roni/images/2026/'), 'CPC probability URL is year-built');
-console.log('Task3 OK');
+// no data — 국면을 지어내지 않는다
+const lNone = C.ensoLeadHTML(S, null);
+assert.ok(lNone.startsWith('<p class="econ-lead"><b>자료 없음</b>'), 'lead opens with 자료 없음');
+const kNone = C.ensoKpisHTML(S, null);
+assert.ok(kNone.includes('<div class="econ-kpi__l">국면</div><div class="econ-kpi__v">자료 없음</div>'), 'phase cell says 자료 없음');
+assert.ok(!/econ-kpi__v">(엘니뇨|라니냐|중립)/.test(kNone), 'no-data kpi asserts no phase');
+console.log('no-data OK');
+
+// agency links — 링크 전용, 외부 링크 안전
+const links = C.ensoAgencyLinksHTML();
+assert.ok(links.includes('iri.columbia.edu') && links.includes('charts.ecmwf.int') && links.includes('jma.go.jp'), 'links IRI/ECMWF/JMA');
+assert.ok(!links.includes('<img'), 'link-only panel embeds no images');
+const anchors = links.match(/<a [^>]*>/g) || [];
+assert.ok(anchors.length >= 3 && anchors.every(a => a.includes('rel="noopener noreferrer"')), 'every external link is safe');
+console.log('links OK');
