@@ -32,6 +32,18 @@ import toss_api
 
 KST = timezone(timedelta(hours=9))
 
+def _scrub_err(e):
+    """예외를 공개 data.json 에 실어도 되는 한 줄로 — URL·쿼리(키가 든다)·시크릿을 지운다.
+    ECOS 는 키가 URL '경로'에 들어가므로 쿼리만 떼서는 부족하다."""
+    s = f"{type(e).__name__}: {e}"
+    s = re.sub(r"https?://\S+", "<url>", s)
+    s = re.sub(r"(with url: )\S+", r"\1<path>", s)
+    s = re.sub(r"\?\S*", "", s)
+    for k in _LOG_SECRETS:
+        s = s.replace(k, "***")
+    return s[:120]
+
+
 class _HostBreaker:
     """호스트별 서킷브레이커 — 이 모듈의 requests.* 호출만 감싼다(라이브러리 전역 패치 아님).
 
@@ -45,6 +57,9 @@ class _HostBreaker:
 
     def __init__(self):
         self.fails, self.dead = {}, set()
+        # 호스트별 이번 런 기록 → diagnostics.sourceStatus. 어느 원천이 며칠째 전부 실패하는지
+        # 로그를 뒤지지 않고 data.json 만으로 보이게 한다(EXIM 이전·FRED 400 이 몇 달 묻혀 있었다).
+        self.stats = {}
 
     def __getattr__(self, name):                      # exceptions, Session 등은 원본 그대로
         return getattr(_requests, name)
@@ -52,20 +67,38 @@ class _HostBreaker:
     def _call(self, fn, url, *a, **kw):
         from urllib.parse import urlsplit
         host = urlsplit(str(url)).hostname or ""
+        st = self.stats.setdefault(host, {"calls": 0, "fails": 0, "lastError": None, "lastOkAt": None})
+        st["calls"] += 1
         if host in self.dead:
+            st["fails"] += 1
+            st["lastError"] = "breaker: 이번 런 차단(연결 실패 연속)"
             raise _requests.exceptions.ConnectionError(f"[breaker] {host} — 이번 런 차단(연결 실패 연속)")
         try:
             r = fn(url, *a, **kw)
-        except _requests.exceptions.ConnectTimeout:
-            # 연결 시간초과만 센다 — 호스트 자체가 안 받는 상태. RemoteDisconnected·reset 은
-            # R-ONE·EXIM 이 평소에도 내고 재시도로 살아나는 오류라 세면 멀쩡한 호스트를 끊는다.
-            n = self.fails[host] = self.fails.get(host, 0) + 1
-            if n >= self.CONNECT_LIMIT and host not in self.dead:
-                self.dead.add(host)
-                log(f"[breaker] {host} 연결 실패 {n}회 연속 — 이번 런 남은 호출 건너뜀")
+        except Exception as e:
+            st["fails"] += 1
+            st["lastError"] = _scrub_err(e)
+            if isinstance(e, _requests.exceptions.ConnectTimeout):
+                # 차단은 연결 시간초과만 센다 — 호스트 자체가 안 받는 상태. RemoteDisconnected·reset 은
+                # R-ONE·EXIM 이 평소에도 내고 재시도로 살아나는 오류라 세면 멀쩡한 호스트를 끊는다.
+                n = self.fails[host] = self.fails.get(host, 0) + 1
+                if n >= self.CONNECT_LIMIT and host not in self.dead:
+                    self.dead.add(host)
+                    log(f"[breaker] {host} 연결 실패 {n}회 연속 — 이번 런 남은 호출 건너뜀")
             raise
         self.fails[host] = 0
+        # 응답 객체는 그대로 돌려주지만 4xx·5xx 는 실패로 센다 — KRX 401·FRED 400 은 예외 없이
+        # 응답으로 오므로, 예외만 세면 '매 런 전부 거부'가 성공처럼 보인다.
+        code = getattr(r, "status_code", 200)
+        if code >= 400:
+            st["fails"] += 1
+            st["lastError"] = f"HTTP {code}"
+        else:
+            st["lastOkAt"] = datetime.now(KST).isoformat(timespec="seconds")
         return r
+
+    def status_snapshot(self):
+        return {h: dict(st) for h, st in self.stats.items()}
 
     def get(self, url, *a, **kw):
         return self._call(_requests.get, url, *a, **kw)
@@ -91,10 +124,9 @@ ECOS_API_KEY      = os.environ.get("ECOS_API_KEY",      "").strip()
 #    미설정 시 해당 수집은 건너뛰며(각 함수의 `if not REALESTATE_API_KEY` 가드), 기존 data.json 값이 유지된다.
 REALESTATE_API_KEY= os.environ.get("REALESTATE_API_KEY","").strip()
 KOSIS_API_KEY     = os.environ.get("KOSIS_API_KEY",     "").strip()
-# 신규: Alpha Vantage API — 미국 경제지표/원자재/FX 보강. 키는 GitHub Secrets(ALPHAVANTAGE_API_KEY) 로만 주입.
-# ⚠️ 코드에 기본값(개인 키) 하드코딩 금지: 공개 저장소라 키가 그대로 유출된다. 미설정 시 보강은 건너뜀.
-# 일 25회/분당 5회 무료 한도 → 매 시간 호출은 피하고 09:00/22:00 KST 일일 갱신에서만 사용.
-ALPHAVANTAGE_API_KEY = os.environ.get("ALPHAVANTAGE_API_KEY", "").strip()
+# (삭제 2026-09-30) Alpha Vantage — 키가 등록된 적이 없어 값을 낸 적이 없고 data.json 에도 av_* 가
+# 없다. FRED·yfinance 와 겹치는 교차검증용이라 되살릴 이유도 없다. AV_FETCH_FULL 환경변수는
+# 이름만 남아 '일일 런' 표식으로 계속 쓴다(주별 HPI·PMI 스크래핑·ENSO 게이트).
 # 신규: 공공데이터포털 통합 키 (data.go.kr) — 국토부 실거래가, 금융위 시세, KOTRA, KOSIS 등 50+ 서비스
 DATA_GO_KR_API_KEY= os.environ.get("DATA_GO_KR_API_KEY","").strip()
 # 신규: 한국수출입은행 환율·금리 (KOREAEXIM)
@@ -123,8 +155,8 @@ RONE_BASE_LEGACY = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/
 RONE_NATIONWIDE_CLS = "500001"
 KOSIS_BASE   = "https://kosis.kr/openapi/statisticsData.do"
 DATA_GO_KR_BASE = "http://apis.data.go.kr"
-EXIM_BASE       = "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON"
-ALPHAVANTAGE_BASE = "https://www.alphavantage.co/query"
+# 수출입은행 OpenAPI 는 oapi 하위 도메인으로 이전했다 — 옛 www 주소는 2026-04-30 종료.
+EXIM_BASE       = "https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON"
 BOE_IADB_BASE     = "https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp"
 
 # (삭제) FALLBACK 상수표 — 소스가 전부 실패하면 USDKRW 1490·KOSPI 7600 같은 옛 숫자를
@@ -155,7 +187,7 @@ def _prev_spot(prev, group, name):
 _LOG_SECRETS = tuple(
     k for k in (
         KRX_API_KEY, FRED_API_KEY, ECOS_API_KEY, REALESTATE_API_KEY,
-        KOSIS_API_KEY, ALPHAVANTAGE_API_KEY, DATA_GO_KR_API_KEY, EXIM_API_KEY,
+        KOSIS_API_KEY, DATA_GO_KR_API_KEY, EXIM_API_KEY,
         KIS_APP_KEY, KIS_APP_SECRET, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET,
         os.environ.get("KRX_PW", "").strip(),
     )
@@ -188,8 +220,14 @@ def _parse_num(s):
 # ============================================================
 # KRX OpenAPI 호출 헬퍼
 # ============================================================
+# 첫 401 뒤로는 이번 런의 KRX OpenAPI 호출을 모두 건너뛴다. 키가 있어도 서비스 이용신청이
+# 승인되지 않으면 모든 엔드포인트가 401 이라, 가드가 없으면 날짜 되짚기까지 런마다 25콜을 버렸다.
+_KRX_AUTH_DENIED = False
+
+
 def fetch_krx(endpoint, bas_dd):
-    if not KRX_API_KEY:
+    global _KRX_AUTH_DENIED
+    if not KRX_API_KEY or _KRX_AUTH_DENIED:
         return None
     try:
         r = requests.get(
@@ -198,6 +236,10 @@ def fetch_krx(endpoint, bas_dd):
             headers={"AUTH_KEY": KRX_API_KEY},
             timeout=20,
         )
+        if r.status_code == 401:
+            _KRX_AUTH_DENIED = True
+            log("[KRX] 인증 거부(401) — 이번 런 KRX OpenAPI 호출 중단(서비스 이용신청 승인 필요)")
+            return None
         r.raise_for_status()
         data = r.json()
         rows = data.get("OutBlock_1") or data.get("OutBlock") or []
@@ -1201,7 +1243,7 @@ def fetch_naver_stock_movers(market="kospi", top_n=10):
 def fetch_krx_etf_movers(top_n=10):
     """KRX ETF 등락률 상위/하위 조회. 실패 또는 모든 등락률 0% 시 Naver Finance 폴백."""
     if KRX_API_KEY:
-        rows, basd = fetch_krx_latest("/eto/etf_bydd_trd")
+        rows, basd = fetch_krx_latest("/etp/etf_bydd_trd")   # /eto/ 는 404, /etp/ 가 맞다(2026-09-30 무키 탐침 401)
         if rows:
             parsed = []
             for row in rows:
@@ -2482,7 +2524,9 @@ def fetch_fred_realestate_us():
         "building_permits":      (["PERMIT"],                         "건축허가 (천 건, 연환산)"),
         "existing_home_sales":   (["EXHOSLUSM495S", "EXHOSLUSM495N"], "기존주택판매 (백만 건, 연환산)"),
         "new_home_sales":        (["HSN1F", "HSN1FNSA"],              "신규주택판매 (천 건, 연환산)"),
-        "nahb_index":            (["NAHBMMI", "MSACSR"],              "NAHB 주택시장지수"),
+        # (삭제) nahb_index — NAHBMMI 는 FRED 에서 매 런 400(시리즈 없음)이고, 폴백 MSACSR 은
+        # '신규주택 재고 개월 수'라 다른 지표였다(8.5 가 'NAHB 주택시장지수'로 표시됐다).
+        # 대체 소스가 없어 지표째 뺀다 — 묘비(_TOMBSTONED)가 preserve 부활을 막는다.
     }
     result = {}
     for key, (series_ids, desc) in indicators.items():
@@ -2589,152 +2633,41 @@ def fetch_fred_realestate_kr():
 
 
 # ============================================================
-# Alpha Vantage — 미국 경제지표/원자재/FX 보강 (무료 25 req/day)
+# 일본 CPI — DBnomics (총무성 통계국 원계열, 무인증)
 # ============================================================
-# 일 한도가 작아 매 시간 호출은 비효율. 보강용으로 핵심 지표만 페치.
-# 호출 정책: FRED 가 비어있거나 부정확한 경우의 보강용 + UK/PMI 등 FRED 가 약한 항목.
+# FRED JPNCPIALLMINMEI·OECD 는 같은 상류라 2021-06 에서 함께 끊겼다. DBnomics 가 총무성
+# 통계국(STATJP) 월간 CPI 를 그대로 중계한다. 지수 수준만 주므로 전년동월비는 여기서 계산한다.
+# observations=1 이 관측치를 켜는 옵션이다(숫자는 개수가 아니다 — 14 를 주면 메타만 온다).
+DBNOMICS_JP_CPI = "https://api.db.nomics.world/v22/series/STATJP/CPIm/001?observations=1&format=json"
 
-def fetch_av_json(params, timeout=15):
-    """Alpha Vantage 공통 호출 헬퍼."""
-    if not ALPHAVANTAGE_API_KEY:
-        return None
+
+def _yoy_series(periods, values, n=14):
+    """월간 지수 → [(YYYY-MM, 전년동월비 %)] 오래된 순 최근 n개. 12칸 앞이 아니라 '같은 달 전년'을
+    기간 키로 찾는다 — 중간에 빠진 달이 있어도 엉뚱한 달과 나누지 않는다. 'NA' 같은 비숫자는 버린다."""
+    pts = {str(p)[:7]: v for p, v in zip(periods, values)
+           if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    out = []
+    for p in sorted(pts):
+        base = pts.get(f"{int(p[:4]) - 1:04d}{p[4:7]}")
+        if base:
+            out.append((p, round((pts[p] / base - 1) * 100, 1)))
+    return out[-n:]
+
+
+def fetch_dbnomics_cpi_jp():
+    """economicIndicators.jp.cpi_jp 노드(intl_sources 와 같은 모양) 또는 None."""
     try:
-        params = dict(params)
-        params["apikey"] = ALPHAVANTAGE_API_KEY
-        r = requests.get(ALPHAVANTAGE_BASE, params=params, timeout=timeout)
-        if r.status_code != 200:
-            log(f"[AV] HTTP {r.status_code} func={params.get('function')}")
-            return None
-        try:
-            data = r.json()
-        except ValueError:
-            log(f"[AV] JSON parse 실패 func={params.get('function')}")
-            return None
-        # AV rate-limit/error message 감지
-        if isinstance(data, dict):
-            if "Note" in data:
-                log(f"[AV] rate-limit/note: {str(data.get('Note'))[:120]}")
-                return None
-            if "Information" in data and len(data) <= 2:
-                log(f"[AV] info-only response: {str(data.get('Information'))[:120]}")
-                return None
-            if "Error Message" in data:
-                log(f"[AV] error: {data.get('Error Message')}")
-                return None
-        return data
+        r = requests.get(DBNOMICS_JP_CPI, timeout=30)
+        r.raise_for_status()
+        doc = r.json()["series"]["docs"][0]
+        node = intl_sources._node(_yoy_series(doc["period"], doc["value"]),
+                                  "일본 CPI 상승률 (전년동월비 %, 총무성)",
+                                  "DBnomics STATJP/CPIm(일본 총무성 통계국)")
+        if node:
+            log(f"[DBnomics] cpi_jp: {node['value']}% ({node['period']}) +{len(node['history'])}점")
+        return node
     except Exception as e:
-        log(f"[AV] {params.get('function')} 예외: {e}")
-        return None
-
-
-# Alpha Vantage 의 economic indicator endpoint 들 — 모두 US 지표
-# 각 항목: (AV function name, interval, 한국어 desc, key 명)
-AV_US_ECONOMIC = [
-    ("REAL_GDP",            "quarterly", "미국 실질 GDP (전기비 연환산)",     "av_real_gdp"),
-    ("CPI",                 "monthly",   "미국 CPI (Alpha Vantage)",          "av_cpi"),
-    ("INFLATION",           None,        "미국 인플레이션 (연간)",            "av_inflation"),
-    ("RETAIL_SALES",        None,        "미국 소매판매 (백만USD)",          "av_retail_sales"),
-    ("DURABLES",            None,        "미국 내구재 수주 (백만USD)",       "av_durables"),
-    ("UNEMPLOYMENT",        None,        "미국 실업률 (Alpha Vantage)",       "av_unemployment"),
-    ("NONFARM_PAYROLL",     None,        "미국 비농업고용 (Alpha Vantage)",   "av_nfp"),
-    ("FEDERAL_FUNDS_RATE",  "monthly",   "미국 FF금리 (Alpha Vantage)",       "av_ff_rate"),
-]
-
-
-def fetch_av_us_economic():
-    """Alpha Vantage 미국 경제지표 — FRED 와 cross-check 및 빈 항목 보강."""
-    if not ALPHAVANTAGE_API_KEY:
-        return {}
-    out = {}
-    for func, interval, desc, key in AV_US_ECONOMIC:
-        params = {"function": func}
-        if interval: params["interval"] = interval
-        data = fetch_av_json(params)
-        if not data or not isinstance(data, dict):
-            continue
-        series = data.get("data") or []
-        if not series:
-            continue
-        # AV 응답: data:[{date,value},...] (최신이 앞 또는 뒤일 수 있음 → 정렬 후 사용)
-        try:
-            series_sorted = sorted([s for s in series if s.get("date") and s.get("value")],
-                                   key=lambda s: s["date"])
-            if not series_sorted:
-                continue
-            latest = series_sorted[-1]
-            val = _parse_num(latest.get("value"))
-            if val is None:
-                continue
-            history = {s["date"]: _parse_num(s["value"]) for s in series_sorted if _parse_num(s["value"]) is not None}
-            out[key] = {
-                "value":   val,
-                "period":  latest["date"],
-                "desc":    desc,
-                "source":  f"AlphaVantage:{func}",
-                "history": history,
-            }
-            log(f"[AV] {func}: {val} ({latest['date']}) +{len(history)}점")
-        except Exception as e:
-            log(f"[AV] {func} 파싱 오류: {e}")
-        _time.sleep(13)  # AV 분당 5회 → 안전 마진 12초
-    return out
-
-
-def fetch_av_commodity(function):
-    """Alpha Vantage 원자재 가격 (WTI, BRENT, NATURAL_GAS, COPPER, ALUMINUM 등)."""
-    if not ALPHAVANTAGE_API_KEY:
-        return None
-    data = fetch_av_json({"function": function, "interval": "daily"})
-    if not data or not isinstance(data, dict):
-        return None
-    series = data.get("data") or []
-    if not series:
-        return None
-    try:
-        series_sorted = sorted([s for s in series if s.get("date") and s.get("value") and str(s["value"]) != "."],
-                               key=lambda s: s["date"])
-        if len(series_sorted) < 2:
-            return None
-        latest = series_sorted[-1]
-        prev = series_sorted[-2]
-        cur = _parse_num(latest.get("value"))
-        pv  = _parse_num(prev.get("value"))
-        if cur is None or pv is None or pv == 0:
-            return None
-        chg = round((cur - pv) / pv * 100, 2)
-        return {
-            "price":  round(cur, 4),
-            "change": chg,
-            "period": latest["date"],
-            "source": f"AlphaVantage:{function}",
-        }
-    except Exception as e:
-        log(f"[AV] {function} 파싱 오류: {e}")
-        return None
-
-
-def fetch_av_fx(from_sym, to_sym):
-    """Alpha Vantage 실시간 환율 (CURRENCY_EXCHANGE_RATE)."""
-    if not ALPHAVANTAGE_API_KEY:
-        return None
-    data = fetch_av_json({
-        "function": "CURRENCY_EXCHANGE_RATE",
-        "from_currency": from_sym,
-        "to_currency":   to_sym,
-    })
-    if not data:
-        return None
-    try:
-        node = data.get("Realtime Currency Exchange Rate", {})
-        rate = _parse_num(node.get("5. Exchange Rate"))
-        if rate is None:
-            return None
-        return {
-            "rate":   round(rate, 4),
-            "source": "AlphaVantage:CURRENCY_EXCHANGE_RATE",
-            "time":   node.get("6. Last Refreshed"),
-        }
-    except Exception:
+        log(f"[DBnomics] cpi_jp 실패: {e}")
         return None
 
 
@@ -2746,7 +2679,6 @@ def fetch_boe_bank_rate():
 
     1차: FRED OECD 시리즈 IRSTCB01GBM156N (구버전, 일부 시기 누락 가능)
     2차: Bank of England 의 IADB CSV (실시간 정책금리)
-    3차: Alpha Vantage 가 영국 직접 지원이 없으므로 미사용
 
     Returns: {"value", "period", "desc", "source", "history"} 또는 None
     """
@@ -2832,7 +2764,6 @@ PMI_FRED_CANDIDATES = {
         # MANEMP 등의 고용 시리즈는 PMI 대체로 부적합하므로 제외
     ],
     "jp": [
-        ("BSCICP02JPM460S", "일본 제조업 BCI (OECD MEI)"),
         ("BSCICP03JPM665S", "일본 제조업 BCI (OECD CLI, 진폭조정)"),
     ],
     "eu": [
@@ -2848,7 +2779,6 @@ PMI_FRED_CANDIDATES = {
         ("BSCICP03DEM665S", "독일 제조업 BCI (OECD CLI, 진폭조정)"),
     ],
     "cn": [
-        ("BSCICP02CNM460S", "중국 제조업 BCI (OECD MEI)"),
         ("BSCICP03CNM665S", "중국 제조업 BCI (OECD CLI, 진폭조정)"),
     ],
     "kr": [
@@ -4950,7 +4880,6 @@ def fetch_putcall_ratio():
     1) Stooq ^pcc (Total Put/Call Ratio)
     2) CBOE 직접 페이지에서 최신 일별 데이터
     3) yfinance ^PCC
-    4) Alpha Vantage (있는 경우)
 
     또한 과거 시계열을 함께 수집 (history)
     """
@@ -5798,6 +5727,25 @@ def _is_effectively_empty(val):
     return False
 
 
+def _mark_preserved(node):
+    """직전 빌드에서 되살린 값에 preserved 표식을 단다 — 판정표(data_sla)가 '이번 런 미수집'을 읽는다.
+
+    지표 잎(value 보유 dict)엔 직접, 자식이 전부 dict 인 컨테이너(국가·지역)는 내려가 잎마다,
+    그 밖의 덩어리(뉴스·캘린더·수익률곡선 블록)엔 덩어리 자체에 단다. 사본을 돌려준다(prev 불변).
+    preservedAt 은 처음 되살린 시각을 유지한다 — 매 런 덮으면 '언제부터 못 받았나'가 사라진다.
+    이번 런에 새로 받은 잎은 수집 함수가 새 dict 를 만들므로 표식이 붙지 않는다.
+    """
+    if not isinstance(node, dict) or not node:
+        return node
+    if "value" not in node and all(isinstance(v, dict) for v in node.values()):
+        return {k: _mark_preserved(v) for k, v in node.items()}
+    out = dict(node)
+    out["preserved"] = True
+    out["preservedAt"] = ((node.get("preserved") and node.get("preservedAt"))
+                          or datetime.now(KST).isoformat(timespec="seconds"))
+    return out
+
+
 def _preserve_from_prev(data, prev, keys, fresh_label=None):
     """현재 빌드 결과가 비어 있을 때 이전 빌드의 값을 보존.
 
@@ -5848,7 +5796,7 @@ def _preserve_from_prev(data, prev, keys, fresh_label=None):
             # 이전 값도 비어있으면 (또는 effectively empty) 보존할 이유 없음
             if pcur is None or _is_effectively_empty(pcur):
                 continue
-            par[parent_key] = pcur
+            par[parent_key] = _mark_preserved(pcur)
             preserved += 1
             # 보존된 소스 메타 라벨링 — 단일 hop 으로만 표기 (무한 누적 방지).
             # 직전 라벨이 이미 "보존 ← 보존 ← … (ts)(ts)" 로 쌓였으면 원본 소스만 추출해 1회만 감싼다.
@@ -5897,13 +5845,13 @@ def _restore_missing_metrics(cur_node, prev_node):
             # 지표 leaf — 현재 누락/빈값이고 직전이 유효하면 복원
             cur_empty = (k not in cur_node) or _is_effectively_empty(cv)
             if cur_empty and not _is_effectively_empty(pv):
-                cur_node[k] = pv
+                cur_node[k] = _mark_preserved(pv)
                 restored += 1
         elif isinstance(pv, dict):
             # 중첩 컨테이너(국가 등) — 현재에 없으면 통째로, 있으면 한 단계 재귀
             if not isinstance(cv, dict):
                 if not _is_effectively_empty(pv):
-                    cur_node[k] = pv
+                    cur_node[k] = _mark_preserved(pv)
                     restored += 1
             else:
                 restored += _restore_missing_metrics(cv, pv)
@@ -5955,7 +5903,7 @@ def _preserve_indicators_deep(data, prev, container_keys, fresh_label="이전 �
         if not isinstance(cur, dict):
             # 컨테이너 자체가 통째로 비었으면 직전 것으로 (방어적)
             if not _is_effectively_empty(pcur):
-                data[ck] = pcur
+                data[ck] = _mark_preserved(pcur)
                 total += 1
             continue
         n = _restore_missing_metrics(cur, pcur)
@@ -6080,6 +6028,51 @@ def _reconcile_history_with_spot(data, now):
         log(f"[reconcile] 차트 끝점 ↔ spot 동기화: {synced}개 시계열 (기준 {target_date})")
         data.setdefault("diagnostics", {})["historySpotSynced"] = synced
     return synced
+
+
+SOURCE_ALERT_RUNS = 100   # 풀 런 약 3일치 — 이만큼 연달아 전부 실패하면 제외 후보로 한 번 알린다
+
+
+def _source_status(snapshot, prev_ss):
+    """호스트별 이번 런 기록 + 연속 전면 실패 런 수(consecutiveFailRuns).
+
+    이번 런에 한 번도 안 부른 호스트(일일 런 전용 등)는 증거가 없으니 직전 기록을 그대로 둔다 —
+    0 으로 되돌리면 일일 전용 원천은 영영 누적되지 않는다. alertedAt 은 실패가 이어지는 동안만
+    이어받아, 회복 뒤 다시 죽으면 한 번 더 알린다.
+    ponytail: 영구히 안 부르게 된 호스트도 직전 기록이 남는다 — 쌓이면 lastCallAt 을 두고 N일 뒤 지운다.
+    """
+    prev_ss = prev_ss if isinstance(prev_ss, dict) else {}
+    out = {}
+    for host in sorted(set(snapshot) | set(prev_ss)):
+        st, p = snapshot.get(host), prev_ss.get(host) or {}
+        if not st or not st.get("calls"):
+            out[host] = p
+            continue
+        streak = (p.get("consecutiveFailRuns") or 0) + 1 if st["fails"] >= st["calls"] else 0
+        rec = {"calls": st["calls"], "fails": st["fails"],
+               "lastOkAt": st.get("lastOkAt") or p.get("lastOkAt"),
+               "lastError": (st.get("lastError") or "")[:120] or None,
+               "consecutiveFailRuns": streak}
+        if streak and p.get("alertedAt"):
+            rec["alertedAt"] = p["alertedAt"]
+        out[host] = rec
+    return out
+
+
+def _alert_dead_sources(ss):
+    """연속 전면 실패가 SOURCE_ALERT_RUNS 이상인데 아직 안 알린 원천을 #시스템 채널로 한 번 알린다.
+    전송이 성공했을 때만 alertedAt 을 찍는다 — 웹훅 미설정이면 조용히 넘어가고 다음 런에 다시 시도."""
+    for host, rec in ss.items():
+        if (rec.get("consecutiveFailRuns") or 0) < SOURCE_ALERT_RUNS or rec.get("alertedAt"):
+            continue
+        try:
+            import notify_discord
+            ok = notify_discord.system(
+                f"원천 {host} 3일 이상 연속 실패 — 제외 후보 (마지막 오류: {rec.get('lastError') or '—'})")
+        except Exception:
+            ok = False
+        if ok:
+            rec["alertedAt"] = datetime.now(KST).isoformat(timespec="seconds")
 
 
 def build_data():
@@ -6776,44 +6769,11 @@ def build_data():
     else:
         log("[FRED] API 키 없음 — 미국 지표 건너뜀")
 
-    # ── Alpha Vantage 보강 (미국 지표 cross-check + 원자재 보강) ──
-    # 일 25회 한도라 09:00/22:00 KST 일일 갱신 시점에만 호출.
-    # AV_FETCH_FULL=1 환경변수가 있거나 매시간 cron 이 아닌 일일 트리거인 경우 활성.
-    av_mode = os.environ.get("AV_FETCH_FULL", "").strip()
-    now_hour_utc = datetime.now(timezone.utc).hour
-    # UTC 00:00 (KST 09:00) 또는 UTC 13:00 (KST 22:00) ±30분 윈도우면 자동 활성
-    is_daily_window = now_hour_utc in (0, 13)
-    if ALPHAVANTAGE_API_KEY and (av_mode in ("1", "true", "yes") or is_daily_window):
-        log(f"[AV] Alpha Vantage 보강 모드 활성 (hour_utc={now_hour_utc}, mode={av_mode or 'auto'})")
-        try:
-            av_us = fetch_av_us_economic()
-            if av_us:
-                data["economicIndicators"].setdefault("us", {}).update(av_us)
-                data["sources"]["av_us"] = "Alpha Vantage (US 경제지표 cross-check)"
-                log(f"[AV] US 지표 {len(av_us)}개 보강")
-        except Exception as e:
-            log(f"[AV] US 보강 오류: {e}")
-        # 원자재 보강 — WTI/BRENT/COPPER/ALUMINUM 의 일일 가격
-        try:
-            for func, key in [("WTI", "WTI"), ("BRENT", "Brent"),
-                              ("COPPER", "Copper"), ("ALUMINUM", "Aluminum"),
-                              ("NATURAL_GAS", "NaturalGas")]:
-                # 기존 가격이 비어있거나 변동률이 0인 경우만 보강
-                cur = data.get("commodities", {}).get(key) or {}
-                if cur.get("price") and cur.get("change") not in (None, 0) and not cur.get("stale"):
-                    continue
-                av_com = fetch_av_commodity(func)
-                if av_com:
-                    data.setdefault("commodities", {})[key] = {
-                        "price":  av_com["price"],
-                        "change": av_com["change"],
-                    }
-                    data["sources"].setdefault(f"commodity_{key}", av_com["source"])
-                    log(f"[AV] {key} ({func}): {av_com['price']} ({av_com['change']:+.2f}%)")
-        except Exception as e:
-            log(f"[AV] 원자재 보강 오류: {e}")
-    else:
-        log(f"[AV] 보강 비활성 (현재시각 KST 09/22시 ±30분 또는 AV_FETCH_FULL=1 시 활성)")
+    # 일본 CPI — 무인증 소스라 FRED 키 게이트 밖에 둔다. 실패하면 preserve-deep 이 직전 값을 되살린다.
+    _cpi_jp = fetch_dbnomics_cpi_jp()
+    if _cpi_jp:
+        data["economicIndicators"].setdefault("jp", {})["cpi_jp"] = _cpi_jp
+
 
     # ── ECOS 경제 지표 (한국은행) ─────────────────────────────
     if ECOS_API_KEY:
@@ -6842,7 +6802,7 @@ def build_data():
                 if isinstance(prev, dict):
                     prev_retail = ((prev.get("economicIndicators") or {}).get("kr") or {}).get("retail_kr")
                 if isinstance(prev_retail, dict) and prev_retail.get("value") is not None:
-                    data["economicIndicators"]["kr"]["retail_kr"] = prev_retail
+                    data["economicIndicators"]["kr"]["retail_kr"] = _mark_preserved(prev_retail)
                     data["sources"]["retail_kr_kosis"] = "KOSIS API (101: 통계청) — 직전 값 유지"
                     log("[KOSIS] API 호출 실패 - 기존 데이터 유지 (직전 retail_kr 복원)")
                 else:
@@ -6960,7 +6920,7 @@ def build_data():
         _kept = [k for k, v in _prev_re.items() if k not in re_data and isinstance(v, dict)
                  and str(v.get("source", "")).startswith("R-ONE")]
         for k in _kept:
-            re_data[k] = _prev_re[k]
+            re_data[k] = _mark_preserved(_prev_re[k])
         if _kept:
             data["sources"]["realestate_kr"] = "이전 빌드 보존 ← R-ONE (이번 런 연결 실패)"
             log(f"[R-ONE] 연결 실패 — 직전 R-ONE 값 {len(_kept)}개 유지: {_kept}")
@@ -7216,7 +7176,7 @@ def build_data():
             # 으로 건너뛰므로 이중 복원 없음.
             _vk_prev = ((prev or {}).get("sentiment") or {}).get("vkospi")
             if isinstance(_vk_prev, dict) and _vk_prev:
-                _vk = dict(_vk_prev)
+                _vk = _mark_preserved(_vk_prev)
                 data.setdefault("sentiment", {})["vkospi"] = _vk
                 data.setdefault("sources", {})["vkospi"] = f"{_vk.get('source', '?')} (직전 값 보존)"
                 log("[VKOSPI] 수집 실패 — 직전 빌드 값 선복원 (보조지표 부착용)")
@@ -7423,20 +7383,23 @@ def build_data():
     # preserve-deep 이 '현재 빌드에 없고 prev 에 있는 leaf'를 무조건 복원하므로, 표에서
     # 지워도 직전 data.json 의 묵은 값(일본 CPI 2021-06 등)이 매 런 되살아난다(재현 확인,
     # 2026-08 감사). 모든 preserve 이후인 여기서 명시적으로 제거한다.
-    # 대체 소스가 생기면 이 목록에서 빼면 된다. (eu 실업률·uk/cn CPI 는 intl_sources 가
-    # 같은 키를 다시 채우므로 묘비 대상이 아니다.)
+    # 대체 소스가 생기면 이 목록에서 빼면 된다. (eu 실업률·uk/cn CPI 는 intl_sources 가,
+    # 일본 CPI 는 DBnomics 가 같은 키를 다시 채우므로 묘비 대상이 아니다.)
     _TOMBSTONED = {
-        "jp": ("cpi_jp", "ip_jp"),   # JPNCPIALLMINMEI(2021-06 종료)·JPNPROINDMISMEI(2024-03 종료), OECD 도 동일 상류
+        # JPNPROINDMISMEI(2024-03 종료), OECD 도 같은 상류. DBnomics 검색에도 최신 계열 없음(2026-09-30).
+        "economicIndicators.jp": ("ip_jp",),
+        # NAHBMMI 는 FRED 400, 폴백 MSACSR 은 다른 지표(재고 개월 수)였다 — 대체 소스 없음.
+        "realestate.us": ("nahb_index",),
     }
     try:
         removed = []
-        ei = data.get("economicIndicators") or {}
-        for cc, mkeys in _TOMBSTONED.items():
-            node = ei.get(cc)
+        for path, mkeys in _TOMBSTONED.items():
+            top, sub = path.split(".")
+            node = (data.get(top) or {}).get(sub)
             if isinstance(node, dict):
                 for mk in mkeys:
                     if node.pop(mk, None) is not None:
-                        removed.append(f"{cc}.{mk}")
+                        removed.append(f"{path}.{mk}")
         if removed:
             log(f"[tombstone] 폐기 지표 제거: {', '.join(removed)} — 프론트는 '—' 표시")
     except Exception as e:
@@ -7458,6 +7421,13 @@ def build_data():
     data.setdefault("diagnostics", {})["toss"] = toss_connection_status(data.get("sources"))
     if requests.dead:
         data["diagnostics"]["deadHosts"] = sorted(requests.dead)
+    try:
+        _ss = _source_status(requests.status_snapshot(),
+                             ((prev or {}).get("diagnostics") or {}).get("sourceStatus"))
+        _alert_dead_sources(_ss)
+        data["diagnostics"]["sourceStatus"] = _ss
+    except Exception as e:
+        log(f"[sourceStatus] 기록 오류 (무시): {e}")
 
     return data
 
@@ -8648,7 +8618,7 @@ if __name__ == "__main__":
         ("NaverSearch", NAVER_CLIENT_ID),
     ]:
         if key:
-            log(f"[{name}] API 키 설정됨 ({key[:4]}...{key[-4:]})")
+            log(f"[{name}] API 키 설정됨")
         else:
             log(f"[{name}] API 키 없음")
     # 추가 상태 로그 — 어떤 데이터 소스가 활성/비활성인지 명확히
@@ -8705,4 +8675,4 @@ if __name__ == "__main__":
     log(f"[RESULT] etfMovers:   {d['diagnostics'].get('etfMoversSource','-')}")
     news = d.get("news", {})
     total_news = sum(len(v) for k, v in news.items() if k != "lastFetched" and isinstance(v, list))
-    log(f"[RESULT] news:        {total_news}건 ({len([k for k,v in news.items() if k != 'lastFetched' and v])}/16 카테고리)")
+    log(f"[RESULT] news:        {total_news}건 ({len([v for v in news.values() if isinstance(v, list) and v])}/16 카테고리)")
