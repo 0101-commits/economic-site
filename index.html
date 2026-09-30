@@ -3014,13 +3014,6 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 </span>
                 <span class="seed-list-item__suffix econ-row__suffix"><span id="dashMove" class="econ-row__val">—</span></span>
               </button>
-              <button type="button" class="seed-list-item__root econ-row" onclick="showSentimentDetail('pcr')">
-                <span class="seed-list-item__content">
-                  <span class="seed-list-item__title">Put/Call Ratio</span>
-                  <span class="seed-list-item__detail">옵션 심리 · 배수</span>
-                </span>
-                <span class="seed-list-item__suffix econ-row__suffix"><span id="dashPcr" class="econ-row__val">—</span></span>
-              </button>
               <button type="button" class="seed-list-item__root econ-row" onclick="showSentimentDetail('hy_spread')">
                 <span class="seed-list-item__content">
                   <span class="seed-list-item__title">HY Spread</span>
@@ -4776,16 +4769,6 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           <div class="widget">
             <h3 class="widget-title">주택 공급·임대 지표</h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
-              <button type="button" onclick="showReHistoryChart('conversion_rate_kr','전월세전환율 (전국)',{unit:'%'})" style="border-left:3px solid #f5a623;" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
-                <div>
-                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">전월세전환율 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
-                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: %</div>
-                </div>
-                <div style="text-align:right;">
-                  <div id="krReConversion" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
-                  <div id="krReConversionChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">수집 중</div>
-                </div>
-              </button>
               <button type="button" onclick="showReHistoryChart('start_kr','주택 착공 (Starts)',{unit:'호 (가구 수)'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
                   <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (Starts) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>

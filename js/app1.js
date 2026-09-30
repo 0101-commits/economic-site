@@ -6539,52 +6539,27 @@ function ensoMacroHTML(phaseKey, live) {
 // title 속성 등에 들어갈 문자열의 큰따옴표만 무력화(노트엔 보통 " 없음 — 방어).
 function _ensoAttr(s){ return (s||'').split('"').join('&quot;'); }
 
-// 'MJJ 2026' → "MJJ'26" (x축 라벨 압축). 형식이 다르면 원문 그대로.
-function ensoSeasonShort(s){
-  const m = /^([A-Z]{3})\s*(\d{4})$/.exec(s || '');
-  return m ? `${m[1]}'${m[2].slice(2)}` : (s || '');
-}
-// ONI 기온 추이(실측 차트) + 공식 예측 패널.
-// 공식 예측: data.json.climate.enso.forecast(실측 CPC/IRI 확률표 파싱)가 있으면
-// 인터랙티브 누적막대 차트로, 없으면 기존 NOAA 원본 이미지로 폴백(무회귀).
-// 캔버스는 innerHTML 후 buildEnsoTrendChart / buildEnsoForecastChart 가 채운다.
+// ONI 기온 추이(실측 차트) + 공식 예측 이미지 패널(NOAA CPC 확률 PNG · CFSv2 플룸 GIF).
+// 확률표 차트는 지표 제외(D1) — 원본 이미지로만 보여준다. 캔버스는 innerHTML 후 buildEnsoTrendChart 가 채운다.
 function ensoTrendForecastHTML(live){
   const yr = new Date().getFullYear();
   const cpc = cpcProbUrl(yr);
   const plume = 'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/imagesInd3/nino34Mon.gif';
   const cpcPage = 'https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/probabilities/';
   const plumePage = 'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/';
-  const hasFc = !!(live && live.forecast && Array.isArray(live.forecast.seasons) && live.forecast.seasons.length);
   const img = (src,cap,page)=>`<figure style="margin:0;flex:1;min-width:210px;">
       <figcaption style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:3px;">${cap}</figcaption>
       <img src="${src}" loading="lazy" referrerpolicy="no-referrer" alt="${cap}" style="max-width:100%;border:1px solid var(--c-border);border-radius:var(--r-xs);display:block;"
            onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
       <a href="${page}" target="_blank" rel="noopener noreferrer" style="display:none;font-size:var(--font-size-sm);color:var(--c-primary);">이미지 불러오기 실패 — 원본 보기 ↗</a>
     </figure>`;
-  // 공식 예측 블록 — 실측 확률 데이터 유무로 분기.
-  const chip = (c,t)=>`<span><span style="display:inline-block;width:10px;height:10px;background:${c};border-radius:2px;vertical-align:-1px;"></span> ${t}</span>`;
-  let forecastBlock;
-  if (hasFc) {
-    forecastBlock = `
-    <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">공식 예측 <span style="font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">(NOAA CPC·IRI 확률 — 향후 분기별 국면 전망)</span></div>
-    <div class="h-230" style="position:relative;margin-bottom:6px;"><canvas role="img" aria-label="엘니뇨·라니냐 공식 예측 차트" id="ensoForecastChart"></canvas></div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:6px;">
-      ${chip(window.CDN,'엘니뇨')}${chip('#8b90a8','중립')}${chip(getThemeColors().accent,'라니냐')}
-      <span>막대=각 분기 확률 합 100% · 막대 클릭/hover=상세</span>
-    </div>
-    <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:14px;">
-      ※ 향후 9개 중첩 3개월 시즌의 국면 확률(CPC/IRI 공식 합의 예측). 원본:
-      <a href="${cpcPage}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">CPC 확률 ↗</a> ·
-      <a href="${plumePage}" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">CFSv2 Niño3.4 플룸 ↗</a>
-    </div>`;
-  } else {
-    forecastBlock = `
+  // 공식 예측 블록 — 원본 이미지(확률 PNG·수치 플룸 GIF)만.
+  const forecastBlock = `
     <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">공식 예측 <span style="font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">(NOAA CPC 확률 · CFSv2 모델)</span></div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
       ${img(cpc,'🇺🇸 NOAA CPC · 엘니뇨/중립/라니냐 확률 예측',cpcPage)}
       ${img(plume,'🇺🇸 NOAA CFSv2 · Niño3.4 수치 예측',plumePage)}
     </div>`;
-  }
   return `<div style="margin-bottom:14px;">
     <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">ONI 기온 추이 <span style="font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">(실측 · 최근 10년)</span></div>
     <div style="position:relative;height:190px;margin-bottom:6px;"><canvas role="img" aria-label="ONI 지수 추이 차트" id="ensoTrendChart"></canvas></div>
@@ -6595,44 +6570,6 @@ function ensoTrendForecastHTML(live){
     </div>
     ${forecastBlock}
   </div>`;
-}
-
-// 공식 예측 차트 — 시즌(x) × 국면 확률(누적 100% 막대). enso.forecast.seasons 가
-// 있을 때만 그린다. 색: 엘니뇨 빨강 / 중립 회색 / 라니냐 파랑(추이 차트와 동일 규약).
-function buildEnsoForecastChart(live){
-  if(typeof destroyChart==='function') destroyChart('ensoForecastChart');
-  const cv = document.getElementById('ensoForecastChart');
-  if(!cv) return;  // 폴백(이미지) 모드면 캔버스가 없음 — 정상.
-  const seasons = (live && live.forecast && Array.isArray(live.forecast.seasons)) ? live.forecast.seasons : [];
-  if(!seasons.length){
-    if(typeof showNoDataOverlay==='function') showNoDataOverlay('ensoForecastChart','공식 예측 확률 수집 대기 — 다음 일일 수집(CPC) 후 표시됩니다');
-    return;
-  }
-  const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
-  const labels = seasons.map(s=>ensoSeasonShort(s.label));
-  const ds = (key,color,label)=>({ label, data: seasons.map(s=>s[key]),
-    backgroundColor:color, borderWidth:0, stack:'enso', maxBarThickness:38 });
-  charts['ensoForecastChart'] = new Chart(cv, {
-    type:'bar',
-    data:{ labels, datasets:[
-      ds('elnino',window.CDN,'엘니뇨'),
-      ds('neutral','#8b90a8','중립'),
-      ds('lanina',getThemeColors().accent,'라니냐'),
-    ]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      interaction:{intersect:false, mode:'index'},
-      scales:{
-        x:{ stacked:true, ticks:{color:tc.txt, font:{size:10}, maxRotation:0, autoSkip:false}, grid:{display:false} },
-        y:{ stacked:true, min:0, max:100, ticks:{color:tc.txt, font:{size:10}, stepSize:25, callback:v=>v+'%'}, grid:{color:tc.grid} },
-      },
-      plugins:{
-        legend:{ display:true, position:'bottom', labels:{color:tc.txt, boxWidth:10, boxHeight:10, font:{size:10}, padding:10} },
-        tooltip:{ backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttTitle, borderColor:tc.ttBorder, borderWidth:1,
-          callbacks:{ label:c=>`  ${c.dataset.label}: ${(c.parsed.y!=null?c.parsed.y:0)}%` } },
-      },
-    },
-  });
 }
 
 // 실측 ONI 시계열 차트. 국면대 음영 + ±0.5/0 기준선 + 끝점(현재) 강조. history 없으면 안내(날조 금지).
@@ -6834,7 +6771,7 @@ function _ensoFoldOpen(id, panel) {
   if (id === 'macro') panel.innerHTML = ensoMacroHTML(ensoCurrent, live);
   else if (id === 'basis') panel.innerHTML = s.commodities.map(c =>
     '<div class="econ-dir-row econ-dir-row--sec"><span class="econ-dir-row__name">' + c.name + '</span><span>' + _ensoDirWord(c.dir) + ' · 변동성 ' + (ENSO_VOL_KO[c.vol] || c.vol) + ' — ' + c.note + (c.detail ? '<small>' + c.detail + '</small>' : '') + '</span></div>').join('');
-  else if (id === 'oni') { panel.innerHTML = ensoTrendForecastHTML(live); buildEnsoTrendChart(live); buildEnsoForecastChart(live); }
+  else if (id === 'oni') { panel.innerHTML = ensoTrendForecastHTML(live); buildEnsoTrendChart(live); }
   else if (id === 'agencies') panel.innerHTML = ensoAgencyLinksHTML();
   else if (id === 'compare') panel.innerHTML = ensoCompareHTML(live);
 }
@@ -6851,7 +6788,7 @@ function renderEnsoCard() {
     ? '기준 ONI ' + (live.oni.asOf || '') + (live.nino34_weekly && live.nino34_weekly.weekEnding ? ' · 주간 ' + _ensoMD(live.nino34_weekly.weekEnding) : '') + ' · NOAA CPC'
     : '관측 자료 대기 · NOAA CPC';
   // 본문을 갈아끼우면 접힘 안 캔버스도 사라진다 — Chart 인스턴스를 먼저 지운다.
-  ['ensoTrendChart', 'ensoForecastChart'].forEach(id => { if (typeof destroyChart === 'function') destroyChart(id); });
+  ['ensoTrendChart'].forEach(id => { if (typeof destroyChart === 'function') destroyChart(id); });
   bodyEl.innerHTML = ensoLeadHTML(s, live) + ensoKpisHTML(s, live) + ensoCommoditiesHTML(s) + ensoSectorsHTML(s) + ensoFoldsHTML(s);
   econFoldReapply('ensoFolds');   // 열려 있던 접힘은 다시 펴고 내용도 다시 그린다
 }
@@ -11284,12 +11221,6 @@ function _renderReHistChart() {
     values = [12378, 9542,  11856, 8923,  16320, 10800, 14200, 12500, 15600, 11800, 13900, 11700, 13400];
     dataSource = '내장 시계열 (한국부동산원 주택 착공)';
   }
-  // 8-b) 전월세전환율 폴백 (%) — '주택 인허가' 대체 지표 (R-ONE 실제 제공)
-  if(!values.length && key === 'conversion_rate_kr') {
-    labels = ['23.06','23.09','23.12','24.03','24.06','24.09','24.12','25.03','25.06','25.09','25.12','26.03','26.05'];
-    values = [6.0, 6.1, 6.2, 6.3, 6.4, 6.5, 6.5, 6.6, 6.6, 6.7, 6.7, 6.6, 6.6];
-    dataSource = '내장 시계열 (한국부동산원 전월세전환율, %)';
-  }
   // 9) 미국 주별 HPI 폴백 — FRED 실데이터(case_shiller_state) 미수집 시, 지도에 내장된
   //    history 로라도 차트가 보이게 한다(클릭 시 빈 차트 방지). FRED 연동 후 실데이터로 대체됨.
   if(!values.length && /^case_shiller_[A-Z]{2}$/.test(key) && typeof usRegionData !== 'undefined') {
@@ -11370,7 +11301,7 @@ function _setReHistEmpty(msg) {
 // 사용자가 KPI 카드를 클릭하면 reHistoryChartModal 이 열림.
 // 모달 안의 새로고침 버튼을 누르면 data.json 을 다시 받아서 차트를 다시 그림.
 // _reHistState.key 의 prefix 로 분기:
-//   '__sentiment_*' → fetchSentimentClient (VKOSPI/MOVE/PCR/HY Spread)
+//   '__sentiment_*' → fetchSentimentClient (VKOSPI/MOVE/HY Spread)
 //   '__macro__*'    → data.json 재페치 + _renderReHistChartMacro
 //   기타             → data.json 재페치 + _renderReHistChart (부동산/거시)
 async function refreshReHistoryChart(btn) {
@@ -11607,7 +11538,7 @@ function _loadSentimentCache(name) {
 }
 // 구버전 캐시(v1) 정리 — 합성 fallback 잔재 제거
 try {
-  ['vkospi','move','pcr'].forEach(n => {
+  ['vkospi','move'].forEach(n => {
     try { localStorage.removeItem('econsite_sentiment_'+n+'_v1'); } catch(_){}
   });
 } catch(_){}
@@ -11796,15 +11727,6 @@ async function fetchSentimentClient() {
     const c = _loadSentimentCache('vix');
     if(c) out.vix = { ...c, source: (c.source||'cached') + ' (캐시)' };
   }
-  // 3) Put/Call Ratio — Stooq (^pcc) 우선 (히스토리 포함)
-  try {
-    const txt = await _fetchTextStooq('^pcc');
-    const parsed = _parseStooqCsv(txt, v => v > 0.1 && v < 5);
-    if(parsed) {
-      out.pcr = { ...parsed, source: 'Stooq ^pcc' };
-      _saveSentimentCache('pcr', out.pcr);
-    }
-  } catch(_) {}
   // 4) localStorage 캐시 fallback — 모든 프록시 실패 시 직전 실 데이터 표시
   //    (캐시는 _saveSentimentCache 가 합리적 범위 검증 후 저장한 것만 반환)
   if(!out.vkospi) {
@@ -11814,10 +11736,6 @@ async function fetchSentimentClient() {
   if(!out.move) {
     const c = _loadSentimentCache('move');
     if(c) out.move = { ...c, source: (c.source||'cached') + ' (캐시)' };
-  }
-  if(!out.pcr) {
-    const c = _loadSentimentCache('pcr');
-    if(c) out.pcr = { ...c, source: (c.source||'cached') + ' (캐시)' };
   }
   // 5) CNN Fear & Greed Index — 공식 production.dataviz.cnn.io API
   //    (구 https://production.dataviz.cnn.io/index/fearandgreed/graphdata)
@@ -11883,7 +11801,6 @@ function applySentimentClient(s) {
   };
   merge('vkospi', s.vkospi);
   merge('move',   s.move);
-  merge('pcr',    s.pcr);
   merge('fear_greed', s.fear_greed);
   if(s.vkospi?.value != null) {
     const el = document.getElementById('dashVkospi');
@@ -11929,14 +11846,6 @@ function applySentimentClient(s) {
       el.textContent = s.vix.value.toFixed(2);
       const v = s.vix.value;
       _sentMark(el, v > 25);
-    }
-  }
-  if(s.pcr?.value != null) {
-    const el = document.getElementById('dashPcr');
-    if(el) {
-      el.textContent = s.pcr.value.toFixed(2);
-      const v = s.pcr.value;
-      _sentMark(el, v > 1.1 || v < 0.7);
     }
   }
   // Fear & Greed Index — 데이터 도착 시 카드/도넛 갱신
@@ -12025,26 +11934,6 @@ const SENTIMENT_GUIDES = {
         <li><span style="color:var(--ind-neg);">● 150 이상</span> — 채권 패닉 (2008 금융위기 250+, 2023.03 SVB 사태 200)</li>
       </ul>
       <strong style="color:var(--c-primary);">활용:</strong> MOVE 가 높을수록 채권 금리 급변동 위험. 통화정책 회의 직전 상승 흔함. VIX 와 동반 상승 시 시스템 위험.
-    `,
-  },
-  pcr: {
-    title: 'Put/Call Ratio (옵션 심리)',
-    unit: '배수',
-    source: 'CBOE / Stooq ^pcc (일별)',
-    dataPath: 'sentiment.pcr',
-    color: '#9b59b6',  // 보라색 — 라이트/다크 모드 양쪽에서 명확히 보임
-    guide: `
-      <strong style="color:var(--c-txt);">Put/Call Ratio 란?</strong><br>
-      풋옵션(매도 권리) 거래량 ÷ 콜옵션(매수 권리) 거래량. 시장의 <strong>약세/강세 심리</strong>를 반영하는 역방향 지표입니다.<br><br>
-      <strong>해석 기준:</strong>
-      <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-        <li><span style="color:var(--c-up);">● 0.5 이하</span> — 콜옵션 과열 (극단적 낙관) → <em>역방향 신호: 조정 가능성</em></li>
-        <li><span style="color:var(--c-up);">● 0.5~0.7</span> — 강세 심리 (콜옵션 우세)</li>
-        <li><span style="color:var(--c-txt);">● 0.7~1.0</span> — 균형 / 정상</li>
-        <li><span style="color:var(--c-warn);">● 1.0~1.2</span> — 약세 심리 (풋옵션 우세, 헷지 수요 ↑)</li>
-        <li><span style="color:var(--c-down);">● 1.2 이상</span> — 극단적 약세 → <em>역방향 신호: 단기 바닥 가능성</em></li>
-      </ul>
-      <strong style="color:var(--c-txt);">활용:</strong> 역방향 지표 — PCR 이 극단치(매우 높음/매우 낮음)일 때 단기 추세 반전 신호로 활용. 일별 변동성 크므로 5일 이동평균 권장.
     `,
   },
   hy_spread: {
@@ -12381,7 +12270,7 @@ function showSentimentDetail(key) {
     const d = _latestDataForIndicators || {};
     const node = (typeof getDataByPath === 'function') ? getDataByPath(d, guide.dataPath) : null;
     const hasHistory = node && node.history && typeof node.history === 'object' && Object.keys(node.history).length > 1;
-    if(!hasHistory && (key === 'vkospi' || key === 'move' || key === 'pcr' || key === 'fear_greed')) {
+    if(!hasHistory && (key === 'vkospi' || key === 'move' || key === 'fear_greed')) {
       // 노트에 로딩 표시
       const noteEl = document.getElementById('reHistNote');
       if(noteEl && noteEl.textContent.includes('데이터 없음')) {
@@ -12430,7 +12319,7 @@ function _renderReHistChartSentiment(guide) {
   const uniqueValues = new Set(values).size;
   if(labels.length < 2 || uniqueValues < 2) {
     if(noteEl) {
-      const isSentimentClientKey = ['vkospi','move','pcr','fear_greed'].some(k => (guide.dataPath||'').endsWith(k));
+      const isSentimentClientKey = ['vkospi','move','fear_greed'].some(k => (guide.dataPath||'').endsWith(k));
       if(isVkospi && node?.value != null && (!_isValidVkospi(node.value) || !_vkospiXvalid)) {
         const _xMsg = !_isValidVkospi(node.value) ? `합리적 범위 벗어남(${node.value})`
           : `VIX(${_vkospiVix.toFixed(1)}) 대비 비율 이상(${(node.value/_vkospiVix).toFixed(2)}x — 스크래핑 오염 의심)`;
@@ -13274,21 +13163,12 @@ function applyRealData(d) {
       _sentCaption('dashMove', sentiment.move.as_of, '미 채권 변동성 · 지수');
     }
   }
-  if (sentiment.pcr?.value != null) {
-    const el = document.getElementById('dashPcr');
-    if(el) {
-      el.textContent = sentiment.pcr.value.toFixed(2);
-      const v = sentiment.pcr.value;
-      _sentMark(el, v > 1.1 || v < 0.7);
-      _sentCaption('dashPcr', sentiment.pcr.as_of, '옵션 심리 · 배수');
-    }
-  }
   // ── 수집 실패로 이전 빌드 값이 보존된 경우 '이전 값 유지' 배지 표시 (멱등) ──
   try {
     // 심리지표 출처 라벨은 블록 단위(sources.sentiment)가 아니라 지표별(vkospi·move·pcr·fear_greed)로
     // 적힌다 — 종전엔 없는 키를 봐서 배지가 절대 켜지지 않았다. 판정표의 preserved 도 본다.
     const _src = d.sources || {};
-    const stale = ['sentiment', 'vkospi', 'move', 'pcr', 'fear_greed'].some(k => /보존|preserved/i.test(String(_src[k] || '')))
+    const stale = ['sentiment', 'vkospi', 'move', 'fear_greed'].some(k => /보존|preserved/i.test(String(_src[k] || '')))
                || ((d.dataHealth || {}).items || []).some(it => /^sentiment\./.test(it.path || '') && it.state === 'preserved');
     const tEl = document.getElementById('sentimentTitle');
     if(tEl) {
@@ -13447,10 +13327,6 @@ function applyRealData(d) {
   }
   if (reKr.unsold_kr) {
     setKrReCard('krReUnsold', null, null, reKr.unsold_kr, v=>v?.toLocaleString()+'호');
-  }
-  // 전월세전환율 (R-ONE) — '주택 인허가'(R-ONE 미제공) 대체 지표. 단위 %.
-  if (reKr.conversion_rate_kr) {
-    setKrReCard('krReConversion', 'krReConversionChg', null, reKr.conversion_rate_kr, v=>(v!=null? v.toFixed(1)+'%':'—'));
   }
   if (reKr.start_kr) {
     setKrReCard('krReStart', 'krReStartChg', null, reKr.start_kr, v=>v?.toLocaleString());
@@ -13691,15 +13567,18 @@ function _healthChipHtml() {
   if (!h || !h.summary) return '';
   const s = h.summary;
   // 보존 = 이번 수집이 실패해 직전 값을 보여주는 중(현재가 포함) — 숫자는 멀쩡해 보이므로 센다.
-  const bad = (s.stale || 0) + (s.failed || 0) + (s.missing || 0) + (s.preserved || 0);
+  // 검증 필요 = 범위 밖 값(state 'suspect'). 요약에 없으면 항목에서 센다.
+  const suspect = s.suspect != null ? s.suspect : (h.items || []).filter(it => it.state === 'suspect').length;
+  const bad = (s.stale || 0) + (s.failed || 0) + (s.missing || 0) + (s.preserved || 0) + suspect;
   if (!bad) return '';
   const col = (s.failed || s.missing || (h.blocking || []).length) ? 'var(--ind-neg)' : 'var(--c-warn,#f0c75e)';
   const label = [s.stale ? '지연 ' + s.stale : '',
                  s.preserved ? '보존 ' + s.preserved : '',
                  s.failed ? '실패 ' + s.failed : '',
-                 s.missing ? '누락 ' + s.missing : ''].filter(Boolean).join(' · ');
+                 s.missing ? '누락 ' + s.missing : '',
+                 suspect ? '검증 필요 ' + suspect : ''].filter(Boolean).join(' · ');
   return ' <button type="button" class="health-chip btn-plain btn-inline" onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
-    ` title="정상 ${s.ok} · 보존 ${s.preserved} · 지연 ${s.stale} · 실패 ${s.failed} · 누락 ${s.missing || 0} — 클릭하면 시스템 진단"` +
+    ` title="정상 ${s.ok} · 보존 ${s.preserved} · 지연 ${s.stale} · 실패 ${s.failed} · 누락 ${s.missing || 0} · 검증 필요 ${suspect} — 클릭하면 시스템 진단"` +
     ` style="color:${col};border:1px solid ${col};border-radius:var(--r-xs);padding:0 6px;margin-left:6px;cursor:pointer;font-size:var(--font-size-xs);">` +
     `${label}</button>`;
 }

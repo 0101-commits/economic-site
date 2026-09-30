@@ -2267,16 +2267,59 @@ function _healthItemsFor(dataPath){
 function _healthWorstFor(dataPath){
   var worst = null;
   var items = _healthItemsFor(dataPath);
-  // 부분 결측은 카드 전체의 결측이 아니다 — climate.enso 가 정상인데 하위 climate.enso.forecast 하나가
-  // missing 이라고 엘니뇨 카드 제목에 '데이터 없음' 칩이 붙었다(실측 2026-09-29). 상위 경로가 ok 인
-  // missing 은 건너뛴다(stale·failed 는 그대로 — 그건 있는 자료가 늦거나 깨진 것이다).
-  var okPaths = items.filter(function(it){ return it.state === 'ok' && it.path; }).map(function(it){ return it.path; });
   items.forEach(function(it){
     if(it.state !== 'stale' && it.state !== 'failed' && it.state !== 'missing') return;
-    if(it.state === 'missing' && okPaths.some(function(p){ return (it.path || '').indexOf(p + '.') === 0; })) return;
     if(!worst || (it.ageDays || 9999) > (worst.ageDays || 9999)) worst = it;
   });
-  return worst;
+  if(worst) return worst;
+  // 늦거나 깨진 것이 없어도 값 자체가 의심스럽거나(범위 밖) 직전 값이면 알린다 —
+  // 숫자는 멀쩡해 보여서 사용자가 스스로는 알 수 없다. 검증 필요가 이전 값보다 먼저.
+  return items.filter(function(it){ return it.state === 'suspect'; })[0]
+      || items.filter(function(it){ return it.state === 'preserved' || it.preserved === true; })[0]
+      || null;
+}
+/* 판정표 항목 → 칩 문구·툴팁·색. 정상이면 null(침묵). suspect=범위 밖 값(reason 이 툴팁),
+   preserved=이번 수집이 실패해 직전 값을 보여주는 중. 색은 기존 경고 토큰만 쓴다. */
+function _healthChipSpec(it){
+  if(!it) return null;
+  var warn = 'var(--c-warn,#f0c75e)', bad = 'var(--ind-neg)';
+  if(it.state === 'suspect') return { text: '검증 필요', color: warn, tip: (it.reason || '범위 밖 값') };
+  if(it.state === 'stale')   return { text: '지연 ' + it.ageDays + '일', color: warn, tip: '' };
+  if(it.state === 'failed')  return { text: '수집 실패', color: bad, tip: '' };
+  if(it.state === 'missing') return { text: '데이터 없음', color: bad, tip: '' };
+  if(it.state === 'preserved' || it.preserved === true) return { text: '이전 값', color: warn, tip: '이번 수집이 실패해 직전 값을 보여줍니다' };
+  return null;
+}
+function _healthChipEl(it, cls){
+  var sp = _healthChipSpec(it);
+  if(!sp) return null;
+  var chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = cls + ' btn-plain btn-inline';
+  chip.style.color = sp.color;
+  chip.textContent = sp.text;
+  chip.title = (sp.tip ? sp.tip + ' — ' : '') + it.path + ' — 기준일 ' + (it.asOf || '미상') + ' · 클릭하면 시스템 진단';
+  chip.addEventListener('click', function(ev){
+    ev.stopPropagation();
+    try { showPage('settings'); setTimeout(runDiagnostics, 300); } catch(_) {}
+  });
+  return chip;
+}
+// 한국 부동산 카드는 위젯 제목이 아니라 값 칸(id)이 지표 하나다 — 값 칸 → 판정표 경로.
+var _KR_RE_HEALTH = { krReAptSaleVal:'realestate.kr.apt_price_idx_kr', krReAptJnsVal:'realestate.kr.jns_price_idx_kr',
+  krReTradeCnt:'realestate.kr.trade_count_kr', krReUnsold:'realestate.kr.unsold_kr', krReStart:'realestate.kr.start_kr' };
+function applyKrReHealthChips(){
+  Object.keys(_KR_RE_HEALTH).forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    var old = el.parentNode.querySelector('.w-fresh-chip[data-for="' + id + '"]');
+    if(old) old.remove();
+    var it = _healthWorstFor(_KR_RE_HEALTH[id]);
+    var chip = it ? _healthChipEl(it, 'w-fresh-chip') : null;
+    if(!chip) return;
+    chip.dataset['for'] = id;
+    el.parentNode.appendChild(chip);
+  });
 }
 /* 정상인 지표의 데이터 기준일 — 판정표가 준 as-of 중 가장 늦은 것. 없으면 null
    (그때만 전역 수집 시각으로 내려간다). */
@@ -2318,19 +2361,11 @@ function applyWidgetFreshChips(root){
     // 그 지표의 as-of 로 새긴다(툴팁·data-asof).
     if(!worst) { _stampAsOf(t, row ? _healthAsOfFor(row.data) : null, row ? '데이터 기준일' : ''); return; }
     _stampAsOf(t, worst.asOf, worst.state === 'stale' ? ('지연 ' + worst.ageDays + '일') : worst.state);
-    var chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'w-fresh-chip btn-plain btn-inline';
-    chip.style.color = worst.state === 'stale' ? 'var(--c-warn,#f0c75e)' : 'var(--ind-neg)';
-    chip.textContent = worst.state === 'stale' ? ('지연 ' + worst.ageDays + '일')
-                     : worst.state === 'failed' ? '수집 실패' : '데이터 없음';
-    chip.title = worst.path + ' — 기준일 ' + (worst.asOf || '미상') + ' · 클릭하면 시스템 진단';
-    chip.addEventListener('click', function(ev){
-      ev.stopPropagation();
-      try { showPage('settings'); setTimeout(runDiagnostics, 300); } catch(_) {}
-    });
+    var chip = _healthChipEl(worst, 'w-fresh-chip');
+    if(!chip) { _stampAsOf(t, row ? _healthAsOfFor(row.data) : null, '데이터 기준일'); return; }
     t.appendChild(chip);
   });
+  try { applyKrReHealthChips(); } catch(_) {}  // 부동산 카드는 제목이 아니라 값 칸 기준
 }
 
 
