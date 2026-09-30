@@ -275,8 +275,30 @@ _SPOT_TOPS = ("indices", "commodities", "fx")
 _EXPECTED_TOPS = ("berkshire", "lmeInventory",
                   # 프런트가 읽는데 수집 실패 시 키째 사라지는 경로(2026-09-24 감사 F6) — 화면에서는
                   # 빈 카드·시드값 지도·안 그려지는 차트로 보였고 판정표에는 흔적이 없었다.
-                  "sentiment.pcr", "realestate.kr.region", "realestate.kr.region_sub",
-                  "climate.enso.forecast")
+                  # 2026-09-30 사용자 결정(D1): sentiment.pcr · realestate.kr.conversion_rate_kr ·
+                  # climate.enso.forecast 는 원천이 없거나 화면 필수가 아니라 기대 목록에서 뺐다
+                  # (없는 걸 매 런 '실종'으로 세면 경고가 상시라 진짜 실종이 묻힌다).
+                  "realestate.kr.region", "realestate.kr.region_sub")
+
+# ── 합리 범위표 (A9) ───────────────────────────────────────────────────────
+# (glob 경로, 하한, 상한, 하루 최대 변화율 %(없으면 None), 메모). 값이 범위를 벗어나면
+# state="suspect"(검증 필요). 왜: as-of 가 신선해도 값 자체가 엉뚱한 칸(호수 자리의 지수값,
+# 단위가 다른 표)이면 신선도 판정은 ok 로 통과한다 — 2026-09-30 실측: unsold_kr 300,827.99
+# (호수 상한 초과), start_kr 100.44(지수값이 호수 칸에). 차단은 하지 않는다(경고만).
+# 값은 leaf 의 value → price → rate 순, 수익률곡선은 current 리스트 전체를 본다.
+# ⚠ cpi 는 나라마다 단위가 다르다(cn·uk = 전년동월비 %, us·eu·de·kr = 지수 수준 120~334)라
+#   전체 glob 을 걸면 거짓 경보가 난다 — yoy 인 나라만 명시.
+RANGE_RULES = [
+    ("realestate.kr.unsold_kr",         0,     150000, None, "호수 — 표 정의·단위 확인 중"),
+    ("realestate.kr.start_kr",          1000,  200000, None, "호수 — 지수값이 호수 칸에 든 정황"),
+    ("fx.USDKRW",                       800,   2500,   None, "원/달러"),
+    ("indices.KOSPI",                   1000,  10000,  None, "코스피 지수"),
+    ("sentiment.vkospi",                5,     100,    None, "변동성지수"),
+    ("sentiment.fear_greed",            0,     100,    None, "0~100 지수"),
+    ("yieldCurve.*",                    -2,    20,     None, "금리 %"),
+    ("economicIndicators.cn.cpi_*",     -5,    30,     None, "전년동월비 %"),
+    ("economicIndicators.uk.cpi_*",     -5,    30,     None, "전년동월비 %"),
+]
 
 
 def _get_path(data, path):
@@ -314,6 +336,40 @@ def _walk_paths(data):
     return out
 
 
+def _num(x):
+    return x if isinstance(x, (int, float)) and not isinstance(x, bool) else None
+
+
+def _range_checks(data):
+    """RANGE_RULES 위반 {경로: 사유}. 걷기 대상이 아닌 현재가 블록(fx·indices)도 본다."""
+    bad = {}
+
+    def visit(node, path, depth):
+        if not isinstance(node, dict) or depth > 3:
+            return
+        for pat, lo, hi, max_chg, _note in RANGE_RULES:
+            if not fnmatch.fnmatchcase(path, pat):
+                continue
+            cur = node.get("current")
+            vals = [_num(v) for v in cur] if isinstance(cur, list) else \
+                   [next((_num(node.get(k)) for k in ("value", "price", "rate") if _num(node.get(k)) is not None), None)]
+            vals = [v for v in vals if v is not None]
+            why = next((f"{v:g} 가 합리 범위 {lo}~{hi} 밖" for v in vals if not lo <= v <= hi), None)
+            prev, v0 = _num(node.get("prev")), vals[0] if vals else None
+            if not why and max_chg and prev and v0 is not None and abs(v0 - prev) / abs(prev) * 100 > max_chg:
+                why = f"전일 대비 {abs(v0 - prev) / abs(prev) * 100:.1f}% > 하루 상한 {max_chg}%"
+            if why:
+                bad[path] = why
+                return
+        for k, v in node.items():
+            visit(v, f"{path}.{k}", depth + 1)
+
+    for top, node in data.items():
+        if top not in _SKIP_TOPS:
+            visit(node, top, 1)
+    return bad
+
+
 def build_health(data, today=None, sources=None):
     """data.json dict → dataHealth 블록. fetch_data.py 와 validate_data.py 가 공유한다."""
     today = today or date.today()
@@ -326,7 +382,11 @@ def build_health(data, today=None, sources=None):
         cadence = infer_cadence(node, _raw_asof(node))
         top = path.split(".")[0]
         src = sources.get(top) or sources.get(path) or ""
-        preserved = "보존" in str(src)
+        # 보존 판정 두 갈래: sources 라벨의 '보존' 또는 leaf 자체의 preserved 표식(fetch_data 가
+        # 직전 빌드에서 되살린 leaf 에 단다 — 이번 런에 수집되지 않았다는 사실이 as-of 가
+        # SLA 안이라는 이유로 가려지지 않게).
+        leaf_preserved = isinstance(node, dict) and node.get("preserved") is True
+        preserved = "보존" in str(src) or leaf_preserved
         if asof is None:
             state, age = "unknown", None
         elif sla_days is None:
@@ -346,7 +406,7 @@ def build_health(data, today=None, sources=None):
             state = "stale" if age > sla_days else "ok"
         if preserved and state == "ok":
             state = "preserved"
-        items.append({
+        item = {
             "path": path,
             "asOf": asof.isoformat() if asof else None,
             "ageDays": age,
@@ -354,7 +414,10 @@ def build_health(data, today=None, sources=None):
             "tier": tier,
             "state": state,
             "cadence": cadence,
-        })
+        }
+        if leaf_preserved:
+            item["preserved"] = True
+        items.append(item)
 
     # 통째 실종 감지 — 있어야 할 최상위 블록이 키째 없으면 missing
     for path in _EXPECTED_TOPS:
@@ -381,6 +444,16 @@ def build_health(data, today=None, sources=None):
         if it["path"].split(".")[0] in failed_tops:
             it["state"] = "failed"
 
+    # 합리 범위 — 신선해도 값이 엉뚱하면 suspect. failed·missing 은 더 나쁜 상태라 덮지 않는다.
+    by_path = {it["path"]: it for it in items}
+    for path, why in _range_checks(data).items():
+        it = by_path.get(path)
+        if it is None:                       # fx·indices 같은 현재가 블록 — 판정표에 행이 없다
+            it = {"path": path, "asOf": None, "ageDays": None, "sla": None, "tier": "important"}
+            items.append(it)
+        if it.get("state") not in ("failed", "missing"):
+            it["state"], it["reason"] = "suspect", why
+
     counts = {}
     for it in items:
         counts[it["state"]] = counts.get(it["state"], 0) + 1
@@ -396,6 +469,7 @@ def build_health(data, today=None, sources=None):
             "failed": counts.get("failed", 0),
             "unknown": counts.get("unknown", 0),
             "missing": counts.get("missing", 0),
+            "suspect": counts.get("suspect", 0),
         },
         "blocking": blocking,
         "items": sorted(items, key=lambda x: (x["state"] == "ok", x["path"])),
@@ -487,7 +561,9 @@ def _demo():
     assert by["stockMovers.kospiGainers"]["state"] == "failed", by["stockMovers.kospiGainers"]
     assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
     assert by["lmeInventory"]["state"] == "missing", by["lmeInventory"]
-    assert h["summary"]["missing"] == 2 + 4          # berkshire·lme + 화면 공백 경로 4
+    assert h["summary"]["missing"] == 2 + 2          # berkshire·lme + 화면 공백 경로 2(region·region_sub)
+    for gone in ("sentiment.pcr", "climate.enso.forecast", "realestate.kr.conversion_rate_kr"):
+        assert gone not in by, gone                    # 2026-09-30 D1: 기대 목록에서 제외
     # lmeInventory 는 원자 블록 — as_of 로 블록 단위 판정
     assert _extract_asof({"data": [{"cur": 1}], "as_of": "2026-08-03"}) == date(2026, 8, 3)
     # lastFetched(수집 시각)는 as-of 로 인정하지 않는다 — 내용 날짜 items 로 내려가야 함
@@ -500,6 +576,25 @@ def _demo():
     # 추석 휴장+주말 뒤 월요일 아침: 마지막 거래일 9/23 은 달력 5일이지만 평일 3일 → 통과
     sample["history"]["indices"]["KOSPI"] = [{"date": "2026-09-23", "close": 1}]
     assert "history.indices.KOSPI" not in build_health(sample, today=date(2026, 9, 28))["blocking"]
+
+    # 이번 런 미수집(preserved 표식) — as-of 가 SLA 안이어도 preserved, 차단 아님
+    s2 = {"sentiment": {"vkospi": {"as_of": "2026-08-04", "value": 30, "preserved": True}}}
+    h2 = build_health(s2, today=date(2026, 8, 4))
+    v = {i["path"]: i for i in h2["items"]}["sentiment.vkospi"]
+    assert v["state"] == "preserved" and v.get("preserved") is True and h2["summary"]["preserved"] == 1, v
+    assert h2["blocking"] == []
+    # 합리 범위 — 범위 밖은 suspect(사유 포함, 차단 아님). fx 는 걷기 대상이 아니어도 잡힌다
+    s3 = {"realestate": {"kr": {"unsold_kr": {"period": "202608", "value": 300827.99},
+                                "start_kr": {"period": "202608", "value": 100.44}}},
+          "fx": {"USDKRW": {"rate": 5000}}, "indices": {"KOSPI": {"price": 6902.9}},
+          "yieldCurve": {"us": {"current": [4.0, 25.0]}},
+          "sentiment": {"vkospi": {"as_of": "2026-08-04", "value": 44.7}}}
+    h3 = build_health(s3, today=date(2026, 8, 4))
+    b = {i["path"]: i for i in h3["items"]}
+    for p in ("realestate.kr.unsold_kr", "realestate.kr.start_kr", "fx.USDKRW", "yieldCurve.us"):
+        assert b[p]["state"] == "suspect" and b[p]["reason"], (p, b[p])
+    assert "indices.KOSPI" not in b and b["sentiment.vkospi"]["state"] == "ok"
+    assert h3["summary"]["suspect"] == 4 and h3["blocking"] == []
 
     # 독립 파일 신선도 — 없는 파일은 skip(에러 아님)
     res = check_external_files(root="__no_such_dir__")

@@ -217,13 +217,18 @@ def main():
         s = health.get("summary") or {}
         print(f"::notice title=데이터 신선도::ok={s.get('ok')} preserved={s.get('preserved')} "
               f"stale={s.get('stale')} failed={s.get('failed')} unknown={s.get('unknown')} "
-              f"missing={s.get('missing')}")
+              f"missing={s.get('missing')} suspect={s.get('suspect')}")
         for it in health.get("items") or []:
             if it.get("state") in ("stale", "failed"):
                 warns.append(
                     f"{it['path']}: {it['state']} (as-of {it.get('asOf')}, "
                     f"{it.get('ageDays')}일 경과 / SLA {it.get('sla')}일)"
                 )
+        # suspect(합리 범위 밖) 는 경고만 — 원천 정의가 확인되기 전엔 배포를 막지 않는다.
+        # preserved 도 차단 대상이 아니다(blocking 은 critical 의 stale·failed·unknown 만).
+        for it in health.get("items") or []:
+            if it.get("state") == "suspect":
+                warns.append(f"{it['path']}: suspect — {it.get('reason')}")
         for p in health.get("blocking") or []:
             errs.append(f"critical 지표 신선도 위반: {p}")
         # GitHub Actions Job Summary — 사람이 실제로 보는 자리에 표로 남긴다
