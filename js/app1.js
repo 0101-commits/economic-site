@@ -3079,7 +3079,6 @@ function buildUsReCharts() {
     {key:'building_permits',      label:'건축허가'},
     {key:'existing_home_sales',   label:'기존주택판매'},
     {key:'new_home_sales',        label:'신규주택판매'},
-    {key:'nahb_index',            label:'NAHB 지수'},
   ];
   const rows = items.map(it => ({ label: it.label, val: re[it.key]?.chg }))
                     .filter(r => r.val != null && !isNaN(r.val));
@@ -7102,7 +7101,7 @@ function applyMacroDataFromReal(d) {
   const yoy = m => { const out = {}; Object.keys(m).forEach(k => { const [y, mo] = k.split('-'); const p = m[`${+y - 1}-${mo}`]; if(p) out[k] = +((m[k] / p - 1) * 100).toFixed(2); }); return out; };
   const GDP = { kr:'gdp_kr', us:'gdp_growth_us', eu:'gdp_yoy_eu', de:'gdp_yoy_de', uk:'gdp_yoy_uk', jp:'gdp_yoy_jp', cn:'gdp_yoy_cn' };
   const CPI_IDX = { us:'cpi_us', kr:'cpi_kr', eu:'cpi_eu', de:'cpi_de' };       // 지수 → 전년비 계산
-  const CPI_YOY = { cn:'cpi_cn', uk:'cpi_uk' };                                  // 이미 전년비
+  const CPI_YOY = { cn:'cpi_cn', uk:'cpi_uk', jp:'cpi_jp' };                                  // 이미 전년비
   const UNEMP = { us:'unemployment', kr:'unemployment_kr', eu:'unemployment_eu', jp:'unemployment_jp', de:'unemployment_de', uk:'unemployment_uk' };
   const q = {}, mCpi = {}, mUn = {}, mEx = {};
   MACRO_CCS.forEach(cc => {
@@ -7364,8 +7363,8 @@ const macroMeta = {
 // fmt: 값 포맷터 함수
 // unit: 단위/기준 (사용자가 한눈에 확인할 수 있도록 표기)
 const macroIndicators = [
-  // 카드를 지운 지표 3건 — fetch_data 가 수집하지 않아 화면에 영구 '—' 로만 떴다(IA v3 P0).
-  // 되살리려면 수집부터: cn.ip_cn · jp.cpi_jp · jp.ip_jp (FRED OECD MEI / 총무성 계열).
+  // 카드를 지운 지표 2건 — fetch_data 가 수집하지 않아 화면에 영구 '—' 로만 떴다(IA v3 P0). jp.cpi_jp 는 DBnomics 로 복구.
+  // 되살리려면 수집부터: cn.ip_cn · jp.ip_jp (FRED OECD MEI 계열).
   // 한국 (ECOS)
   {name:'GDP 성장률 (전기비)',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',unit:'% (전기비)',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
@@ -7430,7 +7429,6 @@ const macroIndicators = [
    link:'https://finance.yahoo.com/quote/DX-Y.NYB',linkLabel:'Yahoo Finance DXY'},
   {name:'Case-Shiller HPI',cc:'🇺🇸',cat:'부동산',src:'S&P (FRED: CSUSHPINSA)',freq:'월간',unit:'지수 (2000.1=100)',dataPath:'realestate.us.case_shiller_national',fmt:v=>v?.toFixed(1)},
   {name:'30년 모기지',cc:'🇺🇸',cat:'부동산',src:'Freddie Mac (FRED)',freq:'주간',unit:'% (연이율)',dataPath:'realestate.us.mortgage_30y',fmt:v=>v?.toFixed(2)+'%'},
-  {name:'NAHB 주택시장지수',cc:'🇺🇸',cat:'부동산',src:'NAHB (FRED)',freq:'월간',unit:'지수 (50=중립)',dataPath:'realestate.us.nahb_index',fmt:v=>v?.toFixed(0)},
   // 유로존 (FRED 국제 시리즈)
   {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.eu.cpi_eu',fmt:v=>v?.toFixed(2)},
   {name:'GDP 성장률',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.eu.gdp_yoy_eu',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
@@ -7463,6 +7461,9 @@ const macroIndicators = [
     dataPath:'economicIndicators.de.pmi_de',fmt:v=>v?.toFixed(1),
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 일본 (FRED 국제 시리즈)
+  // 값이 이미 전년동월비(%)라 uk/cn 처럼 지수 환산 없이 그대로 표시한다.
+  {name:'소비자물가(전년비)',cc:'🇯🇵',cat:'물가',src:'DBnomics STATJP/CPIm (일본 총무성 통계국)',freq:'월간',unit:'% (전년동월비)',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v==null?'—':(+v).toFixed(1)+'%',
+    link:'https://www.stat.go.jp/english/data/cpi/',linkLabel:'총무성 CPI'},
   {name:'GDP 성장률',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.jp.gdp_yoy_jp',fmt:v=>v==null?'—':(+v).toFixed(1)+'%',
     link:'https://www.esri.cao.go.jp/jp/sna/menu.html',linkLabel:'내각부 발표'},
   {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',unit:'% (15-64세, 계절조정)',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%',
@@ -8595,6 +8596,7 @@ const CAL_BACKFILL_MAP = {
   // 일본
   '일본 GDP (전기비)':           { path: 'economicIndicators.jp.gdp_jp',       fmt: 'mom1', mode: 'mom' },
   '일본 BOJ 금리결정':           { path: 'economicIndicators.jp.base_rate_jp', fmt: 'pct2', mode: null },
+  '일본 CPI (전년비)':           { path: 'economicIndicators.jp.cpi_jp',       fmt: 'pct2', mode: null },
   '일본 제조업 PMI':             { path: 'economicIndicators.jp.pmi_jp',       fmt: 'raw1', mode: null },
   // 중국
   '중국 CPI (전년비)':           { path: 'economicIndicators.cn.cpi_cn',       fmt: 'yoy1', mode: 'yoy' },
@@ -13362,7 +13364,6 @@ function applyRealData(d) {
   }
   setUsKpi('usKpiCaseShiller',   'usKpiCaseShillerChg',   reUs.case_shiller_national, v=>v?.toFixed(1),         {val:'usTableCaseShillerVal',chg:'usTableCaseShillerChg',period:'usTableCaseShillerPeriod'});
   setUsKpi('usKpiMortgage30',    'usKpiMortgage30Chg',    reUs.mortgage_30y,           v=>v?.toFixed(2)+'%',    {val:'usTableMtg30Val',      chg:'usTableMtg30Chg',      period:'usTableMtg30Period'});
-  setUsKpi('usKpiNahb',          'usKpiNahbChg',          reUs.nahb_index,             v=>v?.toFixed(0),         {val:'usTableNahbVal',       chg:'usTableNahbChg',       period:'usTableNahbPeriod'});
   setUsKpi('usKpiHousingStarts', 'usKpiHousingStartsChg', reUs.housing_starts,         v=>v?.toFixed(0)+'K',    {val:'usTableHStVal',        chg:'usTableHStChg',        period:'usTableHStPeriod'});
   // 추가 지표 (KPI 카드 없이 테이블만)
   function setUsTable(data, fmt, ids) {
