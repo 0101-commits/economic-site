@@ -487,7 +487,8 @@ The script **preserves previous values** on partial failure — individual API e
   직전 런에서 `preserved: true` 로 남은 잎이 있는 묶음만 매시 다시 받는다. `diagnostics.macroLane={fetched,carried}`.
   왜: 월간 표를 매시 다시 묻다가 ECOS·R-ONE 이 6런 중 3런 통째 차단됐다(2026-09-30 실측).
 - **KRX Open API 401 은 승인 문제다** — 키(`KRX_API_KEY`)는 등록돼 있고 서비스별 이용신청(KOSPI 지수·파생상품지수·
-  일반상품·ETF)이 승인돼야 한다. 첫 401 뒤 그 런의 KRX 호출은 건너뛴다(`_KRX_AUTH_DENIED`, 런당 25회→1회).
+  일반상품·ETF)이 승인돼야 한다. 이용신청이 서비스별이므로 401 을 받은 **엔드포인트만** 그 런에 다시 부르지 않는다(`_KRX_DENIED`
+  집합 — 전역 플래그로 두면 미승인 /sto/ 401 하나가 /idx/·/gen/·VKOSPI 까지 막는다, 2026-09-30 리뷰).
   ETF 경로는 `/etp/etf_bydd_trd`(`/eto/` 는 404).
 - **ECOS 한국 4종의 정식 표** = GDP `200Y102/10111`(실질·계절조정·전기비), 소매 `901Y100/G0/T3`, 실업률
   `901Y027/I61BC/I28A`(원계열), 가계신용 `151Y001/1000000`. ITEM_CODE2 축이 있는 표는 `"G0/T3"` 처럼 두 코드를 붙여
