@@ -7327,8 +7327,13 @@ def build_data():
             if exim_rates:
                 # USD/KRW 등 주요 통화 추출 (open.er-api 와 cross-check)
                 exim_map = {}
+                # 왜: 새 주소(oapi)는 오류·한도 초과를 [{"result": 2|3|4}] 한 건으로 준다(cur_unit 없음).
+                #   2026-09-30 실측 — 이 레코드에 .upper() 를 걸어 매 런 "'NoneType' … 'upper'" 로 죽었다.
+                rc = next((r.get("result") for r in exim_rates if r.get("cur_unit") is None), None)
+                if rc not in (None, 1):
+                    log(f"[EXIM] 응답 코드 result={rc} (2=DATA 코드 오류·3=인증 오류·4=일일 한도 초과) — 검증 건너뜀")
                 for r in exim_rates:
-                    cur = r.get("cur_unit", "").upper()
+                    cur = (r.get("cur_unit") or "").upper()
                     bas = _parse_num((r.get("deal_bas_r") or "").replace(",", ""))
                     if cur and bas:
                         # cur_unit 이 'JPY(100)' 등 100엔 단위로 오는 경우 환산
