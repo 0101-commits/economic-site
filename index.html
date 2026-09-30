@@ -3872,8 +3872,12 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div class="econ-data" id="equityBreadthRows"></div>
       </div>
 
+      <!-- 접힘 묶음(기획 2026-09-29 §6) — ETF 등락 Top10·거래대금/체결 Top20 은 셋째 층. 1440 에서 4.4화면이던 것을
+           첫 화면 지수·차트·순매매·Top10 + 알약으로 줄인다. 열린 목록은 주소 v= 에 싣는다(ECON_VIEW equity.v). -->
+      <div class="econ-fold" id="eqFolds"></div>
+      <div id="eqFold-etf" class="econ-fold__panel">
       <!-- 상승/하락 Top10 (ETF) — 거래량 데이터 미수집 → 컬럼 생략 -->
-      <div class="g-2" style="margin-top:var(--gap-w);">
+      <div class="g-2">
         <div class="widget">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <h3 class="widget-title" style="margin-bottom:0;">ETF 상승 Top10 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">종목 클릭 → 네이버 증권 · 단위: 원 / %</span></h3>
@@ -3912,8 +3916,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         </div>
       </div>
 
-      <!-- 거래대금·토스 체결 랭킹 (토스증권 Open API — PC 스냅샷, 당일분만) -->
-      <div id="equityRankingsWrap" style="display:none;margin-top:var(--gap-w);" class="pf-stock-2col g-2">
+      </div>
+
+      <!-- 거래대금·토스 체결 랭킹 (토스증권 Open API — PC 스냅샷, 당일분만). 래퍼가 자료 유무로 display 를 켜므로 패널은 그 바깥 -->
+      <div id="eqFold-rank" class="econ-fold__panel">
+      <div id="equityRankingsWrap" style="display:none;" class="pf-stock-2col g-2">
         <div class="widget">
           <h3 class="widget-title" style="margin-bottom:0;">거래대금 Top20 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);margin-left:4px;">시장 전체 · 종목 클릭 → 종목 분석</span></h3>
           <div style="overflow-x:auto;"><table style="font-family:var(--font-num);margin-top:8px;" class="econ-table">
@@ -3928,6 +3935,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <tbody id="equityRankTossTable"></tbody>
           </table></div>
         </div>
+      </div>
       </div>
       </div>
 
@@ -4307,7 +4315,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <div id="calDetailGuide" style="display:none;margin-top:10px;padding:10px 12px;background:var(--c-surface);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);font-size:var(--font-size-sm);color:var(--c-txt);line-height:1.7;"></div>
       </div>
 
-      <div class="widget" style="margin-top:12px;">
+      <!-- 접힘 묶음(기획 2026-09-29 §6) — 관련 뉴스는 셋째 층. 390 에서 3.1화면이던 것을 표 아래 알약 하나로 줄인다.
+           열린 목록은 주소 v= 에 싣는다(ECON_VIEW calendar.v). -->
+      <div class="econ-fold" id="calFolds"></div>
+      <div class="widget econ-fold__panel" id="calFold-news">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <h3 class="widget-title" style="margin-bottom:0;">경제 이벤트 관련 뉴스</h3>
           <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshNews('calendarNewsFeed','calendarNewsItems',this)">새로고침</button>

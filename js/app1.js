@@ -838,7 +838,13 @@ var ECON_VIEW = {
       }
     }
   },
+  calendar: {
+    // v = 열린 접힘 묶음(news) — 관련 뉴스는 셋째 층.
+    v: econFoldViewAxis('calFolds')
+  },
   equity: {
+    // v = 열린 접힘 묶음(etf,rank 쉼표 목록) — ETF 등락 Top10·거래대금/체결 Top20 은 셋째 층.
+    v: econFoldViewAxis('eqFolds'),
     // 지수는 인덱스가 아니라 **버튼 이름**으로 싣는다 — eqData 순서가 바뀌어도 링크가 살아남는다.
     f: {
       get: function () { return econEquityIndexSlug(); },
@@ -5971,8 +5977,10 @@ function buildEquityRankings() {
           || (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators ? _latestDataForIndicators.rankingsKr : null);
   const amtTb = document.getElementById('equityRankAmountTable');
   const tossTb = document.getElementById('equityRankTossTable');
-  if(!rk || (!rk.tradingAmount?.length && !rk.tossAmount?.length)) { wrap.style.display = 'none'; return; }
+  const pill = document.querySelector('#eqFolds [data-fold="rank"]');
+  if(!rk || (!rk.tradingAmount?.length && !rk.tossAmount?.length)) { wrap.style.display = 'none'; if(pill) pill.style.display = 'none'; return; }
   wrap.style.display = 'grid';
+  if(pill) pill.style.display = '';
   const fmtAmt = v => v == null ? '—' : (v >= 1e12 ? (v/1e12).toFixed(1)+'조' : Math.round(v/1e8).toLocaleString()+'억');
   const row = (s, i) => `<tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="equityOpenStockAnalysis('${s.code}','${String(s.name||'').replace(/['"<>\\\\]/g,'')}')" title="종목 분석으로 이동">
       <td style="padding:4px 5px;color:var(--c-txt-muted);">${i+1}</td>
@@ -9050,20 +9058,20 @@ function buildCalendar(){
       ? 'background:rgba(41,98,255,0.10);border-left:3px solid var(--c-accent);border-bottom:1px solid var(--c-border);cursor:pointer;'
       : (surpStyle || 'border-bottom:1px solid var(--c-border);cursor:pointer;');
     const dtCell = isToday
-      ? `<td style="padding:8px;font-weight:var(--font-weight-semibold);color:var(--c-primary);">${calDtText(e)} <span style="font-size:var(--font-size-xs);background:var(--c-accent);color:var(--c-on-accent);padding:1px 5px;border-radius:var(--r-sm);margin-left:4px;font-weight:var(--font-weight-semibold);">오늘</span></td>`
-      : `<td style="padding:8px;">${calDtText(e)}</td>`;
+      ? `<td style="font-weight:var(--font-weight-semibold);color:var(--c-primary);">${calDtText(e)} <span class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_brand-variant_weak">오늘</span></td>`
+      : `<td>${calDtText(e)}</td>`;
     // ★★★ 이벤트만 발표 알림 토글 제공 (Task 2.3) — 구독 상태는 localStorage 기반
     const bellCell = e.stars >= 3
       ? `<td style="text-align:center;padding:4px;"><button onclick="event.stopPropagation();toggleCalAlert(${calIdx},this)" title="${calAlertSubscribed(e) ? '알림 해제' : '발표 시 브라우저 알림 받기 (페이지가 열려 있는 동안)'}" style="background:transparent;border:none;cursor:pointer;font-size:var(--font-size-base);line-height:1;padding:2px;${calAlertSubscribed(e) ? '' : 'opacity:.45;filter:grayscale(1);'}">알림</button></td>`
       : `<td></td>`;
     return `<tr style="${rowStyle}" onclick="showCalendarEventDetail(${calIdx})" title="클릭하여 과거 추이 보기">
       ${dtCell}
-      <td style="text-align:center;padding:8px;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
-      <td style="padding:8px;">${calNameHtml(e)} <span style="font-size:var(--font-size-xs);color:var(--c-primary);">↓</span></td>
-      <td style="text-align:center;padding:8px;color:var(--c-txt-dim);"><button type="button" class="btn-plain btn-inline">${'★'.repeat(e.stars)}</button></td>
-      <td style="text-align:right;padding:8px;color:var(--c-txt-dim);">${e.prev || '—'}</td>
-      <td class="c-opt" style="text-align:right;padding:8px;color:var(--c-primary);">${e.fore || '—'}</td>
-      <td style="text-align:right;padding:8px;white-space:nowrap;" ${actStyle}>${e.act||'예정'}${(surp && surp.big) ? `<span title="매크로 서프라이즈 — 예측 대비 ${surp.diffLabel} (${e.beat===1?'호재':'악재'})" style="margin-left:4px;cursor:help;">⚡</span>` : ''}</td>
+      <td style="text-align:center;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
+      <td>${calNameHtml(e)} <span style="font-size:var(--font-size-xs);color:var(--c-primary);">↓</span></td>
+      <td style="text-align:center;color:var(--c-txt-dim);"><button type="button" class="btn-plain btn-inline">${'★'.repeat(e.stars)}</button></td>
+      <td style="text-align:right;color:var(--c-txt-dim);">${e.prev || '—'}</td>
+      <td class="c-opt" style="text-align:right;color:var(--c-primary);">${e.fore || '—'}</td>
+      <td style="text-align:right;white-space:nowrap;" ${actStyle}>${e.act||'예정'}${(surp && surp.big) ? `<span title="매크로 서프라이즈 — 예측 대비 ${surp.diffLabel} (${e.beat===1?'호재':'악재'})" style="margin-left:4px;cursor:help;">⚡</span>` : ''}</td>
       ${bellCell}
     </tr>`;}).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--c-txt-muted);">해당 조건의 이벤트가 없습니다</td></tr>`;
 
@@ -15822,6 +15830,25 @@ econFoldSetup('comFolds', null, _comFoldOpen);
 (function () {
   var host = document.getElementById('comFolds');
   if (host) host.innerHTML = econFoldHTML('comFolds', [{ id: 'detail', label: '상세 차트·재고·운임', count: 7, panel: 'comFold-detail' }]);
+})();
+// 주식시장 — ETF 등락 Top10·거래대금/체결 Top20 은 셋째 층. 표는 자료가 오면 접힌 채로 채워진다(내용이 가벼워 onOpen 없음).
+// 토스 랭킹은 당일분·수집기 PC 가 켜졌을 때만 있다 — 자료가 없으면 buildEquityRankings 가 알약을 숨긴다(빈 알약을 남기지 않는다).
+econFoldSetup('eqFolds', 'equity', null);
+(function () {
+  var host = document.getElementById('eqFolds');
+  if (!host) return;
+  host.innerHTML = econFoldHTML('eqFolds', [
+    { id: 'etf',  label: 'ETF 상승·하락 Top10',   panel: 'eqFold-etf' },
+    { id: 'rank', label: '거래대금·체결 Top20', panel: 'eqFold-rank' },
+  ]);
+  var rk = host.querySelector('[data-fold="rank"]');
+  if (rk) rk.style.display = 'none';
+})();
+// 경제 일정 — 관련 뉴스는 셋째 층. 피드는 데이터 도착 때 그려진다(글 목록이라 가볍다 — onOpen 없음).
+econFoldSetup('calFolds', 'calendar', null);
+(function () {
+  var host = document.getElementById('calFolds');
+  if (host) host.innerHTML = econFoldHTML('calFolds', [{ id: 'news', label: '관련 뉴스', panel: 'calFold-news' }]);
 })();
 (function () {
   var host = document.getElementById('macroFolds');
