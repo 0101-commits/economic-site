@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 """T4 길이 상한 게이트 — 기획안 v4 10장 「화면 품질 게이트」 표.
 
-글자 수는 파이썬 문자 수(한글 한 글자 = 1)로 센다.
+길이는 표시 폭으로 잰다 — 한글·한자 1칸, 영문·숫자·기호·공백 반 칸(one_liners.width 하나).
+글자 수로 재면 「유로 GDP 성장률」이 10자로 모바일 8칸을 넘는 것처럼 보이지만 화면 폭은 7.5칸이다.
 
-  규칙                         대상                                          상한
-  레지스트리 short             지표 레지스트리 JSON 의 short                  8자(모바일)
-                               short_pc / shortPc                            12자
-  이유 한 줄                   scripts/one_liners.py 의 문장 전부, 없으면      모바일 24자 / PC 44자
-                               bundles/*.json 의 reason · line 필드           (한 값이 24~44면 PC 전용 경고 아님: 모바일 초과로 센다)
-  버튼 바 항목                 bundles/*.json 의 bar / buttons 배열            항목 6자(모바일)/8자(PC), 개수 7개 이하
-  알림 제목                    title_m 18자 · title 30자                      alerts*.json 또는 bundles/alerts*.json
+**상한 표는 이 파일의 LIMITS 한 곳에만 있다.** one_liners(이유 한 줄)·build_bundles(줄임 이름)가 여기서 가져간다.
+
+  규칙            대상                                                 모바일 / PC
+  줄임 이름        bundles/registry*.json 의 shortM(모바일) · short(PC)   8 / 12칸
+  이유 한 줄       bundles/*.json 의 reasonShort·line.mobile·todayLine.mobile(모바일)
+                  reason·line.pc·todayLine.pc(PC), one_liners.py 의 문장 상수   24 / 44칸
+  버튼 바 항목     bundles/*.json 의 bar / buttons 배열(개수 7개 이하)       6 / 8칸
+  알림 제목        alerts*.json 의 title_m(모바일) · title(PC)             18 / 30칸
 
 대상 파일이 아직 없으면 「대상 없음」을 출력하고 통과(종료 코드 0)한다.
 사용: python scripts/check_text_limits.py [--root .]
@@ -23,62 +25,80 @@ import json
 import os
 import sys
 
-ROOT = sys.argv[sys.argv.index("--root") + 1] if "--root" in sys.argv else os.path.join(os.path.dirname(__file__), "..")
-ROOT = os.path.abspath(ROOT)
-sys.stdout.reconfigure(encoding="utf-8")
-fails: list[str] = []
-checked: dict[str, int] = {}
+# (모바일, PC) 칸. 이 표가 단일 원천이다 — 다른 파일에 숫자를 다시 적지 말 것.
+LIMITS = {
+    "short": (8, 12),
+    "reason": (24, 44),
+    "button": (6, 8),
+    "alert_title": (18, 30),
+}
+BUTTON_MAX_COUNT = 7
 
 
-def load(path):
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+def main(argv):
+    root = os.path.abspath(argv[argv.index("--root") + 1] if "--root" in argv
+                           else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    sys.stdout.reconfigure(encoding="utf-8")
+    fails: list[str] = []
+    checked: dict[str, int] = {}
 
+    # 폭 자 = one_liners.width (--root 쪽 파일을 읽는다 — 그 저장소의 자로 잰다)
+    spec = importlib.util.spec_from_file_location("one_liners", os.path.join(root, "scripts", "one_liners.py"))
+    ol = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ol)
+    width = ol.width
 
-def walk(node, fn, where=""):
-    """JSON 을 돌며 (경로, 키, 값) 마다 fn 호출."""
-    if isinstance(node, dict):
-        for k, v in node.items():
-            fn(where, k, v)
-            walk(v, fn, f"{where}/{k}")
-    elif isinstance(node, list):
-        for i, v in enumerate(node):
-            walk(v, fn, f"{where}[{i}]")
+    def load(path):
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
 
+    def walk(node, fn, where=""):
+        """JSON 을 돌며 (경로, 키, 값) 마다 fn 호출."""
+        if isinstance(node, dict):
+            for k, v in node.items():
+                fn(where, k, v)
+                walk(v, fn, f"{where}/{k}")
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk(v, fn, f"{where}[{i}]")
 
-def limit(rule, where, text, mobile, pc=None):
-    if not isinstance(text, str):
-        return
-    checked[rule] = checked.get(rule, 0) + 1
-    n = len(text)
-    if n > (pc if pc is not None else mobile):
-        fails.append(f"{rule}: {where} {n}자 > {pc if pc is not None else mobile}자 「{text[:30]}」")
-    elif pc is not None and n > mobile:
-        fails.append(f"{rule}: {where} {n}자 > 모바일 {mobile}자(PC {pc}자는 만족) 「{text[:30]}」")
+    def limit(rule, where, text, cap):
+        if not isinstance(text, str):
+            return
+        checked[rule] = checked.get(rule, 0) + 1
+        n = width(text)
+        if n > cap:
+            fails.append(f"{rule}: {where} {n:g}칸 > {cap}칸 「{text[:30]}」")
 
+    def json_files(*patterns):
+        out = []
+        for p in patterns:
+            out += glob.glob(os.path.join(root, p))
+        return sorted(set(out))
 
-def json_files(*patterns):
-    out = []
-    for p in patterns:
-        out += glob.glob(os.path.join(ROOT, p))
-    return sorted(set(out))
+    # 1) 줄임 이름 — shortM 이 모바일, short 가 PC(옛 이름 short_pc·shortPc 도 PC 로 본다)
+    m_short, pc_short = LIMITS["short"]
+    for f in json_files("indicators*.json", "bundles/indicators*.json", "bundles/registry*.json"):
+        def reg(where, k, v, f=f):
+            if k == "shortM":
+                limit("줄임 이름(모바일)", f"{os.path.basename(f)}{where}", v, m_short)
+            elif k in ("short", "short_pc", "shortPc"):
+                limit("줄임 이름(PC)", f"{os.path.basename(f)}{where}", v, pc_short)
+        walk(load(f), reg)
 
-
-# 1) 레지스트리 short
-for f in json_files("indicators*.json", "bundles/indicators*.json", "bundles/registry*.json", "app/src/**/registry*.json"):
-    def reg(where, k, v, f=f):
-        if k == "short":
-            limit("레지스트리 short", f"{os.path.basename(f)}{where}", v, 8)
-        elif k in ("short_pc", "shortPc"):
-            limit("레지스트리 short_pc", f"{os.path.basename(f)}{where}", v, 12)
-    walk(load(f), reg)
-
-# 2) 이유 한 줄: one_liners.py 가 있으면 그 문장들, 없으면 bundles 의 reason/line
-ol = os.path.join(ROOT, "scripts", "one_liners.py")
-if os.path.exists(ol):
-    spec = importlib.util.spec_from_file_location("one_liners", ol)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    # 2) 이유 한 줄 — 묶음이 실제로 낸 문장 + one_liners 의 문장 상수
+    m_rs, pc_rs = LIMITS["reason"]
+    for f in json_files("bundles/*.json"):
+        def rs(where, k, v, f=f):
+            at = f"{os.path.basename(f)}{where}/{k}"
+            if k == "reason":
+                limit("이유 한 줄(PC)", at, v, pc_rs)
+            elif k == "reasonShort":
+                limit("이유 한 줄(모바일)", at, v, m_rs)
+            elif k in ("line", "todayLine") and isinstance(v, dict):
+                limit("이유 한 줄(PC)", at + ".pc", v.get("pc"), pc_rs)
+                limit("이유 한 줄(모바일)", at + ".mobile", v.get("mobile"), m_rs)
+        walk(load(f), rs)
 
     def strings(o):
         if isinstance(o, str):
@@ -90,43 +110,45 @@ if os.path.exists(ol):
             for v in o:
                 yield from strings(v)
 
-    for name in dir(mod):
+    for name in dir(ol):
         if name.startswith("_"):
             continue
-        for s in strings(getattr(mod, name)):
-            if len(s) >= 4 and not s.isascii():  # 한글 문장만(상수 키·경로 제외)
-                limit("이유 한 줄", f"one_liners.{name}", s, 24, 44)
-else:
+        for s in strings(getattr(ol, name)):
+            if len(s) >= 4 and not s.isascii():          # 한글 문장만(상수 키·경로 제외)
+                limit("이유 한 줄(문장 상수)", f"one_liners.{name}", s, pc_rs)
+
+    # 3) 버튼 바
+    m_bt, _pc_bt = LIMITS["button"]          # 묶음의 버튼은 이름 하나를 두 폭에 다 쓴다 → 모바일 상한으로 잰다
     for f in json_files("bundles/*.json"):
-        walk(load(f), lambda w, k, v, f=f: limit("이유 한 줄", f"{os.path.basename(f)}{w}/{k}", v, 24, 44)
-             if k in ("reason", "line") else None)
+        def bar(where, k, v, f=f):
+            if k in ("bar", "buttons") and isinstance(v, list):
+                checked["버튼 바 개수"] = checked.get("버튼 바 개수", 0) + 1
+                if len(v) > BUTTON_MAX_COUNT:
+                    fails.append(f"버튼 바 개수: {os.path.basename(f)}{where}/{k} {len(v)}개 > {BUTTON_MAX_COUNT}개")
+                for i, it in enumerate(v):
+                    lab = it if isinstance(it, str) else (it.get("label") if isinstance(it, dict) else None)
+                    limit("버튼 바 항목", f"{os.path.basename(f)}{where}/{k}[{i}]", lab, m_bt)
+        walk(load(f), bar)
 
-# 3) 버튼 바
-for f in json_files("bundles/*.json"):
-    def bar(where, k, v, f=f):
-        if k in ("bar", "buttons") and isinstance(v, list):
-            checked["버튼 바 개수"] = checked.get("버튼 바 개수", 0) + 1
-            if len(v) > 7:
-                fails.append(f"버튼 바 개수: {os.path.basename(f)}{where}/{k} {len(v)}개 > 7개")
-            for i, it in enumerate(v):
-                lab = it if isinstance(it, str) else (it.get("label") if isinstance(it, dict) else None)
-                limit("버튼 바 항목", f"{os.path.basename(f)}{where}/{k}[{i}]", lab, 6, 8)
-    walk(load(f), bar)
+    # 4) 알림 제목
+    m_al, pc_al = LIMITS["alert_title"]
+    for f in json_files("alerts*.json", "bundles/alerts*.json"):
+        def al(where, k, v, f=f):
+            if k == "title_m":
+                limit("알림 제목(모바일)", f"{os.path.basename(f)}{where}", v, m_al)
+            elif k == "title":
+                limit("알림 제목(PC)", f"{os.path.basename(f)}{where}", v, pc_al)
+        walk(load(f), al)
 
-# 4) 알림 제목
-for f in json_files("alerts*.json", "bundles/alerts*.json"):
-    def al(where, k, v, f=f):
-        if k == "title_m":
-            limit("알림 제목(모바일)", f"{os.path.basename(f)}{where}", v, 18)
-        elif k == "title":
-            limit("알림 제목(PC)", f"{os.path.basename(f)}{where}", v, 30)
-    walk(load(f), al)
+    if not checked:
+        print("[textlimits] 대상 없음 — 레지스트리·one_liners·bundles·alerts 파일 어디에도 검사할 필드가 아직 없다. 통과.")
+        return 0
+    print("[textlimits] 검사한 값: " + ", ".join(f"{k} {v}건" for k, v in checked.items()))
+    for msg in fails:
+        print("  위반 " + msg)
+    print(f"위반 {len(fails)}건 → {'실패(종료 코드 1)' if fails else '통과'}")
+    return 1 if fails else 0
 
-if not checked:
-    print("[textlimits] 대상 없음 — 레지스트리·one_liners·bundles·alerts 파일 어디에도 검사할 필드가 아직 없다. 통과.")
-    sys.exit(0)
-print("[textlimits] 검사한 값: " + ", ".join(f"{k} {v}건" for k, v in checked.items()))
-for m in fails:
-    print("  위반 " + m)
-print(f"위반 {len(fails)}건 → {'실패(종료 코드 1)' if fails else '통과'}")
-sys.exit(1 if fails else 0)
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

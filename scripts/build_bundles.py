@@ -41,6 +41,7 @@ import build_indicators as bi  # noqa: E402
 import data_sla  # noqa: E402
 import nyse_calendar  # noqa: E402
 import one_liners as ol  # noqa: E402
+from check_text_limits import LIMITS  # noqa: E402  길이 상한 표(줄임 이름·이유 한 줄)의 단일 원천
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "bundles")
@@ -105,8 +106,8 @@ CENTRAL_BANKS = [  # (나라, 레지스트리 id, 경제 일정에서 다음 회
 ]
 CURVE_TENORS = ["1M", "3M", "6M", "1Y", "2Y", "5Y", "7Y", "10Y", "20Y", "30Y"]  # current 배열의 칸 순서(js/app1.js yieldCurveTerms)
 
-# ── 줄임 이름 — PC 12칸 · 모바일 8칸(한글 1칸, 영문·숫자·기호·공백 반 칸) ─────────────
-SHORT_PC, SHORT_M = 12, 8
+# ── 줄임 이름 — 상한은 check_text_limits.LIMITS["short"](모바일, PC), 표시 폭(한글 1칸, 그 외 반 칸) ────
+SHORT_M, SHORT_PC = LIMITS["short"]          # 상한 표의 단일 원천 = check_text_limits.LIMITS
 # 지표 id → (PC, 모바일). 괄호를 떼도 상한을 넘는 것만 사람이 정한다. 넘는 행이 새로 생기면
 # scripts/tests/test_build_bundles.py 가 실패하고 그 id 를 알려 준다 — 여기에 한 줄 더한다.
 SHORT = {
@@ -722,7 +723,7 @@ def lens_today(mer):
             "chain": chain_view(hot[0]) if hot else None, "hotChains": len(hot)}
 
 
-# 렌즈 노드 줄임 이름 — 괄호·「·」 앞만 남겨도 모바일 8칸을 넘는 것만 사람이 여기 정한다.
+# 렌즈 노드 줄임 이름 — 괄호·「·」 앞만 남겨도 모바일 상한(SHORT_M)을 넘는 것만 사람이 여기 정한다.
 LENS_SHORT = {"nps_flow": "연금 리밸런싱"}   # 「국민연금 리밸런싱」 8.5칸
 QUOTE_MAX = 60      # 간선 인용 한 줄 상한(글자 수)
 

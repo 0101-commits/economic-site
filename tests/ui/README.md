@@ -39,9 +39,10 @@
 
 ## T4 길이 상한 — `npm run ui:textlimits`
 
-`python scripts/check_text_limits.py` — 레지스트리 `short` 8자(`short_pc` 12자), 이유 한 줄 모바일 24자 / PC 44자
-(`scripts/one_liners.py` 가 있으면 그 문장, 없으면 `bundles/*.json` 의 `reason`·`line`), 버튼 바 항목 6/8자 · 7개 이하,
-알림 제목 `title_m` 18자 / `title` 30자. 대상 파일이 아직 없으면 「대상 없음」을 찍고 통과한다.
+`python scripts/check_text_limits.py` — 길이는 **표시 폭**(한글 1칸 · 영문·숫자·기호·공백 반 칸, `one_liners.width`)으로 잰다.
+상한 표는 그 파일의 `LIMITS` 한 곳(모바일 / PC): 줄임 이름 `shortM` / `short` 8 / 12칸, 이유 한 줄 `reasonShort`·`line.mobile` /
+`reason`·`line.pc` 24 / 44칸(+ `scripts/one_liners.py` 의 문장 상수), 버튼 바 항목 6칸 · 7개 이하, 알림 제목 `title_m` / `title` 18 / 30칸.
+`one_liners`·`build_bundles` 는 이 표를 가져다 쓴다. 대상 파일이 아직 없으면 「대상 없음」을 찍고 통과한다.
 
 ## T5 자동 촬영 — `npm run ui:matrix`
 

@@ -4,7 +4,7 @@
 
 갈래는 넷: 주도 업종(sector) · 수급 방향(flow) · 환율 방향(fx) · 다음 일정(schedule).
 갈래마다 (긴 꼴, 짧은 꼴) 두 변형을 내고, fit() 이 상한 안에 드는 첫 조합을 고른다.
-상한 = PC 44 · 모바일 24, 단위는 표시 폭이다 — 한글·한자 1칸, 영문·숫자·기호·공백 반 칸
+상한은 check_text_limits.LIMITS["reason"](모바일, PC), 단위는 표시 폭이다 — 한글·한자 1칸, 영문·숫자·기호·공백 반 칸
 (가변폭 글꼴에서 실제 폭에 가깝다. 지표 줄임 이름의 8·12칸도 같은 자로 잰다).
 
 재료가 없거나 그 장(場)의 것이 아니면 갈래를 빼고, 남는 게 없으면 None 이다 — 지어내지 않는다.
@@ -14,7 +14,9 @@ from __future__ import annotations
 import re
 import unicodedata
 
-PC, MOBILE = 44, 24
+from check_text_limits import LIMITS  # noqa: E402  상한 표의 단일 원천
+
+MOBILE, PC = LIMITS["reason"]
 SEP = " · "
 
 
