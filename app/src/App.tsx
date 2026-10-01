@@ -1,8 +1,8 @@
 // 화면 골격: PC(≥980px) 상단 네비 5 + 검색·종·톱니 / 모바일 하단 탭 5.
 // 주소는 해시 방식(#/market?a=kr) — GitHub Pages 는 없는 경로를 index.html 로 돌려주지 않아서,
 // 경로 방식이면 /next/market 을 새로 고칠 때 404 가 난다.
-import { useState, type FormEvent } from 'react'
-import { HashRouter, Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { HashRouter, Link, NavLink, Route, Routes } from 'react-router-dom'
 import { Bell, ChartCandlestick, House, Search, Settings as Gear, Telescope, Wallet, type LucideIcon } from 'lucide-react'
 import Home from './screens/Home'
 import Market from './screens/Market'
@@ -11,6 +11,11 @@ import My from './screens/My'
 import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
+import { SearchOverlay } from './components/personal/SearchOverlay'
+import { applyUpdown, readPrefs } from './lib/personal/store'
+
+// 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
+applyUpdown(readPrefs().settings.updown)
 
 const TABS: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/', label: '홈', icon: House },
@@ -20,21 +25,22 @@ const TABS: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/alerts', label: '알림', icon: Bell },
 ]
 
-/** 검색창 자리. 지금은 넣은 낱말을 상세 화면 id 로 넘기기만 한다(검색 결과에도 금액은 싣지 않는다). */
-function SearchBox({ className = '' }: { className?: string }) {
-  const [q, setQ] = useState('')
-  const nav = useNavigate()
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    const v = q.trim()
-    if (v) nav(`/i/${encodeURIComponent(v)}`)
+/** 검색 여는 단추. PC = 검색창 모양(`/` 단축키 안내), 모바일 = 돋보기 아이콘. 결과는 오버레이(components/personal/SearchOverlay). */
+function SearchButton({ onOpen, compact }: { onOpen: () => void; compact?: boolean }) {
+  if (compact) {
+    return (
+      <button type="button" onClick={onOpen} aria-label="검색" title="검색"
+        className="size-9 inline-flex items-center justify-center rounded-btn border-0 bg-transparent text-ink-2 hover:text-ink-1 cursor-pointer">
+        <Search size={20} aria-hidden />
+      </button>
+    )
   }
   return (
-    <form role="search" onSubmit={submit} className={`relative min-w-0 ${className}`}>
+    <button type="button" onClick={onOpen} aria-label="검색 (단축키 /)"
+      className="relative w-60 mr-1 h-9 pl-8 pr-3 rounded-btn border border-line bg-bg text-14 text-ink-3 text-left cursor-pointer inline-flex items-center justify-between">
       <Search size={16} aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3" />
-      <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="종목·지표 검색" aria-label="검색"
-        className="w-full h-9 pl-8 pr-3 rounded-btn border border-line bg-bg text-14 text-ink-1 placeholder:text-ink-3" />
-    </form>
+      종목·지표 검색<kbd className="num text-11 text-ink-3 border border-line rounded-inner px-1.5">/</kbd>
+    </button>
   )
 }
 
@@ -47,6 +53,18 @@ function IconLink({ to, label, icon: Icon }: { to: string; label: string; icon: 
 }
 
 function Shell() {
+  const [search, setSearch] = useState(false)
+  // `/` = 검색 열기(입력 칸에서 치는 / 는 그대로 둔다)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || t?.closest('input, textarea, select, [contenteditable="true"]')) return
+      e.preventDefault()
+      setSearch(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   return (
     <div className="min-h-dvh">
       {/* PC 상단 */}
@@ -62,7 +80,7 @@ function Shell() {
             ))}
           </nav>
           <div className="ml-auto self-center flex items-center gap-1">
-            <SearchBox className="w-60 mr-1" />
+            <SearchButton onOpen={() => setSearch(true)} />
             <IconLink to="/alerts" label="알림" icon={Bell} />
             <IconLink to="/settings" label="설정" icon={Gear} />
           </div>
@@ -71,8 +89,8 @@ function Shell() {
 
       {/* 모바일 상단: 이름 + 검색 + 톱니 */}
       <header className="pc:hidden bg-card border-b border-line px-4 h-12 flex items-center gap-2">
-        <Link to="/" className="text-18 font-bold text-ink-1 no-underline">ecom</Link>
-        <SearchBox className="flex-1" />
+        <Link to="/" className="mr-auto text-18 font-bold text-ink-1 no-underline">ecom</Link>
+        <SearchButton compact onOpen={() => setSearch(true)} />
         <IconLink to="/settings" label="설정" icon={Gear} />
       </header>
 
@@ -88,6 +106,8 @@ function Shell() {
           <Route path="*" element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
         </Routes>
       </main>
+
+      <SearchOverlay open={search} onClose={() => setSearch(false)} />
 
       {/* 모바일 하단 탭 */}
       <nav aria-label="주 메뉴" className="pc:hidden fixed bottom-0 inset-x-0 bg-card border-t border-line grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
