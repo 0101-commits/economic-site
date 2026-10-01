@@ -59,6 +59,7 @@ import urllib.request
 import urllib.error
 
 import kwmatch
+import nyse_calendar
 
 DASHBOARD_URL = "https://0101-commits.github.io/economic-site/"
 KST = datetime.timezone(datetime.timedelta(hours=9))
@@ -1511,6 +1512,10 @@ def _kr_calendar():
         return {}
 
 
+# NYSE 달력을 따르는 Yahoo 심볼 — 미국 지수. CME 선물(=F)도 NYSE 휴일에 봉이 없다(검토자 실측).
+_NYSE_SYMBOLS = {"^GSPC", "^IXIC", "^DJI", "^NDX", "^SOX", "^RUT"}
+
+
 def yahoo_prev_bar_ok(symbol, days, today):
     """Yahoo 일봉 날짜(거래소 현지, 오름차순)에서 등락률의 두 봉 days[-2] → days[-1] 이 이어진
     영업일인가. 기준가를 배열 위치가 아니라 날짜로 확인한다 — yahoo_snapshot·_yahoo_live_quote 공용.
@@ -1518,9 +1523,11 @@ def yahoo_prev_bar_ok(symbol, days, today):
     개장 무렵 Yahoo ^KS11 일봉이 전일 봉을 빼고 그 값을 오늘 날짜로 내보낸다(2026-07-29 가짜 서킷
     4건과 같은 응답). 그때 rows[-2] 는 이틀 전 종가다 — 급변 속보 8/6 「코스피 ▲2.0%」(실제 ▼1.7%)·
     8/7 「▼3.7%」(실제 ▲0.95%)·8/12 「▲2.1%」(실제 ▲1.4%), 8/19 09시 시황 「▲0.8%」(실제 ▼1.5%).
-    직전 영업일 = 국내(^KS11·^KQ11·.KS·.KQ)는 오늘 날짜가 맞는 marketCalendarKr, 그 밖은 직전 평일.
-    ponytail: 해외는 휴장 달력이 없어 연휴 다음 날도 False(보류)다 — 가짜 등락률보다 누락. 해외 알림이
-    연휴 뒤에 빠지는 것이 문제 되면 거래소 달력을 붙인다."""
+    직전 영업일 = 국내(^KS11·^KQ11·.KS·.KQ)는 오늘 날짜가 맞는 marketCalendarKr(없으면 직전 평일),
+    미국 거래소 상품(_NYSE_SYMBOLS·CME 선물 =F)은 NYSE 규칙 달력, 그 밖(환율 =X·^N225·^VIX 등 — NYSE 휴장일에도
+    Yahoo 일봉이 있다)은 직전 평일.
+    ponytail: NYSE 달력은 규칙 계산(nyse_calendar)이라 임시 휴장(국장일 등)만 False(보류)다 —
+    가짜 등락률보다 누락. 임시 휴장이 문제 되면 그 날짜를 달력에 따로 얹는다."""
     if len(days) < 2:
         return True
     want = None
@@ -1528,6 +1535,8 @@ def yahoo_prev_bar_ok(symbol, days, today):
         cal = _kr_calendar()
         if (cal.get("today") or {}).get("date") == today.isoformat():
             want = (cal.get("previousBusinessDay") or {}).get("date")
+    if not want and (symbol in _NYSE_SYMBOLS or symbol.endswith("=F")):
+        want = nyse_calendar.prev_trading_day(days[-1]).isoformat()
     if not want:
         d = days[-1] - datetime.timedelta(days=1)
         while d.weekday() >= 5:
