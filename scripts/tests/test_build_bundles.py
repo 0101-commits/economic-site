@@ -78,7 +78,7 @@ def _states(node, skip=("market", "lens", "triggers", "today", "breach", "watch"
 
 def test_freshness_states_are_the_fixed_set():
     for name, obj in bundles().items():
-        if name in ("lens", "registry"):
+        if name in ("lens", "registry") or name.startswith("_"):
             continue
         got = set(_states(obj))
         assert got and got <= set(bb.STATES), (name, got - set(bb.STATES))
@@ -198,6 +198,25 @@ def test_yoy_and_derived_cells():
     assert (br["up"], br["down"]) == (DATA["marketBreadth"]["kospi"]["up"], DATA["marketBreadth"]["kospi"]["down"])
     assert _item(b["market-commodities"], "gold_premium")["value"] == b["market-commodities"]["views"]["goldPremium"]["pct"]
     assert set(b["market-realestate"]["views"]["capital"]) <= set(bb.CAPITAL_AREA)
+
+
+def test_yoy_guard_over_50pct():
+    """전년비가 ±50% 를 넘으면 싣지 않고(null·missing) meta.health.issues 에 한 줄 남긴다 — 팀장 결정 2026-10-01."""
+    data = json.loads(json.dumps(DATA))
+    leaf = data["economicIndicators"]["kr"]["cpi_kr"]
+    k = leaf["period"]
+    leaf["history"][str(int(k[:4]) - 1) + k[4:]] = leaf["history"][k] / 1.6          # 전년비 +60% 로 만든다
+    b = bb.build_all(data, MER, NOW)
+    cpi = _item(b["market-macro"], "cpi_kr_yoy")
+    assert cpi["value"] is None and cpi["state"] == "missing" and cpi["guarded"] == 60.0
+    assert any(i["path"] == "economicIndicators.kr.cpi_kr" and "전년비 60.0%" in i["note"] for i in b["_issues"])
+    assert _item(b["market-macro"], "cpi_us_yoy")["value"] is not None           # 범위 안은 그대로
+    m = bb.meta(data, MER, {}, NOW, b)
+    assert any("cpi_kr 전년비 60.0% — 원본 이력 확인 필요" in (i.get("note") or "") for i in m["health"]["issues"])
+    # 거시 띠의 수출 칸 = 절대값(억달러·월), 전년비는 note 로만
+    ex = _item(bundles()["market-macro"], "exports_kr")
+    assert ex["value"] == DATA["economicIndicators"]["kr"]["exports_kr"]["value"] and ex["scale"] == 1e8
+    assert ex["label"] == "한국 수출(억달러·월)" and len(ex["asOf"]) == 7 and "전년비" in ex["note"]
 
 
 def test_registry_rows():

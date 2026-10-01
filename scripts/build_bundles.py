@@ -76,12 +76,15 @@ STRIPS = {
     "global": ["sp500", "nasdaq", "sox", "nikkei", "shanghai", "hsi"],
     "fxrates": ["usdkrw", "usdjpy", "jpykrw", "eurkrw", "us10y", "kr10y"],
     "commodities": ["wti", "brent", "gold", "silver", "copper", "natgas", "gold_premium"],
-    "macro": ["cpi_kr_yoy", "base_rate_kr", "cpi_us_yoy", "unemployment", "exports_kr_yoy", "gdp_growth_us"],
+    "macro": ["cpi_kr_yoy", "base_rate_kr", "cpi_us_yoy", "unemployment", "exports_kr", "gdp_growth_us"],
     "flows": ["flow_foreign", "flow_inst", "flow_retail", "flow_foreign_5d", "nps_kr_equity", "foreign_hold_ratio"],
     "realestate": ["apt_price_idx_kr", "jns_price_idx_kr", "avg_jeonse_price_kr", "unsold_total_kr",
                    "housing_start_kr", "housing_permit_kr"],
 }
-CAPITAL_AREA = ["11", "41", "28"]   # 수도권 = 서울·경기·인천(region_sub 시도 코드)
+CAPITAL_AREA = ["11", "41", "28"]
+# 전년비 파생 칸의 합리 범위(±%). 넘으면 값을 싣지 않고 meta.health.issues 에 남긴다 — 2026-10-01 한국 수출
+# 70.7%(2025-06 589억 → 2026-06 1,006억 달러, 평소 550~650억)는 원본 이력의 단위·집계 변경이 의심됐다(팀장 결정).
+YOY_GUARD_PCT = 50   # 수도권 = 서울·경기·인천(region_sub 시도 코드)
 CENTRAL_BANKS = [  # (나라, 레지스트리 id, 경제 일정에서 다음 회의를 찾을 말)
     ("kr", "base_rate_kr", r"금통위"), ("us", "ff_target", r"FOMC"),
     ("eu", "base_rate_eu", r"ECB"), ("jp", "base_rate_jp", r"BOJ|일본은행"),
@@ -777,6 +780,7 @@ def build_all(data, mer, now, toss=None):
     # 묶음 머리에 수집 시각을 두지 않는다 — 거시·부동산처럼 하루 한 번 바뀌는 묶음까지 매 런 파일이 바뀐다.
     # 수집 시각은 meta.dataUpdated 하나, 칸마다의 기준시각은 asOf.
     derived = {}
+    issues = []          # 묶음이 찾은 원본 이상 → meta.health.issues
 
     def pick(i):
         if i in derived:
@@ -831,14 +835,31 @@ def build_all(data, mer, now, toss=None):
         older = sorted(x for x in hist if str(x) < str(k))
         pv = calc(older[-1]) if (v is not None and older) else None
         q = Q.get(src) or {}
+        raw_v = v
+        if v is not None and abs(v) > YOY_GUARD_PCT:
+            sc, u = q.get("scale"), (q.get("unit") or "").replace("달러", "")
+            amt = lambda x: "{:,.0f}{}".format(x / sc, u) if sc else "{:,.2f}".format(x)
+            issues.append({"path": row.get("data"), "state": "suspect", "asOf": q.get("asOf"),
+                           "note": "%s 전년비 %.1f%% — 원본 이력 확인 필요(%s %s → %s %s)" % (
+                               src, v, _norm_date(ago(k))[:7], amt(hist[ago(k)]), _norm_date(k)[:7], amt(hist[k]))})
+            v = pv = None
         dv(i, label, short, shortM, unit="%", decimals=1, value=v, as_of=q.get("asOf"), state=q.get("state"),
            source=src)
+        if raw_v is not None and v is None:
+            derived[i]["guarded"] = raw_v                # 범위 밖이라 싣지 않은 계산값(화면은 쓰지 않는다)
         if v is not None and pv is not None:
             derived[i]["change"] = _round(v - pv, 2)
+        return raw_v
 
     yoy("cpi_kr", "cpi_kr_yoy", "한국 CPI 전년비", "한국 CPI 전년비", "한국 CPI")
     yoy("cpi_us", "cpi_us_yoy", "미국 CPI 전년비", "미국 CPI 전년비", "미국 CPI")
-    yoy("exports_kr", "exports_kr_yoy", "한국 수출 전년비", "한국 수출 전년비", "한국 수출")
+    ex_yoy = yoy("exports_kr", "exports_kr_yoy", "한국 수출 전년비", "한국 수출 전년비", "한국 수출")
+    # 거시 띠의 수출 칸은 절대값(억달러·월). 전년비는 note 로만 — 범위 밖이면 그렇다고 적는다.
+    ex = Q.item("exports_kr")
+    ex["label"] = "한국 수출(억달러·월)"
+    if ex_yoy is not None:
+        ex["note"] = "전년비 %+.1f%%%s" % (ex_yoy, " — 원본 이력 확인 필요" if abs(ex_yoy) > YOY_GUARD_PCT else "")
+    derived["exports_kr"] = ex
     nps = data.get("nps") or {}
     eq = next((a.get("pct") for a in (nps.get("allocation") or []) if a.get("asset") == "국내주식"), None)
     nps_asof = nps.get("as_of")
@@ -1003,6 +1024,7 @@ def build_all(data, mer, now, toss=None):
     })
 
     b["lens"] = build_lens(mer)
+    b["_issues"] = issues            # 파일로 쓰지 않는다(write 가 meta 에 합친다)
     return b
 
 
@@ -1025,7 +1047,9 @@ def dumps(obj):
 def meta(data, mer, sizes, now, bundles):
     dh = data.get("dataHealth") or {}
     fresh = {s: 0 for s in STATES}                      # 띠(홈 8 + 화면별 6) 칸의 신선도 집계
-    for obj in bundles.values():
+    for name, obj in bundles.items():
+        if name.startswith("_"):
+            continue
         for it in obj.get("strip") or []:
             fresh[it.get("state", "missing")] = fresh.get(it.get("state", "missing"), 0) + 1
     return {"generatedAt": now.isoformat(timespec="seconds"), "dataUpdated": data.get("lastUpdated"),
@@ -1036,13 +1060,16 @@ def meta(data, mer, sizes, now, bundles):
                                "staleClosedMin": STALE_CLOSED_MIN, "staleOffdayMin": STALE_OFFDAY_MIN},
             "health": {"checkedAt": dh.get("checkedAt"), "summary": dh.get("summary"), "blocking": dh.get("blocking") or [],
                        "issues": [{k: i.get(k) for k in ("path", "state", "asOf", "ageDays")}
-                                  for i in (dh.get("items") or []) if i.get("state") != "ok"]}}
+                                  for i in (dh.get("items") or []) if i.get("state") != "ok"]
+                                 + list(bundles.get("_issues") or [])}}
 
 
 def write(bundles, data, mer, now, out_dir=OUT_DIR):
     os.makedirs(out_dir, exist_ok=True)
     sizes = {}
     for name, obj in bundles.items():
+        if name.startswith("_"):
+            continue
         text = dumps(obj)
         sizes[name + ".json"] = len(text.encode("utf-8"))
         if sizes[name + ".json"] > MAX_BYTES:            # 넘치면 직전 파일을 둔다 — main 이 exit 1 로 알린다
@@ -1065,6 +1092,8 @@ def main(argv):
     over = {k: v for k, v in sizes.items() if v > MAX_BYTES}
     for k, v in sizes.items():
         print("%-26s %7.1f KB%s" % (k, v / 1024, "  ← 200KB 초과" if k in over else ""))
+    for it in bundles.get("_issues") or []:
+        print("주의 " + it["note"])
     print("화면 묶음 %d개 — 기준 %s" % (len(sizes) + 1, now.isoformat(timespec="minutes")))
     return 1 if over else 0
 
