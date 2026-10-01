@@ -4082,7 +4082,7 @@ def fetch_realestate_kr():
         # (key,                   desc,                                              statbl_id,          unit,          strict, cls,     cumulative)
         ("avg_jeonse_price_kr", "전국 아파트 평균 전세가격(천원)",                       "A_2024_00064",     "천원",        False,  None,    False),
         ("semi_jeonse_idx_kr",  "전국 아파트 준전세가격지수(2026.06=100)",              "A_2024_00057",     "2026.06=100", False,  None,    False),
-        ("unsold_total_kr",     "전국 미분양주택(호)",                                 "T237973129847263", "호",          True,   None,    False),
+        # 미분양(T237973129847263)은 여기 없다 — 2007년 이후 전국 행이 없어 KOSIS DT_MLTM_2080 이 본선(아래 fetch_kosis_unsold).
         ("housing_start_kr",    "전국 주택 착공실적(호)",                               "T233033129823134", "호",          True,   "50019", False),
         ("housing_permit_kr",   "전국 주택건설 인허가실적(호) (월분, 연간 누계 차분)",     "T235263129553687", "호",          True,   "50023", True),
         ("housing_complete_kr", "전국 주택 준공실적(호)",                               "T237273130004614", "호",          True,   "50019", False),
@@ -4102,6 +4102,18 @@ def fetch_realestate_kr():
             log(f"[R-ONE] {key} ({statbl_id}): {picked['value']} ({picked['period']})")
         except Exception as e:
             log(f"[R-ONE] {key} ({statbl_id}) 오류: {e}")
+
+    # ─── 미분양: KOSIS 국토부 규모별 미분양(DT_MLTM_2080) 전국 총합 — R-ONE 표엔 전국 행이 없다(2026-10-01 탐침) ──
+    # rone 묶음(realestate.kr) 안에서 같이 받으므로 일일 런 3회·보존 표식 때만 재조회하는 주기가 그대로 적용된다.
+    try:
+        unsold = fetch_kosis_unsold()
+        if unsold:
+            result["unsold_total_kr"] = unsold
+            log(f"[KOSIS] unsold_total_kr (DT_MLTM_2080): {unsold['value']} ({unsold['period']})")
+        else:
+            log("[KOSIS] unsold_total_kr: 응답 없음/키 없음 — 건너뜀")
+    except Exception as e:
+        log(f"[KOSIS] unsold_total_kr 오류: {_scrub_err(e)}")
 
     # ─── 표 목록 탐침(일일 런 1회) — 진짜 미분양·착공·인허가·준공 표가 R-ONE 에 있는지 CI 로그로 확인 ──
     # 키가 없으면 목록 함수가 빈 목록을 돌려준다. 값은 싣지 않는다(로그만).
@@ -4330,7 +4342,7 @@ class _KosisConnectionError(Exception):
 
 
 def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=None, end_prd=None,
-                       obj_l1="ALL", obj_l2=None):
+                       obj_l1="ALL", obj_l2=None, obj_l3=None):
     """KOSIS API 통계 데이터 조회 (통계표선택 방식 — Param/statisticsParameterData.do).
 
     종전 주소(statisticsData.do)는 사전등록(userStatsId) 방식이라 orgId/tblId 호출이 공식 가이드와
@@ -4364,6 +4376,8 @@ def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=
     }
     if obj_l2 is not None:
         params["objL2"] = obj_l2
+    if obj_l3 is not None:
+        params["objL3"] = obj_l3
     try:
         # timeout=(연결 5초, 응답 10초) — KOSIS 서버 지연 시 무한 대기(Stuck) 방지.
         r = requests.get(KOSIS_PARAM_BASE, params=params, timeout=(5, 10))
@@ -4420,6 +4434,49 @@ def probe_kosis_housing_meta():
             return
         except Exception as e:
             log(f"[KOSIS-probe] {tag} 오류(무시): {_scrub_err(e)}")
+
+
+# 미분양 — KOSIS 국토부 「규모별 미분양」(DT_MLTM_2080) 전국 · 부문 총합 · 규모 총합 = 통계누리 「전체 미분양」과 같은 수.
+# 코드는 2026-10-01 일일 런 [KOSIS-probe] getMeta 실측. R-ONE 미분양 표(T237973129847263)는 2007년 이후 시도 단위부터라
+# 전국 행이 없다(같은 날 탐침: 202607 90행·전국 0) → 미분양만 KOSIS 가 본선이다(착공·준공·인허가는 R-ONE).
+_KOSIS_UNSOLD = {"org": "116", "tbl": "DT_MLTM_2080", "itm": "13103792722T1",
+                 "obj": ("13102792722A.0001", "13102792722B.0001", "13102792722C.0001")}   # 시도=전국 · 부문=총합 · 규모=총합
+
+
+def fetch_kosis_unsold(months=36):
+    """전국 미분양주택(호) 월간 시계열 → {value, prev, chg, period, history, …} 또는 None.
+
+    objL1~3 을 전부 한 코드로 못 박아 응답은 시점당 1행이어야 한다 — 같은 시점에 행이 2개 이상이면 분류가
+    섞인 것이므로 값을 싣지 않는다(소매 폴백과 같은 규칙). 연결 실패·오류 응답은 None(직전 값 보존은 호출부 몫)."""
+    if not KOSIS_API_KEY:
+        return None
+    now = datetime.now(KST)
+    c, (o1, o2, o3) = _KOSIS_UNSOLD, _KOSIS_UNSOLD["obj"]
+    try:
+        data = fetch_kosis_series(c["org"], c["tbl"], c["itm"], "M", (now - timedelta(days=31 * months)).strftime("%Y%m"),
+                                  now.strftime("%Y%m"), obj_l1=o1, obj_l2=o2, obj_l3=o3)
+    except _KosisConnectionError:
+        return None
+    if not isinstance(data, list):
+        return None
+    history, dup = {}, set()
+    for r in data:
+        p, v = r.get("PRD_DE"), _parse_num(r.get("DT"))
+        if not p or v is None:
+            continue
+        if p in history:
+            dup.add(p)
+        history[p] = v
+    if dup:
+        log(f"[KOSIS] 미분양 같은 시점 다중행 {sorted(dup)[:5]} — 분류 섞임, 건너뜀")
+        return None
+    if not history:
+        return None
+    keys = sorted(history)
+    val, prev = history[keys[-1]], (history[keys[-2]] if len(keys) > 1 else None)
+    return {"value": round(val, 2), "prev": prev, "chg": round((val - prev) / prev * 100, 2) if prev else None,
+            "period": keys[-1], "history": history, "region": "전국", "unit": "호",
+            "desc": "전국 미분양주택(호) — 국토교통부 미분양주택현황", "source": f"KOSIS:{c['org']}/{c['tbl']}"}
 
 
 def fetch_kosis_retail_sales():

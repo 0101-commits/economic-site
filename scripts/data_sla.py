@@ -299,7 +299,7 @@ RANGE_RULES = [
     ("realestate.kr.avg_jeonse_price_kr", 50000, 1000000, None, "천원 — 전국 아파트 평균 전세가격(R-ONE A_2024_00064)"),
     ("realestate.kr.semi_jeonse_idx_kr",  50,    200,     None, "지수 2026.06=100 — 전국 아파트 준전세가격지수(A_2024_00057)"),
     # 주택 공급 4표(2026-10-01, R-ONE T 표) — 호, 전국 월. 통계누리 2026-08: 미분양 69,134 · 착공 18,013 · 준공 15,151.
-    ("realestate.kr.unsold_total_kr",     10000, 200000,  None, "호 — 전국 미분양주택(R-ONE T237973129847263)"),
+    ("realestate.kr.unsold_total_kr",     10000, 200000,  None, "호 — 전국 미분양주택(KOSIS 116/DT_MLTM_2080 전국·총합·총합)"),
     ("realestate.kr.housing_start_kr",    3000,  100000,  None, "호 — 전국 주택 착공실적(R-ONE T233033129823134)"),
     ("realestate.kr.housing_permit_kr",   3000,  150000,  None, "호 — 전국 주택건설 인허가실적(R-ONE T235263129553687)"),
     ("realestate.kr.housing_complete_kr", 3000,  100000,  None, "호 — 전국 주택 준공실적(R-ONE T237273130004614)"),

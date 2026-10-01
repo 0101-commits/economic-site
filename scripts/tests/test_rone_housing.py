@@ -139,9 +139,11 @@ def test_extra_stats_carries_cls_and_cumulative(monkeypatch):
     assert calls[NEW["housing_start_kr"]] == (True, "50019", big)
     assert calls[NEW["housing_complete_kr"]] == (True, "50019", big)
     assert calls[NEW["housing_permit_kr"]] == (True, "50023", big)
-    assert calls[NEW["unsold_total_kr"]] == (True, None, big)      # 전국 코드 미확인 → 탐침만(실제 함수는 None)
+    assert NEW["unsold_total_kr"] not in calls                     # 미분양은 R-ONE 에 전국 행이 없어 KOSIS 가 본선
     assert calls["A_2024_00064"] == (False, None, 300) and calls["A_2024_00057"] == (False, None, 300)
     for key, sid in NEW.items():
+        if key == "unsold_total_kr":
+            continue
         assert res[key]["unit"] == "호" and res[key]["source"] == "R-ONE:" + sid and res[key]["region"] == "전국"
     permit = res["housing_permit_kr"]                               # 연간 누계 → 월분
     assert permit["history"] == {"202701": 12038.0, "202702": 17751.0, "202703": 20038.0}

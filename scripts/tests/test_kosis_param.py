@@ -126,3 +126,32 @@ def test_retail_skips_candidate_with_mixed_rows_per_period(monkeypatch):
     assert got["value"] == 101.5 and got["source"] == "KOSIS:DT_1JG2105/T03"
     assert [c[1]["itmId"] for c in calls] == ["T2", "T20", "13102803005A", "T03"]
     assert any("DT_1JG2105/T2: 같은 시점 행이 여럿" in m for m in logs)
+
+
+# ── 미분양(DT_MLTM_2080) 본선 수집 — 2026-10-01 일일 런 getMeta 실측 코드 ─────────────────────────
+def test_unsold_queries_three_obj_levels_and_returns_series(monkeypatch):
+    rows = [{"PRD_DE": "202606", "DT": "67464"}, {"PRD_DE": "202607", "DT": "68217"}, {"PRD_DE": "202608", "DT": "69134"}]
+    calls, _ = _env(monkeypatch, rows)
+    got = fd.fetch_kosis_unsold()
+    (url, p), = calls
+    assert url == fd.KOSIS_PARAM_BASE and (p["orgId"], p["tblId"], p["itmId"]) == ("116", "DT_MLTM_2080", "13103792722T1")
+    assert (p["objL1"], p["objL2"], p["objL3"]) == ("13102792722A.0001", "13102792722B.0001", "13102792722C.0001")
+    assert p["prdSe"] == "M" and len(p["startPrdDe"]) == 6 and p["startPrdDe"] < p["endPrdDe"]
+    assert (got["value"], got["prev"], got["period"]) == (69134, 68217, "202608")
+    assert got["chg"] == round((69134 - 68217) / 68217 * 100, 2)
+    assert got["history"] == {"202606": 67464, "202607": 68217, "202608": 69134}
+    assert got["unit"] == "호" and got["region"] == "전국" and got["source"] == "KOSIS:116/DT_MLTM_2080"
+
+
+def test_unsold_mixed_rows_per_period_is_none(monkeypatch):
+    rows = [{"PRD_DE": "202608", "DT": "69134"}, {"PRD_DE": "202608", "DT": "19136"}]   # 전국 + 수도권이 섞인 응답
+    _, logs = _env(monkeypatch, rows)
+    assert fd.fetch_kosis_unsold() is None
+    assert any("같은 시점 다중행" in m and "202608" in m for m in logs)
+
+
+def test_unsold_error_or_no_key_is_none(monkeypatch):
+    _env(monkeypatch, {"err": "30", "errMsg": "통계표를 찾을 수 없습니다."})
+    assert fd.fetch_kosis_unsold() is None
+    calls, _ = _env(monkeypatch, [], key="")
+    assert fd.fetch_kosis_unsold() is None and calls == []
