@@ -1,7 +1,7 @@
 // 자가검사: node --test src/components/market/calc.test.ts (app 폴더에서)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { monthIndex, isCoarse, yearAgo, yoySeries, rebase, cumsum, rollSum, weekKey, groupFlows, column, spans, type FlowRow } from './calc.ts'
+import { monthIndex, yearAgo, yoySeries, rebase, cumsum, rollSum, weekKey, groupFlows, column, spans, type FlowRow } from './calc.ts'
 import type { Pt } from '../../lib/format.ts'
 
 test('monthIndex: 월·일·분기', () => {
@@ -57,10 +57,4 @@ test('spans: 6+6 다음 끝 줄은 남은 칸을 채운다', () => {
   }
 })
 
-test('isCoarse: 월별·분기는 성김, 일별·주별은 아님', () => {
-  assert.equal(isCoarse([['2024-09', 1], ['2024-10', 1], ['2024-11', 1]]), true)
-  assert.equal(isCoarse([['2025Q1', 1], ['2025Q2', 1]]), true)
-  assert.equal(isCoarse([['2026-09-01', 1], ['2026-09-08', 1], ['2026-09-15', 1], ['2026-09-22', 1]]), false)
-  assert.equal(isCoarse([['2026-09-29', 1], ['2026-09-30', 1]]), false)
-  assert.equal(isCoarse([['', 1], ['', 2]]), false)
-})
+// 성긴 시계열(월별·분기) 판정은 format.ts slicePeriods 로 옮겼다 — 검사도 format.test.ts 에 있다.

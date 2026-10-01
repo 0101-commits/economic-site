@@ -1,5 +1,5 @@
 // 공통 부품 — 화면은 이 부품과 토큰 클래스만 쓴다. 색 띠 상자·그림자·그라데이션 금지.
-import { useEffect, useRef, type ReactNode, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type KeyboardEvent } from 'react'
 import { fmtNumber, fmtChange, changeDir, asOfKind, asOfLabel, kindFromState } from '../lib/format'
 
 const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as const
@@ -49,12 +49,37 @@ export function AsOfBadge({ asOf, state, liveUntil, filled, now }: {
 
 /**
  * 고르기 버튼 줄. 한 줄에 7개까지만 둔다(넘치면 줄이 바뀐다 — 8개 이상이면 묶음을 나눌 것).
+ * scroll = 줄을 바꾸지 않고 한 줄 가로 스크롤(좁은 화면의 자산군 줄). 가려진 쪽 끝을 흐리게 하고, 고른 버튼을 줄 가운데로 민다.
  * 선택 = 검정 바탕·700. 왼쪽·오른쪽 화살표로 옮긴다(라디오 묶음과 같은 키보드 규칙).
  */
-export function SegBar<T extends string>({ options, value, onChange, label }: {
-  options: readonly { key: T; label: string }[]; value: T; onChange: (key: T) => void; label: string
+export function SegBar<T extends string>({ options, value, onChange, label, scroll }: {
+  options: readonly { key: T; label: string }[]; value: T; onChange: (key: T) => void; label: string; scroll?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  // 스크롤 줄: 왼쪽·오른쪽에 가려진 버튼이 있는지(그쪽 끝만 흐린다)
+  const [edge, setEdge] = useState({ l: false, r: false })
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!scroll || !el) return
+    const check = () => {
+      const l = el.scrollLeft > 1, r = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+      setEdge(e => (e.l === l && e.r === r ? e : { l, r }))
+    }
+    check()
+    el.addEventListener('scroll', check, { passive: true })
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', check); ro.disconnect() }
+  }, [scroll])
+  // 고른 버튼을 줄 가운데로. scrollIntoView 는 페이지까지 세로로 움직일 수 있어 줄의 가로 위치만 바꾼다.
+  useEffect(() => {
+    const el = ref.current, b = el?.querySelector<HTMLElement>('[aria-checked=true]')
+    if (scroll && el && b) el.scrollTo({ left: b.offsetLeft - (el.clientWidth - b.offsetWidth) / 2 })
+  }, [scroll, value])
+  const fade = (on: boolean) => (on ? '1.5rem' : '0px')
+  const mask = scroll && (edge.l || edge.r)
+    ? { maskImage: `linear-gradient(to right, transparent, black ${fade(edge.l)}, black calc(100% - ${fade(edge.r)}), transparent)` }
+    : undefined
   const onKey = (e: KeyboardEvent) => {
     const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
     if (!step) return
@@ -65,7 +90,8 @@ export function SegBar<T extends string>({ options, value, onChange, label }: {
     ref.current?.querySelectorAll<HTMLButtonElement>('[role=radio]')[next]?.focus()
   }
   return (
-    <div ref={ref} role="radiogroup" aria-label={label} onKeyDown={onKey} className="flex flex-wrap gap-1">
+    <div ref={ref} role="radiogroup" aria-label={label} onKeyDown={onKey} style={mask}
+      className={scroll ? 'relative -my-1 p-1 flex flex-nowrap gap-1 overflow-x-auto [scrollbar-width:thin]' : 'flex flex-wrap gap-1'}>
       {options.map(o => {
         const on = o.key === value
         return (

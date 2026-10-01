@@ -2,7 +2,7 @@
 // 주소 기준: 이 앱은 사이트의 next/ 아래에 있으므로 자료는 한 단계 위에 있다.
 //   배포  /economic-site/next/ → /economic-site/data.json · /economic-site/bundles/
 //   개발  /next/              → /data.json · /bundles/   (vite.config 의 개발 서버가 저장소 루트에서 내준다)
-import { changeFromPct, type Pt } from './format'
+import { changeFromPct, type PeriodKey, type Pt } from './format'
 
 const ROOT = new URL('../', document.baseURI)
 
@@ -79,12 +79,13 @@ export type Flows = {
   today?: { date: string; foreign: number | null; inst: number | null; retail: number | null }
   rows?: (string | number | null)[][]; columns?: string[]
 }
-export type Sched = { date: string; time?: string | null; cc?: string; name: string; stars?: number; prev?: number | null; fore?: number | null; act?: number | null; approx?: boolean }
+/** 경제 일정 한 줄. 이전·예측·실제는 단위가 붙은 글자다(「+0.4%」 · 「1275.0」 — 거시 달력), 없으면 null. beat = 실제가 예측보다 좋음 1 · 나쁨 -1. */
+export type Sched = { date: string; time?: string | null; cc?: string; name: string; stars?: number; prev?: string | null; fore?: string | null; act?: string | null; beat?: number | null; approx?: boolean }
 export type News = { title: string; url: string; date?: string; topic?: string }
-/** 렌즈 트리거 한 줄: state crossed(돌파)·near(주시), level = 가장 가까운 임계값, distancePct = 임계까지 거리(%). */
-export type Trigger = { id: string; label: string; unit?: string; state: string; stateLabel?: string; value: number | null; asOf?: string | null; level: number | null; distancePct?: number | null }
-/** 렌즈 사슬: n = 이 사슬을 짚은 글 수, hotStep = 지금 발동한 고리 id. */
-export type Chain = { id: string; label: string; note?: string; n?: number; lastDate?: string; hotStep?: string; steps: { id: string; label: string }[] }
+/** 렌즈 트리거 한 줄: state crossed(돌파)·near(주시), level = 가장 가까운 임계값, distancePct = 임계까지 거리(%). unit 은 없으면 null 로 온다. */
+export type Trigger = { id: string; label: string; layer?: string; unit?: string | null; state: string; stateLabel?: string; value: number | null; asOf?: string | null; level: number | null; distancePct?: number | null }
+/** 렌즈 사슬: n = 이 사슬을 짚은 글 수, hotStep = 지금 발동한 고리 id(발동한 고리가 없으면 null — 렌즈 묶음 chains 에 실제로 온다). */
+export type Chain = { id: string; label: string; note?: string; n?: number; lastDate?: string; hotStep?: string | null; steps: { id: string; label: string }[] }
 export type HomeLens = { score: number | null; delta30d?: number | null; asOf?: string; breach: Trigger[]; watch: Trigger[]; chain: Chain | null; hotChains?: number }
 
 export type HomeBundle = {
@@ -93,7 +94,7 @@ export type HomeBundle = {
   todayLine: { pc: string; mobile: string; source?: unknown } | null
   strip: StripItem[]
   /** 코스피 큰 차트: 기간별 [날짜, 값]. 없는 기간은 null 이고 missing 에 이유가 있다. */
-  kospiChart?: { '1d'?: Pt[] | null; '1w'?: Pt[] | null; '3m'?: Pt[] | null; '1y'?: Pt[] | null; missing?: Record<string, string> }
+  kospiChart?: Partial<Record<PeriodKey, Pt[] | null>> & { missing?: Record<string, string> }
   sectors?: { asOf?: string; state?: string; items: { name: string; close?: number | null; chgPct: number | null }[] }
   topAmount?: { asOf?: string; state?: string; items: Stock[] }
   investors?: Flows

@@ -12,7 +12,7 @@ import { LineChart, Range52 } from '../components/charts'
 import { Panel, StripCard, WatchStar } from '../components/panels'
 
 // 사전 자산군 → 시장 화면 자산군 탭(Market.tsx ASSETS 키)
-const MARKET_TAB: Record<string, string> = { index: 'global', sentiment: 'global', fx: 'fxrate', rate: 'fxrate', commodity: 'commod', macro: 'macro', realestate: 'estate' }
+const MARKET_TAB: Record<string, string> = { index: 'global', sentiment: 'global', fx: 'fxrate', rate: 'fxrate', commodity: 'commod', macro: 'macro', realestate: 'realestate' }
 
 type Got = { reg?: RegRow; item?: StripItem; series?: Pt[]; related: { reg: RegRow; item?: StripItem }[]; matches: RegRow[] }
 

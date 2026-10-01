@@ -15,14 +15,17 @@ const CMP = [
   { s: 'stroke-ink-3', f: 'fill-ink-3', dash: '2 3' },
 ]
 
-/** 상자 크기 재기 — 차트는 실제 픽셀로 그려야 글자·선 굵기가 늘어나지 않는다. */
-function useBox<T extends HTMLElement>() {
+/** 상자 크기 재기(px, 반올림) — 차트는 실제 픽셀로 그려야 글자·선 굵기가 늘어나지 않는다. 렌즈 지도도 같이 쓴다. */
+export function useBox<T extends HTMLElement>() {
   const ref = useRef<T>(null)
   const [box, setBox] = useState({ w: 0, h: 0 })
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const ro = new ResizeObserver(([e]) => setBox({ w: Math.round(e.contentRect.width), h: Math.round(e.contentRect.height) }))
+    const ro = new ResizeObserver(([e]) => {
+      const w = Math.round(e.contentRect.width), h = Math.round(e.contentRect.height)
+      setBox(b => (b.w === w && b.h === h ? b : { w, h }))
+    })
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
@@ -173,36 +176,44 @@ export function Range52({ low, high, value, decimals = 2 }: { low?: number | nul
 
 export type HeatCell = { key: string; name: string; value: number | null; weight?: number }
 const HEAT_MIX = [0, 22, 50, 88]   // 단계 1·2·3 의 채움 농도(%) — 카드 바탕과 섞는다
-const heatBg = (step: number) => step
-  ? `color-mix(in srgb, var(${step > 0 ? '--c-up-fill' : '--c-down-fill'}) ${HEAT_MIX[Math.abs(step)]}%, var(--c-card))`
-  : 'color-mix(in srgb, var(--c-ink-3) 14%, var(--c-card))'
+/** 히트맵 칸 채움: 값(%)의 heatStep 단계만큼 상승·하락색을 카드 바탕과 섞는다. 0·빈 값 = 옅은 회색. 렌즈 자산 격자도 이것을 쓴다. */
+export function heatBg(value: number | null | undefined): string {
+  const step = heatStep(value)
+  return step
+    ? `color-mix(in srgb, var(${step > 0 ? '--c-up-fill' : '--c-down-fill'}) ${HEAT_MIX[Math.abs(step)]}%, var(--c-card))`
+    : 'color-mix(in srgb, var(--c-ink-3) 14%, var(--c-card))'
+}
+/** 히트맵 칸 글자색: 채움 명도를 따른다 — 진한 3단만 흰 글자. */
+export const heatInk = (value: number | null | undefined) => (Math.abs(heatStep(value)) === 3 ? 'text-on-fill' : 'text-ink-1')
 
 /**
- * 히트맵 격자: 칸 = 이름 + 등락률(%). 색 단계는 format.ts heatStep(경계 ±2.5 · ±1 · 0).
+ * 히트맵 격자: 칸 = 이름 + 글자(text, 기본 등락률 fmtPct). 색 단계는 format.ts heatStep(경계 ±2.5 · ±1 · 0).
  * weight 가 평균의 2배 이상이면 2칸. 칸 폭 < 40px 이면 이름만, < 28px 이면 색만(컨테이너 쿼리).
- * 글자색은 채움 명도를 따른다 — 진한 3단만 흰 글자. onPick 을 주면 칸이 버튼이 된다.
+ * 글자색은 채움 명도를 따른다(heatInk). onPick 을 주면 칸이 버튼이 된다.
  */
-export function Heatmap({ cells, onPick, minCell = 56, label }: { cells: HeatCell[]; onPick?: (c: HeatCell) => void; minCell?: number; label: string }) {
+export function Heatmap({ cells, onPick, minCell = 56, label, text = c => fmtPct(c.value) }: {
+  cells: HeatCell[]; onPick?: (c: HeatCell) => void; minCell?: number; label: string; text?: (c: HeatCell) => string
+}) {
   const mean = cells.reduce((a, c) => a + (c.weight ?? 0), 0) / (cells.length || 1)
   return (
     <ul aria-label={label} className="m-0 p-0 list-none grid grid-flow-dense gap-1"
       style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${minCell}px, 1fr))` }}>
       {cells.map(c => {
-        const step = heatStep(c.value)
         const wide = mean > 0 && (c.weight ?? 0) >= 2 * mean
-        const cls = `@container w-full h-10 rounded-inner border-0 p-0 flex flex-col items-center justify-center text-center ${Math.abs(step) === 3 ? 'text-on-fill' : 'text-ink-1'}`
-        const tip = `${c.name} ${fmtPct(c.value)}`
+        const cls = `@container w-full h-10 rounded-inner border-0 p-0 flex flex-col items-center justify-center text-center ${heatInk(c.value)}`
+        const t = text(c)
+        const tip = `${c.name} ${t}`
         const body = (
           <>
             <span className="block w-full px-0.5 text-11 leading-tight ellipsis-ok @max-[28px]:hidden">{c.name}</span>
-            <span className="block num text-11 font-bold @max-[40px]:hidden">{fmtPct(c.value)}</span>
+            <span className="block num text-11 font-bold @max-[40px]:hidden">{t}</span>
           </>
         )
         return (
           <li key={c.key} className={wide ? 'col-span-2' : undefined}>
             {onPick
-              ? <button type="button" onClick={() => onPick(c)} aria-label={tip} title={tip} className={`${cls} cursor-pointer`} style={{ background: heatBg(step) }}>{body}</button>
-              : <div title={tip} className={cls} style={{ background: heatBg(step) }}>{body}</div>}
+              ? <button type="button" onClick={() => onPick(c)} aria-label={tip} title={tip} className={`${cls} cursor-pointer`} style={{ background: heatBg(c.value) }}>{body}</button>
+              : <div title={tip} className={cls} style={{ background: heatBg(c.value) }}>{body}</div>}
           </li>
         )
       })}
@@ -216,17 +227,21 @@ const signed = (v: number | null, decimals: number) => (v == null ? '—' : `${v
 /**
  * 양·음 막대(가운데 0선). 기본 = 가로 줄(이름 | 막대 | 값) — 3주체 순매수.
  * vertical = 세로 기둥 한 줄(값 많은 시계열, 예: 20거래일). 양수 = 상승색, 음수 = 하락색, 길이는 |값| 최대 기준.
+ * signed={false} = 부호·방향색 없는 크기 막대(언급 수 같은 0 이상 값): 0선 없이 왼쪽(세로는 아래)에서 검정으로 자라고 값에 + 를 안 붙인다.
  */
-export function DivergingBars({ bars, decimals = 0, vertical, label }: { bars: Bar[]; decimals?: number; vertical?: boolean; label: string }) {
+export function DivergingBars({ bars, decimals = 0, vertical, label, signed: sign = true }: {
+  bars: Bar[]; decimals?: number; vertical?: boolean; label: string; signed?: boolean
+}) {
   const max = Math.max(0, ...bars.map(b => Math.abs(b.value ?? 0))) || 1
-  const half = (v: number) => `${(Math.abs(v) / max) * 50}%`
+  const len = (v: number) => `${(Math.abs(v) / max) * (sign ? 50 : 100)}%`
+  const shown = (v: number | null) => (sign ? signed(v, decimals) : fmtNumber(v, decimals))
   if (vertical) {
     return (
       <div role="img" aria-label={label} className="relative flex items-stretch gap-px h-16">
-        <span aria-hidden className="absolute inset-x-0 top-1/2 h-px bg-line" />
+        {sign && <span aria-hidden className="absolute inset-x-0 top-1/2 h-px bg-line" />}
         {bars.map(b => (
-          <span key={b.key} title={`${b.label} ${signed(b.value, decimals)}`} className="relative flex-1 min-w-0">
-            {!!b.value && <span className={`absolute inset-x-0 ${b.value > 0 ? 'bottom-1/2 bg-up-fill' : 'top-1/2 bg-down-fill'}`} style={{ height: half(b.value) }} />}
+          <span key={b.key} title={`${b.label} ${shown(b.value)}`} className="relative flex-1 min-w-0">
+            {!!b.value && <span className={`absolute inset-x-0 ${!sign ? 'bottom-0 bg-ink-1' : b.value > 0 ? 'bottom-1/2 bg-up-fill' : 'top-1/2 bg-down-fill'}`} style={{ height: len(b.value) }} />}
           </span>
         ))}
       </div>
@@ -238,10 +253,10 @@ export function DivergingBars({ bars, decimals = 0, vertical, label }: { bars: B
         <li key={b.key} className="grid grid-cols-[3.5rem_minmax(0,1fr)_5.5rem] items-center gap-2 text-12">
           <span className="text-ink-2 whitespace-nowrap">{b.label}</span>
           <span className="relative h-3">
-            <span aria-hidden className="absolute inset-y-0 left-1/2 w-px bg-line" />
-            {!!b.value && <span className={`absolute inset-y-0 ${b.value > 0 ? 'left-1/2 bg-up-fill' : 'right-1/2 bg-down-fill'}`} style={{ width: half(b.value) }} />}
+            {sign && <span aria-hidden className="absolute inset-y-0 left-1/2 w-px bg-line" />}
+            {!!b.value && <span className={`absolute inset-y-0 ${!sign ? 'left-0 bg-ink-1' : b.value > 0 ? 'left-1/2 bg-up-fill' : 'right-1/2 bg-down-fill'}`} style={{ width: len(b.value) }} />}
           </span>
-          <span className={`num text-right ${TEXT[changeDir(b.value)]}`}>{signed(b.value, decimals)}</span>
+          <span className={`num text-right ${sign ? TEXT[changeDir(b.value)] : 'text-ink-1'}`}>{shown(b.value)}</span>
         </li>
       ))}
     </ul>

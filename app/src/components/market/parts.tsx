@@ -9,7 +9,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { NumBlock } from '../ui'
 import { LineChart, Range52 } from '../charts'
 import { Panel } from '../panels'
-import { isCoarse, spans } from './calc'
+import { spans } from './calc'
 
 /** 자산군 본문이 받는 것: 묶음 하나 + 고른 띠 지표(s). */
 export type BodyProps<B> = { b: B; selId: string; setS: (id: string) => void }
@@ -60,21 +60,18 @@ function useSeries(item?: StripItem): Pt[] | null {
 }
 
 /**
- * 칸 하나를 기간 칩 시계열로(화면 단위). 월별처럼 성긴 시계열은 1년 칩만 — 3달은 점 3개다.
+ * 칸 하나를 기간 칩 시계열로(화면 단위). 월별처럼 성긴 시계열의 칩 고르기는 format.ts slicePeriods 가 한다(1년 · 2년 · 전체).
  * 시계열이 없으면 띠의 최근 7거래일(날짜 없음)이라도 1주로.
  */
 export function periodsOf(item: StripItem, series: Pt[] | null): Partial<Record<PeriodKey, Pt[]>> {
-  if (series?.length) {
-    const cut = slicePeriods(scaledPts(series, item.scale))
-    return isCoarse(series) ? { '1y': cut['1y'] ?? cut['3m'] } : cut
-  }
+  if (series?.length) return slicePeriods(scaledPts(series, item.scale))
   if (series && item.spark && item.spark.length >= 2) return { '1w': scaledPts(item.spark.map((x): Pt => ['', x]), item.scale) }
   return {}
 }
 
 /**
  * 큰 차트: 고른 칸의 값·등락 + 52주 위치 + 기간 칩 선 차트(기간은 주소 p). 홈 큰 차트와 같은 모양이다.
- * 기간 칩은 일별이면 1주·3달·1년, 월별(거시·부동산)이면 1년 하나다(24개월 칩은 format.ts PERIODS 에 없다).
+ * 기간 칩은 일별이면 1주·3달·1년, 월별(거시·부동산)이면 1년·2년(24개월)이다.
  */
 export function BigChart({ item, className = '' }: { item?: StripItem; className?: string }) {
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))

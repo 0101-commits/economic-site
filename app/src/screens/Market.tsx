@@ -65,10 +65,8 @@ export default function Market() {
         {mk && mk.state !== 'open' && mk.nextOpen && <span className="text-12 text-ink-3">다음 개장 <span className="num">{mdHm(mk.nextOpen)}</span></span>}
       </header>
 
-      {/* 자산군 7 — 모바일은 한 줄 가로 스크롤(SegBar 는 줄을 바꾸므로 바깥에서 줄바꿈을 막는다) */}
-      <div className="-mx-1 p-1 overflow-x-auto pc:overflow-visible [&>div]:flex-nowrap">
-        <SegBar label="자산군" options={ASSETS} value={a} onChange={pickAsset} />
-      </div>
+      {/* 자산군 7 — 좁은 화면은 한 줄 가로 스크롤 */}
+      <SegBar scroll label="자산군" options={ASSETS} value={a} onChange={pickAsset} />
 
       {b === 'err' ? <p className="m-0 text-14 text-ink-2">자료를 불러오지 못했습니다.</p>
         : !ok ? <p className="m-0 text-14 text-ink-3">불러오는 중</p> : (

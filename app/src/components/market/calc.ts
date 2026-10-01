@@ -33,13 +33,6 @@ export function yoySeries(series: Pt[] | null | undefined): Pt[] {
   return out
 }
 
-/** 점 사이가 평균 0.8달 이상이면 월별(또는 더 성긴) 시계열. 이런 시계열에 3달 칩은 점 3개라 그리지 않는다. */
-export function isCoarse(series: Pt[] | null | undefined): boolean {
-  if (!series || series.length < 2) return false
-  const a = monthIndex(series[0][0]), z = monthIndex(series[series.length - 1][0])
-  return a != null && z != null && (z - a) / (series.length - 1) >= 0.8
-}
-
 /** 첫 점 = base 로 다시 맞춘다(비교 차트는 기간마다 시작을 100 으로). 첫 값이 0 이면 그대로. */
 export function rebase(pts: Pt[], base = 100): Pt[] {
   const first = pts[0]?.[1]

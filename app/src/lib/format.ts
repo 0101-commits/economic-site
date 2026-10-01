@@ -163,34 +163,46 @@ export function heatStep(pct: number | null | undefined): number {
 
 /** 시계열 한 점: [날짜, 값]. 날짜는 'YYYY-MM-DD' · 'YYYY-MM' 등 묶음 그대로. */
 export type Pt = [string, number]
-export type PeriodKey = '1d' | '1w' | '3m' | '1y'
+export type PeriodKey = '1d' | '1w' | '3m' | '1y' | '2y' | 'all'
 export const PERIODS: readonly { key: PeriodKey; label: string }[] = [
   { key: '1d', label: '1일' }, { key: '1w', label: '1주' }, { key: '3m', label: '3달' }, { key: '1y', label: '1년' },
+  { key: '2y', label: '2년' }, { key: 'all', label: '전체' },
 ]
 
-// 'YYYY-MM' · 'YYYY' 도 문자열 비교가 되게 'YYYY-MM-DD' 로 늘린다
-const dayKey = (d: string) => { const s = d.slice(0, 10); return s.length === 7 ? s + '-01' : s.length === 4 ? s + '-01-01' : s }
+// 'YYYY-MM' · 'YYYY' · 분기('2026Q2' · '2026-Q2' = 그 분기 첫 달)도 문자열 비교가 되게 'YYYY-MM-DD' 로 늘린다
+const dayKey = (d: string) => {
+  const q = /^(\d{4})-?Q([1-4])$/.exec(d)
+  if (q) return `${q[1]}-${String(+q[2] * 3 - 2).padStart(2, '0')}-01`
+  const s = d.slice(0, 10)
+  return s.length === 7 ? s + '-01' : s.length === 4 ? s + '-01-01' : s
+}
+const dayMs = (d: string) => new Date(dayKey(d) + 'T00:00:00Z').getTime()
 
 /**
- * 일별(월별) 시계열을 기간 칩으로 자른다 — 끝 날짜에서 7일 · 3달 · 1년 거꾸로.
- * 점이 2개 미만이거나 더 짧은 기간과 점 수가 같으면 그 칩은 뺀다(칩은 있는데 그림이 같은 일을 막는다).
- * 1일(분봉)은 묶음이 따로 줄 때만 있다 — 여기서는 만들지 않는다.
+ * 일별·월별·분기 시계열을 기간 칩으로 자른다 — 끝 날짜에서 7일 · 3달 · 1년 · 2년 거꾸로, 그리고 전체.
+ * 점이 2개 미만이거나 바로 앞 칩보다 점이 20% 넘게 많지 않으면 그 칩은 뺀다(칩은 있는데 그림이 거의 같은 일을 막는다 —
+ * 1년치 일별 366점에 「2년」 366점 · 「1년」 365점이 따로 서지 않게).
+ * 점 간격이 평균 24일 이상인 성긴 시계열(월별·분기)은 1주·3달을 만들지 않는다 — 3달 칩이 점 3개다.
+ * 1일(분봉)은 묶음이 따로 줄 때만 있다 — 여기서는 만들지 않는다. 날짜를 못 읽으면 「전체」 하나.
  */
 export function slicePeriods(series: Pt[] | null | undefined): Partial<Record<PeriodKey, Pt[]>> {
   const out: Partial<Record<PeriodKey, Pt[]>> = {}
   if (!series || series.length < 2) return out
-  const end = new Date(dayKey(series[series.length - 1][0]) + 'T00:00:00Z')
-  if (Number.isNaN(end.getTime())) { out['1y'] = series; return out }
+  const endMs = dayMs(series[series.length - 1][0])
+  if (Number.isNaN(endMs)) { out.all = series; return out }
+  const coarse = (endMs - dayMs(series[0][0])) / (series.length - 1) >= 24 * 86_400_000
   const cut = (days: number, months: number) => {
-    const d = new Date(end)
+    const d = new Date(endMs)
     d.setUTCDate(d.getUTCDate() - days)
     d.setUTCMonth(d.getUTCMonth() - months)
     return d.toISOString().slice(0, 10)
   }
+  const plan: [PeriodKey, string | null][] = [['1w', cut(7, 0)], ['3m', cut(0, 3)], ['1y', cut(0, 12)], ['2y', cut(0, 24)], ['all', null]]
   let prev = 0
-  for (const [k, c] of [['1w', cut(7, 0)], ['3m', cut(0, 3)], ['1y', cut(0, 12)]] as const) {
-    const pts = series.filter(p => dayKey(p[0]) > c)
-    if (pts.length >= 2 && pts.length !== prev) { out[k] = pts; prev = pts.length }
+  for (const [k, c] of plan) {
+    if (coarse && (k === '1w' || k === '3m')) continue
+    const pts = c ? series.filter(p => dayKey(p[0]) > c) : series
+    if (pts.length >= 2 && pts.length > prev * 1.2) { out[k] = pts; prev = pts.length }
   }
   return out
 }
@@ -198,9 +210,7 @@ export function slicePeriods(series: Pt[] | null | undefined): Partial<Record<Pe
 /** 52주 최저·최고(끝에서 1년 안). 시계열이 350일보다 짧으면 null — 52주라고 부를 수 없다. */
 export function range52(series: Pt[] | null | undefined): { low: number; high: number } | null {
   if (!series || series.length < 2) return null
-  const first = new Date(dayKey(series[0][0]) + 'T00:00:00Z').getTime()
-  const last = new Date(dayKey(series[series.length - 1][0]) + 'T00:00:00Z').getTime()
-  if (!(last - first >= 350 * 86_400_000)) return null
+  if (!(dayMs(series[series.length - 1][0]) - dayMs(series[0][0]) >= 350 * 86_400_000)) return null
   const pts = slicePeriods(series)['1y'] ?? series
   let low = Infinity, high = -Infinity
   for (const [, v] of pts) { if (v < low) low = v; if (v > high) high = v }

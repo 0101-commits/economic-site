@@ -45,10 +45,4 @@ export function StepNum({ n, kind }: { n: number; kind: 'solid' | 'guess' | 'off
   return <span aria-hidden className={`size-6 shrink-0 inline-flex items-center justify-center rounded-chip border num text-11 font-bold ${cls}`}>{n}</span>
 }
 
-/** 히트맵 칸 채움 — charts.tsx Heatmap 과 같은 규칙(그 함수는 밖으로 안 나와 있어 같은 값을 여기에 둔다). */
-const HEAT_MIX = [0, 22, 50, 88]
-export const heatBg = (step: number) => step
-  ? `color-mix(in srgb, var(${step > 0 ? '--c-up-fill' : '--c-down-fill'}) ${HEAT_MIX[Math.abs(step)]}%, var(--c-card))`
-  : 'color-mix(in srgb, var(--c-ink-3) 14%, var(--c-card))'
-
 export const postUrl = (logNo: string) => `https://blog.naver.com/ranto28/${logNo}`

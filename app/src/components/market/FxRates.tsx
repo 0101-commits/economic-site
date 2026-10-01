@@ -34,7 +34,7 @@ const rateCols: Col<StripItem>[] = [
   { key: 'asOf', label: '기준', get: r => r.asOf, role: 'sub', render: r => <AsOfBadge asOf={r.asOf} state={r.state} /> },
 ]
 
-export default function FxRates({ b, selId }: BodyProps<FxRatesBundle>) {
+export default function FxRates({ b, selId, setS }: BodyProps<FxRatesBundle>) {
   const [v, setV] = useViewParam<View>('v', 'fx', VIEWS.map(o => o.key))
   const vw = b.views
   const pool = poolOf(b.strip, vw?.fx, vw?.rates)
@@ -48,12 +48,12 @@ export default function FxRates({ b, selId }: BodyProps<FxRatesBundle>) {
   const panels: Record<View, (cls: string, primary: boolean) => ReactNode> = {
     fx: (cls, primary) => (
       <Panel className={cls} title={`환율 ${fx.length}`} fold={primary ? undefined : 'mobile'}>
-        {fx.length ? <RankTable label="환율" cols={fxCols} rows={fx} rowKey={r => r.id} /> : <Empty>환율 자료가 없습니다.</Empty>}
+        {fx.length ? <RankTable label="환율" cols={fxCols} rows={fx} rowKey={r => r.id} onPick={r => setS(r.id)} selectedKey={sel?.id} /> : <Empty>환율 자료가 없습니다.</Empty>}
       </Panel>
     ),
     rates: (cls, primary) => (
       <Panel className={cls} title={`금리 ${vw?.rates?.length ?? ''}`} fold={primary ? undefined : 'mobile'}>
-        {vw?.rates?.length ? <RankTable label="국채 금리" cols={rateCols} rows={vw.rates} rowKey={r => r.id} /> : <Empty>금리 자료가 없습니다.</Empty>}
+        {vw?.rates?.length ? <RankTable label="국채 금리" cols={rateCols} rows={vw.rates} rowKey={r => r.id} onPick={r => setS(r.id)} selectedKey={sel?.id} /> : <Empty>금리 자료가 없습니다.</Empty>}
       </Panel>
     ),
     curves: (cls, primary) => (

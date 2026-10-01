@@ -2,14 +2,15 @@
 // 점을 고르고 ▲▼ 를 누르면 선을 따라 방향이 퍼진다(규칙은 model.ts propagate). 금액은 계산하지 않는다.
 // 운영 규칙: 상태어는 돌파·주시·정상 / 도달·추정·미도달 만. 실측 실선 · 추정 점선. 글은 제목·날짜·링크만.
 // 고른 점은 주소 s 에 남기고(공유 가능), 방향·깊이·애니메이션은 화면 안 상태다.
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link as RLink } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { Card, SegBar } from '../ui'
-import { heatStep, shortDate } from '../../lib/format'
+import { heatBg, heatInk, useBox } from '../charts'
+import { shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { LAYERS, edgeStrength, links, propagate, shortLabel, type LensBundle, type Link, type Sign } from './model'
-import { StepNum, TrigPill, asOfText, btn, heatBg, postUrl, trigBorder, trigValue } from './parts'
+import { StepNum, TrigPill, asOfText, btn, postUrl, trigBorder, trigValue } from './parts'
 
 const PC_MQ = '(min-width: 61.25rem)'   // app.css --breakpoint-pc 와 같은 값
 const DEPTHS = [{ key: '1', label: '1단계' }, { key: '2', label: '2단계' }, { key: '3', label: '3단계' }] as const
@@ -35,19 +36,6 @@ const LINE = { mute: 'stroke-ink-3', ink: 'stroke-ink-1', up: 'stroke-up', down:
 const HEAD_FILL = { mute: 'fill-ink-3', ink: 'fill-ink-1', up: 'fill-up', down: 'fill-down' } as const
 type Tone = keyof typeof LINE
 type P = { x: number; y: number; c: number }
-
-function useWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null)
-  const [w, setW] = useState(0)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width)))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-  return [ref, w] as const
-}
 
 /** 선 모양: 앞 열로는 오른쪽 → 왼쪽 S자, 뒤 열로는 왼쪽에서 나가 오른쪽으로 감아 들고, 같은 열은 오른쪽으로 부푼다. */
 function edgePath(a: P, b: P, pw: number, gap: number) {
@@ -115,7 +103,7 @@ export default function WhatIf({ b }: { b: LensBundle }) {
   const restore = (x: Saved) => { if (!byId.has(x.start)) return; setS(x.start); setDir(x.dir); setDepth(String(Math.min(3, Math.max(1, x.depth))) as Depth); setNote('') }
 
   // 지도 배치: 층별 열, 짧은 열은 세로 가운데
-  const [box, W] = useWidth<HTMLDivElement>()
+  const [box, { w: W }] = useBox<HTMLDivElement>()
   const cols = LAYERS.map(L => b.nodes.filter(n => n.layer === L.key))
   const rows = Math.max(1, ...cols.map(c => c.length))
   const colW = W / LAYERS.length, gap = Math.max(12, Math.round(colW * 0.2)), pw = Math.max(0, colW - gap)
@@ -282,12 +270,12 @@ export default function WhatIf({ b }: { b: LensBundle }) {
                 <ul aria-label="자산별 퍼진 방향" className="m-0 p-0 list-none grid grid-cols-3 gap-1">
                   {assets.map(n => {
                     const h = hitOf.get(n.id), start = n.id === sel
-                    const step = h ? heatStep(h.sign * HEAT_AT[h.strength]) : start ? heatStep(dir * HEAT_AT[3]) : 0
+                    const heat = h ? h.sign * HEAT_AT[h.strength] : start ? dir * HEAT_AT[3] : 0   // 히트맵 채움 규칙에 넣을 값
                     const mark = start ? `${dir > 0 ? '▲' : '▼'} 출발` : h ? `${h.sign > 0 ? '▲' : '▼'} ${h.strength}` : '—'
                     return (
                       <li key={n.id} title={n.label}
-                        className={`h-10 rounded-inner flex flex-col items-center justify-center text-center ${Math.abs(step) === 3 ? 'text-on-fill' : 'text-ink-1'} ${h && h.step > 1 ? 'border border-dashed border-ink-3' : ''}`}
-                        style={{ background: heatBg(step) }}>
+                        className={`h-10 rounded-inner flex flex-col items-center justify-center text-center ${heatInk(heat)} ${h && h.step > 1 ? 'border border-dashed border-ink-3' : ''}`}
+                        style={{ background: heatBg(heat) }}>
                         <span className="block w-full px-0.5 text-11 leading-tight ellipsis-ok">{shortLabel(n.label)}</span>
                         <span className="block num text-11 font-bold">{mark}</span>
                       </li>

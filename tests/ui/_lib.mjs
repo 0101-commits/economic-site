@@ -93,8 +93,10 @@ export function inPage(allowExtra) {
       out.push({ kind: 'T2 말줄임 잘림', sel: path(el), text: txt.slice(0, 40), detail: `${el.scrollWidth}>${el.clientWidth}` });
     // T2 숫자 두 줄 꺾임(자식 요소 없는 순수 숫자 글자)
     if (!el.children.length && NUM.test(txt)) {
+      // 줄 수 = 글자 상자의 서로 다른 세로 위치 수. 상자 수로 세면 한 줄에 놓인 텍스트 노드 둘(React 의 {값}% = 「3.00」+「%」)을 두 줄로 센다.
       const r = document.createRange(); r.selectNodeContents(el);
-      if (r.getClientRects().length > 1) out.push({ kind: 'T2 숫자 줄꺾임', sel: path(el), text: txt.slice(0, 40), detail: `${r.getClientRects().length}줄` });
+      const lines = new Set([...r.getClientRects()].map(x => Math.round(x.top))).size;
+      if (lines > 1) out.push({ kind: 'T2 숫자 줄꺾임', sel: path(el), text: txt.slice(0, 40), detail: `${lines}줄` });
     }
   }
   return out;

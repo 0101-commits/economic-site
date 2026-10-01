@@ -92,7 +92,7 @@ export default function FlowView({ b }: { b: LensBundle }) {
             {prev && (prev === dom ? ' · 지난달과 같음' : ` · 지난달 ${prev}에서 바뀜`)}
             {sel === now && <> · 이번 달은 집계 중(언급 <span className="num">{total}</span>건)</>}
           </p>
-          <DivergingBars label={`${monthWord(sel)} 요인별 언급 수`} bars={bars} />
+          <DivergingBars signed={false} label={`${monthWord(sel)} 요인별 언급 수`} bars={bars} />
         </Panel>
 
         <Panel className="pc:col-span-6" title={`${monthWord(sel)} 글·사건`}>

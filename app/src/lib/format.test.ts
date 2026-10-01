@@ -111,11 +111,29 @@ test('slicePeriods · range52: 기간 칩과 52주 범위', () => {
   const short = daily.slice(-65)
   assert.deepEqual(Object.keys(slicePeriods(short)), ['1w', '3m'])
   assert.equal(range52(short), null)
-  // 월별 24점: 1주는 점이 모자라 빠진다
+  // 월별 24점(성긴 시계열): 1주·3달은 만들지 않고 1년 12점 · 2년 24점. 전체는 2년과 같아 빠진다
   const monthly: Pt[] = []
   for (let i = 0; i < 24; i++) monthly.push([`${2024 + Math.floor((i + 9) / 12)}-${String((i + 9) % 12 + 1).padStart(2, '0')}`, i])
   assert.equal(monthly[monthly.length - 1][0], '2026-09')
-  assert.deepEqual(Object.keys(slicePeriods(monthly)), ['3m', '1y'])
-  assert.equal(slicePeriods(monthly)['1y']!.length, 12)
+  const mp = slicePeriods(monthly)
+  assert.deepEqual(Object.keys(mp), ['1y', '2y'])
+  assert.equal(mp['1y']!.length, 12)
+  assert.equal(mp['2y']!.length, 24)
+  // 월별 36점이면 「전체」가 2년 뒤에 선다
+  const m36: Pt[] = []
+  for (let i = 0; i < 36; i++) m36.push([`${2023 + Math.floor((i + 9) / 12)}-${String((i + 9) % 12 + 1).padStart(2, '0')}`, i])
+  assert.deepEqual(Object.keys(slicePeriods(m36)), ['1y', '2y', 'all'])
+  // 주별은 성긴 시계열이 아니다 — 3달 칩이 남는다
+  assert.deepEqual(Object.keys(slicePeriods([['2026-09-01', 1], ['2026-09-08', 1], ['2026-09-15', 1], ['2026-09-22', 1]])), ['3m'])
   assert.deepEqual(slicePeriods([['2026-10-01', 1]]), {})
+  assert.deepEqual(Object.keys(slicePeriods([['가', 1], ['나', 2]])), ['all'])   // 날짜를 못 읽으면 전체 하나
+})
+
+test('slicePeriods: 분기 라벨(2026Q2 · 2026-Q2)도 날짜로 읽는다', () => {
+  const q: Pt[] = ['2025Q1', '2025Q2', '2025Q3', '2025Q4', '2026Q1', '2026Q2'].map((d, i): Pt => [d, i])
+  const p = slicePeriods(q)
+  assert.deepEqual(Object.keys(p), ['1y', '2y'])
+  assert.deepEqual(p['1y']!.map(x => x[0]), ['2025Q3', '2025Q4', '2026Q1', '2026Q2'])   // 끝 분기 첫 달 4/1 에서 1년 거꾸로
+  assert.equal(p['2y']!.length, 6)
+  assert.deepEqual(slicePeriods([['2025-Q4', 1], ['2026-Q1', 2], ['2026-Q2', 3]])['1y']!.length, 3)
 })

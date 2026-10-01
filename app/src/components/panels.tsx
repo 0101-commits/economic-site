@@ -140,9 +140,12 @@ function cmp(a: unknown, b: unknown): number | null {
 /**
  * 순위 표: 머리 32px, 숫자 열 오른쪽 정렬·고정폭, 빈칸 「—」, 머리 누르면 정렬(⇅ → ▼ → ▲ → 원래 순서).
  * lead = 행 앞 칸(관심 별 등 버튼 자리). 모바일은 2열로 접고 행을 누르면 BottomSheet 에 나머지 열.
+ * onPick 을 주면 행 누르기 = 그 행 고르기(selectedKey 와 rowKey 가 같은 행이 옅은 바탕). 모바일도 시트 대신 onPick 이다.
+ * 행 전체가 마우스 자리이고, 키보드·읽기 도구용으로 이름 칸 내용을 버튼으로 감싼다(핸들러 없이 행으로 버블링).
  */
-export function RankTable<R>({ cols, rows, rowKey, lead, label }: {
+export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selectedKey }: {
   cols: Col<R>[]; rows: R[]; rowKey: (r: R) => string; lead?: (r: R) => ReactNode; label: string
+  onPick?: (r: R) => void; selectedKey?: string | null
 }) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null)
   const [sheet, setSheet] = useState<R | null>(null)
@@ -164,6 +167,8 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label }: {
   const by = (role: Col<R>['role']) => cols.find(c => c.role === role)
   const [nameC, subC, valueC, changeC] = [by('name'), by('sub'), by('value'), by('change')]
   const rest = cols.filter(c => !c.role)
+  const pickC = nameC ?? cols[0]
+  const isOn = (r: R) => selectedKey != null && rowKey(r) === selectedKey
 
   return (
     <div className="min-w-0">
@@ -188,12 +193,22 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label }: {
             </tr>
           </thead>
           <tbody>
-            {shown.map(r => (
-              <tr key={rowKey(r)} className="h-10 border-b border-line last:border-b-0">
-                {lead && <td className="w-8 p-0">{lead(r)}</td>}
-                {cols.map(c => <td key={c.key} className={`px-2 py-1 ${c.num ? 'text-right num' : ''}`}>{cell(c, r)}</td>)}
-              </tr>
-            ))}
+            {shown.map(r => {
+              const on = isOn(r)
+              return (
+                <tr key={rowKey(r)} onClick={onPick && (() => onPick(r))}
+                  className={`h-10 border-b border-line last:border-b-0 ${onPick ? 'cursor-pointer hover:bg-ink-3/5' : ''} ${on ? 'bg-ink-3/10' : ''}`}>
+                  {lead && <td className="w-8 p-0">{lead(r)}</td>}
+                  {cols.map(c => (
+                    <td key={c.key} className={`px-2 py-1 ${c.num ? 'text-right num' : ''}`}>
+                      {onPick && c === pickC
+                        ? <button type="button" aria-pressed={on} className={`p-0 border-0 bg-transparent text-left cursor-pointer ${on ? 'font-bold' : ''}`}>{cell(c, r)}</button>
+                        : cell(c, r)}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -213,11 +228,13 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label }: {
             </>
           )
           const row = 'flex-1 min-w-0 flex items-center justify-between gap-3 py-2 text-left'
+          const on = isOn(r)
           return (
-            <li key={rowKey(r)} className="flex items-center gap-1 border-b border-line last:border-b-0">
+            <li key={rowKey(r)} className={`flex items-center gap-1 border-b border-line last:border-b-0 ${on ? 'bg-ink-3/10' : ''}`}>
               {lead?.(r)}
-              {rest.length
-                ? <button type="button" onClick={() => setSheet(r)} className={`${row} bg-transparent border-0 cursor-pointer`}>{inner}</button>
+              {onPick || rest.length
+                ? <button type="button" onClick={() => (onPick ? onPick(r) : setSheet(r))} aria-pressed={onPick ? on : undefined}
+                  className={`${row} bg-transparent border-0 cursor-pointer`}>{inner}</button>
                 : <div className={row}>{inner}</div>}
             </li>
           )
