@@ -283,6 +283,21 @@ FORMAT_BY_ID = {
     "nps_aum":    {"decimals": 1, "unit": "조원"},
     "btc":        {"decimals": 0, "unit": "$"},
     "goldkrw":    {"decimals": 0, "unit": "원"},   # KRX 금시장 원/g — 자산군 기본값 '$' 가 아니다
+    # 개수 지표 — 정수다(부동산 기본값 1자리면 68,217.0호). 거래량은 동(호)수지만 화면 말은 「건」(2026-10-01 결정).
+    "unsold_total_kr":        {"decimals": 0, "unit": "호"},
+    "housing_start_kr":       {"decimals": 0, "unit": "호"},
+    "housing_permit_kr":      {"decimals": 0, "unit": "호"},
+    "housing_complete_kr":    {"decimals": 0, "unit": "호"},
+    "trade_count_kr":         {"decimals": 0, "unit": "건"},
+    "trade_count_kr_rone_kr": {"decimals": 0, "unit": "건"},
+}
+
+# 지수·심리 지표의 나라 — 거시 행은 수집 경로(economicIndicators.<cc>)가 나라를 주지만 이 둘은 경로에 나라가 없다.
+# 상세 화면의 「시장 화면에서 보기」가 국내/해외를 가르는 데 쓴다. 가상자산(btc)은 나라가 없어 비운다.
+COUNTRY_BY_ID = {
+    "kospi": "kr", "kosdaq": "kr", "vkospi": "kr",
+    "sp500": "us", "nasdaq": "us", "sox": "us", "move": "us", "fear_greed": "us",
+    "nikkei": "jp", "shanghai": "cn", "hsi": "hk",
 }
 
 
@@ -322,6 +337,8 @@ def build(data, mer):
         by_id[kw["id"]] = kw
         kw.setdefault("tier", tier_of(kw["id"]))
         kw.setdefault("canonical", CANONICAL_BY_ID.get(kw["id"]) or CANONICAL[kw["asset"]])
+        if kw["id"] in COUNTRY_BY_ID:
+            kw.setdefault("country", COUNTRY_BY_ID[kw["id"]])
         news = news_of(kw["id"], kw["asset"])
         if news:
             kw["news"] = news

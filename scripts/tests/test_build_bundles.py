@@ -263,6 +263,10 @@ def test_count_units_have_no_decimals():
               "housing_starts_us", "claims_us"):
         assert reg[i]["decimals"] == 0, i
     assert _item(bundles()["market-realestate"], "unsold_total_kr")["decimals"] == 0
+    assert reg["unsold_total_kr"]["unit"] == "호" and reg["trade_count_kr"]["unit"] == "건"   # 레지스트리(app0.js)와 같은 값
+    country = {i: reg[i].get("country") for i in ("kospi", "vkospi", "sp500", "sox", "nikkei", "shanghai", "hsi", "move", "fear_greed")}
+    assert country == {"kospi": "kr", "vkospi": "kr", "sp500": "us", "sox": "us", "nikkei": "jp",
+                       "shanghai": "cn", "hsi": "hk", "move": "us", "fear_greed": "us"}
     assert _item(bundles()["market-domestic"], "breadth_kospi")["decimals"] == 0
 
 
