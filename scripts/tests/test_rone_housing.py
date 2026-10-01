@@ -129,6 +129,9 @@ def test_extra_stats_carries_cls_and_cumulative(monkeypatch):
 
     monkeypatch.setattr(fd, "REALESTATE_API_KEY", "k")
     monkeypatch.setattr(fd, "fetch_rone_nationwide_latest", nat)
+    monkeypatch.setattr(fd, "fetch_kosis_unsold", lambda: {"value": 69134.0, "prev": 68217.0, "chg": 1.34, "period": "202608",
+                                                           "history": {"202607": 68217.0, "202608": 69134.0}, "region": "전국",
+                                                           "unit": "호", "desc": "전국 미분양주택(호)", "source": "KOSIS:116/DT_MLTM_2080"})
     monkeypatch.setattr(fd, "fetch_rone_table_catalog", lambda *a, **k: [])
     monkeypatch.setattr(fd, "fetch_rone_sigungu_breakdown", lambda *a, **k: None)
     monkeypatch.setattr(fd, "requests", types.SimpleNamespace(get=offline, post=offline))
@@ -140,6 +143,7 @@ def test_extra_stats_carries_cls_and_cumulative(monkeypatch):
     assert calls[NEW["housing_complete_kr"]] == (True, "50019", big)
     assert calls[NEW["housing_permit_kr"]] == (True, "50023", big)
     assert NEW["unsold_total_kr"] not in calls                     # 미분양은 R-ONE 에 전국 행이 없어 KOSIS 가 본선
+    assert res["unsold_total_kr"]["source"] == "KOSIS:116/DT_MLTM_2080" and res["unsold_total_kr"]["value"] == 69134.0
     assert calls["A_2024_00064"] == (False, None, 300) and calls["A_2024_00057"] == (False, None, 300)
     for key, sid in NEW.items():
         if key == "unsold_total_kr":
