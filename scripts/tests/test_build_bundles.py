@@ -219,6 +219,37 @@ def test_yoy_guard_over_50pct():
     assert ex["label"] == "한국 수출(억달러·월)" and len(ex["asOf"]) == 7 and "전년비" in ex["note"]
 
 
+def test_lens_node_short_within_mobile_cap():
+    lens = bundles()["lens"]
+    bad = [(n["id"], n["short"]) for n in lens["nodes"] if not n.get("short") or ol.width(n["short"]) > bb.SHORT_M]
+    assert not bad, "렌즈 노드 줄임 이름 8칸 초과 — build_bundles.LENS_SHORT 에 한 줄 더할 것: %r" % bad
+    assert lens["coverage"]["posts"] == MER["coverage"]["posts"]
+    assert bb.node_short({"id": "x", "label": "부동산(전국 주택가격지수)"}) == "부동산"
+    assert bb.node_short({"id": "x", "label": "AI 캐펙스·데이터센터"}) == "AI 캐펙스"
+
+
+def test_lens_edge_has_one_recent_quote():
+    lens = bundles()["lens"]
+    assert len(lens["edges"]) == len(MER["graph"]["edges"])
+    for e in lens["edges"]:
+        assert len(e["quotes"]) <= 1, e
+        for q in e["quotes"]:
+            assert set(q) == {"logNo", "date", "q"} and len(q["q"]) <= bb.QUOTE_MAX, q
+    # 가장 최근 1건을 고른다 — 원천 인용 중 날짜가 가장 늦은 것
+    mer = {"graph": {"edges": [{"from": "a", "to": "b", "dir": "+"}]},
+           "impacts": [{"from": "a", "to": "b", "dir": "+", "quotes": [
+               {"logNo": "1", "date": "2026-01-01", "q": "옛 글"}, {"logNo": "2", "date": "2026-09-01", "q": "가" * 80}]}]}
+    q = bb.edges_with_quote(mer)[0]["quotes"][0]
+    assert q["logNo"] == "2" and len(q["q"]) == bb.QUOTE_MAX and q["q"].endswith("…")
+
+
+def test_lens_chain_lognos_capped():
+    lens = bundles()["lens"]
+    src = {c["id"]: c for c in MER["chains"]}
+    for c in lens["chains"]:
+        assert len(c["logNos"]) <= 10 and c["logNos"] == (src[c["id"]].get("logNos") or [])[:10], c["id"]
+
+
 def test_registry_rows():
     rows = bundles()["registry"]["rows"]
     assert rows and all(r["canonical"] == "/i/" + r["id"] for r in rows)

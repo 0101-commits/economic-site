@@ -668,7 +668,8 @@ def watch_list(mer):
 
 def chain_view(c):
     return {k: c.get(k) for k in ("id", "label", "note", "n", "lastDate", "hotStep")} | {
-        "steps": [{"id": s.get("id"), "label": s.get("label")} for s in (c.get("steps") or [])]}
+        "steps": [{"id": s.get("id"), "label": s.get("label")} for s in (c.get("steps") or [])],
+        "logNos": (c.get("logNos") or [])[:10]}        # 원문 링크 목록용 — 원천 순서(최근 글 먼저) 그대로 최대 10
 
 
 def lens_today(mer):
@@ -683,14 +684,42 @@ def lens_today(mer):
             "chain": chain_view(hot[0]) if hot else None, "hotChains": len(hot)}
 
 
+# 렌즈 노드 줄임 이름 — 괄호·「·」 앞만 남겨도 모바일 8칸을 넘는 것만 사람이 여기 정한다.
+LENS_SHORT = {"nps_flow": "연금 리밸런싱"}   # 「국민연금 리밸런싱」 8.5칸
+QUOTE_MAX = 60      # 간선 인용 한 줄 상한(글자 수)
+
+
+def node_short(node):
+    if node.get("id") in LENS_SHORT:
+        return LENS_SHORT[node["id"]]
+    return re.split(r"[(·]", node.get("label") or "")[0].strip() or node.get("label")
+
+
+def edges_with_quote(mer):
+    """간선마다 원천 impacts 의 인용 중 가장 최근 1건. (출발, 도착, 방향)으로 짝짓고 같은 짝이 여럿이면 순서대로."""
+    pool = {}
+    for im in mer.get("impacts") or []:
+        pool.setdefault((im.get("from"), im.get("to"), im.get("dir")), []).append(im)
+    out = []
+    for e in (mer.get("graph") or {}).get("edges") or []:
+        same = pool.get((e.get("from"), e.get("to"), e.get("dir"))) or []
+        qs = (same.pop(0).get("quotes") or []) if same else []
+        last = max(qs, key=lambda q: (q.get("date") or "", q.get("logNo") or ""), default=None)
+        q = (last or {}).get("q") or ""
+        cut = q if len(q) <= QUOTE_MAX else q[:QUOTE_MAX - 1].rstrip() + "…"
+        out.append(dict(e, quotes=[{"logNo": last.get("logNo"), "date": last.get("date"), "q": cut}] if last else []))
+    return out
+
+
 def build_lens(mer):
     g = mer.get("graph") or {}
     posts = sorted((p for p in (mer.get("posts") or []) if p.get("date")), key=lambda p: (p["date"], p.get("logNo") or ""))
     counts = {}
     for t in triggers(mer):
         counts[t["state"]] = counts.get(t["state"], 0) + 1
-    return {"asOf": mer.get("asOf"), "window": mer.get("window"),
-            "nodes": g.get("nodes") or [], "edges": g.get("edges") or [],
+    return {"asOf": mer.get("asOf"), "window": mer.get("window"), "coverage": mer.get("coverage"),
+            "nodes": [dict(n, short=node_short(n)) for n in (g.get("nodes") or [])],
+            "edges": edges_with_quote(mer),
             "chains": [chain_view(c) for c in (mer.get("chains") or [])],
             "regime": mer.get("regime"), "lens": mer.get("lens"), "counters": mer.get("counters") or [],
             "triggers": triggers(mer), "triggerCounts": counts, "today": lens_today(mer),
