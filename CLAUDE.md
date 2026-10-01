@@ -504,6 +504,8 @@ The script **preserves previous values** on partial failure — individual API e
   history 가 1점이었다.
 - **R-ONE 은 날짜 범위(FROM/TO)를 무시한다** — `WRTTIME_IDTFR_ID` 단일 월로 물어야 한다(범위로 물으면 2003년부터 오래된
   순 56,148행). `CLS_FULLNM` 은 `>` 구분자(`서울>강북지역>…`).
+- **T 표(국토부 주택 공급 통계)는 분류 코드가 5자리 정수이고 표마다 달라 `CLS_ID=500001` 이 안 먹는다** — 전국 코드는 표별로 적어
+  두고(착공·준공 `50019`·인허가 `50023`·미분양 미확인) 무필터 전체 행은 잘려 쓸 수 없다. R-ONE 은 통계누리보다 1개월 늦다.
 - **수출입은행 API 주소는 `oapi.koreaexim.go.kr`** (옛 www 주소 2026-04-30 종료 — 5개월간 연결 실패로만 남았던 원인).
 - **푸시 재시도는 `scripts/merge_newer.py` 로 병합한다** — reset 뒤 풀 런 산출물을 통째로 덮으면 그사이 경량 런이 올린
   최신 시세가 되돌아간다(2026-09-30 실측). 시세 3블록·토스 4블록·history 를 시각 기준으로 합치고 `data_meta.json` 도
@@ -528,6 +530,8 @@ The script **preserves previous values** on partial failure — individual API e
   병합이 덮지 못하게 직전 빌드에서 복원한다(종전엔 최근 10일만 바꿔 창을 벗어나면 토스값으로 되돌아갔다).
   최근 10영업일은 매 런 재조회, 남은 토스 행은 런마다 40개씩 백필. 네이버 실패 시 KRX(pykrx) 확정치(`src: "krx"`,
   `investorTrading.krxDaily`) — 알림의 `investor_flows.portal_daily()` 도 같은 순서다.
+- **KOSIS 는 통계표선택 방식(`Param/statisticsParameterData.do`)** — `statisticsData.do` 는 사전등록(`userStatsId`) 전용이라
+  orgId/tblId 호출이 늘 실패했고 로그에도 안 남았다(2026-10-01). 새 표는 `[KOSIS-probe]` getMeta 로 분류·항목 코드를 먼저 확인한 뒤 붙인다.
 
 ## Cloudflare Worker
 

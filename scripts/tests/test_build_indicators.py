@@ -30,6 +30,17 @@ def test_realestate_label_from_decision_table():
     assert rows["semi_jeonse_idx_kr"]["label"] == "준전세가격지수 (전국)"
 
 
+def test_housing_supply_labels_and_tier():
+    rows = _rows({"realestate": {"kr": {
+        "unsold_total_kr": _ind("전국 미분양주택(호)"),
+        "housing_start_kr": _ind("전국 주택 착공실적(호)"),
+        "housing_permit_kr": _ind("전국 주택건설 인허가실적(호)"),
+        "housing_complete_kr": _ind("전국 주택 준공실적(호)")}}})
+    assert {k: (r["label"], r["tier"]) for k, r in rows.items()} == {
+        "unsold_total_kr": ("미분양주택 (전국)", 2), "housing_start_kr": ("주택 착공 (전국)", 2),
+        "housing_permit_kr": ("주택 인허가 (전국)", 3), "housing_complete_kr": ("주택 준공 (전국)", 3)}
+
+
 def test_macro_label_from_decision_table():
     rows = _rows({"economicIndicators": {"jp": {"cpi_jp": _ind("일본 CPI")}}})
     assert rows["cpi_jp"]["label"] == "일본 소비자물가(전년비)"

@@ -382,7 +382,7 @@ def test_ecos_source_prefix_is_added_once(monkeypatch):
 def test_rone_misread_tables_renamed_and_daily_table_probe(monkeypatch):
     monkeypatch.setattr(fd, "REALESTATE_API_KEY", "k")
     monkeypatch.setattr(fd, "fetch_rone_nationwide_latest",
-                        lambda sid, limit=600, itm_id=None: {"value": 1.0, "period": "202608", "history": {}})
+                        lambda sid, limit=600, itm_id=None, **k: {"value": 1.0, "period": "202608", "history": {}})
     cats, logs = [], []
 
     def cat(kw, cycle_code="MM", limit=200):

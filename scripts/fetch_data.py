@@ -155,7 +155,10 @@ RONE_BASE_LEGACY = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/
 # SttsApiTblData 는 날짜범위를 무시하고 모든 지역을 오래된 순으로 반환하므로, 전국 최신값을
 # 얻으려면 반드시 CLS_ID=500001 로 지역을 한정해야 한다 (GHA 프로브로 확인).
 RONE_NATIONWIDE_CLS = "500001"
+# KOSIS 는 주소가 둘이다 — 자료 조회는 통계표선택 방식(KOSIS_PARAM_BASE), statisticsData.do 는
+# 통계설명(getMeta)·자료등록(userStatsId 필수) 전용이라 자료 조회에 쓰면 안 된다(2026-10-01).
 KOSIS_BASE   = "https://kosis.kr/openapi/statisticsData.do"
+KOSIS_PARAM_BASE = "https://kosis.kr/openapi/Param/statisticsParameterData.do"
 DATA_GO_KR_BASE = "http://apis.data.go.kr"
 # 수출입은행 OpenAPI 는 oapi 하위 도메인으로 이전했다 — 옛 www 주소는 2026-04-30 종료.
 EXIM_BASE       = "https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON"
@@ -3781,6 +3784,11 @@ def _rone_pick_nationwide(rows):
         v = _parse_num(r.get("DTA_VAL"))
         if p and v is not None:
             history[p] = v
+    return _rone_latest(history)
+
+
+def _rone_latest(history):
+    """{시점: 값} → 최신값/전월값/전월비/history. 비면 None."""
     if not history:
         return None
     keys = sorted(history.keys())
@@ -3791,7 +3799,72 @@ def _rone_pick_nationwide(rows):
             "period": keys[-1], "history": history}
 
 
-def fetch_rone_nationwide_latest(stats_id, limit=600, itm_id=None):
+def _rone_monthly_from_cumulative(picked):
+    """연간 누계 시계열(1월부터 다시 쌓임) → 월분. 1월은 그대로, 그 외는 당월 − 전월(전월이 없으면 그 달은 뺀다)."""
+    cum = picked["history"]
+    monthly = {}
+    for p, v in cum.items():
+        y, m = int(p[:4]), int(p[4:6])
+        if m == 1:
+            monthly[p] = v
+        elif f"{y}{m - 1:02d}" in cum:
+            monthly[p] = v - cum[f"{y}{m - 1:02d}"]
+    return _rone_latest(monthly)
+
+
+def _rone_strict_pick(stats_id, rows, limit):
+    """전국 코드로 받은 행을 검사해 통과할 때만 값을 고른다 — 아니면 None(사유는 로그).
+
+    T 표(국토부 주택 공급)는 전국 아래 하위 분류(전국>총계·전국>공공부문>소계·전국>단독>…)가 시점마다 여러 행이라
+    시점 키로 덮으면 마지막 행이 잡힌다. 항목(ITM)만 세면 10001 하나라 헛통과한다 → (CLS_ID, ITM_ID) 조합으로 센다.
+    잘림(행 수 ≥ limit) — 오래된 순이라 최신 시점이 빠진다 / 전국 행 0 / 시점당 조합 2종 이상 → None.
+    """
+    nat = [r for r in rows if str(r.get("CLS_FULLNM") or "").startswith("전국")]
+    names, per_period, recent = {}, {}, {}
+    for r in nat:
+        c, p = (r.get("CLS_ID"), r.get("ITM_ID")), r.get("WRTTIME_IDTFR_ID")
+        names[c] = f"{r.get('CLS_FULLNM')}/{r.get('ITM_NM')}"
+        per_period.setdefault(p, set()).add(c)
+        v = _parse_num(r.get("DTA_VAL"))
+        if p and v is not None:
+            recent.setdefault(c, {})[p] = v
+    recent = {c: sorted(s.items())[-3:] for c, s in list(recent.items())[:8]}
+    latest = max((p for p in per_period if p), default="")
+    head = (f"[R-ONE] {stats_id}: 전국 조합 {len(names)}종 {dict(list(names.items())[:8])} · "
+            f"최신 {latest} · 행 {len(rows)}")
+    if len(rows) >= limit:
+        log(f"{head} — {limit}행에서 잘림(오래된 순이라 최신이 빠진다), 값 안 실음")
+        return None
+    if not nat:
+        log(f"{head} — 전국 행 없음, 값 안 실음")
+        return None
+    if any(len(s) > 1 for s in per_period.values()):
+        log(f"{head} — 시점당 조합 2종 이상, 값 안 실음")
+        log(f"[R-ONE] {stats_id}: 조합별 최근 3시점 {recent}")
+        return None
+    log(f"{head} · 최근 3시점 {recent}")
+    return _rone_pick_nationwide(nat)
+
+
+def _rone_probe_nationwide_cls(stats_id):
+    """전국 코드를 모르는 표 — 단일 월 무필터 질의(그 달 전체 행, 1,000 이내)로 「전국」 행 후보만 로그한다(값 안 실음).
+
+    지난달부터 4개월을 거슬러 처음 자료가 있는 달을 쓴다(R-ONE 은 통계누리보다 1개월 늦다).
+    """
+    now = datetime.now(KST)
+    for back in range(1, 5):
+        y, m = divmod(now.year * 12 + now.month - 1 - back, 12)
+        ym = f"{y}{m + 1:02d}"
+        rows = fetch_rone_stats(stats_id, period_type="M", start_prd=ym, end_prd=ym, limit=_RONE_MAX_PSIZE)
+        if rows:
+            cands = [(r.get("CLS_ID"), r.get("CLS_FULLNM"), r.get("ITM_ID"), r.get("ITM_NM"), r.get("DTA_VAL"))
+                     for r in rows if str(r.get("CLS_FULLNM") or "").startswith("전국")]
+            log(f"[R-ONE] {stats_id}: 전국 후보 {ym} {len(cands)}건 {cands} (행 {len(rows)})")
+            return
+    log(f"[R-ONE] {stats_id}: 전국 후보 없음 — 최근 4개월 단일 월 질의가 모두 빈 응답")
+
+
+def fetch_rone_nationwide_latest(stats_id, limit=600, itm_id=None, strict_item=False, cls_id=None):
     """전국(CLS_ID=500001) 월간 시계열을 받아 최신값/전월비/history 를 추출.
 
     SttsApiTblData 는 날짜범위를 무시하고 모든 지역을 오래된 순으로 주므로, CLS_ID=500001
@@ -3801,8 +3874,17 @@ def fetch_rone_nationwide_latest(stats_id, limit=600, itm_id=None):
 
     itm_id: 한 통계표에 여러 항목(예: 거래현황의 동(호)수/면적)이 있을 때 ITM_ID 로 한정.
             미지정 시 _rone_pick_nationwide 가 단일 항목으로 가정하고 처리.
+    cls_id: 전국 분류 코드 — 표마다 다르다(T 표는 5자리, 500001 이 안 먹는다). 주면 첫 질의에 쓴다.
+    strict_item: True 면 재시도 없이 cls_id 질의 한 번을 _rone_strict_pick 으로 검사한다(무필터 전체 행은
+            잘려서 쓸모없다). cls_id 가 없으면 값 대신 전국 후보 탐침 로그만. 기본 False — 기존 호출자 동작 불변.
     """
-    rows = fetch_rone_stats(stats_id, item_code1=itm_id, item_code2=RONE_NATIONWIDE_CLS,
+    if strict_item:
+        if not cls_id:
+            _rone_probe_nationwide_cls(stats_id)
+            return None
+        rows = fetch_rone_stats(stats_id, item_code1=itm_id, item_code2=cls_id, period_type="M", limit=limit)
+        return _rone_strict_pick(stats_id, rows or [], limit)
+    rows = fetch_rone_stats(stats_id, item_code1=itm_id, item_code2=cls_id or RONE_NATIONWIDE_CLS,
                             period_type="M", limit=limit)
     picked = _rone_pick_nationwide(rows) if rows else None
     if picked:
@@ -3987,20 +4069,33 @@ def fetch_realestate_kr():
     # 모두 전국(CLS_ID=500001) 으로 한정해 최신값을 추출 (가격지수와 동일 메커니즘).
     # 주: '주택 인허가/준공'(permit/complete)은 국토교통부(MOLIT) 통계라 R-ONE OpenAPI 에
     #     존재하지 않아 항상 빈 응답이었다(프론트의 '주택 인허가' 차트가 비어 보이던 원인).
-    #     → 인허가·준공은 제거. (대체로 넣었던 전월세전환율도 2026-09-30 사용자 결정 D1 로 뺐다 — 묘비.)
+    #     → 인허가·준공은 제거(2026-10-01 정정: R-ONE 목록에 T 표로 있었다 — 아래 4행). (대체로 넣었던 전월세전환율도 2026-09-30 사용자 결정 D1 로 뺐다 — 묘비.)
     # 2026-09-30 정정: 두 표는 미분양·착공이 아니었다. 실측 표 이름 A_2024_00064 =「(월) 평균전세가격_아파트」(천원),
     # A_2024_00057 =「(월) 준전세가격지수_아파트」(2026.06=100) — 그래서 '미분양 300,828호'·'착공 100.44'로 찍혔다.
     # 옛 키(unsold_kr·start_kr)는 묘비(data_sla.TOMBSTONED)가 preserve 부활을 막는다. 진짜 미분양 표는 아래 목록 탐침이 찾는다.
+    # 2026-10-01: 목록 탐침이 찾은 T 표 4건(미분양·착공·인허가·준공)을 새 키로 싣는다. T 표는 분류 코드가 5자리이고
+    # 표마다 다르다(같은 50019 가 착공에선 전국>총계, 미분양에선 서울>종로구) — 전국 코드(cls)를 표별로 적는다(키 없이 실측).
+    # strict=True — cls 질의 한 번을 조합·잘림·전국 행 검사(_rone_strict_pick)로 거른다. cls 가 None 이면 값 대신
+    # 단일 월 무필터 질의로 `[R-ONE] T…: 전국 후보` 로그만(미분양 2007년 이후 전국 코드 미확인).
+    # cumulative=True(인허가)는 연간 누계 표라 월분으로 차분한다. R-ONE 은 통계누리보다 1개월 늦다.
     extra_stats = [
-        # (key,                   desc,                                   statbl_id,      unit)
-        ("avg_jeonse_price_kr", "전국 아파트 평균 전세가격(천원)",            "A_2024_00064", "천원"),
-        ("semi_jeonse_idx_kr",  "전국 아파트 준전세가격지수(2026.06=100)",   "A_2024_00057", "2026.06=100"),
+        # (key,                   desc,                                              statbl_id,          unit,          strict, cls,     cumulative)
+        ("avg_jeonse_price_kr", "전국 아파트 평균 전세가격(천원)",                       "A_2024_00064",     "천원",        False,  None,    False),
+        ("semi_jeonse_idx_kr",  "전국 아파트 준전세가격지수(2026.06=100)",              "A_2024_00057",     "2026.06=100", False,  None,    False),
+        ("unsold_total_kr",     "전국 미분양주택(호)",                                 "T237973129847263", "호",          True,   None,    False),
+        ("housing_start_kr",    "전국 주택 착공실적(호)",                               "T233033129823134", "호",          True,   "50019", False),
+        ("housing_permit_kr",   "전국 주택건설 인허가실적(호) (월분, 연간 누계 차분)",     "T235263129553687", "호",          True,   "50023", True),
+        ("housing_complete_kr", "전국 주택 준공실적(호)",                               "T237273130004614", "호",          True,   "50019", False),
     ]
-    for key, desc, statbl_id, unit in extra_stats:
+    for key, desc, statbl_id, unit, strict, cls, cumulative in extra_stats:
         try:
-            picked = fetch_rone_nationwide_latest(statbl_id, limit=300)
+            # strict 는 한 쪽 최대(1,000)로 받는다 — 전국 코드면 전체 이력이 수백 행이라 안에 들고, 1,000행이 차면 잘림으로 본다.
+            picked = fetch_rone_nationwide_latest(statbl_id, limit=_RONE_MAX_PSIZE if strict else 300,
+                                                  strict_item=strict, cls_id=cls)
+            if picked and cumulative:
+                picked = _rone_monthly_from_cumulative(picked)
             if not picked:
-                log(f"[R-ONE] {statbl_id} ({key}): 응답 없음/전국행 없음 — 건너뜀")
+                log(f"[R-ONE] {statbl_id} ({key}): 응답 없음/전국행 없음{'/검사 불통과·전국 코드 미확인' if strict else ''} — 건너뜀")
                 continue
             picked.update({"region": "전국", "desc": desc, "unit": unit, "source": f"R-ONE:{statbl_id}"})
             result[key] = picked
@@ -4235,9 +4330,12 @@ class _KosisConnectionError(Exception):
 
 
 def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=None, end_prd=None,
-                       obj_l1=None):
-    """KOSIS API 통계 데이터 조회.
+                       obj_l1="ALL", obj_l2=None):
+    """KOSIS API 통계 데이터 조회 (통계표선택 방식 — Param/statisticsParameterData.do).
 
+    종전 주소(statisticsData.do)는 사전등록(userStatsId) 방식이라 orgId/tblId 호출이 공식 가이드와
+    안 맞았고 성공 기록이 한 번도 없었다(2026-10-01).
+    KOSIS 는 오류도 HTTP 200 + {"err","errMsg"} 로 준다 → 그것도 실패(None)로 센다.
     네트워크 예외를 모두 흡수해 스크립트가 죽지 않게 한다:
       · 연결 실패/타임아웃(ConnectTimeout 등) → 경고 로그 후 _KosisConnectionError 발생
         (호출부가 남은 후보 반복을 즉시 멈추도록 하는 '서버 다운' 신호)
@@ -4255,30 +4353,73 @@ def fetch_kosis_series(org_id, table_id, item_id="", period_type="M", start_prd=
         "method":      "getList",
         "apiKey":      KOSIS_API_KEY,
         "itmId":       item_id,
-        "objL1":       obj_l1 if obj_l1 is not None else item_id,
+        "objL1":       obj_l1,
         "format":      "json",
         "jsonVD":      "Y",
-        "userStatsId": "",
         "prdSe":       period_type,
         "startPrdDe":  start_prd,
         "endPrdDe":    end_prd,
         "orgId":       org_id,
         "tblId":       table_id,
     }
+    if obj_l2 is not None:
+        params["objL2"] = obj_l2
     try:
         # timeout=(연결 5초, 응답 10초) — KOSIS 서버 지연 시 무한 대기(Stuck) 방지.
-        r = requests.get(KOSIS_BASE, params=params, timeout=(5, 10))
+        r = requests.get(KOSIS_PARAM_BASE, params=params, timeout=(5, 10))
         r.raise_for_status()
-        return r.json()
+        data = r.json()
+        if isinstance(data, dict) and "err" in data:
+            log(f"[KOSIS] {org_id}/{table_id} 오류 {data.get('err')}: {data.get('errMsg')}")
+            return None
+        return data
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-        log(f"[KOSIS] API 호출 실패 - 기존 데이터 유지 (연결/타임아웃: {e})")
+        log(f"[KOSIS] API 호출 실패 - 기존 데이터 유지 (연결/타임아웃: {_scrub_err(e)})")
         raise _KosisConnectionError(str(e))
     except requests.exceptions.RequestException as e:
-        log(f"[KOSIS] API 호출 실패 - 기존 데이터 유지 (요청 오류 {org_id}/{table_id}: {e})")
+        log(f"[KOSIS] API 호출 실패 - 기존 데이터 유지 (요청 오류 {org_id}/{table_id}: {_scrub_err(e)})")
         return None
     except Exception as e:
-        log(f"[KOSIS] {org_id}/{table_id} 응답 처리 오류: {e}")
+        log(f"[KOSIS] {org_id}/{table_id} 응답 처리 오류: {_scrub_err(e)}")
         return None
+
+
+# 미분양 2순위 후보 표(국토교통부 통계누리, orgId 116) — 분류·항목 코드를 아직 몰라 getMeta 로 먼저 본다.
+_KOSIS_HOUSING_TABLES = (("116", "DT_MLTM_2080"), ("116", "DT_MLTM_5386"),
+                         ("116", "DT_MLTM_5372"), ("116", "DT_MLTM_1946"))
+
+
+def probe_kosis_housing_meta():
+    """미분양·착공·준공·인허가 4표의 분류·항목 코드를 일일 런 로그(`[KOSIS-probe]`)로 남긴다 — 값은 싣지 않는다.
+
+    getMeta type=ITM 이 분류(OBJ_ID=A·B…)와 항목(OBJ_ID=ITEM)을 함께 준다. 코드가 확정되면 그때
+    objL1(지역=전국 코드)·itmId 를 적어 넣고 값 수집을 붙인다(탐침 전에 ALL/ALL 로 값을 싣지 않는다).
+    실패는 로그만 — 빌드를 깨지 않는다.
+    """
+    if not KOSIS_API_KEY or os.environ.get("AV_FETCH_FULL", "").strip() not in ("1", "true", "yes"):
+        return
+    for org_id, tbl_id in _KOSIS_HOUSING_TABLES:
+        tag = f"{org_id}/{tbl_id}"
+        try:
+            r = requests.get(KOSIS_BASE, timeout=(5, 10), params={
+                "method": "getMeta", "type": "ITM", "apiKey": KOSIS_API_KEY,
+                "orgId": org_id, "tblId": tbl_id, "format": "json", "jsonVD": "Y"})
+            r.raise_for_status()
+            rows = r.json()
+            if not isinstance(rows, list):
+                log(f"[KOSIS-probe] {tag} 오류 {(rows or {}).get('err')}: {(rows or {}).get('errMsg')}")
+                continue
+            groups = {}   # OBJ_ID → [OBJ_NM, [(ITM_ID, ITM_NM) …]]
+            for row in rows:
+                g = groups.setdefault(row.get("OBJ_ID"), [row.get("OBJ_NM"), []])
+                g[1].append((row.get("ITM_ID"), row.get("ITM_NM")))
+            parts = [f"{oid}({nm}) {len(its)}종 {its[:8]}" for oid, (nm, its) in groups.items()]
+            log(f"[KOSIS-probe] {tag} ITM {len(rows)}행 · " + " / ".join(parts))
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            log(f"[KOSIS-probe] 연결/타임아웃 — 탐침 중단 ({_scrub_err(e)})")
+            return
+        except Exception as e:
+            log(f"[KOSIS-probe] {tag} 오류(무시): {_scrub_err(e)}")
 
 
 def fetch_kosis_retail_sales():
@@ -4300,7 +4441,8 @@ def fetch_kosis_retail_sales():
         ("101", "DT_1KI2017", "도소매업조사: 소매판매액지수"),
     ]
     # 항목코드 후보 — KOSIS 마다 다름
-    item_candidates = ["T2", "T20", "13102803005A", "ALL", "T03"]
+    # "ALL" 은 뺀다 — objL1=ALL 과 겹치면 같은 시점에 항목·분류가 섞인다.
+    item_candidates = ["T2", "T20", "13102803005A", "T03"]
     now = datetime.now(KST)
     end_prd = now.strftime("%Y%m")
     start_prd = (now - timedelta(days=400)).strftime("%Y%m")
@@ -4319,6 +4461,10 @@ def fetch_kosis_retail_sales():
                 # 유효한 데이터 행 필터링
                 rows = [r for r in data if r.get("DT") and r.get("PRD_DE")]
                 if not rows:
+                    continue
+                # objL1=ALL 이라 같은 시점에 분류가 여럿 섞일 수 있다 — 시점 키로 덮으면 임의 분류가 잡히므로 건너뛴다.
+                if len({r["PRD_DE"] for r in rows}) < len(rows):
+                    log(f"[KOSIS] {tbl_id}/{item_id}: 같은 시점 행이 여럿(행 {len(rows)}) — 분류 섞임, 건너뜀")
                     continue
                 # 최신 PRD_DE 정렬
                 rows.sort(key=lambda r: r.get("PRD_DE", ""))
@@ -7184,6 +7330,9 @@ def build_data():
                     log("[KOSIS] API 호출 실패 - 기존 데이터 유지 (직전 retail_kr 복원)")
                 else:
                     log("[KOSIS] API 호출 실패 - 기존 데이터 유지 (직전 retail_kr 없음 → 건너뜀)")
+        # 미분양 2순위(KOSIS) 표의 분류·항목 코드 탐침 — 소매판매 폴백 여부와 무관, 일일 런만, 로그만.
+        if "ecos" in _macro:
+            probe_kosis_housing_meta()
         # 한국 국채 수익률 곡선 (1Y/3Y/5Y/10Y/20Y/30Y)
         log("[ECOS-YC] 한국 국채 수익률 곡선 수집 시작")
         try:

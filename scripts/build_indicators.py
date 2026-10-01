@@ -46,6 +46,7 @@ TIER2 = [
     "kr10y", "us2y", "vix", "vkospi", "fear_greed", "move",
     "cpi_kr", "cpi_us", "gdp_kr", "gdp_us", "unemployment_kr", "unemployment_us",
     "exports_kr", "base_rate_us", "ff_target", "t10y2y_us",
+    "unsold_total_kr", "housing_start_kr",
 ]
 
 # 지표 → news 주제 키(16종). 한 줄 맥락(P3)이 여기서 나온다. 없으면 줄을 비운다.
@@ -117,6 +118,11 @@ LABEL = {
     "cpi_jp": "일본 소비자물가(전년비)",
     "avg_jeonse_price_kr": "아파트 평균 전세가격 (전국)",
     "semi_jeonse_idx_kr": "준전세가격지수 (전국)",
+    # 주택 공급 4표(R-ONE T 표, 2026-10-01). 수집원 desc 는 단위(호)를 이름에 붙인다.
+    "unsold_total_kr": "미분양주택 (전국)",
+    "housing_start_kr": "주택 착공 (전국)",
+    "housing_permit_kr": "주택 인허가 (전국)",
+    "housing_complete_kr": "주택 준공 (전국)",
 }
 
 # 옛 이름 → 새 이름. 화면이 같은 대상을 달리 부르던 표기를 여기 모은다(D5).
