@@ -7124,14 +7124,15 @@ def build_data():
         if not gold:
             gold = krx_commodity("/gen/gold_bydd_trd", "금")
         if gold:
+            # as_of = KRX 기준일(전일 확정치) — 버리면 화면 묶음이 장중 '실시간'으로 오판한다(2026-10-01)
             data["commodities"]["GoldKRW"] = {
-                "price": gold["price"], "change": gold["change"]
+                "price": gold["price"], "change": gold["change"], "as_of": gold.get("as_of")
             }
             log(f"[KRX] Gold(KRW/g): {gold['price']} ({gold['change']:+.2f}%)")
         oil = krx_commodity("/gen/oil_bydd_trd", "휘발유")
         if oil:
             data["commodities"]["OilKR"] = {
-                "price": oil["price"], "change": oil["change"]
+                "price": oil["price"], "change": oil["change"], "as_of": oil.get("as_of")
             }
             log(f"[KRX] 휘발유(원/L): {oil['price']} ({oil['change']:+.2f}%)")
 
