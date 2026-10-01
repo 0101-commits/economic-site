@@ -16,7 +16,7 @@ export const THEMES = String(opt('themes', 'light,dark')).split(',');
 export const WAIT = Number(opt('wait', 2500));
 
 // 새 화면 층 5개 + 기존 index.html 의 ?p= 12종. 주소로 자동 고른다(5173=새 층, 그 밖=기존).
-export const NEXT_PATHS = ['/', '/market', '/lens', '/my', '/alerts'];
+export const NEXT_PATHS = ['#/', '#/market', '#/lens', '#/my', '#/alerts'];   // 새 층은 HashRouter
 export const LEGACY_PATHS = ['dashboard', 'equity', 'market', 'macro', 'calendar', 'realestate',
   'investor', 'merlens', 'merblog', 'notes', 'study', 'settings'].map(p => `/?p=${p}`);
 
@@ -30,8 +30,14 @@ export function paths() {
   if (p && p !== true) return p.split(',').map(s => s.trim()).filter(Boolean);
   return baseUrl().includes(':5173') ? NEXT_PATHS : LEGACY_PATHS;
 }
-export const fullUrl = (base, p) => new URL(p.replace(/^\//, ''), base).href;
-export const slug = p => (p.replace(/^\//, '').replace(/[?&=\/]+/g, '-').replace(/^-|-$/g, '') || 'home');
+// 새 층(5173)은 HashRouter 라 '/my' 는 홈이 뜬다 → 자동으로 '#/my' 로 바꾼다.
+// Git Bash(MSYS)가 '/my' 를 'C:/Program Files/Git/my' 로 바꿔 넘기는 것도 되돌린다.
+export const fullUrl = (base, p) => {
+  p = p.replace(/^[A-Za-z]:\/Program Files\/Git/, '');
+  if (base.includes(':5173') && p.startsWith('/') && !p.startsWith('/?')) p = '#' + p;
+  return p.startsWith('#') ? base + p : new URL(p.replace(/^\//, ''), base).href;
+};
+export const slug = p => (p.replace(/^#?\//, '').replace(/[?&=\/#]+/g, '-').replace(/^-|-$/g, '') || 'home');
 
 // 폭 × 테마 문맥. 테마는 세 겹으로 건다: 에뮬레이션, 기존 사이트 저장값, 새 층의 data-theme.
 export async function newCtx(browser, w, theme) {
