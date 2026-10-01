@@ -2,7 +2,7 @@
 // 주소 기준: 이 앱은 사이트의 next/ 아래에 있으므로 자료는 한 단계 위에 있다.
 //   배포  /economic-site/next/ → /economic-site/data.json · /economic-site/bundles/
 //   개발  /next/              → /data.json · /bundles/   (vite.config 의 개발 서버가 저장소 루트에서 내준다)
-import { changeFromPct } from './format'
+import { changeFromPct, type Pt } from './format'
 
 const ROOT = new URL('../', document.baseURI)
 
@@ -12,9 +12,17 @@ async function fetchJson<T>(rel: string): Promise<T> {
   return r.json() as Promise<T>
 }
 
+// 한 화면 안에서 같은 묶음을 두 번 받지 않는다(홈 띠 보기 · 큰 차트 · 상세가 같은 묶음을 나눠 쓴다). 실패는 기억하지 않는다.
+const bundles = new Map<string, Promise<unknown>>()
 export function loadBundle<T = unknown>(name: string): Promise<T> {
   if (!/^[\w-]+$/.test(name)) return Promise.reject(new Error(`묶음 이름이 올바르지 않음: ${name}`))
-  return fetchJson<T>(`bundles/${name}.json`)
+  let p = bundles.get(name)
+  if (!p) {
+    p = fetchJson<T>(`bundles/${name}.json`)
+    p.catch(() => bundles.delete(name))
+    bundles.set(name, p)
+  }
+  return p as Promise<T>
 }
 
 /**
@@ -49,6 +57,10 @@ export type StripItem = {
   up?: number
   down?: number
   flat?: number
+  /** 띠 카드 작은 차트: 최근 7거래일 값(날짜 없음) */
+  spark?: number[] | null
+  /** 시장 묶음 views 칸에만: [날짜, 값] 일별(월별) 시계열 */
+  series?: Pt[] | null
 }
 
 /**
@@ -58,7 +70,73 @@ export type StripItem = {
 export function shownUnit(it: Pick<StripItem, 'scale' | 'unit'>): string | undefined {
   return it.scale || it.unit === '%' ? it.unit : undefined
 }
-export type HomeBundle = { asOf: string; todayLine: { pc: string; mobile: string; source?: unknown } | null; strip: StripItem[] }
+/** 장 상태(묶음 market): state = open·closed·holiday 등, label = 「정규장」「장마감」「휴장」. */
+export type MarketState = { state: string; label: string; today?: string; session?: string; nextOpen?: string | null; calendarKnown?: boolean }
+export type Stock = { name: string; short?: string; shortM?: string; code: string; market?: string; price: number | null; chgPct: number | null; amount?: number | null }
+/** 투자자 매매: rows 는 columns 순서의 배열(날짜, 외국인, 기관, 개인). 단위 unit(억원). */
+export type Flows = {
+  market?: string; unit?: string; source?: string; asOf?: string; state?: string
+  today?: { date: string; foreign: number | null; inst: number | null; retail: number | null }
+  rows?: (string | number | null)[][]; columns?: string[]
+}
+export type Sched = { date: string; time?: string | null; cc?: string; name: string; stars?: number; prev?: number | null; fore?: number | null; act?: number | null; approx?: boolean }
+export type News = { title: string; url: string; date?: string; topic?: string }
+/** 렌즈 트리거 한 줄: state crossed(돌파)·near(주시), level = 가장 가까운 임계값, distancePct = 임계까지 거리(%). */
+export type Trigger = { id: string; label: string; unit?: string; state: string; stateLabel?: string; value: number | null; asOf?: string | null; level: number | null; distancePct?: number | null }
+/** 렌즈 사슬: n = 이 사슬을 짚은 글 수, hotStep = 지금 발동한 고리 id. */
+export type Chain = { id: string; label: string; note?: string; n?: number; lastDate?: string; hotStep?: string; steps: { id: string; label: string }[] }
+export type HomeLens = { score: number | null; delta30d?: number | null; asOf?: string; breach: Trigger[]; watch: Trigger[]; chain: Chain | null; hotChains?: number }
+
+export type HomeBundle = {
+  asOf: string
+  market?: MarketState
+  todayLine: { pc: string; mobile: string; source?: unknown } | null
+  strip: StripItem[]
+  /** 코스피 큰 차트: 기간별 [날짜, 값]. 없는 기간은 null 이고 missing 에 이유가 있다. */
+  kospiChart?: { '1d'?: Pt[] | null; '1w'?: Pt[] | null; '3m'?: Pt[] | null; '1y'?: Pt[] | null; missing?: Record<string, string> }
+  sectors?: { asOf?: string; state?: string; items: { name: string; close?: number | null; chgPct: number | null }[] }
+  topAmount?: { asOf?: string; state?: string; items: Stock[] }
+  investors?: Flows
+  schedule?: Sched[]
+  news?: News[]
+  lens?: HomeLens
+}
+
+/** 지표 사전 한 줄(bundles/registry.json). asset = index·fx·rate·commodity·macro·realestate·sentiment. */
+export type RegRow = { id: string; label: string; short?: string; shortM?: string; decimals: number; unit?: string; scale?: number; asset: string; tier?: number; country?: string; canonical?: string }
+export const loadRegistry = () => loadBundle<{ count: number; rows: RegRow[] }>('registry').then(r => r.rows)
+
+/** 자산군 → 시계열이 든 시장 묶음(앞에서부터 찾는다). */
+const ASSET_BUNDLES: Record<string, string[]> = {
+  index: ['market-global'], sentiment: ['market-global'], fx: ['market-fxrates'], rate: ['market-fxrates'],
+  commodity: ['market-commodities'], macro: ['market-macro', 'market-global'], realestate: ['market-realestate'],
+}
+
+/** 묶음 아무 깊이에서 id 가 같은 값 칸을 찾는다. 시계열이 있는 칸을 먼저 고른다. */
+export function findItem(root: unknown, id: string): StripItem | undefined {
+  let best: StripItem | undefined
+  const walk = (o: unknown): void => {
+    if (!o || typeof o !== 'object') return
+    if (Array.isArray(o)) { o.forEach(walk); return }
+    const r = o as Record<string, unknown>
+    if (r.id === id && 'value' in r && (!best || (!best.series?.length && Array.isArray(r.series) && r.series.length))) best = r as StripItem
+    Object.values(r).forEach(walk)
+  }
+  walk(root)
+  return best
+}
+
+/** 지표 하나: 사전 줄 + 값 칸(시장 묶음 우선, 없으면 홈) + 시계열. 어디에도 없으면 빈 칸들. */
+export async function loadIndicator(id: string): Promise<{ reg?: RegRow; item?: StripItem; series?: Pt[] }> {
+  const [rows, home] = await Promise.all([loadRegistry().catch(() => [] as RegRow[]), loadHome().catch(() => null)])
+  const reg = rows.find(r => r.id === id)
+  let item = home ? findItem(home, id) : undefined
+  for (const name of (reg && ASSET_BUNDLES[reg.asset]) || []) {
+    const m = findItem(await loadBundle(name).catch(() => null), id)
+    if (m) { item = m; if (m.series?.length) break }
+  }
+  return { reg, item, series: item?.series?.length ? item.series : undefined }
+}
 
 /** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. */
 export async function loadHome(): Promise<HomeBundle> {

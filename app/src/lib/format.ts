@@ -40,6 +40,11 @@ export function scaled(v: number | null | undefined, scale?: number | null): num
   return scale ? v / scale : v
 }
 
+/** 시계열에 scale 적용(값만 ÷ scale). 차트도 카드와 같은 단위로 그린다. */
+export function scaledPts<T extends [string, number]>(pts: T[], scale?: number | null): T[] {
+  return scale ? pts.map(([d, v]) => [d, v / scale] as T) : pts
+}
+
 /** 등락률(%)과 현재값에서 전일 대비 변화량을 거꾸로 구한다. 자료에 등락률만 있을 때 쓴다. */
 export function changeFromPct(value: number, pct: number): number {
   return (value * pct) / (100 + pct)
@@ -95,13 +100,109 @@ export function kindFromState(state: string | undefined, liveUntil?: string | nu
 
 /** 배지 문구: LIVE 는 시각만 · 오늘 값은 「종가 15:30」(날짜만 있으면 「종가 10/1」) · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만. */
 export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Date = new Date()): string {
+  if (kind === 'filled') return '보강'
+  // 월간(YYYY-MM)은 날짜가 아니라 그 달이다 — 「전일 9/1」이 아니라 「9월」(올해가 아니면 「25.12」)
+  const mon = /^(\d{4})-(\d{2})$/.exec(String(asOf))
+  if (mon) return mon[1] === KST_DAY.format(now).slice(0, 4) ? `${+mon[2]}월` : `${mon[1].slice(2)}.${mon[2]}`
+  // 「JJA 2026」·「2026-Q2」 같은 기간 표기는 그대로(V8 은 「JJA 2026」 도 1월 1일로 읽어 버린다)
+  if (typeof asOf === 'string' && !/^\d{4}-\d{2}-\d{2}/.test(asOf)) return asOf
   const t = parseAsOf(asOf)
-  if (kind === 'filled' || Number.isNaN(t.getTime())) return '보강'
+  if (Number.isNaN(t.getTime())) return String(asOf)
   const hm = KST_HM.format(t)
+  const md = KST_MD.format(t).replace(/\.\s?/g, '/').replace(/\/$/, '')
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(asOf))   // 시각이 없는 값에 「00:00」을 적지 않는다
   if (kind === 'prev') {
-    const md = KST_MD.format(t).replace(/\.\s?/g, '/').replace(/\/$/, '')
     if (KST_DAY.format(t) !== KST_DAY.format(now)) return `전일 ${md}`
-    return /^\d{4}-\d{2}-\d{2}$/.test(String(asOf)) ? `종가 ${md}` : `종가 ${hm}`
+    return dateOnly ? `종가 ${md}` : `종가 ${hm}`
   }
-  return kind === 'delayed' ? `지연 ${hm}` : hm
+  return kind === 'delayed' ? `지연 ${dateOnly ? md : hm}` : hm
+}
+
+/** 등락률 한 벌: ▲ 3.04% / ▼ 0.25% / 0.00%. 값이 없으면 '—'. */
+export function fmtPct(pct: number | null | undefined, decimals = 2): string {
+  if (pct == null || !Number.isFinite(pct)) return '—'
+  return `${fmtChange(pct, null, decimals)}%`
+}
+
+const KST_DAYNAME = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' })
+
+/** 머리 날짜: 「10월 1일 (목)」. */
+export function dayLabel(asOf: string | number | Date): string {
+  const t = parseAsOf(asOf)
+  return Number.isNaN(t.getTime()) ? '' : KST_DAYNAME.format(t)
+}
+
+/** 짧은 시각: 「10/2 09:00」. 날짜만 있으면 「10/2」. */
+export function mdHm(asOf: string | number | Date): string {
+  const t = parseAsOf(asOf)
+  if (Number.isNaN(t.getTime())) return ''
+  const md = KST_MD.format(t).replace(/\.\s?/g, '/').replace(/\/$/, '')
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(asOf)) ? md : `${md} ${KST_HM.format(t)}`
+}
+
+/** 차트 축 날짜: 일별 「9/30」 · 월별 「26.07」 · 그 밖은 그대로. */
+export function shortDate(d: string): string {
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d)
+  if (m) return `${+m[2]}/${+m[3]}`
+  m = /^\d{2}(\d{2})-(\d{2})$/.exec(d)
+  return m ? `${m[1]}.${m[2]}` : d
+}
+
+/**
+ * 히트맵 색 단계: 경계 ±2.5 · ±1 · 0. 부호 × (|v|<1 → 1 · <2.5 → 2 · 이상 → 3), 소수 둘째 자리로 반올림해 0 이면 0(보합).
+ * 값이 없어도 0 이다(칸은 회색, 글자는 '—').
+ */
+export function heatStep(pct: number | null | undefined): number {
+  if (pct == null || !Number.isFinite(pct)) return 0
+  const v = Number(pct.toFixed(2))
+  if (v === 0) return 0
+  const a = Math.abs(v)
+  const s = a >= 2.5 ? 3 : a >= 1 ? 2 : 1
+  return v > 0 ? s : -s
+}
+
+/** 시계열 한 점: [날짜, 값]. 날짜는 'YYYY-MM-DD' · 'YYYY-MM' 등 묶음 그대로. */
+export type Pt = [string, number]
+export type PeriodKey = '1d' | '1w' | '3m' | '1y'
+export const PERIODS: readonly { key: PeriodKey; label: string }[] = [
+  { key: '1d', label: '1일' }, { key: '1w', label: '1주' }, { key: '3m', label: '3달' }, { key: '1y', label: '1년' },
+]
+
+// 'YYYY-MM' · 'YYYY' 도 문자열 비교가 되게 'YYYY-MM-DD' 로 늘린다
+const dayKey = (d: string) => { const s = d.slice(0, 10); return s.length === 7 ? s + '-01' : s.length === 4 ? s + '-01-01' : s }
+
+/**
+ * 일별(월별) 시계열을 기간 칩으로 자른다 — 끝 날짜에서 7일 · 3달 · 1년 거꾸로.
+ * 점이 2개 미만이거나 더 짧은 기간과 점 수가 같으면 그 칩은 뺀다(칩은 있는데 그림이 같은 일을 막는다).
+ * 1일(분봉)은 묶음이 따로 줄 때만 있다 — 여기서는 만들지 않는다.
+ */
+export function slicePeriods(series: Pt[] | null | undefined): Partial<Record<PeriodKey, Pt[]>> {
+  const out: Partial<Record<PeriodKey, Pt[]>> = {}
+  if (!series || series.length < 2) return out
+  const end = new Date(dayKey(series[series.length - 1][0]) + 'T00:00:00Z')
+  if (Number.isNaN(end.getTime())) { out['1y'] = series; return out }
+  const cut = (days: number, months: number) => {
+    const d = new Date(end)
+    d.setUTCDate(d.getUTCDate() - days)
+    d.setUTCMonth(d.getUTCMonth() - months)
+    return d.toISOString().slice(0, 10)
+  }
+  let prev = 0
+  for (const [k, c] of [['1w', cut(7, 0)], ['3m', cut(0, 3)], ['1y', cut(0, 12)]] as const) {
+    const pts = series.filter(p => dayKey(p[0]) > c)
+    if (pts.length >= 2 && pts.length !== prev) { out[k] = pts; prev = pts.length }
+  }
+  return out
+}
+
+/** 52주 최저·최고(끝에서 1년 안). 시계열이 350일보다 짧으면 null — 52주라고 부를 수 없다. */
+export function range52(series: Pt[] | null | undefined): { low: number; high: number } | null {
+  if (!series || series.length < 2) return null
+  const first = new Date(dayKey(series[0][0]) + 'T00:00:00Z').getTime()
+  const last = new Date(dayKey(series[series.length - 1][0]) + 'T00:00:00Z').getTime()
+  if (!(last - first >= 350 * 86_400_000)) return null
+  const pts = slicePeriods(series)['1y'] ?? series
+  let low = Infinity, high = -Infinity
+  for (const [, v] of pts) { if (v < low) low = v; if (v > high) high = v }
+  return high > low ? { low, high } : null
 }
