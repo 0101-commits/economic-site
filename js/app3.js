@@ -2029,7 +2029,7 @@ var WCOLLAPSE_DEFAULT_COLLAPSED_NARROW = ['KOSPI 추이', '등락 Top10', '최�
                                           // §C6(2026-09-19) — 390 에서 거시 4.5화면 · 부동산 4.2화면(M5 기준 4.0).
                                           // 뉴스 625px · 청약 299px · 공급 213px 는 '왜·어떻게' 층이라 첫 스크롤에서
                                           // 답할 필요가 없다. 펼친 선택은 그대로 저장된다.
-                                          '거시경제 관련 뉴스', '청약 경쟁률', '전세 가격 지표',
+                                          '거시경제 관련 뉴스', '청약 경쟁률', '전세·주택 공급 지표',   // 2026-10-01 공급 4행이 들며 개명
                                           // 구조 통일 S5(2026-09-21) — 수집만 하던 지표 15건을 이 표에 올리면서
                                           // 카드가 47→62 로 늘어 390 거시가 4.05화면이 됐다(M5 상한 4.0).
                                           // 값은 위 국가·주제 차트가 이미 보여준다 — 전체 목록은 펼쳐서 본다.
@@ -2310,7 +2310,9 @@ function _healthChipEl(it, cls){
 // (부동산 카드 · 주식시장 KOSDAQ 등락 기준일 꼬리표 · 시장 폭 줄 · 업종 등락 기준일 꼬리표).
 var _ID_HEALTH = { krReAptSaleVal:'realestate.kr.apt_price_idx_kr', krReAptJnsVal:'realestate.kr.jns_price_idx_kr',
   krReTradeCnt:'realestate.kr.trade_count_kr', krReAvgJeonse:'realestate.kr.avg_jeonse_price_kr',
-  krReSemiJeonse:'realestate.kr.semi_jeonse_idx_kr',
+  krReSemiJeonse:'realestate.kr.semi_jeonse_idx_kr', krReUnsold:'realestate.kr.unsold_total_kr',
+  krReStart:'realestate.kr.housing_start_kr', krRePermit:'realestate.kr.housing_permit_kr',
+  krReComplete:'realestate.kr.housing_complete_kr',
   equityMoverAsOf:'stockMovers.kosdaqGainers', equityBreadthKospi:'marketBreadth.kospi',
   equityBreadthKosdaq:'marketBreadth.kosdaq', equitySectorAsOf:'sectorMoves' };
 function applyIdHealthChips(){

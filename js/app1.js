@@ -9062,13 +9062,13 @@ function buildCalendar(){
       : `<td>${calDtText(e)}</td>`;
     // ★★★ 이벤트만 발표 알림 토글 제공 (Task 2.3) — 구독 상태는 localStorage 기반
     const bellCell = e.stars >= 3
-      ? `<td style="text-align:center;padding:4px;"><button onclick="event.stopPropagation();toggleCalAlert(${calIdx},this)" title="${calAlertSubscribed(e) ? '알림 해제' : '발표 시 브라우저 알림 받기 (페이지가 열려 있는 동안)'}" style="background:transparent;border:none;cursor:pointer;font-size:var(--font-size-base);line-height:1;padding:2px;${calAlertSubscribed(e) ? '' : 'opacity:.45;filter:grayscale(1);'}">알림</button></td>`
-      : `<td></td>`;
+      ? `<td class="c-opt" style="text-align:center;padding:4px;"><button onclick="event.stopPropagation();toggleCalAlert(${calIdx},this)" title="${calAlertSubscribed(e) ? '알림 해제' : '발표 시 브라우저 알림 받기 (페이지가 열려 있는 동안)'}" style="background:transparent;border:none;cursor:pointer;font-size:var(--font-size-base);line-height:1;padding:2px;${calAlertSubscribed(e) ? '' : 'opacity:.45;filter:grayscale(1);'}">알림</button></td>`
+      : `<td class="c-opt"></td>`;
     return `<tr style="${rowStyle}" onclick="showCalendarEventDetail(${calIdx})" title="클릭하여 과거 추이 보기">
       ${dtCell}
       <td style="text-align:center;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
-      <td>${calNameHtml(e)} <span style="font-size:var(--font-size-xs);color:var(--c-primary);">↓</span></td>
-      <td style="text-align:center;color:var(--c-txt-dim);"><button type="button" class="btn-plain btn-inline">${'★'.repeat(e.stars)}</button></td>
+      <td>${calNameHtml(e)}<span class="cal-stars-m">${'★'.repeat(e.stars)}</span> <span style="font-size:var(--font-size-xs);color:var(--c-primary);">↓</span></td>
+      <td class="c-opt" style="text-align:center;color:var(--c-txt-dim);"><button type="button" class="btn-plain btn-inline">${'★'.repeat(e.stars)}</button></td>
       <td style="text-align:right;color:var(--c-txt-dim);">${e.prev || '—'}</td>
       <td class="c-opt" style="text-align:right;color:var(--c-primary);">${e.fore || '—'}</td>
       <td style="text-align:right;white-space:nowrap;" ${actStyle}>${e.act||'예정'}${(surp && surp.big) ? `<span title="매크로 서프라이즈 — 예측 대비 ${surp.diffLabel} (${e.beat===1?'호재':'악재'})" style="margin-left:4px;cursor:help;">⚡</span>` : ''}</td>
@@ -9158,8 +9158,19 @@ function showCalendarEventDetail(idx) {
   const dSurp = (e.beat === 1 || e.beat === -1) ? _calSurprise(e) : null;
   actEl.title = dSurp ? `예측 대비 ${dSurp.diffLabel}${dSurp.big ? ' — ⚡ 매크로 서프라이즈' : ''}` : '';
   if(dSurp && dSurp.big) actEl.textContent += ' ⚡';
+  calDetailAlertSync();
   panel.scrollIntoView({behavior:'smooth', block:(window.matchMedia && window.matchMedia('(max-width:768px)').matches) ? 'start' : 'nearest'});
   _renderCalDetailChart();
+}
+
+// 상세 패널의 「알림」 버튼 — 좁은 화면에서 접힌(.c-opt) 표의 알림 열을 여기서 되살린다.
+// ★★★ 이벤트만 보이고, 라벨은 구독 상태를 따른다(구독 저장·권한 요청은 toggleCalAlert).
+function calDetailAlertSync() {
+  const btn = document.getElementById('calDetailAlertBtn');
+  const e = calEvents[_calDetailState.idx];
+  if(!btn || !e) return;
+  btn.style.display = e.stars >= 3 ? '' : 'none';
+  btn.textContent = calAlertSubscribed(e) ? '알림 해제' : '알림';
 }
 
 function _renderCalDetailChart() {
@@ -13439,6 +13450,12 @@ function applyRealData(d) {
   if (reKr.semi_jeonse_idx_kr) {
     setKrReCard('krReSemiJeonse', 'krReSemiJeonseChg', null, reKr.semi_jeonse_idx_kr, v => v == null ? '—' : Number(v).toFixed(1));
   }
+  // 주택 공급 4표(R-ONE T 표, 호). 항목이 확정되기 전엔 수집기가 키를 싣지 않는다 — 그동안 카드는 — 로 남는다.
+  const fmtHo = v => v == null ? '—' : Math.round(v).toLocaleString('ko-KR');
+  if (reKr.unsold_total_kr) setKrReCard('krReUnsold', 'krReUnsoldChg', null, reKr.unsold_total_kr, fmtHo);
+  if (reKr.housing_start_kr) setKrReCard('krReStart', 'krReStartChg', null, reKr.housing_start_kr, fmtHo);
+  if (reKr.housing_permit_kr) setKrReCard('krRePermit', 'krRePermitChg', null, reKr.housing_permit_kr, fmtHo);
+  if (reKr.housing_complete_kr) setKrReCard('krReComplete', 'krReCompleteChg', null, reKr.housing_complete_kr, fmtHo);
 
   // ── FRED 미국 부동산 지표 → re-us KPI 카드 + 상세 테이블 ──
   const reUs = (d.realestate || {}).us || {};

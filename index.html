@@ -1557,6 +1557,9 @@
   /* 좁은 화면에서 접는 표 열. 행을 누르면 상세가 열리는 표에서만 쓴다 —
      여기 붙은 값은 사라지는 게 아니라 한 번 더 눌러야 보이는 것이다. */
   @media (max-width: 480px) { .c-opt { display: none; } }
+  /* 경제 일정 표: 접힌 「중요도」 별을 이벤트 이름 뒤로 옮겨 단다(데스크톱은 열이 그대로). */
+  .cal-stars-m { display: none; color: var(--c-txt-dim); font-size: var(--font-size-xs); margin-left: 4px; }
+  @media (max-width: 480px) { .cal-stars-m { display: inline; } }
   /* 390 에서는 그 460px 바닥을 없앤다 — 2~3열 표까지 일괄로 70px 씩 넘겨 「옆으로
      밀어야 읽히는 표」로 만들고 있었다(실측: equity·market·realestate 각 +70px).
      열이 정말 많은 표는 자연 폭만큼 넘치고 위 overflow-x:auto 가 그대로 받는다. */
@@ -4260,11 +4263,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <th scope="col">일시</th>
                 <th scope="col">국가</th>
                 <th scope="col">이벤트</th>
-                <th scope="col">중요도</th>
+                <th scope="col" class="c-opt">중요도</th>
                 <th scope="col" class="econ-table--num">이전값</th>
                 <th scope="col" class="econ-table--num c-opt">예측값</th>
                 <th scope="col" class="econ-table--num">실제값</th>
-                <th scope="col" style="width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">알림</th>
+                <th scope="col" class="c-opt" style="width:36px;" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">알림</th>
               </tr>
             </thead>
             <tbody id="calendarTable"></tbody>
@@ -4279,6 +4282,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <span id="calDetailName" style="font-size:var(--font-size-base);font-weight:var(--font-weight-semibold);margin-left:6px;"></span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
+            <button type="button" id="calDetailAlertBtn" class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" style="display:none;" onclick="toggleCalAlert(_calDetailState.idx,this);calDetailAlertSync()" title="★★★ 이벤트 발표 알림 (페이지가 열려 있는 동안 브라우저 알림)">알림</button>
             <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="event.stopPropagation();refreshCalEventDetail(this)" title="데이터 다시 불러오기">새로고침</button>
             <button class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="document.getElementById('calEventDetail').style.display='none';">✕ 닫기</button>
           </div>
@@ -4790,9 +4794,10 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </div>
           </div>
 
-          <!-- 전세 두 표 (R-ONE) — 옛 「미분양 주택 수」「주택 착공」 카드는 표를 잘못 짚은 이름이었다(2026-09-30) -->
+          <!-- 전세 두 표 (R-ONE) — 옛 「미분양 주택 수」「주택 착공」 카드는 표를 잘못 짚은 이름이었다(2026-09-30).
+               2026-10-01 진짜 공급 4표(T 표)를 뒤에 붙이며 제목을 바꿨다 — js/app3.js 접힘 목록이 제목 부분일치로 이 위젯을 찾는다 -->
           <div class="widget">
-            <h3 class="widget-title">전세 가격 지표</h3>
+            <h3 class="widget-title">전세·주택 공급 지표</h3>
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button type="button" onclick="showReHistoryChart('avg_jeonse_price_kr','아파트 평균 전세가격 (전국)',{unit:'천원'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
                 <div>
@@ -4812,6 +4817,47 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
                 <div style="text-align:right;">
                   <div id="krReSemiJeonse" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
                   <div id="krReSemiJeonseChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">—</div>
+                </div>
+              </button>
+              <!-- 주택 공급 4표 (R-ONE T 표, 2026-10-01) — 항목이 확정되기 전엔 값이 없어 — 로 남는다 -->
+              <button type="button" onclick="showReHistoryChart('unsold_total_kr','미분양주택 (전국)',{unit:'호'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
+                <div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">미분양주택 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
+                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: 호</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReUnsold" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
+                  <div id="krReUnsoldChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">—</div>
+                </div>
+              </button>
+              <button type="button" onclick="showReHistoryChart('housing_start_kr','주택 착공 (전국)',{unit:'호'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
+                <div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 착공 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
+                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: 호</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReStart" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
+                  <div id="krReStartChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">—</div>
+                </div>
+              </button>
+              <button type="button" onclick="showReHistoryChart('housing_permit_kr','주택 인허가 (전국)',{unit:'호'})" style="border-left:3px solid var(--c-primary);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
+                <div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 인허가 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
+                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: 호</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krRePermit" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
+                  <div id="krRePermitChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">—</div>
+                </div>
+              </button>
+              <button type="button" onclick="showReHistoryChart('housing_complete_kr','주택 준공 (전국)',{unit:'호'})" style="border-left:3px solid var(--c-accent);" title="클릭 → 시계열 차트" class="seed-list-item__root econ-row">
+                <div>
+                  <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);">주택 준공 (전국) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></div>
+                  <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:2px;">한국부동산원(R-ONE) · 월간 · 단위: 호</div>
+                </div>
+                <div style="text-align:right;">
+                  <div id="krReComplete" style="font-size:var(--font-size-lg);font-weight:var(--font-weight-bold);font-family:var(--font-num);color:var(--c-txt-muted);">—</div>
+                  <div id="krReCompleteChg" style="font-size:var(--font-size-sm);margin-top:2px;color:var(--c-txt-muted);">—</div>
                 </div>
               </button>
             </div>
