@@ -163,8 +163,10 @@ export function Range52({ low, high, value, decimals = 2 }: { low?: number | nul
   const pos = Math.max(0, Math.min(1, (value - low) / (high - low))) * 100
   return (
     <div className="min-w-0" role="img" aria-label={`52주 최저 ${fmtNumber(low, decimals)}, 최고 ${fmtNumber(high, decimals)}, 지금은 아래에서 ${Math.round(pos)}% 자리`}>
-      <div className="relative h-1 rounded-chip bg-line my-1.5">
-        <span className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-chip bg-ink-1" style={{ left: `${pos}%` }} />
+      {/* 점은 바깥 상자 기준으로 놓고, 선은 양끝에 점 반지름(5px)만큼 여백 — 0%·100% 에서 점이 어떤 요소 밖으로도 나가지 않는다(넘침 게이트 T1) */}
+      <div className="relative h-2.5 my-1">
+        <div className="absolute inset-x-1.5 top-1/2 h-1 -translate-y-1/2 rounded-chip bg-line" />
+        <span className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-chip bg-ink-1" style={{ left: `calc(5px + ${pos / 100} * (100% - 10px))` }} />
       </div>
       <div className="flex justify-between gap-2 text-11 text-ink-3">
         <span>52주 최저 <span className="num text-ink-2">{fmtNumber(low, decimals)}</span></span>

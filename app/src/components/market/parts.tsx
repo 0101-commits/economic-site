@@ -85,7 +85,7 @@ export function BigChart({ item, className = '' }: { item?: StripItem; className
       tools={<MoreLink to={`/i/${item.id}`}>자세히</MoreLink>}>
       <div className="mb-2 flex flex-wrap items-end gap-x-6 gap-y-2">
         <NumBlock value={v} decimals={item.decimals} chg={c} pct={item.changePct} size="L" unit={shownUnit(item)} />
-        {r52 && <div className="w-52 max-w-full"><Range52 low={r52.low} high={r52.high} value={v} decimals={item.decimals} /></div>}
+        {r52 && <div className="w-64 max-w-full"><Range52 low={r52.low} high={r52.high} value={v} decimals={item.decimals} /></div>}
       </div>
       <LineChart key={item.id} label={item.label} periods={periods} period={p} onPeriod={setP} decimals={item.decimals}
         base={v != null && c != null ? { value: v - c, label: '전일' } : null}
