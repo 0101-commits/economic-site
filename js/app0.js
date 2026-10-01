@@ -10,7 +10,7 @@
  *   merLens    mer_signals.json 의 같은 지표 id
  *   onScreen   false = 수집은 되는데 아직 어느 화면에도 없다(처리 대상)
  *
- * 생성 시각 기준 지표 124 · 데이터셋 19 · 미노출 1.
+ * 생성 시각 기준 지표 128 · 데이터셋 19 · 미노출 1.
  */
 (function () {
   var ROWS = [
@@ -121,12 +121,16 @@
     {"id": "unemployment_eu", "label": "실업률", "unit": "% (계절조정)", "asset": "macro", "topic": "labor", "cat": "고용", "country": "eu", "data": "economicIndicators.eu.unemployment_eu", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "unemployment_jp", "label": "실업률", "unit": "% (15-64세, 계절조정)", "asset": "macro", "topic": "labor", "cat": "고용", "country": "jp", "data": "economicIndicators.jp.unemployment_jp", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
     {"id": "unemployment_uk", "label": "실업률", "unit": "% (계절조정)", "asset": "macro", "topic": "labor", "cat": "고용", "country": "uk", "data": "economicIndicators.uk.unemployment_uk", "onScreen": true, "tier": 3, "canonical": "macro", "decimals": 1},
+    {"id": "housing_start_kr", "label": "주택 착공 (전국)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.housing_start_kr", "onScreen": true, "tier": 2, "canonical": "realestate", "decimals": 1},
+    {"id": "unsold_total_kr", "label": "미분양주택 (전국)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.unsold_total_kr", "onScreen": true, "tier": 2, "canonical": "realestate", "decimals": 1},
     {"id": "apt_price_idx_kr", "label": "전국주택가격동향조사 아파트 매매가격지수", "asset": "realestate", "topic": "kr", "data": "realestate.kr.apt_price_idx_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1, "merLens": "realestate"},
     {"id": "avg_jeonse_price_kr", "label": "아파트 평균 전세가격 (전국)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.avg_jeonse_price_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "building_permits_us", "label": "건축허가 (천 건, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.building_permits", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "case_shiller_20city_us", "label": "Case-Shiller 20대도시 HPI", "asset": "realestate", "topic": "us", "data": "realestate.us.case_shiller_20city", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "case_shiller_national_us", "label": "Case-Shiller HPI", "asset": "realestate", "topic": "us", "data": "realestate.us.case_shiller_national", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "existing_home_sales_us", "label": "기존주택판매 (백만 건, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.existing_home_sales", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
+    {"id": "housing_complete_kr", "label": "주택 준공 (전국)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.housing_complete_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
+    {"id": "housing_permit_kr", "label": "주택 인허가 (전국)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.housing_permit_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "housing_starts_us", "label": "주택착공 (천 호, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.housing_starts", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "jns_price_idx_kr", "label": "전국주택가격동향조사 주택종합 전세가격지수", "asset": "realestate", "topic": "kr", "data": "realestate.kr.jns_price_idx_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "mortgage_15y_us", "label": "15년 고정 모기지 금리 (%)", "asset": "realestate", "topic": "us", "data": "realestate.us.mortgage_15y", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
