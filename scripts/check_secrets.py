@@ -11,6 +11,11 @@ import re
 import subprocess
 import sys
 
+# Windows 콘솔(cp949)에서 우리말 메시지가 깨지거나 쓰기 자체가 실패하지 않도록 출력을 UTF-8 로 고정
+for _s in (sys.stdout, sys.stderr):
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
+
 # 파일 이름만으로 위반 (내용과 무관). .env.example 류는 견본이라 허용.
 NAME_PATTERNS = ["*.key", "*.key.txt", "*.pem", "*동기화키*", ".env*", "*.dev.vars"]
 NAME_ALLOW = [".env.example", ".env.sample", ".env.template"]
