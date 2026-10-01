@@ -66,6 +66,19 @@ STATE_LABEL = {"live": "실시간", "prev": "직전 종가", "stale": "지연", 
 # ponytail: globex 는 미국 공휴일 단축 거래를 모른다 — 그날은 '실시간'이 과하게 나올 수 있다.
 MARKET_OF = {"kospi": "kr", "kosdaq": "kr", "sp500": "us", "nasdaq": "us", "sox": "us",
              "nikkei": "asia", "shanghai": "asia", "hsi": "asia", "goldkrw": "daily"}
+# 원자재 분류(원자재 화면의 묶음 탭). 없는 id 는 agri 가 아니라 None — 새 품목은 여기 한 줄을 더한다.
+COMMODITY_GROUP = {
+    **{i: "energy" for i in ("wti", "brent", "dubai", "natgas", "gasoline", "heatingoil")},
+    **{i: "metal" for i in ("gold", "goldkrw", "silver", "platinum", "palladium", "copper", "aluminum",
+                            "zinc", "nickel", "lead", "tin")},
+    **{i: "agri" for i in ("wheat", "corn", "soybean", "rice", "coffee", "sugar", "cocoa", "cotton")},
+}
+COUNT_UNITS = ("호", "건", "명")
+# ETF 판정 — 원천 type 이 있으면 그것, 없으면 운용사 상표로 시작하는 이름. 종목코드로는 가를 수 없다
+# (2024 년부터 일반 종목도 영숫자 신규 코드를 받는다).
+ETF_PREFIX = ("KODEX", "TIGER", "KBSTAR", "RISE", "ACE", "HANARO", "SOL", "PLUS", "ARIRANG", "KOSEF",
+              "KIWOOM", "TIMEFOLIO", "1Q", "WON", "BNK", "UNICORN", "TRUSTON", "VITA", "FOCUS", "KoAct",
+              "TREX", "HK", "마이티", "에셋플러스", "히어로즈", "파워", "DAISHIN343", "KCGI", "WOORI")
 
 # ── 지표 띠 — 기획안 v4 4장 「자산군별 지표 띠 6」(홈 8칸). 바꿀 때는 여기 한 곳만. ──────────
 # 레지스트리 id 가 아닌 칸(flow_* · breadth_kospi · top20_amount · gold_premium · *_yoy · nps_kr_equity ·
@@ -514,13 +527,28 @@ class Quotes:
                 series = sorted(([k, v] for k, v in hist.items() if _num(v) is not None), key=lambda p: str(p[0]))
             prev = _num(leaf.get("prev"))
             if prev is None and as_of is not None:
-                older = [p for p in series if str(p[0]) < str(as_of)]
-                prev = older[-1][1] if older else None
+                # 지금 값의 점 = as_of 이하 마지막 점. 그 점 값이 지금 값과 같으면 그게 '오늘 점'이고 직전 점은 그 앞이다 —
+                # MOVE 는 as_of 가 수집일(10/1)이고 이력 끝 9/30 이 같은 값이라 직전을 9/30 으로 잡아 change 0 이 됐다.
+                upto = [p for p in series if str(p[0]) <= str(as_of)]
+                if upto and upto[-1][1] == value:
+                    upto = upto[:-1]
+                prev = upto[-1][1] if upto else None
             if value is not None and prev is not None:
                 change = _round(value - prev, nd)
             pct = _num(leaf.get("chg")) if head == "realestate" else _num(leaf.get("change")) if head == "sentiment" else None
             if pct is None and value is not None and prev:
                 pct = _round((value / prev - 1) * 100, 2)
+            elif pct is not None and change is not None and prev:
+                # 소스 등락률과 우리 등락이 서로 다른 말을 하면 둘 다 믿지 않는다(지어내지 않기)
+                if abs((value / prev - 1) * 100 - pct) > 0.1:
+                    change = pct = None
+            # 호·건·명 단위(미분양·착공·인허가·준공·거래량·실업수당) = 정수 — 소수 자리를 쓰지 않는다
+            desc = leaf.get("desc") or ""
+            if (leaf.get("unit") in COUNT_UNITS or row.get("unit") in COUNT_UNITS
+                    or re.search(r"\((?:천 |백만 )?(?:호|건)[,)]|\((?:호|건)\)|동\(호\)수", desc)):
+                out["decimals"] = 0
+                if not out.get("unit") and leaf.get("unit") in COUNT_UNITS:
+                    out["unit"] = leaf["unit"]
             raw_asof = as_of
             series = [[_norm_date(k), v] for k, v in series]
             as_of = _norm_date(as_of) if as_of is not None else None
@@ -561,12 +589,22 @@ def since(series, days, today):
 
 
 # ── 화면별 조각 ────────────────────────────────────────────────────────────
-def stock_rows(rows, amount=False):
+def is_etf(r):
+    if r.get("type"):
+        return r["type"] == "ETF"
+    return str(r.get("name") or "").upper().startswith(tuple(p.upper() for p in ETF_PREFIX))
+
+
+def stock_rows(rows, amount=False, market=None):
+    """종목 목록. market 을 주면 그 시장 행만 — 원천 kospiGainers 에 KOSDAQ 종목이 섞여 온다(2026-10-01 10개 중 9개)."""
     out = []
     for r in rows or []:
+        if market and r.get("market") != market:
+            continue
         pc, m = stock_short(r.get("name"))
         it = {"name": r.get("name"), "short": pc, "shortM": m, "code": r.get("code"),
-              "market": r.get("market"), "price": _num(r.get("price")), "chgPct": _num(r.get("chg"))}
+              "market": r.get("market"), "price": _num(r.get("price")), "chgPct": _num(r.get("chg")),
+              "isEtf": is_etf(r)}
         it["amount" if amount else "volume"] = _num(r.get("amount" if amount else "vol"))
         if r.get("preserved"):
             it["kept"] = True
@@ -757,7 +795,10 @@ def build_all(data, mer, now, toss=None):
                 it[k] = r[k]
         q = Q.get(r["id"]) or {}
         if q.get("scale"):
-            it["scale"], it["decimals"] = q["scale"], q["decimals"]
+            it["scale"] = q["scale"]
+        for k in ("decimals", "unit"):          # 묶음이 정한 표기(배율·호/건 정수)가 레지스트리 값을 이긴다 — 두 곳이 갈리지 않게
+            if q.get(k) is not None:
+                it[k] = q[k]
         it["dataPath"] = r.get("data")
         if r.get("series"):
             it["seriesPath"] = r["series"]
@@ -904,11 +945,21 @@ def build_all(data, mer, now, toss=None):
     smv = data.get("stockMovers") or {}
     etf = data.get("etfMovers") or {}
     halts = data.get("marketHalts") or {}
+    for key, want in (("kospiGainers", "KOSPI"), ("kospiLosers", "KOSPI"), ("kosdaqGainers", "KOSDAQ"),
+                      ("kosdaqLosers", "KOSDAQ")):
+        rows_ = smv.get(key) or []
+        bad = sum(1 for r in rows_ if r.get("market") != want)
+        if bad:
+            issues.append({"path": "stockMovers." + key, "state": "suspect", "asOf": (rows_[0] if rows_ else {}).get("as_of"),
+                           "note": "stockMovers.%s %d개 중 %d개가 %s 아님 — 원천 오염, 수집기 확인 필요(묶음은 %s 만 싣는다)"
+                                   % (key, len(rows_), bad, want, want)})
     b["market-domestic"] = market("domestic", {
         "amount": b["home"]["topAmount"],
-        "gainers": {"kospi": stock_rows(smv.get("kospiGainers")), "kosdaq": stock_rows(smv.get("kosdaqGainers")),
+        "gainers": {"kospi": stock_rows(smv.get("kospiGainers"), market="KOSPI"),
+                    "kosdaq": stock_rows(smv.get("kosdaqGainers"), market="KOSDAQ"),
                     "state": block_state(H, "stockMovers.kospiGainers", smv.get("kospiGainers"))},
-        "losers": {"kospi": stock_rows(smv.get("kospiLosers")), "kosdaq": stock_rows(smv.get("kosdaqLosers")),
+        "losers": {"kospi": stock_rows(smv.get("kospiLosers"), market="KOSPI"),
+                   "kosdaq": stock_rows(smv.get("kosdaqLosers"), market="KOSDAQ"),
                    "state": block_state(H, "stockMovers.kospiLosers", smv.get("kospiLosers"))},
         "etf": {"gainers": stock_rows(etf.get("etfGainers")), "losers": stock_rows(etf.get("etfLosers")),
                 "state": block_state(H, "etfMovers.etfGainers", etf.get("etfGainers"))},
@@ -985,7 +1036,7 @@ def build_all(data, mer, now, toss=None):
     lme = data.get("lmeInventory") or {}
     com_ids = [r["id"] for r in rows if r["asset"] == "commodity"]
     b["market-commodities"] = market("commodities", {
-        "items": [Q.item(i) | {"series": since(Q.series(i), 92, today)} for i in com_ids],
+        "items": [Q.item(i) | {"group": COMMODITY_GROUP.get(i), "series": since(Q.series(i), 92, today)} for i in com_ids],
         "freight": {"state": block_state(H, "freight", fr), "items": [
             {k: f.get(k) for k in ("code", "name", "price", "chgPct", "date", "exchange")} for f in (fr.get("items") or [])]},
         "lme": {"asOf": lme.get("as_of"), "state": block_state(H, "lmeInventory", lme), "items": lme.get("data") or []},
@@ -1051,6 +1102,32 @@ def build_all(data, mer, now, toss=None):
         "subscription": {"state": block_state(H, "subscription", sub), "source": sub.get("source"),
                          "byRegion": sub.get("byRegion") or {}},
     })
+
+    # 시장 화면 한 줄 — one_liners 사전 조합. 되살린 값(kept)·없는 값은 재료로 쓰지 않는다.
+    def live_q(i):
+        q = Q.get(i) or {}
+        return q if q.get("state") not in ("kept", "missing") else {}
+
+    brd = derived.get("breadth_kospi") or {}
+    flow_today = inv_rows[-1] if inv_rows and inv_rows[-1].get("date") == session else None
+    done = [e for e in all_events(data) if e.get("act") and (e.get("date") or "") <= today.isoformat()]
+    latest = max(done, key=lambda e: (e["date"], e.get("time") or ""), default=None)
+    fgq, usq, apt, uns = live_q("fear_greed"), live_q("us10y"), live_q("apt_price_idx_kr"), live_q("unsold_total_kr")
+    lines = {
+        "domestic": [ol.move("코스피", live_q("kospi").get("changePct")),
+                     ol.breadth(brd.get("up"), brd.get("down")) if brd.get("asOf") == session else None,
+                     ol.flow(flow_today)],
+        "global": [ol.move("S&P 500", live_q("sp500").get("changePct")),
+                   ol.fear_greed(fgq.get("value"), (sent.get("fear_greed") or {}).get("rating"))],
+        "fxrates": [ol.fx(live_q("usdkrw").get("changePct")), ol.yield_level("미 10년", usq.get("value"), usq.get("change"))],
+        "commodities": [ol.move("WTI", live_q("wti").get("changePct")), ol.move("금", live_q("gold").get("changePct"))],
+        "macro": [ol.release(latest)],
+        "flows": [ol.streak(inv_rows)],
+        "realestate": [ol.index_move("아파트 매매지수", apt.get("changePct"), apt.get("asOf")),
+                       ol.count("미분양", uns.get("value"), "호", uns.get("changePct"))],
+    }
+    for name, parts in lines.items():
+        b["market-" + name]["line"] = ol.line(parts)
 
     b["lens"] = build_lens(mer)
     b["_issues"] = issues            # 파일로 쓰지 않는다(write 가 meta 에 합친다)

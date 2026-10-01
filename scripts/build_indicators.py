@@ -113,6 +113,8 @@ LABEL = {
     "Coffee": "커피", "Sugar": "설탕", "Cotton": "면화", "Cocoa": "코코아",
     "vix": "VIX", "vkospi": "V-KOSPI", "move": "MOVE", "fear_greed": "공포·탐욕 지수",
     "GoldKRW": "금 현물 (KRX)",
+    # 영문 키가 그대로 이름으로 떠 있던 원자재 셋(2026-10-01, 새 화면 층 원자재 목록). 옛 이름은 ALIASES 에 둔다.
+    "Gasoline": "휘발유", "HeatingOil": "난방유", "Dubai": "두바이유",
     # 수집원 desc 가 단위를 이름에 붙이거나(천원·2026.06=100) 나라를 뺀 것을 화면 이름으로 고친 결정.
     # 2026-09-30 까지는 js/app0.js 에 손으로 적혀 있었다(재생성하면 사라져 --check 가 빨갰다).
     "cpi_jp": "일본 소비자물가(전년비)",
@@ -140,6 +142,8 @@ ALIASES = {
     "nikkei": ["닛케이", "닛케이 225"],
     "base_rate_kr": ["한국 기준금리", "기준금리"],
     "us10y": ["미 10년물", "미국 10년물", "미국채 10년물"],
+    # 라벨을 한글로 바꾼 셋 — 옛 화면의 econFmtSpec 이 ECON_IND.find('Gasoline') 으로 자릿수를 찾는다
+    "gasoline": ["Gasoline"], "heatingoil": ["HeatingOil"], "dubai": ["Dubai"],
 }
 
 # 검색어(전역 검색 전용). aliases 와 달리 화면 제목 매칭에는 쓰지 않는다 —

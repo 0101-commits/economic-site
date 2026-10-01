@@ -99,6 +99,82 @@ def move(name, pct):
     return ("%s %+.2f%% %s" % (name, pct, word), "%s %s" % (name, word))
 
 
+# ── 시장 화면 한 줄(묶음 market-*.json 의 line) 재료 ─────────────────────────────
+def breadth(up, down):
+    """시장 폭 — 상승·하락 종목 수."""
+    if not all(isinstance(x, (int, float)) for x in (up, down)):
+        return None
+    word = "상승 우세" if up > down else "하락 우세" if down > up else "상승·하락 같음"
+    return ("상승 %d·하락 %d %s" % (up, down, word), word)
+
+
+_FG = {"extreme fear": "극단적 공포", "fear": "공포", "neutral": "중립", "greed": "탐욕", "extreme greed": "극단적 탐욕"}
+
+
+def fear_greed(value, rating):
+    if not isinstance(value, (int, float)):
+        return None
+    word = _FG.get(str(rating or "").lower())
+    return ("공포·탐욕 %.0f%s" % (value, " " + word if word else ""), "심리 " + word if word else "공포·탐욕 %.0f" % value)
+
+
+def yield_level(name, value, change):
+    """금리 수준 — 등락은 bp(소수 % 를 상대 등락률로 읽지 않게)."""
+    if not isinstance(value, (int, float)):
+        return None
+    bp = " %+.0fbp" % (change * 100) if isinstance(change, (int, float)) else ""
+    return ("%s %.2f%%%s" % (name, value, bp), "%s %.2f%%" % (name, value))
+
+
+def release(ev):
+    """최신 발표 1건 — 실제치(act)가 있는 지난 일정만."""
+    if not ev or not ev.get("name") or not ev.get("act"):
+        return None
+    bare = re.sub(r"\s*\([^)]*\)", "", ev["name"]).strip()
+    fore = " (예상 %s)" % ev["fore"] if ev.get("fore") else ""
+    return ("%s %s %s%s" % (_md(ev.get("date")), ev["name"], ev["act"], fore), "%s %s" % (bare, ev["act"]))
+
+
+def streak(rows, who="foreign", name="외국인"):
+    """수급 연속일 — 끝에서부터 같은 방향이 이어진 날 수와 누적(억원)."""
+    vals = [r.get(who) for r in (rows or []) if isinstance(r.get(who), (int, float))]
+    if not vals or vals[-1] == 0:
+        return None
+    up, n, total = vals[-1] > 0, 0, 0.0
+    for v in reversed(vals):
+        if v == 0 or (v > 0) != up:
+            break
+        n, total = n + 1, total + v
+    side = "순매수" if up else "순매도"
+    if n == 1:
+        return ("%s %s %s" % (name, _amt(total), side), "%s %s" % (name, side))
+    return ("%s %d일 연속 %s · 누적 %s" % (name, n, side, _amt(total)), "%s %d일 연속 %s" % (name, n, side))
+
+
+def index_move(name, pct, when=None):
+    """월간 지수의 변화 — '아파트 매매지수 +0.39% (8월)'."""
+    if not isinstance(pct, (int, float)):
+        return None
+    m = re.match(r"\d{4}-(\d{2})", when or "")
+    tail = " (%d월)" % int(m.group(1)) if m else ""
+    return ("%s %+.2f%%%s" % (name, pct, tail), "%s %+.2f%%" % (name.split()[-1], pct))
+
+
+def count(name, value, unit, pct=None):
+    """건수 — '미분양 68,217호 (+1.1%)' / 짧게 '미분양 6.8만호'."""
+    if not isinstance(value, (int, float)):
+        return None
+    chg = " (%+.1f%%)" % pct if isinstance(pct, (int, float)) else ""
+    short = ("%.1f만%s" % (value / 10000, unit)) if value >= 10000 else "{:,.0f}{}".format(value, unit)
+    return ("{} {:,.0f}{}{}".format(name, value, unit, chg), "%s %s" % (name, short))
+
+
+def line(parts):
+    """시장 화면 한 줄 → {'pc', 'mobile'} — 재료가 없으면 둘 다 None(지어내지 않는다)."""
+    parts = [p for p in parts if p]
+    return {"pc": fit(parts, PC), "mobile": fit(parts, MOBILE)}
+
+
 # 지표 → 갈래 순서. 투자자 수급·업종은 코스피 것만 수집된다(investorTrading.markets=['KOSPI'],
 # sectorMoves=코스피 업종) — 코스닥 줄에 코스피 수급을 붙이면 틀린 이유가 된다.
 ROUTES = {

@@ -250,6 +250,68 @@ def test_lens_chain_lognos_capped():
         assert len(c["logNos"]) <= 10 and c["logNos"] == (src[c["id"]].get("logNos") or [])[:10], c["id"]
 
 
+def test_commodity_groups_and_korean_names():
+    items = bundles()["market-commodities"]["views"]["items"]
+    assert all(i["group"] in ("energy", "metal", "agri") for i in items), [i["id"] for i in items if not i.get("group")]
+    names = {i["id"]: i["label"] for i in items}
+    assert (names["gasoline"], names["heatingoil"], names["dubai"]) == ("휘발유", "난방유", "두바이유")
+
+
+def test_count_units_have_no_decimals():
+    reg = {r["id"]: r for r in bundles()["registry"]["rows"]}
+    for i in ("unsold_total_kr", "housing_start_kr", "housing_permit_kr", "housing_complete_kr", "trade_count_kr",
+              "housing_starts_us", "claims_us"):
+        assert reg[i]["decimals"] == 0, i
+    assert _item(bundles()["market-realestate"], "unsold_total_kr")["decimals"] == 0
+    assert _item(bundles()["market-domestic"], "breadth_kospi")["decimals"] == 0
+
+
+def test_change_and_pct_agree_or_both_null():
+    """MOVE 는 change 0 · changePct 3.61 로 서로 다른 말을 했다 — 둘이 같은 이야기를 하거나 둘 다 비어야 한다."""
+    g = bundles()["market-global"]["views"]
+    for q in (g["move"], g["fearGreed"], _item(bundles()["market-domestic"], "vkospi")):
+        if q["change"] is None or q["changePct"] is None:
+            assert q["change"] is None and q["changePct"] is None, q
+            continue
+        prev = q["value"] - q["change"]
+        assert abs(q["change"] / prev * 100 - q["changePct"]) <= 0.1, q
+    data = json.loads(json.dumps(DATA))
+    data["sentiment"]["move"]["change"] = 50.0                          # 소스 등락률이 이력과 어긋나면
+    mv = bb.build_all(data, MER, NOW)["market-global"]["views"]["move"]
+    assert mv["change"] is None and mv["changePct"] is None             # 둘 다 믿지 않는다
+
+
+def test_kospi_movers_filtered_and_contamination_logged():
+    b = bundles()
+    v = b["market-domestic"]["views"]
+    assert all(x["market"] == "KOSPI" for x in v["gainers"]["kospi"] + v["losers"]["kospi"])
+    assert all(x["market"] == "KOSDAQ" for x in v["gainers"]["kosdaq"] + v["losers"]["kosdaq"])
+    bad = sum(1 for r in DATA["stockMovers"]["kospiGainers"] if r.get("market") != "KOSPI")
+    logged = [i for i in b["_issues"] if i["path"] == "stockMovers.kospiGainers"]
+    assert bool(logged) == bool(bad)                                     # 원천이 오염됐을 때만 기록
+
+
+def test_is_etf_flag():
+    assert bb.is_etf({"name": "삼성전자", "type": "STOCK"}) is False
+    assert bb.is_etf({"name": "KODEX 200", "type": "ETF"}) is True
+    assert bb.is_etf({"name": "TIGER 미국S&P500"}) is True and bb.is_etf({"name": "SK하이닉스"}) is False
+    items = bundles()["market-domestic"]["views"]["amount"]["items"]
+    src = {r["code"]: r for r in DATA["rankingsKr"]["tradingAmount"]}
+    assert all(x["isEtf"] == (src[x["code"]].get("type") == "ETF") for x in items)
+
+
+def test_market_lines_within_caps_and_not_invented():
+    for name in bb.STRIPS:
+        ln = bundles()["market-" + name]["line"]
+        assert set(ln) == {"pc", "mobile"}, name
+        assert ln["pc"] is None or ol.width(ln["pc"]) <= ol.PC, (name, ln)
+        assert ln["mobile"] is None or ol.width(ln["mobile"]) <= ol.MOBILE, (name, ln)
+    empty = bb.build_all({"lastUpdated": DATA["lastUpdated"]}, {}, NOW)
+    assert all(empty["market-" + n]["line"] == {"pc": None, "mobile": None} for n in bb.STRIPS)
+    assert ol.streak([{"foreign": -1.0}, {"foreign": -2.0}, {"foreign": 3.0}])[1] == "외국인 순매수"
+    assert ol.streak([{"foreign": 1.0}, {"foreign": -2.0}, {"foreign": -3.0}])[1] == "외국인 2일 연속 순매도"
+
+
 def test_registry_rows():
     rows = bundles()["registry"]["rows"]
     assert rows and all(r["canonical"] == "/i/" + r["id"] for r in rows)
