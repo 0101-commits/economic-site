@@ -40,6 +40,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      # 새 화면 층(app/, React) — 빌드 결과 app/dist 를 collect_site 가 _site/next/ 로 옮긴다.
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: 새 화면 층 빌드 (app/ → app/dist)
+        run: npm ci --prefix app && npm test --prefix app && npm run build --prefix app
       - name: 허용 목록 수집 + 위생 검사
         run: node scripts/collect_site.mjs
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

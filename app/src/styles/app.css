@@ -1,0 +1,73 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Tailwind 기본 색·그림자·글자·모서리 체계를 비우고 토큰만 남긴다 — 토큰 밖 값은 클래스가 아예 안 생긴다. */
+@theme {
+  --color-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --breakpoint-pc: 61.25rem;   /* 980px. pc: 접두사 = PC 배치(상단 네비). rem 으로 적어야 sm·md 와 순서가 맞는다 */
+}
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-card: var(--c-card);
+  --color-ink-1: var(--c-ink-1);
+  --color-ink-2: var(--c-ink-2);
+  --color-ink-3: var(--c-ink-3);
+  --color-line: var(--c-line);
+  --color-accent: var(--c-accent);
+  --color-on-accent: var(--c-on-accent);
+  --color-up: var(--c-up);
+  --color-up-fill: var(--c-up-fill);
+  --color-down: var(--c-down);
+  --color-down-fill: var(--c-down-fill);
+  --color-warn: var(--c-warn);
+  --color-ok: var(--c-ok);
+  --color-transparent: transparent;
+
+  --radius-card: var(--r-card);
+  --radius-inner: var(--r-inner);
+  --radius-btn: var(--r-btn);
+  --radius-chip: var(--r-chip);
+
+  --text-10: var(--fs-10);
+  --text-11: var(--fs-11);
+  --text-12: var(--fs-12);
+  --text-13: var(--fs-13);
+  --text-14: var(--fs-14);
+  --text-18: var(--fs-18);
+  --text-24: var(--fs-24);
+  --text-30: var(--fs-30);
+
+  --font-sans: var(--font-body);
+}
+
+/* 공통 규칙 — 화면마다 다시 쓰지 않는다. */
+@layer base {
+  html, body { background: var(--c-bg); color: var(--c-ink-1); }
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: var(--fs-14);
+    line-height: 1.5;
+    word-break: keep-all;          /* 한글은 낱말 단위로 줄바꿈 */
+    overflow-wrap: break-word;     /* 너무 긴 낱말만 예외로 끊는다 */
+    -webkit-text-size-adjust: 100%;
+  }
+  a { color: var(--c-accent); text-decoration: underline; text-underline-offset: 2px; }   /* 네비처럼 밑줄이 없어야 하는 곳은 no-underline */
+  :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+}
+
+@layer components {
+  /* 숫자: 자릿수 폭 고정 + 줄바꿈 금지 */
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* 격자 자식이 내용 폭 때문에 격자를 밀어내지 않게 */
+  .grid > * { min-width: 0; }
+  /* 표는 이 상자 안에서만 가로로 밀린다 — 화면 전체가 밀리면 안 된다 */
+  .table-box { max-width: 100%; overflow-x: auto; }
+  /* 말줄임은 이 클래스를 붙인 곳에서만 허용한다(그 밖에서 truncate 금지) */
+  .ellipsis-ok { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

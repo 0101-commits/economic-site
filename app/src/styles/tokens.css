@@ -1,0 +1,72 @@
+/* 기획안 v4 디자인 토큰 한 벌 — 색·모서리·글자 크기의 유일한 원천.
+   금지: 색 띠 상자, 그라데이션 배경, 그림자, 이모지, 초록 강조색(초록은 「정상」 상태 표시에만).
+   어둠 전환: 기기 설정(prefers-color-scheme)을 따르되 html[data-theme] 가 있으면 그것이 이긴다. */
+:root {
+  color-scheme: light;
+  --c-bg: #F6F7F9;
+  --c-card: #FFFFFF;
+  --c-ink-1: #14181F;
+  --c-ink-2: #4A5362;
+  --c-ink-3: #7C8694;
+  --c-line: #E1E5EB;
+  --c-accent: #14181F;      /* 선택·버튼·링크 */
+  --c-on-accent: #FFFFFF;   /* 검정 버튼 위 글자 */
+  --c-up: #CA1D13;          /* 상승 글자 */
+  --c-up-fill: #E0443E;     /* 상승 도형(막대·점) */
+  --c-down: #135FCD;
+  --c-down-fill: #3E7BE0;
+  --c-warn: #B4600A;        /* 주의·지연 */
+  --c-ok: #1E7A3C;          /* 정상 */
+
+  --r-card: 10px;
+  --r-inner: 6px;
+  --r-btn: 8px;
+  --r-chip: 999px;
+
+  --sp: 4px;                /* 간격은 4px 의 배수만 */
+
+  --fs-10: 10px;            /* 모바일 하단 탭 이름 전용 */
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-18: 18px;
+  --fs-24: 24px;
+  --fs-30: 30px;
+
+  --font-body: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --c-bg: #0F1317;
+    --c-card: #161B21;
+    --c-ink-1: #ECEFF3;
+    --c-ink-2: #B4BCC7;
+    --c-ink-3: #7F8995;
+    --c-line: #262D36;
+    --c-accent: #ECEFF3;
+    --c-on-accent: #0F1317;
+    --c-up: #FF6E60;
+    --c-down: #41A2F9;
+    --c-warn: #E8913A;
+    --c-ok: #4FB873;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #0F1317;
+  --c-card: #161B21;
+  --c-ink-1: #ECEFF3;
+  --c-ink-2: #B4BCC7;
+  --c-ink-3: #7F8995;
+  --c-line: #262D36;
+  --c-accent: #ECEFF3;
+  --c-on-accent: #0F1317;
+  --c-up: #FF6E60;
+  --c-down: #41A2F9;
+  --c-warn: #E8913A;
+  --c-ok: #4FB873;
+}
