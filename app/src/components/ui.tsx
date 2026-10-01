@@ -33,14 +33,18 @@ export function NumBlock({ value, decimals = 0, chg, pct, size = 'M', unit }: {
 
 /**
  * 기준 시각 배지: LIVE(시각만) · 전일/종가 · 지연(주황) · 보강(회색).
- * state = 묶음이 판정한 상태(있으면 그것을 따른다). 없으면 asOf 시각으로 직접 판정한다.
+ * state·liveUntil = 묶음이 판정한 값(있으면 그것을 따른다). 없으면 asOf 시각으로 직접 판정한다.
+ * asOf 는 null 일 수 있다(묶음의 kept·missing) — kept 는 「보강」만, missing 은 배지 없이 값 자리 '—' 가 말한다.
  */
-export function AsOfBadge({ asOf, state, filled, now }: { asOf: string; state?: string; filled?: boolean; now?: Date }) {
-  const fromState = kindFromState(state)
-  if (fromState === null || (!asOf && !filled)) return null
-  const kind = fromState ?? asOfKind(asOf, now, { filled })
+export function AsOfBadge({ asOf, state, liveUntil, filled, now }: {
+  asOf: string | null | undefined; state?: string; liveUntil?: string | null; filled?: boolean; now?: Date
+}) {
+  const fromState = kindFromState(state, liveUntil, now)
+  if (fromState === null) return null
+  const kind = fromState ?? (asOf ? asOfKind(asOf, now, { filled }) : filled ? 'filled' : null)
+  if (!kind || (kind !== 'filled' && !asOf)) return null
   const tone = kind === 'delayed' ? 'text-warn' : 'text-ink-3'
-  return <span className={`num text-11 ${tone}`} title={kind === 'filled' ? '이번에 못 받아 직전 값을 이어 쓴 값' : undefined}>{asOfLabel(kind, asOf, now)}</span>
+  return <span className={`num text-11 ${tone}`} title={kind === 'filled' ? '이번에 못 받아 직전 값을 이어 쓴 값' : undefined}>{asOfLabel(kind, asOf || '', now)}</span>
 }
 
 /**

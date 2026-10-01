@@ -34,6 +34,12 @@ export function fmtChange(chg: number | null | undefined, pct: number | null | u
   return `${arrow}${fmtNumber(Math.abs(chg), decimals)}${p}`
 }
 
+/** 묶음의 scale 적용: 화면 값 = 원본 ÷ scale (예: 수출 scale 1e8 → 억달러, 엔/원 scale 0.01 → 100엔당 원). change 도 같은 수로 나눈다. */
+export function scaled(v: number | null | undefined, scale?: number | null): number | null {
+  if (v == null || !Number.isFinite(v)) return null
+  return scale ? v / scale : v
+}
+
 /** 등락률(%)과 현재값에서 전일 대비 변화량을 거꾸로 구한다. 자료에 등락률만 있을 때 쓴다. */
 export function changeFromPct(value: number, pct: number): number {
   return (value * pct) / (100 + pct)
@@ -56,7 +62,7 @@ export function parseAsOf(asOf: string | number | Date): Date {
  * 기준 시각 판정.
  * - filled(보강): 원래 출처가 아닌 대체 자료로 채웠다고 자료가 밝힌 경우
  * - prev(전일): 한국 날짜로 오늘보다 앞선 값
- * - live: 오늘 값이고 liveMin 분 이내
+ * - live: 오늘 값이고 liveMin 분(기본 15) 이내
  * - delayed(지연): 오늘 값이지만 liveMin 분보다 오래됨
  */
 export function asOfKind(asOf: string | number | Date, now: Date = new Date(), opts: { filled?: boolean; liveMin?: number } = {}): AsOfKind {
@@ -64,7 +70,8 @@ export function asOfKind(asOf: string | number | Date, now: Date = new Date(), o
   const t = parseAsOf(asOf)
   if (Number.isNaN(t.getTime())) return 'filled'
   if (KST_DAY.format(t) < KST_DAY.format(now)) return 'prev'
-  return now.getTime() - t.getTime() <= (opts.liveMin ?? 20) * 60_000 ? 'live' : 'delayed'
+  // 15분 = 묶음 meta.json freshnessRules.liveMin 과 같은 값
+  return now.getTime() - t.getTime() <= (opts.liveMin ?? 15) * 60_000 ? 'live' : 'delayed'
 }
 
 /**
@@ -73,18 +80,28 @@ export function asOfKind(asOf: string | number | Date, now: Date = new Date(), o
  */
 export type BundleState = 'live' | 'prev' | 'stale' | 'kept' | 'missing'
 const STATE_KIND: Record<BundleState, AsOfKind | null> = { live: 'live', prev: 'prev', stale: 'delayed', kept: 'filled', missing: null }
-export function kindFromState(state: string | undefined): AsOfKind | null | undefined {
-  return state && state in STATE_KIND ? STATE_KIND[state as BundleState] : undefined
+/**
+ * state 는 묶음을 만든 순간의 판정이다. live 칸에는 liveUntil 이 붙고, 지금이 그 시각을 지났으면
+ * 실시간이 아니므로 prev(직전 종가)로 내린다 — 묶음이 늦게 갱신돼도 「실시간」이 남지 않게.
+ */
+export function kindFromState(state: string | undefined, liveUntil?: string | null, now: Date = new Date()): AsOfKind | null | undefined {
+  if (!state || !(state in STATE_KIND)) return undefined
+  if (state === 'live' && liveUntil) {
+    const until = parseAsOf(liveUntil).getTime()
+    if (!Number.isNaN(until) && now.getTime() > until) return 'prev'
+  }
+  return STATE_KIND[state as BundleState]
 }
 
-/** 배지 문구: LIVE 는 시각만 · 오늘 종가는 「종가 15:30」 · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만. */
+/** 배지 문구: LIVE 는 시각만 · 오늘 값은 「종가 15:30」(날짜만 있으면 「종가 10/1」) · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만. */
 export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Date = new Date()): string {
   const t = parseAsOf(asOf)
   if (kind === 'filled' || Number.isNaN(t.getTime())) return '보강'
   const hm = KST_HM.format(t)
   if (kind === 'prev') {
-    if (KST_DAY.format(t) === KST_DAY.format(now) && !/^\d{4}-\d{2}-\d{2}$/.test(String(asOf))) return `종가 ${hm}`
-    return `전일 ${KST_MD.format(t).replace(/\.\s?/g, '/').replace(/\/$/, '')}`
+    const md = KST_MD.format(t).replace(/\.\s?/g, '/').replace(/\/$/, '')
+    if (KST_DAY.format(t) !== KST_DAY.format(now)) return `전일 ${md}`
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(asOf)) ? `종가 ${md}` : `종가 ${hm}`
   }
   return kind === 'delayed' ? `지연 ${hm}` : hm
 }

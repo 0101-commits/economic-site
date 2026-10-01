@@ -18,22 +18,47 @@ export function loadBundle<T = unknown>(name: string): Promise<T> {
 }
 
 /**
- * 홈 지표 띠 한 칸 — bundles/home.json 의 strip[] 모양(scripts/build_bundles.py 가 정한다).
- * value·change 는 원래 단위, changePct 는 %. asOf 는 ISO 시각 또는 YYYY-MM-DD.
- * state 는 묶음이 판정한 신선도(live·prev·stale·kept·missing) — data.json 폴백에는 없다.
+ * 지표 한 칸 — 묶음(scripts/build_bundles.py)의 칸 모양. 홈 strip[] 과 시장 묶음이 같은 모양을 쓴다.
+ * - value·change 는 원본 단위 그대로. scale 이 있으면 화면 값 = 원본 ÷ scale, 그 단위가 unit(format.ts scaled).
+ * - changePct 는 %. 금리·성장률 같은 % 지표는 changePct 가 null 이고 change(%p)만 있다.
+ * - state 는 묶음을 만든 순간의 신선도(live·prev·stale·kept·missing). live 는 liveUntil 을 지나면 prev 로 본다.
+ * - asOf 는 kept·missing 이면 null 일 수 있다. kept 는 keptSince(처음 못 받은 시각)를 단다.
+ * - short = PC 이름, shortM = 모바일 8칸 이름, reason/reasonShort = 이유 한 줄(PC/모바일).
+ * - 파생 칸(시장 띠): breadth_kospi 는 value = 상승 종목 수이고 up·down·flat 이 따로 온다 → 「352/513」(up/down)으로 적는다.
+ *   foreign_hold_ratio 는 늘 value null · state missing 이다.
+ * - 띠 순서의 단일 원천은 scripts/build_bundles.py 의 STRIPS 표다. 화면에서 순서를 다시 정하지 말 것.
+ * data.json 폴백에는 state 이하가 없다.
  */
 export type StripItem = {
   id: string
   label: string
   short?: string
+  shortM?: string
   decimals: number
   value: number | null
   change: number | null
   changePct: number | null
-  asOf: string
+  scale?: number | null
+  unit?: string
+  asOf: string | null
   state?: string
+  liveUntil?: string | null
+  keptSince?: string | null
+  reason?: string
+  reasonShort?: string
+  up?: number
+  down?: number
+  flat?: number
 }
-export type HomeBundle = { asOf: string; todayLine: { pc: string; mobile: string } | null; strip: StripItem[] }
+
+/**
+ * 값 옆에 단위를 붙일지. scale 로 바꾼 값(26.8조원 · 100엔당 원)과 % 지표(금 프리미엄 · 전년비 · 금리)는 단위 없이는
+ * 못 읽으므로 붙이고, $·원 같은 통화 기호는 이름이 이미 말하므로 뺀다.
+ */
+export function shownUnit(it: Pick<StripItem, 'scale' | 'unit'>): string | undefined {
+  return it.scale || it.unit === '%' ? it.unit : undefined
+}
+export type HomeBundle = { asOf: string; todayLine: { pc: string; mobile: string; source?: unknown } | null; strip: StripItem[] }
 
 /** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. */
 export async function loadHome(): Promise<HomeBundle> {

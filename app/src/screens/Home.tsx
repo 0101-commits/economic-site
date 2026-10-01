@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { loadHome, type HomeBundle } from '../lib/bundle'
+import { loadHome, shownUnit, type HomeBundle } from '../lib/bundle'
 import { AsOfBadge, Card, NumBlock } from '../components/ui'
+import { scaled } from '../lib/format'
 
 // 홈 첫 블록: 오늘 한 줄(평문) + 지표 카드 띠 8. 금액(내 자산)은 여기서 절대 읽지 않는다.
 export default function Home() {
@@ -24,10 +25,12 @@ export default function Home() {
           <Link key={it.id} to={`/i/${it.id}`} className="no-underline text-ink-1">
             <Card dense className="h-full">
               <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="text-12 text-ink-2 ellipsis-ok">{it.short || it.label}</span>
-                <AsOfBadge asOf={it.asOf} state={it.state} />
+                <span className="hidden pc:inline text-12 text-ink-2 ellipsis-ok">{it.short || it.label}</span>
+                <span className="pc:hidden text-12 text-ink-2 ellipsis-ok">{it.shortM || it.short || it.label}</span>
+                <AsOfBadge asOf={it.asOf} state={it.state} liveUntil={it.liveUntil} />
               </div>
-              <NumBlock value={it.value} decimals={it.decimals} chg={it.change} pct={it.changePct} size="M" />
+              <NumBlock value={scaled(it.value, it.scale)} decimals={it.decimals} chg={scaled(it.change, it.scale)} pct={it.changePct}
+                unit={shownUnit(it)} size="M" />
             </Card>
           </Link>
         ))}

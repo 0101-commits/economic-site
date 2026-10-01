@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app  (node --test, 추가 도구 없음)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fmtNumber, fmtChange, changeDir, changeFromPct, asOfKind, asOfLabel, kindFromState } from './format.ts'
+import { fmtNumber, fmtChange, changeDir, changeFromPct, scaled, asOfKind, asOfLabel, kindFromState } from './format.ts'
 
 test('fmtNumber: 천 단위·자릿수·빈 값·음의 0', () => {
   assert.equal(fmtNumber(6961.32, 2), '6,961.32')
@@ -34,11 +34,13 @@ test('asOfKind / asOfLabel: 네 갈래 판정', () => {
   const now = new Date('2026-10-01T15:50:00+09:00')
   assert.equal(asOfKind('2026-10-01T15:41:45+09:00', now), 'live')
   assert.equal(asOfLabel('live', '2026-10-01T15:41:45+09:00'), '15:41')
+  assert.equal(asOfKind('2026-10-01T15:34:00+09:00', now), 'delayed')   // 16분 지남 — 기준 15분(묶음 liveMin)
   assert.equal(asOfKind('2026-10-01T14:00:00+09:00', now), 'delayed')
   assert.equal(asOfLabel('delayed', '2026-10-01T14:00:00+09:00'), '지연 14:00')
   assert.equal(asOfKind('2026-09-30', now), 'prev')
   assert.equal(asOfLabel('prev', '2026-09-30', now), '전일 9/30')
   assert.equal(asOfLabel('prev', '2026-10-01T15:30:03+09:00', now), '종가 15:30')   // 오늘 장 마감 값
+  assert.equal(asOfLabel('prev', '2026-10-01', now), '종가 10/1')                    // 오늘 날짜만 있는 값은 「전일」이 아니다
   // 미국 날짜 9/30 23:00(UTC) = 한국 10/1 08:00 → 오늘 값이지만 오래됨
   assert.equal(asOfKind('2026-09-30T23:00:00Z', now), 'delayed')
   assert.equal(asOfKind('2026-10-01T15:41:45+09:00', now, { filled: true }), 'filled')
@@ -54,4 +56,17 @@ test('kindFromState: 묶음 상태 5종 → 배지 4갈래', () => {
   assert.equal(kindFromState('missing'), null)
   assert.equal(kindFromState(undefined), undefined)   // 상태 없음 → 시각으로 직접 판정
   assert.equal(kindFromState('엉뚱'), undefined)
+  // live 는 liveUntil 을 지나면 prev 로 내려간다
+  const now = new Date('2026-10-01T10:20:00+09:00')
+  assert.equal(kindFromState('live', '2026-10-01T10:30:00+09:00', now), 'live')
+  assert.equal(kindFromState('live', '2026-10-01T10:15:00+09:00', now), 'prev')
+  assert.equal(kindFromState('live', null, now), 'live')
+  assert.equal(kindFromState('stale', '2026-10-01T10:15:00+09:00', now), 'delayed')   // liveUntil 은 live 에만
+})
+
+test('scaled: 화면 값 = 원본 ÷ scale', () => {
+  assert.equal(scaled(65_400_000_000, 1e8), 654)          // 수출 → 억달러
+  assert.equal(fmtNumber(scaled(9.1055, 0.01), 2), '910.55')  // 엔/원 → 100엔당 원
+  assert.equal(scaled(5.26, undefined), 5.26)
+  assert.equal(scaled(null, 1e8), null)
 })
