@@ -57,7 +57,7 @@ export default function LensMap({ nodes, ls, vis, sel, onPick }: Props) {
     }
     const layout = cy.layout({
       name: 'cose', randomize: false, animate: false, fit: false, boundingBox: { x1: 0, y1: 0, w: W, h: H },
-      nodeDimensionsIncludeLabels: true, idealEdgeLength: () => 80, nodeRepulsion: () => 40000, gravity: 0.5, numIter: 2000, componentSpacing: 40, nodeOverlap: 20,
+      nodeDimensionsIncludeLabels: true, idealEdgeLength: () => 110, nodeRepulsion: () => 90000, gravity: 0.35, numIter: 2000, componentSpacing: 40, nodeOverlap: 20,
     })
     layout.one('layoutstop', fit)
     layout.run()
