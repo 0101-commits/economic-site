@@ -13,7 +13,7 @@ import { fmtNumber, fmtPct, mdHm, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
-import { newId, readPrefs, writePrefs, type AlertCond, type AlertType, type Prefs } from '../lib/personal/store'
+import { KEYS, newId, readPrefs, writePrefs, type AlertCond, type AlertType, type Prefs } from '../lib/personal/store'
 import { getKeyHash } from '../lib/personal/sync'
 import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../lib/push'
 
@@ -102,6 +102,12 @@ export default function Alerts() {
     loadRootJson<Record<string, unknown>>('alerts_state.json').then(setState, () => setState(null))
     loadMarketData().then(setMd, () => {})
     loadRegistry().then(setReg, () => {})
+  }, [])
+  // 동기화(sync.ts)가 서버 내용으로 덮거나 다른 탭이 바꾸면 다시 읽는다 — 낡은 사본으로 저장해 다른 기기의 조건을 지우지 않게.
+  useEffect(() => {
+    const f = (e: StorageEvent) => { if (e.key === KEYS.prefs) setPrefs(readPrefs()) }
+    window.addEventListener('storage', f)
+    return () => window.removeEventListener('storage', f)
   }, [])
 
   const today = kstDay()
