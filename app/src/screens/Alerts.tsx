@@ -14,6 +14,8 @@ import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
 import { newId, readPrefs, writePrefs, type AlertCond, type AlertType, type Prefs } from '../lib/personal/store'
+import { getKeyHash } from '../lib/personal/sync'
+import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../lib/push'
 
 const TABS = [{ key: 'inbox', label: '받은 알림' }, { key: 'cond', label: '조건' }, { key: 'chan', label: '채널' }] as const
 type Tab = typeof TABS[number]['key']
@@ -314,22 +316,39 @@ function NewCondition({ rows, onAdd }: { rows: RegRow[]; onAdd: (a: AlertCond) =
   )
 }
 
-/** 채널: 폰 알림(허락 요청만) · 디스코드(안내) · 조용한 시간. */
+/** 폰 알림: 이 기기 웹 푸시 구독 켜기·끄기(lib/push.ts). 동기화 키 해시는 sync.ts 에서 그때그때 받고 저장하지 않는다. */
+function PhonePush() {
+  const supported = pushSupported()
+  const [on, setOn] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(supported && Notification.permission === 'denied' ? '알림이 막혀 있습니다. 브라우저 사이트 설정에서 풀어야 합니다.' : '')
+  useEffect(() => { pushSubscribed().then(setOn, () => {}) }, [])
+  const toggle = async (want: boolean) => {
+    setBusy(true); setMsg('')
+    try {
+      await (want ? subscribePush(getKeyHash) : unsubscribePush(getKeyHash))
+      setOn(want)
+      setMsg(want ? '이 기기로 알림을 받습니다.' : '이 기기 알림을 껐습니다.')
+    } catch (e) { setMsg(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
+  }
+  return (
+    <Panel title="폰 알림">
+      {supported
+        ? <Switch on={on} onChange={toggle} disabled={busy} label="이 기기로 받기" />
+        : <p className="m-0 text-13 text-ink-2">이 브라우저는 웹 푸시를 지원하지 않습니다. 아이폰은 Safari 공유 메뉴의 「홈 화면에 추가」로 연 앱에서만 켤 수 있습니다.</p>}
+      <p role="status" className="mt-2 mb-0 text-12 text-ink-2">{msg}</p>
+      <p className="mt-3 mb-0 text-12 text-ink-3">켜 두면 알림이 이 기기로도 옵니다. 설정에서 동기화 키를 먼저 넣어야 켤 수 있습니다.</p>
+    </Panel>
+  )
+}
+
+/** 채널: 폰 알림(웹 푸시 구독) · 디스코드(안내) · 조용한 시간. */
 function Channels({ prefs, onSave }: { prefs: Prefs; onSave: (p: Prefs) => void }) {
-  const supported = typeof Notification !== 'undefined'
-  const [perm, setPerm] = useState<string>(supported ? Notification.permission : 'unsupported')
   const quiet = prefs.settings.quiet
   const setQuiet = (q: Prefs['settings']['quiet']) => onSave({ ...prefs, settings: { ...prefs.settings, quiet: q } })
-  const PERM: Record<string, string> = { granted: '허락됨', denied: '막힘 — 브라우저 사이트 설정에서 풀어야 합니다', default: '아직 묻지 않음', unsupported: '이 브라우저는 알림을 지원하지 않습니다' }
   return (
     <div className="grid grid-cols-1 pc:grid-cols-3 gap-4 items-start">
-      <Panel title="폰 알림">
-        <p className="m-0 text-13 text-ink-2">지금 상태: <span className="text-ink-1">{PERM[perm] ?? perm}</span></p>
-        {supported && perm === 'default' && (
-          <button type="button" className={`${BTN} mt-3`} onClick={() => Notification.requestPermission().then(setPerm, () => {})}>알림 허락 요청</button>
-        )}
-        <p className="mt-3 mb-0 text-12 text-ink-3">허락만 받아 둡니다. 이 기기 구독을 서버에 저장하고 실제로 보내는 일은 다음 단계입니다.</p>
-      </Panel>
+      <PhonePush />
       <Panel title="디스코드">
         <p className="m-0 text-13 text-ink-2">급변·시황 알림은 지금도 운영 디스코드 채널로 나갑니다.</p>
         <p className="mt-2 mb-0 text-12 text-ink-3">조건마다 디스코드를 고를 수는 있지만, 새 화면 조건을 디스코드로 보내는 연결은 다음 단계입니다.</p>

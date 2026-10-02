@@ -1082,7 +1082,7 @@ async function handlePrefs(request, env) {
 
 // GET /push/subscribe — { vapidPublicKey, count } (브라우저 pushManager.subscribe 의 applicationServerKey 용).
 // PUT — 본문 = PushSubscription.toJSON() 그대로. 같은 endpoint 는 교체(기기당 1개).
-// DELETE — 본문 { endpoint }. 발송은 다음 단계(README「/prefs · /push/subscribe」의 KV 키 형식 참고).
+// DELETE — 본문 { endpoint }. 발송은 scripts/send_push.py 가 아래 /push/subscriptions 로 읽어 한다.
 async function handlePushSubscribe(request, env) {
   const a = await _userKvKey(request, env, 'push:');
   if (a.denied) return a.denied;
@@ -1133,6 +1133,55 @@ async function handleUserData(request, env, path) {
     console.log('[user-data] 예외:', String((e && e.message) || e));
     return jsonResponse({ error: 'internal_error' }, 500, pc);
   }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 웹 푸시 공개키 — GET /push/key (인증 없음), 발송기 전용 — GET /push/subscriptions · PUT /push/prune
+// ──────────────────────────────────────────────────────────────────
+// 공개키는 본래 공개값이라 동기화 키 없이 준다(브라우저가 구독 전에 읽는다). 없으면 503.
+// 발송기(scripts/send_push.py)는 Worker 시크릿 PUSH_READ_KEY 를 헤더 X-Push-Read-Key 로 보낸다.
+//   KV 읽기 토큰을 발송기에 주면 auth:syncKeyHash 까지 읽혀 동기화 키를 준 것과 같아지므로, 구독만 내주는 이 경로를 둔다.
+//   PUSH_READ_KEY 가 없으면 503(fail-closed), 틀리면 401.
+// 발송 대상은 지금 유효한 동기화 키의 공간(push:<기대 해시 앞 16자>) 하나뿐이다. 키를 바꾸면 옛 키 공간의 구독에는
+//   보내지 않는다 — 옛 키를 알던 사람이 넣어 둔 구독이 알림 내용을 계속 받지 않게. 기기에서 다시 켜면 새 공간에 들어간다.
+async function handlePushSender(request, env, path) {
+  const nc = { 'Cache-Control': 'no-store' };   // 브라우저용이 아니므로 CORS 헤더를 붙이지 않는다
+  const want = path === '/push/subscriptions' ? 'GET' : 'PUT';
+  if (request.method !== want) return jsonResponse({ error: 'method_not_allowed', allow: [want] }, 405, nc);
+  const secret = String(env.PUSH_READ_KEY || '').trim();
+  if (!secret) return jsonResponse({ error: 'push_read_not_configured' }, 503, nc);
+  if (!_hexEq(String(request.headers.get('X-Push-Read-Key') || '').trim(), secret)) {
+    return jsonResponse({ error: 'unauthorized' }, 401, nc);
+  }
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, nc);
+  let space, kvKey, subs;
+  try {
+    const h = await _expectedSyncKeyHash(env);
+    if (!h) return jsonResponse({ error: 'sync_key_not_configured' }, 503, nc);
+    space = h.slice(0, 16);
+    kvKey = 'push:' + space;
+    subs = await env.ECON_PORTFOLIO.get(kvKey, 'json');
+  } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, nc); }
+  if (!Array.isArray(subs)) subs = [];
+  if (want === 'GET') {
+    // 조용한 시간(/prefs settings.quiet, 한국 시각 HH:MM) — 발송기가 이 시간엔 폰 알림을 보내지 않는다. 못 읽으면 null.
+    let quiet = null;
+    try { const p = await env.ECON_PORTFOLIO.get('prefs:' + space, 'json'); quiet = (p && p.settings && p.settings.quiet) || null; }
+    catch (_) { /* 조용한 시간 없이 보낸다 — 구독 목록은 이미 읽었다 */ }
+    return jsonResponse({ subs, quiet }, 200, nc);
+  }
+
+  // PUT /push/prune — 본문 { endpoints: [...] }. 푸시 서비스가 410/404(구독 사라짐)로 답한 주소만 지운다.
+  const b = await _readJsonBody(request, 16384);
+  if (b.err) return _withCors(b.err, nc);
+  const gone = _isObj(b.body) && Array.isArray(b.body.endpoints) ? b.body.endpoints.filter(e => typeof e === 'string') : null;
+  if (!gone) return jsonResponse({ error: 'endpoints_required' }, 400, nc);
+  const next = subs.filter(s => !gone.includes(s.endpoint));
+  if (next.length !== subs.length) {
+    try { await env.ECON_PORTFOLIO.put(kvKey, JSON.stringify(next)); }
+    catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, nc); }
+  }
+  return jsonResponse({ ok: true, removed: subs.length - next.length, count: next.length }, 200, nc);
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1638,6 +1687,14 @@ export default {
     {
       const _p = new URL(request.url).pathname;
       if (_p === '/prefs' || _p === '/push/subscribe') return handleUserData(request, env, _p);
+      // 웹 푸시 공개키(인증 없음) — 브라우저가 구독 전에 읽는다. 공개값이라 GET_CORS(*).
+      if (_p === '/push/key') {
+        if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405);
+        const vapid = String(env.VAPID_PUBLIC_KEY || '').trim();
+        return vapid ? jsonResponse({ vapidPublicKey: vapid })
+          : jsonResponse({ error: 'push_not_configured', message: 'Worker 시크릿 VAPID_PUBLIC_KEY 가 없습니다.' }, 503);
+      }
+      if (_p === '/push/subscriptions' || _p === '/push/prune') return handlePushSender(request, env, _p);
     }
 
     // 🤖 AI 시황 요약 — POST /ai : 프론트가 보낸 '그 순간의 시장 스냅샷'을 Anthropic(Claude)

@@ -62,7 +62,8 @@ jobs:
         # pynacl: 카카오 refresh_token 자동 회전 시 GH_SECRETS_PAT 로 시크릿을 갱신하는 데 필요
         # (GitHub Secrets API 는 libsodium 암호화 요구 — kakao-daily.yml 과 동일 배선).
         # matplotlib: 종목·급변·서킷 디스코드 카드(discord_card.py) 렌더용.
-        run: pip install requests pynacl matplotlib
+        # pywebpush: 웹 푸시 발송(send_push.py). 2.5.0 에서 키 형식·암호화·서명을 실측했다.
+        run: pip install requests pynacl matplotlib pywebpush==2.5.0
 
       # 한글 폰트(기획 5154773b P1) — 디스코드 카드 한글 라벨용. 매분 런이라 apt 설치 대신
       # 정적 OTF 2종(Noto Sans KR Regular·Bold — 가변폰트는 matplotlib 이 weight 100 으로
@@ -108,7 +109,20 @@ jobs:
           DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
           # @종목알림 역할 멘션(E1 T2) — 봇 토큰으로 역할 id 를 이름 조회. 미설정이면 무멘션.
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          # 새 화면(app/) 조건 — Worker GET /prefs 인증(SHA-256 → X-Sync-Key-Hash). 미설정이면 그 경로만 건너뛴다.
+          #   사이트에서 「키 바꾸기」를 했다면 이 시크릿도 새 키로 바꿔야 한다(Worker 는 KV 의 새 해시를 우선한다).
+          ALERTS_SYNC_KEY: ${{ secrets.ALERTS_SYNC_KEY }}
         run: python scripts/check_alerts.py
+
+      # 웹 푸시 — check_alerts.py 가 쌓은 scripts/push_queue.json 을 구독한 기기에 보낸다(기획안 v4 D3).
+      #   큐가 없거나 시크릿이 빠지면 아무것도 안 하고 끝난다. 실패해도 다음 감지 스텝·이력 커밋을 막지 않는다.
+      - name: Send web push
+        continue-on-error: true
+        env:
+          PUSH_READ_KEY: ${{ secrets.PUSH_READ_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: python scripts/send_push.py
 
       # 🚨 시장중단(서킷브레이커) 감지·카카오 — fetch-data.yml 에서 이관(2026-07).
       #   HALTS_LIVE=1: ^KS11/^KQ11 시세를 직접 조회해 감지 → 발동→알림 지연을 fetch-data 경유

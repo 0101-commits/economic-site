@@ -192,5 +192,35 @@ check('키 빠짐 → 400', (await call('PUT', '/push/subscribe', { body: { endp
 check('해지 → 4개', (await call('DELETE', '/push/subscribe', { body: { endpoint: sub(4).endpoint } })).j.count, 4);
 check('endpoint 없이 해지 → 400', (await call('DELETE', '/push/subscribe', { body: {} })).status, 400);
 
+console.log('웹 푸시 공개키 · 발송기 경로');
+r = await call('GET', '/push/key', { hash: '' });
+check('공개키 — 인증 없이 200', [r.status, r.j], [200, { vapidPublicKey: 'BFakePublicKeyForTestOnly' }]);
+check('공개키 없음 → 503', (await call('GET', '/push/key', { hash: '', e: { ...env, VAPID_PUBLIC_KEY: ' ' } })).status, 503);
+check('공개키 PUT → 405', (await call('PUT', '/push/key', { hash: '', body: {} })).status, 405);
+const READ = 'fake-push-read-key';
+const senv = { ...env, PUSH_READ_KEY: READ + '\n' };   // 시크릿 후행 개행도 통과해야 한다
+const scall = (method, path, { key = READ, body, e = senv } = {}) =>
+  call(method, path, { hash: '', body, e, headers: key ? { 'X-Push-Read-Key': key } : {} });
+check('발송기 시크릿 없음 → 503', (await scall('GET', '/push/subscriptions', { e: env })).status, 503);
+check('발송기 헤더 없음 → 401', (await scall('GET', '/push/subscriptions', { key: '' })).status, 401);
+check('발송기 틀린 키 → 401', (await scall('GET', '/push/subscriptions', { key: 'wrong' })).status, 401);
+check('동기화 키 해시로는 못 읽음 → 401', (await call('GET', '/push/subscriptions', { e: senv })).status, 401);
+r = await scall('GET', '/push/subscriptions');
+check('구독 목록 200 · 4개', [r.status, r.j.subs.length], [200, 4]);
+check('조용한 시간 = 저장된 /prefs 값', r.j.quiet, (await call('GET', '/prefs')).j.settings.quiet);
+check('발송기 응답에 CORS 없음 · 캐시 금지', [r.h.get('access-control-allow-origin'), r.h.get('cache-control')], [null, 'no-store']);
+check('구독 목록 POST → 405', (await scall('POST', '/push/subscriptions', { body: {} })).status, 405);
+kv.set('push:' + NEW.slice(0, 16), JSON.stringify([sub(7)]));   // 옛 키로 남은 공간
+kv.set('auth:syncKeyHash', NEW);
+r = await scall('GET', '/push/subscriptions');
+check('지금 유효한 키 공간만 내준다', r.j.subs.map(s => s.endpoint.slice(-1)), ['7']);
+kv.delete('auth:syncKeyHash');
+check('prune 틀린 키 → 401', (await scall('PUT', '/push/prune', { key: 'wrong', body: { endpoints: [sub(2).endpoint] } })).status, 401);
+check('prune endpoints 없음 → 400', (await scall('PUT', '/push/prune', { body: {} })).status, 400);
+r = await scall('PUT', '/push/prune', { body: { endpoints: [sub(2).endpoint, sub(5).endpoint, 'https://fcm.googleapis.com/fcm/send/none'] } });
+check('prune → 2개 지움 · 2개 남음', [r.status, r.j.removed, r.j.count], [200, 2, 2]);
+check('prune 뒤 KV', JSON.parse(kv.get('push:' + KEY.slice(0, 16))).map(s => s.endpoint.slice(-1)), ['3', '6']);
+check('prune GET → 405', (await scall('GET', '/push/prune')).status, 405);
+
 if (fails) { console.log(`\n${fails}건 실패`); process.exit(1); }
 console.log('\n전부 통과');

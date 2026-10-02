@@ -149,7 +149,7 @@ curl -X PUT -H "X-Sync-Key-Hash: <키 해시>" -H "content-type: application/jso
 
 ### `/push/subscribe` — 웹 푸시 구독 보관
 
-발송은 다음 단계입니다. 지금은 구독을 받아 두기만 합니다.
+브라우저(새 화면 `app/src/lib/push.ts`)가 이 경로로 구독을 맡기고, 발송은 `scripts/send_push.py` 가 아래 「발송기 경로」로 읽어 합니다.
 Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요청은 세 메서드 모두 503 입니다. 그 밖의 메서드는 405 입니다.
 
 | 메서드 | 본문 | 응답 |
@@ -160,6 +160,24 @@ Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요�
 
 `endpoint` 는 https 이면서 알려진 브라우저 푸시 서비스여야 하고, 사용자 정보·포트가 붙으면 안 됩니다(`fcm.googleapis.com`, `*.push.services.mozilla.com`,
 `*.notify.windows.com`, `*.push.apple.com`). 보관 필드는 `endpoint`·`expirationTime`·`keys.p256dh`·`keys.auth` 뿐입니다.
+
+### `GET /push/key` — 공개키(인증 없음)
+
+`{ vapidPublicKey }` 를 돌려줍니다. 브라우저가 구독 전에 읽는 공개값이라 동기화 키를 받지 않고 CORS 는 `*` 입니다.
+`VAPID_PUBLIC_KEY` 가 없으면 503, GET 이 아니면 405 입니다.
+
+### 발송기 경로 — `GET /push/subscriptions` · `PUT /push/prune`
+
+`scripts/send_push.py`(stock-alerts.yml 의 「Send web push」 스텝)만 씁니다. 헤더 `X-Push-Read-Key` = Worker 시크릿 `PUSH_READ_KEY`.
+시크릿이 없으면 503(fail-closed), 틀리면 401 입니다. 동기화 키 해시로는 열리지 않습니다. 응답에 CORS 헤더가 없고 `Cache-Control: no-store` 입니다.
+
+| 경로 | 본문 | 응답 |
+|---|---|---|
+| `GET /push/subscriptions` | 없음 | `{ subs: [구독…], quiet }`. `quiet` 는 같은 공간 `/prefs` 의 `settings.quiet`(없으면 `null`) — 발송기는 이 시간엔 보내지 않습니다. |
+| `PUT /push/prune` | `{ "endpoints": ["…"] }` | `{ ok, removed, count }`. 푸시 서비스가 410·404 로 답한 주소를 지웁니다. |
+
+대상은 **지금 유효한 동기화 키의 공간 하나**(`push:<기대 해시 앞 16자>`)뿐입니다. 키를 바꾸면 옛 키 공간의 구독에는 보내지 않습니다.
+옛 키를 알던 사람이 넣어 둔 구독이 알림 내용을 계속 받지 않게 하려는 것입니다. 키를 바꾼 뒤에는 기기마다 「폰 알림」을 다시 켭니다.
 
 ### KV 키 형식(`ECON_PORTFOLIO`, id `49d7bd1ee2874995a7bf0439c4e297b3`)
 
@@ -175,7 +193,7 @@ Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요�
 **KV 읽기 권한은 로그인 권한과 같습니다.** Cloudflare API 의 「Workers KV Storage: Read」 토큰은 계정 단위라 이름공간 하나로
 좁힐 수 없습니다. 그 토큰으로 `auth:syncKeyHash` 도 읽히는데, 이 값은 서버가 비교하는 해시 그 자체라 그대로 보내면 인증을 통과합니다.
 그래서 발송 스크립트에 이 토큰을 주면 동기화 키를 준 것과 같습니다. 그 토큰은 동기화 키와 같은 등급으로 보관합니다.
-더 좁히려면 Worker 에 발송용 읽기 경로를 따로 만들고 별도 시크릿으로 지킵니다(후속 과제).
+그래서 발송기에는 이 토큰을 주지 않고, 구독만 내주는 위 「발송기 경로」와 별도 시크릿 `PUSH_READ_KEY` 를 씁니다.
 
 ```sh
 # 저장소 루트에서 — 목록과 값
@@ -204,11 +222,13 @@ GET https://api.cloudflare.com/client/v4/accounts/<account_id>/storage/kv/namesp
 
 ```sh
 # 저장소 루트에서(설정 파일 wrangler.jsonc 가 루트에 있다). 실행은 담당자.
-npx wrangler secret put VAPID_PUBLIC_KEY   # /push/subscribe 용. 없으면 그 경로만 503
+npx wrangler secret put VAPID_PUBLIC_KEY   # /push/key·/push/subscribe 용. 없으면 그 경로만 503
+npx wrangler secret put PUSH_READ_KEY      # 발송기 경로 용. 없으면 그 경로만 503
 npx wrangler deploy
 ```
 
-- VAPID 키 한 쌍은 `npx web-push generate-vapid-keys` 로 만듭니다. 공개키는 위 Worker 시크릿에 넣습니다. 개인키(`VAPID_PRIVATE_KEY`)와 연락처(`VAPID_SUBJECT`, `mailto:…`)는 발송 스크립트 쪽 시크릿에만 둡니다. Worker 는 개인키를 쓰지 않습니다.
+- 키는 `python scripts/gen_vapid.py mailto:<주소>` 가 만들어 화면에만 보여 줍니다(파일로 저장하지 않음). 출력된 `gh secret set`·`wrangler secret put` 명령을 그대로 실행합니다. 공개키와 `PUSH_READ_KEY` 는 Worker 시크릿, 개인키(`VAPID_PRIVATE_KEY`)·연락처(`VAPID_SUBJECT`)·`PUSH_READ_KEY` 는 GitHub 시크릿입니다. Worker 는 개인키를 쓰지 않습니다.
+- VAPID 키를 바꾸면 기존 구독이 전부 무효가 됩니다. 기기에서 「폰 알림」을 다시 켜면 화면이 새 공개키로 다시 구독합니다.
 - 둘 다 코드·설정 파일에 값을 쓰지 않습니다. KV 바인딩과 `AI_LIMITER` 는 이미 `wrangler.jsonc` 에 있습니다.
 
 ### 현행 `/portfolio` 와의 관계(과도기)

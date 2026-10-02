@@ -26,7 +26,7 @@ const DIRS = { js: ['.js'], css: ['.css', '.woff2'], bundles: ['.json'] };
 // 새 화면 층: app/dist(빌드 산출물) → _site/next/. pages.yml 이 이 스크립트보다 먼저 빌드한다.
 const APP_DIST = 'app/dist';
 const APP_OUT = 'next';
-const APP_EXTS = ['.js', '.css', '.html', '.svg', '.woff2'];
+const APP_EXTS = ['.js', '.css', '.html', '.svg', '.png', '.woff2'];   // .png = 푸시 알림 아이콘(app/public/icon.png)
 
 const FORBIDDEN = [
   /\.(md|py|pyc|sql|sh|ps1|bat|ya?ml|toml|jsonc|jsonl|mjs|env|pem|key)$/i,
@@ -88,7 +88,7 @@ for (const r of ['CLAUDE.md', 'docs/IMPROVEMENTS.md', 'tests/ui/shots.mjs', 'scr
   if (!FORBIDDEN.some(re => re.test(r))) throw new Error(`자가 점검 실패 — 막혀야 함: ${r}`);
 }
 for (const r of [...FILES, 'js/app1.min.js', 'css/seed/seed.css', 'css/fonts/pretendard/a.woff2', 'bundles/home.json',
-                 'next/index.html', 'next/assets/index-a1B2.js', 'next/assets/index-a1B2.css']) {
+                 'next/index.html', 'next/assets/index-a1B2.js', 'next/assets/index-a1B2.css', 'next/sw.js', 'next/icon.png']) {
   if (FORBIDDEN.some(re => re.test(r))) throw new Error(`자가 점검 실패 — 통과해야 함: ${r}`);
 }
 
