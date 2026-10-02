@@ -38,7 +38,12 @@
     무료 API 라 보장이 없어 보수적으로 고지한다. (구 문구 "15분 지연"은 실측과 달라 완화 —
     실제 병목은 평가 주기였고 2026-07-03 매분 평가로 단축됨.)
 
-필요한 GitHub Secrets: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (시황 다이제스트와 공용)
+새 화면(app/) 조건(2026-10-02):
+  Worker KV /prefs 의 alerts 를 매 런 받아(scripts/prefs_client.py, 시크릿 ALERTS_SYNC_KEY) 현행 조건과 같은
+  런에서 따로 판정한다. 발송은 디스코드 #종목-알림 + 푸시 큐(scripts/push_queue.json → send_push.py).
+  반복은 조건의 repeat(once/daily), 이력은 alerts_state.json "_prefs". 자세한 규칙은 _check_prefs 위 주석.
+
+필요한 GitHub Secrets: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (시황 다이제스트와 공용), ALERTS_SYNC_KEY(새 화면 조건)
 """
 import os
 import re
@@ -504,9 +509,13 @@ def _write_state(state, alerts, now):
     '_' 로 시작하는 키는 다른 소유자의 상태(check_swings 의 _swings 등)라 정리 대상에서 제외 —
     여기서 지우면 급변 속보 쿨다운이 매 런 리셋돼 같은 급변이 반복 발송된다."""
     valid_ids = {a["id"] for a in alerts}
-    pruned = {k: v for k, v in state.items() if k in valid_ids or k.startswith("_")}
+    _save_state({k: v for k, v in state.items() if k in valid_ids or k.startswith("_")})
+
+
+def _save_state(state):
+    """정리 없이 그대로 기록 — 현행 조건 목록을 모르는 경로(새 화면 조건만 바뀐 런)가 쓴다."""
     with open(STATE_PATH, "w", encoding="utf-8") as f:
-        json.dump(pruned, f, ensure_ascii=False, indent=2)
+        json.dump(state, f, ensure_ascii=False, indent=2)
         f.write("\n")
 
 
@@ -750,9 +759,503 @@ def _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered_syms):
         state[a["id"]] = rec
 
 
-def main():
-    now = _now()
+# ── 새 화면(/prefs) 조건 ────────────────────────────────────────────────────
+# 새 화면(app/)에서 만든 조건은 공개 파일이 아니라 Worker KV /prefs 에 있다(기획안 v4 보안 위험 3).
+# 현행 발송이 끝난 뒤 한 번 받아 현행 재료(국내 종목 시세·data.json·묶음·mer_signals)로 판정하고 디스코드
+# #종목-알림과 푸시 큐로 보낸다. 카카오·종목당 1줄·가격 교차 재무장은 타지 않는다.
+# 반복 규칙(2026-10-02 결정):
+#   once  — price·pct·high52·lens 는 한 번 울리면 끝(fired=true, 화면은 「발동됨 · 다시 켜기」).
+#           event 는 일정 건마다 한 번, flow 는 전환 건마다 한 번(같은 방향 재발동은 24시간 쿨다운).
+#   daily — 종류와 무관하게 하루 한 번, 같은 발생(같은 기준일 값·같은 일정)은 날이 바뀌어도 다시 안 보냄.
+# 상태는 alerts_state.json 의 "_prefs" 아래 조건 id 별로 둔다. 밑줄 키라 _write_state 가 지우지 않는다.
+# 이 파일과 Actions 로그는 공개(저장소·Pages)다 — 대상·문구·값은 어디에도 적지 않는다. 기록은 source·type·
+# 날짜·시각·해시뿐이고, 로그는 조건 id·종류·예외 종류 이름뿐이다. 화면은 기기의 econPrefsV1 에서 id 로 이름을 찾는다.
+NEXT_URL = "https://0101-commits.github.io/economic-site/next/"
+PUSH_QUEUE_PATH = os.path.join(ROOT, "scripts", "push_queue.json")   # send_push.py 가 읽고 지운다. 커밋하지 않는다.
+PUSH_SENT_PATH = os.path.join(ROOT, "scripts", "push_sent.json")     # send_push.py 가 실제로 보낸 큐 id. --confirm-push 가 읽고 지운다.
+ONCE_FOREVER = ("price", "pct", "high52", "lens")    # once 가 「한 번 울리면 끝」인 종류 — event·flow 는 건마다
+FLOW_COOLDOWN = 24 * 3600                            # 수급: 같은 방향 재발동 금지 시간(초)
+KRX_FINAL_HOUR = 18                                  # 수급: 이 시각(KST) 전의 오늘 행은 장중 잠정치라 판정에 안 쓴다
+KR_CODE = re.compile(r"[0-9][0-9A-Z]{5}")           # 국내 종목 코드 — 신규 ETF 는 0018Z0 처럼 영문이 섞인다
+WHO = {"foreign": "외국인", "inst": "기관", "retail": "개인"}
+LENS_LABEL = {"crossed": "돌파", "near": "주시 진입"}
+COUNTRY_WORDS = ("미국 ", "한국 ", "일본 ", "중국 ", "유로 ", "독일 ", "영국 ")
 
+
+def _num(x):
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if v == v else None                      # NaN 거름
+
+
+def _load_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _pskip(a, why):
+    """매핑할 수 없는 조건 — 로그만 남기고 건너뛴다."""
+    print(f"[prefs] 건너뜀 {a.get('id')}({a.get('type')}): {why}")
+    return None
+
+
+def _kh(key):
+    """발생 키는 해시로만 남긴다 — 일정 이름 같은 평문이 공개 이력에서 조건을 드러내지 않게."""
+    import hashlib
+    return hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:12]
+
+
+class _PrefsCtx:
+    """한 런의 판정 재료. 파일은 체크아웃에 이미 있는 것을 한 번만 읽는다(네트워크 0).
+    네트워크는 국내 종목 시세(get_snapshot)뿐이다. 현행 루프가 이미 받은 snaps 를 다시 쓰고,
+    실패(None)는 snaps 에 넣지 않는다 — 이 런 안에서 다시 묻지 않도록 따로(self.miss) 센다."""
+
+    def __init__(self, now, snaps, cfg):
+        self.now, self.snaps, self.miss = now, snaps, set()
+        self.data = _load_json(os.path.join(ROOT, "data.json")) or {}
+        self.mer_doc = _load_json(os.path.join(ROOT, "mer_signals.json")) or {}
+        self.mer = {i.get("id"): i for i in (self.mer_doc.get("indicators") or []) if isinstance(i, dict)}
+        bdir = os.path.join(ROOT, "bundles")
+        self.reg = {r["id"]: r for r in ((_load_json(os.path.join(bdir, "registry.json")) or {}).get("rows") or [])
+                    if isinstance(r, dict) and r.get("id")}
+        # 지표 id → 값 칸. app/src/lib/bundle.ts findItem 과 같은 규칙: 홈·시장 묶음만, 시계열 있는 칸 우선.
+        self.items = {}
+
+        def walk(o):
+            if isinstance(o, dict):
+                i = o.get("id")
+                if i in self.reg and "value" in o and (i not in self.items or (
+                        not self.items[i].get("series") and o.get("series"))):
+                    self.items[i] = o
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+        try:
+            names = ["home.json"] + sorted(n for n in os.listdir(bdir) if n.startswith("market-"))
+        except OSError:
+            names = []
+        for n in names:
+            walk(_load_json(os.path.join(bdir, n)))
+        # 국내 종목 이름 — 현행 조건·관심 목록·토스 스냅샷(전부 체크아웃의 파일)
+        self.stock_names = {}
+        c = cfg or {}
+        for e in (c.get("alerts") or []) + ((c.get("tracking") or {}).get("items") or []):
+            if isinstance(e, dict) and e.get("symbol") and e.get("name"):
+                self.stock_names.setdefault(str(e["symbol"]), str(e["name"]))
+        for sym, e in (((self.data.get("stockFlows") or {}).get("items")) or {}).items():
+            if isinstance(e, dict) and e.get("name"):
+                self.stock_names.setdefault(sym, e["name"])
+        self._rows = None
+
+    def rows(self):
+        """지표 레지스트리 원본 행(merLens·별칭·키워드) — 일정·렌즈 조건이 있을 때만 만든다."""
+        if self._rows is None:
+            try:
+                import build_indicators as bi
+                rows, datasets, _ = bi.build(self.data, self.mer_doc)
+                self._rows = {r["id"]: r for r in rows + datasets if r.get("id")}
+            except Exception as e:                            # noqa: BLE001
+                print(f"[prefs] 지표 레지스트리를 만들지 못함: {type(e).__name__}")
+                self._rows = {}
+        return self._rows
+
+    def name(self, target):
+        r = self.reg.get(target)
+        if r:
+            return r.get("short") or r.get("label") or target
+        return self.stock_names.get(target) or target
+
+    def url(self, target):
+        return f"#/i/{target}" if target in self.reg else "#/market?a=kr&m=all"
+
+    def _series(self, reg, it, asof):
+        """비교용 과거 값 — registry seriesPath(data.json history, 400점) 우선, 없으면 묶음 칸 시계열. 기준일 미만만."""
+        node = self.data
+        for p in (reg.get("seriesPath") or "").split(".") if reg.get("seriesPath") else []:
+            node = node.get(p) if isinstance(node, dict) else None
+        pts = node if isinstance(node, list) and node else (it.get("series") or [])
+        out = []
+        for p in pts:
+            if isinstance(p, dict):
+                d, c = p.get("date"), p.get("close", p.get("value"))
+            elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                d, c = p[0], p[1]
+            else:
+                continue
+            c = _num(c)
+            if c is not None and (not asof or str(d)[:10] < asof):
+                out.append(c)
+        return out
+
+    def quote(self, a):
+        """대상의 지금 값 → {name, value, pct, highs, lows, fmt, url, key} 또는 None(이번 런은 판정 보류)."""
+        target = str(a.get("target") or "")
+        if KR_CODE.fullmatch(target):
+            if not is_market_open("KR", self.now):
+                return None                           # 장 밖 — 현행 루프와 같은 이유(멈춘 시세)로 보지 않는다
+            k = ("KR", target)
+            s = self.snaps.get(k)
+            if not s and k not in self.miss:
+                s = get_snapshot("KR", target, None)
+                if s:
+                    self.snaps[k] = s
+                else:
+                    self.miss.add(k)
+            if not s or s["price"] <= 0 or abs(s.get("pct") or 0) > SANE_MOVE_PCT_KR or s.get("fresh") is False:
+                return None
+            return {"name": self.name(target), "value": s["price"], "pct": s.get("pct"),
+                    "highs": (s.get("highs") or [])[:-1][-250:], "lows": (s.get("lows") or [])[:-1][-250:],
+                    "fmt": lambda v: _fmt_price(v, "KR"), "url": self.url(target),
+                    "key": self.now.strftime("%Y%m%d")}
+        reg = self.reg.get(target)
+        if not reg:
+            return _pskip(a, "지표 사전에도 없고 국내 종목 코드도 아님")
+        it = self.items.get(target) or {}
+        sc = _num(it.get("scale") or reg.get("scale")) or 1.0     # 화면 값 = 원본 ÷ scale (묶음 규칙)
+        v = _num(it.get("value"))
+        if v is None:
+            return None
+        asof = str(it.get("asOf") or "")[:10]
+        past = [x / sc for x in self._series(reg, it, asof)][-250:]
+        dec = int(_num(it.get("decimals", reg.get("decimals"))) or 0)
+        return {"name": self.name(target), "value": v / sc, "pct": _num(it.get("changePct")),
+                "highs": past, "lows": past, "fmt": lambda x, d=dec: f"{x:,.{d}f}",
+                "url": self.url(target), "key": asof or self.now.strftime("%Y%m%d")}
+
+    def match_names(self, target):
+        """일정 이름에서 찾을 이름들 — 줄임 이름·별칭·키워드, 괄호 안팎과 나라 이름을 뗀 꼴까지."""
+        r, rr = self.reg.get(target) or {}, self.rows().get(target) or {}
+        base = [r.get("short"), r.get("shortM"), r.get("label") or rr.get("label")]
+        base += list(rr.get("aliases") or []) + list(rr.get("keywords") or [])
+        if not r:
+            base.append(self.stock_names.get(target))
+        out = set()
+        for n in base:
+            n = str(n or "").strip()
+            for x in (n, re.sub(r"\s*\(.*?\)", "", n), *re.findall(r"\((.*?)\)", n)):
+                for w in COUNTRY_WORDS:
+                    x = x[len(w):] if x.startswith(w) else x
+                if len(x.strip()) >= 2:
+                    out.add(x.strip())
+            if len(n) >= 2:
+                out.add(n)
+        return out
+
+    def events(self):
+        out = []
+        for e in ((self.data.get("economicCalendar") or {}).get("events") or []):
+            if not isinstance(e, dict) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(e.get("iso") or "")):
+                continue
+            m = re.search(r"(\d{2}):(\d{2})\s*$", str(e.get("dt") or ""))
+            h, mi = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+            y, mo, d = (int(x) for x in e["iso"].split("-"))
+            out.append(dict(e, when=datetime.datetime(y, mo, d, h, mi, tzinfo=KST)))
+        return sorted(out, key=lambda e: e["when"])
+
+    def flow_rows(self, target):
+        """수급 일별 행과 단위 — 코스피는 investorTrading(억원), 국내 종목은 stockFlows 의 그 종목(주식 수 — 토스에 금액 칸이 없다)."""
+        if target == "kospi":
+            it = self.data.get("investorTrading") or {}
+            return it.get("daily"), str(it.get("unit") or "")
+        if KR_CODE.fullmatch(target):
+            return ((((self.data.get("stockFlows") or {}).get("items")) or {}).get(target) or {}).get("investor"), "주"
+        return None, ""
+
+    def lens(self, target):
+        if target in self.mer:
+            return self.mer[target]
+        return self.mer.get((self.rows().get(target) or {}).get("merLens"))
+
+
+def _prefs_eval(a, ctx, rec):
+    """조건 하나 → (제목, 본문, 딥링크, 발생 키, 확정 때 기록할 것) 또는 None.
+
+    현행 조건 형식과의 대응: price → price_above/below(op), pct → pct_change, high52 → high52/low52(side).
+    event·flow·lens 는 현행에 짝이 없어 여기서 새로 판정한다. 발생 키가 이미 기록돼 있으면 다시 보내지 않는다
+    (주말을 넘긴 월요일에 금요일 등락·수급으로 또 울리지 않게).
+    rec 는 읽기만 한다 — 렌즈의 '안 울릴 때 기준선 갱신'만 예외다. 울릴 때의 새 상태는 다섯째 값에 담아,
+    발송이 확정된 뒤에만 기록한다(발송이 실패했는데 기준선이 먼저 바뀌면 그 알림이 영영 사라진다)."""
+    t, target, c = a.get("type"), str(a.get("target") or ""), a.get("cond")
+    if not isinstance(c, dict):
+        return _pskip(a, "cond 모양이 다름")
+    seen = rec.get("keys") or []
+    if t in ("price", "pct", "high52"):
+        q = ctx.quote(a)
+        if not q:
+            return None
+        nm, v, f = q["name"], q["value"], q["fmt"]
+        if t == "price":
+            lvl, op = _num(c.get("value")), c.get("op")
+            if lvl is None or op not in (">=", "<="):
+                return _pskip(a, "가격 조건(op·value) 없음")
+            if (v >= lvl) if op == ">=" else (v <= lvl):
+                return (f"{nm} {f(lvl)} {'이상' if op == '>=' else '이하'} 도달", f"지금 {f(v)}", q["url"], q["key"], {})
+            return None
+        if t == "pct":
+            p = _num(c.get("value", c.get("pct")))
+            if not p:
+                return _pskip(a, "등락률(value) 없음")
+            cur = q["pct"]
+            if cur is not None and ((p > 0 and cur >= p) or (p < 0 and cur <= p)):
+                return (f"{nm} 하루 {p:+g}% 도달", f"지금 {f(v)} ({cur:+.2f}%)", q["url"], q["key"], {})
+            return None
+        low = c.get("side") == "low"
+        ref = q["lows"] if low else q["highs"]
+        if len(ref) < 60:
+            return None                                       # 비교할 1년 치가 모자람 — 판정하지 않는다
+        edge = min(ref) if low else max(ref)
+        if (v <= edge) if low else (v >= edge):
+            return (f"{nm} 52주 {'최저 이탈' if low else '최고 돌파'}",
+                    f"지금 {f(v)} · 직전 52주 {'최저' if low else '최고'} {f(edge)}", q["url"], q["key"], {})
+        return None
+
+    if t == "event":
+        names = ctx.match_names(target)
+        if not names:
+            return _pskip(a, "일정에서 찾을 이름이 없음")
+        before = _num(c.get("daysBefore"))
+        before = 1 if before is None else max(0, int(before))
+        country = ((ctx.reg.get(target) or {}).get("country") or ("kr" if KR_CODE.fullmatch(target) else "")).lower()
+        for e in ctx.events():
+            when = e["when"]
+            # N일 전 21:00 부터 발표 전까지. 0 이면 그날 0시부터(21:00 은 발표 뒤일 수 있다).
+            start = (when - datetime.timedelta(days=before)).replace(hour=21 if before else 0, minute=0)
+            key = f"{e['iso']} {e.get('name')}"
+            if not (start <= ctx.now < when) or _kh(key) in seen:
+                continue
+            if country and e.get("cc") and str(e["cc"]).lower() != country:
+                continue
+            if not any(n in str(e.get("name") or "") for n in names):
+                continue
+            gap = (when.date() - ctx.now.date()).days
+            day = "오늘" if gap == 0 else "내일" if gap == 1 else f"{when.month}/{when.day}"
+            return (f"{day} {when:%H:%M} {e.get('name')}", f"{ctx.name(target)} 관련 발표 일정",
+                    ctx.url(target), key, {})
+        return None
+
+    if t == "flow":
+        who = c.get("who")
+        if who not in WHO:
+            return _pskip(a, "누구(who) 없음")
+        rows, unit = ctx.flow_rows(target)
+        if not isinstance(rows, list):
+            return _pskip(a, "수급 자료가 없는 대상(코스피·토스 스냅샷 종목만)")
+        today = ctx.now.date().isoformat()
+        provisional = ctx.now.hour < KRX_FINAL_HOUR           # 18시 KRX 확정 전 오늘 행 = 장중 잠정치
+        vals = sorted((str(r.get("date") or "")[:10], _num(r.get(who))) for r in rows if isinstance(r, dict))
+        vals = [(d, x) for d, x in vals if d and x and not (provisional and d >= today)]   # 0·결측은 부호가 없어 뺀다
+        n = int(_num(c.get("days")) or 0)                     # 2 이상이면 「n일 연속」, 아니면 「전환」
+        if len(vals) < max(n, 1) + 1:
+            return None
+        try:
+            if (ctx.now.date() - datetime.date.fromisoformat(vals[-1][0])).days > 7:
+                return None                                   # 수집이 멎은 낡은 자료로 울리지 않는다
+        except ValueError:
+            return None
+        up = vals[-1][1] > 0
+        if n >= 2:
+            if any((x > 0) != up for _, x in vals[-n:]) or (vals[-n - 1][1] > 0) == up:
+                return None
+            head = f"{n}일 연속 순{'매수' if up else '매도'}"
+        elif (vals[-2][1] > 0) == up:
+            return None
+        else:
+            head = f"순{'매수' if up else '매도'} 전환"
+        side = "buy" if up else "sell"
+        if rec.get("flowDir") == side and ctx.now.timestamp() - float(rec.get("flowTs") or 0) < FLOW_COOLDOWN:
+            return None                                       # 같은 방향 재발동은 24시간 쉬었다가
+        return (f"{ctx.name(target)} {WHO[who]} {head}",
+                f"{vals[-1][0]} {vals[-1][1]:+,.0f}{unit} (직전 {vals[-2][1]:+,.0f}{unit})",
+                ctx.url(target), vals[-1][0], {"flowDir": side})
+
+    if t == "lens":
+        want = c.get("state")
+        if want not in LENS_LABEL:
+            return _pskip(a, "언제(state) 없음")
+        ind = ctx.lens(target)
+        if not ind:
+            return _pskip(a, "렌즈에 없는 대상")
+        cur, prev = ind.get("state"), rec.get("lensState")
+        if prev is None or cur != want or prev == want:
+            rec["lensState"] = cur                            # 안 울릴 때만 기준선을 바로 옮긴다(첫 관측 = 기준선)
+            return None
+        cv, nr = ind.get("current") or {}, ind.get("nearest") or {}
+        body = f"지금 {cv.get('value')}{ind.get('unit') or ''}"
+        if nr.get("level") is not None:
+            body += f" · 기준 {nr['level']}{ind.get('unit') or ''}"
+        return (f"렌즈 {LENS_LABEL[want]} · {ind.get('label') or target}", body,
+                f"#/lens?s={ind.get('id')}", f"{cur} {cv.get('asOf')}", {"lensState": cur})
+
+    return _pskip(a, "모르는 종류")
+
+
+def _enqueue_push(items):
+    """푸시 채널 — 큐 파일에 덧붙이기만 한다. 같은 잡의 다음 스텝(send_push.py)이 보내고 지운다."""
+    q = _load_json(PUSH_QUEUE_PATH)
+    try:
+        with open(PUSH_QUEUE_PATH, "w", encoding="utf-8") as f:
+            json.dump((q if isinstance(q, list) else []) + items, f, ensure_ascii=False)
+        return True
+    except OSError as e:
+        print(f"[prefs] 푸시 큐 기록 실패: {type(e).__name__}")
+        return False
+
+
+def _deliver_prefs(fired, now):
+    """디스코드 #종목-알림 한 통 + 푸시 큐. → (디스코드 성공, 큐 적재 성공)."""
+    dc = [h for a, h in fired if "discord" in (a.get("channels") or [])]
+    pq = [(a, h) for a, h in fired if "push" in (a.get("channels") or [])]
+    d_ok = q_ok = False
+    if dc:
+        try:
+            import notify_discord
+            d_ok = bool(notify_discord.send(
+                "\n".join(f"{h[0]} — {h[1]}" for h in dc),
+                title=f"{now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 내 조건 알림",
+                url=NEXT_URL + "#/alerts", color=notify_discord.COLOR_ALERT,
+                footer="새 화면에서 만든 조건 · " + DELAY_NOTICE, timestamp=True,
+                env="DISCORD_WEBHOOK_ALERTS", mention="role:종목알림"))
+        except Exception as e:                                # noqa: BLE001
+            print(f"[prefs] 디스코드 발송 예외: {type(e).__name__}")
+    if pq:
+        ts = int(now.timestamp())
+        q_ok = _enqueue_push([{"id": str(a["id"]), "title": h[0], "body": h[1], "url": h[2], "ts": ts}
+                              for a, h in pq])
+    return d_ok, q_ok
+
+
+def _settle(rec, typ, repeat, khash, extra, today, ts):
+    """발송이 확정된 조건 하나를 기록한다 — 바로 확정(디스코드)과 푸시 확정(--confirm-push)이 같이 쓴다."""
+    rec.pop("pend", None)
+    rec.update(source="prefs", type=typ, date=today, ts=ts)
+    rec.update(extra or {})
+    if typ == "flow":
+        rec["flowTs"] = ts
+    if repeat != "daily" and typ in ONCE_FOREVER:
+        rec["fired"] = True                                  # 화면: 「발동됨 · 다시 켜기」
+    rec["hist"] = ((rec.get("hist") or []) + [today])[-40:]
+    rec["keys"] = ((rec.get("keys") or []) + [khash])[-10:]
+
+
+def _check_prefs(state, now, snaps, cfg):
+    """새 화면 조건을 평가·발송하고 state["_prefs"] 를 고친다. 바뀌었으면 True.
+
+    /prefs 를 받지 못했거나 저장본이 없다는 빈 문서(updatedAt 없음 — 키를 바꾼 직후의 빈 칸)면 아무것도
+    바꾸지 않는다. 그런 런이 기록을 지우면 같은 id 로 다시 올라온 once 조건이 또 울린다.
+    디스코드가 성공한 조건은 바로 기록한다. 푸시로만 나간 조건은 「대기(pend)」로만 두고, send_push.py 가
+    실제로 보낸 것을 --confirm-push 가 확정한다(조용한 시간·구독 0대로 버려진 것은 다음 런에 다시 쌓인다).
+    기록 모양은 현행 최상위 기록과 같다(date·ts = 'YYYYMMDD'·초, hist = 날짜 문자열 최근 40개)."""
+    import prefs_client
+    doc = prefs_client.fetch(WORKER)
+    if doc is None:
+        return False
+    if doc.get("updatedAt") is None:
+        print("[prefs] 저장된 조건 없음(빈 문서) — 기록을 그대로 둡니다")
+        return False
+    conds = [a for a in doc["alerts"] if isinstance(a, dict) and a.get("id")]
+    prev = state.get("_prefs") or {}
+    ids = {str(a["id"]) for a in conds}
+    # 지운 조건의 기록만 정리한다. 꺼 둔 조건은 남긴다 — 껐다 켠다고 once 가 다시 울리지 않게.
+    st = {k: dict(v) for k, v in prev.items() if k in ids and isinstance(v, dict)}
+    today = _daily_key("KR", now)
+    live = [a for a in conds if a.get("enabled") is True]
+    mute = [a for a in live if not (a.get("channels") or [])]
+    if mute:
+        print(f"[prefs] 받을 채널이 없는 조건 {len(mute)}개 — 평가하지 않음")
+    live = [a for a in live if a.get("channels")]
+    ctx = _PrefsCtx(now, snaps, cfg) if live else None
+    fired = []
+    for a in live:
+        rec = st.setdefault(str(a["id"]), {})
+        rec.pop("pend", None)                                 # 지난 런의 확정 안 된 대기는 이번 판정으로 다시 정한다
+        if a.get("repeat") == "daily":
+            if rec.get("date") == today:
+                continue
+        elif rec.get("fired"):                                # once(모르는 값도 once 로 — 덜 울리는 쪽)
+            continue
+        try:
+            hit = _prefs_eval(a, ctx, rec)
+        except Exception as e:                                # noqa: BLE001 — 한 조건의 오류가 나머지를 막지 않게
+            print(f"[prefs] 평가 오류 {a.get('id')}({a.get('type')}): {type(e).__name__}")
+            continue
+        if hit and _kh(hit[3]) not in (rec.get("keys") or []):
+            fired.append((a, hit))
+            print(f"[prefs] 조건 충족 {a['id']}({a.get('type')})")
+    if fired:
+        d_ok, q_ok = _deliver_prefs(fired, now)
+        ts = int(now.timestamp())
+        for a, (_t, _b, _u, key, extra) in fired:
+            ch, rec = a.get("channels") or [], st[str(a["id"])]
+            if "discord" in ch and d_ok:
+                _settle(rec, a.get("type"), a.get("repeat"), _kh(key), extra, today, ts)
+            elif "push" in ch and q_ok:
+                rec["pend"] = {"type": a.get("type"), "repeat": a.get("repeat"), "k": _kh(key),
+                               "x": extra, "d": today, "ts": ts}
+            else:
+                print(f"[prefs] 발송 실패 — 기록하지 않음(다음 런 재시도): {a['id']}")
+    st = {k: v for k, v in st.items() if v}                   # 한 번도 울리지 않은 빈 기록은 남기지 않는다
+    if st == prev:
+        return False
+    state["_prefs"] = st
+    return True
+
+
+def confirm_push():
+    """send_push.py 뒤에 돈다(같은 잡). 실제로 보낸 큐 id 의 대기만 확정하고, 나머지 대기는 지운다
+    (다음 런이 조건을 다시 보고 다시 쌓는다). 상태가 바뀌었으면 기록한다."""
+    sent = _load_json(PUSH_SENT_PATH)
+    sent = {str(x) for x in sent} if isinstance(sent, list) else set()
+    try:
+        os.remove(PUSH_SENT_PATH)
+    except OSError:
+        pass
+    state = _load_json(STATE_PATH)
+    if not isinstance(state, dict) or not isinstance(state.get("_prefs"), dict):
+        return
+    done = drop = 0
+    for aid, rec in state["_prefs"].items():
+        p = rec.get("pend") if isinstance(rec, dict) else None
+        if not isinstance(p, dict):
+            continue
+        if aid in sent:
+            _settle(rec, p.get("type"), p.get("repeat"), p.get("k"), p.get("x"), p.get("d"), p.get("ts"))
+            done += 1
+        else:
+            rec.pop("pend", None)
+            drop += 1
+    if done or drop:
+        state["_prefs"] = {k: v for k, v in state["_prefs"].items() if v}
+        _save_state(state)
+        print(f"[prefs] 푸시 확정 {done}건 · 미발송 대기 해제 {drop}건")
+
+
+def main():
+    """현행 조건(alerts_config.json) 판정·발송 → 끝난 뒤 새 화면(/prefs) 조건.
+
+    새 화면 조건이 뒤에 도는 이유: 그쪽 네트워크(Worker·종목 시세)가 느리거나 막혀도 현행 알림이 늦지 않게.
+    전역 OFF 면 둘 다 보내지 않고, 테스트 런(이력 미갱신이 약속)이면 새 화면 조건은 돌지 않는다."""
+    now = _now()
+    snaps = {}              # 종목별 스냅샷 — 현행 루프가 채우고 새 화면 조건이 다시 쓴다(같은 종목 1회 조회)
+    if _main_alerts(now, snaps) is False or IS_TEST:
+        return
+    try:
+        state = _load_json(STATE_PATH)                    # 현행 경로가 방금 저장한 것(정리까지 끝난 상태)
+        state = state if isinstance(state, dict) else {}
+        if _check_prefs(state, now, snaps, _load_json(CONFIG_PATH)):
+            _save_state(state)
+    except Exception as e:                                # noqa: BLE001 — 새 화면 조건의 어떤 실패도 잡을 죽이지 않는다
+        print(f"[prefs] 처리 오류(무시): {type(e).__name__}")
+
+
+def _main_alerts(now, snaps):
+    """현행 조건 판정·발송(종전 main 본문 그대로). 전역 OFF 로 멈췄으면 False."""
     # 설정 파일 없음/알림 없음 → 조용히 종료(아직 설정 전 — 실패 알림 메일 방지)
     try:
         with open(CONFIG_PATH, encoding="utf-8") as f:
@@ -765,7 +1268,7 @@ def main():
     settings = cfg.get("settings") or {}
     if settings.get("enabled") is False and not IS_TEST:
         print("[alerts] 전역 알림 OFF (설정 페이지에서 비활성화) — 평가 건너뜀")
-        return
+        return False
     default_limit = "cool60" if settings.get("defaultLimit") == "cool60" else "daily"
     alerts = [a for a in (cfg.get("alerts") or []) if isinstance(a, dict) and a.get("enabled", True)]
     if not alerts:
@@ -789,8 +1292,7 @@ def main():
         except Exception as e:                                # noqa: BLE001
             print(f"[alerts] 지정 변화 점검 오류(무시): {e}")
 
-    # 종목별 스냅샷 1회 조회 (알림 여러 개가 같은 종목을 공유)
-    snaps = {}
+    # 종목별 스냅샷 1회 조회 (알림 여러 개가 같은 종목을 공유 — snaps 는 main 이 넘긴 것)
     triggered = []          # (alert, line) — 충족·발송 후보 (종목당1줄 축약 전)
     met_now = {}            # alert id -> 현재 가격조건 충족 여부 (재무장 판정용, 매 런 기록)
     for a in alerts:
@@ -1050,4 +1552,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    # --confirm-push: 같은 잡에서 send_push.py 뒤에 — 푸시로만 나간 새 화면 조건을 확정한다.
+    if "--confirm-push" in sys.argv[1:]:
+        confirm_push()
+    else:
+        main()

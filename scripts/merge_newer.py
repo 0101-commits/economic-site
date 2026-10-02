@@ -20,6 +20,8 @@ HIST_SPOT = ("indices", "fx", "commodities")
 # 블록 → 타임스탬프 필드 (토스 스냅샷 유래)
 SNAP = {"stockFlows": "generatedAt", "rankingsKr": "as_of",
         "marketCalendarKr": "generatedAt", "investorTrading": "lastFetched"}
+# rankingsKr 안의 KRX 4목록(2026-10) — 토스 칸과 원천·날짜가 달라 맨 위 as_of(토스 거래일)로 같이 고르면 안 된다
+KRX_RANK = ("marketCap", "volume", "high52", "low52")
 
 
 def _ts(v):
@@ -60,6 +62,13 @@ def merge(run, origin):
     for k, f in SNAP.items():
         r, o = run.get(k), origin.get(k)
         if isinstance(r, dict) and isinstance(o, dict) and _newer(o.get(f), r.get(f)):
+            if k == "rankingsKr":
+                # KRX 목록은 각자 as_of 로 고르고, 이 런이 일부러 안 실은 목록(52주 축적 중)은 origin 에서 되살리지 않는다
+                o = {x: v for x, v in o.items() if x not in KRX_RANK}
+                for x in KRX_RANK:
+                    if isinstance(r.get(x), dict):
+                        ox = origin[k].get(x)
+                        o[x] = ox if isinstance(ox, dict) and _newer(ox.get("as_of"), r[x].get("as_of")) else r[x]
             run[k] = o
     return run
 

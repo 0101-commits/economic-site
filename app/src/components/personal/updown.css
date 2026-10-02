@@ -1,0 +1,19 @@
+/* 등락 색 서양식(html[data-updown="us"]) — 상승 초록 · 하락 빨강. 기본(한국식)은 tokens.css 그대로.
+   이 파일은 tokens.css 보다 먼저 묶이므로(App 이 app.css 보다 먼저 들어온다) html:root 로 한 단계 더 세게 쓴다.
+   초록은 「정상」 표시에만 쓰는 규칙의 예외 — 사용자가 고른 표기 방식이라서다. */
+html:root[data-updown="us"] {
+  --c-up: #1E7A3C;
+  --c-up-fill: #2F9E55;
+  --c-down: #CA1D13;
+  --c-down-fill: #E0443E;
+}
+@media (prefers-color-scheme: dark) {
+  html:root[data-updown="us"]:not([data-theme="light"]) {
+    --c-up: #4FB873;
+    --c-down: #FF6E60;
+  }
+}
+html:root[data-updown="us"][data-theme="dark"] {
+  --c-up: #4FB873;
+  --c-down: #FF6E60;
+}

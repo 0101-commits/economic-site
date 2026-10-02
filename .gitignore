@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .kis_token_cache.json
 .pmi_cache.json
+.krx_hilo_cache.json
 
 # wrangler files
 .wrangler
@@ -28,3 +29,17 @@ node_modules/
 
 # 배포 산출물(scripts/collect_site.mjs) — pages.yml 이 CI 에서 만든다
 _site/
+
+# 비밀 파일(2026-10-01 기획 v4 보안 1) — 저장소 밖 C:/Users/cgpar/.secrets/econ/ 에 보관
+*.key
+*.key.txt
+*동기화키*
+*.pem
+
+# 새 화면 층(app/) — 의존성·빌드 산출물은 CI(pages.yml)가 만든다
+app/node_modules/
+app/dist/
+
+# 웹 푸시 큐(check_alerts.py 가 쌓고 같은 잡의 send_push.py 가 보내고 지운다) — 커밋 대상 아님
+scripts/push_queue.json
+scripts/push_sent.json

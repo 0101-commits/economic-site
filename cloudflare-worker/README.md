@@ -95,6 +95,149 @@ Yahoo VIX/MOVE, Stooq 시계열, CNN 공포·탐욕, 환율, 뉴스)를 안정�
   추가하면 `alerts_config.json` 커밋에는 그것만 쓰이고, `GH_DISPATCH_TOKEN` 은
   dispatch 전용으로 권한을 낮출 수 있습니다. 미설정 시 기존처럼 공용.
 
+## 1층 사용자 데이터 — `/prefs` · `/push/subscribe`
+
+기획안 v4 보안 위험 3 조치입니다. 관심 지표·종목, 알림 조건, 화면 설정, 시나리오를 공개 저장소 파일
+(`alerts_config.json`)이 아니라 KV `ECON_PORTFOLIO` 에 둡니다. 인증과 레이트리밋은 다른 경로와 같습니다.
+
+- 인증: 헤더 `X-Sync-Key-Hash` = 동기화 키의 SHA-256(hex). `_verifySyncKey` 한 곳에서 검사합니다. 틀리면 401.
+- 레이트리밋: `AI_LIMITER`(IP당 분당 10회, `/ai`·`/portfolio` 와 같은 바구니). 바인딩이 없으면 503. 설정을 바꿀 때마다 PUT 하면 429 가 나기 쉬우니 화면에서 모아 보냅니다.
+- 응답: 인증이 필요한 경로라 모든 응답에 `Cache-Control: no-store` 가 붙습니다. 예상 못 한 오류도 CORS 가 붙은 500 `internal_error` 로 돌아옵니다.
+- 출처: 운영 출처만 허용하고, 개발 출처는 아래 「출처(CORS)」의 플래그가 있을 때만 허용합니다.
+
+### `GET /prefs`
+
+저장본이 없으면 빈 기본값을 200 으로 줍니다.
+
+```sh
+curl -H "X-Sync-Key-Hash: <키 해시>" https://ecom-dashboard-proxy.e-hcg.workers.dev/prefs
+```
+
+```json
+{ "v": 1, "updatedAt": null, "watch": [], "alerts": [],
+  "settings": { "theme": "system", "updown": "kr", "unit": "man", "quiet": null }, "scenarios": [] }
+```
+
+### `PUT /prefs` — 전체 교체
+
+```sh
+curl -X PUT -H "X-Sync-Key-Hash: <키 해시>" -H "content-type: application/json" \
+     -H "If-Match: 2026-10-01T03:00:00.000Z" \
+     -d '{"watch":[{"id":"kospi","kind":"indicator"}],"alerts":[{"id":"a1","target":"005930","type":"price","cond":{"op":">=","value":90000},"repeat":"once","channels":["push"],"enabled":true}],"settings":{"theme":"dark"}}' \
+     https://ecom-dashboard-proxy.e-hcg.workers.dev/prefs
+```
+
+응답은 실제로 저장된 문서입니다. 무엇이 버려졌는지 이 응답으로 확인합니다.
+`updatedAt` 은 서버가 정하고, 저장본보다 항상 큽니다. 받은 문서를 그대로 다시 PUT 해도 통과합니다.
+
+| 필드 | 형태 | 상한 |
+|---|---|---|
+| `watch[]` | `{ id, kind: "indicator"\|"stock", addedAt }` | 100개 |
+| `alerts[]` | `{ id, target, type: "price"\|"pct"\|"high52"\|"event"\|"flow"\|"lens", cond: {…}, repeat: "once"\|"daily", channels: ["push","discord"], enabled }` | 100개, `cond` 512자 |
+| `settings` | `{ theme: "system"\|"light"\|"dark", updown: "kr"\|"us", unit: "man"\|"won", quiet: { from: "HH:MM", to: "HH:MM" } }` | `theme`·`updown`·`unit` 은 모르는 값이면 첫 값, `quiet` 는 둘 다 HH:MM 문자열이 아니면 `null` |
+| `scenarios[]` | `{ name, inputs: {…} }` | 20개, `name` 60자 |
+
+거부와 버림의 규칙은 다음과 같습니다.
+
+- **버림**: 표에 없는 필드, 모르는 `kind`·`type`, 형식 밖 `id`·`target`(영문·숫자·`._:^=-`, 64자까지), 상한을 넘는 항목. 같은 `kind`+`id` 의 관심 항목은 하나만 남습니다.
+- **400 `tier2_field_rejected`**: 보유정보 이름의 키가 본문 어디에든 있으면 통째로 거부합니다. 버려질 필드 안과 `cond`·`inputs` 안도 봅니다. 키 이름은 NFKC 정규화·소문자화 뒤 공백·`_`·`-`·보이지 않는 글자를 빼고 비교합니다(전각 ｑｔｙ, `avg_price` 도 걸립니다). 목록은 `worker.js` 의 `TIER2_KEYS` 입니다(`avg`·`avgPx`·`qty`·`shares`·`units`·`position`·`fxBuy`·`costKrw`·`holdings`·`평단가`·`평균단가`·`수량`·`매입금액`·`투자금액` 등).
+  단독 `amount`·`금액`·`balance` 는 막지 않습니다. 수급 알림 `cond` 의 금액 기준이나 시나리오 입력이 정당하게 쓰기 때문입니다. 이름 목록이라 작정하고 바꾼 이름은 못 막습니다. 목적은 화면이 실수로 보유정보를 섞는 것을 막는 것입니다.
+- **400**: `cond` 가 512자를 넘을 때(`cond_too_large`), 중첩이 너무 깊을 때(`too_deep`, 본문 6단까지라 `cond`·`inputs` 안은 2단까지), JSON 이 아닐 때.
+- **413**: 본문이 32KB(UTF-8 바이트 기준)를 넘을 때(`payload_too_large`). 정리한 저장 문서가 기본값이 채워져 32KB 를 넘을 때도 413 입니다(`prefs_too_large`).
+- **409 `conflict`**: `If-Match` 가 저장본의 `updatedAt` 과 다를 때. 다른 기기가 먼저 저장했다는 뜻이므로 다시 읽고 합쳐서 저장합니다. 저장본이 없을 때는 `If-Match: ""` 또는 `null` 이 통과합니다. `If-Match` 를 빼면 확인 없이 덮어씁니다. 값 비교만 하므로 `*` 와 `W/"…"` 는 409 가 됩니다.
+  KV 에는 트랜잭션이 없고, 다른 지역에 반영되기까지 최대 약 60초 걸립니다. 그 사이 다른 지역 기기끼리 저장하면 서로 덮어쓸 수 있습니다. 같은 기기의 연속 저장은 잡힙니다.
+
+### `/push/subscribe` — 웹 푸시 구독 보관
+
+브라우저(새 화면 `app/src/lib/push.ts`)가 이 경로로 구독을 맡기고, 발송은 `scripts/send_push.py` 가 아래 「발송기 경로」로 읽어 합니다.
+Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요청은 세 메서드 모두 503 입니다. 그 밖의 메서드는 405 입니다.
+
+| 메서드 | 본문 | 응답 |
+|---|---|---|
+| `GET` | 없음 | `{ vapidPublicKey, count }`. 브라우저 `pushManager.subscribe` 의 `applicationServerKey` 로 씁니다. |
+| `PUT` | `PushSubscription.toJSON()` 그대로 | `{ ok, count }`. 같은 `endpoint` 는 교체합니다(기기당 1개). 5개를 넘으면 가장 오래된 것을 버립니다. |
+| `DELETE` | `{ "endpoint": "…" }` | `{ ok, count }` |
+
+`endpoint` 는 https 이면서 알려진 브라우저 푸시 서비스여야 하고, 사용자 정보·포트가 붙으면 안 됩니다(`fcm.googleapis.com`, `*.push.services.mozilla.com`,
+`*.notify.windows.com`, `*.push.apple.com`). 보관 필드는 `endpoint`·`expirationTime`·`keys.p256dh`·`keys.auth` 뿐입니다.
+
+### `GET /push/key` — 공개키(인증 없음)
+
+`{ vapidPublicKey }` 를 돌려줍니다. 브라우저가 구독 전에 읽는 공개값이라 동기화 키를 받지 않고 CORS 는 `*` 입니다.
+`VAPID_PUBLIC_KEY` 가 없으면 503, GET 이 아니면 405 입니다.
+
+### 발송기 경로 — `GET /push/subscriptions` · `PUT /push/prune`
+
+`scripts/send_push.py`(stock-alerts.yml 의 「Send web push」 스텝)만 씁니다. 헤더 `X-Push-Read-Key` = Worker 시크릿 `PUSH_READ_KEY`.
+시크릿이 없으면 503(fail-closed), 틀리면 401 입니다. 동기화 키 해시로는 열리지 않습니다. 응답에 CORS 헤더가 없고 `Cache-Control: no-store` 입니다.
+
+| 경로 | 본문 | 응답 |
+|---|---|---|
+| `GET /push/subscriptions` | 없음 | `{ subs: [구독…], quiet }`. `quiet` 는 같은 공간 `/prefs` 의 `settings.quiet`(없으면 `null`) — 발송기는 이 시간엔 보내지 않습니다. |
+| `PUT /push/prune` | `{ "endpoints": ["…"] }` | `{ ok, removed, count }`. 푸시 서비스가 410·404 로 답한 주소를 지웁니다. |
+
+대상은 **지금 유효한 동기화 키의 공간 하나**(`push:<기대 해시 앞 16자>`)뿐입니다. 키를 바꾸면 옛 키 공간의 구독에는 보내지 않습니다.
+옛 키를 알던 사람이 넣어 둔 구독이 알림 내용을 계속 받지 않게 하려는 것입니다. 키를 바꾼 뒤에는 기기마다 「폰 알림」을 다시 켭니다.
+
+### KV 키 형식(`ECON_PORTFOLIO`, id `49d7bd1ee2874995a7bf0439c4e297b3`)
+
+| 키 | 값 |
+|---|---|
+| `prefs:<키 해시 앞 16자>` | `/prefs` 문서(JSON) |
+| `push:<키 해시 앞 16자>` | 구독 배열(JSON, 최대 5개) `[{ endpoint, expirationTime, keys: { p256dh, auth } }]` |
+| `auth:syncKeyHash` | 사이트에서 바꾼 동기화 키의 해시(기존) |
+| `portfolio:encHoldings` | 암호화 보유정보(기존) |
+
+키 해시 앞 16자는 `sha256(동기화 키)` 의 hex 앞 16자입니다. 발송 스크립트는 해시를 몰라도 접두어로 찾을 수 있습니다.
+
+**KV 읽기 권한은 로그인 권한과 같습니다.** Cloudflare API 의 「Workers KV Storage: Read」 토큰은 계정 단위라 이름공간 하나로
+좁힐 수 없습니다. 그 토큰으로 `auth:syncKeyHash` 도 읽히는데, 이 값은 서버가 비교하는 해시 그 자체라 그대로 보내면 인증을 통과합니다.
+그래서 발송 스크립트에 이 토큰을 주면 동기화 키를 준 것과 같습니다. 그 토큰은 동기화 키와 같은 등급으로 보관합니다.
+그래서 발송기에는 이 토큰을 주지 않고, 구독만 내주는 위 「발송기 경로」와 별도 시크릿 `PUSH_READ_KEY` 를 씁니다.
+
+```sh
+# 저장소 루트에서 — 목록과 값
+npx wrangler kv key list --binding ECON_PORTFOLIO --remote --prefix push:
+npx wrangler kv key get  --binding ECON_PORTFOLIO --remote "push:<키 해시 앞 16자>"
+# 스크립트(HTTP)
+GET https://api.cloudflare.com/client/v4/accounts/<account_id>/storage/kv/namespaces/49d7bd1ee2874995a7bf0439c4e297b3/keys?prefix=push:
+GET https://api.cloudflare.com/client/v4/accounts/<account_id>/storage/kv/namespaces/49d7bd1ee2874995a7bf0439c4e297b3/values/push:<키 해시 앞 16자>
+```
+
+**동기화 키를 바꾸면** 새 키의 빈 공간에서 시작합니다. 옛 값은 옛 키 아래 그대로 남습니다.
+옮기려면 옛 키의 값을 `kv key get` 으로 받아 새 키 이름으로 `kv key put` 합니다.
+
+### 출처(CORS)
+
+- **운영**: `https://0101-commits.github.io` 만 허용합니다. 새 화면 층은 `/economic-site/next/` 에 배포되어 출처가 같으므로 추가할 것이 없습니다. 응답의 `Access-Control-Allow-Origin` 은 별표가 아니라 요청 출처를 그대로 돌려줍니다.
+- **개발**: `http://localhost:5173`·`http://127.0.0.1:5173`(Vite) 은 변수 `DEV_CORS=1` 일 때만 허용합니다. 기본은 불허입니다. 이 플래그는 `/ai`·`/portfolio` 같은 기존 POST 경로의 응답 CORS 에도 똑같이 적용됩니다.
+  ```sh
+  npx wrangler dev --var DEV_CORS:1          # 로컬 Worker 로 개발할 때
+  npx wrangler secret put DEV_CORS           # 운영 Worker 에 잠깐 켤 때(값 1). 끝나면 반드시 끈다:
+  npx wrangler secret delete DEV_CORS
+  ```
+  운영 Worker 에서 `vars` 로 켜면 다음 자동 배포가 지웁니다. 시크릿으로 켠 것은 직접 지울 때까지 남습니다.
+
+### 배포에 필요한 것
+
+```sh
+# 저장소 루트에서(설정 파일 wrangler.jsonc 가 루트에 있다). 실행은 담당자.
+npx wrangler secret put VAPID_PUBLIC_KEY   # /push/key·/push/subscribe 용. 없으면 그 경로만 503
+npx wrangler secret put PUSH_READ_KEY      # 발송기 경로 용. 없으면 그 경로만 503
+npx wrangler deploy
+```
+
+- 키는 `python scripts/gen_vapid.py mailto:<주소>` 가 만들어 화면에만 보여 줍니다(파일로 저장하지 않음). 출력된 `gh secret set`·`wrangler secret put` 명령을 그대로 실행합니다. 공개키와 `PUSH_READ_KEY` 는 Worker 시크릿, 개인키(`VAPID_PRIVATE_KEY`)·연락처(`VAPID_SUBJECT`)·`PUSH_READ_KEY` 는 GitHub 시크릿입니다. Worker 는 개인키를 쓰지 않습니다.
+- VAPID 키를 바꾸면 기존 구독이 전부 무효가 됩니다. 기기에서 「폰 알림」을 다시 켜면 화면이 새 공개키로 다시 구독합니다.
+- 둘 다 코드·설정 파일에 값을 쓰지 않습니다. KV 바인딩과 `AI_LIMITER` 는 이미 `wrangler.jsonc` 에 있습니다.
+
+### 현행 `/portfolio` 와의 관계(과도기)
+
+- 현행 화면(`index.html`)은 지금처럼 `/portfolio` 를 씁니다. 새 화면은 `/prefs` 만 읽고 씁니다.
+- 그래서 관심 종목이 두 곳에 있을 수 있습니다. 하나는 `/portfolio` 의 `tracking`(공개 `alerts_config.json`)이고, 하나는 `/prefs` 의 `watch` 입니다. 둘을 자동으로 맞추지 않습니다.
+- 알림 파이프라인(`check_alerts.py`)은 아직 `alerts_config.json` 만 읽습니다. **`/prefs` 의 `alerts` 는 아직 발송되지 않습니다.** 파이프라인이 `/prefs` 를 읽게 바꾸는 것은 후속 과제입니다. 이때 알림 종류 이름도 옮겨야 합니다. 현행은 `price_above`·`price_below`·`pct_change` 등이고, 새것은 `price`·`pct` 등입니다.
+- 2층 보유정보는 두 경로 어디에도 평문으로 두지 않습니다. 암호문은 `/portfolio` 의 `encHoldings` 하나뿐입니다.
+
 ## 배포 — Git 연동 (대시보드, 현재 설정됨)
 
 이 저장소는 Cloudflare Workers Builds 로 `main` 브랜치에 연결돼 있어,

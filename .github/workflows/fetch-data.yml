@@ -191,6 +191,18 @@ jobs:
           restore-keys: |
             pmi-cache-
 
+      # KRX 52주 신고가·신저가용 종목별 주간 고가·저가 축적(.krx_hilo_cache.json, 약 3~4MB) — 일별매매정보에 52주
+      # 고저가 없어 fetch_data._krx_rankings 가 쌓는다. 커밋하지 않고 캐시로만 잇는다(날마다 수 MB 가 git 이력에 쌓이지 않게).
+      # 캐시가 지워지면 52주 목록은 일일 런 되짚기로 약 3일 뒤 다시 찬다(그동안 목록을 싣지 않는다 — 옛 목록을 잇지 않는다).
+      - name: Restore KRX 52주 고저 캐시
+        if: env.FETCH_LIGHT != '1'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .krx_hilo_cache.json
+          key: krx-hilo-${{ github.run_id }}
+          restore-keys: |
+            krx-hilo-
+
       - name: Fetch market data
         env:
           # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
@@ -205,6 +217,8 @@ jobs:
           ECOS_API_KEY:       ${{ secrets.ECOS_API_KEY }}
           REALESTATE_API_KEY: ${{ secrets.REALESTATE_API_KEY }}
           KOSIS_API_KEY:      ${{ secrets.KOSIS_API_KEY }}
+          # OpenDART — 배당·실적 일정(data.json.corpEvents, 일일 런 하루 1회). 펀더멘털 단계와 같은 시크릿.
+          OPENDART_API_KEY:   ${{ secrets.OPENDART_API_KEY }}
           # 신규 API 키 — 사용자 발급 키를 GitHub Secrets 에 추가해야 함
           # 공공데이터포털 통합 키 (data.go.kr): 국토부 실거래가, 금융위, KOTRA, KOSIS, 농수산식품 등 50+ 서비스
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
@@ -324,6 +338,13 @@ jobs:
       - name: Validate data.json (스키마·최소 길이)
         run: python scripts/validate_data.py
 
+      # 🧩 화면 묶음(기획안 v4 P0) — 새 화면 층(app/)이 화면 단위로 받는 JSON(bundles/*.json).
+      #    validate 를 통과한 data.json 으로만 만든다. 경량 런도 돈다(시세 띠가 따라와야 한다, 0.5초).
+      #    실패해도 데이터 커밋을 막지 않는다 — 직전 묶음이 그대로 남는다.
+      - name: Build 화면 묶음 (bundles/)
+        continue-on-error: true
+        run: python scripts/build_bundles.py
+
       # 📊 경제지표 발표 결과 알림(기획안 P4) — 캘린더에 실제치가 채워졌는데 예상과
       #    크게 다르거나 과거 분포의 양 끝이면 1통. 여기서 도는 이유는 실제치를 채우는
       #    것이 바로 위 fetch_data 의 캘린더 백필이기 때문 — 같은 런에서 판정해야
@@ -368,7 +389,7 @@ jobs:
           branch="${GITHUB_REF_NAME:-main}"
           # ⚠ halts_state.json 은 여기서 커밋하지 않는다 — 소유권이 stock-alerts.yml 로 단일화됨
           #   (두 워크플로가 같은 상태 파일을 커밋하면 push 경쟁 + 서킷브레이커 중복 발송 위험).
-          WATCH="data.json data_meta.json history.json merblog.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json"
+          WATCH="data.json data_meta.json history.json merblog.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json bundles"
           if git diff --quiet -- $WATCH && git diff --staged --quiet -- $WATCH; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
@@ -386,11 +407,12 @@ jobs:
             echo "::error::$f 가 유효한 JSON 이 아니다 — 이번 커밋에서 제외한다"
             git checkout HEAD -- "$f" 2>/dev/null || true
           done
-          ARTIFACTS="data.json data_meta.json history.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json"
+          ARTIFACTS="data.json data_meta.json history.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json bundles"
           # 왜: 이번 런이 실제로 바꾼 산출물만 백업·재적용한다 — 안 바뀐 파일까지 되돌려 쓰면
           #   재시도 때 다른 런(풀/경량)이 방금 올린 merblog·mer_series·fundamentals 가 옛것으로 돌아간다.
           CHANGED=$( (git diff --name-only -- $ARTIFACTS; git ls-files --others --exclude-standard -- $ARTIFACTS) | sort -u )
-          for f in $CHANGED; do [ -f "$f" ] && cp "$f" "/tmp/$f.run" || true; done
+          # bundles/x.json 은 하위 폴더라 /tmp 쪽에도 폴더를 먼저 만든다
+          for f in $CHANGED; do [ -f "$f" ] && mkdir -p "/tmp/$(dirname "$f")" && cp "$f" "/tmp/$f.run" || true; done
           for f in $CHANGED; do [ -f "$f" ] && git add "$f" || true; done
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
@@ -413,6 +435,9 @@ jobs:
               cp data.json /tmp/data.json.origin 2>/dev/null || true
               python scripts/merge_newer.py "/tmp/data.json.run" /tmp/data.json.origin data.json || cp "/tmp/data.json.run" data.json
             fi
+            # 화면 묶음은 지금 워킹트리의 data.json(병합본 또는 원격본)으로 다시 만든다 — 백업본을 얹으면
+            #   원격이 그사이 올린 더 새 시세와 묶음이 어긋난다(위 data.json 병합과 같은 이유).
+            python scripts/build_bundles.py > /dev/null || true
             for f in $CHANGED; do [ -f "$f" ] && git add "$f" || true; done
             if git diff --staged --quiet -- $WATCH; then
               echo "원격이 이미 최신 — 종료"; exit 0

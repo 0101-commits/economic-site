@@ -142,6 +142,8 @@ KIS_ENABLED       = os.environ.get("KIS_ENABLED",       "0").strip() in ("1", "t
 # 네이버 검색 OpenAPI (developers.naver.com) — 뉴스 검색에 사용 (선택)
 NAVER_CLIENT_ID   = os.environ.get("NAVER_CLIENT_ID",   "").strip()
 NAVER_CLIENT_SECRET= os.environ.get("NAVER_CLIENT_SECRET","").strip()
+# OpenDART(금융감독원 전자공시) — 배당·실적 일정(corpEvents). fetch_fundamentals.py 와 같은 시크릿.
+OPENDART_API_KEY  = os.environ.get("OPENDART_API_KEY",  "").strip()
 
 KRX_BASE     = "http://data-dbg.krx.co.kr/svc/apis"
 KIS_BASE     = "https://openapi.koreainvestment.com:9443"
@@ -193,7 +195,7 @@ _LOG_SECRETS = tuple(
     k for k in (
         KRX_API_KEY, FRED_API_KEY, ECOS_API_KEY, REALESTATE_API_KEY,
         KOSIS_API_KEY, DATA_GO_KR_API_KEY, EXIM_API_KEY,
-        KIS_APP_KEY, KIS_APP_SECRET, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET,
+        KIS_APP_KEY, KIS_APP_SECRET, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, OPENDART_API_KEY,
         os.environ.get("KRX_PW", "").strip(),
     )
     if k and len(k) >= 8
@@ -253,7 +255,12 @@ def fetch_krx(endpoint, bas_dd):
         r.raise_for_status()
         data = r.json()
         rows = data.get("OutBlock_1") or data.get("OutBlock") or []
-        _KRX_ROWS[(endpoint, bas_dd)] = rows or None
+        # 결과 칸(OutBlock)이 있는 응답만 담는다 — 200 이라도 칸이 없으면(한도·점검 같은 오류 JSON) 휴장일과 다르다.
+        # 종전엔 그것도 '빈 날'로 담겨, 52주 되짚기가 그날을 휴장으로 영구 기록했다(2026-10-02 리뷰).
+        if isinstance(data, dict) and ("OutBlock_1" in data or "OutBlock" in data):
+            _KRX_ROWS[(endpoint, bas_dd)] = rows or None
+        elif not rows:
+            log(f"[KRX] {endpoint} {bas_dd}: 결과 칸 없는 응답 — 키={list(data)[:5] if isinstance(data, dict) else type(data).__name__}")
         return rows if rows else None
     except Exception as e:
         log(f"[KRX] {endpoint} 오류: {e}")
@@ -1060,7 +1067,8 @@ def _krx_asof(rows, basd):
 
 
 def _krx_stock_rows(rows, basd, market):
-    """일별매매정보 행 → [{name, code, price, chg, vol, market, as_of, sect, base}]. 종가·등락률 없는 행은 버린다."""
+    """일별매매정보 행 → [{name, code, price, chg, vol, market, as_of, sect, base, amount, mktcap, high, low, shares}].
+    종가·등락률 없는 행은 버린다. 뒤 다섯 칸(거래대금·시가총액·고가·저가·상장주식수)은 KRX 보기 확장이 읽는다."""
     asof = _krx_asof(rows, basd)
     out = []
     for row in rows or []:
@@ -1081,14 +1089,23 @@ def _krx_stock_rows(rows, basd, market):
             "market": market, "as_of": asof,
             "sect": (row.get("SECT_TP_NM") or "").strip(),
             "base": int(round(base)),
+            "amount": _parse_num(row.get("ACC_TRDVAL")),
+            "mktcap": _parse_num(row.get("MKTCAP")),
+            "high": _parse_num(row.get("TDD_HGPRC")),
+            "low": _parse_num(row.get("TDD_LWPRC")),
+            "shares": _parse_num(row.get("LIST_SHRS")),
         })
     return out
 
 
+def _krx_ok(r):
+    """순위에 올릴 종목 — 거래 없는 종목·SPAC·관리종목은 뺀다(소속부 SECT_TP_NM·이름으로 판정)."""
+    return r["vol"] > 0 and "스팩" not in r["name"] and not any(x in r["sect"] for x in ("SPAC", "관리"))
+
+
 def _krx_movers(parsed, top_n=10):
-    """등락률 상위·하위 top_n. 거래 없는 종목·SPAC·관리종목은 뺀다(소속부 SECT_TP_NM·이름으로 판정)."""
-    ok = [r for r in parsed if r["vol"] > 0 and "스팩" not in r["name"]
-          and not any(x in r["sect"] for x in ("SPAC", "관리"))]
+    """등락률 상위·하위 top_n. 거래 없는 종목·SPAC·관리종목은 뺀다(_krx_ok)."""
+    ok = [r for r in parsed if _krx_ok(r)]
     keep = ("name", "code", "price", "chg", "vol", "market", "as_of")
     trim = lambda rs: [{k: r[k] for k in keep} for r in rs]
     return (trim(sorted(ok, key=lambda x: x["chg"], reverse=True)[:top_n]),
@@ -1223,6 +1240,372 @@ def _krx_a19(data, prev):
         # 못 받았을 때만 잇는다. 받았는데 업종 이름이 하나도 안 맞으면(분류 개편) 옛 목록을 잇지 않고
         # missing 으로 둔다 — 개편 전 업종을 계속 띄우면 그게 곧 틀린 화면이다(sectorMovesUnmatched 가 새 이름).
         data["sectorMoves"] = _mark_preserved(prev["sectorMoves"])
+
+
+# ── KRX 보기 확장(2026-10, 기획 v4 9장 후보 2) ─────────────────────────────────────────────
+# 시가총액·거래량 상위 20 · 52주 신고가·신저가 → rankingsKr.marketCap·volume·high52·low52
+#   = {as_of, kospi:[20행], kosdaq:[20행]} (52주 둘은 + count{kospi, kosdaq} = 해당 종목 총수).
+# A19 와 같은 일별매매정보 두 표를 읽는다 — 같은 런의 _KRX_ROWS 캐시라 최신일은 추가 호출이 없다.
+# 일별 표에는 52주 고저가 없다 → 종목별 주간 칸 [고가, 저가, 상장주식수 최소, 최대]를 캐시 파일(KRX_HILO_FILE,
+# GHA cache 가 런 간 보존)에 쌓고, 일일 런마다 지난 평일을 _HILO_BACKFILL 일씩 되짚어 채운다(하루 = 두 표 2콜).
+# 키 없음·401(_KRX_DENIED) 이면 그 런엔 호출 없이 직전 목록을 preserved 로 잇는다.
+KRX_STOCK_EP = (("kospi", "/sto/stk_bydd_trd"), ("kosdaq", "/sto/ksq_bydd_trd"))
+KRX_HILO_FILE = os.environ.get("KRX_HILO_FILE", ".krx_hilo_cache.json")
+_HILO_DAYS = 364         # 52주
+_HILO_MIN_DAYS = 235     # 창 안에 넣은 거래일이 이보다 적으면 52주 목록을 싣지 않는다(1년 ≈ 245 거래일)
+_HILO_BACKFILL = 30      # 일일 런 한 번에 시장마다 되짚는 평일 수 — 일일 런 9번(약 3일)이면 1년이 찬다
+_HILO_MAX_EMPTY = 25     # 창 안 휴장 평일이 이보다 많으면 잘못 적힌 것으로 보고 비운다
+_RANK_N = 20
+_RANK_KEEP = ("name", "code", "price", "chg", "vol", "amount", "mktcap", "market", "as_of")
+
+
+def _isoweek(d):
+    y, w, _ = d.isocalendar()
+    return f"{y}-W{w:02d}"
+
+
+def _hilo_ingest(state, parsed, day):
+    """한 거래일 행을 그 주 칸에 접는다. 고가는 최대·저가는 최소라 같은 날을 다시 넣어도 결과가 같다."""
+    wk = state.setdefault("weeks", {}).setdefault(_isoweek(date_cls.fromisoformat(day)), {})
+    for r in parsed:
+        hi, lo, sh = r.get("high"), r.get("low"), int(r.get("shares") or 0)
+        if not (hi and lo and r["vol"] > 0):        # 거래 없는 날은 고가·저가가 0 이다
+            continue
+        hi, lo = int(hi), int(lo)
+        c = wk.get(r["code"])
+        wk[r["code"]] = ([hi, lo, sh, sh] if not c else
+                         [max(c[0], hi), min(c[1], lo), min(c[2] or sh, sh or c[2]), max(c[3], sh)])
+
+
+def _hilo_days_in(state, mk, day):
+    lo = (date_cls.fromisoformat(day) - timedelta(days=_HILO_DAYS)).isoformat()
+    return [x for x in state["days"].get(mk, []) if lo <= x <= day]
+
+
+def _hilo_lists(state, parsed, day, mk, n=_RANK_N):
+    """52주 신고가·신저가 → (신고가 행, 신저가 행, 신고가 수, 신저가 수). 그 시장 축적이 모자라면 None.
+
+    그날 고가 ≥ 창 안 최고(그날 포함)면 신고가, 저가 ≤ 최저면 신저가. 창 = 그날부터 364일 전이 든 주까지의
+    주 칸이라 최대 6일 넓다(기준이 엄해질 뿐 거짓 신고가는 생기지 않는다). 상장 1년 미만(창 첫 두 주에 칸이 없다)과
+    상장주식수가 창 안에서 1.2배 넘게 바뀐 종목(분할·병합·큰 증자 — KRX 가격은 수정주가가 아니다)은 뺀다. 순서 = 시가총액.
+    ponytail: 주 단위 근사 — 날 단위가 필요하면 일별 칸을 쌓되 캐시가 약 4배(약 15MB)가 된다. 20% 미만 무상증자의
+    권리락은 못 거른다 — 정확히 하려면 수정주가 원천으로 바꿔야 한다.
+    """
+    d = date_cls.fromisoformat(day)
+    have = _hilo_days_in(state, mk, day)
+    if len(have) < _HILO_MIN_DAYS or min(have) > (d - timedelta(days=_HILO_DAYS - 7)).isoformat():
+        return None
+    lo_wk, old_wk, cur_wk = (_isoweek(d - timedelta(days=_HILO_DAYS)),
+                             _isoweek(d - timedelta(days=_HILO_DAYS - 7)), _isoweek(d))
+    weeks = [w for k, w in state["weeks"].items() if lo_wk <= k <= cur_wk]
+    old = [w for k, w in state["weeks"].items() if lo_wk <= k <= old_wk]
+    highs, lows = [], []
+    for r in parsed:
+        if not (_krx_ok(r) and r.get("high") and r.get("low")) or not any(r["code"] in w for w in old):
+            continue
+        cells = [w[r["code"]] for w in weeks if r["code"] in w]
+        sh = r.get("shares") or 0
+        if sh and any(c[2] and (c[2] * 1.2 < sh or c[3] > sh * 1.2) for c in cells):
+            continue
+        if r["high"] >= max(c[0] for c in cells):
+            highs.append(r)
+        if r["low"] <= min(c[1] for c in cells):
+            lows.append(r)
+    top = lambda rs: [{**{k: r.get(k) for k in _RANK_KEEP + ("high", "low")}, "type": "STOCK"}
+                      for r in sorted(rs, key=lambda r: -(r.get("mktcap") or 0))[:n]]
+    return top(highs), top(lows), len(highs), len(lows)
+
+
+def _hilo_backfill(state, mk, ep, last_day, budget=_HILO_BACKFILL):
+    """한 시장(mk, 표 ep)의 last_day 이전 평일을 거슬러 아직 안 넣은 날을 budget 일까지 받는다. Returns: 물어본 날 수.
+
+    결과 칸이 빈 응답(휴장)은 empty 에 적어 다시 묻지 않는다. 오류·거부(결과 칸 없는 응답 포함 — fetch_krx 가 담지
+    않는다)면 그날을 적지 않고 멈춘다. 시장마다 따로 센다 — 한 표만 미승인이어도 다른 시장 축적은 이어진다.
+    """
+    days, empty = state["days"].setdefault(mk, []), state["empty"].setdefault(mk, [])
+    known = set(days) | set(empty)
+    end = date_cls.fromisoformat(last_day)
+    d, n = end, 0
+    while n < budget and d > end - timedelta(days=_HILO_DAYS):
+        d -= timedelta(days=1)
+        iso, dd = d.isoformat(), d.strftime("%Y%m%d")
+        if d.weekday() >= 5 or iso in known:
+            continue
+        n += 1
+        was = (ep, dd) in _KRX_ROWS
+        rows = fetch_krx(ep, dd)
+        cached = (ep, dd) in _KRX_ROWS
+        if not was:
+            _KRX_ROWS.pop((ep, dd), None)       # 되짚기 행은 이 런에서 다시 안 쓴다 — 30일치가 런 끝까지 남지 않게
+        if rows:
+            _hilo_ingest(state, _krx_stock_rows(rows, iso, mk.upper()), iso)
+            days.append(iso)
+        elif cached:
+            empty.append(iso)
+        else:
+            return n
+    return n
+
+
+def _hilo_prune(state, day):
+    cut = date_cls.fromisoformat(day) - timedelta(days=_HILO_DAYS + 7)
+    state["weeks"] = {k: v for k, v in state["weeks"].items() if k >= _isoweek(cut)}
+    for k in ("days", "empty"):
+        state[k] = {mk: sorted(x for x in set(v) if x >= cut.isoformat()) for mk, v in state[k].items()}
+    for mk, e in state["empty"].items():
+        if len(e) > _HILO_MAX_EMPTY:          # 1년 휴장 평일은 15일 안팎 — 넘으면 잘못 적힌 날이 섞였다. 다시 묻는다
+            log(f"[KRX-52주] {mk} 휴장으로 적힌 날 {len(e)}일 > {_HILO_MAX_EMPTY} — 비우고 다시 묻는다")
+            state["empty"][mk] = []
+
+
+def _hilo_load():
+    """캐시 → {weeks, days{시장: [날]}, empty{시장: [날]}}. 없거나 깨졌거나 모양이 다르면 빈 상태."""
+    try:
+        with open(KRX_HILO_FILE, encoding="utf-8") as f:
+            s = json.load(f)
+    except (OSError, ValueError):
+        s = {}
+    s = s if isinstance(s, dict) else {}
+    return {k: s[k] if isinstance(s.get(k), dict) else {} for k in ("weeks", "days", "empty")}
+
+
+def _hilo_save(state):
+    """임시 파일에 쓰고 바꿔 끼운다 — 쓰다 끊겨도 직전 캐시가 깨지지 않게."""
+    tmp = KRX_HILO_FILE + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f, separators=(",", ":"))
+        os.replace(tmp, KRX_HILO_FILE)
+    except OSError as e:
+        log(f"[KRX-52주] 캐시 저장 실패: {e}")
+
+
+def _krx_rankings(data, prev, daily=False):
+    """rankingsKr 에 KRX 4목록(시가총액·거래량 상위 · 52주 신고가·신저가)을 붙인다.
+
+    시장 단위로 판단한다 — 이번 런에 못 받은 시장은 직전 행을 preserved 로 잇고, 한 목록의 두 시장을 다 못 받으면
+    블록에도 표식을 단다. 단 52주 목록은 일별 행을 받았는데 축적이 모자란 시장엔 잇지 않는다(실패가 아니라 아직 셀 수
+    없는 것 — 옛 목록을 오늘 것처럼 띄우지 않는다). daily = 일일 런(되짚기 백필).
+    """
+    prev_rk = (prev or {}).get("rankingsKr") or {}
+    got = {k: {} for k in ("marketCap", "volume", "high52", "low52")}
+    parsed_by, day = {}, None
+    # 일별매매정보 두 표는 주식만 담는다(ETF 는 /etp/) — type 을 달아 묶음의 이름 기반 ETF 판정(「HK」 접두 등)을 비켜 간다
+    trim = lambda rs: [{**{k: r.get(k) for k in _RANK_KEEP}, "type": "STOCK"} for r in rs[:_RANK_N]]
+    for mk, ep in KRX_STOCK_EP:
+        rows, basd = fetch_krx_latest(ep)
+        parsed = _krx_stock_rows(rows, basd, mk.upper()) if rows else []
+        if parsed:
+            parsed_by[mk] = parsed
+            got["marketCap"][mk] = trim(sorted((r for r in parsed if r.get("mktcap")), key=lambda r: -r["mktcap"]))
+            got["volume"][mk] = trim(sorted((r for r in parsed if r["vol"] > 0), key=lambda r: -r["vol"]))
+    if parsed_by:
+        state = _hilo_load()
+        asked = 0
+        for mk, ep in KRX_STOCK_EP:
+            if mk not in parsed_by:
+                continue
+            asof = parsed_by[mk][0]["as_of"]          # 시장마다 제 날짜로 적는다(두 표가 다른 날이어도 구멍이 안 난다)
+            _hilo_ingest(state, parsed_by[mk], asof)
+            state["days"].setdefault(mk, []).append(asof)
+            if daily and ep not in _KRX_DENIED:
+                asked += _hilo_backfill(state, mk, ep, asof)
+        day = max(p[0]["as_of"] for p in parsed_by.values())
+        _hilo_prune(state, day)
+        _hilo_save(state)
+        for mk, parsed in parsed_by.items():
+            res = _hilo_lists(state, parsed, parsed[0]["as_of"], mk)
+            if res:
+                got["high52"][mk], got["low52"][mk] = res[0], res[1]
+                got["high52"].setdefault("count", {})[mk] = res[2]
+                got["low52"].setdefault("count", {})[mk] = res[3]
+        log(f"[KRX-52주] 축적 {[(mk, len(_hilo_days_in(state, mk, day))) for mk in parsed_by]}/{_HILO_MIN_DAYS}거래일"
+            f"(이번 되짚기 {asked}일) — {'목록 계산' if got['high52'] else '모자라 싣지 않음'}")
+    rk = data.setdefault("rankingsKr", {})
+    at = datetime.now(KST).isoformat(timespec="seconds")
+    for key, lists in got.items():
+        pnode = prev_rk.get(key) if isinstance(prev_rk.get(key), dict) else {}
+        node = {"as_of": day, **lists} if lists else None
+        for mk, _ in KRX_STOCK_EP:
+            if mk in parsed_by or not pnode.get(mk):      # 받은 시장(52주 축적 중 포함)은 잇지 않는다
+                continue
+            node = node or {"as_of": pnode.get("as_of")}
+            node[mk] = [dict(r, preserved=True, preservedAt=(r.get("preserved") and r.get("preservedAt")) or at)
+                        for r in pnode[mk]]
+            if (pnode.get("count") or {}).get(mk) is not None:
+                node.setdefault("count", {})[mk] = pnode["count"][mk]
+        if not node:
+            continue
+        fresh = any(mk in lists for mk, _ in KRX_STOCK_EP)
+        rk[key] = node if fresh else _mark_preserved(dict(node, preserved=pnode.get("preserved"),
+                                                          preservedAt=pnode.get("preservedAt")))
+        data["sources"][f"rankingsKr.{key}"] = (("KRX OpenAPI (일별매매정보, 주간 고저 축적)" if "52" in key
+                                                else "KRX OpenAPI (일별매매정보)") if fresh else "이전 빌드 보존 ← KRX OpenAPI")
+    if not rk:
+        data.pop("rankingsKr", None)
+    if parsed_by:
+        log(f"[KRX] 순위 {day}: 실은 목록 {[k for k, v in got.items() if v]}")
+
+
+# ── 배당·실적 일정(2026-10, 기획 v4 9장 후보 3) — OpenDART ──────────────────────────────────
+# 대상 = 관심목록(alerts_config.json tracking, ETF 제외) + 거래대금 상위(rankingsKr.tradingAmount, ETF 제외), 최대 30종목.
+# 종목마다 ① 공시검색(list.json, 거래소공시 I, 최근 90일)의 「잠정」실적·「배당결정」 공시 ② 배당에 관한 사항
+# (alotMatter.json, 직전 사업보고서)의 보통주 주당 현금배당 → data.json.corpEvents = {asOf, from, items, corpMap}.
+# 일일 런에서 KST 하루 1회만 부른다(종목당 2~3콜 — 일 한도 2만 콜의 0.5%). 날짜는 공시 접수일·결산기준일이다 —
+# 앞으로의 실적 발표일은 OpenDART 목록에 없다(IR 개최 안내 공시 본문에만 있다).
+OPENDART_BASE = "https://opendart.fss.or.kr/api"
+CORP_EVENTS_MAX, CORP_EVENTS_DAYS = 30, 90
+
+
+def _dart_get(endpoint, **params):
+    """OpenDART 호출(모듈 requests = 서킷브레이커). status 000 = 정상, 013 = 자료 없음. 그 밖은 예외."""
+    r = requests.get(f"{OPENDART_BASE}/{endpoint}", params={"crtfc_key": OPENDART_API_KEY, **params}, timeout=20)
+    r.raise_for_status()
+    j = r.json()
+    if j.get("status") not in ("000", "013"):
+        raise RuntimeError(f"DART {endpoint} status={j.get('status')} {j.get('message')}")
+    return j
+
+
+def _corp_targets(data, prev, cfg_path="alerts_config.json"):
+    """(종목코드, 이름) — 관심목록 먼저, 다음 거래대금 상위. ETF 는 뺀다(DART 기업코드가 없다)."""
+    try:
+        with open(cfg_path, encoding="utf-8") as f:
+            items = ((json.load(f).get("tracking") or {}).get("items")) or []
+    except (OSError, ValueError):
+        items = []
+    cands = [(str(it.get("symbol") or ""), it.get("name")) for it in items
+             if it.get("market") == "KR" and it.get("secType") != "etf"]
+    ta = ((data.get("rankingsKr") or {}).get("tradingAmount")
+          or ((prev or {}).get("rankingsKr") or {}).get("tradingAmount") or [])
+    cands += [(str(r.get("code") or ""), r.get("name")) for r in ta if r.get("type") != "ETF"]
+    out = {}
+    for code, name in cands:
+        if re.fullmatch(r"[0-9A-Z]{6}", code) and code not in out:
+            out[code] = name or code
+    return list(out.items())[:CORP_EVENTS_MAX]
+
+
+def _dart_list_events(rows, code, name):
+    """공시검색 행 → 실적·배당 이벤트. 보고서명(공백 제거)에 「잠정」+「실적」 = earnings, 「배당결정」 = dividend.
+    자회사 공시(…(자회사의 주요경영사항))는 남의 실적·배당이라 뺀다. 같은 날 정정 공시는 하나로 접는다
+    (응답은 최신순이라 남는 접수번호는 정정본이다)."""
+    out, seen = [], set()
+    for r in rows or []:
+        nm = re.sub(r"\s+", "", r.get("report_nm") or "")
+        d = str(r.get("rcept_dt") or "")
+        kind = "earnings" if "잠정" in nm and "실적" in nm else "dividend" if "배당결정" in nm else None
+        if not kind or "자회사" in nm or not re.fullmatch(r"\d{8}", d) or (kind, d) in seen:
+            continue
+        seen.add((kind, d))
+        out.append({"code": code, "name": name, "kind": kind, "date": f"{d[:4]}-{d[4:6]}-{d[6:]}",
+                    "title": "잠정실적" if kind == "earnings" else "배당 결정",
+                    "detail": re.sub(r"^\[[^\]]*\]", "", nm), "rcpNo": r.get("rcept_no")})
+    return out
+
+
+def _dart_dividend_event(rows, code, name, year):
+    """배당에 관한 사항 → 결산 배당 이벤트 1개(보통주 주당 현금배당이 있을 때만). 날짜 = 결산기준일(stlm_dt),
+    없으면 사업보고서 접수일(접수번호 앞 8자리)."""
+    def pick(key):
+        for r in rows or []:
+            se = re.sub(r"\s+", "", r.get("se") or "")
+            if key in se and "우선" not in se + (r.get("stock_knd") or ""):
+                v = _parse_num(r.get("thstrm"))
+                if v is not None:
+                    return v, r
+        return None, None
+    dps, row = pick("주당현금배당금")
+    if not dps:
+        return None
+    yld, _ = pick("현금배당수익률")
+    stlm, rcp = str(row.get("stlm_dt") or ""), str(row.get("rcept_no") or "")
+    date = (stlm if re.fullmatch(r"\d{4}-\d{2}-\d{2}", stlm)
+            else f"{rcp[:4]}-{rcp[4:6]}-{rcp[6:8]}" if re.fullmatch(r"\d{14}", rcp) else None)
+    if not date:
+        return None
+    return {"code": code, "name": name, "kind": "dividend", "date": date, "title": f"결산 배당 {dps:,.0f}원",
+            "detail": f"{year}년 결산 보통주 주당 현금배당 {dps:,.0f}원" + (f" · 시가배당률 {yld:g}%" if yld else ""),
+            "rcpNo": rcp or None, "via": "alotMatter"}
+
+
+def _corp_events_step(data, prev, daily=False):
+    """data.json.corpEvents 를 만든다 — 일일 런(KST 09·16·22시)마다. 그 밖의 런·키 없음은 직전 블록을 그대로 잇는다.
+
+    공시검색(list)은 일일 런마다 다시 본다 — 잠정실적·배당결정은 대개 장중·장 마감 뒤에 나와 09시 한 번으로는 홈의
+    「오늘 공시」가 늘 빈다(2026-10-02 리뷰). 배당에 관한 사항(alotMatter)·기업코드 목록은 KST 하루 한 번(첫 일일 런)이다.
+    한 종목 실패면 그 종목의 직전 일정만, 전 종목 실패·기업코드 0건이면 직전 블록 전체를 preserved 로 잇는다.
+    호출 = 일일 런마다 종목당 1콜 + 하루 한 번 종목당 1~2콜(30종목 → 하루 최대 150콜, 일 한도 2만) + 맵에 없는 종목이
+    생긴 런의 기업코드 목록(zip) 1콜.
+    """
+    pce = (prev or {}).get("corpEvents")
+    pce = pce if isinstance(pce, dict) else None
+    now = datetime.now(KST)
+    today = now.date()
+    if not OPENDART_API_KEY or not daily:
+        if pce:
+            data["corpEvents"] = pce
+        if not OPENDART_API_KEY:
+            log("[DART] OPENDART_API_KEY 없음 — 배당·실적 일정 건너뜀(직전 값 유지)")
+        return
+    first = not (pce and pce.get("asOf") == today.isoformat())     # 오늘 첫 일일 런 = 배당 표까지
+    targets = _corp_targets(data, prev)
+    cmap = dict((pce or {}).get("corpMap") or {})
+    try:   # 맵에 없는 종목이 있을 때만 목록(zip)을 받는다 — 거래대금 상위가 바뀐 16·22시 런도 새 종목을 잡는다
+        import fetch_fundamentals as _ff
+        cmap = _ff.build_corp_map([c for c, _ in targets], cmap, get=requests.get, key=OPENDART_API_KEY)
+        for c, _ in targets:
+            cmap.setdefault(c, "")          # 기업코드 목록에 없는 종목(우선주 등) — 다음 런에 다시 받지 않게
+    except Exception as e:
+        log(f"[DART] 기업코드 목록 실패: {_scrub_err(e)}")
+    cmap = {c: cmap[c] for c, _ in targets if c in cmap}         # 이번 대상만 남긴다(공개 파일이 끝없이 불지 않게)
+    start = today - timedelta(days=CORP_EVENTS_DAYS)
+    year = today.year - 1 if today.month >= 4 else today.year - 2     # 사업보고서는 결산 뒤 3월 말까지 낸다
+    prev_items = {}
+    for it in (pce or {}).get("items") or []:
+        prev_items.setdefault(it.get("code"), []).append(it)
+    mapped = [(c, n) for c, n in targets if cmap.get(c)]
+    if targets and not mapped:
+        if pce:
+            data["corpEvents"] = _mark_preserved(pce)
+        log(f"[DART] 대상 {len(targets)}종목에 기업코드가 하나도 없다 — 직전 블록 유지(오늘 다음 일일 런이 다시 묻는다)")
+        return
+    items, failed = [], []
+    for code, name in mapped:
+        try:
+            j = _dart_get("list.json", corp_code=cmap[code], bgn_de=start.strftime("%Y%m%d"),
+                          end_de=today.strftime("%Y%m%d"), pblntf_ty="I", page_count=100)
+            if (j.get("total_page") or 1) > 1:
+                log(f"[DART] {code} 거래소공시 {j.get('total_count')}건 — 첫 100건만 봤다")
+            evs = _dart_list_events(j.get("list"), code, name)
+            if first:
+                for y in (year, year - 1):
+                    dv = _dart_dividend_event(_dart_get("alotMatter.json", corp_code=cmap[code], bsns_year=str(y),
+                                                        reprt_code="11011").get("list"), code, name, y)
+                    if dv:
+                        evs.append(dv)
+                        break
+            else:                            # 오늘 이미 받은 결산 배당은 그대로 잇는다
+                evs += [x for x in prev_items.get(code, []) if x.get("via") == "alotMatter"]
+            items += evs
+        except Exception as e:
+            failed.append(code)
+            at = now.isoformat(timespec="seconds")
+            items += [dict(x, preserved=True, preservedAt=(x.get("preserved") and x.get("preservedAt")) or at)
+                      for x in prev_items.get(code, [])]
+            log(f"[DART] {code} 오류 — 직전 일정 유지: {_scrub_err(e)}")
+    if mapped and len(failed) == len(mapped):
+        if pce:
+            data["corpEvents"] = _mark_preserved(pce)
+        log(f"[DART] {len(mapped)}종목 전부 실패 — 직전 블록 유지")
+        return
+    data["corpEvents"] = {"asOf": today.isoformat(), "from": start.isoformat(),
+                          "source": "OpenDART (공시검색·배당에 관한 사항)",
+                          "items": sorted(items, key=lambda x: (x["date"], x["code"]), reverse=True),
+                          "targets": len(targets), "corpMap": cmap}
+    data["sources"]["corpEvents"] = "OpenDART"
+    log(f"[DART] 배당·실적 일정 {len(items)}건 — 대상 {len(targets)}종목(기업코드 {len(mapped)}·실패 {len(failed)}"
+        f"{'' if first else '·배당 표는 오늘 첫 런 것'})")
 
 
 def _naver_session():
@@ -4329,6 +4712,103 @@ def fetch_rone_sigungu_breakdown():
     return {"region": region, "region_sub": region_sub}
 
 
+# ── 시도 17 아파트 매매·전세 지수 시계열(2026-10, 기획 v4 9장 후보 1) ────────────────────────────
+# region_sub 는 당월 전월비뿐이라 겹침 차트를 못 그린다 → 시도마다 월간 지수 최근 36개월을
+# realestate.kr.regionSeries = {시도코드: {apt:[[YYYYMM, 값]], jns:[[…]], period, source}} 로 싣는다.
+# 분류 코드 = R-ONE 표준 지역분류(2026-10-02 무키 탐침: 매매 A_2024_00045·전세 A_2024_00050 모두 CLS_ID 500008~500024
+# 가 시도 17, 한 분류 질의 = 2003-11 부터 274행·항목 1개, 광주·전남은 「전남광주>광주」 경로). 날짜 범위는 무시되므로
+# 시도 하나 = 한 번 질의로 전체 이력을 받아 끝 36개월만 쓴다. 검사는 _rone_strict_pick 과 같은 갈래 —
+# 잘림·그 분류 행 없음·다른 분류 행 섞임·시점당 항목 2종 이상·분류 이름이 다른 시도면 그 칸을 버린다.
+# 월 1회: 일일 런이고 전국 매매지수 기간이 직전 시계열보다 새로울 때만 부른다(시도 17 × 2표 = 34콜).
+RONE_SIDO_CLS = {"11": 500008, "41": 500009, "28": 500010, "26": 500011, "27": 500012, "29": 500013,
+                 "30": 500014, "31": 500015, "36": 500016, "42": 500017, "43": 500018, "44": 500019,
+                 "45": 500020, "46": 500021, "47": 500022, "48": 500023, "50": 500024}
+# 아파트 매매 · 아파트 전세 — 겹침 차트는 같은 주택 유형끼리 그린다(전국 jns_price_idx_kr 은 주택종합 A_2024_00019).
+RONE_REGION_TABLES = {"apt": "A_2024_00045", "jns": "A_2024_00050"}
+RONE_REGION_MONTHS = 36
+_RONE_HOST = "www.reb.or.kr"
+
+
+def _rone_class_series(rows, cls_id, code, limit=_RONE_MAX_PSIZE, n=RONE_REGION_MONTHS):
+    """한 분류(CLS_ID) 질의 응답 → [[YYYYMM, 값]] 최근 n개월. 검사에 걸리면 None(사유는 로그)."""
+    rows = rows or []
+    mine = [r for r in rows if str(r.get("CLS_ID")) == str(cls_id)]
+    why = None
+    if len(rows) >= limit:
+        why = f"{limit}행에서 잘림"
+    elif not mine or len(mine) < len(rows):
+        why = f"분류 {cls_id} 행 {len(mine)}/{len(rows)} — 필터가 안 먹었다"
+    elif _rone_classify_region(mine[-1].get("CLS_FULLNM") or "", mine[-1].get("CLS_NM") or "") != (code, ""):
+        why = f"분류 이름 {mine[-1].get('CLS_FULLNM')!r} 이 시도 {code} 가 아니다"
+    else:
+        per = {}
+        for r in mine:
+            per.setdefault(r.get("WRTTIME_IDTFR_ID"), set()).add(r.get("ITM_ID"))
+        if any(len(s) > 1 for s in per.values()):
+            why = "시점당 항목 2종 이상"
+    if why:
+        log(f"[R-ONE-시도] {code}({cls_id}): {why} — 칸 버림")
+        return None
+    pts = {}
+    for r in mine:
+        v, p = _parse_num(r.get("DTA_VAL")), str(r.get("WRTTIME_IDTFR_ID") or "")
+        if v is not None and re.fullmatch(r"\d{6}", p):
+            pts[p] = round(v, 3)
+    return [[p, pts[p]] for p in sorted(pts)[-n:]] or None
+
+
+def fetch_rone_region_series(codes=None):
+    """시도(기본 17) × (매매·전세) → {시도코드: {apt, jns, period, source}}. 못 받은 칸은 빠진다. 키 없으면 {}."""
+    if not REALESTATE_API_KEY:
+        return {}
+    out = {}
+    for kind, sid in RONE_REGION_TABLES.items():
+        ok = 0
+        for code, cls in RONE_SIDO_CLS.items():
+            if codes is not None and code not in codes:
+                continue
+            if _RONE_HOST in getattr(requests, "dead", ()):   # 차단된 호스트에 재시도 4회씩 34번 기다리지 않는다
+                break
+            s = _rone_class_series(fetch_rone_stats(sid, item_code2=str(cls), period_type="M", limit=_RONE_MAX_PSIZE),
+                                   cls, code)
+            if s:
+                out.setdefault(code, {})[kind] = s
+                ok += 1
+        log(f"[R-ONE-시도] {kind} {sid}: {ok}/{len(codes) if codes is not None else len(RONE_SIDO_CLS)}개 시도")
+    for node in out.values():
+        node["period"] = max(node[k][-1][0] for k in RONE_REGION_TABLES if k in node)
+        node["source"] = "R-ONE:" + "·".join(sid for k, sid in RONE_REGION_TABLES.items() if k in node)
+    return dict(sorted(out.items()))
+
+
+def _rone_region_series_step(prev, re_data, daily):
+    """이번 런의 regionSeries. 전국 매매지수 기간(period)보다 뒤처진 시도만, 일일 런에서만 다시 받는다.
+
+    - 다 최신 → 직전 값을 표식(lane·preserved) 없이 잇는다(호출 0).
+    - 못 받은 시도(일부든 전부든) → 직전 칸을 표식 없이 둔다. 칸의 날짜(period·마지막 점)가 낡음을 말하고, 다음 일일
+      런이 뒤처진 시도만 다시 묻는다. preserved 를 달면 lane 계획이 R-ONE 묶음 전체를 매시 다시 부르는데, 매시 런은 이
+      시계열을 다시 묻지 않으니 표식을 지울 길이 없어 다음 일일 런까지 R-ONE 을 헛되이 두드린다(2026-10-02 리뷰 재현).
+      R-ONE 자체가 안 닿은 런은 이 함수를 부르지 않고 preserve-deep 이 표식을 단다 — 다음에 R-ONE 이 닿는 런(매시 포함)이
+      여기서 표식을 걷는다.
+    """
+    prs = ((((prev or {}).get("realestate") or {}).get("kr") or {}).get("regionSeries")) or {}
+    apt = re_data.get("apt_price_idx_kr") or {}
+    period = str(apt.get("period") or "") if str(apt.get("source", "")).startswith("R-ONE") else ""
+    lag = [c for c in RONE_SIDO_CLS if not isinstance(prs.get(c), dict) or str(prs[c].get("period") or "") < period]
+    marks = ("preserved", "preservedAt", "preserved_reason")
+    bare = {c: {k: v for k, v in n.items() if k not in marks} for c, n in prs.items() if isinstance(n, dict)}
+    if not (period and daily and lag):
+        return bare or None
+    new = fetch_rone_region_series(lag)
+    log(f"[R-ONE-시도] 시계열 {len(new)}/{len(lag)}개 시도 새로 받음(기준 {period})"
+        + ("" if new else " — 직전 칸(낡은 날짜 그대로)을 둔다"))
+    out = bare
+    for c, n in new.items():
+        if all(k in n for k in RONE_REGION_TABLES) or c not in out:   # 한 표만 받은 시도는 직전 칸(두 표)을 둔다
+            out[c] = n
+    return dict(sorted(out.items())) or None
+
+
 # ============================================================
 # KOSIS API (국가통계포털)
 # ============================================================
@@ -6992,6 +7472,25 @@ def build_data():
     except Exception as e:
         log(f"[TOSS] 신규 블록 소비 오류: {e}")
 
+    # ── KRX 보기 확장 · 배당·실적 일정(2026-10, 기획 v4 9장 후보 2·3) ─────────────────────
+    # 토스 랭킹 블록(위)이 rankingsKr 을 통째로 만든 뒤에 붙여야 덮이지 않는다. 둘 다 보존을 스스로 한다
+    # (아래 _preserve_from_prev 목록에 넣지 않는다 — 넣으면 '비어 있음' 판정이 52주 축적 중 빈칸을 옛 목록으로 채운다).
+    _daily_run = os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes")
+    try:
+        _krx_rankings(data, prev, daily=_daily_run)
+    except Exception as e:
+        log(f"[KRX] 순위 확장 오류: {e} — 직전 KRX 목록을 잇는다")
+        for _k in ("marketCap", "volume", "high52", "low52"):
+            _pv = ((prev or {}).get("rankingsKr") or {}).get(_k)
+            if isinstance(_pv, dict) and not (data.get("rankingsKr") or {}).get(_k):
+                data.setdefault("rankingsKr", {})[_k] = _mark_preserved(_pv)
+    try:
+        _corp_events_step(data, prev, daily=_daily_run)
+    except Exception as e:
+        log(f"[DART] 배당·실적 일정 오류: {_scrub_err(e)} — 직전 블록을 잇는다")
+        if isinstance((prev or {}).get("corpEvents"), dict) and "corpEvents" not in data:
+            data["corpEvents"] = _mark_preserved(prev["corpEvents"])
+
     # ── 해상 운임지수(운송): SCFI/CCFI/BDI 등 — 네이버 시장지표 best-effort ──
     # 실패 시 직전 빌드의 freight 를 보존(있으면) → 일시 실패에도 마지막 값 유지.
     try:
@@ -7124,14 +7623,15 @@ def build_data():
         if not gold:
             gold = krx_commodity("/gen/gold_bydd_trd", "금")
         if gold:
+            # as_of = KRX 기준일(전일 확정치) — 버리면 화면 묶음이 장중 '실시간'으로 오판한다(2026-10-01)
             data["commodities"]["GoldKRW"] = {
-                "price": gold["price"], "change": gold["change"]
+                "price": gold["price"], "change": gold["change"], "as_of": gold.get("as_of")
             }
             log(f"[KRX] Gold(KRW/g): {gold['price']} ({gold['change']:+.2f}%)")
         oil = krx_commodity("/gen/oil_bydd_trd", "휘발유")
         if oil:
             data["commodities"]["OilKR"] = {
-                "price": oil["price"], "change": oil["change"]
+                "price": oil["price"], "change": oil["change"], "as_of": oil.get("as_of")
             }
             log(f"[KRX] 휘발유(원/L): {oil['price']} ({oil['change']:+.2f}%)")
 
@@ -7494,6 +7994,14 @@ def build_data():
             data["sources"]["realestate_kr"] = "R-ONE API (reb.or.kr)"
             re_diag["rone_ok"] = True
             log(f"[R-ONE] 성공: {list(re_data.keys())}")
+            # 시도 17 매매·전세 시계열 — 새 달이 나온 일일 런만 부른다(못 받으면 뒤 preserve-deep 이 직전 값을 잇는다)
+            try:
+                _rs = _rone_region_series_step(prev, re_data,
+                                               os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes"))
+                if _rs:
+                    re_data["regionSeries"] = _rs
+            except Exception as e:
+                log(f"[R-ONE-시도] 시계열 오류: {e}")
         else:
             log("[R-ONE] 매매/전세 가격지수 미수집 — ECOS 폴백 시도")
     else:
@@ -8027,6 +8535,9 @@ def build_data():
         _ss = _source_status(requests.status_snapshot(),
                              ((prev or {}).get("diagnostics") or {}).get("sourceStatus"))
         _alert_dead_sources(_ss)
+        # KRX 는 이용신청이 서비스별이라 호스트 실패 수만으로는 어느 표가 미승인인지 모른다 — 401 엔드포인트를 적는다
+        if _KRX_DENIED and isinstance(_ss.get("data-dbg.krx.co.kr"), dict):
+            _ss["data-dbg.krx.co.kr"]["denied"] = sorted(_KRX_DENIED)
         data["diagnostics"]["sourceStatus"] = _ss
     except Exception as e:
         log(f"[sourceStatus] 기록 오류 (무시): {e}")
@@ -9398,6 +9909,7 @@ if __name__ == "__main__":
         ("EXIM",        EXIM_API_KEY),
         ("KIS",         KIS_APP_KEY),
         ("NaverSearch", NAVER_CLIENT_ID),
+        ("OpenDART",    OPENDART_API_KEY),
     ]:
         if key:
             log(f"[{name}] API 키 설정됨")

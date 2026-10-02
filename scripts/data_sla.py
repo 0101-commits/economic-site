@@ -44,13 +44,14 @@ SLA_RULES = [
     # 장중 스냅샷
     ("stockMovers.*",                    4,   "important"),
     ("etfMovers.*",                      4,   "important"),
-    ("rankingsKr.*",                     4,   "important"),
+    ("rankingsKr.*",                     4,   "important"),  # 토스 거래대금 + KRX 시총·거래량·52주(2026-10, 전일 확정치)
     ("marketBreadth*",                   4,   "important"),  # A19 KRX 등락 종목 수(전일 확정치) — 블록째 missing 도 같은 등급
     ("sectorMoves",                      4,   "important"),  # A19 코스피 업종 등락
     ("investorTrading",                  6,   "important"),
     ("sentiment.*",                      4,   "important"),
     ("freight",                          10,  "normal"),
     ("marketHalts",                      400, "normal"),
+    ("corpEvents",                       3,   "normal"),    # OpenDART 배당·실적 일정 — 일일 런 하루 1회(as-of = 검색 끝 날짜)
 
     # 거시 — 일간 시리즈만 명시, 나머지는 주기에서 도출(None)
     ("economicIndicators.us.vix",        6,   "important"),
@@ -255,17 +256,23 @@ def _period_end(asof, cadence):
     return date(y, m, 1) - timedelta(days=1)
 
 
-def _raw_asof(node):
+def _raw_asof(node, depth=0):
+    """as-of 원문(주기 추론용). 자기 키에 없으면 첫 자식(시도별 칸 dict·행 list)의 것 — 2026-10-02 전엔
+    realestate.kr.region·region_sub 가 이것 없이 주기를 몰라 기본 60일(기간 시작일부터)로 재여 정상 갱신 중에도 '지연'이었다."""
     if isinstance(node, dict):
         for k in _ASOF_KEYS:
             if isinstance(node.get(k), str):
                 return node[k]
+    kids = list(node.values()) if isinstance(node, dict) else node if isinstance(node, list) else []
+    if depth < 2 and kids and isinstance(kids[0], (dict, list)):
+        return _raw_asof(kids[0], depth + 1)
     return None
 
 
 # 블록 전체가 하나의 지표로 취급되는 최상위 키 (내부를 쪼개지 않는다)
 _ATOMIC_TOPS = ("freight", "investorTrading", "news", "economicCalendar", "marketCalendarKr",
-                "nps", "subscription", "marketHalts", "aiBriefing", "lmeInventory", "sectorMoves")
+                "nps", "subscription", "marketHalts", "aiBriefing", "lmeInventory", "sectorMoves",
+                "corpEvents")   # 배당·실적 일정(2026-10) — items·corpMap 을 쪼개지 않는다. as-of = 공시 검색 끝 날짜
 _SKIP_TOPS = ("lastUpdated", "sources", "diagnostics", "dataHealth")
 # 현재가 스냅샷 블록 — 자체 날짜 필드가 없고 신선도는 같은 심볼의 history 가 대변한다.
 # 여기서 판정하면 심볼마다 'unknown' 이 중복으로 쌓여 요약이 무의미해진다.

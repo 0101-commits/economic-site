@@ -21,12 +21,13 @@
     "binding": "AI"
   },
   // 🔐 암호화 보유정보(encHoldings) 저장소 — 공개 alerts_config.json 에서 옮겼다(2026-09-29).
-  //   키 하나(portfolio:encHoldings)만 쓴다. GET/POST /portfolio 의 ALERTS_SYNC_KEY 인증 뒤에서만 읽고 쓴다.
+  //   키: portfolio:encHoldings · auth:syncKeyHash(사이트에서 바꾼 동기화 키) · prefs:<키 해시 16자>(1층 사용자 데이터) ·
+  //   push:<키 해시 16자>(웹 푸시 구독). 전부 동기화 키 인증(_verifySyncKey) 뒤에서만 읽고 쓴다. cloudflare-worker/README.md 참고.
   "kv_namespaces": [
     { "binding": "ECON_PORTFOLIO", "id": "49d7bd1ee2874995a7bf0439c4e297b3" }
   ],
   // 🚦 [이슈3] Rate Limiting 바인딩 (무료 플랜 포함) — worker.js 의 _rateLimited() 가 IP 단위로 사용.
-  //   AI_LIMITER: POST(/ai·/portfolio·/portfolio/test·/sync-key) + GET /portfolio 분당 10회 — LLM 비용·커밋 스팸·키 대입 방어
+  //   AI_LIMITER: POST(/ai·/portfolio·/portfolio/test·/sync-key) + GET /portfolio + /prefs·/push/subscribe 분당 10회 — LLM 비용·커밋 스팸·키 대입 방어
   //   PROXY_LIMITER: GET ?url= 프록시 분당 120회 — 무료 일 10만 요청 한도 보호
   // 참고: developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
   // ⚠️ [이슈3] POST(/ai·/portfolio) 경로는 이제 fail-closed — AI_LIMITER 바인딩이 없으면 503 으로

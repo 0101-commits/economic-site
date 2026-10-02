@@ -1,0 +1,321 @@
+// 홈 「오늘」 — 기획안 v4 3장. 머리 → 오늘 한 줄 → 지표 띠 8 → 보기 바 → 격자(PC 12열 / 모바일 1열 같은 순서).
+// 금액(내 자산)은 여기서 절대 읽지 않는다. 관심은 이 기기의 id 목록뿐(lib/watch.ts).
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { ChevronRight, House } from 'lucide-react'
+import { loadBundle, loadHome, loadIndicator, shownUnit, type HomeBundle, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
+import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
+import { useViewParam } from '../lib/useViewParam'
+import { useWatch } from '../lib/watch'
+import { NumBlock, Pill, SegBar } from '../components/ui'
+import { DivergingBars, Heatmap, LineChart } from '../components/charts'
+import { Panel, RankTable, StripCard, WatchStar, type Col } from '../components/panels'
+
+const VIEWS = [
+  { key: 'all', label: '전체' }, { key: 'kr', label: '국내' }, { key: 'global', label: '해외' },
+  { key: 'fxrate', label: '환율금리' }, { key: 'commod', label: '원자재' }, { key: 'watch', label: '내 관심' },
+] as const
+type View = typeof VIEWS[number]['key']
+// 보기 → 그 자산군 시장 묶음의 띠(순서의 단일 원천은 묶음). 「전체」는 홈 띠 8, 「내 관심」은 담은 지표만.
+const VIEW_BUNDLE: Partial<Record<View, string>> = { kr: 'market-domestic', global: 'market-global', fxrate: 'market-fxrates', commod: 'market-commodities' }
+const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as const
+// 일정에 섞여 오는 종목 공시(kind) → 알약 글자. 이름은 묶음이 「종목 제목」으로 붙여 준다. 순서(날짜·시각)도 묶음이 정한다.
+const CORP_KIND: Record<string, string> = { dividend: '배당', earnings: '실적' }
+type SchedRow = Sched & { kind?: string | null; code?: string | null }
+
+/** 오늘 한 줄: 숫자 낱말(+1.80% · 4,910억)만 굵게 검정. 묶음에 핵심어 표시가 아직 없어서다. */
+const KEY_RE = /([+\-]?\d[\d,.]*(?:%p|%|bp|억|조|원|달러|엔)?)/
+function emphasize(text: string): ReactNode {
+  return text.split(KEY_RE).map((t, i) => (i % 2 ? <b key={i} className="num font-bold text-ink-1">{t}</b> : t))
+}
+
+const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return '' } }
+
+/** 등락 한 칸: 등락률이 있으면 %, 없으면(금리 등) 변화량. */
+function ChangeText({ chg, pct, decimals }: { chg: number | null | undefined; pct: number | null | undefined; decimals: number }) {
+  const dir = changeDir(pct ?? chg, pct != null ? 2 : decimals)
+  return <span className={`num text-12 ${DIR_TEXT[dir]}`}>{pct != null ? fmtPct(pct) : fmtChange(chg, null, decimals)}</span>
+}
+
+type WatchRow = { id: string; name: string; value: number | null; decimals: number; unit?: string; chg: number | null; pct: number | null; link: boolean }
+
+export default function Home() {
+  const [home, setHome] = useState<HomeBundle | null>(null)
+  const [err, setErr] = useState(false)
+  useEffect(() => { loadHome().then(setHome, () => setErr(true)) }, [])
+  const [v, setV] = useViewParam<View>('v', 'all', VIEWS.map(o => o.key))
+  const [s, setS] = useViewParam<string>('s', 'kospi')
+  const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
+  const watch = useWatch()
+
+  // 보기 바: 고른 자산군의 시장 묶음 띠를 한 번만 받아 둔다(묶음 캐시는 bundle.ts)
+  const [viewStrip, setViewStrip] = useState<Partial<Record<View, StripItem[]>>>({})
+  useEffect(() => {
+    const name = VIEW_BUNDLE[v]
+    if (!name) return
+    loadBundle<{ strip?: StripItem[] }>(name).then(b => { if (b.strip?.length) setViewStrip(m => ({ ...m, [v]: b.strip })) }, () => {})
+  }, [v])
+
+  // 관심 패널이 쓸 값: 본 띠들 + 홈 띠, 그래도 없는 id 는 지표 사전에서 한 번 찾는다
+  const [extra, setExtra] = useState<Record<string, StripItem | null>>({})
+  const pool = useMemo(() => {
+    const m = new Map<string, StripItem>()
+    for (const it of Object.values(extra)) if (it) m.set(it.id, it)
+    for (const it of Object.values(viewStrip).flat()) m.set(it.id, it)
+    for (const it of home?.strip || []) m.set(it.id, it)
+    return m
+  }, [home, viewStrip, extra])
+  const stocks = useMemo(() => new Map((home?.topAmount?.items || []).map(x => [x.code, x])), [home])
+  useEffect(() => {
+    if (!home) return
+    for (const id of watch.ids) {
+      if (pool.has(id) || stocks.has(id) || id in extra) continue
+      setExtra(m => ({ ...m, [id]: null }))
+      loadIndicator(id).then(r => {
+        const it = r.item ?? (r.reg ? { id, label: r.reg.label, decimals: r.reg.decimals, value: null, change: null, changePct: null, asOf: null } : null)
+        setExtra(m => ({ ...m, [id]: it && { ...it, short: r.reg?.short ?? it.short } }))
+      }, () => {})
+    }
+  }, [home, watch.ids, pool, stocks, extra])
+
+  const homeStrip = home?.strip || []
+  const viewed = v === 'watch' ? watch.ids.map(id => pool.get(id)).filter((x): x is StripItem => !!x) : viewStrip[v] || homeStrip
+  const strip = viewed.length ? viewed : homeStrip   // 보기에 자료가 없으면 띠는 그대로
+
+  // 큰 차트: 고른 카드(s). 코스피는 홈 묶음 kospiChart, 그 밖은 시장 묶음 시계열(처음 고를 때 한 번 받는다)
+  const sel = strip.find(x => x.id === s) ?? pool.get(s) ?? strip[0]
+  const [series, setSeries] = useState<Record<string, Pt[] | null>>({})
+  const useKospi = sel?.id === 'kospi' && !!home?.kospiChart
+  useEffect(() => {
+    if (!sel || useKospi || sel.id in series) return
+    const id = sel.id
+    setSeries(m => ({ ...m, [id]: null }))
+    loadIndicator(id).then(r => setSeries(m => ({ ...m, [id]: r.series ?? [] })), () => setSeries(m => ({ ...m, [id]: [] })))
+  }, [sel?.id, useKospi])
+  const periods = useMemo(() => {
+    if (!sel) return {}
+    if (useKospi) return Object.fromEntries(PERIODS.map(o => [o.key, home!.kospiChart![o.key] ?? null]))
+    const got = series[sel.id]
+    if (got?.length) return slicePeriods(scaledPts(got, sel.scale))
+    // 시계열이 없으면 띠의 최근 7거래일(날짜 없음)이라도 1주로 보여 준다
+    if (got && sel.spark && sel.spark.length >= 2) return { '1w': scaledPts(sel.spark.map((x): Pt => ['', x]), sel.scale) }
+    return {}
+  }, [sel, useKospi, home, series])
+  const trig = [...(home?.lens?.breach || []), ...(home?.lens?.watch || [])].find(t => t.id === sel?.id && t.level != null)
+  const selV = sel ? scaled(sel.value, sel.scale) : null, selC = sel ? scaled(sel.change, sel.scale) : null
+
+  // 관심 패널 행
+  const watchRows = watch.ids.flatMap((id): WatchRow[] => {
+    const it = pool.get(id)
+    if (it) return [{ id, name: it.short || it.label, value: scaled(it.value, it.scale), decimals: it.decimals, unit: shownUnit(it), chg: scaled(it.change, it.scale), pct: it.changePct, link: true }]
+    const st = stocks.get(id)
+    if (st) return [{ id, name: st.short || st.name, value: st.price, decimals: 0, chg: null, pct: st.chgPct, link: false }]
+    return extra[id] === undefined ? [] : [{ id, name: id, value: null, decimals: 0, chg: null, pct: null, link: false }]
+  })
+
+  if (err) return <p className="m-0 text-14 text-ink-2">자료를 불러오지 못했습니다.</p>
+  if (!home) return <p className="m-0 text-14 text-ink-3">불러오는 중</p>
+  const mk = home.market
+  const inv = home.investors
+  const invCol = (k: string) => (inv?.columns ?? ['date', 'foreign', 'inst', 'retail']).indexOf(k)
+  const flow20 = (inv?.rows || []).slice(-20)
+  const lens = home.lens
+
+  // 4열 패널(약 350px)에 맞춰 열은 넷: 거래대금은 조원 두 자리, 모바일에선 이름 아래 줄
+  const amountCols: Col<Stock>[] = [
+    { key: 'name', label: '종목', get: r => r.short || r.name, role: 'name' },
+    { key: 'price', label: '현재가', get: r => r.price, num: true, role: 'value' },
+    { key: 'pct', label: '등락률', get: r => r.chgPct, num: true, role: 'change', render: r => <ChangeText chg={null} pct={r.chgPct} decimals={2} /> },
+    { key: 'amount', label: '거래대금', get: r => (r.amount == null ? null : r.amount / 1e12), num: true, role: 'sub',
+      render: r => (r.amount == null ? null : `${fmtNumber(r.amount / 1e12, 2)}조`) },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* 머리 */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><House size={18} aria-hidden />오늘</h1>
+        {mk?.today && <span className="text-13 text-ink-2">{dayLabel(mk.today)}</span>}
+        {mk && <Pill tone={mk.state === 'open' ? 'g' : 'o'}>{mk.label}</Pill>}
+        {mk && mk.state !== 'open' && mk.nextOpen && <span className="text-12 text-ink-3">다음 개장 <span className="num">{mdHm(mk.nextOpen)}</span></span>}
+      </header>
+
+      {/* 오늘 한 줄 */}
+      <p className="m-0 text-13 text-ink-2 max-w-[44em]">
+        {!home.todayLine ? '오늘 한 줄이 아직 없습니다.' : (
+          <>
+            <span className="hidden pc:inline">{emphasize(home.todayLine.pc)}</span>
+            <span className="pc:hidden">{emphasize(home.todayLine.mobile)}</span>
+          </>
+        )}
+      </p>
+
+      {/* 지표 띠 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 pc:grid-cols-8 gap-2">
+        {strip.map(it => (
+          <StripCard key={it.id} item={it} selected={it.id === sel?.id} onSelect={() => setS(it.id)}
+            watched={watch.has(it.id)} onWatch={() => watch.toggle(it.id)} />
+        ))}
+      </div>
+
+      <SegBar label="띠 보기" options={VIEWS} value={v} onChange={setV} />
+
+      <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
+        {/* 큰 차트 */}
+        {sel && (
+          <Panel className="pc:col-span-6" title={sel.short || sel.label} asOf={sel.asOf} state={sel.state} liveUntil={sel.liveUntil}
+            tools={<Link to={`/i/${sel.id}`} className="inline-flex items-center text-12 text-ink-2 no-underline hover:text-ink-1">자세히<ChevronRight size={14} aria-hidden /></Link>}>
+            <div className="mb-2"><NumBlock value={selV} decimals={sel.decimals} chg={selC} pct={sel.changePct} size="L" unit={shownUnit(sel)} /></div>
+            <LineChart key={sel.id} label={sel.label} periods={periods} period={p} onPeriod={setP} decimals={sel.decimals}
+              base={selV != null && selC != null ? { value: selV - selC, label: '전일' } : null}
+              limit={trig ? { value: trig.level!, label: `${trig.stateLabel ?? ''} 기준` } : null}
+              empty={!useKospi && series[sel.id] === null ? '불러오는 중' : '시계열 준비 중'} />
+          </Panel>
+        )}
+
+        {/* 업종 히트맵 */}
+        <Panel className="pc:col-span-3" title="업종" asOf={home.sectors?.asOf} state={home.sectors?.state}>
+          {home.sectors?.items.length
+            ? <Heatmap label="업종 등락률" minCell={56} cells={home.sectors.items.map(x => ({ key: x.name, name: x.name, value: x.chgPct }))} />
+            : <p className="m-0 text-13 text-ink-3">업종 자료가 없습니다.</p>}
+        </Panel>
+
+        {/* 관심 */}
+        <Panel className="pc:col-span-3" title="관심">
+          {!watchRows.length ? <p className="m-0 text-13 text-ink-3">지표 옆 별을 눌러 담으세요</p> : (
+            <ul className="m-0 p-0 list-none">
+              {watchRows.map(r => {
+                const body = (
+                  <>
+                    <span className="min-w-0 text-13 text-ink-1">{r.name}</span>
+                    <span className="shrink-0 text-right">
+                      <span className="block num text-13 text-ink-1">{`${fmtNumber(r.value, r.decimals)}${r.unit ?? ''}`}</span>
+                      <ChangeText chg={r.chg} pct={r.pct} decimals={r.decimals} />
+                    </span>
+                  </>
+                )
+                const row = 'flex-1 min-w-0 flex items-center justify-between gap-2 py-1.5'
+                return (
+                  <li key={r.id} className="flex items-center gap-1 border-b border-line last:border-b-0">
+                    <WatchStar on onToggle={() => watch.toggle(r.id)} label={r.name} />
+                    {r.link ? <Link to={`/i/${r.id}`} className={`${row} no-underline`}>{body}</Link> : <div className={row}>{body}</div>}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Panel>
+
+        {/* 거래대금 상위 */}
+        <Panel className="pc:col-span-4" title="거래대금 상위" asOf={home.topAmount?.asOf} state={home.topAmount?.state}>
+          {home.topAmount?.items.length
+            ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={home.topAmount.items.slice(0, 10)} rowKey={r => r.code}
+                lead={r => <WatchStar on={watch.has(r.code)} onToggle={() => watch.toggle(r.code)} label={r.name} />} />
+            : <p className="m-0 text-13 text-ink-3">거래대금 자료가 없습니다.</p>}
+        </Panel>
+
+        {/* 투자자 매매 */}
+        <Panel className="pc:col-span-4" title="투자자 매매" fold="mobile" unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state}>
+          {inv?.today ? (
+            <div className="flex flex-col gap-4">
+              <DivergingBars label={`오늘 ${inv.market ?? ''} 투자자별 순매수(${inv.unit ?? ''})`} bars={[
+                { key: 'foreign', label: '외국인', value: inv.today.foreign },
+                { key: 'inst', label: '기관', value: inv.today.inst },
+                { key: 'retail', label: '개인', value: inv.today.retail },
+              ]} />
+              {flow20.length > 1 && (
+                <div>
+                  <p className="m-0 mb-1 text-12 text-ink-2">외국인 {flow20.length}거래일</p>
+                  <DivergingBars vertical label={`외국인 ${flow20.length}거래일 순매수`}
+                    bars={flow20.map(r => ({ key: String(r[0]), label: shortDate(String(r[0])), value: r[invCol('foreign')] as number | null }))} />
+                  <div className="flex justify-between mt-1 text-11 text-ink-3 num">
+                    <span>{shortDate(String(flow20[0][0]))}</span><span>{shortDate(String(flow20[flow20.length - 1][0]))}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : <p className="m-0 text-13 text-ink-3">수급 자료가 없습니다.</p>}
+        </Panel>
+
+        {/* 일정·알림 */}
+        <Panel className="pc:col-span-4" title="일정·알림" fold="mobile">
+          {home.schedule?.length ? (
+            <ul className="m-0 p-0 list-none">
+              {(home.schedule as SchedRow[]).map((e, i) => (
+                <li key={`${e.date}-${e.name}-${i}`} className="flex items-baseline gap-3 py-1.5 border-b border-line last:border-b-0">
+                  <span className="w-[5.5rem] shrink-0 num text-12 text-ink-3">{`${e.date === mk?.today ? '오늘' : shortDate(e.date)}${e.time ? ` ${e.time}` : ''}`}</span>
+                  <span className="flex-1 min-w-0 text-13 text-ink-1">
+                    {e.kind && CORP_KIND[e.kind] && <span className="mr-1.5"><Pill tone="o">{CORP_KIND[e.kind]}</Pill></span>}
+                    {e.name}{e.approx ? <span className="text-ink-3"> (추정)</span> : null}
+                  </span>
+                  {!!e.stars && <span className="shrink-0 text-11 text-ink-3" aria-label={`중요도 ${e.stars}`}>{'★'.repeat(e.stars)}</span>}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="m-0 text-13 text-ink-3">다가오는 일정이 없습니다.</p>}
+          <Link to="/alerts" className="inline-flex items-center mt-3 text-12 text-ink-2 no-underline hover:text-ink-1">알림 조건 보기<ChevronRight size={14} aria-hidden /></Link>
+        </Panel>
+
+        {/* 렌즈 오늘 */}
+        <Panel className="pc:col-span-8" title="렌즈 오늘" source={lens?.asOf ? `${shortDate(lens.asOf)} 기준` : undefined}
+          tools={<Link to="/lens" className="inline-flex items-center text-12 text-ink-2 no-underline hover:text-ink-1">렌즈로<ChevronRight size={14} aria-hidden /></Link>}>
+          {!lens ? <p className="m-0 text-13 text-ink-3">렌즈 자료가 없습니다.</p> : (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-12 text-ink-2">위험 점수</span>
+                <span className="num text-24 font-bold text-ink-1">{fmtNumber(lens.score)}</span>
+                {lens.delta30d != null && <span className={`num text-12 ${DIR_TEXT[changeDir(lens.delta30d, 1)]}`}>30일 {fmtChange(lens.delta30d, null, 1)}</span>}
+                {lens.hotChains != null && <span className="text-12 text-ink-3">움직이는 사슬 {lens.hotChains}개</span>}
+              </div>
+              <ul className="m-0 p-0 list-none flex flex-col gap-2">
+                {[...lens.breach.map(t => ['x', t] as const), ...lens.watch.map(t => ['n', t] as const)].map(([tone, t]) => <TriggerRow key={`${tone}-${t.id}`} tone={tone} t={t} />)}
+                {lens.chain && (
+                  <li className="flex flex-wrap items-center gap-x-2 gap-y-1 text-13">
+                    <Pill tone="o">사슬</Pill>
+                    <span className="font-bold text-ink-1">{lens.chain.label}</span>
+                    <span className="inline-flex flex-wrap items-center gap-x-1 text-12 text-ink-2">
+                      {lens.chain.steps.map((st, i) => (
+                        <span key={i} className="inline-flex items-center gap-x-1">
+                          {i > 0 && <ChevronRight size={12} aria-hidden className="text-ink-3" />}
+                          <span className={st.id === lens.chain!.hotStep ? 'font-bold text-ink-1' : undefined}>{st.label}</span>
+                        </span>
+                      ))}
+                    </span>
+                    {lens.chain.n != null && <span className="text-11 text-ink-3">글 {lens.chain.n}편{lens.chain.lastDate ? ` · 최근 ${shortDate(lens.chain.lastDate)}` : ''}</span>}
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </Panel>
+
+        {/* 뉴스 — 늘 접힘. 12열에서 8 + 3 이면 끝 1칸이 비어 오른쪽 끝선이 어긋나므로 4로 채운다 */}
+        <Panel className="pc:col-span-4" title="뉴스" fold="always">
+          {home.news?.length ? (
+            <ul className="m-0 p-0 list-none">
+              {home.news.slice(0, 5).map(n => (
+                <li key={n.url} className="py-1.5 border-b border-line last:border-b-0">
+                  <a href={n.url} target="_blank" rel="noopener noreferrer" className="text-13 text-ink-1 no-underline hover:underline">{n.title}</a>
+                  <span className="block text-11 text-ink-3">{host(n.url)}{n.date ? <> · <span className="num">{shortDate(n.date)}</span></> : null}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="m-0 text-13 text-ink-3">뉴스가 없습니다.</p>}
+        </Panel>
+      </div>
+    </div>
+  )
+}
+
+/** 렌즈 트리거 한 줄: 알약(돌파 x · 주시 n) + 이름 + 지금 값 + 기준과 거리. */
+function TriggerRow({ tone, t }: { tone: 'x' | 'n'; t: Trigger }) {
+  const u = t.unit === '%' || t.unit === '엔' ? t.unit : ''
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1 text-13">
+      <Pill tone={tone}>{t.stateLabel ?? (tone === 'x' ? '돌파' : '주시')}</Pill>
+      <span className="text-ink-1">{t.label}</span>
+      <span className="num font-bold text-ink-1">{`${fmtNumber(t.value, 2)}${u}`}</span>
+      <span className="text-12 text-ink-3">기준 <span className="num">{`${fmtNumber(t.level, 2)}${u}`}</span>{t.distancePct != null && <> · <span className="num">{fmtPct(t.distancePct)}</span></>}</span>
+    </li>
+  )
+}

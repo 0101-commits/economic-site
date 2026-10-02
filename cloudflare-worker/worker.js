@@ -71,10 +71,12 @@ const GET_CORS = {
   'Access-Control-Max-Age': '86400',
 };
 const POST_CORS = {
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  // GET·PUT·DELETE — /prefs·/push/subscribe(1층 사용자 데이터). GET 은 X-Sync-Key-Hash 때문에 preflight 를 탄다.
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   // X-Sync-Key-Hash — GET /portfolio 의 키 해시 전달용 커스텀 헤더(아래 handlePortfolioGet 참고).
   //   /portfolio 경로의 preflight 는 이 POST_CORS 를 쓰므로 여기 허용 목록에 함께 둔다.
-  'Access-Control-Allow-Headers': 'content-type, x-sync-key-hash',
+  // If-Match — PUT /prefs 의 동시 저장 충돌 검사(409).
+  'Access-Control-Allow-Headers': 'content-type, x-sync-key-hash, if-match',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -108,10 +110,11 @@ function _originAllowed(request) {
 
 // [이슈8] POST 응답용 CORS — 요청 Origin 이 화이트리스트에 있으면 그 Origin 을 ACAO 로 echo,
 //   아니면 ACAO 미포함(브라우저가 본문을 못 읽음). Vary:Origin 으로 캐시 오염 방지.
-function postCors(request) {
+//   env.DEV_CORS==='1' 이면 Vite 개발 출처(localhost:5173)도 echo 한다(_corsOriginOk). 기본은 운영 출처만.
+function postCors(request, env) {
   const o = request.headers.get('Origin');
   const h = { ...POST_CORS, 'Vary': 'Origin' };
-  if (o && ALLOWED_ORIGINS.has(o)) h['Access-Control-Allow-Origin'] = o;
+  if (_corsOriginOk(o, env)) h['Access-Control-Allow-Origin'] = o;
   return h;
 }
 
@@ -904,6 +907,284 @@ async function handlePortfolioTest(request, env) {
 }
 
 // ──────────────────────────────────────────────────────────────────
+// 1층 사용자 데이터 — GET/PUT /prefs, 웹 푸시 구독 — GET/PUT/DELETE /push/subscribe
+// ──────────────────────────────────────────────────────────────────
+// 기획안 v4 보안 위험 3: 관심 지표·종목, 알림 조건, 화면 설정을 공개 저장소(alerts_config.json)가 아니라 KV 에 둔다.
+// 현행 /portfolio 와 병행한다 — 알림 파이프라인(check_alerts.py)은 아직 alerts_config.json 만 읽는다.
+// 공간은 키 해시별로 나뉜다(prefs:<keyHash 앞 16자>, push:<keyHash 앞 16자>). 동기화 키를 바꾸면 빈 새 공간에서
+// 시작하고 옛 값은 KV 에 그대로 남는다.
+// 2층(보유: 금액·수량·평단가)은 받지 않는다 — 그 이름의 키가 본문 어디에든 있으면 통째로 400.
+// 보유정보는 /portfolio 의 암호문(encHoldings)으로만 오간다.
+const PREFS_MAX_BYTES = 32 * 1024;
+const PREFS_ALERT_TYPES = ['price', 'pct', 'high52', 'event', 'flow', 'lens'];
+const PREFS_CHANNELS = ['push', 'discord'];
+const PREFS_ID = /^[A-Za-z0-9._:^=\-]{1,64}$/;
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+// 2층 필드 이름 — NFKC 로 정규화(전각 ｑｔｙ → qty)하고 소문자로 바꾼 뒤 공백·_·-·보이지 않는 글자를 빼고 비교한다.
+// 현행 보유 항목이 실제로 쓰는 이름(avg·qty·fxBuy, js/app2.js)과 흔한 다른 이름을 담는다.
+// 단독 amount·금액·balance 는 넣지 않는다 — 수급 알림 cond 의 금액 기준이나 시나리오 입력이 정당하게 쓴다.
+// ponytail: 이름 목록이라 작정하고 바꾼 이름은 못 막는다. 목적은 우리 화면이 실수로 보유정보를 섞는 것을 막는 것이고,
+//   이 KV 는 공개 저장소가 아니다. 더 막아야 하면 cond·inputs 도 아는 키만 받게 바꾼다.
+const TIER2_KEYS = new Set([
+  'avg', 'avgpx', 'avgprice', 'avgcost', 'averageprice', 'averagecost', 'buyprice', 'purchaseprice',
+  'qty', 'quantity', 'shares', 'units', 'position', 'positions', 'cost', 'costkrw', 'costbasis', 'principal',
+  'fxbuy', 'buyfx', 'purchasefx', 'holding', 'holdings', 'encholdings',
+  '평단', '평단가', '평균단가', '매입가', '매입단가', '매수가', '매수단가', '매입환율', '수량', '보유수량', '보유량',
+  '매입금액', '매수금액', '투자금액', '보유금액', '평가금액', '원금', '잔고',
+]);
+// 웹 푸시 구독 — 기기당 1개(endpoint 로 구분), 공간당 최대 5개. 넘치면 가장 오래된 것을 버린다.
+const PUSH_MAX = 5;
+// 발송 스크립트가 이 주소로 POST 하므로 알려진 브라우저 푸시 서비스만 받는다(임의 주소 저장 차단).
+const PUSH_HOSTS = /(^|\.)(fcm\.googleapis\.com|push\.services\.mozilla\.com|notify\.windows\.com|push\.apple\.com)$/;
+
+// 개발 출처 — Vite 개발 서버. 변수 DEV_CORS='1' 일 때만 허용한다(운영 기본은 불허).
+const DEV_ORIGINS = new Set(['http://localhost:5173', 'http://127.0.0.1:5173']);
+function _corsOriginOk(o, env) {
+  return !!o && (ALLOWED_ORIGINS.has(o) || (!!env && String(env.DEV_CORS || '').trim() === '1' && DEV_ORIGINS.has(o)));
+}
+
+const _isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+const _isoOrNull = v => (typeof v === 'string' && v.length <= 40 && !isNaN(Date.parse(v))) ? v : null;
+
+// 본문 어디에든 2층 이름의 키가 있으면 그 키를 돌려준다(없으면 null). 버려질 필드 안까지 본다.
+// 깊이는 호출 전에 _validateDepth 로 묶는다.
+function _findTier2Key(v) {
+  if (!v || typeof v !== 'object') return null;
+  for (const k of Object.keys(v)) {
+    if (TIER2_KEYS.has(k.normalize('NFKC').toLowerCase().replace(/[\s_\-\p{Cf}]/gu, ''))) return k;
+    const hit = _findTier2Key(v[k]);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+// 화이트리스트 — 아는 필드만 골라 담고 나머지는 버린다. 개수 상한을 넘는 항목도 버린다.
+// 알림 cond 가 512자를 넘으면 그 알림을 조용히 버리지 않고 오류 문자열을 던진다(호출부가 400).
+function _sanitizePrefs(raw) {
+  const r = _isObj(raw) ? raw : {};
+  const list = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
+  const watch = [];
+  const seen = new Set();
+  for (const w of list(r.watch, 100)) {
+    if (!_isObj(w) || typeof w.id !== 'string' || !PREFS_ID.test(w.id)) continue;
+    if (w.kind !== 'indicator' && w.kind !== 'stock') continue;
+    if (seen.has(w.kind + ':' + w.id)) continue;
+    seen.add(w.kind + ':' + w.id);
+    watch.push({ id: w.id, kind: w.kind, addedAt: _isoOrNull(w.addedAt) });
+  }
+  const alerts = [];
+  for (const a of list(r.alerts, 100)) {
+    if (!_isObj(a) || typeof a.id !== 'string' || !PREFS_ID.test(a.id)) continue;
+    if (typeof a.target !== 'string' || !PREFS_ID.test(a.target) || !PREFS_ALERT_TYPES.includes(a.type)) continue;
+    const cond = _isObj(a.cond) ? a.cond : {};
+    if (JSON.stringify(cond).length > 512) throw 'cond_too_large';
+    alerts.push({
+      id: a.id, target: a.target, type: a.type, cond,
+      repeat: a.repeat === 'daily' ? 'daily' : 'once',
+      channels: PREFS_CHANNELS.filter(c => Array.isArray(a.channels) && a.channels.includes(c)),
+      enabled: a.enabled !== false,
+    });
+  }
+  // 설정 — 값이 없거나 모르는 값이면 목록의 첫 값이 기본이다(system·kr·man). 방해 금지 시간은 둘 다 HH:MM 일 때만.
+  const s = _isObj(r.settings) ? r.settings : {};
+  const q = _isObj(s.quiet) ? s.quiet : {};
+  const settings = {
+    theme: s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
+    updown: s.updown === 'us' ? 'us' : 'kr',
+    unit: s.unit === 'won' ? 'won' : 'man',
+    quiet: typeof q.from === 'string' && typeof q.to === 'string' && HHMM.test(q.from) && HHMM.test(q.to)
+      ? { from: q.from, to: q.to } : null,
+  };
+  const scenarios = [];
+  for (const sc of list(r.scenarios, 20)) {
+    if (!_isObj(sc) || typeof sc.name !== 'string' || !sc.name.trim()) continue;
+    scenarios.push({ name: sc.name.trim().slice(0, 60), inputs: _isObj(sc.inputs) ? sc.inputs : {} });
+  }
+  return { watch, alerts, settings, scenarios };
+}
+
+function _sanitizePushSub(raw) {
+  if (!_isObj(raw) || typeof raw.endpoint !== 'string' || raw.endpoint.length > 1024) return null;
+  let u;
+  try { u = new URL(raw.endpoint); } catch { return null; }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port || !PUSH_HOSTS.test(u.hostname)) return null;
+  const k = _isObj(raw.keys) ? raw.keys : {};
+  const b64u = s => typeof s === 'string' && /^[A-Za-z0-9_\-=]{8,256}$/.test(s);
+  if (!b64u(k.p256dh) || !b64u(k.auth)) return null;
+  const exp = typeof raw.expirationTime === 'number' && isFinite(raw.expirationTime) ? raw.expirationTime : null;
+  return { endpoint: raw.endpoint, expirationTime: exp, keys: { p256dh: k.p256dh, auth: k.auth } };
+}
+
+// 인증(_verifySyncKey 그대로) 뒤 이 키 해시의 KV 키를 정한다. 검증을 통과한 해시만 쓰이므로 공간이 섞이지 않는다.
+async function _userKvKey(request, env, prefix) {
+  const keyHash = String(request.headers.get('X-Sync-Key-Hash') || '').toLowerCase();
+  const denied = await _verifySyncKey({ keyHash }, env);
+  if (denied) return { denied };
+  if (!env.ECON_PORTFOLIO) return { denied: jsonResponse({ error: 'kv_not_configured' }, 503) };
+  return { kvKey: prefix + keyHash.slice(0, 16) };
+}
+
+async function _readJsonBody(request, maxBytes) {
+  if (Number(request.headers.get('content-length')) > maxBytes) {
+    return { err: jsonResponse({ error: 'payload_too_large', limit: maxBytes }, 413) };
+  }
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).length > maxBytes) {
+    return { err: jsonResponse({ error: 'payload_too_large', limit: maxBytes }, 413) };
+  }
+  try { return { body: JSON.parse(raw || '{}') }; }
+  catch { return { err: jsonResponse({ error: 'invalid_json' }, 400) }; }
+}
+
+// GET /prefs — 없으면 빈 기본값 200. PUT /prefs — 전체 교체.
+//   If-Match: <updatedAt> 이 있으면 저장본의 updatedAt 과 다를 때 409(다른 기기가 먼저 저장함).
+//   저장본이 없을 때는 If-Match 가 "" 또는 "null" 이어야 통과한다.
+//   값 비교만 한다 — `*`·약한 비교(W/"…")는 지원하지 않아 409 가 된다.
+// ponytail: KV 는 트랜잭션이 없고 다른 지역에 반영되기까지 최대 약 60초 걸린다. 그 사이 다른 지역 기기의 PUT 은
+//   서로 덮어쓸 수 있다(같은 기기·같은 지역의 연속 저장은 잡힌다). 엄밀한 비교-후-쓰기가 필요하면 Durable Object 로 옮긴다.
+async function handlePrefs(request, env) {
+  const a = await _userKvKey(request, env, 'prefs:');
+  if (a.denied) return a.denied;
+  let cur;
+  try { cur = await env.ECON_PORTFOLIO.get(a.kvKey, 'json'); }
+  catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
+  if (request.method === 'GET') return jsonResponse(cur || { v: 1, updatedAt: null, ..._sanitizePrefs({}) });
+
+  const b = await _readJsonBody(request, PREFS_MAX_BYTES);
+  if (b.err) return b.err;
+  if (!_validateDepth(b.body, 6)) return jsonResponse({ error: 'too_deep' }, 400);
+  const t2 = _findTier2Key(b.body);
+  if (t2) {
+    return jsonResponse({ error: 'tier2_field_rejected', field: t2,
+      message: '금액·수량·평단가 같은 보유정보는 /prefs 에 저장할 수 없습니다.' }, 400);
+  }
+  const have = (cur && cur.updatedAt) || '';
+  const ifMatch = request.headers.get('If-Match');
+  if (ifMatch !== null) {
+    const want = ifMatch.trim().replace(/^"|"$/g, '');
+    if ((want === 'null' ? '' : want) !== have) return jsonResponse({ error: 'conflict', updatedAt: have || null }, 409);
+  }
+  let clean;
+  try { clean = _sanitizePrefs(b.body); }
+  catch (e) { if (typeof e === 'string') return jsonResponse({ error: e }, 400); throw e; }
+  // updatedAt 은 저장본보다 반드시 커야 If-Match 가 구분된다(같은 밀리초 두 번 저장 대비).
+  const t = Math.max(Date.now(), (Date.parse(have) || 0) + 1);
+  const doc = { v: 1, updatedAt: new Date(t).toISOString(), ...clean };
+  const out = JSON.stringify(doc);
+  if (new TextEncoder().encode(out).length > PREFS_MAX_BYTES) {
+    return jsonResponse({ error: 'prefs_too_large', limit: PREFS_MAX_BYTES,
+      message: '정리한 문서가 32KB 를 넘습니다. 항목을 줄여 주세요.' }, 413);
+  }
+  try { await env.ECON_PORTFOLIO.put(a.kvKey, out); }
+  catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+  return jsonResponse(doc);
+}
+
+// GET /push/subscribe — { vapidPublicKey, count } (브라우저 pushManager.subscribe 의 applicationServerKey 용).
+// PUT — 본문 = PushSubscription.toJSON() 그대로. 같은 endpoint 는 교체(기기당 1개).
+// DELETE — 본문 { endpoint }. 발송은 scripts/send_push.py 가 아래 /push/subscriptions 로 읽어 한다.
+async function handlePushSubscribe(request, env) {
+  const a = await _userKvKey(request, env, 'push:');
+  if (a.denied) return a.denied;
+  const vapid = String(env.VAPID_PUBLIC_KEY || '').trim();
+  if (!vapid) {
+    return jsonResponse({ error: 'push_not_configured',
+      message: 'Worker 시크릿 VAPID_PUBLIC_KEY 가 없어 푸시 구독을 받지 않습니다.' }, 503);
+  }
+  let subs;
+  try { subs = await env.ECON_PORTFOLIO.get(a.kvKey, 'json'); }
+  catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
+  if (!Array.isArray(subs)) subs = [];
+  if (request.method === 'GET') return jsonResponse({ vapidPublicKey: vapid, count: subs.length });
+
+  const b = await _readJsonBody(request, 4096);
+  if (b.err) return b.err;
+  let next;
+  if (request.method === 'PUT') {
+    const sub = _sanitizePushSub(b.body);
+    if (!sub) return jsonResponse({ error: 'invalid_subscription' }, 400);
+    next = [...subs.filter(s => s.endpoint !== sub.endpoint), sub].slice(-PUSH_MAX);
+  } else {
+    const ep = _isObj(b.body) && typeof b.body.endpoint === 'string' ? b.body.endpoint : '';
+    if (!ep) return jsonResponse({ error: 'endpoint_required' }, 400);
+    next = subs.filter(s => s.endpoint !== ep);
+  }
+  try { await env.ECON_PORTFOLIO.put(a.kvKey, JSON.stringify(next)); }
+  catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+  return jsonResponse({ ok: true, count: next.length });
+}
+
+// /prefs · /push/subscribe 공통 관문 — 메서드 → 출처 → 레이트리밋(AI_LIMITER, fail-closed) → 처리 → 출처 제한 CORS.
+// Origin 이 없는 서버측 호출은 기존 POST 경로와 같이 통과시키고 인증·레이트리밋으로 막는다.
+const USER_DATA_METHODS = { '/prefs': ['GET', 'PUT'], '/push/subscribe': ['GET', 'PUT', 'DELETE'] };
+async function handleUserData(request, env, path) {
+  const pc = { ...postCors(request, env), 'Cache-Control': 'no-store' };
+  if (!USER_DATA_METHODS[path].includes(request.method)) {
+    return jsonResponse({ error: 'method_not_allowed', allow: USER_DATA_METHODS[path] }, 405, pc);
+  }
+  const o = request.headers.get('Origin');
+  if (o && !_corsOriginOk(o, env)) return jsonResponse({ error: 'forbidden_origin' }, 403, pc);
+  const rl = await _rateLimited(env, 'AI_LIMITER', request, true);
+  if (rl) return _withCors(rl, pc);
+  try {
+    const resp = path === '/prefs' ? await handlePrefs(request, env) : await handlePushSubscribe(request, env);
+    return _withCors(resp, pc);
+  } catch (e) {
+    console.log('[user-data] 예외:', String((e && e.message) || e));
+    return jsonResponse({ error: 'internal_error' }, 500, pc);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 웹 푸시 공개키 — GET /push/key (인증 없음), 발송기 전용 — GET /push/subscriptions · PUT /push/prune
+// ──────────────────────────────────────────────────────────────────
+// 공개키는 본래 공개값이라 동기화 키 없이 준다(브라우저가 구독 전에 읽는다). 없으면 503.
+// 발송기(scripts/send_push.py)는 Worker 시크릿 PUSH_READ_KEY 를 헤더 X-Push-Read-Key 로 보낸다.
+//   KV 읽기 토큰을 발송기에 주면 auth:syncKeyHash 까지 읽혀 동기화 키를 준 것과 같아지므로, 구독만 내주는 이 경로를 둔다.
+//   PUSH_READ_KEY 가 없으면 503(fail-closed), 틀리면 401.
+// 발송 대상은 지금 유효한 동기화 키의 공간(push:<기대 해시 앞 16자>) 하나뿐이다. 키를 바꾸면 옛 키 공간의 구독에는
+//   보내지 않는다 — 옛 키를 알던 사람이 넣어 둔 구독이 알림 내용을 계속 받지 않게. 기기에서 다시 켜면 새 공간에 들어간다.
+async function handlePushSender(request, env, path) {
+  const nc = { 'Cache-Control': 'no-store' };   // 브라우저용이 아니므로 CORS 헤더를 붙이지 않는다
+  const want = path === '/push/subscriptions' ? 'GET' : 'PUT';
+  if (request.method !== want) return jsonResponse({ error: 'method_not_allowed', allow: [want] }, 405, nc);
+  const secret = String(env.PUSH_READ_KEY || '').trim();
+  if (!secret) return jsonResponse({ error: 'push_read_not_configured' }, 503, nc);
+  if (!_hexEq(String(request.headers.get('X-Push-Read-Key') || '').trim(), secret)) {
+    return jsonResponse({ error: 'unauthorized' }, 401, nc);
+  }
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, nc);
+  let space, kvKey, subs;
+  try {
+    const h = await _expectedSyncKeyHash(env);
+    if (!h) return jsonResponse({ error: 'sync_key_not_configured' }, 503, nc);
+    space = h.slice(0, 16);
+    kvKey = 'push:' + space;
+    subs = await env.ECON_PORTFOLIO.get(kvKey, 'json');
+  } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, nc); }
+  if (!Array.isArray(subs)) subs = [];
+  if (want === 'GET') {
+    // 조용한 시간(/prefs settings.quiet, 한국 시각 HH:MM) — 발송기가 이 시간엔 폰 알림을 보내지 않는다. 못 읽으면 null.
+    let quiet = null;
+    try { const p = await env.ECON_PORTFOLIO.get('prefs:' + space, 'json'); quiet = (p && p.settings && p.settings.quiet) || null; }
+    catch (_) { /* 조용한 시간 없이 보낸다 — 구독 목록은 이미 읽었다 */ }
+    return jsonResponse({ subs, quiet }, 200, nc);
+  }
+
+  // PUT /push/prune — 본문 { endpoints: [...] }. 푸시 서비스가 410/404(구독 사라짐)로 답한 주소만 지운다.
+  const b = await _readJsonBody(request, 16384);
+  if (b.err) return _withCors(b.err, nc);
+  const gone = _isObj(b.body) && Array.isArray(b.body.endpoints) ? b.body.endpoints.filter(e => typeof e === 'string') : null;
+  if (!gone) return jsonResponse({ error: 'endpoints_required' }, 400, nc);
+  const next = subs.filter(s => !gone.includes(s.endpoint));
+  if (next.length !== subs.length) {
+    try { await env.ECON_PORTFOLIO.put(kvKey, JSON.stringify(next)); }
+    catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, nc); }
+  }
+  return jsonResponse({ ok: true, removed: subs.length - next.length, count: next.length }, 200, nc);
+}
+
+// ──────────────────────────────────────────────────────────────────
 // ⏰ Cron Trigger 핸들러 — 카카오 시황 자동 발송 (정시성 보강)
 // ──────────────────────────────────────────────────────────────────
 // wrangler.jsonc 의 triggers.crons(각 슬롯 :02 UTC = 평일 KST 07~22시 매시간·주말 11·17시, :03 발송)에 따라 호출된다.
@@ -1397,8 +1678,23 @@ export default {
     // CORS preflight — [이슈8] POST 엔드포인트는 출처 제한 CORS(postCors), 그 외는 퍼블릭 GET_CORS.
     if (request.method === 'OPTIONS') {
       const _p = new URL(request.url).pathname;
-      const _isPost = (_p === '/ai' || _p === '/portfolio' || _p === '/portfolio/test' || _p === '/sync-key');
-      return new Response(null, { headers: _isPost ? postCors(request) : GET_CORS });
+      const _isPost = (_p === '/ai' || _p === '/portfolio' || _p === '/portfolio/test' || _p === '/sync-key' ||
+                       _p === '/prefs' || _p === '/push/subscribe');
+      return new Response(null, { headers: _isPost ? postCors(request, env) : GET_CORS });
+    }
+
+    // 1층 사용자 데이터(관심·알림 조건·화면 설정)와 웹 푸시 구독 — GET/PUT/DELETE 를 한 관문에서 받는다.
+    {
+      const _p = new URL(request.url).pathname;
+      if (_p === '/prefs' || _p === '/push/subscribe') return handleUserData(request, env, _p);
+      // 웹 푸시 공개키(인증 없음) — 브라우저가 구독 전에 읽는다. 공개값이라 GET_CORS(*).
+      if (_p === '/push/key') {
+        if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405);
+        const vapid = String(env.VAPID_PUBLIC_KEY || '').trim();
+        return vapid ? jsonResponse({ vapidPublicKey: vapid })
+          : jsonResponse({ error: 'push_not_configured', message: 'Worker 시크릿 VAPID_PUBLIC_KEY 가 없습니다.' }, 503);
+      }
+      if (_p === '/push/subscriptions' || _p === '/push/prune') return handlePushSender(request, env, _p);
     }
 
     // 🤖 AI 시황 요약 — POST /ai : 프론트가 보낸 '그 순간의 시장 스냅샷'을 Anthropic(Claude)
@@ -1411,7 +1707,7 @@ export default {
         return handleDiscordInteractions(request, env, ctx);
       }
       // [이슈8] POST 응답 CORS — 화이트리스트 Origin 만 echo(그 외 ACAO 미포함). 모든 분기에 일괄 적용.
-      const pc = postCors(request);
+      const pc = postCors(request, env);
       // 비용/쓰기가 발생하는 POST 경로 — 자기 사이트 출처가 아니면 거부 (캐주얼 남용 차단)
       if (!_originAllowed(request)) return jsonResponse({ error: 'forbidden_origin' }, 403, pc);
       // [이슈3] IP 레이트리밋 (AI_LIMITER, 분당 10회) — LLM 비용·GitHub 커밋 스팸 방어.

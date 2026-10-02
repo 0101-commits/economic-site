@@ -21,6 +21,9 @@ on:
     #   중복 발화는 check_alerts 의 도배 방지(met/date/ts)와 concurrency 가 흡수한다.
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 0-6 * * 1-5'    # 한국 장중 (09:00–15:55 KST)
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 13-21 * * 1-5'  # 미국 장중 (22:00–06:55 KST)
+    # 매일 21:05 KST 1회(주말 포함) — 새 화면 「일정 전날」 조건의 창(전날 21:00~발표 전) 안에 런이 없는 구간을 메운다
+    #   (월요일 아침 일정·평일 21~22시). 장 밖이라 현행 종목·급변·서킷 판정은 시장 시간 가드로 그대로 건너뛴다.
+    - cron: '5 12 * * *'
   workflow_dispatch: {}
   # 🔔 두 가지 repository_dispatch:
   #   • alerts-test — 프런트 '테스트 발송' 버튼 → Worker POST /portfolio/test. 장중/쿨다운 가드를
@@ -62,6 +65,7 @@ jobs:
         # pynacl: 카카오 refresh_token 자동 회전 시 GH_SECRETS_PAT 로 시크릿을 갱신하는 데 필요
         # (GitHub Secrets API 는 libsodium 암호화 요구 — kakao-daily.yml 과 동일 배선).
         # matplotlib: 종목·급변·서킷 디스코드 카드(discord_card.py) 렌더용.
+        # pywebpush 는 여기 넣지 않는다 — 「Send web push」 스텝 안에서 설치한다(설치 실패가 알림 잡 전체를 멈추지 않게).
         run: pip install requests pynacl matplotlib
 
       # 한글 폰트(기획 5154773b P1) — 디스코드 카드 한글 라벨용. 매분 런이라 apt 설치 대신
@@ -108,7 +112,27 @@ jobs:
           DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
           # @종목알림 역할 멘션(E1 T2) — 봇 토큰으로 역할 id 를 이름 조회. 미설정이면 무멘션.
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          # 새 화면(app/) 조건 — Worker GET /prefs 인증(SHA-256 → X-Sync-Key-Hash). 미설정이면 그 경로만 건너뛴다.
+          #   사이트에서 「키 바꾸기」를 했다면 이 시크릿도 새 키로 바꿔야 한다(Worker 는 KV 의 새 해시를 우선한다).
+          ALERTS_SYNC_KEY: ${{ secrets.ALERTS_SYNC_KEY }}
         run: python scripts/check_alerts.py
+
+      # 웹 푸시 — check_alerts.py 가 쌓은 scripts/push_queue.json 을 구독한 기기에 보낸다(기획안 v4 D3).
+      #   큐가 없거나 시크릿이 빠지면 아무것도 안 하고 끝난다. 실패해도 다음 감지 스텝·이력 커밋을 막지 않는다.
+      #   always() — 앞 스텝이 실패해도 이미 쌓인 큐는 보낸다. 끝의 --confirm-push 가 실제로 간 것만 「발송됨」으로
+      #   alerts_state.json(_prefs)에 확정한다(안 간 것은 다음 런에 다시 쌓인다). 아래 커밋 스텝이 그 결과를 올린다.
+      #   pywebpush 2.5.0 에서 키 형식·암호화·서명을 실측했다.
+      - name: Send web push
+        if: always()
+        continue-on-error: true
+        env:
+          PUSH_READ_KEY: ${{ secrets.PUSH_READ_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          pip install pywebpush==2.5.0
+          python scripts/send_push.py
+          python scripts/check_alerts.py --confirm-push
 
       # 🚨 시장중단(서킷브레이커) 감지·카카오 — fetch-data.yml 에서 이관(2026-07).
       #   HALTS_LIVE=1: ^KS11/^KQ11 시세를 직접 조회해 감지 → 발동→알림 지연을 fetch-data 경유

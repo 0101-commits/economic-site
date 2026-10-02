@@ -21,7 +21,12 @@ const FILES = [
   'data.json', 'data_meta.json', 'merblog.json', 'mer_signals.json',
   'fundamentals.json', 'link_status.json', 'alerts_state.json', 'history.json',
 ];
-const DIRS = { js: ['.js'], css: ['.css', '.woff2'] };
+// bundles/ = 화면 묶음(scripts/build_bundles.py, fetch-data.yml 이 매 런 만든다) — 새 화면 층이 화면 단위로 읽는 JSON.
+const DIRS = { js: ['.js'], css: ['.css', '.woff2'], bundles: ['.json'] };
+// 새 화면 층: app/dist(빌드 산출물) → _site/next/. pages.yml 이 이 스크립트보다 먼저 빌드한다.
+const APP_DIST = 'app/dist';
+const APP_OUT = 'next';
+const APP_EXTS = ['.js', '.css', '.html', '.svg', '.png', '.woff2', '.webmanifest'];   // .png = 푸시 알림 아이콘, .webmanifest = 홈 화면 추가(iOS 푸시 전제)
 
 const FORBIDDEN = [
   /\.(md|py|pyc|sql|sh|ps1|bat|ya?ml|toml|jsonc|jsonl|mjs|env|pem|key)$/i,
@@ -42,6 +47,7 @@ function collect() {
   fs.rmSync(SITE, { recursive: true, force: true });
   const out = [...FILES];
   for (const [dir, exts] of Object.entries(DIRS)) {
+    if (dir === 'bundles' && !fs.existsSync(path.join(ROOT, dir))) continue;   // 첫 수집 런 전에는 아직 없다
     out.push(...walk(path.join(ROOT, dir)).map(p => rel(p, ROOT))
       .filter(r => exts.includes(path.extname(r).toLowerCase())));
   }
@@ -51,7 +57,14 @@ function collect() {
     fs.mkdirSync(path.dirname(path.join(SITE, r)), { recursive: true });
     fs.copyFileSync(src, path.join(SITE, r));
   }
-  return out.length;
+  const dist = path.join(ROOT, APP_DIST);
+  if (!fs.existsSync(path.join(dist, 'index.html'))) throw new Error(`${APP_DIST} 없음 — npm run build --prefix app 먼저`);
+  const app = walk(dist).map(p => rel(p, dist)).filter(r => APP_EXTS.includes(path.extname(r).toLowerCase()));
+  for (const r of app) {
+    fs.mkdirSync(path.dirname(path.join(SITE, APP_OUT, r)), { recursive: true });
+    fs.copyFileSync(path.join(dist, r), path.join(SITE, APP_OUT, r));
+  }
+  return out.length + app.length;
 }
 
 function check() {
@@ -74,7 +87,8 @@ for (const r of ['CLAUDE.md', 'docs/IMPROVEMENTS.md', 'tests/ui/shots.mjs', 'scr
                  '.omc/state/x.json', 'alerts_config.json', 'x.sql', '.env.local', 'js/README.md']) {
   if (!FORBIDDEN.some(re => re.test(r))) throw new Error(`자가 점검 실패 — 막혀야 함: ${r}`);
 }
-for (const r of [...FILES, 'js/app1.min.js', 'css/seed/seed.css', 'css/fonts/pretendard/a.woff2']) {
+for (const r of [...FILES, 'js/app1.min.js', 'css/seed/seed.css', 'css/fonts/pretendard/a.woff2', 'bundles/home.json',
+                 'next/index.html', 'next/assets/index-a1B2.js', 'next/assets/index-a1B2.css', 'next/sw.js', 'next/icon.png']) {
   if (FORBIDDEN.some(re => re.test(r))) throw new Error(`자가 점검 실패 — 통과해야 함: ${r}`);
 }
 
