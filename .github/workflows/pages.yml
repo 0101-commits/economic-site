@@ -40,7 +40,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      # 새 화면 층(app/, React) — 빌드 결과 app/dist 를 collect_site 가 _site/next/ 로 옮긴다.
+      # 새 화면 층(app/, React) — 빌드 결과 app/dist 를 collect_site 가 _site/(첫 주소)와 _site/next/ 로 옮기고, 현행 index.html 은 legacy.html 로 둔다.
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24

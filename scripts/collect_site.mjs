@@ -16,6 +16,9 @@ import { fileURLToPath } from 'url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = path.join(ROOT, '_site');
 
+// index.html(현행 화면)은 legacy.html 로 배포한다 — 사이트 첫 주소(index.html)는 2026-10-02 부터 새 화면 층(app/dist)이다.
+//   현행 화면은 자료·js·css 를 상대 경로로 부르므로 같은 폴더에 다른 이름으로 두면 그대로 돈다.
+const RENAME = { 'index.html': 'legacy.html' };
 const FILES = [
   'index.html', 'go.html', 'og-cover.png',
   'data.json', 'data_meta.json', 'merblog.json', 'mer_signals.json',
@@ -23,9 +26,10 @@ const FILES = [
 ];
 // bundles/ = 화면 묶음(scripts/build_bundles.py, fetch-data.yml 이 매 런 만든다) — 새 화면 층이 화면 단위로 읽는 JSON.
 const DIRS = { js: ['.js'], css: ['.css', '.woff2'], bundles: ['.json'] };
-// 새 화면 층: app/dist(빌드 산출물) → _site/next/. pages.yml 이 이 스크립트보다 먼저 빌드한다.
+// 새 화면 층: app/dist(빌드 산출물) → _site/(첫 주소) + _site/next/(옛 주소 사본 — 홈 화면에 추가한 기기·북마크용, 전환 단계 C 에서 뺀다).
+// pages.yml 이 이 스크립트보다 먼저 빌드한다.
 const APP_DIST = 'app/dist';
-const APP_OUT = 'next';
+const APP_OUTS = ['', 'next'];
 const APP_EXTS = ['.js', '.css', '.html', '.svg', '.png', '.woff2', '.webmanifest'];   // .png = 푸시 알림 아이콘, .webmanifest = 홈 화면 추가(iOS 푸시 전제)
 
 const FORBIDDEN = [
@@ -54,17 +58,23 @@ function collect() {
   for (const r of out) {
     const src = path.join(ROOT, r);
     if (!fs.existsSync(src)) throw new Error(`허용 목록 파일 없음: ${r}`);   // 반쪽 사이트를 올리느니 직전 배포를 둔다
-    fs.mkdirSync(path.dirname(path.join(SITE, r)), { recursive: true });
-    fs.copyFileSync(src, path.join(SITE, r));
+    const dst = RENAME[r] || r;
+    fs.mkdirSync(path.dirname(path.join(SITE, dst)), { recursive: true });
+    fs.copyFileSync(src, path.join(SITE, dst));
   }
   const dist = path.join(ROOT, APP_DIST);
   if (!fs.existsSync(path.join(dist, 'index.html'))) throw new Error(`${APP_DIST} 없음 — npm run build --prefix app 먼저`);
   const app = walk(dist).map(p => rel(p, dist)).filter(r => APP_EXTS.includes(path.extname(r).toLowerCase()));
-  for (const r of app) {
-    fs.mkdirSync(path.dirname(path.join(SITE, APP_OUT, r)), { recursive: true });
-    fs.copyFileSync(path.join(dist, r), path.join(SITE, APP_OUT, r));
+  for (const outDir of APP_OUTS) {
+    for (const r of app) {
+      const dst = path.join(SITE, outDir, r);
+      if (outDir === '' && fs.existsSync(dst) && r !== 'index.html') throw new Error(`앱 파일이 현행 파일과 겹침: ${r}`);   // assets/·sw.js·manifest 가 현행 파일을 덮지 않게
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      fs.copyFileSync(path.join(dist, r), dst);
+    }
   }
-  return out.length + app.length;
+  if (!fs.existsSync(path.join(SITE, 'legacy.html'))) throw new Error('legacy.html 없음 — 현행 화면이 사라진다');
+  return out.length + app.length * APP_OUTS.length;
 }
 
 function check() {
@@ -87,7 +97,8 @@ for (const r of ['CLAUDE.md', 'docs/IMPROVEMENTS.md', 'tests/ui/shots.mjs', 'scr
                  '.omc/state/x.json', 'alerts_config.json', 'x.sql', '.env.local', 'js/README.md']) {
   if (!FORBIDDEN.some(re => re.test(r))) throw new Error(`자가 점검 실패 — 막혀야 함: ${r}`);
 }
-for (const r of [...FILES, 'js/app1.min.js', 'css/seed/seed.css', 'css/fonts/pretendard/a.woff2', 'bundles/home.json',
+for (const r of [...FILES, 'legacy.html', 'js/app1.min.js', 'css/seed/seed.css', 'css/fonts/pretendard/a.woff2', 'bundles/home.json',
+                 'assets/index-a1B2.js', 'assets/index-a1B2.css', 'sw.js', 'icon.png', 'manifest.webmanifest',
                  'next/index.html', 'next/assets/index-a1B2.js', 'next/assets/index-a1B2.css', 'next/sw.js', 'next/icon.png']) {
   if (FORBIDDEN.some(re => re.test(r))) throw new Error(`자가 점검 실패 — 통과해야 함: ${r}`);
 }

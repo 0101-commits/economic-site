@@ -1,5 +1,5 @@
 // 웹 푸시 — 서비스 워커 등록 · 이 기기 구독 · 해제. 서버는 Worker /push/key · /push/subscribe, 발송은 scripts/send_push.py.
-// 서비스 워커(public/sw.js)는 푸시 전용이고 캐시를 하지 않는다. 범위 = 이 앱 폴더(/economic-site/next/).
+// 서비스 워커(public/sw.js)는 푸시 전용이고 캐시를 하지 않는다. 범위 = 이 앱 폴더(사이트 첫 주소, 옛 next/ 사본은 그 폴더).
 // 동기화 키 해시는 여기 저장하지 않는다 — 부를 때마다 인자로 받은 함수(sync.ts 의 getKeyHash)에서 얻는다.
 
 import { WORKER } from './personal/remote'
