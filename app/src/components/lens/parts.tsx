@@ -25,8 +25,6 @@ export function TrigPill({ t }: { t?: Trigger }) {
   if (!k || !(k in TONE)) return null
   return <Pill tone={TONE[k][0]}>{TONE[k][1]}</Pill>
 }
-/** 지도 점 테두리 = 트리거 상태(돌파 빨강 · 주시 주황 · 그 밖 선색). */
-export const trigBorder = (t?: Trigger) => (t?.state === 'crossed' ? 'border-up' : t?.state === 'near' ? 'border-warn' : 'border-line')
 
 /** 띠 카드: 라벨 위 · 큰 숫자 · 설명 한 줄 아래. */
 export function StatCard({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
@@ -44,5 +42,9 @@ export function StepNum({ n, kind }: { n: number; kind: 'solid' | 'guess' | 'off
   const cls = kind === 'solid' ? 'bg-accent text-on-accent border-accent' : kind === 'guess' ? 'border-dashed border-warn text-warn' : 'border-line text-ink-3'
   return <span aria-hidden className={`size-6 shrink-0 inline-flex items-center justify-center rounded-chip border num text-11 font-bold ${cls}`}>{n}</span>
 }
+
+/** 「만약에」 지도 칸 높이: 390 폭 320px · 768 이상 420px · 1440 이상 480px. 불러오는 중 빈 칸도 같은 값을 쓴다.
+ *  map.ts 가 아니라 여기 두는 까닭: map.ts 를 지도 조각에만 싣기 위해서다(메인 번들이 안 커진다). */
+export const MAP_BOX = 'h-[320px] md:h-[420px] min-[90rem]:h-[480px]'
 
 export const postUrl = (logNo: string) => `https://blog.naver.com/ranto28/${logNo}`
