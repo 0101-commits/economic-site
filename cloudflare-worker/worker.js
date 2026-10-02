@@ -824,7 +824,10 @@ async function handlePortfolioPost(request, env) {
   try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
   const denied = await _verifySyncKey(body, env);
   if (denied) return denied;
-  const alerts = _sanitizeAlerts(body.alerts);
+  // 🔔 알림 조건 — body.alerts 가 배열로 '있을 때만' 갱신, 없으면 기존 저장본을 보존(settings·tracking 과 같은 원칙).
+  //   종전엔 미동봉을 빈 배열로 바꿔 커밋해, 보유 암호문만 올리는 요청이 알림 조건을 전부 지웠다(2026-10-02 검토).
+  const alertsGiven = Array.isArray(body.alerts);
+  let alerts = alertsGiven ? _sanitizeAlerts(body.alerts) : null;
   // ⚙ 전역 알림 설정 — body.settings 가 '있을 때만' 갱신, 없으면 기존 저장본을 보존(tracking 과 동일 원칙).
   //   종전엔 미동봉을 기본값 {enabled:true} 로 치환해, 전역 OFF 로 저장해 둔 설정이 settings 를
   //   안 보내는 다른 기기/구버전 클라이언트의 저장 한 번에 소리 없이 ON 으로 뒤집혔다(2026-07 감사).
@@ -839,18 +842,25 @@ async function handlePortfolioPost(request, env) {
     try { await env.ECON_PORTFOLIO.put(ENC_HOLDINGS_KV_KEY, JSON.stringify(encHoldings)); }
     catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
   }
+  // 보유 암호문만 온 요청(alerts·settings·tracking 전부 미동봉)은 공개 파일을 건드리지 않는다 —
+  //   내용이 안 바뀌는 커밋이었고, 커밋 시각이 「보유를 맞춘 때」로 공개 이력에 남았다(2026-10-02 검토).
+  if (!alertsGiven && settings === null && tracking === null) {
+    return jsonResponse({ ok: true, count: null, trackingCount: null, committed: false, encHoldings: !!encHoldings });
+  }
   // 기존 파일 sha 조회(업데이트 시 필수) → PUT 커밋
   const cur = await _ghContents(env, 'GET');
   const sha = (cur.status === 200 && cur.json && cur.json.sha) ? cur.json.sha : undefined;
-  if ((tracking === null || settings === null) && cur.status === 200 && cur.json && cur.json.content) {
+  if ((alerts === null || tracking === null || settings === null) && cur.status === 200 && cur.json && cur.json.content) {
     try {
       const _bin = atob(String(cur.json.content).replace(/\n/g, ''));
       const _bytes = Uint8Array.from(_bin, c => c.charCodeAt(0));
       const _prev = JSON.parse(new TextDecoder().decode(_bytes));
+      if (alerts === null && _prev && Array.isArray(_prev.alerts)) alerts = _sanitizeAlerts(_prev.alerts);
       if (tracking === null && _prev && _prev.tracking) tracking = _sanitizeTracking(_prev.tracking);
       if (settings === null && _prev && _prev.settings) settings = _sanitizeSettings(_prev.settings);
     } catch (_) { /* 이전 본 파싱 실패 시 보존 생략 */ }
   }
+  if (alerts === null) alerts = [];                              // 기존 본도 없음(또는 못 읽음) → 빈 목록
   if (settings === null) settings = _sanitizeSettings(null);   // 기존 본도 없음 → 기본값(ON/daily)
   const cfg = { version: 1, updatedAt: new Date().toISOString(), settings, alerts, ...(tracking ? { tracking } : {}) };
   const content = JSON.stringify(cfg, null, 2) + '\n';
