@@ -211,12 +211,18 @@ export function slicePeriods(series: Pt[] | null | undefined): Partial<Record<Pe
   return out
 }
 
-/** 52주 최저·최고(끝에서 1년 안). 시계열이 350일보다 짧으면 null — 52주라고 부를 수 없다. */
+/**
+ * 52주 최저·최고 — 마지막 날짜에서 365일 안의 점만 본다(월간 'YYYY-MM' 은 그 달 1일로 읽어 정확히 12개월).
+ * 점 개수나 기간 칩(slicePeriods '1y')에 기대지 않는다 — 1년 칩은 3달 칩보다 점이 20% 넘게 많아야 서서,
+ * 최근만 촘촘한 계열에선 빠지고 그때 시계열 전체(몇 년)가 52주로 쓰였다.
+ * 시계열이 350일보다 짧으면 null — 52주라고 부를 수 없다.
+ */
 export function range52(series: Pt[] | null | undefined): { low: number; high: number } | null {
   if (!series || series.length < 2) return null
-  if (!(dayMs(series[series.length - 1][0]) - dayMs(series[0][0]) >= 350 * 86_400_000)) return null
-  const pts = slicePeriods(series)['1y'] ?? series
+  const endMs = dayMs(series[series.length - 1][0])
+  if (!(endMs - dayMs(series[0][0]) >= 350 * 86_400_000)) return null
+  const cut = new Date(endMs - 365 * 86_400_000).toISOString().slice(0, 10)
   let low = Infinity, high = -Infinity
-  for (const [, v] of pts) { if (v < low) low = v; if (v > high) high = v }
+  for (const [d, v] of series) if (dayKey(d) > cut) { if (v < low) low = v; if (v > high) high = v }
   return high > low ? { low, high } : null
 }

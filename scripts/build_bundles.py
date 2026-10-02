@@ -734,12 +734,18 @@ def _hot_chains(mer):
 
 
 def triggers(mer):
+    """렌즈 트리거 줄 — 상태는 여기서 한 번 정한다(돌파 수·breach·화면 집계가 전부 이 목록을 센다).
+    현재값과 임계(단위·범위 게이트를 넘은 것)가 둘 다 숫자일 때만 원천 상태를 믿고, 하나라도 없으면
+    원천이 무엇이라 적었든 unknown(자료 없음)이다."""
     out = []
     for i in mer.get("indicators") or []:
         near = i.get("nearest") or {}
         cur = i.get("current") or {}
+        st = i.get("state")
+        if _num(cur.get("value")) is None or _num(near.get("level")) is None or st not in TRIGGER_LABEL:
+            st = "unknown"
         out.append({"id": i.get("id"), "label": i.get("label"), "layer": i.get("layer"), "unit": i.get("unit"),
-                    "state": i.get("state"), "stateLabel": TRIGGER_LABEL.get(i.get("state"), i.get("state")),
+                    "state": st, "stateLabel": TRIGGER_LABEL[st],
                     "value": cur.get("value"), "asOf": cur.get("asOf"), "level": near.get("level"),
                     "distancePct": _round(_num(near.get("distancePct")), 2)})
     return out

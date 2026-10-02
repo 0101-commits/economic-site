@@ -370,8 +370,14 @@ def test_gold_premium_formula():
     assert bb.gold_premium(182940.0, 0, 1359.6) is None
     gp = bundles()["market-commodities"]["views"]["goldPremium"]
     c = DATA["commodities"]
-    want = bb.gold_premium(c.get("GoldKRW", {}).get("price"), c.get("Gold", {}).get("price"), DATA["fx"]["USDKRW"]["rate"])
-    assert gp["pct"] == want
+    # 묶음이 밝힌 기준의 입력값으로 공식을 다시 잰다. sameDay(KRX 금 기준일의 국제 금·달러원 종가)는 지금 값과
+    # 다르다 — 종전 검사는 늘 지금 값과 비교해 KRX 금 기준일 종가가 history 에 있는 날마다 실패했다.
+    assert gp["pct"] == bb.gold_premium(gp["krwPerG"], gp["usdPerOz"], gp["usdkrw"])
+    assert gp["krwPerG"] == c.get("GoldKRW", {}).get("price")
+    if gp["basis"] == "spot":
+        assert (gp["usdPerOz"], gp["usdkrw"]) == (c.get("Gold", {}).get("price"), DATA["fx"]["USDKRW"]["rate"])
+    else:
+        assert gp["basis"] == "sameDay" and gp["date"]
 
 
 def test_same_indicator_same_value_across_bundles():
@@ -397,6 +403,21 @@ def test_lens_counts_match_source():
     assert len(lens["nodes"]) == len(MER["graph"]["nodes"]) and len(lens["edges"]) == len(MER["graph"]["edges"])
     assert len(lens["chains"]) == len(MER["chains"]) and len(lens["triggers"]) == len(MER["indicators"])
     assert len(lens["posts"]) <= 3 and all(set(p) == {"logNo", "date", "title"} for p in lens["posts"])
+
+
+def test_lens_trigger_without_value_or_level_is_unknown_not_crossed():
+    """값 없음·임계 없음(범위 게이트 탈락)은 원천이 crossed 라고 적어도 돌파로 세지 않는다 — 돌파 수·breach·사슬 모두."""
+    ind = lambda i, st, v, lv: {"id": i, "label": i, "state": st, "current": {"value": v, "asOf": "2026-10-01"} if v is not None else None,
+                                "nearest": {"level": lv, "distancePct": 1.0} if lv is not None else None}
+    mer = {"indicators": [ind("ok", "crossed", 5.3, 5.1), ind("noval", "crossed", None, 5.1), ind("nolv", "crossed", 5.3, None),
+                          ind("nostate", None, 5.3, 5.1), ind("near", "near", 5.0, 5.1)],
+           "chains": [{"id": "C", "steps": [{"id": "noval"}], "hotStep": None, "n": 1}], "lens": {"score": 10}}
+    st = {t["id"]: (t["state"], t["stateLabel"]) for t in bb.triggers(mer)}
+    assert st == {"ok": ("crossed", "돌파"), "noval": ("unknown", "자료 없음"), "nolv": ("unknown", "자료 없음"),
+                  "nostate": ("unknown", "자료 없음"), "near": ("near", "주시")}
+    lens = bb.build_lens(mer)
+    assert lens["triggerCounts"] == {"crossed": 1, "unknown": 3, "near": 1}
+    assert [t["id"] for t in lens["today"]["breach"]] == ["ok"]
 
 
 if __name__ == "__main__":
