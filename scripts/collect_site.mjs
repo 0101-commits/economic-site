@@ -26,7 +26,7 @@ const DIRS = { js: ['.js'], css: ['.css', '.woff2'], bundles: ['.json'] };
 // 새 화면 층: app/dist(빌드 산출물) → _site/next/. pages.yml 이 이 스크립트보다 먼저 빌드한다.
 const APP_DIST = 'app/dist';
 const APP_OUT = 'next';
-const APP_EXTS = ['.js', '.css', '.html', '.svg', '.png', '.woff2'];   // .png = 푸시 알림 아이콘(app/public/icon.png)
+const APP_EXTS = ['.js', '.css', '.html', '.svg', '.png', '.woff2', '.webmanifest'];   // .png = 푸시 알림 아이콘, .webmanifest = 홈 화면 추가(iOS 푸시 전제)
 
 const FORBIDDEN = [
   /\.(md|py|pyc|sql|sh|ps1|bat|ya?ml|toml|jsonc|jsonl|mjs|env|pem|key)$/i,
