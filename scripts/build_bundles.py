@@ -98,7 +98,11 @@ STRIPS = {
 CAPITAL_AREA = ["11", "41", "28"]
 # 전년비 파생 칸의 합리 범위(±%). 넘으면 값을 싣지 않고 meta.health.issues 에 남긴다 — 2026-10-01 한국 수출
 # 70.7%(2025-06 589억 → 2026-06 1,006억 달러, 평소 550~650억)는 원본 이력의 단위·집계 변경이 의심됐다(팀장 결정).
-YOY_GUARD_PCT = 50   # 수도권 = 서울·경기·인천(region_sub 시도 코드)
+YOY_GUARD_PCT = 50
+# 범위를 넘어도 다른 원천의 같은 달 전년비와 이만큼(%p) 안이면 실제 값으로 본다 — 2026-10-02 실측: 수출 70.7% 는
+# ECOS 관세청 수출금액지수 전년비 74.6% 와 맞았다(반도체 수출 급증, 원본 오류 아님. 팀장 결정).
+YOY_CROSS_PP = 10
+# 수도권 = 서울·경기·인천(region_sub 시도 코드)
 CENTRAL_BANKS = [  # (나라, 레지스트리 id, 경제 일정에서 다음 회의를 찾을 말)
     ("kr", "base_rate_kr", r"금통위"), ("us", "ff_target", r"FOMC"),
     ("eu", "base_rate_eu", r"ECB"), ("jp", "base_rate_jp", r"BOJ|일본은행"),
@@ -279,6 +283,13 @@ def _iso_dt(s):
         return t if t.tzinfo else t.replace(tzinfo=KST)
     except (TypeError, ValueError):
         return None
+
+
+def _month_yoy(hist, month):
+    """{기간 키: 값} 의 'YYYY-MM' 전년비(%). 키 형식(202606 · 2026-06-01)이 달라도 달로 맞춘다. 없으면 None."""
+    by = {_norm_date(k)[:7]: _num(v) for k, v in (hist or {}).items()}
+    cur, ago = by.get(month), by.get("%d%s" % (int(month[:4]) - 1, month[4:]))
+    return round((cur / ago - 1) * 100, 2) if cur is not None and ago else None
 
 
 def _norm_date(k):
@@ -905,6 +916,7 @@ def build_all(data, mer, now, toss=None):
     # 수집 시각은 meta.dataUpdated 하나, 칸마다의 기준시각은 asOf.
     derived = {}
     issues = []          # 묶음이 찾은 원본 이상 → meta.health.issues
+    checks = []          # 범위를 넘었지만 다른 원천과 맞아 실은 값 → meta.health.checks(이상 목록엔 넣지 않는다)
 
     def pick(i):
         if i in derived:
@@ -946,8 +958,10 @@ def build_all(data, mer, now, toss=None):
        state=block_state(H, "rankingsKr.tradingAmount", (data.get("rankingsKr") or {}).get("tradingAmount")),
        scale=1e12, count=len(amt))
 
-    def yoy(src, i, label, short, shortM):
-        """전년비(%) — 지수·금액이면 history 로 (이번 기간 ÷ 1년 전 같은 기간 − 1), 1년 전 점이 없으면 null."""
+    def yoy(src, i, label, short, shortM, cross=None):
+        """전년비(%) — 지수·금액이면 history 로 (이번 기간 ÷ 1년 전 같은 기간 − 1), 1년 전 점이 없으면 null.
+        cross = 대조할 다른 원천의 data 경로. ±YOY_GUARD_PCT 를 넘어도 그 원천의 같은 달 전년비와
+        YOY_CROSS_PP 안이면 싣는다. 대조 값이 없거나 더 다르면 null + suspect."""
         row = Q.rows.get(src) or {}
         leaf = get(data, row.get("data") or "") or {}
         hist = leaf.get("history") if isinstance(leaf.get("history"), dict) else {}
@@ -960,12 +974,17 @@ def build_all(data, mer, now, toss=None):
         pv = calc(older[-1]) if (v is not None and older) else None
         q = Q.get(src) or {}
         raw_v = v
-        if v is not None and abs(v) > YOY_GUARD_PCT:
+        cv = _month_yoy((get(data, cross) or {}).get("history"), _norm_date(k)[:7]) if cross and v is not None else None
+        if v is not None and abs(v) > YOY_GUARD_PCT and cv is not None and abs(v - cv) <= YOY_CROSS_PP:
+            checks.append({"path": row.get("data"), "state": "ok", "asOf": q.get("asOf"),
+                           "note": "%s 전년비 %.1f%% — 대조 통과: 지수 전년비 %.1f%%(%s)" % (src, v, cv, cross.split(".")[-1])})
+        elif v is not None and abs(v) > YOY_GUARD_PCT:
             sc, u = q.get("scale"), (q.get("unit") or "").replace("달러", "")
             amt = lambda x: "{:,.0f}{}".format(x / sc, u) if sc else "{:,.2f}".format(x)
             issues.append({"path": row.get("data"), "state": "suspect", "asOf": q.get("asOf"),
                            "note": "%s 전년비 %.1f%% — 원본 이력 확인 필요(%s %s → %s %s)" % (
-                               src, v, _norm_date(ago(k))[:7], amt(hist[ago(k)]), _norm_date(k)[:7], amt(hist[k]))})
+                               src, v, _norm_date(ago(k))[:7], amt(hist[ago(k)]), _norm_date(k)[:7], amt(hist[k]))
+                           + ("" if not cross else " · 대조 실패: 지수 전년비 %.1f%%" % cv if cv is not None else " · 대조할 지수 값 없음")})
             v = pv = None
         dv(i, label, short, shortM, unit="%", decimals=1, value=v, as_of=q.get("asOf"), state=q.get("state"),
            source=src)
@@ -977,12 +996,13 @@ def build_all(data, mer, now, toss=None):
 
     yoy("cpi_kr", "cpi_kr_yoy", "한국 CPI 전년비", "한국 CPI 전년비", "한국 CPI")
     yoy("cpi_us", "cpi_us_yoy", "미국 CPI 전년비", "미국 CPI 전년비", "미국 CPI")
-    ex_yoy = yoy("exports_kr", "exports_kr_yoy", "한국 수출 전년비", "한국 수출 전년비", "한국 수출")
+    ex_yoy = yoy("exports_kr", "exports_kr_yoy", "한국 수출 전년비", "한국 수출 전년비", "한국 수출",
+                 cross="economicIndicators.kr.exports_idx_kr")
     # 거시 띠의 수출 칸은 절대값(억달러·월). 전년비는 note 로만 — 범위 밖이면 그렇다고 적는다.
     ex = Q.item("exports_kr")
     ex["label"] = "한국 수출(억달러·월)"
     if ex_yoy is not None:
-        ex["note"] = "전년비 %+.1f%%%s" % (ex_yoy, " — 원본 이력 확인 필요" if abs(ex_yoy) > YOY_GUARD_PCT else "")
+        ex["note"] = "전년비 %+.1f%%%s" % (ex_yoy, " — 원본 이력 확인 필요" if derived["exports_kr_yoy"]["value"] is None else "")
     derived["exports_kr"] = ex
     nps = data.get("nps") or {}
     eq = next((a.get("pct") for a in (nps.get("allocation") or []) if a.get("asset") == "국내주식"), None)
@@ -1199,6 +1219,7 @@ def build_all(data, mer, now, toss=None):
 
     b["lens"] = build_lens(mer)
     b["_issues"] = issues            # 파일로 쓰지 않는다(write 가 meta 에 합친다)
+    b["_checks"] = checks
     return b
 
 
@@ -1235,7 +1256,8 @@ def meta(data, mer, sizes, now, bundles):
             "health": {"checkedAt": dh.get("checkedAt"), "summary": dh.get("summary"), "blocking": dh.get("blocking") or [],
                        "issues": [{k: i.get(k) for k in ("path", "state", "asOf", "ageDays")}
                                   for i in (dh.get("items") or []) if i.get("state") != "ok"]
-                                 + list(bundles.get("_issues") or [])}}
+                                 + list(bundles.get("_issues") or []),
+                       "checks": list(bundles.get("_checks") or [])}}
 
 
 def write(bundles, data, mer, now, out_dir=OUT_DIR):
@@ -1268,6 +1290,8 @@ def main(argv):
         print("%-26s %7.1f KB%s" % (k, v / 1024, "  ← 200KB 초과" if k in over else ""))
     for it in bundles.get("_issues") or []:
         print("주의 " + it["note"])
+    for it in bundles.get("_checks") or []:
+        print("대조 " + it["note"])
     print("화면 묶음 %d개 — 기준 %s" % (len(sizes) + 1, now.isoformat(timespec="minutes")))
     return 1 if over else 0
 

@@ -219,6 +219,41 @@ def test_yoy_guard_over_50pct():
     assert ex["label"] == "한국 수출(억달러·월)" and len(ex["asOf"]) == 7 and "전년비" in ex["note"]
 
 
+def _exports_case(idx_yoy):
+    """수출 전년비 +60% 로 만들고, 같은 달 수출금액지수 전년비를 idx_yoy(%) 로 둔다(None 이면 지수 계열을 지운다)."""
+    data = json.loads(json.dumps(DATA))
+    kr = data["economicIndicators"]["kr"]
+    ex = kr["exports_kr"]
+    k = ex["period"]                                               # 'YYYY-MM-DD'
+    ex["history"][str(int(k[:4]) - 1) + k[4:]] = ex["history"][k] / 1.6
+    m = k[:4] + k[5:7]                                             # 지수 키는 'YYYYMM'
+    if idx_yoy is None:
+        kr.pop("exports_idx_kr", None)
+    else:
+        kr["exports_idx_kr"] = {"value": 200.0, "period": m, "history": {m: 200.0, str(int(m[:4]) - 1) + m[4:]: 200.0 / (1 + idx_yoy / 100)}}
+    return data, bb.build_all(data, MER, NOW)
+
+
+def test_yoy_guard_cross_check_pass():
+    """±50% 를 넘어도 같은 달 수출금액지수 전년비와 10%p 안이면 싣는다 — suspect 없이 health.checks 에 남긴다(팀장 결정 2026-10-02)."""
+    data, b = _exports_case(55.0)
+    assert _item(b["market-macro"], "exports_kr")["note"] == "전년비 +60.0%"      # 띠의 수출 칸 = 절대값, 전년비는 note
+    assert not any(i["path"] == "economicIndicators.kr.exports_kr" for i in b["_issues"])
+    m = bb.meta(data, MER, {}, NOW, b)
+    assert any("대조 통과: 지수 전년비 55.0%" in i["note"] for i in m["health"]["checks"])
+    assert not any(i["path"] == "economicIndicators.kr.exports_kr" for i in m["health"]["issues"])
+
+
+def test_yoy_guard_cross_check_fail():
+    """대조 지수가 10%p 넘게 다르거나 없으면 종전대로 null + suspect."""
+    for idx_yoy, tail in ((20.0, "대조 실패: 지수 전년비 20.0%"), (None, "대조할 지수 값 없음")):
+        data, b = _exports_case(idx_yoy)
+        assert _item(b["market-macro"], "exports_kr")["note"] == "전년비 +60.0% — 원본 이력 확인 필요"
+        assert any(i["path"] == "economicIndicators.kr.exports_kr" and i["state"] == "suspect" and tail in i["note"]
+                   for i in b["_issues"]), b["_issues"]
+        assert not b["_checks"]
+
+
 def test_lens_node_short_within_mobile_cap():
     lens = bundles()["lens"]
     bad = [(n["id"], n["short"]) for n in lens["nodes"] if not n.get("short") or ol.width(n["short"]) > bb.SHORT_M]

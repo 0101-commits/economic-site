@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """종목 펀더멘털 수집 → fundamentals.json (2026-08-11 재구성 기획안 P2)
 
-대상: alerts_config.json 의 tracking.items (공개 관심목록 — 보유량 정보 없음).
+대상: alerts_config.json 의 tracking.items (공개 관심목록 — 보유량 정보 없음)
+      + data.json corpEvents.corpMap (배당·실적 일정 대상 = 거래대금 상위, ETF 제외).
   - KR: OpenDART (OPENDART_API_KEY 시크릿 필요, 없으면 KR 은 건너뜀)
         corpCode zip → 종목코드 매핑, 주요계정(fnlttSinglAcnt)·발행주식(stockTotqySttus)·
         배당(alotMatter) 에서 EPS/BPS/ROE/영업이익률/부채비율/DPS 산출.
@@ -31,6 +32,7 @@ KST = timezone(timedelta(hours=9))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_PATH = os.path.join(ROOT, "fundamentals.json")
 CFG_PATH = os.path.join(ROOT, "alerts_config.json")
+DATA_PATH = os.path.join(ROOT, "data.json")   # 같은 일일 런에서 fetch_data 가 먼저 쓴다
 DART_KEY = os.environ.get("OPENDART_API_KEY", "").strip()
 DART = "https://opendart.fss.or.kr/api"
 
@@ -47,8 +49,13 @@ def load_json(path):
         return None
 
 
-def load_symbols():
-    """공개 관심목록에서 (KR 코드 목록, US {symbol: yahoo}) 추출."""
+def load_symbols(data=None):
+    """공개 관심목록 + 배당·실적 일정 대상 → (KR 코드 목록, US {symbol: yahoo}).
+
+    관심목록이 ETF 뿐이면 대상이 0 이다(2026-10-02 실측: 10/10 ETF → fundamentals.json 종목 0). 그래서 fetch_data 의
+    배당·실적 일정 대상(관심목록 + 거래대금 상위, ETF 제외)을 같이 쓴다 — 그 런이 기업코드까지 찾아 둔
+    data.json corpEvents.corpMap 이 곧 그 목록이다(기업코드 "" = 우선주 등 DART 에 없는 종목, 뺀다).
+    """
     cfg = load_json(CFG_PATH) or {}
     items = ((cfg.get("tracking") or {}).get("items")) or []
     kr, us = [], {}
@@ -61,6 +68,13 @@ def load_symbols():
             kr.append({"code": sym, "name": it.get("name") or sym})
         elif mkt == "US" and sym:
             us[sym.upper()] = (it.get("yahoo") or sym).upper()
+    data = data or {}
+    names = {r.get("code"): r.get("name") for r in ((data.get("rankingsKr") or {}).get("tradingAmount") or [])}
+    seen = {k["code"] for k in kr}
+    for code, cc in (((data.get("corpEvents") or {}).get("corpMap")) or {}).items():
+        if cc and code not in seen:
+            kr.append({"code": code, "name": names.get(code) or code})
+            seen.add(code)
     return kr, us
 
 
@@ -220,13 +234,17 @@ def fetch_us_one(yahoo_sym):
 
 def main():
     prev = load_json(OUT_PATH) or {}
-    kr_items, us_items = load_symbols()
-    log(f"[FUNDA] 대상: KR {len(kr_items)}종목, US {len(us_items)}종목 (ETF 제외 — 관심목록의 개별 종목만)")
+    data = load_json(DATA_PATH) or {}
+    kr_items, us_items = load_symbols(data)
+    log(f"[FUNDA] 대상: KR {len(kr_items)}종목, US {len(us_items)}종목 (ETF 제외 — 관심목록 + 배당·실적 일정 대상)")
+    # 직전 값은 이번 대상만 잇는다 — 거래대금 상위가 날마다 바뀌어 공개 파일이 끝없이 불지 않게(corpEvents 와 같은 규칙)
+    want_kr = {k["code"] for k in kr_items}
+    cmap = {**(prev.get("corpMap") or {}), **(((data.get("corpEvents") or {}).get("corpMap")) or {})}
     out = {
         "asOf": datetime.now(KST).isoformat(timespec="seconds"),
-        "kr": dict(prev.get("kr") or {}),
-        "us": dict(prev.get("us") or {}),
-        "corpMap": dict(prev.get("corpMap") or {}),
+        "kr": {c: v for c, v in (prev.get("kr") or {}).items() if c in want_kr},
+        "us": {s: v for s, v in (prev.get("us") or {}).items() if s in us_items},
+        "corpMap": {c: v for c, v in cmap.items() if c in want_kr},
         "sources": {"kr": "OpenDART (사업보고서 주요계정)", "us": "yfinance Ticker.info"},
     }
     year = datetime.now(KST).year

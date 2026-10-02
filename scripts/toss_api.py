@@ -308,6 +308,27 @@ def rankings(rank_type, market_country="KR", duration="1d", limit=30):
     return out
 
 
+def movers(rank_type, as_of, top_n=10, limit=100):
+    """등락률 순위를 시장별로 가른다 → {'KOSPI': [...], 'KOSDAQ': [...], 'ETF': [...]}(빈 칸은 뺀다).
+
+    rankings 는 marketCountry=KR 단위라 코스피·코스닥·ETF 가 한 목록에 섞여 온다. 종전엔 보통주를 시장 구분 없이
+    kospiGainers 하나에 담아 코스피 목록 10개 중 8개가 코스닥이었다(2026-10-02 실측). 거른 뒤 top_n 이 안 차면
+    있는 만큼만 돌려준다. as_of = 그 목록이 가리키는 거래일(수집일이 아니다).
+    """
+    rows = rankings(rank_type, "KR", "1d", limit=limit)
+    if not rows:
+        return {}
+    meta = stocks([r["code"] for r in rows])
+    out = {"KOSPI": [], "KOSDAQ": [], "ETF": []}
+    for r in rows:
+        m = meta.get(r["code"]) or {}
+        key = "ETF" if m.get("type") == "ETF" else m.get("market") if m.get("type") == "STOCK" else None
+        if key in out and len(out[key]) < top_n:
+            out[key].append({"name": m.get("name") or r["code"], "code": r["code"], "price": r["price"],
+                             "chg": r["chg"], "vol": r["vol"], "market": m.get("market"), "as_of": as_of})
+    return {k: v for k, v in out.items() if v}
+
+
 # ── 투자자별 매매동향 ────────────────────────────────────────────────────────
 def _net_amt(node):
     """buyAmount/sellAmount(원) → 순매수 억원."""
