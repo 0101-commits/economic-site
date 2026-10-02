@@ -191,6 +191,18 @@ jobs:
           restore-keys: |
             pmi-cache-
 
+      # KRX 52주 신고가·신저가용 종목별 주간 고가·저가 축적(.krx_hilo_cache.json, 약 3~4MB) — 일별매매정보에 52주
+      # 고저가 없어 fetch_data._krx_rankings 가 쌓는다. 커밋하지 않고 캐시로만 잇는다(날마다 수 MB 가 git 이력에 쌓이지 않게).
+      # 캐시가 지워지면 52주 목록은 일일 런 되짚기로 약 3일 뒤 다시 찬다(그동안 목록을 싣지 않는다 — 옛 목록을 잇지 않는다).
+      - name: Restore KRX 52주 고저 캐시
+        if: env.FETCH_LIGHT != '1'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .krx_hilo_cache.json
+          key: krx-hilo-${{ github.run_id }}
+          restore-keys: |
+            krx-hilo-
+
       - name: Fetch market data
         env:
           # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
@@ -205,6 +217,8 @@ jobs:
           ECOS_API_KEY:       ${{ secrets.ECOS_API_KEY }}
           REALESTATE_API_KEY: ${{ secrets.REALESTATE_API_KEY }}
           KOSIS_API_KEY:      ${{ secrets.KOSIS_API_KEY }}
+          # OpenDART — 배당·실적 일정(data.json.corpEvents, 일일 런 하루 1회). 펀더멘털 단계와 같은 시크릿.
+          OPENDART_API_KEY:   ${{ secrets.OPENDART_API_KEY }}
           # 신규 API 키 — 사용자 발급 키를 GitHub Secrets 에 추가해야 함
           # 공공데이터포털 통합 키 (data.go.kr): 국토부 실거래가, 금융위, KOTRA, KOSIS, 농수산식품 등 50+ 서비스
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}

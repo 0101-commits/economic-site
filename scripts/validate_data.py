@@ -169,6 +169,37 @@ def main():
             if rows is not None and (not isinstance(rows, list) or
                                      any(not (r.get("code") and r.get("price")) for r in rows)):
                 warns.append(f"rankingsKr.{key}: code/price 누락 행")
+        # KRX 보기 확장(2026-10) — {as_of, kospi:[≤20], kosdaq:[≤20]}. 키 없음·401·52주 축적 중이면 없는 게 정상.
+        for key in ("marketCap", "volume", "high52", "low52"):
+            node = rk.get(key)
+            if node is None:
+                continue
+            lists = [node.get(m) for m in ("kospi", "kosdaq")] if isinstance(node, dict) else None
+            if not lists or not node.get("as_of") or any(
+                    x is not None and (not isinstance(x, list) or len(x) > 20
+                                       or any(not (r.get("code") and r.get("price")) for r in x)) for x in lists):
+                warns.append(f"rankingsKr.{key}: 형태 이상(as_of·시장별 20행·code/price)")
+
+    # 시도 17 매매·전세 시계열(realestate.kr.regionSeries, 2026-10) — {시도코드: {apt|jns: [[YYYYMM, 값]] ≤36}}
+    rs = ((d.get("realestate") or {}).get("kr") or {}).get("regionSeries")
+    if rs is not None:
+        bad = [c for c, n in (rs.items() if isinstance(rs, dict) else [])
+               if not (isinstance(n, dict) and any(n.get(k) for k in ("apt", "jns")) and all(
+                   isinstance(n.get(k), list) and len(n[k]) <= 36 and all(
+                       isinstance(p, list) and len(p) == 2 and len(str(p[0])) == 6 and isinstance(p[1], (int, float))
+                       for p in n[k]) and [p[0] for p in n[k]] == sorted(p[0] for p in n[k])
+                   for k in ("apt", "jns") if k in n))]
+        if not isinstance(rs, dict) or bad:
+            warns.append(f"realestate.kr.regionSeries: 형태 이상 시도 {bad[:5] if isinstance(rs, dict) else type(rs).__name__}")
+
+    # 배당·실적 일정(corpEvents, 2026-10) — {asOf, items:[{code, kind, date}]}. 키가 없으면 블록이 없는 게 정상.
+    ce = d.get("corpEvents")
+    if ce is not None:
+        items = ce.get("items") if isinstance(ce, dict) else None
+        if not isinstance(items, list) or not ce.get("asOf") or any(
+                not (isinstance(e, dict) and e.get("code") and e.get("kind") in ("dividend", "earnings")
+                     and len(str(e.get("date") or "")) == 10) for e in items):
+            warns.append("corpEvents: 형태 이상(asOf·items[code, kind=dividend|earnings, date YYYY-MM-DD])")
 
     # 메르 리스크 렌즈 집계(mer_signals.json) — P2 산출물, 있으면 형태만 점검(비차단 경고).
     # 파일이 없으면(P2 미실행) 조용히 통과 — data.json 커밋 게이트와는 무관한 산출물이다.

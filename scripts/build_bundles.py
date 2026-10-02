@@ -607,6 +607,9 @@ def stock_rows(rows, amount=False, market=None):
               "market": r.get("market"), "price": _num(r.get("price")), "chgPct": _num(r.get("chg")),
               "isEtf": is_etf(r)}
         it["amount" if amount else "volume"] = _num(r.get("amount" if amount else "vol"))
+        for src, dst in (("mktcap", "marketCap"), ("high", "high"), ("low", "low")):   # KRX 순위 행에만 있다
+            if r.get(src) is not None:
+                it[dst] = _num(r.get(src))
         if r.get("preserved"):
             it["kept"] = True
         out.append(it)
@@ -617,6 +620,41 @@ def block_state(health, path, node):
     if not node:
         return "missing"
     return health.state(path, node if isinstance(node, dict) else None)
+
+
+def krx_rank_view(health, rk, key):
+    """KRX 순위(rankingsKr.<key> = {as_of, kospi, kosdaq[, count]}) → 화면 칸. 시장별 20행, 52주는 총수(count) 포함."""
+    node = rk.get(key) if isinstance(rk.get(key), dict) else None
+    v = {"asOf": (node or {}).get("as_of"), "state": block_state(health, "rankingsKr." + key, node),
+         "kospi": stock_rows((node or {}).get("kospi")), "kosdaq": stock_rows((node or {}).get("kosdaq"))}
+    if (node or {}).get("count"):
+        v["count"] = node["count"]
+    return v
+
+
+def corp_events(data, since=None, until=None):
+    """배당·실적 일정(data.json.corpEvents.items) — since ≤ 날짜 < until. 최신순 그대로."""
+    out = []
+    for e in ((data.get("corpEvents") or {}).get("items") or []):
+        d = e.get("date") or ""
+        if (since and d < since) or (until and d >= until):
+            continue
+        it = {k: e.get(k) for k in ("date", "code", "name", "kind", "title", "detail", "rcpNo")}
+        if e.get("preserved"):
+            it["kept"] = True
+        out.append(it)
+    return out
+
+
+def schedule_with_corp(data, now, days=7):
+    """홈 일정 = 경제 일정(지나지 않은 것) + 종목 일정(오늘~days 일, kind 로 갈린다). 날짜·시각 순.
+    종목 일정 날짜는 공시 접수일이라 대개 지난 날이다 — 오늘 낸 공시만 여기 걸리고, 전체는 국내 묶음 corpEvents 에 있다."""
+    today = now.date()
+    corp = [{"date": e["date"], "time": None, "cc": "KR", "name": "%s %s" % (e.get("name") or e.get("code"), e.get("title") or ""),
+             "stars": None, "prev": None, "fore": None, "act": None, "approx": False, "kind": e.get("kind"),
+             "code": e.get("code")}
+            for e in corp_events(data, today.isoformat(), (today + dt.timedelta(days=days)).isoformat())]
+    return sorted(calendar_events(data, now, days=days) + corp, key=lambda e: (e["date"], e["time"] or ""))
 
 
 def calendar_events(data, now, days=None, cc=None):
@@ -843,7 +881,7 @@ def build_all(data, mer, now, toss=None):
         "topAmount": {"asOf": ra.get("as_of"), "state": block_state(H, "rankingsKr.tradingAmount", ra.get("tradingAmount")),
                       "items": stock_rows((ra.get("tradingAmount") or [])[:20], amount=True)},
         "investors": investors_block(data, H, 20),
-        "schedule": calendar_events(data, now, days=7),
+        "schedule": schedule_with_corp(data, now, days=7),
         "news": news_top(data, 5),
         "lens": lens_today(mer),
     }
@@ -970,6 +1008,11 @@ def build_all(data, mer, now, toss=None):
                    | {"state": block_state(H, "marketBreadth.kospi", (data.get("marketBreadth") or {}).get("kospi"))},
         "halts": {"active": halts.get("active") or [], "recent": (halts.get("history") or [])[:10],
                   "asOf": halts.get("asOf"), "state": block_state(H, "marketHalts", halts)},
+        # KRX 보기 확장(기획 v4 9장 후보 2) — 시장별 20행. 화면 버튼은 후속(지금은 묶음 필드만)
+        **{k: krx_rank_view(H, data.get("rankingsKr") or {}, k) for k in ("marketCap", "volume", "high52", "low52")},
+        # 배당·실적 일정(후보 3) — 최근 90일 공시 + 직전 결산 배당, 최신순
+        "corpEvents": {"asOf": (data.get("corpEvents") or {}).get("asOf"), "from": (data.get("corpEvents") or {}).get("from"),
+                       "state": block_state(H, "corpEvents", data.get("corpEvents")), "items": corp_events(data)},
     })
 
     # 해외
@@ -1084,18 +1127,27 @@ def build_all(data, mer, now, toss=None):
     ru = (data.get("realestate") or {}).get("us") or {}
     sido = sido_names()
     sub = data.get("subscription") or {}
+    # 시도 17 아파트 매매·전세 지수 36개월(realestate.kr.regionSeries) — 수도권 겹침 차트용. 없는 시도는 series 를 안 단다.
+    rs = rk.get("regionSeries") or {}
+    ser = lambda code: ({k: [[_norm_date(p), v] for p, v in rs[code].get(k) or []] for k in ("apt", "jns")}
+                        if isinstance(rs.get(code), dict) else None)
+    with_series = lambda it, code: it | ({"series": ser(code)} if ser(code) else {})
+    rsub = rk.get("region_sub") or {}
     b["market-realestate"] = market("realestate", {
         "kr": [Q.item(r["id"], spark=0, tail=24) for r in rows if r["asset"] == "realestate" and r.get("topic") == "kr"],
         "regions": {"state": block_state(H, "realestate.kr.region", rk.get("region")),
-                    "items": [{"code": x.get("code"), "name": sido.get(x.get("code")), "chgPct": x.get("val"),
-                               "period": _norm_date(x.get("period"))} for x in (rk.get("region") or [])]},
+                    "seriesState": block_state(H, "realestate.kr.regionSeries", rs),
+                    "items": [with_series({"code": x.get("code"), "name": sido.get(x.get("code")), "chgPct": x.get("val"),
+                                           "period": _norm_date(x.get("period"))}, x.get("code"))
+                              for x in (rk.get("region") or [])]},
         "regionSub": {"state": block_state(H, "realestate.kr.region_sub", rk.get("region_sub")),
                       "items": {code: {"name": sido.get(code), "period": _norm_date(v.get("period")),
                                        "subs": [{"name": s.get("name"), "chgPct": s.get("val")} for s in (v.get("subs") or [])]}
                                 for code, v in (rk.get("region_sub") or {}).items()}},
-        "capital": {code: {"name": sido.get(code), "period": _norm_date(v.get("period")),
-                           "subs": [{"name": x.get("name"), "chgPct": x.get("val")} for x in (v.get("subs") or [])]}
-                    for code, v in (rk.get("region_sub") or {}).items() if code in CAPITAL_AREA},
+        "capital": {code: with_series({"name": sido.get(code), "period": _norm_date((rsub.get(code) or {}).get("period")) if code in rsub else None,
+                                       "subs": [{"name": x.get("name"), "chgPct": x.get("val")}
+                                                for x in ((rsub.get(code) or {}).get("subs") or [])]}, code)
+                    for code in CAPITAL_AREA if code in rsub or code in rs},
         "us": [Q.item(r["id"], spark=0, tail=24) for r in rows if r["asset"] == "realestate" and r.get("topic") == "us"],
         "usStates": {"state": block_state(H, "realestate.us.case_shiller_state", ru.get("case_shiller_state")),
                      "items": {st: {"value": v.get("value"), "chgPct": v.get("chg"), "period": v.get("period")}

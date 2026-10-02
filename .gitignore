@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .kis_token_cache.json
 .pmi_cache.json
+.krx_hilo_cache.json
 
 # wrangler files
 .wrangler
@@ -38,3 +39,6 @@ _site/
 # 새 화면 층(app/) — 의존성·빌드 산출물은 CI(pages.yml)가 만든다
 app/node_modules/
 app/dist/
+
+# 웹 푸시 큐(check_alerts.py 가 쌓고 같은 잡의 send_push.py 가 보내고 지운다) — 커밋 대상 아님
+scripts/push_queue.json

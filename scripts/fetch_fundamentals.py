@@ -75,12 +75,13 @@ def dart_get(endpoint, **params):
     return j
 
 
-def build_corp_map(needed_codes, prev_map):
-    """stock_code → corp_code. 이전 맵이 필요 코드를 전부 커버하면 zip 재다운 생략."""
+def build_corp_map(needed_codes, prev_map, get=None, key=None):
+    """stock_code → corp_code. 이전 맵이 필요 코드를 전부 커버하면 zip 재다운 생략.
+    get·key = fetch_data 가 서킷브레이커 requests·자기 키를 넘길 때(배당·실적 일정 corpEvents)."""
     prev_map = prev_map or {}
     if all(c in prev_map for c in needed_codes):
         return prev_map
-    r = requests.get(f"{DART}/corpCode.xml", params={"crtfc_key": DART_KEY}, timeout=60)
+    r = (get or requests.get)(f"{DART}/corpCode.xml", params={"crtfc_key": key or DART_KEY}, timeout=60)
     r.raise_for_status()
     zf = zipfile.ZipFile(io.BytesIO(r.content))
     xml = zf.read(zf.namelist()[0])
