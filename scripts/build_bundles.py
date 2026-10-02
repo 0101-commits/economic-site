@@ -553,9 +553,18 @@ class Quotes:
             raw_asof = as_of
             series = [[_norm_date(k), v] for k, v in series]
             as_of = _norm_date(as_of) if as_of is not None else None
-            # 월간 지표는 월로 적는다(「2026-08-01」은 8월 1일이 아니라 8월 값이다)
-            if as_of and re.fullmatch(r"\d{4}-\d{2}-\d{2}", as_of) and data_sla.infer_cadence(leaf, raw_asof) == "monthly":
-                as_of = as_of[:7]
+            # 월간 지표는 월로 적는다(「2026-08-01」은 8월 1일이 아니라 8월 값이다). 분기는 「2026-Q2」 —
+            # 날짜로 두면 화면이 「전일 4/1」이라 적는다(2026-10-02 실측, GDP 12종).
+            if as_of and re.fullmatch(r"\d{4}-\d{2}-\d{2}", as_of):
+                cad = data_sla.infer_cadence(leaf, raw_asof)
+                if cad == "monthly":
+                    as_of = as_of[:7]
+                elif cad == "quarterly":
+                    as_of = "%s-Q%d" % (as_of[:4], (int(as_of[5:7]) - 1) // 3 + 1)
+                elif cad == "annual":          # 연간(중국 GDP) 은 연도만 — 「전일 1/1」이 아니라 「2025년」
+                    as_of = as_of[:4]
+            elif as_of and re.fullmatch(r"\d{4}Q[1-4]", as_of):   # 「2026Q2」(ECOS 분기 키) 도 같은 꼴로
+                as_of = as_of[:4] + "-" + as_of[4:]
             state = self.health.state(path, leaf) if value is not None else "missing"
             if (self.health.item(path) or {}).get("state") == "suspect":
                 out["suspect"] = True

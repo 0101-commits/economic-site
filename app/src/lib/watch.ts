@@ -10,7 +10,9 @@ let cache: string[] | null = null
 function read(): string[] {
   if (cache) return cache
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) || '[]')
+    // 현행 화면(js/app4.js MY 레일)의 즐겨찾기 econ_fav_v1 도 같은 지표 id 배열이다 — 새 화면을 처음 열면 이어받는다(같은 origin 이라 저장소가 같다).
+    const raw = localStorage.getItem(KEY) ?? localStorage.getItem('econ_fav_v1') ?? '[]'
+    const v = JSON.parse(raw)
     cache = Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
   } catch { cache = [] }
   return cache

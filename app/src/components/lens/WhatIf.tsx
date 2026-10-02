@@ -1,16 +1,20 @@
-// 렌즈 「만약에」(m=whatif) — 점 48 · 관계 79 를 층 4열(원인 → 시장 → 경로 → 자산)에 세로로 놓은 지도.
+// 렌즈 「만약에」(m=whatif) — 점 48 · 관계 79 의 노드 지도(Cytoscape, LensMap 이 그린다) + 시뮬레이션.
 // 점을 고르고 ▲▼ 를 누르면 선을 따라 방향이 퍼진다(규칙은 model.ts propagate). 금액은 계산하지 않는다.
 // 운영 규칙: 상태어는 돌파·주시·정상 / 도달·추정·미도달 만. 실측 실선 · 추정 점선. 글은 제목·날짜·링크만.
 // 고른 점은 주소 s 에 남기고(공유 가능), 방향·깊이·애니메이션은 화면 안 상태다.
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RLink } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { Card, SegBar } from '../ui'
-import { heatBg, heatInk, useBox } from '../charts'
+import { heatBg, heatInk } from '../charts'
 import { shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
-import { LAYERS, edgeStrength, links, propagate, shortLabel, type LensBundle, type Link, type Sign } from './model'
-import { StepNum, TrigPill, asOfText, btn, postUrl, trigBorder, trigValue } from './parts'
+import { LAYERS, links, propagate, shortLabel, type LensBundle, type Sign } from './model'
+import { MAP_BOX, StepNum, TrigPill, asOfText, btn, postUrl, trigValue } from './parts'
+
+// 지도는 보일 때만 받는다(cytoscape 는 별도 조각). 받지 못하면 그 칸만 알린다 — 화면 전체가 죽지 않게.
+const MapNote = ({ text }: { text: string }) => <div className={`${MAP_BOX} flex items-center justify-center text-13 text-ink-3`}>{text}</div>
+const LensMap = lazy(() => import('./LensMap').catch(() => ({ default: () => <MapNote text="지도를 불러오지 못했습니다" /> })))
 
 const PC_MQ = '(min-width: 61.25rem)'   // app.css --breakpoint-pc 와 같은 값
 const DEPTHS = [{ key: '1', label: '1단계' }, { key: '2', label: '2단계' }, { key: '3', label: '3단계' }] as const
@@ -27,30 +31,7 @@ function readSaved(): Saved[] {
   } catch { return [] }
 }
 
-// 지도 치수(px): 줄 간격 · 점 높이 · 열 이름 줄
-const ROW = 38, PILL = 32, HEAD = 22
-const WIDTH = [0, 1, 1.75, 3]          // 선 굵기(edgeStrength 1~3)
-const TINT = [0, 14, 26, 40]           // 퍼진 점 채움 농도(세기 1~3)
 const HEAT_AT = [0, 0.5, 1, 2.5]       // 세기 → heatStep 경계값(1 → 1단 · 2 → 2단 · 3 → 3단)
-const LINE = { mute: 'stroke-ink-3', ink: 'stroke-ink-1', up: 'stroke-up', down: 'stroke-down' } as const
-const HEAD_FILL = { mute: 'fill-ink-3', ink: 'fill-ink-1', up: 'fill-up', down: 'fill-down' } as const
-type Tone = keyof typeof LINE
-type P = { x: number; y: number; c: number }
-
-/** 선 모양: 앞 열로는 오른쪽 → 왼쪽 S자, 뒤 열로는 왼쪽에서 나가 오른쪽으로 감아 들고, 같은 열은 오른쪽으로 부푼다. */
-function edgePath(a: P, b: P, pw: number, gap: number) {
-  const ya = a.y + PILL / 2, yb = b.y + PILL / 2
-  if (b.c > a.c) {
-    const x1 = a.x + pw, x2 = b.x - 3, k = (x2 - x1) / 2
-    return `M${x1},${ya}C${x1 + k},${ya} ${x2 - k},${yb} ${x2},${yb}`
-  }
-  if (b.c < a.c) {
-    const x1 = a.x, x2 = b.x + pw + 3, k = gap * 1.5
-    return `M${x1},${ya}C${x1 - k},${ya} ${x2 + k},${yb} ${x2},${yb}`
-  }
-  const x = a.x + pw, k = gap * 0.8
-  return `M${x},${ya}C${x + k},${ya} ${x + k},${yb} ${x + 3},${yb}`
-}
 
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -67,7 +48,6 @@ export default function WhatIf({ b }: { b: LensBundle }) {
   const [saved, setSaved] = useState(readSaved)
   const [note, setNote] = useState('')
   const panel = useRef<HTMLDivElement>(null)
-  const mid = useId().replace(/:/g, '')
 
   // 전파 + 0.4초 단계 애니메이션(움직임 줄이기 설정이면 한 번에)
   const hits = useMemo(() => (sel && dir ? propagate(b.edges, sel, dir, +depth) : []), [b, sel, dir, depth])
@@ -81,9 +61,8 @@ export default function WhatIf({ b }: { b: LensBundle }) {
     const t = setInterval(() => { k += 1; setShown(k); if (k >= maxStep) clearInterval(t) }, 400)
     return () => clearInterval(t)
   }, [hits, maxStep])
-  const vis = hits.filter(h => h.step <= shown)
+  const vis = useMemo(() => hits.filter(h => h.step <= shown), [hits, shown])   // 지도와 목록이 같은 단계를 본다
   const hitOf = new Map(vis.map(h => [h.id, h]))
-  const viaOf = new Map(vis.map(h => [`${h.link.from}>${h.link.to}`, h]))
 
   const pick = (id: string) => {
     setS(id === sel ? '' : id)
@@ -101,24 +80,6 @@ export default function WhatIf({ b }: { b: LensBundle }) {
   }
   const reset = () => { setDir(null); setS(''); setNote('') }
   const restore = (x: Saved) => { if (!byId.has(x.start)) return; setS(x.start); setDir(x.dir); setDepth(String(Math.min(3, Math.max(1, x.depth))) as Depth); setNote('') }
-
-  // 지도 배치: 층별 열, 짧은 열은 세로 가운데
-  const [box, { w: W }] = useBox<HTMLDivElement>()
-  const cols = LAYERS.map(L => b.nodes.filter(n => n.layer === L.key))
-  const rows = Math.max(1, ...cols.map(c => c.length))
-  const colW = W / LAYERS.length, gap = Math.max(12, Math.round(colW * 0.2)), pw = Math.max(0, colW - gap)
-  const pos = new Map<string, P>()
-  cols.forEach((c, ci) => c.forEach((n, ri) => pos.set(n.id, { x: ci * colW + gap / 2, y: HEAD + ((rows - c.length) / 2 + ri) * ROW, c: ci })))
-  const H = HEAD + rows * ROW
-
-  const lineOf = (l: Link): { tone: Tone; op: number; dash: boolean } => {
-    const h = viaOf.get(`${l.from}>${l.to}`)
-    if (h) return { tone: h.sign > 0 ? 'up' : 'down', op: 1, dash: h.step > 1 }
-    if (vis.length) return { tone: 'mute', op: 0.1, dash: false }
-    if (sel) return l.from === sel || l.to === sel ? { tone: 'ink', op: 0.9, dash: false } : { tone: 'mute', op: 0.12, dash: false }
-    return { tone: 'mute', op: 0.4, dash: false }
-  }
-  const drawn = ls.filter(l => pos.has(l.from) && pos.has(l.to)).map(l => ({ l, ...lineOf(l) })).sort((x, y) => x.op - y.op)
 
   // 고른 점 패널
   const node = sel ? byId.get(sel)! : null
@@ -141,53 +102,25 @@ export default function WhatIf({ b }: { b: LensBundle }) {
 
       <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
         <Card className="pc:col-span-8">
-          <div ref={box} className="relative" style={{ height: H }}>
-            {W > 0 && (
-              <>
-                <svg width={W} height={H} aria-hidden className="absolute inset-0 block">
-                  <defs>
-                    {(Object.keys(LINE) as Tone[]).map(k => (
-                      <marker key={k} id={`${mid}-${k}`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto">
-                        <path d="M0,0L8,4L0,8z" className={HEAD_FILL[k]} />
-                      </marker>
-                    ))}
-                  </defs>
-                  {drawn.map(({ l, tone, op, dash }) => (
-                    <path key={`${l.from}>${l.to}`} d={edgePath(pos.get(l.from)!, pos.get(l.to)!, pw, gap)} fill="none"
-                      className={LINE[tone]} strokeWidth={WIDTH[edgeStrength(l.total)]} strokeDasharray={dash ? '4 3' : undefined}
-                      opacity={op} markerEnd={`url(#${mid}-${tone})`} />
-                  ))}
-                </svg>
-                {LAYERS.map((L, i) => (
-                  <span key={L.key} className="absolute top-0 text-11 text-ink-3 whitespace-nowrap" style={{ left: i * colW + gap / 2 }}>
-                    {L.label} <span className="num">{cols[i].length}</span>
-                  </span>
-                ))}
-                {b.nodes.map(n => {
-                  const p = pos.get(n.id)
-                  if (!p) return null
-                  const nt = trig.get(n.id), v = trigValue(nt), h = hitOf.get(n.id), start = n.id === sel
-                  const tint = h ? `color-mix(in srgb, var(${h.sign > 0 ? '--c-up-fill' : '--c-down-fill'}) ${TINT[h.strength]}%, var(--c-card))` : undefined
-                  const state = nt?.state === 'crossed' ? ' 돌파' : nt?.state === 'near' ? ' 주시' : nt?.state === 'below' ? ' 정상' : ''
-                  return (
-                    <button key={n.id} type="button" onClick={() => pick(n.id)} aria-pressed={start} title={n.label}
-                      aria-label={`${LAYER_LABEL[n.layer]} ${n.label}${v ? ` ${v}` : ''}${state}${h ? ` ${h.sign > 0 ? '오름' : '내림'} 세기 ${h.strength}` : ''}`}
-                      className={`@container absolute px-1.5 rounded-inner border bg-card text-left cursor-pointer ${trigBorder(nt)} ${h && h.step > 1 ? 'border-dashed' : ''} ${start ? 'outline-2 outline-offset-1 outline-accent' : ''}`}
-                      style={{ left: p.x, top: p.y, width: pw, height: PILL, background: tint }}>
-                      <span className="h-full flex flex-col justify-center leading-tight @[8.5rem]:flex-row @[8.5rem]:items-center @[8.5rem]:justify-between @[8.5rem]:gap-1">
-                        <span className={`ellipsis-ok text-11 text-ink-1 ${start ? 'font-bold' : ''}`}>
-                          {h && <span className={h.sign > 0 ? 'text-up' : 'text-down'}>{h.sign > 0 ? '▲' : '▼'}</span>}{shortLabel(n.label)}
-                        </span>
-                        {v && <span className="num text-11 text-ink-3">{v}</span>}
-                      </span>
-                    </button>
-                  )
-                })}
-              </>
-            )}
-          </div>
+          {/* 지도는 캔버스라 키보드·읽기 도구가 점을 못 고른다 — 같은 고르기를 이 목록이 맡는다(좁은 화면에서 점 찾기에도 쓴다) */}
+          <label className="mb-2 flex items-center gap-2 text-12 text-ink-3">
+            <span className="shrink-0">출발점</span>
+            <select value={sel ?? ''} onChange={e => (e.target.value ? pick(e.target.value) : reset())}
+              className="h-8 min-w-0 max-w-full px-2 rounded-btn border border-line bg-card text-13 text-ink-1">
+              <option value="">고르지 않음</option>
+              {LAYERS.map(L => (
+                <optgroup key={L.key} label={L.label}>
+                  {b.nodes.filter(n => n.layer === L.key).map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <Suspense fallback={<MapNote text="지도 불러오는 중" />}>
+            <LensMap nodes={b.nodes} ls={ls} vis={vis} sel={sel} onPick={pick} />
+          </Suspense>
           <p className="m-0 mt-3 text-11 text-ink-3">
-            테두리 빨강 = 돌파 · 주황 = 주시. 선이 굵을수록 여러 번 언급. 퍼진 점은 빨강 ▲ · 파랑 ▼ 로 칠하고, 2단계부터는 점선(추정)입니다.
+            선 색 = 방향(빨강 ▲ 상방 · 파랑 ▼ 하방 · 회색은 퍼지지 않음). 굵기 = 세기 1~3, 2단계부터는 점선(추정)입니다.
+            점은 끌어 옮기고, 확대는 휠이나 두 손가락으로 합니다.
           </p>
         </Card>
 

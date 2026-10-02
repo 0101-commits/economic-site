@@ -1,7 +1,8 @@
 // 알림 — 기획안 v4 7장. 첫 블록(오늘 받은 알림) → 탭(받은 알림·조건·채널).
 // 받은 알림의 원천 셋: 공개 발송 이력 alerts_state.json(조건 id·날짜·시각뿐) · 홈 묶음 렌즈 돌파 · 국내 시장 매매중단.
 // 금액·보유 종목명은 싣지 않는다. 이 화면은 PinGate 밖이라 portfolioV1 을 읽지 않는다 — 발동 이력의 조건 이름은
-// 이 기기에서 만든 조건(econPrefsV1.alerts)과 지표 사전에서만 찾고, 없으면 조건 id 만 적는다.
+// 이 기기에서 만든 조건(econPrefsV1.alerts)과 지표 사전에서만 찾는다. 새 화면 조건(_prefs)인데 이 기기에 없으면 「다른 기기의 조건」.
+// 조건 행의 상태(대기·발동됨·꺼짐)와 다시 켜기 규칙은 lib/personal/alertStatus.ts — 발동 판정은 서버 기록만 읽는다.
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, ChevronRight, Trash2 } from 'lucide-react'
@@ -13,8 +14,9 @@ import { fmtNumber, fmtPct, mdHm, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
-import { KEYS, newId, readPrefs, writePrefs, type AlertCond, type AlertType, type Prefs } from '../lib/personal/store'
-import { getKeyHash } from '../lib/personal/sync'
+import { KEYS, readPrefs, writePrefs, type AlertCond, type AlertType, type Prefs } from '../lib/personal/store'
+import { condId, condStatus, rearm, type FiredRec } from '../lib/personal/alertStatus'
+import { getKeyHash, useSyncStatus } from '../lib/personal/sync'
 import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../lib/push'
 
 const TABS = [{ key: 'inbox', label: '받은 알림' }, { key: 'cond', label: '조건' }, { key: 'chan', label: '채널' }] as const
@@ -26,7 +28,7 @@ const CAT_TONE: Record<Cat, 'x' | 'n' | 'o' | 'g'> = { swing: 'x', mine: 'o', le
 const SAVE_FAIL = '이 기기에 저장하지 못했습니다. 시크릿 창이거나 저장 공간이 찼습니다.'
 
 type Item = { key: string; cat: Cat; what: string; value?: string; dist?: string; at: number; timed: boolean; day: string; to?: string }
-type StateRec = { met?: boolean; date?: string; ts?: number; hist?: string[] }
+type StateRec = { met?: boolean; date?: string; ts?: number; hist?: string[]; type?: string }
 
 // 급변 감시(scripts/check_swings.py SWING_RULES)의 기호 → 지표 id·이름·기준
 const SWING: Record<string, [string, string, string]> = {
@@ -39,19 +41,23 @@ const noonKst = (day: string) => Date.parse(`${day}T12:00:00+09:00`)
 function buildFeed(state: Record<string, unknown> | null, md: MarketData | null, mine: Map<string, AlertCond>, regName: Map<string, string>, from: string): Item[] {
   const out: Item[] = []
   // 최상위 기록(현행 조건) + state._prefs(새 화면 조건) — 두 곳 모두 같은 모양. 이름은 이 기기 econPrefsV1 에서 id 로 찾는다.
-  for (const [id, raw] of [...Object.entries(state || {}), ...Object.entries((state?._prefs ?? {}) as Record<string, unknown>)]) {
+  const pr = (state?._prefs ?? {}) as Record<string, unknown>
+  for (const [id, raw] of [...Object.entries(state || {}), ...Object.entries(pr)]) {
     if (id.startsWith('_') || !raw || typeof raw !== 'object') continue
+    const fromPrefs = Object.hasOwn(pr, id)   // 새 화면 조건 id('p…')와 현행 조건 id 는 겹치지 않는다
     const r = raw as StateRec
     const lastDay = r.ts ? kstDay(r.ts * 1000) : null
     for (const day of new Set([...(r.hist || []), ...(r.date ? [r.date] : [])].map(ymd))) {
       if (day < from) continue
       const a = mine.get(id)
+      const kind = TYPES.find(t => t.key === r.type)?.label
       const cur = a ? md?.quotes.get(a.target)?.price ?? md?.home?.strip.find(x => x.id === a.target)?.value ?? null : null
       const lvl = a?.type === 'price' ? Number(a.cond.value) : NaN
       const timed = day === lastDay
       out.push({
         key: `${id}-${day}`, cat: 'mine', day, timed, at: timed ? r.ts! * 1000 : noonKst(day),
-        what: a ? `${regName.get(a.target) ?? a.target} ${TYPES.find(t => t.key === a.type)?.label ?? a.type}` : `조건 ${id}`,
+        what: a ? `${regName.get(a.target) ?? a.target} ${TYPES.find(t => t.key === a.type)?.label ?? a.type}`
+          : fromPrefs ? `다른 기기의 조건${kind ? ` · ${kind}` : ''}` : `조건 ${id}`,
         value: a ? condText(a) : undefined,
         dist: cur != null && lvl > 0 ? `지금 ${fmtNumber(cur, cur % 1 ? 2 : 0)} · 기준까지 ${fmtPct((lvl / cur - 1) * 100)}` : undefined,
         to: a ? (regName.has(a.target) ? `/i/${a.target}` : '/market?a=kr&m=all') : undefined,
@@ -95,6 +101,7 @@ export default function Alerts() {
   const [state, setState] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [md, setMd] = useState<MarketData | null>(null)
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
+  const sync = useSyncStatus()
   const [msg, setMsg] = useState('')
   const [reg, setReg] = useState<RegRow[]>([])
   const regName = useMemo(() => new Map(reg.map(r => [r.id, r.short || r.label])), [reg])
@@ -115,6 +122,7 @@ export default function Alerts() {
   const yesterday = kstDay(Date.now() - 86_400_000)
   const from = kstDay(Date.now() - 6 * 86_400_000)
   const feed = useMemo(() => buildFeed(state ?? null, md, mine, regName, from), [state, md, mine, regName, from])
+  const fired = (state?._prefs ?? {}) as Record<string, FiredRec>
   const todays = feed.filter(x => x.day === today)
   const rest = feed.filter(x => x.day !== today && (cat === 'all' || x.cat === cat))
   const save = (p: Prefs) => { setPrefs(p); setMsg(writePrefs(p) ? '' : SAVE_FAIL) }
@@ -152,7 +160,7 @@ export default function Alerts() {
               ) : null)}
             </div>
           )}
-          <p className="mt-3 mb-0 text-12 text-ink-3">조건 이름은 이 기기에서 만든 조건에서 찾습니다. 현행 화면이나 다른 기기에서 만든 조건은 번호로만 보입니다.</p>
+          <p className="mt-3 mb-0 text-12 text-ink-3">조건 이름은 이 기기에서 만든 조건에서 찾습니다. 다른 기기에서 만든 조건은 종류만, 현행 화면 조건은 번호로만 보입니다.</p>
         </Panel>
       )}
 
@@ -162,21 +170,32 @@ export default function Alerts() {
           <Panel title="내 조건" source={`이 기기에만 저장 · ${prefs.alerts.length}개`}>
             {prefs.alerts.length ? (
               <ul className="m-0 p-0 list-none">
-                {prefs.alerts.map(a => (
+                {prefs.alerts.map(a => {
+                  const st = condStatus(a, fired[a.id], today)
+                  const name = `${regName.get(a.target) ?? a.target} ${condText(a)}`
+                  return (
                   <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 border-b border-line last:border-b-0">
                     <Switch on={a.enabled} label={<span className="sr-only">{a.target} 켜기</span>}
                       onChange={on => save({ ...prefs, alerts: prefs.alerts.map(x => (x.id === a.id ? { ...x, enabled: on } : x)) })} />
                     <span className="min-w-0 flex-1 text-13 text-ink-1">{regName.get(a.target) ?? a.target} <span className="text-ink-2">{condText(a)}</span></span>
                     <span className="text-12 text-ink-3">{a.repeat === 'once' ? '한 번' : '매일'} · {a.channels.map(c => (c === 'push' ? '폰' : '디스코드')).join('·')}</span>
+                    {/* 이력을 못 읽었으면 「대기」라고 말하지 않는다 — 꺼짐만 이 기기가 안다 */}
+                    {(state || st.kind === 'off') && <span className={`num text-12 whitespace-nowrap ${st.kind === 'fired' || st.kind === 'today' ? 'text-ink-1' : 'text-ink-3'}`}>{st.text}</span>}
+                    {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 동기화가 꺼져 있으면 눌러도 소용없다 */}
+                    {st.kind === 'fired' && (sync.on ? (
+                      <button type="button" className={BTN} aria-label={`${name} 다시 켜기`}
+                        onClick={() => save({ ...prefs, alerts: prefs.alerts.map(x => (x.id === a.id ? rearm(x, fired[a.id]) : x)) })}>다시 켜기</button>
+                    ) : <span className="text-12 text-ink-3">동기화를 켜면 다시 켤 수 있습니다</span>)}
                     <button type="button" onClick={() => save({ ...prefs, alerts: prefs.alerts.filter(x => x.id !== a.id) })} aria-label={`${a.target} 조건 지우기`} title="지우기"
                       className="size-8 inline-flex items-center justify-center rounded-btn border-0 bg-transparent text-ink-3 hover:text-ink-1 cursor-pointer">
                       <Trash2 size={14} aria-hidden />
                     </button>
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다.</p>}
-            <p className="mt-2 mb-0 text-12 text-ink-3">동기화를 켜면 서버가 이 조건을 보고 보냅니다. 장중에는 몇 분마다, 그 밖에는 매일 21:05 에 한 번 봅니다.</p>
+            <p className="mt-2 mb-0 text-12 text-ink-3">동기화를 켜면 서버가 이 조건을 보고 보냅니다. 장중에는 몇 분마다, 그 밖에는 매일 21:05 에 한 번 봅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다.</p>
           </Panel>
           <p className="m-0 text-12 text-ink-3">
             현행 화면에서 만든 조건은 <a href="../?p=portfolio" className="text-ink-2">현행 화면</a>에서 보고 고칩니다.
@@ -272,7 +291,7 @@ function NewCondition({ rows, onAdd }: { rows: RegRow[]; onAdd: (a: AlertCond) =
     else cond = { state: lensState }
     const channels = [...(push ? ['push' as const] : []), ...(discord ? ['discord' as const] : [])]
     if (!channels.length) { setErr('받을 채널을 하나 이상 고르세요.'); return }
-    onAdd({ id: newId('p'), target: t.id, type, cond, repeat, channels, enabled: true })
+    onAdd({ id: condId(), target: t.id, type, cond, repeat, channels, enabled: true })
     setErr(''); setQ(''); setTarget(null); setValue('')
   }
 

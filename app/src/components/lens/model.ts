@@ -9,7 +9,7 @@ export const LAYERS: readonly { key: Layer; label: string }[] = [
   { key: 'cause', label: '원인' }, { key: 'market', label: '시장' }, { key: 'channel', label: '경로' }, { key: 'asset', label: '자산' },
 ]
 
-export type LensNode = { id: string; label: string; layer: Layer; state?: string; view?: number | null }
+export type LensNode = { id: string; label: string; layer: Layer; state?: string; view?: number | null; /** 지도 라벨용 짧은 이름(묶음에 있으면) */ short?: string }
 /** 글에서 「from 이 to 를 움직인다」고 쓴 관계. dir + 같은 방향 · - 반대 방향 · ± 방향 미정. n = 언급 수. */
 export type LensEdge = {
   from: string; to: string; dir: string; n: number; horizon?: string; logNos?: string[]

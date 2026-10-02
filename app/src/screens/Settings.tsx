@@ -10,7 +10,7 @@ import { checkPin, hasPin, IDLE_MS, isUnlocked, lock, setPin } from '../lib/pin'
 import { loadBundle } from '../lib/bundle'
 import { mdHm } from '../lib/format'
 import { applyUpdown, KEYS, readLedger, readPortfolio, readPrefs, readSnaps, wipeDevice, writePrefs, type Prefs } from '../lib/personal/store'
-import { disableSync, enableSync, statusText, useSyncStatus } from '../lib/personal/sync'
+import { disableSync, enableSync, probeHoldings, readHoldRec, statusText, useSyncStatus } from '../lib/personal/sync'
 
 const THEMES = [{ key: 'system', label: '기기 설정' }, { key: 'light', label: '밝게' }, { key: 'dark', label: '어둡게' }] as const
 const UPDOWN = [{ key: 'kr', label: '한국식 · 오름 빨강' }, { key: 'us', label: '서양식 · 오름 초록' }] as const
@@ -41,6 +41,8 @@ export default function Settings() {
         </Card>
         <DataStatus />
       </div>
+      {/* 전환 단계 A(공존): 현행 화면으로 가는 길 하나. 같은 origin 이라 PIN·보유·관심이 그대로다. */}
+      <p className="m-0 text-12 text-ink-3"><a href="../" className="text-ink-3 hover:text-ink-1">이전 화면으로</a> · 홈 화면에 추가한 알림은 이 주소(/next/)에서만 옵니다.</p>
     </div>
   )
 }
@@ -160,7 +162,8 @@ function MyData() {
 
 /**
  * 기기 간 동기화 스위치. 켜면 동기화 키를 받아 해시만 이 탭에 기억하고(입력값은 바로 비운다) 서버 내용을 받는다.
- * 보유·평단가·수량·원장은 보내지 않는다 — 보내는 문서는 lib/personal/remote.ts toServer 가 만든다.
+ * /prefs 문서에 보유·평단가·수량·원장은 없다 — 보내는 문서는 lib/personal/remote.ts toServer 가 만든다.
+ * 보유는 HoldRow(상태만)와 내 자산 「동기화」가 따로 맡는다.
  */
 function SyncBox() {
   const s = useSyncStatus()
@@ -177,7 +180,7 @@ function SyncBox() {
     <div>
       <Switch on={s.on || ask} label="기기 간 동기화"
         onChange={v => { if (v) setAsk(true); else { setAsk(false); setKey(''); disableSync() } }} />
-      <p className="mt-1 mb-0 text-12 text-ink-3">관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오를 동기화 키로 서버에 맡겨 다른 기기와 맞춥니다. 보유 종목 · 평단가 · 수량 · 원장은 보내지 않습니다.</p>
+      <p className="mt-1 mb-0 text-12 text-ink-3">관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오를 동기화 키로 서버에 맡겨 다른 기기와 맞춥니다. 보유는 여기에 섞지 않고 아래 줄처럼 따로 잠가 올립니다. 원장은 보내지 않습니다.</p>
       {asking && (
         <form onSubmit={connect} className="mt-2 flex flex-wrap items-end gap-2" aria-label="동기화 키 넣기">
           <Field label="동기화 키" className="flex-1 min-w-48">
@@ -189,6 +192,29 @@ function SyncBox() {
       )}
       {asking && <p className="mt-1 mb-0 text-12 text-ink-3">키는 저장하지 않고 해시만 이 탭에 기억합니다. 탭을 닫으면 다시 넣어야 합니다. 서버에 맡긴 것이 있으면 그 내용으로 이 기기를 맞추고, 없으면 이 기기 것을 올립니다.</p>}
       {(s.on || s.msg) && <p role="status" className={`mt-1 mb-0 text-12 ${s.msg ? 'text-warn' : 'text-ink-2'}`}>{statusText(s)}</p>}
+      <HoldRow on={s.on} />
+    </div>
+  )
+}
+
+/** 보유 한 줄: 마지막 올림 · 서버 유무(sync.ts 「보유」 기록). 올리기·받기는 내 자산 「동기화」에서만 — 여기서는 보유를 읽지 않는다. */
+function HoldRow({ on }: { on: boolean }) {
+  const [r, setR] = useState(readHoldRec)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const probe = async () => { setBusy(true); setErr(await probeHoldings()); setR(readHoldRec()); setBusy(false) }
+  return (
+    <div className="mt-3 pt-3 border-t border-line">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-13">
+        <span className="text-ink-1">보유(평단가·수량)</span>
+        <span className="text-ink-2">
+          마지막 올림 <span className="num">{r.upAt ? mdHm(r.upAt) : '없음'}</span> · 서버 {r.server == null ? '확인 전' : r.server ? '있음' : '없음'}
+          {r.checkedAt && <> (<span className="num">{mdHm(r.checkedAt)}</span> 확인)</>}
+        </span>
+        {on && <button type="button" disabled={busy} className={BTN2} onClick={probe}>{busy ? '확인 중' : '서버 확인'}</button>}
+      </div>
+      <p className="mt-1 mb-0 text-12 text-ink-3">올리고 받기는 <Link to="/my">내 자산</Link>의 「동기화」에서 합니다. 내 암호로 잠근 덩어리만 서버에 두므로 서버는 내용을 읽지 못합니다.</p>
+      {err && <p role="alert" className="mt-1 mb-0 text-12 text-warn">{err}</p>}
     </div>
   )
 }

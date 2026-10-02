@@ -115,6 +115,9 @@ jobs:
           # 새 화면(app/) 조건 — Worker GET /prefs 인증(SHA-256 → X-Sync-Key-Hash). 미설정이면 그 경로만 건너뛴다.
           #   사이트에서 「키 바꾸기」를 했다면 이 시크릿도 새 키로 바꿔야 한다(Worker 는 KV 의 새 해시를 우선한다).
           ALERTS_SYNC_KEY: ${{ secrets.ALERTS_SYNC_KEY }}
+          # 공개 alerts_state.json(_prefs) 발생 키의 HMAC 비밀 — 동기화 키와 다른 값이어야 한다(공개 해시가 그 키의 대입 창구가 되지 않게).
+          #   만들기: python -c "import secrets;print(secrets.token_hex(32))". 미설정이면 새 화면 조건 평가를 통째로 건너뛴다.
+          ALERTS_STATE_SALT: ${{ secrets.ALERTS_STATE_SALT }}
         run: python scripts/check_alerts.py
 
       # 웹 푸시 — check_alerts.py 가 쌓은 scripts/push_queue.json 을 구독한 기기에 보낸다(기획안 v4 D3).

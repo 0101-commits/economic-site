@@ -765,6 +765,8 @@ def _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered_syms):
 # #종목-알림과 푸시 큐로 보낸다. 카카오·종목당 1줄·가격 교차 재무장은 타지 않는다.
 # 반복 규칙(2026-10-02 결정):
 #   once  — price·pct·high52·lens 는 한 번 울리면 끝(fired=true, 화면은 「발동됨 · 다시 켜기」).
+#           다시 켜기 = 화면이 cond.armedAt 을 마지막 발동 뒤로 찍는다(_rearmed). 조건 id·기록 규칙은
+#           app/src/lib/personal/alertStatus.ts 머리 주석 한 곳에 적는다.
 #           event 는 일정 건마다 한 번, flow 는 전환 건마다 한 번(같은 방향 재발동은 24시간 쿨다운).
 #   daily — 종류와 무관하게 하루 한 번, 같은 발생(같은 기준일 값·같은 일정)은 날이 바뀌어도 다시 안 보냄.
 # 상태는 alerts_state.json 의 "_prefs" 아래 조건 id 별로 둔다. 밑줄 키라 _write_state 가 지우지 않는다.
@@ -804,10 +806,22 @@ def _pskip(a, why):
     return None
 
 
+def _state_salt():
+    """공개 기록용 HMAC 비밀(시크릿 ALERTS_STATE_SALT). 없으면 None — 그러면 _check_prefs 가 통째로 건너뛴다."""
+    return os.environ.get("ALERTS_STATE_SALT", "").strip().encode("utf-8") or None
+
+
 def _kh(key):
-    """발생 키는 해시로만 남긴다 — 일정 이름 같은 평문이 공개 이력에서 조건을 드러내지 않게."""
+    """발생 키는 해시로만 남긴다 — 일정 이름 같은 평문이 공개 이력에서 조건을 드러내지 않게.
+    소금 없는 해시는 공개 data.json 의 일정표(이름·날짜)를 넣어 보면 되짚히므로 ALERTS_STATE_SALT 로 HMAC 한다.
+    동기화 키(ALERTS_SYNC_KEY)를 쓰면 안 된다 — 원문(날짜·asOf·일정)은 누구나 아니까 공개 해시가 그 키의 오프라인 대입 창구가 된다.
+    소금을 바꾸면 지난 발생 키와 안 맞아 같은 발생이 한 번 더 갈 수 있다(바꿀 때 한 번뿐)."""
     import hashlib
-    return hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:12]
+    import hmac
+    salt = _state_salt()
+    if not salt:
+        raise RuntimeError("ALERTS_STATE_SALT 없음")             # 평문 해시로 조용히 되돌아가지 않는다
+    return hmac.new(salt, str(key).encode("utf-8"), hashlib.sha256).hexdigest()[:12]
 
 
 class _PrefsCtx:
@@ -1131,6 +1145,18 @@ def _deliver_prefs(fired, now):
     return d_ok, q_ok
 
 
+def _rearmed(a, rec, now):
+    """끝난 once 조건의 「다시 켜기」 — 마지막 발동(ts) < cond.armedAt ≤ 지금. armedAt 은 비공개 /prefs 에만 있고 기록하지 않는다.
+    fired 관문만 연다 — 같은 발생 거름(keys)은 그대로라 새 발생에서만 다시 울린다.
+    미래 시각(시계가 앞선 기기)은 그때까지 기다린다. 다시 울리면 ts ≥ armedAt 이 되어 저절로 다시 끝난다(되풀이 없음)."""
+    c = a.get("cond")
+    try:
+        t = datetime.datetime.fromisoformat(str(c.get("armedAt")).replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return False
+    return t.tzinfo is not None and int(rec.get("ts") or 0) < int(t.timestamp()) <= int(now.timestamp())
+
+
 def _settle(rec, typ, repeat, khash, extra, today, ts):
     """발송이 확정된 조건 하나를 기록한다 — 바로 확정(디스코드)과 푸시 확정(--confirm-push)이 같이 쓴다."""
     rec.pop("pend", None)
@@ -1152,6 +1178,9 @@ def _check_prefs(state, now, snaps, cfg):
     디스코드가 성공한 조건은 바로 기록한다. 푸시로만 나간 조건은 「대기(pend)」로만 두고, send_push.py 가
     실제로 보낸 것을 --confirm-push 가 확정한다(조용한 시간·구독 0대로 버려진 것은 다음 런에 다시 쌓인다).
     기록 모양은 현행 최상위 기록과 같다(date·ts = 'YYYYMMDD'·초, hist = 날짜 문자열 최근 40개)."""
+    if not _state_salt():
+        print("[prefs] ALERTS_STATE_SALT 없음 — /prefs 조건 평가 건너뜀")
+        return False
     import prefs_client
     doc = prefs_client.fetch(WORKER)
     if doc is None:
@@ -1178,14 +1207,14 @@ def _check_prefs(state, now, snaps, cfg):
         if a.get("repeat") == "daily":
             if rec.get("date") == today:
                 continue
-        elif rec.get("fired"):                                # once(모르는 값도 once 로 — 덜 울리는 쪽)
+        elif rec.get("fired") and not _rearmed(a, rec, now):  # once(모르는 값도 once 로 — 덜 울리는 쪽)
             continue
         try:
             hit = _prefs_eval(a, ctx, rec)
         except Exception as e:                                # noqa: BLE001 — 한 조건의 오류가 나머지를 막지 않게
             print(f"[prefs] 평가 오류 {a.get('id')}({a.get('type')}): {type(e).__name__}")
             continue
-        if hit and _kh(hit[3]) not in (rec.get("keys") or []):
+        if hit and _kh(hit[3]) not in (rec.get("keys") or []):   # 다시 켠 조건도 같은 발생(주말의 금요일 값)은 다시 안 보낸다
             fired.append((a, hit))
             print(f"[prefs] 조건 충족 {a['id']}({a.get('type')})")
     if fired:

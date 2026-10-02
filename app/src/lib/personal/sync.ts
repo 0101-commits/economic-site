@@ -1,5 +1,6 @@
 // 기기 간 동기화 — 관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오를 Worker /prefs 에 맡긴다(기획안 v4 보안 위험 3).
-// 보유(portfolioV1)·스냅샷·원장은 읽지도 보내지도 않는다. 보내는 문서는 remote.ts toServer 가 아래 저장소 네 곳에서만 만든다.
+// /prefs 문서에 보유(portfolioV1)·스냅샷·원장은 없다. 보내는 문서는 remote.ts toServer 가 아래 저장소 네 곳에서만 만든다.
+// 보유는 맨 아래 「보유」 칸이 내 암호로 잠근 덩어리(e2e.ts)로만 /portfolio 에 올린다. 스냅샷·원장은 어디로도 보내지 않는다.
 //
 // 규칙
 //   키      화면에서 받은 동기화 키는 저장하지 않는다. SHA-256 해시만 sessionStorage econSyncHash_v1 — 탭을 닫으면 사라진다.
@@ -17,8 +18,11 @@
 import { useSyncExternalStore } from 'react'
 import { mdHm } from '../format'
 import { applyTheme, readTheme } from '../theme'
-import { applyUpdown, KEYS, readPrefs, writePrefs } from './store'
-import { fromServer, keyHash, prefsCall, toServer, type Local, type PrefsDoc, type Reply } from './remote'
+import { checkPin, hasPin } from '../pin'
+import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, writePortfolio, writePrefs } from './store'
+import { fromServer, keyHash, portfolioGet, portfolioPost, prefsCall, toServer, type Local, type PrefsDoc, type Reply } from './remote'
+import { applyEntries, decide, decryptAs, encrypt, entriesOf, fingerprint, passProblem, type EncBlob, type Entry, type Plan } from './e2e'
+import type { Holding } from './calc'
 
 const HASH_KEY = 'econSyncHash_v1'
 const SCEN_KEY = 'econ_scenarios_v1'   // components/lens/WhatIf.tsx SAVE_KEY 와 같은 열쇠
@@ -188,4 +192,104 @@ export function disableSync(msg = '') {
   stop()
   prev = null; sent = ''; retryAt = 0
   set({ on: false, busy: false, msg })
+}
+
+// ── 보유(평단가·수량·매입 환율) — 내 암호로 잠근 덩어리만 /portfolio 로 ─────────
+// 형식은 e2e.ts(현행 화면과 같다). 보유를 읽는 checkHoldings·pushHoldings·pullHoldings 는 내 자산(PinGate 안)의 「동기화」만 부른다.
+// 설정 화면은 probeHoldings(서버에 있는지만, 풀지 않음)만 부른다.
+// 보유 암호는 저장하지 않는다 — 부를 때마다 인자로 받고, 어디에도(콘솔 포함) 남기지 않는다.
+// checkHoldings 는 실제로 풀린 암호 문자열을 HoldCheck.pass 로 돌려준다. 화면은 그것을 들고 있다가 올릴 때 그대로 넘긴다.
+// 자동으로 덮지 않는다: checkHoldings 가 어느 쪽을 쓸지 고르면 화면이 한 번 묻고, 답을 들은 뒤에 pushHoldings · pullHoldings.
+// econHoldSync_v1 = { base: 마지막으로 맞췄을 때의 보유 지문, upAt: 마지막 올림, downAt: 마지막 받음, server: 서버에 있음, checkedAt } — 보유 값은 없다.
+export type HoldRec = { base?: string; upAt?: string; downAt?: string; server?: boolean; checkedAt?: string }
+export function readHoldRec(): HoldRec {
+  const r = readJson(KEYS.holdSync)
+  return r && typeof r === 'object' ? (r as HoldRec) : {}
+}
+function noteHold(p: HoldRec) {
+  try { localStorage.setItem(KEYS.holdSync, JSON.stringify({ ...readHoldRec(), ...p })) } catch { /* 못 남기면 다음 확인이 둘 중 고르라고 묻는다 */ }
+}
+
+export type HoldCheck =
+  | { ok: false; msg: string }
+  | { ok: true; plan: Plan; enc: EncBlob | null; server: Entry[]; serverAt: string | null; localN: number; pass: string }
+export type HoldDone = { ok: boolean; msg: string }
+
+const NO_SYNC = '설정에서 기기 간 동기화를 먼저 켜세요.'
+function holdErr(r: { status: number; error?: string }): string {
+  if (r.status === 401) { disableSync('동기화 키가 맞지 않아 껐습니다. 키를 다시 넣어 주세요.'); return '동기화 키가 맞지 않아 동기화를 껐습니다.' }
+  if (r.status === 0) return '서버에 닿지 못했습니다.'
+  if (r.status === 429) return '요청이 많습니다. 1분 뒤 다시 해 주세요.'
+  if (r.status === 413) return '보낼 내용이 너무 커서 서버가 받지 않았습니다.'
+  return `서버가 받지 않았습니다(${r.error ?? r.status}).`
+}
+
+/** 설정 화면: 서버에 보유 덩어리가 있는지만 본다. '' = 기록을 새로 남겼다. */
+export async function probeHoldings(): Promise<string> {
+  const h = getKeyHash()
+  if (!h) return NO_SYNC
+  const g = await portfolioGet(h)
+  if (!g.ok) return holdErr(g)
+  noteHold({ server: !!g.enc, checkedAt: new Date().toISOString() })
+  return ''
+}
+
+/** 확인: 서버 덩어리를 받아 풀고, 이 기기와 비교해 어느 쪽을 쓸지 고른다. 아무것도 덮지 않는다. */
+export async function checkHoldings(pass: string): Promise<HoldCheck> {
+  const h = getKeyHash()
+  if (!h) return { ok: false, msg: NO_SYNC }
+  if (!pass.trim()) return { ok: false, msg: '보유 암호를 넣어 주세요.' }
+  const g = await portfolioGet(h)
+  if (!g.ok) return { ok: false, msg: holdErr(g) }
+  noteHold({ server: !!g.enc, checkedAt: new Date().toISOString() })
+  const local = entriesOf(readPortfolio().items)
+  const lf = { fp: await fingerprint(local), n: local.length }
+  const base = readHoldRec().base ?? null
+  // 서버에 없으면 새로 정하는 암호다 — 앞뒤 공백을 뺀다(현행 화면이 물어서 풀 때 빼므로 어느 길로든 풀린다).
+  if (!g.enc) return { ok: true, plan: decide(lf, null, base), enc: null, server: [], serverAt: null, localN: lf.n, pass: pass.trim() }
+  let d: Awaited<ReturnType<typeof decryptAs>>
+  try { d = await decryptAs(g.enc, pass) } catch (e) {
+    return { ok: false, msg: (e as Error).message === 'wrong-pass' ? '보유 암호가 다릅니다.' : '서버 보유 자료를 읽지 못했습니다.' }
+  }
+  const plan = decide(lf, { fp: await fingerprint(d.entries), n: d.entries.length }, base)
+  if (plan === 'same') noteHold({ base: lf.fp })
+  return { ok: true, plan, enc: g.enc, server: d.entries, serverAt: d.at, localN: lf.n, pass: d.pass }
+}
+
+/**
+ * 올리기: 확인 때 본 서버 덩어리(seen)가 그사이 바뀌지 않았을 때만 이 기기 보유를 잠가 올린다.
+ * pass 는 checkHoldings 가 돌려준 HoldCheck.pass(서버 것을 푼 바로 그 문자열)다 — 여기서 다시 다듬지 않는다.
+ */
+export async function pushHoldings(pass: string, seen: EncBlob | null): Promise<HoldDone> {
+  const h = getKeyHash()
+  if (!h) return { ok: false, msg: NO_SYNC }
+  const bad = await passProblem(pass, async p => (await keyHash(p)) === h, p => (hasPin() ? checkPin(p) : Promise.resolve(false)))
+  if (bad) return { ok: false, msg: bad }
+  const local = entriesOf(readPortfolio().items)
+  const at = new Date().toISOString()
+  // 잠그기(PBKDF2 600k, 폰에서 1~3초)는 GET 앞에서 한다 — GET 과 POST 사이를 요청 한 번 길이로 줄인다.
+  const enc = await encrypt(local, pass, at)
+  if (enc.ciphertext.length > 60_000) return { ok: false, msg: '보유 종목이 너무 많아 올릴 수 없습니다.' }   // Worker _sanitizeEncHoldings 한도
+  const g = await portfolioGet(h)
+  if (!g.ok) return { ok: false, msg: holdErr(g) }
+  if ((g.enc?.ciphertext ?? null) !== (seen?.ciphertext ?? null)) return { ok: false, msg: '그사이 서버 보유가 바뀌었습니다. 다시 확인해 주세요.' }
+  // ponytail: GET 과 POST 사이(요청 한 번 길이)에 다른 기기가 알림 조건을 바꾸면 그 변경은 이 POST 가 덮는다. Worker 가 alerts 없는 POST 를 보존하게 되면 alerts 를 뺀다.
+  const r = await portfolioPost(h, enc, g.alerts ?? [])
+  if (!r.ok) return { ok: false, msg: holdErr(r) }
+  noteHold({ base: await fingerprint(local), upAt: at, server: true, checkedAt: at })
+  return { ok: true, msg: `올렸습니다 · ${local.length}종목 · ${mdHm(at)}` }
+}
+
+/** 받기: 확인 때 풀어 본 서버 칸으로 이 기기 보유를 바꾼다(그 내용을 화면에서 보고 고른 것이다). */
+export async function pullHoldings(server: Entry[]): Promise<HoldDone> {
+  const p = readPortfolio()
+  const group = p.groups[0].id
+  const items = applyEntries(p.items, server, (e): Holding => ({
+    id: newId('i'), symbol: e.s, market: e.m, yahoo: e.m === 'US' ? e.s : null, name: e.s, secType: 'stock',
+    ccy: e.m === 'US' ? 'USD' : 'KRW', avg: e.a, qty: e.q, fxBuy: e.fx, group,
+  }))
+  if (!writePortfolio({ ...p, items })) return { ok: false, msg: '이 기기에 저장하지 못했습니다. 시크릿 창이거나 저장 공간이 찼습니다.' }
+  const at = new Date().toISOString()
+  noteHold({ base: await fingerprint(server), downAt: at })
+  return { ok: true, msg: `받았습니다 · ${server.length}종목 · ${mdHm(at)}` }
 }

@@ -170,6 +170,10 @@ COLLECT_ONLY = {
     "pmi_kr_bsi": "pmi_kr(OECD BCI)가 있을 때만 따로 저장되는 보조 계열 — pmi_kr 가 비면 ECOS BSI 가 그 자리를 채운다.",
 }
 
+# 수집 중간 잎(같은 값이 다른 이름으로 한 번 더 있다) — 레지스트리에 싣지 않는다. 둘 다 실으면 「아파트 거래량」이
+# 같은 값으로 두 번 보였다(2026-10-02 실측). fetch_data 가 trade_count_kr_rone 을 trade_count_kr 로 그대로 복사한다.
+ALIAS_LEAVES = {"realestate.kr.trade_count_kr_rone": "realestate.kr.trade_count_kr"}
+
 ASSET_ORDER = ["index", "equity", "fx", "rate", "commodity", "macro", "realestate",
                "sentiment", "flow"]
 
@@ -416,6 +420,8 @@ def build(data, mer):
             path = "realestate.%s.%s" % (cc, key)
             if data_sla.is_tombstoned(path):
                 continue
+            if path in ALIAS_LEAVES:
+                continue
             row = by_path.get(path)
             base = re.sub(r"_(kr|us)$", "", key.lower())
             rid = "%s_%s" % (base, cc)
@@ -580,7 +586,7 @@ def main():
     registry_paths = {r["data"] for r in rows}
     for row in rows:
         registry_paths.update(row.get("alsoData") or [])
-    for path in sorted(on_screen_paths - registry_paths):
+    for path in sorted(on_screen_paths - registry_paths - set(ALIAS_LEAVES)):
         problems.append("화면에 있는데 data.json 에 없다(죽은 카드): %s" % path)
 
     missing = [r for r in rows if r.get("onScreen") is False]
