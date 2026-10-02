@@ -38,7 +38,8 @@ const noonKst = (day: string) => Date.parse(`${day}T12:00:00+09:00`)
 /** 받은 알림 목록(최근 7일, 새것이 위). */
 function buildFeed(state: Record<string, unknown> | null, md: MarketData | null, mine: Map<string, AlertCond>, regName: Map<string, string>, from: string): Item[] {
   const out: Item[] = []
-  for (const [id, raw] of Object.entries(state || {})) {
+  // 최상위 기록(현행 조건) + state._prefs(새 화면 조건) — 두 곳 모두 같은 모양. 이름은 이 기기 econPrefsV1 에서 id 로 찾는다.
+  for (const [id, raw] of [...Object.entries(state || {}), ...Object.entries((state?._prefs ?? {}) as Record<string, unknown>)]) {
     if (id.startsWith('_') || !raw || typeof raw !== 'object') continue
     const r = raw as StateRec
     const lastDay = r.ts ? kstDay(r.ts * 1000) : null
@@ -175,7 +176,7 @@ export default function Alerts() {
                 ))}
               </ul>
             ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다.</p>}
-            <p className="mt-2 mb-0 text-12 text-ink-3">새 화면에서 만든 조건은 아직 발송되지 않습니다. 발송 연결(서버 동기화)은 다음 단계입니다.</p>
+            <p className="mt-2 mb-0 text-12 text-ink-3">동기화를 켜면 서버가 이 조건을 보고 보냅니다. 장중에는 몇 분마다, 그 밖에는 매일 21:05 에 한 번 봅니다.</p>
           </Panel>
           <p className="m-0 text-12 text-ink-3">
             현행 화면에서 만든 조건은 <a href="../?p=portfolio" className="text-ink-2">현행 화면</a>에서 보고 고칩니다.
@@ -367,7 +368,7 @@ function Channels({ prefs, onSave }: { prefs: Prefs; onSave: (p: Prefs) => void 
             <Field label="까지"><input type="time" className={INPUT} value={quiet.to} onChange={e => e.target.value && setQuiet({ ...quiet, to: e.target.value })} /></Field>
           </div>
         )}
-        <p className="mt-3 mb-0 text-12 text-ink-3">한국 시각 기준입니다. 이 기기에 저장하고, 동기화가 연결되면 서버 발송도 이 시간을 따릅니다.</p>
+        <p className="mt-3 mb-0 text-12 text-ink-3">한국 시각 기준입니다. 서버가 보내는 폰 알림도 이 시간을 따릅니다. 디스코드는 따르지 않습니다.</p>
       </Panel>
     </div>
   )

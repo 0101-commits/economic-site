@@ -10,6 +10,8 @@
 
 설정이 빠지면 아무것도 보내지 않고 종료 0 — 알림 워크플로의 다른 스텝을 막지 않는다.
 보낸 뒤에는 성공·실패와 관계없이 큐를 비운다(같은 알림이 다음 런에 또 가지 않게).
+출력  scripts/push_sent.json = 기기 1대 이상에 실제로 간 큐 id 목록. 같은 스텝의 `check_alerts.py --confirm-push` 가
+      이것만 「발송됨」으로 확정한다 — 조용한 시간·구독 0대·설정 빠짐으로 안 간 것은 다음 런에 다시 쌓인다.
 ponytail: 실패한 기기에 다시 보내지 않는다(최대 한 번 전달). 재시도가 필요하면 기기별 실패 큐를 둔다.
 실행: python scripts/send_push.py   테스트: python scripts/tests/test_send_push.py
 """
@@ -77,8 +79,8 @@ def payload(item):
     }, ensure_ascii=False)
 
 
-def send_all(items, subs, private_key, subject, push=None):
-    """모든 구독 × 모든 알림. 반환 (성공 수, 실패 수, 사라진 endpoint 목록)."""
+def send_all(items, subs, private_key, subject, push=None, sent=None):
+    """모든 구독 × 모든 알림. 반환 (성공 수, 실패 수, 사라진 endpoint 목록). sent(set)를 주면 간 알림 id 를 담는다."""
     if push is None:
         from pywebpush import webpush as push       # 실행 때만 — 테스트는 가짜를 넘긴다
     ok = fail = 0
@@ -93,6 +95,8 @@ def send_all(items, subs, private_key, subject, push=None):
                      vapid_private_key=private_key, vapid_claims={"sub": subject},
                      ttl=TTL, headers={"Urgency": "high"}, timeout=10)
                 ok += 1
+                if sent is not None:
+                    sent.add(str(item.get("id") or ""))
             except Exception as e:                    # WebPushException·네트워크 오류 모두 — 한 기기 실패가 나머지를 막지 않게
                 code = getattr(e, "status_code", None) or getattr(getattr(e, "response", None), "status_code", None)
                 fail += 1
@@ -133,8 +137,14 @@ def main():
         print(f"[push] 구독한 기기 없음 — 알림 {len(items)}건 버림")
         clear_queue()
         return 0
-    ok, fail, gone = send_all(items, subs, priv, subject)
+    sent = set()
+    ok, fail, gone = send_all(items, subs, priv, subject, sent=sent)
     print(f"[push] 기기 {len(subs)}대 × 알림 {len(items)}건 — 성공 {ok} · 실패 {fail}")
+    try:                                              # 확정 재료 — 못 쓰면 다음 런이 다시 쌓는다(중복 쪽으로 실패)
+        with open(os.path.join(os.path.dirname(QUEUE), "push_sent.json"), "w", encoding="utf-8") as f:
+            json.dump(sorted(sent), f)
+    except OSError as e:
+        print(f"[push] 보낸 목록 기록 실패: {type(e).__name__}")
     if gone:
         try:
             r = requests.put(base + "/push/prune", headers=hdr, json={"endpoints": gone}, timeout=15)
