@@ -132,7 +132,7 @@ export default function WhatIf({ b }: { b: LensBundle }) {
               <div className="flex flex-col gap-3">
                 <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-12 text-ink-2">
                   <span>{LAYER_LABEL[node.layer]}</span>
-                  {trigValue(t) && <span className="num text-13 font-bold text-ink-1">{trigValue(t)}</span>}
+                  {trigValue(t) ? <span className="num text-13 font-bold text-ink-1">{trigValue(t)}</span> : t && <span className="text-ink-3">자료 없음</span>}
                   <TrigPill t={t} />
                   {t?.level != null && <span className="text-ink-3">기준 <span className="num">{trigValue({ ...t, value: t.level })}</span></span>}
                   {t?.asOf && <span className="num text-ink-3">{asOfText(t.asOf)}</span>}

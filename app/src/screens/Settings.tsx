@@ -47,7 +47,7 @@ export default function Settings() {
   )
 }
 
-/** 보안: PIN 켜기·바꾸기(lib/pin.ts — 현행 화면과 같은 PIN) · 지문·얼굴 지원 감지 · 자동 잠금. */
+/** 보안: PIN 켜기·바꾸기(lib/pin.ts — 현행 화면과 같은 PIN) · 자동 잠금. 지문·얼굴은 2026-10-02 사용자 결정으로 뺐다(PIN 만). */
 function Security() {
   const [has, setHas] = useState(hasPin)
   const [cur, setCur] = useState('')
@@ -55,12 +55,6 @@ function Security() {
   const [p2, setP2] = useState('')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
-  const [bio, setBio] = useState<boolean | null>(null)
-  useEffect(() => {
-    const P = window.PublicKeyCredential
-    if (!P?.isUserVerifyingPlatformAuthenticatorAvailable) { setBio(false); return }
-    P.isUserVerifyingPlatformAuthenticatorAvailable().then(setBio, () => setBio(false))
-  }, [])
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!/^\d{6}$/.test(p1)) { setNote('새 PIN 은 숫자 6자리입니다.'); return }
@@ -92,8 +86,6 @@ function Security() {
         </div>
       </form>
       <dl className="mt-3 mb-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-13">
-        <dt className="text-ink-3">지문·얼굴</dt>
-        <dd className="m-0 text-ink-1">{bio == null ? '확인 중' : bio ? '이 기기는 지원합니다 · 연결은 다음 단계' : '이 기기·브라우저는 지원하지 않습니다'}</dd>
         <dt className="text-ink-3">자동 잠금</dt>
         <dd className="m-0 text-ink-1"><span className="num">{IDLE_MS / 60_000}</span>분 동안 조작이 없으면 다시 잠급니다 · 탭을 닫아도 잠깁니다</dd>
       </dl>

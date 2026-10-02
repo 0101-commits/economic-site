@@ -219,6 +219,41 @@ def test_yoy_guard_over_50pct():
     assert ex["label"] == "한국 수출(억달러·월)" and len(ex["asOf"]) == 7 and "전년비" in ex["note"]
 
 
+def _exports_case(idx_yoy):
+    """수출 전년비 +60% 로 만들고, 같은 달 수출금액지수 전년비를 idx_yoy(%) 로 둔다(None 이면 지수 계열을 지운다)."""
+    data = json.loads(json.dumps(DATA))
+    kr = data["economicIndicators"]["kr"]
+    ex = kr["exports_kr"]
+    k = ex["period"]                                               # 'YYYY-MM-DD'
+    ex["history"][str(int(k[:4]) - 1) + k[4:]] = ex["history"][k] / 1.6
+    m = k[:4] + k[5:7]                                             # 지수 키는 'YYYYMM'
+    if idx_yoy is None:
+        kr.pop("exports_idx_kr", None)
+    else:
+        kr["exports_idx_kr"] = {"value": 200.0, "period": m, "history": {m: 200.0, str(int(m[:4]) - 1) + m[4:]: 200.0 / (1 + idx_yoy / 100)}}
+    return data, bb.build_all(data, MER, NOW)
+
+
+def test_yoy_guard_cross_check_pass():
+    """±50% 를 넘어도 같은 달 수출금액지수 전년비와 10%p 안이면 싣는다 — suspect 없이 health.checks 에 남긴다(팀장 결정 2026-10-02)."""
+    data, b = _exports_case(55.0)
+    assert _item(b["market-macro"], "exports_kr")["note"] == "전년비 +60.0%"      # 띠의 수출 칸 = 절대값, 전년비는 note
+    assert not any(i["path"] == "economicIndicators.kr.exports_kr" for i in b["_issues"])
+    m = bb.meta(data, MER, {}, NOW, b)
+    assert any("대조 통과: 지수 전년비 55.0%" in i["note"] for i in m["health"]["checks"])
+    assert not any(i["path"] == "economicIndicators.kr.exports_kr" for i in m["health"]["issues"])
+
+
+def test_yoy_guard_cross_check_fail():
+    """대조 지수가 10%p 넘게 다르거나 없으면 종전대로 null + suspect."""
+    for idx_yoy, tail in ((20.0, "대조 실패: 지수 전년비 20.0%"), (None, "대조할 지수 값 없음")):
+        data, b = _exports_case(idx_yoy)
+        assert _item(b["market-macro"], "exports_kr")["note"] == "전년비 +60.0% — 원본 이력 확인 필요"
+        assert any(i["path"] == "economicIndicators.kr.exports_kr" and i["state"] == "suspect" and tail in i["note"]
+                   for i in b["_issues"]), b["_issues"]
+        assert not b["_checks"]
+
+
 def test_lens_node_short_within_mobile_cap():
     lens = bundles()["lens"]
     bad = [(n["id"], n["short"]) for n in lens["nodes"] if not n.get("short") or ol.width(n["short"]) > bb.SHORT_M]
@@ -370,8 +405,14 @@ def test_gold_premium_formula():
     assert bb.gold_premium(182940.0, 0, 1359.6) is None
     gp = bundles()["market-commodities"]["views"]["goldPremium"]
     c = DATA["commodities"]
-    want = bb.gold_premium(c.get("GoldKRW", {}).get("price"), c.get("Gold", {}).get("price"), DATA["fx"]["USDKRW"]["rate"])
-    assert gp["pct"] == want
+    # 묶음이 밝힌 기준의 입력값으로 공식을 다시 잰다. sameDay(KRX 금 기준일의 국제 금·달러원 종가)는 지금 값과
+    # 다르다 — 종전 검사는 늘 지금 값과 비교해 KRX 금 기준일 종가가 history 에 있는 날마다 실패했다.
+    assert gp["pct"] == bb.gold_premium(gp["krwPerG"], gp["usdPerOz"], gp["usdkrw"])
+    assert gp["krwPerG"] == c.get("GoldKRW", {}).get("price")
+    if gp["basis"] == "spot":
+        assert (gp["usdPerOz"], gp["usdkrw"]) == (c.get("Gold", {}).get("price"), DATA["fx"]["USDKRW"]["rate"])
+    else:
+        assert gp["basis"] == "sameDay" and gp["date"]
 
 
 def test_same_indicator_same_value_across_bundles():
@@ -397,6 +438,21 @@ def test_lens_counts_match_source():
     assert len(lens["nodes"]) == len(MER["graph"]["nodes"]) and len(lens["edges"]) == len(MER["graph"]["edges"])
     assert len(lens["chains"]) == len(MER["chains"]) and len(lens["triggers"]) == len(MER["indicators"])
     assert len(lens["posts"]) <= 3 and all(set(p) == {"logNo", "date", "title"} for p in lens["posts"])
+
+
+def test_lens_trigger_without_value_or_level_is_unknown_not_crossed():
+    """값 없음·임계 없음(범위 게이트 탈락)은 원천이 crossed 라고 적어도 돌파로 세지 않는다 — 돌파 수·breach·사슬 모두."""
+    ind = lambda i, st, v, lv: {"id": i, "label": i, "state": st, "current": {"value": v, "asOf": "2026-10-01"} if v is not None else None,
+                                "nearest": {"level": lv, "distancePct": 1.0} if lv is not None else None}
+    mer = {"indicators": [ind("ok", "crossed", 5.3, 5.1), ind("noval", "crossed", None, 5.1), ind("nolv", "crossed", 5.3, None),
+                          ind("nostate", None, 5.3, 5.1), ind("near", "near", 5.0, 5.1)],
+           "chains": [{"id": "C", "steps": [{"id": "noval"}], "hotStep": None, "n": 1}], "lens": {"score": 10}}
+    st = {t["id"]: (t["state"], t["stateLabel"]) for t in bb.triggers(mer)}
+    assert st == {"ok": ("crossed", "돌파"), "noval": ("unknown", "자료 없음"), "nolv": ("unknown", "자료 없음"),
+                  "nostate": ("unknown", "자료 없음"), "near": ("near", "주시")}
+    lens = bb.build_lens(mer)
+    assert lens["triggerCounts"] == {"crossed": 1, "unknown": 3, "near": 1}
+    assert [t["id"] for t in lens["today"]["breach"]] == ["ok"]
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 // 내 자산 관문. 열리기 전에는 children 을 아예 만들지 않는다 — 그래서 자산 자료를 읽는 코드는
 // children 안에만 두면 PIN 없이는 한 번도 돌지 않는다(홈·검색·알림에 금액이 새지 않는 이유).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Fingerprint } from 'lucide-react'
 import { canHash, checkPin, hasPin, isUnlocked, lock, setPin, touch } from '../lib/pin'
+import { ROOT } from '../lib/bundle'
 import { Card } from './ui'
 
 const CELLS = 6
@@ -45,13 +45,6 @@ export function PinGate({ children }: { children: ReactNode }) {
   const [first, setFirst] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
-  const [bio, setBio] = useState(false)
-
-  // 지문·얼굴: 지원 여부만 본다. 실제 연결(WebAuthn 등록·확인)은 다음 단계.
-  useEffect(() => {
-    const P = window.PublicKeyCredential
-    P?.isUserVerifyingPlatformAuthenticatorAvailable?.().then(setBio, () => setBio(false))
-  }, [])
 
   // 열린 동안: 조작하면 시각을 갱신하고, 5분 무조작이면 다시 잠근다.
   useEffect(() => {
@@ -122,13 +115,7 @@ export function PinGate({ children }: { children: ReactNode }) {
       <p role="alert" className="min-h-5 mt-2 mb-0 text-12 text-warn">{busy ? '확인 중' : msg}</p>
       {mode === 'unlock' && (
         <div className="mt-3 flex flex-col items-start gap-2">
-          {bio && (
-            <button type="button" onClick={() => setMsg('지문·얼굴로 열기는 다음 단계에서 연결합니다.')}
-              className="h-11 px-4 rounded-btn text-14 border border-line bg-card text-ink-1 inline-flex items-center gap-2">
-              <Fingerprint size={18} aria-hidden /> 지문·얼굴로 열기
-            </button>
-          )}
-          <p className="m-0 text-12 text-ink-3">PIN 을 잊었으면 <a href="../?p=portfolio">현행 화면 투자 현황</a>의 잠금 창에서 「PIN 잊음」으로 다시 정하세요.</p>
+          <p className="m-0 text-12 text-ink-3">PIN 을 잊었으면 <a href={new URL('legacy.html?p=portfolio', ROOT).href}>이전 화면 투자 현황</a>의 잠금 창에서 「PIN 잊음」으로 다시 정하세요.</p>
         </div>
       )}
     </Card>

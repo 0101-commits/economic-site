@@ -16,7 +16,7 @@ PC 가 꺼져 있으면 스냅샷이 낡을 뿐이고, fetch_data.py 의 신선�
 무엇을 담는가
   · indices        코스피·코스닥 (공식 실시간)
   · yieldCurveKr   국고채 2/3/5/10/20/30Y — ECOS 만기 라벨 밀림을 교정하는 근거
-  · stockMovers    국내주식 상승/하락 Top10 (코스피+코스닥, 기준가 기반 등락률)
+  · stockMovers    국내주식 상승/하락 Top10 — 시장별(kospi*·kosdaq*), 기준가 기반 등락률
   · etfMovers      ETF 상승/하락 Top10 (같은 랭킹 응답에서 분리 — 추가 호출 0)
   · rankings       거래대금 상위 + 토스증권 체결 상위(리테일 인기 프록시)
   · investorDaily  코스피 투자자별 순매수(억원)
@@ -108,34 +108,16 @@ def collect():
             snap["yieldCurveKr"] = yc
             log(f"국고채 {[v for v in cur if v is not None]}")
 
-    # 등락상위 — 한 랭킹 응답에서 주식(코스피+코스닥)과 ETF 를 함께 뽑는다.
-    # 종전엔 market=="KOSPI" and type=="STOCK" 만 남겨 코스닥이 통째로 빠졌고
-    # ("국내 주식" 라벨과 불일치) ETF 행은 버렸다 — 둘 다 여기서 살린다.
+    # 등락상위 — 한 랭킹 응답을 코스피·코스닥·ETF 로 갈라 담는다(kospi*/kosdaq*/etf*).
+    # 종전엔 보통주를 시장 구분 없이 kospiGainers 에 담아 코스피 목록이 코스닥으로 오염됐다(2026-10-02 실측 8/10).
     movers, etf_movers = {}, {}
-    for stock_key, etf_key, rank_type in (
-            ("kospiGainers", "etfGainers", "TOP_GAINERS"),
-            ("kospiLosers", "etfLosers", "TOP_LOSERS")):
-        rows = toss_api.rankings(rank_type, "KR", "1d", limit=100)
-        if not rows:
-            continue
-        meta = toss_api.stocks([r["code"] for r in rows])
-        stocks_out, etf_out = [], []
-        for r in rows:
-            m = meta.get(r["code"]) or {}
-            row = {"name": m.get("name") or r["code"], "code": r["code"],
-                   "price": r["price"], "chg": r["chg"], "vol": r["vol"],
-                   "market": m.get("market"), "as_of": session}
-            if m.get("market") in ("KOSPI", "KOSDAQ") and m.get("type") == "STOCK":
-                if len(stocks_out) < 10:
-                    stocks_out.append(row)
-            elif m.get("type") == "ETF" and len(etf_out) < 10:
-                etf_out.append(row)
-            if len(stocks_out) >= 10 and len(etf_out) >= 10:
-                break
-        if stocks_out:
-            movers[stock_key] = stocks_out
-        if etf_out:
-            etf_movers[etf_key] = etf_out
+    for side, rank_type in (("Gainers", "TOP_GAINERS"), ("Losers", "TOP_LOSERS")):
+        got = toss_api.movers(rank_type, session)
+        for mk in ("KOSPI", "KOSDAQ"):
+            if got.get(mk):
+                movers[mk.lower() + side] = got[mk]
+        if got.get("ETF"):
+            etf_movers["etf" + side] = got["ETF"]
     if movers:
         snap["stockMovers"] = movers
         log("등락상위 " + ", ".join(f"{k} {len(v)}건" for k, v in movers.items()))

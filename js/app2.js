@@ -261,8 +261,15 @@ async function pfSeedDefaults() {
 }
 function pfAddItem() {
   if(!pfPendingAdd) return;
-  if(pfState.items.some(it => it.symbol === pfPendingAdd.symbol && it.market === pfPendingAdd.market)) {
-    document.getElementById('pfLookupResult').textContent = '이미 추가된 종목입니다.';
+  const dup = pfState.items.find(it => it.symbol === pfPendingAdd.symbol && it.market === pfPendingAdd.market);
+  if(dup) {
+    // 보유 암호본으로만 들어온 행(fromEnc — 공개 목록 제외)을 사용자가 여기서 직접 추가하면 그때부터 공개 목록에 싣는다
+    if(dup.fromEnc) {
+      delete dup.fromEnc; pfSave(); pfMarkDirty();
+      document.getElementById('pfLookupResult').textContent = '관심목록에 올렸습니다 — 다음 「목록 저장」부터 서버 목록에 포함됩니다.';
+    } else {
+      document.getElementById('pfLookupResult').textContent = '이미 추가된 종목입니다.';
+    }
     return;
   }
   // 인라인 유효성 검사 (3.2) — 음수/문자 입력 시 해당 칸을 표시하고 추가 중단
@@ -1283,11 +1290,13 @@ function _pfSyncStatusEl() {
 // 📋 관심목록(지정 종목 트래킹) 서버 동기화 페이로드 — 기기 간 동일한 목록 표시용.
 // ⚠ 프라이버시(사용자 선택='관심목록만 공개 동기화'): 평단가/수량/매입환율은 절대 보내지 않는다.
 //   종목(코드·이름·시장·구분)과 그룹(폴더) 정의만 담아 공개 저장소에 커밋한다.
+//   보유 암호본으로만 들어온 행(fromEnc — 새 화면에서만 담은 종목)은 싣지 않는다: 새 화면은 그 목록을 공개하지 않는다.
+//   표식은 이 기기 저장(portfolioV1)에만 남는다 — 아래가 필드를 골라 담으므로 서버로 가지 않는다.
 function pfBuildTrackingPayload() {
   if(!pfState) return undefined;
   return {
     groups: (pfState.groups || []).slice(0, 50).map(g => ({ id: String(g.id || ''), name: String(g.name || '그룹') })),
-    items: (pfState.items || []).slice(0, 300).map(it => ({
+    items: (pfState.items || []).filter(it => !it.fromEnc).slice(0, 300).map(it => ({
       symbol: it.symbol, market: it.market, yahoo: it.yahoo || null,
       name: it.name || it.symbol, secType: it.secType === 'etf' ? 'etf' : 'stock', group: it.group || ''
     })),
@@ -1486,6 +1495,8 @@ async function pfPullTracking(auto) {
     const grp = groupIds.has(s.group) ? s.group : fallbackGroup;
     const ex = pfState.items.find(it => it.symbol === s.symbol && it.market === s.market);
     if(ex) {
+      // 서버 목록에 이미 있는 종목은 공개된 것이다 — 암호본 표식을 남기면 다음 저장이 그 행을 공개 목록에서 지운다
+      delete ex.fromEnc;
       if(!auto) { ex.group = grp; if(s.name) ex.name = s.name; if(s.secType) ex.secType = s.secType; }
     } else {
       pfState.items.push({
@@ -1598,10 +1609,20 @@ async function pfApplyEncHoldings(blob, opts) {
   try { localStorage.setItem('pfHoldingsPass', pass); } catch(_) {}   // 복호화 성공 → 암호 기기에 저장
   let applied = 0;
   map.forEach(h => {
-    if (!h || !h.s) return;
+    if (!h || typeof h.s !== 'string' || !h.s) return;   // s 없는 칸(새 화면의 { t } 시각 칸)은 건너뛴다
     const mk = h.m === 'US' ? 'US' : 'KR';
-    const ex = pfState.items.find(it => it.symbol === h.s && it.market === mk);
-    if (!ex) return;
+    let ex = pfState.items.find(it => it.symbol === h.s && it.market === mk);
+    if (!ex) {
+      // 이 기기 목록에 없는 종목(새 화면에서만 담은 것)도 버리지 않고 행을 만든다 — 종전엔 평단가·수량이 조용히 사라졌다.
+      // 덩어리엔 코드·시장뿐이라 이름은 코드로 두고 유형은 비운다. 아래 pfRefreshQuotes 가 이름이 코드인 행을
+      // 시세 응답의 이름으로, 비어 있는 유형을 시세 응답의 유형으로 채운다(목록 불러오기 pfPullTracking 의 새 행과 같은 모양).
+      // fromEnc = 공개 목록(pfBuildTrackingPayload)에서 뺄 표식 — 새 화면은 이 종목을 공개하지 않았다.
+      ex = { id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+             symbol: h.s, market: mk, yahoo: mk === 'US' ? h.s : null, name: h.s,
+             ccy: mk === 'US' ? 'USD' : 'KRW', avg: null, qty: null,
+             group: (pfState.groups[0] && pfState.groups[0].id) || 'g_default', fromEnc: true };
+      pfState.items.push(ex);
+    }
     if (h.a != null) ex.avg = h.a;
     if (h.q != null) ex.qty = h.q;
     if (h.fx != null) ex.fxBuy = h.fx;

@@ -9,7 +9,8 @@
   DISCORD_WEBHOOK_SWINGS  #급변-속보     (check_swings·check_halts)
   DISCORD_WEBHOOK_SYSTEM  #시스템        (파이프라인 경고 — system())
 미설정이면 조용히 no-op(False). 실패는 경고만 — 호출측 카카오 경로에 절대 영향 없음.
-한도: description 4096자/content 2000자(넘으면 자름), 웹훅당 2초에 5요청.
+한도: content 2000자 · 제목 256 · description 4096 · 필드 1024 · embed 합 6000 — 넘치면 fit() 이 줄 단위로
+자르고 「외 N항목」을 붙인다(글자 중간에서 자르지 않는다). 웹훅당 2초에 5요청.
 
 ── 표기 표준(E7) — 채널 전체 일관성의 단일 출처 ─────────────────────────────
 색띠(embed color): 정기=네이비(주간=금색) · 급변/서킷 발동=빨강 · 해제=초록 ·
@@ -333,8 +334,49 @@ def _thread_id(hook, name):
         return None
 
 
+# 디스코드 글자 한도(API 사양). 칸 하나라도 넘으면 400 으로 메시지가 통째로 거절된다.
+LIMIT_CONTENT, LIMIT_TITLE, LIMIT_DESC = 2000, 256, 4096
+LIMIT_FIELD_NAME, LIMIT_FIELD, LIMIT_FOOTER, LIMIT_EMBED = 256, 1024, 2048, 6000
+
+
+def fit(text, limit):
+    """한도 맞추기 단일 창구 — send() 의 모든 글 칸(본문·제목·설명·필드·꼬리)이 여기를 지난다.
+
+    넘치면 줄 단위로 앞에서부터 남기고 마지막 줄 끝에 「 외 N항목」을 붙인다(send_kakao_digest._pack 과
+    같은 꼴, N = 못 실은 줄 중 빈 줄이 아닌 것). 종전의 `[:4096]` 은 글자 중간에서 잘라 마크다운 링크가
+    깨졌고, 받는 쪽은 빠진 줄이 있는지 몰랐다. 첫 줄부터 넘치면 그 줄을 「…」로 자른다."""
+    s = "" if text is None else str(text)
+    if len(s) <= limit:
+        return s
+    lines = s.split("\n")
+    for k in range(len(lines) - 1, 0, -1):                # k = 남길 줄 수, 많은 쪽부터
+        n = sum(1 for x in lines[k:] if x.strip())
+        out = "\n".join(lines[:k]).rstrip() + (f" 외 {n}항목" if n else "")
+        if len(out) <= limit:
+            return out
+    n = sum(1 for x in lines[1:] if x.strip())
+    tail = f" 외 {n}항목" if n else ""
+    out = lines[0][:max(0, limit - len(tail) - 1)] + "…" + tail
+    return out if len(out) <= limit else ""
+
+
+def _fit_embed_total(e):
+    """embed 하나의 글자 합(제목+설명+필드+꼬리) 6,000 — 칸마다 한도 안이어도 합이 넘으면 400 이다. 설명부터 줄인다."""
+    size = lambda: (len(e.get("title") or "") + len(e.get("description") or "")
+                    + len((e.get("footer") or {}).get("text") or "")
+                    + sum(len(f["name"]) + len(f["value"]) for f in e.get("fields") or []))
+    over = size() - LIMIT_EMBED
+    if over > 0 and e.get("description"):
+        e["description"] = fit(e["description"], max(0, len(e["description"]) - over))
+    # ponytail: 설명으로 못 메우면 뒤 필드를 덜어 낸다(로그만). 필드 합이 6천을 넘는 발송처가 생기면 필드 단위 「외 N항목」.
+    while size() > LIMIT_EMBED and e.get("fields"):
+        print(f"[discord] embed 6,000자 초과 — 필드 「{e['fields'].pop()['name']}」 생략")
+
+
 def _post(url, payload, png, filename, extra_headers=None):
-    """JSON 또는 (png 있으면) multipart 로 POST. 예외는 호출측에서 처리."""
+    """JSON 또는 (png 있으면) multipart 로 POST. 예외는 호출측에서 처리. 봇·웹훅 두 경로가 다 여기를 지난다."""
+    for e in payload.get("embeds") or []:
+        _fit_embed_total(e)
     headers = {"User-Agent": _UA}
     headers.update(extra_headers or {})
     if png:
@@ -375,16 +417,16 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     if thread_name:                                   # D10 — 일자 스레드로 묶기(실패 시 본문)
         tid = _thread_id(hook, thread_name)
     if title:
-        embed = {"title": title[:256], "description": (text or "")[:4096]}
+        embed = {"title": fit(title, LIMIT_TITLE), "description": fit(text, LIMIT_DESC)}
         if url:
             embed["url"] = url                       # 제목 클릭 → 대시보드
         if color is not None:
             embed["color"] = color
         if fields:
-            embed["fields"] = [{"name": str(n)[:256], "value": str(v)[:1024], "inline": bool(i)}
+            embed["fields"] = [{"name": fit(n, LIMIT_FIELD_NAME), "value": fit(v, LIMIT_FIELD), "inline": bool(i)}
                                for n, v, i in fields[:25]]
         if footer:
-            embed["footer"] = {"text": str(footer)[:2048]}
+            embed["footer"] = {"text": fit(footer, LIMIT_FOOTER)}
         if timestamp:
             embed["timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         if png:
@@ -396,8 +438,8 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
         plen = len(embed["description"]) + len(embed["title"])
     else:
         m = _mention_content(mention, hook)
-        body_text = (m + " " if m else "") + (text or "")
-        payload = {"content": body_text[:2000]}
+        head = m + " " if m else ""
+        payload = {"content": head + fit(text, LIMIT_CONTENT - len(head))}
         plen = len(payload["content"])
     if isinstance(png, str):
         try:

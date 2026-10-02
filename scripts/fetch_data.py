@@ -2718,12 +2718,10 @@ def fetch_toss_kr_indices():
 
 
 def fetch_toss_stock_movers(top_n=10):
-    """국내주식 상승/하락 Top N (토스 등락률 순위 + 종목 마스터 조인).
+    """코스피 상승/하락 Top N (토스 등락률 순위 + 종목 마스터 조인, toss_api.movers 가 시장별로 가른다).
 
-    토스 rankings 는 marketCountry=KR 단위라 코스피·코스닥이 섞여 온다.
-    /stocks 로 name·market 을 붙인 뒤 보통주(KOSPI+KOSDAQ)만 골라 기존 스키마
-    ({name, code, price, chg, vol, market, as_of})로 돌려준다.
-    (종전엔 KOSPI 만 남겨 코스닥이 통째로 빠졌다 — "국내 주식" 라벨과 불일치.)
+    토스 rankings 는 marketCountry=KR 단위라 코스피·코스닥이 섞여 온다. 종전엔 보통주를 시장 구분 없이 돌려줘
+    kospiGainers 에 코스닥이 섞였다(2026-10-02 실측 8/10). 코스닥 목록은 _krx_a19(KRX 전일 확정치)가 맡는다.
     """
     if not toss_api.enabled():
         return None, None
@@ -2733,28 +2731,27 @@ def fetch_toss_stock_movers(top_n=10):
 
     def _side(rank_type):
         try:
-            rows = toss_api.rankings(rank_type, "KR", "1d", limit=60)
+            return toss_api.movers(rank_type, today, top_n=top_n).get("KOSPI")
         except Exception as e:
             log(f"[TOSS] {rank_type} 오류: {e}")
             return None
-        if not rows:
-            return None
-        meta = toss_api.stocks([r["code"] for r in rows])
-        out = []
-        for r in rows:
-            m = meta.get(r["code"]) or {}
-            if m.get("market") not in ("KOSPI", "KOSDAQ") or m.get("type") != "STOCK":
-                continue
-            out.append({"name": m.get("name") or r["code"], "code": r["code"],
-                        "price": r["price"], "chg": r["chg"],
-                        "vol": r["vol"], "market": m.get("market"), "as_of": today})
-            if len(out) >= top_n:
-                break
-        return out or None
 
     gainers, losers = _side("TOP_GAINERS"), _side("TOP_LOSERS")
     log(f"[TOSS] 코스피 상승 {len(gainers or [])}건 / 하락 {len(losers or [])}건")
     return gainers, losers
+
+
+def _snapshot_kospi_movers(snap, today):
+    """PC 스냅샷의 코스피 등락상위 (상승, 하락). 오늘 거래일 목록만, KOSPI 행만 — 2026-10-02 이전 수집기는
+    코스닥을 kospi* 에 섞어 담았다(옛 스냅샷이 남아 있을 수 있다). 거른 뒤 모자라면 있는 만큼만."""
+    sm = (snap or {}).get("stockMovers") or {}
+
+    def pick(key):
+        rows = sm.get(key) or []
+        if not rows or not all(r.get("as_of") == today for r in rows):
+            return None     # 어제 상한가를 오늘 화면에 올리면 그게 곧 오답이다
+        return [r for r in rows if r.get("market") == "KOSPI"] or None
+    return pick("kospiGainers"), pick("kospiLosers")
 
 
 def _investor_align_portal(inv, prev_daily=None, days=10, backfill=40):
@@ -7213,12 +7210,8 @@ def build_data():
     # 러너에서 직접 호출이 막히면(허용 IP) PC 수집기 스냅샷의 등락상위를 쓴다.
     # 단 '오늘 자' 목록일 때만 — 어제 상한가를 오늘 화면에 올리면 그게 곧 오답이다.
     if not (_tg or _tl):
-        _snap = _toss_snapshot() or {}
-        _sm = _snap.get("stockMovers") or {}
         _today = _kr_session_date()
-        _fresh = lambda rows: rows and all(r.get("as_of") == _today for r in rows)
-        _tg = _sm.get("kospiGainers") if _fresh(_sm.get("kospiGainers")) else None
-        _tl = _sm.get("kospiLosers") if _fresh(_sm.get("kospiLosers")) else None
+        _tg, _tl = _snapshot_kospi_movers(_toss_snapshot(), _today)
         if _tg or _tl:
             log(f"[TOSS] 등락상위 — PC 스냅샷 사용(거래일 {_today})")
     if _is_valid_mover_list(_tg, allow_extreme=True):

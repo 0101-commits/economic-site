@@ -140,3 +140,29 @@ test('slicePeriods: 분기 라벨(2026Q2 · 2026-Q2)도 날짜로 읽는다', ()
   assert.equal(p['2y']!.length, 6)
   assert.deepEqual(slicePeriods([['2025-Q4', 1], ['2026-Q1', 2], ['2026-Q2', 3]])['1y']!.length, 3)
 })
+
+test('range52: 점 개수가 아니라 마지막 날짜에서 365일(월간 12개월)', () => {
+  // 최근 3달만 촘촘하고 그 앞은 성긴 계열 — 1년 칩이 3달 칩보다 20% 많지 않아 빠지던 경우.
+  // 종전엔 시계열 전체로 넘어가 3년 전 값(1000)이 52주 최고가 됐다.
+  const pts: Pt[] = [['2023-01-02', 1000], ['2023-06-01', -500]]
+  for (let m = 11; m <= 17; m++) pts.push([`${2025 + Math.floor((m - 1) / 12)}-${String((m - 1) % 12 + 1).padStart(2, '0')}-15`, 50])
+  for (let t = Date.UTC(2026, 6, 1); t <= Date.UTC(2026, 9, 1); t += 86_400_000) pts.push([new Date(t).toISOString().slice(0, 10), pts.length])
+  assert.equal(slicePeriods(pts)['1y'], undefined)
+  const r = range52(pts)!
+  assert.ok(r.high < 1000 && r.low > -500, JSON.stringify(r))
+  // 월간 24점 → 끝 12개월(2025-10 ~ 2026-09)
+  const monthly: Pt[] = []
+  for (let i = 0; i < 24; i++) monthly.push([`${2024 + Math.floor((i + 9) / 12)}-${String((i + 9) % 12 + 1).padStart(2, '0')}`, i])
+  assert.deepEqual(range52(monthly), { low: 12, high: 23 })
+  // 결측이 많은 월간(두 달에 한 점) — 끝 12점은 2년이다. 12개월 안의 6점만 본다
+  const gappy = monthly.filter((_, i) => i % 2 === 1)
+  assert.equal(gappy.length, 12)
+  assert.deepEqual(range52(gappy), { low: 13, high: 23 })
+  // 윤년 끼인 일별: 끝 2024-03-01 에서 365일 전(2023-03-02)까지는 빼고 그다음 날부터
+  const leap: Pt[] = [['2023-03-01', 99], ['2023-03-02', 98], ['2023-03-03', 5], ['2024-03-01', 7]]
+  assert.deepEqual(range52(leap), { low: 5, high: 7 })
+  // 윤년 끼인 월간: 2023-03 ~ 2024-03 13점이면 2023-03 은 빠지고 12개월
+  const lm: Pt[] = Array.from({ length: 13 }, (_, i): Pt => [`${2023 + Math.floor((i + 2) / 12)}-${String((i + 2) % 12 + 1).padStart(2, '0')}`, i === 0 ? 99 : i])
+  assert.equal(lm[12][0], '2024-03')
+  assert.deepEqual(range52(lm), { low: 1, high: 12 })
+})

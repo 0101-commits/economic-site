@@ -49,7 +49,7 @@ export default function ChainView({ b }: { b: LensBundle }) {
                   </span>
                   <div className="min-w-0 flex-1 pb-3 flex flex-wrap items-center gap-x-2 gap-y-1 min-h-6">
                     <span className="text-13 font-bold text-ink-1">{shortLabel(st.label)}</span>
-                    {v && <span className="num text-13 text-ink-1">{v}</span>}
+                    {v ? <span className="num text-13 text-ink-1">{v}</span> : st.t && <span className="text-11 text-ink-3">자료 없음</span>}
                     {st.t?.asOf && <span className="num text-11 text-ink-3">{asOfText(st.t.asOf)}</span>}
                     <TrigPill t={st.t} />
                     <span className="text-11 text-ink-3">{STEP_WORD[st.state]}{st.repeat ? ' · 처음 칸으로 되돌아옴' : ''}</span>

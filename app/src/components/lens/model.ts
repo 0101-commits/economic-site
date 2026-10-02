@@ -123,7 +123,8 @@ export function chainSteps(c: Chain, trig: Map<string, Trigger>): ChainStep[] {
     const t = trig.get(s.id)
     const prev = first.get(s.id)
     if (prev) return { id: s.id, label: s.label, state: prev, repeat: true, t }
-    const state: StepState = t?.state === 'crossed' || (!measured(t) && s.id === c.hotStep) ? 'reached' : !measured(t) && hit ? 'guess' : 'not'
+    // 돌파도 잰 것만 믿는다 — 값·임계 없는 crossed(옛 묶음·원천 오기)는 「잴 수 없음」으로 본다
+    const state: StepState = (measured(t) && t!.state === 'crossed') || (!measured(t) && s.id === c.hotStep) ? 'reached' : !measured(t) && hit ? 'guess' : 'not'
     if (state === 'reached') hit = true
     first.set(s.id, state)
     return { id: s.id, label: s.label, state, repeat: false, t }

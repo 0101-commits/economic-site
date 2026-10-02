@@ -70,6 +70,9 @@ test('chainSteps · rankChains: 도달·추정·미도달과 진행 순서', () 
   assert.deepEqual(chainSteps(c2, trig).map(s => s.state), ['not', 'not', 'reached', 'guess'])
   const r = rankChains([c2, c1], trig)
   assert.deepEqual(r.map(x => [x.c.id, x.done, x.total]), [['C1', 1, 3], ['C2', 1, 4]])
+  // 값이나 임계가 없는데 crossed 라고 적힌 지표는 도달로 세지 않는다(잴 수 없는 단계 — 앞 도달이 없으면 미도달)
+  const bad = new Map([{ id: 'x', label: 'x', state: 'crossed', value: null, level: 1 }, { id: 'y', label: 'y', state: 'crossed', value: 1, level: null }].map(v => [v.id, v as Trigger]))
+  assert.deepEqual(chainSteps({ id: 'C3', label: '셋', steps: [{ id: 'x', label: 'X' }, { id: 'y', label: 'Y' }] }, bad).map(s => s.state), ['not', 'not'])
 })
 
 test('shortLabel · josaRo', () => {
