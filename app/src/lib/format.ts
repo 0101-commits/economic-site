@@ -104,7 +104,11 @@ export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Dat
   // 월간(YYYY-MM)은 날짜가 아니라 그 달이다 — 「전일 9/1」이 아니라 「9월」(올해가 아니면 「25.12」)
   const mon = /^(\d{4})-(\d{2})$/.exec(String(asOf))
   if (mon) return mon[1] === KST_DAY.format(now).slice(0, 4) ? `${+mon[2]}월` : `${mon[1].slice(2)}.${mon[2]}`
-  // 「JJA 2026」·「2026-Q2」 같은 기간 표기는 그대로(V8 은 「JJA 2026」 도 1월 1일로 읽어 버린다)
+  // 분기(YYYY-Qn)는 「2분기」(올해가 아니면 「25.4분기」)
+  const qtr = /^(\d{4})-Q([1-4])$/.exec(String(asOf))
+  if (qtr) return qtr[1] === KST_DAY.format(now).slice(0, 4) ? `${qtr[2]}분기` : `${qtr[1].slice(2)}.${qtr[2]}분기`
+  if (/^\d{4}$/.test(String(asOf))) return `${asOf}년`   // 연간(YYYY)
+  // 「JJA 2026」 같은 그 밖의 기간 표기는 그대로(V8 은 「JJA 2026」 도 1월 1일로 읽어 버린다)
   if (typeof asOf === 'string' && !/^\d{4}-\d{2}-\d{2}/.test(asOf)) return asOf
   const t = parseAsOf(asOf)
   if (Number.isNaN(t.getTime())) return String(asOf)

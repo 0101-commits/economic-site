@@ -10,7 +10,7 @@
  *   merLens    mer_signals.json 의 같은 지표 id
  *   onScreen   false = 수집은 되는데 아직 어느 화면에도 없다(처리 대상)
  *
- * 생성 시각 기준 지표 128 · 데이터셋 19 · 미노출 1.
+ * 생성 시각 기준 지표 127 · 데이터셋 19 · 미노출 1.
  */
 (function () {
   var ROWS = [
@@ -138,7 +138,6 @@
     {"id": "new_home_sales_us", "label": "신규주택판매 (천 건, 연환산)", "asset": "realestate", "topic": "us", "data": "realestate.us.new_home_sales", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "semi_jeonse_idx_kr", "label": "준전세가격지수 (전국)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.semi_jeonse_idx_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 1},
     {"id": "trade_count_kr", "label": "한국부동산원 행정구역별 아파트거래현황 (전국·동(호)수)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.trade_count_kr", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 0, "unit": "건"},
-    {"id": "trade_count_kr_rone_kr", "label": "아파트 거래량 (전국)", "asset": "realestate", "topic": "kr", "data": "realestate.kr.trade_count_kr_rone", "onScreen": true, "tier": 3, "canonical": "realestate", "decimals": 0, "unit": "건"},
     {"id": "fear_greed", "label": "공포·탐욕 지수", "asset": "sentiment", "data": "sentiment.fear_greed", "tier": 2, "canonical": "dashboard#mood", "country": "us", "decimals": 0},
     {"id": "move", "label": "MOVE", "asset": "sentiment", "data": "sentiment.move", "tier": 2, "canonical": "dashboard#mood", "country": "us", "decimals": 2, "merLens": "volatility"},
     {"id": "vkospi", "label": "V-KOSPI", "asset": "sentiment", "data": "sentiment.vkospi", "tier": 2, "canonical": "dashboard#mood", "country": "kr", "keywords": ["변동성", "공포"], "decimals": 2, "merLens": "vkospi"},

@@ -36,7 +36,7 @@ const METRIC_IDS: Record<Exclude<Metric, 'all'>, string[]> = {
   sale: ['apt_price_idx_kr'],
   jeonse: ['jns_price_idx_kr', 'avg_jeonse_price_kr', 'semi_jeonse_idx_kr'],
   supply: ['housing_start_kr', 'housing_permit_kr', 'housing_complete_kr', 'unsold_total_kr'],
-  volume: ['trade_count_kr_rone_kr', 'trade_count_kr'],
+  volume: ['trade_count_kr'],
 }
 const CAPITAL = [{ key: '11', label: '서울' }, { key: '41', label: '경기' }, { key: '28', label: '인천' }] as const
 type CapKey = typeof CAPITAL[number]['key']
