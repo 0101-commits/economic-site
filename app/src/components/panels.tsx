@@ -69,7 +69,8 @@ export function StripCard({ item, selected, onSelect, to, watched, onWatch }: {
   // 카드마다 같은 줄 구성: 이름 / 기준 시각 + 작은 차트 / 값 / 등락 / 이유. 좁은 PC 8열에서도 줄이 섞이지 않게 고정한다.
   const body = (
     <>
-      <span className={`block text-12 text-ink-2 whitespace-nowrap ${onWatch ? 'pr-7' : ''}`}>
+      {/* PC 는 줄 고정(8열 정렬), 모바일 2열 격자(약 150px)에선 긴 이름을 자르지 않고 줄을 바꾼다(최장 데이터 게이트 360) */}
+      <span className={`block text-12 text-ink-2 pc:whitespace-nowrap [overflow-wrap:anywhere] ${onWatch ? 'pr-7' : ''}`}>
         <span className="hidden pc:inline">{name}</span>
         <span className="pc:hidden">{item.shortM || name}</span>
       </span>
