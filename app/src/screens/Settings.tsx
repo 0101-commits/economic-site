@@ -41,6 +41,8 @@ export default function Settings() {
         </Card>
         <DataStatus />
       </div>
+      {/* 전환 단계 A(공존): 현행 화면으로 가는 길 하나. 같은 origin 이라 PIN·보유·관심이 그대로다. */}
+      <p className="m-0 text-12 text-ink-3"><a href="../" className="text-ink-3 hover:text-ink-1">이전 화면으로</a> · 홈 화면에 추가한 알림은 이 주소(/next/)에서만 옵니다.</p>
     </div>
   )
 }

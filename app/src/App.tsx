@@ -13,9 +13,15 @@ import Detail from './screens/Detail'
 import Settings from './screens/Settings'
 import { SearchOverlay } from './components/personal/SearchOverlay'
 import { applyUpdown, readPrefs } from './lib/personal/store'
+import { legacyToHash } from './lib/legacyUrl'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
 applyUpdown(readPrefs().settings.updown)
+// 현행 화면 주소(/next/?p=market&t=commodity)로 들어오면 첫 그림 전에 해시 주소로 바꾼다 — 북마크·알림 버튼 호환
+{
+  const to = legacyToHash(location.search)
+  if (to) history.replaceState(null, '', location.pathname + '#' + to)
+}
 
 const TABS: { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/', label: '홈', icon: House },
