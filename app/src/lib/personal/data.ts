@@ -1,8 +1,7 @@
 // 내 자산·알림·검색이 읽는 공개 자료. 묶음(bundles/)은 bundle.ts 로, 사이트 루트 파일(alerts_state.json·merblog.json)은 여기서.
-import { findItem, loadBundle, loadHome, type HomeBundle, type StripItem } from '../bundle'
+import { findItem, loadBundle, loadHome, ROOT, type HomeBundle, type StripItem } from '../bundle'
 import type { Fx, Quote } from './calc'
 
-const ROOT = new URL('../', document.baseURI)
 const rootFiles = new Map<string, Promise<unknown>>()
 
 /** 사이트 루트의 공개 파일 하나(배포 허용 목록에 있는 것만). 한 번 받은 것은 다시 받지 않는다. */

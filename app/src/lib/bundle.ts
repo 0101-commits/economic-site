@@ -135,7 +135,9 @@ export async function loadIndicator(id: string): Promise<{ reg?: RegRow; item?: 
   const [rows, home] = await Promise.all([loadRegistry().catch(() => [] as RegRow[]), loadHome().catch(() => null)])
   const reg = rows.find(r => r.id === id)
   let item = home ? findItem(home, id) : undefined
-  for (const name of (reg && ASSET_BUNDLES[reg.asset]) || []) {
+  // 사전에 없는 id(띠 전용 파생 지표, 예: cpi_kr_yoy)는 시장 묶음 전부에서 찾는다 — 상세 화면이 「없는 지표」가 되지 않게
+  const names = reg ? ASSET_BUNDLES[reg.asset] || [] : [...new Set(Object.values(ASSET_BUNDLES).flat())]
+  for (const name of names) {
     const m = findItem(await loadBundle(name).catch(() => null), id)
     if (m) { item = m; if (m.series?.length) break }
   }
