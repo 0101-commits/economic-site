@@ -1,9 +1,10 @@
-// 시장 › 국내 — 범위(m) 코스피·전체·코스닥·ETF × 보기(v) 7. 고른 보기 패널이 큰 차트 옆 첫 자리로 온다.
+// 시장 › 국내 — 범위(m) 코스피·전체·코스닥·ETF × 보기(v) 11. 고른 보기 패널이 큰 차트 옆 첫 자리로 온다.
+// 보기 11개는 한 줄 가로 스크롤(SegBar scroll)이다 — 위 자산군 줄과 같은 모양, 한 번 눌러 고른다. 격자 끝에 배당·실적 일정.
 import { useState, type ReactNode } from 'react'
 import type { Flows, Stock, StripItem } from '../../lib/bundle'
 import { fmtNumber, fmtPct, mdHm, shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
-import { SegBar } from '../ui'
+import { Pill, SegBar } from '../ui'
 import { DivergingBars, Heatmap } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
 import { arrange, BigChart, ChangeText, Empty, MarketGrid, poolOf, type BodyProps } from './parts'
@@ -13,6 +14,11 @@ type Mover = Stock & { volume?: number | null }
 type Breadth = { up?: number; down?: number; flat?: number; limitUp?: number; limitDown?: number; as_of?: string }
 type Halt = { id: string; type: string; market?: string; stage?: number; direction?: string; reason?: string; triggeredAt?: string; resumeAt?: string | null; endOfDay?: boolean; resolvedAt?: string | null }
 type Movers = { kospi?: Mover[]; kosdaq?: Mover[]; state?: string }
+/** KRX 순위 한 목록(시가총액·거래량 상위 · 52주 신고가·신저가): 시장별 20행. 52주 둘은 count = 해당 종목 총수(축적이 끝난 시장만). */
+type KrxRow = Stock & { volume?: number | null; marketCap?: number | null; high?: number | null; low?: number | null }
+type KrxRank = { asOf?: string | null; state?: string; kospi?: KrxRow[]; kosdaq?: KrxRow[]; count?: { kospi?: number; kosdaq?: number } }
+/** 배당·실적 공시 한 줄(OpenDART). date = 공시 접수일·결산기준일, rcpNo = 접수번호(원문 주소). */
+type CorpEvent = { date: string; code?: string; name?: string; kind?: string; title?: string; detail?: string; rcpNo?: string | null }
 export type DomesticBundle = {
   strip: StripItem[]
   views?: {
@@ -24,18 +30,26 @@ export type DomesticBundle = {
     flows?: Flows
     breadth?: { kospi?: Breadth; kosdaq?: Breadth; state?: string }
     halts?: { active?: Halt[]; recent?: Halt[]; asOf?: string; state?: string }
+    marketCap?: KrxRank
+    volume?: KrxRank
+    high52?: KrxRank
+    low52?: KrxRank
+    corpEvents?: { asOf?: string | null; from?: string | null; state?: string; items: CorpEvent[] }
   }
 }
 
 const SCOPES = [{ key: 'kospi', label: '코스피' }, { key: 'all', label: '전체' }, { key: 'kosdaq', label: '코스닥' }, { key: 'etf', label: 'ETF' }] as const
 const VIEWS = [
-  { key: 'amount', label: '거래대금' }, { key: 'gainers', label: '상승' }, { key: 'losers', label: '하락' }, { key: 'sectors', label: '업종' },
-  { key: 'flows', label: '수급' }, { key: 'breadth', label: '시장 폭' }, { key: 'halts', label: '매매중단' },
+  { key: 'amount', label: '거래대금' }, { key: 'marketCap', label: '시가총액' }, { key: 'volume', label: '거래량' },
+  { key: 'gainers', label: '상승' }, { key: 'losers', label: '하락' }, { key: 'high52', label: '52주 신고가' }, { key: 'low52', label: '52주 신저가' },
+  { key: 'sectors', label: '업종' }, { key: 'flows', label: '수급' }, { key: 'breadth', label: '시장 폭' }, { key: 'halts', label: '매매중단' },
 ] as const
 type Scope = typeof SCOPES[number]['key']
 type View = typeof VIEWS[number]['key']
 const MARKET: Partial<Record<Scope, string>> = { kospi: 'KOSPI', kosdaq: 'KOSDAQ' }
 const HALT_TYPE: Record<string, string> = { circuit: '서킷브레이커', sidecar: '사이드카' }
+const CORP_KIND: Record<string, string> = { dividend: '배당', earnings: '실적' }
+const dartUrl = (rcpNo: string) => `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${encodeURIComponent(rcpNo)}`
 
 /** 상승·하락 목록. 묶음의 kospi·kosdaq 목록에 두 시장이 섞여 오므로 합친 뒤 종목의 market 으로 다시 거른다. */
 function movers(v: DomesticBundle['views'], kind: 'gainers' | 'losers', scope: Scope): Mover[] {
@@ -53,6 +67,29 @@ const amountCols: Col<Stock>[] = [nameCol, priceCol, pctCol,
   { key: 'amount', label: '거래대금', get: r => (r.amount == null ? null : r.amount / 1e12), num: true, role: 'sub', render: r => (r.amount == null ? null : `${fmtNumber(r.amount / 1e12, 2)}조`) }]
 const moverCols: Col<Mover>[] = [nameCol, { key: 'market', label: '시장', get: r => r.market, role: 'sub' }, priceCol, pctCol,
   { key: 'volume', label: '거래량', get: r => r.volume, num: true }]
+
+/** KRX 순위 목록을 범위대로. 전체 = 두 시장을 합쳐 by 큰 순, ETF = 없음(KRX 주식 일별표라 ETF 가 들어 있지 않다). */
+function krxRows(r: KrxRank | undefined, scope: Scope, by: (x: KrxRow) => number | null | undefined): KrxRow[] {
+  if (scope === 'etf') return []
+  if (scope !== 'all') return r?.[scope] ?? []
+  return [...(r?.kospi ?? []), ...(r?.kosdaq ?? [])].sort((a, b) => (by(b) ?? -Infinity) - (by(a) ?? -Infinity))
+}
+/** 52주 해당 종목 수. 전체는 두 시장 다 축적이 끝났을 때만 합친다(한쪽만 더하면 적게 센다). */
+function krxCount(c: KrxRank['count'], scope: Scope): number | undefined {
+  if (scope === 'etf') return undefined
+  if (scope !== 'all') return c?.[scope]
+  return c?.kospi != null && c?.kosdaq != null ? c.kospi + c.kosdaq : undefined
+}
+
+const capCol: Col<KrxRow> = { key: 'cap', label: '시가총액', get: r => (r.marketCap == null ? null : r.marketCap / 1e12), num: true, role: 'sub', render: r => (r.marketCap == null ? null : `${fmtNumber(r.marketCap / 1e12, 1)}조`) }
+const volCol: Col<KrxRow> = { key: 'vol', label: '거래량', get: r => r.volume, num: true, role: 'sub', render: r => (r.volume == null ? null : `${fmtNumber(r.volume / 1e4, 0)}만주`) }
+const KRX_VIEWS: Record<'marketCap' | 'volume' | 'high52' | 'low52', { title: string; cols: Col<KrxRow>[]; by: (r: KrxRow) => number | null | undefined }> = {
+  marketCap: { title: '시가총액 상위', cols: [nameCol, priceCol, pctCol, capCol], by: r => r.marketCap },
+  volume: { title: '거래량 상위', cols: [nameCol, priceCol, pctCol, volCol], by: r => r.volume },
+  high52: { title: '52주 신고가', cols: [nameCol, capCol, priceCol, pctCol, { key: 'high', label: '52주 최고', get: r => r.high, num: true }], by: r => r.marketCap },
+  low52: { title: '52주 신저가', cols: [nameCol, capCol, priceCol, pctCol, { key: 'low', label: '52주 최저', get: r => r.low, num: true }], by: r => r.marketCap },
+}
+type KrxView = keyof typeof KRX_VIEWS
 
 /** 상승/하락/보합 종목 수 막대 한 줄 + 상·하한. */
 function BreadthRow({ name, b }: { name: string; b?: Breadth }) {
@@ -90,6 +127,52 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
   const sel = pool.get(selId) ?? b.strip[0]
   const scopeName = SCOPES.find(o => o.key === m)!.label
   const flow20 = (inv?.rows || []).slice(-20)
+  // KRX 순위가 하나라도 들어왔는지 — 52주가 비었을 때 「축적 중」인지 「KRX 자체가 아직」인지 가른다
+  const krxOn = (['marketCap', 'volume'] as const).some(k => vw?.[k]?.kospi?.length || vw?.[k]?.kosdaq?.length)
+  const krxPanel = (k: KrxView) => (cls: string, primary: boolean) => {
+    const { title, cols, by } = KRX_VIEWS[k]
+    const r = vw?.[k]
+    const rows = krxRows(r, m, by)
+    const is52 = k === 'high52' || k === 'low52'
+    const cnt = is52 ? krxCount(r?.count, m) : undefined
+    const empty = m === 'etf' ? `${title} 자료에는 ETF 가 없습니다.`
+      : !is52 ? `${title} 자료가 없습니다.`
+        : cnt != null ? `오늘 ${title} 종목이 없습니다.`
+          : krxOn ? '52주 고저 축적 중(약 3일 뒤 게재)' : 'KRX 자료 수집 대기 · 들어온 뒤 약 3일이면 52주 목록이 실립니다.'
+    return (
+      <Panel className={cls} title={`${title} · ${scopeName}`} source={cnt != null ? `해당 ${fmtNumber(cnt)}종목` : undefined}
+        asOf={r?.asOf} state={r?.state} fold={primary ? undefined : 'always'}>
+        {rows.length ? <RankTable label={`${title} 종목`} cols={cols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={x => x.code} />
+          : <Empty>{empty}</Empty>}
+      </Panel>
+    )
+  }
+  const ce = vw?.corpEvents
+  const corpPanel = (cls: string) => (
+    <Panel className={cls} title="배당·실적 일정" source={ce?.from ? `${shortDate(ce.from)}부터` : undefined} asOf={ce?.asOf} state={ce?.state} fold="mobile">
+      {ce?.items.length ? (
+        <ul className="m-0 p-0 list-none">
+          {ce.items.slice(0, 10).map((e, i) => (
+            <li key={`${e.code}-${e.date}-${e.kind}-${i}`} className="py-1.5 border-b border-line last:border-b-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-13">
+                <Pill tone="o">{CORP_KIND[e.kind ?? ''] ?? '공시'}</Pill>
+                <span className="num text-12 text-ink-3">{shortDate(e.date)}</span>
+                <span className="font-bold text-ink-1">{e.name ?? e.code}</span>
+                {e.title && <span className="text-ink-2">{e.title}</span>}
+              </div>
+              {(e.detail || e.rcpNo) && (
+                <p className="m-0 mt-0.5 text-12 text-ink-3">
+                  {e.detail}{e.detail && e.rcpNo ? ' · ' : ''}
+                  {e.rcpNo && <a href={dartUrl(e.rcpNo)} target="_blank" rel="noopener noreferrer" className="text-ink-2 hover:text-ink-1">원문</a>}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : <Empty>관심 종목 공시 없음</Empty>}
+      {ce && ce.items.length > 10 && <p className="m-0 mt-2 text-11 text-ink-3">최근 10건 · 전체 {ce.items.length}건</p>}
+    </Panel>
+  )
 
   const panels: Record<View, (cls: string, primary: boolean) => ReactNode> = {
     amount: (cls, primary) => {
@@ -102,6 +185,10 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
         </Panel>
       )
     },
+    marketCap: krxPanel('marketCap'),
+    volume: krxPanel('volume'),
+    high52: krxPanel('high52'),
+    low52: krxPanel('low52'),
     gainers: (cls, primary) => <MoverPanel cls={cls} primary={primary} title={`상승 · ${scopeName}`} rows={movers(vw, 'gainers', m)} state={m === 'etf' ? vw?.etf?.state : vw?.gainers?.state} />,
     losers: (cls, primary) => <MoverPanel cls={cls} primary={primary} title={`하락 · ${scopeName}`} rows={movers(vw, 'losers', m)} state={m === 'etf' ? vw?.etf?.state : vw?.losers?.state} />,
     sectors: (cls, primary) => (
@@ -178,9 +265,9 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
     <>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <SegBar label="범위" options={SCOPES} value={m} onChange={setM} />
-        <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
+        <SegBar scroll label="보기" options={VIEWS} value={v} onChange={setV} />
       </div>
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...arrange(v, VIEWS.map(o => o.key)).map(k => panels[k])]} />
+      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...arrange(v, VIEWS.map(o => o.key)).map(k => panels[k]), corpPanel]} />
     </>
   )
 }

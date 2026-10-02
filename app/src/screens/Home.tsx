@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, House } from 'lucide-react'
-import { loadBundle, loadHome, loadIndicator, shownUnit, type HomeBundle, type Stock, type StripItem, type Trigger } from '../lib/bundle'
+import { loadBundle, loadHome, loadIndicator, shownUnit, type HomeBundle, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
 import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { useWatch } from '../lib/watch'
@@ -19,6 +19,9 @@ type View = typeof VIEWS[number]['key']
 // 보기 → 그 자산군 시장 묶음의 띠(순서의 단일 원천은 묶음). 「전체」는 홈 띠 8, 「내 관심」은 담은 지표만.
 const VIEW_BUNDLE: Partial<Record<View, string>> = { kr: 'market-domestic', global: 'market-global', fxrate: 'market-fxrates', commod: 'market-commodities' }
 const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as const
+// 일정에 섞여 오는 종목 공시(kind) → 알약 글자. 이름은 묶음이 「종목 제목」으로 붙여 준다. 순서(날짜·시각)도 묶음이 정한다.
+const CORP_KIND: Record<string, string> = { dividend: '배당', earnings: '실적' }
+type SchedRow = Sched & { kind?: string | null; code?: string | null }
 
 /** 오늘 한 줄: 숫자 낱말(+1.80% · 4,910억)만 굵게 검정. 묶음에 핵심어 표시가 아직 없어서다. */
 const KEY_RE = /([+\-]?\d[\d,.]*(?:%p|%|bp|억|조|원|달러|엔)?)/
@@ -238,10 +241,13 @@ export default function Home() {
         <Panel className="pc:col-span-4" title="일정·알림" fold="mobile">
           {home.schedule?.length ? (
             <ul className="m-0 p-0 list-none">
-              {home.schedule.map((e, i) => (
+              {(home.schedule as SchedRow[]).map((e, i) => (
                 <li key={`${e.date}-${e.name}-${i}`} className="flex items-baseline gap-3 py-1.5 border-b border-line last:border-b-0">
                   <span className="w-[5.5rem] shrink-0 num text-12 text-ink-3">{`${e.date === mk?.today ? '오늘' : shortDate(e.date)}${e.time ? ` ${e.time}` : ''}`}</span>
-                  <span className="flex-1 min-w-0 text-13 text-ink-1">{e.name}{e.approx ? <span className="text-ink-3"> (추정)</span> : null}</span>
+                  <span className="flex-1 min-w-0 text-13 text-ink-1">
+                    {e.kind && CORP_KIND[e.kind] && <span className="mr-1.5"><Pill tone="o">{CORP_KIND[e.kind]}</Pill></span>}
+                    {e.name}{e.approx ? <span className="text-ink-3"> (추정)</span> : null}
+                  </span>
                   {!!e.stars && <span className="shrink-0 text-11 text-ink-3" aria-label={`중요도 ${e.stars}`}>{'★'.repeat(e.stars)}</span>}
                 </li>
               ))}

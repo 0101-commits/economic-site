@@ -39,6 +39,13 @@ export function rebase(pts: Pt[], base = 100): Pt[] {
   return first ? pts.map(([d, v]): Pt => [d, (v / first) * base]) : pts
 }
 
+/** 여러 시계열에서 모두에 있는 날짜만 남긴다 — 비교 차트는 같은 비율 자리를 같은 날짜로 보므로 길이·시작이 달라선 안 된다. */
+export function alignDates(list: Pt[][]): Pt[][] {
+  if (!list.length) return []
+  const common = list.slice(1).reduce((s, l) => { const d = new Set(l.map(p => p[0])); return new Set([...s].filter(x => d.has(x))) }, new Set(list[0].map(p => p[0])))
+  return list.map(l => l.filter(p => common.has(p[0])))
+}
+
 /** 누적 합(기간 시작 = 첫 날 값). */
 export function cumsum(pts: Pt[]): Pt[] {
   let s = 0

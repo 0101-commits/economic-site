@@ -1,7 +1,7 @@
 // 자가검사: node --test src/components/market/calc.test.ts (app 폴더에서)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { monthIndex, yearAgo, yoySeries, rebase, cumsum, rollSum, weekKey, groupFlows, column, spans, type FlowRow } from './calc.ts'
+import { monthIndex, yearAgo, yoySeries, rebase, alignDates, cumsum, rollSum, weekKey, groupFlows, column, spans, type FlowRow } from './calc.ts'
 import type { Pt } from '../../lib/format.ts'
 
 test('monthIndex: 월·일·분기', () => {
@@ -58,3 +58,11 @@ test('spans: 6+6 다음 끝 줄은 남은 칸을 채운다', () => {
 })
 
 // 성긴 시계열(월별·분기) 판정은 format.ts slicePeriods 로 옮겼다 — 검사도 format.test.ts 에 있다.
+
+test('alignDates: 모두에 있는 날짜만 남긴다(길이·시작이 다른 시도·전국 시계열)', () => {
+  const a: Pt[] = [['2023-09', 1], ['2024-09', 2], ['2025-09', 3]]
+  const b: Pt[] = [['2024-09', 20], ['2025-09', 30]]
+  assert.deepEqual(alignDates([a, b]), [[['2024-09', 2], ['2025-09', 3]], [['2024-09', 20], ['2025-09', 30]]])
+  assert.deepEqual(alignDates([a, []]), [[], []])
+  assert.deepEqual(alignDates([]), [])
+})
