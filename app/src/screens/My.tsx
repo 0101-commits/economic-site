@@ -1,6 +1,6 @@
 // 내 자산 — 기획안 v4 6장. 첫 블록(총평가·오늘 손익·원금) → 띠 카드 4 → 보기 바 → 고른 보기 패널 → 격자.
 // 보유·스냅샷·원장을 읽는 코드는 전부 Holdings 안에 있다 — PinGate 가 열기 전엔 만들어지지 않는다.
-// 입력은 이 기기(localStorage)에만 저장한다. 서버 동기화(내 암호로 잠근 뒤 올리기)는 후속.
+// 입력은 이 기기(localStorage)에 저장한다. 다른 기기와는 머리의 「동기화」로, 내 암호로 잠근 뒤에만 주고받는다(HoldSyncSheet).
 // 시세: 묶음에 있는 종목은 묶음 값, 없는 종목은 Worker 프록시로 Yahoo(lib/personal/quotes.ts) — 잠금 안에서만 받는다.
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Pencil, Trash2, Wallet } from 'lucide-react'
@@ -9,7 +9,8 @@ import { AsOfBadge, Card, SegBar } from '../components/ui'
 import { Panel, RankTable, type Col } from '../components/panels'
 import { DivergingBars, LineChart } from '../components/charts'
 import { WeightMap } from '../components/personal/WeightMap'
-import { BTN, BTN2, DIR_TEXT, Field, INPUT, ShareBar, Switch } from '../components/personal/bits'
+import { HoldSyncSheet } from '../components/personal/HoldSyncSheet'
+import { BTN, BTN2, DIR_TEXT, Field, INPUT, ShareBar } from '../components/personal/bits'
 import { changeDir, fmtNumber, fmtPct, shortDate, slicePeriods, type Pt } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { evaluate, fmtMoney, fmtMoneyChange, fxWhatIf, kstDay, moneyDir, npsDomesticShare, risk, RISK_MIN, type Holding, type Quote, type Row, type Unit } from '../lib/personal/calc'
@@ -44,6 +45,7 @@ function Holdings() {
   const [edit, setEdit] = useState<Holding | null>(null)
   const [msg, setMsg] = useState('')
   const [snapNote, setSnapNote] = useState('')
+  const [syncOpen, setSyncOpen] = useState(false)
   useEffect(() => {
     loadMarketData().then(setMd, () => setMd({ home: null, quotes: new Map(), fx: null, nps: null, gainers: false, losers: false, halts: [] }))
   }, [])
@@ -123,7 +125,9 @@ function Holdings() {
         {md?.quotesAsOf && <span className="inline-flex items-center gap-1 text-12 text-ink-3">시세 <AsOfBadge asOf={md.quotesAsOf} state={md.home?.topAmount?.state} /></span>}
         {!qs && <span className="text-12 text-ink-3">시세 불러오는 중</span>}
         {yahooN > 0 && <span className="text-12 text-ink-3">{`${yahooN}종목은 Yahoo 지연 시세`}</span>}
+        <button type="button" className={`${BTN2} ml-auto`} onClick={() => setSyncOpen(true)}>동기화</button>
       </header>
+      <HoldSyncSheet open={syncOpen} onClose={() => setSyncOpen(false)} onPulled={() => setPf(readPortfolio())} />
 
       {/* 첫 블록 */}
       <Card>
@@ -156,10 +160,7 @@ function Holdings() {
         <Panel title="보유" unit={unitLabel}>
           <HoldTable rows={rows} unit={unit} onEdit={setEdit} />
           <HoldingForm key={edit?.id ?? 'new'} edit={edit} onSave={saveHolding} onDelete={removeHolding} onCancel={() => setEdit(null)} />
-          <div className="mt-4 pt-3 border-t border-line">
-            <Switch on={false} disabled label="평단가·수량 동기화(내 암호)" />
-            <p className="mt-1 mb-0 text-12 text-ink-3">다음 단계에서 연결합니다. 켜면 내 암호로 잠근 뒤 올리므로 서버는 내용을 못 읽습니다. 지금은 이 기기에만 저장됩니다.</p>
-          </div>
+          <p className="mt-4 mb-0 pt-3 border-t border-line text-12 text-ink-3">다른 기기와 맞추려면 위의 「동기화」를 누르세요. 내 암호로 잠근 뒤 올리므로 서버는 내용을 읽지 못합니다.</p>
         </Panel>
       )}
       {v === 'pnl' && (

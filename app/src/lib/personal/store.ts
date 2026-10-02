@@ -11,6 +11,7 @@ import '../../components/personal/updown.css'
 export const KEYS = {
   portfolio: 'portfolioV1', snaps: 'pfSnapshotsV1', ledger: 'pfLedgerV1',
   prefs: 'econPrefsV1', recent: 'econSearchRecentV1', watch: 'econ_watch_v1', theme: 'econNextTheme_v1',
+  holdSync: 'econHoldSync_v1',   // 보유 동기화 기록(sync.ts) — 지문·시각만, 보유 값 없음
 } as const
 
 function read<T>(key: string, fallback: T): T {
@@ -81,7 +82,7 @@ export function pushRecent(r: Recent) {
 }
 
 /** 이 기기 데이터 지우기 대상. 잠금 PIN·현행 화면 동기화 키는 남긴다(설정 화면이 그렇다고 적는다). */
-export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme]
+export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme, KEYS.holdSync]
 export function wipeDevice(): boolean {
   try { WIPE_KEYS.forEach(k => localStorage.removeItem(k)); return true } catch { return false }
 }
