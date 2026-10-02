@@ -772,7 +772,7 @@ def _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered_syms):
 # 상태는 alerts_state.json 의 "_prefs" 아래 조건 id 별로 둔다. 밑줄 키라 _write_state 가 지우지 않는다.
 # 이 파일과 Actions 로그는 공개(저장소·Pages)다 — 대상·문구·값은 어디에도 적지 않는다. 기록은 source·type·
 # 날짜·시각·해시뿐이고, 로그는 조건 id·종류·예외 종류 이름뿐이다. 화면은 기기의 econPrefsV1 에서 id 로 이름을 찾는다.
-NEXT_URL = "https://0101-commits.github.io/economic-site/next/"
+APP_URL = "https://0101-commits.github.io/economic-site/"   # 새 화면(2026-10-02 부터 사이트 첫 주소. 옛 next/ 는 사본)
 PUSH_QUEUE_PATH = os.path.join(ROOT, "scripts", "push_queue.json")   # send_push.py 가 읽고 지운다. 커밋하지 않는다.
 PUSH_SENT_PATH = os.path.join(ROOT, "scripts", "push_sent.json")     # send_push.py 가 실제로 보낸 큐 id. --confirm-push 가 읽고 지운다.
 ONCE_FOREVER = ("price", "pct", "high52", "lens")    # once 가 「한 번 울리면 끝」인 종류 — event·flow 는 건마다
@@ -1133,7 +1133,7 @@ def _deliver_prefs(fired, now):
             d_ok = bool(notify_discord.send(
                 "\n".join(f"{h[0]} — {h[1]}" for h in dc),
                 title=f"{now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 내 조건 알림",
-                url=NEXT_URL + "#/alerts", color=notify_discord.COLOR_ALERT,
+                url=APP_URL + "#/alerts", color=notify_discord.COLOR_ALERT,
                 footer="새 화면에서 만든 조건 · " + DELAY_NOTICE, timestamp=True,
                 env="DISCORD_WEBHOOK_ALERTS", mention="role:종목알림"))
         except Exception as e:                                # noqa: BLE001

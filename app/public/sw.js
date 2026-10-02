@@ -1,4 +1,4 @@
-// 웹 푸시 전용 서비스 워커 — 범위는 이 파일이 있는 폴더(/economic-site/next/).
+// 웹 푸시 전용 서비스 워커 — 범위는 이 파일이 있는 폴더(사이트 첫 주소 /economic-site/, 옛 주소 next/ 사본도 같은 파일).
 // 캐시는 하지 않는다. 화면 묶음은 매번 새로 받아야 하므로 fetch 이벤트를 아예 받지 않는다.
 // 보내는 쪽: scripts/send_push.py. 내용 모양 = { id, title, body, url, ts }.
 

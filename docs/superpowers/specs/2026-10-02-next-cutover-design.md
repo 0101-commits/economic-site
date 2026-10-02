@@ -22,22 +22,22 @@
 | 관심 `econ_fav_v1` → `econ_watch_v1` | 지표 id 배열 | 지표 id 배열 | 새 화면이 첫 실행 때 이어받음(2026-10-02) |
 | 설정·알림 조건 `econPrefsV1` | 없음(알림은 `alerts_config.json`) | 사용 + Worker `/prefs` | 새 화면 전용 |
 
-## 2. 단계
+## 2. 단계 — 실제 진행(2026-10-02 사용자 결정: 「원래 주소로 병합」)
 
-### 단계 A — 공존(지금 ~ 전환 조건 충족까지)
-- 현행 머리줄에 「새 화면 보기」 글자 링크 하나(`/next/`), 새 화면 설정 맨 아래에 「이전 화면으로」 링크 하나. 둘 다 작은 글자, 배너·팝업 없음.
-- 주소 별칭표(아래 §3)를 `app/src/lib/legacyUrl.ts` 한 곳에 둔다. 새 화면이 `?p=` 가 붙은 주소로 열리면(현행 북마크·알림 버튼) 그 표로 `#/…` 로 바꿔 연다.
-- 사용자(1인)가 2주 써 보고 결함을 모은다. 결함은 이 문서 아래 「전환 조건」 표에 적는다.
+단계 A(공존)를 하루 쓴 뒤 사용자가 바로 첫 주소 전환을 결정했다. 리다이렉트 대신 **배치를 바꿨다**: 새 화면이 사이트 첫 주소에, 현행 화면은 같은 폴더의 `legacy.html` 로.
 
-### 단계 B — 기본 전환
-- `index.html` 머리에 짧은 분기 스크립트: `localStorage.econ_ui === 'legacy'` 또는 주소에 `?legacy=1` 이 없으면 `/next/` + 별칭 주소로 이동(`location.replace`). 「이전 화면으로」 를 누르면 `econ_ui=legacy` 를 기록해 현행에 머문다.
-- 알림(디스코드 버튼·카카오 버튼·웹 푸시)의 링크 생성은 한 곳(`scripts/discord_card.py`/`notify_discord.py`/`send_kakao_digest.py` 의 URL 조립 함수)에서 새 주소로 바꾼다. 발송 주소 변경은 알림 글 검사(`scripts/tests/test_alert_redesign.py`)에 사례를 더해 고정한다.
-- `og:*`·`canonical` 은 루트 주소 그대로(검색·공유 링크 보존). PWA `manifest.webmanifest` 의 `start_url` 은 `./`(= `/next/`) 유지.
+| 주소 | 내용 |
+|---|---|
+| `/economic-site/` | 새 화면(`app/dist` → `_site/`). `?p=` 가 붙은 현행 주소는 첫 그림 전에 `#/…` 로 바꾼다(`legacyUrl.ts`) |
+| `/economic-site/legacy.html` | 현행 화면(`index.html` 그대로, 이름만). 자료·js·css 를 상대 경로로 부르므로 같은 폴더에서 그대로 돈다. 머리줄 「새 화면」 → `./` |
+| `/economic-site/next/` | 새 화면 사본(홈 화면에 추가한 기기·북마크용). 단계 C 에서 뺀다 |
 
-### 단계 C — 폐기
-- `index.html` 을 안내 한 장(「새 화면으로 옮겼습니다」 + 링크, `go.html` 과 같은 꼴)으로 바꾸고 `js/`·`css/seed/` 를 지운다. `collect_site.mjs` 허용 목록에서 `js`·`css` 를 빼고 `data.json` 직접 공개도 필요한지 다시 본다(새 화면은 `bundles/` 만 읽는다. 단 `history.json`·`data.json` 을 읽는 외부 사용자가 있으면 남긴다).
-- 현행 전용 UI 게이트 13종(`tests/ui/shots.mjs`·`structure.mjs`·`components.mjs`·`readability*.mjs` 등)과 `scripts/check_seed_classes.py`·`vendor_seed_css.py` 를 지운다. 새 화면 게이트 4종(`overflow`·`longdata`·`matrix`·`check_text_limits`)만 남는다.
-- `build_indicators.py` 가 만드는 `js/app0.js` 는 현행 화면용이다 — 레지스트리는 `bundles/registry.json` 으로 이미 가므로 `js/app0.js` 생성을 끈다.
+`scripts/collect_site.mjs` 가 이 배치의 단일 원천이다(`RENAME`·`APP_OUTS`). 앱이 어느 주소에서 열렸든 자료는 `ROOT`(bundle.ts) 로 찾는다.
+
+### 단계 C — 폐기(남은 것)
+- `next/` 사본 삭제(`APP_OUTS` 에서 빼기), `legacy.html` 을 안내 한 장으로 바꾸고 `js/`·`css/seed/` 삭제, 허용 목록 축소. `data.json`·`history.json` 공개는 유지(외부 사용 여부 모름).
+- 현행 전용 UI 게이트 13종·`check_seed_classes.py`·`vendor_seed_css.py` 삭제, `build_indicators.py` 의 `js/app0.js` 생성 중단(레지스트리는 `bundles/registry.json`).
+- 조건: 2주 실사용 결함 0 + 「이전 화면으로」 사용 0.
 
 ## 3. 주소 별칭표(현행 → 새 화면)
 
@@ -54,11 +54,11 @@
 | `?p=portfolio` | `#/my` |
 | `?p=calendar` | `#/`(홈 일정 패널) — 전용 화면 없음, 홈에 접힘으로 |
 | `?p=settings` | `#/settings` |
-| `?p=notes` `?p=study` | 이관하지 않음(로컬 전용 기록, 단계 C 전에 JSON 내보내기 안내) |
+| `?p=notes` `?p=study` | 이관하지 않음 — `legacy.html?p=notes` 로 연다(로컬 전용 기록, 단계 C 전에 JSON 내보내기 안내) |
 
 별칭표는 코드가 단일 원천이다(`legacyUrl.ts`). 이 표가 바뀌면 코드도 함께 바꾼다.
 
-## 4. 전환 조건(단계 B 로 가기 전에 전부 충족)
+## 4. 전환 조건(단계 C 로 가기 전에 전부 충족 — 첫 주소 전환은 2026-10-02 에 사용자 결정으로 먼저 했다)
 
 | 조건 | 상태(2026-10-02) | 조치·주체 |
 |---|---|---|
@@ -77,9 +77,9 @@
 
 | 번호 | 질문 | 권고 |
 |---|---|---|
-| D1 | 기본 전환(단계 B) 시점 | 전환 조건 전부 충족 + 2주 실사용 뒤. 날짜를 미리 못 박지 않는다 |
-| D2 | 현행 화면 유지 기간(단계 C 까지) | 단계 B 뒤 4주. 그 사이 「이전 화면으로」 사용 횟수가 0 이면 폐기 |
-| D3 | 알림 링크를 새 주소로 바꾸는 시점 | 단계 B 와 동시(한 번에). 폰에서 `/next/` 가 열리는지 디스코드·카카오 버튼으로 먼저 실측 |
+| D1 | 첫 주소 전환 시점 | **결정됨(2026-10-02)** — 사용자 지시로 즉시 |
+| D2 | 현행 화면(legacy.html) 유지 기간 | 4주. 그 사이 「이전 화면으로」 사용이 0 이면 폐기 |
+| D3 | 알림 링크 | 첫 주소 그대로(`?p=` 는 앱이 바꿔 연다). 푸시 알림 주소도 첫 주소(check_alerts.py APP_URL) |
 | D4 | `?p=notes`·`?p=study` 기록 | 이관하지 않고 내보내기 안내. 새 화면에 같은 기능을 만들지 않는다(기획 범위 밖) |
 | D5 | `data.json`·`history.json` 공개 유지 | 단계 C 에서도 유지(외부 사용 여부 모름 — 끊으면 조용히 깨진다) |
 
@@ -87,4 +87,4 @@
 
 - `pages.yml` 의 앱 빌드 단계가 실패하면 현행 화면 배포도 멈춘다(한 런). 빌드는 로컬과 같은 명령이라 PR 전 로컬 통과가 조건이다.
 - `?p=` 북마크가 깨지지 않게 별칭 리다이렉트는 단계 C 뒤에도 안내 페이지가 맡는다.
-- iOS 웹 푸시는 홈 화면에 추가한 `/next/` 에서만 된다 — 현행 주소로 추가한 사용자는 다시 추가해야 한다(설정 화면 한 줄 안내).
+- iOS 웹 푸시는 홈 화면에 추가한 그 주소(첫 주소 또는 next/)의 서비스 워커로만 온다. next/ 로 추가했던 기기는 단계 C 전에 첫 주소로 다시 추가한다.

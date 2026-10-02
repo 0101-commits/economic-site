@@ -7,7 +7,7 @@ import { Card, Pill, SegBar } from '../components/ui'
 import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
 import { applyTheme, readTheme, type Theme } from '../lib/theme'
 import { checkPin, hasPin, IDLE_MS, isUnlocked, lock, setPin } from '../lib/pin'
-import { loadBundle } from '../lib/bundle'
+import { loadBundle, ROOT } from '../lib/bundle'
 import { mdHm } from '../lib/format'
 import { applyUpdown, KEYS, readLedger, readPortfolio, readPrefs, readSnaps, wipeDevice, writePrefs, type Prefs } from '../lib/personal/store'
 import { disableSync, enableSync, probeHoldings, readHoldRec, statusText, useSyncStatus } from '../lib/personal/sync'
@@ -42,7 +42,7 @@ export default function Settings() {
         <DataStatus />
       </div>
       {/* 전환 단계 A(공존): 현행 화면으로 가는 길 하나. 같은 origin 이라 PIN·보유·관심이 그대로다. */}
-      <p className="m-0 text-12 text-ink-3"><a href="../" className="text-ink-3 hover:text-ink-1">이전 화면으로</a> · 홈 화면에 추가한 알림은 이 주소(/next/)에서만 옵니다.</p>
+      <p className="m-0 text-12 text-ink-3"><a href={new URL('legacy.html', ROOT).href} className="text-ink-3 hover:text-ink-1">이전 화면으로</a> · 폰 알림은 이 화면을 홈 화면에 추가한 기기로만 옵니다.</p>
     </div>
   )
 }

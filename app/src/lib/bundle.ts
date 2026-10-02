@@ -1,10 +1,13 @@
 // 묶음 로더 — 화면은 묶음(bundles/<이름>.json)만 읽는다. 데이터 층은 손대지 않는다.
-// 주소 기준: 이 앱은 사이트의 next/ 아래에 있으므로 자료는 한 단계 위에 있다.
-//   배포  /economic-site/next/ → /economic-site/data.json · /economic-site/bundles/
-//   개발  /next/              → /data.json · /bundles/   (vite.config 의 개발 서버가 저장소 루트에서 내준다)
+// 주소 기준: 자료(data.json · bundles/)는 사이트 루트에 있다. 이 앱은 2026-10-02 부터 루트(/economic-site/)에 있고,
+// 옛 주소 next/ 에도 한동안 같은 사본이 있다 — next/ 에서 열렸으면 한 단계 위가 루트다.
+//   배포  /economic-site/        → ./data.json · ./bundles/
+//         /economic-site/next/   → ../data.json · ../bundles/
+//   개발  /next/                 → /data.json · /bundles/   (vite.config 의 개발 서버가 저장소 루트에서 내준다)
 import { changeFromPct, type PeriodKey, type Pt } from './format'
 
-const ROOT = new URL('../', document.baseURI)
+/** 사이트 루트(자료·현행 화면 legacy.html 이 있는 곳). */
+export const ROOT = new URL(/\/next\/$/.test(new URL(document.baseURI).pathname) ? '../' : './', document.baseURI)
 
 async function fetchJson<T>(rel: string): Promise<T> {
   const r = await fetch(new URL(rel, ROOT), { cache: 'no-cache' })
