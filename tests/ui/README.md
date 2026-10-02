@@ -49,3 +49,7 @@
 `node tests/ui/matrix.mjs [--baseline <폴더>] [--max-diff 1.0]` — 폭 4 × 테마 2 × 경로를
 `tests/ui/out/matrix/<폭>-<테마>-<경로>.png` 로 저장한다(전체 쪽 길이). `--baseline` 이 있으면 같은 이름 파일과
 픽셀 차이율(%)을 표로 보고하고, `--max-diff` 를 넘는 파일이 있으면 종료 코드 1이다. 기준 폴더는 이전 촬영 폴더를 복사해 둔 것을 쓴다.
+
+## T6 전수 실측 — `npm run ui:sweep -- <base> [width]`
+
+`node tests/ui/sweep.mjs https://0101-commits.github.io/economic-site/ 1440` — 새 화면 26경로를 열고 안전한 버튼(지우기·올리기·켜기 등 상태를 바꾸는 것은 제외)을 전부 눌러 콘솔 오류·실패 요청(4xx 이상)·가로 넘침·빈 상태 문구를 센다. 「!!」 줄 = 결함. 2026-10-02 첫 주소 전환 실측에서 서체 404·알림 이력 404·사전 밖 지표 상세를 이것으로 잡았다.
