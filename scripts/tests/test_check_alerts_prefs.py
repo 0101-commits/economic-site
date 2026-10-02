@@ -4,7 +4,9 @@
 
 ① 변환 6종(price·pct·high52·event·flow·lens)과 매핑 불가 건너뛰기
 ② 반복 규칙 — once(price·pct·high52·lens 는 끝, event 는 일정마다, flow 는 전환마다 + 같은 방향 24시간),
-   daily 하루 한 번·같은 발생 재발송 없음, 발송 실패는 기록하지 않음(렌즈 기준선 포함)
+   daily 하루 한 번·같은 발생 재발송 없음, 발송 실패는 기록하지 않음(렌즈 기준선 포함),
+   다시 켜기(cond.armedAt — 미래 시각은 기다림·같은 발생은 다시 안 보냄·새 발생에 한 번·공개 기록에 안 남음),
+   발생 키 해시는 ALERTS_STATE_SALT HMAC(공개 일정표로 되짚히지 않음·동기화 키와 무관), 소금이 없으면 평가를 통째로 건너뜀
 ③ /prefs 를 못 받거나 빈 문서(updatedAt 없음)면 상태를 건드리지 않음 · 채널 없는 조건은 평가 안 함
 ④ 푸시 — 큐 적재 모양, send_push 가 실제로 보낸 것만 --confirm-push 가 확정
 ⑤ 동기화 키·해시가 로그에 안 찍히고, 리다이렉트를 따라가지 않음 · 공개 로그에 조건 내용(이름·값)이 없음
@@ -25,6 +27,8 @@ import urllib.error
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.pop("ALERTS_TEST", None)
+SALT = "test-salt"
+os.environ["ALERTS_STATE_SALT"] = SALT     # 공개 기록 발생 키의 HMAC 비밀 — 없으면 _check_prefs 가 돌지 않는다
 import check_alerts as ca       # noqa: E402
 import notify_discord           # noqa: E402
 import prefs_client             # noqa: E402
@@ -244,6 +248,57 @@ assert P(st, "l1") == {"lensState": "below"} and "다음 런 재시도" in log
 DISCORD_OK[0] = True
 ch, st, _ = run(T(2, 11, 2))
 assert P(st, "l1")["fired"] is True and P(st, "l1")["lensState"] == "crossed"
+
+# 다시 켜기 — 화면(alertStatus.ts rearm)이 cond.armedAt 을 마지막 발동 뒤로 찍으면 끝난 once 를 다시 본다(같은 id·이력 유지).
+#   fired 관문만 연다 — 같은 발생(같은 asOf)은 다시 안 보내고, 새 발생에서 한 번 울린 뒤 다시 끝난다.
+DOC["alerts"] = [A(id="r1", cond={"op": ">=", "value": 2900})]
+ch, st, _ = run(T(2, 13))
+assert ch and P(st, "r1")["fired"] is True and P(st, "r1")["hist"] == ["20261002"]
+n = len(sent)
+assert run(T(2, 13, 5))[0] is False and len(sent) == n                    # 끝난 once — 보지 않는다
+iso = lambda t: t.astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+DOC["alerts"][0]["cond"]["armedAt"] = iso(T(2, 14))                       # 아직 안 온 시각(시계가 앞선 기기) — 기다린다
+assert run(T(2, 13, 10))[0] is False and len(sent) == n
+assert run(T(2, 14, 1))[0] is False and len(sent) == n                    # 다시 켰어도 같은 발생(10/2 asOf)은 안 보낸다
+DOC["alerts"][0]["cond"]["armedAt"] = iso(T(3, 12))                       # 토요일에 다시 켬 → 21:05 런은 금요일 값뿐
+assert run(T(3, 21, 5))[0] is False and len(sent) == n
+HOME["strip"][0]["asOf"] = "2026-10-05"
+put("bundles/home.json", HOME)
+ch, st, _ = run(T(5, 10))                                                 # 새 발생(월요일 값) — 한 번 울린다
+assert ch and len(sent) == n + 1 and P(st, "r1")["hist"] == ["20261002", "20261005"], P(st, "r1")
+assert "armedAt" not in json.dumps(st) and "2900" not in json.dumps(st)  # 공개 기록엔 armedAt·조건 값이 없다
+assert run(T(5, 10, 5))[0] is False and len(sent) == n + 1                # 다시 울린 뒤엔 다시 끝(되풀이 없음)
+DOC["alerts"][0]["cond"]["armedAt"] = "not-a-date"                        # 읽을 수 없는 시각은 관문을 열지 않는다
+HOME["strip"][0]["asOf"] = "2026-10-06"
+put("bundles/home.json", HOME)
+assert run(T(6, 10))[0] is False and len(sent) == n + 1
+HOME["strip"][0]["asOf"] = "2026-10-02"
+put("bundles/home.json", HOME)
+# 발생 키 해시 — 소금 없는 SHA-256 이면 공개 일정표(이름·날짜)를 넣어 보는 것만으로 어떤 일정 조건인지 드러난다.
+#   비밀은 ALERTS_STATE_SALT 하나이고 동기화 키와 무관하다(공개 해시가 동기화 키 대입 창구가 되지 않게).
+ek = "2026-10-02 미국 CPI (전월비)"
+os.environ["ALERTS_STATE_SALT"] = "s1"
+h1 = ca._kh(ek)
+assert h1 != hashlib.sha256(ek.encode("utf-8")).hexdigest()[:12] and len(h1) == 12
+os.environ["ALERTS_SYNC_KEY"] = "any-sync-key"
+assert ca._kh(ek) == h1
+os.environ.pop("ALERTS_SYNC_KEY")
+os.environ["ALERTS_STATE_SALT"] = "s2"
+assert ca._kh(ek) != h1
+# 소금이 없으면 평문 해시로 되돌아가지 않고 /prefs 평가를 통째로 건너뛴다 — 받으러 가지도 않고 예외도 없다
+os.environ.pop("ALERTS_STATE_SALT")
+fetched, real_fetch = [], prefs_client.fetch
+prefs_client.fetch = lambda base: fetched.append(1) or copy.deepcopy(DOC)
+before = load(ca.STATE_PATH)
+ch, st, log = run(T(6, 11))
+assert ch is False and fetched == [] and st == before and "ALERTS_STATE_SALT 없음 — /prefs 조건 평가 건너뜀" in log, log
+try:
+    ca._kh(ek)
+    raise AssertionError("소금 없이 해시했다")
+except RuntimeError:
+    pass
+prefs_client.fetch = real_fetch
+os.environ["ALERTS_STATE_SALT"] = SALT
 
 # event once = 일정마다 한 번(같은 이름의 다음 발표에는 다시 울림), 영구 종료 아님
 DOC["alerts"] = [A(id="e1", type="event", target="cpi_us", cond={"daysBefore": 1})]

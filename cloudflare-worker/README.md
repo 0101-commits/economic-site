@@ -235,7 +235,8 @@ npx wrangler deploy
 
 - 현행 화면(`index.html`)은 지금처럼 `/portfolio` 를 씁니다. 새 화면은 `/prefs` 만 읽고 씁니다.
 - 그래서 관심 종목이 두 곳에 있을 수 있습니다. 하나는 `/portfolio` 의 `tracking`(공개 `alerts_config.json`)이고, 하나는 `/prefs` 의 `watch` 입니다. 둘을 자동으로 맞추지 않습니다.
-- 알림 파이프라인(`check_alerts.py`)은 아직 `alerts_config.json` 만 읽습니다. **`/prefs` 의 `alerts` 는 아직 발송되지 않습니다.** 파이프라인이 `/prefs` 를 읽게 바꾸는 것은 후속 과제입니다. 이때 알림 종류 이름도 옮겨야 합니다. 현행은 `price_above`·`price_below`·`pct_change` 등이고, 새것은 `price`·`pct` 등입니다.
+- 알림 파이프라인(`check_alerts.py`)은 `alerts_config.json` 을 먼저 보내고, 그 뒤 `/prefs` 의 `alerts` 를 받아 평가합니다(`_check_prefs`). 알림 종류 이름은 두 벌입니다. 현행은 `price_above`·`price_below`·`pct_change` 등이고, 새것은 `price`·`pct` 등입니다.
+- `/prefs` 조건 평가에는 GitHub 시크릿이 둘 필요합니다. `ALERTS_SYNC_KEY` 는 `GET /prefs` 인증용이고, `ALERTS_STATE_SALT` 는 공개 `alerts_state.json` 의 `_prefs` 발생 키를 HMAC 하는 비밀입니다(`python -c "import secrets;print(secrets.token_hex(32))"` 로 만든 값). 둘은 반드시 달라야 합니다. 같으면 공개 해시가 동기화 키를 오프라인으로 대입해 볼 창구가 됩니다. `ALERTS_STATE_SALT` 가 없으면 `/prefs` 조건 평가를 통째로 건너뜁니다. Worker 시크릿이 아닙니다.
 - 2층 보유정보는 두 경로 어디에도 평문으로 두지 않습니다. 암호문은 `/portfolio` 의 `encHoldings` 하나뿐입니다.
 
 ## 배포 — Git 연동 (대시보드, 현재 설정됨)
