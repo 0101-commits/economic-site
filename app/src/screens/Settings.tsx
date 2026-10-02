@@ -10,6 +10,7 @@ import { checkPin, hasPin, IDLE_MS, isUnlocked, lock, setPin } from '../lib/pin'
 import { loadBundle } from '../lib/bundle'
 import { mdHm } from '../lib/format'
 import { applyUpdown, KEYS, readLedger, readPortfolio, readPrefs, readSnaps, wipeDevice, writePrefs, type Prefs } from '../lib/personal/store'
+import { disableSync, enableSync, statusText, useSyncStatus } from '../lib/personal/sync'
 
 const THEMES = [{ key: 'system', label: '기기 설정' }, { key: 'light', label: '밝게' }, { key: 'dark', label: '어둡게' }] as const
 const UPDOWN = [{ key: 'kr', label: '한국식 · 오름 빨강' }, { key: 'us', label: '서양식 · 오름 초록' }] as const
@@ -19,6 +20,8 @@ export default function Settings() {
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
   const [t, setT] = useState<Theme>(readTheme)
   const [msg, setMsg] = useState('')
+  const { rev } = useSyncStatus()
+  useEffect(() => { if (rev) { setPrefs(readPrefs()); setT(readTheme()) } }, [rev])   // 동기화가 이 기기를 서버 내용으로 덮은 뒤
   const save = (p: Prefs) => { setPrefs(p); setMsg(writePrefs(p) ? '' : '이 기기에 저장하지 못했습니다.') }
   const setS = (k: Partial<Prefs['settings']>) => save({ ...prefs, settings: { ...prefs.settings, ...k } })
 
@@ -96,7 +99,7 @@ function Security() {
   )
 }
 
-/** 내 데이터: 동기화 자리 · 내려받기(잠금을 연 뒤에만) · 이 기기 데이터 지우기(확인 2번). */
+/** 내 데이터: 기기 간 동기화 · 내려받기(잠금을 연 뒤에만) · 이 기기 데이터 지우기(확인 2번). */
 function MyData() {
   const [note, setNote] = useState('')
   const [step, setStep] = useState(0)
@@ -118,8 +121,7 @@ function MyData() {
   }
   return (
     <Card title="내 데이터">
-      <Switch on={false} disabled label="여러 기기 동기화(내 암호)" />
-      <p className="mt-1 mb-0 text-12 text-ink-3">다음 단계에서 연결합니다. 켜면 내 암호로 잠근 뒤 올리므로 서버는 못 읽습니다. 지금은 모든 자료가 이 기기에만 있습니다.</p>
+      <SyncBox />
 
       <div className="mt-4 flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -135,7 +137,7 @@ function MyData() {
         {step === 1 && (
           <div className="flex flex-col gap-2">
             <p className="m-0 text-13 text-ink-1">지울 것: 보유 종목 · 평가액 스냅샷 · 배당·입출금 원장 · 관심 · 알림 조건 · 표시 설정 · 최근 검색.</p>
-            <p className="m-0 text-12 text-ink-3">현행 화면도 같은 보유·스냅샷·원장을 쓰므로 거기서도 사라집니다. 잠금 PIN 과 현행 화면 동기화 키는 남깁니다.</p>
+            <p className="m-0 text-12 text-ink-3">현행 화면도 같은 보유·스냅샷·원장을 쓰므로 거기서도 사라집니다. 잠금 PIN 과 현행 화면 동기화 키는 남깁니다. 기기 간 동기화는 끕니다(서버에 맡긴 것은 남습니다).</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={BTN2} onClick={() => setStep(2)}>계속</button>
               <button type="button" className={BTN2} onClick={() => setStep(0)}>그만두기</button>
@@ -146,13 +148,48 @@ function MyData() {
           <div className="flex flex-col gap-2">
             <p role="alert" className="m-0 text-13 font-bold text-warn">되돌릴 수 없습니다. 정말 지울까요?</p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className={BTN} onClick={() => { if (wipeDevice()) location.reload(); else setStep(0) }}>지우기</button>
+              <button type="button" className={BTN} onClick={() => { if (wipeDevice()) { disableSync(); location.reload() } else setStep(0) }}>지우기</button>
               <button type="button" className={BTN2} onClick={() => setStep(0)}>그만두기</button>
             </div>
           </div>
         )}
       </div>
     </Card>
+  )
+}
+
+/**
+ * 기기 간 동기화 스위치. 켜면 동기화 키를 받아 해시만 이 탭에 기억하고(입력값은 바로 비운다) 서버 내용을 받는다.
+ * 보유·평단가·수량·원장은 보내지 않는다 — 보내는 문서는 lib/personal/remote.ts toServer 가 만든다.
+ */
+function SyncBox() {
+  const s = useSyncStatus()
+  const [ask, setAsk] = useState(false)
+  const [key, setKey] = useState('')
+  const connect = async (e: FormEvent) => {
+    e.preventDefault()
+    const k = key
+    setKey('')
+    if (await enableSync(k)) setAsk(false)
+  }
+  const asking = ask && !s.on
+  return (
+    <div>
+      <Switch on={s.on || ask} label="기기 간 동기화"
+        onChange={v => { if (v) setAsk(true); else { setAsk(false); setKey(''); disableSync() } }} />
+      <p className="mt-1 mb-0 text-12 text-ink-3">관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오를 동기화 키로 서버에 맡겨 다른 기기와 맞춥니다. 보유 종목 · 평단가 · 수량 · 원장은 보내지 않습니다.</p>
+      {asking && (
+        <form onSubmit={connect} className="mt-2 flex flex-wrap items-end gap-2" aria-label="동기화 키 넣기">
+          <Field label="동기화 키" className="flex-1 min-w-48">
+            <input type="password" autoComplete="off" className={INPUT} value={key} onChange={e => setKey(e.target.value)} />
+          </Field>
+          <button type="submit" disabled={s.busy || !key.trim()} className={BTN}>{s.busy ? '맞추는 중' : '연결'}</button>
+          <button type="button" className={BTN2} onClick={() => { setAsk(false); setKey('') }}>취소</button>
+        </form>
+      )}
+      {asking && <p className="mt-1 mb-0 text-12 text-ink-3">키는 저장하지 않고 해시만 이 탭에 기억합니다. 탭을 닫으면 다시 넣어야 합니다. 서버에 맡긴 것이 있으면 그 내용으로 이 기기를 맞추고, 없으면 이 기기 것을 올립니다.</p>}
+      {(s.on || s.msg) && <p role="status" className={`mt-1 mb-0 text-12 ${s.msg ? 'text-warn' : 'text-ink-2'}`}>{statusText(s)}</p>}
+    </div>
   )
 }
 

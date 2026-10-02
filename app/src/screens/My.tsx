@@ -1,6 +1,7 @@
 // 내 자산 — 기획안 v4 6장. 첫 블록(총평가·오늘 손익·원금) → 띠 카드 4 → 보기 바 → 고른 보기 패널 → 격자.
 // 보유·스냅샷·원장을 읽는 코드는 전부 Holdings 안에 있다 — PinGate 가 열기 전엔 만들어지지 않는다.
 // 입력은 이 기기(localStorage)에만 저장한다. 서버 동기화(내 암호로 잠근 뒤 올리기)는 후속.
+// 시세: 묶음에 있는 종목은 묶음 값, 없는 종목은 Worker 프록시로 Yahoo(lib/personal/quotes.ts) — 잠금 안에서만 받는다.
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Pencil, Trash2, Wallet } from 'lucide-react'
 import { PinGate } from '../components/PinGate'
@@ -11,9 +12,10 @@ import { WeightMap } from '../components/personal/WeightMap'
 import { BTN, BTN2, DIR_TEXT, Field, INPUT, ShareBar, Switch } from '../components/personal/bits'
 import { changeDir, fmtNumber, fmtPct, shortDate, slicePeriods, type Pt } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
-import { evaluate, fmtMoney, fmtMoneyChange, fxWhatIf, kstDay, moneyDir, npsDomesticShare, risk, RISK_MIN, type Holding, type Row, type Unit } from '../lib/personal/calc'
+import { evaluate, fmtMoney, fmtMoneyChange, fxWhatIf, kstDay, moneyDir, npsDomesticShare, risk, RISK_MIN, type Holding, type Quote, type Row, type Unit } from '../lib/personal/calc'
 import type { Sched } from '../lib/bundle'
 import { loadMarketData, type MarketData } from '../lib/personal/data'
+import { holdingQuotes } from '../lib/personal/quotes'
 import { newId, readLedger, readPortfolio, readPrefs, readSnaps, saveTodaySnap, writeLedger, writePortfolio, type Ledger } from '../lib/personal/store'
 
 const VIEWS = [
@@ -37,6 +39,7 @@ function Holdings() {
   const [snaps, setSnaps] = useState(readSnaps)
   const [unit] = useState<Unit>(() => readPrefs().settings.unit)
   const [md, setMd] = useState<MarketData | null>(null)
+  const [qs, setQs] = useState<Map<string, Quote> | null>(null)   // 묶음 시세 + 묶음에 없는 보유 종목의 Yahoo 시세
   const [v, setV] = useViewParam<View>('v', 'hold', VIEWS.map(o => o.key))
   const [edit, setEdit] = useState<Holding | null>(null)
   const [msg, setMsg] = useState('')
@@ -44,25 +47,32 @@ function Holdings() {
   useEffect(() => {
     loadMarketData().then(setMd, () => setMd({ home: null, quotes: new Map(), fx: null, nps: null, gainers: false, losers: false, halts: [] }))
   }, [])
+  useEffect(() => {
+    if (!md) return
+    let live = true
+    holdingQuotes(pf.items, md.quotes).then(m => { if (live) setQs(m) }, () => { if (live) setQs(md.quotes) })
+    return () => { live = false }
+  }, [md, pf.items])
 
   const today = kstDay()
   const month = today.slice(0, 7)
   const divs = ledger.filter(l => l.kind === 'div')
   const divToday = divs.filter(l => l.d === today).reduce((a, l) => a + l.amt, 0)
   const divMonth = divs.filter(l => l.d.startsWith(month)).reduce((a, l) => a + l.amt, 0)
-  const { rows, totals } = useMemo(() => evaluate(pf.items, md?.quotes ?? new Map(), md?.fx ?? null, divToday), [pf.items, md, divToday])
+  const { rows, totals } = useMemo(() => evaluate(pf.items, qs ?? md?.quotes ?? new Map(), md?.fx ?? null, divToday), [pf.items, qs, md, divToday])
+  const yahooN = qs && md ? pf.items.filter(it => !md.quotes.has(it.symbol) && qs.has(it.symbol)).length : 0
   const rk = useMemo(() => risk(snaps, totals.value), [snaps, totals.value])
 
-  // 스냅샷: 시세가 들어온 뒤 한 번. 시세 없는 종목이 하나라도 있으면 건너뛴다 — 일부 종목만 담긴 날이 끼면
+  // 스냅샷: 시세(묶음 + Yahoo)가 다 들어온 뒤. 시세 없는 종목이 하나라도 있으면 건너뛴다 — 일부 종목만 담긴 날이 끼면
   // 평가액 ÷ 원금 흐름이 끊겨 위험 지표가 망가지고, 같은 날 현행 화면이 쓴 온전한 스냅샷을 덮게 된다.
   // ponytail: 오늘 칸이 이미 있으면(현행 화면이 썼을 수 있다) 덮지 않는다 — 하루 첫 저장이 남는다.
   useEffect(() => {
-    if (!md || !pf.items.length) return
+    if (!qs || !pf.items.length) return
     if (totals.missing > 0) { setSnapNote(`시세 없는 종목이 ${totals.missing}개라 오늘 스냅샷은 건너뛰었습니다.`); return }
     if (!(totals.basisValue > 0 && totals.cost > 0)) return
     const d = new Date().toISOString().slice(0, 10)
     if (!readSnaps().some(s => s.d === d)) setSnaps(saveTodaySnap(totals.basisValue, totals.cost))
-  }, [md])   // 시세가 들어온 순간 한 번만
+  }, [qs])   // 시세가 들어온 순간(종목을 바꿔 다시 받으면 또 — 오늘 칸이 있으면 덮지 않는다)
 
   const savePf = (items: Holding[]) => {
     const next = { ...readPortfolio(), items }   // 다른 탭(현행 화면)이 바꾼 그룹·알림을 덮지 않게 저장 직전에 다시 읽는다
@@ -111,7 +121,8 @@ function Holdings() {
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><Wallet size={18} aria-hidden />내 자산</h1>
         {md?.quotesAsOf && <span className="inline-flex items-center gap-1 text-12 text-ink-3">시세 <AsOfBadge asOf={md.quotesAsOf} state={md.home?.topAmount?.state} /></span>}
-        {!md && <span className="text-12 text-ink-3">시세 불러오는 중</span>}
+        {!qs && <span className="text-12 text-ink-3">시세 불러오는 중</span>}
+        {yahooN > 0 && <span className="text-12 text-ink-3">{`${yahooN}종목은 Yahoo 지연 시세`}</span>}
       </header>
 
       {/* 첫 블록 */}
@@ -126,7 +137,7 @@ function Holdings() {
           <span className={`num ${DIR_TEXT[changeDir(t.pnlPct, 2)]}`}>{fmtPct(t.pnlPct)}</span>
         </p>
         {!has && <p className="mt-2 mb-0 text-13 text-ink-3">아직 담은 종목이 없습니다. 아래 보유 패널에서 종목을 넣으세요.</p>}
-        {t.missing > 0 && <p className="mt-2 mb-0 text-12 text-ink-3">시세 없는 {t.missing}종목은 총평가에서 뺐습니다. 시세는 묶음에 있는 종목(거래대금 상위·상승·하락·ETF 표)만 있습니다.</p>}
+        {qs && t.missing > 0 && <p className="mt-2 mb-0 text-12 text-ink-3">시세 없는 {t.missing}종목은 총평가에서 뺐습니다. 묶음에도 없고 Yahoo 시세도 받지 못한 종목입니다.</p>}
         {msg && <p role="alert" className="mt-2 mb-0 text-12 text-warn">{msg}</p>}
       </Card>
 
