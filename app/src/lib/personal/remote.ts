@@ -3,6 +3,7 @@
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(calc.ts 와 같은 규칙).
 import type { AlertCond, Settings } from './store'
 import type { Theme } from '../theme'
+import { upgradePrefs } from './prefsV2.ts'
 import type { EncBlob } from './e2e'
 
 /** Worker 주소. 배포 화면의 보안 정책(vite.config.ts connect-src)이 이 주소 하나만 열어 두므로 바꿔 끼우는 설정은 두지 않는다. */
@@ -22,13 +23,13 @@ export type PrefsBody = {
   settings: Settings & { theme: Theme }
   scenarios: { name: string; inputs: Record<string, unknown> }[]
 }
-export type PrefsDoc = PrefsBody & { v: 1; updatedAt: string | null }
+export type PrefsDoc = PrefsBody & { v: 1 | 2; updatedAt: string | null }
 
 /** 이 기기 쪽 모양 — 저장소 네 곳을 모은 것. 보유(portfolioV1)·스냅샷·원장은 여기 없으므로 서버로 갈 길이 없다. */
 export type Local = {
   watch: string[]                                            // econ_watch_v1 (lib/watch.ts)
   alerts: AlertCond[]                                        // econPrefsV1.alerts
-  settings: Settings                                         // econPrefsV1.settings (등락 색 updown · 금액 단위 · 방해 금지)
+  settings: Settings                                         // econPrefsV1.settings (등락 색 · 금액 단위 · 조용한 시간 · 꾸러미 · 채널 · 브리핑 …)
   theme: Theme                                               // econNextTheme_v1 (lib/theme.ts)
   scenarios: ({ name: string } & Record<string, unknown>)[]  // econ_scenarios_v1 (렌즈 「만약에」 저장)
 }
@@ -45,20 +46,21 @@ export function toServer(l: Local, prev: PrefsDoc | null, now: string): PrefsBod
   return {
     watch: l.watch.map(id => ({ id, kind: watchKind(id), addedAt: added.get(id) ?? now })),
     alerts: l.alerts,
-    settings: { theme: l.theme, updown: l.settings.updown, unit: l.settings.unit, quiet: l.settings.quiet },
+    settings: { theme: l.theme, ...l.settings },
     scenarios: l.scenarios.map(({ name, ...inputs }) => ({ name, inputs })),
   }
 }
 
-/** 서버 문서 → 이 기기. 모르는 값은 서버 기본값과 같은 첫 값(system·kr·man)으로. */
+/** 서버 문서 → 이 기기. 조건 · 설정은 v2 로 바꿔 읽는다(v1 조건은 사전 사건으로, 모르는 값은 기본값 — prefsV2.ts). */
 export function fromServer(d: Partial<PrefsDoc>): Local {
-  const s: Partial<PrefsBody['settings']> = d.settings ?? {}
   const arr = <T,>(v: T[] | undefined) => (Array.isArray(v) ? v : [])
+  const p = upgradePrefs(d)
+  const theme = (d.settings as { theme?: unknown } | undefined)?.theme
   return {
     watch: arr(d.watch).map(w => w.id),
-    alerts: arr(d.alerts),
-    settings: { updown: s.updown === 'us' ? 'us' : 'kr', unit: s.unit === 'won' ? 'won' : 'man', quiet: s.quiet ?? null },
-    theme: s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
+    alerts: p.alerts,
+    settings: p.settings,
+    theme: theme === 'light' || theme === 'dark' ? theme : 'system',
     scenarios: arr(d.scenarios).map(x => ({ ...x.inputs, name: x.name })),
   }
 }

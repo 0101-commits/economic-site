@@ -2,11 +2,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { WORKER, fromServer, keyHash, portfolioPost, prefsCall, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
+import { defaultSettings } from './prefsV2.ts'
 
 const local: Local = {
   watch: ['kospi', '005930', 'usdkrw', '0035S0', 'C2'],
-  alerts: [{ id: 'a1', target: '005930', type: 'price', cond: { op: '>=', value: 90000 }, repeat: 'once', channels: ['push'], enabled: true }],
-  settings: { updown: 'us', unit: 'won', quiet: { from: '23:00', to: '07:00' } },
+  alerts: [{ id: 'a1', event: 'U1', target: '005930', value: 90000, dir: 'up', repeat: 'once', ring: true, enabled: true },
+    { id: 'a2', event: 'A1', target: '*', strength: 'huge', level: 'alarm', repeat: 'each', enabled: true }],
+  settings: { ...defaultSettings(), updown: 'us', unit: 'won', quiet: null, package: 'many', ringChannel: 'both', dailyCap: 12,
+    kakaoFriends: true, kakaoRecipients: [{ uuid: '', name: '나', briefOnly: true }] },
   theme: 'dark',
   scenarios: [{ name: '시나리오 1', start: 'us10y', dir: 1, depth: 2, at: '2026-10-01T00:00:00.000Z' }],
 }
@@ -29,14 +32,16 @@ test('toServer: 서버 모양 · 보유 칸 없음 · 담은 때는 직전 서�
     { id: 'kospi', kind: 'indicator', addedAt: '2026-09-01T00:00:00.000Z' },
     { id: '005930', kind: 'stock', addedAt: '2026-10-02T00:00:00.000Z' },
   ])
-  assert.deepEqual(b.settings, { theme: 'dark', updown: 'us', unit: 'won', quiet: { from: '23:00', to: '07:00' } })
+  assert.deepEqual(b.settings, { theme: 'dark', ...local.settings })   // v2 설정 전체(Worker _sanitizePrefs 가 받는 칸)
   assert.deepEqual(b.scenarios, [{ name: '시나리오 1', inputs: { start: 'us10y', dir: 1, depth: 2, at: '2026-10-01T00:00:00.000Z' } }])
   assert.doesNotMatch(JSON.stringify(b), /"(avg|qty|fxBuy|holdings|items|portfolio)"/)
 })
 
-test('fromServer(toServer(x)) = x · 빈 문서는 서버 기본값', () => {
-  assert.deepEqual(fromServer({ v: 1, updatedAt: 't', ...toServer(local, null, 'now') }), local)
-  assert.deepEqual(fromServer({}), { watch: [], alerts: [], settings: { updown: 'kr', unit: 'man', quiet: null }, theme: 'system', scenarios: [] })
+test('fromServer(toServer(x)) = x · 빈 문서는 기본값 · v1 서버 문서의 조건은 v2 로', () => {
+  assert.deepEqual(fromServer({ v: 2, updatedAt: 't', ...toServer(local, null, 'now') }), local)
+  assert.deepEqual(fromServer({}), { watch: [], alerts: [], settings: defaultSettings(), theme: 'system', scenarios: [] })
+  const v1 = { v: 1, alerts: [{ id: 'a1', target: 'kospi', type: 'price', cond: { op: '<=', value: 2500 }, repeat: 'once', channels: ['push'], enabled: true }] }
+  assert.deepEqual(fromServer(v1 as unknown as PrefsDoc).alerts, [{ id: 'a1', target: 'kospi', event: 'U1', dir: 'down', value: 2500, repeat: 'once', ring: true, enabled: true }])
 })
 
 /** Worker handlePrefs 의 If-Match 규칙만 흉내 낸 가짜 서버. 요청 머리·주소도 기록한다. */

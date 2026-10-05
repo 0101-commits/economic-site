@@ -12,7 +12,7 @@ import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
 import { SearchOverlay } from './components/personal/SearchOverlay'
-import { applyUpdown, readPrefs } from './lib/personal/store'
+import { applyUpdown, readPrefs, tidyAlerts } from './lib/personal/store'
 import { loadRootJson } from './lib/personal/data'
 import { hasUnseen, markSeen, readSeen } from './lib/alertsSeen'
 import { legacyToHash } from './lib/legacyUrl'
@@ -73,7 +73,11 @@ function Shell() {
   const { pathname } = useLocation()
   const [rows, setRows] = useState<unknown>(null)
   const [seen, setSeen] = useState(readSeen)
-  useEffect(() => { loadRootJson<unknown>('events/latest.json').then(setRows, () => {}) }, [])
+  // 알림 자동 정리(housekeeping.ts)도 여기서 한 번 — prior = 아래 markSeen 이 「본 때」를 적기 전 값(90일 미열람 판정용)
+  useEffect(() => {
+    const prior = readSeen()
+    loadRootJson<unknown>('events/latest.json').then(r => { setRows(r); tidyAlerts(r, prior) }, () => tidyAlerts([], prior))
+  }, [])
   useEffect(() => { if (pathname === '/alerts') setSeen(markSeen()) }, [pathname])
   const unseen = hasUnseen(rows, seen)
   // `/` = 검색 열기(입력 칸에서 치는 / 는 그대로 둔다)

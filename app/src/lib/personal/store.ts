@@ -2,16 +2,21 @@
 //   portfolioV1   = { groups, items: Holding[], alerts, lastSync, ... }  현행 사이트(js/app2.js)와 같은 문서. 모르는 필드는 그대로 둔다.
 //   pfSnapshotsV1 = [{ d:'YYYY-MM-DD', ev, ct }]                          현행과 같음. 날짜는 현행처럼 UTC 기준(두 화면이 같은 날을 같은 칸에 쓴다).
 //   pfLedgerV1    = [{ id, d, kind:'div'|'dep'|'wd', amt, memo }]         현행과 같음. 서버로 보내지 않는다.
-//   econPrefsV1   = { v:1, alerts, settings, scenarios }                  새 화면 전용. 모양은 Worker /prefs 문서와 같다(올리고 받는 것은 sync.ts).
+//   econPrefsV1   = { v:2, alerts, settings, scenarios }                  새 화면 전용. 모양은 Worker /prefs 문서와 같다(올리고 받는 것은 sync.ts).
+//                   열쇠 이름은 v1 그대로 — 읽을 때 v1 문서를 v2 로 바꾼다(prefsV2.ts).
+//   econAlertsHk_v1 = { since, ring, off, demoted }                       알림 자동 정리(housekeeping.ts). 이 기기에만.
 //   econSearchRecentV1 = [{ label, to, kind }]                            검색 「최근 본 것」.
 // 보유 금액이 든 읽기(readPortfolio·readSnaps·readLedger)는 PinGate 안의 화면과, 잠금이 열린 뒤의 내려받기에서만 부른다.
 import { upsertSnap, type Holding, type Snap, type Unit } from './calc'
+import { upgradePrefs } from './prefsV2'
+import { housekeep, type Hk } from './housekeeping'
 import '../../components/personal/updown.css'
 
 export const KEYS = {
   portfolio: 'portfolioV1', snaps: 'pfSnapshotsV1', ledger: 'pfLedgerV1',
   prefs: 'econPrefsV1', recent: 'econSearchRecentV1', watch: 'econ_watch_v1', theme: 'econNextTheme_v1',
   holdSync: 'econHoldSync_v1',   // 보유 동기화 기록(sync.ts) — 지문·시각만, 보유 값 없음
+  hk: 'econAlertsHk_v1',         // 알림 자동 정리 기록(housekeeping.ts) — 조건 id · 시각만
 } as const
 
 function read<T>(key: string, fallback: T): T {
@@ -46,27 +51,41 @@ export type Ledger = { id: string; d: string; kind: 'div' | 'dep' | 'wd'; amt: n
 export const readLedger = (): Ledger[] => { const a = read<unknown>(KEYS.ledger, []); return Array.isArray(a) ? a : [] }
 export const writeLedger = (a: Ledger[]) => write(KEYS.ledger, [...a].sort((x, y) => (x.d < y.d ? -1 : 1)).slice(-500))
 
-// ── 설정·알림 조건(Worker /prefs 와 같은 모양) ────────────────
-export type AlertType = 'price' | 'pct' | 'high52' | 'event' | 'flow' | 'lens'
+// ── 설정·알림 조건 v2(Worker /prefs 와 같은 모양 — 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md 「설정 /prefs v2」) ──
+// 조건 한 건 = 사건(사전 A1~H4 · 사용자 U1 수준 도달 · U2 급변 값) + 대상 + 세기 · 등급 · 반복 · 울림.
+// 대상 '*' 는 사건 탭의 「사건 전체 조정」(세기 · 등급)이다 — ring 을 비워 둔다(서버 subscribe._override 는 ring 이 있으면 모든 대상을 켜고 끈다).
+// 읽을 때 v1(type 6종)은 prefsV2.upgradePrefs 가 바꾼다(서버 subscribe.upgrade_prefs 와 같은 규칙).
+export type Level = 'alarm' | 'alert' | 'notice' | 'record'
+export type Strength = 'normal' | 'big' | 'huge' | 'value'
+export type Pkg = 'quiet' | 'normal' | 'many'
 export type AlertCond = {
-  id: string; target: string; type: AlertType; cond: Record<string, string | number>
-  repeat: 'once' | 'daily'; channels: ('push' | 'discord')[]; enabled: boolean
+  id: string; event: string; target: string; strength?: Strength; value?: number; dir?: 'up' | 'down'
+  level?: Level; repeat: 'each' | 'once'; ring?: boolean; enabled: boolean; armedAt?: string; name?: string
 }
 export type Updown = 'kr' | 'us'
-export type Settings = { updown: Updown; unit: Unit; quiet: { from: string; to: string } | null }
-export type Prefs = { v: 1; alerts: AlertCond[]; settings: Settings; scenarios: { name: string; inputs: Record<string, unknown> }[] }
-
-export function readPrefs(): Prefs {
-  const p = read<Partial<Prefs> | null>(KEYS.prefs, null)
-  const s: Partial<Settings> = p?.settings ?? {}
-  return {
-    v: 1,
-    alerts: Array.isArray(p?.alerts) ? p!.alerts : [],
-    settings: { updown: s.updown === 'us' ? 'us' : 'kr', unit: s.unit === 'won' ? 'won' : 'man', quiet: s.quiet?.from && s.quiet?.to ? s.quiet : null },
-    scenarios: Array.isArray(p?.scenarios) ? p!.scenarios : [],
-  }
+export type Settings = {
+  updown: Updown; unit: Unit; quiet: { from: string; to: string } | null
+  package: Pkg; ringChannel: 'kakao' | 'push' | 'both'; dailyCap: number; quietAlarm: boolean
+  briefings: { morning: boolean; close: boolean; noon: boolean; evening: boolean; us: boolean; weekly: boolean }
+  families: Record<'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H', boolean>; rememberKey: boolean
+  kakaoFriends: boolean                                           // 카톡 친구 모드로 받기(운영 변수 KAKAO_FRIENDS 와 짝)
+  kakaoRecipients: { uuid: string; name: string; briefOnly: boolean }[]   // ≤5. uuid 는 서버가 친구 목록 이름으로 채운다
 }
+export type Prefs = { v: 2; alerts: AlertCond[]; settings: Settings; scenarios: { name: string; inputs: Record<string, unknown> }[] }
+
+export const readPrefs = (): Prefs => upgradePrefs(read<unknown>(KEYS.prefs, null))
 export const writePrefs = (p: Prefs) => write(KEYS.prefs, p)
+
+/** 자동 정리 기록(housekeeping.ts) — 이 기기에만. */
+export const readHk = (): Hk => { const h = read<unknown>(KEYS.hk, {}); return h && typeof h === 'object' ? (h as Hk) : {} }
+export const writeHk = (h: Hk) => write(KEYS.hk, h)
+
+/** 앱이 뜰 때 한 번(App.tsx): 원장 최신판으로 자동 정리를 돌리고, 바뀌면 저장 + 다른 화면에 알린다. seen = 알림 화면을 마지막으로 연 때(이번 열기 전). */
+export function tidyAlerts(rows: unknown, seen: string | null, now = Date.now()) {
+  const r = housekeep(readPrefs(), readHk(), now, Date.parse(seen ?? '') || 0, Array.isArray(rows) ? rows : [])
+  writeHk(r.hk)
+  if (r.changed && writePrefs(r.prefs)) window.dispatchEvent(new StorageEvent('storage', { key: KEYS.prefs }))
+}
 
 /** 등락 색: 'kr' = 상승 빨강(기본, 속성 없음) · 'us' = 상승 초록(updown.css). 앱이 뜰 때 App.tsx 가 한 번 부른다. */
 export function applyUpdown(u: Updown) {
@@ -82,7 +101,7 @@ export function pushRecent(r: Recent) {
 }
 
 /** 이 기기 데이터 지우기 대상. 잠금 PIN·현행 화면 동기화 키는 남긴다(설정 화면이 그렇다고 적는다). */
-export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme, KEYS.holdSync]
+export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk]
 export function wipeDevice(): boolean {
   try { WIPE_KEYS.forEach(k => localStorage.removeItem(k)); return true } catch { return false }
 }
