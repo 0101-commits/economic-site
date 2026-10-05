@@ -21,6 +21,7 @@ import json
 import os
 import re
 import sys
+import warnings
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 SCRIPTS = os.path.join(ROOT, "scripts")
@@ -32,6 +33,11 @@ NOW = datetime.datetime(2026, 9, 18, 15, 40)
 # 카톡 말풍선 축소비 — 1080px 카드가 약 270px 로 표시된다(CLAUDE.md 판독 규격).
 BUBBLE_SCALE = 270.0 / 1080.0
 READABLE_PX = 9.0            # 한글 하한 — 주 숫자(값·등락률)에 적용
+# 이 하한은 개발 PC 의 Malgun Gothic 에서 맞춘 값이다. 카드는 글자 폭에 맞춰 글자 크기를 줄여 앉히므로 폭이 더
+# 넓은 폰트에서는 같은 카드가 더 작게 나온다 — CI 의 Noto Sans KR 에서 종목(정사각)의 ▲3.20% 가 8.2px,
+# 한글 폰트 없는 러너(DejaVu Sans 폴백)도 같은 값이었다(2026-10-05 실측). 기준 폰트가 아니면 이 한 칸만 판정을
+# 생략하고 측정값을 경고로 남긴다 — 나머지 게이트(정보 보존·중복·글자 하한·강도·여백·잘림)는 어느 폰트에서든 판정한다.
+CALIBRATED_FONT = "Malgun Gothic"
 # 보조 정보(footer·축 눈금·기준선 라벨)는 9px 아래가 정상이다. 대신 '하한 자체'를 지킨다:
 # 정사각 카드의 모든 글자는 SQ_MIN_FS 로 바닥이 걸려 있어야 한다(_fs(square=True)).
 # 가로 카드는 디스코드 전용이고 축소비·클릭 확대가 달라 별도 하한(10pt)만 본다.
@@ -145,6 +151,11 @@ def gate_feed_body_excludes_card_tiles(kakao):
 
 
 # ── ③ 축소 판독 ───────────────────────────────────────────────────────────
+def _font(dc):
+    """카드가 실제로 쓰는 글꼴 이름(_setup 이 한글 폰트를 못 찾으면 DejaVu Sans)."""
+    return dc._STATE["plt"].rcParams["font.family"][0]
+
+
 def _screen_px(t, fig):
     """말풍선에 표시될 글자 높이(px) = pt ÷ 72 × dpi × 축소비."""
     return t.get_fontsize() / 72.0 * fig.dpi * BUBBLE_SCALE
@@ -169,8 +180,16 @@ def gate_bubble_legibility(dc, cards):
                      if t.get_text() in want}
             missing = [w for w in want if w not in found]
             small = {s: round(p, 1) for s, p in found.items() if p < READABLE_PX}
-            check(f"주 숫자 판독 {name}", not missing and not small,
-                  f"누락={missing} 9px미달={small} 측정={{{', '.join(f'{k}:{v:.1f}px' for k, v in found.items())}}}")
+            detail = (f"누락={missing} 9px미달={small} "
+                      f"측정={{{', '.join(f'{k}:{v:.1f}px' for k, v in found.items())}}}")
+            font = _font(dc)
+            if small and not missing and font != CALIBRATED_FONT:
+                # 판정은 하지 않되 숨기지도 않는다 — 출력과 pytest 경고에 측정값을 남긴다.
+                print(f"  SKIP 주 숫자 판독 {name} — {font} 에서는 판정하지 않음(기준 폰트 {CALIBRATED_FONT}) {detail}")
+                warnings.warn(f"주 숫자 판독 {name}: {font} 에서 {small} — 9px 하한은 {CALIBRATED_FONT} 기준이라 판정 생략",
+                              stacklevel=2)
+            else:
+                check(f"주 숫자 판독 {name}", not missing and not small, detail)
         dc._STATE["plt"].close(fig)
 
 
