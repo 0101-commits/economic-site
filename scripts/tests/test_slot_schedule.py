@@ -45,3 +45,22 @@ def test_every_slot_has_a_lineup():
     weekend, weekday = _hours()
     for h in weekday + weekend:
         assert f"h{h:02d}" in K.SLOT_BLOCKS, f"h{h:02d} 편성 없음"
+
+
+def test_briefing_cron_matches_slots():
+    """briefing.yml 의 cron(UTC) → KST 시각 · 요일이 briefing.SLOT_AT 과 같고, 슬롯 판정 case 가 그 cron 을 그 슬롯으로 읽는다.
+    여섯 슬롯이 전부 한 번씩 있어야 한다 — cron 한 줄을 고치고 case 를 안 고치면 그 시각 깨움이 슬롯 없이 끝난다."""
+    from alerts_v2 import briefing
+    yml = open(os.path.join(ROOT, ".github", "workflows", "briefing.yml"), encoding="utf-8").read()
+    got = {}
+    for cron, slot in re.findall(r"- cron: '([^']+)'\s+#\s*(\w+)", yml):
+        mi, hr, _d, _m, dow = cron.split()
+        days = set()
+        for part in dow.split(","):
+            a, _, b = part.partition("-")
+            days.update(range(int(a), int(b or a) + 1))
+        shift, rest = divmod(int(hr) * 60 + int(mi) + 9 * 60, 24 * 60)
+        kst_days = tuple(sorted((c - 1 + shift) % 7 for c in days))         # cron 0=일 → 파이썬 6=일
+        got[slot] = (rest // 60, rest % 60, kst_days)
+        assert f"'{cron}') slot={slot} ;;" in yml, f"슬롯 판정 case 에 {cron} → {slot} 이 없다"
+    assert got == {s: (h, m, tuple(sorted(dd))) for s, (h, m, dd) in briefing.SLOT_AT.items()}

@@ -1,6 +1,7 @@
 """알림 v2 실행 — 모드별 추출 → 원장 → (ALERTS_V2=1) 구독 · 편성 · 발송 → latest.json.
 
   python scripts/alerts_v2/run.py --mode light|full|settle|daily|eve [--dry-run] [--now 2026-10-02T22:16+09:00]
+  python scripts/alerts_v2/run.py --mode brief --slot morning|close|noon|evening|us|weekly [--dry-run]
 
 물결 A 에서는 추출과 원장까지만 돈다. 구독(subscribe) · 편성(schedule) · 발송(deliver) 은 물결 B 가
 모듈을 채우면 아래 `_pipeline_b` 가 그것을 부른다(없으면 건너뜀).
@@ -66,10 +67,34 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool):
             deliver.send(s, ledger, ctx)
 
 
+BRIEF_SENT_MARKER = ".brief_sent_marker"            # briefing.yml 의 중복 발송 방지 캐시가 이 파일을 저장한다
+
+
+def _brief(slot: str, now, dry_run: bool) -> int:
+    """브리핑 한 통 — 추출 없음. ALERTS_V2=1 이고 --dry-run 이 아닐 때만 실제 발송, 아니면 드라이런 출력."""
+    import send_kakao_digest as kakao
+    from alerts_v2 import briefing, subscribe
+    live = os.environ.get("ALERTS_V2", "0") == "1" and not dry_run
+    ctx = Context.load(now=now)
+    briefing.roll_calendar(ctx.data, now.astimezone(KST).date())   # 휴장 판정(kr_closed)이 보는 달력을 오늘로
+    for fix in (kakao.apply_live_quotes, kakao.load_mri):   # 현행 다이제스트와 같은 발송 직전 보정(시세 · 리스크 지수)
+        try:
+            fix(ctx.data)
+        except Exception as e:                                 # noqa: BLE001 — 보정 실패는 스냅샷 값으로 간다
+            print(f"[v2 brief] {fix.__name__} 실패: {type(e).__name__}")
+    settings = (subscribe.load_prefs() or {}).get("settings")
+    res = briefing.send(slot, ctx, Ledger(day=now.astimezone(KST).date()), settings, dry_run=not live)
+    if live:
+        Ledger.rebuild_latest()
+        if any(res.values()):
+            open(BRIEF_SENT_MARKER, "w").close()
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", required=True, choices=list(schema.RUNS) if hasattr(schema, "RUNS") else
-                    ["light", "full", "settle", "daily", "eve"])
+    ap.add_argument("--mode", required=True, choices=[*schema.RUNS, "brief"])   # brief 는 평가 런(RUNS) 밖
+    ap.add_argument("--slot", default=None, help="--mode brief 의 슬롯(morning · close · noon · evening · us · weekly)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--now", default=None, help="ISO 시각(검사용)")
     args = ap.parse_args(argv)
@@ -77,6 +102,11 @@ def main(argv=None) -> int:
     now = dt.datetime.fromisoformat(args.now) if args.now else dt.datetime.now(KST)
     if now.tzinfo is None:
         now = now.replace(tzinfo=KST)
+    if args.mode == "brief":
+        from alerts_v2.briefing import SLOTS
+        if args.slot not in SLOTS:
+            ap.error(f"--mode brief 에는 --slot {'|'.join(SLOTS)} 가 필요하다")
+        return _brief(args.slot, now, args.dry_run)
     events = schema.load_events()
     todo = schema.for_run(events, args.mode)
     missing = [ev["id"] for ev in todo if ev["judge"] not in JUDGES]
