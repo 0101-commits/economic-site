@@ -43,7 +43,7 @@ def test_latest_merges_seven_days_newest_first(tmp_path):
     for i in range(9):
         d = dt.date(2026, 10, 2) - dt.timedelta(days=i)
         led = Ledger(day=d, root=str(tmp_path))
-        led.append(_row(key=f"B2:kospi:up:{d.isoformat()}", asOf=d.isoformat(), ts=f"{d.isoformat()}T15:35:00+09:00"))
+        led.append(_row(key=f"B2:kospi:up:{d.isoformat()}", event="B2", dir="up", asOf=d.isoformat(), ts=f"{d.isoformat()}T15:35:00+09:00"))
         led.save()
     p = Ledger.rebuild_latest(root=str(tmp_path), end=dt.date(2026, 10, 2))
     rows = json.load(open(p, encoding="utf-8"))

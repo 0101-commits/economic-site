@@ -14,6 +14,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))          # scripts/
+if hasattr(sys.stdout, "reconfigure"):              # Windows 콘솔(cp949)에서 한글 · 대시 출력
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from alerts_v2 import schema                        # noqa: E402
 from alerts_v2.context import KST, Context          # noqa: E402
