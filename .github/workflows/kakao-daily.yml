@@ -105,6 +105,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           INPUT_CLOSE: ${{ inputs.close }}
+          ALERTS_V2: ${{ vars.ALERTS_V2 || '0' }}
         run: |
           H=$(TZ=Asia/Seoul date +%-H)
           M=$(TZ=Asia/Seoul date +%-M)
@@ -165,7 +166,9 @@ jobs:
               else mslot=manual; ckey=manual; fi ;;
             *)
               # 자동 트리거 — '지금이 타깃 시각'일 때만 발송(그 외 깨움은 즉시 종료).
-              if [ -n "$close" ]; then proceed=true; mslot=close; ckey=close
+              # 알림 v2(ALERTS_V2=1)에서는 현행 시황 6통 대신 briefing.yml 이 아침 · 마감 · 주간을 보낸다 — 자동 발송만 멈춘다(수동은 그대로).
+              if [ "${ALERTS_V2:-0}" = "1" ]; then proceed=false; mslot=none; ckey=none; echo "[gate] ALERTS_V2=1 — 현행 시황 발송 건너뜀(briefing.yml)"
+              elif [ -n "$close" ]; then proceed=true; mslot=close; ckey=close
               elif [ -n "$tslot" ]; then proceed=true; mslot="$tslot"; ckey="$tslot"
               else proceed=false; mslot=none; ckey=none; fi ;;
           esac
