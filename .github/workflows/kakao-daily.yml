@@ -213,6 +213,20 @@ jobs:
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
         run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk || echo "::warning::한글 폰트 설치 실패 — 카드 영문 라벨로 강등"
 
+      # 🧪 테스트 관문(알림 v2 A1) — 발송 앞에서 scripts/tests 전체를 돌린다. 실패하면 아래 발송 스텝이 건너뛰어진다.
+      #   continue-on-error 를 달지 말 것 — scripts/tests/test_workflows_have_pytest.py 가 글자로 지킨다.
+      #   시크릿·외부 네트워크 없이 통과한다(scripts/tests/conftest.py 가 외부 접속을 막는다) — 이 스텝엔 env 비밀값을 넣지 않는다.
+      #   위 폰트 설치 뒤에 둔다(카드 게이트가 한글 폰트로 판정). 패키지: 테스트가 fetch_data·mer_aggregate 를
+      #   가져오므로 yfinance·PyYAML 이 더 필요하다(둘 다 fetch-data.yml 이 이미 쓰는 것).
+      #   git checkout: 테스트가 저장소 파일을 건드렸다면 되돌린다.
+      - name: Run tests
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
+        run: |
+          pip install pytest PyYAML yfinance
+          python -m pytest scripts/tests -q -x
+          git status --short
+          git checkout -- .
+
       # 오늘 이미 주인공이었던 자산(.kakao_focus.json) — 같은 움직임이 슬롯마다 카드를
       # 독차지하지 않게 앞 슬롯 기록을 넘겨받는다(send_kakao_digest.pick_focus 의 seen).
       # 캐시는 키가 불변이라 슬롯마다 새 키로 저장하고, 복원은 당일 접두어의 최신본을 쓴다.

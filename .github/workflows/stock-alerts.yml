@@ -88,6 +88,21 @@ jobs:
               "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/KR/NotoSansKR-$w.otf"
           done
 
+      # 🧪 테스트 관문(알림 v2 A1) — 발송 앞에서 scripts/tests 전체를 돌린다. 실패하면 아래 발송 스텝이 건너뛰어진다.
+      #   continue-on-error 를 달지 말 것 — scripts/tests/test_workflows_have_pytest.py 가 글자로 지킨다.
+      #   시크릿·외부 네트워크 없이 통과한다(scripts/tests/conftest.py 가 외부 접속을 막는다) — 이 스텝엔 env 비밀값을 넣지 않는다.
+      #   패키지: 테스트가 fetch_data·mer_aggregate 를 가져오므로 yfinance·PyYAML 이 더 필요하다(둘 다 fetch-data.yml 이 이미 쓰는 것).
+      #   KO_FONT_PATH: 위 폰트 캐시 — discord_card._setup 이 등록한다.
+      #   git checkout: 테스트가 저장소 파일을 건드렸다면 되돌린다(아래 커밋 스텝이 상태 파일을 올리므로).
+      - name: Run tests
+        env:
+          KO_FONT_PATH: ~/kofonts
+        run: |
+          pip install pytest PyYAML yfinance
+          python -m pytest scripts/tests -q -x
+          git status --short
+          git checkout -- .
+
       - name: Check alerts & send KakaoTalk
         env:
           # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
