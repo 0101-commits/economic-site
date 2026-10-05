@@ -4,7 +4,9 @@
 //
 // 규칙
 //   키      화면에서 받은 동기화 키는 저장하지 않는다. SHA-256 해시만 sessionStorage econSyncHash_v1 — 탭을 닫으면 사라진다.
-//           (기기에 오래 두는 것은 D1 계정·지문/얼굴 단계로 미룬다.)
+//   기억    「이 기기 기억」(결정 D7)을 켜면 같은 해시를 localStorage econSyncHashKeep_v1 에도 둔다. PIN 이 있는 기기만 켤 수 있고,
+//           새 탭에서 이어 가려면 PIN 을 다시 넣는다(resumeSync) — 이 탭에서 이미 PIN 을 열었으면 묻지 않는다.
+//           동기화를 끄거나 키가 틀려(401) 꺼지면 같이 지운다.
 //   켜기    키 → 해시 → GET. 서버에 저장본이 있으면 그 내용으로 이 기기를 맞추고, 없으면 이 기기 것을 올린다.
 //   보내기  1초마다 이 기기 문서를 비교해, 바뀐 뒤 2초 조용하면 PUT(If-Match = 마지막으로 본 updatedAt).
 //           요청 사이는 6초 이상 — Worker AI_LIMITER 가 /ai·/portfolio 와 같은 바구니로 IP 당 분당 10회다.
@@ -18,13 +20,14 @@
 import { useSyncExternalStore } from 'react'
 import { mdHm } from '../format'
 import { applyTheme, readTheme } from '../theme'
-import { checkPin, hasPin } from '../pin'
+import { checkPin, hasPin, isUnlocked } from '../pin'
 import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, writePortfolio, writePrefs } from './store'
 import { fromServer, keyHash, portfolioGet, portfolioPost, prefsCall, toServer, type Local, type PrefsDoc, type Reply } from './remote'
 import { applyEntries, decide, decryptAs, encrypt, entriesOf, fingerprint, passProblem, type EncBlob, type Entry, type Plan } from './e2e'
 import type { Holding } from './calc'
 
 const HASH_KEY = 'econSyncHash_v1'
+const KEEP_KEY = 'econSyncHashKeep_v1'
 const SCEN_KEY = 'econ_scenarios_v1'   // components/lens/WhatIf.tsx SAVE_KEY 와 같은 열쇠
 const QUIET_MS = 2_000                 // 바뀐 뒤 이만큼 조용하면 보낸다
 const GAP_MS = 6_000                   // 요청 사이 최소 간격(분당 10회 아래)
@@ -167,10 +170,42 @@ function onVisibility() {
   else if (Date.now() - lastPull > PULL_MS) void pullPrefs()
 }
 
-/** 앱이 뜰 때 한 번(main.tsx). 이 탭에 키 해시가 있으면 서버 내용을 받고 감시를 시작한다. */
+/** 앱이 뜰 때 한 번(main.tsx). 이 탭에 키 해시가 있으면 서버 내용을 받고 감시를 시작한다. 기억한 키는 PIN 이 열려 있을 때만 잇는다. */
 export function startSync() {
   document.addEventListener('visibilitychange', onVisibility)
+  if (!getKeyHash() && keptHash() && isUnlocked()) { try { sessionStorage.setItem(HASH_KEY, keptHash()!) } catch { /* 막힌 저장소 = 잇지 않음 */ } }
   if (getKeyHash()) begin()
+}
+
+// ── 이 기기 기억 ─────────────────────────────────────────
+function keptHash(): string | null {
+  try { const h = localStorage.getItem(KEEP_KEY); return h && /^[0-9a-f]{64}$/.test(h) ? h : null } catch { return null }
+}
+export const hasKeptKey = () => keptHash() != null
+const pinOk = async (pin?: string) => isUnlocked() || (!!pin && (await checkPin(pin)))
+
+/** 「이 기기 기억」 켜기 · 끄기. 돌려주는 글이 비면 된 것. 켜기는 PIN 이 있고(열려 있거나 맞게 넣었고) 동기화가 켜져 있어야 한다. */
+export async function rememberKey(on: boolean, pin?: string): Promise<string> {
+  if (!on) { try { localStorage.removeItem(KEEP_KEY) } catch { /* 원래 없음 */ } return '' }
+  if (!hasPin()) return '설정에서 PIN 을 먼저 켜야 기억할 수 있습니다.'
+  const h = getKeyHash()
+  if (!h) return '동기화를 먼저 켜세요.'
+  if (!(await pinOk(pin))) return 'PIN 이 맞지 않습니다.'
+  try { localStorage.setItem(KEEP_KEY, h) } catch { return '이 기기에 저장하지 못했습니다.' }
+  return ''
+}
+
+/** 기억한 키로 이 탭의 동기화를 다시 잇는다(PIN 확인 뒤). */
+export async function resumeSync(pin?: string): Promise<boolean> {
+  const h = keptHash()
+  if (!h) return false
+  if (!(await pinOk(pin))) { set({ msg: 'PIN 이 맞지 않습니다.' }); return false }
+  try { sessionStorage.setItem(HASH_KEY, h) } catch { set({ msg: '이 탭에 키를 기억할 수 없어 이을 수 없습니다.' }); return false }
+  prev = null; sent = ''; retryAt = 0
+  set({ on: true, msg: '' })
+  const ok = await pullPrefs()
+  if (getKeyHash()) begin()
+  return ok
 }
 
 /** 설정의 「기기 간 동기화」를 켤 때: 키를 해시로만 이 탭에 기억하고 서버 내용을 받는다. 입력값은 어디에도 남기지 않는다. */
@@ -186,9 +221,10 @@ export async function enableSync(key: string): Promise<boolean> {
   return ok
 }
 
-/** 끄기: 이 탭의 키 해시를 지운다. 이 기기 자료와 서버에 맡긴 것은 그대로 둔다. */
+/** 끄기: 이 탭의 키 해시와 「이 기기 기억」을 지운다. 이 기기 자료와 서버에 맡긴 것은 그대로 둔다. */
 export function disableSync(msg = '') {
   try { sessionStorage.removeItem(HASH_KEY) } catch { /* 막힌 저장소 = 원래 없음 */ }
+  try { localStorage.removeItem(KEEP_KEY) } catch { /* 같음 */ }
   stop()
   prev = null; sent = ''; retryAt = 0
   set({ on: false, busy: false, msg })
