@@ -66,7 +66,7 @@ def test_user_hits_need_salt_and_hmac_key(monkeypatch):
     assert [r["event"] for r in rows] == ["U1", "U2"]
     assert rows[0]["key"].startswith("U1:usdkrw:up:") and len(rows[0]["key"].split(":")[-1]) == 12
     assert "1400" not in rows[0]["key"] and rows[0]["cond"] == "c1"
-    assert rows[0]["title"] == "usdkrw 1,401 · 1400 위로" and rows[1]["dir"] == "down"
+    assert rows[0]["title"] == "usdkrw 1,401 · 1,400 위로" and rows[1]["dir"] == "down"
 
 
 def test_once_condition_stops_after_fired(monkeypatch):
