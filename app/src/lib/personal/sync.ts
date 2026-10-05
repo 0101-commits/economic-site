@@ -273,8 +273,7 @@ export async function pushHoldings(pass: string, seen: EncBlob | null): Promise<
   const g = await portfolioGet(h)
   if (!g.ok) return { ok: false, msg: holdErr(g) }
   if ((g.enc?.ciphertext ?? null) !== (seen?.ciphertext ?? null)) return { ok: false, msg: '그사이 서버 보유가 바뀌었습니다. 다시 확인해 주세요.' }
-  // ponytail: GET 과 POST 사이(요청 한 번 길이)에 다른 기기가 알림 조건을 바꾸면 그 변경은 이 POST 가 덮는다. Worker 가 alerts 없는 POST 를 보존하게 되면 alerts 를 뺀다.
-  const r = await portfolioPost(h, enc, g.alerts ?? [])
+  const r = await portfolioPost(h, enc)
   if (!r.ok) return { ok: false, msg: holdErr(r) }
   noteHold({ base: await fingerprint(local), upAt: at, server: true, checkedAt: at })
   return { ok: true, msg: `올렸습니다 · ${local.length}종목 · ${mdHm(at)}` }

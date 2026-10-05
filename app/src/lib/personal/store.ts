@@ -2,7 +2,7 @@
 //   portfolioV1   = { groups, items: Holding[], alerts, lastSync, ... }  현행 사이트(js/app2.js)와 같은 문서. 모르는 필드는 그대로 둔다.
 //   pfSnapshotsV1 = [{ d:'YYYY-MM-DD', ev, ct }]                          현행과 같음. 날짜는 현행처럼 UTC 기준(두 화면이 같은 날을 같은 칸에 쓴다).
 //   pfLedgerV1    = [{ id, d, kind:'div'|'dep'|'wd', amt, memo }]         현행과 같음. 서버로 보내지 않는다.
-//   econPrefsV1   = { v:1, alerts, settings, scenarios }                  새 화면 전용. 모양은 Worker /prefs 문서와 같다(동기화는 후속).
+//   econPrefsV1   = { v:1, alerts, settings, scenarios }                  새 화면 전용. 모양은 Worker /prefs 문서와 같다(올리고 받는 것은 sync.ts).
 //   econSearchRecentV1 = [{ label, to, kind }]                            검색 「최근 본 것」.
 // 보유 금액이 든 읽기(readPortfolio·readSnaps·readLedger)는 PinGate 안의 화면과, 잠금이 열린 뒤의 내려받기에서만 부른다.
 import { upsertSnap, type Holding, type Snap, type Unit } from './calc'

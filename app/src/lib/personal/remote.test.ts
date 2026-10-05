@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 동기화 키 해시 · 관심 종류 · 서버 문서 ↔ 이 기기 변환 왕복 · GET/PUT 왕복(가짜 서버)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { WORKER, fromServer, keyHash, prefsCall, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
+import { WORKER, fromServer, keyHash, portfolioPost, prefsCall, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
 
 const local: Local = {
   watch: ['kospi', '005930', 'usdkrw', '0035S0', 'C2'],
@@ -87,6 +87,21 @@ test('prefsCall 왕복: 빈 서버 → 올리기 → 다른 기기가 받기 · 
     assert.deepEqual(next.doc!.watch.map(x => x.id), ['kospi'])
 
     assert.equal((await prefsCall('0'.repeat(64))).status, 401)
+  } finally { globalThis.fetch = real }
+})
+
+test('portfolioPost: 보유 덩어리만 보낸다 — alerts 를 실으면 안 된다(Worker 는 빠진 칸을 저장본 그대로 두고 공개 파일도 건드리지 않는다)', async () => {
+  let sent: { url: string; body: Record<string, unknown> } | null = null
+  const real = globalThis.fetch
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    sent = { url, body: JSON.parse(String(init.body)) }
+    return new Response(JSON.stringify({ ok: true, committed: false }), { status: 200 })
+  }) as unknown as typeof fetch
+  try {
+    const enc = { v: 1, ciphertext: 'c' } as unknown as Parameters<typeof portfolioPost>[1]
+    assert.deepEqual(await portfolioPost('h'.repeat(64), enc), { ok: true, status: 200 })
+    assert.equal(sent!.url, `${WORKER}/portfolio`)
+    assert.deepEqual(Object.keys(sent!.body).sort(), ['encHoldings', 'keyHash'])
   } finally { globalThis.fetch = real }
 })
 

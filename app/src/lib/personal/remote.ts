@@ -87,24 +87,23 @@ export async function prefsCall(hash: string, put?: { body: PrefsBody; ifMatch: 
 
 // ── /portfolio — 보유는 암호 덩어리(e2e.ts)로만 오간다 ─────────────────
 // GET  헤더 X-Sync-Key-Hash → { ok, alerts, settings, tracking, encHoldings, updatedAt }. encHoldings 는 KV portfolio:encHoldings.
-// POST 본문 { keyHash, alerts, encHoldings } → KV 에 덩어리를 쓰고, alerts_config.json(공개 파일)을 다시 커밋한다.
-//      Worker 는 POST 마다 그 파일의 alerts 를 본문 값으로 바꿔 쓴다(빼면 지워진다). 그래서 방금 GET 으로 받은 alerts 를 그대로 돌려준다.
-//      tracking·settings 는 빼면 서버가 그대로 둔다 — 보유 종목 목록(tracking)이 공개 파일에 실리지 않도록 보내지 않는다.
-export type PortfolioReply = { ok: boolean; status: number; enc?: EncBlob | null; alerts?: unknown[]; error?: string }
+// POST 본문 { keyHash, encHoldings } → KV 에 덩어리만 쓴다. alerts·settings·tracking 은 빼면 Worker 가 저장본을 그대로 두고
+//      공개 파일(alerts_config.json)도 건드리지 않는다 — 알림 조건은 /prefs 로만 오가고, 보유 종목 목록(tracking)도 공개 파일에 실리지 않는다.
+export type PortfolioReply = { ok: boolean; status: number; enc?: EncBlob | null; error?: string }
 
 export async function portfolioGet(hash: string): Promise<PortfolioReply> {
   try {
     const r = await fetch(`${WORKER}/portfolio`, { headers: { 'X-Sync-Key-Hash': hash }, cache: 'no-store', signal: AbortSignal.timeout(20_000) })
     const j = await r.json().catch(() => ({}))
-    return r.ok && j?.ok ? { ok: true, status: r.status, enc: j.encHoldings ?? null, alerts: Array.isArray(j.alerts) ? j.alerts : [] } : { ok: false, status: r.status, error: j?.error }
+    return r.ok && j?.ok ? { ok: true, status: r.status, enc: j.encHoldings ?? null } : { ok: false, status: r.status, error: j?.error }
   } catch { return { ok: false, status: 0, error: 'network' } }
 }
 
-export async function portfolioPost(hash: string, enc: EncBlob, alerts: unknown[]): Promise<PortfolioReply> {
+export async function portfolioPost(hash: string, enc: EncBlob): Promise<PortfolioReply> {
   try {
     const r = await fetch(`${WORKER}/portfolio`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, cache: 'no-store',
-      body: JSON.stringify({ keyHash: hash, alerts, encHoldings: enc }), signal: AbortSignal.timeout(20_000),
+      body: JSON.stringify({ keyHash: hash, encHoldings: enc }), signal: AbortSignal.timeout(20_000),
     })
     const j = await r.json().catch(() => ({}))
     return r.ok && j?.ok ? { ok: true, status: r.status } : { ok: false, status: r.status, error: j?.error }
