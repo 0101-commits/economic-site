@@ -15,6 +15,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 EVENTS_DIR = os.path.join(ROOT, "events")
 LATEST = os.path.join(EVENTS_DIR, "latest.json")
 LATEST_DAYS = 7
+# 같은 key 를 지난 이만큼의 원장에서도 찾는다. key 는 관측 날짜(asOf)로 만들어지므로 주말 · 연휴 · 월간 지표처럼
+# 값이 그대로인 동안 매 런이 같은 사건을 다시 판정해도 하루 파일이 바뀌면 또 들어갔다. 월간 지표 한 주기(≤40일)를 덮는다.
+LOOKBACK_DAYS = 40
 SENT_DEFAULT = {"push": 0, "kakao": False, "discord": False, "bundled": False, "held": False}
 
 
@@ -65,21 +68,30 @@ def _write(path: str, rows: list[dict]) -> None:
 
 
 class Ledger:
-    """하루치 원장. `append` 는 새 행이면 True, 같은 key 가 이미 있으면 False."""
+    """하루치 원장. `append` 는 새 행이면 True, 같은 key 가 오늘 또는 지난 LOOKBACK_DAYS 원장에 있으면 False."""
 
-    def __init__(self, day: dt.date | None = None, root: str | None = None):
+    def __init__(self, day: dt.date | None = None, root: str | None = None, lookback_days: int = LOOKBACK_DAYS):
         self.day = day or dt.datetime.now(KST).date()
         self.root = root or EVENTS_DIR
         self.path = os.path.join(self.root, f"{self.day.isoformat()}.json")
         self.rows: list[dict] = _read(self.path)
         self._keys = {r["key"] for r in self.rows}
+        self._past: set[str] = set()                 # 지난 원장의 key(읽기만)
+        for i in range(1, lookback_days + 1):
+            d = self.day - dt.timedelta(days=i)
+            self._past.update(r.get("key") for r in _read(os.path.join(self.root, f"{d.isoformat()}.json"))
+                              if isinstance(r, dict))
 
     def has(self, key: str) -> bool:
         return key in self._keys
 
+    def seen(self, key: str) -> bool:
+        """오늘 또는 지난 LOOKBACK_DAYS 원장에 있는 key 인가."""
+        return key in self._keys or key in self._past
+
     def append(self, row: Row | dict) -> bool:
         d = row.to_dict() if isinstance(row, Row) else dict(row)
-        if d["key"] in self._keys:
+        if self.seen(d["key"]):
             return False
         d.setdefault("sent", dict(SENT_DEFAULT))
         self.rows.append(d)

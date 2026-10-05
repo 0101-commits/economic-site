@@ -17,10 +17,33 @@ BUNDLE_FILES = ("home", "market-domestic", "market-global", "market-fxrates", "m
                 "market-macro", "market-flows", "market-realestate", "lens", "meta")
 
 # 사전 대상 id → 레지스트리 id 가 다를 때의 별칭(레지스트리에 없는 번들 칸 포함)
+# vix · ff_target 은 레지스트리 id 가 그대로다(vix_us · ff_target_us 라는 행은 없다 — 2026-10-05 실측, 값이 늘 None 이었다).
 ALIASES = {
-    "btc": "btc", "vix": "vix_us", "move": "move", "fear_greed": "fear_greed", "vkospi": "vkospi",
-    "t10y2y": "t10y2y_us", "ff_target": "ff_target_us", "gold_premium": "gold_premium",
+    "btc": "btc", "vix": "vix", "move": "move", "fear_greed": "fear_greed", "vkospi": "vkospi",
+    "t10y2y": "t10y2y_us", "ff_target": "ff_target", "gold_premium": "gold_premium",
 }
+# 메르 렌즈 지표 id → 레지스트리 id. 대부분은 dataPath 비교로 이어지고, 이어지지 않는 것만 적는다.
+# 렌즈는 일본 국채를 mer_series.jgb 에서 읽어 경로가 레지스트리(yieldCurve.jp)와 다르다.
+LENS_ALIASES = {"jgb10y": "jp10y", "jgb30y": "jp30y"}
+# 레지스트리에 행이 없는 대상의 가상 행 — 사전이 쓰는데(C1 기본 켜짐 · C7 대상) build_indicators 가 만들지 않는다.
+EXTRA_ROWS = {
+    "jp30y": {"id": "jp30y", "label": "일본 국채 30Y", "short": "일본 국채 30Y", "unit": "%", "decimals": 3,
+              "dataPath": "yieldCurve.jp:30Y"},
+}
+FRESH_STATES = ("live", "prev", "stale", "kept", "missing")    # 번들 신선도 5종(meta.json states)
+
+
+def _tenor_row(node, tenor: str):
+    """yieldCurve.<나라> 의 만기 행. `series` 가 [{tenor, data:[{date, value}]}] 이고 `current` 는 값만 든 목록이다."""
+    if not isinstance(node, dict):
+        return None
+    for key in ("series", "current"):
+        rows = node.get(key)
+        if isinstance(rows, list):
+            hit = next((r for r in rows if isinstance(r, dict) and r.get("tenor") == tenor), None)
+            if hit is not None:
+                return hit
+    return None
 
 
 def _get(obj, path: str):
@@ -37,11 +60,20 @@ def _get(obj, path: str):
         else:
             return None
         if tenor is not None:
-            rows = (cur or {}).get("current") if isinstance(cur, dict) else None
-            cur = next((r for r in (rows or []) if r.get("tenor") == tenor), None)
+            cur = _tenor_row(cur, tenor)
         if cur is None:
             return None
     return cur
+
+
+def _last_point(rows: list):
+    """일봉 목록의 끝 값(close 또는 value). 없으면 None."""
+    for r in reversed(rows):
+        if isinstance(r, dict):
+            v = r.get("close", r.get("value"))
+            if v is not None:
+                return v
+    return None
 
 
 @dataclass
@@ -85,15 +117,37 @@ class Context:
 
     # ---- 번들 띠 색인(화면과 같은 값) ----
     def _index_strips(self) -> None:
+        """띠(strip)를 먼저, 그다음 보기(views) 안의 같은 모양 행을 색인한다.
+
+        VIX · MOVE · 공포탐욕 · 미 30년 · 장단기 금리차는 띠에 없고 보기 칸에만 있다(2026-10-05 실측 137개 id,
+        같은 id 가 두 곳에서 다른 값인 경우 0). 렌즈 묶음의 트리거 행은 state 가 crossed/below 라 걸러진다."""
+        for b in self.bundles.values():
+            if isinstance(b, dict):
+                for s in (b.get("strip") or []):
+                    if isinstance(s, dict) and s.get("id"):
+                        self._strip.setdefault(s["id"], s)
+
+        def walk(o):
+            if isinstance(o, dict):
+                if (o.get("id") and "value" in o
+                        and (o.get("fresh") or o.get("state")) in FRESH_STATES):
+                    self._strip.setdefault(o["id"], o)
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
         for name, b in self.bundles.items():
-            if not isinstance(b, dict):
-                continue
-            for s in (b.get("strip") or []):
-                if isinstance(s, dict) and s.get("id"):
-                    self._strip.setdefault(s["id"], s)
+            if isinstance(b, dict) and name != "meta":
+                walk(b.get("views"))
 
     def rid(self, target: str) -> str:
         return ALIASES.get(target, target)
+
+    def row(self, target: str) -> dict | None:
+        """레지스트리 행(없으면 가상 행 EXTRA_ROWS)."""
+        r = self.rid(target)
+        return self.registry.get(r) or EXTRA_ROWS.get(r)
 
     def strip(self, target: str) -> dict | None:
         return self._strip.get(self.rid(target))
@@ -103,11 +157,15 @@ class Context:
         s = self.strip(target)
         if s and s.get("value") is not None:
             return s["value"]
-        row = self.registry.get(self.rid(target))
+        row = self.row(target)
         if row and row.get("dataPath"):
             v = _get(self.data, row["dataPath"])
             if isinstance(v, dict):
+                if isinstance(v.get("data"), list):            # 만기 행(yieldCurve) — 끝 점
+                    return _last_point(v["data"])
                 return v.get("value", v.get("price", v.get("rate")))
+            if isinstance(v, list):                            # 일봉 목록(가상자산) — 끝 종가
+                return _last_point(v)
             return v
         return None
 
@@ -118,15 +176,31 @@ class Context:
         return None
 
     def fresh(self, target: str) -> str:
+        """번들 신선도 5종. 번들 칸은 `state` 로 싣는다. 번들에 없고 data.json 에만 값이 있으면 prev(직전 값)."""
         s = self.strip(target)
-        return (s or {}).get("fresh") or "missing"
+        if s:
+            return s.get("fresh") or s.get("state") or "missing"
+        return "prev" if self.value(target) is not None else "missing"
 
     def as_of(self, target: str) -> str:
+        """기준 시각. 번들 칸 asOf → data.json 잎의 as_of/period → 일봉 끝 날짜 → 오늘."""
         s = self.strip(target)
-        return (s or {}).get("asOf") or self.now.date().isoformat()
+        if s and s.get("asOf"):
+            return s["asOf"]
+        row = self.row(target)
+        if row and row.get("dataPath"):
+            v = _get(self.data, row["dataPath"])
+            if isinstance(v, dict):
+                a = v.get("as_of") or v.get("asOf") or v.get("period")
+                if a:
+                    return str(a)
+        ser = self.series(target, 1)
+        if ser and ser[-1].get("date"):
+            return str(ser[-1]["date"])
+        return self.now.date().isoformat()
 
     def series(self, target: str, n: int = 400) -> list[dict]:
-        row = self.registry.get(self.rid(target)) or {}
+        row = self.row(target) or {}
         path = row.get("seriesPath") or row.get("dataPath")
         if not path:
             return []
