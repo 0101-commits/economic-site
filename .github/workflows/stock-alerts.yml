@@ -94,7 +94,18 @@ jobs:
       #   패키지: 테스트가 fetch_data·mer_aggregate 를 가져오므로 yfinance·PyYAML 이 더 필요하다(둘 다 fetch-data.yml 이 이미 쓰는 것).
       #   KO_FONT_PATH: 위 폰트 캐시 — discord_card._setup 이 등록한다.
       #   git checkout: 테스트가 저장소 파일을 건드렸다면 되돌린다(아래 커밋 스텝이 상태 파일을 올리므로).
+      #   통과 마커: 키 = scripts 아래 파이썬(+사건 사전) 해시. 같은 코드 상태에서 이미 통과했다면(캐시 적중) 이 스텝과
+      #   pytest 전용 pip 설치를 건너뛴다 — 매분 런마다 40초+yfinance 설치가 붙지 않게. 마커는 테스트가 통과한 직후에만 저장한다
+      #   (저장 스텝이 테스트 뒤·기본 success 조건 — 실패하면 저장되지 않아 다음 런이 다시 돈다). 검사: test_workflows_have_pytest.py.
+      - name: Restore test pass marker
+        id: tests-ok
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pytest_ok
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+
       - name: Run tests
+        if: steps.tests-ok.outputs.cache-hit != 'true'
         env:
           KO_FONT_PATH: ~/kofonts
         run: |
@@ -102,6 +113,14 @@ jobs:
           python -m pytest scripts/tests -q -x
           git status --short
           git checkout -- .
+          touch .pytest_ok
+
+      - name: Save test pass marker
+        if: steps.tests-ok.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pytest_ok
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
 
       - name: Check alerts & send KakaoTalk
         env:
