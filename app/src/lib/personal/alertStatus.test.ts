@@ -1,14 +1,18 @@
-// 자가검사: npm test --prefix app — 알림 조건 id · 상태 낱말 · 다시 켜기
+// 자가검사: npm test --prefix app — 알림 조건 id · 상태 7 · 다시 켜기 · 이름
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { condId, condStatus, prefillTarget, rearm, TARGET_RE, type FiredRec } from './alertStatus.ts'
+import { condId, condName, condStatus, prefillTarget, rearm, TARGET_RE, type LedgerRow } from './alertStatus.ts'
 import type { AlertCond } from './store'
 
 const PREFS_ID = /^[A-Za-z0-9._:^=\-]{1,64}$/   // cloudflare-worker/worker.js 와 같은 식
 const A = (o: Partial<AlertCond> = {}): AlertCond =>
-  ({ id: 'p1', target: 'kospi', type: 'price', cond: { op: '>=', value: 2900 }, repeat: 'once', channels: ['push'], enabled: true, ...o })
+  ({ id: 'p1', event: 'U1', target: 'usdkrw', value: 1400, dir: 'up', repeat: 'each', ring: true, enabled: true, ...o })
 const TS = Math.floor(Date.parse('2026-10-02T09:05:00+09:00') / 1000)
-const TODAY = '2026-10-02'
+const NOW = (TS + 3600) * 1000
+const row = (o: Partial<LedgerRow> = {}): LedgerRow => ({
+  key: 'U1:usdkrw:up:abc', event: 'U1', target: 'usdkrw', level: 'alert', title: 't', ts: '2026-10-02T09:05:00+09:00', cond: 'p1',
+  sent: { push: 1, kakao: false, discord: true, bundled: false, held: false }, ...o,
+})
 
 test('condId: Worker 가 받는 모양이고 겹치지 않는다', () => {
   const ids = new Set(Array.from({ length: 2000 }, () => condId()))
@@ -19,38 +23,47 @@ test('condId: Worker 가 받는 모양이고 겹치지 않는다', () => {
   assert.notEqual(condId(1, 0.5), condId(1, 0.25))   // 같은 밀리초, 다른 난수
 })
 
-test('condStatus: 꺼짐 · 대기 · 발동됨 · 오늘 발동', () => {
-  assert.deepEqual(condStatus(A({ enabled: false }), { fired: true, ts: TS }, TODAY), { kind: 'off', text: '꺼짐' })
-  assert.deepEqual(condStatus(A(), undefined, TODAY), { kind: 'wait', text: '대기' })
-  assert.deepEqual(condStatus(A(), { fired: true, ts: TS, date: '20261002' }, TODAY), { kind: 'fired', text: '발동됨 10/2 09:05' })
-  const lensOnly: FiredRec & { lensState: string } = { lensState: 'below' }   // 기준선만 있는 렌즈 기록(아직 안 울림)
-  assert.equal(condStatus(A({ type: 'lens' }), lensOnly, TODAY).kind, 'wait')
-  const daily = A({ repeat: 'daily' })
-  assert.deepEqual(condStatus(daily, { date: '20261002', ts: TS }, TODAY), { kind: 'today', text: '오늘 발동 10/2' })
-  assert.equal(condStatus(daily, { date: '20261001', ts: TS - 86_400 }, TODAY).kind, 'wait')
+test('상태 7: 대기 · 울림 · 멈춤 · 묶임 · 보류 · 꺼짐 · 이 기기에만', () => {
+  assert.deepEqual(condStatus(A(), [], undefined, true, false, NOW), { kind: 'wait', text: '대기' })
+  assert.deepEqual(condStatus(A(), [row()], undefined, true, false, NOW), { kind: 'rang', text: '울림 10/2 09:05' })
+  assert.deepEqual(condStatus(A({ repeat: 'once' }), [row()], undefined, true, false, NOW), { kind: 'stopped', text: '멈춤' })
+  assert.deepEqual(condStatus(A(), [row({ sent: { bundled: true } })], undefined, true, false, NOW), { kind: 'bundled', text: '묶임' })
+  assert.deepEqual(condStatus(A(), [row({ sent: { held: true } })], undefined, true, false, NOW), { kind: 'held', text: '보류 → 07:30' })
+  assert.deepEqual(condStatus(A({ enabled: false }), [row()], undefined, true, false, NOW), { kind: 'off', text: '꺼짐' })
+  assert.deepEqual(condStatus(A(), [], undefined, false, false, NOW), { kind: 'local', text: '이 기기에만 · 울리지 않음' })
 })
 
-test('rearm: 같은 id 로 대기가 되고, 기기 시계가 늦어도 마지막 발동 뒤로 찍는다', () => {
-  const rec = { fired: true, ts: TS }
-  const late = rearm(A(), rec, (TS - 3600) * 1000)                      // 시계가 한 시간 늦은 기기
+test('상태: 다른 조건의 행은 안 본다 · 가장 늦은 행이 기준 · 보류는 12시간 뒤 울림 · 자동 정리 꺼짐', () => {
+  assert.equal(condStatus(A(), [row({ cond: 'p2' })], undefined, true, false, NOW).kind, 'wait')
+  const late = row({ ts: '2026-10-02T10:00:00+09:00', sent: { bundled: true } })
+  assert.equal(condStatus(A(), [row(), late], undefined, true, false, NOW).kind, 'bundled')
+  assert.equal(condStatus(A(), [row({ sent: { held: true } })], undefined, true, false, NOW + 86_400_000).kind, 'rang')
+  assert.equal(condStatus(A({ enabled: false }), [], undefined, true, true, NOW).text, '180일 조용 · 꺼짐')
+})
+
+test('상태: 현행 서버 공개 기록(alerts_state._prefs)도 읽는다 — 동기화가 꺼져도 지난 울림은 그대로', () => {
+  assert.equal(condStatus(A({ repeat: 'once' }), [], { fired: true, ts: TS }, true, false, NOW).kind, 'stopped')
+  assert.deepEqual(condStatus(A(), [], { date: '20261002', ts: TS }, false, false, NOW), { kind: 'rang', text: '울림 10/2 09:05' })
+  assert.equal(condStatus(A({ repeat: 'once' }), [], { fired: true, ts: TS }, false, false, NOW).kind, 'stopped')
+})
+
+test('rearm: 같은 id 로 대기가 되고, 기기 시계가 늦어도 마지막 울림 뒤로 찍는다', () => {
+  const once = A({ repeat: 'once' })
+  const late = rearm(once, [row()], undefined, (TS - 3600) * 1000)                // 시계가 한 시간 늦은 기기
   assert.equal(late.id, 'p1')
-  assert.equal(late.cond.op, '>=')
-  assert.equal(Date.parse(String(late.cond.armedAt)) / 1000, TS + 1)
-  assert.equal(condStatus(late, rec, TODAY).kind, 'wait')
-  const now = rearm(A(), rec, (TS + 60) * 1000)
-  assert.equal(Date.parse(String(now.cond.armedAt)) / 1000, TS + 60)
-  assert.equal(condStatus(now, { fired: true, ts: TS + 120 }, TODAY).kind, 'fired')   // 다시 울린 뒤엔 다시 「발동됨」
+  assert.equal(Date.parse(late.armedAt!) / 1000, TS + 1)
+  assert.equal(condStatus(late, [row()], undefined, true, false, NOW).kind, 'rang')   // 멈춤이 풀린다(지난 울림은 그대로 보임)
+  const now = rearm(once, [], { fired: true, ts: TS }, (TS + 60) * 1000)
+  assert.equal(Date.parse(now.armedAt!) / 1000, TS + 60)
+  assert.equal(condStatus(now, [row({ ts: '2026-10-02T09:07:00+09:00' })], undefined, true, false, NOW).kind, 'stopped')   // 다시 울린 뒤엔 다시 멈춤
 })
 
-test('condStatus: 동기화가 꺼져 있으면 「대기」 대신 「이 기기에만 · 울리지 않음」 — 꺼짐·발동 기록은 그대로', () => {
-  const LOCAL = { kind: 'local', text: '이 기기에만 · 울리지 않음' }
-  assert.deepEqual(condStatus(A(), undefined, TODAY, false), LOCAL)
-  assert.deepEqual(condStatus(A({ repeat: 'daily' }), { date: '20261001' }, TODAY, false), LOCAL)
-  assert.equal(condStatus(A({ enabled: false }), undefined, TODAY, false).text, '꺼짐')
-  assert.equal(condStatus(A(), { fired: true, ts: TS }, TODAY, false).kind, 'fired')                     // 서버가 이미 본 기록
-  assert.equal(condStatus(A({ repeat: 'daily' }), { date: '20261002', ts: TS }, TODAY, false).kind, 'today')
-  assert.deepEqual(condStatus(A(), undefined, TODAY, true), { kind: 'wait', text: '대기' })              // 켜져 있으면 전과 같다
-  assert.deepEqual(condStatus(A(), undefined, TODAY), { kind: 'wait', text: '대기' })                    // 인자를 안 주면 켜짐
+test('condName: 사용자 이름 · 수준 · 급변 값 · 사전 사건', () => {
+  assert.equal(condName(A(), '달러원'), '달러원 1,400 위로')
+  assert.equal(condName(A({ dir: 'down', value: 2500.5 }), '코스피'), '코스피 2,500.50 아래로')
+  assert.equal(condName(A({ event: 'U2', value: 3 }), 'KODEX 200'), 'KODEX 200 등락 ±3%')
+  assert.equal(condName(A({ event: 'B1', value: undefined }), '금', '52주 신고저'), '금 52주 신고저')
+  assert.equal(condName(A({ name: '  내 선 ' }), '달러원'), '내 선')
 })
 
 test('prefillTarget: 주소의 id 로 새 조건 폼 대상을 채운다 — 사전에 있으면 이름, 없으면 id, 형식이 틀리면 비움', () => {
