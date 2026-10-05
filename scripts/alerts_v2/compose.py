@@ -173,10 +173,10 @@ def variables(ev: dict, hit, ctx=None, today: dt.date | None = None) -> dict:
         "asof_md": _md(hit.asOf),
         "today_md": f"{today.month}/{today.day}",
     }
-    for k, v in (hit.fields or {}).items():
-        if k == "level":
+    for k, v in (hit.fields or {}).items():    # 판정 함수가 준 변수가 표준 변수를 덮는다(dir_ko · name …)
+        if k == "level" or v is None or v == "":
             continue
-        d.setdefault(k, v)
+        d[k] = v
     return d
 
 
