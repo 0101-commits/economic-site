@@ -22,8 +22,12 @@ from alerts_v2.context import KST, Context          # noqa: E402
 from alerts_v2.events import JUDGES, extract        # noqa: E402
 from alerts_v2.ledger import Ledger                 # noqa: E402
 
-try:                                                # 물결 A6 · A7 이 채우는 판정 모듈
-    from alerts_v2 import judges_market, judges_flow_cal  # noqa: F401,E402
+try:                                                # 물결 A6 · A7 이 채우는 판정 모듈 — 하나가 없어도 다른 하나는 읽는다
+    from alerts_v2 import judges_market  # noqa: F401,E402
+except ImportError:
+    pass
+try:
+    from alerts_v2 import judges_flow_cal  # noqa: F401,E402
 except ImportError:
     pass
 
