@@ -14,8 +14,10 @@
 import { mdHm, shortDate } from '../format.ts'
 import type { AlertCond } from './store'
 
-/** 새 조건 id — Worker PREFS_ID(/^[A-Za-z0-9._:^=-]{1,64}$/)를 통과하는 'p' + 만든 시각 + 임의 4자. */
-export const condId = (now = Date.now(), rnd = Math.random()) => 'p' + now.toString(36) + rnd.toString(36).slice(2, 6)
+/** 새 조건 id — Worker PREFS_ID(/^[A-Za-z0-9._:^=-]{1,64}$/)를 통과하는 'p' + 만든 시각 + 임의 6자.
+ *  임의 부분은 늘 6자로 채운다 — Math.random().toString(36) 은 자릿수가 들쭉날쭉해(0.5 → "0.i") 전엔 1~4자가 되어
+ *  같은 밀리초 안에서 겹쳤고, 그 간헐 검사 실패가 Pages 배포를 5번 막았다(2026-10-02~04 실측). */
+export const condId = (now = Date.now(), rnd = Math.random()) => 'p' + now.toString(36) + (rnd.toString(36).slice(2) + '000000').slice(0, 6)
 
 /** alerts_state.json._prefs[id] 가운데 화면이 읽는 칸. */
 export type FiredRec = { date?: string; ts?: number; fired?: boolean }
