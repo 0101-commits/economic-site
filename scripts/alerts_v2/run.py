@@ -41,13 +41,20 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool):
     if os.environ.get("ALERTS_V2", "0") != "1":
         print(f"[v2] ALERTS_V2 꺼짐 — 원장만 기록({len(new_rows)}건)")
         return
-    try:
-        from alerts_v2 import deliver, schedule, subscribe
-    except ImportError as e:
-        print(f"[v2] 발송 모듈 없음({e}) — 원장만 기록")
-        return
-    decisions = subscribe.match(new_rows, ctx)
-    sends = schedule.plan(decisions, ledger, ctx)
+    from alerts_v2 import deliver, schedule, subscribe
+    events_by_id = schema.by_id(schema.load_events())
+    prefs = subscribe.load_prefs()
+    history = Ledger.load_days(8, end=ledger.day)          # 쿨다운 · 한 번 조건 판정용(오늘 포함)
+    render = _render(ctx)
+    user_rows = subscribe.user_hits(ctx, prefs, history, render=render)
+    rows = [r.to_dict() if hasattr(r, "to_dict") else r for r in new_rows]
+    for ur in user_rows:
+        if ledger.append(ur):
+            rows.append(ur)
+    decisions = subscribe.match(rows, ctx, prefs, events_by_id)
+    settings = (prefs or {}).get("settings")
+    sends = schedule.plan(decisions, ledger, ctx, settings, events_by_id, history)
+    print(f"[v2] 구독 {len(decisions)} → 발송 {len(sends)}" + (" (dry-run)" if dry_run else ""))
     for s in sends:
         if dry_run:
             print(f"[v2 dry-run] {s}")
