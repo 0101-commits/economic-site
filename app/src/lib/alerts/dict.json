@@ -1,0 +1,995 @@
+{
+ "version": 2,
+ "families": [
+  {
+   "id": "A",
+   "name": "급변"
+  },
+  {
+   "id": "B",
+   "name": "기록 · 마디"
+  },
+  {
+   "id": "C",
+   "name": "임계 · 단계"
+  },
+  {
+   "id": "D",
+   "name": "수급"
+  },
+  {
+   "id": "E",
+   "name": "일정 · 발표"
+  },
+  {
+   "id": "F",
+   "name": "공시 · 종목"
+  },
+  {
+   "id": "G",
+   "name": "렌즈 · 메르"
+  },
+  {
+   "id": "H",
+   "name": "실물 · 월간"
+  }
+ ],
+ "levels": [
+  {
+   "id": "alarm",
+   "name": "경보"
+  },
+  {
+   "id": "alert",
+   "name": "알림"
+  },
+  {
+   "id": "notice",
+   "name": "안내"
+  },
+  {
+   "id": "record",
+   "name": "기록"
+  }
+ ],
+ "packages": [
+  {
+   "id": "quiet",
+   "name": "조용히"
+  },
+  {
+   "id": "normal",
+   "name": "보통"
+  },
+  {
+   "id": "many",
+   "name": "많이"
+  }
+ ],
+ "strengths": [
+  {
+   "id": "normal",
+   "name": "보통",
+   "sigma": 2.0
+  },
+  {
+   "id": "big",
+   "name": "크게",
+   "sigma": 2.5
+  },
+  {
+   "id": "huge",
+   "name": "아주 크게",
+   "sigma": 3.0
+  },
+  {
+   "id": "value",
+   "name": "값 직접",
+   "sigma": null
+  }
+ ],
+ "events": [
+  {
+   "id": "A1",
+   "name": "지수 급변",
+   "family": "A",
+   "level": "alert",
+   "targets": [
+    "kospi",
+    "kosdaq",
+    "sp500",
+    "nasdaq",
+    "nikkei",
+    "sox",
+    "hsi",
+    "shanghai"
+   ],
+   "defaultOn": [
+    "kospi",
+    "sp500"
+   ],
+   "run": "light",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 1
+   },
+   "strength": true,
+   "userValue": false
+  },
+  {
+   "id": "A2",
+   "name": "환율 급변",
+   "family": "A",
+   "level": "alert",
+   "targets": [
+    "usdkrw",
+    "jpykrw",
+    "usdjpy",
+    "eurkrw"
+   ],
+   "defaultOn": [
+    "usdkrw"
+   ],
+   "run": "light",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 1
+   },
+   "strength": true,
+   "userValue": false
+  },
+  {
+   "id": "A3",
+   "name": "원자재 급변",
+   "family": "A",
+   "level": "alert",
+   "targets": [
+    "gold",
+    "silver",
+    "copper",
+    "wti",
+    "brent",
+    "natgas"
+   ],
+   "defaultOn": [],
+   "run": "light",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 1
+   },
+   "strength": true,
+   "userValue": false
+  },
+  {
+   "id": "A4",
+   "name": "비트코인 급변",
+   "family": "A",
+   "level": "alert",
+   "targets": [
+    "btc"
+   ],
+   "defaultOn": [],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 1
+   },
+   "strength": true,
+   "userValue": false
+  },
+  {
+   "id": "A5",
+   "name": "서킷브레이커",
+   "family": "A",
+   "level": "alarm",
+   "targets": [
+    "kospi",
+    "kosdaq"
+   ],
+   "defaultOn": [
+    "kospi",
+    "kosdaq"
+   ],
+   "run": "light",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "stage"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "B1",
+   "name": "52주 신고저",
+   "family": "B",
+   "level": "alert",
+   "targets": [
+    "kospi",
+    "kosdaq",
+    "sp500",
+    "nasdaq",
+    "nikkei",
+    "sox",
+    "gold",
+    "silver",
+    "copper",
+    "wti",
+    "btc",
+    "usdkrw"
+   ],
+   "defaultOn": [],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 7
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "B2",
+   "name": "마디 돌파",
+   "family": "B",
+   "level": "notice",
+   "targets": [
+    "kospi",
+    "usdkrw",
+    "gold",
+    "btc",
+    "wti",
+    "sp500"
+   ],
+   "defaultOn": [
+    "kospi",
+    "usdkrw",
+    "gold",
+    "btc",
+    "wti",
+    "sp500"
+   ],
+   "run": "light",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "C1",
+   "name": "렌즈 새 돌파",
+   "family": "C",
+   "level": "alert",
+   "targets": [
+    "lens"
+   ],
+   "defaultOn": [
+    "us10y",
+    "us30y",
+    "jp30y",
+    "usdkrw",
+    "usdjpy"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "line"
+    ],
+    "days": 365
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "C2",
+   "name": "렌즈 주시",
+   "family": "C",
+   "level": "notice",
+   "targets": [
+    "lens"
+   ],
+   "defaultOn": [
+    "lens"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "line"
+    ],
+    "days": 7
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "C3",
+   "name": "VIX 단계",
+   "family": "C",
+   "level": "alert",
+   "targets": [
+    "vix"
+   ],
+   "defaultOn": [
+    "vix"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "stage"
+    ],
+    "days": 7
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "C4",
+   "name": "MOVE 단계",
+   "family": "C",
+   "level": "notice",
+   "targets": [
+    "move"
+   ],
+   "defaultOn": [
+    "move"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "stage"
+    ],
+    "days": 7
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "C5",
+   "name": "공포탐욕 극단",
+   "family": "C",
+   "level": "notice",
+   "targets": [
+    "fear_greed"
+   ],
+   "defaultOn": [
+    "fear_greed"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 7
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "C6",
+   "name": "VKOSPI 이상",
+   "family": "C",
+   "level": "notice",
+   "targets": [
+    "vkospi"
+   ],
+   "defaultOn": [
+    "vkospi"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "C7",
+   "name": "금리 급변",
+   "family": "C",
+   "level": "notice",
+   "targets": [
+    "us10y",
+    "kr10y",
+    "jp30y"
+   ],
+   "defaultOn": [
+    "us10y",
+    "kr10y",
+    "jp30y"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "C8",
+   "name": "장단기 역전",
+   "family": "C",
+   "level": "alert",
+   "targets": [
+    "t10y2y"
+   ],
+   "defaultOn": [
+    "t10y2y"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 30
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "D1",
+   "name": "외국인 연속 시작",
+   "family": "D",
+   "level": "alert",
+   "targets": [
+    "kospi"
+   ],
+   "defaultOn": [
+    "kospi"
+   ],
+   "run": "settle",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir",
+     "streak"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "D2",
+   "name": "외국인 전환",
+   "family": "D",
+   "level": "alert",
+   "targets": [
+    "kospi"
+   ],
+   "defaultOn": [
+    "kospi"
+   ],
+   "run": "settle",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "D3",
+   "name": "외국인 누적 진입",
+   "family": "D",
+   "level": "alert",
+   "targets": [
+    "kospi"
+   ],
+   "defaultOn": [
+    "kospi"
+   ],
+   "run": "settle",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 5
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "D4",
+   "name": "외국인 하루 대량",
+   "family": "D",
+   "level": "notice",
+   "targets": [
+    "kospi"
+   ],
+   "defaultOn": [
+    "kospi"
+   ],
+   "run": "settle",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "D5",
+   "name": "관심 종목 수급",
+   "family": "D",
+   "level": "notice",
+   "targets": [
+    "watch_stocks"
+   ],
+   "defaultOn": [],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "E1",
+   "name": "발표 전날 예고",
+   "family": "E",
+   "level": "alert",
+   "targets": [
+    "calendar"
+   ],
+   "defaultOn": [
+    "calendar"
+   ],
+   "run": "eve",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "date"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "E2",
+   "name": "발표 결과",
+   "family": "E",
+   "level": "alert",
+   "targets": [
+    "calendar"
+   ],
+   "defaultOn": [
+    "calendar"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "date"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "E3",
+   "name": "서프라이즈",
+   "family": "E",
+   "level": "alert",
+   "targets": [
+    "calendar"
+   ],
+   "defaultOn": [
+    "calendar"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "date"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "E4",
+   "name": "정책금리 변경",
+   "family": "E",
+   "level": "alarm",
+   "targets": [
+    "ff_target",
+    "base_rate_kr"
+   ],
+   "defaultOn": [
+    "ff_target",
+    "base_rate_kr"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "asof"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "E5",
+   "name": "휴장 안내",
+   "family": "E",
+   "level": "notice",
+   "targets": [
+    "calendar"
+   ],
+   "defaultOn": [
+    "calendar"
+   ],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "date"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "F1",
+   "name": "관심 종목 공시",
+   "family": "F",
+   "level": "notice",
+   "targets": [
+    "watch_stocks"
+   ],
+   "defaultOn": [],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "rcp"
+    ],
+    "days": 365
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "F2",
+   "name": "거래소 경보 변경",
+   "family": "F",
+   "level": "notice",
+   "targets": [
+    "watch_stocks"
+   ],
+   "defaultOn": [],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "label"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "F3",
+   "name": "특징주",
+   "family": "F",
+   "level": "record",
+   "targets": [
+    "movers"
+   ],
+   "defaultOn": [],
+   "run": "full",
+   "enabled": false,
+   "cooldown": null,
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "G1",
+   "name": "국면 전환",
+   "family": "G",
+   "level": "alert",
+   "targets": [
+    "regime"
+   ],
+   "defaultOn": [
+    "regime"
+   ],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 30
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "G2",
+   "name": "입장 반전",
+   "family": "G",
+   "level": "notice",
+   "targets": [
+    "stance"
+   ],
+   "defaultOn": [],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 7
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "G3",
+   "name": "메르 새 글",
+   "family": "G",
+   "level": "notice",
+   "targets": [
+    "posts"
+   ],
+   "defaultOn": [
+    "posts"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "date"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "G4",
+   "name": "렌즈 점수 변동",
+   "family": "G",
+   "level": "notice",
+   "targets": [
+    "mri"
+   ],
+   "defaultOn": [
+    "mri"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "G5",
+   "name": "사슬 활성",
+   "family": "G",
+   "level": "notice",
+   "targets": [
+    "chains"
+   ],
+   "defaultOn": [
+    "chains"
+   ],
+   "run": "full",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 7
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "H1",
+   "name": "금 김치프리미엄",
+   "family": "H",
+   "level": "notice",
+   "targets": [
+    "gold_premium"
+   ],
+   "defaultOn": [],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "H2",
+   "name": "월간 지표 새 값",
+   "family": "H",
+   "level": "record",
+   "targets": [
+    "monthly"
+   ],
+   "defaultOn": [],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "period"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "H3",
+   "name": "부동산 월간",
+   "family": "H",
+   "level": "notice",
+   "targets": [
+    "regions"
+   ],
+   "defaultOn": [],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "period"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "H4",
+   "name": "엘니뇨 국면",
+   "family": "H",
+   "level": "record",
+   "targets": [
+    "enso"
+   ],
+   "defaultOn": [],
+   "run": "daily",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target"
+    ],
+    "days": 30
+   },
+   "strength": false,
+   "userValue": false
+  },
+  {
+   "id": "U1",
+   "name": "수준 도달",
+   "family": "A",
+   "level": "alert",
+   "targets": [
+    "any"
+   ],
+   "defaultOn": [],
+   "run": "light",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": true
+  },
+  {
+   "id": "U2",
+   "name": "급변 값 지정",
+   "family": "A",
+   "level": "alert",
+   "targets": [
+    "any"
+   ],
+   "defaultOn": [],
+   "run": "light",
+   "enabled": true,
+   "cooldown": {
+    "per": [
+     "target",
+     "dir"
+    ],
+    "days": 1
+   },
+   "strength": false,
+   "userValue": true
+  }
+ ]
+}

@@ -28,10 +28,10 @@ except ImportError:
     pass
 
 
-def _render():
+def _render(ctx):
     try:
         from alerts_v2 import compose
-        return compose.render
+        return lambda ev, h: compose.render(ev, h, ctx)
     except ImportError:
         return None
 
@@ -74,7 +74,7 @@ def main(argv=None) -> int:
         todo = [ev for ev in todo if ev["judge"] in JUDGES]
     ctx = Context.load(now=now)
     ledger = Ledger(day=now.astimezone(KST).date())
-    new_rows = extract(ctx, todo, ledger, render=_render())
+    new_rows = extract(ctx, todo, ledger, render=_render(ctx))
     print(f"[v2] {args.mode}: 사전 {len(todo)} 판정, 새 행 {len(new_rows)}")
     for r in new_rows:
         print(f"  + {r.key} [{r.level}] {r.title}")
