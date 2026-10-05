@@ -1,8 +1,8 @@
 import { useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-/** 주소에 남기는 화면 상태 열쇠: 자산군 a · 보기 v · 기간 p · 모드 m · 접힘 f · 고른 지표 s */
-export type ViewKey = 'a' | 'v' | 'p' | 'm' | 'f' | 's'
+/** 주소에 남기는 화면 상태 열쇠: 자산군 a · 보기 v · 기간 p · 모드 m · 접힘 f · 고른 지표 s · 알림 조건을 만들 지표 id(한 번 읽고 지운다) */
+export type ViewKey = 'a' | 'v' | 'p' | 'm' | 'f' | 's' | 'id'
 
 /**
  * 화면 상태를 주소 쿼리에 기록·복원한다. 바꿀 때는 기록을 쌓지 않고 덮어쓴다(replaceState) —

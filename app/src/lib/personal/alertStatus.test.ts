@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 알림 조건 id · 상태 낱말 · 다시 켜기
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { condId, condStatus, rearm, type FiredRec } from './alertStatus.ts'
+import { condId, condStatus, prefillTarget, rearm, TARGET_RE, type FiredRec } from './alertStatus.ts'
 import type { AlertCond } from './store'
 
 const PREFS_ID = /^[A-Za-z0-9._:^=\-]{1,64}$/   // cloudflare-worker/worker.js 와 같은 식
@@ -40,4 +40,25 @@ test('rearm: 같은 id 로 대기가 되고, 기기 시계가 늦어도 마지�
   const now = rearm(A(), rec, (TS + 60) * 1000)
   assert.equal(Date.parse(String(now.cond.armedAt)) / 1000, TS + 60)
   assert.equal(condStatus(now, { fired: true, ts: TS + 120 }, TODAY).kind, 'fired')   // 다시 울린 뒤엔 다시 「발동됨」
+})
+
+test('condStatus: 동기화가 꺼져 있으면 「대기」 대신 「이 기기에만 · 울리지 않음」 — 꺼짐·발동 기록은 그대로', () => {
+  const LOCAL = { kind: 'local', text: '이 기기에만 · 울리지 않음' }
+  assert.deepEqual(condStatus(A(), undefined, TODAY, false), LOCAL)
+  assert.deepEqual(condStatus(A({ repeat: 'daily' }), { date: '20261001' }, TODAY, false), LOCAL)
+  assert.equal(condStatus(A({ enabled: false }), undefined, TODAY, false).text, '꺼짐')
+  assert.equal(condStatus(A(), { fired: true, ts: TS }, TODAY, false).kind, 'fired')                     // 서버가 이미 본 기록
+  assert.equal(condStatus(A({ repeat: 'daily' }), { date: '20261002', ts: TS }, TODAY, false).kind, 'today')
+  assert.deepEqual(condStatus(A(), undefined, TODAY, true), { kind: 'wait', text: '대기' })              // 켜져 있으면 전과 같다
+  assert.deepEqual(condStatus(A(), undefined, TODAY), { kind: 'wait', text: '대기' })                    // 인자를 안 주면 켜짐
+})
+
+test('prefillTarget: 주소의 id 로 새 조건 폼 대상을 채운다 — 사전에 있으면 이름, 없으면 id, 형식이 틀리면 비움', () => {
+  const rows = [{ id: 'kospi', label: '코스피 지수', short: '코스피' }, { id: 'usdkrw', label: '원/달러 환율' }]
+  assert.deepEqual(prefillTarget('kospi', rows), { id: 'kospi', label: '코스피' })      // 짧은 이름이 먼저
+  assert.deepEqual(prefillTarget('usdkrw', rows), { id: 'usdkrw', label: '원/달러 환율' })
+  assert.deepEqual(prefillTarget('005930', rows), { id: '005930', label: '005930' })    // 사전에 없는 종목 코드는 그대로
+  assert.deepEqual(prefillTarget('kospi', []), { id: 'kospi', label: 'kospi' })         // 사전이 아직 안 왔다 — 이름은 나중에 따라온다
+  for (const bad of ['', 'a b', '코스피', 'x'.repeat(65), '<script>']) assert.equal(prefillTarget(bad, rows), null)
+  assert.ok(TARGET_RE.test('^KS11') && TARGET_RE.test('KRW=X'))
 })

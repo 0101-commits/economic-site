@@ -83,7 +83,7 @@ export default function Detail() {
 
         <Panel className="pc:col-span-4" title="알림">
           <p className="m-0 mb-3 text-13 text-ink-2">이 지표가 정한 값을 넘거나 크게 움직이면 알려 드립니다.</p>
-          <Link to={`/alerts?id=${encodeURIComponent(id)}`}
+          <Link to={`/alerts?v=cond&id=${encodeURIComponent(id)}`}
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-btn bg-accent text-on-accent text-13 font-bold no-underline">
             <BellPlus size={16} aria-hidden />알림 조건 추가
           </Link>

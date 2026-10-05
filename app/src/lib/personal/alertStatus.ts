@@ -21,23 +21,34 @@ export const condId = (now = Date.now(), rnd = Math.random()) => 'p' + now.toStr
 
 /** alerts_state.json._prefs[id] 가운데 화면이 읽는 칸. */
 export type FiredRec = { date?: string; ts?: number; fired?: boolean }
-export type CondStatus = { kind: 'off' | 'wait' | 'fired' | 'today'; text: string }
+export type CondStatus = { kind: 'off' | 'local' | 'wait' | 'fired' | 'today'; text: string }
 
 const armedSec = (a: AlertCond) => {
   const t = Date.parse(String(a.cond?.armedAt ?? ''))
   return Number.isNaN(t) ? 0 : Math.floor(t / 1000)
 }
 
-/** 조건 행의 상태 낱말. today = 한국 날짜 'YYYY-MM-DD'(calc.ts kstDay). 「다시 켜기」는 kind 'fired' 에만. */
-export function condStatus(a: AlertCond, rec: FiredRec | undefined, today: string): CondStatus {
+/** 조건 행의 상태 낱말. today = 한국 날짜 'YYYY-MM-DD'(calc.ts kstDay). 「다시 켜기」는 kind 'fired' 에만.
+ *  synced = 이 탭의 동기화가 켜져 있음. 꺼져 있으면 서버가 이 조건을 못 봤을 수 있으니 「대기」 대신 「이 기기에만」(kind 'local')이라 말한다. */
+export function condStatus(a: AlertCond, rec: FiredRec | undefined, today: string, synced = true): CondStatus {
   if (!a.enabled) return { kind: 'off', text: '꺼짐' }
   const ts = rec?.ts ?? 0
   if (rec?.fired && !(armedSec(a) > ts)) return { kind: 'fired', text: ts ? `발동됨 ${mdHm(new Date(ts * 1000))}` : '발동됨' }
   if (a.repeat === 'daily' && rec?.date === today.replace(/-/g, '')) return { kind: 'today', text: `오늘 발동 ${shortDate(today)}` }
-  return { kind: 'wait', text: '대기' }
+  return synced ? { kind: 'wait', text: '대기' } : { kind: 'local', text: '이 기기에만 · 울리지 않음' }
 }
 
 /** 다시 켜기: 같은 id 에 armedAt 을 찍는다. 기기 시계가 늦어도 마지막 발동보다는 뒤가 되게 한다. */
 export function rearm(a: AlertCond, rec: FiredRec | undefined, now = Date.now()): AlertCond {
   return { ...a, cond: { ...a.cond, armedAt: new Date(Math.max(now, ((rec?.ts ?? 0) + 1) * 1000)).toISOString() } }
+}
+
+/** Worker /prefs 의 target 형식 — 지표 id · 종목 코드. */
+export const TARGET_RE = /^[A-Za-z0-9._:^=-]{1,64}$/
+
+/** 주소의 `?id=` 로 새 조건 폼의 대상을 미리 채운다. 사전에 있으면 이름, 없으면 id 그대로. 형식이 틀리면 null. */
+export function prefillTarget(id: string, rows: { id: string; label: string; short?: string }[]): { id: string; label: string } | null {
+  if (!TARGET_RE.test(id)) return null
+  const r = rows.find(x => x.id === id)
+  return { id, label: r ? r.short || r.label : id }
 }

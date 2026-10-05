@@ -1,6 +1,6 @@
 // 관심 목록 — 지표 id(종목은 코드) 배열을 localStorage econ_watch_v1 에 둔다.
 // 같은 화면의 별(띠 카드 · 표 행 · 관심 패널)이 한 저장소를 보고, 다른 탭에서 바꿔도 따라온다.
-// ponytail: 이 기기 안에서만. /prefs 동기화는 후속.
+// 다른 기기와 맞추는 것(/prefs 로 올리고 받기)은 lib/personal/sync.ts 가 이 열쇠를 읽고 쓴다.
 import { useSyncExternalStore } from 'react'
 
 const KEY = 'econ_watch_v1'

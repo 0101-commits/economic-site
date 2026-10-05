@@ -9,13 +9,13 @@ import { Bell, ChevronRight, Trash2 } from 'lucide-react'
 import { Card, Pill, SegBar } from '../components/ui'
 import { Panel } from '../components/panels'
 import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
-import { loadRegistry, type RegRow } from '../lib/bundle'
+import { loadRegistry, ROOT, type RegRow } from '../lib/bundle'
 import { fmtNumber, fmtPct, mdHm, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
 import { KEYS, readPrefs, writePrefs, type AlertCond, type AlertType, type Prefs } from '../lib/personal/store'
-import { condId, condStatus, rearm, type FiredRec } from '../lib/personal/alertStatus'
+import { condId, condStatus, prefillTarget, rearm, TARGET_RE, type FiredRec } from '../lib/personal/alertStatus'
 import { getKeyHash, useSyncStatus } from '../lib/personal/sync'
 import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../lib/push'
 
@@ -97,6 +97,9 @@ function buildFeed(state: Record<string, unknown> | null, md: MarketData | null,
 
 export default function Alerts() {
   const [tab, setTab] = useViewParam<Tab>('v', 'inbox', TABS.map(o => o.key))
+  // 상세의 「알림 조건 추가」는 ?v=cond&id=지표 로 온다. id 만 있어도 조건 탭을 연다 — 폼의 대상 채우기·주소 지우기는 NewCondition 이 한다.
+  const [wantId] = useViewParam<string>('id', '')
+  useEffect(() => { if (wantId && tab !== 'cond') setTab('cond') }, [wantId, tab, setTab])
   const [cat, setCat] = useState<typeof CATS[number]['key']>('all')
   const [state, setState] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [md, setMd] = useState<MarketData | null>(null)
@@ -171,7 +174,7 @@ export default function Alerts() {
             {prefs.alerts.length ? (
               <ul className="m-0 p-0 list-none">
                 {prefs.alerts.map(a => {
-                  const st = condStatus(a, fired[a.id], today)
+                  const st = condStatus(a, fired[a.id], today, sync.on)
                   const name = `${regName.get(a.target) ?? a.target} ${condText(a)}`
                   return (
                   <li key={a.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 border-b border-line last:border-b-0">
@@ -179,8 +182,8 @@ export default function Alerts() {
                       onChange={on => save({ ...prefs, alerts: prefs.alerts.map(x => (x.id === a.id ? { ...x, enabled: on } : x)) })} />
                     <span className="min-w-0 flex-1 text-13 text-ink-1">{regName.get(a.target) ?? a.target} <span className="text-ink-2">{condText(a)}</span></span>
                     <span className="text-12 text-ink-3">{a.repeat === 'once' ? '한 번' : '매일'} · {a.channels.map(c => (c === 'push' ? '폰' : '디스코드')).join('·')}</span>
-                    {/* 이력을 못 읽었으면 「대기」라고 말하지 않는다 — 꺼짐만 이 기기가 안다 */}
-                    {(state || st.kind === 'off') && <span className={`num text-12 whitespace-nowrap ${st.kind === 'fired' || st.kind === 'today' ? 'text-ink-1' : 'text-ink-3'}`}>{st.text}</span>}
+                    {/* 이력을 못 읽었으면 「대기」라고 말하지 않는다 — 꺼짐과 「이 기기에만」은 이 기기가 안다 */}
+                    {(state || st.kind === 'off' || st.kind === 'local') && <span className={`num text-12 whitespace-nowrap ${st.kind === 'fired' || st.kind === 'today' ? 'text-ink-1' : 'text-ink-3'}`}>{st.text}</span>}
                     {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 동기화가 꺼져 있으면 눌러도 소용없다 */}
                     {st.kind === 'fired' && (sync.on ? (
                       <button type="button" className={BTN} aria-label={`${name} 다시 켜기`}
@@ -198,7 +201,7 @@ export default function Alerts() {
             <p className="mt-2 mb-0 text-12 text-ink-3">동기화를 켜면 서버가 이 조건을 보고 보냅니다. 장중에는 몇 분마다, 그 밖에는 매일 21:05 에 한 번 봅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다.</p>
           </Panel>
           <p className="m-0 text-12 text-ink-3">
-            현행 화면에서 만든 조건은 <a href="../?p=portfolio" className="text-ink-2">현행 화면</a>에서 보고 고칩니다.
+            현행 화면에서 만든 조건은 <a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">현행 화면</a>에서 보고 고칩니다.
           </p>
         </>
       )}
@@ -245,7 +248,6 @@ const TYPES: { key: AlertType; label: string }[] = [
   { key: 'event', label: '일정 전날' }, { key: 'flow', label: '수급 전환' }, { key: 'lens', label: '렌즈 트리거' },
 ]
 const WHO: Record<string, string> = { foreign: '외국인', inst: '기관', retail: '개인' }
-const TARGET_RE = /^[A-Za-z0-9._:^=-]{1,64}$/   // Worker /prefs 의 target 형식
 
 function condText(a: AlertCond): string {
   const c = a.cond
@@ -263,7 +265,13 @@ function condText(a: AlertCond): string {
 function NewCondition({ rows, onAdd }: { rows: RegRow[]; onAdd: (a: AlertCond) => void }) {
   const [type, setType] = useState<AlertType>('price')
   const [q, setQ] = useState('')
-  const [target, setTarget] = useState<{ id: string; label: string } | null>(null)
+  const [picked, setPicked] = useState<{ id: string; label: string } | null>(null)
+  // 상세가 주소(?id=)로 넘긴 지표: 한 번 읽고 주소에서 지운다. 사전이 늦게 와도 이름이 따라오도록 id 로 들고 있다가, 대상 칸을 고르거나 지우면 놓는다.
+  const [urlId, setUrlId] = useViewParam<string>('id', '')
+  const [pre, setPre] = useState(urlId)
+  useEffect(() => { if (urlId) setUrlId('') }, [urlId, setUrlId])
+  const target = picked ?? prefillTarget(pre, rows)
+  const setTarget = (t: { id: string; label: string } | null) => { setPicked(t); setPre('') }
   const [op, setOp] = useState<'>=' | '<='>('>=')
   const [value, setValue] = useState('')
   const [side, setSide] = useState<'high' | 'low'>('high')
@@ -377,7 +385,7 @@ function Channels({ prefs, onSave }: { prefs: Prefs; onSave: (p: Prefs) => void 
       <PhonePush />
       <Panel title="디스코드">
         <p className="m-0 text-13 text-ink-2">급변·시황 알림은 지금도 운영 디스코드 채널로 나갑니다.</p>
-        <p className="mt-2 mb-0 text-12 text-ink-3">조건마다 디스코드를 고를 수는 있지만, 새 화면 조건을 디스코드로 보내는 연결은 다음 단계입니다.</p>
+        <p className="mt-2 mb-0 text-12 text-ink-3">조건에서 디스코드를 고르면 #종목-알림 채널로 나갑니다. 운영 쪽에 그 채널 연결이 등록돼 있지 않으면 나가지 않습니다.</p>
       </Panel>
       <Panel title="조용한 시간">
         <Switch on={!!quiet} onChange={on => setQuiet(on ? { from: '22:00', to: '07:00' } : null)} label="이 시간엔 폰 알림을 보내지 않기" />
