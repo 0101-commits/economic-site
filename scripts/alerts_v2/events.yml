@@ -73,7 +73,7 @@
   params: {stages_pct: [-8, -15, -20], sidecar_pct: 2.5}
   run: light
   cooldown: {per: [target, stage], days: 1}
-  title: "{name} {chg:+.1f}% · {halt_kind} {stage}단계{approx}"
+  title: "{name} {chg:+.1f}% · {halt_kind} {stage_label}{approx}"
   why: ["{peer} 동시 · {source}"]
   next: ["해제되면 알림 · 다음 단계 {next_stage}%"]
   url: "#/market?a=kr"
@@ -135,7 +135,7 @@
   title: "{name} {value} · {line} 선까지 {dist}"
   why: ["메르 「{chain}」 사슬 {step} 단계"]
   next: ["7일간 다시 알리지 않음"]
-  url: "#/lens?m=whatif&n={target}"
+  url: "#/lens?m=whatif&s={node}"
 - id: C3
   name: VIX 단계
   family: C

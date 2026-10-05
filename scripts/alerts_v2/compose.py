@@ -176,7 +176,11 @@ def variables(ev: dict, hit, ctx=None, today: dt.date | None = None) -> dict:
     for k, v in (hit.fields or {}).items():    # 판정 함수가 준 변수가 표준 변수를 덮는다(dir_ko · name …)
         if k == "level" or v is None or v == "":
             continue
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) >= 1000 and k not in ("z", "abs_z"):
+            v = fmt_num(v)                           # 7000 → 7,000 (마디 · 임계 · 누적 같은 큰 수)
         d[k] = v
+    stage = (hit.fields or {}).get("stage")
+    d.setdefault("stage_label", f"{stage}단계" if stage else "")
     return d
 
 
