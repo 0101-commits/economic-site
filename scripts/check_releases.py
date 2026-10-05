@@ -19,6 +19,8 @@
   실제치는 fetch_data 의 캘린더 백필이 FRED 시리즈에서 가져온다. 즉 이 알림은 '발표 순간'이
   아니라 '우리 데이터가 그 값을 받은 직후'에 나간다(시간별 풀 런 기준 최대 1시간). 그래서
   제목도 '속보'가 아니라 발표 결과로 적는다.
+  단, 일정의 발표 시각 이전에는 절대 보내지 않는다(release_due) — act 는 발표일 00시부터 직전 관측치로 채워져,
+  가드 없이는 22:15 발표 결과가 같은 날 00:11 에 나갔다(2026-10-02 실측).
 
 도배 방지: 같은 (지표, 발표일)은 한 번만. 이력은 **releases_state.json** 에 둔다.
   alerts_state.json 을 쓰지 않는 이유: 그 파일의 소유권은 stock-alerts.yml 에 있고,
@@ -143,14 +145,44 @@ def _load(path, default):
         return default
 
 
-def collect(data, today=None):
-    """오늘 발표분 중 보낼 것 → [(ev, 근거)]. 순서는 별점 내림차순."""
-    today = today or datetime.datetime.now(KST).strftime("%Y-%m-%d")
+APPROX_DELAY = datetime.timedelta(minutes=30)   # timeApprox(관례 추정 시각) 는 이만큼 더 기다린다
+NO_TIME_HOUR = 9                                # 시각 없는 일정은 그날 KST 09:00 뒤
+
+
+def release_due(ev, now):
+    """일정 행 하나가 '발표된 뒤'인가 — 발표 시각 이전이면 False. 시각을 못 읽으면 False(보내지 않는다).
+
+    시각 = iso(날짜, 'T' 시각이 붙어 있으면 그것) + dt 'MM.DD HH:MM' 의 HH:MM, 모두 KST.
+    timeApprox 가 참이면 +30분, dt 에 시각이 없으면 그날 09:00. now 가 naive 면 KST 로 본다.
+    왜: 예전엔 '날짜 == 오늘 and act 가 있다' 만 봤다. act 는 발표일 00시부터 직전 관측치로 채워지므로
+    22:15 발표 알림이 00:11 에 나갔다(2026-10-02 실측). 다른 모듈(alerts_v2 E2)도 이 함수를 쓴다."""
+    iso = str(ev.get("iso") or "")
+    m = re.search(r"(\d{1,2}):(\d{2})", str(ev.get("dt") or ""))
+    try:
+        if "T" in iso:
+            at = datetime.datetime.fromisoformat(iso)
+            at = at if at.tzinfo else at.replace(tzinfo=KST)
+        else:
+            d = datetime.date.fromisoformat(iso[:10])
+            at = datetime.datetime(d.year, d.month, d.day, int(m.group(1)) if m else NO_TIME_HOUR,
+                                   int(m.group(2)) if m else 0, tzinfo=KST)
+    except ValueError:
+        return False
+    if ev.get("timeApprox") and (m or "T" in iso):
+        at += APPROX_DELAY
+    now = now if now.tzinfo else now.replace(tzinfo=KST)
+    return now >= at
+
+
+def collect(data, today=None, now=None):
+    """오늘 발표분 중 보낼 것 → [(ev, 근거)]. 순서는 별점 내림차순. 발표 시각 전인 것은 뺀다."""
+    now = now or datetime.datetime.now(KST)
+    today = today or now.strftime("%Y-%m-%d")
     out = []
     for ev in ((data.get("economicCalendar") or {}).get("events") or []):
         if not isinstance(ev, dict) or str(ev.get("iso", ""))[:10] != today:
             continue
-        if int(ev.get("stars") or 0) < MIN_STARS:
+        if int(ev.get("stars") or 0) < MIN_STARS or not release_due(ev, now):
             continue
         ok, why = judge(ev, _history_values(data, ev.get("name", "")))
         if ok:
@@ -169,7 +201,7 @@ def main():
     state = _load(STATE_PATH, {})
     seen = state.get("sent") or {}
 
-    hits = [(ev, why) for ev, why in collect(data, today)
+    hits = [(ev, why) for ev, why in collect(data, today, now)
             if f"{ev.get('name')}:{today}" not in seen]
     if not hits:
         # 조용히 return 하면 로그가 '돌았는데 해당 없음'과 '일찍 죽었다'를 구별 못 한다.
@@ -296,6 +328,12 @@ def demo():
     got = [e.get("name") for e, _ in collect(data, "2026-09-21")]
     assert got == ["X"], got
 
+    # 발표 시각 가드 — 22:15 일정은 그날 00:11 에 나가면 안 된다(2026-10-02 실측), timeApprox 는 +30분
+    ev = {"iso": "2026-10-02", "dt": "10.02 22:15", "name": "X", "stars": 3, "act": "+0.4%", "fore": "+0.1%"}
+    at = lambda h, m: datetime.datetime(2026, 10, 2, h, m, tzinfo=KST)
+    assert not release_due(ev, at(0, 11)) and release_due(ev, at(22, 16))
+    assert not collect({"economicCalendar": {"events": [ev]}}, "2026-10-02", at(0, 11))
+    assert [e["name"] for e, _ in collect({"economicCalendar": {"events": [ev]}}, "2026-10-02", at(22, 16))] == ["X"]
     print("check_releases.py 자가 점검 통과")
 
 

@@ -1293,7 +1293,8 @@ def slot_ai_line(d, slot, title, blocks):
         print(f"[digest] ai_briefing 로드 실패({e})")
         return ""
     facts = title + " | " + " | ".join(f"{lab} {v}" for lab, v in blocks if v)
-    line = ab.slot_line(_slot_name(slot, False, d, datetime.datetime.now(KST)), facts)
+    line = ab.slot_line(_slot_name(slot, False, d, datetime.datetime.now(KST)), facts,
+                       calendar=d.get("economicCalendar"))
     if line:
         return line
     ai = d.get("aiBriefing") or {}
@@ -1302,7 +1303,7 @@ def slot_ai_line(d, slot, title, blocks):
     if (str(ai.get("source")) in ("gemini", "openai")
             and str(ai.get("date")) == datetime.datetime.now(KST).strftime("%Y-%m-%d")):
         for ln in ai.get("lines") or []:
-            if ab.slot_line_ok(str(ln)):
+            if ab.slot_line_ok(str(ln), d.get("economicCalendar")):
                 return str(ln)
     return ""
 
