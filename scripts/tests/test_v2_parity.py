@@ -61,3 +61,17 @@ def test_ids_families_levels_consistent():
         assert ev["level"] in ("alarm", "alert", "notice", "record")
         if ev.get("escalate"):
             assert ev["escalate"].get("to") in ("alarm", "alert")
+
+
+def test_no_portfolio_money_words_in_templates_or_rows():
+    """G5 — 내 자산 금액은 어떤 사전 틀 · 원장 행에도 없다(평가액 · 손익 · 수량 · 평단가)."""
+    words = ("평가액", "손익", "수량", "평단가", "보유 금액", "총평가")
+    for ev in EVENTS:
+        blob = " ".join([ev.get("title", "")] + list(ev.get("why") or []) + list(ev.get("next") or []))
+        assert not any(w in blob for w in words), ev["id"]
+    latest = os.path.join(ROOT, "events", "latest.json")
+    if os.path.exists(latest):
+        for r in json.load(open(latest, encoding="utf-8")):
+            blob = " ".join(str(r.get(k, "")) for k in ("title", "why", "next"))
+            assert not any(w in blob for w in words), r.get("key")
+            assert "threshold" not in r, r.get("key")
