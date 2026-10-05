@@ -1,0 +1,560 @@
+# 사건 사전 — 알림 v2 의 단일 원천(기획서 3장). 최소 YAML 부분집합(schema.py 머리말)으로만 적는다.
+# level: alarm(경보) alert(알림) notice(안내) record(기록) · run: light full settle daily eve
+# targets 는 bundles/registry.json 의 id(없으면 context.ALIASES). default_on 이 비면 별표(관심)만.
+# 템플릿 변수: {name} 대상 이름 · {value} 표시 값 · {chg} 등락% · {dir_ko} 방향 말 · 그 밖은 Hit.fields.
+
+# ---- A 급변 ----
+- id: A1
+  name: 지수 급변
+  family: A
+  level: alert
+  escalate: {cond: "abs_z>=3.0", to: alarm}
+  targets: [kospi, kosdaq, sp500, nasdaq, nikkei, sox, hsi, shanghai]
+  default_on: [kospi, sp500]
+  judge: swing_sigma
+  params: {sigma: 2.5, clamp_pct: [0.5, 5.0], fallback_pct: {kospi: 2.0, kosdaq: 2.0, sp500: 2.0, nasdaq: 2.0}}
+  run: light
+  cooldown: {per: [target, dir], days: 1}
+  title: "{name} {chg:+.1f}% · {value}"
+  why: ["{peer} 동반", "{news}"]
+  next: ["{next_event}", "{next_round}"]
+  url: "#/i/{target}"
+- id: A2
+  name: 환율 급변
+  family: A
+  level: alert
+  escalate: {cond: "abs_z>=3.0", to: alarm}
+  targets: [usdkrw, jpykrw, usdjpy, eurkrw]
+  default_on: [usdkrw]
+  judge: swing_sigma
+  params: {sigma: 2.5, clamp_pct: [0.5, 5.0], fallback_pct: {usdkrw: 1.0}}
+  run: light
+  cooldown: {per: [target, dir], days: 1}
+  title: "{name} {chg:+.1f}% · {value}"
+  why: ["{peer} 동반", "{news}"]
+  next: ["{lens_line}", "{next_event}"]
+  url: "#/i/{target}"
+- id: A3
+  name: 원자재 급변
+  family: A
+  level: alert
+  escalate: {cond: "abs_z>=3.0", to: alarm}
+  targets: [gold, silver, copper, wti, brent, natgas]
+  default_on: []
+  judge: swing_sigma
+  params: {sigma: 2.5, clamp_pct: [0.5, 5.0]}
+  run: light
+  cooldown: {per: [target, dir], days: 1}
+  title: "{name} {chg:+.1f}% · {value}"
+  why: ["{peer} 동반", "{news}"]
+  next: ["{next_round}"]
+  url: "#/i/{target}"
+- id: A4
+  name: 비트코인 급변
+  family: A
+  level: alert
+  targets: [btc]
+  default_on: []
+  judge: swing_sigma
+  params: {sigma: 2.5, clamp_pct: [0.5, 8.0], daily: true}
+  run: full
+  cooldown: {per: [target], days: 1}
+  title: "비트코인 {chg:+.1f}% · {value}"
+  why: ["{news}"]
+  next: ["{next_round}"]
+  url: "#/i/btc"
+- id: A5
+  name: 서킷브레이커
+  family: A
+  level: alarm
+  targets: [kospi, kosdaq]
+  default_on: [kospi, kosdaq]
+  judge: market_halt
+  params: {stages_pct: [-8, -15, -20], sidecar_pct: 2.5}
+  run: light
+  cooldown: {per: [target, stage], days: 1}
+  title: "{name} {chg:+.1f}% · {halt_kind} {stage}단계{approx}"
+  why: ["{peer} 동시 · {source}"]
+  next: ["해제되면 알림 · 다음 단계 {next_stage}%"]
+  url: "#/market?a=kr"
+# ---- B 기록 · 마디 ----
+- id: B1
+  name: 52주 신고저
+  family: B
+  level: alert
+  targets: [kospi, kosdaq, sp500, nasdaq, nikkei, sox, gold, silver, copper, wti, btc, usdkrw]
+  default_on: []
+  judge: high52
+  params: {window: 250, min_points: 60}
+  run: full
+  cooldown: {per: [target, dir], days: 7}
+  title: "{name} {value} · 52주 {dir_ko}"
+  why: ["직전 {dir_ko} {prev_extreme} ({prev_date})"]
+  next: ["{next_round}"]
+  url: "#/i/{target}"
+- id: B2
+  name: 마디 돌파
+  family: B
+  level: notice
+  targets: [kospi, usdkrw, gold, btc, wti, sp500]
+  default_on: [kospi, usdkrw, gold, btc, wti, sp500]
+  judge: round_level
+  params: {step: {kospi: 1000, usdkrw: 50, gold: 250, btc: 10000, wti: 10, sp500: 250}}
+  run: light
+  cooldown: {per: [target], days: 1}
+  title: "{name} {value} · {level_value} 선 {dir_ko}"
+  why: ["52주 고점 대비 {from_high}"]
+  next: ["다음 마디 {next_level}"]
+  url: "#/i/{target}"
+# ---- C 임계 · 단계 ----
+- id: C1
+  name: 렌즈 새 돌파
+  family: C
+  level: alert
+  escalate: {cond: "default_target", to: alarm}
+  targets: [lens]
+  default_on: [us10y, us30y, jp30y, usdkrw, usdjpy]
+  judge: lens_cross
+  params: {persist_days: 2, first_in_days: 365, near_pct: 2.0}
+  run: full
+  cooldown: {per: [target, line], days: 365}
+  title: "{name} {value} · {line} 선 {dir_ko}"
+  why: ["메르 「{chain}」 사슬 {step} 단계 ({post_date} 글)"]
+  next: ["다음 선 {next_line} 까지 {dist}"]
+  url: "#/lens?m=chain&c={chain_id}"
+- id: C2
+  name: 렌즈 주시
+  family: C
+  level: notice
+  targets: [lens]
+  default_on: [lens]
+  judge: lens_near
+  params: {near_pct: 2.0}
+  run: full
+  cooldown: {per: [target, line], days: 7}
+  title: "{name} {value} · {line} 선까지 {dist}"
+  why: ["메르 「{chain}」 사슬 {step} 단계"]
+  next: ["7일간 다시 알리지 않음"]
+  url: "#/lens?m=whatif&n={target}"
+- id: C3
+  name: VIX 단계
+  family: C
+  level: alert
+  escalate: {cond: "stage>=40", to: alarm}
+  targets: [vix]
+  default_on: [vix]
+  judge: stage_up
+  params: {stages: [25, 30, 40]}
+  run: full
+  cooldown: {per: [target, stage], days: 7}
+  title: "VIX {value} · {stage} 선 돌파"
+  why: ["S&P500 {peer_chg}"]
+  next: ["다음 단계 {next_stage}"]
+  url: "#/i/vix"
+- id: C4
+  name: MOVE 단계
+  family: C
+  level: notice
+  targets: [move]
+  default_on: [move]
+  judge: stage_up
+  params: {stages: [100, 120]}
+  run: full
+  cooldown: {per: [target, stage], days: 7}
+  title: "MOVE {value} · {stage} 선 돌파"
+  why: ["미 10년 {peer_chg}"]
+  next: ["다음 단계 {next_stage}"]
+  url: "#/i/move"
+- id: C5
+  name: 공포탐욕 극단
+  family: C
+  level: notice
+  targets: [fear_greed]
+  default_on: [fear_greed]
+  judge: band_enter
+  params: {low: 25, high: 75}
+  run: full
+  cooldown: {per: [target, dir], days: 7}
+  title: "공포탐욕 {value} · {band_ko} 진입"
+  why: ["전일 {prev}"]
+  next: ["{exit_rule}"]
+  url: "#/i/fear_greed"
+- id: C6
+  name: VKOSPI 이상
+  family: C
+  level: notice
+  targets: [vkospi]
+  default_on: [vkospi]
+  judge: vkospi_rel
+  params: {ratio: 1.5, day_pct: 10, min_history: 90}
+  run: full
+  cooldown: {per: [target], days: 1}
+  title: "VKOSPI {value} · {reason}"
+  why: ["20일 실현변동성 {realized}"]
+  next: ["{next_event}"]
+  url: "#/i/vkospi"
+- id: C7
+  name: 금리 급변
+  family: C
+  level: notice
+  targets: [us10y, kr10y, jp30y]
+  default_on: [us10y, kr10y, jp30y]
+  judge: rate_jump
+  params: {bp: 10}
+  run: full
+  cooldown: {per: [target, dir], days: 1}
+  title: "{name} {value} · {chg_bp:+d}bp ({asof_md})"
+  why: ["{peer} {peer_chg}"]
+  next: ["{lens_line}"]
+  url: "#/i/{target}"
+- id: C8
+  name: 장단기 역전
+  family: C
+  level: alert
+  targets: [t10y2y]
+  default_on: [t10y2y]
+  judge: sign_flip
+  params: {}
+  run: full
+  cooldown: {per: [target, dir], days: 30}
+  title: "미 10년−2년 {value} · {flip_ko}"
+  why: ["직전 {prev}"]
+  next: ["{next_event}"]
+  url: "#/i/t10y2y"
+# ---- D 수급(코스피 확정치) ----
+- id: D1
+  name: 외국인 연속 시작
+  family: D
+  level: alert
+  targets: [kospi]
+  default_on: [kospi]
+  judge: flow_streak_start
+  params: {who: foreign, days: 5, remind_days: 10}
+  run: settle
+  cooldown: {per: [target, dir, streak], days: 1}
+  title: "외국인 {streak}일째 {dir_ko} · 오늘 {value}"
+  why: ["5일 누적 {cum5} · {supporter}가 받침"]
+  next: ["확정 18:00 · {dir_rev_ko}로 돌아서면 알림"]
+  url: "#/market?a=flow"
+- id: D2
+  name: 외국인 전환
+  family: D
+  level: alert
+  targets: [kospi]
+  default_on: [kospi]
+  judge: flow_streak_end
+  params: {who: foreign, min_streak: 5}
+  run: settle
+  cooldown: {per: [target], days: 1}
+  title: "외국인 {streak}일 {prev_dir_ko} 끝 · 오늘 {value}"
+  why: ["{streak}일 누적 {cum}"]
+  next: ["다시 {streak_min}일 이어지면 알림"]
+  url: "#/market?a=flow"
+- id: D3
+  name: 외국인 누적 진입
+  family: D
+  level: alert
+  targets: [kospi]
+  default_on: [kospi]
+  judge: flow_cum_enter
+  params: {who: foreign, sell_le: -50000, buy_ge: 30000}
+  run: settle
+  cooldown: {per: [target, dir], days: 5}
+  title: "외국인 5일 {cum} · {band_ko} 진입"
+  why: ["오늘 {value} · {supporter}가 받침"]
+  next: ["{exit_rule}"]
+  url: "#/market?a=flow"
+- id: D4
+  name: 외국인 하루 대량
+  family: D
+  level: notice
+  targets: [kospi]
+  default_on: [kospi]
+  judge: flow_big_day
+  params: {who: foreign, abs_ge: 20000}
+  run: settle
+  cooldown: {per: [target], days: 1}
+  title: "외국인 하루 {value} · {dir_ko}"
+  why: ["기관 {inst} · 개인 {retail}"]
+  next: ["5일 누적 {cum5}"]
+  url: "#/market?a=flow"
+- id: D5
+  name: 관심 종목 수급
+  family: D
+  level: notice
+  targets: [watch_stocks]
+  default_on: []
+  judge: stock_flow_flip
+  params: {who: foreign, cooldown_h: 24}
+  run: daily
+  cooldown: {per: [target], days: 1}
+  title: "{name} 외국인 {dir_ko} 전환 · {value}주"
+  why: ["직전 {prev_days}일 {prev_dir_ko}"]
+  next: ["{next_event}"]
+  url: "#/i/{target}"
+# ---- E 일정 · 발표 ----
+- id: E1
+  name: 발표 전날 예고
+  family: E
+  level: alert
+  targets: [calendar]
+  default_on: [calendar]
+  judge: event_eve
+  params: {stars_all: 3, stars_watch: 2, at: "21:00"}
+  run: eve
+  cooldown: {per: [target, date], days: 1}
+  title: "내일 일정 {count}건 · {first}"
+  why: ["{list}"]
+  next: ["관련 지표 {related}"]
+  url: "#/market?a=macro&v=calendar"
+- id: E2
+  name: 발표 결과
+  family: E
+  level: alert
+  escalate: {cond: "stars>=3", to: alarm}
+  targets: [calendar]
+  default_on: [calendar]
+  judge: release_result
+  params: {min_stars: 2, approx_delay_min: 30}
+  run: full
+  cooldown: {per: [target, date], days: 1}
+  title: "{event_name} {act} · 예상 {fore} {verdict_ko}"
+  why: ["직전 {prev}"]
+  next: ["다음 ★★★ {next_event}"]
+  url: "#/market?a=macro&v=calendar"
+- id: E3
+  name: 서프라이즈
+  family: E
+  level: alert
+  targets: [calendar]
+  default_on: [calendar]
+  judge: surprise
+  params: {min_stars: 2, pct_rank: 0.8, min_history: 24}
+  run: full
+  cooldown: {per: [target, date], days: 1}
+  title: "{event_name} {act} · 예상과 {gap} 차이"
+  why: ["과거 {hist_n}회 중 상위 {rank_pct}"]
+  next: ["{next_event}"]
+  url: "#/market?a=macro&v=calendar"
+- id: E4
+  name: 정책금리 변경
+  family: E
+  level: alarm
+  targets: [ff_target, base_rate_kr]
+  default_on: [ff_target, base_rate_kr]
+  judge: policy_rate_change
+  params: {}
+  run: full
+  cooldown: {per: [target, asof], days: 1}
+  title: "{name} {value} · {chg_bp:+d}bp {verb_ko}"
+  why: ["직전 {prev_n}회 {prev_dir_ko}"]
+  next: ["다음 회의 {next_meeting}"]
+  url: "#/i/{target}"
+- id: E5
+  name: 휴장 안내
+  family: E
+  level: notice
+  targets: [calendar]
+  default_on: [calendar]
+  judge: holiday_notice
+  params: {min_gap_days: 2}
+  run: daily
+  cooldown: {per: [target, date], days: 1}
+  title: "{from_md}~{to_md} 휴장 · 다음 개장 {next_md}"
+  why: ["미국은 {us_status}"]
+  next: ["연휴 중 알림은 미국 · 환율만"]
+  url: "#/home"
+# ---- F 공시 · 종목 ----
+- id: F1
+  name: 관심 종목 공시
+  family: F
+  level: notice
+  targets: [watch_stocks]
+  default_on: []
+  judge: corp_event_new
+  params: {kinds: [earnings, dividend]}
+  run: daily
+  cooldown: {per: [target, rcp], days: 365}
+  title: "{name} {kind_ko} 공시"
+  why: ["{doc_title}"]
+  next: ["원문 {rcp_url}"]
+  url: "#/i/{target}"
+- id: F2
+  name: 거래소 경보 변경
+  family: F
+  level: notice
+  targets: [watch_stocks]
+  default_on: []
+  judge: toss_warning_change
+  params: {}
+  run: daily
+  cooldown: {per: [target, label], days: 1}
+  title: "{name} {label} {verb_ko}"
+  why: ["{prev_labels}"]
+  next: ["{next_event}"]
+  url: "#/i/{target}"
+- id: F3
+  name: 특징주
+  family: F
+  level: record
+  enabled: false
+  targets: [movers]
+  default_on: []
+  judge: movers_record
+  params: {max_abs_pct: 30}
+  run: full
+  title: "{name} {chg:+.1f}%"
+  url: "#/market?a=kr&v=gainers"
+# ---- G 렌즈 · 메르 ----
+- id: G1
+  name: 국면 전환
+  family: G
+  level: alert
+  targets: [regime]
+  default_on: [regime]
+  judge: regime_change
+  params: {}
+  run: daily
+  cooldown: {per: [target], days: 30}
+  title: "렌즈 국면 {prev} → {value}"
+  why: ["이번 달 {counts}"]
+  next: ["{next_event}"]
+  url: "#/lens?m=flow"
+- id: G2
+  name: 입장 반전
+  family: G
+  level: notice
+  targets: [stance]
+  default_on: []
+  judge: stance_reversal
+  params: {}
+  run: full
+  cooldown: {per: [target], days: 7}
+  title: "메르 {name} 입장 {prev_ko} → {value}"
+  why: ["{post_title} ({post_date})"]
+  next: ["{next_event}"]
+  url: "#/lens?m=chain"
+- id: G3
+  name: 메르 새 글
+  family: G
+  level: notice
+  targets: [posts]
+  default_on: [posts]
+  judge: mer_new_posts
+  params: {bundle_daily: true}
+  run: full
+  cooldown: {per: [target, date], days: 1}
+  title: "메르 새 글 {count}편 · 오늘"
+  why: ["{titles}"]
+  next: ["이번 달 {month_count}편"]
+  url: "#/lens?m=flow"
+- id: G4
+  name: 렌즈 점수 변동
+  family: G
+  level: notice
+  targets: [mri]
+  default_on: [mri]
+  judge: mri_move
+  params: {delta: 5, lines: [40, 60]}
+  run: full
+  cooldown: {per: [target], days: 1}
+  title: "렌즈 점수 {value} · {reason}"
+  why: ["{components}"]
+  next: ["{next_event}"]
+  url: "#/lens"
+- id: G5
+  name: 사슬 활성
+  family: G
+  level: notice
+  targets: [chains]
+  default_on: [chains]
+  judge: chain_hot_enter
+  params: {}
+  run: full
+  cooldown: {per: [target], days: 7}
+  title: "사슬 「{name}」 활성 · {step} 단계"
+  why: ["{trigger}"]
+  next: ["{next_step}"]
+  url: "#/lens?m=chain&c={target}"
+# ---- H 실물 · 월간 ----
+- id: H1
+  name: 금 김치프리미엄
+  family: H
+  level: notice
+  targets: [gold_premium]
+  default_on: []
+  judge: gold_premium
+  params: {abs_pct: 1.0, min_history: 30}
+  run: daily
+  cooldown: {per: [target, dir], days: 1}
+  title: "금 김치프리미엄 {value} · {dir_ko}"
+  why: ["국내 {krw_g} · 국제 {usd_oz}"]
+  next: ["{next_event}"]
+  url: "#/market?a=commod"
+- id: H2
+  name: 월간 지표 새 값
+  family: H
+  level: record
+  targets: [monthly]
+  default_on: []
+  judge: monthly_new_value
+  params: {}
+  run: daily
+  cooldown: {per: [target, period], days: 1}
+  title: "{name} {value} ({period})"
+  url: "#/i/{target}"
+- id: H3
+  name: 부동산 월간
+  family: H
+  level: notice
+  targets: [regions]
+  default_on: []
+  judge: realestate_monthly
+  params: {}
+  run: daily
+  cooldown: {per: [target, period], days: 1}
+  title: "{name} 아파트 {chg:+.2f}% ({period})"
+  why: ["전국 {national}"]
+  next: ["다음 발표 {next_date}"]
+  url: "#/market?a=realestate"
+- id: H4
+  name: 엘니뇨 국면
+  family: H
+  level: record
+  targets: [enso]
+  default_on: []
+  judge: enso_phase
+  params: {}
+  run: daily
+  cooldown: {per: [target], days: 30}
+  title: "엘니뇨 {prev} → {value}"
+  url: "#/market?a=commod"
+# ---- U 사용자 조건(구독 단계에서 판정, 사전엔 틀만) ----
+- id: U1
+  name: 수준 도달
+  family: A
+  level: alert
+  targets: [any]
+  default_on: []
+  judge: user_level
+  params: {}
+  run: light
+  cooldown: {per: [target, dir], days: 1}
+  title: "{name} {value} · {threshold} {dir_ko}"
+  why: ["내 조건"]
+  next: ["{next_event}"]
+  url: "#/i/{target}"
+- id: U2
+  name: 급변 값 지정
+  family: A
+  level: alert
+  targets: [any]
+  default_on: []
+  judge: user_pct
+  params: {}
+  run: light
+  cooldown: {per: [target, dir], days: 1}
+  title: "{name} {chg:+.1f}% · {value}"
+  why: ["내 조건 ±{threshold}%"]
+  next: ["{next_event}"]
+  url: "#/i/{target}"
