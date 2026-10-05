@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(HERE))          # scripts/
 if hasattr(sys.stdout, "reconfigure"):              # Windows 콘솔(cp949)에서 한글 · 대시 출력
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from alerts_v2 import schema                        # noqa: E402
+from alerts_v2 import history_sink, schema          # noqa: E402
 from alerts_v2.context import KST, Context          # noqa: E402
 from alerts_v2.events import JUDGES, extract        # noqa: E402
 from alerts_v2.ledger import Ledger                 # noqa: E402
@@ -78,6 +78,8 @@ def main(argv=None) -> int:
     print(f"[v2] {args.mode}: 사전 {len(todo)} 판정, 새 행 {len(new_rows)}")
     for r in new_rows:
         print(f"  + {r.key} [{r.level}] {r.title}")
+    if args.mode == "daily":                         # 이력 1점 묶음(VKOSPI · 금 김프 · 운임 · LME · 폭 · 업종)의 하루치 적재
+        history_sink.run(ctx, dry_run=args.dry_run)
     _pipeline_b(ctx, new_rows, ledger, args.dry_run)
     if not args.dry_run:
         ledger.save()
