@@ -210,7 +210,18 @@ jobs:
       #   KO_FONT_PATH: 위 폰트 캐시(경량 런은 건너뜀 → 없으면 카드가 영문 라벨로 강등돼 그대로 판정한다).
       #   git checkout: 테스트가 저장소 파일을 건드렸다면(예: mer_signals.json 재생성) 되돌린다 — 아래 커밋 스텝이
       #   그 파일을 「이번 런이 바꾼 산출물」로 오인해 봇 커밋에 실어 버리지 않게.
+      #   통과 마커: 키 = scripts 아래 파이썬(+사건 사전) 해시. 같은 코드 상태에서 이미 통과했다면(캐시 적중) 이 스텝을 건너뛴다
+      #   (stock-alerts·kakao-daily 와 같은 키 — 한 곳에서 통과하면 다른 곳도 건너뛴다). 마커는 테스트가 통과한 직후에만 저장한다.
+      #   검사: test_workflows_have_pytest.py.
+      - name: Restore test pass marker
+        id: tests-ok
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pytest_ok
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+
       - name: Run tests
+        if: steps.tests-ok.outputs.cache-hit != 'true'
         env:
           KO_FONT_PATH: ~/kofonts
         run: |
@@ -218,6 +229,14 @@ jobs:
           python -m pytest scripts/tests -q -x
           git status --short
           git checkout -- .
+          touch .pytest_ok
+
+      - name: Save test pass marker
+        if: steps.tests-ok.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pytest_ok
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
 
       - name: Fetch market data
         env:

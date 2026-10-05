@@ -4,6 +4,8 @@
 ①없어지거나 ②발송 단계 뒤로 밀리거나 ③continue-on-error 로 실패를 삼키거나 ④명령이 바뀌어 일부만 도는 일이
 조용히 일어나지 않게, 워크플로 파일을 글자로 읽어 확인한다(PyYAML 없이 — 줄 단위).
 
+「Run tests」 는 통과 마커(actions/cache)가 적중하면 건너뛸 수 있다 — 그 조건부 구조도 같이 지킨다(marker_problems).
+
 주석 줄(`#`)은 보지 않는다. 주석에는 「continue-on-error 를 달지 말 것」 같은 설명이 있어 그대로 찾으면 오탐이다.
 """
 import os
@@ -43,6 +45,59 @@ def split_steps(text):
     return steps
 
 
+def _field(lines, key):
+    """단계 줄들에서 `key: 값` 의 값(뒤 주석 뺀 것). 없으면 ""."""
+    for x in lines:
+        m = re.match(rf"^\s*{key}:\s*(.*?)\s*$", x)
+        if m:
+            return re.sub(r"\s+#.*$", "", m.group(1))
+    return ""
+
+
+# 통과 마커(같은 코드 상태에서 이미 통과했으면 Run tests 를 건너뛰는 캐시). 마커가 거짓으로 저장되면 관문이 조용히
+# 꺼지므로, 「적중일 때만 건너뜀 · 복원이 테스트 앞 · 저장이 테스트 뒤(성공했을 때만)」 구조를 글자로 지킨다.
+TESTS_OK = "tests-ok"
+SKIP_ON_HIT = "steps.tests-ok.outputs.cache-hit != 'true'"
+ALLOWED_IF = {SKIP_ON_HIT, "steps.gate.outputs.proceed == 'true'", "steps.marker.outputs.cache-hit != 'true'"}
+
+
+def marker_problems(steps, t):
+    cond = _field(steps[t][1], "if")
+    if not cond:
+        return []                                   # 무조건 도는 단계 — 마커를 쓰지 않는다
+    parts = [p.strip() for p in cond.split("&&")]
+    out = []
+    if "||" in cond or any(p not in ALLOWED_IF for p in parts):
+        out.append(f"「{STEP_NAME}」 의 if 가 허용된 조건(마커 적중·발송 창·중복 발송 마커)의 && 연결이 아니다: {cond}")
+    if SKIP_ON_HIT not in parts:
+        return out
+    restore = [i for i, (_n, ls) in enumerate(steps) if _field(ls, "id") == TESTS_OK]
+    if len(restore) != 1:
+        return out + [f"id: {TESTS_OK} 단계가 {len(restore)}개다(정확히 1개여야 한다)"]
+    r = restore[0]
+    rl = steps[r][1]
+    key, path = _field(rl, "key"), _field(rl, "path")
+    if r > t:
+        out.append("마커 복원 단계가 「Run tests」 보다 뒤다")
+    if not _field(rl, "uses").startswith("actions/cache/restore@"):
+        out.append("마커 복원 단계가 actions/cache/restore 가 아니다")
+    if not (key.startswith("pytest-ok-") and "hashFiles(" in key and "scripts/**/*.py" in key):
+        out.append(f"마커 키가 `pytest-ok-${{{{ hashFiles('scripts/**/*.py', …) }}}}` 꼴이 아니다: {key}")
+    saves = [i for i, (_n, ls) in enumerate(steps) if _field(ls, "uses").startswith("actions/cache/save@")
+             and _field(ls, "path") == path]
+    if len(saves) != 1:
+        return out + [f"마커 저장 단계(actions/cache/save, path={path})가 {len(saves)}개다(정확히 1개여야 한다)"]
+    s = saves[0]
+    sl = steps[s][1]
+    if s < t:
+        out.append("마커 저장 단계가 「Run tests」 보다 앞이다 — 테스트 전에 마커가 저장된다")
+    if _field(sl, "key") != key:
+        out.append("마커 저장 키가 복원 키와 다르다")
+    if re.search(r"\b(always|failure|cancelled)\(\)", _field(sl, "if")):
+        out.append("마커 저장 단계의 if 가 always()/failure()/cancelled() 다 — 테스트가 실패해도 저장된다")
+    return out
+
+
 def problems(text, main_script):
     """워크플로 본문 하나를 점검해 문제 문장 목록을 돌려준다(없으면 [])."""
     steps = split_steps(text)
@@ -73,7 +128,7 @@ def problems(text, main_script):
         out.append(f"「{STEP_NAME}」 단계가 스크립트 실행 단계(「{names[runs[0]]}」)보다 뒤다")
     if main_at and t > main_at[0]:
         out.append(f"「{STEP_NAME}」 단계가 `{main_script}` 실행 단계보다 뒤다")
-    return out
+    return out + marker_problems(steps, t)
 
 
 @pytest.mark.parametrize("name,main_script", sorted(WORKFLOWS.items()))
@@ -158,3 +213,79 @@ jobs:
 def test_checker_ignores_a_commented_out_pytest_line():
     bad = GOOD.replace("          python -m pytest scripts/tests -q -x", "          # python -m pytest scripts/tests -q -x")
     assert any("가 없다" in p for p in problems(bad, "check_alerts.py"))
+
+
+# ── 통과 마커 구조 ────────────────────────────────────────────────────────
+KEY = "pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}"
+SKIP = "if: steps.tests-ok.outputs.cache-hit != 'true'"
+MARKED = f"""\
+jobs:
+  j:
+    steps:
+      - name: Install deps
+        run: pip install requests
+      - name: Restore test pass marker
+        id: tests-ok
+        uses: actions/cache/restore@abc # v4
+        with:
+          path: .pytest_ok
+          key: {KEY}
+      - name: Run tests
+        {SKIP}
+        run: |
+          pip install pytest
+          python -m pytest scripts/tests -q -x
+          touch .pytest_ok
+      - name: Save test pass marker
+        {SKIP}
+        uses: actions/cache/save@abc # v4
+        with:
+          path: .pytest_ok
+          key: {KEY}
+      - name: Send
+        run: python scripts/check_alerts.py
+"""
+
+
+def _swap(text, a, b):
+    """이름이 a·b 로 시작하는 두 단계의 자리를 바꾼다."""
+    parts = text.split("      - name: ")
+    i = next(k for k, p in enumerate(parts) if p.startswith(a))
+    j = next(k for k, p in enumerate(parts) if p.startswith(b))
+    parts[i], parts[j] = parts[j], parts[i]
+    return "      - name: ".join(parts)
+
+
+def test_marker_structure_is_accepted():
+    assert problems(MARKED, "check_alerts.py") == []
+
+
+@pytest.mark.parametrize("bad_if", [
+    "if: steps.tests-ok.outputs.cache-hit == 'true'",                        # 적중일 때만 도는 거꾸로 된 조건
+    "if: false",                                                             # 영영 안 도는 조건
+    "if: steps.tests-ok.outputs.cache-hit != 'true' || always()",
+])
+def test_marker_flags_a_run_condition_that_can_skip_wrongly(bad_if):
+    ps = problems(MARKED.replace(SKIP, bad_if, 1), "check_alerts.py")
+    assert any("허용된 조건" in p for p in ps), ps
+
+
+def test_marker_flags_save_that_runs_even_when_tests_fail():
+    save_at = MARKED.index("Save test pass marker")
+    bad = MARKED[:save_at] + MARKED[save_at:].replace(SKIP, "if: always()", 1)
+    assert any("always" in p for p in problems(bad, "check_alerts.py"))
+
+
+def test_marker_flags_save_before_tests():
+    assert any("앞이다" in p for p in problems(_swap(MARKED, "Run tests", "Save test pass marker"), "check_alerts.py"))
+
+
+def test_marker_flags_restore_after_tests():
+    ps = problems(_swap(MARKED, "Restore test pass marker", "Run tests"), "check_alerts.py")
+    assert any("복원 단계가" in p and "뒤다" in p for p in ps), ps
+
+
+def test_marker_flags_key_mismatch_and_missing_save():
+    assert any("다르다" in p for p in problems(MARKED.replace("scripts/alerts_v2/events.yml", "x", 1), "check_alerts.py"))
+    no_save = MARKED.split("      - name: Save test pass marker")[0] + "      - name: Send\n        run: python scripts/check_alerts.py\n"
+    assert any("저장 단계" in p for p in problems(no_save, "check_alerts.py"))
