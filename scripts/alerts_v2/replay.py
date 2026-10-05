@@ -93,7 +93,7 @@ def trading_days(base: Context, days: int) -> list[dt.date]:
     return out[-days:]
 
 
-def run(days: int = 400, sigma: float | None = None, watch: list[str] | None = None, out: str | None = None) -> dict:
+def run(days: int = 400, sigma: float | None = 2.5, watch: list[str] | None = None, out: str | None = None) -> dict:
     base = Context.load()
     events = [ev for ev in schema.load_events() if ev["id"] in REPLAYABLE and ev["judge"] in JUDGES]
     if sigma is not None:
@@ -152,7 +152,7 @@ def write_md(s: dict, path: str) -> None:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=400)
-    ap.add_argument("--sigma", type=float, default=None)
+    ap.add_argument("--sigma", type=float, default=2.5)   # 사전은 2.0(보통) — 재생은 기본 세기 big 로 센다
     ap.add_argument("--watch", default="")
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)

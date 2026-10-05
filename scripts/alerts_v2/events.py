@@ -54,6 +54,7 @@ def hits_to_rows(ctx: Context, ev: dict, hits: list[Hit], render) -> list[Row]:
             value=h.value, unit=h.unit, asOf=h.asOf, fresh=h.fresh,
             title=txt["title"], why=txt.get("why", ""), next=txt.get("next", ""), url=txt.get("url") or ev["url"],
             ts=ctx.now.isoformat(timespec="seconds"),
+            chg=h.chg, z=h.fields.get("abs_z"),
         ))
     return rows
 

@@ -1,6 +1,7 @@
 # 사건 사전 — 알림 v2 의 단일 원천(기획서 3장). 최소 YAML 부분집합(schema.py 머리말)으로만 적는다.
 # level: alarm(경보) alert(알림) notice(안내) record(기록) · run: light full settle daily eve
 # targets 는 bundles/registry.json 의 id(없으면 context.ALIASES). default_on 이 비면 별표(관심)만.
+# 급변(A1~A4)의 sigma 2.0 = 「보통」 세기로 넓게 잡아 원장에 두고, 울림은 구독 단계가 사용자 세기(기본 big 2.5σ)로 거른다(subscribe.strength_ok).
 # 템플릿 변수: {name} 대상 이름 · {value} 표시 값 · {chg} 등락% · {dir_ko} 방향 말 · 그 밖은 Hit.fields.
 
 # ---- A 급변 ----
@@ -12,7 +13,7 @@
   targets: [kospi, kosdaq, sp500, nasdaq, nikkei, sox, hsi, shanghai]
   default_on: [kospi, sp500]
   judge: swing_sigma
-  params: {sigma: 2.5, clamp_pct: [0.5, 5.0], fallback_pct: {kospi: 2.0, kosdaq: 2.0, sp500: 2.0, nasdaq: 2.0}}
+  params: {sigma: 2.0, clamp_pct: [0.5, 5.0], fallback_pct: {kospi: 2.0, kosdaq: 2.0, sp500: 2.0, nasdaq: 2.0}}
   run: light
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
@@ -27,7 +28,7 @@
   targets: [usdkrw, jpykrw, usdjpy, eurkrw]
   default_on: [usdkrw]
   judge: swing_sigma
-  params: {sigma: 2.5, clamp_pct: [0.5, 5.0], fallback_pct: {usdkrw: 1.0}}
+  params: {sigma: 2.0, clamp_pct: [0.5, 5.0], fallback_pct: {usdkrw: 1.0}}
   run: light
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
@@ -42,7 +43,7 @@
   targets: [gold, silver, copper, wti, brent, natgas]
   default_on: []
   judge: swing_sigma
-  params: {sigma: 2.5, clamp_pct: [0.5, 5.0]}
+  params: {sigma: 2.0, clamp_pct: [0.5, 5.0]}
   run: light
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
@@ -56,7 +57,7 @@
   targets: [btc]
   default_on: []
   judge: swing_sigma
-  params: {sigma: 2.5, clamp_pct: [0.5, 8.0], daily: true}
+  params: {sigma: 2.0, clamp_pct: [0.5, 8.0], daily: true}
   run: full
   cooldown: {per: [target], days: 1}
   title: "비트코인 {chg:+.1f}% · {value}"

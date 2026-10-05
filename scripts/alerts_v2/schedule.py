@@ -32,7 +32,7 @@ def in_quiet(now: dt.datetime, quiet: dict | None) -> bool:
 def _settings(user: dict | None) -> dict:
     s = dict(DEFAULT_SETTINGS)
     for k, v in (user or {}).items():
-        if v is not None:
+        if v is not None or k == "quiet":          # quiet=None = 조용한 시간 끔(v2 화면이 그렇게 저장한다)
             s[k] = v
     s["dailyCap"] = int((user or {}).get("dailyCap") or PACKAGE_CAP.get(s.get("package", "normal"), 6))
     return s

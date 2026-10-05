@@ -11,7 +11,7 @@ import hashlib
 import hmac
 import os
 
-from . import LEVELS, PACKAGES
+from . import LEVELS, PACKAGES, SIGMA
 from .events import Hit
 from .ledger import Ledger, Row
 from .model import DEFAULT_SETTINGS, Decision
@@ -75,7 +75,10 @@ def upgrade_prefs(doc: dict) -> dict:
         alerts.append(a)
     out["alerts"] = alerts
     s = dict(DEFAULT_SETTINGS)
-    s.update({k: v for k, v in (doc.get("settings") or {}).items() if v is not None})
+    raw = doc.get("settings") or {}
+    is_v2 = doc.get("v") == 2 or "package" in raw
+    # v1 의 quiet:null 은 「미설정」 → 기본 23:00~07:00, v2 의 quiet:null 은 「끔」 그대로(화면 prefsV2 와 같은 규칙)
+    s.update({k: v for k, v in raw.items() if v is not None or (is_v2 and k == "quiet")})
     if s.get("package") not in PACKAGES:
         s["package"] = "normal"
     out["settings"] = s
@@ -127,23 +130,22 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
         val = ctx.value(target)
         chg = ctx.change_pct(target)
         hit = None
+        # 공개 원장(G5): 임계값 · 사용자가 붙인 이름은 행에 싣지 않는다 — 화면이 cond id 로 이 기기에서 붙인다
         if c["event"] == "U1" and val is not None:
             d = c.get("dir") or "up"
             if (d == "up" and float(val) >= float(thr)) or (d == "down" and float(val) <= float(thr)):
                 hit = Hit(target=target, dir=d, value=val, unit="", asOf=ctx.as_of(target), fresh=ctx.fresh(target),
-                          chg=chg, fields={"threshold": thr, "dir_ko": U1_DIR_KO[d], "name": c.get("name") or ""})
+                          chg=chg, fields={"dir_ko": U1_DIR_KO[d]})
         elif c["event"] == "U2" and chg is not None:
             if abs(float(chg)) >= float(thr):
                 d = "up" if float(chg) > 0 else "down"
                 hit = Hit(target=target, dir=d, value=val, unit="", asOf=ctx.as_of(target), fresh=ctx.fresh(target),
-                          chg=chg, fields={"threshold": thr, "name": c.get("name") or ""})
+                          chg=chg, fields={})
         if not hit:
             continue
-        if not hit.fields.get("name"):
-            hit.fields.pop("name")
         ev = {"id": c["event"], "level": c.get("level") or "alert", "url": f"#/i/{target}",
-              "title": "{name} {value} · {threshold} {dir_ko}" if c["event"] == "U1" else "{name} {chg:+.1f}% · {value}",
-              "why": ["내 조건"] if c["event"] == "U1" else ["내 조건 ±{threshold}%"], "next": []}
+              "title": "{name} {value} · 내 조건 {dir_ko}" if c["event"] == "U1" else "{name} {chg:+.1f}% · {value}",
+              "why": ["내 조건"], "next": []}
         txt = render(ev, hit) if render else {"title": ev["title"], "why": "내 조건", "next": "", "url": ev["url"]}
         k = hmac_key(f"{c['id']}:{hit.asOf}:{hit.dir}", salt)
         row = Row(key=f"{c['event']}:{target}:{hit.dir}:{k}", event=c["event"], target=target, dir=hit.dir,
@@ -167,6 +169,26 @@ def _override(prefs: dict | None, row: dict) -> dict | None:
         if a.get("event") == row.get("event") and a.get("target") in (row.get("target"), "*"):
             return a
     return None
+
+
+def strength_ok(row: dict, ev: dict, override: dict | None) -> bool:
+    """급변 사건(swing_sigma)의 사용자 세기 — 사전은 2.0σ 로 넓게 잡아 원장에 두고, 울림은 여기서 거른다.
+    세기 = override.strength(normal 2σ · big 2.5σ · huge 3σ · value = override.value %), 없으면 big.
+    임계 = min(max(kσ, 하한), 상한)(사전 clamp_pct, 현행 check_swings 와 같은 식). σ = |등락| / z."""
+    if ev.get("judge") != "swing_sigma":
+        return True
+    chg, z = row.get("chg"), row.get("z")
+    if chg is None or not z:
+        return True                                   # 세기를 잴 수 없으면 사전 판정 그대로
+    p = ev.get("params") or {}
+    lo, hi = (list(p.get("clamp_pct") or [0.5, 5.0]) + [5.0])[:2]
+    st = (override or {}).get("strength") or "big"
+    if st == "value":
+        thr = float((override or {}).get("value") or 0) or None
+        return thr is None or abs(float(chg)) >= thr
+    sigma = abs(float(chg)) / float(z)
+    thr = min(max(SIGMA.get(st, 2.5) * sigma, float(lo)), float(hi))
+    return abs(float(chg)) >= thr
 
 
 def match(rows: list[dict], ctx, prefs: dict | None = None, events_by_id: dict | None = None) -> list[Decision]:
@@ -194,6 +216,9 @@ def match(rows: list[dict], ctx, prefs: dict | None = None, events_by_id: dict |
         fam = ev.get("family")
         if fam and families.get(fam) is False:
             out.append(Decision(r, level, False, "갈래 꺼짐"))
+            continue
+        if not strength_ok(r, ev, ov):
+            out.append(Decision(r, "record", False, "세기 미달"))      # 2σ 는 넘었지만 내 세기엔 못 미침 — 기록만
             continue
         target = r.get("target")
         on = target in (ev.get("default_on") or []) or (target in SPECIAL_TARGETS and bool(ev.get("default_on")))

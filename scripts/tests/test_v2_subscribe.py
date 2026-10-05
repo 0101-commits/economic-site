@@ -66,7 +66,8 @@ def test_user_hits_need_salt_and_hmac_key(monkeypatch):
     assert [r["event"] for r in rows] == ["U1", "U2"]
     assert rows[0]["key"].startswith("U1:usdkrw:up:") and len(rows[0]["key"].split(":")[-1]) == 12
     assert "1400" not in rows[0]["key"] and rows[0]["cond"] == "c1"
-    assert rows[0]["title"] == "usdkrw 1,401 · 1,400 위로" and rows[1]["dir"] == "down"
+    assert rows[0]["title"] == "usdkrw 1,401 · 내 조건 위로" and rows[1]["dir"] == "down"
+    assert "1400" not in rows[0]["title"] and "threshold" not in rows[0]       # 임계값은 공개 원장에 없음(G5)
 
 
 def test_once_condition_stops_after_fired(monkeypatch):
@@ -94,3 +95,18 @@ def test_upgrade_prefs_v1_to_v2():
     assert byid["p2"]["event"] == "U2" and byid["p2"]["value"] == 3 and byid["p2"]["dir"] == "down" and byid["p2"]["repeat"] == "each"
     assert byid["p3"]["event"] == "D2" and byid["p4"]["event"] == "D5" and byid["p5"]["event"] == "C1"
     assert v2["settings"]["package"] == "normal" and v2["settings"]["dailyCap"] == 6 and v2["v"] == 2
+
+
+def test_strength_filters_swing_rows_by_user_sigma():
+    """사전은 2σ 로 넓게 잡고, 울림은 사용자 세기(기본 big 2.5σ)로 거른다 — σ = |등락| / z."""
+    row = dict(_row("A1", "kospi"), chg=2.2, z=2.2)          # σ 1.0% → 2.2σ
+    base = subscribe.match([row], _ctx(), {"settings": {"package": "normal"}}, EV)[0]
+    assert base.level == "record" and base.reason == "세기 미달"              # 기본 big 2.5σ 미달
+    normal = subscribe.match([row], _ctx(), {"alerts": [{"id": "s", "event": "A1", "target": "kospi", "strength": "normal"}]}, EV)[0]
+    assert normal.ring and normal.level == "alert"
+    val = subscribe.match([row], _ctx(), {"alerts": [{"id": "s", "event": "A1", "target": "kospi", "strength": "value", "value": 2.0}]}, EV)[0]
+    assert val.ring
+    big_row = dict(_row("A1", "kospi"), chg=3.0, z=3.0)
+    assert subscribe.match([big_row], _ctx(), None, EV)[0].ring                  # 3σ 는 기본으로 울림
+    clamp_row = dict(_row("A1", "kospi"), chg=0.6, z=3.0)   # σ 0.2% → 2.5σ = 0.5% 하한 적용 → 0.6 ≥ 0.5 울림
+    assert subscribe.match([clamp_row], _ctx(), None, EV)[0].ring

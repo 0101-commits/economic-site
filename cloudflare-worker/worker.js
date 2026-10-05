@@ -930,6 +930,14 @@ const PREFS_ALERT_TYPES = ['price', 'pct', 'high52', 'event', 'flow', 'lens'];
 const PREFS_CHANNELS = ['push', 'discord'];
 const PREFS_ID = /^[A-Za-z0-9._:^=\-]{1,64}$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+// 알림 v2(사건 사전 · 꾸러미 · 울림 채널 — scripts/alerts_v2, 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md)
+const PREFS_EVENT = /^(?:[A-H][1-9]|U[12])$/;
+const PREFS_LEVELS = ['alarm', 'alert', 'notice', 'record'];
+const PREFS_STRENGTHS = ['normal', 'big', 'huge', 'value'];
+const PREFS_PACKAGES = ['quiet', 'normal', 'many'];
+const PREFS_RING_CH = ['kakao', 'push', 'both'];
+const PREFS_BRIEFS = ['morning', 'close', 'noon', 'evening', 'us', 'weekly'];
+const PREFS_BRIEF_ON = ['morning', 'close', 'weekly'];
 // 2층 필드 이름 — NFKC 로 정규화(전각 ｑｔｙ → qty)하고 소문자로 바꾼 뒤 공백·_·-·보이지 않는 글자를 빼고 비교한다.
 // 현행 보유 항목이 실제로 쓰는 이름(avg·qty·fxBuy, js/app2.js)과 흔한 다른 이름을 담는다.
 // 단독 amount·금액·balance 는 넣지 않는다 — 수급 알림 cond 의 금액 기준이나 시나리오 입력이 정당하게 쓴다.
@@ -985,7 +993,20 @@ function _sanitizePrefs(raw) {
   const alerts = [];
   for (const a of list(r.alerts, 100)) {
     if (!_isObj(a) || typeof a.id !== 'string' || !PREFS_ID.test(a.id)) continue;
-    if (typeof a.target !== 'string' || !PREFS_ID.test(a.target) || !PREFS_ALERT_TYPES.includes(a.type)) continue;
+    if (typeof a.target !== 'string' || !(a.target === '*' || PREFS_ID.test(a.target))) continue;
+    // v2 조건(event) — 임계값(value)은 KV 에만 있고 공개 원장엔 가지 않는다. target '*' = 그 사건 전체 조정(ring 없음).
+    if (typeof a.event === 'string' && PREFS_EVENT.test(a.event)) {
+      const o = { id: a.id, event: a.event, target: a.target, repeat: a.repeat === 'once' ? 'once' : 'each', enabled: a.enabled !== false };
+      if (typeof a.ring === 'boolean') o.ring = a.ring;
+      if (PREFS_STRENGTHS.includes(a.strength)) o.strength = a.strength;
+      if (typeof a.value === 'number' && Number.isFinite(a.value)) o.value = a.value;
+      if (a.dir === 'up' || a.dir === 'down') o.dir = a.dir;
+      if (PREFS_LEVELS.includes(a.level)) o.level = a.level;
+      const at = _isoOrNull(a.armedAt); if (at) o.armedAt = at;
+      if (typeof a.name === 'string' && a.name.trim()) o.name = a.name.trim().slice(0, 40);
+      alerts.push(o); continue;
+    }
+    if (a.target === '*' || !PREFS_ALERT_TYPES.includes(a.type)) continue;
     const cond = _isObj(a.cond) ? a.cond : {};
     if (JSON.stringify(cond).length > 512) throw 'cond_too_large';
     alerts.push({
@@ -1004,6 +1025,18 @@ function _sanitizePrefs(raw) {
     unit: s.unit === 'won' ? 'won' : 'man',
     quiet: typeof q.from === 'string' && typeof q.to === 'string' && HHMM.test(q.from) && HHMM.test(q.to)
       ? { from: q.from, to: q.to } : null,
+    // v2 — 꾸러미 · 울림 채널 · 상한 · 경보 돌파 · 브리핑 6 · 갈래 8 · 이 기기 기억 · 카톡 수신자(≤5, 이름 20자)
+    package: PREFS_PACKAGES.includes(s.package) ? s.package : 'normal',
+    ringChannel: PREFS_RING_CH.includes(s.ringChannel) ? s.ringChannel : 'push',
+    dailyCap: Number.isInteger(s.dailyCap) && s.dailyCap >= 1 && s.dailyCap <= 50 ? s.dailyCap : 6,
+    quietAlarm: s.quietAlarm === true,
+    briefings: Object.fromEntries(PREFS_BRIEFS.map(k => [k, _isObj(s.briefings) && typeof s.briefings[k] === 'boolean' ? s.briefings[k] : PREFS_BRIEF_ON.includes(k)])),
+    families: Object.fromEntries([...'ABCDEFGH'].map(f => [f, !(_isObj(s.families) && s.families[f] === false)])),
+    rememberKey: s.rememberKey === true,
+    kakaoFriends: s.kakaoFriends === true,
+    kakaoRecipients: list(s.kakaoRecipients, 5).filter(x => _isObj(x) && typeof x.name === 'string').map(x => ({
+      uuid: typeof x.uuid === 'string' && /^[A-Za-z0-9_\-]{0,64}$/.test(x.uuid) ? x.uuid : '',
+      name: x.name.trim().slice(0, 20), briefOnly: x.briefOnly === true })),
   };
   const scenarios = [];
   for (const sc of list(r.scenarios, 20)) {
@@ -1058,7 +1091,7 @@ async function handlePrefs(request, env) {
   let cur;
   try { cur = await env.ECON_PORTFOLIO.get(a.kvKey, 'json'); }
   catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
-  if (request.method === 'GET') return jsonResponse(cur || { v: 1, updatedAt: null, ..._sanitizePrefs({}) });
+  if (request.method === 'GET') return jsonResponse(cur || { v: 2, updatedAt: null, ..._sanitizePrefs({}) });
 
   const b = await _readJsonBody(request, PREFS_MAX_BYTES);
   if (b.err) return b.err;
@@ -1079,7 +1112,7 @@ async function handlePrefs(request, env) {
   catch (e) { if (typeof e === 'string') return jsonResponse({ error: e }, 400); throw e; }
   // updatedAt 은 저장본보다 반드시 커야 If-Match 가 구분된다(같은 밀리초 두 번 저장 대비).
   const t = Math.max(Date.now(), (Date.parse(have) || 0) + 1);
-  const doc = { v: 1, updatedAt: new Date(t).toISOString(), ...clean };
+  const doc = { v: 2, updatedAt: new Date(t).toISOString(), ...clean };
   const out = JSON.stringify(doc);
   if (new TextEncoder().encode(out).length > PREFS_MAX_BYTES) {
     return jsonResponse({ error: 'prefs_too_large', limit: PREFS_MAX_BYTES,

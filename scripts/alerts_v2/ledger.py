@@ -38,6 +38,8 @@ class Row:
     url: str
     ts: str
     sent: dict = field(default_factory=lambda: dict(SENT_DEFAULT))
+    chg: float | None = None       # 등락(%) — 급변 사건의 사용자별 세기(σ 배수) 판정에 쓴다
+    z: float | None = None         # |등락| / σ — 같은 용도. 둘 다 공개해도 되는 시장 값
 
     def to_dict(self) -> dict:
         return asdict(self)

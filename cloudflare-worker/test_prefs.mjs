@@ -47,8 +47,12 @@ check('POST /prefs → 405', (await call('POST', '/prefs', { body: {} })).status
 console.log('GET 빈값');
 let r = await call('GET', '/prefs');
 check('200', r.status, 200);
-check('빈 기본값', r.j, { v: 1, updatedAt: null, watch: [], alerts: [],
-  settings: { theme: 'system', updown: 'kr', unit: 'man', quiet: null }, scenarios: [] });
+const V2_DEFAULTS = { package: 'normal', ringChannel: 'push', dailyCap: 6, quietAlarm: false,
+  briefings: { morning: true, close: true, noon: false, evening: false, us: false, weekly: true },
+  families: { A: true, B: true, C: true, D: true, E: true, F: true, G: true, H: true },
+  rememberKey: false, kakaoFriends: false, kakaoRecipients: [] };
+check('빈 기본값', r.j, { v: 2, updatedAt: null, watch: [], alerts: [],
+  settings: { theme: 'system', updown: 'kr', unit: 'man', quiet: null, ...V2_DEFAULTS }, scenarios: [] });
 
 console.log('PUT 저장 · 화이트리스트');
 const good = {
@@ -77,7 +81,31 @@ check('watch', saved.watch, [{ id: 'kospi', kind: 'indicator', addedAt: '2026-10
                              { id: '005930', kind: 'stock', addedAt: null }]);
 check('alerts', saved.alerts, [{ id: 'a1', target: '005930', type: 'price', cond: { op: '>=', value: 90000 },
   repeat: 'daily', channels: ['push', 'discord'], enabled: true }]);
-check('settings', saved.settings, { theme: 'dark', updown: 'us', unit: 'won', quiet: { from: '23:00', to: '07:00' } });
+check('settings', saved.settings, { theme: 'dark', updown: 'us', unit: 'won', quiet: { from: '23:00', to: '07:00' }, ...V2_DEFAULTS });
+// v2 조건 · 설정 — event 조건은 value(임계) · strength · level · dir 을 받고, 모르는 값은 기본으로
+r = await call('PUT', '/prefs', { alerts: [
+  { id: 'c1', event: 'U1', target: 'usdkrw', dir: 'up', value: 1400, repeat: 'once', ring: true, enabled: true, name: '달러원 1400 위로', foo: 1 },
+  { id: 'c2', event: 'A1', target: '*', strength: 'huge', level: 'alarm' },
+  { id: 'c3', event: 'Z9', target: 'kospi' },
+  { id: 'c4', event: 'U2', target: 'kospi', value: 'x', strength: 'odd' } ],
+  settings: { package: 'many', ringChannel: 'kakao', dailyCap: 99, quietAlarm: true, briefings: { noon: true },
+    families: { B: false }, rememberKey: true, kakaoFriends: true,
+    kakaoRecipients: [{ uuid: 'abc', name: '가족 한 명', briefOnly: true }, { name: 'x'.repeat(30) }, { uuid: 'bad uuid!', name: 'y' }] } },
+  { 'If-Match': saved.updatedAt });
+check('v2 PUT 200', r.status, 200);
+const v2 = r.j;
+check('v2 조건 2건(Z9 버림, 값 아닌 value 버림)', v2.alerts.map(a => a.id), ['c1', 'c2', 'c4']);
+check('v2 U1 보존 필드', v2.alerts[0], { id: 'c1', event: 'U1', target: 'usdkrw', repeat: 'once', enabled: true, ring: true, value: 1400, dir: 'up', name: '달러원 1400 위로' });
+check('v2 전체 조정(*)', v2.alerts[1], { id: 'c2', event: 'A1', target: '*', repeat: 'each', enabled: true, strength: 'huge', level: 'alarm' });
+check('v2 value 아닌 값 · 모르는 세기 버림', v2.alerts[2], { id: 'c4', event: 'U2', target: 'kospi', repeat: 'each', enabled: true });
+check('v2 settings', { package: v2.settings.package, ringChannel: v2.settings.ringChannel, dailyCap: v2.settings.dailyCap, quietAlarm: v2.settings.quietAlarm,
+  noon: v2.settings.briefings.noon, close: v2.settings.briefings.close, B: v2.settings.families.B, A: v2.settings.families.A,
+  rememberKey: v2.settings.rememberKey, kakaoFriends: v2.settings.kakaoFriends, n: v2.settings.kakaoRecipients.length,
+  r0: v2.settings.kakaoRecipients[0], r1name: v2.settings.kakaoRecipients[1].name.length, r2uuid: v2.settings.kakaoRecipients[2].uuid },
+  { package: 'many', ringChannel: 'kakao', dailyCap: 6, quietAlarm: true, noon: true, close: true, B: false, A: true, rememberKey: true, kakaoFriends: true,
+    n: 3, r0: { uuid: 'abc', name: '가족 한 명', briefOnly: true }, r1name: 20, r2uuid: '' });
+check('v2 문서 v', v2.v, 2);
+saved = v2;
 check('scenarios', saved.scenarios, [{ name: '금리 +1%p', inputs: { rateDelta: 1 } }]);
 check('GET 이 저장본을 돌려줌', (await call('GET', '/prefs')).j, saved);
 check('KV 키 = prefs:<키 해시 앞 16자>', kv.has('prefs:' + KEY.slice(0, 16)), true);

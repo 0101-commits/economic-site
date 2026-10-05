@@ -59,7 +59,7 @@ def test_swing_sigma_hit_escalates_and_names_peer():
     h = by_target(hits(ctx(), "A1"))
     k = h["kospi"]
     assert (k.dir, k.chg, k.asOf, k.fresh) == ("down", -4.0, "2026-10-05", "live")
-    assert k.fields["abs_z"] == 4.0 and k.fields["thr"] == 2.5
+    assert k.fields["abs_z"] == 4.0 and k.fields["thr"] == 2.0      # 사전 sigma 2.0(보통) × σ 1% — 울림 세기는 구독이 거른다
     assert k.fields["level"] == "alarm"                      # escalate abs_z>=3.0
     assert k.fields["peer"] == "KOSDAQ"                      # 같은 방향 1σ 이상(코스닥 −1.8σ)
     assert k.fields["next_round"] == 5000                    # B2 마디표(코스피 1000) 아래쪽 다음 마디
