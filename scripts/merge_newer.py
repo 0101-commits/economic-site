@@ -59,6 +59,11 @@ def merge(run, origin):
                     elif ol.get("date", "") > rl.get("date", ""):
                         rarr.extend(p for p in oarr if p.get("date", "") > rl.get("date", ""))
         run["lastUpdated"] = origin["lastUpdated"]
+    # historyVersion 은 history.json(일일 런이 다시 쓴다)의 짝 — 둘 중 새 쪽을 남긴다. 종전엔 run 것만 남아,
+    # 일일 런 푸시 18초 뒤 경량 런(옛 data.json 으로 시작)이 재시도 병합으로 옛 버전을 다시 올려 validate 가
+    # 매 런 「history.json lastUpdated ≠ historyVersion」을 냈다(2026-10-05 실측 bc32c43b → 648c7700).
+    if _newer(origin.get("historyVersion"), run.get("historyVersion")):
+        run["historyVersion"] = origin["historyVersion"]
     for k, f in SNAP.items():
         r, o = run.get(k), origin.get(k)
         if isinstance(r, dict) and isinstance(o, dict) and _newer(o.get(f), r.get(f)):

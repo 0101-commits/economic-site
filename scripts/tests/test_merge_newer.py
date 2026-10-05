@@ -57,3 +57,15 @@ def test_snapshot_block_newer_wins(tmp_path):
     r = run(tmp_path, base(NEW, 1, {"stockFlows": {"generatedAt": OLD, "items": [1]}}),
             base(OLD, 1, {"stockFlows": {"generatedAt": NEW, "items": [2]}}))
     assert r["stockFlows"]["items"] == [2]
+
+
+def test_history_version_keeps_newer_side(tmp_path):
+    # 일일 런(origin, history.json 09:07 로 다시 씀) 뒤 18초 만에 경량 런(run, 옛 data.json 으로 시작)이 재시도 병합하면
+    # 옛 historyVersion 이 다시 올라가 validate 가 매 런 경고를 냈다(2026-10-05 실측) — 새 쪽을 남긴다.
+    HV_OLD, HV_NEW = "2026-10-05T02:24:04+09:00", "2026-10-05T09:07:40+09:00"
+    r = run(tmp_path, base(NEW, 100, {"historyVersion": HV_OLD}), base(OLD, 200, {"historyVersion": HV_NEW}))
+    assert r["historyVersion"] == HV_NEW
+    r = run(tmp_path, base(OLD, 100, {"historyVersion": HV_NEW}), base(NEW, 200, {"historyVersion": HV_OLD}))
+    assert r["historyVersion"] == HV_NEW
+    r = run(tmp_path, base(NEW, 100, {"historyVersion": HV_NEW}), base(OLD, 200))   # origin 에 없으면 run 것 유지
+    assert r["historyVersion"] == HV_NEW
