@@ -11,10 +11,12 @@ const TS = Math.floor(Date.parse('2026-10-02T09:05:00+09:00') / 1000)
 const TODAY = '2026-10-02'
 
 test('condId: Worker 가 받는 모양이고 겹치지 않는다', () => {
-  const ids = new Set(Array.from({ length: 200 }, () => condId()))
-  assert.equal(ids.size, 200)
+  const ids = new Set(Array.from({ length: 2000 }, () => condId()))
+  assert.equal(ids.size, 2000)
   for (const id of ids) assert.match(id, PREFS_ID)
-  assert.equal(condId(0, 0.5), 'p0i')
+  assert.equal(condId(0, 0.5), 'p0i00000')          // 임의 부분은 늘 6자(짧은 난수도 채운다)
+  assert.equal(condId(0, 0.123456789).length, 1 + 1 + 6)
+  assert.notEqual(condId(1, 0.5), condId(1, 0.25))   // 같은 밀리초, 다른 난수
 })
 
 test('condStatus: 꺼짐 · 대기 · 발동됨 · 오늘 발동', () => {
