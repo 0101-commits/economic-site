@@ -232,7 +232,7 @@ def test_bok_schedule_parser():
                                       "2026-07-16", "2026-08-27", "2026-10-22", "2026-11-26"]
     e = ev[6]
     assert e["dt"] == "10.22 09:00" and e["cc"] == "KR" and e["stars"] == 3 and e["timeApprox"] is True
-    assert e["source"].startswith("https://www.bok.or.kr/") and e["name"] not in fd.CALENDAR_INDICATOR_MAP
+    assert e["source"].startswith("https://www.bok.or.kr/") and e["name"] in fd.CAL_DECISION_NAMES
     assert fd._parse_bok_mpc("<html>no year</html>") == []
 
 
@@ -264,7 +264,8 @@ def test_kostat_plan_parser_picks_three_releases():
     assert got[:3] == [("2026-09-02", "09.02 08:00", "한국 소비자물가동향", 3, "2026-08"),
                        ("2026-09-09", "09.09 08:00", "한국 고용동향", 2, "2026-08"),
                        ("2026-09-30", "09.30 08:00", "한국 산업활동동향", 2, "2026-08")]
-    assert all(e["name"] not in fd.CALENDAR_INDICATOR_MAP for e in ev)   # 지난달 값이 실적으로 찍히지 않게
+    # 짝이 되는 잎이 없는 둘(전산업생산·취업자 증감)은 표 밖 — 소비자물가동향만 cpi_kr 로 연결(refPeriod 월 관측만 act)
+    assert {e["name"] for e in ev if e["name"] in fd.CALENDAR_INDICATOR_MAP} == {"한국 소비자물가동향"}
     one = ('<h3>2026년 전체 보도계획</h3><table><tr class="tr-notice"><td>12.31.( 목 )</td><td>08:00</td>'
            '<td>2026년 12월 및 연간 소비자물가동향</td></tr><tr class="tr-notice"><td>09.10.( 목 )</td>'
            '<td>12:00</td><td>국가데이터처, 추석 일일물가조사로 민생안정대책 신속 지원</td></tr></table>')
@@ -290,7 +291,8 @@ def _cal_env(monkeypatch, pages, fail=()):
 
 
 PAGES = {fd._BOK_MPC_URL: "bok_mpc_2026.html", fd._ECB_MPM_URL: "ecb_mgcgc.html",
-         fd._BOJ_MPM_URL: "boj_mpmsche.html", fd._KOSTAT_URL: "kostat_newspln_all.html"}
+         fd._BOJ_MPM_URL: "boj_mpmsche.html", fd._KOSTAT_URL: "kostat_newspln_all.html",
+         fd._FOMC_URL: "fomc_calendars.html"}
 TODAY = date(2026, 9, 30)
 
 
@@ -298,7 +300,7 @@ def test_intl_calendar_daily_fetch_window_and_status(monkeypatch):
     got = _cal_env(monkeypatch, PAGES)
     ev, st = fd.fetch_intl_calendar([], daily=True, today=TODAY)
     isos = {e["iso"] for e in ev}
-    assert st == {"bok": 2, "ecb": 1, "boj": 2, "kostat": 3}, st          # 9/16 ~ 12/14 창
+    assert st == {"bok": 2, "ecb": 1, "boj": 2, "fomc": 3, "kostat": 3}, st          # 9/16 ~ 12/14 창
     assert {"2026-09-18", "2026-09-30", "2026-10-22", "2026-10-29", "2026-11-26"} <= isos
     assert "2026-12-17" not in isos                                        # 창(75일 뒤) 밖 — 10/2 부터 보인다
     assert "2026-09-02" not in isos                                        # 창(14일 전) 밖

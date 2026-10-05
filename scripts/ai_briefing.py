@@ -17,6 +17,7 @@ GitHub Actions 의 fetch-data 워크플로에서 fetch_data.py 직후 실행된�
 
 import json
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -258,14 +259,60 @@ SLOT_LINE_BANNED = ("내일", "모레", "연휴", "다음 주", "다음주", "�
                     "매수하세요", "매도하세요", "매수 추천", "매도 추천", "매수 기회", "사세요", "파세요")
 
 
-def slot_line_ok(s):
-    """알림 한 문장 검증 — 길이·상대 시점어·투자 권유·여러 줄."""
+_SLOT_DAY = {"오늘": 0, "어제": -1}     # 내일·모레는 SLOT_LINE_BANNED 가 일정과 무관하게 먼저 막는다
+_SLOT_MD = re.compile(r"(?<![\d.])(\d{1,2})\s*(?:월\s*|/)(\d{1,2})\s*일?(?![\d.])")   # 소수 2.5 는 날짜가 아니다
+_SLOT_PAST = re.compile(r"발표(?:됐|했|결과)|(?:발표[된한]|나온|공개된)\s")
+_SLOT_TERMS = ("CPI", "PPI", "PCE", "GDP", "NFP", "FOMC", "PMI", "ECB", "BOJ", "금통위", "소비자물가", "고용",
+               "산업생산", "산업활동", "소매판매", "주택착공")
+_SLOT_NOISE = {"미국", "한국", "일본", "유로존", "중국", "영국", "독일", "회의", "결정", "발표", "동향", "지수"}
+
+
+def _calendar_conflict(s, calendar, now):
+    """'오늘/어제/M월 D일 … 발표' 문장이 일정표와 어긋나나 → True. 그 날짜에 그 지표가 없거나, 발표 시각 전후와 시제가 안 맞음."""
+    from check_releases import release_due, KST
+    evs = calendar.get("events") if isinstance(calendar, dict) else calendar
+    evs = [e for e in (evs or []) if isinstance(e, dict)]
+    now = now or datetime.now(KST)
+    now = now if now.tzinfo else now.replace(tzinfo=KST)
+    days = [(now + timedelta(days=n)).date() for w, n in _SLOT_DAY.items() if w in s]
+    # ponytail: 연도는 now 의 해로 본다 — 연말·연초에 걸친 'M월 D일' 은 대조 못 한다
+    days += [d for d in (_try_date(now.year, m, dd) for m, dd in _SLOT_MD.findall(s)) if d]
+    if "발표" not in s or not days:
+        return False
+    words = lambda e: [t for t in (re.sub(r"(동향|결정)$", "", w) for w in re.split(r"[\s()·/]+", str(e.get("name") or "")))
+                       if len(t) >= 2 and t not in _SLOT_NOISE]
+    # 문장이 가리키는 지표 = 고정 어휘 + 일정표 이름의 낱말 중 문장에 든 것. 일정표에 없는 지표(오늘 PPI)도 잡으려고 어휘를 따로 둔다.
+    hit = [t for t in set(_SLOT_TERMS) | {t for e in evs for t in words(e)} if t.lower() in s.lower()]
+    named = lambda e: any(t.lower() in str(e.get("name") or "").lower() for t in hit)
+    mentioned = bool(hit)
+    for d in days:
+        today = [e for e in evs if str(e.get("iso") or "")[:10] == d.isoformat()]
+        pool = [e for e in today if named(e)] if mentioned else today
+        if not pool:
+            return True                                      # 그 날짜에 그 지표(또는 어떤 발표도) 없다
+        due = [release_due(e, now) for e in pool]
+        if (bool(_SLOT_PAST.search(s)) and not any(due)) or (not _SLOT_PAST.search(s) and all(due)):
+            return True                                      # 안 나온 발표를 '나왔다'·이미 나온 발표를 '앞두고'
+    return False
+
+
+def _try_date(y, m, d):
+    try:
+        return datetime(y, int(m), int(d)).date()
+    except ValueError:
+        return None
+
+
+def slot_line_ok(s, calendar=None, now=None):
+    """알림 한 문장 검증 — 길이·상대 시점어·투자 권유·여러 줄. calendar(economicCalendar 블록 또는 events 목록)를
+    주면 '오늘 발표'·'M월 D일 발표' 문장을 일정표와 대조해 어긋나면 버린다(이미 지난 발표 포함)."""
     s = (s or "").strip()
     return (8 <= len(s) <= SLOT_LINE_MAX and "\n" not in s
-            and not any(w in s for w in SLOT_LINE_BANNED))
+            and not any(w in s for w in SLOT_LINE_BANNED)
+            and not (calendar is not None and _calendar_conflict(s, calendar, now)))
 
 
-def slot_line(slot_name, facts, timeout=15):
+def slot_line(slot_name, facts, timeout=15, calendar=None):
     """카드 숫자(facts, 한 줄 문자열) → 한 문장 또는 "". 키가 없으면 호출하지 않는다."""
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not key or not facts:
@@ -287,7 +334,7 @@ def slot_line(slot_name, facts, timeout=15):
                 continue                                     # 퇴역 모델 — 별칭으로
             r.raise_for_status()
             text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip().strip('"“”')
-            return text if slot_line_ok(text) else ""
+            return text if slot_line_ok(text, calendar) else ""
         except Exception as e:                               # noqa: BLE001
             log(f"슬롯 문장 실패({model}): {e}")
             return ""
