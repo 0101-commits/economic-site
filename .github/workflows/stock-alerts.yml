@@ -122,7 +122,30 @@ jobs:
           path: .pytest_ok
           key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
 
+      # 🔔 알림 v2(사건 사전 · 원장, 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md) — 경량 추출:
+      #    A1~A3 급변 · A5 서킷 · B2 마디 · U1 · U2. 원장(events/)은 늘 쓰고, 발송은 저장소 변수 ALERTS_V2=1 일 때만.
+      #    ALERTS_V2=1 이면 아래 현행 발송 단계 3개(종목 조건 · 서킷 · 급변)는 건너뛴다(전환 순서 docs/ALERTS_V2.md).
+      - name: Alerts v2 — light (사건 추출 · 발송)
+        continue-on-error: true
+        env:
+          KO_FONT_PATH: ~/kofonts
+          ALERTS_V2: ${{ vars.ALERTS_V2 || '0' }}
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}
+          GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_ALERTS: ${{ secrets.DISCORD_WEBHOOK_ALERTS }}
+          DISCORD_WEBHOOK_SWINGS: ${{ secrets.DISCORD_WEBHOOK_SWINGS }}
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          ALERTS_SYNC_KEY: ${{ secrets.ALERTS_SYNC_KEY }}
+          ALERTS_STATE_SALT: ${{ secrets.ALERTS_STATE_SALT }}
+        run: python scripts/alerts_v2/run.py --mode light
+
       - name: Check alerts & send KakaoTalk
+        if: vars.ALERTS_V2 != '1'
         env:
           # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
           # 토스 값은 PC 스냅샷(toss_snapshot.json) 경유, 라이브 지수는 Yahoo.
@@ -180,6 +203,7 @@ jobs:
       #   게이트(평일 09:00–15:30 KST, 1·2단계는 14:50 까지)와 결합해 장외 오발동은 없다.
       #   continue-on-error: 시세/카카오 장애가 종목 알림 이력 커밋(다음 스텝)을 막지 않게.
       - name: Check market halts & send KakaoTalk (라이브 감지)
+        if: vars.ALERTS_V2 != '1'
         continue-on-error: true
         env:
           HALTS_LIVE: '1'
@@ -209,6 +233,7 @@ jobs:
       #   alerts_state.json "_swings" 키 — 아래 커밋 스텝이 그대로 보존·커밋한다.
       #   continue-on-error: 시세/카카오 장애가 이력 커밋을 막지 않게(다른 감지 스텝과 동일).
       - name: Check market swings & send KakaoTalk (급변 속보)
+        if: vars.ALERTS_V2 != '1'
         continue-on-error: true
         env:
           # 토스 자격증명은 CI 에 주지 않는다 — 허용 IP 밖이라 발급이 매번 403(2026-09-28 제거).
@@ -226,7 +251,7 @@ jobs:
           DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
         run: python scripts/check_swings.py
 
-      - name: Commit alerts_state.json + halts_state.json (발송 이력 — 도배 방지)
+      - name: Commit alerts_state.json + halts_state.json + events/ (발송 이력 · 사건 원장 — 도배 방지)
         # ⚠ always() — 발송 스텝이 예외로 실패해도 이력 커밋은 반드시 돌려 '매분 재발송 스팸'을 막는다.
         #   (check_alerts.py 는 발송 전에 상태를 저장하고 전송 실패를 삼키므로 정상 시엔 exit 0.)
         #   halts_state.json 도 함께 커밋 — 서킷브레이커 발송 이력 소유권은 본 워크플로(fetch-data 는 미커밋).
@@ -235,7 +260,7 @@ jobs:
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           branch="${GITHUB_REF_NAME:-main}"
-          if [ ! -f alerts_state.json ] && [ ! -f halts_state.json ]; then echo "상태 파일 없음 — 커밋 건너뜀"; exit 0; fi
+          if [ ! -f alerts_state.json ] && [ ! -f halts_state.json ] && [ ! -d events ]; then echo "상태 파일 없음 — 커밋 건너뜀"; exit 0; fi
           # ⚠ 반드시 먼저 stage 한 뒤 변경 여부를 본다. 상태 파일은 최초엔 untracked 라
           #   `git diff`(워킹트리 vs 인덱스)·`git diff --staged`(인덱스 vs HEAD) 모두 untracked 파일을
           #   '변경 없음'으로 보고 → 최초 커밋이 영원히 스킵돼 파일이 끝내 추적되지 않던 버그.
@@ -243,13 +268,15 @@ jobs:
           #   stage 후 `git diff --staged`(인덱스 vs HEAD)는 신규 추가도 변경으로 감지한다.
           [ -f alerts_state.json ] && git add alerts_state.json || true
           [ -f halts_state.json ] && git add halts_state.json || true
-          if git diff --staged --quiet -- alerts_state.json halts_state.json; then
+          [ -d events ] && git add events || true
+          if git diff --staged --quiet -- alerts_state.json halts_state.json events; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
           msg="alerts: 발송 이력 업데이트 $(date -u +'%Y-%m-%d %H:%M UTC')"
           # data.json 커밋과 동일한 '최신 런이 이긴다' 재시도 정책 — 상태 파일만 재적용
           cp alerts_state.json /tmp/alerts_state.json.run 2>/dev/null || true
           cp halts_state.json /tmp/halts_state.json.run 2>/dev/null || true
+          rm -rf /tmp/events.run; [ -d events ] && cp -r events /tmp/events.run || true
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then
@@ -260,9 +287,11 @@ jobs:
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
             cp /tmp/alerts_state.json.run alerts_state.json 2>/dev/null || true
             cp /tmp/halts_state.json.run halts_state.json 2>/dev/null || true
+            [ -d /tmp/events.run ] && mkdir -p events && cp -r /tmp/events.run/. events/ || true
             [ -f alerts_state.json ] && git add alerts_state.json || true
             [ -f halts_state.json ] && git add halts_state.json || true
-            if git diff --staged --quiet -- alerts_state.json halts_state.json; then
+            [ -d events ] && git add events || true
+            if git diff --staged --quiet -- alerts_state.json halts_state.json events; then
               echo "원격이 이미 최신 — 종료"; exit 0
             fi
             git commit -m "$msg" -q || true
