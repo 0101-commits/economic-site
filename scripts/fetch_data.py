@@ -6295,6 +6295,58 @@ def _is_valid_mover_list(items, min_nonzero=3, allow_extreme=False):
     return True
 
 
+# ── 등락 종목 이상치 표시 · 시장별 기준일 통일 (알림 v2 A4, 2026-10-05) ──────────────────────────
+# 실측(2026-10-02): 한창 112원 −91.07% · 부산주공 27원 −32.5% 가 코스피 하락 1·2위로 그대로 실렸다 — 기준가 변경
+# (감자·액면 조정) 의심. 코스피 목록은 토스(그날), 코스닥은 KRX 전일 확정치라 같은 블록에 10-01·10-02 가 섞였다.
+MOVER_SUSPECT_CHG = 30.0           # 상·하한가 폭 — 이 밖의 등락률은 정상 거래일에 나올 수 없다
+MOVER_SUSPECT_PRICE = 1000         # 1원~5원 호가 종목 — 기준가 한 칸 어긋남이 큰 비율로 나온다
+MOVER_SUSPECT_RATIO = (0.5, 2.0)   # 종가÷기준가(=1+등락률) — 이 밖이면 액면 분할·병합·재상장 의심
+MOVER_MARKETS = {"kospi": ("kospiGainers", "kospiLosers"), "kosdaq": ("kosdaqGainers", "kosdaqLosers")}
+
+
+def _mover_suspect(r):
+    """|등락률| > 30% 이면서 (가격 < 1,000원 이거나 종가÷기준가가 0.5 미만·2.0 초과)."""
+    try:
+        chg, price = float(r.get("chg")), float(r.get("price"))
+    except (TypeError, ValueError):
+        return False
+    if abs(chg) <= MOVER_SUSPECT_CHG:
+        return False
+    ratio = 1 + chg / 100
+    return price < MOVER_SUSPECT_PRICE or not (MOVER_SUSPECT_RATIO[0] <= ratio <= MOVER_SUSPECT_RATIO[1])
+
+
+def _guard_movers(data, session=None):
+    """data["stockMovers"] 를 제자리에서 손본다 — 지우지 않는다. 돌려주는 값 = 표시한 행 [(목록 이름, 행)].
+
+    1) 이상치 행에 suspect: True. 알림·특징주 판정은 이 표식 행을 건너뛴다.
+    2) 시장(코스피 · 코스닥)마다 기준일을 하나로. 목록끼리 날짜가 갈리면(예: 토스 하락 10-02 · KRX 대체 상승 10-01)
+       가장 늦은 거래일(session 이하)로 맞추고 원래 날짜는 행의 srcAsOf 에 남긴다. 시장 사이는 맞추지 않는다 —
+       코스피(토스 당일)와 코스닥(KRX 전일 확정치)은 원천이 달라 날짜가 다른 게 사실이다. 직전 빌드 보존 행(preserved)과
+       4일 넘게 묵은 목록은 건드리지 않는다(오래된 목록을 오늘 것으로 둔갑시키지 않는다).
+    """
+    sm = data.get("stockMovers")
+    if not isinstance(sm, dict):
+        return []
+    flagged = []
+    for key, rows in sm.items():
+        for r in rows if isinstance(rows, list) else []:
+            if isinstance(r, dict) and _mover_suspect(r):
+                r["suspect"] = True
+                flagged.append((key, r))
+    for keys in MOVER_MARKETS.values():
+        rows = [r for k in keys for r in (sm.get(k) or []) if isinstance(r, dict) and r.get("as_of") and not r.get("preserved")]
+        days = {r["as_of"] for r in rows if not session or r["as_of"] <= session}
+        if len({r["as_of"] for r in rows}) < 2 or not days:
+            continue
+        top = max(days)
+        for r in rows:
+            old = r["as_of"]
+            if old < top and (date_cls.fromisoformat(top) - date_cls.fromisoformat(old)).days <= 4:
+                r["srcAsOf"], r["as_of"] = old, top
+    return flagged
+
+
 def _kis_fetch_ranking(market_code, sort_code, top_n):
     """KIS 등락률 순위 단일 호출 — sort_code: '0'=상승, '1'=하락"""
     res = kis_request(
@@ -8507,6 +8559,13 @@ def build_data():
             log(f"[tombstone] 폐기 지표 제거: {', '.join(removed)} — 프론트는 '—' 표시")
     except Exception as e:
         log(f"[tombstone] 정리 오류 (무시): {e}")
+
+    # ── 등락 종목 이상치 표시 · 시장별 기준일 통일 — 모든 preserve 가 끝난 뒤(보존 목록도 같은 규칙) ──
+    try:
+        for _k, _r in _guard_movers(data, _kr_session_date()):
+            log(f"[movers] suspect {_k} {_r.get('name')}({_r.get('code')}) {_r.get('price')}원 {_r.get('chg')}% — 기준가 변경 의심")
+    except Exception as e:
+        log(f"[movers] 이상치 표시 오류 (무시): {e}")
 
     # ── 차트 끝점 ↔ 실시간 spot 동기화 (소스 불일치 보정) ──────────
     # 모든 카드/상세 모달 차트가 data.history 를 공유하므로 한 번의 보정으로
