@@ -547,6 +547,7 @@ Deployed from `cloudflare-worker/`. Acts as:
 - **POST /ai** — proxies AI API calls with rate limiting
 - **POST /sync-key** — changes the sync key from the site (KV `auth:syncKeyHash`); with no `newKeyHash` it only verifies the key
 - **Cron triggers** → `repository_dispatch(kakao-send)` to GitHub, which fires `kakao-daily.yml`
+- **KR 휴장일은 `worker.js` `KR_HOLIDAYS`(KST 날짜)** — 이 날 KR 장중 창(UTC 00~06시)엔 alerts·fetch 를 매분 깨우지 않는다(2026-10-05 대체공휴일에 300런이 「휴장 추정」만 찍었다). 음력 명절·대체공휴일은 해마다 다음 해 목록을 미리 넣는다. 검사 `node cloudflare-worker/test_offhours_tick.mjs`.
 
 Deploy: `npx wrangler deploy` (config = repo-root `wrangler.jsonc`). Pushes to main are also auto-deployed by Workers Builds (deploy times track bot commits ~1 min later, 2026-09-29 실측), so a manual deploy of unpushed code is overwritten by the next bot commit.
 

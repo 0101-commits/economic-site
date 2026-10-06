@@ -4,7 +4,7 @@
 // 2026-09-08 진단의 원인(장외 공백 최장 324분)이 그대로 돌아온다.
 //
 // 실행: node cloudflare-worker/test_offhours_tick.mjs
-import { isOffHoursFetchTick, fullFetchMode } from './worker.js';
+import { isOffHoursFetchTick, fullFetchMode, inMarketHours, isKrHoliday } from './worker.js';
 
 const at = (dowUtcDate, hUtc, mUtc) => new Date(Date.UTC(2026, 8, dowUtcDate, hUtc, mUtc));
 // 2026-09: 07일=월 … 11일=금, 12일=토, 13일=일
@@ -51,6 +51,17 @@ const countDay = (date) => {
 };
 check('평일 하루 발화 시각 수', countDay(MON), 8);
 check('주말 하루 발화 시각 수', countDay(SAT), 24);
+
+// 🇰🇷 한국 휴장일 — KR 장중 창만 닫히고 US 창은 그대로
+const HOL = new Date(Date.UTC(2026, 9, 5, 2, 0));      // 2026-10-05 대체공휴일 KST 11:00(월)
+const HOL_US = new Date(Date.UTC(2026, 9, 5, 15, 0));  // 같은 날 KST 00:00 다음날 = US 장중(UTC 15시)
+const WED = new Date(Date.UTC(2026, 9, 7, 2, 0));      // 2026-10-07 평일 KST 11:00
+check('휴장일 KST 11:00 → 휴장일 판정', isKrHoliday(HOL), true);
+check('휴장일 KR 창 → 장외', inMarketHours(HOL), false);
+check('휴장일 US 창(UTC 15시) → 장중 유지', inMarketHours(HOL_US), true);
+check('평일 KR 창 → 장중', inMarketHours(WED), true);
+check('UTC 15:30 은 KST 다음날 00:30 — 날짜 경계가 KST 기준', isKrHoliday(new Date(Date.UTC(2026, 9, 4, 15, 30))), true);
+check('휴장일 장외 보강 틱 :35 → 깨운다', isOffHoursFetchTick(new Date(Date.UTC(2026, 9, 5, 2, 35))), true);
 
 console.log(fails ? `실패 ${fails}건` : '실패 0건');
 process.exit(fails ? 1 : 0);
