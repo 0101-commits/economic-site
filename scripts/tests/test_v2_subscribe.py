@@ -110,3 +110,22 @@ def test_strength_filters_swing_rows_by_user_sigma():
     assert subscribe.match([big_row], _ctx(), None, EV)[0].ring                  # 3σ 는 기본으로 울림
     clamp_row = dict(_row("A1", "kospi"), chg=0.6, z=3.0)   # σ 0.2% → 2.5σ = 0.5% 하한 적용 → 0.6 ≥ 0.5 울림
     assert subscribe.match([clamp_row], _ctx(), None, EV)[0].ring
+
+
+def test_load_prefs_hits_worker_prefs_path_once(monkeypatch):
+    """PREFS_URL 은 바탕 주소다 — /prefs 까지 적으면 fetch 가 /prefs/prefs 로 가서 Worker 상태 JSON 을 받고
+    설정이 통째로 무시된다(2026-10-06 첫 라이브 런 「조건 문서 모양이 다름」)."""
+    import prefs_client
+    seen = []
+
+    def fake(base, key=None):
+        seen.append(base)
+        return {"alerts": [], "settings": {}, "updatedAt": "2026-10-06T00:00:00Z"}
+
+    monkeypatch.setattr(prefs_client, "fetch", fake)
+    monkeypatch.setenv("ALERTS_SYNC_KEY", "k")
+    doc = subscribe.load_prefs(log=lambda *a, **k: None)
+    assert seen == ["https://ecom-dashboard-proxy.e-hcg.workers.dev"]
+    assert not subscribe.PREFS_URL.endswith("/prefs")
+    assert doc["v"] == 2
+

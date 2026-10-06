@@ -16,7 +16,8 @@ from .events import Hit
 from .ledger import Ledger, Row
 from .model import DEFAULT_SETTINGS, Decision
 
-PREFS_URL = os.environ.get("PREFS_URL", "https://ecom-dashboard-proxy.e-hcg.workers.dev/prefs")
+# Worker 바탕 주소 — prefs_client.fetch 가 /prefs 를 붙인다(/prefs 까지 적으면 /prefs/prefs 로 가서 상태 JSON 을 받고 「모양이 다름」이 된다, 2026-10-06 실측)
+PREFS_URL = os.environ.get("PREFS_URL", "https://ecom-dashboard-proxy.e-hcg.workers.dev").rstrip("/").removesuffix("/prefs")
 # 대상이 「지표」가 아닌 사건들 — 별표와 무관하게 사전 default_on 이 결정한다
 SPECIAL_TARGETS = {"calendar", "lens", "regime", "stance", "posts", "mri", "chains", "monthly", "regions",
                    "enso", "movers", "watch_stocks", "bundle"}
