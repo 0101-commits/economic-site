@@ -1300,11 +1300,23 @@ async function triggerKakaoDispatch(env, cron) {
 //   KR 장중: UTC 월~금 00:00–06:59 (= KST 09:00–15:59)
 //   US 장중: UTC 월~금 13:00–21:59 (= KST 22:00–06:59)
 // 장외에는 GitHub 를 깨우지 않아 Actions 분/무료 API 호출을 낭비하지 않는다.
-function inMarketHours(d) {
+// 🇰🇷 한국 휴장일(KST 날짜) — 공휴일·대체공휴일·연말 휴장(12/31). 이 날 KR 장중 창(UTC 00~06시)엔 깨우지 않는다.
+//   2026-10-05 대체공휴일에 알림·수집 런이 매분 돌며 「휴장 추정, 건너뜀」만 300번 찍혔다(Actions 분 낭비, 장애 때 실패 메일 증폭).
+//   해마다 다음 해 목록을 미리 넣는다(음력 명절은 매년 다르다). 목록이 비어 있어도 워크플로 쪽 「휴장 추정」 가드가 남아 있다.
+//   자가 점검: node cloudflare-worker/test_offhours_tick.mjs
+export const KR_HOLIDAYS = new Set([
+  '2026-10-05', '2026-10-09', '2026-12-25', '2026-12-31',
+  '2027-01-01', '2027-02-08', '2027-02-09', '2027-03-01', '2027-05-05', '2027-05-13', '2027-08-16',
+  '2027-09-14', '2027-09-15', '2027-09-16', '2027-10-04', '2027-10-11', '2027-12-27', '2027-12-31',
+]);
+export const isKrHoliday = (d) => KR_HOLIDAYS.has(new Date(d.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10));
+
+export function inMarketHours(d) {
   const day = d.getUTCDay();        // 0=일 .. 6=토
   if (day < 1 || day > 5) return false;
   const h = d.getUTCHours();
-  return (h <= 6) || (h >= 13 && h <= 21);
+  if (h <= 6) return !isKrHoliday(d);   // KR 장중 창 — 한국 휴장일은 제외(US 창은 그대로)
+  return h >= 13 && h <= 21;
 }
 
 // 🌙 장외 보강 틱 판정 — 장외·주말에 fetch-data 를 깨울 '매시 :35' 창인지.
