@@ -4,8 +4,9 @@ import type { Fx, Quote } from './calc'
 
 const rootFiles = new Map<string, Promise<unknown>>()
 
-/** 사이트 루트의 공개 파일 하나(배포 허용 목록 scripts/collect_site.mjs 에 있는 것만). 한 번 받은 것은 다시 받지 않는다. */
-export function loadRootJson<T>(name: 'alerts_state.json' | 'merblog.json' | 'events/latest.json'): Promise<T> {
+/** 사이트 루트의 공개 파일 하나(배포 허용 목록 scripts/collect_site.mjs 에 있는 것만). 한 번 받은 것은 다시 받지 않는다.
+ *  alerts_config.json 은 배포 목록에 없다(로컬 개발 서버에서만 읽힌다) — 운영에서는 Worker /portfolio 로 읽는다(remote.ts portfolioGet). */
+export function loadRootJson<T>(name: 'alerts_state.json' | 'merblog.json' | 'events/latest.json' | 'alerts_config.json'): Promise<T> {
   let p = rootFiles.get(name)
   if (!p) {
     p = fetch(new URL(name, ROOT), { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`); return r.json() })

@@ -89,15 +89,16 @@ export async function prefsCall(hash: string, put?: { body: PrefsBody; ifMatch: 
 
 // ── /portfolio — 보유는 암호 덩어리(e2e.ts)로만 오간다 ─────────────────
 // GET  헤더 X-Sync-Key-Hash → { ok, alerts, settings, tracking, encHoldings, updatedAt }. encHoldings 는 KV portfolio:encHoldings.
+//      alerts = 현행 화면의 알림 조건(공개 저장소 alerts_config.json 의 내용 — 사이트에는 올라가지 않으므로 이 길로만 읽는다). 「현행 조건 가져오기」가 쓴다.
 // POST 본문 { keyHash, encHoldings } → KV 에 덩어리만 쓴다. alerts·settings·tracking 은 빼면 Worker 가 저장본을 그대로 두고
 //      공개 파일(alerts_config.json)도 건드리지 않는다 — 알림 조건은 /prefs 로만 오가고, 보유 종목 목록(tracking)도 공개 파일에 실리지 않는다.
-export type PortfolioReply = { ok: boolean; status: number; enc?: EncBlob | null; error?: string }
+export type PortfolioReply = { ok: boolean; status: number; enc?: EncBlob | null; alerts?: unknown[]; error?: string }
 
 export async function portfolioGet(hash: string): Promise<PortfolioReply> {
   try {
     const r = await fetch(`${WORKER}/portfolio`, { headers: { 'X-Sync-Key-Hash': hash }, cache: 'no-store', signal: AbortSignal.timeout(20_000) })
     const j = await r.json().catch(() => ({}))
-    return r.ok && j?.ok ? { ok: true, status: r.status, enc: j.encHoldings ?? null } : { ok: false, status: r.status, error: j?.error }
+    return r.ok && j?.ok ? { ok: true, status: r.status, enc: j.encHoldings ?? null, alerts: Array.isArray(j.alerts) ? j.alerts : [] } : { ok: false, status: r.status, error: j?.error }
   } catch { return { ok: false, status: 0, error: 'network' } }
 }
 

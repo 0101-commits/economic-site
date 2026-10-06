@@ -1,6 +1,7 @@
 // 알림 화면 v2 의 순수 계산 — 받은 알림 묶기 · 거르기, 사건 탭 셈, 세기별 「지난 1년 N회」. node --test(v2.test.ts).
 // 이름 · 라벨은 사전(dict.json, scripts/alerts_v2/export_dict.py 산출)에서만 — 이 파일은 사전을 인자로 받는다.
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다.
+import { mdHm } from '../format.ts'
 import { kstDay } from '../personal/calc.ts'
 import type { LedgerRow } from '../personal/alertStatus.ts'
 import type { AlertCond, Level } from '../personal/store'
@@ -35,6 +36,9 @@ export function fromLedger(rows: unknown, names: Map<string, string>): FeedRow[]
   return out.sort((a, b) => b.at - a.at)
 }
 
+/** 한국 시각 HH:mm. */
+export const hhmm = (t: number) => mdHm(new Date(t)).split(' ')[1] ?? ''
+
 export const passes = (x: FeedRow, f: Filter) => f === 'all' || (f === 'mine' ? x.mine : x.level === f)
 
 /** 오늘 · 어제 · 그 전(최근 7일, 새것이 위). today·yesterday = 한국 날짜 'YYYY-MM-DD'. */
@@ -44,6 +48,12 @@ export function groupDays(items: FeedRow[], today: string, yesterday: string) {
     yesterday: items.filter(x => x.day === yesterday),
     older: items.filter(x => x.day < yesterday),
   }
+}
+
+/** 홈 「오늘 바뀐 것」: 오늘(한국 날짜) 원장 행 가운데 새것 순 limit 건 + 오늘 전체 건수. 기록(record)은 빼고 안내(notice)는 넣는다. */
+export function todayRows(rows: unknown, today: string, limit = 5): { rows: FeedRow[]; total: number } {
+  const all = fromLedger(rows, new Map()).filter(x => x.day === today)
+  return { rows: all.slice(0, limit), total: all.length }
 }
 
 /** 오늘 카카오로 나간 통 수(쌍당 하루 20 한도). */
@@ -81,6 +91,29 @@ export function eventsFor(d: Dict, target: string, stock: boolean): DictEvent[] 
   const own = d.events.filter(e => e.enabled && 'ABC'.includes(e.family) && !e.userValue &&
     (e.targets.includes(target) || (e.targets.includes('lens') && e.defaultOn.includes(target))))
   return [...own, ...user]
+}
+
+/** Worker _sanitizePrefs 가 한 문서에 받는 조건 수. 넘치면 서버가 뒤를 버린다. */
+export const ALERT_CAP = 100
+
+const SHEET = ['A1', 'A2', 'A3', 'B1', 'B2', 'C1', 'C2', 'C7', 'D5', 'F1', 'F2', 'U1', 'U2']
+/**
+ * 상세 벨 시트의 사건 — eventsFor 에서 시트가 다루는 것만(지표 = A1~A3 · B1 · B2 · C1 · C2 · C7 · U1 · U2 중 그 대상이 가진 것,
+ * 종목 = D5 · F1 · F2 · U1 · U2). 렌즈 사건 C1 · C2 는 그 지표가 렌즈 묶음에 들었을 때만(lens = 렌즈 지표 id 모음 — 모르면 빈 모음).
+ */
+export function sheetEvents(d: Dict, target: string, stock: boolean, lens: ReadonlySet<string>): DictEvent[] {
+  const lensIds = ['C1', 'C2']
+  const base = eventsFor(d, target, stock).filter(e => SHEET.includes(e.id) && !lensIds.includes(e.id))
+  const extra = !stock && lens.has(target) ? d.events.filter(e => e.enabled && lensIds.includes(e.id)) : []
+  const at = new Map(d.events.map((e, i) => [e.id, i]))
+  return [...base, ...extra].sort((a, b) => at.get(a.id)! - at.get(b.id)!)
+}
+
+/** 조건을 저장한 직후의 한 줄(head = 첫머리 말): 동기화가 꺼져 있으면 「이 기기에만」, 켜져 있으면 서버에 올라갔는지. savedAt 0 = 아직 저장하지 않음(빈 글). */
+export function savedNote(sync: { on: boolean; at: number | null }, savedAt: number, head = '저장했습니다'): string {
+  if (!savedAt) return ''
+  if (!sync.on) return `${head} · 이 기기에만 · 울리지 않음(동기화를 켜야 서버가 봅니다)`
+  return sync.at && sync.at >= savedAt ? `${head} · 서버에 올라감 ${hhmm(sync.at)}` : `${head} · 서버로 올리는 중`
 }
 
 // ── 세기별 「지난 1년 N회」 ─────────────────────────────
