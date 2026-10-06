@@ -109,7 +109,7 @@ def main(argv=None) -> int:
         return _brief(args.slot, now, args.dry_run)
     events = schema.load_events()
     todo = schema.for_run(events, args.mode)
-    missing = [ev["id"] for ev in todo if ev["judge"] not in JUDGES]
+    missing = [ev["id"] for ev in todo if ev["judge"] not in JUDGES and ev.get("family") != "U"]   # U1 · U2 는 subscribe 가 판정
     if missing:
         print(f"[v2] 판정 함수 미구현(건너뜀): {', '.join(missing)}")
         todo = [ev for ev in todo if ev["judge"] in JUDGES]
