@@ -68,8 +68,13 @@ def _kakao_session(log=print) -> dict | None:
         return None
     try:
         import send_kakao_digest as kakao
+        if not kakao._friends_enabled():
+            # 사용자가 끈 것(KAKAO_FRIENDS=0)은 결함이 아니다 — 운영 통지 없이 조용히, 토큰도 안 받는다
+            log("[v2] 카톡 친구 모드 꺼짐(KAKAO_FRIENDS=0) — 카톡 발송 건너뜀")
+            _KAKAO_SESSION = {}
+            return None
         token = kakao.refresh_access_token(rest_key, refresh)
-        friends = kakao.get_friends(token) if kakao._friends_enabled() else []
+        friends = kakao.get_friends(token)
     except Exception as e:                                   # noqa: BLE001
         log(f"[v2] 카톡 준비 실패: {type(e).__name__}")
         _KAKAO_SESSION = {}

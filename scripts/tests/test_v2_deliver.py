@@ -70,6 +70,21 @@ def test_kakao_stops_without_friends(monkeypatch):
     deliver._KAKAO_SESSION = None
 
 
+def test_kakao_friends_off_is_quiet(monkeypatch):
+    """KAKAO_FRIENDS=0 은 사용자 결정 — 운영 통지도 토큰 요청도 없이 건너뛴다(켜 놓고 친구 0명일 때만 통지)."""
+    deliver._KAKAO_SESSION = None
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "k"); monkeypatch.setenv("KAKAO_REFRESH_TOKEN", "r")
+    ops, tokens = [], []
+    fake_kakao = SimpleNamespace(refresh_access_token=lambda a, b: tokens.append(1) or "tok", get_friends=lambda t: [{"uuid": "u"}],
+                                 _friends_enabled=lambda: False,
+                                 send_card=lambda *a, **k: (_ for _ in ()).throw(AssertionError("보내면 안 됨")))
+    monkeypatch.setitem(sys.modules, "send_kakao_digest", fake_kakao)
+    monkeypatch.setattr(deliver, "_ops", lambda text, log=print: ops.append(text))
+    assert deliver.send_kakao(Send(row=_row(), level="alert", kakao=True), _ctx(), log=lambda *a: None) is False
+    assert ops == [] and tokens == []
+    deliver._KAKAO_SESSION = None
+
+
 def test_kakao_parts_buttons_8chars_and_items():
     s = Send(row=_row(), level="alarm", kakao=True)
     p = deliver.kakao_parts(s)
