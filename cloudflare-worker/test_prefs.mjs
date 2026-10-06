@@ -83,7 +83,7 @@ check('alerts', saved.alerts, [{ id: 'a1', target: '005930', type: 'price', cond
   repeat: 'daily', channels: ['push', 'discord'], enabled: true }]);
 check('settings', saved.settings, { theme: 'dark', updown: 'us', unit: 'won', quiet: { from: '23:00', to: '07:00' }, ...V2_DEFAULTS });
 // v2 조건 · 설정 — event 조건은 value(임계) · strength · level · dir 을 받고, 모르는 값은 기본으로
-r = await call('PUT', '/prefs', { alerts: [
+r = await call('PUT', '/prefs', { body: { alerts: [
   { id: 'c1', event: 'U1', target: 'usdkrw', dir: 'up', value: 1400, repeat: 'once', ring: true, enabled: true, name: '달러원 1400 위로', foo: 1 },
   { id: 'c2', event: 'A1', target: '*', strength: 'huge', level: 'alarm' },
   { id: 'c3', event: 'Z9', target: 'kospi' },
@@ -91,7 +91,7 @@ r = await call('PUT', '/prefs', { alerts: [
   settings: { package: 'many', ringChannel: 'kakao', dailyCap: 99, quietAlarm: true, briefings: { noon: true },
     families: { B: false }, rememberKey: true, kakaoFriends: true,
     kakaoRecipients: [{ uuid: 'abc', name: '가족 한 명', briefOnly: true }, { name: 'x'.repeat(30) }, { uuid: 'bad uuid!', name: 'y' }] } },
-  { 'If-Match': saved.updatedAt });
+  headers: { 'If-Match': saved.updatedAt } });
 check('v2 PUT 200', r.status, 200);
 const v2 = r.j;
 check('v2 조건 2건(Z9 버림, 값 아닌 value 버림)', v2.alerts.map(a => a.id), ['c1', 'c2', 'c4']);

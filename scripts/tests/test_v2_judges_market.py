@@ -96,7 +96,7 @@ def test_swing_sigma_needs_live_value():
 
 def test_swing_sigma_daily_bitcoin():
     h = hits(ctx(), "A4")
-    assert [(x.target, x.dir, x.chg, x.fields["thr"]) for x in h] == [("btc", "up", 9.0, 5.0)]
+    assert [(x.target, x.dir, x.chg, x.fields["thr"]) for x in h] == [("btc", "up", 9.0, 4.0)]   # 사전 sigma 2.0 × σ 2%
     c = ctx()
     bars = c.data["history"]["crypto"]["BTC"]
     bars[-1]["close"] = round(bars[-2]["close"] * 1.03, 4)  # +3% < 5%
