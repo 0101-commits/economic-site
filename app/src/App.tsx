@@ -141,7 +141,7 @@ function Shell() {
           <NavLink key={to} to={to} end={to === '/'}
             aria-label={to === '/alerts' && unseen ? `${label} · 안 읽은 알림 있음` : undefined}
             className={({ isActive }) => `h-14 flex flex-col items-center justify-center gap-1 no-underline ${isActive ? 'text-accent font-bold' : 'text-ink-3'}`}>
-            <span className="relative inline-flex"><Icon size={20} aria-hidden />{to === '/alerts' && unseen && <Dot at="-top-0.5 -right-1" />}</span>
+            <span className="relative inline-flex"><Icon size={20} aria-hidden />{to === '/alerts' && unseen && <Dot at="-top-0.5 right-0" />}</span>
             <span className="text-10 leading-none">{label}</span>
           </NavLink>
         ))}

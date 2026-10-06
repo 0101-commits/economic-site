@@ -88,7 +88,9 @@ function BellForm({ id }: { id: string }) {
         <Row label="세기">
           <SegBar label="세기" value={strength} onChange={setStrength}
             options={STRENGTH_OPTS.map(o => ({ ...o, label: counts?.[o.key] != null ? `${o.label} · 1년 ${counts[o.key]}회` : o.label }))} />
-          {counts && <p className="m-0 mt-1 text-12 text-ink-3">지난 1년 하루 등락이 그 세기를 넘은 날 수입니다.</p>}
+          {counts && <p className="m-0 mt-1 text-12 text-ink-3">{new Set(Object.values(counts)).size === 1
+            ? '지난 1년 하루 등락이 그 세기를 넘은 날 수입니다. 이 지표는 변동이 커서 세 세기 모두 상한 5%에서 걸립니다 — 세기를 바꿔도 횟수가 같습니다.'
+            : '지난 1년 하루 등락이 그 세기를 넘은 날 수입니다.'}</p>}
         </Row>
       )}
       <Row label="등급"><SegBar label="등급" options={levelChoices(base).map(l => ({ key: l, label: LV[l] }))} value={(level || base) as Level} onChange={setLevel} /></Row>
