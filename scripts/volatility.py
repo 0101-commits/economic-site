@@ -54,6 +54,17 @@ def sigma(closes, window=WINDOW, exclude_last=True):
     return statistics.pstdev(r)
 
 
+def clamp_threshold(sd, k, floor_pct, ceiling_pct, fallback_pct=None):
+    """급변 임계(%) = min(max(k·σ, 하한), 상한). σ 가 None 이면 min(폴백, 상한), 폴백도 없으면 None.
+
+    check_swings(현행 급변 속보)와 알림 v2 급변 판정(alerts_v2.judges_market)이 같은 식을 쓰도록
+    여기 한 곳에 둔다. 하한 = 초저변동 국면에서 0.3% 가 '급변'이 되는 것을 막고, 상한 = 위기 국면에서
+    σ 가 같이 부풀어 경보가 조용해지는 것을 막는다(check_swings CEILING_PCT 주석)."""
+    if sd is None:
+        return None if fallback_pct is None else min(fallback_pct, ceiling_pct)
+    return min(max(k * sd, floor_pct), ceiling_pct)
+
+
 def zscore(pct, closes, window=WINDOW, exclude_last=True):
     """오늘 등락률(%) → z(σ 배수). σ 를 못 구하거나 0 이면 None.
 

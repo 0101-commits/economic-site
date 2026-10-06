@@ -2,7 +2,7 @@
 // 주소는 해시 방식(#/market?a=kr) — GitHub Pages 는 없는 경로를 index.html 로 돌려주지 않아서,
 // 경로 방식이면 /next/market 을 새로 고칠 때 404 가 난다.
 import { useEffect, useState } from 'react'
-import { HashRouter, Link, NavLink, Route, Routes } from 'react-router-dom'
+import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { Bell, ChartCandlestick, House, Search, Settings as Gear, Telescope, Wallet, type LucideIcon } from 'lucide-react'
 import Home from './screens/Home'
 import Market from './screens/Market'
@@ -12,7 +12,9 @@ import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
 import { SearchOverlay } from './components/personal/SearchOverlay'
-import { applyUpdown, readPrefs } from './lib/personal/store'
+import { applyUpdown, readPrefs, tidyAlerts } from './lib/personal/store'
+import { loadRootJson } from './lib/personal/data'
+import { hasUnseen, markSeen, readSeen } from './lib/alertsSeen'
 import { legacyToHash } from './lib/legacyUrl'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
@@ -50,16 +52,34 @@ function SearchButton({ onOpen, compact }: { onOpen: () => void; compact?: boole
   )
 }
 
-function IconLink({ to, label, icon: Icon }: { to: string; label: string; icon: LucideIcon }) {
+/** 안 읽은 알림이 있다는 작은 점(아이콘 오른쪽 위). 뜻은 링크의 aria-label 이 말한다. */
+function Dot({ at }: { at: string }) {
+  return <span aria-hidden className={`absolute ${at} size-2 rounded-chip bg-warn`} />
+}
+
+function IconLink({ to, label, icon: Icon, dot }: { to: string; label: string; icon: LucideIcon; dot?: boolean }) {
+  const name = dot ? `${label} · 안 읽은 알림 있음` : label
   return (
-    <Link to={to} aria-label={label} title={label} className="size-9 inline-flex items-center justify-center rounded-btn text-ink-2 hover:text-ink-1">
-      <Icon size={20} aria-hidden />
+    <Link to={to} aria-label={name} title={name} className="relative size-9 inline-flex items-center justify-center rounded-btn text-ink-2 hover:text-ink-1">
+      <Icon size={20} aria-hidden />{dot && <Dot at="top-1.5 right-1.5" />}
     </Link>
   )
 }
 
 function Shell() {
   const [search, setSearch] = useState(false)
+  // 안 읽음 점: 원장 최신판(events/latest.json)을 열 때 한 번 받아 마지막으로 알림 화면을 연 때와 견준다.
+  // 아직 배포 전이거나 못 받으면 점 없이 조용히 넘어간다. 알림 화면에 들어가면 그때를 「본 때」로 적는다.
+  const { pathname } = useLocation()
+  const [rows, setRows] = useState<unknown>(null)
+  const [seen, setSeen] = useState(readSeen)
+  // 알림 자동 정리(housekeeping.ts)도 여기서 한 번 — prior = 아래 markSeen 이 「본 때」를 적기 전 값(90일 미열람 판정용)
+  useEffect(() => {
+    const prior = readSeen()
+    loadRootJson<unknown>('events/latest.json').then(r => { setRows(r); tidyAlerts(r, prior) }, () => tidyAlerts([], prior))
+  }, [])
+  useEffect(() => { if (pathname === '/alerts') setSeen(markSeen()) }, [pathname])
+  const unseen = hasUnseen(rows, seen)
   // `/` = 검색 열기(입력 칸에서 치는 / 는 그대로 둔다)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -87,7 +107,7 @@ function Shell() {
           </nav>
           <div className="ml-auto self-center flex items-center gap-1">
             <SearchButton onOpen={() => setSearch(true)} />
-            <IconLink to="/alerts" label="알림" icon={Bell} />
+            <IconLink to="/alerts" label="알림" icon={Bell} dot={unseen} />
             <IconLink to="/settings" label="설정" icon={Gear} />
           </div>
         </div>
@@ -119,8 +139,9 @@ function Shell() {
       <nav aria-label="주 메뉴" className="pc:hidden fixed bottom-0 inset-x-0 bg-card border-t border-line grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
         {TABS.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'}
+            aria-label={to === '/alerts' && unseen ? `${label} · 안 읽은 알림 있음` : undefined}
             className={({ isActive }) => `h-14 flex flex-col items-center justify-center gap-1 no-underline ${isActive ? 'text-accent font-bold' : 'text-ink-3'}`}>
-            <Icon size={20} aria-hidden />
+            <span className="relative inline-flex"><Icon size={20} aria-hidden />{to === '/alerts' && unseen && <Dot at="-top-0.5 right-0" />}</span>
             <span className="text-10 leading-none">{label}</span>
           </NavLink>
         ))}

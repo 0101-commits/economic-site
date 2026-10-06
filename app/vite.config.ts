@@ -16,7 +16,7 @@ function repoData(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = decodeURIComponent((req.url || '').split('?')[0])
-        if (url.includes('..') || !/^\/(data\.json|alerts_state\.json|merblog\.json|bundles\/[\w.-]+\.json|css\/fonts\/[\w./-]+)$/.test(url)) return next()
+        if (url.includes('..') || !/^\/(data\.json|alerts_state\.json|alerts_config\.json|merblog\.json|bundles\/[\w.-]+\.json|events\/[\w./-]+\.json|css\/fonts\/[\w./-]+)$/.test(url)) return next()
         const file = path.join(REPO, url)
         if (!fs.existsSync(file)) { res.statusCode = 404; res.end(); return }
         res.setHeader('Content-Type', TYPES[path.extname(file)] || 'application/octet-stream')

@@ -398,7 +398,7 @@ def _post(url, payload, png, filename, extra_headers=None):
 
 def send(text, png=None, filename="chart.png", title=None, url=None,
          color=None, fields=None, footer=None, timestamp=False, mention=False,
-         env=WEBHOOK_ENV, thread_name=None, buttons=None, select=None):
+         env=WEBHOOK_ENV, thread_name=None, buttons=None, select=None, flags=None):
     """텍스트(+선택 PNG 첨부) 발송. 성공 True / 미설정·실패 False.
 
     png 는 bytes 또는 파일 경로(str) — build_slot_chart_png 가 경로를 반환하므로 둘 다 받는다.
@@ -409,7 +409,8 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     buttons(E3): [(라벨, url 또는 "id:custom_id"), …] — 봇 토큰이 있으면 봇 메시지로
     보내 버튼을 단다(웹훅은 컴포넌트 불가). 봇 경로 실패 시 버튼 없이 웹훅 폴백.
     select(v4): [(라벨, NAVER_LINKS 키)] — 지표 딥링크 드롭다운 1행(버튼 다이어트,
-    기획 ed0e5496). 버튼과 같은 규칙: 봇 경로만, 폴백 시 링크 필드로 강등."""
+    기획 ed0e5496). 버튼과 같은 규칙: 봇 경로만, 폴백 시 링크 필드로 강등.
+    flags(v2): 메시지 플래그 비트필드 — SUPPRESS_NOTIFICATIONS(4096)면 알림음 없이 올라간다. None=종전."""
     hook = _hook(env)
     if not hook:
         return False
@@ -441,6 +442,8 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
         head = m + " " if m else ""
         payload = {"content": head + fit(text, LIMIT_CONTENT - len(head))}
         plen = len(payload["content"])
+    if flags:
+        payload["flags"] = flags
     if isinstance(png, str):
         try:
             with open(png, "rb") as f:
@@ -518,3 +521,37 @@ def system(text, title="⚙️ 파이프라인 경고", color=None, mention=Fals
                     timestamp=True, mention=mention, env="DISCORD_WEBHOOK_SYSTEM")
     except Exception:
         return False
+
+
+# ── 등급별 발송(알림 v2 A5, 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md 「등급 level」) ──
+# 등급 → (웹훅 env, 멘션, 플래그, 색띠). 채널·멘션·무음은 여기 한 표가 단일 원천이다.
+SUPPRESS_NOTIFICATIONS = 1 << 12            # 4096 — 알림음·푸시 없이 올라간다(디스코드 공식 플래그)
+LEVEL_BODY_MAX = 1500                       # 한 통 embed 글자 합(계약서 Global Constraints)
+LEVELS = {
+    "alarm":  ("DISCORD_WEBHOOK_SWINGS", "everyone", None, COLOR_FIRE),
+    "alert":  ("DISCORD_WEBHOOK_ALERTS", None, None, COLOR_ALERT),
+    "notice": ("DISCORD_WEBHOOK_ALERTS", None, SUPPRESS_NOTIFICATIONS, COLOR_DIGEST),
+    "brief":  (WEBHOOK_ENV, None, SUPPRESS_NOTIFICATIONS, COLOR_DIGEST),
+    "ops":    ("DISCORD_WEBHOOK_SYSTEM", None, None, COLOR_SYSTEM),
+}
+
+
+def send_level(level, title, body, *, fields=None, url=None, buttons=None, png=None,
+               footer=None, mention=None):
+    """등급 → 채널·멘션·플래그를 정해 send() 로 보낸다. 성공 True / 미설정·실패·기록 False.
+
+    alarm=#급변-속보+@everyone · alert=#종목-알림 · notice=#종목-알림+무음 · brief=#시황-다이제스트+무음 ·
+    ops=#시스템. record 는 화면(원장)에만 남기고 보내지 않는다(False). 모르는 등급은 ValueError —
+    이름이 어긋난 경보가 조용히 사라지는 것보다 낫다.
+    제목은 호출측이 정한 그대로(두 채널 제목 동일 원칙은 compose 가 보장). 본문은 제목·필드·꼬리를 뺀
+    남은 글자 안으로 fit() 한다 — embed 합계 LEVEL_BODY_MAX. mention 을 주면 등급 표를 덮는다
+    (침묵 감시만 ops 에 "everyone"). 웹훅 env 폴백(→ DISCORD_WEBHOOK_URL)·미설정 no-op 은 send() 규칙 그대로."""
+    if level == "record":
+        return False
+    if level not in LEVELS:
+        raise ValueError(f"모르는 등급: {level!r} (알림 {sorted(LEVELS)} · 기록 record)")
+    env, lv_mention, flags, color = LEVELS[level]
+    used = len(title or "") + len(footer or "") + sum(len(n) + len(v) for n, v, _ in fields or [])
+    return send(fit(body, max(0, LEVEL_BODY_MAX - used)), png=png, title=title, url=url, color=color,
+                fields=fields, footer=footer, mention=lv_mention if mention is None else mention,
+                env=env, buttons=buttons, flags=flags)

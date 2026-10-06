@@ -1,0 +1,97 @@
+{
+  "_note": "A7 판정(D·E·F·G·H2~H4) 고정 데이터 — 기준 시각 2026-10-01(목) 18:30 KST. 실데이터 모양을 줄인 것.",
+  "registry": [
+    {"id": "ff_target", "label": "미국 기준금리 목표 상한", "dataPath": "economicIndicators.us.ff_target"},
+    {"id": "base_rate_kr", "label": "기준금리", "dataPath": "economicIndicators.kr.base_rate_kr"},
+    {"id": "cpi_us", "label": "소비자물가지수 (CPI)", "dataPath": "economicIndicators.us.cpi_us"},
+    {"id": "ip_us", "label": "산업생산지수", "dataPath": "economicIndicators.us.ip_us"}
+  ],
+  "data": {
+    "investorTrading": {"unit": "억원", "daily": [
+      {"date": "2026-09-22", "foreign": 500, "inst": -100, "retail": -400},
+      {"date": "2026-09-23", "foreign": 300, "inst": -100, "retail": -200},
+      {"date": "2026-09-24", "foreign": 100, "inst": 200, "retail": -300},
+      {"date": "2026-09-25", "foreign": -2000, "inst": 1500, "retail": 500},
+      {"date": "2026-09-28", "foreign": -3000, "inst": 1000, "retail": 2000},
+      {"date": "2026-09-29", "foreign": -4000, "inst": 3000, "retail": 1000},
+      {"date": "2026-09-30", "foreign": -6000, "inst": 2000, "retail": 4000},
+      {"date": "2026-10-01", "foreign": -2040, "inst": 1500, "retail": 300}
+    ]},
+    "stockFlows": {"items": {
+      "005930": {"name": "삼성전자", "warnings": [{"name": "투자주의"}], "investor": [
+        {"date": "2026-09-29", "foreign": 100, "inst": -50, "retail": -50},
+        {"date": "2026-09-30", "foreign": 200, "inst": -100, "retail": -100},
+        {"date": "2026-10-01", "foreign": -300, "inst": 200, "retail": 100}]},
+      "000660": {"name": "SK하이닉스", "warnings": [], "investor": [
+        {"date": "2026-09-30", "foreign": -1, "inst": 1, "retail": 0},
+        {"date": "2026-10-01", "foreign": -5, "inst": 3, "retail": 2}]}
+    }},
+    "corpEvents": {"asOf": "2026-10-01", "items": [
+      {"code": "005930", "name": "삼성전자", "kind": "earnings", "date": "2026-10-01", "title": "잠정실적",
+       "detail": "연결재무제표기준영업(잠정)실적(공정공시)", "rcpNo": "20261001800123"},
+      {"code": "000660", "name": "SK하이닉스", "kind": "dividend", "date": "2025-12-31", "title": "결산 배당 1,000원",
+       "detail": "2025년 결산 보통주 주당 현금배당 1,000원", "rcpNo": "20260310000111", "via": "alotMatter"}
+    ]},
+    "marketCalendarKr": {"today": {"date": "2026-10-01", "open": true},
+                         "previousBusinessDay": {"date": "2026-09-30", "open": true},
+                         "nextBusinessDay": {"date": "2026-10-06", "open": true}},
+    "economicCalendar": {"events": [
+      {"dt": "10.01 21:30", "cc": "US", "name": "미국 PCE 물가지수", "stars": 3, "prev": "+0.1%", "fore": "+0.1%", "act": "+0.3%", "beat": -1, "iso": "2026-10-01"},
+      {"dt": "10.01 09:00", "cc": "KR", "name": "한국은행 금통위 (통화정책방향)", "stars": 3, "prev": "2.75%", "fore": "2.75%", "act": "3.00%", "iso": "2026-10-01", "timeApprox": true},
+      {"dt": "10.02 08:00", "cc": "KR", "name": "한국 소비자물가동향", "stars": 3, "prev": "", "fore": "", "act": "", "iso": "2026-10-02"},
+      {"dt": "10.02 22:15", "cc": "US", "name": "미국 산업생산", "stars": 2, "prev": "", "fore": "", "act": "", "iso": "2026-10-02"},
+      {"dt": "10.02 23:00", "cc": "US", "name": "미국 건설지출", "stars": 1, "prev": "", "fore": "", "act": "", "iso": "2026-10-02"},
+      {"dt": "10.28 03:00", "cc": "US", "name": "미국 FOMC 회의", "stars": 3, "prev": "", "fore": "", "act": "", "iso": "2026-10-28"}
+    ]},
+    "economicIndicators": {
+      "us": {
+        "ff_target": {"value": 4.0, "period": "2026-10-01", "history": {
+          "2025-09-17": 4.5, "2025-09-18": 4.25, "2025-10-30": 4.0, "2025-12-11": 3.75,
+          "2026-09-29": 3.75, "2026-09-30": 4.0, "2026-10-01": 4.0}},
+        "cpi_us": {"value": 334.1, "period": "2026-08-01", "desc": "미국 CPI", "history": {
+          "2026-06-01": 330.0, "2026-07-01": 332.0, "2026-08-01": 334.1}}
+      },
+      "kr": {
+        "base_rate_kr": {"value": 2.75, "period": "202609", "history": {"202607": 2.5, "202608": 2.75, "202609": 2.75}}
+      }
+    },
+    "realestate": {"kr": {
+      "apt_price_idx_kr": {"value": 100.83, "chg": 0.39, "period": "202608"},
+      "region": [{"code": "11", "val": 1.05, "period": "202608"}, {"code": "26", "val": -0.05, "period": "202608"}]
+    }},
+    "climate": {"enso": {"phase": "elnino", "oni": {"value": 0.6, "season": "JAS", "year": 2026, "asOf": "JAS 2026"},
+                         "oni_history": [{"t": "2026-07", "v": 0.3}, {"t": "2026-08", "v": 0.6}]}},
+    "stockMovers": {
+      "kospiGainers": [{"name": "티엠씨", "code": "217590", "price": 18440, "chg": 29.95, "as_of": "2026-10-01"},
+                       {"name": "가종목", "code": "000001", "price": 100, "chg": 5.0, "as_of": "2026-10-01"}],
+      "kospiLosers": [{"name": "한창", "code": "005110", "price": 112, "chg": -91.07, "as_of": "2026-10-01"},
+                      {"name": "나종목", "code": "000002", "price": 50, "chg": -12.0, "as_of": "2026-10-01"}]
+    }
+  },
+  "mer": {
+    "regime": {"months": ["2026-08", "2026-09", "2026-10"], "factors": ["정책", "지정학", "금리발작"],
+               "counts": [[5, 3, 1], [6, 2, 1], [1, 4, 0]], "dominant": ["정책", "정책", "지정학"]},
+    "stance": {"assets": [
+      {"asset": "banks", "label": "은행·금융주", "reversals": ["2026-10-01"], "series": [
+        {"date": "2026-09-20", "view": 1, "logNo": "p1"}, {"date": "2026-10-01", "view": -1, "logNo": "p2"}]},
+      {"asset": "gold", "label": "금", "reversals": ["2026-08-12"], "series": [
+        {"date": "2026-08-01", "view": 1, "logNo": "p0"}, {"date": "2026-08-12", "view": -1, "logNo": "p0"}]}
+    ]},
+    "posts": [
+      {"logNo": "p1", "date": "2026-09-20", "title": "은행이 버틴다"},
+      {"logNo": "p3", "date": "2026-09-30", "title": "어제 글"},
+      {"logNo": "p2", "date": "2026-10-01", "title": "은행이 위험하다"}
+    ],
+    "indicators": [{"id": "us10y", "label": "미국채 10년물", "unit": "%", "current": {"value": 5.24, "asOf": "2026-09-30"},
+                    "nearest": {"level": 5.1}, "state": "crossed"}],
+    "chains": [
+      {"id": "C1", "label": "재정 눈덩이", "note": "금리↑ → 적자↑ → 금리↑", "hotStep": "us10y",
+       "steps": [{"id": "us10y", "label": "미국채 10년물"}, {"id": "fiscal", "label": "재정적자·국채 발행"}]},
+      {"id": "C3", "label": "유동성 3형제", "note": "", "hotStep": null,
+       "steps": [{"id": "rrp", "label": "역레포"}, {"id": "tga", "label": "TGA"}]}
+    ],
+    "lens": {"score": 61, "asOf": "2026-10-01",
+             "components": {"thresholdsCrossed": 40, "negativeStance30d": 16.5, "riskFlags30d": 4.5},
+             "history30d": [{"date": "2026-09-30", "score": 58}, {"date": "2026-10-01", "score": 61}]}
+  }
+}

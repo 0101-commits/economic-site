@@ -78,10 +78,25 @@ def test_normalize_indicator_prefers_joinable_over_cause():
 def test_signals_output_shape():
     """mer_signals.json 을 실제로 만들어 구조 불변식을 확인한다(네트워크 없음,
     로컬 mer_extract_cache.jsonl/data.json/mer_series.json 사용)."""
-    ma.main()
     import json
-    with open(os.path.join(ma.ROOT, "mer_signals.json"), encoding="utf-8") as f:
-        sig = json.load(f)
+    out = os.path.join(ma.ROOT, "mer_signals.json")
+    # main() 은 저장소 루트의 산출물을 직접 다시 쓴다 — 봇 소유 파일이라 테스트가 남기면 안 된다.
+    # (CI 의 경량 런은 이 파일을 다시 만들지 않는데도 커밋 단계가 바뀐 파일을 올려 버린다.) 읽은 뒤 원래 바이트로 되돌린다.
+    before = None
+    if os.path.exists(out):
+        with open(out, "rb") as f:
+            before = f.read()
+    try:
+        ma.main()
+        with open(out, encoding="utf-8") as f:
+            sig = json.load(f)
+    finally:
+        if before is None:
+            if os.path.exists(out):
+                os.remove(out)
+        else:
+            with open(out, "wb") as f:
+                f.write(before)
 
     # n>=2 필터: 모든 impacts 엣지는 n>=2
     assert all(im["n"] >= 2 for im in sig["impacts"])

@@ -6295,6 +6295,58 @@ def _is_valid_mover_list(items, min_nonzero=3, allow_extreme=False):
     return True
 
 
+# ── 등락 종목 이상치 표시 · 시장별 기준일 통일 (알림 v2 A4, 2026-10-05) ──────────────────────────
+# 실측(2026-10-02): 한창 112원 −91.07% · 부산주공 27원 −32.5% 가 코스피 하락 1·2위로 그대로 실렸다 — 기준가 변경
+# (감자·액면 조정) 의심. 코스피 목록은 토스(그날), 코스닥은 KRX 전일 확정치라 같은 블록에 10-01·10-02 가 섞였다.
+MOVER_SUSPECT_CHG = 30.0           # 상·하한가 폭 — 이 밖의 등락률은 정상 거래일에 나올 수 없다
+MOVER_SUSPECT_PRICE = 1000         # 1원~5원 호가 종목 — 기준가 한 칸 어긋남이 큰 비율로 나온다
+MOVER_SUSPECT_RATIO = (0.5, 2.0)   # 종가÷기준가(=1+등락률) — 이 밖이면 액면 분할·병합·재상장 의심
+MOVER_MARKETS = {"kospi": ("kospiGainers", "kospiLosers"), "kosdaq": ("kosdaqGainers", "kosdaqLosers")}
+
+
+def _mover_suspect(r):
+    """|등락률| > 30% 이면서 (가격 < 1,000원 이거나 종가÷기준가가 0.5 미만·2.0 초과)."""
+    try:
+        chg, price = float(r.get("chg")), float(r.get("price"))
+    except (TypeError, ValueError):
+        return False
+    if abs(chg) <= MOVER_SUSPECT_CHG:
+        return False
+    ratio = 1 + chg / 100
+    return price < MOVER_SUSPECT_PRICE or not (MOVER_SUSPECT_RATIO[0] <= ratio <= MOVER_SUSPECT_RATIO[1])
+
+
+def _guard_movers(data, session=None):
+    """data["stockMovers"] 를 제자리에서 손본다 — 지우지 않는다. 돌려주는 값 = 표시한 행 [(목록 이름, 행)].
+
+    1) 이상치 행에 suspect: True. 알림·특징주 판정은 이 표식 행을 건너뛴다.
+    2) 시장(코스피 · 코스닥)마다 기준일을 하나로. 목록끼리 날짜가 갈리면(예: 토스 하락 10-02 · KRX 대체 상승 10-01)
+       가장 늦은 거래일(session 이하)로 맞추고 원래 날짜는 행의 srcAsOf 에 남긴다. 시장 사이는 맞추지 않는다 —
+       코스피(토스 당일)와 코스닥(KRX 전일 확정치)은 원천이 달라 날짜가 다른 게 사실이다. 직전 빌드 보존 행(preserved)과
+       4일 넘게 묵은 목록은 건드리지 않는다(오래된 목록을 오늘 것으로 둔갑시키지 않는다).
+    """
+    sm = data.get("stockMovers")
+    if not isinstance(sm, dict):
+        return []
+    flagged = []
+    for key, rows in sm.items():
+        for r in rows if isinstance(rows, list) else []:
+            if isinstance(r, dict) and _mover_suspect(r):
+                r["suspect"] = True
+                flagged.append((key, r))
+    for keys in MOVER_MARKETS.values():
+        rows = [r for k in keys for r in (sm.get(k) or []) if isinstance(r, dict) and r.get("as_of") and not r.get("preserved")]
+        days = {r["as_of"] for r in rows if not session or r["as_of"] <= session}
+        if len({r["as_of"] for r in rows}) < 2 or not days:
+            continue
+        top = max(days)
+        for r in rows:
+            old = r["as_of"]
+            if old < top and (date_cls.fromisoformat(top) - date_cls.fromisoformat(old)).days <= 4:
+                r["srcAsOf"], r["as_of"] = old, top
+    return flagged
+
+
 def _kis_fetch_ranking(market_code, sort_code, top_n):
     """KIS 등락률 순위 단일 호출 — sort_code: '0'=상승, '1'=하락"""
     res = kis_request(
@@ -8508,6 +8560,13 @@ def build_data():
     except Exception as e:
         log(f"[tombstone] 정리 오류 (무시): {e}")
 
+    # ── 등락 종목 이상치 표시 · 시장별 기준일 통일 — 모든 preserve 가 끝난 뒤(보존 목록도 같은 규칙) ──
+    try:
+        for _k, _r in _guard_movers(data, _kr_session_date()):
+            log(f"[movers] suspect {_k} {_r.get('name')}({_r.get('code')}) {_r.get('price')}원 {_r.get('chg')}% — 기준가 변경 의심")
+    except Exception as e:
+        log(f"[movers] 이상치 표시 오류 (무시): {e}")
+
     # ── 차트 끝점 ↔ 실시간 spot 동기화 (소스 불일치 보정) ──────────
     # 모든 카드/상세 모달 차트가 data.history 를 공유하므로 한 번의 보정으로
     # 헤더 숫자와 차트 끝점 불일치(예: KOSPI 차트가 며칠 전에서 멈추는 문제)를 일괄 해결.
@@ -9160,17 +9219,35 @@ def fetch_news_all_feeds():
 #  'ISM PMI = 5.4'(실제 OECD BCI), '주택지표(NAR) = 1465'(실제 주택착공) 처럼 표시됨.)
 # FRED 에 없거나(ISM·ADP=민간 독점), 우리 데이터셋에 매칭 시리즈가 없는(미시간 심리·주간
 # 실업수당) 지표는 잘못된 값을 보여주므로 캘린더에서 제외한다.
+#
+# ⚠ release_id → 이름은 2026-10-05 에 FRED 사이트(release?rid=N · series 페이지의 'Series from …')로 실측해 고쳤다.
+#   옛 표는 id 가 거의 다 어긋나 있었다: 11=Employment Cost Index 를 NFP 로(그래서 NFP 가 분기말 10/30 에 찍혔다),
+#   50=Employment Situation(진짜 NFP) 을 산업생산으로, 53=GDP 를 주택착공으로, 13=G.17 산업생산을 소매판매로,
+#   14=G.19 소비자신용을 GDP 로, 15=G.5 환율을 PCE 로, 18=H.15 금리(매일)를 PPI 로, 151=Personal Income by State
+#   (연·분기 몇 건)를 FOMC 로 적었다. FOMC 는 FRED 가 아니라 연준 공식 일정(_parse_fomc)에서 받는다(아래 _cal_sources).
+# 시각은 미국 동부 현지(ET) — KST 변환은 서머타임(3월 둘째 일요일~11월 첫 일요일)을 따라 _us_et_kst 가 한다.
 FRED_KEY_RELEASES = {
-    10:  ("US", "미국 CPI (전월비)",          3, "21:30"),
-    11:  ("US", "미국 비농업고용(NFP)",       3, "21:30"),
-    13:  ("US", "미국 소매판매",              2, "21:30"),
-    14:  ("US", "미국 GDP",                  3, "21:30"),
-    15:  ("US", "미국 PCE 물가지수",          3, "21:30"),
-    18:  ("US", "미국 PPI",                  2, "21:30"),
-    50:  ("US", "미국 산업생산",              2, "22:15"),
-    53:  ("US", "미국 주택착공 (Housing Starts)", 2, "21:30"),  # FRED:HOUST (천 호, 연환산)
-    151: ("US", "미국 FOMC 회의",            3, "03:00"),
+    10:  ("US", "미국 CPI (전월비)",          3, "08:30"),   # Consumer Price Index
+    50:  ("US", "미국 비농업고용(NFP)",       3, "08:30"),   # Employment Situation
+    9:   ("US", "미국 소매판매",              2, "08:30"),   # Advance Monthly Sales for Retail and Food Services
+    53:  ("US", "미국 GDP",                  3, "08:30"),   # Gross Domestic Product
+    54:  ("US", "미국 PCE 물가지수",          3, "08:30"),   # Personal Income and Outlays
+    46:  ("US", "미국 PPI",                  2, "08:30"),   # Producer Price Index
+    13:  ("US", "미국 산업생산",              2, "09:15"),   # G.17 Industrial Production and Capacity Utilization
+    27:  ("US", "미국 주택착공 (Housing Starts)", 2, "08:30"),  # New Residential Construction · FRED:HOUST (천 호, 연환산)
 }
+
+
+def _us_dst(d):
+    """미국 서머타임(EDT) 여부 — 3월 둘째 일요일 ~ 11월 첫 일요일 전날."""
+    mar, nov = date_cls(d.year, 3, 1), date_cls(d.year, 11, 1)
+    return (mar + timedelta(days=(6 - mar.weekday()) % 7 + 7)) <= d < (nov + timedelta(days=(6 - nov.weekday()) % 7))
+
+
+def _us_et_kst(d, hhmm):
+    """미국 동부 현지 날짜·시각 → (KST 날짜, 'HH:MM'). EDT+13h · EST+14h — 14:00 ET 의 FOMC 는 다음 날 새벽이 된다."""
+    k = datetime(d.year, d.month, d.day, int(hhmm[:2]), int(hhmm[3:5])) + timedelta(hours=13 if _us_dst(d) else 14)
+    return k.date(), k.strftime("%H:%M")
 
 # 캘린더 이벤트 → data["economicIndicators"] 경로 매핑.
 # 서버측 자동 백필 (auto-backfill calendar actuals) 에서 사용.
@@ -9187,6 +9264,10 @@ CALENDAR_INDICATOR_MAP = {
     "한국 5월 수출입 동향":   ("economicIndicators.kr.exports_kr", "yoy1", False),
     "한국 산업생산지수":      ("economicIndicators.kr.ip_kr", "mom1", False),
     "한국 제조업 PMI":        ("economicIndicators.kr.pmi_kr", "raw1", False),
+    # 일정표(A19 공식 페이지)가 실제로 내는 이름 — 2026-10-05. 산업활동동향(전산업생산)·고용동향(취업자 증감)은 짝이 되는
+    # 잎이 없어 비워 둔다(ip_kr 은 광공업생산, unemployment_kr 은 실업률 원계열이라 헤드라인이 다르다 — 라벨↔값 정합성).
+    "한국 소비자물가동향":    ("economicIndicators.kr.cpi_kr", "yoy1", True),     # 전년동월비 = 헤드라인 그대로, refPeriod 월 관측만
+    "한국은행 금통위 (통화정책방향)": ("economicIndicators.kr.base_rate_kr", "pct2", False),
     # 미국 — CPI/PPI/소매/산업생산은 전월비 % 발표가 표준
     # ⚠ 각 라벨은 FRED 시리즈와 일치해야 한다(라벨↔값 정합성). ISM(독점)·ADP(독점)·
     #   미시간 심리·주간 실업수당 청구는 매칭 시리즈가 없어 제거했다(잘못된 값 표시 방지).
@@ -9194,7 +9275,8 @@ CALENDAR_INDICATOR_MAP = {
     "미국 CPI (전년비)":      ("economicIndicators.us.cpi_us", "yoy1", True),
     "미국 PCE 물가지수":      ("economicIndicators.us.pce_us", "mom1", True),
     "미국 실업률":            ("economicIndicators.us.unemployment", "raw1", True),  # 실업률은 %p 그 자체
-    "미국 FOMC 회의":         ("economicIndicators.us.ff_rate", "pct2", False),
+    # FOMC 결정 = 목표금리 상한(DFEDTARU, 일간·결정 즉시 반영) — 월평균 실효금리 ff_rate 는 결정 당월에 안 바뀐다.
+    "미국 FOMC 회의":         ("economicIndicators.us.ff_target", "pct2", False),
     # GDP 는 명목 수준의 전기비%가 아니라 BEA 실질 성장률(전기비 연율) 시리즈를 그대로 표시.
     "미국 1분기 GDP (2차)":   ("economicIndicators.us.gdp_growth_us", "pct1", False),
     "미국 GDP":               ("economicIndicators.us.gdp_growth_us", "pct1", False),
@@ -9208,10 +9290,13 @@ CALENDAR_INDICATOR_MAP = {
     # 유로존
     "유로존 CPI (전년비)":    ("economicIndicators.eu.cpi_eu", "yoy1", True),
     "ECB 통화정책회의":       ("economicIndicators.eu.base_rate_eu", "pct2", False),
+    "ECB 통화정책 결정":      ("economicIndicators.eu.base_rate_eu", "pct2", False),   # 일정표 실제 이름(예금금리)
     "유로존 제조업 PMI":      ("economicIndicators.eu.pmi_eu", "raw1", False),
     # 일본
     "일본 GDP (전기비)":      ("economicIndicators.jp.gdp_jp", "mom1", False),
     "일본 BOJ 금리결정":      ("economicIndicators.jp.base_rate_jp", "pct2", False),
+    # 일정표 실제 이름. base_rate_jp 는 무담보 콜 익일물 '월평균'이라 결정 당일 정책금리와 다를 수 있는 근사다.
+    "일본은행(BOJ) 금융정책결정회합": ("economicIndicators.jp.base_rate_jp", "pct2", False),
     "일본 제조업 PMI":        ("economicIndicators.jp.pmi_jp", "raw1", False),
     # 중국
     "중국 CPI (전년비)":      ("economicIndicators.cn.cpi_cn", "yoy1", True),
@@ -9224,6 +9309,11 @@ CALENDAR_INDICATOR_MAP = {
     "독일 CPI":               ("economicIndicators.de.cpi_de", "yoy1", True),
     "독일 제조업 PMI":        ("economicIndicators.de.pmi_de", "raw1", False),
 }
+
+
+# 회의 '결정' 일정 — 값은 결정 당월 이후 관측이 있어야 채운다(backfill_calendar_actuals).
+CAL_DECISION_NAMES = {"미국 FOMC 회의", "한국은행 금통위 (통화정책방향)", "ECB 통화정책 결정",
+                      "일본은행(BOJ) 금융정책결정회합"}
 
 
 def _fmt_indicator(val, fmt):
@@ -9357,6 +9447,17 @@ def backfill_calendar_actuals(events, data):
             recent_keys = [k for k in keys_sorted
                            if k <= iso or k <= iso_yyyy_mm or k.replace("-","") <= iso.replace("-","")]
             if not recent_keys:
+                continue
+            # 원천이 아직 안 따라온 회차에 지난달 값이 실적으로 찍히지 않게(A19 가 이름을 이 표 밖에 둔 이유):
+            #  · refPeriod(「9월분」)가 적힌 통계는 그 달 관측만 act 가 된다.
+            #  · 정책금리 결정은 결정 당월(이후) 관측이 있어야 act 가 된다.
+            ym = lambda k: k.replace("-", "")[:6]
+            if ev.get("refPeriod"):
+                hit = [k for k in keys_sorted if ym(k) == ev["refPeriod"].replace("-", "")]
+                if not hit:
+                    continue
+                recent_keys = keys_sorted[:keys_sorted.index(hit[-1]) + 1]
+            elif name in CAL_DECISION_NAMES and ym(recent_keys[-1]) < ym(iso):
                 continue
             act_key = recent_keys[-1]
             prev_key = recent_keys[-2] if len(recent_keys) >= 2 else None
@@ -9512,8 +9613,8 @@ def fetch_fred_release_dates(release_id, days_back=7, days_forward=30):
         # 추가 안전장치: 동일 (YYYY-MM, release_id) 키 기준으로 첫번째만 유지
         # 일부 release 는 같은 달 안에 preliminary + revision 으로 2~3건 반환됨 → 첫 발표만.
         # 미래(schedule) 구간의 '매일 발표' 노이즈도 같은 dedup 으로 함께 제거됨.
-        # 단, FOMC(151) 처럼 월 2회 이상 발표가 정상인 release 는 release_id 별 정책 적용.
-        MULTI_PER_MONTH_OK = {151, 23}  # FOMC, 신규실업수당청구(주간)
+        # 단, 월 2회 이상 발표가 정상인 release 는 release_id 별 정책 적용. (FOMC 는 FRED 가 아니라 연준 일정에서 받는다.)
+        MULTI_PER_MONTH_OK = {23}  # 신규실업수당청구(주간)
         if int(release_id) in MULTI_PER_MONTH_OK:
             # 월별 dedup 은 건너뛰되, 미래 schedule 이 '매일'로 오는 극단 케이스만
             # ISO 주 단위로 압축 (주간 발표 cadence 는 유지, 일간 노이즈만 차단).
@@ -9568,7 +9669,7 @@ def fetch_economic_calendar():
     seen = set()
     seen_name_month = set()
     MULTI_PER_MONTH_NAMES = {"미국 FOMC 회의", "미국 신규 실업수당청구"}
-    for rid, (cc, name, stars, time_kst) in FRED_KEY_RELEASES.items():
+    for rid, (cc, name, stars, time_et) in FRED_KEY_RELEASES.items():
         dates = fetch_fred_release_dates(rid, days_back=14, days_forward=45)
         if not dates:
             continue
@@ -9579,9 +9680,9 @@ def fetch_economic_calendar():
                 date_str = d.get("date", "")
                 if not date_str:
                     continue
-                dt_iso = datetime.strptime(date_str, "%Y-%m-%d")
-                # 'MM.DD HH:MM' 형식으로 변환
-                dt_disp = f"{dt_iso.month:02d}.{dt_iso.day:02d} {time_kst}"
+                # FRED 날짜 = 미국 현지 발표일 → KST 날짜·시각('MM.DD HH:MM')으로
+                kst_d, time_kst = _us_et_kst(datetime.strptime(date_str, "%Y-%m-%d").date(), time_et)
+                dt_disp = f"{kst_d.month:02d}.{kst_d.day:02d} {time_kst}"
                 key = (dt_disp, name)
                 if key in seen:
                     continue
@@ -9597,7 +9698,7 @@ def fetch_economic_calendar():
                     "stars": stars,
                     "prev": "", "fore": "", "act": "", "beat": None,
                     "source": f"FRED:release_id={rid}",
-                    "iso": date_str,
+                    "iso": kst_d.isoformat(),
                 })
             except Exception:
                 continue
@@ -9613,8 +9714,10 @@ def fetch_economic_calendar():
 # ── 비미국 경제 일정 (A19) — 각 기관 공식 일정 페이지(무키 HTML) ─────────────────────────
 # 일일 런에서만 다시 받는다(연간 일정이라 거의 안 바뀐다). 매시 런은 직전 값을 잇되, 직전에 없거나
 # 보존(preserved) 표식이 남은 원천만 다시 묻는다(거시 lane 과 같은 규칙).
-# 이름은 캘린더 백필 표(CALENDAR_INDICATOR_MAP·프런트 CAL_BACKFILL_MAP)에 없는 것으로 둔다 — 그 표는
-# '발표일 이하 최신 관측'을 실적으로 쓰는데, 원천이 아직 안 따라온 회차에 지난달 값이 실적으로 찍힌다.
+# 백필 표(CALENDAR_INDICATOR_MAP)는 '발표일 이하 최신 관측'을 실적으로 쓰는데, 원천이 아직 안 따라온 회차에 지난달
+# 값이 실적으로 찍힌다 — 그래서 처음엔 이 이름들을 표 밖에 뒀다. 2026-10-05 부터는 짝이 있는 이름(소비자물가동향·
+# 금통위·ECB·BOJ)을 표에 올리되 backfill_calendar_actuals 가 refPeriod(그 달 관측만)·CAL_DECISION_NAMES(결정 당월
+# 관측 이후만)로 그 문제를 막는다. 산업활동동향·고용동향은 짝이 되는 잎이 없어 계속 표 밖이다.
 # 시각: ECB 결정은 14:15 CET/CEST 고정 공표. 금통위·BOJ 는 고정 공표 시각이 없어 timeApprox=True
 # (금통위 = 회의 시작 09:00, BOJ = 통상 정오 전후).
 _CAL_BACK, _CAL_AHEAD = 14, 75      # 회의는 6~8주 간격 — FRED(45일)보다 멀리 봐야 다음 회의가 보인다
@@ -9623,6 +9726,7 @@ _CAL_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 _BOK_MPC_URL = "https://www.bok.or.kr/portal/singl/crncyPolicyDrcMtg/listYear.do?mtgSe=A&menuNo=200755"
 _ECB_MPM_URL = "https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html"
 _BOJ_MPM_URL = "https://www.boj.or.jp/en/mopo/mpmsche_minu/index.htm"
+_FOMC_URL = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"   # 연준 FOMC 연간 회의 일정(무키 HTML)
 _KOSTAT_URL = "https://mods.go.kr/newsPln.es?mid=a10305000000&oa_mm=ALL"   # 국가데이터처(옛 통계청) 연간 보도계획
 # 보도자료명 → (이름, 별). '2026년 8월 소비자물가동향'·'2025년 12월 및 연간 고용동향' 꼴만 잡는다.
 _KOSTAT_PICK = {"소비자물가동향": ("한국 소비자물가동향", 3), "고용동향": ("한국 고용동향", 2),
@@ -9682,6 +9786,24 @@ def _parse_boj_mpm(html_text):
     return out
 
 
+def _parse_fomc(html_text):
+    """연준 FOMC 일정 — '<h4>2026 FOMC Meetings</h4>' 아래 행 'fomc-meeting__month'(October) + 'fomc-meeting__date'(27-28*).
+    결정·성명은 마지막 날 14:00 ET → KST 로는 다음 날 새벽(03:00 EDT / 04:00 EST)이라 iso·dt 는 KST 날짜, 미국 현지 결정일은 usDate."""
+    out = []
+    parts = re.split(r'<h4><a id="\d+">(\d{4}) FOMC Meetings</a></h4>', html_text)
+    for year, body in zip(parts[1::2], parts[2::2]):
+        for mon, days in re.findall(
+                r'fomc-meeting__month[^>]*><strong>([^<]+)</strong>\s*</div>\s*'
+                r'<div class="[^"]*fomc-meeting__date[^"]*">([^<]+)</div>', body):
+            m = _EN_MONTHS.get((["", *re.findall(r"[A-Za-z]+", mon)][-1])[:3].lower())   # 'Oct/Nov' 처럼 달을 넘으면 뒤 달
+            dd = re.findall(r"\d+", days)
+            if m and dd:
+                us = date_cls(int(year), m, int(dd[-1]))
+                kd, hhmm = _us_et_kst(us, "14:00")
+                out.append(_cal_event("US", "미국 FOMC 회의", 3, kd, hhmm, _FOMC_URL, usDate=us.isoformat()))
+    return out
+
+
 def _parse_kostat_plan(html_text):
     """국가데이터처 연간 보도계획 표 — 보도일자 'MM.DD.(요일)'·보도시간·보도자료명. 소비자물가·고용·산업활동만."""
     y = re.search(r"<h3>\s*(\d{4})년 [^<]*보도계획\s*</h3>", html_text)
@@ -9720,6 +9842,7 @@ def _cal_sources(today):
     return (("bok", _BOK_MPC_URL, bok),
             ("ecb", _ECB_MPM_URL, lambda: _parse_ecb_mpm(_cal_get(_ECB_MPM_URL))),
             ("boj", _BOJ_MPM_URL, lambda: _parse_boj_mpm(_cal_get(_BOJ_MPM_URL))),
+            ("fomc", _FOMC_URL, lambda: _parse_fomc(_cal_get(_FOMC_URL))),
             ("kostat", _KOSTAT_URL, lambda: _parse_kostat_plan(_cal_get(_KOSTAT_URL))))
 
 
@@ -9783,7 +9906,7 @@ def _calendar_block(cal_data, intl_events, prev_events, today=None):
     FRED 장애가 ok 로 보였다."""
     cal_data["events"] = _merge_calendar(cal_data.get("events") or [], intl_events, prev_events, today)
     if intl_events:
-        cal_data["source"] = f"{cal_data.get('source') or 'FRED'} + 한국은행·ECB·BOJ·국가데이터처 공식 일정"
+        cal_data["source"] = f"{cal_data.get('source') or 'FRED'} + 연준·한국은행·ECB·BOJ·국가데이터처 공식 일정"
     kept = [e for e in cal_data["events"] if e.get("preserved") and str(e.get("source", "")).startswith("FRED:")]
     if kept:
         cal_data["preserved"], cal_data["preservedAt"] = True, kept[0]["preservedAt"]

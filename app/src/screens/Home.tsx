@@ -10,6 +10,10 @@ import { useWatch } from '../lib/watch'
 import { NumBlock, Pill, SegBar } from '../components/ui'
 import { DivergingBars, Heatmap, LineChart } from '../components/charts'
 import { Panel, RankTable, StripCard, WatchStar, type Col } from '../components/panels'
+import { LevelPill } from '../components/personal/bits'
+import { hhmm, todayRows } from '../lib/alerts/v2'
+import { kstDay } from '../lib/personal/calc'
+import { loadRootJson } from '../lib/personal/data'
 
 const VIEWS = [
   { key: 'all', label: '전체' }, { key: 'kr', label: '국내' }, { key: 'global', label: '해외' },
@@ -43,6 +47,10 @@ export default function Home() {
   const [home, setHome] = useState<HomeBundle | null>(null)
   const [err, setErr] = useState(false)
   useEffect(() => { loadHome().then(setHome, () => setErr(true)) }, [])
+  // 알림 원장(events/latest.json) — 「일정·알림」 패널의 「오늘 바뀐 것」. 아직 없으면(배포 전) 패널은 종전 그대로다.
+  const [ledger, setLedger] = useState<unknown>(null)
+  useEffect(() => { loadRootJson<unknown>('events/latest.json').then(setLedger, () => {}) }, [])
+  const changed = useMemo(() => todayRows(ledger, kstDay()), [ledger])
   const [v, setV] = useViewParam<View>('v', 'all', VIEWS.map(o => o.key))
   const [s, setS] = useViewParam<string>('s', 'kospi')
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
@@ -239,6 +247,24 @@ export default function Home() {
 
         {/* 일정·알림 */}
         <Panel className="pc:col-span-4" title="일정·알림" fold="mobile">
+          {changed.rows.length > 0 && (
+            <section aria-label="오늘 바뀐 것" className="mb-3">
+              <h3 className="m-0 mb-1 text-12 font-bold text-ink-2">오늘 바뀐 것</h3>
+              <ul className="m-0 p-0 list-none">
+                {changed.rows.map(x => (
+                  <li key={x.key} className="border-b border-line last:border-b-0">
+                    <Link to={x.to ?? '/alerts'} className="flex items-start gap-3 py-1.5 no-underline">
+                      <span className="w-10 shrink-0 num text-12 text-ink-3">{hhmm(x.at)}</span>
+                      <span className="min-w-0 flex-1 text-13 text-ink-1 line-clamp-2 [overflow-wrap:anywhere]">{x.title}</span>
+                      <LevelPill level={x.level} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <Link to="/alerts" className="inline-flex items-center mt-1 text-12 text-ink-2 no-underline hover:text-ink-1">받은 알림 <span className="num ml-1">{changed.total}</span><ChevronRight size={14} aria-hidden /></Link>
+            </section>
+          )}
+          {changed.rows.length > 0 && <h3 className="m-0 mb-1 text-12 font-bold text-ink-2">다가오는 일정</h3>}
           {home.schedule?.length ? (
             <ul className="m-0 p-0 list-none">
               {(home.schedule as SchedRow[]).map((e, i) => (

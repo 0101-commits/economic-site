@@ -105,6 +105,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           INPUT_CLOSE: ${{ inputs.close }}
+          ALERTS_V2: ${{ vars.ALERTS_V2 || '0' }}
         run: |
           H=$(TZ=Asia/Seoul date +%-H)
           M=$(TZ=Asia/Seoul date +%-M)
@@ -165,7 +166,9 @@ jobs:
               else mslot=manual; ckey=manual; fi ;;
             *)
               # 자동 트리거 — '지금이 타깃 시각'일 때만 발송(그 외 깨움은 즉시 종료).
-              if [ -n "$close" ]; then proceed=true; mslot=close; ckey=close
+              # 알림 v2(ALERTS_V2=1)에서는 현행 시황 6통 대신 briefing.yml 이 아침 · 마감 · 주간을 보낸다 — 자동 발송만 멈춘다(수동은 그대로).
+              if [ "${ALERTS_V2:-0}" = "1" ]; then proceed=false; mslot=none; ckey=none; echo "[gate] ALERTS_V2=1 — 현행 시황 발송 건너뜀(briefing.yml)"
+              elif [ -n "$close" ]; then proceed=true; mslot=close; ckey=close
               elif [ -n "$tslot" ]; then proceed=true; mslot="$tslot"; ckey="$tslot"
               else proceed=false; mslot=none; ckey=none; fi ;;
           esac
@@ -212,6 +215,39 @@ jobs:
         # 영문 라벨로 강등될 뿐 발송엔 지장 없음(기획 2026-08-11).
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
         run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk || echo "::warning::한글 폰트 설치 실패 — 카드 영문 라벨로 강등"
+
+      # 🧪 테스트 관문(알림 v2 A1) — 발송 앞에서 scripts/tests 전체를 돌린다. 실패하면 아래 발송 스텝이 건너뛰어진다.
+      #   continue-on-error 를 달지 말 것 — scripts/tests/test_workflows_have_pytest.py 가 글자로 지킨다.
+      #   시크릿·외부 네트워크 없이 통과한다(scripts/tests/conftest.py 가 외부 접속을 막는다) — 이 스텝엔 env 비밀값을 넣지 않는다.
+      #   위 폰트 설치 뒤에 둔다(카드 게이트가 한글 폰트로 판정). 패키지: 테스트가 fetch_data·mer_aggregate 를
+      #   가져오므로 yfinance·PyYAML 이 더 필요하다(둘 다 fetch-data.yml 이 이미 쓰는 것).
+      #   git checkout: 테스트가 저장소 파일을 건드렸다면 되돌린다.
+      #   통과 마커: 키 = scripts 아래 파이썬(+사건 사전) 해시. 같은 코드 상태에서 이미 통과했다면(캐시 적중) 이 스텝과
+      #   pytest 전용 pip 설치를 건너뛴다. 마커는 테스트가 통과한 직후에만 저장한다(저장 스텝이 테스트 뒤·기본 success 조건).
+      #   검사: test_workflows_have_pytest.py. (위 「중복 발송 방지 마커」 id=marker 와는 별개다.)
+      - name: Restore test pass marker
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
+        id: tests-ok
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pytest_ok
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+
+      - name: Run tests
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true' && steps.tests-ok.outputs.cache-hit != 'true'
+        run: |
+          pip install pytest PyYAML yfinance
+          python -m pytest scripts/tests -q -x
+          git status --short
+          git checkout -- .
+          touch .pytest_ok
+
+      - name: Save test pass marker
+        if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true' && steps.tests-ok.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pytest_ok
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
 
       # 오늘 이미 주인공이었던 자산(.kakao_focus.json) — 같은 움직임이 슬롯마다 카드를
       # 독차지하지 않게 앞 슬롯 기록을 넘겨받는다(send_kakao_digest.pick_focus 의 seen).

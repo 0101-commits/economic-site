@@ -25,7 +25,8 @@ const FILES = [
   'fundamentals.json', 'link_status.json', 'alerts_state.json', 'history.json',
 ];
 // bundles/ = 화면 묶음(scripts/build_bundles.py, fetch-data.yml 이 매 런 만든다) — 새 화면 층이 화면 단위로 읽는 JSON.
-const DIRS = { js: ['.js'], css: ['.css', '.woff2'], bundles: ['.json'] };
+// events/ = 알림 v2 사건 원장(scripts/alerts_v2/ledger.py — 일별 · latest.json · history/). 받은 알림 화면이 latest.json 을 읽는다.
+const DIRS = { js: ['.js'], css: ['.css', '.woff2'], bundles: ['.json'], events: ['.json'] };
 // 새 화면 층: app/dist(빌드 산출물) → _site/(첫 주소) + _site/next/(옛 주소 사본 — 홈 화면에 추가한 기기·북마크용, 전환 단계 C 에서 뺀다).
 // pages.yml 이 이 스크립트보다 먼저 빌드한다.
 const APP_DIST = 'app/dist';
@@ -51,7 +52,7 @@ function collect() {
   fs.rmSync(SITE, { recursive: true, force: true });
   const out = [...FILES];
   for (const [dir, exts] of Object.entries(DIRS)) {
-    if (dir === 'bundles' && !fs.existsSync(path.join(ROOT, dir))) continue;   // 첫 수집 런 전에는 아직 없다
+    if ((dir === 'bundles' || dir === 'events') && !fs.existsSync(path.join(ROOT, dir))) continue;   // 첫 수집 런 전에는 아직 없다
     out.push(...walk(path.join(ROOT, dir)).map(p => rel(p, ROOT))
       .filter(r => exts.includes(path.extname(r).toLowerCase())));
   }

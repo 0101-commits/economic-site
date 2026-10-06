@@ -60,10 +60,9 @@ def _breach(pct, closes, fallback_thr):
     CEILING_PCT 를 넘으면 무조건 발동한다. 임계%는 카드가 그릴 선이고, 근거문구는
     embed 제목 아래 한 줄이다(z + 자연어 서수)."""
     sd = vol.sigma(closes)
+    thr = vol.clamp_threshold(sd, Z_THRESHOLD, FLOOR_PCT, CEILING_PCT, fallback_thr)
     if sd is None:
-        thr = min(fallback_thr, CEILING_PCT)
         return abs(pct) >= thr, thr, ""
-    thr = min(max(Z_THRESHOLD * sd, FLOOR_PCT), CEILING_PCT)
     return abs(pct) >= thr, thr, vol.sigma_line(pct, closes)
 
 

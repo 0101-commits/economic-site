@@ -13,6 +13,9 @@
                   reason·line.pc·todayLine.pc(PC), one_liners.py 의 문장 상수   24 / 44칸
   버튼 바 항목     bundles/*.json 의 bar / buttons 배열(개수 7개 이하)       6 / 8칸
   알림 제목        alerts*.json 의 title_m(모바일) · title(PC)             18 / 30칸
+  알림 항목(v2)    events/*.json 원장 행의 title(제목 30칸 · 브리핑 48칸) ·
+                  why · next(본문 한 줄 40칸 — 푸시 본문은 두 줄 40×2) ·
+                  buttons(버튼 8칸). 카톡 버튼 글자는 보낼 때 만들어져(deliver.kakao_parts) 행에는 없다
 
 대상 파일이 아직 없으면 「대상 없음」을 출력하고 통과(종료 코드 0)한다.
 사용: python scripts/check_text_limits.py [--root .]
@@ -31,8 +34,10 @@ LIMITS = {
     "reason": (24, 44),
     "button": (6, 8),
     "alert_title": (18, 30),
+    "alert_line": (40, 40),      # 원장 본문 한 줄(why · next). 푸시 본문 = 두 줄이라 40×2
 }
 BUTTON_MAX_COUNT = 7
+BRIEF_TITLE_MAX = 48             # 브리핑(level brief) 제목 상한(계약서 「제목 ≤30자(브리핑 48 상한)」)
 
 
 def main(argv):
@@ -139,6 +144,20 @@ def main(argv):
             elif k == "title":
                 limit("알림 제목(PC)", f"{os.path.basename(f)}{where}", v, pc_al)
         walk(load(f), al)
+
+    # 5) 알림 v2 원장 행 — 제목 30 · 본문(왜 · 다음) 한 줄 40. 일별 파일과 latest.json 모두(같은 행이 두 곳에 있어도 각자 잰다).
+    ln = LIMITS["alert_line"][1]
+    for f in json_files("events/*.json"):
+        rows = load(f)
+        for i, r in enumerate(rows if isinstance(rows, list) else []):
+            if not isinstance(r, dict):
+                continue
+            at = f"{os.path.basename(f)}[{i}]"
+            limit("알림 제목(원장)", f"{at}.title", r.get("title"), BRIEF_TITLE_MAX if r.get("level") == "brief" else pc_al)
+            limit("알림 본문(왜)", f"{at}.why", r.get("why"), ln)
+            limit("알림 본문(다음)", f"{at}.next", r.get("next"), ln)
+            for j, b in enumerate(r.get("buttons") or []):      # 카톡 버튼은 8자(카카오 상한) — PC 상한과 같다
+                limit("알림 버튼(원장)", f"{at}.buttons[{j}]", b if isinstance(b, str) else (b.get("label") if isinstance(b, dict) else None), LIMITS["button"][1])
 
     if not checked:
         print("[textlimits] 대상 없음 — 레지스트리·one_liners·bundles·alerts 파일 어디에도 검사할 필드가 아직 없다. 통과.")

@@ -10,6 +10,7 @@ import { useWatch } from '../lib/watch'
 import { AsOfBadge, NumBlock } from '../components/ui'
 import { LineChart, Range52 } from '../components/charts'
 import { Panel, StripCard, WatchStar } from '../components/panels'
+import { BellSheet } from '../components/personal/BellSheet'
 
 // 사전 자산군 → 시장 화면 자산군 탭(Market.tsx ASSETS 키)
 const MARKET_TAB: Record<string, string> = { index: 'global', sentiment: 'global', fx: 'fxrate', rate: 'fxrate', commodity: 'commod', macro: 'macro', realestate: 'realestate' }
@@ -21,6 +22,9 @@ export default function Detail() {
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const watch = useWatch()
   const [got, setGot] = useState<Got | null>(null)
+  // 벨 시트: 「알림 조건 추가」가 연다. 주소에 bell=1 이 있으면 열린 채로 온다(넘침 게이트 · 공유용).
+  const [bell] = useViewParam<string>('bell', '')
+  const [bellOpen, setBellOpen] = useState(bell === '1')
   useEffect(() => {
     let live = true
     setGot(null)
@@ -83,10 +87,10 @@ export default function Detail() {
 
         <Panel className="pc:col-span-4" title="알림">
           <p className="m-0 mb-3 text-13 text-ink-2">이 지표가 정한 값을 넘거나 크게 움직이면 알려 드립니다.</p>
-          <Link to={`/alerts?id=${encodeURIComponent(id)}`}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-btn bg-accent text-on-accent text-13 font-bold no-underline">
+          <button type="button" onClick={() => setBellOpen(true)}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-btn bg-accent text-on-accent text-13 font-bold border-0 cursor-pointer">
             <BellPlus size={16} aria-hidden />알림 조건 추가
-          </Link>
+          </button>
         </Panel>
 
         {got.related.length > 0 && (
@@ -105,6 +109,7 @@ export default function Detail() {
       {reg && MARKET_TAB[reg.asset] && (
         <Link to={`/market?a=${MARKET_TAB[reg.asset]}`} className="inline-flex items-center self-start text-12 text-ink-2 no-underline hover:text-ink-1">시장 화면에서 보기<ChevronRight size={14} aria-hidden /></Link>
       )}
+      <BellSheet open={bellOpen} onClose={() => setBellOpen(false)} id={id} label={name} />
     </div>
   )
 }

@@ -1,0 +1,156 @@
+name: Alerts v2 (settle · eve)
+
+# 알림 v2(사건 사전 · 원장) 의 장외 평가 런 — 기획서 6장 편성표 · 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md B4.
+#   settle = 평일 18:05 KST — 수급 확정치(D1~D4) · 52주(B1)
+#   eve    = 매일 21:00 KST — 발표 전날 예고(E1)
+#   장중 경량 추출은 stock-alerts.yml(매분), 풀 · 일일 추출은 fetch-data.yml 끝, 브리핑은 briefing.yml.
+#   원장(events/)은 늘 쓰고, 발송은 저장소 변수 ALERTS_V2=1 일 때만(run.py 가 게이트).
+on:
+  schedule:
+    - cron: '5 9 * * 1-5'    # KST 18:05 평일 — settle
+    - cron: '0 12 * * *'     # KST 21:00 매일 — eve
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '평가 런 (light · full · settle · daily · eve)'
+        required: true
+        default: 'settle'
+        type: choice
+        options: [light, full, settle, daily, eve]
+      dry_run:
+        description: '드라이런(발송 없음)'
+        required: false
+        default: false
+        type: boolean
+  repository_dispatch:
+    types: [alerts-v2]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: alerts-v2
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # settle 과 eve 를 cron 글자로 가른다(stock-alerts 가 schedule 을 같은 방식으로 본다).
+      V2_MODE: ${{ github.event.inputs.mode || github.event.client_payload.mode || (github.event.schedule == '0 12 * * *' && 'eve') || 'settle' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ github.ref_name || 'main' }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests pynacl matplotlib
+
+      - name: Korean fonts (cache)
+        id: kofonts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/kofonts
+          key: noto-sans-kr-static-v1
+      - name: Korean fonts (download on cache miss)
+        if: steps.kofonts.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p ~/kofonts
+          for w in Regular Bold; do
+            curl -fsSL --max-time 30 -o ~/kofonts/NotoSansKR-$w.otf \
+              "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/KR/NotoSansKR-$w.otf"
+          done
+
+      # 🧪 테스트 관문(G0) — stock-alerts.yml 과 같은 통과 마커 캐시.
+      - name: Restore test pass marker
+        id: tests-ok
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pytest_ok
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+
+      - name: Run tests
+        if: steps.tests-ok.outputs.cache-hit != 'true'
+        env:
+          KO_FONT_PATH: ~/kofonts
+        run: |
+          pip install pytest PyYAML yfinance
+          python -m pytest scripts/tests -q -x
+          git status --short
+          git checkout -- .
+          touch .pytest_ok
+
+      - name: Save test pass marker
+        if: steps.tests-ok.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .pytest_ok
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+
+      - name: Alerts v2 — 사건 추출 · 발송
+        env:
+          KO_FONT_PATH: ~/kofonts
+          ALERTS_V2: ${{ vars.ALERTS_V2 || '0' }}
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}
+          GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_ALERTS: ${{ secrets.DISCORD_WEBHOOK_ALERTS }}
+          DISCORD_WEBHOOK_SWINGS: ${{ secrets.DISCORD_WEBHOOK_SWINGS }}
+          DISCORD_WEBHOOK_SYSTEM: ${{ secrets.DISCORD_WEBHOOK_SYSTEM }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          ALERTS_SYNC_KEY: ${{ secrets.ALERTS_SYNC_KEY }}
+          ALERTS_STATE_SALT: ${{ secrets.ALERTS_STATE_SALT }}
+        run: |
+          extra=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then extra="--dry-run"; fi
+          python scripts/alerts_v2/run.py --mode "$V2_MODE" $extra
+
+      # 웹 푸시 — run.py 가 쌓은 scripts/push_queue.json 을 보낸다(stock-alerts.yml 과 같은 단계).
+      - name: Send web push
+        if: always()
+        continue-on-error: true
+        env:
+          PUSH_READ_KEY: ${{ secrets.PUSH_READ_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          pip install pywebpush==2.5.0
+          python scripts/send_push.py
+
+      - name: Commit events/ (사건 원장)
+        if: always()
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          branch="${GITHUB_REF_NAME:-main}"
+          [ -d events ] || { echo "원장 없음 — 커밋 건너뜀"; exit 0; }
+          git add events
+          if git diff --staged --quiet -- events; then echo "변경 사항 없음 — 커밋 건너뜀"; exit 0; fi
+          msg="alerts: 사건 원장 ${V2_MODE} $(date -u +'%Y-%m-%d %H:%M UTC')"
+          rm -rf /tmp/events.run && cp -r events /tmp/events.run
+          git commit -m "$msg" -q || true
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${branch}"; then echo "push 성공 (시도 ${attempt})"; exit 0; fi
+            echo "push 실패 (시도 ${attempt}) — 원격 최신 위에 원장만 재적용"
+            git fetch origin "${branch}" || true
+            git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
+            mkdir -p events && cp -r /tmp/events.run/. events/
+            git add events
+            if git diff --staged --quiet -- events; then echo "원격이 이미 최신 — 종료"; exit 0; fi
+            git commit -m "$msg" -q || true
+            sleep $((attempt * 3))
+          done
+          echo "::error::events 원장 push 실패 (재시도 소진)"; exit 1

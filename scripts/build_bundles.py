@@ -87,7 +87,7 @@ ETF_PREFIX = ("KODEX", "TIGER", "KBSTAR", "RISE", "ACE", "HANARO", "SOL", "PLUS"
 HOME_STRIP = ["kospi", "kosdaq", "sp500", "nasdaq", "usdkrw", "us10y", "wti", "gold"]
 STRIPS = {
     "domestic": ["kospi", "kosdaq", "vkospi", "flow_foreign", "breadth_kospi", "top20_amount"],
-    "global": ["sp500", "nasdaq", "sox", "nikkei", "shanghai", "hsi"],
+    "global": ["sp500", "nasdaq", "sox", "nikkei", "shanghai", "hsi", "btc"],   # btc = 24시간 자산 — 알림 v2 A4(2026-10-05), 일곱째 칸
     "fxrates": ["usdkrw", "usdjpy", "jpykrw", "eurkrw", "us10y", "kr10y"],
     "commodities": ["wti", "brent", "gold", "silver", "copper", "natgas", "gold_premium"],
     "macro": ["cpi_kr_yoy", "base_rate_kr", "cpi_us_yoy", "unemployment", "exports_kr", "gdp_growth_us"],
@@ -529,6 +529,16 @@ class Quotes:
                     change = _round(value - series[-2][1], nd)
                     pct = _round((value / series[-2][1] - 1) * 100, 2) if series[-2][1] else None
             state = self.health.state(path) if value is not None else "missing"
+            if state == "prev":
+                # 24시간 거래라 장 마감·휴장이 없다(globex 의 17시 휴식도 없다) — 닫힌 장 기준 '직전 종가' 가 아니라 분 단위로
+                # 잰다. 일봉 한 칸 = UTC 하루: 오늘(UTC) 봉이면 값의 시각 = 수집 시각, 지난 봉이면 그날 24:00 UTC.
+                # 판정표가 이미 stale·kept 로 본 값은 그대로 둔다(수집 실패를 나이로 덮지 않는다).
+                t = dt.datetime.fromisoformat(as_of[:10]).replace(tzinfo=dt.timezone.utc) + dt.timedelta(days=1)
+                t = min(t, self.updated) if self.updated else t
+                state = freshness(max(0.0, (self.clock.now - t).total_seconds() / 60), True, False)
+                if state == "live":
+                    as_of = t.isoformat(timespec="seconds")
+                    out["liveUntil"] = (t + dt.timedelta(minutes=LIVE_MIN)).isoformat(timespec="seconds")
         else:                                                        # 잎: sentiment · economicIndicators · realestate
             leaf = get(self.data, path)
             leaf = leaf if isinstance(leaf, dict) else {}
@@ -632,6 +642,8 @@ def stock_rows(rows, amount=False, market=None):
                 it[dst] = _num(r.get(src))
         if r.get("preserved"):
             it["kept"] = True
+        if r.get("suspect"):                       # 수집기가 단 이상치 표식(기준가 변경 의심) — 지우지 않고 화면·알림이 가른다
+            it["suspect"] = True
         out.append(it)
     return out
 
@@ -1075,7 +1087,7 @@ def build_all(data, mer, now, toss=None):
         "indices": [Q.item(i, spark=0) | {"series": yr[i]} for i in idx_ids],
         "compare": {"from": start, "base": 100, "series": compare},
         "fearGreed": year("fear_greed") | {"rating": (sent.get("fear_greed") or {}).get("rating")},
-        "vix": year("vix"), "move": year("move"),
+        "vix": year("vix"), "move": year("move"), "crypto": year("btc"),
         "usCurve": curve("us"), "usCalendar": calendar_events(data, now, cc="US"),
     })
 
