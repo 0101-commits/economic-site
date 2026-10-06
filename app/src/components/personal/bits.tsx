@@ -1,5 +1,7 @@
 // 내 자산·알림·설정이 같이 쓰는 입력 조각. 토큰 클래스만 쓴다.
 import type { ReactNode } from 'react'
+import dictJson from '../../lib/alerts/dict.json'
+import type { Level } from '../../lib/personal/store'
 
 export const INPUT = 'h-9 w-full min-w-0 px-2 rounded-btn border border-line bg-bg text-14 text-ink-1 placeholder:text-ink-3 disabled:opacity-60'
 export const BTN = 'h-9 px-3 rounded-btn text-13 bg-accent text-on-accent border border-accent cursor-pointer disabled:opacity-60 whitespace-nowrap'
@@ -38,4 +40,18 @@ export function ShareBar({ label, pct, tone = 'ink-1' }: { label: string; pct: n
       <span className="num text-right text-ink-1">{pct == null ? '—' : `${pct.toFixed(1)}%`}</span>
     </li>
   )
+}
+
+/** 등급 이름(사전 dict.json — 이름은 사전에서만). */
+export const LV = Object.fromEntries(dictJson.levels.map(l => [l.id, l.name])) as Record<Level, string>
+
+/** 등급 알약: 경보만 검정 채움, 알림은 진한 테두리, 안내 · 시황은 옅은 테두리. 글자는 사전 이름(시황 = 브리핑). */
+export function LevelPill({ level }: { level: Level | 'brief' }) {
+  const tone = level === 'alarm' ? 'bg-accent text-on-accent border-accent' : level === 'alert' ? 'border-ink-1 text-ink-1' : 'border-line text-ink-3'
+  return <span className={`inline-flex shrink-0 items-center h-5 px-2 rounded-chip border text-11 whitespace-nowrap ${tone}`}>{level === 'brief' ? '시황' : LV[level]}</span>
+}
+
+/** 이름표가 위에 붙은 한 묶음(고르기 줄 · 스위치 따위를 담는다). */
+export function Row({ label, children }: { label: string; children: ReactNode }) {
+  return <div className="min-w-0"><p className="m-0 mb-1 text-12 text-ink-2">{label}</p>{children}</div>
 }

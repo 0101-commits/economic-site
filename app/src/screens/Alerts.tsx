@@ -4,13 +4,13 @@
 // 사용자 조건 줄의 이름은 이 기기 econPrefsV1.alerts 와 지표 사전에서만 찾는다(원장에는 조건 id 만 있다).
 // 사건 이름 · 등급 · 갈래 · 꾸러미 · 세기 이름은 사전 lib/alerts/dict.json(scripts/alerts_v2/export_dict.py 산출)에서만 읽는다.
 // 조건 행의 상태 7과 다시 켜기 규칙은 lib/personal/alertStatus.ts, 자동 정리는 lib/personal/housekeeping.ts.
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, ChevronRight, Trash2 } from 'lucide-react'
 import { SegBar } from '../components/ui'
 import { Panel } from '../components/panels'
-import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
-import { loadIndicator, loadRegistry, ROOT, type RegRow } from '../lib/bundle'
+import { BTN, BTN2, Field, INPUT, LevelPill, LV, Row, Switch } from '../components/personal/bits'
+import { loadRegistry, ROOT, type RegRow } from '../lib/bundle'
 import { fmtNumber, fmtPct, mdHm, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { useWatch } from '../lib/watch'
@@ -24,12 +24,12 @@ import type { Hk } from '../lib/personal/housekeeping'
 import { watchKind } from '../lib/personal/remote'
 import { getKeyHash, hasKeptKey, rememberKey, resumeSync, statusText, useSyncStatus, type SyncStatus } from '../lib/personal/sync'
 import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../lib/push'
-import { adjustOf, eventsFor, familyCount, FILTERS, fromLedger, groupDays, kakaoToday, levelChoices, listEvents, passes, yearCounts, type Dict, type DictEvent, type FeedLevel, type FeedRow, type Filter } from '../lib/alerts/v2'
+import { adjustOf, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, kakaoToday, levelChoices, listEvents, passes, savedNote, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter } from '../lib/alerts/v2'
+import { loadDaily } from '../lib/alerts/daily'
 import dictJson from '../lib/alerts/dict.json'
 
 const dict = dictJson as unknown as Dict
 const EV = new Map(dict.events.map(e => [e.id, e]))
-const LV = Object.fromEntries(dict.levels.map(l => [l.id, l.name])) as Record<Level, string>
 const TABS = [{ key: 'inbox', label: '받은 알림' }, { key: 'cond', label: '사건' }, { key: 'chan', label: '채널' }] as const
 type Tab = typeof TABS[number]['key']
 const FILTER_LABEL: Record<Filter, string> = { all: '전체', alarm: LV.alarm, alert: LV.alert, notice: LV.notice, brief: '시황', mine: '내 조건' }
@@ -46,7 +46,7 @@ const REPEAT_OPTS = [{ key: 'each', label: '매번' }, { key: 'once', label: '�
 const SAVE_FAIL = '이 기기에 저장하지 못했습니다. 시크릿 창이거나 저장 공간이 찼습니다.'
 const WD = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', weekday: 'short' })
 const dayHead = (day: string) => `${shortDate(day)}(${WD.format(Date.parse(`${day}T12:00:00+09:00`))})`
-const hm = (t: number) => mdHm(new Date(t)).split(' ')[1] ?? ''
+const hm = hhmm
 
 type StateRec = { met?: boolean; date?: string; ts?: number; hist?: string[]; type?: string }
 // 급변 감시(scripts/check_swings.py SWING_RULES)의 기호 → 지표 id·이름·기준 — 원장이 없을 때의 현행 이력용
@@ -178,12 +178,6 @@ export default function Alerts() {
 }
 
 // ── 받은 알림 ─────────────────────────────────────────
-
-/** 등급 알약: 경보만 검정 채움, 알림은 진한 테두리, 안내 · 시황은 옅은 테두리. 글자는 사전 이름. */
-function LevelPill({ level }: { level: FeedLevel }) {
-  const tone = level === 'alarm' ? 'bg-accent text-on-accent border-accent' : level === 'alert' ? 'border-ink-1 text-ink-1' : 'border-line text-ink-3'
-  return <span className={`inline-flex shrink-0 items-center h-5 px-2 rounded-chip border text-11 whitespace-nowrap ${tone}`}>{level === 'brief' ? '시황' : LV[level]}</span>
-}
 
 function Inbox({ feed, ledger, state, today, yesterday }: { feed: FeedRow[]; ledger: unknown; state: unknown; today: string; yesterday: string }) {
   const [f, setF] = useState<Filter>('all')
@@ -391,18 +385,6 @@ function FamilyRow({ fam, prefs, save, adjust }: { fam: { id: string; name: stri
   )
 }
 
-/** 일봉: 원장 이력(events/history/<id>.json)이 있으면 그것, 없으면 지표 묶음의 1년 시계열. 둘 다 없으면 null. */
-async function loadDaily(id: string): Promise<[string, number][] | null> {
-  try {
-    const r = await fetch(new URL(`events/history/${encodeURIComponent(id)}.json`, ROOT), { cache: 'no-cache' })
-    if (r.ok) {
-      const a = await r.json()
-      if (Array.isArray(a) && a.length) return a.map((p: { date: string; value: number }) => [p.date, p.value])
-    }
-  } catch { /* 없으면 아래로 */ }
-  return (await loadIndicator(id).catch(() => null))?.series ?? null
-}
-
 /** 새 조건: 대상 → 그 대상이 가진 사건(사전) → 세기 3단(「지난 1년 N회」) 또는 값 → 등급 · 반복 · 울림 · 이름. 저장 모양 = 계약서 AlertCond. */
 function NewCondition({ rows, labelOf, sync, onAdd }: { rows: RegRow[]; labelOf: (id: string) => string; sync: SyncStatus; onAdd: (a: AlertCond) => void }) {
   const [q, setQ] = useState('')
@@ -455,8 +437,7 @@ function NewCondition({ rows, labelOf, sync, onAdd }: { rows: RegRow[]; labelOf:
     onAdd(a)
     setErr(''); setQ(''); setTarget(null); setValue(''); setName(''); setSavedAt(Date.now())
   }
-  const savedNote = !savedAt ? '' : !sync.on ? '저장했습니다 · 이 기기에만 · 울리지 않음(동기화를 켜야 서버가 봅니다)'
-    : sync.at && sync.at >= savedAt ? `저장했습니다 · 서버에 올라감 ${hm(sync.at)}` : '저장했습니다 · 서버로 올리는 중'
+  const note = savedNote(sync, savedAt)
 
   return (
     <Panel title="새 조건">
@@ -505,15 +486,11 @@ function NewCondition({ rows, labelOf, sync, onAdd }: { rows: RegRow[]; labelOf:
         <div className="flex flex-wrap items-center gap-2">
           <button type="submit" className={BTN}>조건 저장</button>
           <span role="alert" className="text-12 text-warn">{err}</span>
-          {!err && savedNote && <span role="status" className="text-12 text-ink-2">{savedNote}</span>}
+          {!err && note && <span role="status" className="text-12 text-ink-2">{note}</span>}
         </div>
       </form>
     </Panel>
   )
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="min-w-0"><p className="m-0 mb-1 text-12 text-ink-2">{label}</p>{children}</div>
 }
 
 // ── 채널 ───────────────────────────────────────────
