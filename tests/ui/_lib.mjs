@@ -16,7 +16,8 @@ export const THEMES = String(opt('themes', 'light,dark')).split(',');
 export const WAIT = Number(opt('wait', 2500));
 
 // 새 화면 층 5개 + 기존 index.html 의 ?p= 12종. 주소로 자동 고른다(5173=새 층, 그 밖=기존).
-export const NEXT_PATHS = ['#/', '#/market', '#/lens', '#/my', '#/alerts'];   // 새 층은 HashRouter
+// 알림 v2: 사건 탭 · 채널 탭 · 지표 상세(#/i/kospi) + 벨 시트를 연 채로(?bell=1) 본 상세.
+export const NEXT_PATHS = ['#/', '#/market', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1'];   // 새 층은 HashRouter
 export const LEGACY_PATHS = ['dashboard', 'equity', 'market', 'macro', 'calendar', 'realestate',
   'investor', 'merlens', 'merblog', 'notes', 'study', 'settings'].map(p => `/?p=${p}`);
 
