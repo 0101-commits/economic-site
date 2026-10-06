@@ -211,3 +211,16 @@ def test_cancelled_is_not_a_failure():
 
 def test_selftest_passes():
     W.demo()
+
+
+def test_infra_failure_detected_only_without_failed_steps(monkeypatch):
+    # 러너 미획득(GitHub 장애): 실패 스텝 0 + 주석 「not acquired by Runner」 → True. 스텝이 실패했으면 코드 문제 → False.
+    note = [{"annotation_level": "failure", "message": "The job was not acquired by Runner of type hosted even after multiple attempts"}]
+    infra = {"jobs": [{"id": 1, "conclusion": "cancelled", "steps": []}]}
+    code = {"jobs": [{"id": 2, "conclusion": "failure", "steps": [{"name": "검증", "conclusion": "failure"}]}]}
+    monkeypatch.setattr(W, "_api", lambda p: note if "annotations" in p else infra)
+    assert W._infra_failure("1") is True
+    monkeypatch.setattr(W, "_api", lambda p: note if "annotations" in p else code)
+    assert W._infra_failure("2") is False
+    monkeypatch.setattr(W, "_api", lambda p: [] if "annotations" in p else infra)
+    assert W._infra_failure("1") is False          # 주석이 없으면 모른다 → 평소대로 통지

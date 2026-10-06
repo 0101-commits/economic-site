@@ -223,6 +223,23 @@ def _failed_steps(run_id):
     return out
 
 
+def _infra_failure(run_id):
+    """GitHub 쪽 장애로 러너를 못 잡은 실패인가 — 잡에 실패 스텝이 하나도 없고 주석이 그렇게 말할 때.
+    2026-10-05 19:11~21:05 UTC Actions 장애에서 25런이 전부 이 모양이었다(코드 결함 0). 저장소 문제로 알리면 늑대가 된다."""
+    try:
+        jobs = (_api(f"/repos/{_repo()}/actions/runs/{run_id}/jobs") or {}).get("jobs") or []
+        for j in jobs:
+            if any(s.get("conclusion") == "failure" for s in (j.get("steps") or [])):
+                return False
+        for j in jobs:
+            notes = _api(f"/repos/{_repo()}/check-runs/{j.get('id')}/annotations") or []
+            if any("not acquired by Runner" in str(n.get("message", "")) for n in notes):
+                return True
+    except (urllib.error.URLError, OSError, ValueError):
+        pass
+    return False
+
+
 def _streak_continues(wf_id, run_id):
     """이 런 직전의 완료 런도 실패였는가 — 연속 실패는 첫 건만 즉시 통지한다.
 
@@ -250,6 +267,9 @@ def main():
         rid = os.environ.get("WF_RUN_ID") or ""
         if _streak_continues(os.environ.get("WF_ID"), rid):
             print(f"[watchdog] {name} 연속 실패 — 첫 건에 이미 통지, 이번은 생략")
+            return
+        if rid and _infra_failure(rid):
+            print(f"[watchdog] {name} — GitHub 러너 미획득(인프라 장애), 저장소 문제 아님 — 통지 생략")
             return
         steps = _failed_steps(rid) if rid else []
         body = f"**{name}** 런이 실패했습니다."
