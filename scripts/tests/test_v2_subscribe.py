@@ -129,3 +129,11 @@ def test_load_prefs_hits_worker_prefs_path_once(monkeypatch):
     assert not subscribe.PREFS_URL.endswith("/prefs")
     assert doc["v"] == 2
 
+
+def test_user_conditions_are_not_missing_judges():
+    """U1 · U2 는 사전 family 가 A 라 family 로 거르면 매분 「판정 함수 미구현」 경고가 났다(2026-10-06 라이브) — judge 이름으로 거른다."""
+    from alerts_v2 import run, judges_market, judges_flow_cal  # noqa: F401 — 판정 등록
+    todo = schema.for_run(schema.load_events(), "light")
+    assert {ev["id"] for ev in todo} >= {"U1", "U2"}
+    assert run.missing_judges(todo) == []
+

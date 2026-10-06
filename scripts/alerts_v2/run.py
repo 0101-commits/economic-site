@@ -91,6 +91,11 @@ def _brief(slot: str, now, dry_run: bool) -> int:
     return 0
 
 
+def missing_judges(todo) -> list[str]:
+    """판정 함수가 없는 사건 id — 사용자 조건(judge user_*: U1 · U2, 사전 family 는 A)은 subscribe 가 판정하므로 뺀다."""
+    return [ev["id"] for ev in todo if ev["judge"] not in JUDGES and not str(ev["judge"]).startswith("user_")]
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", required=True, choices=[*schema.RUNS, "brief"])   # brief 는 평가 런(RUNS) 밖
@@ -109,10 +114,10 @@ def main(argv=None) -> int:
         return _brief(args.slot, now, args.dry_run)
     events = schema.load_events()
     todo = schema.for_run(events, args.mode)
-    missing = [ev["id"] for ev in todo if ev["judge"] not in JUDGES and ev.get("family") != "U"]   # U1 · U2 는 subscribe 가 판정
+    missing = missing_judges(todo)
     if missing:
         print(f"[v2] 판정 함수 미구현(건너뜀): {', '.join(missing)}")
-        todo = [ev for ev in todo if ev["judge"] in JUDGES]
+    todo = [ev for ev in todo if ev["judge"] in JUDGES]      # 사용자 조건(U1 · U2)도 여기서 빠진다 — subscribe 가 판정
     ctx = Context.load(now=now)
     ledger = Ledger(day=now.astimezone(KST).date())
     new_rows = extract(ctx, todo, ledger, render=_render(ctx))
