@@ -21,11 +21,12 @@ import { KEYS, readHk, readPrefs, writeHk, writePrefs, type AlertCond, type Leve
 import { setPackage } from '../lib/personal/prefsV2'
 import { condId, condName, condStatus, prefillTarget, rearm, TARGET_RE, type FiredRec, type LedgerRow } from '../lib/personal/alertStatus'
 import type { Hk } from '../lib/personal/housekeeping'
-import { watchKind } from '../lib/personal/remote'
+import { portfolioGet, watchKind } from '../lib/personal/remote'
 import { getKeyHash, hasKeptKey, rememberKey, resumeSync, statusText, useSyncStatus, type SyncStatus } from '../lib/personal/sync'
 import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../lib/push'
 import { adjustOf, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, kakaoToday, levelChoices, listEvents, passes, savedNote, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter } from '../lib/alerts/v2'
 import { loadDaily } from '../lib/alerts/daily'
+import { convertLegacy, type Imported } from '../lib/alerts/legacy'
 import dictJson from '../lib/alerts/dict.json'
 
 const dict = dictJson as unknown as Dict
@@ -332,6 +333,7 @@ function EventsTab({ prefs, save, sync, ledger, known, state, hk, setHk, names, 
           </ul>
         ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다. 지표 · 종목 상세의 벨이나 아래 「새 조건」에서 만듭니다.</p>}
         <p className="mt-2 mb-0 text-12 text-ink-3">동기화가 켜져 있어야 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
+        <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add])} />
       </Panel>
 
       <NewCondition rows={rows} labelOf={labelOf} sync={sync} onAdd={a => put([...prefs.alerts, a])} />
@@ -339,6 +341,65 @@ function EventsTab({ prefs, save, sync, ledger, known, state, hk, setHk, names, 
         현행 화면에서 만든 조건은 <a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">현행 화면</a>에서 보고 고칩니다.
       </p>
     </>
+  )
+}
+
+/** 현행 화면(공개 저장소 alerts_config.json)의 조건을 읽는다. 운영 사이트에는 그 파일이 올라가지 않으므로 동기화 키가 있으면 Worker /portfolio 로 읽고,
+ *  키가 없으면 같은 출처의 파일을 시도한다(로컬 개발 서버에서만 읽힌다). */
+async function readLegacy(): Promise<{ rows: unknown[] } | { error: string }> {
+  const h = getKeyHash()
+  let why = ''
+  if (h) {
+    const g = await portfolioGet(h)
+    if (g.ok) return { rows: g.alerts ?? [] }
+    why = g.status === 401 ? '동기화 키가 맞지 않습니다.' : '서버에 닿지 못했습니다.'
+  }
+  try { return { rows: (await loadRootJson<{ alerts?: unknown[] }>('alerts_config.json')).alerts ?? [] } } catch { /* 운영 사이트에는 없다 */ }
+  return { error: why || '현행 조건을 읽으려면 설정에서 동기화를 켜야 합니다.' }
+}
+
+/** 「현행 조건 가져오기」: 읽기 → 미리보기(가져올 N · 건너뛸 M) → 확인하면 이 기기 조건에 더한다. 현행 화면의 조건은 그대로 둔다. */
+function LegacyImport({ alerts, sync, onAdd }: { alerts: AlertCond[]; sync: SyncStatus; onAdd: (a: AlertCond[]) => void }) {
+  const [rows, setRows] = useState<unknown[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [done, setDone] = useState<{ n: number; at: number } | null>(null)
+  const pre: Imported | null = useMemo(() => (rows ? convertLegacy(rows, alerts, id => EV.get(id)?.name) : null), [rows, alerts])
+  const read = async () => {
+    setBusy(true); setErr(''); setDone(null)
+    const r = await readLegacy()
+    setBusy(false)
+    if ('error' in r) setErr(r.error); else setRows(r.rows)
+  }
+  const confirm = () => {
+    if (!pre) return
+    onAdd(pre.add)
+    setDone({ n: pre.add.length, at: Date.now() }); setRows(null)
+  }
+  const skipped = pre ? pre.total - pre.add.length : 0
+  return (
+    <div className="mt-3 pt-3 border-t border-line">
+      {!pre && <button type="button" className={BTN2} disabled={busy} onClick={() => void read()}>{busy ? '읽는 중' : '현행 조건 가져오기'}</button>}
+      {pre && (
+        <div className="flex flex-col gap-2" role="group" aria-label="현행 조건 가져오기 미리보기">
+          <p className="m-0 text-13 text-ink-1">가져올 조건 <span className="num">{pre.add.length}</span>건 · 건너뜀 <span className="num">{skipped}</span>건 <span className="text-ink-3">(읽은 <span className="num">{pre.total}</span>건)</span></p>
+          <ul className="m-0 pl-4 text-12 text-ink-2">
+            {pre.dup > 0 && <li>이미 있거나 겹치는 조건 {pre.dup}건은 건너뜀(52주 신고가 · 신저가는 한 사건이라 대상당 한 건)</li>}
+            {pre.cross > 0 && <li>골든/데드크로스 {pre.cross}건은 사전에 없어 가져오지 않음</li>}
+            {pre.other > 0 && <li>그 밖의 종류 {pre.other}건은 가져오지 않음</li>}
+            {pre.over > 0 && <li>조건은 100건까지라 {pre.over}건을 못 담음</li>}
+            {pre.add.some(a => a.event === 'U2') && <li>등락률 조건은 오름 · 내림 모두 봅니다(현행의 내림 전용은 ± 로 바뀜)</li>}
+            <li>현행 화면의 조건은 그대로 남습니다</li>
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            {pre.add.length > 0 && <button type="button" className={BTN} onClick={confirm}>{pre.add.length}건 가져오기</button>}
+            <button type="button" className={BTN2} onClick={() => setRows(null)}>{pre.add.length > 0 ? '취소' : '닫기'}</button>
+          </div>
+        </div>
+      )}
+      {err && <p role="alert" className="m-0 mt-2 text-12 text-warn">{err}</p>}
+      {done && <p role="status" className="m-0 mt-2 text-12 text-ink-2">{savedNote(sync, done.at, `${done.n}건 가져왔습니다`)}</p>}
+    </div>
   )
 }
 

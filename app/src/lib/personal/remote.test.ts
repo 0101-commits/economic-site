@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 동기화 키 해시 · 관심 종류 · 서버 문서 ↔ 이 기기 변환 왕복 · GET/PUT 왕복(가짜 서버)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { WORKER, fromServer, keyHash, portfolioPost, prefsCall, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
+import { WORKER, fromServer, keyHash, portfolioGet, portfolioPost, prefsCall, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
 import { defaultSettings } from './prefsV2.ts'
 
 const local: Local = {
@@ -107,6 +107,23 @@ test('portfolioPost: 보유 덩어리만 보낸다 — alerts 를 실으면 안 
     assert.deepEqual(await portfolioPost('h'.repeat(64), enc), { ok: true, status: 200 })
     assert.equal(sent!.url, `${WORKER}/portfolio`)
     assert.deepEqual(Object.keys(sent!.body).sort(), ['encHoldings', 'keyHash'])
+  } finally { globalThis.fetch = real }
+})
+
+test('portfolioGet: 보유 덩어리와 함께 현행 알림 조건(alerts)을 돌려준다 — 현행 조건 가져오기가 읽는다 · 키가 틀리면 못 읽음', async () => {
+  const hash = 'h'.repeat(64)
+  let seen: { url: string; headers: Record<string, string> } | null = null
+  const real = globalThis.fetch
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    seen = { url, headers: init.headers as Record<string, string> }
+    return (init.headers as Record<string, string>)['X-Sync-Key-Hash'] === hash
+      ? new Response(JSON.stringify({ ok: true, alerts: [{ id: 'a', type: 'price_below', symbol: '005930', value: 7 }], encHoldings: null }), { status: 200 })
+      : new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
+  }) as unknown as typeof fetch
+  try {
+    assert.deepEqual(await portfolioGet(hash), { ok: true, status: 200, enc: null, alerts: [{ id: 'a', type: 'price_below', symbol: '005930', value: 7 }] })
+    assert.equal(seen!.url, `${WORKER}/portfolio`)
+    assert.deepEqual(await portfolioGet('0'.repeat(64)), { ok: false, status: 401, error: 'unauthorized' })
   } finally { globalThis.fetch = real }
 })
 
