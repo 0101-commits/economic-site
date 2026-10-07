@@ -2205,9 +2205,17 @@ def send_memo(access_token, text, with_button=True, uuids=None):
     print(f"[kakao] 텍스트 발송 성공 ({len(text)}자):\n{text}")
 
 
+_SYSTEM_NOTICED = False
+
+
 def _system_notice(text):
     """운영 통지 — 디스코드 #시스템. 카카오 경로가 열화·실패한 사실 자체를 알린다(기획 v3 I7).
-    통보가 본 경로를 깨면 본말전도라 실패는 조용히 무시."""
+    통보가 본 경로를 깨면 본말전도라 실패는 조용히 무시. 프로세스(런)당 한 통 — 알림 v2 는 디스코드로 가는 모든 통을
+    카톡 메모로 따라 보내므로, 카카오 이미지 서버 장애 때 알림 한 통마다 #시스템이 한 번 더 울리게 된다."""
+    global _SYSTEM_NOTICED
+    if _SYSTEM_NOTICED:
+        return
+    _SYSTEM_NOTICED = True
     try:
         import notify_discord
         notify_discord.system(text, title="⚙️ 카톡 카드 경고")

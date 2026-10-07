@@ -13,6 +13,7 @@ GitHub Actions 의 「Run tests」 단계(fetch-data · stock-alerts · kakao-da
 """
 import os
 import socket
+import sys
 
 import pytest
 
@@ -70,6 +71,18 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "network" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _kakao_off(monkeypatch):
+    """알림 v2 의 카톡 세션은 런당 한 번 만드는 모듈 전역(deliver._KAKAO_SESSION)이다. 기본은 「꺼짐」({})으로 두고
+    테스트가 끝나면 되돌린다 — test_check_halts 가 수집 시점에 심는 가짜 키 · 가짜 send_kakao_digest 로 메모 세션이
+    만들어져 다음 테스트로 새면 결과가 수집 순서에 달린다. 카톡 경로를 보는 테스트는 직접 None 으로 되돌려 새로 만든다."""
+    scripts = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from alerts_v2 import deliver
+    monkeypatch.setattr(deliver, "_KAKAO_SESSION", {})
 
 
 @pytest.fixture(autouse=True)
