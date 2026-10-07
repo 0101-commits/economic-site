@@ -3,7 +3,7 @@
 // 경로 방식이면 /next/market 을 새로 고칠 때 404 가 난다.
 import { useEffect, useState } from 'react'
 import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { Bell, ChartCandlestick, House, Search, Settings as Gear, Telescope, Wallet, type LucideIcon } from 'lucide-react'
+import { Bell, ChartCandlestick, House, Moon, Search, Settings as Gear, Sun, SunMoon, Telescope, Wallet, type LucideIcon } from 'lucide-react'
 import Home from './screens/Home'
 import Market from './screens/Market'
 import Lens from './screens/Lens'
@@ -11,11 +11,13 @@ import My from './screens/My'
 import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
+import { PinGate } from './components/PinGate'
 import { SearchOverlay } from './components/personal/SearchOverlay'
 import { applyUpdown, readPrefs, tidyAlerts } from './lib/personal/store'
 import { loadRootJson } from './lib/personal/data'
 import { hasUnseen, markSeen, readSeen } from './lib/alertsSeen'
 import { legacyToHash } from './lib/legacyUrl'
+import { applyTheme, useTheme, type Theme } from './lib/theme'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
 applyUpdown(readPrefs().settings.updown)
@@ -66,6 +68,24 @@ function IconLink({ to, label, icon: Icon, dot }: { to: string; label: string; i
   )
 }
 
+// 화면 모드는 PIN 없이 바꾼다(설정은 PIN 뒤라서) — 누를 때마다 기기 설정 → 밝게 → 어둡게.
+const THEME_STEP: Record<Theme, { next: Theme; name: string; icon: LucideIcon }> = {
+  system: { next: 'light', name: '기기 설정', icon: SunMoon },
+  light: { next: 'dark', name: '밝게', icon: Sun },
+  dark: { next: 'system', name: '어둡게', icon: Moon },
+}
+function ThemeButton() {
+  const t = useTheme()
+  const { next, name, icon: Icon } = THEME_STEP[t]
+  const label = `화면 모드 ${name} · 누르면 ${THEME_STEP[next].name}`
+  return (
+    <button type="button" onClick={() => applyTheme(next)} aria-label={label} title={label}
+      className="size-9 inline-flex items-center justify-center rounded-btn border-0 bg-transparent text-ink-2 hover:text-ink-1 cursor-pointer">
+      <Icon size={20} aria-hidden />
+    </button>
+  )
+}
+
 function Shell() {
   const [search, setSearch] = useState(false)
   // 안 읽음 점: 원장 최신판(events/latest.json)을 열 때 한 번 받아 마지막으로 알림 화면을 연 때와 견준다.
@@ -109,6 +129,7 @@ function Shell() {
             <SearchButton onOpen={() => setSearch(true)} />
             <IconLink to="/alerts" label="알림" icon={Bell} dot={unseen} />
             <IconLink to="/settings" label="설정" icon={Gear} />
+            <ThemeButton />
           </div>
         </div>
       </header>
@@ -118,6 +139,7 @@ function Shell() {
         <Link to="/" className="mr-auto text-18 font-bold text-ink-1 no-underline">ecom</Link>
         <SearchButton compact onOpen={() => setSearch(true)} />
         <IconLink to="/settings" label="설정" icon={Gear} />
+        <ThemeButton />
       </header>
 
       <main className="mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8">
@@ -128,7 +150,7 @@ function Shell() {
           <Route path="/my" element={<My />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/i/:id" element={<Detail />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<PinGate><Settings /></PinGate>} />
           <Route path="*" element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
         </Routes>
       </main>
