@@ -18,6 +18,8 @@ import dictJson from '../../lib/alerts/dict.json'
 const dict = dictJson as unknown as Dict
 const STRENGTH_OPTS = dict.strengths.filter(s => s.sigma != null).map(s => ({ key: s.id as Strength, label: s.name }))
 const REPEAT_OPTS = [{ key: 'each', label: '매번' }, { key: 'once', label: '한 번' }] as const
+/** 조건 한도 문구 — 알림 화면 「새 조건」도 같은 글을 쓴다. */
+export const CAP_MSG = `조건은 ${ALERT_CAP}건까지 만들 수 있습니다. 알림 화면에서 안 쓰는 조건을 지우세요.`
 
 export function BellSheet({ open, onClose, id, label }: { open: boolean; onClose: () => void; id: string; label: string }) {
   return (
@@ -66,7 +68,7 @@ function BellForm({ id }: { id: string }) {
     if (level && level !== base) a.level = level
     const p = readPrefs()
     const old = ev.userValue ? undefined : p.alerts.find(x => x.event === ev.id && x.target === id)
-    if (!old && p.alerts.length >= ALERT_CAP) { setErr(`조건은 ${ALERT_CAP}건까지 만들 수 있습니다. 알림 화면에서 안 쓰는 조건을 지우세요.`); return }
+    if (!old && p.alerts.length >= ALERT_CAP) { setErr(CAP_MSG); return }
     const next = old ? p.alerts.map(x => (x === old ? { ...a, id: old.id, ...(old.armedAt ? { armedAt: old.armedAt } : {}) } : x)) : [...p.alerts, a]
     if (!writePrefs({ ...p, alerts: next })) { setErr('이 기기에 저장하지 못했습니다. 시크릿 창이거나 저장 공간이 찼습니다.'); return }
     window.dispatchEvent(new StorageEvent('storage', { key: KEYS.prefs }))

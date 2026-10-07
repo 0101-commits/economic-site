@@ -2,7 +2,6 @@
 // 저장소(localStorage)·화면을 만지지 않으므로 node --test 로 바로 돌린다(remote.test.ts). 저장소 쪽 흐름은 sync.ts.
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(calc.ts 와 같은 규칙).
 import type { AlertCond, Settings } from './store'
-import type { Theme } from '../theme'
 import { upgradePrefs } from './prefsV2.ts'
 import type { EncBlob } from './e2e'
 
@@ -16,21 +15,29 @@ export async function keyHash(key: string): Promise<string> {
 }
 
 // ── /prefs 문서(Worker _sanitizePrefs 가 남기는 모양) ─────────────────
+// 화면 모드(theme) · 금액 단위(unit) · 90일 자동 강등(autoQuiet)은 기기마다 따로다(명세 S9) — 문서에 싣지 않고, 받을 때도 이 기기 값을 둔다.
+// Worker 는 빠진 theme · unit 을 기본값으로 채워 저장하지만 fromServer 가 읽지 않는다. 등락 색(updown)은 모든 기기가 같다.
 export type WatchItem = { id: string; kind: 'indicator' | 'stock'; addedAt: string | null }
+export type SyncedSettings = Omit<Settings, 'unit' | 'autoQuiet'>
 export type PrefsBody = {
   watch: WatchItem[]
   alerts: AlertCond[]
-  settings: Settings & { theme: Theme }
+  settings: SyncedSettings
   scenarios: { name: string; inputs: Record<string, unknown> }[]
 }
 export type PrefsDoc = PrefsBody & { v: 1 | 2; updatedAt: string | null }
 
-/** 이 기기 쪽 모양 — 저장소 네 곳을 모은 것. 보유(portfolioV1)·스냅샷·원장은 여기 없으므로 서버로 갈 길이 없다. */
+/** 설정에서 기기마다 따로인 칸을 뺀다. */
+export function syncedOf(s: Settings): SyncedSettings {
+  const { unit: _u, autoQuiet: _a, ...rest } = s
+  return rest
+}
+
+/** 이 기기 쪽 모양 — 저장소 세 곳을 모은 것. 보유(portfolioV1)·스냅샷·원장은 여기 없으므로 서버로 갈 길이 없다. */
 export type Local = {
   watch: string[]                                            // econ_watch_v1 (lib/watch.ts)
   alerts: AlertCond[]                                        // econPrefsV1.alerts
-  settings: Settings                                         // econPrefsV1.settings (등락 색 · 금액 단위 · 조용한 시간 · 꾸러미 · 채널 · 브리핑 …)
-  theme: Theme                                               // econNextTheme_v1 (lib/theme.ts)
+  settings: SyncedSettings                                   // econPrefsV1.settings 가운데 기기마다 따로인 칸을 뺀 것(등락 색 · 조용한 시간 · 꾸러미 · 채널 · 브리핑 …)
   scenarios: ({ name: string } & Record<string, unknown>)[]  // econ_scenarios_v1 (렌즈 「만약에」 저장)
 }
 
@@ -46,21 +53,19 @@ export function toServer(l: Local, prev: PrefsDoc | null, now: string): PrefsBod
   return {
     watch: l.watch.map(id => ({ id, kind: watchKind(id), addedAt: added.get(id) ?? now })),
     alerts: l.alerts,
-    settings: { theme: l.theme, ...l.settings },
+    settings: l.settings,
     scenarios: l.scenarios.map(({ name, ...inputs }) => ({ name, inputs })),
   }
 }
 
-/** 서버 문서 → 이 기기. 조건 · 설정은 v2 로 바꿔 읽는다(v1 조건은 사전 사건으로, 모르는 값은 기본값 — prefsV2.ts). */
+/** 서버 문서 → 이 기기. 조건 · 설정은 v2 로 바꿔 읽는다(v1 조건은 사전 사건으로, 모르는 값은 기본값 — prefsV2.ts). 기기마다 따로인 칸은 버린다. */
 export function fromServer(d: Partial<PrefsDoc>): Local {
   const arr = <T,>(v: T[] | undefined) => (Array.isArray(v) ? v : [])
   const p = upgradePrefs(d)
-  const theme = (d.settings as { theme?: unknown } | undefined)?.theme
   return {
     watch: arr(d.watch).map(w => w.id),
     alerts: p.alerts,
-    settings: p.settings,
-    theme: theme === 'light' || theme === 'dark' ? theme : 'system',
+    settings: syncedOf(p.settings),
     scenarios: arr(d.scenarios).map(x => ({ ...x.inputs, name: x.name })),
   }
 }
@@ -102,6 +107,26 @@ export async function syncKeyCheck(hash: string): Promise<number> {
     const j = await r.json().catch(() => ({}))
     return j?.ok === true ? 200 : -1
   } catch { return 0 }
+}
+
+/** 키 바꾸기 결과 — status 200 바뀜 · 400(error weak_new_key · use_new_key) · 401 지금 키 틀림 · 429 · 2xx 인데 ok:true 없음 -1 · 네트워크 실패 0. */
+export type KeyChange = { status: number; error?: string }
+
+/**
+ * 동기화 키 바꾸기(명세 B5 계약) — 본문 { currentKey, newKey } 에 둘 다 원문을 싣는다(TLS 안, 해시 머리 없음).
+ * 서버가 SHA-256(currentKey 앞뒤 공백 뺀 것)을 기대 해시와 견주고, 새 키(공백 뺀 것)가 12자 이상 · 지금 키와 다를 때만
+ * SHA-256(새 키)를 저장한다. 해시만 가진 사람은 바꿀 수 없다(옛 계약 newKeyHash 는 400 use_new_key).
+ */
+export async function syncKeyChange(currentKey: string, newKey: string): Promise<KeyChange> {
+  try {
+    const r = await fetch(`${WORKER}/sync-key`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, cache: 'no-store',
+      body: JSON.stringify({ currentKey, newKey }), signal: AbortSignal.timeout(15_000),
+    })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) return { status: r.status, error: j?.error }
+    return { status: j?.ok === true ? 200 : -1 }
+  } catch { return { status: 0, error: 'network' } }
 }
 
 // ── /portfolio — 보유는 암호 덩어리(e2e.ts)로만 오간다 ─────────────────
