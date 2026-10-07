@@ -7,7 +7,7 @@
 (build_indicators.build)에서, 이유 한 줄은 one_liners.py 에서 가져온다.
 
   data.json + mer_signals.json (+ toss_snapshot.json 의 시각)
-    → bundles/registry.json · home.json · market-*.json(7) · lens.json · meta.json
+    → bundles/registry.json · home.json · market-*.json(7) · lens.json · news.json · meta.json
 
 규칙
 - 값을 지어내지 않는다. 없는 값은 null, 상태는 'missing'.
@@ -29,11 +29,13 @@ from __future__ import annotations
 import ast
 import datetime as dt
 import email.utils
+import html
 import io
 import json
 import os
 import re
 import sys
+import urllib.parse
 import zoneinfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -96,6 +98,15 @@ STRIPS = {
                    "housing_start_kr", "housing_permit_kr"],
 }
 CAPITAL_AREA = ["11", "41", "28"]
+# 홈 「분위기」 5칸(기획 C3) — 레지스트리 id. hy_spread = economicIndicators.us.hy_spread(미국 하이일드 스프레드)
+MOOD = ["fear_greed", "vix", "vkospi", "move", "hy_spread"]
+# 자산군 화면 → news.json 주제. 원천 16주제(fetch_data.NEWS_CATEGORY_QUERIES)에 해외 주식·부동산 주제는 없다.
+#   해외 = 미국CPI — 「주식」은 검색어가 「코스피 코스닥 시황」이라 국내 기사다. 미국CPI 는 제목 키워드에 연준·파월이
+#          들어가 미국 증시를 움직이는 기사가 모인다(fetch_data._KEYLESS_CATEGORY_KEYWORDS).
+#   환율·금리 = 외환(띠 6칸 중 환율 4) · 거시 = 한국GDP(거시 묶음의 기본 주제가 성장) · 부동산 = 없음(null)
+MARKET_NEWS = {"domestic": "주식", "global": "미국CPI", "fxrates": "외환", "commodities": "원자재",
+               "macro": "한국GDP", "flows": "주식", "realestate": None}
+NEWS_MAX = 8        # news.json 주제당 기사 상한(원천은 주제당 5건 안팎)
 # 전년비 파생 칸의 합리 범위(±%). 넘으면 값을 싣지 않고 meta.health.issues 에 남긴다 — 2026-10-01 한국 수출
 # 70.7%(2025-06 589억 → 2026-06 1,006억 달러, 평소 550~650억)는 원본 이력의 단위·집계 변경이 의심됐다(팀장 결정).
 YOY_GUARD_PCT = 50
@@ -730,6 +741,20 @@ def investors_block(data, health, n):
             "columns": ["date", "foreign", "inst", "retail"]}
 
 
+def clean_title(s):
+    """뉴스 제목 — HTML 엔터티(&quot; 등)를 풀고 공백을 한 칸으로."""
+    return re.sub(r"\s+", " ", html.unescape(str(s or ""))).strip()
+
+
+def _pub_time(it):
+    """기사 시각(pubDate, RFC 822) → aware datetime. 못 읽으면 None."""
+    try:
+        t = email.utils.parsedate_to_datetime(it.get("pubDate"))
+    except (TypeError, ValueError):
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
+
+
 def news_top(data, n=5):
     seen, out = set(), []
     for topic, items in (data.get("news") or {}).items():
@@ -740,12 +765,72 @@ def news_top(data, n=5):
             if not url or url in seen:
                 continue
             seen.add(url)
-            try:
-                ts = email.utils.parsedate_to_datetime(it.get("pubDate")).timestamp()
-            except (TypeError, ValueError):
-                ts = 0
-            out.append((ts, {"title": it.get("title"), "url": url, "date": it.get("isoDate"), "topic": topic}))
+            t = _pub_time(it)
+            out.append((t.timestamp() if t else 0,
+                        {"title": clean_title(it.get("title")), "url": url, "date": it.get("isoDate"), "topic": topic}))
     return [x[1] for x in sorted(out, key=lambda x: -x[0])[:n]]
+
+
+def news_bundle(data, health=None):
+    """bundles/news.json — data.json.news 16주제(lastFetched 제외)를 주제마다 최신순 NEWS_MAX 건.
+    지표 상세는 registry 행의 news, 자산군 화면은 market-*.json 의 newsTopic 으로 주제를 찾는다."""
+    news = data.get("news") or {}
+    health = health or Health(data)
+    topics = {}
+    for topic, items in news.items():
+        if not isinstance(items, list):
+            continue
+        seen, rows = set(), []
+        for it in items:
+            url = it.get("url") if isinstance(it, dict) else None
+            if not url or url in seen or not clean_title(it.get("title")):
+                continue
+            seen.add(url)
+            t = _pub_time(it)
+            host = (urllib.parse.urlsplit(url).hostname or "").removeprefix("www.")
+            rows.append((t.timestamp() if t else 0, {"title": clean_title(it["title"]), "source": host or None, "url": url,
+                                                     "at": t.isoformat() if t else it.get("isoDate")}))
+        topics[topic] = [r for _, r in sorted(rows, key=lambda x: -x[0])[:NEWS_MAX]]
+    return {"asOf": news.get("lastFetched"), "state": block_state(health, "news", topics), "topics": topics}
+
+
+def kst_stamp(s):
+    """'2026-10-07 17:13 KST'(ai_briefing.py 의 generatedAt 꼴) → ISO. 다른 꼴이면 None."""
+    try:
+        return dt.datetime.strptime(str(s), "%Y-%m-%d %H:%M KST").replace(tzinfo=KST).isoformat()
+    except ValueError:
+        return None
+
+
+def week_change(q):
+    """1주 전 대비 차이 — asOf 7일 전 이하의 마지막 점과 비교. 그 점이 asOf 14일 전보다 오래면(이력 구멍) null."""
+    try:
+        day = dt.date.fromisoformat(str(q.get("asOf"))[:10])
+    except ValueError:
+        return None
+    pts = [p for p in q.get("_series") or [] if str(p[0])[:10] <= (day - dt.timedelta(days=7)).isoformat()]
+    if q.get("value") is None or not pts or str(pts[-1][0])[:10] < (day - dt.timedelta(days=14)).isoformat():
+        return None
+    return _round(q["value"] - pts[-1][1], max(q.get("decimals", 2), 2))
+
+
+def mood_item(Q, i):
+    """홈 「분위기」 한 칸 — 값·기준시각·상태는 다른 칸과 같은 Quotes 판정, 등락은 1주 전 대비."""
+    q = Q.get(i) or {}
+    return {"id": i, "label": q.get("label", i), "short": q.get("short"), "shortM": q.get("shortM"), "unit": q.get("unit"),
+            "value": q.get("value"), "decimals": q.get("decimals", 2), "change": week_change(q),
+            "asOf": q.get("asOf"), "state": q.get("state", "missing")}
+
+
+def flow_last(s):
+    """종목 수급 세 칸(단위 주) — 기록의 마지막 날 값 하나씩. 공매도 = 그날 공매도 거래량, 대차 = 그날 대차잔고,
+    프로그램 = 그날 차익 + 비차익 순매수. 기록이 없으면 null(ETF 는 대개 비어 온다)."""
+    last = lambda k: (s.get(k) or [{}])[-1]
+    sh, ln, pg = last("short"), last("lending"), last("program")
+    prog = (None if pg.get("arb") is None and pg.get("nonArb") is None
+            else (pg.get("arb") or 0) + (pg.get("nonArb") or 0))
+    return {"short": _num(sh.get("volume")), "lending": _num(ln.get("bal")), "program": prog,
+            "flowDates": {"short": sh.get("date"), "lending": ln.get("date"), "program": pg.get("date")}}
 
 
 # ── 렌즈 ──────────────────────────────────────────────────────────────────
@@ -801,7 +886,8 @@ def lens_today(mer):
 
 # 렌즈 노드 줄임 이름 — 괄호·「·」 앞만 남겨도 모바일 상한(SHORT_M)을 넘는 것만 사람이 여기 정한다.
 LENS_SHORT = {"nps_flow": "연금 리밸런싱"}   # 「국민연금 리밸런싱」 8.5칸
-QUOTE_MAX = 60      # 간선 인용 한 줄 상한(글자 수)
+QUOTE_MAX = 80      # 인용 한 줄 상한(글자 수) — mer_extract.QUOTE_MAX 와 같다(원천 인용이 이미 80자 이하)
+QUOTES_PER_POST = 3  # 한 관계·사슬 안에서 같은 글의 인용은 이만큼까지
 
 
 def node_short(node):
@@ -810,20 +896,40 @@ def node_short(node):
     return re.split(r"[(·]", node.get("label") or "")[0].strip() or node.get("label")
 
 
-def edges_with_quote(mer):
-    """간선마다 원천 impacts 의 인용 중 가장 최근 1건. (출발, 도착, 방향)으로 짝짓고 같은 짝이 여럿이면 순서대로."""
+def post_quotes(impacts, titles):
+    """impacts 의 인용 → [{logNo, title, date, text}] 최신순, 같은 글은 QUOTES_PER_POST 줄까지.
+    인용은 mer_extract 가 원문 실재를 검증한 것만 mer_signals.json 에 남는다 — 여기서 새로 만들지 않는다."""
+    qs = sorted((q for im in impacts for q in (im.get("quotes") or []) if q.get("q")),
+                key=lambda q: (q.get("date") or "", q.get("logNo") or ""), reverse=True)
+    seen, per, out = set(), {}, []
+    for q in qs:
+        no = q.get("logNo")
+        if (no, q["q"]) in seen or per.get(no, 0) >= QUOTES_PER_POST:
+            continue
+        seen.add((no, q["q"]))
+        per[no] = per.get(no, 0) + 1
+        text = q["q"] if len(q["q"]) <= QUOTE_MAX else q["q"][:QUOTE_MAX - 1].rstrip() + "…"
+        out.append({"logNo": no, "title": titles.get(no), "date": q.get("date"), "text": text})
+    return out
+
+
+def edges_with_quote(mer, titles=None):
+    """간선마다 원천 impacts 의 인용(post_quotes). (출발, 도착, 방향)으로 짝짓고 같은 짝이 여럿이면 순서대로."""
     pool = {}
     for im in mer.get("impacts") or []:
         pool.setdefault((im.get("from"), im.get("to"), im.get("dir")), []).append(im)
     out = []
     for e in (mer.get("graph") or {}).get("edges") or []:
         same = pool.get((e.get("from"), e.get("to"), e.get("dir"))) or []
-        qs = (same.pop(0).get("quotes") or []) if same else []
-        last = max(qs, key=lambda q: (q.get("date") or "", q.get("logNo") or ""), default=None)
-        q = (last or {}).get("q") or ""
-        cut = q if len(q) <= QUOTE_MAX else q[:QUOTE_MAX - 1].rstrip() + "…"
-        out.append(dict(e, quotes=[{"logNo": last.get("logNo"), "date": last.get("date"), "q": cut}] if last else []))
+        out.append(dict(e, quotes=post_quotes([same.pop(0)] if same else [], titles or {})))
     return out
+
+
+def chain_quotes(mer, c, titles):
+    """사슬의 인용 — 양 끝이 모두 그 사슬 단계인 관계(impacts)의 인용. 사슬 logNos(추출 chain 이 겹친 글)와
+    글이 다를 수 있다 — 단계 사이 관계를 말한 글의 인용이라서다."""
+    ids = {s.get("id") for s in c.get("steps") or []}
+    return post_quotes([im for im in mer.get("impacts") or [] if im.get("from") in ids and im.get("to") in ids], titles)
 
 
 def build_lens(mer):
@@ -832,10 +938,11 @@ def build_lens(mer):
     counts = {}
     for t in triggers(mer):
         counts[t["state"]] = counts.get(t["state"], 0) + 1
+    titles = {p.get("logNo"): p.get("title") for p in mer.get("posts") or []}
     return {"asOf": mer.get("asOf"), "window": mer.get("window"), "coverage": mer.get("coverage"),
             "nodes": [dict(n, short=node_short(n)) for n in (g.get("nodes") or [])],
-            "edges": edges_with_quote(mer),
-            "chains": [chain_view(c) for c in (mer.get("chains") or [])],
+            "edges": edges_with_quote(mer, titles),
+            "chains": [chain_view(c) | {"quotes": chain_quotes(mer, c, titles)} for c in (mer.get("chains") or [])],
             "regime": mer.get("regime"), "lens": mer.get("lens"), "counters": mer.get("counters") or [],
             "triggers": triggers(mer), "triggerCounts": counts, "today": lens_today(mer),
             "posts": [{"logNo": p.get("logNo"), "date": p["date"], "title": p.get("title")} for p in posts[-3:][::-1]]}
@@ -880,6 +987,7 @@ def build_all(data, mer, now, toss=None):
         if r.get("series"):
             it["seriesPath"] = r["series"]
         it["canonical"] = "/i/" + r["id"]
+        it["news"] = r.get("news")              # news.json topics 의 키(build_indicators.news_of) — 없으면 null
         reg.append(it)
     b["registry"] = {"count": len(reg), "rows": reg}
 
@@ -922,6 +1030,10 @@ def build_all(data, mer, now, toss=None):
         "schedule": schedule_with_corp(data, now, days=7),
         "news": news_top(data, 5),
         "lens": lens_today(mer),
+        # AI 3줄 — 날짜가 오늘이 아니어도 싣는다(asOf 로 화면이 가른다). todayLine 은 오늘 자 첫 문장만 쓴다.
+        "brief": {"asOf": kst_stamp(ai.get("generatedAt")) or ai.get("date"), "lines": (ai.get("lines") or [])[:3],
+                  "source": ai.get("source")},
+        "mood": [mood_item(Q, i) for i in MOOD],
     }
 
     # 묶음 머리에 수집 시각을 두지 않는다 — 거시·부동산처럼 하루 한 번 바뀌는 묶음까지 매 런 파일이 바뀐다.
@@ -936,7 +1048,7 @@ def build_all(data, mer, now, toss=None):
         return Q.item(i) if i in Q.rows else {"id": i, "label": i, "value": None, "asOf": None, "state": "missing"}
 
     def market(name, views):
-        return {"market": kr, "strip": [pick(i) for i in STRIPS[name]], "views": views}
+        return {"market": kr, "strip": [pick(i) for i in STRIPS[name]], "views": views, "newsTopic": MARKET_NEWS[name]}
 
     # ── 파생 칸(레지스트리 밖, data.json 경로에서 직접) ───────────────────────────
     def dv(i, label, short, shortM=None, unit=None, decimals=0, value=None, as_of=None, state="prev", **extra):
@@ -1041,6 +1153,9 @@ def build_all(data, mer, now, toss=None):
                                    % (key, len(rows_), bad, want, want)})
     b["market-domestic"] = market("domestic", {
         "amount": b["home"]["topAmount"],
+        # 토스 체결 거래대금 상위 20(코스피·코스닥 섞인 한 목록, 원천이 시장별로 나뉘지 않는다) — amount 와 같은 모양
+        "tossAmount": {"asOf": ra.get("as_of"), "state": block_state(H, "rankingsKr.tossAmount", ra.get("tossAmount")),
+                       "items": stock_rows(ra.get("tossAmount"), amount=True)},
         "gainers": {"kospi": stock_rows(smv.get("kospiGainers"), market="KOSPI"),
                     "kosdaq": stock_rows(smv.get("kosdaqGainers"), market="KOSDAQ"),
                     "state": block_state(H, "stockMovers.kospiGainers", smv.get("kospiGainers"))},
@@ -1159,8 +1274,8 @@ def build_all(data, mer, now, toss=None):
                         "secType": s.get("secType"), "shares": s.get("shares"),
                         "investor": [[r.get("date"), r.get("foreign"), r.get("inst"), r.get("retail"), r.get("fholdRate")]
                                      for r in (s.get("investor") or [])],
-                        "credit": s.get("credit") or [], "warnings": s.get("warnings") or []}
-    b["market-flows"] = {"market": kr,
+                        "credit": s.get("credit") or [], "warnings": s.get("warnings") or []} | flow_last(s)
+    b["market-flows"] = {"market": kr, "newsTopic": MARKET_NEWS["flows"],
                          "strip": [pick(i) for i in STRIPS["flows"]],
                          "views": {"investors": investors_block(data, H, 400),
                                    "stocks": {"asOf": (data.get("stockFlows") or {}).get("generatedAt"),
@@ -1230,6 +1345,7 @@ def build_all(data, mer, now, toss=None):
         b["market-" + name]["line"] = ol.line(parts)
 
     b["lens"] = build_lens(mer)
+    b["news"] = news_bundle(data, H)
     b["_issues"] = issues            # 파일로 쓰지 않는다(write 가 meta 에 합친다)
     b["_checks"] = checks
     return b

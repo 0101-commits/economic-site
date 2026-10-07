@@ -263,19 +263,32 @@ def test_lens_node_short_within_mobile_cap():
     assert bb.node_short({"id": "x", "label": "AI 캐펙스·데이터센터"}) == "AI 캐펙스"
 
 
-def test_lens_edge_has_one_recent_quote():
+def test_lens_quotes_per_post_latest_first():
+    """관계·사슬의 인용 — 최신순, 같은 글은 3줄까지, 원천(mer_signals impacts) 인용만."""
     lens = bundles()["lens"]
     assert len(lens["edges"]) == len(MER["graph"]["edges"])
-    for e in lens["edges"]:
-        assert len(e["quotes"]) <= 1, e
-        for q in e["quotes"]:
-            assert set(q) == {"logNo", "date", "q"} and len(q["q"]) <= bb.QUOTE_MAX, q
-    # 가장 최근 1건을 고른다 — 원천 인용 중 날짜가 가장 늦은 것
+    src = [q["q"] for im in MER.get("impacts") or [] for q in im.get("quotes") or []]
+    for x in lens["edges"] + lens["chains"]:
+        per = {}
+        for q in x["quotes"]:
+            assert set(q) == {"logNo", "title", "date", "text"} and len(q["text"]) <= bb.QUOTE_MAX, q
+            assert any(s.startswith(q["text"].rstrip("…")) for s in src), q       # 지어내지 않는다
+            per[q["logNo"]] = per.get(q["logNo"], 0) + 1
+        assert max(per.values(), default=0) <= bb.QUOTES_PER_POST, x.get("id") or (x["from"], x["to"])
+        assert [q["date"] for q in x["quotes"]] == sorted((q["date"] for q in x["quotes"]), reverse=True)
     mer = {"graph": {"edges": [{"from": "a", "to": "b", "dir": "+"}]},
+           "chains": [{"id": "C", "steps": [{"id": "a"}, {"id": "b"}, {"id": "c"}]}],
            "impacts": [{"from": "a", "to": "b", "dir": "+", "quotes": [
-               {"logNo": "1", "date": "2026-01-01", "q": "옛 글"}, {"logNo": "2", "date": "2026-09-01", "q": "가" * 80}]}]}
-    q = bb.edges_with_quote(mer)[0]["quotes"][0]
-    assert q["logNo"] == "2" and len(q["q"]) == bb.QUOTE_MAX and q["q"].endswith("…")
+                           {"logNo": "1", "date": "2026-01-01", "q": "옛 글"}, {"logNo": "2", "date": "2026-09-01", "q": "가" * 90}]},
+                       {"from": "b", "to": "c", "dir": "-", "quotes": [
+                           {"logNo": "2", "date": "2026-09-01", "q": "나"}, {"logNo": "2", "date": "2026-09-01", "q": "다"},
+                           {"logNo": "2", "date": "2026-09-01", "q": "라"}]},
+                       {"from": "a", "to": "z", "dir": "+", "quotes": [{"logNo": "9", "date": "2026-10-01", "q": "사슬 밖"}]}]}
+    qs = bb.edges_with_quote(mer, {"2": "새 글"})[0]["quotes"]
+    assert [q["logNo"] for q in qs] == ["2", "1"] and qs[0]["title"] == "새 글" and qs[1]["title"] is None
+    assert len(qs[0]["text"]) == bb.QUOTE_MAX and qs[0]["text"].endswith("…")
+    cq = bb.chain_quotes(mer, mer["chains"][0], {})
+    assert [q["logNo"] for q in cq] == ["2", "2", "2", "1"]          # 사슬 밖(a→z) 제외, 글 2 는 4줄 중 3줄
 
 
 def test_lens_chain_lognos_capped():
@@ -431,6 +444,51 @@ def test_same_indicator_same_value_across_bundles():
     if home["kospi"]["state"] != "kept" and home["kospi"]["spark"]:
         assert home["kospi"]["spark"][-1] == home["kospi"]["value"]
         assert b["home"]["kospiChart"]["1y"][-1][1] == home["kospi"]["value"]
+
+
+def test_news_bundle_and_topic_links():
+    """news.json = data.json.news 주제 그대로, 지표·자산군이 가리키는 주제는 그 안에 있어야 한다."""
+    b = bundles()
+    topics = {k for k, v in DATA["news"].items() if isinstance(v, list)}
+    assert set(b["news"]["topics"]) == topics and b["news"]["asOf"] == DATA["news"].get("lastFetched")
+    assert b["news"]["state"] in bb.STATES
+    for rows in b["news"]["topics"].values():
+        assert len(rows) <= bb.NEWS_MAX and all(set(r) == {"title", "source", "url", "at"} and r["title"] for r in rows)
+    assert {r["news"] for r in b["registry"]["rows"]} <= topics | {None}
+    markets = [k for k in b if k.startswith("market-")]
+    assert len(markets) == 7 and all(b[k]["newsTopic"] in topics | {None} for k in markets)
+    item = lambda i, t: {"title": t, "url": "https://www.x.co.kr/%d" % i, "pubDate": "Wed, 0%d Oct 2026 16:06:00 +0900" % i}
+    one = bb.news_bundle({"news": {"lastFetched": "t0", "t": [item(1, "옛것"), item(9, " A&amp;B  &quot;C&quot; "), item(9, "중복")]
+                                   + [item(i, "x%d" % i) for i in range(2, 9)]}})
+    rows = one["topics"]["t"]
+    assert len(rows) == bb.NEWS_MAX and rows[0] == {"title": 'A&B "C"', "source": "x.co.kr", "url": "https://www.x.co.kr/9",
+                                                    "at": "2026-10-09T16:06:00+09:00"}
+    assert "옛것" not in [r["title"] for r in rows] and "중복" not in [r["title"] for r in rows]
+
+
+def test_home_brief_and_mood():
+    h = bundles()["home"]
+    ai = DATA.get("aiBriefing") or {}
+    assert h["brief"]["lines"] == (ai.get("lines") or [])[:3] and h["brief"]["source"] == ai.get("source")
+    assert bb.kst_stamp("2026-10-07 17:13 KST") == "2026-10-07T17:13:00+09:00" and bb.kst_stamp("어제") is None
+    assert [m["id"] for m in h["mood"]] == bb.MOOD and all(m["state"] in bb.STATES for m in h["mood"])
+    fg = bundles()["market-global"]["views"]["fearGreed"]
+    assert h["mood"][0]["value"] == fg["value"] and h["mood"][0]["asOf"] == fg["asOf"]     # 같은 지표 = 같은 값
+    q = {"value": 10.0, "decimals": 0, "asOf": "2026-10-07", "_series": [["2026-09-29", 7.0], ["2026-09-30", 8.0], ["2026-10-06", 9.5]]}
+    assert bb.week_change(q) == 2.0
+    assert bb.week_change(q | {"_series": [["2026-09-01", 7.0]]}) is None          # 1주 전 점이 2주보다 오래됨 = 이력 구멍
+    assert bb.week_change(q | {"value": None}) is None and bb.week_change({}) is None
+
+
+def test_toss_amount_view_and_stock_flow_cells():
+    v = bundles()["market-domestic"]["views"]["tossAmount"]
+    assert set(v) == {"asOf", "state", "items"}
+    assert [r["code"] for r in v["items"]] == [r.get("code") for r in DATA["rankingsKr"].get("tossAmount") or []]
+    f = bb.flow_last({"short": [{"date": "d1", "volume": 5.0}, {"date": "d2", "volume": 7.0}],
+                      "program": [{"date": "d2", "arb": -3, "nonArb": 10}], "lending": []})
+    assert f == {"short": 7.0, "lending": None, "program": 7, "flowDates": {"short": "d2", "lending": None, "program": "d2"}}
+    for s in bundles()["market-flows"]["views"]["stocks"]["items"].values():
+        assert {"short", "lending", "program", "flowDates"} <= set(s)
 
 
 def test_lens_counts_match_source():
