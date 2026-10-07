@@ -404,9 +404,7 @@ let _aiQaBusy = false, _aiQaLastTs = 0;
 function updateAiQaVisibility() {
   const box = document.getElementById('aiQaBox');
   if(!box) return;
-  let has = '';
-  try { has = localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey') || ''; } catch(_) {}
-  box.hidden = !has;
+  box.hidden = !((typeof pfHasSyncKey === 'function') && pfHasSyncKey());   // 키 해시는 탭 저장소(app2.js _pfSecret)
 }
 
 // 당일 시장 컨텍스트 스냅샷 — scripts/ai_briefing.py build_snapshot 과 동일 구성 원칙:

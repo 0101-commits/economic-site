@@ -1,16 +1,17 @@
 // 설정 — 기획안 v4 7장. 보안 · 내 데이터 · 표시 · 데이터 상태.
+// 화면 전체가 PIN 뒤다(App.tsx PinGate). 화면 모드만은 머리의 단추로 PIN 없이 바꾼다.
 // 보호 수준은 있는 그대로 적는다: PIN 은 화면 잠금(열람 방지)이고, 기기 안의 자료를 암호화하지 않는다.
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Settings as Gear } from 'lucide-react'
 import { Card, Pill, SegBar } from '../components/ui'
 import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
-import { applyTheme, readTheme, type Theme } from '../lib/theme'
-import { checkPin, hasPin, IDLE_MS, isUnlocked, lock, setPin } from '../lib/pin'
+import { applyTheme, readTheme, useTheme } from '../lib/theme'
+import { checkPin, hasPin, IDLE_MS, isUnlocked, setPin, waitMs } from '../lib/pin'
 import { loadBundle, ROOT } from '../lib/bundle'
 import { mdHm } from '../lib/format'
 import { applyUpdown, KEYS, readLedger, readPortfolio, readPrefs, readSnaps, wipeDevice, writePrefs, type Prefs } from '../lib/personal/store'
-import { disableSync, enableSync, probeHoldings, readHoldRec, statusText, useSyncStatus } from '../lib/personal/sync'
+import { disableSync, enableSync, getKeyHash, probeHoldings, readHoldRec, statusText, useSyncStatus } from '../lib/personal/sync'
 
 const THEMES = [{ key: 'system', label: '기기 설정' }, { key: 'light', label: '밝게' }, { key: 'dark', label: '어둡게' }] as const
 const UPDOWN = [{ key: 'kr', label: '한국식 · 오름 빨강' }, { key: 'us', label: '서양식 · 오름 초록' }] as const
@@ -18,10 +19,10 @@ const UNITS = [{ key: 'man', label: '만원' }, { key: 'won', label: '원' }] as
 
 export default function Settings() {
   const [prefs, setPrefs] = useState<Prefs>(readPrefs)
-  const [t, setT] = useState<Theme>(readTheme)
+  const t = useTheme()
   const [msg, setMsg] = useState('')
   const { rev } = useSyncStatus()
-  useEffect(() => { if (rev) { setPrefs(readPrefs()); setT(readTheme()) } }, [rev])   // 동기화가 이 기기를 서버 내용으로 덮은 뒤
+  useEffect(() => { if (rev) setPrefs(readPrefs()) }, [rev])   // 동기화가 이 기기를 서버 내용으로 덮은 뒤
   const save = (p: Prefs) => { setPrefs(p); setMsg(writePrefs(p) ? '' : '이 기기에 저장하지 못했습니다.') }
   const setS = (k: Partial<Prefs['settings']>) => save({ ...prefs, settings: { ...prefs.settings, ...k } })
 
@@ -35,7 +36,7 @@ export default function Settings() {
         <Card title="표시">
           <div className="flex flex-col gap-3">
             <div><p className="m-0 mb-1 text-12 text-ink-2">등락 색</p><SegBar label="등락 색" options={UPDOWN} value={prefs.settings.updown} onChange={u => { setS({ updown: u }); applyUpdown(u) }} /></div>
-            <div><p className="m-0 mb-1 text-12 text-ink-2">화면 모드</p><SegBar label="화면 모드" options={THEMES} value={t} onChange={k => { setT(k); applyTheme(k) }} /></div>
+            <div><p className="m-0 mb-1 text-12 text-ink-2">화면 모드</p><SegBar label="화면 모드" options={THEMES} value={t} onChange={applyTheme} /></div>
             <div><p className="m-0 mb-1 text-12 text-ink-2">금액 단위(내 자산)</p><SegBar label="금액 단위" options={UNITS} value={prefs.settings.unit} onChange={u => setS({ unit: u })} /></div>
           </div>
         </Card>
@@ -61,7 +62,7 @@ function Security() {
     if (p1 !== p2) { setNote('새 PIN 두 칸이 다릅니다.'); return }
     setBusy(true)
     try {
-      if (has && !(await checkPin(cur))) { setNote('지금 PIN 이 맞지 않습니다.'); return }
+      if (has && !(await checkPin(cur))) { const w = waitMs(); setNote(w ? `PIN 을 여러 번 틀렸습니다 · ${Math.ceil(w / 1000)}초 뒤 다시` : '지금 PIN 이 맞지 않습니다.'); return }
       await setPin(p1)
       setHas(true); setCur(''); setP1(''); setP2(''); setNote(has ? 'PIN 을 바꿨습니다.' : 'PIN 을 켰습니다. 내 자산은 이 PIN 으로 엽니다.')
     } catch { setNote('이 환경(https 아님)에서는 잠금을 쓸 수 없습니다.') } finally { setBusy(false) }
@@ -81,7 +82,6 @@ function Security() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="submit" disabled={busy} className={BTN}>{busy ? '확인 중' : has ? '바꾸기' : '켜기'}</button>
-          {has && <button type="button" className={BTN2} onClick={() => { lock(); setNote('잠갔습니다. 내 자산을 열면 PIN 을 묻습니다.') }}>지금 잠그기</button>}
           <span role="alert" className="text-12 text-ink-2">{note}</span>
         </div>
       </form>
@@ -130,8 +130,8 @@ function MyData() {
         {step === 0 && <button type="button" className={BTN2} onClick={() => setStep(1)}>이 기기 데이터 지우기</button>}
         {step === 1 && (
           <div className="flex flex-col gap-2">
-            <p className="m-0 text-13 text-ink-1">지울 것: 보유 종목 · 평가액 스냅샷 · 배당·입출금 원장 · 관심 · 알림 조건 · 표시 설정 · 최근 검색.</p>
-            <p className="m-0 text-12 text-ink-3">현행 화면도 같은 보유·스냅샷·원장을 쓰므로 거기서도 사라집니다. 잠금 PIN 과 현행 화면 동기화 키는 남깁니다. 기기 간 동기화는 끕니다(서버에 맡긴 것은 남습니다).</p>
+            <p className="m-0 text-13 text-ink-1">지울 것: 보유 종목 · 평가액 스냅샷 · 배당·입출금 원장 · 관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오 · 최근 검색 · 현행 화면 동기화 키와 보유 암호.</p>
+            <p className="m-0 text-12 text-ink-3">현행 화면도 같은 보유·스냅샷·원장을 쓰므로 거기서도 사라집니다. 잠금 PIN 은 남깁니다. 기기 간 동기화를 끄고 이 기기의 폰 알림 구독도 끊습니다(서버에 맡긴 것은 남습니다).</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={BTN2} onClick={() => setStep(2)}>계속</button>
               <button type="button" className={BTN2} onClick={() => setStep(0)}>그만두기</button>
@@ -142,7 +142,7 @@ function MyData() {
           <div className="flex flex-col gap-2">
             <p role="alert" className="m-0 text-13 font-bold text-warn">되돌릴 수 없습니다. 정말 지울까요?</p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className={BTN} onClick={() => { if (wipeDevice()) { disableSync(); location.reload() } else setStep(0) }}>지우기</button>
+              <button type="button" className={BTN} onClick={async () => { if (await wipeDevice(getKeyHash)) { disableSync(); location.reload() } else setStep(0) }}>지우기</button>
               <button type="button" className={BTN2} onClick={() => setStep(0)}>그만두기</button>
             </div>
           </div>

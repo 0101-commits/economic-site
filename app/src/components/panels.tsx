@@ -1,18 +1,20 @@
-// 공통 패널 — 패널 머리 · 지표 띠 카드 · 순위 표. ui.tsx 의 Card·AsOfBadge·BottomSheet 위에 얹는다.
-import { Fragment, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+// 공통 패널 — 패널 머리 · 지표 띠 카드 · 순위 표 · 더 보기. ui.tsx 의 Card·AsOfBadge·BottomSheet 위에 얹는다.
+import { Fragment, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { ChevronDown, Star, type LucideIcon } from 'lucide-react'
 import { AsOfBadge, BottomSheet, Card } from './ui'
 import { Sparkline } from './charts'
-import { changeDir, fmtChange, fmtNumber, scaled } from '../lib/format'
+import { changeDir, fmtChange, fmtNumber, fmtPct, scaled } from '../lib/format'
 import { shownUnit, type StripItem } from '../lib/bundle'
+import { foldId, hiddenRows, isFolded, setFolded } from '../lib/fold'
 
 const PC_MQ = '(min-width: 61.25rem)'   // app.css --breakpoint-pc 와 같은 값
 const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as const
 
 /**
  * 패널: 머리(아이콘·제목 | 단위·출처·기준 시각 | 도구) + 본문.
- * fold='always' = 늘 접힌 채 시작, 'mobile' = 모바일(<980)에서만 접힌 채 시작. 접기는 브라우저 기본 details 다.
+ * fold = 접을 수 있음(머리 끝 화살표). 늘 펼친 채 시작하고, 사용자가 접은 것만 이 기기에 기억한다(lib/fold.ts).
+ * 접기는 브라우저 기본 details 다(data-panel-fold = 첫 그림 접힘 0 게이트 tests/ui/foldzero.mjs 의 표식).
  */
 export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil, tools, fold, className = '', children }: {
   title: ReactNode
@@ -23,11 +25,12 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
   state?: string
   liveUntil?: string | null
   tools?: ReactNode
-  fold?: 'always' | 'mobile'
+  fold?: boolean
   className?: string
   children: ReactNode
 }) {
-  const [open, setOpen] = useState(() => (fold === 'mobile' ? matchMedia(PC_MQ).matches : fold !== 'always'))
+  const id = foldId(useLocation().pathname, typeof title === 'string' ? title : '')
+  const [open, setOpen] = useState(() => !fold || !isFolded(id))
   const head = (
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${open ? 'mb-3' : ''}`}>
       <h2 className="m-0 inline-flex items-center gap-1.5 text-14 font-bold text-ink-1">{Icon && <Icon size={16} aria-hidden />}{title}</h2>
@@ -45,7 +48,7 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
   if (!fold) return <Card className={className}>{head}{children}</Card>
   return (
     <Card className={className}>
-      <details open={open} onToggle={e => setOpen(e.currentTarget.open)}>
+      <details data-panel-fold open={open} onToggle={e => { const o = e.currentTarget.open; if (o !== open) { setOpen(o); setFolded(id, !o) } }}>
         <summary className="list-none cursor-pointer [&::-webkit-details-marker]:hidden">{head}</summary>
         {children}
       </details>
@@ -53,26 +56,50 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
   )
 }
 
+const onPcChange = (f: () => void) => { const m = matchMedia(PC_MQ); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }
+const isPc = () => matchMedia(PC_MQ).matches
+
+/** 더 보기: 긴 표 · 목록은 모바일(<980) 5행 · PC 10행까지, 끝에 「N행 더 보기」 — 누르면 그 자리에서 전부. children 이 보일 행으로 그린다. */
+export function More<R>({ rows, children }: { rows: R[]; children: (shown: R[]) => ReactNode }) {
+  const pc = useSyncExternalStore(onPcChange, isPc)
+  const [all, setAll] = useState(false)
+  const rest = all ? 0 : hiddenRows(rows.length, pc)
+  return (
+    <>
+      {children(rest ? rows.slice(0, rows.length - rest) : rows)}
+      {rest > 0 && (
+        <button type="button" onClick={() => setAll(true)}
+          className="inline-flex items-center gap-1 h-8 mt-1 px-0 border-0 bg-transparent cursor-pointer text-12 text-ink-2 hover:text-ink-1">
+          <span className="num">{rest}</span>행 더 보기<ChevronDown size={14} aria-hidden />
+        </button>
+      )}
+    </>
+  )
+}
+
 /**
  * 지표 띠 카드: 이름·기준 시각 → 값 → 등락 → 이유 한 줄 + 작은 차트. 이름은 PC short · 모바일 shortM(8자 상한, 줄바꿈 없음).
  * onSelect 를 주면 카드가 고르기 버튼(selected = 검정 테두리), to 를 주면 링크. onWatch 를 주면 오른쪽 위에 별.
+ * tag = 이름 옆 알약(홈 띠의 「관심」 칸). 알약이 붙은 이름은 PC 에서도 줄을 바꾼다(카드 폭을 넘지 않게).
  * 파생 칸: up·down 이 있으면 값 자리에 「상승/하락」 종목 수를 적는다.
  */
-export function StripCard({ item, selected, onSelect, to, watched, onWatch }: {
-  item: StripItem; selected?: boolean; onSelect?: () => void; to?: string; watched?: boolean; onWatch?: () => void
+export function StripCard({ item, selected, onSelect, to, watched, onWatch, tag }: {
+  item: StripItem; selected?: boolean; onSelect?: () => void; to?: string; watched?: boolean; onWatch?: () => void; tag?: ReactNode
 }) {
   const v = scaled(item.value, item.scale), chg = scaled(item.change, item.scale)
   const unit = shownUnit(item)
   const breadth = item.up != null && item.down != null
-  const dir = changeDir(chg, item.decimals)
+  const pctOnly = chg == null && !breadth && item.changePct != null   // 등락률만 있는 칸(홈 띠의 관심 종목)
+  const dir = pctOnly ? changeDir(item.changePct, 2) : changeDir(chg, item.decimals)
   const name = item.short || item.label
   // 카드마다 같은 줄 구성: 이름 / 기준 시각 + 작은 차트 / 값 / 등락 / 이유. 좁은 PC 8열에서도 줄이 섞이지 않게 고정한다.
   const body = (
     <>
       {/* PC 는 줄 고정(8열 정렬), 모바일 2열 격자(약 150px)에선 긴 이름을 자르지 않고 줄을 바꾼다(최장 데이터 게이트 360) */}
-      <span className={`block text-12 text-ink-2 pc:whitespace-nowrap [overflow-wrap:anywhere] ${onWatch ? 'pr-7' : ''}`}>
+      <span className={`block text-12 text-ink-2 ${tag ? '' : 'pc:whitespace-nowrap'} [overflow-wrap:anywhere] ${onWatch ? 'pr-7' : ''}`}>
         <span className="hidden pc:inline">{name}</span>
         <span className="pc:hidden">{item.shortM || name}</span>
+        {tag && <span className="ml-1 inline-flex align-middle">{tag}</span>}
       </span>
       <span className="flex items-center justify-between gap-2 h-4 mt-0.5 mb-1">
         <AsOfBadge asOf={item.asOf} state={item.state} liveUntil={item.liveUntil} />
@@ -83,7 +110,7 @@ export function StripCard({ item, selected, onSelect, to, watched, onWatch }: {
         {unit && <span className="ml-0.5 text-12 font-normal text-ink-3">{unit}</span>}
       </span>
       <span className={`block num text-12 mt-1 ${DIR_TEXT[dir]}`}>
-        {chg != null ? fmtChange(chg, item.changePct, item.decimals) : breadth ? `보합 ${item.flat ?? '—'}` : ' '}
+        {chg != null ? fmtChange(chg, item.changePct, item.decimals) : pctOnly ? fmtPct(item.changePct) : breadth ? `보합 ${item.flat ?? '—'}` : ' '}
       </span>
       {/* 이유는 한 줄이 목표지만 PC 8열 카드(약 115px)엔 안 들어간다 — 자르지 않고 줄을 바꾼다 */}
       {(item.reason || item.reasonShort) && (
@@ -106,7 +133,7 @@ export function StripCard({ item, selected, onSelect, to, watched, onWatch }: {
   )
 }
 
-/** 관심 별(토글). 담김 = 검정 채움. 띠 카드·표 행·관심 패널이 같이 쓴다. */
+/** 관심 별(토글). 담김 = 검정 채움. 띠 카드·표 행이 같이 쓴다. */
 export function WatchStar({ on, onToggle, label, className = '' }: { on: boolean; onToggle: () => void; label: string; className?: string }) {
   return (
     <button type="button" onClick={e => { e.stopPropagation(); onToggle() }} aria-pressed={on} aria-label={`${label} 관심 ${on ? '빼기' : '담기'}`}
@@ -142,6 +169,7 @@ function cmp(a: unknown, b: unknown): number | null {
  * 순위 표: 머리 32px, 숫자 열 오른쪽 정렬·고정폭, 빈칸 「—」, 머리 누르면 정렬(⇅ → ▼ → ▲ → 원래 순서).
  * lead = 행 앞 칸(관심 별 등 버튼 자리). 모바일은 2열로 접고 행을 누르면 BottomSheet 에 나머지 열.
  * onPick 을 주면 행 누르기 = 그 행 고르기(selectedKey 와 rowKey 가 같은 행이 옅은 바탕). 모바일도 시트 대신 onPick 이다.
+ * 행이 많으면 More(모바일 5 · PC 10행 + 「N행 더 보기」) — 정렬은 전체 행에 먼저 건다.
  * 행 전체가 마우스 자리이고, 키보드·읽기 도구용으로 이름 칸 내용을 버튼으로 감싼다(핸들러 없이 행으로 버블링).
  */
 export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selectedKey }: {
@@ -171,7 +199,7 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selected
   const pickC = nameC ?? cols[0]
   const isOn = (r: R) => selectedKey != null && rowKey(r) === selectedKey
 
-  return (
+  return <More rows={shown}>{vis => (
     <div className="min-w-0">
       <div className="table-box hidden md:block">
         <table className="w-full border-collapse text-13">
@@ -194,7 +222,7 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selected
             </tr>
           </thead>
           <tbody>
-            {shown.map(r => {
+            {vis.map(r => {
               const on = isOn(r)
               return (
                 <tr key={rowKey(r)} onClick={onPick && (() => onPick(r))}
@@ -215,7 +243,7 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selected
       </div>
 
       <ul className="md:hidden m-0 p-0 list-none" aria-label={label}>
-        {shown.map(r => {
+        {vis.map(r => {
           const inner = (
             <>
               <span className="min-w-0">
@@ -254,5 +282,5 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selected
         )}
       </BottomSheet>
     </div>
-  )
+  )}</More>
 }

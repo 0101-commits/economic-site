@@ -47,8 +47,19 @@ function pfSave() {
 // 그 사실을 사용자에게 보여주고(자동 저장됨), 다른 기기 반영(서버 「목록 저장」)을 까먹지 않도록
 // 변경이 생기면 _pfDirty 로 표시 → 상태줄 안내 + 페이지 이탈/새로고침 시 경고창을 띄운다.
 let _pfDirty = false;
+// 비밀(동기화 키 해시 · 보유 암호)은 이 탭 sessionStorage 에만 둔다 — 탭을 닫으면 사라진다(2026-10-07 B3).
+// 예전 판이 localStorage 에 남긴 값은 처음 읽을 때 이 탭으로 옮기고 지운다(한 번).
+function _pfSecret(k) {
+  try {
+    let v = sessionStorage.getItem(k) || '';
+    const old = localStorage.getItem(k);
+    if (old != null) { localStorage.removeItem(k); if (!v && old) { v = old; sessionStorage.setItem(k, v); } }
+    return v;
+  } catch(_) { return ''; }
+}
+_pfSecret('pfSyncKeyHash'); _pfSecret('pfHoldingsPass');   // 읽기를 기다리지 않고 지금 옮긴다(보유 암호 원문이 localStorage 에 남지 않게)
 function pfHasSyncKey() {
-  try { return !!(localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey')); } catch(_) { return false; }
+  try { return !!(_pfSecret('pfSyncKeyHash') || localStorage.getItem('pfSyncKey')); } catch(_) { return false; }
 }
 // (구) pfMarkDirty 정의 삭제 — 아래쪽 정의가 호이스팅으로 항상 이겨 이 코드는 죽은
 // 코드였고, 그 바람에 _pfDirty(이탈 경고 플래그)가 어디서도 켜지지 않았다(2026-08 감사).
@@ -1157,23 +1168,22 @@ function pfMarkDirty() {
 
 // ── 서버 동기화 (Cloudflare Worker → 저장소 alerts_config.json) ───────────────
 // 보안 (1.2): 동기화 키는 평문 저장/전송하지 않는다. 입력 즉시 SHA-256 해시로 변환해
-// 해시만 localStorage 에 보관·전송하고, Worker 는 자기 시크릿의 해시와 비교 검증한다.
-// → localStorage 가 유출돼도 원본 키는 복원 불가, 네트워크 캡처에도 평문 키가 남지 않는다.
+// 해시만 이 탭 sessionStorage 에 보관·전송하고(_pfSecret), Worker 는 자기 시크릿의 해시와 비교 검증한다.
+// → 저장소가 유출돼도 원본 키는 복원 불가, 네트워크 캡처에도 평문 키가 남지 않는다.
 async function pfSha256Hex(s) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(s)));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 // 저장된 해시 반환 — 구버전 평문 키(pfSyncKey)가 남아 있으면 해시로 1회 마이그레이션
 async function pfGetSyncKeyHash() {
-  let h = '';
-  try { h = localStorage.getItem('pfSyncKeyHash') || ''; } catch(_) {}
+  let h = _pfSecret('pfSyncKeyHash');
   if(h) return h;
   let legacy = '';
   try { legacy = localStorage.getItem('pfSyncKey') || ''; } catch(_) {}
   if(!legacy) return '';
   try {
     h = await pfSha256Hex(legacy);
-    localStorage.setItem('pfSyncKeyHash', h);
+    sessionStorage.setItem('pfSyncKeyHash', h);
     localStorage.removeItem('pfSyncKey');
   } catch(_) { return ''; }
   return h;
@@ -1186,7 +1196,7 @@ function pfUpdateSyncKeyBtn() {
   const has = (typeof pfHasSyncKey === 'function') ? pfHasSyncKey() : false;
   b.textContent = has ? '🔑 동기화 키 ✓' : '🔑 동기화 키';
   b.style.color = has ? window.CUP : 'var(--c-txt-dim)';
-  b.title = has ? '이 기기에 동기화 키 저장됨 (해시로만 보관) — 다시 넣으려면 클릭'
+  b.title = has ? '이 탭에 동기화 키 저장됨 (해시로만 보관, 탭을 닫으면 지워짐) — 다시 넣으려면 클릭'
                 : '동기화 키(처음 받은 키 또는 내가 바꾼 암호) 넣기';
 }
 // 페이지 내 입력 모달 — window.prompt 대체. 카카오톡·네이버 인앱 웹뷰는 prompt/confirm 을
@@ -1227,15 +1237,15 @@ function pfAskText(msg, opts) {
   });
 }
 async function pfSetSyncKey() {
-  const has = !!(localStorage.getItem('pfSyncKeyHash') || localStorage.getItem('pfSyncKey'));
-  const k = await pfAskText(`동기화 키(처음 받은 키 또는 내가 바꾼 암호)를 넣으세요. 붙여넣기도 됩니다.\n비워 두고 확인하면 이 기기에서 지웁니다.${has ? '\n※ 이 기기에 키가 저장되어 있습니다 (해시로만 보관해 보여 드릴 수 없습니다)' : ''}`, { type: 'password' });
+  const has = pfHasSyncKey();
+  const k = await pfAskText(`동기화 키(처음 받은 키 또는 내가 바꾼 암호)를 넣으세요. 붙여넣기도 됩니다.\n비워 두고 확인하면 이 탭에서 지웁니다.${has ? '\n※ 이 탭에 키가 저장되어 있습니다 (해시로만 보관해 보여 드릴 수 없습니다)' : ''}`, { type: 'password' });
   if(k === null) return;
   try {
     localStorage.removeItem('pfSyncKey');   // 평문 잔존 제거
-    if(!k.trim()) { localStorage.removeItem('pfSyncKeyHash'); pfUpdateSyncKeyBtn(); return; }
-    localStorage.setItem('pfSyncKeyHash', await pfSha256Hex(k.trim()));
+    if(!k.trim()) { sessionStorage.removeItem('pfSyncKeyHash'); pfUpdateSyncKeyBtn(); return; }
+    sessionStorage.setItem('pfSyncKeyHash', await pfSha256Hex(k.trim()));
     pfUpdateSyncKeyBtn();
-    if(typeof showToast === 'function') showToast('동기화 키가 SHA-256 해시로 안전하게 저장되었습니다.');
+    if(typeof showToast === 'function') showToast('동기화 키를 SHA-256 해시로 이 탭에만 저장했습니다. 탭을 닫으면 다시 넣어야 합니다.');
   } catch(_) {}
 }
 // 🔑 키 바꾸기 — 이 기기에 저장된 지금 키(해시)로 인증하고 새 암호의 해시를 Worker(KV)에 등록한다.
@@ -1266,7 +1276,7 @@ async function pfChangeSyncKey() {
     });
     const j = await r.json().catch(() => ({}));
     if(r.ok && j.ok && j.changed) {
-      localStorage.setItem('pfSyncKeyHash', nh);
+      sessionStorage.setItem('pfSyncKeyHash', nh);
       localStorage.removeItem('pfSyncKey');
       pfUpdateSyncKeyBtn();
       say('키를 바꿨습니다. 다른 기기(폰 등)는 🔑 동기화 키에 새 암호를 다시 넣으세요.', window.CUP);
@@ -1542,7 +1552,7 @@ async function _pfDeriveKey(pass, salt) {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: PF_KDF_ITER, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
-function pfGetHoldingsPass() { try { return localStorage.getItem('pfHoldingsPass') || ''; } catch(_) { return ''; } }
+function pfGetHoldingsPass() { return _pfSecret('pfHoldingsPass'); }
 function pfUpdateHoldingsSyncUI() {
   const b = document.getElementById('pfHoldingsPassBtn');
   if (!b) return;
@@ -1553,16 +1563,16 @@ function pfUpdateHoldingsSyncUI() {
 }
 async function pfSetHoldingsPass() {
   const on = !!pfGetHoldingsPass();
-  const p = await pfAskText('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· ⚠ 페이지 잠금 PIN·동기화 키와 다른 암호를 쓰세요.\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버(동기화 키로 잠긴 Worker 저장소)엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 짧거나 흔한 암호는 서버 사본이 새면 대입으로 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 현재 이 기기에 암호가 설정되어 있습니다.' : ''), { type: 'password' });
+  const p = await pfAskText('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· ⚠ 페이지 잠금 PIN·동기화 키와 다른 암호를 쓰세요.\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버(동기화 키로 잠긴 Worker 저장소)엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 짧거나 흔한 암호는 서버 사본이 새면 대입으로 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 지금 이 탭에 암호가 설정되어 있습니다.' : ''), { type: 'password' });
   if (p === null) return;
   try {
-    if (!p.trim()) { localStorage.removeItem('pfHoldingsPass'); if(typeof showToast==='function') showToast('평단가 동기화 해제 — 이후 「☁ 목록 저장」에서 평단가/수량은 서버에 올라가지 않습니다.', 4000); }
+    if (!p.trim()) { sessionStorage.removeItem('pfHoldingsPass'); if(typeof showToast==='function') showToast('평단가 동기화 해제 — 이후 「☁ 목록 저장」에서 평단가/수량은 서버에 올라가지 않습니다.', 4000); }
     else {
       // 최소 길이 강제 — PBKDF2 600k 라도 사전 단어/짧은 암호는 오프라인 대입에 뚫린다(감사 확인 사항).
       // 하한 6자(2026-08-12 사용자 결정). 잠금 PIN 과 같은 암호를 쓰던 방식은 폐기 — 그 PIN 으로 암호문이 풀렸다(2026-09-29 감사).
       if (p.trim().length < 6) { if(typeof showToast==='function') showToast('⚠ 암호가 너무 짧습니다(6자 미만) — 설정되지 않았습니다. 12자 이상을 권장합니다.', 5000); return; }
       if (p.trim().length < 12 && typeof showToast==='function') showToast('ℹ 12자 미만 암호는 권장하지 않습니다 — 길수록 안전합니다.', 4000);
-      localStorage.setItem('pfHoldingsPass', p); if(typeof showToast==='function') showToast('평단가 동기화 암호 설정 완료 — 「☁ 목록 저장」 시 평단가/수량이 암호화돼 함께 저장됩니다.', 4000);
+      sessionStorage.setItem('pfHoldingsPass', p); if(typeof showToast==='function') showToast('평단가 동기화 암호 설정 완료(이 탭에만 기억 — 탭을 닫으면 다시 넣어야 합니다) — 「☁ 목록 저장」 시 평단가/수량이 암호화돼 함께 저장됩니다.', 4000);
     }
   } catch(_) {}
   pfUpdateHoldingsSyncUI();
@@ -1592,7 +1602,7 @@ async function pfApplyEncHoldings(blob, opts) {
   let pass = pfGetHoldingsPass();
   if (!pass) {
     if (opts.silent) return 0;   // 자동 복원인데 암호 없음 → 조용히 건너뜀(수동 불러오기 때 입력 받음)
-    pass = await pfAskText('서버에 암호화된 평단가·수량이 있습니다.\n복호화 암호를 입력하세요(성공 시 이 기기에 저장됩니다).', { type: 'password' });
+    pass = await pfAskText('서버에 암호화된 평단가·수량이 있습니다.\n복호화 암호를 입력하세요(성공 시 이 탭에만 기억합니다).', { type: 'password' });
     if (pass === null || !pass.trim()) return 0;
     pass = pass.trim();
   }
@@ -1606,7 +1616,7 @@ async function pfApplyEncHoldings(blob, opts) {
     return -1;
   }
   if (!Array.isArray(map)) return 0;
-  try { localStorage.setItem('pfHoldingsPass', pass); } catch(_) {}   // 복호화 성공 → 암호 기기에 저장
+  try { sessionStorage.setItem('pfHoldingsPass', pass); } catch(_) {}   // 복호화 성공 → 암호를 이 탭에만 기억
   let applied = 0;
   map.forEach(h => {
     if (!h || typeof h.s !== 'string' || !h.s) return;   // s 없는 칸(새 화면의 { t } 시각 칸)은 건너뛴다

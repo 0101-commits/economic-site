@@ -102,7 +102,7 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .pytest_ok
-          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml', 'app/src/App.tsx', 'app/src/screens/**', 'app/src/components/**') }}
 
       - name: Run tests
         if: steps.tests-ok.outputs.cache-hit != 'true'
@@ -120,7 +120,7 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .pytest_ok
-          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml', 'app/src/App.tsx', 'app/src/screens/**', 'app/src/components/**') }}
 
       # 🔔 알림 v2(사건 사전 · 원장, 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md) — 경량 추출:
       #    A1~A3 급변 · A5 서킷 · B2 마디 · U1 · U2. 원장(events/)은 늘 쓰고, 발송은 저장소 변수 ALERTS_V2=1 일 때만.

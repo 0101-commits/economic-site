@@ -28,6 +28,8 @@ const calls = { save: 0, render: 0, refresh: 0 };
 const scope = {
   pfState, pfQuotes: {},
   localStorage: { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; }, removeItem: k => { delete store[k]; } },
+  // 보유 암호 읽기(app2.js _pfSecret)는 잘라 낸 구간 밖 — 지금 판은 sessionStorage 에 두지만 여기선 같은 가짜 저장소에서 읽는다
+  _pfSecret: k => store[k] || '',
   pfSave: () => { calls.save++; }, pfRenderAll: () => { calls.render++; },
   pfAskText: async () => null, showToast: () => {}, document: { getElementById: () => el }, window: {},
   pfEnsureUsdKrw: async () => {}, pfMarkDirty: () => {}, pfUsdKrw: () => 1380,

@@ -6,7 +6,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { SegBar } from '../ui'
 import { Heatmap } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { BigChart, ChangeText, Empty, MarketGrid, poolOf, type BodyProps } from './parts'
+import { BigChart, ChangeText, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 
 type Freight = { code: string; name: string; price: number | null; chgPct: number | null; date?: string }
 type Premium = { pct: number | null; basis?: string; krwPerG?: number | null; usdPerOz?: number | null; usdkrw?: number | null; asOf?: Record<string, string | null>; state?: string; formula?: string }
@@ -47,19 +47,19 @@ export default function Commodities({ b, selId, setS }: BodyProps<CommoditiesBun
   const gp = vw?.goldPremium
 
   const heat = (cls: string, primary: boolean) => (
-    <Panel className={cls} title={`${group ? VIEWS.find(o => o.key === group)!.label : '원자재'} ${items.length}`} fold={primary ? undefined : 'mobile'}>
+    <Panel className={cls} title={`${group ? VIEWS.find(o => o.key === group)!.label : '원자재'} ${items.length}`} fold={!primary}>
       {items.length
         ? <Heatmap label="원자재 등락률" minCell={72} cells={items.map(x => ({ key: x.id, name: x.short || x.label, value: x.changePct }))} onPick={c => setS(c.key)} />
         : <Empty>원자재 자료가 없습니다.</Empty>}
     </Panel>
   )
   const freight = (cls: string, primary: boolean) => (
-    <Panel className={cls} title="운임" state={vw?.freight?.state} fold={primary ? undefined : 'mobile'}>
+    <Panel className={cls} title="운임" state={vw?.freight?.state} fold={!primary}>
       {vw?.freight?.items.length ? <RankTable label="해운 운임 지수" cols={freightCols} rows={vw.freight.items} rowKey={r => r.code} /> : <Empty>운임 자료가 없습니다.</Empty>}
     </Panel>
   )
   const premium = (cls: string) => (
-    <Panel className={cls} title="금 김치프리미엄" state={gp?.state} fold="mobile">
+    <Panel className={cls} title="금 김치프리미엄" state={gp?.state} fold>
       {gp?.pct != null ? (
         <div className="flex flex-col gap-2">
           <div className="flex items-baseline gap-2">
@@ -78,16 +78,18 @@ export default function Commodities({ b, selId, setS }: BodyProps<CommoditiesBun
     </Panel>
   )
   const enso = (cls: string) => (
-    <Panel className={cls} title="엘니뇨" asOf={vw?.enso?.asOf} state={vw?.enso?.state} fold="always">
+    <Panel className={cls} title="엘니뇨" asOf={vw?.enso?.asOf} state={vw?.enso?.state} fold>
       {vw?.enso?.line ? <p className="m-0 text-13 text-ink-2">{vw.enso.line}</p> : <Empty>엘니뇨 자료가 없습니다.</Empty>}
     </Panel>
   )
 
-  const blocks = v === 'freight' ? [freight, heat, premium, enso] : [heat, freight, premium, enso]
+  const blocks: [string, Block][] = v === 'freight'
+    ? [['freight', freight], ['heat', heat], ['premium', premium], ['enso', enso]]
+    : [['heat', heat], ['freight', freight], ['premium', premium], ['enso', enso]]
   return (
     <>
       <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...blocks]} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...blocks]} />
     </>
   )
 }

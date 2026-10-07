@@ -5,7 +5,7 @@ import { fmtNumber, scaled } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { AsOfBadge, SegBar } from '../ui'
 import { Panel } from '../panels'
-import { BigChart, Empty, EventList, MarketGrid, poolOf, type BodyProps } from './parts'
+import { BigChart, Empty, EventList, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 import { yearAgo, yoySeries } from './calc'
 
 type MacroItem = StripItem & { country?: string; topic?: string; source?: string }
@@ -69,8 +69,9 @@ export default function Macro({ b, selId, setS }: BodyProps<MacroBundle>) {
       ) : <Empty>{cname}의 이 주제 지표가 묶음에 없습니다.</Empty>}
     </Panel>
   )
+  const big: [string, Block] = ['big', cls => <BigChart className={cls} item={sel} />]
   const calPanel = (cls: string, primary: boolean): ReactNode => (
-    <Panel className={cls} title={`${cname} 경제 일정`} fold={primary ? undefined : 'always'}>
+    <Panel className={cls} title={`${cname} 경제 일정`} fold={!primary}>
       <EventList events={events} today={b.market?.today} />
     </Panel>
   )
@@ -81,7 +82,7 @@ export default function Macro({ b, selId, setS }: BodyProps<MacroBundle>) {
         <SegBar label="주제" options={VIEWS} value={v} onChange={setV} />
         <SegBar label="나라" options={COUNTRIES} value={m} onChange={setM} />
       </div>
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...(v === 'calendar' ? [calPanel] : [cardPanel, calPanel])]} />
+      <MarketGrid blocks={v === 'calendar' ? [big, ['cal', calPanel]] : [big, ['card', cardPanel], ['cal', calPanel]]} />
     </>
   )
 }

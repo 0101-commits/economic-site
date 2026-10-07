@@ -1,27 +1,21 @@
-// 홈 「오늘」 — 기획안 v4 3장. 머리 → 오늘 한 줄 → 지표 띠 8 → 보기 바 → 격자(PC 12열 / 모바일 1열 같은 순서).
+// 홈 「오늘」 — 기획안 v4 3장. 머리 → 오늘 한 줄 → 지표 띠 8 + 관심 칸 → 격자(PC 12열 / 모바일 1열 같은 순서).
 // 금액(내 자산)은 여기서 절대 읽지 않는다. 관심은 이 기기의 id 목록뿐(lib/watch.ts).
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, House } from 'lucide-react'
-import { loadBundle, loadHome, loadIndicator, shownUnit, type HomeBundle, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
+import { loadHome, loadIndicator, shownUnit, type HomeBundle, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
 import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { useWatch } from '../lib/watch'
-import { NumBlock, Pill, SegBar } from '../components/ui'
+import { NumBlock, Pill } from '../components/ui'
 import { DivergingBars, Heatmap, LineChart } from '../components/charts'
-import { Panel, RankTable, StripCard, WatchStar, type Col } from '../components/panels'
+import { More, Panel, RankTable, StripCard, WatchStar, type Col } from '../components/panels'
 import { LevelPill } from '../components/personal/bits'
 import { hhmm, todayRows } from '../lib/alerts/v2'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
 
-const VIEWS = [
-  { key: 'all', label: '전체' }, { key: 'kr', label: '국내' }, { key: 'global', label: '해외' },
-  { key: 'fxrate', label: '환율금리' }, { key: 'commod', label: '원자재' }, { key: 'watch', label: '내 관심' },
-] as const
-type View = typeof VIEWS[number]['key']
-// 보기 → 그 자산군 시장 묶음의 띠(순서의 단일 원천은 묶음). 「전체」는 홈 띠 8, 「내 관심」은 담은 지표만.
-const VIEW_BUNDLE: Partial<Record<View, string>> = { kr: 'market-domestic', global: 'market-global', fxrate: 'market-fxrates', commod: 'market-commodities' }
+const MAX_WATCH = 8   // 띠 뒤에 붙는 관심 칸 상한 — 넘으면 「관심 N개 더」
 const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as const
 // 일정에 섞여 오는 종목 공시(kind) → 알약 글자. 이름은 묶음이 「종목 제목」으로 붙여 준다. 순서(날짜·시각)도 묶음이 정한다.
 const CORP_KIND: Record<string, string> = { dividend: '배당', earnings: '실적' }
@@ -41,8 +35,6 @@ function ChangeText({ chg, pct, decimals }: { chg: number | null | undefined; pc
   return <span className={`num text-12 ${DIR_TEXT[dir]}`}>{pct != null ? fmtPct(pct) : fmtChange(chg, null, decimals)}</span>
 }
 
-type WatchRow = { id: string; name: string; value: number | null; decimals: number; unit?: string; chg: number | null; pct: number | null; link: boolean }
-
 export default function Home() {
   const [home, setHome] = useState<HomeBundle | null>(null)
   const [err, setErr] = useState(false)
@@ -51,47 +43,42 @@ export default function Home() {
   const [ledger, setLedger] = useState<unknown>(null)
   useEffect(() => { loadRootJson<unknown>('events/latest.json').then(setLedger, () => {}) }, [])
   const changed = useMemo(() => todayRows(ledger, kstDay()), [ledger])
-  const [v, setV] = useViewParam<View>('v', 'all', VIEWS.map(o => o.key))
   const [s, setS] = useViewParam<string>('s', 'kospi')
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const watch = useWatch()
 
-  // 보기 바: 고른 자산군의 시장 묶음 띠를 한 번만 받아 둔다(묶음 캐시는 bundle.ts)
-  const [viewStrip, setViewStrip] = useState<Partial<Record<View, StripItem[]>>>({})
-  useEffect(() => {
-    const name = VIEW_BUNDLE[v]
-    if (!name) return
-    loadBundle<{ strip?: StripItem[] }>(name).then(b => { if (b.strip?.length) setViewStrip(m => ({ ...m, [v]: b.strip })) }, () => {})
-  }, [v])
-
-  // 관심 패널이 쓸 값: 본 띠들 + 홈 띠, 그래도 없는 id 는 지표 사전에서 한 번 찾는다
+  // 관심 칸이 쓸 값: 홈 띠 · 거래대금 상위 종목에 없는 id 는 지표 사전에서 한 번 찾는다
   const [extra, setExtra] = useState<Record<string, StripItem | null>>({})
-  const pool = useMemo(() => {
-    const m = new Map<string, StripItem>()
-    for (const it of Object.values(extra)) if (it) m.set(it.id, it)
-    for (const it of Object.values(viewStrip).flat()) m.set(it.id, it)
-    for (const it of home?.strip || []) m.set(it.id, it)
-    return m
-  }, [home, viewStrip, extra])
+  const homeStrip = home?.strip || []
   const stocks = useMemo(() => new Map((home?.topAmount?.items || []).map(x => [x.code, x])), [home])
   useEffect(() => {
     if (!home) return
     for (const id of watch.ids) {
-      if (pool.has(id) || stocks.has(id) || id in extra) continue
+      if (home.strip.some(x => x.id === id) || stocks.has(id) || id in extra) continue
       setExtra(m => ({ ...m, [id]: null }))
       loadIndicator(id).then(r => {
         const it = r.item ?? (r.reg ? { id, label: r.reg.label, decimals: r.reg.decimals, value: null, change: null, changePct: null, asOf: null } : null)
         setExtra(m => ({ ...m, [id]: it && { ...it, short: r.reg?.short ?? it.short } }))
       }, () => {})
     }
-  }, [home, watch.ids, pool, stocks, extra])
+  }, [home, watch.ids, stocks, extra])
 
-  const homeStrip = home?.strip || []
-  const viewed = v === 'watch' ? watch.ids.map(id => pool.get(id)).filter((x): x is StripItem => !!x) : viewStrip[v] || homeStrip
-  const strip = viewed.length ? viewed : homeStrip   // 보기에 자료가 없으면 띠는 그대로
+  // 관심(별표) 칸: 홈 띠에 이미 있는 것은 빼고 담은 순서대로. 종목은 거래대금 상위 행으로 칸을 꾸리고, 못 찾은 id 는 이름 자리에 id 그대로.
+  const watchItems = watch.ids.flatMap((id): StripItem[] => {
+    if (homeStrip.some(x => x.id === id)) return []
+    const it = extra[id]
+    if (it) return [it]
+    const st = stocks.get(id)
+    if (st) return [{ id, label: st.name, short: st.short, shortM: st.shortM, decimals: 0, value: st.price, change: null, changePct: st.chgPct, asOf: home?.topAmount?.asOf ?? null, state: home?.topAmount?.state }]
+    return id in extra ? [{ id, label: id, decimals: 0, value: null, change: null, changePct: null, asOf: null }] : []
+  })
+  // 화면에 그리는 칸 = 띠 + 관심 최대 MAX_WATCH. 고를 수 있는 것은 지표(띠 · 지표 사전에서 찾은 관심)뿐 —
+  // 관심 종목(종목 코드)은 큰 차트로 받을 시계열이 없어 고르기 단추가 아니다.
+  const shown = [...homeStrip, ...watchItems].slice(0, homeStrip.length + MAX_WATCH)
+  const canPick = (id: string) => homeStrip.some(x => x.id === id) || !!extra[id]
 
   // 큰 차트: 고른 카드(s). 코스피는 홈 묶음 kospiChart, 그 밖은 시장 묶음 시계열(처음 고를 때 한 번 받는다)
-  const sel = strip.find(x => x.id === s) ?? pool.get(s) ?? strip[0]
+  const sel = shown.find(x => x.id === s && canPick(x.id)) ?? shown[0]
   const [series, setSeries] = useState<Record<string, Pt[] | null>>({})
   const useKospi = sel?.id === 'kospi' && !!home?.kospiChart
   useEffect(() => {
@@ -111,15 +98,6 @@ export default function Home() {
   }, [sel, useKospi, home, series])
   const trig = [...(home?.lens?.breach || []), ...(home?.lens?.watch || [])].find(t => t.id === sel?.id && t.level != null)
   const selV = sel ? scaled(sel.value, sel.scale) : null, selC = sel ? scaled(sel.change, sel.scale) : null
-
-  // 관심 패널 행
-  const watchRows = watch.ids.flatMap((id): WatchRow[] => {
-    const it = pool.get(id)
-    if (it) return [{ id, name: it.short || it.label, value: scaled(it.value, it.scale), decimals: it.decimals, unit: shownUnit(it), chg: scaled(it.change, it.scale), pct: it.changePct, link: true }]
-    const st = stocks.get(id)
-    if (st) return [{ id, name: st.short || st.name, value: st.price, decimals: 0, chg: null, pct: st.chgPct, link: false }]
-    return extra[id] === undefined ? [] : [{ id, name: id, value: null, decimals: 0, chg: null, pct: null, link: false }]
-  })
 
   if (err) return <p className="m-0 text-14 text-ink-2">자료를 불러오지 못했습니다.</p>
   if (!home) return <p className="m-0 text-14 text-ink-3">불러오는 중</p>
@@ -158,15 +136,18 @@ export default function Home() {
         )}
       </p>
 
-      {/* 지표 띠 */}
+      {/* 지표 띠 8 + 관심 칸(9번째부터, 최대 8). 모바일 2열이라 짝을 맞추지 않는다 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 pc:grid-cols-8 gap-2">
-        {strip.map(it => (
-          <StripCard key={it.id} item={it} selected={it.id === sel?.id} onSelect={() => setS(it.id)}
-            watched={watch.has(it.id)} onWatch={() => watch.toggle(it.id)} />
+        {shown.map((it, i) => (
+          <StripCard key={it.id} item={it} selected={it.id === sel?.id} onSelect={canPick(it.id) ? () => setS(it.id) : undefined}
+            watched={watch.has(it.id)} onWatch={() => watch.toggle(it.id)} tag={i >= homeStrip.length ? <Pill tone="o">관심</Pill> : undefined} />
         ))}
       </div>
-
-      <SegBar label="띠 보기" options={VIEWS} value={v} onChange={setV} />
+      {watchItems.length > MAX_WATCH && (
+        <Link to="/alerts?v=cond" className="-mt-2 self-start inline-flex items-center text-12 text-ink-2 no-underline hover:text-ink-1">
+          관심 <span className="num">{watchItems.length - MAX_WATCH}</span>개 더<ChevronRight size={14} aria-hidden />
+        </Link>
+      )}
 
       <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
         {/* 큰 차트 */}
@@ -181,37 +162,11 @@ export default function Home() {
           </Panel>
         )}
 
-        {/* 업종 히트맵 */}
-        <Panel className="pc:col-span-3" title="업종" asOf={home.sectors?.asOf} state={home.sectors?.state}>
+        {/* 업종 히트맵 — 큰 차트 옆 6칸 */}
+        <Panel className="pc:col-span-6" title="업종" asOf={home.sectors?.asOf} state={home.sectors?.state}>
           {home.sectors?.items.length
             ? <Heatmap label="업종 등락률" minCell={56} cells={home.sectors.items.map(x => ({ key: x.name, name: x.name, value: x.chgPct }))} />
             : <p className="m-0 text-13 text-ink-3">업종 자료가 없습니다.</p>}
-        </Panel>
-
-        {/* 관심 */}
-        <Panel className="pc:col-span-3" title="관심">
-          {!watchRows.length ? <p className="m-0 text-13 text-ink-3">지표 옆 별을 눌러 담으세요</p> : (
-            <ul className="m-0 p-0 list-none">
-              {watchRows.map(r => {
-                const body = (
-                  <>
-                    <span className="min-w-0 text-13 text-ink-1">{r.name}</span>
-                    <span className="shrink-0 text-right">
-                      <span className="block num text-13 text-ink-1">{`${fmtNumber(r.value, r.decimals)}${r.unit ?? ''}`}</span>
-                      <ChangeText chg={r.chg} pct={r.pct} decimals={r.decimals} />
-                    </span>
-                  </>
-                )
-                const row = 'flex-1 min-w-0 flex items-center justify-between gap-2 py-1.5'
-                return (
-                  <li key={r.id} className="flex items-center gap-1 border-b border-line last:border-b-0">
-                    <WatchStar on onToggle={() => watch.toggle(r.id)} label={r.name} />
-                    {r.link ? <Link to={`/i/${r.id}`} className={`${row} no-underline`}>{body}</Link> : <div className={row}>{body}</div>}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
         </Panel>
 
         {/* 거래대금 상위 */}
@@ -223,7 +178,7 @@ export default function Home() {
         </Panel>
 
         {/* 투자자 매매 */}
-        <Panel className="pc:col-span-4" title="투자자 매매" fold="mobile" unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state}>
+        <Panel className="pc:col-span-4" title="투자자 매매" fold unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state}>
           {inv?.today ? (
             <div className="flex flex-col gap-4">
               <DivergingBars label={`오늘 ${inv.market ?? ''} 투자자별 순매수(${inv.unit ?? ''})`} bars={[
@@ -246,7 +201,7 @@ export default function Home() {
         </Panel>
 
         {/* 일정·알림 */}
-        <Panel className="pc:col-span-4" title="일정·알림" fold="mobile">
+        <Panel className="pc:col-span-4" title="일정·알림" fold>
           {changed.rows.length > 0 && (
             <section aria-label="오늘 바뀐 것" className="mb-3">
               <h3 className="m-0 mb-1 text-12 font-bold text-ink-2">오늘 바뀐 것</h3>
@@ -265,9 +220,9 @@ export default function Home() {
             </section>
           )}
           {changed.rows.length > 0 && <h3 className="m-0 mb-1 text-12 font-bold text-ink-2">다가오는 일정</h3>}
-          {home.schedule?.length ? (
+          {home.schedule?.length ? <More rows={home.schedule as SchedRow[]}>{shown => (
             <ul className="m-0 p-0 list-none">
-              {(home.schedule as SchedRow[]).map((e, i) => (
+              {shown.map((e, i) => (
                 <li key={`${e.date}-${e.name}-${i}`} className="flex items-baseline gap-3 py-1.5 border-b border-line last:border-b-0">
                   <span className="w-[5.5rem] shrink-0 num text-12 text-ink-3">{`${e.date === mk?.today ? '오늘' : shortDate(e.date)}${e.time ? ` ${e.time}` : ''}`}</span>
                   <span className="flex-1 min-w-0 text-13 text-ink-1">
@@ -278,7 +233,7 @@ export default function Home() {
                 </li>
               ))}
             </ul>
-          ) : <p className="m-0 text-13 text-ink-3">다가오는 일정이 없습니다.</p>}
+          )}</More> : <p className="m-0 text-13 text-ink-3">다가오는 일정이 없습니다.</p>}
           <Link to="/alerts" className="inline-flex items-center mt-3 text-12 text-ink-2 no-underline hover:text-ink-1">알림 조건 보기<ChevronRight size={14} aria-hidden /></Link>
         </Panel>
 
@@ -315,8 +270,8 @@ export default function Home() {
           )}
         </Panel>
 
-        {/* 뉴스 — 늘 접힘. 12열에서 8 + 3 이면 끝 1칸이 비어 오른쪽 끝선이 어긋나므로 4로 채운다 */}
-        <Panel className="pc:col-span-4" title="뉴스" fold="always">
+        {/* 뉴스 — 렌즈 오늘 8 옆 4칸 */}
+        <Panel className="pc:col-span-4" title="뉴스" fold>
           {home.news?.length ? (
             <ul className="m-0 p-0 list-none">
               {home.news.slice(0, 5).map(n => (

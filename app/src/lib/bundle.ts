@@ -115,6 +115,8 @@ const ASSET_BUNDLES: Record<string, string[]> = {
   index: ['market-global'], sentiment: ['market-global'], fx: ['market-fxrates'], rate: ['market-fxrates'],
   commodity: ['market-commodities'], macro: ['market-macro', 'market-global'], realestate: ['market-realestate'],
 }
+/** 자산군 칸에 없는 지표(예: sentiment 인 vkospi 는 국내 묶음 strip 에 있다)를 찾을 때 마지막으로 뒤지는 국내 묶음. */
+const FALLBACK_BUNDLES = ['market-domestic']
 
 /** 묶음 아무 깊이에서 id 가 같은 값 칸을 찾는다. 시계열이 있는 칸을 먼저 고른다. */
 export function findItem(root: unknown, id: string): StripItem | undefined {
@@ -136,7 +138,7 @@ export async function loadIndicator(id: string): Promise<{ reg?: RegRow; item?: 
   const reg = rows.find(r => r.id === id)
   let item = home ? findItem(home, id) : undefined
   // 사전에 없는 id(띠 전용 파생 지표, 예: cpi_kr_yoy)는 시장 묶음 전부에서 찾는다 — 상세 화면이 「없는 지표」가 되지 않게
-  const names = reg ? ASSET_BUNDLES[reg.asset] || [] : [...new Set(Object.values(ASSET_BUNDLES).flat())]
+  const names = [...new Set([...(reg ? ASSET_BUNDLES[reg.asset] || [] : Object.values(ASSET_BUNDLES).flat()), ...FALLBACK_BUNDLES])]
   for (const name of names) {
     const m = findItem(await loadBundle(name).catch(() => null), id)
     if (m) { item = m; if (m.series?.length) break }

@@ -1,12 +1,12 @@
 // 시장 › 수급 — 보기 일별·주별·월별(투자자 400행 집계)·종목별·국민연금·vs 환율. 단위는 묶음 그대로(시장 = 억원, 종목 = 주).
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { loadIndicator, type Flows as FlowsBlock, type StripItem } from '../../lib/bundle'
 import { fmtNumber, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { SegBar } from '../ui'
 import { DivergingBars, LineChart } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { BigChart, Empty, MarketGrid, poolOf, type BodyProps } from './parts'
+import { BigChart, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 import { column, cumsum, groupFlows, rollSum, type FlowRow } from './calc'
 
 type StockFlow = { name: string; short?: string; market?: string; secType?: string; investor: (string | number | null)[][] }
@@ -62,7 +62,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
     const rows = grain === 'daily' ? daily : groupFlows(daily, grain === 'weekly' ? 'week' : 'month')
     const tail = rows.slice(-GRAIN[grain].bars)
     return (
-      <Panel className={cls} title={`투자자 순매수 · ${VIEWS.find(o => o.key === grain)!.label}`} unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title={`투자자 순매수 · ${VIEWS.find(o => o.key === grain)!.label}`} unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} fold={!primary}>
         {tail.length > 1 ? (
           <div className="flex flex-col gap-4">
             {WHO.map(w => (
@@ -90,7 +90,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
     }))
     const days = Math.max(0, ...rows.map(r => r.days))
     return (
-      <Panel className={cls} title="종목별 순매수" unit={`주 · 최근 ${days}거래일 합`} asOf={st?.asOf} state={st?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="종목별 순매수" unit={`주 · 최근 ${days}거래일 합`} asOf={st?.asOf} state={st?.state} fold={!primary}>
         {rows.length ? (
           <>
             <p className="md:hidden m-0 mb-1 text-11 text-ink-3">숫자는 외국인 · 행을 누르면 기관·개인</p>
@@ -103,7 +103,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   const nps = (cls: string, primary: boolean) => {
     const n = b.views?.nps
     return (
-      <Panel className={cls} title="국민연금 자산배분" source={n?.source} asOf={n?.asOf?.slice(0, 7)} state={n?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="국민연금 자산배분" source={n?.source} asOf={n?.asOf?.slice(0, 7)} state={n?.state} fold={!primary}>
         {n?.allocation.length ? (
           <ul className="m-0 p-0 list-none flex flex-col gap-2">
             {n.allocation.map(a => (
@@ -120,12 +120,15 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   }
   const fx = (cls: string) => <FxPanel className={cls} foreign={fSeries} unit={inv?.unit} />
 
-  const order: ((cls: string, primary: boolean) => ReactNode)[] =
-    v === 'stocks' ? [stocks, period, nps] : v === 'nps' ? [nps, period, stocks] : v === 'fx' ? [fx, period, stocks, nps] : [period, stocks, nps]
+  const order: [string, Block][] =
+    v === 'stocks' ? [['stocks', stocks], ['period', period], ['nps', nps]]
+    : v === 'nps' ? [['nps', nps], ['period', period], ['stocks', stocks]]
+    : v === 'fx' ? [['fx', fx], ['period', period], ['stocks', stocks], ['nps', nps]]
+    : [['period', period], ['stocks', stocks], ['nps', nps]]
   return (
     <>
       <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...order]} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...order]} />
     </>
   )
 }

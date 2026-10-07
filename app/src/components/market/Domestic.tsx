@@ -6,8 +6,8 @@ import { fmtNumber, fmtPct, mdHm, shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { Pill, SegBar } from '../ui'
 import { DivergingBars, Heatmap } from '../charts'
-import { Panel, RankTable, type Col } from '../panels'
-import { arrange, BigChart, ChangeText, Empty, MarketGrid, poolOf, type BodyProps } from './parts'
+import { More, Panel, RankTable, type Col } from '../panels'
+import { arrange, BigChart, ChangeText, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 import { column } from './calc'
 
 type Mover = Stock & { volume?: number | null }
@@ -61,12 +61,15 @@ function movers(v: DomesticBundle['views'], kind: 'gainers' | 'losers', scope: S
 }
 
 const nameCol: Col<Stock> = { key: 'name', label: '종목', get: r => r.short || r.name, role: 'name' }
+// 범위가 전체일 때: 종목 이름 아래 작은 글씨로 시장(코스피·코스닥)을 단다 — 열을 늘리지 않는다
+const MARKET_KO: Record<string, string> = { KOSPI: '코스피', KOSDAQ: '코스닥' }
+const nameMarketCol: Col<Mover> = { ...nameCol, render: r => <>{r.short || r.name}{r.market && <span className="block text-11 font-normal text-ink-3">{MARKET_KO[r.market] ?? r.market}</span>}</> }
 const priceCol: Col<Stock> = { key: 'price', label: '현재가', get: r => r.price, num: true, role: 'value' }
 const pctCol: Col<Stock> = { key: 'pct', label: '등락률', get: r => r.chgPct, num: true, role: 'change', render: r => <ChangeText pct={r.chgPct} /> }
 const amountCols: Col<Stock>[] = [nameCol, priceCol, pctCol,
   { key: 'amount', label: '거래대금', get: r => (r.amount == null ? null : r.amount / 1e12), num: true, role: 'sub', render: r => (r.amount == null ? null : `${fmtNumber(r.amount / 1e12, 2)}조`) }]
-const moverCols: Col<Mover>[] = [nameCol, { key: 'market', label: '시장', get: r => r.market, role: 'sub' }, priceCol, pctCol,
-  { key: 'volume', label: '거래량', get: r => r.volume, num: true }]
+// 상승·하락: 종목 · 현재가 · 등락률 · 거래량(만주) 넷 — PC 둘째 줄 4칸(약 350px)에 맞춘다. 범위가 전체면 시장은 종목 이름 아래에 단다.
+const moverCols = (all: boolean): Col<Mover>[] => [all ? nameMarketCol : nameCol, priceCol, pctCol, volCol]
 
 /** KRX 순위 목록을 범위대로. 전체 = 두 시장을 합쳐 by 큰 순, ETF = 없음(KRX 주식 일별표라 ETF 가 들어 있지 않다). */
 function krxRows(r: KrxRank | undefined, scope: Scope, by: (x: KrxRow) => number | null | undefined): KrxRow[] {
@@ -82,12 +85,13 @@ function krxCount(c: KrxRank['count'], scope: Scope): number | undefined {
 }
 
 const capCol: Col<KrxRow> = { key: 'cap', label: '시가총액', get: r => (r.marketCap == null ? null : r.marketCap / 1e12), num: true, role: 'sub', render: r => (r.marketCap == null ? null : `${fmtNumber(r.marketCap / 1e12, 1)}조`) }
-const volCol: Col<KrxRow> = { key: 'vol', label: '거래량', get: r => r.volume, num: true, role: 'sub', render: r => (r.volume == null ? null : `${fmtNumber(r.volume / 1e4, 0)}만주`) }
+// 거래량은 만주 4자리 안(10만주 밑은 소수 한 자리 — 8,343주가 「1만주」로 반올림되지 않게)
+const volCol: Col<KrxRow> = { key: 'vol', label: '거래량', get: r => r.volume, num: true, role: 'sub', render: r => (r.volume == null ? null : `${fmtNumber(r.volume / 1e4, r.volume < 1e5 ? 1 : 0)}만주`) }
 const KRX_VIEWS: Record<'marketCap' | 'volume' | 'high52' | 'low52', { title: string; cols: Col<KrxRow>[]; by: (r: KrxRow) => number | null | undefined }> = {
   marketCap: { title: '시가총액 상위', cols: [nameCol, priceCol, pctCol, capCol], by: r => r.marketCap },
   volume: { title: '거래량 상위', cols: [nameCol, priceCol, pctCol, volCol], by: r => r.volume },
-  high52: { title: '52주 신고가', cols: [nameCol, capCol, priceCol, pctCol, { key: 'high', label: '52주 최고', get: r => r.high, num: true }], by: r => r.marketCap },
-  low52: { title: '52주 신저가', cols: [nameCol, capCol, priceCol, pctCol, { key: 'low', label: '52주 최저', get: r => r.low, num: true }], by: r => r.marketCap },
+  high52: { title: '52주 신고가', cols: [nameCol, priceCol, pctCol, { key: 'high', label: '52주 최고', get: r => r.high, num: true }], by: r => r.marketCap },
+  low52: { title: '52주 신저가', cols: [nameCol, priceCol, pctCol, { key: 'low', label: '52주 최저', get: r => r.low, num: true }], by: r => r.marketCap },
 }
 type KrxView = keyof typeof KRX_VIEWS
 
@@ -141,7 +145,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
           : krxOn ? '52주 고저 축적 중(약 3일 뒤 게재)' : 'KRX 자료 수집 대기 · 들어온 뒤 약 3일이면 52주 목록이 실립니다.'
     return (
       <Panel className={cls} title={`${title} · ${scopeName}`} source={cnt != null ? `해당 ${fmtNumber(cnt)}종목` : undefined}
-        asOf={r?.asOf} state={r?.state} fold={primary ? undefined : 'always'}>
+        asOf={r?.asOf} state={r?.state} fold={!primary}>
         {rows.length ? <RankTable label={`${title} 종목`} cols={cols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={x => x.code} />
           : <Empty>{empty}</Empty>}
       </Panel>
@@ -149,10 +153,10 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
   }
   const ce = vw?.corpEvents
   const corpPanel = (cls: string) => (
-    <Panel className={cls} title="배당·실적 일정" source={ce?.from ? `${shortDate(ce.from)}부터` : undefined} asOf={ce?.asOf} state={ce?.state} fold="mobile">
-      {ce?.items.length ? (
+    <Panel className={cls} title="배당·실적 일정" source={ce?.from ? `${shortDate(ce.from)}부터` : undefined} asOf={ce?.asOf} state={ce?.state} fold>
+      {ce?.items.length ? <More rows={ce.items.slice(0, 10)}>{shown => (
         <ul className="m-0 p-0 list-none">
-          {ce.items.slice(0, 10).map((e, i) => (
+          {shown.map((e, i) => (
             <li key={`${e.code}-${e.date}-${e.kind}-${i}`} className="py-1.5 border-b border-line last:border-b-0">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-13">
                 <Pill tone="o">{CORP_KIND[e.kind ?? ''] ?? '공시'}</Pill>
@@ -169,7 +173,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
             </li>
           ))}
         </ul>
-      ) : <Empty>관심 종목 공시 없음</Empty>}
+      )}</More> : <Empty>관심 종목 공시 없음</Empty>}
       {ce && ce.items.length > 10 && <p className="m-0 mt-2 text-11 text-ink-3">최근 10건 · 전체 {ce.items.length}건</p>}
     </Panel>
   )
@@ -178,7 +182,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
     amount: (cls, primary) => {
       const rows = (vw?.amount?.items ?? []).filter(x => !MARKET[m] || x.market === MARKET[m])
       return (
-        <Panel className={cls} title={`거래대금 상위 · ${scopeName}`} asOf={vw?.amount?.asOf} state={vw?.amount?.state} fold={primary ? undefined : 'mobile'}>
+        <Panel className={cls} title={`거래대금 상위 · ${scopeName}`} asOf={vw?.amount?.asOf} state={vw?.amount?.state} fold={!primary}>
           {m === 'etf' ? <Empty>거래대금 상위 자료에는 ETF 구분이 없습니다.</Empty>
             : rows.length ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={r => r.code} />
               : <Empty>거래대금 자료가 없습니다.</Empty>}
@@ -189,10 +193,10 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
     volume: krxPanel('volume'),
     high52: krxPanel('high52'),
     low52: krxPanel('low52'),
-    gainers: (cls, primary) => <MoverPanel cls={cls} primary={primary} title={`상승 · ${scopeName}`} rows={movers(vw, 'gainers', m)} state={m === 'etf' ? vw?.etf?.state : vw?.gainers?.state} />,
-    losers: (cls, primary) => <MoverPanel cls={cls} primary={primary} title={`하락 · ${scopeName}`} rows={movers(vw, 'losers', m)} state={m === 'etf' ? vw?.etf?.state : vw?.losers?.state} />,
+    gainers: (cls, primary) => <MoverPanel cls={cls} primary={primary} all={m === 'all'} title={`상승 · ${scopeName}`} rows={movers(vw, 'gainers', m)} state={m === 'etf' ? vw?.etf?.state : vw?.gainers?.state} />,
+    losers: (cls, primary) => <MoverPanel cls={cls} primary={primary} all={m === 'all'} title={`하락 · ${scopeName}`} rows={movers(vw, 'losers', m)} state={m === 'etf' ? vw?.etf?.state : vw?.losers?.state} />,
     sectors: (cls, primary) => (
-      <Panel className={cls} title={`업종 ${vw?.sectors?.items.length ?? ''}`} asOf={vw?.sectors?.asOf} state={vw?.sectors?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title={`업종 ${vw?.sectors?.items.length ?? ''}`} asOf={vw?.sectors?.asOf} state={vw?.sectors?.state} fold={!primary}>
         {vw?.sectors?.items.length ? (
           <>
             <Heatmap label="업종 등락률" minCell={primary ? 72 : 56} cells={vw.sectors.items.map(x => ({ key: x.name, name: x.name, value: x.chgPct }))}
@@ -207,7 +211,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
       </Panel>
     ),
     flows: (cls, primary) => (
-      <Panel className={cls} title="투자자 매매" unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="투자자 매매" unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} fold={!primary}>
         {inv?.today ? (
           <div className="flex flex-col gap-4">
             <DivergingBars label={`오늘 ${inv.market ?? ''} 투자자별 순매수(${inv.unit ?? ''})`} bars={[
@@ -232,7 +236,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
     breadth: (cls, primary) => {
       const br = vw?.breadth
       return (
-        <Panel className={cls} title="시장 폭" asOf={br?.kospi?.as_of ?? br?.kosdaq?.as_of} state={br?.state} fold={primary ? undefined : 'mobile'}>
+        <Panel className={cls} title="시장 폭" asOf={br?.kospi?.as_of ?? br?.kosdaq?.as_of} state={br?.state} fold={!primary}>
           <ul className="m-0 p-0 list-none flex flex-col gap-3">
             {m !== 'kosdaq' && <BreadthRow name="코스피" b={br?.kospi} />}
             {m !== 'kospi' && <BreadthRow name="코스닥" b={br?.kosdaq} />}
@@ -243,7 +247,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
     halts: (cls, primary) => {
       const h = vw?.halts
       return (
-        <Panel className={cls} title="매매중단" asOf={h?.asOf} state={h?.state} fold={primary ? undefined : 'always'}>
+        <Panel className={cls} title="매매중단" asOf={h?.asOf} state={h?.state} fold={!primary}>
           <p className="m-0 mb-2 text-13 text-ink-2">{h?.active?.length ? `지금 발동 ${h.active.length}건` : '지금 발동 중인 매매중단은 없습니다.'}</p>
           {[...(h?.active ?? []), ...(h?.recent ?? [])].length ? (
             <ul className="m-0 p-0 list-none">
@@ -267,15 +271,15 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
         <SegBar label="범위" options={SCOPES} value={m} onChange={setM} />
         <SegBar scroll label="보기" options={VIEWS} value={v} onChange={setV} />
       </div>
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...arrange(v, VIEWS.map(o => o.key)).map(k => panels[k]), corpPanel]} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...arrange(v, VIEWS.map(o => o.key)).map((k): [string, Block] => [k, panels[k]]), ['corp', corpPanel]]} />
     </>
   )
 }
 
-function MoverPanel({ cls, primary, title, rows, state }: { cls: string; primary: boolean; title: string; rows: Mover[]; state?: string }) {
+function MoverPanel({ cls, primary, all, title, rows, state }: { cls: string; primary: boolean; all: boolean; title: string; rows: Mover[]; state?: string }) {
   return (
-    <Panel className={cls} title={title} state={state} fold={primary ? undefined : 'mobile'}>
-      {rows.length ? <RankTable label={title} cols={moverCols} rows={rows.slice(0, 10)} rowKey={r => r.code} />
+    <Panel className={cls} title={title} state={state} fold={!primary}>
+      {rows.length ? <RankTable label={title} cols={moverCols(all)} rows={rows.slice(0, 10)} rowKey={r => r.code} />
         : <Empty>이 범위의 종목이 목록에 없습니다.</Empty>}
     </Panel>
   )

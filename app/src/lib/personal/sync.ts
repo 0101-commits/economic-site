@@ -4,9 +4,9 @@
 //
 // 규칙
 //   키      화면에서 받은 동기화 키는 저장하지 않는다. SHA-256 해시만 sessionStorage econSyncHash_v1 — 탭을 닫으면 사라진다.
-//   기억    「이 기기 기억」(결정 D7)을 켜면 같은 해시를 localStorage econSyncHashKeep_v1 에도 둔다. PIN 이 있는 기기만 켤 수 있고,
-//           새 탭에서 이어 가려면 PIN 을 다시 넣는다(resumeSync) — 이 탭에서 이미 PIN 을 열었으면 묻지 않는다.
-//           동기화를 끄거나 키가 틀려(401) 꺼지면 같이 지운다.
+//   기억    「이 기기 기억」(결정 D7)을 켜면 같은 해시를 localStorage econSyncHashKeep_v1 에도 둔다. PIN 이 있는 기기만 켤 수 있다.
+//           설정에서 켜면(enableSync — 설정은 PIN 뒤) 기본으로 기억한다. 새 탭은 PIN 없이 저절로 잇는다(startSync, 결정 D10).
+//           동기화를 끄거나 키가 틀려(401) 꺼지거나 이 기기 데이터를 지우면 같이 지운다.
 //   켜기    키 → 해시 → GET. 서버에 저장본이 있으면 그 내용으로 이 기기를 맞추고, 없으면 이 기기 것을 올린다.
 //   보내기  1초마다 이 기기 문서를 비교해, 바뀐 뒤 2초 조용하면 PUT(If-Match = 마지막으로 본 updatedAt).
 //           요청 사이는 6초 이상 — Worker AI_LIMITER 가 /ai·/portfolio 와 같은 바구니로 IP 당 분당 10회다.
@@ -20,7 +20,7 @@
 import { useSyncExternalStore } from 'react'
 import { mdHm } from '../format'
 import { applyTheme, readTheme } from '../theme'
-import { checkPin, hasPin, isUnlocked } from '../pin'
+import { checkPin, hasPin, isUnlocked, samePin } from '../pin'
 import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, writePortfolio, writePrefs } from './store'
 import { fromServer, keyHash, portfolioGet, portfolioPost, prefsCall, toServer, type Local, type PrefsDoc, type Reply } from './remote'
 import { applyEntries, decide, decryptAs, encrypt, entriesOf, fingerprint, passProblem, type EncBlob, type Entry, type Plan } from './e2e'
@@ -170,10 +170,25 @@ function onVisibility() {
   else if (Date.now() - lastPull > PULL_MS) void pullPrefs()
 }
 
-/** 앱이 뜰 때 한 번(main.tsx). 이 탭에 키 해시가 있으면 서버 내용을 받고 감시를 시작한다. 기억한 키는 PIN 이 열려 있을 때만 잇는다. */
+/**
+ * 다른 탭이 「이 기기 데이터 지우기」(설정 문서 삭제)나 동기화 끄기 · 기억 끄기(KEEP_KEY 삭제)를 하면 이 탭도 끈다 —
+ * 그대로 두면 이 탭이 비워진 저장소를 기본값 문서로 읽어 서버에 올리고, 서버의 알림 조건이 사라진다.
+ * 같은 탭 안에서 이 앱이 쏘는 storage 이벤트(writeLocal · tidyAlerts · 알림 시트)는 storageArea 가 없어 걸리지 않는다.
+ * 같은 탭의 지우기는 wipeDevice 가 끝난 바로 뒤(타이머가 끼어들 틈 없이) disableSync 를 부르므로 여기와 무관하다.
+ */
+function onStorage(e: StorageEvent) {
+  if (e.storageArea !== localStorage || e.newValue !== null || (e.key !== KEEP_KEY && e.key !== KEYS.prefs)) return
+  if (getKeyHash()) disableSync('다른 탭에서 동기화를 끄거나 이 기기 데이터를 지워 이 탭도 껐습니다.')
+}
+
+/** 앱이 뜰 때 한 번(main.tsx). 이 탭에 키 해시가 없으면 기억한 해시를 옮겨 오고(PIN 없이), 있으면 서버 내용을 받고 감시를 시작한다. */
 export function startSync() {
+  // 옛 화면이 예전에 localStorage 에 남긴 비밀(동기화 키 해시 · 보유 암호 원문)은 새 화면이 쓰지 않는다 — 열자마자 지운다(B3).
+  for (const k of ['pfSyncKeyHash', 'pfHoldingsPass']) { try { localStorage.removeItem(k) } catch { /* 막힌 저장소 */ } }
   document.addEventListener('visibilitychange', onVisibility)
-  if (!getKeyHash() && keptHash() && isUnlocked()) { try { sessionStorage.setItem(HASH_KEY, keptHash()!) } catch { /* 막힌 저장소 = 잇지 않음 */ } }
+  window.addEventListener('storage', onStorage)
+  const kept = keptHash()
+  if (!getKeyHash() && kept) { try { sessionStorage.setItem(HASH_KEY, kept) } catch { /* 막힌 저장소 = 잇지 않음 */ } }
   if (getKeyHash()) begin()
 }
 
@@ -195,11 +210,10 @@ export async function rememberKey(on: boolean, pin?: string): Promise<string> {
   return ''
 }
 
-/** 기억한 키로 이 탭의 동기화를 다시 잇는다(PIN 확인 뒤). */
-export async function resumeSync(pin?: string): Promise<boolean> {
+/** 기억한 키로 이 탭의 동기화를 다시 잇는다(startSync 가 못 이었을 때 알림 › 채널의 「이어 가기」). */
+export async function resumeSync(): Promise<boolean> {
   const h = keptHash()
   if (!h) return false
-  if (!(await pinOk(pin))) { set({ msg: 'PIN 이 맞지 않습니다.' }); return false }
   try { sessionStorage.setItem(HASH_KEY, h) } catch { set({ msg: '이 탭에 키를 기억할 수 없어 이을 수 없습니다.' }); return false }
   prev = null; sent = ''; retryAt = 0
   set({ on: true, msg: '' })
@@ -208,7 +222,10 @@ export async function resumeSync(pin?: string): Promise<boolean> {
   return ok
 }
 
-/** 설정의 「기기 간 동기화」를 켤 때: 키를 해시로만 이 탭에 기억하고 서버 내용을 받는다. 입력값은 어디에도 남기지 않는다. */
+/**
+ * 설정의 「기기 간 동기화」를 켤 때: 키를 해시로만 이 탭에 기억하고 서버 내용을 받는다. 입력값은 어디에도 남기지 않는다.
+ * 맞춰지면 「이 기기 기억」도 켠다 — 설정은 PIN 뒤라 PIN 이 열려 있다(못 켜도 동기화는 이 탭에서 그대로).
+ */
 export async function enableSync(key: string): Promise<boolean> {
   if (!key.trim()) { set({ msg: '동기화 키를 넣어 주세요.' }); return false }
   let h: string
@@ -218,6 +235,7 @@ export async function enableSync(key: string): Promise<boolean> {
   set({ on: true, msg: '' })
   const ok = await pullPrefs()
   if (getKeyHash()) begin()
+  if (ok) await rememberKey(true)
   return ok
 }
 
@@ -299,7 +317,8 @@ export async function checkHoldings(pass: string): Promise<HoldCheck> {
 export async function pushHoldings(pass: string, seen: EncBlob | null): Promise<HoldDone> {
   const h = getKeyHash()
   if (!h) return { ok: false, msg: NO_SYNC }
-  const bad = await passProblem(pass, async p => (await keyHash(p)) === h, p => (hasPin() ? checkPin(p) : Promise.resolve(false)))
+  // PIN 과 같은지는 samePin 으로 견준다 — checkPin 이면 보유 암호를 올릴 때마다 PIN 실패로 세어 잠금 대기가 걸린다
+  const bad = await passProblem(pass, async p => (await keyHash(p)) === h, samePin)
   if (bad) return { ok: false, msg: bad }
   const local = entriesOf(readPortfolio().items)
   const at = new Date().toISOString()

@@ -8,7 +8,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { AsOfBadge, NumBlock, SegBar } from '../ui'
 import { DivergingBars, Heatmap, LineChart } from '../charts'
 import { Panel, RankTable, StripCard, type Col } from '../panels'
-import { BigChart, ChangeText, Empty, MarketGrid, poolOf, type BodyProps } from './parts'
+import { BigChart, ChangeText, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 import { alignDates, rebase } from './calc'
 
 type Sub = { name: string; chgPct: number | null }
@@ -225,7 +225,7 @@ export default function RealEstate({ b, selId, setS }: BodyProps<RealEstateBundl
       cls => {
         const rows = Object.entries(vw?.usStates?.items ?? {}).map(([st, x]): StateRow => ({ st, ...x }))
         return (
-          <Panel className={cls} title={`주별 집값 ${rows.length}`} source="케이스실러 주별" state={vw?.usStates?.state} fold="always">
+          <Panel className={cls} title={`주별 집값 ${rows.length}`} source="케이스실러 주별" state={vw?.usStates?.state} fold>
             {rows.length ? <RankTable label="미국 주별 집값" cols={stateCols} rows={rows} rowKey={r => r.st} /> : <Empty>주별 자료가 없습니다.</Empty>}
           </Panel>
         )
@@ -240,7 +240,7 @@ export default function RealEstate({ b, selId, setS }: BodyProps<RealEstateBundl
         {v === 'national' && <SegBar label="지표" options={METRICS} value={m} onChange={setM} />}
         {(v === 'capital' || v === 'sido') && <SegBar label="지수" options={KINDS} value={m === 'jeonse' ? 'jeonse' : 'sale'} onChange={setM} />}
       </div>
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...blocks[v]]} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...blocks[v].map((f, i): [string, Block] => [`${v}${i}`, f])]} />
     </>
   )
 }

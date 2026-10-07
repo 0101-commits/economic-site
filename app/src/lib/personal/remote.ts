@@ -87,6 +87,23 @@ export async function prefsCall(hash: string, put?: { body: PrefsBody; ifMatch: 
   } catch { return { status: 0, error: 'network' } }
 }
 
+/**
+ * 동기화 키가 맞는지만 묻는다 — POST /sync-key 에 newKeyHash 를 싣지 않으면 Worker 는 아무것도 바꾸지 않는다(PinGate 「PIN 잊음」).
+ * 돌려주는 값 = 맞으면 200, 아니면 HTTP 상태(401 키 틀림 · 429 요청 많음 · 503 서버에 키 없음), 2xx 인데 ok:true 없음 -1, 네트워크 실패 0.
+ */
+export async function syncKeyCheck(hash: string): Promise<number> {
+  try {
+    const r = await fetch(`${WORKER}/sync-key`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'X-Sync-Key-Hash': hash }, cache: 'no-store',
+      body: '{}', signal: AbortSignal.timeout(15_000),
+    })
+    if (!r.ok) return r.status
+    // 2xx 인데 본문에 ok:true 가 없으면 확인된 것이 아니다(중간 장비 · 다른 응답) — 이때 PIN 을 지우면 안 된다
+    const j = await r.json().catch(() => ({}))
+    return j?.ok === true ? 200 : -1
+  } catch { return 0 }
+}
+
 // ── /portfolio — 보유는 암호 덩어리(e2e.ts)로만 오간다 ─────────────────
 // GET  헤더 X-Sync-Key-Hash → { ok, alerts, settings, tracking, encHoldings, updatedAt }. encHoldings 는 KV portfolio:encHoldings.
 //      alerts = 현행 화면의 알림 조건(공개 저장소 alerts_config.json 의 내용 — 사이트에는 올라가지 않으므로 이 길로만 읽는다). 「현행 조건 가져오기」가 쓴다.

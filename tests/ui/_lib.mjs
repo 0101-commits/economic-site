@@ -17,7 +17,8 @@ export const WAIT = Number(opt('wait', 2500));
 
 // 새 화면 층 5개 + 기존 index.html 의 ?p= 12종. 주소로 자동 고른다(5173=새 층, 그 밖=기존).
 // 알림 v2: 사건 탭 · 채널 탭 · 지표 상세(#/i/kospi) + 벨 시트를 연 채로(?bell=1) 본 상세.
-export const NEXT_PATHS = ['#/', '#/market', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1'];   // 새 층은 HashRouter
+// 국내 상승 · 하락 보기(v=gainers · losers)는 표 열이 많아 PC 둘째 줄 4칸에서 잘리던 자리라 따로 찍는다.
+export const NEXT_PATHS = ['#/', '#/market', '#/market?a=kr&v=gainers', '#/market?a=kr&v=losers', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1'];   // 새 층은 HashRouter
 export const LEGACY_PATHS = ['dashboard', 'equity', 'market', 'macro', 'calendar', 'realestate',
   'investor', 'merlens', 'merblog', 'notes', 'study', 'settings'].map(p => `/?p=${p}`);
 
@@ -47,6 +48,7 @@ export async function newCtx(browser, w, theme) {
     try {
       localStorage.setItem('econ_theme', t);
       sessionStorage.setItem('econLockOk_v1', '1');   // PIN 관문 해제(안 풀면 잠긴 화면을 못 잼)
+      sessionStorage.setItem('econLockAt_v1', String(Date.now()));   // 해제 시각(5분 안이어야 열린 것으로 본다, lib/pin.ts)
       document.documentElement.setAttribute('data-theme', t);
     } catch (_) {}
   }, theme);

@@ -1,4 +1,4 @@
-// 시장 화면 공용 조각 — 큰 차트 · 등락 글자 · 수익률 곡선 · 일정 목록 · 렌즈 자리 · 격자 칸.
+// 시장 화면 공용 조각 — 큰 차트 · 등락 글자 · 수익률 곡선 · 일정 목록 · 격자 칸.
 // 공유 부품(components/ui·charts·panels)은 고치지 않고 그 위에 얹는다.
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -8,7 +8,7 @@ import { changeDir, fmtChange, fmtNumber, fmtPct, range52, scaled, scaledPts, sh
 import { useViewParam } from '../../lib/useViewParam'
 import { NumBlock } from '../ui'
 import { LineChart, Range52 } from '../charts'
-import { Panel } from '../panels'
+import { More, Panel } from '../panels'
 import { spans } from './calc'
 
 /** 자산군 본문이 받는 것: 묶음 하나 + 고른 띠 지표(s). */
@@ -97,18 +97,18 @@ export function BigChart({ item, className = '' }: { item?: StripItem; className
 /** 격자 칸 클래스(Tailwind 가 찾을 수 있게 통째로 적는다). */
 const SPAN: Record<number, string> = { 4: 'pc:col-span-4', 6: 'pc:col-span-6', 12: 'pc:col-span-12' }
 
+export type Block = (cls: string, primary: boolean) => ReactNode
+
 /**
  * 시장 격자: 첫 칸 = 큰 차트(또는 그 자리 부품), 둘째 = 고른 보기 패널, 나머지는 원래 순서.
- * blocks 는 (칸 클래스, 첫 보기인지) → 패널. PC 12열, 모바일 1열 같은 순서. 맨 끝은 렌즈 자리.
+ * blocks 는 [패널 고유 키, (칸 클래스, 첫 보기인지) → 패널]. PC 12열, 모바일 1열 같은 순서.
+ * key 가 칸 번호가 아니라 패널이라, 보기를 바꿔 차례가 달라져도 접힘 · 더 보기가 다른 패널로 넘어가지 않는다.
  */
-export function MarketGrid({ blocks, per = 3 }: { blocks: ((cls: string, primary: boolean) => ReactNode)[]; per?: 2 | 3 }) {
+export function MarketGrid({ blocks, per = 3 }: { blocks: [string, Block][]; per?: 2 | 3 }) {
   const sp = spans(blocks.length, per)
   return (
     <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
-      {blocks.map((f, i) => <Fragment key={i}>{f(SPAN[sp[i]], i === 1)}</Fragment>)}
-      <Panel className="pc:col-span-12" title="렌즈" fold="always">
-        <MoreLink to="/lens">렌즈 전체 보기</MoreLink>
-      </Panel>
+      {blocks.map(([k, f], i) => <Fragment key={k}>{f(SPAN[sp[i]], i === 1)}</Fragment>)}
     </div>
   )
 }
@@ -116,13 +116,13 @@ export function MarketGrid({ blocks, per = 3 }: { blocks: ((cls: string, primary
 /** 보기 v 를 맨 앞으로, 나머지는 원래 순서. */
 export const arrange = <K extends string>(first: K, order: readonly K[]): K[] => [first, ...order.filter(k => k !== first)]
 
-/** 경제 일정 목록(홈 일정과 같은 모양). 이전·예측·실제가 있으면 오른쪽에 붙인다. */
+/** 경제 일정 목록(홈 일정과 같은 모양). 이전·예측·실제가 있으면 오른쪽에 붙인다. 길면 「더 보기」. */
 export function EventList({ events, today }: { events: (Sched & { prev?: unknown; fore?: unknown; act?: unknown })[]; today?: string }) {
   if (!events.length) return <Empty>다가오는 일정이 없습니다.</Empty>
   const s = (x: unknown) => (x == null || x === '' ? null : String(x))
-  return (
+  return <More rows={events}>{shown => (
     <ul className="m-0 p-0 list-none">
-      {events.map((e, i) => {
+      {shown.map((e, i) => {
         const nums = [['이전', s(e.prev)], ['예측', s(e.fore)], ['실제', s(e.act)]].filter(([, x]) => x)
         return (
           <li key={`${e.date}-${e.name}-${i}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 border-b border-line last:border-b-0">
@@ -138,7 +138,7 @@ export function EventList({ events, today }: { events: (Sched & { prev?: unknown
         )
       })}
     </ul>
-  )
+  )}</More>
 }
 
 export type Curve = { label?: string | null; tenors: string[]; asOf?: string; state?: string; current: (number | null)[]; prev_month?: (number | null)[]; prev_3m?: (number | null)[]; prev_6m?: (number | null)[]; prev_1y?: (number | null)[] }
