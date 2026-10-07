@@ -196,7 +196,7 @@ Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요�
 | `push:<키 해시 앞 16자>` | 구독 배열(JSON, 최대 5개) `[{ endpoint, expirationTime, keys: { p256dh, auth } }]` |
 | `auth:syncKeyHash` | 사이트에서 바꾼 동기화 키의 해시(기존) |
 | `portfolio:encHoldings` | 암호화 보유정보(기존) |
-| `portfolio:encHoldings:prev` | `POST /portfolio` 가 덮기 직전의 보유정보 한 판(30일 뒤 사라짐) |
+| `portfolio:encHoldings:prev:<YYYY-MM-DD>` | `POST /portfolio` 가 그날(한국 날짜) 처음 덮기 직전의 보유정보 — 날짜마다 한 판(30일 뒤 사라짐) |
 
 키 해시 앞 16자는 `sha256(동기화 키)` 의 hex 앞 16자입니다. 발송 스크립트는 해시를 몰라도 접두어로 찾을 수 있습니다.
 
@@ -215,15 +215,18 @@ GET https://api.cloudflare.com/client/v4/accounts/<account_id>/storage/kv/namesp
 ```
 
 **보유 이전 판으로 되돌리기** — 보유 덮어쓰기는 키 해시만으로 됩니다(자동 올림은 키 원문을 들고 있지 않다). 그래서 덮기 전 판을
-`portfolio:encHoldings:prev` 에 남깁니다. 되돌릴 때(저장소 루트에서):
+날짜별로 `portfolio:encHoldings:prev:<YYYY-MM-DD>`(한국 날짜) 에 남깁니다. 그날 두 번째 덮기부터는 남기지 않으므로, 해시를 가진
+사람이 여러 번 써도 그날 아침 판은 밀려나지 않습니다. 되돌릴 때(저장소 루트에서) 덮어쓰기 전 날짜를 고릅니다:
 
 ```sh
-npx wrangler kv key get --binding ECON_PORTFOLIO --remote portfolio:encHoldings:prev > prev.json
+npx wrangler kv key list --binding ECON_PORTFOLIO --remote --prefix portfolio:encHoldings:prev:
+npx wrangler kv key get --binding ECON_PORTFOLIO --remote portfolio:encHoldings:prev:<YYYY-MM-DD> > prev.json
 npx wrangler kv key put --binding ECON_PORTFOLIO --remote portfolio:encHoldings --path prev.json && rm prev.json
 ```
 
-**동기화 키를 바꾸면** 새 키의 빈 공간에서 시작합니다. 옛 값은 옛 키 아래 그대로 남습니다.
-옮기려면 옛 키의 값을 `kv key get` 으로 받아 새 키 이름으로 `kv key put` 합니다.
+**동기화 키를 바꾸면** `/prefs` 문서는 Worker 가 새 키 공간으로 옮깁니다(새 쪽이 비어 있을 때만). 폰 알림 구독은 옮기지 않습니다 —
+옛 키를 알던 사람이 넣어 둔 구독이 따라오지 않게. 바꾼 기기는 스스로 새 공간에 다시 구독하고, 다른 기기는 새 키로 다시 연결하면 됩니다.
+옛 값은 옛 키 아래 그대로 남습니다.
 
 ### 출처(CORS)
 

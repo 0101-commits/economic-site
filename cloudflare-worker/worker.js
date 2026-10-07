@@ -574,7 +574,7 @@ async function _testGemini(key) {
 //   공개 저장소에 있으면 누구나 오프라인 대입을 할 수 있었다(감사: 잠금 PIN 과 같은 암호 → 복호화 성공).
 const ALERTS_CONFIG_PATH = 'alerts_config.json';
 const ENC_HOLDINGS_KV_KEY = 'portfolio:encHoldings';
-const ENC_HOLDINGS_PREV_KV_KEY = 'portfolio:encHoldings:prev';
+const ENC_HOLDINGS_PREV_KV_KEY = 'portfolio:encHoldings:prev';   // + ':YYYY-MM-DD'(한국 날짜) — 그날 처음 덮기 직전의 판
 const ALERT_TYPES = ['price_above', 'price_below', 'pct_change', 'high52', 'low52',
                      'vol_surge', 'golden_cross', 'dead_cross'];
 
@@ -798,6 +798,8 @@ async function _verifySyncKey(body, env) {
 //   확인만(사이트의 'PIN 잊음'): 헤더 X-Sync-Key-Hash = 지금 키의 해시, 본문에 newKey 없음 → 200 / 401.
 //   바꾸기: 본문 { currentKey, newKey } 원문(TLS 안). SHA-256(currentKey.trim()) 이 기대 해시와 같아야 하고,
 //     newKey.trim() 은 12자 이상 · 지금 키와 달라야 한다(400 weak_new_key) → KV 에 SHA-256(newKey.trim()).
+//     바뀌면 옛 공간의 /prefs 문서를 새 공간으로 옮긴다(새 쪽이 비어 있을 때만) — 옮기지 않으면 그 기기가 다시 올리기 전까지
+//     (범위 ① 을 꺼 두었으면 끝내) 발송기가 빈 새 공간을 읽어 기본 설정으로 돈다. 옛 문서는 그대로 둔다.
 //   옛 계약(본문 newKeyHash)은 400 use_new_key — 해시만 손에 넣은 사람이 키를 바꿔 주인을 내쫓지 못하게.
 //   레이트리밋은 POST 공통 관문(AI_LIMITER)이 건다.
 // ponytail: 바뀐 것을 디스코드 #시스템에 알리지 않는다 — Worker 에 디스코드 웹훅 시크릿이 없다(Interactions 응답 토큰뿐).
@@ -815,12 +817,19 @@ async function handleSyncKey(request, env) {
   }
   const cur = typeof body.currentKey === 'string' ? body.currentKey.trim() : '';
   const nk = typeof body.newKey === 'string' ? body.newKey.trim() : '';
-  const denied = await _verifySyncKey({ keyHash: cur ? await _sha256Hex(cur) : '' }, env);
+  const oh = cur ? await _sha256Hex(cur) : '';
+  const denied = await _verifySyncKey({ keyHash: oh }, env);
   if (denied) return denied;
   if (nk.length < 12 || nk === cur) return jsonResponse({ error: 'weak_new_key' }, 400);
   if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
-  try { await env.ECON_PORTFOLIO.put(SYNC_KEY_KV_KEY, await _sha256Hex(nk)); }
+  const nh = await _sha256Hex(nk);
+  try { await env.ECON_PORTFOLIO.put(SYNC_KEY_KV_KEY, nh); }
   catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+  // 키는 이미 바뀌었다 — 옮기기에 실패해도 바뀐 것으로 답한다(앱은 새 공간이 비었으면 이 기기 것을 올린다).
+  try {
+    const doc = await env.ECON_PORTFOLIO.get('prefs:' + oh.slice(0, 16));
+    if (doc && !(await env.ECON_PORTFOLIO.get('prefs:' + nh.slice(0, 16)))) await env.ECON_PORTFOLIO.put('prefs:' + nh.slice(0, 16), doc);
+  } catch (_) { /* 위 주석 */ }
   return jsonResponse({ ok: true, changed: true });
 }
 
@@ -847,12 +856,16 @@ async function handlePortfolioPost(request, env) {
   const encHoldings = _sanitizeEncHoldings(body.encHoldings);
   if (encHoldings) {
     if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
-    // 덮기 전 지금 판을 한 판 남긴다(30일) — 보유 덮어쓰기는 해시만으로 되므로(자동 올림이 원문을 못 든다, B5),
-    //   해시를 손에 넣은 사람이 덮어써도 한 판은 되돌릴 수 있게. 되돌리기는 README 「보유 이전 판」.
+    // 덮기 전 판을 날짜별로 남긴다(한국 날짜마다 그날 처음 덮기 직전의 판 하나, 30일) — 보유 덮어쓰기는 해시만으로 되므로
+    //   (자동 올림이 원문을 못 든다, B5) 해시를 손에 넣은 사람이 덮어써도 되돌릴 수 있게. 한 칸에 매번 남기면 두 번 써서 좋은 판을
+    //   밀어낼 수 있다(salt · iv 가 매번 새로라 같은 보유도 늘 다른 글이다). 되돌리기는 README 「보유 이전 판」.
     const next = JSON.stringify(encHoldings);
     try {
       const prev = await env.ECON_PORTFOLIO.get(ENC_HOLDINGS_KV_KEY);
-      if (prev && prev !== next) await env.ECON_PORTFOLIO.put(ENC_HOLDINGS_PREV_KV_KEY, prev, { expirationTtl: 30 * 86400 });
+      const dayKey = ENC_HOLDINGS_PREV_KV_KEY + ':' + new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+      if (prev && prev !== next && !(await env.ECON_PORTFOLIO.get(dayKey))) {
+        await env.ECON_PORTFOLIO.put(dayKey, prev, { expirationTtl: 30 * 86400 });
+      }
       await env.ECON_PORTFOLIO.put(ENC_HOLDINGS_KV_KEY, next);
     } catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
   }
@@ -935,8 +948,8 @@ async function handlePortfolioTest(request, env) {
 // ──────────────────────────────────────────────────────────────────
 // 기획안 v4 보안 위험 3: 관심 지표·종목, 알림 조건, 화면 설정을 공개 저장소(alerts_config.json)가 아니라 KV 에 둔다.
 // 현행 /portfolio 와 병행한다 — 알림 파이프라인(check_alerts.py)은 아직 alerts_config.json 만 읽는다.
-// 공간은 키 해시별로 나뉜다(prefs:<keyHash 앞 16자>, push:<keyHash 앞 16자>). 동기화 키를 바꾸면 빈 새 공간에서
-// 시작하고 옛 값은 KV 에 그대로 남는다.
+// 공간은 키 해시별로 나뉜다(prefs:<keyHash 앞 16자>, push:<keyHash 앞 16자>). 동기화 키를 바꾸면 /prefs 문서만 새 공간으로
+// 옮기고(handleSyncKey, 새 쪽이 비어 있을 때만) 구독은 새 공간에서 다시 시작한다. 옛 값은 KV 에 그대로 남는다.
 // 2층(보유: 금액·수량·평단가)은 받지 않는다 — 그 이름의 키가 본문 어디에든 있으면 통째로 400.
 // 보유정보는 /portfolio 의 암호문(encHoldings)으로만 오간다.
 const PREFS_MAX_BYTES = 32 * 1024;

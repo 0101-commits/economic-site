@@ -38,7 +38,10 @@ def load_prefs(log=print) -> dict | None:
         log("[v2] PUSH_READ_KEY · ALERTS_SYNC_KEY 없음 — 기본 설정으로 구독(사용자 조건 · 별표 없음)")
         return None
     doc = prefs_client.fetch(PREFS_URL)
-    if not doc or not doc.get("updatedAt"):
+    if not doc:
+        return None
+    if not doc.get("updatedAt"):
+        log("[v2] /prefs 비어 있음 — 기본 설정으로 구독(사용자 조건 · 별표 없음)")
         return None
     return upgrade_prefs(doc)
 
