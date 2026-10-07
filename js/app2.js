@@ -57,6 +57,7 @@ function _pfSecret(k) {
     return v;
   } catch(_) { return ''; }
 }
+_pfSecret('pfSyncKeyHash'); _pfSecret('pfHoldingsPass');   // 읽기를 기다리지 않고 지금 옮긴다(보유 암호 원문이 localStorage 에 남지 않게)
 function pfHasSyncKey() {
   try { return !!(_pfSecret('pfSyncKeyHash') || localStorage.getItem('pfSyncKey')); } catch(_) { return false; }
 }

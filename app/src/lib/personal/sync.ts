@@ -183,6 +183,8 @@ function onStorage(e: StorageEvent) {
 
 /** 앱이 뜰 때 한 번(main.tsx). 이 탭에 키 해시가 없으면 기억한 해시를 옮겨 오고(PIN 없이), 있으면 서버 내용을 받고 감시를 시작한다. */
 export function startSync() {
+  // 옛 화면이 예전에 localStorage 에 남긴 비밀(동기화 키 해시 · 보유 암호 원문)은 새 화면이 쓰지 않는다 — 열자마자 지운다(B3).
+  for (const k of ['pfSyncKeyHash', 'pfHoldingsPass']) { try { localStorage.removeItem(k) } catch { /* 막힌 저장소 */ } }
   document.addEventListener('visibilitychange', onVisibility)
   window.addEventListener('storage', onStorage)
   const kept = keptHash()
