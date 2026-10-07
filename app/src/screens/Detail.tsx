@@ -22,10 +22,11 @@ type LensFact = { t: Trigger; chains: LensChain[]; posts: number }
 type Got = { reg?: RegRow; item?: StripItem; series?: Pt[]; related: { reg: RegRow; item?: StripItem }[]; matches: RegRow[]; lens?: LensFact }
 
 function lensFact(b: LensBundle | null, id: string): LensFact | undefined {
-  const t = b?.triggers.find(x => x.id === id)
+  // 묶음 모양이 어긋나도(칸이 빠짐) 렌즈 패널만 빠지게 — 여기서 던지면 상세 전체가 「못 찾음」이 된다
+  const t = b?.triggers?.find(x => x.id === id)
   if (!b || !t) return undefined
-  const chains = b.chains.filter(c => c.steps.some(st => st.id === id))
-  const nos = new Set([...chains.flatMap(c => c.logNos ?? []), ...b.edges.flatMap(e => (e.from === id || e.to === id ? e.logNos ?? [] : []))])
+  const chains = (b.chains ?? []).filter(c => c.steps?.some(st => st.id === id))
+  const nos = new Set([...chains.flatMap(c => c.logNos ?? []), ...(b.edges ?? []).flatMap(e => (e.from === id || e.to === id ? e.logNos ?? [] : []))])
   return { t, chains, posts: nos.size }
 }
 

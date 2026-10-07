@@ -119,7 +119,12 @@ export const counted = <K extends string>(where: string, opts: readonly { key: K
   (k: K) => { countUse('views', `${where} · ${opts.find(o => o.key === k)?.label ?? k}`); set(k) }
 
 const smooth = (): ScrollBehavior => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth')
-const goTo = (to: string, behavior = smooth()) => document.querySelector(`[data-toc="${to}"]`)?.scrollIntoView({ behavior, block: 'start' })
+/** 그 칸으로 간다. 접어 둔 패널이면 먼저 편다 — details 를 열면 Panel 의 onToggle 이 상태 · 접기 기억을 같이 바꾼다. */
+const goTo = (to: string, behavior = smooth()) => {
+  const el = document.querySelector(`[data-toc="${to}"]`)
+  el?.querySelectorAll<HTMLDetailsElement>('details[data-panel-fold]:not([open])').forEach(d => { d.open = true })
+  el?.scrollIntoView({ behavior, block: 'start' })
+}
 
 /**
  * 목차: 칩을 누르면 그 격자 칸으로 부드럽게 내려간다(주소 v 에 남겨 공유 · 새로 고침이 같은 자리로 온다).
