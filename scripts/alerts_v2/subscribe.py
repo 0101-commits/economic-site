@@ -1,6 +1,6 @@
 """구독 — 원장 새 행 × (기본 켜짐 · 꾸러미 · 별표 · 갈래 · 사용자 조건) → Decision.
 
-/prefs 는 `prefs_client.fetch` 로 읽는다(동기화 키 없으면 기본 설정만). v1 문서는 `upgrade_prefs` 가 v2 로 바꾼다.
+/prefs 는 `prefs_client.fetch` 로 읽는다(읽기 키 PUSH_READ_KEY 우선, 둘 다 없으면 기본 설정만). v1 문서는 `upgrade_prefs` 가 v2 로 바꾼다.
 사용자 조건(U1 수준 도달 · U2 급변 값)은 여기서 판정해 원장에 넣는다 — 발생 키는 ALERTS_STATE_SALT HMAC 12자,
 소금이 없으면 사용자 조건은 통째로 건너뛴다(현행 규칙, 평문 해시로 되돌아가지 않는다).
 """
@@ -27,17 +27,17 @@ U1_DIR_KO = {"up": "위로", "down": "아래로"}
 
 # ---------- 설정 읽기 ----------
 def load_prefs(log=print) -> dict | None:
-    key = os.environ.get("ALERTS_SYNC_KEY", "").strip()
-    if not key:
-        log("[v2] ALERTS_SYNC_KEY 없음 — 기본 설정으로 구독(사용자 조건 · 별표 없음)")
-        return None
     try:
-        from prefs_client import fetch
+        import prefs_client
     except ImportError:
         import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from prefs_client import fetch
-    doc = fetch(PREFS_URL, key)
+        import prefs_client
+    # 읽기 키(PUSH_READ_KEY)가 있으면 그것으로, 없을 때만 ALERTS_SYNC_KEY(전환기 호환) — 고르는 일은 prefs_client 한 곳.
+    if not prefs_client.auth_header():
+        log("[v2] PUSH_READ_KEY · ALERTS_SYNC_KEY 없음 — 기본 설정으로 구독(사용자 조건 · 별표 없음)")
+        return None
+    doc = prefs_client.fetch(PREFS_URL)
     if not doc or not doc.get("updatedAt"):
         return None
     return upgrade_prefs(doc)
