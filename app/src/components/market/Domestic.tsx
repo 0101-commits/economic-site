@@ -61,12 +61,15 @@ function movers(v: DomesticBundle['views'], kind: 'gainers' | 'losers', scope: S
 }
 
 const nameCol: Col<Stock> = { key: 'name', label: '종목', get: r => r.short || r.name, role: 'name' }
+// 범위가 전체일 때: 종목 이름 아래 작은 글씨로 시장(코스피·코스닥)을 단다 — 열을 늘리지 않는다
+const MARKET_KO: Record<string, string> = { KOSPI: '코스피', KOSDAQ: '코스닥' }
+const nameMarketCol: Col<Mover> = { ...nameCol, render: r => <>{r.short || r.name}{r.market && <span className="block text-11 font-normal text-ink-3">{MARKET_KO[r.market] ?? r.market}</span>}</> }
 const priceCol: Col<Stock> = { key: 'price', label: '현재가', get: r => r.price, num: true, role: 'value' }
 const pctCol: Col<Stock> = { key: 'pct', label: '등락률', get: r => r.chgPct, num: true, role: 'change', render: r => <ChangeText pct={r.chgPct} /> }
 const amountCols: Col<Stock>[] = [nameCol, priceCol, pctCol,
   { key: 'amount', label: '거래대금', get: r => (r.amount == null ? null : r.amount / 1e12), num: true, role: 'sub', render: r => (r.amount == null ? null : `${fmtNumber(r.amount / 1e12, 2)}조`) }]
-// 상승·하락: 종목 · 현재가 · 등락률 · 거래량(만주) 넷 — PC 둘째 줄 4칸(약 350px)에 맞춘다. 「시장」 열은 범위가 전체일 때만.
-const moverCols = (all: boolean): Col<Mover>[] => [nameCol, ...(all ? [{ key: 'market', label: '시장', get: (r: Mover) => r.market }] : []), priceCol, pctCol, volCol]
+// 상승·하락: 종목 · 현재가 · 등락률 · 거래량(만주) 넷 — PC 둘째 줄 4칸(약 350px)에 맞춘다. 범위가 전체면 시장은 종목 이름 아래에 단다.
+const moverCols = (all: boolean): Col<Mover>[] => [all ? nameMarketCol : nameCol, priceCol, pctCol, volCol]
 
 /** KRX 순위 목록을 범위대로. 전체 = 두 시장을 합쳐 by 큰 순, ETF = 없음(KRX 주식 일별표라 ETF 가 들어 있지 않다). */
 function krxRows(r: KrxRank | undefined, scope: Scope, by: (x: KrxRow) => number | null | undefined): KrxRow[] {
@@ -87,8 +90,8 @@ const volCol: Col<KrxRow> = { key: 'vol', label: '거래량', get: r => r.volume
 const KRX_VIEWS: Record<'marketCap' | 'volume' | 'high52' | 'low52', { title: string; cols: Col<KrxRow>[]; by: (r: KrxRow) => number | null | undefined }> = {
   marketCap: { title: '시가총액 상위', cols: [nameCol, priceCol, pctCol, capCol], by: r => r.marketCap },
   volume: { title: '거래량 상위', cols: [nameCol, priceCol, pctCol, volCol], by: r => r.volume },
-  high52: { title: '52주 신고가', cols: [nameCol, capCol, priceCol, pctCol, { key: 'high', label: '52주 최고', get: r => r.high, num: true }], by: r => r.marketCap },
-  low52: { title: '52주 신저가', cols: [nameCol, capCol, priceCol, pctCol, { key: 'low', label: '52주 최저', get: r => r.low, num: true }], by: r => r.marketCap },
+  high52: { title: '52주 신고가', cols: [nameCol, priceCol, pctCol, { key: 'high', label: '52주 최고', get: r => r.high, num: true }], by: r => r.marketCap },
+  low52: { title: '52주 신저가', cols: [nameCol, priceCol, pctCol, { key: 'low', label: '52주 최저', get: r => r.low, num: true }], by: r => r.marketCap },
 }
 type KrxView = keyof typeof KRX_VIEWS
 
