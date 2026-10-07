@@ -235,7 +235,7 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .pytest_ok
-          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml', 'app/src/App.tsx', 'app/src/screens/**', 'app/src/components/**') }}
 
       - name: Run tests
         if: steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true' && steps.tests-ok.outputs.cache-hit != 'true'
@@ -251,7 +251,7 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .pytest_ok
-          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml') }}
+          key: pytest-ok-${{ hashFiles('scripts/**/*.py', 'scripts/alerts_v2/events.yml', 'app/src/App.tsx', 'app/src/screens/**', 'app/src/components/**') }}
 
       # 오늘 이미 주인공이었던 자산(.kakao_focus.json) — 같은 움직임이 슬롯마다 카드를
       # 독차지하지 않게 앞 슬롯 기록을 넘겨받는다(send_kakao_digest.pick_focus 의 seen).
