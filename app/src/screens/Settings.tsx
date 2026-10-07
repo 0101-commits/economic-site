@@ -7,6 +7,7 @@ import { ChevronDown, Settings as Gear } from 'lucide-react'
 import { Card, Pill, SegBar } from '../components/ui'
 import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
 import { DeviceLink } from '../components/personal/DeviceLink'
+import { UsageTable } from '../components/personal/UsageTable'
 import { applyTheme, readTheme, useTheme } from '../lib/theme'
 import { checkPin, hasPin, IDLE_MS, isUnlocked, setPin, waitMs } from '../lib/pin'
 import { loadBundle, ROOT } from '../lib/bundle'
@@ -226,6 +227,7 @@ function Advanced({ s, setS }: { s: S; setS: (k: Partial<S>) => void }) {
         <Switch on={s.autoQuiet} onChange={v => setS({ autoQuiet: v })} label={`90일 동안 알림 화면을 안 열면 꾸러미를 「${QUIET_PKG}」로 내리기`} />
         <p className="mt-1 mb-0 text-12 text-ink-3">이 기기만. 내려가면 알림 화면 맨 위에 한 줄로 알립니다. 끄면 꾸러미를 그대로 둡니다.</p>
       </div>
+      <div className="pt-3 border-t border-line"><UsageTable /></div>
     </div>
   )
 }

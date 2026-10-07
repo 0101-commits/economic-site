@@ -112,7 +112,7 @@ export function pushRecent(r: Recent) {
  */
 export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
   KEYS.holdKey, KEYS.scope,
-  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econ_scenarios_v1', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1', 'econHoldQuotes_v1']
+  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econ_scenarios_v1', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1', 'econHoldQuotes_v1', 'econ_usage_v1']
 /** 지우기 전에 이 기기 폰 알림 구독을 끊는다(서버 쪽 해지에 동기화 키 해시가 쓰인다 — 그래서 동기화는 이 뒤에 끈다). 못 끊어도 지우기는 계속. */
 export async function wipeDevice(getKeyHash: GetKeyHash): Promise<boolean> {
   await unsubscribePush(getKeyHash).catch(() => {})
