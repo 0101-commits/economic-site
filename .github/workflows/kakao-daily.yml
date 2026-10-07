@@ -87,6 +87,10 @@ concurrency:
 
 jobs:
   send-digest:
+    # 알림 v2(ALERTS_V2=1)에서는 자동 발송이 전부 게이트 proceed=false 로 끝난다 — 러너를 띄우지 않고 잡을
+    # 건너뛴다(2026-10-07 실측: Worker 5분 dispatch 로 하루 180런이 전부 빈 런). 수동(workflow_dispatch)은 그대로 돈다.
+    # skipped 런도 런이라 watchdog 침묵 감시의 '마지막 런 나이'는 그대로 신선하다(OK_CONCLUSIONS 에 skipped 포함).
+    if: vars.ALERTS_V2 != '1' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # 발송 1회는 정상적으로 2~3분 — 프록시 폴백·재시도가 전부 걸려도 10분이면 충분하다.
     # 행이 걸린 잡이 기본 한도(6시간)까지 러너를 점유하지 않게 상한을 둔다.
