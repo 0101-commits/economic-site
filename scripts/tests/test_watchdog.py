@@ -224,3 +224,44 @@ def test_infra_failure_detected_only_without_failed_steps(monkeypatch):
     assert W._infra_failure("2") is False
     monkeypatch.setattr(W, "_api", lambda p: [] if "annotations" in p else infra)
     assert W._infra_failure("1") is False          # 주석이 없으면 모른다 → 평소대로 통지
+
+
+def test_pages_stuck_cancels_only_old_waiting_runs(monkeypatch):
+    """사이트 배포 대기 런은 PAGES_STUCK_MIN 분을 넘긴 것만 취소한다 — 정상 대기(1~2분)를 건드리면 배포가 늦어진다.
+    2026-10-06·07 에 waiting 런 하나가 그룹을 잡아 14시간·7.5시간 동안 뒤 배포 93건이 전부 취소됐다(cancelled 는 정상으로
+    세므로 침묵 감시는 못 본다)."""
+    import datetime as dt
+    now = dt.datetime(2026, 10, 7, 2, 0, tzinfo=dt.timezone.utc)
+    iso = lambda m: (now - dt.timedelta(minutes=m)).isoformat()
+    waiting = [{"id": 1, "created_at": iso(25)}, {"id": 2, "created_at": iso(5)}]
+    monkeypatch.setattr(W, "_api", lambda p: {"workflow_runs": waiting if "status=waiting" in p else []})
+    posted = []
+    monkeypatch.setattr(W, "_api_post", lambda p: posted.append(p) or 202)
+    got = W.check_pages_stuck(now)
+    assert [(rid, st) for rid, st, _ in got] == [(1, "waiting")]
+    assert posted == [f"/repos/{W._repo()}/actions/runs/1/cancel"]
+
+
+def test_pages_stuck_survives_cancel_and_query_failures(monkeypatch):
+    """취소 409(좀비 런)·조회 실패는 감시를 죽이지 않고 다음 상태로 넘어간다."""
+    import datetime as dt
+    import urllib.error
+    now = dt.datetime(2026, 10, 7, 2, 0, tzinfo=dt.timezone.utc)
+    old = (now - dt.timedelta(minutes=60)).isoformat()
+
+    def api(p):
+        if "status=waiting" in p:
+            raise urllib.error.URLError("boom")
+        return {"workflow_runs": [{"id": 9, "created_at": old}]}
+    monkeypatch.setattr(W, "_api", api)
+
+    def post(_p):
+        raise urllib.error.HTTPError("u", 409, "Conflict", {}, None)
+    monkeypatch.setattr(W, "_api_post", post)
+    assert W.check_pages_stuck(now) == []
+
+
+def test_watchdog_can_cancel_runs():
+    """취소는 actions: write 가 있어야 한다 — read 면 403 으로 조용히 실패해 자가 치유가 없는 것과 같다."""
+    assert re.search(r"^\s*actions:\s*write", WATCHDOG_YML, re.M), "watchdog.yml 에 actions: write 가 없다"
+

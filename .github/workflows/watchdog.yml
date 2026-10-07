@@ -28,7 +28,7 @@ on:
 
 permissions:
   contents: read
-  actions: read          # 다른 워크플로의 런·잡 조회에 필요
+  actions: write         # 런·잡 조회 + 사이트 배포 대기 런 취소(watchdog.check_pages_stuck — 자가 치유)
 
 # 그룹을 모드별로 나눈다. 한 그룹이면 1분마다 오는 workflow_run 런(대부분 job 에서 skipped)이
 # 대기 중인 런을 밀어낸다 — GitHub 은 그룹의 대기 런을 새 대기 런이 오면 취소한다. 그러면

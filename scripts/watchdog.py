@@ -73,8 +73,50 @@ def _api(path):
         return json.load(r)
 
 
+def _api_post(path):
+    """본문 없는 POST(런 취소). 2xx 가 아니면 HTTPError."""
+    req = urllib.request.Request(
+        API + path, method="POST", data=b"",
+        headers={"Accept": "application/vnd.github+json",
+                 "User-Agent": "ecom-watchdog",
+                 "Authorization": f"Bearer {os.environ.get('GITHUB_TOKEN', '')}"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return r.status
+
+
 def _repo():
     return os.environ.get("GITHUB_REPOSITORY") or "0101-commits/economic-site"
+
+
+# 사이트 배포(pages.yml)가 'waiting'(github-pages 환경 배포 대기)에 갇히면 concurrency 그룹을 잡아 뒤 런이
+# 전부 cancelled 가 되고 화면은 옛 값에 멈춘다 — cancelled 는 정상으로 세므로 침묵 감시가 못 본다
+# (2026-10-06 14시간 · 2026-10-07 7.5시간 실측, 둘 다 사람이 `gh run cancel` 로 풀었다). 잡의
+# timeout-minutes 는 시작 전 대기엔 안 걸린다. 이 분을 넘긴 대기 런은 취소해 그룹을 비운다 — 다음
+# 데이터 커밋이 새 배포를 만든다. 정상 대기는 1~2분이라 20분이면 거짓 취소가 없다.
+PAGES_STUCK_MIN = 20
+
+
+def check_pages_stuck(now=None):
+    """pages.yml 의 대기(waiting · queued) 런이 PAGES_STUCK_MIN 분을 넘겼으면 취소 → [(런 id, 상태, 나이 분)]."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    out = []
+    for st in ("waiting", "queued"):
+        try:
+            runs = (_api(f"/repos/{_repo()}/actions/workflows/pages.yml/runs"
+                         f"?status={st}&per_page=5") or {}).get("workflow_runs") or []
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            print(f"[watchdog] 사이트 배포 {st} 런 조회 실패 — {type(e).__name__}")
+            continue
+        for r in runs:
+            age = _age_min(r.get("created_at"), now)
+            if age is None or age < PAGES_STUCK_MIN:
+                continue
+            try:
+                _api_post(f"/repos/{_repo()}/actions/runs/{r['id']}/cancel")
+                out.append((r["id"], st, age))
+            except (urllib.error.URLError, OSError) as e:        # 좀비 런(이미 끝났는데 queued 로 보임)은 409
+                print(f"[watchdog] 사이트 배포 런 {r.get('id')} 취소 실패 — {type(e).__name__}")
+    return out
 
 
 def _age_min(iso, now):
@@ -282,6 +324,13 @@ def main():
                               color=notify_discord.COLOR_FIRE)
         return
 
+    healed = check_pages_stuck()
+    if healed:
+        print(f"[watchdog] 사이트 배포 대기 런 취소 {len(healed)}건: {[rid for rid, _, _ in healed]}")
+        notify_discord.system(
+            "\n".join(f"· 런 {rid} — {st} {age:.0f}분" for rid, st, age in healed)
+            + "\n\n대기 런이 concurrency 그룹을 잡아 뒤 배포가 전부 취소되던 것을 풀었다. 다음 데이터 커밋이 새로 배포한다.",
+            title="🩹 사이트 배포 대기 런 취소(자가 치유)", color=notify_discord.COLOR_FIRE)
     stalled = check_silence()
     if not stalled:
         # 조용히 return 하면 '감시가 돌았다'는 증거가 남지 않는다.
