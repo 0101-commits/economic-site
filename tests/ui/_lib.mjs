@@ -48,6 +48,7 @@ export async function newCtx(browser, w, theme) {
     try {
       localStorage.setItem('econ_theme', t);
       sessionStorage.setItem('econLockOk_v1', '1');   // PIN 관문 해제(안 풀면 잠긴 화면을 못 잼)
+      sessionStorage.setItem('econLockAt_v1', String(Date.now()));   // 해제 시각(5분 안이어야 열린 것으로 본다, lib/pin.ts)
       document.documentElement.setAttribute('data-theme', t);
     } catch (_) {}
   }, theme);
