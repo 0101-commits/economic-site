@@ -17,13 +17,14 @@ import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
 import { KEYS, readHk, readPrefs, writeHk, writePrefs, type AlertCond, type Level, type Pkg, type Prefs, type Settings, type Strength } from '../lib/personal/store'
-import { setPackage } from '../lib/personal/prefsV2'
+import { PACKAGE_PRESET, setPackage } from '../lib/personal/prefsV2'
 import { condId, condName, condStatus, prefillTarget, rearm, TARGET_RE, type FiredRec, type LedgerRow } from '../lib/personal/alertStatus'
 import type { Hk } from '../lib/personal/housekeeping'
 import { portfolioGet, watchKind } from '../lib/personal/remote'
 import { getKeyHash, scopeText, useSyncStatus, type SyncStatus } from '../lib/personal/sync'
 import { pushSubscribed } from '../lib/push'
-import { adjustOf, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, levelChoices, listEvents, passes, savedNote, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter } from '../lib/alerts/v2'
+import { CAP_MSG } from '../components/personal/BellSheet'
+import { adjustOf, ALERT_CAP, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, levelChoices, listEvents, passes, savedNote, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter } from '../lib/alerts/v2'
 import { loadDaily } from '../lib/alerts/daily'
 import { convertLegacy, type Imported } from '../lib/alerts/legacy'
 import dictJson from '../lib/alerts/dict.json'
@@ -289,12 +290,22 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
     setAlert(a.id, x => ({ ...x, enabled: on }))
   }
   const pkg = prefs.settings.package
+  // 꾸러미는 하루 상한 · 브리핑을 같이 바꾸므로(명세 S10) 고르면 바뀔 값을 한 줄로 보이고 「바꾸기」를 눌러야 저장한다
+  const [want, setWant] = useState<Pkg | null>(null)
+  const briefN = (b: Settings['briefings']) => Object.values(b).filter(Boolean).length
+  const next = want ? PACKAGE_PRESET[want] : null
   return (
     <>
       <Panel title="꾸러미">
-        <SegBar label="꾸러미" options={PKG_OPTS} value={pkg} onChange={k => save({ ...prefs, settings: setPackage(prefs.settings, k) })} />
-        <p className="mt-2 mb-0 text-12 text-ink-2">{PKG_NOTE[pkg]}</p>
-        <p className="mt-1 mb-0 text-12 text-ink-3">꾸러미를 바꾸면 하루 상한과 브리핑이 따라 바뀝니다. 아래 사건마다 고친 세기 · 등급은 그대로 둡니다.</p>
+        <SegBar label="꾸러미" options={PKG_OPTS} value={want ?? pkg} onChange={k => setWant(k === pkg ? null : k)} />
+        <p className="mt-2 mb-0 text-12 text-ink-2">{PKG_NOTE[want ?? pkg]}</p>
+        {want && next ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-13 text-ink-1">하루 상한 <span className="num">{prefs.settings.dailyCap}→{next.cap}</span> · 브리핑 <span className="num">{briefN(prefs.settings.briefings)}→{briefN(next.briefings)}</span> 로 바뀝니다</span>
+            <button type="button" className={BTN} onClick={() => { save({ ...prefs, settings: setPackage(prefs.settings, want) }); setWant(null) }}>바꾸기</button>
+            <button type="button" className={BTN2} onClick={() => setWant(null)}>그만두기</button>
+          </div>
+        ) : <p className="mt-1 mb-0 text-12 text-ink-3">꾸러미를 바꾸면 하루 상한과 브리핑이 따라 바뀝니다. 아래 사건마다 고친 세기 · 등급은 그대로 둡니다.</p>}
       </Panel>
 
       <Panel title="사건 갈래" source="갈래를 누르면 사건마다 세기 · 등급">
@@ -337,7 +348,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
         <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add])} />
       </Panel>
 
-      <NewCondition rows={rows} labelOf={labelOf} sync={sync} onAdd={a => put([...prefs.alerts, a])} />
+      <NewCondition rows={rows} labelOf={labelOf} sync={sync} full={prefs.alerts.length >= ALERT_CAP} onAdd={a => put([...prefs.alerts, a])} />
       <p className="m-0 text-12 text-ink-3">
         현행 화면에서 만든 조건은 <a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">현행 화면</a>에서 보고 고칩니다.
       </p>
@@ -448,7 +459,7 @@ function FamilyRow({ fam, prefs, save, adjust }: { fam: { id: string; name: stri
 }
 
 /** 새 조건: 대상 → 그 대상이 가진 사건(사전) → 세기 3단(「지난 1년 N회」) 또는 값 → 등급 · 반복 · 울림 · 이름. 저장 모양 = 계약서 AlertCond. */
-function NewCondition({ rows, labelOf, sync, onAdd }: { rows: RegRow[]; labelOf: (id: string) => string; sync: SyncStatus; onAdd: (a: AlertCond) => void }) {
+function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; labelOf: (id: string) => string; sync: SyncStatus; full: boolean; onAdd: (a: AlertCond) => void }) {
   const [q, setQ] = useState('')
   const [picked, setPicked] = useState<{ id: string; label: string } | null>(null)
   // 상세가 주소(?id=)로 넘긴 지표: 한 번 읽고 주소에서 지운다. 사전이 늦게 와도 이름이 따라오도록 id 로 들고 있다가, 대상 칸을 고르거나 지우면 놓는다.
@@ -487,6 +498,7 @@ function NewCondition({ rows, labelOf, sync, onAdd }: { rows: RegRow[]; labelOf:
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
+    if (full) { setErr(CAP_MSG); return }
     if (!t) { setErr('대상을 고르세요. 목록에 없으면 종목 코드(예: 005930)를 그대로 넣습니다.'); return }
     if (!ev) return
     const v = Number(value)
