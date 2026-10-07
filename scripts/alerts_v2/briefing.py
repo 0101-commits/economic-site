@@ -244,7 +244,7 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
 
 # ---------- 보내기 ----------
 def _kakao(out: dict, slot: str, log=print) -> bool:
-    ses = deliver._kakao_session(log)                  # 친구 모드가 아니면 멈춘다(메모 모드는 무음)
+    ses = deliver._kakao_session(log)                  # uuids None = 메모(나에게 보내기 · 소리 없음)
     if not ses:
         return False
     hb = k._hero_button(out["links"])

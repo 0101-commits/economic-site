@@ -602,7 +602,7 @@ function Channels({ prefs, setS, ledger, today, sync }: { prefs: Prefs; setS: (k
       <PhonePush />
       <Panel title="카톡" source={`오늘 ${kakaoToday(ledger, today)}/20통`}>
         <Switch on={s.kakaoFriends} onChange={v => setS({ kakaoFriends: v })} label="친구 모드로 받기" />
-        <p className="mt-1 mb-0 text-12 text-ink-3">보조 계정이 친구인 나에게 사진 카드로 보냅니다. 운영 쪽에서 친구 모드를 켜야 실제로 갑니다 — 그 전에는 카톡이 나가지 않고 폰 · 디스코드만 갑니다. 카카오 한도는 받는 사람마다 하루 20통입니다.</p>
+        <p className="mt-1 mb-0 text-12 text-ink-3">보조 계정이 친구인 나에게 사진 카드로 보냅니다. 운영 쪽에서 친구 모드를 켜기 전에는 디스코드로 가는 알림이 「나와의 채팅」에 메모로 쌓입니다(카카오 정책상 소리 없음). 카카오 한도는 받는 사람마다 하루 20통입니다.</p>
         {s.kakaoFriends && (
           <div className="mt-3 flex flex-col gap-2">
             <p className="m-0 text-12 text-ink-2">받는 사람 <span className="num">{rcp.length}</span>/5</p>
@@ -629,7 +629,7 @@ function Channels({ prefs, setS, ledger, today, sync }: { prefs: Prefs; setS: (k
       </Panel>
       <Panel title="디스코드">
         <p className="m-0 text-13 text-ink-2">모든 알림이 디스코드에 보관됩니다. 이 화면에서 바꾸는 것은 없습니다.</p>
-        <p className="mt-2 mb-0 text-12 text-ink-3">경보는 #급변-속보에 멘션과 함께, 알림 · 안내는 #종목-알림에, 브리핑은 #시황-다이제스트에 쌓입니다. 안내 · 브리핑은 소리 없이 옵니다.</p>
+        <p className="mt-2 mb-0 text-12 text-ink-3">경보는 #급변-속보에 멘션과 함께, 알림 · 안내는 #종목-알림에, 브리핑은 #시황-다이제스트에 쌓입니다.</p>
       </Panel>
       <Panel title="조용한 시간">
         <Switch on={!!quiet} onChange={on => setQuiet(on ? { from: '23:00', to: '07:00' } : null)} label="이 시간엔 울리지 않기" />

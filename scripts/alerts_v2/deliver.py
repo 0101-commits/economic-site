@@ -1,10 +1,11 @@
 """발송 — Send 하나를 푸시 · 카톡 · 디스코드로 보내고 원장 행 `sent` 를 갱신한다(기획서 8장 ⑤).
 
 푸시: scripts/push_queue.json 에 덧붙임(같은 잡의 send_push.py 가 보내고 지운다 — 현행 경로).
-카톡: send_kakao_digest.send_card 단일 진입점(친구 모드). 친구 목록을 못 받으면(403 등) 메모로 내려가지 않고
-      **멈추고** 운영 통지 한 번(무음 85통 전례). 카드 PNG 는 cards.event_card_png(물결 B3) — 없으면 send_card 가
-      텍스트로 내려가며 경고를 남긴다.
-디스코드: notify_discord.send_level(등급 → 채널 · 멘션 · 무음 플래그).
+카톡: send_kakao_digest.send_card 단일 진입점. 친구 모드면 편성(schedule)이 고른 것만 친구에게(울림), 아니면
+      (KAKAO_FRIENDS=0 · 친구 0명) **메모(나에게 보내기)로 디스코드에 가는 것을 전부 따라 보낸다** — 카카오 정책상
+      소리는 안 나지만 「나와의 채팅」에 쌓인다(2026-10-07 사용자 결정: v2 가 카톡을 통째로 끄자 「안 온다」가 됐다).
+      카드 PNG 는 cards.event_card_png(물결 B3) — 없으면 send_card 가 텍스트로 내려가며 경고를 남긴다.
+디스코드: notify_discord.send_level(등급 → 채널 · 멘션).
 세 채널은 서로 독립 — 하나가 실패해도 나머지는 보내고, 결과는 각각 sent 에 적는다.
 """
 from __future__ import annotations
@@ -56,7 +57,7 @@ def push_item(s: Send) -> dict:
 
 # ---------- 카톡 ----------
 def _kakao_session(log=print) -> dict | None:
-    """토큰 + 친구 수신자. 친구 모드가 안 되면 None(= 카톡 발송 멈춤)."""
+    """토큰 + 수신자. uuids = 친구(친구 모드) 또는 None(메모 = 나에게 보내기). 시크릿 · 토큰이 없으면 None."""
     global _KAKAO_SESSION
     if _KAKAO_SESSION is not None:
         return _KAKAO_SESSION or None
@@ -68,33 +69,23 @@ def _kakao_session(log=print) -> dict | None:
         return None
     try:
         import send_kakao_digest as kakao
-        if not kakao._friends_enabled():
-            # 사용자가 끈 것(KAKAO_FRIENDS=0)은 결함이 아니다 — 운영 통지 없이 조용히, 토큰도 안 받는다
-            log("[v2] 카톡 친구 모드 꺼짐(KAKAO_FRIENDS=0) — 카톡 발송 건너뜀")
-            _KAKAO_SESSION = {}
-            return None
         token = kakao.refresh_access_token(rest_key, refresh)
-        friends = kakao.get_friends(token)
-    except Exception as e:                                   # noqa: BLE001
-        log(f"[v2] 카톡 준비 실패: {type(e).__name__}")
+        friends = kakao.get_friends(token) if kakao._friends_enabled() else []
+    except (Exception, SystemExit) as e:                     # noqa: BLE001 — 토큰 사망은 SystemExit 로 온다
+        log(f"[v2] 카톡 준비 실패: {type(e).__name__} {str(e)[:160]}")
         _KAKAO_SESSION = {}
         return None
-    uuids = [f["uuid"] for f in friends if isinstance(f, dict) and f.get("uuid")]
-    if not uuids:
-        _ops("카톡 친구 모드가 꺼져 있어 v2 카톡 발송을 멈춤(메모 모드는 무음) — docs/KAKAO_SETUP.md ⑤", log)
-        _KAKAO_SESSION = {}
-        return None
+    uuids = [f["uuid"] for f in friends if isinstance(f, dict) and f.get("uuid")] or None
+    if uuids is None:
+        log("[v2] 카톡 메모 모드(나에게 보내기 · 소리 없음) — 디스코드로 가는 것을 따라 보냄")
     _KAKAO_SESSION = {"token": token, "uuids": uuids, "kakao": kakao}
     return _KAKAO_SESSION
 
 
-def _ops(text: str, log=print) -> None:
-    log(f"[v2 ops] {text}")
-    try:
-        import notify_discord
-        notify_discord.send_level("ops", "알림 v2 운영", text)
-    except Exception:                                        # noqa: BLE001
-        pass
+def memo_mode(log=print) -> bool:
+    """친구 모드가 아니라 메모로 보내는 중인가 — 그렇다면 디스코드로 가는 것을 카톡도 따라간다."""
+    ses = _kakao_session(log)
+    return bool(ses) and not ses["uuids"]
 
 
 def kakao_parts(s: Send) -> dict:
@@ -176,7 +167,7 @@ def send(s: Send, ledger, ctx, log=print, queue_path: str = PUSH_QUEUE_PATH) -> 
         return res
     if s.push:
         res["push"] = 1 if enqueue_push([push_item(s)], queue_path) else 0
-    if s.kakao:
+    if s.kakao or (s.discord and memo_mode(log)):
         res["kakao"] = send_kakao(s, ctx, log)
     if s.discord:
         res["discord"] = send_discord(s, log)

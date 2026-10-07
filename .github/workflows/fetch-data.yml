@@ -139,7 +139,7 @@ jobs:
         #    matplotlib: 알림 카드 렌더(discord_card). 이 워크플로가 check_releases·
         #    check_mer_thresholds 를 돌리는데, 없으면 카드가 조용히 텍스트로 강등된다
         #    (두 스크립트의 렌더 실패는 예외를 삼키므로 로그를 봐야만 알 수 있다).
-        run: pip install requests yfinance "pykrx==1.2.8" beautifulsoup4 lxml PyYAML matplotlib
+        run: pip install requests yfinance "pykrx==1.2.8" beautifulsoup4 lxml PyYAML matplotlib pynacl
 
       # KIS 토큰 영속 캐시 — 한국투자증권 API 는 토큰 1일 1회 발급 권장 (24h 유효).
       # 잦은 발급 시 카카오톡 알람·이용 제한이 발생하므로 GHA cache 액션으로
@@ -424,6 +424,7 @@ jobs:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}
+          GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}     # 카톡 메모 모드도 토큰을 받는다 — refresh_token 회전 저장
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_WEBHOOK_ALERTS: ${{ secrets.DISCORD_WEBHOOK_ALERTS }}
           DISCORD_WEBHOOK_SWINGS: ${{ secrets.DISCORD_WEBHOOK_SWINGS }}
