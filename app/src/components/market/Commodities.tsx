@@ -6,7 +6,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { SegBar } from '../ui'
 import { Heatmap } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { BigChart, ChangeText, Empty, MarketGrid, poolOf, type BodyProps } from './parts'
+import { BigChart, ChangeText, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 
 type Freight = { code: string; name: string; price: number | null; chgPct: number | null; date?: string }
 type Premium = { pct: number | null; basis?: string; krwPerG?: number | null; usdPerOz?: number | null; usdkrw?: number | null; asOf?: Record<string, string | null>; state?: string; formula?: string }
@@ -83,11 +83,13 @@ export default function Commodities({ b, selId, setS }: BodyProps<CommoditiesBun
     </Panel>
   )
 
-  const blocks = v === 'freight' ? [freight, heat, premium, enso] : [heat, freight, premium, enso]
+  const blocks: [string, Block][] = v === 'freight'
+    ? [['freight', freight], ['heat', heat], ['premium', premium], ['enso', enso]]
+    : [['heat', heat], ['freight', freight], ['premium', premium], ['enso', enso]]
   return (
     <>
       <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...blocks]} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...blocks]} />
     </>
   )
 }

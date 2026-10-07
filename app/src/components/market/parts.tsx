@@ -97,15 +97,18 @@ export function BigChart({ item, className = '' }: { item?: StripItem; className
 /** 격자 칸 클래스(Tailwind 가 찾을 수 있게 통째로 적는다). */
 const SPAN: Record<number, string> = { 4: 'pc:col-span-4', 6: 'pc:col-span-6', 12: 'pc:col-span-12' }
 
+export type Block = (cls: string, primary: boolean) => ReactNode
+
 /**
  * 시장 격자: 첫 칸 = 큰 차트(또는 그 자리 부품), 둘째 = 고른 보기 패널, 나머지는 원래 순서.
- * blocks 는 (칸 클래스, 첫 보기인지) → 패널. PC 12열, 모바일 1열 같은 순서.
+ * blocks 는 [패널 고유 키, (칸 클래스, 첫 보기인지) → 패널]. PC 12열, 모바일 1열 같은 순서.
+ * key 가 칸 번호가 아니라 패널이라, 보기를 바꿔 차례가 달라져도 접힘 · 더 보기가 다른 패널로 넘어가지 않는다.
  */
-export function MarketGrid({ blocks, per = 3 }: { blocks: ((cls: string, primary: boolean) => ReactNode)[]; per?: 2 | 3 }) {
+export function MarketGrid({ blocks, per = 3 }: { blocks: [string, Block][]; per?: 2 | 3 }) {
   const sp = spans(blocks.length, per)
   return (
     <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
-      {blocks.map((f, i) => <Fragment key={i}>{f(SPAN[sp[i]], i === 1)}</Fragment>)}
+      {blocks.map(([k, f], i) => <Fragment key={k}>{f(SPAN[sp[i]], i === 1)}</Fragment>)}
     </div>
   )
 }

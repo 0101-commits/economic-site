@@ -7,7 +7,7 @@ import { Settings as Gear } from 'lucide-react'
 import { Card, Pill, SegBar } from '../components/ui'
 import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
 import { applyTheme, readTheme, useTheme } from '../lib/theme'
-import { checkPin, hasPin, IDLE_MS, isUnlocked, lock, setPin, waitMs } from '../lib/pin'
+import { checkPin, hasPin, IDLE_MS, isUnlocked, setPin, waitMs } from '../lib/pin'
 import { loadBundle, ROOT } from '../lib/bundle'
 import { mdHm } from '../lib/format'
 import { applyUpdown, KEYS, readLedger, readPortfolio, readPrefs, readSnaps, wipeDevice, writePrefs, type Prefs } from '../lib/personal/store'
@@ -82,7 +82,6 @@ function Security() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="submit" disabled={busy} className={BTN}>{busy ? '확인 중' : has ? '바꾸기' : '켜기'}</button>
-          {has && <button type="button" className={BTN2} onClick={() => { lock(); setNote('잠갔습니다. 설정과 내 자산을 다시 열면 PIN 을 묻습니다.') }}>지금 잠그기</button>}
           <span role="alert" className="text-12 text-ink-2">{note}</span>
         </div>
       </form>

@@ -72,10 +72,13 @@ export default function Home() {
     if (st) return [{ id, label: st.name, short: st.short, shortM: st.shortM, decimals: 0, value: st.price, change: null, changePct: st.chgPct, asOf: home?.topAmount?.asOf ?? null, state: home?.topAmount?.state }]
     return id in extra ? [{ id, label: id, decimals: 0, value: null, change: null, changePct: null, asOf: null }] : []
   })
-  const strip = [...homeStrip, ...watchItems]
+  // 화면에 그리는 칸 = 띠 + 관심 최대 MAX_WATCH. 고를 수 있는 것은 지표(띠 · 지표 사전에서 찾은 관심)뿐 —
+  // 관심 종목(종목 코드)은 큰 차트로 받을 시계열이 없어 고르기 단추가 아니다.
+  const shown = [...homeStrip, ...watchItems].slice(0, homeStrip.length + MAX_WATCH)
+  const canPick = (id: string) => homeStrip.some(x => x.id === id) || !!extra[id]
 
   // 큰 차트: 고른 카드(s). 코스피는 홈 묶음 kospiChart, 그 밖은 시장 묶음 시계열(처음 고를 때 한 번 받는다)
-  const sel = strip.find(x => x.id === s) ?? strip[0]
+  const sel = shown.find(x => x.id === s && canPick(x.id)) ?? shown[0]
   const [series, setSeries] = useState<Record<string, Pt[] | null>>({})
   const useKospi = sel?.id === 'kospi' && !!home?.kospiChart
   useEffect(() => {
@@ -135,8 +138,8 @@ export default function Home() {
 
       {/* 지표 띠 8 + 관심 칸(9번째부터, 최대 8). 모바일 2열이라 짝을 맞추지 않는다 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 pc:grid-cols-8 gap-2">
-        {strip.slice(0, homeStrip.length + MAX_WATCH).map((it, i) => (
-          <StripCard key={it.id} item={it} selected={it.id === sel?.id} onSelect={() => setS(it.id)}
+        {shown.map((it, i) => (
+          <StripCard key={it.id} item={it} selected={it.id === sel?.id} onSelect={canPick(it.id) ? () => setS(it.id) : undefined}
             watched={watch.has(it.id)} onWatch={() => watch.toggle(it.id)} tag={i >= homeStrip.length ? <Pill tone="o">관심</Pill> : undefined} />
         ))}
       </div>

@@ -6,7 +6,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { SegBar } from '../ui'
 import { LineChart, Range52 } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { arrange, BigChart, ChangeText, CurveChart, CurveTable, Empty, EventList, MarketGrid, poolOf, type BodyProps, type Curve } from './parts'
+import { arrange, BigChart, ChangeText, CurveChart, CurveTable, Empty, EventList, MarketGrid, poolOf, type Block, type BodyProps, type Curve } from './parts'
 import { rebase } from './calc'
 
 type Compare = { from?: string; base?: number; series: Record<string, Pt[]> }
@@ -111,14 +111,14 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
     ),
   }
 
-  const first = v === 'compare'
-    ? (cls: string) => <CompareChart className={cls} compare={vw?.compare} lead={sel?.id} name={name} ids={Object.keys(vw?.compare?.series ?? {})} />
-    : (cls: string) => <BigChart className={cls} item={sel} />
+  const first: [string, Block] = v === 'compare'
+    ? ['compareChart', cls => <CompareChart className={cls} compare={vw?.compare} lead={sel?.id} name={name} ids={Object.keys(vw?.compare?.series ?? {})} />]
+    : ['big', cls => <BigChart className={cls} item={sel} />]
   const rest = arrange(v, VIEWS.map(o => o.key)).filter(k => !(v === 'compare' && k === 'compare'))
   return (
     <>
       <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
-      <MarketGrid blocks={[first, ...rest.map(k => panels[k])]} />
+      <MarketGrid blocks={[first, ...rest.map((k): [string, Block] => [k, panels[k]])]} />
     </>
   )
 }

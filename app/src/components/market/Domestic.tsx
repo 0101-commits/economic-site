@@ -7,7 +7,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { Pill, SegBar } from '../ui'
 import { DivergingBars, Heatmap } from '../charts'
 import { More, Panel, RankTable, type Col } from '../panels'
-import { arrange, BigChart, ChangeText, Empty, MarketGrid, poolOf, type BodyProps } from './parts'
+import { arrange, BigChart, ChangeText, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 import { column } from './calc'
 
 type Mover = Stock & { volume?: number | null }
@@ -271,7 +271,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
         <SegBar label="범위" options={SCOPES} value={m} onChange={setM} />
         <SegBar scroll label="보기" options={VIEWS} value={v} onChange={setV} />
       </div>
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...arrange(v, VIEWS.map(o => o.key)).map(k => panels[k]), corpPanel]} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...arrange(v, VIEWS.map(o => o.key)).map((k): [string, Block] => [k, panels[k]]), ['corp', corpPanel]]} />
     </>
   )
 }

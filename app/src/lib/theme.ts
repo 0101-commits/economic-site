@@ -17,5 +17,6 @@ export function applyTheme(t: Theme) {
   subs.forEach(f => f())
 }
 
+const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f) } }
 /** 지금 화면 모드. 이 탭에서 applyTheme 이 불리면 다시 그린다(다른 탭의 변경은 화면도 이 값도 따라가지 않는다 — 다음에 열 때). */
-export const useTheme = (): Theme => useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f) } }, readTheme)
+export const useTheme = (): Theme => useSyncExternalStore(subscribe, readTheme)

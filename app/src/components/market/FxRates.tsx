@@ -6,7 +6,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { AsOfBadge, SegBar } from '../ui'
 import { Range52 } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { arrange, BigChart, ChangeText, CurveChart, CurveTable, Empty, MarketGrid, poolOf, type BodyProps, type Curve } from './parts'
+import { arrange, BigChart, ChangeText, CurveChart, CurveTable, Empty, MarketGrid, poolOf, type Block, type BodyProps, type Curve } from './parts'
 
 type Bank = StripItem & { country?: string; nextMeeting?: Sched | null }
 export type FxRatesBundle = {
@@ -91,7 +91,7 @@ export default function FxRates({ b, selId, setS }: BodyProps<FxRatesBundle>) {
   return (
     <>
       <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
-      <MarketGrid blocks={[cls => <BigChart className={cls} item={sel} />, ...arrange(v, VIEWS.map(o => o.key)).map(k => panels[k])]} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...arrange(v, VIEWS.map(o => o.key)).map((k): [string, Block] => [k, panels[k]])]} />
     </>
   )
 }
