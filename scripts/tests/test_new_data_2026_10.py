@@ -522,24 +522,37 @@ def test_corp_events_failures_keep_previous():
 DATA = bb.load("data.json")
 MER = bb.load("mer_signals.json", {})
 NOW = bb._iso_dt(DATA["lastUpdated"]).astimezone(bb.KST) + dt.timedelta(minutes=5)
+# KRX 순위 기준일은 NOW 상대값 — 고정 날짜(2026-09-30)는 data_sla 의 rankingsKr 4일 SLA 를 넘기면 state 가 stale 로 바뀌어
+# 테스트가 날짜 시한폭탄이 된다(2026-10-07 CI 실측 — pytest 마커 캐시가 깨진 날 전 런이 멈췄다).
+RK_ASOF = (NOW.date() - dt.timedelta(days=1)).isoformat()
+# 시도 지수 월 키도 같은 이유로 NOW 상대값 — 지난달 말이 월간 SLA(70일) 안이다(고정 202608 은 11월에 터졌다).
+M_END = NOW.date().replace(day=1) - dt.timedelta(days=1)
+
+
+def _ym(back: int) -> str:
+    """지난달에서 back 달 전 → 'YYYYMM'."""
+    y, m = M_END.year, M_END.month - back
+    while m <= 0:
+        y, m = y - 1, m + 12
+    return f"{y}{m:02d}"
 
 
 def _rich():
     """data.json + 신규 3블록(실제 크기: 시도 17×36×2, 시장별 20행×4, 일정 60건)."""
     d = copy.deepcopy(DATA)
-    pts = [[f"{2023 + (i + 8) // 12}{(i + 8) % 12 + 1:02d}", round(95 + i * 0.123456, 3)] for i in range(36)]
+    pts = [[_ym(35 - i), round(95 + i * 0.123456, 3)] for i in range(36)]          # 36개월, 끝 = 지난달
     # 봇이 갱신하는 저장소 data.json 에 기대지 않게 필요한 칸은 여기서 고정한다(시도 지도 17곳)
     kr = d.setdefault("realestate", {}).setdefault("kr", {})
-    kr["region"] = [{"code": c, "val": 0.1, "period": "202608"} for c in fd.RONE_SIDO_CLS]
-    kr["region_sub"] = {"11": {"period": "202608", "subs": [{"name": "강남구", "val": 0.5}], "source": "R-ONE:x"}}
+    kr["region"] = [{"code": c, "val": 0.1, "period": pts[-1][0]} for c in fd.RONE_SIDO_CLS]
+    kr["region_sub"] = {"11": {"period": pts[-1][0], "subs": [{"name": "강남구", "val": 0.5}], "source": "R-ONE:x"}}
     kr["regionSeries"] = {c: {"apt": pts, "jns": pts, "period": pts[-1][0], "source": "R-ONE:x"}
                           for c in fd.RONE_SIDO_CLS}
     row = lambda i, m: {"name": "종목%02d" % i, "code": "%06d" % i, "price": 85000.0, "chg": 1.19, "vol": 1.5e7,
-                        "amount": 1.27e12, "mktcap": 5.07e14, "market": m, "as_of": "2026-09-30", "type": "STOCK",
+                        "amount": 1.27e12, "mktcap": 5.07e14, "market": m, "as_of": RK_ASOF, "type": "STOCK",
                         "high": 85500.0, "low": 83800.0}
     rk = d.setdefault("rankingsKr", {})
     for k in ("marketCap", "volume", "high52", "low52"):
-        rk[k] = {"as_of": "2026-09-30", "kospi": [row(i, "KOSPI") for i in range(20)],
+        rk[k] = {"as_of": RK_ASOF, "kospi": [row(i, "KOSPI") for i in range(20)],
                  "kosdaq": [row(i, "KOSDAQ") for i in range(20)]}
     rk["high52"]["count"] = {"kospi": 37, "kosdaq": 51}
     today = NOW.date().isoformat()
@@ -560,7 +573,7 @@ def test_bundles_carry_new_fields_within_200kb():
             assert len(bb.dumps(obj).encode("utf-8")) <= bb.MAX_BYTES, name
     v = b["market-domestic"]["views"]
     for k in ("marketCap", "volume", "high52", "low52"):
-        assert len(v[k]["kospi"]) == 20 and len(v[k]["kosdaq"]) == 20 and v[k]["asOf"] == "2026-09-30"
+        assert len(v[k]["kospi"]) == 20 and len(v[k]["kosdaq"]) == 20 and v[k]["asOf"] == RK_ASOF
         assert v[k]["state"] in ("prev", "live") and v[k]["kospi"][0]["isEtf"] is False
     assert v["marketCap"]["kospi"][0]["marketCap"] == 5.07e14 and v["high52"]["count"] == {"kospi": 37, "kosdaq": 51}
     assert v["corpEvents"]["items"][0]["kind"] == "earnings" and len(v["corpEvents"]["items"]) == 60
@@ -570,7 +583,7 @@ def test_bundles_carry_new_fields_within_200kb():
     re_ = b["market-realestate"]["views"]
     cap = re_["capital"]
     assert set(cap) == set(bb.CAPITAL_AREA) and len(cap["11"]["series"]["apt"]) == 36
-    assert cap["11"]["series"]["jns"][-1][0] == "2026-08"                                  # 월 키는 화면 표기(YYYY-MM)
+    assert cap["11"]["series"]["jns"][-1][0] == f"{M_END.year}-{M_END.month:02d}"          # 월 키는 화면 표기(YYYY-MM)
     assert all("series" in it for it in re_["regions"]["items"]) and re_["regions"]["seriesState"] == "prev"
 
 
