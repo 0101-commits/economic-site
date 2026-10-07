@@ -574,6 +574,7 @@ async function _testGemini(key) {
 //   공개 저장소에 있으면 누구나 오프라인 대입을 할 수 있었다(감사: 잠금 PIN 과 같은 암호 → 복호화 성공).
 const ALERTS_CONFIG_PATH = 'alerts_config.json';
 const ENC_HOLDINGS_KV_KEY = 'portfolio:encHoldings';
+const ENC_HOLDINGS_PREV_KV_KEY = 'portfolio:encHoldings:prev';
 const ALERT_TYPES = ['price_above', 'price_below', 'pct_change', 'high52', 'low52',
                      'vol_surge', 'golden_cross', 'dead_cross'];
 
@@ -793,25 +794,32 @@ async function _verifySyncKey(body, env) {
   return null;   // 통과
 }
 
-// 🔑 동기화 키 바꾸기 — POST /sync-key
-//   헤더 X-Sync-Key-Hash = 지금 키의 해시, 본문 { newKeyHash } = 새 암호의 SHA-256 → KV 에 저장.
-//   본문에 newKeyHash 가 없으면 확인만 한다(사이트의 'PIN 잊음' — 키가 맞는지만 보고 아무것도 안 바꾼다).
-//   레이트리밋은 POST 공통 관문(AI_LIMITER)이 건다. 서버는 해시만 받으므로 길이 규칙은 프론트가 건다.
+// 🔑 동기화 키 확인 · 바꾸기 — POST /sync-key (계약: docs/superpowers/specs/2026-10-07-usage-pattern-plan.md B5)
+//   확인만(사이트의 'PIN 잊음'): 헤더 X-Sync-Key-Hash = 지금 키의 해시, 본문에 newKey 없음 → 200 / 401.
+//   바꾸기: 본문 { currentKey, newKey } 원문(TLS 안). SHA-256(currentKey.trim()) 이 기대 해시와 같아야 하고,
+//     newKey.trim() 은 12자 이상 · 지금 키와 달라야 한다(400 weak_new_key) → KV 에 SHA-256(newKey.trim()).
+//   옛 계약(본문 newKeyHash)은 400 use_new_key — 해시만 손에 넣은 사람이 키를 바꿔 주인을 내쫓지 못하게.
+//   레이트리밋은 POST 공통 관문(AI_LIMITER)이 건다.
+// ponytail: 바뀐 것을 디스코드 #시스템에 알리지 않는다 — Worker 에 디스코드 웹훅 시크릿이 없다(Interactions 응답 토큰뿐).
+//   알려야 하면 DISCORD_WEBHOOK_SYSTEM 을 Worker 시크릿으로 넣고 여기서 ctx.waitUntil 로 한 줄 보낸다(키 글자 · 해시 미기재).
 async function handleSyncKey(request, env) {
   const raw = await request.text();
   if (raw.length > 1000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let body;
   try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
-  const denied = await _verifySyncKey({ keyHash: request.headers.get('X-Sync-Key-Hash') }, env);
-  if (denied) return denied;
-  if (!body || body.newKeyHash === undefined) return jsonResponse({ ok: true, changed: false });
-  const nh = String(body.newKeyHash || '').toLowerCase();
-  // 빈 문자열의 해시는 거부 — 프론트 버그로 빈 암호가 서버 키가 되는 길을 막는다.
-  if (!HEX64.test(nh) || nh === 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855') {
-    return jsonResponse({ error: 'invalid_new_key_hash' }, 400);
+  if (!_isObj(body)) body = {};
+  if (body.newKeyHash !== undefined) return jsonResponse({ error: 'use_new_key' }, 400);
+  if (body.newKey === undefined) {
+    const denied = await _verifySyncKey({ keyHash: request.headers.get('X-Sync-Key-Hash') }, env);
+    return denied || jsonResponse({ ok: true, changed: false });
   }
+  const cur = typeof body.currentKey === 'string' ? body.currentKey.trim() : '';
+  const nk = typeof body.newKey === 'string' ? body.newKey.trim() : '';
+  const denied = await _verifySyncKey({ keyHash: cur ? await _sha256Hex(cur) : '' }, env);
+  if (denied) return denied;
+  if (nk.length < 12 || nk === cur) return jsonResponse({ error: 'weak_new_key' }, 400);
   if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
-  try { await env.ECON_PORTFOLIO.put(SYNC_KEY_KV_KEY, nh); }
+  try { await env.ECON_PORTFOLIO.put(SYNC_KEY_KV_KEY, await _sha256Hex(nk)); }
   catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
   return jsonResponse({ ok: true, changed: true });
 }
@@ -839,8 +847,14 @@ async function handlePortfolioPost(request, env) {
   const encHoldings = _sanitizeEncHoldings(body.encHoldings);
   if (encHoldings) {
     if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
-    try { await env.ECON_PORTFOLIO.put(ENC_HOLDINGS_KV_KEY, JSON.stringify(encHoldings)); }
-    catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+    // 덮기 전 지금 판을 한 판 남긴다(30일) — 보유 덮어쓰기는 해시만으로 되므로(자동 올림이 원문을 못 든다, B5),
+    //   해시를 손에 넣은 사람이 덮어써도 한 판은 되돌릴 수 있게. 되돌리기는 README 「보유 이전 판」.
+    const next = JSON.stringify(encHoldings);
+    try {
+      const prev = await env.ECON_PORTFOLIO.get(ENC_HOLDINGS_KV_KEY);
+      if (prev && prev !== next) await env.ECON_PORTFOLIO.put(ENC_HOLDINGS_PREV_KV_KEY, prev, { expirationTtl: 30 * 86400 });
+      await env.ECON_PORTFOLIO.put(ENC_HOLDINGS_KV_KEY, next);
+    } catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
   }
   // 보유 암호문만 온 요청(alerts·settings·tracking 전부 미동봉)은 공개 파일을 건드리지 않는다 —
   //   내용이 안 바뀌는 커밋이었고, 커밋 시각이 「보유를 맞춘 때」로 공개 이력에 남았다(2026-10-02 검토).
@@ -1085,8 +1099,18 @@ async function _readJsonBody(request, maxBytes) {
 //   값 비교만 한다 — `*`·약한 비교(W/"…")는 지원하지 않아 409 가 된다.
 // ponytail: KV 는 트랜잭션이 없고 다른 지역에 반영되기까지 최대 약 60초 걸린다. 그 사이 다른 지역 기기의 PUT 은
 //   서로 덮어쓸 수 있다(같은 기기·같은 지역의 연속 저장은 잡힌다). 엄밀한 비교-후-쓰기가 필요하면 Durable Object 로 옮긴다.
+// 발송기 읽기(B6) — 헤더 X-Push-Read-Key 가 오면 그 길로만 판단하고 GET 만 받는다. CI 가 동기화 키를 갖지 않게 하려는
+//   길이라 쓰기는 여전히 동기화 키만 된다. 이 헤더는 CORS 허용 헤더에 없어 브라우저에서는 쓸 수 없다(서버 간 호출 전용).
 async function handlePrefs(request, env) {
-  const a = await _userKvKey(request, env, 'prefs:');
+  const reader = request.headers.has('X-Push-Read-Key');
+  if (reader && request.method !== 'GET') return jsonResponse({ error: 'read_only' }, 403);
+  let a;
+  if (reader) {
+    const s = await _pushReadSpace(request, env);
+    a = s.denied ? s : { kvKey: 'prefs:' + s.space };
+  } else {
+    a = await _userKvKey(request, env, 'prefs:');
+  }
   if (a.denied) return a.denied;
   let cur;
   try { cur = await env.ECON_PORTFOLIO.get(a.kvKey, 'json'); }
@@ -1187,24 +1211,32 @@ async function handleUserData(request, env, path) {
 //   PUSH_READ_KEY 가 없으면 503(fail-closed), 틀리면 401.
 // 발송 대상은 지금 유효한 동기화 키의 공간(push:<기대 해시 앞 16자>) 하나뿐이다. 키를 바꾸면 옛 키 공간의 구독에는
 //   보내지 않는다 — 옛 키를 알던 사람이 넣어 둔 구독이 알림 내용을 계속 받지 않게. 기기에서 다시 켜면 새 공간에 들어간다.
+// 발송기 인증 — 시크릿 PUSH_READ_KEY 와 헤더를 상수 시간으로 비교하고, 지금 유효한 동기화 키 공간 이름(기대 해시 앞 16자)을
+//   돌려준다. { space } 또는 { denied }. /push/subscriptions · /push/prune · 발송기의 GET /prefs 가 같이 쓴다.
+async function _pushReadSpace(request, env, hdrs) {
+  const secret = String(env.PUSH_READ_KEY || '').trim();
+  if (!secret) return { denied: jsonResponse({ error: 'push_read_not_configured' }, 503, hdrs) };
+  if (!_hexEq(String(request.headers.get('X-Push-Read-Key') || '').trim(), secret)) {
+    return { denied: jsonResponse({ error: 'unauthorized' }, 401, hdrs) };
+  }
+  if (!env.ECON_PORTFOLIO) return { denied: jsonResponse({ error: 'kv_not_configured' }, 503, hdrs) };
+  let h;
+  try { h = await _expectedSyncKeyHash(env); }
+  catch (_) { return { denied: jsonResponse({ error: 'kv_read_failed' }, 503, hdrs) }; }
+  if (!h) return { denied: jsonResponse({ error: 'sync_key_not_configured' }, 503, hdrs) };
+  return { space: h.slice(0, 16) };
+}
+
 async function handlePushSender(request, env, path) {
   const nc = { 'Cache-Control': 'no-store' };   // 브라우저용이 아니므로 CORS 헤더를 붙이지 않는다
   const want = path === '/push/subscriptions' ? 'GET' : 'PUT';
   if (request.method !== want) return jsonResponse({ error: 'method_not_allowed', allow: [want] }, 405, nc);
-  const secret = String(env.PUSH_READ_KEY || '').trim();
-  if (!secret) return jsonResponse({ error: 'push_read_not_configured' }, 503, nc);
-  if (!_hexEq(String(request.headers.get('X-Push-Read-Key') || '').trim(), secret)) {
-    return jsonResponse({ error: 'unauthorized' }, 401, nc);
-  }
-  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, nc);
-  let space, kvKey, subs;
-  try {
-    const h = await _expectedSyncKeyHash(env);
-    if (!h) return jsonResponse({ error: 'sync_key_not_configured' }, 503, nc);
-    space = h.slice(0, 16);
-    kvKey = 'push:' + space;
-    subs = await env.ECON_PORTFOLIO.get(kvKey, 'json');
-  } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, nc); }
+  const a = await _pushReadSpace(request, env, nc);
+  if (a.denied) return a.denied;
+  const space = a.space, kvKey = 'push:' + space;
+  let subs;
+  try { subs = await env.ECON_PORTFOLIO.get(kvKey, 'json'); }
+  catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, nc); }
   if (!Array.isArray(subs)) subs = [];
   if (want === 'GET') {
     // 조용한 시간(/prefs settings.quiet, 한국 시각 HH:MM) — 발송기가 이 시간엔 폰 알림을 보내지 않는다. 못 읽으면 null.
