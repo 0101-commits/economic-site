@@ -33,7 +33,8 @@ async function call(method: string, path: string, hash: string | null, body?: un
   const headers: Record<string, string> = {}
   if (hash) headers['X-Sync-Key-Hash'] = hash
   if (body !== undefined) headers['content-type'] = 'application/json'
-  const r = await fetch(WORKER + path, { method, headers, cache: 'no-store', body: body === undefined ? undefined : JSON.stringify(body) })
+  // 15초 상한 — 이 기기 지우기(store.wipeDevice)가 해지 응답을 기다리다 멈추지 않게
+  const r = await fetch(WORKER + path, { method, headers, cache: 'no-store', body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000) })
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(MSG[r.status] ?? `서버 오류(${r.status})`)
   return j

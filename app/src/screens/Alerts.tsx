@@ -661,7 +661,7 @@ function Channels({ prefs, setS, ledger, today, sync }: { prefs: Prefs; setS: (k
   )
 }
 
-/** 「이 기기 기억」(PIN 뒤 · 탭 닫아도 유지)과 기억한 키로 다시 잇기. PIN 이 이 탭에서 이미 열려 있으면 묻지 않는다. */
+/** 「이 기기 기억」(켤 때 PIN · 탭 닫아도 유지)과 기억한 키로 다시 잇기(PIN 없이 — 결정 D10). 켤 때 PIN 이 이 탭에서 이미 열려 있으면 묻지 않는다. */
 function KeepBox({ on, onKept }: { on: boolean; onKept: (v: boolean) => void }) {
   const [kept, setKept] = useState(hasKeptKey)
   const [ask, setAsk] = useState(false)
@@ -678,8 +678,8 @@ function KeepBox({ on, onKept }: { on: boolean; onKept: (v: boolean) => void }) 
   }
   const resume = async () => {
     setBusy(true)
-    const ok = await resumeSync(pin)
-    setBusy(false); setPin('')
+    const ok = await resumeSync()
+    setBusy(false)
     setNote(ok ? '' : '이어 가지 못했습니다.')
   }
   const pinForm = (go: () => void, label: string) => (
@@ -694,14 +694,14 @@ function KeepBox({ on, onKept }: { on: boolean; onKept: (v: boolean) => void }) 
       {!hasPin() && <p className="mt-1 mb-0 text-12 text-ink-3"><Link to="/settings" className="text-ink-2">설정</Link>에서 PIN 을 켜야 기억할 수 있습니다.</p>}
       {ask && !kept && pinForm(() => void keep(true), '기억하기')}
       {note && <p role="alert" className="mt-1 mb-0 text-12 text-warn">{note}</p>}
-      <p className="mt-1 mb-0 text-12 text-ink-3">기억하면 키 해시를 이 기기에 둡니다. 새 탭에서는 PIN 을 넣어야 이어집니다. 동기화를 끄면 같이 지웁니다.</p>
+      <p className="mt-1 mb-0 text-12 text-ink-3">기억하면 키 해시를 이 기기에 둡니다. 새 탭에서도 저절로 이어집니다. 동기화를 끄면 같이 지웁니다.</p>
     </div>
   )
   if (!kept) return null
   return (
     <div className="mt-3">
       <p className="m-0 text-12 text-ink-2">이 기기에 기억한 동기화 키가 있습니다.</p>
-      {isUnlocked() ? <button type="button" disabled={busy} className={`${BTN} mt-2`} onClick={() => void resume()}>이어 가기</button> : pinForm(() => void resume(), '이어 가기')}
+      <button type="button" disabled={busy} className={`${BTN} mt-2`} onClick={() => void resume()}>이어 가기</button>
       {note && <p role="alert" className="mt-1 mb-0 text-12 text-warn">{note}</p>}
     </div>
   )
