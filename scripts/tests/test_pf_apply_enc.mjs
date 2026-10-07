@@ -12,7 +12,7 @@ function slice(marker, endMarker) {
   if (i < 0 || j < 0) throw new Error('markers not found: ' + marker);
   return src.slice(i, j);
 }
-const encBlock = slice('const PF_KDF_ITER', '// 자동 복원이 조용히 건너뛴');
+const encBlock = slice('const PF_KDF_ITER', '// ── 페이지 초기화');
 const refreshBlock = slice('async function pfRefreshQuotes(manual) {', '// ── 종목 검색/추가');
 const addBlock = slice('function pfAddItem() {', 'function pfDeleteItem(');
 const trackBlock = slice('function pfBuildTrackingPayload() {', 'async function pfSyncAlerts(');
