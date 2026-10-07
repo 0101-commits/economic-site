@@ -1374,6 +1374,39 @@ export const fullFetchMode = (d) => {
 let _lastFullSlot = '';
 let _lastWatchSlot = '';
 
+// 🔔 알림 v2 정시 깨움 — briefing.yml(브리핑 6슬롯) · alerts-v2.yml(settle · eve)은 GHA schedule 에만 매달려
+//   있었고, 그 schedule 은 5~7시간 늦게 발화했다(2026-10-06 실측: 마감 16:30 → 23:20 KST, settle 18:05 → 00:50 KST,
+//   아침 07:30 은 10시가 넘도록 안 옴). 풀 런 · watchdog 처럼 매분 cron 이 그 분에 repository_dispatch 로 깨운다.
+//   표는 UTC(cron 글자와 같은 값) — 두 워크플로의 cron 과 같아야 한다(scripts/tests/test_slot_schedule.py 가 대조).
+//   중복은 워크플로가 흡수한다(브리핑 = 날짜+슬롯 캐시 마커, settle/eve = 원장 key 40일 dedup).
+//   자가 점검: node cloudflare-worker/test_offhours_tick.mjs
+export const V2_DISPATCH = [
+  // [분, 시, cron 요일(0=일), event_type, client_payload]
+  [30, 22, '0-4', 'brief', { slot: 'morning' }],
+  [0, 3, '1-5', 'brief', { slot: 'noon' }],
+  [30, 7, '1-5', 'brief', { slot: 'close' }],
+  [30, 9, '1-5', 'brief', { slot: 'evening' }],
+  [40, 13, '1-5', 'brief', { slot: 'us' }],
+  [0, 0, '6', 'brief', { slot: 'weekly' }],
+  [5, 9, '1-5', 'alerts-v2', { mode: 'settle' }],
+  [0, 12, '*', 'alerts-v2', { mode: 'eve' }],
+];
+const _dowMatch = (spec, dow) => spec === '*' || spec.split(',').some((p) => {
+  const [a, b] = p.split('-').map(Number);
+  return dow >= a && dow <= (b === undefined ? a : b);
+});
+// 지금 분(+1 드롭 보강)에 깨울 항목 → [{event, payload, key}]. key = UTC 날짜 + 항목(슬롯당 1회 dedup).
+export const v2Ticks = (d) => {
+  const out = [];
+  for (const [mi, hr, dow, event, payload] of V2_DISPATCH) {
+    const m = d.getUTCMinutes();
+    if (d.getUTCHours() !== hr || m < mi || m > mi + 1 || !_dowMatch(dow, d.getUTCDay())) continue;
+    out.push({ event, payload, key: `${d.toISOString().slice(0, 10)}-${event}-${Object.values(payload)[0]}` });
+  }
+  return out;
+};
+const _v2Done = new Set();
+
 // 📲 카카오 발송 슬롯 판정(KST) — kakao-daily.yml 의 '발송 창 게이트'와 동일 규칙.
 //   • 평일(월~금) 07~22시 매시간 / 주말(토·일) 11·17시.
 // */5 cron 재시도 dispatch 의 게이트로만 쓴다(실제 발송 여부의 단일 진실원은 워크플로 게이트).
@@ -1713,6 +1746,15 @@ export default {
         _lastWatchSlot = watchKey;
         ctx.waitUntil((async () => {
           if (await ghDispatch(env, 'watchdog', {}, 'ecom-watchdog-cron') === false) _lastWatchSlot = prevWatch;
+        })());
+      }
+      // 🔔 알림 v2 정시 깨움(브리핑 · settle · eve) — 표는 V2_DISPATCH. 실패하면 마커를 지워 다음 분(+1 보강)이 재시도한다.
+      for (const t of v2Ticks(now)) {
+        if (_v2Done.has(t.key)) continue;
+        if (_v2Done.size > 64) _v2Done.clear();   // 아이솔레이트 수명 동안만 — 하루 8건이라 상한은 넉넉
+        _v2Done.add(t.key);
+        ctx.waitUntil((async () => {
+          if (await ghDispatch(env, t.event, t.payload, 'ecom-v2-cron') === false) _v2Done.delete(t.key);
         })());
       }
     } else {
