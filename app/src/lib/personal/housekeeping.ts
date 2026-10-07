@@ -6,6 +6,7 @@
 //               마지막 = 만든 때(id 'p'+시각) · 다시 켠 때(armedAt) · 원장에서 본 마지막 울림 · 이 기록을 처음 쓴 때 중 가장 늦은 것.
 //               원장 최신판은 7일치뿐이라 본 울림을 ring 에 쌓아 둔다.
 //   90일 미열람 알림 화면을 90일 동안 안 열면 꾸러미를 「조용히」로 내리고 demoted 를 찍는다 — 알림 화면이 다음에 열릴 때 한 줄로 알리고 지운다.
+//               설정 › 고급에서 끌 수 있다(settings.autoQuiet = false — 이 기기만).
 import type { Prefs } from './store'
 import { setPackage } from './prefsV2.ts'
 
@@ -33,7 +34,7 @@ export function housekeep(p: Prefs, hk: Hk, now: number, seen: number, rows: { c
   })
   let settings = p.settings
   let demoted = hk.demoted
-  if (now - Math.max(seen, since) >= 90 * DAY && settings.package !== 'quiet') {
+  if (settings.autoQuiet !== false && now - Math.max(seen, since) >= 90 * DAY && settings.package !== 'quiet') {
     settings = setPackage(settings, 'quiet')
     demoted = now
     changed = true
