@@ -19,6 +19,11 @@ test('syncKeyCheck: 해시는 머리에만 · 본문은 빈 객체 · 맞으면 
     assert.equal(sent[0].url, `${WORKER}/sync-key`)
     assert.equal(sent[0].init.method, 'POST')
     assert.deepEqual(JSON.parse(String(sent[0].init.body)), {})
+    // 2xx 인데 ok:true 가 없으면(중간 장비의 빈 200 등) 맞은 것으로 보지 않는다 — PinGate 는 200 일 때만 PIN 을 지운다
+    globalThis.fetch = (async () => new Response('<html></html>', { status: 200 })) as unknown as typeof fetch
+    assert.equal(await syncKeyCheck(hash), -1)
+    globalThis.fetch = (async () => new Response(JSON.stringify({ ok: 'yes' }), { status: 200 })) as unknown as typeof fetch
+    assert.equal(await syncKeyCheck(hash), -1)
     globalThis.fetch = (async () => { throw new TypeError('Failed to fetch') }) as unknown as typeof fetch
     assert.equal(await syncKeyCheck(hash), 0)
   } finally { globalThis.fetch = real }

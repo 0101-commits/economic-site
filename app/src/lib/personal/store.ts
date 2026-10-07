@@ -104,9 +104,10 @@ export function pushRecent(r: Recent) {
 /**
  * 이 기기 데이터 지우기 대상. 잠금 PIN 은 남긴다(설정 화면이 그렇다고 적는다 — PIN 잊음에서 지울 때는 PinGate 가 따로 지운다).
  * 현행 화면(js/app2.js)의 동기화 키 해시 · 보유 암호(pfSyncKey* · pfHoldingsPass)도 지운다 — 예전 판은 localStorage 에, 지금 판은 이 탭 sessionStorage 에 둔다.
+ * econHoldQuotes_v1 = 보유 종목 시세 캐시(quotes.ts, sessionStorage) — 종목 목록이 드러나므로 같이 지운다.
  */
 export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
-  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econ_scenarios_v1', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1']
+  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econ_scenarios_v1', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1', 'econHoldQuotes_v1']
 /** 지우기 전에 이 기기 폰 알림 구독을 끊는다(서버 쪽 해지에 동기화 키 해시가 쓰인다 — 그래서 동기화는 이 뒤에 끈다). 못 끊어도 지우기는 계속. */
 export async function wipeDevice(getKeyHash: GetKeyHash): Promise<boolean> {
   await unsubscribePush(getKeyHash).catch(() => {})

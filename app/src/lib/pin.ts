@@ -52,33 +52,45 @@ export async function samePin(pin: string): Promise<boolean> {
   return !!p && (await pbkdf2Hex(pin, p.salt, p.iter)) === p.hash
 }
 
-/** 잠금 풀기 시도. 맞으면 해제 표시 + 실패 셈을 지우고 true, 틀리면 셈을 올린다. 기다리는 중이면 견주지 않고 false. */
+/**
+ * 잠금 풀기 시도. 기다리는 중이면 견주지 않고 false. 견주기(PBKDF2 수백 ms) 전에 실패 한 번을 먼저 적고 맞으면 지운다 —
+ * 뒤에 적으면 그 사이에 넣은 시도들이 같은 셈을 읽어 덜 세어진다.
+ */
 export async function checkPin(pin: string, now = Date.now()): Promise<boolean> {
   if (waitMs(now) > 0) return false
+  const n = readFail().n + 1
+  writeFail({ n, until: now + failDelay(n) })
   const ok = await samePin(pin)
-  if (ok) { markUnlocked(); ss(() => localStorage.removeItem(FAIL_KEY)) }
-  else { const n = readFail().n + 1; ss(() => localStorage.setItem(FAIL_KEY, JSON.stringify({ n, until: now + failDelay(n) }))) }
+  if (ok) { markUnlocked(); writeFail(null) }
   return ok
 }
 
 /** PIN 잊음: 이 기기 PIN 과 실패 셈을 지운다(동기화 키를 확인했거나 이 기기 데이터를 지운 뒤에만 — PinGate). */
 export function clearPin() {
   lock()
-  ss(() => { localStorage.removeItem(PIN_KEY); localStorage.removeItem(FAIL_KEY) })
+  ss(() => localStorage.removeItem(PIN_KEY))
+  writeFail(null)
 }
 
 // ── 실패 대기 ────────────────────────────────────────────
 export type Fail = { n: number; until: number }
 /** n 번째로 틀린 뒤 기다릴 시간(ms). */
 export const failDelay = (n: number) => (n >= 10 ? 5 * 60_000 : n >= 5 ? 30_000 : 0)
+let memFail: Fail | null = null   // localStorage 에 못 쓸 때(시크릿 창 · 막힘)만 이 탭 안에서 센다
 export function readFail(): Fail {
+  if (memFail) return memFail
   try {
     const f = JSON.parse(localStorage.getItem(FAIL_KEY) || 'null')
     return f && Number.isFinite(f.n) && Number.isFinite(f.until) ? { n: f.n, until: f.until } : { n: 0, until: 0 }
   } catch { return { n: 0, until: 0 } }
 }
-/** 기다리는 중이면 남은 ms, 아니면 0. */
-export const waitMs = (now = Date.now()) => Math.max(0, readFail().until - now)
+/** null = 지우기. 저장소에 못 쓰면 모듈 메모리에 둔다 — 셈이 사라져 대기가 풀리지 않게. */
+function writeFail(f: Fail | null) {
+  try { if (f) localStorage.setItem(FAIL_KEY, JSON.stringify(f)); else localStorage.removeItem(FAIL_KEY); memFail = null }
+  catch { memFail = f }
+}
+/** 기다리는 중이면 남은 ms, 아니면 0. 시계를 되돌려도 그 회차 대기보다 길게 남지 않는다. */
+export const waitMs = (now = Date.now()) => { const f = readFail(); return Math.max(0, Math.min(f.until - now, failDelay(f.n))) }
 
 function ss(fn: () => void) { try { fn() } catch { /* 저장소 막힘 = 잠긴 채로 둔다 */ } }
 

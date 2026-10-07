@@ -74,3 +74,33 @@ test('readFail: 깨진 값 · 저장소 막힘 = 실패 없음', () => {
   g.localStorage = { getItem: () => { throw new Error('blocked') } }
   assert.deepEqual(readFail(), { n: 0, until: 0 })
 })
+
+test('checkPin: 한꺼번에 넣은 시도도 하나씩 세어 대기를 건다(견주기 전에 먼저 적는다)', async () => {
+  await fastPin(PIN)
+  sessionStorage.removeItem('econLockOk_v1')
+  const r = await Promise.all([WRONG, WRONG, WRONG, WRONG, WRONG, PIN].map(p => checkPin(p, 0)))
+  assert.deepEqual(r, [false, false, false, false, false, false], '다섯 번째 실패가 적힌 뒤의 시도는 맞아도 견주지 않는다')
+  assert.equal(readFail().n, 5)
+  assert.equal(waitMs(0), 30_000)
+  assert.equal(isUnlocked(), false)
+})
+
+test('waitMs: 시계를 되돌려도 그 회차 대기보다 길게 남지 않는다', async () => {
+  await fastPin(PIN)
+  const t0 = 1_000_000_000
+  for (let i = 0; i < 5; i++) await checkPin(WRONG, t0)
+  assert.equal(waitMs(t0 - 3_600_000), 30_000, '한 시간 되돌려도 30초')
+})
+
+test('checkPin: 저장소에 못 쓰면 이 탭 메모리에 세고, 맞히면 지운다', async () => {
+  await fastPin(PIN)
+  const ls = localStorage as unknown as Record<string, unknown>
+  ls.setItem = () => { throw new Error('QuotaExceededError') }
+  ls.removeItem = () => { throw new Error('QuotaExceededError') }
+  const t0 = 5_000_000
+  for (let i = 0; i < 5; i++) assert.equal(await checkPin(WRONG, t0), false)
+  assert.equal(readFail().n, 5)
+  assert.equal(await checkPin(PIN, t0 + 1_000), false, '대기가 저장 실패로 풀리지 않는다')
+  assert.equal(await checkPin(PIN, t0 + 30_000), true)
+  assert.deepEqual(readFail(), { n: 0, until: 0 })
+})

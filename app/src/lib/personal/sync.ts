@@ -170,9 +170,21 @@ function onVisibility() {
   else if (Date.now() - lastPull > PULL_MS) void pullPrefs()
 }
 
+/**
+ * 다른 탭이 「이 기기 데이터 지우기」(설정 문서 삭제)나 동기화 끄기 · 기억 끄기(KEEP_KEY 삭제)를 하면 이 탭도 끈다 —
+ * 그대로 두면 이 탭이 비워진 저장소를 기본값 문서로 읽어 서버에 올리고, 서버의 알림 조건이 사라진다.
+ * 같은 탭 안에서 이 앱이 쏘는 storage 이벤트(writeLocal · tidyAlerts · 알림 시트)는 storageArea 가 없어 걸리지 않는다.
+ * 같은 탭의 지우기는 wipeDevice 가 끝난 바로 뒤(타이머가 끼어들 틈 없이) disableSync 를 부르므로 여기와 무관하다.
+ */
+function onStorage(e: StorageEvent) {
+  if (e.storageArea !== localStorage || e.newValue !== null || (e.key !== KEEP_KEY && e.key !== KEYS.prefs)) return
+  if (getKeyHash()) disableSync('다른 탭에서 동기화를 끄거나 이 기기 데이터를 지워 이 탭도 껐습니다.')
+}
+
 /** 앱이 뜰 때 한 번(main.tsx). 이 탭에 키 해시가 없으면 기억한 해시를 옮겨 오고(PIN 없이), 있으면 서버 내용을 받고 감시를 시작한다. */
 export function startSync() {
   document.addEventListener('visibilitychange', onVisibility)
+  window.addEventListener('storage', onStorage)
   const kept = keptHash()
   if (!getKeyHash() && kept) { try { sessionStorage.setItem(HASH_KEY, kept) } catch { /* 막힌 저장소 = 잇지 않음 */ } }
   if (getKeyHash()) begin()

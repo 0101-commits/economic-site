@@ -407,13 +407,15 @@ window.retryLoadRealData = async function (btn) {
 /* ── 6.4 통합 백업·복구 (암호화 옵션) ───────────────────────────────────── */
 var ECON_BACKUP_KEYS = [
   'econ_settings_v1', 'econ_theme',
-  'portfolioV1', 'pfSnapshotsV1', 'pfIndicators', 'pfSyncKeyHash',
+  'portfolioV1', 'pfSnapshotsV1', 'pfIndicators',
   'econ_notes', 'econ_notes_session',
   'econ_cal_alerts_v1', 'econ_cmp_sel_v1', 'econ_study_v1',
   'econ_home_kpi_order_v1', 'econ_home_sec_order_v1', 'econ_home_hidden_v1',
   'cfProxyBase', 'realtimeBoost', 'newsClientFetch', 'econ_guides_v1'
 ];
 var ECON_BACKUP_PREFIXES = ['econ_notes_bak'];   // 분석 노트 자동백업 세대 포함
+// 비밀 둘(동기화 키 해시 · 보유 암호)은 백업에 싣지 않고, 옛 백업 파일에 있어도 되살리지 않는다 — 지금은 탭 sessionStorage 에만 둔다(app2.js _pfSecret)
+var ECON_BACKUP_SECRETS = ['pfSyncKeyHash', 'pfHoldingsPass'];
 function _collectBackupKeys() {
   var keys = [];
   try {
@@ -511,7 +513,7 @@ window.importAllUserData = function (input) {
       if (!confirm(summary + '\n\n현재 브라우저 데이터를 이 백업으로 덮어쓸까요? (적용 후 페이지가 새로고침됩니다)')) { input.value = ''; return; }
       keys.forEach(function (k) {
         var v = payload.data[k];
-        if (typeof v === 'string') { try { localStorage.setItem(k, v); } catch (_) {} }
+        if (typeof v === 'string' && ECON_BACKUP_SECRETS.indexOf(k) < 0) { try { localStorage.setItem(k, v); } catch (_) {} }
       });
       location.reload();
     } catch (e) {
@@ -756,6 +758,25 @@ function pfExportCsv() {
   var PIN_KEY = 'econLockPin_v2';
   var SS_KEY = 'econLockOk_v1';
   var ITER = 600000;
+  // 실패 대기 — 새 화면(app/src/lib/pin.ts)과 같은 기록 · 규칙. FAIL_KEY = { n: 연속 실패 수, until: 이때까지 받지 않음(ms) },
+  // 5~9번째 실패 30초 · 10번째부터 매번 5분. 견주기 전에 먼저 적고(동시 시도도 세게) 맞히거나 PIN 을 지우면 지운다.
+  var FAIL_KEY = 'econLockFail_v1';
+  var memFail = null;   // localStorage 에 못 쓸 때만 이 탭 안에서 센다
+  function failDelay(n) { return n >= 10 ? 300000 : n >= 5 ? 30000 : 0; }
+  function readFail() {
+    if(memFail) return memFail;
+    try {
+      var f = JSON.parse(localStorage.getItem(FAIL_KEY) || 'null');
+      if(f && Number.isFinite(f.n) && Number.isFinite(f.until)) return { n: f.n, until: f.until };
+    } catch(_) {}
+    return { n: 0, until: 0 };
+  }
+  function writeFail(f) {
+    try { if(f) localStorage.setItem(FAIL_KEY, JSON.stringify(f)); else localStorage.removeItem(FAIL_KEY); memFail = null; }
+    catch(_) { memFail = f; }
+  }
+  // 시계를 되돌려도 그 회차 대기보다 길게 남지 않는다
+  function waitMs() { var f = readFail(); return Math.max(0, Math.min(f.until - Date.now(), failDelay(f.n))); }
 
   function unlocked() { try { return sessionStorage.getItem(SS_KEY) === '1'; } catch(_) { return false; } }
   function loadPin() {
@@ -791,7 +812,9 @@ function pfExportCsv() {
         signal: AbortSignal.timeout(15000),
       });
     }).then(function(r) {
-      return r.json().catch(function() { return {}; }).then(function(j) { return (r.ok && j.ok) ? 200 : (r.status || 0); });
+      if(!r.ok) return r.status;
+      // 2xx 인데 본문에 ok:true 가 없으면 확인된 것이 아니다 — 이때 PIN 을 지우면 안 된다(-1)
+      return r.json().catch(function() { return {}; }).then(function(j) { return (j && j.ok === true) ? 200 : -1; });
     });
   }
 
@@ -829,7 +852,7 @@ function pfExportCsv() {
     function render(mode, note) {
       var m = {
         unlock: ['잠긴 페이지', name + ' 페이지는 이 기기 PIN 이 필요합니다.', ['PIN'], '확인'],
-        setup:  ['이 기기 PIN 설정', '이 브라우저에서 투자 현황·설정을 열 때 쓸 PIN 을 정하세요. 4자 이상, 숫자·글자 모두 됩니다. 기기마다 따로 정합니다.', ['새 PIN', 'PIN 한 번 더'], '설정'],
+        setup:  ['이 기기 PIN 설정', '이 브라우저에서 투자 현황·설정을 열 때 쓸 PIN 을 정하세요. 숫자 6자리, 기기마다 따로 정합니다.', ['새 PIN', 'PIN 한 번 더'], '설정'],
         forgot: ['PIN 다시 정하기', '동기화 키(처음 받은 키 또는 내가 바꾼 암호)를 넣으세요. 맞으면 이 기기 PIN 을 지우고 새로 정합니다.', ['동기화 키'], '확인'],
       }[mode];
       card.innerHTML =
@@ -861,7 +884,7 @@ function pfExportCsv() {
         if(busy) return;
         var v = inputs.map(function(i) { return i.value || ''; });
         if(mode === 'setup') {
-          if(v[0].length < 4) return fail('4자 이상으로 정하세요.');
+          if(!/^\d{6}$/.test(v[0])) return fail('숫자 6자리로 정하세요.');
           if(v[0] !== v[1]) return fail('두 번 넣은 PIN 이 다릅니다.');
           var salt = toHex(crypto.getRandomValues(new Uint8Array(16)));
           run(pbkdf2Hex(v[0], salt, ITER).then(function(h) {
@@ -871,18 +894,28 @@ function pfExportCsv() {
         } else if(mode === 'unlock') {
           var p = loadPin();
           if(!p) return render('setup');
+          var w = waitMs();
+          if(w > 0) { inputs[0].value = ''; return fail('PIN 을 ' + readFail().n + '번 틀렸습니다. ' + Math.ceil(w / 1000) + '초 뒤 다시 하세요.'); }
+          var n = readFail().n + 1;
+          writeFail({ n: n, until: Date.now() + failDelay(n) });
           run(pbkdf2Hex(v[0], p.salt, p.iter).then(function(h) {
-            if(h === p.hash) pass();
-            else { inputs[0].value = ''; fail('PIN 이 맞지 않습니다.'); }
+            if(h === p.hash) { writeFail(null); pass(); }
+            else {
+              inputs[0].value = '';
+              var w2 = waitMs();
+              fail('PIN 이 맞지 않습니다.' + (w2 > 0 ? ' ' + Math.ceil(w2 / 1000) + '초 뒤 다시 하세요.' : ''));
+            }
           }), '이 환경(https 아님)에서는 잠금 해제를 지원하지 않습니다. https 로 접속하세요.');
         } else {
           if(!v[0].trim()) return fail('동기화 키를 넣으세요.');
           run(checkSyncKey(v[0].trim()).then(function(st) {
             if(st === 200) {
               try { localStorage.removeItem(PIN_KEY); } catch(_) {}
+              writeFail(null);
               render('setup', '동기화 키가 맞습니다 — 이 기기 PIN 을 지웠습니다.');
             } else if(st === 401) fail('동기화 키가 맞지 않습니다.');
             else if(st === 429) fail('시도가 너무 많습니다. 1분 뒤 다시 해 보세요.');
+            else if(st === -1) fail('서버 답을 확인하지 못했습니다. 잠시 뒤 다시 해 보세요.');
             else fail('서버 확인에 실패했습니다 (HTTP ' + st + ').');
           }), '서버에 연결하지 못했습니다. 인터넷 연결을 확인하세요.');
         }
