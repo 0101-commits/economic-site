@@ -18,6 +18,7 @@ import { loadRootJson } from './lib/personal/data'
 import { hasUnseen, markSeen, readSeen } from './lib/alertsSeen'
 import { legacyToHash } from './lib/legacyUrl'
 import { applyTheme, useTheme, type Theme } from './lib/theme'
+import { countUse, screenKey } from './lib/usage'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
 applyUpdown(readPrefs().settings.updown)
@@ -90,7 +91,10 @@ function Shell() {
   const [search, setSearch] = useState(false)
   // 안 읽음 점: 원장 최신판(events/latest.json)을 열 때 한 번 받아 마지막으로 알림 화면을 연 때와 견준다.
   // 아직 배포 전이거나 못 받으면 점 없이 조용히 넘어간다. 알림 화면에 들어가면 그때를 「본 때」로 적는다.
-  const { pathname } = useLocation()
+  const { pathname, search: query } = useLocation()
+  // 사용 기록(이 기기 · 횟수만): 화면을 열 때마다 한 번 — 시장은 자산군을 바꿀 때도(lib/usage.ts screenKey)
+  const screen = screenKey(pathname, query)
+  useEffect(() => { countUse('screens', screen) }, [screen])
   const [rows, setRows] = useState<unknown>(null)
   const [seen, setSeen] = useState(readSeen)
   // 알림 자동 정리(housekeeping.ts)도 여기서 한 번 — prior = 아래 markSeen 이 「본 때」를 적기 전 값(90일 미열람 판정용)

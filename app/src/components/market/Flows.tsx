@@ -1,12 +1,11 @@
-// 시장 › 수급 — 보기 일별·주별·월별(투자자 400행 집계)·종목별·국민연금·vs 환율. 단위는 묶음 그대로(시장 = 억원, 종목 = 주).
+// 시장 › 수급 — 목차 일별·주별·월별(투자자 400행 집계 칸의 단위)·종목별·국민연금·vs 환율(주소 v). 단위는 묶음 그대로(시장 = 억원, 종목 = 주).
 import { useEffect, useMemo, useState } from 'react'
 import { loadIndicator, type Flows as FlowsBlock, type StripItem } from '../../lib/bundle'
 import { fmtNumber, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
-import { SegBar } from '../ui'
 import { DivergingBars, LineChart } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { BigChart, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
+import { BigChart, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
 import { column, cumsum, groupFlows, rollSum, type FlowRow } from './calc'
 
 type StockFlow = { name: string; short?: string; market?: string; secType?: string; investor: (string | number | null)[][] }
@@ -25,6 +24,9 @@ const VIEWS = [
 ] as const
 type View = typeof VIEWS[number]['key']
 type Grain = 'daily' | 'weekly' | 'monthly'
+const isGrain = (k: View): k is Grain => k === 'daily' || k === 'weekly' || k === 'monthly'
+// 목차: 일별·주별·월별은 투자자 순매수 칸으로 데려가며 그 칸의 단위를 바꾼다
+const TOC = VIEWS.map(o => (isGrain(o.key) ? { ...o, to: 'period' } : o))
 const GRAIN: Record<Grain, { label: string; bars: number }> = { daily: { label: '거래일', bars: 60 }, weekly: { label: '주', bars: 26 }, monthly: { label: '달', bars: 24 } }
 const WHO = [{ key: 1, label: '외국인' }, { key: 2, label: '기관' }, { key: 3, label: '개인' }] as const
 
@@ -56,7 +58,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
     return s ? [{ ...x, series: s }] : []
   }))
   const sel = pool.get(selId) ?? b.strip[0]
-  const grain: Grain = v === 'weekly' || v === 'monthly' ? v : 'daily'
+  const [grain, setGrain] = useState<Grain>(isGrain(v) ? v : 'daily')
 
   const period = (cls: string, primary: boolean) => {
     const rows = grain === 'daily' ? daily : groupFlows(daily, grain === 'weekly' ? 'week' : 'month')
@@ -120,14 +122,10 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   }
   const fx = (cls: string) => <FxPanel className={cls} foreign={fSeries} unit={inv?.unit} />
 
-  const order: [string, Block][] =
-    v === 'stocks' ? [['stocks', stocks], ['period', period], ['nps', nps]]
-    : v === 'nps' ? [['nps', nps], ['period', period], ['stocks', stocks]]
-    : v === 'fx' ? [['fx', fx], ['period', period], ['stocks', stocks], ['nps', nps]]
-    : [['period', period], ['stocks', stocks], ['nps', nps]]
+  const order: [string, Block][] = [['period', period], ['stocks', stocks], ['nps', nps], ['fx', fx]]
   return (
     <>
-      <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
+      <Toc where="수급" items={TOC} onPick={k => { if (isGrain(k)) setGrain(k); setV(k) }} on={k => !isGrain(k) || k === grain} />
       <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...order]} />
     </>
   )
