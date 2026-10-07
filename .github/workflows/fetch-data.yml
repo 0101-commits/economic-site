@@ -86,6 +86,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write          # 카톡 토큰 사망 · 회전 실패를 이슈로(send_kakao_digest._gh_issue_notify)
 
 # 모든 JS 액션(actions/cache@v4 등)을 Node 24 로 강제 실행 — 런 로그의 'Node.js 20 deprecated'
 # ⚠ 경고 주석 제거(런을 '경고 0개의 green' 으로 유지). 2026-06-16 GitHub 이 Node24 를 기본으로
@@ -425,6 +426,7 @@ jobs:
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
           KAKAO_FRIENDS: ${{ vars.KAKAO_FRIENDS || '0' }}
           GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}     # 카톡 메모 모드도 토큰을 받는다 — refresh_token 회전 저장
+          GITHUB_TOKEN: ${{ github.token }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_WEBHOOK_ALERTS: ${{ secrets.DISCORD_WEBHOOK_ALERTS }}
           DISCORD_WEBHOOK_SWINGS: ${{ secrets.DISCORD_WEBHOOK_SWINGS }}

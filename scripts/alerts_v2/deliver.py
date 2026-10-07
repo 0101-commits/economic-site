@@ -77,6 +77,8 @@ def _kakao_session(log=print) -> dict | None:
         return None
     uuids = [f["uuid"] for f in friends if isinstance(f, dict) and f.get("uuid")] or None
     if uuids is None:
+        if kakao._friends_enabled():                         # 켜 놓고 친구 0명(200 + 빈 목록)은 get_friends 가 경고를 안 낸다
+            print("::warning title=카톡 친구 0명::KAKAO_FRIENDS=1 인데 받을 친구가 없어 메모(소리 없음)로 보냄 — docs/KAKAO_SETUP.md ⑤")
         log("[v2] 카톡 메모 모드(나에게 보내기 · 소리 없음) — 디스코드로 가는 것을 따라 보냄")
     _KAKAO_SESSION = {"token": token, "uuids": uuids, "kakao": kakao}
     return _KAKAO_SESSION
@@ -116,6 +118,13 @@ def _card_png(s: Send, ctx) -> bytes | None:
         return None
 
 
+def _kakao_down(log=print) -> None:
+    """한 통이 실패하면 그 런의 나머지 카톡은 건너뛴다 — 카카오가 시간을 끌면 한 통에 수 분이라 잡 시한을 넘긴다."""
+    global _KAKAO_SESSION
+    _KAKAO_SESSION = {}
+    log("[v2] 카톡 실패 — 이 런의 나머지 카톡은 건너뜀")
+
+
 def send_kakao(s: Send, ctx, log=print) -> bool:
     ses = _kakao_session(log)
     if not ses:
@@ -126,10 +135,9 @@ def send_kakao(s: Send, ctx, log=print) -> bool:
         return bool(ses["kakao"].send_card(ses["token"], p["title"], p["caption"], png=png, uuids=ses["uuids"],
                                            buttons=p["buttons"], items=p["items"], kind=p["kind"],
                                            link_url=p["link_url"]))
-    except SystemExit:
-        return False
-    except Exception as e:                                   # noqa: BLE001
+    except (Exception, SystemExit) as e:                     # noqa: BLE001
         log(f"[v2] 카톡 발송 예외: {type(e).__name__}")
+        _kakao_down(log)
         return False
 
 
@@ -159,27 +167,29 @@ def send_discord(s: Send, log=print) -> bool:
 
 # ---------- 한 통 ----------
 def send(s: Send, ledger, ctx, log=print, queue_path: str = PUSH_QUEUE_PATH) -> dict:
-    """세 채널 독립 발송 → 원장 sent 갱신. 돌려주는 값 = {push, kakao, discord}."""
-    res = {"push": 0, "kakao": False, "discord": False}
+    """세 채널 독립 발송 → 원장 sent 갱신. 돌려주는 값 = {push, kakao, discord, memo}.
+    디스코드(울리는 채널)가 먼저, 카톡(느릴 수 있는 채널)은 마지막. 메모로 나간 것은 kakao 가 아니라 memo 로 적는다 —
+    하루 상한 · 카톡 쿼터(schedule._ring_count_today · _kakao_count_today)와 앱 「오늘 N/20통」은 kakao 만 센다."""
+    res = {"push": 0, "kakao": False, "discord": False, "memo": False}
     if s.held:
         res["discord"] = send_discord(s, log)
         ledger.update_sent(s.row["key"], held=True, discord=res["discord"])
         return res
     if s.push:
         res["push"] = 1 if enqueue_push([push_item(s)], queue_path) else 0
-    if s.kakao or (s.discord and memo_mode(log)):
-        res["kakao"] = send_kakao(s, ctx, log)
     if s.discord:
         res["discord"] = send_discord(s, log)
+    if s.kakao or (s.discord and memo_mode(log)):
+        res["memo" if memo_mode(log) else "kakao"] = send_kakao(s, ctx, log)
     if s.kind == "bundle":
         for b in s.bundle:
-            ledger.update_sent(b["key"], bundled=True, push=res["push"], kakao=res["kakao"], discord=res["discord"])
+            ledger.update_sent(b["key"], bundled=True, push=res["push"], kakao=res["kakao"], discord=res["discord"],
+                               memo=res["memo"])
         if ledger.get(s.row["key"]) is None:
-            ledger.append(dict(s.row, sent={"push": res["push"], "kakao": res["kakao"], "discord": res["discord"],
-                                           "bundled": False, "held": False}))
+            ledger.append(dict(s.row, sent={**res, "bundled": False, "held": False}))
     else:
         ledger.update_sent(s.row["key"], **res)
-    log(f"[v2 send] {s} → push {res['push']} · kakao {res['kakao']} · discord {res['discord']}")
+    log(f"[v2 send] {s} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']} · discord {res['discord']}")
     return res
 
 

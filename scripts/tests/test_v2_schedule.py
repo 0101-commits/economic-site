@@ -79,6 +79,16 @@ def test_kakao_quota_bundles_at_18_and_stops_at_20(tmp_path):
     assert all(not s.kakao for s in sends)                               # 20 → 카톡 멈춤
 
 
+def test_memo_sends_do_not_count_toward_cap_or_quota(tmp_path):
+    """카톡 메모(나에게 보내기)는 울림이 아니다 — deliver 가 sent.memo 로 적고, 하루 상한 · 카톡 쿼터는 그걸 안 센다."""
+    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
+    for i in range(6):
+        r = _row(i); r["sent"].update(memo=True, discord=True); led.append(r)
+    assert schedule._ring_count_today(led) == 0 and schedule._kakao_count_today(led) == 0
+    sends = schedule.plan([Decision(_row(50), "alert", True)], led, _ctx(15), settings={"dailyCap": 6}, events_by_id=EV)
+    assert len(sends) == 1 and sends[0].kind != "bundle" and sends[0].push
+
+
 def test_in_quiet_wraps_midnight():
     q = {"from": "23:00", "to": "07:00"}
     assert schedule.in_quiet(_ctx(23, 0).now, q) and schedule.in_quiet(_ctx(3).now, q)
