@@ -48,8 +48,8 @@ def _last():
 TABLE = {
     "alarm":  ("DISCORD_WEBHOOK_SWINGS", "@everyone", None),
     "alert":  ("DISCORD_WEBHOOK_ALERTS", None, None),
-    "notice": ("DISCORD_WEBHOOK_ALERTS", None, SUPPRESS),
-    "brief":  ("DISCORD_WEBHOOK_URL", None, SUPPRESS),
+    "notice": ("DISCORD_WEBHOOK_ALERTS", None, None),         # 무음 해제(2026-10-07)
+    "brief":  ("DISCORD_WEBHOOK_URL", None, None),
     "ops":    ("DISCORD_WEBHOOK_SYSTEM", None, None),
 }
 

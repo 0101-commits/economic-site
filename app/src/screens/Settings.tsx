@@ -242,7 +242,7 @@ function Kakao({ s, setS }: { s: S; setS: (k: Partial<S>) => void }) {
     <div>
       <p className="m-0 mb-2 text-13 font-bold text-ink-1">카톡 <span className="font-normal text-12 text-ink-3">오늘 <span className="num">{today ?? '—'}/20</span>통</span></p>
       <Switch on={s.kakaoFriends} onChange={v => setS({ kakaoFriends: v })} label="친구 모드로 받기" />
-      <p className="mt-1 mb-0 text-12 text-ink-3">보조 계정이 친구인 나에게 사진 카드로 보냅니다. 운영 쪽에서 친구 모드를 켜야 실제로 갑니다 — 그 전에는 카톡이 나가지 않고 폰 · 디스코드만 갑니다. 카카오 한도는 받는 사람마다 하루 20통입니다.</p>
+      <p className="mt-1 mb-0 text-12 text-ink-3">보조 계정이 친구인 나에게 사진 카드로 보냅니다. 운영 쪽에서 친구 모드를 켜기 전에는 디스코드로 가는 알림이 「나와의 채팅」에 메모로 쌓입니다(카카오 정책상 소리 없음, 조용한 시간 보류분은 아침 브리핑에 합쳐서). 카카오 한도는 받는 사람마다 하루 20통입니다.</p>
       {s.kakaoFriends && (
         <div className="mt-3 flex flex-col gap-2">
           <p className="m-0 text-12 text-ink-2">받는 사람 <span className="num">{rcp.length}</span>/5</p>

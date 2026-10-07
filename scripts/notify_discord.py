@@ -530,8 +530,9 @@ LEVEL_BODY_MAX = 1500                       # 한 통 embed 글자 합(계약서
 LEVELS = {
     "alarm":  ("DISCORD_WEBHOOK_SWINGS", "everyone", None, COLOR_FIRE),
     "alert":  ("DISCORD_WEBHOOK_ALERTS", None, None, COLOR_ALERT),
-    "notice": ("DISCORD_WEBHOOK_ALERTS", None, SUPPRESS_NOTIFICATIONS, COLOR_DIGEST),
-    "brief":  (WEBHOOK_ENV, None, SUPPRESS_NOTIFICATIONS, COLOR_DIGEST),
+    # 안내 · 브리핑도 울린다(2026-10-07) — 무음 플래그를 달았더니 하루 10통 중 1통만 소리가 나 「안 온다」가 됐다.
+    "notice": ("DISCORD_WEBHOOK_ALERTS", None, None, COLOR_DIGEST),
+    "brief":  (WEBHOOK_ENV, None, None, COLOR_DIGEST),
     "ops":    ("DISCORD_WEBHOOK_SYSTEM", None, None, COLOR_SYSTEM),
 }
 
@@ -540,7 +541,7 @@ def send_level(level, title, body, *, fields=None, url=None, buttons=None, png=N
                footer=None, mention=None):
     """등급 → 채널·멘션·플래그를 정해 send() 로 보낸다. 성공 True / 미설정·실패·기록 False.
 
-    alarm=#급변-속보+@everyone · alert=#종목-알림 · notice=#종목-알림+무음 · brief=#시황-다이제스트+무음 ·
+    alarm=#급변-속보+@everyone · alert=#종목-알림 · notice=#종목-알림 · brief=#시황-다이제스트 ·
     ops=#시스템. record 는 화면(원장)에만 남기고 보내지 않는다(False). 모르는 등급은 ValueError —
     이름이 어긋난 경보가 조용히 사라지는 것보다 낫다.
     제목은 호출측이 정한 그대로(두 채널 제목 동일 원칙은 compose 가 보장). 본문은 제목·필드·꼬리를 뺀

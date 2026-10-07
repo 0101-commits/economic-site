@@ -3,7 +3,7 @@
 plan(decisions, ledger, ctx, settings) -> list[Send]
   경보: 상한 밖, 조용한 시간은 quietAlarm 설정에 따라.
   알림: 쿨다운(사전 cooldown) → 조용한 시간이면 보류(held, 디스코드는 쌓임) → 하루 상한 넘으면 묶음.
-  안내: 디스코드만(무음). 기록: 발송 없음.
+  안내: 디스코드만(카톡 메모 모드면 deliver 가 메모도 따라 보냄). 기록: 발송 없음.
   카톡: 쌍당 하루 kakaoBundleAt(18) 부터 묶음, kakaoQuota(20) 에서 멈춤.
 """
 from __future__ import annotations

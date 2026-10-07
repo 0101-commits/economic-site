@@ -616,7 +616,7 @@ function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) 
         </Panel>
         <Panel title="디스코드">
           <p className="m-0 text-13 text-ink-2">모든 알림이 디스코드에 보관됩니다. 이 화면에서 바꾸는 것은 없습니다.</p>
-          <p className="mt-2 mb-0 text-12 text-ink-3">경보는 #급변-속보에 멘션과 함께, 알림 · 안내는 #종목-알림에, 브리핑은 #시황-다이제스트에 쌓입니다. 안내 · 브리핑은 소리 없이 옵니다.</p>
+          <p className="mt-2 mb-0 text-12 text-ink-3">경보는 #급변-속보에 멘션과 함께, 알림 · 안내는 #종목-알림에, 브리핑은 #시황-다이제스트에 쌓입니다.</p>
         </Panel>
       </div>
     </>

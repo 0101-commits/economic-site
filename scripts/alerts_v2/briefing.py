@@ -244,7 +244,7 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
 
 # ---------- 보내기 ----------
 def _kakao(out: dict, slot: str, log=print) -> bool:
-    ses = deliver._kakao_session(log)                  # 친구 모드가 아니면 멈춘다(메모 모드는 무음)
+    ses = deliver._kakao_session(log)                  # uuids None = 메모(나에게 보내기 · 소리 없음)
     if not ses:
         return False
     hb = k._hero_button(out["links"])
@@ -278,7 +278,7 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
          queue_path: str = deliver.PUSH_QUEUE_PATH) -> dict:
     """세 채널 독립 발송 → {push, kakao, discord}. 꺼진 슬롯 · 휴장일 한국 슬롯은 아무것도 안 보낸다.
     보낸 뒤 밤사이 보류 행을 「합류」(held=False)로 적고 그 원장을 저장한다(드라이런은 쓰지 않음)."""
-    res = {"push": 0, "kakao": False, "discord": False}
+    res = {"push": 0, "kakao": False, "discord": False, "memo": False}
     if not enabled(slot, settings):
         log(f"[v2 brief] {slot} 꺼짐 — 보내지 않음")
         return res
@@ -300,12 +300,12 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
                 "url": deliver.abs_url("#/"), "ts": ctx.now.isoformat(timespec="seconds"),
                 "level": "brief", "requireInteraction": False}
         res["push"] = 1 if deliver.enqueue_push([item], queue_path) else 0
-    res["kakao"] = _kakao(out, slot, log)
-    res["discord"] = _discord(out, log)
+    res["discord"] = _discord(out, log)                # 울리는 채널 먼저, 카톡(메모면 memo 로 적음)은 마지막
+    res["memo" if deliver.memo_mode(log) else "kakao"] = _kakao(out, slot, log)
     if any(res.values()) and pairs:                    # 합류 — 아침 카드가 실제로 나갔을 때만
         for book, r in pairs:
-            book.update_sent(r["key"], held=False, push=res["push"], kakao=res["kakao"])
+            book.update_sent(r["key"], held=False, push=res["push"], kakao=res["kakao"], memo=res["memo"])
         for book in {id(b): b for b, _ in pairs}.values():
             book.save()
-    log(f"[v2 brief] {slot} → push {res['push']} · kakao {res['kakao']} · discord {res['discord']}")
+    log(f"[v2 brief] {slot} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']} · discord {res['discord']}")
     return res

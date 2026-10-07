@@ -71,7 +71,7 @@ def test_six_slots_dry_run_on_real_data(slot, real_ctx, tmp_path):
     assert not _no_relative(out), _no_relative(out)
     assert out["card_png"], f"{slot} 카드 없음"
     res = briefing.send(slot, real_ctx, led, ALL_ON, dry_run=True, log=lambda *a: None)
-    assert res == {"push": 0, "kakao": False, "discord": False}
+    assert res == {"push": 0, "kakao": False, "discord": False, "memo": False}
 
 
 def test_holiday_morning(real_ctx, tmp_path, monkeypatch):
@@ -89,7 +89,7 @@ def test_holiday_morning(real_ctx, tmp_path, monkeypatch):
     monkeypatch.setattr(briefing, "build", lambda *a, **kw: sent.append(a) or {})
     for slot in briefing.KR_SLOTS:
         assert briefing.send(slot, ctx, Ledger(day=now.date(), root=str(tmp_path)), ALL_ON, log=lambda *a: None) \
-            == {"push": 0, "kakao": False, "discord": False}
+            == {"push": 0, "kakao": False, "discord": False, "memo": False}
     assert sent == []
 
 
@@ -132,7 +132,7 @@ def test_held_rows_join_morning(real_ctx, tmp_path, monkeypatch):
     monkeypatch.setattr(briefing, "_discord", lambda *a, **kw: True)
     q = str(tmp_path / "push_queue.json")
     res = briefing.send("morning", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)
-    assert res == {"push": 1, "kakao": False, "discord": True}
+    assert res == {"push": 1, "kakao": False, "discord": True, "memo": False}
     assert deliver.held_rows(led) == [] and led.get("A1:sp500:up:2026-10-06")["sent"]["push"] == 1
     on_disk = Ledger(day=now.date() - dt.timedelta(days=1), root=str(tmp_path))
     assert on_disk.get("A2:usdkrw:down:2026-10-05")["sent"]["held"] is False      # 전날 원장도 합류 표시 · 저장
@@ -164,9 +164,9 @@ def test_off_slot_sends_nothing(real_ctx, tmp_path, monkeypatch):
     monkeypatch.setattr(briefing, "_discord", lambda *a, **kw: calls.append("discord"))
     led = Ledger(day=real_ctx.now.date(), root=str(tmp_path))
     for slot in ("noon", "evening", "us"):                   # 기본 꺼짐
-        assert briefing.send(slot, real_ctx, led, None, log=lambda *a: None) == {"push": 0, "kakao": False, "discord": False}
+        assert briefing.send(slot, real_ctx, led, None, log=lambda *a: None) == {"push": 0, "kakao": False, "discord": False, "memo": False}
     off = {"briefings": {"morning": False}}
-    assert briefing.send("morning", real_ctx, led, off, log=lambda *a: None) == {"push": 0, "kakao": False, "discord": False}
+    assert briefing.send("morning", real_ctx, led, off, log=lambda *a: None) == {"push": 0, "kakao": False, "discord": False, "memo": False}
     assert calls == []
 
 
