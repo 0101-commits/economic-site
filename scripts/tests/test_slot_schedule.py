@@ -64,3 +64,23 @@ def test_briefing_cron_matches_slots():
         got[slot] = (rest // 60, rest % 60, kst_days)
         assert f"'{cron}') slot={slot} ;;" in yml, f"슬롯 판정 case 에 {cron} → {slot} 이 없다"
     assert got == {s: (h, m, tuple(sorted(dd))) for s, (h, m, dd) in briefing.SLOT_AT.items()}
+
+
+def test_worker_v2_dispatch_matches_crons():
+    """Worker 매분 cron 이 깨우는 알림 v2 표(worker.js V2_DISPATCH, UTC)가 briefing.yml · alerts-v2.yml 의 cron · 슬롯과
+    같아야 하고, 그 event_type 을 워크플로가 받아야 한다. GHA schedule 은 5~7시간 늦게 발화해(2026-10-06 실측:
+    마감 16:30 → 23:20 KST) Worker 깨움이 본선이다 — 표가 어긋나면 그 슬롯은 다시 늦고, 이름이 어긋나면 dispatch 는
+    204 로 성공하고 워크플로만 안 깨어난다."""
+    worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"), encoding="utf-8").read()
+    block = worker.split("export const V2_DISPATCH = [", 1)[1].split("];", 1)[0]
+    got = {(f"{mi} {hr} * * {dow}", ev, name)
+           for mi, hr, dow, ev, name in re.findall(r"\[(\d+), (\d+), '([\d,*-]+)', '([\w-]+)', \{ \w+: '(\w+)' \}\]", block)}
+    want = set()
+    for yml_name, ev, pat in (("briefing.yml", "brief", r"- cron: '([^']+)'\s+#\s*(\w+)"),
+                              ("alerts-v2.yml", "alerts-v2", r"- cron: '([^']+)'.*—\s*(\w+)\s*$")):
+        yml = open(os.path.join(ROOT, ".github", "workflows", yml_name), encoding="utf-8").read()
+        found = re.findall(pat, yml, re.M)
+        assert found, f"{yml_name} 에서 cron 줄을 못 읽었다"
+        want.update((cron, ev, name) for cron, name in found)
+        assert re.search(r"repository_dispatch:\s*\n\s*types:\s*\[\s*%s\s*\]" % re.escape(ev), yml), f"{yml_name} 가 {ev} 를 안 받는다"
+    assert got == want
