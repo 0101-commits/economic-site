@@ -70,7 +70,7 @@ export default function Macro({ b, selId, setS }: BodyProps<MacroBundle>) {
     </Panel>
   )
   const calPanel = (cls: string, primary: boolean): ReactNode => (
-    <Panel className={cls} title={`${cname} 경제 일정`} fold={primary ? undefined : 'always'}>
+    <Panel className={cls} title={`${cname} 경제 일정`} fold={!primary}>
       <EventList events={events} today={b.market?.today} />
     </Panel>
   )

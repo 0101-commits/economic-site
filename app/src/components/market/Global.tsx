@@ -51,7 +51,7 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
 
   const panels: Record<View, (cls: string, primary: boolean) => ReactNode> = {
     indices: (cls, primary) => (
-      <Panel className={cls} title="세계 지수" fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="세계 지수" fold={!primary}>
         {indices.length ? <RankTable label="세계 지수" cols={idxCols} rows={indices} rowKey={r => r.id} /> : <Empty>지수 자료가 없습니다.</Empty>}
       </Panel>
     ),
@@ -61,7 +61,7 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
       const rows = Object.entries(cmp?.series ?? {}).map(([id, s]) => ({ id, last: s[s.length - 1]?.[1] }))
         .filter(r => r.last != null).sort((a, z) => z.last! - a.last!)
       return (
-        <Panel className={cls} title="비교" source={cmp?.from ? `${cmp.from} = ${cmp.base ?? 100}` : undefined} fold="mobile"
+        <Panel className={cls} title="비교" source={cmp?.from ? `${cmp.from} = ${cmp.base ?? 100}` : undefined} fold
           tools={<button type="button" onClick={() => setV('compare')} className="h-8 px-2 rounded-btn border border-line bg-card text-12 text-ink-2 hover:text-ink-1">겹침 차트</button>}>
           {rows.length ? (
             <ul className="m-0 p-0 list-none">
@@ -77,7 +77,7 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
       )
     },
     fear: (cls, primary) => (
-      <Panel className={cls} title="공포·변동성" fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="공포·변동성" fold={!primary}>
         {sense.length ? (
           <ul className="m-0 p-0 list-none">
             {sense.map(it => (
@@ -98,14 +98,14 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
       </Panel>
     ),
     curve: (cls, primary) => (
-      <Panel className={cls} title="미 국채 수익률" asOf={vw?.usCurve?.asOf} state={vw?.usCurve?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="미 국채 수익률" asOf={vw?.usCurve?.asOf} state={vw?.usCurve?.state} fold={!primary}>
         {vw?.usCurve?.current.some(x => x != null) ? (
           <div className="flex flex-col gap-3"><CurveChart curve={vw.usCurve} label="미 국채 수익률 곡선" /><CurveTable curve={vw.usCurve} /></div>
         ) : <Empty>수익률 곡선 자료가 없습니다.</Empty>}
       </Panel>
     ),
     calendar: (cls, primary) => (
-      <Panel className={cls} title="미국 일정" fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="미국 일정" fold={!primary}>
         <EventList events={vw?.usCalendar ?? []} today={b.market?.today} />
       </Panel>
     ),

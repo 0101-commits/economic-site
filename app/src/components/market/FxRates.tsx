@@ -47,17 +47,17 @@ export default function FxRates({ b, selId, setS }: BodyProps<FxRatesBundle>) {
 
   const panels: Record<View, (cls: string, primary: boolean) => ReactNode> = {
     fx: (cls, primary) => (
-      <Panel className={cls} title={`환율 ${fx.length}`} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title={`환율 ${fx.length}`} fold={!primary}>
         {fx.length ? <RankTable label="환율" cols={fxCols} rows={fx} rowKey={r => r.id} onPick={r => setS(r.id)} selectedKey={sel?.id} /> : <Empty>환율 자료가 없습니다.</Empty>}
       </Panel>
     ),
     rates: (cls, primary) => (
-      <Panel className={cls} title={`금리 ${vw?.rates?.length ?? ''}`} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title={`금리 ${vw?.rates?.length ?? ''}`} fold={!primary}>
         {vw?.rates?.length ? <RankTable label="국채 금리" cols={rateCols} rows={vw.rates} rowKey={r => r.id} onPick={r => setS(r.id)} selectedKey={sel?.id} /> : <Empty>금리 자료가 없습니다.</Empty>}
       </Panel>
     ),
     curves: (cls, primary) => (
-      <Panel className={cls} title="수익률 곡선" source={curve?.label ?? undefined} asOf={curve?.asOf} state={curve?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="수익률 곡선" source={curve?.label ?? undefined} asOf={curve?.asOf} state={curve?.state} fold={!primary}>
         {curve ? (
           <div className="flex flex-col gap-3">
             {curveOpts.length > 1 && <SegBar label="나라" options={curveOpts} value={cc} onChange={setCc} />}
@@ -68,7 +68,7 @@ export default function FxRates({ b, selId, setS }: BodyProps<FxRatesBundle>) {
       </Panel>
     ),
     banks: (cls, primary) => (
-      <Panel className={cls} title="중앙은행" fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="중앙은행" fold={!primary}>
         {vw?.centralBanks?.length ? (
           <ul className="m-0 p-0 list-none">
             {vw.centralBanks.map(x => (

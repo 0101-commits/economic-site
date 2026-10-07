@@ -62,7 +62,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
     const rows = grain === 'daily' ? daily : groupFlows(daily, grain === 'weekly' ? 'week' : 'month')
     const tail = rows.slice(-GRAIN[grain].bars)
     return (
-      <Panel className={cls} title={`투자자 순매수 · ${VIEWS.find(o => o.key === grain)!.label}`} unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title={`투자자 순매수 · ${VIEWS.find(o => o.key === grain)!.label}`} unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} fold={!primary}>
         {tail.length > 1 ? (
           <div className="flex flex-col gap-4">
             {WHO.map(w => (
@@ -90,7 +90,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
     }))
     const days = Math.max(0, ...rows.map(r => r.days))
     return (
-      <Panel className={cls} title="종목별 순매수" unit={`주 · 최근 ${days}거래일 합`} asOf={st?.asOf} state={st?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="종목별 순매수" unit={`주 · 최근 ${days}거래일 합`} asOf={st?.asOf} state={st?.state} fold={!primary}>
         {rows.length ? (
           <>
             <p className="md:hidden m-0 mb-1 text-11 text-ink-3">숫자는 외국인 · 행을 누르면 기관·개인</p>
@@ -103,7 +103,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   const nps = (cls: string, primary: boolean) => {
     const n = b.views?.nps
     return (
-      <Panel className={cls} title="국민연금 자산배분" source={n?.source} asOf={n?.asOf?.slice(0, 7)} state={n?.state} fold={primary ? undefined : 'mobile'}>
+      <Panel className={cls} title="국민연금 자산배분" source={n?.source} asOf={n?.asOf?.slice(0, 7)} state={n?.state} fold={!primary}>
         {n?.allocation.length ? (
           <ul className="m-0 p-0 list-none flex flex-col gap-2">
             {n.allocation.map(a => (

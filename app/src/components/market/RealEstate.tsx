@@ -225,7 +225,7 @@ export default function RealEstate({ b, selId, setS }: BodyProps<RealEstateBundl
       cls => {
         const rows = Object.entries(vw?.usStates?.items ?? {}).map(([st, x]): StateRow => ({ st, ...x }))
         return (
-          <Panel className={cls} title={`주별 집값 ${rows.length}`} source="케이스실러 주별" state={vw?.usStates?.state} fold="always">
+          <Panel className={cls} title={`주별 집값 ${rows.length}`} source="케이스실러 주별" state={vw?.usStates?.state} fold>
             {rows.length ? <RankTable label="미국 주별 집값" cols={stateCols} rows={rows} rowKey={r => r.st} /> : <Empty>주별 자료가 없습니다.</Empty>}
           </Panel>
         )
