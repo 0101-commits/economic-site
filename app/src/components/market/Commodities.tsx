@@ -1,12 +1,11 @@
-// 시장 › 원자재 — 보기 전체·에너지·금속·농산물·운임. 히트맵 칸을 누르면 그 품목이 큰 차트(주소 s)로 온다.
-import type { ReactNode } from 'react'
+// 시장 › 원자재 — 목차 전체·에너지·금속·농산물(히트맵 칸의 분류) · 운임(주소 v). 히트맵 칸을 누르면 그 품목이 큰 차트(주소 s)로 온다.
+import { useState } from 'react'
 import type { StripItem } from '../../lib/bundle'
 import { fmtNumber, shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
-import { SegBar } from '../ui'
 import { Heatmap } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { BigChart, ChangeText, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
+import { BigChart, ChangeText, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
 
 type Freight = { code: string; name: string; price: number | null; chgPct: number | null; date?: string }
 type Premium = { pct: number | null; basis?: string; krwPerG?: number | null; usdPerOz?: number | null; usdkrw?: number | null; asOf?: Record<string, string | null>; state?: string; formula?: string }
@@ -22,6 +21,9 @@ export type CommoditiesBundle = {
 
 const VIEWS = [{ key: 'all', label: '전체' }, { key: 'energy', label: '에너지' }, { key: 'metal', label: '금속' }, { key: 'agri', label: '농산물' }, { key: 'freight', label: '운임' }] as const
 type View = typeof VIEWS[number]['key']
+type Group = Exclude<View, 'freight'>
+// 목차: 분류 넷은 히트맵 칸으로 데려가며 그 칸의 분류를 바꾸고, 운임은 운임 칸으로
+const TOC = VIEWS.map(o => (o.key === 'freight' ? o : { ...o, to: 'heat' }))
 // ponytail: 묶음 items 에 분류 칸이 없어 id 로 가른다. 묶음이 group 을 실으면 이 표를 지우고 그것을 쓴다.
 const GROUP: Record<string, 'energy' | 'metal' | 'agri'> = {
   wti: 'energy', brent: 'energy', dubai: 'energy', natgas: 'energy', gasoline: 'energy', heatingoil: 'energy',
@@ -39,10 +41,11 @@ const freightCols: Col<Freight>[] = [
 
 export default function Commodities({ b, selId, setS }: BodyProps<CommoditiesBundle>) {
   const [v, setV] = useViewParam<View>('v', 'all', VIEWS.map(o => o.key))
+  const [grp, setGrp] = useState<Group>(v === 'freight' ? 'all' : v)
   const vw = b.views
   const pool = poolOf(b.strip, vw?.items)
   const sel = pool.get(selId) ?? b.strip[0]
-  const group = v === 'all' || v === 'freight' ? null : v
+  const group = grp === 'all' ? null : grp
   const items = (vw?.items ?? []).filter(x => !group || GROUP[x.id] === group)
   const gp = vw?.goldPremium
 
@@ -83,12 +86,10 @@ export default function Commodities({ b, selId, setS }: BodyProps<CommoditiesBun
     </Panel>
   )
 
-  const blocks: [string, Block][] = v === 'freight'
-    ? [['freight', freight], ['heat', heat], ['premium', premium], ['enso', enso]]
-    : [['heat', heat], ['freight', freight], ['premium', premium], ['enso', enso]]
+  const blocks: [string, Block][] = [['heat', heat], ['freight', freight], ['premium', premium], ['enso', enso]]
   return (
     <>
-      <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
+      <Toc where="원자재" items={TOC} onPick={k => { if (k !== 'freight') setGrp(k); setV(k) }} on={k => k === 'freight' || k === grp} />
       <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...blocks]} />
     </>
   )

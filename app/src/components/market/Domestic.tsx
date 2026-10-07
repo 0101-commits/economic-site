@@ -1,5 +1,5 @@
-// 시장 › 국내 — 범위(m) 코스피·전체·코스닥·ETF × 보기(v) 11. 고른 보기 패널이 큰 차트 옆 첫 자리로 온다.
-// 보기 11개는 한 줄 가로 스크롤(SegBar scroll)이다 — 위 자산군 줄과 같은 모양, 한 번 눌러 고른다. 격자 끝에 배당·실적 일정.
+// 시장 › 국내 — 범위(m) 코스피·전체·코스닥·ETF × 보기 11. 보기 줄은 목차다(누르면 그 패널로 내려가고 주소 v 에 남는다).
+// 패널 차례는 고정 — 큰 차트 옆 첫 자리는 거래대금. 격자 끝에 배당·실적 일정.
 import { useState, type ReactNode } from 'react'
 import type { Flows, Stock, StripItem } from '../../lib/bundle'
 import { fmtNumber, fmtPct, mdHm, shortDate } from '../../lib/format'
@@ -7,7 +7,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { Pill, SegBar } from '../ui'
 import { DivergingBars, Heatmap } from '../charts'
 import { More, Panel, RankTable, type Col } from '../panels'
-import { arrange, BigChart, ChangeText, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
+import { BigChart, ChangeText, counted, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
 import { column } from './calc'
 
 type Mover = Stock & { volume?: number | null }
@@ -120,7 +120,7 @@ function BreadthRow({ name, b }: { name: string; b?: Breadth }) {
 
 export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) {
   const [m, setM] = useViewParam<Scope>('m', 'kospi', SCOPES.map(o => o.key))
-  const [v, setV] = useViewParam<View>('v', 'amount', VIEWS.map(o => o.key))
+  const [, setV] = useViewParam<View>('v', 'amount', VIEWS.map(o => o.key))
   const [sector, setSector] = useState<{ name: string; value: number | null } | null>(null)
   const vw = b.views
   const inv = vw?.flows
@@ -154,7 +154,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
   const ce = vw?.corpEvents
   const corpPanel = (cls: string) => (
     <Panel className={cls} title="배당·실적 일정" source={ce?.from ? `${shortDate(ce.from)}부터` : undefined} asOf={ce?.asOf} state={ce?.state} fold>
-      {ce?.items.length ? <More rows={ce.items.slice(0, 10)}>{shown => (
+      {ce?.items.length ? <More rows={ce.items.slice(0, 10)} name="배당·실적 일정">{shown => (
         <ul className="m-0 p-0 list-none">
           {shown.map((e, i) => (
             <li key={`${e.code}-${e.date}-${e.kind}-${i}`} className="py-1.5 border-b border-line last:border-b-0">
@@ -267,11 +267,9 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <SegBar label="범위" options={SCOPES} value={m} onChange={setM} />
-        <SegBar scroll label="보기" options={VIEWS} value={v} onChange={setV} />
-      </div>
-      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...arrange(v, VIEWS.map(o => o.key)).map((k): [string, Block] => [k, panels[k]]), ['corp', corpPanel]]} />
+      <SegBar label="범위" options={SCOPES} value={m} onChange={counted('국내 범위', SCOPES, setM)} />
+      <Toc where="국내" items={VIEWS} onPick={setV} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...VIEWS.map((o): [string, Block] => [o.key, panels[o.key]]), ['corp', corpPanel]]} />
     </>
   )
 }
