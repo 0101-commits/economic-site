@@ -25,7 +25,7 @@
 
 ## 전환 순서(사용자가 하는 일)
 
-### 1. 시크릿 7종 — 이것이 없으면 새 화면 조건 · 푸시는 한 건도 안 나간다
+### 1. 시크릿 6종 — 이것이 없으면 새 화면 조건 · 푸시는 한 건도 안 나간다
 ```
 python scripts/gen_vapid.py mailto:<내 메일>        # VAPID 키 쌍 · subject 안내 출력
 python -c "import secrets;print(secrets.token_hex(32))"   # ALERTS_STATE_SALT (동기화 키와 다른 값!)
@@ -56,7 +56,7 @@ gh variable set ALERTS_V2 --body 1
 
 ## 설정은 어디에
 - 사용자: 새 화면 알림 › 사건 탭(꾸러미 · 갈래 · 사건 낱개 · 내 조건) · 채널 탭(폰 · 카톡 · 울림 채널 · 조용한 시간 · 상한 · 브리핑). Worker KV `/prefs`(v2).
-- 운영: 저장소 변수 `ALERTS_V2` · `KAKAO_FRIENDS`, 시크릿 위 7종 + 디스코드 웹훅 4 + 카카오 2.
+- 운영: 저장소 변수 `ALERTS_V2` · `KAKAO_FRIENDS`, 시크릿 위 6종 + 디스코드 웹훅 4 + 카카오 2.
 - 사전: `scripts/alerts_v2/events.yml` — 사건을 더하거나 임계를 바꾸는 유일한 자리. 바꾼 뒤 `python scripts/alerts_v2/export_dict.py` 로 화면 사전을 다시 내보내고 커밋(파리티 검사 `test_v2_parity.py` 가 어긋남을 잡는다).
 
 ## 원장 읽는 법
@@ -67,7 +67,7 @@ gh variable set ALERTS_V2 --body 1
 | 증상 | 원인 | 확인 |
 |---|---|---|
 | 아무것도 안 옴 | `ALERTS_V2` 가 0 | `gh variable list` |
-| 디스코드만 오고 폰 · 카톡 없음 | 시크릿 7종 · 친구 모드 | 런 로그 「[v2] 카톡 …」 「PUSH_READ_KEY」 |
+| 디스코드만 오고 폰 · 카톡 없음 | 시크릿 6종 · 친구 모드 | 런 로그 「[v2] 카톡 …」 「PUSH_READ_KEY」 |
 | 조건을 만들었는데 안 옴 | 동기화 꺼짐(이 기기에만) · 사전이 그 대상에 그 사건을 허용하지 않음 | 조건 행 상태 「이 기기에만」 |
 | 같은 사건이 두 번 | 원장 key 가 다름(기준일 다른 두 값) | `events/` 두 행의 `asOf` |
 | 밤에 안 오고 아침에 묶여 옴 | 조용한 시간 23:00~07:00 보류(설계) | 아침 카드 「밤사이 알림 N건」 |
