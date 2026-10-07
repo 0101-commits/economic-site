@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 동기화 키 해시 · 관심 종류 · 서버 문서 ↔ 이 기기 변환 왕복 · GET/PUT 왕복(가짜 서버) · 키 바꾸기 요청 모양
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { WORKER, fromServer, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
+import { WORKER, blankLocal, fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
 import { defaultSettings } from './prefsV2.ts'
 
 const local: Local = {
@@ -160,4 +160,24 @@ test('syncKeyChange: 본문 { currentKey, newKey } 원문 그대로 · 해시 �
     globalThis.fetch = (async () => { throw new TypeError('Failed to fetch') }) as unknown as typeof fetch
     assert.deepEqual(await syncKeyChange('a', 'b'), { status: 0, error: 'network' })
   } finally { globalThis.fetch = real }
+})
+
+test('keyChangeText: 바뀜은 빈 글 · 답을 잃은 0 · -1 은 새 키로 다시 연결해 보라고', () => {
+  assert.equal(keyChangeText({ status: 200 }), '')
+  assert.match(keyChangeText({ status: 0, error: 'network' }), /새 키로 다시 연결/)
+  assert.equal(keyChangeText({ status: 0 }), keyChangeText({ status: -1 }))
+  assert.match(keyChangeText({ status: 400, error: 'weak_new_key' }), /12자 이상/)
+  assert.equal(keyChangeText({ status: 401 }), '지금 키가 맞지 않습니다.')
+  assert.equal(keyChangeText({ status: 502, error: 'kv_write_failed' }), '서버가 받지 않았습니다(kv_write_failed).')
+})
+
+test('blankLocal: 관심 · 조건 · 시나리오가 없고 설정도 기본값일 때만 빈 기기(칸 순서 무관)', () => {
+  const empty = fromServer({})
+  assert.equal(blankLocal(empty), true)
+  const reordered = Object.fromEntries(Object.entries(empty.settings).reverse()) as Local['settings']
+  assert.equal(blankLocal({ ...empty, settings: reordered }), true)
+  assert.equal(blankLocal({ ...empty, settings: { ...empty.settings, quiet: null } }), false)     // 조용한 시간만 끈 기기도 묻는다
+  assert.equal(blankLocal({ ...empty, settings: { ...empty.settings, package: 'many' } }), false)
+  assert.equal(blankLocal({ ...empty, watch: ['kospi'] }), false)
+  assert.equal(blankLocal(local), false)
 })

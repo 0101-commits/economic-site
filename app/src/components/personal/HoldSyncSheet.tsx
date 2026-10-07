@@ -1,6 +1,6 @@
 // 보유 「동기화」 시트 — 이 기기와 서버의 보유(평단가·수량·매입 환율)를 비교해 서버 것을 받거나 이 기기 것을 올린다.
 // 평소엔 sync.ts syncHoldings 가 묻지 않고 맞춘다. 이 시트는 둘 다 바뀌었을 때(또는 직접 확인할 때) 비교 결과와 단추만 보인다.
-// 열쇠는 동기화 키에서 만든 재료(결정 D9 a)라 암호 칸이 없다 — 예전 보유 암호로 잠긴 서버 사본(이전 전)일 때만 그 암호를 한 번 묻는다.
+// 열쇠는 동기화 키에서 만든 재료(결정 D9 a)라 암호 칸이 없다 — 예전 보유 암호(이전 전)나 바꾸기 전 동기화 키로 잠긴 서버 사본일 때만 그 글자를 한 번 묻는다.
 // 내 자산(My.tsx)과 설정 「기기 연결」(DeviceLink.tsx)이 연다 — 둘 다 PinGate 안이다. 예전 암호는 이 시트의 상태에만 있다가 닫으면 비운다.
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
@@ -56,18 +56,23 @@ export function HoldSyncSheet({ open, onClose, onPulled }: { open: boolean; onCl
               <p role="alert" className="m-0 text-13 text-warn">{chk.msg}</p>
               {chk.migrate && (
                 <>
-                  <form onSubmit={unlockOld} className="flex flex-wrap items-end gap-2" aria-label="예전 보유 암호 넣기">
-                    <Field label="예전 보유 암호" className="flex-1 min-w-48">
+                  <form onSubmit={unlockOld} className="flex flex-wrap items-end gap-2" aria-label="예전 보유 암호 또는 바꾸기 전 동기화 키 넣기">
+                    <Field label="예전 보유 암호 또는 바꾸기 전 동기화 키" className="flex-1 min-w-48">
                       <input type="password" autoComplete="off" className={INPUT} value={old} onChange={e => setOld(e.target.value)} />
                     </Field>
                     <button type="submit" disabled={busy || !old.trim()} className={BTN}>{busy ? '푸는 중' : '풀기'}</button>
                   </form>
-                  <p className="m-0 text-12 text-ink-3">이전 화면의 「평단가 동기화 암호」입니다. 한 번 풀면 동기화 키 하나로 잠가 다시 올리므로 이 암호는 더 묻지 않습니다.</p>
+                  <p className="m-0 text-12 text-ink-3">이전 화면의 「평단가 동기화 암호」, 또는 키를 바꿨는데 사본이 옛 키로 남았다면 바꾸기 전 동기화 키입니다. 한 번 풀면 지금 동기화 키로 잠가 다시 올리므로 더 묻지 않습니다.</p>
                   <button type="button" disabled={busy} className={`${BTN2} self-start`} onClick={() => push(chk.migrate!)}>서버 사본 버리고 이 기기 것 올리기</button>
                 </>
               )}
               {chk.needKey && <Link to="/settings" className="text-12 text-ink-2">설정 › 기기 연결로</Link>}
-              {!chk.migrate && !chk.needKey && <button type="button" disabled={busy} className={`${BTN2} self-start`} onClick={() => void check()}>다시 확인</button>}
+              {!chk.migrate && !chk.needKey && (
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={busy} className={BTN2} onClick={() => void check()}>다시 확인</button>
+                  {chk.broken && <button type="button" disabled={busy} className={BTN2} onClick={() => push(chk.broken!)}>서버 사본 버리고 이 기기 것 올리기</button>}
+                </div>
+              )}
             </div>
           )}
 

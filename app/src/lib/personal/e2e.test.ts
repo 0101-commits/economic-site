@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { pbkdf2Sync } from 'node:crypto'
-import { applyEntries, autoStep, decide, decrypt, decryptAs, encrypt, entriesOf, fingerprint, holdKeyOf, ITER, openBlob, passProblem, type EncBlob, type Entry } from './e2e.ts'
+import { applyEntries, autoStep, decide, decrypt, decryptAs, encrypt, entriesOf, fingerprint, holdKeyOf, ITER, openBlob, passProblem, relockBlob, type EncBlob, type Entry } from './e2e.ts'
 
 const PASS = 'test-pass-1234'
 type Row = { id: string; symbol: string; market: string; name: string; avg: number | null; qty: number | null; fxBuy?: number | null }
@@ -132,6 +132,17 @@ test('openBlob: 재료로 잠근 것은 그대로 · 예전 암호 사본은 old
   await assert.rejects(openBlob(legacy, mat, 'other-pass'), /wrong-pass/)
   const oldKeyed = await encrypt(es, await holdKeyOf('old-sync-key-99'), 't')   // 키를 바꾼 뒤 다시 잠그기가 실패해 남은 사본
   assert.equal((await openBlob(oldKeyed, mat, 'old-sync-key-99')).stale, true)
+})
+
+test('relockBlob: 서버를 확인 못 하면 false(키 바꾸기 멈춤) · 사본 없음 null · 옛 재료 사본은 새 재료로 · 안 풀리면 null', async () => {
+  const [old, mat] = await Promise.all([holdKeyOf('old-sync-key-99'), holdKeyOf('new-sync-key-123')])
+  const es = entriesOf(items)
+  assert.equal(await relockBlob({ ok: false }, old, mat), false)                 // 429 · 네트워크 실패
+  assert.equal(await relockBlob({ ok: true, enc: null }, old, mat), null)
+  const moved = await relockBlob({ ok: true, enc: await encrypt(es, old, '2026-10-07T01:00:00.000Z') }, old, mat)
+  assert.ok(moved)
+  assert.deepEqual(await decrypt(moved, mat), { entries: es, at: '2026-10-07T01:00:00.000Z' })
+  assert.equal(await relockBlob({ ok: true, enc: await legacyBuild(items, PASS) }, old, mat), null)   // 예전 암호 사본은 이전이 맡는다
 })
 
 test('autoStep: 한쪽만 바뀌면 묻지 않고 · 둘 다 바뀌었거나 빈 기기가 서버를 지우게 되면 묻는다', () => {

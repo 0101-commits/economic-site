@@ -46,7 +46,7 @@ export function DeviceLink() {
   )
 }
 
-const countText = (c: Count) => `관심 ${c.watch} · 조건 ${c.alerts} · 시나리오 ${c.scenarios}`
+const countText = (c: Count) => `관심 ${c.watch} · 조건 ${c.alerts} · 시나리오 ${c.scenarios}${c.settings ? ' · 설정 바꿈' : ''}`
 
 /** 연결할 때 서버 저장본과 이 기기가 다르면 한 번 묻는다(그 전엔 아무것도 저장하지 않았다). */
 function AskBox({ ask, busy }: { ask: Ask; busy: boolean }) {

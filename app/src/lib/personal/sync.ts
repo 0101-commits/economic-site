@@ -8,7 +8,7 @@
 //           SHA-256 해시 → sessionStorage econSyncHash_v1(이 탭) + localStorage econSyncHashKeep_v1(기억 — 새 탭이 PIN 없이 잇는다, 결정 D10),
 //           보유 열쇠 재료(e2e.ts holdKeyOf) → localStorage econHoldKey_v1. 기억 해시와 재료는 수명이 같다 —
 //           「이 기기 잊기」 · 키가 틀려(401) 끊김 · 이 기기 데이터 지우기(store.ts WIPE_KEYS) · 다른 탭에서 지움(storage 이벤트) 때 함께 지운다.
-//   연결    키 → 해시 · 재료 → GET /prefs. 서버에 저장본이 있고 이 기기에도 관심 · 조건 · 시나리오가 있는데 서로 다르면 한 번 묻는다
+//   연결    키 → 해시 · 재료 → GET /prefs. 서버에 저장본이 있고 이 기기에도 관심 · 조건 · 시나리오(또는 기본값에서 바꾼 설정)가 있는데 서로 다르면 한 번 묻는다
 //           (st.ask — 「서버 것으로 맞추기 / 이 기기 것을 올리기」, answerAsk). 답하기 전엔 아무것도 저장하지 않는다. 한쪽이 비었거나 같으면 묻지 않는다.
 //           서버에 못 닿으면 연결하지 않는다(나중에 말없이 덮지 않게 — 다시 「연결」).
 //   범위    econSyncScope_v1 = { prefs, hold } (기본 둘 다 켬, 이 기기만). prefs 를 끄면 ① 을 주고받지 않는다(서버 사본은 그대로 —
@@ -28,8 +28,8 @@ import { mdHm } from '../format'
 import { samePin } from '../pin'
 import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../push'
 import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, writePortfolio, writePrefs } from './store'
-import { fromServer, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, type Local, type PrefsDoc, type Reply } from './remote'
-import { applyEntries, autoStep, decide, decrypt, encrypt, entriesOf, fingerprint, holdKeyOf, openBlob, type EncBlob, type Entry, type Plan } from './e2e'
+import { blankLocal, defaultSet, fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, type Local, type PrefsDoc, type Reply } from './remote'
+import { applyEntries, autoStep, decide, encrypt, entriesOf, fingerprint, holdKeyOf, openBlob, relockBlob, type EncBlob, type Entry, type Plan } from './e2e'
 import type { Holding } from './calc'
 
 const HASH_KEY = 'econSyncHash_v1'
@@ -62,8 +62,8 @@ function writeScope(p: Partial<Scope>) {
 }
 
 // ── 화면에 보이는 상태 ───────────────────────────────────
-/** 연결 때 물을 것: 서버 저장본과 이 기기의 셈 + 서버에 맡긴 때. */
-export type Count = { watch: number; alerts: number; scenarios: number }
+/** 연결 때 물을 것: 서버 저장본과 이 기기의 셈(settings = 설정을 기본값에서 바꿈) + 서버에 맡긴 때. */
+export type Count = { watch: number; alerts: number; scenarios: number; settings: boolean }
 export type Ask = { server: Count; local: Count; at: string | null }
 /** linked = 이 탭에 키가 있음 · on = ① 을 주고받는 중(linked + 범위 ①) · hold = 보유 맞춤 한 줄(ask = 화면이 물어야 함) · pushAt = 연결이 폰 알림을 켠 때(화면이 구독 상태를 다시 읽는다). */
 export type SyncStatus = { linked: boolean; on: boolean; busy: boolean; msg: string; at: number | null; rev: number; ask: Ask | null; hold: { text: string; ask: boolean }; pushAt: number }
@@ -101,8 +101,7 @@ function writeLocal(l: Local) {
 const fp = () => JSON.stringify(readLocal())
 /** 키 순서와 무관한 비교용 글(서버가 조건 칸 순서를 바꿔 돌려준다). */
 const canon = (v: unknown) => JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1))) : x))
-const countOf = (l: Local): Count => ({ watch: l.watch.length, alerts: l.alerts.filter(a => a.target !== '*').length, scenarios: l.scenarios.length })
-const blank = (l: Local) => !l.watch.length && !l.alerts.length && !l.scenarios.length
+const countOf = (l: Local): Count => ({ watch: l.watch.length, alerts: l.alerts.filter(a => a.target !== '*').length, scenarios: l.scenarios.length, settings: !defaultSet(l.settings) })
 
 // ── 서버와 주고받기 ─────────────────────────────────────
 let prev: PrefsDoc | null = null   // 마지막으로 본 서버 문서(updatedAt · 관심 담은 때)
@@ -271,7 +270,7 @@ async function matchPrefs(h: string, mat: string | null, prefsOn: boolean, fresh
   if (!r.doc) return fail(r.status === 0 ? '서버에 닿지 못했습니다. 잠시 뒤 다시 하세요.' : r.status === 429 ? '요청이 많습니다. 1분 뒤 다시 하세요.' : errText(r))
   set({ busy: false })
   const local = readLocal(), server = fromServer(r.doc)
-  if (prefsOn && r.doc.updatedAt && !blank(local) && canon(toServer(local, null, '')) !== canon(toServer(server, null, ''))) {
+  if (prefsOn && r.doc.updatedAt && !blankLocal(local) && canon(toServer(local, null, '')) !== canon(toServer(server, null, ''))) {
     pend = { h, mat, doc: r.doc, fresh }
     set({ ask: { server: countOf(server), local: countOf(local), at: r.doc.updatedAt } })
     return true
@@ -331,18 +330,11 @@ export function disableSync(msg = '') {
   set({ linked: false, on: false, busy: false, msg, ask: null, hold: { text: '', ask: false } })
 }
 
-const KEY_ERR: Record<number, string> = {
-  401: '지금 키가 맞지 않습니다.',
-  429: '요청이 많습니다. 1분 뒤 다시 하세요.',
-  503: '서버에 동기화 키가 설정되지 않았습니다.',
-  0: '서버에 닿지 못했습니다. 잠시 뒤 다시 하세요.',
-  [-1]: '서버 답을 확인하지 못했습니다. 바뀌었는지 모르니 잠시 뒤 새 키로 다시 연결해 보세요.',
-}
-
 /**
  * 키 바꾸기(명세 B5). '' = 바뀜. 새 키는 12자 이상 · 지금 키와 다름 · 잠금 PIN 과 다름(앞의 둘은 서버도 다시 본다).
- * 지금 키는 이 탭 해시와 먼저 견준다(틀린 키로 서버를 두드리지 않게). 바뀌면 이 탭 해시 · 기억 해시 · 보유 열쇠 재료를 새 키로 바꾸고,
- * 서버 보유 사본을 새 재료로 다시 잠가 올리고, 이 기기 폰 알림 구독을 새 키 공간으로 옮긴다. /prefs 는 새 키 공간이 비어 있어 이 기기 것을 올린다.
+ * 지금 키는 이 탭 해시와 먼저 견준다(틀린 키로 서버를 두드리지 않게). 서버 보유를 확인하지 못하면 바꾸지 않는다.
+ * 바뀌면 이 탭 해시 · 기억 해시 · 보유 열쇠 재료를 새 키로 바꾸고, 서버 보유 사본을 새 재료로 다시 잠가 올리고, 이 기기 폰 알림 구독을 새 키 공간으로 옮긴다.
+ * /prefs 는 서버가 옛 공간 문서를 새 공간으로 옮겨 두므로 다음 맞춤이 그것을 받는다(옮기지 못해 비어 있으면 이 기기 것을 올린다).
  * 다른 기기는 새 키로 다시 연결해야 한다(옛 해시는 401).
  */
 export async function changeKey(cur: string, next: string): Promise<string> {
@@ -356,14 +348,16 @@ export async function changeKey(cur: string, next: string): Promise<string> {
   try {
     // PIN 과 같은지는 samePin 으로 견준다 — checkPin 이면 실패로 세어 잠금 대기가 걸린다. 옛 화면 PIN 은 아무 글자일 수 있다.
     for (const p of new Set([next, n])) if (await samePin(p)) return '잠금 PIN 과 다른 키를 쓰세요.'
-    if ((await keyHash(cur)) !== h) return KEY_ERR[401]
-    const [nh, mat] = await Promise.all([keyHash(n), holdKeyOf(n)])
-    // 보유: 서버 사본을 지금 재료로 풀어 새 재료로 미리 잠가 둔다. 올리기는 키가 바뀐 뒤(새 해시로) — 지금 재료는 곧 이 기기에서 지워진다.
-    const relock = await relockPrep(h, holdKey(), mat)
+    if ((await keyHash(cur)) !== h) return keyChangeText({ status: 401 })
+    // 옛 재료는 지금 키 원문에서 만든다 — 재료를 기억하지 않은 기기(이 판 전에 연결)도 서버 사본을 옮긴다.
+    const [nh, mat, old] = await Promise.all([keyHash(n), holdKeyOf(n), holdKeyOf(cur)])
+    // 보유: 서버 사본을 옛 재료로 풀어 새 재료로 미리 잠가 둔다. 올리기는 키가 바뀐 뒤(새 해시로).
+    const relock = await relockBlob(await portfolioGet(h), old, mat)
+    if (relock === false) return '서버 보유를 확인하지 못해 키를 바꾸지 않았습니다 — 잠시 뒤 다시 하세요.'
     const r = await syncKeyChange(cur, next)
-    if (r.status !== 200) return r.error === 'weak_new_key' ? '서버가 새 키를 받지 않았습니다. 12자 이상, 지금 키와 다른 키를 쓰세요.' : KEY_ERR[r.status] ?? `서버가 받지 않았습니다(${r.error ?? r.status}).`
+    if (r.status !== 200) return keyChangeText(r)
     try { sessionStorage.setItem(HASH_KEY, nh); localStorage.setItem(KEEP_KEY, nh); localStorage.setItem(KEYS.holdKey, mat) } catch { /* 막힌 저장소 — 다음 연결 때 다시 */ }
-    prev = null; sent = ''; retryAt = 0   // 다음 맞춤이 새 키 공간(비어 있음)을 보고 이 기기 것을 올린다
+    prev = null; sent = ''; retryAt = 0   // 다음 맞춤이 새 키 공간을 받는다(서버가 옮겨 둔 문서 — 비어 있으면 이 기기 것을 올린다)
     if (relock) {
       const p = await portfolioPost(nh, relock)
       if (p.ok) noteHold({ upAt: new Date().toISOString(), server: true })
@@ -372,14 +366,6 @@ export async function changeKey(cur: string, next: string): Promise<string> {
     if (await pushSubscribed().catch(() => false)) await subscribePush(getKeyHash).catch(() => {})
     return ''
   } finally { changing = false; set({ busy: false }) }
-}
-
-/** 키 바꾸기 전: 서버 보유 사본을 지금 재료로 풀어 새 재료로 잠근 덩어리. 사본이 없거나 예전 암호 사본이면 null(이전은 내 자산 「동기화」가 맡는다). */
-async function relockPrep(h: string, old: string | null, mat: string): Promise<EncBlob | null> {
-  if (!old) return null
-  const g = await portfolioGet(h)
-  if (!g.ok || !g.enc) return null
-  try { const d = await decrypt(g.enc, old); return await encrypt(d.entries, mat, d.at ?? new Date().toISOString()) } catch { return null }
 }
 
 // ── 보유(평단가·수량·매입 환율) — 보유 열쇠 재료로 잠근 덩어리만 /portfolio 로 ─────────
@@ -396,15 +382,15 @@ function noteHold(p: HoldRec) {
   try { localStorage.setItem(KEYS.holdSync, JSON.stringify({ ...readHoldRec(), ...p })) } catch { /* 못 남기면 다음 확인이 둘 중 고르라고 묻는다 */ }
 }
 
-/** 확인 결과. migrate = 예전 보유 암호 사본(그 덩어리 — 「서버 사본 버리고 올리기」가 seen 으로 쓴다) · needKey = 보유 열쇠 재료 없음. */
+/** 확인 결과. migrate = 예전 보유 암호 사본 · broken = 열쇠로는 풀리는데 모양이 깨진 사본(둘 다 그 덩어리 — 「서버 사본 버리고 올리기」가 seen 으로 쓴다) · needKey = 보유 열쇠 재료 없음. */
 export type HoldCheck =
-  | { ok: false; msg: string; migrate?: EncBlob; needKey?: boolean }
+  | { ok: false; msg: string; migrate?: EncBlob; broken?: EncBlob; needKey?: boolean }
   | { ok: true; plan: Plan; enc: EncBlob | null; server: Entry[]; serverAt: string | null; localN: number; stale: boolean }
 export type HoldDone = { ok: boolean; msg: string }
 
 const NO_SYNC = '설정 › 기기 연결에서 동기화 키를 먼저 넣으세요.'
 const NO_HOLD_KEY = '보유 열쇠가 없습니다. 설정 › 기기 연결에서 동기화 키를 한 번 다시 넣어 주세요.'
-const MIGRATE = '예전 보유 암호로 잠긴 서버 사본이 있습니다 — 예전 암호를 한 번 넣으면 새 열쇠로 다시 잠가 올립니다.'
+const MIGRATE = '예전 보유 암호(또는 바꾸기 전 동기화 키)로 잠긴 서버 사본이 있습니다 — 한 번 넣으면 새 열쇠로 다시 잠가 올립니다.'
 function holdErr(r: { status: number; error?: string }, h: string): string {
   if (r.status === 401) { lost(h); return KEY_LOST }
   if (r.status === 0) return '서버에 닿지 못했습니다.'
@@ -430,8 +416,8 @@ export async function checkHoldings(old?: string): Promise<HoldCheck> {
   try { d = await openBlob(g.enc, mat, old) } catch (e) {
     const m = (e as Error).message
     if (m === 'old-pass') return { ok: false, msg: MIGRATE, migrate: g.enc }
-    if (m === 'wrong-pass') return { ok: false, msg: '예전 보유 암호가 다릅니다.', migrate: g.enc }
-    return { ok: false, msg: '서버 보유 자료를 읽지 못했습니다.' }
+    if (m === 'wrong-pass') return { ok: false, msg: '예전 보유 암호(또는 바꾸기 전 동기화 키)가 다릅니다.', migrate: g.enc }
+    return { ok: false, msg: '서버 보유 사본이 깨져 읽지 못했습니다 — 이 기기 것을 올려 덮을 수 있습니다.', broken: g.enc }
   }
   const plan = decide(lf, { fp: await fingerprint(d.entries), n: d.entries.length }, base)
   if (plan === 'same' && !d.stale) noteHold({ base: lf.fp })

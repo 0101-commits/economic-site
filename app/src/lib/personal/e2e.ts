@@ -100,6 +100,17 @@ export async function openBlob(blob: EncBlob, mat: string, old?: string): Promis
 }
 
 /**
+ * 키 바꾸기 전: 서버 보유 사본(GET /portfolio 답 g)을 옛 재료로 풀어 새 재료로 잠근 덩어리.
+ * 사본이 없거나 옛 재료로 안 풀리면(예전 암호 사본 · 깨진 사본) null — 이전은 내 자산 「동기화」가 맡는다.
+ * 서버 보유를 확인하지 못했으면(g.ok 아님) false — 그대로 키를 바꾸면 사본이 옛 재료로 잠긴 채 남으므로 키 바꾸기를 멈춘다.
+ */
+export async function relockBlob(g: { ok: boolean; enc?: EncBlob | null }, old: string, mat: string): Promise<EncBlob | null | false> {
+  if (!g.ok) return false
+  if (!g.enc) return null
+  try { const d = await decrypt(g.enc, old); return await encrypt(d.entries, mat, d.at ?? new Date().toISOString()) } catch { return null }
+}
+
+/**
  * 묻지 않고 해도 되는 보유 맞춤(저장 2초 뒤 · 연결할 때 · 내 자산을 열 때). decide 의 판정 → 할 일.
  *   push 이 기기만 바뀜 · pull 서버만 바뀜 · ask 둘 다 바뀜, 또는 빈 이 기기로 서버 사본을 지우게 됨(저장소가 깨졌을 수 있다) · null 할 일 없음.
  */
