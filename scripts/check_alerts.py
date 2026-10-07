@@ -39,11 +39,11 @@
     실제 병목은 평가 주기였고 2026-07-03 매분 평가로 단축됨.)
 
 새 화면(app/) 조건(2026-10-02):
-  Worker KV /prefs 의 alerts 를 매 런 받아(scripts/prefs_client.py, 시크릿 ALERTS_SYNC_KEY) 현행 조건과 같은
+  Worker KV /prefs 의 alerts 를 매 런 받아(scripts/prefs_client.py, 시크릿 PUSH_READ_KEY — 읽기 전용) 현행 조건과 같은
   런에서 따로 판정한다. 발송은 디스코드 #종목-알림 + 푸시 큐(scripts/push_queue.json → send_push.py).
   반복은 조건의 repeat(once/daily), 이력은 alerts_state.json "_prefs". 자세한 규칙은 _check_prefs 위 주석.
 
-필요한 GitHub Secrets: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (시황 다이제스트와 공용), ALERTS_SYNC_KEY(새 화면 조건)
+필요한 GitHub Secrets: KAKAO_REST_API_KEY, KAKAO_REFRESH_TOKEN (시황 다이제스트와 공용), PUSH_READ_KEY · ALERTS_STATE_SALT(새 화면 조건)
 """
 import os
 import re

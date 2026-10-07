@@ -443,6 +443,7 @@ class FakeOpener:
 
 def test_sync_key_hash_is_sent_but_never_logged(monkeypatch):
     pc = prefs_client
+    monkeypatch.delenv("PUSH_READ_KEY", raising=False)
     seen = []
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
@@ -458,6 +459,35 @@ def test_sync_key_hash_is_sent_but_never_logged(monkeypatch):
     log = out.getvalue()
     assert all(s == HASH for s in seen), seen                         # 앞뒤 공백을 자른 키의 SHA-256
     assert "HTTP 401" in log and log.count("[prefs]") == 6, log      # 실패마다 한 줄
+    _no_secret_in(log)
+
+
+def test_push_read_key_wins_and_sync_key_is_only_the_fallback(monkeypatch):
+    # B6 — CI 는 동기화 키 없이 읽기 키(PUSH_READ_KEY)로 읽는다. 읽기 키가 있으면 동기화 키 해시는 보내지 않고,
+    #   없을 때만 ALERTS_SYNC_KEY(전환기 호환), 둘 다 없으면 부르지도 않는다. 읽기 키도 로그에 안 찍힌다.
+    pc = prefs_client
+    sent = []
+
+    class Opener:
+        def open(self, req, timeout=None):
+            sent.append({k.lower(): v for k, v in req.header_items()})
+            return Resp(b'{"v":2,"updatedAt":"x","alerts":[]}')
+
+    monkeypatch.setattr(pc, "_OPENER", Opener())
+    monkeypatch.setenv("ALERTS_SYNC_KEY", KEY)
+    monkeypatch.setenv("PUSH_READ_KEY", " read-key-for-test \n")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert pc.fetch("https://w") is not None
+        monkeypatch.delenv("PUSH_READ_KEY")
+        assert pc.fetch("https://w") is not None
+        monkeypatch.delenv("ALERTS_SYNC_KEY")
+        assert pc.fetch("https://w") is None
+    assert sent[0].get("x-push-read-key") == "read-key-for-test" and "x-sync-key-hash" not in sent[0], sent[0]
+    assert sent[1].get("x-sync-key-hash") == HASH and "x-push-read-key" not in sent[1], sent[1]
+    assert len(sent) == 2
+    log = out.getvalue()
+    assert "read-key" not in log and "PUSH_READ_KEY · ALERTS_SYNC_KEY 없음" in log, log
     _no_secret_in(log)
 
 

@@ -130,6 +130,26 @@ def test_load_prefs_hits_worker_prefs_path_once(monkeypatch):
     assert doc["v"] == 2
 
 
+def test_load_prefs_reads_with_push_read_key_alone(monkeypatch):
+    """B6 — 워크플로는 ALERTS_SYNC_KEY 를 넘기지 않고 PUSH_READ_KEY 만 넘긴다. 그것만으로 /prefs 를 읽어야 하고,
+    둘 다 없으면 부르지 않고 기본 설정으로 간다."""
+    import prefs_client
+    used, logs = [], []
+
+    def fake(base, key=None):
+        used.append(prefs_client.auth_header()[0])
+        return {"alerts": [], "settings": {}, "updatedAt": "2026-10-07T00:00:00Z"}
+
+    monkeypatch.setattr(prefs_client, "fetch", fake)
+    monkeypatch.delenv("ALERTS_SYNC_KEY", raising=False)
+    monkeypatch.setenv("PUSH_READ_KEY", "rk")
+    assert subscribe.load_prefs(log=logs.append)["v"] == 2
+    monkeypatch.delenv("PUSH_READ_KEY")
+    assert subscribe.load_prefs(log=logs.append) is None
+    assert used == ["X-Push-Read-Key"]
+    assert len(logs) == 1 and "PUSH_READ_KEY" in logs[0]
+
+
 def test_user_conditions_are_not_missing_judges():
     """U1 · U2 는 사전 family 가 A 라 family 로 거르면 매분 「판정 함수 미구현」 경고가 났다(2026-10-06 라이브) — judge 이름으로 거른다."""
     from alerts_v2 import run, judges_market, judges_flow_cal  # noqa: F401 — 판정 등록

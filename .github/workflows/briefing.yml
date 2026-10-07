@@ -142,7 +142,7 @@ jobs:
           SLOT: ${{ steps.gate.outputs.slot }}
           KO_FONT_PATH: ~/kofonts
           ALERTS_V2: ${{ vars.ALERTS_V2 || '0' }}
-          ALERTS_SYNC_KEY: ${{ secrets.ALERTS_SYNC_KEY }}
+          PUSH_READ_KEY: ${{ secrets.PUSH_READ_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
