@@ -1248,48 +1248,16 @@ async function pfSetSyncKey() {
     if(typeof showToast === 'function') showToast('동기화 키를 SHA-256 해시로 이 탭에만 저장했습니다. 탭을 닫으면 다시 넣어야 합니다.');
   } catch(_) {}
 }
-// 🔑 키 바꾸기 — 지금 키와 새 암호를 원문으로 Worker 에 보낸다(POST /sync-key 본문 {currentKey, newKey}, TLS 안).
-//   해시만으로는 못 바꾼다 — 이 기기에 남은 해시가 새도 키를 빼앗기지 않게. 길이 · 같은 키 규칙은 서버가 다시 건다.
-//   이 기기에 남기는 해시 규칙은 pfSetSyncKey 와 같다(trim 뒤 SHA-256) — 다른 기기에서 🔑 에 새 암호를 넣었을 때 같은 해시가 나와야 한다.
-async function pfChangeSyncKey() {
+// 옛 화면에서 새 화면으로 옮겨 간 기능의 안내 — 토스트 + 동기화 상태줄 한 줄. 서버는 부르지 않는다.
+function pfSayMoved(msg) {
+  if(typeof showToast === 'function') showToast(msg, 5000);
   const st = _pfSyncStatusEl();
-  const say = (t, c) => { if(st) { st.textContent = t; st.style.color = c; } };
-  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
-  if(!base) { say('Worker 프록시 미설정', window.CDN); return; }
-  const c = await pfAskText('지금 동기화 키(처음 받은 키 또는 지난번에 바꾼 암호)를 넣으세요.\n이 기기에 남은 해시만으로는 키를 바꿀 수 없습니다.', { type: 'password' });
-  if(c === null) return;
-  const ck = c.trim();
-  if(!ck) { say('키 바꾸기 취소 — 지금 키를 넣어야 합니다.', window.CDN); return; }
-  const a = await pfAskText('새 동기화 암호 (12자 이상)\n\n· 폰에서도 치기 쉽게 서로 상관없는 단어 3~4개를 띄어 쓴 문장처럼 길게 만들면 좋습니다(짧은 이름·생일·흔한 문구는 피하세요).\n· 잠금 PIN·다른 사이트 암호와 다르게 정하세요.\n· 바꾸면 다른 기기(폰 등)는 🔑 동기화 키에 새 암호를 다시 넣어야 합니다.', { type: 'password' });
-  if(a === null) return;
-  const nk = a.trim();
-  if(nk.length < 12) { say('키 바꾸기 취소 — 12자 이상이어야 합니다.', window.CDN); return; }
-  const b = await pfAskText('새 암호를 한 번 더 넣으세요.', { type: 'password' });
-  if(b === null) return;
-  if(b.trim() !== nk) { say('키 바꾸기 취소 — 두 번 넣은 암호가 다릅니다.', window.CDN); return; }
-  if(nk === ck) { say('키 바꾸기 취소 — 지금 키와 같습니다.', window.CDN); return; }
-  say('키 바꾸는 중…', 'var(--c-txt-dim)');
-  try {
-    const r = await fetch(base + '/sync-key', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ currentKey: ck, newKey: nk }),
-      signal: AbortSignal.timeout(15000),
-    });
-    const j = await r.json().catch(() => ({}));
-    if(r.ok && j.ok && j.changed) {
-      sessionStorage.setItem('pfSyncKeyHash', await pfSha256Hex(nk));
-      localStorage.removeItem('pfSyncKey');
-      pfUpdateSyncKeyBtn();
-      say('키를 바꿨습니다. 다른 기기(폰 등)는 🔑 동기화 키에 새 암호를 다시 넣으세요.', window.CUP);
-    } else {
-      say('키 바꾸기 실패: ' + (r.status === 401 ? '지금 키가 서버와 다릅니다' :
-                               j.error === 'weak_new_key' ? '새 암호는 12자 이상이고 지금 키와 달라야 합니다' :
-                               r.status === 429 ? '시도가 너무 많습니다 — 1분 뒤 다시' : (j.error || ('HTTP ' + r.status))), window.CDN);
-    }
-  } catch(_) {
-    say('키 바꾸기 실패 — 네트워크 오류', window.CDN);
-  }
+  if(st) { st.textContent = msg; st.style.color = 'var(--c-txt-dim)'; }
+}
+// 🔑 키 바꾸기 — 안내만 한다. 키를 바꾸면 서버 보유를 새 열쇠로 다시 잠가야 하는데 그 일은 새 화면 설정 › 기기 연결만 한다
+//   (여기서 바꾸면 서버 보유가 옛 키 재료로 잠긴 채 남는다, P1 D9(a)).
+function pfChangeSyncKey() {
+  pfSayMoved('동기화 키 바꾸기는 새 화면 설정 › 기기 연결에서 합니다(보유를 새 열쇠로 다시 잠가야 해서)');
 }
 // [3차-T13] 동기화 상태 표시 대상 선택 — 설정 페이지가 활성일 땐 그쪽 상태줄을 우선 사용.
 // 같은 함수(pfSyncAlerts 등)를 포트폴리오·설정 두 화면에서 공유하기 위한 어댑터.
@@ -1553,11 +1521,7 @@ function pfUpdateHoldingsSyncUI() {
   if (b) b.title = PF_HOLD_SYNC_MOVED;
 }
 // 「🔐 평단가 동기화」 단추 — 안내만 한다. 암호를 받지도, 서버를 부르지도 않는다.
-function pfSetHoldingsPass() {
-  if (typeof showToast === 'function') showToast(PF_HOLD_SYNC_MOVED, 5000);
-  const st = _pfSyncStatusEl();
-  if (st) { st.textContent = PF_HOLD_SYNC_MOVED; st.style.color = 'var(--c-txt-dim)'; }
-}
+function pfSetHoldingsPass() { pfSayMoved(PF_HOLD_SYNC_MOVED); }
 // 서버 암호문 블록 → 복호화 → 현재 종목에 평단가/수량/매입환율 병합. 반환: 적용 개수(복호화 실패 시 -1).
 async function pfApplyEncHoldings(blob, opts) {
   opts = opts || {};

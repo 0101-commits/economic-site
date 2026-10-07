@@ -29,9 +29,8 @@
 ```
 python scripts/gen_vapid.py mailto:<내 메일>        # VAPID 키 쌍 · subject 안내 출력
 python -c "import secrets;print(secrets.token_hex(32))"   # ALERTS_STATE_SALT (동기화 키와 다른 값!)
-gh secret set ALERTS_SYNC_KEY      # Worker 동기화 키와 같은 값
 gh secret set ALERTS_STATE_SALT    # 위에서 만든 값
-gh secret set PUSH_READ_KEY        # Worker 와 같은 값
+gh secret set PUSH_READ_KEY        # Worker 와 같은 값 — 구독 목록 · /prefs 읽기(CI 는 동기화 키를 갖지 않는다)
 gh secret set VAPID_PRIVATE_KEY
 gh secret set VAPID_SUBJECT        # mailto:…
 ```
