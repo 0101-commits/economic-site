@@ -82,15 +82,27 @@ test('시나리오 출처: 파일의 scenarios 는 렌즈 저장(econ_scenarios_
   const doc = JSON.parse(await makeFile(data(), AT))
   assert.deepEqual(doc.scenarios, data().scenarios)
   assert.equal('scenarios' in doc.prefs, false)
-  // 예전 판(prefs.scenarios 의 { name, inputs } 모양)은 렌즈가 못 읽으므로 0개
+  // 예전 판(prefs.scenarios 의 { name, inputs } 모양)은 렌즈가 못 읽는다 — 빈 목록으로 이 기기 저장을 지우지 않게 칸 없음(undefined)
   const old = { ...doc, scenarios: [{ name: 'x', inputs: {} }] }
-  assert.equal((await readFile(JSON.stringify(old))).scenarios!.length, 0)
+  assert.equal((await readFile(JSON.stringify(old))).scenarios, undefined)
   // 열쇠가 렌즈 화면과 같다
   const whatIf = readFileSync(new URL('../../components/lens/WhatIf.tsx', import.meta.url), 'utf8')
   const store = readFileSync(new URL('./store.ts', import.meta.url), 'utf8')
   assert.match(whatIf, /SAVE_KEY = 'econ_scenarios_v1'/)
   assert.match(store, /scenarios: 'econ_scenarios_v1'/)
   assert.match(store, /read<unknown>\(KEYS\.scenarios, \[\]\)/)
+})
+
+test('파일에 없는 칸 · 못 읽는 칸은 undefined(이 기기 것을 그대로 둔다), 원래 빈 목록은 빈 목록', async () => {
+  const { prefs: _p, ledger: _l, watch: _w, ...rest } = JSON.parse(await makeFile(data(), AT))
+  const got = await readFile(JSON.stringify({ ...rest, snapshots: [{ x: 1 }], scenarios: [] }))
+  for (const k of ['prefs', 'theme', 'ledger', 'watch', 'snapshots'] as const) assert.equal(got[k], undefined, k)
+  assert.deepEqual(got.scenarios, [])
+  assert.deepEqual(countOf(got), { holdings: 1, ledger: null, snapshots: null, watch: null, alerts: null, scenarios: 0 })
+  // prefs 는 있는데 화면 모드가 없으면 화면 모드만 그대로
+  const noTheme = JSON.parse(await makeFile(data(), AT)); delete noTheme.prefs.settings.theme
+  const g2 = await readFile(JSON.stringify(noTheme))
+  assert.equal(g2.theme, undefined); assert.equal(g2.prefs!.alerts.length, 2)
 })
 
 test('표지 없는 예전 판(이 판 전 새 화면 내려받기)도 받는다', async () => {

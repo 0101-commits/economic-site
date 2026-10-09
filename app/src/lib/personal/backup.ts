@@ -82,25 +82,27 @@ export async function readFile(text: string, pass?: string): Promise<Loaded> {
     if (!isObj(doc) || doc.format !== FORMAT || doc.locked) throw fail('잠긴 내용이 깨졌습니다.')
   }
   unknownKeys(doc, PLAIN_KEYS)
-  const list = (k: string): any[] => {
+  // 없는 칸 · 하나도 못 읽는 옛 모양 칸은 undefined — 이 기기 것을 그대로 둔다(빈 목록으로 덮어 지우지 않게). 원래 빈 목록이면 빈 목록.
+  const list = <T,>(k: string, ok: (x: any) => x is T): T[] | undefined => {
     const v = doc[k]
-    if (v == null) return []
+    if (v == null) return undefined
     if (!Array.isArray(v)) throw fail(`「${k}」 칸이 깨졌습니다.`)
-    return v
+    const out = v.filter(ok)
+    return out.length || !v.length ? out : undefined
   }
   if (!isObj(doc.portfolio) || !Array.isArray(doc.portfolio.items)) throw fail('「portfolio」 칸이 깨졌습니다.')
   if (doc.prefs != null && !isObj(doc.prefs)) throw fail('「prefs」 칸이 깨졌습니다.')
-  const p = upgradePrefs(doc.prefs), th = doc.prefs?.settings?.theme
+  const p = doc.prefs != null ? upgradePrefs(doc.prefs) : undefined, th = doc.prefs?.settings?.theme
   return {
     at: typeof doc.exportedAt === 'string' && !Number.isNaN(Date.parse(doc.exportedAt)) ? doc.exportedAt : null,
     portfolio: doc.portfolio as Portfolio,
-    snapshots: list('snapshots').filter(x => isObj(x) && typeof x.d === 'string'),
-    ledger: list('ledger').filter(x => isObj(x) && typeof x.d === 'string' && typeof x.amt === 'number'),
-    watch: list('watch').filter((x): x is string => typeof x === 'string'),
-    prefs: { alerts: p.alerts, settings: p.settings },
-    theme: th === 'light' || th === 'dark' ? th : 'system',
+    snapshots: list('snapshots', (x): x is Snap => isObj(x) && typeof x.d === 'string'),
+    ledger: list('ledger', (x): x is Ledger => isObj(x) && typeof x.d === 'string' && typeof x.amt === 'number'),
+    watch: list('watch', (x): x is string => typeof x === 'string'),
+    prefs: p && { alerts: p.alerts, settings: p.settings },
+    theme: th === 'light' || th === 'dark' || th === 'system' ? th : undefined,
     // 렌즈 「만약에」가 읽는 모양만(WhatIf.tsx readSaved 와 같은 거르기)
-    scenarios: list('scenarios').filter(x => isObj(x) && typeof x.start === 'string' && (x.dir === 1 || x.dir === -1)),
+    scenarios: list('scenarios', (x): x is Scenario => isObj(x) && typeof x.start === 'string' && (x.dir === 1 || x.dir === -1)),
   }
 }
 
