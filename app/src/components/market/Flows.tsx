@@ -1,6 +1,6 @@
 // 시장 › 수급 — 목차 일별·주별·월별(투자자 400행 집계 칸의 단위)·종목별·국민연금·vs 환율(주소 v). 단위는 묶음 그대로(시장 = 억원, 종목 = 주).
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { loadIndicator, type Flows as FlowsBlock, type StripItem } from '../../lib/bundle'
+import { loadIndicator, useBundleRev, type Flows as FlowsBlock, type StripItem } from '../../lib/bundle'
 import { fmtNumber, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { DivergingBars, LineChart } from '../charts'
@@ -178,7 +178,8 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
 function FxPanel({ foreign, unit, className }: { foreign: Pt[]; unit?: string; className: string }) {
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const [usd, setUsd] = useState<Pt[] | null>(null)
-  useEffect(() => { loadIndicator('usdkrw').then(r => setUsd(r.series ?? []), () => setUsd([])) }, [])
+  const rev = useBundleRev()
+  useEffect(() => { loadIndicator('usdkrw').then(r => setUsd(r.series ?? []), () => setUsd(u => u ?? [])) }, [rev])
   const fPeriods = useMemo(() => Object.fromEntries(Object.entries(slicePeriods(foreign)).map(([k, s]) => [k, cumsum(s!)])), [foreign])
   return (
     <Panel className={className} title="외국인 vs 환율" source="같은 기간">

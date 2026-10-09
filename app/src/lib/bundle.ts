@@ -35,8 +35,8 @@ export type Meta = { generatedAt?: string; health?: { summary?: Record<string, n
 
 // ── 다시 읽기(명세 C7) ─────────────────────────────────
 // 장중 5분마다 · 탭을 30분 넘게 숨겼다 돌아오면 meta.json(1KB)부터 받아 generatedAt 이 바뀌었을 때만, 지금 기억하는 묶음을
-// 전부 새로 받아 바꿔 끼우고 rev 를 올린다. 시장은 App.tsx 가 rev 를 key 로 다시 그리고(화면마다 고치지 않는 공통 길),
-// 홈은 rev 로 그 자리에서 다시 읽는다(질문칸을 지우지 않게). 다 받은 뒤에 바꿔 끼우므로 다시 그릴 때 받은 값을 곧바로 쓴다.
+// 전부 새로 받아 바꿔 끼우고 rev 를 올린다. 홈 · 시장은 묶음을 읽는 곳이 rev 를 의존성에 넣어 그 자리에서 다시 읽는다 —
+// 화면을 다시 만들지 않아 질문칸 · 표 정렬 · 열린 시트 · 더 보기 · 고른 칸이 남는다. 다 받은 뒤에 바꿔 끼우므로 다시 읽으면 곧바로 새 값이다.
 // 판정(언제 읽나)은 refresh.ts reloadDue.
 let rev = 0
 const revSubs = new Set<() => void>()
@@ -211,12 +211,13 @@ export async function loadIndicator(id: string): Promise<{ reg?: RegRow; item?: 
   return { reg, item, series: item?.series?.length ? item.series : undefined }
 }
 
-/** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. */
-export async function loadHome(): Promise<HomeBundle> {
+/** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. fallback=false(다시 읽기)면 그 대신 실패한다. */
+export async function loadHome(fallback = true): Promise<HomeBundle> {
   try {
     const b = await loadBundle<HomeBundle>('home')
     if (b && Array.isArray(b.strip) && b.strip.length) return b
   } catch { /* 묶음 없음 → 아래 폴백 */ }
+  if (!fallback) throw new Error('home: 묶음 없음')
   return homeFromData(await fetchJson<DataJson>('data.json'))
 }
 

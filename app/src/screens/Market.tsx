@@ -3,7 +3,7 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ChartCandlestick } from 'lucide-react'
-import { loadBundle } from '../lib/bundle'
+import { loadBundle, useBundleRev } from '../lib/bundle'
 import { mdHm } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { useWatch } from '../lib/watch'
@@ -38,9 +38,12 @@ export default function Market() {
   const watch = useWatch()
   const def = ASSETS.find(o => o.key === a)!
   const [got, setGot] = useState<Partial<Record<Asset, MarketBundle | 'err'>>>({})
+  // 묶음 다시 읽기(lib/bundle.ts rev) 뒤엔 그 자리에서 바꿔 끼운다 — 본문을 다시 만들지 않아 표 정렬 · 열린 시트 · 고른 칸이 남는다.
+  // 다시 읽기에서 못 받으면 보던 묶음을 둔다.
+  const rev = useBundleRev()
   useEffect(() => {
-    loadBundle<MarketBundle>(def.bundle).then(b => setGot(m => ({ ...m, [a]: b })), () => setGot(m => ({ ...m, [a]: 'err' })))
-  }, [a])
+    loadBundle<MarketBundle>(def.bundle).then(b => setGot(m => ({ ...m, [a]: b })), () => setGot(m => ({ ...m, [a]: m[a] && m[a] !== 'err' ? m[a] : 'err' })))
+  }, [a, rev])
 
   // 자산군을 바꾸면 그 자산군의 보기·범위·고른 지표는 처음으로(앞 자산군 값이 뒤 자산군에서 엉뚱한 칸을 고르지 않게). 기간 p 는 둔다.
   const pickAsset = (k: Asset) => setParams(prev => {

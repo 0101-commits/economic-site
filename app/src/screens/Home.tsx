@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { Link } from 'react-router-dom'
 import { ChevronRight, House } from 'lucide-react'
 import { loadHome, loadIndicator, shownUnit, useBundleRev, type HomeBundle, type MoodItem, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
-import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
+import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, safeHref, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { useWatch } from '../lib/watch'
 import { AsOfBadge, NumBlock, Pill } from '../components/ui'
@@ -15,7 +15,7 @@ import { hhmm, todayRows } from '../lib/alerts/v2'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
 import { aiAsk, aiErrText } from '../lib/personal/remote'
-import { getKeyHash, useSyncStatus } from '../lib/personal/sync'
+import { getKeyHash, lastReqAt, noteReq, useSyncStatus } from '../lib/personal/sync'
 
 const MAX_WATCH = 8   // 띠 뒤에 붙는 관심 칸 상한 — 넘으면 「관심 N개 더」
 const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as const
@@ -41,8 +41,13 @@ export default function Home() {
   const [home, setHome] = useState<HomeBundle | null>(null)
   const [err, setErr] = useState(false)
   // 묶음을 새로 받으면(lib/bundle.ts 다시 읽기) 그 자리에서 바꿔 그린다 — 질문칸의 답 · 입력을 지우지 않게 홈은 다시 만들지 않는다
+  // 다시 읽기(이미 그린 홈이 있을 때)는 data.json 폴백을 타지 않고, 실패하면 옛 화면을 그대로 둔다
   const rev = useBundleRev()
-  useEffect(() => { loadHome().then(setHome, () => setErr(true)) }, [rev])
+  const had = useRef(false)
+  useEffect(() => {
+    const again = had.current
+    loadHome(!again).then(h => { had.current = true; setHome(h); setErr(false) }, () => { if (!again) setErr(true) })
+  }, [rev])
   // 알림 원장(events/latest.json) — 「일정·알림」 패널의 「오늘 바뀐 것」. 아직 없으면(배포 전) 패널은 종전 그대로다.
   const [ledger, setLedger] = useState<unknown>(null)
   useEffect(() => { loadRootJson<unknown>('events/latest.json').then(setLedger, () => {}) }, [])
@@ -306,12 +311,16 @@ export default function Home() {
         <Panel className="pc:col-span-4" title="뉴스" fold>
           {home.news?.length ? (
             <ul className="m-0 p-0 list-none">
-              {home.news.slice(0, 5).map(n => (
-                <li key={n.url} className="py-1.5 border-b border-line last:border-b-0">
-                  <a href={n.url} target="_blank" rel="noopener noreferrer" className="text-13 text-ink-1 no-underline hover:underline">{n.title}</a>
-                  <span className="block text-11 text-ink-3">{host(n.url)}{n.date ? <> · <span className="num">{shortDate(n.date)}</span></> : null}</span>
-                </li>
-              ))}
+              {home.news.slice(0, 5).map(n => {
+                const href = safeHref(n.url)
+                return (
+                  <li key={n.url} className="py-1.5 border-b border-line last:border-b-0">
+                    {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="text-13 text-ink-1 no-underline hover:underline">{n.title}</a>
+                      : <span className="text-13 text-ink-1">{n.title}</span>}
+                    <span className="block text-11 text-ink-3">{host(n.url)}{n.date ? <> · <span className="num">{shortDate(n.date)}</span></> : null}</span>
+                  </li>
+                )
+              })}
             </ul>
           ) : <p className="m-0 text-13 text-ink-3">뉴스가 없습니다.</p>}
         </Panel>
@@ -364,15 +373,15 @@ function AskBox({ home }: { home: HomeBundle }) {
   const [busy, setBusy] = useState(false)
   const [answer, setAnswer] = useState('')
   const [note, setNote] = useState('')
-  const last = useRef(0)
   const ask = async (e: FormEvent) => {
     e.preventDefault()
     const question = q.trim(), hash = getKeyHash()
     if (!question || busy) return
     if (!hash) { setNote('동기화가 꺼졌습니다. 설정 「기기 연결」에서 다시 연결하세요.'); return }
-    const wait = last.current + ASK_GAP_MS - Date.now()
+    // 간격은 기기 연결(sync.ts)의 마지막 요청 시각과 같이 센다 — 화면을 다시 열어도 남는다
+    const wait = lastReqAt() + ASK_GAP_MS - Date.now()
     if (wait > 0) { setNote(`${Math.ceil(wait / 1000)}초 뒤에 다시 물어보세요.`); return }
-    last.current = Date.now()
+    noteReq()
     setBusy(true)
     setNote('')
     const r = await aiAsk(hash, question, snapshotOf(home))

@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { loadBundle, loadIndicator, loadNews, shownUnit, type MarketState, type NewsBundle, type Sched, type StripItem } from '../../lib/bundle'
-import { changeDir, fmtChange, fmtNumber, fmtPct, mdHm, range52, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
+import { loadBundle, loadIndicator, loadNews, shownUnit, useBundleRev, type MarketState, type NewsBundle, type Sched, type StripItem } from '../../lib/bundle'
+import { changeDir, fmtChange, fmtNumber, fmtPct, mdHm, range52, safeHref, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { foldId } from '../../lib/fold'
 import { countUse } from '../../lib/usage'
@@ -110,19 +110,24 @@ export function NewsPanel({ topic, n, more, title, className = '' }: { topic?: s
   const [b, setB] = useState<NewsBundle | null>(null)
   const [all, setAll] = useState(false)
   const { pathname } = useLocation()
-  useEffect(() => { if (topic) loadNews().then(setB, () => {}) }, [topic])
+  const rev = useBundleRev()   // 묶음 다시 읽기(lib/bundle.ts) 뒤 그 자리에서 다시 읽는다 — 패널을 다시 만들지 않아 「더 보기」가 남는다
+  useEffect(() => { if (topic) loadNews().then(setB, () => {}) }, [topic, rev])
   const items = (topic && b?.topics?.[topic]) || []
   if (!items.length) return null
   const shown = all ? items : items.slice(0, n)
   return (
     <Panel className={className} title={title}>
       <ul className="m-0 p-0 list-none">
-        {shown.map(x => (
-          <li key={x.url} className="py-1.5 border-b border-line last:border-b-0">
-            <a href={x.url} target="_blank" rel="noopener noreferrer" className="block text-13 text-ink-1 no-underline hover:underline [overflow-wrap:anywhere]">{x.title}</a>
-            <span className="text-11 text-ink-3">{x.source}{x.source && x.at ? ' · ' : ''}{x.at && <span className="num">{mdHm(x.at)}</span>}</span>
-          </li>
-        ))}
+        {shown.map(x => {
+          const href = safeHref(x.url)
+          return (
+            <li key={x.url} className="py-1.5 border-b border-line last:border-b-0">
+              {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="block text-13 text-ink-1 no-underline hover:underline [overflow-wrap:anywhere]">{x.title}</a>
+                : <span className="block text-13 text-ink-1 [overflow-wrap:anywhere]">{x.title}</span>}
+              <span className="text-11 text-ink-3">{x.source}{x.source && x.at ? ' · ' : ''}{x.at && <span className="num">{mdHm(x.at)}</span>}</span>
+            </li>
+          )
+        })}
       </ul>
       {more && !all && items.length > n && (
         <button type="button" onClick={() => { setAll(true); countUse('more', foldId(pathname, title)) }}
@@ -145,8 +150,16 @@ function useNewsTopic(): string | null {
   const [params] = useSearchParams()
   const name = ASSET_BUNDLE[params.get('a') ?? 'kr'] ?? ASSET_BUNDLE.kr
   const [topic, setTopic] = useState<string | null>(null)
-  useEffect(() => { loadBundle<{ newsTopic?: string | null }>(name).then(b => setTopic(b.newsTopic ?? null), () => setTopic(null)) }, [name])
+  const rev = useBundleRev()
+  useEffect(() => { loadBundle<{ newsTopic?: string | null }>(name).then(b => setTopic(b.newsTopic ?? null), () => setTopic(null)) }, [name, rev])
   return topic
+}
+
+/** 뉴스 주제 열쇠(data.json.news 16주제) → 패널 제목에 쓰는 이름. 열쇠는 수집 분류라 화면 글로 쓰지 않는다(calc.test.ts 가 16주제를 다 덮는지 본다). */
+const NEWS_NAME: Record<string, string> = {
+  채권: '채권', 외환: '환율', 주식: '증시', 원자재: '원자재', 원유: '유가', 귀금속: '금 · 은', 비철금속: '비철금속', 한국GDP: '한국 경기',
+  미국CPI: '미국 물가', 중국경기: '중국 경기', 일본경기: '일본 경기', 독일경기: '독일 경기', 영국경기: '영국 경기', 유로존: '유로존 경기',
+  한국수출: '한국 수출', 한국은행: '한국은행',
 }
 
 /**
@@ -160,7 +173,7 @@ export function MarketGrid({ blocks, per = 3 }: { blocks: [string, Block][]; per
   return (
     <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
       {blocks.map(([k, f], i) => <div key={k} data-toc={k} className={`${SPAN[sp[i]]} scroll-mt-14`}>{f('', i === 1)}</div>)}
-      <NewsPanel key={topic} className="pc:col-span-12" topic={topic} n={5} more title={`뉴스 · ${topic}`} />
+      <NewsPanel key={topic} className="pc:col-span-12" topic={topic} n={5} more title={`뉴스 · ${(topic && NEWS_NAME[topic]) ?? topic}`} />
     </div>
   )
 }

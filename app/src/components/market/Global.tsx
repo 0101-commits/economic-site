@@ -1,6 +1,6 @@
 // 시장 › 해외 — 큰 차트 = 띠에서 고른 지수의 자기 차트(기본 S&P 500). 보기 줄은 목차(주소 v), 시작=100 겹침 차트는 맨 아래 넓은 칸.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { loadHome, type MoodItem, type Sched, type StripItem } from '../../lib/bundle'
+import { loadHome, useBundleRev, type MoodItem, type Sched, type StripItem } from '../../lib/bundle'
 import { fmtNumber, fmtPct, range52, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { LineChart, Range52 } from '../charts'
@@ -47,7 +47,8 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
   // 그 칸의 등락은 1주 전 대비라 줄에는 「1주」를 붙이고, 큰 차트(전일 대비 자리)에는 등락을 싣지 않는다.
   // 해외 묶음 칸이 등락 없이 오면(MOVE) 같은 분위기 칸의 1주 변화를 대신 보인다.
   const [mood, setMood] = useState<MoodItem[]>([])
-  useEffect(() => { loadHome().then(h => setMood(h.mood ?? []), () => {}) }, [])
+  const rev = useBundleRev()
+  useEffect(() => { loadHome(false).then(h => setMood(h.mood ?? []), () => {}) }, [rev])
   const moodOf = useMemo(() => new Map(mood.map(m => [m.id, m])), [mood])
   const borrowed = (id: string): StripItem | undefined => {
     const m = moodOf.get(id)

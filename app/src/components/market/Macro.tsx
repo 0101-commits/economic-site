@@ -10,6 +10,7 @@ import { AsOfBadge, Pill, SegBar } from '../ui'
 import { More, Panel, RankTable, type Col } from '../panels'
 import { BigChart, counted, Empty, EventList, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 import { addMonth, monthCells, yearAgo, yoySeries } from './calc'
+import { kstDay } from '../../lib/personal/calc'
 
 type MacroItem = StripItem & { country?: string; topic?: string; source?: string }
 export type MacroBundle = {
@@ -159,10 +160,12 @@ export default function Macro({ b, selId, setS }: BodyProps<MacroBundle>) {
     </Panel>
   )
   const big: [string, Block] = ['big', cls => <BigChart className={cls} item={sel} />]
-  const calendar = (cls: string) => <CalendarPanel className={cls} events={events} today={b.market?.today} />
+  // 「오늘」은 지금의 KST 날짜(묶음의 market.today 는 묶음을 만든 날이라 자정을 넘기거나 묶음이 묵으면 어제다)
+  const today = kstDay()
+  const calendar = (cls: string) => <CalendarPanel className={cls} events={events} today={today} />
   const calPanel = (cls: string, primary: boolean): ReactNode => (
     <Panel className={cls} title="경제 일정" fold={!primary}>
-      <EventList events={events} today={b.market?.today} tag={e => cname(e.cc) && <Pill tone="o">{cname(e.cc)}</Pill>} />
+      <EventList events={events} today={today} tag={e => cname(e.cc) && <Pill tone="o">{cname(e.cc)}</Pill>} />
     </Panel>
   )
 

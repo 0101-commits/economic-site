@@ -86,3 +86,11 @@ test('monthCells · addMonth: 일요일 시작 격자, 해 넘김', () => {
   assert.equal(addMonth('2026-12', 1), '2027-01')
   assert.equal(addMonth('2026-01', -1), '2025-12')
 })
+
+test('격자 끝 뉴스 제목 이름표(parts.tsx NEWS_NAME) = data.json 뉴스 16주제', () => {
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8')
+  const topics = Object.keys(JSON.parse(read('../../../../data.json')).news).filter(k => k !== 'lastFetched').sort()
+  const table = /const NEWS_NAME[^{]*\{([^}]*)\}/.exec(read('./parts.tsx'))?.[1] ?? ''
+  assert.equal(topics.length, 16)
+  assert.deepEqual([...table.matchAll(/([^\s,:]+): '[^']+'/g)].map(m => m[1]).sort(), topics)
+})

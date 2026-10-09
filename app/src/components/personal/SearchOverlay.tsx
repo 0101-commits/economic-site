@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Search, X } from 'lucide-react'
 import { Pill } from '../ui'
 import { loadRegistry, type RegRow } from '../../lib/bundle'
-import { shortDate } from '../../lib/format'
+import { safeHref, shortDate } from '../../lib/format'
 import { loadMarketData, loadRootJson } from '../../lib/personal/data'
 import { pushRecent, readRecent, type Recent } from '../../lib/personal/store'
 
@@ -87,18 +87,22 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   const postHits = useMemo((): Hit[] => {
     if (!s || !posts) return []
     const out: Hit[] = []
+    const raw = q.trim()
     for (const p of posts) {
-      const ft = p.fullText ?? '', i = ft.toLowerCase().indexOf(s)
-      if (i < 0 && !p.title.toLowerCase().includes(s)) continue
-      const e = i + s.length
+      const ft = p.fullText ?? '', low = ft.toLowerCase(), at = low.indexOf(s)
+      if (at < 0 && !p.title.toLowerCase().includes(s)) continue
+      // 소문자로 바꾸며 길이가 달라지는 글자(İ 따위)가 있으면 그 자리는 원문 자리가 아니다 — 원문에서 다시 찾고, 없으면 강조 없이 앞 80자
+      const same = low.length === ft.length, i = at < 0 || same ? at : ft.indexOf(raw), e = i + (same ? s.length : raw.length)
       out.push({
-        kind: '글', label: p.title, sub: p.date ? `메르 블로그 · ${shortDate(p.date)}` : '메르 블로그', href: p.url,
-        snip: i < 0 ? undefined : [`${i > SNIP ? '…' : ''}${ft.slice(Math.max(0, i - SNIP), i)}`, ft.slice(i, e), `${ft.slice(e, e + SNIP)}${e + SNIP < ft.length ? '…' : ''}`],
+        kind: '글', label: p.title, sub: p.date ? `메르 블로그 · ${shortDate(p.date)}` : '메르 블로그', href: safeHref(p.url) ?? undefined,
+        snip: at < 0 ? undefined
+          : i < 0 ? [`${ft.slice(0, SNIP * 2)}${ft.length > SNIP * 2 ? '…' : ''}`, '', '']
+          : [`${i > SNIP ? '…' : ''}${ft.slice(Math.max(0, i - SNIP), i)}`, ft.slice(i, e), `${ft.slice(e, e + SNIP)}${e + SNIP < ft.length ? '…' : ''}`],
       })
       if (out.length >= 8) break
     }
     return out
-  }, [s, posts])
+  }, [s, q, posts])
 
   const pick = (h: Hit) => {
     pushRecent({ label: h.label, to: h.to ?? h.href ?? '', kind: h.kind })
@@ -155,7 +159,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             <section>
               <h2 className="m-0 mb-2 text-13 font-bold text-ink-1">최근 본 것</h2>
               {recent.length
-                ? <HitList label="최근 본 것" onPick={pick} hits={recent.map((r): Hit => ({ kind: (r.kind as Kind) || '화면', label: r.label, ...(r.to.startsWith('/') ? { to: r.to } : { href: r.to }) }))} />
+                ? <HitList label="최근 본 것" onPick={pick} hits={recent.map((r): Hit => ({ kind: (r.kind as Kind) || '화면', label: r.label, ...(r.to.startsWith('/') ? { to: r.to } : { href: safeHref(r.to) ?? undefined }) }))} />
                 : <p className="m-0 text-13 text-ink-3">검색해서 연 것이 여기에 남습니다(이 기기에만).</p>}
             </section>
           </>
@@ -185,7 +189,8 @@ function HitList({ hits, onPick, label }: { hits: Hit[]; onPick: (h: Hit) => voi
           <li key={`${h.kind}-${h.to ?? h.href}-${i}`} className="border-b border-line last:border-b-0">
             {h.href
               ? <a href={h.href} target="_blank" rel="noopener noreferrer" className={cls} onClick={() => onPick(h)}>{body}</a>
-              : <button type="button" className={cls} onClick={() => onPick(h)}>{body}</button>}
+              : h.to ? <button type="button" className={cls} onClick={() => onPick(h)}>{body}</button>
+                : <div className="w-full flex items-center gap-3 px-3 py-2.5">{body}</div>}
           </li>
         )
       })}
