@@ -106,9 +106,15 @@ export type HomeBundle = {
   lens?: HomeLens
 }
 
-/** 지표 사전 한 줄(bundles/registry.json). asset = index·fx·rate·commodity·macro·realestate·sentiment. */
-export type RegRow = { id: string; label: string; short?: string; shortM?: string; decimals: number; unit?: string; scale?: number; asset: string; tier?: number; country?: string; canonical?: string }
+/** 지표 사전 한 줄(bundles/registry.json). asset = index·fx·rate·commodity·macro·realestate·sentiment. news = 관련 뉴스 주제(news 묶음 topics 키, 없으면 null). */
+export type RegRow = { id: string; label: string; short?: string; shortM?: string; decimals: number; unit?: string; scale?: number; asset: string; tier?: number; country?: string; canonical?: string; news?: string | null }
 export const loadRegistry = () => loadBundle<{ count: number; rows: RegRow[] }>('registry').then(r => r.rows)
+
+/** 뉴스 한 건(bundles/news.json). at = 기사 시각(KST ISO), source = 언론사 도메인. */
+export type NewsItem = { title: string; source?: string; url: string; at?: string }
+/** 뉴스 묶음: 주제마다 최신순 8건 이하. 주제 이름은 사전 행 news · 시장 묶음 newsTopic 이 가리킨다. */
+export type NewsBundle = { asOf?: string; state?: string; topics: Record<string, NewsItem[]> }
+export const loadNews = () => loadBundle<NewsBundle>('news')
 
 /** 자산군 → 시계열이 든 시장 묶음(앞에서부터 찾는다). */
 const ASSET_BUNDLES: Record<string, string[]> = {

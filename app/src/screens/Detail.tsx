@@ -1,5 +1,6 @@
 // 지표 상세 /i/:id — 지표 사전(registry)으로 이름·단위·자릿수, 홈·시장 묶음에서 값·시계열을 찾는다.
 // 사전에 없는 낱말(검색창에서 온 것)이면 이름이 비슷한 지표를 늘어놓는다. 렌즈 지표 48개(렌즈 묶음 triggers)에 들면 「렌즈」 패널을 붙인다.
+// 사전 행에 뉴스 주제(news)가 있으면 「관련 뉴스」 3줄(없으면 패널 없음).
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BellPlus, ChevronRight } from 'lucide-react'
@@ -13,6 +14,7 @@ import { Panel, StripCard, WatchStar } from '../components/panels'
 import { BellSheet } from '../components/personal/BellSheet'
 import { TrigPill, asOfText, btn, trigValue } from '../components/lens/parts'
 import type { LensBundle, LensChain } from '../components/lens/model'
+import { NewsPanel } from '../components/market/parts'
 
 // 사전 자산군 → 시장 화면 자산군 탭(Market.tsx ASSETS 키)
 const MARKET_TAB: Record<string, string> = { index: 'global', sentiment: 'global', fx: 'fxrate', rate: 'fxrate', commodity: 'commod', macro: 'macro', realestate: 'realestate' }
@@ -128,6 +130,8 @@ export default function Detail() {
               </Link>
             </Panel>
           )}
+
+          <NewsPanel topic={reg?.news} n={3} title="관련 뉴스" />
         </div>
 
         {got.related.length > 0 && (

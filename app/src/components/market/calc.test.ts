@@ -1,6 +1,7 @@
 // 자가검사: node --test src/components/market/calc.test.ts (app 폴더에서)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { monthIndex, yearAgo, yoySeries, rebase, alignDates, cumsum, rollSum, weekKey, groupFlows, column, spans, type FlowRow } from './calc.ts'
 import type { Pt } from '../../lib/format.ts'
 
@@ -65,4 +66,12 @@ test('alignDates: 모두에 있는 날짜만 남긴다(길이·시작이 다른 
   assert.deepEqual(alignDates([a, b]), [[['2024-09', 2], ['2025-09', 3]], [['2024-09', 20], ['2025-09', 30]]])
   assert.deepEqual(alignDates([a, []]), [[], []])
   assert.deepEqual(alignDates([]), [])
+})
+
+test('격자 끝 뉴스의 자산군 → 묶음 표(parts.tsx ASSET_BUNDLE) = screens/Market.tsx ASSETS', () => {
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8')
+  const assets = Object.fromEntries([...read('../../screens/Market.tsx').matchAll(/key: '(\w+)', label: '[^']+', bundle: '([\w-]+)'/g)].map(m => [m[1], m[2]]))
+  const table = /const ASSET_BUNDLE[^{]*\{([^}]*)\}/.exec(read('./parts.tsx'))?.[1] ?? ''
+  assert.equal(Object.keys(assets).length, 7)
+  assert.deepEqual(Object.fromEntries([...table.matchAll(/(\w+): '([\w-]+)'/g)].map(m => [m[1], m[2]])), assets)
 })
