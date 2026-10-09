@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 보유 → Yahoo 심볼 · 일봉 응답 해석(전일 종가 규칙) · 묶음 우선 · 동시 4개 · 실패는 비워 둠 · 10분 저장본
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chartUrl, holdingQuotes, parseChart, yahooSymbols } from './quotes.ts'
+import { chartUrl, holdingQuotes, parseChart, parseSeries, yahooSymbols } from './quotes.ts'
 import type { Holding, Quote } from './calc.ts'
 
 const H = (symbol: string, market: 'KR' | 'US', extra: Partial<Holding> = {}): Holding => ({ id: symbol, symbol, market, qty: 1, avg: 1, ...extra })
@@ -97,4 +97,13 @@ test('holdingQuotes: 묶음 우선 · .KQ 로 넘어가기 · 실패는 비워 �
     await holdingQuotes(items, have, t0 + 11 * 60_000)                               // 10분 뒤: 다시 받는다
     assert.ok(s.calls.slice(before + 1).includes('MSFT'))
   } finally { s.restore() }
+})
+
+test('parseSeries: 거래소 현지 날짜 · 빈 종가 빼기 · 1년 주소 · 거래소 검사', () => {
+  // 2026-10-09 실측 모양: AAPL 미국 동부(gmtoffset -14400) — 장 시작 13:30Z 는 그날 날짜
+  const j = { chart: { result: [{ meta: { regularMarketPrice: 340.42, gmtoffset: -14400, longName: 'Apple Inc.', regularMarketTime: 1791489600 }, timestamp: [1791293400, 1791379800, 1791466200], indicators: { quote: [{ close: [333.63, null, 340.42] }] } }] } }
+  assert.deepEqual(parseSeries(j), { pts: [['2026-10-06', 333.63], ['2026-10-08', 340.42]], price: 340.42, prev: 333.63, name: 'Apple Inc.', asOf: '2026-10-08T20:00:00.000Z' })
+  assert.equal(parseSeries(j, 'KSC'), null)                                        // 거래소 표식이 다르면 버린다
+  assert.equal(parseSeries({ chart: { result: [{ meta: { regularMarketPrice: 1 }, timestamp: [1], indicators: { quote: [{ close: [1] }] } }] } }), null)   // 점 1개
+  assert.equal(new URL(chartUrl('AAPL', '1y')).searchParams.get('url'), 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1y&interval=1d')
 })

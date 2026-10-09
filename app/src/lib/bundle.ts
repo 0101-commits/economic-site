@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from 'react'
 import { changeFromPct, type PeriodKey, type Pt } from './format'
 import { reloadDue, type Halt } from './refresh'
+import { stockRows, type StockRow } from './detail'
 
 /** 사이트 루트(자료·현행 화면 legacy.html 이 있는 곳). */
 export const ROOT = new URL(/\/next\/$/.test(new URL(document.baseURI).pathname) ? '../' : './', document.baseURI)
@@ -209,6 +210,20 @@ export async function loadIndicator(id: string): Promise<{ reg?: RegRow; item?: 
     if (m) { item = m; if (m.series?.length) break }
   }
   return { reg, item, series: item?.series?.length ? item.series : undefined }
+}
+
+/** 묶음의 종목 행(코드 → 이름 · 값 · 기준 시각) — 홈 거래대금 → 국내 시장 보기(순위 · 체결 · 상승하락 · 공시) → 수급 종목 차례로(detail.ts stockRows). 종목 상세 · 검색이 쓴다. */
+export async function loadStocks(): Promise<Map<string, StockRow>> {
+  type FlowItems = { asOf?: string; state?: string; items?: Record<string, { name?: string; short?: string; market?: string }> }
+  const [home, dom, flows] = await Promise.all([
+    loadHome().catch(() => null),
+    loadBundle<{ views?: unknown }>('market-domestic').catch(() => null),
+    loadBundle<{ views?: { stocks?: FlowItems } }>('market-flows').catch(() => null),
+  ])
+  // 수급 종목은 코드가 칸 이름이라(items[코드]) 행 모양으로 펴서 넘긴다
+  const st = flows?.views?.stocks
+  const fl = { asOf: st?.asOf, state: st?.state, items: Object.entries(st?.items ?? {}).map(([code, s]) => ({ ...s, code })) }
+  return stockRows([home?.topAmount, dom?.views, fl])
 }
 
 /** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. fallback=false(다시 읽기)면 그 대신 실패한다. */
