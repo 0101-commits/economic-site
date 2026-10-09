@@ -3008,8 +3008,11 @@ def _merge_toss_yield_curve(kr_block, toss_kr):
     base["current"], base["prev_month"] = cur, prv
     # 시계열도 같은 만기는 토스 것으로 교체하되, 토스 캔들은 200개(약 9개월)가 상한이라
     # 그보다 앞 구간은 ECOS 것을 이어 붙인다 — 1년 전 비교점(prev_1y)이 여기서 나온다.
+    # 교체는 토스가 시계열을 준 만기만 — 현재값만 오고 일봉이 빈 만기까지 ECOS 시계열을 지우면
+    # 그 만기가 곡선 series 에서 통째로 빠져 지표(kr10y 등)가 「자료 없음」이 된다(2026-10-09 11:00 스냅샷 실측).
     ecos_by_tenor = {s.get("tenor"): s for s in (base.get("series") or [])}
-    kept = [s for s in (base.get("series") or []) if s.get("tenor") not in replaced]
+    toss_tenors = {ts.get("tenor") for ts in toss_kr["series"]}
+    kept = [s for s in (base.get("series") or []) if s.get("tenor") not in toss_tenors]
     spliced = []
     for ts in toss_kr["series"]:
         tdata = ts.get("data") or []

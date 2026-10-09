@@ -84,8 +84,8 @@ ETF_PREFIX = ("KODEX", "TIGER", "KBSTAR", "RISE", "ACE", "HANARO", "SOL", "PLUS"
               "TREX", "HK", "마이티", "에셋플러스", "히어로즈", "파워", "DAISHIN343", "KCGI", "WOORI")
 
 # ── 지표 띠 — 기획안 v4 4장 「자산군별 지표 띠 6」(홈 8칸). 바꿀 때는 여기 한 곳만. ──────────
-# 레지스트리 id 가 아닌 칸(flow_* · breadth_kospi · top20_amount · gold_premium · *_yoy · nps_kr_equity ·
-# foreign_hold_ratio)은 build_all 의 derived 가 data.json 경로에서 직접 만든다.
+# 레지스트리 id 가 아닌 칸(flow_* · breadth_kospi · top20_amount · gold_premium · *_yoy · nps_kr_equity)은
+# build_all 의 derived 가 data.json 경로에서 직접 만든다.
 HOME_STRIP = ["kospi", "kosdaq", "sp500", "nasdaq", "usdkrw", "us10y", "wti", "gold"]
 STRIPS = {
     "domestic": ["kospi", "kosdaq", "vkospi", "flow_foreign", "breadth_kospi", "top20_amount"],
@@ -93,7 +93,9 @@ STRIPS = {
     "fxrates": ["usdkrw", "usdjpy", "jpykrw", "eurkrw", "us10y", "kr10y"],
     "commodities": ["wti", "brent", "gold", "silver", "copper", "natgas", "gold_premium"],
     "macro": ["cpi_kr_yoy", "base_rate_kr", "cpi_us_yoy", "unemployment", "exports_kr", "gdp_growth_us"],
-    "flows": ["flow_foreign", "flow_inst", "flow_retail", "flow_foreign_5d", "nps_kr_equity", "foreign_hold_ratio"],
+    # 여섯째 칸은 기관 5일 누적 — 「외국인 보유 비중」 칸은 시장 전체 값을 어느 원천에서도 받지 않아(종목별 fholdRate 만)
+    # 띠가 생긴 2026-10-01 부터 늘 「자료 없음」이었다(2026-10-09 점검).
+    "flows": ["flow_foreign", "flow_inst", "flow_retail", "flow_foreign_5d", "nps_kr_equity", "flow_inst_5d"],
     "realestate": ["apt_price_idx_kr", "jns_price_idx_kr", "avg_jeonse_price_kr", "unsold_total_kr",
                    "housing_start_kr", "housing_permit_kr"],
 }
@@ -700,6 +702,13 @@ def schedule_with_corp(data, now, days=7):
     return sorted(calendar_events(data, now, days=days) + corp, key=lambda e: (e["date"], e["time"] or ""))
 
 
+def event_name(s):
+    """일정 이름 끝의 영어 풀이 괄호를 뗀다 — 「미국 주택착공 (Housing Starts)」 → 「미국 주택착공」.
+    소문자가 섞인 영어만 뗀다. 대문자 약어(「(NFP)」·「(FOMC)」)·우리말 괄호(「(전월비)」)·중간 괄호는 남긴다."""
+    m = re.search(r"\s*\(([A-Za-z][A-Za-z0-9 .,&'/-]*)\)$", s) if isinstance(s, str) else None
+    return s[:m.start()] if m and m.start() and m.group(1) != m.group(1).upper() else s
+
+
 def calendar_events(data, now, days=None, cc=None):
     """경제 일정 — 아직 지나지 않은 것부터(days 가 있으면 그 날 수 안)."""
     today = now.date().isoformat()
@@ -713,7 +722,7 @@ def calendar_events(data, now, days=None, cc=None):
             continue
         if cc and e.get("cc") != cc:
             continue
-        out.append({"date": iso, "time": time, "cc": e.get("cc"), "name": e.get("name"), "stars": e.get("stars"),
+        out.append({"date": iso, "time": time, "cc": e.get("cc"), "name": event_name(e.get("name")), "stars": e.get("stars"),
                     "prev": e.get("prev") or None, "fore": e.get("fore") or None, "act": e.get("act") or None,
                     "approx": bool(e.get("timeApprox"))})
     return sorted(out, key=lambda e: (e["date"], e["time"] or ""))
@@ -721,7 +730,7 @@ def calendar_events(data, now, days=None, cc=None):
 
 def all_events(data):
     return [{"date": e.get("iso"), "time": (e.get("dt") or "").split(" ")[-1] if " " in (e.get("dt") or "") else None,
-             "cc": e.get("cc"), "name": e.get("name"), "stars": e.get("stars"), "prev": e.get("prev") or None,
+             "cc": e.get("cc"), "name": event_name(e.get("name")), "stars": e.get("stars"), "prev": e.get("prev") or None,
              "fore": e.get("fore") or None, "act": e.get("act") or None, "beat": e.get("beat")}
             for e in ((data.get("economicCalendar") or {}).get("events") or [])]
 
@@ -1147,8 +1156,6 @@ def build_all(data, mer, now, toss=None):
         eq, nps_asof = (mi.get("current") or {}).get("value"), (mi.get("current") or {}).get("asOf")
     dv("nps_kr_equity", "국민연금 국내주식 비중", "연금 국내주식", "연금 국내주식", unit="%", decimals=1,
        value=_num(eq), as_of=(nps_asof or "")[:7] or None, state=block_state(H, "nps", nps) if nps else "prev")
-    dv("foreign_hold_ratio", "외국인 보유 비중", "외국인 보유", unit="%", decimals=1, value=None,
-       note="시장 전체 외국인 보유 비중은 수집하지 않는다(종목별 fholdRate 만 있다)")
 
     # 국내
     smv = data.get("stockMovers") or {}
