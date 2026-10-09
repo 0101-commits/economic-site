@@ -1,17 +1,19 @@
 // 검색 오버레이 — 기획안 v4 7장. 머리 돋보기(PC 검색창 · `/` 단축키 · 모바일 아이콘)가 연다.
-// 결과: 지표(지표 사전 label·short·id 부분 일치) · 화면·보기(고정 목록) · 도구 + 따로 묶은 「메르 글」
+// 결과: 지표(지표 사전 label·short·id 부분 일치) · 종목(묶음 종목 행 이름 · 코드 — lib/bundle.ts loadStocks) · 화면·보기(고정 목록) · 도구 + 따로 묶은 「메르 글」
+// 6자리 코드나 영문 티커를 그대로 넣으면 「종목 <코드> 열기」 한 줄(묶음에 없는 종목도 상세로 간다).
 // (merblog.json 제목 전체 · 최신 20편 전문 — 전문에서 찾으면 일치한 곳 앞뒤 40자를 보인다).
 // 입력이 비었으면 「목적으로 고르기」(묶음에 자료가 있는 것만)와 「최근 본 것」. 금액은 싣지 않는다(내 자산 자료를 읽지 않는다).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Search, X } from 'lucide-react'
 import { Pill } from '../ui'
-import { loadRegistry, type RegRow } from '../../lib/bundle'
+import { loadRegistry, loadStocks, type RegRow } from '../../lib/bundle'
+import { isStockId, type StockRow } from '../../lib/detail'
 import { safeHref, shortDate } from '../../lib/format'
 import { loadMarketData, loadRootJson } from '../../lib/personal/data'
 import { pushRecent, readRecent, type Recent } from '../../lib/personal/store'
 
-type Kind = '지표' | '화면' | '글' | '도구'
+type Kind = '지표' | '종목' | '화면' | '글' | '도구'
 /** snip = 전문에서 찾은 곳 [앞 40자, 일치, 뒤 40자] */
 type Hit = { kind: Kind; label: string; sub?: string; to?: string; href?: string; snip?: [string, string, string] }
 type Fixed = Hit & { keys: string }
@@ -32,12 +34,14 @@ const TOOLS: Fixed[] = [
 
 type Post = { title: string; url: string; date?: string; fullText?: string }
 const SNIP = 40
+const MARKET_KO: Record<string, string> = { KOSPI: '코스피', KOSDAQ: '코스닥' }
 
 export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [reg, setReg] = useState<RegRow[]>([])
+  const [stocks, setStocks] = useState<StockRow[]>([])
   const [posts, setPosts] = useState<Post[] | null>(null)
   const [purpose, setPurpose] = useState<Hit[]>([])
   const [recent, setRecent] = useState<Recent[]>([])
@@ -53,6 +57,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   useEffect(() => {
     if (!open || reg.length) return
     loadRegistry().then(setReg, () => {})
+    loadStocks().then(m => setStocks([...m.values()]), () => {})
     loadMarketData().then(md => {
       const p: Hit[] = []
       // 시장 주소는 market-screen 이 정한 보기(v)·범위(m) — m=all 이 없으면 코스피만이라 상승·하락이 1~2행으로 줄어든다
@@ -76,12 +81,18 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   const hits = useMemo((): Hit[] => {
     if (!s) return []
     const has = (...xs: (string | undefined)[]) => xs.some(x => x?.toLowerCase().includes(s))
+    const st = stocks.filter(x => has(x.name, x.short, x.code)).slice(0, 8)
+    // 코드 · 티커를 그대로 넣었으면 묶음에 없어도 상세로 — 영문은 같은 이름의 지표(kospi · gold)가 있으면 내지 않는다
+    const code = s.toUpperCase()
+    const direct = isStockId(code) && !st.some(x => x.code === code) && (/^\d/.test(code) || !reg.some(r => r.id === s || r.short?.toLowerCase() === s))
     return [
       ...reg.filter(r => has(r.label, r.short, r.shortM, r.id)).slice(0, 8).map((r): Hit => ({ kind: '지표', label: r.short || r.label, sub: r.short && r.short !== r.label ? r.label : r.id, to: `/i/${r.id}` })),
+      ...st.map((x): Hit => ({ kind: '종목', label: x.short || x.name, sub: `${x.code}${x.market ? ` · ${MARKET_KO[x.market] ?? x.market}` : ''}`, to: `/i/${x.code}` })),
       ...SCREENS.filter(x => has(x.label, x.keys)),
       ...TOOLS.filter(x => has(x.label, x.keys)),
+      ...(direct ? [{ kind: '종목', label: `종목 ${code} 열기`, to: `/i/${code}` } as Hit] : []),
     ]
-  }, [s, reg])
+  }, [s, reg, stocks])
 
   // 메르 글: 제목이나 전문에 든 글 8편까지(묶음 차례 = 최신순)
   const postHits = useMemo((): Hit[] => {
@@ -119,7 +130,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
           <div className="relative flex-1 min-w-0">
             <Search size={16} aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3" />
             {/* 글자가 든 search 칸의 Esc 는 브라우저가 칸 비우기에 써서 창이 안 닫힌다 — 여기서 바로 닫는다 */}
-            <input type="search" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="지표 · 화면 · 글 검색" aria-label="검색어"
+            <input type="search" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="지표 · 종목 · 화면 · 글 검색" aria-label="검색어"
               onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }}
               className="w-full h-11 pl-8 pr-3 rounded-btn border border-line bg-card text-14 text-ink-1 placeholder:text-ink-3" />
           </div>
@@ -139,7 +150,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
               )}
             </>
           ) : (
-            <p className="m-0 text-13 text-ink-3">{posts ? '찾은 것이 없습니다. 지표 이름이나 코드(예: kospi, 달러)로 찾아보세요.' : '찾는 중'}</p>
+            <p className="m-0 text-13 text-ink-3">{posts ? '찾은 것이 없습니다. 지표 · 종목 이름이나 코드(예: kospi, 달러, 삼성전자, 005930)로 찾아보세요.' : '찾는 중'}</p>
           )
         ) : (
           <>
