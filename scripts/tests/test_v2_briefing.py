@@ -69,7 +69,8 @@ def test_six_slots_dry_run_on_real_data(slot, real_ctx, tmp_path):
     assert out["title"] and len(out["title"]) <= compose.BRIEF_TITLE_MAX, out["title"]
     assert len(out["lines"]) == 3 and len(out["items"]) <= briefing.ITEMS_MAX
     assert not _no_relative(out), _no_relative(out)
-    assert out["card_png"], f"{slot} 카드 없음"
+    # 한글 폰트가 없으면(경량 수집 런의 테스트 단계 — 폰트 캐시를 건너뛴다) 카드는 두부 대신 None 이고 글로 나간다
+    assert out["card_png"] or not briefing.dc._setup()[1], f"{slot} 카드 없음"
     res = briefing.send(slot, real_ctx, led, ALL_ON, dry_run=True, log=lambda *a: None)
     assert res == {"push": 0, "kakao": False, "discord": False, "memo": False}
 
@@ -120,7 +121,7 @@ def test_held_rows_join_morning(real_ctx, tmp_path, monkeypatch):
     led.append(_row("A1:sp500:up:2026-10-06", ts="2026-10-06T01:00:00+09:00", held=True))
     led.append(_row("C7:us10y:up:2026-10-06", level="notice", ts="2026-10-06T02:00:00+09:00"))   # 보류 아님
     out = briefing.build("morning", ctx, led, ALL_ON)
-    assert out["items"][0][0] == "밤사이 알림 2건", out["items"]
+    assert out["items"][0][0] == "밤사이 알림" and out["items"][0][1].startswith("2건 · "), out["items"]
     assert [r["key"] for r in out["held_rows"]] == ["A2:usdkrw:down:2026-10-05", "A1:sp500:up:2026-10-06"]
     assert out["lines"][0] == "엔화 동반 약세"               # AI 실패 → 원장 첫 행 「왜」
     monkeypatch.setattr(k, "slot_ai_line", lambda *a, **kw: "내일 발표가 남아 있다")   # 상대 시점어 → 사전 문장
@@ -150,8 +151,8 @@ def test_close_changed_is_notice_rows_max_four_lines(real_ctx, tmp_path, monkeyp
     led.append(_row("A1:kospi:up:2026-10-06", level="alert"))
     out = briefing.build("close", ctx, led, ALL_ON)
     assert len(out["changed_rows"]) == 5 and all(r["level"] == "notice" for r in out["changed_rows"])
-    row = dict(out["items"])["오늘 바뀐 것 5건"].split(" · ")
-    assert len(row) <= briefing.CHANGED_MAX and row[-1] == "외 2건", row
+    row = dict(out["items"])["오늘 바뀐 것"].split(" · ")
+    assert row[0] == "안내 5건" and len(row) - 1 <= briefing.CHANGED_MAX and row[-1] == "외 2건", row
     assert briefing.changed_lines(out["changed_rows"][:4]) == [r["title"] for r in out["changed_rows"][:4]]
     assert not _no_relative(out)
 
@@ -176,3 +177,12 @@ def test_workflow_runs_tests_before_briefing():
         text = f.read()
     assert problems(text, "alerts_v2/run.py") == []
     assert "if: vars.ALERTS_V2 == '1'" in text
+
+
+def test_card_failure_keeps_briefing(real_ctx, tmp_path, monkeypatch):
+    """카드 렌더가 죽어도 build 는 글을 돌려준다(카톡은 텍스트로 내려가고 경고가 남는다) — 브리핑 통째 유실 방지."""
+    def boom(spec):
+        raise RuntimeError("렌더 실패")
+    monkeypatch.setattr(briefing.cards, "brief_card_png", boom)
+    out = briefing.build("close", real_ctx, Ledger(day=real_ctx.now.date(), root=str(tmp_path)), ALL_ON)
+    assert out["card_png"] is None and out["title"]

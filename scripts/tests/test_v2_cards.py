@@ -155,3 +155,67 @@ def test_save_previews():
         with open(os.path.join(OUT, name + ".png"), "wb") as f:
             f.write(png)
     assert all(_size(p) == (1080, 1080) for p in shots.values())
+
+
+# ---------- 브리핑 카드(기획서 5장 대화창 목업) ----------
+YS = [6800 + 30 * ((i * 7) % 11) - 2 * i for i in range(120)]
+INFO_LONG = [("휴장", "10/3~10/5 휴장 · 다음 개장 10/6 · 미국은 정상 개장"), ("밤사이 알림", "3건 · " + LONG_TITLE),
+             ("오늘 일정", "10/6 21:30 미국 CPI (전월비) ★★★ · 10/6 22:00 ISM 서비스 ★★"), ("외국인", "9일째 순매도 · 5일 누적 −7.1조")]
+
+
+def _brief_specs():
+    rows = [("S&P 500", "7,765.36", "▼0.47%", -0.47, ""), ("NASDAQ", "27,193.34", "▼1.25%", -1.25, ""),
+            ("USD/KRW", "1,341.75", "■0.00%", 0.0, ""), ("USD/JPY", "157.83", "▲0.03%", 0.03, ""),
+            ("미국 국채 10Y", "5.28%", "+1bp", 0.01, "10/7"), ("WTI 원유", "90.90$", "▲1.15%", 1.15, "")]
+    tiles3 = [dc._cell("KOSPI", "6,625.93", "▼2.62%", -2.62), dc._cell("KOSDAQ", "892.27", "▼0.69%", -0.69),
+              dc._cell("USD/KRW", "1,341.75", "■0.00%", 0.0)]
+    tiles4 = [dc._cell(f"{n} 주간", v, t, c) for n, v, t, c, _ in rows[:4]]
+    yield "아침 목록(최장)", {"title": "휴장일 아침 · 10/9(금) 07:30", "meta": "미국 10/8 마감", "rows": rows, "info": INFO_LONG,
+                         "foot": "10/09 07:30 기준 · ecom"}
+    yield "마감 칸+흐름+수급(최장)", {"title": "마감 · 10/8(목) 16:30", "meta": "수급 잠정", "tiles": tiles3,
+                                "chart": {"ys": YS, "prev": 6804, "up": False, "label": "KOSPI 하루 흐름", "right": "6,625.93"},
+                                "bars": [("외국인", -20240), ("기관", 4155), ("개인", 17897)],
+                                "info": [("바뀐 것 12", LONG_TITLE), ("", WHY), ("", NEXT), ("휴장", INFO_LONG[0][1])]}
+    yield "마감 수급 없음", {"title": "마감 · 10/8(목) 16:30", "meta": "수급 집계 중", "tiles": tiles3,
+                         "chart": {"ys": YS, "prev": 6804, "label": "KOSPI 하루 흐름"}, "info": INFO_LONG}
+    yield "주간 칸 4 + 행(최장)", {"title": "주간 · 10/4~10/10", "meta": "09:00", "tiles": tiles4,
+                              "info": INFO_LONG + [("알림", LONG_TITLE), ("", WHY), ("", NEXT)]}
+
+
+def test_brief_cards_layout_and_size():
+    """브리핑 카드 3형 — 1080² · 글자 겹침 · 캔버스 이탈 · 타일 삐짐 0 · 모든 글자 ≥ SQ_MIN_FS · 꼬리 위로만."""
+    bad = {}
+    for tag, spec in _brief_specs():
+        fig = cards._guarded(cards._draw_brief, spec)
+        try:
+            probs = problems(fig)
+            small = [(t.get_text(), t.get_fontsize()) for t in
+                     fig.texts + [x for ax in fig.axes for x in ax.texts + ax.get_xticklabels()]
+                     if t.get_text().strip() and t.get_visible() and t.get_fontsize() < dc.SQ_MIN_FS]
+            low = [t.get_text() for t in fig.texts if t.get_position()[1] < cards.Y_FLOOR - 0.01 and "기준" not in t.get_text()
+                   and t.get_text() != "ecom"]
+            if probs or small or low:
+                bad[tag] = (probs[:3], small[:3], low[:3])
+        finally:
+            dc._STATE["plt"].close(fig)
+        assert _size(cards.brief_card_png(spec)) == (1080, 1080)
+    assert not bad, bad
+
+
+def test_brief_quote_from_strip():
+    """값 · 등락은 번들 띠(화면과 같은 값) — 금리는 bp, 나머지는 %, 띠 없으면 None."""
+    strips = {"us10y": {"short": "미국 국채 10Y", "unit": "%", "decimals": 2, "value": 5.28, "change": -0.03, "asOf": "2026-10-07"},
+              "sp500": {"short": "S&P 500", "decimals": 2, "value": 7765.36, "changePct": -0.47, "asOf": "2026-10-08"},
+              "wti": {"short": "WTI 원유", "unit": "$", "decimals": 2, "value": 90.9, "changePct": 1.15, "asOf": "2026-10-09T10:36"}}
+    ctx = SimpleNamespace(strip=strips.get)
+    assert cards.quote(ctx, "us10y") == ("미국 국채 10Y", "5.28%", "−3bp", -0.03, dt.date(2026, 10, 7))
+    assert cards.quote(ctx, "sp500")[1:3] == ("7,765.36", "▼0.47%")
+    assert cards.quote(ctx, "wti")[1:3] == ("90.90$", "▲1.15%")
+    assert cards.quote(ctx, "kospi") is None
+
+
+def test_save_brief_previews():
+    os.makedirs(OUT, exist_ok=True)
+    for i, (_tag, spec) in enumerate(_brief_specs()):
+        with open(os.path.join(OUT, f"brief_{i}.png"), "wb") as f:
+            f.write(cards.brief_card_png(spec))

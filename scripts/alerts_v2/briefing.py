@@ -3,8 +3,9 @@
 슬롯 6: morning 07:30 · close 16:30 · noon 12:00 · evening 18:30 · us 22:40 · weekly 토 09:00.
 이름은 설정 `briefings` 키와 같다. 꺼진 슬롯은 보내지 않는다(기본: 아침 · 마감 · 주간 켜짐).
 
-카드 · 제목 · 한 문장은 현행 다이제스트(send_kakao_digest · discord_card)를 그대로 부른다 — 편성(PROFILES) ·
-제목 틀(headline, 48자 상한) · AI 한 문장(slot_ai_line). 새로 만든 것은 원장에서 오는 세 가지뿐이다.
+카드는 기획서 5장 대화창 목업(cards.brief_card_png — 아침 목록 · 마감 칸+하루 흐름+수급 · 주간 칸+행, 2026-10-09
+옛 시황 6칸 카드에서 교체). 제목 틀(headline, 48자 상한) · AI 한 문장(slot_ai_line)은 현행 다이제스트를 부른다.
+원장에서 오는 것은 세 가지다.
   · 「밤사이 알림 N건」 — 조용한 시간에 보류된 행(deliver.held_rows)을 아침 카드에 싣고 「합류」 표시(held=False)
   · 「오늘 바뀐 것」 — 원장 오늘 안내(notice) 행 묶음 ≤4줄(마감)
   · 휴장 문법 — 휴장일 아침은 머리 「휴장일 아침」, 한국 장 칸 없음 / 마감은 연휴 앞이면 「휴장 · 다음 개장」
@@ -15,7 +16,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 
-from . import compose, deliver                    # deliver 가 scripts/ 를 sys.path 에 올린다 — 아래 두 줄보다 먼저
+from . import cards, compose, deliver                 # deliver 가 scripts/ 를 sys.path 에 올린다 — 아래 두 줄보다 먼저
 from .ledger import Ledger
 from .model import DEFAULT_SETTINGS
 
@@ -150,12 +151,41 @@ def flow_streak(ctx) -> tuple[str, int]:
 
 
 # ---------- 만들기 ----------
+def _quotes(ctx, targets) -> tuple[list, dt.date | None]:
+    """카드 목록 행 — 기준일이 첫 행(미국 = S&P500)보다 묵은 값엔 「M/D」 꼬리표(금리 FRED 1영업일 지연 등)."""
+    qs = [q for q in (cards.quote(ctx, t) for t in targets) if q]
+    ref = qs[0][4] if qs else None
+    return [(n, v, t, c, _md(day) if day and ref and day < ref else "") for n, v, t, c, day in qs], ref
+
+
+def _week_tiles(ctx) -> list:
+    """주간 칸 4 — 값 + 이번 주 등락(일봉 6개 = 5영업일)."""
+    out = []
+    for t in ("kospi", "sp500", "usdkrw", "wti"):
+        q = cards.quote(ctx, t)
+        ser = [p["close"] for p in ctx.series(t, 6) if p.get("close") is not None]
+        if q and len(ser) >= 2 and ser[0]:
+            c = (ser[-1] / ser[0] - 1) * 100
+            out.append(dc._cell(f"{q[0]} 주간", q[1], f"{'▲' if c > 0 else '▼' if c < 0 else '■'}{abs(c):.2f}%", c))
+    return out
+
+
+def _moves(spec: dict, title: str) -> str:
+    """AI 문장이 없을 때의 사전 문장 — 카드에서 제목에 안 나온 큰 움직임 둘(「NASDAQ ▼1.25% · WTI 원유 ▲1.15%」)."""
+    cand = [(r[0], r[2], r[3]) for r in spec.get("rows") or []] + [(c[0], c[2], c[3]) for c in spec.get("tiles") or []]
+    cand = [x for x in cand if x[1] and x[2] is not None and not x[1].endswith("bp")   # 금리(bp)와 %는 크기 비교 불가
+            and x[0].split(" ")[0] not in title]
+    return " · ".join(f"{n} {t}" for n, t, _c in sorted(cand, key=lambda x: -abs(x[2]))[:2])
+
+
 def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     """브리핑 한 통 → {title, lines[3], items[≤5], card_png, held_rows, changed_rows, calendar_lines, holiday, links}.
 
-    lines = 움직임(AI 한 문장, 실패하면 원장 첫 행 「왜」) · 수급(휴장일 아침은 휴장 줄) · 바뀐 것/일정 요약.
-    items = 카톡 행(이름, 값) — 원장 행(밤사이 · 바뀐 것) → 일정 → 휴장 → 카드에 없는 지표 순, 앞이 남는다.
-    카드 타일과 겹치는 지표는 조립 단계에서 뺀다(_card_tile_labels). settings 는 send 가 쓴다(꺼짐 · 울림 채널)."""
+    카드 = 기획서 5장 대화창 목업(cards.brief_card_png): 아침 · 미국 개장은 목록(미국 · 환율 · 금리 · 유가), 마감 · 점심 ·
+    저녁은 칸 3 + 코스피 하루 흐름 + 수급 3주체, 주간은 칸 4 + 행. 카톡 행 = 기획서 「행 ≤5」 — 아침은 밤사이 알림 · 오늘
+    일정(휴장일은 + 외국인), 마감은 오늘 바뀐 것 · S&P500(전일) · 일정 · 휴장, 주간은 사건 · 가장 큰 움직임 · 다음 주.
+    옛 다이제스트 묶음 글(「금리 | 미국채10Y … 한미차 …」)은 행에 싣지 않고 AI 한 문장의 재료로만 넘긴다.
+    lines = AI 한 문장(실패하면 경보 · 알림 「왜」 → 카드의 큰 움직임) · 수급/휴장 · 바뀐 것/일정 요약."""
     if slot not in SLOTS:
         raise ValueError(f"모르는 브리핑 슬롯: {slot!r} ({', '.join(SLOTS)})")
     d, now = ctx.data, ctx.now
@@ -167,11 +197,9 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     held = [r for _, r in _held(ledger)] if slot == "morning" else []
     changed = sorted((r for r in ledger.rows if r.get("level") == "notice"),
                      key=lambda r: r.get("ts", "")) if slot == "close" else []
-    head, extras, mid = [], [], ""
-    if held:
-        head.append((f"밤사이 알림 {len(held)}건", " · ".join(r.get("title") or "" for r in held[:3])))
-    if changed:
-        head.append((f"오늘 바뀐 것 {len(changed)}건", " · ".join(changed_lines(changed))))
+    hm = f"{_md(now)}({WD[now.weekday()]}) {now:%H:%M}"
+    spec = {"foot": f"{now:%m/%d %H:%M} 기준 · ecom"}
+    items, mid, ai_blocks = [], "", []
 
     if slot == "weekly":
         week = [r for r in Ledger.load_days(7, end=ledger.day, root=ledger.root) if r.get("level") != "record"]
@@ -182,12 +210,15 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
         title = k._fit(base, [f"사건 {len(week)}건", big_txt])
         mid = " · ".join(x for x in (f"{dc.week_period(now)} 사건 {len(week)}건",
                                      big_txt and f"가장 큰 움직임 {big_txt}") if x)
-        head += [("사건", f"경보 {lv['alarm']} · 알림 {lv['alert']} · 안내 {lv['notice']}"), ("일정", " · ".join(cal))]
-        card = k._build_kakao_card(d, now, None, False, weekly=True, next_week=" · ".join(cal))
+        items = [("사건", f"{len(week)}건 · 경보 {lv['alarm']} · 알림 {lv['alert']} · 안내 {lv['notice']}"),
+                 ("가장 큰 움직임", big_txt), ("★★★ 일정", " · ".join(cal)), ("외국인", flow_streak(ctx)[0].removeprefix("외국인 "))]
+        loud = [r.get("title") or "" for r in week if r.get("level") in ("alarm", "alert")][-3:]
+        spec.update(title=f"주간 · {dc.week_period(now)}", meta=f"{now:%H:%M}", tiles=_week_tiles(ctx),
+                    info=items + [("알림" if i == 0 else "", t) for i, t in enumerate(loud)])
         links = k.card_links(d, None, False, now, weekly=True)
         ai_rows = week
     else:
-        extra = ""
+        extra, inv = "", None
         if slot == "morning":
             mid, n = ("", 0) if closed else flow_streak(ctx)
             extra = f"외국인 {n}일째" if n >= 2 else ""
@@ -204,41 +235,63 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
             fkey, fz = None, None
         focus = (fkey, fz) if fkey else None
         title = k.headline(d, lslot, False, now, focus=focus, extra=extra, base=base)[0]
-        if slot == "close":
-            idx, fx = d.get("indices") or {}, d.get("fx") or {}
-            citems = [(lab, k._f((idx.get(key) or {}).get("price")), k._f((idx.get(key) or {}).get("change")))
-                      for lab, key in (("코스피", "KOSPI"), ("코스닥", "KOSDAQ"), ("S&P500", "SP500"), ("나스닥", "NASDAQ"))]
-            usd = fx.get("USDKRW") or {}
-            citems.append(("달러-원", k._f(usd.get("rate")), k._f(usd.get("change"))))
-            sm = d.get("stockMovers") or {}
-            card = dc.close_report(
-                citems, now, alerts_cnt=sum(1 for r in ledger.rows if r.get("level") in ("alarm", "alert")),
-                cal=k._dc_cal_line(d, now + dt.timedelta(days=1)), intraday=k._intraday_chain("^KS11"),
-                investor=inv,
-                movers=(k._kospi_movers(sm.get("kospiGainers"))[:3], k._kospi_movers(sm.get("kospiLosers"))[:3]),
-                shape="square")
-        else:
-            card = k._build_kakao_card(d, now, lslot, False, focus=focus)
-            drop = k._card_tile_labels(lslot, False, now)
-            extras = [(lab, v) for lab, v in k.build_digest_parts(d, drop=drop, slot=lslot)[1]
-                      if v and lab not in ("일정", "수급")]
         if slot == "morning" and closed:
-            mid, holiday_row = holiday, []               # 휴장일 아침 — 수급 대신 휴장 · 다음 개장
+            mid = holiday                                # 휴장일 아침 — 수급 대신 휴장 · 다음 개장
+        if slot in ("morning", "us"):
+            rows, ref = _quotes(ctx, cards.BRIEF_US)
+            spec.update(title=f"{base.split(' ', 1)[1]} · {hm}", meta=f"미국 {_md(ref)} 마감" if ref else "", rows=rows)
         else:
-            holiday_row = [("휴장", holiday)] if holiday else []
-        head += ([("일정", " · ".join(cal))] if cal else []) + holiday_row
+            qs = [q for q in (cards.quote(ctx, t) for t in cards.BRIEF_KR) if q]
+            kq = cards.quote(ctx, "kospi")                         # 차트는 늘 ^KS11 — 이름 · 값도 코스피 것만
+            xs, ys, prev, src = k._intraday_chain("^KS11")          # src = 「일봉 7D」 등 하루 흐름이 아닐 때의 표식
+            spec.update(title=f"{name} · {hm}",
+                        meta="수급 확정" if inv and inv.get("confirmed") else "수급 잠정" if inv else "수급 집계 중",
+                        tiles=[dc._cell(q[0], q[1], q[2], q[3]) for q in qs],
+                        chart={"ys": ys, "xs": xs, "prev": prev, "up": bool(ys) and prev is not None and ys[-1] >= prev,
+                               "label": f"{kq[0]} {src or '하루 흐름'}" if kq else src, "right": kq[1] if kq else ""},
+                        bars=[("외국인", inv.get("foreign")), ("기관", inv.get("inst")), ("개인", inv.get("retail"))]
+                        if inv else [])
+        if slot == "morning":
+            items = [("밤사이 알림", f"{len(held)}건" + (" · " + " · ".join(r.get("title") or "" for r in held[:3])
+                                                     if held else "")),
+                     ("오늘 일정", " · ".join(cal) or "★★ 이상 없음")]
+            if closed:
+                items.append(("외국인", flow_streak(ctx)[0].removeprefix("외국인 ")))
+        else:
+            if changed:
+                items.append(("오늘 바뀐 것", f"안내 {len(changed)}건 · " + " · ".join(changed_lines(changed))))
+            sp = cards.quote(ctx, "sp500") if slot != "us" else None
+            if sp:
+                items.append((f"{sp[0]}(전일)", f"{sp[1]} {sp[2]}".strip()))
+            if cal:
+                items.append(("일정", " · ".join(cal)))
+        if holiday and not (slot == "morning" and closed):
+            items.append(("휴장", holiday))
+        card_items = [x for x in items if x[0] != "오늘 바뀐 것"]       # 카드엔 바뀐 것을 한 줄씩
+        if changed:
+            card_items = [(f"바뀐 것 {len(changed)}" if i == 0 else "", t)
+                          for i, t in enumerate(changed_lines(changed)[:3])] + card_items
+        spec["info"] = ([("휴장" if closed else "수급", mid)] if slot == "morning" and mid else []) + card_items
         links = k.card_links(d, lslot, False, now, focus_key=fkey)
         ai_rows = held + list(ledger.rows)
+        ai_blocks = k.build_digest_parts(d, slot=lslot)[1]          # 옛 묶음 글 — 행엔 안 싣고 AI 재료로만
     if compose.has_relative_time(title):
         title = base
 
-    items = [(lab, v) for lab, v in head + extras if v and not compose.has_relative_time(f"{lab} {v}")][:ITEMS_MAX]
-    ai = k.slot_ai_line(d, lslot, title, [("", mid)] + items)
-    if not ai or compose.has_relative_time(ai):        # 사전 문장 — 원장 첫 행 「왜」(기록 등급 제외)
-        ai = next((r["why"] for r in ai_rows if r.get("why") and r.get("level") != "record"), "")
+    items = [(lab, v) for lab, v in items if v and not compose.has_relative_time(f"{lab} {v}")][:ITEMS_MAX]
+    spec["info"] = [(lab, v) for lab, v in spec.get("info") or [] if v and not compose.has_relative_time(f"{lab} {v}")]
+    ai = k.slot_ai_line(d, lslot, title, [("", mid)] + items + list(ai_blocks))
+    if not ai or compose.has_relative_time(ai):        # 사전 문장 — 경보 · 알림 「왜」, 없으면 카드의 큰 움직임
+        ai = next((r["why"] for r in ai_rows if r.get("why") and r.get("level") in ("alarm", "alert")), "") \
+            or _moves(spec, title)
     summary = " · ".join(([f"오늘 바뀐 것 {len(changed)}건"] if changed else []) + cal)
     lines = [x if x and not compose.has_relative_time(x) else "" for x in (ai, mid, summary)]
-    return {"title": title, "lines": lines, "items": items, "card_png": card, "held_rows": held,
+    try:
+        png = cards.brief_card_png(spec)
+    except Exception as e:                             # noqa: BLE001 — 카드가 죽어도 브리핑은 나간다(카톡은 텍스트, 경고 남음)
+        print(f"[v2 brief] 카드 렌더 실패: {type(e).__name__} {str(e)[:120]}")
+        png = None
+    return {"title": title, "lines": lines, "items": items, "card_png": png, "held_rows": held,
             "changed_rows": changed, "calendar_lines": cal, "holiday": holiday, "links": links}
 
 
