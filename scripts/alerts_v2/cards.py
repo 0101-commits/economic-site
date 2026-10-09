@@ -199,6 +199,126 @@ def _draw_bundle(plt, fig, rows: list[dict], ctx) -> None:
     fig.text(0.03, 0.022, "ecom · 받은 알림에서 전체 보기", color=dc.FAINT, fontsize=dc._fs(13, True))
 
 
+# ---------- 브리핑 카드(기획서 5장 대화창 목업) ----------
+# 아침 = 목록(미국 · 환율 · 금리 · 유가), 마감 = 칸 3 + 하루 흐름 + 수급 3주체, 주간 = 칸 4 + 행. 옛 시황 6칸 카드
+# (send_kakao_digest._build_kakao_card)를 쓰던 자리다 — 2026-10-09 「브리핑 사진이 옛 시황 카드」.
+BRIEF_US = ("sp500", "nasdaq", "usdkrw", "usdjpy", "us10y", "wti")
+BRIEF_KR = ("kospi", "kosdaq", "usdkrw")
+FS_ROW = (25, 32, 25)              # 목록 행 이름 · 값 · 등락
+FS_INFO = (18, 22)                 # 정보 행 이름표 · 본문
+Y_FLOOR = 0.07                     # 꼬리(0.022) 위로 남길 자리
+
+
+def quote(ctx, target: str):
+    """번들 띠(화면과 같은 값) → (이름, 값 글자, 등락 글자, 등락값, 기준일 date|None). 값이 없으면 None.
+    금리(단위 %)의 등락은 bp, 나머지는 %."""
+    from .compose import MINUS, fmt_num
+    fn = getattr(ctx, "strip", None)
+    s = fn(target) if fn else None
+    if not s or s.get("value") is None:
+        return None
+    unit = s.get("unit") or ""
+    val = fmt_num(s["value"], unit if unit in ("%", "$") else "", s.get("decimals"))
+    if unit == "%":
+        c = s.get("change")
+        txt = "" if c is None else f"{'+' if c >= 0 else MINUS}{abs(c) * 100:.0f}bp"
+    else:
+        c = s.get("changePct")
+        txt = "" if c is None else f"{'▲' if c > 0 else '▼' if c < 0 else '■'}{abs(c):.2f}%"
+    try:
+        day = dt.date.fromisoformat(str(s.get("asOf"))[:10])
+    except ValueError:
+        day = None
+    return str(s.get("short") or s.get("label") or target), val, txt, c, day
+
+
+def _chg_color(c) -> str:
+    return dc.UP_TXT if (c or 0) > 0 else dc.DN_TXT if (c or 0) < 0 else dc.MUT
+
+
+def _rows(fig, plt, rows, y: float) -> float:
+    """목록 행 — 이름(+ 묵은 값이면 「· M/D」) · 값(오른쪽 맞춤) · 등락(색). 아래로 내려간 y 를 돌려준다."""
+    h = min(0.10, (y - 0.30) / max(len(rows), 1))
+    fn, fv, fc = (dc._fs(f, True) for f in FS_ROW)
+    for name, val, txt, c, tag in rows:
+        y -= h
+        base = y + h * 0.32
+        shown = dc._clip(fig, name, 0.40 - (0.09 if tag else 0), fn)
+        fig.text(0.03, base, shown, color=dc.INK, fontsize=fn)
+        if tag:                                                      # 묵은 값 — 이름 뒤 작은 「10/7」
+            fig.text(0.03 + dc._text_w(fig, shown, fn) + 0.012, base, tag, color=dc.FAINT, fontsize=dc._fs(18, True))
+        fig.text(0.73, base, dc._clip(fig, val, 0.29, fv, "bold"), color=dc.INK, fontsize=fv, fontweight="bold", ha="right")
+        fig.text(0.97, base, txt, color=_chg_color(c), fontsize=fc, fontweight="bold", ha="right")
+        fig.add_artist(plt.Line2D([0.03, 0.97], [y] * 2, transform=fig.transFigure, color=dc.FAINT, lw=0.8, alpha=0.35))
+    return y
+
+
+def _bars(fig, plt, bars, y: float) -> float:
+    """수급 막대 — 가운데 0선, 순매수는 오른쪽(상승색) · 순매도는 왼쪽(하락색), 값은 오른쪽 끝."""
+    from .compose import MINUS, fmt_num        # 카드 글꼴에 「−」(U+2212)가 없을 수 있어 막대 값은 ASCII
+    m = max(abs(v) for _, v in bars) or 1.0
+    fl, fv = dc._fs(20, True), dc._fs(22, True)
+    cx, half, h = 0.46, 0.20, 0.056
+    top = y
+    for name, v in bars:
+        y -= h
+        fig.text(0.03, y + h * 0.3, name, color=dc.MUT, fontsize=fl)
+        w = half * abs(v) / m
+        fig.patches.append(plt.Rectangle((cx if v >= 0 else cx - w, y + h * 0.22), w, h * 0.5,
+                                         transform=fig.transFigure, fc=dc.UP if v >= 0 else dc.DN, ec="none"))
+        fig.text(0.97, y + h * 0.3, ("+" if v > 0 else "") + fmt_num(v, "억").replace(MINUS, "-"), color=_chg_color(v), fontsize=fv,
+                 fontweight="bold", ha="right")
+    fig.add_artist(plt.Line2D([cx, cx], [y + h * 0.1, top - h * 0.1], transform=fig.transFigure, color=dc.FAINT, lw=1.0))
+    return y
+
+
+def _info(fig, info, y: float) -> float:
+    """정보 행(이름표 · 글) — 자리가 모자라면 뒤 행을 버린다(반쯤 잘린 행보다 낫다)."""
+    fl, ft = (dc._fs(f, True) for f in FS_INFO)
+    info = [(lab, txt) for lab, txt in info if txt]
+    x = 0.03 + max((dc._text_w(fig, lab, fl, "bold") for lab, _ in info), default=0) + 0.025
+    for lab, txt in info:
+        if y - 0.062 < Y_FLOOR:
+            break
+        y -= 0.062
+        fig.text(0.03, y, lab, color=dc.MUT, fontsize=fl, fontweight="bold")
+        fig.text(x, y, dc._clip(fig, txt, 0.97 - x, ft), color=dc.INK, fontsize=ft)
+    return y
+
+
+def _draw_brief(plt, fig, spec: dict) -> None:
+    """spec = {title, meta, tiles:[dc._cell], rows:[quote], chart:{ys, xs, prev, up, label, right},
+    bars:[(이름, 억)], info:[(이름표, 글)], foot}. 위에서 아래로 쌓고 빠진 칸은 자리를 안 차지한다."""
+    dc._head(fig, spec["title"], spec.get("meta", ""), fs_t=FS_TITLE)
+    y = 0.915
+    tiles = spec.get("tiles") or []
+    if tiles:
+        grid = [tiles[i:i + 2] for i in range(0, len(tiles), 2)] if len(tiles) == 4 else [tiles]
+        h = (0.19 if len(grid) > 1 else 0.15) * len(grid)
+        dc._draw_cells(fig, grid, (0.03, y - h, 0.94, h), (18, 30, 20), square=True, note_inline=True)
+        y -= h + 0.015
+    if spec.get("rows"):
+        y = _rows(fig, plt, spec["rows"], y)
+    bars = [(n, float(v)) for n, v in spec.get("bars") or [] if v is not None]
+    ch = spec.get("chart") or {}
+    if len([v for v in ch.get("ys") or [] if v is not None]) >= 3:
+        h = 0.22 if bars else 0.33                                   # 수급이 없는 날은 차트가 그 자리를 쓴다
+        y -= h + 0.05
+        dc._sq_panel(fig, [0.03, y, 0.94, h], ch["ys"], xs=ch.get("xs"), prev=ch.get("prev"), up=ch.get("up", True),
+                     label=ch.get("label", ""), right=ch.get("right", ""))
+        y -= 0.06                                                    # x 눈금 자리
+    if bars:
+        y = _bars(fig, plt, bars, y - 0.01)
+    if spec.get("info"):
+        _info(fig, spec["info"], y - 0.01)
+    fig.text(0.03, 0.022, spec.get("foot") or "ecom", color=dc.FAINT, fontsize=dc._fs(13, True))
+
+
+def brief_card_png(spec: dict) -> bytes:
+    """브리핑 카드 1080² PNG — 제목줄 · (칸) · (목록) · (하루 흐름) · (수급 막대) · 정보 행 · 꼬리."""
+    return _png(_guarded(_draw_brief, spec))
+
+
 def event_card_png(row: dict, ctx) -> bytes:
     """사건 카드 1080² PNG — 제목줄(이름 · 등급 · 시각) · 큰 숫자 · 왜 · 다음 · 작은 차트 · 칸 3 · 꼬리."""
     return _png(_event_fig(row, ctx))
