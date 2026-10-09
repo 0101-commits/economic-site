@@ -35,6 +35,8 @@ export type LensBundle = {
   triggers: Trigger[]
   today?: HomeLens
   posts: Post[]
+  /** 사슬·관계가 가리키는 글의 제목·날짜(logNo → 한 번씩). posts 는 최근 3편뿐이다. */
+  postMeta?: Record<string, { title?: string; date?: string }>
 }
 
 /** 이름 줄이기: 괄호 풀이와 「·」 뒤를 뗀다(「부동산(전국 주택가격지수)」 → 「부동산」). 묶음 nodes 에 short 가 없어서다. */

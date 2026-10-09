@@ -958,14 +958,20 @@ def build_lens(mer):
     counts = {}
     for t in triggers(mer):
         counts[t["state"]] = counts.get(t["state"], 0) + 1
-    titles = {p.get("logNo"): p.get("title") for p in mer.get("posts") or []}
+    by_no = {p.get("logNo"): p for p in mer.get("posts") or []}
+    titles = {no: p.get("title") for no, p in by_no.items()}
+    edges = edges_with_quote(mer, titles)
+    chains = [chain_view(c) | {"quotes": chain_quotes(mer, c, titles)} for c in (mer.get("chains") or [])]
+    # 사슬·관계가 가리키는 글의 제목·날짜 — logNo 마다 한 번. posts(최근 3편)에 없는 글이 대부분이라 사슬 원문 링크가
+    # 「원문 열기」로만 읽혔다(2026-10-09 점검). 원천 = mer_signals.posts(779편, 사슬·관계 글 전부를 덮는다 — merblog.json 은 365일 창).
+    nos = dict.fromkeys(no for x in edges + chains for no in x.get("logNos") or [])
     return {"asOf": mer.get("asOf"), "window": mer.get("window"), "coverage": mer.get("coverage"),
             "nodes": [dict(n, short=node_short(n)) for n in (g.get("nodes") or [])],
-            "edges": edges_with_quote(mer, titles),
-            "chains": [chain_view(c) | {"quotes": chain_quotes(mer, c, titles)} for c in (mer.get("chains") or [])],
+            "edges": edges, "chains": chains,
             "regime": mer.get("regime"), "lens": mer.get("lens"), "counters": mer.get("counters") or [],
             "triggers": triggers(mer), "triggerCounts": counts, "today": lens_today(mer),
-            "posts": [{"logNo": p.get("logNo"), "date": p["date"], "title": p.get("title")} for p in posts[-3:][::-1]]}
+            "posts": [{"logNo": p.get("logNo"), "date": p["date"], "title": p.get("title")} for p in posts[-3:][::-1]],
+            "postMeta": {no: {"title": by_no[no].get("title"), "date": by_no[no].get("date")} for no in nos if no in by_no}}
 
 
 # ── 금 김치프리미엄 ─────────────────────────────────────────────────────────

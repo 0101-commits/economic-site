@@ -89,7 +89,6 @@ export function watchBundles(): () => void {
  * - asOf 는 kept·missing 이면 null 일 수 있다. kept 는 keptSince(처음 못 받은 시각)를 단다.
  * - short = PC 이름, shortM = 모바일 8칸 이름, reason/reasonShort = 이유 한 줄(PC/모바일).
  * - 파생 칸(시장 띠): breadth_kospi 는 value = 상승 종목 수이고 up·down·flat 이 따로 온다 → 「352/513」(up/down)으로 적는다.
- *   foreign_hold_ratio 는 늘 value null · state missing 이다.
  * - 띠 순서의 단일 원천은 scripts/build_bundles.py 의 STRIPS 표다. 화면에서 순서를 다시 정하지 말 것.
  * data.json 폴백에는 state 이하가 없다.
  */

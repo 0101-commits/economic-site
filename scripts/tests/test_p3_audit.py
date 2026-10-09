@@ -69,3 +69,14 @@ def test_calendar_bundles_use_event_name():
     now = dt.datetime(2026, 10, 9, 12, 0, tzinfo=bb.KST)
     assert bb.calendar_events(data, now)[0]["name"] == "미국 주택착공"
     assert bb.all_events(data)[0]["name"] == "미국 주택착공"
+
+
+def test_lens_post_meta_covers_chain_and_edge_posts_once():
+    """사슬 원문 링크 64개가 모두 「원문 열기」였다 — posts 가 최근 3편뿐이라서. postMeta 가 logNo 마다 제목·날짜를 싣는다."""
+    mer = {"posts": [{"logNo": "1", "date": "2025-09-16", "title": "가"}, {"logNo": "2", "date": "2025-09-17", "title": "나"},
+                     {"logNo": "3", "date": "2025-09-18", "title": "다"}],
+           "graph": {"edges": [{"from": "a", "to": "b", "dir": "+", "logNos": ["2", "3"]}]},
+           "chains": [{"id": "C1", "steps": [], "logNos": ["1", "2", "9"]}]}
+    lens = bb.build_lens(mer)
+    assert lens["postMeta"] == {"1": {"title": "가", "date": "2025-09-16"}, "2": {"title": "나", "date": "2025-09-17"},
+                                "3": {"title": "다", "date": "2025-09-18"}}       # 원천에 없는 9 는 싣지 않는다
