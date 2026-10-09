@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import os
 import sys
 
@@ -41,8 +42,29 @@ def _render(ctx):
         return None
 
 
-def _pipeline_b(ctx, new_rows, ledger, dry_run: bool):
-    """ALERTS_V2=1 일 때만 구독 → 편성 → 발송. 모듈이 아직 없으면 조용히 건너뜀."""
+def load_state(path: str) -> dict | None:
+    """alerts_state.json — 없으면 빈 문서, 깨졌으면 None(U1 은 이번 런 판정하지 않고 파일도 안 쓴다)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            st = json.load(f)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError):
+        print("[v2] alerts_state.json 을 읽지 못함 — U1(넘는 순간) 판정 건너뜀")
+        return None
+    return st if isinstance(st, dict) else None
+
+
+def save_state(path: str, st: dict) -> None:
+    with open(path, "w", encoding="utf-8") as f:              # check_alerts._save_state 와 같은 모양
+        json.dump(st, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
+def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = ""):
+    """ALERTS_V2=1 일 때만 구독 → 편성 → 발송. 모듈이 아직 없으면 조용히 건너뜀.
+
+    U1(넘는 순간)의 직전 쪽은 alerts_state.json._prefs 에 남는다 — 그 파일을 커밋하는 stock-alerts(light)만 본다."""
     if os.environ.get("ALERTS_V2", "0") != "1":
         print(f"[v2] ALERTS_V2 꺼짐 — 원장만 기록({len(new_rows)}건)")
         return
@@ -51,7 +73,16 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool):
     prefs = subscribe.load_prefs()
     history = Ledger.load_days(8, end=ledger.day)          # 쿨다운 · 한 번 조건 판정용(오늘 포함)
     render = _render(ctx)
-    user_rows = subscribe.user_hits(ctx, prefs, history, render=render)
+    path = os.path.join(ctx.root, "alerts_state.json")
+    state = load_state(path) if mode == "light" else None
+    sides = None
+    if state is not None:
+        sides = state["_prefs"] if isinstance(state.get("_prefs"), dict) else {}
+        state["_prefs"] = sides
+    before = json.dumps(sides, sort_keys=True)
+    user_rows = subscribe.user_hits(ctx, prefs, history, render=render, sides=sides)
+    if sides is not None and not dry_run and json.dumps(sides, sort_keys=True) != before:
+        save_state(path, state)
     rows = [r.to_dict() if hasattr(r, "to_dict") else r for r in new_rows]
     for ur in user_rows:
         if ledger.append(ur):
@@ -126,7 +157,7 @@ def main(argv=None) -> int:
         print(f"  + {r.key} [{r.level}] {r.title}")
     if args.mode == "daily":                         # 이력 1점 묶음(VKOSPI · 금 김프 · 운임 · LME · 폭 · 업종)의 하루치 적재
         history_sink.run(ctx, dry_run=args.dry_run)
-    _pipeline_b(ctx, new_rows, ledger, args.dry_run)
+    _pipeline_b(ctx, new_rows, ledger, args.dry_run, args.mode)
     if not args.dry_run:
         ledger.save()
         Ledger.rebuild_latest()

@@ -197,6 +197,7 @@ def yahoo_snapshot(symbol):
         "vol_today": float(rows[-1][5] or 0) or None,
         "vol_prev": float(rows[-2][5] or 0) or None,
         "fresh": fresh,
+        "dates": [_day(r[0]).isoformat() for r in rows],   # closes 와 같은 길이(거래소 현지 날짜) — 알림 v2 의 52주 판정용
     }
 
 
@@ -254,6 +255,8 @@ def naver_snapshot(code):
         # 마지막 일봉이 오늘이 아니면 휴장(공휴일)/스테일 — 호출측이 평가를 건너뛴다.
         # (차트가 아예 없고 basic 현재가만 있으면 판정 불가 → fresh 로 간주해 과차단을 피한다.)
         "fresh": (not rows) or rows[-1][0] == today,
+        # closes 와 같은 길이 — 현재가를 덧붙였으면 끝이 오늘(알림 v2 의 52주 판정용)
+        "dates": ([f"{r[0][:4]}-{r[0][4:6]}-{r[0][6:]}" for r in rows] + [end.date().isoformat()])[:len(closes)],
     }
 
 
