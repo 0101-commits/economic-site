@@ -406,8 +406,8 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     fields=[(이름, 값, inline)] 2열 그리드(D3), footer=신선도 한 줄(D4), timestamp=수신 시각.
     ⚠ 이미지 클릭은 디스코드 정책상 항상 '확대 보기' — 이동은 제목·버튼이 담당.
     mention(E1): True|"everyone"=@everyone / "role:이름"=역할 멘션 / None·False=무멘션.
-    buttons(E3): [(라벨, url 또는 "id:custom_id"), …] — 봇 토큰이 있으면 봇 메시지로
-    보내 버튼을 단다(웹훅은 컴포넌트 불가). 봇 경로 실패 시 버튼 없이 웹훅 폴백.
+    buttons(E3): [(라벨, url 또는 "id:custom_id"), …] — 링크 버튼뿐이면 웹훅에 그대로 단다
+    (with_components=true). 대화형(custom_id)이 섞이면 봇 메시지로, 봇 실패 시 링크 버튼만 웹훅으로.
     select(v4): [(라벨, NAVER_LINKS 키)] — 지표 딥링크 드롭다운 1행(버튼 다이어트,
     기획 ed0e5496). 버튼과 같은 규칙: 봇 경로만, 폴백 시 링크 필드로 강등.
     flags(v2): 메시지 플래그 비트필드 — SUPPRESS_NOTIFICATIONS(4096)면 알림음 없이 올라간다. None=종전."""
@@ -458,7 +458,12 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     comps = _components(buttons)
     sel = _select_component(select)
     allc = ((comps or []) + ([sel] if sel else []))[:5]
-    if allc and tok:
+    # 링크 버튼(style 5)은 상호작용이 없어 웹훅도 단다(with_components=true, 앱 소유가 아닌 웹훅은 비대화형만).
+    # 봇은 대화형(custom_id · 드롭다운)이 있을 때만 쓴다 — 2026-10 브리핑이 봇 403(채널 권한 없음)으로 버튼을 잃었다.
+    link_rows = [{"type": 1, "components": [c for c in r["components"] if c.get("url")]} for r in (comps or [])]
+    link_rows = [r for r in link_rows if r["components"]]
+    interactive = bool(sel) or any(c.get("custom_id") for r in (comps or []) for c in r["components"])
+    if allc and tok and interactive:
         try:
             _ensure_bot_name(tok)
             cid = tid or _webhook_info(hook).get("channel_id")
@@ -473,8 +478,20 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
         except Exception as e:
             print(f"[discord] 봇 발송 실패({e}) — 컴포넌트 없이 웹훅 폴백")
 
-    # 웹훅 경로(종전) — 컴포넌트가 빠지므로(웹훅은 컴포넌트 불가) 링크 버튼·드롭다운
-    # 옵션을 embed 필드 한 줄로 자동 변환해 도달을 보장한다(v3 안전망 — 평시 봇 경로에선 미표시).
+    wh = hook + (("&" if "?" in hook else "?") + f"thread_id={tid}" if tid else "")
+    if link_rows:
+        try:
+            _post(wh + ("&" if "?" in wh else "?") + "with_components=true",
+                  {**payload, "username": BOT_NAME, "components": link_rows}, png, filename)
+            nbtn = sum(len(r["components"]) for r in link_rows)
+            print(f"[discord] 발송 성공 ({plen}자{', 이미지 첨부' if png else ''}"
+                  f"{', embed' if title else ''}, 웹훅+링크 버튼 {nbtn}개, env={env})")
+            return True
+        except Exception as e:
+            print(f"[discord] 웹훅 링크 버튼 실패({e}) — 버튼을 링크 필드로")
+
+    # 웹훅 경로(종전) — 버튼을 못 단 경우 링크 버튼·드롭다운 옵션을 embed 필드 한 줄로
+    # 자동 변환해 도달을 보장한다(v3 안전망).
     if (comps or sel) and title:
         try:
             links = [f"[{c['label']}]({c['url']})"
@@ -503,7 +520,6 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
         except Exception:
             pass
     try:
-        wh = hook + (("&" if "?" in hook else "?") + f"thread_id={tid}" if tid else "")
         _post(wh, {**payload, "username": BOT_NAME}, png, filename)
         print(f"[discord] 발송 성공 ({plen}자{', 이미지 첨부' if png else ''}{', embed' if title else ''}, env={env})")
         return True

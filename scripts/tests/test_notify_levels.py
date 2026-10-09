@@ -122,3 +122,25 @@ def test_send_flags_default_leaves_current_callers_untouched():
     POSTED.clear()
     assert nd.send("본문", flags=SUPPRESS) is True
     assert _last()["payload"]["flags"] == SUPPRESS
+
+
+def test_link_buttons_ride_the_webhook_without_bot(monkeypatch):
+    """링크 버튼뿐이면 봇 없이 웹훅에 단다(with_components=true) — 봇 403(채널 권한 없음)으로 브리핑 버튼이 사라졌었다."""
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", "tok")
+    assert nd.send_level("brief", "10/9 아침", "본문", buttons=[("S&P 500", "https://x/sp"), ("대시보드", "https://x/")])
+    assert len(POSTED) == 1 and "/channels/" not in POSTED[0]["url"]           # 봇 경로를 타지 않는다
+    assert POSTED[0]["url"].endswith("?with_components=true")
+    row = POSTED[0]["payload"]["components"][0]["components"]
+    assert [b["url"] for b in row] == ["https://x/sp", "https://x/"] and all(b["style"] == 5 for b in row)
+    assert not any(f.get("name", "").startswith("바로가기") for f in POSTED[0]["payload"]["embeds"][0].get("fields", []))
+
+
+def test_webhook_refuses_components_falls_back_to_link_field(monkeypatch):
+    def post(url, payload, png, filename, extra=None):
+        if "with_components" in url:
+            raise RuntimeError("HTTP 400")
+        POSTED.append({"url": url, "payload": payload})
+    monkeypatch.setattr(nd, "_post", post)
+    assert nd.send_level("brief", "10/9 아침", "본문", buttons=[("S&P 500", "https://x/sp")])
+    assert "components" not in POSTED[0]["payload"]
+    assert POSTED[0]["payload"]["embeds"][0]["fields"][-1]["value"] == "[S&P 500](https://x/sp)"

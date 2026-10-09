@@ -174,6 +174,7 @@ def send(s: Send, ledger, ctx, log=print, queue_path: str = PUSH_QUEUE_PATH) -> 
     if s.held:
         res["discord"] = send_discord(s, log)
         ledger.update_sent(s.row["key"], held=True, discord=res["discord"])
+        log(f"[v2 send] {s} → 보류(조용한 시간 · 디스코드만, 카톡 · 푸시는 아침 브리핑 합류) · discord {res['discord']}")
         return res
     if s.push:
         res["push"] = 1 if enqueue_push([push_item(s)], queue_path) else 0
