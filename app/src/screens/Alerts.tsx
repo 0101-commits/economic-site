@@ -145,7 +145,7 @@ export default function Alerts() {
 
   const regName = useMemo(() => new Map(reg.map(r => [r.id, r.short || r.label])), [reg])
   const labelOf = (id: string) => regName.get(id) ?? md?.quotes.get(id)?.name ?? id
-  const toOf = (id: string) => (regName.has(id) ? `/i/${id}` : '/market?a=kr&m=all')
+  const toOf = (id: string) => (regName.has(id) || watchKind(id) === 'stock' ? `/i/${id}` : '/market?a=kr&m=all')
   const names = useMemo(() => new Map(prefs.alerts.map(a => [a.id, condName(a, regName.get(a.target) ?? md?.quotes.get(a.target)?.name ?? a.target, EV.get(a.event)?.name)])), [prefs.alerts, regName, md])
   const today = kstDay()
   const yesterday = kstDay(Date.now() - 86_400_000)

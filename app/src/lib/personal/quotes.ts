@@ -2,9 +2,10 @@
 // 현행 화면(js/app1.js fetchYahooQuote)과 같은 경로: `<Worker>/?url=` + query1.finance.yahoo.com/v8/finance/chart/<심볼>?range=5d&interval=1d.
 // market-global 묶음은 지수뿐이라(종목 칸 없음) 여기서 따로 보지 않는다.
 // 받은 값은 sessionStorage 에 10분 둔다(탭을 닫으면 사라진다). 한 번에 4개까지 동시에. 못 받은 종목은 「시세 없음」 그대로 둔다.
-// 보유 목록을 읽는 화면(내 자산 Holdings — PinGate 안)에서만 부른다.
+// holdingQuotes 는 보유 목록을 읽는 화면(내 자산 Holdings — PinGate 안)에서만 부른다. stockSeries(1년 일봉)는 종목 상세가 부른다(보유를 읽지 않는다).
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(calc.ts 와 같은 규칙). node --test 로 바로 돌린다(quotes.test.ts).
 import type { Holding, Quote } from './calc'
+import type { Pt } from '../format'
 import { WORKER } from './remote.ts'
 
 const CACHE_KEY = 'econHoldQuotes_v1'
@@ -18,10 +19,10 @@ export function yahooSymbols(h: Pick<Holding, 'symbol' | 'market'> & { yahoo?: u
   return y ? [y] : []
 }
 
-export const chartUrl = (sym: string) =>
-  `${WORKER}/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=5d&interval=1d`)}`
+export const chartUrl = (sym: string, range = '5d') =>
+  `${WORKER}/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=1d`)}`
 
-type Chart = { chart?: { result?: { meta?: Record<string, unknown>; indicators?: { quote?: { close?: (number | null)[] }[] } }[] | null } }
+type Chart = { chart?: { result?: { meta?: Record<string, unknown>; timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[] }[] } }[] | null } }
 const pos = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null)
 
 /**
@@ -99,4 +100,45 @@ export async function holdingQuotes(items: Holding[], have: Map<string, Quote>, 
   await Promise.all(Array.from({ length: Math.min(PARALLEL, need.length) }, worker))
   if (need.length) writeCache(cache)
   return out
+}
+
+// ── 종목 상세(/i/<코드>)의 흐름 차트 ─────────────────────
+/** 종목 1년 일봉: pts = [거래소 현지 날짜, 종가](빈 종가는 뺀다), 지금 값 · 전일은 parseChart 규칙, name = Yahoo 이름, asOf = 마지막 체결 시각. */
+export type StockChart = { pts: Pt[]; price: number; prev: number | null; name?: string; asOf?: string }
+
+/** 일봉 응답 → StockChart. parseChart 와 같은 거래소 검사를 거친다. 종가가 2개 미만이면 null. */
+export function parseSeries(j: Chart | null | undefined, exchange?: string): StockChart | null {
+  const p = parseChart(j, exchange)
+  const res = j?.chart?.result?.[0]
+  if (!p || !res) return null
+  const meta = res.meta ?? {}
+  const off = typeof meta.gmtoffset === 'number' ? meta.gmtoffset : 0
+  const closes = res.indicators?.quote?.[0]?.close ?? []
+  const pts: Pt[] = []
+  ;(res.timestamp ?? []).forEach((t, i) => { const c = pos(closes[i]); if (c != null) pts.push([new Date((t + off) * 1000).toISOString().slice(0, 10), c]) })
+  if (pts.length < 2) return null
+  const name = typeof meta.longName === 'string' ? meta.longName : typeof meta.shortName === 'string' ? meta.shortName : undefined
+  const asOf = typeof meta.regularMarketTime === 'number' ? new Date(meta.regularMarketTime * 1000).toISOString() : undefined
+  return { pts, ...p, name, asOf }
+}
+
+const SERIES_KEY = 'econStockSeries_v1'
+/** 종목 1년 일봉(국내 .KS 다음 .KQ). 받은 것은 sessionStorage 에 10분(보유 시세와 같은 방식). 못 받으면 null. */
+export async function stockSeries(code: string, kr: boolean, now = Date.now()): Promise<StockChart | null> {
+  let cache: Record<string, StockChart & { t: number }> = {}
+  try { cache = JSON.parse(sessionStorage.getItem(SERIES_KEY) || '{}') || {} } catch { /* 없는 것으로 */ }
+  const c = cache[code]
+  if (c && now - c.t < TTL_MS && c.pts?.length) return c
+  for (const sym of yahooSymbols({ symbol: code, market: kr ? 'KR' : 'US' })) {
+    try {
+      const r = await fetch(chartUrl(sym, '1y'), { signal: AbortSignal.timeout(8_000) })
+      const s = r.ok ? parseSeries(await r.json(), KR_EXCHANGE[sym.slice(-3)]) : null
+      if (!s) continue
+      // 지난 저장본은 버리고 이번 것만 더한다(탭 안에서 본 종목 수만큼만 남는다)
+      const keep = Object.fromEntries(Object.entries(cache).filter(([, v]) => now - v.t < TTL_MS))
+      try { sessionStorage.setItem(SERIES_KEY, JSON.stringify({ ...keep, [code]: { t: now, ...s } })) } catch { /* 못 두면 다음에 다시 받는다 */ }
+      return s
+    } catch { /* 다음 후보 */ }
+  }
+  return null
 }

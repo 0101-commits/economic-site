@@ -84,10 +84,10 @@ export function levelChoices(base: Level): Level[] {
   return ORDER.slice(Math.max(0, i - 1), i + 2)
 }
 
-/** 새 조건 폼의 사건: 지표 = 갈래 A·B·C 중 그 대상을 가진 것 + U1 · U2, 종목 = D5 · F1 · F2 + U1 · U2. */
+/** 새 조건 폼의 사건: 지표 = 갈래 A·B·C 중 그 대상을 가진 것 + U1 · U2, 국내 종목 = D5 · F1 · F2 + U1 · U2, 미국 종목 = U1 · U2(수급 · 공시 · 거래소 경보는 국내 자료뿐). */
 export function eventsFor(d: Dict, target: string, stock: boolean): DictEvent[] {
   const user = d.events.filter(e => e.userValue)
-  if (stock) return [...d.events.filter(e => e.enabled && ['D5', 'F1', 'F2'].includes(e.id)), ...user]
+  if (stock) return [...(/^\d[0-9A-Z]{5}$/.test(target) ? d.events.filter(e => e.enabled && ['D5', 'F1', 'F2'].includes(e.id)) : []), ...user]
   const own = d.events.filter(e => e.enabled && 'ABC'.includes(e.family) && !e.userValue &&
     (e.targets.includes(target) || (e.targets.includes('lens') && e.defaultOn.includes(target))))
   return [...own, ...user]

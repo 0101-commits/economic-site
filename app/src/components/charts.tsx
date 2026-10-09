@@ -90,6 +90,14 @@ export function LineChart({ periods, period, onPeriod, name, compare = [], decim
     setHover(Math.max(0, Math.min(main.length - 1, Math.round((x / iw) * (main.length - 1)))))
   }
   const hx = hover != null ? X(hover, main.length) : 0
+  // 비교 모드 선 끝 이름 자리: 앞 선 이름과 11px 안으로 붙으면 그 반대쪽으로 민다(겹침 차트는 끝값이 비슷한 일이 잦다)
+  const ends: number[] = [], taken: number[] = []
+  lines.forEach((l, j) => {
+    if (l.length < 2) return
+    let y = Y(l[l.length - 1][1]) + 4
+    for (const e of taken) if (Math.abs(y - e) < 11) y = e + (y >= e ? 11 : -11)
+    taken.push(ends[j] = y)
+  })
 
   return (
     <div className="min-w-0">
@@ -117,8 +125,7 @@ export function LineChart({ periods, period, onPeriod, name, compare = [], decim
               <g key={j}>
                 <path d={d(l)} fill="none" className={style(j).s} strokeWidth={j ? 1.5 : 2} strokeDasharray={style(j).dash} strokeLinejoin="round" />
                 <circle cx={X(l.length - 1, l.length)} cy={Y(l[l.length - 1][1])} r={3} className={style(j).f} />
-                {/* ponytail: 선 끝이 가까우면 이름이 겹친다 — 겹치면 위아래로 미는 처리 추가 */}
-                {cmp && <text x={iw + 6} y={Y(l[l.length - 1][1]) + 4} className={`${style(j).f} text-11`}>{names[j]}</text>}
+                {cmp && <text x={iw + 6} y={ends[j]} className={`${style(j).f} text-11`}>{names[j]}</text>}
               </g>
             ))}
             <text x={0} y={h - 4} className="fill-ink-3 text-11 num">{shortDate(main[0][0])}</text>

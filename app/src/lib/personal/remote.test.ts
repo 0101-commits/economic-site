@@ -18,9 +18,9 @@ test('keyHash: 앞뒤 공백을 뺀 SHA-256 hex(현행 화면과 같은 규칙)'
   assert.equal(await keyHash('  abc \n'), await keyHash('abc'))
 })
 
-test('watchKind: 숫자로 시작하는 6자리만 종목', () => {
-  assert.deepEqual(['005930', '0035S0', 'kospi', 'usdkrw', 'C2', 'circuit-KOSPI-20260729', '12345'].map(watchKind),
-    ['stock', 'stock', 'indicator', 'indicator', 'indicator', 'indicator', 'indicator'])
+test('watchKind: 국내 6자리 코드 · 미국 티커만 종목', () => {
+  assert.deepEqual(['005930', '0035S0', 'AAPL', 'BRK-B', 'kospi', 'usdkrw', 'cpi_kr', 'aapl', 'circuit-KOSPI-20260729', '12345'].map(watchKind),
+    ['stock', 'stock', 'stock', 'stock', 'indicator', 'indicator', 'indicator', 'indicator', 'indicator', 'indicator'])
 })
 
 test('toServer: 서버 모양 · 보유 칸 없음 · 담은 때는 직전 서버 문서에서', () => {

@@ -1,20 +1,22 @@
 // 지표 상세 /i/:id — 지표 사전(registry)으로 이름·단위·자릿수, 홈·시장 묶음에서 값·시계열을 찾는다.
 // 사전에 없는 낱말(검색창에서 온 것)이면 이름이 비슷한 지표를 늘어놓는다. 렌즈 지표 48개(렌즈 묶음 triggers)에 들면 「렌즈」 패널을 붙인다.
 // 사전 행에 뉴스 주제(news)가 있으면 「관련 뉴스」 3줄(없으면 패널 없음).
+// id 가 종목(국내 6자리 코드 · 미국 티커, lib/detail.ts isStockId)이면 종목 상세(components/detail/Stock.tsx)를 그린다.
+// 「함께 볼 지표」 카드의 「겹쳐 보기」는 흐름 차트에 그 선을 첫 날 = 100 으로 겹친다(주소 cmp).
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { BellPlus, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { loadBundle, loadIndicator, loadRegistry, shownUnit, type RegRow, type StripItem, type Trigger } from '../lib/bundle'
-import { range52, scaled, scaledPts, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
-import { useViewParam } from '../lib/useViewParam'
+import { isStockId } from '../lib/detail'
+import { scaled, scaledPts, type Pt } from '../lib/format'
 import { useWatch } from '../lib/watch'
 import { AsOfBadge, NumBlock } from '../components/ui'
-import { LineChart, Range52 } from '../components/charts'
-import { Panel, StripCard, WatchStar } from '../components/panels'
-import { BellSheet } from '../components/personal/BellSheet'
+import { Panel, WatchStar } from '../components/panels'
 import { TrigPill, asOfText, btn, trigValue } from '../components/lens/parts'
 import type { LensBundle, LensChain } from '../components/lens/model'
 import { NewsPanel } from '../components/market/parts'
+import { BellPanel, FlowPanel, Related, useCmp } from '../components/detail/parts'
+import StockDetail from '../components/detail/Stock'
 
 // 사전 자산군 → 시장 화면 자산군 탭(Market.tsx ASSETS 키)
 const MARKET_TAB: Record<string, string> = { index: 'global', sentiment: 'global', fx: 'fxrate', rate: 'fxrate', commodity: 'commod', macro: 'macro', realestate: 'realestate' }
@@ -34,12 +36,13 @@ function lensFact(b: LensBundle | null, id: string): LensFact | undefined {
 
 export default function Detail() {
   const { id = '' } = useParams()
-  const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
+  return isStockId(id) ? <StockDetail key={id} id={id} /> : <IndicatorDetail id={id} />
+}
+
+function IndicatorDetail({ id }: { id: string }) {
   const watch = useWatch()
   const [got, setGot] = useState<Got | null>(null)
-  // 벨 시트: 「알림 조건 추가」가 연다. 주소에 bell=1 이 있으면 열린 채로 온다(넘침 게이트 · 공유용).
-  const [bell] = useViewParam<string>('bell', '')
-  const [bellOpen, setBellOpen] = useState(bell === '1')
+  const [cmp, setCmp, cmpGot] = useCmp(id)
   useEffect(() => {
     let live = true
     setGot(null)
@@ -77,11 +80,14 @@ export default function Detail() {
   const unitShown = shownUnit({ scale, unit: item?.unit ?? reg?.unit })
   const v = scaled(item?.value, scale), c = scaled(item?.change, scale)
   const pts = series ? scaledPts(series, scale) : undefined
-  const r52 = range52(pts)
   const lens = got.lens, t = lens?.t
   // 흐름 차트 기준선: 트리거 값이 화면 값과 같은 잣대일 때만(물가는 트리거 = 전년비 %, 화면 = 지수라 그리지 않는다)
   // ponytail: 5% 근접으로 잣대를 가늠한다 — 트리거에 화면 단위가 실리면 그것으로 바꾼다
-  const limit = t?.level != null && t.value != null && v != null && Math.abs(t.value - v) <= Math.abs(v) * 0.05 ? { value: t.level, label: '기준' } : null
+  const known = t?.value != null && v != null, same = known && Math.abs(t!.value! - v!) <= Math.abs(v!) * 0.05
+  const limit = t?.level != null && same ? { value: t.level, label: '기준' } : null
+  // 잣대가 다르면(기준선을 안 그리는 같은 판정) 렌즈 줄 앞에 잣대 이름 — 트리거 이름 괄호(「한국 CPI(전년비)」 → 전년비), 없으면 트리거 이름.
+  // 묶음 트리거엔 변환 칸이 없고 단위는 '%' 뿐이라 이름이 유일한 원천이다(2026-10-09 실측: 잣대가 다른 것 = cpi_kr · pce_us, 둘 다 괄호 있음).
+  const scaleName = t && known && !same ? /\(([^)]+)\)\s*$/.exec(t.label)?.[1] ?? t.label : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -98,25 +104,17 @@ export default function Detail() {
       </header>
 
       <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
-        <Panel className="pc:col-span-8" title="흐름">
-          <LineChart label={name} periods={slicePeriods(pts)} period={p} onPeriod={setP} decimals={decimals}
-            base={v != null && c != null ? { value: v - c, label: '전일' } : null} limit={limit} />
-          {r52 && <div className="mt-4"><Range52 low={r52.low} high={r52.high} value={v} decimals={decimals} /></div>}
-        </Panel>
+        <FlowPanel className="pc:col-span-8" name={name} short={reg?.short} pts={pts ?? []} decimals={decimals} value={v}
+          base={v != null && c != null ? { value: v - c, label: '전일' } : null} limit={limit} cmp={cmpGot} onCmpOff={() => setCmp('')} />
 
         <div className="pc:col-span-4 flex flex-col gap-4">
-          <Panel title="알림">
-            <p className="m-0 mb-3 text-13 text-ink-2">이 지표가 정한 값을 넘거나 크게 움직이면 알려 드립니다.</p>
-            <button type="button" onClick={() => setBellOpen(true)}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-btn bg-accent text-on-accent text-13 font-bold border-0 cursor-pointer">
-              <BellPlus size={16} aria-hidden />알림 조건 추가
-            </button>
-          </Panel>
+          <BellPanel id={id} name={name} what="이 지표가" />
 
           {lens && t && (
             <Panel title="렌즈" source="메르 글 기준">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-13">
                 <TrigPill t={t} />
+                {scaleName && <span className="text-ink-2">{scaleName}</span>}
                 <span className="text-ink-3">기준 <span className="num text-ink-1">{trigValue({ ...t, value: t.level }) ?? '—'}</span></span>
                 <span className="text-ink-3">지금 <span className="num text-ink-1">{trigValue(t) ?? '—'}</span></span>
                 {t.asOf && <span className="num text-11 text-ink-3">{asOfText(t.asOf)}</span>}
@@ -134,23 +132,12 @@ export default function Detail() {
           <NewsPanel topic={reg?.news} n={3} title="관련 뉴스" />
         </div>
 
-        {got.related.length > 0 && (
-          <section className="pc:col-span-12 flex flex-col gap-2" aria-label="함께 볼 지표">
-            <h2 className="m-0 text-14 font-bold text-ink-1">함께 볼 지표</h2>
-            <div className="grid grid-cols-2 pc:grid-cols-4 gap-2">
-              {got.related.map(({ reg: r, item: it }) => (
-                <StripCard key={r.id} to={`/i/${r.id}`} watched={watch.has(r.id)} onWatch={() => watch.toggle(r.id)}
-                  item={{ ...(it ?? { value: null, change: null, changePct: null, asOf: null }), id: r.id, label: r.label, short: r.short, shortM: r.shortM, decimals: r.decimals, unit: it?.unit ?? r.unit, scale: it?.scale ?? r.scale }} />
-              ))}
-            </div>
-          </section>
-        )}
+        <Related items={got.related} cmp={cmp} onCmp={setCmp} canOverlay={!!pts?.length && pts.every(q => q[1] > 0)} />
       </div>
 
       {reg && MARKET_TAB[reg.asset] && (
         <Link to={`/market?a=${MARKET_TAB[reg.asset]}`} className="inline-flex items-center self-start text-12 text-ink-2 no-underline hover:text-ink-1">시장 화면에서 보기<ChevronRight size={14} aria-hidden /></Link>
       )}
-      <BellSheet open={bellOpen} onClose={() => setBellOpen(false)} id={id} label={name} />
     </div>
   )
 }
