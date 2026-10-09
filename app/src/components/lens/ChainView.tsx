@@ -70,9 +70,9 @@ export default function ChainView({ b }: { b: LensBundle }) {
               <h3 className="m-0 mb-1 text-12 font-bold text-ink-2">출처 인용</h3>
               <More rows={[...cited.values()]} name="출처 인용">{shown => (
                 <ul className="m-0 p-0 list-none">
-                  {shown.map(({ q, lines }) => (
+                  {shown.map(({ q, lines }, k) => (
                     <li key={q.logNo} className="py-1.5 border-b border-line last:border-b-0">
-                      <a href={postUrl(q.logNo)} target="_blank" rel="noopener noreferrer" className="text-13 text-ink-1 no-underline hover:underline">{q.title || posts.get(q.logNo)?.title || '원문 열기'}</a>
+                      <a href={postUrl(q.logNo)} target="_blank" rel="noopener noreferrer" aria-label={`${q.title || posts.get(q.logNo)?.title || `${k + 1}번째 인용 글`} 원문 열기`} className="text-13 text-ink-1 no-underline hover:underline">{q.title || posts.get(q.logNo)?.title || '원문 열기'}</a>
                       {q.date && <span className="ml-2 num text-11 text-ink-3">{shortDate(q.date)}</span>}
                       {lines.map((t, i) => <p key={i} className="m-0 mt-0.5 text-12 text-ink-2 max-w-[44em]">「{t}」</p>)}
                     </li>
@@ -86,11 +86,12 @@ export default function ChainView({ b }: { b: LensBundle }) {
               <details className="w-full">
                 <summary className={`${btn()} w-fit list-none [&::-webkit-details-marker]:hidden`}>글 {logNos.length}편</summary>
                 <ul className="m-0 mt-2 p-0 list-none">
-                  {logNos.map(no => {
+                  {logNos.map((no, i) => {
                     const p = posts.get(no)
+                    // 묶음 posts 는 최근 3편뿐이라 제목이 없는 글이 많다 — 읽기 도구 이름은 순번으로라도 가른다
                     return (
                       <li key={no} className="py-1.5 border-b border-line last:border-b-0 text-13">
-                        <a href={postUrl(no)} target="_blank" rel="noopener noreferrer" className="text-ink-1 no-underline hover:underline">{p?.title || '원문 열기'}</a>
+                        <a href={postUrl(no)} target="_blank" rel="noopener noreferrer" aria-label={`${p?.title || `${i + 1}번째 글`} 원문 열기`} className="text-ink-1 no-underline hover:underline">{p?.title || '원문 열기'}</a>
                         {p?.date && <span className="ml-2 num text-11 text-ink-3">{shortDate(p.date)}</span>}
                       </li>
                     )
