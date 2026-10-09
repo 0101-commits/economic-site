@@ -175,3 +175,33 @@ export async function portfolioPost(hash: string, enc: EncBlob): Promise<Portfol
     return r.ok && j?.ok ? { ok: true, status: r.status } : { ok: false, status: r.status, error: j?.error }
   } catch { return { ok: false, status: 0, error: 'network' } }
 }
+
+// ── /ai 질문(홈 질문칸, 명세 C2) ─────────────────────────
+// POST 본문 { keyHash, question, snapshot } → { ok, summary, engine, model }. 키는 본문 keyHash 로만 본다(Worker _verifySyncKey —
+// 현행 화면 js/app3.js aiQaAsk 와 같은 모양). 질문 모드 프롬프트는 서버 고정이고 답 끝에 「투자 조언이 아닙니다」를 붙인다.
+// /prefs · /portfolio 와 같은 바구니(IP 당 분당 10회)라 화면이 6초 간격을 지킨다.
+export type AiReply = { text?: string; status: number; error?: string }
+
+export async function aiAsk(hash: string, question: string, snapshot: unknown): Promise<AiReply> {
+  try {
+    const r = await fetch(`${WORKER}/ai`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, cache: 'no-store',
+      body: JSON.stringify({ keyHash: hash, question: question.slice(0, 300), snapshot }), signal: AbortSignal.timeout(30_000),
+    })
+    const j = await r.json().catch(() => ({}))
+    const text = typeof j?.summary === 'string' ? j.summary.trim() : ''
+    return r.ok && j?.ok && text ? { text, status: r.status } : { status: r.status, error: j?.error }
+  } catch { return { status: 0, error: 'network' } }
+}
+
+const AI_ERR: Record<string, string> = {
+  rate_limited: '요청이 많습니다. 1분 뒤 다시 물어보세요.',
+  unauthorized: '동기화 키가 서버와 맞지 않습니다. 설정 「기기 연결」에서 다시 연결하세요.',
+  sync_key_not_configured: '서버에 동기화 키가 설정되지 않아 지금은 물을 수 없습니다.',
+  no_ai_available: '서버에 AI 엔진이 설정되지 않아 지금은 물을 수 없습니다.',
+  forbidden_origin: '이 주소에서는 물을 수 없습니다.',
+  network: '서버에 닿지 못했습니다. 잠시 뒤 다시 물어보세요.',
+}
+/** 질문 실패 → 화면 글. 429 는 본문 없이 올 수도 있어 상태로도 고른다. */
+export const aiErrText = (r: AiReply) =>
+  AI_ERR[r.error ?? ''] ?? (r.status === 429 ? AI_ERR.rate_limited : r.status === 401 ? AI_ERR.unauthorized : '지금은 답을 받지 못했습니다. 잠시 뒤 다시 물어보세요.')
