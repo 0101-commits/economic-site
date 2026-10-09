@@ -25,12 +25,12 @@
 
 ## 전환 순서(사용자가 하는 일)
 
-### 1. 시크릿 6종 — 이것이 없으면 새 화면 조건 · 푸시는 한 건도 안 나간다
+### 1. 시크릿 6종(GitHub 4 · Worker 2) — 이것이 없으면 새 화면 조건 · 푸시는 한 건도 안 나간다
 ```
 python scripts/gen_vapid.py mailto:<내 메일>        # VAPID 키 쌍 · subject 안내 출력
 python -c "import secrets;print(secrets.token_hex(32))"   # ALERTS_STATE_SALT (동기화 키와 다른 값!)
 gh secret set ALERTS_STATE_SALT    # 위에서 만든 값
-gh secret set PUSH_READ_KEY        # Worker 와 같은 값 — 구독 목록 · /prefs 읽기(CI 는 동기화 키를 갖지 않는다)
+gh secret set PUSH_READ_KEY        # Worker 와 같은 값 — 구독 목록 · /prefs 읽기(CI 는 동기화 키를 갖지 않는다 — GitHub 시크릿 ALERTS_SYNC_KEY 는 2026-10-09 삭제, 스크립트 폴백도 없음)
 gh secret set VAPID_PRIVATE_KEY
 gh secret set VAPID_SUBJECT        # mailto:…
 ```

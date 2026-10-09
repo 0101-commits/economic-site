@@ -814,7 +814,7 @@ def _state_salt():
 def _kh(key):
     """발생 키는 해시로만 남긴다 — 일정 이름 같은 평문이 공개 이력에서 조건을 드러내지 않게.
     소금 없는 해시는 공개 data.json 의 일정표(이름·날짜)를 넣어 보면 되짚히므로 ALERTS_STATE_SALT 로 HMAC 한다.
-    동기화 키(ALERTS_SYNC_KEY)를 쓰면 안 된다 — 원문(날짜·asOf·일정)은 누구나 아니까 공개 해시가 그 키의 오프라인 대입 창구가 된다.
+    동기화 키(Worker 시크릿 ALERTS_SYNC_KEY)를 쓰면 안 된다 — 원문(날짜·asOf·일정)은 누구나 아니까 공개 해시가 그 키의 오프라인 대입 창구가 된다.
     소금을 바꾸면 지난 발생 키와 안 맞아 같은 발생이 한 번 더 갈 수 있다(바꿀 때 한 번뿐)."""
     import hashlib
     import hmac
