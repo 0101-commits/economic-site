@@ -41,4 +41,7 @@ test('90일 동안 알림 화면을 안 열면 꾸러미를 조용히로(상한 
   assert.equal(r.hk.demoted, T0 + 91 * DAY)
   assert.equal(housekeep(r.prefs, r.hk, T0 + 200 * DAY, T0, []).changed, false)
   assert.equal(housekeep(p, { since: T0 }, T0 + 91 * DAY, T0 + 30 * DAY, []).changed, false)   // 30일째에 열었다
+  // 설정 › 고급에서 끄면(autoQuiet false) 내리지 않는다
+  const off = { ...p, settings: { ...p.settings, autoQuiet: false } }
+  assert.equal(housekeep(off, { since: T0 }, T0 + 91 * DAY, T0, []).changed, false)
 })

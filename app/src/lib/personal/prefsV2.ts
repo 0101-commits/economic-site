@@ -29,7 +29,7 @@ export function defaultSettings(): Settings {
     package: 'normal', ringChannel: 'push', dailyCap: 6, quietAlarm: false,
     briefings: { ...PACKAGE_PRESET.normal.briefings },
     families: Object.fromEntries(FAMILIES.map(f => [f, true])) as Settings['families'],
-    rememberKey: false, kakaoFriends: false, kakaoRecipients: [],
+    rememberKey: false, kakaoFriends: false, kakaoRecipients: [], autoQuiet: true,
   }
 }
 
@@ -56,6 +56,7 @@ export function normSettings(raw: unknown): Settings {
     kakaoFriends: s.kakaoFriends === true,
     kakaoRecipients: arr(s.kakaoRecipients).filter(r => isObj(r) && typeof r.name === 'string').slice(0, 5)
       .map(r => ({ uuid: typeof r.uuid === 'string' ? r.uuid : '', name: r.name.slice(0, 20), briefOnly: r.briefOnly === true })),
+    autoQuiet: s.autoQuiet !== false,
   }
 }
 

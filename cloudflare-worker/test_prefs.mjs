@@ -226,6 +226,22 @@ check('prune → 2개 지움 · 2개 남음', [r.status, r.j.removed, r.j.count]
 check('prune 뒤 KV', JSON.parse(kv.get('push:' + KEY.slice(0, 16))).map(s => s.endpoint.slice(-1)), ['3', '6']);
 check('prune GET → 405', (await scall('GET', '/push/prune')).status, 405);
 
+console.log('발송기 GET /prefs — 읽기 전용(B6, CI 가 동기화 키 없이 읽는다)');
+check('읽기 키 시크릿 없음 → 503', (await scall('GET', '/prefs', { e: env })).status, 503);
+check('틀린 읽기 키 → 401', (await scall('GET', '/prefs', { key: 'wrong' })).status, 401);
+check('빈 읽기 키 헤더 → 401', (await call('GET', '/prefs', { hash: '', e: senv, headers: { 'X-Push-Read-Key': '' } })).status, 401);
+r = await scall('GET', '/prefs');
+check('읽기 키로 200 · 동기화 키로 읽은 문서와 같다', [r.status, r.j], [200, (await call('GET', '/prefs')).j]);
+check('서버 간 호출(출처 없음) — ACAO 없음 · 캐시 금지', [r.h.get('access-control-allow-origin'), r.h.get('cache-control')], [null, 'no-store']);
+check('읽기 키로 PUT → 403', (await scall('PUT', '/prefs', { body: {} })).status, 403);
+check('읽기 키 + 맞는 동기화 키여도 PUT → 403', (await call('PUT', '/prefs', { body: {}, e: senv, headers: { 'X-Push-Read-Key': READ } })).status, 403);
+check('읽기 키 길도 레이트리밋(바인딩 없음 → 503)', (await scall('GET', '/prefs', { e: { ...senv, AI_LIMITER: undefined } })).status, 503);
+check('남의 출처 → 403', (await call('GET', '/prefs', { hash: '', e: senv, headers: { 'X-Push-Read-Key': READ, Origin: 'https://evil.example' } })).status, 403);
+kv.set('prefs:' + NEW.slice(0, 16), JSON.stringify({ v: 2, updatedAt: '2026-10-07T00:00:00.000Z', watch: [], alerts: [] }));
+kv.set('auth:syncKeyHash', NEW);
+check('키를 바꾸면 새 키 공간을 읽는다', (await scall('GET', '/prefs')).j.updatedAt, '2026-10-07T00:00:00.000Z');
+kv.delete('auth:syncKeyHash');
+
 console.log('v2 조건 · 설정(알림 v2)');
 // v2 조건 · 설정 — event 조건은 value(임계) · strength · level · dir 을 받고, 모르는 값은 기본으로
 r = await call('PUT', '/prefs', { body: { alerts: [

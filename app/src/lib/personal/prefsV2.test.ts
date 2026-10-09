@@ -69,7 +69,7 @@ test('upgradePrefs 6 · 문서 한 벌이 서버 upgrade_prefs 출력과 같다(
     families: { A: true, B: true, C: true, D: true, E: true, F: true, G: true, H: true }, kakaoBundleAt: 18, kakaoQuota: 20,
     package: 'normal', quiet: { from: '23:00', to: '07:00' }, quietAlarm: false, ringChannel: 'push', unit: 'won', updown: 'us',
   }
-  assert.deepEqual(p.settings, { ...srv, rememberKey: false, kakaoFriends: false, kakaoRecipients: [] })   // v1 의 quiet:null → 서버처럼 기본값
+  assert.deepEqual(p.settings, { ...srv, rememberKey: false, kakaoFriends: false, kakaoRecipients: [], autoQuiet: true })   // v1 의 quiet:null → 서버처럼 기본값
   assert.deepEqual(upgradePrefs(p), p)                                                                    // 두 번 바꿔도 같다
   assert.equal(normSettings({ ...p.settings, quiet: null }).quiet, null)                                  // v2 의 quiet:null = 끔 그대로
   assert.deepEqual(upgradePrefs(null), { v: 2, alerts: [], settings: defaultSettings(), scenarios: [] })

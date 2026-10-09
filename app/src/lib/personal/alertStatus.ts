@@ -11,7 +11,7 @@
 //   다시 켜기 armedAt(ISO)을 마지막 울림보다 뒤로 찍는다(rearm). 서버는 armedAt 뒤의 울림만 센다.
 //             /prefs 로 올라가야 서버가 보므로 화면은 동기화가 켜져 있을 때만 단추를 보인다.
 //             id 를 바꾸지 않으므로 지난 울림이 받은 알림에 그대로 남는다. armedAt 은 비공개 /prefs 에만 있다.
-//   상태 7    대기 · 울림 M/D HH:mm · 멈춤(→ 다시 켜기) · 묶임 · 보류(→ 07:30) · 꺼짐 · 이 기기에만.
+//   상태 7    대기 · 울림 M/D HH:mm · 멈춤(→ 다시 켜기) · 묶임 · 보류(→ 07:30) · 꺼짐 · 이 기기만.
 import { fmtNumber, mdHm } from '../format.ts'
 import type { AlertCond } from './store'
 
@@ -49,7 +49,7 @@ export function condStatus(a: AlertCond, rows: LedgerRow[], fired: FiredRec | un
     if (last.sent?.bundled) return { kind: 'bundled', text: '묶임' }
   }
   if (lastSec) return { kind: 'rang', text: `울림 ${mdHm(new Date(lastSec * 1000))}` }
-  return synced ? { kind: 'wait', text: '대기' } : { kind: 'local', text: '이 기기에만 · 울리지 않음' }
+  return synced ? { kind: 'wait', text: '대기' } : { kind: 'local', text: '이 기기만 — 울리지 않음' }
 }
 
 /** 다시 켜기: 같은 id 에 armedAt 을 찍는다. 기기 시계가 늦어도 마지막 울림보다는 뒤가 되게 한다. */

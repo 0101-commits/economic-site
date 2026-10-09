@@ -801,7 +801,7 @@ function pfExportCsv() {
       return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' }, k, 256);
     }).then(function(buf) { return toHex(new Uint8Array(buf)); });
   }
-  // 동기화 키 확인만 — 본문에 newKeyHash 가 없으면 Worker 는 아무것도 바꾸지 않는다. 반환: HTTP 상태
+  // 동기화 키 확인만 — 헤더 해시 + 본문에 newKey 가 없으면 Worker 는 아무것도 바꾸지 않는다. 반환: HTTP 상태
   function checkSyncKey(k) {
     var base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
     return pfSha256Hex(k).then(function(h) {

@@ -1,4 +1,4 @@
-// 시장 › 환율금리 — 보기 환율·금리·수익률 곡선·중앙은행. 큰 차트 = 띠에서 고른 칸(기본 달러/원).
+// 시장 › 환율금리 — 목차 환율·금리·수익률 곡선·중앙은행(주소 v). 큰 차트 = 띠에서 고른 칸(기본 달러/원).
 import { useMemo, useState, type ReactNode } from 'react'
 import { shownUnit, type Sched, type StripItem } from '../../lib/bundle'
 import { fmtNumber, mdHm, range52, scaled, scaledPts } from '../../lib/format'
@@ -6,7 +6,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { AsOfBadge, SegBar } from '../ui'
 import { Range52 } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { arrange, BigChart, ChangeText, CurveChart, CurveTable, Empty, MarketGrid, poolOf, type Block, type BodyProps, type Curve } from './parts'
+import { BigChart, ChangeText, CurveChart, CurveTable, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps, type Curve } from './parts'
 
 type Bank = StripItem & { country?: string; nextMeeting?: Sched | null }
 export type FxRatesBundle = {
@@ -35,7 +35,7 @@ const rateCols: Col<StripItem>[] = [
 ]
 
 export default function FxRates({ b, selId, setS }: BodyProps<FxRatesBundle>) {
-  const [v, setV] = useViewParam<View>('v', 'fx', VIEWS.map(o => o.key))
+  const [, setV] = useViewParam<View>('v', 'fx', VIEWS.map(o => o.key))
   const vw = b.views
   const pool = poolOf(b.strip, vw?.fx, vw?.rates)
   const sel = pool.get(selId) ?? b.strip[0]
@@ -90,8 +90,8 @@ export default function FxRates({ b, selId, setS }: BodyProps<FxRatesBundle>) {
 
   return (
     <>
-      <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
-      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...arrange(v, VIEWS.map(o => o.key)).map((k): [string, Block] => [k, panels[k]])]} />
+      <Toc where="환율금리" items={VIEWS} onPick={setV} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...VIEWS.map((o): [string, Block] => [o.key, panels[o.key]])]} />
     </>
   )
 }

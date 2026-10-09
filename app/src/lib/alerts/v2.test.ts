@@ -117,7 +117,7 @@ test('홈 오늘 바뀐 것: 오늘 행만 새것 순 5건 · 전체 건수 · �
 test('저장 직후 한 줄: 동기화가 꺼져 있으면 이 기기에만, 켜져 있으면 올라가는 중 → 올라감', () => {
   const at = Date.parse('2026-10-05T09:05:00+09:00')
   assert.equal(savedNote({ on: true, at: null }, 0), '')
-  assert.match(savedNote({ on: false, at: null }, at), /^저장했습니다 · 이 기기에만 · 울리지 않음/)
+  assert.match(savedNote({ on: false, at: null }, at), /^저장했습니다 · 이 기기만 — 울리지 않음/)
   assert.equal(savedNote({ on: true, at: null }, at), '저장했습니다 · 서버로 올리는 중')
   assert.equal(savedNote({ on: true, at: at - 1000 }, at), '저장했습니다 · 서버로 올리는 중')
   assert.equal(savedNote({ on: true, at: at + 3000 }, at), '저장했습니다 · 서버에 올라감 09:05')

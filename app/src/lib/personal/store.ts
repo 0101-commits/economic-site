@@ -5,6 +5,7 @@
 //   econPrefsV1   = { v:2, alerts, settings, scenarios }                  새 화면 전용. 모양은 Worker /prefs 문서와 같다(올리고 받는 것은 sync.ts).
 //                   열쇠 이름은 v1 그대로 — 읽을 때 v1 문서를 v2 로 바꾼다(prefsV2.ts).
 //   econAlertsHk_v1 = { since, ring, off, demoted }                       알림 자동 정리(housekeeping.ts). 이 기기에만.
+//   econHoldKey_v1 = 보유 열쇠 재료 hex(sync.ts — 동기화 키에서 만든 것, 기억 해시와 같은 수명) · econSyncScope_v1 = 기기 연결 범위 { prefs, hold }.
 //   econSearchRecentV1 = [{ label, to, kind }]                            검색 「최근 본 것」.
 // 보유 금액이 든 읽기(readPortfolio·readSnaps·readLedger)는 PinGate 안의 화면과, 잠금이 열린 뒤의 내려받기에서만 부른다.
 import { upsertSnap, type Holding, type Snap, type Unit } from './calc'
@@ -18,6 +19,8 @@ export const KEYS = {
   prefs: 'econPrefsV1', recent: 'econSearchRecentV1', watch: 'econ_watch_v1', theme: 'econNextTheme_v1',
   holdSync: 'econHoldSync_v1',   // 보유 동기화 기록(sync.ts) — 지문·시각만, 보유 값 없음
   hk: 'econAlertsHk_v1',         // 알림 자동 정리 기록(housekeeping.ts) — 조건 id · 시각만
+  holdKey: 'econHoldKey_v1',     // 보유 열쇠 재료(sync.ts) — 동기화 키에서 만든 hex
+  scope: 'econSyncScope_v1',     // 기기 연결 범위(sync.ts)
 } as const
 
 function read<T>(key: string, fallback: T): T {
@@ -71,6 +74,7 @@ export type Settings = {
   families: Record<'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H', boolean>; rememberKey: boolean
   kakaoFriends: boolean                                           // 카톡 친구 모드로 받기(운영 변수 KAKAO_FRIENDS 와 짝)
   kakaoRecipients: { uuid: string; name: string; briefOnly: boolean }[]   // ≤5. uuid 는 서버가 친구 목록 이름으로 채운다
+  autoQuiet: boolean                                              // 90일 미열람 자동 강등(housekeeping.ts). 이 기기만 — /prefs 에 싣지 않는다(remote.ts syncedOf)
 }
 export type Prefs = { v: 2; alerts: AlertCond[]; settings: Settings; scenarios: { name: string; inputs: Record<string, unknown> }[] }
 
@@ -107,7 +111,8 @@ export function pushRecent(r: Recent) {
  * econHoldQuotes_v1 = 보유 종목 시세 캐시(quotes.ts, sessionStorage) — 종목 목록이 드러나므로 같이 지운다.
  */
 export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
-  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econ_scenarios_v1', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1', 'econHoldQuotes_v1']
+  KEYS.holdKey, KEYS.scope,
+  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econ_scenarios_v1', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1', 'econHoldQuotes_v1', 'econ_usage_v1']
 /** 지우기 전에 이 기기 폰 알림 구독을 끊는다(서버 쪽 해지에 동기화 키 해시가 쓰인다 — 그래서 동기화는 이 뒤에 끈다). 못 끊어도 지우기는 계속. */
 export async function wipeDevice(getKeyHash: GetKeyHash): Promise<boolean> {
   await unsubscribePush(getKeyHash).catch(() => {})

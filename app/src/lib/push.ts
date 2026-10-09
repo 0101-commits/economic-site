@@ -67,6 +67,13 @@ export async function subscribePush(getKeyHash: GetKeyHash): Promise<void> {
   await call('PUT', '/push/subscribe', hash, sub.toJSON())
 }
 
+/** 받는 기기 수(이 동기화 키 공간의 구독 수, 서버 상한 5). 키가 없거나 못 읽으면 null. */
+export async function pushCount(getKeyHash: GetKeyHash): Promise<number | null> {
+  const hash = await getKeyHash()
+  if (!hash) return null
+  try { const j = await call('GET', '/push/subscribe', hash); return Number.isInteger(j?.count) ? j.count : null } catch { return null }
+}
+
 /** 이 기기 구독을 끊는다. 서버에서 못 지워도 끊긴 주소는 발송기가 410 을 받고 정리한다. */
 export async function unsubscribePush(getKeyHash: GetKeyHash): Promise<void> {
   if (!pushSupported()) return
