@@ -23,6 +23,7 @@
   '직전 감시'로 세어 못 알린 조건을 이미 알린 것으로 친다(_prev_check 는 성공 런만 본다).
 """
 import os
+import re
 import json
 import datetime
 import urllib.error
@@ -197,12 +198,26 @@ def _kakao_active(now):
     return 7 * 60 + 30 <= hm < 23 * 60
 
 
+def _kr_holidays():
+    """한국 휴장일(KST 날짜) — 단일 원천은 worker.js KR_HOLIDAYS(이 날 Worker 가 KR 장중 창을 안 깨운다).
+    2026-10-09 한글날 09:03 에 Worker 는 정상으로 쉬었는데 감시자는 평일 장중으로 보고 '장중 알림 평가 침묵'을 냈다.
+    파일을 못 읽으면 빈 집합 — 종전 동작(평일 = 장중)으로 돌아간다."""
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cloudflare-worker", "worker.js"),
+                  encoding="utf-8") as f:
+            m = re.search(r"KR_HOLIDAYS\s*=\s*new Set\(\[(.*?)\]\)", f.read(), re.S)
+        return set(re.findall(r"\d{4}-\d{2}-\d{2}", m.group(1))) if m else set()
+    except OSError:
+        return set()
+
+
 def _threshold(wf, now):
     """그 워크플로가 지금 '돌고 있어야 하는가' → 임계(분) 또는 None(감시 안 함)."""
     key, _name, live, idle, _inst = wf
     if key == "kakao-daily.yml" and not _kakao_active(now):
         return None
-    return live if (ca.is_market_open("KR", now) or ca.is_market_open("US", now)) else idle
+    kr = ca.is_market_open("KR", now) and now.date().isoformat() not in _kr_holidays()
+    return live if (kr or ca.is_market_open("US", now)) else idle
 
 
 def check_silence(now=None):
@@ -353,6 +368,10 @@ def demo():
     night = datetime.datetime(2026, 9, 22, 10, 0, tzinfo=datetime.timezone.utc)  # 19시 KST
     assert _threshold(WATCH[0], night.astimezone(KST)) is None, "장외 stock-alerts 는 감시 제외"
     assert _threshold(WATCH[1], night.astimezone(KST)) == 120
+    hangul = datetime.datetime(2026, 10, 9, 0, 3, tzinfo=datetime.timezone.utc)  # 금 09:03 KST 한글날
+    assert "2026-10-09" in _kr_holidays(), "worker.js KR_HOLIDAYS 를 못 읽었다"
+    assert _threshold(WATCH[0], hangul.astimezone(KST)) is None, "휴장일 KR 장중 창엔 stock-alerts 감시 제외"
+    assert _threshold(WATCH[1], hangul.astimezone(KST)) == 120, "휴장일엔 장외 임계"
     assert [w[0] for w in WATCH if not w[4]] == ["pages.yml"], "즉시 통지 제외는 pages 뿐"
     kakao = next(w for w in WATCH if w[0] == "kakao-daily.yml")
     dawn = datetime.datetime(2026, 9, 22, 18, 30, tzinfo=datetime.timezone.utc)  # 수 03:30 KST
