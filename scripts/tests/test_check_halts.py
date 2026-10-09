@@ -16,9 +16,7 @@ try:                                    # Windows cp949 콘솔에서도 한글/e
     sys.stdout.reconfigure(encoding="utf-8")
 except (AttributeError, ValueError):
     pass
-os.environ["KAKAO_REST_API_KEY"] = "dummy"
-os.environ["KAKAO_REFRESH_TOKEN"] = "dummy"
-os.environ.pop("HALTS_TEST", None)
+os.environ.pop("HALTS_TEST", None)             # check_halts 가 임포트 때 읽는다(IS_TEST · IS_LIVE)
 os.environ.pop("HALTS_LIVE", None)      # 라이브 모드 비활성 — 네트워크 없이 결정적으로 테스트
 
 import check_halts as ch
@@ -45,20 +43,55 @@ def _stub_send_card(access_token, title, caption, png=None, uuids=None, buttons=
     return True
 
 
-ch.kakao.refresh_access_token = lambda k, t: "STUB_TOKEN"
-ch.kakao._friends_enabled = lambda: False        # uuids=[] → 메모 경로(스텁이 가로챔)
-ch.kakao.get_friends = lambda t: []
-ch.kakao.send_memo = _stub_send_memo
-ch.kakao.send_card = _stub_send_card
-# 카드 렌더는 매트플롯립·시세 조회를 타므로 테스트에선 끈다(발송 경로 검증이 목적).
-ch._halt_card = lambda h, shape="wide": None
-ch._status_card = lambda h, kind: None
-
-
 # ── 임시 data.json / halts_state.json ───────────────────────────
 _TMP = tempfile.mkdtemp(prefix="halts_test_")
-ch.DATA_PATH = os.path.join(_TMP, "data.json")
-ch.STATE_PATH = os.path.join(_TMP, "halts_state.json")
+
+# 스텁은 이 파일의 테스트 동안만 건다. 종전엔 임포트(= pytest 수집) 때 걸어 둬서 세션 전체의
+# send_kakao_digest.send_card · 카톡 env 가 가짜였다 — 다른 파일의 카톡 회귀 테스트가 진짜 함수를 못 불렀다(2026-10-09).
+_STUBS = [
+    (ch.kakao, "refresh_access_token", lambda k, t: "STUB_TOKEN"),
+    (ch.kakao, "_friends_enabled", lambda: False),       # uuids=[] → 메모 경로(스텁이 가로챔)
+    (ch.kakao, "get_friends", lambda t: []),
+    (ch.kakao, "send_memo", _stub_send_memo),
+    (ch.kakao, "send_card", _stub_send_card),
+    # 카드 렌더는 매트플롯립·시세 조회를 타므로 테스트에선 끈다(발송 경로 검증이 목적).
+    (ch, "_halt_card", lambda h, shape="wide": None),
+    (ch, "_status_card", lambda h, kind: None),
+    (ch, "DATA_PATH", os.path.join(_TMP, "data.json")),
+    (ch, "STATE_PATH", os.path.join(_TMP, "halts_state.json")),
+]
+_ENV = {"KAKAO_REST_API_KEY": "dummy", "KAKAO_REFRESH_TOKEN": "dummy"}
+
+
+def _install_stubs():
+    """스텁 · env 를 걸고, 원래대로 돌리는 함수를 돌려준다."""
+    saved = [(o, n, getattr(o, n)) for o, n, _v in _STUBS]
+    env = {k: os.environ.get(k) for k in _ENV}
+    for o, n, v in _STUBS:
+        setattr(o, n, v)
+    os.environ.update(_ENV)
+
+    def restore():
+        for o, n, v in saved:
+            setattr(o, n, v)
+        for k, v in env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    return restore
+
+
+try:
+    import pytest
+
+    @pytest.fixture(autouse=True, scope="module")
+    def _halts_stubs():
+        restore = _install_stubs()
+        yield
+        restore()
+except ImportError:                                  # pytest 없이 직접 실행(run())
+    pass
 
 
 def _fire(now, hid="circuit-KOSPI-20260708", stage=1):
@@ -240,6 +273,7 @@ def test_legacy_record_resolves():
 
 
 def run():
+    _install_stubs()
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()
