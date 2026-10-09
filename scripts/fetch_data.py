@@ -3003,7 +3003,8 @@ def _merge_toss_yield_curve(kr_block, toss_kr):
     for slot, _sym, label in _TOSS_BOND_SLOTS:
         if toss_kr["current"][slot] is not None:
             cur[slot] = toss_kr["current"][slot]
-            prv[slot] = toss_kr["prev_month"][slot]
+            if toss_kr["prev_month"][slot] is not None:   # 토스가 한 달 전 값을 못 주면 ECOS 값을 지우지 않는다
+                prv[slot] = toss_kr["prev_month"][slot]
             replaced.add(label)
     base["current"], base["prev_month"] = cur, prv
     # 시계열도 같은 만기는 토스 것으로 교체하되, 토스 캔들은 200개(약 9개월)가 상한이라
@@ -8428,7 +8429,7 @@ def build_data():
             # 서버측 자동 백필 — 과거 이벤트의 prev/fore/act 값을 economicIndicators 에서 채움
             try:
                 events = cal_data.get("events", []) or []
-                filled = backfill_calendar_actuals(events, data)
+                filled = backfill_calendar_actuals(events, data, _prev_ev)
                 cal_data["events"] = events
                 cal_data["backfilled"] = filled
             except Exception as e:
@@ -9399,7 +9400,7 @@ def _get_by_path(obj, path):
     return cur
 
 
-def backfill_calendar_actuals(events, data):
+def backfill_calendar_actuals(events, data, prev_events=None):
     """서버측 캘린더 백필 — 과거 발표 이벤트의 prev/fore/act 자동 채움.
 
     각 이벤트 (iso 날짜) 에 대해 CALENDAR_INDICATOR_MAP 으로 지표 노드를 찾고,
@@ -9413,6 +9414,9 @@ def backfill_calendar_actuals(events, data):
     # 실적은 최근 _CAL_FILL_BACK 일 발표만 채운다 — 아래 '발표일 이하 최신 관측' 규칙은 창이 넓으면 뒤 회차의 관측을 앞 회차에
     # 물린다(실측 2026-10-09: 8/13 미국 CPI 에 8월분 +0.4% 가 찍히고 9/11 회차가 비었다). 그보다 오래된 일정은 실적 칸을 비워 둔다.
     fill_from = (datetime.now(KST).date() - timedelta(days=_CAL_FILL_BACK)).isoformat()
+    # 창보다 오래된 회차는 직전 data.json 의 같은 (iso, 이름) 행 값을 잇는다 — FRED 일정은 매 런 act "" 로 새로 만들어
+    # 이어받지 않으면 14일 지난 회차의 실적이 사라지고, 달력 뒤 창(62일)의 나머지도 빈칸이 된다.
+    carry = {(e.get("iso"), e.get("name")): e for e in prev_events or [] if e.get("act")}
     filled = 0
     # 지표별로 '이미 어떤 관측치를 실적으로 소비했는지' 기록한다.
     # 왜: history 에서 '발표일 이하의 가장 최근 관측'을 고르는 규칙은, 아직 공표되지 않은
@@ -9430,8 +9434,12 @@ def backfill_calendar_actuals(events, data):
             iso = ev.get("iso", "")
             if not iso:
                 continue
+            if iso < fill_from and (iso, ev.get("name")) in carry:
+                old = carry[(iso, ev.get("name"))]
+                ev.update({k: old.get(k) for k in ("act", "prev", "fore", "beat")})
+                continue
             if iso > today_iso or iso < fill_from:
-                continue  # 미래 이벤트는 그대로, 오래된 일정은 비워 둔다
+                continue  # 미래 이벤트는 그대로, 직전 값도 없는 오래된 일정은 비워 둔다
             name = ev.get("name", "")
             mp = CALENDAR_INDICATOR_MAP.get(name)
             if not mp:

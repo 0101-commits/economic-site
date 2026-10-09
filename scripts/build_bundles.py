@@ -710,9 +710,11 @@ def schedule_with_corp(data, now, days=7):
 
 def event_name(s):
     """일정 이름 끝의 영어 풀이 괄호를 뗀다 — 「미국 주택착공 (Housing Starts)」 → 「미국 주택착공」.
-    소문자가 섞인 영어만 뗀다. 대문자 약어(「(NFP)」·「(FOMC)」)·우리말 괄호(「(전월비)」)·중간 괄호는 남긴다."""
+    소문자가 섞인 영어만 뗀다. 대문자 약어(「(NFP)」·「(FOMC)」)·짧은 약어(「(MoM)」)·우리말 괄호(「(전월비)」)·중간 괄호는 남긴다."""
     m = re.search(r"\s*\(([A-Za-z][A-Za-z0-9 .,&'/-]*)\)$", s) if isinstance(s, str) else None
-    return s[:m.start()] if m and m.start() and m.group(1) != m.group(1).upper() else s
+    g = m.group(1) if m else ""
+    # 대소문자 섞인 짧은 약어(「(MoM)」·「(YoY)」·「(m/m)」 — 빈칸 없는 네 글자 이하)는 풀이가 아니라 이름의 일부다
+    return s[:m.start()] if m and m.start() and g != g.upper() and (" " in g or len(g) > 4) else s
 
 
 def calendar_events(data, now, days=None, cc=None):

@@ -46,6 +46,16 @@ def test_toss_series_still_replaces_ecos_when_present():
     assert [p["value"] for p in out["series"][0]["data"]] == [2.8, 3.4, 4.39]   # 앞 구간만 ECOS
 
 
+def test_toss_missing_prev_month_keeps_ecos_value():
+    ecos = {"current": [None] * 7 + [4.3, None, None], "prev_month": [None] * 7 + [4.1, None, None], "series": []}
+    toss = {"current": [None] * 7 + [4.377, None, None], "prev_month": [None] * 10, "series": []}
+    out = fd._merge_toss_yield_curve(ecos, toss)
+    assert out["current"][7] == 4.377
+    assert out["prev_month"][7] == 4.1                              # 토스가 한 달 전 값을 못 주면 ECOS 값을 지우지 않는다
+    toss["prev_month"][7] = 4.2
+    assert fd._merge_toss_yield_curve(ecos, toss)["prev_month"][7] == 4.2
+
+
 def test_event_name_strips_english_gloss_only():
     cases = {
         "미국 주택착공 (Housing Starts)": "미국 주택착공",
@@ -56,6 +66,11 @@ def test_event_name_strips_english_gloss_only():
         "미국 CPI (전월비)": "미국 CPI (전월비)",                      # 우리말 괄호
         "일본은행(BOJ) 금융정책결정회합": "일본은행(BOJ) 금융정책결정회합",  # 중간 괄호
         "(Housing Starts)": "(Housing Starts)",                       # 이름이 통째로 괄호면 남긴다
+        "미국 CPI (MoM)": "미국 CPI (MoM)",                            # 대소문자 섞인 짧은 약어는 남긴다
+        "미국 GDP (QoQ)": "미국 GDP (QoQ)",
+        "중국 CPI (YoY)": "중국 CPI (YoY)",
+        "미국 PPI (m/m)": "미국 PPI (m/m)",
+        "미국 고용 (Jobless Claims)": "미국 고용",
         None: None,
     }
     for raw, want in cases.items():
