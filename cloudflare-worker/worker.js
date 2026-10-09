@@ -1030,6 +1030,7 @@ function _sanitizePrefs(raw) {
       if (a.dir === 'up' || a.dir === 'down') o.dir = a.dir;
       if (PREFS_LEVELS.includes(a.level)) o.level = a.level;
       const at = _isoOrNull(a.armedAt); if (at) o.armedAt = at;
+      if (a.armSide === 'u' || a.armSide === 'd') o.armSide = a.armSide;   // U1 의 켠 순간 쪽(임계 위 · 아래 한 글자)
       if (typeof a.name === 'string' && a.name.trim()) o.name = a.name.trim().slice(0, 40);
       alerts.push(o); continue;
     }

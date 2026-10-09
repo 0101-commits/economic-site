@@ -150,7 +150,7 @@ export default function Detail() {
       {reg && MARKET_TAB[reg.asset] && (
         <Link to={`/market?a=${MARKET_TAB[reg.asset]}`} className="inline-flex items-center self-start text-12 text-ink-2 no-underline hover:text-ink-1">시장 화면에서 보기<ChevronRight size={14} aria-hidden /></Link>
       )}
-      <BellSheet open={bellOpen} onClose={() => setBellOpen(false)} id={id} label={name} />
+      <BellSheet open={bellOpen} onClose={() => setBellOpen(false)} id={id} label={name} cur={item?.value} />
     </div>
   )
 }

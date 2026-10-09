@@ -245,10 +245,10 @@ kv.delete('auth:syncKeyHash');
 console.log('v2 조건 · 설정(알림 v2)');
 // v2 조건 · 설정 — event 조건은 value(임계) · strength · level · dir 을 받고, 모르는 값은 기본으로
 r = await call('PUT', '/prefs', { body: { alerts: [
-  { id: 'c1', event: 'U1', target: 'usdkrw', dir: 'up', value: 1400, repeat: 'once', ring: true, enabled: true, name: '달러원 1400 위로', foo: 1 },
+  { id: 'c1', event: 'U1', target: 'usdkrw', dir: 'up', value: 1400, repeat: 'once', ring: true, enabled: true, name: '달러원 1400 위로', armSide: 'u', foo: 1 },
   { id: 'c2', event: 'A1', target: '*', strength: 'huge', level: 'alarm' },
   { id: 'c3', event: 'Z9', target: 'kospi' },
-  { id: 'c4', event: 'U2', target: 'kospi', value: 'x', strength: 'odd' } ],
+  { id: 'c4', event: 'U2', target: 'kospi', value: 'x', strength: 'odd', armSide: 'x' } ],
   settings: { package: 'many', ringChannel: 'kakao', dailyCap: 99, quietAlarm: true, briefings: { noon: true },
     families: { B: false }, rememberKey: true, kakaoFriends: true,
     kakaoRecipients: [{ uuid: 'abc', name: '가족 한 명', briefOnly: true }, { name: 'x'.repeat(30) }, { uuid: 'bad uuid!', name: 'y' }] } },
@@ -256,9 +256,9 @@ r = await call('PUT', '/prefs', { body: { alerts: [
 check('v2 PUT 200', r.status, 200);
 const v2 = r.j;
 check('v2 조건 2건(Z9 버림, 값 아닌 value 버림)', v2.alerts.map(a => a.id), ['c1', 'c2', 'c4']);
-check('v2 U1 보존 필드', v2.alerts[0], { id: 'c1', event: 'U1', target: 'usdkrw', repeat: 'once', enabled: true, ring: true, value: 1400, dir: 'up', name: '달러원 1400 위로' });
+check('v2 U1 보존 필드(armSide 포함)', v2.alerts[0], { id: 'c1', event: 'U1', target: 'usdkrw', repeat: 'once', enabled: true, ring: true, value: 1400, dir: 'up', armSide: 'u', name: '달러원 1400 위로' });
 check('v2 전체 조정(*)', v2.alerts[1], { id: 'c2', event: 'A1', target: '*', repeat: 'each', enabled: true, strength: 'huge', level: 'alarm' });
-check('v2 value 아닌 값 · 모르는 세기 버림', v2.alerts[2], { id: 'c4', event: 'U2', target: 'kospi', repeat: 'each', enabled: true });
+check('v2 value 아닌 값 · 모르는 세기 · 모르는 armSide 버림', v2.alerts[2], { id: 'c4', event: 'U2', target: 'kospi', repeat: 'each', enabled: true });
 check('v2 settings', { package: v2.settings.package, ringChannel: v2.settings.ringChannel, dailyCap: v2.settings.dailyCap, quietAlarm: v2.settings.quietAlarm,
   noon: v2.settings.briefings.noon, close: v2.settings.briefings.close, B: v2.settings.families.B, A: v2.settings.families.A,
   rememberKey: v2.settings.rememberKey, kakaoFriends: v2.settings.kakaoFriends, n: v2.settings.kakaoRecipients.length,

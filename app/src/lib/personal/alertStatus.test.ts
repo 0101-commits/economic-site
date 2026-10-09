@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 알림 조건 id · 상태 7 · 다시 켜기 · 이름
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type LedgerRow } from './alertStatus.ts'
+import { armU1, condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type LedgerRow } from './alertStatus.ts'
 import type { AlertCond } from './store'
 
 const PREFS_ID = /^[A-Za-z0-9._:^=\-]{1,64}$/   // cloudflare-worker/worker.js 와 같은 식
@@ -59,6 +59,20 @@ test('rearm: 같은 id 로 대기가 되고, 기기 시계가 늦어도 마지�
   const now = rearm(once, [], { fired: true, ts: TS }, (TS + 60) * 1000)
   assert.equal(Date.parse(now.armedAt!) / 1000, TS + 60)
   assert.equal(condStatus(now, [row({ ts: '2026-10-02T09:07:00+09:00' })], undefined, true, false, NOW).kind, 'stopped')   // 다시 울린 뒤엔 다시 멈춤
+})
+
+test('armSide: 저장 · 켜기 때 그 순간 쪽을 싣는다(서버 user_hits 와 같은 규칙, 값 모르면 뺀다)', () => {
+  const at = (TS + 60) * 1000
+  assert.equal(armU1(A(), 1410, [], undefined, at).armSide, 'u')                       // 위로 조건 · 이미 위
+  assert.equal(armU1(A(), 1400, [], undefined, at).armSide, 'u')                       // 같은 값 = 넘은 쪽
+  assert.equal(armU1(A({ dir: 'down' }), 1400, [], undefined, at).armSide, 'd')
+  assert.equal(armU1(A({ dir: 'down' }), 1401, [], undefined, at).armSide, 'u')
+  const off = armU1(A({ armSide: 'd' }), null, [], undefined, at)                      // 값 모름 — 예전 쪽도 지운다
+  assert.equal('armSide' in off, false)
+  assert.equal(Date.parse(off.armedAt!) / 1000, TS + 60)
+  const u2 = A({ event: 'U2', value: 3 })
+  assert.equal(armU1(u2, 1410, [], undefined, at), u2)                                 // U1 밖은 그대로
+  assert.equal(rearm(A({ repeat: 'once' }), [row()], undefined, (TS - 3600) * 1000, 1390).armSide, 'd')   // 다시 켜기도
 })
 
 test('condName: 사용자 이름 · 수준 · 급변 값 · 사전 사건', () => {

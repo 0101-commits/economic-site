@@ -9,7 +9,7 @@ import { BottomSheet, SegBar } from '../ui'
 import { BTN, Field, INPUT, LV, Row, Switch } from './bits'
 import { ALERT_CAP, levelChoices, savedNote, sheetEvents, yearCounts, type Dict } from '../../lib/alerts/v2'
 import { loadDaily } from '../../lib/alerts/daily'
-import { condId, repeatNote } from '../../lib/personal/alertStatus'
+import { armU1, condId, repeatNote } from '../../lib/personal/alertStatus'
 import { watchKind } from '../../lib/personal/remote'
 import { KEYS, readPrefs, writePrefs, type AlertCond, type Level, type Strength } from '../../lib/personal/store'
 import { useSyncStatus } from '../../lib/personal/sync'
@@ -21,15 +21,16 @@ const REPEAT_OPTS = [{ key: 'each', label: '매번' }, { key: 'once', label: '�
 /** 조건 한도 문구 — 알림 화면 「새 조건」도 같은 글을 쓴다. */
 export const CAP_MSG = `조건은 ${ALERT_CAP}건까지 만들 수 있습니다. 알림 화면에서 안 쓰는 조건을 지우세요.`
 
-export function BellSheet({ open, onClose, id, label }: { open: boolean; onClose: () => void; id: string; label: string }) {
+/** cur = 그 지표의 지금 값(축척 전) — U1 조건의 그 순간 쪽(armSide)을 잰다. 모르면 비운다. */
+export function BellSheet({ open, onClose, id, label, cur }: { open: boolean; onClose: () => void; id: string; label: string; cur?: number | null }) {
   return (
     <BottomSheet open={open} onClose={onClose} title={`${label} 알림 조건`}>
-      {open && <BellForm id={id} />}
+      {open && <BellForm id={id} cur={cur} />}
     </BottomSheet>
   )
 }
 
-function BellForm({ id }: { id: string }) {
+function BellForm({ id, cur }: { id: string; cur?: number | null }) {
   const sync = useSyncStatus()
   const stock = watchKind(id) === 'stock'
   // 렌즈 묶음에 든 지표인지: 렌즈 사건(C1 · C2)은 그때만 낸다. 묶음을 못 받으면 없는 것으로 본다.
@@ -69,7 +70,7 @@ function BellForm({ id }: { id: string }) {
     const p = readPrefs()
     const old = ev.userValue ? undefined : p.alerts.find(x => x.event === ev.id && x.target === id)
     if (!old && p.alerts.length >= ALERT_CAP) { setErr(CAP_MSG); return }
-    const next = old ? p.alerts.map(x => (x === old ? { ...a, id: old.id, ...(old.armedAt ? { armedAt: old.armedAt } : {}) } : x)) : [...p.alerts, a]
+    const next = old ? p.alerts.map(x => (x === old ? { ...a, id: old.id, ...(old.armedAt ? { armedAt: old.armedAt } : {}) } : x)) : [...p.alerts, armU1(a, cur)]
     if (!writePrefs({ ...p, alerts: next })) { setErr('이 기기에 저장하지 못했습니다. 시크릿 창이거나 저장 공간이 찼습니다.'); return }
     window.dispatchEvent(new StorageEvent('storage', { key: KEYS.prefs }))
     setErr(''); setValue(''); setSavedAt(Date.now())

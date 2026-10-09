@@ -68,6 +68,7 @@ export type Pkg = 'quiet' | 'normal' | 'many'
 export type AlertCond = {
   id: string; event: string; target: string; strength?: Strength; value?: number; dir?: 'up' | 'down'
   level?: Level; repeat: 'each' | 'once'; ring?: boolean; enabled: boolean; armedAt?: string; name?: string
+  armSide?: 'u' | 'd'                                            // U1 의 켠 순간 쪽(alertStatus.sideOf) — 비공개 /prefs 에만
 }
 export type Updown = 'kr' | 'us'
 export type Settings = {
