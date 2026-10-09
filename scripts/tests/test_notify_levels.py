@@ -129,7 +129,7 @@ def test_link_buttons_ride_the_webhook_without_bot(monkeypatch):
     monkeypatch.setenv("DISCORD_BOT_TOKEN", "tok")
     assert nd.send_level("brief", "10/9 아침", "본문", buttons=[("S&P 500", "https://x/sp"), ("대시보드", "https://x/")])
     assert len(POSTED) == 1 and "/channels/" not in POSTED[0]["url"]           # 봇 경로를 타지 않는다
-    assert POSTED[0]["url"].endswith("?with_components=true")
+    assert POSTED[0]["url"].endswith("?with_components=true&wait=true")
     row = POSTED[0]["payload"]["components"][0]["components"]
     assert [b["url"] for b in row] == ["https://x/sp", "https://x/"] and all(b["style"] == 5 for b in row)
     assert not any(f.get("name", "").startswith("바로가기") for f in POSTED[0]["payload"]["embeds"][0].get("fields", []))

@@ -393,7 +393,15 @@ def _post(url, payload, png, filename, extra_headers=None):
         headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                                      headers=headers)
-    urllib.request.urlopen(req, timeout=20)
+    r = urllib.request.urlopen(req, timeout=20)
+    try:
+        raw = r.read() if hasattr(r, "read") else b""
+    finally:
+        getattr(r, "close", lambda: None)()
+    try:                                          # wait=true 웹훅 · 봇은 만든 메시지를 돌려준다(그 밖엔 빈 본문)
+        return json.loads(raw) if raw else None
+    except ValueError:
+        return None
 
 
 def send(text, png=None, filename="chart.png", title=None, url=None,
@@ -481,11 +489,15 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     wh = hook + (("&" if "?" in hook else "?") + f"thread_id={tid}" if tid else "")
     if link_rows:
         try:
-            _post(wh + ("&" if "?" in wh else "?") + "with_components=true",
-                  {**payload, "username": BOT_NAME, "components": link_rows}, png, filename)
+            msg = _post(wh + ("&" if "?" in wh else "?") + "with_components=true&wait=true",
+                        {**payload, "username": BOT_NAME, "components": link_rows}, png, filename)
             nbtn = sum(len(r["components"]) for r in link_rows)
+            # 디스코드는 컴포넌트를 무시해도 성공을 돌려준다 — 만든 메시지에 실제로 붙은 버튼 수를 적는다.
+            shown = sum(len(r.get("components") or []) for r in (msg or {}).get("components") or [])                 if isinstance(msg, dict) else None
             print(f"[discord] 발송 성공 ({plen}자{', 이미지 첨부' if png else ''}"
-                  f"{', embed' if title else ''}, 웹훅+링크 버튼 {nbtn}개, env={env})")
+                  f"{', embed' if title else ''}, 웹훅+링크 버튼 {nbtn}개(표시 {shown if shown is not None else '?'}), env={env})")
+            if shown == 0:
+                print("::warning title=디스코드 버튼 누락::웹훅이 링크 버튼을 무시하고 올렸다 — with_components 지원 확인 필요")
             return True
         except Exception as e:
             print(f"[discord] 웹훅 링크 버튼 실패({e}) — 버튼을 링크 필드로")
