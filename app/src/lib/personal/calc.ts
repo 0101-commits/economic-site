@@ -172,6 +172,12 @@ export function collectStocks(root: unknown, out: Map<string, Quote>) {
   walk(root)
 }
 
+/** KRX 순위 4목록(시가총액 · 거래량 · 52주 고저)은 전일 확정값 — 보유 시세로 쓰면 「오늘 손익」이 어제 등락이 되고 Yahoo 대체도 막힌다. */
+const KRX_PREV = new Set(['marketCap', 'volume', 'high52', 'low52'])
+/** 국내 묶음 views 에서 오늘 시세 목록만(KRX 순위 4목록 제외) 시세로 모은다. */
+export const collectDomestic = (views: Record<string, unknown> | null | undefined, out: Map<string, Quote>) =>
+  collectStocks(Object.fromEntries(Object.entries(views ?? {}).filter(([k]) => !KRX_PREV.has(k))), out)
+
 export type Unit = 'man' | 'won'
 
 /** 금액: 원 = 「1,234,567원」, 만원 = 「1,235만원」(100만원 미만은 소수 한 자리). */

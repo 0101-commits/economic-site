@@ -1,6 +1,6 @@
 // 내 자산·알림·검색이 읽는 공개 자료. 묶음(bundles/)은 bundle.ts 로, 사이트 루트 파일(alerts_state.json·merblog.json)은 여기서.
 import { findItem, loadBundle, loadHome, ROOT, type HomeBundle, type StripItem } from '../bundle'
-import { collectStocks, type Fx, type Quote } from './calc'
+import { collectDomestic, collectStocks, type Fx, type Quote } from './calc'
 import type { Pt } from '../format'
 
 const rootFiles = new Map<string, Promise<unknown>>()
@@ -32,6 +32,7 @@ export type MarketData = {
 
 /**
  * 시세는 묶음에 있는 것만 — 홈 거래대금 상위 → 국내 묶음 보기 순(거래대금 · 체결 상위 · 상승·하락 · ETF …, 같은 종목은 먼저 본 것).
+ * KRX 순위 4목록(전일 확정값)은 쓰지 않는다 — 거기에만 있는 종목은 Yahoo 시세(quotes.ts)로 간다.
  * 그 밖의 종목은 「시세 없음」(지어내지 않는다).
  * 달러원은 홈 띠(없으면 환율 묶음)의 usdkrw: 전일 = 지금 − 변화량.
  */
@@ -44,7 +45,7 @@ export async function loadMarketData(): Promise<MarketData> {
   ])
   const quotes = new Map<string, Quote>()
   collectStocks(home?.topAmount, quotes)
-  collectStocks(dom?.views, quotes)
+  collectDomestic(dom?.views, quotes)
   const it = (home && findItem(home.strip, 'usdkrw')) || (fxb ? findItem(fxb, 'usdkrw') : undefined)
   const fx: Fx = it?.value ? { now: it.value, prev: it.change != null ? it.value - it.change : null } : null
   const views = (dom?.views || {}) as Record<string, Record<string, unknown[]> | undefined>

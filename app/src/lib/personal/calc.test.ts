@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 손익 계산 · 환차 분해 · what-if · 위험 · 금액 표기
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { evaluate, fxWhatIf, npsDomesticShare, upsertSnap, risk, benchmark, collectStocks, fmtMoney, fmtMoneyChange, type Holding, type Quote } from './calc.ts'
+import { evaluate, fxWhatIf, npsDomesticShare, upsertSnap, risk, benchmark, collectStocks, collectDomestic, fmtMoney, fmtMoneyChange, type Holding, type Quote } from './calc.ts'
 
 const near = (a: number | null | undefined, b: number, eps = 1e-6) => assert.ok(a != null && Math.abs(a - b) < eps, `${a} ≈ ${b}`)
 
@@ -128,6 +128,18 @@ test('collectStocks: 같은 코드는 먼저 본 목록 하나만, 시세 없는
   assert.deepEqual(out.get('000660'), { price: 1_686_000, pct: null, name: undefined })
   collectStocks({ items: [{ code: '000660', price: 1 }] }, out)            // 나중 묶음도 앞의 값을 덮지 않는다
   assert.equal(out.get('000660')!.price, 1_686_000)
+})
+
+test('collectDomestic: KRX 순위 4목록(전일 값)은 시세로 쓰지 않는다', () => {
+  const krx = (code: string) => ({ asOf: '2026-10-08', kospi: [{ code, price: 100, chgPct: 1 }] })
+  const out = new Map<string, Quote>()
+  collectDomestic({
+    marketCap: krx('000001'), volume: krx('000002'), high52: krx('000003'), low52: krx('000004'),
+    amount: { asOf: '2026-10-09', items: [{ code: '005930', price: 262_500, chgPct: -2.23 }] },
+    gainers: { kospi: [{ code: '000005', price: 50, chgPct: 30 }] },
+  }, out)
+  assert.deepEqual([...out.keys()], ['005930', '000005'])
+  collectDomestic(null, out)                                                 // 묶음이 없어도 던지지 않는다
 })
 
 test('fmtMoney · fmtMoneyChange', () => {

@@ -12,7 +12,8 @@ import { DivergingBars, LineChart } from '../components/charts'
 import { WeightMap } from '../components/personal/WeightMap'
 import { HoldSyncSheet } from '../components/personal/HoldSyncSheet'
 import { BTN, BTN2, DIR_TEXT, Field, INPUT, ShareBar } from '../components/personal/bits'
-import { changeDir, fmtNumber, fmtPct, shortDate, slicePeriods, type Pt } from '../lib/format'
+import { changeDir, fmtNumber, fmtPct, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
+import { rebase } from '../components/market/calc'
 import { useViewParam } from '../lib/useViewParam'
 import { benchmark, evaluate, fmtMoney, fmtMoneyChange, fxWhatIf, kstDay, moneyDir, npsDomesticShare, risk, RISK_MIN, type Holding, type Quote, type Row, type Snap, type Unit } from '../lib/personal/calc'
 import type { Sched } from '../lib/bundle'
@@ -336,6 +337,13 @@ function RiskPanel({ rk, snaps, unit }: { rk: ReturnType<typeof risk>; snaps: Sn
   const [idx, setIdx] = useState<{ name: string; pts: Pt[] }[] | null>(null)   // 위험 보기를 열 때만 세계 묶음을 받는다
   useEffect(() => { loadBench().then(setIdx, () => setIdx([])) }, [])
   const bm = useMemo(() => (idx?.length ? benchmark(snaps, idx) : null), [snaps, idx])
+  // 기간 칩마다 그 기간 첫 날 = 100 으로 다시 편다(줄마다 날짜가 같아 칩도 같다). 지금 기간은 LineChart 와 같은 규칙.
+  const lines = useMemo(() => bm && [{ name: '나', pts: bm.mine }, ...bm.idx].map(l => ({
+    name: l.name, periods: Object.fromEntries(Object.entries(slicePeriods(l.pts)).map(([k, s]) => [k, rebase(s!)])) as Partial<Record<PeriodKey, Pt[]>>,
+  })), [bm])
+  const [p, setP] = useState<PeriodKey>('3m')
+  const keys = lines ? PERIODS.map(o => o.key).filter(k => lines[0].periods[k]) : []
+  const cur = keys.includes(p) ? p : keys.includes('3m') ? '3m' : keys[keys.length - 1]
   const ratio = (v?: number) => (v == null ? '—' : fmtNumber(v, 2))
   return (
     <>
@@ -359,20 +367,19 @@ function RiskPanel({ rk, snaps, unit }: { rk: ReturnType<typeof risk>; snaps: Sn
           </>
         )}
       </Panel>
-      <Panel title="시장 대비" source="스냅샷 첫 날 = 100">
+      <Panel title="시장 대비" source="기간 첫 날 = 100">
         {snaps.filter(s => s.ev > 0 && s.ct > 0).length < 2 ? <p className="m-0 text-13 text-ink-3">스냅샷이 쌓이면 보입니다(하루 1건, 2건부터).</p>
           : idx == null ? <p className="m-0 text-13 text-ink-3">지수 불러오는 중</p>
-            : !bm ? <p className="m-0 text-13 text-ink-3">{idx.length ? '스냅샷 날짜에 맞는 지수 값이 2일 이상 없습니다.' : '지수 시계열이 없어 비교할 수 없습니다.'}</p>
+            : !lines || !cur ? <p className="m-0 text-13 text-ink-3">{idx.length ? '스냅샷 날짜에 맞는 지수 값이 2일 이상 없습니다.' : '지수 시계열이 없어 비교할 수 없습니다.'}</p>
               : (
                 <>
                   <p className="m-0 mb-2 text-13 text-ink-2">
-                    {[{ name: '나', pts: bm.mine }, ...bm.idx].map((l, i) => (
-                      <span key={l.name}>{i > 0 && ' · '}{l.name} <span className="num font-bold text-ink-1">{fmtNumber(l.pts[l.pts.length - 1][1], 1)}</span></span>
-                    ))}
-                    <span className="text-ink-3">{` (${shortDate(bm.mine[0][0])} = 100)`}</span>
+                    {lines.map((l, i) => { const s = l.periods[cur]!; return (
+                      <span key={l.name}>{i > 0 && ' · '}{l.name} <span className="num font-bold text-ink-1">{fmtNumber(s[s.length - 1][1], 1)}</span></span>
+                    ) })}
+                    <span className="text-ink-3">{` (${shortDate(lines[0].periods[cur]![0][0])} = 100)`}</span>
                   </p>
-                  <LineChart label="시장 대비" name="나" periods={slicePeriods(bm.mine)} decimals={1}
-                    compare={bm.idx.map(l => ({ name: l.name, periods: slicePeriods(l.pts) }))} />
+                  <LineChart label="시장 대비" name="나" periods={lines[0].periods} period={cur} onPeriod={setP} decimals={1} compare={lines.slice(1)} />
                   <p className="mt-2 mb-0 text-12 text-ink-3">나 = 평가액 ÷ 원금이라 추가 매수로 원금이 늘어도 수익률만 비교합니다. 지수는 스냅샷 날짜의 종가(없으면 7일 안의 직전 값)이고 배당은 양쪽 다 빠져 있습니다.</p>
                 </>
               )}
