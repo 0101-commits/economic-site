@@ -183,3 +183,9 @@ def test_card_bytes_upload_without_text_fallback(monkeypatch):
     monkeypatch.setattr(requests, "post", post)
     assert k.kakao_upload_image("tok", png) == "https://k.kakaocdn/x.png"
     assert sent["file"][1] == png
+    feeds, notices = [], []
+    monkeypatch.setattr(k, "send_feed", lambda *a, **kw: feeds.append(a[3]) or True)
+    monkeypatch.setattr(k, "_system_notice", notices.append)
+    monkeypatch.setattr(k, "send_memo", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("텍스트 폴백")))
+    assert k.send_card("tok", "코스피 +2.6% · 7,004", "나스닥 동반", png=png, kind="알림 v2 알림")
+    assert feeds == ["https://k.kakaocdn/x.png"] and notices == []      # 사진으로 나가고 #시스템 경고 없음
