@@ -1,19 +1,21 @@
-// 홈 「오늘」 — 기획안 v4 3장. 머리 → 오늘 한 줄 → 지표 띠 8 + 관심 칸 → 격자(PC 12열 / 모바일 1열 같은 순서).
+// 홈 「오늘」 — 기획안 v4 3장. 머리 → 오늘 한 줄 → AI 요약 3줄(+질문칸) → 지표 띠 8 + 관심 칸 → 분위기 5칸 → 격자(PC 12열 / 모바일 1열 같은 순서).
 // 금액(내 자산)은 여기서 절대 읽지 않는다. 관심은 이 기기의 id 목록뿐(lib/watch.ts).
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, House } from 'lucide-react'
-import { loadHome, loadIndicator, shownUnit, type HomeBundle, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
+import { loadHome, loadIndicator, shownUnit, useBundleRev, type HomeBundle, type MoodItem, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
 import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { useWatch } from '../lib/watch'
-import { NumBlock, Pill } from '../components/ui'
+import { AsOfBadge, NumBlock, Pill } from '../components/ui'
 import { DivergingBars, Heatmap, LineChart } from '../components/charts'
 import { More, Panel, RankTable, StripCard, WatchStar, type Col } from '../components/panels'
-import { LevelPill } from '../components/personal/bits'
+import { BTN, INPUT, LevelPill } from '../components/personal/bits'
 import { hhmm, todayRows } from '../lib/alerts/v2'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
+import { aiAsk, aiErrText } from '../lib/personal/remote'
+import { getKeyHash, useSyncStatus } from '../lib/personal/sync'
 
 const MAX_WATCH = 8   // 띠 뒤에 붙는 관심 칸 상한 — 넘으면 「관심 N개 더」
 const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as const
@@ -38,7 +40,9 @@ function ChangeText({ chg, pct, decimals }: { chg: number | null | undefined; pc
 export default function Home() {
   const [home, setHome] = useState<HomeBundle | null>(null)
   const [err, setErr] = useState(false)
-  useEffect(() => { loadHome().then(setHome, () => setErr(true)) }, [])
+  // 묶음을 새로 받으면(lib/bundle.ts 다시 읽기) 그 자리에서 바꿔 그린다 — 질문칸의 답 · 입력을 지우지 않게 홈은 다시 만들지 않는다
+  const rev = useBundleRev()
+  useEffect(() => { loadHome().then(setHome, () => setErr(true)) }, [rev])
   // 알림 원장(events/latest.json) — 「일정·알림」 패널의 「오늘 바뀐 것」. 아직 없으면(배포 전) 패널은 종전 그대로다.
   const [ledger, setLedger] = useState<unknown>(null)
   useEffect(() => { loadRootJson<unknown>('events/latest.json').then(setLedger, () => {}) }, [])
@@ -46,6 +50,7 @@ export default function Home() {
   const [s, setS] = useViewParam<string>('s', 'kospi')
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const watch = useWatch()
+  const { linked } = useSyncStatus()
 
   // 관심 칸이 쓸 값: 홈 띠 · 거래대금 상위 종목에 없는 id 는 지표 사전에서 한 번 찾는다
   const [extra, setExtra] = useState<Record<string, StripItem | null>>({})
@@ -106,6 +111,8 @@ export default function Home() {
   const invCol = (k: string) => (inv?.columns ?? ['date', 'foreign', 'inst', 'retail']).indexOf(k)
   const flow20 = (inv?.rows || []).slice(-20)
   const lens = home.lens
+  const brief = home.brief
+  const briefOld = !!brief?.asOf && kstDay(Date.parse(brief.asOf)) !== kstDay()
 
   // 4열 패널(약 350px)에 맞춰 열은 넷: 거래대금은 조원 두 자리, 모바일에선 이름 아래 줄
   const amountCols: Col<Stock>[] = [
@@ -136,6 +143,21 @@ export default function Home() {
         )}
       </p>
 
+      {/* AI 요약 3줄 — 접지 않는다. 오늘(KST) 만든 것이 아니면 머리에 날짜. 질문칸은 동기화가 켜진 기기에만(Worker /ai 가 키를 본다) */}
+      {(!!brief?.lines.length || linked) && (
+        <section aria-labelledby="home-brief" className="-mt-2 max-w-[44em]">
+          <h2 id="home-brief" className="m-0 mb-1 flex flex-wrap items-baseline gap-x-2 text-12 font-bold text-ink-2">
+            AI 요약{briefOld && <span className="num font-normal text-ink-3">{mdHm(brief!.asOf!)} 기준</span>}
+          </h2>
+          {brief?.lines.length ? (
+            <ul className="m-0 pl-5 list-disc marker:text-ink-3 flex flex-col gap-1 text-13 text-ink-2">
+              {brief.lines.map((l, i) => <li key={i}>{emphasize(l)}</li>)}
+            </ul>
+          ) : <p className="m-0 text-13 text-ink-3">AI 요약이 아직 없습니다.</p>}
+          {linked && <AskBox home={home} />}
+        </section>
+      )}
+
       {/* 지표 띠 8 + 관심 칸(9번째부터, 최대 8). 모바일 2열이라 짝을 맞추지 않는다 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 pc:grid-cols-8 gap-2">
         {shown.map((it, i) => (
@@ -147,6 +169,16 @@ export default function Home() {
         <Link to="/alerts?v=cond" className="-mt-2 self-start inline-flex items-center text-12 text-ink-2 no-underline hover:text-ink-1">
           관심 <span className="num">{watchItems.length - MAX_WATCH}</span>개 더<ChevronRight size={14} aria-hidden />
         </Link>
+      )}
+
+      {/* 분위기 5칸 — 띠 아래 한 줄(모바일은 3열 두 줄, 자르지 않는다). 등락은 1주 전 대비 */}
+      {!!home.mood?.length && (
+        <section aria-labelledby="home-mood" className="bg-card border border-line rounded-card px-3 py-2 flex flex-col pc:flex-row pc:items-center gap-x-4 gap-y-2">
+          <h2 id="home-mood" className="m-0 shrink-0 text-12 font-bold text-ink-2">분위기 <span className="font-normal text-ink-3">1주 전 대비</span></h2>
+          <ul className="m-0 p-0 list-none flex-1 grid grid-cols-3 pc:grid-cols-5 gap-x-3 gap-y-2">
+            {home.mood.map(m => <MoodCell key={m.id} m={m} />)}
+          </ul>
+        </section>
       )}
 
       <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
@@ -285,6 +317,86 @@ export default function Home() {
         </Panel>
       </div>
     </div>
+  )
+}
+
+/** 분위기 한 칸: 이름 + 기준 꼬리표 / 값 · 단위 · 1주 전 대비. 누르면 지표 상세. 단위는 %·%p 만 적는다(「지수 (S&P500 …)」 같은 설명은 title 로). */
+function MoodCell({ m }: { m: MoodItem }) {
+  const u = m.unit?.startsWith('%') ? m.unit.split(' ')[0] : ''
+  const d = Math.max(m.decimals, 2)   // 1주 변화는 값보다 작아 값 자릿수로는 0 이 되기 쉽다(묶음도 둘째 자리까지 준다)
+  return (
+    <li className="min-w-0">
+      <Link to={`/i/${m.id}`} title={m.unit ? `${m.label} · ${m.unit}` : m.label} className="block no-underline">
+        <span className="flex flex-wrap items-baseline gap-x-1.5 text-12 text-ink-2 [overflow-wrap:anywhere]">
+          <span className="hidden pc:inline">{m.short || m.label}</span>
+          <span className="pc:hidden">{m.shortM || m.short || m.label}</span>
+          <AsOfBadge asOf={m.asOf} state={m.state} />
+        </span>
+        <span className="flex flex-wrap items-baseline gap-x-1.5">
+          <span className="num text-14 font-bold text-ink-1">{fmtNumber(m.value, m.decimals)}{u && <span className="ml-0.5 text-11 font-normal text-ink-3">{u}</span>}</span>
+          <span className={`num text-12 ${DIR_TEXT[changeDir(m.change, d)]}`}>{fmtChange(m.change, null, d)}</span>
+        </span>
+      </Link>
+    </li>
+  )
+}
+
+/** 질문에 실어 보내는 시장 값 — 홈 묶음에 있는 것만(서버는 이것만 근거로 답한다). 금액(내 자산)은 싣지 않는다. */
+function snapshotOf(h: HomeBundle) {
+  return {
+    기준: h.asOf,
+    장: h.market?.label,
+    오늘한줄: h.todayLine?.pc,
+    지표: h.strip.map(x => ({ 이름: x.label, 값: x.value, 변화: x.change, 등락률: x.changePct, 기준: x.asOf })),
+    분위기_1주변화: h.mood?.map(x => ({ 이름: x.label, 값: x.value, 변화: x.change, 기준: x.asOf })),
+    AI요약: h.brief?.lines,
+    일정: h.schedule?.slice(0, 8).map(e => ({ 날짜: e.date, 이름: e.name })),
+    뉴스: h.news?.slice(0, 8).map(n => n.title),
+  }
+}
+
+const ASK_GAP_MS = 6_000   // /ai 는 /prefs · /portfolio 와 IP 당 분당 10회를 나눠 쓴다(lib/personal/sync.ts GAP_MS 와 같은 값)
+const NOT_ADVICE = /\n?\s*※?\s*(AI 답변은 참고용이며 )?투자\s*조언이?\s*아닙니다\.?\s*$/
+
+/** 질문칸 — 답은 그 자리에 하나(대화 기록은 남기지 않는다). 서버가 붙이는 고지는 떼고 화면 꼬리표 하나로. 실패 · 기다림 글은 답을 지우지 않는다. */
+function AskBox({ home }: { home: HomeBundle }) {
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [answer, setAnswer] = useState('')
+  const [note, setNote] = useState('')
+  const last = useRef(0)
+  const ask = async (e: FormEvent) => {
+    e.preventDefault()
+    const question = q.trim(), hash = getKeyHash()
+    if (!question || busy) return
+    if (!hash) { setNote('동기화가 꺼졌습니다. 설정 「기기 연결」에서 다시 연결하세요.'); return }
+    const wait = last.current + ASK_GAP_MS - Date.now()
+    if (wait > 0) { setNote(`${Math.ceil(wait / 1000)}초 뒤에 다시 물어보세요.`); return }
+    last.current = Date.now()
+    setBusy(true)
+    setNote('')
+    const r = await aiAsk(hash, question, snapshotOf(home))
+    setBusy(false)
+    if (r.text) setAnswer(r.text.replace(NOT_ADVICE, '').trim())
+    else setNote(aiErrText(r))
+  }
+  return (
+    <form onSubmit={ask} className="mt-2 flex flex-col gap-2">
+      <div className="flex gap-2">
+        <input className={INPUT} value={q} onChange={e => setQ(e.target.value)} maxLength={300} enterKeyHint="send"
+          placeholder="오늘 시장에 대해 묻기" aria-label="AI 에게 묻기" />
+        <button type="submit" disabled={busy || !q.trim()} className={BTN}>{busy ? '묻는 중' : '묻기'}</button>
+      </div>
+      <div aria-live="polite" className="flex flex-col gap-1 text-13">
+        {note && <p className="m-0 text-ink-2">{note}</p>}
+        {answer && (
+          <div>
+            <p className="m-0 whitespace-pre-line text-ink-1">{answer}</p>
+            <p className="m-0 mt-1 text-11 text-ink-3">참고용 · 투자 조언 아님</p>
+          </div>
+        )}
+      </div>
+    </form>
   )
 }
 

@@ -1,9 +1,9 @@
 // 화면 골격: PC(≥980px) 상단 네비 5 + 검색·종·톱니 / 모바일 하단 탭 5.
 // 주소는 해시 방식(#/market?a=kr) — GitHub Pages 는 없는 경로를 index.html 로 돌려주지 않아서,
 // 경로 방식이면 /next/market 을 새로 고칠 때 404 가 난다.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { Bell, ChartCandlestick, House, Moon, Search, Settings as Gear, Sun, SunMoon, Telescope, Wallet, type LucideIcon } from 'lucide-react'
+import { Bell, ChartCandlestick, ChevronRight, House, Moon, Search, Settings as Gear, Sun, SunMoon, Telescope, Wallet, type LucideIcon } from 'lucide-react'
 import Home from './screens/Home'
 import Market from './screens/Market'
 import Lens from './screens/Lens'
@@ -12,6 +12,7 @@ import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
 import { PinGate } from './components/PinGate'
+import { Pill } from './components/ui'
 import { SearchOverlay } from './components/personal/SearchOverlay'
 import { applyUpdown, readPrefs, tidyAlerts } from './lib/personal/store'
 import { loadRootJson } from './lib/personal/data'
@@ -19,6 +20,8 @@ import { hasUnseen, markSeen, readSeen } from './lib/alertsSeen'
 import { legacyToHash } from './lib/legacyUrl'
 import { applyTheme, useTheme, type Theme } from './lib/theme'
 import { countUse, screenKey } from './lib/usage'
+import { loadBundle, onBundles, useBundleRev, watchBundles, type Meta } from './lib/bundle'
+import { haltLine, type Halt } from './lib/refresh'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
 applyUpdown(readPrefs().settings.updown)
@@ -60,8 +63,9 @@ function Dot({ at }: { at: string }) {
   return <span aria-hidden className={`absolute ${at} size-2 rounded-chip bg-warn`} />
 }
 
-function IconLink({ to, label, icon: Icon, dot }: { to: string; label: string; icon: LucideIcon; dot?: boolean }) {
-  const name = dot ? `${label} · 안 읽은 알림 있음` : label
+/** dot = 점의 뜻(있으면 점을 찍고 이름 뒤에 붙인다). */
+function IconLink({ to, label, icon: Icon, dot }: { to: string; label: string; icon: LucideIcon; dot?: string }) {
+  const name = dot ? `${label} · ${dot}` : label
   return (
     <Link to={to} aria-label={name} title={name} className="relative size-9 inline-flex items-center justify-center rounded-btn text-ink-2 hover:text-ink-1">
       <Icon size={20} aria-hidden />{dot && <Dot at="top-1.5 right-1.5" />}
@@ -104,6 +108,27 @@ function Shell() {
   }, [])
   useEffect(() => { if (pathname === '/alerts') setSeen(markSeen()) }, [pathname])
   const unseen = hasUnseen(rows, seen)
+  // 묶음 다시 읽기(명세 C7): 장중 5분 · 탭 30분 복귀. 새 묶음이 오면 rev 가 올라 시장을 다시 그린다(key, 홈은 스스로 rev 를 본다) —
+  // 입력 중일 수 있는 화면(상세 알림 시트 · 렌즈 만약에 · 내 자산 · 알림 · 설정)은 다시 그리지 않는다.
+  useEffect(() => watchBundles(), [])
+  const rev = useBundleRev()
+  // 다시 그리는 한순간 본문이 짧아지면(시장은 첫 그림이 「불러오는 중」) 스크롤이 맨 위로 끌려간다 — 그동안 본문 높이를 붙잡는다
+  const mainRef = useRef<HTMLElement>(null)
+  useEffect(() => onBundles(() => {
+    const m = mainRef.current
+    if (!m) return
+    m.style.minHeight = `${m.offsetHeight}px`
+    setTimeout(() => { m.style.minHeight = '' }, 1500)
+  }), [])
+  // 머리 아래 매매중단 배너 · 톱니의 자료 실패 점 — 묶음이 바뀔 때마다 다시 본다
+  const [halts, setHalts] = useState<Halt[]>([])
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    loadBundle<{ views?: { halts?: { active?: Halt[] } } }>('market-domestic').then(d => setHalts(d.views?.halts?.active ?? []), () => {})
+    loadBundle<Meta>('meta').then(m => setFailed(!!m.health?.summary?.failed), () => {})
+  }, [rev])
+  const halt = haltLine(halts, Date.now())
+  const gearDot = failed ? '자료 실패 있음' : undefined
   // `/` = 검색 열기(입력 칸에서 치는 / 는 그대로 둔다)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -131,8 +156,8 @@ function Shell() {
           </nav>
           <div className="ml-auto self-center flex items-center gap-1">
             <SearchButton onOpen={() => setSearch(true)} />
-            <IconLink to="/alerts" label="알림" icon={Bell} dot={unseen} />
-            <IconLink to="/settings" label="설정" icon={Gear} />
+            <IconLink to="/alerts" label="알림" icon={Bell} dot={unseen ? '안 읽은 알림 있음' : undefined} />
+            <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
             <ThemeButton />
           </div>
         </div>
@@ -142,14 +167,23 @@ function Shell() {
       <header className="pc:hidden bg-card border-b border-line px-4 h-12 flex items-center gap-2">
         <Link to="/" className="mr-auto text-18 font-bold text-ink-1 no-underline">ecom</Link>
         <SearchButton compact onOpen={() => setSearch(true)} />
-        <IconLink to="/settings" label="설정" icon={Gear} />
+        <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
         <ThemeButton />
       </header>
 
-      <main className="mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8">
+      {/* 매매중단 배너 — 지금 발동 중인 서킷브레이커 · 사이드카(알림의 같은 사건). 누르면 국내 매매중단 패널 */}
+      {halt && (
+        <Link to="/market?a=kr&v=halts&m=all" className="block bg-card border-b border-line no-underline">
+          <span className="mx-auto max-w-[1200px] px-4 py-2 flex items-center gap-2 text-13 text-ink-1">
+            <Pill tone="x">매매중단</Pill><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{halt}</span><ChevronRight size={16} aria-hidden className="shrink-0 text-ink-3" />
+          </span>
+        </Link>
+      )}
+
+      <main ref={mainRef} className="mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/market" element={<Market />} />
+          <Route path="/market" element={<Market key={rev} />} />
           <Route path="/lens" element={<Lens />} />
           <Route path="/my" element={<My />} />
           <Route path="/alerts" element={<Alerts />} />

@@ -1,6 +1,6 @@
 // 시장 › 해외 — 큰 차트 = 띠에서 고른 지수의 자기 차트(기본 S&P 500). 보기 줄은 목차(주소 v), 시작=100 겹침 차트는 맨 아래 넓은 칸.
-import { useMemo, useState, type ReactNode } from 'react'
-import type { Sched, StripItem } from '../../lib/bundle'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { loadHome, type MoodItem, type Sched, type StripItem } from '../../lib/bundle'
 import { fmtNumber, fmtPct, range52, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { LineChart, Range52 } from '../charts'
@@ -43,7 +43,17 @@ const idxCols: Col<StripItem & { r52: ReturnType<typeof range52> }>[] = [
 export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
   const [, setV] = useViewParam<View>('v', 'indices', VIEWS.map(o => o.key))
   const vw = b.views
-  const sense = [vw?.fearGreed, vw?.vix, vw?.move].filter((x): x is StripItem & { rating?: string } => !!x)
+  // V-KOSPI · HY 스프레드는 해외 묶음에 없다 → 홈 묶음 「분위기」 칸을 빌린다(홈에서 왔으면 이미 받아 둔 것).
+  // 그 칸의 등락은 1주 전 대비라 줄에는 「1주」를 붙이고, 큰 차트(전일 대비 자리)에는 등락을 싣지 않는다.
+  // 해외 묶음 칸이 등락 없이 오면(MOVE) 같은 분위기 칸의 1주 변화를 대신 보인다.
+  const [mood, setMood] = useState<MoodItem[]>([])
+  useEffect(() => { loadHome().then(h => setMood(h.mood ?? []), () => {}) }, [])
+  const moodOf = useMemo(() => new Map(mood.map(m => [m.id, m])), [mood])
+  const borrowed = (id: string): StripItem | undefined => {
+    const m = moodOf.get(id)
+    return m && { ...m, unit: m.unit ?? undefined, change: null, changePct: null }
+  }
+  const sense = [vw?.fearGreed, vw?.vix, borrowed('vkospi'), vw?.move, borrowed('hy_spread')].filter((x): x is StripItem & { rating?: string } => !!x)
   const pool = poolOf(b.strip, vw?.indices, sense)
   const sel = pool.get(selId) ?? b.strip[0]
   const indices = useMemo(() => (vw?.indices ?? []).map(x => ({ ...x, r52: range52(x.series) })), [vw?.indices])
@@ -68,7 +78,11 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
                   <span className="shrink-0 text-right">
                     <span className="num text-14 text-ink-1">{fmtNumber(it.value, it.decimals)}</span>
                     {it.rating && <span className="ml-2 text-12 text-ink-2">{RATING[it.rating.replace('_', ' ')] ?? it.rating}</span>}
-                    <span className="block"><ChangeText chg={it.change} pct={it.changePct} decimals={it.decimals} /></span>
+                    <span className="block">
+                      {it.change == null && moodOf.has(it.id)
+                        ? <><span className="mr-1 text-11 text-ink-3">1주</span><ChangeText chg={moodOf.get(it.id)!.change} decimals={Math.max(it.decimals, 2)} /></>
+                        : <ChangeText chg={it.change} pct={it.changePct} decimals={it.decimals} />}
+                    </span>
                   </span>
                 </button>
               </li>
