@@ -111,7 +111,7 @@ function KeyChange({ onDone }: { onDone: (msg: string) => void }) {
     const r = await changeKey(cur, n1)
     if (r) { setErr(r); return }
     setCur(''); setN1(''); setN2('')
-    onDone('키를 바꿨습니다. 다른 기기는 새 키로 다시 연결하세요.')
+    onDone('키를 바꿨습니다. 다른 기기는 새 키로 다시 연결하면 폰 알림도 다시 켜집니다.')
   }
   const box = (label: string, v: string, set: (v: string) => void) => (
     <Field label={label}><input type="password" autoComplete="new-password" className={INPUT} value={v} onChange={e => set(e.target.value)} /></Field>
