@@ -22,7 +22,7 @@ type CorpEvent = { date: string; code?: string; name?: string; kind?: string; ti
 export type DomesticBundle = {
   strip: StripItem[]
   views?: {
-    amount?: { asOf?: string; state?: string; items: Stock[] }
+    amount?: { asOf?: string; state?: string; items: (Stock & { isEtf?: boolean })[] }
     /** 토스 체결 거래대금 상위 20(두 시장이 한 목록에 섞여 온다) */
     tossAmount?: { asOf?: string; state?: string; items: (Stock & { isEtf?: boolean })[] }
     gainers?: Movers
@@ -185,12 +185,12 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
 
   const panels: Record<View, (cls: string, primary: boolean) => ReactNode> = {
     amount: (cls, primary) => {
-      const rows = (vw?.amount?.items ?? []).filter(x => !MARKET[m] || x.market === MARKET[m])
+      const items = vw?.amount?.items ?? []
+      const rows = items.filter(x => (m === 'etf' ? x.isEtf : !MARKET[m] || x.market === MARKET[m]))
       return (
         <Panel className={cls} title={`거래대금 상위 · ${scopeName}`} asOf={vw?.amount?.asOf} state={vw?.amount?.state} fold={!primary}>
-          {m === 'etf' ? <Empty>거래대금 상위 자료에는 ETF 구분이 없습니다.</Empty>
-            : rows.length ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={r => r.code} />
-              : <Empty>거래대금 자료가 없습니다.</Empty>}
+          {rows.length ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={r => r.code} />
+            : <Empty>{items.length ? '이 범위의 종목이 거래대금 상위 20에 없습니다.' : '거래대금 자료가 없습니다.'}</Empty>}
         </Panel>
       )
     },

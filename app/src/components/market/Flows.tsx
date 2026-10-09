@@ -62,14 +62,15 @@ const stockCols: Col<StockRow>[] = [
   { key: 'hold', label: '외국인 보유', get: r => r.hold, num: true, role: 'sub', render: holdText },
   ...EXTRA.map(({ key, label }): Col<StockRow> => ({ key, label, get: r => r.extra[key], num: true, render: r => extraCell(r, key) })),
 ]
-// PC 4칸 자리(약 345px): 투자자 셋만 열로, 보유 · 공매도 · 대차 · 프로그램은 이름 아래 작은 줄(값 있는 것만)
+// PC 4칸 자리(약 345px): 투자자 셋만 열로, 보유 · 공매도 · 대차 · 프로그램은 이름 아래 작은 줄(값 있는 것만).
+// 이름은 띄어쓰기에서만 꺾는다(break-keep) — overflow-wrap:anywhere 는 열이 좁으면 「TOP1/0」처럼 글자 중간을 끊었다.
 const stockColsPc: Col<StockRow>[] = [
   { key: 'name', label: '종목', get: r => r.name, render: r => {
     const bits: [string, ReactNode][] = [...(r.hold != null ? [['보유', holdText(r)] as [string, ReactNode]] : []),
       ...EXTRA.filter(e => r.extra[e.key] != null).map((e): [string, ReactNode] => [e.label, extraCell(r, e.key)])]
     return (
       <>
-        <span className="block [overflow-wrap:anywhere]">{r.name}</span>
+        <span className="block break-keep">{r.name}</span>
         {bits.length > 0 && (
           <span className="block text-11 text-ink-3">
             {bits.map(([k, x], i) => <Fragment key={k}>{i > 0 && ' · '}<span className="whitespace-nowrap">{k} <span className="num">{x}</span></span></Fragment>)}
