@@ -1,7 +1,8 @@
 // 자가검사: node --test src/components/market/calc.test.ts (app 폴더에서)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { monthIndex, yearAgo, yoySeries, rebase, alignDates, cumsum, rollSum, weekKey, groupFlows, column, spans, type FlowRow } from './calc.ts'
+import { readFileSync } from 'node:fs'
+import { monthIndex, yearAgo, yoySeries, rebase, alignDates, cumsum, rollSum, weekKey, groupFlows, column, spans, monthCells, addMonth, type FlowRow } from './calc.ts'
 import type { Pt } from '../../lib/format.ts'
 
 test('monthIndex: 월·일·분기', () => {
@@ -65,4 +66,31 @@ test('alignDates: 모두에 있는 날짜만 남긴다(길이·시작이 다른 
   assert.deepEqual(alignDates([a, b]), [[['2024-09', 2], ['2025-09', 3]], [['2024-09', 20], ['2025-09', 30]]])
   assert.deepEqual(alignDates([a, []]), [[], []])
   assert.deepEqual(alignDates([]), [])
+})
+
+test('격자 끝 뉴스의 자산군 → 묶음 표(parts.tsx ASSET_BUNDLE) = screens/Market.tsx ASSETS', () => {
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8')
+  const assets = Object.fromEntries([...read('../../screens/Market.tsx').matchAll(/key: '(\w+)', label: '[^']+', bundle: '([\w-]+)'/g)].map(m => [m[1], m[2]]))
+  const table = /const ASSET_BUNDLE[^{]*\{([^}]*)\}/.exec(read('./parts.tsx'))?.[1] ?? ''
+  assert.equal(Object.keys(assets).length, 7)
+  assert.deepEqual(Object.fromEntries([...table.matchAll(/(\w+): '([\w-]+)'/g)].map(m => [m[1], m[2]])), assets)
+})
+
+test('monthCells · addMonth: 일요일 시작 격자, 해 넘김', () => {
+  const oct = monthCells('2026-10')   // 2026-10-01 은 목요일
+  assert.equal(oct.length, 4 + 31)
+  assert.deepEqual(oct.slice(0, 5), [null, null, null, null, '2026-10-01'])
+  assert.equal(oct[oct.length - 1], '2026-10-31')
+  assert.equal(monthCells('2026-02').filter(Boolean).length, 28)
+  assert.equal(monthCells('2026-11')[0], '2026-11-01')   // 일요일에 시작하면 빈칸 없음
+  assert.equal(addMonth('2026-12', 1), '2027-01')
+  assert.equal(addMonth('2026-01', -1), '2025-12')
+})
+
+test('격자 끝 뉴스 제목 이름표(parts.tsx NEWS_NAME) = data.json 뉴스 16주제', () => {
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8')
+  const topics = Object.keys(JSON.parse(read('../../../../data.json')).news).filter(k => k !== 'lastFetched').sort()
+  const table = /const NEWS_NAME[^{]*\{([^}]*)\}/.exec(read('./parts.tsx'))?.[1] ?? ''
+  assert.equal(topics.length, 16)
+  assert.deepEqual([...table.matchAll(/([^\s,:]+): '[^']+'/g)].map(m => m[1]).sort(), topics)
 })

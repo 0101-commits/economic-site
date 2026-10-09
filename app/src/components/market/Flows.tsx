@@ -1,6 +1,6 @@
 // 시장 › 수급 — 목차 일별·주별·월별(투자자 400행 집계 칸의 단위)·종목별·국민연금·vs 환율(주소 v). 단위는 묶음 그대로(시장 = 억원, 종목 = 주).
-import { useEffect, useMemo, useState } from 'react'
-import { loadIndicator, type Flows as FlowsBlock, type StripItem } from '../../lib/bundle'
+import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { loadIndicator, useBundleRev, type Flows as FlowsBlock, type StripItem } from '../../lib/bundle'
 import { fmtNumber, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { DivergingBars, LineChart } from '../charts'
@@ -8,7 +8,12 @@ import { Panel, RankTable, type Col } from '../panels'
 import { BigChart, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
 import { column, cumsum, groupFlows, rollSum, type FlowRow } from './calc'
 
-type StockFlow = { name: string; short?: string; market?: string; secType?: string; investor: (string | number | null)[][] }
+/** 종목 한 줄. short = 줄임 이름 · shortVol = 공매도 거래량 · lending = 대차 잔고 · program = 프로그램 순매수(모두 주, 없으면 null), flowDates = 각 값의 마지막 날. */
+type StockFlow = {
+  name: string; short?: string; market?: string; secType?: string; investor: (string | number | null)[][]
+  shortVol?: number | null; lending?: number | null; program?: number | null
+  flowDates?: Partial<Record<Extra, string | null>>
+}
 export type FlowsBundle = {
   strip: StripItem[]
   views?: {
@@ -37,14 +42,47 @@ const flowCols: Col<FlowRow>[] = [
   { key: 'i', label: '기관', get: r => r[2], num: true, render: r => signed(r[2]) },
   { key: 'r', label: '개인', get: r => r[3], num: true, render: r => signed(r[3]) },
 ]
-type StockRow = { code: string; name: string; f: number; i: number; r: number; hold: number | null; days: number }
+type Extra = 'shortVol' | 'lending' | 'program'
+type StockRow = { code: string; name: string; f: number; i: number; r: number; hold: number | null; days: number; extra: Record<Extra, number | null>; old: Partial<Record<Extra, string>> }
+const EXTRA: { key: Extra; label: string }[] = [{ key: 'shortVol', label: '공매도' }, { key: 'lending', label: '대차' }, { key: 'program', label: '프로그램' }]
+/** 주 수 짧게: 1만 미만 그대로 · 100만 미만 「54.0만」 · 그 위 「1,842만」. sign = 앞에 + 를 붙인다(순매수). */
+const shares = (v: number | null | undefined, sign = false) => {
+  if (v == null) return '—'
+  const a = Math.abs(v), s = v < 0 ? '-' : sign && v > 0 ? '+' : ''
+  return s + (a < 1e4 ? fmtNumber(a) : `${fmtNumber(a / 1e4, a < 1e6 ? 1 : 0)}만`)
+}
+/** 공매도 · 대차 · 프로그램 한 칸: 값 + 표 기준일보다 오래된 값이면 그 날짜(작게). */
+const extraCell = (r: StockRow, k: Extra) => <>{shares(r.extra[k], k === 'program')}{r.old[k] && <span className="ml-1 text-11 text-ink-3">{shortDate(r.old[k]!)}</span>}</>
+const holdText = (r: StockRow) => (r.hold == null ? null : `${fmtNumber(r.hold * 100, 2)}%`)
+const flowCol = (key: 'f' | 'i' | 'r', label: string, role?: 'value'): Col<StockRow> => ({ key, label, get: r => r[key], num: true, role, render: r => shares(r[key], true) })
+// 넓은 표(모바일 · 768~980): 여덟 열. 모바일은 이름 · 보유 / 외국인, 나머지는 행을 누르면 시트에.
 const stockCols: Col<StockRow>[] = [
   { key: 'name', label: '종목', get: r => r.name, role: 'name' },
-  { key: 'f', label: '외국인', get: r => r.f, num: true, role: 'value', render: r => signed(r.f) },
-  { key: 'i', label: '기관', get: r => r.i, num: true, render: r => signed(r.i) },
-  { key: 'r', label: '개인', get: r => r.r, num: true, render: r => signed(r.r) },
-  { key: 'hold', label: '외국인 보유', get: r => r.hold, num: true, role: 'sub', render: r => (r.hold == null ? null : `${fmtNumber(r.hold * 100, 2)}%`) },
+  flowCol('f', '외국인', 'value'), flowCol('i', '기관'), flowCol('r', '개인'),
+  { key: 'hold', label: '외국인 보유', get: r => r.hold, num: true, role: 'sub', render: holdText },
+  ...EXTRA.map(({ key, label }): Col<StockRow> => ({ key, label, get: r => r.extra[key], num: true, render: r => extraCell(r, key) })),
 ]
+// PC 4칸 자리(약 345px): 투자자 셋만 열로, 보유 · 공매도 · 대차 · 프로그램은 이름 아래 작은 줄(값 있는 것만)
+const stockColsPc: Col<StockRow>[] = [
+  { key: 'name', label: '종목', get: r => r.name, render: r => {
+    const bits: [string, ReactNode][] = [...(r.hold != null ? [['보유', holdText(r)] as [string, ReactNode]] : []),
+      ...EXTRA.filter(e => r.extra[e.key] != null).map((e): [string, ReactNode] => [e.label, extraCell(r, e.key)])]
+    return (
+      <>
+        <span className="block [overflow-wrap:anywhere]">{r.name}</span>
+        {bits.length > 0 && (
+          <span className="block text-11 text-ink-3">
+            {bits.map(([k, x], i) => <Fragment key={k}>{i > 0 && ' · '}<span className="whitespace-nowrap">{k} <span className="num">{x}</span></span></Fragment>)}
+          </span>
+        )}
+      </>
+    )
+  } },
+  flowCol('f', '외국인'), flowCol('i', '기관'), flowCol('r', '개인'),
+]
+const PC_MQ = '(min-width: 61.25rem)'   // app.css --breakpoint-pc 와 같은 값
+const onPcChange = (f: () => void) => { const m = matchMedia(PC_MQ); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }
+const isPc = () => matchMedia(PC_MQ).matches
 
 export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   const [v, setV] = useViewParam<View>('v', 'daily', VIEWS.map(o => o.key))
@@ -59,6 +97,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   }))
   const sel = pool.get(selId) ?? b.strip[0]
   const [grain, setGrain] = useState<Grain>(isGrain(v) ? v : 'daily')
+  const pc = useSyncExternalStore(onPcChange, isPc)
 
   const period = (cls: string, primary: boolean) => {
     const rows = grain === 'daily' ? daily : groupFlows(daily, grain === 'weekly' ? 'week' : 'month')
@@ -86,17 +125,21 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
     const st = b.views?.stocks
     const c = (k: string) => (st?.columns ?? ['date', 'foreign', 'inst', 'retail', 'fholdRate']).indexOf(k)
     const sum = (rs: (string | number | null)[][], k: string) => rs.reduce((a, r) => a + ((r[c(k)] as number | null) ?? 0), 0)
+    // 표 기준일 = 종목 투자자 행의 마지막 날. 공매도 · 대차 · 프로그램 값이 그보다 오래됐으면 날짜를 단다.
+    const last = Object.values(st?.items ?? {}).reduce((d, s) => { const x = String(s.investor[s.investor.length - 1]?.[0] ?? ''); return x > d ? x : d }, '')
     const rows: StockRow[] = Object.entries(st?.items ?? {}).map(([code, s]) => ({
       code, name: s.short || s.name, f: sum(s.investor, 'foreign'), i: sum(s.investor, 'inst'), r: sum(s.investor, 'retail'),
       hold: (s.investor[s.investor.length - 1]?.[c('fholdRate')] as number | null) ?? null, days: s.investor.length,
+      extra: { shortVol: s.shortVol ?? null, lending: s.lending ?? null, program: s.program ?? null },
+      old: Object.fromEntries(EXTRA.flatMap(({ key }) => { const d = s.flowDates?.[key]; return s[key] != null && d && d < last ? [[key, d]] : [] })),
     }))
     const days = Math.max(0, ...rows.map(r => r.days))
     return (
       <Panel className={cls} title="종목별 순매수" unit={`주 · 최근 ${days}거래일 합`} asOf={st?.asOf} state={st?.state} fold={!primary}>
         {rows.length ? (
           <>
-            <p className="md:hidden m-0 mb-1 text-11 text-ink-3">숫자는 외국인 · 행을 누르면 기관·개인</p>
-            <RankTable label="종목별 투자자 순매수" cols={stockCols} rows={rows} rowKey={r => r.code} />
+            <p className="md:hidden m-0 mb-1 text-11 text-ink-3">숫자는 외국인 · 행을 누르면 기관·개인·공매도·대차·프로그램</p>
+            <RankTable label="종목별 투자자 순매수" cols={pc ? stockColsPc : stockCols} rows={rows} rowKey={r => r.code} />
           </>
         ) : <Empty>종목별 수급 자료가 없습니다.</Empty>}
       </Panel>
@@ -135,7 +178,8 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
 function FxPanel({ foreign, unit, className }: { foreign: Pt[]; unit?: string; className: string }) {
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const [usd, setUsd] = useState<Pt[] | null>(null)
-  useEffect(() => { loadIndicator('usdkrw').then(r => setUsd(r.series ?? []), () => setUsd([])) }, [])
+  const rev = useBundleRev()
+  useEffect(() => { loadIndicator('usdkrw').then(r => setUsd(r.series ?? []), () => setUsd(u => u ?? [])) }, [rev])
   const fPeriods = useMemo(() => Object.fromEntries(Object.entries(slicePeriods(foreign)).map(([k, s]) => [k, cumsum(s!)])), [foreign])
   return (
     <Panel className={className} title="외국인 vs 환율" source="같은 기간">

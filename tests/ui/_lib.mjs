@@ -19,7 +19,7 @@ export const WAIT = Number(opt('wait', 2500));
 // 알림 v2: 사건 탭 · 채널 탭 · 지표 상세(#/i/kospi) + 벨 시트를 연 채로(?bell=1) 본 상세.
 // 국내 상승 · 하락 보기(v=gainers · losers)는 표 열이 많아 PC 둘째 줄 4칸에서 잘리던 자리라 따로 찍는다.
 // 거시(주제 한 격자 · 나라 꼬리표)와 렌즈 지표 상세(#/i/us10y — 렌즈 패널 · 흐름 차트 기준선)도 본다.
-export const NEXT_PATHS = ['#/', '#/market', '#/market?a=kr&v=gainers', '#/market?a=kr&v=losers', '#/market?a=macro', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1', '#/i/us10y'];   // 새 층은 HashRouter
+export const NEXT_PATHS = ['#/', '#/market', '#/market?a=kr&v=gainers', '#/market?a=kr&v=losers', '#/market?a=macro', '#/market?a=kr&v=toss', '#/market?a=macro&v=calendar', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1', '#/i/us10y'];   // 새 층은 HashRouter
 export const LEGACY_PATHS = ['dashboard', 'equity', 'market', 'macro', 'calendar', 'realestate',
   'investor', 'merlens', 'merblog', 'notes', 'study', 'settings'].map(p => `/?p=${p}`);
 

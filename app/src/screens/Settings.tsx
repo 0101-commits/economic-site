@@ -1,21 +1,21 @@
 // 설정 — 기획안 v4 7장 · 사용 패턴 명세 S2. 차례: 기기 연결 → 보안 → 표시 → 내 데이터 → 데이터 상태(접힘) → 고급(접힘).
 // 화면 전체가 PIN 뒤다(App.tsx PinGate). 화면 모드만은 머리의 단추로 PIN 없이 바꾼다.
 // 보호 수준은 있는 그대로 적는다: PIN 은 화면 잠금(열람 방지)이고, 기기 안의 자료를 암호화하지 않는다.
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { ChevronDown, Settings as Gear } from 'lucide-react'
 import { Card, Pill, SegBar } from '../components/ui'
 import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
 import { DeviceLink } from '../components/personal/DeviceLink'
 import { UsageTable } from '../components/personal/UsageTable'
-import { applyTheme, readTheme, useTheme } from '../lib/theme'
-import { checkPin, hasPin, IDLE_MS, isUnlocked, setPin, waitMs } from '../lib/pin'
+import { applyTheme, useTheme } from '../lib/theme'
+import { checkPin, hasPin, IDLE_MS, samePin, setPin, waitMs } from '../lib/pin'
 import { loadBundle, ROOT } from '../lib/bundle'
 import { mdHm } from '../lib/format'
 import { kakaoToday, type Dict } from '../lib/alerts/v2'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
-import { applyUpdown, KEYS, readLedger, readPortfolio, readPrefs, readSnaps, wipeDevice, writePrefs, type Prefs, type Settings as S } from '../lib/personal/store'
+import { applyUpdown, readMyData, readPrefs, wipeDevice, writeMyData, writePrefs, type Prefs, type Settings as S } from '../lib/personal/store'
+import { countOf, makeFile, MAX_BYTES, passIssue, readFile, type Loaded } from '../lib/personal/backup'
 import { disableSync, getKeyHash, useSyncStatus } from '../lib/personal/sync'
 import dictJson from '../lib/alerts/dict.json'
 
@@ -47,7 +47,7 @@ export default function Settings() {
             <div><p className="m-0 mb-1 text-12 text-ink-2">금액 단위(내 자산)</p><SegBar label="금액 단위" options={UNITS} value={prefs.settings.unit} onChange={u => setS({ unit: u })} /></div>
           </div>
         </Card>
-        <MyData />
+        <MyData onRestored={() => setPrefs(readPrefs())} />
         <Fold title="데이터 상태"><DataStatus /></Fold>
         <Fold title="고급"><Advanced s={prefs.settings} setS={setS} /></Fold>
       </div>
@@ -118,36 +118,50 @@ function Security() {
   )
 }
 
-/** 내 데이터: 내려받기(잠금을 연 뒤에만) · 이 기기 데이터 지우기(확인 2번). 기기 간 맞춤은 「기기 연결」. */
-function MyData() {
+/** 내 데이터: 내려받기(설정이 PIN 뒤라 조건 없음 · 선택 「암호로 잠근 파일」) · 올리기 · 이 기기 데이터 지우기(확인 2번). 파일 형식은 lib/personal/backup.ts, 기기 간 맞춤은 「기기 연결」. */
+function MyData({ onRestored }: { onRestored: () => void }) {
   const [note, setNote] = useState('')
+  const [lock, setLock] = useState(false)
+  const [p1, setP1] = useState('')
+  const [p2, setP2] = useState('')
+  const [busy, setBusy] = useState(false)
   const [step, setStep] = useState(0)
-  const download = () => {
-    // 보유 금액이 든 파일이라 내 자산 잠금이 열려 있을 때만 만든다(PinGate 와 같은 판정)
-    if (!isUnlocked()) { setNote('locked'); return }
-    let watch: unknown = []
-    try { watch = JSON.parse(localStorage.getItem(KEYS.watch) || '[]') } catch { /* 빈 목록 */ }
-    const prefs = readPrefs()
-    const doc = {
-      exportedAt: new Date().toISOString(), note: '이 파일에는 평단가·수량이 들어 있습니다. 남에게 보내지 마세요.',
-      portfolio: readPortfolio(), snapshots: readSnaps(), ledger: readLedger(), watch, prefs: { ...prefs, settings: { ...prefs.settings, theme: readTheme() } }, scenarios: prefs.scenarios,
-    }
-    const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }))
-    const a = Object.assign(document.createElement('a'), { href: url, download: `ecom-내데이터-${new Date().toISOString().slice(0, 10)}.json` })
-    document.body.appendChild(a); a.click(); a.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
-    setNote('saved')
+  const download = async () => {
+    setBusy(true)
+    try {
+      // 파일 암호: 10자 이상 · 두 번 같게 · 잠금 PIN 과 다르게(samePin 은 실패 셈을 올리지 않는다). 저장하지 않는다.
+      const bad = lock ? await passIssue(p1, p2, samePin) : ''
+      if (bad) { setNote(bad); return }
+      const text = await makeFile(readMyData(), new Date().toISOString(), lock ? p1 : undefined)
+      const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+      const a = Object.assign(document.createElement('a'), { href: url, download: `ecom-내데이터-${kstDay()}${lock ? '-잠금' : ''}.json` })
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setP1(''); setP2('')
+      setNote(lock ? '잠근 파일을 저장했습니다. 올릴 때 파일 암호를 묻습니다.' : '파일을 저장했습니다. 평단가·수량이 들어 있으니 남에게 보내지 마세요.')
+    } catch { setNote('파일을 만들지 못했습니다.') } finally { setBusy(false) }
   }
   return (
     <Card title="내 데이터">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={BTN2} onClick={download}>내 데이터 내려받기</button>
-          <span className="text-12 text-ink-3">보유 · 스냅샷 · 원장 · 관심 · 알림 조건 · 설정</span>
+          <button type="button" className={BTN2} disabled={busy || (lock && !p1)} onClick={download}>{busy ? '만드는 중' : '내 데이터 내려받기'}</button>
+          <span className="text-12 text-ink-3">보유 · 스냅샷 · 원장 · 관심 · 알림 조건 · 설정 · 시나리오</span>
         </div>
-        {note === 'locked' && <p role="alert" className="m-0 text-12 text-warn">평단가·수량이 든 파일이라 <Link to="/my">내 자산</Link>을 PIN 으로 연 뒤 5분 안에 내려받을 수 있습니다.</p>}
-        {note === 'saved' && <p className="m-0 text-12 text-ink-3">파일을 저장했습니다. 평단가·수량이 들어 있으니 남에게 보내지 마세요.</p>}
+        <Switch on={lock} onChange={v => { setLock(v); setNote('') }} label="암호로 잠근 파일" />
+        {lock && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Field label="파일 암호 · 10자 이상"><input type="password" autoComplete="new-password" className={INPUT} value={p1} onChange={e => setP1(e.target.value)} /></Field>
+              <Field label="한 번 더"><input type="password" autoComplete="new-password" className={INPUT} value={p2} onChange={e => setP2(e.target.value)} /></Field>
+            </div>
+            <p className="m-0 text-12 text-ink-3">파일 암호를 잊으면 이 파일은 못 엽니다. 이 화면은 암호를 저장하지 않고, 잠금 PIN 과 같은 암호는 받지 않습니다.</p>
+          </>
+        )}
+        {note && <p role="status" className="m-0 text-12 text-ink-3">{note}</p>}
       </div>
+
+      <Restore onDone={onRestored} />
 
       <div className="mt-4 pt-3 border-t border-line">
         {step === 0 && <button type="button" className={BTN2} onClick={() => setStep(1)}>이 기기 데이터 지우기</button>}
@@ -172,6 +186,100 @@ function MyData() {
         )}
       </div>
     </Card>
+  )
+}
+
+/** 미리보기 · 확인 문구의 칸 이름. 파일에 없는(undefined) 칸은 이 기기 것을 그대로 둔다(store.writeMyData). */
+const PARTS: [keyof Loaded, string][] = [
+  ['portfolio', '보유'], ['snapshots', '스냅샷'], ['ledger', '원장'], ['watch', '관심'], ['prefs', '알림 조건 · 설정'], ['scenarios', '시나리오'], ['theme', '화면 모드'],
+]
+/** 올리기: 파일 고르기 → (잠긴 파일이면 파일 암호) → 미리보기 → 덮기(확인 한 번). 다른 화면은 storage 이벤트로 다시 읽는다(store.writeMyData). */
+function Restore({ onDone }: { onDone: () => void }) {
+  const { linked } = useSyncStatus()
+  const input = useRef<HTMLInputElement>(null)
+  const [text, setText] = useState('')
+  const [got, setGot] = useState<Loaded | null>(null)
+  const [needPass, setNeedPass] = useState(false)
+  const [pass, setPass] = useState('')
+  const [sure, setSure] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  /** 차례 번호 — 잠긴 파일을 푸는 동안 다른 파일을 고르면 늦게 끝난 앞 파일 결과를 버린다. */
+  const seq = useRef(0)
+  const open = async (t: string, p?: string) => {
+    const n = ++seq.current
+    setBusy(true); setMsg('')
+    try {
+      const l = await readFile(t, p)
+      if (n === seq.current) { setGot(l); setNeedPass(false); setPass('') }
+    } catch (e) {
+      if (n !== seq.current) return
+      const m = (e as Error).message
+      if (m === 'need-pass') setNeedPass(true)
+      else setMsg(m === 'wrong-pass' ? '파일 암호가 맞지 않습니다.' : m)
+    } finally { if (n === seq.current) setBusy(false) }
+  }
+  const pick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0], n = ++seq.current
+    setGot(null); setNeedPass(false); setPass(''); setSure(false); setMsg(''); setText(''); setBusy(false)
+    if (!f) return
+    if (f.size > MAX_BYTES) { setMsg('파일이 너무 큽니다(2MB 넘음). 이 화면에서 내려받은 파일이 아닙니다.'); return }
+    const t = await f.text()
+    if (n !== seq.current) return
+    setText(t)
+    open(t)
+  }
+  /** 덮기 · 그만두기 뒤: 미리보기를 닫고 파일 칸을 비운다(같은 파일을 다시 고를 수 있게). */
+  const reset = () => {
+    setGot(null); setSure(false); setText(''); setNeedPass(false); setPass('')
+    if (input.current) input.current.value = ''
+  }
+  const apply = () => {
+    const ok = got ? writeMyData(got) : false
+    reset()
+    setMsg(ok ? '이 기기를 파일 내용으로 덮었습니다.' : '일부를 저장하지 못했습니다(저장 공간이 모자라거나 막힘).')
+    onDone()
+  }
+  const c = got && countOf(got)
+  const parts = PARTS.filter(([k]) => got?.[k] !== undefined).map(([, l]) => l)
+  const kept = PARTS.filter(([k]) => got?.[k] === undefined).map(([, l]) => l)
+  const what = parts.join(' · ')
+  return (
+    <div className="mt-4 pt-3 border-t border-line flex flex-col gap-2">
+      <Field label="내 데이터 올리기 · 이 화면에서 내려받은 파일">
+        <input ref={input} type="file" accept="application/json,.json" className="text-13 text-ink-2 min-w-0" onChange={pick} />
+      </Field>
+      {needPass && (
+        <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); open(text, pass) }}>
+          <Field label="잠긴 파일 · 파일 암호" className="flex-1 min-w-48">
+            <input type="password" autoComplete="off" className={INPUT} value={pass} onChange={e => setPass(e.target.value)} />
+          </Field>
+          <button type="submit" className={BTN2} disabled={busy || !pass}>{busy ? '여는 중' : '열기'}</button>
+        </form>
+      )}
+      {c && got && (
+        <div className="flex flex-col gap-2">
+          <p className="m-0 text-13 text-ink-1">{[
+            c.holdings != null && `보유 ${c.holdings}종목`, c.ledger != null && `원장 ${c.ledger}`, c.snapshots != null && `스냅샷 ${c.snapshots}`,
+            c.watch != null && `관심 ${c.watch}`, c.alerts != null && `조건 ${c.alerts}`, c.scenarios != null && `시나리오 ${c.scenarios}`,
+          ].filter(Boolean).join(' · ')}</p>
+          <p className="m-0 text-12 text-ink-3">{got.at ? `${kstDay(Date.parse(got.at))} 내려받음` : '내려받은 날짜 모름'}</p>
+          {!got.legacy && kept.length > 0 && <p className="m-0 text-12 text-ink-3">이 파일에 없어서 그대로 두는 것: {kept.join(' · ')}</p>}
+          {got.legacy && <p className="m-0 text-12 text-ink-3">이전 화면 백업 — 보유 · 스냅샷만 가져옵니다. 노트 · 스터디 · 홈 배치 같은 나머지는 이전 화면 「설정 › 데이터 백업·복구」에서 복원하세요.</p>}
+          {linked && <p className="m-0 text-12 text-warn">기기 연결이 켜져 있어, 덮으면 관심 · 알림 조건 · 설정이 곧 서버 것을 덮습니다(다른 기기도 바뀝니다). 보유는 내 자산을 열 때 맞추며, 서버 보유도 이 파일 것으로 바뀝니다.</p>}
+          {!sure ? <button type="button" className={`${BTN2} self-start`} onClick={() => setSure(true)}>이 기기를 이 파일로 덮기</button> : (
+            <div className="flex flex-col gap-2">
+              <p role="alert" className="m-0 text-13 font-bold text-warn">이 기기의 {what} 모두 파일 내용으로 바뀝니다. 되돌릴 수 없습니다.</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={BTN} onClick={apply}>덮기</button>
+                <button type="button" className={BTN2} onClick={reset}>그만두기</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {msg && <p role="status" className="m-0 text-12 text-ink-2">{msg}</p>}
+    </div>
   )
 }
 

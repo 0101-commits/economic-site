@@ -1,4 +1,4 @@
-// 시장 › 국내 — 범위(m) 코스피·전체·코스닥·ETF × 보기 11. 보기 줄은 목차다(누르면 그 패널로 내려가고 주소 v 에 남는다).
+// 시장 › 국내 — 범위(m) 코스피·전체·코스닥·ETF × 보기 12. 보기 줄은 목차다(누르면 그 패널로 내려가고 주소 v 에 남는다).
 // 패널 차례는 고정 — 큰 차트 옆 첫 자리는 거래대금. 격자 끝에 배당·실적 일정.
 import { useState, type ReactNode } from 'react'
 import type { Flows, Stock, StripItem } from '../../lib/bundle'
@@ -23,6 +23,8 @@ export type DomesticBundle = {
   strip: StripItem[]
   views?: {
     amount?: { asOf?: string; state?: string; items: Stock[] }
+    /** 토스 체결 거래대금 상위 20(두 시장이 한 목록에 섞여 온다) */
+    tossAmount?: { asOf?: string; state?: string; items: (Stock & { isEtf?: boolean })[] }
     gainers?: Movers
     losers?: Movers
     etf?: { gainers?: Mover[]; losers?: Mover[]; state?: string }
@@ -40,7 +42,7 @@ export type DomesticBundle = {
 
 const SCOPES = [{ key: 'kospi', label: '코스피' }, { key: 'all', label: '전체' }, { key: 'kosdaq', label: '코스닥' }, { key: 'etf', label: 'ETF' }] as const
 const VIEWS = [
-  { key: 'amount', label: '거래대금' }, { key: 'marketCap', label: '시가총액' }, { key: 'volume', label: '거래량' },
+  { key: 'amount', label: '거래대금' }, { key: 'toss', label: '체결 Top20' }, { key: 'marketCap', label: '시가총액' }, { key: 'volume', label: '거래량' },
   { key: 'gainers', label: '상승' }, { key: 'losers', label: '하락' }, { key: 'high52', label: '52주 신고가' }, { key: 'low52', label: '52주 신저가' },
   { key: 'sectors', label: '업종' }, { key: 'flows', label: '수급' }, { key: 'breadth', label: '시장 폭' }, { key: 'halts', label: '매매중단' },
 ] as const
@@ -68,6 +70,9 @@ const priceCol: Col<Stock> = { key: 'price', label: '현재가', get: r => r.pri
 const pctCol: Col<Stock> = { key: 'pct', label: '등락률', get: r => r.chgPct, num: true, role: 'change', render: r => <ChangeText pct={r.chgPct} /> }
 const amountCols: Col<Stock>[] = [nameCol, priceCol, pctCol,
   { key: 'amount', label: '거래대금', get: r => (r.amount == null ? null : r.amount / 1e12), num: true, role: 'sub', render: r => (r.amount == null ? null : `${fmtNumber(r.amount / 1e12, 2)}조`) }]
+// 토스 체결액은 억 단위(상위 20 이 수백억~수천억이다)
+const tossCols: Col<Stock>[] = [nameCol, priceCol, pctCol,
+  { key: 'amount', label: '체결액', get: r => r.amount, num: true, role: 'sub', render: r => (r.amount == null ? null : `${fmtNumber(r.amount / 1e8)}억`) }]
 // 상승·하락: 종목 · 현재가 · 등락률 · 거래량(만주) 넷 — PC 둘째 줄 4칸(약 350px)에 맞춘다. 범위가 전체면 시장은 종목 이름 아래에 단다.
 const moverCols = (all: boolean): Col<Mover>[] => [all ? nameMarketCol : nameCol, priceCol, pctCol, volCol]
 
@@ -186,6 +191,16 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
           {m === 'etf' ? <Empty>거래대금 상위 자료에는 ETF 구분이 없습니다.</Empty>
             : rows.length ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={r => r.code} />
               : <Empty>거래대금 자료가 없습니다.</Empty>}
+        </Panel>
+      )
+    },
+    toss: (cls, primary) => {
+      const t = vw?.tossAmount
+      const rows = (t?.items ?? []).filter(x => (m === 'etf' ? x.isEtf : !MARKET[m] || x.market === MARKET[m]))
+      return (
+        <Panel className={cls} title={`체결 Top20 · ${scopeName}`} source="토스증권 체결 기준" asOf={t?.asOf} state={t?.state} fold={!primary}>
+          {rows.length ? <RankTable label="토스 체결 상위 종목" cols={tossCols} rows={rows} rowKey={r => r.code} />
+            : <Empty>{t?.items.length ? '이 범위의 종목이 체결 상위 20에 없습니다.' : '체결 상위 자료가 없습니다.'}</Empty>}
         </Panel>
       )
     },

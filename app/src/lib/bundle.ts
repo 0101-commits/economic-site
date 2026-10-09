@@ -4,7 +4,9 @@
 //   배포  /economic-site/        → ./data.json · ./bundles/
 //         /economic-site/next/   → ../data.json · ../bundles/
 //   개발  /next/                 → /data.json · /bundles/   (vite.config 의 개발 서버가 저장소 루트에서 내준다)
+import { useSyncExternalStore } from 'react'
 import { changeFromPct, type PeriodKey, type Pt } from './format'
+import { reloadDue, type Halt } from './refresh'
 
 /** 사이트 루트(자료·현행 화면 legacy.html 이 있는 곳). */
 export const ROOT = new URL(/\/next\/$/.test(new URL(document.baseURI).pathname) ? '../' : './', document.baseURI)
@@ -21,11 +23,62 @@ export function loadBundle<T = unknown>(name: string): Promise<T> {
   if (!/^[\w-]+$/.test(name)) return Promise.reject(new Error(`묶음 이름이 올바르지 않음: ${name}`))
   let p = bundles.get(name)
   if (!p) {
-    p = fetchJson<T>(`bundles/${name}.json`)
-    p.catch(() => bundles.delete(name))
-    bundles.set(name, p)
+    const q = fetchJson<T>(`bundles/${name}.json`)
+    q.catch(() => { if (bundles.get(name) === q) bundles.delete(name) })   // 다시 읽기가 바꿔 끼운 뒤 늦게 실패한 옛 요청은 새 것을 지우지 않는다
+    bundles.set(name, p = q)
   }
   return p as Promise<T>
+}
+
+/** bundles/meta.json — 묶음을 만든 때(generatedAt)와 자료 점검표 요약(설정 「데이터 상태」가 전부를 그린다). */
+export type Meta = { generatedAt?: string; health?: { summary?: Record<string, number> }; haltsActive?: Halt[] }
+
+// ── 다시 읽기(명세 C7) ─────────────────────────────────
+// 장중 5분마다 · 탭을 30분 넘게 숨겼다 돌아오면 meta.json(1KB)부터 받아 generatedAt 이 바뀌었을 때만, 지금 기억하는 묶음을
+// 전부 새로 받아 바꿔 끼우고 rev 를 올린다. 홈 · 시장은 묶음을 읽는 곳이 rev 를 의존성에 넣어 그 자리에서 다시 읽는다 —
+// 화면을 다시 만들지 않아 질문칸 · 표 정렬 · 열린 시트 · 더 보기 · 고른 칸이 남는다. 다 받은 뒤에 바꿔 끼우므로 다시 읽으면 곧바로 새 값이다.
+// 판정(언제 읽나)은 refresh.ts reloadDue.
+let rev = 0
+const revSubs = new Set<() => void>()
+/** 묶음을 바꿔 끼운 직후(화면이 다시 그려지기 전) 부른다. 돌려준 함수로 푼다. */
+export const onBundles = (f: () => void) => { revSubs.add(f); return () => { revSubs.delete(f) } }
+/** 묶음을 새로 받아 바꿔 끼울 때마다 1씩 오른다. */
+export const useBundleRev = () => useSyncExternalStore(onBundles, () => rev)
+
+let reloading = false
+async function reloadBundles(): Promise<void> {
+  if (reloading) return
+  reloading = true
+  try {
+    const old = await (bundles.get('meta') as Promise<Meta> | undefined)?.catch(() => null)
+    const meta = await fetchJson<Meta>('bundles/meta.json')
+    if (old?.generatedAt && old.generatedAt === meta.generatedAt) return
+    const names = [...bundles.keys()].filter(n => n !== 'meta')
+    const got = await Promise.all(names.map(n => fetchJson(`bundles/${n}.json`).then((v): [string, unknown] => [n, v], () => null)))
+    const fresh = new Map<string, unknown>([['meta', meta], ...got.filter(g => g !== null)])
+    bundles.clear()   // 못 받은 묶음은 빠진다 — 화면이 다시 부를 때 한 번 더 받는다
+    fresh.forEach((v, n) => bundles.set(n, Promise.resolve(v)))
+    rev++
+    revSubs.forEach(f => f())
+  } catch { /* meta 를 못 받았다 — 다음 차례에 다시 */ } finally { reloading = false }
+}
+
+/** 다시 읽기 시계를 건다(App 이 한 번). 돌려준 함수로 푼다. 숨은 탭에서는 읽지 않는다. */
+export function watchBundles(): () => void {
+  let last = Date.now(), hiddenAt = 0
+  const go = (hiddenFor?: number) => {
+    const now = Date.now()
+    if (!reloadDue(now, last, hiddenFor)) return
+    last = now
+    void reloadBundles()
+  }
+  const tick = setInterval(() => { if (document.visibilityState === 'visible') go() }, 60_000)
+  const onVis = () => {
+    if (document.visibilityState === 'hidden') hiddenAt = Date.now()
+    else if (hiddenAt) { go(Date.now() - hiddenAt); hiddenAt = 0 }
+  }
+  document.addEventListener('visibilitychange', onVis)
+  return () => { clearInterval(tick); document.removeEventListener('visibilitychange', onVis) }
 }
 
 /**
@@ -104,11 +157,23 @@ export type HomeBundle = {
   schedule?: Sched[]
   news?: News[]
   lens?: HomeLens
+  /** AI 요약 3줄(data.json aiBriefing). asOf = 만든 시각(KST ISO) — 오늘이 아니면 화면이 날짜를 붙인다. */
+  brief?: { asOf?: string | null; lines: string[]; source?: string }
+  /** 분위기 5칸(공포·탐욕 · VIX · V-KOSPI · MOVE · HY 스프레드 순). change = 1주 전 대비(원본 단위). */
+  mood?: MoodItem[]
 }
+/** 분위기 한 칸 — 띠 칸과 같은 판정(값 · 기준시각 · 상태)이고 등락만 1주 전 대비다. unit 은 「%p (국채 대비)」처럼 설명이 붙어 온다. */
+export type MoodItem = Pick<StripItem, 'id' | 'label' | 'short' | 'shortM' | 'decimals' | 'value' | 'change' | 'asOf' | 'state'> & { unit?: string | null }
 
-/** 지표 사전 한 줄(bundles/registry.json). asset = index·fx·rate·commodity·macro·realestate·sentiment. */
-export type RegRow = { id: string; label: string; short?: string; shortM?: string; decimals: number; unit?: string; scale?: number; asset: string; tier?: number; country?: string; canonical?: string }
+/** 지표 사전 한 줄(bundles/registry.json). asset = index·fx·rate·commodity·macro·realestate·sentiment. news = 관련 뉴스 주제(news 묶음 topics 키, 없으면 null). */
+export type RegRow = { id: string; label: string; short?: string; shortM?: string; decimals: number; unit?: string; scale?: number; asset: string; tier?: number; country?: string; canonical?: string; news?: string | null }
 export const loadRegistry = () => loadBundle<{ count: number; rows: RegRow[] }>('registry').then(r => r.rows)
+
+/** 뉴스 한 건(bundles/news.json). at = 기사 시각(KST ISO), source = 언론사 도메인. */
+export type NewsItem = { title: string; source?: string; url: string; at?: string }
+/** 뉴스 묶음: 주제마다 최신순 8건 이하. 주제 이름은 사전 행 news · 시장 묶음 newsTopic 이 가리킨다. */
+export type NewsBundle = { asOf?: string; state?: string; topics: Record<string, NewsItem[]> }
+export const loadNews = () => loadBundle<NewsBundle>('news')
 
 /** 자산군 → 시계열이 든 시장 묶음(앞에서부터 찾는다). */
 const ASSET_BUNDLES: Record<string, string[]> = {
@@ -146,12 +211,13 @@ export async function loadIndicator(id: string): Promise<{ reg?: RegRow; item?: 
   return { reg, item, series: item?.series?.length ? item.series : undefined }
 }
 
-/** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. */
-export async function loadHome(): Promise<HomeBundle> {
+/** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. fallback=false(다시 읽기)면 그 대신 실패한다. */
+export async function loadHome(fallback = true): Promise<HomeBundle> {
   try {
     const b = await loadBundle<HomeBundle>('home')
     if (b && Array.isArray(b.strip) && b.strip.length) return b
   } catch { /* 묶음 없음 → 아래 폴백 */ }
+  if (!fallback) throw new Error('home: 묶음 없음')
   return homeFromData(await fetchJson<DataJson>('data.json'))
 }
 

@@ -111,6 +111,10 @@ let pend: { h: string; mat: string | null; doc: PrefsDoc; fresh: boolean } | nul
 let changing = false               // 키 바꾸는 중(changeKey) — 주고받기를 멈춘다
 let permAsk: Promise<unknown> | null = null   // 연결 단추를 누른 순간 물어 둔 알림 허락(connectSync)
 
+/** 마지막 요청 시각 — /ai 도 /prefs · /portfolio 와 분당 10회를 나눠 쓴다(GAP_MS). 홈 질문칸이 보내기 직전에 읽고 알린다. */
+export const lastReqAt = () => lastReq
+export const noteReq = () => { lastReq = Date.now() }
+
 function errText(r: Reply): string {
   if (r.status === 0) return '서버에 닿지 못했습니다. 1분 뒤 다시 맞춥니다.'
   if (r.status === 429) return '요청이 많아 1분 뒤 다시 맞춥니다.'

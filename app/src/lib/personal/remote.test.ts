@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 동기화 키 해시 · 관심 종류 · 서버 문서 ↔ 이 기기 변환 왕복 · GET/PUT 왕복(가짜 서버) · 키 바꾸기 요청 모양
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { WORKER, blankLocal, fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
+import { WORKER, aiAsk, aiErrText, blankLocal, fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
 import { defaultSettings } from './prefsV2.ts'
 
 const local: Local = {
@@ -180,4 +180,31 @@ test('blankLocal: 관심 · 조건 · 시나리오가 없고 설정도 기본값
   assert.equal(blankLocal({ ...empty, settings: { ...empty.settings, package: 'many' } }), false)
   assert.equal(blankLocal({ ...empty, watch: ['kospi'] }), false)
   assert.equal(blankLocal(local), false)
+})
+
+test('aiAsk: 키 해시는 본문 keyHash(Worker 가 보는 곳), 질문은 300자까지 · 실패 글은 오류 코드 → 상태 순', async () => {
+  let sent: { url: string; body: Record<string, unknown> } | null = null
+  const replies = [
+    new Response(JSON.stringify({ ok: true, summary: ' 답입니다.\n※ 투자 조언이 아닙니다 ', engine: 'gemini' }), { status: 200 }),
+    new Response(JSON.stringify({ error: 'rate_limited' }), { status: 429 }),
+    new Response('', { status: 429 }),
+    new Response(JSON.stringify({ ok: true, summary: '' }), { status: 200 }),
+  ]
+  const real = globalThis.fetch
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    sent = { url, body: JSON.parse(String(init.body)) }
+    return replies.shift()!
+  }) as unknown as typeof fetch
+  try {
+    const hash = 'a'.repeat(64)
+    assert.deepEqual(await aiAsk(hash, 'q'.repeat(500), { 기준: 'x' }), { text: '답입니다.\n※ 투자 조언이 아닙니다', status: 200 })
+    assert.equal(sent!.url, `${WORKER}/ai`)
+    assert.deepEqual(Object.keys(sent!.body).sort(), ['keyHash', 'question', 'snapshot'])
+    assert.equal(sent!.body.keyHash, hash)
+    assert.equal((sent!.body.question as string).length, 300)
+    assert.equal(aiErrText(await aiAsk(hash, 'q', {})), '요청이 많습니다. 1분 뒤 다시 물어보세요.')
+    assert.equal(aiErrText(await aiAsk(hash, 'q', {})), '요청이 많습니다. 1분 뒤 다시 물어보세요.')   // 본문 없는 429
+    assert.match(aiErrText(await aiAsk(hash, 'q', {})), /답을 받지 못했습니다/)                       // 빈 답은 실패
+  } finally { globalThis.fetch = real }
+  assert.match(aiErrText({ status: 0, error: 'network' }), /닿지 못했습니다/)
 })

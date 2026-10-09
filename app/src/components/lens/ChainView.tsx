@@ -1,12 +1,12 @@
 // 렌즈 「사슬」(m=chain) — 메르 글이 짚은 전이 경로 10개. 고른 사슬은 주소 s(사슬 id)에 남는다.
 // 단계 판정(도달·추정·미도달)은 model.ts chainSteps 한 곳. 운영 규칙: 상태어는 돌파·주시·정상 / 도달·추정·미도달 만,
-// 실측 실선 · 추정 점선, 글은 제목·날짜·링크만.
+// 실측 실선 · 추정 점선, 글은 제목·날짜·링크 + 출처 인용(글마다 80자 이하 3줄까지).
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Panel } from '../panels'
+import { More, Panel } from '../panels'
 import { shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
-import { STEP_WORD, chainSteps, rankChains, shortLabel, type LensBundle } from './model'
+import { STEP_WORD, chainSteps, rankChains, shortLabel, type LensBundle, type LensQuote } from './model'
 import { StepNum, TrigPill, asOfText, btn, postUrl, trigValue } from './parts'
 
 export default function ChainView({ b }: { b: LensBundle }) {
@@ -22,6 +22,12 @@ export default function ChainView({ b }: { b: LensBundle }) {
   const posts = new Map(b.posts.map(p => [p.logNo, p]))
   const logNos = cur.c.logNos ?? []
   const meta = `글 ${cur.c.n ?? logNos.length}편${cur.c.lastDate ? ` · 최근 ${shortDate(cur.c.lastDate)}` : ''}`
+  // 출처 인용: 글마다 묶어 3줄까지(묶음이 최신순으로 준다)
+  const cited = new Map<string, { q: LensQuote; lines: string[] }>()
+  for (const q of cur.c.quotes ?? []) {
+    const g = cited.get(q.logNo)
+    if (!g) cited.set(q.logNo, { q, lines: [q.text] }); else if (g.lines.length < 3) g.lines.push(q.text)
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -59,6 +65,22 @@ export default function ChainView({ b }: { b: LensBundle }) {
             })}
           </ol>
           <p className="m-0 mb-3 text-11 text-ink-3">채운 번호 = 도달(지표가 기준을 넘음) · 점선 번호 = 추정(잴 지표가 없고 앞 단계가 도달) · 회색 = 미도달.</p>
+          {cited.size > 0 && (
+            <section aria-label="출처 인용" className="mb-3">
+              <h3 className="m-0 mb-1 text-12 font-bold text-ink-2">출처 인용</h3>
+              <More rows={[...cited.values()]} name="출처 인용">{shown => (
+                <ul className="m-0 p-0 list-none">
+                  {shown.map(({ q, lines }) => (
+                    <li key={q.logNo} className="py-1.5 border-b border-line last:border-b-0">
+                      <a href={postUrl(q.logNo)} target="_blank" rel="noopener noreferrer" className="text-13 text-ink-1 no-underline hover:underline">{q.title || posts.get(q.logNo)?.title || '원문 열기'}</a>
+                      {q.date && <span className="ml-2 num text-11 text-ink-3">{shortDate(q.date)}</span>}
+                      {lines.map((t, i) => <p key={i} className="m-0 mt-0.5 text-12 text-ink-2 max-w-[44em]">「{t}」</p>)}
+                    </li>
+                  ))}
+                </ul>
+              )}</More>
+            </section>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             {logNos.length ? (
               <details className="w-full">

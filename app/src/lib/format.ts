@@ -1,4 +1,4 @@
-// 숫자·등락·기준 시각 표기 — 모든 화면이 이 한 벌만 쓴다.
+// 숫자·등락·기준 시각 · 바깥 링크 주소 표기 — 모든 화면이 이 한 벌만 쓴다.
 // 이 파일은 node --test 로 바로 돌릴 수 있게 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다.
 
 const nfCache = new Map<number, Intl.NumberFormat>()
@@ -225,4 +225,16 @@ export function range52(series: Pt[] | null | undefined): { low: number; high: n
   let low = Infinity, high = -Infinity
   for (const [d, v] of series) if (dayKey(d) > cut) { if (v < low) low = v; if (v > high) high = v }
   return high > low ? { low, high } : null
+}
+
+/**
+ * 바깥 링크 주소(뉴스 · 글): http/https 만 링크로 쓴다. 나머지(javascript: · data: · 상대 주소 · 빈 값)는 null —
+ * 화면은 링크 없이 글자만 그린다. 묶음(build_bundles.py _web_url)이 먼저 거르고, 여기서 한 번 더 막는다.
+ */
+export function safeHref(url: unknown): string | null {
+  if (typeof url !== 'string') return null
+  try {
+    const u = new URL(url)
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null
+  } catch { return null }
 }

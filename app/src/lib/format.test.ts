@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app  (node --test, 추가 도구 없음)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fmtNumber, fmtChange, changeDir, changeFromPct, scaled, asOfKind, asOfLabel, kindFromState, fmtPct, dayLabel, mdHm, shortDate, heatStep, slicePeriods, range52, type Pt } from './format.ts'
+import { fmtNumber, fmtChange, changeDir, changeFromPct, scaled, asOfKind, asOfLabel, kindFromState, fmtPct, dayLabel, mdHm, shortDate, heatStep, slicePeriods, range52, safeHref, type Pt } from './format.ts'
 
 test('fmtNumber: 천 단위·자릿수·빈 값·음의 0', () => {
   assert.equal(fmtNumber(6961.32, 2), '6,961.32')
@@ -165,4 +165,11 @@ test('range52: 점 개수가 아니라 마지막 날짜에서 365일(월간 12�
   const lm: Pt[] = Array.from({ length: 13 }, (_, i): Pt => [`${2023 + Math.floor((i + 2) / 12)}-${String((i + 2) % 12 + 1).padStart(2, '0')}`, i === 0 ? 99 : i])
   assert.equal(lm[12][0], '2024-03')
   assert.deepEqual(range52(lm), { low: 1, high: 12 })
+})
+
+test('safeHref: http/https 만 링크, 나머지는 null(글자만)', () => {
+  assert.equal(safeHref('https://www.x.co.kr/a?b=1'), 'https://www.x.co.kr/a?b=1')
+  assert.equal(safeHref(' HTTP://X.CO.KR/a '), 'http://x.co.kr/a')
+  for (const bad of ['javascript:alert(1)', ' JavaScript:alert(1)', 'java	script:alert(1)', 'data:text/html,x', 'vbscript:x', '//x.co.kr/a', '/a', 'ftp://x/a', '', null, undefined, 3])
+    assert.equal(safeHref(bad), null, String(bad))
 })

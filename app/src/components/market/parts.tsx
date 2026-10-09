@@ -1,11 +1,12 @@
-// 시장 화면 공용 조각 — 큰 차트 · 등락 글자 · 수익률 곡선 · 일정 목록 · 격자 칸.
+// 시장 화면 공용 조각 — 큰 차트 · 등락 글자 · 수익률 곡선 · 일정 목록 · 격자 칸 · 뉴스.
 // 공유 부품(components/ui·charts·panels)은 고치지 않고 그 위에 얹는다.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
-import { loadIndicator, shownUnit, type MarketState, type Sched, type StripItem } from '../../lib/bundle'
-import { changeDir, fmtChange, fmtNumber, fmtPct, range52, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { loadBundle, loadIndicator, loadNews, shownUnit, useBundleRev, type MarketState, type NewsBundle, type Sched, type StripItem } from '../../lib/bundle'
+import { changeDir, fmtChange, fmtNumber, fmtPct, mdHm, range52, safeHref, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
+import { foldId } from '../../lib/fold'
 import { countUse } from '../../lib/usage'
 import { NumBlock } from '../ui'
 import { LineChart, Range52 } from '../charts'
@@ -102,14 +103,77 @@ const SPAN: Record<number, string> = { 4: 'pc:col-span-4', 6: 'pc:col-span-6', 1
 export type Block = (cls: string, primary: boolean) => ReactNode
 
 /**
+ * 뉴스 패널: 주제(news 묶음 topics 키)의 앞 n 건 — 제목 링크(새 탭) · 출처 · 시각. more 면 나머지를 「N건 더 보기」로 편다.
+ * 주제가 없거나 기사가 없으면(받는 중 · 실패 포함) 패널을 그리지 않는다 — 빈 문장을 두지 않는다.
+ */
+export function NewsPanel({ topic, n, more, title, className = '' }: { topic?: string | null; n: number; more?: boolean; title: string; className?: string }) {
+  const [b, setB] = useState<NewsBundle | null>(null)
+  const [all, setAll] = useState(false)
+  const { pathname } = useLocation()
+  const rev = useBundleRev()   // 묶음 다시 읽기(lib/bundle.ts) 뒤 그 자리에서 다시 읽는다 — 패널을 다시 만들지 않아 「더 보기」가 남는다
+  useEffect(() => { if (topic) loadNews().then(setB, () => {}) }, [topic, rev])
+  const items = (topic && b?.topics?.[topic]) || []
+  if (!items.length) return null
+  const shown = all ? items : items.slice(0, n)
+  return (
+    <Panel className={className} title={title}>
+      <ul className="m-0 p-0 list-none">
+        {shown.map(x => {
+          const href = safeHref(x.url)
+          return (
+            <li key={x.url} className="py-1.5 border-b border-line last:border-b-0">
+              {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="block text-13 text-ink-1 no-underline hover:underline [overflow-wrap:anywhere]">{x.title}</a>
+                : <span className="block text-13 text-ink-1 [overflow-wrap:anywhere]">{x.title}</span>}
+              <span className="text-11 text-ink-3">{x.source}{x.source && x.at ? ' · ' : ''}{x.at && <span className="num">{mdHm(x.at)}</span>}</span>
+            </li>
+          )
+        })}
+      </ul>
+      {more && !all && items.length > n && (
+        <button type="button" onClick={() => { setAll(true); countUse('more', foldId(pathname, title)) }}
+          className="inline-flex items-center gap-1 h-8 mt-1 px-0 border-0 bg-transparent cursor-pointer text-12 text-ink-2 hover:text-ink-1">
+          <span className="num">{items.length - n}</span>건 더 보기<ChevronDown size={14} aria-hidden />
+        </button>
+      )}
+    </Panel>
+  )
+}
+
+// 시장 자산군(주소 a, 없으면 국내) → 묶음 이름. 격자 끝 뉴스의 주제(묶음 newsTopic)를 찾는 데만 쓴다.
+// ponytail: screens/Market.tsx ASSETS 와 겹치는 표(calc.test.ts 가 둘이 같은지 본다) — 자산군 본문이 묶음을 MarketGrid 에 넘기게 되면 지운다.
+const ASSET_BUNDLE: Record<string, string> = {
+  kr: 'market-domestic', global: 'market-global', fxrate: 'market-fxrates', commod: 'market-commodities',
+  macro: 'market-macro', flow: 'market-flows', realestate: 'market-realestate',
+}
+/** 지금 자산군 묶음의 뉴스 주제(받는 동안 · 없으면 null). 묶음은 시장 화면이 이미 받아 둔 것을 bundle.ts 가 다시 내준다. */
+function useNewsTopic(): string | null {
+  const [params] = useSearchParams()
+  const name = ASSET_BUNDLE[params.get('a') ?? 'kr'] ?? ASSET_BUNDLE.kr
+  const [topic, setTopic] = useState<string | null>(null)
+  const rev = useBundleRev()
+  useEffect(() => { loadBundle<{ newsTopic?: string | null }>(name).then(b => setTopic(b.newsTopic ?? null), () => setTopic(null)) }, [name, rev])
+  return topic
+}
+
+/** 뉴스 주제 열쇠(data.json.news 16주제) → 패널 제목에 쓰는 이름. 열쇠는 수집 분류라 화면 글로 쓰지 않는다(calc.test.ts 가 16주제를 다 덮는지 본다). */
+const NEWS_NAME: Record<string, string> = {
+  채권: '채권', 외환: '환율', 주식: '증시', 원자재: '원자재', 원유: '유가', 귀금속: '금 · 은', 비철금속: '비철금속', 한국GDP: '한국 경기',
+  미국CPI: '미국 물가', 중국경기: '중국 경기', 일본경기: '일본 경기', 독일경기: '독일 경기', 영국경기: '영국 경기', 유로존: '유로존 경기',
+  한국수출: '한국 수출', 한국은행: '한국은행',
+}
+
+/**
  * 시장 격자: 첫 칸 = 큰 차트(또는 그 자리 부품), 그다음은 blocks 순서 그대로(보기를 골라도 차례가 바뀌지 않는다 — 목차가 그 칸으로 데려간다).
  * blocks 는 [패널 고유 키, 칸 → 패널]. 키는 목차가 찾는 표식(data-toc)이다. PC 12열, 모바일 1열 같은 순서.
+ * 맨 끝은 그 자산군의 뉴스 5건(묶음 newsTopic, 없으면 칸 없음).
  */
 export function MarketGrid({ blocks, per = 3 }: { blocks: [string, Block][]; per?: 2 | 3 }) {
   const sp = spans(blocks.length, per)
+  const topic = useNewsTopic()
   return (
     <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
       {blocks.map(([k, f], i) => <div key={k} data-toc={k} className={`${SPAN[sp[i]]} scroll-mt-14`}>{f('', i === 1)}</div>)}
+      <NewsPanel key={topic} className="pc:col-span-12" topic={topic} n={5} more title={`뉴스 · ${(topic && NEWS_NAME[topic]) ?? topic}`} />
     </div>
   )
 }
