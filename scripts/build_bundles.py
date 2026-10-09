@@ -661,6 +661,12 @@ def stock_rows(rows, amount=False, market=None):
     return out
 
 
+def rows_as_of(*lists):
+    """등락 목록의 기준 날짜 = 원천 행 as_of(거래일) 중 가장 이른 것 — 보기에 asOf 가 없으면 종목 상세 머리 값이 기준 시각 없이 나간다.
+    여러 목록이 날이 다르면 오래된 쪽을 적는다(새것으로 적어 신선해 보이게 하지 않는다)."""
+    return min((r["as_of"] for rows in lists for r in rows or [] if r.get("as_of")), default=None)
+
+
 def block_state(health, path, node):
     if not node:
         return "missing"
@@ -1180,13 +1186,16 @@ def build_all(data, mer, now, toss=None):
         # 토스 체결 거래대금 상위 20(코스피·코스닥 섞인 한 목록, 원천이 시장별로 나뉘지 않는다) — amount 와 같은 모양
         "tossAmount": {"asOf": ra.get("as_of"), "state": block_state(H, "rankingsKr.tossAmount", ra.get("tossAmount")),
                        "items": stock_rows(ra.get("tossAmount"), amount=True)},
-        "gainers": {"kospi": stock_rows(smv.get("kospiGainers"), market="KOSPI"),
+        "gainers": {"asOf": rows_as_of(smv.get("kospiGainers"), smv.get("kosdaqGainers")),
+                    "kospi": stock_rows(smv.get("kospiGainers"), market="KOSPI"),
                     "kosdaq": stock_rows(smv.get("kosdaqGainers"), market="KOSDAQ"),
                     "state": block_state(H, "stockMovers.kospiGainers", smv.get("kospiGainers"))},
-        "losers": {"kospi": stock_rows(smv.get("kospiLosers"), market="KOSPI"),
+        "losers": {"asOf": rows_as_of(smv.get("kospiLosers"), smv.get("kosdaqLosers")),
+                   "kospi": stock_rows(smv.get("kospiLosers"), market="KOSPI"),
                    "kosdaq": stock_rows(smv.get("kosdaqLosers"), market="KOSDAQ"),
                    "state": block_state(H, "stockMovers.kospiLosers", smv.get("kospiLosers"))},
-        "etf": {"gainers": stock_rows(etf.get("etfGainers")), "losers": stock_rows(etf.get("etfLosers")),
+        "etf": {"asOf": rows_as_of(etf.get("etfGainers"), etf.get("etfLosers")),
+                "gainers": stock_rows(etf.get("etfGainers")), "losers": stock_rows(etf.get("etfLosers")),
                 "state": block_state(H, "etfMovers.etfGainers", etf.get("etfGainers"))},
         "sectors": b["home"]["sectors"],
         "flows": investors_block(data, H, 20),

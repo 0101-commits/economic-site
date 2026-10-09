@@ -12,10 +12,10 @@ const CACHE_KEY = 'econHoldQuotes_v1'
 const TTL_MS = 10 * 60_000
 const PARALLEL = 4
 
-/** 보유 한 줄 → Yahoo 심볼 후보(앞에서부터 시도). 국내 6자리 = .KS 다음 .KQ, 미국 = 현행 화면이 적어 둔 yahoo 칸 또는 티커 그대로. */
+/** 보유 한 줄 → Yahoo 심볼 후보(앞에서부터 시도). 국내 6자리 = .KS 다음 .KQ, 미국 = 현행 화면이 적어 둔 yahoo 칸 또는 티커 — 점은 줄표로(Yahoo 는 BRK.B 를 BRK-B 로 받는다). */
 export function yahooSymbols(h: Pick<Holding, 'symbol' | 'market'> & { yahoo?: unknown }): string[] {
   if (h.market === 'KR') return /^[0-9A-Z]{6}$/.test(h.symbol) ? [`${h.symbol}.KS`, `${h.symbol}.KQ`] : []
-  const y = typeof h.yahoo === 'string' && h.yahoo.trim() ? h.yahoo.trim() : h.symbol
+  const y = (typeof h.yahoo === 'string' && h.yahoo.trim() ? h.yahoo.trim() : h.symbol).replace(/\./g, '-')
   return y ? [y] : []
 }
 
@@ -24,12 +24,19 @@ export const chartUrl = (sym: string, range = '5d') =>
 
 type Chart = { chart?: { result?: { meta?: Record<string, unknown>; timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[] }[] } }[] | null } }
 const pos = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null)
+type ChartRes = NonNullable<NonNullable<Chart['chart']>['result']>[number]
+/** i 번째 일봉의 거래소 현지 날짜(타임스탬프가 없으면 null). */
+function candleDay(res: ChartRes, i: number): string | null {
+  const t = res.timestamp?.[i], off = res.meta?.gmtoffset
+  return typeof t === 'number' ? new Date((t + (typeof off === 'number' ? off : 0)) * 1000).toISOString().slice(0, 10) : null
+}
 
 /**
  * 일봉 응답 → 현재가 · 전일 종가. 현재가 = meta.regularMarketPrice(없으면 마지막 일봉 종가).
  * 전일 종가 = 마지막 일봉 「바로 앞」 일봉들 중 가장 최근의 확정 종가(현행 closes[-2] 규칙).
  * 빈칸(null)을 먼저 빼고 끝에서 두 번째를 고르면 안 된다 — 미국 종목은 마지막 일봉 종가가 null 로 오는 일이 있어
  * (2026-10-02 AAPL 실측) 그러면 하루 더 앞 종가를 전일로 잡는다. 앞 일봉이 없을 때만 meta.chartPreviousClose.
+ * 장중엔 오늘 일봉이 둘(같은 날짜) 오는 일이 있어 마지막 일봉과 같은 날짜인 일봉은 전일로 보지 않는다.
  * 종목이 없으면 Yahoo 는 200 에 result: null 을 준다 → null.
  * exchange(국내만): 접미사가 틀린 물음에도 Yahoo 는 빈 응답 대신 엉뚱한 값을 준다 — 2026-10-02 실측 247540(코스닥).KS 가
  * 194,000원(실제 115,700원, exchangeName KOE · instrumentType MUTUALFUND), 005930.KQ 가 84,400원(KOE · MUTUALFUND).
@@ -44,7 +51,8 @@ export function parseChart(j: Chart | null | undefined, exchange?: string): { pr
   const price = pos(meta.regularMarketPrice) ?? pos(closes[closes.length - 1])
   if (price == null) return null
   let prev: number | null = null
-  for (let i = closes.length - 2; i >= 0 && prev == null; i--) prev = pos(closes[i])
+  const last = candleDay(res, closes.length - 1)
+  for (let i = closes.length - 2; i >= 0 && prev == null; i--) if (last == null || candleDay(res, i) !== last) prev = pos(closes[i])
   return { price, prev: prev ?? pos(meta.chartPreviousClose) ?? pos(meta.previousClose) }
 }
 
@@ -103,7 +111,7 @@ export async function holdingQuotes(items: Holding[], have: Map<string, Quote>, 
 }
 
 // ── 종목 상세(/i/<코드>)의 흐름 차트 ─────────────────────
-/** 종목 1년 일봉: pts = [거래소 현지 날짜, 종가](빈 종가는 뺀다), 지금 값 · 전일은 parseChart 규칙, name = Yahoo 이름, asOf = 마지막 체결 시각. */
+/** 종목 1년 일봉: pts = [거래소 현지 날짜, 종가](빈 종가는 뺀다 · 같은 날이 둘이면 뒤 것), 지금 값 · 전일은 parseChart 규칙, name = Yahoo 이름, asOf = 마지막 체결 시각. */
 export type StockChart = { pts: Pt[]; price: number; prev: number | null; name?: string; asOf?: string }
 
 /** 일봉 응답 → StockChart. parseChart 와 같은 거래소 검사를 거친다. 종가가 2개 미만이면 null. */
@@ -112,10 +120,15 @@ export function parseSeries(j: Chart | null | undefined, exchange?: string): Sto
   const res = j?.chart?.result?.[0]
   if (!p || !res) return null
   const meta = res.meta ?? {}
-  const off = typeof meta.gmtoffset === 'number' ? meta.gmtoffset : 0
   const closes = res.indicators?.quote?.[0]?.close ?? []
   const pts: Pt[] = []
-  ;(res.timestamp ?? []).forEach((t, i) => { const c = pos(closes[i]); if (c != null) pts.push([new Date((t + off) * 1000).toISOString().slice(0, 10), c]) })
+  // 장중엔 오늘 일봉이 하나 더 붙어 같은 날짜가 둘 오는 일이 있다 — 날짜마다 마지막 값만(차트 끝에 같은 날 점이 겹치지 않게)
+  ;(res.timestamp ?? []).forEach((_, i) => {
+    const c = pos(closes[i]), d = candleDay(res, i)
+    if (c == null || d == null) return
+    if (pts.length && pts[pts.length - 1][0] === d) pts[pts.length - 1] = [d, c]
+    else pts.push([d, c])
+  })
   if (pts.length < 2) return null
   const name = typeof meta.longName === 'string' ? meta.longName : typeof meta.shortName === 'string' ? meta.shortName : undefined
   const asOf = typeof meta.regularMarketTime === 'number' ? new Date(meta.regularMarketTime * 1000).toISOString() : undefined

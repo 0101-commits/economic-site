@@ -2,6 +2,7 @@
 // 묶음 · 파일을 직접 받지 않는다(받는 쪽은 Detail · 검색). 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다 — node --test 로 바로 돌린다(detail.test.ts).
 import { safeHref, type PeriodKey, type Pt } from './format.ts'
 import { watchKind } from './personal/remote.ts'
+import { KRX_PREV } from './personal/calc.ts'
 
 /** 국내 종목 코드인가(숫자로 시작하는 6자리). */
 export const isKrStock = (id: string) => /^\d[0-9A-Z]{5}$/.test(id)
@@ -14,29 +15,35 @@ export type StockRow = { code: string; name: string; short?: string; market?: st
 /**
  * 묶음 아무 깊이의 종목 행(code · name 이 글자인 칸)을 코드별로 모은다. 위쪽 칸의 asOf · state 를 물려받는다.
  * 먼저 본 행이 이기고, 값(price)이 없는 행만 뒤에 온 값 있는 행에 자리를 내준다 — roots 차례가 곧 우선순위다.
+ * KRX 순위 4목록(calc.ts KRX_PREV — 전일 확정값)은 이름 · 시장만 쓰고 값 · 등락은 머리 후보에서 뺀다(장중에 전일 값이 되므로).
+ * 거래대금은 거래대금 상위 목록(길에 'amount' 칸이 있는 행 — 토스 체결 tossAmount 은 토스 한 곳 몫이라 뺀다)에서만,
+ * 거래대금 · 거래량 모두 머리 값과 기준 시각(asOf)이 같은 행 것만 붙인다 — 다른 날 목록의 거래량을 오늘 값 옆에 적지 않게.
  */
 export function stockRows(roots: unknown[]): Map<string, StockRow> {
   const out = new Map<string, StockRow>()
+  const extra: { code: string; asOf: string | null | undefined; amount: number | null; volume: number | null }[] = []
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
-  const walk = (o: unknown, asOf: string | null | undefined, state: string | undefined): void => {
+  const walk = (o: unknown, asOf: string | null | undefined, state: string | undefined, krx: boolean, amt: boolean): void => {
     if (!o || typeof o !== 'object') return
-    if (Array.isArray(o)) { o.forEach(x => walk(x, asOf, state)); return }
+    if (Array.isArray(o)) { o.forEach(x => walk(x, asOf, state, krx, amt)); return }
     const r = o as Record<string, unknown>
     if (typeof r.asOf === 'string') { asOf = r.asOf; state = typeof r.state === 'string' ? r.state : state }
     if (typeof r.code === 'string' && typeof r.name === 'string' && r.name) {
-      const price = num(r.price), old = out.get(r.code)
+      const price = krx ? null : num(r.price), old = out.get(r.code)
       if (!old || (old.price == null && price != null)) {
-        const amount = num(r.amount) ?? old?.amount, volume = num(r.volume) ?? old?.volume
-        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: num(r.chgPct), asOf, state, ...(amount != null && { amount }), ...(volume != null && { volume }) })
-      } else {
-        // 거래대금 · 거래량은 목록마다 한쪽만 있다(거래대금 상위 = amount, 상승 · 하락 = volume) — 먼저 본 행에 없는 칸만 채운다
-        if (old.amount == null && num(r.amount) != null) old.amount = num(r.amount)
-        if (old.volume == null && num(r.volume) != null) old.volume = num(r.volume)
+        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: krx ? null : num(r.chgPct), asOf, state })
       }
+      extra.push({ code: r.code, asOf, amount: amt ? num(r.amount) : null, volume: num(r.volume) })
     }
-    Object.values(r).forEach(x => walk(x, asOf, state))
+    Object.entries(r).forEach(([k, x]) => walk(x, asOf, state, krx || KRX_PREV.has(k), amt || k === 'amount'))
   }
-  roots.forEach(x => walk(x, undefined, undefined))
+  roots.forEach(x => walk(x, undefined, undefined, false, false))
+  for (const e of extra) {
+    const row = out.get(e.code)!
+    if (e.asOf !== row.asOf) continue
+    if (row.amount == null && e.amount != null) row.amount = e.amount
+    if (row.volume == null && e.volume != null) row.volume = e.volume
+  }
   return out
 }
 
@@ -44,16 +51,22 @@ export type Post = { title: string; url: string; date?: string; fullText?: strin
 export type Mention = { title: string; href: string | null; date?: string; snip?: [string, string, string] }
 const SNIP = 40
 
-/** 메르 글 중 제목 · 전문에 names 가운데 하나가 든 글 n 편(글 차례 = 최신순). 전문에서 찾으면 일치한 곳 앞뒤 40자. 두 글자 미만 이름은 보지 않는다. */
+/**
+ * 메르 글 중 제목 · 전문에 names 가운데 하나가 든 글 n 편(글 차례 = 최신순). 전문에서 찾으면 일치한 곳 앞뒤 40자. 두 글자 미만 이름은 보지 않는다.
+ * 영문 · 숫자로만 된 이름(미국 티커 등)은 낱말로만 찾는다 — 앞뒤가 영문 · 숫자면 다른 낱말의 일부다(「MU」가 「MUSIC」에 걸리지 않게).
+ */
 export function merMentions(posts: Post[], names: (string | undefined)[], n = 3): Mention[] {
-  const keys = [...new Set(names.filter((x): x is string => !!x && x.length >= 2))]
+  const keys = [...new Set(names.filter((x): x is string => !!x && x.length >= 2))].map(k => ({
+    k, re: /^[ -~]+$/.test(k) ? new RegExp(`(?<![A-Za-z0-9])${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9])`) : null,
+  }))
+  const find = (s: string, x: (typeof keys)[number]) => (x.re ? x.re.exec(s)?.index ?? -1 : s.indexOf(x.k))
   const out: Mention[] = []
   for (const p of posts) {
     if (out.length >= n || !keys.length) break
     const ft = p.fullText ?? ''
-    const k = keys.find(x => ft.includes(x))
-    if (!k && !keys.some(x => p.title.includes(x))) continue
-    const i = k ? ft.indexOf(k) : -1, e = i + (k?.length ?? 0)
+    const k = keys.find(x => find(ft, x) >= 0)
+    if (!k && !keys.some(x => find(p.title, x) >= 0)) continue
+    const i = k ? find(ft, k) : -1, e = i + (k?.k.length ?? 0)
     out.push({
       title: p.title, href: safeHref(p.url), date: p.date,
       snip: i < 0 ? undefined : [`${i > SNIP ? '…' : ''}${ft.slice(Math.max(0, i - SNIP), i)}`, ft.slice(i, e), `${ft.slice(e, e + SNIP)}${e + SNIP < ft.length ? '…' : ''}`],
@@ -61,6 +74,10 @@ export function merMentions(posts: Post[], names: (string | undefined)[], n = 3)
   }
   return out
 }
+
+/** 메르 글에서 찾을 이름 — 국내 = 이름 + 줄임말(세 글자 이상만 — 「LG」는 LG전자 · LG화학 글을 다 잡는다), 미국 = 이름 + 티커. */
+export const merNames = (kr: boolean, id: string, name?: string, short?: string): (string | undefined)[] =>
+  kr ? [name, short && short.length > 2 ? short : undefined] : [name, id]
 
 type Periods = Partial<Record<PeriodKey, Pt[]>>
 /**

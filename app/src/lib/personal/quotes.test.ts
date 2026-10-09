@@ -13,6 +13,8 @@ test('yahooSymbols: 국내 .KS 다음 .KQ · 미국은 yahoo 칸 또는 티커',
   assert.deepEqual(yahooSymbols(H('AAPL', 'US')), ['AAPL'])
   assert.deepEqual(yahooSymbols(H('BRKB', 'US', { yahoo: 'BRK-B' })), ['BRK-B'])
   assert.deepEqual(yahooSymbols(H('AAPL', 'US', { yahoo: null })), ['AAPL'])
+  assert.deepEqual(yahooSymbols(H('BRK.B', 'US', { yahoo: 'BRK.B' })), ['BRK-B'])   // 새 화면이 yahoo 칸에 티커를 그대로 적는다
+  assert.deepEqual(yahooSymbols({ symbol: 'BF.B', market: 'US' }), ['BF-B'])
 })
 
 test('chartUrl: Worker 프록시 + range=5d interval=1d', () => {
@@ -106,4 +108,15 @@ test('parseSeries: 거래소 현지 날짜 · 빈 종가 빼기 · 1년 주소 �
   assert.equal(parseSeries(j, 'KSC'), null)                                        // 거래소 표식이 다르면 버린다
   assert.equal(parseSeries({ chart: { result: [{ meta: { regularMarketPrice: 1 }, timestamp: [1], indicators: { quote: [{ close: [1] }] } }] } }), null)   // 점 1개
   assert.equal(new URL(chartUrl('AAPL', '1y')).searchParams.get('url'), 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1y&interval=1d')
+})
+
+test('parseSeries: 같은 날짜 일봉이 둘이면 뒤 것만 · 전일은 그 앞 날짜의 종가', () => {
+  // 장중 국내(gmtoffset 32400): 10/8 종가 뒤에 10/9 일봉이 두 번(09:00 · 지금) 온다
+  const t = (d: string, hm: string) => Date.parse(`${d}T${hm}:00+09:00`) / 1000
+  const j = { chart: { result: [{ meta: { regularMarketPrice: 272000, gmtoffset: 32400, exchangeName: 'KSC', instrumentType: 'EQUITY' },
+    timestamp: [t('2026-10-07', '09:00'), t('2026-10-08', '09:00'), t('2026-10-09', '09:00'), t('2026-10-09', '11:20')],
+    indicators: { quote: [{ close: [268000, 270000, 271000, 272000] }] } }] } }
+  const s = parseSeries(j, 'KSC')!
+  assert.deepEqual(s.pts, [['2026-10-07', 268000], ['2026-10-08', 270000], ['2026-10-09', 272000]])
+  assert.equal(s.prev, 270000)                                                       // 10/9 앞 일봉(271,000)은 전일이 아니다
 })

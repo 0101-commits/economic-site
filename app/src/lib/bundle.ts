@@ -180,8 +180,8 @@ const ASSET_BUNDLES: Record<string, string[]> = {
   index: ['market-global'], sentiment: ['market-global'], fx: ['market-fxrates'], rate: ['market-fxrates'],
   commodity: ['market-commodities'], macro: ['market-macro', 'market-global'], realestate: ['market-realestate'],
 }
-/** 자산군 칸에 없는 지표(예: sentiment 인 vkospi 는 국내 묶음 strip 에 있다)를 찾을 때 마지막으로 뒤지는 국내 묶음. */
-const FALLBACK_BUNDLES = ['market-domestic']
+/** 자산군 칸에 없는 지표(예: sentiment 인 vkospi 는 국내 묶음 strip, flow_inst_5d 같은 수급 칸은 수급 묶음 strip 에 있다)를 찾을 때 마지막으로 뒤지는 묶음. */
+const FALLBACK_BUNDLES = ['market-domestic', 'market-flows']
 
 /** 묶음 아무 깊이에서 id 가 같은 값 칸을 찾는다. 시계열이 있는 칸을 먼저 고른다. */
 export function findItem(root: unknown, id: string): StripItem | undefined {
@@ -222,7 +222,7 @@ export async function loadStocks(): Promise<Map<string, StockRow>> {
   // 수급 종목은 코드가 칸 이름이라(items[코드]) 행 모양으로 펴서 넘긴다
   const st = flows?.views?.stocks
   const fl = { asOf: st?.asOf, state: st?.state, items: Object.entries(st?.items ?? {}).map(([code, s]) => ({ ...s, code })) }
-  return stockRows([home?.topAmount, dom?.views, fl])
+  return stockRows([{ amount: home?.topAmount }, dom?.views, fl])   // 홈 거래대금도 'amount' 칸 아래 — 거래대금은 그 목록에서만 붙는다
 }
 
 /** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. fallback=false(다시 읽기)면 그 대신 실패한다. */
