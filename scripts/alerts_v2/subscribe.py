@@ -1,8 +1,10 @@
 """구독 — 원장 새 행 × (기본 켜짐 · 꾸러미 · 별표 · 갈래 · 사용자 조건) → Decision.
 
 /prefs 는 `prefs_client.fetch` 로 읽는다(읽기 키 PUSH_READ_KEY 우선, 둘 다 없으면 기본 설정만). v1 문서는 `upgrade_prefs` 가 v2 로 바꾼다.
-사용자 조건(U1 수준 도달 · U2 급변 값)은 여기서 판정해 원장에 넣는다 — 발생 키는 ALERTS_STATE_SALT HMAC 12자,
-소금이 없으면 사용자 조건은 통째로 건너뛴다(현행 규칙, 평문 해시로 되돌아가지 않는다).
+사용자 조건(U1 수준 도달 · U2 급변 값 · 종목 대상 B1 52주 신고 · 신저)은 여기서 판정해 원장에 넣는다 — 발생 키는
+ALERTS_STATE_SALT HMAC 12자, 소금이 없으면 사용자 조건은 통째로 건너뛴다(현행 규칙, 평문 해시로 되돌아가지 않는다).
+종목(국내 6자리 · 미국 티커) 값은 Context.stock 이 옛 종목 알림의 시세 길로 댄다. 지표 대상 B1 조건은 사전 판정(full 런)
+행에 대한 조정이라 match 의 _override 가 맡는다.
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import hmac
 import os
 
 from . import LEVELS, PACKAGES, SIGMA
+from .context import is_stock
 from .events import Hit
 from .ledger import Ledger, Row
 from .model import DEFAULT_SETTINGS, Decision
@@ -113,12 +116,22 @@ def _fired_after_arm(cond: dict, history: list[dict]) -> bool:
     return False
 
 
+def _stock_b1(ctx, target: str, want: str | None):
+    """종목 52주 신고 · 신저 — 사전 B1 의 판정 함수(high52)를 그 종목 하나에 그대로 쓴다(일봉 = 옛 종목 알림의 1년 일봉).
+    → (Hit 또는 None, 사전 B1 행). 조건에 방향(dir)이 있으면 그 방향만."""
+    from . import judges_market, schema
+    ev = schema.by_id(schema.load_events()).get("B1") or {}
+    hits = [h for h in judges_market.high52(ctx, dict(ev, targets=[target])) if want in (None, h.dir)]
+    return (hits[0] if hits else None), ev
+
+
 def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=print) -> list[Row]:
-    """U1 · U2 판정 → 원장 행(아직 원장엔 안 넣음). 소금 없으면 빈 목록."""
+    """U1 · U2 · 종목 B1 판정 → 원장 행(아직 원장엔 안 넣음). 소금 없으면 빈 목록."""
     if not prefs:
         return []
     salt = _salt()
-    conds = [a for a in prefs.get("alerts") or [] if a.get("enabled", True) and a.get("event") in ("U1", "U2")]
+    conds = [a for a in prefs.get("alerts") or [] if a.get("enabled", True)
+             and (a.get("event") in ("U1", "U2") or (a.get("event") == "B1" and is_stock(a.get("target"))))]
     if conds and not salt:
         log("[v2] ALERTS_STATE_SALT 없음 — 사용자 조건 판정 건너뜀")
         return []
@@ -127,7 +140,7 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
     for c in conds:
         target = c.get("target")
         thr = c.get("value")
-        if not target or thr is None:
+        if not target or (thr is None and c["event"] != "B1"):
             continue
         if c.get("repeat") == "once" and _fired_after_arm(c, history):
             continue
@@ -135,7 +148,9 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
         chg = ctx.change_pct(target)
         hit = None
         # 공개 원장(G5): 임계값 · 사용자가 붙인 이름은 행에 싣지 않는다 — 화면이 cond id 로 이 기기에서 붙인다
-        if c["event"] == "U1" and val is not None:
+        if c["event"] == "B1":
+            hit, b1 = _stock_b1(ctx, target, c.get("dir")) if val is not None else (None, {})
+        elif c["event"] == "U1" and val is not None:
             d = c.get("dir") or "up"
             if (d == "up" and float(val) >= float(thr)) or (d == "down" and float(val) <= float(thr)):
                 hit = Hit(target=target, dir=d, value=val, unit="", asOf=ctx.as_of(target), fresh=ctx.fresh(target),
@@ -147,9 +162,13 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
                           chg=chg, fields={})
         if not hit:
             continue
+        if is_stock(target):                     # 종목 이름(공개 시세의 이름) — 없으면 코드 그대로
+            hit.fields.setdefault("name", (ctx.stock(target) or {}).get("name"))
         ev = {"id": c["event"], "level": c.get("level") or "alert", "url": f"#/i/{target}",
               "title": "{name} {value} · 내 조건 {dir_ko}" if c["event"] == "U1" else "{name} {chg:+.1f}% · {value}",
               "why": ["내 조건"], "next": []}
+        if c["event"] == "B1":                   # 문구는 사전 B1 틀 그대로(직전 신고 · 신저와 그 날짜)
+            ev.update({k: b1[k] for k in ("title", "why", "next") if k in b1})
         txt = render(ev, hit) if render else {"title": ev["title"], "why": "내 조건", "next": "", "url": ev["url"]}
         k = hmac_key(f"{c['id']}:{hit.asOf}:{hit.dir}", salt)
         row = Row(key=f"{c['event']}:{target}:{hit.dir}:{k}", event=c["event"], target=target, dir=hit.dir,
