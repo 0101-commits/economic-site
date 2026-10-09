@@ -363,7 +363,7 @@ function RiskPanel({ rk, snaps, unit }: { rk: ReturnType<typeof risk>; snaps: Sn
               <div><dt className="text-12 text-ink-2">소르티노(연환산)</dt><dd className="m-0 num text-18 font-bold text-ink-1">{ratio(rk.sortino)}</dd></div>
             </dl>
             <p className="mt-2 mb-0 text-12 text-ink-3">하루 수익률 {rk.n}건 기준 · 평가액 × 하루 변동성 × 1.645 · 정규분포를 가정한 추정이며 최악을 보증하지 않습니다.</p>
-            <p className="mt-1 mb-0 text-12 text-ink-3">샤프 · 소르티노는 무위험 수익률을 0 으로 두고 하루 평균 수익률 ÷ 하루 변동성(소르티노는 손실 난 날만) × √252 로 셌습니다.</p>
+            <p className="mt-1 mb-0 text-12 text-ink-3">하루 수익률은 그날 산 돈 · 판 돈을 뺀 값입니다. 샤프 · 소르티노는 무위험 수익률을 0 으로 두고 하루 평균 수익률 ÷ 하루 변동성(소르티노는 손실 난 날만) × √252 로 셌습니다.</p>
           </>
         )}
       </Panel>
@@ -380,7 +380,7 @@ function RiskPanel({ rk, snaps, unit }: { rk: ReturnType<typeof risk>; snaps: Sn
                     <span className="text-ink-3">{` (${shortDate(lines[0].periods[cur]![0][0])} = 100)`}</span>
                   </p>
                   <LineChart label="시장 대비" name="나" periods={lines[0].periods} period={cur} onPeriod={setP} decimals={1} compare={lines.slice(1)} />
-                  <p className="mt-2 mb-0 text-12 text-ink-3">나 = 평가액 ÷ 원금이라 추가 매수로 원금이 늘어도 수익률만 비교합니다. 지수는 스냅샷 날짜의 종가(없으면 7일 안의 직전 값)이고 배당은 양쪽 다 빠져 있습니다.</p>
+                  <p className="mt-2 mb-0 text-12 text-ink-3">나 = 날마다 그날 수익률만 이어 곱한 값(시간가중)이라 추가 매수 · 매도가 선을 끌어올리거나 내리지 않습니다. 판 날은 판 종목도 전체와 같은 수익률이었다고 봅니다. 지수는 스냅샷 날짜의 종가(없으면 7일 안의 직전 값)이고 배당은 양쪽 다 빠져 있습니다.</p>
                 </>
               )}
       </Panel>

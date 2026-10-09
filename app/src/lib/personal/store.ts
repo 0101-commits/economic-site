@@ -46,7 +46,8 @@ export function readPortfolio(): Portfolio {
 export const writePortfolio = (p: Portfolio) => write(KEYS.portfolio, p)
 export const newId = (prefix: string) => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 
-export const readSnaps = (): Snap[] => { const a = read<unknown>(KEYS.snaps, []); return Array.isArray(a) ? a : [] }
+/** 스냅샷 목록. 깨진 칸(null · 날짜 없는 것)은 뺀다 — 다른 기기 · 옛 화면이 쓴 배열을 그대로 읽으므로. */
+export const readSnaps = (): Snap[] => { const a = read<unknown>(KEYS.snaps, []); return Array.isArray(a) ? a.filter((s): s is Snap => !!s && typeof s.d === 'string') : [] }
 /** 오늘(UTC 날짜) 스냅샷 한 건을 넣는다. 같은 날은 바꿔 넣으므로 하루 1건. */
 export function saveTodaySnap(ev: number, ct: number): Snap[] {
   const next = upsertSnap(readSnaps(), { d: new Date().toISOString().slice(0, 10), ev: Math.round(ev), ct: Math.round(ct) })

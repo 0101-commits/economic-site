@@ -74,14 +74,17 @@ test('risk: 60건 미만은 n 만, 이상이면 VaR·최대 낙폭', () => {
   assert.equal(r.n, 60)
   assert.ok(r.var95! > 0 && r.sd! > 0)
   near(r.mdd, (100 / 110 - 1) * 100)
-  near(r.sharpe, 0)                         // 오르내림이 같아 하루 평균 0
+  // 하루 수익률 +10% · -1/11 을 30번씩 — 단순 수익률이라 평균이 0 이 아니다
+  const rs = Array.from({ length: 60 }, (_, i) => (i % 2 ? -1 / 11 : 0.1))
+  const mean = rs.reduce((a, b) => a + b) / 60
+  near(r.sharpe, (mean / Math.sqrt(rs.reduce((a, b) => a + (b - mean) ** 2, 0) / 59)) * Math.sqrt(252), 1e-9)
 })
 
-test('risk: 샤프 · 소르티노 — 하루 로그 수익률 +2% · -1% 를 30번씩(무위험 0, √252 연환산)', () => {
+test('risk: 샤프 · 소르티노 — 하루 수익률 +2% · -1% 를 30번씩(무위험 0, √252 연환산)', () => {
   const day = (i: number) => new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10)
   let R = 1
   const snaps = Array.from({ length: 61 }, (_, i) => {
-    if (i) R *= Math.exp(i % 2 ? 0.02 : -0.01)
+    if (i) R *= i % 2 ? 1.02 : 0.99
     return { d: day(i), ev: 1_000_000 * R, ct: 1_000_000 }
   })
   const r = risk(snaps, 1)
@@ -93,8 +96,14 @@ test('risk: 샤프 · 소르티노 — 하루 로그 수익률 +2% · -1% 를 30
   near(r.sortino, 11.2250, 1e-4)
   const up = risk(Array.from({ length: 61 }, (_, i) => ({ d: day(i), ev: 100 + i, ct: 100 })), 1)
   assert.equal(up.sortino, undefined)       // 손실 날이 없으면 소르티노는 없다(무한대를 적지 않는다)
-  // 원금이 늘어도(추가 매수) 평가액 ÷ 원금이 같으면 수익률 0
+  // 원금이 늘어도(추가 매수) 산 만큼만 평가액이 늘면 수익률 0
   assert.equal(risk(Array.from({ length: 61 }, (_, i) => ({ d: day(i), ev: 100 * (i + 1), ct: 100 * (i + 1) })), 1).sharpe, undefined)
+  // 평가액 ÷ 원금 이 1.5 인 채 날마다 100 씩 더 사도 하루 수익률은 0 — 평가액 ÷ 원금 으로 셌다면 매일 떨어졌다
+  let ev = 150, ct = 100
+  const buys = Array.from({ length: 61 }, (_, i) => { if (i) { ev += 100; ct += 100 } return { d: day(i), ev, ct } })
+  const b = risk(buys, 1)
+  assert.equal(b.sharpe, undefined)
+  assert.equal(b.mdd, 0)
 })
 
 test('benchmark: 첫 날 = 100, 원금 보정, 지수는 그날 또는 7일 안 직전 값', () => {
@@ -115,6 +124,24 @@ test('benchmark: 첫 날 = 100, 원금 보정, 지수는 그날 또는 7일 안 
   // 지수 값이 7일보다 오래되면 그날은 뺀다 → 맞춘 날 2일 미만이면 null
   assert.equal(benchmark(snaps, [{ name: 'KOSPI', pts: [['2026-09-01', 1]] }]), null)
   assert.equal(benchmark(snaps.slice(0, 1), [{ name: 'KOSPI', pts: kospi }]), null)
+})
+
+test('benchmark: 나 = 시간가중 지수 — 추가 매수 · 매도 날엔 그날 오른 만큼만', () => {
+  const flat: [string, number][] = [['2026-10-01', 100]]
+  const mine = (snaps: { d: string; ev: number; ct: number }[]) => benchmark(snaps, [{ name: 'K', pts: flat }])!.mine.map(p => Math.round(p[1] * 1e6) / 1e6)
+  // 평가 150 · 원금 100 에서 100 추가 매수(값은 그대로) — 평가액 ÷ 원금 이면 100 → 83.3 으로 꺾였다
+  assert.deepEqual(mine([{ d: '2026-10-01', ev: 150, ct: 100 }, { d: '2026-10-02', ev: 250, ct: 200 }]), [100, 100])
+  // 절반 매도(값은 그대로) — 원금은 판 몫의 원금(50)만 줄고 받은 돈은 75
+  assert.deepEqual(mine([{ d: '2026-10-01', ev: 150, ct: 100 }, { d: '2026-10-02', ev: 75, ct: 50 }]), [100, 100])
+  // 알려진 수열: +10% → 100 추가 매수(그날 0%) → +10% → 절반 매도(그날 0%) → -10%
+  assert.deepEqual(mine([
+    { d: '2026-10-01', ev: 100, ct: 100 },
+    { d: '2026-10-02', ev: 110, ct: 100 },
+    { d: '2026-10-03', ev: 210, ct: 200 },
+    { d: '2026-10-04', ev: 231, ct: 200 },
+    { d: '2026-10-05', ev: 115.5, ct: 100 },
+    { d: '2026-10-06', ev: 103.95, ct: 100 },
+  ]), [100, 110, 110, 121, 121, 108.9])
 })
 
 test('collectStocks: 같은 코드는 먼저 본 목록 하나만, 시세 없는 칸은 건너뛴다', () => {

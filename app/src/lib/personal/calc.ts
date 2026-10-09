@@ -111,25 +111,41 @@ export function upsertSnap(snaps: Snap[], s: Snap): Snap[] {
 export const RISK_MIN = 60
 
 /**
- * 위험 지표 — 현행 사이트 pfRiskMetrics 와 같은 셈. R = 평가액 ÷ 원금 이라 추가 매수에 덜 흔들린다.
- * 하루 수익률 = ln(R_t / R_{t-1}), 날짜 간격 1~4일 쌍만. 60건 미만이면 n 만 준다(신뢰 구간 미달).
+ * 시간가중 지수 — 첫 날 100, I_t = I_{t-1} × ev_t ÷ (ev_{t-1} + 그날 넣고 뺀 돈). 평가액 ÷ 원금은 추가 매수 · 매도에 끌려가므로 쓰지 않는다
+ * (평가 150 · 원금 100 에서 100 을 더 사면 1.5 → 1.25 로 떨어진 것처럼 보인다).
+ * 넣고 뺀 돈 = 원금 변화. 매수는 원금이 산 금액만큼 늘어 그대로 맞다. 매도는 원금이 판 몫의 「원금」만큼만 줄어 실제 받은 돈과 다르다 —
+ * 판 몫도 전날 전체와 같은 수익률(ev ÷ ct)이었다고 보고 원금 변화 × 전날 ev ÷ ct 로 센다(한 종목이면 정확하다).
+ * ponytail: 같은 날 산 것과 판 것이 섞이면 원금 변화의 합만 보인다 — 원장에 매매를 적게 되면 그 금액으로 바꾼다.
+ * r = 그날 하루 수익률(첫 날은 null), gap = 앞 스냅샷과의 날짜 간격(일).
+ */
+function twIndex(snaps: Snap[]): { d: string; I: number; r: number | null; gap: number }[] {
+  const seq = snaps.filter(s => s && s.ev > 0 && s.ct > 0)
+  const out: { d: string; I: number; r: number | null; gap: number }[] = []
+  seq.forEach((s, i) => {
+    if (!i) { out.push({ d: s.d, I: 100, r: null, gap: 0 }); return }
+    const p = seq[i - 1], dc = s.ct - p.ct
+    const r = s.ev / (p.ev + (dc < 0 ? (dc * p.ev) / p.ct : dc)) - 1
+    out.push({ d: s.d, I: out[i - 1].I * (1 + r), r, gap: (Date.parse(s.d) - Date.parse(p.d)) / 86_400_000 })
+  })
+  return out
+}
+
+/**
+ * 위험 지표 — 하루 수익률은 시간가중 지수(twIndex)의 하루 변화라 추가 매수 · 매도 날에도 흔들리지 않는다.
+ * 날짜 간격 1~4일 쌍만 쓴다. 60건 미만이면 n 만 준다(신뢰 구간 미달).
  * var95 = 오늘 평가액 × 하루 표준편차 × 1.645 — 「20일 중 하루는 이보다 더 잃을 수 있다」(정규분포 가정).
- * 샤프 = 하루 평균 ÷ 하루 표준편차 × √252, 소르티노 = 하루 평균 ÷ 손실 쪽 편차(0 아래만 제곱 평균의 제곱근) × √252.
+ * 샤프 = 하루 평균 ÷ 하루 표준편차 × √252, 소르티노 = 하루 평균 ÷ 손실 쪽 편차(0 아래만 제곱 평균의 제곱근) × √252. 최대 낙폭도 같은 지수에서.
  * 무위험 수익률은 0 으로 둔다(금리 자료를 끌어오지 않는다 — 화면이 이 가정을 밝힌다). 편차가 0 이면 그 값은 없다.
  */
 export function risk(snaps: Snap[], value: number): { n: number; sd?: number; var95?: number; mdd?: number; sharpe?: number; sortino?: number } {
-  const seq = snaps.filter(s => s && s.ev > 0 && s.ct > 0).map(s => ({ d: s.d, R: s.ev / s.ct }))
-  const rs: number[] = []
-  for (let i = 1; i < seq.length; i++) {
-    const gap = (Date.parse(seq[i].d) - Date.parse(seq[i - 1].d)) / 86_400_000
-    if (gap >= 1 && gap <= 4) rs.push(Math.log(seq[i].R / seq[i - 1].R))
-  }
+  const seq = twIndex(snaps)
+  const rs = seq.flatMap(p => (p.r != null && p.gap >= 1 && p.gap <= 4 ? [p.r] : []))
   const n = rs.length
   if (n < RISK_MIN) return { n }
   const mean = rs.reduce((a, b) => a + b, 0) / n
   const sd = Math.sqrt(rs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1))
   let peak = -Infinity, mdd = 0
-  for (const p of seq) { if (p.R > peak) peak = p.R; mdd = Math.min(mdd, p.R / peak - 1) }
+  for (const p of seq) { if (p.I > peak) peak = p.I; mdd = Math.min(mdd, p.I / peak - 1) }
   const down = Math.sqrt(rs.reduce((a, r) => a + Math.min(r, 0) ** 2, 0) / n)
   const yr = Math.sqrt(252)
   return { n, sd, var95: value * sd * 1.645, mdd: mdd * 100, sharpe: sd > 0 ? (mean / sd) * yr : undefined, sortino: down > 0 ? (mean / down) * yr : undefined }
@@ -137,7 +153,7 @@ export function risk(snaps: Snap[], value: number): { n: number; sd?: number; va
 
 /**
  * 시장 대비 — 스냅샷 날짜마다 지수 종가(그날, 없으면 7일 안의 직전 값)를 맞춰 첫 날 = 100 으로 편다.
- * 나 = 평가액 ÷ 원금(risk 의 R — 추가 매수로 원금이 늘어도 수익률만 남는다). 지수 하나라도 값이 없는 날은 뺀다.
+ * 나 = 시간가중 지수(twIndex — 추가 매수 · 매도 날엔 그날 오른 만큼만 움직인다). 지수 하나라도 값이 없는 날은 뺀다(나의 지수는 모든 스냅샷으로 잇는다).
  * pts 는 날짜순. 맞춘 날이 2일 미만이면 null.
  */
 export function benchmark(snaps: Snap[], idx: { name: string; pts: Pt[] }[]): { mine: Pt[]; idx: { name: string; pts: Pt[] }[] } | null {
@@ -146,14 +162,14 @@ export function benchmark(snaps: Snap[], idx: { name: string; pts: Pt[] }[]): { 
     for (const p of pts) { if (p[0] > d) break; hit = p }
     return hit && Date.parse(d) - Date.parse(hit[0]) <= 7 * 86_400_000 && hit[1] > 0 ? hit[1] : null
   }
-  const rows = snaps.filter(s => s && s.ev > 0 && s.ct > 0).flatMap(s => {
+  const rows = twIndex(snaps).flatMap(s => {
     const v = idx.map(i => at(i.pts, s.d))
-    return v.every(x => x != null) ? [{ d: s.d, R: s.ev / s.ct, v: v as number[] }] : []
+    return v.every(x => x != null) ? [{ d: s.d, I: s.I, v: v as number[] }] : []
   })
   if (rows.length < 2) return null
   const [b] = rows
   return {
-    mine: rows.map((r): Pt => [r.d, (r.R / b.R) * 100]),
+    mine: rows.map((r): Pt => [r.d, (r.I / b.I) * 100]),
     idx: idx.map((i, j) => ({ name: i.name, pts: rows.map((r): Pt => [r.d, (r.v[j] / b.v[j]) * 100]) })),
   }
 }
@@ -173,7 +189,7 @@ export function collectStocks(root: unknown, out: Map<string, Quote>) {
 }
 
 /** KRX 순위 4목록(시가총액 · 거래량 · 52주 고저)은 전일 확정값 — 보유 시세로 쓰면 「오늘 손익」이 어제 등락이 되고 Yahoo 대체도 막힌다. */
-const KRX_PREV = new Set(['marketCap', 'volume', 'high52', 'low52'])
+export const KRX_PREV = new Set(['marketCap', 'volume', 'high52', 'low52'])
 /** 국내 묶음 views 에서 오늘 시세 목록만(KRX 순위 4목록 제외) 시세로 모은다. */
 export const collectDomestic = (views: Record<string, unknown> | null | undefined, out: Map<string, Quote>) =>
   collectStocks(Object.fromEntries(Object.entries(views ?? {}).filter(([k]) => !KRX_PREV.has(k))), out)
