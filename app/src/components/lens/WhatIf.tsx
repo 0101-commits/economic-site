@@ -139,7 +139,7 @@ export default function WhatIf({ b }: { b: LensBundle }) {
                 </p>
                 {quote && (
                   <p className="m-0 text-12 text-ink-2">
-                    「{quote.q}」 <a href={postUrl(quote.logNo)} target="_blank" rel="noopener noreferrer" className="num text-11">{quote.date ? shortDate(quote.date) : '원문'}</a>
+                    「{quote.text}」 <a href={postUrl(quote.logNo)} target="_blank" rel="noopener noreferrer" className="num text-11">{quote.date ? shortDate(quote.date) : '원문'}</a>
                   </p>
                 )}
                 <dl className="m-0 grid grid-cols-3 gap-2 text-center">

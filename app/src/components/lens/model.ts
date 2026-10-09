@@ -1,7 +1,7 @@
 // 렌즈 계산 — 화면 없이 도는 순수 함수(node --test 로 바로 검사한다). 타입 표기 외의 TypeScript 전용 문법은 쓰지 않는다.
 // 운영 규칙(렌즈 화면 전체):
 //   상태어는 돌파·주시·정상(지표) / 도달·추정·미도달(사슬 단계) 만 쓴다.
-//   실측은 실선, 추정은 점선. 글은 제목·날짜·링크만(본문 전재 없음). 금액은 계산하지 않는다 — 방향(▲▼)과 세기(1~3)만.
+//   실측은 실선, 추정은 점선. 글은 제목·날짜·링크 + 출처 인용(80자 이하, 글마다 3줄까지 — 본문 전재 없음). 금액은 계산하지 않는다 — 방향(▲▼)과 세기(1~3)만.
 import type { Chain, HomeLens, Trigger } from '../../lib/bundle'
 
 export type Layer = 'cause' | 'market' | 'channel' | 'asset'
@@ -13,11 +13,13 @@ export type LensNode = { id: string; label: string; layer: Layer; state?: string
 /** 글에서 「from 이 to 를 움직인다」고 쓴 관계. dir + 같은 방향 · - 반대 방향 · ± 방향 미정. n = 언급 수. */
 export type LensEdge = {
   from: string; to: string; dir: string; n: number; horizon?: string; logNos?: string[]
-  /** 인용(80자 이하) — 묶음에 아직 없다(원천 mer_signals.json impacts[].quotes 와 같은 모양). 있으면 패널에 한 줄. */
-  quotes?: { logNo: string; date?: string; q: string }[]
+  /** 출처 인용(최신순) — 「만약에」 고른 점 패널에 첫 줄. */
+  quotes?: LensQuote[]
 }
-/** 사슬 — logNos 는 묶음에 아직 없다(있으면 원문 목록을 보인다). */
-export type LensChain = Chain & { logNos?: string[] }
+/** 출처 인용 한 줄: 메르 글 원문에서 뽑은 80자 이하 문장(원문 실재 검증을 통과한 것만 묶음에 온다). 한 글에서 3줄 이하. */
+export type LensQuote = { logNo: string; title?: string; date?: string; text: string }
+/** 사슬 — logNos = 이 사슬을 짚은 글(원문 목록), quotes = 그 글들의 인용(최신순). */
+export type LensChain = Chain & { logNos?: string[]; quotes?: LensQuote[] }
 export type Regime = { months: string[]; factors: string[]; counts: number[][]; dominant: string[] }
 export type Post = { logNo: string; date: string; title?: string }
 export type LensBundle = {
