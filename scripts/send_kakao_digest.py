@@ -1957,11 +1957,17 @@ def kakao_upload_image(access_token, png_path):
         return None
 
     def _upload():
-        with open(png_path, "rb") as fp:
-            return requests.post(
-                "https://kapi.kakao.com/v2/api/talk/message/image/upload",
-                headers={"Authorization": f"Bearer {access_token}"},
-                files={"file": fp}, timeout=25)
+        # png_path 는 경로(str) 또는 PNG bytes — 알림 v2 카드(cards.*_png)는 bytes 를 넘긴다. 경로만 받던 때는
+        # open(bytes) 가 「embedded null byte」로 죽어 v2 카톡이 전부 텍스트로 떨어지고 #시스템이 매 런 울렸다(2026-10-08 실측).
+        if isinstance(png_path, (bytes, bytearray)):
+            data = bytes(png_path)
+        else:
+            with open(png_path, "rb") as fp:
+                data = fp.read()
+        return requests.post(
+            "https://kapi.kakao.com/v2/api/talk/message/image/upload",
+            headers={"Authorization": f"Bearer {access_token}"},
+            files={"file": ("card.png", data, "image/png")}, timeout=25)
     # 전송오류(예외)뿐 아니라 일시 서버오류(429/5xx)도 재시도한다 — 카카오 이미지 서버가 429/502 를
     # 한 번 돌려주면 (구) _retry 는 그대로 None 을 반환해 '차트 없는 텍스트 폴백'으로 나갔다
     # (사용자 보고: "가끔 사진이 안 뜸"). 이제 업로드도 토큰/발송과 같은 백오프 재시도를 쓴다.
