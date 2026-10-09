@@ -103,13 +103,14 @@ export default function Commodities({ b, selId, setS }: BodyProps<CommoditiesBun
     </Panel>
   )
 
+  // PC 는 8칸 폭까지만(12열 격자 gap 1rem 기준 8열 = (전체 − 11rem) × 2/3 + 7rem) — 다섯 열이 12칸에 퍼지면 열 사이가 너무 멀다
   const lme = (cls: string, primary: boolean) => (
-    <Panel className={cls} title="LME 재고" unit="톤" asOf={vw?.lme?.asOf} state={vw?.lme?.state} fold={!primary}>
+    <Panel className={`${cls} pc:max-w-[calc((100%-11rem)*2/3+7rem)]`} title="LME 재고" unit="톤" asOf={vw?.lme?.asOf} state={vw?.lme?.state} fold={!primary}>
       {vw?.lme?.items.length ? <RankTable label="LME 창고 재고" cols={lmeCols} rows={vw.lme.items} rowKey={r => r.name} /> : <Empty>LME 재고 자료가 없습니다.</Empty>}
     </Panel>
   )
 
-  // LME 재고는 맨 끝 — 표 다섯 열이 PC 4칸 자리(약 345px)에 안 들어가 끝 줄 한 칸을 다 쓴다
+  // LME 재고는 맨 끝 — 표 다섯 열이 PC 4칸 자리(약 345px)에 안 들어가 끝 줄을 혼자 쓴다(패널은 8칸 폭까지)
   const blocks: [string, Block][] = [['heat', heat], ['freight', freight], ['premium', premium], ['enso', enso], ['lme', lme]]
   return (
     <>

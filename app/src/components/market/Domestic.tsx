@@ -1,6 +1,7 @@
 // 시장 › 국내 — 범위(m) 코스피·전체·코스닥·ETF × 보기 12. 보기 줄은 목차다(누르면 그 패널로 내려가고 주소 v 에 남는다).
 // 패널 차례는 고정 — 큰 차트 옆 첫 자리는 거래대금. 격자 끝에 배당·실적 일정.
 import { useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Flows, Stock, StripItem } from '../../lib/bundle'
 import { fmtNumber, fmtPct, mdHm, shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
@@ -22,7 +23,7 @@ type CorpEvent = { date: string; code?: string; name?: string; kind?: string; ti
 export type DomesticBundle = {
   strip: StripItem[]
   views?: {
-    amount?: { asOf?: string; state?: string; items: Stock[] }
+    amount?: { asOf?: string; state?: string; items: (Stock & { isEtf?: boolean })[] }
     /** 토스 체결 거래대금 상위 20(두 시장이 한 목록에 섞여 온다) */
     tossAmount?: { asOf?: string; state?: string; items: (Stock & { isEtf?: boolean })[] }
     gainers?: Movers
@@ -127,6 +128,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
   const [m, setM] = useViewParam<Scope>('m', 'kospi', SCOPES.map(o => o.key))
   const [, setV] = useViewParam<View>('v', 'amount', VIEWS.map(o => o.key))
   const [sector, setSector] = useState<{ name: string; value: number | null } | null>(null)
+  const toStock = useToStock()
   const vw = b.views
   const inv = vw?.flows
   const invCol = (k: string) => (inv?.columns ?? ['date', 'foreign', 'inst', 'retail']).indexOf(k)
@@ -151,7 +153,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
     return (
       <Panel className={cls} title={`${title} · ${scopeName}`} source={cnt != null ? `해당 ${fmtNumber(cnt)}종목` : undefined}
         asOf={r?.asOf} state={r?.state} fold={!primary}>
-        {rows.length ? <RankTable label={`${title} 종목`} cols={cols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={x => x.code} />
+        {rows.length ? <RankTable label={`${title} 종목`} cols={cols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={x => x.code} onPick={toStock} />
           : <Empty>{empty}</Empty>}
       </Panel>
     )
@@ -185,12 +187,12 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
 
   const panels: Record<View, (cls: string, primary: boolean) => ReactNode> = {
     amount: (cls, primary) => {
-      const rows = (vw?.amount?.items ?? []).filter(x => !MARKET[m] || x.market === MARKET[m])
+      const items = vw?.amount?.items ?? []
+      const rows = items.filter(x => (m === 'etf' ? x.isEtf : !MARKET[m] || x.market === MARKET[m]))
       return (
         <Panel className={cls} title={`거래대금 상위 · ${scopeName}`} asOf={vw?.amount?.asOf} state={vw?.amount?.state} fold={!primary}>
-          {m === 'etf' ? <Empty>거래대금 상위 자료에는 ETF 구분이 없습니다.</Empty>
-            : rows.length ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={r => r.code} />
-              : <Empty>거래대금 자료가 없습니다.</Empty>}
+          {rows.length ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={r => r.code} onPick={toStock} />
+            : <Empty>{items.length ? '이 범위의 종목이 거래대금 상위 20에 없습니다.' : '거래대금 자료가 없습니다.'}</Empty>}
         </Panel>
       )
     },
@@ -199,7 +201,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
       const rows = (t?.items ?? []).filter(x => (m === 'etf' ? x.isEtf : !MARKET[m] || x.market === MARKET[m]))
       return (
         <Panel className={cls} title={`체결 Top20 · ${scopeName}`} source="토스증권 체결 기준" asOf={t?.asOf} state={t?.state} fold={!primary}>
-          {rows.length ? <RankTable label="토스 체결 상위 종목" cols={tossCols} rows={rows} rowKey={r => r.code} />
+          {rows.length ? <RankTable label="토스 체결 상위 종목" cols={tossCols} rows={rows} rowKey={r => r.code} onPick={toStock} />
             : <Empty>{t?.items.length ? '이 범위의 종목이 체결 상위 20에 없습니다.' : '체결 상위 자료가 없습니다.'}</Empty>}
         </Panel>
       )
@@ -289,10 +291,17 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
   )
 }
 
+/** 순위 표 행 → 종목 상세(#/i/<코드>). 모바일 시트 대신 상세로 간다. */
+function useToStock() {
+  const nav = useNavigate()
+  return (r: { code: string }) => nav(`/i/${r.code}`)
+}
+
 function MoverPanel({ cls, primary, all, title, rows, state }: { cls: string; primary: boolean; all: boolean; title: string; rows: Mover[]; state?: string }) {
+  const toStock = useToStock()
   return (
     <Panel className={cls} title={title} state={state} fold={!primary}>
-      {rows.length ? <RankTable label={title} cols={moverCols(all)} rows={rows.slice(0, 10)} rowKey={r => r.code} />
+      {rows.length ? <RankTable label={title} cols={moverCols(all)} rows={rows.slice(0, 10)} rowKey={r => r.code} onPick={toStock} />
         : <Empty>이 범위의 종목이 목록에 없습니다.</Empty>}
     </Panel>
   )

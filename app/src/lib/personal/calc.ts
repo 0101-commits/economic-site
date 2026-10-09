@@ -1,6 +1,6 @@
 // 내 자산 계산 — 순수 함수만(저장소·화면 없음). node --test 로 바로 돌린다(calc.test.ts).
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(format.ts 와 같은 규칙).
-import { fmtNumber, changeDir } from '../format.ts'
+import { fmtNumber, changeDir, type Pt } from '../format.ts'
 
 /** 보유 한 줄 — 현행 사이트 portfolioV1.items 모양 그대로(code 가 아니라 symbol). 모르는 필드는 건드리지 않고 지나간다. */
 export type Holding = {
@@ -114,8 +114,10 @@ export const RISK_MIN = 60
  * 위험 지표 — 현행 사이트 pfRiskMetrics 와 같은 셈. R = 평가액 ÷ 원금 이라 추가 매수에 덜 흔들린다.
  * 하루 수익률 = ln(R_t / R_{t-1}), 날짜 간격 1~4일 쌍만. 60건 미만이면 n 만 준다(신뢰 구간 미달).
  * var95 = 오늘 평가액 × 하루 표준편차 × 1.645 — 「20일 중 하루는 이보다 더 잃을 수 있다」(정규분포 가정).
+ * 샤프 = 하루 평균 ÷ 하루 표준편차 × √252, 소르티노 = 하루 평균 ÷ 손실 쪽 편차(0 아래만 제곱 평균의 제곱근) × √252.
+ * 무위험 수익률은 0 으로 둔다(금리 자료를 끌어오지 않는다 — 화면이 이 가정을 밝힌다). 편차가 0 이면 그 값은 없다.
  */
-export function risk(snaps: Snap[], value: number): { n: number; sd?: number; var95?: number; mdd?: number } {
+export function risk(snaps: Snap[], value: number): { n: number; sd?: number; var95?: number; mdd?: number; sharpe?: number; sortino?: number } {
   const seq = snaps.filter(s => s && s.ev > 0 && s.ct > 0).map(s => ({ d: s.d, R: s.ev / s.ct }))
   const rs: number[] = []
   for (let i = 1; i < seq.length; i++) {
@@ -128,8 +130,53 @@ export function risk(snaps: Snap[], value: number): { n: number; sd?: number; va
   const sd = Math.sqrt(rs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1))
   let peak = -Infinity, mdd = 0
   for (const p of seq) { if (p.R > peak) peak = p.R; mdd = Math.min(mdd, p.R / peak - 1) }
-  return { n, sd, var95: value * sd * 1.645, mdd: mdd * 100 }
+  const down = Math.sqrt(rs.reduce((a, r) => a + Math.min(r, 0) ** 2, 0) / n)
+  const yr = Math.sqrt(252)
+  return { n, sd, var95: value * sd * 1.645, mdd: mdd * 100, sharpe: sd > 0 ? (mean / sd) * yr : undefined, sortino: down > 0 ? (mean / down) * yr : undefined }
 }
+
+/**
+ * 시장 대비 — 스냅샷 날짜마다 지수 종가(그날, 없으면 7일 안의 직전 값)를 맞춰 첫 날 = 100 으로 편다.
+ * 나 = 평가액 ÷ 원금(risk 의 R — 추가 매수로 원금이 늘어도 수익률만 남는다). 지수 하나라도 값이 없는 날은 뺀다.
+ * pts 는 날짜순. 맞춘 날이 2일 미만이면 null.
+ */
+export function benchmark(snaps: Snap[], idx: { name: string; pts: Pt[] }[]): { mine: Pt[]; idx: { name: string; pts: Pt[] }[] } | null {
+  const at = (pts: Pt[], d: string) => {
+    let hit: Pt | undefined
+    for (const p of pts) { if (p[0] > d) break; hit = p }
+    return hit && Date.parse(d) - Date.parse(hit[0]) <= 7 * 86_400_000 && hit[1] > 0 ? hit[1] : null
+  }
+  const rows = snaps.filter(s => s && s.ev > 0 && s.ct > 0).flatMap(s => {
+    const v = idx.map(i => at(i.pts, s.d))
+    return v.every(x => x != null) ? [{ d: s.d, R: s.ev / s.ct, v: v as number[] }] : []
+  })
+  if (rows.length < 2) return null
+  const [b] = rows
+  return {
+    mine: rows.map((r): Pt => [r.d, (r.R / b.R) * 100]),
+    idx: idx.map((i, j) => ({ name: i.name, pts: rows.map((r): Pt => [r.d, (r.v[j] / b.v[j]) * 100]) })),
+  }
+}
+
+/** 묶음 아무 깊이의 종목 칸(code · price · chgPct)을 시세로 모은다. 같은 코드가 여러 목록(거래대금 · 체결 상위 …)에 있으면 먼저 본 것 하나만. */
+export function collectStocks(root: unknown, out: Map<string, Quote>) {
+  const walk = (o: unknown): void => {
+    if (!o || typeof o !== 'object') return
+    if (Array.isArray(o)) { o.forEach(walk); return }
+    const r = o as Record<string, unknown>
+    if (typeof r.code === 'string' && typeof r.price === 'number' && r.price > 0 && !out.has(r.code)) {
+      out.set(r.code, { price: r.price, pct: typeof r.chgPct === 'number' ? r.chgPct : null, name: typeof r.name === 'string' ? r.name : undefined })
+    }
+    Object.values(r).forEach(walk)
+  }
+  walk(root)
+}
+
+/** KRX 순위 4목록(시가총액 · 거래량 · 52주 고저)은 전일 확정값 — 보유 시세로 쓰면 「오늘 손익」이 어제 등락이 되고 Yahoo 대체도 막힌다. */
+const KRX_PREV = new Set(['marketCap', 'volume', 'high52', 'low52'])
+/** 국내 묶음 views 에서 오늘 시세 목록만(KRX 순위 4목록 제외) 시세로 모은다. */
+export const collectDomestic = (views: Record<string, unknown> | null | undefined, out: Map<string, Quote>) =>
+  collectStocks(Object.fromEntries(Object.entries(views ?? {}).filter(([k]) => !KRX_PREV.has(k))), out)
 
 export type Unit = 'man' | 'won'
 

@@ -333,9 +333,6 @@ def test_occurrence_key_hash_is_salted_and_independent_of_sync_key(env, monkeypa
     monkeypatch.setenv("ALERTS_STATE_SALT", "s1")
     h1 = ca._kh(ek)
     assert h1 != hashlib.sha256(ek.encode("utf-8")).hexdigest()[:12] and len(h1) == 12
-    monkeypatch.setenv("ALERTS_SYNC_KEY", "any-sync-key")
-    assert ca._kh(ek) == h1
-    monkeypatch.delenv("ALERTS_SYNC_KEY")
     monkeypatch.setenv("ALERTS_STATE_SALT", "s2")
     assert ca._kh(ek) != h1
 
@@ -413,12 +410,11 @@ def test_push_queue_shape(env):
 
 
 # ── ⑤ 키·해시 로그 미노출 · 리다이렉트 금지 ─────────────────────────────────
-KEY = "  test-sync-passphrase-7Q  "
-HASH = hashlib.sha256(KEY.strip().encode()).hexdigest()
+KEY = "  test-read-key-7Q  "
 
 
 def _no_secret_in(log):
-    for secret in (KEY.strip(), HASH, KEY.strip()[:4], KEY.strip()[-4:], HASH[:8]):
+    for secret in (KEY.strip(), KEY.strip()[:4], KEY.strip()[-4:]):
         assert secret not in log, secret
 
 
@@ -435,36 +431,36 @@ class FakeOpener:
         self.result, self.seen = result, seen
 
     def open(self, req, timeout=None):
-        self.seen.append(req.get_header("X-sync-key-hash"))
+        self.seen.append(req.get_header("X-push-read-key"))
         if isinstance(self.result, Exception):
             raise self.result
         return Resp(self.result)
 
 
-def test_sync_key_hash_is_sent_but_never_logged(monkeypatch):
+def test_read_key_is_sent_but_never_logged(monkeypatch):
     pc = prefs_client
-    monkeypatch.delenv("PUSH_READ_KEY", raising=False)
+    monkeypatch.setenv("PUSH_READ_KEY", KEY)
     seen = []
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         for r in (urllib.error.HTTPError("https://w/prefs", 401, "unauthorized", {}, None),
                   urllib.error.URLError("down"), TimeoutError(), b"not json", b'{"alerts": "x"}'):
             monkeypatch.setattr(pc, "_OPENER", FakeOpener(r, seen))
-            assert pc.fetch("https://w", key=KEY) is None
+            assert pc.fetch("https://w") is None
         monkeypatch.setattr(pc, "_OPENER", FakeOpener(b'{"v":1,"updatedAt":"x","alerts":[]}', seen))
-        assert pc.fetch("https://w/", key=KEY) == {"v": 1, "updatedAt": "x", "alerts": []}
-        monkeypatch.delenv("ALERTS_SYNC_KEY", raising=False)
+        assert pc.fetch("https://w/") == {"v": 1, "updatedAt": "x", "alerts": []}
+        monkeypatch.delenv("PUSH_READ_KEY")
         n = len(seen)
         assert pc.fetch("https://w") is None and len(seen) == n     # 키 없으면 부르지도 않는다
     log = out.getvalue()
-    assert all(s == HASH for s in seen), seen                         # 앞뒤 공백을 자른 키의 SHA-256
+    assert all(s == KEY.strip() for s in seen), seen                  # 앞뒤 공백을 자른 읽기 키
     assert "HTTP 401" in log and log.count("[prefs]") == 6, log      # 실패마다 한 줄
     _no_secret_in(log)
 
 
-def test_push_read_key_wins_and_sync_key_is_only_the_fallback(monkeypatch):
-    # B6 — CI 는 동기화 키 없이 읽기 키(PUSH_READ_KEY)로 읽는다. 읽기 키가 있으면 동기화 키 해시는 보내지 않고,
-    #   없을 때만 ALERTS_SYNC_KEY(전환기 호환), 둘 다 없으면 부르지도 않는다. 읽기 키도 로그에 안 찍힌다.
+def test_only_push_read_key_is_used(monkeypatch):
+    # B6 — CI 는 동기화 키 없이 읽기 키(PUSH_READ_KEY)로만 읽는다. GitHub 시크릿 ALERTS_SYNC_KEY 는 2026-10-09 삭제 —
+    #   환경에 남아 있어도 동기화 키 해시를 보내지 않고, 읽기 키가 없으면 부르지도 않는다. 읽기 키도 로그에 안 찍힌다.
     pc = prefs_client
     sent = []
 
@@ -480,23 +476,21 @@ def test_push_read_key_wins_and_sync_key_is_only_the_fallback(monkeypatch):
     with contextlib.redirect_stdout(out):
         assert pc.fetch("https://w") is not None
         monkeypatch.delenv("PUSH_READ_KEY")
-        assert pc.fetch("https://w") is not None
-        monkeypatch.delenv("ALERTS_SYNC_KEY")
         assert pc.fetch("https://w") is None
+    assert len(sent) == 1, sent
     assert sent[0].get("x-push-read-key") == "read-key-for-test" and "x-sync-key-hash" not in sent[0], sent[0]
-    assert sent[1].get("x-sync-key-hash") == HASH and "x-push-read-key" not in sent[1], sent[1]
-    assert len(sent) == 2
     log = out.getvalue()
-    assert "read-key" not in log and "PUSH_READ_KEY · ALERTS_SYNC_KEY 없음" in log, log
+    assert "read-key" not in log and "PUSH_READ_KEY 없음" in log, log
     _no_secret_in(log)
 
 
-def test_redirects_are_not_followed_so_the_key_never_leaves_the_worker():
+def test_redirects_are_not_followed_so_the_key_never_leaves_the_worker(monkeypatch):
+    monkeypatch.setenv("PUSH_READ_KEY", KEY)
     hits = []
 
     class Other(http.server.BaseHTTPRequestHandler):                 # 리다이렉트가 가리키는 다른 호스트
         def do_GET(self):
-            hits.append(self.headers.get("X-Sync-Key-Hash"))
+            hits.append(self.headers.get("X-Push-Read-Key"))
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b'{"v":1,"updatedAt":"x","alerts":[]}')
@@ -520,7 +514,7 @@ def test_redirects_are_not_followed_so_the_key_never_leaves_the_worker():
         threading.Thread(target=s.serve_forever, daemon=True).start()
     try:
         with contextlib.redirect_stdout(io.StringIO()) as o:
-            assert prefs_client.fetch(f"http://127.0.0.1:{bounce.server_port}", key=KEY) is None
+            assert prefs_client.fetch(f"http://127.0.0.1:{bounce.server_port}") is None
         assert hits == [] and "HTTP 302" in o.getvalue(), (hits, o.getvalue())
         _no_secret_in(o.getvalue())
     finally:

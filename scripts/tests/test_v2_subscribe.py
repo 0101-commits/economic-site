@@ -118,12 +118,12 @@ def test_load_prefs_hits_worker_prefs_path_once(monkeypatch):
     import prefs_client
     seen = []
 
-    def fake(base, key=None):
+    def fake(base):
         seen.append(base)
         return {"alerts": [], "settings": {}, "updatedAt": "2026-10-06T00:00:00Z"}
 
     monkeypatch.setattr(prefs_client, "fetch", fake)
-    monkeypatch.setenv("ALERTS_SYNC_KEY", "k")
+    monkeypatch.setenv("PUSH_READ_KEY", "k")
     doc = subscribe.load_prefs(log=lambda *a, **k: None)
     assert seen == ["https://ecom-dashboard-proxy.e-hcg.workers.dev"]
     assert not subscribe.PREFS_URL.endswith("/prefs")
@@ -131,17 +131,16 @@ def test_load_prefs_hits_worker_prefs_path_once(monkeypatch):
 
 
 def test_load_prefs_reads_with_push_read_key_alone(monkeypatch):
-    """B6 — 워크플로는 ALERTS_SYNC_KEY 를 넘기지 않고 PUSH_READ_KEY 만 넘긴다. 그것만으로 /prefs 를 읽어야 하고,
-    둘 다 없으면 부르지 않고 기본 설정으로 간다."""
+    """B6 — 워크플로는 PUSH_READ_KEY 만 넘긴다(GitHub 시크릿 ALERTS_SYNC_KEY 는 2026-10-09 삭제). 그것만으로 /prefs 를 읽어야 하고,
+    없으면 부르지 않고 기본 설정으로 간다."""
     import prefs_client
     used, logs = [], []
 
-    def fake(base, key=None):
+    def fake(base):
         used.append(prefs_client.auth_header()[0])
         return {"alerts": [], "settings": {}, "updatedAt": "2026-10-07T00:00:00Z"}
 
     monkeypatch.setattr(prefs_client, "fetch", fake)
-    monkeypatch.delenv("ALERTS_SYNC_KEY", raising=False)
     monkeypatch.setenv("PUSH_READ_KEY", "rk")
     assert subscribe.load_prefs(log=logs.append)["v"] == 2
     monkeypatch.delenv("PUSH_READ_KEY")
