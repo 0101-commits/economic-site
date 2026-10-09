@@ -65,6 +65,14 @@ def test_swing_sigma_hit_escalates_and_names_peer():
     assert k.fields["next_round"] == 5000                    # B2 마디표(코스피 1000) 아래쪽 다음 마디
 
 
+def test_run_event_reports_value_in_screen_units():
+    """축척 지표(엔/원 scale 0.01)의 사전 알림 값은 화면 단위 — 문구가 화면(100엔당 원)과 같은 수를 말한다."""
+    c = ctx()
+    raw = by_target(hits(c, "A1"))["kospi"].value
+    c.scale = lambda t: 0.01 if t == "kospi" else None
+    assert abs(by_target(hits(c, "A1"))["kospi"].value - raw / 0.01) < 1e-6
+
+
 def test_swing_sigma_clamp_upper_and_lower():
     h = by_target(hits(ctx(), "A1"))
     # 상한: 코스닥 σ 3% 라 2.5σ=7.5% 지만 5% 에서 걸린다(z 1.8 → 경보로 올리지 않음)

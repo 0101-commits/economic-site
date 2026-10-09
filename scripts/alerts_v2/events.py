@@ -40,7 +40,13 @@ def run_event(ctx: Context, ev: dict) -> list[Hit]:
     fn = JUDGES.get(ev["judge"])
     if fn is None:
         raise KeyError(f"{ev['id']}: 판정 함수 없음 {ev['judge']!r}")
-    return fn(ctx, ev)
+    hits = fn(ctx, ev)
+    scale = getattr(ctx, "scale", None)
+    for h in hits:                                   # 값은 화면 단위로(엔/원 원본 8.51 → 851원) — 사용자 조건(subscribe)과 같은 단위
+        sc = scale(h.target) if scale else None
+        if sc and isinstance(h.value, (int, float)) and not isinstance(h.value, bool):
+            h.value = h.value / sc
+    return hits
 
 
 def hits_to_rows(ctx: Context, ev: dict, hits: list[Hit], render) -> list[Row]:
