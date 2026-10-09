@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 손익 계산 · 환차 분해 · what-if · 위험 · 금액 표기
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { evaluate, fxWhatIf, npsDomesticShare, upsertSnap, risk, fmtMoney, fmtMoneyChange, type Holding, type Quote } from './calc.ts'
+import { evaluate, fxWhatIf, npsDomesticShare, upsertSnap, risk, benchmark, collectStocks, fmtMoney, fmtMoneyChange, type Holding, type Quote } from './calc.ts'
 
 const near = (a: number | null | undefined, b: number, eps = 1e-6) => assert.ok(a != null && Math.abs(a - b) < eps, `${a} ≈ ${b}`)
 
@@ -74,6 +74,60 @@ test('risk: 60건 미만은 n 만, 이상이면 VaR·최대 낙폭', () => {
   assert.equal(r.n, 60)
   assert.ok(r.var95! > 0 && r.sd! > 0)
   near(r.mdd, (100 / 110 - 1) * 100)
+  near(r.sharpe, 0)                         // 오르내림이 같아 하루 평균 0
+})
+
+test('risk: 샤프 · 소르티노 — 하루 로그 수익률 +2% · -1% 를 30번씩(무위험 0, √252 연환산)', () => {
+  const day = (i: number) => new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10)
+  let R = 1
+  const snaps = Array.from({ length: 61 }, (_, i) => {
+    if (i) R *= Math.exp(i % 2 ? 0.02 : -0.01)
+    return { d: day(i), ev: 1_000_000 * R, ct: 1_000_000 }
+  })
+  const r = risk(snaps, 1)
+  assert.equal(r.n, 60)
+  // 평균 0.005, 표본 표준편차 √(60 × 0.015² / 59), 손실 쪽 편차 √(30 × 0.01² / 60)
+  near(r.sharpe, (0.005 / Math.sqrt((60 * 0.015 ** 2) / 59)) * Math.sqrt(252), 1e-9)
+  near(r.sortino, (0.005 / Math.sqrt((30 * 0.01 ** 2) / 60)) * Math.sqrt(252), 1e-9)
+  near(r.sharpe, 5.2473, 1e-4)
+  near(r.sortino, 11.2250, 1e-4)
+  const up = risk(Array.from({ length: 61 }, (_, i) => ({ d: day(i), ev: 100 + i, ct: 100 })), 1)
+  assert.equal(up.sortino, undefined)       // 손실 날이 없으면 소르티노는 없다(무한대를 적지 않는다)
+  // 원금이 늘어도(추가 매수) 평가액 ÷ 원금이 같으면 수익률 0
+  assert.equal(risk(Array.from({ length: 61 }, (_, i) => ({ d: day(i), ev: 100 * (i + 1), ct: 100 * (i + 1) })), 1).sharpe, undefined)
+})
+
+test('benchmark: 첫 날 = 100, 원금 보정, 지수는 그날 또는 7일 안 직전 값', () => {
+  const snaps = [
+    { d: '2026-10-01', ev: 1_000, ct: 1_000 },
+    { d: '2026-10-03', ev: 2_200, ct: 2_000 },   // 원금 2배(추가 매수) · 평가액 ÷ 원금 1.1
+    { d: '2026-10-05', ev: 0, ct: 2_000 },       // 평가액 없는 날은 뺀다
+    { d: '2026-10-06', ev: 2_400, ct: 2_000 },
+  ]
+  const kospi: [string, number][] = [['2026-09-30', 50], ['2026-10-01', 100], ['2026-10-02', 110], ['2026-10-06', 90]]
+  const spx: [string, number][] = [['2026-09-30', 200], ['2026-10-03', 210]]
+  const b = benchmark(snaps, [{ name: 'KOSPI', pts: kospi }, { name: 'S&P 500', pts: spx }])!
+  assert.deepEqual(b.mine.map(p => p[0]), ['2026-10-01', '2026-10-03', '2026-10-06'])
+  b.mine.forEach((p, i) => near(p[1], [100, 110, 120][i]))
+  b.idx[0].pts.forEach((p, i) => near(p[1], [100, 110, 90][i]))           // 10-03 은 10-02 종가
+  b.idx[1].pts.forEach((p, i) => near(p[1], [100, 105, 105][i]))          // 10-01 은 9-30 종가
+  assert.equal(b.idx[1].name, 'S&P 500')
+  // 지수 값이 7일보다 오래되면 그날은 뺀다 → 맞춘 날 2일 미만이면 null
+  assert.equal(benchmark(snaps, [{ name: 'KOSPI', pts: [['2026-09-01', 1]] }]), null)
+  assert.equal(benchmark(snaps.slice(0, 1), [{ name: 'KOSPI', pts: kospi }]), null)
+})
+
+test('collectStocks: 같은 코드는 먼저 본 목록 하나만, 시세 없는 칸은 건너뛴다', () => {
+  const out = new Map<string, Quote>()
+  collectStocks({
+    amount: { items: [{ code: '005930', name: '삼성전자', price: 262_500, chgPct: -2.23 }] },
+    tossAmount: { items: [{ code: '005930', name: '삼성전자', price: 999, chgPct: 9 }, { code: '000660', price: 1_686_000, chgPct: null }, { code: '035720', price: null }] },
+  }, out)
+  assert.deepEqual([...out.keys()], ['005930', '000660'])
+  assert.deepEqual(out.get('005930'), { price: 262_500, pct: -2.23, name: '삼성전자' })
+  assert.deepEqual(out.get('000660'), { price: 1_686_000, pct: null, name: undefined })
+  collectStocks({ items: [{ code: '000660', price: 1 }] }, out)            // 나중 묶음도 앞의 값을 덮지 않는다
+  assert.equal(out.get('000660')!.price, 1_686_000)
 })
 
 test('fmtMoney · fmtMoneyChange', () => {
