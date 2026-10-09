@@ -18,7 +18,7 @@ import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
 import { KEYS, readHk, readPrefs, writeHk, writePrefs, type AlertCond, type Level, type Pkg, type Prefs, type Settings, type Strength } from '../lib/personal/store'
 import { PACKAGE_PRESET, setPackage } from '../lib/personal/prefsV2'
-import { condId, condName, condStatus, prefillTarget, rearm, TARGET_RE, type FiredRec, type LedgerRow } from '../lib/personal/alertStatus'
+import { condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type FiredRec, type LedgerRow } from '../lib/personal/alertStatus'
 import type { Hk } from '../lib/personal/housekeeping'
 import { portfolioGet, watchKind } from '../lib/personal/remote'
 import { getKeyHash, scopeText, useSyncStatus, type SyncStatus } from '../lib/personal/sync'
@@ -551,7 +551,7 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
         <Row label="등급"><SegBar label="등급" options={levelChoices(base).map(l => ({ key: l, label: LV[l] }))} value={(level || base) as Level} onChange={setLevel} /></Row>
         <Row label="반복">
           <SegBar label="반복" options={REPEAT_OPTS} value={repeat} onChange={setRepeat} />
-          <p className="m-0 mt-1 text-12 text-ink-3">{repeat === 'each' ? '방향마다 하루 한 번까지 울립니다.' : '한 번 울리면 멈춥니다. 「다시 켜기」로 다시 켭니다.'}</p>
+          <p className="m-0 mt-1 text-12 text-ink-3">{repeatNote(ev?.id ?? '', repeat)}{repeat === 'once' ? ' 「다시 켜기」로 다시 켭니다.' : ''}</p>
         </Row>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
           <Field label="이름(비우면 「대상 조건」)"><input className={INPUT} value={name} maxLength={40} onChange={e => setName(e.target.value)} autoComplete="off" /></Field>

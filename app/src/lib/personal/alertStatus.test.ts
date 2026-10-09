@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 알림 조건 id · 상태 7 · 다시 켜기 · 이름
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { condId, condName, condStatus, prefillTarget, rearm, TARGET_RE, type LedgerRow } from './alertStatus.ts'
+import { condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type LedgerRow } from './alertStatus.ts'
 import type { AlertCond } from './store'
 
 const PREFS_ID = /^[A-Za-z0-9._:^=\-]{1,64}$/   // cloudflare-worker/worker.js 와 같은 식
@@ -77,4 +77,13 @@ test('prefillTarget: 주소의 id 로 새 조건 폼 대상을 채운다 — 사
   assert.deepEqual(prefillTarget('kospi', []), { id: 'kospi', label: 'kospi' })         // 사전이 아직 안 왔다 — 이름은 나중에 따라온다
   for (const bad of ['', 'a b', '코스피', 'x'.repeat(65), '<script>']) assert.equal(prefillTarget(bad, rows), null)
   assert.ok(TARGET_RE.test('^KS11') && TARGET_RE.test('KRW=X'))
+})
+
+test('U1 은 넘는 순간 — 반복 설명과 쪽 기록(side)만 있는 공개 기록은 「대기」', () => {
+  assert.match(repeatNote('U1', 'each'), /넘는 순간.*다시 넘으면 또/)
+  assert.match(repeatNote('U1', 'once'), /처음 넘는 순간 한 번/)
+  assert.match(repeatNote('U1', 'each'), /이미 넘어 있으면/)
+  assert.equal(repeatNote('U2', 'each'), '방향마다 하루 한 번까지 울립니다.')
+  assert.equal(repeatNote('U2', 'once'), '한 번 울리면 멈춥니다.')
+  assert.deepEqual(condStatus(A(), [], { side: 'u' }, true, false, NOW), { kind: 'wait', text: '대기' })
 })

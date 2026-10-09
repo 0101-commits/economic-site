@@ -43,9 +43,13 @@ def _ctx(now=OPEN, bundles=None):
     return Context(now=now, data=data, bundles=bundles or {}, registry={}, mer={})
 
 
-def _hits(ctx, conds):
+def _hits(ctx, conds, sides=None):
+    """sides = U1 의 직전 쪽(alerts_state.json._prefs). 안 주면 U1 조건마다 「넘기 전 쪽」으로 채운다 — 이번 값이 넘었으면 울림."""
+    if sides is None:
+        sides = {c["id"]: {"side": "d" if c.get("dir") == "up" else "u"} for c in conds if c["event"] == "U1"}
     prefs = {"alerts": [dict(c, enabled=True, repeat="each") for c in conds]}
-    return subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx), log=lambda *a: None)
+    return subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx), log=lambda *a: None,
+                               sides=sides)
 
 
 def test_u1_stock_up_and_down(monkeypatch):

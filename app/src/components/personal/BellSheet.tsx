@@ -9,7 +9,7 @@ import { BottomSheet, SegBar } from '../ui'
 import { BTN, Field, INPUT, LV, Row, Switch } from './bits'
 import { ALERT_CAP, levelChoices, savedNote, sheetEvents, yearCounts, type Dict } from '../../lib/alerts/v2'
 import { loadDaily } from '../../lib/alerts/daily'
-import { condId } from '../../lib/personal/alertStatus'
+import { condId, repeatNote } from '../../lib/personal/alertStatus'
 import { watchKind } from '../../lib/personal/remote'
 import { KEYS, readPrefs, writePrefs, type AlertCond, type Level, type Strength } from '../../lib/personal/store'
 import { useSyncStatus } from '../../lib/personal/sync'
@@ -98,7 +98,7 @@ function BellForm({ id }: { id: string }) {
       <Row label="등급"><SegBar label="등급" options={levelChoices(base).map(l => ({ key: l, label: LV[l] }))} value={(level || base) as Level} onChange={setLevel} /></Row>
       <Row label="반복">
         <SegBar label="반복" options={REPEAT_OPTS} value={repeat} onChange={setRepeat} />
-        <p className="m-0 mt-1 text-12 text-ink-3">{repeat === 'each' ? '방향마다 하루 한 번까지 울립니다.' : '한 번 울리면 멈춥니다. 알림 화면에서 「다시 켜기」로 다시 켭니다.'}</p>
+        <p className="m-0 mt-1 text-12 text-ink-3">{repeatNote(ev.id, repeat)}{repeat === 'once' ? ' 알림 화면에서 「다시 켜기」로 다시 켭니다.' : ''}</p>
       </Row>
       <Switch on={ring} onChange={setRing} label="울림(끄면 받은 알림에만 남음)" />
       {had && <p className="m-0 text-12 text-ink-3">이 사건의 조건이 이미 있어 저장하면 그것을 바꿉니다.</p>}

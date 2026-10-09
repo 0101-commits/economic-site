@@ -62,7 +62,8 @@ def test_user_hits_need_salt_and_hmac_key(monkeypatch):
     monkeypatch.delenv("ALERTS_STATE_SALT", raising=False)
     assert subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx)) == []
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
-    rows = subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx))
+    rows = subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx),
+                               sides={"c1": {"side": "d"}})                   # 직전 런엔 1400 아래 — 이번에 넘음
     assert [r["event"] for r in rows] == ["U1", "U2"]
     assert rows[0]["key"].startswith("U1:usdkrw:up:") and len(rows[0]["key"].split(":")[-1]) == 12
     assert "1400" not in rows[0]["key"] and rows[0]["cond"] == "c1"
@@ -76,9 +77,9 @@ def test_once_condition_stops_after_fired(monkeypatch):
                          "enabled": True, "armedAt": "2026-10-01T00:00:00+09:00"}]}
     ctx = _ctx(values={"usdkrw": 1401.2})
     hist = [{"cond": "c1", "ts": "2026-10-01T09:00:00+09:00"}]
-    assert subscribe.user_hits(ctx, prefs, hist) == []
+    assert subscribe.user_hits(ctx, prefs, hist, sides={"c1": {"side": "d"}}) == []
     hist = [{"cond": "c1", "ts": "2026-09-30T09:00:00+09:00"}]      # 다시 켜기 전 발동은 무시
-    assert len(subscribe.user_hits(ctx, prefs, hist)) == 1
+    assert len(subscribe.user_hits(ctx, prefs, hist, sides={"c1": {"side": "d"}})) == 1
 
 
 def test_upgrade_prefs_v1_to_v2():
