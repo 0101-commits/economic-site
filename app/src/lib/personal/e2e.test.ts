@@ -1,8 +1,10 @@
 // 자가검사: npm test --prefix app — 보유 암호 덩어리 왕복 · 현행 화면(js/app2.js)과 양방향 호환 · 어느 쪽을 쓸지 · 받기 뒤 지문
+// · 보유 열쇠 재료(D9 a) 결정성 · 예전 암호 사본 이전 판정 · 자동 맞춤이 묻지 않고 할 일
 // 현행 쪽 코드는 js/app2.js pfBuildEncHoldings · pfApplyEncHoldings 를 줄여 옮긴 것이다(가짜 자료만 쓴다).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyEntries, decide, decrypt, decryptAs, encrypt, entriesOf, fingerprint, ITER, passProblem, type EncBlob, type Entry } from './e2e.ts'
+import { pbkdf2Sync } from 'node:crypto'
+import { applyEntries, autoStep, decide, decrypt, decryptAs, encrypt, entriesOf, fingerprint, holdKeyOf, ITER, openBlob, passProblem, relockBlob, type EncBlob, type Entry } from './e2e.ts'
 
 const PASS = 'test-pass-1234'
 type Row = { id: string; symbol: string; market: string; name: string; avg: number | null; qty: number | null; fxBuy?: number | null }
@@ -108,4 +110,47 @@ test('passProblem: 6자리 숫자가 아닌 PIN 도 거부 · 동기화 키 · �
   assert.match(await passProblem('abcd', no, pinIs('abcd')), /6자 이상/)            // 4자 PIN 은 길이에서 먼저 걸린다
   assert.match(await passProblem('sync-key-phrase', async () => true, no), /동기화 키/)
   assert.equal(await passProblem('long-enough-pass', no, pinIs('abcdefg')), '')
+})
+
+test('holdKeyOf: 같은 키 → 같은 재료(앞뒤 공백 무시) · 다른 키 → 다름 · 명세 그대로 PBKDF2-SHA256(키, "ecom-holdings-v1", 600000) 32바이트 hex', async () => {
+  const a = await holdKeyOf('my-sync-key-123')
+  assert.match(a, /^[0-9a-f]{64}$/)
+  assert.equal(await holdKeyOf('  my-sync-key-123\n'), a)
+  assert.notEqual(await holdKeyOf('my-sync-key-124'), a)
+  assert.equal(a, pbkdf2Sync('my-sync-key-123', 'ecom-holdings-v1', 600000, 32, 'sha256').toString('hex'))
+})
+
+test('openBlob: 재료로 잠근 것은 그대로 · 예전 암호 사본은 old-pass → 예전 암호 · 예전 키 재료로 풀리면 stale · 틀리면 wrong-pass', async () => {
+  const mat = await holdKeyOf('new-sync-key-123')
+  const es = entriesOf(items)
+  const fresh = await encrypt(es, mat, '2026-10-07T01:00:00.000Z')
+  assert.deepEqual(await openBlob(fresh, mat), { entries: es, at: '2026-10-07T01:00:00.000Z', stale: false })
+  const legacy = await legacyBuild(items, PASS)                       // 이전 전: 사람이 정한 보유 암호로 잠근 사본
+  await assert.rejects(openBlob(legacy, mat), /old-pass/)
+  await assert.rejects(openBlob(legacy, mat, '   '), /old-pass/)      // 빈 칸은 물은 것으로 치지 않는다
+  assert.deepEqual(await openBlob(legacy, mat, ` ${PASS} `), { entries: es, at: null, stale: true })
+  await assert.rejects(openBlob(legacy, mat, 'other-pass'), /wrong-pass/)
+  const oldKeyed = await encrypt(es, await holdKeyOf('old-sync-key-99'), 't')   // 키를 바꾼 뒤 다시 잠그기가 실패해 남은 사본
+  assert.equal((await openBlob(oldKeyed, mat, 'old-sync-key-99')).stale, true)
+})
+
+test('relockBlob: 서버를 확인 못 하면 false(키 바꾸기 멈춤) · 사본 없음 null · 옛 재료 사본은 새 재료로 · 안 풀리면 null', async () => {
+  const [old, mat] = await Promise.all([holdKeyOf('old-sync-key-99'), holdKeyOf('new-sync-key-123')])
+  const es = entriesOf(items)
+  assert.equal(await relockBlob({ ok: false }, old, mat), false)                 // 429 · 네트워크 실패
+  assert.equal(await relockBlob({ ok: true, enc: null }, old, mat), null)
+  const moved = await relockBlob({ ok: true, enc: await encrypt(es, old, '2026-10-07T01:00:00.000Z') }, old, mat)
+  assert.ok(moved)
+  assert.deepEqual(await decrypt(moved, mat), { entries: es, at: '2026-10-07T01:00:00.000Z' })
+  assert.equal(await relockBlob({ ok: true, enc: await legacyBuild(items, PASS) }, old, mat), null)   // 예전 암호 사본은 이전이 맡는다
+})
+
+test('autoStep: 한쪽만 바뀌면 묻지 않고 · 둘 다 바뀌었거나 빈 기기가 서버를 지우게 되면 묻는다', () => {
+  assert.equal(autoStep('push', 2, 3), 'push')
+  assert.equal(autoStep('push', 2, 0), 'push')     // 서버에 없음 → 올림
+  assert.equal(autoStep('push', 0, 3), 'ask')      // 이 기기에서 다 지움(또는 저장소 깨짐) — 서버 사본을 말없이 지우지 않는다
+  assert.equal(autoStep('pull', 0, 3), 'pull')
+  assert.equal(autoStep('conflict', 2, 3), 'ask')
+  assert.equal(autoStep('same', 2, 2), null)
+  assert.equal(autoStep('none', 0, 0), null)
 })

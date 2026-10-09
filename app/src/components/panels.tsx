@@ -7,6 +7,7 @@ import { Sparkline } from './charts'
 import { changeDir, fmtChange, fmtNumber, fmtPct, scaled } from '../lib/format'
 import { shownUnit, type StripItem } from '../lib/bundle'
 import { foldId, hiddenRows, isFolded, setFolded } from '../lib/fold'
+import { countFold, countUse } from '../lib/usage'
 
 const PC_MQ = '(min-width: 61.25rem)'   // app.css --breakpoint-pc 와 같은 값
 const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as const
@@ -48,7 +49,7 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
   if (!fold) return <Card className={className}>{head}{children}</Card>
   return (
     <Card className={className}>
-      <details data-panel-fold open={open} onToggle={e => { const o = e.currentTarget.open; if (o !== open) { setOpen(o); setFolded(id, !o) } }}>
+      <details data-panel-fold open={open} onToggle={e => { const o = e.currentTarget.open; if (o !== open) { setOpen(o); setFolded(id, !o); countFold(id, o) } }}>
         <summary className="list-none cursor-pointer [&::-webkit-details-marker]:hidden">{head}</summary>
         {children}
       </details>
@@ -59,18 +60,22 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
 const onPcChange = (f: () => void) => { const m = matchMedia(PC_MQ); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }
 const isPc = () => matchMedia(PC_MQ).matches
 
-/** 더 보기: 긴 표 · 목록은 모바일(<980) 5행 · PC 10행까지, 끝에 「N행 더 보기」 — 누르면 그 자리에서 전부. children 이 보일 행으로 그린다. */
-export function More<R>({ rows, children }: { rows: R[]; children: (shown: R[]) => ReactNode }) {
+/**
+ * 더 보기: 긴 표 · 목록은 모바일(<980) 5행 · PC 10행까지, 끝에 「N행 더 보기」 — 누르면 그 자리에서 전부. children 이 보일 행으로 그린다.
+ * name = 사용 기록(lib/usage.ts)에 남는 목록 이름, unit = 단추의 셈 단위(카드 격자는 「개」).
+ */
+export function More<R>({ rows, children, name = '목록', unit = '행' }: { rows: R[]; children: (shown: R[]) => ReactNode; name?: string; unit?: string }) {
   const pc = useSyncExternalStore(onPcChange, isPc)
   const [all, setAll] = useState(false)
+  const { pathname } = useLocation()
   const rest = all ? 0 : hiddenRows(rows.length, pc)
   return (
     <>
       {children(rest ? rows.slice(0, rows.length - rest) : rows)}
       {rest > 0 && (
-        <button type="button" onClick={() => setAll(true)}
+        <button type="button" onClick={() => { setAll(true); countUse('more', foldId(pathname, name)) }}
           className="inline-flex items-center gap-1 h-8 mt-1 px-0 border-0 bg-transparent cursor-pointer text-12 text-ink-2 hover:text-ink-1">
-          <span className="num">{rest}</span>행 더 보기<ChevronDown size={14} aria-hidden />
+          <span className="num">{rest}</span>{unit} 더 보기<ChevronDown size={14} aria-hidden />
         </button>
       )}
     </>
@@ -199,7 +204,7 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selected
   const pickC = nameC ?? cols[0]
   const isOn = (r: R) => selectedKey != null && rowKey(r) === selectedKey
 
-  return <More rows={shown}>{vis => (
+  return <More rows={shown} name={label}>{vis => (
     <div className="min-w-0">
       <div className="table-box hidden md:block">
         <table className="w-full border-collapse text-13">

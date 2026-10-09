@@ -1,12 +1,11 @@
-// 시장 › 해외 — 큰 차트 = 띠에서 고른 지수의 자기 차트(기본 S&P 500). 「비교」 보기일 때만 시작=100 겹침 차트가 그 자리에 온다.
+// 시장 › 해외 — 큰 차트 = 띠에서 고른 지수의 자기 차트(기본 S&P 500). 보기 줄은 목차(주소 v), 시작=100 겹침 차트는 맨 아래 넓은 칸.
 import { useMemo, useState, type ReactNode } from 'react'
 import type { Sched, StripItem } from '../../lib/bundle'
 import { fmtNumber, fmtPct, range52, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
-import { SegBar } from '../ui'
 import { LineChart, Range52 } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { arrange, BigChart, ChangeText, CurveChart, CurveTable, Empty, EventList, MarketGrid, poolOf, type Block, type BodyProps, type Curve } from './parts'
+import { BigChart, ChangeText, CurveChart, CurveTable, Empty, EventList, MarketGrid, poolOf, Toc, type Block, type BodyProps, type Curve } from './parts'
 import { rebase } from './calc'
 
 type Compare = { from?: string; base?: number; series: Record<string, Pt[]> }
@@ -24,9 +23,10 @@ export type GlobalBundle = {
   }
 }
 
+// 차례 = 격자 차례. 비교(겹침 차트)를 끝에 둬 한 줄을 다 쓴다.
 const VIEWS = [
-  { key: 'indices', label: '지수' }, { key: 'compare', label: '비교' }, { key: 'fear', label: '공포·변동성' },
-  { key: 'curve', label: '미 국채' }, { key: 'calendar', label: '미국 일정' },
+  { key: 'indices', label: '지수' }, { key: 'fear', label: '공포·변동성' },
+  { key: 'curve', label: '미 국채' }, { key: 'calendar', label: '미국 일정' }, { key: 'compare', label: '비교' },
 ] as const
 type View = typeof VIEWS[number]['key']
 // CNN 공포·탐욕 등급(묶음 rating 원문) → 우리말
@@ -41,7 +41,7 @@ const idxCols: Col<StripItem & { r52: ReturnType<typeof range52> }>[] = [
 ]
 
 export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
-  const [v, setV] = useViewParam<View>('v', 'indices', VIEWS.map(o => o.key))
+  const [, setV] = useViewParam<View>('v', 'indices', VIEWS.map(o => o.key))
   const vw = b.views
   const sense = [vw?.fearGreed, vw?.vix, vw?.move].filter((x): x is StripItem & { rating?: string } => !!x)
   const pool = poolOf(b.strip, vw?.indices, sense)
@@ -55,27 +55,7 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
         {indices.length ? <RankTable label="세계 지수" cols={idxCols} rows={indices} rowKey={r => r.id} /> : <Empty>지수 자료가 없습니다.</Empty>}
       </Panel>
     ),
-    // 첫 자리(primary)일 때는 아래 CompareChart 가 큰 차트 자리를 대신하므로 여기는 요약 목록만
-    compare: cls => {
-      const cmp = vw?.compare
-      const rows = Object.entries(cmp?.series ?? {}).map(([id, s]) => ({ id, last: s[s.length - 1]?.[1] }))
-        .filter(r => r.last != null).sort((a, z) => z.last! - a.last!)
-      return (
-        <Panel className={cls} title="비교" source={cmp?.from ? `${cmp.from} = ${cmp.base ?? 100}` : undefined} fold
-          tools={<button type="button" onClick={() => setV('compare')} className="h-8 px-2 rounded-btn border border-line bg-card text-12 text-ink-2 hover:text-ink-1">겹침 차트</button>}>
-          {rows.length ? (
-            <ul className="m-0 p-0 list-none">
-              {rows.map(r => (
-                <li key={r.id} className="flex items-baseline justify-between gap-3 py-1.5 border-b border-line last:border-b-0">
-                  <span className="text-13 text-ink-1">{name(r.id)}</span>
-                  <ChangeText pct={r.last! - (cmp?.base ?? 100)} />
-                </li>
-              ))}
-            </ul>
-          ) : <Empty>비교 자료가 없습니다.</Empty>}
-        </Panel>
-      )
-    },
+    compare: cls => <CompareChart className={cls} compare={vw?.compare} lead={sel?.id} name={name} ids={Object.keys(vw?.compare?.series ?? {})} />,
     fear: (cls, primary) => (
       <Panel className={cls} title="공포·변동성" fold={!primary}>
         {sense.length ? (
@@ -111,19 +91,15 @@ export default function Global({ b, selId, setS }: BodyProps<GlobalBundle>) {
     ),
   }
 
-  const first: [string, Block] = v === 'compare'
-    ? ['compareChart', cls => <CompareChart className={cls} compare={vw?.compare} lead={sel?.id} name={name} ids={Object.keys(vw?.compare?.series ?? {})} />]
-    : ['big', cls => <BigChart className={cls} item={sel} />]
-  const rest = arrange(v, VIEWS.map(o => o.key)).filter(k => !(v === 'compare' && k === 'compare'))
   return (
     <>
-      <SegBar label="보기" options={VIEWS} value={v} onChange={setV} />
-      <MarketGrid blocks={[first, ...rest.map((k): [string, Block] => [k, panels[k]])]} />
+      <Toc where="해외" items={VIEWS} onPick={setV} />
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...VIEWS.map((o): [string, Block] => [o.key, panels[o.key]])]} />
     </>
   )
 }
 
-/** 시작=100 겹침 차트. 기간을 바꿀 때마다 그 기간 첫날을 100 으로 다시 맞춘다. 고른 지수 + 기본 셋, 넷까지. */
+/** 시작=100 겹침 차트. 기간을 바꿀 때마다 그 기간 첫날을 100 으로 다시 맞춘다. 처음 고른 것 = 띠에서 고른 지수 + 기본 셋, 넷까지. */
 function CompareChart({ compare, lead, ids, name, className }: {
   compare?: Compare; lead?: string; ids: string[]; name: (id: string) => string; className: string
 }) {

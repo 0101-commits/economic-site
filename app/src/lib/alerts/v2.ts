@@ -112,7 +112,7 @@ export function sheetEvents(d: Dict, target: string, stock: boolean, lens: Reado
 /** 조건을 저장한 직후의 한 줄(head = 첫머리 말): 동기화가 꺼져 있으면 「이 기기에만」, 켜져 있으면 서버에 올라갔는지. savedAt 0 = 아직 저장하지 않음(빈 글). */
 export function savedNote(sync: { on: boolean; at: number | null }, savedAt: number, head = '저장했습니다'): string {
   if (!savedAt) return ''
-  if (!sync.on) return `${head} · 이 기기에만 · 울리지 않음(동기화를 켜야 서버가 봅니다)`
+  if (!sync.on) return `${head} · 이 기기만 — 울리지 않음(설정 › 기기 연결을 켜야 서버가 봅니다)`
   return sync.at && sync.at >= savedAt ? `${head} · 서버에 올라감 ${hhmm(sync.at)}` : `${head} · 서버로 올리는 중`
 }
 

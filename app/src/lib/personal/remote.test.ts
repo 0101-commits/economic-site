@@ -1,16 +1,15 @@
-// 자가검사: npm test --prefix app — 동기화 키 해시 · 관심 종류 · 서버 문서 ↔ 이 기기 변환 왕복 · GET/PUT 왕복(가짜 서버)
+// 자가검사: npm test --prefix app — 동기화 키 해시 · 관심 종류 · 서버 문서 ↔ 이 기기 변환 왕복 · GET/PUT 왕복(가짜 서버) · 키 바꾸기 요청 모양
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { WORKER, fromServer, keyHash, portfolioGet, portfolioPost, prefsCall, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
+import { WORKER, blankLocal, fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, watchKind, type Local, type PrefsDoc } from './remote.ts'
 import { defaultSettings } from './prefsV2.ts'
 
 const local: Local = {
   watch: ['kospi', '005930', 'usdkrw', '0035S0', 'C2'],
   alerts: [{ id: 'a1', event: 'U1', target: '005930', value: 90000, dir: 'up', repeat: 'once', ring: true, enabled: true },
     { id: 'a2', event: 'A1', target: '*', strength: 'huge', level: 'alarm', repeat: 'each', enabled: true }],
-  settings: { ...defaultSettings(), updown: 'us', unit: 'won', quiet: null, package: 'many', ringChannel: 'both', dailyCap: 12,
-    kakaoFriends: true, kakaoRecipients: [{ uuid: '', name: '나', briefOnly: true }] },
-  theme: 'dark',
+  settings: syncedOf({ ...defaultSettings(), updown: 'us', unit: 'won', quiet: null, package: 'many', ringChannel: 'both', dailyCap: 12,
+    kakaoFriends: true, kakaoRecipients: [{ uuid: '', name: '나', briefOnly: true }], autoQuiet: false }),
   scenarios: [{ name: '시나리오 1', start: 'us10y', dir: 1, depth: 2, at: '2026-10-01T00:00:00.000Z' }],
 }
 
@@ -32,14 +31,19 @@ test('toServer: 서버 모양 · 보유 칸 없음 · 담은 때는 직전 서�
     { id: 'kospi', kind: 'indicator', addedAt: '2026-09-01T00:00:00.000Z' },
     { id: '005930', kind: 'stock', addedAt: '2026-10-02T00:00:00.000Z' },
   ])
-  assert.deepEqual(b.settings, { theme: 'dark', ...local.settings })   // v2 설정 전체(Worker _sanitizePrefs 가 받는 칸)
+  assert.deepEqual(b.settings, local.settings)   // v2 설정(Worker _sanitizePrefs 가 받는 칸)
+  // 화면 모드 · 금액 단위 · 90일 자동 강등은 이 기기만(명세 S9) — 문서에 없다
+  for (const k of ['theme', 'unit', 'autoQuiet']) assert.ok(!(k in b.settings), k)
   assert.deepEqual(b.scenarios, [{ name: '시나리오 1', inputs: { start: 'us10y', dir: 1, depth: 2, at: '2026-10-01T00:00:00.000Z' } }])
   assert.doesNotMatch(JSON.stringify(b), /"(avg|qty|fxBuy|holdings|items|portfolio)"/)
 })
 
 test('fromServer(toServer(x)) = x · 빈 문서는 기본값 · v1 서버 문서의 조건은 v2 로', () => {
   assert.deepEqual(fromServer({ v: 2, updatedAt: 't', ...toServer(local, null, 'now') }), local)
-  assert.deepEqual(fromServer({}), { watch: [], alerts: [], settings: defaultSettings(), theme: 'system', scenarios: [] })
+  assert.deepEqual(fromServer({}), { watch: [], alerts: [], settings: syncedOf(defaultSettings()), scenarios: [] })
+  // Worker 가 채워 둔 theme · unit 은 읽지 않는다(받을 때도 이 기기 값을 둔다)
+  const withDevice = { v: 2, updatedAt: 't', ...toServer(local, null, 'now'), settings: { ...local.settings, theme: 'dark', unit: 'man' } } as unknown as PrefsDoc
+  assert.deepEqual(fromServer(withDevice).settings, local.settings)
   const v1 = { v: 1, alerts: [{ id: 'a1', target: 'kospi', type: 'price', cond: { op: '<=', value: 2500 }, repeat: 'once', channels: ['push'], enabled: true }] }
   assert.deepEqual(fromServer(v1 as unknown as PrefsDoc).alerts, [{ id: 'a1', target: 'kospi', event: 'U1', dir: 'down', value: 2500, repeat: 'once', ring: true, enabled: true }])
 })
@@ -131,4 +135,49 @@ test('prefsCall: 네트워크 실패는 status 0', async () => {
   const real = globalThis.fetch
   globalThis.fetch = (async () => { throw new TypeError('Failed to fetch') }) as typeof fetch
   try { assert.deepEqual(await prefsCall('x'), { status: 0, error: 'network' }) } finally { globalThis.fetch = real }
+})
+
+test('syncKeyChange: 본문 { currentKey, newKey } 원문 그대로 · 해시 머리 · newKeyHash 없음 · 응답 200 / 400 weak_new_key / 401 / -1 / 0', async () => {
+  const sent: { url: string; init: RequestInit }[] = []
+  const real = globalThis.fetch
+  const reply = (status: number, body: unknown) => (async (url: string, init: RequestInit) => {
+    sent.push({ url, init })
+    return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status })
+  }) as unknown as typeof fetch
+  try {
+    globalThis.fetch = reply(200, { ok: true })
+    assert.deepEqual(await syncKeyChange(' old-key ', 'new-key-123456 '), { status: 200 })
+    assert.equal(sent[0].url, `${WORKER}/sync-key`)
+    assert.equal(sent[0].init.method, 'POST')
+    assert.deepEqual(JSON.parse(String(sent[0].init.body)), { currentKey: ' old-key ', newKey: 'new-key-123456 ' })   // 다듬기는 서버가 한다
+    assert.deepEqual(Object.keys(sent[0].init.headers as Record<string, string>), ['content-type'])                     // X-Sync-Key-Hash 없음
+    globalThis.fetch = reply(400, { error: 'weak_new_key' })
+    assert.deepEqual(await syncKeyChange('a', 'b'), { status: 400, error: 'weak_new_key' })
+    globalThis.fetch = reply(401, { error: 'unauthorized' })
+    assert.equal((await syncKeyChange('a', 'b')).status, 401)
+    globalThis.fetch = reply(200, '<html></html>')   // 2xx 인데 ok:true 없음 — 바뀐 것으로 보지 않는다
+    assert.equal((await syncKeyChange('a', 'b')).status, -1)
+    globalThis.fetch = (async () => { throw new TypeError('Failed to fetch') }) as unknown as typeof fetch
+    assert.deepEqual(await syncKeyChange('a', 'b'), { status: 0, error: 'network' })
+  } finally { globalThis.fetch = real }
+})
+
+test('keyChangeText: 바뀜은 빈 글 · 답을 잃은 0 · -1 은 새 키로 다시 연결해 보라고', () => {
+  assert.equal(keyChangeText({ status: 200 }), '')
+  assert.match(keyChangeText({ status: 0, error: 'network' }), /새 키로 다시 연결/)
+  assert.equal(keyChangeText({ status: 0 }), keyChangeText({ status: -1 }))
+  assert.match(keyChangeText({ status: 400, error: 'weak_new_key' }), /12자 이상/)
+  assert.equal(keyChangeText({ status: 401 }), '지금 키가 맞지 않습니다.')
+  assert.equal(keyChangeText({ status: 502, error: 'kv_write_failed' }), '서버가 받지 않았습니다(kv_write_failed).')
+})
+
+test('blankLocal: 관심 · 조건 · 시나리오가 없고 설정도 기본값일 때만 빈 기기(칸 순서 무관)', () => {
+  const empty = fromServer({})
+  assert.equal(blankLocal(empty), true)
+  const reordered = Object.fromEntries(Object.entries(empty.settings).reverse()) as Local['settings']
+  assert.equal(blankLocal({ ...empty, settings: reordered }), true)
+  assert.equal(blankLocal({ ...empty, settings: { ...empty.settings, quiet: null } }), false)     // 조용한 시간만 끈 기기도 묻는다
+  assert.equal(blankLocal({ ...empty, settings: { ...empty.settings, package: 'many' } }), false)
+  assert.equal(blankLocal({ ...empty, watch: ['kospi'] }), false)
+  assert.equal(blankLocal(local), false)
 })

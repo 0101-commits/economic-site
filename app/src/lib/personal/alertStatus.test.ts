@@ -30,7 +30,7 @@ test('상태 7: 대기 · 울림 · 멈춤 · 묶임 · 보류 · 꺼짐 · 이 
   assert.deepEqual(condStatus(A(), [row({ sent: { bundled: true } })], undefined, true, false, NOW), { kind: 'bundled', text: '묶임' })
   assert.deepEqual(condStatus(A(), [row({ sent: { held: true } })], undefined, true, false, NOW), { kind: 'held', text: '보류 → 07:30' })
   assert.deepEqual(condStatus(A({ enabled: false }), [row()], undefined, true, false, NOW), { kind: 'off', text: '꺼짐' })
-  assert.deepEqual(condStatus(A(), [], undefined, false, false, NOW), { kind: 'local', text: '이 기기에만 · 울리지 않음' })
+  assert.deepEqual(condStatus(A(), [], undefined, false, false, NOW), { kind: 'local', text: '이 기기만 — 울리지 않음' })
 })
 
 test('상태: 다른 조건의 행은 안 본다 · 가장 늦은 행이 기준 · 보류는 12시간 뒤 울림 · 자동 정리 꺼짐', () => {

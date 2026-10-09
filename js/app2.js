@@ -1248,45 +1248,16 @@ async function pfSetSyncKey() {
     if(typeof showToast === 'function') showToast('동기화 키를 SHA-256 해시로 이 탭에만 저장했습니다. 탭을 닫으면 다시 넣어야 합니다.');
   } catch(_) {}
 }
-// 🔑 키 바꾸기 — 이 기기에 저장된 지금 키(해시)로 인증하고 새 암호의 해시를 Worker(KV)에 등록한다.
-//   서버는 해시만 받으므로 길이 규칙은 여기서 건다. 해시 규칙은 pfSetSyncKey 와 같다(trim 뒤 SHA-256) —
-//   다른 기기에서 🔑 에 새 암호를 넣었을 때 같은 해시가 나와야 한다.
-async function pfChangeSyncKey() {
+// 옛 화면에서 새 화면으로 옮겨 간 기능의 안내 — 토스트 + 동기화 상태줄 한 줄. 서버는 부르지 않는다.
+function pfSayMoved(msg) {
+  if(typeof showToast === 'function') showToast(msg, 5000);
   const st = _pfSyncStatusEl();
-  const say = (t, c) => { if(st) { st.textContent = t; st.style.color = c; } };
-  const cur = await pfGetSyncKeyHash();
-  if(!cur) { say('먼저 🔑 동기화 키에 지금 키를 넣으세요.', window.CDN); return; }
-  const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
-  if(!base) { say('Worker 프록시 미설정', window.CDN); return; }
-  const a = await pfAskText('새 동기화 암호 (12자 이상)\n\n· 폰에서도 치기 쉽게 서로 상관없는 단어 3~4개를 띄어 쓴 문장처럼 길게 만들면 좋습니다(짧은 이름·생일·흔한 문구는 피하세요).\n· 잠금 PIN·다른 사이트 암호와 다르게 정하세요.\n· 바꾸면 다른 기기(폰 등)는 🔑 동기화 키에 새 암호를 다시 넣어야 합니다.', { type: 'password' });
-  if(a === null) return;
-  const nk = a.trim();
-  if(nk.length < 12) { say('키 바꾸기 취소 — 12자 이상이어야 합니다.', window.CDN); return; }
-  const b = await pfAskText('새 암호를 한 번 더 넣으세요.', { type: 'password' });
-  if(b === null) return;
-  if(b.trim() !== nk) { say('키 바꾸기 취소 — 두 번 넣은 암호가 다릅니다.', window.CDN); return; }
-  say('키 바꾸는 중…', 'var(--c-txt-dim)');
-  try {
-    const nh = await pfSha256Hex(nk);
-    const r = await fetch(base + '/sync-key', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'X-Sync-Key-Hash': cur },
-      body: JSON.stringify({ newKeyHash: nh }),
-      signal: AbortSignal.timeout(15000),
-    });
-    const j = await r.json().catch(() => ({}));
-    if(r.ok && j.ok && j.changed) {
-      sessionStorage.setItem('pfSyncKeyHash', nh);
-      localStorage.removeItem('pfSyncKey');
-      pfUpdateSyncKeyBtn();
-      say('키를 바꿨습니다. 다른 기기(폰 등)는 🔑 동기화 키에 새 암호를 다시 넣으세요.', window.CUP);
-    } else {
-      say('키 바꾸기 실패: ' + (r.status === 401 ? '이 기기에 저장된 키가 서버와 다릅니다 — 🔑 에 지금 키를 먼저 넣으세요' :
-                               r.status === 429 ? '시도가 너무 많습니다 — 1분 뒤 다시' : (j.error || ('HTTP ' + r.status))), window.CDN);
-    }
-  } catch(_) {
-    say('키 바꾸기 실패 — 네트워크 오류', window.CDN);
-  }
+  if(st) { st.textContent = msg; st.style.color = 'var(--c-txt-dim)'; }
+}
+// 🔑 키 바꾸기 — 안내만 한다. 키를 바꾸면 서버 보유를 새 열쇠로 다시 잠가야 하는데 그 일은 새 화면 설정 › 기기 연결만 한다
+//   (여기서 바꾸면 서버 보유가 옛 키 재료로 잠긴 채 남는다, P1 D9(a)).
+function pfChangeSyncKey() {
+  pfSayMoved('동기화 키 바꾸기는 새 화면 설정 › 기기 연결에서 합니다(보유를 새 열쇠로 다시 잠가야 해서)');
 }
 // [3차-T13] 동기화 상태 표시 대상 선택 — 설정 페이지가 활성일 땐 그쪽 상태줄을 우선 사용.
 // 같은 함수(pfSyncAlerts 등)를 포트폴리오·설정 두 화면에서 공유하기 위한 어댑터.
@@ -1326,8 +1297,8 @@ async function pfSyncAlerts(stOverride) {
         alerts: pfState.alerts,
         // 📋 지정 종목 트래킹(관심목록) 동봉 — 다른 기기/플랫폼에서도 같은 목록을 보기 위함.
         tracking: pfBuildTrackingPayload(),
-        // 🔐 평단가·수량(암호화 블록) — 암호 설정 시에만 동봉. 미설정이면 undefined → 서버 기존본 보존.
-        encHoldings: await pfBuildEncHoldings(),
+        // 🔐 평단가·수량(encHoldings)은 보내지 않는다 — 보유 동기화는 새 화면 설정 › 기기 연결이 동기화 키로 잠가 올린다.
+        //   여기서 옛 보유 암호로 올리면 그 덩어리를 덮어 새 화면이 못 푼다(P1 D9(a), 사용자 승인). 미동봉 → 서버 기존본 보존.
         // [3차-T15] 전역 알림 설정 동봉 — Worker 가 화이트리스트 검증 후 alerts_config.json 에 커밋.
         // ⚠ '이 기기에서 명시 설정(저장/불러오기)한 적이 있을 때만' 동봉한다 — 기본값(ON)만 들고 있는
         //   기기가 저장할 때마다 다른 기기에서 꺼 둔 전역 OFF 를 소리 없이 되돌리던 문제 방지
@@ -1525,28 +1496,20 @@ async function pfPullTracking(auto) {
   if(typeof pfClearDirty === 'function') pfClearDirty();   // 서버 목록을 막 받음 → 관심목록은 서버와 동기 상태
   pfRenderAll();
   pfRefreshQuotes();
-  // 🔐 암호화된 평단가/수량이 서버에 있으면 복호화해 병합(자동 복원은 암호 저장된 기기에서만 조용히).
-  _pfLastEnc = j.encHoldings || null;   // 암호 미보유 기기용 — pfOfferHoldingsRestore 가 뒤이어 물어본다
-  let _encApplied = 0;
-  if (j.encHoldings) { try { _encApplied = await pfApplyEncHoldings(j.encHoldings, { silent: auto }); } catch(_) {} }
+  // 🔐 서버의 평단가·수량(encHoldings)은 받지 않는다 — 새 화면이 동기화 키로 다시 잠근 덩어리라 옛 보유 암호로는 안 풀린다.
   if(st) {
-    // 평단가/수량 복원 결과를 명시: 복원됨 / (서버에 암호본은 있으나) 암호 미설정·불일치로 복원 안 됨.
-    const _enc = _encApplied > 0 ? ` · 평단가 ${_encApplied}개 복원`
-               : (j.encHoldings && !auto ? ' · 평단가 복원 안 됨(🔐 평단가 동기화 암호 필요)' : '');
-    st.textContent = (auto ? `서버 목록 동기화됨 (신규 ${added}개` : `불러옴 — 신규 ${added}개 추가 (총 ${pfState.items.length}개`) + _enc + ')';
-    st.style.color = (j.encHoldings && _encApplied <= 0 && !auto) ? '#f0c75e' : window.CUP;
+    const _enc = (j.encHoldings && !auto) ? ' · 보유 동기화는 새 화면 설정 › 기기 연결에서 합니다' : '';
+    st.textContent = (auto ? `서버 목록 동기화됨 (신규 ${added}개` : `불러옴 — 신규 ${added}개 추가 (총 ${pfState.items.length}개`) + ')' + _enc;
+    st.style.color = window.CUP;
   }
 }
 
-// ── 🔐 평단가·수량 E2E 암호화 동기화 ──────────────────────────────────────────
-// 평단가/수량/매입환율은 공개 저장소(alerts_config.json)에 올리지 않는다(암호문도 — 2026-09-29 부터 Worker KV 에만 저장).
-// 사용자 암호로 이 기기에서 AES-GCM 암호화한 '불투명 블록'만 서버에 저장하고, 다른 기기에서
-// 같은 암호로 복호화한다. 암호는 이 기기 localStorage 에만 둔다(이 기기엔 이미 평문 보유정보가
-// 있으므로 위협이 늘지 않음 — E2E 의 보호 대상은 서버/공개 repo 사본이다).
-// 자체 크립토 헬퍼(전역) — exportAllUserData 쪽 _deriveKey/_b64 는 IIFE 안이라 여기선 접근 불가.
+// ── 🔐 평단가·수량 동기화 — 옛 화면은 서버와 주고받지 않는다 ─────────────────────────
+// 보유 동기화는 새 화면 설정 › 기기 연결이 동기화 키에서 만든 열쇠로 잠가 맞춘다(P1 D9(a), 사용자 승인).
+// 옛 보유 암호로 올리면 그 덩어리를 덮어 새 화면이 못 풀고, 받아도 옛 암호로는 안 풀린다 — 그래서 단추는 안내만 한다.
+// pfApplyEncHoldings 는 새 화면 덩어리 형식 회귀 검사(scripts/tests/test_pf_apply_enc.mjs)가 쓰므로 남긴다.
 const PF_KDF_ITER = 600000;  // OWASP 권장 PBKDF2-HMAC-SHA256 반복수
-let _pfLastEnc = null;       // 직전 GET /portfolio 의 encHoldings (복원 유도용)
-function _pfB64(bytes) { const u = new Uint8Array(bytes); let b = ''; for (let i = 0; i < u.length; i += 8192) b += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(b); }
+const PF_HOLD_SYNC_MOVED = '보유 동기화는 새 화면 설정 › 기기 연결에서 합니다';
 function _pfUnB64(s) { const bin = atob(String(s)); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
 async function _pfDeriveKey(pass, salt) {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
@@ -1555,46 +1518,10 @@ async function _pfDeriveKey(pass, salt) {
 function pfGetHoldingsPass() { return _pfSecret('pfHoldingsPass'); }
 function pfUpdateHoldingsSyncUI() {
   const b = document.getElementById('pfHoldingsPassBtn');
-  if (!b) return;
-  const on = !!pfGetHoldingsPass();
-  b.textContent = on ? '🔐 평단가 동기화 ON' : '🔐 평단가 동기화';
-  b.style.borderColor = on ? window.CUP : 'var(--c-border)';
-  b.style.color = on ? window.CUP : 'var(--c-primary)';
+  if (b) b.title = PF_HOLD_SYNC_MOVED;
 }
-async function pfSetHoldingsPass() {
-  const on = !!pfGetHoldingsPass();
-  const p = await pfAskText('평단가·수량 동기화 암호 (12자 이상 권장)\n\n· ⚠ 페이지 잠금 PIN·동기화 키와 다른 암호를 쓰세요.\n· 다른 기기에서 같은 암호를 입력해야 복호화됩니다.\n· 서버(동기화 키로 잠긴 Worker 저장소)엔 암호문만 저장됩니다(평문 자산 노출 없음).\n· ⚠ 짧거나 흔한 암호는 서버 사본이 새면 대입으로 복원될 수 있습니다.\n· 암호를 잊으면 서버 사본은 복구 불가.\n· 비워두면 동기화 해제.' + (on ? '\n\n※ 지금 이 탭에 암호가 설정되어 있습니다.' : ''), { type: 'password' });
-  if (p === null) return;
-  try {
-    if (!p.trim()) { sessionStorage.removeItem('pfHoldingsPass'); if(typeof showToast==='function') showToast('평단가 동기화 해제 — 이후 「☁ 목록 저장」에서 평단가/수량은 서버에 올라가지 않습니다.', 4000); }
-    else {
-      // 최소 길이 강제 — PBKDF2 600k 라도 사전 단어/짧은 암호는 오프라인 대입에 뚫린다(감사 확인 사항).
-      // 하한 6자(2026-08-12 사용자 결정). 잠금 PIN 과 같은 암호를 쓰던 방식은 폐기 — 그 PIN 으로 암호문이 풀렸다(2026-09-29 감사).
-      if (p.trim().length < 6) { if(typeof showToast==='function') showToast('⚠ 암호가 너무 짧습니다(6자 미만) — 설정되지 않았습니다. 12자 이상을 권장합니다.', 5000); return; }
-      if (p.trim().length < 12 && typeof showToast==='function') showToast('ℹ 12자 미만 암호는 권장하지 않습니다 — 길수록 안전합니다.', 4000);
-      sessionStorage.setItem('pfHoldingsPass', p); if(typeof showToast==='function') showToast('평단가 동기화 암호 설정 완료(이 탭에만 기억 — 탭을 닫으면 다시 넣어야 합니다) — 「☁ 목록 저장」 시 평단가/수량이 암호화돼 함께 저장됩니다.', 4000);
-    }
-  } catch(_) {}
-  pfUpdateHoldingsSyncUI();
-}
-// 보유정보 → 암호문 블록(서버 전송용). 암호 미설정/대상 없음이면 undefined(전송 안 함 → 서버는 기존 보존).
-async function pfBuildEncHoldings() {
-  const pass = pfGetHoldingsPass();
-  if (!pass || !pfState || !Array.isArray(pfState.items)) return undefined;
-  const map = pfState.items
-    .filter(it => it.avg != null || it.qty != null)
-    .map(it => ({ s: it.symbol, m: it.market === 'US' ? 'US' : 'KR',
-                  a: (it.avg != null ? it.avg : null), q: (it.qty != null ? it.qty : null), fx: (it.fxBuy != null ? it.fxBuy : null) }));
-  if (!map.length) return undefined;
-  try {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await _pfDeriveKey(pass, salt);
-    const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(map)));
-    return { alg:'AES-256-GCM', kdf:'PBKDF2-SHA256', iter: PF_KDF_ITER,
-             salt: _pfB64(salt), iv: _pfB64(iv), ciphertext: _pfB64(new Uint8Array(ct)) };
-  } catch(_) { return undefined; }
-}
+// 「🔐 평단가 동기화」 단추 — 안내만 한다. 암호를 받지도, 서버를 부르지도 않는다.
+function pfSetHoldingsPass() { pfSayMoved(PF_HOLD_SYNC_MOVED); }
 // 서버 암호문 블록 → 복호화 → 현재 종목에 평단가/수량/매입환율 병합. 반환: 적용 개수(복호화 실패 시 -1).
 async function pfApplyEncHoldings(blob, opts) {
   opts = opts || {};
@@ -1641,14 +1568,6 @@ async function pfApplyEncHoldings(blob, opts) {
   if (applied) { pfSave(); pfRenderAll(); if (typeof pfRefreshQuotes === 'function') pfRefreshQuotes(); }
   return applied;
 }
-// 자동 복원이 조용히 건너뛴 경우(이 기기에 암호 없음)만 사용자에게 한 번 물어본다.
-// 새 기기(폰)에서 평단가·손익이 빈칸으로 남던 원인 — 홀딩스 탭 안쪽 버튼을 눌러야만 복원됐다.
-async function pfOfferHoldingsRestore() {
-  if (!_pfLastEnc || pfGetHoldingsPass()) return 0;
-  if (pfState && pfState.items.some(it => it.avg != null)) return 0;   // 이미 이 기기에 평단가 있음
-  try { if (sessionStorage.getItem('pfEncAsked_v1') === '1') return 0; sessionStorage.setItem('pfEncAsked_v1', '1'); } catch(_) {}
-  return await pfApplyEncHoldings(_pfLastEnc, { silent: false });
-}
 
 // ── 페이지 초기화 ────────────────────────────────────────────────────────────
 function initPortfolioPage() {
@@ -1667,9 +1586,6 @@ function initPortfolioPage() {
     // 새 기기(첫 방문)도 포함한다 — 예전엔 제외해서 폰에서 목록·평단가가 영영 안 넘어왔다.
     else setTimeout(async () => {
       try { if(typeof pfGetSyncKeyHash === 'function' && await pfGetSyncKeyHash()) await pfPullTracking(true); } catch(_) {}
-      // 평단가 복원 유도 — 서버에 암호본이 있는데 이 기기에 암호가 없으면 자동 복원이 조용히
-      // 건너뛰어(평단가·손익 빈칸) 사용자가 원인을 알 수 없었다. 세션당 한 번만 물어본다.
-      try { await pfOfferHoldingsRestore(); } catch(_) {}
     }, 600);
     // 적응형 자동 갱신: 한국/미국 장중 1분, 그 외 5분 (페이지가 활성일 때만)
     (function _pfSchedule() {

@@ -1,11 +1,12 @@
 // 시장 화면 공용 조각 — 큰 차트 · 등락 글자 · 수익률 곡선 · 일정 목록 · 격자 칸.
 // 공유 부품(components/ui·charts·panels)은 고치지 않고 그 위에 얹는다.
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { loadIndicator, shownUnit, type MarketState, type Sched, type StripItem } from '../../lib/bundle'
 import { changeDir, fmtChange, fmtNumber, fmtPct, range52, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
+import { countUse } from '../../lib/usage'
 import { NumBlock } from '../ui'
 import { LineChart, Range52 } from '../charts'
 import { More, Panel } from '../panels'
@@ -97,37 +98,102 @@ export function BigChart({ item, className = '' }: { item?: StripItem; className
 /** 격자 칸 클래스(Tailwind 가 찾을 수 있게 통째로 적는다). */
 const SPAN: Record<number, string> = { 4: 'pc:col-span-4', 6: 'pc:col-span-6', 12: 'pc:col-span-12' }
 
+/** 격자 칸 하나: (패널에 덧붙일 클래스, 큰 차트 옆 넓은 둘째 칸인지) → 패널. 칸 폭은 MarketGrid 가 감싼 칸이 정한다. */
 export type Block = (cls: string, primary: boolean) => ReactNode
 
 /**
- * 시장 격자: 첫 칸 = 큰 차트(또는 그 자리 부품), 둘째 = 고른 보기 패널, 나머지는 원래 순서.
- * blocks 는 [패널 고유 키, (칸 클래스, 첫 보기인지) → 패널]. PC 12열, 모바일 1열 같은 순서.
- * key 가 칸 번호가 아니라 패널이라, 보기를 바꿔 차례가 달라져도 접힘 · 더 보기가 다른 패널로 넘어가지 않는다.
+ * 시장 격자: 첫 칸 = 큰 차트(또는 그 자리 부품), 그다음은 blocks 순서 그대로(보기를 골라도 차례가 바뀌지 않는다 — 목차가 그 칸으로 데려간다).
+ * blocks 는 [패널 고유 키, 칸 → 패널]. 키는 목차가 찾는 표식(data-toc)이다. PC 12열, 모바일 1열 같은 순서.
  */
 export function MarketGrid({ blocks, per = 3 }: { blocks: [string, Block][]; per?: 2 | 3 }) {
   const sp = spans(blocks.length, per)
   return (
     <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
-      {blocks.map(([k, f], i) => <Fragment key={k}>{f(SPAN[sp[i]], i === 1)}</Fragment>)}
+      {blocks.map(([k, f], i) => <div key={k} data-toc={k} className={`${SPAN[sp[i]]} scroll-mt-14`}>{f('', i === 1)}</div>)}
     </div>
   )
 }
 
-/** 보기 v 를 맨 앞으로, 나머지는 원래 순서. */
-export const arrange = <K extends string>(first: K, order: readonly K[]): K[] => [first, ...order.filter(k => k !== first)]
+/** 고르기 줄(범위 · 주제 따위) 누르기를 사용 기록에 센다 — 줄 이름과 칸 이름만(lib/usage.ts). */
+export const counted = <K extends string>(where: string, opts: readonly { key: K; label: string }[], set: (k: K) => void) =>
+  (k: K) => { countUse('views', `${where} · ${opts.find(o => o.key === k)?.label ?? k}`); set(k) }
 
-/** 경제 일정 목록(홈 일정과 같은 모양). 이전·예측·실제가 있으면 오른쪽에 붙인다. 길면 「더 보기」. */
-export function EventList({ events, today }: { events: (Sched & { prev?: unknown; fore?: unknown; act?: unknown })[]; today?: string }) {
+const smooth = (): ScrollBehavior => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth')
+/** 그 칸으로 간다. 접어 둔 패널이면 먼저 편다 — details 를 열면 Panel 의 onToggle 이 상태 · 접기 기억을 같이 바꾼다. */
+const goTo = (to: string, behavior = smooth()) => {
+  const el = document.querySelector(`[data-toc="${to}"]`)
+  el?.querySelectorAll<HTMLDetailsElement>('details[data-panel-fold]:not([open])').forEach(d => { d.open = true })
+  el?.scrollIntoView({ behavior, block: 'start' })
+}
+
+/**
+ * 목차: 칩을 누르면 그 격자 칸으로 부드럽게 내려간다(주소 v 에 남겨 공유 · 새로 고침이 같은 자리로 온다).
+ * 화면에 보이는 칸의 칩은 테두리로 표시한다(여럿일 수 있다). 화면 위에 붙는다 — 부모가 화면 세로 줄이어야 끝까지 붙는다.
+ * items[].to = 칩이 가리키는 칸 키(MarketGrid blocks 의 키, 없으면 칩 키). 여러 칩이 한 칸을 가리키면(수급 일별·주별·월별)
+ * onPick 이 그 칸의 내용을 바꾸고 on 이 지금 내용인 칩만 고른다. 주소에 v 가 있으면 첫 진입 때 한 번 그 칸으로 간다.
+ */
+export function Toc<K extends string>({ where, items, onPick, on }: {
+  where: string
+  items: readonly { key: K; label: string; to?: string }[]
+  onPick: (k: K) => void
+  on?: (k: K) => boolean
+}) {
+  const [params] = useSearchParams()
+  const bar = useRef<HTMLElement>(null)
+  const [seen, setSeen] = useState<ReadonlySet<string>>(new Set())
+  const target = (k: K) => items.find(o => o.key === k)?.to ?? k
+  const targets = items.map(o => o.to ?? o.key).join(',')
+  useEffect(() => {
+    // 목차 띠 아래로 조금이라도 보이는 칸
+    const io = new IntersectionObserver(es => setSeen(prev => {
+      const next = new Set(prev)
+      for (const e of es) { const k = (e.target as HTMLElement).dataset.toc ?? ''; if (e.isIntersecting) next.add(k); else next.delete(k) }
+      return next
+    }), { rootMargin: `-${bar.current?.offsetHeight ?? 0}px 0px 0px 0px` })
+    document.querySelectorAll('[data-toc]').forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [targets])
+  useEffect(() => {
+    const v = params.get('v') as K | null
+    // 단번에 간다 — 부드럽게 가는 동안 위 칸(큰 차트 시계열)이 자라면 자리가 어긋나고, 단번에 간 뒤엔 브라우저 스크롤 고정이 자리를 지킨다
+    if (v && items.some(o => o.key === v)) goTo(target(v), 'auto')
+  }, [])   // 첫 진입 때 한 번만 — 그 뒤 v 는 칩을 누를 때 바뀐다
+  const marked = (k: K) => seen.has(target(k)) && (on?.(k) ?? true)
+  const first = items.find(o => marked(o.key))?.key
+  // 좁은 화면: 표시된 첫 칩이 목차 줄 안에 보이게 줄만 가로로 민다
+  useEffect(() => {
+    const el = bar.current, b = el?.querySelector<HTMLElement>('[aria-current=true]')
+    if (el && b && el.scrollWidth > el.clientWidth) el.scrollTo({ left: b.offsetLeft - 8 })
+  }, [first])
+  return (
+    <nav ref={bar} aria-label="목차" className="sticky top-[env(safe-area-inset-top,0px)] z-10 py-2 -my-2 bg-bg flex flex-nowrap gap-1 overflow-x-auto [scrollbar-width:thin]">
+      {items.map(o => {
+        const m = marked(o.key)
+        return (
+          <button key={o.key} type="button" aria-current={m || undefined}
+            onClick={() => { countUse('views', `${where} 목차 · ${o.label}`); onPick(o.key); goTo(target(o.key)) }}
+            className={`shrink-0 h-8 px-3 rounded-btn text-13 whitespace-nowrap border bg-card cursor-pointer ${m ? 'border-ink-1 text-ink-1 font-bold' : 'border-line text-ink-2 hover:text-ink-1'}`}>
+            {o.label}
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
+
+type Ev = Sched & { prev?: unknown; fore?: unknown; act?: unknown }
+/** 경제 일정 목록(홈 일정과 같은 모양). 이전·예측·실제가 있으면 오른쪽에 붙인다. 길면 「더 보기」. tag = 이름 앞 꼬리표(거시의 나라). */
+export function EventList({ events, today, tag }: { events: Ev[]; today?: string; tag?: (e: Ev) => ReactNode }) {
   if (!events.length) return <Empty>다가오는 일정이 없습니다.</Empty>
   const s = (x: unknown) => (x == null || x === '' ? null : String(x))
-  return <More rows={events}>{shown => (
+  return <More rows={events} name="일정">{shown => (
     <ul className="m-0 p-0 list-none">
       {shown.map((e, i) => {
         const nums = [['이전', s(e.prev)], ['예측', s(e.fore)], ['실제', s(e.act)]].filter(([, x]) => x)
         return (
           <li key={`${e.date}-${e.name}-${i}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 border-b border-line last:border-b-0">
             <span className="w-[5.5rem] shrink-0 num text-12 text-ink-3">{`${e.date === today ? '오늘' : shortDate(e.date)}${e.time ? ` ${e.time}` : ''}`}</span>
-            <span className="flex-1 min-w-[8rem] text-13 text-ink-1">{e.name}{e.approx ? <span className="text-ink-3"> (추정)</span> : null}</span>
+            <span className="flex-1 min-w-[8rem] text-13 text-ink-1">{tag && <span className="mr-1.5 inline-flex align-middle">{tag(e)}</span>}{e.name}{e.approx ? <span className="text-ink-3"> (추정)</span> : null}</span>
             {!!e.stars && <span className="shrink-0 text-11 text-ink-3" aria-label={`중요도 ${e.stars}`}>{'★'.repeat(e.stars)}</span>}
             {nums.length > 0 && (
               <span className="basis-full pl-[6.25rem] text-11 text-ink-3">

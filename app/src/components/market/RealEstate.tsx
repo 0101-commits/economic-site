@@ -8,7 +8,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { AsOfBadge, NumBlock, SegBar } from '../ui'
 import { DivergingBars, Heatmap, LineChart } from '../charts'
 import { Panel, RankTable, StripCard, type Col } from '../panels'
-import { BigChart, ChangeText, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
+import { BigChart, ChangeText, counted, Empty, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
 import { alignDates, rebase } from './calc'
 
 type Sub = { name: string; chgPct: number | null }
@@ -236,9 +236,9 @@ export default function RealEstate({ b, selId, setS }: BodyProps<RealEstateBundl
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <SegBar label="범위" options={SCOPES} value={v} onChange={setV} />
-        {v === 'national' && <SegBar label="지표" options={METRICS} value={m} onChange={setM} />}
-        {(v === 'capital' || v === 'sido') && <SegBar label="지수" options={KINDS} value={m === 'jeonse' ? 'jeonse' : 'sale'} onChange={setM} />}
+        <SegBar label="범위" options={SCOPES} value={v} onChange={counted('부동산 범위', SCOPES, setV)} />
+        {v === 'national' && <SegBar label="지표" options={METRICS} value={m} onChange={counted('부동산 지표', METRICS, setM)} />}
+        {(v === 'capital' || v === 'sido') && <SegBar label="지수" options={KINDS} value={m === 'jeonse' ? 'jeonse' : 'sale'} onChange={counted('부동산 지수', KINDS, setM)} />}
       </div>
       <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...blocks[v].map((f, i): [string, Block] => [`${v}${i}`, f])]} />
     </>

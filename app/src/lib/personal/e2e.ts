@@ -1,7 +1,8 @@
 // 보유(평단가·수량·매입 환율)의 종단간 암호화 — 현행 화면(js/app2.js pfBuildEncHoldings · pfApplyEncHoldings)과 같은 형식.
 //   덩어리  { alg:'AES-256-GCM', kdf:'PBKDF2-SHA256', iter:600000, salt, iv, ciphertext }  표준 base64 · salt 16바이트 · iv 12바이트, 올릴 때마다 새로 뽑는다.
-//   열쇠    보유 암호(사람이 정한 글, 현행 화면의 「평단가 동기화 암호」) → PBKDF2-HMAC-SHA256 600,000회 → AES-GCM 256비트.
-//           동기화 키(서버 인증)·잠금 PIN 과는 다른 재료다. 현행 화면처럼 반복 수는 덩어리의 iter 가 아니라 고정값으로 푼다.
+//   열쇠    「암호」 → PBKDF2-HMAC-SHA256 600,000회 → AES-GCM 256비트. 현행 화면처럼 반복 수는 덩어리의 iter 가 아니라 고정값으로 푼다.
+//           새 화면의 「암호」 = 보유 열쇠 재료(holdKeyOf — 동기화 키에서 만든 hex, 결정 D9 a). 서버 인증 해시(SHA-256)와는 다른 재료다.
+//           예전 판은 사람이 정한 보유 암호(현행 화면의 「평단가 동기화 암호」)로 잠갔다 — 그 사본은 openBlob 이 예전 암호로 한 번 푼다(이전).
 //   평문    JSON 배열 [{ s:종목 코드, m:'KR'|'US', a:평단가, q:수량, fx:매입 환율 }] — 평단가나 수량이 있는 종목만.
 //           새 화면은 끝에 { t:올린 시각 } 한 칸을 붙인다. 현행 화면은 s 가 없는 칸을 건너뛰므로 그대로 읽는다.
 //           Worker 는 덩어리의 모르는 필드를 지우므로(_sanitizeEncHoldings) 시각은 암호문 안에만 둘 수 있다.
@@ -74,6 +75,48 @@ export async function decryptAs(blob: EncBlob, pass: string): Promise<{ entries:
     if ((e as Error).message !== 'wrong-pass' || t === pass) throw e
     return { ...(await decrypt(blob, t)), pass: t }
   }
+}
+
+// ── 보유 열쇠 재료(결정 D9 a) — 동기화 키 하나로 보유도 잠근다 ─────────────
+/** 연결할 때(키 원문이 손에 있을 때) 한 번: PBKDF2-SHA256(앞뒤 공백 뺀 키, salt "ecom-holdings-v1", 600,000회) → 32바이트 hex.
+ *  서버는 SHA-256(키)만 알므로 이 재료를 만들 수 없다. 이 hex 가 덩어리 형식의 「암호」 자리에 들어간다. */
+export const HOLD_SALT = 'ecom-holdings-v1'
+export async function holdKeyOf(key: string): Promise<string> {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(key.trim()), 'PBKDF2', false, ['deriveBits'])
+  return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(HOLD_SALT), iterations: ITER, hash: 'SHA-256' }, base, 256))
+}
+
+/**
+ * 서버 덩어리를 보유 열쇠 재료로 푼다. 안 풀리면 예전 보유 암호로 잠긴 사본이다 — old 가 없으면 Error('old-pass').
+ * old 는 친 그대로 · 공백 뺀 값(decryptAs)으로 풀고, 그래도 안 되면 그 글자를 예전 동기화 키로 보고 만든 재료로 한 번 더 푼다
+ * (키를 바꾼 직후 다시 잠가 올리기가 실패해 예전 키 재료로 남은 사본). old 도 틀리면 Error('wrong-pass').
+ * stale = 지금 재료가 아닌 것으로 풀렸다 → 지금 재료로 다시 잠가 올려야 한다.
+ */
+export async function openBlob(blob: EncBlob, mat: string, old?: string): Promise<{ entries: Entry[]; at: string | null; stale: boolean }> {
+  try { return { ...(await decrypt(blob, mat)), stale: false } } catch (e) { if ((e as Error).message !== 'wrong-pass') throw e }
+  if (!old?.trim()) throw new Error('old-pass')
+  try { const d = await decryptAs(blob, old); return { entries: d.entries, at: d.at, stale: true } } catch (e) { if ((e as Error).message !== 'wrong-pass') throw e }
+  return { ...(await decrypt(blob, await holdKeyOf(old))), stale: true }
+}
+
+/**
+ * 키 바꾸기 전: 서버 보유 사본(GET /portfolio 답 g)을 옛 재료로 풀어 새 재료로 잠근 덩어리.
+ * 사본이 없거나 옛 재료로 안 풀리면(예전 암호 사본 · 깨진 사본) null — 이전은 내 자산 「동기화」가 맡는다.
+ * 서버 보유를 확인하지 못했으면(g.ok 아님) false — 그대로 키를 바꾸면 사본이 옛 재료로 잠긴 채 남으므로 키 바꾸기를 멈춘다.
+ */
+export async function relockBlob(g: { ok: boolean; enc?: EncBlob | null }, old: string, mat: string): Promise<EncBlob | null | false> {
+  if (!g.ok) return false
+  if (!g.enc) return null
+  try { const d = await decrypt(g.enc, old); return await encrypt(d.entries, mat, d.at ?? new Date().toISOString()) } catch { return null }
+}
+
+/**
+ * 묻지 않고 해도 되는 보유 맞춤(저장 2초 뒤 · 연결할 때 · 내 자산을 열 때). decide 의 판정 → 할 일.
+ *   push 이 기기만 바뀜 · pull 서버만 바뀜 · ask 둘 다 바뀜, 또는 빈 이 기기로 서버 사본을 지우게 됨(저장소가 깨졌을 수 있다) · null 할 일 없음.
+ */
+export function autoStep(plan: Plan, localN: number, serverN: number): 'push' | 'pull' | 'ask' | null {
+  if (plan === 'push') return localN === 0 && serverN > 0 ? 'ask' : 'push'
+  return plan === 'pull' ? 'pull' : plan === 'conflict' ? 'ask' : null
 }
 
 /**
