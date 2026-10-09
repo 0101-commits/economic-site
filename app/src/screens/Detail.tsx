@@ -83,7 +83,11 @@ function IndicatorDetail({ id }: { id: string }) {
   const lens = got.lens, t = lens?.t
   // 흐름 차트 기준선: 트리거 값이 화면 값과 같은 잣대일 때만(물가는 트리거 = 전년비 %, 화면 = 지수라 그리지 않는다)
   // ponytail: 5% 근접으로 잣대를 가늠한다 — 트리거에 화면 단위가 실리면 그것으로 바꾼다
-  const limit = t?.level != null && t.value != null && v != null && Math.abs(t.value - v) <= Math.abs(v) * 0.05 ? { value: t.level, label: '기준' } : null
+  const known = t?.value != null && v != null, same = known && Math.abs(t!.value! - v!) <= Math.abs(v!) * 0.05
+  const limit = t?.level != null && same ? { value: t.level, label: '기준' } : null
+  // 잣대가 다르면(기준선을 안 그리는 같은 판정) 렌즈 줄 앞에 잣대 이름 — 트리거 이름 괄호(「한국 CPI(전년비)」 → 전년비), 없으면 트리거 이름.
+  // 묶음 트리거엔 변환 칸이 없고 단위는 '%' 뿐이라 이름이 유일한 원천이다(2026-10-09 실측: 잣대가 다른 것 = cpi_kr · pce_us, 둘 다 괄호 있음).
+  const scaleName = t && known && !same ? /\(([^)]+)\)\s*$/.exec(t.label)?.[1] ?? t.label : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -110,6 +114,7 @@ function IndicatorDetail({ id }: { id: string }) {
             <Panel title="렌즈" source="메르 글 기준">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-13">
                 <TrigPill t={t} />
+                {scaleName && <span className="text-ink-2">{scaleName}</span>}
                 <span className="text-ink-3">기준 <span className="num text-ink-1">{trigValue({ ...t, value: t.level }) ?? '—'}</span></span>
                 <span className="text-ink-3">지금 <span className="num text-ink-1">{trigValue(t) ?? '—'}</span></span>
                 {t.asOf && <span className="num text-11 text-ink-3">{asOfText(t.asOf)}</span>}
