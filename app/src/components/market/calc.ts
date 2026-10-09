@@ -90,6 +90,21 @@ export function column(rows: (string | number | null)[][], col: number): Pt[] {
   return rows.flatMap((r): Pt[] => (typeof r[col] === 'number' ? [[String(r[0]), r[col] as number]] : []))
 }
 
+/** 달력 한 달(일요일 시작 7열): 'YYYY-MM' → 첫 주 앞 빈칸(null) + 그 달 날짜('YYYY-MM-DD'). 끝 주 뒤 빈칸은 격자가 남긴다. */
+export function monthCells(ym: string): (string | null)[] {
+  const [y, m] = ym.split('-').map(Number)
+  const lead = new Date(Date.UTC(y, m - 1, 1)).getUTCDay()
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return [...Array<null>(lead).fill(null), ...Array.from({ length: days }, (_, i) => `${ym}-${String(i + 1).padStart(2, '0')}`)]
+}
+
+/** 'YYYY-MM' 에 k 달을 더한다(빼기는 음수). */
+export function addMonth(ym: string, k: number): string {
+  const [y, m] = ym.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1 + k, 1))
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
 /**
  * 12열 격자 칸 나누기: 처음 둘은 6+6(큰 차트 + 고른 보기), 그다음은 한 줄에 per 개씩.
  * 끝 줄이 덜 차면 그 줄 패널끼리 12칸을 나눠 오른쪽 끝선이 어긋나지 않게 한다.

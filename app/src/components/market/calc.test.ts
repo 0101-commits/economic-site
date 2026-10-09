@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { monthIndex, yearAgo, yoySeries, rebase, alignDates, cumsum, rollSum, weekKey, groupFlows, column, spans, type FlowRow } from './calc.ts'
+import { monthIndex, yearAgo, yoySeries, rebase, alignDates, cumsum, rollSum, weekKey, groupFlows, column, spans, monthCells, addMonth, type FlowRow } from './calc.ts'
 import type { Pt } from '../../lib/format.ts'
 
 test('monthIndex: 월·일·분기', () => {
@@ -74,4 +74,15 @@ test('격자 끝 뉴스의 자산군 → 묶음 표(parts.tsx ASSET_BUNDLE) = sc
   const table = /const ASSET_BUNDLE[^{]*\{([^}]*)\}/.exec(read('./parts.tsx'))?.[1] ?? ''
   assert.equal(Object.keys(assets).length, 7)
   assert.deepEqual(Object.fromEntries([...table.matchAll(/(\w+): '([\w-]+)'/g)].map(m => [m[1], m[2]])), assets)
+})
+
+test('monthCells · addMonth: 일요일 시작 격자, 해 넘김', () => {
+  const oct = monthCells('2026-10')   // 2026-10-01 은 목요일
+  assert.equal(oct.length, 4 + 31)
+  assert.deepEqual(oct.slice(0, 5), [null, null, null, null, '2026-10-01'])
+  assert.equal(oct[oct.length - 1], '2026-10-31')
+  assert.equal(monthCells('2026-02').filter(Boolean).length, 28)
+  assert.equal(monthCells('2026-11')[0], '2026-11-01')   // 일요일에 시작하면 빈칸 없음
+  assert.equal(addMonth('2026-12', 1), '2027-01')
+  assert.equal(addMonth('2026-01', -1), '2025-12')
 })
