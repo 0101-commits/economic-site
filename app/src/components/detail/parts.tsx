@@ -62,7 +62,7 @@ export function FlowPanel({ name, short, pts, decimals, value, base, limit, cmp,
   )
 }
 
-/** 알림 패널 + 벨 시트. 주소에 bell=1 이 있으면 시트가 열린 채로 온다(넘침 게이트 · 공유용). what = 문장의 주어(「이 지표가」「이 종목이」). cur = 지금 값(축척 전, U1 armSide 용). */
+/** 알림 패널 + 벨 시트. 주소에 bell=1 이 있으면 시트가 열린 채로 온다(넘침 게이트 · 공유용). what = 문장의 주어(「이 지표가」「이 종목이」). cur = 지금 값(화면 단위 — 조건 값과 같은 잣대, U1 armSide 용). */
 export function BellPanel({ id, name, what, cur }: { id: string; name: string; what: string; cur?: number | null }) {
   const [bell] = useViewParam<string>('bell', '')
   const [open, setOpen] = useState(bell === '1')

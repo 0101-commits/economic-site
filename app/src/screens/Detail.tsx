@@ -108,7 +108,7 @@ function IndicatorDetail({ id }: { id: string }) {
           base={v != null && c != null ? { value: v - c, label: '전일' } : null} limit={limit} cmp={cmpGot} onCmpOff={() => setCmp('')} />
 
         <div className="pc:col-span-4 flex flex-col gap-4">
-          <BellPanel id={id} name={name} what="이 지표가" cur={item?.value} />
+          <BellPanel id={id} name={name} what="이 지표가" cur={v} />
 
           {lens && t && (
             <Panel title="렌즈" source="메르 글 기준">

@@ -21,7 +21,7 @@ const REPEAT_OPTS = [{ key: 'each', label: '매번' }, { key: 'once', label: '�
 /** 조건 한도 문구 — 알림 화면 「새 조건」도 같은 글을 쓴다. */
 export const CAP_MSG = `조건은 ${ALERT_CAP}건까지 만들 수 있습니다. 알림 화면에서 안 쓰는 조건을 지우세요.`
 
-/** cur = 그 지표의 지금 값(축척 전) — U1 조건의 그 순간 쪽(armSide)을 잰다. 모르면 비운다. */
+/** cur = 그 지표의 지금 값(화면 단위 — 사용자가 넣는 조건 값과 같은 잣대) — U1 조건의 그 순간 쪽(armSide)을 잰다. 모르면 비운다. */
 export function BellSheet({ open, onClose, id, label, cur }: { open: boolean; onClose: () => void; id: string; label: string; cur?: number | null }) {
   return (
     <BottomSheet open={open} onClose={onClose} title={`${label} 알림 조건`}>

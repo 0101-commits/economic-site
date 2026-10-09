@@ -188,6 +188,9 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
         if c["event"] == "U1" and sides is None:
             continue
         val = ctx.value(target)
+        sc = ctx.scale(target)
+        if val is not None and sc:
+            val = float(val) / sc                # 화면 단위 — 조건 값은 사용자가 화면에서 본 그대로(엔/원 원본 9.3 → 930원)
         chg = ctx.change_pct(target)
         hit = None
         # 공개 원장(G5): 임계값 · 사용자가 붙인 이름은 행에 싣지 않는다 — 화면이 cond id 로 이 기기에서 붙인다

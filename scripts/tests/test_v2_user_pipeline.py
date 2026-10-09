@@ -27,7 +27,8 @@ def _at(day, hm):
 
 def _ctx(at, root, value=None, chg=None):
     return SimpleNamespace(now=at, registry={}, rid=lambda t: t, value=lambda t: value, change_pct=lambda t: chg,
-                           as_of=lambda t: at.date().isoformat(), fresh=lambda t: "live", root=str(root))
+                           as_of=lambda t: at.date().isoformat(), fresh=lambda t: "live", scale=lambda t: None,
+                           root=str(root))
 
 
 def _u(cid, event="U1", **kw):

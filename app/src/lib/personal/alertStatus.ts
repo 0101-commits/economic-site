@@ -13,6 +13,7 @@
 //             저장 · 켜기 · 다시 켜기 때 화면이 그 순간 값의 쪽(armSide)과 armedAt 을 비공개 조건에 싣는다(armU1 · rearm) —
 //             서버는 armedAt 뒤 첫 관측에서 남은 쪽 대신 이것을 직전 쪽으로 본다(밤에 만든 조건의 시초 갭 · 꺼 둔 동안의 쪽).
 //             공개 기록의 at(초)은 서버가 그 켜기를 반영한 때다.
+//             값은 화면 단위다(묶음 scale 적용 — 엔/원 원본 9.3 → 930원, 수출 억달러). 서버도 원본 ÷ scale 로 견주고 그 단위로 적는다.
 //             U2 · 그 밖 사건은 방향마다 하루 한 번. 설명 글은 repeatNote 한 곳.
 //   멈춤      「한 번」 조건이 armedAt 뒤에 울린 것. 서버는 그 조건을 더 보지 않는다.
 //   다시 켜기 armedAt(ISO)을 마지막 울림보다 뒤로 찍는다(rearm). 서버는 armedAt 뒤의 울림만 센다 — U1 은 armedAt 뒤의 첫 교차.
@@ -59,7 +60,7 @@ export function condStatus(a: AlertCond, rows: LedgerRow[], fired: FiredRec | un
   return synced ? { kind: 'wait', text: '대기' } : { kind: 'local', text: '이 기기만 — 울리지 않음' }
 }
 
-/** U1 의 그 순간 쪽(u 임계 위 · d 아래) — 서버 user_hits 와 같은 규칙(임계와 같으면 넘은 쪽). 값을 모르면 undefined. */
+/** U1 의 그 순간 쪽(u 임계 위 · d 아래) — 서버 user_hits 와 같은 규칙(임계와 같으면 넘은 쪽). cur 는 화면 단위(format.scaled 뒤). 값을 모르면 undefined. */
 export function sideOf(a: AlertCond, cur: number | null | undefined): 'u' | 'd' | undefined {
   if (a.event !== 'U1' || a.value == null || cur == null || !Number.isFinite(cur)) return undefined
   return a.dir === 'down' ? (cur <= a.value ? 'd' : 'u') : (cur >= a.value ? 'u' : 'd')

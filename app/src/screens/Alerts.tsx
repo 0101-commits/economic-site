@@ -12,7 +12,7 @@ import { SegBar } from '../components/ui'
 import { Panel } from '../components/panels'
 import { BTN, BTN2, Field, INPUT, LevelPill, LV, Row, Switch } from '../components/personal/bits'
 import { loadRegistry, ROOT, type RegRow } from '../lib/bundle'
-import { fmtNumber, fmtPct, mdHm, shortDate } from '../lib/format'
+import { fmtNumber, fmtPct, mdHm, scaled, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
@@ -57,8 +57,11 @@ const SWING: Record<string, [string, string, string]> = {
 const ymd = (s: string) => (/^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}` : s.slice(0, 10))
 const noonKst = (day: string) => Date.parse(`${day}T12:00:00+09:00`)
 
-/** 지금 값(종목 시세 · 홈 띠) — 서버 Context.value 와 같은 단위(축척 전). U1 조건의 그 순간 쪽(armSide)도 이것으로 잰다. */
-const curOf = (md: MarketData | null, id: string) => md?.quotes.get(id)?.price ?? md?.home?.strip.find(x => x.id === id)?.value ?? null
+/** 지금 값(종목 시세 · 홈 띠) — 화면 단위(묶음 scale 적용, 조건 값과 같은 잣대). U1 조건의 그 순간 쪽(armSide)도 이것으로 잰다. */
+const curOf = (md: MarketData | null, id: string) => {
+  const s = md?.home?.strip.find(x => x.id === id)
+  return md?.quotes.get(id)?.price ?? (s ? scaled(s.value, s.scale) : null)
+}
 
 /** 원장이 없을 때: 현행 발송 이력 · 렌즈 돌파 · 매매중단 → 같은 줄 모양(최근 7일). */
 function legacyFeed(state: Record<string, unknown> | null, md: MarketData | null, mine: Map<string, AlertCond>, names: Map<string, string>, toOf: (id: string) => string, from: string): FeedRow[] {
@@ -488,6 +491,7 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
   const raw = q.trim()
   const t = target ?? (TARGET_RE.test(raw) ? { id: raw, label: labelOf(raw) } : null)
   const stock = !!t && watchKind(t.id) === 'stock'
+  const unit = t ? rows.find(r => r.id === t.id)?.unit : undefined     // 사전 단위 = 화면 단위(축척 지표는 scale 적용 뒤) — 조건 값도 이 단위
   const evs = t ? eventsFor(dict, t.id, stock) : dict.events.filter(e => e.userValue)
   const ev = evs.find(e => e.id === event) ?? evs[0]
   const base = ev?.level ?? 'alert'
@@ -540,7 +544,7 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
         {ev?.id === 'U1' && (
           <div className="grid grid-cols-2 gap-2">
             <Field label="방향"><select className={INPUT} value={dir} onChange={e => setDir(e.target.value as 'up' | 'down')}><option value="up">위로 넘으면</option><option value="down">아래로 내려가면</option></select></Field>
-            <Field label="값"><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" /></Field>
+            <Field label={unit ? `값(${unit})` : '값'}><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" /></Field>
           </div>
         )}
         {ev?.id === 'U2' && <Field label="하루 등락률(%) · 오름 · 내림 모두" className="sm:max-w-60"><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" placeholder="3" /></Field>}

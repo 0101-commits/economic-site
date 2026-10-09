@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { armU1, condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type LedgerRow } from './alertStatus.ts'
 import type { AlertCond } from './store'
+import { scaled } from '../format.ts'
 
 const PREFS_ID = /^[A-Za-z0-9._:^=\-]{1,64}$/   // cloudflare-worker/worker.js 와 같은 식
 const A = (o: Partial<AlertCond> = {}): AlertCond =>
@@ -73,6 +74,13 @@ test('armSide: 저장 · 켜기 때 그 순간 쪽을 싣는다(서버 user_hits
   const u2 = A({ event: 'U2', value: 3 })
   assert.equal(armU1(u2, 1410, [], undefined, at), u2)                                 // U1 밖은 그대로
   assert.equal(rearm(A({ repeat: 'once' }), [row()], undefined, (TS - 3600) * 1000, 1390).armSide, 'd')   // 다시 켜기도
+})
+
+test('armSide: 축척 지표는 화면 단위로 잰다 — 엔/원 원본 9.3(scale 0.01) = 930원', () => {
+  const jpy = A({ target: 'jpykrw', value: 900 })                                      // 사용자가 화면에서 본 900원
+  assert.equal(armU1(jpy, scaled(9.3, 0.01), [], undefined, NOW).armSide, 'u')
+  assert.equal(armU1(jpy, scaled(8.95, 0.01), [], undefined, NOW).armSide, 'd')
+  assert.equal(armU1(jpy, 9.3, [], undefined, NOW).armSide, 'd')                       // 원본을 그대로 넘기면 틀린 쪽 — 그래서 화면이 축척해 넘긴다
 })
 
 test('condName: 사용자 이름 · 수준 · 급변 값 · 사전 사건', () => {

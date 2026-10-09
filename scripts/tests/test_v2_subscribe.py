@@ -24,7 +24,7 @@ def _ctx(values=None, chg=None):
     return SimpleNamespace(
         now=dt.datetime(2026, 10, 2, 10, 0, tzinfo=KST), registry={},
         rid=lambda t: t, value=lambda t: values.get(t), change_pct=lambda t: chg.get(t),
-        as_of=lambda t: "2026-10-02", fresh=lambda t: "live")
+        as_of=lambda t: "2026-10-02", fresh=lambda t: "live", scale=lambda t: None)
 
 
 def test_default_on_watch_and_family_rules():

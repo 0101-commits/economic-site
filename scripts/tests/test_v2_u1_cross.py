@@ -18,11 +18,11 @@ from alerts_v2.ledger import KST, Ledger  # noqa: E402
 THR = 1400.5
 
 
-def _ctx(v, day="2026-10-02", root=None):
+def _ctx(v, day="2026-10-02", root=None, scale=None, registry=None):
     d = dt.date.fromisoformat(day)
-    return SimpleNamespace(now=dt.datetime(d.year, d.month, d.day, 10, 0, tzinfo=KST), registry={}, rid=lambda t: t,
-                           value=lambda t: v, change_pct=lambda t: None, as_of=lambda t: day, fresh=lambda t: "live",
-                           root=root)
+    return SimpleNamespace(now=dt.datetime(d.year, d.month, d.day, 10, 0, tzinfo=KST), registry=registry or {},
+                           rid=lambda t: t, value=lambda t: v, change_pct=lambda t: None, as_of=lambda t: day,
+                           fresh=lambda t: "live", scale=lambda t: scale, root=root)
 
 
 def _cond(**kw):
@@ -164,3 +164,21 @@ def test_arm_side_after_save_or_enable(monkeypatch):
     _run(1395, sides, armedAt=ahead, armSide="d")
     assert sides["c1"]["at"] == int(subscribe._sec(ahead))
     assert len(_run(1401, sides, armedAt=ahead, armSide="u")) == 1         # 이제 공개 쪽(d)을 본다 — armSide 를 다시 안 씀
+
+
+def test_scaled_indicator_compares_and_says_in_screen_units(monkeypatch):
+    """축척 지표(묶음 scale) — 조건 값은 화면 단위(사용자가 본 그대로). 엔/원 원본 8.95(scale 0.01) = 화면 895원."""
+    monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
+    from alerts_v2 import compose
+    reg = {"jpykrw": {"short": "엔/원", "unit": "원", "decimals": 2}}
+    cond = _cond(target="jpykrw", value=900)
+
+    def run_(raw, sides):
+        ctx = _ctx(raw, scale=0.01, registry=reg)
+        return subscribe.user_hits(ctx, {"alerts": [cond]}, [], render=lambda ev, h: compose.render(ev, h, ctx), sides=sides)
+
+    sides = {}
+    assert run_(8.95, sides) == [] and sides["c1"]["side"] == "d"        # 895원 < 900원 — 원본 8.95 를 900 과 견주면 안 된다
+    rows = run_(9.05, sides)                                              # 905원 — 넘음
+    assert [r["dir"] for r in rows] == ["up"]
+    assert rows[0]["title"] == "엔/원 905.00원 · 내 조건 위로" and rows[0]["value"] == 905.0

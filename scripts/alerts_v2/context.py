@@ -193,6 +193,10 @@ class Context:
         q = self.stock(target)
         return q["value"] if q else None
 
+    def scale(self, target: str):
+        """화면 축척 — 화면 값 = 원본 ÷ scale(app lib/format.ts scaled, 예: 엔/원 0.01 → 100엔당 원). 번들 띠 → 레지스트리, 없으면 None."""
+        return (self.strip(target) or {}).get("scale") or (self.row(target) or {}).get("scale")
+
     def change_pct(self, target: str):
         s = self.strip(target)
         if s and s.get("changePct") is not None:
