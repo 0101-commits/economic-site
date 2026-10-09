@@ -166,3 +166,20 @@ def test_bundle_marks_members(tmp_path, monkeypatch):
     assert all(led.get(m["key"])["sent"]["bundled"] and led.get(m["key"])["sent"]["push"] == 1 for m in members)
     assert led.get("BUNDLE:2026-10-02:1400") is not None
     assert "· 코스피" in fake.calls[0][2]
+
+
+def test_card_bytes_upload_without_text_fallback(monkeypatch):
+    """v2 카드는 PNG bytes — 업로드가 경로만 받던 때는 open(bytes) 가 「embedded null byte」로 죽어
+    카톡이 전부 텍스트로 떨어지고 #시스템이 「카톡 카드 경고」로 울렸다(2026-10-08 실측)."""
+    import requests
+    import send_kakao_digest as k
+    png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    sent = {}
+
+    def post(url, headers=None, files=None, timeout=None):
+        sent["file"] = files["file"]
+        return SimpleNamespace(status_code=200, json=lambda: {"infos": {"original": {"url": "https://k.kakaocdn/x.png"}}})
+
+    monkeypatch.setattr(requests, "post", post)
+    assert k.kakao_upload_image("tok", png) == "https://k.kakaocdn/x.png"
+    assert sent["file"][1] == png

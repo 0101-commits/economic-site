@@ -15,8 +15,11 @@ const row = (o: Partial<LedgerRow> = {}): LedgerRow => ({
 })
 
 test('condId: Worker 가 받는 모양이고 겹치지 않는다', () => {
-  const ids = new Set(Array.from({ length: 2000 }, () => condId()))
+  // 서로 다른 밀리초 → 겹치지 않음(보장). 난수만으로 2000개를 같은 순간에 뽑으면 36^6 공간에서 생일 충돌이
+  // 런당 ~0.1% 라 Pages 배포가 가끔 이 줄에서 죽었다(2026-10-08 13:24Z, 1999 !== 2000).
+  const ids = new Set(Array.from({ length: 2000 }, (_, i) => condId(TS * 1000 + i)))
   assert.equal(ids.size, 2000)
+  assert.match(condId(), PREFS_ID)
   for (const id of ids) assert.match(id, PREFS_ID)
   assert.equal(condId(0, 0.5), 'p0i00000')          // 임의 부분은 늘 6자(짧은 난수도 채운다)
   assert.equal(condId(0, 0.123456789).length, 1 + 1 + 6)
