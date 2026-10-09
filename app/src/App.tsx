@@ -124,8 +124,7 @@ function Shell() {
   const [halts, setHalts] = useState<Halt[]>([])
   const [failed, setFailed] = useState(false)
   useEffect(() => {
-    loadBundle<{ views?: { halts?: { active?: Halt[] } } }>('market-domestic').then(d => setHalts(d.views?.halts?.active ?? []), () => {})
-    loadBundle<Meta>('meta').then(m => setFailed(!!m.health?.summary?.failed), () => {})
+    loadBundle<Meta>('meta').then(m => { setHalts(m.haltsActive ?? []); setFailed(!!m.health?.summary?.failed) }, () => {})
   }, [rev])
   const halt = haltLine(halts, Date.now())
   const gearDot = failed ? '자료 실패 있음' : undefined

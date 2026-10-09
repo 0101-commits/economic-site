@@ -6,7 +6,7 @@
 //   개발  /next/                 → /data.json · /bundles/   (vite.config 의 개발 서버가 저장소 루트에서 내준다)
 import { useSyncExternalStore } from 'react'
 import { changeFromPct, type PeriodKey, type Pt } from './format'
-import { reloadDue } from './refresh'
+import { reloadDue, type Halt } from './refresh'
 
 /** 사이트 루트(자료·현행 화면 legacy.html 이 있는 곳). */
 export const ROOT = new URL(/\/next\/$/.test(new URL(document.baseURI).pathname) ? '../' : './', document.baseURI)
@@ -31,7 +31,7 @@ export function loadBundle<T = unknown>(name: string): Promise<T> {
 }
 
 /** bundles/meta.json — 묶음을 만든 때(generatedAt)와 자료 점검표 요약(설정 「데이터 상태」가 전부를 그린다). */
-export type Meta = { generatedAt?: string; health?: { summary?: Record<string, number> } }
+export type Meta = { generatedAt?: string; health?: { summary?: Record<string, number> }; haltsActive?: Halt[] }
 
 // ── 다시 읽기(명세 C7) ─────────────────────────────────
 // 장중 5분마다 · 탭을 30분 넘게 숨겼다 돌아오면 meta.json(1KB)부터 받아 generatedAt 이 바뀌었을 때만, 지금 기억하는 묶음을

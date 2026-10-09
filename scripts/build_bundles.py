@@ -1378,6 +1378,8 @@ def meta(data, mer, sizes, now, bundles):
     return {"generatedAt": now.isoformat(timespec="seconds"), "dataUpdated": data.get("lastUpdated"),
             "merAsOf": mer.get("asOf"), "bundles": sizes, "maxBytes": MAX_BYTES,
             "states": {s: STATE_LABEL[s] for s in STATES}, "stripFreshness": fresh,
+            # 지금 발동 중인 매매중단 — 모든 화면 머리의 배너가 이 1KB 파일만 보고 판정한다(국내 묶음 54KB 를 받지 않게)
+            "haltsActive": (((bundles.get("market-domestic") or {}).get("views") or {}).get("halts") or {}).get("active") or [],
             # 화면이 지금 시각으로 다시 잴 때 쓰는 임계(분). live 칸은 liveUntil 이 지나면 prev 로 내린다.
             "freshnessRules": {"liveMin": LIVE_MIN, "staleOpenMin": STALE_OPEN_MIN,
                                "staleClosedMin": STALE_CLOSED_MIN, "staleOffdayMin": STALE_OFFDAY_MIN},
