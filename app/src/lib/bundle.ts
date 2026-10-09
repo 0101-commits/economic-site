@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from 'react'
 import { changeFromPct, type PeriodKey, type Pt } from './format'
 import { reloadDue, type Halt } from './refresh'
+import { stockRows, type StockRow } from './detail'
 
 /** 사이트 루트(자료·현행 화면 legacy.html 이 있는 곳). */
 export const ROOT = new URL(/\/next\/$/.test(new URL(document.baseURI).pathname) ? '../' : './', document.baseURI)
@@ -89,7 +90,6 @@ export function watchBundles(): () => void {
  * - asOf 는 kept·missing 이면 null 일 수 있다. kept 는 keptSince(처음 못 받은 시각)를 단다.
  * - short = PC 이름, shortM = 모바일 8칸 이름, reason/reasonShort = 이유 한 줄(PC/모바일).
  * - 파생 칸(시장 띠): breadth_kospi 는 value = 상승 종목 수이고 up·down·flat 이 따로 온다 → 「352/513」(up/down)으로 적는다.
- *   foreign_hold_ratio 는 늘 value null · state missing 이다.
  * - 띠 순서의 단일 원천은 scripts/build_bundles.py 의 STRIPS 표다. 화면에서 순서를 다시 정하지 말 것.
  * data.json 폴백에는 state 이하가 없다.
  */
@@ -180,8 +180,8 @@ const ASSET_BUNDLES: Record<string, string[]> = {
   index: ['market-global'], sentiment: ['market-global'], fx: ['market-fxrates'], rate: ['market-fxrates'],
   commodity: ['market-commodities'], macro: ['market-macro', 'market-global'], realestate: ['market-realestate'],
 }
-/** 자산군 칸에 없는 지표(예: sentiment 인 vkospi 는 국내 묶음 strip 에 있다)를 찾을 때 마지막으로 뒤지는 국내 묶음. */
-const FALLBACK_BUNDLES = ['market-domestic']
+/** 자산군 칸에 없는 지표(예: sentiment 인 vkospi 는 국내 묶음 strip, flow_inst_5d 같은 수급 칸은 수급 묶음 strip 에 있다)를 찾을 때 마지막으로 뒤지는 묶음. */
+const FALLBACK_BUNDLES = ['market-domestic', 'market-flows']
 
 /** 묶음 아무 깊이에서 id 가 같은 값 칸을 찾는다. 시계열이 있는 칸을 먼저 고른다. */
 export function findItem(root: unknown, id: string): StripItem | undefined {
@@ -209,6 +209,20 @@ export async function loadIndicator(id: string): Promise<{ reg?: RegRow; item?: 
     if (m) { item = m; if (m.series?.length) break }
   }
   return { reg, item, series: item?.series?.length ? item.series : undefined }
+}
+
+/** 묶음의 종목 행(코드 → 이름 · 값 · 기준 시각) — 홈 거래대금 → 국내 시장 보기(순위 · 체결 · 상승하락 · 공시) → 수급 종목 차례로(detail.ts stockRows). 종목 상세 · 검색이 쓴다. */
+export async function loadStocks(): Promise<Map<string, StockRow>> {
+  type FlowItems = { asOf?: string; state?: string; items?: Record<string, { name?: string; short?: string; market?: string }> }
+  const [home, dom, flows] = await Promise.all([
+    loadHome().catch(() => null),
+    loadBundle<{ views?: unknown }>('market-domestic').catch(() => null),
+    loadBundle<{ views?: { stocks?: FlowItems } }>('market-flows').catch(() => null),
+  ])
+  // 수급 종목은 코드가 칸 이름이라(items[코드]) 행 모양으로 펴서 넘긴다
+  const st = flows?.views?.stocks
+  const fl = { asOf: st?.asOf, state: st?.state, items: Object.entries(st?.items ?? {}).map(([code, s]) => ({ ...s, code })) }
+  return stockRows([{ amount: home?.topAmount }, dom?.views, fl])   // 홈 거래대금도 'amount' 칸 아래 — 거래대금은 그 목록에서만 붙는다
 }
 
 /** 홈 묶음. 아직 묶음이 없거나 모양이 다르면 data.json 에서 띠 8장을 직접 만든다. fallback=false(다시 읽기)면 그 대신 실패한다. */

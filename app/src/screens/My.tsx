@@ -12,11 +12,12 @@ import { DivergingBars, LineChart } from '../components/charts'
 import { WeightMap } from '../components/personal/WeightMap'
 import { HoldSyncSheet } from '../components/personal/HoldSyncSheet'
 import { BTN, BTN2, DIR_TEXT, Field, INPUT, ShareBar } from '../components/personal/bits'
-import { changeDir, fmtNumber, fmtPct, shortDate, slicePeriods, type Pt } from '../lib/format'
+import { changeDir, fmtNumber, fmtPct, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
+import { rebase } from '../components/market/calc'
 import { useViewParam } from '../lib/useViewParam'
-import { evaluate, fmtMoney, fmtMoneyChange, fxWhatIf, kstDay, moneyDir, npsDomesticShare, risk, RISK_MIN, type Holding, type Quote, type Row, type Unit } from '../lib/personal/calc'
+import { benchmark, evaluate, fmtMoney, fmtMoneyChange, fxWhatIf, kstDay, moneyDir, npsDomesticShare, risk, RISK_MIN, type Holding, type Quote, type Row, type Snap, type Unit } from '../lib/personal/calc'
 import type { Sched } from '../lib/bundle'
-import { loadMarketData, type MarketData } from '../lib/personal/data'
+import { loadBench, loadMarketData, type MarketData } from '../lib/personal/data'
 import { holdingQuotes } from '../lib/personal/quotes'
 import { newId, readLedger, readPortfolio, readPrefs, readSnaps, saveTodaySnap, writeLedger, writePortfolio, type Ledger } from '../lib/personal/store'
 import { queueHoldSync, syncHoldings, useSyncStatus } from '../lib/personal/sync'
@@ -177,7 +178,7 @@ function Holdings() {
           <p className="mt-2 mb-0 text-12 text-ink-3">오늘 몫은 전일가 = 지금가 ÷ (1 + 등락률)로 거꾸로 구했습니다. 달러 종목의 환차는 지금가 × 수량 × 환율 변화입니다.</p>
         </Panel>
       )}
-      {v === 'risk' && <RiskPanel rk={rk} unit={unit} />}
+      {v === 'risk' && <RiskPanel rk={rk} snaps={snaps} unit={unit} />}
       {v === 'div' && <DividendPanel divs={divs} month={month} unit={unit} />}
       {v === 'ledger' && <LedgerPanel ledger={ledger} today={today} unit={unit} onSave={saveLedger} />}
       {v === 'sched' && <SchedulePanel items={schedule} today={md?.home?.market?.today} all className="" />}
@@ -332,25 +333,58 @@ function HoldingForm({ edit, onSave, onDelete, onCancel }: {
   )
 }
 
-function RiskPanel({ rk, unit }: { rk: ReturnType<typeof risk>; unit: Unit }) {
+function RiskPanel({ rk, snaps, unit }: { rk: ReturnType<typeof risk>; snaps: Snap[]; unit: Unit }) {
+  const [idx, setIdx] = useState<{ name: string; pts: Pt[] }[] | null>(null)   // 위험 보기를 열 때만 세계 묶음을 받는다
+  useEffect(() => { loadBench().then(setIdx, () => setIdx([])) }, [])
+  const bm = useMemo(() => (idx?.length ? benchmark(snaps, idx) : null), [snaps, idx])
+  // 기간 칩마다 그 기간 첫 날 = 100 으로 다시 편다(줄마다 날짜가 같아 칩도 같다). 지금 기간은 LineChart 와 같은 규칙.
+  const lines = useMemo(() => bm && [{ name: '나', pts: bm.mine }, ...bm.idx].map(l => ({
+    name: l.name, periods: Object.fromEntries(Object.entries(slicePeriods(l.pts)).map(([k, s]) => [k, rebase(s!)])) as Partial<Record<PeriodKey, Pt[]>>,
+  })), [bm])
+  const [p, setP] = useState<PeriodKey>('3m')
+  const keys = lines ? PERIODS.map(o => o.key).filter(k => lines[0].periods[k]) : []
+  const cur = keys.includes(p) ? p : keys.includes('3m') ? '3m' : keys[keys.length - 1]
+  const ratio = (v?: number) => (v == null ? '—' : fmtNumber(v, 2))
   return (
-    <Panel title="위험">
-      {rk.var95 == null ? (
-        <p className="m-0 text-13 text-ink-2">
-          스냅샷 쌓는 중 <span className="num font-bold text-ink-1">{`${rk.n}/${RISK_MIN}`}</span>. 시세가 모두 있는 날 내 자산을 열 때마다 하루 1건씩 쌓입니다.
-          60건이 안 되면 믿을 만한 범위가 아니어서 수치를 보이지 않습니다.
-        </p>
-      ) : (
-        <>
-          <dl className="m-0 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div><dt className="text-12 text-ink-2">하루 최대 손실(95%)</dt><dd className="m-0 num text-18 font-bold text-down">{fmtMoney(rk.var95, unit)}</dd></div>
-            <div><dt className="text-12 text-ink-2">하루 변동성</dt><dd className="m-0 num text-18 font-bold text-ink-1">{`${fmtNumber(rk.sd! * 100, 2)}%`}</dd></div>
-            <div><dt className="text-12 text-ink-2">최대 낙폭</dt><dd className="m-0 num text-18 font-bold text-down">{`${fmtNumber(rk.mdd, 1)}%`}</dd></div>
-          </dl>
-          <p className="mt-2 mb-0 text-12 text-ink-3">하루 수익률 {rk.n}건 기준 · 평가액 × 하루 변동성 × 1.645 · 정규분포를 가정한 추정이며 최악을 보증하지 않습니다.</p>
-        </>
-      )}
-    </Panel>
+    <>
+      <Panel title="위험">
+        {rk.var95 == null ? (
+          <p className="m-0 text-13 text-ink-2">
+            스냅샷 쌓는 중 <span className="num font-bold text-ink-1">{`${rk.n}/${RISK_MIN}`}</span>. 시세가 모두 있는 날 내 자산을 열 때마다 하루 1건씩 쌓입니다.
+            60건이 안 되면 믿을 만한 범위가 아니어서 수치(최대 손실 · 변동성 · 샤프 · 소르티노)를 보이지 않습니다.
+          </p>
+        ) : (
+          <>
+            <dl className="m-0 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div><dt className="text-12 text-ink-2">하루 최대 손실(95%)</dt><dd className="m-0 num text-18 font-bold text-down">{fmtMoney(rk.var95, unit)}</dd></div>
+              <div><dt className="text-12 text-ink-2">하루 변동성</dt><dd className="m-0 num text-18 font-bold text-ink-1">{`${fmtNumber(rk.sd! * 100, 2)}%`}</dd></div>
+              <div><dt className="text-12 text-ink-2">최대 낙폭</dt><dd className="m-0 num text-18 font-bold text-down">{`${fmtNumber(rk.mdd, 1)}%`}</dd></div>
+              <div><dt className="text-12 text-ink-2">샤프(연환산)</dt><dd className="m-0 num text-18 font-bold text-ink-1">{ratio(rk.sharpe)}</dd></div>
+              <div><dt className="text-12 text-ink-2">소르티노(연환산)</dt><dd className="m-0 num text-18 font-bold text-ink-1">{ratio(rk.sortino)}</dd></div>
+            </dl>
+            <p className="mt-2 mb-0 text-12 text-ink-3">하루 수익률 {rk.n}건 기준 · 평가액 × 하루 변동성 × 1.645 · 정규분포를 가정한 추정이며 최악을 보증하지 않습니다.</p>
+            <p className="mt-1 mb-0 text-12 text-ink-3">하루 수익률은 그날 산 돈 · 판 돈을 뺀 값입니다. 샤프 · 소르티노는 무위험 수익률을 0 으로 두고 하루 평균 수익률 ÷ 하루 변동성(소르티노는 손실 난 날만) × √252 로 셌습니다.</p>
+          </>
+        )}
+      </Panel>
+      <Panel title="시장 대비" source="기간 첫 날 = 100">
+        {snaps.filter(s => s.ev > 0 && s.ct > 0).length < 2 ? <p className="m-0 text-13 text-ink-3">스냅샷이 쌓이면 보입니다(하루 1건, 2건부터).</p>
+          : idx == null ? <p className="m-0 text-13 text-ink-3">지수 불러오는 중</p>
+            : !lines || !cur ? <p className="m-0 text-13 text-ink-3">{idx.length ? '스냅샷 날짜에 맞는 지수 값이 2일 이상 없습니다.' : '지수 시계열이 없어 비교할 수 없습니다.'}</p>
+              : (
+                <>
+                  <p className="m-0 mb-2 text-13 text-ink-2">
+                    {lines.map((l, i) => { const s = l.periods[cur]!; return (
+                      <span key={l.name}>{i > 0 && ' · '}{l.name} <span className="num font-bold text-ink-1">{fmtNumber(s[s.length - 1][1], 1)}</span></span>
+                    ) })}
+                    <span className="text-ink-3">{` (${shortDate(lines[0].periods[cur]![0][0])} = 100)`}</span>
+                  </p>
+                  <LineChart label="시장 대비" name="나" periods={lines[0].periods} period={cur} onPeriod={setP} decimals={1} compare={lines.slice(1)} />
+                  <p className="mt-2 mb-0 text-12 text-ink-3">나 = 날마다 그날 수익률만 이어 곱한 값(시간가중)이라 추가 매수 · 매도가 선을 끌어올리거나 내리지 않습니다. 판 날은 판 종목도 전체와 같은 수익률이었다고 봅니다. 지수는 스냅샷 날짜의 종가(없으면 7일 안의 직전 값)이고 배당은 양쪽 다 빠져 있습니다.</p>
+                </>
+              )}
+      </Panel>
+    </>
   )
 }
 

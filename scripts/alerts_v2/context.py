@@ -2,12 +2,16 @@
 
 `value(target)` 는 번들(화면과 같은 값)에서 먼저 찾고, 없으면 레지스트리 dataPath 로 data.json 을 본다.
 `series(target, n)` 은 레지스트리 seriesPath(없으면 dataPath) 의 일봉 n개 [{date, close}] 를 준다.
+사전 · 레지스트리 밖의 종목(국내 6자리 · 미국 티커 — 사용자 조건의 대상)은 `stock(target)` 이 값을 대고,
+같은 다섯 함수가 그것을 그대로 돌려준다(아래 「종목」 절).
 """
 from __future__ import annotations
 
 import datetime as dt
 import json
 import os
+import re
+import sys
 from dataclasses import dataclass, field
 from zoneinfo import ZoneInfo
 
@@ -31,6 +35,13 @@ EXTRA_ROWS = {
               "dataPath": "yieldCurve.jp:30Y"},
 }
 FRESH_STATES = ("live", "prev", "stale", "kept", "missing")    # 번들 신선도 5종(meta.json states)
+KR_CODE = re.compile(r"[0-9][0-9A-Z]{5}")         # 국내 종목 코드(check_alerts.KR_CODE 와 같은 꼴 — 신규 ETF 0018Z0)
+US_TICKER = re.compile(r"[A-Z][A-Z0-9.\-]{0,9}")  # 미국 티커. 사전 · 레지스트리 id 는 소문자라 겹치지 않는다(2026-10-09 127행 실측)
+
+
+def is_stock(target) -> bool:
+    t = str(target or "")
+    return bool(KR_CODE.fullmatch(t) or US_TICKER.fullmatch(t))
 
 
 def _tenor_row(node, tenor: str):
@@ -66,6 +77,15 @@ def _get(obj, path: str):
     return cur
 
 
+def _check_alerts():
+    """옛 종목 알림 모듈 — 종목을 물을 때만 읽는다(판정 · 재생 · 테스트는 네트워크를 안 쓴다)."""
+    scripts = os.path.join(ROOT, "scripts")
+    if scripts not in sys.path:
+        sys.path.append(scripts)
+    import check_alerts
+    return check_alerts
+
+
 def _last_point(rows: list):
     """일봉 목록의 끝 값(close 또는 value). 없으면 None."""
     for r in reversed(rows):
@@ -85,6 +105,9 @@ class Context:
     mer: dict
     root: str = ROOT
     _strip: dict = field(default_factory=dict)
+    _stocks: dict = field(default_factory=dict)      # 종목 → 값 칸(None = 장 밖 · 휴장 · 조회 실패), 한 런 캐시
+    _snaps: dict = field(default_factory=dict)       # 종목 → check_alerts 스냅샷(None = 실패), 한 런 캐시
+    _stock_rows: dict | None = None                  # 묶음의 종목 행(값은 오늘 live 칸만) — 처음 물을 때 만든다
 
     @classmethod
     def load(cls, now: dt.datetime | None = None, root: str = ROOT) -> "Context":
@@ -167,19 +190,28 @@ class Context:
             if isinstance(v, list):                            # 일봉 목록(가상자산) — 끝 종가
                 return _last_point(v)
             return v
-        return None
+        q = self.stock(target)
+        return q["value"] if q else None
+
+    def scale(self, target: str):
+        """화면 축척 — 화면 값 = 원본 ÷ scale(app lib/format.ts scaled, 예: 엔/원 0.01 → 100엔당 원). 번들 띠 → 레지스트리, 없으면 None."""
+        return (self.strip(target) or {}).get("scale") or (self.row(target) or {}).get("scale")
 
     def change_pct(self, target: str):
         s = self.strip(target)
         if s and s.get("changePct") is not None:
             return s["changePct"]
-        return None
+        q = self.stock(target)
+        return q["changePct"] if q else None
 
     def fresh(self, target: str) -> str:
         """번들 신선도 5종. 번들 칸은 `state` 로 싣는다. 번들에 없고 data.json 에만 값이 있으면 prev(직전 값)."""
         s = self.strip(target)
         if s:
             return s.get("fresh") or s.get("state") or "missing"
+        q = self.stock(target)
+        if q:
+            return q["fresh"]
         return "prev" if self.value(target) is not None else "missing"
 
     def as_of(self, target: str) -> str:
@@ -194,6 +226,9 @@ class Context:
                 a = v.get("as_of") or v.get("asOf") or v.get("period")
                 if a:
                     return str(a)
+        q = self.stock(target)
+        if q:
+            return q["asOf"]
         ser = self.series(target, 1)
         if ser and ser[-1].get("date"):
             return str(ser[-1]["date"])
@@ -203,7 +238,14 @@ class Context:
         row = self.row(target) or {}
         path = row.get("seriesPath") or row.get("dataPath")
         if not path:
-            return []
+            if not self.stock(target):                     # 장 밖 · 휴장 · 사전 밖 대상이면 비교하지 않는다
+                return []
+            sn = self._snap(str(target)) or {}
+            cl = sn.get("closes") or []
+            hi, lo = sn.get("highs") or [], sn.get("lows") or []
+            ok = len(hi) == len(lo) == len(cl)             # 장중 고가 · 저가(52주 판정) — 칸이 어긋나면(야후 빈 봉) 종가만
+            return [{"date": d, "close": c, "high": hi[i] if ok else None, "low": lo[i] if ok else None}
+                    for i, (d, c) in enumerate(zip(sn.get("dates") or [], cl))][-n:]
         v = _get(self.data, path)
         if isinstance(v, dict) and "data" in v:
             v = v["data"]
@@ -214,6 +256,77 @@ class Context:
             return []
         out = [{"date": r.get("date"), "close": r.get("close", r.get("value"))} for r in v if isinstance(r, dict)]
         return out[-n:]
+
+    # ---- 종목(국내 6자리 · 미국 티커) — 사전 · 레지스트리 밖 대상. 사용자 조건(U1 · U2 · B1)만 묻는다 ----
+    def stock(self, target) -> dict | None:
+        """종목의 지금 값 {value, changePct, asOf, fresh, name} 또는 None — 한 런에 종목당 한 번.
+
+        옛 종목 알림(check_alerts._PrefsCtx.quote · 현행 루프)과 같은 규칙: 장 밖(is_market_open)이면 보지 않는다(멈춘 시세),
+        휴장(마지막 일봉이 오늘 아님) · 오염(가격 0 이하 · 하루 등락 상한 초과) · 조회 실패면 None.
+        값은 직접 조회(지금 값)가 먼저, 그게 없을 때만 묶음의 그 종목 행(오늘 live 칸 — 최대 ~25분 늦다)."""
+        t = str(target or "")
+        if t in self._stocks:
+            return self._stocks[t]
+        q = None
+        if is_stock(t) and self.strip(t) is None and self.row(t) is None:
+            ca = _check_alerts()
+            kr = bool(KR_CODE.fullmatch(t))
+            if ca.is_market_open("KR" if kr else "US", self.now.astimezone(KST)):
+                b = self._bundle_stock(t) if kr else None
+                sn = self._snap(t)
+                if sn:
+                    q = {"value": sn["price"], "changePct": sn.get("pct"), "fresh": "live",
+                         "asOf": (sn.get("dates") or [self.now.astimezone(KST).date().isoformat()])[-1]}
+                elif b and b["_live"]:
+                    q = {"value": b["price"], "changePct": b.get("chgPct"), "asOf": b["_asOf"], "fresh": "live"}
+                if q:
+                    flows = ((self.data.get("stockFlows") or {}).get("items") or {}).get(t) or {}
+                    q["name"] = (b or {}).get("short") or (b or {}).get("name") or flows.get("name") or t
+        self._stocks[t] = q
+        return q
+
+    def _snap(self, t: str):
+        """옛 종목 알림의 시세 길 그대로(check_alerts.get_snapshot: 국내 네이버 → 야후 .KS/.KQ, 미국 야후) — 실패도 기억."""
+        if t not in self._snaps:
+            ca = _check_alerts()
+            kr = bool(KR_CODE.fullmatch(t))
+            why = ""
+            try:
+                sn = ca.get_snapshot("KR" if kr else "US", t, None)
+            except Exception as e:                         # noqa: BLE001 — 한 종목의 실패가 다른 판정을 막지 않는다
+                sn, why = None, type(e).__name__
+            sane = ca.SANE_MOVE_PCT_KR if kr else ca.SANE_MOVE_PCT_US
+            if sn and sn.get("fresh") is False:
+                sn, why = None, "휴장 · 묵은 시세"
+            elif sn and (sn["price"] <= 0 or abs(sn.get("pct") or 0) > sane):
+                sn, why = None, f"오염 의심 {sn['price']} {sn.get('pct')}%"
+            if sn is None:
+                print(f"[v2] 종목 시세 없음 {t}({why or '조회 실패'}) — 이 종목만 건너뜀")
+            self._snaps[t] = sn
+        return self._snaps[t]
+
+    def _bundle_stock(self, code: str) -> dict | None:
+        """묶음(순위 · 시가총액 · 52주 …)의 그 종목 행. 값은 `_live`(칸 state 가 live 이고 asOf 가 오늘 KST)일 때만 쓰고,
+        아니면 이름만 쓴다. live 행이 있으면 그것이 이긴다."""
+        if self._stock_rows is None:
+            self._stock_rows = {}
+            today = self.now.astimezone(KST).date().isoformat()
+
+            def walk(o, st, asof):
+                if isinstance(o, dict):
+                    st, asof = o.get("state", st), o.get("asOf", asof)
+                    c = str(o.get("code") or "")
+                    if KR_CODE.fullmatch(c) and o.get("price") is not None:
+                        live = st == "live" and str(asof or "")[:10] == today
+                        if c not in self._stock_rows or (live and not self._stock_rows[c]["_live"]):
+                            self._stock_rows[c] = dict(o, _asOf=today, _live=live)
+                    for v in o.values():
+                        walk(v, st, asof)
+                elif isinstance(o, list):
+                    for v in o:
+                        walk(v, st, asof)
+            walk(self.bundles, None, None)
+        return self._stock_rows.get(code)
 
     @property
     def calendar(self) -> list[dict]:

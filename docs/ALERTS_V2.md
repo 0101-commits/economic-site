@@ -25,12 +25,12 @@
 
 ## 전환 순서(사용자가 하는 일)
 
-### 1. 시크릿 6종 — 이것이 없으면 새 화면 조건 · 푸시는 한 건도 안 나간다
+### 1. 시크릿 6종(GitHub 4 · Worker 2) — 이것이 없으면 새 화면 조건 · 푸시는 한 건도 안 나간다
 ```
 python scripts/gen_vapid.py mailto:<내 메일>        # VAPID 키 쌍 · subject 안내 출력
 python -c "import secrets;print(secrets.token_hex(32))"   # ALERTS_STATE_SALT (동기화 키와 다른 값!)
 gh secret set ALERTS_STATE_SALT    # 위에서 만든 값
-gh secret set PUSH_READ_KEY        # Worker 와 같은 값 — 구독 목록 · /prefs 읽기(CI 는 동기화 키를 갖지 않는다)
+gh secret set PUSH_READ_KEY        # Worker 와 같은 값 — 구독 목록 · /prefs 읽기(CI 는 동기화 키를 갖지 않는다 — GitHub 시크릿 ALERTS_SYNC_KEY 는 2026-10-09 삭제, 스크립트 폴백도 없음)
 gh secret set VAPID_PRIVATE_KEY
 gh secret set VAPID_SUBJECT        # mailto:…
 ```
@@ -69,6 +69,7 @@ gh variable set ALERTS_V2 --body 1
 | 아무것도 안 옴 | `ALERTS_V2` 가 0 | `gh variable list` |
 | 디스코드만 오고 폰 · 카톡 없음 | 시크릿 6종 · 친구 모드 | 런 로그 「[v2] 카톡 …」 「PUSH_READ_KEY」 |
 | 조건을 만들었는데 안 옴 | 동기화 꺼짐(이 기기에만) · 사전이 그 대상에 그 사건을 허용하지 않음 | 조건 행 상태 「이 기기에만」 |
+| 가격 조건(U1)이 안 옴 | 넘는 순간만 울림 — 저장할 때 이미 넘어 있었으면 되돌아갔다 다시 넘을 때부터. 사용자 조건은 stock-alerts(light) 런만 판정 | `alerts_state.json._prefs[조건 id].side`(u 위 · d 아래) · 조건의 `armSide`(Worker 재배포 전엔 버려짐) |
 | 같은 사건이 두 번 | 원장 key 가 다름(기준일 다른 두 값) | `events/` 두 행의 `asOf` |
 | 밤에 안 오고 아침에 묶여 옴 | 조용한 시간 23:00~07:00 보류(설계) | 아침 카드 「밤사이 알림 N건」 |
 | 서킷이 울렸는데 추정 표시 | 지수 대리 추정(선물 없음) | 제목 「(추정)」 |

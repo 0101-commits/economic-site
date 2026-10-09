@@ -24,7 +24,7 @@ def _ctx(values=None, chg=None):
     return SimpleNamespace(
         now=dt.datetime(2026, 10, 2, 10, 0, tzinfo=KST), registry={},
         rid=lambda t: t, value=lambda t: values.get(t), change_pct=lambda t: chg.get(t),
-        as_of=lambda t: "2026-10-02", fresh=lambda t: "live")
+        as_of=lambda t: "2026-10-02", fresh=lambda t: "live", scale=lambda t: None)
 
 
 def test_default_on_watch_and_family_rules():
@@ -62,7 +62,8 @@ def test_user_hits_need_salt_and_hmac_key(monkeypatch):
     monkeypatch.delenv("ALERTS_STATE_SALT", raising=False)
     assert subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx)) == []
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
-    rows = subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx))
+    rows = subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx),
+                               sides={"c1": {"side": "d"}})                   # 직전 런엔 1400 아래 — 이번에 넘음
     assert [r["event"] for r in rows] == ["U1", "U2"]
     assert rows[0]["key"].startswith("U1:usdkrw:up:") and len(rows[0]["key"].split(":")[-1]) == 12
     assert "1400" not in rows[0]["key"] and rows[0]["cond"] == "c1"
@@ -73,12 +74,12 @@ def test_user_hits_need_salt_and_hmac_key(monkeypatch):
 def test_once_condition_stops_after_fired(monkeypatch):
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     prefs = {"alerts": [{"id": "c1", "event": "U1", "target": "usdkrw", "dir": "up", "value": 1400, "repeat": "once",
-                         "enabled": True, "armedAt": "2026-10-01T00:00:00+09:00"}]}
+                         "enabled": True, "armedAt": "2026-10-01T00:00:00+09:00", "armSide": "d"}]}
     ctx = _ctx(values={"usdkrw": 1401.2})
     hist = [{"cond": "c1", "ts": "2026-10-01T09:00:00+09:00"}]
-    assert subscribe.user_hits(ctx, prefs, hist) == []
+    assert subscribe.user_hits(ctx, prefs, hist, sides={"c1": {"side": "d"}}) == []
     hist = [{"cond": "c1", "ts": "2026-09-30T09:00:00+09:00"}]      # 다시 켜기 전 발동은 무시
-    assert len(subscribe.user_hits(ctx, prefs, hist)) == 1
+    assert len(subscribe.user_hits(ctx, prefs, hist, sides={"c1": {"side": "d"}})) == 1
 
 
 def test_upgrade_prefs_v1_to_v2():
@@ -118,12 +119,12 @@ def test_load_prefs_hits_worker_prefs_path_once(monkeypatch):
     import prefs_client
     seen = []
 
-    def fake(base, key=None):
+    def fake(base):
         seen.append(base)
         return {"alerts": [], "settings": {}, "updatedAt": "2026-10-06T00:00:00Z"}
 
     monkeypatch.setattr(prefs_client, "fetch", fake)
-    monkeypatch.setenv("ALERTS_SYNC_KEY", "k")
+    monkeypatch.setenv("PUSH_READ_KEY", "k")
     doc = subscribe.load_prefs(log=lambda *a, **k: None)
     assert seen == ["https://ecom-dashboard-proxy.e-hcg.workers.dev"]
     assert not subscribe.PREFS_URL.endswith("/prefs")
@@ -131,17 +132,16 @@ def test_load_prefs_hits_worker_prefs_path_once(monkeypatch):
 
 
 def test_load_prefs_reads_with_push_read_key_alone(monkeypatch):
-    """B6 — 워크플로는 ALERTS_SYNC_KEY 를 넘기지 않고 PUSH_READ_KEY 만 넘긴다. 그것만으로 /prefs 를 읽어야 하고,
-    둘 다 없으면 부르지 않고 기본 설정으로 간다."""
+    """B6 — 워크플로는 PUSH_READ_KEY 만 넘긴다(GitHub 시크릿 ALERTS_SYNC_KEY 는 2026-10-09 삭제). 그것만으로 /prefs 를 읽어야 하고,
+    없으면 부르지 않고 기본 설정으로 간다."""
     import prefs_client
     used, logs = [], []
 
-    def fake(base, key=None):
+    def fake(base):
         used.append(prefs_client.auth_header()[0])
         return {"alerts": [], "settings": {}, "updatedAt": "2026-10-07T00:00:00Z"}
 
     monkeypatch.setattr(prefs_client, "fetch", fake)
-    monkeypatch.delenv("ALERTS_SYNC_KEY", raising=False)
     monkeypatch.setenv("PUSH_READ_KEY", "rk")
     assert subscribe.load_prefs(log=logs.append)["v"] == 2
     monkeypatch.delenv("PUSH_READ_KEY")

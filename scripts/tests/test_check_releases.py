@@ -176,6 +176,32 @@ def test_backfill_policy_decision_needs_an_observation_of_the_decision_month(mon
     assert ev["act"] == "2.75%" and ev["fore"] == "3.00%"
 
 
+def test_backfill_fills_only_recent_events(monkeypatch):
+    # 달력 창은 62일로 넓어졌지만 실적은 최근 14일 발표만 — '발표일 이하 최신 관측' 규칙이 넓은 창에서
+    # 8/13 회차(7월분)에 8월분을 물리고 9/11 회차(8월분)를 비웠다(2026-10-09 실측).
+    monkeypatch.setattr(fd, "datetime", type("D", (), {"now": staticmethod(lambda tz=None: datetime(2026, 10, 9, tzinfo=KST))}))
+    data = {"economicIndicators": {"us": {"nfp_us": {"history": {"2026-07-01": 100.0, "2026-08-01": 133.0, "2026-09-01": 29.0}}}}}
+    evs = [_ev("미국 비농업고용(NFP)", d) for d in ("2026-08-13", "2026-09-24", "2026-10-02")]
+    fd.backfill_calendar_actuals(evs, data)
+    assert [e["act"] for e in evs[:2]] == ["", ""]                                  # 직전 값이 없으면 14일보다 오래된 회차는 비워 둔다
+    assert evs[2]["act"] == "-104K"                                                 # 최근 회차는 종전대로(전월 대비 증감)
+
+
+def test_backfill_carries_old_events_from_previous_run(monkeypatch):
+    # FRED 일정은 매 런 act "" 로 새로 만든다 — 14일 창을 벗어난 회차는 직전 data.json 의 같은 (iso, 이름) 행 값을 잇는다.
+    monkeypatch.setattr(fd, "datetime", type("D", (), {"now": staticmethod(lambda tz=None: datetime(2026, 10, 9, tzinfo=KST))}))
+    data = {"economicIndicators": {"us": {"nfp_us": {"history": {"2026-07-01": 100.0, "2026-08-01": 133.0, "2026-09-01": 29.0}}}}}
+    nfp = "미국 비농업고용(NFP)"
+    prev = [_ev(nfp, "2026-09-24", act="+33K", prev="+10K", fore="+20K", beat=1),   # 그 회차가 창 안일 때 채운 값
+            _ev(nfp, "2026-08-13"),                                                # 직전에도 비었던 회차
+            _ev("미국 CPI (전월비)", "2026-09-24", act="+0.4%")]                     # 이름이 다르면 잇지 않는다
+    evs = [_ev(nfp, d) for d in ("2026-08-13", "2026-09-24", "2026-10-02")]
+    fd.backfill_calendar_actuals(evs, data, prev)
+    assert {k: evs[1][k] for k in ("act", "prev", "fore", "beat")} == {"act": "+33K", "prev": "+10K", "fore": "+20K", "beat": 1}
+    assert evs[0]["act"] == ""
+    assert evs[2]["act"] == "-104K"                                                 # 창 안은 직전 값이 아니라 다시 센다
+
+
 # ── 5. slot_line_ok — 일정표 대조 ──────────────────────────────────────────────
 CAL = {"events": [
     {"iso": "2026-10-14", "dt": "10.14 21:30", "name": "미국 CPI (전월비)", "stars": 3},

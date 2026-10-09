@@ -46,8 +46,9 @@ export const defaultSet = (s: SyncedSettings) => JSON.stringify(syncedOf(normSet
 /** 이 기기가 비었나 — 관심 · 조건 · 시나리오가 없고 설정도 기본값. 설정만 바꾼 기기도 연결 때 「서버 것 / 이 기기 것」을 묻게 한다. */
 export const blankLocal = (l: Local) => !l.watch.length && !l.alerts.length && !l.scenarios.length && defaultSet(l.settings)
 
-/** 관심 id 의 종류: 종목 코드는 숫자로 시작하는 6자리(005930·0035S0), 지표 id 는 영문으로 시작한다(kospi·usdkrw·C2). */
-export const watchKind = (id: string): WatchItem['kind'] => (/^\d[0-9A-Z]{5}$/.test(id) ? 'stock' : 'indicator')
+/** 관심 id 의 종류: 종목 = 국내 코드(숫자로 시작하는 6자리 — 005930·0035S0) 또는 미국 티커(대문자로 시작 — AAPL·BRK-B·BRK.B).
+ *  지표 id 는 모두 소문자로 시작한다(kospi·usdkrw·cpi_kr). 종목 상세(lib/detail.ts isStockId)도 이 판정을 쓴다. */
+export const watchKind = (id: string): WatchItem['kind'] => (/^\d[0-9A-Z]{5}$/.test(id) || /^[A-Z][A-Z0-9]{0,5}([.-][A-Z0-9]{1,2})?$/.test(id) ? 'stock' : 'indicator')
 
 /**
  * 이 기기 → 서버 문서. 관심의 담은 때(addedAt)는 직전에 본 서버 문서에서 가져오고, 처음 담은 것만 now.

@@ -1,5 +1,6 @@
 // 시장 › 수급 — 목차 일별·주별·월별(투자자 400행 집계 칸의 단위)·종목별·국민연금·vs 환율(주소 v). 단위는 묶음 그대로(시장 = 억원, 종목 = 주).
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { loadIndicator, useBundleRev, type Flows as FlowsBlock, type StripItem } from '../../lib/bundle'
 import { fmtNumber, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
@@ -55,34 +56,44 @@ const shares = (v: number | null | undefined, sign = false) => {
 const extraCell = (r: StockRow, k: Extra) => <>{shares(r.extra[k], k === 'program')}{r.old[k] && <span className="ml-1 text-11 text-ink-3">{shortDate(r.old[k]!)}</span>}</>
 const holdText = (r: StockRow) => (r.hold == null ? null : `${fmtNumber(r.hold * 100, 2)}%`)
 const flowCol = (key: 'f' | 'i' | 'r', label: string, role?: 'value'): Col<StockRow> => ({ key, label, get: r => r[key], num: true, role, render: r => shares(r[key], true) })
-// 넓은 표(모바일 · 768~980): 여덟 열. 모바일은 이름 · 보유 / 외국인, 나머지는 행을 누르면 시트에.
+// 넓은 표(모바일 · 768~980): 여덟 열. 모바일은 이름 · 보유 / 외국인, 나머지는 행을 누르면 종목 상세(수급 패널)에.
 const stockCols: Col<StockRow>[] = [
   { key: 'name', label: '종목', get: r => r.name, role: 'name' },
   flowCol('f', '외국인', 'value'), flowCol('i', '기관'), flowCol('r', '개인'),
   { key: 'hold', label: '외국인 보유', get: r => r.hold, num: true, role: 'sub', render: holdText },
   ...EXTRA.map(({ key, label }): Col<StockRow> => ({ key, label, get: r => r.extra[key], num: true, render: r => extraCell(r, key) })),
 ]
-// PC 4칸 자리(약 345px): 투자자 셋만 열로, 보유 · 공매도 · 대차 · 프로그램은 이름 아래 작은 줄(값 있는 것만)
+// PC 4칸 자리(약 345px): 투자자 셋만 열로, 보유 · 공매도 · 대차 · 프로그램은 이름 아래 작은 줄(값 있는 것만).
+// 이름은 띄어쓰기에서만 꺾는다(break-keep) — overflow-wrap:anywhere 는 열이 좁으면 「TOP1/0」처럼 글자 중간을 끊었다.
+// withFlows = 기관 · 개인도 작은 줄에(좁은 PC 꼴).
+const nameCell = (withFlows: boolean) => (r: StockRow) => {
+  const bits: [string, ReactNode][] = [
+    ...(withFlows ? [['기관', shares(r.i, true)], ['개인', shares(r.r, true)]] as [string, ReactNode][] : []),
+    ...(r.hold != null ? [['보유', holdText(r)] as [string, ReactNode]] : []),
+    ...EXTRA.filter(e => r.extra[e.key] != null).map((e): [string, ReactNode] => [e.label, extraCell(r, e.key)])]
+  return (
+    <>
+      <span className="block break-keep">{r.name}</span>
+      {bits.length > 0 && (
+        <span className="block text-11 text-ink-3">
+          {bits.map(([k, x], i) => <Fragment key={k}>{i > 0 && ' · '}<span className="whitespace-nowrap">{k} <span className="num">{x}</span></span></Fragment>)}
+        </span>
+      )}
+    </>
+  )
+}
 const stockColsPc: Col<StockRow>[] = [
-  { key: 'name', label: '종목', get: r => r.name, render: r => {
-    const bits: [string, ReactNode][] = [...(r.hold != null ? [['보유', holdText(r)] as [string, ReactNode]] : []),
-      ...EXTRA.filter(e => r.extra[e.key] != null).map((e): [string, ReactNode] => [e.label, extraCell(r, e.key)])]
-    return (
-      <>
-        <span className="block [overflow-wrap:anywhere]">{r.name}</span>
-        {bits.length > 0 && (
-          <span className="block text-11 text-ink-3">
-            {bits.map(([k, x], i) => <Fragment key={k}>{i > 0 && ' · '}<span className="whitespace-nowrap">{k} <span className="num">{x}</span></span></Fragment>)}
-          </span>
-        )}
-      </>
-    )
-  } },
+  { key: 'name', label: '종목', get: r => r.name, render: nameCell(false) },
   flowCol('f', '외국인'), flowCol('i', '기관'), flowCol('r', '개인'),
 ]
-const PC_MQ = '(min-width: 61.25rem)'   // app.css --breakpoint-pc 와 같은 값
-const onPcChange = (f: () => void) => { const m = matchMedia(PC_MQ); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }
-const isPc = () => matchMedia(PC_MQ).matches
+// PC 좁은 폭(980~1199px — 4칸이 278~340px): 투자자 세 열이 안 들어가 넘쳤다. 외국인 한 열만, 기관 · 개인은 이름 아래 줄로.
+const stockColsPcNarrow: Col<StockRow>[] = [{ key: 'name', label: '종목', get: r => r.name, render: nameCell(true) }, flowCol('f', '외국인')]
+const mq = (q: string) => ({
+  sub: (f: () => void) => { const m = matchMedia(q); m.addEventListener('change', f); return () => m.removeEventListener('change', f) },
+  get: () => matchMedia(q).matches,
+})
+const PC = mq('(min-width: 61.25rem)')   // app.css --breakpoint-pc 와 같은 값
+const WIDE = mq('(min-width: 75rem)')    // 4칸이 가장 넓어지는(345px) 폭
 
 export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   const [v, setV] = useViewParam<View>('v', 'daily', VIEWS.map(o => o.key))
@@ -97,7 +108,9 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   }))
   const sel = pool.get(selId) ?? b.strip[0]
   const [grain, setGrain] = useState<Grain>(isGrain(v) ? v : 'daily')
-  const pc = useSyncExternalStore(onPcChange, isPc)
+  const pc = useSyncExternalStore(PC.sub, PC.get)
+  const wide = useSyncExternalStore(WIDE.sub, WIDE.get)
+  const nav = useNavigate()
 
   const period = (cls: string, primary: boolean) => {
     const rows = grain === 'daily' ? daily : groupFlows(daily, grain === 'weekly' ? 'week' : 'month')
@@ -138,8 +151,9 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
       <Panel className={cls} title="종목별 순매수" unit={`주 · 최근 ${days}거래일 합`} asOf={st?.asOf} state={st?.state} fold={!primary}>
         {rows.length ? (
           <>
-            <p className="md:hidden m-0 mb-1 text-11 text-ink-3">숫자는 외국인 · 행을 누르면 기관·개인·공매도·대차·프로그램</p>
-            <RankTable label="종목별 투자자 순매수" cols={pc ? stockColsPc : stockCols} rows={rows} rowKey={r => r.code} />
+            <p className="md:hidden m-0 mb-1 text-11 text-ink-3">숫자는 외국인 · 행을 누르면 종목 상세(기관·개인·공매도·대차·프로그램)</p>
+            <RankTable label="종목별 투자자 순매수" cols={!pc ? stockCols : wide ? stockColsPc : stockColsPcNarrow} rows={rows} rowKey={r => r.code}
+              onPick={r => nav(`/i/${r.code}`)} />
           </>
         ) : <Empty>종목별 수급 자료가 없습니다.</Empty>}
       </Panel>

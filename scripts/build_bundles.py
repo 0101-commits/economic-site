@@ -84,8 +84,8 @@ ETF_PREFIX = ("KODEX", "TIGER", "KBSTAR", "RISE", "ACE", "HANARO", "SOL", "PLUS"
               "TREX", "HK", "마이티", "에셋플러스", "히어로즈", "파워", "DAISHIN343", "KCGI", "WOORI")
 
 # ── 지표 띠 — 기획안 v4 4장 「자산군별 지표 띠 6」(홈 8칸). 바꿀 때는 여기 한 곳만. ──────────
-# 레지스트리 id 가 아닌 칸(flow_* · breadth_kospi · top20_amount · gold_premium · *_yoy · nps_kr_equity ·
-# foreign_hold_ratio)은 build_all 의 derived 가 data.json 경로에서 직접 만든다.
+# 레지스트리 id 가 아닌 칸(flow_* · breadth_kospi · top20_amount · gold_premium · *_yoy · nps_kr_equity)은
+# build_all 의 derived 가 data.json 경로에서 직접 만든다.
 HOME_STRIP = ["kospi", "kosdaq", "sp500", "nasdaq", "usdkrw", "us10y", "wti", "gold"]
 STRIPS = {
     "domestic": ["kospi", "kosdaq", "vkospi", "flow_foreign", "breadth_kospi", "top20_amount"],
@@ -93,7 +93,9 @@ STRIPS = {
     "fxrates": ["usdkrw", "usdjpy", "jpykrw", "eurkrw", "us10y", "kr10y"],
     "commodities": ["wti", "brent", "gold", "silver", "copper", "natgas", "gold_premium"],
     "macro": ["cpi_kr_yoy", "base_rate_kr", "cpi_us_yoy", "unemployment", "exports_kr", "gdp_growth_us"],
-    "flows": ["flow_foreign", "flow_inst", "flow_retail", "flow_foreign_5d", "nps_kr_equity", "foreign_hold_ratio"],
+    # 여섯째 칸은 기관 5일 누적 — 「외국인 보유 비중」 칸은 시장 전체 값을 어느 원천에서도 받지 않아(종목별 fholdRate 만)
+    # 띠가 생긴 2026-10-01 부터 늘 「자료 없음」이었다(2026-10-09 점검).
+    "flows": ["flow_foreign", "flow_inst", "flow_retail", "flow_foreign_5d", "nps_kr_equity", "flow_inst_5d"],
     "realestate": ["apt_price_idx_kr", "jns_price_idx_kr", "avg_jeonse_price_kr", "unsold_total_kr",
                    "housing_start_kr", "housing_permit_kr"],
 }
@@ -659,6 +661,12 @@ def stock_rows(rows, amount=False, market=None):
     return out
 
 
+def rows_as_of(*lists):
+    """등락 목록의 기준 날짜 = 원천 행 as_of(거래일) 중 가장 이른 것 — 보기에 asOf 가 없으면 종목 상세 머리 값이 기준 시각 없이 나간다.
+    여러 목록이 날이 다르면 오래된 쪽을 적는다(새것으로 적어 신선해 보이게 하지 않는다)."""
+    return min((r["as_of"] for rows in lists for r in rows or [] if r.get("as_of")), default=None)
+
+
 def block_state(health, path, node):
     if not node:
         return "missing"
@@ -700,6 +708,15 @@ def schedule_with_corp(data, now, days=7):
     return sorted(calendar_events(data, now, days=days) + corp, key=lambda e: (e["date"], e["time"] or ""))
 
 
+def event_name(s):
+    """일정 이름 끝의 영어 풀이 괄호를 뗀다 — 「미국 주택착공 (Housing Starts)」 → 「미국 주택착공」.
+    소문자가 섞인 영어만 뗀다. 대문자 약어(「(NFP)」·「(FOMC)」)·짧은 약어(「(MoM)」)·우리말 괄호(「(전월비)」)·중간 괄호는 남긴다."""
+    m = re.search(r"\s*\(([A-Za-z][A-Za-z0-9 .,&'/-]*)\)$", s) if isinstance(s, str) else None
+    g = m.group(1) if m else ""
+    # 대소문자 섞인 짧은 약어(「(MoM)」·「(YoY)」·「(m/m)」 — 빈칸 없는 네 글자 이하)는 풀이가 아니라 이름의 일부다
+    return s[:m.start()] if m and m.start() and g != g.upper() and (" " in g or len(g) > 4) else s
+
+
 def calendar_events(data, now, days=None, cc=None):
     """경제 일정 — 아직 지나지 않은 것부터(days 가 있으면 그 날 수 안)."""
     today = now.date().isoformat()
@@ -713,7 +730,7 @@ def calendar_events(data, now, days=None, cc=None):
             continue
         if cc and e.get("cc") != cc:
             continue
-        out.append({"date": iso, "time": time, "cc": e.get("cc"), "name": e.get("name"), "stars": e.get("stars"),
+        out.append({"date": iso, "time": time, "cc": e.get("cc"), "name": event_name(e.get("name")), "stars": e.get("stars"),
                     "prev": e.get("prev") or None, "fore": e.get("fore") or None, "act": e.get("act") or None,
                     "approx": bool(e.get("timeApprox"))})
     return sorted(out, key=lambda e: (e["date"], e["time"] or ""))
@@ -721,7 +738,7 @@ def calendar_events(data, now, days=None, cc=None):
 
 def all_events(data):
     return [{"date": e.get("iso"), "time": (e.get("dt") or "").split(" ")[-1] if " " in (e.get("dt") or "") else None,
-             "cc": e.get("cc"), "name": e.get("name"), "stars": e.get("stars"), "prev": e.get("prev") or None,
+             "cc": e.get("cc"), "name": event_name(e.get("name")), "stars": e.get("stars"), "prev": e.get("prev") or None,
              "fore": e.get("fore") or None, "act": e.get("act") or None, "beat": e.get("beat")}
             for e in ((data.get("economicCalendar") or {}).get("events") or [])]
 
@@ -949,14 +966,20 @@ def build_lens(mer):
     counts = {}
     for t in triggers(mer):
         counts[t["state"]] = counts.get(t["state"], 0) + 1
-    titles = {p.get("logNo"): p.get("title") for p in mer.get("posts") or []}
+    by_no = {p.get("logNo"): p for p in mer.get("posts") or []}
+    titles = {no: p.get("title") for no, p in by_no.items()}
+    edges = edges_with_quote(mer, titles)
+    chains = [chain_view(c) | {"quotes": chain_quotes(mer, c, titles)} for c in (mer.get("chains") or [])]
+    # 사슬·관계가 가리키는 글의 제목·날짜 — logNo 마다 한 번. posts(최근 3편)에 없는 글이 대부분이라 사슬 원문 링크가
+    # 「원문 열기」로만 읽혔다(2026-10-09 점검). 원천 = mer_signals.posts(779편, 사슬·관계 글 전부를 덮는다 — merblog.json 은 365일 창).
+    nos = dict.fromkeys(no for x in edges + chains for no in x.get("logNos") or [])
     return {"asOf": mer.get("asOf"), "window": mer.get("window"), "coverage": mer.get("coverage"),
             "nodes": [dict(n, short=node_short(n)) for n in (g.get("nodes") or [])],
-            "edges": edges_with_quote(mer, titles),
-            "chains": [chain_view(c) | {"quotes": chain_quotes(mer, c, titles)} for c in (mer.get("chains") or [])],
+            "edges": edges, "chains": chains,
             "regime": mer.get("regime"), "lens": mer.get("lens"), "counters": mer.get("counters") or [],
             "triggers": triggers(mer), "triggerCounts": counts, "today": lens_today(mer),
-            "posts": [{"logNo": p.get("logNo"), "date": p["date"], "title": p.get("title")} for p in posts[-3:][::-1]]}
+            "posts": [{"logNo": p.get("logNo"), "date": p["date"], "title": p.get("title")} for p in posts[-3:][::-1]],
+            "postMeta": {no: {"title": by_no[no].get("title"), "date": by_no[no].get("date")} for no in nos if no in by_no}}
 
 
 # ── 금 김치프리미엄 ─────────────────────────────────────────────────────────
@@ -1147,8 +1170,6 @@ def build_all(data, mer, now, toss=None):
         eq, nps_asof = (mi.get("current") or {}).get("value"), (mi.get("current") or {}).get("asOf")
     dv("nps_kr_equity", "국민연금 국내주식 비중", "연금 국내주식", "연금 국내주식", unit="%", decimals=1,
        value=_num(eq), as_of=(nps_asof or "")[:7] or None, state=block_state(H, "nps", nps) if nps else "prev")
-    dv("foreign_hold_ratio", "외국인 보유 비중", "외국인 보유", unit="%", decimals=1, value=None,
-       note="시장 전체 외국인 보유 비중은 수집하지 않는다(종목별 fholdRate 만 있다)")
 
     # 국내
     smv = data.get("stockMovers") or {}
@@ -1167,13 +1188,16 @@ def build_all(data, mer, now, toss=None):
         # 토스 체결 거래대금 상위 20(코스피·코스닥 섞인 한 목록, 원천이 시장별로 나뉘지 않는다) — amount 와 같은 모양
         "tossAmount": {"asOf": ra.get("as_of"), "state": block_state(H, "rankingsKr.tossAmount", ra.get("tossAmount")),
                        "items": stock_rows(ra.get("tossAmount"), amount=True)},
-        "gainers": {"kospi": stock_rows(smv.get("kospiGainers"), market="KOSPI"),
+        "gainers": {"asOf": rows_as_of(smv.get("kospiGainers"), smv.get("kosdaqGainers")),
+                    "kospi": stock_rows(smv.get("kospiGainers"), market="KOSPI"),
                     "kosdaq": stock_rows(smv.get("kosdaqGainers"), market="KOSDAQ"),
                     "state": block_state(H, "stockMovers.kospiGainers", smv.get("kospiGainers"))},
-        "losers": {"kospi": stock_rows(smv.get("kospiLosers"), market="KOSPI"),
+        "losers": {"asOf": rows_as_of(smv.get("kospiLosers"), smv.get("kosdaqLosers")),
+                   "kospi": stock_rows(smv.get("kospiLosers"), market="KOSPI"),
                    "kosdaq": stock_rows(smv.get("kosdaqLosers"), market="KOSDAQ"),
                    "state": block_state(H, "stockMovers.kospiLosers", smv.get("kospiLosers"))},
-        "etf": {"gainers": stock_rows(etf.get("etfGainers")), "losers": stock_rows(etf.get("etfLosers")),
+        "etf": {"asOf": rows_as_of(etf.get("etfGainers"), etf.get("etfLosers")),
+                "gainers": stock_rows(etf.get("etfGainers")), "losers": stock_rows(etf.get("etfLosers")),
                 "state": block_state(H, "etfMovers.etfGainers", etf.get("etfGainers"))},
         "sectors": b["home"]["sectors"],
         "flows": investors_block(data, H, 20),

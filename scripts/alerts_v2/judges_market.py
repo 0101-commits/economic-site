@@ -39,7 +39,7 @@ import statistics
 import sys
 from functools import lru_cache
 
-from .context import KST, LENS_ALIASES, Context, _get
+from .context import KST, LENS_ALIASES, Context, _get, is_stock
 from .events import Hit, judge
 
 _SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,6 +49,7 @@ import market_halts  # noqa: E402  서킷브레이커 단계 판정(현행 단�
 import volatility as vol  # noqa: E402  σ · 임계 clamp(check_swings 와 같은 식)
 
 SANE_PCT = 50.0                              # check_swings 와 같은 오염 폐기선(지수 · 환율에 하루 50%면 글리치)
+SANE_PCT_STOCK = 400.0                       # 종목 B1 — 옛 check_alerts(미국 무제한, 글리치만). 국내 50% 는 Context.stock 이 거른다
 ASIA = ("kr", "jp", "cn", "hk")              # 거래일 = KST 날짜. 그 밖(미국 지수 · 환율 · 원자재)은 UTC 날짜
 PEERS = {"vix": "sp500", "move": "us10y"}    # C3 · C4 「왜」 줄의 짝 — 사전 문구(S&P500 · 미 10년)와 같은 대상
 _HALT_SRC = {"index": "지수 등락", "news": "뉴스 대조", "krx": "거래소"}
@@ -422,7 +423,8 @@ def _extreme(ref, up: bool):
 
 @_market_judge("high52")
 def high52(ctx: Context, ev: dict) -> list[Hit]:
-    """B1 — 오늘 값이 직전 window 봉(최소 min_points)의 최고/최저를 넘은 첫날만(어제 종가도 넘어 있었으면 아님)."""
+    """B1 — 오늘 값이 직전 window 봉(최소 min_points)의 최고/최저를 넘은 첫날만(어제 종가도 넘어 있었으면 아님).
+    종목은 일봉의 장중 고가 · 저가와 견준다(52주 신고가 · 신저가의 뜻, 옛 check_alerts 와 같다). 고가 · 저가가 없으면 종가."""
     p = ev.get("params") or {}
     window, min_pts = int(p.get("window", 250)), int(p.get("min_points", 60))
     hits = []
@@ -432,13 +434,16 @@ def high52(ctx: Context, ev: dict) -> list[Hit]:
             continue
         v, day, prior, chg, fresh = st
         ref = prior[-window:]
-        if len(ref) < min_pts or fresh == "missing" or (chg is not None and abs(chg) > SANE_PCT):
+        if len(ref) < min_pts or fresh == "missing" or (chg is not None and abs(chg) > (SANE_PCT_STOCK if is_stock(t) else SANE_PCT)):
             continue
+        hl = {str(b.get("date")): b for b in ctx.series(t)} if is_stock(t) else {}
         for up in (True, False):
-            ext, ext_date = _extreme(ref, up)
+            # 종목이면 직전 봉을 장중 고가(신고) · 저가(신저)로 본다
+            bars = [(d, _num(hl.get(d, {}).get("high" if up else "low")) or c) for d, c in prior]
+            ext, ext_date = _extreme(bars[-window:], up)
             if not (v > ext if up else v < ext):
                 continue
-            y, y_ref = prior[-1][1], prior[:-1][-window:]
+            y, y_ref = bars[-1][1], bars[:-1][-window:]
             if len(y_ref) >= min_pts:
                 y_ext, _ = _extreme(y_ref, up)
                 if (y > y_ext) if up else (y < y_ext):

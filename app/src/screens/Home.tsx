@@ -1,7 +1,7 @@
 // 홈 「오늘」 — 기획안 v4 3장. 머리 → 오늘 한 줄 → AI 요약 3줄(+질문칸) → 지표 띠 8 + 관심 칸 → 분위기 5칸 → 격자(PC 12열 / 모바일 1열 같은 순서).
 // 금액(내 자산)은 여기서 절대 읽지 않는다. 관심은 이 기기의 id 목록뿐(lib/watch.ts).
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ChevronRight, House } from 'lucide-react'
 import { loadHome, loadIndicator, shownUnit, useBundleRev, type HomeBundle, type MoodItem, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
 import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, safeHref, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
@@ -55,6 +55,7 @@ export default function Home() {
   const [s, setS] = useViewParam<string>('s', 'kospi')
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const watch = useWatch()
+  const nav = useNavigate()
   const { linked } = useSyncStatus()
 
   // 관심 칸이 쓸 값: 홈 띠 · 거래대금 상위 종목에 없는 id 는 지표 사전에서 한 번 찾는다
@@ -83,7 +84,7 @@ export default function Home() {
     return id in extra ? [{ id, label: id, decimals: 0, value: null, change: null, changePct: null, asOf: null }] : []
   })
   // 화면에 그리는 칸 = 띠 + 관심 최대 MAX_WATCH. 고를 수 있는 것은 지표(띠 · 지표 사전에서 찾은 관심)뿐 —
-  // 관심 종목(종목 코드)은 큰 차트로 받을 시계열이 없어 고르기 단추가 아니다.
+  // 관심 종목(종목 코드)은 큰 차트로 받을 시계열이 없어 고르기 단추가 아니라 종목 상세(/i/<코드>)로 가는 링크다.
   const shown = [...homeStrip, ...watchItems].slice(0, homeStrip.length + MAX_WATCH)
   const canPick = (id: string) => homeStrip.some(x => x.id === id) || !!extra[id]
 
@@ -166,7 +167,7 @@ export default function Home() {
       {/* 지표 띠 8 + 관심 칸(9번째부터, 최대 8). 모바일 2열이라 짝을 맞추지 않는다 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 pc:grid-cols-8 gap-2">
         {shown.map((it, i) => (
-          <StripCard key={it.id} item={it} selected={it.id === sel?.id} onSelect={canPick(it.id) ? () => setS(it.id) : undefined}
+          <StripCard key={it.id} item={it} selected={it.id === sel?.id} onSelect={canPick(it.id) ? () => setS(it.id) : undefined} to={`/i/${it.id}`}
             watched={watch.has(it.id)} onWatch={() => watch.toggle(it.id)} tag={i >= homeStrip.length ? <Pill tone="o">관심</Pill> : undefined} />
         ))}
       </div>
@@ -209,7 +210,7 @@ export default function Home() {
         {/* 거래대금 상위 */}
         <Panel className="pc:col-span-4" title="거래대금 상위" asOf={home.topAmount?.asOf} state={home.topAmount?.state}>
           {home.topAmount?.items.length
-            ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={home.topAmount.items.slice(0, 10)} rowKey={r => r.code}
+            ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={home.topAmount.items.slice(0, 10)} rowKey={r => r.code} onPick={r => nav(`/i/${r.code}`)}
                 lead={r => <WatchStar on={watch.has(r.code)} onToggle={() => watch.toggle(r.code)} label={r.name} />} />
             : <p className="m-0 text-13 text-ink-3">거래대금 자료가 없습니다.</p>}
         </Panel>

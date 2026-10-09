@@ -179,8 +179,9 @@ def test_strips_follow_plan_table():
             assert x["state"] in bb.STATES, (name, x)
             if x.get("short"):
                 assert ol.width(x["short"]) <= bb.SHORT_PC and ol.width(x["shortM"]) <= bb.SHORT_M, x
-    fh = _item(b["market-flows"], "foreign_hold_ratio")
-    assert fh["value"] is None and fh["state"] == "missing"                 # 수집하지 않는 값은 지어내지 않는다
+    # 수집하지 않는 「외국인 보유 비중」 칸은 띠에서 뺐다 — 그 자리는 기관 5일 누적(같은 수급 원천)
+    inst = [r["inst"] for r in bb.investor_rows(DATA)[-5:]]
+    assert _item(b["market-flows"], "flow_inst_5d")["value"] == round(sum(inst), 1)
 
 
 def test_yoy_and_derived_cells():

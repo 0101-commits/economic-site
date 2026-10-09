@@ -1,8 +1,9 @@
 // 자가검사: npm test --prefix app — 알림 조건 id · 상태 7 · 다시 켜기 · 이름
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { condId, condName, condStatus, prefillTarget, rearm, TARGET_RE, type LedgerRow } from './alertStatus.ts'
+import { armU1, condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type LedgerRow } from './alertStatus.ts'
 import type { AlertCond } from './store'
+import { scaled } from '../format.ts'
 
 const PREFS_ID = /^[A-Za-z0-9._:^=\-]{1,64}$/   // cloudflare-worker/worker.js 와 같은 식
 const A = (o: Partial<AlertCond> = {}): AlertCond =>
@@ -61,6 +62,27 @@ test('rearm: 같은 id 로 대기가 되고, 기기 시계가 늦어도 마지�
   assert.equal(condStatus(now, [row({ ts: '2026-10-02T09:07:00+09:00' })], undefined, true, false, NOW).kind, 'stopped')   // 다시 울린 뒤엔 다시 멈춤
 })
 
+test('armSide: 저장 · 켜기 때 그 순간 쪽을 싣는다(서버 user_hits 와 같은 규칙, 값 모르면 뺀다)', () => {
+  const at = (TS + 60) * 1000
+  assert.equal(armU1(A(), 1410, [], undefined, at).armSide, 'u')                       // 위로 조건 · 이미 위
+  assert.equal(armU1(A(), 1400, [], undefined, at).armSide, 'u')                       // 같은 값 = 넘은 쪽
+  assert.equal(armU1(A({ dir: 'down' }), 1400, [], undefined, at).armSide, 'd')
+  assert.equal(armU1(A({ dir: 'down' }), 1401, [], undefined, at).armSide, 'u')
+  const off = armU1(A({ armSide: 'd' }), null, [], undefined, at)                      // 값 모름 — 예전 쪽도 지운다
+  assert.equal('armSide' in off, false)
+  assert.equal(Date.parse(off.armedAt!) / 1000, TS + 60)
+  const u2 = A({ event: 'U2', value: 3 })
+  assert.equal(armU1(u2, 1410, [], undefined, at), u2)                                 // U1 밖은 그대로
+  assert.equal(rearm(A({ repeat: 'once' }), [row()], undefined, (TS - 3600) * 1000, 1390).armSide, 'd')   // 다시 켜기도
+})
+
+test('armSide: 축척 지표는 화면 단위로 잰다 — 엔/원 원본 9.3(scale 0.01) = 930원', () => {
+  const jpy = A({ target: 'jpykrw', value: 900 })                                      // 사용자가 화면에서 본 900원
+  assert.equal(armU1(jpy, scaled(9.3, 0.01), [], undefined, NOW).armSide, 'u')
+  assert.equal(armU1(jpy, scaled(8.95, 0.01), [], undefined, NOW).armSide, 'd')
+  assert.equal(armU1(jpy, 9.3, [], undefined, NOW).armSide, 'd')                       // 원본을 그대로 넘기면 틀린 쪽 — 그래서 화면이 축척해 넘긴다
+})
+
 test('condName: 사용자 이름 · 수준 · 급변 값 · 사전 사건', () => {
   assert.equal(condName(A(), '달러원'), '달러원 1,400 위로')
   assert.equal(condName(A({ dir: 'down', value: 2500.5 }), '코스피'), '코스피 2,500.50 아래로')
@@ -77,4 +99,13 @@ test('prefillTarget: 주소의 id 로 새 조건 폼 대상을 채운다 — 사
   assert.deepEqual(prefillTarget('kospi', []), { id: 'kospi', label: 'kospi' })         // 사전이 아직 안 왔다 — 이름은 나중에 따라온다
   for (const bad of ['', 'a b', '코스피', 'x'.repeat(65), '<script>']) assert.equal(prefillTarget(bad, rows), null)
   assert.ok(TARGET_RE.test('^KS11') && TARGET_RE.test('KRW=X'))
+})
+
+test('U1 은 넘는 순간 — 반복 설명과 쪽 기록(side)만 있는 공개 기록은 「대기」', () => {
+  assert.match(repeatNote('U1', 'each'), /넘는 순간.*다시 넘으면 또/)
+  assert.match(repeatNote('U1', 'once'), /처음 넘는 순간 한 번/)
+  assert.match(repeatNote('U1', 'each'), /이미 넘어 있으면/)
+  assert.equal(repeatNote('U2', 'each'), '방향마다 하루 한 번까지 울립니다.')
+  assert.equal(repeatNote('U2', 'once'), '한 번 울리면 멈춥니다.')
+  assert.deepEqual(condStatus(A(), [], { side: 'u' }, true, false, NOW), { kind: 'wait', text: '대기' })
 })

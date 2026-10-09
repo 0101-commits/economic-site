@@ -62,6 +62,7 @@ test('사건 탭: 갈래 셈 · 사건 전체 조정으로 끈 것 빼기 · 등
   assert.equal(ids('usdkrw'), 'A2 B1 B2 C1 U1 U2')                            // 렌즈 선은 C1 기본 켜짐 목록으로
   assert.equal(ids('vix'), 'C3 U1 U2')
   assert.equal(ids('005930', true), 'D5 F1 F2 U1 U2')
+  assert.equal(ids('AAPL', true), 'U1 U2')                                    // 미국 종목엔 국내 전용 사건(D5 · F1 · F2)이 없다
 })
 
 test('yearCounts: 세기별 문턱(min(max(kσ,0.5%),5%)) 이상인 날 수, 점이 모자라면 null', () => {
@@ -90,6 +91,7 @@ test('상세 벨 시트의 사건: 지표 = 그 대상이 가진 A1~A3 · B1 · 
   assert.equal(ids('vix', false, ['vix']), 'C1 C2 U1 U2')                     // 단계 사건(C3)은 시트 밖 — 렌즈에 든 지표면 렌즈 사건
   assert.equal(ids('vix'), 'U1 U2')
   assert.equal(ids('005930', true), 'D5 F1 F2 U1 U2')
+  assert.equal(ids('AAPL', true), 'U1 U2')                                    // 미국 종목엔 국내 전용 사건(D5 · F1 · F2)이 없다
   assert.equal(ids('005930', true, ['005930']), 'D5 F1 F2 U1 U2')              // 종목에는 렌즈 사건이 없다
   // 시트가 내는 사건은 모두 사전에 있고 켜져 있다 · 세기 단계는 급변 사건만
   for (const e of sheetEvents(dict, 'kospi', false, new Set())) assert.ok(dict.events.some(d => d.id === e.id && d.enabled))

@@ -197,6 +197,7 @@ def yahoo_snapshot(symbol):
         "vol_today": float(rows[-1][5] or 0) or None,
         "vol_prev": float(rows[-2][5] or 0) or None,
         "fresh": fresh,
+        "dates": [_day(r[0]).isoformat() for r in rows],   # closes 와 같은 길이(거래소 현지 날짜) — 알림 v2 의 52주 판정용
     }
 
 
@@ -254,6 +255,8 @@ def naver_snapshot(code):
         # 마지막 일봉이 오늘이 아니면 휴장(공휴일)/스테일 — 호출측이 평가를 건너뛴다.
         # (차트가 아예 없고 basic 현재가만 있으면 판정 불가 → fresh 로 간주해 과차단을 피한다.)
         "fresh": (not rows) or rows[-1][0] == today,
+        # closes 와 같은 길이 — 현재가를 덧붙였으면 끝이 오늘(알림 v2 의 52주 판정용)
+        "dates": ([f"{r[0][:4]}-{r[0][4:6]}-{r[0][6:]}" for r in rows] + [end.date().isoformat()])[:len(closes)],
     }
 
 
@@ -814,7 +817,7 @@ def _state_salt():
 def _kh(key):
     """발생 키는 해시로만 남긴다 — 일정 이름 같은 평문이 공개 이력에서 조건을 드러내지 않게.
     소금 없는 해시는 공개 data.json 의 일정표(이름·날짜)를 넣어 보면 되짚히므로 ALERTS_STATE_SALT 로 HMAC 한다.
-    동기화 키(ALERTS_SYNC_KEY)를 쓰면 안 된다 — 원문(날짜·asOf·일정)은 누구나 아니까 공개 해시가 그 키의 오프라인 대입 창구가 된다.
+    동기화 키(Worker 시크릿 ALERTS_SYNC_KEY)를 쓰면 안 된다 — 원문(날짜·asOf·일정)은 누구나 아니까 공개 해시가 그 키의 오프라인 대입 창구가 된다.
     소금을 바꾸면 지난 발생 키와 안 맞아 같은 발생이 한 번 더 갈 수 있다(바꿀 때 한 번뿐)."""
     import hashlib
     import hmac

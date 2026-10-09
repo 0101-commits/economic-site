@@ -12,13 +12,13 @@ import { SegBar } from '../components/ui'
 import { Panel } from '../components/panels'
 import { BTN, BTN2, Field, INPUT, LevelPill, LV, Row, Switch } from '../components/personal/bits'
 import { loadRegistry, ROOT, type RegRow } from '../lib/bundle'
-import { fmtNumber, fmtPct, mdHm, shortDate } from '../lib/format'
+import { fmtNumber, fmtPct, mdHm, scaled, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
 import { KEYS, readHk, readPrefs, writeHk, writePrefs, type AlertCond, type Level, type Pkg, type Prefs, type Settings, type Strength } from '../lib/personal/store'
 import { PACKAGE_PRESET, setPackage } from '../lib/personal/prefsV2'
-import { condId, condName, condStatus, prefillTarget, rearm, TARGET_RE, type FiredRec, type LedgerRow } from '../lib/personal/alertStatus'
+import { armU1, condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type FiredRec, type LedgerRow } from '../lib/personal/alertStatus'
 import type { Hk } from '../lib/personal/housekeeping'
 import { portfolioGet, watchKind } from '../lib/personal/remote'
 import { getKeyHash, scopeText, useSyncStatus, type SyncStatus } from '../lib/personal/sync'
@@ -57,6 +57,12 @@ const SWING: Record<string, [string, string, string]> = {
 const ymd = (s: string) => (/^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}` : s.slice(0, 10))
 const noonKst = (day: string) => Date.parse(`${day}T12:00:00+09:00`)
 
+/** 지금 값(종목 시세 · 홈 띠) — 화면 단위(묶음 scale 적용, 조건 값과 같은 잣대). U1 조건의 그 순간 쪽(armSide)도 이것으로 잰다. */
+const curOf = (md: MarketData | null, id: string) => {
+  const s = md?.home?.strip.find(x => x.id === id)
+  return md?.quotes.get(id)?.price ?? (s ? scaled(s.value, s.scale) : null)
+}
+
 /** 원장이 없을 때: 현행 발송 이력 · 렌즈 돌파 · 매매중단 → 같은 줄 모양(최근 7일). */
 function legacyFeed(state: Record<string, unknown> | null, md: MarketData | null, mine: Map<string, AlertCond>, names: Map<string, string>, toOf: (id: string) => string, from: string): FeedRow[] {
   const out: FeedRow[] = []
@@ -68,7 +74,7 @@ function legacyFeed(state: Record<string, unknown> | null, md: MarketData | null
     const lastDay = r.ts ? kstDay(r.ts * 1000) : null
     for (const day of new Set([...(r.hist || []), ...(r.date ? [r.date] : [])].map(ymd))) {
       if (day < from) continue
-      const cur = a?.event === 'U1' ? md?.quotes.get(a.target)?.price ?? md?.home?.strip.find(x => x.id === a.target)?.value ?? null : null
+      const cur = a?.event === 'U1' ? curOf(md, a.target) : null
       const timed = day === lastDay
       out.push({
         key: `${id}-${day}`, level: 'alert', mine: true, day, timed, at: timed ? r.ts! * 1000 : noonKst(day),
@@ -145,7 +151,7 @@ export default function Alerts() {
 
   const regName = useMemo(() => new Map(reg.map(r => [r.id, r.short || r.label])), [reg])
   const labelOf = (id: string) => regName.get(id) ?? md?.quotes.get(id)?.name ?? id
-  const toOf = (id: string) => (regName.has(id) ? `/i/${id}` : '/market?a=kr&m=all')
+  const toOf = (id: string) => (regName.has(id) || watchKind(id) === 'stock' ? `/i/${id}` : '/market?a=kr&m=all')
   const names = useMemo(() => new Map(prefs.alerts.map(a => [a.id, condName(a, regName.get(a.target) ?? md?.quotes.get(a.target)?.name ?? a.target, EV.get(a.event)?.name)])), [prefs.alerts, regName, md])
   const today = kstDay()
   const yesterday = kstDay(Date.now() - 86_400_000)
@@ -173,7 +179,7 @@ export default function Alerts() {
       {tab === 'inbox' && <Inbox feed={feed} ledger={ledger} state={state} today={today} yesterday={yesterday} />}
       {tab === 'cond' && (
         <EventsTab prefs={prefs} save={save} sync={sync} pushOn={pushOn} ledger={ledger ?? []} known={Array.isArray(ledger) || !!state} state={state} hk={hk} setHk={setHk}
-          names={names} rows={reg} labelOf={labelOf} />
+          names={names} rows={reg} labelOf={labelOf} cur={id => curOf(md, id)} />
       )}
       {tab === 'chan' && <Channels prefs={prefs} setS={setS} />}
     </div>
@@ -266,11 +272,11 @@ function FeedList({ items, showDay }: { items: FeedRow[]; showDay?: boolean }) {
 
 type EventsProps = {
   prefs: Prefs; save: (p: Prefs) => void; sync: SyncStatus; pushOn: boolean; ledger: LedgerRow[]; known: boolean; state: Record<string, unknown> | null | undefined
-  hk: Hk; setHk: (h: Hk) => void; names: Map<string, string>; rows: RegRow[]; labelOf: (id: string) => string
+  hk: Hk; setHk: (h: Hk) => void; names: Map<string, string>; rows: RegRow[]; labelOf: (id: string) => string; cur: (id: string) => number | null
 }
 
 // known = 울림 기록(원장 · 현행 이력)을 하나라도 읽었나 — 못 읽었으면 「대기」라고 말하지 않는다
-function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk, names, rows, labelOf }: EventsProps) {
+function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk, names, rows, labelOf, cur }: EventsProps) {
   const fired = (state?._prefs ?? {}) as Record<string, FiredRec>
   const mine = prefs.alerts.filter(a => a.target !== '*')
   const off = new Set(hk.off ?? [])
@@ -287,7 +293,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
   }
   const toggle = (a: AlertCond, on: boolean) => {
     if (on && off.has(a.id)) { const h = { ...hk, off: [...off].filter(x => x !== a.id) }; writeHk(h); setHk(h) }
-    setAlert(a.id, x => ({ ...x, enabled: on }))
+    setAlert(a.id, x => (on ? armU1({ ...x, enabled: on }, cur(x.target), ledger, fired[x.id]) : { ...x, enabled: on }))
   }
   const pkg = prefs.settings.package
   // 꾸러미는 하루 상한 · 브리핑을 같이 바꾸므로(명세 S10) 고르면 바뀔 값을 한 줄로 보이고 「바꾸기」를 눌러야 저장한다
@@ -332,7 +338,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
                     </span>
                     {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 동기화가 꺼져 있으면 눌러도 소용없다 */}
                     {st.kind === 'stopped' && (sync.on ? (
-                      <button type="button" className={`${BTN2} mt-1`} aria-label={`${name} 다시 켜기`} onClick={() => setAlert(a.id, x => rearm(x, ledger, fired[a.id]))}>다시 켜기</button>
+                      <button type="button" className={`${BTN2} mt-1`} aria-label={`${name} 다시 켜기`} onClick={() => setAlert(a.id, x => rearm(x, ledger, fired[a.id], Date.now(), cur(x.target)))}>다시 켜기</button>
                     ) : <span className="block text-12 text-ink-3">설정 › 기기 연결에서 연결하면 다시 켤 수 있습니다</span>)}
                   </span>
                   <button type="button" onClick={() => put(prefs.alerts.filter(x => x.id !== a.id))} aria-label={`${name} 지우기`} title="지우기"
@@ -345,10 +351,10 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
           </ul>
         ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다. 지표 · 종목 상세의 벨이나 아래 「새 조건」에서 만듭니다.</p>}
         <p className="mt-2 mb-0 text-12 text-ink-3">연결돼 있어야(설정 › 기기 연결) 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
-        <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add])} />
+        <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add.map(a => armU1(a, cur(a.target)))])} />
       </Panel>
 
-      <NewCondition rows={rows} labelOf={labelOf} sync={sync} full={prefs.alerts.length >= ALERT_CAP} onAdd={a => put([...prefs.alerts, a])} />
+      <NewCondition rows={rows} labelOf={labelOf} sync={sync} full={prefs.alerts.length >= ALERT_CAP} onAdd={a => put([...prefs.alerts, armU1(a, cur(a.target))])} />
       <p className="m-0 text-12 text-ink-3">
         현행 화면에서 만든 조건은 <a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">현행 화면</a>에서 보고 고칩니다.
       </p>
@@ -485,6 +491,7 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
   const raw = q.trim()
   const t = target ?? (TARGET_RE.test(raw) ? { id: raw, label: labelOf(raw) } : null)
   const stock = !!t && watchKind(t.id) === 'stock'
+  const unit = t ? rows.find(r => r.id === t.id)?.unit : undefined     // 사전 단위 = 화면 단위(축척 지표는 scale 적용 뒤) — 조건 값도 이 단위
   const evs = t ? eventsFor(dict, t.id, stock) : dict.events.filter(e => e.userValue)
   const ev = evs.find(e => e.id === event) ?? evs[0]
   const base = ev?.level ?? 'alert'
@@ -537,7 +544,7 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
         {ev?.id === 'U1' && (
           <div className="grid grid-cols-2 gap-2">
             <Field label="방향"><select className={INPUT} value={dir} onChange={e => setDir(e.target.value as 'up' | 'down')}><option value="up">위로 넘으면</option><option value="down">아래로 내려가면</option></select></Field>
-            <Field label="값"><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" /></Field>
+            <Field label={unit ? `값(${unit})` : '값'}><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" /></Field>
           </div>
         )}
         {ev?.id === 'U2' && <Field label="하루 등락률(%) · 오름 · 내림 모두" className="sm:max-w-60"><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" placeholder="3" /></Field>}
@@ -551,7 +558,7 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
         <Row label="등급"><SegBar label="등급" options={levelChoices(base).map(l => ({ key: l, label: LV[l] }))} value={(level || base) as Level} onChange={setLevel} /></Row>
         <Row label="반복">
           <SegBar label="반복" options={REPEAT_OPTS} value={repeat} onChange={setRepeat} />
-          <p className="m-0 mt-1 text-12 text-ink-3">{repeat === 'each' ? '방향마다 하루 한 번까지 울립니다.' : '한 번 울리면 멈춥니다. 「다시 켜기」로 다시 켭니다.'}</p>
+          <p className="m-0 mt-1 text-12 text-ink-3">{repeatNote(ev?.id ?? '', repeat)}{repeat === 'once' ? ' 「다시 켜기」로 다시 켭니다.' : ''}</p>
         </Row>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
           <Field label="이름(비우면 「대상 조건」)"><input className={INPUT} value={name} maxLength={40} onChange={e => setName(e.target.value)} autoComplete="off" /></Field>
