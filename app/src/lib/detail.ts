@@ -3,10 +3,10 @@
 import { safeHref, type PeriodKey, type Pt } from './format.ts'
 import { watchKind } from './personal/remote.ts'
 
-/** 국내 종목 코드인가(숫자로 시작하는 6자리 — 관심 목록과 같은 판정). */
-export const isKrStock = (id: string) => watchKind(id) === 'stock'
-/** 종목 id 인가: 국내 코드 또는 미국 티커(대문자로 시작, BRK-B · BRK.B 꼴 포함). 지표 사전 id 는 모두 소문자로 시작한다. */
-export const isStockId = (id: string) => isKrStock(id) || /^[A-Z][A-Z0-9]{0,5}([.-][A-Z0-9]{1,2})?$/.test(id)
+/** 국내 종목 코드인가(숫자로 시작하는 6자리). */
+export const isKrStock = (id: string) => /^\d[0-9A-Z]{5}$/.test(id)
+/** 종목 id 인가: 국내 코드 또는 미국 티커 — 관심 목록과 같은 판정(remote.ts watchKind). 지표 사전 id 는 모두 소문자로 시작한다. */
+export const isStockId = (id: string) => watchKind(id) === 'stock'
 
 /** 묶음의 종목 한 줄. asOf · state 는 그 행이 든 위쪽 칸의 것(없으면 없음). */
 export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; asOf?: string | null; state?: string }
