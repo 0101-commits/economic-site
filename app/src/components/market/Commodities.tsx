@@ -1,35 +1,42 @@
-// 시장 › 원자재 — 목차 전체·에너지·금속·농산물(히트맵 칸의 분류) · 운임(주소 v). 히트맵 칸을 누르면 그 품목이 큰 차트(주소 s)로 온다.
+// 시장 › 원자재 — 목차 전체·에너지·금속·농산물(히트맵 칸의 분류) · 운임 · LME 재고(주소 v). 히트맵 칸을 누르면 그 품목이 큰 차트(주소 s)로 온다.
 import { useState } from 'react'
 import type { StripItem } from '../../lib/bundle'
-import { fmtNumber, shortDate } from '../../lib/format'
+import { changeDir, fmtNumber, shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { Heatmap } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
-import { BigChart, ChangeText, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
+import { BigChart, ChangeText, DIR_TEXT, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
 
 type Freight = { code: string; name: string; price: number | null; chgPct: number | null; date?: string }
+/** LME 창고 재고(톤): cur = 지금, wkChg = 한 주 변화, m4ago = 4개월 전, status = 주간 방향 up·down. */
+type Lme = { name: string; cur: number | null; wkChg: number | null; m4ago: number | null; status?: string }
 type Premium = { pct: number | null; basis?: string; krwPerG?: number | null; usdPerOz?: number | null; usdkrw?: number | null; asOf?: Record<string, string | null>; state?: string; formula?: string }
 export type CommoditiesBundle = {
   strip: StripItem[]
   views?: {
     items?: StripItem[]
     freight?: { state?: string; items: Freight[] }
+    lme?: { asOf?: string; state?: string; items: Lme[] }
     enso?: { line?: string; asOf?: string; state?: string }
     goldPremium?: Premium
   }
 }
 
-const VIEWS = [{ key: 'all', label: '전체' }, { key: 'energy', label: '에너지' }, { key: 'metal', label: '금속' }, { key: 'agri', label: '농산물' }, { key: 'freight', label: '운임' }] as const
+const VIEWS = [{ key: 'all', label: '전체' }, { key: 'energy', label: '에너지' }, { key: 'metal', label: '금속' }, { key: 'agri', label: '농산물' }, { key: 'freight', label: '운임' }, { key: 'lme', label: 'LME 재고' }] as const
 type View = typeof VIEWS[number]['key']
-type Group = Exclude<View, 'freight'>
-// 목차: 분류 넷은 히트맵 칸으로 데려가며 그 칸의 분류를 바꾸고, 운임은 운임 칸으로
-const TOC = VIEWS.map(o => (o.key === 'freight' ? o : { ...o, to: 'heat' }))
+type Group = Exclude<View, 'freight' | 'lme'>
+const isGroup = (k: View): k is Group => k !== 'freight' && k !== 'lme'
+// 목차: 분류 넷은 히트맵 칸으로 데려가며 그 칸의 분류를 바꾸고, 운임 · LME 재고는 제 칸으로
+const TOC = VIEWS.map(o => (isGroup(o.key) ? { ...o, to: 'heat' } : o))
 // ponytail: 묶음 items 에 분류 칸이 없어 id 로 가른다. 묶음이 group 을 실으면 이 표를 지우고 그것을 쓴다.
 const GROUP: Record<string, 'energy' | 'metal' | 'agri'> = {
   wti: 'energy', brent: 'energy', dubai: 'energy', natgas: 'energy', gasoline: 'energy', heatingoil: 'energy',
   gold: 'metal', goldkrw: 'metal', silver: 'metal', platinum: 'metal', palladium: 'metal', copper: 'metal', aluminum: 'metal',
   wheat: 'agri', corn: 'agri', soybean: 'agri', rice: 'agri', coffee: 'agri', sugar: 'agri', cocoa: 'agri',
 }
+// 묶음 이름은 LME 영문 그대로 온다
+const LME_KO: Record<string, string> = { Copper: '구리', Aluminum: '알루미늄', Zinc: '아연', Nickel: '니켈', Lead: '납', Tin: '주석' }
+const LME_DIR: Record<string, string> = { up: '증가', down: '감소' }
 const BASIS: Record<string, string> = { sameDay: '국내 기준일과 같은 날 국제 종가로 계산', spot: '기준일이 없어 지금 값끼리 계산' }
 
 const freightCols: Col<Freight>[] = [
@@ -39,9 +46,19 @@ const freightCols: Col<Freight>[] = [
   { key: 'date', label: '기준', get: r => r.date, role: 'sub', render: r => (r.date ? shortDate(r.date) : null) },
 ]
 
+const signedNum = (v: number | null) => (v == null ? null : `${v > 0 ? '+' : ''}${fmtNumber(v)}`)
+const lmeCols: Col<Lme>[] = [
+  { key: 'name', label: '품목', get: r => LME_KO[r.name] ?? r.name, role: 'name' },
+  { key: 'cur', label: '현재', get: r => r.cur, num: true, role: 'value' },
+  { key: 'wk', label: '주간 변화', get: r => r.wkChg, num: true, role: 'change',
+    render: r => <span className={`num ${DIR_TEXT[changeDir(r.wkChg, 0)]}`}>{signedNum(r.wkChg) ?? '—'}</span> },
+  { key: 'm4', label: '4개월 전', get: r => r.m4ago, num: true },
+  { key: 'status', label: '상태', get: r => (r.status ? LME_DIR[r.status] ?? r.status : null), role: 'sub' },
+]
+
 export default function Commodities({ b, selId, setS }: BodyProps<CommoditiesBundle>) {
   const [v, setV] = useViewParam<View>('v', 'all', VIEWS.map(o => o.key))
-  const [grp, setGrp] = useState<Group>(v === 'freight' ? 'all' : v)
+  const [grp, setGrp] = useState<Group>(isGroup(v) ? v : 'all')
   const vw = b.views
   const pool = poolOf(b.strip, vw?.items)
   const sel = pool.get(selId) ?? b.strip[0]
@@ -86,10 +103,17 @@ export default function Commodities({ b, selId, setS }: BodyProps<CommoditiesBun
     </Panel>
   )
 
-  const blocks: [string, Block][] = [['heat', heat], ['freight', freight], ['premium', premium], ['enso', enso]]
+  const lme = (cls: string, primary: boolean) => (
+    <Panel className={cls} title="LME 재고" unit="톤" asOf={vw?.lme?.asOf} state={vw?.lme?.state} fold={!primary}>
+      {vw?.lme?.items.length ? <RankTable label="LME 창고 재고" cols={lmeCols} rows={vw.lme.items} rowKey={r => r.name} /> : <Empty>LME 재고 자료가 없습니다.</Empty>}
+    </Panel>
+  )
+
+  // LME 재고는 맨 끝 — 표 다섯 열이 PC 4칸 자리(약 345px)에 안 들어가 끝 줄 한 칸을 다 쓴다
+  const blocks: [string, Block][] = [['heat', heat], ['freight', freight], ['premium', premium], ['enso', enso], ['lme', lme]]
   return (
     <>
-      <Toc where="원자재" items={TOC} onPick={k => { if (k !== 'freight') setGrp(k); setV(k) }} on={k => k === 'freight' || k === grp} />
+      <Toc where="원자재" items={TOC} onPick={k => { if (isGroup(k)) setGrp(k); setV(k) }} on={k => !isGroup(k) || k === grp} />
       <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...blocks]} />
     </>
   )
