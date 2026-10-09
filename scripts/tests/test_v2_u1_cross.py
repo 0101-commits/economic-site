@@ -34,6 +34,14 @@ def _run(v, sides, day="2026-10-02", history=(), **kw):
     return subscribe.user_hits(_ctx(v, day), {"alerts": [_cond(**kw)]}, list(history), sides=sides)
 
 
+def _sent(v, sides, day="2026-10-02", **kw):
+    """판정 → 실제로 나갔다고 치고 울림 기록(mark_sent)까지 — 울림 기록은 발송된 행에만 남는다."""
+    rows = _run(v, sides, day, **kw)
+    subscribe.mark_sent(sides, {"alerts": [_cond(**kw)]}, rows, SimpleNamespace(get=lambda k: {"sent": {"push": 1}}),
+                        _ctx(v, day).now)
+    return rows
+
+
 def test_first_observation_records_side_without_ringing(monkeypatch):
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     sides = {}
@@ -48,7 +56,7 @@ def test_cross_up_rings_then_silent_while_staying(monkeypatch):
     _run(1390, sides)
     rows = _run(1401, sides)                                              # 아래 → 위
     assert [(r["cond"], r["dir"]) for r in rows] == [("c1", "up")]
-    assert sides["c1"]["side"] == "u" and isinstance(sides["c1"]["ts"], int) and "fired" not in sides["c1"]
+    assert sides["c1"] == {"side": "u"}                                   # 울림 기록(ts)은 판정이 아니라 발송 뒤(mark_sent)
     assert _run(1405, sides, day="2026-10-05") == []                      # 위에 머무는 동안(다음 날도) 조용
 
 
@@ -74,8 +82,8 @@ def test_once_rings_only_once_until_rearmed(monkeypatch):
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     sides = {}
     _run(1390, sides, repeat="once")
-    assert len(_run(1401, sides, repeat="once")) == 1
-    assert sides["c1"]["fired"] is True
+    assert len(_sent(1401, sides, repeat="once")) == 1
+    assert sides["c1"]["fired"] is True and isinstance(sides["c1"]["ts"], int)
     _run(1390, sides, day="2026-10-05", repeat="once")
     assert _run(1401, sides, day="2026-10-05", repeat="once") == []       # 원장 창(8일) 밖이어도 공개 기록이 멈춘다
     armed = "2026-10-06T00:00:00Z"                                         # 다시 켜기 — armedAt 뒤의 첫 교차만
@@ -105,30 +113,54 @@ def test_public_record_has_no_threshold_or_value(monkeypatch):
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     sides = {}
     for v in (1390.25, 1401.75, 1399.5, 1402.125):
-        _run(v, sides, repeat="once")
+        _sent(v, sides, repeat="once")
     text = json.dumps(sides)
-    assert set(sides["c1"]) <= {"side", "ts", "fired"} and sides["c1"]["side"] in ("u", "d")
+    assert set(sides["c1"]) == {"side", "ts", "fired"} and sides["c1"]["side"] in ("u", "d")
     for secret in ("1400.5", "1390.25", "1401.75", "1399.5", "1402.125"):
         assert secret not in text
 
 
-def test_state_file_light_only_and_not_on_dry_run(monkeypatch, tmp_path):
+def test_state_doc_light_only_and_not_on_dry_run(monkeypatch, tmp_path):
+    """_pipeline_b 는 파일을 쓰지 않고 「원장 저장 뒤 쓸 문서」만 돌려준다(쓰기는 run.main — test_v2_user_pipeline)."""
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     monkeypatch.setenv("ALERTS_V2", "1")
     monkeypatch.setattr(subscribe, "load_prefs", lambda log=print: {"alerts": [_cond()], "settings": {}})
     monkeypatch.setattr(schedule, "plan", lambda *a, **k: [])
     path = tmp_path / "alerts_state.json"
-    path.write_text(json.dumps({"_swings": {"kospi": 1}, "_prefs": {"old": {"ts": 1, "fired": True}}}), encoding="utf-8")
+    raw = json.dumps({"_swings": {"kospi": 1}, "_prefs": {"c1x": {"ts": 1, "fired": True}}})
+    path.write_text(raw, encoding="utf-8")
     ledger = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path / "events"))
 
-    run._pipeline_b(_ctx(1390, root=str(tmp_path)), [], ledger, dry_run=False, mode="full")
-    assert "c1" not in path.read_text(encoding="utf-8")                   # light 가 아니면 U1 · 파일 둘 다 안 건드림
-    run._pipeline_b(_ctx(1390, root=str(tmp_path)), [], ledger, dry_run=True, mode="light")
-    assert "c1" not in path.read_text(encoding="utf-8")                   # 드라이런은 쓰지 않는다
-    run._pipeline_b(_ctx(1390, root=str(tmp_path)), [], ledger, dry_run=False, mode="light")
-    st = json.loads(path.read_text(encoding="utf-8"))
-    assert st == {"_swings": {"kospi": 1}, "_prefs": {"old": {"ts": 1, "fired": True}, "c1": {"side": "d"}}}
+    assert run._pipeline_b(_ctx(1390, root=str(tmp_path)), [], ledger, dry_run=False, mode="full") is None   # light 만
+    assert run._pipeline_b(_ctx(1390, root=str(tmp_path)), [], ledger, dry_run=True, mode="light") is None   # 드라이런
+    st = run._pipeline_b(_ctx(1390, root=str(tmp_path)), [], ledger, dry_run=False, mode="light")
+    assert st == {"_swings": {"kospi": 1}, "_prefs": {"c1": {"side": "d"}}}   # 지운 조건(c1x) 기록은 정리
+    assert path.read_text(encoding="utf-8") == raw                        # 파일은 그대로
 
     path.write_text("{깨짐", encoding="utf-8")                             # 깨진 파일은 덮어쓰지 않는다(다른 키 보존)
-    run._pipeline_b(_ctx(1401, root=str(tmp_path)), [], ledger, dry_run=False, mode="light")
-    assert path.read_text(encoding="utf-8") == "{깨짐"
+    assert run._pipeline_b(_ctx(1401, root=str(tmp_path)), [], ledger, dry_run=False, mode="light") is None
+
+
+def test_arm_side_after_save_or_enable(monkeypatch):
+    """저장 · 켜기 때 화면이 잰 쪽(armSide)이 armedAt 뒤 첫 관측의 직전 쪽 — 밤에 만든 조건의 시초 갭 · 꺼 둔 동안의 쪽."""
+    monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
+    eve = "2026-10-01T12:00:00Z"                                           # 전날 21:00 KST 저장, 그때 임계 위(u)
+    sides = {}
+    rows = _run(1395, sides, dir="down", armedAt=eve, armSide="u")         # 다음 날 시초 갭으로 곧장 아래 — 넘음
+    assert [r["dir"] for r in rows] == ["down"] and sides["c1"]["side"] == "d"
+    assert _run(1390, sides, dir="down", armedAt=eve, armSide="u") == []   # 그 뒤엔 공개 쪽 — 머묾
+
+    on = "2026-10-02T00:30:00Z"                                            # 꺼 둔 조건을 09:30 KST 에 다시 켬, 그때 위(u)
+    sides = {"c1": {"side": "d", "ts": 1}}                                 # 남은 쪽은 끄기 전의 아래
+    assert _run(1405, sides, armedAt=on, armSide="u") == [] and sides["c1"]["side"] == "u"
+    _run(1395, sides, armedAt=on, armSide="u")
+    assert len(_run(1402, sides, day="2026-10-05", armedAt=on, armSide="u")) == 1   # 켠 뒤엔 보통의 교차
+
+    sides = {"c1": {"side": "d"}}                                          # 켠 순간 값을 몰랐으면(armSide 없음) 첫 관측 무음
+    assert _run(1405, sides, armedAt=on) == [] and sides["c1"]["side"] == "u"
+
+    ahead = "2026-10-02T01:30:00Z"                                         # 기기 시계가 서버보다 빨라도 한 번만 반영
+    sides = {}
+    _run(1395, sides, armedAt=ahead, armSide="d")
+    assert sides["c1"]["at"] == int(subscribe._sec(ahead))
+    assert len(_run(1401, sides, armedAt=ahead, armSide="u")) == 1         # 이제 공개 쪽(d)을 본다 — armSide 를 다시 안 씀

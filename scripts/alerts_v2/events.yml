@@ -540,7 +540,7 @@
   judge: user_level
   params: {}
   run: light
-  cooldown: {per: [target, dir], days: 1}
+  cooldown: {per: [cond, dir], days: 1}   # 조건마다 — 같은 종목 「위로 100」「위로 105」가 서로 막지 않게
   title: "{name} {value} · {threshold} {dir_ko}"
   why: ["내 조건"]
   next: ["{next_event}"]
