@@ -1,7 +1,7 @@
 // 설정 — 기획안 v4 7장 · 사용 패턴 명세 S2. 차례: 기기 연결 → 보안 → 표시 → 내 데이터 → 데이터 상태(접힘) → 고급(접힘).
 // 화면 전체가 PIN 뒤다(App.tsx PinGate). 화면 모드만은 머리의 단추로 PIN 없이 바꾼다.
 // 보호 수준은 있는 그대로 적는다: PIN 은 화면 잠금(열람 방지)이고, 기기 안의 자료를 암호화하지 않는다.
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import { ChevronDown, Settings as Gear } from 'lucide-react'
 import { Card, Pill, SegBar } from '../components/ui'
 import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
@@ -15,7 +15,7 @@ import { kakaoToday, type Dict } from '../lib/alerts/v2'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
 import { applyUpdown, readMyData, readPrefs, wipeDevice, writeMyData, writePrefs, type Prefs, type Settings as S } from '../lib/personal/store'
-import { countOf, makeFile, MAX_BYTES, readFile, type Loaded } from '../lib/personal/backup'
+import { countOf, makeFile, MAX_BYTES, passIssue, readFile, type Loaded } from '../lib/personal/backup'
 import { disableSync, getKeyHash, useSyncStatus } from '../lib/personal/sync'
 import dictJson from '../lib/alerts/dict.json'
 
@@ -118,41 +118,44 @@ function Security() {
   )
 }
 
-/** 내 데이터: 내려받기(설정이 PIN 뒤라 조건 없음 · 선택 「PIN 으로 잠근 파일」) · 올리기 · 이 기기 데이터 지우기(확인 2번). 파일 형식은 lib/personal/backup.ts, 기기 간 맞춤은 「기기 연결」. */
+/** 내 데이터: 내려받기(설정이 PIN 뒤라 조건 없음 · 선택 「암호로 잠근 파일」) · 올리기 · 이 기기 데이터 지우기(확인 2번). 파일 형식은 lib/personal/backup.ts, 기기 간 맞춤은 「기기 연결」. */
 function MyData({ onRestored }: { onRestored: () => void }) {
   const [note, setNote] = useState('')
   const [lock, setLock] = useState(false)
-  const [pin, setPinText] = useState('')
+  const [p1, setP1] = useState('')
+  const [p2, setP2] = useState('')
   const [busy, setBusy] = useState(false)
   const [step, setStep] = useState(0)
   const download = async () => {
     setBusy(true)
     try {
-      // 잠글 암호는 이 기기 PIN 이어야 한다(오타로 아무도 못 여는 파일을 막는다). samePin 은 실패 셈을 올리지 않는다.
-      if (lock && !(await samePin(pin))) { setNote('이 기기 PIN 이 아닙니다.'); return }
-      const text = await makeFile(readMyData(), new Date().toISOString(), lock ? pin : undefined)
+      // 파일 암호: 10자 이상 · 두 번 같게 · 잠금 PIN 과 다르게(samePin 은 실패 셈을 올리지 않는다). 저장하지 않는다.
+      const bad = lock ? await passIssue(p1, p2, samePin) : ''
+      if (bad) { setNote(bad); return }
+      const text = await makeFile(readMyData(), new Date().toISOString(), lock ? p1 : undefined)
       const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
       const a = Object.assign(document.createElement('a'), { href: url, download: `ecom-내데이터-${kstDay()}${lock ? '-잠금' : ''}.json` })
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
-      setPinText('')
-      setNote(lock ? '잠근 파일을 저장했습니다. 올릴 때 이 PIN 을 묻습니다.' : '파일을 저장했습니다. 평단가·수량이 들어 있으니 남에게 보내지 마세요.')
+      setP1(''); setP2('')
+      setNote(lock ? '잠근 파일을 저장했습니다. 올릴 때 파일 암호를 묻습니다.' : '파일을 저장했습니다. 평단가·수량이 들어 있으니 남에게 보내지 마세요.')
     } catch { setNote('파일을 만들지 못했습니다.') } finally { setBusy(false) }
   }
   return (
     <Card title="내 데이터">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={BTN2} disabled={busy || (lock && pin.length < 4)} onClick={download}>{busy ? '만드는 중' : '내 데이터 내려받기'}</button>
+          <button type="button" className={BTN2} disabled={busy || (lock && !p1)} onClick={download}>{busy ? '만드는 중' : '내 데이터 내려받기'}</button>
           <span className="text-12 text-ink-3">보유 · 스냅샷 · 원장 · 관심 · 알림 조건 · 설정 · 시나리오</span>
         </div>
-        <Switch on={lock} onChange={v => { setLock(v); setNote('') }} label="PIN 으로 잠근 파일" />
+        <Switch on={lock} onChange={v => { setLock(v); setNote('') }} label="암호로 잠근 파일" />
         {lock && (
           <>
-            <Field label="이 기기 PIN" className="max-w-48">
-              <input type="password" inputMode="numeric" autoComplete="off" maxLength={6} className={INPUT} value={pin} onChange={e => setPinText(e.target.value.replace(/\s/g, ''))} />
-            </Field>
-            <p className="m-0 text-12 text-ink-3">올릴 때 이 PIN 을 묻습니다. PIN 은 6자리라 파일을 가져간 사람이 오래 시도하면 풀 수 있습니다 — 잠가도 남에게 보내지 마세요.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Field label="파일 암호 · 10자 이상"><input type="password" autoComplete="new-password" className={INPUT} value={p1} onChange={e => setP1(e.target.value)} /></Field>
+              <Field label="한 번 더"><input type="password" autoComplete="new-password" className={INPUT} value={p2} onChange={e => setP2(e.target.value)} /></Field>
+            </div>
+            <p className="m-0 text-12 text-ink-3">파일 암호를 잊으면 이 파일은 못 엽니다. 이 화면은 암호를 저장하지 않고, 잠금 PIN 과 같은 암호는 받지 않습니다.</p>
           </>
         )}
         {note && <p role="status" className="m-0 text-12 text-ink-3">{note}</p>}
@@ -186,36 +189,42 @@ function MyData({ onRestored }: { onRestored: () => void }) {
   )
 }
 
-/** 올리기: 파일 고르기 → (잠긴 파일이면 PIN) → 미리보기 → 덮기(확인 한 번). 다른 화면은 storage 이벤트로 다시 읽는다(store.writeMyData). */
+/** 올리기: 파일 고르기 → (잠긴 파일이면 파일 암호) → 미리보기 → 덮기(확인 한 번). 다른 화면은 storage 이벤트로 다시 읽는다(store.writeMyData). */
 function Restore({ onDone }: { onDone: () => void }) {
   const { linked } = useSyncStatus()
+  const input = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
   const [got, setGot] = useState<Loaded | null>(null)
-  const [needPin, setNeedPin] = useState(false)
-  const [pin, setPinText] = useState('')
+  const [needPass, setNeedPass] = useState(false)
+  const [pass, setPass] = useState('')
   const [sure, setSure] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const open = async (t: string, p?: string) => {
     setBusy(true); setMsg('')
-    try { setGot(await readFile(t, p)); setNeedPin(false); setPinText('') } catch (e) {
+    try { setGot(await readFile(t, p)); setNeedPass(false); setPass('') } catch (e) {
       const m = (e as Error).message
-      if (m === 'need-pin') setNeedPin(true)
-      else setMsg(m === 'wrong-pin' ? 'PIN 이 맞지 않습니다. 파일을 만든 기기의 PIN 입니다.' : m)
+      if (m === 'need-pass') setNeedPass(true)
+      else setMsg(m === 'wrong-pass' ? '파일 암호가 맞지 않습니다.' : m)
     } finally { setBusy(false) }
   }
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
-    setGot(null); setNeedPin(false); setSure(false); setMsg(''); setText('')
+    setGot(null); setNeedPass(false); setPass(''); setSure(false); setMsg(''); setText('')
     if (!f) return
     if (f.size > MAX_BYTES) { setMsg('파일이 너무 큽니다(2MB 넘음). 이 화면에서 내려받은 파일이 아닙니다.'); return }
     const t = await f.text()
     setText(t)
     open(t)
   }
+  /** 덮기 · 그만두기 뒤: 미리보기를 닫고 파일 칸을 비운다(같은 파일을 다시 고를 수 있게). */
+  const reset = () => {
+    setGot(null); setSure(false); setText(''); setNeedPass(false); setPass('')
+    if (input.current) input.current.value = ''
+  }
   const apply = () => {
     const ok = got ? writeMyData(got) : false
-    setGot(null); setSure(false); setText('')
+    reset()
     setMsg(ok ? '이 기기를 파일 내용으로 덮었습니다.' : '일부를 저장하지 못했습니다(저장 공간이 모자라거나 막힘).')
     onDone()
   }
@@ -224,14 +233,14 @@ function Restore({ onDone }: { onDone: () => void }) {
   return (
     <div className="mt-4 pt-3 border-t border-line flex flex-col gap-2">
       <Field label="내 데이터 올리기 · 이 화면에서 내려받은 파일">
-        <input type="file" accept="application/json,.json" className="text-13 text-ink-2 min-w-0" onChange={pick} />
+        <input ref={input} type="file" accept="application/json,.json" className="text-13 text-ink-2 min-w-0" onChange={pick} />
       </Field>
-      {needPin && (
-        <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); open(text, pin) }}>
-          <Field label="잠긴 파일 · 파일을 만든 기기의 PIN" className="max-w-48">
-            <input type="password" inputMode="numeric" autoComplete="off" maxLength={6} className={INPUT} value={pin} onChange={e => setPinText(e.target.value.replace(/\s/g, ''))} />
+      {needPass && (
+        <form className="flex flex-wrap items-end gap-2" onSubmit={e => { e.preventDefault(); open(text, pass) }}>
+          <Field label="잠긴 파일 · 파일 암호" className="flex-1 min-w-48">
+            <input type="password" autoComplete="off" className={INPUT} value={pass} onChange={e => setPass(e.target.value)} />
           </Field>
-          <button type="submit" className={BTN2} disabled={busy || pin.length < 4}>{busy ? '여는 중' : '열기'}</button>
+          <button type="submit" className={BTN2} disabled={busy || !pass}>{busy ? '여는 중' : '열기'}</button>
         </form>
       )}
       {c && got && (
@@ -248,7 +257,7 @@ function Restore({ onDone }: { onDone: () => void }) {
               <p role="alert" className="m-0 text-13 font-bold text-warn">이 기기의 {what} 모두 파일 내용으로 바뀝니다. 되돌릴 수 없습니다.</p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className={BTN} onClick={apply}>덮기</button>
-                <button type="button" className={BTN2} onClick={() => setSure(false)}>그만두기</button>
+                <button type="button" className={BTN2} onClick={reset}>그만두기</button>
               </div>
             </div>
           )}

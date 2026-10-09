@@ -1,12 +1,13 @@
-// 자가검사: npm test --prefix app — 내 데이터 파일 왕복 · 잠근 파일 왕복과 틀린 PIN · 비밀이 파일에 없음 · 깨진 파일 거절 · 시나리오 출처 · 이전 화면 백업
+// 자가검사: npm test --prefix app — 내 데이터 파일 왕복 · 파일 암호 검사 · 잠근 파일 왕복과 틀린 암호 · 비밀이 파일에 없음 · 깨진 파일 거절 · 시나리오 출처 · 이전 화면 백업
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { countOf, FORMAT, makeFile, MAX_BYTES, readFile, type MyData } from './backup.ts'
+import { countOf, FORMAT, makeFile, MAX_BYTES, passIssue, readFile, type MyData } from './backup.ts'
 import { defaultSettings } from './prefsV2.ts'
 
 const AT = '2026-10-09T01:02:03.000Z'
-const PIN = '135790'   // 가짜 PIN(테스트 전용)
+const PASS = 'fake-file-pass-2026'   // 가짜 파일 암호(테스트 전용)
+const PIN = '135790'                  // 가짜 잠금 PIN(테스트 전용)
 const data = (): MyData => ({
   portfolio: { groups: [{ id: 'g_default', name: '기본 그룹' }], items: [{ id: 'i1', symbol: '005930', market: 'KR', name: '가짜 A', avg: 70000, qty: 10 } as any], alerts: [], lastSync: null },
   snapshots: [{ d: '2026-10-08', ev: 700000, ct: 650000 }],
@@ -26,16 +27,27 @@ test('왕복: 만들기 → 읽기 → 같은 내용 · 미리보기 숫자', as
   assert.deepEqual(countOf(got), { holdings: 1, ledger: 1, snapshots: 1, watch: 2, alerts: 1, scenarios: 1 })
 })
 
-test('잠근 파일: PIN 없으면 need-pin · 틀리면 wrong-pin · 맞으면 같은 내용, 평문은 표지와 암호 조건만', async () => {
+test('파일 암호 검사: 10자 미만 · 두 칸 다름 · 잠금 PIN 과 같음(공백 뺀 값 포함)은 거절', async () => {
+  const isPin = async (p: string) => p === PIN
+  assert.match(await passIssue('short-9ch', 'short-9ch', isPin), /10자 이상/)
+  assert.match(await passIssue('          x', '          x', isPin), /10자 이상/)
+  assert.match(await passIssue(PASS, PASS + '!', isPin), /두 칸이 다릅니다/)
+  const pinLike = PIN + '0000'
+  assert.match(await passIssue(pinLike, pinLike, async p => p === pinLike), /PIN 과 다른/)
+  assert.match(await passIssue(` ${pinLike} `, ` ${pinLike} `, async p => p === pinLike), /PIN 과 다른/)
+  assert.equal(await passIssue(PASS, PASS, isPin), '')
+})
+
+test('잠근 파일: 암호 없으면 need-pass · 틀리면 wrong-pass · 맞으면 같은 내용, 평문은 표지와 암호 조건만', async () => {
   const d = data()
-  const text = await makeFile(d, AT, PIN)
+  const text = await makeFile(d, AT, PASS)
   const doc = JSON.parse(text)
   assert.deepEqual(Object.keys(doc).sort(), ['alg', 'ciphertext', 'format', 'iter', 'iv', 'kdf', 'locked', 'salt', 'version'])
   assert.equal(doc.format, FORMAT); assert.equal(doc.locked, true)
-  for (const s of ['005930', '70000', 'usdkrw', AT]) assert.ok(!text.includes(s), s)
-  await assert.rejects(readFile(text), /need-pin/)
-  await assert.rejects(readFile(text, '000000'), /wrong-pin/)
-  const got = await readFile(text, PIN)
+  for (const s of ['005930', '70000', 'usdkrw', AT, PASS]) assert.ok(!text.includes(s), s)
+  await assert.rejects(readFile(text), /need-pass/)
+  await assert.rejects(readFile(text, PASS + 'x'), /wrong-pass/)
+  const got = await readFile(text, PASS)
   assert.equal(got.at, AT)
   for (const k of ['portfolio', 'snapshots', 'ledger', 'watch', 'prefs', 'theme', 'scenarios'] as const) assert.deepEqual(got[k], d[k], k)
 })
@@ -43,7 +55,7 @@ test('잠근 파일: PIN 없으면 need-pin · 틀리면 wrong-pin · 맞으면 
 test('비밀이 파일에 없음: 칸은 정해진 열 개뿐, 키 해시 · 보유 열쇠 · PIN · 사용 기록 이름이 없다', async () => {
   const text = await makeFile(data(), AT)
   assert.deepEqual(Object.keys(JSON.parse(text)).sort(), ['exportedAt', 'format', 'ledger', 'note', 'portfolio', 'prefs', 'scenarios', 'snapshots', 'version', 'watch'])
-  for (const s of ['econHoldKey_v1', 'econSyncHash', 'econLockPin_v2', 'pfSyncKey', 'pfHoldingsPass', 'econ_usage_v1', PIN]) assert.ok(!text.includes(s), s)
+  for (const s of ['econHoldKey_v1', 'econSyncHash', 'econLockPin_v2', 'pfSyncKey', 'pfHoldingsPass', 'econ_usage_v1', PASS]) assert.ok(!text.includes(s), s)
   // 저장소에서 읽는 곳(store.readMyData)도 비밀 열쇠를 부르지 않는다
   const src = readFileSync(new URL('./store.ts', import.meta.url), 'utf8')
   const body = src.slice(src.indexOf('export function readMyData'), src.indexOf('export function writeMyData'))
@@ -63,7 +75,7 @@ test('깨진 파일 거절', async () => {
   await bad(JSON.stringify({ ...ok, snapshots: {} }), /snapshots/)
   await bad(JSON.stringify({ ...ok, note: 'x'.repeat(MAX_BYTES) }), /너무 큽니다/)
   // 잠근 파일의 표지에 모르는 칸
-  await bad(JSON.stringify({ ...JSON.parse(await makeFile(data(), AT, PIN)), hint: PIN }), /모르는 칸.*hint/)
+  await bad(JSON.stringify({ ...JSON.parse(await makeFile(data(), AT, PASS)), hint: 'x' }), /모르는 칸.*hint/)
 })
 
 test('시나리오 출처: 파일의 scenarios 는 렌즈 저장(econ_scenarios_v1) 그대로, prefs 에는 없다 · 렌즈가 못 읽는 모양은 거른다', async () => {

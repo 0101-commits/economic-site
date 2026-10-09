@@ -3,7 +3,8 @@
 //              theme = 화면 모드(이 기기 값) — 예전 판 내려받기와 같은 자리. scenarios = 렌즈 「만약에」 저장(econ_scenarios_v1).
 //              사용 기록(econ_usage_v1)은 이 기기 통계라 싣지 않는다. 비밀(동기화 키 해시 · 보유 열쇠 재료 · PIN)은 읽는 곳이 없어 들어갈 수 없다.
 //   잠근 파일  { format, version, locked:true, alg, kdf, iter, salt, iv, ciphertext } — e2e.ts 덩어리와 같은 AES-256-GCM + PBKDF2-SHA256 600,000회.
-//              평문 = 위 평문 파일 JSON 전체. 암호 = 파일을 만든 기기의 잠금 PIN(6자리라 파일을 가져간 사람이 오래 시도하면 풀린다 — 화면이 그렇게 적는다).
+//              평문 = 위 평문 파일 JSON 전체. 암호 = 내려받을 때 정하는 「파일 암호」(10자 이상 · 잠금 PIN 과 다름 — passIssue). 어디에도 저장하지 않는다.
+//              PIN 으로 잠그지 않는 까닭: 6자리는 파일을 가져간 사람이 오프라인으로 대입하면 바로 풀린다(2026-09-29 감사 전례).
 //   이전 화면 백업(js/app4.js exportAllUserData, schema 'econ-terminal-backup') — 평문이면 열쇠 이름이 같은 둘(portfolioV1 · pfSnapshotsV1)만 가져온다.
 //              노트 · 스터디 · 홈 배치 같은 나머지와 암호 백업은 이전 화면에서 복원한다.
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(node --test 로 바로 돈다 — backup.test.ts).
@@ -34,16 +35,24 @@ async function aesKey(pass: string, salt: Uint8Array<ArrayBuffer>) {
   return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: ITER, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
 }
 
-/** 파일 글. pin 을 주면 잠근다(표지와 암호 조건만 평문). */
-export async function makeFile(d: MyData, at: string, pin?: string): Promise<string> {
+/** 파일 암호 검사. '' = 통과. isPin = 잠금 PIN 과 같은지(lib/pin.ts samePin — 실패 셈을 올리지 않는다). 공백 뺀 값도 견준다. */
+export async function passIssue(p1: string, p2: string, isPin: (p: string) => Promise<boolean>): Promise<string> {
+  if (p1.trim().length < 10) return '파일 암호는 10자 이상이어야 합니다.'
+  if (p1 !== p2) return '파일 암호 두 칸이 다릅니다.'
+  for (const p of new Set([p1, p1.trim()])) if (await isPin(p)) return '잠금 PIN 과 다른 암호를 쓰세요.'
+  return ''
+}
+
+/** 파일 글. pass 를 주면 그 암호로 잠근다(표지와 암호 조건만 평문). */
+export async function makeFile(d: MyData, at: string, pass?: string): Promise<string> {
   const doc = {
     format: FORMAT, version: 1, exportedAt: at, note: NOTE,
     portfolio: d.portfolio, snapshots: d.snapshots, ledger: d.ledger, watch: d.watch,
     prefs: { v: 2, alerts: d.prefs.alerts, settings: { ...d.prefs.settings, theme: d.theme } }, scenarios: d.scenarios,
   }
-  if (!pin) return JSON.stringify(doc, null, 2)
+  if (!pass) return JSON.stringify(doc, null, 2)
   const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12))
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aesKey(pin, salt), new TextEncoder().encode(JSON.stringify(doc)))
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aesKey(pass, salt), new TextEncoder().encode(JSON.stringify(doc)))
   const blob: EncBlob = { alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter: ITER, salt: b64(salt), iv: b64(iv), ciphertext: b64(new Uint8Array(ct)) }
   return JSON.stringify({ format: FORMAT, version: 1, locked: true, ...blob }, null, 2)
 }
@@ -52,10 +61,10 @@ const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === 'obj
 const fail = (msg: string) => new Error(msg)
 
 /**
- * 올린 파일 글 → 내용. 문제는 Error(화면에 그대로 띄울 문구). 잠긴 파일인데 pin 이 없으면 Error('need-pin'),
- * PIN 이 틀리면(GCM 인증 실패) Error('wrong-pin') — 이 둘만 화면이 따로 다룬다.
+ * 올린 파일 글 → 내용. 문제는 Error(화면에 그대로 띄울 문구). 잠긴 파일인데 pass 가 없으면 Error('need-pass'),
+ * 암호가 틀리면(GCM 인증 실패) Error('wrong-pass') — 이 둘만 화면이 따로 다룬다.
  */
-export async function readFile(text: string, pin?: string): Promise<Loaded> {
+export async function readFile(text: string, pass?: string): Promise<Loaded> {
   if (new TextEncoder().encode(text).length > MAX_BYTES) throw fail('파일이 너무 큽니다(2MB 넘음). 이 화면에서 내려받은 파일이 아닙니다.')
   let doc: any
   try { doc = JSON.parse(text) } catch { throw fail('JSON 파일이 아니거나 깨졌습니다.') }
@@ -66,9 +75,9 @@ export async function readFile(text: string, pin?: string): Promise<Loaded> {
   if (doc.version !== undefined && doc.version !== 1) throw fail('이 화면이 모르는 판의 파일입니다.')
   if (doc.locked === true) {
     unknownKeys(doc, LOCK_KEYS)
-    if (!pin) throw fail('need-pin')
+    if (!pass) throw fail('need-pass')
     let pt: ArrayBuffer
-    try { pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(doc.iv) }, await aesKey(pin, unb64(doc.salt)), unb64(doc.ciphertext)) } catch { throw fail('wrong-pin') }
+    try { pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(doc.iv) }, await aesKey(pass, unb64(doc.salt)), unb64(doc.ciphertext)) } catch { throw fail('wrong-pass') }
     try { doc = JSON.parse(new TextDecoder().decode(pt)) } catch { doc = null }
     if (!isObj(doc) || doc.format !== FORMAT || doc.locked) throw fail('잠긴 내용이 깨졌습니다.')
   }
