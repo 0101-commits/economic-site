@@ -69,7 +69,8 @@ def test_six_slots_dry_run_on_real_data(slot, real_ctx, tmp_path):
     assert out["title"] and len(out["title"]) <= compose.BRIEF_TITLE_MAX, out["title"]
     assert len(out["lines"]) == 3 and len(out["items"]) <= briefing.ITEMS_MAX
     assert not _no_relative(out), _no_relative(out)
-    assert out["card_png"], f"{slot} 카드 없음"
+    # 한글 폰트가 없으면(경량 수집 런의 테스트 단계 — 폰트 캐시를 건너뛴다) 카드는 두부 대신 None 이고 글로 나간다
+    assert out["card_png"] or not briefing.dc._setup()[1], f"{slot} 카드 없음"
     res = briefing.send(slot, real_ctx, led, ALL_ON, dry_run=True, log=lambda *a: None)
     assert res == {"push": 0, "kakao": False, "discord": False, "memo": False}
 
