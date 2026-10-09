@@ -74,7 +74,7 @@ def test_user_hits_need_salt_and_hmac_key(monkeypatch):
 def test_once_condition_stops_after_fired(monkeypatch):
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     prefs = {"alerts": [{"id": "c1", "event": "U1", "target": "usdkrw", "dir": "up", "value": 1400, "repeat": "once",
-                         "enabled": True, "armedAt": "2026-10-01T00:00:00+09:00"}]}
+                         "enabled": True, "armedAt": "2026-10-01T00:00:00+09:00", "armSide": "d"}]}
     ctx = _ctx(values={"usdkrw": 1401.2})
     hist = [{"cond": "c1", "ts": "2026-10-01T09:00:00+09:00"}]
     assert subscribe.user_hits(ctx, prefs, hist, sides={"c1": {"side": "d"}}) == []

@@ -61,32 +61,36 @@ def save_state(path: str, st: dict) -> None:
         f.write("\n")
 
 
-def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = ""):
+def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | None:
     """ALERTS_V2=1 일 때만 구독 → 편성 → 발송. 모듈이 아직 없으면 조용히 건너뜀.
 
-    U1(넘는 순간)의 직전 쪽은 alerts_state.json._prefs 에 남는다 — 그 파일을 커밋하는 stock-alerts(light)만 본다."""
+    사용자 조건(U1 · U2 · 종목 B1)은 light 런(stock-alerts)만 판정한다 — 그 런만 alerts_state.json 을 커밋하고(U1 의 직전 쪽 ·
+    울림 기록), 풀 런(fetch-data)은 12~57분 늦은 원장으로 같은 조건을 또 보내며 푸시 재시도가 events/ 하루치를 덮는다.
+    돌려주는 값 = 원장을 저장한 뒤에 쓸 alerts_state.json 문서(바뀌지 않았거나 드라이런 · light 밖이면 None)."""
     if os.environ.get("ALERTS_V2", "0") != "1":
         print(f"[v2] ALERTS_V2 꺼짐 — 원장만 기록({len(new_rows)}건)")
-        return
+        return None
     from alerts_v2 import deliver, schedule, subscribe
     events_by_id = schema.by_id(schema.load_events())
     prefs = subscribe.load_prefs()
-    history = Ledger.load_days(8, end=ledger.day)          # 쿨다운 · 한 번 조건 판정용(오늘 포함)
+    # 쿨다운 · 한 번 조건 판정용(오늘 포함). 다시 켠 조건의 그 전 울림은 빼고 본다
+    history = subscribe.since_arm(prefs, Ledger.load_days(8, end=ledger.day))
     render = _render(ctx)
-    path = os.path.join(ctx.root, "alerts_state.json")
-    state = load_state(path) if mode == "light" else None
+    light = mode == "light"
+    state = load_state(os.path.join(ctx.root, "alerts_state.json")) if light else None
     sides = None
     if state is not None:
         sides = state["_prefs"] if isinstance(state.get("_prefs"), dict) else {}
         state["_prefs"] = sides
     before = json.dumps(sides, sort_keys=True)
-    user_rows = subscribe.user_hits(ctx, prefs, history, render=render, sides=sides)
-    if sides is not None and not dry_run and json.dumps(sides, sort_keys=True) != before:
-        save_state(path, state)
+    if sides is not None and prefs:                # /prefs 를 정상으로 읽은 런만 — 지운 조건의 기록을 정리(꺼 둔 조건은 남긴다)
+        ids = {a.get("id") for a in prefs.get("alerts") or []}
+        for k in [k for k in sides if k not in ids]:
+            del sides[k]
+    user_rows = subscribe.user_hits(ctx, prefs, history, render=render, sides=sides) if light else []
     rows = [r.to_dict() if hasattr(r, "to_dict") else r for r in new_rows]
-    for ur in user_rows:
-        if ledger.append(ur):
-            rows.append(ur)
+    added = [ur for ur in user_rows if ledger.append(ur)]
+    rows += added
     decisions = subscribe.match(rows, ctx, prefs, events_by_id)
     settings = (prefs or {}).get("settings")
     sends = schedule.plan(decisions, ledger, ctx, settings, events_by_id, history)
@@ -96,6 +100,10 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = ""):
             print(f"[v2 dry-run] {s}")
         else:
             deliver.send(s, ledger, ctx)
+    subscribe.mark_sent(sides, prefs, added, ledger, ctx.now)
+    if sides is None or dry_run or json.dumps(sides, sort_keys=True) == before:
+        return None
+    return state
 
 
 BRIEF_SENT_MARKER = ".brief_sent_marker"            # briefing.yml 의 중복 발송 방지 캐시가 이 파일을 저장한다
@@ -157,10 +165,12 @@ def main(argv=None) -> int:
         print(f"  + {r.key} [{r.level}] {r.title}")
     if args.mode == "daily":                         # 이력 1점 묶음(VKOSPI · 금 김프 · 운임 · LME · 폭 · 업종)의 하루치 적재
         history_sink.run(ctx, dry_run=args.dry_run)
-    _pipeline_b(ctx, new_rows, ledger, args.dry_run, args.mode)
+    state = _pipeline_b(ctx, new_rows, ledger, args.dry_run, args.mode)
     if not args.dry_run:
         ledger.save()
         Ledger.rebuild_latest()
+        if state is not None:                        # 쪽 · 울림 기록은 원장을 저장한 뒤에만(발송 중 예외면 둘 다 그대로)
+            save_state(os.path.join(ctx.root, "alerts_state.json"), state)
     return 0
 
 

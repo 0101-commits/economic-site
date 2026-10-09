@@ -87,6 +87,32 @@ def test_b1_stock_new_high_first_day_only(monkeypatch):
     assert "106" in rows[0]["why"]                                            # 사전 B1 틀 = 직전 최고와 그 날짜
 
 
+def test_b1_stock_compares_intraday_high_low(monkeypatch):
+    """52주 신고가 · 신저가는 장중 고가 · 저가 기준(옛 check_alerts 와 같다). 고가 · 저가 칸이 어긋나면 종가로."""
+    monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
+    prior = [100.0 + (i % 7) for i in range(80)]                             # 종가 최고 106 · 최저 100
+    hl = dict(highs=[c + 9 for c in prior] + [117.0], lows=[c - 10 for c in prior] + [94.0])   # 장중 최고 115 · 최저 90
+    up = {"id": "a", "event": "B1", "target": "005930", "dir": "up"}
+    down = {"id": "b", "event": "B1", "target": "005930", "dir": "down"}
+    _fake(monkeypatch, {"005930": dict(_snap(110, 2.0, prior), **hl)})
+    assert _hits(_ctx(), [up]) == []                                          # 종가 최고(106)는 넘었지만 장중 최고(115) 아래
+    _fake(monkeypatch, {"005930": dict(_snap(95, -2.0, prior), **hl)})
+    assert _hits(_ctx(), [down]) == []                                        # 종가 최저(100) 아래지만 장중 최저(90) 위
+    _fake(monkeypatch, {"005930": dict(_snap(116, 2.0, prior), **hl)})
+    rows = _hits(_ctx(), [up])
+    assert [r["dir"] for r in rows] == ["up"] and "115" in rows[0]["why"]   # 직전 최고 = 장중 고가
+    _fake(monkeypatch, {"005930": dict(_snap(110, 2.0, prior), highs=hl["highs"][1:], lows=hl["lows"])})
+    assert [r["dir"] for r in _hits(_ctx(), [up])] == ["up"]                 # 칸 수가 어긋남(야후 빈 봉) — 종가로
+
+
+def test_b1_us_stock_big_day_not_dropped(monkeypatch):
+    """미국 종목은 하루 50% 넘게도 오른다 — 종목 경로의 오염선은 옛 check_alerts 와 같은 400%."""
+    monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
+    _fake(monkeypatch, {"NVDA": _snap(300.0, 64.8, [182.0] * 70)})
+    rows = _hits(_ctx(now=dt.datetime(2026, 10, 7, 23, 30, tzinfo=KST)), [{"id": "a", "event": "B1", "target": "NVDA"}])
+    assert [(r["cond"], r["dir"]) for r in rows] == [("a", "up")]
+
+
 def test_b1_needs_sixty_bars(monkeypatch):
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     _fake(monkeypatch, {"0051G0": _snap(110, 2.0, [100.0] * 30)})          # 상장 30일 — 옛 판정과 같이 판정하지 않는다
@@ -107,22 +133,26 @@ def test_fetch_failure_skips_only_that_stock(monkeypatch, capsys):
     assert ("KR", "000660") in calls and ("KR", "005930") in calls
 
 
-def test_bundle_row_first_without_fetch(monkeypatch):
+def test_direct_quote_first_bundle_row_on_failure(monkeypatch):
+    """값은 직접 조회(지금 값)가 먼저 — 묶음 live 칸은 최대 ~25분 늦다. 조회가 안 되면 오늘 live 묶음 행, 어제 칸뿐이면 없음."""
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
-    calls = _fake(monkeypatch, {"005930": _snap(1, 0.0, [1] * 70), "000660": _snap(250000, 0.5, [249000] * 70)})
+    calls = _fake(monkeypatch, {"005930": _snap(71500, -2.8, [73500] * 70), "000660": None, "035420": None})
     bundles = {"market-domestic": {"views": {
         "amount": {"asOf": "2026-10-07", "state": "live",
-                   "items": [{"code": "005930", "name": "삼성전자", "price": 71000.0, "chgPct": -3.5}]},
+                   "items": [{"code": "005930", "name": "삼성전자", "price": 71000.0, "chgPct": -3.5},
+                             {"code": "000660", "name": "SK하이닉스", "price": 250000.0, "chgPct": 0.5}]},
         "marketCap": {"asOf": "2026-10-06", "state": "prev",                 # 어제 칸 — 쓰지 않는다
-                      "kospi": [{"code": "000660", "name": "SK하이닉스", "price": 1.0, "chgPct": 0.0}]}}}}
+                      "kospi": [{"code": "035420", "name": "NAVER", "price": 1.0, "chgPct": 0.0}]}}}}
     ctx = _ctx(bundles=bundles)
     rows = _hits(ctx, [{"id": "a", "event": "U1", "target": "005930", "dir": "up", "value": 70500},
-                       {"id": "b", "event": "U2", "target": "005930", "value": 3}])
-    assert [(r["cond"], r["value"]) for r in rows] == [("a", 71000.0), ("b", 71000.0)]
-    assert calls == []                                                        # 화면과 같은 값 — 조회 0
+                       {"id": "b", "event": "U2", "target": "005930", "value": 2.5}])
+    assert [(r["cond"], r["value"]) for r in rows] == [("a", 71500), ("b", 71500)]   # 조회 값(묶음 71,000 아님)
+    assert rows[0]["title"].startswith("삼성전자")                                   # 이름은 묶음
     q = ctx.stock("000660")
-    assert calls == [("KR", "000660")]                                        # 어제 칸만 있으면 조회
-    assert (q["value"], q["name"]) == (250000, "SK하이닉스")                   # 값은 조회, 이름은 묶음
+    assert (q["value"], q["changePct"], q["name"]) == (250000.0, 0.5, "SK하이닉스")   # 조회 실패 — 오늘 live 묶음 행
+    assert ctx.stock("035420") is None
+    ctx.stock("005930"), ctx.stock("000660")
+    assert sorted(calls) == [("KR", "000660"), ("KR", "005930"), ("KR", "035420")]   # 종목당 한 번(실패도 기억)
 
 
 def test_one_fetch_per_stock_per_run(monkeypatch):

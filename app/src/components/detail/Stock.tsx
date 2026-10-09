@@ -111,7 +111,7 @@ export default function StockDetail({ id }: { id: string }) {
           cmp={cmpGot} onCmpOff={() => setCmp('')} fail={chart === null ? '시세 흐름을 받지 못했습니다' : undefined} />
 
         <div className="pc:col-span-4 flex flex-col gap-4">
-          <BellPanel id={id} name={name} what="이 종목이" />
+          <BellPanel id={id} name={name} what="이 종목이" cur={price} />
 
           {f && f.investor.length > 0 && (
             <Panel title="수급" unit={`주 · 최근 ${f.investor.length}거래일 합`} asOf={flowLast} state={info.flowState}>

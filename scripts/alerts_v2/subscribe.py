@@ -6,7 +6,8 @@ ALERTS_STATE_SALT HMAC 12자, 소금이 없으면 사용자 조건은 통째로 
 종목(국내 6자리 · 미국 티커) 값은 Context.stock 이 옛 종목 알림의 시세 길로 댄다. 지표 대상 B1 조건은 사전 판정(full 런)
 행에 대한 조정이라 match 의 _override 가 맡는다.
 U1 은 넘는 순간만 울린다(2026-10-09 사용자 결정) — 직전 쪽은 공개 파일 alerts_state.json._prefs[조건 id].side 한 글자
-(u 임계 위 · d 아래)로만 남기고, 임계 · 값은 남기지 않는다. 그 파일을 커밋하는 런(stock-alerts 의 light)만 U1 을 본다.
+(u 임계 위 · d 아래)로만 남기고, 임계 · 값은 남기지 않는다. 사용자 조건은 그 파일을 커밋하는 런(stock-alerts 의 light)만 본다.
+쪽(관측)과 울림 기록(ts · fired)은 따로 — 울림 기록은 원장에 들어가 실제로 나간 행만(mark_sent).
 """
 from __future__ import annotations
 
@@ -125,6 +126,30 @@ def _fired_after_arm(cond: dict, history: list[dict], rec: dict | None = None) -
     return any(r.get("cond") == cond.get("id") and _sec(r.get("ts")) > armed for r in history)
 
 
+def since_arm(prefs: dict | None, history: list[dict]) -> list[dict]:
+    """다시 켠(armedAt) 조건의 그 전 행은 뺀다 — 쿨다운 · 「한 번」 판정은 지금 켠 뒤의 울림만 본다."""
+    armed = {a.get("id"): _sec(a["armedAt"]) for a in (prefs or {}).get("alerts") or [] if a.get("armedAt")}
+    return [r for r in history if not (r.get("cond") in armed and _sec(r.get("ts")) <= armed[r["cond"]])]
+
+
+def mark_sent(sides: dict | None, prefs: dict | None, rows: list[dict], ledger, now: dt.datetime) -> None:
+    """이번 런에 원장에 들어가 실제로 나간(sent 의 어느 칸이든 참) 사용자 조건 행만 공개 기록에 ts(초) ·
+    「한 번」이면 fired 를 남긴다 — 쿨다운 · 발송 실패로 안 나간 행은 남기지 않는다(화면 「울림」 · 멈춤과 같은 기준)."""
+    if sides is None:
+        return
+    once = {a.get("id") for a in (prefs or {}).get("alerts") or [] if a.get("repeat") == "once"}
+    for r in rows:
+        sent = (ledger.get(r["key"]) or {}).get("sent") or {}
+        if not any(sent.get(k) for k in ("push", "kakao", "discord", "memo")):
+            continue
+        rec = sides.get(r["cond"])
+        rec = dict(rec) if isinstance(rec, dict) else {}
+        rec["ts"] = int(now.timestamp())
+        if r["cond"] in once:
+            rec["fired"] = True
+        sides[r["cond"]] = rec
+
+
 def _stock_b1(ctx, target: str, want: str | None):
     """종목 52주 신고 · 신저 — 사전 B1 의 판정 함수(high52)를 그 종목 하나에 그대로 쓴다(일봉 = 옛 종목 알림의 1년 일봉).
     → (Hit 또는 None, 사전 B1 행). 조건에 방향(dir)이 있으면 그 방향만."""
@@ -138,9 +163,9 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
               sides: dict | None = None) -> list[Row]:
     """U1 · U2 · 종목 B1 판정 → 원장 행(아직 원장엔 안 넣음). 소금 없으면 빈 목록.
 
-    sides = alerts_state.json._prefs(조건 id → {side, ts?, fired?}) — U1 의 직전 쪽. 그 자리에서 고친다.
+    sides = alerts_state.json._prefs(조건 id → {side?, at?, ts?, fired?}) — U1 의 직전 쪽은 그 자리에서 고친다.
     U1 은 직전 쪽이 반대편이었다가 이번에 임계를 넘었을 때만 울린다. 처음 보는 조건 · 깨진 기록은 지금 쪽만 남긴다.
-    sides 가 None 이면(직전 쪽을 커밋하지 않는 런) U1 은 보지 않는다. U2 · B1 은 하루 한 번(원장 키)."""
+    sides 가 None 이면(깨진 파일) U1 은 보지 않는다. U2 · B1 은 하루 한 번(원장 키). 울림 기록(ts · fired)은 mark_sent."""
     if not prefs:
         return []
     salt = _salt()
@@ -172,8 +197,14 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
             d = c.get("dir") or "up"
             met = float(val) >= float(thr) if d == "up" else float(val) <= float(thr)
             side = ("u" if met else "d") if d == "up" else ("d" if met else "u")
-            crossed = met and rec.get("side") in ("u", "d") and rec["side"] != side
-            sides[c["id"]] = dict(rec, side=side)          # 공개 기록 — 쪽 한 글자만(임계 · 값 없음)
+            prev, new = rec.get("side"), dict(rec, side=side)   # 공개 기록 — 쪽 한 글자만(임계 · 값 없음)
+            armed = int(_sec(c["armedAt"])) if c.get("armedAt") else 0
+            if armed and not (isinstance(rec.get("at"), int) and rec["at"] >= armed):
+                # 저장 · 켜기(armedAt) 뒤 첫 관측 — 남은 쪽은 예전 임계 · 꺼 둔 동안의 것이라 화면이 그 순간 잰 쪽(armSide)을
+                # 직전 쪽으로 본다(없으면 첫 관측 무음). at = 이 기록이 그 켜기를 반영한 때
+                prev, new["at"] = c.get("armSide"), max(int(ctx.now.timestamp()), armed)
+            crossed = met and prev in ("u", "d") and prev != side
+            sides[c["id"]] = new
             if crossed:
                 hit = Hit(target=target, dir=d, value=val, unit="", asOf=ctx.as_of(target), fresh=ctx.fresh(target),
                           chg=chg, fields={"dir_ko": U1_DIR_KO[d]})
@@ -192,7 +223,7 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
         if c["event"] == "B1":                   # 문구는 사전 B1 틀 그대로(직전 신고 · 신저와 그 날짜)
             ev.update({k: b1[k] for k in ("title", "why", "next") if k in b1})
         txt = render(ev, hit) if render else {"title": ev["title"], "why": "내 조건", "next": "", "url": ev["url"]}
-        k = hmac_key(f"{c['id']}:{hit.asOf}:{hit.dir}", salt)
+        k = hmac_key(f"{c['id']}:{c.get('armedAt', '')}:{hit.asOf}:{hit.dir}", salt)   # 다시 켜면 새 키
         row = Row(key=f"{c['event']}:{target}:{hit.dir}:{k}", event=c["event"], target=target, dir=hit.dir,
                   level=ev["level"] if ev["level"] in LEVELS else "alert", value=hit.value, unit="",
                   asOf=hit.asOf, fresh=hit.fresh, title=txt["title"], why=txt.get("why", ""), next=txt.get("next", ""),
@@ -200,10 +231,6 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
         d = row.to_dict()
         d["cond"] = c["id"]                      # 조건 id 만(임계값 없음) — 화면이 이름을 찾는 열쇠
         rows.append(d)
-        if c["event"] == "U1":                   # 화면 상태(울림 · 멈춤)와 원장 창 밖의 「한 번」 멈춤용
-            sides[c["id"]]["ts"] = int(ctx.now.timestamp())
-            if c.get("repeat") == "once":
-                sides[c["id"]]["fired"] = True
     return rows
 
 

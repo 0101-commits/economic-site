@@ -237,7 +237,11 @@ class Context:
             if not self.stock(target):                     # 장 밖 · 휴장 · 사전 밖 대상이면 비교하지 않는다
                 return []
             sn = self._snap(str(target)) or {}
-            return [{"date": d, "close": c} for d, c in zip(sn.get("dates") or [], sn.get("closes") or [])][-n:]
+            cl = sn.get("closes") or []
+            hi, lo = sn.get("highs") or [], sn.get("lows") or []
+            ok = len(hi) == len(lo) == len(cl)             # 장중 고가 · 저가(52주 판정) — 칸이 어긋나면(야후 빈 봉) 종가만
+            return [{"date": d, "close": c, "high": hi[i] if ok else None, "low": lo[i] if ok else None}
+                    for i, (d, c) in enumerate(zip(sn.get("dates") or [], cl))][-n:]
         v = _get(self.data, path)
         if isinstance(v, dict) and "data" in v:
             v = v["data"]
@@ -255,7 +259,7 @@ class Context:
 
         옛 종목 알림(check_alerts._PrefsCtx.quote · 현행 루프)과 같은 규칙: 장 밖(is_market_open)이면 보지 않는다(멈춘 시세),
         휴장(마지막 일봉이 오늘 아님) · 오염(가격 0 이하 · 하루 등락 상한 초과) · 조회 실패면 None.
-        묶음에 그 종목 행이 있고 그 칸이 오늘 live 면 그 값(화면과 같은 값)을 쓰고 조회하지 않는다."""
+        값은 직접 조회(지금 값)가 먼저, 그게 없을 때만 묶음의 그 종목 행(오늘 live 칸 — 최대 ~25분 늦다)."""
         t = str(target or "")
         if t in self._stocks:
             return self._stocks[t]
@@ -265,13 +269,12 @@ class Context:
             kr = bool(KR_CODE.fullmatch(t))
             if ca.is_market_open("KR" if kr else "US", self.now.astimezone(KST)):
                 b = self._bundle_stock(t) if kr else None
-                live = bool(b and b["_live"])
-                sn = None if live else self._snap(t)
-                if live:
-                    q = {"value": b["price"], "changePct": b.get("chgPct"), "asOf": b["_asOf"], "fresh": "live"}
-                elif sn:
+                sn = self._snap(t)
+                if sn:
                     q = {"value": sn["price"], "changePct": sn.get("pct"), "fresh": "live",
                          "asOf": (sn.get("dates") or [self.now.astimezone(KST).date().isoformat()])[-1]}
+                elif b and b["_live"]:
+                    q = {"value": b["price"], "changePct": b.get("chgPct"), "asOf": b["_asOf"], "fresh": "live"}
                 if q:
                     flows = ((self.data.get("stockFlows") or {}).get("items") or {}).get(t) or {}
                     q["name"] = (b or {}).get("short") or (b or {}).get("name") or flows.get("name") or t
