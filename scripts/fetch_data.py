@@ -9407,6 +9407,9 @@ def backfill_calendar_actuals(events, data):
     if not events or not data:
         return 0
     today_iso = datetime.now(KST).strftime("%Y-%m-%d")
+    # 실적은 최근 _CAL_FILL_BACK 일 발표만 채운다 — 아래 '발표일 이하 최신 관측' 규칙은 창이 넓으면 뒤 회차의 관측을 앞 회차에
+    # 물린다(실측 2026-10-09: 8/13 미국 CPI 에 8월분 +0.4% 가 찍히고 9/11 회차가 비었다). 그보다 오래된 일정은 실적 칸을 비워 둔다.
+    fill_from = (datetime.now(KST).date() - timedelta(days=_CAL_FILL_BACK)).isoformat()
     filled = 0
     # 지표별로 '이미 어떤 관측치를 실적으로 소비했는지' 기록한다.
     # 왜: history 에서 '발표일 이하의 가장 최근 관측'을 고르는 규칙은, 아직 공표되지 않은
@@ -9424,8 +9427,8 @@ def backfill_calendar_actuals(events, data):
             iso = ev.get("iso", "")
             if not iso:
                 continue
-            if iso > today_iso:
-                continue  # 미래 이벤트는 그대로
+            if iso > today_iso or iso < fill_from:
+                continue  # 미래 이벤트는 그대로, 오래된 일정은 비워 둔다
             name = ev.get("name", "")
             mp = CALENDAR_INDICATOR_MAP.get(name)
             if not mp:
@@ -9670,7 +9673,7 @@ def fetch_economic_calendar():
     seen_name_month = set()
     MULTI_PER_MONTH_NAMES = {"미국 FOMC 회의", "미국 신규 실업수당청구"}
     for rid, (cc, name, stars, time_et) in FRED_KEY_RELEASES.items():
-        dates = fetch_fred_release_dates(rid, days_back=14, days_forward=45)
+        dates = fetch_fred_release_dates(rid, days_back=_CAL_BACK, days_forward=45)   # 뒤 범위는 비미국 일정과 같은 창
         if not dates:
             continue
         # release_id 단위 month dedup 도 한 번 더 적용 (API 응답 신뢰도 보강)
@@ -9720,7 +9723,9 @@ def fetch_economic_calendar():
 # 관측 이후만)로 그 문제를 막는다. 산업활동동향·고용동향은 짝이 되는 잎이 없어 계속 표 밖이다.
 # 시각: ECB 결정은 14:15 CET/CEST 고정 공표. 금통위·BOJ 는 고정 공표 시각이 없어 timeApprox=True
 # (금통위 = 회의 시작 09:00, BOJ = 통상 정오 전후).
-_CAL_BACK, _CAL_AHEAD = 14, 75      # 회의는 6~8주 간격 — FRED(45일)보다 멀리 봐야 다음 회의가 보인다
+# 뒤로 62일 = 월말에도 지난달 1일까지(31일 + 30일) — 달력 보기가 지난달을 넘겨 볼 때 초순이 비지 않게(2026-10-09, 종전 14).
+_CAL_BACK, _CAL_AHEAD = 62, 75      # 회의는 6~8주 간격 — FRED(45일)보다 멀리 봐야 다음 회의가 보인다
+_CAL_FILL_BACK = 14                 # 실적 자동 채움은 이 안의 발표만(backfill_calendar_actuals — 종전 창과 같은 14일)
 _CAL_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                          "(KHTML, like Gecko) Chrome/121.0 Safari/537.36"}
 _BOK_MPC_URL = "https://www.bok.or.kr/portal/singl/crncyPolicyDrcMtg/listYear.do?mtgSe=A&menuNo=200755"
@@ -9866,7 +9871,7 @@ def fetch_intl_calendar(prev_events, daily, today=None):
             log(f"[Calendar] {key} 일정 오류: {e}")
             fresh, status[key] = [], "failed"
         if fresh:
-            # 지난 회의는 이어 둔다 — ECB 페이지는 앞으로의 일정만 싣는다(지난 결정일이 14일 창에서 사라지지 않게).
+            # 지난 회의는 이어 둔다 — ECB 페이지는 앞으로의 일정만 싣는다(지난 결정일이 뒤 창(_CAL_BACK)에서 사라지지 않게).
             # 지난 일정은 바뀌지 않으므로 보존 표식을 떼고 잇는다(표식이 남으면 매시 재조회가 창을 벗어날 때까지 돈다).
             got = {(e.get("iso"), e.get("name")) for e in fresh}
             events += fresh + [{k: v for k, v in e.items() if k not in ("preserved", "preservedAt")}

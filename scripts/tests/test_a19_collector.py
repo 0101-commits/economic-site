@@ -300,10 +300,10 @@ def test_intl_calendar_daily_fetch_window_and_status(monkeypatch):
     got = _cal_env(monkeypatch, PAGES)
     ev, st = fd.fetch_intl_calendar([], daily=True, today=TODAY)
     isos = {e["iso"] for e in ev}
-    assert st == {"bok": 2, "ecb": 1, "boj": 2, "fomc": 3, "kostat": 3}, st          # 9/16 ~ 12/14 창
-    assert {"2026-09-18", "2026-09-30", "2026-10-22", "2026-10-29", "2026-11-26"} <= isos
+    assert st == {"bok": 3, "ecb": 1, "boj": 3, "fomc": 4, "kostat": 5}, st          # 7/30 ~ 12/14 창(뒤 62일 · 앞 75일)
+    assert {"2026-07-30", "2026-09-02", "2026-09-18", "2026-09-30", "2026-10-22", "2026-10-29", "2026-11-26"} <= isos
     assert "2026-12-17" not in isos                                        # 창(75일 뒤) 밖 — 10/2 부터 보인다
-    assert "2026-09-02" not in isos                                        # 창(14일 전) 밖
+    assert "2026-07-16" not in isos                                        # 창(62일 전) 밖 — 지난달(8월) 1일까지는 덮는다
     assert not any("pYear=" in u for u in got)                              # 창이 올해 안 — 이듬해 쪽은 안 본다
     got.clear()
     fd.fetch_intl_calendar([], daily=True, today=date(2026, 11, 1))       # 창이 2027-01-15 까지
@@ -318,7 +318,7 @@ def test_intl_calendar_hourly_carries_and_failed_source_preserves(monkeypatch):
     assert got == [] and set(st.values()) == {"carried"} and len(ev) == len(prev)
     got = _cal_env(monkeypatch, PAGES, fail=(fd._ECB_MPM_URL,))
     ev, st = fd.fetch_intl_calendar(prev, daily=True, today=TODAY)        # 일일 런에서 ECB 실패
-    assert st["ecb"] == "failed" and st["bok"] == 2
+    assert st["ecb"] == "failed" and st["bok"] == 3
     ecb = [e for e in ev if e["cc"] == "EU"]
     assert len(ecb) == 1 and all(e["preserved"] is True and e["preservedAt"] for e in ecb)
     assert not any(e.get("preserved") for e in ev if e["cc"] != "EU")
@@ -367,7 +367,7 @@ def test_merge_keeps_us_events_and_dedupes():
     out = fd._merge_calendar(us, kr + kr, prev_events=[], today=TODAY)
     assert [e["name"] for e in out] == ["한국 소비자물가동향", "미국 CPI (전월비)"]   # 날짜순, 중복 1건 제거
     # FRED 가 비면 직전 FRED 일정을 보존 표식으로 잇는다(비미국만 남아 미국 일정이 사라지지 않게)
-    old = us + [{"iso": "2026-08-01", "dt": "08.01 21:30", "name": "옛", "source": "FRED:release_id=11"}]
+    old = us + [{"iso": "2026-07-01", "dt": "07.01 21:30", "name": "옛", "source": "FRED:release_id=11"}]
     out = fd._merge_calendar([], kr, prev_events=old + kr, today=TODAY)
     fred = [e for e in out if e["source"].startswith("FRED:")]
     assert [e["iso"] for e in fred] == ["2026-10-14"] and fred[0]["preserved"] is True
