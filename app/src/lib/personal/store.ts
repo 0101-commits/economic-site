@@ -12,6 +12,8 @@ import { upsertSnap, type Holding, type Snap, type Unit } from './calc'
 import { upgradePrefs } from './prefsV2'
 import { housekeep, type Hk } from './housekeeping'
 import { unsubscribePush, type GetKeyHash } from '../push'
+import { applyTheme, readTheme } from '../theme'
+import type { MyData } from './backup'
 import '../../components/personal/updown.css'
 
 export const KEYS = {
@@ -21,6 +23,7 @@ export const KEYS = {
   hk: 'econAlertsHk_v1',         // 알림 자동 정리 기록(housekeeping.ts) — 조건 id · 시각만
   holdKey: 'econHoldKey_v1',     // 보유 열쇠 재료(sync.ts) — 동기화 키에서 만든 hex
   scope: 'econSyncScope_v1',     // 기기 연결 범위(sync.ts)
+  scenarios: 'econ_scenarios_v1', // 렌즈 「만약에」 저장(components/lens/WhatIf.tsx SAVE_KEY 와 같은 열쇠)
 } as const
 
 function read<T>(key: string, fallback: T): T {
@@ -96,6 +99,33 @@ export function tidyAlerts(rows: unknown, seen: string | null, now = Date.now())
 export function applyUpdown(u: Updown) {
   if (u === 'us') document.documentElement.dataset.updown = 'us'
   else document.documentElement.removeAttribute('data-updown')
+}
+
+// ── 내 데이터 파일(backup.ts — 설정 「내 데이터」) ──────────────
+/** 내려받기 재료. 비밀(키 해시 · 보유 열쇠 재료 · PIN)과 사용 기록은 읽지 않는다. 관심은 watch.ts 처럼 현행 화면 즐겨찾기를 이어받는다. */
+export function readMyData(): MyData {
+  const p = readPrefs(), w = read<unknown>(KEYS.watch, null) ?? read<unknown>('econ_fav_v1', []), sc = read<unknown>(KEYS.scenarios, [])
+  return {
+    portfolio: readPortfolio(), snapshots: readSnaps(), ledger: readLedger(),
+    watch: Array.isArray(w) ? w.filter((x): x is string => typeof x === 'string') : [],
+    prefs: { alerts: p.alerts, settings: p.settings }, theme: readTheme(),
+    scenarios: Array.isArray(sc) ? sc : [],
+  }
+}
+/**
+ * 올리기: 파일에 있는 칸만 이 기기에 쓴다(이전 화면 백업은 보유 · 스냅샷만). 실패가 하나라도 있으면 false.
+ * 다른 화면은 storage 이벤트로 다시 읽는다(sync.ts writeLocal 과 같은 길). 기기 연결이 켜져 있으면 sync.ts 감시가 바뀐 것을 서버에 올린다.
+ */
+export function writeMyData(d: Partial<MyData>): boolean {
+  const puts: [string, unknown][] = [[KEYS.portfolio, d.portfolio], [KEYS.snaps, d.snapshots], [KEYS.watch, d.watch], [KEYS.scenarios, d.scenarios],
+    [KEYS.prefs, d.prefs && { ...readPrefs(), ...d.prefs }]]
+  const done = puts.filter(([, v]) => v !== undefined)
+  let ok = done.map(([k, v]) => write(k, v)).every(Boolean)
+  if (d.ledger) { ok = writeLedger(d.ledger) && ok; done.push([KEYS.ledger, d.ledger]) }
+  if (d.theme) applyTheme(d.theme)
+  if (d.prefs) applyUpdown(d.prefs.settings.updown)
+  for (const [key] of done) window.dispatchEvent(new StorageEvent('storage', { key }))
+  return ok
 }
 
 // ── 검색 최근 ───────────────────────────────────────────
