@@ -48,3 +48,11 @@ test('overlay: 기간마다 첫 점 = 100, 비교 선은 주 선의 날짜 범�
   assert.deepEqual(o.other['1w']!.map(p => [p[0], Math.round(p[1] * 1e6) / 1e6]), [['2026-10-01', 100], ['2026-10-02', 110], ['2026-10-05', 120]])
   assert.deepEqual(overlay({ '1w': [['2026-10-01', -1], ['2026-10-02', 1]] }, other).main['1w'], [])
 })
+
+test('stockRows: 거래대금 · 거래량은 다른 목록에서 빈 칸만 채운다', () => {
+  const m = stockRows([{ items: [{ code: '005930', name: '삼성전자', price: 100, chgPct: 1, amount: 5e12 }] }, { kospi: [{ code: '005930', name: '삼성전자', price: 99, chgPct: 0.5, volume: 1.2e7 }] }])
+  const r = m.get('005930')!
+  assert.equal(r.price, 100)
+  assert.equal(r.amount, 5e12)
+  assert.equal(r.volume, 1.2e7)
+})

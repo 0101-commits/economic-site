@@ -9,7 +9,7 @@ export const isKrStock = (id: string) => /^\d[0-9A-Z]{5}$/.test(id)
 export const isStockId = (id: string) => watchKind(id) === 'stock'
 
 /** 묶음의 종목 한 줄. asOf · state 는 그 행이 든 위쪽 칸의 것(없으면 없음). */
-export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; asOf?: string | null; state?: string }
+export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; asOf?: string | null; state?: string; amount?: number | null; volume?: number | null }
 
 /**
  * 묶음 아무 깊이의 종목 행(code · name 이 글자인 칸)을 코드별로 모은다. 위쪽 칸의 asOf · state 를 물려받는다.
@@ -26,7 +26,11 @@ export function stockRows(roots: unknown[]): Map<string, StockRow> {
     if (typeof r.code === 'string' && typeof r.name === 'string' && r.name) {
       const price = num(r.price), old = out.get(r.code)
       if (!old || (old.price == null && price != null)) {
-        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: num(r.chgPct), asOf, state })
+        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: num(r.chgPct), asOf, state, amount: num(r.amount) ?? old?.amount, volume: num(r.volume) ?? old?.volume })
+      } else {
+        // 거래대금 · 거래량은 목록마다 한쪽만 있다(거래대금 상위 = amount, 상승 · 하락 = volume) — 먼저 본 행에 없는 칸만 채운다
+        if (old.amount == null && num(r.amount) != null) old.amount = num(r.amount)
+        if (old.volume == null && num(r.volume) != null) old.volume = num(r.volume)
       }
     }
     Object.values(r).forEach(x => walk(x, asOf, state))

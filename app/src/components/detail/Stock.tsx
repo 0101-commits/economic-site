@@ -87,7 +87,11 @@ export default function StockDetail({ id }: { id: string }) {
           </div>
           <AsOfBadge asOf={fromRow ? row!.asOf : chart?.asOf} state={fromRow ? row!.state : undefined} />
         </div>
-        <p className="m-0 text-12 text-ink-3"><span className="num">{id}</span> · {market}</p>
+        <p className="m-0 text-12 text-ink-3">
+          <span className="num">{id}</span> · {market}
+          {row?.amount != null && <> · 거래대금 <span className="num">{row.amount >= 1e12 ? `${fmtNumber(row.amount / 1e12, 2)}조` : `${fmtNumber(row.amount / 1e8, 0)}억`}</span></>}
+          {row?.volume != null && <> · 거래량 <span className="num">{`${fmtNumber(row.volume / 1e4, row.volume < 1e5 ? 1 : 0)}만주`}</span></>}
+        </p>
       </header>
 
       <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
