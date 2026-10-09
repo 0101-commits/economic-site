@@ -464,6 +464,12 @@ def test_news_bundle_and_topic_links():
     assert len(rows) == bb.NEWS_MAX and rows[0] == {"title": 'A&B "C"', "source": "x.co.kr", "url": "https://www.x.co.kr/9",
                                                     "at": "2026-10-09T16:06:00+09:00"}
     assert "옛것" not in [r["title"] for r in rows] and "중복" not in [r["title"] for r in rows]
+    # http/https 가 아닌 주소(RSS <link> 원문의 javascript: 따위)는 그 기사를 뺀다 — 주제 묶음과 홈 뉴스 둘 다
+    bad = [{"title": "나쁨%d" % i, "url": u, "pubDate": "Wed, 09 Oct 2026 16:06:00 +0900"}
+           for i, u in enumerate(["javascript:alert(1)", " JavaScript:x", "data:text/html,x", "//x.co.kr/a", "ftp://x/a", None, 3])]
+    news = {"news": {"t": bad + [item(1, "좋음"), {**item(2, "대문자"), "url": "HTTPS://X.CO.KR/2"}]}}
+    assert [r["title"] for r in bb.news_bundle(news)["topics"]["t"]] == ["대문자", "좋음"]
+    assert [r["title"] for r in bb.news_top(news)] == ["대문자", "좋음"]
 
 
 def test_home_brief_and_mood():
@@ -486,9 +492,15 @@ def test_toss_amount_view_and_stock_flow_cells():
     assert [r["code"] for r in v["items"]] == [r.get("code") for r in DATA["rankingsKr"].get("tossAmount") or []]
     f = bb.flow_last({"short": [{"date": "d1", "volume": 5.0}, {"date": "d2", "volume": 7.0}],
                       "program": [{"date": "d2", "arb": -3, "nonArb": 10}], "lending": []})
-    assert f == {"short": 7.0, "lending": None, "program": 7, "flowDates": {"short": "d2", "lending": None, "program": "d2"}}
+    assert f == {"shortVol": 7.0, "lending": None, "program": 7, "flowDates": {"shortVol": "d2", "lending": None, "program": "d2"}}
+    # 프로그램은 차익 · 비차익 둘 다 있을 때만, 마지막 원소가 dict 가 아니거나 칸이 목록이 아니면 그 칸만 null(빌드가 죽지 않게)
+    assert bb.flow_last({"program": [{"date": "d2", "arb": 4}]})["program"] is None
+    f = bb.flow_last({"short": ["x"], "lending": {"bal": 1}, "program": [None]})
+    assert f == {"shortVol": None, "lending": None, "program": None, "flowDates": {"shortVol": None, "lending": None, "program": None}}
     for s in bundles()["market-flows"]["views"]["stocks"]["items"].values():
-        assert {"short", "lending", "program", "flowDates"} <= set(s)
+        assert {"shortVol", "lending", "program", "flowDates"} <= set(s)
+        # 줄임 이름(short)을 공매도 칸이 덮지 않는다
+        assert s.get("short") is None or isinstance(s["short"], str), s
 
 
 def test_lens_counts_match_source():

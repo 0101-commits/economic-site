@@ -8,11 +8,11 @@ import { Panel, RankTable, type Col } from '../panels'
 import { BigChart, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
 import { column, cumsum, groupFlows, rollSum, type FlowRow } from './calc'
 
-/** 종목 한 줄. short = 공매도 거래량 · lending = 대차 잔고 · program = 프로그램 순매수(모두 주, 없으면 null), flowDates = 각 값의 마지막 날. */
+/** 종목 한 줄. short = 줄임 이름 · shortVol = 공매도 거래량 · lending = 대차 잔고 · program = 프로그램 순매수(모두 주, 없으면 null), flowDates = 각 값의 마지막 날. */
 type StockFlow = {
-  name: string; market?: string; secType?: string; investor: (string | number | null)[][]
-  short?: number | null; lending?: number | null; program?: number | null
-  flowDates?: Partial<Record<'short' | 'lending' | 'program', string | null>>
+  name: string; short?: string; market?: string; secType?: string; investor: (string | number | null)[][]
+  shortVol?: number | null; lending?: number | null; program?: number | null
+  flowDates?: Partial<Record<Extra, string | null>>
 }
 export type FlowsBundle = {
   strip: StripItem[]
@@ -42,9 +42,9 @@ const flowCols: Col<FlowRow>[] = [
   { key: 'i', label: '기관', get: r => r[2], num: true, render: r => signed(r[2]) },
   { key: 'r', label: '개인', get: r => r[3], num: true, render: r => signed(r[3]) },
 ]
-type Extra = 'short' | 'lending' | 'program'
+type Extra = 'shortVol' | 'lending' | 'program'
 type StockRow = { code: string; name: string; f: number; i: number; r: number; hold: number | null; days: number; extra: Record<Extra, number | null>; old: Partial<Record<Extra, string>> }
-const EXTRA: { key: Extra; label: string }[] = [{ key: 'short', label: '공매도' }, { key: 'lending', label: '대차' }, { key: 'program', label: '프로그램' }]
+const EXTRA: { key: Extra; label: string }[] = [{ key: 'shortVol', label: '공매도' }, { key: 'lending', label: '대차' }, { key: 'program', label: '프로그램' }]
 /** 주 수 짧게: 1만 미만 그대로 · 100만 미만 「54.0만」 · 그 위 「1,842만」. sign = 앞에 + 를 붙인다(순매수). */
 const shares = (v: number | null | undefined, sign = false) => {
   if (v == null) return '—'
@@ -128,9 +128,9 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
     // 표 기준일 = 종목 투자자 행의 마지막 날. 공매도 · 대차 · 프로그램 값이 그보다 오래됐으면 날짜를 단다.
     const last = Object.values(st?.items ?? {}).reduce((d, s) => { const x = String(s.investor[s.investor.length - 1]?.[0] ?? ''); return x > d ? x : d }, '')
     const rows: StockRow[] = Object.entries(st?.items ?? {}).map(([code, s]) => ({
-      code, name: s.name, f: sum(s.investor, 'foreign'), i: sum(s.investor, 'inst'), r: sum(s.investor, 'retail'),
+      code, name: s.short || s.name, f: sum(s.investor, 'foreign'), i: sum(s.investor, 'inst'), r: sum(s.investor, 'retail'),
       hold: (s.investor[s.investor.length - 1]?.[c('fholdRate')] as number | null) ?? null, days: s.investor.length,
-      extra: { short: s.short ?? null, lending: s.lending ?? null, program: s.program ?? null },
+      extra: { shortVol: s.shortVol ?? null, lending: s.lending ?? null, program: s.program ?? null },
       old: Object.fromEntries(EXTRA.flatMap(({ key }) => { const d = s.flowDates?.[key]; return s[key] != null && d && d < last ? [[key, d]] : [] })),
     }))
     const days = Math.max(0, ...rows.map(r => r.days))

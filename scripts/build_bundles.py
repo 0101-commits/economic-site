@@ -755,13 +755,21 @@ def _pub_time(it):
     return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
 
 
+def _web_url(u):
+    """http/https 주소만 그대로, 나머지(javascript: · data: · 깨진 글)는 None — RSS <link> 원문이 화면 href 로 간다."""
+    try:
+        return u if isinstance(u, str) and urllib.parse.urlsplit(u.strip()).scheme.lower() in ("http", "https") else None
+    except ValueError:
+        return None
+
+
 def news_top(data, n=5):
     seen, out = set(), []
     for topic, items in (data.get("news") or {}).items():
         if not isinstance(items, list):
             continue
         for it in items:
-            url = it.get("url")
+            url = _web_url(it.get("url")) if isinstance(it, dict) else None
             if not url or url in seen:
                 continue
             seen.add(url)
@@ -782,7 +790,7 @@ def news_bundle(data, health=None):
             continue
         seen, rows = set(), []
         for it in items:
-            url = it.get("url") if isinstance(it, dict) else None
+            url = _web_url(it.get("url")) if isinstance(it, dict) else None
             if not url or url in seen or not clean_title(it.get("title")):
                 continue
             seen.add(url)
@@ -823,14 +831,17 @@ def mood_item(Q, i):
 
 
 def flow_last(s):
-    """종목 수급 세 칸(단위 주) — 기록의 마지막 날 값 하나씩. 공매도 = 그날 공매도 거래량, 대차 = 그날 대차잔고,
-    프로그램 = 그날 차익 + 비차익 순매수. 기록이 없으면 null(ETF 는 대개 비어 온다)."""
-    last = lambda k: (s.get(k) or [{}])[-1]
+    """종목 수급 세 칸(단위 주) — 기록의 마지막 날 값 하나씩. 공매도(shortVol — short 는 줄임 이름 칸) = 그날 공매도 거래량,
+    대차 = 그날 대차잔고, 프로그램 = 그날 차익 + 비차익 순매수(둘 다 있을 때만). 기록이 없거나 모양이 다르면 null(ETF 는 대개 비어 온다)."""
+    def last(k):
+        v = s.get(k)
+        x = v[-1] if isinstance(v, list) and v else {}
+        return x if isinstance(x, dict) else {}
     sh, ln, pg = last("short"), last("lending"), last("program")
-    prog = (None if pg.get("arb") is None and pg.get("nonArb") is None
-            else (pg.get("arb") or 0) + (pg.get("nonArb") or 0))
-    return {"short": _num(sh.get("volume")), "lending": _num(ln.get("bal")), "program": prog,
-            "flowDates": {"short": sh.get("date"), "lending": ln.get("date"), "program": pg.get("date")}}
+    arb, non = _num(pg.get("arb")), _num(pg.get("nonArb"))
+    return {"shortVol": _num(sh.get("volume")), "lending": _num(ln.get("bal")),
+            "program": arb + non if arb is not None and non is not None else None,
+            "flowDates": {"shortVol": sh.get("date"), "lending": ln.get("date"), "program": pg.get("date")}}
 
 
 # ── 렌즈 ──────────────────────────────────────────────────────────────────
