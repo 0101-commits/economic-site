@@ -29,7 +29,9 @@ UNREAD = [
     "lmeInventory.lastFetched", "lmeInventory.source", "marketBreadth.source", "marketCalendarKr.generatedAt",
     "nps.lastFetched", "rankingsKr.source", "sectorMoves.source", "stockFlows.source", "subscription.lastFetched",
     # 묶음이 판정에만 쓰고 값을 옮기지 않는 칸 — 휴장 판정(오늘 · 다음 영업일), 교차검증 결과, 기업코드 표, 엘니뇨 영향 문장
-    "marketCalendarKr.nextBusinessDay", "marketCalendarKr.today", "investorTrading.crossCheck", "corpEvents.corpMap", "climate.impact",
+    "marketCalendarKr.nextBusinessDay", "marketCalendarKr.today", "investorTrading.crossCheck",
+    # 직전 영업일은 장 전(08:30)에만 세션 날짜로 실린다 — 주말 · 휴장일 수집분엔 두 시각 다 안 실려 게이트가 흔들렸다
+    "marketCalendarKr.previousBusinessDay", "corpEvents.corpMap", "climate.impact",
 ]
 excused = lambda u: any(u == e or u.startswith(e + ".") for e in UNREAD)
 
