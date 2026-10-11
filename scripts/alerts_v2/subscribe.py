@@ -250,6 +250,9 @@ def _override(prefs: dict | None, row: dict) -> dict | None:
     return None
 
 
+ALWAYS_ON = {"A5"}                                  # 서킷브레이커 · 사이드카 — 「켜짐(끌 수 없음)」(기획서 3장)
+
+
 def strength_ok(row: dict, ev: dict, override: dict | None) -> bool:
     """급변 사건(swing_sigma)의 사용자 세기 — 사전은 2.0σ 로 넓게 잡아 원장에 두고, 울림은 여기서 거른다.
     세기 = override.strength(normal 2σ · big 2.5σ · huge 3σ · value = override.value %), 없으면 big.
@@ -283,24 +286,31 @@ def match(rows: list[dict], ctx, prefs: dict | None = None, events_by_id: dict |
         level = r.get("level") if r.get("level") in LEVELS else ev.get("level", "notice")
         cond_id = r.get("cond")
         if cond_id or str(r.get("event", "")).startswith("U"):
+            mine = next((a for a in (prefs or {}).get("alerts") or [] if a.get("id") == cond_id), {})
+            if mine.get("ring") is False:              # 「울림 끄기」 = 받은 알림(원장)에만(기획서 7장 여섯 칸 「울림」)
+                out.append(Decision(r, level, False, "울림 끔", cond_id, on=False))
+                continue
             out.append(Decision(r, level, True, "내 조건", cond_id))
             continue
         ov = _override(prefs, r)
         if ov:
             if ov.get("enabled") is False:
-                out.append(Decision(r, level, False, "꺼짐", ov.get("id")))
+                out.append(Decision(r, level, False, "꺼짐", ov.get("id"), on=False))
                 continue
             if ov.get("level") in LEVELS:
                 level = ov["level"]
         fam = ev.get("family")
-        if fam and families.get(fam) is False:
-            out.append(Decision(r, level, False, "갈래 꺼짐"))
+        if fam and families.get(fam) is False and r.get("event") not in ALWAYS_ON:
+            out.append(Decision(r, level, False, "갈래 꺼짐", on=False))
             continue
         if not strength_ok(r, ev, ov):
-            out.append(Decision(r, "record", False, "세기 미달"))      # 2σ 는 넘었지만 내 세기엔 못 미침 — 기록만
+            out.append(Decision(r, "record", False, "세기 미달", on=False))   # 2σ 는 넘었지만 내 세기엔 못 미침 — 기록만
             continue
         target = r.get("target")
-        on = target in (ev.get("default_on") or []) or (target in SPECIAL_TARGETS and bool(ev.get("default_on")))
+        # 대상이 묶음(렌즈 · 일정 …)인 사건은 행 대상이 노드 id 다 — default_on 이 있으면 그 사건 전체가 켜짐(기획서 3장 C1 「켜짐」,
+        # 기본 지표 5개는 escalate 로 경보). 종전엔 그 5개만 울렸다.
+        on = target in (ev.get("default_on") or []) or (bool(ev.get("default_on"))
+                                                        and (target in SPECIAL_TARGETS or bool(set(ev.get("targets") or []) & SPECIAL_TARGETS)))
         reason = "기본 켜짐" if on else ""
         if not on and target in watch:
             on, reason = True, "관심"
@@ -322,5 +332,6 @@ def match(rows: list[dict], ctx, prefs: dict | None = None, events_by_id: dict |
                 reason = "안내"
         if not on and not reason:
             reason = "관심 아님"
-        out.append(Decision(r, level, ring, reason))
+        out.append(Decision(r, level, ring, reason,
+                            on=on or r.get("event") in ALWAYS_ON or (prefs is None and level == "notice")))
     return out

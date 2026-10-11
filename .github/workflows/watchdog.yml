@@ -16,6 +16,8 @@ on:
       - "Market Data Fetch"
       - "Stock Alerts (KakaoTalk, 장중 5분)"
       - "KakaoTalk Digest (평일 07-22 매시간 · 주말 11·17 KST)"
+      - "Briefing v2 (아침 · 마감 · 주간 · 선택 3)"
+      - "Alerts v2 (settle · eve)"
     types: [completed]
   # 주 경로 = Worker 매분 cron 이 30분마다(:03·:33) 깨운다(cloudflare-worker/worker.js 'watchdog').
   # GHA schedule 은 실측 3~5시간에 한 번만 발화해(2026-09-28) 주 경로가 될 수 없다 — Worker 가

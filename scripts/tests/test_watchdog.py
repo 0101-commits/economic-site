@@ -197,6 +197,8 @@ def test_watchdog_does_not_watch_itself():
 def test_silence_thresholds_are_sane():
     """장중 임계가 장외보다 빡빡해야 한다(장외엔 안 도는 게 정상이거나 훨씬 드물다)."""
     for _k, name, live, idle, _inst in W.WATCH:
+        if live is None and idle is None:              # 실패 즉시 통지만 하는 감시(시각 정해진 런 — 브리핑 · settle · eve)
+            continue
         assert live and live > 0, name
         assert idle is None or idle >= live, name
 

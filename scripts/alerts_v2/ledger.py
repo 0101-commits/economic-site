@@ -40,6 +40,8 @@ class Row:
     sent: dict = field(default_factory=lambda: dict(SENT_DEFAULT))
     chg: float | None = None       # 등락(%) — 급변 사건의 사용자별 세기(σ 배수) 판정에 쓴다
     z: float | None = None         # |등락| / σ — 같은 용도. 둘 다 공개해도 되는 시장 값
+    line: float | None = None      # 건넌 선 · 마디(렌즈 선 · 마디 돌파) — 카드 차트의 점선. 사전 사건의 공개 선이다
+    cd: dict | None = None         # 쿨다운 묶음 키 값(사전 cooldown.per 가운데 행 칸이 아닌 것 — 공시 접수번호 · 단계 · 날짜 · 기간)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -138,3 +140,47 @@ class Ledger:
         """「지난 1년 N회」 — 세기 고를 때 화면이 보여 주는 수. 원장이 쌓인 만큼만."""
         rows = Ledger.load_days(365, end=end, root=root)
         return sum(1 for r in rows if r.get("event") == event and r.get("target") == target)
+
+
+def _merge_sent(a: dict, b: dict) -> dict:
+    """두 사본의 발송 기록 합치기 — 한쪽이라도 나갔으면 나간 것(push 는 큰 수)."""
+    out = dict(SENT_DEFAULT)
+    for k in set(a) | set(b):
+        va, vb = a.get(k), b.get(k)
+        out[k] = max(va or 0, vb or 0) if k == "push" else bool(va and vb) if k == "held" else bool(va or vb)
+    return out
+
+
+def merge_dir(src: str, dst: str) -> int:
+    """푸시 충돌 재시도용 — src(이번 런 사본)의 하루 파일을 dst(원격 최신)에 행 단위로 합친다. 같은 key 는 하나로 두고
+    발송 기록은 합친다(_merge_sent). 종전엔 사본으로 통째 덮어 그사이 다른 런이 넣은 행이 사라졌고, 사라진 행은 다음 판정에서
+    「새 행」이 되어 다시 나갈 수 있었다(2026-10-11 점검: 10/6 B2 S&P 행). 하루 파일이 아닌 것(history/)은 건드리지 않는다.
+    돌려주는 값 = 합친 하루 파일 수. latest.json 은 dst 하루 파일로 다시 만든다."""
+    n = 0
+    os.makedirs(dst, exist_ok=True)
+    for name in sorted(os.listdir(src)):
+        s_path, d_path = os.path.join(src, name), os.path.join(dst, name)
+        # 하루 파일(YYYY-MM-DD.json)만 — history/ 는 일일 런(history_sink)만 쓰고 자기 경로로 올린다. 사본으로 덮으면 되돌아간다
+        if os.path.isdir(s_path) or not (name.endswith(".json") and len(name) == 15 and name[:2] == "20"):
+            continue
+        mine, theirs = _read(s_path), _read(d_path)
+        rows = {r["key"]: dict(r) for r in theirs if isinstance(r, dict) and r.get("key")}
+        for r in mine:
+            if not isinstance(r, dict) or not r.get("key"):
+                continue
+            if r["key"] in rows:
+                rows[r["key"]]["sent"] = _merge_sent(rows[r["key"]].get("sent") or {}, r.get("sent") or {})
+            else:
+                rows[r["key"]] = dict(r)
+        _write(d_path, sorted(rows.values(), key=lambda r: r.get("ts", "")))
+        n += 1
+    Ledger.rebuild_latest(root=dst)
+    return n
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) == 4 and sys.argv[1] == "--merge":
+        print(f"[ledger] 행 단위 병합: 하루 파일 {merge_dir(sys.argv[2], sys.argv[3])}개")
+    else:
+        raise SystemExit("python scripts/alerts_v2/ledger.py --merge <이번 런 사본 events> <원격 events>")

@@ -1,4 +1,5 @@
-name: Briefing v2 (아침 · 마감 · 주간 + 선택 3)
+# 이름에 + / * ? [ ] ! 금지 — watchdog 의 workflow_run 은 이름을 glob 으로 본다(「+ 선택 3」이라 감시가 안 걸렸다)
+name: Briefing v2 (아침 · 마감 · 주간 · 선택 3)
 
 # 알림 v2 브리핑 — 시각이 정해진 통(기획서 4장 「브리핑 틀」 · 6장 편성표 · 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md B5).
 #   기본 켜짐: morning 평일 07:30 · close 평일 16:30 · weekly 토 09:00 (KST)
@@ -185,7 +186,7 @@ jobs:
             echo "push 실패 (시도 ${attempt}) — 원격 최신 위에 원장만 재적용"
             git fetch origin "${branch}" || true
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
-            mkdir -p events && cp -r /tmp/events.run/. events/
+            mkdir -p events && (python scripts/alerts_v2/ledger.py --merge /tmp/events.run events || cp -r /tmp/events.run/. events/)   # 행 단위 병합
             git add events
             if git diff --staged --quiet -- events; then echo "원격이 이미 최신 — 종료"; exit 0; fi
             git commit -m "$msg" -q || true
