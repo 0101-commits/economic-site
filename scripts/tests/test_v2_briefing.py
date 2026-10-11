@@ -151,8 +151,10 @@ def test_close_changed_is_notice_rows_max_four_lines(real_ctx, tmp_path, monkeyp
     led.append(_row("A1:kospi:up:2026-10-06", level="alert"))
     out = briefing.build("close", ctx, led, ALL_ON)
     assert len(out["changed_rows"]) == 5 and all(r["level"] == "notice" for r in out["changed_rows"])
-    row = dict(out["items"])["오늘 바뀐 것"].split(" · ")
-    assert row[0] == "안내 5건" and len(row) - 1 <= briefing.CHANGED_MAX and row[-1] == "외 2건", row
+    # 「오늘 바뀐 것」은 마감 카드 칸(기획서 5장)이 한 줄씩 맡고, 카톡 행 · 설명엔 다시 안 쓴다(그림 · 글 중복 제거)
+    info = [t for _lab, t in out["card_info"]]
+    assert out["card_info"][0][0] == "바뀐 것 5" and info == ["제목 B2:k0:up:2026-10-06", "제목 B2:k1:up:2026-10-06", "외 3건"], info
+    assert "오늘 바뀐 것" not in dict(out["items"]) and out["caption"] == out["lines"][0]
     assert briefing.changed_lines(out["changed_rows"][:4]) == [r["title"] for r in out["changed_rows"][:4]]
     assert not _no_relative(out)
 

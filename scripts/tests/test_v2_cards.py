@@ -118,7 +118,7 @@ def test_main_text_stays_readable_in_the_bubble():
     """카톡은 1080 카드를 270px 로 줄여 보인다 — 주 글자(제목 · 큰 숫자 · 왜 · 다음 · 칸 값)는 줄어든 뒤에도 9px 이상."""
     floor_pt = 9.0 / (150 / 72 * 270 / 1080)               # 9px ÷ (dpi/72 × 축소비) ≈ 17.3pt
     figs = {"event": cards._event_fig(_row(), _ctx()), "bundle": cards._bundle_fig([_row("alert", "지표 0 · 0")], _ctx())}
-    main = {"event": ("코스피 +6.1%", "7,004", "나스닥 동반", "다음 마디 8,000", "지금", "10/2"), "bundle": ("지표 0 · 0",)}
+    main = {"event": ("지수 급변", "KOSPI", "7,004"), "bundle": ("지표 0 · 0",)}     # 왜 · 다음은 카드 아래 글이 맡는다
     try:
         for k, fig in figs.items():
             sizes = {t.get_text(): t.get_fontsize() for t in fig.texts}

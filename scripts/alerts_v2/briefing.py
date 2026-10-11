@@ -202,7 +202,8 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     items, mid, ai_blocks = [], "", []
 
     if slot == "weekly":
-        week = [r for r in Ledger.load_days(7, end=ledger.day, root=ledger.root) if r.get("level") != "record"]
+        week = [r for r in Ledger.load_days(7, end=ledger.day, root=ledger.root)
+                if r.get("level") in ("alarm", "alert", "notice")]      # 기록 · 브리핑 행은 사건이 아니다
         lv = {x: sum(1 for r in week if r.get("level") == x) for x in ("alarm", "alert", "notice")}
         big = max(dc.weekly_rows(d), key=lambda r: abs(r[3]), default=None)
         big_txt = f"{big[0]} {big[3]:+.1f}%" if big else ""
@@ -210,11 +211,11 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
         title = k._fit(base, [f"사건 {len(week)}건", big_txt])
         mid = " · ".join(x for x in (f"{dc.week_period(now)} 사건 {len(week)}건",
                                      big_txt and f"가장 큰 움직임 {big_txt}") if x)
-        items = [("사건", f"{len(week)}건 · 경보 {lv['alarm']} · 알림 {lv['alert']} · 안내 {lv['notice']}"),
-                 ("가장 큰 움직임", big_txt), ("★★★ 일정", " · ".join(cal)), ("외국인", flow_streak(ctx)[0].removeprefix("외국인 "))]
+        items = [("★★★ 일정", " · ".join(cal)), ("외국인", flow_streak(ctx)[0].removeprefix("외국인 "))]
         loud = [r.get("title") or "" for r in week if r.get("level") in ("alarm", "alert")][-3:]
         spec.update(title=f"주간 · {dc.week_period(now)}", meta=f"{now:%H:%M}", tiles=_week_tiles(ctx),
-                    info=items + [("알림" if i == 0 else "", t) for i, t in enumerate(loud)])
+                    info=[("사건", f"{len(week)}건 · 경보 {lv['alarm']} · 알림 {lv['alert']} · 안내 {lv['notice']}"),
+                          ("가장 큰 움직임", big_txt)] + [("알림" if i == 0 else "", t) for i, t in enumerate(loud)])
         links = k.card_links(d, None, False, now, weekly=True)
         ai_rows = week
     else:
@@ -258,8 +259,6 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
             if closed:
                 items.append(("외국인", flow_streak(ctx)[0].removeprefix("외국인 ")))
         else:
-            if changed:
-                items.append(("오늘 바뀐 것", f"안내 {len(changed)}건 · " + " · ".join(changed_lines(changed))))
             sp = cards.quote(ctx, "sp500") if slot != "us" else None
             if sp:
                 items.append((f"{sp[0]}(전일)", f"{sp[1]} {sp[2]}".strip()))
@@ -267,11 +266,16 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
                 items.append(("일정", " · ".join(cal)))
         if holiday and not (slot == "morning" and closed):
             items.append(("휴장", holiday))
-        card_items = [x for x in items if x[0] != "오늘 바뀐 것"]       # 카드엔 바뀐 것을 한 줄씩
-        if changed:
-            card_items = [(f"바뀐 것 {len(changed)}" if i == 0 else "", t)
-                          for i, t in enumerate(changed_lines(changed)[:3])] + card_items
-        spec["info"] = ([("휴장" if closed else "수급", mid)] if slot == "morning" and mid else []) + card_items
+        # 카드 정보 행 = 카톡 행에 없는 것만(그림 · 글 중복 제거, 2026-10-11) — 아침은 수급 · 휴장 한 줄, 미국 개장은 금리,
+        # 마감은 「오늘 바뀐 것」(기획서 5장 마감 카드 칸). 카톡 행 = 밤사이 · 일정 · S&P(전일) · 휴장.
+        if slot == "morning":
+            spec["info"] = [("휴장" if closed else "수급", mid)] if mid else []
+        elif slot == "us":
+            spec["info"] = [("금리", mid)] if mid else []
+        else:
+            lines3 = [r.get("title") or "" for r in changed]
+            lines3 = lines3 if len(lines3) <= 3 else lines3[:2] + [f"외 {len(lines3) - 2}건"]
+            spec["info"] = [(f"바뀐 것 {len(changed)}" if i == 0 else "", t) for i, t in enumerate(lines3)]
         links = k.card_links(d, lslot, False, now, focus_key=fkey)
         ai_rows = held + list(ledger.rows)
         ai_blocks = k.build_digest_parts(d, slot=lslot)[1]          # 옛 묶음 글 — 행엔 안 싣고 AI 재료로만
@@ -291,8 +295,11 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     except Exception as e:                             # noqa: BLE001 — 카드가 죽어도 브리핑은 나간다(카톡은 텍스트, 경고 남음)
         print(f"[v2 brief] 카드 렌더 실패: {type(e).__name__} {str(e)[:120]}")
         png = None
+    if png is None and changed:                        # 카드가 못 그린 「오늘 바뀐 것」은 행으로 — 합침 사건(G3 · E5)의 유일한 길이다
+        items = ([("오늘 바뀐 것", f"안내 {len(changed)}건 · " + " · ".join(changed_lines(changed)))] + items)[:ITEMS_MAX]
     return {"title": title, "lines": lines, "items": items, "card_png": png, "held_rows": held,
-            "changed_rows": changed, "calendar_lines": cal, "holiday": holiday, "links": links}
+            "changed_rows": changed, "calendar_lines": cal, "holiday": holiday, "links": links,
+            "caption": lines[0], "card_info": spec["info"]}
 
 
 # ---------- 보내기 ----------
@@ -303,7 +310,8 @@ def _kakao(out: dict, slot: str, log=print) -> bool:
     hb = k._hero_button(out["links"])
     buttons = ([(hb["title"], hb["link"]["web_url"])] if hb else []) + [("대시보드 보기", k.DASHBOARD_URL)]
     try:
-        return bool(k.send_card(ses["token"], out["title"], "\n".join(x for x in out["lines"][:2] if x),
+        # 설명 = AI 한 문장만 — 수급 · 휴장 · 바뀐 것 · 사건 수는 카드가 이미 말한다(그림 · 글 중복 제거)
+        return bool(k.send_card(ses["token"], out["title"], out.get("caption") or "",
                                 png=out["card_png"], uuids=ses["uuids"], buttons=buttons,
                                 items=[k.kakao_item(lab, v) for lab, v in out["items"]],
                                 kind=f"브리핑 {SLOTS[slot][1]}", link_url=k.hero_link(out["links"])))
@@ -317,7 +325,7 @@ def _kakao(out: dict, slot: str, log=print) -> bool:
 def _discord(out: dict, log=print) -> bool:
     try:
         import notify_discord
-        body = "\n".join(x for x in out["lines"] if x)
+        body = out.get("caption") or ""                # 카드가 말한 줄(수급 · 휴장 · 바뀐 것)은 다시 안 쓴다
         fields = [(lab, v, len(v) <= k.DC_FIELD_INLINE_MAX) for lab, v in out["items"] if v not in body]
         return bool(notify_discord.send_level("brief", out["title"], body, fields=fields or None,
                                               url=k.hero_link(out["links"]) or k.DASHBOARD_URL,
@@ -347,6 +355,8 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
     if dry_run:
         return res
     ring = ((settings or {}).get("ringChannel") or DEFAULT_SETTINGS["ringChannel"])
+    if ring == "kakao" and not dry_run and not deliver.kakao_rings(log):
+        ring = "push"                                  # D11 — 메모 모드면 카톡은 안 울리므로 폰 푸시가 울린다
     if slot in PUSH_SLOTS and ring != "kakao":
         item = {"id": f"brief:{slot}:{ctx.now.date().isoformat()}", "title": out["title"],
                 "body": compose.cut("\n".join(x for x in out["lines"][:2] if x), compose.PUSH_BODY_MAX),
@@ -355,6 +365,15 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
         res["push"] = 1 if deliver.enqueue_push([item], queue_path) else 0
     res["discord"] = _discord(out, log)                # 울리는 채널 먼저, 카톡(메모면 memo 로 적음)은 마지막
     res["memo" if deliver.memo_mode(log) else "kakao"] = _kakao(out, slot, log)
+    if any(res.values()):                              # 받은 알림 「시황」 거르기 = 원장(기획서 2장) — 종전엔 안 적어 늘 빈칸이었다
+        if ledger.append({"key": f"BRIEF:{slot}:{ctx.now.date().isoformat()}", "event": "BRIEF", "target": slot,
+                          "dir": "new", "level": "brief", "value": None, "unit": "", "asOf": ctx.now.date().isoformat(),
+                          "fresh": "live", "title": out["title"], "why": compose.cut(out.get("caption") or "", compose.LINE_MAX),
+                          "next": compose.cut(out["lines"][2] if len(out["lines"]) > 2 else "", compose.LINE_MAX), "url": "#/",
+                          "ts": ctx.now.isoformat(timespec="seconds"),
+                          "sent": {"push": res["push"], "kakao": res["kakao"], "discord": res["discord"],
+                                   "bundled": False, "held": False, "memo": res["memo"]}}):
+            ledger.save()
     if any(res.values()) and pairs:                    # 합류 — 아침 카드가 실제로 나갔을 때만
         for book, r in pairs:
             book.update_sent(r["key"], held=False, push=res["push"], kakao=res["kakao"], memo=res["memo"])

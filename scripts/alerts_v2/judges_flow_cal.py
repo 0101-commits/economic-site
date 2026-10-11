@@ -181,6 +181,13 @@ def _supporter(row: dict, who: str, v: float) -> str:
     return WHO[max(opp)[1]] if opp else ""
 
 
+def _support_ko(name: str, v: float) -> str:
+    """「개인 순매수가 받침」(외국인 순매도 날) · 「기관 순매도가 맞섬」(순매수 날). 주체가 없으면 빈칸."""
+    if not name:
+        return ""
+    return f"{name} 순매수가 받침" if v < 0 else f"{name} 순매도가 맞섬"
+
+
 def _flow_hit(ctx, ev, rows, fields) -> Hit:
     d, _, v = rows[-1]
     return Hit(target=_target(ev, "kospi"), dir="sell" if v < 0 else "buy", value=v, unit="억",
@@ -201,6 +208,7 @@ def flow_streak_start(ctx: Context, ev: dict) -> list[Hit]:
     sell = v < 0
     return _unseen(ctx, ev, [_flow_hit(ctx, ev, rows, {
         "streak": n, "cum5": _eok(sum(vals[-5:])), "supporter": _supporter(row, who, v),
+        "support_ko": _support_ko(_supporter(row, who, v), v),
         "dir_ko": _dir_ko(sell), "dir_rev_ko": _dir_ko(not sell)})])
 
 
@@ -241,7 +249,8 @@ def flow_cum_enter(ctx: Context, ev: dict) -> list[Hit]:
         return []
     _, row, v = rows[-1]
     hit = _flow_hit(ctx, ev, rows, {"cum": _eok(cum), "band_ko": band, "exit_rule": exit_rule,
-                                    "supporter": _supporter(row, who, v)})
+                                    "supporter": _supporter(row, who, v),
+                                    "support_ko": _support_ko(_supporter(row, who, v), v)})
     hit.dir = "sell" if cum < 0 else "buy"             # 방향은 5일 합의 부호(오늘 하루가 아니라)
     return _unseen(ctx, ev, [hit])
 
