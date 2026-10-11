@@ -9,9 +9,15 @@ const ms = (v: unknown): number => {
   return Number.isNaN(t) ? 0 : t
 }
 
-/** 원장 행들 가운데 가장 늦은 ts(ms). 배열이 아니거나 ts 가 하나도 없으면 0. */
+/** 원장 행들 가운데 가장 늦은 ts(ms). 배열이 아니거나 ts 가 하나도 없으면 0.
+ *  기록 등급은 받은 알림 · 홈 어디에도 안 보이므로 세지 않는다 — 셌더니 점이 켜졌는데 열어 보면 새 것이 없었다(2026-10-11). */
 export function latestTs(rows: unknown): number {
-  return Array.isArray(rows) ? rows.reduce<number>((m, r) => Math.max(m, ms((r as { ts?: unknown } | null)?.ts)), 0) : 0
+  return Array.isArray(rows)
+    ? rows.reduce<number>((m, r) => {
+        const row = r as { ts?: unknown; level?: unknown } | null
+        return row?.level === 'record' ? m : Math.max(m, ms(row?.ts))
+      }, 0)
+    : 0
 }
 
 /** 안 읽은 알림이 있나: 가장 늦은 ts > 마지막으로 본 때. seen 이 없거나 읽을 수 없으면 본 적 없음(0)이다. */

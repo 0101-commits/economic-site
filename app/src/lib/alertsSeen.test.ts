@@ -32,3 +32,8 @@ test('latestTs: 밀리초 숫자도 받는다', () => {
   assert.equal(latestTs([row(1000), row(5000), row(3000)]), 5000)
   assert.equal(latestTs('x'), 0)
 })
+
+test('latestTs: 화면에 안 보이는 기록 등급은 세지 않는다', () => {
+  assert.equal(latestTs([row(1000), { ts: 9000, level: 'record' }]), 1000)
+  assert.equal(hasUnseen([{ ts: '2026-10-11T01:00:00Z', level: 'record' }], '2026-10-10T00:00:00Z'), false)
+})
