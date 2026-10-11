@@ -75,15 +75,13 @@ def fill(template: str, data: dict) -> tuple[str, bool]:
 
 
 def first_full(templates, data: dict) -> str:
-    """빠진 변수가 없는 첫 틀. 전부 비면 빠진 변수를 뺀 첫 틀."""
-    fallback = ""
+    """빠진 변수가 없는 첫 틀. 다 빠지면 빈칸 — 반쯤 채운 줄(「 동반」 · 「1,300」 뒤 말 없음)은 내보내지 않는다
+    (기획서 4장 「없으면 비우고 『이유 없음』이라 쓰지 않음」). 대안이 필요하면 틀 목록 뒤에 짧은 틀을 둔다."""
     for t in templates or []:
         s, missing = fill(t, data)
         if s and not missing:
             return s
-        if s and not fallback:
-            fallback = s
-    return fallback
+    return ""
 
 
 def fmt_num(v, unit: str = "", decimals: int | None = None) -> str:
@@ -160,6 +158,8 @@ def variables(ev: dict, hit, ctx=None, today: dt.date | None = None) -> dict:
     decimals = reg.get("decimals")
     unit = hit.unit or reg.get("unit") or ""
     value = fmt_num(hit.value, unit, decimals)
+    if unit == "억" and isinstance(hit.value, (int, float)) and hit.value > 0:
+        value = "+" + value                        # 수급 순매수 — 「오늘 2.20조」가 매도인지 매수인지 안 보였다
     tag = stale_tag(hit.fresh, hit.asOf, today)
     d = {
         "name": hit.fields.get("name") or _display_name(hit.target, ctx),

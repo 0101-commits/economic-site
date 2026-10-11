@@ -167,7 +167,7 @@ export default function Alerts() {
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><Bell size={18} aria-hidden />알림</h1>
         <span className="text-12 text-ink-2">
-          오늘 울림 <span className="num">{todays.filter(x => x.level !== 'notice').length}</span> · 안내 <span className="num">{todays.filter(x => x.level === 'notice').length}</span>
+          오늘 울림 <span className="num">{todays.filter(x => x.level !== 'notice' && x.level !== 'brief').length}</span> · 안내 <span className="num">{todays.filter(x => x.level === 'notice').length}</span>
           {' · '}꾸러미 {PKG_OPTS.find(o => o.key === prefs.settings.package)?.label} · {scopeText(sync.on, pushOn)}
         </span>
       </header>
@@ -356,7 +356,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
 
       <NewCondition rows={rows} labelOf={labelOf} sync={sync} full={prefs.alerts.length >= ALERT_CAP} onAdd={a => put([...prefs.alerts, armU1(a, cur(a.target))])} />
       <p className="m-0 text-12 text-ink-3">
-        현행 화면에서 만든 조건은 <a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">현행 화면</a>에서 보고 고칩니다.
+        현행 화면(<a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">보기</a>)에서 만든 조건은 알림 v2 로 바뀐 뒤 더 이상 울리지 않습니다. 위 「현행 조건 가져오기」로 옮기면 여기서 울립니다.
       </p>
     </>
   )

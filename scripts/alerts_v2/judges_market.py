@@ -451,8 +451,19 @@ def high52(ctx: Context, ev: dict) -> list[Hit]:
             hits.append(Hit(target=t, dir="up" if up else "down", value=v, unit=_unit(ctx, t), asOf=day,
                             fresh=fresh, chg=_r(chg, 2),
                             fields={"prev_extreme": ext, "prev_date": ext_date,
+                                    "hl_ko": "신고가" if up else "신저가",
+                                    "prev_md": _md_of(ext_date),
                                     "next_round": _next_round(ctx, t, v, up)}))
     return hits
+
+
+def _md_of(day) -> str:
+    """'2026-04-27' → '4/27'(문구 꼬리표). 못 읽으면 빈칸 — 틀이 그 줄을 버린다."""
+    try:
+        d = dt.date.fromisoformat(str(day)[:10])
+        return f"{d.month}/{d.day}"
+    except (TypeError, ValueError):
+        return ""
 
 
 @_market_judge("round_level")

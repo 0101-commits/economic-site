@@ -75,6 +75,10 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | 
     prefs = subscribe.load_prefs()
     # 쿨다운 · 한 번 조건 판정용(오늘 포함). 다시 켠 조건의 그 전 울림은 빼고 본다
     history = subscribe.since_arm(prefs, Ledger.load_days(8, end=ledger.day))
+    # 편성 쿨다운은 사전의 가장 긴 쿨다운만큼 본다 — 8일 고정이라 C1 365일 · G1 · C8 30일이 사실상 8일이었다(2026-10-11 점검).
+    # 사용자 조건(「한 번」)의 판정은 종전대로 8일 + 공개 기록(fired).
+    longest = max([int((ev.get("cooldown") or {}).get("days") or 0) for ev in events_by_id.values()] + [8])
+    cd_history = subscribe.since_arm(prefs, Ledger.load_days(min(longest, 400) + 1, end=ledger.day)) if longest > 8 else history
     render = _render(ctx)
     light = mode == "light"
     state = load_state(os.path.join(ctx.root, "alerts_state.json")) if light else None
@@ -93,7 +97,8 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | 
     rows += added
     decisions = subscribe.match(rows, ctx, prefs, events_by_id)
     settings = (prefs or {}).get("settings")
-    sends = schedule.plan(decisions, ledger, ctx, settings, events_by_id, history)
+    ring_kakao = dry_run or (settings or {}).get("ringChannel") != "kakao" or deliver.kakao_rings()   # 메모 모드면 카톡은 안 울린다
+    sends = schedule.plan(decisions, ledger, ctx, settings, events_by_id, cd_history, kakao_rings=ring_kakao)
     print(f"[v2] 구독 {len(decisions)} → 발송 {len(sends)}" + (" (dry-run)" if dry_run else ""))
     for s in sends:
         if dry_run:
@@ -153,6 +158,8 @@ def main(argv=None) -> int:
         return _brief(args.slot, now, args.dry_run)
     events = schema.load_events()
     todo = schema.for_run(events, args.mode)
+    if args.mode == "daily":                         # 일일 런 = 그 시각의 풀 런 몫까지(Worker 가 09 · 16 · 22시엔 daily 만 깨운다)
+        todo += schema.for_run(events, "full")
     missing = missing_judges(todo)
     if missing:
         print(f"[v2] 판정 함수 미구현(건너뜀): {', '.join(missing)}")

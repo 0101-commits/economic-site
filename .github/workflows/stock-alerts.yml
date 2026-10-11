@@ -287,7 +287,7 @@ jobs:
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
             cp /tmp/alerts_state.json.run alerts_state.json 2>/dev/null || true
             cp /tmp/halts_state.json.run halts_state.json 2>/dev/null || true
-            [ -d /tmp/events.run ] && mkdir -p events && cp -r /tmp/events.run/. events/ || true
+            [ -d /tmp/events.run ] && mkdir -p events && (python scripts/alerts_v2/ledger.py --merge /tmp/events.run events || cp -r /tmp/events.run/. events/) || true   # 행 단위 병합
             [ -f alerts_state.json ] && git add alerts_state.json || true
             [ -f halts_state.json ] && git add halts_state.json || true
             [ -d events ] && git add events || true

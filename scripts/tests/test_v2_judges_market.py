@@ -282,7 +282,10 @@ def test_same_observation_not_relogged_next_day(tmp_path):
     evs = [EVS[e] for e in ("A1", "B2", "C1", "C8")]
     led = Ledger(day=dt.date(2026, 10, 5), root=str(tmp_path))
     first = extract(ctx(), evs, led)
-    assert {r.key for r in first} >= {"A1:kospi:down:2026-10-05", "C1:us10y:up:2026-10-02", "C8:t10y2y:down:2026-10-02"}
+    keys = {r.key for r in first}
+    assert {"C1:us10y:up:2026-10-02", "C8:t10y2y:down:2026-10-02"} <= keys
+    # 급변 키 = 사건:대상:방향:거래일 + 세기 단계(:2s · :2.5s · :3s) — 같은 날 커지는 급변이 새 행이 되게
+    assert any(k.startswith("A1:kospi:down:2026-10-05:") and k.endswith("s") for k in keys), keys
     assert extract(ctx(), evs, led) == []                    # 같은 날 재시도 런
     led.save()
     nxt = Ledger(day=dt.date(2026, 10, 6), root=str(tmp_path))

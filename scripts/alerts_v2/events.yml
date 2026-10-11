@@ -18,7 +18,7 @@
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
   why: ["{peer} 동반", "{news}"]
-  next: ["{next_event}", "{next_round}"]
+  next: ["{next_event}", "다음 마디 {next_round}"]
   url: "#/i/{target}"
 - id: A2
   name: 환율 급변
@@ -33,7 +33,7 @@
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
   why: ["{peer} 동반", "{news}"]
-  next: ["{lens_line}", "{next_event}"]
+  next: ["{lens_line}", "{next_event}", "다음 마디 {next_round}"]
   url: "#/i/{target}"
 - id: A3
   name: 원자재 급변
@@ -48,7 +48,7 @@
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
   why: ["{peer} 동반", "{news}"]
-  next: ["{next_round}"]
+  next: ["{next_event}", "다음 마디 {next_round}"]
   url: "#/i/{target}"
 - id: A4
   name: 비트코인 급변
@@ -62,7 +62,7 @@
   cooldown: {per: [target], days: 1}
   title: "비트코인 {chg:+.1f}% · {value}"
   why: ["{news}"]
-  next: ["{next_round}"]
+  next: ["다음 마디 {next_round}"]
   url: "#/i/btc"
 - id: A5
   name: 서킷브레이커
@@ -87,11 +87,11 @@
   default_on: []
   judge: high52
   params: {window: 250, min_points: 60}
-  run: full
+  run: settle                     # 마감 종가로(기획서 3장 「마감 풀 런」) — 매시 장중 값이라 떨렸다
   cooldown: {per: [target, dir], days: 7}
-  title: "{name} {value} · 52주 {dir_ko}"
-  why: ["직전 {dir_ko} {prev_extreme} ({prev_date})"]
-  next: ["{next_round}"]
+  title: "{name} {value} · 52주 {hl_ko}"
+  why: ["직전 {hl_ko} {prev_extreme} ({prev_md})"]
+  next: ["다음 마디 {next_round}"]
   url: "#/i/{target}"
 - id: B2
   name: 마디 돌파
@@ -104,7 +104,7 @@
   run: light
   cooldown: {per: [target], days: 1}
   title: "{name} {level_value} 선 {dir_ko} · {value}"
-  why: ["52주 고점 대비 {from_high}"]
+  why: ["52주 고점 대비 {from_high}%"]
   next: ["다음 마디 {next_level}"]
   url: "#/i/{target}"
 # ---- C 임계 · 단계 ----
@@ -234,7 +234,7 @@
   run: settle
   cooldown: {per: [target, dir, streak], days: 1}
   title: "외국인 {streak}일째 {dir_ko} · 오늘 {value}"
-  why: ["5일 누적 {cum5} · {supporter}가 받침"]
+  why: ["5일 누적 {cum5} · {support_ko}", "5일 누적 {cum5}"]
   next: ["확정 18:00 · {dir_rev_ko}로 돌아서면 알림"]
   url: "#/market?a=flow"
 - id: D2
@@ -262,7 +262,7 @@
   run: settle
   cooldown: {per: [target, dir], days: 5}
   title: "외국인 5일 {cum} · {band_ko} 진입"
-  why: ["오늘 {value} · {supporter}가 받침"]
+  why: ["오늘 {value} · {support_ko}", "오늘 {value}"]
   next: ["{exit_rule}"]
   url: "#/market?a=flow"
 - id: D4
@@ -352,6 +352,7 @@
   next: ["다음 회의 {next_meeting}"]
   url: "#/i/{target}"
 - id: E5
+  merge: close
   name: 휴장 안내
   family: E
   level: notice
@@ -378,7 +379,6 @@
   cooldown: {per: [target, rcp], days: 365}
   title: "{name} {kind_ko} 공시"
   why: ["{doc_title}"]
-  next: ["원문 {rcp_url}"]
   url: "#/i/{target}"
 - id: F2
   name: 거래소 경보 변경
@@ -436,6 +436,7 @@
   next: ["{next_event}"]
   url: "#/lens?m=chain"
 - id: G3
+  merge: close
   name: 메르 새 글
   family: G
   level: notice

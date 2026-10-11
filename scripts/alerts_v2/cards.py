@@ -153,34 +153,135 @@ def _bundle_fig(rows: list[dict], ctx):
     return _guarded(_draw_bundle, list(rows), ctx)
 
 
-def _draw_event(plt, fig, row: dict, ctx) -> None:
-    name = str(row["title"]).split(" · ")[0]
-    dc._head(fig, name, _hhmm(row.get("ts")), fs_t=FS_TITLE)
-    shown = dc._clip(fig, name, 0.62, dc._fs(FS_TITLE, True), "bold")           # _head 가 실제로 그린 제목
-    _pill(fig, row["level"], 0.03 + dc._text_w(fig, shown, dc._fs(FS_TITLE, True), "bold") + 0.015)
-    color = _dir_color(row.get("dir"))
-    _big(fig, _value_text(row), color)
-    _line(fig, "왜", str(row.get("why") or ""), 0.70)
-    _line(fig, "다음", str(row.get("next") or ""), 0.625)
+# 숫자가 주인공이 아닌 사건 — 카드 대신 사진 없는 피드로 보낸다(deliver.photo_worthy). 큰 숫자 자리에 「3」(휴장 일수) ·
+# 「1」(새 글 수) · 「잠정실적」 같은 글자가 박히던 카드였다(2026-10-11 사용자: 「그림과 텍스트가 중복」).
+TEXT_EVENTS = {"D5", "E1", "E5", "F1", "F2", "F3", "G1", "G2", "G3", "G5", "H2", "H4"}   # D5 = 종목 수급(주 수)
+FLOW_FAMILY = "D"
 
-    cells = [dc._cell("기준", _md(row.get("asOf"))),
-             dc._cell("신선도", FRESH_KO.get(row.get("fresh"), str(row.get("fresh") or "—"))),
-             dc._cell("사건", str(row.get("event") or "—"))]
-    xs, ys = _chart(row, ctx)
-    if ys:
-        up = row.get("dir") in UP_DIRS or (row.get("dir") not in DOWN_DIRS and ys[-1] >= ys[0])
-        lines = []
-        try:
-            line = float((row.get("fields") or {}).get("line"))
-            lines = [(line, color if color != dc.INK else dc.MUT, dc._fmt(line))]
-        except (TypeError, ValueError):
-            pass
-        dc._sq_panel(fig, CHART_BOX, ys, xs=xs, up=up, label=f"최근 {len(ys)}개 값", lines=lines)
-        dc._draw_cells(fig, [cells], (0.03, 0.065, 0.94, 0.17), (18, 24, 18), square=True)
+
+def photo_worthy(row: dict) -> bool:
+    """카드(사진)를 그릴 사건인가 — 값이 숫자이고 글자 사건이 아니면."""
+    v = row.get("value")
+    return (isinstance(v, (int, float)) and not isinstance(v, bool)
+            and str(row.get("event") or "") not in TEXT_EVENTS)
+
+
+def _event_name(row: dict) -> str:
+    try:
+        from . import schema
+        return str(schema.by_id(schema.load_events()).get(row.get("event"), {}).get("name") or row.get("event") or "")
+    except Exception:                                        # noqa: BLE001
+        return str(row.get("event") or "")
+
+
+def _subject(row: dict, ctx) -> str:
+    """카드 둘째 줄 = 무엇(대상). 수급 사건은 대상 id 가 시장(kospi)이라 「코스피 외국인」."""
+    if str(row.get("event") or "").startswith(FLOW_FAMILY):
+        return "코스피 외국인" if row.get("target") in ("kospi", None, "") else str(row.get("target"))
+    reg = getattr(ctx, "registry", None) or {}
+    rid = getattr(ctx, "rid", None) or (lambda t: t)
+    r = reg.get(rid(row.get("target"))) or {}
+    return str(r.get("short") or r.get("label") or str(row.get("title") or "").split(" · ")[0])
+
+
+def _big_text(row: dict, ctx) -> str:
+    from .compose import fmt_num
+    reg = getattr(ctx, "registry", None) or {}
+    rid = getattr(ctx, "rid", None) or (lambda t: t)
+    r = reg.get(rid(row.get("target"))) or {}
+    unit = row.get("unit") or r.get("unit") or ""
+    s = fmt_num(row.get("value"), unit, None if unit == "억" else r.get("decimals"))
+    if unit == "억" and isinstance(row.get("value"), (int, float)) and row["value"] > 0:
+        s = "+" + s
+    return s.replace("−", "-")                               # 카드 글꼴에 U+2212 가 없을 수 있다
+
+
+def _chg_text(row: dict) -> str:
+    c = row.get("chg")
+    if not isinstance(c, (int, float)) or str(row.get("event") or "").startswith(FLOW_FAMILY):
+        return ""
+    return f"{'▲' if c > 0 else '▼' if c < 0 else '■'}{abs(c):.2f}%"
+
+
+def _flow_series(ctx, as_of=None) -> list[tuple]:
+    """수급 사건의 작은 막대 — 사건 기준일까지 외국인 7영업일(판정과 같은 자료 규칙). 끝 막대 = 그 사건의 날."""
+    try:
+        from .judges_flow_cal import _flow
+        end = dt.date.fromisoformat(str(as_of)[:10]) if as_of else None
+        return [(d, v) for d, _r, v in _flow(ctx, "foreign") if end is None or d <= end][-7:]
+    except Exception:                                        # noqa: BLE001
+        return []
+
+
+def _flow_bars(plt, fig, pts, box) -> None:
+    from .compose import fmt_num
+    ax = fig.add_axes(box)
+    ax.set_facecolor(dc.TILE)
+    vals = [v for _d, v in pts]
+    ax.bar(range(len(vals)), vals, color=[dc.UP if v > 0 else dc.DN for v in vals], width=0.6)
+    ax.axhline(0, color=dc.FAINT, lw=1.0)
+    ax.set_xticks(range(len(pts)))
+    ax.set_xticklabels([f"{d.month}/{d.day}" for d, _v in pts], color=dc.FAINT, fontsize=dc._fs(14, True))
+    ax.set_yticks([])
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    ax.tick_params(length=0)
+    ax.text(0.012, 1.045, "최근 영업일 외국인 순매수(억)", transform=ax.transAxes, color=dc.MUT,
+            fontsize=dc._fs(16, True), va="bottom")
+    lo, hi = min(vals + [0]), max(vals + [0])
+    pad = (hi - lo) * 0.18 or 1.0
+    ax.set_ylim(lo - pad, hi + pad)
+    ax.text(len(vals) - 1, vals[-1], fmt_num(vals[-1], "억").replace("−", "-"), color=dc.INK, fontweight="bold",
+            fontsize=dc._fs(15, True), ha="center", va="bottom" if vals[-1] >= 0 else "top")
+
+
+def _draw_event(plt, fig, row: dict, ctx) -> None:
+    """사건 카드(기획서 5장) — 사전 이름 + 등급 + 시각 / 대상 / 큰 숫자 + 등락 / 작은 차트(임계 점선) / 칸 / 꼬리.
+    「왜 · 다음」은 카드에 그리지 않는다 — 카톡은 카드를 약 270px 로 줄여 보이므로 문장은 카드 아래 글(본래 크기)이
+    맡는다. 같은 줄이 그림과 글에 두 번 나오던 중복을 없앤다(2026-10-11)."""
+    name = _event_name(row) or str(row["title"]).split(" · ")[0]
+    stale = row.get("fresh") not in ("live", None, "")
+    meta = " · ".join(x for x in (_hhmm(row.get("ts")), f"{_md(row.get('asOf'))} 기준" if stale else "") if x)
+    dc._head(fig, name, meta, fs_t=FS_TITLE)
+    shown = dc._clip(fig, name, 0.62, dc._fs(FS_TITLE, True), "bold")
+    _pill(fig, row["level"], 0.03 + dc._text_w(fig, shown, dc._fs(FS_TITLE, True), "bold") + 0.015)
+    fs_sub = dc._fs(26, True)
+    fig.text(0.03, 0.855, dc._clip(fig, _subject(row, ctx), 0.94, fs_sub), color=dc.MUT, fontsize=fs_sub)
+    color = _dir_color(row.get("dir"))
+    big, chg = _big_text(row, ctx), _chg_text(row)
+    fs = 80.0
+    while dc._text_w(fig, big, fs, "bold") > (0.62 if chg else 0.94) and fs > 40:
+        fs *= 0.92
+    fig.text(0.03, 0.70, dc._clip(fig, big, 0.94, fs, "bold"), color=color, fontsize=fs, fontweight="bold")
+    if chg:
+        fc = dc._fs(34, True)
+        fig.text(0.03 + dc._text_w(fig, big, fs, "bold") + 0.025, 0.70, chg, color=color, fontsize=fc, fontweight="bold")
+
+    cells = []
+    if isinstance(row.get("z"), (int, float)):
+        cells.append(dc._cell("세기", f"{abs(row['z']):.1f}σ", "평소 변동의 배수"))
+    if isinstance(row.get("line"), (int, float)):
+        cells.append(dc._cell("선", dc._fmt(row["line"])))
+    if stale:
+        cells.append(dc._cell("기준", _md(row.get("asOf"))))
+    top = 0.60                                       # 큰 숫자(기준선 0.70) 아래로 차트 제목이 붙지 않게
+    box_h = (top - (0.23 if cells else 0.09)) - 0.06
+    if str(row.get("event") or "").startswith(FLOW_FAMILY):
+        pts = _flow_series(ctx, row.get("asOf"))
+        if len(pts) >= 3:
+            _flow_bars(plt, fig, pts, [0.03, top - box_h, 0.94, box_h])
     else:
-        dc._draw_cells(fig, [[c] for c in cells], (0.03, 0.075, 0.94, 0.50), (20, 26, 20), square=True)
+        xs, ys = _chart(row, ctx)
+        if ys:
+            up = row.get("dir") in UP_DIRS or (row.get("dir") not in DOWN_DIRS and ys[-1] >= ys[0])
+            lines = [(row["line"], color if color != dc.INK else dc.MUT, dc._fmt(row["line"]))]                 if isinstance(row.get("line"), (int, float)) else []
+            dc._sq_panel(fig, [0.03, top - box_h, 0.94, box_h], ys, xs=xs, up=up, label=f"최근 {len(ys)}영업일",
+                         lines=lines)
+    if cells:
+        dc._draw_cells(fig, [cells], (0.03, 0.065, 0.94, 0.15), (18, 26, 15), square=True)
     src = _source(row, ctx)
-    fig.text(0.03, 0.022, f"출처 {src}" if src else "ecom", color=dc.FAINT, fontsize=dc._fs(13, True))
+    fig.text(0.03, 0.022, " · ".join(x for x in (f"출처 {src}" if src else "", f"알림 사전 {row.get('event')}") if x),
+             color=dc.FAINT, fontsize=dc._fs(13, True))
 
 
 def _draw_bundle(plt, fig, rows: list[dict], ctx) -> None:

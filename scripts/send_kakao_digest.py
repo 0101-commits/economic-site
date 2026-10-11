@@ -2150,10 +2150,10 @@ def send_feed(access_token, title, description, image_url, items=None, dims=CHAR
     content = {
         "title": title,
         "description": description,
-        "image_url": image_url,
-        "image_width": dims[0], "image_height": dims[1],
         "link": {"web_url": _lk, "mobile_web_url": _lk},
     }
+    if image_url:                                     # 사진 없는 피드 = 제목 + 설명 + 행 + 버튼(카카오 문서: 이미지 없이 피드)
+        content.update({"image_url": image_url, "image_width": dims[0], "image_height": dims[1]})
     template = {
         "object_type": "feed",
         "content": content,
@@ -2230,7 +2230,7 @@ def _system_notice(text):
 
 
 def send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
-              fallback_png=None, items=None, kind="", text=None, link_url=None):
+              fallback_png=None, items=None, kind="", text=None, link_url=None, photo=True):
     """카톡 한 통 — 카드 이미지가 본문(기획 v3 I1). 모든 카카오 발송의 단일 진입점.
 
     3단 폴백(I7): ① 카드 PNG → ② fallback_png(슬롯 라인 차트 등) → ③ 텍스트(제목+캡션).
@@ -2241,6 +2241,13 @@ def send_card(access_token, title, caption, png=None, uuids=None, buttons=None,
     link_url = 사진을 눌렀을 때 갈 곳(없으면 대시보드) — 카드가 말하는 지표의 네이버 페이지.
     반환 True/False. 텍스트 폴백까지 실패하면 send_memo 가 SystemExit 를 던진다(호출측이 잡음)."""
     btns = [kakao_button(t, u) for t, u in (buttons or [])][:2] or None
+    if not photo:
+        # 글 통(알림 v2 의 글자 사건 · 묶음) — 숫자가 주인공이 아니라 카드를 일부러 안 만든 통이다. 사진 실패가 아니므로
+        # 경고 · #시스템 통지를 내지 않는다. 피드가 거부되면 텍스트로.
+        if send_feed(access_token, title, caption, None, items=items, uuids=uuids, buttons=btns, link_url=link_url):
+            return True
+        send_memo(access_token, text or _pack(title, [caption] if caption else [], TEXT_LIMIT), with_button=True, uuids=uuids)
+        return True
     if not png:
         print(f"::warning title=카드 없는 카톡 발송::{kind or title} — 텍스트로 발송(기획 v3 I5)")
         _system_notice(f"카톡 '{kind or title}' 발송에 카드가 없습니다 — 텍스트 폴백으로 나갔습니다.")

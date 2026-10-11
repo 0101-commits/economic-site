@@ -84,25 +84,56 @@ def _kakao_session(log=print) -> dict | None:
     return _KAKAO_SESSION
 
 
+def kakao_rings(log=print) -> bool:
+    """카톡이 실제로 울리는가 — 친구 모드로 받을 친구가 있을 때만(메모 = 나에게 보내기는 소리가 안 난다)."""
+    ses = _kakao_session(log)
+    return bool(ses) and bool(ses["uuids"])
+
+
 def memo_mode(log=print) -> bool:
     """친구 모드가 아니라 메모로 보내는 중인가 — 그렇다면 디스코드로 가는 것을 카톡도 따라간다."""
     ses = _kakao_session(log)
     return bool(ses) and not ses["uuids"]
 
 
-def kakao_parts(s: Send) -> dict:
-    """카톡 한 통 — 제목 · 설명 2줄 · 행 ≤3 · 버튼 2(8자) · 사진 링크."""
+# 버튼 글자 = 그 화면 이름(기획서 5장 「[그 화면 8자][받은 알림]」). 종전엔 제목 첫 낱말 5자를 잘라 「USD/K 보기」 ·
+# 「10/9~ 보기」가 됐다. 주소(사전 url)의 화면 → 이름 한 표.
+SCREEN_LABELS = (("#/market?a=flow", "수급 보기"), ("#/market?a=macro", "경제 달력"), ("#/market?a=kr", "국내 증시"),
+                 ("#/market?a=realestate", "부동산"), ("#/market?a=commod", "원자재"), ("#/lens", "렌즈 보기"),
+                 ("#/alerts", "받은 알림"))
+
+
+def screen_label(row: dict, ctx=None) -> str:
+    url = str(row.get("url") or "")
+    if url in ("#/", "#", ""):
+        return "홈 보기"
+    for prefix, lab in SCREEN_LABELS:
+        if url.startswith(prefix):
+            return lab
+    if url.startswith("#/i/"):
+        reg = getattr(ctx, "registry", None) or {}
+        short = str((reg.get(url[4:]) or {}).get("short") or "")
+        return f"{short} 보기" if short and len(short) <= 5 else "지표 보기"
+    return "화면 보기"
+
+
+def kakao_parts(s: Send, ctx=None) -> dict:
+    """카톡 한 통 — 카드(숫자 · 차트 · 칸)와 글(제목 · 왜 · 다음)이 겹치지 않게 나눈다(2026-10-11 「그림과 텍스트 중복」).
+    숫자 사건 = 카드 + 제목 + 설명 2줄(왜 · 다음), 행 없음(값은 카드 큰 숫자 · 제목이 이미 말한다).
+    글자 사건(공시 · 메르 새 글 · 휴장 · 일정 · 입장 · 국면) · 묶음 = 사진 없는 피드(제목 + 설명) — 큰 숫자 자리에
+    「3」 · 「잠정실적」이 박히던 카드를 안 만든다."""
+    from .cards import photo_worthy
     r = s.row
-    name = (r.get("title") or "").split(" ·")[0].split(" ")[0][:5] or "화면"
-    items = []
-    if r.get("value") not in (None, ""):
-        items.append({"item": "값", "item_op": str(r["value"])})
+    btn = [(screen_label(r, ctx)[:8], abs_url(r.get("url", "#/alerts"))), ("받은 알림", abs_url("#/alerts"))]
     if s.kind == "bundle":
-        for b in s.bundle[:3]:
-            items.append({"item": (b.get("title") or "")[:6], "item_op": (b.get("title") or "")[6:20]})
-    btn = [(f"{name} 보기"[:8], abs_url(r.get("url", "#/alerts"))), ("받은 알림", abs_url("#/alerts"))]
+        lines = [str(b.get("title") or "") for b in s.bundle[:3]]
+        more = len(s.bundle) - len(lines)
+        return {"title": r["title"], "caption": "\n".join(lines + ([f"외 {more}건"] if more > 0 else [])),
+                "items": [], "buttons": btn[1:], "link_url": abs_url("#/alerts"), "photo": False,
+                "kind": f"알림 v2 {LEVEL_KO.get(s.level, s.level)}"}
+    btn = btn if btn[0][0] != "받은 알림" else btn[1:]
     return {"title": r["title"], "caption": "\n".join(x for x in (r.get("why"), r.get("next")) if x),
-            "items": items[:5], "buttons": btn, "link_url": abs_url(r.get("url", "#/alerts")),
+            "items": [], "buttons": btn, "link_url": abs_url(r.get("url", "#/alerts")), "photo": photo_worthy(r),
             "kind": f"알림 v2 {LEVEL_KO.get(s.level, s.level)}"}
 
 
@@ -129,12 +160,12 @@ def send_kakao(s: Send, ctx, log=print) -> bool:
     ses = _kakao_session(log)
     if not ses:
         return False
-    p = kakao_parts(s)
-    png = _card_png(s, ctx)
+    p = kakao_parts(s, ctx)
+    png = _card_png(s, ctx) if p["photo"] else None
     try:
         return bool(ses["kakao"].send_card(ses["token"], p["title"], p["caption"], png=png, uuids=ses["uuids"],
                                            buttons=p["buttons"], items=p["items"], kind=p["kind"],
-                                           link_url=p["link_url"]))
+                                           link_url=p["link_url"], photo=p["photo"]))
     except (Exception, SystemExit) as e:                     # noqa: BLE001
         log(f"[v2] 카톡 발송 예외: {type(e).__name__}")
         _kakao_down(log)
@@ -142,24 +173,28 @@ def send_kakao(s: Send, ctx, log=print) -> bool:
 
 
 # ---------- 디스코드 ----------
-def send_discord(s: Send, log=print) -> bool:
+def send_discord(s: Send, log=print, ctx=None, silent: bool = False) -> bool:
+    """디스코드 한 통 = 제목 · 설명(왜 · 다음) · 칸 · 꼬리(신선도 · 사전 번호) · 버튼 2(기획서 4장).
+    값은 제목이 이미 말하므로 칸에 다시 적지 않는다(「숫자는 한 통에 한 번」)."""
     r = s.row
     try:
         import notify_discord
     except ImportError:
         return False
-    fields = []
-    if r.get("value") not in (None, ""):
-        fields.append(("값", str(r["value"]), True))
-    fields.append(("등급", LEVEL_KO.get(s.level, s.level), True))
-    if r.get("asOf"):
-        fields.append(("기준", f"{r['asOf']} · {r.get('fresh', '')}".strip(" ·"), True))
+    fields = [("등급", LEVEL_KO.get(s.level, s.level), True)]
+    if isinstance(r.get("z"), (int, float)):
+        fields.append(("세기", f"{abs(r['z']):.1f}σ", True))
+    if r.get("fresh") not in ("live", None, "") and r.get("asOf"):
+        fields.append(("기준", str(r["asOf"])[:10], True))
     body = "\n".join(x for x in (r.get("why"), r.get("next")) if x)
     if s.kind == "bundle":
         body = "\n".join(f"· {b.get('title')}" for b in s.bundle[:6]) + (f"\n+{len(s.bundle) - 6}" if len(s.bundle) > 6 else "")
+    url = abs_url(r.get("url", "#/alerts"))
+    buttons = ([(screen_label(r, ctx), url)] if s.kind != "bundle" and screen_label(r, ctx) != "받은 알림" else []) \
+        + [("받은 알림", abs_url("#/alerts"))]
     try:
-        return bool(notify_discord.send_level(s.level, r["title"], body, fields=fields, url=abs_url(r.get("url", "#/alerts")),
-                                              footer=f"알림 사전 {r.get('event')} · {r.get('key')}"))
+        return bool(notify_discord.send_level(s.level, r["title"], body, fields=fields, url=url, buttons=buttons,
+                                              footer=f"알림 사전 {r.get('event')} · {r.get('key')}", silent=silent))
     except Exception as e:                                   # noqa: BLE001
         log(f"[v2] 디스코드 발송 예외: {type(e).__name__}")
         return False
@@ -172,14 +207,14 @@ def send(s: Send, ledger, ctx, log=print, queue_path: str = PUSH_QUEUE_PATH) -> 
     하루 상한 · 카톡 쿼터(schedule._ring_count_today · _kakao_count_today)와 앱 「오늘 N/20통」은 kakao 만 센다."""
     res = {"push": 0, "kakao": False, "discord": False, "memo": False}
     if s.held:
-        res["discord"] = send_discord(s, log)
+        res["discord"] = send_discord(s, log, ctx, silent=True)        # 조용한 시간 — 보관은 하되 깨우지 않는다
         ledger.update_sent(s.row["key"], held=True, discord=res["discord"])
         log(f"[v2 send] {s} → 보류(조용한 시간 · 디스코드만, 카톡 · 푸시는 아침 브리핑 합류) · discord {res['discord']}")
         return res
     if s.push:
         res["push"] = 1 if enqueue_push([push_item(s)], queue_path) else 0
     if s.discord:
-        res["discord"] = send_discord(s, log)
+        res["discord"] = send_discord(s, log, ctx)
     if s.kakao or (s.discord and memo_mode(log)):
         res["memo" if memo_mode(log) else "kakao"] = send_kakao(s, ctx, log)
     if s.kind == "bundle":

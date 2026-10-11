@@ -194,7 +194,8 @@ def test_yoy_and_derived_cells():
     jeonse = _item(b["market-realestate"], "avg_jeonse_price_kr")
     assert jeonse["scale"] == 1e5 and jeonse["unit"] == "억원"               # 천원 → 억원
     top = _item(b["market-domestic"], "top20_amount")
-    assert top["value"] == sum(r["amount"] for r in DATA["rankingsKr"]["tradingAmount"][:20]) and top["scale"] == 1e12
+    if (DATA.get("rankingsKr") or {}).get("tradingAmount"):             # 주말 · 휴장일 수집분엔 그날 순위가 없다
+        assert top["value"] == sum(r["amount"] for r in DATA["rankingsKr"]["tradingAmount"][:20]) and top["scale"] == 1e12
     br = _item(b["market-domestic"], "breadth_kospi")
     assert (br["up"], br["down"]) == (DATA["marketBreadth"]["kospi"]["up"], DATA["marketBreadth"]["kospi"]["down"])
     assert _item(b["market-commodities"], "gold_premium")["value"] == b["market-commodities"]["views"]["goldPremium"]["pct"]
@@ -349,7 +350,7 @@ def test_is_etf_flag():
     assert bb.is_etf({"name": "KODEX 200", "type": "ETF"}) is True
     assert bb.is_etf({"name": "TIGER 미국S&P500"}) is True and bb.is_etf({"name": "SK하이닉스"}) is False
     items = bundles()["market-domestic"]["views"]["amount"]["items"]
-    src = {r["code"]: r for r in DATA["rankingsKr"]["tradingAmount"]}
+    src = {r["code"]: r for r in (DATA.get("rankingsKr") or {}).get("tradingAmount") or []}
     assert all(x["isEtf"] == (src[x["code"]].get("type") == "ETF") for x in items)
 
 
@@ -443,8 +444,9 @@ def test_same_indicator_same_value_across_bundles():
     assert g["kospi"]["value"] == home["kospi"]["value"]
     # 큰 차트·7일 차트의 끝점 = 띠의 값
     if home["kospi"]["state"] != "kept" and home["kospi"]["spark"]:
-        assert home["kospi"]["spark"][-1] == home["kospi"]["value"]
-        assert b["home"]["kospiChart"]["1y"][-1][1] == home["kospi"]["value"]
+        # 일봉 끝점(원본 4자리)과 띠 값(소수 2자리)은 반올림 차이만 허용
+        assert abs(home["kospi"]["spark"][-1] - home["kospi"]["value"]) < 0.01
+        assert abs(b["home"]["kospiChart"]["1y"][-1][1] - home["kospi"]["value"]) < 0.01
 
 
 def test_news_bundle_and_topic_links():

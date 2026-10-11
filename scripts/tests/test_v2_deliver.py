@@ -146,11 +146,17 @@ def test_kakao_token_death_does_not_kill_discord(tmp_path, monkeypatch):
 
 
 def test_kakao_parts_buttons_8chars_and_items():
-    s = Send(row=_row(), level="alarm", kakao=True)
+    s = Send(row=dict(_row(), value=7003.74), level="alarm", kakao=True)      # 원장 값은 숫자(compose 가 글로 바꾼다)
     p = deliver.kakao_parts(s)
     assert len(p["buttons"]) == 2 and all(len(b[0]) <= 8 for b in p["buttons"])
-    assert p["items"][0] == {"item": "값", "item_op": "7,004"} and p["caption"] == "나스닥 동반\n다음 마디 8,000"
+    # 카드가 값을 말하므로 행은 없고(그림·글 중복 제거, 2026-10-11), 설명 = 왜 · 다음, 버튼 = 그 화면 · 받은 알림
+    assert p["items"] == [] and p["caption"] == "나스닥 동반\n다음 마디 8,000" and p["photo"] is True
+    assert [b[0] for b in p["buttons"]] == ["지표 보기", "받은 알림"]
     assert p["kind"] == "알림 v2 경보"
+    # 글자 사건(공시)은 사진 없는 피드 — 큰 숫자 자리에 「잠정실적」이 박히던 카드를 안 만든다
+    f1 = dict(_row(), event="F1", value="잠정실적", url="#/i/005930")
+    assert deliver.kakao_parts(Send(row=f1, level="notice", kakao=True))["photo"] is False
+    assert deliver.screen_label({"url": "#/market?a=flow"}) == "수급 보기"
 
 
 def test_bundle_marks_members(tmp_path, monkeypatch):

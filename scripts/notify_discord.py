@@ -566,7 +566,7 @@ LEVELS = {
 
 
 def send_level(level, title, body, *, fields=None, url=None, buttons=None, png=None,
-               footer=None, mention=None):
+               footer=None, mention=None, silent=False):
     """등급 → 채널·멘션·플래그를 정해 send() 로 보낸다. 성공 True / 미설정·실패·기록 False.
 
     alarm=#급변-속보+@everyone · alert=#종목-알림 · notice=#종목-알림 · brief=#시황-다이제스트 ·
@@ -583,4 +583,4 @@ def send_level(level, title, body, *, fields=None, url=None, buttons=None, png=N
     used = len(title or "") + len(footer or "") + sum(len(n) + len(v) for n, v, _ in fields or [])
     return send(fit(body, max(0, LEVEL_BODY_MAX - used)), png=png, title=title, url=url, color=color,
                 fields=fields, footer=footer, mention=lv_mention if mention is None else mention,
-                env=env, buttons=buttons, flags=flags)
+                env=env, buttons=buttons, flags=SUPPRESS_NOTIFICATIONS if silent else flags)

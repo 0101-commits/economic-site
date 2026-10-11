@@ -488,8 +488,16 @@ jobs:
             for f in $CHANGED; do
               [ "$f" = "data.json" ] && continue
               [ "$f" = "data_meta.json" ] && [ -f "/tmp/data.json.run" ] && continue
+              case "$f" in events/20*.json|events/latest.json) continue ;; esac   # 원장은 아래에서 행 단위로 합친다
               [ -f "/tmp/$f.run" ] && cp "/tmp/$f.run" "$f" || true
             done
+            # 원장 하루 파일 = 행 단위 병합(통째 덮으면 그사이 다른 런이 넣은 행이 사라져 다시 판정 · 발송될 수 있다)
+            if ls /tmp/events/20*.json.run >/dev/null 2>&1; then
+              rm -rf /tmp/events.merge && mkdir -p /tmp/events.merge
+              for p in /tmp/events/20*.json.run; do cp "$p" "/tmp/events.merge/$(basename "$p" .run)"; done
+              python scripts/alerts_v2/ledger.py --merge /tmp/events.merge events \
+                || for p in /tmp/events.merge/*.json; do cp "$p" events/; done   # 병합 실패면 종전처럼 이번 런 사본
+            fi
             if [ -f "/tmp/data.json.run" ]; then
               cp data.json /tmp/data.json.origin 2>/dev/null || true
               python scripts/merge_newer.py "/tmp/data.json.run" /tmp/data.json.origin data.json || cp "/tmp/data.json.run" data.json

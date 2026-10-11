@@ -53,16 +53,21 @@ def _kakao_count_today(ledger) -> int:
     return sum(1 for r in ledger.rows if (r.get("sent") or {}).get("kakao"))
 
 
-def in_cooldown(row: dict, ev: dict, history: list[dict]) -> bool:
-    """사전 cooldown {per:[…], days:N} — 같은 묶음 키로 N일 안에 울린 행이 있으면 참."""
+def in_cooldown(row: dict, ev: dict, history: list[dict], rung_only: bool = False) -> bool:
+    """사전 cooldown {per:[…], days:N} — 같은 묶음 키로 N일 안에 나간 행이 있으면 참.
+    rung_only = 울림(푸시 · 카톡 · 경보 디스코드)만 센다(울림 판정용). 경보는 경보만 센다 — 같은 날 2.5σ 알림 뒤의
+    3σ 경보 격상을 막지 않게."""
     cd = ev.get("cooldown") or {}
     days = int(cd.get("days") or 0)
     per = list(cd.get("per") or ["target"])
     if days <= 0:
         return False
     def sig(r):
-        return tuple(str((r.get(k) if k in ("target", "dir", "level") else (r.get("fields") or {}).get(k, r.get(k)))) for k in per)
+        cd = r.get("cd") or {}
+        return tuple(r.get(k) if k in ("target", "dir", "level", "cond") else cd.get(k, r.get(k)) for k in per)
     me = sig(row)
+    if any(v is None for v in me):
+        return False                                   # 묶음 키를 모르면 막지 않는다(옛 행 · 값 없는 판정) — None 끼리 같다고 보지 않는다
     try:
         since = dt.datetime.fromisoformat(row["ts"]) - dt.timedelta(days=days)
     except (KeyError, ValueError):
@@ -73,7 +78,10 @@ def in_cooldown(row: dict, ev: dict, history: list[dict]) -> bool:
         if sig(r) != me:
             continue
         s = r.get("sent") or {}
-        if not (s.get("push") or s.get("kakao") or s.get("discord")):
+        if row.get("level") == "alarm" and r.get("level") != "alarm":
+            continue
+        rang = s.get("push") or s.get("kakao") or s.get("held") or (s.get("discord") and r.get("level") == "alarm")
+        if not (rang if rung_only else (rang or s.get("discord") or s.get("memo"))):
             continue
         try:
             if dt.datetime.fromisoformat(r["ts"]) >= since:
@@ -83,12 +91,33 @@ def in_cooldown(row: dict, ev: dict, history: list[dict]) -> bool:
     return False
 
 
+CLOSE_BRIEF_AT = dt.time(16, 30)
+
+
+def close_brief_ahead(ctx, s: dict) -> bool:
+    """오늘 마감 브리핑이 아직 나갈 예정인가 — 한국 영업일 · 16:30 전 · 마감 브리핑 켜짐. 아니면 합침 사건도 낱개로 보낸다
+    (안 그러면 주말 · 휴장일 · 장 마감 뒤 메르 새 글이 원장 밖 어디에도 안 나간다)."""
+    now = ctx.now
+    if now.weekday() >= 5 or now.time() >= CLOSE_BRIEF_AT:
+        return False
+    if not ((s.get("briefings") or {}).get("close", True)):
+        return False
+    try:
+        import discord_card as dc
+        return not dc.kr_closed(getattr(ctx, "data", {}) or {}, now)
+    except Exception:                                  # noqa: BLE001
+        return True
+
+
 def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
-         events_by_id: dict | None = None, history: list[dict] | None = None) -> list[Send]:
+         events_by_id: dict | None = None, history: list[dict] | None = None,
+         kakao_rings: bool = True) -> list[Send]:
     s = _settings(settings)
     now = ctx.now
     quiet = in_quiet(now, s.get("quiet"))
     ring_ch = s.get("ringChannel", "push")
+    if ring_ch == "kakao" and not kakao_rings:
+        ring_ch = "push"                               # D11 — 카톡이 울리지 않으면(메모 모드) 폰 푸시로. 둘 다 안 울리던 것
     push_on = ring_ch in ("push", "both")
     kakao_on = ring_ch in ("kakao", "both")
     rung = _ring_count_today(ledger)
@@ -103,13 +132,18 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
         if level not in LEVELS or level == "record":
             continue
         ev = (events_by_id or {}).get(row.get("event"), {})
-        if level == "notice":
-            out.append(Send(row=row, level=level, discord=True, push=False, kakao=False))
+        if ev.get("merge") == "close" and close_brief_ahead(ctx, s):
+            continue                                   # 오늘 16:30 마감 브리핑 「오늘 바뀐 것」에 합침(G3 메르 새 글 · E5 휴장 — 기획서 3장)
+        if not d.ring or level == "notice":
+            # 안내 · 보관 — 켜진 것만, 쿨다운 · 조용한 시간을 거친다. 종전엔 둘 다 없이 곧장 디스코드(+ 카톡 메모)로
+            # 나가 52주 신저가 사흘 연속 · 마디 하루 상승 · 하락 두 번 · 메르 새 글 새벽 4시가 울렸다(2026-10-11 점검).
+            if level != "notice" or not getattr(d, "on", True):
+                continue                               # 울림 밖 알림(관심 아님 · 세기 미달 · 울림 끔) = 원장 · 받은 알림에만
+            if ev and in_cooldown(row, ev, history):
+                continue
+            out.append(Send(row=row, level=level, discord=True, push=False, kakao=False, held=quiet))
             continue
-        if not d.ring:
-            out.append(Send(row=row, level=level, discord=True))
-            continue
-        if ev and in_cooldown(row, ev, history):
+        if ev and in_cooldown(row, ev, history, rung_only=True):
             continue                                   # 같은 사건 반복 — 원장엔 남고 발송 없음
         if quiet and not (level == "alarm" and s.get("quietAlarm")):
             out.append(Send(row=row, level=level, discord=True, held=True))

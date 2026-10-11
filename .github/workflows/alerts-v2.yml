@@ -147,7 +147,7 @@ jobs:
             echo "push 실패 (시도 ${attempt}) — 원격 최신 위에 원장만 재적용"
             git fetch origin "${branch}" || true
             git reset --hard "origin/${branch}" 2>/dev/null || git reset --hard FETCH_HEAD || true
-            mkdir -p events && cp -r /tmp/events.run/. events/
+            mkdir -p events && (python scripts/alerts_v2/ledger.py --merge /tmp/events.run events || cp -r /tmp/events.run/. events/)   # 행 단위 병합
             git add events
             if git diff --staged --quiet -- events; then echo "원격이 이미 최신 — 종료"; exit 0; fi
             git commit -m "$msg" -q || true

@@ -25,6 +25,7 @@ class Decision:
     ring: bool                      # 울림 대상인가(꾸러미 · 갈래 · 별표 · 조건)
     reason: str = ""                # 「기본 켜짐」 「관심」 「내 조건」 「꾸러미 밖」 …
     cond_id: str | None = None      # 사용자 조건이면 그 id
+    on: bool = True                 # 켜진 대상인가(기본 켜짐 · 관심 · 내 설정) — 안내 · 보관도 켜진 것만 나간다
 
 
 @dataclass

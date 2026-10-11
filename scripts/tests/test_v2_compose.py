@@ -14,7 +14,8 @@ TODAY = dt.date(2026, 10, 2)
 
 def test_flow_streak_title_and_body():
     h = Hit(target="kospi", dir="sell", value=-2040, unit="억", asOf="2026-10-01", fresh="prev",
-            fields={"streak": 5, "cum5": "−7.9조", "supporter": "기관 순매수", "dir_ko": "순매도", "dir_rev_ko": "순매수"})
+            fields={"streak": 5, "cum5": "−7.9조", "supporter": "기관", "support_ko": "기관 순매수가 받침",
+                    "dir_ko": "순매도", "dir_rev_ko": "순매수"})
     r = compose.render(EV["D1"], h, None, today=dt.date(2026, 10, 1))
     assert r["title"] == "외국인 5일째 순매도 · 오늘 −2,040억"
     assert r["why"] == "5일 누적 −7.9조 · 기관 순매수가 받침"
