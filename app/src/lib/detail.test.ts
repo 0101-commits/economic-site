@@ -47,6 +47,9 @@ test('stockRows: 거래량 · 거래대금은 머리 값과 같은 날이면 붙
     marketCap: { asOf: '2026-10-08', kospi: [{ code: '000660', name: 'SK하이닉스', price: 1, chgPct: 1, volume: 5 }] },
   } }])
   assert.deepEqual([m.get('005930')!.amount, m.get('005930')!.volume], [2.68e12, 19_037_056])   // 장중 목록(ISO) + 상승 목록(날짜) = 같은 날
+  assert.equal(m.get('005930')!.amountAt, undefined)                                            // 머리와 같은 목록 — 따로 배지 없음
+  assert.deepEqual(m.get('005930')!.volumeAt, { asOf: '2026-10-12', state: undefined, liveUntil: undefined })   // 다른 기준 목록 — 그 기준을 남겨 거래량 옆에 따로 배지
+  assert.deepEqual(headVolume(m.get('005930'), true)?.at, m.get('005930')!.volumeAt)
   assert.equal(m.get('000660')!.volume, undefined)                                             // 10/8 목록의 거래량은 오늘 값 옆에 안 붙는다
 })
 

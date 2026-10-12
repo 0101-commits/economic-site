@@ -9,8 +9,13 @@ export const isKrStock = (id: string) => /^\d[0-9A-Z]{5}$/.test(id)
 /** 종목 id 인가: 국내 코드 또는 미국 티커 — 관심 목록과 같은 판정(remote.ts watchKind). 지표 사전 id 는 모두 소문자로 시작한다. */
 export const isStockId = (id: string) => watchKind(id) === 'stock'
 
-/** 묶음의 종목 한 줄. asOf · state · liveUntil 은 그 행이 든 위쪽 칸의 것(없으면 없음). */
-export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; asOf?: string | null; state?: string; liveUntil?: string; amount?: number | null; volume?: number | null }
+/** 기준 시각 한 벌(묶음 칸의 asOf · state · liveUntil). */
+export type StockAt = { asOf?: string | null; state?: string; liveUntil?: string }
+/**
+ * 묶음의 종목 한 줄. asOf · state · liveUntil 은 그 행이 든 위쪽 칸의 것(없으면 없음).
+ * amountAt · volumeAt = 거래대금 · 거래량을 다른 기준(같은 날 다른 시각 · 날짜만)의 목록에서 붙였을 때 그 목록의 기준 — 화면이 따로 배지를 단다.
+ */
+export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; amount?: number | null; volume?: number | null; amountAt?: StockAt; volumeAt?: StockAt } & StockAt
 
 /**
  * 묶음 아무 깊이의 종목 행(code · name 이 글자인 칸)을 코드별로 모은다. 위쪽 칸의 asOf · state 를 물려받는다.
@@ -19,13 +24,14 @@ export type StockRow = { code: string; name: string; short?: string; market?: st
  * 거래대금은 거래대금 상위 목록(길에 'amount' 칸이 있는 행 — 토스 체결 tossAmount 은 토스 한 곳 몫이라 뺀다)에서만,
  * 거래대금 · 거래량 모두 머리 값과 기준일(asOf 앞 10자)이 같은 행 것만 붙인다 — 다른 날 목록의 거래량을 오늘 값 옆에 적지 않게.
  * 시각까지 맞추지 않는다: 장중 거래대금 목록은 수집 시각(ISO), 상승 · 하락은 날짜만이라 같은 날인데도 빠졌다.
+ * 대신 기준이 머리와 글자 그대로 같지 않으면 그 목록의 기준을 amountAt · volumeAt 에 남긴다(머리 배지 아래 시각이 숨지 않게).
  * 시장별 기준이 다른 목록(상승 · 하락의 byMarket: { kospi: { asOf, state, liveUntil } })은 kospi · kosdaq 칸 아래 행에 그 시장의 기준을 물린다.
  */
 export function stockRows(roots: unknown[]): Map<string, StockRow> {
   const out = new Map<string, StockRow>()
-  const extra: { code: string; asOf: string | null | undefined; amount: number | null; volume: number | null }[] = []
+  const extra: { code: string; at: StockAt; amount: number | null; volume: number | null }[] = []
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
-  type At = { asOf?: string | null; state?: string; liveUntil?: string }
+  type At = StockAt
   const atOf = (r: Record<string, unknown> | undefined, up: At): At =>
     r && typeof r.asOf === 'string'
       ? { asOf: r.asOf, state: typeof r.state === 'string' ? r.state : up.state, liveUntil: typeof r.liveUntil === 'string' ? r.liveUntil : undefined }
@@ -41,7 +47,7 @@ export function stockRows(roots: unknown[]): Map<string, StockRow> {
       if (!old || (old.price == null && price != null)) {
         out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: krx ? null : num(r.chgPct), asOf, state, ...(liveUntil ? { liveUntil } : {}) })
       }
-      extra.push({ code: r.code, asOf, amount: amt ? num(r.amount) : null, volume: num(r.volume) })
+      extra.push({ code: r.code, at, amount: amt ? num(r.amount) : null, volume: num(r.volume) })
     }
     const bm = r.byMarket && typeof r.byMarket === 'object' ? r.byMarket as Record<string, Record<string, unknown>> : undefined
     Object.entries(r).forEach(([k, x]) => walk(x, atOf(bm?.[k], at), krx || KRX_PREV.has(k), amt || k === 'amount'))
@@ -49,19 +55,21 @@ export function stockRows(roots: unknown[]): Map<string, StockRow> {
   roots.forEach(x => walk(x, {}, false, false))
   for (const e of extra) {
     const row = out.get(e.code)!
-    if ((e.asOf ?? '').slice(0, 10) !== (row.asOf ?? '').slice(0, 10)) continue
-    if (row.amount == null && e.amount != null) row.amount = e.amount
-    if (row.volume == null && e.volume != null) row.volume = e.volume
+    if ((e.at.asOf ?? '').slice(0, 10) !== (row.asOf ?? '').slice(0, 10)) continue
+    const at = e.at.asOf !== row.asOf ? e.at : undefined
+    if (row.amount == null && e.amount != null) { row.amount = e.amount; if (at) row.amountAt = at }
+    if (row.volume == null && e.volume != null) { row.volume = e.volume; if (at) row.volumeAt = at }
   }
   return out
 }
 
 /**
  * 종목 머리의 거래량: 머리 값이 묶음 행이면 그 행의 거래량, 없으면 일봉 마지막 봉(vol)의 것 — 머리 값과 같은 날일 때만
- * (머리 값이 일봉이면 늘 같은 날). fromChart = 일봉에서 왔다(배지를 일봉 기준 시각으로 단다). 어느 쪽도 아니면 null.
+ * (머리 값이 일봉이면 늘 같은 날). fromChart = 일봉에서 왔다(배지를 일봉 기준 시각으로 단다). at = 묶음 행의 거래량이 머리와 기준이
+ * 다른 목록에서 왔을 때 그 기준(stockRows volumeAt — 거래량 옆에 따로 배지). 어느 쪽도 아니면 null.
  */
-export function headVolume(row: StockRow | undefined, fromRow: boolean, vol?: { day: string; value: number }): { value: number; fromChart: boolean } | null {
-  if (fromRow && row?.volume != null) return { value: row.volume, fromChart: false }
+export function headVolume(row: StockRow | undefined, fromRow: boolean, vol?: { day: string; value: number }): { value: number; fromChart: boolean; at?: StockAt } | null {
+  if (fromRow && row?.volume != null) return { value: row.volume, fromChart: false, ...(row.volumeAt ? { at: row.volumeAt } : {}) }
   if (!vol || (fromRow && row?.asOf?.slice(0, 10) !== vol.day)) return null
   return { value: vol.value, fromChart: true }
 }

@@ -101,8 +101,9 @@ export default function StockDetail({ id }: { id: string }) {
         </div>
         <p className="m-0 text-12 text-ink-3">
           <span className="num">{id}</span> · {market}
-          {fromRow && row?.amount != null && <> · 거래대금 <span className="num">{row.amount >= 1e12 ? `${fmtNumber(row.amount / 1e12, 2)}조` : `${fmtNumber(row.amount / 1e8, 0)}억`}</span></>}
-          {vol && <> · 거래량 <span className="num">{fmtShares(vol.value)}</span>{vol.fromChart && fromRow && chart && <> <AsOfBadge {...chartBasis(chart)} /></>}</>}
+          {fromRow && row?.amount != null && <> · 거래대금 <span className="num">{row.amount >= 1e12 ? `${fmtNumber(row.amount / 1e12, 2)}조` : `${fmtNumber(row.amount / 1e8, 0)}억`}</span>{row.amountAt && <> <AsOfBadge asOf={row.amountAt.asOf} state={row.amountAt.state} liveUntil={row.amountAt.liveUntil} /></>}</>}
+          {vol && <> · 거래량 <span className="num">{fmtShares(vol.value)}</span>
+            {vol.at ? <> <AsOfBadge asOf={vol.at.asOf} state={vol.at.state} liveUntil={vol.at.liveUntil} /></> : vol.fromChart && fromRow && chart && <> <AsOfBadge {...chartBasis(chart)} /></>}</>}
         </p>
       </header>
 
