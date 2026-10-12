@@ -21,7 +21,7 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
   title: ReactNode
   icon?: LucideIcon
   unit?: string
-  source?: string
+  source?: ReactNode
   asOf?: string | null
   state?: string
   liveUntil?: string | null

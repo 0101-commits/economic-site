@@ -9,8 +9,8 @@ export const isKrStock = (id: string) => /^\d[0-9A-Z]{5}$/.test(id)
 /** 종목 id 인가: 국내 코드 또는 미국 티커 — 관심 목록과 같은 판정(remote.ts watchKind). 지표 사전 id 는 모두 소문자로 시작한다. */
 export const isStockId = (id: string) => watchKind(id) === 'stock'
 
-/** 묶음의 종목 한 줄. asOf · state 는 그 행이 든 위쪽 칸의 것(없으면 없음). */
-export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; asOf?: string | null; state?: string; amount?: number | null; volume?: number | null }
+/** 묶음의 종목 한 줄. asOf · state · liveUntil 은 그 행이 든 위쪽 칸의 것(없으면 없음). */
+export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; asOf?: string | null; state?: string; liveUntil?: string; amount?: number | null; volume?: number | null }
 
 /**
  * 묶음 아무 깊이의 종목 행(code · name 이 글자인 칸)을 코드별로 모은다. 위쪽 칸의 asOf · state 를 물려받는다.
@@ -18,26 +18,34 @@ export type StockRow = { code: string; name: string; short?: string; market?: st
  * KRX 순위 4목록(calc.ts KRX_PREV — 전일 확정값)은 이름 · 시장만 쓰고 값 · 등락은 머리 후보에서 뺀다(장중에 전일 값이 되므로).
  * 거래대금은 거래대금 상위 목록(길에 'amount' 칸이 있는 행 — 토스 체결 tossAmount 은 토스 한 곳 몫이라 뺀다)에서만,
  * 거래대금 · 거래량 모두 머리 값과 기준 시각(asOf)이 같은 행 것만 붙인다 — 다른 날 목록의 거래량을 오늘 값 옆에 적지 않게.
+ * 시장별 기준이 다른 목록(상승 · 하락의 byMarket: { kospi: { asOf, state, liveUntil } })은 kospi · kosdaq 칸 아래 행에 그 시장의 기준을 물린다.
  */
 export function stockRows(roots: unknown[]): Map<string, StockRow> {
   const out = new Map<string, StockRow>()
   const extra: { code: string; asOf: string | null | undefined; amount: number | null; volume: number | null }[] = []
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
-  const walk = (o: unknown, asOf: string | null | undefined, state: string | undefined, krx: boolean, amt: boolean): void => {
+  type At = { asOf?: string | null; state?: string; liveUntil?: string }
+  const atOf = (r: Record<string, unknown> | undefined, up: At): At =>
+    r && typeof r.asOf === 'string'
+      ? { asOf: r.asOf, state: typeof r.state === 'string' ? r.state : up.state, liveUntil: typeof r.liveUntil === 'string' ? r.liveUntil : undefined }
+      : up
+  const walk = (o: unknown, up: At, krx: boolean, amt: boolean): void => {
     if (!o || typeof o !== 'object') return
-    if (Array.isArray(o)) { o.forEach(x => walk(x, asOf, state, krx, amt)); return }
+    if (Array.isArray(o)) { o.forEach(x => walk(x, up, krx, amt)); return }
     const r = o as Record<string, unknown>
-    if (typeof r.asOf === 'string') { asOf = r.asOf; state = typeof r.state === 'string' ? r.state : state }
+    const at = atOf(r, up)
+    const { asOf, state, liveUntil } = at
     if (typeof r.code === 'string' && typeof r.name === 'string' && r.name) {
       const price = krx ? null : num(r.price), old = out.get(r.code)
       if (!old || (old.price == null && price != null)) {
-        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: krx ? null : num(r.chgPct), asOf, state })
+        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: krx ? null : num(r.chgPct), asOf, state, ...(liveUntil ? { liveUntil } : {}) })
       }
       extra.push({ code: r.code, asOf, amount: amt ? num(r.amount) : null, volume: num(r.volume) })
     }
-    Object.entries(r).forEach(([k, x]) => walk(x, asOf, state, krx || KRX_PREV.has(k), amt || k === 'amount'))
+    const bm = r.byMarket && typeof r.byMarket === 'object' ? r.byMarket as Record<string, Record<string, unknown>> : undefined
+    Object.entries(r).forEach(([k, x]) => walk(x, atOf(bm?.[k], at), krx || KRX_PREV.has(k), amt || k === 'amount'))
   }
-  roots.forEach(x => walk(x, undefined, undefined, false, false))
+  roots.forEach(x => walk(x, {}, false, false))
   for (const e of extra) {
     const row = out.get(e.code)!
     if (e.asOf !== row.asOf) continue

@@ -96,7 +96,7 @@ export default function StockDetail({ id }: { id: string }) {
             <NumBlock value={price} decimals={decimals} chg={fromRow || price == null ? undefined : chg} pct={pct} size="L" />
             {fromRow && <div className="mt-1"><ChangeText pct={pct} /></div>}
           </div>
-          <AsOfBadge asOf={fromRow ? row!.asOf : chart?.asOf} state={fromRow ? row!.state : undefined} />
+          <AsOfBadge asOf={fromRow ? row!.asOf : chart?.asOf} state={fromRow ? row!.state : undefined} liveUntil={fromRow ? row!.liveUntil : undefined} />
         </div>
         <p className="m-0 text-12 text-ink-3">
           <span className="num">{id}</span> · {market}

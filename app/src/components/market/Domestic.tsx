@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Flows, Stock, StripItem } from '../../lib/bundle'
 import { fmtNumber, fmtPct, mdHm, shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
-import { Pill, SegBar } from '../ui'
+import { AsOfBadge, Pill, SegBar } from '../ui'
 import { DivergingBars, Heatmap } from '../charts'
 import { More, Panel, RankTable, type Col } from '../panels'
 import { BigChart, ChangeText, counted, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
@@ -14,7 +14,10 @@ import { column } from './calc'
 type Mover = Stock & { volume?: number | null }
 type Breadth = { up?: number; down?: number; flat?: number; limitUp?: number; limitDown?: number; as_of?: string }
 type Halt = { id: string; type: string; market?: string; stage?: number; direction?: string; reason?: string; triggeredAt?: string; resumeAt?: string | null; endOfDay?: boolean; resolvedAt?: string | null }
-type Movers = { kospi?: Mover[]; kosdaq?: Mover[]; state?: string }
+/** 기준 시각 한 벌(묶음 칸의 asOf · state · liveUntil). */
+type At = { asOf?: string | null; state?: string; liveUntil?: string | null }
+/** 상승 · 하락: byMarket = 시장별 기준(코스피와 코스닥이 다른 때 받은 목록일 수 있다). 없으면 보기 asOf · state. */
+type Movers = At & { kospi?: Mover[]; kosdaq?: Mover[]; byMarket?: { kospi?: At; kosdaq?: At } }
 /** KRX 순위 한 목록(시가총액·거래량 상위 · 52주 신고가·신저가): 시장별 20행. 52주 둘은 count = 해당 종목 총수(축적이 끝난 시장만). */
 type KrxRow = Stock & { volume?: number | null; marketCap?: number | null; high?: number | null; low?: number | null }
 type KrxRank = { asOf?: string | null; state?: string; kospi?: KrxRow[]; kosdaq?: KrxRow[]; count?: { kospi?: number; kosdaq?: number } }
@@ -23,12 +26,12 @@ type CorpEvent = { date: string; code?: string; name?: string; kind?: string; ti
 export type DomesticBundle = {
   strip: StripItem[]
   views?: {
-    amount?: { asOf?: string; state?: string; items: (Stock & { isEtf?: boolean })[] }
+    amount?: At & { items: (Stock & { isEtf?: boolean })[] }
     /** 토스 체결 거래대금 상위 20(두 시장이 한 목록에 섞여 온다) */
-    tossAmount?: { asOf?: string; state?: string; items: (Stock & { isEtf?: boolean })[] }
+    tossAmount?: At & { items: (Stock & { isEtf?: boolean })[] }
     gainers?: Movers
     losers?: Movers
-    etf?: { gainers?: Mover[]; losers?: Mover[]; state?: string }
+    etf?: At & { gainers?: Mover[]; losers?: Mover[] }
     sectors?: { asOf?: string; state?: string; items: { name: string; chgPct: number | null }[] }
     flows?: Flows
     breadth?: { kospi?: Breadth; kosdaq?: Breadth; state?: string }
@@ -190,7 +193,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
       const items = vw?.amount?.items ?? []
       const rows = items.filter(x => (m === 'etf' ? x.isEtf : !MARKET[m] || x.market === MARKET[m]))
       return (
-        <Panel className={cls} title={`거래대금 상위 · ${scopeName}`} asOf={vw?.amount?.asOf} state={vw?.amount?.state} fold={!primary}>
+        <Panel className={cls} title={`거래대금 상위 · ${scopeName}`} asOf={vw?.amount?.asOf} state={vw?.amount?.state} liveUntil={vw?.amount?.liveUntil} fold={!primary}>
           {rows.length ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={rows.slice(0, primary ? 20 : 10)} rowKey={r => r.code} onPick={toStock} />
             : <Empty>{items.length ? '이 범위의 종목이 거래대금 상위 20에 없습니다.' : '거래대금 자료가 없습니다.'}</Empty>}
         </Panel>
@@ -200,7 +203,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
       const t = vw?.tossAmount
       const rows = (t?.items ?? []).filter(x => (m === 'etf' ? x.isEtf : !MARKET[m] || x.market === MARKET[m]))
       return (
-        <Panel className={cls} title={`체결 Top20 · ${scopeName}`} source="토스증권 체결 기준" asOf={t?.asOf} state={t?.state} fold={!primary}>
+        <Panel className={cls} title={`체결 Top20 · ${scopeName}`} source="토스증권 체결 기준" asOf={t?.asOf} state={t?.state} liveUntil={t?.liveUntil} fold={!primary}>
           {rows.length ? <RankTable label="토스 체결 상위 종목" cols={tossCols} rows={rows} rowKey={r => r.code} onPick={toStock} />
             : <Empty>{t?.items.length ? '이 범위의 종목이 체결 상위 20에 없습니다.' : '체결 상위 자료가 없습니다.'}</Empty>}
         </Panel>
@@ -210,8 +213,8 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
     volume: krxPanel('volume'),
     high52: krxPanel('high52'),
     low52: krxPanel('low52'),
-    gainers: (cls, primary) => <MoverPanel cls={cls} primary={primary} all={m === 'all'} title={`상승 · ${scopeName}`} rows={movers(vw, 'gainers', m)} state={m === 'etf' ? vw?.etf?.state : vw?.gainers?.state} />,
-    losers: (cls, primary) => <MoverPanel cls={cls} primary={primary} all={m === 'all'} title={`하락 · ${scopeName}`} rows={movers(vw, 'losers', m)} state={m === 'etf' ? vw?.etf?.state : vw?.losers?.state} />,
+    gainers: (cls, primary) => <MoverPanel cls={cls} primary={primary} all={m === 'all'} title={`상승 · ${scopeName}`} rows={movers(vw, 'gainers', m)} at={moverAt(vw, 'gainers', m)} />,
+    losers: (cls, primary) => <MoverPanel cls={cls} primary={primary} all={m === 'all'} title={`하락 · ${scopeName}`} rows={movers(vw, 'losers', m)} at={moverAt(vw, 'losers', m)} />,
     sectors: (cls, primary) => (
       <Panel className={cls} title={`업종 ${vw?.sectors?.items.length ?? ''}`} asOf={vw?.sectors?.asOf} state={vw?.sectors?.state} fold={!primary}>
         {vw?.sectors?.items.length ? (
@@ -228,7 +231,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
       </Panel>
     ),
     flows: (cls, primary) => (
-      <Panel className={cls} title="투자자 매매" unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} fold={!primary}>
+      <Panel className={cls} title="투자자 매매" unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} liveUntil={inv?.liveUntil} fold={!primary}>
         {inv?.today ? (
           <div className="flex flex-col gap-4">
             <DivergingBars label={`오늘 ${inv.market ?? ''} 투자자별 순매수(${inv.unit ?? ''})`} bars={[
@@ -297,10 +300,28 @@ function useToStock() {
   return (r: { code: string }) => nav(`/i/${r.code}`)
 }
 
-function MoverPanel({ cls, primary, all, title, rows, state }: { cls: string; primary: boolean; all: boolean; title: string; rows: Mover[]; state?: string }) {
+/**
+ * 상승 · 하락 표의 기준 시각. 코스피 · 코스닥 = byMarket 의 그 시장(없으면 보기 asOf · state), ETF = etf 보기.
+ * 전체 = 두 시장 기준이 같으면 하나, 다르면 시장마다 하나씩([이름, 기준] 둘) — 한 화면에 다른 날 목록이 섞여도 표마다 기준이 보이게.
+ */
+function moverAt(v: DomesticBundle['views'], kind: 'gainers' | 'losers', scope: Scope): At | [string, At][] {
+  if (scope === 'etf') return v?.etf ?? {}
+  const mv = v?.[kind]
+  const of = (k: 'kospi' | 'kosdaq'): At => mv?.byMarket?.[k] ?? { asOf: mv?.asOf, state: mv?.state, liveUntil: mv?.liveUntil }
+  if (scope !== 'all') return of(scope)
+  const a = of('kospi'), b = of('kosdaq')
+  return a.asOf === b.asOf && a.state === b.state ? a : [['코스피', a], ['코스닥', b]]
+}
+
+function MoverPanel({ cls, primary, all, title, rows, at }: { cls: string; primary: boolean; all: boolean; title: string; rows: Mover[]; at: At | [string, At][] }) {
   const toStock = useToStock()
+  const one = Array.isArray(at) ? undefined : at
+  const each = Array.isArray(at) ? at.filter(([, x]) => x.asOf) : []
   return (
-    <Panel className={cls} title={title} state={state} fold={!primary}>
+    <Panel className={cls} title={title} asOf={one?.asOf} state={one?.state} liveUntil={one?.liveUntil} fold={!primary}
+      source={each.length ? <>{each.map(([name, x], i) => (
+        <span key={name} className="inline-flex items-center gap-1">{i > 0 && <span aria-hidden className="ml-1">·</span>}{name} <AsOfBadge asOf={x.asOf} state={x.state} liveUntil={x.liveUntil} /></span>
+      ))}</> : undefined}>
       {rows.length ? <RankTable label={title} cols={moverCols(all)} rows={rows.slice(0, 10)} rowKey={r => r.code} onPick={toStock} />
         : <Empty>이 범위의 종목이 목록에 없습니다.</Empty>}
     </Panel>

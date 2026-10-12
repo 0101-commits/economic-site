@@ -24,6 +24,22 @@ test('stockRows: 먼저 본 행이 이기되 값 없는 행은 값 있는 행에
   assert.equal(m.size, 3)
 })
 
+test('stockRows: 시장별 기준(byMarket)은 그 시장 칸 아래 행에 · liveUntil 도 물려받는다', () => {
+  const dom = { views: {
+    amount: { asOf: '2026-10-12T10:40:00+09:00', state: 'live', liveUntil: '2026-10-12T10:55:00+09:00', items: [{ code: '000660', name: 'SK하이닉스', price: 1, chgPct: 1 }] },
+    gainers: {
+      asOf: '2026-10-08', state: 'prev',
+      byMarket: { kospi: { asOf: '2026-10-12T10:40:00+09:00', state: 'live', liveUntil: '2026-10-12T10:55:00+09:00' } },
+      kospi: [{ code: '001210', name: '금호전기', price: 11070, chgPct: 29.92 }],
+      kosdaq: [{ code: '278650', name: 'HLB바이오스텝', price: 6310, chgPct: 29.97 }],
+    },
+  } }
+  const m = stockRows([dom])
+  assert.equal(m.get('000660')!.liveUntil, '2026-10-12T10:55:00+09:00')
+  assert.deepEqual([m.get('001210')!.asOf, m.get('001210')!.state, m.get('001210')!.liveUntil], ['2026-10-12T10:40:00+09:00', 'live', '2026-10-12T10:55:00+09:00'])
+  assert.deepEqual([m.get('278650')!.asOf, m.get('278650')!.state, m.get('278650')!.liveUntil], ['2026-10-08', 'prev', undefined])   // byMarket 에 없는 시장은 보기 기준
+})
+
 test('merMentions: 최신순 n 편 · 전문 일치 앞뒤 40자 · 제목만 일치 · 바깥 링크 검사', () => {
   const long = '가'.repeat(50)
   const posts = [

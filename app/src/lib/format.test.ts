@@ -42,6 +42,11 @@ test('asOfKind / asOfLabel: 네 갈래 판정', () => {
   assert.equal(asOfLabel('prev', '2026-09-30', now), '전일 9/30')
   assert.equal(asOfLabel('prev', '2026-10-01T15:30:03+09:00', now), '종가 15:30')   // 오늘 장 마감 값
   assert.equal(asOfLabel('prev', '2026-10-01', now), '종가 10/1')                    // 오늘 날짜만 있는 값은 「전일」이 아니다
+  // 장이 열린 날(묶음 market.state = open)의 그날 값은 아직 종가가 아니다 — 2026-10-12 장중 「종가 10/12」 실측
+  assert.equal(asOfLabel('prev', '2026-10-01', now, '2026-10-01'), '오늘 10/1')
+  assert.equal(asOfLabel('prev', '2026-10-01T10:40:47+09:00', now, '2026-10-01'), '오늘 10:40')   // 실시간 기한이 지난 장중 값
+  assert.equal(asOfLabel('prev', '2026-09-30', now, '2026-10-01'), '전일 9/30')                   // 앞선 날은 그대로
+  assert.equal(asOfLabel('prev', '2026-10-01', now, null), '종가 10/1')                           // 장이 닫힌 날은 종가
   assert.equal(asOfLabel('prev', '2026-Q2', now), '2분기')                            // 분기(GDP) — 「전일 4/1」이 아니다
   assert.equal(asOfLabel('prev', '2025-Q4', now), '25.4분기')
   assert.equal(asOfLabel('prev', '2025', now), '2025년')                              // 연간(중국 GDP)

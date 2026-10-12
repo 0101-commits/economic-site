@@ -98,8 +98,12 @@ export function kindFromState(state: string | undefined, liveUntil?: string | nu
   return STATE_KIND[state as BundleState]
 }
 
-/** 배지 문구: LIVE 는 시각만 · 오늘 값은 「종가 15:30」(날짜만 있으면 「종가 10/1」) · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만. */
-export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Date = new Date()): string {
+/**
+ * 배지 문구: LIVE 는 시각만 · 오늘 값은 「종가 15:30」(날짜만 있으면 「종가 10/1」) · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만.
+ * openDay = 한국 장이 열려 있는 날(묶음 market.state 가 open 일 때의 그날 날짜). 그날 값은 아직 종가가 아니다 —
+ * 「오늘 10/12」(날짜만) · 「오늘 10:40」(시각 있음, 실시간 기한이 지난 장중 값)으로 적는다.
+ */
+export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Date = new Date(), openDay?: string | null): string {
   if (kind === 'filled') return '보강'
   // 월간(YYYY-MM)은 날짜가 아니라 그 달이다 — 「전일 9/1」이 아니라 「9월」(올해가 아니면 「25.12」)
   const mon = /^(\d{4})-(\d{2})$/.exec(String(asOf))
@@ -116,8 +120,10 @@ export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Dat
   const md = KST_MD.format(t).replace(/\.\s?/g, '/').replace(/\/$/, '')
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(asOf))   // 시각이 없는 값에 「00:00」을 적지 않는다
   if (kind === 'prev') {
-    if (KST_DAY.format(t) !== KST_DAY.format(now)) return `전일 ${md}`
-    return dateOnly ? `종가 ${md}` : `종가 ${hm}`
+    const day = KST_DAY.format(t)
+    if (day !== KST_DAY.format(now)) return `전일 ${md}`
+    const word = openDay === day ? '오늘' : '종가'
+    return dateOnly ? `${word} ${md}` : `${word} ${hm}`
   }
   return kind === 'delayed' ? `지연 ${dateOnly ? md : hm}` : hm
 }

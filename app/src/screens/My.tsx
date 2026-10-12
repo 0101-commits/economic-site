@@ -130,7 +130,7 @@ function Holdings() {
     <div className="flex flex-col gap-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><Wallet size={18} aria-hidden />내 자산</h1>
-        {md?.quotesAsOf && <span className="inline-flex items-center gap-1 text-12 text-ink-3">시세 <AsOfBadge asOf={md.quotesAsOf} state={md.home?.topAmount?.state} /></span>}
+        {md?.quotesAsOf && <span className="inline-flex items-center gap-1 text-12 text-ink-3">시세 <AsOfBadge asOf={md.quotesAsOf} state={md.home?.topAmount?.state} liveUntil={md.home?.topAmount?.liveUntil} /></span>}
         {!qs && <span className="text-12 text-ink-3">시세 불러오는 중</span>}
         {yahooN > 0 && <span className="text-12 text-ink-3">{`${yahooN}종목은 Yahoo 지연 시세`}</span>}
         <button type="button" className={`${BTN2} ml-auto`} onClick={() => setSyncOpen(true)}>동기화</button>
