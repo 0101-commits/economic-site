@@ -202,6 +202,16 @@ def test_brief_cards_layout_and_size():
     assert not bad, bad
 
 
+def test_stock_subject_uses_full_name():
+    """종목 카드 둘째 줄 — 제목은 30자에서 이름을 줄이므로 시세 조회의 온전한 이름을 쓴다(없으면 제목 앞부분)."""
+    row = _row(title="ACE K휴머노이드로봇… 8,970 · 내 조건 아래로", event="U1", target="0177X0")
+    ctx = SimpleNamespace(**vars(_ctx()), stock=lambda t: {"name": "ACE K휴머노이드로봇산업TOP2+"})
+    assert cards._subject(row, ctx) == "ACE K휴머노이드로봇산업TOP2+"
+    ctx.stock = lambda t: None
+    assert cards._subject(row, ctx) == "ACE K휴머노이드로봇… 8,970"
+    assert cards._subject(_row(), ctx) == "KOSPI"                       # 레지스트리 지표는 그대로
+
+
 def test_brief_quote_from_strip():
     """값 · 등락은 번들 띠(화면과 같은 값) — 금리는 bp, 나머지는 %, 띠 없으면 None."""
     strips = {"us10y": {"short": "미국 국채 10Y", "unit": "%", "decimals": 2, "value": 5.28, "change": -0.03, "asOf": "2026-10-07"},
