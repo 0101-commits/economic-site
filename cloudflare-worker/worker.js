@@ -1420,6 +1420,13 @@ export const fullFetchMode = (d) => {
 let _lastFullSlot = '';
 let _lastWatchSlot = '';
 
+// 🔔 stock-alerts 매일 21:05 KST 런 — 그 워크플로의 `5 12 * * *` 은 「일정 전날」 조건 창(전날 21:00~발표 전)을 메우는
+//   런인데 GHA schedule 이 5시간 늦게 돌았다(2026-10-10 17:17Z · 10-11 17:39Z). 매분 cron 이 UTC 12:05(:06 드롭 보강)에
+//   alerts-cron 을 한 번 깨운다. 장중 깨움과 달리 KR 휴장 가드 · 장중 판정을 걸지 않는다 — 주말 · 휴장일에도 도는 런이다.
+//   자가 점검: node cloudflare-worker/test_offhours_tick.mjs
+export const isEveAlertsTick = (d) => d.getUTCHours() === 12 && d.getUTCMinutes() >= 5 && d.getUTCMinutes() <= 6;
+let _lastEveAlerts = '';
+
 // 🔔 알림 v2 정시 깨움 — briefing.yml(브리핑 6슬롯) · alerts-v2.yml(settle · eve)은 GHA schedule 에만 매달려
 //   있었고, 그 schedule 은 5~7시간 늦게 발화했다(2026-10-06 실측: 마감 16:30 → 23:20 KST, settle 18:05 → 00:50 KST,
 //   아침 07:30 은 10시가 넘도록 안 옴). 풀 런 · watchdog 처럼 매분 cron 이 그 분에 repository_dispatch 로 깨운다.
@@ -1792,6 +1799,15 @@ export default {
         _lastWatchSlot = watchKey;
         ctx.waitUntil((async () => {
           if (await ghDispatch(env, 'watchdog', {}, 'ecom-watchdog-cron') === false) _lastWatchSlot = prevWatch;
+        })());
+      }
+      // 🔔 stock-alerts 21:05 KST 런(isEveAlertsTick) — UTC 날짜당 1회, 실패하면 마커를 되돌려 :06 이 재시도한다.
+      const eveKey = now.toISOString().slice(0, 10);
+      if (isEveAlertsTick(now) && _lastEveAlerts !== eveKey) {
+        const prevEve = _lastEveAlerts;
+        _lastEveAlerts = eveKey;
+        ctx.waitUntil((async () => {
+          if (await ghDispatch(env, 'alerts-cron', {}, 'ecom-alert-cron') === false) _lastEveAlerts = prevEve;
         })());
       }
       // 🔔 알림 v2 정시 깨움(브리핑 · settle · eve) — 표는 V2_DISPATCH. 실패하면 마커를 지워 다음 분(+1 보강)이 재시도한다.
