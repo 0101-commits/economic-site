@@ -164,6 +164,8 @@ def test_ai_fallback_skips_user_condition_why(real_ctx, tmp_path, monkeypatch):
 
 def test_close_changed_is_notice_rows_max_four_lines(real_ctx, tmp_path, monkeypatch):
     _no_cards(monkeypatch)
+    # 카드가 그려진 경우의 분담을 본다 — 폰트 없는 경량 수집 런의 테스트 단계에선 카드가 None 이라 행 폴백이 돈다(10/12 실패)
+    monkeypatch.setattr(briefing.cards, "brief_card_png", lambda spec: b"\x89PNG")
     now = dt.datetime(2026, 10, 6, 16, 30, tzinfo=KST)
     ctx = copy.copy(real_ctx)
     ctx.now = now
