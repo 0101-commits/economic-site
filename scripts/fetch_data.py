@@ -2671,8 +2671,10 @@ def toss_connection_status(sources=None, now=None):
     "토스라고 표시했는데 실은 폴백이었다"가 생기지 않는다.
     """
     snap = _toss_snapshot()
+    # 「이전 빌드 보존 ← 토스…」(직전 값 되살림)는 이번 런에 토스가 채운 것이 아니다
     supplied = sorted(
-        k for k, v in (sources or {}).items() if isinstance(v, str) and "토스" in v)
+        k for k, v in (sources or {}).items()
+        if isinstance(v, str) and "토스" in v and not v.startswith("이전 빌드 보존"))
     base = {"generatedAt": None, "ageMinutes": None, "supplied": supplied}
     if not snap:
         return {**base, "state": "OFFLINE", "reason": "스냅샷 없음 — PC 수집기 미실행"}
@@ -2785,6 +2787,11 @@ def _investor_align_portal(inv, prev_daily=None, days=10, backfill=40):
     except Exception as e:                                   # noqa: BLE001
         log(f"[투자자] 네이버 조회 실패: {e} — KRX(pykrx) 확정치로 정렬")
         nav = []
+    # 오늘 행의 수집 시각 = 이번 런에 네이버에서 오늘 행을 실제로 받았을 때만. lastFetched 는 늘 이 런 시각이라, 네이버가
+    # 실패하고 위에서 직전 빌드의 오늘 행(src naver)이 되살아난 날에도 그 값이 「방금 받은 값」으로 읽혔다(2026-10-12 검토).
+    inv.pop("portalFetchedAt", None)
+    if any(n.get("date") == datetime.now(KST).strftime("%Y-%m-%d") for n in nav):
+        inv["portalFetchedAt"] = datetime.now(KST).isoformat(timespec="seconds")
     # KRX 확정치 — 네이버가 보여주던 값의 원천. 네이버가 2026-09-21 HTTP 410 으로 사라진 뒤
     # 교차검증이 토스 단일로 무너져 있었다. data.json 에 krxDaily 로도 실어 알림 스크립트
     # (pykrx 를 싣지 않는다)가 포털 기준으로 읽게 한다.
@@ -5763,8 +5770,10 @@ def fetch_move_index():
         q = fetch_yf("^MOVE")
         if q and q.get("price"):
             log(f"[MOVE] yfinance: {q['price']}")
+            # as_of = 마지막 일봉 날짜(미국 거래일). 수집일을 적으면 미국 장이 안 열린 월요일 아침(KST)에도 그날로 찍혔다
+            # (2026-10-12 점검: 10-09 금 종가가 10-12). 일봉이 없으면 날짜를 모른다(지어내지 않는다).
             result = {"value": q["price"], "change": q["change"],
-                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                    "as_of": max(history) if history else None,
                     "source": "yfinance ^MOVE"}
             if history:
                 result["history"] = history
@@ -6430,6 +6439,20 @@ def fetch_yf(symbol):
     except Exception as e:
         log(f"[yfinance] {symbol} 오류: {e}")
         return None
+
+
+def _vix_catch_up(node):
+    """FRED VIXCLS 는 다음 영업일에야 올라온다 — 월요일 아침(KST)엔 목요일 값이라 S&P(금 종가)와 하루 어긋났다
+    (2026-10-12 점검: VIX 10-08 · S&P 10-09). yfinance ^VIX 일봉(같은 CBOE 종가)에 FRED 마지막 날짜(period)보다
+    새 봉이 있으면 history 에 이어 붙이고 값 · 기준일을 그 끝 봉으로 둔다. node 를 고치고 붙인 봉 수를 돌려준다."""
+    newer = {pt["date"]: round(pt["close"], 2) for pt in (fetch_yf_history("^VIX", period="1mo") or [])
+             if pt.get("close") and pt["close"] > 0 and pt["date"] > str(node.get("period") or "")}
+    if newer:
+        last = max(newer)
+        node["history"] = {**(node.get("history") or {}), **newer}
+        node.update(value=newer[last], period=last, source="FRED:VIXCLS + yfinance ^VIX")
+        log(f"[yf-VIX] FRED 마지막 이후 {len(newer)}봉 보강 → {last} {newer[last]}")
+    return len(newer)
 
 
 def fetch_fx_change(pair_symbol):
@@ -7761,6 +7784,8 @@ def build_data():
         # 실시간에 가까워 보강값이 더 최신일 수 있다.
         try:
             us_vix = (data["economicIndicators"]["us"].get("vix") or {})
+            if us_vix.get("value") is not None:
+                _vix_catch_up(us_vix)
             if us_vix.get("value") is None:
                 log("[yf-VIX] FRED VIX 누락 → yfinance ^VIX 보강 시도")
                 vix_quote = fetch_yf("^VIX")
@@ -7773,7 +7798,7 @@ def build_data():
                     data["economicIndicators"]["us"]["vix"] = {
                         "value":  round(vix_quote["price"], 2),
                         "change": vix_quote.get("change", 0),
-                        "period": datetime.now(KST).strftime("%Y-%m-%d"),
+                        "period": max(vix_hist_map) if vix_hist_map else None,   # 마지막 일봉 날짜 — 수집일이 아니다
                         "desc":   "VIX 변동성 지수",
                         "source": "yfinance ^VIX",
                         "history": vix_hist_map,
@@ -8583,6 +8608,14 @@ def build_data():
     except Exception as e:
         log(f"[YC] 비교점 계산 오류: {e}")
 
+    # 토스가 채운 등락 목록을 목록마다 적는다 — 「stockMovers」 · 「etfMovers」 출처 글자는 상승 · 하락 공용이라 한쪽만
+    # 토스여도 둘 다 토스로 읽혔다(2026-10-12 검토). 최종 목록이 토스에서 받은 바로 그 객체일 때만(뒤 폴백이 갈아 끼웠거나
+    # 직전 빌드 보존이면 아님). 묶음(build_bundles.toss_time)은 이 칸이 supplied 에 있을 때만 스냅샷 시각을 쓴다.
+    for _blk, _k, _v in (("stockMovers", "kospiGainers", _tg), ("stockMovers", "kospiLosers", _tl),
+                         ("etfMovers", "etfGainers", _snap_etf.get("etfGainers")),
+                         ("etfMovers", "etfLosers", _snap_etf.get("etfLosers"))):
+        if _v and (data.get(_blk) or {}).get(_k) is _v:
+            data["sources"][f"{_blk}.{_k}"] = "토스증권 Open API"
     # 토스 연결상태 — sources 대입이 전부 끝난 마지막에 계산해야 supplied 가 정확하다.
     data.setdefault("diagnostics", {})["toss"] = toss_connection_status(data.get("sources"))
     if requests.dead:
@@ -9400,6 +9433,23 @@ def _get_by_path(obj, path):
     return cur
 
 
+_CAL_LOWER_BETTER = ("CPI", "PPI", "물가", "실업", "미분양")
+
+
+def _cal_num(s):
+    """일정표 표기(「+0.3%」 · 「-104K」 · 「2.75%」) → 수. 비었거나 못 읽으면 None."""
+    return _parse_num(str(s or "").replace("%", "").replace("+", "").replace("K", ""))
+
+
+def _cal_beat(name, act, fore, tol=0.05):
+    """실제치 대 예측 — 0 부합(차 < tol) · 1 좋음 · −1 나쁨(물가 · 실업 · 미분양은 낮을수록 좋음). 둘 중 하나라도 없으면 None."""
+    if act is None or fore is None:
+        return None
+    if abs(act - fore) < tol:
+        return 0
+    return 1 if ((act < fore) if any(x in name for x in _CAL_LOWER_BETTER) else (act > fore)) else -1
+
+
 def backfill_calendar_actuals(events, data, prev_events=None):
     """서버측 캘린더 백필 — 과거 발표 이벤트의 prev/fore/act 자동 채움.
 
@@ -9436,7 +9486,13 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 continue
             if iso < fill_from and (iso, ev.get("name")) in carry:
                 old = carry[(iso, ev.get("name"))]
-                ev.update({k: old.get(k) for k in ("act", "prev", "fore", "beat")})
+                # fore · beat 는 잇지 않는다 — 예전 런이 직전 값을 예측으로 복사해 둔 것이라(아래 주석) 진짜 예측이 아니다.
+                # 원천이 이번에 준 진짜 fore 가 있으면 이은 실적으로 beat 를 다시 센다(증감 K 표기는 천 명 단위라 허용차 5).
+                ev.update({k: old.get(k) for k in ("act", "prev")})
+                b = _cal_beat(ev.get("name", ""), _cal_num(ev.get("act")), _cal_num(ev.get("fore")),
+                              5 if "K" in str(ev.get("act")) else 0.05)
+                if b is not None:
+                    ev["beat"] = b
                 continue
             if iso > today_iso or iso < fill_from:
                 continue  # 미래 이벤트는 그대로, 직전 값도 없는 오래된 일정은 비워 둔다
@@ -9492,20 +9548,11 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 ev["act"] = _fmt_indicator(act_chg, fmt_id)
                 if not ev.get("prev") and prev_chg is not None:
                     ev["prev"] = _fmt_indicator(prev_chg, fmt_id)
-                if not ev.get("fore") and prev_chg is not None:
-                    ev["fore"] = _fmt_indicator(prev_chg, fmt_id)
-                # beat 계산
-                try:
-                    fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", ""))
-                    if fore_num is not None:
-                        if abs(act_chg - fore_num) < 0.05:
-                            ev["beat"] = 0
-                        elif any(x in name for x in ("CPI", "PPI", "물가", "실업", "미분양")):
-                            ev["beat"] = 1 if act_chg < fore_num else -1
-                        else:
-                            ev["beat"] = 1 if act_chg > fore_num else -1
-                except (ValueError, TypeError):
-                    pass
+                # fore 는 원천이 준 컨센서스만 — 직전 값을 예측 칸에 복사하면 「예측」이 거짓이 되고 beat 도 그걸로 셌다
+                # (2026-10-12 점검: 일정 4건 전부 fore = prev). beat 는 진짜 fore 가 있을 때만 센다.
+                b = _cal_beat(name, act_chg, _cal_num(ev.get("fore")))
+                if b is not None:
+                    ev["beat"] = b
                 filled += 1
                 continue
 
@@ -9523,14 +9570,9 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                         prev_delta = p - pp
                         if not ev.get("prev"):
                             ev["prev"] = _fmt_indicator(prev_delta, "kd")
-                        if not ev.get("fore"):
-                            ev["fore"] = _fmt_indicator(prev_delta, "kd")
-                try:
-                    fore_num = _parse_num(str(ev.get("fore", "")).replace("+", "").replace("K", ""))
-                    if fore_num is not None:
-                        ev["beat"] = 0 if abs(act_delta - fore_num) < 5 else (1 if act_delta > fore_num else -1)
-                except (ValueError, TypeError):
-                    pass
+                b = _cal_beat(name, act_delta, _cal_num(ev.get("fore")), tol=5)
+                if b is not None:
+                    ev["beat"] = b
                 filled += 1
                 continue
 
@@ -9541,20 +9583,9 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 ev["act"] = _fmt_indicator(act_v, fmt_id)
                 if not ev.get("prev") and prev_v is not None:
                     ev["prev"] = _fmt_indicator(prev_v, fmt_id)
-                if not ev.get("fore") and prev_v is not None:
-                    ev["fore"] = _fmt_indicator(prev_v, fmt_id)
-                try:
-                    fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", "").replace("K", ""))
-                    act_num  = float(act_v)
-                    if fore_num is not None:
-                        if abs(act_num - fore_num) < 0.05:
-                            ev["beat"] = 0
-                        elif any(x in name for x in ("CPI", "PPI", "물가", "실업", "미분양")):
-                            ev["beat"] = 1 if act_num < fore_num else -1
-                        else:
-                            ev["beat"] = 1 if act_num > fore_num else -1
-                except (ValueError, TypeError):
-                    pass
+                b = _cal_beat(name, _parse_num(act_v), _cal_num(ev.get("fore")))
+                if b is not None:
+                    ev["beat"] = b
                 filled += 1
         except Exception as e:
             log(f"[Cal-Backfill] {ev.get('name','?')} 오류: {e}")

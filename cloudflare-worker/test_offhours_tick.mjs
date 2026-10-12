@@ -4,7 +4,7 @@
 // 2026-09-08 진단의 원인(장외 공백 최장 324분)이 그대로 돌아온다.
 //
 // 실행: node cloudflare-worker/test_offhours_tick.mjs
-import { isOffHoursFetchTick, fullFetchMode, inMarketHours, isKrHoliday, v2Ticks } from './worker.js';
+import worker, { isOffHoursFetchTick, fullFetchMode, inMarketHours, isKrHoliday, v2Ticks, isEveAlertsTick } from './worker.js';
 
 const at = (dowUtcDate, hUtc, mUtc) => new Date(Date.UTC(2026, 8, dowUtcDate, hUtc, mUtc));
 // 2026-09: 07일=월 … 11일=금, 12일=토, 13일=일
@@ -84,6 +84,27 @@ check('key = UTC 날짜 + 항목', v2Ticks(at(MON, 7, 30))[0].key, '2026-09-07-b
 const countV2 = (date) => { let n = 0; for (let h = 0; h < 24; h++) for (let m = 0; m < 60; m++) n += v2Ticks(at(date, h, m)).length; return n; };
 check('평일 하루 깨움 분 수(7항목 × 2분)', countV2(MON), 14);
 check('토요일 하루 깨움 분 수(weekly · eve × 2분)', countV2(SAT), 4);
+
+// 🔔 stock-alerts 21:05 KST 런 — 매일(주말 · KR 휴장일 포함) UTC 12:05 · 12:06(드롭 보강)만.
+//   GHA schedule(`5 12 * * *`)은 5시간 늦게 돌았다(2026-10-10 17:17Z · 10-11 17:39Z).
+check('월 UTC 12:04 → 아님', isEveAlertsTick(at(MON, 12, 4)), false);
+check('월 UTC 12:05 → 깨움', isEveAlertsTick(at(MON, 12, 5)), true);
+check('월 UTC 12:06 → 깨움(드롭 보강)', isEveAlertsTick(at(MON, 12, 6)), true);
+check('월 UTC 12:07 → 아님', isEveAlertsTick(at(MON, 12, 7)), false);
+check('토 UTC 12:05 → 깨움(주말 포함)', isEveAlertsTick(at(SAT, 12, 5)), true);
+check('일 UTC 12:05 → 깨움(주말 포함)', isEveAlertsTick(at(SUN, 12, 5)), true);
+check('KR 휴장일(10/9 한글날) UTC 12:05 → 깨움(휴장 가드 없음)', isEveAlertsTick(new Date(Date.UTC(2026, 9, 9, 12, 5))), true);
+check('월 UTC 00:05 → 아님(KST 09:05 아님)', isEveAlertsTick(at(MON, 0, 5)), false);
+check('그 분은 장외라 장중 alerts-cron 깨움과 겹치지 않는다', inMarketHours(at(MON, 12, 5)), false);
+
+// 배선 — 매분 cron 이 그 분에 실제로 alerts-cron 을 dispatch 하고, 같은 날 :06 은 다시 보내지 않는다(토 10/10 21:05 KST).
+const sent = [];
+globalThis.fetch = async (url, init) => { sent.push([String(url), JSON.parse(init.body).event_type]); return new Response(null, { status: 204 }); };
+const fire = async (ms) => { const w = []; await worker.scheduled({ cron: '* * * * *', scheduledTime: ms }, { GH_DISPATCH_TOKEN: 't' }, { waitUntil: (p) => w.push(p) }); await Promise.all(w); };
+await fire(Date.UTC(2026, 9, 10, 12, 5));
+await fire(Date.UTC(2026, 9, 10, 12, 6));
+check('토 12:05 · 12:06 → alerts-cron dispatch 1번', sent.map((x) => x[1]).join(','), 'alerts-cron');
+check('dispatch 주소', sent.length && sent[0][0].endsWith('/dispatches'), true);
 
 console.log(fails ? `실패 ${fails}건` : '실패 0건');
 process.exit(fails ? 1 : 0);

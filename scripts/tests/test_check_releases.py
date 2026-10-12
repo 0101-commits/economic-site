@@ -173,7 +173,23 @@ def test_backfill_policy_decision_needs_an_observation_of_the_decision_month(mon
     data["economicIndicators"]["kr"]["base_rate_kr"]["history"]["202610"] = 2.75
     ev = _ev(name, "2026-10-22")
     fd.backfill_calendar_actuals([ev], data)
-    assert ev["act"] == "2.75%" and ev["fore"] == "3.00%"
+    assert ev["act"] == "2.75%" and ev["prev"] == "3.00%"
+    assert ev["fore"] == "" and ev["beat"] is None                                 # 직전 값을 예측으로 복사하지 않는다
+
+
+def test_backfill_never_copies_prev_into_fore(monkeypatch):
+    # 컨센서스가 없는 일정에 직전 값을 fore 로 복사하고 beat 도 그걸로 셌다 — 「예측」이 거짓(2026-10-12 점검, 4건 전부 fore = prev).
+    # 세 갈래(전년비 · 증감 · 수준) 모두. 원천이 준 fore 가 있으면 beat 는 그것으로 센다.
+    monkeypatch.setattr(fd, "datetime", type("D", (), {"now": staticmethod(lambda tz=None: datetime(2026, 10, 5, tzinfo=KST))}))
+    hist = _months(2025, 8, 14, lambda i: 100.0 + i)
+    data = {"economicIndicators": {"kr": {"cpi_kr": {"history": hist}},
+                                   "us": {"nfp_us": {"history": {"2026-07-01": 100.0, "2026-08-01": 133.0, "2026-09-01": 29.0}}}}}
+    evs = [_ev("한국 소비자물가동향", "2026-10-02", refPeriod="2026-09"), _ev("미국 비농업고용(NFP)", "2026-10-02")]
+    fd.backfill_calendar_actuals(evs, data)
+    assert [(e["act"] != "", e["prev"] != "", e["fore"], e["beat"]) for e in evs] == [(True, True, "", None)] * 2
+    ev = _ev("미국 비농업고용(NFP)", "2026-10-02", fore="-50K")
+    fd.backfill_calendar_actuals([ev], data)
+    assert ev["act"] == "-104K" and ev["fore"] == "-50K" and ev["beat"] == -1
 
 
 def test_backfill_fills_only_recent_events(monkeypatch):
@@ -197,9 +213,76 @@ def test_backfill_carries_old_events_from_previous_run(monkeypatch):
             _ev("미국 CPI (전월비)", "2026-09-24", act="+0.4%")]                     # 이름이 다르면 잇지 않는다
     evs = [_ev(nfp, d) for d in ("2026-08-13", "2026-09-24", "2026-10-02")]
     fd.backfill_calendar_actuals(evs, data, prev)
-    assert {k: evs[1][k] for k in ("act", "prev", "fore", "beat")} == {"act": "+33K", "prev": "+10K", "fore": "+20K", "beat": 1}
+    # fore · beat 는 잇지 않는다 — 직전 런이 직전 값을 예측으로 복사해 둔 것이라 진짜 예측이 아니다(2026-10-12)
+    assert {k: evs[1][k] for k in ("act", "prev", "fore", "beat")} == {"act": "+33K", "prev": "+10K", "fore": "", "beat": None}
     assert evs[0]["act"] == ""
     assert evs[2]["act"] == "-104K"                                                 # 창 안은 직전 값이 아니라 다시 센다
+    # 원천이 이번에 진짜 예측을 줬으면 이은 실적으로 beat 를 다시 센다(증감 K 는 허용차 5)
+    more = [_ev(nfp, "2026-09-24", fore="+20K"), _ev(nfp, "2026-09-24", fore="+30K"), _ev("미국 CPI (전월비)", "2026-09-24", fore="+0.2%")]
+    prev[2] = _ev("미국 CPI (전월비)", "2026-09-24", act="+0.4%", prev="+0.1%")
+    fd.backfill_calendar_actuals(more, data, prev)
+    assert [(e["act"], e["beat"]) for e in more] == [("+33K", 1), ("+33K", 0), ("+0.4%", -1)]   # CPI 는 낮을수록 좋음
+
+
+def test_briefing_snapshot_carries_today_and_real_dates(monkeypatch):
+    # 홈 브리핑이 「내일 발표되는 미국 CPI」(실제 모레 10/14)라고 썼다 — 오늘 날짜 · 요일, 일정의 실제 날짜, 지수 기준일을 싣는다
+    class D(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 12, 11, 7, tzinfo=KST)
+    monkeypatch.setattr(ab, "datetime", D)
+    d = {"indices": {"KOSPI": {"price": 6479.88, "change": -2.82}, "SP500": {"price": 7811.54, "change": 0.59}},
+         "history": {"indices": {"KOSPI": [{"date": "2026-10-12", "close": 6479.88}],
+                                 "SP500": [{"date": "2026-10-08", "close": 7765.36}, {"date": "2026-10-09", "close": 7811.54}]}},
+         "economicCalendar": {"events": [
+             {"iso": "2026-10-14", "dt": "10.14 21:30", "name": "미국 CPI (전월비)", "stars": 3, "act": ""},
+             {"iso": "2026-10-20", "dt": "10.20 08:00", "name": "먼 일정", "stars": 3, "act": ""}]}}
+    snap = ab.build_snapshot(d)
+    assert snap["오늘"] == "2026-10-12(월)" and snap["작성시각"].startswith("11:07 KST")
+    assert snap["upcoming"] == ["10/14(수) 21:30 미국 CPI (전월비)"]
+    assert snap["S&P500"]["기준일"] == "10/9(금)" and snap["KOSPI"]["기준일"] == "10/12(월)"
+    assert snap["NASDAQ"] is None                                                # 없는 지수는 그대로 비운다
+    prompt = ab._llm_prompt(snap)
+    assert "'내일'·'모레'" in prompt and "내일 확인" not in prompt and "10/14(수)" in prompt
+    assert "M월 D일" not in prompt                                               # 날짜 꼴은 자료(「10/14(수)」) 하나로
+    assert "주요 일정: 10/14(수) 21:30 미국 CPI (전월비)" in ab.rule_based_lines(snap)[2]
+
+
+def test_briefing_lines_checked_and_fall_back_to_rule(monkeypatch, tmp_path):
+    # 프롬프트의 「내일 · 모레」 금지는 말뿐이었다 — 알림 한 문장(slot_line_ok)과 같은 금지어 · 일정표 대조로 출력도 검사하고,
+    # 걸리면 규칙 요약으로 내려간다(2026-10-12 「내일 발표되는 미국 CPI」, 실제 10/14)
+    class D(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 12, 11, 7, tzinfo=KST)
+    monkeypatch.setattr(ab, "datetime", D)
+    cal = {"events": [{"iso": "2026-10-14", "dt": "10.14 21:30", "name": "미국 CPI (전월비)", "stars": 3, "act": ""}]}
+    ok = ["코스피가 외국인 매도로 2.8% 내렸다(11:07 기준)", "원·달러는 1,336원으로 내렸다",
+          "10/14(수) 21:30 발표되는 미국 CPI 를 확인할 것"]
+    assert ab.brief_lines_ok(ok, cal)
+    assert not ab.brief_lines_ok(ok[:2] + ["내일 발표되는 미국 CPI 를 확인할 것"], cal)          # 상대 날짜
+    assert not ab.brief_lines_ok(ok[:2] + ["10/13(화) 발표되는 미국 CPI 를 확인할 것"], cal)      # 일정표와 다른 날
+    assert not ab.brief_lines_ok(ok[:2] + ["지금이 매수 기회다"], cal)                           # 권유
+    # 한 줄에 날짜가 여럿(「오늘」 · 지수 기준일 + 일정 날짜)이면 그 지표 일정이 있는 날이 하나라도 있으면 통과 — 날마다
+    # 따지면 프롬프트가 요구한 멀쩡한 줄도 버려 AI 요약을 자주 잃었다(2026-10-12 재검토). 틀린 날만 있으면 거부.
+    mixed = ["오늘 코스피가 2.8% 급락했다. 10/14(수) 미국 CPI 발표를 지켜볼 일이다.",
+             "S&P500은 10/9(금) 0.6% 올랐고 10/14(수) 미국 CPI 발표가 다음 변수다."]
+    for line in mixed + ["10/14(수) 21:30 미국 CPI 발표가 금리 기대를 가를 것이다."]:
+        assert ab.brief_lines_ok([line], cal), line
+    assert not any(ab.slot_line_ok(line, cal) for line in mixed)          # 알림 한 문장(slot_line_ok)은 종전대로 날마다 따진다
+    assert not ab.brief_lines_ok(["10/13(화) 미국 CPI 발표를 지켜볼 일이다."], cal)
+    assert not ab.brief_lines_ok(["10/14(수) 미국 CPI 가 발표됐다 — 예상보다 높았다."], cal)    # 맞은 날이지만 시제가 틀림
+    path = tmp_path / "data.json"
+    path.write_text(json.dumps({"economicCalendar": cal}), encoding="utf-8")
+    monkeypatch.setattr(ab, "DATA_FILE", str(path))
+    monkeypatch.setattr(ab, "try_openai", lambda snap: None)
+    monkeypatch.setattr(ab, "try_gemini", lambda snap: ok[:2] + ["내일 발표되는 미국 CPI 를 확인할 것"])
+    ab.main()
+    assert json.loads(path.read_text(encoding="utf-8"))["aiBriefing"]["source"] == "rule"
+    monkeypatch.setattr(ab, "try_gemini", lambda snap: ok)
+    ab.main()
+    got = json.loads(path.read_text(encoding="utf-8"))["aiBriefing"]
+    assert got["source"] == "gemini" and got["lines"] == ok and got["generatedAt"] == "2026-10-12 11:07 KST"
 
 
 # ── 5. slot_line_ok — 일정표 대조 ──────────────────────────────────────────────

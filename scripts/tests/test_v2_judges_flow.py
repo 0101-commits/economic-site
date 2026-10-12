@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from alerts_v2 import judges_flow_cal as J  # noqa: E402
-from alerts_v2 import schema  # noqa: E402
+from alerts_v2 import compose, schema  # noqa: E402
 from alerts_v2.context import Context  # noqa: E402
 from alerts_v2.events import JUDGES  # noqa: E402
 from alerts_v2.ledger import Ledger  # noqa: E402
@@ -131,6 +131,12 @@ def test_e2_release_time_guard(tmp_path):
     assert len(hits) == 1
     h = hits[0]
     assert h.asOf == "2026-10-01:미국 PCE 물가지수" and h.fields["verdict_ko"] == "상회"
+    assert h.fields["vs_fore"] == "예상 +0.1% 상회"
+    ev = schema.by_id(schema.load_events())["E2"]
+    assert compose.render(ev, h, None)["title"] == "미국 PCE 물가… +0.3% · 예상 +0.1% 상회"   # 30자 — 이름을 줄이고 판정은 남긴다
+    # 예측이 없으면 「예상」 조각이 통째로 빠진다(「… · 예상」이 남지 않게)
+    h.fields.update(fore="", vs_fore="", verdict_ko="")
+    assert compose.render(ev, h, None)["title"] == "미국 PCE 물가지수 +0.3%"
     assert h.fields["level"] == "alarm" and h.fields["next_event"] == "10/2 08:00 한국 소비자물가동향"
 
 

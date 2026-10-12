@@ -138,7 +138,7 @@ def test_direct_quote_first_bundle_row_on_failure(monkeypatch):
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     calls = _fake(monkeypatch, {"005930": _snap(71500, -2.8, [73500] * 70), "000660": None, "035420": None})
     bundles = {"market-domestic": {"views": {
-        "amount": {"asOf": "2026-10-07", "state": "live",
+        "amount": {"asOf": "2026-10-07T09:55:00+09:00", "state": "live", "liveUntil": "2026-10-07T10:10:00+09:00",
                    "items": [{"code": "005930", "name": "삼성전자", "price": 71000.0, "chgPct": -3.5},
                              {"code": "000660", "name": "SK하이닉스", "price": 250000.0, "chgPct": 0.5}]},
         "marketCap": {"asOf": "2026-10-06", "state": "prev",                 # 어제 칸 — 쓰지 않는다
@@ -153,6 +153,18 @@ def test_direct_quote_first_bundle_row_on_failure(monkeypatch):
     assert ctx.stock("035420") is None
     ctx.stock("005930"), ctx.stock("000660")
     assert sorted(calls) == [("KR", "000660"), ("KR", "005930"), ("KR", "035420")]   # 종목당 한 번(실패도 기억)
+
+
+def test_bundle_row_live_only_until_live_until(monkeypatch):
+    """장중 목록은 수집 시각 기준으로 live 가 되고 15분 뒤 liveUntil 이 지난다 — 그 뒤(묶음이 늦게 갱신돼도) 묶음 값을
+    「지금 값」으로 쓰지 않는다(2026-10-12 검토). liveUntil 이 없는 live 칸도 믿지 않는다."""
+    _fake(monkeypatch, {"000660": None})
+    row = [{"code": "000660", "name": "SK하이닉스", "price": 250000.0, "chgPct": 0.5}]
+    amount = lambda **kw: {"market-domestic": {"views": {"amount": dict({"asOf": "2026-10-07T09:40:00+09:00", "state": "live",
+                                                                            "items": row}, **kw)}}}
+    assert _ctx(bundles=amount(liveUntil="2026-10-07T10:00:00+09:00")).stock("000660")["value"] == 250000.0   # 경계 = 아직
+    assert _ctx(bundles=amount(liveUntil="2026-10-07T09:55:00+09:00")).stock("000660") is None               # 지남
+    assert _ctx(bundles=amount()).stock("000660") is None                                                     # 기한 없음
 
 
 def test_one_fetch_per_stock_per_run(monkeypatch):

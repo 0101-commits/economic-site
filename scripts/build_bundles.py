@@ -673,6 +673,53 @@ def block_state(health, path, node):
     return health.state(path, node if isinstance(node, dict) else None)
 
 
+def toss_time(data, *keys):
+    """토스 스냅샷 목록의 수집 시각 = 그 런이 읽은 스냅샷 시각(diagnostics.toss.generatedAt). keys(sources 칸 —
+    「rankingsKr」 · 「stockMovers.kospiGainers」 …)가 전부 그 런의 diagnostics.toss.supplied 에 있을 때만. 하나라도 아니면
+    (KRX · pykrx · 네이버 폴백, 직전 빌드 보존) 그 목록의 시각을 모르므로 None."""
+    toss = (data.get("diagnostics") or {}).get("toss") or {}
+    if not keys or not set(keys) <= set(toss.get("supplied") or []):
+        return None
+    return _iso_dt(toss.get("generatedAt"))
+
+
+def flows_time(data):
+    """투자자 동향 마지막 행의 수집 시각 = investorTrading.portalFetchedAt — 그 런이 네이버에서 오늘 행을 실제로 받았을 때만
+    fetch_data 가 단다(lastFetched 는 늘 그 런 시각이라 네이버 실패 · 직전 행 복원에도 「방금」으로 읽혔다)."""
+    rows = investor_rows(data)
+    return _iso_dt((data.get("investorTrading") or {}).get("portalFetchedAt")) if rows and rows[-1].get("src") == "naver" else None
+
+
+def list_when(clock, as_of, state, t):
+    """목록 보기의 기준 {asOf, state[, liveUntil]}. 한국 장이 열려 있고(달력 확인) 행 기준일이 오늘이며 data.json 이 그 목록의
+    수집 시각 t 를 알 때만 시세 칸과 같은 freshness() 로 잰다 — asOf = 수집 시각, live 면 liveUntil. 장중 목록에 날짜만 실려
+    화면이 「종가 10/12」로 읽었다(2026-10-12 점검). 장 마감 뒤 · 전일 목록 · 시각 모름 · 판정표가 지연 · 보강으로 본 값은 그대로."""
+    kr = clock.kr
+    if (state != "prev" or t is None or as_of != kr["today"] or kr["state"] != "open" or not kr["calendarKnown"]
+            or t < dt.datetime.fromisoformat(kr["today"] + "T09:00:00+09:00")):
+        return {"asOf": as_of, "state": state}
+    t = t.astimezone(KST)
+    st = freshness(max(0.0, (clock.now - t).total_seconds() / 60), True, False)
+    out = {"asOf": t.isoformat(timespec="seconds"), "state": st}
+    if st == "live":
+        out["liveUntil"] = (t + dt.timedelta(minutes=LIVE_MIN)).isoformat(timespec="seconds")
+    return out
+
+
+def movers_view(clock, data, health, side):
+    """등락 상위(side = Gainers · Losers) — 시장별 행 + 시장별 기준(byMarket). 코스피는 토스(오늘 장중), 코스닥은 KRX 전일
+    확정치라 기준일이 다르다 — 보기 asOf 는 둘 중 이른 날(종전 그대로), 시장마다의 기준은 byMarket 이 따로 싣는다."""
+    smv = data.get("stockMovers") or {}
+    v, by = {}, {}
+    for mk, want in (("kospi", "KOSPI"), ("kosdaq", "KOSDAQ")):
+        rows = smv.get(mk + side)
+        v[mk] = stock_rows(rows, market=want)
+        by[mk] = list_when(clock, rows_as_of(rows), block_state(health, "stockMovers.%s%s" % (mk, side), rows),
+                           toss_time(data, "stockMovers.%s%s" % (mk, side)))
+    return {"asOf": rows_as_of(smv.get("kospi" + side), smv.get("kosdaq" + side)), **v,
+            "state": block_state(health, "stockMovers.kospi" + side, smv.get("kospi" + side)), "byMarket": by}
+
+
 def krx_rank_view(health, rk, key):
     """KRX 순위(rankingsKr.<key> = {as_of, kospi, kosdaq[, count]}) → 화면 칸. 시장별 20행, 52주는 총수(count) 포함."""
     node = rk.get(key) if isinstance(rk.get(key), dict) else None
@@ -747,12 +794,12 @@ def investor_rows(data):
     return [r for r in ((data.get("investorTrading") or {}).get("daily") or []) if isinstance(r, dict) and r.get("date")]
 
 
-def investors_block(data, health, n):
+def investors_block(data, health, n, clock):
     rows = investor_rows(data)
     it = data.get("investorTrading") or {}
     last = rows[-1] if rows else None
     return {"market": (it.get("markets") or [None])[0], "unit": it.get("unit"), "source": it.get("source"),
-            "asOf": last["date"] if last else None, "state": block_state(health, "investorTrading", it),
+            **list_when(clock, last["date"] if last else None, block_state(health, "investorTrading", it), flows_time(data)),
             "today": {k: last.get(k) for k in ("date", "foreign", "inst", "retail")} if last else None,
             "rows": [[r["date"], r.get("foreign"), r.get("inst"), r.get("retail")] for r in rows[-n:]],
             "columns": ["date", "foreign", "inst", "retail"]}
@@ -847,22 +894,26 @@ def mood_item(Q, i):
             "asOf": q.get("asOf"), "state": q.get("state", "missing")}
 
 
-def flow_last(s):
+def flow_last(s, since=None):
     """종목 수급 세 칸(단위 주) — 기록의 마지막 날 값 하나씩. 공매도(shortVol — short 는 줄임 이름 칸) = 그날 공매도 거래량,
-    대차 = 그날 대차잔고, 프로그램 = 그날 차익 + 비차익 순매수(둘 다 있을 때만). 기록이 없거나 모양이 다르면 null(ETF 는 대개 비어 온다)."""
+    대차 = 그날 대차잔고, 프로그램 = 그날 차익 + 비차익 순매수(둘 다 있을 때만). 기록이 없거나 모양이 다르면 null(ETF 는 대개 비어 온다).
+    since(최근 5거래일의 첫날)보다 오래된 기록은 값을 null 로 — 날짜(flowDates)는 그대로 싣는다(2026-10-12 점검: 360750 공매도가 5/12 값)."""
     def last(k):
         v = s.get(k)
         x = v[-1] if isinstance(v, list) and v else {}
         return x if isinstance(x, dict) else {}
     sh, ln, pg = last("short"), last("lending"), last("program")
-    arb, non = _num(pg.get("arb")), _num(pg.get("nonArb"))
-    return {"shortVol": _num(sh.get("volume")), "lending": _num(ln.get("bal")),
+    old = lambda x: bool(since) and str(x.get("date") or "") < since
+    arb, non = (None, None) if old(pg) else (_num(pg.get("arb")), _num(pg.get("nonArb")))
+    return {"shortVol": None if old(sh) else _num(sh.get("volume")), "lending": None if old(ln) else _num(ln.get("bal")),
             "program": arb + non if arb is not None and non is not None else None,
             "flowDates": {"shortVol": sh.get("date"), "lending": ln.get("date"), "program": pg.get("date")}}
 
 
 # ── 렌즈 ──────────────────────────────────────────────────────────────────
-TRIGGER_LABEL = {"crossed": "돌파", "near": "주시", "below": "정상", "unknown": "자료 없음"}  # js/app7.js 필터와 같은 말
+# js/app7.js 필터와 같은 말. nolevel = 값은 있는데 단위 · 범위 게이트를 넘은 임계(기준선)가 없다 — 「자료 없음」과 가른다
+# (2026-10-12 점검: 트리거 48개 중 29개가 값이 있는데 「자료 없음」으로 떴다).
+TRIGGER_LABEL = {"crossed": "돌파", "near": "주시", "below": "정상", "nolevel": "기준선 없음", "unknown": "자료 없음"}
 
 
 def _hot_chains(mer):
@@ -871,14 +922,18 @@ def _hot_chains(mer):
 
 def triggers(mer):
     """렌즈 트리거 줄 — 상태는 여기서 한 번 정한다(돌파 수·breach·화면 집계가 전부 이 목록을 센다).
-    현재값과 임계(단위·범위 게이트를 넘은 것)가 둘 다 숫자일 때만 원천 상태를 믿고, 하나라도 없으면
-    원천이 무엇이라 적었든 unknown(자료 없음)이다."""
+    현재값과 임계(단위·범위 게이트를 넘은 것)가 둘 다 숫자일 때만 원천 상태를 믿는다. 값이 없으면 unknown(자료 없음),
+    값은 있고 임계만 없으면 nolevel(기준선 없음) — 원천이 무엇이라 적었든."""
     out = []
     for i in mer.get("indicators") or []:
         near = i.get("nearest") or {}
         cur = i.get("current") or {}
         st = i.get("state")
-        if _num(cur.get("value")) is None or _num(near.get("level")) is None or st not in TRIGGER_LABEL:
+        if _num(cur.get("value")) is None:
+            st = "unknown"
+        elif _num(near.get("level")) is None:
+            st = "nolevel"
+        elif st not in ("crossed", "near", "below"):
             st = "unknown"
         out.append({"id": i.get("id"), "label": i.get("label"), "layer": i.get("layer"), "unit": i.get("unit"),
                     "state": st, "stateLabel": TRIGGER_LABEL[st],
@@ -963,8 +1018,9 @@ def chain_quotes(mer, c, titles):
 def build_lens(mer):
     g = mer.get("graph") or {}
     posts = sorted((p for p in (mer.get("posts") or []) if p.get("date")), key=lambda p: (p["date"], p.get("logNo") or ""))
+    trs = triggers(mer)
     counts = {}
-    for t in triggers(mer):
+    for t in trs:
         counts[t["state"]] = counts.get(t["state"], 0) + 1
     by_no = {p.get("logNo"): p for p in mer.get("posts") or []}
     titles = {no: p.get("title") for no, p in by_no.items()}
@@ -973,11 +1029,14 @@ def build_lens(mer):
     # 사슬·관계가 가리키는 글의 제목·날짜 — logNo 마다 한 번. posts(최근 3편)에 없는 글이 대부분이라 사슬 원문 링크가
     # 「원문 열기」로만 읽혔다(2026-10-09 점검). 원천 = mer_signals.posts(779편, 사슬·관계 글 전부를 덮는다 — merblog.json 은 365일 창).
     nos = dict.fromkeys(no for x in edges + chains for no in x.get("logNos") or [])
+    # 지표가 있는 노드(id 가 같다)의 상태 = 그 트리거 상태 — 원천 노드 state 는 값 · 임계 게이트를 거치지 않은 사본이다
+    trig = {t["id"]: t["state"] for t in trs}
     return {"asOf": mer.get("asOf"), "window": mer.get("window"), "coverage": mer.get("coverage"),
-            "nodes": [dict(n, short=node_short(n)) for n in (g.get("nodes") or [])],
+            "nodes": [dict(n, short=node_short(n), **({"state": trig[n.get("id")]} if n.get("id") in trig else {}))
+                      for n in (g.get("nodes") or [])],
             "edges": edges, "chains": chains,
             "regime": mer.get("regime"), "lens": mer.get("lens"), "counters": mer.get("counters") or [],
-            "triggers": triggers(mer), "triggerCounts": counts, "today": lens_today(mer),
+            "triggers": trs, "triggerCounts": counts, "today": lens_today(mer),
             "posts": [{"logNo": p.get("logNo"), "date": p["date"], "title": p.get("title")} for p in posts[-3:][::-1]],
             "postMeta": {no: {"title": by_no[no].get("title"), "date": by_no[no].get("date")} for no in nos if no in by_no}}
 
@@ -1058,9 +1117,10 @@ def build_all(data, mer, now, toss=None):
                        "missing": {"1d": "장중 분봉을 수집하지 않는다"}},
         "sectors": {"asOf": sm.get("as_of"), "state": block_state(H, "sectorMoves", sm),
                     "items": [{"name": s.get("name"), "close": s.get("close"), "chgPct": s.get("chg_pct")} for s in (sm.get("items") or [])]},
-        "topAmount": {"asOf": ra.get("as_of"), "state": block_state(H, "rankingsKr.tradingAmount", ra.get("tradingAmount")),
+        "topAmount": {**list_when(clock, ra.get("as_of"), block_state(H, "rankingsKr.tradingAmount", ra.get("tradingAmount")),
+                                  toss_time(data, "rankingsKr")),
                       "items": stock_rows((ra.get("tradingAmount") or [])[:20], amount=True)},
-        "investors": investors_block(data, H, 20),
+        "investors": investors_block(data, H, 20, clock),
         "schedule": schedule_with_corp(data, now, days=7),
         "news": news_top(data, 5),
         "lens": lens_today(mer),
@@ -1092,29 +1152,32 @@ def build_all(data, mer, now, toss=None):
         if unit:
             it["unit"] = unit
         it.update(extra)
+        if it["state"] != "live":
+            it.pop("liveUntil", None)            # 값이 없어 missing 이 된 칸(5일 누적 모자람)에 실시간 기한을 남기지 않는다
         derived[i] = it
 
     inv_rows = investor_rows(data)
     unit = (data.get("investorTrading") or {}).get("unit")
-    inv_state = block_state(H, "investorTrading", data.get("investorTrading"))
     last = inv_rows[-1] if inv_rows else {}
+    inv = list_when(clock, last.get("date"), block_state(H, "investorTrading", data.get("investorTrading")), flows_time(data))
+    inv_lu = {k: v for k, v in inv.items() if k == "liveUntil"}
     for who, name in (("foreign", "외국인"), ("inst", "기관"), ("retail", "개인")):
         dv("flow_" + who, name + " 순매수", name, unit=unit, value=_num(last.get(who)),
-           as_of=last.get("date"), state=inv_state)
+           as_of=inv["asOf"], state=inv["state"], **inv_lu)
         five = [r.get(who) for r in inv_rows[-5:]]
         ok5 = len(five) == 5 and all(_num(x) is not None for x in five)
         dv("flow_" + who + "_5d", name + " 5일 누적", name + " 5일", unit=unit,
-           value=round(sum(five), 1) if ok5 else None, as_of=last.get("date"), state=inv_state)
+           value=round(sum(five), 1) if ok5 else None, as_of=inv["asOf"], state=inv["state"], **inv_lu)
     br = (data.get("marketBreadth") or {}).get("kospi") or {}
     dv("breadth_kospi", "코스피 상승/하락 종목", "상승/하락", unit="종목", value=_num(br.get("up")),
        as_of=br.get("as_of"), state=block_state(H, "marketBreadth.kospi", br),
        up=_num(br.get("up")), down=_num(br.get("down")), flat=_num(br.get("flat")))
     amt = [_num(r.get("amount")) for r in ((data.get("rankingsKr") or {}).get("tradingAmount") or [])[:20]]
     ok20 = bool(amt) and all(a is not None for a in amt)
+    ta = b["home"]["topAmount"]                      # 같은 목록 — 기준(asOf · state · liveUntil)도 같다
     dv("top20_amount", "거래대금 상위 20 합계", "상위20 거래대금", "거래대금20", unit="조원", decimals=1,
-       value=sum(amt) if ok20 else None, as_of=(data.get("rankingsKr") or {}).get("as_of"),
-       state=block_state(H, "rankingsKr.tradingAmount", (data.get("rankingsKr") or {}).get("tradingAmount")),
-       scale=1e12, count=len(amt))
+       value=sum(amt) if ok20 else None, as_of=ta["asOf"], state=ta["state"],
+       scale=1e12, count=len(amt), **{k: v for k, v in ta.items() if k == "liveUntil"})
 
     def yoy(src, i, label, short, shortM, cross=None):
         """전년비(%) — 지수·금액이면 history 로 (이번 기간 ÷ 1년 전 같은 기간 − 1), 1년 전 점이 없으면 null.
@@ -1186,21 +1249,17 @@ def build_all(data, mer, now, toss=None):
     b["market-domestic"] = market("domestic", {
         "amount": b["home"]["topAmount"],
         # 토스 체결 거래대금 상위 20(코스피·코스닥 섞인 한 목록, 원천이 시장별로 나뉘지 않는다) — amount 와 같은 모양
-        "tossAmount": {"asOf": ra.get("as_of"), "state": block_state(H, "rankingsKr.tossAmount", ra.get("tossAmount")),
+        "tossAmount": {**list_when(clock, ra.get("as_of"), block_state(H, "rankingsKr.tossAmount", ra.get("tossAmount")),
+                                   toss_time(data, "rankingsKr")),
                        "items": stock_rows(ra.get("tossAmount"), amount=True)},
-        "gainers": {"asOf": rows_as_of(smv.get("kospiGainers"), smv.get("kosdaqGainers")),
-                    "kospi": stock_rows(smv.get("kospiGainers"), market="KOSPI"),
-                    "kosdaq": stock_rows(smv.get("kosdaqGainers"), market="KOSDAQ"),
-                    "state": block_state(H, "stockMovers.kospiGainers", smv.get("kospiGainers"))},
-        "losers": {"asOf": rows_as_of(smv.get("kospiLosers"), smv.get("kosdaqLosers")),
-                   "kospi": stock_rows(smv.get("kospiLosers"), market="KOSPI"),
-                   "kosdaq": stock_rows(smv.get("kosdaqLosers"), market="KOSDAQ"),
-                   "state": block_state(H, "stockMovers.kospiLosers", smv.get("kospiLosers"))},
-        "etf": {"asOf": rows_as_of(etf.get("etfGainers"), etf.get("etfLosers")),
-                "gainers": stock_rows(etf.get("etfGainers")), "losers": stock_rows(etf.get("etfLosers")),
-                "state": block_state(H, "etfMovers.etfGainers", etf.get("etfGainers"))},
+        "gainers": movers_view(clock, data, H, "Gainers"),
+        "losers": movers_view(clock, data, H, "Losers"),
+        "etf": {**list_when(clock, rows_as_of(etf.get("etfGainers"), etf.get("etfLosers")),
+                            block_state(H, "etfMovers.etfGainers", etf.get("etfGainers")),
+                            toss_time(data, *("etfMovers." + k for k in ("etfGainers", "etfLosers") if etf.get(k)))),
+                "gainers": stock_rows(etf.get("etfGainers")), "losers": stock_rows(etf.get("etfLosers"))},
         "sectors": b["home"]["sectors"],
-        "flows": investors_block(data, H, 20),
+        "flows": investors_block(data, H, 20, clock),
         "breadth": {k: (data.get("marketBreadth") or {}).get(k) for k in ("kospi", "kosdaq")}
                    | {"state": block_state(H, "marketBreadth.kospi", (data.get("marketBreadth") or {}).get("kospi"))},
         "halts": {"active": halts.get("active") or [], "recent": (halts.get("history") or [])[:10],
@@ -1304,15 +1363,17 @@ def build_all(data, mer, now, toss=None):
     # 수급
     nps = data.get("nps") or {}
     stocks = {}
+    # 최근 5거래일의 첫날(코스피 일봉 날짜 = 거래일). 일봉이 5개 미만이면 달력 7일 전으로 — 가드가 꺼지지 않게
+    flow_since = ks[-5][0] if len(ks) >= 5 else (today - dt.timedelta(days=7)).isoformat()
     for code, s in ((data.get("stockFlows") or {}).get("items") or {}).items():
         stocks[code] = {"name": s.get("name"), "short": stock_short(s.get("name"))[0], "market": s.get("market"),
                         "secType": s.get("secType"), "shares": s.get("shares"),
                         "investor": [[r.get("date"), r.get("foreign"), r.get("inst"), r.get("retail"), r.get("fholdRate")]
                                      for r in (s.get("investor") or [])],
-                        "credit": s.get("credit") or [], "warnings": s.get("warnings") or []} | flow_last(s)
+                        "credit": s.get("credit") or [], "warnings": s.get("warnings") or []} | flow_last(s, flow_since)
     b["market-flows"] = {"market": kr, "newsTopic": MARKET_NEWS["flows"],
                          "strip": [pick(i) for i in STRIPS["flows"]],
-                         "views": {"investors": investors_block(data, H, 400),
+                         "views": {"investors": investors_block(data, H, 400, clock),
                                    "stocks": {"asOf": (data.get("stockFlows") or {}).get("generatedAt"),
                                               "state": block_state(H, "stockFlows.items", (data.get("stockFlows") or {}).get("items")),
                                               "columns": ["date", "foreign", "inst", "retail", "fholdRate"], "items": stocks},
