@@ -294,8 +294,10 @@ _SLOT_TERMS = ("CPI", "PPI", "PCE", "GDP", "NFP", "FOMC", "PMI", "ECB", "BOJ", "
 _SLOT_NOISE = {"미국", "한국", "일본", "유로존", "중국", "영국", "독일", "회의", "결정", "발표", "동향", "지수"}
 
 
-def _calendar_conflict(s, calendar, now):
-    """'오늘/어제/M월 D일 … 발표' 문장이 일정표와 어긋나나 → True. 그 날짜에 그 지표가 없거나, 발표 시각 전후와 시제가 안 맞음."""
+def _calendar_conflict(s, calendar, now, any_day=False):
+    """'오늘/어제/M월 D일 … 발표' 문장이 일정표와 어긋나나 → True. 그 날짜에 그 지표가 없거나, 발표 시각 전후와 시제가 안 맞음.
+    any_day=True(홈 브리핑): 한 줄에 날짜가 여럿(「오늘」 · 지수 기준일 + 일정 날짜)일 수 있어, 언급한 날 중 그 지표 일정이
+    있는 날이 하나도 없을 때만 어긋남이고 시제는 맞은 날의 일정으로만 본다 — 날마다 따지면 멀쩡한 줄도 버려졌다."""
     from check_releases import release_due, KST
     evs = calendar.get("events") if isinstance(calendar, dict) else calendar
     evs = [e for e in (evs or []) if isinstance(e, dict)]
@@ -312,11 +314,17 @@ def _calendar_conflict(s, calendar, now):
     hit = [t for t in set(_SLOT_TERMS) | {t for e in evs for t in words(e)} if t.lower() in s.lower()]
     named = lambda e: any(t.lower() in str(e.get("name") or "").lower() for t in hit)
     mentioned = bool(hit)
+    matched = []
     for d in days:
         today = [e for e in evs if str(e.get("iso") or "")[:10] == d.isoformat()]
         pool = [e for e in today if named(e)] if mentioned else today
-        if not pool:
+        if not pool and not any_day:
             return True                                      # 그 날짜에 그 지표(또는 어떤 발표도) 없다
+        if pool:
+            matched.append(pool)
+    if not matched:
+        return True                                          # 언급한 어느 날에도 그 지표 일정이 없다
+    for pool in matched:
         due = [release_due(e, now) for e in pool]
         if (bool(_SLOT_PAST.search(s)) and not any(due)) or (not _SLOT_PAST.search(s) and all(due)):
             return True                                      # 안 나온 발표를 '나왔다'·이미 나온 발표를 '앞두고'
@@ -336,7 +344,7 @@ def brief_lines_ok(lines, calendar=None, now=None):
     거짓 날짜가 화면에 남았다(2026-10-12 「내일 발표되는 미국 CPI」, 실제 10/14)."""
     return bool(lines) and all(
         isinstance(s, str) and s.strip() and not any(w in s for w in SLOT_LINE_BANNED)
-        and not (calendar is not None and _calendar_conflict(s, calendar, now)) for s in lines)
+        and not (calendar is not None and _calendar_conflict(s, calendar, now, any_day=True)) for s in lines)
 
 
 def slot_line_ok(s, calendar=None, now=None):

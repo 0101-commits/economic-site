@@ -263,6 +263,15 @@ def test_briefing_lines_checked_and_fall_back_to_rule(monkeypatch, tmp_path):
     assert not ab.brief_lines_ok(ok[:2] + ["내일 발표되는 미국 CPI 를 확인할 것"], cal)          # 상대 날짜
     assert not ab.brief_lines_ok(ok[:2] + ["10/13(화) 발표되는 미국 CPI 를 확인할 것"], cal)      # 일정표와 다른 날
     assert not ab.brief_lines_ok(ok[:2] + ["지금이 매수 기회다"], cal)                           # 권유
+    # 한 줄에 날짜가 여럿(「오늘」 · 지수 기준일 + 일정 날짜)이면 그 지표 일정이 있는 날이 하나라도 있으면 통과 — 날마다
+    # 따지면 프롬프트가 요구한 멀쩡한 줄도 버려 AI 요약을 자주 잃었다(2026-10-12 재검토). 틀린 날만 있으면 거부.
+    mixed = ["오늘 코스피가 2.8% 급락했다. 10/14(수) 미국 CPI 발표를 지켜볼 일이다.",
+             "S&P500은 10/9(금) 0.6% 올랐고 10/14(수) 미국 CPI 발표가 다음 변수다."]
+    for line in mixed + ["10/14(수) 21:30 미국 CPI 발표가 금리 기대를 가를 것이다."]:
+        assert ab.brief_lines_ok([line], cal), line
+    assert not any(ab.slot_line_ok(line, cal) for line in mixed)          # 알림 한 문장(slot_line_ok)은 종전대로 날마다 따진다
+    assert not ab.brief_lines_ok(["10/13(화) 미국 CPI 발표를 지켜볼 일이다."], cal)
+    assert not ab.brief_lines_ok(["10/14(수) 미국 CPI 가 발표됐다 — 예상보다 높았다."], cal)    # 맞은 날이지만 시제가 틀림
     path = tmp_path / "data.json"
     path.write_text(json.dumps({"economicCalendar": cal}), encoding="utf-8")
     monkeypatch.setattr(ab, "DATA_FILE", str(path))
