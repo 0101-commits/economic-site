@@ -197,13 +197,10 @@ def render(ev: dict, hit, ctx=None, today: dt.date | None = None) -> dict:
     data = variables(ev, hit, ctx, today)
     title_max = BRIEF_TITLE_MAX if ev.get("level") == "brief" else TITLE_MAX
     title = fill(ev["title"], data)[0]
-    # 길면 이름을 먼저 줄인다 — 끝을 자르면 「… · 내 조건 아래로」 · 「예상 +0.1% 상회」의 방향 · 판정이 사라졌다
-    # (2026-10-12 0177X0 「ACE K휴머노이드로봇산업TOP2+ 8,970 · 내…」). 이름이 다 못 받아 주면 종전처럼 끝을 자른다.
-    key = next((k for k in ("name", "event_name") if "{" + k + "}" in ev["title"]), None)
-    if len(title) > title_max and key and isinstance(data.get(key), str):
-        keep = len(data[key]) - (len(title) - title_max) - 1
-        if keep >= 2:
-            title = fill(ev["title"], dict(data, **{key: data[key][:keep].rstrip() + "…"}))[0]
+    key = "event_name" if "{event_name}" in ev["title"] and "{name}" not in ev["title"] else "name"   # 발표(E2)는 일정 이름
+    nm, over = _tidy(str(data.get(key) or "")), len(title) - title_max
+    if over > 0 and len(nm) > 6 and nm in title:       # 긴 이름을 먼저 줄인다(6자까지) — 꼬리(「내 조건 아래로」 · 방향 · 판정)가 잘리던 10/12
+        title = title.replace(nm, cut(nm, max(6, len(nm) - over)), 1)
     title = cut(title, title_max)
     why = cut(first_full(ev.get("why"), data), LINE_MAX)
     nxt = cut(first_full(ev.get("next"), data), LINE_MAX)

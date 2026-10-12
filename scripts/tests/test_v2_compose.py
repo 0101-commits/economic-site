@@ -55,6 +55,20 @@ def test_title_cut_and_relative_time_removed():
     assert r["next"] == ""   # 「내일」 상대 시점어 금지
 
 
+def test_long_name_shrinks_before_tail():
+    """긴 종목 이름은 이름을 줄인다 — 10/12 「ACE K휴머노이드로봇산업TOP2+ 8,970 · 내…」 방향이 잘렸다."""
+    ev = dict(EV["U1"], title="{name} {value} · 내 조건 {dir_ko}")
+    h = Hit(target="0177X0", dir="down", value=8970, unit="", asOf="2026-10-12", fresh="live",
+            fields={"name": "ACE K휴머노이드로봇산업TOP2+", "dir_ko": "아래로"})
+    r = compose.render(ev, h, None, today=dt.date(2026, 10, 12))
+    assert r["title"].endswith("… 8,970 · 내 조건 아래로") and r["title"].startswith("ACE K휴머노이드")
+    assert len(r["title"]) == 30
+    stale = Hit(target="0177X0", dir="down", value=8970, unit="", asOf="2026-10-10", fresh="prev",
+                fields={"name": "ACE K휴머노이드로봇산업TOP2+", "dir_ko": "아래로"})
+    t = compose.render(ev, stale, None, today=dt.date(2026, 10, 12))["title"]
+    assert t.startswith("ACE K…") and len(t) == 30, t                  # 이름은 6자까지 줄이고 남는 만큼은 꼬리를 자른다
+
+
 def test_long_title_shortens_name_first():
     """길면 이름을 먼저 줄이고 다른 변수(값 · 조건 방향)는 남긴다 — 끝을 자르면 「· 내 조건 아래로」가 「· 내…」가 됐다
     (2026-10-12 0177X0). 사전 사건 · 사용자 조건 같은 길."""

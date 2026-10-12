@@ -286,8 +286,14 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     spec["info"] = [(lab, v) for lab, v in spec.get("info") or [] if v and not compose.has_relative_time(f"{lab} {v}")]
     ai = k.slot_ai_line(d, lslot, title, [("", mid)] + items + list(ai_blocks))
     if not ai or compose.has_relative_time(ai):        # 사전 문장 — 경보 · 알림 「왜」, 없으면 카드의 큰 움직임
-        ai = next((r["why"] for r in ai_rows if r.get("why") and r.get("level") in ("alarm", "alert")), "") \
-            or _moves(spec, title)
+        # 사용자 조건(U1 · U2 · 종목 B1 = cond)의 「왜」는 「내 조건」 · 이름 없는 내 종목 말이라 시황 문장이 못 된다
+        # — 10/12 점심 · 마감 · 저녁 본문이 「내 조건」이었다. 묶음(BUNDLE) 「왜」도 제목 조각이라 뺀다.
+        # 「왜」는 제목 옆에서만 뜻이 선다(「직전 신저가 1,339 (10/8)」 — 무엇의?). 제목이 행에 같이 안 실리는 슬롯은
+        # 대상이 든 제목을 쓰고, 아침은 밤사이 행이 제목을 이미 싣고 있어 「왜」를 쓴다.
+        part = "why" if slot == "morning" else "title"
+        ai = next((r[part] for r in ai_rows if r.get(part) and r.get("level") in ("alarm", "alert")
+                   and not r.get("cond") and r.get("event") != "BUNDLE"
+                   and not str(r.get("event") or "").startswith("U")), "") or _moves(spec, title)
     summary = " · ".join(([f"오늘 바뀐 것 {len(changed)}건"] if changed else []) + cal)
     lines = [x if x and not compose.has_relative_time(x) else "" for x in (ai, mid, summary)]
     try:

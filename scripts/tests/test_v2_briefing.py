@@ -140,8 +140,32 @@ def test_held_rows_join_morning(real_ctx, tmp_path, monkeypatch):
     assert briefing.build("morning", ctx, led, ALL_ON)["held_rows"] == []          # 다음 아침엔 다시 안 실린다
 
 
+def test_ai_fallback_skips_user_condition_why(real_ctx, tmp_path, monkeypatch):
+    """AI 실패 시 사전 문장 — 사용자 조건(U1)의 「내 조건」은 건너뛴다(10/12 점심 · 마감 · 저녁 본문이 「내 조건」이었다)."""
+    _no_cards(monkeypatch)
+    now = dt.datetime(2026, 10, 12, 18, 30, tzinfo=KST)
+    ctx = copy.copy(real_ctx)
+    ctx.now = now
+    mine = [_row("U1:0051G0:down:2c7eb47d59a8", ts="2026-10-12T09:04:00+09:00", why="내 조건"),
+            _row("U2:005930:up:2026-10-12", ts="2026-10-12T10:00:00+09:00", why="내 조건 ±3%"),
+            {**_row("B1:005930:up:2026-10-12", ts="2026-10-12T11:00:00+09:00", why="직전 신고가 9만 (10/1)"),
+             "cond": "abc"},                                                  # 종목 B1 사용자 조건
+            _row("BUNDLE:2026-10-12:1", ts="2026-10-12T12:00:00+09:00", why="SOL 미국원자력… · ACE…")]
+    led = Ledger(day=now.date(), root=str(tmp_path))
+    for r in mine + [_row("D1:kospi:sell:2026-10-12", ts="2026-10-12T18:06:00+09:00", why="5일 누적 −8.6조")]:
+        led.append(r)
+    assert briefing.build("evening", ctx, led, ALL_ON)["caption"] == "제목 D1:kospi:sell:2026-10-12"   # 대상이 든 제목
+    only_mine = Ledger(day=now.date(), root=str(tmp_path / "u"))
+    for r in mine:
+        only_mine.append(r)
+    monkeypatch.setattr(briefing, "_moves", lambda spec, title: "카드의 큰 움직임")
+    assert briefing.build("evening", ctx, only_mine, ALL_ON)["caption"] == "카드의 큰 움직임"
+
+
 def test_close_changed_is_notice_rows_max_four_lines(real_ctx, tmp_path, monkeypatch):
     _no_cards(monkeypatch)
+    # 카드가 그려진 경우의 분담을 본다 — 폰트 없는 경량 수집 런의 테스트 단계에선 카드가 None 이라 행 폴백이 돈다(10/12 실패)
+    monkeypatch.setattr(briefing.cards, "brief_card_png", lambda spec: b"\x89PNG")
     now = dt.datetime(2026, 10, 6, 16, 30, tzinfo=KST)
     ctx = copy.copy(real_ctx)
     ctx.now = now

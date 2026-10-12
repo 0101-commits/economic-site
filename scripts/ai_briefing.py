@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -239,31 +240,37 @@ def _llm_prompt(snap):
 GEMINI_MODELS = ("gemini-3.1-flash-lite", "gemini-flash-lite-latest")
 
 
-def _gemini_call(model, prompt):
-    r = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        params={"key": GEMINI_API_KEY},
-        json={"contents": [{"parts": [{"text": prompt}]}],
-              "generationConfig": {"temperature": 0.4, "maxOutputTokens": 400}},
-        timeout=40,
-    )
-    r.raise_for_status()
-    return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+def _gemini_text(key, prompt, gen, timeout):
+    """모델 차례대로 부른다 — 일시 오류(시간 초과 · 연결 · 5xx)는 2초 뒤 한 번 더, 그 밖(404 퇴역 · 429 한도 ·
+    4xx · 빈 응답)은 곧장 다음 모델. 다 실패하면 마지막 예외를 올린다. 키는 헤더로(URL 에 넣으면 오류 문구에 찍힌다).
+    2026-10-12 실측: 한 번만 묻던 때 브리핑 4통 중 3통이 시간 초과 · 503 한 번에 AI 문장 없이 나갔다."""
+    err = None
+    for model in GEMINI_MODELS:
+        for attempt in range(2):
+            try:
+                r = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                    headers={"x-goog-api-key": key},
+                    json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": gen},
+                    timeout=timeout)
+                r.raise_for_status()
+                return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception as e:                           # noqa: BLE001
+                err = e
+                code = getattr(getattr(e, "response", None), "status_code", None)
+                transient = isinstance(e, (requests.Timeout, requests.ConnectionError)) or (code or 0) >= 500
+                log(f"Gemini {model} 실패({attempt + 1}회): {e}")
+                if not transient or attempt:
+                    break
+                time.sleep(2)
+    raise err or RuntimeError("Gemini 모델 없음")
 
 
 def try_gemini(snap):
     if not GEMINI_API_KEY:
         return None
     try:
-        text = None
-        for i, model in enumerate(GEMINI_MODELS):
-            try:
-                text = _gemini_call(model, _llm_prompt(snap))
-                break
-            except requests.HTTPError as he:
-                if i == len(GEMINI_MODELS) - 1 or getattr(he.response, "status_code", None) != 404:
-                    raise
-                log(f"Gemini {model} 404(퇴역) — 다음 모델로")
+        text = _gemini_text(GEMINI_API_KEY, _llm_prompt(snap), {"temperature": 0.4, "maxOutputTokens": 400}, 40)
         lines = [ln.strip().lstrip("0123456789.-•* ") for ln in text.strip().splitlines() if ln.strip()]
         if len(lines) >= 3:
             log("Gemini 요약 생성 성공")
@@ -366,23 +373,12 @@ def slot_line(slot_name, facts, timeout=15, calendar=None):
               "이 숫자만 근거로 지금 가장 중요한 흐름 하나를 한국어 한 문장(" + str(SLOT_LINE_MAX - 10)
               + "자 이내)으로 써라. 규칙: 주어진 숫자 외의 수치 금지, '내일·연휴·다음 주' 같은 시점 표현 금지, "
               "매수·매도 권유 금지, 머리말·따옴표 없이 문장만.")
-    for model in GEMINI_MODELS:
-        try:
-            r = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                headers={"x-goog-api-key": key},       # URL 에 넣으면 오류 문구에 키가 찍힌다
-                json={"contents": [{"parts": [{"text": prompt}]}],
-                      "generationConfig": {"temperature": 0.3, "maxOutputTokens": 120}},
-                timeout=timeout)
-            if r.status_code == 404:
-                continue                                     # 퇴역 모델 — 별칭으로
-            r.raise_for_status()
-            text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip().strip('"“”')
-            return text if slot_line_ok(text, calendar) else ""
-        except Exception as e:                               # noqa: BLE001
-            log(f"슬롯 문장 실패({model}): {e}")
-            return ""
-    return ""
+    try:
+        text = _gemini_text(key, prompt, {"temperature": 0.3, "maxOutputTokens": 120}, timeout).strip().strip('"“”')
+    except Exception as e:                                   # noqa: BLE001
+        log(f"슬롯 문장 실패: {e}")
+        return ""
+    return text if slot_line_ok(text, calendar) else ""
 
 
 def try_openai(snap):
