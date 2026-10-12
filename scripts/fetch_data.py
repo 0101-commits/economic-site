@@ -2671,8 +2671,10 @@ def toss_connection_status(sources=None, now=None):
     "토스라고 표시했는데 실은 폴백이었다"가 생기지 않는다.
     """
     snap = _toss_snapshot()
+    # 「이전 빌드 보존 ← 토스…」(직전 값 되살림)는 이번 런에 토스가 채운 것이 아니다
     supplied = sorted(
-        k for k, v in (sources or {}).items() if isinstance(v, str) and "토스" in v)
+        k for k, v in (sources or {}).items()
+        if isinstance(v, str) and "토스" in v and not v.startswith("이전 빌드 보존"))
     base = {"generatedAt": None, "ageMinutes": None, "supplied": supplied}
     if not snap:
         return {**base, "state": "OFFLINE", "reason": "스냅샷 없음 — PC 수집기 미실행"}
@@ -2785,6 +2787,11 @@ def _investor_align_portal(inv, prev_daily=None, days=10, backfill=40):
     except Exception as e:                                   # noqa: BLE001
         log(f"[투자자] 네이버 조회 실패: {e} — KRX(pykrx) 확정치로 정렬")
         nav = []
+    # 오늘 행의 수집 시각 = 이번 런에 네이버에서 오늘 행을 실제로 받았을 때만. lastFetched 는 늘 이 런 시각이라, 네이버가
+    # 실패하고 위에서 직전 빌드의 오늘 행(src naver)이 되살아난 날에도 그 값이 「방금 받은 값」으로 읽혔다(2026-10-12 검토).
+    inv.pop("portalFetchedAt", None)
+    if any(n.get("date") == datetime.now(KST).strftime("%Y-%m-%d") for n in nav):
+        inv["portalFetchedAt"] = datetime.now(KST).isoformat(timespec="seconds")
     # KRX 확정치 — 네이버가 보여주던 값의 원천. 네이버가 2026-09-21 HTTP 410 으로 사라진 뒤
     # 교차검증이 토스 단일로 무너져 있었다. data.json 에 krxDaily 로도 실어 알림 스크립트
     # (pykrx 를 싣지 않는다)가 포털 기준으로 읽게 한다.
@@ -8601,6 +8608,14 @@ def build_data():
     except Exception as e:
         log(f"[YC] 비교점 계산 오류: {e}")
 
+    # 토스가 채운 등락 목록을 목록마다 적는다 — 「stockMovers」 · 「etfMovers」 출처 글자는 상승 · 하락 공용이라 한쪽만
+    # 토스여도 둘 다 토스로 읽혔다(2026-10-12 검토). 최종 목록이 토스에서 받은 바로 그 객체일 때만(뒤 폴백이 갈아 끼웠거나
+    # 직전 빌드 보존이면 아님). 묶음(build_bundles.toss_time)은 이 칸이 supplied 에 있을 때만 스냅샷 시각을 쓴다.
+    for _blk, _k, _v in (("stockMovers", "kospiGainers", _tg), ("stockMovers", "kospiLosers", _tl),
+                         ("etfMovers", "etfGainers", _snap_etf.get("etfGainers")),
+                         ("etfMovers", "etfLosers", _snap_etf.get("etfLosers"))):
+        if _v and (data.get(_blk) or {}).get(_k) is _v:
+            data["sources"][f"{_blk}.{_k}"] = "토스증권 Open API"
     # 토스 연결상태 — sources 대입이 전부 끝난 마지막에 계산해야 supplied 가 정확하다.
     data.setdefault("diagnostics", {})["toss"] = toss_connection_status(data.get("sources"))
     if requests.dead:

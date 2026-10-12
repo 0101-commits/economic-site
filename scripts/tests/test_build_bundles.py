@@ -505,7 +505,11 @@ def test_toss_amount_view_and_stock_flow_cells():
          "program": [{"date": "2026-09-30", "arb": 1, "nonArb": 2}]}
     assert bb.flow_last(s, "2026-10-02") == {"shortVol": None, "lending": 3, "program": None, "flowDates": {
         "shortVol": "2026-05-12", "lending": "2026-10-06", "program": "2026-09-30"}}
-    assert bb.flow_last(s)["shortVol"] == 148798.0                  # 거래일을 모르면 종전대로
+    assert bb.flow_last(s)["shortVol"] == 148798.0                  # since 없이 부르면 거르지 않는다
+    few = {"lastUpdated": DATA["lastUpdated"], "history": {"indices": {"KOSPI": [{"date": "2026-10-12", "close": 1.0}]}},
+           "stockFlows": {"items": {"360750": {"name": "TIGER 미국S&P500", "short": s["short"]}}}}
+    st = bb.build_all(few, {}, NOW)["market-flows"]["views"]["stocks"]["items"]["360750"]
+    assert st["shortVol"] is None and st["flowDates"]["shortVol"] == "2026-05-12"   # 코스피 일봉 1개뿐 → 달력 7일
     items = bundles()["market-flows"]["views"]["stocks"]["items"]
     cut = bb.Quotes(DATA, bb.bi.build(DATA, MER)[0], bb.Clock(NOW, DATA.get("marketCalendarKr"))).series("kospi")[-5][0]
     for code, s in items.items():
@@ -517,23 +521,23 @@ def test_toss_amount_view_and_stock_flow_cells():
         assert s.get("short") is None or isinstance(s["short"], str), s
 
 
-def _intraday_lists(snap="2026-10-12T10:20:00+09:00", rank_src="토스증권 Open API (거래대금·토스 체결 랭킹)"):
-    """장중 목록 묶음 재료 — 코스피 등락·거래대금·ETF 는 토스 스냅샷(오늘), 코스닥 등락은 KRX 전일, 수급은 네이버(오늘)."""
+def _intraday_lists(snap="2026-10-12T10:20:00+09:00", supplied=("rankingsKr", "stockMovers.kospiGainers", "stockMovers.kospiLosers", "etfMovers.etfGainers", "etfMovers.etfLosers")):
+    """장중 목록 묶음 재료 — 코스피 등락·거래대금·ETF 는 토스 스냅샷(오늘), 코스닥 등락은 KRX 전일, 수급은 네이버(오늘).
+    supplied = 그 런에 토스가 채운 sources 칸(fetch_data.toss_connection_status)."""
     row = lambda code, mk, day, **kw: dict({"name": code, "code": code, "price": 1000.0, "chg": 1.0, "vol": 10.0,
                                             "amount": 1e12, "market": mk, "as_of": day}, **kw)
     t, p = "2026-10-12", "2026-10-08"
     return {"lastUpdated": "2026-10-12T10:27:00+09:00",
             "marketCalendarKr": {"today": {"date": t, "open": True}, "previousBusinessDay": {"date": p, "open": True},
                                  "nextBusinessDay": {"date": "2026-10-13", "open": True}},
-            "diagnostics": {"toss": {"generatedAt": snap}},
-            "sources": {"rankingsKr": rank_src, "stockMovers": "토스증권 Open API", "etfMovers": "토스증권 Open API",
-                        "stockMovers.kosdaqGainers": "KRX OpenAPI", "stockMovers.kosdaqLosers": "KRX OpenAPI"},
+            "diagnostics": {"toss": {"generatedAt": snap, "supplied": list(supplied)}},
             "rankingsKr": {"as_of": t, "tradingAmount": [row("A%02d" % i, "KOSPI", t) for i in range(20)],
                            "tossAmount": [row("B1", "KOSPI", t)]},
             "stockMovers": {"kospiGainers": [row("G1", "KOSPI", t)], "kospiLosers": [row("L1", "KOSPI", t)],
                             "kosdaqGainers": [row("G2", "KOSDAQ", p)], "kosdaqLosers": [row("L2", "KOSDAQ", p)]},
             "etfMovers": {"etfGainers": [row("E1", "KOSPI", t)], "etfLosers": [row("E2", "KOSPI", t)]},
-            "investorTrading": {"lastFetched": "2026-10-12T10:25:00+09:00", "unit": "억원", "markets": ["KOSPI"],
+            "investorTrading": {"lastFetched": "2026-10-12T10:26:00+09:00", "portalFetchedAt": "2026-10-12T10:25:00+09:00",
+                                "unit": "억원", "markets": ["KOSPI"],
                                 "daily": [{"date": d, "foreign": 1.0, "inst": 1.0, "retail": -2.0, "src": "naver"}
                                           for d in ("2026-10-02", "2026-10-06", "2026-10-07", p)]
                                          + [{"date": t, "foreign": -5.0, "inst": 3.0, "retail": 2.0, "src": "naver"}]}}
@@ -573,13 +577,23 @@ def test_intraday_lists_carry_collection_time():
     v = b["market-domestic"]["views"]
     assert (v["amount"]["state"], v["amount"]["asOf"]) == ("prev", "2026-10-12")
     assert v["gainers"]["byMarket"]["kospi"] == {"asOf": "2026-10-12", "state": "prev"}
-    # 시각을 모르면(직전 빌드 보존 · 스냅샷 시각 없음 · 어제 스냅샷) 지어내지 않고 날짜 그대로
-    for d in (_intraday_lists(rank_src="이전 빌드 보존 ← 토스증권 Open API (2026-10-12T09:25)"),
-              _intraday_lists(snap=None), _intraday_lists(snap="2026-10-11T15:00:00+09:00")):
+    # 시각을 모르면(그 런에 토스가 안 채움 = 폴백 · 직전 빌드 보존, 스냅샷 시각 없음, 어제 스냅샷) 지어내지 않고 날짜 그대로
+    for d in (_intraday_lists(supplied=()), _intraday_lists(snap=None), _intraday_lists(snap="2026-10-11T15:00:00+09:00")):
         a = bb.build_all(d, {}, now)["market-domestic"]["views"]["amount"]
-        assert (a["state"], a["asOf"]) == ("prev", "2026-10-12"), d["sources"]["rankingsKr"]
+        assert (a["state"], a["asOf"]) == ("prev", "2026-10-12"), d["diagnostics"]
+    # 상승 · 하락 · ETF 는 목록마다 — 코스피 상승만 토스이고 하락은 폴백이면 하락은 날짜 그대로, ETF 는 둘 다 토스일 때만
+    v = bb.build_all(_intraday_lists(supplied=("stockMovers.kospiGainers", "etfMovers.etfGainers")), {}, now)["market-domestic"]["views"]
+    assert v["gainers"]["byMarket"]["kospi"] == live
+    assert v["losers"]["byMarket"]["kospi"] == {"asOf": "2026-10-12", "state": "prev"}
+    assert (v["etf"]["state"], v["etf"]["asOf"]) == ("prev", "2026-10-12")
+    # 수급 — 네이버 실패로 직전 빌드의 오늘 행(src naver)이 되살아난 런은 portalFetchedAt 이 없다: lastFetched(그 런 시각)로
+    # 「방금 받은 값」이라 하지 않는다(2026-10-12 검토). 토스 행(src 없음)도 마찬가지.
     d = _intraday_lists()
-    d["investorTrading"]["daily"][-1].pop("src")                  # 토스 행 — lastFetched 는 그 행의 시각이 아니다
+    d["investorTrading"].pop("portalFetchedAt")
+    f = bb.build_all(d, {}, now)["market-domestic"]["views"]["flows"]
+    assert (f["state"], f["asOf"]) == ("prev", "2026-10-12")
+    d = _intraday_lists()
+    d["investorTrading"]["daily"][-1].pop("src")
     f = bb.build_all(d, {}, now)["market-domestic"]["views"]["flows"]
     assert (f["state"], f["asOf"]) == ("prev", "2026-10-12")
 

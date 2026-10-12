@@ -673,19 +673,21 @@ def block_state(health, path, node):
     return health.state(path, node if isinstance(node, dict) else None)
 
 
-def toss_time(data, src):
-    """토스 스냅샷 목록의 수집 시각 = 그 런이 읽은 스냅샷 시각(diagnostics.toss.generatedAt). 출처 표식 sources[src] 가
-    토스가 아니면(KRX · pykrx · 네이버 폴백, 「이전 빌드 보존 ← 토스…」) 그 목록의 시각을 모르므로 None."""
-    if not str((data.get("sources") or {}).get(src) or "").startswith("토스증권"):
+def toss_time(data, *keys):
+    """토스 스냅샷 목록의 수집 시각 = 그 런이 읽은 스냅샷 시각(diagnostics.toss.generatedAt). keys(sources 칸 —
+    「rankingsKr」 · 「stockMovers.kospiGainers」 …)가 전부 그 런의 diagnostics.toss.supplied 에 있을 때만. 하나라도 아니면
+    (KRX · pykrx · 네이버 폴백, 직전 빌드 보존) 그 목록의 시각을 모르므로 None."""
+    toss = (data.get("diagnostics") or {}).get("toss") or {}
+    if not keys or not set(keys) <= set(toss.get("supplied") or []):
         return None
-    return _iso_dt(((data.get("diagnostics") or {}).get("toss") or {}).get("generatedAt"))
+    return _iso_dt(toss.get("generatedAt"))
 
 
 def flows_time(data):
-    """투자자 동향 마지막 행의 수집 시각 — 네이버로 맞춘 행(src naver)은 그 런이 lastFetched 를 찍은 직후에 받는다.
-    토스 스냅샷 · KRX 행에는 lastFetched 가 행의 시각이 아니라서 None."""
+    """투자자 동향 마지막 행의 수집 시각 = investorTrading.portalFetchedAt — 그 런이 네이버에서 오늘 행을 실제로 받았을 때만
+    fetch_data 가 단다(lastFetched 는 늘 그 런 시각이라 네이버 실패 · 직전 행 복원에도 「방금」으로 읽혔다)."""
     rows = investor_rows(data)
-    return _iso_dt((data.get("investorTrading") or {}).get("lastFetched")) if rows and rows[-1].get("src") == "naver" else None
+    return _iso_dt((data.get("investorTrading") or {}).get("portalFetchedAt")) if rows and rows[-1].get("src") == "naver" else None
 
 
 def list_when(clock, as_of, state, t):
@@ -709,11 +711,11 @@ def movers_view(clock, data, health, side):
     확정치라 기준일이 다르다 — 보기 asOf 는 둘 중 이른 날(종전 그대로), 시장마다의 기준은 byMarket 이 따로 싣는다."""
     smv = data.get("stockMovers") or {}
     v, by = {}, {}
-    for mk, want, src in (("kospi", "KOSPI", "stockMovers"), ("kosdaq", "KOSDAQ", "stockMovers.kosdaq" + side)):
+    for mk, want in (("kospi", "KOSPI"), ("kosdaq", "KOSDAQ")):
         rows = smv.get(mk + side)
         v[mk] = stock_rows(rows, market=want)
         by[mk] = list_when(clock, rows_as_of(rows), block_state(health, "stockMovers.%s%s" % (mk, side), rows),
-                           toss_time(data, src))
+                           toss_time(data, "stockMovers.%s%s" % (mk, side)))
     return {"asOf": rows_as_of(smv.get("kospi" + side), smv.get("kosdaq" + side)), **v,
             "state": block_state(health, "stockMovers.kospi" + side, smv.get("kospi" + side)), "byMarket": by}
 
@@ -1253,7 +1255,8 @@ def build_all(data, mer, now, toss=None):
         "gainers": movers_view(clock, data, H, "Gainers"),
         "losers": movers_view(clock, data, H, "Losers"),
         "etf": {**list_when(clock, rows_as_of(etf.get("etfGainers"), etf.get("etfLosers")),
-                            block_state(H, "etfMovers.etfGainers", etf.get("etfGainers")), toss_time(data, "etfMovers")),
+                            block_state(H, "etfMovers.etfGainers", etf.get("etfGainers")),
+                            toss_time(data, *("etfMovers." + k for k in ("etfGainers", "etfLosers") if etf.get(k)))),
                 "gainers": stock_rows(etf.get("etfGainers")), "losers": stock_rows(etf.get("etfLosers"))},
         "sectors": b["home"]["sectors"],
         "flows": investors_block(data, H, 20, clock),
@@ -1360,7 +1363,8 @@ def build_all(data, mer, now, toss=None):
     # 수급
     nps = data.get("nps") or {}
     stocks = {}
-    flow_since = ks[-5][0] if len(ks) >= 5 else None     # 최근 5거래일의 첫날(코스피 일봉 날짜 = 거래일)
+    # 최근 5거래일의 첫날(코스피 일봉 날짜 = 거래일). 일봉이 5개 미만이면 달력 7일 전으로 — 가드가 꺼지지 않게
+    flow_since = ks[-5][0] if len(ks) >= 5 else (today - dt.timedelta(days=7)).isoformat()
     for code, s in ((data.get("stockFlows") or {}).get("items") or {}).items():
         stocks[code] = {"name": s.get("name"), "short": stock_short(s.get("name"))[0], "market": s.get("market"),
                         "secType": s.get("secType"), "shares": s.get("shares"),
