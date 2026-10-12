@@ -500,10 +500,88 @@ def test_toss_amount_view_and_stock_flow_cells():
     assert bb.flow_last({"program": [{"date": "d2", "arb": 4}]})["program"] is None
     f = bb.flow_last({"short": ["x"], "lending": {"bal": 1}, "program": [None]})
     assert f == {"shortVol": None, "lending": None, "program": None, "flowDates": {"shortVol": None, "lending": None, "program": None}}
+    # 5거래일보다 오래된 기록은 값 null · 날짜는 그대로(360750 공매도 5/12 값이 10/12 화면에 떴다)
+    s = {"short": [{"date": "2026-05-12", "volume": 148798.0}], "lending": [{"date": "2026-10-06", "bal": 3}],
+         "program": [{"date": "2026-09-30", "arb": 1, "nonArb": 2}]}
+    assert bb.flow_last(s, "2026-10-02") == {"shortVol": None, "lending": 3, "program": None, "flowDates": {
+        "shortVol": "2026-05-12", "lending": "2026-10-06", "program": "2026-09-30"}}
+    assert bb.flow_last(s)["shortVol"] == 148798.0                  # 거래일을 모르면 종전대로
+    items = bundles()["market-flows"]["views"]["stocks"]["items"]
+    cut = bb.Quotes(DATA, bb.bi.build(DATA, MER)[0], bb.Clock(NOW, DATA.get("marketCalendarKr"))).series("kospi")[-5][0]
+    for code, s in items.items():
+        for k in ("shortVol", "lending"):
+            assert s[k] is None or (s["flowDates"][k] or "") >= cut, (code, k, s["flowDates"][k], cut)
     for s in bundles()["market-flows"]["views"]["stocks"]["items"].values():
         assert {"shortVol", "lending", "program", "flowDates"} <= set(s)
         # 줄임 이름(short)을 공매도 칸이 덮지 않는다
         assert s.get("short") is None or isinstance(s["short"], str), s
+
+
+def _intraday_lists(snap="2026-10-12T10:20:00+09:00", rank_src="토스증권 Open API (거래대금·토스 체결 랭킹)"):
+    """장중 목록 묶음 재료 — 코스피 등락·거래대금·ETF 는 토스 스냅샷(오늘), 코스닥 등락은 KRX 전일, 수급은 네이버(오늘)."""
+    row = lambda code, mk, day, **kw: dict({"name": code, "code": code, "price": 1000.0, "chg": 1.0, "vol": 10.0,
+                                            "amount": 1e12, "market": mk, "as_of": day}, **kw)
+    t, p = "2026-10-12", "2026-10-08"
+    return {"lastUpdated": "2026-10-12T10:27:00+09:00",
+            "marketCalendarKr": {"today": {"date": t, "open": True}, "previousBusinessDay": {"date": p, "open": True},
+                                 "nextBusinessDay": {"date": "2026-10-13", "open": True}},
+            "diagnostics": {"toss": {"generatedAt": snap}},
+            "sources": {"rankingsKr": rank_src, "stockMovers": "토스증권 Open API", "etfMovers": "토스증권 Open API",
+                        "stockMovers.kosdaqGainers": "KRX OpenAPI", "stockMovers.kosdaqLosers": "KRX OpenAPI"},
+            "rankingsKr": {"as_of": t, "tradingAmount": [row("A%02d" % i, "KOSPI", t) for i in range(20)],
+                           "tossAmount": [row("B1", "KOSPI", t)]},
+            "stockMovers": {"kospiGainers": [row("G1", "KOSPI", t)], "kospiLosers": [row("L1", "KOSPI", t)],
+                            "kosdaqGainers": [row("G2", "KOSDAQ", p)], "kosdaqLosers": [row("L2", "KOSDAQ", p)]},
+            "etfMovers": {"etfGainers": [row("E1", "KOSPI", t)], "etfLosers": [row("E2", "KOSPI", t)]},
+            "investorTrading": {"lastFetched": "2026-10-12T10:25:00+09:00", "unit": "억원", "markets": ["KOSPI"],
+                                "daily": [{"date": d, "foreign": 1.0, "inst": 1.0, "retail": -2.0, "src": "naver"}
+                                          for d in ("2026-10-02", "2026-10-06", "2026-10-07", p)]
+                                         + [{"date": t, "foreign": -5.0, "inst": 3.0, "retail": 2.0, "src": "naver"}]}}
+
+
+def test_intraday_lists_carry_collection_time():
+    """장중 오늘 목록은 data.json 이 아는 수집 시각을 asOf 로, 시세 칸과 같은 freshness() 로 잰다 — 날짜만 실려
+    화면이 「종가 10/12」로 읽던 것(2026-10-12 점검). 코스닥 등락(KRX 전일)은 byMarket 에서 따로 전일로 남는다."""
+    now = bb._iso_dt("2026-10-12T10:30:00+09:00")
+    b = bb.build_all(_intraday_lists(), {}, now)
+    v = b["market-domestic"]["views"]
+    live = {"asOf": "2026-10-12T10:20:00+09:00", "state": "live", "liveUntil": "2026-10-12T10:35:00+09:00"}
+    for k in ("amount", "tossAmount", "etf"):
+        assert {x: v[k].get(x) for x in live} == live, k
+    assert b["home"]["topAmount"] == v["amount"]
+    flows = {"asOf": "2026-10-12T10:25:00+09:00", "state": "live", "liveUntil": "2026-10-12T10:40:00+09:00"}
+    for blk in (v["flows"], b["home"]["investors"], b["market-flows"]["views"]["investors"]):
+        assert {x: blk.get(x) for x in flows} == flows
+    for i in ("flow_foreign", "flow_inst", "flow_retail", "flow_foreign_5d"):
+        it = next(x for x in b["market-flows"]["strip"] if x["id"] == i)
+        assert (it["state"], it["asOf"], it.get("liveUntil")) == ("live", flows["asOf"], flows["liveUntil"]), i
+    top = _item(b["market-domestic"], "top20_amount")
+    assert (top["state"], top["asOf"], top["liveUntil"]) == ("live", live["asOf"], live["liveUntil"])
+    # 상승 · 하락 — 보기 asOf 는 종전처럼 이른 날, 시장별 기준은 byMarket
+    for side in ("gainers", "losers"):
+        g = v[side]
+        assert g["asOf"] == "2026-10-08" and g["state"] == "prev"
+        assert g["byMarket"]["kospi"] == live
+        assert g["byMarket"]["kosdaq"] == {"asOf": "2026-10-08", "state": "prev"}
+
+    # 15분이 지나면 prev 로 내리지만 asOf 는 여전히 수집 시각(날짜로 되돌아가지 않는다)
+    b = bb.build_all(_intraday_lists(), {}, bb._iso_dt("2026-10-12T10:50:00+09:00"))
+    a = b["market-domestic"]["views"]["amount"]
+    assert (a["state"], a["asOf"], "liveUntil" in a) == ("prev", "2026-10-12T10:20:00+09:00", False)
+    # 장 마감 뒤엔 종전 그대로(날짜)
+    b = bb.build_all(_intraday_lists(), {}, bb._iso_dt("2026-10-12T16:00:00+09:00"))
+    v = b["market-domestic"]["views"]
+    assert (v["amount"]["state"], v["amount"]["asOf"]) == ("prev", "2026-10-12")
+    assert v["gainers"]["byMarket"]["kospi"] == {"asOf": "2026-10-12", "state": "prev"}
+    # 시각을 모르면(직전 빌드 보존 · 스냅샷 시각 없음 · 어제 스냅샷) 지어내지 않고 날짜 그대로
+    for d in (_intraday_lists(rank_src="이전 빌드 보존 ← 토스증권 Open API (2026-10-12T09:25)"),
+              _intraday_lists(snap=None), _intraday_lists(snap="2026-10-11T15:00:00+09:00")):
+        a = bb.build_all(d, {}, now)["market-domestic"]["views"]["amount"]
+        assert (a["state"], a["asOf"]) == ("prev", "2026-10-12"), d["sources"]["rankingsKr"]
+    d = _intraday_lists()
+    d["investorTrading"]["daily"][-1].pop("src")                  # 토스 행 — lastFetched 는 그 행의 시각이 아니다
+    f = bb.build_all(d, {}, now)["market-domestic"]["views"]["flows"]
+    assert (f["state"], f["asOf"]) == ("prev", "2026-10-12")
 
 
 def test_lens_counts_match_source():
@@ -514,18 +592,22 @@ def test_lens_counts_match_source():
 
 
 def test_lens_trigger_without_value_or_level_is_unknown_not_crossed():
-    """값 없음·임계 없음(범위 게이트 탈락)은 원천이 crossed 라고 적어도 돌파로 세지 않는다 — 돌파 수·breach·사슬 모두."""
+    """값 없음·임계 없음(범위 게이트 탈락)은 원천이 crossed 라고 적어도 돌파로 세지 않는다 — 돌파 수·breach·사슬 모두.
+    값은 있고 임계만 없으면 「자료 없음」이 아니라 「기준선 없음」(nolevel) — 2026-10-12 점검: 29개가 값이 있는데 자료 없음이었다."""
     ind = lambda i, st, v, lv: {"id": i, "label": i, "state": st, "current": {"value": v, "asOf": "2026-10-01"} if v is not None else None,
                                 "nearest": {"level": lv, "distancePct": 1.0} if lv is not None else None}
     mer = {"indicators": [ind("ok", "crossed", 5.3, 5.1), ind("noval", "crossed", None, 5.1), ind("nolv", "crossed", 5.3, None),
                           ind("nostate", None, 5.3, 5.1), ind("near", "near", 5.0, 5.1)],
            "chains": [{"id": "C", "steps": [{"id": "noval"}], "hotStep": None, "n": 1}], "lens": {"score": 10}}
     st = {t["id"]: (t["state"], t["stateLabel"]) for t in bb.triggers(mer)}
-    assert st == {"ok": ("crossed", "돌파"), "noval": ("unknown", "자료 없음"), "nolv": ("unknown", "자료 없음"),
+    assert st == {"ok": ("crossed", "돌파"), "noval": ("unknown", "자료 없음"), "nolv": ("nolevel", "기준선 없음"),
                   "nostate": ("unknown", "자료 없음"), "near": ("near", "주시")}
+    mer["graph"] = {"nodes": [{"id": "nolv", "state": "crossed"}, {"id": "ok", "state": "unknown"}, {"id": "idea", "state": "unknown"}]}
     lens = bb.build_lens(mer)
-    assert lens["triggerCounts"] == {"crossed": 1, "unknown": 3, "near": 1}
+    assert lens["triggerCounts"] == {"crossed": 1, "unknown": 2, "nolevel": 1, "near": 1}
     assert [t["id"] for t in lens["today"]["breach"]] == ["ok"]
+    # 지표가 있는 노드는 트리거 상태를 따르고, 지표 없는 개념 노드는 원천 그대로
+    assert {n["id"]: n["state"] for n in lens["nodes"]} == {"nolv": "nolevel", "ok": "crossed", "idea": "unknown"}
 
 
 if __name__ == "__main__":
