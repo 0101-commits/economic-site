@@ -72,10 +72,22 @@ def build_snapshot(d):
     sent = d.get("sentiment") or {}
     fg = sent.get("fear_greed") or {}
 
+    # 날짜 · 요일 · 기준일을 함께 준다 — 없을 때 모델이 「내일 발표되는 미국 CPI」(실제 모레 10/14)라고 쓰고,
+    # 금요일 S&P 등락을 오늘 것처럼 적었다(2026-10-12 점검).
+    now = datetime.now(KST)
+    hist = (d.get("history") or {}).get("indices") or {}
+
+    def with_day(key):
+        q, h = idx.get(key), hist.get(key)
+        last = h[-1].get("date") if isinstance(h, list) and h and isinstance(h[-1], dict) else None
+        return dict(q, 기준일=_md_dow(last)) if isinstance(q, dict) and _md_dow(last) else q
+
     snap = {
-        "KOSPI": idx.get("KOSPI"),
-        "S&P500": idx.get("SP500"),
-        "NASDAQ": idx.get("NASDAQ"),
+        "오늘": now.strftime("%Y-%m-%d") + f"({_DOW[now.weekday()]})",
+        "작성시각": now.strftime("%H:%M KST") + " — 장중 등락률은 이 시각 값이다",
+        "KOSPI": with_day("KOSPI"),
+        "S&P500": with_day("SP500"),
+        "NASDAQ": with_day("NASDAQ"),
         "USDKRW": fx.get("USDKRW"),
         "WTI": com.get("WTI"),
         "Gold": com.get("Gold"),
@@ -150,8 +162,8 @@ def build_snapshot(d):
             snap["뉴스헤드라인"] = titles
     except Exception as e:  # noqa: BLE001
         log(f"snapshot 뉴스 헤드라인 생략: {e}")
-    # 오늘/내일 ★3 캘린더 이벤트
-    today = datetime.now(KST).date()
+    # 오늘~모레 ★3 캘린더 이벤트 — 실제 날짜 · 요일 · 시각을 붙인다(「10/14(수) 21:30 미국 CPI (전월비)」)
+    today = now.date()
     events = ((d.get("economicCalendar") or {}).get("events")) or []
     upcoming = []
     for e in events:
@@ -160,11 +172,24 @@ def build_snapshot(d):
             try:
                 ed = datetime.strptime(iso, "%Y-%m-%d").date()
                 if 0 <= (ed - today).days <= 2:
-                    upcoming.append(e.get("name", ""))
+                    hm = str(e.get("dt") or "").partition(" ")[2]          # 「10.14 21:30」의 시각
+                    upcoming.append(" ".join(x for x in (_md_dow(iso), hm, e.get("name", "")) if x))
             except ValueError:
                 pass
     snap["upcoming"] = upcoming[:3]
     return snap
+
+
+_DOW = "월화수목금토일"
+
+
+def _md_dow(iso):
+    """'2026-10-14' → '10/14(수)'. 못 읽으면 None."""
+    try:
+        day = datetime.strptime(str(iso)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    return f"{day.month}/{day.day}({_DOW[day.weekday()]})"
 
 
 def rule_based_lines(snap):
@@ -194,15 +219,17 @@ def rule_based_lines(snap):
 
 def _llm_prompt(snap):
     # '1줄=주식/2줄=환율·금리/3줄=원자재' 고정 배분은 폐기 — 매일 같은 틀의 나열이 되어
-    # 정보가치가 낮았다. 대신 '이례적 변화 1가지 + 파급 경로 + 내일 확인 지표'를 요구해
+    # 정보가치가 낮았다. 대신 '이례적 변화 1가지 + 파급 경로 + 앞으로 확인할 일정(날짜와 함께)'을 요구해
     # 스냅샷(수급·금리차·신용스프레드·헤드라인 포함)에서 통찰을 뽑도록 유도한다.
     return (
         "다음은 오늘의 시장 데이터 스냅샷이다(JSON). 한국 개인투자자 관점에서 "
         "'오늘의 매크로 3줄 요약'을 한국어로 작성하라.\n"
         "규칙: 정확히 3줄, 각 줄 90자 이내, 번호/불릿/머리말 없이 본문만, "
         "데이터에 없는 수치를 지어내지 말 것.\n"
+        "날짜: 스냅샷의 '오늘'이 기준이다. 일정은 upcoming 에 적힌 날짜 그대로(예: 10/14(수)) 말하고 '내일'·'모레' 같은 "
+        "상대 표현을 쓰지 말 것. 지수 등락률은 그 지수 '기준일'의 값이다(오늘이 아니면 그 날짜를 밝힐 것).\n"
         "반드시 포함: ① 스냅샷에서 가장 이례적인 변화 1가지와 그것이 한국 시장에 "
-        "미치는 파급 경로, ② 내일 확인해야 할 지표 1가지.\n\n"
+        "미치는 파급 경로, ② 앞으로 확인할 일정·지표 1가지(그 날짜와 함께).\n\n"
         + json.dumps(snap, ensure_ascii=False, default=str)
     )
 
@@ -274,8 +301,10 @@ _SLOT_TERMS = ("CPI", "PPI", "PCE", "GDP", "NFP", "FOMC", "PMI", "ECB", "BOJ", "
 _SLOT_NOISE = {"미국", "한국", "일본", "유로존", "중국", "영국", "독일", "회의", "결정", "발표", "동향", "지수"}
 
 
-def _calendar_conflict(s, calendar, now):
-    """'오늘/어제/M월 D일 … 발표' 문장이 일정표와 어긋나나 → True. 그 날짜에 그 지표가 없거나, 발표 시각 전후와 시제가 안 맞음."""
+def _calendar_conflict(s, calendar, now, any_day=False):
+    """'오늘/어제/M월 D일 … 발표' 문장이 일정표와 어긋나나 → True. 그 날짜에 그 지표가 없거나, 발표 시각 전후와 시제가 안 맞음.
+    any_day=True(홈 브리핑): 한 줄에 날짜가 여럿(「오늘」 · 지수 기준일 + 일정 날짜)일 수 있어, 언급한 날 중 그 지표 일정이
+    있는 날이 하나도 없을 때만 어긋남이고 시제는 맞은 날의 일정으로만 본다 — 날마다 따지면 멀쩡한 줄도 버려졌다."""
     from check_releases import release_due, KST
     evs = calendar.get("events") if isinstance(calendar, dict) else calendar
     evs = [e for e in (evs or []) if isinstance(e, dict)]
@@ -292,11 +321,17 @@ def _calendar_conflict(s, calendar, now):
     hit = [t for t in set(_SLOT_TERMS) | {t for e in evs for t in words(e)} if t.lower() in s.lower()]
     named = lambda e: any(t.lower() in str(e.get("name") or "").lower() for t in hit)
     mentioned = bool(hit)
+    matched = []
     for d in days:
         today = [e for e in evs if str(e.get("iso") or "")[:10] == d.isoformat()]
         pool = [e for e in today if named(e)] if mentioned else today
-        if not pool:
+        if not pool and not any_day:
             return True                                      # 그 날짜에 그 지표(또는 어떤 발표도) 없다
+        if pool:
+            matched.append(pool)
+    if not matched:
+        return True                                          # 언급한 어느 날에도 그 지표 일정이 없다
+    for pool in matched:
         due = [release_due(e, now) for e in pool]
         if (bool(_SLOT_PAST.search(s)) and not any(due)) or (not _SLOT_PAST.search(s) and all(due)):
             return True                                      # 안 나온 발표를 '나왔다'·이미 나온 발표를 '앞두고'
@@ -308,6 +343,15 @@ def _try_date(y, m, d):
         return datetime(y, int(m), int(d)).date()
     except ValueError:
         return None
+
+
+def brief_lines_ok(lines, calendar=None, now=None):
+    """홈 브리핑 3줄 검증 — 알림 한 문장(slot_line_ok)과 같은 금지어(상대 시점어 · 권유)와 일정표 대조. 길이는 보지 않는다
+    (모델이 90자 지시를 자주 넘는데 그것만으로 버리면 늘 규칙 요약이 된다). 프롬프트로 「내일 · 모레」를 막아도 모델이 어기면
+    거짓 날짜가 화면에 남았다(2026-10-12 「내일 발표되는 미국 CPI」, 실제 10/14)."""
+    return bool(lines) and all(
+        isinstance(s, str) and s.strip() and not any(w in s for w in SLOT_LINE_BANNED)
+        and not (calendar is not None and _calendar_conflict(s, calendar, now, any_day=True)) for s in lines)
 
 
 def slot_line_ok(s, calendar=None, now=None):
@@ -370,14 +414,16 @@ def main():
         return 0
 
     snap = build_snapshot(d)
-    source = "rule"
-    lines = try_gemini(snap)
-    if lines:
-        source = "gemini"
-    else:
-        lines = try_openai(snap)
-        if lines:
-            source = "openai"
+    source, lines = "rule", None
+    cal = d.get("economicCalendar")
+    for name, gen in (("gemini", try_gemini), ("openai", try_openai)):
+        got = gen(snap)
+        if got and not brief_lines_ok(got, cal):
+            log(f"{name} 요약이 상대 날짜 · 권유 · 일정표 대조에 걸림 — 버림: {got}")
+            got = None
+        if got:
+            source, lines = name, got
+            break
     if not lines:
         lines = rule_based_lines(snap)
         log("규칙 기반 요약 사용 (LLM 키 미설정 또는 실패)")

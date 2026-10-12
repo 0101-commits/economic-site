@@ -3,11 +3,11 @@
 // 이름 · 값은 묶음 행(lib/bundle.ts loadStocks)이 먼저, 없거나 일봉보다 오래면 일봉 끝값. 캔들 · 보조지표 · 펀더멘털은 두지 않는다(D14).
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { loadBundle, loadIndicator, loadRegistry, loadStocks, type RegRow, type StripItem } from '../../lib/bundle'
-import { isKrStock, merMentions, merNames, type Post, type StockRow } from '../../lib/detail'
-import { fmtNumber, shortDate } from '../../lib/format'
+import { headVolume, isKrStock, merMentions, merNames, type Post, type StockRow } from '../../lib/detail'
+import { fmtNumber, fmtShares, shortDate } from '../../lib/format'
 import { kstDay } from '../../lib/personal/calc'
 import { loadRootJson } from '../../lib/personal/data'
-import { stockSeries, type StockChart } from '../../lib/personal/quotes'
+import { chartBasis, stockSeries, type StockChart } from '../../lib/personal/quotes'
 import { useWatch } from '../../lib/watch'
 import { AsOfBadge, NumBlock } from '../ui'
 import { DivergingBars } from '../charts'
@@ -78,6 +78,7 @@ export default function StockDetail({ id }: { id: string }) {
   const pct = fromRow ? row!.chgPct : chart?.prev ? (chart.price / chart.prev - 1) * 100 : null
   const chg = !fromRow && chart?.prev ? chart.price - chart.prev : null
   const market = row?.market ? MARKET_KO[row.market] ?? row.market : kr ? '국내' : '미국'
+  const vol = headVolume(row, fromRow, chart?.vol)   // 묶음 행에 없으면 머리 값과 같은 날의 일봉 거래량
 
   const f = info.flow
   const col = (k: string) => (info.columns ?? ['date', 'foreign', 'inst', 'retail', 'fholdRate']).indexOf(k)
@@ -96,12 +97,13 @@ export default function StockDetail({ id }: { id: string }) {
             <NumBlock value={price} decimals={decimals} chg={fromRow || price == null ? undefined : chg} pct={pct} size="L" />
             {fromRow && <div className="mt-1"><ChangeText pct={pct} /></div>}
           </div>
-          <AsOfBadge asOf={fromRow ? row!.asOf : chart?.asOf} state={fromRow ? row!.state : undefined} />
+          {fromRow ? <AsOfBadge asOf={row!.asOf} state={row!.state} liveUntil={row!.liveUntil} /> : chart && <AsOfBadge {...chartBasis(chart)} />}
         </div>
         <p className="m-0 text-12 text-ink-3">
           <span className="num">{id}</span> · {market}
-          {fromRow && row?.amount != null && <> · 거래대금 <span className="num">{row.amount >= 1e12 ? `${fmtNumber(row.amount / 1e12, 2)}조` : `${fmtNumber(row.amount / 1e8, 0)}억`}</span></>}
-          {fromRow && row?.volume != null && <> · 거래량 <span className="num">{`${fmtNumber(row.volume / 1e4, row.volume < 1e5 ? 1 : 0)}만주`}</span></>}
+          {fromRow && row?.amount != null && <> · 거래대금 <span className="num">{row.amount >= 1e12 ? `${fmtNumber(row.amount / 1e12, 2)}조` : `${fmtNumber(row.amount / 1e8, 0)}억`}</span>{row.amountAt && <> <AsOfBadge asOf={row.amountAt.asOf} state={row.amountAt.state} liveUntil={row.amountAt.liveUntil} /></>}</>}
+          {vol && <> · 거래량 <span className="num">{fmtShares(vol.value)}</span>
+            {vol.at ? <> <AsOfBadge asOf={vol.at.asOf} state={vol.at.state} liveUntil={vol.at.liveUntil} /></> : vol.fromChart && fromRow && chart && <> <AsOfBadge {...chartBasis(chart)} /></>}</>}
         </p>
       </header>
 
@@ -111,7 +113,7 @@ export default function StockDetail({ id }: { id: string }) {
           cmp={cmpGot} onCmpOff={() => setCmp('')} fail={chart === null ? '시세 흐름을 받지 못했습니다' : undefined} />
 
         <div className="pc:col-span-4 flex flex-col gap-4">
-          <BellPanel id={id} name={name} what="이 종목이" cur={price} />
+          <BellPanel id={id} name={name} what="이 종목이" cur={price} unit={kr ? '원' : '달러'} />
 
           {f && f.investor.length > 0 && (
             <Panel title="수급" unit={`주 · 최근 ${f.investor.length}거래일 합`} asOf={flowLast} state={info.flowState}>

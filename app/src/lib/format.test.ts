@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app  (node --test, 추가 도구 없음)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fmtNumber, fmtChange, changeDir, changeFromPct, scaled, asOfKind, asOfLabel, kindFromState, fmtPct, dayLabel, mdHm, shortDate, heatStep, slicePeriods, range52, safeHref, type Pt } from './format.ts'
+import { fmtShares, fmtNumber, fmtChange, changeDir, changeFromPct, scaled, asOfKind, asOfLabel, kindFromState, fmtPct, dayLabel, mdHm, shortDate, heatStep, slicePeriods, range52, safeHref, type Pt } from './format.ts'
 
 test('fmtNumber: 천 단위·자릿수·빈 값·음의 0', () => {
   assert.equal(fmtNumber(6961.32, 2), '6,961.32')
@@ -24,6 +24,14 @@ test('fmtChange: 화살표 한 벌, 반올림 0 은 보합', () => {
   assert.equal(changeDir(-0.006, 2), 'down')
 })
 
+test('fmtShares: 1만주 미만은 주 · 10만주 미만은 소수 한 자리 · 빈 값', () => {
+  assert.equal(fmtShares(427), '427주')                 // 「0.0만주」였다(2026-10-12 화면 리뷰)
+  assert.equal(fmtShares(8_343), '8,343주')
+  assert.equal(fmtShares(12_345), '1.2만주')
+  assert.equal(fmtShares(19_037_056), '1,904만주')
+  assert.equal(fmtShares(null), '—')
+})
+
 test('changeFromPct: 등락률에서 변화량 복원', () => {
   // 전일 100 → 오늘 110 이면 등락률 10%, 변화량 10
   assert.ok(Math.abs(changeFromPct(110, 10) - 10) < 1e-9)
@@ -42,6 +50,14 @@ test('asOfKind / asOfLabel: 네 갈래 판정', () => {
   assert.equal(asOfLabel('prev', '2026-09-30', now), '전일 9/30')
   assert.equal(asOfLabel('prev', '2026-10-01T15:30:03+09:00', now), '종가 15:30')   // 오늘 장 마감 값
   assert.equal(asOfLabel('prev', '2026-10-01', now), '종가 10/1')                    // 오늘 날짜만 있는 값은 「전일」이 아니다
+  // 장이 열린 날(묶음 market.state = open)의 그날 값은 아직 종가가 아니다 — 2026-10-12 장중 「종가 10/12」 실측
+  assert.equal(asOfLabel('prev', '2026-10-01', now, '2026-10-01'), '오늘 10/1')
+  assert.equal(asOfLabel('prev', '2026-10-01T11:00:03+09:00', now, '2026-10-01'), '11:00 기준')   // 실시간 기한이 지난 장중 목록(묶음 prev + 수집 시각)
+  assert.equal(asOfLabel('prev', '2026-10-01T15:30:03+09:00', now, null), '종가 15:30')           // 국내 주식 마감 시각만 종가
+  assert.equal(asOfLabel('prev', '2026-10-01T16:10:00+09:00', now, null), '16:10 기준')           // 24시간 자산(환율 · 금 · BTC)의 기한 지난 값은 종가가 아니다
+  assert.equal(asOfLabel('prev', '2026-10-01T05:00:00+09:00', now, null), '종가 05:00')           // 미국 주식 마감(서머타임)
+  assert.equal(asOfLabel('prev', '2026-09-30', now, '2026-10-01'), '전일 9/30')                   // 앞선 날은 그대로
+  assert.equal(asOfLabel('prev', '2026-10-01', now, null), '종가 10/1')                           // 장이 닫힌 날은 종가
   assert.equal(asOfLabel('prev', '2026-Q2', now), '2분기')                            // 분기(GDP) — 「전일 4/1」이 아니다
   assert.equal(asOfLabel('prev', '2025-Q4', now), '25.4분기')
   assert.equal(asOfLabel('prev', '2025', now), '2025년')                              // 연간(중국 GDP)

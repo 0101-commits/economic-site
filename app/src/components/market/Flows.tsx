@@ -116,7 +116,7 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
     const rows = grain === 'daily' ? daily : groupFlows(daily, grain === 'weekly' ? 'week' : 'month')
     const tail = rows.slice(-GRAIN[grain].bars)
     return (
-      <Panel className={cls} title={`투자자 순매수 · ${VIEWS.find(o => o.key === grain)!.label}`} unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} fold={!primary}>
+      <Panel className={cls} title={`투자자 순매수 · ${VIEWS.find(o => o.key === grain)!.label}`} unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} liveUntil={inv?.liveUntil} fold={!primary}>
         {tail.length > 1 ? (
           <div className="flex flex-col gap-4">
             {WHO.map(w => (

@@ -9,43 +9,88 @@ export const isKrStock = (id: string) => /^\d[0-9A-Z]{5}$/.test(id)
 /** 종목 id 인가: 국내 코드 또는 미국 티커 — 관심 목록과 같은 판정(remote.ts watchKind). 지표 사전 id 는 모두 소문자로 시작한다. */
 export const isStockId = (id: string) => watchKind(id) === 'stock'
 
-/** 묶음의 종목 한 줄. asOf · state 는 그 행이 든 위쪽 칸의 것(없으면 없음). */
-export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; asOf?: string | null; state?: string; amount?: number | null; volume?: number | null }
+/** 기준 시각 한 벌(묶음 칸의 asOf · state · liveUntil). */
+export type StockAt = { asOf?: string | null; state?: string; liveUntil?: string }
+/**
+ * 묶음의 종목 한 줄. asOf · state · liveUntil 은 그 행이 든 위쪽 칸의 것(없으면 없음).
+ * amountAt · volumeAt = 거래대금 · 거래량을 다른 기준(같은 날 다른 시각 · 날짜만)의 목록에서 붙였을 때 그 목록의 기준 — 화면이 따로 배지를 단다.
+ */
+export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; amount?: number | null; volume?: number | null; amountAt?: StockAt; volumeAt?: StockAt } & StockAt
 
 /**
  * 묶음 아무 깊이의 종목 행(code · name 이 글자인 칸)을 코드별로 모은다. 위쪽 칸의 asOf · state 를 물려받는다.
  * 먼저 본 행이 이기고, 값(price)이 없는 행만 뒤에 온 값 있는 행에 자리를 내준다 — roots 차례가 곧 우선순위다.
  * KRX 순위 4목록(calc.ts KRX_PREV — 전일 확정값)은 이름 · 시장만 쓰고 값 · 등락은 머리 후보에서 뺀다(장중에 전일 값이 되므로).
  * 거래대금은 거래대금 상위 목록(길에 'amount' 칸이 있는 행 — 토스 체결 tossAmount 은 토스 한 곳 몫이라 뺀다)에서만,
- * 거래대금 · 거래량 모두 머리 값과 기준 시각(asOf)이 같은 행 것만 붙인다 — 다른 날 목록의 거래량을 오늘 값 옆에 적지 않게.
+ * 거래대금 · 거래량 모두 머리 값과 기준일(asOf 앞 10자)이 같은 행 것만 붙인다 — 다른 날 목록의 거래량을 오늘 값 옆에 적지 않게.
+ * 시각까지 맞추지 않는다: 장중 거래대금 목록은 수집 시각(ISO), 상승 · 하락은 날짜만이라 같은 날인데도 빠졌다.
+ * 대신 기준이 머리와 글자 그대로 같지 않으면 그 목록의 기준을 amountAt · volumeAt 에 남긴다(머리 배지 아래 시각이 숨지 않게).
+ * 시장별 기준이 다른 목록(상승 · 하락의 byMarket: { kospi: { asOf, state, liveUntil } })은 kospi · kosdaq 칸 아래 행에 그 시장의 기준을 물린다.
  */
 export function stockRows(roots: unknown[]): Map<string, StockRow> {
   const out = new Map<string, StockRow>()
-  const extra: { code: string; asOf: string | null | undefined; amount: number | null; volume: number | null }[] = []
+  const extra: { code: string; at: StockAt; amount: number | null; volume: number | null }[] = []
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
-  const walk = (o: unknown, asOf: string | null | undefined, state: string | undefined, krx: boolean, amt: boolean): void => {
+  type At = StockAt
+  const atOf = (r: Record<string, unknown> | undefined, up: At): At =>
+    r && typeof r.asOf === 'string'
+      ? { asOf: r.asOf, state: typeof r.state === 'string' ? r.state : up.state, liveUntil: typeof r.liveUntil === 'string' ? r.liveUntil : undefined }
+      : up
+  const walk = (o: unknown, up: At, krx: boolean, amt: boolean): void => {
     if (!o || typeof o !== 'object') return
-    if (Array.isArray(o)) { o.forEach(x => walk(x, asOf, state, krx, amt)); return }
+    if (Array.isArray(o)) { o.forEach(x => walk(x, up, krx, amt)); return }
     const r = o as Record<string, unknown>
-    if (typeof r.asOf === 'string') { asOf = r.asOf; state = typeof r.state === 'string' ? r.state : state }
+    const at = atOf(r, up)
+    const { asOf, state, liveUntil } = at
     if (typeof r.code === 'string' && typeof r.name === 'string' && r.name) {
       const price = krx ? null : num(r.price), old = out.get(r.code)
       if (!old || (old.price == null && price != null)) {
-        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: krx ? null : num(r.chgPct), asOf, state })
+        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: krx ? null : num(r.chgPct), asOf, state, ...(liveUntil ? { liveUntil } : {}) })
       }
-      extra.push({ code: r.code, asOf, amount: amt ? num(r.amount) : null, volume: num(r.volume) })
+      extra.push({ code: r.code, at, amount: amt ? num(r.amount) : null, volume: num(r.volume) })
     }
-    Object.entries(r).forEach(([k, x]) => walk(x, asOf, state, krx || KRX_PREV.has(k), amt || k === 'amount'))
+    const bm = r.byMarket && typeof r.byMarket === 'object' ? r.byMarket as Record<string, Record<string, unknown>> : undefined
+    Object.entries(r).forEach(([k, x]) => walk(x, atOf(bm?.[k], at), krx || KRX_PREV.has(k), amt || k === 'amount'))
   }
-  roots.forEach(x => walk(x, undefined, undefined, false, false))
+  roots.forEach(x => walk(x, {}, false, false))
   for (const e of extra) {
     const row = out.get(e.code)!
-    if (e.asOf !== row.asOf) continue
-    if (row.amount == null && e.amount != null) row.amount = e.amount
-    if (row.volume == null && e.volume != null) row.volume = e.volume
+    if ((e.at.asOf ?? '').slice(0, 10) !== (row.asOf ?? '').slice(0, 10)) continue
+    const at = e.at.asOf !== row.asOf ? e.at : undefined
+    if (row.amount == null && e.amount != null) { row.amount = e.amount; if (at) row.amountAt = at }
+    if (row.volume == null && e.volume != null) { row.volume = e.volume; if (at) row.volumeAt = at }
   }
   return out
 }
+
+/**
+ * 종목 머리의 거래량: 머리 값이 묶음 행이면 그 행의 거래량, 없으면 일봉 마지막 봉(vol)의 것 — 머리 값과 같은 날일 때만
+ * (머리 값이 일봉이면 늘 같은 날). fromChart = 일봉에서 왔다(배지를 일봉 기준 시각으로 단다). at = 묶음 행의 거래량이 머리와 기준이
+ * 다른 목록에서 왔을 때 그 기준(stockRows volumeAt — 거래량 옆에 따로 배지). 어느 쪽도 아니면 null.
+ */
+export function headVolume(row: StockRow | undefined, fromRow: boolean, vol?: { day: string; value: number }): { value: number; fromChart: boolean; at?: StockAt } | null {
+  if (fromRow && row?.volume != null) return { value: row.volume, fromChart: false, ...(row.volumeAt ? { at: row.volumeAt } : {}) }
+  if (!vol || (fromRow && row?.asOf?.slice(0, 10) !== vol.day)) return null
+  return { value: vol.value, fromChart: true }
+}
+
+/**
+ * 미국 종목 한글 이름 짝 — 검색창이 「엔비디아」로 NVDA 를 찾게 한다(이름이지 값이 아니다).
+ * 묶음 · 지표 사전 · 토스 스냅샷 어디에도 미국 종목 한글 이름이 없어(2026-10-12 확인) 국내에서 많이 찾는 대형주만 여기 둔다.
+ * 표에 없는 티커는 그대로 치면 「종목 <티커> 열기」로 연다.
+ */
+export const US_KO: Record<string, string> = {
+  NVDA: '엔비디아', AAPL: '애플', MSFT: '마이크로소프트', AMZN: '아마존', GOOGL: '알파벳(구글)', META: '메타', TSLA: '테슬라',
+  AVGO: '브로드컴', 'BRK.B': '버크셔 해서웨이', TSM: 'TSMC', PLTR: '팔란티어', NFLX: '넷플릭스', AMD: 'AMD', MU: '마이크론', INTC: '인텔',
+}
+/** 검색용 종목 행: 묶음 행 + 미국 종목 한글 이름 짝(값 없음 · market 'US'). 같은 코드가 묶음에 있으면 묶음 행만 — 그 행에 줄임말이 없으면 한글 이름을 채워 한글로도 찾게. */
+export const searchRows = (bundle: Map<string, StockRow>): StockRow[] => [
+  ...[...bundle.values()].map(r => (!r.short && US_KO[r.code] ? { ...r, short: US_KO[r.code] } : r)),
+  ...Object.entries(US_KO).filter(([code]) => !bundle.has(code)).map(([code, name]): StockRow => ({ code, name, market: 'US', price: null, chgPct: null })),
+]
+/** 검색: 이름 · 줄임말 · 코드에 s(소문자)가 든 종목 n 개. */
+export const stockHits = (rows: StockRow[], s: string, n = 8): StockRow[] =>
+  rows.filter(x => [x.name, x.short, x.code].some(v => v?.toLowerCase().includes(s))).slice(0, n)
 
 export type Post = { title: string; url: string; date?: string; fullText?: string }
 export type Mention = { title: string; href: string | null; date?: string; snip?: [string, string, string] }

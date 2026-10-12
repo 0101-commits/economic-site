@@ -104,6 +104,16 @@ def test_offline_beyond_96h():
     assert "96시간" in r["reason"]
 
 
+def test_preserved_toss_label_is_not_supplied():
+    """「이전 빌드 보존 ← 토스…」는 직전 값을 되살린 것이지 이번 런에 토스가 채운 것이 아니다 — 묶음이 supplied 칸에만
+    스냅샷 시각을 단다(build_bundles.toss_time, 2026-10-12 검토)."""
+    _snap({"generatedAt": GEN})
+    src = dict(SOURCES, stockMovers="이전 빌드 보존 ← 토스증권 Open API (2026-08-13T09:00)",
+               **{"stockMovers.kospiGainers": "토스증권 Open API"})
+    r = toss_connection_status(src, now=BASE + timedelta(minutes=30))
+    assert r["supplied"] == ["investorTrading", "stockMovers.kospiGainers"]
+
+
 def test_offline_when_no_snapshot():
     _snap(None)
     r = toss_connection_status(SOURCES, now=BASE)

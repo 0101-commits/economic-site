@@ -306,26 +306,35 @@ class Context:
         return self._snaps[t]
 
     def _bundle_stock(self, code: str) -> dict | None:
-        """묶음(순위 · 시가총액 · 52주 …)의 그 종목 행. 값은 `_live`(칸 state 가 live 이고 asOf 가 오늘 KST)일 때만 쓰고,
-        아니면 이름만 쓴다. live 행이 있으면 그것이 이긴다."""
+        """묶음(순위 · 시가총액 · 52주 …)의 그 종목 행. 값은 `_live`(칸 state 가 live 이고 asOf 가 오늘 KST 이며 liveUntil 이
+        지나지 않음)일 때만 쓰고, 아니면 이름만 쓴다. live 행이 있으면 그것이 이긴다. 장중 목록(거래대금 · 등락)은 수집 시각
+        기준으로 live 가 되고 15분 뒤 liveUntil 이 지난다 — 묶음이 늦게 갱신돼도 그 뒤 값을 「지금 값」으로 쓰지 않는다."""
         if self._stock_rows is None:
             self._stock_rows = {}
             today = self.now.astimezone(KST).date().isoformat()
 
-            def walk(o, st, asof):
+            def unexpired(until):
+                try:
+                    return dt.datetime.fromisoformat(str(until)) >= self.now
+                except (TypeError, ValueError):
+                    return False
+
+            def walk(o, st, asof, until):
                 if isinstance(o, dict):
+                    if "state" in o:                      # 칸의 기준은 state · liveUntil 한 벌 — 위 칸의 liveUntil 을 물려받지 않는다
+                        until = o.get("liveUntil")
                     st, asof = o.get("state", st), o.get("asOf", asof)
                     c = str(o.get("code") or "")
                     if KR_CODE.fullmatch(c) and o.get("price") is not None:
-                        live = st == "live" and str(asof or "")[:10] == today
+                        live = st == "live" and str(asof or "")[:10] == today and unexpired(until)
                         if c not in self._stock_rows or (live and not self._stock_rows[c]["_live"]):
                             self._stock_rows[c] = dict(o, _asOf=today, _live=live)
                     for v in o.values():
-                        walk(v, st, asof)
+                        walk(v, st, asof, until)
                 elif isinstance(o, list):
                     for v in o:
-                        walk(v, st, asof)
-            walk(self.bundles, None, None)
+                        walk(v, st, asof, until)
+            walk(self.bundles, None, None, None)
         return self._stock_rows.get(code)
 
     @property

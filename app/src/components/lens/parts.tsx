@@ -18,12 +18,15 @@ export function trigValue(t?: Trigger): string | null {
 /** 기준일 표기: 「202608」(월간) → 「26.08」, 날짜는 「9/29」. */
 export const asOfText = (s?: string | null) => (s ? shortDate(/^\d{6}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4)}` : s) : '')
 
-/** 지표 상태 알약 — 돌파·주시·정상만. 자료 없음(unknown)은 알약을 달지 않는다(값 자리가 말한다). */
-const TONE = { crossed: ['x', '돌파'], near: ['n', '주시'], below: ['g', '정상'] } as const
+/**
+ * 지표 상태 알약 — 돌파 · 주시 · 정상 · 기준선 없음. 자료 없음(unknown)은 알약을 달지 않는다(값 자리가 「자료 없음」이라 말한다).
+ * 기준선 없음(nolevel)은 값은 있는데 잴 기준선만 없는 것이라 자료 없음과 다르다 — 회색 알약으로 그 사실을 말한다.
+ */
+const TONE = { crossed: ['x', '돌파'], near: ['n', '주시'], below: ['g', '정상'], nolevel: ['o', '기준선 없음'] } as const
 export function TrigPill({ t }: { t?: Trigger }) {
   const k = t?.state as keyof typeof TONE | undefined
   if (!k || !(k in TONE)) return null
-  return <Pill tone={TONE[k][0]}>{TONE[k][1]}</Pill>
+  return <Pill tone={TONE[k][0]}>{k === 'nolevel' ? t!.stateLabel || TONE[k][1] : TONE[k][1]}</Pill>
 }
 
 /** 띠 카드: 라벨 위 · 큰 숫자 · 설명 한 줄 아래. */

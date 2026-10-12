@@ -21,16 +21,16 @@ const REPEAT_OPTS = [{ key: 'each', label: '매번' }, { key: 'once', label: '�
 /** 조건 한도 문구 — 알림 화면 「새 조건」도 같은 글을 쓴다. */
 export const CAP_MSG = `조건은 ${ALERT_CAP}건까지 만들 수 있습니다. 알림 화면에서 안 쓰는 조건을 지우세요.`
 
-/** cur = 그 지표의 지금 값(화면 단위 — 사용자가 넣는 조건 값과 같은 잣대) — U1 조건의 그 순간 쪽(armSide)을 잰다. 모르면 비운다. */
-export function BellSheet({ open, onClose, id, label, cur }: { open: boolean; onClose: () => void; id: string; label: string; cur?: number | null }) {
+/** cur = 그 지표의 지금 값(화면 단위 — 사용자가 넣는 조건 값과 같은 잣대) — U1 조건의 그 순간 쪽(armSide)을 잰다. 모르면 비운다. unit = 그 화면 단위 말(bundle.ts unitWord) — 값 칸 꼬리. */
+export function BellSheet({ open, onClose, id, label, cur, unit }: { open: boolean; onClose: () => void; id: string; label: string; cur?: number | null; unit?: string }) {
   return (
     <BottomSheet open={open} onClose={onClose} title={`${label} 알림 조건`}>
-      {open && <BellForm id={id} cur={cur} />}
+      {open && <BellForm id={id} cur={cur} unit={unit} />}
     </BottomSheet>
   )
 }
 
-function BellForm({ id, cur }: { id: string; cur?: number | null }) {
+function BellForm({ id, cur, unit }: { id: string; cur?: number | null; unit?: string }) {
   const sync = useSyncStatus()
   const stock = watchKind(id) === 'stock'
   // 렌즈 묶음에 든 지표인지: 렌즈 사건(C1 · C2)은 그때만 낸다. 묶음을 못 받으면 없는 것으로 본다.
@@ -83,7 +83,12 @@ function BellForm({ id, cur }: { id: string; cur?: number | null }) {
       {ev.id === 'U1' && (
         <div className="grid grid-cols-2 gap-2">
           <Field label="방향"><select className={INPUT} value={dir} onChange={e => setDir(e.target.value as 'up' | 'down')}><option value="up">위로 넘으면</option><option value="down">아래로 내려가면</option></select></Field>
-          <Field label="값"><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" /></Field>
+          <Field label="값">
+            <span className="flex items-center gap-1.5 min-w-0">
+              <input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" />
+              {unit && <span className="shrink-0 text-12 text-ink-3">{unit}</span>}
+            </span>
+          </Field>
         </div>
       )}
       {ev.id === 'U2' && <Field label="하루 등락률(%) · 오름 · 내림 모두" className="sm:max-w-60"><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" placeholder="3" /></Field>}

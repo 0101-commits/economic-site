@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
-import { loadBundle, loadIndicator, loadRegistry, shownUnit, type RegRow, type StripItem, type Trigger } from '../lib/bundle'
+import { loadBundle, loadIndicator, loadRegistry, shownUnit, unitWord, type RegRow, type StripItem, type Trigger } from '../lib/bundle'
 import { isStockId } from '../lib/detail'
 import { scaled, scaledPts, type Pt } from '../lib/format'
 import { useWatch } from '../lib/watch'
@@ -77,7 +77,7 @@ function IndicatorDetail({ id }: { id: string }) {
   const name = reg?.label ?? item!.label
   const decimals = reg?.decimals ?? item?.decimals ?? 2
   const scale = item?.scale ?? reg?.scale
-  const unitShown = shownUnit({ scale, unit: item?.unit ?? reg?.unit })
+  const unitShown = shownUnit({ id, scale, unit: item?.unit ?? reg?.unit })
   const v = scaled(item?.value, scale), c = scaled(item?.change, scale)
   const pts = series ? scaledPts(series, scale) : undefined
   const lens = got.lens, t = lens?.t
@@ -108,7 +108,7 @@ function IndicatorDetail({ id }: { id: string }) {
           base={v != null && c != null ? { value: v - c, label: '전일' } : null} limit={limit} cmp={cmpGot} onCmpOff={() => setCmp('')} />
 
         <div className="pc:col-span-4 flex flex-col gap-4">
-          <BellPanel id={id} name={name} what="이 지표가" cur={v} />
+          <BellPanel id={id} name={name} what="이 지표가" cur={v} unit={unitWord(id, item?.unit ?? reg?.unit)} />
 
           {lens && t && (
             <Panel title="렌즈" source="메르 글 기준">

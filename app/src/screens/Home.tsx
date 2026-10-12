@@ -80,7 +80,7 @@ export default function Home() {
     const it = extra[id]
     if (it) return [it]
     const st = stocks.get(id)
-    if (st) return [{ id, label: st.name, short: st.short, shortM: st.shortM, decimals: 0, value: st.price, change: null, changePct: st.chgPct, asOf: home?.topAmount?.asOf ?? null, state: home?.topAmount?.state }]
+    if (st) return [{ id, label: st.name, short: st.short, shortM: st.shortM, decimals: 0, value: st.price, change: null, changePct: st.chgPct, asOf: home?.topAmount?.asOf ?? null, state: home?.topAmount?.state, liveUntil: home?.topAmount?.liveUntil }]
     return id in extra ? [{ id, label: id, decimals: 0, value: null, change: null, changePct: null, asOf: null }] : []
   })
   // 화면에 그리는 칸 = 띠 + 관심 최대 MAX_WATCH. 고를 수 있는 것은 지표(띠 · 지표 사전에서 찾은 관심)뿐 —
@@ -119,6 +119,8 @@ export default function Home() {
   const lens = home.lens
   const brief = home.brief
   const briefOld = !!brief?.asOf && kstDay(Date.parse(brief.asOf)) !== kstDay()
+  // 작성 시각: 오늘 것은 시각만(「10:11」), 지난 것은 날짜까지 — 숫자 문장이 지금 값과 달라도 언제 쓴 글인지 보이게
+  const briefAt = brief?.asOf ? mdHm(brief.asOf) : ''
 
   // 4열 패널(약 350px)에 맞춰 열은 넷: 거래대금은 조원 두 자리, 모바일에선 이름 아래 줄
   const amountCols: Col<Stock>[] = [
@@ -149,11 +151,11 @@ export default function Home() {
         )}
       </p>
 
-      {/* AI 요약 3줄 — 접지 않는다. 오늘(KST) 만든 것이 아니면 머리에 날짜. 질문칸은 동기화가 켜진 기기에만(Worker /ai 가 키를 본다) */}
+      {/* AI 요약 3줄 — 접지 않는다. 머리에 작성 시각(오늘(KST) 만든 것이 아니면 날짜까지). 질문칸은 동기화가 켜진 기기에만(Worker /ai 가 키를 본다) */}
       {(!!brief?.lines.length || linked) && (
         <section aria-labelledby="home-brief" className="-mt-2 max-w-[44em]">
           <h2 id="home-brief" className="m-0 mb-1 flex flex-wrap items-baseline gap-x-2 text-12 font-bold text-ink-2">
-            AI 요약{briefOld && <span className="num font-normal text-ink-3">{mdHm(brief!.asOf!)} 기준</span>}
+            AI 요약{briefAt && <span className="num font-normal text-ink-3">{briefOld ? briefAt : briefAt.slice(briefAt.indexOf(' ') + 1)} 작성</span>}
           </h2>
           {brief?.lines.length ? (
             <ul className="m-0 pl-5 list-disc marker:text-ink-3 flex flex-col gap-1 text-13 text-ink-2">
@@ -208,7 +210,7 @@ export default function Home() {
         </Panel>
 
         {/* 거래대금 상위 */}
-        <Panel className="pc:col-span-4" title="거래대금 상위" asOf={home.topAmount?.asOf} state={home.topAmount?.state}>
+        <Panel className="pc:col-span-4" title="거래대금 상위" asOf={home.topAmount?.asOf} state={home.topAmount?.state} liveUntil={home.topAmount?.liveUntil}>
           {home.topAmount?.items.length
             ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={home.topAmount.items.slice(0, 10)} rowKey={r => r.code} onPick={r => nav(`/i/${r.code}`)}
                 lead={r => <WatchStar on={watch.has(r.code)} onToggle={() => watch.toggle(r.code)} label={r.name} />} />
@@ -216,7 +218,7 @@ export default function Home() {
         </Panel>
 
         {/* 투자자 매매 */}
-        <Panel className="pc:col-span-4" title="투자자 매매" fold unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state}>
+        <Panel className="pc:col-span-4" title="투자자 매매" fold unit={inv?.unit} source={inv?.market} asOf={inv?.asOf} state={inv?.state} liveUntil={inv?.liveUntil}>
           {inv?.today ? (
             <div className="flex flex-col gap-4">
               <DivergingBars label={`오늘 ${inv.market ?? ''} 투자자별 순매수(${inv.unit ?? ''})`} bars={[

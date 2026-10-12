@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 종목 판정 · 묶음 종목 행 모으기(우선순위 · 기준 시각 물려받기) · 메르 글 언급 · 겹침 지수화
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isStockId, merMentions, merNames, overlay, stockRows } from './detail.ts'
+import { headVolume, isStockId, merMentions, merNames, overlay, searchRows, stockHits, stockRows, US_KO } from './detail.ts'
 import type { Pt } from './format.ts'
 
 test('isStockId: 국내 6자리 · 미국 티커만 종목, 지표 id 는 아님', () => {
@@ -22,6 +22,58 @@ test('stockRows: 먼저 본 행이 이기되 값 없는 행은 값 있는 행에
   assert.equal(m.get('360750')!.asOf, undefined)       // 상승 목록엔 기준 시각이 없다 — 지어내지 않는다
   assert.equal(m.get('373220')!.price, null)           // 이름만 있는 행도 검색 목록엔 든다
   assert.equal(m.size, 3)
+})
+
+test('stockRows: 시장별 기준(byMarket)은 그 시장 칸 아래 행에 · liveUntil 도 물려받는다', () => {
+  const dom = { views: {
+    amount: { asOf: '2026-10-12T10:40:00+09:00', state: 'live', liveUntil: '2026-10-12T10:55:00+09:00', items: [{ code: '000660', name: 'SK하이닉스', price: 1, chgPct: 1 }] },
+    gainers: {
+      asOf: '2026-10-08', state: 'prev',
+      byMarket: { kospi: { asOf: '2026-10-12T10:40:00+09:00', state: 'live', liveUntil: '2026-10-12T10:55:00+09:00' } },
+      kospi: [{ code: '001210', name: '금호전기', price: 11070, chgPct: 29.92 }],
+      kosdaq: [{ code: '278650', name: 'HLB바이오스텝', price: 6310, chgPct: 29.97 }],
+    },
+  } }
+  const m = stockRows([dom])
+  assert.equal(m.get('000660')!.liveUntil, '2026-10-12T10:55:00+09:00')
+  assert.deepEqual([m.get('001210')!.asOf, m.get('001210')!.state, m.get('001210')!.liveUntil], ['2026-10-12T10:40:00+09:00', 'live', '2026-10-12T10:55:00+09:00'])
+  assert.deepEqual([m.get('278650')!.asOf, m.get('278650')!.state, m.get('278650')!.liveUntil], ['2026-10-08', 'prev', undefined])   // byMarket 에 없는 시장은 보기 기준
+})
+
+test('stockRows: 거래량 · 거래대금은 머리 값과 같은 날이면 붙인다(시각까지는 안 본다) · 다른 날이면 안 붙인다', () => {
+  const amount = { asOf: '2026-10-12T11:00:03+09:00', state: 'live', items: [{ code: '005930', name: '삼성전자', price: 258750, chgPct: -1.24, amount: 2.68e12 }, { code: '000660', name: 'SK하이닉스', price: 1, chgPct: 1, amount: 3e12 }] }
+  const m = stockRows([{ amount }, { views: {
+    gainers: { asOf: '2026-10-12', kospi: [{ code: '005930', name: '삼성전자', price: 1, chgPct: 1, volume: 19_037_056 }] },
+    marketCap: { asOf: '2026-10-08', kospi: [{ code: '000660', name: 'SK하이닉스', price: 1, chgPct: 1, volume: 5 }] },
+  } }])
+  assert.deepEqual([m.get('005930')!.amount, m.get('005930')!.volume], [2.68e12, 19_037_056])   // 장중 목록(ISO) + 상승 목록(날짜) = 같은 날
+  assert.equal(m.get('005930')!.amountAt, undefined)                                            // 머리와 같은 목록 — 따로 배지 없음
+  assert.deepEqual(m.get('005930')!.volumeAt, { asOf: '2026-10-12', state: undefined, liveUntil: undefined })   // 다른 기준 목록 — 그 기준을 남겨 거래량 옆에 따로 배지
+  assert.deepEqual(headVolume(m.get('005930'), true)?.at, m.get('005930')!.volumeAt)
+  assert.equal(m.get('000660')!.volume, undefined)                                             // 10/8 목록의 거래량은 오늘 값 옆에 안 붙는다
+})
+
+test('headVolume: 묶음 행 거래량 먼저 · 없으면 머리 값과 같은 날의 일봉 거래량 · 다른 날이면 없음', () => {
+  const row = { code: '005930', name: '삼성전자', price: 255500, chgPct: -2.48, asOf: '2026-10-12', state: 'prev' }
+  const vol = { day: '2026-10-12', value: 12_345_678 }
+  assert.deepEqual(headVolume({ ...row, volume: 1 }, true, vol), { value: 1, fromChart: false })
+  assert.deepEqual(headVolume(row, true, vol), { value: 12_345_678, fromChart: true })                       // 2026-10-12 실측: 거래량 줄이 없었다
+  assert.equal(headVolume({ ...row, asOf: '2026-10-08' }, true, vol), null)                                   // 지난 목록 값 옆에 오늘 거래량을 적지 않는다
+  assert.deepEqual(headVolume(undefined, false, { day: '2026-10-09', value: 5 }), { value: 5, fromChart: true })   // 머리가 일봉(AAPL)
+  assert.equal(headVolume(undefined, false, undefined), null)
+})
+
+test('검색: 미국 종목을 한글 이름으로 찾는다 · 묶음 행이 있으면 그것이 이긴다', () => {
+  const bundle = stockRows([{ items: [{ code: '005930', name: '삼성전자', price: 1, chgPct: 0 }, { code: 'AAPL', name: 'Apple', price: 2, chgPct: 0 }] }])
+  const rows = searchRows(bundle)
+  assert.deepEqual(stockHits(rows, '엔비디아').map(x => [x.code, x.market]), [['NVDA', 'US']])   // 2026-10-12 실측: 0건이었다
+  assert.deepEqual(stockHits(rows, 'nvda').map(x => x.code), ['NVDA'])
+  assert.deepEqual(stockHits(rows, '구글').map(x => x.code), ['GOOGL'])
+  assert.deepEqual(stockHits(rows, '삼성').map(x => x.code), ['005930'])
+  assert.equal(rows.filter(x => x.code === 'AAPL').length, 1)                                    // 묶음 행 하나만(값 있는 쪽)
+  assert.equal(rows.find(x => x.code === 'AAPL')!.price, 2)
+  assert.deepEqual(stockHits(rows, '애플').map(x => [x.code, x.price]), [['AAPL', 2]])            // 묶음 행이 이겨도 한글로 찾힌다(줄임말을 채운다)
+  assert.ok(Object.keys(US_KO).every(isStockId))                                                 // 표의 열쇠는 전부 종목 id(상세로 간다)
 })
 
 test('merMentions: 최신순 n 편 · 전문 일치 앞뒤 40자 · 제목만 일치 · 바깥 링크 검사', () => {

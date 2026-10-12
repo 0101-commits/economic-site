@@ -69,6 +69,24 @@ def test_long_name_shrinks_before_tail():
     assert t.startswith("ACE K…") and len(t) == 30, t                  # 이름은 6자까지 줄이고 남는 만큼은 꼬리를 자른다
 
 
+def test_long_title_shortens_name_first():
+    """길면 이름을 먼저 줄이고 다른 변수(값 · 조건 방향)는 남긴다 — 끝을 자르면 「· 내 조건 아래로」가 「· 내…」가 됐다
+    (2026-10-12 0177X0). 사전 사건 · 사용자 조건 같은 길."""
+    ev = {"id": "U1", "level": "alert", "title": "{name} {value} · 내 조건 {dir_ko}", "why": ["내 조건"], "next": [],
+          "url": "#/i/{target}"}
+    h = Hit(target="0177X0", dir="down", value=8970.0, unit="", asOf="2026-10-12", fresh="live",
+            fields={"name": "ACE K휴머노이드로봇산업TOP2+", "dir_ko": "아래로"})
+    r = compose.render(ev, h, None, today=dt.date(2026, 10, 12))
+    assert r["title"] == "ACE K휴머노이드로봇… 8,970 · 내 조건 아래로" and len(r["title"]) == 30
+    assert r["name"] == "ACE K휴머노이드로봇산업TOP2+"                      # 줄인 이름은 제목에만
+    h.fields["name"] = "코스피"
+    assert compose.render(ev, h, None, today=dt.date(2026, 10, 12))["title"] == "코스피 8,970 · 내 조건 아래로"
+    # 이름을 두 글자까지 줄여도 넘치면 종전처럼 끝을 자른다
+    ev2 = dict(ev, title="{name} " + "가" * 40)
+    r = compose.render(ev2, h, None, today=dt.date(2026, 10, 12))
+    assert len(r["title"]) == 30 and r["title"].startswith("코스피 ") and r["title"].endswith("…")
+
+
 def test_brief_level_allows_48():
     ev = dict(EV["A1"], level="brief", title="{name} " + "가" * 44)
     h = Hit(target="kospi", dir="up", value=1, unit="", asOf="2026-10-02", fresh="live", fields={"name": "코스피"})

@@ -18,6 +18,16 @@ async function fetchJson<T>(rel: string): Promise<T> {
   return r.json() as Promise<T>
 }
 
+// 한국 장이 열린 날(묶음 market.state = open 일 때의 그날 날짜, 아니면 null). 묶음을 받을 때마다 고친다.
+// 기준 시각 배지(ui.tsx AsOfBadge)가 오늘 장중 값을 「종가」라 부르지 않게 쓴다 — 홈 · 시장 묶음이 모두 같은 market 을 싣는다.
+let krOpen: string | null = null
+function noteMarket(b: unknown) {
+  const m = (b as { market?: Partial<MarketState> } | null)?.market
+  if (m?.state) krOpen = m.state === 'open' ? m.session || m.today || null : null
+}
+/** 한국 장이 지금 열린 날의 날짜('YYYY-MM-DD') — 장이 닫혔거나 아직 묶음을 못 받았으면 null. */
+export const krOpenDay = () => krOpen
+
 // 한 화면 안에서 같은 묶음을 두 번 받지 않는다(홈 띠 보기 · 큰 차트 · 상세가 같은 묶음을 나눠 쓴다). 실패는 기억하지 않는다.
 const bundles = new Map<string, Promise<unknown>>()
 export function loadBundle<T = unknown>(name: string): Promise<T> {
@@ -25,6 +35,7 @@ export function loadBundle<T = unknown>(name: string): Promise<T> {
   let p = bundles.get(name)
   if (!p) {
     const q = fetchJson<T>(`bundles/${name}.json`)
+    q.then(noteMarket, () => {})
     q.catch(() => { if (bundles.get(name) === q) bundles.delete(name) })   // 다시 읽기가 바꿔 끼운 뒤 늦게 실패한 옛 요청은 새 것을 지우지 않는다
     bundles.set(name, p = q)
   }
@@ -58,7 +69,7 @@ async function reloadBundles(): Promise<void> {
     const got = await Promise.all(names.map(n => fetchJson(`bundles/${n}.json`).then((v): [string, unknown] => [n, v], () => null)))
     const fresh = new Map<string, unknown>([['meta', meta], ...got.filter(g => g !== null)])
     bundles.clear()   // 못 받은 묶음은 빠진다 — 화면이 다시 부를 때 한 번 더 받는다
-    fresh.forEach((v, n) => bundles.set(n, Promise.resolve(v)))
+    fresh.forEach((v, n) => { noteMarket(v); bundles.set(n, Promise.resolve(v)) })
     rev++
     revSubs.forEach(f => f())
   } catch { /* meta 를 못 받았다 — 다음 차례에 다시 */ } finally { reloading = false }
@@ -120,18 +131,26 @@ export type StripItem = {
 }
 
 /**
- * 값 옆에 단위를 붙일지. scale 로 바꾼 값(26.8조원 · 100엔당 원)과 % 지표(금 프리미엄 · 전년비 · 금리)는 단위 없이는
- * 못 읽으므로 붙이고, $·원 같은 통화 기호는 이름이 이미 말하므로 뺀다.
+ * 화면 단위 말. 사전 unit 이 scale 뒤 단위를 다 말하지 못하는 지표만 고친다 — 엔/원은 원본(1엔당 원) ÷ scale 0.01 = 100엔당 원인데
+ * 사전 unit 은 「원」뿐이라 머리 「844.91원」 · 조건 폼 「값(원)」이 1엔당인지 100엔당인지 말하지 못했다(2026-10-12).
+ * 상세 머리 · 띠 카드 · 알림 조건 폼 · 벨 시트가 모두 이 말을 쓴다.
  */
-export function shownUnit(it: Pick<StripItem, 'scale' | 'unit'>): string | undefined {
-  return it.scale || it.unit === '%' ? it.unit : undefined
+const UNIT_WORD: Record<string, string> = { jpykrw: '100엔당 원' }
+export const unitWord = (id: string | undefined, unit: string | undefined): string | undefined => (id && UNIT_WORD[id]) || unit
+
+/**
+ * 값 옆에 단위를 붙일지. scale 로 바꾼 값(26.8조원 · 100엔당 원)과 % 지표(금 프리미엄 · 전년비 · 금리)는 단위 없이는
+ * 못 읽으므로 붙이고, $·원 같은 통화 기호는 이름이 이미 말하므로 뺀다. id 를 주면 단위 말은 unitWord.
+ */
+export function shownUnit(it: Pick<StripItem, 'scale' | 'unit'> & { id?: string }): string | undefined {
+  return it.scale || it.unit === '%' ? unitWord(it.id, it.unit) : undefined
 }
 /** 장 상태(묶음 market): state = open·closed·holiday 등, label = 「정규장」「장마감」「휴장」. */
 export type MarketState = { state: string; label: string; today?: string; session?: string; nextOpen?: string | null; calendarKnown?: boolean }
 export type Stock = { name: string; short?: string; shortM?: string; code: string; market?: string; price: number | null; chgPct: number | null; amount?: number | null }
 /** 투자자 매매: rows 는 columns 순서의 배열(날짜, 외국인, 기관, 개인). 단위 unit(억원). */
 export type Flows = {
-  market?: string; unit?: string; source?: string; asOf?: string; state?: string
+  market?: string; unit?: string; source?: string; asOf?: string; state?: string; liveUntil?: string | null
   today?: { date: string; foreign: number | null; inst: number | null; retail: number | null }
   rows?: (string | number | null)[][]; columns?: string[]
 }
@@ -152,7 +171,7 @@ export type HomeBundle = {
   /** 코스피 큰 차트: 기간별 [날짜, 값]. 없는 기간은 null 이고 missing 에 이유가 있다. */
   kospiChart?: Partial<Record<PeriodKey, Pt[] | null>> & { missing?: Record<string, string> }
   sectors?: { asOf?: string; state?: string; items: { name: string; close?: number | null; chgPct: number | null }[] }
-  topAmount?: { asOf?: string; state?: string; items: Stock[] }
+  topAmount?: { asOf?: string; state?: string; liveUntil?: string | null; items: Stock[] }
   investors?: Flows
   schedule?: Sched[]
   news?: News[]

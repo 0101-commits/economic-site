@@ -309,6 +309,20 @@ def test_align_portal_krx_fallback_is_retried_next_run(monkeypatch):
     assert out["krxDaily"] == krx
 
 
+def test_align_portal_fetch_time_only_when_naver_gave_today(monkeypatch):
+    """portalFetchedAt = 이번 런에 네이버에서 오늘 행을 실제로 받았을 때만. 네이버가 실패하고 직전 빌드의 오늘 행(src naver)이
+    되살아난 런엔 달지 않는다 — lastFetched(늘 그 런 시각)로 읽으면 1시간 된 값이 「방금 받은 값」이 됐다(2026-10-12 검토)."""
+    import fetch_data as fd
+    today = fd.datetime.now(fd.KST).strftime("%Y-%m-%d")
+    toss = [_r("2026-09-28", 1, 1, -2), _r(today, -1, 1, 0)]
+    out = _align(monkeypatch, toss, None, [_r(today, -5, 3, 2)], {})
+    assert out["daily"][-1]["src"] == "naver" and out["portalFetchedAt"][:10] == today
+    out = _align(monkeypatch, toss, [_r(today, -5, 3, 2, src="naver")], None, {})     # 네이버 실패 + 복원
+    assert out["daily"][-1]["src"] == "naver" and "portalFetchedAt" not in out
+    out = _align(monkeypatch, toss, None, [_r("2026-09-28", -5, 3, 2)], {})              # 네이버가 오늘 행을 안 줌
+    assert "portalFetchedAt" not in out
+
+
 def test_portal_daily_falls_back_to_krx_when_naver_gone(monkeypatch):
     """네이버 410(2026-09-21) 이후 포털 기준은 data.json 의 KRX 확정치(krxDaily)다."""
     import investor_flows as f
