@@ -225,7 +225,7 @@ def _llm_prompt(snap):
         "'오늘의 매크로 3줄 요약'을 한국어로 작성하라.\n"
         "규칙: 정확히 3줄, 각 줄 90자 이내, 번호/불릿/머리말 없이 본문만, "
         "데이터에 없는 수치를 지어내지 말 것.\n"
-        "날짜: 스냅샷의 '오늘'이 기준이다. 일정은 upcoming 에 적힌 날짜(M월 D일)로 말하고 '내일'·'모레' 같은 "
+        "날짜: 스냅샷의 '오늘'이 기준이다. 일정은 upcoming 에 적힌 날짜 그대로(예: 10/14(수)) 말하고 '내일'·'모레' 같은 "
         "상대 표현을 쓰지 말 것. 지수 등락률은 그 지수 '기준일'의 값이다(오늘이 아니면 그 날짜를 밝힐 것).\n"
         "반드시 포함: ① 스냅샷에서 가장 이례적인 변화 1가지와 그것이 한국 시장에 "
         "미치는 파급 경로, ② 앞으로 확인할 일정·지표 1가지(그 날짜와 함께).\n\n"
@@ -330,6 +330,15 @@ def _try_date(y, m, d):
         return None
 
 
+def brief_lines_ok(lines, calendar=None, now=None):
+    """홈 브리핑 3줄 검증 — 알림 한 문장(slot_line_ok)과 같은 금지어(상대 시점어 · 권유)와 일정표 대조. 길이는 보지 않는다
+    (모델이 90자 지시를 자주 넘는데 그것만으로 버리면 늘 규칙 요약이 된다). 프롬프트로 「내일 · 모레」를 막아도 모델이 어기면
+    거짓 날짜가 화면에 남았다(2026-10-12 「내일 발표되는 미국 CPI」, 실제 10/14)."""
+    return bool(lines) and all(
+        isinstance(s, str) and s.strip() and not any(w in s for w in SLOT_LINE_BANNED)
+        and not (calendar is not None and _calendar_conflict(s, calendar, now)) for s in lines)
+
+
 def slot_line_ok(s, calendar=None, now=None):
     """알림 한 문장 검증 — 길이·상대 시점어·투자 권유·여러 줄. calendar(economicCalendar 블록 또는 events 목록)를
     주면 '오늘 발표'·'M월 D일 발표' 문장을 일정표와 대조해 어긋나면 버린다(이미 지난 발표 포함)."""
@@ -401,14 +410,16 @@ def main():
         return 0
 
     snap = build_snapshot(d)
-    source = "rule"
-    lines = try_gemini(snap)
-    if lines:
-        source = "gemini"
-    else:
-        lines = try_openai(snap)
-        if lines:
-            source = "openai"
+    source, lines = "rule", None
+    cal = d.get("economicCalendar")
+    for name, gen in (("gemini", try_gemini), ("openai", try_openai)):
+        got = gen(snap)
+        if got and not brief_lines_ok(got, cal):
+            log(f"{name} 요약이 상대 날짜 · 권유 · 일정표 대조에 걸림 — 버림: {got}")
+            got = None
+        if got:
+            source, lines = name, got
+            break
     if not lines:
         lines = rule_based_lines(snap)
         log("규칙 기반 요약 사용 (LLM 키 미설정 또는 실패)")

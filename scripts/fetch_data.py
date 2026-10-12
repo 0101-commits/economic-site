@@ -9433,6 +9433,23 @@ def _get_by_path(obj, path):
     return cur
 
 
+_CAL_LOWER_BETTER = ("CPI", "PPI", "물가", "실업", "미분양")
+
+
+def _cal_num(s):
+    """일정표 표기(「+0.3%」 · 「-104K」 · 「2.75%」) → 수. 비었거나 못 읽으면 None."""
+    return _parse_num(str(s or "").replace("%", "").replace("+", "").replace("K", ""))
+
+
+def _cal_beat(name, act, fore, tol=0.05):
+    """실제치 대 예측 — 0 부합(차 < tol) · 1 좋음 · −1 나쁨(물가 · 실업 · 미분양은 낮을수록 좋음). 둘 중 하나라도 없으면 None."""
+    if act is None or fore is None:
+        return None
+    if abs(act - fore) < tol:
+        return 0
+    return 1 if ((act < fore) if any(x in name for x in _CAL_LOWER_BETTER) else (act > fore)) else -1
+
+
 def backfill_calendar_actuals(events, data, prev_events=None):
     """서버측 캘린더 백필 — 과거 발표 이벤트의 prev/fore/act 자동 채움.
 
@@ -9469,8 +9486,13 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 continue
             if iso < fill_from and (iso, ev.get("name")) in carry:
                 old = carry[(iso, ev.get("name"))]
-                # fore · beat 는 잇지 않는다 — 예전 런이 직전 값을 예측으로 복사해 둔 것이라(아래 주석) 진짜 예측이 아니다
+                # fore · beat 는 잇지 않는다 — 예전 런이 직전 값을 예측으로 복사해 둔 것이라(아래 주석) 진짜 예측이 아니다.
+                # 원천이 이번에 준 진짜 fore 가 있으면 이은 실적으로 beat 를 다시 센다(증감 K 표기는 천 명 단위라 허용차 5).
                 ev.update({k: old.get(k) for k in ("act", "prev")})
+                b = _cal_beat(ev.get("name", ""), _cal_num(ev.get("act")), _cal_num(ev.get("fore")),
+                              5 if "K" in str(ev.get("act")) else 0.05)
+                if b is not None:
+                    ev["beat"] = b
                 continue
             if iso > today_iso or iso < fill_from:
                 continue  # 미래 이벤트는 그대로, 직전 값도 없는 오래된 일정은 비워 둔다
@@ -9527,18 +9549,10 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 if not ev.get("prev") and prev_chg is not None:
                     ev["prev"] = _fmt_indicator(prev_chg, fmt_id)
                 # fore 는 원천이 준 컨센서스만 — 직전 값을 예측 칸에 복사하면 「예측」이 거짓이 되고 beat 도 그걸로 셌다
-                # (2026-10-12 점검: 일정 4건 전부 fore = prev). beat 는 진짜 fore 가 있을 때만 아래에서 센다.
-                try:
-                    fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", ""))
-                    if fore_num is not None:
-                        if abs(act_chg - fore_num) < 0.05:
-                            ev["beat"] = 0
-                        elif any(x in name for x in ("CPI", "PPI", "물가", "실업", "미분양")):
-                            ev["beat"] = 1 if act_chg < fore_num else -1
-                        else:
-                            ev["beat"] = 1 if act_chg > fore_num else -1
-                except (ValueError, TypeError):
-                    pass
+                # (2026-10-12 점검: 일정 4건 전부 fore = prev). beat 는 진짜 fore 가 있을 때만 센다.
+                b = _cal_beat(name, act_chg, _cal_num(ev.get("fore")))
+                if b is not None:
+                    ev["beat"] = b
                 filled += 1
                 continue
 
@@ -9556,12 +9570,9 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                         prev_delta = p - pp
                         if not ev.get("prev"):
                             ev["prev"] = _fmt_indicator(prev_delta, "kd")
-                try:
-                    fore_num = _parse_num(str(ev.get("fore", "")).replace("+", "").replace("K", ""))
-                    if fore_num is not None:
-                        ev["beat"] = 0 if abs(act_delta - fore_num) < 5 else (1 if act_delta > fore_num else -1)
-                except (ValueError, TypeError):
-                    pass
+                b = _cal_beat(name, act_delta, _cal_num(ev.get("fore")), tol=5)
+                if b is not None:
+                    ev["beat"] = b
                 filled += 1
                 continue
 
@@ -9572,18 +9583,9 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 ev["act"] = _fmt_indicator(act_v, fmt_id)
                 if not ev.get("prev") and prev_v is not None:
                     ev["prev"] = _fmt_indicator(prev_v, fmt_id)
-                try:
-                    fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", "").replace("K", ""))
-                    act_num  = float(act_v)
-                    if fore_num is not None:
-                        if abs(act_num - fore_num) < 0.05:
-                            ev["beat"] = 0
-                        elif any(x in name for x in ("CPI", "PPI", "물가", "실업", "미분양")):
-                            ev["beat"] = 1 if act_num < fore_num else -1
-                        else:
-                            ev["beat"] = 1 if act_num > fore_num else -1
-                except (ValueError, TypeError):
-                    pass
+                b = _cal_beat(name, _parse_num(act_v), _cal_num(ev.get("fore")))
+                if b is not None:
+                    ev["beat"] = b
                 filled += 1
         except Exception as e:
             log(f"[Cal-Backfill] {ev.get('name','?')} 오류: {e}")
