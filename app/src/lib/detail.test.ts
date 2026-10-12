@@ -69,6 +69,7 @@ test('검색: 미국 종목을 한글 이름으로 찾는다 · 묶음 행이 �
   assert.deepEqual(stockHits(rows, '삼성').map(x => x.code), ['005930'])
   assert.equal(rows.filter(x => x.code === 'AAPL').length, 1)                                    // 묶음 행 하나만(값 있는 쪽)
   assert.equal(rows.find(x => x.code === 'AAPL')!.price, 2)
+  assert.deepEqual(stockHits(rows, '애플').map(x => [x.code, x.price]), [['AAPL', 2]])            // 묶음 행이 이겨도 한글로 찾힌다(줄임말을 채운다)
   assert.ok(Object.keys(US_KO).every(isStockId))                                                 // 표의 열쇠는 전부 종목 id(상세로 간다)
 })
 

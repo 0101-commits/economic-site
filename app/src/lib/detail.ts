@@ -75,9 +75,11 @@ export const US_KO: Record<string, string> = {
   NVDA: '엔비디아', AAPL: '애플', MSFT: '마이크로소프트', AMZN: '아마존', GOOGL: '알파벳(구글)', META: '메타', TSLA: '테슬라',
   AVGO: '브로드컴', 'BRK.B': '버크셔 해서웨이', TSM: 'TSMC', PLTR: '팔란티어', NFLX: '넷플릭스', AMD: 'AMD', MU: '마이크론', INTC: '인텔',
 }
-/** 검색용 종목 행: 묶음 행 + 미국 종목 한글 이름 짝(값 없음 · market 'US'). 같은 코드가 묶음에 있으면 묶음 행만. */
-export const searchRows = (bundle: Map<string, StockRow>): StockRow[] =>
-  [...bundle.values(), ...Object.entries(US_KO).filter(([code]) => !bundle.has(code)).map(([code, name]): StockRow => ({ code, name, market: 'US', price: null, chgPct: null }))]
+/** 검색용 종목 행: 묶음 행 + 미국 종목 한글 이름 짝(값 없음 · market 'US'). 같은 코드가 묶음에 있으면 묶음 행만 — 그 행에 줄임말이 없으면 한글 이름을 채워 한글로도 찾게. */
+export const searchRows = (bundle: Map<string, StockRow>): StockRow[] => [
+  ...[...bundle.values()].map(r => (!r.short && US_KO[r.code] ? { ...r, short: US_KO[r.code] } : r)),
+  ...Object.entries(US_KO).filter(([code]) => !bundle.has(code)).map(([code, name]): StockRow => ({ code, name, market: 'US', price: null, chgPct: null })),
+]
 /** 검색: 이름 · 줄임말 · 코드에 s(소문자)가 든 종목 n 개. */
 export const stockHits = (rows: StockRow[], s: string, n = 8): StockRow[] =>
   rows.filter(x => [x.name, x.short, x.code].some(v => v?.toLowerCase().includes(s))).slice(0, n)

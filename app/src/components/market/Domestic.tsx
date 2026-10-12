@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Flows, Stock, StripItem } from '../../lib/bundle'
-import { fmtNumber, fmtPct, mdHm, shortDate } from '../../lib/format'
+import { fmtNumber, fmtPct, fmtShares, mdHm, shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
 import { AsOfBadge, Pill, SegBar } from '../ui'
 import { DivergingBars, Heatmap } from '../charts'
@@ -94,8 +94,8 @@ function krxCount(c: KrxRank['count'], scope: Scope): number | undefined {
 }
 
 const capCol: Col<KrxRow> = { key: 'cap', label: '시가총액', get: r => (r.marketCap == null ? null : r.marketCap / 1e12), num: true, role: 'sub', render: r => (r.marketCap == null ? null : `${fmtNumber(r.marketCap / 1e12, 1)}조`) }
-// 거래량은 만주 4자리 안(10만주 밑은 소수 한 자리 — 8,343주가 「1만주」로 반올림되지 않게)
-const volCol: Col<KrxRow> = { key: 'vol', label: '거래량', get: r => r.volume, num: true, role: 'sub', render: r => (r.volume == null ? null : `${fmtNumber(r.volume / 1e4, r.volume < 1e5 ? 1 : 0)}만주`) }
+// 거래량은 만주 4자리 안(format.ts fmtShares — 1만주 밑은 「427주」, 10만주 밑은 소수 한 자리)
+const volCol: Col<KrxRow> = { key: 'vol', label: '거래량', get: r => r.volume, num: true, role: 'sub', render: r => (r.volume == null ? null : fmtShares(r.volume)) }
 const KRX_VIEWS: Record<'marketCap' | 'volume' | 'high52' | 'low52', { title: string; cols: Col<KrxRow>[]; by: (r: KrxRow) => number | null | undefined }> = {
   marketCap: { title: '시가총액 상위', cols: [nameCol, priceCol, pctCol, capCol], by: r => r.marketCap },
   volume: { title: '거래량 상위', cols: [nameCol, priceCol, pctCol, volCol], by: r => r.volume },

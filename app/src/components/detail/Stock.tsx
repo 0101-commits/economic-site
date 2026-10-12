@@ -4,10 +4,10 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { loadBundle, loadIndicator, loadRegistry, loadStocks, type RegRow, type StripItem } from '../../lib/bundle'
 import { headVolume, isKrStock, merMentions, merNames, type Post, type StockRow } from '../../lib/detail'
-import { fmtNumber, shortDate } from '../../lib/format'
+import { fmtNumber, fmtShares, shortDate } from '../../lib/format'
 import { kstDay } from '../../lib/personal/calc'
 import { loadRootJson } from '../../lib/personal/data'
-import { stockSeries, type StockChart } from '../../lib/personal/quotes'
+import { chartBasis, stockSeries, type StockChart } from '../../lib/personal/quotes'
 import { useWatch } from '../../lib/watch'
 import { AsOfBadge, NumBlock } from '../ui'
 import { DivergingBars } from '../charts'
@@ -97,12 +97,12 @@ export default function StockDetail({ id }: { id: string }) {
             <NumBlock value={price} decimals={decimals} chg={fromRow || price == null ? undefined : chg} pct={pct} size="L" />
             {fromRow && <div className="mt-1"><ChangeText pct={pct} /></div>}
           </div>
-          <AsOfBadge asOf={fromRow ? row!.asOf : chart?.asOf} state={fromRow ? row!.state : undefined} liveUntil={fromRow ? row!.liveUntil : undefined} />
+          {fromRow ? <AsOfBadge asOf={row!.asOf} state={row!.state} liveUntil={row!.liveUntil} /> : chart && <AsOfBadge {...chartBasis(chart)} />}
         </div>
         <p className="m-0 text-12 text-ink-3">
           <span className="num">{id}</span> · {market}
           {fromRow && row?.amount != null && <> · 거래대금 <span className="num">{row.amount >= 1e12 ? `${fmtNumber(row.amount / 1e12, 2)}조` : `${fmtNumber(row.amount / 1e8, 0)}억`}</span></>}
-          {vol && <> · 거래량 <span className="num">{`${fmtNumber(vol.value / 1e4, vol.value < 1e5 ? 1 : 0)}만주`}</span>{vol.fromChart && fromRow && <> <AsOfBadge asOf={chart?.asOf} /></>}</>}
+          {vol && <> · 거래량 <span className="num">{fmtShares(vol.value)}</span>{vol.fromChart && fromRow && chart && <> <AsOfBadge {...chartBasis(chart)} /></>}</>}
         </p>
       </header>
 

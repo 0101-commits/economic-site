@@ -98,10 +98,14 @@ export function kindFromState(state: string | undefined, liveUntil?: string | nu
   return STATE_KIND[state as BundleState]
 }
 
+// 「종가」라 부르는 시각(한국 시각): 국내 주식 마감 15:30 · 미국 주식 마감 16:00 ET(서머타임 05:00 · 아니면 06:00)
+const CLOSE_HM = new Set(['15:30', '05:00', '06:00'])
+
 /**
- * 배지 문구: LIVE 는 시각만 · 오늘 값은 「종가 15:30」(날짜만 있으면 「종가 10/1」) · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만.
- * openDay = 한국 장이 열려 있는 날(묶음 market.state 가 open 일 때의 그날 날짜). 그날 값은 아직 종가가 아니다 —
- * 「오늘 10/12」(날짜만) · 「11:00 기준」(시각 있음, 실시간 기한이 지난 장중 목록 · 시세)으로 적는다.
+ * 배지 문구: LIVE 는 시각만 · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만.
+ * 오늘 시각이 있는 값은 「HH:MM 기준」 — 그 시각이 주식 장 마감(CLOSE_HM)일 때만 「종가 15:30」.
+ * 실시간 기한이 지난 장중 목록(11:00)이나 24시간 자산(환율 · 금 · BTC · WTI 16:10)은 종가가 아니다.
+ * 오늘 날짜만 있는 값은 「종가 10/1」, 단 openDay(한국 장이 열려 있는 날 = 묶음 market.state open 의 그날)면 「오늘 10/12」.
  */
 export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Date = new Date(), openDay?: string | null): string {
   if (kind === 'filled') return '보강'
@@ -122,10 +126,17 @@ export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Dat
   if (kind === 'prev') {
     const day = KST_DAY.format(t)
     if (day !== KST_DAY.format(now)) return `전일 ${md}`
-    if (openDay === day) return dateOnly ? `오늘 ${md}` : `${hm} 기준`
-    return dateOnly ? `종가 ${md}` : `종가 ${hm}`
+    if (!dateOnly) return CLOSE_HM.has(hm) ? `종가 ${hm}` : `${hm} 기준`
+    return openDay === day ? `오늘 ${md}` : `종가 ${md}`
   }
   return kind === 'delayed' ? `지연 ${dateOnly ? md : hm}` : hm
+}
+
+/** 주식 수: 1만주 미만은 「427주」, 10만주 미만은 소수 한 자리(「8.3만주」 — 8,343주가 「1만주」로 반올림되지 않게), 그 위는 「1,904만주」. 없으면 '—'. */
+export function fmtShares(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—'
+  const a = Math.abs(v)
+  return a < 1e4 ? `${fmtNumber(v)}주` : `${fmtNumber(v / 1e4, a < 1e5 ? 1 : 0)}만주`
 }
 
 /** 등락률 한 벌: ▲ 3.04% / ▼ 0.25% / 0.00%. 값이 없으면 '—'. */

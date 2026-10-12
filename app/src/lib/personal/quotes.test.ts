@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 보유 → Yahoo 심볼 · 일봉 응답 해석(전일 종가 규칙) · 묶음 우선 · 동시 4개 · 실패는 비워 둠 · 10분 저장본
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chartUrl, holdingQuotes, parseChart, parseSeries, yahooSymbols } from './quotes.ts'
+import { chartBasis, chartUrl, holdingQuotes, parseChart, parseSeries, yahooSymbols } from './quotes.ts'
 import type { Holding, Quote } from './calc.ts'
 
 const H = (symbol: string, market: 'KR' | 'US', extra: Partial<Holding> = {}): Holding => ({ id: symbol, symbol, market, qty: 1, avg: 1, ...extra })
@@ -120,6 +120,18 @@ test('parseSeries: 같은 날짜 일봉이 둘이면 뒤 것만 · 전일은 그
   assert.deepEqual(s.pts, [['2026-10-07', 268000], ['2026-10-08', 270000], ['2026-10-09', 272000]])
   assert.equal(s.prev, 270000)                                                       // 10/9 앞 일봉(271,000)은 전일이 아니다
   assert.equal(s.vol, undefined)                                                     // 거래량 칸이 없으면 지어내지 않는다
+})
+
+test('chartBasis: 정규장 중이면 체결 시각, 아니면 마지막 봉 날짜(거래소 날짜) + prev', () => {
+  // AAPL 10/9 마감(한국 10/10 05:00) — 정규장 10/9 13:30Z~20:00Z
+  const j = { chart: { result: [{ meta: { regularMarketPrice: 340.42, gmtoffset: -14400, regularMarketTime: Date.parse('2026-10-09T20:00:00Z') / 1000,
+    currentTradingPeriod: { regular: { start: Date.parse('2026-10-09T13:30:00Z') / 1000, end: Date.parse('2026-10-09T20:00:00Z') / 1000 } } },
+    timestamp: [Date.parse('2026-10-08T13:30:00Z') / 1000, Date.parse('2026-10-09T13:30:00Z') / 1000], indicators: { quote: [{ close: [333.63, 340.42] }] } }] } }
+  const c = parseSeries(j)!
+  assert.deepEqual(c.session, { start: Date.parse('2026-10-09T13:30:00Z'), end: Date.parse('2026-10-09T20:00:00Z') })
+  assert.deepEqual(chartBasis(c, Date.parse('2026-10-12T01:00:00Z')), { asOf: '2026-10-09', state: 'prev' })   // 한국 월요일 오전: 「전일 10/9」(종전 「지연 05:00」 · 「전일 10/10」)
+  assert.deepEqual(chartBasis(c, Date.parse('2026-10-09T18:00:00Z')), { asOf: '2026-10-09T20:00:00.000Z' })    // 장 중: 체결 시각 — 배지가 실시간 · 지연을 잰다
+  assert.deepEqual(chartBasis({ ...c, session: undefined }), { asOf: '2026-10-09', state: 'prev' })            // 장 시간을 모르면 장 밖
 })
 
 test('parseSeries: 거래량 = 마지막 일봉(끝 날짜)의 것 · 그 봉에 없으면 없음', () => {
