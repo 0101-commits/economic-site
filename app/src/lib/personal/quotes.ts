@@ -22,7 +22,7 @@ export function yahooSymbols(h: Pick<Holding, 'symbol' | 'market'> & { yahoo?: u
 export const chartUrl = (sym: string, range = '5d') =>
   `${WORKER}/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=${range}&interval=1d`)}`
 
-type Chart = { chart?: { result?: { meta?: Record<string, unknown>; timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[] }[] } }[] | null } }
+type Chart = { chart?: { result?: { meta?: Record<string, unknown>; timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[]; volume?: (number | null)[] }[] } }[] | null } }
 const pos = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null)
 type ChartRes = NonNullable<NonNullable<Chart['chart']>['result']>[number]
 /** i 번째 일봉의 거래소 현지 날짜(타임스탬프가 없으면 null). */
@@ -111,8 +111,11 @@ export async function holdingQuotes(items: Holding[], have: Map<string, Quote>, 
 }
 
 // ── 종목 상세(/i/<코드>)의 흐름 차트 ─────────────────────
-/** 종목 1년 일봉: pts = [거래소 현지 날짜, 종가](빈 종가는 뺀다 · 같은 날이 둘이면 뒤 것), 지금 값 · 전일은 parseChart 규칙, name = Yahoo 이름, asOf = 마지막 체결 시각. */
-export type StockChart = { pts: Pt[]; price: number; prev: number | null; name?: string; asOf?: string }
+/**
+ * 종목 1년 일봉: pts = [거래소 현지 날짜, 종가](빈 종가는 뺀다 · 같은 날이 둘이면 뒤 것), 지금 값 · 전일은 parseChart 규칙, name = Yahoo 이름, asOf = 마지막 체결 시각.
+ * vol = 마지막 일봉(pts 끝 날짜)의 거래량(주) — 그 봉에 거래량이 없으면 없다(앞 날 거래량을 끌어오지 않는다).
+ */
+export type StockChart = { pts: Pt[]; price: number; prev: number | null; name?: string; asOf?: string; vol?: { day: string; value: number } }
 
 /** 일봉 응답 → StockChart. parseChart 와 같은 거래소 검사를 거친다. 종가가 2개 미만이면 null. */
 export function parseSeries(j: Chart | null | undefined, exchange?: string): StockChart | null {
@@ -121,18 +124,22 @@ export function parseSeries(j: Chart | null | undefined, exchange?: string): Sto
   if (!p || !res) return null
   const meta = res.meta ?? {}
   const closes = res.indicators?.quote?.[0]?.close ?? []
+  const vols = res.indicators?.quote?.[0]?.volume ?? []
   const pts: Pt[] = []
+  let vol: StockChart['vol']
   // 장중엔 오늘 일봉이 하나 더 붙어 같은 날짜가 둘 오는 일이 있다 — 날짜마다 마지막 값만(차트 끝에 같은 날 점이 겹치지 않게)
   ;(res.timestamp ?? []).forEach((_, i) => {
     const c = pos(closes[i]), d = candleDay(res, i)
     if (c == null || d == null) return
     if (pts.length && pts[pts.length - 1][0] === d) pts[pts.length - 1] = [d, c]
     else pts.push([d, c])
+    const v = pos(vols[i])
+    vol = v == null ? undefined : { day: d, value: v }
   })
   if (pts.length < 2) return null
   const name = typeof meta.longName === 'string' ? meta.longName : typeof meta.shortName === 'string' ? meta.shortName : undefined
   const asOf = typeof meta.regularMarketTime === 'number' ? new Date(meta.regularMarketTime * 1000).toISOString() : undefined
-  return { pts, ...p, name, asOf }
+  return { pts, ...p, name, asOf, ...(vol ? { vol } : {}) }
 }
 
 const SERIES_KEY = 'econStockSeries_v1'

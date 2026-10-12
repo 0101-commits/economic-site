@@ -11,7 +11,7 @@ import { Bell, ChevronRight, Trash2 } from 'lucide-react'
 import { SegBar } from '../components/ui'
 import { Panel } from '../components/panels'
 import { BTN, BTN2, Field, INPUT, LevelPill, LV, Row, Switch } from '../components/personal/bits'
-import { loadRegistry, ROOT, type RegRow } from '../lib/bundle'
+import { loadRegistry, ROOT, unitWord, type RegRow } from '../lib/bundle'
 import { fmtNumber, fmtPct, mdHm, scaled, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
@@ -491,7 +491,7 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
   const raw = q.trim()
   const t = target ?? (TARGET_RE.test(raw) ? { id: raw, label: labelOf(raw) } : null)
   const stock = !!t && watchKind(t.id) === 'stock'
-  const unit = t ? rows.find(r => r.id === t.id)?.unit : undefined     // 사전 단위 = 화면 단위(축척 지표는 scale 적용 뒤) — 조건 값도 이 단위
+  const unit = t ? unitWord(t.id, rows.find(r => r.id === t.id)?.unit) : undefined     // 사전 단위 = 화면 단위(축척 지표는 scale 적용 뒤, 말은 bundle.ts unitWord) — 조건 값도 이 단위
   const evs = t ? eventsFor(dict, t.id, stock) : dict.events.filter(e => e.userValue)
   const ev = evs.find(e => e.id === event) ?? evs[0]
   const base = ev?.level ?? 'alert'

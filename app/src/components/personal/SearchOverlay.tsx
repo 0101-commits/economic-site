@@ -1,5 +1,5 @@
 // 검색 오버레이 — 기획안 v4 7장. 머리 돋보기(PC 검색창 · `/` 단축키 · 모바일 아이콘)가 연다.
-// 결과: 지표(지표 사전 label·short·id 부분 일치) · 종목(묶음 종목 행 이름 · 코드 — lib/bundle.ts loadStocks) · 화면·보기(고정 목록) · 도구 + 따로 묶은 「메르 글」
+// 결과: 지표(지표 사전 label·short·id 부분 일치) · 종목(묶음 종목 행 이름 · 코드 — lib/bundle.ts loadStocks, 미국 대형주 한글 이름 — lib/detail.ts US_KO) · 화면·보기(고정 목록) · 도구 + 따로 묶은 「메르 글」
 // 6자리 코드나 영문 티커를 그대로 넣으면 「종목 <코드> 열기」 한 줄(묶음에 없는 종목도 상세로 간다).
 // (merblog.json 제목 전체 · 최신 20편 전문 — 전문에서 찾으면 일치한 곳 앞뒤 40자를 보인다).
 // 입력이 비었으면 「목적으로 고르기」(묶음에 자료가 있는 것만)와 「최근 본 것」. 금액은 싣지 않는다(내 자산 자료를 읽지 않는다).
@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Search, X } from 'lucide-react'
 import { Pill } from '../ui'
 import { loadRegistry, loadStocks, type RegRow } from '../../lib/bundle'
-import { isStockId, type StockRow } from '../../lib/detail'
+import { isStockId, searchRows, stockHits, type StockRow } from '../../lib/detail'
 import { safeHref, shortDate } from '../../lib/format'
 import { loadMarketData, loadRootJson } from '../../lib/personal/data'
 import { pushRecent, readRecent, type Recent } from '../../lib/personal/store'
@@ -34,7 +34,7 @@ const TOOLS: Fixed[] = [
 
 type Post = { title: string; url: string; date?: string; fullText?: string }
 const SNIP = 40
-const MARKET_KO: Record<string, string> = { KOSPI: '코스피', KOSDAQ: '코스닥' }
+const MARKET_KO: Record<string, string> = { KOSPI: '코스피', KOSDAQ: '코스닥', US: '미국' }
 
 export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
@@ -57,7 +57,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   useEffect(() => {
     if (!open || reg.length) return
     loadRegistry().then(setReg, () => {})
-    loadStocks().then(m => setStocks([...m.values()]), () => {})
+    loadStocks().then(m => setStocks(searchRows(m)), () => setStocks(searchRows(new Map())))
     loadMarketData().then(md => {
       const p: Hit[] = []
       // 시장 주소는 market-screen 이 정한 보기(v)·범위(m) — m=all 이 없으면 코스피만이라 상승·하락이 1~2행으로 줄어든다
@@ -81,7 +81,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   const hits = useMemo((): Hit[] => {
     if (!s) return []
     const has = (...xs: (string | undefined)[]) => xs.some(x => x?.toLowerCase().includes(s))
-    const st = stocks.filter(x => has(x.name, x.short, x.code)).slice(0, 8)
+    const st = stockHits(stocks, s)
     // 코드 · 티커를 그대로 넣었으면 묶음에 없어도 상세로 — 영문은 같은 이름의 지표(kospi · gold)가 있으면 내지 않는다
     const code = s.toUpperCase()
     const direct = isStockId(code) && !st.some(x => x.code === code) && (/^\d/.test(code) || !reg.some(r => r.id === s || r.short?.toLowerCase() === s))

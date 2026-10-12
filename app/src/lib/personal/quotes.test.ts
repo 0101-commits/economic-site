@@ -119,4 +119,13 @@ test('parseSeries: 같은 날짜 일봉이 둘이면 뒤 것만 · 전일은 그
   const s = parseSeries(j, 'KSC')!
   assert.deepEqual(s.pts, [['2026-10-07', 268000], ['2026-10-08', 270000], ['2026-10-09', 272000]])
   assert.equal(s.prev, 270000)                                                       // 10/9 앞 일봉(271,000)은 전일이 아니다
+  assert.equal(s.vol, undefined)                                                     // 거래량 칸이 없으면 지어내지 않는다
+})
+
+test('parseSeries: 거래량 = 마지막 일봉(끝 날짜)의 것 · 그 봉에 없으면 없음', () => {
+  const t = (d: string) => Date.parse(`${d}T09:00:00+09:00`) / 1000
+  const mk = (volume: (number | null)[]) => ({ chart: { result: [{ meta: { regularMarketPrice: 272000, gmtoffset: 32400 },
+    timestamp: [t('2026-10-08'), t('2026-10-09'), t('2026-10-09')], indicators: { quote: [{ close: [270000, 271000, 272000], volume }] } }] } })
+  assert.deepEqual(parseSeries(mk([100, 200, 300]))!.vol, { day: '2026-10-09', value: 300 })   // 같은 날 두 봉이면 뒤 것
+  assert.equal(parseSeries(mk([100, 200, null]))!.vol, undefined)                               // 끝 봉에 없으면 앞 날 것을 끌어오지 않는다
 })

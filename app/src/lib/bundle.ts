@@ -131,11 +131,19 @@ export type StripItem = {
 }
 
 /**
- * 값 옆에 단위를 붙일지. scale 로 바꾼 값(26.8조원 · 100엔당 원)과 % 지표(금 프리미엄 · 전년비 · 금리)는 단위 없이는
- * 못 읽으므로 붙이고, $·원 같은 통화 기호는 이름이 이미 말하므로 뺀다.
+ * 화면 단위 말. 사전 unit 이 scale 뒤 단위를 다 말하지 못하는 지표만 고친다 — 엔/원은 원본(1엔당 원) ÷ scale 0.01 = 100엔당 원인데
+ * 사전 unit 은 「원」뿐이라 머리 「844.91원」 · 조건 폼 「값(원)」이 1엔당인지 100엔당인지 말하지 못했다(2026-10-12).
+ * 상세 머리 · 띠 카드 · 알림 조건 폼 · 벨 시트가 모두 이 말을 쓴다.
  */
-export function shownUnit(it: Pick<StripItem, 'scale' | 'unit'>): string | undefined {
-  return it.scale || it.unit === '%' ? it.unit : undefined
+const UNIT_WORD: Record<string, string> = { jpykrw: '100엔당 원' }
+export const unitWord = (id: string | undefined, unit: string | undefined): string | undefined => (id && UNIT_WORD[id]) || unit
+
+/**
+ * 값 옆에 단위를 붙일지. scale 로 바꾼 값(26.8조원 · 100엔당 원)과 % 지표(금 프리미엄 · 전년비 · 금리)는 단위 없이는
+ * 못 읽으므로 붙이고, $·원 같은 통화 기호는 이름이 이미 말하므로 뺀다. id 를 주면 단위 말은 unitWord.
+ */
+export function shownUnit(it: Pick<StripItem, 'scale' | 'unit'> & { id?: string }): string | undefined {
+  return it.scale || it.unit === '%' ? unitWord(it.id, it.unit) : undefined
 }
 /** 장 상태(묶음 market): state = open·closed·holiday 등, label = 「정규장」「장마감」「휴장」. */
 export type MarketState = { state: string; label: string; today?: string; session?: string; nextOpen?: string | null; calendarKnown?: boolean }

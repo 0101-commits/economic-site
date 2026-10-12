@@ -22,7 +22,8 @@ type FxRow = StripItem & { r52: ReturnType<typeof range52> }
 const fxCols: Col<FxRow>[] = [
   { key: 'name', label: '통화', get: r => r.short || r.label, role: 'name' },
   { key: 'value', label: '현재', get: r => scaled(r.value, r.scale), num: true, role: 'value',
-    render: r => `${fmtNumber(scaled(r.value, r.scale), r.decimals)}${shownUnit(r) ?? ''}` },
+    // 단위 말이 숫자로 시작하면(엔/원 「100엔당 원」) 값과 붙어 한 숫자로 읽히지 않게 띄운다
+    render: r => { const u = shownUnit(r) ?? ''; return `${fmtNumber(scaled(r.value, r.scale), r.decimals)}${/^\d/.test(u) ? ' ' : ''}${u}` } },
   { key: 'pct', label: '등락률', get: r => r.changePct, num: true, role: 'change', render: r => <ChangeText chg={r.change} pct={r.changePct} /> },
   { key: 'r52', label: '52주', get: r => r.r52?.high,
     render: r => (r.r52 ? <div className="w-44"><Range52 low={r.r52.low} high={r.r52.high} value={scaled(r.value, r.scale)} decimals={r.decimals} /></div> : null) },

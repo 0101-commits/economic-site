@@ -55,6 +55,32 @@ export function stockRows(roots: unknown[]): Map<string, StockRow> {
   return out
 }
 
+/**
+ * 종목 머리의 거래량: 머리 값이 묶음 행이면 그 행의 거래량, 없으면 일봉 마지막 봉(vol)의 것 — 머리 값과 같은 날일 때만
+ * (머리 값이 일봉이면 늘 같은 날). fromChart = 일봉에서 왔다(배지를 일봉 기준 시각으로 단다). 어느 쪽도 아니면 null.
+ */
+export function headVolume(row: StockRow | undefined, fromRow: boolean, vol?: { day: string; value: number }): { value: number; fromChart: boolean } | null {
+  if (fromRow && row?.volume != null) return { value: row.volume, fromChart: false }
+  if (!vol || (fromRow && row?.asOf?.slice(0, 10) !== vol.day)) return null
+  return { value: vol.value, fromChart: true }
+}
+
+/**
+ * 미국 종목 한글 이름 짝 — 검색창이 「엔비디아」로 NVDA 를 찾게 한다(이름이지 값이 아니다).
+ * 묶음 · 지표 사전 · 토스 스냅샷 어디에도 미국 종목 한글 이름이 없어(2026-10-12 확인) 국내에서 많이 찾는 대형주만 여기 둔다.
+ * 표에 없는 티커는 그대로 치면 「종목 <티커> 열기」로 연다.
+ */
+export const US_KO: Record<string, string> = {
+  NVDA: '엔비디아', AAPL: '애플', MSFT: '마이크로소프트', AMZN: '아마존', GOOGL: '알파벳(구글)', META: '메타', TSLA: '테슬라',
+  AVGO: '브로드컴', 'BRK.B': '버크셔 해서웨이', TSM: 'TSMC', PLTR: '팔란티어', NFLX: '넷플릭스', AMD: 'AMD', MU: '마이크론', INTC: '인텔',
+}
+/** 검색용 종목 행: 묶음 행 + 미국 종목 한글 이름 짝(값 없음 · market 'US'). 같은 코드가 묶음에 있으면 묶음 행만. */
+export const searchRows = (bundle: Map<string, StockRow>): StockRow[] =>
+  [...bundle.values(), ...Object.entries(US_KO).filter(([code]) => !bundle.has(code)).map(([code, name]): StockRow => ({ code, name, market: 'US', price: null, chgPct: null }))]
+/** 검색: 이름 · 줄임말 · 코드에 s(소문자)가 든 종목 n 개. */
+export const stockHits = (rows: StockRow[], s: string, n = 8): StockRow[] =>
+  rows.filter(x => [x.name, x.short, x.code].some(v => v?.toLowerCase().includes(s))).slice(0, n)
+
 export type Post = { title: string; url: string; date?: string; fullText?: string }
 export type Mention = { title: string; href: string | null; date?: string; snip?: [string, string, string] }
 const SNIP = 40
