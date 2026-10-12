@@ -101,7 +101,7 @@ export function kindFromState(state: string | undefined, liveUntil?: string | nu
 /**
  * 배지 문구: LIVE 는 시각만 · 오늘 값은 「종가 15:30」(날짜만 있으면 「종가 10/1」) · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만.
  * openDay = 한국 장이 열려 있는 날(묶음 market.state 가 open 일 때의 그날 날짜). 그날 값은 아직 종가가 아니다 —
- * 「오늘 10/12」(날짜만) · 「오늘 10:40」(시각 있음, 실시간 기한이 지난 장중 값)으로 적는다.
+ * 「오늘 10/12」(날짜만) · 「11:00 기준」(시각 있음, 실시간 기한이 지난 장중 목록 · 시세)으로 적는다.
  */
 export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Date = new Date(), openDay?: string | null): string {
   if (kind === 'filled') return '보강'
@@ -122,8 +122,8 @@ export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Dat
   if (kind === 'prev') {
     const day = KST_DAY.format(t)
     if (day !== KST_DAY.format(now)) return `전일 ${md}`
-    const word = openDay === day ? '오늘' : '종가'
-    return dateOnly ? `${word} ${md}` : `${word} ${hm}`
+    if (openDay === day) return dateOnly ? `오늘 ${md}` : `${hm} 기준`
+    return dateOnly ? `종가 ${md}` : `종가 ${hm}`
   }
   return kind === 'delayed' ? `지연 ${dateOnly ? md : hm}` : hm
 }

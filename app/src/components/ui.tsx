@@ -36,7 +36,7 @@ export function NumBlock({ value, decimals = 0, chg, pct, size = 'M', unit }: {
  * 기준 시각 배지: LIVE(시각만) · 전일/종가 · 지연(주황) · 보강(회색).
  * state·liveUntil = 묶음이 판정한 값(있으면 그것을 따른다). 없으면 asOf 시각으로 직접 판정한다.
  * asOf 는 null 일 수 있다(묶음의 kept·missing) — kept 는 「보강」만, missing 은 배지 없이 값 자리 '—' 가 말한다.
- * 장이 열린 날(묶음 market)의 그날 값은 「종가」가 아니라 「오늘」로 적는다(format.ts asOfLabel openDay).
+ * 장이 열린 날(묶음 market)의 그날 값은 「종가」가 아니라 「오늘 10/12」 · 「11:00 기준」으로 적는다(format.ts asOfLabel openDay).
  */
 export function AsOfBadge({ asOf, state, liveUntil, filled, now }: {
   asOf: string | null | undefined; state?: string; liveUntil?: string | null; filled?: boolean; now?: Date
