@@ -151,6 +151,52 @@ def test_slot_line_rejects_relative_time_and_advice():
     assert not ab.slot_line_ok("가" * 90)
 
 
+def test_slot_line_retries_transient_failure(monkeypatch):
+    """시간 초과 · 503 한 번에 문장을 버리지 않는다 — 2초 뒤 한 번 더, 그다음 모델(10/12 브리핑 4통 중 3통 문장 없음)."""
+    class R:
+        def __init__(self, code, text=""):
+            self.status_code, self._text = code, text
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise ab.requests.HTTPError(f"{self.status_code} Server Error", response=self)
+
+        def json(self):
+            return {"candidates": [{"content": {"parts": [{"text": self._text}]}}]}
+
+    calls = []
+
+    def post(url, **kw):
+        calls.append(url.split("/models/")[1].split(":")[0])
+        assert "key" not in (kw.get("params") or {}) and kw["headers"]["x-goog-api-key"] == "k"
+        if len(calls) == 1:
+            raise ab.requests.Timeout("Read timed out")
+        if len(calls) == 2:
+            return R(503)
+        return R(200, "코스피가 반도체 약세로 3.6% 내렸다")
+
+    sleeps = []
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    monkeypatch.setattr(ab.requests, "post", post)
+    monkeypatch.setattr(ab.time, "sleep", sleeps.append)
+    assert ab.slot_line("마감", "코스피 -3.6%") == "코스피가 반도체 약세로 3.6% 내렸다"
+    assert calls == [ab.GEMINI_MODELS[0], ab.GEMINI_MODELS[0], ab.GEMINI_MODELS[1]] and sleeps == [2]
+    calls.clear(), sleeps.clear()
+    monkeypatch.setattr(ab.requests, "post", lambda url, **kw: calls.append(1) or R(503))
+    assert ab.slot_line("마감", "코스피 -3.6%") == "" and len(calls) == 2 * len(ab.GEMINI_MODELS)
+    assert sleeps == [2] * len(ab.GEMINI_MODELS)
+    # 404(퇴역) · 429(한도) · 400 은 같은 모델을 다시 묻지 않고 곧장 다음 모델
+    for code in (404, 429, 400):
+        calls.clear(), sleeps.clear()
+        monkeypatch.setattr(ab.requests, "post", lambda url, code=code, **kw: calls.append(1) or R(code))
+        assert ab.slot_line("마감", "코스피 -3.6%") == "" and len(calls) == len(ab.GEMINI_MODELS) and sleeps == []
+    # fetch-data 3줄 요약도 같은 길 — 첫 모델 503 두 번 뒤 둘째 모델
+    seq = iter([R(503), R(503), R(200, "가\n나\n다")])
+    monkeypatch.setattr(ab, "GEMINI_API_KEY", "k")
+    monkeypatch.setattr(ab.requests, "post", lambda url, **kw: next(seq))
+    assert ab.try_gemini({"x": 1}) == ["가", "나", "다"]
+
+
 def test_slot_ai_fallback_skips_stale_sentences(monkeypatch):
     monkeypatch.setattr(ab, "slot_line", lambda *a, **kw: "")
     d = _data()

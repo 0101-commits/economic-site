@@ -196,7 +196,11 @@ def render(ev: dict, hit, ctx=None, today: dt.date | None = None) -> dict:
     """다섯 칸 + 채널별 본문. 길이 상한은 여기서 강제한다."""
     data = variables(ev, hit, ctx, today)
     title_max = BRIEF_TITLE_MAX if ev.get("level") == "brief" else TITLE_MAX
-    title = cut(fill(ev["title"], data)[0], title_max)
+    title = fill(ev["title"], data)[0]
+    nm, over = _tidy(str(data.get("name") or "")), len(title) - title_max
+    if over > 0 and len(nm) > 6 and nm in title:       # 긴 이름을 먼저 줄인다(6자까지) — 꼬리(「내 조건 아래로」 · 방향)가 잘리던 10/12
+        title = title.replace(nm, cut(nm, max(6, len(nm) - over)), 1)
+    title = cut(title, title_max)
     why = cut(first_full(ev.get("why"), data), LINE_MAX)
     nxt = cut(first_full(ev.get("next"), data), LINE_MAX)
     if has_relative_time(nxt):

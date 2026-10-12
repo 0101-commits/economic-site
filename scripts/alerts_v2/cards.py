@@ -181,6 +181,14 @@ def _subject(row: dict, ctx) -> str:
     reg = getattr(ctx, "registry", None) or {}
     rid = getattr(ctx, "rid", None) or (lambda t: t)
     r = reg.get(rid(row.get("target"))) or {}
+    from .context import is_stock
+    if not r and is_stock(str(row.get("target") or "")) and callable(getattr(ctx, "stock", None)):
+        try:                                           # 종목 — 제목은 30자에서 이름을 줄이므로 온전한 이름은 시세 조회(런 안 캐시)에서
+            nm = ((ctx.stock(row.get("target")) or {}).get("name") or "").strip()
+        except Exception:                              # noqa: BLE001 — 카드 둘째 줄 하나로 발송을 막지 않는다
+            nm = ""
+        if nm:
+            return nm
     return str(r.get("short") or r.get("label") or str(row.get("title") or "").split(" · ")[0])
 
 

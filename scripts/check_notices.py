@@ -96,29 +96,18 @@ def keyword_filter(cands):
 
 def gemini_pick(cands, key):
     """후보 중 영향 있는 것만 인덱스로 받는다. 실패 시 None(호출부가 키워드 결과로 폴백)."""
-    from ai_briefing import GEMINI_MODELS
+    from ai_briefing import _gemini_text                     # 모델 차례 · 일시 오류 재시도는 한 곳
     lst = "\n".join(f"{n}. [{c['org']}] {c['title']}" for n, c in enumerate(cands))
     prompt = ("경제 대시보드의 수집기는 한국은행 ECOS, KOSIS, 공공데이터포털, 한국부동산원, KRX, OpenDART, "
               "FRED, 네이버, 토스증권, 수출입은행 API 를 쓴다. 아래 공지 중 이 수집기에 영향이 있는 것"
               "(주소·도메인·인증·한도·종료·형식 변경 등)만 골라 번호만 JSON 배열로 답하라. 없으면 [].\n" + lst)
-    for model in GEMINI_MODELS:
-        try:
-            r = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                headers={"x-goog-api-key": key},
-                json={"contents": [{"parts": [{"text": prompt}]}],
-                      "generationConfig": {"temperature": 0, "maxOutputTokens": 200}},
-                timeout=40)
-            if r.status_code == 404:
-                continue
-            r.raise_for_status()
-            txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-            idx = json.loads(re.search(r"\[.*?\]", txt, re.S).group(0))
-            return [cands[i] for i in idx if isinstance(i, int) and 0 <= i < len(cands)]
-        except Exception as e:  # noqa: BLE001
-            print(f"Gemini 실패({model}): {e}")
-            return None
-    return None
+    try:
+        txt = _gemini_text(key, prompt, {"temperature": 0, "maxOutputTokens": 200}, 40)
+        idx = json.loads(re.search(r"\[.*?\]", txt, re.S).group(0))
+        return [cands[i] for i in idx if isinstance(i, int) and 0 <= i < len(cands)]
+    except Exception as e:  # noqa: BLE001
+        print(f"Gemini 실패: {e}")
+        return None
 
 
 def format_message(picked, used_ai):
