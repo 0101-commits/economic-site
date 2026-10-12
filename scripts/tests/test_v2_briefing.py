@@ -154,7 +154,7 @@ def test_ai_fallback_skips_user_condition_why(real_ctx, tmp_path, monkeypatch):
     led = Ledger(day=now.date(), root=str(tmp_path))
     for r in mine + [_row("D1:kospi:sell:2026-10-12", ts="2026-10-12T18:06:00+09:00", why="5일 누적 −8.6조")]:
         led.append(r)
-    assert briefing.build("evening", ctx, led, ALL_ON)["caption"] == "5일 누적 −8.6조"
+    assert briefing.build("evening", ctx, led, ALL_ON)["caption"] == "제목 D1:kospi:sell:2026-10-12"   # 대상이 든 제목
     only_mine = Ledger(day=now.date(), root=str(tmp_path / "u"))
     for r in mine:
         only_mine.append(r)
@@ -164,6 +164,8 @@ def test_ai_fallback_skips_user_condition_why(real_ctx, tmp_path, monkeypatch):
 
 def test_close_changed_is_notice_rows_max_four_lines(real_ctx, tmp_path, monkeypatch):
     _no_cards(monkeypatch)
+    # 카드가 그려진 경우의 분담을 본다 — 폰트 없는 경량 수집 런의 테스트 단계에선 카드가 None 이라 행 폴백이 돈다(10/12 실패)
+    monkeypatch.setattr(briefing.cards, "brief_card_png", lambda spec: b"\x89PNG")
     now = dt.datetime(2026, 10, 6, 16, 30, tzinfo=KST)
     ctx = copy.copy(real_ctx)
     ctx.now = now
