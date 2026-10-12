@@ -71,10 +71,22 @@ def build_snapshot(d):
     sent = d.get("sentiment") or {}
     fg = sent.get("fear_greed") or {}
 
+    # 날짜 · 요일 · 기준일을 함께 준다 — 없을 때 모델이 「내일 발표되는 미국 CPI」(실제 모레 10/14)라고 쓰고,
+    # 금요일 S&P 등락을 오늘 것처럼 적었다(2026-10-12 점검).
+    now = datetime.now(KST)
+    hist = (d.get("history") or {}).get("indices") or {}
+
+    def with_day(key):
+        q, h = idx.get(key), hist.get(key)
+        last = h[-1].get("date") if isinstance(h, list) and h and isinstance(h[-1], dict) else None
+        return dict(q, 기준일=_md_dow(last)) if isinstance(q, dict) and _md_dow(last) else q
+
     snap = {
-        "KOSPI": idx.get("KOSPI"),
-        "S&P500": idx.get("SP500"),
-        "NASDAQ": idx.get("NASDAQ"),
+        "오늘": now.strftime("%Y-%m-%d") + f"({_DOW[now.weekday()]})",
+        "작성시각": now.strftime("%H:%M KST") + " — 장중 등락률은 이 시각 값이다",
+        "KOSPI": with_day("KOSPI"),
+        "S&P500": with_day("SP500"),
+        "NASDAQ": with_day("NASDAQ"),
         "USDKRW": fx.get("USDKRW"),
         "WTI": com.get("WTI"),
         "Gold": com.get("Gold"),
@@ -149,8 +161,8 @@ def build_snapshot(d):
             snap["뉴스헤드라인"] = titles
     except Exception as e:  # noqa: BLE001
         log(f"snapshot 뉴스 헤드라인 생략: {e}")
-    # 오늘/내일 ★3 캘린더 이벤트
-    today = datetime.now(KST).date()
+    # 오늘~모레 ★3 캘린더 이벤트 — 실제 날짜 · 요일 · 시각을 붙인다(「10/14(수) 21:30 미국 CPI (전월비)」)
+    today = now.date()
     events = ((d.get("economicCalendar") or {}).get("events")) or []
     upcoming = []
     for e in events:
@@ -159,11 +171,24 @@ def build_snapshot(d):
             try:
                 ed = datetime.strptime(iso, "%Y-%m-%d").date()
                 if 0 <= (ed - today).days <= 2:
-                    upcoming.append(e.get("name", ""))
+                    hm = str(e.get("dt") or "").partition(" ")[2]          # 「10.14 21:30」의 시각
+                    upcoming.append(" ".join(x for x in (_md_dow(iso), hm, e.get("name", "")) if x))
             except ValueError:
                 pass
     snap["upcoming"] = upcoming[:3]
     return snap
+
+
+_DOW = "월화수목금토일"
+
+
+def _md_dow(iso):
+    """'2026-10-14' → '10/14(수)'. 못 읽으면 None."""
+    try:
+        day = datetime.strptime(str(iso)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    return f"{day.month}/{day.day}({_DOW[day.weekday()]})"
 
 
 def rule_based_lines(snap):
@@ -193,15 +218,17 @@ def rule_based_lines(snap):
 
 def _llm_prompt(snap):
     # '1줄=주식/2줄=환율·금리/3줄=원자재' 고정 배분은 폐기 — 매일 같은 틀의 나열이 되어
-    # 정보가치가 낮았다. 대신 '이례적 변화 1가지 + 파급 경로 + 내일 확인 지표'를 요구해
+    # 정보가치가 낮았다. 대신 '이례적 변화 1가지 + 파급 경로 + 앞으로 확인할 일정(날짜와 함께)'을 요구해
     # 스냅샷(수급·금리차·신용스프레드·헤드라인 포함)에서 통찰을 뽑도록 유도한다.
     return (
         "다음은 오늘의 시장 데이터 스냅샷이다(JSON). 한국 개인투자자 관점에서 "
         "'오늘의 매크로 3줄 요약'을 한국어로 작성하라.\n"
         "규칙: 정확히 3줄, 각 줄 90자 이내, 번호/불릿/머리말 없이 본문만, "
         "데이터에 없는 수치를 지어내지 말 것.\n"
+        "날짜: 스냅샷의 '오늘'이 기준이다. 일정은 upcoming 에 적힌 날짜(M월 D일)로 말하고 '내일'·'모레' 같은 "
+        "상대 표현을 쓰지 말 것. 지수 등락률은 그 지수 '기준일'의 값이다(오늘이 아니면 그 날짜를 밝힐 것).\n"
         "반드시 포함: ① 스냅샷에서 가장 이례적인 변화 1가지와 그것이 한국 시장에 "
-        "미치는 파급 경로, ② 내일 확인해야 할 지표 1가지.\n\n"
+        "미치는 파급 경로, ② 앞으로 확인할 일정·지표 1가지(그 날짜와 함께).\n\n"
         + json.dumps(snap, ensure_ascii=False, default=str)
     )
 

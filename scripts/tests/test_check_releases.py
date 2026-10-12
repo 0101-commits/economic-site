@@ -219,6 +219,29 @@ def test_backfill_carries_old_events_from_previous_run(monkeypatch):
     assert evs[2]["act"] == "-104K"                                                 # 창 안은 직전 값이 아니라 다시 센다
 
 
+def test_briefing_snapshot_carries_today_and_real_dates(monkeypatch):
+    # 홈 브리핑이 「내일 발표되는 미국 CPI」(실제 모레 10/14)라고 썼다 — 오늘 날짜 · 요일, 일정의 실제 날짜, 지수 기준일을 싣는다
+    class D(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 12, 11, 7, tzinfo=KST)
+    monkeypatch.setattr(ab, "datetime", D)
+    d = {"indices": {"KOSPI": {"price": 6479.88, "change": -2.82}, "SP500": {"price": 7811.54, "change": 0.59}},
+         "history": {"indices": {"KOSPI": [{"date": "2026-10-12", "close": 6479.88}],
+                                 "SP500": [{"date": "2026-10-08", "close": 7765.36}, {"date": "2026-10-09", "close": 7811.54}]}},
+         "economicCalendar": {"events": [
+             {"iso": "2026-10-14", "dt": "10.14 21:30", "name": "미국 CPI (전월비)", "stars": 3, "act": ""},
+             {"iso": "2026-10-20", "dt": "10.20 08:00", "name": "먼 일정", "stars": 3, "act": ""}]}}
+    snap = ab.build_snapshot(d)
+    assert snap["오늘"] == "2026-10-12(월)" and snap["작성시각"].startswith("11:07 KST")
+    assert snap["upcoming"] == ["10/14(수) 21:30 미국 CPI (전월비)"]
+    assert snap["S&P500"]["기준일"] == "10/9(금)" and snap["KOSPI"]["기준일"] == "10/12(월)"
+    assert snap["NASDAQ"] is None                                                # 없는 지수는 그대로 비운다
+    prompt = ab._llm_prompt(snap)
+    assert "'내일'·'모레'" in prompt and "내일 확인" not in prompt and "10/14(수)" in prompt
+    assert "주요 일정: 10/14(수) 21:30 미국 CPI (전월비)" in ab.rule_based_lines(snap)[2]
+
+
 # ── 5. slot_line_ok — 일정표 대조 ──────────────────────────────────────────────
 CAL = {"events": [
     {"iso": "2026-10-14", "dt": "10.14 21:30", "name": "미국 CPI (전월비)", "stars": 3},

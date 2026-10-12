@@ -136,3 +136,27 @@ def test_btc_leaves_macro_realestate_lens_registry_bytes_unchanged():
 def test_bundle_carries_suspect_flag_through():
     rows = bb.stock_rows([_row("한창", 112.0, -91.07, suspect=True), _row("정상", 15000.0, -8.9)])
     assert rows[0]["suspect"] is True and "suspect" not in rows[1]
+
+
+# ── 기준일 = 마지막 일봉 날짜(수집일 도장 금지, 2026-10-12 점검) ─────────────────────────
+def test_move_as_of_is_last_bar_not_collection_day(monkeypatch):
+    """MOVE 가 미국 장이 안 열린 월요일 아침(KST)에 수집일 10-12 로 찍혔다 — 마지막 일봉(10-09 금)이 기준일이다."""
+    bars = [{"date": d, "close": v} for d, v in (("2026-10-07", 102.56), ("2026-10-08", 100.7), ("2026-10-09", 98.47))]
+    monkeypatch.setattr(fd, "fetch_yf_history", lambda *a, **k: bars)
+    monkeypatch.setattr(fd, "_stooq_history", lambda *a, **k: {})
+    monkeypatch.setattr(fd, "fetch_yf", lambda sym: {"price": 98.47, "change": -2.21})
+    mv = fd.fetch_move_index()
+    assert mv["as_of"] == "2026-10-09" and mv["value"] == 98.47
+    monkeypatch.setattr(fd, "fetch_yf_history", lambda *a, **k: None)
+    assert fd.fetch_move_index()["as_of"] is None              # 일봉이 없으면 날짜를 모른다(오늘로 지어내지 않는다)
+
+
+def test_vix_catches_up_with_newer_yfinance_bars(monkeypatch):
+    """FRED VIXCLS(다음 영업일 게시)가 목요일에 멈춰 있으면 ^VIX 의 금요일 봉을 이어 붙인다 — S&P 와 같은 날로."""
+    bars = [{"date": "2026-10-08", "close": 15.4}, {"date": "2026-10-09", "close": 16.234}]
+    monkeypatch.setattr(fd, "fetch_yf_history", lambda *a, **k: bars)
+    node = {"value": 15.41, "period": "2026-10-08", "source": "FRED:VIXCLS", "history": {"2026-10-07": 15.08, "2026-10-08": 15.41}}
+    assert fd._vix_catch_up(node) == 1
+    assert (node["value"], node["period"]) == (16.23, "2026-10-09")
+    assert node["history"] == {"2026-10-07": 15.08, "2026-10-08": 15.41, "2026-10-09": 16.23}   # FRED 점은 덮지 않는다
+    assert fd._vix_catch_up(node) == 0                          # 새 봉이 없으면 그대로

@@ -5763,8 +5763,10 @@ def fetch_move_index():
         q = fetch_yf("^MOVE")
         if q and q.get("price"):
             log(f"[MOVE] yfinance: {q['price']}")
+            # as_of = 마지막 일봉 날짜(미국 거래일). 수집일을 적으면 미국 장이 안 열린 월요일 아침(KST)에도 그날로 찍혔다
+            # (2026-10-12 점검: 10-09 금 종가가 10-12). 일봉이 없으면 날짜를 모른다(지어내지 않는다).
             result = {"value": q["price"], "change": q["change"],
-                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
+                    "as_of": max(history) if history else None,
                     "source": "yfinance ^MOVE"}
             if history:
                 result["history"] = history
@@ -6430,6 +6432,20 @@ def fetch_yf(symbol):
     except Exception as e:
         log(f"[yfinance] {symbol} 오류: {e}")
         return None
+
+
+def _vix_catch_up(node):
+    """FRED VIXCLS 는 다음 영업일에야 올라온다 — 월요일 아침(KST)엔 목요일 값이라 S&P(금 종가)와 하루 어긋났다
+    (2026-10-12 점검: VIX 10-08 · S&P 10-09). yfinance ^VIX 일봉(같은 CBOE 종가)에 FRED 마지막 날짜(period)보다
+    새 봉이 있으면 history 에 이어 붙이고 값 · 기준일을 그 끝 봉으로 둔다. node 를 고치고 붙인 봉 수를 돌려준다."""
+    newer = {pt["date"]: round(pt["close"], 2) for pt in (fetch_yf_history("^VIX", period="1mo") or [])
+             if pt.get("close") and pt["close"] > 0 and pt["date"] > str(node.get("period") or "")}
+    if newer:
+        last = max(newer)
+        node["history"] = {**(node.get("history") or {}), **newer}
+        node.update(value=newer[last], period=last, source="FRED:VIXCLS + yfinance ^VIX")
+        log(f"[yf-VIX] FRED 마지막 이후 {len(newer)}봉 보강 → {last} {newer[last]}")
+    return len(newer)
 
 
 def fetch_fx_change(pair_symbol):
@@ -7761,6 +7777,8 @@ def build_data():
         # 실시간에 가까워 보강값이 더 최신일 수 있다.
         try:
             us_vix = (data["economicIndicators"]["us"].get("vix") or {})
+            if us_vix.get("value") is not None:
+                _vix_catch_up(us_vix)
             if us_vix.get("value") is None:
                 log("[yf-VIX] FRED VIX 누락 → yfinance ^VIX 보강 시도")
                 vix_quote = fetch_yf("^VIX")
@@ -7773,7 +7791,7 @@ def build_data():
                     data["economicIndicators"]["us"]["vix"] = {
                         "value":  round(vix_quote["price"], 2),
                         "change": vix_quote.get("change", 0),
-                        "period": datetime.now(KST).strftime("%Y-%m-%d"),
+                        "period": max(vix_hist_map) if vix_hist_map else None,   # 마지막 일봉 날짜 — 수집일이 아니다
                         "desc":   "VIX 변동성 지수",
                         "source": "yfinance ^VIX",
                         "history": vix_hist_map,
