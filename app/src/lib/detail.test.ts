@@ -40,6 +40,16 @@ test('stockRows: 시장별 기준(byMarket)은 그 시장 칸 아래 행에 · l
   assert.deepEqual([m.get('278650')!.asOf, m.get('278650')!.state, m.get('278650')!.liveUntil], ['2026-10-08', 'prev', undefined])   // byMarket 에 없는 시장은 보기 기준
 })
 
+test('stockRows: 거래량 · 거래대금은 머리 값과 같은 날이면 붙인다(시각까지는 안 본다) · 다른 날이면 안 붙인다', () => {
+  const amount = { asOf: '2026-10-12T11:00:03+09:00', state: 'live', items: [{ code: '005930', name: '삼성전자', price: 258750, chgPct: -1.24, amount: 2.68e12 }, { code: '000660', name: 'SK하이닉스', price: 1, chgPct: 1, amount: 3e12 }] }
+  const m = stockRows([{ amount }, { views: {
+    gainers: { asOf: '2026-10-12', kospi: [{ code: '005930', name: '삼성전자', price: 1, chgPct: 1, volume: 19_037_056 }] },
+    marketCap: { asOf: '2026-10-08', kospi: [{ code: '000660', name: 'SK하이닉스', price: 1, chgPct: 1, volume: 5 }] },
+  } }])
+  assert.deepEqual([m.get('005930')!.amount, m.get('005930')!.volume], [2.68e12, 19_037_056])   // 장중 목록(ISO) + 상승 목록(날짜) = 같은 날
+  assert.equal(m.get('000660')!.volume, undefined)                                             // 10/8 목록의 거래량은 오늘 값 옆에 안 붙는다
+})
+
 test('headVolume: 묶음 행 거래량 먼저 · 없으면 머리 값과 같은 날의 일봉 거래량 · 다른 날이면 없음', () => {
   const row = { code: '005930', name: '삼성전자', price: 255500, chgPct: -2.48, asOf: '2026-10-12', state: 'prev' }
   const vol = { day: '2026-10-12', value: 12_345_678 }

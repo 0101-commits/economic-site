@@ -17,7 +17,8 @@ export type StockRow = { code: string; name: string; short?: string; market?: st
  * 먼저 본 행이 이기고, 값(price)이 없는 행만 뒤에 온 값 있는 행에 자리를 내준다 — roots 차례가 곧 우선순위다.
  * KRX 순위 4목록(calc.ts KRX_PREV — 전일 확정값)은 이름 · 시장만 쓰고 값 · 등락은 머리 후보에서 뺀다(장중에 전일 값이 되므로).
  * 거래대금은 거래대금 상위 목록(길에 'amount' 칸이 있는 행 — 토스 체결 tossAmount 은 토스 한 곳 몫이라 뺀다)에서만,
- * 거래대금 · 거래량 모두 머리 값과 기준 시각(asOf)이 같은 행 것만 붙인다 — 다른 날 목록의 거래량을 오늘 값 옆에 적지 않게.
+ * 거래대금 · 거래량 모두 머리 값과 기준일(asOf 앞 10자)이 같은 행 것만 붙인다 — 다른 날 목록의 거래량을 오늘 값 옆에 적지 않게.
+ * 시각까지 맞추지 않는다: 장중 거래대금 목록은 수집 시각(ISO), 상승 · 하락은 날짜만이라 같은 날인데도 빠졌다.
  * 시장별 기준이 다른 목록(상승 · 하락의 byMarket: { kospi: { asOf, state, liveUntil } })은 kospi · kosdaq 칸 아래 행에 그 시장의 기준을 물린다.
  */
 export function stockRows(roots: unknown[]): Map<string, StockRow> {
@@ -48,7 +49,7 @@ export function stockRows(roots: unknown[]): Map<string, StockRow> {
   roots.forEach(x => walk(x, {}, false, false))
   for (const e of extra) {
     const row = out.get(e.code)!
-    if (e.asOf !== row.asOf) continue
+    if ((e.asOf ?? '').slice(0, 10) !== (row.asOf ?? '').slice(0, 10)) continue
     if (row.amount == null && e.amount != null) row.amount = e.amount
     if (row.volume == null && e.volume != null) row.volume = e.volume
   }
