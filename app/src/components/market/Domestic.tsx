@@ -80,7 +80,7 @@ const tossCols: Col<Stock>[] = [nameCol, priceCol, pctCol,
 // 상승·하락: 종목 · 현재가 · 등락률 · 거래량(만주) 넷 — PC 둘째 줄 4칸(약 350px)에 맞춘다. 범위가 전체면 시장은 종목 이름 아래에 단다.
 const moverCols = (all: boolean): Col<Mover>[] => [all ? nameMarketCol : nameCol, priceCol, pctCol, volCol]
 
-/** KRX 순위 목록을 범위대로. 전체 = 두 시장을 합쳐 by 큰 순, ETF = 없음(KRX 주식 일별표라 ETF 가 들어 있지 않다). */
+/** KRX 순위 목록을 범위대로. 전체 = 두 시장을 합쳐 by 큰 순, ETF = 없음(KRX 주식 일별표라 ETF 가 들어 있지 않다 — ETF 범위엔 칸째 뺀다). */
 function krxRows(r: KrxRank | undefined, scope: Scope, by: (x: KrxRow) => number | null | undefined): KrxRow[] {
   if (scope === 'etf') return []
   if (scope !== 'all') return r?.[scope] ?? []
@@ -140,6 +140,8 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
   const pool = poolOf(b.strip, ff && [{ ...ff, series: column(inv?.rows ?? [], invCol('foreign')) }])
   const sel = pool.get(selId) ?? b.strip[0]
   const scopeName = SCOPES.find(o => o.key === m)!.label
+  // ETF 범위엔 KRX 순위 넷이 빈 상자로만 남는다(주식 일별표라 ETF 가 없다) — 칸과 목차에서 빼고 한 줄로 말한다
+  const views = m === 'etf' ? VIEWS.filter(o => !(o.key in KRX_VIEWS)) : VIEWS
   const flow20 = (inv?.rows || []).slice(-20)
   // KRX 순위가 하나라도 들어왔는지 — 52주가 비었을 때 「축적 중」인지 「KRX 자체가 아직」인지 가른다
   const krxOn = (['marketCap', 'volume'] as const).some(k => vw?.[k]?.kospi?.length || vw?.[k]?.kosdaq?.length)
@@ -149,8 +151,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
     const rows = krxRows(r, m, by)
     const is52 = k === 'high52' || k === 'low52'
     const cnt = is52 ? krxCount(r?.count, m) : undefined
-    const empty = m === 'etf' ? `${title} 자료에는 ETF 가 없습니다.`
-      : !is52 ? `${title} 자료가 없습니다.`
+    const empty = !is52 ? `${title} 자료가 없습니다.`
         : cnt != null ? `오늘 ${title} 종목이 없습니다.`
           : krxOn ? '52주 고저 축적 중(약 3일 뒤 게재)' : 'KRX 자료 수집 대기 · 들어온 뒤 약 3일이면 52주 목록이 실립니다.'
     return (
@@ -288,8 +289,9 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
   return (
     <>
       <SegBar label="범위" options={SCOPES} value={m} onChange={counted('국내 범위', SCOPES, setM)} />
-      <Toc where="국내" items={VIEWS} onPick={setV} />
-      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...VIEWS.map((o): [string, Block] => [o.key, panels[o.key]]), ['corp', corpPanel]]} />
+      <Toc where="국내" items={views} onPick={setV} />
+      {m === 'etf' && <p className="m-0 text-12 text-ink-3">ETF 는 시가총액 · 거래량 · 52주 신고가 · 신저가 순위가 없습니다(KRX 주식 일별표 기준).</p>}
+      <MarketGrid blocks={[['big', cls => <BigChart className={cls} item={sel} />], ...views.map((o): [string, Block] => [o.key, panels[o.key]]), ['corp', corpPanel]]} />
     </>
   )
 }

@@ -57,7 +57,9 @@ type CalEv = Sched & { full: string }
 const WEEK = ['일', '월', '화', '수', '목', '금', '토']
 // 실제가 예측보다 좋음 = 상승색 · 나쁨 = 하락색(현행 화면 달력과 같은 뜻)
 const BEAT: Record<string, string> = { '1': 'text-up', '-1': 'text-down' }
-const calCols: Col<CalEv>[] = [
+// 실제 칸: 지난 회차(오늘 이전)인데 실적이 없으면 「미수집」 — 「—」만 두면 아직 발표 전처럼 보인다(2026-10-12 실측 8~9월 23건, 원천 미수집).
+// 예측이 없으면 「—」(묶음이 진짜 예상이 있을 때만 싣는다).
+const calCols = (today: string): Col<CalEv>[] => [
   { key: 'date', label: '날짜', get: e => `${e.date} ${e.time ?? ''}`, role: 'sub', render: e => <span className="num">{shortDate(e.date)}{e.time ? ` ${e.time}` : ''}</span> },
   { key: 'name', label: '일정', get: e => e.full, role: 'name', render: e => (
     <>
@@ -67,7 +69,8 @@ const calCols: Col<CalEv>[] = [
   ) },
   { key: 'prev', label: '이전', get: e => e.prev, num: true },
   { key: 'fore', label: '예측', get: e => e.fore, num: true, role: 'change', render: e => (e.fore == null ? null : <><span className="md:hidden text-ink-3">예측 </span>{e.fore}</>) },
-  { key: 'act', label: '실제', get: e => e.act, num: true, role: 'value', render: e => (e.act == null ? null : <span className={`font-bold ${BEAT[String(e.beat)] ?? 'text-ink-1'}`}>{e.act}</span>) },
+  { key: 'act', label: '실제', get: e => e.act, num: true, role: 'value', render: e => (e.act != null ? <span className={`font-bold ${BEAT[String(e.beat)] ?? 'text-ink-1'}`}>{e.act}</span>
+    : e.date < today ? <span className="text-12 text-ink-3">미수집</span> : null) },
 ]
 
 /** 거시 「달력」: 나라 칩 · 월 격자(7열, 날짜 칸에 건수 · 별 3 점 = 그날 가장 높은 중요도, 오늘 테두리) · 그 달(누른 날) 목록. */
@@ -127,7 +130,7 @@ function CalendarPanel({ className, events, today }: { className: string; events
           <span>{day ? `${shortDate(day)} 일정` : `${+ym.slice(5)}월 일정`} <span className="num">{rows.length}</span>건</span>
           {day && <button type="button" onClick={() => setDay(null)} className="h-8 px-0 border-0 bg-transparent cursor-pointer text-12 text-ink-2 hover:text-ink-1 underline">이 달 전체</button>}
         </div>
-        {rows.length ? <RankTable key={`${ym}-${day}-${cc}`} label="경제 일정" cols={calCols} rows={rows} rowKey={e => `${e.date}-${e.time}-${e.full}`} />
+        {rows.length ? <RankTable key={`${ym}-${day}-${cc}`} label="경제 일정" cols={calCols(today ?? '')} rows={rows} rowKey={e => `${e.date}-${e.time}-${e.full}`} />
           : <Empty>이 달에 실린 일정이 없습니다.</Empty>}
       </div>
     </Panel>
