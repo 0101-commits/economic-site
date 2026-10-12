@@ -173,7 +173,23 @@ def test_backfill_policy_decision_needs_an_observation_of_the_decision_month(mon
     data["economicIndicators"]["kr"]["base_rate_kr"]["history"]["202610"] = 2.75
     ev = _ev(name, "2026-10-22")
     fd.backfill_calendar_actuals([ev], data)
-    assert ev["act"] == "2.75%" and ev["fore"] == "3.00%"
+    assert ev["act"] == "2.75%" and ev["prev"] == "3.00%"
+    assert ev["fore"] == "" and ev["beat"] is None                                 # 직전 값을 예측으로 복사하지 않는다
+
+
+def test_backfill_never_copies_prev_into_fore(monkeypatch):
+    # 컨센서스가 없는 일정에 직전 값을 fore 로 복사하고 beat 도 그걸로 셌다 — 「예측」이 거짓(2026-10-12 점검, 4건 전부 fore = prev).
+    # 세 갈래(전년비 · 증감 · 수준) 모두. 원천이 준 fore 가 있으면 beat 는 그것으로 센다.
+    monkeypatch.setattr(fd, "datetime", type("D", (), {"now": staticmethod(lambda tz=None: datetime(2026, 10, 5, tzinfo=KST))}))
+    hist = _months(2025, 8, 14, lambda i: 100.0 + i)
+    data = {"economicIndicators": {"kr": {"cpi_kr": {"history": hist}},
+                                   "us": {"nfp_us": {"history": {"2026-07-01": 100.0, "2026-08-01": 133.0, "2026-09-01": 29.0}}}}}
+    evs = [_ev("한국 소비자물가동향", "2026-10-02", refPeriod="2026-09"), _ev("미국 비농업고용(NFP)", "2026-10-02")]
+    fd.backfill_calendar_actuals(evs, data)
+    assert [(e["act"] != "", e["prev"] != "", e["fore"], e["beat"]) for e in evs] == [(True, True, "", None)] * 2
+    ev = _ev("미국 비농업고용(NFP)", "2026-10-02", fore="-50K")
+    fd.backfill_calendar_actuals([ev], data)
+    assert ev["act"] == "-104K" and ev["fore"] == "-50K" and ev["beat"] == -1
 
 
 def test_backfill_fills_only_recent_events(monkeypatch):
@@ -197,7 +213,8 @@ def test_backfill_carries_old_events_from_previous_run(monkeypatch):
             _ev("미국 CPI (전월비)", "2026-09-24", act="+0.4%")]                     # 이름이 다르면 잇지 않는다
     evs = [_ev(nfp, d) for d in ("2026-08-13", "2026-09-24", "2026-10-02")]
     fd.backfill_calendar_actuals(evs, data, prev)
-    assert {k: evs[1][k] for k in ("act", "prev", "fore", "beat")} == {"act": "+33K", "prev": "+10K", "fore": "+20K", "beat": 1}
+    # fore · beat 는 잇지 않는다 — 직전 런이 직전 값을 예측으로 복사해 둔 것이라 진짜 예측이 아니다(2026-10-12)
+    assert {k: evs[1][k] for k in ("act", "prev", "fore", "beat")} == {"act": "+33K", "prev": "+10K", "fore": "", "beat": None}
     assert evs[0]["act"] == ""
     assert evs[2]["act"] == "-104K"                                                 # 창 안은 직전 값이 아니라 다시 센다
 

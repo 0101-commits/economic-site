@@ -9436,7 +9436,8 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 continue
             if iso < fill_from and (iso, ev.get("name")) in carry:
                 old = carry[(iso, ev.get("name"))]
-                ev.update({k: old.get(k) for k in ("act", "prev", "fore", "beat")})
+                # fore · beat 는 잇지 않는다 — 예전 런이 직전 값을 예측으로 복사해 둔 것이라(아래 주석) 진짜 예측이 아니다
+                ev.update({k: old.get(k) for k in ("act", "prev")})
                 continue
             if iso > today_iso or iso < fill_from:
                 continue  # 미래 이벤트는 그대로, 직전 값도 없는 오래된 일정은 비워 둔다
@@ -9492,9 +9493,8 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 ev["act"] = _fmt_indicator(act_chg, fmt_id)
                 if not ev.get("prev") and prev_chg is not None:
                     ev["prev"] = _fmt_indicator(prev_chg, fmt_id)
-                if not ev.get("fore") and prev_chg is not None:
-                    ev["fore"] = _fmt_indicator(prev_chg, fmt_id)
-                # beat 계산
+                # fore 는 원천이 준 컨센서스만 — 직전 값을 예측 칸에 복사하면 「예측」이 거짓이 되고 beat 도 그걸로 셌다
+                # (2026-10-12 점검: 일정 4건 전부 fore = prev). beat 는 진짜 fore 가 있을 때만 아래에서 센다.
                 try:
                     fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", ""))
                     if fore_num is not None:
@@ -9523,8 +9523,6 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                         prev_delta = p - pp
                         if not ev.get("prev"):
                             ev["prev"] = _fmt_indicator(prev_delta, "kd")
-                        if not ev.get("fore"):
-                            ev["fore"] = _fmt_indicator(prev_delta, "kd")
                 try:
                     fore_num = _parse_num(str(ev.get("fore", "")).replace("+", "").replace("K", ""))
                     if fore_num is not None:
@@ -9541,8 +9539,6 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 ev["act"] = _fmt_indicator(act_v, fmt_id)
                 if not ev.get("prev") and prev_v is not None:
                     ev["prev"] = _fmt_indicator(prev_v, fmt_id)
-                if not ev.get("fore") and prev_v is not None:
-                    ev["fore"] = _fmt_indicator(prev_v, fmt_id)
                 try:
                     fore_num = _parse_num(str(ev.get("fore", "")).replace("%", "").replace("+", "").replace("K", ""))
                     act_num  = float(act_v)
