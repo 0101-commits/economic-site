@@ -359,7 +359,7 @@ def main():
     print(f"[watchdog] 침묵 감지 {len(stalled)}건: {[n for n, _ in stalled]}")
     ok = notify_discord.system(
         body + "\n\n트리거(Cloudflare Worker cron / GHA schedule)를 확인하세요.",
-        title="🔇 알림 파이프라인 침묵", color=notify_discord.COLOR_FIRE, mention=True)
+        title="🔇 알림 파이프라인 침묵", color=notify_discord.COLOR_FIRE)   # #시스템은 무음(2026-10-13)
     if not ok:
         # 통지를 못 했는데 success 로 끝나면 다음 감시가 이 런을 '직전 감시'로 보고 이미 알린
         # 것으로 친다 — 최대 3시간 무통지. 실패로 끝내 _prev_check 에서 빠지게 한다.

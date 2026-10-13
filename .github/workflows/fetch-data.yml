@@ -436,6 +436,19 @@ jobs:
           ALERTS_STATE_SALT: ${{ secrets.ALERTS_STATE_SALT }}
         run: python scripts/alerts_v2/run.py --mode "$V2_MODE"
 
+      # 웹 푸시 — 위 v2 단계가 쌓은 scripts/push_queue.json 을 구독한 기기에 보낸다(stock-alerts · alerts-v2 · briefing 과 같은 단계).
+      #   이 단계가 없어 풀 · 일일 런의 푸시가 원장엔 「보냄」으로 적히고 폰엔 안 갔다(2026-10-13 발견).
+      - name: Send web push
+        if: always() && env.FETCH_LIGHT != '1' && hashFiles('scripts/push_queue.json') != ''
+        continue-on-error: true
+        env:
+          PUSH_READ_KEY: ${{ secrets.PUSH_READ_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          pip install pywebpush==2.5.0
+          python scripts/send_push.py
+
       # 🚨 시장중단(서킷브레이커) 카카오톡 발송 스텝은 stock-alerts.yml 로 이관됨(2026-07) —
       #    본 워크플로의 실효 주기(성공 런 소요 12~57분)로는 발동→알림 지연이 15분+ 이었기 때문.
       #    중복 발송 방지를 위해 halts_state.json 소유권도 stock-alerts 로 단일화(여기선 커밋 안 함).

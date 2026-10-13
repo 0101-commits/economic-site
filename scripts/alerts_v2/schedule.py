@@ -2,8 +2,9 @@
 
 plan(decisions, ledger, ctx, settings) -> list[Send]
   경보: 상한 밖, 조용한 시간은 quietAlarm 설정에 따라.
-  알림: 쿨다운(사전 cooldown) → 조용한 시간이면 보류(held, 디스코드는 쌓임) → 하루 상한 넘으면 묶음.
-  안내: 디스코드만(카톡 메모 모드면 deliver 가 메모도 따라 보냄). 기록: 발송 없음.
+  알림: 쿨다운(사전 cooldown) → 조용한 시간이면 보류(held, 카톡 메모만) → 하루 상한 넘으면 묶음.
+  안내: 푸시(하루 상한 밖) — 카톡 메모 모드면 deliver 가 메모도 남긴다. 기록: 발송 없음.
+  디스코드는 없다(2026-10-13 폰 알림 경로 고정: 경제 알림 = 웹앱 푸시 + 카톡).
   카톡: 쌍당 하루 kakaoBundleAt(18) 부터 묶음, kakaoQuota(20) 에서 멈춤.
 """
 from __future__ import annotations
@@ -80,6 +81,7 @@ def in_cooldown(row: dict, ev: dict, history: list[dict], rung_only: bool = Fals
         s = r.get("sent") or {}
         if row.get("level") == "alarm" and r.get("level") != "alarm":
             continue
+        # discord 는 2026-10-13 전 옛 행에만 있다(그 뒤로 경제 알림은 디스코드로 안 나감) — 쿨다운 창 안의 옛 행용
         rang = s.get("push") or s.get("kakao") or s.get("held") or (s.get("discord") and r.get("level") == "alarm")
         if not (rang if rung_only else (rang or s.get("discord") or s.get("memo"))):
             continue
@@ -141,12 +143,12 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
                 continue                               # 울림 밖 알림(관심 아님 · 세기 미달 · 울림 끔) = 원장 · 받은 알림에만
             if ev and in_cooldown(row, ev, history):
                 continue
-            out.append(Send(row=row, level=level, discord=True, push=False, kakao=False, held=quiet))
+            out.append(Send(row=row, level=level, push=push_on, kakao=False, held=quiet))   # 웹앱은 안내도 울린다(2026-10-13)
             continue
         if ev and in_cooldown(row, ev, history, rung_only=True):
             continue                                   # 같은 사건 반복 — 원장엔 남고 발송 없음
         if quiet and not (level == "alarm" and s.get("quietAlarm")):
-            out.append(Send(row=row, level=level, discord=True, held=True))
+            out.append(Send(row=row, level=level, held=True))
             continue
         if level == "alert" and rung >= cap:
             bundle.append(row)
@@ -156,7 +158,7 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
         if kakao_on and s["kakaoBundleAt"] <= kakao_n < s["kakaoQuota"] and level != "alarm":
             bundle.append(row)
             continue
-        out.append(Send(row=row, level=level, push=push, kakao=kakao, discord=True))
+        out.append(Send(row=row, level=level, push=push, kakao=kakao))
         if level == "alert":
             rung += 1
         if kakao:
@@ -177,7 +179,7 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
             "ts": now.isoformat(timespec="seconds"),
         }
         kakao_b = kakao_on and kakao_n < s["kakaoQuota"]
-        out.append(Send(row=brow, level="alert", push=push_on, kakao=kakao_b, discord=True,
+        out.append(Send(row=brow, level="alert", push=push_on, kakao=kakao_b,
                         bundled=True, bundle=bundle, kind="bundle"))
         for r in bundle:
             ledger.update_sent(r["key"], bundled=True)

@@ -36,7 +36,6 @@ SLOT_AT = {
     "evening": (18, 30, WEEKDAYS), "us": (22, 40, WEEKDAYS), "weekly": (9, 0, (5,)),
 }
 LATE_MAX_MIN = 120                                   # 자동 깨움이 정시보다 이만큼 넘게 늦으면 보내지 않는다(late_min)
-PUSH_SLOTS = ("morning", "close")                    # 폰 푸시는 아침 · 마감만
 KR_SLOTS = ("noon", "close", "evening")              # 한국 휴장일엔 보내지 않는다(편성표 「안 나가는 것」)
 ITEMS_MAX = 5                                        # 카톡 피드 행 상한(KAKAO_FEED_ROWS)
 CHANGED_MAX = 4                                      # 「오늘 바뀐 것」 줄 상한
@@ -342,24 +341,12 @@ def _kakao(out: dict, slot: str, log=print) -> bool:
         return False
 
 
-def _discord(out: dict, log=print) -> bool:
-    try:
-        import notify_discord
-        body = out.get("caption") or ""                # 카드가 말한 줄(수급 · 휴장 · 바뀐 것)은 다시 안 쓴다
-        fields = [(lab, v, len(v) <= k.DC_FIELD_INLINE_MAX) for lab, v in out["items"] if v not in body]
-        return bool(notify_discord.send_level("brief", out["title"], body, fields=fields or None,
-                                              url=k.hero_link(out["links"]) or k.DASHBOARD_URL,
-                                              buttons=k._dc_link_buttons(out["links"]) or None, png=out["card_png"]))
-    except Exception as e:                             # noqa: BLE001
-        log(f"[v2 brief] 디스코드 발송 예외: {type(e).__name__}")
-        return False
-
-
 def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = False, log=print,
          queue_path: str = deliver.PUSH_QUEUE_PATH) -> dict:
-    """세 채널 독립 발송 → {push, kakao, discord}. 꺼진 슬롯 · 휴장일 한국 슬롯은 아무것도 안 보낸다.
+    """두 채널 독립 발송 → {push, kakao, memo}. 꺼진 슬롯 · 휴장일 한국 슬롯은 아무것도 안 보낸다.
+    켜진 슬롯은 전부 푸시(웹앱은 모든 알림을 울린다, 2026-10-13) + 카톡, 디스코드는 없다.
     보낸 뒤 밤사이 보류 행을 「합류」(held=False)로 적고 그 원장을 저장한다(드라이런은 쓰지 않음)."""
-    res = {"push": 0, "kakao": False, "discord": False, "memo": False}
+    res = {"push": 0, "kakao": False, "memo": False}
     if not enabled(slot, settings):
         log(f"[v2 brief] {slot} 꺼짐 — 보내지 않음")
         return res
@@ -377,13 +364,12 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
     ring = ((settings or {}).get("ringChannel") or DEFAULT_SETTINGS["ringChannel"])
     if ring == "kakao" and not dry_run and not deliver.kakao_rings(log):
         ring = "push"                                  # D11 — 메모 모드면 카톡은 안 울리므로 폰 푸시가 울린다
-    if slot in PUSH_SLOTS and ring != "kakao":
+    if ring != "kakao":
         item = {"id": f"brief:{slot}:{ctx.now.date().isoformat()}", "title": out["title"],
                 "body": compose.cut("\n".join(x for x in out["lines"][:2] if x), compose.PUSH_BODY_MAX),
                 "url": deliver.abs_url("#/"), "ts": ctx.now.isoformat(timespec="seconds"),
                 "level": "brief", "requireInteraction": False}
         res["push"] = 1 if deliver.enqueue_push([item], queue_path) else 0
-    res["discord"] = _discord(out, log)                # 울리는 채널 먼저, 카톡(메모면 memo 로 적음)은 마지막
     res["memo" if deliver.memo_mode(log) else "kakao"] = _kakao(out, slot, log)
     if any(res.values()):                              # 받은 알림 「시황」 거르기 = 원장(기획서 2장) — 종전엔 안 적어 늘 빈칸이었다
         if ledger.append({"key": f"BRIEF:{slot}:{ctx.now.date().isoformat()}", "event": "BRIEF", "target": slot,
@@ -391,7 +377,7 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
                           "fresh": "live", "title": out["title"], "why": compose.cut(out.get("caption") or "", compose.LINE_MAX),
                           "next": compose.cut(out["lines"][2] if len(out["lines"]) > 2 else "", compose.LINE_MAX), "url": "#/",
                           "ts": ctx.now.isoformat(timespec="seconds"),
-                          "sent": {"push": res["push"], "kakao": res["kakao"], "discord": res["discord"],
+                          "sent": {"push": res["push"], "kakao": res["kakao"],
                                    "bundled": False, "held": False, "memo": res["memo"]}}):
             ledger.save()
     if any(res.values()) and pairs:                    # 합류 — 아침 카드가 실제로 나갔을 때만
@@ -399,5 +385,5 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
             book.update_sent(r["key"], held=False, push=res["push"], kakao=res["kakao"], memo=res["memo"])
         for book in {id(b): b for b, _ in pairs}.values():
             book.save()
-    log(f"[v2 brief] {slot} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']} · discord {res['discord']}")
+    log(f"[v2 brief] {slot} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']}")
     return res

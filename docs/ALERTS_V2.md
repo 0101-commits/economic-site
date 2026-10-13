@@ -7,7 +7,7 @@
 ```
 수집 런 ─▶ 사건 추출기(scripts/alerts_v2/run.py --mode …)
              사전 events.yml × 번들 값 → 원장 events/YYYY-MM-DD.json(멱등) + events/latest.json(7일)
-             └ ALERTS_V2=1 이면: 구독(subscribe) → 편성(schedule) → 발송(deliver: 푸시 · 카톡 · 디스코드)
+             └ ALERTS_V2=1 이면: 구독(subscribe) → 편성(schedule) → 발송(deliver: 푸시 · 카톡)
 화면: app 받은 알림 = events/latest.json · 사건 탭 = app/src/lib/alerts/dict.json(사전 내보내기)
 ```
 
@@ -20,7 +20,7 @@
 | eve | `alerts-v2.yml` | 매일 21:00 | E1 발표 전날 예고 |
 | brief | `briefing.yml` | 07:30 · 16:30 · 토 09:00(+선택 12:00 · 18:30 · 22:40) | 브리핑 6슬롯 |
 
-등급 `alarm`(경보 · 즉시 · @everyone) / `alert`(알림 · 하루 상한 6 · 조용한 시간 보류) / `notice`(안내 · 디스코드 · 마감 카드 묶음) / `record`(화면만).
+등급 `alarm`(경보 · 즉시 · @everyone) / `alert`(알림 · 하루 상한 6 · 조용한 시간 보류) / `notice`(안내 · 푸시 · 마감 카드 묶음) / `record`(화면만).
 꾸러미 `quiet` · `normal`(기본) · `many`. 세기 `normal` 2σ · `big` 2.5σ · `huge` 3σ · `value`.
 
 ## 전환 순서(사용자가 하는 일)
@@ -39,7 +39,7 @@ Worker 쪽(저장소 루트에서, 승인 뒤): `VAPID_PUBLIC_KEY` · `PUSH_READ
 
 ### 2. 카톡 친구 모드(10분) — `docs/KAKAO_SETUP.md ⑤`
 보조 계정 만들기 → 본 계정과 친구 → developers 앱 멤버 추가 → 동의항목 `friends` → 보조 계정으로 토큰 발급 → `gh secret set KAKAO_REFRESH_TOKEN` → 저장소 변수 `KAKAO_FRIENDS=1`.
-친구 모드가 아니면(`KAKAO_FRIENDS=0` · 친구 목록 403) v2 는 **디스코드로 가는 것을 전부 메모(나에게 보내기)로 따라 보낸다** — 「나와의 채팅」에 쌓이지만 카카오 정책상 소리는 안 난다(2026-10-07 사용자 결정. 그 전엔 카톡을 통째로 멈춰 「안 온다」가 됐다).
+친구 모드가 아니면(`KAKAO_FRIENDS=0` · 친구 목록 403) v2 는 **모든 알림을 메모(나에게 보내기)로 보낸다**(조용한 시간 보류분 포함) — 「나와의 채팅」에 쌓이지만 카카오 정책상 소리는 안 난다. 폰을 울리는 것은 웹앱 푸시다. **2026-10-13 폰 알림 경로 고정: 경제 알림은 웹앱 푸시 + 카톡, 디스코드로는 보내지 않는다**(운영 경고 #시스템만 무음으로 남는다).
 
 ### 3. 켜기
 ```
@@ -51,23 +51,23 @@ gh variable set ALERTS_V2 --body 1
 
 ### 4. 첫날 확인
 - `events/latest.json` 이 커밋되는지(`stock-alerts` 「Commit … events/」 단계, `alerts-v2.yml` settle 런).
-- 디스코드 #종목-알림(알림 · 안내) · #급변-속보(경보 @everyone) · #시황-다이제스트(브리핑)에 소리와 함께 나가는지(2026-10-07 무음 해제). 카톡은 친구 모드가 아니면 「나와의 채팅」에 메모로 따라오는지.
+- 폰 웹앱 알림이 경보 · 알림 · 안내 · 켜진 브리핑마다 울리는지. 카톡은 친구 모드가 아니면 「나와의 채팅」에 메모로 쌓이는지. 디스코드 경제 채널에는 새 글이 없어야 한다(#시스템만, 무음).
 - 통수: 평일 울림 3~4 안팎(브리핑 2 + 사건 1~2). 넘으면 설정 꾸러미 `quiet` 로.
 
 ## 설정은 어디에
 - 사용자: 새 화면 알림 › 사건 탭(꾸러미 · 갈래 · 사건 낱개 · 내 조건) · 채널 탭(폰 · 카톡 · 울림 채널 · 조용한 시간 · 상한 · 브리핑). Worker KV `/prefs`(v2).
-- 운영: 저장소 변수 `ALERTS_V2` · `KAKAO_FRIENDS`, 시크릿 위 6종 + 디스코드 웹훅 4 + 카카오 2.
+- 운영: 저장소 변수 `ALERTS_V2` · `KAKAO_FRIENDS`, 시크릿 위 6종 + 디스코드 #시스템 웹훅 + 카카오 2.
 - 사전: `scripts/alerts_v2/events.yml` — 사건을 더하거나 임계를 바꾸는 유일한 자리. 바꾼 뒤 `python scripts/alerts_v2/export_dict.py` 로 화면 사전을 다시 내보내고 커밋(파리티 검사 `test_v2_parity.py` 가 어긋남을 잡는다).
 
 ## 원장 읽는 법
-`events/2026-10-02.json` 한 행 = 한 사건. `key` 가 멱등 열쇠(`사건:대상:방향:기준일`), `sent` 가 채널별 결과(`push` 큐 건수 · `kakao` · `discord` · `bundled` 묶음 · `held` 조용한 시간 보류). 사용자 조건 행은 `cond`(조건 id)만 있고 임계값은 없다.
+`events/2026-10-02.json` 한 행 = 한 사건. `key` 가 멱등 열쇠(`사건:대상:방향:기준일`), `sent` 가 채널별 결과(`push` 큐 건수 · `kakao` · `memo` · `bundled` 묶음 · `held` 조용한 시간 보류 — `discord` 는 2026-10-13 전 옛 행에만). 사용자 조건 행은 `cond`(조건 id)만 있고 임계값은 없다.
 드라이런: `ALERTS_V2=1 python scripts/alerts_v2/run.py --mode light --dry-run --now 2026-10-02T22:16+09:00`.
 
 ## 왜 안 울렸나(자주 묻는 것)
 | 증상 | 원인 | 확인 |
 |---|---|---|
 | 아무것도 안 옴 | `ALERTS_V2` 가 0 | `gh variable list` |
-| 디스코드만 오고 폰 · 카톡 없음 | 시크릿 6종 · 친구 모드 | 런 로그 「[v2] 카톡 …」 「PUSH_READ_KEY」 |
+| 폰 알림 · 카톡 없음 | 시크릿 6종 · 폰 구독 · 친구 모드 | 런 로그 「[push] …」 「[v2] 카톡 …」 「PUSH_READ_KEY」 |
 | 조건을 만들었는데 안 옴 | 동기화 꺼짐(이 기기에만) · 사전이 그 대상에 그 사건을 허용하지 않음 | 조건 행 상태 「이 기기에만」 |
 | 가격 조건(U1)이 안 옴 | 넘는 순간만 울림 — 저장할 때 이미 넘어 있었으면 되돌아갔다 다시 넘을 때부터. 사용자 조건은 stock-alerts(light) 런만 판정 | `alerts_state.json._prefs[조건 id].side`(u 위 · d 아래) · 조건의 `armSide`(Worker 재배포 전엔 버려짐) |
 | 같은 사건이 두 번 | 원장 key 가 다름(기준일 다른 두 값) | `events/` 두 행의 `asOf` |

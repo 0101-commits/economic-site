@@ -138,7 +138,7 @@ def _brief(slot: str, now, dry_run: bool) -> int:
     res = briefing.send(slot, ctx, Ledger(day=now.astimezone(KST).date()), settings, dry_run=not live)
     if live:
         Ledger.rebuild_latest()
-        if res["discord"] or res["push"] or res["kakao"]:     # 메모만 나간 건 성공이 아니다 — 두 번째 깨움이 다시 시도
+        if res["push"] or res["kakao"]:                       # 메모만 나간 건 성공이 아니다 — 두 번째 깨움이 다시 시도
             open(BRIEF_SENT_MARKER, "w").close()
     return 0
 

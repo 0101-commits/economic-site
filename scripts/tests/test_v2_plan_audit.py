@@ -53,7 +53,7 @@ def test_notice_off_cooldown_quiet_merge(tmp_path):
     again = Decision(_row("B2", "notice"), "notice", False, "안내")
     assert schedule.plan([again], led, _ctx(), events_by_id=EV, history=[prev]) == []   # 마디 하루 1(방향 무관)
     night = schedule.plan([again], led, _ctx(3), events_by_id=EV, settings={"quiet": {"from": "23:00", "to": "07:00"}})
-    assert len(night) == 1 and night[0].held and night[0].discord                   # 조용한 시간 = 보류(아침 합류)
+    assert len(night) == 1 and night[0].held                                        # 조용한 시간 = 보류(아침 합류)
     merged = Decision(_row("G3", "notice", target="posts"), "notice", False, "안내")
     assert schedule.plan([merged], led, _ctx(), events_by_id=EV) == []               # 오늘 16:30 마감 브리핑에 합침
     assert len(schedule.plan([merged], led, _ctx(17), events_by_id=EV)) == 1         # 마감 뒤면 낱개로(안 그러면 어디에도 안 나감)
@@ -106,22 +106,6 @@ def test_ledger_merge_keeps_both_runs_rows(tmp_path):
     rows = {r["key"]: r for r in json.loads((remote / "2026-10-02.json").read_text(encoding="utf-8"))}
     assert set(rows) == {a["key"], b["key"]} and rows[a["key"]]["sent"]["push"] == 1     # 다른 런 행도 남고 발송 기록은 합침
     assert (remote / "latest.json").exists()
-
-
-def test_held_discord_is_silent(monkeypatch, tmp_path):
-    calls = []
-
-    class _D:
-        @staticmethod
-        def send_level(level, title, body, **kw):
-            calls.append(kw)
-            return True
-    monkeypatch.setitem(sys.modules, "notify_discord", _D)
-    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
-    row = _row("B2", "notice")
-    led.append(row)
-    deliver.send(Send(row=row, level="notice", discord=True, held=True), led, _ctx(3), log=lambda *a: None)
-    assert calls and calls[0].get("silent") is True                              # 조용한 시간 — 보관은 하되 깨우지 않는다
 
 
 def test_cooldown_per_fields_from_row_cd():

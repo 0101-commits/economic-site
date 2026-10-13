@@ -583,7 +583,7 @@ const BRIEFS: { key: keyof Settings['briefings']; label: string }[] = [
 const RING_OPTS = [{ key: 'kakao', label: '카톡' }, { key: 'push', label: '폰' }, { key: 'both', label: '둘 다' }] as const
 const CAP_OPTS = [{ key: '3', label: '3' }, { key: '6', label: '6' }, { key: '12', label: '12' }] as const
 
-/** 채널: 울림 채널 · 하루 상한 · 조용한 시간 · 브리핑 · 디스코드. 폰 알림 · 동기화 키 · 받는 기기는 설정 「기기 연결」, 카톡은 설정 「고급」. */
+/** 채널: 울림 채널 · 하루 상한 · 조용한 시간 · 브리핑 · 카톡 기록. 폰 알림 · 동기화 키 · 받는 기기는 설정 「기기 연결」, 카톡은 설정 「고급」. */
 function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) => void }) {
   const s = prefs.settings
   const quiet = s.quiet
@@ -594,7 +594,7 @@ function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) 
       <div className="grid grid-cols-1 pc:grid-cols-2 gap-4 items-start">
         <Panel title="울림 채널 · 하루 상한">
           <SegBar label="울림 채널" options={RING_OPTS} value={s.ringChannel} onChange={v => setS({ ringChannel: v })} />
-          <p className="mt-1 mb-3 text-12 text-ink-3">경보 · 알림 · 내 조건이 이 채널로 울립니다. 안내는 울리지 않고 받은 알림에 쌓입니다.</p>
+          <p className="mt-1 mb-3 text-12 text-ink-3">경보 · 알림 · 안내 · 내 조건 · 브리핑이 이 채널로 울립니다.</p>
           <div className="flex flex-wrap items-end gap-2">
             <SegBar label="하루 울림 상한" options={CAP_OPTS} value={String(s.dailyCap) as '3'} onChange={v => setS({ dailyCap: Number(v) })} />
             <Field label="직접" className="w-20"><input type="number" min={1} max={50} className={INPUT} value={s.dailyCap}
@@ -621,9 +621,9 @@ function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) 
           </ul>
           <p className="mt-2 mb-0 text-12 text-ink-3">꾸러미를 바꾸면 이 묶음도 그 꾸러미 값으로 바뀝니다.</p>
         </Panel>
-        <Panel title="디스코드">
-          <p className="m-0 text-13 text-ink-2">모든 알림이 디스코드에 보관됩니다. 이 화면에서 바꾸는 것은 없습니다.</p>
-          <p className="mt-2 mb-0 text-12 text-ink-3">경보는 #급변-속보에 멘션과 함께, 알림 · 안내는 #종목-알림에, 브리핑은 #시황-다이제스트에 쌓입니다.</p>
+        <Panel title="카톡 기록">
+          <p className="m-0 text-13 text-ink-2">모든 알림이 카톡 「나와의 채팅」에도 쌓입니다. 이 화면에서 바꾸는 것은 없습니다.</p>
+          <p className="mt-2 mb-0 text-12 text-ink-3">카카오 정책상 소리는 나지 않습니다. 폰을 울리는 것은 이 앱의 알림입니다. 디스코드로는 보내지 않습니다.</p>
         </Panel>
       </div>
     </>
