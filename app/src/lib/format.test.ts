@@ -63,6 +63,8 @@ test('asOfKind / asOfLabel: 네 갈래 판정', () => {
   assert.equal(asOfLabel('prev', '2026-10-12', tue), '전일 10/12')
   assert.equal(asOfLabel('prev', '2026-10-08', tue), '10/8')
   assert.equal(asOfLabel('prev', '2026-10-09', new Date('2026-10-12T10:00:00+09:00')), '전일 10/9')   // 월요일의 금요일 값은 전일
+  assert.equal(asOfLabel('prev', '2026-10-11', new Date('2026-10-12T10:00:00+09:00')), '전일 10/11')  // 24시간 자산의 일요일 값
+  assert.equal(asOfLabel('prev', '2026-10-12', new Date('2026-10-12T15:00:30Z')), '전일 10/12')       // 한국 자정 직후(UTC 는 아직 전날)
   assert.equal(asOfLabel('prev', '2026-Q2', now), '2분기')                            // 분기(GDP) — 「전일 4/1」이 아니다
   assert.equal(asOfLabel('prev', '2025-Q4', now), '25.4분기')
   assert.equal(asOfLabel('prev', '2025', now), '2025년')                              // 연간(중국 GDP)

@@ -119,7 +119,7 @@ export async function holdingQuotes(items: Holding[], have: Map<string, Quote>, 
 export type StockChart = { pts: Pt[]; price: number; prev: number | null; name?: string; asOf?: string; vol?: { day: string; value: number }; session?: { start: number; end: number } }
 
 /**
- * 일봉 값의 기준 시각(배지에 넘길 asOf · state). 정규장 중이면 마지막 체결 시각 그대로(배지가 실시간 · 지연을 잰다),
+ * 일봉 값의 기준 시각(배지에 넘길 asOf · state). 정규장 중이면 마지막 체결 시각 + 실시간 기한 15분(지나면 「HH:MM 기준」 — 주황 「지연」은 묶음 stale 만 쓴다),
  * 아니면 마지막 봉 날짜(거래소 날짜 — 미국은 미국 거래일) + prev = 그날 종가. 체결 시각(한국 시각)을 쓰면 미국 10/9 마감이
  * 「전일 10/10」 · 한국 오전엔 주황 「지연 05:00」으로 나왔다(2026-10-12 화면 리뷰). 장 시간을 모르면 장 밖으로 본다.
  */

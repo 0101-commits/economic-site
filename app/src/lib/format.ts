@@ -110,7 +110,7 @@ export function kindFromState(state: string | undefined, liveUntil?: string | nu
 const CLOSE_HM = new Set(['15:30', '05:00', '06:00'])
 
 /**
- * 배지 문구: LIVE 는 시각만 · 앞선 날은 「전일 9/30」 · 지연은 시각 · 보강은 낱말만.
+ * 배지 문구: LIVE 는 시각만 · 바로 앞 평일(또는 달력상 어제)은 「전일 9/30」, 그 앞은 「9/30」 · 지연은 시각 · 보강은 낱말만.
  * 오늘 시각이 있는 값은 「HH:MM 기준」 — 그 시각이 주식 장 마감(CLOSE_HM)일 때만 「종가 15:30」.
  * 실시간 기한이 지난 장중 목록(11:00)이나 24시간 자산(환율 · 금 · BTC · WTI 16:10)은 종가가 아니다.
  * 오늘 날짜만 있는 값은 「종가 10/1」, 단 openDay(한국 장이 열려 있는 날 = 묶음 market.state open 의 그날)면 「오늘 10/12」.
@@ -134,7 +134,8 @@ export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Dat
   if (kind === 'prev') {
     const day = KST_DAY.format(t)
     // 「전일」은 바로 앞 평일 값만 — 10/13 에 FRED 10/8 금리가 「전일 10/8」로 나왔다(2026-10-13 장중 점검). 더 앞선 값은 날짜만.
-    if (day !== KST_DAY.format(now)) return day === lastWeekday(now) ? `전일 ${md}` : md
+    // 달력상 어제도 전일 — 24시간 자산(BTC)의 주말 값이 월요일에 「전일 10/11」.
+    if (day !== KST_DAY.format(now)) return day === lastWeekday(now) || day === KST_DAY.format(new Date(now.getTime() - 86_400_000)) ? `전일 ${md}` : md
     if (!dateOnly) return CLOSE_HM.has(hm) ? `종가 ${hm}` : `${hm} 기준`
     return openDay === day ? `오늘 ${md}` : `종가 ${md}`
   }
