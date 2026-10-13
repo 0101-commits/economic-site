@@ -123,7 +123,9 @@ def _brief(slot: str, now, dry_run: bool) -> int:
         late = briefing.late_min(slot, now)
         if late is None or late > briefing.LATE_MAX_MIN:
             print(f"[v2 brief] {slot} 정시({briefing.SLOT_AT[slot][0]:02d}:{briefing.SLOT_AT[slot][1]:02d}) 몫이 아님"
-                  f"({'정시 전' if late is None else f'{late}분 늦음'}) — 보내지 않음")
+                  f"({'정시 전 · 다른 요일' if late is None else f'{late}분 늦음'}) — 보내지 않음")
+            if late is not None:                       # 같은 날인데 마커가 없다 = 오늘 정시 발송이 안 됐다(꺼진 슬롯 · 휴장일 일 수도)
+                print(f"::warning::브리핑 {slot} 오늘 정시 발송 마커 없음 — {late}분 늦은 예비 실행은 보내지 않음")
             return 0
     ctx = Context.load(now=now)
     briefing.roll_calendar(ctx.data, now.astimezone(KST).date())   # 휴장 판정(kr_closed)이 보는 달력을 오늘로
