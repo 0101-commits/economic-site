@@ -130,9 +130,15 @@ def main():
         return 0
     subs = [s for s in (doc.get("subs") or []) if isinstance(s, dict) and s.get("endpoint")]
     if in_quiet(doc.get("quiet")):
-        print(f"[push] 조용한 시간({doc['quiet'].get('from')}~{doc['quiet'].get('to')}) — 알림 {len(items)}건 보내지 않음")
-        clear_queue()
-        return 0
+        # 경보만 통과 — 조용한 시간엔 편성(schedule)이 quietAlarm 켜진 경보만 푸시로 내보낸다(나머지는 보류).
+        # 디스코드 @everyone 이 밤 경보를 울리던 시절엔 여기서 다 버려도 됐지만, 지금은 푸시가 유일한 울림이다(2026-10-13).
+        loud = [i for i in items if i.get("pierceQuiet")]
+        print(f"[push] 조용한 시간({doc['quiet'].get('from')}~{doc['quiet'].get('to')}) — 알림 {len(items) - len(loud)}건 보내지 않음"
+              + (f" · 경보 {len(loud)}건은 보냄" if loud else ""))
+        if not loud:
+            clear_queue()
+            return 0
+        items = loud
     if not subs:
         print(f"[push] 구독한 기기 없음 — 알림 {len(items)}건 버림")
         clear_queue()

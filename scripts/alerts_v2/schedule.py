@@ -143,7 +143,7 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
                 continue                               # 울림 밖 알림(관심 아님 · 세기 미달 · 울림 끔) = 원장 · 받은 알림에만
             if ev and in_cooldown(row, ev, history):
                 continue
-            out.append(Send(row=row, level=level, push=push_on, kakao=False, held=quiet))   # 웹앱은 안내도 울린다(2026-10-13)
+            out.append(Send(row=row, level=level, push=True, kakao=False, held=quiet))   # 웹앱은 안내도 울린다(2026-10-13)
             continue
         if ev and in_cooldown(row, ev, history, rung_only=True):
             continue                                   # 같은 사건 반복 — 원장엔 남고 발송 없음
@@ -153,8 +153,8 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
         if level == "alert" and rung >= cap:
             bundle.append(row)
             continue
-        push = push_on
         kakao = kakao_on and kakao_n < s["kakaoBundleAt"]
+        push = push_on or not kakao                    # 카톡 자리가 없으면 푸시로 — 어느 채널로도 안 나가는 통이 없게
         if kakao_on and s["kakaoBundleAt"] <= kakao_n < s["kakaoQuota"] and level != "alarm":
             bundle.append(row)
             continue
@@ -179,7 +179,7 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
             "ts": now.isoformat(timespec="seconds"),
         }
         kakao_b = kakao_on and kakao_n < s["kakaoQuota"]
-        out.append(Send(row=brow, level="alert", push=push_on, kakao=kakao_b,
+        out.append(Send(row=brow, level="alert", push=push_on or not kakao_b, kakao=kakao_b,
                         bundled=True, bundle=bundle, kind="bundle"))
         for r in bundle:
             ledger.update_sent(r["key"], bundled=True)

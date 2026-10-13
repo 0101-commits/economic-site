@@ -53,7 +53,8 @@ def push_item(s: Send) -> dict:
     r = s.row
     return {"id": r["key"], "title": r["title"], "body": r.get("why", "") + ("\n" + r["next"] if r.get("next") else ""),
             "url": abs_url(r.get("url", "#/alerts")), "ts": r.get("ts"),
-            "level": s.level, "requireInteraction": s.level == "alarm"}
+            "level": s.level, "requireInteraction": s.level == "alarm",
+            "pierceQuiet": s.level == "alarm"}   # 조용한 시간에 나간 경보 = 「경보는 조용한 시간에도 울리기」(편성이 이미 골랐다)
 
 
 # ---------- 카톡 ----------
