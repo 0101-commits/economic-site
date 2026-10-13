@@ -130,7 +130,9 @@ test('chartBasis: 정규장 중이면 체결 시각, 아니면 마지막 봉 날
   const c = parseSeries(j)!
   assert.deepEqual(c.session, { start: Date.parse('2026-10-09T13:30:00Z'), end: Date.parse('2026-10-09T20:00:00Z') })
   assert.deepEqual(chartBasis(c, Date.parse('2026-10-12T01:00:00Z')), { asOf: '2026-10-09', state: 'prev' })   // 한국 월요일 오전: 「전일 10/9」(종전 「지연 05:00」 · 「전일 10/10」)
-  assert.deepEqual(chartBasis(c, Date.parse('2026-10-09T18:00:00Z')), { asOf: '2026-10-09T20:00:00.000Z' })    // 장 중: 체결 시각 — 배지가 실시간 · 지연을 잰다
+  assert.deepEqual(chartBasis(c, Date.parse('2026-10-09T18:00:00Z')),                                        // 장 중: 체결 시각 + 15분 실시간 기한(지나면 「HH:MM 기준」)
+    { asOf: '2026-10-09T20:00:00.000Z', state: 'live', liveUntil: '2026-10-09T20:15:00.000Z' })
+  assert.deepEqual(chartBasis({ ...c, asOf: undefined }, Date.parse('2026-10-09T18:00:00Z')), { asOf: undefined })   // 체결 시각 없음 = 배지 없음
   assert.deepEqual(chartBasis({ ...c, session: undefined }), { asOf: '2026-10-09', state: 'prev' })            // 장 시간을 모르면 장 밖
 })
 
