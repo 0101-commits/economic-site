@@ -17,6 +17,7 @@ import datetime as dt
 import re
 
 from . import cards, compose, deliver                 # deliver 가 scripts/ 를 sys.path 에 올린다 — 아래 두 줄보다 먼저
+from .context import KST
 from .ledger import Ledger
 from .model import DEFAULT_SETTINGS
 
@@ -34,12 +35,25 @@ SLOT_AT = {
     "morning": (7, 30, WEEKDAYS), "noon": (12, 0, WEEKDAYS), "close": (16, 30, WEEKDAYS),
     "evening": (18, 30, WEEKDAYS), "us": (22, 40, WEEKDAYS), "weekly": (9, 0, (5,)),
 }
+LATE_MAX_MIN = 120                                   # 자동 깨움이 정시보다 이만큼 넘게 늦으면 보내지 않는다(late_min)
 PUSH_SLOTS = ("morning", "close")                    # 폰 푸시는 아침 · 마감만
 KR_SLOTS = ("noon", "close", "evening")              # 한국 휴장일엔 보내지 않는다(편성표 「안 나가는 것」)
 ITEMS_MAX = 5                                        # 카톡 피드 행 상한(KAKAO_FEED_ROWS)
 CHANGED_MAX = 4                                      # 「오늘 바뀐 것」 줄 상한
 HELD_LOOKBACK = 3                                    # 금요일 밤 보류분이 월요일 아침에 합류하도록 지난 3일 원장까지
 WD = "월화수목금토일"
+
+
+def late_min(slot: str, now: dt.datetime) -> int | None:
+    """오늘(KST) 이 슬롯 정시에서 몇 분 지났나. 오늘이 그 슬롯 요일이 아니거나 아직 정시 전이면 None(5분 일찍은 정시로 본다).
+    GHA schedule 은 몇 시간씩 늦게 깬다 — 10/12 16:30 마감 예약이 10/13 01:53 에 돌아 「10/13 마감」으로 새벽에 다시 나가고,
+    그 날짜의 중복 방지 표시가 정작 10/13 마감을 막았다(10/7 부터 저녁 · 미국 개장도 같은 꼴, 2026-10-13 점검)."""
+    h, m, days = SLOT_AT[slot]
+    k = now.astimezone(KST)
+    due = k.replace(hour=h, minute=m, second=0, microsecond=0)
+    if k.weekday() not in days or k < due - dt.timedelta(minutes=5):
+        return None
+    return max(0, int((k - due).total_seconds() // 60))
 
 
 def enabled(slot: str, settings: dict | None) -> bool:

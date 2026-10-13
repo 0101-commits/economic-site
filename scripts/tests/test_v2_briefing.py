@@ -197,6 +197,31 @@ def test_off_slot_sends_nothing(real_ctx, tmp_path, monkeypatch):
     assert calls == []
 
 
+def test_late_auto_wake_sends_nothing(monkeypatch):
+    """GHA schedule 이 9시간 늦게 깬 어제 마감(10/13 01:53)은 「10/13 마감」으로 보내지 않는다 — 오늘 몫 표시가 진짜 마감을 막았다."""
+    at = lambda s: dt.datetime.fromisoformat(s).replace(tzinfo=KST)   # noqa: E731
+    assert briefing.late_min("close", at("2026-10-13T01:53")) is None       # 오늘 정시 전 = 어제 몫
+    assert briefing.late_min("us", at("2026-10-14T00:10")) is None          # 자정 넘은 미국 개장 = 어제 몫
+    assert briefing.late_min("close", at("2026-10-13T16:31")) == 1
+    assert briefing.late_min("close", at("2026-10-13T16:25")) == 0          # 5분 일찍은 정시
+    assert briefing.late_min("close", at("2026-10-13T16:24")) is None       # 6분 일찍은 아님
+    assert briefing.late_min("close", at("2026-10-13T18:30")) == briefing.LATE_MAX_MIN
+    assert briefing.late_min("weekly", at("2026-10-10T09:05")) == 5         # 토요일
+    assert briefing.late_min("weekly", at("2026-10-12T09:05")) is None      # 월요일엔 주간 없음
+    from alerts_v2 import run
+    monkeypatch.setattr(run, "Context", None)                                # 막는 자리를 지나면 AttributeError
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "schedule")
+    assert run._brief("close", at("2026-10-13T01:53"), dry_run=True) == 0
+    assert run._brief("close", at("2026-10-13T18:31"), dry_run=True) == 0    # 121분 늦음
+    for ev, t in (("schedule", "2026-10-13T18:30"), ("repository_dispatch", "2026-10-13T16:31"), (None, "2026-10-13T01:53")):
+        if ev:                                                               # 120분까지 · Worker 정시 깨움 · 수동 · 로컬은 보낸다
+            monkeypatch.setenv("GITHUB_EVENT_NAME", ev)
+        else:
+            monkeypatch.delenv("GITHUB_EVENT_NAME")
+        with pytest.raises(AttributeError):
+            run._brief("close", at(t), dry_run=True)
+
+
 def test_workflow_runs_tests_before_briefing():
     from test_workflows_have_pytest import WORKFLOWS_DIR, problems
     with open(os.path.join(WORKFLOWS_DIR, "briefing.yml"), encoding="utf-8") as f:

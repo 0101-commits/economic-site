@@ -26,6 +26,7 @@ UNREAD = [
     # 수집 꼬리표(수집 시각 · 출처 글) — 묶음은 기준 시각 · 상태를 따로 만들어 싣는다(계산한 새 값이라 실린 것으로 안 친다)
     "aiBriefing.date", "aiBriefing.generatedAt", "corpEvents.source", "economicCalendar.lastFetched", "economicCalendar.source",
     "freight.lastFetched", "freight.source", "investorTrading.lastFetched", "investorTrading.recentSource",
+    "investorTrading.portalFetchedAt",
     "lmeInventory.lastFetched", "lmeInventory.source", "marketBreadth.source", "marketCalendarKr.generatedAt",
     "nps.lastFetched", "rankingsKr.source", "sectorMoves.source", "stockFlows.source", "subscription.lastFetched",
     # 묶음이 판정에만 쓰고 값을 옮기지 않는 칸 — 휴장 판정(오늘 · 다음 영업일), 교차검증 결과, 기업코드 표, 엘니뇨 영향 문장
