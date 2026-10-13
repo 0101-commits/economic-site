@@ -404,6 +404,9 @@ def _post(url, payload, png, filename, extra_headers=None):
         return None
 
 
+SUPPRESS_NOTIFICATIONS = 1 << 12            # 4096 — 알림음·푸시 없이 올라간다(디스코드 공식 플래그)
+
+
 def send(text, png=None, filename="chart.png", title=None, url=None,
          color=None, fields=None, footer=None, timestamp=False, mention=False,
          env=WEBHOOK_ENV, thread_name=None, buttons=None, select=None, flags=None):
@@ -418,10 +421,14 @@ def send(text, png=None, filename="chart.png", title=None, url=None,
     (with_components=true). 대화형(custom_id)이 섞이면 봇 메시지로, 봇 실패 시 링크 버튼만 웹훅으로.
     select(v4): [(라벨, NAVER_LINKS 키)] — 지표 딥링크 드롭다운 1행(버튼 다이어트,
     기획 ed0e5496). 버튼과 같은 규칙: 봇 경로만, 폴백 시 링크 필드로 강등.
-    flags(v2): 메시지 플래그 비트필드 — SUPPRESS_NOTIFICATIONS(4096)면 알림음 없이 올라간다. None=종전."""
+    flags(v2): 메시지 플래그 비트필드 — SUPPRESS_NOTIFICATIONS(4096)면 알림음 없이 올라간다. None=종전.
+    #시스템(env=DISCORD_WEBHOOK_SYSTEM)은 늘 무음 · 멘션 없음 — 폰 알림 경로 고정(2026-10-13): 운영 경고는
+    기록만 하고 폰을 울리지 않는다(경제 알림은 웹앱 푸시 + 카톡)."""
     hook = _hook(env)
     if not hook:
         return False
+    if env == "DISCORD_WEBHOOK_SYSTEM":
+        flags, mention = (flags or 0) | SUPPRESS_NOTIFICATIONS, False
     tid = None
     if thread_name:                                   # D10 — 일자 스레드로 묶기(실패 시 본문)
         tid = _thread_id(hook, thread_name)
@@ -550,37 +557,3 @@ def system(text, title="⚙️ 파이프라인 경고", color=None, mention=Fals
     except Exception:
         return False
 
-
-# ── 등급별 발송(알림 v2 A5, 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md 「등급 level」) ──
-# 등급 → (웹훅 env, 멘션, 플래그, 색띠). 채널·멘션·무음은 여기 한 표가 단일 원천이다.
-SUPPRESS_NOTIFICATIONS = 1 << 12            # 4096 — 알림음·푸시 없이 올라간다(디스코드 공식 플래그)
-LEVEL_BODY_MAX = 1500                       # 한 통 embed 글자 합(계약서 Global Constraints)
-LEVELS = {
-    "alarm":  ("DISCORD_WEBHOOK_SWINGS", "everyone", None, COLOR_FIRE),
-    "alert":  ("DISCORD_WEBHOOK_ALERTS", None, None, COLOR_ALERT),
-    # 안내 · 브리핑도 울린다(2026-10-07) — 무음 플래그를 달았더니 하루 10통 중 1통만 소리가 나 「안 온다」가 됐다.
-    "notice": ("DISCORD_WEBHOOK_ALERTS", None, None, COLOR_DIGEST),
-    "brief":  (WEBHOOK_ENV, None, None, COLOR_DIGEST),
-    "ops":    ("DISCORD_WEBHOOK_SYSTEM", None, None, COLOR_SYSTEM),
-}
-
-
-def send_level(level, title, body, *, fields=None, url=None, buttons=None, png=None,
-               footer=None, mention=None, silent=False):
-    """등급 → 채널·멘션·플래그를 정해 send() 로 보낸다. 성공 True / 미설정·실패·기록 False.
-
-    alarm=#급변-속보+@everyone · alert=#종목-알림 · notice=#종목-알림 · brief=#시황-다이제스트 ·
-    ops=#시스템. record 는 화면(원장)에만 남기고 보내지 않는다(False). 모르는 등급은 ValueError —
-    이름이 어긋난 경보가 조용히 사라지는 것보다 낫다.
-    제목은 호출측이 정한 그대로(두 채널 제목 동일 원칙은 compose 가 보장). 본문은 제목·필드·꼬리를 뺀
-    남은 글자 안으로 fit() 한다 — embed 합계 LEVEL_BODY_MAX. mention 을 주면 등급 표를 덮는다
-    (침묵 감시만 ops 에 "everyone"). 웹훅 env 폴백(→ DISCORD_WEBHOOK_URL)·미설정 no-op 은 send() 규칙 그대로."""
-    if level == "record":
-        return False
-    if level not in LEVELS:
-        raise ValueError(f"모르는 등급: {level!r} (알림 {sorted(LEVELS)} · 기록 record)")
-    env, lv_mention, flags, color = LEVELS[level]
-    used = len(title or "") + len(footer or "") + sum(len(n) + len(v) for n, v, _ in fields or [])
-    return send(fit(body, max(0, LEVEL_BODY_MAX - used)), png=png, title=title, url=url, color=color,
-                fields=fields, footer=footer, mention=lv_mention if mention is None else mention,
-                env=env, buttons=buttons, flags=SUPPRESS_NOTIFICATIONS if silent else flags)

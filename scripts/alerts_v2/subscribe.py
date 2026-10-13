@@ -140,7 +140,7 @@ def mark_sent(sides: dict | None, prefs: dict | None, rows: list[dict], ledger, 
     once = {a.get("id") for a in (prefs or {}).get("alerts") or [] if a.get("repeat") == "once"}
     for r in rows:
         sent = (ledger.get(r["key"]) or {}).get("sent") or {}
-        if not any(sent.get(k) for k in ("push", "kakao", "discord", "memo")):
+        if not any(sent.get(k) for k in ("push", "kakao", "discord", "memo", "held")):   # 보류도 나간 것(아침 합류)
             continue
         rec = sides.get(r["cond"])
         rec = dict(rec) if isinstance(rec, dict) else {}

@@ -1,12 +1,13 @@
-"""발송 — Send 하나를 푸시 · 카톡 · 디스코드로 보내고 원장 행 `sent` 를 갱신한다(기획서 8장 ⑤).
+"""발송 — Send 하나를 푸시 · 카톡으로 보내고 원장 행 `sent` 를 갱신한다(기획서 8장 ⑤).
 
+폰 알림 경로 고정(2026-10-13 사용자 지시): 경제 알림 = 웹앱 푸시(울림) + 카톡. **디스코드에는 보내지 않는다**
+(운영 경고 #시스템만 notify_discord.system 으로 무음).
 푸시: scripts/push_queue.json 에 덧붙임(같은 잡의 send_push.py 가 보내고 지운다 — 현행 경로).
 카톡: send_kakao_digest.send_card 단일 진입점. 친구 모드면 편성(schedule)이 고른 것만 친구에게(울림), 아니면
-      (KAKAO_FRIENDS=0 · 친구 0명) **메모(나에게 보내기)로 디스코드에 가는 것을 전부 따라 보낸다** — 카카오 정책상
-      소리는 안 나지만 「나와의 채팅」에 쌓인다(2026-10-07 사용자 결정: v2 가 카톡을 통째로 끄자 「안 온다」가 됐다).
+      (KAKAO_FRIENDS=0 · 친구 0명) **메모(나에게 보내기)로 전부 보낸다** — 조용한 시간 보류분까지. 카카오 정책상
+      소리는 안 나고 「나와의 채팅」에 쌓인다(울림은 푸시가 맡는다).
       카드 PNG 는 cards.event_card_png(물결 B3) — 없으면 send_card 가 텍스트로 내려가며 경고를 남긴다.
-디스코드: notify_discord.send_level(등급 → 채널 · 멘션).
-세 채널은 서로 독립 — 하나가 실패해도 나머지는 보내고, 결과는 각각 sent 에 적는다.
+두 채널은 서로 독립 — 하나가 실패해도 나머지는 보내고, 결과는 각각 sent 에 적는다.
 """
 from __future__ import annotations
 
@@ -52,7 +53,8 @@ def push_item(s: Send) -> dict:
     r = s.row
     return {"id": r["key"], "title": r["title"], "body": r.get("why", "") + ("\n" + r["next"] if r.get("next") else ""),
             "url": abs_url(r.get("url", "#/alerts")), "ts": r.get("ts"),
-            "level": s.level, "requireInteraction": s.level == "alarm"}
+            "level": s.level, "requireInteraction": s.level == "alarm",
+            "pierceQuiet": s.level == "alarm"}   # 조용한 시간에 나간 경보 = 「경보는 조용한 시간에도 울리기」(편성이 이미 골랐다)
 
 
 # ---------- 카톡 ----------
@@ -79,7 +81,7 @@ def _kakao_session(log=print) -> dict | None:
     if uuids is None:
         if kakao._friends_enabled():                         # 켜 놓고 친구 0명(200 + 빈 목록)은 get_friends 가 경고를 안 낸다
             print("::warning title=카톡 친구 0명::KAKAO_FRIENDS=1 인데 받을 친구가 없어 메모(소리 없음)로 보냄 — docs/KAKAO_SETUP.md ⑤")
-        log("[v2] 카톡 메모 모드(나에게 보내기 · 소리 없음) — 디스코드로 가는 것을 따라 보냄")
+        log("[v2] 카톡 메모 모드(나에게 보내기 · 소리 없음) — 알림을 전부 메모로 남김")
     _KAKAO_SESSION = {"token": token, "uuids": uuids, "kakao": kakao}
     return _KAKAO_SESSION
 
@@ -91,7 +93,7 @@ def kakao_rings(log=print) -> bool:
 
 
 def memo_mode(log=print) -> bool:
-    """친구 모드가 아니라 메모로 보내는 중인가 — 그렇다면 디스코드로 가는 것을 카톡도 따라간다."""
+    """친구 모드가 아니라 메모로 보내는 중인가 — 그렇다면 편성과 무관하게 모든 알림을 메모로 남긴다."""
     ses = _kakao_session(log)
     return bool(ses) and not ses["uuids"]
 
@@ -172,60 +174,31 @@ def send_kakao(s: Send, ctx, log=print) -> bool:
         return False
 
 
-# ---------- 디스코드 ----------
-def send_discord(s: Send, log=print, ctx=None, silent: bool = False) -> bool:
-    """디스코드 한 통 = 제목 · 설명(왜 · 다음) · 칸 · 꼬리(신선도 · 사전 번호) · 버튼 2(기획서 4장).
-    값은 제목이 이미 말하므로 칸에 다시 적지 않는다(「숫자는 한 통에 한 번」)."""
-    r = s.row
-    try:
-        import notify_discord
-    except ImportError:
-        return False
-    fields = [("등급", LEVEL_KO.get(s.level, s.level), True)]
-    if isinstance(r.get("z"), (int, float)):
-        fields.append(("세기", f"{abs(r['z']):.1f}σ", True))
-    if r.get("fresh") not in ("live", None, "") and r.get("asOf"):
-        fields.append(("기준", str(r["asOf"])[:10], True))
-    body = "\n".join(x for x in (r.get("why"), r.get("next")) if x)
-    if s.kind == "bundle":
-        body = "\n".join(f"· {b.get('title')}" for b in s.bundle[:6]) + (f"\n+{len(s.bundle) - 6}" if len(s.bundle) > 6 else "")
-    url = abs_url(r.get("url", "#/alerts"))
-    buttons = ([(screen_label(r, ctx), url)] if s.kind != "bundle" and screen_label(r, ctx) != "받은 알림" else []) \
-        + [("받은 알림", abs_url("#/alerts"))]
-    try:
-        return bool(notify_discord.send_level(s.level, r["title"], body, fields=fields, url=url, buttons=buttons,
-                                              footer=f"알림 사전 {r.get('event')} · {r.get('key')}", silent=silent))
-    except Exception as e:                                   # noqa: BLE001
-        log(f"[v2] 디스코드 발송 예외: {type(e).__name__}")
-        return False
-
-
 # ---------- 한 통 ----------
 def send(s: Send, ledger, ctx, log=print, queue_path: str = PUSH_QUEUE_PATH) -> dict:
-    """세 채널 독립 발송 → 원장 sent 갱신. 돌려주는 값 = {push, kakao, discord, memo}.
-    디스코드(울리는 채널)가 먼저, 카톡(느릴 수 있는 채널)은 마지막. 메모로 나간 것은 kakao 가 아니라 memo 로 적는다 —
+    """두 채널 독립 발송 → 원장 sent 갱신. 돌려주는 값 = {push, kakao, memo}.
+    푸시(울리는 채널)가 먼저, 카톡(느릴 수 있는 채널)은 마지막. 메모로 나간 것은 kakao 가 아니라 memo 로 적는다 —
     하루 상한 · 카톡 쿼터(schedule._ring_count_today · _kakao_count_today)와 앱 「오늘 N/20통」은 kakao 만 센다."""
-    res = {"push": 0, "kakao": False, "discord": False, "memo": False}
+    res = {"push": 0, "kakao": False, "memo": False}
+    memo = memo_mode(log)
     if s.held:
-        res["discord"] = send_discord(s, log, ctx, silent=True)        # 조용한 시간 — 보관은 하되 깨우지 않는다
-        ledger.update_sent(s.row["key"], held=True, discord=res["discord"])
-        log(f"[v2 send] {s} → 보류(조용한 시간 · 디스코드만, 카톡 · 푸시는 아침 브리핑 합류) · discord {res['discord']}")
+        if memo:                                                         # 조용한 시간 — 무음 메모로만 남긴다
+            res["memo"] = send_kakao(s, ctx, log)
+        ledger.update_sent(s.row["key"], held=True, memo=res["memo"])
+        log(f"[v2 send] {s} → 보류(조용한 시간 · 푸시는 아침 브리핑 합류) · memo {res['memo']}")
         return res
     if s.push:
         res["push"] = 1 if enqueue_push([push_item(s)], queue_path) else 0
-    if s.discord:
-        res["discord"] = send_discord(s, log, ctx)
-    if s.kakao or (s.discord and memo_mode(log)):
-        res["memo" if memo_mode(log) else "kakao"] = send_kakao(s, ctx, log)
+    if s.kakao or memo:
+        res["memo" if memo else "kakao"] = send_kakao(s, ctx, log)
     if s.kind == "bundle":
         for b in s.bundle:
-            ledger.update_sent(b["key"], bundled=True, push=res["push"], kakao=res["kakao"], discord=res["discord"],
-                               memo=res["memo"])
+            ledger.update_sent(b["key"], bundled=True, **res)
         if ledger.get(s.row["key"]) is None:
             ledger.append(dict(s.row, sent={**res, "bundled": False, "held": False}))
     else:
         ledger.update_sent(s.row["key"], **res)
-    log(f"[v2 send] {s} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']} · discord {res['discord']}")
+    log(f"[v2 send] {s} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']}")
     return res
 
 

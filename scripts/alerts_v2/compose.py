@@ -17,7 +17,6 @@ TITLE_MAX = 30
 BRIEF_TITLE_MAX = 48
 LINE_MAX = 40
 PUSH_BODY_MAX = 80
-DISCORD_MAX = 1500
 MINUS = "−"
 _REL_WORDS = ("내일", "모레", "다음 주", "다음주", "이번 주", "연휴", "오늘 밤", "어제")
 
@@ -216,6 +215,5 @@ def render(ev: dict, hit, ctx=None, today: dt.date | None = None) -> dict:
     return {
         "title": title, "why": why, "next": nxt, "url": url, "level": level,
         "body_push": body_push,
-        "body_discord": cut("\n".join(x for x in (why, nxt) if x), DISCORD_MAX),
         "name": data["name"], "value": data["value"],
     }

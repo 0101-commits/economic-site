@@ -155,7 +155,7 @@ jobs:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
         run: python scripts/alerts_v2/run.py --mode brief --slot "$SLOT"
 
-      # 웹 푸시 — run.py 가 쌓은 scripts/push_queue.json 을 보낸다(아침 · 마감만 쌓는다).
+      # 웹 푸시 — run.py 가 쌓은 scripts/push_queue.json 을 보낸다(켜진 슬롯 전부, 2026-10-13 — 종전 아침 · 마감만).
       - name: Send web push
         if: always() && steps.gate.outputs.proceed == 'true' && steps.marker.outputs.cache-hit != 'true'
         continue-on-error: true

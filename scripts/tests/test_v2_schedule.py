@@ -48,11 +48,12 @@ def test_daily_cap_bundles_overflow(tmp_path):
     assert all(led.get(r["key"])["sent"]["bundled"] for r in b.bundle)
 
 
-def test_notice_is_discord_only_and_record_dropped(tmp_path):
+def test_notice_pushes_and_record_dropped(tmp_path):
+    """안내도 웹앱이 울린다(2026-10-13 폰 알림 경로 고정) — 카톡 친구 모드 몫은 없고, 디스코드는 없다."""
     led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
     decs = [Decision(_row(1, level="notice", event="B2"), "notice", True), Decision(_row(2, level="record", event="H2"), "record", True)]
     sends = schedule.plan(decs, led, _ctx(15), events_by_id=EV)
-    assert len(sends) == 1 and sends[0].discord and not sends[0].push and not sends[0].kakao
+    assert len(sends) == 1 and sends[0].push and not sends[0].kakao and sends[0].level == "notice"
 
 
 def test_cooldown_same_target_dir_within_day_skipped(tmp_path):
@@ -72,7 +73,7 @@ def test_kakao_quota_bundles_at_18_and_stops_at_20(tmp_path):
     decs = [Decision(_row(50), "alert", True), Decision(_row(51, level="alarm"), "alarm", True)]
     sends = schedule.plan(decs, led, _ctx(15), settings={"ringChannel": "kakao", "dailyCap": 12}, events_by_id=EV)
     assert any(s.kind == "bundle" and s.kakao for s in sends)          # 18 → 알림은 묶음으로
-    assert any(s.level == "alarm" and s.kakao is False and s.discord for s in sends)  # 경보는 즉시, 카톡 자리 없음
+    assert any(s.level == "alarm" and s.kakao is False for s in sends)  # 경보는 즉시, 카톡 자리 없음
     for i in range(18, 20):
         r = _row(i, level="notice"); r["sent"]["kakao"] = True; led.append(r)
     sends = schedule.plan([Decision(_row(60), "alert", True)], led, _ctx(15), settings={"ringChannel": "kakao"}, events_by_id=EV)

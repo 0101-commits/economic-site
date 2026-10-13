@@ -165,6 +165,18 @@ def test_main_quiet_hours_do_not_send_but_clear_queue(push_main):
     check("조용한 시간에도 큐 비움", os.path.exists(sp.QUEUE), False)
 
 
+def test_main_quiet_hours_let_alarm_through(push_main):
+    """「경보는 조용한 시간에도 울리기」— 편성이 내보낸 경보(pierceQuiet)만 보내고 나머지는 버린다.
+    디스코드 @everyone 이 밤 경보를 울리던 길이 없어져 푸시가 유일한 울림이다(2026-10-13)."""
+    for k, v in ENV.items():
+        push_main.monkeypatch.setenv(k, v)
+    push_main.doc["quiet"] = {"from": "00:00", "to": "23:59"}
+    push_main.write_queue([{"id": "a", "title": "알림"}, {"id": "b", "title": "경보", "pierceQuiet": True}])
+    check("조용한 시간 경보 → 0", sp.main(), 0)
+    check("경보만 보냄", sorted({json.loads(c["data"])["id"] for c in push_main.calls}), ["b"])
+    check("보낸 뒤 큐 비움", os.path.exists(sp.QUEUE), False)
+
+
 def test_main_subscription_list_401_sends_nothing(push_main):
     for k, v in ENV.items():
         push_main.monkeypatch.setenv(k, v)

@@ -35,13 +35,12 @@ class Send:
     level: str
     push: bool = False
     kakao: bool = False
-    discord: bool = True
     held: bool = False              # 조용한 시간 보류(아침 카드에 합류)
     bundled: bool = False           # 상한 초과 묶음에 들어감
     bundle: list = field(default_factory=list)   # 묶음 통이면 안의 행들
     kind: str = "event"             # event | bundle
 
     def __str__(self) -> str:
-        ch = "+".join(k for k, v in (("push", self.push), ("kakao", self.kakao), ("discord", self.discord)) if v)
+        ch = "+".join(k for k, v in (("push", self.push), ("kakao", self.kakao)) if v)
         tag = " 보류" if self.held else (" 묶음" if self.bundled else "")
         return f"[{self.level}] {self.row.get('title')} → {ch or '없음'}{tag}"

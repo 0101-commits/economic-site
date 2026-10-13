@@ -53,7 +53,7 @@ def test_notice_off_cooldown_quiet_merge(tmp_path):
     again = Decision(_row("B2", "notice"), "notice", False, "안내")
     assert schedule.plan([again], led, _ctx(), events_by_id=EV, history=[prev]) == []   # 마디 하루 1(방향 무관)
     night = schedule.plan([again], led, _ctx(3), events_by_id=EV, settings={"quiet": {"from": "23:00", "to": "07:00"}})
-    assert len(night) == 1 and night[0].held and night[0].discord                   # 조용한 시간 = 보류(아침 합류)
+    assert len(night) == 1 and night[0].held                                        # 조용한 시간 = 보류(아침 합류)
     merged = Decision(_row("G3", "notice", target="posts"), "notice", False, "안내")
     assert schedule.plan([merged], led, _ctx(), events_by_id=EV) == []               # 오늘 16:30 마감 브리핑에 합침
     assert len(schedule.plan([merged], led, _ctx(17), events_by_id=EV)) == 1         # 마감 뒤면 낱개로(안 그러면 어디에도 안 나감)
@@ -82,6 +82,34 @@ def test_ring_channel_kakao_falls_back_to_push_without_kakao_ring(tmp_path):
     assert s and s[0].kakao and not s[0].push
 
 
+def test_every_unheld_send_has_a_channel(tmp_path):
+    """친구 모드 · 울림 채널 카톡에서 카톡 자리가 없으면(쿼터 · 안내) 푸시로 — 디스코드가 받아 주던 것이 없어졌다(2026-10-13)."""
+    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
+    for i in range(20):
+        r = _row("A1", "alert", target=f"t{i}", key=f"A1:t{i}:up:2026-10-02"); r["sent"]["kakao"] = True; led.append(r)
+    decs = [Decision(_row("A1", "alarm", target="x"), "alarm", True), Decision(_row("B2", "notice", target="sox"), "notice", False, "안내")]
+    sends = schedule.plan(decs, led, _ctx(), settings={"ringChannel": "kakao"}, events_by_id=EV, kakao_rings=True)
+    assert sends and all(s.push or s.kakao for s in sends if not s.held), sends
+
+
+def test_mark_sent_counts_held_rows():
+    """조용한 시간 보류도 나간 것(아침 합류) — 디스코드가 없어 보류 행이 전부 거짓이면 「한 번」 조건이 다시 울렸다."""
+    sides = {}
+    led = SimpleNamespace(get=lambda k: {"sent": {"held": True}})
+    subscribe.mark_sent(sides, {"alerts": [{"id": "c1", "repeat": "once"}]}, [{"key": "U1:x", "cond": "c1"}], led,
+                        dt.datetime(2026, 10, 2, 3, 0, tzinfo=KST))
+    assert sides["c1"]["fired"] is True and sides["c1"]["ts"]
+
+
+def test_notice_cooldown_with_new_shape_row(tmp_path):
+    """2026-10-13 뒤 행엔 discord 가 없다 — 푸시 · 메모로 나간 안내도 쿨다운을 건다."""
+    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
+    prev = _row("B2", "notice", dir_="down", ts="2026-10-02T10:00:00+09:00", key="B2:kospi:down:2026-10-02")
+    prev["sent"].update(push=1, memo=True)
+    again = Decision(_row("B2", "notice"), "notice", False, "안내")
+    assert schedule.plan([again], led, _ctx(), events_by_id=EV, history=[prev]) == []
+
+
 def test_user_ring_off_and_circuit_always_on():
     prefs = {"alerts": [{"id": "c1", "event": "U1", "target": "usdkrw", "ring": False}],
              "settings": {"families": {"A": False}}}
@@ -106,22 +134,6 @@ def test_ledger_merge_keeps_both_runs_rows(tmp_path):
     rows = {r["key"]: r for r in json.loads((remote / "2026-10-02.json").read_text(encoding="utf-8"))}
     assert set(rows) == {a["key"], b["key"]} and rows[a["key"]]["sent"]["push"] == 1     # 다른 런 행도 남고 발송 기록은 합침
     assert (remote / "latest.json").exists()
-
-
-def test_held_discord_is_silent(monkeypatch, tmp_path):
-    calls = []
-
-    class _D:
-        @staticmethod
-        def send_level(level, title, body, **kw):
-            calls.append(kw)
-            return True
-    monkeypatch.setitem(sys.modules, "notify_discord", _D)
-    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
-    row = _row("B2", "notice")
-    led.append(row)
-    deliver.send(Send(row=row, level="notice", discord=True, held=True), led, _ctx(3), log=lambda *a: None)
-    assert calls and calls[0].get("silent") is True                              # 조용한 시간 — 보관은 하되 깨우지 않는다
 
 
 def test_cooldown_per_fields_from_row_cd():
