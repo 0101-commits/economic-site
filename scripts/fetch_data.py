@@ -9973,6 +9973,60 @@ _LIGHT_COMMODITIES = (("WTI", "CL=F"), ("Gold", "GC=F"), ("Silver", "SI=F"), ("C
                       ("NatGas", "NG=F"), ("Wheat", "ZW=F"), ("Corn", "ZC=F"), ("Soybean", "ZS=F"))
 
 
+_TOSS_SRC = "토스증권 Open API"
+_KRX_RANK_KEYS = ("marketCap", "volume", "high52", "low52")   # rankingsKr 안의 KRX 목록 — 토스 칸과 따로 산다
+
+
+def _light_toss(data):
+    """경량 런도 PC · 서버 수집기의 토스 스냅샷(15분 주기)을 받는다 → 바꾼 칸 수. 종전엔 매시 풀 런만 읽어 장중
+    거래대금 · 체결 · 등락 · ETF · 종목 수급 목록이 최대 1시간 늦었다(2026-10-13 점검 「10:00 기준」이 10:50 에도).
+    규칙은 풀 런 그대로 — 등락 · ETF · 랭킹은 오늘 거래일 목록만, 종목 수급은 레코드 날짜가 있어 그대로. 직전 빌드가
+    읽은 스냅샷(diagnostics.toss.generatedAt)과 같으면 아무것도 안 한다. 이번 스냅샷에 없던 목록이 토스 출처로 남아 있으면
+    「이전 빌드 보존 ←」을 붙인다 — 묶음(build_bundles.toss_time)이 옛 목록에 새 스냅샷 시각을 찍지 않게."""
+    snap = _toss_snapshot() or {}
+    gen = snap.get("generatedAt")
+    if not gen or gen == ((data.get("diagnostics") or {}).get("toss") or {}).get("generatedAt"):
+        return 0
+    src = data.setdefault("sources", {})
+    today = _kr_session_date()
+    n = 0
+
+    def _put(blk, key, rows):
+        nonlocal n
+        lab = f"{blk}.{key}"
+        if rows:
+            data.setdefault(blk, {})[key] = rows
+            src[blk] = src[lab] = _TOSS_SRC
+            n += 1
+        elif str(src.get(lab, "")).startswith(_TOSS_SRC):
+            src[lab] = "이전 빌드 보존 ← " + src[lab]
+
+    tg, tl = _snapshot_kospi_movers(snap, today)
+    _put("stockMovers", "kospiGainers", tg if _is_valid_mover_list(tg, allow_extreme=True) else None)
+    _put("stockMovers", "kospiLosers", tl if _is_valid_mover_list(tl, allow_extreme=True) else None)
+    etf = snap.get("etfMovers") or {}
+    for key in ("etfGainers", "etfLosers"):
+        rows = etf.get(key)
+        _put("etfMovers", key, rows if rows and all(r.get("as_of") == today for r in rows) else None)
+    rk = {k: v for k, v in (snap.get("rankings") or {}).items() if v and all(r.get("as_of") == today for r in v)}
+    if rk:                                           # 풀 런처럼 토스 칸은 통째로 — 오늘 것이 아닌 토스 칸은 남기지 않는다
+        old = data.get("rankingsKr") or {}
+        data["rankingsKr"] = {**{k: old[k] for k in _KRX_RANK_KEYS if k in old}, **rk, "as_of": today, "source": _TOSS_SRC}
+        src["rankingsKr"] = "토스증권 Open API (거래대금·토스 체결 랭킹)"
+        n += 1
+    elif str(src.get("rankingsKr", "")).startswith(_TOSS_SRC):
+        src["rankingsKr"] = "이전 빌드 보존 ← " + src["rankingsKr"]
+    if snap.get("stockData"):
+        data["stockFlows"] = {"items": snap["stockData"], "generatedAt": gen, "source": "토스증권 Open API (PC 스냅샷)"}
+        src["stockFlows"] = "토스증권 Open API (종목별 수급, PC 스냅샷)"
+        n += 1
+    if n:
+        _guard_movers(data, today)
+        data.setdefault("diagnostics", {})["toss"] = toss_connection_status(src)
+        log(f"[light-toss] 스냅샷 {gen} — {n}칸 갱신")
+    return n
+
+
 def build_light_data():
     """직전 data.json 위에 라이브 시세만 갱신 → (data, 갱신 건수). prev 없으면 (None, 0).
 
@@ -10019,6 +10073,10 @@ def build_light_data():
         fxd["JPYKRW"]["rate"] = round(usdkrw / usdjpy, 4)
     for key, sym in _LIGHT_COMMODITIES:
         _apply(data.setdefault("commodities", {}).setdefault(key, {}), "price", sym)
+    try:
+        updated[0] += _light_toss(data)
+    except Exception as e:                           # 토스 목록이 실패해도 시세 갱신은 나간다
+        log(f"[light-toss] 오류(무시): {e!r}")
     if updated[0]:
         data["lastUpdated"] = datetime.now(KST).isoformat()
     return data, updated[0]
