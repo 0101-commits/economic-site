@@ -52,7 +52,45 @@ def test_stale_rankings_lose_toss_label(monkeypatch):
     snap = {"generatedAt": "2026-10-13T10:45:00+09:00", "rankings": {"tradingAmount": [{"code": "z", "as_of": "2026-10-12"}]}}
     monkeypatch.setattr(fd, "_toss_snap_cache", {"loaded": True, "data": snap})
     monkeypatch.setattr(fd, "_kr_session_date", lambda now=None: D)
-    data = {"rankingsKr": {"tradingAmount": [{"code": "x"}]}, "sources": {"rankingsKr": TOSS + " (거래대금·토스 체결 랭킹)"}}
+    data = {"rankingsKr": {"tradingAmount": [{"code": "x", "as_of": D}]}, "sources": {"rankingsKr": TOSS + " (거래대금·토스 체결 랭킹)"}}
     assert fd._light_toss(data) == 0
-    assert data["sources"]["rankingsKr"].startswith("이전 빌드 보존")       # 옛 랭킹에 새 스냅샷 시각을 찍지 않는다
-    assert data["rankingsKr"]["tradingAmount"] == [{"code": "x"}]
+    assert data["sources"]["rankingsKr"].startswith("이전 빌드 보존")       # 앞선 스냅샷의 오늘 랭킹은 남기되 새 시각은 안 찍는다
+    assert data["rankingsKr"]["tradingAmount"] == [{"code": "x", "as_of": D}]
+
+
+def test_block_label_needs_both_lists_and_old_snapshot_is_ignored(monkeypatch):
+    snap = {"generatedAt": "2026-10-13T11:00:00+09:00", "stockMovers": {"kospiGainers": _rows()}}
+    monkeypatch.setattr(fd, "_toss_snap_cache", {"loaded": True, "data": snap})
+    monkeypatch.setattr(fd, "_kr_session_date", lambda now=None: D)
+    kept = "이전 빌드 보존 ← pykrx (KRX 정보데이터시스템)"
+    data = {"diagnostics": {"toss": {"generatedAt": "2026-10-13T10:45:00+09:00"}},
+            "stockMovers": {"kospiLosers": _rows(sign=-1, as_of="2026-10-12")}, "sources": {"stockMovers": kept}}
+    assert fd._light_toss(data) == 1
+    assert data["sources"]["stockMovers"] == kept            # 하락이 보존이면 묶음 출처도 보존 — 판정표가 「정상」으로 안 본다
+    assert data["sources"]["stockMovers.kospiGainers"] == TOSS
+    data["diagnostics"]["toss"]["generatedAt"] = "2026-10-13T11:15:00+09:00"   # 다른 수집기가 먼저 올린 더 새 스냅샷
+    assert fd._light_toss(data) == 0
+
+
+def test_yesterday_toss_rankings_dropped(monkeypatch):
+    snap = {"generatedAt": "2026-10-14T00:05:00+09:00", "rankings": {}}
+    monkeypatch.setattr(fd, "_toss_snap_cache", {"loaded": True, "data": snap})
+    monkeypatch.setattr(fd, "_kr_session_date", lambda now=None: "2026-10-14")
+    data = {"rankingsKr": {"tradingAmount": [{"code": "x", "as_of": D}], "marketCap": {"as_of": D}}}
+    fd._light_toss(data)
+    assert data["rankingsKr"] == {"marketCap": {"as_of": D}}   # 풀 런처럼 어제 토스 순위는 싣지 않는다 · KRX 칸은 그대로
+
+
+def test_toss_only_light_run_keeps_quote_time(tmp_path, monkeypatch):
+    """야후 시세가 0건이면 lastUpdated 를 올리지 않는다 — 묶음이 그 시각으로 지수 · 환율을 「실시간」으로 잰다."""
+    import json
+    monkeypatch.chdir(tmp_path)
+    prev = {"lastUpdated": "2026-10-13T10:40:00+09:00", "diagnostics": {"toss": {"generatedAt": "2026-10-13T10:00:00+09:00"}}}
+    with open("data.json", "w", encoding="utf-8") as f:
+        json.dump(prev, f)
+    monkeypatch.setattr(fd, "fetch_yf", lambda sym: None)
+    monkeypatch.setattr(fd, "_toss_snap_cache", {"loaded": True, "data": {"generatedAt": "2026-10-13T10:45:00+09:00",
+                                                                          "stockData": [{"code": "005930"}]}})
+    monkeypatch.setattr(fd, "_kr_session_date", lambda now=None: D)
+    d, n = fd.build_light_data()
+    assert n == 1 and d["lastUpdated"] == prev["lastUpdated"] and d["stockFlows"]["generatedAt"].startswith("2026-10-13T10:45")
