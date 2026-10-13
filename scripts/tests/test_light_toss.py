@@ -76,9 +76,12 @@ def test_yesterday_toss_rankings_dropped(monkeypatch):
     snap = {"generatedAt": "2026-10-14T00:05:00+09:00", "rankings": {}}
     monkeypatch.setattr(fd, "_toss_snap_cache", {"loaded": True, "data": snap})
     monkeypatch.setattr(fd, "_kr_session_date", lambda now=None: "2026-10-14")
-    data = {"rankingsKr": {"tradingAmount": [{"code": "x", "as_of": D}], "marketCap": {"as_of": D}}}
+    data = {"rankingsKr": {"tradingAmount": [{"code": "x", "as_of": D}], "as_of": D, "source": TOSS, "marketCap": {"as_of": D}}}
     fd._light_toss(data)
-    assert data["rankingsKr"] == {"marketCap": {"as_of": D}}   # 풀 런처럼 어제 토스 순위는 싣지 않는다 · KRX 칸은 그대로
+    assert data["rankingsKr"] == {"marketCap": {"as_of": D}}   # 풀 런처럼 어제 토스 순위 · 머리 날짜는 싣지 않는다 · KRX 칸은 그대로
+    data = {"rankingsKr": {"tradingAmount": [{"code": "x", "as_of": D}], "as_of": D}}
+    fd._light_toss(data)
+    assert "rankingsKr" not in data
 
 
 def test_toss_only_light_run_keeps_quote_time(tmp_path, monkeypatch):

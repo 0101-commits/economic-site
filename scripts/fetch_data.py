@@ -10030,6 +10030,11 @@ def _light_toss(data):
         for k in [k for k, v in old.items() if k not in _KRX_RANK_KEYS and isinstance(v, list)
                   and not all(isinstance(r, dict) and r.get("as_of") == today for r in v)]:
             old.pop(k)                               # 자정 넘어 남은 어제 순위 — 풀 런도 싣지 않는다
+        if not any(isinstance(v, list) for k, v in old.items() if k not in _KRX_RANK_KEYS):
+            old.pop("as_of", None)                   # 토스 칸이 없으면 머리 날짜 · 출처도 없다(풀 런 모양)
+            old.pop("source", None)
+            if not old:
+                data.pop("rankingsKr", None)
         if str(src.get("rankingsKr", "")).startswith(_TOSS_SRC):
             src["rankingsKr"] = "이전 빌드 보존 ← " + src["rankingsKr"]
     if snap.get("stockData"):
