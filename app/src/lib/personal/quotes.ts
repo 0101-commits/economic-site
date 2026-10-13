@@ -123,9 +123,14 @@ export type StockChart = { pts: Pt[]; price: number; prev: number | null; name?:
  * 아니면 마지막 봉 날짜(거래소 날짜 — 미국은 미국 거래일) + prev = 그날 종가. 체결 시각(한국 시각)을 쓰면 미국 10/9 마감이
  * 「전일 10/10」 · 한국 오전엔 주황 「지연 05:00」으로 나왔다(2026-10-12 화면 리뷰). 장 시간을 모르면 장 밖으로 본다.
  */
-export function chartBasis(c: StockChart, now = Date.now()): { asOf: string | undefined; state?: string } {
+export function chartBasis(c: StockChart, now = Date.now()): { asOf: string | undefined; state?: string; liveUntil?: string } {
   const s = c.session
-  if (s && now >= s.start && now < s.end) return { asOf: c.asOf }
+  // 장 중: 묶음 칸과 같은 규칙 — 체결 15분 안은 실시간, 지나면 「HH:MM 기준」. 국내 Yahoo 시세는 늘 ~20분 늦어 거래량이 주황
+  // 「지연 09:59」로 떠 옆 가격 「10:00 기준」과 갈렸다(2026-10-13 장중 점검). 15분 = asOfKind 기본 · 묶음 liveMin.
+  if (s && now >= s.start && now < s.end) {
+    const t = c.asOf ? Date.parse(c.asOf) : NaN
+    return Number.isNaN(t) ? { asOf: c.asOf } : { asOf: c.asOf, state: 'live', liveUntil: new Date(t + 15 * 60_000).toISOString() }
+  }
   return { asOf: c.pts[c.pts.length - 1][0], state: 'prev' }
 }
 

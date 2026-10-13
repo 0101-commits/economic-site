@@ -55,6 +55,14 @@ export type AsOfKind = 'live' | 'prev' | 'delayed' | 'filled'
 const KST_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' })
 const KST_HM = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false })
 const KST_MD = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' })
+const KST_WD = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', weekday: 'short' })
+
+/** 오늘(KST) 바로 앞 평일 — 「전일」이라 부를 수 있는 날. 토 · 일만 건너뛴다(휴장일 달력은 모른다 — 모르면 날짜만 적힌다). */
+function lastWeekday(now: Date): string {
+  const t = new Date(now.getTime() - 86_400_000)
+  while (KST_WD.format(t) === 'Sat' || KST_WD.format(t) === 'Sun') t.setTime(t.getTime() - 86_400_000)
+  return KST_DAY.format(t)
+}
 
 /** 'YYYY-MM-DD' 만 있으면 한국 시각 자정으로 읽는다. */
 export function parseAsOf(asOf: string | number | Date): Date {
@@ -125,7 +133,8 @@ export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Dat
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(asOf))   // 시각이 없는 값에 「00:00」을 적지 않는다
   if (kind === 'prev') {
     const day = KST_DAY.format(t)
-    if (day !== KST_DAY.format(now)) return `전일 ${md}`
+    // 「전일」은 바로 앞 평일 값만 — 10/13 에 FRED 10/8 금리가 「전일 10/8」로 나왔다(2026-10-13 장중 점검). 더 앞선 값은 날짜만.
+    if (day !== KST_DAY.format(now)) return day === lastWeekday(now) ? `전일 ${md}` : md
     if (!dateOnly) return CLOSE_HM.has(hm) ? `종가 ${hm}` : `${hm} 기준`
     return openDay === day ? `오늘 ${md}` : `종가 ${md}`
   }

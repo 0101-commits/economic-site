@@ -58,6 +58,11 @@ test('asOfKind / asOfLabel: 네 갈래 판정', () => {
   assert.equal(asOfLabel('prev', '2026-10-01T05:00:00+09:00', now, null), '종가 05:00')           // 미국 주식 마감(서머타임)
   assert.equal(asOfLabel('prev', '2026-09-30', now, '2026-10-01'), '전일 9/30')                   // 앞선 날은 그대로
   assert.equal(asOfLabel('prev', '2026-10-01', now, null), '종가 10/1')                           // 장이 닫힌 날은 종가
+  // 「전일」은 바로 앞 평일만 — 10/13(화)에 FRED 10/8 금리가 「전일 10/8」로 나왔다
+  const tue = new Date('2026-10-13T10:20:00+09:00')
+  assert.equal(asOfLabel('prev', '2026-10-12', tue), '전일 10/12')
+  assert.equal(asOfLabel('prev', '2026-10-08', tue), '10/8')
+  assert.equal(asOfLabel('prev', '2026-10-09', new Date('2026-10-12T10:00:00+09:00')), '전일 10/9')   // 월요일의 금요일 값은 전일
   assert.equal(asOfLabel('prev', '2026-Q2', now), '2분기')                            // 분기(GDP) — 「전일 4/1」이 아니다
   assert.equal(asOfLabel('prev', '2025-Q4', now), '25.4분기')
   assert.equal(asOfLabel('prev', '2025', now), '2025년')                              // 연간(중국 GDP)
