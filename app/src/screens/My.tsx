@@ -3,6 +3,7 @@
 // 입력은 이 기기(localStorage)에 저장한다. 다른 기기와는 동기화 키에서 만든 열쇠로 잠근 뒤에만 주고받는다 — 설정 「기기 연결」에서 보유를 켜 두면
 // 열 때 · 저장 2초 뒤 저절로 맞추고(sync.ts syncHoldings), 둘 다 바뀌었을 때만 머리의 「동기화」 시트가 묻는다(HoldSyncSheet).
 // 시세: 묶음에 있는 종목은 묶음 값, 없는 종목은 Worker 프록시로 Yahoo(lib/personal/quotes.ts) — 잠금 안에서만 받는다.
+// 묶음 다시 읽기(lib/bundle.ts rev) 뒤엔 시세만 다시 맞춘다 — 입력 중인 칸 · 고른 보기는 남는다.
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Pencil, Trash2, Wallet } from 'lucide-react'
 import { PinGate } from '../components/PinGate'
@@ -16,7 +17,7 @@ import { changeDir, fmtNumber, fmtPct, shortDate, slicePeriods, PERIODS, type Pe
 import { rebase } from '../components/market/calc'
 import { useViewParam } from '../lib/useViewParam'
 import { benchmark, evaluate, fmtMoney, fmtMoneyChange, fxWhatIf, kstDay, moneyDir, npsDomesticShare, risk, RISK_MIN, type Holding, type Quote, type Row, type Snap, type Unit } from '../lib/personal/calc'
-import type { Sched } from '../lib/bundle'
+import { useBundleRev, type Sched } from '../lib/bundle'
 import { loadBench, loadMarketData, type MarketData } from '../lib/personal/data'
 import { holdingQuotes } from '../lib/personal/quotes'
 import { newId, readLedger, readPortfolio, readPrefs, readSnaps, saveTodaySnap, writeLedger, writePortfolio, type Ledger } from '../lib/personal/store'
@@ -52,9 +53,11 @@ function Holdings() {
   const { hold } = useSyncStatus()
   // 열 때 한 번 보유를 맞춘다(범위 ② 가 꺼져 있거나 연결 전이면 아무것도 안 한다). 서버 것을 받았으면 다시 읽는다.
   useEffect(() => { void syncHoldings().then(p => { if (p) setPf(readPortfolio()) }) }, [])
+  const rev = useBundleRev()
   useEffect(() => {
-    loadMarketData().then(setMd, () => setMd({ home: null, quotes: new Map(), fx: null, nps: null, gainers: false, losers: false, halts: [] }))
-  }, [])
+    // 다시 읽기에서 못 받으면 보던 시세를 둔다
+    loadMarketData().then(setMd, () => setMd(m => m ?? { home: null, quotes: new Map(), fx: null, nps: null, gainers: false, losers: false, halts: [] }))
+  }, [rev])
   useEffect(() => {
     if (!md) return
     let live = true

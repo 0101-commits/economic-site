@@ -1,4 +1,4 @@
-// 숫자·등락·기준 시각 · 바깥 링크 주소 표기 — 모든 화면이 이 한 벌만 쓴다.
+// 숫자·등락·기준 시각 · 장 상태 줄 · 바깥 링크 주소 표기 — 모든 화면이 이 한 벌만 쓴다.
 // 이 파일은 node --test 로 바로 돌릴 수 있게 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다.
 
 const nfCache = new Map<number, Intl.NumberFormat>()
@@ -106,26 +106,39 @@ export function kindFromState(state: string | undefined, liveUntil?: string | nu
   return STATE_KIND[state as BundleState]
 }
 
-// 「종가」라 부르는 시각(한국 시각): 국내 주식 마감 15:30 · 미국 주식 마감 16:00 ET(서머타임 05:00 · 아니면 06:00)
+// 「종가」라 부르는 시각(한국 시각): 국내 주식 마감 15:30 · 미국 주식 마감 16:00 ET(서머타임 05:00 · 아니면 06:00).
+// 묶음 market 이 있으면 그 마감 시각(MarketCtx.closes)이 대신한다 — 이 표는 옛 묶음 · data.json 폴백용.
 const CLOSE_HM = new Set(['15:30', '05:00', '06:00'])
+
+/**
+ * 장 상태 시각 — 묶음 market(국내) · market.us(미국)의 칸(계약 C1, bundle.ts MarketState 와 같은 모양).
+ * openAt · closeAt = 오늘(미국은 다음 또는 지금) 정규장 개장 · 마감(KST ISO). 칸이 있고 null 이면 그날은 장이 서지 않는다.
+ * session = 마지막(또는 지금) 정규 세션 날짜. 미국 state = pre · open · after · closed · holiday.
+ */
+export type Session = { state?: string; label?: string; session?: string | null; openAt?: string | null; closeAt?: string | null; nextOpen?: string | null }
+export type Market = Session & { today?: string; us?: Session | null }
+
+/** 장 기준 — 국내 · 미국 마지막(또는 지금) 세션 날짜와 정규장 마감 시각. 화면 안 판정(lastWeekday · CLOSE_HM) 대신 쓴다. */
+export type MarketCtx = { sessions: string[]; closes: string[] }
+/** 묶음 market → 장 기준. 미국 칸(us)이 없는 옛 묶음이면 null — 부르는 쪽이 화면 안 판정으로 물러선다. */
+export function marketCtx(m: Market | null | undefined): MarketCtx | null {
+  if (!m?.us) return null
+  const has = (x: string | null | undefined): x is string => !!x
+  return { sessions: [m.session, m.us.session].filter(has), closes: [m.closeAt, m.us.closeAt].filter(has) }
+}
+const closeHms = (ctx: MarketCtx) => new Set(ctx.closes.map(c => KST_HM.format(new Date(c))))
 
 /**
  * 배지 문구: LIVE 는 시각만 · 바로 앞 평일(또는 달력상 어제)은 「전일 9/30」, 그 앞은 「9/30」 · 지연은 시각 · 보강은 낱말만.
  * 오늘 시각이 있는 값은 「HH:MM 기준」 — 그 시각이 주식 장 마감(CLOSE_HM)일 때만 「종가 15:30」.
  * 실시간 기한이 지난 장중 목록(11:00)이나 24시간 자산(환율 · 금 · BTC · WTI 16:10)은 종가가 아니다.
  * 오늘 날짜만 있는 값은 「종가 10/1」, 단 openDay(한국 장이 열려 있는 날 = 묶음 market.state open 의 그날)면 「오늘 10/12」.
+ * ctx(묶음 market)가 있으면 「바로 앞 평일」은 국내 · 미국 마지막 세션 날짜, 마감 시각은 묶음 closeAt 이다(휴장일 · 서머타임을 묶음이 안다).
  */
-export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Date = new Date(), openDay?: string | null): string {
+export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Date = new Date(), openDay?: string | null, ctx?: MarketCtx | null): string {
   if (kind === 'filled') return '보강'
-  // 월간(YYYY-MM)은 날짜가 아니라 그 달이다 — 「전일 9/1」이 아니라 「9월」(올해가 아니면 「25.12」)
-  const mon = /^(\d{4})-(\d{2})$/.exec(String(asOf))
-  if (mon) return mon[1] === KST_DAY.format(now).slice(0, 4) ? `${+mon[2]}월` : `${mon[1].slice(2)}.${mon[2]}`
-  // 분기(YYYY-Qn)는 「2분기」(올해가 아니면 「25.4분기」)
-  const qtr = /^(\d{4})-Q([1-4])$/.exec(String(asOf))
-  if (qtr) return qtr[1] === KST_DAY.format(now).slice(0, 4) ? `${qtr[2]}분기` : `${qtr[1].slice(2)}.${qtr[2]}분기`
-  if (/^\d{4}$/.test(String(asOf))) return `${asOf}년`   // 연간(YYYY)
-  // 「JJA 2026」 같은 그 밖의 기간 표기는 그대로(V8 은 「JJA 2026」 도 1월 1일로 읽어 버린다)
-  if (typeof asOf === 'string' && !/^\d{4}-\d{2}-\d{2}/.test(asOf)) return asOf
+  const period = periodLabel(asOf, now)
+  if (period != null) return period
   const t = parseAsOf(asOf)
   if (Number.isNaN(t.getTime())) return String(asOf)
   const hm = KST_HM.format(t)
@@ -135,11 +148,93 @@ export function asOfLabel(kind: AsOfKind, asOf: string | number | Date, now: Dat
     const day = KST_DAY.format(t)
     // 「전일」은 바로 앞 평일 값만 — 10/13 에 FRED 10/8 금리가 「전일 10/8」로 나왔다(2026-10-13 장중 점검). 더 앞선 값은 날짜만.
     // 달력상 어제도 전일 — 24시간 자산(BTC)의 주말 값이 월요일에 「전일 10/11」.
-    if (day !== KST_DAY.format(now)) return day === lastWeekday(now) || day === KST_DAY.format(new Date(now.getTime() - 86_400_000)) ? `전일 ${md}` : md
-    if (!dateOnly) return CLOSE_HM.has(hm) ? `종가 ${hm}` : `${hm} 기준`
+    const prevDay = ctx ? ctx.sessions.includes(day) : day === lastWeekday(now)
+    if (day !== KST_DAY.format(now)) return prevDay || day === KST_DAY.format(new Date(now.getTime() - 86_400_000)) ? `전일 ${md}` : md
+    if (!dateOnly) return (ctx ? closeHms(ctx) : CLOSE_HM).has(hm) ? `종가 ${hm}` : `${hm} 기준`
     return openDay === day ? `오늘 ${md}` : `종가 ${md}`
   }
   return kind === 'delayed' ? `지연 ${dateOnly ? md : hm}` : hm
+}
+
+/** 날짜가 아닌 기간 표기(월간 · 분기 · 연간 · 그 밖)의 꼬리표. 날짜(YYYY-MM-DD…)면 null. */
+function periodLabel(asOf: string | number | Date, now: Date): string | null {
+  // 월간(YYYY-MM)은 날짜가 아니라 그 달이다 — 「전일 9/1」이 아니라 「9월」(올해가 아니면 「25.12」)
+  const mon = /^(\d{4})-(\d{2})$/.exec(String(asOf))
+  if (mon) return mon[1] === KST_DAY.format(now).slice(0, 4) ? `${+mon[2]}월` : `${mon[1].slice(2)}.${mon[2]}`
+  // 분기(YYYY-Qn)는 「2분기」(올해가 아니면 「25.4분기」)
+  const qtr = /^(\d{4})-Q([1-4])$/.exec(String(asOf))
+  if (qtr) return qtr[1] === KST_DAY.format(now).slice(0, 4) ? `${qtr[2]}분기` : `${qtr[1].slice(2)}.${qtr[2]}분기`
+  if (/^\d{4}$/.test(String(asOf))) return `${asOf}년`   // 연간(YYYY)
+  // 「JJA 2026」 같은 그 밖의 기간 표기는 그대로(V8 은 「JJA 2026」 도 1월 1일로 읽어 버린다)
+  if (typeof asOf === 'string' && !/^\d{4}-\d{2}-\d{2}/.test(asOf)) return asOf
+  return null
+}
+
+/**
+ * 칸 시각(띠 카드 — 과제 4): 장 상태 줄과 같은 말을 하는 값은 시각을 숨기고(text ''), 다를 때만 날짜를 적는다.
+ * - 실시간(live) · 오늘 날짜만 있는 값 · 오늘 마감 뒤(또는 마감 시각)의 값 → 숨김
+ * - 마지막 세션 날짜(국내 · 미국 market.session)의 값 → 「10/13 종가」
+ * - 그보다 앞선 날의 값 → 「10/9 값」(late — 원천이 늦게 내준다, 주의색)
+ * - 오늘 장중 시각인데 실시간 기한이 지난 값 → 「11:00 값」(late)
+ * - 지연 · 보강 · 월간 · 분기 · 연간은 asOfLabel 그대로(지연만 late)
+ */
+export function cellLabel(kind: AsOfKind, asOf: string, now: Date, ctx: MarketCtx): { text: string; late: boolean } {
+  if (kind === 'filled' || kind === 'delayed') return { text: asOfLabel(kind, asOf, now, null, ctx), late: kind === 'delayed' }
+  const period = periodLabel(asOf, now)
+  if (period != null) return { text: period, late: false }
+  if (kind === 'live') return { text: '', late: false }
+  const t = parseAsOf(asOf)
+  if (Number.isNaN(t.getTime())) return { text: String(asOf), late: false }
+  const day = KST_DAY.format(t), md = KST_MD.format(t).replace(/\.\s?/g, '/').replace(/\/$/, '')
+  if (day !== KST_DAY.format(now)) return ctx.sessions.includes(day) ? { text: `${md} 종가`, late: false } : { text: `${md} 값`, late: true }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(asOf)) return { text: '', late: false }
+  const closed = ctx.closes.some(c => { const x = Date.parse(c); return KST_DAY.format(x) === day && t.getTime() >= x && now.getTime() >= x })
+  return closed || closeHms(ctx).has(KST_HM.format(t)) ? { text: '', late: false } : { text: `${KST_HM.format(t)} 값`, late: true }
+}
+
+/** 「오늘 09:00」 · 「내일 22:30」 · 그 밖은 「10/19 09:00」(한국 시각). */
+function whenText(ms: number, now: Date): string {
+  const d = KST_DAY.format(ms), hm = KST_HM.format(ms)
+  if (d === KST_DAY.format(now)) return `오늘 ${hm}`
+  if (d === KST_DAY.format(now.getTime() + 86_400_000)) return `내일 ${hm}`
+  return `${KST_MD.format(ms).replace(/\.\s?/g, '/').replace(/\/$/, '')} ${hm}`
+}
+/** 남은 시간: 「55분」 · 「5시간 30분」 · 「2시간」. 분은 올림(14:35:20 → 15:30 = 55분). */
+function leftText(ms: number): string {
+  const m = Math.ceil(ms / 60_000)
+  return m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}`
+}
+const msOf = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN)
+const US_WORD: Record<string, string> = { pre: '장 전', after: '장 뒤', closed: '장 닫힘', open: '장 닫힘' }   // open 인데 마감을 넘겼으면(묶음이 늦음) 닫힘
+
+/**
+ * 장 상태 줄(ui.tsx MarketLine): 국내 한 줄 + 미국 한 줄(묶음에 market.us 가 없으면 국내만). on = 지금 정규장.
+ * 판정은 묶음 칸(openAt · closeAt · nextOpen)을 지금 시각에 댄다 — 묶음을 만든 뒤 개장 · 마감을 넘겨도 줄이 맞게.
+ *   국내: 「국내 정규장 · 15:30 마감까지 55분」 「국내 장 전 · 오늘 09:00 개장」 「국내 마감 · 내일 09:00」 「국내 휴장 · 다음 개장 10/19 09:00」
+ *   미국: 「미국 정규장 · 05:00 마감까지 3시간」 「미국 장 닫힘 · 오늘 22:30 개장」(장 전 · 장 뒤도 같은 꼴) 「미국 휴장 · 다음 개장 …」
+ * 국내 시각 칸(closeAt)이 없는 옛 묶음은 묶음 label + 다음 개장만(종전 알약과 같은 정보).
+ */
+export function marketLines(m: Market | null | undefined, now: Date): { key: string; text: string; on: boolean }[] {
+  if (!m?.state) return []
+  const t = now.getTime()
+  const out: { key: string; text: string; on: boolean }[] = []
+  const open = msOf(m.openAt), close = msOf(m.closeAt), next = msOf(m.nextOpen)
+  const nextText = next > t ? whenText(next, now) : ''
+  if (!('closeAt' in m)) out.push({ key: 'kr', text: `국내 ${m.label ?? ''}${m.state !== 'open' && nextText ? ` · 다음 개장 ${nextText}` : ''}`, on: m.state === 'open' })
+  else if (open <= t && t < close) out.push({ key: 'kr', text: `국내 정규장 · ${KST_HM.format(close)} 마감까지 ${leftText(close - t)}`, on: true })
+  else if (m.state === 'holiday' || !(close > 0)) out.push({ key: 'kr', text: `국내 휴장${nextText ? ` · 다음 개장 ${nextText}` : ''}`, on: false })
+  else if (t < open) out.push({ key: 'kr', text: `국내 장 전 · ${whenText(open, now)} 개장`, on: false })
+  else out.push({ key: 'kr', text: `국내 마감${nextText ? ` · ${nextText}` : ''}`, on: false })
+  const u = m.us
+  if (u?.state) {
+    const uo = msOf(u.openAt), uc = msOf(u.closeAt)
+    const un = [uo, msOf(u.nextOpen)].find(x => x > t)
+    if (uo <= t && t < uc) out.push({ key: 'us', text: `미국 정규장 · ${KST_HM.format(uc)} 마감까지 ${leftText(uc - t)}`, on: true })
+    else if (u.state === 'open' && !(uc > 0)) out.push({ key: 'us', text: '미국 정규장', on: true })   // 시각 칸이 없는 묶음
+    else if (u.state === 'holiday') out.push({ key: 'us', text: `미국 휴장${un ? ` · 다음 개장 ${whenText(un, now)}` : ''}`, on: false })
+    else out.push({ key: 'us', text: `미국 ${US_WORD[u.state] ?? '장 닫힘'}${un ? ` · ${whenText(un, now)} 개장` : ''}`, on: false })
+  }
+  return out
 }
 
 /** 주식 수: 1만주 미만은 「427주」, 10만주 미만은 소수 한 자리(「8.3만주」 — 8,343주가 「1만주」로 반올림되지 않게), 그 위는 「1,904만주」. 없으면 '—'. */

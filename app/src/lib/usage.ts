@@ -1,6 +1,6 @@
 // 사용 기록 — 이 기기에만, 횟수만. 어느 화면을 열고 어느 보기를 누르고 어느 패널을 접는지 세어 2주 뒤 화면 정리(P3)의 근거로 쓴다.
-// localStorage econ_usage_v1 = { since, screens:{화면:n}, views:{키:n}, folds:{키:{open, close}}, more:{키:n} }.
-// 값 · 종목 · 시각은 적지 않는다(시작일만). 서버로 보내지 않는다. 저장소가 막혀 있으면 조용히 건너뛴다.
+// localStorage econ_usage_v1 = { since, screens:{화면:n}, views:{키:n}, folds:{키:{open, close}}, more:{키:n}, errors:{자리:n} }.
+// 값 · 종목 · 시각은 적지 않는다(시작일만). errors = 칸막이(ui.tsx Boundary)가 받은 그리기 오류 횟수만 — 오류 내용은 적지 않는다. 서버로 보내지 않는다. 저장소가 막혀 있으면 조용히 건너뛴다.
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(node --test 로 바로 돈다 — usage.test.ts).
 
 export const USAGE_KEY = 'econ_usage_v1'
@@ -11,6 +11,7 @@ export type Usage = {
   views: Record<string, number>
   folds: Record<string, { open: number; close: number }>
   more: Record<string, number>
+  errors: Record<string, number>
 }
 
 /** 화면 열쇠 → 이름. 이 목록 밖의 경로(없는 화면)는 「그 밖」 하나로 센다. 시장 자산군 이름은 screens/Market.tsx ASSETS 와 같다(usage.test.ts 가 대조). */
@@ -40,10 +41,10 @@ export function readUsage(): Usage {
   try {
     const v = JSON.parse(localStorage.getItem(USAGE_KEY) ?? 'null')
     if (v && typeof v === 'object' && !Array.isArray(v)) {
-      return { since: typeof v.since === 'string' ? v.since : '', screens: obj(v.screens), views: obj(v.views), folds: obj(v.folds), more: obj(v.more) } as Usage
+      return { since: typeof v.since === 'string' ? v.since : '', screens: obj(v.screens), views: obj(v.views), folds: obj(v.folds), more: obj(v.more), errors: obj(v.errors) } as Usage
     }
   } catch { /* 깨진 기록은 새로 시작한다 */ }
-  return { since: '', screens: {}, views: {}, folds: {}, more: {} }
+  return { since: '', screens: {}, views: {}, folds: {}, more: {}, errors: {} }
 }
 
 /** 이 기기 날짜(YYYY-MM-DD). */
@@ -58,8 +59,8 @@ function bump(edit: (u: Usage) => void): void {
   try { localStorage.setItem(USAGE_KEY, JSON.stringify(u)) } catch { /* 못 쓰면 이번 것은 세지 않는다 */ }
 }
 
-/** 한 번 센다 — screens = 화면 열기, views = 범위 · 보기 · 목차 누르기, more = 「더 보기」. */
-export function countUse(kind: 'screens' | 'views' | 'more', key: string): void {
+/** 한 번 센다 — screens = 화면 열기, views = 범위 · 보기 · 목차 누르기, more = 「더 보기」, errors = 칸 · 화면 그리기 오류(자리 = 패널 열쇠 · 화면 열쇠). */
+export function countUse(kind: 'screens' | 'views' | 'more' | 'errors', key: string): void {
   bump(u => { const k = scrub(key); u[kind][k] = (Number(u[kind][k]) || 0) + 1 })
 }
 
