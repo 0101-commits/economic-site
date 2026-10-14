@@ -175,6 +175,10 @@ Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요�
 `{ vapidPublicKey }` 를 돌려줍니다. 브라우저가 구독 전에 읽는 공개값이라 동기화 키를 받지 않고 CORS 는 `*` 입니다.
 `VAPID_PUBLIC_KEY` 가 없으면 503, GET 이 아니면 405 입니다.
 
+### `GET /quotes?codes=466920,000660,AAPL` — 종목 시세(인증 없음)
+
+최대 30개(쉼표). 국내 6자리는 Yahoo `.KS`(KSC) → 안 되면 `.KQ`(KOE), 미국 티커는 점을 줄표로 바꿔 부릅니다. 응답 `{asOf, items:{코드:{price, prev, pct, exchange, at}}}`, 못 받은 코드는 빠집니다. 코드별 60초 보관 · 동시 6개 · 제한기 `PROXY_LIMITER`(fail-open) · CORS `*` · 관심 목록은 저장하지 않습니다.
+
 ### 발송기 경로 — `GET /push/subscriptions` · `PUT /push/prune`
 
 `scripts/send_push.py`(stock-alerts.yml 의 「Send web push」 스텝)만 씁니다. 헤더 `X-Push-Read-Key` = Worker 시크릿 `PUSH_READ_KEY`.
