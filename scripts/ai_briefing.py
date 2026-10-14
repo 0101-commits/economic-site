@@ -265,6 +265,8 @@ def _llm_prompt(snap, sources=()):
 def _reply_lines(text):
     """모델 응답 → 문장 줄(앞 번호 「1. 」 · 불릿 제거, 빈 줄 제외) 최대 3. 「1.19%」 처럼 숫자로 시작하는 문장은 그대로 둔다."""
     out = [re.sub(r"^\s*(?:\d+[.)]\s+|[-•*]\s*)", "", ln).strip() for ln in text.strip().splitlines()]
+    # 세 문장을 한 줄로 이어 쓰는 응답(2026-10-14 첫 운영 런 「Gemini 요약 생성 1줄」)은 근거 번호 묶음 뒤에서 끊는다
+    out = [p.strip() for ln in out for p in re.split(r"(?<=\])[.。]?\s+(?=[^\s\[])", ln)]
     return [ln for ln in out if ln][:3]
 
 
@@ -305,7 +307,7 @@ def try_gemini(snap, sources=()):
     if not GEMINI_API_KEY:
         return None
     try:
-        text = _gemini_text(GEMINI_API_KEY, _llm_prompt(snap, sources), {"temperature": 0.4, "maxOutputTokens": 600}, 40)
+        text = _gemini_text(GEMINI_API_KEY, _llm_prompt(snap, sources), {"temperature": 0.4, "maxOutputTokens": 1500}, 40)   # 근거 번호가 붙어 길어졌고 생각 토큰도 이 한도를 쓴다 — 600 이면 첫 줄에서 잘렸다
         lines = _reply_lines(text)
         if lines:
             log(f"Gemini 요약 생성 {len(lines)}줄")
