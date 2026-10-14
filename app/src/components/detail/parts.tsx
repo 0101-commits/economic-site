@@ -79,17 +79,18 @@ export function BellPanel({ id, name, what, cur, unit }: { id: string; name: str
 }
 
 /**
- * 함께 볼 지표: 카드(누르면 그 지표 상세) + 카드 아래 「겹쳐 보기」(누르면 흐름 차트에 그 선을 겹친다 · 다시 누르면 끈다).
- * 겹칠 수 없는 화면(시계열이 0 이하로 시작 — 지수로 못 바꾼다)이면 단추를 두지 않는다.
+ * 함께 볼 지표: 카드(누르면 그 지표 · 종목 상세) + 카드 아래 「겹쳐 보기」(누르면 흐름 차트에 그 선을 겹친다 · 다시 누르면 끈다).
+ * 겹칠 수 없는 화면(시계열이 0 이하로 시작 — 지수로 못 바꾼다)이나 시계열이 없는 카드(종목)면 단추를 두지 않는다.
+ * title = 칸 이름(종목 상세는 「함께 볼 것」 — 지수 1 + 거래대금 이웃 종목 2).
  */
-export function Related({ items, cmp, onCmp, canOverlay }: {
-  items: { reg: RegRow; item?: StripItem }[]; cmp: string; onCmp: (id: string) => void; canOverlay: boolean
+export function Related({ items, cmp, onCmp, canOverlay, title = '함께 볼 지표' }: {
+  items: { reg: RegRow; item?: StripItem }[]; cmp: string; onCmp: (id: string) => void; canOverlay: boolean; title?: string
 }) {
   const watch = useWatch()
   if (!items.length) return null
   return (
-    <section className="pc:col-span-12 flex flex-col gap-2" aria-label="함께 볼 지표">
-      <h2 className="m-0 text-14 font-bold text-ink-1">함께 볼 지표</h2>
+    <section className="pc:col-span-12 flex flex-col gap-2" aria-label={title}>
+      <h2 className="m-0 text-14 font-bold text-ink-1">{title}</h2>
       <div className="grid grid-cols-2 pc:grid-cols-4 gap-2">
         {items.map(({ reg: r, item: it }) => {
           const on = cmp === r.id

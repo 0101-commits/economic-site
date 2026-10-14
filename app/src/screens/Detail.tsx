@@ -17,6 +17,7 @@ import type { LensBundle, LensChain } from '../components/lens/model'
 import { NewsPanel } from '../components/market/parts'
 import { BellPanel, FlowPanel, Related, useCmp } from '../components/detail/parts'
 import StockDetail from '../components/detail/Stock'
+import { noteRecent } from '../lib/personal/store'
 
 // 사전 자산군 → 시장 화면 자산군 탭(Market.tsx ASSETS 키)
 const MARKET_TAB: Record<string, string> = { index: 'global', sentiment: 'global', fx: 'fxrate', rate: 'fxrate', commodity: 'commod', macro: 'macro', realestate: 'realestate' }
@@ -36,6 +37,7 @@ function lensFact(b: LensBundle | null, id: string): LensFact | undefined {
 
 export default function Detail() {
   const { id = '' } = useParams()
+  useEffect(() => noteRecent(id), [id])   // 최근 본 것(검색 · 오른쪽 패널) — 지표 · 종목 모두
   return isStockId(id) ? <StockDetail key={id} id={id} /> : <IndicatorDetail id={id} />
 }
 

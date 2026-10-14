@@ -6,11 +6,14 @@
 //                   열쇠 이름은 v1 그대로 — 읽을 때 v1 문서를 v2 로 바꾼다(prefsV2.ts).
 //   econAlertsHk_v1 = { since, ring, off, demoted }                       알림 자동 정리(housekeeping.ts). 이 기기에만.
 //   econHoldKey_v1 = 보유 열쇠 재료 hex(sync.ts — 동기화 키에서 만든 것, 기억 해시와 같은 수명) · econSyncScope_v1 = 기기 연결 범위 { prefs, hold }.
-//   econSearchRecentV1 = [{ label, to, kind }]                            검색 「최근 본 것」.
+//   econSearchRecentV1 = [{ label, to, kind }]                            「최근 본 것」(검색 · 오른쪽 패널) — 검색에서 고른 것 + 상세를 연 것(recent.ts).
+//   econRail_v1   = { open, tab }                                         오른쪽 패널(components/Rail.tsx) 펼침 · 고른 탭.
 // 보유 금액이 든 읽기(readPortfolio·readSnaps·readLedger)는 PinGate 안의 화면과, 잠금이 열린 뒤의 내려받기에서만 부른다.
 import { upsertSnap, type Holding, type Snap, type Unit } from './calc'
 import { upgradePrefs } from './prefsV2'
 import { housekeep, type Hk } from './housekeeping'
+import { addRecent, recentList, type Recent } from './recent'
+import { watchKind } from './remote'
 import { unsubscribePush, type GetKeyHash } from '../push'
 import { applyTheme, readTheme } from '../theme'
 import type { MyData } from './backup'
@@ -24,6 +27,7 @@ export const KEYS = {
   holdKey: 'econHoldKey_v1',     // 보유 열쇠 재료(sync.ts) — 동기화 키에서 만든 hex
   scope: 'econSyncScope_v1',     // 기기 연결 범위(sync.ts)
   scenarios: 'econ_scenarios_v1', // 렌즈 「만약에」 저장(components/lens/WhatIf.tsx SAVE_KEY 와 같은 열쇠)
+  rail: 'econRail_v1',           // 오른쪽 패널 펼침 · 탭(components/Rail.tsx)
 } as const
 
 function read<T>(key: string, fallback: T): T {
@@ -130,11 +134,15 @@ export function writeMyData(d: Partial<MyData>): boolean {
   return ok
 }
 
-// ── 검색 최근 ───────────────────────────────────────────
-export type Recent = { label: string; to: string; kind: string }
-export const readRecent = (): Recent[] => { const a = read<unknown>(KEYS.recent, []); return Array.isArray(a) ? a.slice(0, 8) : [] }
+// ── 최근 본 것(검색 · 오른쪽 패널) ─────────────────────────
+export type { Recent }
+export const readRecent = (): Recent[] => recentList(read<unknown>(KEYS.recent, []))
 export function pushRecent(r: Recent) {
-  write(KEYS.recent, [r, ...readRecent().filter(x => x.to !== r.to)].slice(0, 8))
+  write(KEYS.recent, addRecent(readRecent(), r))
+}
+/** 상세(/i/<id>)를 열 때 한 번 — 지표 · 종목 모두. 이름은 모르므로 id 를 적고, 전에 적힌 이름이 있으면 남긴다(보이는 이름은 읽는 쪽이 사전 · 묶음에서 찾는다). */
+export function noteRecent(id: string) {
+  if (id) write(KEYS.recent, addRecent(readRecent(), { label: id, to: `/i/${id}`, kind: watchKind(id) === 'stock' ? '종목' : '지표' }, true))
 }
 
 /**
@@ -143,7 +151,7 @@ export function pushRecent(r: Recent) {
  * econHoldQuotes_v1 = 보유 종목 시세 캐시(quotes.ts, sessionStorage) — 종목 목록이 드러나므로 같이 지운다.
  */
 export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
-  KEYS.holdKey, KEYS.scope,
+  KEYS.holdKey, KEYS.scope, KEYS.rail,
   'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econ_scenarios_v1', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1', 'econHoldQuotes_v1', 'econ_usage_v1']
 /** 지우기 전에 이 기기 폰 알림 구독을 끊는다(서버 쪽 해지에 동기화 키 해시가 쓰인다 — 그래서 동기화는 이 뒤에 끈다). 못 끊어도 지우기는 계속. */
 export async function wipeDevice(getKeyHash: GetKeyHash): Promise<boolean> {

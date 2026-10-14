@@ -14,6 +14,7 @@ import Settings from './screens/Settings'
 import { PinGate } from './components/PinGate'
 import { Pill } from './components/ui'
 import { SearchOverlay } from './components/personal/SearchOverlay'
+import Rail, { useRail } from './components/Rail'
 import { applyUpdown, readPrefs, tidyAlerts } from './lib/personal/store'
 import { loadRootJson } from './lib/personal/data'
 import { hasUnseen, markSeen, readSeen } from './lib/alertsSeen'
@@ -129,6 +130,8 @@ function Shell() {
   }, [halts, haltTick])
   const halt = haltLine(halts, Date.now())
   const gearDot = failed ? '자료 실패 있음' : undefined
+  // 오른쪽 패널(components/Rail.tsx): 980 이상 아이콘 줄 48px, 1440 이상 펼치면 300px — 본문은 그만큼 오른쪽을 비운다(가로 넘침 0)
+  const rail = useRail()
   // `/` = 검색 열기(입력 칸에서 치는 / 는 그대로 둔다)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -141,7 +144,7 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   return (
-    <div className="min-h-dvh">
+    <div className={`min-h-dvh pc:pr-12 ${rail.open ? 'min-[90rem]:pr-75' : ''}`}>
       {/* PC 상단 */}
       <header className="hidden pc:block bg-card border-b border-line">
         <div className="mx-auto max-w-[1200px] px-4 h-14 flex items-stretch gap-6">
@@ -194,6 +197,7 @@ function Shell() {
       </main>
 
       <SearchOverlay open={search} onClose={() => setSearch(false)} />
+      <Rail />
 
       {/* 모바일 하단 탭 */}
       <nav aria-label="주 메뉴" className="pc:hidden fixed bottom-0 inset-x-0 bg-card border-t border-line grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">

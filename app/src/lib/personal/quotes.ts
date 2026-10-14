@@ -1,12 +1,16 @@
-// 보유 종목 시세 — 묶음(data.ts loadMarketData 의 home·market-domestic)에 있으면 그것, 없으면 Worker 프록시로 Yahoo 일봉.
+// 보유 종목 시세 — 묶음(data.ts loadMarketData 의 home·market-domestic)에 있으면 그것, 없으면 Worker /quotes 한 번(batchQuotes, 계약 C5).
+// /quotes 가 없거나(404 — Worker 배포 전) 실패하면 종전 길: Worker 프록시로 Yahoo 일봉을 하나씩.
 // 현행 화면(js/app1.js fetchYahooQuote)과 같은 경로: `<Worker>/?url=` + query1.finance.yahoo.com/v8/finance/chart/<심볼>?range=5d&interval=1d.
 // market-global 묶음은 지수뿐이라(종목 칸 없음) 여기서 따로 보지 않는다.
 // 받은 값은 sessionStorage 에 10분 둔다(탭을 닫으면 사라진다). 한 번에 4개까지 동시에. 못 받은 종목은 「시세 없음」 그대로 둔다.
 // holdingQuotes 는 보유 목록을 읽는 화면(내 자산 Holdings — PinGate 안)에서만 부른다. stockSeries(1년 일봉)는 종목 상세가 부른다(보유를 읽지 않는다).
+// batchQuotes 는 관심(홈 관심 칸 · 오른쪽 패널) · 검색 행 · 보유가 같이 쓴다 — 종목 코드만 보내고 금액은 싣지 않는다.
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(calc.ts 와 같은 규칙). node --test 로 바로 돌린다(quotes.test.ts).
 import type { Holding, Quote } from './calc'
 import type { Pt } from '../format'
-import { WORKER } from './remote.ts'
+import type { StripItem } from '../bundle'
+import type { StockRow } from '../detail'
+import { WORKER, watchKind } from './remote.ts'
 
 const CACHE_KEY = 'econHoldQuotes_v1'
 const TTL_MS = 10 * 60_000
@@ -67,46 +71,134 @@ function writeCache(c: Cache) { try { sessionStorage.setItem(CACHE_KEY, JSON.str
 /** 국내 접미사 → Yahoo 거래소 표식(parseChart 의 exchange). */
 const KR_EXCHANGE: Record<string, string> = { '.KS': 'KSC', '.KQ': 'KOE' }
 
-async function fetchOne(h: Holding): Promise<{ price: number; prev: number | null } | null> {
+/** at = 마지막 체결 시각(Yahoo meta.regularMarketTime, ISO) — 없으면 없다. */
+async function fetchOne(h: Pick<Holding, 'symbol' | 'market'> & { yahoo?: unknown }): Promise<{ price: number; prev: number | null; at?: string } | null> {
   for (const sym of yahooSymbols(h)) {
     try {
       const r = await fetch(chartUrl(sym), { signal: AbortSignal.timeout(8_000) })
-      const p = r.ok ? parseChart(await r.json(), KR_EXCHANGE[sym.slice(-3)]) : null
-      if (p) return p
+      const j: Chart | null = r.ok ? await r.json() : null
+      const p = parseChart(j, KR_EXCHANGE[sym.slice(-3)])
+      const t = j?.chart?.result?.[0]?.meta?.regularMarketTime
+      if (p) return typeof t === 'number' ? { ...p, at: new Date(t * 1000).toISOString() } : p
     } catch { /* 다음 후보 */ }
   }
   return null
 }
 
+// ── 관심 · 보유 값 한 번에(Worker /quotes, 계약 C5) ─────────────
+/** 종목 하나의 지금 값. prev = 전일 종가(없으면 null), pct = 등락률(%), at = 마지막 체결 시각(ISO, 없으면 없음). */
+export type LiveQuote = { price: number; prev: number | null; pct: number | null; at?: string }
+
+const BATCH_MAX = 30          // Worker /quotes 한 번에 받는 코드 수(C5)
+const BATCH_TTL = 60_000      // 같은 코드는 60초 안에 다시 묻지 않는다(Worker 보관과 같은 값) — 홈 관심 칸 · 오른쪽 패널이 같은 때 부른다
+const batchMemo = new Map<string, { t: number; q: LiveQuote | null }>()
+let noBatch = false           // 이 탭에서 /quotes 가 404 였다(Worker 배포 전) — 다시 묻지 않고 하나씩 받는다
+
+/** /quotes 응답 → 코드별 값. 값이 0 이하 · 숫자가 아닌 칸은 버린다. 등락률이 없으면 전일 종가로 구한다. */
+export function parseBatch(j: unknown): Map<string, LiveQuote> {
+  const out = new Map<string, LiveQuote>()
+  const items = (j as { items?: unknown } | null)?.items
+  if (!items || typeof items !== 'object') return out
+  for (const [code, v] of Object.entries(items as Record<string, Record<string, unknown> | null>)) {
+    const price = pos(v?.price)
+    if (price == null) continue
+    const prev = pos(v?.prev)
+    const pct = typeof v?.pct === 'number' && Number.isFinite(v.pct) ? v.pct : prev ? (price / prev - 1) * 100 : null
+    out.set(code, { price, prev, pct, ...(typeof v?.at === 'string' ? { at: v.at } : {}) })
+  }
+  return out
+}
+
+/** /quotes 한 번. 404 면 이 탭에선 다시 묻지 않는다. 실패 · 404 는 null(하나씩 받는 길로). */
+async function fetchBatch(codes: string[]): Promise<Map<string, LiveQuote> | null> {
+  try {
+    const r = await fetch(`${WORKER}/quotes?codes=${codes.map(encodeURIComponent).join(',')}`, { signal: AbortSignal.timeout(8_000) })
+    if (r.status === 404) noBatch = true
+    return r.ok ? parseBatch(await r.json()) : null
+  } catch { return null }
+}
+
+/** 종전 길: 코드마다 Yahoo 일봉(국내 .KS 다음 .KQ) — 동시 4개까지. */
+async function fetchEach(codes: string[]): Promise<Map<string, LiveQuote>> {
+  const out = new Map<string, LiveQuote>()
+  let i = 0
+  const worker = async () => {
+    while (i < codes.length) {
+      const c = codes[i++]
+      const p = await fetchOne({ symbol: c, market: /^\d/.test(c) ? 'KR' : 'US' })
+      if (p) out.set(c, { ...p, pct: p.prev ? (p.price / p.prev - 1) * 100 : null })
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(PARALLEL, codes.length) }, worker))
+  return out
+}
+
+/**
+ * 종목 코드(국내 6자리 · 미국 티커)들의 지금 값 — Worker /quotes 에 30개씩 한 번, 그게 안 되면(404 · 실패) 코드마다 Yahoo 일봉.
+ * 종목 코드가 아닌 id(지표)는 묻지 않는다. 못 받은 코드는 결과에 없다(지어내지 않는다). 같은 코드는 60초 안에 다시 묻지 않는다.
+ */
+export async function batchQuotes(codes: string[], now = Date.now()): Promise<Map<string, LiveQuote>> {
+  const out = new Map<string, LiveQuote>()
+  const need: string[] = []
+  for (const c of new Set(codes)) {
+    if (watchKind(c) !== 'stock') continue
+    const m = batchMemo.get(c)
+    if (m && now - m.t < BATCH_TTL) { if (m.q) out.set(c, m.q) } else need.push(c)
+  }
+  for (let i = 0; i < need.length; i += BATCH_MAX) {
+    const part = need.slice(i, i + BATCH_MAX)
+    const got = (noBatch ? null : await fetchBatch(part)) ?? await fetchEach(part)
+    for (const c of part) {
+      const q = got.get(c) ?? null
+      batchMemo.set(c, { t: now, q })
+      if (q) out.set(c, q)
+    }
+  }
+  return out
+}
+
+/** /quotes 값 → 띠 칸 모양(홈 관심 칸 · 오른쪽 패널 · 검색 행). 체결 시각이 있으면 15분 실시간(지나면 「HH:MM 기준」 — chartBasis 와 같은 규칙). */
+export function quoteItem(code: string, name: string | undefined, q: LiveQuote | undefined): StripItem {
+  const at = q?.at ? Date.parse(q.at) : NaN
+  return {
+    id: code, label: name || code, decimals: /^\d/.test(code) ? 0 : 2,
+    value: q?.price ?? null, change: q?.prev ? q.price - q.prev : null, changePct: q?.pct ?? null, asOf: q?.at ?? null,
+    ...(Number.isNaN(at) ? {} : { state: 'live', liveUntil: new Date(at + 15 * 60_000).toISOString() }),
+  }
+}
+
+/** 묶음 종목 행 → 띠 칸 모양. 묶음 행엔 등락률만 있어 등락폭은 비운다. */
+export const rowItem = (r: StockRow): StripItem => ({
+  id: r.code, label: r.short || r.name, decimals: /^\d/.test(r.code) ? 0 : 2,
+  value: r.price, change: null, changePct: r.chgPct, asOf: r.asOf ?? null, state: r.state, liveUntil: r.liveUntil,
+})
+
 /**
  * 보유 종목 시세 지도(키 = symbol, calc.ts evaluate 가 읽는 모양). have(묶음 시세)를 그대로 담고,
- * 묶음에 없는 보유 종목만 10분 저장본 → Yahoo 순서로 채운다.
+ * 묶음에 없는 보유 종목만 10분 저장본 → batchQuotes(/quotes, 안 되면 Yahoo 하나씩) 순서로 채운다.
+ * 미국 종목은 현행 화면이 적어 둔 yahoo 칸이 있으면 그 심볼로 묻는다(yahooSymbols 와 같은 규칙).
  */
 export async function holdingQuotes(items: Holding[], have: Map<string, Quote>, now = Date.now()): Promise<Map<string, Quote>> {
   const out = new Map(have)
   const cache = readCache()
-  const need: Holding[] = []
+  const need = new Map<string, Holding[]>()   // 물을 코드 → 보유 줄(심볼은 달라도 같은 코드로 묻는 줄이 있다 — BRKB · BRK.B)
   const seen = new Set<string>()
   for (const h of items) {
     const k = `${h.market}:${h.symbol}`
     if (out.has(h.symbol) || seen.has(k)) continue
     seen.add(k)
-    const c = cache[k]
+    const c = cache[k], code = h.market === 'KR' ? h.symbol : yahooSymbols(h)[0]
     if (c && now - c.t < TTL_MS && pos(c.price)) out.set(h.symbol, toQuote(c))
-    else need.push(h)
+    else if (code) need.set(code, [...(need.get(code) ?? []), h])
   }
-  let i = 0
-  const worker = async () => {
-    while (i < need.length) {
-      const h = need[i++]
-      const p = await fetchOne(h)
-      if (!p) continue
-      cache[`${h.market}:${h.symbol}`] = { t: now, ...p }
-      out.set(h.symbol, toQuote(p))
+  const got = need.size ? await batchQuotes([...need.keys()], now) : new Map<string, LiveQuote>()
+  for (const [code, q] of got) {
+    for (const h of need.get(code) ?? []) {
+      cache[`${h.market}:${h.symbol}`] = { t: now, price: q.price, prev: q.prev }
+      out.set(h.symbol, { price: q.price, pct: q.pct })
     }
   }
-  await Promise.all(Array.from({ length: Math.min(PARALLEL, need.length) }, worker))
-  if (need.length) writeCache(cache)
+  if (need.size) writeCache(cache)
   return out
 }
 
