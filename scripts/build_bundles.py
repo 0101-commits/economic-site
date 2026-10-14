@@ -29,6 +29,7 @@ from __future__ import annotations
 import ast
 import datetime as dt
 import email.utils
+import hashlib
 import html
 import io
 import json
@@ -341,7 +342,10 @@ def kr_market(now, cal):
         session = ((cal or {}).get("previousBusinessDay") or {}).get("date") if known else None
     return {"state": state, "label": {"open": "정규장", "closed": "장마감", "holiday": "휴장"}[state],
             "today": today, "session": session, "nextOpen": (nxt + "T09:00:00+09:00") if nxt else None,
-            "calendarKnown": known}
+            "calendarKnown": known,
+            # 오늘 정규장 창 — 화면 장 상태 줄(「15:30 마감까지 55분」)이 자체 판정 대신 이 값을 쓴다. 장이 서지 않는 날은 null.
+            "openAt": (today + "T09:00:00+09:00") if open_day else None,
+            "closeAt": (today + "T15:30:00+09:00") if open_day else None}
 
 
 def us_market(now):
@@ -352,6 +356,36 @@ def us_market(now):
     is_open = trading and 9 * 60 + 30 <= hm < 16 * 60
     session = d if (trading and hm >= 9 * 60 + 30) else nyse_calendar.prev_trading_day(d)
     return is_open, not trading, session.isoformat()
+
+
+US_LABEL = {"pre": "장 전", "open": "정규장", "after": "장 뒤", "closed": "마감", "holiday": "휴장"}
+
+
+def _ny_at(d, hm):
+    """뉴욕 날짜 d 의 현지 hm(자정부터 분) → 한국 시각 ISO. 서머타임은 zoneinfo 가 맞춘다."""
+    return dt.datetime(d.year, d.month, d.day, hm // 60, hm % 60, tzinfo=NY).astimezone(KST).isoformat(timespec="seconds")
+
+
+def _next_trading_day(d):
+    d += dt.timedelta(days=1)
+    while not nyse_calendar.is_trading_day(d):
+        d += dt.timedelta(days=1)
+    return d
+
+
+def us_session(now):
+    """미국 장 상태(묶음 market.us) — 뉴욕 시각 장 전 04:00~09:30 · 정규 09:30~16:00 · 장 뒤 16:00~20:00, 그 밖 마감,
+    거래일이 아니면 휴장. openAt·closeAt = 지금(또는 다음) 정규 세션, nextOpen = 지금 뒤 첫 개장(장중이면 다음 거래일).
+    ponytail: 조기 폐장(추수감사절 다음 날 13:00 등)은 모른다 — closeAt 이 16:00 으로 나온다(us_market 과 같은 한계)."""
+    ny = now.astimezone(NY)
+    d, hm = ny.date(), ny.hour * 60 + ny.minute
+    trading = nyse_calendar.is_trading_day(d)
+    state = ("holiday" if not trading else "pre" if 4 * 60 <= hm < 9 * 60 + 30 else "open" if 9 * 60 + 30 <= hm < 16 * 60
+             else "after" if 16 * 60 <= hm < 20 * 60 else "closed")
+    cur = d if trading and hm < 16 * 60 else _next_trading_day(d)
+    nxt = d if trading and hm < 9 * 60 + 30 else _next_trading_day(d)
+    return {"state": state, "label": US_LABEL[state], "session": us_market(now)[2],
+            "openAt": _ny_at(cur, 9 * 60 + 30), "closeAt": _ny_at(cur, 16 * 60), "nextOpen": _ny_at(nxt, 9 * 60 + 30)}
 
 
 def globex_market(now):
@@ -368,7 +402,8 @@ def globex_market(now):
 class Clock:
     def __init__(self, now, cal):
         self.now = now
-        self.kr = kr_market(now, cal)
+        # self.kr 이 그대로 묶음 market 칸이 된다 — 미국 장 상태(us)는 그 안에 함께 싣는다(C1). 칸 판정(market())은 종전 튜플.
+        self.kr = dict(kr_market(now, cal), us=us_session(now))
         self.us = us_market(now)
         self.globex = globex_market(now)
 
@@ -1139,8 +1174,9 @@ def build_all(data, mer, now, toss=None):
         "news": news_top(data, 5),
         "lens": lens_today(mer),
         # AI 3줄 — 날짜가 오늘이 아니어도 싣는다(asOf 로 화면이 가른다). todayLine 은 오늘 자 첫 문장만 쓴다.
+        # 근거 칸(C3 — 문장별 refs · 근거 목록 · 뺀 문장 수 · 대조 통과 수 · 요약 날짜)은 ai_briefing 이 쓴 그대로. 옛 data.json 엔 없다.
         "brief": {"asOf": kst_stamp(ai.get("generatedAt")) or ai.get("date"), "lines": (ai.get("lines") or [])[:3],
-                  "source": ai.get("source")},
+                  "source": ai.get("source"), **{k: ai[k] for k in ("day", "items", "sources", "dropped", "check") if k in ai}},
         "mood": [mood_item(Q, i) for i in MOOD],
     }
 
@@ -1478,7 +1514,42 @@ def dumps(obj):
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
-def meta(data, mer, sizes, now, bundles):
+def worker_kr_holidays():
+    """Worker 의 KR_HOLIDAYS(KST 날짜) — 그날엔 Worker 가 KR 장중 창을 깨우지 않는다. 단일 원천은 worker.js 라 소스에서 읽는다."""
+    try:
+        with io.open(os.path.join(ROOT, "cloudflare-worker", "worker.js"), encoding="utf-8") as f:
+            m = re.search(r"KR_HOLIDAYS = new Set\(\[(.*?)\]\)", f.read(), re.S)
+    except OSError:
+        return set()
+    return set(re.findall(r"'(\d{4}-\d{2}-\d{2})'", m.group(1))) if m else set()
+
+
+def worker_window(t, kr_holidays):
+    """Worker inMarketHours 와 같은 판정 — UTC 월~금, KR 창 UTC 00~06시(한국 휴장일 제외) · US 창 UTC 13~21시.
+    US 창은 Worker 처럼 미국 휴장일을 가리지 않는다(그날도 5분마다 경량 런이 돈다)."""
+    u = t.astimezone(dt.timezone.utc)
+    if u.weekday() > 4:
+        return False
+    if u.hour <= 6:
+        return t.astimezone(KST).date().isoformat() not in kr_holidays
+    return 13 <= u.hour <= 21
+
+
+def next_at(now, kr_holidays=frozenset()):
+    """다음 묶음이 사이트에 올라올 것으로 보는 시각(meta.nextAt). Worker 크론을 따른다 — 창 안은 다음 5분 칸(경량 런) + 90초,
+    창 밖은 매시 :07 풀 · :35 경량 중 먼저 + 120초. 국내 창이 15:59 까지라 장 마감 뒤 15:35 칸이 들어간다."""
+    t = now.replace(second=0, microsecond=0)
+    for _ in range(61):                                   # 창 밖에서도 :07 · :35 가 한 시간에 두 번 — 61분 안에 반드시 걸린다
+        t += dt.timedelta(minutes=1)
+        if worker_window(t, kr_holidays):
+            if t.minute % 5 == 0:
+                return (t + dt.timedelta(seconds=90)).astimezone(KST).isoformat(timespec="seconds")
+        elif t.minute in (7, 35):
+            return (t + dt.timedelta(seconds=120)).astimezone(KST).isoformat(timespec="seconds")
+    return None
+
+
+def meta(data, mer, sizes, now, bundles, hashes=None):
     dh = data.get("dataHealth") or {}
     fresh = {s: 0 for s in STATES}                      # 띠(홈 8 + 화면별 6) 칸의 신선도 집계
     for name, obj in bundles.items():
@@ -1487,6 +1558,8 @@ def meta(data, mer, sizes, now, bundles):
         for it in obj.get("strip") or []:
             fresh[it.get("state", "missing")] = fresh.get(it.get("state", "missing"), 0) + 1
     return {"generatedAt": now.isoformat(timespec="seconds"), "dataUpdated": data.get("lastUpdated"),
+            # 다시 읽기(C2) — 화면은 nextAt(+30초)에 이 파일만 받고, 지문(hashes, 내용 sha1 앞 8자)이 바뀐 묶음만 다시 받는다
+            "nextAt": next_at(now, worker_kr_holidays()), "hashes": hashes or {},
             "merAsOf": mer.get("asOf"), "bundles": sizes, "maxBytes": MAX_BYTES,
             "states": {s: STATE_LABEL[s] for s in STATES}, "stripFreshness": fresh,
             # 지금 발동 중인 매매중단 — 모든 화면 머리의 배너가 이 1KB 파일만 보고 판정한다(국내 묶음 54KB 를 받지 않게)
@@ -1503,17 +1576,18 @@ def meta(data, mer, sizes, now, bundles):
 
 def write(bundles, data, mer, now, out_dir=OUT_DIR):
     os.makedirs(out_dir, exist_ok=True)
-    sizes = {}
+    sizes, hashes = {}, {}
     for name, obj in bundles.items():
         if name.startswith("_"):
             continue
         text = dumps(obj)
         sizes[name + ".json"] = len(text.encode("utf-8"))
-        if sizes[name + ".json"] > MAX_BYTES:            # 넘치면 직전 파일을 둔다 — main 이 exit 1 로 알린다
+        if sizes[name + ".json"] > MAX_BYTES:            # 넘치면 직전 파일을 둔다 — main 이 exit 1 로 알린다(지문도 싣지 않는다)
             continue
         with io.open(os.path.join(out_dir, name + ".json"), "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
-    m = meta(data, mer, sizes, now, bundles)
+        hashes[name] = hashlib.sha1(text.encode("utf-8")).hexdigest()[:8]
+    m = meta(data, mer, sizes, now, bundles, hashes)
     with io.open(os.path.join(out_dir, "meta.json"), "w", encoding="utf-8", newline="\n") as f:
         f.write(dumps(m))
     return sizes

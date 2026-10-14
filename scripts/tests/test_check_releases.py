@@ -272,17 +272,28 @@ def test_briefing_lines_checked_and_fall_back_to_rule(monkeypatch, tmp_path):
     assert not any(ab.slot_line_ok(line, cal) for line in mixed)          # 알림 한 문장(slot_line_ok)은 종전대로 날마다 따진다
     assert not ab.brief_lines_ok(["10/13(화) 미국 CPI 발표를 지켜볼 일이다."], cal)
     assert not ab.brief_lines_ok(["10/14(수) 미국 CPI 가 발표됐다 — 예상보다 높았다."], cal)    # 맞은 날이지만 시제가 틀림
+    # 2026-10-14 근거 대조(C3) 뒤로는 문장 단위로 버린다 — 걸린 문장만 빼고 2문장 이상 남으면 AI 요약, 그 아래면 규칙 요약.
+    # 근거 = [1] 코스피 · [2] 원/달러 · [3] 일정(미국 CPI). 문장 끝 근거 번호가 없으면 그것만으로 버린다.
     path = tmp_path / "data.json"
-    path.write_text(json.dumps({"economicCalendar": cal}), encoding="utf-8")
+    path.write_text(json.dumps({"economicCalendar": cal, "indices": {"KOSPI": {"price": 6479.88, "change": -2.82}},
+                                "fx": {"USDKRW": {"rate": 1336.2, "change": -0.3}}}), encoding="utf-8")
     monkeypatch.setattr(ab, "DATA_FILE", str(path))
-    monkeypatch.setattr(ab, "try_openai", lambda snap: None)
-    monkeypatch.setattr(ab, "try_gemini", lambda snap: ok[:2] + ["내일 발표되는 미국 CPI 를 확인할 것"])
+    monkeypatch.setattr(ab, "try_openai", lambda snap, sources=(): None)
+    cited = [ok[0] + " [1]", ok[1] + " [2]", ok[2] + " [3]"]
+    bad = "내일 발표되는 미국 CPI 를 확인할 것 [3]"
+    monkeypatch.setattr(ab, "try_gemini", lambda snap, sources=(): [cited[0], bad, ok[1]])      # 남는 문장 1
     ab.main()
-    assert json.loads(path.read_text(encoding="utf-8"))["aiBriefing"]["source"] == "rule"
-    monkeypatch.setattr(ab, "try_gemini", lambda snap: ok)
+    got = json.loads(path.read_text(encoding="utf-8"))["aiBriefing"]
+    assert got["source"] == "rule" and got["dropped"] == 2
+    monkeypatch.setattr(ab, "try_gemini", lambda snap, sources=(): cited[:2] + [bad])
+    ab.main()
+    got = json.loads(path.read_text(encoding="utf-8"))["aiBriefing"]
+    assert got["source"] == "gemini" and got["lines"] == ok[:2] and got["dropped"] == 1
+    monkeypatch.setattr(ab, "try_gemini", lambda snap, sources=(): cited)
     ab.main()
     got = json.loads(path.read_text(encoding="utf-8"))["aiBriefing"]
     assert got["source"] == "gemini" and got["lines"] == ok and got["generatedAt"] == "2026-10-12 11:07 KST"
+    assert [it["refs"] for it in got["items"]] == [[1], [2], [3]] and got["dropped"] == 0
 
 
 # ── 5. slot_line_ok — 일정표 대조 ──────────────────────────────────────────────
