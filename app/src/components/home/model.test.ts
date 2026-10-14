@@ -34,7 +34,7 @@ test('briefSources: 번호 순 · 기사 주소는 http(s) 만 · 번호 · 글 
 
 test('checkLine: 「대조 통과 — 숫자 n · 일정 n · 근거 없는 문장 n 뺌」 · 칸이 없으면 null', () => {
   assert.equal(checkLine({ check: { numbers: 3, schedule: 1 }, dropped: 1 }), '대조 통과 — 숫자 3 · 일정 1 · 근거 없는 문장 1 뺌')
-  assert.equal(checkLine({ check: { numbers: 2, schedule: 0 }, dropped: 0 }), '대조 통과 — 숫자 2 · 일정 0 · 근거 없는 문장 0 뺌')
+  assert.equal(checkLine({ check: { numbers: 2, schedule: 0 }, dropped: 0 }), '대조 통과 — 숫자 2 · 일정 0')   // 뺀 문장 0 은 적지 않는다
   assert.equal(checkLine({ dropped: 2 }), '대조 통과 — 근거 없는 문장 2 뺌')
   assert.equal(checkLine({ check: { numbers: 'x' } }), null)
   assert.equal(checkLine({}), null)

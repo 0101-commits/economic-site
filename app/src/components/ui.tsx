@@ -43,6 +43,15 @@ export function NumBlock({ value, decimals = 0, chg, pct, size = 'M', unit }: {
  * cell = 칸 시각(띠 카드, 과제 4): 장 상태 줄과 같은 말을 하는 값(장중 실시간 · 오늘 마감 값)은 숨기고, 다르면 「10/13 종가」 「10/9 값」
  * (format.ts cellLabel). 묶음에 장 기준(미국 칸)이 없으면 종전 배지 그대로.
  */
+/** 배지 글자만(칸 모드 아님) — 같은 줄에 같은 시각을 두 번 적지 않으려고 비교할 때 쓴다. 배지가 안 뜨면 null. */
+export function asOfText({ asOf, state, liveUntil, filled, now = new Date() }: { asOf: string | null | undefined; state?: string; liveUntil?: string | null; filled?: boolean; now?: Date }): string | null {
+  const fromState = kindFromState(state, liveUntil, now)
+  if (fromState === null) return null
+  const kind = fromState ?? (asOf ? asOfKind(asOf, now, { filled }) : filled ? 'filled' : null)
+  if (!kind || (kind !== 'filled' && !asOf)) return null
+  return asOfLabel(kind, asOf || '', now, krOpenDay(), marketNow())
+}
+
 export function AsOfBadge({ asOf, state, liveUntil, filled, now = new Date(), cell }: {
   asOf: string | null | undefined; state?: string; liveUntil?: string | null; filled?: boolean; now?: Date; cell?: boolean
 }) {

@@ -53,7 +53,7 @@ export function checkLine(b: { check?: unknown; dropped?: unknown } | null | und
   const parts = [
     nat(c?.numbers) != null ? `숫자 ${c!.numbers}` : '',
     nat(c?.schedule) != null ? `일정 ${c!.schedule}` : '',
-    nat(b?.dropped) != null ? `근거 없는 문장 ${b!.dropped} 뺌` : '',
+    (nat(b?.dropped) ?? 0) > 0 ? `근거 없는 문장 ${b!.dropped} 뺌` : '',   // 0 이면 적지 않는다
   ].filter(Boolean)
   return parts.length ? `대조 통과 — ${parts.join(' · ')}` : null
 }

@@ -12,7 +12,7 @@ import { kstDay } from '../../lib/personal/calc'
 import { loadRootJson } from '../../lib/personal/data'
 import { chartBasis, stockSeries, type StockChart } from '../../lib/personal/quotes'
 import { useWatch } from '../../lib/watch'
-import { AsOfBadge, NumBlock, Pill } from '../ui'
+import { AsOfBadge, NumBlock, Pill, asOfText } from '../ui'
 import { DivergingBars } from '../charts'
 import { Panel, WatchStar } from '../panels'
 import { BellPanel, FlowPanel, Related, useCmp } from './parts'
@@ -115,6 +115,8 @@ export default function StockDetail({ id }: { id: string }) {
   const basis = fromRow ? { asOf: row!.asOf, state: row!.state, liveUntil: row!.liveUntil } : chart ? chartBasis(chart) : null
   const market = row?.market ? MARKET_KO[row.market] ?? row.market : kr ? '국내' : '미국'
   const vol = headVolume(row, fromRow, chart?.vol)   // 묶음 행에 없으면 머리 값과 같은 날의 일봉 거래량
+  const headText = basis?.asOf ? asOfText(basis) : null
+  const sameAsHead = (at: { asOf?: string | null; state?: string; liveUntil?: string | null }) => headText != null && asOfText({ asOf: at.asOf, state: at.state, liveUntil: at.liveUntil }) === headText
   const amt = fromRow && row?.amount != null ? row.amount : null
   const why = info.reason
 
@@ -138,12 +140,13 @@ export default function StockDetail({ id }: { id: string }) {
         <p className="m-0 text-12 text-ink-3">
           어제보다{basis?.asOf && <> · <AsOfBadge {...basis} /></>}{info.mkLabel && <> · {info.mkLabel}</>}
         </p>
+        {/* 기준 시각은 머리 한 곳 — 거래대금 · 거래량 시각이 머리 배지와 같은 글자면 다시 적지 않는다 */}
         {(amt != null || vol) && (
           <p className="m-0 text-12 text-ink-3">
-            {amt != null && <>거래대금 <span className="num">{amt >= 1e12 ? `${fmtNumber(amt / 1e12, 2)}조` : `${fmtNumber(amt / 1e8, 0)}억`}</span>{row!.amountAt && <> <AsOfBadge asOf={row!.amountAt.asOf} state={row!.amountAt.state} liveUntil={row!.amountAt.liveUntil} /></>}</>}
+            {amt != null && <>거래대금 <span className="num">{amt >= 1e12 ? `${fmtNumber(amt / 1e12, 2)}조` : `${fmtNumber(amt / 1e8, 0)}억`}</span>{row!.amountAt && !sameAsHead(row!.amountAt) && <> <AsOfBadge asOf={row!.amountAt.asOf} state={row!.amountAt.state} liveUntil={row!.amountAt.liveUntil} /></>}</>}
             {amt != null && vol && ' · '}
             {vol && <>거래량 <span className="num">{fmtShares(vol.value)}</span>
-              {vol.at ? <> <AsOfBadge asOf={vol.at.asOf} state={vol.at.state} liveUntil={vol.at.liveUntil} /></> : vol.fromChart && fromRow && chart && <> <AsOfBadge {...chartBasis(chart)} /></>}</>}
+              {vol.at ? !sameAsHead(vol.at) && <> <AsOfBadge asOf={vol.at.asOf} state={vol.at.state} liveUntil={vol.at.liveUntil} /></> : vol.fromChart && fromRow && chart && !sameAsHead(chartBasis(chart)) && <> <AsOfBadge {...chartBasis(chart)} /></>}</>}
           </p>
         )}
       </header>
