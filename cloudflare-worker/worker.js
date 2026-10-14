@@ -288,6 +288,89 @@ async function merFetchFulltext(logNo) {
     return merExtractFulltext(await r.text());
   } catch (e) { return ''; }
 }
+// 📈 보유·관심 종목 시세 — GET /quotes?codes=466920,000660,AAPL (계약: docs/superpowers/specs/2026-10-14-struct-bench-plan.md C5)
+//   공개 시세라 인증 없이 GET_CORS(*). 관심 목록은 저장·기록하지 않는다(코드는 요청 안에서만 쓴다).
+//   Yahoo v8 chart 일봉을 받아 현재가·전일 종가를 뽑는 규칙은 app/src/lib/personal/quotes.ts parseChart 와 같다.
+//   보관: 코드별 60초 모듈 Map — Cache API 는 workers.dev 도메인에서 동작하지 않아 쓸 수 없고, isolate 가 바뀌면
+//   비워져도 시세는 다시 받으면 그만이라 Map 으로 충분하다.
+const QUOTES_MAX = 30;
+const QUOTES_TTL_MS = 60000;
+const QUOTES_PARALLEL = 6;
+// 한 요청이 부르는 Yahoo 수 상한 — 무료 요금제 하위 요청 50개를 넘으면 그 뒤 fetch 가 예외(30종목 × .KS→.KQ = 최대 60, PR #170 검토)
+const QUOTES_FETCH_BUDGET = 45;
+const QUOTES_KEEP_MAX = 500;   // 보관 항목 상한 — 넘으면 오래된 것부터 버린다(isolate 메모리 가드)
+const _quotesKeep = new Map();   // 코드 → {t, item}
+const QUOTES_KR = /^[0-9A-Z]{6}$/;
+const QUOTES_US = /^[A-Za-z.\-]{1,10}$/;
+// 국내 = 6자리 영숫자 대문자(숫자가 하나는 있다 — 신형 코드도 그렇다). 숫자 없는 영문 6자는 미국 티커로 본다.
+const _quotesIsKr = c => QUOTES_KR.test(c) && /[0-9]/.test(c);
+const _quotesPos = v => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+function _quotesDay(res, i) {
+  const t = res.timestamp && res.timestamp[i], off = res.meta && res.meta.gmtoffset;
+  return typeof t === 'number' ? new Date((t + (typeof off === 'number' ? off : 0)) * 1000).toISOString().slice(0, 10) : null;
+}
+// 일봉 응답 → {price, prev, exchange, at}. exchange 를 주면(국내) 거래소 표식 · MUTUALFUND 검사를 건다 — Yahoo 는
+// 접미사가 틀려도 빈 응답 대신 엉뚱한 값을 준다(2026-10-02 실측 247540.KS = KOE · MUTUALFUND).
+function _quotesParse(j, exchange) {
+  const res = j && j.chart && j.chart.result && j.chart.result[0];
+  const meta = res && res.meta;
+  if (!meta) return null;
+  if (exchange && (meta.exchangeName !== exchange || meta.instrumentType === 'MUTUALFUND')) return null;
+  const q = res.indicators && res.indicators.quote && res.indicators.quote[0];
+  const closes = (q && q.close) || [];
+  const price = _quotesPos(meta.regularMarketPrice) ?? _quotesPos(closes[closes.length - 1]);
+  if (price == null) return null;
+  // 전일 = 마지막 일봉 바로 앞 확정 종가. 장중엔 같은 날짜 일봉이 둘 오므로 마지막 일봉과 같은 날짜는 건너뛴다.
+  let prev = null;
+  const last = _quotesDay(res, closes.length - 1);
+  for (let i = closes.length - 2; i >= 0 && prev == null; i--) {
+    if (last == null || _quotesDay(res, i) !== last) prev = _quotesPos(closes[i]);
+  }
+  prev = prev ?? _quotesPos(meta.chartPreviousClose) ?? _quotesPos(meta.previousClose);
+  const at = typeof meta.regularMarketTime === 'number' ? new Date(meta.regularMarketTime * 1000).toISOString() : null;
+  return { price, prev, exchange: meta.exchangeName || exchange || null, at };
+}
+async function _quotesChart(sym, exchange, budget) {
+  if (budget.left <= 0) return null;   // 상한을 다 썼다 — 이 코드는 못 받은 것으로(보관하지 않아 다음 요청이 다시 시도)
+  budget.left--;
+  try {
+    const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?range=5d&interval=1d',
+      { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
+    return r.ok ? _quotesParse(await r.json(), exchange) : null;
+  } catch (e) { return null; }
+}
+async function _quotesOne(code, budget) {
+  const hit = _quotesKeep.get(code);
+  if (hit && Date.now() - hit.t < QUOTES_TTL_MS) return hit.item;
+  let p = null;
+  if (_quotesIsKr(code)) p = (await _quotesChart(code + '.KS', 'KSC', budget)) || (await _quotesChart(code + '.KQ', 'KOE', budget));
+  else p = await _quotesChart(code.toUpperCase().replace(/\./g, '-'), null, budget);
+  if (!p) return null;   // 못 받은 코드는 보관하지 않는다 — 다음 요청이 다시 시도
+  const item = { price: p.price, prev: p.prev, pct: p.prev ? (p.price / p.prev - 1) * 100 : null, exchange: p.exchange, at: p.at };
+  if (_quotesKeep.size >= QUOTES_KEEP_MAX) _quotesKeep.delete(_quotesKeep.keys().next().value);
+  _quotesKeep.set(code, { t: Date.now(), item });
+  return item;
+}
+async function handleQuotes(request) {
+  const raw = new URL(request.url).searchParams.get('codes') || '';
+  const codes = [...new Set(raw.split(',').map(s => s.trim()).filter(Boolean))];
+  if (!codes.length) return jsonResponse({ error: 'codes_required', message: 'codes=코드,코드 … 형식으로 보내세요.' }, 400);
+  if (codes.length > QUOTES_MAX) return jsonResponse({ error: 'too_many_codes', max: QUOTES_MAX }, 400);
+  const bad = codes.filter(c => !QUOTES_KR.test(c) && !QUOTES_US.test(c));
+  if (bad.length) return jsonResponse({ error: 'bad_code', codes: bad.slice(0, 5) }, 400);
+  const items = {};
+  const budget = { left: QUOTES_FETCH_BUDGET };
+  let i = 0;
+  const pool = async () => {
+    while (i < codes.length) {
+      const c = codes[i++];
+      const it = await _quotesOne(c, budget);
+      if (it) items[c] = it;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(QUOTES_PARALLEL, codes.length) }, pool));
+  return jsonResponse({ asOf: new Date().toISOString(), items });
+}
 async function handleMerBlog(request) {
   const u = new URL(request.url);
   // ids= 모드: logNo 목록의 원문을 직접 조회(검색어 불필요). 다운로드 시 누락 원문 일괄 확보용.
@@ -1929,6 +2012,12 @@ export default {
       const rl = await _rateLimited(env, 'PROXY_LIMITER', request, false);
       if (rl) return rl;
       return handleMerBlog(request);
+    }
+    // 📈 보유·관심 종목 시세 (GET /quotes) — 공개 시세, GET_CORS('*'), 프록시와 같은 PROXY_LIMITER(fail-open)
+    if (reqUrl.pathname === '/quotes') {
+      const rl = await _rateLimited(env, 'PROXY_LIMITER', request, false);
+      if (rl) return rl;
+      return handleQuotes(request);
     }
     const target = reqUrl.searchParams.get('url');
 

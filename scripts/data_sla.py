@@ -52,6 +52,8 @@ SLA_RULES = [
     ("freight",                          10,  "normal"),
     ("marketHalts",                      400, "normal"),
     ("corpEvents",                       3,   "normal"),    # OpenDART 배당·실적 일정 — 일일 런 하루 1회(as-of = 검색 끝 날짜)
+    ("stockNews",                        4,   "normal"),    # 종목 기사 · 이유 줄(계약 C4, 장 서는 날 08~20시) — 주말 · 하루 휴장을 넘긴다
+    ("stockReasons",                     4,   "normal"),
 
     # 거시 — 일간 시리즈만 명시, 나머지는 주기에서 도출(None)
     ("economicIndicators.us.vix",        6,   "important"),
@@ -177,7 +179,7 @@ def _extract_asof(node):
 # ponytail: 공휴일 표 없이 주말만 거른다 — 평일 4일 넘게 쉬는 휴장이 생기면 KRX 휴장일 표로.
 TRADING_DAY_PATHS = ("history.indices.*", "history.fx.*", "history.commodities.*",
                      "stockMovers.*", "etfMovers.*", "rankingsKr.*", "investorTrading",
-                     "sentiment.*", "yieldCurve.*", "marketBreadth.*", "sectorMoves")
+                     "sentiment.*", "yieldCurve.*", "marketBreadth.*", "sectorMoves", "stockNews", "stockReasons")
 
 
 def _weekdays_between(a, b):
@@ -272,7 +274,8 @@ def _raw_asof(node, depth=0):
 # 블록 전체가 하나의 지표로 취급되는 최상위 키 (내부를 쪼개지 않는다)
 _ATOMIC_TOPS = ("freight", "investorTrading", "news", "economicCalendar", "marketCalendarKr",
                 "nps", "subscription", "marketHalts", "aiBriefing", "lmeInventory", "sectorMoves",
-                "corpEvents")   # 배당·실적 일정(2026-10) — items·corpMap 을 쪼개지 않는다. as-of = 공시 검색 끝 날짜
+                "corpEvents",   # 배당·실적 일정(2026-10) — items·corpMap 을 쪼개지 않는다. as-of = 공시 검색 끝 날짜
+                "stockNews", "stockReasons")   # 종목 기사 · 이유 줄(계약 C4) — 종목코드 칸을 쪼개면 칸마다 as-of 미상이 된다
 _SKIP_TOPS = ("lastUpdated", "sources", "diagnostics", "dataHealth")
 # 현재가 스냅샷 블록 — 자체 날짜 필드가 없고 신선도는 같은 심볼의 history 가 대변한다.
 # 여기서 판정하면 심볼마다 'unknown' 이 중복으로 쌓여 요약이 무의미해진다.

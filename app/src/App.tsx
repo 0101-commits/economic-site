@@ -1,9 +1,10 @@
 // 화면 골격: PC(≥980px) 상단 네비 5 + 검색·종·톱니 / 모바일 하단 탭 5.
 // 주소는 해시 방식(#/market?a=kr) — GitHub Pages 는 없는 경로를 index.html 로 돌려주지 않아서,
 // 경로 방식이면 /next/market 을 새로 고칠 때 404 가 난다.
+// 머리 아래 띠 둘(매매중단 · 새 화면 판) · 화면 단위 칸막이(오류가 나도 머리 · 탭은 남는다)도 여기.
 import { useEffect, useState } from 'react'
 import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { Bell, ChartCandlestick, ChevronRight, House, Moon, Search, Settings as Gear, Sun, SunMoon, Telescope, Wallet, type LucideIcon } from 'lucide-react'
+import { Bell, ChartCandlestick, ChevronRight, House, Moon, RotateCw, Search, Settings as Gear, Sun, SunMoon, Telescope, Wallet, type LucideIcon } from 'lucide-react'
 import Home from './screens/Home'
 import Market from './screens/Market'
 import Lens from './screens/Lens'
@@ -12,15 +13,16 @@ import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
 import { PinGate } from './components/PinGate'
-import { Pill } from './components/ui'
+import { Boundary, Pill } from './components/ui'
 import { SearchOverlay } from './components/personal/SearchOverlay'
+import Rail, { useRail } from './components/Rail'
 import { applyUpdown, readPrefs, tidyAlerts } from './lib/personal/store'
 import { loadRootJson } from './lib/personal/data'
 import { hasUnseen, markSeen, readSeen } from './lib/alertsSeen'
 import { legacyToHash } from './lib/legacyUrl'
 import { applyTheme, useTheme, type Theme } from './lib/theme'
 import { countUse, screenKey } from './lib/usage'
-import { loadBundle, useBundleRev, watchBundles, type Meta } from './lib/bundle'
+import { loadBundle, useBundleRev, useNewBuild, watchBundles, type Meta } from './lib/bundle'
 import { haltLine, type Halt } from './lib/refresh'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
@@ -108,8 +110,8 @@ function Shell() {
   }, [])
   useEffect(() => { if (pathname === '/alerts') setSeen(markSeen()) }, [pathname])
   const unseen = hasUnseen(rows, seen)
-  // 묶음 다시 읽기(명세 C7): 장중 5분 · 탭 30분 복귀. 새 묶음이 오면 rev 가 오르고, 홈 · 시장은 묶음을 읽는 곳이 rev 를 보고
-  // 그 자리에서 다시 읽는다(화면을 다시 만들지 않는다). 입력 중일 수 있는 화면(상세 알림 시트 · 렌즈 만약에 · 내 자산 · 알림 · 설정)은 그대로다.
+  // 묶음 다시 읽기(lib/bundle.ts — meta nextAt + 30초, 없으면 장중 5분). 새 묶음이 오면 rev 가 오르고, 홈 · 시장 · 지표 상세 · 내 자산은
+  // 묶음을 읽는 곳이 rev 를 보고 그 자리에서 다시 읽는다(화면을 다시 만들지 않아 입력 · 열린 시트가 남는다). 렌즈 · 알림 · 설정은 그대로다.
   useEffect(() => watchBundles(), [])
   const rev = useBundleRev()
   // 머리 아래 매매중단 배너 · 톱니의 자료 실패 점 — 묶음이 바뀔 때마다 다시 본다
@@ -128,7 +130,12 @@ function Shell() {
     return () => clearTimeout(id)
   }, [halts, haltTick])
   const halt = haltLine(halts, Date.now())
+  // 새 화면 판(과제 9): 사이트에 다른 판이 올라 있으면 띠. 누를 때만 새로고침하고, 닫으면 그 판 동안은 다시 띄우지 않는다.
+  const newBuild = useNewBuild()
+  const [shut, setShut] = useState('')
   const gearDot = failed ? '자료 실패 있음' : undefined
+  // 오른쪽 패널(components/Rail.tsx): 980 이상 아이콘 줄 48px, 1440 이상 펼치면 300px — 본문은 그만큼 오른쪽을 비운다(가로 넘침 0)
+  const rail = useRail()
   // `/` = 검색 열기(입력 칸에서 치는 / 는 그대로 둔다)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -141,7 +148,7 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   return (
-    <div className="min-h-dvh">
+    <div className={`min-h-dvh pc:pr-12 ${rail.open ? 'min-[90rem]:pr-75' : ''}`}>
       {/* PC 상단 */}
       <header className="hidden pc:block bg-card border-b border-line">
         <div className="mx-auto max-w-[1200px] px-4 h-14 flex items-stretch gap-6">
@@ -180,20 +187,35 @@ function Shell() {
         </Link>
       )}
 
+      {newBuild && newBuild !== shut && (
+        <div className="bg-card border-b border-line">
+          <div role="status" className="mx-auto max-w-[1200px] px-4 py-2 flex flex-wrap items-center gap-2 text-13 text-ink-1">
+            <RotateCw size={16} aria-hidden className="shrink-0 text-ink-3" />
+            <span className="min-w-0 flex-1">새 화면이 나왔습니다</span>
+            <button type="button" onClick={() => location.reload()} className="h-8 px-3 rounded-btn text-13 font-bold bg-accent text-on-accent border border-accent cursor-pointer">새로고침</button>
+            <button type="button" onClick={() => setShut(newBuild)} className="h-8 px-3 rounded-btn text-13 border border-line bg-card text-ink-2 hover:text-ink-1 cursor-pointer">닫기</button>
+          </div>
+        </div>
+      )}
+
       <main className="mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/market" element={<Market />} />
-          <Route path="/lens" element={<Lens />} />
-          <Route path="/my" element={<My />} />
-          <Route path="/alerts" element={<Alerts />} />
-          <Route path="/i/:id" element={<Detail />} />
-          <Route path="/settings" element={<PinGate><Settings /></PinGate>} />
-          <Route path="*" element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
-        </Routes>
+        {/* 화면 단위 칸막이 — 한 화면이 그리다 오류를 내도 머리 · 탭은 남는다. 다른 화면으로 가면 풀린다 */}
+        <Boundary screen where={screen} resetKey={`${pathname}:${rev}`}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/market" element={<Market />} />
+            <Route path="/lens" element={<Lens />} />
+            <Route path="/my" element={<My />} />
+            <Route path="/alerts" element={<Alerts />} />
+            <Route path="/i/:id" element={<Detail />} />
+            <Route path="/settings" element={<PinGate><Settings /></PinGate>} />
+            <Route path="*" element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
+          </Routes>
+        </Boundary>
       </main>
 
       <SearchOverlay open={search} onClose={() => setSearch(false)} />
+      <Rail />
 
       {/* 모바일 하단 탭 */}
       <nav aria-label="주 메뉴" className="pc:hidden fixed bottom-0 inset-x-0 bg-card border-t border-line grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">

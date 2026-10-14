@@ -16,7 +16,7 @@ function repoData(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = decodeURIComponent((req.url || '').split('?')[0])
-        if (url.includes('..') || !/^\/(data\.json|alerts_state\.json|alerts_config\.json|merblog\.json|bundles\/[\w.-]+\.json|events\/[\w./-]+\.json|css\/fonts\/[\w./-]+)$/.test(url)) return next()
+        if (url.includes('..') || !/^\/(data\.json|alerts_state\.json|alerts_config\.json|merblog\.json|bundles\/[\w.-]+\.json|briefs\/[\w.-]+\.json|events\/[\w./-]+\.json|css\/fonts\/[\w./-]+)$/.test(url)) return next()
         const file = path.join(REPO, url)
         if (!fs.existsSync(file)) { res.statusCode = 404; res.end(); return }
         res.setHeader('Content-Type', TYPES[path.extname(file)] || 'application/octet-stream')
@@ -45,9 +45,21 @@ const csp: Plugin = {
   transformIndexHtml: () => [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: CSP }, injectTo: 'head-prepend' }],
 }
 
+// 새 판 알림(과제 9): 빌드 때 dist/version.json = { build: 진입 JS 파일 이름 }. 이름에 내용 지문이 들어 있어 소스가 같으면 같은 값이다.
+// 화면은 자기 진입 모듈 이름(main.tsx import.meta.url)과 견주어 다르면 머리 아래 띠를 띄운다(lib/bundle.ts checkBuild).
+// 배포 수집(scripts/collect_site.mjs)이 이 파일을 app/dist 에서 같이 옮긴다.
+const version: Plugin = {
+  name: 'version',
+  apply: 'build',
+  generateBundle(_, out) {
+    const entry = Object.values(out).find(c => c.type === 'chunk' && c.isEntry)
+    if (entry) this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: path.basename(entry.fileName) }) })
+  },
+}
+
 export default defineConfig(({ command }) => ({
   // 배포 주소가 /economic-site/next/ 라서 빌드는 상대 경로로 둔다. 개발 서버는 /next/ 에서 같은 모양으로 연다.
   base: command === 'build' ? './' : '/next/',
-  plugins: [react(), tailwindcss(), repoData(), csp],
+  plugins: [react(), tailwindcss(), repoData(), csp, version],
   build: { outDir: 'dist', emptyOutDir: true },
 }))

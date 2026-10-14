@@ -1,32 +1,63 @@
 // 묶음 로더 — 화면은 묶음(bundles/<이름>.json)만 읽는다. 데이터 층은 손대지 않는다.
+// 같은 곳에서: 다시 읽기 시계(meta nextAt · hashes) · 첫 화면 보관(홈 묶음 24시간) · 새 판 확인(version.json).
 // 주소 기준: 자료(data.json · bundles/)는 사이트 루트에 있다. 이 앱은 2026-10-02 부터 루트(/economic-site/)에 있고,
 // 옛 주소 next/ 에도 한동안 같은 사본이 있다 — next/ 에서 열렸으면 한 단계 위가 루트다.
 //   배포  /economic-site/        → ./data.json · ./bundles/
 //         /economic-site/next/   → ../data.json · ../bundles/
 //   개발  /next/                 → /data.json · /bundles/   (vite.config 의 개발 서버가 저장소 루트에서 내준다)
-import { useSyncExternalStore } from 'react'
-import { changeFromPct, type PeriodKey, type Pt } from './format'
-import { reloadDue, type Halt } from './refresh'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { changeFromPct, marketCtx, type Market, type MarketCtx, type PeriodKey, type Pt } from './format'
+import { buildOf, changedBundles, homeCacheFrom, reloadDue, waitMs, HOME_CACHE_KEY, type Halt, type HomeCache } from './refresh'
 import { stockRows, type StockRow } from './detail'
 
 /** 사이트 루트(자료·현행 화면 legacy.html 이 있는 곳). */
 export const ROOT = new URL(/\/next\/$/.test(new URL(document.baseURI).pathname) ? '../' : './', document.baseURI)
 
-async function fetchJson<T>(rel: string): Promise<T> {
-  const r = await fetch(new URL(rel, ROOT), { cache: 'no-cache' })
+async function fetchJson<T>(rel: string, base: URL | string = ROOT): Promise<T> {
+  const r = await fetch(new URL(rel, base), { cache: 'no-cache' })
   if (!r.ok) throw new Error(`${rel}: HTTP ${r.status}`)
   return r.json() as Promise<T>
 }
 
-// 한국 장이 열린 날(묶음 market.state = open 일 때의 그날 날짜, 아니면 null). 묶음을 받을 때마다 고친다.
-// 기준 시각 배지(ui.tsx AsOfBadge)가 오늘 장중 값을 「종가」라 부르지 않게 쓴다 — 홈 · 시장 묶음이 모두 같은 market 을 싣는다.
+// 장 상태(묶음 market — 홈 · 시장 묶음이 모두 같은 market 을 싣는다). 묶음을 받을 때마다 고친다.
+// krOpen = 한국 장이 열린 날(state open 일 때의 그날 날짜, 아니면 null) — 기준 시각 배지(ui.tsx AsOfBadge)가 오늘 장중 값을 「종가」라 부르지 않게.
+// mkt 전체는 다시 읽기 판정(refresh.ts inSession)과 칸 시각(format.ts marketCtx)이 쓴다.
 let krOpen: string | null = null
+let mkt: MarketState | null = null
 function noteMarket(b: unknown) {
-  const m = (b as { market?: Partial<MarketState> } | null)?.market
-  if (m?.state) krOpen = m.state === 'open' ? m.session || m.today || null : null
+  const m = (b as { market?: MarketState } | null)?.market
+  if (m?.state) { krOpen = m.state === 'open' ? m.session || m.today || null : null; mkt = m }
 }
 /** 한국 장이 지금 열린 날의 날짜('YYYY-MM-DD') — 장이 닫혔거나 아직 묶음을 못 받았으면 null. */
 export const krOpenDay = () => krOpen
+/** 마지막으로 받은 묶음의 장 기준(세션 날짜 · 마감 시각). 미국 칸이 없는 옛 묶음이거나 아직 못 받았으면 null. */
+export const marketNow = (): MarketCtx | null => marketCtx(mkt)
+
+// 첫 화면(과제 11): 마지막으로 받은 홈 묶음 + 그때 meta.dataUpdated 를 이 기기에 둔다(econ_home_cache_v1, 24시간).
+// 홈이 다음에 열릴 때 먼저 그리고(screens/Home.tsx), 새 묶음이 오면 바꿔 낀다. 저장소가 막혀 있으면 조용히 건너뛴다.
+let lastHome: unknown = null
+let lastMeta: Meta | null = null
+function keep(name: string, v: unknown) {
+  noteMarket(v)
+  if (name === 'meta') lastMeta = v as Meta
+  else if (name === 'home') lastHome = v
+  else return
+  if (!lastHome) return
+  const c: HomeCache<unknown> = { at: Date.now(), home: lastHome, dataUpdated: lastMeta?.dataUpdated ?? null, ...(mine ? { build: mine } : {}) }
+  try { localStorage.setItem(HOME_CACHE_KEY, JSON.stringify(c)) } catch { /* 못 쓰면 다음 열기 때 그냥 받는다 */ }
+}
+/**
+ * 보관해 둔 홈(24시간 안), 없으면 null. 이번 열기에서 이미 홈 묶음을 받았으면(화면 사이를 오갈 때) 쓰지 않는다.
+ * 그 묶음의 장 상태를 기억해 둔다 — 보관 값의 칸 시각이 보관 때 장 기준으로 붙게.
+ */
+export function readHomeCache(): HomeCache<HomeBundle> | null {
+  if (lastHome) return null
+  let raw: string | null = null
+  try { raw = localStorage.getItem(HOME_CACHE_KEY) } catch { return null }
+  const c = homeCacheFrom<HomeBundle>(raw, Date.now(), mine || undefined)
+  if (c && !mkt) noteMarket(c.home)
+  return c
+}
 
 // 한 화면 안에서 같은 묶음을 두 번 받지 않는다(홈 띠 보기 · 큰 차트 · 상세가 같은 묶음을 나눠 쓴다). 실패는 기억하지 않는다.
 const bundles = new Map<string, Promise<unknown>>()
@@ -35,21 +66,36 @@ export function loadBundle<T = unknown>(name: string): Promise<T> {
   let p = bundles.get(name)
   if (!p) {
     const q = fetchJson<T>(`bundles/${name}.json`)
-    q.then(noteMarket, () => {})
+    q.then(v => keep(name, v), () => {})
     q.catch(() => { if (bundles.get(name) === q) bundles.delete(name) })   // 다시 읽기가 바꿔 끼운 뒤 늦게 실패한 옛 요청은 새 것을 지우지 않는다
     bundles.set(name, p = q)
   }
   return p as Promise<T>
 }
 
-/** bundles/meta.json — 묶음을 만든 때(generatedAt)와 자료 점검표 요약(설정 「데이터 상태」가 전부를 그린다). */
-export type Meta = { generatedAt?: string; health?: { summary?: Record<string, number> }; haltsActive?: Halt[] }
+/**
+ * bundles/meta.json — 묶음을 만든 때(generatedAt) · 값 시각(dataUpdated) · 다음 묶음이 사이트에 올라올 때(nextAt) ·
+ * 묶음별 지문(hashes, 묶음 내용 sha1 앞 8자) · 자료 점검표 요약(설정 「데이터 상태」가 전부를 그린다). nextAt · hashes 는 옛 meta 에 없다.
+ */
+export type Meta = { generatedAt?: string; dataUpdated?: string; nextAt?: string; hashes?: Record<string, string>; health?: { summary?: Record<string, number> }; haltsActive?: Halt[] }
+/** meta 를 읽고 다시 읽기(rev)마다 새로 읽는다. 아직 못 받았으면 null. */
+export function useMeta(): Meta | null {
+  const r = useBundleRev()
+  const [m, setM] = useState<Meta | null>(null)
+  useEffect(() => {
+    let live = true
+    loadBundle<Meta>('meta').then(x => { if (live) setM(x) }, () => {})
+    return () => { live = false }
+  }, [r])
+  return m
+}
 
-// ── 다시 읽기(명세 C7) ─────────────────────────────────
-// 장중 5분마다 · 탭을 30분 넘게 숨겼다 돌아오면 meta.json(1KB)부터 받아 generatedAt 이 바뀌었을 때만, 지금 기억하는 묶음을
-// 전부 새로 받아 바꿔 끼우고 rev 를 올린다. 홈 · 시장은 묶음을 읽는 곳이 rev 를 의존성에 넣어 그 자리에서 다시 읽는다 —
-// 화면을 다시 만들지 않아 질문칸 · 표 정렬 · 열린 시트 · 더 보기 · 고른 칸이 남는다. 다 받은 뒤에 바꿔 끼우므로 다시 읽으면 곧바로 새 값이다.
-// 판정(언제 읽나)은 refresh.ts reloadDue.
+// ── 다시 읽기(명세 C7 → 계약 C2 · 과제 5) ─────────────────────────
+// meta 가 알려 준 다음 묶음 시각(nextAt) + 30초에 meta.json(1KB)부터 받아, 묶음별 지문(hashes)이 바뀐 묶음만 새로 받아 바꿔 끼우고
+// rev 를 올린다. 지문이 없는 옛 meta 는 generatedAt 이 바뀌었을 때 지금 기억하는 묶음 전부. nextAt 이 없거나 이미 지났으면 5분 규칙.
+// 숨은 탭은 읽지 않고, 돌아오면 읽을 때가 지났을 때 곧바로. 홈 · 시장 · 지표 상세 · 내 자산은 묶음을 읽는 곳이 rev 를 의존성에 넣어
+// 그 자리에서 다시 읽는다 — 화면을 다시 만들지 않아 질문칸 · 표 정렬 · 열린 시트 · 더 보기 · 고른 칸이 남는다.
+// 다 받은 뒤에 바꿔 끼우므로 다시 읽으면 곧바로 새 값이다. 판정(언제 읽나)은 refresh.ts reloadDue · waitMs.
 let rev = 0
 const revSubs = new Set<() => void>()
 /** 묶음을 바꿔 끼운 직후(화면이 다시 그려지기 전) 부른다. 돌려준 함수로 푼다. */
@@ -61,15 +107,15 @@ let reloading = false
 async function reloadBundles(): Promise<void> {
   if (reloading) return
   reloading = true
+  void checkBuild()
   try {
     const old = await (bundles.get('meta') as Promise<Meta> | undefined)?.catch(() => null)
     const meta = await fetchJson<Meta>('bundles/meta.json')
     if (old?.generatedAt && old.generatedAt === meta.generatedAt) return
-    const names = [...bundles.keys()].filter(n => n !== 'meta')
+    const names = changedBundles([...bundles.keys()].filter(n => n !== 'meta'), old?.hashes, meta.hashes)
     const got = await Promise.all(names.map(n => fetchJson(`bundles/${n}.json`).then((v): [string, unknown] => [n, v], () => null)))
-    const fresh = new Map<string, unknown>([['meta', meta], ...got.filter(g => g !== null)])
-    bundles.clear()   // 못 받은 묶음은 빠진다 — 화면이 다시 부를 때 한 번 더 받는다
-    fresh.forEach((v, n) => { noteMarket(v); bundles.set(n, Promise.resolve(v)) })
+    names.forEach(n => bundles.delete(n))   // 못 받은 묶음은 빠진다 — 화면이 다시 부를 때 한 번 더 받는다. 지문이 그대로인 묶음은 그대로 둔다
+    for (const [n, v] of [['meta', meta] as [string, unknown], ...got.filter(g => g !== null)]) { keep(n, v); bundles.set(n, Promise.resolve(v)) }
     rev++
     revSubs.forEach(f => f())
   } catch { /* meta 를 못 받았다 — 다음 차례에 다시 */ } finally { reloading = false }
@@ -77,21 +123,47 @@ async function reloadBundles(): Promise<void> {
 
 /** 다시 읽기 시계를 건다(App 이 한 번). 돌려준 함수로 푼다. 숨은 탭에서는 읽지 않는다. */
 export function watchBundles(): () => void {
-  let last = Date.now(), hiddenAt = 0
-  const go = (hiddenFor?: number) => {
+  let last = Date.now(), hiddenAt = 0, off = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const check = (hiddenFor?: number) => {
+    clearTimeout(timer)
+    if (off || document.visibilityState !== 'visible') return   // 숨은 동안은 시계를 세우고, 돌아오면 onVis 가 다시 본다
     const now = Date.now()
-    if (!reloadDue(now, last, hiddenFor)) return
-    last = now
-    void reloadBundles()
+    if (reloadDue(now, last, { nextAt: lastMeta?.nextAt, market: mkt, hiddenFor })) {
+      last = now
+      void reloadBundles().finally(() => check())
+      return
+    }
+    timer = setTimeout(check, waitMs(now, lastMeta?.nextAt))
   }
-  const tick = setInterval(() => { if (document.visibilityState === 'visible') go() }, 60_000)
+  // 첫 판정은 처음 meta 를 받은 뒤 — nextAt 을 알고 시계를 건다
+  loadBundle<Meta>('meta').then(() => check(), () => check())
   const onVis = () => {
-    if (document.visibilityState === 'hidden') hiddenAt = Date.now()
-    else if (hiddenAt) { go(Date.now() - hiddenAt); hiddenAt = 0 }
+    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); clearTimeout(timer) }
+    else { check(hiddenAt ? Date.now() - hiddenAt : undefined); hiddenAt = 0 }
   }
   document.addEventListener('visibilitychange', onVis)
-  return () => { clearInterval(tick); document.removeEventListener('visibilitychange', onVis) }
+  return () => { off = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onVis) }
 }
+
+// ── 새 판 알림(과제 9) ─────────────────────────────────
+// 빌드가 dist/version.json 에 { build: 진입 JS 파일 이름 } 을 쓰고(vite.config.ts), 화면은 자기 진입 모듈 이름(main.tsx 가 setBuild)과 견준다.
+// 다시 읽기 때마다 version.json 을 새로(no-cache) 받아 다르면 머리 아래 띠(App.tsx). 자동 새로고침은 하지 않는다(결정 5).
+let mine = ''
+let served = ''
+const buildSubs = new Set<() => void>()
+/** 이 화면의 판(진입 모듈 주소). main.tsx 가 한 번 부른다. */
+export const setBuild = (entryUrl: string) => { mine = buildOf(entryUrl) }
+async function checkBuild() {
+  if (!mine || !import.meta.env.PROD) return   // 개발 서버엔 version.json 이 없다
+  try {
+    const v = await fetchJson<{ build?: unknown }>('version.json', document.baseURI)
+    if (typeof v.build === 'string' && v.build && v.build !== served) { served = v.build; buildSubs.forEach(f => f()) }
+  } catch { /* 못 받으면 다음 다시 읽기 때 */ }
+}
+const onBuild = (f: () => void) => { buildSubs.add(f); return () => { buildSubs.delete(f) } }
+/** 사이트에 이 화면과 다른 판이 올라 있으면 그 판 이름, 아니면 ''. */
+export const useNewBuild = () => useSyncExternalStore(onBuild, () => (served && served !== mine ? served : ''))
 
 /**
  * 지표 한 칸 — 묶음(scripts/build_bundles.py)의 칸 모양. 홈 strip[] 과 시장 묶음이 같은 모양을 쓴다.
@@ -145,8 +217,12 @@ export const unitWord = (id: string | undefined, unit: string | undefined): stri
 export function shownUnit(it: Pick<StripItem, 'scale' | 'unit'> & { id?: string }): string | undefined {
   return it.scale || it.unit === '%' ? unitWord(it.id, it.unit) : undefined
 }
-/** 장 상태(묶음 market): state = open·closed·holiday 등, label = 「정규장」「장마감」「휴장」. */
-export type MarketState = { state: string; label: string; today?: string; session?: string; nextOpen?: string | null; calendarKnown?: boolean }
+/**
+ * 장 상태(묶음 market, 계약 C1): state = open·closed·holiday, label = 「정규장」「장마감」「휴장」.
+ * openAt · closeAt(오늘 정규장, 장이 안 서는 날 null) · us(미국: state pre·open·after·closed·holiday, 다음 또는 지금 세션의 openAt · closeAt)는
+ * 새 묶음에만 있다 — 없으면 화면이 종전 판정으로 물러선다(format.ts Market).
+ */
+export type MarketState = Market & { state: string; label: string; calendarKnown?: boolean }
 export type Stock = { name: string; short?: string; shortM?: string; code: string; market?: string; price: number | null; chgPct: number | null; amount?: number | null }
 /** 투자자 매매: rows 는 columns 순서의 배열(날짜, 외국인, 기관, 개인). 단위 unit(억원). */
 export type Flows = {

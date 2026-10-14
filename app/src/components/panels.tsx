@@ -1,11 +1,11 @@
-// 공통 패널 — 패널 머리 · 지표 띠 카드 · 순위 표 · 더 보기. ui.tsx 의 Card·AsOfBadge·BottomSheet 위에 얹는다.
-import { Fragment, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+// 공통 패널 — 패널 머리 · 지표 띠 카드 · 순위 표 · 더 보기. ui.tsx 의 Card·AsOfBadge·BottomSheet·Boundary 위에 얹는다.
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChevronDown, Star, type LucideIcon } from 'lucide-react'
-import { AsOfBadge, BottomSheet, Card } from './ui'
+import { AsOfBadge, BottomSheet, Boundary, Card } from './ui'
 import { Sparkline } from './charts'
 import { changeDir, fmtChange, fmtNumber, fmtPct, scaled } from '../lib/format'
-import { shownUnit, type StripItem } from '../lib/bundle'
+import { shownUnit, useBundleRev, type StripItem } from '../lib/bundle'
 import { foldId, hiddenRows, isFolded, setFolded } from '../lib/fold'
 import { countFold, countUse } from '../lib/usage'
 
@@ -16,6 +16,7 @@ const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as con
  * 패널: 머리(아이콘·제목 | 단위·출처·기준 시각 | 도구) + 본문.
  * fold = 접을 수 있음(머리 끝 화살표). 늘 펼친 채 시작하고, 사용자가 접은 것만 이 기기에 기억한다(lib/fold.ts).
  * 접기는 브라우저 기본 details 다(data-panel-fold = 첫 그림 접힘 0 게이트 tests/ui/foldzero.mjs 의 표식).
+ * 본문은 칸막이(ui.tsx Boundary) 안에 있다 — 본문이 그리다 오류를 내도 머리와 다른 패널은 남는다(과제 10).
  */
 export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil, tools, fold, className = '', children }: {
   title: ReactNode
@@ -32,6 +33,8 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
 }) {
   const id = foldId(useLocation().pathname, typeof title === 'string' ? title : '')
   const [open, setOpen] = useState(() => !fold || !isFolded(id))
+  const rev = useBundleRev()   // 새 묶음이 오면 오류 칸도 다시 그려 본다
+  const body = <Boundary where={id} resetKey={String(rev)}>{children}</Boundary>
   const head = (
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${open ? 'mb-3' : ''}`}>
       <h2 className="m-0 inline-flex items-center gap-1.5 text-14 font-bold text-ink-1">{Icon && <Icon size={16} aria-hidden />}{title}</h2>
@@ -46,12 +49,12 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
       {fold && <ChevronDown size={16} aria-hidden className={`${tools ? '' : 'ml-auto'} text-ink-3 ${open ? 'rotate-180' : ''}`} />}
     </div>
   )
-  if (!fold) return <Card className={className}>{head}{children}</Card>
+  if (!fold) return <Card className={className}>{head}{body}</Card>
   return (
     <Card className={className}>
       <details data-panel-fold open={open} onToggle={e => { const o = e.currentTarget.open; if (o !== open) { setOpen(o); setFolded(id, !o); countFold(id, o) } }}>
         <summary className="list-none cursor-pointer [&::-webkit-details-marker]:hidden">{head}</summary>
-        {children}
+        {body}
       </details>
     </Card>
   )
@@ -87,6 +90,7 @@ export function More<R>({ rows, children, name = '목록', unit = '행' }: { row
  * onSelect 를 주면 카드가 고르기 버튼(selected = 검정 테두리), to 를 주면 링크. onWatch 를 주면 오른쪽 위에 별.
  * tag = 이름 옆 알약(홈 띠의 「관심」 칸). 알약이 붙은 이름은 PC 에서도 줄을 바꾼다(카드 폭을 넘지 않게).
  * 파생 칸: up·down 이 있으면 값 자리에 「상승/하락」 종목 수를 적는다.
+ * 기준 시각은 칸 시각(AsOfBadge cell) — 장 상태 줄과 같은 말을 하는 값은 숨긴다(과제 4).
  */
 export function StripCard({ item, selected, onSelect, to, watched, onWatch, tag }: {
   item: StripItem; selected?: boolean; onSelect?: () => void; to?: string; watched?: boolean; onWatch?: () => void; tag?: ReactNode
@@ -97,6 +101,17 @@ export function StripCard({ item, selected, onSelect, to, watched, onWatch, tag 
   const pctOnly = chg == null && !breadth && item.changePct != null   // 등락률만 있는 칸(홈 띠의 관심 종목)
   const dir = pctOnly ? changeDir(item.changePct, 2) : changeDir(chg, item.decimals)
   const name = item.short || item.label
+  // 바뀐 값 1초 옅은 바탕(과제 5): 다시 읽기(rev)로 값이 바뀐 칸만 — 처음 그릴 때와 첫 화면 보관 값이 새 값으로 바뀔 때(rev 그대로)는 칠하지 않는다.
+  // 칠은 app.css flash-up · flash-down(움직임 줄이기 설정이면 없음). key 를 바꿔 값 줄을 새로 만들어 애니메이션을 다시 건다.
+  const rev = useBundleRev()
+  const seen = useRef({ value: item.value, rev })
+  const [flash, setFlash] = useState<{ dir: 'up' | 'down'; n: number } | null>(null)
+  useEffect(() => {
+    const was = seen.current
+    if (item.value === was.value) return
+    if (item.value != null && was.value != null && rev > was.rev) { const up = item.value > was.value; setFlash(f => ({ dir: up ? 'up' : 'down', n: (f?.n ?? 0) + 1 })) }
+    seen.current = { value: item.value, rev }
+  }, [item.value, rev])
   // 카드마다 같은 줄 구성: 이름 / 기준 시각 + 작은 차트 / 값 / 등락 / 이유. 좁은 PC 8열에서도 줄이 섞이지 않게 고정한다.
   const body = (
     <>
@@ -106,11 +121,12 @@ export function StripCard({ item, selected, onSelect, to, watched, onWatch, tag 
         <span className="pc:hidden">{item.shortM || name}</span>
         {tag && <span className="ml-1 inline-flex align-middle">{tag}</span>}
       </span>
-      <span className="flex items-center justify-between gap-2 h-4 mt-0.5 mb-1">
-        <AsOfBadge asOf={item.asOf} state={item.state} liveUntil={item.liveUntil} />
+      {/* 시각이 숨으면(칸 시각) 작은 차트는 오른쪽 자리에 그대로 */}
+      <span className="flex items-center justify-between gap-2 h-4 mt-0.5 mb-1 [&>svg]:ml-auto">
+        <AsOfBadge asOf={item.asOf} state={item.state} liveUntil={item.liveUntil} cell />
         <Sparkline values={item.spark} dir={dir} />
       </span>
-      <span className="block num text-18 font-bold leading-tight text-ink-1">
+      <span key={flash?.n ?? 0} className={`block num text-18 font-bold leading-tight text-ink-1 rounded-inner ${flash ? `flash-${flash.dir}` : ''}`}>
         {breadth ? `${item.up}/${item.down}` : fmtNumber(v, item.decimals)}
         {unit && <span className="ml-0.5 text-12 font-normal text-ink-3">{unit}</span>}
       </span>
@@ -176,10 +192,11 @@ function cmp(a: unknown, b: unknown): number | null {
  * onPick 을 주면 행 누르기 = 그 행 고르기(selectedKey 와 rowKey 가 같은 행이 옅은 바탕). 모바일도 시트 대신 onPick 이다.
  * 행이 많으면 More(모바일 5 · PC 10행 + 「N행 더 보기」) — 정렬은 전체 행에 먼저 건다.
  * 행 전체가 마우스 자리이고, 키보드·읽기 도구용으로 이름 칸 내용을 버튼으로 감싼다(핸들러 없이 행으로 버블링).
+ * note = 행 아래 회색 한 줄(홈 거래대금의 「왜 움직였나」). PC(980 이상) 표에서만, 표 폭 전체를 쓰는 둘째 줄로 — 이름 칸 폭을 늘리지 않는다.
  */
-export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selectedKey }: {
+export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selectedKey, note }: {
   cols: Col<R>[]; rows: R[]; rowKey: (r: R) => string; lead?: (r: R) => ReactNode; label: string
-  onPick?: (r: R) => void; selectedKey?: string | null
+  onPick?: (r: R) => void; selectedKey?: string | null; note?: (r: R) => ReactNode
 }) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null)
   const [sheet, setSheet] = useState<R | null>(null)
@@ -229,18 +246,28 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selected
           <tbody>
             {vis.map(r => {
               const on = isOn(r)
+              const nt = note?.(r)
+              const pick = `${onPick ? 'cursor-pointer hover:bg-ink-3/5' : ''} ${on ? 'bg-ink-3/10' : ''}`
               return (
-                <tr key={rowKey(r)} onClick={onPick && (() => onPick(r))}
-                  className={`h-10 border-b border-line last:border-b-0 ${onPick ? 'cursor-pointer hover:bg-ink-3/5' : ''} ${on ? 'bg-ink-3/10' : ''}`}>
-                  {lead && <td className="w-8 p-0">{lead(r)}</td>}
-                  {cols.map(c => (
-                    <td key={c.key} className={`px-2 py-1 ${c.num ? 'text-right num' : ''}`}>
-                      {onPick && c === pickC
-                        ? <button type="button" aria-pressed={on} className={`p-0 border-0 bg-transparent text-left cursor-pointer ${on ? 'font-bold' : ''}`}>{cell(c, r)}</button>
-                        : cell(c, r)}
-                    </td>
-                  ))}
-                </tr>
+                <Fragment key={rowKey(r)}>
+                  <tr onClick={onPick && (() => onPick(r))}
+                    className={`h-10 border-b border-line ${nt ? 'pc:border-b-0' : 'last:border-b-0'} ${pick}`}>
+                    {lead && <td className="w-8 p-0">{lead(r)}</td>}
+                    {cols.map(c => (
+                      <td key={c.key} className={`px-2 py-1 ${c.num ? 'text-right num' : ''}`}>
+                        {onPick && c === pickC
+                          ? <button type="button" aria-pressed={on} className={`p-0 border-0 bg-transparent text-left cursor-pointer ${on ? 'font-bold' : ''}`}>{cell(c, r)}</button>
+                          : cell(c, r)}
+                      </td>
+                    ))}
+                  </tr>
+                  {nt && (
+                    <tr onClick={onPick && (() => onPick(r))} className={`hidden pc:table-row border-b border-line last:border-b-0 ${pick}`}>
+                      {lead && <td className="p-0" />}
+                      <td colSpan={cols.length} className="px-2 pt-0 pb-2 text-11 leading-snug text-ink-3 [overflow-wrap:anywhere]">{nt}</td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
           </tbody>

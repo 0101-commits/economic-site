@@ -33,6 +33,9 @@ UNREAD = [
     "marketCalendarKr.nextBusinessDay", "marketCalendarKr.today", "investorTrading.crossCheck",
     # 직전 영업일은 장 전(08:30)에만 세션 날짜로 실린다 — 주말 · 휴장일 수집분엔 두 시각 다 안 실려 게이트가 흔들렸다
     "marketCalendarKr.previousBusinessDay", "corpEvents.corpMap", "climate.impact",
+    # 종목 기사 원본(계약 C4)은 이유 줄의 근거(stockReasons.refs)로 옮겨 싣는다 · 이유 줄은 작성 시각이 오늘인 것만 실려
+    # 밤 · 휴장일 수집분엔 안 실린다(그 칸이 묶음에 실리는지는 test_stock_reasons 가 본다)
+    "stockNews", "stockReasons",
 ]
 excused = lambda u: any(u == e or u.startswith(e + ".") for e in UNREAD)
 

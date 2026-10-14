@@ -1,7 +1,71 @@
 // 자가검사: npm test --prefix app  (node --test, 추가 도구 없음)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fmtShares, fmtNumber, fmtChange, changeDir, changeFromPct, scaled, asOfKind, asOfLabel, kindFromState, fmtPct, dayLabel, mdHm, shortDate, heatStep, slicePeriods, range52, safeHref, type Pt } from './format.ts'
+import { fmtShares, fmtNumber, fmtChange, changeDir, changeFromPct, scaled, asOfKind, asOfLabel, cellLabel, kindFromState, fmtPct, dayLabel, mdHm, marketCtx, marketLines, shortDate, heatStep, slicePeriods, range52, safeHref, type Market, type Pt } from './format.ts'
+
+// 계약 C1 의 장 상태 — 10/14(수) 국내 정규장 · 미국은 그날 밤 22:30 개장(서머타임: 마감 05:00)
+const MK: Market = {
+  state: 'open', label: '정규장', today: '2026-10-14', session: '2026-10-14', nextOpen: '2026-10-15T09:00:00+09:00',
+  openAt: '2026-10-14T09:00:00+09:00', closeAt: '2026-10-14T15:30:00+09:00',
+  us: { state: 'closed', label: '마감', session: '2026-10-13', openAt: '2026-10-14T22:30:00+09:00', closeAt: '2026-10-15T05:00:00+09:00', nextOpen: '2026-10-14T22:30:00+09:00' },
+}
+const lines = (m: Market | null, s: string) => marketLines(m, new Date(s)).map(l => `${l.on ? '●' : '○'} ${l.text}`)
+
+test('marketLines: 장 상태 줄 — 묶음 개장 · 마감 칸을 지금 시각에 댄다', () => {
+  assert.deepEqual(lines(MK, '2026-10-14T14:35:20+09:00'), ['● 국내 정규장 · 15:30 마감까지 55분', '○ 미국 장 닫힘 · 오늘 22:30 개장'])
+  assert.deepEqual(lines(MK, '2026-10-14T10:00:00+09:00')[0], '● 국내 정규장 · 15:30 마감까지 5시간 30분')
+  assert.deepEqual(lines(MK, '2026-10-14T13:30:00+09:00')[0], '● 국내 정규장 · 15:30 마감까지 2시간')
+  assert.deepEqual(lines(MK, '2026-10-14T08:30:00+09:00')[0], '○ 국내 장 전 · 오늘 09:00 개장')
+  // 묶음은 장중에 만들어졌지만 마감을 넘겼다 — 다음 묶음을 기다리지 않고 줄이 바뀐다
+  assert.deepEqual(lines(MK, '2026-10-14T16:00:00+09:00')[0], '○ 국내 마감 · 내일 09:00')
+  assert.deepEqual(lines(MK, '2026-10-14T23:00:00+09:00'), ['○ 국내 마감 · 내일 09:00', '● 미국 정규장 · 05:00 마감까지 6시간'])
+  // 미국 장 전 · 장 뒤
+  assert.deepEqual(lines({ ...MK, us: { ...MK.us, state: 'pre' } }, '2026-10-14T18:00:00+09:00')[1], '○ 미국 장 전 · 오늘 22:30 개장')
+  assert.deepEqual(lines({ ...MK, us: { ...MK.us, state: 'after' } }, '2026-10-14T06:30:00+09:00')[1], '○ 미국 장 뒤 · 오늘 22:30 개장')
+})
+
+test('marketLines: 휴장 · 옛 묶음 · 묶음 없음', () => {
+  const sat: Market = {
+    state: 'holiday', label: '휴장', nextOpen: '2026-10-19T09:00:00+09:00', openAt: null, closeAt: null,
+    us: { state: 'holiday', openAt: '2026-10-19T22:30:00+09:00', closeAt: '2026-10-20T05:00:00+09:00', nextOpen: '2026-10-19T22:30:00+09:00' },
+  }
+  assert.deepEqual(lines(sat, '2026-10-17T12:00:00+09:00'), ['○ 국내 휴장 · 다음 개장 10/19 09:00', '○ 미국 휴장 · 다음 개장 10/19 22:30'])
+  assert.deepEqual(lines(sat, '2026-10-18T12:00:00+09:00')[0], '○ 국내 휴장 · 다음 개장 내일 09:00')
+  // 시각 칸 · 미국 칸이 없는 옛 묶음 — 묶음 label + 다음 개장(종전 알약과 같은 정보), 국내만
+  assert.deepEqual(lines({ state: 'closed', label: '장마감', nextOpen: '2026-10-15T09:00:00+09:00' }, '2026-10-14T17:00:00+09:00'), ['○ 국내 장마감 · 다음 개장 내일 09:00'])
+  assert.deepEqual(lines({ state: 'open', label: '정규장' }, '2026-10-14T10:00:00+09:00'), ['● 국내 정규장'])
+  assert.deepEqual(lines(null, '2026-10-14T10:00:00+09:00'), [])
+})
+
+test('cellLabel: 칸 시각 — 장 상태와 같으면 숨김, 다르면 「10/13 종가」 「10/9 값」', () => {
+  const ctx = marketCtx(MK)!
+  assert.deepEqual(ctx, { sessions: ['2026-10-14', '2026-10-13'], closes: ['2026-10-14T15:30:00+09:00', '2026-10-15T05:00:00+09:00'] })
+  assert.equal(marketCtx({ state: 'open', label: '정규장' }), null)   // 미국 칸이 없는 옛 묶음 → 종전 배지
+  const now = new Date('2026-10-14T14:35:00+09:00')
+  const c = (kind: Parameters<typeof cellLabel>[0], asOf: string, t = now) => { const r = cellLabel(kind, asOf, t, ctx); return r.late ? `!${r.text}` : r.text }
+  assert.equal(c('live', '2026-10-14T14:35:00+09:00'), '')                    // 장중 실시간
+  assert.equal(c('prev', '2026-10-13'), '10/13 종가')                         // 미국 마지막 세션(S&P 500)
+  assert.equal(c('prev', '2026-10-09'), '!10/9 값')                           // 그보다 앞선 값(FRED 10년 금리) — 주의색
+  assert.equal(c('prev', '2026-10-14'), '')                                   // 오늘 날짜만 있는 값
+  assert.equal(c('prev', '2026-10-14T11:00:03+09:00'), '!11:00 값')            // 실시간 기한이 지난 장중 값
+  assert.equal(c('prev', '2026-10-14T05:00:00+09:00'), '')                    // 오늘 새벽 미국 마감
+  const evening = new Date('2026-10-14T17:10:00+09:00')
+  assert.equal(c('prev', '2026-10-14T17:00:03+09:00', evening), '')           // 국내 마감 뒤 값(오늘 종가)
+  assert.equal(c('prev', '2026-10-14T15:20:00+09:00', evening), '!15:20 값')   // 마감 앞 값은 종가가 아니다
+  assert.equal(c('delayed', '2026-10-14T14:00:00+09:00'), '!지연 14:00')
+  assert.equal(c('filled', '2026-10-14T14:00:00+09:00'), '보강')
+  assert.equal(c('prev', '2026-09'), '9월')
+})
+
+test('asOfLabel: 묶음 장 기준이 있으면 전일 = 마지막 세션, 종가 시각 = 묶음 마감', () => {
+  const tue = new Date('2026-10-13T10:20:00+09:00')
+  const ctx = { sessions: ['2026-10-13', '2026-10-12'], closes: ['2026-10-13T16:30:00+09:00', '2026-10-14T05:00:00+09:00'] }
+  assert.equal(asOfLabel('prev', '2026-10-12', tue, null, ctx), '전일 10/12')
+  assert.equal(asOfLabel('prev', '2026-10-08', tue, null, ctx), '10/8')
+  const late = new Date('2026-10-13T17:00:00+09:00')
+  assert.equal(asOfLabel('prev', '2026-10-13T16:30:00+09:00', late, null, ctx), '종가 16:30')   // 마감이 늦춰진 날(묶음 closeAt)
+  assert.equal(asOfLabel('prev', '2026-10-13T16:30:00+09:00', late, null), '16:30 기준')         // 묶음이 없으면 고정 표(15:30)
+})
 
 test('fmtNumber: 천 단위·자릿수·빈 값·음의 0', () => {
   assert.equal(fmtNumber(6961.32, 2), '6,961.32')

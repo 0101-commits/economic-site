@@ -17,16 +17,22 @@ from datetime import datetime
 
 SPOT = ("indices", "fx", "commodities")
 HIST_SPOT = ("indices", "fx", "commodities")
-# 블록 → 타임스탬프 필드 (토스 스냅샷 유래)
+# 블록 → 타임스탬프 필드 (토스 스냅샷 유래 + 종목 기사 · 이유 줄 — 경량 런 재시도가 풀 런의 새 이유 줄을 옛것으로 되돌리지 않게)
 SNAP = {"stockFlows": "generatedAt", "rankingsKr": "as_of",
-        "marketCalendarKr": "generatedAt", "investorTrading": "lastFetched"}
+        "marketCalendarKr": "generatedAt", "investorTrading": "lastFetched",
+        "stockNews": "asOf", "stockReasons": "asOf",
+        # AI 요약 — 경량 런 재시도가 풀 런의 새 회차를 옛 요약으로 되돌리면 briefs/ 와 home.brief 가 갈린다(PR #170 검토)
+        "aiBriefing": "generatedAt"}
 # rankingsKr 안의 KRX 4목록(2026-10) — 토스 칸과 원천·날짜가 달라 맨 위 as_of(토스 거래일)로 같이 고르면 안 된다
 KRX_RANK = ("marketCap", "volume", "high52", "low52")
 
 
 def _ts(v):
     try:
-        d = datetime.fromisoformat(str(v))
+        s = str(v)
+        if s.endswith(" KST"):                            # aiBriefing.generatedAt 「2026-10-14 14:22 KST」
+            s = s[:-4]
+        d = datetime.fromisoformat(s)
         return d.timestamp() if d.tzinfo else d.replace(tzinfo=None).timestamp() - 9 * 3600  # KST 가정
     except Exception:
         return None

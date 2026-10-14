@@ -1,7 +1,8 @@
 // 자가검사: npm test --prefix app — 보유 → Yahoo 심볼 · 일봉 응답 해석(전일 종가 규칙) · 묶음 우선 · 동시 4개 · 실패는 비워 둠 · 10분 저장본
+// · /quotes 묶음 응답(C5) 처리 · 30개씩 · 실패 · 404 면 하나씩 받는 길로
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chartBasis, chartUrl, holdingQuotes, parseChart, parseSeries, yahooSymbols } from './quotes.ts'
+import { batchQuotes, chartBasis, chartUrl, holdingQuotes, parseBatch, parseChart, parseSeries, quoteItem, rowItem, yahooSymbols } from './quotes.ts'
 import type { Holding, Quote } from './calc.ts'
 
 const H = (symbol: string, market: 'KR' | 'US', extra: Partial<Holding> = {}): Holding => ({ id: symbol, symbol, market, qty: 1, avg: 1, ...extra })
@@ -75,32 +76,6 @@ function stubs(table: Record<string, [number, number] | 'fail' | 'bogus'>) {
   return { calls, store, peak: () => peak, restore: () => Object.assign(g, saved) }
 }
 
-test('holdingQuotes: 묶음 우선 · .KQ 로 넘어가기 · 실패는 비워 둠 · 동시 4개까지 · 10분 저장본', async () => {
-  const s = stubs({ '000660.KS': 'bogus', '000660.KQ': [200, 190], 'AAPL': [110, 100], 'MSFT': [50, 40], 'NVDA': [30, 30], 'TSLA': [21, 20], 'META': 'fail' })
-  try {
-    const items = [H('005930', 'KR'), H('000660', 'KR'), H('AAPL', 'US'), H('MSFT', 'US'), H('NVDA', 'US'), H('TSLA', 'US'), H('META', 'US'), H('AAPL', 'US', { id: 'dup' })]
-    const have = new Map<string, Quote>([['005930', { price: 70000, pct: 1.5, name: '삼성전자' }]])
-    const t0 = Date.parse('2026-10-02T01:00:00Z')
-    const q = await holdingQuotes(items, have, t0)
-    assert.deepEqual(q.get('005930'), { price: 70000, pct: 1.5, name: '삼성전자' })   // 묶음 그대로, 요청 없음
-    assert.ok(!s.calls.some(c => c.startsWith('005930')))
-    assert.ok(Math.abs(q.get('000660')!.pct! - (200 / 190 - 1) * 100) < 1e-9)
-    assert.deepEqual(s.calls.filter(c => c.startsWith('000660')), ['000660.KS', '000660.KQ'])
-    assert.equal(q.get('AAPL')!.price, 110)
-    assert.equal(q.get('NVDA')!.pct, 0)
-    assert.equal(q.has('META'), false)                                              // 지어내지 않는다
-    assert.equal(s.calls.filter(c => c === 'AAPL').length, 1)                        // 같은 종목 두 줄은 한 번만
-    assert.ok(s.peak() <= 4, `동시 요청 ${s.peak()}개`)
-
-    const before = s.calls.length
-    const again = await holdingQuotes(items, have, t0 + 9 * 60_000)                  // 10분 안: 저장본(실패한 META 만 다시)
-    assert.deepEqual(s.calls.slice(before), ['META'])
-    assert.equal(again.get('MSFT')!.price, 50)
-    await holdingQuotes(items, have, t0 + 11 * 60_000)                               // 10분 뒤: 다시 받는다
-    assert.ok(s.calls.slice(before + 1).includes('MSFT'))
-  } finally { s.restore() }
-})
-
 test('parseSeries: 거래소 현지 날짜 · 빈 종가 빼기 · 1년 주소 · 거래소 검사', () => {
   // 2026-10-09 실측 모양: AAPL 미국 동부(gmtoffset -14400) — 장 시작 13:30Z 는 그날 날짜
   const j = { chart: { result: [{ meta: { regularMarketPrice: 340.42, gmtoffset: -14400, longName: 'Apple Inc.', regularMarketTime: 1791489600 }, timestamp: [1791293400, 1791379800, 1791466200], indicators: { quote: [{ close: [333.63, null, 340.42] }] } }] } }
@@ -142,4 +117,150 @@ test('parseSeries: 거래량 = 마지막 일봉(끝 날짜)의 것 · 그 봉에
     timestamp: [t('2026-10-08'), t('2026-10-09'), t('2026-10-09')], indicators: { quote: [{ close: [270000, 271000, 272000], volume }] } }] } })
   assert.deepEqual(parseSeries(mk([100, 200, 300]))!.vol, { day: '2026-10-09', value: 300 })   // 같은 날 두 봉이면 뒤 것
   assert.equal(parseSeries(mk([100, 200, null]))!.vol, undefined)                               // 끝 봉에 없으면 앞 날 것을 끌어오지 않는다
+})
+
+test('parseBatch: C5 응답 → 코드별 값 · 0 이하 · 숫자 아님은 버림 · 등락률 없으면 전일로', () => {
+  const m = parseBatch({ asOf: '2026-10-14T05:22:00Z', items: {
+    '466920': { price: 23380, prev: 23035, pct: 1.4977, exchange: 'KSC', at: '2026-10-14T05:22:32Z' },
+    AAPL: { price: 110, prev: 100 },
+    BAD: { price: 0, prev: 1 },
+    NOPE: null,
+    '005930': { price: 'x' },
+  } })
+  assert.deepEqual([...m.keys()], ['466920', 'AAPL'])
+  assert.deepEqual(m.get('466920'), { price: 23380, prev: 23035, pct: 1.4977, at: '2026-10-14T05:22:32Z' })
+  assert.ok(Math.abs(m.get('AAPL')!.pct! - 10) < 1e-9)
+  assert.equal(m.get('AAPL')!.at, undefined)
+  assert.equal(parseBatch(null).size, 0)
+  assert.equal(parseBatch({ items: [] }).size, 0)
+})
+
+/** /quotes · Yahoo 둘 다 받는 모의. quotes = /quotes 응답 표(없으면 그 상태 번호), table = Yahoo 심볼별 [현재가, 전일]. */
+function stubBatch(quotes: Record<string, { price: number; prev: number | null; pct?: number; at?: string }> | number | 'throw', table: Record<string, [number, number]> = {}) {
+  const batch: string[][] = [], yahoo: string[] = []
+  const g = globalThis as Record<string, unknown>
+  const saved = g.fetch
+  g.fetch = async (url: string) => {
+    const u = new URL(url)
+    if (u.pathname === '/quotes') {
+      const codes = u.searchParams.get('codes')!.split(',')
+      batch.push(codes)
+      if (quotes === 'throw') throw new TypeError('Failed to fetch')
+      if (typeof quotes === 'number') return new Response('{}', { status: quotes })
+      return new Response(JSON.stringify({ asOf: 'x', items: Object.fromEntries(codes.filter(c => quotes[c]).map(c => [c, quotes[c]])) }), { status: 200 })
+    }
+    const sym = decodeURIComponent(new URL(u.searchParams.get('url')!).pathname.split('/').pop()!)
+    yahoo.push(sym)
+    const v = table[sym]
+    const exchangeName = sym.endsWith('.KS') ? 'KSC' : sym.endsWith('.KQ') ? 'KOE' : 'NMS'
+    return new Response(JSON.stringify(v ? chart({ regularMarketPrice: v[0], exchangeName, instrumentType: 'EQUITY', regularMarketTime: 1791950400 }, [v[1], v[0]]) : { chart: { result: null } }), { status: 200 })
+  }
+  return { batch, yahoo, restore: () => { g.fetch = saved } }
+}
+
+test('batchQuotes: /quotes 한 번 · 지표 id 는 묻지 않음 · 겹침 하나로 · 못 받은 코드는 없음(하나씩 다시 묻지 않음) · 60초 안엔 다시 묻지 않음', async () => {
+  const s = stubBatch({ '466920': { price: 23380, prev: 23035, pct: 1.4977, at: '2026-10-14T05:22:32Z' }, NVDA: { price: 30, prev: 30, pct: 0 } })
+  try {
+    const t0 = Date.parse('2026-10-14T05:23:00Z')
+    const q = await batchQuotes(['466920', 'kospi', 'NVDA', '466920', '999990'], t0)
+    assert.deepEqual(s.batch, [['466920', 'NVDA', '999990']])
+    assert.deepEqual(s.yahoo, [])
+    assert.equal(q.get('466920')!.price, 23380)
+    assert.equal(q.get('NVDA')!.pct, 0)
+    assert.equal(q.has('999990'), false)
+    await batchQuotes(['466920', '999990'], t0 + 30_000)                       // 60초 안: 받은 것 · 못 받은 것 모두 다시 묻지 않는다
+    assert.equal(s.batch.length, 1)
+    await batchQuotes(['466920'], t0 + 61_000)
+    assert.deepEqual(s.batch[1], ['466920'])
+  } finally { s.restore() }
+})
+
+test('batchQuotes: 30개씩 나눠 묻는다', async () => {
+  const codes = Array.from({ length: 31 }, (_, i) => `1${String(i).padStart(5, '0')}`)
+  const s = stubBatch(Object.fromEntries(codes.map(c => [c, { price: 100, prev: 99 }])))
+  try {
+    const q = await batchQuotes(codes, Date.parse('2026-10-14T06:00:00Z'))
+    assert.deepEqual(s.batch.map(b => b.length), [30, 1])
+    assert.equal(q.size, 31)
+  } finally { s.restore() }
+})
+
+test('batchQuotes: 실패(연결 · 429 · 5xx)면 하나씩 받지 않는다 — 같은 제한기에 쏟지 않게(PR #170 검토) · 다음엔 다시 /quotes 부터', async () => {
+  for (const fail of ['throw', 429, 503] as const) {
+    const s = stubBatch(fail, { '200660.KQ': [200, 190], ORCL: [50, 40] })
+    try {
+      const t0 = Date.parse('2026-10-14T07:00:00Z') + (typeof fail === 'number' ? fail : 0) * 1000
+      const code = `2${String(typeof fail === 'number' ? fail : 0).padStart(5, '0')}`
+      const q = await batchQuotes([code, 'ORCL'], t0)
+      assert.deepEqual(s.yahoo, [])                                                // 프록시로 하나씩 다시 묻지 않는다
+      assert.equal(q.size, 0)
+      await batchQuotes([{ throw: 'AMZA', 429: 'AMZB', 503: 'AMZC' }[String(fail)] as string], t0)
+      assert.equal(s.batch.length, 2)                                              // 404 가 아니므로 다음에도 /quotes 부터
+    } finally { s.restore() }
+  }
+})
+
+test('batchQuotes: 같은 순간 여러 곳이 부르면 받는 중인 코드는 한 번만 묻는다', async () => {
+  const s = stubBatch({ '300001': { price: 10, prev: 9 }, '300002': { price: 20, prev: 21 } })
+  try {
+    const t0 = Date.parse('2026-10-14T08:00:00Z')
+    const [a, b] = await Promise.all([batchQuotes(['300001', '300002'], t0), batchQuotes(['300002', '300001'], t0)])
+    assert.equal(s.batch.length, 1)
+    assert.equal(a.get('300001')!.price, 10)
+    assert.equal(b.get('300002')!.price, 20)
+  } finally { s.restore() }
+})
+
+test('quoteItem · rowItem: 띠 칸 모양 — 체결 시각이 있으면 15분 실시간, 묶음 행은 등락률만', () => {
+  assert.deepEqual(quoteItem('466920', 'SOL 조선TOP3', { price: 23380, prev: 23035, pct: 1.5, at: '2026-10-14T05:22:00Z' }), {
+    id: '466920', label: 'SOL 조선TOP3', decimals: 0, value: 23380, change: 345, changePct: 1.5, asOf: '2026-10-14T05:22:00Z',
+    state: 'live', liveUntil: '2026-10-14T05:37:00.000Z',
+  })
+  assert.deepEqual(quoteItem('AAPL', undefined, undefined), { id: 'AAPL', label: 'AAPL', decimals: 2, value: null, change: null, changePct: null, asOf: null })
+  assert.equal(quoteItem('MSFT', 'MSFT', { price: 50, prev: null, pct: null }).change, null)
+  assert.deepEqual(rowItem({ code: '005930', name: '삼성전자', short: '삼성', price: 234000, chgPct: 0.86, asOf: '2026-10-14', state: 'prev' }), {
+    id: '005930', label: '삼성', decimals: 0, value: 234000, change: null, changePct: 0.86, asOf: '2026-10-14', state: 'prev', liveUntil: undefined,
+  })
+})
+
+// 404 는 이 탭의 남은 시간 동안 /quotes 를 끈다 — 모듈 상태라 이 파일 맨 끝에 둔다
+test('batchQuotes: 404(Worker 배포 전)면 하나씩 받고, 그 뒤로는 /quotes 를 묻지 않는다', async () => {
+  const s = stubBatch(404, { AMD: [10, 8], '300660.KS': [70, 70] })
+  try {
+    const t0 = Date.parse('2026-10-14T08:00:00Z')
+    const q = await batchQuotes(['AMD', '300660'], t0)
+    assert.equal(s.batch.length, 1)
+    assert.deepEqual([...s.yahoo].sort(), ['300660.KS', 'AMD'])
+    assert.equal(q.get('AMD')!.price, 10)
+    await batchQuotes(['INTC'], t0)
+    assert.equal(s.batch.length, 1)
+    assert.deepEqual(s.yahoo.slice(2), ['INTC'])
+  } finally { s.restore() }
+})
+
+// 보유 시세는 /quotes 가 404 로 꺼진 뒤(위 검사)에 돈다 — 하나씩 받는 길(.KS → .KQ · 동시 4개 · 10분 저장본)을 본다
+test('holdingQuotes: 묶음 우선 · .KQ 로 넘어가기 · 실패는 비워 둠 · 동시 4개까지 · 10분 저장본', async () => {
+  const s = stubs({ '000660.KS': 'bogus', '000660.KQ': [200, 190], 'AAPL': [110, 100], 'MSFT': [50, 40], 'NVDA': [30, 30], 'TSLA': [21, 20], 'META': 'fail' })
+  try {
+    const items = [H('005930', 'KR'), H('000660', 'KR'), H('AAPL', 'US'), H('MSFT', 'US'), H('NVDA', 'US'), H('TSLA', 'US'), H('META', 'US'), H('AAPL', 'US', { id: 'dup' })]
+    const have = new Map<string, Quote>([['005930', { price: 70000, pct: 1.5, name: '삼성전자' }]])
+    const t0 = Date.parse('2026-10-02T01:00:00Z')
+    const q = await holdingQuotes(items, have, t0)
+    assert.deepEqual(q.get('005930'), { price: 70000, pct: 1.5, name: '삼성전자' })   // 묶음 그대로, 요청 없음
+    assert.ok(!s.calls.some(c => c.startsWith('005930')))
+    assert.ok(Math.abs(q.get('000660')!.pct! - (200 / 190 - 1) * 100) < 1e-9)
+    assert.deepEqual(s.calls.filter(c => c.startsWith('000660')), ['000660.KS', '000660.KQ'])
+    assert.equal(q.get('AAPL')!.price, 110)
+    assert.equal(q.get('NVDA')!.pct, 0)
+    assert.equal(q.has('META'), false)                                              // 지어내지 않는다
+    assert.equal(s.calls.filter(c => c === 'AAPL').length, 1)                        // 같은 종목 두 줄은 한 번만
+    assert.ok(s.peak() <= 4, `동시 요청 ${s.peak()}개`)
+
+    const before = s.calls.length
+    const again = await holdingQuotes(items, have, t0 + 9 * 60_000)                  // 10분 안: 저장본(실패한 META 만 다시)
+    assert.deepEqual(s.calls.slice(before), ['META'])
+    assert.equal(again.get('MSFT')!.price, 50)
+    await holdingQuotes(items, have, t0 + 11 * 60_000)                               // 10분 뒤: 다시 받는다
+    assert.ok(s.calls.slice(before + 1).includes('MSFT'))
+  } finally { s.restore() }
 })

@@ -69,3 +69,13 @@ def test_history_version_keeps_newer_side(tmp_path):
     assert r["historyVersion"] == HV_NEW
     r = run(tmp_path, base(NEW, 100, {"historyVersion": HV_NEW}), base(OLD, 200))   # origin 에 없으면 run 것 유지
     assert r["historyVersion"] == HV_NEW
+
+
+def test_ai_briefing_newer_origin_wins():
+    """경량 런(옛 요약) 재시도 병합이 풀 런의 새 AI 요약을 되돌리지 않는다 — 「YYYY-MM-DD HH:MM KST」 꼴도 읽는다."""
+    import merge_newer as mn
+    run = {"lastUpdated": "2026-10-14T14:30:00+09:00", "aiBriefing": {"generatedAt": "2026-10-14 13:22 KST", "lines": ["옛"]}}
+    origin = {"lastUpdated": "2026-10-14T14:25:00+09:00", "aiBriefing": {"generatedAt": "2026-10-14 14:22 KST", "lines": ["새"]}}
+    assert mn.merge(run, origin)["aiBriefing"]["lines"] == ["새"]
+    run2 = {"aiBriefing": {"generatedAt": "2026-10-14 15:22 KST", "lines": ["더 새"]}}
+    assert mn.merge(run2, origin)["aiBriefing"]["lines"] == ["더 새"]

@@ -38,6 +38,14 @@ test('countUse · countFold: 횟수만 쌓고 시작일을 한 번 적는다', (
   assert.ok(!/005930|us10y/.test(store.get(USAGE_KEY)!), '지표 · 종목 id 가 기록에 남음')
 })
 
+test('countUse errors: 칸막이 오류는 자리별 횟수만(지표 id 는 뗀다)', () => {
+  store.clear()
+  countUse('errors', 'i/us10y:흐름')
+  countUse('errors', 'i/005930:흐름')
+  countUse('errors', '/market?a=kr')
+  assert.deepEqual(readUsage().errors, { 'i:흐름': 2, '/market?a=kr': 1 })
+})
+
 test('readUsage: 깨진 기록은 빈 기록, 지우면 시작일도 새로', () => {
   for (const raw of ['{', '[]', 'null', '"x"', '{"screens":[1]}']) {
     store.set(USAGE_KEY, raw)
@@ -47,7 +55,7 @@ test('readUsage: 깨진 기록은 빈 기록, 지우면 시작일도 새로', ()
   }
   store.set(USAGE_KEY, '{"since":"2026-10-01","screens":{"/":"x"}}')
   countUse('screens', '/')
-  assert.deepEqual(readUsage(), { since: '2026-10-01', screens: { '/': 1 }, views: {}, folds: {}, more: {} })
+  assert.deepEqual(readUsage(), { since: '2026-10-01', screens: { '/': 1 }, views: {}, folds: {}, more: {}, errors: {} })
   clearUsage()
   assert.equal(store.has(USAGE_KEY), false)
 })

@@ -369,6 +369,20 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/ai_briefing.py
 
+      # 📰 종목 「왜 움직였나」(구조 벤치마크 과제 2, 계약 C4) — 거래대금 상위 20 + 관심 종목(ETF 빼고 최대 30)마다 오늘 기사
+      #    (네이버 뉴스 검색)와 재료(지수 동행 · 최근 10일 공시 · 52주 신고·저가)로 규칙 한 문장 → Gemini 는 다듬기만(새 숫자 금지,
+      #    실패하면 규칙 문장). data.json 의 stockNews · stockReasons → 묶음 home.reasons. 장 서는 날 KST 08~20시 런만 일한다
+      #    (그 밖은 스크립트가 바로 끝나고 fetch_data 가 직전 블록을 잇는다). 경량 런은 시세만이라 넣지 않는다.
+      #    런마다 기사 검색 ≤30 · Gemini ≤30. 실패해도 커밋을 막지 않는다(스크립트도 늘 exit 0).
+      - name: Stock reasons (종목 기사 · 이유 한 줄)
+        if: env.FETCH_LIGHT != '1'
+        continue-on-error: true
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/stock_reasons.py
+
       # 🛡 데이터 무결성 게이트 — 스키마/핵심 시계열 검증 실패 시 여기서 중단되어
       # 커밋이 일어나지 않고 직전 정상 data.json 이 유지된다(fail-safe).
       - name: Validate data.json (스키마·최소 길이)
@@ -461,7 +475,8 @@ jobs:
           branch="${GITHUB_REF_NAME:-main}"
           # ⚠ halts_state.json 은 여기서 커밋하지 않는다 — 소유권이 stock-alerts.yml 로 단일화됨
           #   (두 워크플로가 같은 상태 파일을 커밋하면 push 경쟁 + 서킷브레이커 중복 발송 위험).
-          WATCH="data.json data_meta.json history.json merblog.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json bundles events"
+          # briefs/ = AI 요약 회차(ai_briefing.py, 풀 런마다 그날 파일에 한 회차). events/ 처럼 함께 올린다.
+          WATCH="data.json data_meta.json history.json merblog.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json bundles events briefs"
           if git diff --quiet -- $WATCH && git diff --staged --quiet -- $WATCH; then
             echo "변경 사항 없음 — 커밋 건너뜀"; exit 0
           fi
@@ -479,13 +494,15 @@ jobs:
             echo "::error::$f 가 유효한 JSON 이 아니다 — 이번 커밋에서 제외한다"
             git checkout HEAD -- "$f" 2>/dev/null || true
           done
-          ARTIFACTS="data.json data_meta.json history.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json bundles events"
+          ARTIFACTS="data.json data_meta.json history.json merblog.json fundamentals.json mer_signals.json mer_series.json mer_extract_cache.jsonl releases_state.json bundles events briefs"
           # 왜: 이번 런이 실제로 바꾼 산출물만 백업·재적용한다 — 안 바뀐 파일까지 되돌려 쓰면
           #   재시도 때 다른 런(풀/경량)이 방금 올린 merblog·mer_series·fundamentals 가 옛것으로 돌아간다.
           CHANGED=$( (git diff --name-only -- $ARTIFACTS; git ls-files --others --exclude-standard -- $ARTIFACTS) | sort -u )
           # bundles/x.json 은 하위 폴더라 /tmp 쪽에도 폴더를 먼저 만든다
           for f in $CHANGED; do [ -f "$f" ] && mkdir -p "/tmp/$(dirname "$f")" && cp "$f" "/tmp/$f.run" || true; done
           for f in $CHANGED; do [ -f "$f" ] && git add "$f" || true; done
+          # 30일 지난 briefs 파일을 지운 것도 올린다(위 줄은 있는 파일만 더한다). 재시도로 되돌아가면 다음 풀 런이 다시 지운다.
+          git add -A -- briefs 2>/dev/null || true
           git commit -m "$msg" -q || true
           for attempt in 1 2 3 4 5; do
             if git push origin "HEAD:${branch}"; then

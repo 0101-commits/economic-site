@@ -13,19 +13,30 @@ aiBriefing 이 존재할 때만 대시보드 홈 상단 배너에 렌더한다.
 
 GitHub Actions 의 fetch-data 워크플로에서 fetch_data.py 직후 실행된다.
 어떤 경우에도 예외로 빌드를 깨지 않는다 (실패 시 exit 0 + 기존 값 유지).
+
+근거(2026-10-14 구조 벤치마크 C3): 요약 전에 근거 목록(지표 · 수급 · 기사 · 일정)을 번호 매겨 만들고 AI 에 함께 준다.
+문장 끝 [n] 을 refs 로 읽고, 대조(숫자 · 일정 · 금지 낱말 · refs)에 걸린 문장은 버린다. 남은 문장이 2 미만이면 규칙 요약.
+결과는 data.json.aiBriefing(items · sources · dropped · check · day)과 briefs/YYYY-MM-DD.json(그날 회차 runs)에 쓴다.
 """
 
+import email.utils
+import html
 import json
+import math
 import os
 import re
 import sys
 import time
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 
 import requests
 
+from check_releases import release_due      # 발표 시각 판정 한 곳(알림 · 수집기 백필과 같은 함수)
+
 KST = timezone(timedelta(hours=9))
 DATA_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data.json")
+BRIEFS_KEEP_DAYS = 30               # briefs/YYYY-MM-DD.json 보관 일수 — 그보다 오래된 파일은 지운다
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -162,22 +173,34 @@ def build_snapshot(d):
             snap["뉴스헤드라인"] = titles
     except Exception as e:  # noqa: BLE001
         log(f"snapshot 뉴스 헤드라인 생략: {e}")
-    # 오늘~모레 ★3 캘린더 이벤트 — 실제 날짜 · 요일 · 시각을 붙인다(「10/14(수) 21:30 미국 CPI (전월비)」)
-    today = now.date()
-    events = ((d.get("economicCalendar") or {}).get("events")) or []
-    upcoming = []
-    for e in events:
-        iso = e.get("iso") or ""
-        if e.get("stars", 0) >= 3 and not e.get("act"):
-            try:
-                ed = datetime.strptime(iso, "%Y-%m-%d").date()
-                if 0 <= (ed - today).days <= 2:
-                    hm = str(e.get("dt") or "").partition(" ")[2]          # 「10.14 21:30」의 시각
-                    upcoming.append(" ".join(x for x in (_md_dow(iso), hm, e.get("name", "")) if x))
-            except ValueError:
-                pass
-    snap["upcoming"] = upcoming[:3]
+    # 오늘~모레 ★3 캘린더 이벤트 — 실제 날짜 · 요일 · 시각을 붙인다(「10/14(수) 21:30 미국 CPI (전월비)」).
+    # 발표 전인지는 시각으로 가른다(release_due). 종전 `not act` 는 발표 전에 실적 칸이 찬 미국 CPI(10/14 21:30, 수집기가
+    # 00시부터 직전 회차 +0.4% 를 넣었다)를 빼서, 요약이 「예정된 주요 지표 없음」이라고 썼다(2026-10-14 F1).
+    snap["upcoming"] = [_up_label(e) for e in _calendar_window(d, now) if e.get("stars", 0) >= 3 and not release_due(e, now)][:3]
     return snap
+
+
+def _calendar_window(d, now, days=2):
+    """오늘~days 일 뒤 일정(날짜 · 시각 순). 날짜를 못 읽는 행은 뺀다."""
+    out = []
+    for e in ((d.get("economicCalendar") or {}).get("events")) or []:
+        try:
+            ed = datetime.strptime(str(e.get("iso") or "")[:10], "%Y-%m-%d").date()
+        except (AttributeError, ValueError):
+            continue
+        if 0 <= (ed - now.date()).days <= days:
+            out.append(e)
+    return sorted(out, key=lambda e: (str(e.get("iso"))[:10], _event_hm(e)))
+
+
+def _event_hm(e):
+    """「10.14 21:30」의 시각. 없으면 ""."""
+    return str(e.get("dt") or "").partition(" ")[2]
+
+
+def _up_label(e):
+    """일정 한 줄 — 「10/14(수) 21:30 미국 CPI (전월비)」(규칙 요약 셋째 줄 · 근거 대응에 같은 글자를 쓴다)."""
+    return " ".join(x for x in (_md_dow(e.get("iso")), _event_hm(e), e.get("name", "")) if x)
 
 
 _DOW = "월화수목금토일"
@@ -217,21 +240,32 @@ def rule_based_lines(snap):
     return [line1, line2, line3]
 
 
-def _llm_prompt(snap):
+def _llm_prompt(snap, sources=()):
     # '1줄=주식/2줄=환율·금리/3줄=원자재' 고정 배분은 폐기 — 매일 같은 틀의 나열이 되어
-    # 정보가치가 낮았다. 대신 '이례적 변화 1가지 + 파급 경로 + 앞으로 확인할 일정(날짜와 함께)'을 요구해
-    # 스냅샷(수급·금리차·신용스프레드·헤드라인 포함)에서 통찰을 뽑도록 유도한다.
+    # 정보가치가 낮았다. 대신 '이례적 변화 1가지 + 파급 경로 + 앞으로 확인할 일정(날짜와 함께)'을 요구한다.
+    # 자료는 번호 붙은 근거 목록 하나다(C3) — 종전 JSON 스냅샷을 함께 주면 목록에 없는 숫자(키 이름 · 보조 칸)를 써서 대조에 걸렸다.
     return (
-        "다음은 오늘의 시장 데이터 스냅샷이다(JSON). 한국 개인투자자 관점에서 "
-        "'오늘의 매크로 3줄 요약'을 한국어로 작성하라.\n"
-        "규칙: 정확히 3줄, 각 줄 90자 이내, 번호/불릿/머리말 없이 본문만, "
-        "데이터에 없는 수치를 지어내지 말 것.\n"
-        "날짜: 스냅샷의 '오늘'이 기준이다. 일정은 upcoming 에 적힌 날짜 그대로(예: 10/14(수)) 말하고 '내일'·'모레' 같은 "
-        "상대 표현을 쓰지 말 것. 지수 등락률은 그 지수 '기준일'의 값이다(오늘이 아니면 그 날짜를 밝힐 것).\n"
-        "반드시 포함: ① 스냅샷에서 가장 이례적인 변화 1가지와 그것이 한국 시장에 "
-        "미치는 파급 경로, ② 앞으로 확인할 일정·지표 1가지(그 날짜와 함께).\n\n"
-        + json.dumps(snap, ensure_ascii=False, default=str)
+        "다음은 오늘 한국 개인투자자에게 보여 줄 시장 요약의 근거 목록이다(번호 · 종류 · 내용 · 출처 · 기준 시각). "
+        "이 목록만 근거로 '오늘의 매크로 3줄 요약'을 한국어로 작성하라.\n"
+        "규칙: 정확히 3줄(한 줄 = 한 문장), 각 줄 90자 이내, 번호/불릿/머리말 없이 본문만. "
+        "각 줄 끝에 그 문장이 기댄 근거 번호를 [1][4]처럼 단다 — 번호 없는 문장은 버려진다. "
+        "숫자는 근거에 적힌 값만 그대로(반올림만 허용) 쓰고 새로 계산하거나 지어내지 말 것. "
+        "'스냅샷'·'데이터셋'·'JSON' 같은 자료 이름을 쓰지 말 것. 매수·매도 권유 금지.\n"
+        "날짜: 아래 '오늘'이 기준이다. 일정은 근거에 적힌 날짜 그대로(예: 10/14(수)) 말하고 '내일'·'모레' 같은 "
+        "상대 표현을 쓰지 말 것. 지수 등락률은 그 근거의 기준 시각 값이다(오늘이 아니면 그 날짜를 밝힐 것). "
+        "근거에 일정이 있으면 '발표 일정이 없다'고 쓰지 말 것.\n"
+        "반드시 포함: ① 가장 이례적인 변화 1가지와 그것이 한국 시장에 미치는 파급 경로, "
+        "② 앞으로 확인할 일정·지표 1가지(그 날짜와 함께).\n\n"
+        f"오늘: {snap.get('오늘')} · 작성 시각 {snap.get('작성시각')}\n"
+        + "\n".join(" · ".join(x for x in (f"[{s['n']}] {s['kind']}", s["label"], s.get("src"), s.get("at")) if x)
+                    for s in sources)
     )
+
+
+def _reply_lines(text):
+    """모델 응답 → 문장 줄(앞 번호 「1. 」 · 불릿 제거, 빈 줄 제외) 최대 3. 「1.19%」 처럼 숫자로 시작하는 문장은 그대로 둔다."""
+    out = [re.sub(r"^\s*(?:\d+[.)]\s+|[-•*]\s*)", "", ln).strip() for ln in text.strip().splitlines()]
+    return [ln for ln in out if ln][:3]
 
 
 # Google 이 모델을 조용히 퇴역시킨다 — gemini-2.0-flash 는 404 다(2026-09-15 실측).
@@ -266,16 +300,17 @@ def _gemini_text(key, prompt, gen, timeout):
     raise err or RuntimeError("Gemini 모델 없음")
 
 
-def try_gemini(snap):
+def try_gemini(snap, sources=()):
+    """문장 줄(근거 번호 [n] 포함) 또는 None. 몇 줄을 쓸지는 대조(verify_items)가 정한다."""
     if not GEMINI_API_KEY:
         return None
     try:
-        text = _gemini_text(GEMINI_API_KEY, _llm_prompt(snap), {"temperature": 0.4, "maxOutputTokens": 400}, 40)
-        lines = [ln.strip().lstrip("0123456789.-•* ") for ln in text.strip().splitlines() if ln.strip()]
-        if len(lines) >= 3:
-            log("Gemini 요약 생성 성공")
-            return lines[:3]
-        log(f"Gemini 응답이 3줄 미만 — 폴백 ({len(lines)}줄)")
+        text = _gemini_text(GEMINI_API_KEY, _llm_prompt(snap, sources), {"temperature": 0.4, "maxOutputTokens": 600}, 40)
+        lines = _reply_lines(text)
+        if lines:
+            log(f"Gemini 요약 생성 {len(lines)}줄")
+            return lines
+        log("Gemini 응답이 비었다 — 폴백")
     except Exception as e:  # noqa: BLE001 — 어떤 실패든 다음 생성기로 폴백
         log(f"Gemini 실패: {e}")
     return None
@@ -381,7 +416,7 @@ def slot_line(slot_name, facts, timeout=15, calendar=None):
     return text if slot_line_ok(text, calendar) else ""
 
 
-def try_openai(snap):
+def try_openai(snap, sources=()):
     if not OPENAI_API_KEY:
         return None
     try:
@@ -389,20 +424,348 @@ def try_openai(snap):
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
             json={"model": "gpt-4o-mini",
-                  "messages": [{"role": "user", "content": _llm_prompt(snap)}],
-                  "temperature": 0.4, "max_tokens": 400},
+                  "messages": [{"role": "user", "content": _llm_prompt(snap, sources)}],
+                  "temperature": 0.4, "max_tokens": 600},
             timeout=40,
         )
         r.raise_for_status()
-        text = r.json()["choices"][0]["message"]["content"]
-        lines = [ln.strip().lstrip("0123456789.-•* ") for ln in text.strip().splitlines() if ln.strip()]
-        if len(lines) >= 3:
-            log("OpenAI 요약 생성 성공")
-            return lines[:3]
-        log(f"OpenAI 응답이 3줄 미만 — 폴백 ({len(lines)}줄)")
+        lines = _reply_lines(r.json()["choices"][0]["message"]["content"])
+        if lines:
+            log(f"OpenAI 요약 생성 {len(lines)}줄")
+            return lines
+        log("OpenAI 응답이 비었다 — 폴백")
     except Exception as e:  # noqa: BLE001
         log(f"OpenAI 실패: {e}")
     return None
+
+
+# ── 근거 목록 · 대조(C3, 2026-10-14) ─────────────────────────────────────────
+# 근거는 요약 전에 data.json 에서 만든다 — 지표 값 · 수급(연속 일수는 investorTrading 행으로 직접 센다, 기사 제목의 「7일째」가
+# 아니라) · 기사 제목(출처 · 주소 · 시각) · 오늘~모레 일정. 화면은 문장 끝 근거 번호와 이 목록을 그린다(home.brief).
+BRIEF_BANNED = SLOT_LINE_BANNED + ("스냅샷", "묶음", "데이터셋", "JSON", "json")
+BRIEF_NEWS = 5                      # 기사 근거 수(최신순)
+BRIEF_NEWS_TOPICS = ("주식", "외환", "채권", "미국CPI", "원자재", "원유", "한국은행", "한국수출")   # data.json.news 주제 중 시장 기사
+BRIEF_SCHED = 6                     # 일정 근거 상한(★2 이상, 오늘~모레)
+_FG_KO = {"extreme fear": "극단적 공포", "fear": "공포", "neutral": "중립", "greed": "탐욕", "extreme greed": "극단적 탐욕"}
+
+
+def _isnum(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _arrow(v):
+    """근거 칸 등락 — 「▲1.19%」(방향은 기호, 숫자는 절댓값 · 규칙 요약과 같은 두 자리)."""
+    return f"{'▲' if v >= 0 else '▼'}{abs(v):.2f}%"
+
+
+def _signed(v, unit=""):
+    """근거 칸 금액 — 「+8,005억원」 · 「−11,715억원」."""
+    return f"{'+' if v > 0 else '−' if v < 0 else ''}{abs(v):,.0f}{unit}"
+
+
+def _parse_dt(s):
+    try:
+        t = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=KST)
+
+
+def _when(t, now, with_time=False):
+    """기준 시각 — 오늘이면 「14:35」, 아니면 「10/13(화)」(with_time 이면 「10/13(화) 16:52」)."""
+    t = t.astimezone(KST)
+    if t.date() == now.date():
+        return t.strftime("%H:%M")
+    day = _md_dow(t.date().isoformat())
+    return f"{day} {t.strftime('%H:%M')}" if with_time else day
+
+
+def _streak(rows, who):
+    """끝 행부터 같은 부호가 이어진 거래일 수와 방향(+1 순매수 · −1 순매도). 값이 없거나 0 이면 거기서 끊는다."""
+    n, sign = 0, 0
+    for r in reversed(rows):
+        v = r.get(who)
+        s = ((v > 0) - (v < 0)) if _isnum(v) else 0
+        if not s or (sign and s != sign):
+            break
+        sign, n = s, n + 1
+    return n, sign
+
+
+def build_sources(d, snap, now=None):
+    """근거 목록 — [{n, kind(지표 · 수급 · 기사 · 일정), label, at?, src?, url?}]. 밑줄 칸(_key · _iso · _up)은 안에서만 쓴다.
+    값이 없는 항목은 싣지 않는다(지어내지 않는다)."""
+    now = now or datetime.now(KST)
+    today = now.date().isoformat()
+    out = []
+
+    def add(kind, label, key=None, **kw):
+        out.append({"n": len(out) + 1, "kind": kind, "label": label,
+                    **{k: v for k, v in kw.items() if v is not None}, **({"_key": key} if key else {})})
+
+    upd = _parse_dt(d.get("lastUpdated"))
+    upd_at = _when(upd, now) if upd else None
+    hist = (d.get("history") or {}).get("indices") or {}
+    idx = d.get("indices") or {}
+    for key, name in (("KOSPI", "코스피"), ("KOSDAQ", "코스닥"), ("SP500", "S&P500"), ("NASDAQ", "나스닥")):
+        q, h = idx.get(key) or {}, hist.get(key)
+        if not _isnum(q.get("price")):
+            continue
+        last = h[-1].get("date") if isinstance(h, list) and h and isinstance(h[-1], dict) else None
+        add("지표", f"{name} {_num(q['price'])}" + (f" {_arrow(q['change'])}" if _isnum(q.get("change")) else ""),
+            key, at=_md_dow(last) if last and last != today else upd_at)
+    for key, name, q, pre, post in (("USDKRW", "원/달러", (d.get("fx") or {}).get("USDKRW") or {}, "", "원"),
+                                    ("WTI", "WTI", (d.get("commodities") or {}).get("WTI") or {}, "$", ""),
+                                    ("Gold", "금", (d.get("commodities") or {}).get("Gold") or {}, "$", "")):
+        v = q.get("rate") if key == "USDKRW" else q.get("price")
+        if _isnum(v):
+            add("지표", f"{name} {pre}{_num(v)}{post}" + (f" {_arrow(q['change'])}" if _isnum(q.get("change")) else ""),
+                key, at=upd_at)
+    ei = d.get("economicIndicators") or {}
+    vix = ((ei.get("us") or {}).get("vix") or {})
+    if _isnum(vix.get("value")):
+        add("지표", f"VIX {_num(vix['value'])}", "VIX", at=_md_dow(vix.get("period")))
+    if _isnum(snap.get("미국기준금리")):
+        add("지표", f"미국 기준금리 {_num(snap['미국기준금리'])}%", "미국기준금리")
+    if _isnum(snap.get("한국기준금리")):
+        gap = snap.get("한미기준금리차")
+        add("지표", f"한국 기준금리 {_num(snap['한국기준금리'])}%" + (f" · 한미 차 {_signed_pp(gap)}" if _isnum(gap) else ""),
+            "한국기준금리")
+    if _isnum(snap.get("HY스프레드")):
+        wk = snap.get("HY스프레드_전주대비")
+        add("지표", f"미국 하이일드 스프레드 {_num(snap['HY스프레드'])}%p" + (f" · 1주 전보다 {_signed_pp(wk)}" if _isnum(wk) else ""),
+            "HY", at=_md_dow(((ei.get("us") or {}).get("hy_spread") or {}).get("period")))
+    fg = (d.get("sentiment") or {}).get("fear_greed") or {}
+    if _isnum(fg.get("value")):
+        rating = fg.get("rating") or fg.get("label")
+        add("지표", f"공포·탐욕 지수 {fg['value']}" + (f" ({_FG_KO.get(str(rating).lower(), rating)})" if rating else ""),
+            "FearGreed", at=upd_at if fg.get("as_of") == today else _md_dow(fg.get("as_of")))
+
+    # 수급 — 오늘(마지막 거래일) 값 · 연속 일수 · (외국인) 5일 누적. 시각은 포털 수집 시각(네이버 행) 또는 수집 시각.
+    it = d.get("investorTrading") or {}
+    rows = [r for r in (it.get("daily") or []) if isinstance(r, dict) and r.get("date")]
+    if rows:
+        last = rows[-1]
+        t = _parse_dt(it.get("portalFetchedAt") if last.get("src") == "naver" else it.get("lastFetched"))
+        at = (_when(t, now) if t and t.date() == now.date() else None) if last["date"] == today else _md_dow(last["date"])
+        unit = it.get("unit") or "억원"
+        for who, name in (("foreign", "외국인"), ("inst", "기관")):
+            v = last.get(who)
+            if not _isnum(v):
+                continue
+            n, sign = _streak(rows, who)
+            five = [r.get(who) for r in rows[-5:]]
+            label = f"{name} {_signed(v, unit)}" + (f" · {n}일 연속 순{'매수' if sign > 0 else '매도'}" if n >= 2 else "")
+            if who == "foreign" and len(five) == 5 and all(_isnum(x) for x in five):
+                label += f" · 5일 누적 {_signed(sum(five), unit)}"
+            add("수급", label, who, at=at)
+
+    # 기사 — 시장 주제(BRIEF_NEWS_TOPICS) 최신순 BRIEF_NEWS 건(같은 주소 · 같은 제목은 한 번). 출처 = 주소의 호스트.
+    #   전 주제에서 고르면 미술관 · 건설 기사가 근거 칸을 채웠다(2026-10-14 17:08 자료 5건 중 4건). 시장 주제가 비면 전 주제.
+    news = d.get("news") or {}
+    picked = [news.get(t) for t in BRIEF_NEWS_TOPICS if isinstance(news.get(t), list) and news.get(t)]
+    arts, seen = [], set()
+    for items in picked or list(news.values()):
+        for a in items if isinstance(items, list) else []:
+            if not isinstance(a, dict):
+                continue
+            title = re.sub(r"\s+", " ", html.unescape(str(a.get("title") or ""))).strip()
+            url = a.get("url") if isinstance(a.get("url"), str) else ""
+            if not title or not re.match(r"https?://", url) or url in seen or title in seen:
+                continue
+            seen.update((url, title))
+            try:
+                t = email.utils.parsedate_to_datetime(a.get("pubDate"))
+            except (TypeError, ValueError):
+                t = None
+            t = (t if t.tzinfo else t.replace(tzinfo=timezone.utc)) if t else None
+            arts.append((t.timestamp() if t else 0, title, url, t))
+    for _, title, url, t in sorted(arts, key=lambda x: -x[0])[:BRIEF_NEWS]:
+        add("기사", title, src=(urllib.parse.urlsplit(url).hostname or "").removeprefix("www.") or None, url=url,
+            at=_when(t, now, with_time=True) if t else None)
+
+    # 일정 — 오늘~모레 ★2 이상. 발표 시각이 지났고 실적이 있으면 그 값을 붙인다(release_due — 시각으로 판정).
+    for e in [e for e in _calendar_window(d, now) if (e.get("stars") or 0) >= 2][:BRIEF_SCHED]:
+        due = release_due(e, now)
+        label = " · ".join(x for x in (e.get("name"), " ".join(x for x in (_md_dow(e.get("iso")), _event_hm(e)) if x),
+                                       "★" * int(e.get("stars") or 0), f"발표 {e['act']}" if due and e.get("act") else None) if x)
+        src = {"kind": "일정", "label": label, "_iso": str(e.get("iso"))[:10]}
+        if (e.get("stars") or 0) >= 3 and not due:
+            src["_up"] = _up_label(e)
+        out.append({"n": len(out) + 1, **src})
+    return out
+
+
+def _signed_pp(v):
+    """%p 차 — 「−0.75%p」 · 「+0.05%p」."""
+    return f"{'+' if v > 0 else '−' if v < 0 else ''}{abs(v):.2f}%p"
+
+
+_REFS = re.compile(r"\s*\[(\d{1,2}(?:\s*[,，]\s*\d{1,2})*)\]")
+
+
+def parse_items(lines, n_sources):
+    """「…줄었습니다 [1][3]」 → {text, refs}. 없는 번호는 버리고 같은 번호는 한 번만."""
+    items = []
+    for ln in lines:
+        refs = []
+        for grp in _REFS.findall(ln):
+            for x in re.split(r"\s*[,，]\s*", grp):
+                if 1 <= int(x) <= n_sources and int(x) not in refs:
+                    refs.append(int(x))
+        text = re.sub(r"\s+([.,!?])", r"\1", _REFS.sub("", ln)).strip()
+        items.append({"text": text, "refs": refs})
+    return items
+
+
+# 숫자 대조 — 날짜 · 시각 · 순서 숫자(「10/14」 「21:30」 「3분기」 「1위」)와 이름 속 숫자(「S&P500」 「코스피200」)는 값이 아니라 뺀다.
+_NUM_NAMES = re.compile(r"S&P\s*500|(?:코스피|코스닥|나스닥|KOSPI|KOSDAQ|NASDAQ)\d+")    # 붙은 숫자만(「코스피 6,008」은 값)
+_NOT_VALUE = re.compile(r"\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}/\d{1,2}(?:\s*\([월화수목금토일]\))?|\d{1,2}:\d{2}"
+                        r"|\d{1,2}일\s*\([월화수목금토일]\)"
+                        r"|(?<![\d.,])\d+(?:년|월|분기|시|분|초|번째|번|차|가지|줄|위(?!안))")
+_NUM_TOKEN = r"(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?"
+_BIG = re.compile(r"(?<![\d.,])(\d+)(?:\.(\d+))?\s*조(?:\s*(\d{1,3}(?:,\d{3})+|\d+)\s*억)?|(?<![\d.,])(\d+)\s*천\s*억")
+_RANGE = re.compile(r"(?<![A-Za-z&\d.,])" + _NUM_TOKEN + r"\s*(?:원|달러|포인트|%p?|bp)?\s*(대(?!비|규모|형|폭|량)|선(?!물|거|박|택))")
+_PLAIN = re.compile(r"(?<![A-Za-z&\d.,])" + _NUM_TOKEN)
+_COUNT_TAIL = re.compile(r"\s*(?:거래일|영업일|일|배|개월|개|주|달|회|명|종목)")
+
+
+def _clean_nums(s):
+    return _NOT_VALUE.sub(" ", _NUM_NAMES.sub(" ", s))
+
+
+def _tokens(s):
+    """문장 숫자 → [(값, 소수 자릿수, 배율, 꼴)]. 꼴 = eq(반올림 · 버림 일치) · range(「1,330원대」) · level(「6000선」 ±5%).
+    억 단위 근거와 맞추려고 「1조 1,715억」 = 11715 · 「1.2조」 = 1.2 × 10000 · 「4천억」 = 4 × 1000 으로 센다."""
+    s, out = _clean_nums(s), []
+
+    def big(m):
+        if m.group(4):
+            out.append((float(m.group(4)), 0, 1000.0, "eq"))
+        elif m.group(3):
+            out.append((float(m.group(1)) * 10000 + float(m.group(3).replace(",", "")), 0, 1.0, "eq"))
+        else:
+            out.append((float(m.group(1) + "." + (m.group(2) or "0")), len(m.group(2) or ""), 10000.0, "eq"))
+        return " "
+
+    def rng(m):
+        out.append((float(m.group(1).replace(",", "") + "." + (m.group(2) or "0")), len(m.group(2) or ""), 1.0,
+                    "range" if m.group(3).startswith("대") else "level"))
+        return " "
+
+    s = _RANGE.sub(rng, _BIG.sub(big, s))
+    # 개수(「12일 연속」 「3거래일」 「2배」)는 정확히 같아야 한다 — 반올림 · 버림을 허용하면 「3거래일」이 「3.75%」 근거로 통과했다(PR #170 검토)
+    out += [(float(m.group(1).replace(",", "") + "." + (m.group(2) or "0")), len(m.group(2) or ""), 1.0,
+             "count" if _COUNT_TAIL.match(s, m.end()) else "eq")
+            for m in _PLAIN.finditer(s)]
+    return out
+
+
+def _pool(labels):
+    """근거 칸 글자 속 숫자(절댓값)."""
+    return [float(m.group(1).replace(",", "") + "." + (m.group(2) or "0"))
+            for lb in labels for m in _PLAIN.finditer(_clean_nums(lb))]
+
+
+def _num_ok(tok, y):
+    x, d, mult, kind = tok
+    v = abs(y) / mult
+    if kind == "level":
+        return x > 0 and abs(v - x) <= 0.05 * x
+    if kind == "range":
+        step = 10.0 ** -d if d else 10.0 ** (len(str(int(x))) - len(str(int(x)).rstrip("0"))) if x else 1.0
+        return x <= v < x + step
+    eps = 10.0 ** -(d + 6)
+    if kind == "count":
+        return abs(v - x) < eps
+    # 버림 일치는 소수가 있거나 세 자리 이상인 값만(「6,008」 ← 6,008.81 · 「1.1%」 ← 1.17%). 한두 자리 정수는 반올림만.
+    floor_ok = (d > 0 or x >= 100) and abs(math.floor(v * 10 ** d + eps) / 10 ** d - x) < eps
+    return abs(round(v, d) - x) < eps or floor_ok
+
+
+# 「발표 없」류 — 「예정된 주요 지표나 이벤트는 없으나」(2026-10-14 F1 문장)
+_NO_RELEASE = re.compile(r"(?:일정|발표|지표|이벤트)[^.,。]{0,12}(?:없|부재)")
+
+
+def check_item(item, by_n, calendar=None, now=None, today_sched=False):
+    """한 문장 대조 → (통과, 걸린 이유, 통과한 숫자 수, 일정 근거 수). 이유는 로그용."""
+    s, refs = item["text"], item["refs"]
+    if not refs:
+        return False, "근거 번호 없음", 0, 0
+    if any(w in s for w in BRIEF_BANNED):
+        return False, "금지 낱말", 0, 0
+    if calendar is not None and _calendar_conflict(s, calendar, now, any_day=True):
+        return False, "일정표와 어긋남", 0, 0
+    if today_sched and _NO_RELEASE.search(s):
+        return False, "오늘 일정이 있는데 「발표 없음」", 0, 0
+    cited = [by_n[n] for n in refs if n in by_n]
+    pool = _pool(c["label"] for c in cited)
+    toks = _tokens(s)
+    bad = [t for t in toks if not any(_num_ok(t, y) for y in pool)]
+    if bad:
+        return False, "근거에 없는 숫자 %s" % [t[0] for t in bad], 0, 0
+    return True, None, len(toks), sum(1 for c in cited if c["kind"] == "일정")
+
+
+def verify_items(lines, sources, calendar=None, now=None):
+    """AI 줄 → (남은 items, 버린 수, 통과 숫자 수, 일정 수). 하나라도 걸린 문장은 통째로 버린다."""
+    by_n = {s["n"]: s for s in sources}
+    today = (now or datetime.now(KST)).date().isoformat()
+    today_sched = any(s["kind"] == "일정" and s.get("_iso") == today for s in sources)
+    kept, dropped, nums, sched = [], 0, 0, 0
+    for it in parse_items(lines, len(sources)):
+        ok, why, n, k = check_item(it, by_n, calendar, now, today_sched)
+        if not ok:
+            dropped += 1
+            log(f"대조에서 버림({why}): {it['text']}")
+            continue
+        kept.append(it)
+        nums, sched = nums + n, sched + k
+    return kept, dropped, nums, sched
+
+
+def rule_items(snap, sources):
+    """규칙 요약 3줄 + 그 줄이 쓴 근거 번호(지표 키 · 일정 글자로 찾는다). 대조 수는 같은 숫자 대조로 센다."""
+    key = {s["_key"]: s["n"] for s in sources if s.get("_key")}
+    up = set(snap.get("upcoming") or [])
+    groups = (("KOSPI", "SP500", "NASDAQ"), ("USDKRW", "미국기준금리", "VIX"), ("WTI", "Gold", "FearGreed"))
+    items = []
+    for i, (ln, ks) in enumerate(zip(rule_based_lines(snap), groups)):
+        refs = [key[k] for k in ks if k in key] + ([s["n"] for s in sources if s.get("_up") in up] if i == 2 else [])
+        items.append({"text": ln, "refs": refs})
+    by_n = {s["n"]: s for s in sources}
+    nums = sum(sum(1 for t in _tokens(it["text"]) if any(_num_ok(t, y) for y in _pool(by_n[n]["label"] for n in it["refs"])))
+               for it in items)
+    sched = sum(1 for it in items for n in it["refs"] if by_n[n]["kind"] == "일정")
+    return items, nums, sched
+
+
+def save_brief_run(brief, now, briefs_dir):
+    """briefs/YYYY-MM-DD.json 에 이번 회차를 더한다(같은 at 이면 바꿔 끼움) · BRIEFS_KEEP_DAYS 일 지난 파일은 지운다.
+    화면이 회차를 넘겨 본다 — 파일 = {date, runs:[{at, source, day, lines, items, sources, dropped, check}]}."""
+    os.makedirs(briefs_dir, exist_ok=True)
+    day = now.strftime("%Y-%m-%d")
+    path = os.path.join(briefs_dir, day + ".json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except (OSError, ValueError):
+        doc = None
+    if not isinstance(doc, dict) or doc.get("date") != day or not isinstance(doc.get("runs"), list):
+        doc = {"date": day, "runs": []}
+    run = {"at": now.strftime("%H:%M"), **{k: brief.get(k) for k in ("source", "day", "lines", "items", "sources", "dropped", "check")}}
+    same = [i for i, r in enumerate(doc["runs"]) if isinstance(r, dict) and r.get("at") == run["at"]]
+    if same:
+        doc["runs"][same[0]] = run
+    else:
+        doc["runs"].append(run)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
+    cut = now.date() - timedelta(days=BRIEFS_KEEP_DAYS)
+    for name in os.listdir(briefs_dir):
+        m = re.fullmatch(r"(\d{4}-\d{2}-\d{2})\.json", name)
+        if m and datetime.strptime(m.group(1), "%Y-%m-%d").date() < cut:
+            os.remove(os.path.join(briefs_dir, name))
 
 
 def main():
@@ -413,35 +776,50 @@ def main():
         log(f"data.json 로드 실패 — 건너뜀: {e}")
         return 0
 
+    now = datetime.now(KST)
     snap = build_snapshot(d)
-    source, lines = "rule", None
+    sources = build_sources(d, snap, now)
+    source, items, dropped, nums, sched = "rule", None, 0, 0, 0
     cal = d.get("economicCalendar")
     for name, gen in (("gemini", try_gemini), ("openai", try_openai)):
-        got = gen(snap)
-        if got and not brief_lines_ok(got, cal):
-            log(f"{name} 요약이 상대 날짜 · 권유 · 일정표 대조에 걸림 — 버림: {got}")
-            got = None
-        if got:
-            source, lines = name, got
+        got = gen(snap, sources)
+        if not got:
+            continue
+        # 문장 단위 대조(C3) — 숫자 · 일정 · 금지 낱말 · 근거 번호. 걸린 문장만 버리고 2문장 이상 남으면 싣는다.
+        kept, dropped, nums, sched = verify_items(got, sources, cal, now)
+        if len(kept) >= 2:
+            source, items = name, kept
             break
-    if not lines:
-        lines = rule_based_lines(snap)
-        log("규칙 기반 요약 사용 (LLM 키 미설정 또는 실패)")
+        log(f"{name} 요약이 대조 뒤 {len(kept)}문장 — 다음 생성기로")
+    if not items:
+        items, nums, sched = rule_items(snap, sources)
+        log("규칙 기반 요약 사용 (LLM 키 미설정 · 실패 · 대조 탈락)")
 
-    now = datetime.now(KST)
+    by_n = {s["n"]: s for s in sources}
+    used = sorted({n for it in items for n in it["refs"]})
     d["aiBriefing"] = {
         "date": now.strftime("%Y-%m-%d"),
         "generatedAt": now.strftime("%Y-%m-%d %H:%M KST"),
-        "lines": lines,
+        "lines": [it["text"] for it in items],            # 옛 화면 · 알림 호환(글자만)
         "source": source,
+        "day": now.strftime("%Y-%m-%d"),
+        "items": items,
+        "sources": [{k: v for k, v in by_n[n].items() if not k.startswith("_")} for n in used],   # 문장이 단 근거만
+        "dropped": dropped,
+        "check": {"numbers": nums, "schedule": sched},
     }
     try:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             # data.json 기록자 공통 압축 형식 — 하나라도 indent 로 쓰면 1.5MB 목표가 깨진다(test_history_split 이 고정)
             json.dump(d, f, ensure_ascii=False, separators=(",", ":"))
-        log(f"aiBriefing 갱신 완료 (source={source})")
+        log(f"aiBriefing 갱신 완료 (source={source}, 버린 문장 {dropped})")
     except Exception as e:  # noqa: BLE001
         log(f"data.json 저장 실패: {e}")
+        return 0
+    try:
+        save_brief_run(d["aiBriefing"], now, os.path.join(os.path.dirname(DATA_FILE), "briefs"))
+    except Exception as e:  # noqa: BLE001 — 회차 파일 실패가 요약을 막지 않는다
+        log(f"briefs 저장 실패: {e}")
     return 0
 
 

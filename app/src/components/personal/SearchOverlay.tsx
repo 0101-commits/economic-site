@@ -2,7 +2,9 @@
 // 결과: 지표(지표 사전 label·short·id 부분 일치) · 종목(묶음 종목 행 이름 · 코드 — lib/bundle.ts loadStocks, 미국 대형주 한글 이름 — lib/detail.ts US_KO) · 화면·보기(고정 목록) · 도구 + 따로 묶은 「메르 글」
 // 6자리 코드나 영문 티커를 그대로 넣으면 「종목 <코드> 열기」 한 줄(묶음에 없는 종목도 상세로 간다).
 // (merblog.json 제목 전체 · 최신 20편 전문 — 전문에서 찾으면 일치한 곳 앞뒤 40자를 보인다).
-// 입력이 비었으면 「목적으로 고르기」(묶음에 자료가 있는 것만)와 「최근 본 것」. 금액은 싣지 않는다(내 자산 자료를 읽지 않는다).
+// 입력이 비었으면 「목적으로 고르기」(묶음에 자료가 있는 것만)와 「최근 본 것」(상세를 연 것 전부 + 검색에서 고른 것, 8개). 금액은 싣지 않는다(내 자산 자료를 읽지 않는다).
+// 지표 · 종목 행마다 값 · 등락(components/Rail.tsx useItems — 묶음 값, 없으면 /quotes). ↑↓ 로 행을 옮기고 Enter 로 연다.
+// 메르 글(merblog.json, 1MB 넘음)은 두 글자 이상 칠 때 처음 받는다.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Search, X } from 'lucide-react'
@@ -12,6 +14,8 @@ import { isStockId, searchRows, stockHits, type StockRow } from '../../lib/detai
 import { safeHref, shortDate } from '../../lib/format'
 import { loadMarketData, loadRootJson } from '../../lib/personal/data'
 import { pushRecent, readRecent, type Recent } from '../../lib/personal/store'
+import { useItems, ValueCell } from '../Rail'
+import type { StripItem } from '../../lib/bundle'
 
 type Kind = '지표' | '종목' | '화면' | '글' | '도구'
 /** snip = 전문에서 찾은 곳 [앞 40자, 일치, 뒤 40자] */
@@ -21,7 +25,7 @@ type Fixed = Hit & { keys: string }
 // 화면·보기 고정 목록 — 시장 자산군 7(screens/Market.tsx ASSETS) · 렌즈 모드 3(screens/Lens.tsx MODES) · 내 자산 · 알림
 const SCREENS: Fixed[] = [
   ...([['kr', '국내', 'kospi 코스피 코스닥 주식'], ['global', '해외', '미국 나스닥 s&p 지수'], ['fxrate', '환율금리', '환율 금리 달러 국채'],
-    ['commod', '원자재', '유가 금 구리 wti'], ['macro', '거시', 'cpi 물가 gdp 고용'], ['flow', '수급', '외국인 기관 개인 순매수'], ['estate', '부동산', '아파트 주택 전세']] as const)
+    ['commod', '원자재', '유가 금 구리 wti'], ['macro', '거시', 'cpi 물가 gdp 고용'], ['flow', '수급', '외국인 기관 개인 순매수'], ['realestate', '부동산', '아파트 주택 전세']] as const)
     .map(([k, l, keys]): Fixed => ({ kind: '화면', label: `시장 · ${l}`, to: `/market?a=${k}`, keys: `시장 ${l} ${keys}` })),
   ...([['whatif', '만약에', '시나리오 what-if'], ['chain', '사슬', '연결 고리'], ['flow', '흐름', '흐름']] as const)
     .map(([k, l, keys]): Fixed => ({ kind: '화면', label: `렌즈 · ${l}`, to: `/lens?m=${k}`, keys: `렌즈 메르 위험 ${l} ${keys}` })),
@@ -71,12 +75,13 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
     }, () => {})
   }, [open, reg.length])
 
-  // 메르 글(1MB 넘는 파일)은 검색을 처음 열 때 한 번 받는다
+  // 메르 글(1MB 넘는 파일)은 두 글자 이상 칠 때 한 번 받는다 — 검색을 열기만 하고 닫는 일이 많다
   const s = q.trim().toLowerCase()
+  const wantPosts = s.length >= 2
   useEffect(() => {
-    if (!open || posts) return
+    if (!open || posts || !wantPosts) return
     loadRootJson<{ posts?: Post[] }>('merblog.json').then(m => setPosts((m.posts || []).map(p => ({ title: p.title, url: p.url, date: p.date, fullText: p.fullText }))), () => setPosts([]))
-  }, [open, posts])
+  }, [open, posts, wantPosts])
 
   const hits = useMemo((): Hit[] => {
     if (!s) return []
@@ -121,17 +126,38 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
     if (h.to) nav(h.to)
   }
 
+  // 최근 본 것: 상세가 id 만 적은 줄은 지표 사전 · 묶음 종목 이름으로 보인다
+  const nameOf = (id: string) => { const r = reg.find(x => x.id === id), st = stocks.find(x => x.code === id); return r ? r.short || r.label : st ? st.short || st.name : null }
+  const recentHits = recent.map((r): Hit => {
+    const id = idOf(r.to)
+    return { kind: (r.kind as Kind) || '화면', label: (id && r.label === id && nameOf(id)) || r.label, ...(r.to.startsWith('/') ? { to: r.to } : { href: safeHref(r.to) ?? undefined }) }
+  })
+  // 방향키로 옮기는 행 = 보이는 목록 차례(검색 결과 → 메르 글, 입력이 비었으면 최근 본 것). 결과가 바뀌면 첫 행(빈 입력은 고른 행 없음)
+  const rows = s ? [...hits, ...postHits] : recentHits
+  const [act, setAct] = useState(-1)
+  useEffect(() => { setAct(s ? 0 : -1) }, [s])
+  useEffect(() => { if (act >= 0) document.getElementById(`search-row-${act}`)?.scrollIntoView({ block: 'nearest' }) }, [act])
+  const vals = useItems(open ? rows.map(h => idOf(h.to)).filter(Boolean) : [])
+  const go = (h: Hit | undefined) => { if (!h) return; if (h.href) window.open(h.href, '_blank', 'noopener'); pick(h) }
+
   return (
     <dialog ref={ref} onClose={onClose} aria-label="검색"
       className="m-0 p-0 border-0 w-full h-full max-w-none max-h-none bg-bg text-ink-1 backdrop:bg-ink-1/40">
       <div className="mx-auto max-w-[720px] px-4 py-3 flex flex-col gap-4">
-        <form role="search" onSubmit={e => { e.preventDefault(); const h = hits[0] ?? postHits[0]; if (h) { if (h.href) window.open(h.href, '_blank', 'noopener'); pick(h) } }}
+        <form role="search" onSubmit={e => { e.preventDefault(); go(rows[act]) }}
           className="flex items-center gap-2">
           <div className="relative flex-1 min-w-0">
             <Search size={16} aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3" />
             {/* 글자가 든 search 칸의 Esc 는 브라우저가 칸 비우기에 써서 창이 안 닫힌다 — 여기서 바로 닫는다 */}
             <input type="search" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="지표 · 종목 · 화면 · 글 검색" aria-label="검색어"
-              onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }}
+              aria-activedescendant={rows[act] ? `search-row-${act}` : undefined}
+              onKeyDown={e => {
+                if (e.key === 'Escape') { e.preventDefault(); onClose() }
+                else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && rows.length) {
+                  e.preventDefault()
+                  setAct(a => Math.max(0, Math.min(rows.length - 1, a + (e.key === 'ArrowDown' ? 1 : -1))))
+                }
+              }}
               className="w-full h-11 pl-8 pr-3 rounded-btn border border-line bg-card text-14 text-ink-1 placeholder:text-ink-3" />
           </div>
           <button type="button" onClick={onClose} aria-label="검색 닫기" title="닫기 (Esc)"
@@ -141,16 +167,16 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
         {s ? (
           hits.length || postHits.length ? (
             <>
-              {hits.length > 0 && <HitList hits={hits} onPick={pick} label="검색 결과" />}
+              {hits.length > 0 && <HitList hits={hits} onPick={pick} label="검색 결과" vals={vals} act={act} />}
               {postHits.length > 0 && (
                 <section>
                   <h2 className="m-0 mb-2 text-13 font-bold text-ink-1">메르 글 <span className="num text-ink-3">{postHits.length}</span></h2>
-                  <HitList hits={postHits} onPick={pick} label="메르 글" />
+                  <HitList hits={postHits} onPick={pick} label="메르 글" vals={vals} act={act} start={hits.length} />
                 </section>
               )}
             </>
           ) : (
-            <p className="m-0 text-13 text-ink-3">{posts ? '찾은 것이 없습니다. 지표 · 종목 이름이나 코드(예: kospi, 달러, 삼성전자, 005930)로 찾아보세요.' : '찾는 중'}</p>
+            <p className="m-0 text-13 text-ink-3">{posts || !wantPosts ? '찾은 것이 없습니다. 지표 · 종목 이름이나 코드(예: kospi, 달러, 삼성전자, 005930)로 찾아보세요.' : '찾는 중'}</p>
           )
         ) : (
           <>
@@ -170,8 +196,8 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             <section>
               <h2 className="m-0 mb-2 text-13 font-bold text-ink-1">최근 본 것</h2>
               {recent.length
-                ? <HitList label="최근 본 것" onPick={pick} hits={recent.map((r): Hit => ({ kind: (r.kind as Kind) || '화면', label: r.label, ...(r.to.startsWith('/') ? { to: r.to } : { href: safeHref(r.to) ?? undefined }) }))} />
-                : <p className="m-0 text-13 text-ink-3">검색해서 연 것이 여기에 남습니다(이 기기에만).</p>}
+                ? <HitList label="최근 본 것" onPick={pick} hits={recentHits} vals={vals} act={act} />
+                : <p className="m-0 text-13 text-ink-3">상세를 연 지표 · 종목과 검색에서 고른 것이 여기에 남습니다(이 기기에만).</p>}
             </section>
           </>
         )}
@@ -180,7 +206,11 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   )
 }
 
-function HitList({ hits, onPick, label }: { hits: Hit[]; onPick: (h: Hit) => void; label: string }) {
+/** 지표 · 종목 행의 id(/i/<id>) — 아니면 ''. */
+const idOf = (to?: string) => (to?.startsWith('/i/') ? decodeURIComponent(to.slice(3)) : '')
+
+/** 결과 한 묶음. start = 이 묶음 첫 행의 전체 차례(방향키 · aria-activedescendant 의 search-row-N), act = 지금 고른 행. */
+function HitList({ hits, onPick, label, vals, act, start = 0 }: { hits: Hit[]; onPick: (h: Hit) => void; label: string; vals: Map<string, StripItem>; act: number; start?: number }) {
   return (
     <ul aria-label={label} className="m-0 p-0 list-none bg-card border border-line rounded-card">
       {hits.map((h, i) => {
@@ -192,12 +222,13 @@ function HitList({ hits, onPick, label }: { hits: Hit[]; onPick: (h: Hit) => voi
               {h.sub && <span className="block text-12 text-ink-3">{h.sub}</span>}
               {h.snip && <span className="block mt-0.5 text-12 text-ink-2 [overflow-wrap:anywhere]">{h.snip[0]}<b className="text-ink-1">{h.snip[1]}</b>{h.snip[2]}</span>}
             </span>
+            <ValueCell item={vals.get(idOf(h.to))} />
             <ChevronRight size={14} aria-hidden className="shrink-0 text-ink-3" />
           </>
         )
         const cls = 'w-full flex items-center gap-3 px-3 py-2.5 text-left no-underline bg-transparent border-0 cursor-pointer'
         return (
-          <li key={`${h.kind}-${h.to ?? h.href}-${i}`} className="border-b border-line last:border-b-0">
+          <li key={`${h.kind}-${h.to ?? h.href}-${i}`} id={`search-row-${start + i}`} className={`border-b border-line last:border-b-0 ${start + i === act ? 'bg-ink-3/10' : ''}`}>
             {h.href
               ? <a href={h.href} target="_blank" rel="noopener noreferrer" className={cls} onClick={() => onPick(h)}>{body}</a>
               : h.to ? <button type="button" className={cls} onClick={() => onPick(h)}>{body}</button>

@@ -376,7 +376,8 @@ data.json + js/app1.js(macroIndicators) + mer_signals.json
 | `index.html` | Entire frontend — styles, charts (Chart.js), all page logic |
 | `scripts/fetch_data.py` | ~7 000-line data collector; runs in GitHub Actions |
 | `scripts/validate_data.py` | Data integrity gate — blocks bad `data.json` from commit |
-| `scripts/ai_briefing.py` | LLM macro summary → `data.json.aiBriefing` |
+| `scripts/ai_briefing.py` | LLM macro summary → `data.json.aiBriefing`. 근거 목록(지표 · 수급 · 기사 · 일정)을 번호로 주고 문장 끝 `[n]` 을 refs 로 읽는다 — 숫자 · 일정 · 금지 낱말 · refs 대조에 걸린 문장은 버리고 `dropped` 로 센다. 회차는 `briefs/YYYY-MM-DD.json`(30일, Pages 허용 목록). 일정 「발표 전」 판정은 `act` 칸이 아니라 시각(`release_due`) — 2026-10-14 CPI 처럼 발표 전에 실제 값이 차면 요약이 「예정 발표 없음」이라고 썼다 |
+| `scripts/stock_reasons.py` | 종목 「왜 움직였나」 — 관심 + 거래대금 상위(ETF 제외, ≤30) 종목별 네이버 뉴스 검색 + 지수 동행 · 공시 · 52주 → 규칙 문장 → Gemini 다듬기(새 숫자 금지, 실패하면 규칙 문장) → `data.json.stockNews` · `stockReasons` → `home.reasons`(오늘 것만). 풀 런 KST 08~20시. 계약 `docs/superpowers/specs/2026-10-14-struct-bench-plan.md` C4 |
 | `scripts/fetch_merblog.py` + `scripts/merblog_lib.py` | 메르 블로그(ranto28) 최근 365일 메타 + 최신 20편 원문 → `merblog.json`. 공개 저장소라 원문 전량 커밋 금지 |
 | `scripts/mer_extract.py` | 메르 글 → 구조화 JSON(`mer_extract_cache.jsonl`). 인용은 80자 이하 + **원문 실재 검증 통과분만** 저장(날조 차단), 원문 자체는 저장 안 함(공개 저장소). 키는 `ANTHROPIC_API_KEY` → `GEMINI_API_KEY` 순, 둘 다 없으면 건너뛰고 캐시 보존. `--limit N` 으로 백필을 회차로 쪼갠다 |
 | `scripts/mer_aggregate.py` + `scripts/mer_dict.yml` | 추출 캐시 + `data.json` + `mer_series.json` 을 정규화 사전으로 접어 `mer_signals.json` 생성. 사전 없이는 히트맵이 통째로 빈다(자유 서술 from/to 는 810건 중 distinct 766). 트리거 레벨은 단위·범위 게이트를 통과한 것만 차트에 그린다 |
@@ -546,6 +547,7 @@ Deployed from `cloudflare-worker/`. Acts as:
 - **POST /portfolio** — writes `alerts_config.json` to GitHub via dispatch (requires SHA-256 sync key)
 - **POST /ai** — proxies AI API calls with rate limiting
 - **POST /sync-key** — verifies or changes the sync key (KV `auth:syncKeyHash`). 검사만 = 헤더 `X-Sync-Key-Hash`, 본문에 `newKey` 없음 · 바꾸기 = 본문 `{currentKey, newKey}` 원문(`SHA-256(currentKey.trim())` 비교, 새 키 12자 이상 · 지금 키와 다름, 아니면 400 `weak_new_key`) · 옛 `newKeyHash` = 400 `use_new_key`(해시만으로 못 바꾸게). 키 바꾸기는 새 화면 설정 › 기기 연결에서만 — 옛 화면(`js/app2.js`)은 안내만 한다(보유를 새 열쇠로 다시 잠가야 해서)
+- **GET /quotes?codes=** — 종목 시세 묶음(최대 30, 국내 `.KS`→`.KQ` 거래소 검사 · 미국 점→줄표, 코드별 60초 보관, `PROXY_LIMITER`). 새 화면 관심 칸 · 오른쪽 패널 · 검색 · 내 자산이 묶음에 없는 종목 값을 한 번에 받는다. 관심 목록은 저장하지 않는다
 - **Cron triggers** → `repository_dispatch(kakao-send)` to GitHub, which fires `kakao-daily.yml`
 - **KR 휴장일은 `worker.js` `KR_HOLIDAYS`(KST 날짜)** — 이 날 KR 장중 창(UTC 00~06시)엔 alerts·fetch 를 매분 깨우지 않는다(2026-10-05 대체공휴일에 300런이 「휴장 추정」만 찍었다). 음력 명절·대체공휴일은 해마다 다음 해 목록을 미리 넣는다. 검사 `node cloudflare-worker/test_offhours_tick.mjs`.
 
