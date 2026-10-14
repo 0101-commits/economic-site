@@ -16,6 +16,7 @@ WRITERS = [
     ("validate_data.py", r"json\.dump\(d, f,[^\n]*"),
     ("ai_briefing.py", r"json\.dump\(d, f,[^\n]*"),
     ("climate_impact.py", r"json\.dump\(d, f,[^\n]*"),
+    ("stock_reasons.py", r"payload = json\.dumps\(d,[^\n]*"),
 ]
 
 
