@@ -1,12 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
-import { ROOT } from './lib/bundle'
+import { ROOT, setBuild } from './lib/bundle'
 import { applyTheme, readTheme } from './lib/theme'
 import { startSync } from './lib/personal/sync'
 import './styles/app.css'
 
 applyTheme(readTheme())
+// 이 화면의 판 = 진입 모듈(빌드 뒤 assets/index-<지문>.js) 이름 — 다시 읽기 때 사이트의 version.json 과 견준다(새 판 알림, lib/bundle.ts)
+setBuild(import.meta.url)
 // 기기 간 동기화: 이 탭에 키 해시가 있으면 서버 내용을 받고 바뀐 것을 올린다(lib/personal/sync.ts)
 startSync()
 

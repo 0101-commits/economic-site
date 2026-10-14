@@ -3,10 +3,11 @@
 // 사전 행에 뉴스 주제(news)가 있으면 「관련 뉴스」 3줄(없으면 패널 없음).
 // id 가 종목(국내 6자리 코드 · 미국 티커, lib/detail.ts isStockId)이면 종목 상세(components/detail/Stock.tsx)를 그린다.
 // 「함께 볼 지표」 카드의 「겹쳐 보기」는 흐름 차트에 그 선을 첫 날 = 100 으로 겹친다(주소 cmp).
+// 지표 상세는 묶음 다시 읽기(lib/bundle.ts rev) 뒤 그 자리에서 값만 바꿔 낀다 — 알림 시트 · 겹쳐 보기가 남는다.
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
-import { loadBundle, loadIndicator, loadRegistry, shownUnit, unitWord, type RegRow, type StripItem, type Trigger } from '../lib/bundle'
+import { loadBundle, loadIndicator, loadRegistry, shownUnit, unitWord, useBundleRev, type RegRow, type StripItem, type Trigger } from '../lib/bundle'
 import { isStockId } from '../lib/detail'
 import { scaled, scaledPts, type Pt } from '../lib/format'
 import { useWatch } from '../lib/watch'
@@ -43,9 +44,10 @@ function IndicatorDetail({ id }: { id: string }) {
   const watch = useWatch()
   const [got, setGot] = useState<Got | null>(null)
   const [cmp, setCmp, cmpGot] = useCmp(id)
+  const rev = useBundleRev()
+  useEffect(() => setGot(null), [id])   // 다른 지표로 가면 「불러오는 중」부터, 다시 읽기(rev)는 보던 화면 위에 바꿔 낀다
   useEffect(() => {
     let live = true
-    setGot(null)
     ;(async () => {
       const [one, rows, lb] = await Promise.all([loadIndicator(id), loadRegistry().catch(() => [] as RegRow[]), loadBundle<LensBundle>('lens').catch(() => null)])
       const reg = one.reg
@@ -55,9 +57,9 @@ function IndicatorDetail({ id }: { id: string }) {
       const q = id.toLowerCase()
       const matches = reg || one.item ? [] : rows.filter(r => [r.id, r.label, r.short].some(t => t?.toLowerCase().includes(q))).slice(0, 12)
       if (live) setGot({ ...one, related, matches, lens: lensFact(lb, id) })
-    })().catch(() => { if (live) setGot({ related: [], matches: [] }) })
+    })().catch(() => { if (live) setGot(g => g ?? { related: [], matches: [] }) })   // 다시 읽기에서 못 받으면 보던 값을 둔다
     return () => { live = false }
-  }, [id])
+  }, [id, rev])
 
   if (!got) return <p className="m-0 text-14 text-ink-3">불러오는 중</p>
   const { reg, item, series } = got

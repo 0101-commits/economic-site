@@ -71,4 +71,11 @@
   .table-box { max-width: 100%; overflow-x: auto; }
   /* 말줄임은 이 클래스를 붙인 곳에서만 허용한다(그 밖에서 truncate 금지) */
   .ellipsis-ok { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 바뀐 값 1초 옅은 바탕(panels.tsx StripCard — 다시 읽기로 값이 바뀐 칸만). 움직임 줄이기 설정이면 칠하지 않는다. */
+  @media (prefers-reduced-motion: no-preference) {
+    .flash-up { animation: flash-up 1s ease-out; }
+    .flash-down { animation: flash-down 1s ease-out; }
+  }
 }
+@keyframes flash-up { from { background-color: color-mix(in srgb, var(--c-up-fill) 18%, transparent); } to { background-color: transparent; } }
+@keyframes flash-down { from { background-color: color-mix(in srgb, var(--c-down-fill) 18%, transparent); } to { background-color: transparent; } }

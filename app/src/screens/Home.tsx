@@ -1,13 +1,14 @@
-// 홈 「오늘」 — 기획안 v4 3장. 머리 → 오늘 한 줄 → AI 요약 3줄(+질문칸) → 지표 띠 8 + 관심 칸 → 분위기 5칸 → 격자(PC 12열 / 모바일 1열 같은 순서).
+// 홈 「오늘」 — 기획안 v4 3장. 머리(장 상태 줄 · 값 시각) → 오늘 한 줄 → AI 요약 3줄(+질문칸) → 지표 띠 8 + 관심 칸 → 분위기 5칸 → 격자(PC 12열 / 모바일 1열 같은 순서).
 // 금액(내 자산)은 여기서 절대 읽지 않는다. 관심은 이 기기의 id 목록뿐(lib/watch.ts).
+// 첫 화면: 이 기기에 둔 마지막 홈 묶음(24시간 안, lib/bundle.ts readHomeCache)을 먼저 그리고 새 묶음이 오면 바꿔 낀다.
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronRight, House } from 'lucide-react'
-import { loadHome, loadIndicator, shownUnit, useBundleRev, type HomeBundle, type MoodItem, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
+import { loadHome, loadIndicator, readHomeCache, shownUnit, useBundleRev, type HomeBundle, type MoodItem, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
 import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, safeHref, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { useWatch } from '../lib/watch'
-import { AsOfBadge, NumBlock, Pill } from '../components/ui'
+import { AsOfBadge, DataTime, MarketLine, NumBlock, Pill } from '../components/ui'
 import { DivergingBars, Heatmap, LineChart } from '../components/charts'
 import { More, Panel, RankTable, StripCard, WatchStar, type Col } from '../components/panels'
 import { BTN, INPUT, LevelPill } from '../components/personal/bits'
@@ -38,7 +39,10 @@ function ChangeText({ chg, pct, decimals }: { chg: number | null | undefined; pc
 }
 
 export default function Home() {
-  const [home, setHome] = useState<HomeBundle | null>(null)
+  // 첫 화면(과제 11): 보관 값으로 먼저 그리는 동안 wait = 'get'(새 값 받는 중) · 'fail'(첫 받기 실패 — 보관 값을 그대로 둔다), 새 묶음이 오면 ''
+  const [cache] = useState(readHomeCache)
+  const [home, setHome] = useState<HomeBundle | null>(() => cache?.home ?? null)
+  const [wait, setWait] = useState<'' | 'get' | 'fail'>(cache ? 'get' : '')
   const [err, setErr] = useState(false)
   // 묶음을 새로 받으면(lib/bundle.ts 다시 읽기) 그 자리에서 바꿔 그린다 — 질문칸의 답 · 입력을 지우지 않게 홈은 다시 만들지 않는다
   // 다시 읽기(이미 그린 홈이 있을 때)는 data.json 폴백을 타지 않고, 실패하면 옛 화면을 그대로 둔다
@@ -46,7 +50,7 @@ export default function Home() {
   const had = useRef(false)
   useEffect(() => {
     const again = had.current
-    loadHome(!again).then(h => { had.current = true; setHome(h); setErr(false) }, () => { if (!again) setErr(true) })
+    loadHome(!again).then(h => { had.current = true; setHome(h); setErr(false); setWait('') }, () => { if (!again) { if (cache) setWait('fail'); else setErr(true) } })
   }, [rev])
   // 알림 원장(events/latest.json) — 「일정·알림」 패널의 「오늘 바뀐 것」. 아직 없으면(배포 전) 패널은 종전 그대로다.
   const [ledger, setLedger] = useState<unknown>(null)
@@ -137,8 +141,8 @@ export default function Home() {
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><House size={18} aria-hidden />오늘</h1>
         {mk?.today && <span className="text-13 text-ink-2">{dayLabel(mk.today)}</span>}
-        {mk && <Pill tone={mk.state === 'open' ? 'g' : 'o'}>{mk.label}</Pill>}
-        {mk && mk.state !== 'open' && mk.nextOpen && <span className="text-12 text-ink-3">다음 개장 <span className="num">{mdHm(mk.nextOpen)}</span></span>}
+        <MarketLine market={mk} />
+        {wait ? <DataTime cachedAt={cache?.dataUpdated ?? cache?.home.asOf} failed={wait === 'fail'} /> : <DataTime />}
       </header>
 
       {/* 오늘 한 줄 */}

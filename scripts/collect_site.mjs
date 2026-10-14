@@ -65,7 +65,7 @@ function collect() {
   }
   const dist = path.join(ROOT, APP_DIST);
   if (!fs.existsSync(path.join(dist, 'index.html'))) throw new Error(`${APP_DIST} 없음 — npm run build --prefix app 먼저`);
-  const app = walk(dist).map(p => rel(p, dist)).filter(r => APP_EXTS.includes(path.extname(r).toLowerCase()));
+  const app = walk(dist).map(p => rel(p, dist)).filter(r => APP_EXTS.includes(path.extname(r).toLowerCase()) || r === 'version.json');   // version.json = 새 판 알림(app/vite.config.ts)
   for (const outDir of APP_OUTS) {
     for (const r of app) {
       const dst = path.join(SITE, outDir, r);
