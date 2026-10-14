@@ -26,7 +26,8 @@ const FILES = [
 ];
 // bundles/ = 화면 묶음(scripts/build_bundles.py, fetch-data.yml 이 매 런 만든다) — 새 화면 층이 화면 단위로 읽는 JSON.
 // events/ = 알림 v2 사건 원장(scripts/alerts_v2/ledger.py — 일별 · latest.json · history/). 받은 알림 화면이 latest.json 을 읽는다.
-const DIRS = { js: ['.js'], css: ['.css', '.woff2'], bundles: ['.json'], events: ['.json'] };
+// briefs/ = AI 요약 회차(scripts/ai_briefing.py — briefs/YYYY-MM-DD.json, 30일 보관). 홈 AI 요약의 회차 넘김이 읽는다.
+const DIRS = { js: ['.js'], css: ['.css', '.woff2'], bundles: ['.json'], events: ['.json'], briefs: ['.json'] };
 // 새 화면 층: app/dist(빌드 산출물) → _site/(첫 주소) + _site/next/(옛 주소 사본 — 홈 화면에 추가한 기기·북마크용, 전환 단계 C 에서 뺀다).
 // pages.yml 이 이 스크립트보다 먼저 빌드한다.
 const APP_DIST = 'app/dist';
@@ -52,7 +53,7 @@ function collect() {
   fs.rmSync(SITE, { recursive: true, force: true });
   const out = [...FILES];
   for (const [dir, exts] of Object.entries(DIRS)) {
-    if ((dir === 'bundles' || dir === 'events') && !fs.existsSync(path.join(ROOT, dir))) continue;   // 첫 수집 런 전에는 아직 없다
+    if (['bundles', 'events', 'briefs'].includes(dir) && !fs.existsSync(path.join(ROOT, dir))) continue;   // 첫 수집 런 전에는 아직 없다
     out.push(...walk(path.join(ROOT, dir)).map(p => rel(p, ROOT))
       .filter(r => exts.includes(path.extname(r).toLowerCase())));
   }
@@ -98,7 +99,7 @@ for (const r of ['CLAUDE.md', 'docs/IMPROVEMENTS.md', 'tests/ui/shots.mjs', 'scr
                  '.omc/state/x.json', 'alerts_config.json', 'x.sql', '.env.local', 'js/README.md']) {
   if (!FORBIDDEN.some(re => re.test(r))) throw new Error(`자가 점검 실패 — 막혀야 함: ${r}`);
 }
-for (const r of [...FILES, 'legacy.html', 'js/app1.min.js', 'css/seed/seed.css', 'css/fonts/pretendard/a.woff2', 'bundles/home.json',
+for (const r of [...FILES, 'legacy.html', 'js/app1.min.js', 'css/seed/seed.css', 'css/fonts/pretendard/a.woff2', 'bundles/home.json', 'briefs/2026-10-14.json',
                  'assets/index-a1B2.js', 'assets/index-a1B2.css', 'sw.js', 'icon.png', 'manifest.webmanifest',
                  'next/index.html', 'next/assets/index-a1B2.js', 'next/assets/index-a1B2.css', 'next/sw.js', 'next/icon.png']) {
   if (FORBIDDEN.some(re => re.test(r))) throw new Error(`자가 점검 실패 — 통과해야 함: ${r}`);

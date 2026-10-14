@@ -9441,6 +9441,12 @@ def _cal_num(s):
     return _parse_num(str(s or "").replace("%", "").replace("+", "").replace("K", ""))
 
 
+def _cal_month_no(k):
+    """기간 키(「2026-08-01」 · 「202608」 · 「2026-08」) → 연 × 12 + 월. 달 간격을 세는 데만 쓴다. 다른 꼴(「2026Q1」)은 None."""
+    m = re.match(r"(\d{4})-?(\d{2})", str(k))
+    return int(m.group(1)) * 12 + int(m.group(2)) if m else None
+
+
 def _cal_beat(name, act, fore, tol=0.05):
     """실제치 대 예측 — 0 부합(차 < tol) · 1 좋음 · −1 나쁨(물가 · 실업 · 미분양은 낮을수록 좋음). 둘 중 하나라도 없으면 None."""
     if act is None or fore is None:
@@ -9460,7 +9466,9 @@ def backfill_calendar_actuals(events, data, prev_events=None):
     """
     if not events or not data:
         return 0
-    today_iso = datetime.now(KST).strftime("%Y-%m-%d")
+    from check_releases import release_due      # 발표 시각 판정 한 곳(알림 · AI 요약과 같은 함수)
+    now = datetime.now(KST)
+    today_iso = now.strftime("%Y-%m-%d")
     # 실적은 최근 _CAL_FILL_BACK 일 발표만 채운다 — 아래 '발표일 이하 최신 관측' 규칙은 창이 넓으면 뒤 회차의 관측을 앞 회차에
     # 물린다(실측 2026-10-09: 8/13 미국 CPI 에 8월분 +0.4% 가 찍히고 9/11 회차가 비었다). 그보다 오래된 일정은 실적 칸을 비워 둔다.
     fill_from = (datetime.now(KST).date() - timedelta(days=_CAL_FILL_BACK)).isoformat()
@@ -9496,6 +9504,10 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 continue
             if iso > today_iso or iso < fill_from:
                 continue  # 미래 이벤트는 그대로, 직전 값도 없는 오래된 일정은 비워 둔다
+            # 날짜만 보면 오늘 21:30 발표가 00시부터 실적을 받는다 — 그 값은 아직 직전 회차 관측(8월분 +0.4%)이었다
+            # (2026-10-14 실측: 14:35 묶음의 미국 CPI act +0.4%, 그 때문에 AI 요약 일정 목록에서 CPI 가 빠졌다). 발표 시각 전이면 비워 둔다.
+            if not release_due(ev, now):
+                continue
             name = ev.get("name", "")
             mp = CALENDAR_INDICATOR_MAP.get(name)
             if not mp:
@@ -9528,6 +9540,12 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                     continue
                 recent_keys = keys_sorted[:keys_sorted.index(hit[-1]) + 1]
             elif name in CAL_DECISION_NAMES and ym(recent_keys[-1]) < ym(iso):
+                continue
+            elif len(recent_keys) >= 2 and None not in (mk := [_cal_month_no(k) for k in (recent_keys[-2], recent_keys[-1], iso)]) \
+                    and mk[1] - mk[0] == 1 and mk[1] < mk[2] - 1:
+                # 월간 계열은 발표 달의 전달(또는 그 달) 관측이 그 회차 실적이다. 그보다 오래된 관측만 있으면 원천(FRED)이
+                # 아직 이번 회차를 내지 않은 것 — 발표 시각이 지났어도 직전 회차 값(8월분)을 10/14 회차에 물리지 않는다.
+                # 직전 회차가 14일 창 밖이라 아래 claimed_obs 가 그 관측을 청구하지 못해 생긴 구멍이다.
                 continue
             act_key = recent_keys[-1]
             prev_key = recent_keys[-2] if len(recent_keys) >= 2 else None
