@@ -7562,6 +7562,11 @@ def build_data():
         log(f"[DART] 배당·실적 일정 오류: {_scrub_err(e)} — 직전 블록을 잇는다")
         if isinstance((prev or {}).get("corpEvents"), dict) and "corpEvents" not in data:
             data["corpEvents"] = _mark_preserved(prev["corpEvents"])
+    # 종목 「왜 움직였나」(계약 C4) — 만드는 곳은 이 뒤의 scripts/stock_reasons.py(장 서는 날 08~20시 풀 런)다. 여기서는 잇기만 한다:
+    # 안 이으면 20시 뒤 · 휴장일 풀 런마다 키가 사라진다. 묶음(home.reasons)은 at 이 오늘인 것만 싣는다.
+    for _k in ("stockNews", "stockReasons"):
+        if isinstance((prev or {}).get(_k), dict):
+            data[_k] = prev[_k]
 
     # ── 해상 운임지수(운송): SCFI/CCFI/BDI 등 — 네이버 시장지표 best-effort ──
     # 실패 시 직전 빌드의 freight 를 보존(있으면) → 일시 실패에도 마지막 값 유지.

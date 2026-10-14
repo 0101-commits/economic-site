@@ -369,6 +369,20 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/ai_briefing.py
 
+      # 📰 종목 「왜 움직였나」(구조 벤치마크 과제 2, 계약 C4) — 거래대금 상위 20 + 관심 종목(ETF 빼고 최대 30)마다 오늘 기사
+      #    (네이버 뉴스 검색)와 재료(지수 동행 · 최근 10일 공시 · 52주 신고·저가)로 규칙 한 문장 → Gemini 는 다듬기만(새 숫자 금지,
+      #    실패하면 규칙 문장). data.json 의 stockNews · stockReasons → 묶음 home.reasons. 장 서는 날 KST 08~20시 런만 일한다
+      #    (그 밖은 스크립트가 바로 끝나고 fetch_data 가 직전 블록을 잇는다). 경량 런은 시세만이라 넣지 않는다.
+      #    런마다 기사 검색 ≤30 · Gemini ≤30. 실패해도 커밋을 막지 않는다(스크립트도 늘 exit 0).
+      - name: Stock reasons (종목 기사 · 이유 한 줄)
+        if: env.FETCH_LIGHT != '1'
+        continue-on-error: true
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/stock_reasons.py
+
       # 🛡 데이터 무결성 게이트 — 스키마/핵심 시계열 검증 실패 시 여기서 중단되어
       # 커밋이 일어나지 않고 직전 정상 data.json 이 유지된다(fail-safe).
       - name: Validate data.json (스키마·최소 길이)

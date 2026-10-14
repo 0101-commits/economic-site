@@ -755,6 +755,20 @@ def schedule_with_corp(data, now, days=7):
     return sorted(calendar_events(data, now, days=days) + corp, key=lambda e: (e["date"], e["time"] or ""))
 
 
+def home_reasons(data, today):
+    """종목 「왜 움직였나」(data.json.stockReasons, 계약 C4) → home.reasons — 작성 시각(at)이 오늘(KST)인 종목만.
+    오늘 것이 없으면 None(밤 · 휴장일엔 수집기가 직전 블록을 잇기만 한다). 근거 주소는 http/https 만 남긴다(화면 href)."""
+    sr = data.get("stockReasons") or {}
+    items = {}
+    for code, it in (sr.get("items") or {}).items():
+        t = _iso_dt(it.get("at")) if isinstance(it, dict) and it.get("at") else None
+        if not t or t.astimezone(KST).date() != today:
+            continue
+        refs = [dict(r, url=_web_url(r["url"])) if "url" in r else r for r in it.get("refs") or [] if isinstance(r, dict)]
+        items[code] = dict(it, refs=refs)
+    return {"asOf": sr.get("asOf"), "items": items} if items else None
+
+
 def event_name(s):
     """일정 이름 끝의 영어 풀이 괄호를 뗀다 — 「미국 주택착공 (Housing Starts)」 → 「미국 주택착공」.
     소문자가 섞인 영어만 뗀다. 대문자 약어(「(NFP)」·「(FOMC)」)·짧은 약어(「(MoM)」)·우리말 괄호(「(전월비)」)·중간 괄호는 남긴다."""
@@ -1442,6 +1456,7 @@ def build_all(data, mer, now, toss=None):
 
     b["lens"] = build_lens(mer)
     b["news"] = news_bundle(data, H)
+    b["home"]["reasons"] = home_reasons(data, today)     # 종목 「왜 움직였나」(계약 C4) — 오늘 쓴 것만
     b["_issues"] = issues            # 파일로 쓰지 않는다(write 가 meta 에 합친다)
     b["_checks"] = checks
     return b
