@@ -133,6 +133,14 @@ def test_count_numbers_must_match_exactly():
     assert ab._num_ok(ab._tokens("코스피 6,008")[0], 6008.81) and ab._num_ok(ab._tokens("1.1% 올랐다")[0], 1.17)
 
 
+def test_reply_lines_splits_joined_sentences():
+    """첫 운영 런(2026-10-14 20:07): Gemini 가 세 문장을 한 줄로 이어 「1줄」 → 대조 뒤 1문장 → 규칙 요약. 근거 묶음 뒤에서 끊는다."""
+    one = "코스피가 내렸습니다 [1][2] 외국인이 12일 연속 팔았습니다 [3]. 오늘 21:30 미국 CPI 가 남았습니다 [5]"
+    assert ab._reply_lines(one) == ["코스피가 내렸습니다 [1][2]", "외국인이 12일 연속 팔았습니다 [3]", "오늘 21:30 미국 CPI 가 남았습니다 [5]"]
+    assert ab._reply_lines("1. 가 [1]\n2. 나 [2]") == ["가 [1]", "나 [2]"]
+    assert ab._reply_lines("코스피[1]가 올랐습니다 [2]") == ["코스피[1]가 올랐습니다 [2]"]
+
+
 def test_check_drops_bad_sentences(monkeypatch):
     now = dt.datetime(2026, 10, 14, 14, 35, tzinfo=KST)
     _fix_now(monkeypatch, now)
