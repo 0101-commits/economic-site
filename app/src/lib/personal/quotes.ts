@@ -93,6 +93,7 @@ const BATCH_MAX = 30          // Worker /quotes 한 번에 받는 코드 수(C5)
 const BATCH_TTL = 60_000      // 같은 코드는 60초 안에 다시 묻지 않는다(Worker 보관과 같은 값) — 홈 관심 칸 · 오른쪽 패널이 같은 때 부른다
 const batchMemo = new Map<string, { t: number; q: LiveQuote | null }>()
 let noBatch = false           // 이 탭에서 /quotes 가 404 였다(Worker 배포 전) — 다시 묻지 않고 하나씩 받는다
+const inflight = new Map<string, Promise<LiveQuote | null>>()   // 받는 중인 코드 → 그 결과(같은 순간 여러 곳이 부를 때 한 번만)
 
 /** /quotes 응답 → 코드별 값. 값이 0 이하 · 숫자가 아닌 칸은 버린다. 등락률이 없으면 전일 종가로 구한다. */
 export function parseBatch(j: unknown): Map<string, LiveQuote> {
@@ -109,13 +110,17 @@ export function parseBatch(j: unknown): Map<string, LiveQuote> {
   return out
 }
 
-/** /quotes 한 번. 404 면 이 탭에선 다시 묻지 않는다. 실패 · 404 는 null(하나씩 받는 길로). */
-async function fetchBatch(codes: string[]): Promise<Map<string, LiveQuote> | null> {
+/**
+ * /quotes 한 번 → 코드별 값. 하나씩 받는 길(fetchEach)로 물러서는 것은 404(Worker 가 아직 이 길을 모름)일 때뿐이다 —
+ * 429(제한 초과) · 400 · 5xx · 시간 초과에 코드마다 프록시를 다시 부르면 같은 제한기에 최대 60번을 더 쏜다(PR #170 검토).
+ * 그때는 빈 결과(못 받음)를 돌려주고, 60초 뒤 다시 묻는다.
+ */
+async function fetchBatch(codes: string[]): Promise<Map<string, LiveQuote> | 'fallback'> {
   try {
     const r = await fetch(`${WORKER}/quotes?codes=${codes.map(encodeURIComponent).join(',')}`, { signal: AbortSignal.timeout(8_000) })
-    if (r.status === 404) noBatch = true
-    return r.ok ? parseBatch(await r.json()) : null
-  } catch { return null }
+    if (r.status === 404) { noBatch = true; return 'fallback' }
+    return r.ok ? parseBatch(await r.json()) : new Map()
+  } catch { return new Map() }
 }
 
 /** 종전 길: 코드마다 Yahoo 일봉(국내 .KS 다음 .KQ) — 동시 4개까지. */
@@ -139,20 +144,32 @@ async function fetchEach(codes: string[]): Promise<Map<string, LiveQuote>> {
  */
 export async function batchQuotes(codes: string[], now = Date.now()): Promise<Map<string, LiveQuote>> {
   const out = new Map<string, LiveQuote>()
-  const need: string[] = []
+  const wait: [string, Promise<LiveQuote | null>][] = []
+  const fresh: string[] = []
   for (const c of new Set(codes)) {
     if (watchKind(c) !== 'stock') continue
     const m = batchMemo.get(c)
-    if (m && now - m.t < BATCH_TTL) { if (m.q) out.set(c, m.q) } else need.push(c)
+    const going = inflight.get(c)
+    if (m && now - m.t < BATCH_TTL) { if (m.q) out.set(c, m.q) } else if (going) { wait.push([c, going]) } else { fresh.push(c) }
   }
-  for (let i = 0; i < need.length; i += BATCH_MAX) {
-    const part = need.slice(i, i + BATCH_MAX)
-    const got = (noBatch ? null : await fetchBatch(part)) ?? await fetchEach(part)
+  // 홈 관심 칸 · 오른쪽 패널 · 검색이 같은 순간에 부른다 — 이미 받는 중인 코드는 그 요청을 같이 기다린다
+  for (let i = 0; i < fresh.length; i += BATCH_MAX) {
+    const part = fresh.slice(i, i + BATCH_MAX)
+    const got = (async () => {
+      const r = noBatch ? 'fallback' as const : await fetchBatch(part)
+      return r === 'fallback' ? fetchEach(part) : r
+    })()
     for (const c of part) {
-      const q = got.get(c) ?? null
-      batchMemo.set(c, { t: now, q })
-      if (q) out.set(c, q)
+      const one = got.then(m => m.get(c) ?? null, () => null)
+      inflight.set(c, one)
+      void one.finally(() => { if (inflight.get(c) === one) inflight.delete(c) })
+      wait.push([c, one])
     }
+  }
+  for (const [c, p] of wait) {
+    const q = await p
+    batchMemo.set(c, { t: now, q })
+    if (q) out.set(c, q)
   }
   return out
 }
@@ -191,7 +208,12 @@ export async function holdingQuotes(items: Holding[], have: Map<string, Quote>, 
     if (c && now - c.t < TTL_MS && pos(c.price)) out.set(h.symbol, toQuote(c))
     else if (code) need.set(code, [...(need.get(code) ?? []), h])
   }
-  const got = need.size ? await batchQuotes([...need.keys()], now) : new Map<string, LiveQuote>()
+  // 종목 코드 꼴(watchKind)만 /quotes 로 — 그 밖의 보유 심볼(BTC-USD 등)은 종전처럼 하나씩(PR #170 검토)
+  const codes = [...need.keys()], odd = codes.filter(c => watchKind(c) !== 'stock')
+  const got = new Map<string, LiveQuote>([
+    ...(codes.length > odd.length ? await batchQuotes(codes.filter(c => watchKind(c) === 'stock'), now) : []),
+    ...(odd.length ? await fetchEach(odd) : []),
+  ])
   for (const [code, q] of got) {
     for (const h of need.get(code) ?? []) {
       cache[`${h.market}:${h.symbol}`] = { t: now, price: q.price, prev: q.prev }

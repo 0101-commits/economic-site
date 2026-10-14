@@ -1535,17 +1535,21 @@ def worker_window(t, kr_holidays):
     return 13 <= u.hour <= 21
 
 
+# 크론 칸 → 사이트에 올라오기까지(수집 · 커밋 · Pages 배포). 2026-10-14 실측 경량 수집 중앙값 38초 + 배포 37초 + 깨움 · 대기 → 약 3분
+NEXT_ARRIVE_S = 180
+
+
 def next_at(now, kr_holidays=frozenset()):
-    """다음 묶음이 사이트에 올라올 것으로 보는 시각(meta.nextAt). Worker 크론을 따른다 — 창 안은 다음 5분 칸(경량 런) + 90초,
-    창 밖은 매시 :07 풀 · :35 경량 중 먼저 + 120초. 국내 창이 15:59 까지라 장 마감 뒤 15:35 칸이 들어간다."""
+    """다음 묶음이 사이트에 올라올 것으로 보는 시각(meta.nextAt). Worker 크론을 따른다 — 창 안은 다음 5분 칸(경량 런),
+    창 밖은 매시 :07 풀 · :35 경량 중 먼저, 둘 다 + NEXT_ARRIVE_S. 국내 창이 15:59 까지라 장 마감 뒤 15:35 칸이 들어간다."""
     t = now.replace(second=0, microsecond=0)
     for _ in range(61):                                   # 창 밖에서도 :07 · :35 가 한 시간에 두 번 — 61분 안에 반드시 걸린다
         t += dt.timedelta(minutes=1)
         if worker_window(t, kr_holidays):
             if t.minute % 5 == 0:
-                return (t + dt.timedelta(seconds=90)).astimezone(KST).isoformat(timespec="seconds")
+                return (t + dt.timedelta(seconds=NEXT_ARRIVE_S)).astimezone(KST).isoformat(timespec="seconds")
         elif t.minute in (7, 35):
-            return (t + dt.timedelta(seconds=120)).astimezone(KST).isoformat(timespec="seconds")
+            return (t + dt.timedelta(seconds=NEXT_ARRIVE_S)).astimezone(KST).isoformat(timespec="seconds")
     return None
 
 

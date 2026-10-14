@@ -296,6 +296,8 @@ async function merFetchFulltext(logNo) {
 const QUOTES_MAX = 30;
 const QUOTES_TTL_MS = 60000;
 const QUOTES_PARALLEL = 6;
+// 한 요청이 부르는 Yahoo 수 상한 — 무료 요금제 하위 요청 50개를 넘으면 그 뒤 fetch 가 예외(30종목 × .KS→.KQ = 최대 60, PR #170 검토)
+const QUOTES_FETCH_BUDGET = 45;
 const QUOTES_KEEP_MAX = 500;   // 보관 항목 상한 — 넘으면 오래된 것부터 버린다(isolate 메모리 가드)
 const _quotesKeep = new Map();   // 코드 → {t, item}
 const QUOTES_KR = /^[0-9A-Z]{6}$/;
@@ -328,19 +330,21 @@ function _quotesParse(j, exchange) {
   const at = typeof meta.regularMarketTime === 'number' ? new Date(meta.regularMarketTime * 1000).toISOString() : null;
   return { price, prev, exchange: meta.exchangeName || exchange || null, at };
 }
-async function _quotesChart(sym, exchange) {
+async function _quotesChart(sym, exchange, budget) {
+  if (budget.left <= 0) return null;   // 상한을 다 썼다 — 이 코드는 못 받은 것으로(보관하지 않아 다음 요청이 다시 시도)
+  budget.left--;
   try {
     const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?range=5d&interval=1d',
       { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
     return r.ok ? _quotesParse(await r.json(), exchange) : null;
   } catch (e) { return null; }
 }
-async function _quotesOne(code) {
+async function _quotesOne(code, budget) {
   const hit = _quotesKeep.get(code);
   if (hit && Date.now() - hit.t < QUOTES_TTL_MS) return hit.item;
   let p = null;
-  if (_quotesIsKr(code)) p = (await _quotesChart(code + '.KS', 'KSC')) || (await _quotesChart(code + '.KQ', 'KOE'));
-  else p = await _quotesChart(code.toUpperCase().replace(/\./g, '-'), null);
+  if (_quotesIsKr(code)) p = (await _quotesChart(code + '.KS', 'KSC', budget)) || (await _quotesChart(code + '.KQ', 'KOE', budget));
+  else p = await _quotesChart(code.toUpperCase().replace(/\./g, '-'), null, budget);
   if (!p) return null;   // 못 받은 코드는 보관하지 않는다 — 다음 요청이 다시 시도
   const item = { price: p.price, prev: p.prev, pct: p.prev ? (p.price / p.prev - 1) * 100 : null, exchange: p.exchange, at: p.at };
   if (_quotesKeep.size >= QUOTES_KEEP_MAX) _quotesKeep.delete(_quotesKeep.keys().next().value);
@@ -355,11 +359,12 @@ async function handleQuotes(request) {
   const bad = codes.filter(c => !QUOTES_KR.test(c) && !QUOTES_US.test(c));
   if (bad.length) return jsonResponse({ error: 'bad_code', codes: bad.slice(0, 5) }, 400);
   const items = {};
+  const budget = { left: QUOTES_FETCH_BUDGET };
   let i = 0;
   const pool = async () => {
     while (i < codes.length) {
       const c = codes[i++];
-      const it = await _quotesOne(c);
+      const it = await _quotesOne(c, budget);
       if (it) items[c] = it;
     }
   };

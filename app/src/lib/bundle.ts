@@ -43,7 +43,7 @@ function keep(name: string, v: unknown) {
   else if (name === 'home') lastHome = v
   else return
   if (!lastHome) return
-  const c: HomeCache<unknown> = { at: Date.now(), home: lastHome, dataUpdated: lastMeta?.dataUpdated ?? null }
+  const c: HomeCache<unknown> = { at: Date.now(), home: lastHome, dataUpdated: lastMeta?.dataUpdated ?? null, ...(mine ? { build: mine } : {}) }
   try { localStorage.setItem(HOME_CACHE_KEY, JSON.stringify(c)) } catch { /* 못 쓰면 다음 열기 때 그냥 받는다 */ }
 }
 /**
@@ -54,7 +54,7 @@ export function readHomeCache(): HomeCache<HomeBundle> | null {
   if (lastHome) return null
   let raw: string | null = null
   try { raw = localStorage.getItem(HOME_CACHE_KEY) } catch { return null }
-  const c = homeCacheFrom<HomeBundle>(raw, Date.now())
+  const c = homeCacheFrom<HomeBundle>(raw, Date.now(), mine || undefined)
   if (c && !mkt) noteMarket(c.home)
   return c
 }

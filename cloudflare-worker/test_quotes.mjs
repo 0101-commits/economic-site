@@ -126,5 +126,13 @@ const lim = { PROXY_LIMITER: { limit: async () => ({ success: false }) } };
 check('제한기 초과 → 429', (await call('?codes=111111', lim)).status, 429);
 check('제한기 바인딩 없으면 통과(fail-open)', (await call('?codes=111111', {})).status, 200);
 
+console.log('하위 요청 상한');
+table = {};
+urls.length = 0;
+const thirty = Array.from({ length: 30 }, (_, k) => String(700000 + k)).join(',');   // 전부 .KS · .KQ 둘 다 없음 = 최대 60번
+const big = await call('?codes=' + thirty);
+check('30종목이 모두 못 받아도 200', big.status, 200);
+check('한 요청의 Yahoo 부르기 ≤ 45(무료 요금제 하위 요청 50 아래)', urls.length <= 45, true);
+
 console.log(fails ? `\n실패 ${fails}건` : '\n전부 통과');
 process.exit(fails ? 1 : 0);

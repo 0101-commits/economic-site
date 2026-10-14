@@ -9,7 +9,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Bell, CalendarDays, ChevronRight, History, PanelRightClose, Star, type LucideIcon } from 'lucide-react'
 import { loadHome, loadIndicator, loadStocks, useBundleRev, type HomeBundle, type Sched, type StripItem } from '../lib/bundle'
 import { isStockId, type StockRow } from '../lib/detail'
-import { changeDir, fmtChange, fmtNumber, fmtPct, mdHm, scaled, shortDate } from '../lib/format'
+import { changeDir, fmtChange, fmtNumber, fmtPct, mdHm, safeHref, scaled, shortDate } from '../lib/format'
 import { fromLedger, hhmm, type FeedRow } from '../lib/alerts/v2'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
@@ -185,9 +185,10 @@ function ItemList({ rows }: { rows: { key: string; label: string; to?: string; h
           </>
         )
         const cls = 'flex items-center gap-3 py-2 no-underline'
+        const href = r.href ? safeHref(r.href) : null   // 적을 때도 거르지만 그리는 곳에서 한 번 더(javascript: 등)
         return (
           <li key={r.key} className="border-b border-line last:border-b-0">
-            {r.href ? <a href={r.href} target="_blank" rel="noopener noreferrer" className={cls}>{body}</a> : <Link to={r.to ?? '/'} className={cls}>{body}</Link>}
+            {href ? <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>{body}</a> : <Link to={r.to ?? '/'} className={cls}>{body}</Link>}
           </li>
         )
       })}

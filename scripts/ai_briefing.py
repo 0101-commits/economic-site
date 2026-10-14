@@ -627,6 +627,7 @@ _NUM_TOKEN = r"(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?"
 _BIG = re.compile(r"(?<![\d.,])(\d+)(?:\.(\d+))?\s*조(?:\s*(\d{1,3}(?:,\d{3})+|\d+)\s*억)?|(?<![\d.,])(\d+)\s*천\s*억")
 _RANGE = re.compile(r"(?<![A-Za-z&\d.,])" + _NUM_TOKEN + r"\s*(?:원|달러|포인트|%p?|bp)?\s*(대(?!비|규모|형|폭|량)|선(?!물|거|박|택))")
 _PLAIN = re.compile(r"(?<![A-Za-z&\d.,])" + _NUM_TOKEN)
+_COUNT_TAIL = re.compile(r"\s*(?:거래일|영업일|일|배|개월|개|주|달|회|명|종목)")
 
 
 def _clean_nums(s):
@@ -653,7 +654,9 @@ def _tokens(s):
         return " "
 
     s = _RANGE.sub(rng, _BIG.sub(big, s))
-    out += [(float(m.group(1).replace(",", "") + "." + (m.group(2) or "0")), len(m.group(2) or ""), 1.0, "eq")
+    # 개수(「12일 연속」 「3거래일」 「2배」)는 정확히 같아야 한다 — 반올림 · 버림을 허용하면 「3거래일」이 「3.75%」 근거로 통과했다(PR #170 검토)
+    out += [(float(m.group(1).replace(",", "") + "." + (m.group(2) or "0")), len(m.group(2) or ""), 1.0,
+             "count" if _COUNT_TAIL.match(s, m.end()) else "eq")
             for m in _PLAIN.finditer(s)]
     return out
 
@@ -673,7 +676,11 @@ def _num_ok(tok, y):
         step = 10.0 ** -d if d else 10.0 ** (len(str(int(x))) - len(str(int(x)).rstrip("0"))) if x else 1.0
         return x <= v < x + step
     eps = 10.0 ** -(d + 6)
-    return abs(round(v, d) - x) < eps or abs(math.floor(v * 10 ** d + eps) / 10 ** d - x) < eps
+    if kind == "count":
+        return abs(v - x) < eps
+    # 버림 일치는 소수가 있거나 세 자리 이상인 값만(「6,008」 ← 6,008.81 · 「1.1%」 ← 1.17%). 한두 자리 정수는 반올림만.
+    floor_ok = (d > 0 or x >= 100) and abs(math.floor(v * 10 ** d + eps) / 10 ** d - x) < eps
+    return abs(round(v, d) - x) < eps or floor_ok
 
 
 # 「발표 없」류 — 「예정된 주요 지표나 이벤트는 없으나」(2026-10-14 F1 문장)

@@ -70,16 +70,17 @@ export function changedBundles(names: string[], old: Record<string, string> | nu
 export const HOME_CACHE_KEY = 'econ_home_cache_v1'
 export const HOME_CACHE_MS = 24 * 3600_000
 /** 보관한 홈 한 벌: at = 넣은 때(ms), home = 홈 묶음, dataUpdated = 그때 meta.dataUpdated(값 시각). */
-export type HomeCache<H> = { at: number; home: H; dataUpdated?: string | null }
+export type HomeCache<H> = { at: number; home: H; dataUpdated?: string | null; build?: string }
 
 /**
  * 보관 글(localStorage 값) → 쓸 수 있는 홈 한 벌, 못 쓰면 null.
  * 값 시각(dataUpdated, 없으면 홈 asOf, 그것도 없으면 넣은 때)이 24시간을 넘었거나 · 깨졌거나 · 띠가 비었으면 쓰지 않는다.
  */
-export function homeCacheFrom<H extends { asOf?: string; strip?: unknown }>(raw: string | null, now: number): HomeCache<H> | null {
+export function homeCacheFrom<H extends { asOf?: string; strip?: unknown }>(raw: string | null, now: number, build?: string): HomeCache<H> | null {
   try {
     const c = JSON.parse(raw ?? 'null') as HomeCache<H> | null
     if (!c || typeof c !== 'object' || !c.home || !Array.isArray(c.home.strip) || !c.home.strip.length) return null
+    if (build && c.build && c.build !== build) return null   // 다른 판이 둔 값 — 묶음 모양이 바뀌었을 수 있다(PR #170 검토)
     const t = [c.dataUpdated, c.home.asOf].map(x => (typeof x === 'string' ? Date.parse(x) : NaN)).find(Number.isFinite) ?? c.at
     return typeof t === 'number' && now - t < HOME_CACHE_MS ? c : null
   } catch { return null }

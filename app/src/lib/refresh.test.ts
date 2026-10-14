@@ -94,6 +94,15 @@ test('changedBundles: 지문이 그대로인 묶음은 빼고, 어느 쪽이든 
   assert.deepEqual(changedBundles(names, { home: 'a1' }, undefined), names)
 })
 
+test('homeCacheFrom: 다른 판이 둔 보관 값은 버린다(판 이름이 없던 옛 보관은 그대로)', () => {
+  const t = Date.parse('2026-10-14T05:00:00Z')
+  const home = { asOf: '2026-10-14T13:55:00+09:00', strip: [{ id: 'kospi' }] }
+  const raw = (build?: string) => JSON.stringify({ at: t, home, dataUpdated: home.asOf, ...(build ? { build } : {}) })
+  assert.equal(homeCacheFrom(raw('index-A.js'), t, 'index-B.js'), null)
+  assert.equal(homeCacheFrom(raw('index-A.js'), t, 'index-A.js')?.home.asOf, home.asOf)
+  assert.equal(homeCacheFrom(raw(), t, 'index-B.js')?.home.asOf, home.asOf)
+})
+
 test('homeCacheFrom: 값 시각이 24시간 안인 홈만, 깨졌거나 띠가 비었으면 null', () => {
   const home = { asOf: '2026-10-14T17:07:41+09:00', strip: [{ id: 'kospi' }] }
   const raw = (o: object) => JSON.stringify({ at: at('2026-10-14T17:11:00+09:00'), home, dataUpdated: '2026-10-14T17:07:41+09:00', ...o })

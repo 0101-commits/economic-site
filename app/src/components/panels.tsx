@@ -33,7 +33,8 @@ export function Panel({ title, icon: Icon, unit, source, asOf, state, liveUntil,
 }) {
   const id = foldId(useLocation().pathname, typeof title === 'string' ? title : '')
   const [open, setOpen] = useState(() => !fold || !isFolded(id))
-  const body = <Boundary where={id}>{children}</Boundary>
+  const rev = useBundleRev()   // 새 묶음이 오면 오류 칸도 다시 그려 본다
+  const body = <Boundary where={id} resetKey={String(rev)}>{children}</Boundary>
   const head = (
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${open ? 'mb-3' : ''}`}>
       <h2 className="m-0 inline-flex items-center gap-1.5 text-14 font-bold text-ink-1">{Icon && <Icon size={16} aria-hidden />}{title}</h2>

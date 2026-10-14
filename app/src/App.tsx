@@ -200,7 +200,7 @@ function Shell() {
 
       <main className="mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8">
         {/* 화면 단위 칸막이 — 한 화면이 그리다 오류를 내도 머리 · 탭은 남는다. 다른 화면으로 가면 풀린다 */}
-        <Boundary screen where={screen} resetKey={pathname}>
+        <Boundary screen where={screen} resetKey={`${pathname}:${rev}`}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/market" element={<Market />} />

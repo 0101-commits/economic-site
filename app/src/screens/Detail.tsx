@@ -39,7 +39,7 @@ function lensFact(b: LensBundle | null, id: string): LensFact | undefined {
 export default function Detail() {
   const { id = '' } = useParams()
   useEffect(() => noteRecent(id), [id])   // 최근 본 것(검색 · 오른쪽 패널) — 지표 · 종목 모두
-  return isStockId(id) ? <StockDetail key={id} id={id} /> : <IndicatorDetail id={id} />
+  return isStockId(id) ? <StockDetail key={id} id={id} /> : <IndicatorDetail key={id} id={id} />
 }
 
 function IndicatorDetail({ id }: { id: string }) {
