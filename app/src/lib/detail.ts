@@ -1,8 +1,8 @@
 // 상세 화면(/i/:id) 읽기 도우미 — 종목 판정 · 묶음의 종목 행 모으기 · 메르 글 언급 · 겹침(첫 날 = 100).
 // 묶음 · 파일을 직접 받지 않는다(받는 쪽은 Detail · 검색). 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다 — node --test 로 바로 돌린다(detail.test.ts).
-import { safeHref, type PeriodKey, type Pt } from './format.ts'
+import { changeDir, fmtNumber, fmtPct, mdHm, safeHref, type PeriodKey, type Pt } from './format.ts'
 import { watchKind } from './personal/remote.ts'
-import { KRX_PREV } from './personal/calc.ts'
+import { KRX_PREV, kstDay } from './personal/calc.ts'
 
 /** 국내 종목 코드인가(숫자로 시작하는 6자리). */
 export const isKrStock = (id: string) => /^\d[0-9A-Z]{5}$/.test(id)
@@ -15,7 +15,7 @@ export type StockAt = { asOf?: string | null; state?: string; liveUntil?: string
  * 묶음의 종목 한 줄. asOf · state · liveUntil 은 그 행이 든 위쪽 칸의 것(없으면 없음).
  * amountAt · volumeAt = 거래대금 · 거래량을 다른 기준(같은 날 다른 시각 · 날짜만)의 목록에서 붙였을 때 그 목록의 기준 — 화면이 따로 배지를 단다.
  */
-export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; amount?: number | null; volume?: number | null; amountAt?: StockAt; volumeAt?: StockAt } & StockAt
+export type StockRow = { code: string; name: string; short?: string; market?: string | null; price: number | null; chgPct: number | null; prev?: number; amount?: number | null; volume?: number | null; amountAt?: StockAt; volumeAt?: StockAt } & StockAt
 
 /**
  * 묶음 아무 깊이의 종목 행(code · name 이 글자인 칸)을 코드별로 모은다. 위쪽 칸의 asOf · state 를 물려받는다.
@@ -44,8 +44,9 @@ export function stockRows(roots: unknown[]): Map<string, StockRow> {
     const { asOf, state, liveUntil } = at
     if (typeof r.code === 'string' && typeof r.name === 'string' && r.name) {
       const price = krx ? null : num(r.price), old = out.get(r.code)
+      const prev = krx ? null : num(r.prev)   // 전일 종가 — 묶음 행에 있을 때만(등락률로 거꾸로 구하지 않는다)
       if (!old || (old.price == null && price != null)) {
-        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: krx ? null : num(r.chgPct), asOf, state, ...(liveUntil ? { liveUntil } : {}) })
+        out.set(r.code, { code: r.code, name: r.name, short: typeof r.short === 'string' ? r.short : undefined, market: typeof r.market === 'string' ? r.market : null, price, chgPct: krx ? null : num(r.chgPct), ...(prev != null && prev > 0 ? { prev } : {}), asOf, state, ...(liveUntil ? { liveUntil } : {}) })
       }
       extra.push({ code: r.code, at, amount: amt ? num(r.amount) : null, volume: num(r.volume) })
     }
@@ -72,6 +73,66 @@ export function headVolume(row: StockRow | undefined, fromRow: boolean, vol?: { 
   if (fromRow && row?.volume != null) return { value: row.volume, fromChart: false, ...(row.volumeAt ? { at: row.volumeAt } : {}) }
   if (!vol || (fromRow && row?.asOf?.slice(0, 10) !== vol.day)) return null
   return { value: vol.value, fromChart: true }
+}
+
+/**
+ * 머리 등락폭의 전일 종가. 머리 값이 일봉이면 일봉 prev. 묶음 행이면 그 행의 prev(있을 때), 없으면 일봉 끝 날짜가 행과 같은 날일 때만 일봉 prev
+ * (일봉이 하루 늦으면 그 prev 는 그저께 종가다). 값 ÷ (1 + 등락률) 로 거꾸로 구하지 않는다 — 반올림된 등락률로는 원 단위가 어긋난다. 모르면 null.
+ */
+export function headPrev(row: StockRow | undefined, fromRow: boolean, chart?: { prev: number | null; pts: Pt[] } | null): number | null {
+  if (!fromRow) return chart?.prev ?? null
+  if (row?.prev != null) return row.prev
+  const last = chart?.pts[chart.pts.length - 1]?.[0]
+  return chart?.prev != null && last != null && row?.asOf?.slice(0, 10) === last ? chart.prev : null
+}
+
+/**
+ * 머리 등락: 등락률 + 원 단위 등락폭(값 − 전일 종가). 등락률이 없으면 전일 종가로 구한다.
+ * 전일 종가로 구한 등락률이 주어진 등락률과 0.05%p 넘게 다르면 두 값의 기준이 다른 것(기준가 조정 · 다른 시각)이라 등락폭은 비운다.
+ */
+export function headChange(price: number | null, prev: number | null, pct: number | null): { chg: number | null; pct: number | null } {
+  if (price == null || !prev) return { chg: null, pct }
+  const own = (price / prev - 1) * 100
+  if (pct != null && Math.abs(own - pct) > 0.05) return { chg: null, pct }
+  return { chg: price - prev, pct: pct ?? own }
+}
+
+/** 등락 한 줄 「▲4,000원 (1.72%)」 — 등락폭이 없으면 「▲ 1.72%」(fmtPct), 둘 다 없으면 '—'. unit = 등락폭 뒤 말(국내 원 · 미국 달러). */
+export function changeLine(chg: number | null, pct: number | null, decimals: number, unit: string): string {
+  if (chg == null) return fmtPct(pct)
+  const dir = changeDir(chg, decimals)
+  const p = pct == null ? '' : ` (${fmtNumber(Math.abs(pct), 2)}%)`
+  return `${dir === 'up' ? '▲' : dir === 'down' ? '▼' : ''}${fmtNumber(Math.abs(chg), decimals)}${unit}${p}`
+}
+
+/** 거래대금 순위 이웃 2 — 그 종목 앞뒤 하나씩, 맨 앞이면 뒤 둘 · 맨 끝이면 앞 둘. 목록에 없으면 없음. */
+export function rankNeighbors<T extends { code: string }>(list: T[], code: string): T[] {
+  const i = list.findIndex(x => x.code === code)
+  if (i < 0) return []
+  const lo = Math.max(0, Math.min(i - 1, list.length - 3))
+  return list.slice(lo, lo + 3).filter(x => x.code !== code)
+}
+
+/** 「왜 움직였나」 근거 한 칸 — url 은 http(s) 만(아니면 null, 칩은 글자만). */
+export type ReasonRef = { kind: string; label: string; url: string | null }
+/** hm = 작성 시각 HH:MM(모르면 null). */
+export type Reason = { line: string; hm: string | null; refs: ReasonRef[] }
+/**
+ * 묶음 home.reasons(계약 C4)의 그 종목. 줄이 비었거나 근거가 0 이면 null — 근거 없는 이유 줄은 그리지 않는다.
+ * at 이 날짜로 읽히면 오늘(KST) 것만(첫 화면에 어제 묶음이 먼저 그려져도 어제 이유를 오늘 값 옆에 두지 않게). at 이 「HH:MM」 뿐이면 그대로.
+ */
+export function reasonOf(reasons: unknown, code: string, today: string): Reason | null {
+  const it = ((reasons as { items?: Record<string, unknown> } | null)?.items?.[code] ?? null) as Record<string, unknown> | null
+  if (!it || typeof it.line !== 'string' || !it.line.trim()) return null
+  const refs = (Array.isArray(it.refs) ? it.refs : []).flatMap((r): ReasonRef[] =>
+    r && typeof r.label === 'string' && r.label ? [{ kind: typeof r.kind === 'string' ? r.kind : '', label: r.label, url: safeHref(r.url) }] : [])
+  if (!refs.length) return null
+  const at = typeof it.at === 'string' ? it.at : ''
+  if (/^\d{2}:\d{2}$/.test(at)) return { line: it.line.trim(), hm: at, refs }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(at)) return at === today ? { line: it.line.trim(), hm: null, refs } : null
+  const t = Date.parse(at)
+  if (at && (Number.isNaN(t) || kstDay(t) !== today)) return null
+  return { line: it.line.trim(), hm: at ? mdHm(new Date(t)).split(' ')[1] ?? null : null, refs }
 }
 
 /**

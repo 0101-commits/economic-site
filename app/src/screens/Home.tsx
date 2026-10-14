@@ -1,17 +1,20 @@
 // 홈 「오늘」 — 기획안 v4 3장. 머리(장 상태 줄 · 값 시각) → 오늘 한 줄 → AI 요약 3줄(+질문칸) → 지표 띠 8 + 관심 칸 → 분위기 5칸 → 격자(PC 12열 / 모바일 1열 같은 순서).
 // 금액(내 자산)은 여기서 절대 읽지 않는다. 관심은 이 기기의 id 목록뿐(lib/watch.ts).
 // 첫 화면: 이 기기에 둔 마지막 홈 묶음(24시간 안, lib/bundle.ts readHomeCache)을 먼저 그리고 새 묶음이 오면 바꿔 낀다.
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronRight, House } from 'lucide-react'
 import { loadHome, loadIndicator, readHomeCache, shownUnit, useBundleRev, type HomeBundle, type MoodItem, type Sched, type Stock, type StripItem, type Trigger } from '../lib/bundle'
 import { changeDir, dayLabel, fmtChange, fmtNumber, fmtPct, mdHm, safeHref, scaled, scaledPts, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
+import { isStockId, reasonOf } from '../lib/detail'
 import { useWatch } from '../lib/watch'
 import { AsOfBadge, DataTime, MarketLine, NumBlock, Pill } from '../components/ui'
 import { DivergingBars, Heatmap, LineChart } from '../components/charts'
 import { More, Panel, RankTable, StripCard, WatchStar, type Col } from '../components/panels'
 import { BTN, INPUT, LevelPill } from '../components/personal/bits'
+import Brief, { emphasize } from '../components/home/Brief'
+import { useItems } from '../components/Rail'
 import { hhmm, todayRows } from '../lib/alerts/v2'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
@@ -23,12 +26,6 @@ const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as con
 // 일정에 섞여 오는 종목 공시(kind) → 알약 글자. 이름은 묶음이 「종목 제목」으로 붙여 준다. 순서(날짜·시각)도 묶음이 정한다.
 const CORP_KIND: Record<string, string> = { dividend: '배당', earnings: '실적' }
 type SchedRow = Sched & { kind?: string | null; code?: string | null }
-
-/** 오늘 한 줄: 숫자 낱말(+1.80% · 4,910억)만 굵게 검정. 묶음에 핵심어 표시가 아직 없어서다. */
-const KEY_RE = /([+\-]?\d[\d,.]*(?:%p|%|bp|억|조|원|달러|엔)?)/
-function emphasize(text: string): ReactNode {
-  return text.split(KEY_RE).map((t, i) => (i % 2 ? <b key={i} className="num font-bold text-ink-1">{t}</b> : t))
-}
 
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return '' } }
 
@@ -62,14 +59,16 @@ export default function Home() {
   const nav = useNavigate()
   const { linked } = useSyncStatus()
 
-  // 관심 칸이 쓸 값: 홈 띠 · 거래대금 상위 종목에 없는 id 는 지표 사전에서 한 번 찾는다
+  // 관심 칸이 쓸 값: 홈 띠 · 거래대금 상위 종목에 없는 지표 id 는 지표 사전에서 한 번 찾는다.
+  // 그 밖의 종목은 묶음 행(이름) + /quotes 한 번(useItems — 오른쪽 패널 · 검색과 같은 길). 못 받으면 이름(없으면 코드)만.
   const [extra, setExtra] = useState<Record<string, StripItem | null>>({})
   const homeStrip = home?.strip || []
   const stocks = useMemo(() => new Map((home?.topAmount?.items || []).map(x => [x.code, x])), [home])
+  const quoted = useItems(home ? watch.ids.filter(id => isStockId(id) && !stocks.has(id)) : [])
   useEffect(() => {
     if (!home) return
     for (const id of watch.ids) {
-      if (home.strip.some(x => x.id === id) || stocks.has(id) || id in extra) continue
+      if (home.strip.some(x => x.id === id) || stocks.has(id) || isStockId(id) || id in extra) continue
       setExtra(m => ({ ...m, [id]: null }))
       loadIndicator(id).then(r => {
         const it = r.item ?? (r.reg ? { id, label: r.reg.label, decimals: r.reg.decimals, value: null, change: null, changePct: null, asOf: null } : null)
@@ -78,14 +77,16 @@ export default function Home() {
     }
   }, [home, watch.ids, stocks, extra])
 
-  // 관심(별표) 칸: 홈 띠에 이미 있는 것은 빼고 담은 순서대로. 종목은 거래대금 상위 행으로 칸을 꾸리고, 못 찾은 id 는 이름 자리에 id 그대로.
+  // 관심(별표) 칸: 홈 띠에 이미 있는 것은 빼고 담은 순서대로. 종목은 거래대금 상위 행 → useItems 값으로 칸을 꾸리고, 못 찾은 id 는 이름 자리에 id 그대로.
   const watchItems = watch.ids.flatMap((id): StripItem[] => {
     if (homeStrip.some(x => x.id === id)) return []
     const it = extra[id]
     if (it) return [it]
     const st = stocks.get(id)
     if (st) return [{ id, label: st.name, short: st.short, shortM: st.shortM, decimals: 0, value: st.price, change: null, changePct: st.chgPct, asOf: home?.topAmount?.asOf ?? null, state: home?.topAmount?.state, liveUntil: home?.topAmount?.liveUntil }]
-    return id in extra ? [{ id, label: id, decimals: 0, value: null, change: null, changePct: null, asOf: null }] : []
+    const q = quoted.get(id)
+    if (q) return [q]
+    return id in extra || isStockId(id) ? [{ id, label: id, decimals: 0, value: null, change: null, changePct: null, asOf: null }] : []
   })
   // 화면에 그리는 칸 = 띠 + 관심 최대 MAX_WATCH. 고를 수 있는 것은 지표(띠 · 지표 사전에서 찾은 관심)뿐 —
   // 관심 종목(종목 코드)은 큰 차트로 받을 시계열이 없어 고르기 단추가 아니라 종목 상세(/i/<코드>)로 가는 링크다.
@@ -122,9 +123,9 @@ export default function Home() {
   const flow20 = (inv?.rows || []).slice(-20)
   const lens = home.lens
   const brief = home.brief
-  const briefOld = !!brief?.asOf && kstDay(Date.parse(brief.asOf)) !== kstDay()
-  // 작성 시각: 오늘 것은 시각만(「10:11」), 지난 것은 날짜까지 — 숫자 문장이 지금 값과 달라도 언제 쓴 글인지 보이게
-  const briefAt = brief?.asOf ? mdHm(brief.asOf) : ''
+  // 종목 「왜 움직였나」(묶음 home.reasons — 계약 C4): 거래대금 표(PC)에서 그 행 이름 아래 회색 한 줄. 없는 행은 줄 없음.
+  const reasons = (home as HomeBundle & { reasons?: unknown }).reasons
+  const today = kstDay()
 
   // 4열 패널(약 350px)에 맞춰 열은 넷: 거래대금은 조원 두 자리, 모바일에선 이름 아래 줄
   const amountCols: Col<Stock>[] = [
@@ -155,20 +156,8 @@ export default function Home() {
         )}
       </p>
 
-      {/* AI 요약 3줄 — 접지 않는다. 머리에 작성 시각(오늘(KST) 만든 것이 아니면 날짜까지). 질문칸은 동기화가 켜진 기기에만(Worker /ai 가 키를 본다) */}
-      {(!!brief?.lines.length || linked) && (
-        <section aria-labelledby="home-brief" className="-mt-2 max-w-[44em]">
-          <h2 id="home-brief" className="m-0 mb-1 flex flex-wrap items-baseline gap-x-2 text-12 font-bold text-ink-2">
-            AI 요약{briefAt && <span className="num font-normal text-ink-3">{briefOld ? briefAt : briefAt.slice(briefAt.indexOf(' ') + 1)} 작성</span>}
-          </h2>
-          {brief?.lines.length ? (
-            <ul className="m-0 pl-5 list-disc marker:text-ink-3 flex flex-col gap-1 text-13 text-ink-2">
-              {brief.lines.map((l, i) => <li key={i}>{emphasize(l)}</li>)}
-            </ul>
-          ) : <p className="m-0 text-13 text-ink-3">AI 요약이 아직 없습니다.</p>}
-          {linked && <AskBox home={home} />}
-        </section>
-      )}
+      {/* AI 요약 — 문장 · 근거 번호 · 근거 목록 · 대조 한 줄 · 회차 넘김(components/home/Brief.tsx). 질문칸은 동기화가 켜진 기기에만(Worker /ai 가 키를 본다) */}
+      {(!!brief?.lines.length || linked) && <Brief brief={brief}>{linked && <AskBox home={home} />}</Brief>}
 
       {/* 지표 띠 8 + 관심 칸(9번째부터, 최대 8). 모바일 2열이라 짝을 맞추지 않는다 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 pc:grid-cols-8 gap-2">
@@ -217,7 +206,8 @@ export default function Home() {
         <Panel className="pc:col-span-4" title="거래대금 상위" asOf={home.topAmount?.asOf} state={home.topAmount?.state} liveUntil={home.topAmount?.liveUntil}>
           {home.topAmount?.items.length
             ? <RankTable label="거래대금 상위 종목" cols={amountCols} rows={home.topAmount.items.slice(0, 10)} rowKey={r => r.code} onPick={r => nav(`/i/${r.code}`)}
-                lead={r => <WatchStar on={watch.has(r.code)} onToggle={() => watch.toggle(r.code)} label={r.name} />} />
+                lead={r => <WatchStar on={watch.has(r.code)} onToggle={() => watch.toggle(r.code)} label={r.name} />}
+                note={r => reasonOf(reasons, r.code, today)?.line} />
             : <p className="m-0 text-13 text-ink-3">거래대금 자료가 없습니다.</p>}
         </Panel>
 

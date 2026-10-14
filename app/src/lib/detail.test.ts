@@ -1,7 +1,8 @@
 // 자가검사: npm test --prefix app — 종목 판정 · 묶음 종목 행 모으기(우선순위 · 기준 시각 물려받기) · 메르 글 언급 · 겹침 지수화
+// · 머리 전일 종가 · 원 단위 등락 · 거래대금 이웃 · 「왜 움직였나」
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { headVolume, isStockId, merMentions, merNames, overlay, searchRows, stockHits, stockRows, US_KO } from './detail.ts'
+import { changeLine, headChange, headPrev, headVolume, isStockId, merMentions, merNames, overlay, rankNeighbors, reasonOf, searchRows, stockHits, stockRows, US_KO } from './detail.ts'
 import type { Pt } from './format.ts'
 
 test('isStockId: 국내 6자리 · 미국 티커만 종목, 지표 id 는 아님', () => {
@@ -146,4 +147,66 @@ test('stockRows: KRX 순위 4목록(전일 확정)은 이름만 — 값 · 등�
   // 오늘 목록에 값이 있으면 그것이 머리 — 뒤에 온 KRX 행이 덮지 않는다
   const both = stockRows([{ amount: { asOf: '2026-10-09', items: [{ code: '005930', name: '삼성전자', price: 262500, chgPct: -2 }] } }, { marketCap: krx('005930') }])
   assert.equal(both.get('005930')!.price, 262500)
+})
+
+test('stockRows: 묶음 행에 전일 종가(prev)가 있으면 싣는다 — KRX 전일 목록 것은 뺀다', () => {
+  const m = stockRows([{ amount: { asOf: '2026-10-14', items: [{ code: '005930', name: '삼성전자', price: 234000, chgPct: 0.86, prev: 232000 }] } },
+    { marketCap: { kospi: [{ code: '000660', name: 'SK하이닉스', price: 1, prev: 1 }] } }])
+  assert.equal(m.get('005930')!.prev, 232000)
+  assert.equal('prev' in m.get('000660')!, false)
+})
+
+test('headPrev: 일봉 머리는 일봉 prev · 묶음 머리는 행 prev → 같은 날 일봉 prev · 날짜가 다르면 없음', () => {
+  const chart = { prev: 232000, pts: [['2026-10-13', 232000], ['2026-10-14', 234500]] as Pt[] }
+  const row = { code: '005930', name: '삼성전자', price: 234000, chgPct: 0.86, asOf: '2026-10-14' }
+  assert.equal(headPrev(row, false, chart), 232000)
+  assert.equal(headPrev(undefined, false, null), null)
+  assert.equal(headPrev({ ...row, prev: 231500 }, true, chart), 231500)
+  assert.equal(headPrev(row, true, chart), 232000)
+  assert.equal(headPrev({ ...row, asOf: '2026-10-14T10:40:00+09:00' }, true, chart), 232000)
+  assert.equal(headPrev({ ...row, asOf: '2026-10-15' }, true, chart), null)          // 일봉이 하루 늦다 — 그 prev 는 그저께 종가
+  assert.equal(headPrev(row, true, null), null)
+})
+
+test('headChange · changeLine: 원 단위 등락 — 값 − 전일 종가, 기준이 다르면 등락률만', () => {
+  assert.deepEqual(headChange(236000, 232000, 1.72), { chg: 4000, pct: 1.72 })
+  assert.equal(changeLine(4000, 1.72, 0, '원'), '▲4,000원 (1.72%)')
+  assert.equal(changeLine(-2000, -0.86, 0, '원'), '▼2,000원 (0.86%)')
+  assert.equal(changeLine(0, 0, 0, '원'), '0원 (0.00%)')
+  assert.equal(changeLine(1.234, 0.4, 2, '달러'), '▲1.23달러 (0.40%)')
+  assert.deepEqual(headChange(236000, 232000, null), { chg: 4000, pct: (236000 / 232000 - 1) * 100 })   // 등락률이 없으면 전일로
+  assert.deepEqual(headChange(236000, 230000, 1.72), { chg: null, pct: 1.72 })                      // 전일로 구한 2.61% ≠ 1.72% — 등락폭을 지어내지 않는다
+  assert.deepEqual(headChange(236000, null, 1.72), { chg: null, pct: 1.72 })
+  assert.deepEqual(headChange(null, 232000, null), { chg: null, pct: null })
+  assert.equal(changeLine(null, 1.72, 0, '원'), '▲ 1.72%')
+  assert.equal(changeLine(null, null, 0, '원'), '—')
+})
+
+test('rankNeighbors: 앞뒤 하나씩 · 맨 앞은 뒤 둘 · 맨 끝은 앞 둘 · 없으면 빈 목록', () => {
+  const L = ['a', 'b', 'c', 'd', 'e'].map(code => ({ code }))
+  const codes = (code: string, l = L) => rankNeighbors(l, code).map(x => x.code)
+  assert.deepEqual(codes('c'), ['b', 'd'])
+  assert.deepEqual(codes('a'), ['b', 'c'])
+  assert.deepEqual(codes('e'), ['c', 'd'])
+  assert.deepEqual(codes('z'), [])
+  assert.deepEqual(codes('a', L.slice(0, 2)), ['b'])
+  assert.deepEqual(codes('a', L.slice(0, 1)), [])
+})
+
+test('reasonOf: 줄 · 근거가 있어야 · 오늘 것만 · 근거 주소는 http(s) 만', () => {
+  const today = '2026-10-14'
+  const r = (it: unknown) => reasonOf({ asOf: 'x', items: { '005930': it } }, '005930', today)
+  const refs = [{ kind: '지수', label: '코스피 ▲1.2%' }, { kind: '기사', label: '삼성전자, …', url: 'https://n.news/1' }, { kind: '공시', label: '잠정실적', url: 'javascript:alert(1)' }]
+  assert.deepEqual(r({ line: ' 지수와 같이 올랐습니다 ', at: '2026-10-14T14:30:00+09:00', refs }), {
+    line: '지수와 같이 올랐습니다', hm: '14:30',
+    refs: [{ kind: '지수', label: '코스피 ▲1.2%', url: null }, { kind: '기사', label: '삼성전자, …', url: 'https://n.news/1' }, { kind: '공시', label: '잠정실적', url: null }],
+  })
+  assert.equal(r({ line: '어제 이유', at: '2026-10-13T14:30:00+09:00', refs }), null)        // 어제 쓴 것
+  assert.equal(r({ line: '근거 없음', at: '2026-10-14T14:30:00+09:00', refs: [] }), null)   // 근거 0 = 칸 없음
+  assert.equal(r({ line: '', refs }), null)
+  assert.equal(r({ line: '시각만', at: '10:05', refs })!.hm, '10:05')
+  assert.equal(r({ line: '날짜만', at: '2026-10-14', refs })!.hm, null)
+  assert.equal(r({ line: '시각 모름', refs })!.hm, null)
+  assert.equal(reasonOf(undefined, '005930', today), null)
+  assert.equal(reasonOf({ items: {} }, '005930', today), null)
 })

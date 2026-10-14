@@ -191,10 +191,11 @@ function cmp(a: unknown, b: unknown): number | null {
  * onPick 을 주면 행 누르기 = 그 행 고르기(selectedKey 와 rowKey 가 같은 행이 옅은 바탕). 모바일도 시트 대신 onPick 이다.
  * 행이 많으면 More(모바일 5 · PC 10행 + 「N행 더 보기」) — 정렬은 전체 행에 먼저 건다.
  * 행 전체가 마우스 자리이고, 키보드·읽기 도구용으로 이름 칸 내용을 버튼으로 감싼다(핸들러 없이 행으로 버블링).
+ * note = 행 아래 회색 한 줄(홈 거래대금의 「왜 움직였나」). PC(980 이상) 표에서만, 표 폭 전체를 쓰는 둘째 줄로 — 이름 칸 폭을 늘리지 않는다.
  */
-export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selectedKey }: {
+export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selectedKey, note }: {
   cols: Col<R>[]; rows: R[]; rowKey: (r: R) => string; lead?: (r: R) => ReactNode; label: string
-  onPick?: (r: R) => void; selectedKey?: string | null
+  onPick?: (r: R) => void; selectedKey?: string | null; note?: (r: R) => ReactNode
 }) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null)
   const [sheet, setSheet] = useState<R | null>(null)
@@ -244,18 +245,28 @@ export function RankTable<R>({ cols, rows, rowKey, lead, label, onPick, selected
           <tbody>
             {vis.map(r => {
               const on = isOn(r)
+              const nt = note?.(r)
+              const pick = `${onPick ? 'cursor-pointer hover:bg-ink-3/5' : ''} ${on ? 'bg-ink-3/10' : ''}`
               return (
-                <tr key={rowKey(r)} onClick={onPick && (() => onPick(r))}
-                  className={`h-10 border-b border-line last:border-b-0 ${onPick ? 'cursor-pointer hover:bg-ink-3/5' : ''} ${on ? 'bg-ink-3/10' : ''}`}>
-                  {lead && <td className="w-8 p-0">{lead(r)}</td>}
-                  {cols.map(c => (
-                    <td key={c.key} className={`px-2 py-1 ${c.num ? 'text-right num' : ''}`}>
-                      {onPick && c === pickC
-                        ? <button type="button" aria-pressed={on} className={`p-0 border-0 bg-transparent text-left cursor-pointer ${on ? 'font-bold' : ''}`}>{cell(c, r)}</button>
-                        : cell(c, r)}
-                    </td>
-                  ))}
-                </tr>
+                <Fragment key={rowKey(r)}>
+                  <tr onClick={onPick && (() => onPick(r))}
+                    className={`h-10 border-b border-line ${nt ? 'pc:border-b-0' : 'last:border-b-0'} ${pick}`}>
+                    {lead && <td className="w-8 p-0">{lead(r)}</td>}
+                    {cols.map(c => (
+                      <td key={c.key} className={`px-2 py-1 ${c.num ? 'text-right num' : ''}`}>
+                        {onPick && c === pickC
+                          ? <button type="button" aria-pressed={on} className={`p-0 border-0 bg-transparent text-left cursor-pointer ${on ? 'font-bold' : ''}`}>{cell(c, r)}</button>
+                          : cell(c, r)}
+                      </td>
+                    ))}
+                  </tr>
+                  {nt && (
+                    <tr onClick={onPick && (() => onPick(r))} className={`hidden pc:table-row border-b border-line last:border-b-0 ${pick}`}>
+                      {lead && <td className="p-0" />}
+                      <td colSpan={cols.length} className="px-2 pt-0 pb-2 text-11 leading-snug text-ink-3 [overflow-wrap:anywhere]">{nt}</td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
           </tbody>
