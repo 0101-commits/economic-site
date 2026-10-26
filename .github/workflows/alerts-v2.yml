@@ -113,9 +113,10 @@ jobs:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           PUSH_READ_KEY: ${{ secrets.PUSH_READ_KEY }}
           ALERTS_STATE_SALT: ${{ secrets.ALERTS_STATE_SALT }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
           extra=""
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then extra="--dry-run"; fi
+          if [ "$DRY_RUN" = "true" ]; then extra="--dry-run"; fi
           python scripts/alerts_v2/run.py --mode "$V2_MODE" $extra
 
       # 웹 푸시 — run.py 가 쌓은 scripts/push_queue.json 을 보낸다(stock-alerts.yml 과 같은 단계).

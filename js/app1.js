@@ -2548,10 +2548,10 @@ function showSubscriptionDetail(regionKey) {
     liveList.slice(0,12).forEach(it=>{
       const rate = (it.rate!=null) ? (Number(it.rate).toLocaleString()+' : 1') : '—';
       body += `<tr style="border-bottom:1px solid var(--c-border);">
-        <td style="padding:6px 0;font-weight:var(--font-weight-semibold);">${it.name||'—'}</td>
-        <td style="padding:6px;color:var(--c-txt-dim);">${it.area||it.sub||'—'}</td>
+        <td style="padding:6px 0;font-weight:var(--font-weight-semibold);">${escapeHtml(it.name||'—')}</td>
+        <td style="padding:6px;color:var(--c-txt-dim);">${escapeHtml(it.area||it.sub||'—')}</td>
         <td style="text-align:right;padding:6px;font-weight:var(--font-weight-semibold);">${rate}</td>
-        <td style="text-align:right;padding:6px;color:var(--c-txt-dim);">${it.date||'—'}</td></tr>`;
+        <td style="text-align:right;padding:6px;color:var(--c-txt-dim);">${escapeHtml(it.date||'—')}</td></tr>`;
     });
     body += `</tbody></table></div>`;
   } else {
@@ -4355,7 +4355,7 @@ function buildMoverTable(dir) {
   }
   tb.innerHTML = data.map(d=>`
     <tr style="border-bottom:1px solid var(--c-border);">
-      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="${d.name} — 네이버 증권에서 보기">${d.name}</a>${d.type==='etf'?'<span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-left:4px;">ETF</span>':''}</td>
+      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="${escapeHtml(d.name)} — 네이버 증권에서 보기">${escapeHtml(d.name)}</a>${d.type==='etf'?'<span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-left:4px;">ETF</span>':''}</td>
       <td style="text-align:right;padding:5px;">${d.price}</td>
       <td style="text-align:right;padding:5px;" class="${isUp?'up-txt':'down-txt'}">${d.chg}</td>
       <td style="text-align:right;padding:5px;color:var(--c-txt-dim);">${d.vol||'—'}</td>
@@ -5948,7 +5948,7 @@ function buildEquityPage() {
   // ETF 행: 거래량 데이터 없음 → 4컬럼만
   const etfLinkRow = (s, i, color) => `<tr style="border-bottom:1px solid var(--c-border);">
         <td style="padding:5px;color:var(--c-txt-muted);">${i+1}</td>
-        <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
+        <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${escapeHtml(s.name)}</a></td>
         <td style="text-align:right;padding:5px;">${s.price}</td>
         <td style="text-align:right;padding:5px;color:${color};">${s.chg}</td>
       </tr>`;
@@ -5984,7 +5984,7 @@ function buildEquityRankings() {
   const fmtAmt = v => v == null ? '—' : (v >= 1e12 ? (v/1e12).toFixed(1)+'조' : Math.round(v/1e8).toLocaleString()+'억');
   const row = (s, i) => `<tr style="border-bottom:1px solid var(--c-border);cursor:pointer;" onclick="equityOpenStockAnalysis('${s.code}','${String(s.name||'').replace(/['"<>\\\\]/g,'')}')" title="종목 분석으로 이동">
       <td style="padding:4px 5px;color:var(--c-txt-muted);">${i+1}</td>
-      <td style="padding:4px 5px;font-weight:var(--font-weight-medium);"><button type="button" class="btn-plain btn-inline">${s.name}${s.type && s.type !== 'STOCK' ? ` <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">${s.type}</span>` : ''}</button></td>
+      <td style="padding:4px 5px;font-weight:var(--font-weight-medium);"><button type="button" class="btn-plain btn-inline">${escapeHtml(s.name)}${s.type && s.type !== 'STOCK' ? ` <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">${escapeHtml(s.type)}</span>` : ''}</button></td>
       <td style="text-align:right;padding:4px 5px;color:${(s.chg||0) >= 0 ? window.CUP : window.CDN};">${(s.chg||0) >= 0 ? '+' : ''}${(s.chg||0).toFixed(2)}%</td>
       <td style="text-align:right;padding:4px 5px;color:var(--c-txt-dim);">${fmtAmt(s.amount)}</td>
     </tr>`;
@@ -6009,7 +6009,7 @@ function _eqVolFmt(v) {
 function _eqStockRow(s, i, color) {
   return `<tr style="border-bottom:1px solid var(--c-border);">
         <td style="padding:5px;color:var(--c-txt-muted);">${i+1}</td>
-        <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a>${s.preserved ? _PRESERVED_CHIP : ''}</td>
+        <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${naverStockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${escapeHtml(s.name)}</a>${s.preserved ? _PRESERVED_CHIP : ''}</td>
         <td style="text-align:right;padding:5px;">${s.price}</td>
         <td style="text-align:right;padding:5px;color:${color};">${s.chg}</td>
         <td style="text-align:right;padding:5px;color:var(--c-txt-dim);font-size:var(--font-size-sm);">${_eqVolFmt(s.vol)}</td>
@@ -7834,9 +7834,9 @@ function buildMacroIndicatorTable() {
       const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:var(--font-size-xs);padding:2px 6px;background:var(--c-accent)22;color:var(--c-accent);border:1px solid var(--c-accent)55;border-radius:var(--r-xs);text-decoration:none;">${r.linkLabel||'최신 보고서'} →</a>` : '';
       return `<div class="clickable-card econ-inner" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" title="클릭 → 시계열 차트">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);"><button type="button" class="btn-plain btn-inline">${r.cc} ${r.name} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></button></div>
-          <div class="note-line" style="margin-top:2px;">${srcStr} · ${r.freq} · ${periodStr}</div>
-          ${unitStr ? `<div style="font-size:var(--font-size-sm);color:var(--c-primary);margin-top:1px;">단위: ${unitStr}</div>`:''}
+          <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);"><button type="button" class="btn-plain btn-inline">${r.cc} ${escapeHtml(r.name)} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></button></div>
+          <div class="note-line" style="margin-top:2px;">${escapeHtml(srcStr)} · ${r.freq} · ${escapeHtml(periodStr)}</div>
+          ${unitStr ? `<div style="font-size:var(--font-size-sm);color:var(--c-primary);margin-top:1px;">단위: ${escapeHtml(unitStr)}</div>`:''}
           ${linkBtn}
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:8px;">
@@ -13167,14 +13167,14 @@ function applyRealData(d) {
   const volStr = v => v ? Math.round(v/1000).toLocaleString()+'K' : '—';
   const renderStockRow = (s, i, cls) => `<tr style="border-bottom:1px solid var(--c-border);">
       <td style="padding:5px;color:var(--c-txt-muted);">${i+1}</td>
-      <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${stockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
+      <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${stockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${escapeHtml(s.name)}</a></td>
       <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
       <td style="text-align:right;padding:5px;color:${cls==='up'?window.CUP:window.CDN};">${cls==='up'?'+':''}${s.chg.toFixed(2)}%</td>
       <td style="text-align:right;padding:5px;color:var(--c-txt-dim);font-size:var(--font-size-sm);">${volStr(s.vol)}</td>
     </tr>`;
   const renderEtfRow = (s, i, cls) => `<tr style="border-bottom:1px solid var(--c-border);">
       <td style="padding:5px;color:var(--c-txt-muted);">${i+1}</td>
-      <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${stockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${s.name}</a></td>
+      <td style="padding:5px;font-weight:var(--font-weight-medium);"><a href="${stockUrl(s)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="네이버 증권에서 보기">${escapeHtml(s.name)}</a></td>
       <td style="text-align:right;padding:5px;">${s.price.toLocaleString()}</td>
       <td style="text-align:right;padding:5px;color:${cls==='up'?window.CUP:window.CDN};">${cls==='up'?'+':''}${s.chg.toFixed(2)}%</td>
     </tr>`;
@@ -15533,14 +15533,17 @@ function merblogRenderResults(posts){
   const box = document.getElementById('merResults');
   if(!posts || !posts.length){ box.innerHTML = '<p style="font-size:var(--font-size-sm);color:var(--c-txt-dim);">결과 없음.</p>'; return; }
   box.innerHTML = posts.map(p => {
-    const id = _merEsc(String(p.logNo));
+    // logNo 는 숫자만 — 아래 onclick 의 따옴표 안에 들어가므로 이스케이프로는 못 막는다(&#39; 가 ' 로 풀림)
+    const id = /^\d+$/.test(String(p.logNo)) ? String(p.logNo) : '';
+    if (!id) return '';
+    const href = /^https?:\/\//i.test(p.url || '') ? _merEsc(p.url) : '#';
     return `<div class="mer-item" id="mer-${id}">
       <div style="display:flex;gap:8px;align-items:flex-start;">
         <input type="checkbox" class="mer-sel" value="${id}" onchange="merblogUpdateSel()" aria-label="이 글 선택" style="margin-top:3px;flex-shrink:0;">
         <div style="flex:1;min-width:0;">
           <h3>${_merEsc(p.title)}</h3>
           <div class="mer-meta">${_merEsc(p.date? String(p.date).slice(0,10):'')} · ${_merEsc(p.category||'')}
-            · <a href="${_merEsc(p.url||'')}" target="_blank" rel="noopener">원글↗</a></div>
+            · <a href="${href}" target="_blank" rel="noopener noreferrer">원글↗</a></div>
           <div class="mer-excerpt">${_merEsc(p.excerpt||'')}</div>
           <button onclick="merblogToggleFull('${id}',this)">원문 보기</button>
           <div class="mer-full" style="display:none"></div>

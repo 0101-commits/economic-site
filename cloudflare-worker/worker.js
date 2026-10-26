@@ -2045,7 +2045,8 @@ export default {
         if (env && env.GH_ALERTS_TOKEN) out.ghAlertsTokenValid = _ghTokenHealth.alerts;
       } catch (_) { out.ghTokenValid = null; }
       // [가시화] 마지막 repository_dispatch 실패(모듈 전역·isolate 비영속 best-effort) — 없으면 null.
-      out.lastDispatchFail = _lastDispatchFail;
+      // 오류 원문(GitHub 응답 일부)은 공개 헬스에 싣지 않는다 — 화면은 시각(t)만 본다. 원문은 console.error 로그에.
+      out.lastDispatchFail = _lastDispatchFail ? { t: _lastDispatchFail.t, event: _lastDispatchFail.event } : null;
       return jsonResponse(out);
     }
 
@@ -2123,6 +2124,9 @@ export default {
     if (ct) headers.set('content-type', ct);          // 원본 charset 보존(EUC-KR HTML 등)
     headers.set('Cache-Control', 'public, max-age=30');
     headers.set('X-Proxy-Upstream-Status', String(upstream.status));
+    // 중계한 HTML 이 이 Worker 주소에서 페이지로 그려지지 않게 — fetch() 소비자에는 영향 없음
+    headers.set('X-Content-Type-Options', 'nosniff');
+    headers.set('Content-Security-Policy', "default-src 'none'; sandbox");
 
     // Yahoo Finance 차트 API 는 '없는 심볼/폐기 경로' 에 4xx(주로 404)를 주지만 body 는 정상 JSON
     // ({chart:{result:null,error:{...}}})이고, 모든 소비자(_fetchJsonWithProxies·fetchYahooQuote 등)가
