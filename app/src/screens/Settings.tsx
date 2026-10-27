@@ -17,7 +17,7 @@ import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
 import { applyUpdown, readMyData, readPrefs, wipeDevice, writeMyData, writePrefs, type Prefs, type Settings as S } from '../lib/personal/store'
 import { countOf, makeFile, MAX_BYTES, passIssue, readFile, type Loaded } from '../lib/personal/backup'
-import { disableSync, getKeyHash, useSyncStatus } from '../lib/personal/sync'
+import { disableSync, getKeyHash, queueHoldSync, useSyncStatus } from '../lib/personal/sync'
 import dictJson from '../lib/alerts/dict.json'
 
 const THEMES = [{ key: 'system', label: '기기 설정' }, { key: 'light', label: '밝게' }, { key: 'dark', label: '어둡게' }] as const
@@ -31,7 +31,7 @@ export default function Settings() {
   const [msg, setMsg] = useState('')
   const { rev } = useSyncStatus()
   const me = useMe()
-  useEffect(() => { if (rev) setPrefs(readPrefs()) }, [rev])   // 동기화가 이 기기를 서버 내용으로 덮은 뒤
+  useEffect(() => { if (rev) setPrefs(readPrefs()) }, [rev])   // 맞춤(sync.ts)이 이 기기를 서버 내용으로 덮은 뒤
   const save = (p: Prefs) => { setPrefs(p); setMsg(writePrefs(p) ? '' : '이 기기에 저장하지 못했습니다.') }
   const setS = (k: Partial<S>) => save({ ...prefs, settings: { ...prefs.settings, ...k } })
 
@@ -50,11 +50,11 @@ export default function Settings() {
           </div>
         </Card>
         <MyData onRestored={() => setPrefs(readPrefs())} />
-        <Fold title="데이터 상태"><DataStatus /></Fold>
+        <Fold title="자료 상태"><DataStatus /></Fold>
         <Fold title="고급"><Advanced s={prefs.settings} setS={setS} /></Fold>
       </div>
       {/* 전환 단계 A(공존): 현행 화면으로 가는 길 하나. 같은 origin 이라 PIN·보유·관심이 그대로다. */}
-      <p className="m-0 text-12 text-ink-3">{me?.role === 'owner' && <><a href={new URL('legacy.html', ROOT).href} className="text-ink-3 hover:text-ink-1">이전 화면으로</a> · </>}폰 알림은 이 화면을 홈 화면에 추가한 기기로만 옵니다.</p>
+      <p className="m-0 text-12 text-ink-3">{me?.role === 'owner' && <><a href={new URL('legacy.html', ROOT).href} className="text-ink-3 hover:text-ink-1">옛 화면으로</a> · </>}폰 알림은 이 화면을 홈 화면에 추가한 기기로만 옵니다.</p>
     </div>
   )
 }
@@ -86,7 +86,7 @@ function Security() {
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!/^\d{6}$/.test(p1)) { setNote('새 PIN 은 숫자 6자리입니다.'); return }
-    if (p1 !== p2) { setNote('새 PIN 두 칸이 다릅니다.'); return }
+    if (p1 !== p2) { setNote('새 PIN 두 번 입력이 서로 다릅니다.'); return }
     setBusy(true)
     try {
       if (has && !(await checkPin(cur))) { const w = waitMs(); setNote(w ? `PIN 을 여러 번 틀렸습니다 · ${Math.ceil(w / 1000)}초 뒤 다시` : '지금 PIN 이 맞지 않습니다.'); return }
@@ -136,7 +136,7 @@ function MyData({ onRestored }: { onRestored: () => void }) {
       if (bad) { setNote(bad); return }
       const text = await makeFile(readMyData(), new Date().toISOString(), lock ? p1 : undefined)
       const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
-      const a = Object.assign(document.createElement('a'), { href: url, download: `ecom-내데이터-${kstDay()}${lock ? '-잠금' : ''}.json` })
+      const a = Object.assign(document.createElement('a'), { href: url, download: `ecom-내자료-${kstDay()}${lock ? '-잠금' : ''}.json` })
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
       setP1(''); setP2('')
@@ -144,11 +144,11 @@ function MyData({ onRestored }: { onRestored: () => void }) {
     } catch { setNote('파일을 만들지 못했습니다.') } finally { setBusy(false) }
   }
   return (
-    <Card title="내 데이터">
+    <Card title="내 자료">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={BTN2} disabled={busy || (lock && !p1)} onClick={download}>{busy ? '만드는 중' : '내 데이터 내려받기'}</button>
-          <span className="text-12 text-ink-3">보유 · 스냅샷 · 원장 · 관심 · 알림 조건 · 설정 · 시나리오</span>
+          <button type="button" className={BTN2} disabled={busy || (lock && !p1)} onClick={download}>{busy ? '만드는 중' : '내 자료 내려받기'}</button>
+          <span className="text-12 text-ink-3">보유 · 하루 평가 기록 · 입출금·배당 기록 · 관심 · 알림 조건 · 설정 · 시나리오</span>
         </div>
         <Switch on={lock} onChange={v => { setLock(v); setNote('') }} label="암호로 잠근 파일" />
         {lock && (
@@ -166,11 +166,11 @@ function MyData({ onRestored }: { onRestored: () => void }) {
       <Restore onDone={onRestored} />
 
       <div className="mt-4 pt-3 border-t border-line">
-        {step === 0 && <button type="button" className={BTN2} onClick={() => setStep(1)}>이 기기 데이터 지우기</button>}
+        {step === 0 && <button type="button" className={BTN2} onClick={() => setStep(1)}>이 기기 자료 지우기</button>}
         {step === 1 && (
           <div className="flex flex-col gap-2">
-            <p className="m-0 text-13 text-ink-1">지울 것: 보유 종목 · 평가액 스냅샷 · 배당·입출금 원장 · 관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오 · 최근 검색 · 연결 정보(키 해시 · 보유 열쇠) · 현행 화면 입장 키와 보유 암호.</p>
-            <p className="m-0 text-12 text-ink-3">현행 화면도 같은 보유·스냅샷·원장을 쓰므로 거기서도 사라집니다. 잠금 PIN 은 남깁니다. 연결을 끊고 이 기기의 폰 알림 구독도 끊습니다(서버에 맡긴 것은 남습니다).</p>
+            <p className="m-0 text-13 text-ink-1">지울 것: 보유 종목 · 하루 평가 기록 · 입출금·배당 기록 · 관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오 · 최근 검색 · 이 기기의 앱키 기록 · 옛 화면에 남은 앱키와 암호.</p>
+            <p className="m-0 text-12 text-ink-3">옛 화면도 같은 보유·하루 평가 기록·입출금·배당 기록을 쓰므로 거기서도 사라집니다. 잠금 PIN 은 남깁니다. 이 기기에서 나가고 폰 알림도 끊습니다(ecom에 저장된 것은 남습니다).</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={BTN2} onClick={() => setStep(2)}>계속</button>
               <button type="button" className={BTN2} onClick={() => setStep(0)}>그만두기</button>
@@ -193,7 +193,7 @@ function MyData({ onRestored }: { onRestored: () => void }) {
 
 /** 미리보기 · 확인 문구의 칸 이름. 파일에 없는(undefined) 칸은 이 기기 것을 그대로 둔다(store.writeMyData). */
 const PARTS: [keyof Loaded, string][] = [
-  ['portfolio', '보유'], ['snapshots', '스냅샷'], ['ledger', '원장'], ['watch', '관심'], ['prefs', '알림 조건 · 설정'], ['scenarios', '시나리오'], ['theme', '화면 모드'],
+  ['portfolio', '보유'], ['snapshots', '하루 평가 기록'], ['ledger', '입출금·배당 기록'], ['watch', '관심'], ['prefs', '알림 조건 · 설정'], ['scenarios', '시나리오'], ['theme', '화면 모드'],
 ]
 /** 올리기: 파일 고르기 → (잠긴 파일이면 파일 암호) → 미리보기 → 덮기(확인 한 번). 다른 화면은 storage 이벤트로 다시 읽는다(store.writeMyData). */
 function Restore({ onDone }: { onDone: () => void }) {
@@ -238,6 +238,7 @@ function Restore({ onDone }: { onDone: () => void }) {
   }
   const apply = () => {
     const ok = got ? writeMyData(got) : false
+    if (ok && got?.portfolio) queueHoldSync()   // 보유는 「이 기기에서 바꿈」으로 적혔다(store.writeMyData) — 2초 뒤 다른 기기로
     reset()
     setMsg(ok ? '이 기기를 파일 내용으로 덮었습니다.' : '일부를 저장하지 못했습니다(저장 공간이 모자라거나 막힘).')
     onDone()
@@ -248,7 +249,7 @@ function Restore({ onDone }: { onDone: () => void }) {
   const what = parts.join(' · ')
   return (
     <div className="mt-4 pt-3 border-t border-line flex flex-col gap-2">
-      <Field label="내 데이터 올리기 · 이 화면에서 내려받은 파일">
+      <Field label="내 자료 올리기 · 이 화면에서 내려받은 파일">
         <input ref={input} type="file" accept="application/json,.json" className="text-13 text-ink-2 min-w-0" onChange={pick} />
       </Field>
       {needPass && (
@@ -262,13 +263,13 @@ function Restore({ onDone }: { onDone: () => void }) {
       {c && got && (
         <div className="flex flex-col gap-2">
           <p className="m-0 text-13 text-ink-1">{[
-            c.holdings != null && `보유 ${c.holdings}종목`, c.ledger != null && `원장 ${c.ledger}`, c.snapshots != null && `스냅샷 ${c.snapshots}`,
+            c.holdings != null && `보유 ${c.holdings}종목`, c.ledger != null && `입출금·배당 기록 ${c.ledger}`, c.snapshots != null && `하루 평가 기록 ${c.snapshots}`,
             c.watch != null && `관심 ${c.watch}`, c.alerts != null && `조건 ${c.alerts}`, c.scenarios != null && `시나리오 ${c.scenarios}`,
           ].filter(Boolean).join(' · ')}</p>
           <p className="m-0 text-12 text-ink-3">{got.at ? `${kstDay(Date.parse(got.at))} 내려받음` : '내려받은 날짜 모름'}</p>
           {!got.legacy && kept.length > 0 && <p className="m-0 text-12 text-ink-3">이 파일에 없어서 그대로 두는 것: {kept.join(' · ')}</p>}
-          {got.legacy && <p className="m-0 text-12 text-ink-3">이전 화면 백업 — 보유 · 스냅샷만 가져옵니다. 노트 · 스터디 · 홈 배치 같은 나머지는 이전 화면 「설정 › 데이터 백업·복구」에서 복원하세요.</p>}
-          {linked && <p className="m-0 text-12 text-warn">연결이 켜져 있어, 덮으면 관심 · 알림 조건 · 설정이 곧 서버 것을 덮습니다(다른 기기도 바뀝니다). 보유는 내 자산을 열 때 맞추며, 서버 보유도 이 파일 것으로 바뀝니다.</p>}
+          {got.legacy && <p className="m-0 text-12 text-ink-3">옛 화면 백업 — 보유 · 하루 평가 기록만 가져옵니다. 노트 · 스터디 · 홈 배치 같은 나머지는 옛 화면 「설정 › 데이터 백업·복구」에서 복원하세요.</p>}
+          {linked && <p className="m-0 text-12 text-warn">덮으면 관심 · 알림 조건 · 설정 · 보유가 같은 앱키로 들어온 다른 기기에서도 곧 이 파일 것으로 바뀝니다.</p>}
           {!sure ? <button type="button" className={`${BTN2} self-start`} onClick={() => setSure(true)}>이 기기를 이 파일로 덮기</button> : (
             <div className="flex flex-col gap-2">
               <p role="alert" className="m-0 text-13 font-bold text-warn">이 기기의 {what} 모두 파일 내용으로 바뀝니다. 되돌릴 수 없습니다.</p>
@@ -303,7 +304,7 @@ function DataStatus() {
     <div className="flex flex-col gap-3">
       <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-13">
         <dt className="text-ink-3">마지막 수집</dt><dd className="m-0 num text-ink-1">{m.dataUpdated ? mdHm(m.dataUpdated) : '—'}</dd>
-        <dt className="text-ink-3">화면 묶음 생성</dt><dd className="m-0 num text-ink-1">{m.generatedAt ? mdHm(m.generatedAt) : '—'}</dd>
+        <dt className="text-ink-3">화면 자료 생성</dt><dd className="m-0 num text-ink-1">{m.generatedAt ? mdHm(m.generatedAt) : '—'}</dd>
         <dt className="text-ink-3">상태 점검</dt><dd className="m-0 num text-ink-1">{m.health?.checkedAt ? mdHm(m.health.checkedAt) : '—'}</dd>
       </dl>
       {s && (
@@ -334,8 +335,8 @@ function Advanced({ s, setS }: { s: S; setS: (k: Partial<S>) => void }) {
     <div className="flex flex-col gap-4">
       <Kakao s={s} setS={setS} />
       <div className="pt-3 border-t border-line">
-        <Switch on={s.autoQuiet} onChange={v => setS({ autoQuiet: v })} label={`90일 동안 알림 화면을 안 열면 꾸러미를 「${QUIET_PKG}」로 내리기`} />
-        <p className="mt-1 mb-0 text-12 text-ink-3">이 기기만. 내려가면 알림 화면 맨 위에 한 줄로 알립니다. 끄면 꾸러미를 그대로 둡니다.</p>
+        <Switch on={s.autoQuiet} onChange={v => setS({ autoQuiet: v })} label={`90일 동안 알림 화면을 안 열면 알림 단계를 「${QUIET_PKG}」로 내리기`} />
+        <p className="mt-1 mb-0 text-12 text-ink-3">이 기기만. 내려가면 알림 화면 맨 위에 한 줄로 알립니다. 끄면 알림 단계를 그대로 둡니다.</p>
       </div>
       <div className="pt-3 border-t border-line"><UsageTable /></div>
     </div>

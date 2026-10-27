@@ -224,7 +224,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
               onPick={c => setSector(s => (s?.name === c.name ? null : { name: c.name, value: c.value }))} />
             {sector && (
               <p className="m-0 mt-2 text-13 text-ink-2">
-                <b className="text-ink-1">{sector.name}</b> <span className="num">{fmtPct(sector.value)}</span> · 업종별 종목 목록은 아직 묶음에 없습니다.
+                <b className="text-ink-1">{sector.name}</b> <span className="num">{fmtPct(sector.value)}</span> · 업종별 종목 목록은 아직 없습니다.
               </p>
             )}
           </>

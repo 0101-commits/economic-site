@@ -114,11 +114,11 @@ export function PinGate({ children }: { children: ReactNode }) {
 
   const head = {
     unlock: ['잠긴 화면', '설정과 내 자산은 이 기기 PIN 으로 엽니다.'],
-    setup: ['이 기기 PIN 정하기', '숫자 6자리. 설정과 내 자산을 이 PIN 으로 엽니다. 기기마다 따로 정하고, 현행 화면의 잠금과 같은 PIN 을 씁니다.'],
+    setup: ['이 기기 PIN 정하기', '숫자 6자리. 설정과 내 자산을 이 PIN 으로 엽니다. 기기마다 따로 정하고, 옛 화면의 잠금과 같은 PIN 을 씁니다.'],
     confirm: ['한 번 더', '같은 PIN 을 한 번 더 넣으세요.'],
     forgot: ['PIN 잊음', readMe()?.role === 'owner'
-      ? '마스터 입장 키가 맞는지 서버에 묻고, 맞으면 이 기기 PIN 만 지운 뒤 새로 정합니다. 키는 어디에도 남기지 않습니다.'
-      : '이 기기 PIN 은 이 기기에 들어온 모든 사람의 자료를 지킵니다. 잊었으면 이 기기 데이터를 지운 뒤 새로 정합니다.'],
+      ? '마스터 앱키가 맞는지 ecom에 묻고, 맞으면 이 기기 PIN 만 지운 뒤 새로 정합니다. 앱키는 어디에도 남기지 않습니다.'
+      : '이 기기 PIN 은 이 기기에 들어온 모든 사람의 자료를 지킵니다. 잊었으면 이 기기 자료를 지운 뒤 새로 정합니다.'],
   }[mode]
   const note = busy ? '확인 중' : waiting ? `PIN 을 ${readFail().n}번 틀렸습니다 · ${Math.ceil(left / 1000)}초 뒤 다시` : msg
 
@@ -130,7 +130,7 @@ export function PinGate({ children }: { children: ReactNode }) {
         <p role="alert" className="text-13 text-warn m-0">이 환경(https 아님)에서는 잠금을 쓸 수 없습니다. https 주소로 접속하세요.</p>
       ) : mode === 'forgot' ? (
         <Forgot onBack={() => { setMsg(''); setMode('unlock') }}
-          onCleared={() => { setPinText(''); setFirst(''); setLeft(0); setMsg('입장 키가 맞습니다. 새 PIN 을 정하세요.'); setMode('setup') }} />
+          onCleared={() => { setPinText(''); setFirst(''); setLeft(0); setMsg('앱키가 맞습니다. 새 PIN 을 정하세요.'); setMode('setup') }} />
       ) : (
         <PinInput value={pin} onChange={setPinText} onSubmit={submit} disabled={busy || waiting} label={head[0]} />
       )}
@@ -143,12 +143,12 @@ export function PinGate({ children }: { children: ReactNode }) {
 }
 
 const CHECK_ERR: Record<number, string> = {
-  401: '입장 키가 맞지 않습니다.',
+  401: '앱키가 맞지 않습니다.',
   429: '요청이 많습니다. 1분 뒤 다시 하세요.',
-  503: '서버에 입장 키가 설정되지 않았습니다.',
-  403: '이 주소에서 연 화면은 서버가 받지 않습니다.',
-  0: '서버에 닿지 못했습니다. 잠시 뒤 다시 하세요.',
-  [-1]: '서버 답을 확인하지 못했습니다. 잠시 뒤 다시 하세요.',
+  503: '앱키가 아직 설정되지 않았습니다.',
+  403: '이 주소에서 연 화면은 ecom이 받지 않습니다.',
+  0: 'ecom에 닿지 못했습니다. 잠시 뒤 다시 하세요.',
+  [-1]: 'ecom의 답을 확인하지 못했습니다. 잠시 뒤 다시 하세요.',
 }
 
 /**
@@ -168,23 +168,23 @@ function Forgot({ onCleared, onBack }: { onCleared: () => void; onBack: () => vo
     const typed = await keyHash(k).catch(() => null)
     const allowed = (serverOk: boolean) => pinResetAllowed({ typedHash: typed, currentHash: getKeyHash(), role: readMe()?.role, serverOk })
     // 이 기기에서 먼저 본다 — 마스터의 자기 키가 아니면 서버에 묻지도 않는다
-    if (allowed(true) !== 'clear') { setBusy(false); setMsg(typed ? '지금 들어와 있는 마스터의 입장 키가 아닙니다.' : '이 환경(https 아님)에서는 확인할 수 없습니다.'); return }
+    if (allowed(true) !== 'clear') { setBusy(false); setMsg(typed ? '지금 들어와 있는 마스터의 앱키가 아닙니다.' : '이 환경(https 아님)에서는 확인할 수 없습니다.'); return }
     const st = typed ? await syncKeyCheck(typed) : 0
     setBusy(false)
     if (allowed(st === 200) === 'clear') { clearPin(); onCleared() }
-    else setMsg(CHECK_ERR[st] ?? `서버가 받지 않았습니다(${st}).`)
+    else setMsg(CHECK_ERR[st] ?? `ecom이 받지 않았습니다(${st}).`)
   }
   const wipe = async () => {
     setBusy(true)
     // 푸시 구독 해지가 동기화 키 해시를 쓰므로 동기화를 끄기 전에 지운다(wipeDevice 안에서 해지)
-    if (!(await wipeDeviceAll(getKeyHash))) { setBusy(false); setStep(0); setMsg('이 기기 데이터를 지우지 못했습니다.'); return }
+    if (!(await wipeDeviceAll(getKeyHash))) { setBusy(false); setStep(0); setMsg('이 기기 자료를 지우지 못했습니다.'); return }
     disableSync(); clearPin(); location.reload()
   }
   return (
     <div>
       {owner && (
-        <form onSubmit={check} className="flex flex-wrap items-end gap-2" aria-label="입장 키로 PIN 지우기">
-          <Field label="마스터 입장 키" className="flex-1 min-w-48">
+        <form onSubmit={check} className="flex flex-wrap items-end gap-2" aria-label="앱키로 PIN 지우기">
+          <Field label="마스터 앱키" className="flex-1 min-w-48">
             <input type="password" autoComplete="off" className={INPUT} value={key} onChange={e => setKey(e.target.value)} />
           </Field>
           <button type="submit" disabled={busy || !key.trim()} className={BTN}>{busy && !step ? '확인 중' : '확인'}</button>
@@ -192,10 +192,10 @@ function Forgot({ onCleared, onBack }: { onCleared: () => void; onBack: () => vo
       )}
       <p role="alert" className={`${owner ? 'min-h-5 mt-2 mb-0' : 'empty:hidden m-0 mb-2'} text-12 text-warn`}>{msg}</p>
       <div className={`flex flex-col items-start gap-2 ${owner ? 'mt-3 pt-3 border-t border-line' : ''}`}>
-        <p className="m-0 text-12 text-ink-2">{owner ? '입장 키가 없으면 이 기기 데이터를 지운 뒤 새로 정해야 합니다.' : 'PIN 은 마스터만 입장 키로 지울 수 있습니다. 이 기기 데이터를 지운 뒤 새로 정하세요.'}</p>
-        {step === 0 && <button type="button" className={BTN2} onClick={() => setStep(1)}>이 기기 데이터 지우기</button>}
+        <p className="m-0 text-12 text-ink-2">{owner ? '앱키가 없으면 이 기기 자료를 지운 뒤 새로 정해야 합니다.' : 'PIN 은 마스터만 앱키로 지울 수 있습니다. 이 기기 자료를 지운 뒤 새로 정하세요.'}</p>
+        {step === 0 && <button type="button" className={BTN2} onClick={() => setStep(1)}>이 기기 자료 지우기</button>}
         {step === 1 && <>
-          <p className="m-0 text-13 text-ink-1">지울 것: 이 기기에 들어온 모든 사람의 보유 · 스냅샷 · 원장 · 관심 · 알림 조건 · 설정 · 렌즈 시나리오, 그리고 이 기기 PIN. 동기화를 끄고 이 기기의 폰 알림 구독도 끊습니다. 서버에 맡긴 것은 남습니다.</p>
+          <p className="m-0 text-13 text-ink-1">지울 것: 이 기기에 들어온 모든 사람의 보유 · 하루 평가 기록 · 입출금·배당 기록 · 관심 · 알림 조건 · 설정 · 렌즈 시나리오, 그리고 이 기기 PIN. 이 기기에서 나가고 폰 알림도 끊습니다. ecom에 저장된 것은 남습니다.</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={BTN2} onClick={() => setStep(2)}>계속</button>
             <button type="button" className={BTN2} onClick={() => setStep(0)}>그만두기</button>

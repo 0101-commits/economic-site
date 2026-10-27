@@ -195,7 +195,10 @@ KPI 카드 라벨을 `h3` 로 올리는 것도 틀렸다 — 그건 제목이 �
   `onOpen(id, panel)` 이 그린다. 열린 목록은 주소 `v=` 에 쉼표로 싣는다(`econFoldViewAxis`, ECON_VIEW). 렌더가 끝나면
   `econFoldReapply(hostId)` 로 열려 있던 것을 다시 편다. 상태는 렌더보다 먼저 살아야 딥링크의 `v=` 가 자료 도착 전에도 남는다.
 - **말 사전** — 상태어 {돌파 · 주시 · 정상 · 자료 없음}(`MER_LABELS.state`) · 방향어 {상방 · 하방 · 혼조}. 이모지 ·
-  한자 등급(高中低) · OW/UW · 호재/악재/혼재 는 쓰지 않는다. 상태 배지는 SEED badge tone critical/warning/neutral, 화면당 critical ≤3.
+  한자 등급(高中低) · OW/UW · 호재/악재/혼재 는 쓰지 않는다. 새 화면(`app/src`)의 이름 결정: **앱키**(예비용 = 예비 앱키) ·
+  **폰 알림**(구독 · 웹 푸시 아님) · **하루 평가 기록**(스냅샷 아님) · **입출금·배당 기록**(내 자산 원장) · **알림 기록**(알림 원장) ·
+  **자료**(데이터 아님) · **옛 화면**(현행 · 이전 화면 아님) · **만약에**(what-if 아님) · 서버 = 「ecom」 또는 문장에서 빼기 ·
+  동기화 · 맞추기 · 연결됨은 쓰지 않는다(`app/src/lib/copy.test.ts` 가 막는다). 금융 용어는 쉬운 이름 + 괄호 원어 1회(「위험 대비 수익(샤프)」). 상태 배지는 SEED badge tone critical/warning/neutral, 화면당 critical ≤3.
 - **딥링크 첫 도착** — `applyRealData` 말미가 보이는 원자재 탭을 다시 그린다(`?p=market&t=commodity` 로 곧장 오면
   차트 6개가 비어 있던 버그). `loadRealData` 의 활성 화면 재렌더는 두 번째 갱신부터만 돈다는 걸 기억할 것.
 - **화면 결론 줄은 한 함수가 쓴다** — `econLeadsRefresh()`(js/app1.js 끝, 화면별 `_lead*` 빌더 7개)가 목차 바로 아래

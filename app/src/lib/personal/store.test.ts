@@ -43,8 +43,8 @@ test('실제 읽기 · 쓰기 함수: 보유 · 스냅샷 · 원장이 사람 �
   assert.ok(store.has('portfolioV1:uX1') && store.has('pfLedgerV1:uX1') && store.has('pfSnapshotsV1:uX1'))
 })
 
-// 뒤 넷 = 편의 기록(보유 동기화 지문 · 연결 범위 · 최근 본 것 · 보유 시세 캐시) — 마스터는 옛 이름, 멤버는 이름:uid
-for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1', 'econHoldSync_v1', 'econSyncScope_v1', 'econSearchRecentV1', 'econHoldQuotes_v1'] as const) {
+// 뒤 다섯 = 편의 기록(보유 맞춘 기록 · 옛 범위 기록 · 설정 맞춘 기록 · 최근 본 것 · 보유 시세 캐시) — 마스터는 옛 이름, 멤버는 이름:uid
+for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1', 'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1', 'econSnapSync_v1'] as const) {
   test(`바꿔 써도 안 섞인다: ${base}`, () => {
     store.clear()
     const put = (b: ScopedBase, v: unknown) => write(storeKey(b), v)
@@ -57,14 +57,16 @@ for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1', 'econHo
 }
 
 const ALL_BASES = ['portfolioV1', 'pfSnapshotsV1', 'pfLedgerV1', 'econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1',
-  'econHoldSync_v1', 'econSyncScope_v1', 'econSearchRecentV1', 'econHoldQuotes_v1']
+  'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1', 'econSnapSync_v1']
+// 둘 다 바뀌어 진 쪽 한 벌(syncRules · holdSync) — 이름 + ':prev'
+const PREVS = ['portfolioV1', 'econPrefsV1']
 
 test('wipe 이름: 지금 사람 것만 — econ_fav_v1 은 마스터 · 나간 상태에서만', () => {
   as(X)
-  assert.deepEqual(scopedWipeNames(), ALL_BASES.map(b => `${b}:uX1`))
+  assert.deepEqual(scopedWipeNames(), [...ALL_BASES.map(b => `${b}:uX1`), ...PREVS.map(b => `${b}:uX1:prev`)])
   assert.equal(scopedWipeNames().includes('econ_fav_v1'), false)
   as(OWNER); assert.ok(scopedWipeNames().includes('econ_fav_v1')); assert.ok(scopedWipeNames().includes('portfolioV1'))
-  assert.deepEqual(scopedWipeNames().filter(n => n !== 'econ_fav_v1'), ALL_BASES, '마스터는 옛 이름 그대로')
+  assert.deepEqual(scopedWipeNames().filter(n => n !== 'econ_fav_v1'), [...ALL_BASES, ...PREVS.map(b => `${b}:prev`)], '마스터는 옛 이름 그대로')
   as(null); assert.ok(scopedWipeNames().includes('econ_fav_v1'))
 })
 
@@ -72,6 +74,7 @@ test('wipeAllPeople(PIN 잊음): 모든 사람의 키 · 마스터 기본 키 ·
   store.clear(); sess.clear(); as(OWNER)
   for (const b of ALL_BASES) { store.set(b, '1'); store.set(`${b}:uX1`, '1'); store.set(`${b}:uY2`, '1') }
   store.set('econ_fav_v1', '1'); store.set('econ_usage_v1', '1'); store.set('unrelated', '1')
+  for (const b of PREVS) { store.set(`${b}:prev`, '1'); store.set(`${b}:uX1:prev`, '1') }
   sess.set('econHoldQuotes_v1', '1'); sess.set('econHoldQuotes_v1:uX1', '1'); sess.set('sessUnrelated', '1')   // 시세 캐시는 sessionStorage
   setPendingPerson(X)
   assert.equal(wipeAllPeople(['econ_usage_v1']), true)
@@ -82,7 +85,7 @@ test('wipeAllPeople(PIN 잊음): 모든 사람의 키 · 마스터 기본 키 ·
 
 // ── signIn 이 연결(connectSync)을 하는 동안의 저장 이름 ──
 const HASH = 'a'.repeat(64)
-async function signInWith(me: { uid: string; name: string; role: 'owner' | 'member' }, answer: 'ok' | 'ask' | 'fail') {
+async function signInWith(me: { uid: string; name: string; role: 'owner' | 'member' }, answer: 'ok' | 'fail') {
   store.clear(); as(OWNER_PREV)
   const used: string[] = []
   const g = globalThis as unknown as { fetch: unknown }, saved = g.fetch
@@ -98,7 +101,7 @@ async function signInWith(me: { uid: string; name: string; role: 'owner' | 'memb
     },
     disableSync: () => {}, forgetDevice: async () => {},
   })
-  try { const r = await acct.signIn('ECOM-7KQ3-PX9M-2HTA'); return { r, used, acct, setHash: () => { hash = HASH } } } finally { g.fetch = saved }
+  try { const r = await acct.signIn('ECOM-7KQ3-PX9M-2HTA'); return { r, used } } finally { g.fetch = saved }
 }
 const OWNER_PREV = OWNER   // 이 기기에 먼저 들어와 있던 사람 = 마스터
 
@@ -122,15 +125,4 @@ test('signIn 실패(offline)면 pending 을 풀어 이전 사람 이름으로 �
   assert.deepEqual(t.used, ['econ_watch_v1:uM9', 'econPrefsV1:uM9', 'econ_scenarios_v1:uM9', 'portfolioV1:uM9'])
   assert.equal(storeKey('portfolioV1'), 'portfolioV1')        // 마스터 그대로
   assert.equal(JSON.parse(store.get(ME_KEY)!).uid, 'u0')
-})
-
-test('signIn ask: 답할 때까지 멤버 이름 · finish 면 me 저장 · cancel 이면 풀림', async () => {
-  const t = await signInWith({ uid: 'uM9', name: '민수', role: 'member' }, 'ask')
-  assert.equal(t.r, 'ask')
-  assert.equal(storeKey('portfolioV1'), 'portfolioV1:uM9')    // 아직 me 는 마스터지만 들어오는 중
-  t.setHash(); assert.equal(t.acct.finishSignIn(), true)
-  assert.equal(JSON.parse(store.get(ME_KEY)!).uid, 'uM9'); assert.equal(storeKey('portfolioV1'), 'portfolioV1:uM9')
-  const c = await signInWith({ uid: 'uM9', name: '민수', role: 'member' }, 'ask')
-  c.acct.cancelSignIn()
-  assert.equal(storeKey('portfolioV1'), 'portfolioV1')        // 마스터로 복귀
 })

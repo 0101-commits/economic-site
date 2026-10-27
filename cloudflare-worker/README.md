@@ -97,6 +97,7 @@ Yahoo VIX/MOVE, Stooq 시계열, CNN 공포·탐욕, 환율, 뉴스)를 안정�
   npx wrangler kv key delete --binding ECON_PORTFOLIO --remote auth:syncKeyHash
   ```
   시크릿 값도 모르면 새로 정합니다: `npx wrangler secret put ALERTS_SYNC_KEY`. 어느 쪽이든 각 기기의 🔑 에 그 키를 다시 넣습니다.
+  마스터가 앱에서 앱키를 바꾸면 GitHub 시크릿 `MASTER_HOLD_KEY` 도 새 앱키로 다시 정해야 합니다. 그대로 두면 매일 도는 스냅샷 작업이 복호화 실패로 멈춥니다.
 - **토큰 권한 분리(선택)** — `GH_ALERTS_TOKEN` 시크릿(Contents RW, 이 저장소 한정)을
   추가하면 `alerts_config.json` 커밋에는 그것만 쓰이고, `GH_DISPATCH_TOKEN` 은
   dispatch 전용으로 권한을 낮출 수 있습니다. 미설정 시 기존처럼 공용.

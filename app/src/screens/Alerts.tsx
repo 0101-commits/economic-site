@@ -1,5 +1,5 @@
 // 알림 — 기획서 v2 7장. 탭 셋: 받은 알림(원장) · 사건(꾸러미 → 갈래 → 사건 낱개 → 내 조건 → 새 조건) · 채널.
-// 폰 알림 · 동기화 키 · 받는 기기는 설정 「기기 연결」, 카톡은 설정 「고급」(명세 S5 · S7). 범위 문구는 sync.ts scopeText 두 벌.
+// 폰 알림 · 앱키 · 받는 기기는 설정 「내 계정」, 카톡은 설정 「고급」(명세 S5 · S7). 범위 문구는 sync.ts scopeText.
 // 받은 알림 = events/latest.json(원장 최근 7일). 원장이 아직 없으면(배포 전) 현행 발송 이력 alerts_state.json · 홈 묶음 렌즈 돌파 ·
 // 국내 시장 매매중단으로 그린다. 금액 · 보유 종목명은 싣지 않는다. 이 화면은 PinGate 밖이라 portfolioV1 을 읽지 않는다 —
 // 사용자 조건 줄의 이름은 이 기기 econPrefsV1.alerts 와 지표 사전에서만 찾는다(원장에는 조건 id 만 있다).
@@ -79,7 +79,7 @@ function legacyFeed(state: Record<string, unknown> | null, md: MarketData | null
       const timed = day === lastDay
       out.push({
         key: `${id}-${day}`, level: 'alert', mine: true, day, timed, at: timed ? r.ts! * 1000 : noonKst(day),
-        title: names.get(id) ?? (Object.hasOwn(pr, id) ? '다른 기기의 조건' : `현행 화면 조건 ${id}`),
+        title: names.get(id) ?? (Object.hasOwn(pr, id) ? '다른 기기의 조건' : `옛 화면 조건 ${id}`),
         why: cur != null && a?.value ? `지금 ${fmtNumber(cur, cur % 1 ? 2 : 0)} · 기준까지 ${fmtPct((a.value / cur - 1) * 100)}` : undefined,
         to: a ? toOf(a.target) : undefined,
       })
@@ -185,10 +185,10 @@ export default function Alerts() {
         <h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><Bell size={18} aria-hidden />알림</h1>
         <span className="text-12 text-ink-2">
           오늘 울림 <span className="num">{todays.filter(x => x.level !== 'notice' && x.level !== 'brief').length}</span> · 안내 <span className="num">{todays.filter(x => x.level === 'notice').length}</span>
-          {' · '}꾸러미 {PKG_OPTS.find(o => o.key === prefs.settings.package)?.label} · {scopeText(sync.on, pushOn)}
+          {' · '}알림 단계 {PKG_OPTS.find(o => o.key === prefs.settings.package)?.label} · {scopeText(sync.on, pushOn)}
         </span>
       </header>
-      {demoted > 0 && <p role="status" className="m-0 text-13 text-ink-1">90일 동안 알림 화면을 열지 않아 꾸러미를 「{PKG_OPTS[0].label}」로 내렸습니다({mdHm(new Date(demoted))}). 사건 탭에서 바꿀 수 있고, 저절로 내리지 않게 하려면 설정 › 고급에서 끕니다.</p>}
+      {demoted > 0 && <p role="status" className="m-0 text-13 text-ink-1">90일 동안 알림 화면을 열지 않아 알림 단계를 「{PKG_OPTS[0].label}」로 내렸습니다({mdHm(new Date(demoted))}). 사건 탭에서 바꿀 수 있고, 저절로 내리지 않게 하려면 설정 › 고급에서 끕니다.</p>}
 
       <SegBar label="알림 보기" options={TABS} value={tab} onChange={setTab} />
       {msg && <p role="alert" className="m-0 text-12 text-warn">{msg}</p>}
@@ -210,8 +210,8 @@ function Inbox({ feed, ledger, state, today, yesterday }: { feed: FeedRow[]; led
   const g = groupDays(feed, today, yesterday)
   const any = feed.some(x => passes(x, f))
   return (
-    <Panel title="지난 7일" source={ledger ? '사건 원장 · 생길 때마다 갱신' : '현행 발송 이력'}>
-      {ledger === null && <p className="m-0 mb-2 text-12 text-ink-3">원장이 아직 없습니다. 현행 발송 이력으로 보여 줍니다.</p>}
+    <Panel title="지난 7일" source={ledger ? '알림 기록 · 생길 때마다 갱신' : '옛 발송 기록'}>
+      {ledger === null && <p className="m-0 mb-2 text-12 text-ink-3">알림 기록이 아직 없습니다. 옛 발송 기록으로 보여 줍니다.</p>}
       {ledger === null && state === null && <p className="m-0 mb-2 text-12 text-warn">발송 이력도 불러오지 못했습니다.</p>}
       <div className="mb-3"><SegBar label="알림 거르기" options={FILTER_OPTS} value={f} onChange={setF} /></div>
       {ledger === undefined ? <p className="m-0 text-13 text-ink-3">불러오는 중</p> : !any ? (
@@ -223,7 +223,7 @@ function Inbox({ feed, ledger, state, today, yesterday }: { feed: FeedRow[]; led
           <DayGroup head="그 전" items={g.older} f={f} showDay />
         </div>
       )}
-      <p className="mt-3 mb-0 text-12 text-ink-3">내 조건 이름은 이 기기에 있는 조건에서 찾습니다. 다른 기기에서 만든 조건은 서버가 붙인 제목으로 보입니다.</p>
+      <p className="mt-3 mb-0 text-12 text-ink-3">내 조건 이름은 이 기기에 있는 조건에서 찾습니다. 다른 기기에서 만든 조건은 ecom이 붙인 제목으로 보입니다.</p>
     </Panel>
   )
 }
@@ -319,8 +319,8 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
   const next = want ? PACKAGE_PRESET[want] : null
   return (
     <>
-      <Panel title="꾸러미">
-        <SegBar label="꾸러미" options={PKG_OPTS} value={want ?? pkg} onChange={k => setWant(k === pkg ? null : k)} />
+      <Panel title="알림 단계">
+        <SegBar label="알림 단계" options={PKG_OPTS} value={want ?? pkg} onChange={k => setWant(k === pkg ? null : k)} />
         <p className="mt-2 mb-0 text-12 text-ink-2">{PKG_NOTE[want ?? pkg]}</p>
         {want && next ? (
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -328,7 +328,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
             <button type="button" className={BTN} onClick={() => { save({ ...prefs, settings: setPackage(prefs.settings, want) }); setWant(null) }}>바꾸기</button>
             <button type="button" className={BTN2} onClick={() => setWant(null)}>그만두기</button>
           </div>
-        ) : <p className="mt-1 mb-0 text-12 text-ink-3">꾸러미를 바꾸면 하루 상한과 브리핑이 따라 바뀝니다. 아래 사건마다 고친 세기 · 등급은 그대로 둡니다.</p>}
+        ) : <p className="mt-1 mb-0 text-12 text-ink-3">알림 단계를 바꾸면 하루 상한과 브리핑이 따라 바뀝니다. 아래 사건마다 고친 세기 · 등급은 그대로 둡니다.</p>}
       </Panel>
 
       <Panel title="사건 갈래" source="갈래를 누르면 사건마다 세기 · 등급">
@@ -353,10 +353,10 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
                       {EV.get(a.event)?.name ?? a.event} · {a.repeat === 'once' ? '한 번' : '매번'}{a.ring === false ? ' · 울림 꺼짐' : ''}
                       {show && <> · <span className={`num ${st.kind === 'rang' || st.kind === 'stopped' ? 'text-ink-1' : ''}`}>{st.text}</span></>}
                     </span>
-                    {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 동기화가 꺼져 있으면 눌러도 소용없다 */}
+                    {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 들어와 있지 않으면 눌러도 소용없다 */}
                     {st.kind === 'stopped' && (sync.on ? (
                       <button type="button" className={`${BTN2} mt-1`} aria-label={`${name} 다시 켜기`} onClick={() => setAlert(a.id, x => rearm(x, ledger, fired[a.id], Date.now(), cur(x.target)))}>다시 켜기</button>
-                    ) : <span className="block text-12 text-ink-3">설정 › 내 계정에서 연결하면 다시 켤 수 있습니다</span>)}
+                    ) : <span className="block text-12 text-ink-3">앱키로 다시 들어오면 다시 켤 수 있습니다</span>)}
                   </span>
                   <button type="button" onClick={() => put(prefs.alerts.filter(x => x.id !== a.id))} aria-label={`${name} 지우기`} title="지우기"
                     className="size-8 shrink-0 inline-flex items-center justify-center rounded-btn border-0 bg-transparent text-ink-3 hover:text-ink-1 cursor-pointer">
@@ -367,19 +367,19 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
             })}
           </ul>
         ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다. 지표 · 종목 상세의 벨이나 아래 「새 조건」에서 만듭니다.</p>}
-        <p className="mt-2 mb-0 text-12 text-ink-3">연결돼 있어야(설정 › 내 계정) 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
+        <p className="mt-2 mb-0 text-12 text-ink-3">같은 앱키로 들어온 기기끼리 조건이 저절로 같아지고, ecom이 이 조건을 보고 알림을 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
         <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add.map(a => armU1(a, cur(a.target)))])} />
       </Panel>
 
       <NewCondition rows={rows} labelOf={labelOf} sync={sync} full={prefs.alerts.length >= ALERT_CAP} onAdd={a => put([...prefs.alerts, armU1(a, cur(a.target))])} />
       <p className="m-0 text-12 text-ink-3">
-        현행 화면(<a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">보기</a>)에서 만든 조건은 알림 v2 로 바뀐 뒤 더 이상 울리지 않습니다. 위 「현행 조건 가져오기」로 옮기면 여기서 울립니다.
+        옛 화면(<a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">보기</a>)에서 만든 조건은 알림 v2 로 바뀐 뒤 더 이상 울리지 않습니다. 위 「옛 화면 조건 가져오기」로 옮기면 여기서 울립니다.
       </p>
     </>
   )
 }
 
-/** 현행 화면(공개 저장소 alerts_config.json)의 조건을 읽는다. 운영 사이트에는 그 파일이 올라가지 않으므로 동기화 키가 있으면 Worker /portfolio 로 읽고,
+/** 현행 화면(공개 저장소 alerts_config.json)의 조건을 읽는다. 운영 사이트에는 그 파일이 올라가지 않으므로 앱키 해시가 있으면 Worker /portfolio 로 읽고,
  *  키가 없으면 같은 출처의 파일을 시도한다(로컬 개발 서버에서만 읽힌다). */
 async function readLegacy(): Promise<{ rows: unknown[] } | { error: string }> {
   const h = getKeyHash()
@@ -387,10 +387,10 @@ async function readLegacy(): Promise<{ rows: unknown[] } | { error: string }> {
   if (h) {
     const g = await portfolioGet(h)
     if (g.ok) return { rows: g.alerts ?? [] }
-    why = g.status === 401 ? '입장 키가 맞지 않습니다.' : '서버에 닿지 못했습니다.'
+    why = g.status === 401 ? '앱키가 맞지 않습니다.' : 'ecom에 닿지 못했습니다.'
   }
   try { return { rows: (await loadRootJson<{ alerts?: unknown[] }>('alerts_config.json')).alerts ?? [] } } catch { /* 운영 사이트에는 없다 */ }
-  return { error: why || '현행 조건을 읽으려면 설정 › 내 계정에서 연결해야 합니다.' }
+  return { error: why || '옛 화면 조건을 읽으려면 앱키로 들어와야 합니다.' }
 }
 
 /** 「현행 조건 가져오기」: 읽기 → 미리보기(가져올 N · 건너뛸 M) → 확인하면 이 기기 조건에 더한다. 현행 화면의 조건은 그대로 둔다. */
@@ -414,17 +414,17 @@ function LegacyImport({ alerts, sync, onAdd }: { alerts: AlertCond[]; sync: Sync
   const skipped = pre ? pre.total - pre.add.length : 0
   return (
     <div className="mt-3 pt-3 border-t border-line">
-      {!pre && <button type="button" className={BTN2} disabled={busy} onClick={() => void read()}>{busy ? '읽는 중' : '현행 조건 가져오기'}</button>}
+      {!pre && <button type="button" className={BTN2} disabled={busy} onClick={() => void read()}>{busy ? '읽는 중' : '옛 화면 조건 가져오기'}</button>}
       {pre && (
-        <div className="flex flex-col gap-2" role="group" aria-label="현행 조건 가져오기 미리보기">
+        <div className="flex flex-col gap-2" role="group" aria-label="옛 화면 조건 가져오기 미리보기">
           <p className="m-0 text-13 text-ink-1">가져올 조건 <span className="num">{pre.add.length}</span>건 · 건너뜀 <span className="num">{skipped}</span>건 <span className="text-ink-3">(읽은 <span className="num">{pre.total}</span>건)</span></p>
           <ul className="m-0 pl-4 text-12 text-ink-2">
             {pre.dup > 0 && <li>이미 있거나 겹치는 조건 {pre.dup}건은 건너뜀(52주 신고가 · 신저가는 한 사건이라 대상당 한 건)</li>}
             {pre.cross > 0 && <li>골든/데드크로스 {pre.cross}건은 사전에 없어 가져오지 않음</li>}
             {pre.other > 0 && <li>그 밖의 종류 {pre.other}건은 가져오지 않음</li>}
             {pre.over > 0 && <li>조건은 100건까지라 {pre.over}건을 못 담음</li>}
-            {pre.add.some(a => a.event === 'U2') && <li>등락률 조건은 오름 · 내림 모두 봅니다(현행의 내림 전용은 ± 로 바뀜)</li>}
-            <li>현행 화면의 조건은 그대로 남습니다</li>
+            {pre.add.some(a => a.event === 'U2') && <li>등락률 조건은 오름 · 내림 모두 봅니다(옛 화면의 내림 전용은 ± 로 바뀜)</li>}
+            <li>옛 화면의 조건은 그대로 남습니다</li>
           </ul>
           <div className="flex flex-wrap gap-2">
             {pre.add.length > 0 && <button type="button" className={BTN} onClick={confirm}>{pre.add.length}건 가져오기</button>}
@@ -594,20 +594,20 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
 // ── 채널 ───────────────────────────────────────────
 
 const BRIEFS: { key: keyof Settings['briefings']; label: string }[] = [
-  { key: 'morning', label: '아침 07:30' }, { key: 'close', label: '마감 16:30 · 안내 묶음 포함' }, { key: 'noon', label: '점심 12:00' },
+  { key: 'morning', label: '아침 07:30' }, { key: 'close', label: '마감 16:30 · 안내 포함' }, { key: 'noon', label: '점심 12:00' },
   { key: 'evening', label: '저녁 확정 18:30' }, { key: 'us', label: '미국 개장 22:40' }, { key: 'weekly', label: '주간 토 09:00' },
 ]
 const RING_OPTS = [{ key: 'kakao', label: '카톡' }, { key: 'push', label: '폰' }, { key: 'both', label: '둘 다' }] as const
 const CAP_OPTS = [{ key: '3', label: '3' }, { key: '6', label: '6' }, { key: '12', label: '12' }] as const
 
-/** 채널: 울림 채널 · 하루 상한 · 조용한 시간 · 브리핑 · 카톡 기록. 폰 알림 · 동기화 키 · 받는 기기는 설정 「기기 연결」, 카톡은 설정 「고급」. */
+/** 채널: 울림 채널 · 하루 상한 · 조용한 시간 · 브리핑 · 카톡 기록. 폰 알림 · 앱키 · 받는 기기는 설정 「내 계정」, 카톡은 설정 「고급」. */
 function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) => void }) {
   const s = prefs.settings
   const quiet = s.quiet
   const setQuiet = (q: Settings['quiet']) => setS({ quiet: q })
   return (
     <>
-      <p className="m-0 text-12 text-ink-2">폰 알림 · 입장 키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 내 계정</Link>에서</p>
+      <p className="m-0 text-12 text-ink-2">폰 알림 · 앱키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 내 계정</Link>에서</p>
       <div className="grid grid-cols-1 pc:grid-cols-2 gap-4 items-start">
         <Panel title="울림 채널 · 하루 상한">
           <SegBar label="울림 채널" options={RING_OPTS} value={s.ringChannel} onChange={v => setS({ ringChannel: v })} />
@@ -636,7 +636,7 @@ function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) 
               <li key={b.key}><Switch on={s.briefings[b.key]} onChange={v => setS({ briefings: { ...s.briefings, [b.key]: v } })} label={b.label} /></li>
             ))}
           </ul>
-          <p className="mt-2 mb-0 text-12 text-ink-3">꾸러미를 바꾸면 이 묶음도 그 꾸러미 값으로 바뀝니다.</p>
+          <p className="mt-2 mb-0 text-12 text-ink-3">알림 단계를 바꾸면 이 브리핑도 그 단계 값으로 바뀝니다.</p>
         </Panel>
         <Panel title="카톡 기록">
           <p className="m-0 text-13 text-ink-2">모든 알림이 카톡 「나와의 채팅」에도 쌓입니다. 이 화면에서 바꾸는 것은 없습니다.</p>

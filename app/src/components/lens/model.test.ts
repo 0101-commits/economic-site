@@ -81,3 +81,11 @@ test('shortLabel · josaRo', () => {
   assert.equal(shortLabel('금'), '금')
   assert.deepEqual(['유동성', '정책', '지정학', '관세', '금리발작', '엔캐리 청산', '물'].map(josaRo), ['으로', '으로', '으로', '로', '으로', '으로', '로'])
 })
+
+test('TrigPill: 기준 없음(nolevel)은 「기준 없음」 알약, 자료 없음(unknown)은 알약 없음', () => {
+  const src = readFileSync(new URL('./parts.tsx', import.meta.url), 'utf8')
+  assert.match(src, /nolevel: \['o', '기준 없음'\]/)
+  assert.doesNotMatch(src, /nolevel: \['o', '자료 없음'\]/)
+  assert.match(src, /if \(!k \|\| !\(k in TONE\)\) return null/)
+  assert.match(readFileSync(new URL('../../screens/Lens.tsx', import.meta.url), 'utf8'), /기준 없음 \$\{nolevel\}개/)
+})

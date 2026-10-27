@@ -14,7 +14,7 @@ import Detail from './screens/Detail'
 import Settings from './screens/Settings'
 import Welcome from './screens/Welcome'
 import Members from './screens/Members'
-import { BrandMark, BrandWord } from './components/Brand'
+import { BrandLockup } from './components/Brand'
 import { PinGate } from './components/PinGate'
 import { MovedBanner } from './components/MovedBanner'
 import { Boundary, Pill } from './components/ui'
@@ -29,7 +29,8 @@ import { applyTheme, useTheme, type Theme } from './lib/theme'
 import { countUse, screenKey } from './lib/usage'
 import { loadBundle, useBundleRev, useNewBuild, watchBundles, type Meta } from './lib/bundle'
 import { haltLine, type Halt } from './lib/refresh'
-import { useHasKey } from './lib/personal/sync'
+import { useHasKey, useSyncStatus } from './lib/personal/sync'
+import { ensureTodaySnap } from './lib/personal/snapDaily'
 import { keyWasLost, useMe } from './lib/personal/account'
 import { gateRedirect } from './lib/welcome'
 import { publicLedger } from './lib/alerts/v2'
@@ -162,6 +163,9 @@ function Shell() {
   // 401 로 끊겼으면 why=lost, 멈춘 사람이면 why=paused — 키 해시 · me 가 바뀌는 순간 다시 그려 바로 보낸다(다음 이동을 기다리지 않는다).
   // 입장 화면엔 머리줄 · 하단 탭 · 오른쪽 패널이 없다.
   const hasKey = useHasKey()
+  // 오늘 스냅샷(한국 날짜)을 앱을 열 때 하루 한 번 — 어느 화면이든. 새 기기는 보유를 받은 뒤(holdRev)에 다시 본다. 하루에 한 번 남기면 더는 하지 않는다(snapDaily.ts).
+  const { holdRev } = useSyncStatus()
+  useEffect(() => { if (hasKey) void ensureTodaySnap() }, [hasKey, holdRev])
   const welcome = pathname === '/welcome'
   const gate = gateRedirect({ path: pathname, query, hash: hasKey, paused: me?.status === 'paused', lost: keyWasLost() })
   if (gate) return <Navigate to={gate} replace />
@@ -170,7 +174,7 @@ function Shell() {
       {/* PC 상단 */}
       {!welcome && <header className="hidden pc:block bg-card border-b border-line">
         <div className="mx-auto max-w-[1200px] px-4 h-14 flex items-stretch gap-6">
-          <Link to="/" aria-label="ECOM 홈" className="self-center inline-flex items-center gap-1.5 text-brand-logo no-underline"><BrandMark className="h-[22px] w-auto" /><BrandWord className="h-[15px] w-auto" /></Link>
+          <Link to="/" aria-label="ECOM 홈" className="self-center inline-flex shrink-0 items-center text-brand-logo no-underline"><BrandLockup className="h-[26px] w-auto" /></Link>
           <nav aria-label="주 메뉴" className="flex gap-5">
             {TABS.map(({ to, label, icon: Icon }) => (
               <NavLink key={to} to={to} end={to === '/'}
@@ -191,7 +195,7 @@ function Shell() {
 
       {/* 모바일 상단: 이름 + 검색 + 톱니 */}
       {!welcome && <header className="pc:hidden bg-card border-b border-line px-4 h-12 flex items-center gap-2">
-        <Link to="/" aria-label="ECOM 홈" className="mr-auto inline-flex items-center gap-1.5 text-brand-logo no-underline"><BrandMark className="h-[22px] w-auto" /><BrandWord className="h-[15px] w-auto" /></Link>
+        <Link to="/" aria-label="ECOM 홈" className="mr-auto inline-flex shrink-0 items-center text-brand-logo no-underline"><BrandLockup className="h-[26px] w-auto" /></Link>
         <SearchButton compact onOpen={() => setSearch(true)} />
         <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
         <ThemeButton />

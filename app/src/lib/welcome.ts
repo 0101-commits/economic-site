@@ -10,8 +10,8 @@ export function safeNext(next: string | null): string {
 /** 입장 화면으로 보낸 까닭 — paused = 서버가 멈춤(403)으로 답함 · lost = 키가 안 맞아(401) 끊김(재발급 · 삭제). */
 export type Why = 'paused' | 'lost'
 const WHY_TEXT: Record<Why, string> = {
-  paused: '멈춘 키입니다. 모임 운영자에게 문의해 주세요.',
-  lost: '키가 바뀌었거나 지워졌습니다. 운영자에게 새 키를 받으세요',
+  paused: '멈춘 앱키입니다. 모임 운영자에게 문의해 주세요.',
+  lost: '앱키가 바뀌었거나 지워졌습니다. 운영자에게 새 앱키를 받으세요',
 }
 /** 주소의 why → 입장 화면 첫 줄. 모르는 값 · 없음은 ''. */
 export function whyText(why: string | null): string {

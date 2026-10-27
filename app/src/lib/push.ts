@@ -25,9 +25,9 @@ export async function pushSubscribed(): Promise<boolean> {
 }
 
 const MSG: Record<number, string> = {
-  401: '입장 키가 맞지 않습니다. 설정에서 다시 넣으세요.',
+  401: '앱키가 맞지 않습니다. 앱키로 다시 들어와 주세요.',
   429: '요청이 많습니다. 잠시 뒤 다시 하세요.',
-  503: '서버에 푸시가 아직 준비되지 않았습니다.',
+  503: '폰 알림이 아직 준비되지 않았습니다.',
 }
 async function call(method: string, path: string, hash: string | null, body?: unknown) {
   const headers: Record<string, string> = {}
@@ -36,7 +36,7 @@ async function call(method: string, path: string, hash: string | null, body?: un
   // 15초 상한 — 이 기기 지우기(store.wipeDevice)가 해지 응답을 기다리다 멈추지 않게
   const r = await fetch(WORKER + path, { method, headers, cache: 'no-store', body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000) })
   const j = await r.json().catch(() => ({}))
-  if (!r.ok) throw new Error(MSG[r.status] ?? `서버 오류(${r.status})`)
+  if (!r.ok) throw new Error(MSG[r.status] ?? `ecom 오류(${r.status})`)
   return j
 }
 
@@ -49,9 +49,9 @@ const sameKey = (a: ArrayBuffer | null | undefined, b: Uint8Array) =>
 
 /** 이 기기를 구독해 서버에 저장한다. 실패하면 화면에 그대로 적을 우리말 메시지로 던진다. */
 export async function subscribePush(getKeyHash: GetKeyHash): Promise<void> {
-  if (!pushSupported()) throw new Error('이 브라우저는 웹 푸시를 지원하지 않습니다.')
+  if (!pushSupported()) throw new Error('이 브라우저는 폰 알림을 지원하지 않습니다.')
   const hash = await getKeyHash()
-  if (!hash) throw new Error('설정에서 입장 키를 먼저 넣으세요.')
+  if (!hash) throw new Error('앱키로 먼저 들어와 주세요.')
   if ((await Notification.requestPermission()) !== 'granted') throw new Error('알림이 막혀 있습니다. 브라우저 사이트 설정에서 허락하세요.')
   if (!(await registerSW())) throw new Error('서비스 워커를 등록하지 못했습니다.')
   const reg = await navigator.serviceWorker.ready
@@ -62,7 +62,7 @@ export async function subscribePush(getKeyHash: GetKeyHash): Promise<void> {
   if (sub && !sameKey(sub.options.applicationServerKey, key)) { await sub.unsubscribe(); sub = null }
   sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }).catch((e: unknown) => {
     console.warn('[push] 구독 실패', e)   // 브라우저 원문(영문)은 콘솔에만
-    throw new Error('이 브라우저에서 푸시 구독을 만들지 못했습니다. 시크릿 창이면 일반 창에서 여세요.')
+    throw new Error('이 브라우저에서 폰 알림을 켜지 못했습니다. 시크릿 창이면 일반 창에서 여세요.')
   })
   await call('PUT', '/push/subscribe', hash, sub.toJSON())
 }

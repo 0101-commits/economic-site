@@ -121,10 +121,10 @@ test('저장 직후 한 줄: 동기화가 꺼져 있으면 이 기기에만, 켜
   const at = Date.parse('2026-10-05T09:05:00+09:00')
   assert.equal(savedNote({ on: true, at: null }, 0), '')
   assert.match(savedNote({ on: false, at: null }, at), /^저장했습니다 · 이 기기만 — 울리지 않음/)
-  assert.equal(savedNote({ on: true, at: null }, at), '저장했습니다 · 서버로 올리는 중')
-  assert.equal(savedNote({ on: true, at: at - 1000 }, at), '저장했습니다 · 서버로 올리는 중')
-  assert.equal(savedNote({ on: true, at: at + 3000 }, at), '저장했습니다 · 서버에 올라감 09:05')
-  assert.equal(savedNote({ on: true, at: at + 3000 }, at, '3건 가져왔습니다'), '3건 가져왔습니다 · 서버에 올라감 09:05')
+  assert.equal(savedNote({ on: true, at: null }, at), '저장했습니다 · 저장하는 중')
+  assert.equal(savedNote({ on: true, at: at - 1000 }, at), '저장했습니다 · 저장하는 중')
+  assert.equal(savedNote({ on: true, at: at + 3000 }, at), '저장했습니다 · 자동 저장됨 09:05')
+  assert.equal(savedNote({ on: true, at: at + 3000 }, at, '3건 가져왔습니다'), '3건 가져왔습니다 · 자동 저장됨 09:05')
 })
 
 test('memberView: 공개 원장의 사람 행(cond · U* · BUNDLE)은 빼고, 내 울림(/fired)을 「내 조건」으로 더하고, 조건별 울림 기록을 만든다', () => {

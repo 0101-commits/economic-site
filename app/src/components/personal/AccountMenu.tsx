@@ -47,7 +47,7 @@ export function AccountMenu() {
             <button type="button" role="menuitem" onClick={() => setSure(true)} className={`${ITEM} border-t border-line`}>이 기기에서 나가기</button>
           ) : (
             <div className="px-3 py-2 border-t border-line flex flex-col gap-2">
-              <p role="alert" className="m-0 text-12 text-ink-2">이 기기에서 나가면 입장 키를 다시 넣어야 합니다. 기기 안 기록은 남습니다.</p>
+              <p role="alert" className="m-0 text-12 text-ink-2">이 기기에서 나가면 앱키를 다시 넣어야 합니다. 기기 안 기록은 남습니다.</p>
               <div className="flex gap-2">
                 <button type="button" disabled={busy} onClick={() => void leave()} className={BTN}>{busy ? '나가는 중' : '나가기'}</button>
                 <button type="button" disabled={busy} onClick={() => setSure(false)} className={BTN2}>그만두기</button>

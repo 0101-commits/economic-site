@@ -158,7 +158,7 @@ export async function deleteUser(env, uid) {
   if (u.role === 'owner') return { status: 403, error: 'owner_undeletable' };
   await kvDel(env, `ukey:${u.keyHash}`);
   if (u.backupKeyHash) await kvDel(env, `ukey:${u.backupKeyHash}`);
-  for (const p of ['prefs', 'push', 'hold', 'fired', 'aiq', 'seen']) await kvDel(env, `${p}:${uid}`);
+  for (const p of ['prefs', 'push', 'hold', 'snaps', 'fired', 'aiq', 'seen']) await kvDel(env, `${p}:${uid}`);
   await kvDel(env, `user:${uid}`);
   const index = ((await readIndex(env)) || []).filter(x => x !== uid);
   await kvPut(env, 'users:index', index);

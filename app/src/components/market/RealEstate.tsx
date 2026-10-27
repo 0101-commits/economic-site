@@ -146,7 +146,7 @@ export default function RealEstate({ b, selId, setS }: BodyProps<RealEstateBundl
               { key: 'nat', label: '전국', value: nat },
               ...CAPITAL.map(c => ({ key: c.key, label: c.label, value: reg.get(c.key) ?? null })),
             ]} />
-            <p className="m-0 mt-2 text-11 text-ink-3">전국 = 아파트 매매지수 전월비(묶음 kr), 시도 = 지역별 표</p>
+            <p className="m-0 mt-2 text-11 text-ink-3">전국 = 아파트 매매지수 전월비, 시도 = 지역별 표</p>
           </Panel>
         )
       },
@@ -160,7 +160,7 @@ export default function RealEstate({ b, selId, setS }: BodyProps<RealEstateBundl
               <>
                 <Heatmap label="시도별 매매가격지수 전월비" minCell={72} cells={regions.map(x => ({ key: x.code, name: x.name ?? x.code, value: x.chgPct }))}
                   onPick={c => setPick(c.key)} />
-                <p className="m-0 mt-2 text-11 text-ink-3">칸을 누르면 그 시도의 지수 흐름이 차트에 나옵니다.</p>
+                <p className="m-0 mt-2 text-11 text-ink-3">시도를 누르면 그 지역의 지수 흐름이 차트에 나옵니다.</p>
                 {vw?.regionSub?.items[pick] && (
                   <button type="button" onClick={() => { setSido(pick); setV('sigungu') }}
                     className="mt-2 h-8 px-3 rounded-btn border border-line bg-card text-13 text-ink-2 hover:text-ink-1 cursor-pointer">{name} 시군구 표 보기</button>

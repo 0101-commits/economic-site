@@ -1,11 +1,13 @@
 // 이 기기 저장소(localStorage) 한 곳. 키와 모양:
 //   portfolioV1   = { groups, items: Holding[], alerts, lastSync, ... }  현행 사이트(js/app2.js)와 같은 문서. 모르는 필드는 그대로 둔다.
-//   pfSnapshotsV1 = [{ d:'YYYY-MM-DD', ev, ct }]                          현행과 같음. 날짜는 현행처럼 UTC 기준(두 화면이 같은 날을 같은 칸에 쓴다).
+//   pfSnapshotsV1 = [{ d:'YYYY-MM-DD', ev, ct, src? }]                   현행과 같음 + src('app' 앱이 낸 값 · 'close' 마스터 작업 종가 값). 날짜는 한국 날짜(옛 판의 UTC 날짜 칸은 그대로 둔다).
+//                   앱을 열 때 하루 한 번(snapDaily.ts) 남기고, 서버(/snaps — 보유와 같은 열쇠로 잠금)와 날짜별로 합친다(snapSync.ts · snapRules.ts).
 //   pfLedgerV1    = [{ id, d, kind:'div'|'dep'|'wd', amt, memo }]         현행과 같음. 서버로 보내지 않는다.
 //   econPrefsV1   = { v:2, alerts, settings, scenarios }                  새 화면 전용. 모양은 Worker /prefs 문서와 같다(올리고 받는 것은 sync.ts).
 //                   열쇠 이름은 v1 그대로 — 읽을 때 v1 문서를 v2 로 바꾼다(prefsV2.ts).
 //   econAlertsHk_v1 = { since, ring, off, demoted }                       알림 자동 정리(housekeeping.ts). 이 기기에만.
-//   econHoldKey_v1 = 보유 열쇠 재료 hex(sync.ts — 동기화 키에서 만든 것, 기억 해시와 같은 수명) · econSyncScope_v1 = 기기 연결 범위 { prefs, hold }.
+//   econHoldKey_v1 = 보유 재료 hex(sync.ts — 앱키에서 만든 것, 기억 해시와 같은 수명). 맞춘 기록은 econPrefsSync_v1(sync.ts) · econHoldSync_v1(holdSync.ts),
+//                   둘 다 바뀌어 진 쪽 한 벌은 econPrefsV1:prev · portfolioV1:prev(scoped.ts keepPrev). 옛 범위 기록 econSyncScope_v1 은 읽지 않는다.
 //   econSearchRecentV1 = [{ label, to, kind }]                            「최근 본 것」(검색 · 오른쪽 패널) — 검색에서 고른 것 + 상세를 연 것(recent.ts).
 //   econRail_v1   = { open, tab }                                         오른쪽 패널(components/Rail.tsx) 펼침 · 고른 탭.
 // 보유 금액이 든 읽기(readPortfolio·readSnaps·readLedger)는 PinGate 안의 화면과, 잠금이 열린 뒤의 내려받기에서만 부른다.
@@ -18,6 +20,8 @@ import { unsubscribePush, type GetKeyHash } from '../push'
 import { applyTheme, readTheme } from '../theme'
 import type { MyData } from './backup'
 import { storeKey } from './who'
+import { kstDate } from './snapRules'
+import { noteHoldEdit } from './holdSync'
 import { read, write, readPortfolio, writePortfolio, readSnaps, writeSnaps, readLedger, writeLedger, scopedWipeNames, wipeAllPeople } from './scoped'
 export { readPortfolio, writePortfolio, readSnaps, readLedger, writeLedger }
 export type { Portfolio, Ledger } from './scoped'
@@ -27,21 +31,24 @@ export { storeKey }
 
 export const KEYS = {
   // 보유 · 스냅샷 · 원장 · 설정 · 관심 · 시나리오는 사람마다 이름이 갈린다 → who.ts storeKey(). 여기엔 두지 않는다.
-  // recent · holdSync · scope(와 quotes.ts 시세 캐시)도 사람마다 갈린다 — 쓰는 곳은 이 이름을 storeKey() 로 감싸 쓴다(마스터는 이 이름 그대로).
+  // recent(와 quotes.ts 시세 캐시 · 맞춘 기록)도 사람마다 갈린다 — 쓰는 곳은 이 이름을 storeKey() 로 감싸 쓴다(마스터는 이 이름 그대로).
   recent: 'econSearchRecentV1', theme: 'econNextTheme_v1',
-  holdSync: 'econHoldSync_v1',   // 보유 동기화 기록(sync.ts) — 지문·시각만, 보유 값 없음
   hk: 'econAlertsHk_v1',         // 알림 자동 정리 기록(housekeeping.ts) — 조건 id · 시각만
-  holdKey: 'econHoldKey_v1',     // 보유 열쇠 재료(sync.ts) — 동기화 키에서 만든 hex
-  scope: 'econSyncScope_v1',     // 기기 연결 범위(sync.ts)
+  holdKey: 'econHoldKey_v1',     // 보유 재료(sync.ts) — 앱키에서 만든 hex
   rail: 'econRail_v1',           // 오른쪽 패널 펼침 · 탭(components/Rail.tsx)
 } as const
 
 // ── 보유 ──────────────────────────────────────────────
 export const newId = (prefix: string) => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 
-/** 오늘(UTC 날짜) 스냅샷 한 건을 넣는다. 같은 날은 바꿔 넣으므로 하루 1건. */
+/**
+ * 오늘(한국 날짜) 스냅샷 한 건을 앱이 낸 값(src:'app')으로 넣는다. 하루 1건 — 오늘 칸이 이미 있으면(다른 기기 · 마스터 작업의 종가 값 포함) 덮지 않는다.
+ * 서버로 올리는 것은 sync.ts syncSnaps.
+ */
 export function saveTodaySnap(ev: number, ct: number): Snap[] {
-  const next = upsertSnap(readSnaps(), { d: new Date().toISOString().slice(0, 10), ev: Math.round(ev), ct: Math.round(ct) })
+  const cur = readSnaps(), d = kstDate()
+  if (cur.some(s => s.d === d)) return cur
+  const next = upsertSnap(cur, { d, ev: Math.round(ev), ct: Math.round(ct), src: 'app' })
   writeSnaps(next)
   return next
 }
@@ -105,7 +112,8 @@ export function readMyData(): MyData {
 }
 /**
  * 올리기: 파일에 있는 칸만 이 기기에 쓴다(이전 화면 백업은 보유 · 스냅샷만). 실패가 하나라도 있으면 false.
- * 다른 화면은 storage 이벤트로 다시 읽는다(sync.ts writeLocal 과 같은 길). 기기 연결이 켜져 있으면 sync.ts 감시가 바뀐 것을 서버에 올린다.
+ * 다른 화면은 storage 이벤트로 다시 읽는다(sync.ts writeLocal 과 같은 길). 설정은 sync.ts 감시가 바뀐 것을 올리고,
+ * 보유는 「이 기기에서 바꿈」으로 적어 두어(noteHoldEdit) 다음 맞춤이 이 파일 것을 나중 것으로 올린다.
  */
 export function writeMyData(d: Partial<MyData>): boolean {
   const puts: [string, unknown][] = [[storeKey('portfolioV1'), d.portfolio], [storeKey('pfSnapshotsV1'), d.snapshots], [storeKey('econ_watch_v1'), d.watch], [storeKey('econ_scenarios_v1'), d.scenarios],
@@ -113,6 +121,7 @@ export function writeMyData(d: Partial<MyData>): boolean {
   const done = puts.filter(([, v]) => v !== undefined)
   let ok = done.map(([k, v]) => write(k, v)).every(Boolean)
   if (d.ledger) { ok = writeLedger(d.ledger) && ok; done.push([storeKey('pfLedgerV1'), d.ledger]) }
+  if (d.portfolio) noteHoldEdit()
   if (d.theme) applyTheme(d.theme)
   if (d.prefs) applyUpdown(d.prefs.settings.updown)
   for (const [key] of done) window.dispatchEvent(new StorageEvent('storage', { key }))
@@ -132,8 +141,8 @@ export function noteRecent(id: string) {
 
 /**
  * 이 기기 데이터 지우기 대상. 잠금 PIN 은 남긴다(설정 화면이 그렇다고 적는다 — PIN 잊음에서 지울 때는 PinGate 가 따로 지운다).
- * 현행 화면(js/app2.js)의 동기화 키 해시 · 보유 암호(pfSyncKey* · pfHoldingsPass)도 지운다 — 예전 판은 localStorage 에, 지금 판은 이 탭 sessionStorage 에 둔다.
- * 최근 본 것 · 보유 동기화 기록 · 연결 범위 · 보유 시세 캐시(quotes.ts, sessionStorage — 종목 목록이 드러난다)는 사람별 이름이라 scopedWipeNames 에 든다.
+ * 옛 화면(js/app2.js)의 앱키 해시 · 평단가 암호(pfSyncKey* · pfHoldingsPass)도 지운다 — 예전 판은 localStorage 에, 지금 판은 이 탭 sessionStorage 에 둔다.
+ * 최근 본 것 · 맞춘 기록 · 옛 범위 기록 · 진 쪽 한 벌 · 보유 시세 캐시(quotes.ts, sessionStorage — 종목 목록이 드러난다)는 사람별 이름이라 scopedWipeNames 에 든다.
  */
 export const wipeKeys = () => [...scopedWipeNames(), KEYS.theme, KEYS.hk, KEYS.holdKey, KEYS.rail,
   'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econAlertsSeen_v1', 'econ_fold_v1', 'econ_usage_v1', 'econ_home_cache_v1']

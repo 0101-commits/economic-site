@@ -59,7 +59,7 @@ export default function ChainView({ b }: { b: LensBundle }) {
                     {v ? <span className="num text-13 text-ink-1">{v}</span> : st.t && <span className="text-11 text-ink-3">자료 없음</span>}
                     {st.t?.asOf && <span className="num text-11 text-ink-3">{asOfText(st.t.asOf)}</span>}
                     <TrigPill t={st.t} />
-                    <span className="text-11 text-ink-3">{STEP_WORD[st.state]}{st.repeat ? ' · 처음 칸으로 되돌아옴' : ''}</span>
+                    <span className="text-11 text-ink-3">{STEP_WORD[st.state]}{st.repeat ? ' · 처음 단계로 되돌아옴' : ''}</span>
                   </div>
                 </li>
               )
@@ -100,7 +100,7 @@ export default function ChainView({ b }: { b: LensBundle }) {
                 </ul>
               </details>
             ) : <span className="text-12 text-ink-3">글 {cur.c.n ?? 0}편 · 원문 목록 준비 중</span>}
-            {first && <Link to={`/lens?m=whatif&s=${first}`} className={btn()}>만약에에서 열기</Link>}
+            {first && <Link to={`/lens?m=whatif&s=${first}`} className={btn()}>만약에 보기로 열기</Link>}
           </div>
         </Panel>
 

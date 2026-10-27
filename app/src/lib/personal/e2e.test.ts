@@ -1,12 +1,13 @@
 // 자가검사: npm test --prefix app — 보유 암호 덩어리 왕복 · 현행 화면(js/app2.js)과 양방향 호환 · 어느 쪽을 쓸지 · 받기 뒤 지문
-// · 보유 열쇠 재료(D9 a) 결정성 · 예전 암호 사본 이전 판정 · 자동 맞춤이 묻지 않고 할 일
+// · 보유 열쇠 재료(D9 a) 결정성 · 예전 암호 사본 이전 판정. 어느 쪽을 남길지는 syncRules.test.ts · holdSync.test.ts.
 // 현행 쪽 코드는 js/app2.js pfBuildEncHoldings · pfApplyEncHoldings 를 줄여 옮긴 것이다(가짜 자료만 쓴다).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { pbkdf2Sync } from 'node:crypto'
-import { applyEntries, autoStep, decide, decrypt, decryptAs, encrypt, entriesOf, fingerprint, holdKeyOf, ITER, openBlob, passProblem, relockBlob, type EncBlob, type Entry } from './e2e.ts'
+import { applyEntries, decrypt, decryptAs, encrypt, entriesOf, fingerprint, holdKeyOf, ITER, openBlob, relockBlob, type EncBlob, type Entry } from './e2e.ts'
 
 const PASS = 'test-pass-1234'
+const noName = (es: Entry[]): Entry[] => es.map(({ n: _n, ...e }) => e)
 type Row = { id: string; symbol: string; market: string; name: string; avg: number | null; qty: number | null; fxBuy?: number | null }
 const items: Row[] = [
   { id: 'i1', symbol: '005930', market: 'KR', name: '가짜 A', avg: 70000, qty: 10, fxBuy: null },
@@ -60,7 +61,7 @@ test('현행 화면이 만든 덩어리를 새 화면이 푼다(올린 시각은
   const blob = await legacyBuild(items, PASS)
   const { entries, at } = await decrypt(blob, PASS)
   assert.equal(at, null)
-  assert.deepEqual(entries, entriesOf(items))
+  assert.deepEqual(entries, noName(entriesOf(items)))   // 현행 화면 덩어리엔 이름(n)이 없다
 })
 
 test('새 화면이 만든 덩어리를 현행 방식으로 푼다 · Worker 가 받는 모양', async () => {
@@ -68,19 +69,6 @@ test('새 화면이 만든 덩어리를 현행 방식으로 푼다 · Worker 가
   assert.ok(workerAccepts(blob))
   assert.deepEqual(Object.keys(blob).sort(), ['alg', 'ciphertext', 'iter', 'iv', 'kdf', 'salt'])
   assert.equal(await legacyApply(blob, PASS, items), 2)   // 시각 칸 { t } 는 현행이 건너뛴다
-})
-
-test('decide: 지문으로 어느 쪽을 쓸지', () => {
-  const L = { fp: 'L', n: 2 }, S = { fp: 'S', n: 3 }
-  assert.equal(decide(L, null, null), 'push')                      // 서버에 없음
-  assert.equal(decide({ fp: 'E', n: 0 }, null, null), 'none')      // 둘 다 없음
-  assert.equal(decide(L, { fp: 'L', n: 2 }, null), 'same')
-  assert.equal(decide(L, S, 'L'), 'pull')                          // 이 기기는 그대로 · 서버가 바뀜
-  assert.equal(decide(L, S, 'S'), 'push')                          // 서버는 그대로 · 이 기기가 바뀜
-  assert.equal(decide({ fp: 'E', n: 0 }, S, 'S'), 'push')          // 이 기기에서 다 지운 것도 올린다
-  assert.equal(decide({ fp: 'E', n: 0 }, S, null), 'pull')         // 새 기기
-  assert.equal(decide(L, S, null), 'conflict')
-  assert.equal(decide(L, S, 'X'), 'conflict')                      // 둘 다 바뀜
 })
 
 test('받기: 서버 값으로 바꾸고 · 없는 종목은 비우고 · 새 종목은 더한다 → 지문이 서버와 같다', async () => {
@@ -96,23 +84,13 @@ test('끝 공백 암호: 현행이 친 그대로 잠근 덩어리는 원문으�
   const raw = await legacyBuild(items, 'pass-1234 ')   // 현행 설정 경로는 공백을 빼지 않고 저장한다
   const a = await decryptAs(raw, 'pass-1234 ')
   assert.equal(a.pass, 'pass-1234 ')                  // 올릴 때 이 문자열을 그대로 써야 다른 기기가 푼다
-  assert.deepEqual(a.entries, entriesOf(items))
+  assert.deepEqual(a.entries, noName(entriesOf(items)))
   const trimmed = await legacyBuild(items, 'pass-1234')
   assert.equal((await decryptAs(trimmed, ' pass-1234 ')).pass, 'pass-1234')
   await assert.rejects(decryptAs(trimmed, 'other-pass '), /wrong-pass/)
 })
 
-test('passProblem: 6자리 숫자가 아닌 PIN 도 거부 · 동기화 키 · 길이', async () => {
-  const no = async () => false
-  const pinIs = (pin: string) => async (p: string) => p === pin
-  assert.match(await passProblem('abcdefg', no, pinIs('abcdefg')), /잠금 PIN/)       // 현행 잠금은 4자 이상 아무 글자
-  assert.match(await passProblem('abcdefg ', no, pinIs('abcdefg')), /잠금 PIN/)      // 공백 뺀 값도 견준다
-  assert.match(await passProblem('abcd', no, pinIs('abcd')), /6자 이상/)            // 4자 PIN 은 길이에서 먼저 걸린다
-  assert.match(await passProblem('sync-key-phrase', async () => true, no), /입장 키/)
-  assert.equal(await passProblem('long-enough-pass', no, pinIs('abcdefg')), '')
-})
-
-test('holdKeyOf: 입장 키는 대소문자 · 공백 · 하이픈이 달라도 같은 재료', async () => {
+test('holdKeyOf: 앱키는 대소문자 · 공백 · 하이픈이 달라도 같은 재료', async () => {
   assert.equal(await holdKeyOf('ecom-7kq3-px9m-2hta'), await holdKeyOf('ECOM-7KQ3-PX9M-2HTA'))
   assert.equal(await holdKeyOf(' ecom 7kq3 px9m 2hta '), await holdKeyOf('ECOM-7KQ3-PX9M-2HTA'))
 })
@@ -133,7 +111,7 @@ test('openBlob: 재료로 잠근 것은 그대로 · 예전 암호 사본은 old
   const legacy = await legacyBuild(items, PASS)                       // 이전 전: 사람이 정한 보유 암호로 잠근 사본
   await assert.rejects(openBlob(legacy, mat), /old-pass/)
   await assert.rejects(openBlob(legacy, mat, '   '), /old-pass/)      // 빈 칸은 물은 것으로 치지 않는다
-  assert.deepEqual(await openBlob(legacy, mat, ` ${PASS} `), { entries: es, at: null, stale: true })
+  assert.deepEqual(await openBlob(legacy, mat, ` ${PASS} `), { entries: noName(es), at: null, stale: true })
   await assert.rejects(openBlob(legacy, mat, 'other-pass'), /wrong-pass/)
   const oldKeyed = await encrypt(es, await holdKeyOf('old-sync-key-99'), 't')   // 키를 바꾼 뒤 다시 잠그기가 실패해 남은 사본
   assert.equal((await openBlob(oldKeyed, mat, 'old-sync-key-99')).stale, true)
@@ -148,14 +126,4 @@ test('relockBlob: 서버를 확인 못 하면 false(키 바꾸기 멈춤) · 사
   assert.ok(moved)
   assert.deepEqual(await decrypt(moved, mat), { entries: es, at: '2026-10-07T01:00:00.000Z' })
   assert.equal(await relockBlob({ ok: true, enc: await legacyBuild(items, PASS) }, old, mat), null)   // 예전 암호 사본은 이전이 맡는다
-})
-
-test('autoStep: 한쪽만 바뀌면 묻지 않고 · 둘 다 바뀌었거나 빈 기기가 서버를 지우게 되면 묻는다', () => {
-  assert.equal(autoStep('push', 2, 3), 'push')
-  assert.equal(autoStep('push', 2, 0), 'push')     // 서버에 없음 → 올림
-  assert.equal(autoStep('push', 0, 3), 'ask')      // 이 기기에서 다 지움(또는 저장소 깨짐) — 서버 사본을 말없이 지우지 않는다
-  assert.equal(autoStep('pull', 0, 3), 'pull')
-  assert.equal(autoStep('conflict', 2, 3), 'ask')
-  assert.equal(autoStep('same', 2, 2), null)
-  assert.equal(autoStep('none', 0, 0), null)
 })
