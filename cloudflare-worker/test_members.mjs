@@ -220,7 +220,8 @@ console.log('새 경로 — /me · /admin/* · CI 복수 읽기 · /fired');
   check('prune uid 지정', [prune.j.removed, prune.j.count, JSON.parse(kv.get('push:' + A.user.uid)).length], [1, 1, 1]);
   check('prune 모르는 uid 404', (await call('PUT', '/push/prune', { hash: null, headers: RK, body: { uid: 'nobody0', endpoints: [] } })).status, 404);
   check('prune uid 없으면 주인 칸(옛 호환)', (await call('PUT', '/push/prune', { hash: null, headers: RK, body: { endpoints: ['x'] } })).j.removed, 0);
-  check('단수 /push/subscriptions 는 주인 칸', Array.isArray((await call('GET', '/push/subscriptions', { hash: null, headers: RK })).j.subs), true);
+  const one = (await call('GET', '/push/subscriptions', { hash: null, headers: RK })).j;
+  check('단수 /push/subscriptions 는 주인 칸 · uid = 주인', [Array.isArray(one.subs), one.uid], [true, U]);
 
   console.log('  /fired');
   const WK = { 'X-Push-Write-Key': 'fake-push-write-key' };

@@ -1427,7 +1427,7 @@ async function handlePushSender(request, env, path) {
     let quiet = null;
     try { const p = await env.ECON_PORTFOLIO.get('prefs:' + space, 'json'); quiet = (p && p.settings && p.settings.quiet) || null; }
     catch (_) { /* 조용한 시간 없이 보낸다 — 구독 목록은 이미 읽었다 */ }
-    return jsonResponse({ subs, quiet }, 200, nc);
+    return jsonResponse({ subs, quiet, uid: space }, 200, nc);
   }
 
   // PUT /push/prune — 본문 { endpoints: [...] }. 푸시 서비스가 410/404(구독 사라짐)로 답한 주소만 지운다.

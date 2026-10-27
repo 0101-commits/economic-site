@@ -264,6 +264,28 @@ def test_quiet_per_person(push_main):
     check("다른 사람은 영향 없음", (got["x7"], got["x1"]), (["m2 보통"], ["own 보통"]))
 
 
+def test_member_log_does_not_show_endpoint(push_main, capsys):
+    three(push_main)
+    push_main.push, push_main.calls = fake_push({"5": 410, "7": 500})
+    push_main.monkeypatch.setitem(sys.modules, "pywebpush", types.SimpleNamespace(webpush=push_main.push))
+    push_main.write_queue([{"id": "b", "uid": M1, "title": "m1"}, {"id": "c", "uid": M2, "title": "m2"}])
+    sp.main()
+    out = capsys.readouterr().out
+    assert "x5" not in out and "x7" not in out and "fcm/send" not in out, out
+
+
+def test_fallback_logs_held_count_without_owner_uid(push_main, capsys):
+    for k, v in ENV.items():
+        push_main.monkeypatch.setenv(k, v)
+    push_main.all_users = None
+    push_main.doc = {"subs": [sub(1)], "quiet": None}            # 옛 Worker — uid 없음
+    push_main.write_queue([{"id": "a", "uid": OWN, "title": "주인"}, {"id": "b", "uid": M1, "title": "멤버"}, {"id": "c", "title": "옛"}])
+    sp.main()
+    out = capsys.readouterr().out
+    assert "uid 달린 알림 2건 보류" in out and OWN not in out and M1 not in out, out
+    check("uid 없는 것만 감", by_ep(push_main), {"x1": ["옛"]})
+
+
 def test_all_failure_falls_back_to_owner_only(push_main):
     for k, v in ENV.items():
         push_main.monkeypatch.setenv(k, v)

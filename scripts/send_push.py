@@ -32,6 +32,7 @@ QUEUE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "push_queue.jso
 WORKER = "https://ecom-dashboard-proxy.e-hcg.workers.dev"
 MAX_ITEMS = 20          # 한 런에 보낼 알림 상한(최신 것부터) — 몰려도 폰을 도배하지 않게
 TTL = 3600              # 기기가 꺼져 있으면 1시간까지 푸시 서비스가 들고 있다가 버린다(낡은 시세 알림은 의미 없음)
+LEGACY_OWNER = "legacy:owner"   # 옛 경로에서 주인 uid 를 모를 때의 자리표 — 콜론이 있어 진짜 uid 와 겹칠 수 없다
 KST = datetime.timezone(datetime.timedelta(hours=9))
 
 
@@ -80,14 +81,16 @@ def payload(item):
     }, ensure_ascii=False)
 
 
-def send_all(items, subs, private_key, subject, push=None, sent=None):
-    """모든 구독 × 모든 알림. 반환 (성공 수, 실패 수, 사라진 endpoint 목록). sent(set)를 주면 간 알림 id 를 담는다."""
+def send_all(items, subs, private_key, subject, push=None, sent=None, mask=False):
+    """모든 구독 × 모든 알림. 반환 (성공 수, 실패 수, 사라진 endpoint 목록). sent(set)를 주면 간 알림 id 를 담는다.
+    mask=True(멤버)면 로그에 기기 주소 조각도 안 찍는다."""
     if push is None:
         from pywebpush import webpush as push       # 실행 때만 — 테스트는 가짜를 넘긴다
     ok = fail = 0
     gone = []
     for s in subs:
         ep = s.get("endpoint", "")
+        tag = "" if mask else f": …{ep[-12:]}"
         for item in items:
             try:
                 # vapid_claims 는 호출마다 새 딕셔너리 — pywebpush 가 aud(푸시 서비스 주소)를 채워 넣어 바꾸기 때문에,
@@ -103,9 +106,9 @@ def send_all(items, subs, private_key, subject, push=None, sent=None):
                 fail += 1
                 if code in (404, 410):
                     gone.append(ep)
-                    print(f"[push] 사라진 구독({code}) — 정리 대상: …{ep[-12:]}")
+                    print(f"[push] 사라진 구독({code}) — 정리 대상{tag}")
                     break                             # 이 기기엔 남은 알림도 못 간다
-                print(f"[push] 발송 실패({code or type(e).__name__}): …{ep[-12:]}")
+                print(f"[push] 발송 실패({code or type(e).__name__}){tag}")
     return ok, fail, gone
 
 
@@ -137,14 +140,14 @@ def plan_deliveries(items, users, owner_uid):
 
 
 def _fetch_users(base, hdr):
-    """(users, owner_uid, 모든 사람 목록을 읽었나). /all 이 실패하면 옛 주인 한 명 경로로 물러난다."""
+    """(users, owner_uid). /all 이 실패하면 옛 주인 한 명 경로로 물러난다."""
     try:
         r = requests.get(base + "/push/subscriptions/all", headers=hdr, timeout=15)
         r.raise_for_status()
         raw = r.json().get("users")
         users = [u for u in raw if isinstance(u, dict) and u.get("uid")] if isinstance(raw, list) else []
         owner = next((u["uid"] for u in users if u.get("role") == "owner"), None)
-        return users, owner, True
+        return users, owner
     except Exception as e:
         print(f"[push] 사람별 구독 목록을 못 읽음 — 주인 한 명 경로로 시도: {type(e).__name__}")
     try:
@@ -153,11 +156,11 @@ def _fetch_users(base, hdr):
         doc = r.json()
     except Exception as e:
         print(f"[push] 구독 목록을 못 읽음 — 이번 런은 보내지 않음: {e}")
-        return None, None, False
+        return None, None
     # 이 경로는 주인 공간 하나뿐 — uid 를 모르면 uid 없는 항목만 주인 것으로 본다(멤버 항목은 절대 안 보낸다).
-    owner = doc.get("uid") if isinstance(doc.get("uid"), str) and doc.get("uid") else "__owner__"
+    owner = doc.get("uid") if isinstance(doc.get("uid"), str) and doc.get("uid") else LEGACY_OWNER
     return [{"uid": owner, "role": "owner", "quiet": doc.get("quiet"), "subs": doc.get("subs") or [],
-             "_legacy": owner == "__owner__"}], owner, False
+             "_legacy": owner == LEGACY_OWNER}], owner
 
 
 def main():
@@ -173,9 +176,13 @@ def main():
         return 0
     base = os.environ.get("PUSH_WORKER_URL", "").strip().rstrip("/") or WORKER
     hdr = {"X-Push-Read-Key": read_key}
-    users, owner_uid, _full = _fetch_users(base, hdr)
+    users, owner_uid = _fetch_users(base, hdr)
     if users is None:
         return 0
+    if owner_uid == LEGACY_OWNER:
+        held = sum(1 for i in items if i.get("uid"))
+        if held:
+            print(f"[push] 주인 uid 를 몰라 uid 달린 알림 {held}건 보류(버림)")
     per, dropped = plan_deliveries(items, users, owner_uid)
     if dropped:
         print(f"[push] 받을 사람이 없는 알림 {dropped}건 버림")
@@ -199,7 +206,7 @@ def main():
             if is_owner:
                 print(f"[push] 구독한 기기 없음 — 알림 {len(mine)}건 버림")
             continue
-        ok, fail, gone = send_all(items=mine, subs=subs, private_key=priv, subject=subject, sent=sent if is_owner else None)
+        ok, fail, gone = send_all(items=mine, subs=subs, private_key=priv, subject=subject, sent=sent if is_owner else None, mask=not is_owner)
         if is_owner:
             print(f"[push] 기기 {len(subs)}대 × 알림 {len(mine)}건 — 성공 {ok} · 실패 {fail}")
         if gone:

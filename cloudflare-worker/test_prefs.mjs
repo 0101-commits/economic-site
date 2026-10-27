@@ -211,6 +211,7 @@ check('발송기 틀린 키 → 401', (await scall('GET', '/push/subscriptions',
 check('동기화 키 해시로는 못 읽음 → 401', (await call('GET', '/push/subscriptions', { e: senv })).status, 401);
 r = await scall('GET', '/push/subscriptions');
 check('구독 목록 200 · 4개', [r.status, r.j.subs.length], [200, 4]);
+check('응답 uid = 옛 공간(키 해시 앞 16자)', r.j.uid, KEY.slice(0, 16));
 check('조용한 시간 = 저장된 /prefs 값', r.j.quiet, (await call('GET', '/prefs')).j.settings.quiet);
 check('발송기 응답에 CORS 없음 · 캐시 금지', [r.h.get('access-control-allow-origin'), r.h.get('cache-control')], [null, 'no-store']);
 check('구독 목록 POST → 405', (await scall('POST', '/push/subscriptions', { body: {} })).status, 405);
@@ -218,6 +219,7 @@ kv.set('push:' + NEW.slice(0, 16), JSON.stringify([sub(7)]));   // 옛 키로 �
 kv.set('auth:syncKeyHash', NEW);
 r = await scall('GET', '/push/subscriptions');
 check('지금 유효한 키 공간만 내준다', r.j.subs.map(s => s.endpoint.slice(-1)), ['7']);
+check('응답 uid = 지금 유효한 키 공간', r.j.uid, NEW.slice(0, 16));
 kv.delete('auth:syncKeyHash');
 check('prune 틀린 키 → 401', (await scall('PUT', '/push/prune', { key: 'wrong', body: { endpoints: [sub(2).endpoint] } })).status, 401);
 check('prune endpoints 없음 → 400', (await scall('PUT', '/push/prune', { body: {} })).status, 400);
