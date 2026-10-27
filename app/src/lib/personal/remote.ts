@@ -141,7 +141,7 @@ const KEY_LOST_REPLY = '서버 답을 확인하지 못했습니다. 키가 바�
 const KEY_ERR: Record<number, string> = {
   401: '지금 키가 맞지 않습니다.',
   429: '요청이 많습니다. 1분 뒤 다시 하세요.',
-  503: '서버에 동기화 키가 설정되지 않았습니다.',
+  503: '서버에 입장 키가 설정되지 않았습니다.',
   0: KEY_LOST_REPLY,
   [-1]: KEY_LOST_REPLY,
 }
@@ -230,8 +230,8 @@ export async function aiAsk(hash: string, question: string, snapshot: unknown): 
 
 const AI_ERR: Record<string, string> = {
   rate_limited: '요청이 많습니다. 1분 뒤 다시 물어보세요.',
-  unauthorized: '동기화 키가 서버와 맞지 않습니다. 설정 「기기 연결」에서 다시 연결하세요.',
-  sync_key_not_configured: '서버에 동기화 키가 설정되지 않아 지금은 물을 수 없습니다.',
+  unauthorized: '입장 키가 서버와 맞지 않습니다. 설정 › 내 계정에서 다시 연결하세요.',
+  sync_key_not_configured: '서버에 입장 키가 설정되지 않아 지금은 물을 수 없습니다.',
   no_ai_available: '서버에 AI 엔진이 설정되지 않아 지금은 물을 수 없습니다.',
   forbidden_origin: '이 주소에서는 물을 수 없습니다.',
   network: '서버에 닿지 못했습니다. 잠시 뒤 다시 물어보세요.',

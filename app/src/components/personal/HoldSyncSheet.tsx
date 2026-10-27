@@ -66,7 +66,7 @@ export function HoldSyncSheet({ open, onClose, onPulled }: { open: boolean; onCl
                   <button type="button" disabled={busy} className={`${BTN2} self-start`} onClick={() => push(chk.migrate!)}>서버 사본 버리고 이 기기 것 올리기</button>
                 </>
               )}
-              {chk.needKey && <Link to="/settings" className="text-12 text-ink-2">설정 › 기기 연결로</Link>}
+              {chk.needKey && <Link to="/settings" className="text-12 text-ink-2">설정 › 내 계정으로</Link>}
               {!chk.migrate && !chk.needKey && (
                 <div className="flex flex-wrap gap-2">
                   <button type="button" disabled={busy} className={BTN2} onClick={() => void check()}>다시 확인</button>

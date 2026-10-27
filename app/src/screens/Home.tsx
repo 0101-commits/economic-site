@@ -374,7 +374,7 @@ function AskBox({ home }: { home: HomeBundle }) {
     e.preventDefault()
     const question = q.trim(), hash = getKeyHash()
     if (!question || busy) return
-    if (!hash) { setNote('동기화가 꺼졌습니다. 설정 「기기 연결」에서 다시 연결하세요.'); return }
+    if (!hash) { setNote('동기화가 꺼졌습니다. 설정 › 내 계정에서 다시 연결하세요.'); return }
     // 간격은 기기 연결(sync.ts)의 마지막 요청 시각과 같이 센다 — 화면을 다시 열어도 남는다
     const wait = lastReqAt() + ASK_GAP_MS - Date.now()
     if (wait > 0) { setNote(`${Math.ceil(wait / 1000)}초 뒤에 다시 물어보세요.`); return }

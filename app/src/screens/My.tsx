@@ -172,7 +172,7 @@ function Holdings() {
         <Panel title="보유" unit={unitLabel}>
           <HoldTable rows={rows} unit={unit} onEdit={setEdit} />
           <HoldingForm key={edit?.id ?? 'new'} edit={edit} onSave={saveHolding} onDelete={removeHolding} onCancel={() => setEdit(null)} />
-          <p className="mt-4 mb-0 pt-3 border-t border-line text-12 text-ink-3">설정 › 기기 연결에서 보유를 켜 두면 저장할 때마다 동기화 키에서 만든 열쇠로 잠가 올립니다. 서버는 내용을 읽지 못합니다.</p>
+          <p className="mt-4 mb-0 pt-3 border-t border-line text-12 text-ink-3">설정 › 내 계정에서 보유를 켜 두면 저장할 때마다 입장 키에서 만든 열쇠로 잠가 올립니다. 서버는 내용을 읽지 못합니다.</p>
         </Panel>
       )}
       {v === 'pnl' && (

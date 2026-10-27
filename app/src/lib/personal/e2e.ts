@@ -127,7 +127,7 @@ export function autoStep(plan: Plan, localN: number, serverN: number): 'push' | 
  */
 export async function passProblem(pass: string, sameAsSyncKey: (p: string) => Promise<boolean>, isPin: (p: string) => Promise<boolean>): Promise<string> {
   if (pass.trim().length < 6) return '보유 암호는 6자 이상이어야 합니다. 12자 이상을 권합니다.'
-  if (await sameAsSyncKey(pass)) return '동기화 키와 다른 암호를 쓰세요.'
+  if (await sameAsSyncKey(pass)) return '입장 키와 다른 암호를 쓰세요.'
   for (const p of new Set([pass, pass.trim()])) if (await isPin(p)) return '잠금 PIN 과 다른 암호를 쓰세요.'
   return ''
 }

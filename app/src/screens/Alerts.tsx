@@ -339,7 +339,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
                     {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 동기화가 꺼져 있으면 눌러도 소용없다 */}
                     {st.kind === 'stopped' && (sync.on ? (
                       <button type="button" className={`${BTN2} mt-1`} aria-label={`${name} 다시 켜기`} onClick={() => setAlert(a.id, x => rearm(x, ledger, fired[a.id], Date.now(), cur(x.target)))}>다시 켜기</button>
-                    ) : <span className="block text-12 text-ink-3">설정 › 기기 연결에서 연결하면 다시 켤 수 있습니다</span>)}
+                    ) : <span className="block text-12 text-ink-3">설정 › 내 계정에서 연결하면 다시 켤 수 있습니다</span>)}
                   </span>
                   <button type="button" onClick={() => put(prefs.alerts.filter(x => x.id !== a.id))} aria-label={`${name} 지우기`} title="지우기"
                     className="size-8 shrink-0 inline-flex items-center justify-center rounded-btn border-0 bg-transparent text-ink-3 hover:text-ink-1 cursor-pointer">
@@ -350,7 +350,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
             })}
           </ul>
         ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다. 지표 · 종목 상세의 벨이나 아래 「새 조건」에서 만듭니다.</p>}
-        <p className="mt-2 mb-0 text-12 text-ink-3">연결돼 있어야(설정 › 기기 연결) 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
+        <p className="mt-2 mb-0 text-12 text-ink-3">연결돼 있어야(설정 › 내 계정) 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
         <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add.map(a => armU1(a, cur(a.target)))])} />
       </Panel>
 
@@ -370,10 +370,10 @@ async function readLegacy(): Promise<{ rows: unknown[] } | { error: string }> {
   if (h) {
     const g = await portfolioGet(h)
     if (g.ok) return { rows: g.alerts ?? [] }
-    why = g.status === 401 ? '동기화 키가 맞지 않습니다.' : '서버에 닿지 못했습니다.'
+    why = g.status === 401 ? '입장 키가 맞지 않습니다.' : '서버에 닿지 못했습니다.'
   }
   try { return { rows: (await loadRootJson<{ alerts?: unknown[] }>('alerts_config.json')).alerts ?? [] } } catch { /* 운영 사이트에는 없다 */ }
-  return { error: why || '현행 조건을 읽으려면 설정 › 기기 연결에서 연결해야 합니다.' }
+  return { error: why || '현행 조건을 읽으려면 설정 › 내 계정에서 연결해야 합니다.' }
 }
 
 /** 「현행 조건 가져오기」: 읽기 → 미리보기(가져올 N · 건너뛸 M) → 확인하면 이 기기 조건에 더한다. 현행 화면의 조건은 그대로 둔다. */
@@ -590,7 +590,7 @@ function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) 
   const setQuiet = (q: Settings['quiet']) => setS({ quiet: q })
   return (
     <>
-      <p className="m-0 text-12 text-ink-2">폰 알림 · 동기화 키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 기기 연결</Link>에서</p>
+      <p className="m-0 text-12 text-ink-2">폰 알림 · 입장 키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 내 계정</Link>에서</p>
       <div className="grid grid-cols-1 pc:grid-cols-2 gap-4 items-start">
         <Panel title="울림 채널 · 하루 상한">
           <SegBar label="울림 채널" options={RING_OPTS} value={s.ringChannel} onChange={v => setS({ ringChannel: v })} />

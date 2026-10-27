@@ -115,7 +115,7 @@ export function PinGate({ children }: { children: ReactNode }) {
     unlock: ['잠긴 화면', '설정과 내 자산은 이 기기 PIN 으로 엽니다.'],
     setup: ['이 기기 PIN 정하기', '숫자 6자리. 설정과 내 자산을 이 PIN 으로 엽니다. 기기마다 따로 정하고, 현행 화면의 잠금과 같은 PIN 을 씁니다.'],
     confirm: ['한 번 더', '같은 PIN 을 한 번 더 넣으세요.'],
-    forgot: ['PIN 잊음', '동기화 키가 맞는지 서버에 묻고, 맞으면 이 기기 PIN 만 지운 뒤 새로 정합니다. 키는 어디에도 남기지 않습니다.'],
+    forgot: ['PIN 잊음', '입장 키가 맞는지 서버에 묻고, 맞으면 이 기기 PIN 만 지운 뒤 새로 정합니다. 키는 어디에도 남기지 않습니다.'],
   }[mode]
   const note = busy ? '확인 중' : waiting ? `PIN 을 ${readFail().n}번 틀렸습니다 · ${Math.ceil(left / 1000)}초 뒤 다시` : msg
 
@@ -127,7 +127,7 @@ export function PinGate({ children }: { children: ReactNode }) {
         <p role="alert" className="text-13 text-warn m-0">이 환경(https 아님)에서는 잠금을 쓸 수 없습니다. https 주소로 접속하세요.</p>
       ) : mode === 'forgot' ? (
         <Forgot onBack={() => { setMsg(''); setMode('unlock') }}
-          onCleared={() => { setPinText(''); setFirst(''); setLeft(0); setMsg('동기화 키가 맞습니다. 새 PIN 을 정하세요.'); setMode('setup') }} />
+          onCleared={() => { setPinText(''); setFirst(''); setLeft(0); setMsg('입장 키가 맞습니다. 새 PIN 을 정하세요.'); setMode('setup') }} />
       ) : (
         <PinInput value={pin} onChange={setPinText} onSubmit={submit} disabled={busy || waiting} label={head[0]} />
       )}
@@ -140,9 +140,9 @@ export function PinGate({ children }: { children: ReactNode }) {
 }
 
 const CHECK_ERR: Record<number, string> = {
-  401: '동기화 키가 맞지 않습니다.',
+  401: '입장 키가 맞지 않습니다.',
   429: '요청이 많습니다. 1분 뒤 다시 하세요.',
-  503: '서버에 동기화 키가 설정되지 않았습니다.',
+  503: '서버에 입장 키가 설정되지 않았습니다.',
   403: '이 주소에서 연 화면은 서버가 받지 않습니다.',
   0: '서버에 닿지 못했습니다. 잠시 뒤 다시 하세요.',
   [-1]: '서버 답을 확인하지 못했습니다. 잠시 뒤 다시 하세요.',
@@ -171,15 +171,15 @@ function Forgot({ onCleared, onBack }: { onCleared: () => void; onBack: () => vo
   }
   return (
     <div>
-      <form onSubmit={check} className="flex flex-wrap items-end gap-2" aria-label="동기화 키로 PIN 지우기">
-        <Field label="동기화 키" className="flex-1 min-w-48">
+      <form onSubmit={check} className="flex flex-wrap items-end gap-2" aria-label="입장 키로 PIN 지우기">
+        <Field label="입장 키" className="flex-1 min-w-48">
           <input type="password" autoComplete="off" className={INPUT} value={key} onChange={e => setKey(e.target.value)} />
         </Field>
         <button type="submit" disabled={busy || !key.trim()} className={BTN}>{busy && !step ? '확인 중' : '확인'}</button>
       </form>
       <p role="alert" className="min-h-5 mt-2 mb-0 text-12 text-warn">{msg}</p>
       <div className="mt-3 pt-3 border-t border-line flex flex-col items-start gap-2">
-        <p className="m-0 text-12 text-ink-2">동기화 키가 없으면 이 기기 데이터를 지운 뒤 새로 정해야 합니다.</p>
+        <p className="m-0 text-12 text-ink-2">입장 키가 없으면 이 기기 데이터를 지운 뒤 새로 정해야 합니다.</p>
         {step === 0 && <button type="button" className={BTN2} onClick={() => setStep(1)}>이 기기 데이터 지우기</button>}
         {step === 1 && <>
           <p className="m-0 text-13 text-ink-1">지울 것: 보유 · 스냅샷 · 원장 · 관심 · 알림 조건 · 설정 · 렌즈 시나리오, 그리고 이 기기 PIN. 동기화를 끄고 이 기기의 폰 알림 구독도 끊습니다. 서버에 맡긴 것은 남습니다.</p>

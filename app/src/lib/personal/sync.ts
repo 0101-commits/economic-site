@@ -118,7 +118,7 @@ export const noteReq = () => { lastReq = Date.now() }
 function errText(r: Reply): string {
   if (r.status === 0) return '서버에 닿지 못했습니다. 1분 뒤 다시 맞춥니다.'
   if (r.status === 429) return '요청이 많아 1분 뒤 다시 맞춥니다.'
-  if (r.error === 'sync_key_not_configured') return '서버에 동기화 키가 설정되지 않았습니다.'
+  if (r.error === 'sync_key_not_configured') return '서버에 입장 키가 설정되지 않았습니다.'
   if (r.error === 'forbidden_origin') return '이 주소에서 연 화면은 서버가 받지 않습니다.'
   if (r.error === 'tier2_field_rejected') return `보유정보로 보이는 칸(${r.field ?? '?'})이 있어 서버가 받지 않았습니다.`
   if (r.status === 413) return '맡길 내용이 너무 커서 서버가 받지 않았습니다. 관심·알림 조건을 줄여 주세요.'
@@ -128,7 +128,7 @@ function errText(r: Reply): string {
 /** 같은 내용을 다시 보내도 또 거절되는 응답 — 이 기기 것이 다시 바뀔 때까지 기다린다. */
 const refused = (r: Reply) => r.status === 400 || r.status === 413
 
-const KEY_LOST = '동기화 키가 맞지 않아 연결을 끊었습니다. 키를 다시 넣어 주세요.'
+const KEY_LOST = '입장 키가 맞지 않아 연결을 끊었습니다. 키를 다시 넣어 주세요.'
 /** 401: 같은 브라우저의 다른 탭이 키를 바꿨으면(기억 해시가 다르면) 그 해시로 잇고, 아니면 끊는다. */
 function lost(h: string) {
   if (changing) return   // 키 바꾸는 중 — 옛 해시로 나간 요청의 401 은 바뀐 결과다
@@ -260,7 +260,7 @@ function fail(msg: string) { set({ busy: false, msg }); return false }
  */
 export async function connectSync(key: string, perm?: Promise<unknown>): Promise<boolean> {
   permAsk = perm ?? null
-  if (!key.trim()) return fail('동기화 키를 넣어 주세요.')
+  if (!key.trim()) return fail('입장 키를 넣어 주세요.')
   set({ busy: true, msg: '' })
   let h: string, mat: string
   try { [h, mat] = await Promise.all([keyHash(key), holdKeyOf(key)]) } catch { return fail('이 환경(https 아님)에서는 연결할 수 없습니다.') }
@@ -271,7 +271,7 @@ export async function connectSync(key: string, perm?: Promise<unknown>): Promise
 async function matchPrefs(h: string, mat: string | null, prefsOn: boolean, fresh: boolean): Promise<boolean> {
   set({ busy: true, msg: '' })
   const r = await prefsCall(h)
-  if (r.status === 401) { if (fresh) return fail('동기화 키가 맞지 않습니다.'); set({ busy: false }); lost(h); return false }
+  if (r.status === 401) { if (fresh) return fail('입장 키가 맞지 않습니다.'); set({ busy: false }); lost(h); return false }
   if (!r.doc) return fail(r.status === 0 ? '서버에 닿지 못했습니다. 잠시 뒤 다시 하세요.' : r.status === 429 ? '요청이 많습니다. 1분 뒤 다시 하세요.' : errText(r))
   set({ busy: false })
   const local = readLocal(), server = fromServer(r.doc)
@@ -393,9 +393,9 @@ export type HoldCheck =
   | { ok: true; plan: Plan; enc: EncBlob | null; server: Entry[]; serverAt: string | null; localN: number; stale: boolean }
 export type HoldDone = { ok: boolean; msg: string }
 
-const NO_SYNC = '설정 › 기기 연결에서 동기화 키를 먼저 넣으세요.'
-const NO_HOLD_KEY = '보유 열쇠가 없습니다. 설정 › 기기 연결에서 동기화 키를 한 번 다시 넣어 주세요.'
-const MIGRATE = '예전 보유 암호(또는 바꾸기 전 동기화 키)로 잠긴 서버 사본이 있습니다 — 한 번 넣으면 새 열쇠로 다시 잠가 올립니다.'
+const NO_SYNC = '설정 › 내 계정에서 입장 키를 먼저 넣으세요.'
+const NO_HOLD_KEY = '보유 열쇠가 없습니다. 설정 › 내 계정에서 입장 키를 한 번 다시 넣어 주세요.'
+const MIGRATE = '예전 보유 암호(또는 바꾸기 전 입장 키)로 잠긴 서버 사본이 있습니다 — 한 번 넣으면 새 열쇠로 다시 잠가 올립니다.'
 function holdErr(r: { status: number; error?: string }, h: string): string {
   if (r.status === 401) { lost(h); return KEY_LOST }
   if (r.status === 0) return '서버에 닿지 못했습니다.'
@@ -421,7 +421,7 @@ export async function checkHoldings(old?: string): Promise<HoldCheck> {
   try { d = await openBlob(g.enc, mat, old) } catch (e) {
     const m = (e as Error).message
     if (m === 'old-pass') return { ok: false, msg: MIGRATE, migrate: g.enc }
-    if (m === 'wrong-pass') return { ok: false, msg: '예전 보유 암호(또는 바꾸기 전 동기화 키)가 다릅니다.', migrate: g.enc }
+    if (m === 'wrong-pass') return { ok: false, msg: '예전 보유 암호(또는 바꾸기 전 입장 키)가 다릅니다.', migrate: g.enc }
     return { ok: false, msg: '서버 보유 사본이 깨져 읽지 못했습니다 — 이 기기 것을 올려 덮을 수 있습니다.', broken: g.enc }
   }
   const plan = decide(lf, { fp: await fingerprint(d.entries), n: d.entries.length }, base)

@@ -108,7 +108,7 @@ test('passProblem: 6자리 숫자가 아닌 PIN 도 거부 · 동기화 키 · �
   assert.match(await passProblem('abcdefg', no, pinIs('abcdefg')), /잠금 PIN/)       // 현행 잠금은 4자 이상 아무 글자
   assert.match(await passProblem('abcdefg ', no, pinIs('abcdefg')), /잠금 PIN/)      // 공백 뺀 값도 견준다
   assert.match(await passProblem('abcd', no, pinIs('abcd')), /6자 이상/)            // 4자 PIN 은 길이에서 먼저 걸린다
-  assert.match(await passProblem('sync-key-phrase', async () => true, no), /동기화 키/)
+  assert.match(await passProblem('sync-key-phrase', async () => true, no), /입장 키/)
   assert.equal(await passProblem('long-enough-pass', no, pinIs('abcdefg')), '')
 })
 

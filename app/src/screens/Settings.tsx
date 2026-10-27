@@ -1,4 +1,4 @@
-// 설정 — 기획안 v4 7장 · 사용 패턴 명세 S2. 차례: 기기 연결 → 보안 → 표시 → 내 데이터 → 데이터 상태(접힘) → 고급(접힘).
+// 설정 — 기획안 v4 7장 · 사용 패턴 명세 S2. 차례: 내 계정 → 보안 → 표시 → 내 데이터 → 데이터 상태(접힘) → 고급(접힘).
 // 화면 전체가 PIN 뒤다(App.tsx PinGate). 화면 모드만은 머리의 단추로 PIN 없이 바꾼다.
 // 보호 수준은 있는 그대로 적는다: PIN 은 화면 잠금(열람 방지)이고, 기기 안의 자료를 암호화하지 않는다.
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
@@ -120,7 +120,7 @@ function Security() {
   )
 }
 
-/** 내 데이터: 내려받기(설정이 PIN 뒤라 조건 없음 · 선택 「암호로 잠근 파일」) · 올리기 · 이 기기 데이터 지우기(확인 2번). 파일 형식은 lib/personal/backup.ts, 기기 간 맞춤은 「기기 연결」. */
+/** 내 데이터: 내려받기(설정이 PIN 뒤라 조건 없음 · 선택 「암호로 잠근 파일」) · 올리기 · 이 기기 데이터 지우기(확인 2번). 파일 형식은 lib/personal/backup.ts, 기기 간 맞춤은 「내 계정」. */
 function MyData({ onRestored }: { onRestored: () => void }) {
   const [note, setNote] = useState('')
   const [lock, setLock] = useState(false)
@@ -169,8 +169,8 @@ function MyData({ onRestored }: { onRestored: () => void }) {
         {step === 0 && <button type="button" className={BTN2} onClick={() => setStep(1)}>이 기기 데이터 지우기</button>}
         {step === 1 && (
           <div className="flex flex-col gap-2">
-            <p className="m-0 text-13 text-ink-1">지울 것: 보유 종목 · 평가액 스냅샷 · 배당·입출금 원장 · 관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오 · 최근 검색 · 기기 연결(키 해시 · 보유 열쇠) · 현행 화면 동기화 키와 보유 암호.</p>
-            <p className="m-0 text-12 text-ink-3">현행 화면도 같은 보유·스냅샷·원장을 쓰므로 거기서도 사라집니다. 잠금 PIN 은 남깁니다. 기기 연결을 끊고 이 기기의 폰 알림 구독도 끊습니다(서버에 맡긴 것은 남습니다).</p>
+            <p className="m-0 text-13 text-ink-1">지울 것: 보유 종목 · 평가액 스냅샷 · 배당·입출금 원장 · 관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오 · 최근 검색 · 연결 정보(키 해시 · 보유 열쇠) · 현행 화면 입장 키와 보유 암호.</p>
+            <p className="m-0 text-12 text-ink-3">현행 화면도 같은 보유·스냅샷·원장을 쓰므로 거기서도 사라집니다. 잠금 PIN 은 남깁니다. 연결을 끊고 이 기기의 폰 알림 구독도 끊습니다(서버에 맡긴 것은 남습니다).</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={BTN2} onClick={() => setStep(2)}>계속</button>
               <button type="button" className={BTN2} onClick={() => setStep(0)}>그만두기</button>
@@ -268,7 +268,7 @@ function Restore({ onDone }: { onDone: () => void }) {
           <p className="m-0 text-12 text-ink-3">{got.at ? `${kstDay(Date.parse(got.at))} 내려받음` : '내려받은 날짜 모름'}</p>
           {!got.legacy && kept.length > 0 && <p className="m-0 text-12 text-ink-3">이 파일에 없어서 그대로 두는 것: {kept.join(' · ')}</p>}
           {got.legacy && <p className="m-0 text-12 text-ink-3">이전 화면 백업 — 보유 · 스냅샷만 가져옵니다. 노트 · 스터디 · 홈 배치 같은 나머지는 이전 화면 「설정 › 데이터 백업·복구」에서 복원하세요.</p>}
-          {linked && <p className="m-0 text-12 text-warn">기기 연결이 켜져 있어, 덮으면 관심 · 알림 조건 · 설정이 곧 서버 것을 덮습니다(다른 기기도 바뀝니다). 보유는 내 자산을 열 때 맞추며, 서버 보유도 이 파일 것으로 바뀝니다.</p>}
+          {linked && <p className="m-0 text-12 text-warn">연결이 켜져 있어, 덮으면 관심 · 알림 조건 · 설정이 곧 서버 것을 덮습니다(다른 기기도 바뀝니다). 보유는 내 자산을 열 때 맞추며, 서버 보유도 이 파일 것으로 바뀝니다.</p>}
           {!sure ? <button type="button" className={`${BTN2} self-start`} onClick={() => setSure(true)}>이 기기를 이 파일로 덮기</button> : (
             <div className="flex flex-col gap-2">
               <p role="alert" className="m-0 text-13 font-bold text-warn">이 기기의 {what} 모두 파일 내용으로 바뀝니다. 되돌릴 수 없습니다.</p>
