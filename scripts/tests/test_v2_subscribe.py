@@ -171,13 +171,43 @@ def test_load_all_prefs_returns_uid_role_upgraded_prefs(monkeypatch):
     assert all(p["v"] == 2 for _, _, p in out)
 
 
-def test_load_all_prefs_no_key_or_failure_is_empty(monkeypatch):
+def test_load_all_prefs_no_key_or_failure_is_none_and_empty_is_empty(monkeypatch):
     import prefs_client
     logs = []
     monkeypatch.delenv("PUSH_READ_KEY", raising=False)
-    assert subscribe.load_all_prefs(log=logs.append) == []
+    assert subscribe.load_all_prefs(log=logs.append) is None
     assert len(logs) == 1 and "PUSH_READ_KEY" in logs[0]
     monkeypatch.setenv("PUSH_READ_KEY", "k")
     monkeypatch.setattr(prefs_client, "fetch_all", lambda base: None)
+    assert subscribe.load_all_prefs(log=logs.append) is None
+    monkeypatch.setattr(prefs_client, "fetch_all", lambda base: [])
     assert subscribe.load_all_prefs(log=logs.append) == []
+
+
+def test_load_all_prefs_normalizes_unknown_roles_to_member(monkeypatch):
+    import prefs_client
+    P = {"alerts": [], "settings": {}, "updatedAt": "t"}
+    users = [{"uid": "a", "role": "owner", "prefs": P}, {"uid": "b", "role": "admin", "prefs": P},
+             {"uid": "c", "prefs": P}]
+    monkeypatch.setattr(prefs_client, "fetch_all", lambda base: users)
+    monkeypatch.setenv("PUSH_READ_KEY", "k")
+    logs = []
+    out = subscribe.load_all_prefs(log=logs.append)
+    assert [r for _, r, _ in out] == ["owner", "member", "member"]
+    assert len(logs) == 1 and "2" in logs[0] and "admin" not in logs[0]
+
+
+def test_load_all_prefs_upgrade_failure_is_none(monkeypatch):
+    import prefs_client
+    P = {"alerts": [], "settings": {}, "updatedAt": "t"}
+    users = [{"uid": "secret-uid", "role": "owner", "prefs": P}, {"uid": "b", "role": "member", "prefs": P}]
+    monkeypatch.setattr(prefs_client, "fetch_all", lambda base: users)
+    monkeypatch.setenv("PUSH_READ_KEY", "k")
+
+    def boom(doc):
+        raise ValueError("x")
+    monkeypatch.setattr(subscribe, "upgrade_prefs", boom)
+    logs = []
+    assert subscribe.load_all_prefs(log=logs.append) is None
+    assert len(logs) == 1 and "secret-uid" not in logs[0]
 

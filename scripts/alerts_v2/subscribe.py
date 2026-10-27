@@ -52,9 +52,10 @@ def load_prefs(log=print) -> dict | None:
     return upgrade_prefs(doc)
 
 
-def load_all_prefs(log=print) -> list[tuple[str, str, dict]]:
-    """사람별 설정 [(uid, role, v2 로 올린 prefs)]. 읽기 키가 없거나 읽기에 실패하면 [] —
-    호출 쪽은 빈 목록이면 마스터 칸(load_prefs)·기본 설정으로 간다(load_prefs 의 None 과 같은 뜻)."""
+def load_all_prefs(log=print) -> list[tuple[str, str, dict]] | None:
+    """사람별 설정 [(uid, role, v2 로 올린 prefs)].
+    None = 읽기 키 없음 · 읽기 실패 · 일부만 받음 · 한 사람이라도 변환 실패 — 호출 쪽은 정리(_prefs 가지치기)를 건너뛰어야 한다.
+    [] = 정말로 활성 사용자가 0명. role 은 owner/member 외에는 member 로 낮춘다(최소 권한)."""
     try:
         import prefs_client
     except ImportError:
@@ -63,11 +64,23 @@ def load_all_prefs(log=print) -> list[tuple[str, str, dict]]:
         import prefs_client
     if not prefs_client.auth_header():
         log("[v2] PUSH_READ_KEY 없음 — 사람별 설정 없음(기본 설정으로 구독)")
-        return []
+        return None
     users = prefs_client.fetch_all(PREFS_URL)
-    if not users:
-        return []
-    return [(u["uid"], u.get("role") or "", upgrade_prefs(u["prefs"])) for u in users]
+    if users is None:
+        return None
+    out, fixed = [], 0
+    for u in users:
+        role = u.get("role")
+        if role not in ("owner", "member"):
+            role, fixed = "member", fixed + 1
+        try:
+            out.append((u["uid"], role, upgrade_prefs(u["prefs"])))
+        except Exception as e:                                # noqa: BLE001 — 한 사람 실패는 부분 실패
+            log(f"[v2] 사람별 설정 변환 실패({type(e).__name__}) — 일부만 읽힌 것으로 보고 건너뜁니다")
+            return None
+    if fixed:
+        log(f"[v2] 역할 값이 다른 {fixed}명은 member 로 낮춤")
+    return out
 
 
 def upgrade_prefs(doc: dict) -> dict:

@@ -83,4 +83,9 @@ def fetch_all(base_url):
     if not isinstance(users, list):
         _log("사람별 조건 문서 모양이 다름 — 건너뜁니다")
         return None
-    return [u for u in users if isinstance(u, dict) and u.get("uid") and isinstance(u.get("prefs"), dict)]
+    good = [u for u in users if isinstance(u, dict) and u.get("uid") and isinstance(u.get("prefs"), dict)]
+    if len(good) != len(users):
+        # 일부만 읽힌 응답은 사람 합집합이 줄어든다 — 통째로 실패로 본다(uid · 설정 내용은 로그에 안 찍는다)
+        _log(f"사람별 조건 {len(users) - len(good)}건 모양이 다름 — 일부만 받은 것으로 보고 건너뜁니다")
+        return None
+    return good

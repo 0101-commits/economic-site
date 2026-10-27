@@ -629,6 +629,16 @@ def test_fetch_all_empty_users_is_empty_list_and_bad_shape_is_none(monkeypatch):
     assert prefs_client.fetch_all("https://w.example") is None
 
 
+def test_fetch_all_malformed_entry_makes_whole_response_a_failure(monkeypatch, capsys):
+    users = [{"uid": "good-uid", "role": "owner", "prefs": {}}, {"role": "member", "prefs": {}},
+             {"uid": "x", "prefs": "nope"}]
+    monkeypatch.setenv("PUSH_READ_KEY", "rk")
+    monkeypatch.setattr(prefs_client._OPENER, "open", _fake_open([], {"users": users}))
+    assert prefs_client.fetch_all("https://w.example") is None
+    out = capsys.readouterr().out
+    assert "2" in out and "good-uid" not in out and out.count("[prefs]") == 1
+
+
 def test_fetch_all_without_key_does_not_call_network(monkeypatch):
     monkeypatch.delenv("PUSH_READ_KEY", raising=False)
     seen = []
