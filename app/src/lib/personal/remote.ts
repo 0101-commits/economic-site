@@ -210,7 +210,7 @@ export async function portfolioPost(hash: string, enc: EncBlob): Promise<Portfol
   } catch { return { ok: false, status: 0, error: 'network' } }
 }
 
-// ── 스냅샷(Worker GET · PUT /snaps — 사람 칸 snaps:<uid>, 보유와 같은 모양의 암호 덩어리 · 64KB 상한) ──
+// ── 스냅샷(Worker GET · PUT /snaps — 사람 칸 snaps:<uid>, 보유와 같은 모양의 암호 덩어리 · 128KB(120000자) 상한) ──
 // GET → { ok, encSnaps: 덩어리 | null } · PUT 본문 { encSnaps: 덩어리 }. 헤더 X-Sync-Key-Hash. 풀고 합치기는 snapSync.ts.
 export async function snapsGet(hash: string): Promise<PortfolioReply> {
   try {

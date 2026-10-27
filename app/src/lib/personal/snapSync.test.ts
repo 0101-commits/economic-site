@@ -3,8 +3,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { decryptJson, encryptJson, type EncBlob } from './e2e.ts'
-import { makeSnapSync, type SnapDeps, type SnapRec } from './snapSync.ts'
-import { snapPlain, type Snap } from './snapRules.ts'
+import { makeSnapSync, relockSnapBlob, type SnapDeps, type SnapRec } from './snapSync.ts'
+import { parseSnapPlain, snapPlain, type Snap } from './snapRules.ts'
 
 const MAT = 'a'.repeat(64), OTHER = 'b'.repeat(64), HASH = 'c'.repeat(64)
 const s = (d: string, ev: number, src?: 'close' | 'app'): Snap => ({ d, ev, ct: 1000, ...(src ? { src } : {}) })
@@ -101,4 +101,20 @@ test('이 기기도 서버도 비었으면 아무것도 하지 않는다', async
   await sync.run()
   assert.equal(st.puts.length, 0)
   assert.equal(st.writes, 0)
+})
+
+test('앱키 바꾸기: 서버 스냅샷 판을 새 재료로 다시 잠가 올리면 새 재료로만 풀리고 같은 줄이 담긴다', async () => {
+  const rows = [s('2026-10-01', 1, 'close'), s('2026-10-02', 2, 'app')]
+  const server = { enc: await lock(rows) as EncBlob | null }   // 옛 재료로 잠긴 서버 판
+  const relocked = await relockSnapBlob({ ok: true, enc: server.enc }, MAT, OTHER)
+  assert.ok(relocked)
+  server.enc = relocked                                          // 앱키가 바뀐 뒤 새 해시로 올림
+  assert.deepEqual(parseSnapPlain(await decryptJson(server.enc!, OTHER)), rows)
+  await assert.rejects(decryptJson(server.enc!, MAT))
+})
+
+test('앱키 바꾸기: 서버에 판이 없거나 · 못 가져오거나 · 못 풀면 null(건너뜀) — 바꾸기를 막지 않는다', async () => {
+  assert.equal(await relockSnapBlob({ ok: true, enc: null }, MAT, OTHER), null)
+  assert.equal(await relockSnapBlob({ ok: false }, MAT, OTHER), null)
+  assert.equal(await relockSnapBlob({ ok: true, enc: await lock([s('2026-10-01', 1)], 'd'.repeat(64)) }, MAT, OTHER), null)
 })

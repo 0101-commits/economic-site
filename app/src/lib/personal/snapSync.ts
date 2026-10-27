@@ -30,6 +30,19 @@ export type SnapResult = { pulled: boolean; pushed: boolean }
 const hex = (b: ArrayBuffer) => Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('')
 const sha = async (s: string) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))
 
+/**
+ * 앱키 바꾸기 전: 서버 스냅샷 판을 옛 재료로 풀어 새 재료로 다시 잠근 덩어리(올리기는 앱키가 바뀐 뒤 새 해시로).
+ * 서버에 판이 없거나(null) 못 풀면(null) 건너뛴다 — 스냅샷은 앱키를 바꾸는 일을 막지 않는다.
+ * 못 푼 판은 그대로 두면 다음 맞춤(run)이 못 푸는 판으로 보고 덮지 않으니 지금과 같다(이 기기 목록이 있으면 다음에 새로 올린다).
+ */
+export async function relockSnapBlob(g: { ok: boolean; enc?: EncBlob | null }, old: string, mat: string): Promise<EncBlob | null> {
+  if (!g.ok || !g.enc) return null
+  try {
+    const plain = parseSnapPlain(await decryptJson(g.enc, old))
+    return await encryptJson(snapPlain(plain, new Date().toISOString()), mat)
+  } catch { return null }
+}
+
 export function makeSnapSync(d: SnapDeps) {
   const none: SnapResult = { pulled: false, pushed: false }
 

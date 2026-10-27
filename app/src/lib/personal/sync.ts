@@ -31,7 +31,7 @@ import { holdKeyOf, relockBlob } from './e2e'
 import { prefsStep, type PrefsRec } from './syncRules'
 import { makeHoldSync, noteHoldEdit, noteHoldNames, resetHoldRec, type HoldResult, type HoldState } from './holdSync'
 import { keepPrev, read, readSnaps, write, writeSnaps } from './scoped'
-import { makeSnapSync, type SnapRec } from './snapSync'
+import { makeSnapSync, relockSnapBlob, type SnapRec } from './snapSync'
 import { currentPerson } from './who'
 
 const HASH_KEY = 'econSyncHash_v1'
@@ -350,6 +350,9 @@ export async function changeKey(cur: string, next: string): Promise<string> {
     // 보유: 서버 판을 옛 재료로 풀어 새 재료로 미리 잠가 둔다. 올리기는 앱키가 바뀐 뒤(새 해시로).
     const relock = await relockBlob(await portfolioGet(h), old, mat)
     if (relock === false) return '보유를 확인하지 못해 앱키를 바꾸지 않았습니다. 잠시 뒤 다시 해 주세요.'
+    // 스냅샷도 같은 재료로 잠겨 있다 — 같은 차례로 미리 새 재료로 다시 잠근다(예비 앱키 기기는 올리지 않으니 건너뛴다).
+    // 못 가져오거나 못 풀어도 앱키 바꾸기를 막지 않는다: 그 판은 그대로 두면 다음 맞춤이 못 푸는 판으로 보고 덮지 않는 지금과 같은 상태다.
+    const snapRelock = currentPerson()?.viaBackup === true ? null : await relockSnapBlob(await snapsGet(h).catch(() => ({ ok: false, status: 0 })), old, mat)
     const r = await syncKeyChange(cur, next)
     if (r.status !== 200) return keyChangeText(r)
     try { sessionStorage.setItem(HASH_KEY, nh); localStorage.setItem(KEEP_KEY, nh); localStorage.setItem(KEYS.holdKey, mat) } catch { /* 막힌 저장소 — 다음에 들어올 때 다시 */ }
@@ -359,6 +362,7 @@ export async function changeKey(cur: string, next: string): Promise<string> {
       if (p.ok) await hold.noteUploaded(relock)
       else set({ hold: { kind: 'error', text: '보유를 새 앱키로 다시 잠그지 못했습니다. 내 자산에서 바꾸기 전 앱키를 한 번 넣으면 옮겨집니다.' } })
     }
+    if (snapRelock) await snapsPut(nh, snapRelock).catch(() => {})   // 실패해도 이 기기 목록이 다음 맞춤에서 새 재료로 올린다
     if (await pushSubscribed().catch(() => false)) await subscribePush(getKeyHash).catch(() => {})
     return ''
   } finally { changing = false; set({ busy: false }) }

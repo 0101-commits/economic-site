@@ -36,14 +36,34 @@ test('화면 글에 옛 이름 · 맞춤 말이 없다(입장 키 · 보유 열�
 // 멤버 2차 Task 6 — 용어 정리: 화면에 보이는 글에 개발 · 영어식 말이 남지 않았는지(표는 task-6-brief.md · CLAUDE.md 「말 사전」).
 const BANNED_TERMS = ['서버', '사본', '맡김', '맡겨', '덩어리', '해시', '구독', '웹 푸시', 'Yahoo', 'what-if', '스냅샷', '원장', '현행', '이전 화면', '옛 키', '꾸러미',
   '기준선 없음', '연환산', '무위험', '시간가중', '내 데이터', '데이터 상태', '이 기기 데이터']
+/**
+ * 한 줄에서 화면에 보이는 글만 남긴다 — console 호출 자체(괄호 한 겹 안까지)와, 검색 열쇠 묶음(SearchOverlay 의
+ * ['kr', '국내', '찾기 열쇠 글'] 꼴의 셋째 칸 — 사람이 보지 않는 검색용 낱말)을 뺀다. 같은 줄의 나머지 글은 그대로 검사한다.
+ */
+export function visibleLine(l: string, searchKeys = false): string {
+  let v = l.replace(/console\.(warn|error|log)\((?:[^()]|\([^()]*\))*\)/g, '')
+  if (searchKeys) v = v.replace(/(\['[a-z]+', '[^']*', )'[^']*'\]/g, '$1]')
+  return v
+}
+/** 한 줄에 걸린 금지 낱말들. */
+export const termHits = (l: string, searchKeys = false) => BANNED_TERMS.filter(w => visibleLine(l, searchKeys).includes(w))
+
 test('화면 글에 개발 · 영어식 말이 없다(서버 · 스냅샷 · 원장 · 현행 · 구독 · what-if · 꾸러미 · 연환산 …)', () => {
   const hits: string[] = []
   for (const f of files(SRC)) {
     const lines = code(readFileSync(f, 'utf8')).split('\n')
-    lines.forEach((l, i) => { if (/^\s*console\.(warn|error|log)\(/.test(l)) return   // 콘솔 글은 화면에 안 보인다
-      for (const w of BANNED_TERMS) if (l.replace(/'[^']*'\]/g, ']').includes(w)) hits.push(`${f.slice(SRC.length)}:${i + 1} 「${w}」 ${l.trim().slice(0, 80)}`) })
+    const sk = /SearchOverlay\.tsx$/.test(f)
+    lines.forEach((l, i) => { for (const w of termHits(l, sk)) hits.push(`${f.slice(SRC.length)}:${i + 1} 「${w}」 ${l.trim().slice(0, 80)}`) })
   }
   assert.deepEqual(hits, [])
+})
+
+test('용어 검사 자체: 배열 끝 글 · console 과 같은 줄의 화면 글도 잡고, console 글 · 검색 열쇠만 뺀다', () => {
+  assert.deepEqual(termHits(`const msgs = ['정상', '서버 점검 중']`), ['서버'])
+  assert.deepEqual(termHits(`console.warn(e); setMsg('서버 오류')`), ['서버'])
+  assert.deepEqual(termHits(`console.warn('서버 응답', f(x))`), [])
+  assert.deepEqual(termHits(`['whatif', '만약에', '시나리오 whatif what-if'], ['chain', '사슬', '연결 고리']`, true), [])
+  assert.deepEqual(termHits(`['whatif', '만약에', '시나리오 whatif what-if']`), ['what-if'])
 })
 
 test('금융 용어는 쉬운 이름 + 괄호 원어 · 풀이(title)가 붙는다', () => {
