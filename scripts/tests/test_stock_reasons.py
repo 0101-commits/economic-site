@@ -286,6 +286,12 @@ def test_main_with_keys_calls_naver_once_per_stock_and_never_logs_keys(tmp_path,
     monkeypatch.setenv("NAVER_CLIENT_SECRET", "pw-secret-글자")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setattr(sr, "NEWS_GAP", 0)
+
+    class _Frozen(dt.datetime):                      # 기사 시각이 NOW 기준이라 실행일에 따라 깨지지 않게 시계를 NOW 로 고정
+        @classmethod
+        def now(cls, tz=None):
+            return NOW if tz is None else NOW.astimezone(tz)
+    monkeypatch.setattr(sr, "datetime", _Frozen)
     p = _write(tmp_path, _data([_row("005930", "삼성전자", 0.86), _row("000660", "SK하이닉스", -1.0)]))
     monkeypatch.setattr(sr, "DATA_FILE", str(p))
     monkeypatch.setattr(sr, "CFG_FILE", _cfg(tmp_path))

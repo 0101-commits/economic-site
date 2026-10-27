@@ -209,6 +209,8 @@ def provider():
 # ── 스키마 정규화·검증 ─────────────────────────────────────────────────────
 _VALID_DIR = {"+", "-", "±"}
 _VALID_HORIZON = {"단기", "중기", "장기"}
+# 프롬프트의 risk_flags 목록과 같아야 한다 — 모델이 목록 밖 말(예. 「금리인상」)을 내면 버린다.
+_VALID_RISK_FLAGS = {"정책", "지정학", "유동성", "금리발작", "신용", "관세", "부동산", "엔캐리 청산", "공급망", "AI버블"}
 
 
 def sanitize(raw, post, body, model):
@@ -222,7 +224,7 @@ def sanitize(raw, post, body, model):
         "indicators": [], "thresholds": [], "impacts": [], "stance": [],
         "chain": (raw.get("chain") or None),
         "one_liner": one_liner_last(body),
-        "risk_flags": [str(f) for f in (raw.get("risk_flags") or [])][:6],
+        "risk_flags": [str(f) for f in (raw.get("risk_flags") or []) if str(f) in _VALID_RISK_FLAGS][:6],
         "series": None,
         "_meta": {"model": model, "schema": SCHEMA_VERSION,
                   "extractedAt": datetime.now(KST).isoformat(timespec="seconds")},
