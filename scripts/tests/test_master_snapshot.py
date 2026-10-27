@@ -18,6 +18,15 @@ E2E = os.path.join(ROOT, "app", "src", "lib", "personal", "e2e.ts")
 CALC = os.path.join(ROOT, "app", "src", "lib", "personal", "calc.ts")
 PASS = "ab" * 32   # 보유 열쇠 hex 모양(64자)
 
+# 암호 시험은 cryptography 가 있을 때만 돈다 — 알림 · 수집 워크플로의 시험 단계엔 이 모듈이 없다
+# (작업 자체는 master-snapshot.yml 이 따로 설치한다). 없는 곳에서 실패하면 그 워크플로가 통째로 멈춘다.
+try:
+    import cryptography  # noqa: F401
+    _HAS_CRYPTO = True
+except ImportError:
+    _HAS_CRYPTO = False
+needs_crypto = pytest.mark.skipif(not _HAS_CRYPTO, reason="cryptography 없음")
+
 
 def _node(js, payload):
     """node 로 앱의 진짜 .ts 를 돌린다. node 가 없거나 못 돌리면 시험을 건너뛴다."""
@@ -39,6 +48,7 @@ def test_constants_match_e2e_ts():
     assert M.MAX_SNAPS == 730 and "slice(-730)" in open(CALC, encoding="utf-8").read()
 
 
+@needs_crypto
 def test_roundtrip_and_blob_shape():
     plain = {"v": 1, "at": "2026-10-27T00:00:00Z", "snaps": [{"d": "2026-10-26", "ev": 1, "ct": 1, "src": "close"}]}
     b = M.encrypt_blob(plain, PASS)
@@ -54,11 +64,13 @@ def test_roundtrip_and_blob_shape():
         M.decrypt_blob(bad, PASS)
 
 
+@needs_crypto
 def test_trimmed_password_fallback():
     b = M.encrypt_blob([1], PASS)
     assert M.open_with_fallback(b, PASS + "\n") == [1]
 
 
+@needs_crypto
 def test_decrypts_blob_made_by_apps_e2e_ts():
     """앱 e2e.ts encrypt 가 만든 덩어리(보유 칸 + 바뀐 때 {t})를 파이썬이 풀어 칸을 읽는다."""
     js = f"""
@@ -72,6 +84,7 @@ console.log(JSON.stringify(await encrypt(inp.entries, inp.pass, inp.at)));
     assert [(e["s"], e["m"], e["a"], e["q"], e["fx"]) for e in got] == [("005930", "KR", 70000, 10, None), ("AAPL", "US", 150, 2, 1300)]
 
 
+@needs_crypto
 def test_app_e2e_ts_decrypts_blob_made_here():
     js = f"""
 import {{ decrypt }} from 'file:///{E2E.replace(os.sep, '/')}';
@@ -203,6 +216,8 @@ def _fake_fetch(sym):
 
 @pytest.fixture
 def fake_net(monkeypatch):
+    if not _HAS_CRYPTO:                 # 이 묶음을 쓰는 시험은 전부 암호 덩어리를 만든다
+        pytest.skip("cryptography 없음")
     state = {"puts": [], "snaps": None, "hold": M.encrypt_blob(HOLD_PLAIN, PASS)}
 
     def get(url, headers=None, timeout=20):
