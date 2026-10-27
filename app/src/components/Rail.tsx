@@ -4,13 +4,16 @@
 // 펼침 · 고른 탭은 이 기기에(localStorage, 못 쓰면 이번 화면만). 보유(금액)는 싣지 않는다 — 내 자산은 PIN 뒤다.
 // 값: useItems 하나(지표 = 지표 사전 · 묶음, 종목 = 묶음 행 → /quotes) — 홈 관심 칸 · 검색 행도 같은 것을 쓴다.
 // 알림 = 원장 최신판(events/latest.json — 알림 화면이 읽는 것과 같은 자료), 일정 = 홈 묶음 schedule.
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Bell, CalendarDays, ChevronRight, History, PanelRightClose, Star, type LucideIcon } from 'lucide-react'
 import { loadHome, loadIndicator, loadStocks, useBundleRev, type HomeBundle, type Sched, type StripItem } from '../lib/bundle'
 import { isStockId, type StockRow } from '../lib/detail'
 import { changeDir, fmtChange, fmtNumber, fmtPct, mdHm, safeHref, scaled, shortDate } from '../lib/format'
-import { fromLedger, hhmm, type FeedRow } from '../lib/alerts/v2'
+import { hhmm, railFeed, type FeedRow } from '../lib/alerts/v2'
+import { firedGet } from '../lib/personal/remote'
+import { getKeyHash } from '../lib/personal/sync'
+import { useMe } from '../lib/personal/account'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
 import { batchQuotes, quoteItem, rowItem } from '../lib/personal/quotes'
@@ -221,9 +224,22 @@ function RecentTab() {
 
 /** 받은 알림 최근 20 — 알림 화면과 같은 원장 · 같은 줄 모양(fromLedger). */
 function AlertsTab() {
-  const [rows, setRows] = useState<FeedRow[] | null | undefined>(undefined)
-  useEffect(() => { loadRootJson<unknown>('events/latest.json').then(r => setRows(fromLedger(r, new Map()).slice(0, 20)), () => setRows(null)) }, [])
-  if (rows === undefined) return <Empty>불러오는 중</Empty>
+  // 멤버: 공개 원장의 사람(마스터) 행은 빼고 내 울림(GET /fired)을 더한다 — 알림 화면과 같은 memberView
+  const member = useMe()?.role === 'member'
+  const [ledger, setLedger] = useState<unknown>(undefined)   // undefined 불러오는 중 · null 못 읽음
+  const [firedItems, setFiredItems] = useState<unknown>(undefined)   // undefined 아직 · null 못 읽음 · 배열
+  useEffect(() => { loadRootJson<unknown>('events/latest.json').then(setLedger, () => setLedger(null)) }, [])
+  useEffect(() => {
+    const h = getKeyHash()
+    if (!member || !h) return
+    firedGet(h).then(r => setFiredItems(r.status === 200 && Array.isArray(r.doc?.items) ? r.doc.items : null), () => setFiredItems(null))
+  }, [member])
+  const from = kstDay(Date.now() - 6 * 86_400_000)
+  const rows = useMemo<FeedRow[] | null | undefined>(
+    () => (ledger === undefined ? undefined : Array.isArray(ledger) ? railFeed(ledger, firedItems, member, from) : null),
+    [ledger, firedItems, member, from],
+  )
+  if (rows === undefined || (member && firedItems === undefined && getKeyHash())) return <Empty>불러오는 중</Empty>
   const today = kstDay()
   return (
     <>

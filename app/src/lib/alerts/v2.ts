@@ -75,6 +75,11 @@ export function memberView(ledger: unknown, items: unknown, from = ''): { rows: 
   return { rows: [...pub, ...mine.filter(r => kstDay(Date.parse(r.ts)) >= from)], mine, fired }
 }
 
+/** 오른쪽 패널 「받은 알림」 줄 — 마스터 = 공개 원장 그대로, 멤버 = memberView(시장 사건 + 내 울림). 최근 limit 건. */
+export function railFeed(ledger: unknown, firedItems: unknown, member: boolean, from: string, limit = 20): FeedRow[] {
+  return fromLedger(member ? memberView(ledger, firedItems, from).rows : ledger, new Map()).slice(0, limit)
+}
+
 /** 한국 시각 HH:mm. */
 export const hhmm = (t: number) => mdHm(new Date(t)).split(' ')[1] ?? ''
 
