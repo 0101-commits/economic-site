@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { canHash, checkPin, clearPin, hasPin, isUnlocked, lock, readFail, setPin, touch, waitMs } from '../lib/pin'
 import { keyHash, syncKeyCheck } from '../lib/personal/remote'
-import { wipeDevice } from '../lib/personal/store'
+import { wipeDeviceAll } from '../lib/personal/store'
 import { disableSync, getKeyHash } from '../lib/personal/sync'
 import { BTN, BTN2, Field, INPUT } from './personal/bits'
 import { Card } from './ui'
@@ -166,7 +166,7 @@ function Forgot({ onCleared, onBack }: { onCleared: () => void; onBack: () => vo
   const wipe = async () => {
     setBusy(true)
     // 푸시 구독 해지가 동기화 키 해시를 쓰므로 동기화를 끄기 전에 지운다(wipeDevice 안에서 해지)
-    if (!(await wipeDevice(getKeyHash))) { setBusy(false); setStep(0); setMsg('이 기기 데이터를 지우지 못했습니다.'); return }
+    if (!(await wipeDeviceAll(getKeyHash))) { setBusy(false); setStep(0); setMsg('이 기기 데이터를 지우지 못했습니다.'); return }
     disableSync(); clearPin(); location.reload()
   }
   return (

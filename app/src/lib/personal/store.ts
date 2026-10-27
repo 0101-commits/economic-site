@@ -18,7 +18,7 @@ import { unsubscribePush, type GetKeyHash } from '../push'
 import { applyTheme, readTheme } from '../theme'
 import type { MyData } from './backup'
 import { storeKey } from './who'
-import { read, write, readPortfolio, writePortfolio, readSnaps, writeSnaps, readLedger, writeLedger, scopedWipeNames } from './scoped'
+import { read, write, readPortfolio, writePortfolio, readSnaps, writeSnaps, readLedger, writeLedger, scopedWipeNames, wipeAllPeople } from './scoped'
 export { readPortfolio, writePortfolio, readSnaps, readLedger, writeLedger }
 export type { Portfolio, Ledger } from './scoped'
 import type { Portfolio } from './scoped'
@@ -137,6 +137,12 @@ export function noteRecent(id: string) {
 export const wipeKeys = () => [...scopedWipeNames(), KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
   KEYS.holdKey, KEYS.scope, KEYS.rail,
   'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econAlertsSeen_v1', 'econ_fold_v1', 'econHoldQuotes_v1', 'econ_usage_v1', 'econ_home_cache_v1']
+/** PIN 잊음 전용: 잠금 PIN 은 이 기기 모든 사람의 자료를 지켰으므로 모든 사람 것을 지운다(scoped.wipeAllPeople). 설정의 「이 기기 데이터 지우기」는 그대로 wipeDevice(지금 사람만). */
+export async function wipeDeviceAll(getKeyHash: GetKeyHash): Promise<boolean> {
+  await unsubscribePush(getKeyHash).catch(() => {})
+  const mine = new Set(scopedWipeNames())
+  return wipeAllPeople(wipeKeys().filter(k => !mine.has(k)))
+}
 /** 지우기 전에 이 기기 폰 알림 구독을 끊는다(서버 쪽 해지에 동기화 키 해시가 쓰인다 — 그래서 동기화는 이 뒤에 끈다). 못 끊어도 지우기는 계속. */
 export async function wipeDevice(getKeyHash: GetKeyHash): Promise<boolean> {
   await unsubscribePush(getKeyHash).catch(() => {})

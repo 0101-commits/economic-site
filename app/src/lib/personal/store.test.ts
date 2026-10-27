@@ -3,11 +3,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { currentPerson, setPendingPerson, storeKey, type ScopedBase } from './who.ts'
-import { read, readLedger, readPortfolio, readSnaps, scopedWipeNames, write, writeLedger, writePortfolio, writeSnaps, type Portfolio } from './scoped.ts'
+import { read, readLedger, readPortfolio, readSnaps, scopedWipeNames, write, writeLedger, wipeAllPeople, writePortfolio, writeSnaps, type Portfolio } from './scoped.ts'
 import { makeAccount, ME_KEY } from './account.ts'
 
 const store = new Map<string, string>()
-Object.assign(globalThis, { localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v) }, removeItem: (k: string) => { store.delete(k) } } })
+Object.assign(globalThis, {
+  localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v) }, removeItem: (k: string) => { store.delete(k) },
+    get length() { return store.size }, key: (i: number) => [...store.keys()][i] ?? null },
+  sessionStorage: { removeItem: () => {} },
+})
 
 const as = (p: { uid: string; role: 'owner' | 'member' } | null) => { setPendingPerson(null); if (p) store.set(ME_KEY, JSON.stringify({ ...p, name: 'x', viaBackup: false })); else store.delete(ME_KEY) }
 const OWNER = { uid: 'u0', role: 'owner' as const }, X = { uid: 'uX1', role: 'member' as const }
@@ -59,6 +63,17 @@ test('wipe 이름: 지금 사람 것만 — econ_fav_v1 은 마스터 · 나간 
   assert.equal(scopedWipeNames().includes('econ_fav_v1'), false)
   as(OWNER); assert.ok(scopedWipeNames().includes('econ_fav_v1')); assert.ok(scopedWipeNames().includes('portfolioV1'))
   as(null); assert.ok(scopedWipeNames().includes('econ_fav_v1'))
+})
+
+test('wipeAllPeople(PIN 잊음): 모든 사람의 키 · 마스터 기본 키 · econMe_v1 · 덧붙인 키를 지우고 남의 키는 둔다', () => {
+  store.clear(); as(OWNER)
+  const bases = ['portfolioV1', 'pfSnapshotsV1', 'pfLedgerV1', 'econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1']
+  for (const b of bases) { store.set(b, '1'); store.set(`${b}:uX1`, '1'); store.set(`${b}:uY2`, '1') }
+  store.set('econ_fav_v1', '1'); store.set('econ_usage_v1', '1'); store.set('unrelated', '1')
+  setPendingPerson(X)
+  assert.equal(wipeAllPeople(['econ_usage_v1']), true)
+  assert.deepEqual([...store.keys()], ['unrelated'])
+  assert.equal(currentPerson(), null)
 })
 
 // ── signIn 이 연결(connectSync)을 하는 동안의 저장 이름 ──
