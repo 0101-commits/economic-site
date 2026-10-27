@@ -28,8 +28,9 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 OUT = os.path.join(ROOT, "go.html")
 
 import notify_discord  # noqa: E402
+import app_url  # noqa: E402
 
-DASH = "https://0101-commits.github.io/economic-site/"
+DASH = app_url.NEW_URL
 STOCK = "https://finance.naver.com/item/main.naver?code="
 
 TEMPLATE = """<!doctype html>

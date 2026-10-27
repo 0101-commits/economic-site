@@ -14,6 +14,7 @@ import Detail from './screens/Detail'
 import Settings from './screens/Settings'
 import { BrandMark, BrandWord } from './components/Brand'
 import { PinGate } from './components/PinGate'
+import { MovedBanner } from './components/MovedBanner'
 import { Boundary, Pill } from './components/ui'
 import { SearchOverlay } from './components/personal/SearchOverlay'
 import Rail, { useRail } from './components/Rail'
@@ -179,7 +180,9 @@ function Shell() {
         <ThemeButton />
       </header>
 
-      {/* 매매중단 배너 — 지금 발동 중인 서킷브레이커 · 사이드카(알림의 같은 사건). 누르면 국내 매매중단 패널 */}
+      <MovedBanner />
+
+      {/* 매매중단 배너 —지금 발동 중인 서킷브레이커 · 사이드카(알림의 같은 사건). 누르면 국내 매매중단 패널 */}
       {halt && (
         <Link to="/market?a=kr&v=halts&m=all" className="block bg-card border-b border-line no-underline">
           <span className="mx-auto max-w-[1200px] px-4 py-2 flex items-center gap-2 text-13 text-ink-1">

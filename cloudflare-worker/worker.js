@@ -94,8 +94,11 @@ const SECURITY_HEADERS = {
 // POST(/ai·/portfolio)는 쓰기/비용이 발생하는 경로 — 자기 사이트 출처만 허용한다.
 // Origin 헤더는 브라우저가 자동 부여하므로 일반 스크립트로는 위조가 곤란하다.
 // Origin 이 아예 없는 서버측 호출(curl 등)은 아래 IP 레이트리밋으로 방어한다.
+// 대시보드 주소 — 디스코드 메시지 링크. (scripts/app_url.py 와 같은 값)
+const APP_URL = 'https://ecom-terminal.pages.dev/';
 const ALLOWED_ORIGINS = new Set([
   'https://0101-commits.github.io',
+  'https://ecom-terminal.pages.dev',
 ]);
 function _originAllowed(request) {
   const o = request.headers.get('Origin');
@@ -1746,7 +1749,7 @@ async function _discordQuote(label, env) {
     const arrow = pct == null ? '' : (pct >= 0 ? '▲' : '▼');
     const pctTxt = pct == null ? '' : ` ${arrow}${Math.abs(pct).toFixed(2)}%`;
     const nav = DISCORD_NAVER[label] ? ` · [네이버 ↗](${DISCORD_NAVER[label]})` : '';
-    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}${nav}\n※ 무료 시세 기준(지연 가능) · [대시보드](https://0101-commits.github.io/economic-site/)`;
+    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}${nav}\n※ 무료 시세 기준(지연 가능) · [대시보드](${APP_URL})`;
   };
   try {
     // range=1d — 이때 chartPreviousClose 가 '직전 거래일 종가'다. 5d 로 부르면 5일 전
@@ -1794,7 +1797,7 @@ async function handleDiscordInteractions(request, env, ctx) {
     }
     if (name === '대시보드') {
       return jsonResponse({ type: 4, data: {
-        content: '📊 경제터미널 대시보드\nhttps://0101-commits.github.io/economic-site/' } });
+        content: '📊 경제터미널 대시보드\n' + APP_URL } });
     }
     return jsonResponse({ type: 4, data: { content: `알 수 없는 명령: ${name}`, flags: 64 } });
   }
@@ -1823,7 +1826,7 @@ async function handleDiscordInteractions(request, env, ctx) {
       const hit = DISCORD_ASSET_LINKS[v];
       const content = hit
         ? `📈 **${hit[0]}** 차트 → ${hit[1]}`
-        : `📊 대시보드 → https://0101-commits.github.io/economic-site/`;
+        : `📊 대시보드 → ${APP_URL}`;
       return jsonResponse({ type: 4, data: { content, flags: 64 } });
     }
     return jsonResponse({ type: 4, data: { content: `알 수 없는 버튼: ${customId}`, flags: 64 } });

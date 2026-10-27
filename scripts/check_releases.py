@@ -33,6 +33,7 @@ import os
 import re
 import json
 import datetime
+import app_url as _au
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -230,13 +231,13 @@ def main():
         sent_ok = notify_discord.send(
             body, png=png,
             title=f"📊 {ev0.get('name')} {ev0.get('act')} — {why0}"[:256],
-            url="https://0101-commits.github.io/economic-site/?p=market",
+            url=_au.app_link("?p=market"),
             color=notify_discord.COLOR_FIRE if stars >= EVERYONE_STARS
             else notify_discord.COLOR_ALERT,
             footer=f"{ev0.get('dt', '')} 발표 · 출처 {ev0.get('source', 'FRED')}",
             timestamp=True, mention=(stars >= EVERYONE_STARS),
             env="DISCORD_WEBHOOK_SWINGS",
-            buttons=[("📈 경제지표", "https://0101-commits.github.io/economic-site/?p=market")])
+            buttons=[("📈 경제지표", _au.app_link("?p=market"))])
     except Exception as e:                                   # noqa: BLE001
         print(f"[releases] 디스코드 발송 예외 무시: {e}")
 
@@ -259,7 +260,7 @@ def main():
             kakao.send_card(token, f"{ev0.get('name')} {ev0.get('act')}"[:44], why0[:120],
                             png=kpng, uuids=[f["uuid"] for f in friends], kind="지표 발표",
                             buttons=[("경제지표",
-                                      "https://0101-commits.github.io/economic-site/?p=market")])
+                                      _au.app_link("?p=market"))])
             sent_ok = True
         except (SystemExit, Exception) as e:                 # noqa: BLE001
             print(f"::warning title=지표 발표 카카오 실패::{e}")

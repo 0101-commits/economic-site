@@ -29,6 +29,7 @@ import datetime
 
 import check_alerts as ca               # yahoo_snapshot / is_market_open 재사용
 import send_kakao_digest as kakao       # 토큰 재발급·발송 공용
+import app_url as _au
 import volatility as vol                # σ 정규화 임계(P0)
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
@@ -197,7 +198,7 @@ def main():
             if u:
                 # 등락률은 카드·제목이 이미 말한다(2026-09-24 A5) — 이모지 + 이름만.
                 _btns.append((f"{notify_discord.direction_emoji(pct)} N {nm}", u))
-        _btns.append(("대시보드", "https://0101-commits.github.io/economic-site/?p=equity"))
+        _btns.append(("대시보드", _au.app_link("?p=equity")))
         # 제목=결론 한 줄(기획안 원칙 4) — "언제 급변"이 아니라 "무엇이 얼마나 이례적으로".
         # 근거는 자연어 서수를 먼저 쓰고(금융 저널리즘 관행), 없으면 σ 배수로 적는다.
         # why0 = "z −2.6σ · 최근 1년 중 4번째로 큰 하락" — 서수 조각만 뽑아 쓴다
@@ -215,7 +216,7 @@ def main():
                 title=_head[:256],
                 # 제목 클릭 = 급변한 지표의 네이버 증권. 대시보드는 버튼(2026-09-22).
                 url=(notify_discord.NAVER_LINKS.get(_SYM2KEY.get(sym0))
-                     or "https://0101-commits.github.io/economic-site/?p=equity"),
+                     or _au.app_link("?p=equity")),
                 color=notify_discord.COLOR_FIRE, footer=ca.DELAY_NOTICE,
                 timestamp=True, mention=True, env="DISCORD_WEBHOOK_SWINGS",
                 buttons=_btns):

@@ -27,6 +27,7 @@
 import os
 import json
 import datetime
+import app_url as _au
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -195,12 +196,12 @@ def main():
         sent = notify_discord.send(
             body, png=png,
             title=f"🎯 {ind0.get('label')} {lv0:g}{ind0.get('unit') or ''} 돌파 — {meaning0}"[:256],
-            url="https://0101-commits.github.io/economic-site/?p=merlens",
+            url=_au.app_link("?p=merlens"),
             color=notify_discord.COLOR_ALERT, timestamp=True,
             footer=f"메르 리스크 렌즈 · 기준일 {(ind0.get('current') or {}).get('asOf', '—')}",
             env="DISCORD_WEBHOOK_SWINGS",
             buttons=[("🎯 리스크 렌즈",
-                      "https://0101-commits.github.io/economic-site/?p=merlens")])
+                      _au.app_link("?p=merlens"))])
     except Exception as e:                           # noqa: BLE001
         print(f"[mer] 디스코드 발송 예외 무시: {e}")
 

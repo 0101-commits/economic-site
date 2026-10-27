@@ -30,6 +30,7 @@ import json
 import uuid
 import datetime
 import urllib.request
+import app_url as _au
 
 WEBHOOK_ENV = "DISCORD_WEBHOOK_URL"
 # 디스코드(Cloudflare)가 파이썬 기본 UA(Python-urllib)를 403 으로 차단한다 — 반드시 지정.
@@ -131,7 +132,7 @@ NAVER_LINKS = {
 # 종전 규칙은 '없으면 목록에서 빼고 다음 칸을 대표로'였다 — 그래서 카드가 미국채 10Y 를
 # 크게 그려 놓고 사진·버튼은 달러-원 네이버 차트로 갔다(2026-09-28 사용자 제보, us_pre 편성).
 # 링크는 다른 지표로 대체하지 않는다. 우리 도메인이라 카카오 중계(go.html)도 필요 없다.
-DASHBOARD = "https://0101-commits.github.io/economic-site/"
+DASHBOARD = _au.APP_URL
 # 새 카드 키가 네이버·대시보드 어느 쪽에도 없으면 test_card_links 가 실패한다.
 DASH_LINKS = {
     "Wheat": DASHBOARD + "?p=market&t=commodity",

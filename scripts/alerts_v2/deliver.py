@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.dirname(HERE)
 if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
-APP_URL = os.environ.get("APP_URL", "https://0101-commits.github.io/economic-site/")
+from app_url import APP_URL  # noqa: E402  단일 원천(APP_URL 환경변수 덮어쓰기 포함)
 PUSH_QUEUE_PATH = os.path.join(SCRIPTS, "push_queue.json")
 LEVEL_KO = {"alarm": "경보", "alert": "알림", "notice": "안내"}
 _KAKAO_SESSION: dict | None = None     # 런 안에서 토큰 · 수신자 한 번만
