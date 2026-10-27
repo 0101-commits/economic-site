@@ -154,6 +154,108 @@ check('옛 키 401', (await call('GET', '/prefs', { hash: hA })).status, 401);
 check('새 키로 같은 prefs', (await call('GET', '/prefs', { hash: sha(newKey) })).j.watch.length, 1);
 check('ukey 교체', [kv.has('ukey:' + hA), kv.get('ukey:' + sha(newKey)) === A.user.uid], [false, true]);
 
+console.log('새 경로 — /me · /admin/* · CI 복수 읽기 · /fired');
+{
+  const hM = sha(newKey); // 멤버 A (키를 바꾼 뒤)
+  const RK = { 'X-Push-Read-Key': 'fake-push-read-key' };
+  const ownerCall = (method, path, body) => call(method, path, { body });
+  const m403 = await call('GET', '/admin/users', { hash: hM });
+  check('멤버 /admin/users 403 owner_only', [m403.status, m403.j], [403, { error: 'owner_only' }]);
+  check('멤버 /admin/users 생성 403', (await call('POST', '/admin/users', { hash: hM, body: { name: 'x' } })).status, 403);
+  check('키 없이 /admin/users 401', (await call('GET', '/admin/users', { hash: null })).status, 401);
+  check('주인 /me', (await call('GET', '/me')).j, { uid: U, name: '마스터', role: 'owner', viaBackup: false });
+  check('멤버 /me', (await call('GET', '/me', { hash: hM })).j, { uid: A.user.uid, name: '갑', role: 'member', viaBackup: false });
+  const cr = await ownerCall('POST', '/admin/users', { name: ' 정 ' });
+  check('생성 200 · 이름 다듬음 · key 모양', [cr.status, cr.j.user.name, /^ECOM-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(cr.j.key)], [200, '정', true]);
+  check('생성 응답 user 에 keyHash 없음', JSON.stringify(cr.j.user).includes('keyHash'), false);
+  check('이름 빈 문자 400', (await ownerCall('POST', '/admin/users', { name: '  ' })).status, 400);
+  check('이름 21자 400', (await ownerCall('POST', '/admin/users', { name: 'a'.repeat(21) })).status, 400);
+  const lu = await ownerCall('GET', '/admin/users');
+  check('목록에 keyHash·key 문자열 없음', /keyHash|backupKeyHash|"key"/.test(JSON.stringify(lu.j)), false);
+  const rowJ = lu.j.users.find(u => u.uid === cr.j.user.uid);
+  check('목록 행 모양', [Object.keys(rowJ).sort(), rowJ.pushCount, rowJ.role, rowJ.status], [['lastSeenDay', 'name', 'pushCount', 'role', 'status', 'uid'], 0, 'member', 'active']);
+  kv.set('seen:' + cr.j.user.uid, kstDay); kv.set('push:' + cr.j.user.uid, JSON.stringify([{ endpoint: 'e1' }, { endpoint: 'e2' }]));
+  const row2 = (await ownerCall('GET', '/admin/users')).j.users.find(u => u.uid === cr.j.user.uid);
+  check('lastSeenDay 는 seen:<uid>, pushCount 는 push:<uid>', [row2.lastSeenDay, row2.pushCount], [kstDay, 2]);
+  const nuid = cr.j.user.uid, nh = sha(normalizeEntryKey(cr.j.key));
+  check('PATCH 이름', (await ownerCall('PATCH', '/admin/users/' + nuid, { name: '정2' })).j.user.name, '정2');
+  check('PATCH 이름 빈 값 400', (await ownerCall('PATCH', '/admin/users/' + nuid, { name: '' })).status, 400);
+  check('PATCH 멈춤 → 그 사람 403', [(await ownerCall('PATCH', '/admin/users/' + nuid, { status: 'paused' })).status, (await call('GET', '/me', { hash: nh })).status], [200, 403]);
+  check('없는 uid PATCH 404', (await ownerCall('PATCH', '/admin/users/zzzz', { name: 'q' })).status, 404);
+  check('주인 멈춤 금지 403', (await ownerCall('PATCH', '/admin/users/' + U, { status: 'paused' })).status, 403);
+  const rk = await ownerCall('POST', '/admin/users/' + nuid + '/rekey');
+  check('rekey 새 key · 옛 키 401', [/^ECOM-/.test(rk.j.key), (await call('GET', '/me', { hash: nh })).status], [true, 401]);
+  const bk = await ownerCall('POST', '/admin/backup-key');
+  check('예비 키로 /me viaBackup', (await call('GET', '/me', { hash: sha(normalizeEntryKey(bk.j.key)) })).j.viaBackup, true);
+  check('멤버 DELETE 403', (await call('DELETE', '/admin/users/' + nuid, { hash: hM })).status, 403);
+  check('DELETE 200', (await ownerCall('DELETE', '/admin/users/' + nuid)).j, { ok: true });
+  check('삭제 뒤 목록에 없음', (await ownerCall('GET', '/admin/users')).j.users.some(u => u.uid === nuid), false);
+  check('주인 DELETE 403', (await ownerCall('DELETE', '/admin/users/' + U)).status, 403);
+
+  const pre = await worker.fetch(new Request('https://w.test/admin/users/abc', { method: 'OPTIONS', headers: { Origin: 'https://ecom-terminal.pages.dev', 'Access-Control-Request-Method': 'PATCH' } }), env, {});
+  check('OPTIONS /admin/users/abc 204 + PATCH', [pre.status, pre.headers.get('Access-Control-Allow-Methods').includes('PATCH')], [204, true]);
+  const pre2 = await worker.fetch(new Request('https://w.test/me', { method: 'OPTIONS', headers: { Origin: 'https://ecom-terminal.pages.dev' } }), env, {});
+  check('OPTIONS /me 204', pre2.status, 204);
+  const bad = await call('GET', '/me', { headers: { Origin: 'https://evil.test' } });
+  check('나쁜 출처 /me 403', bad.status, 403);
+
+  console.log('  마이그레이션 호출 · 복수 읽기');
+  const rawPost = (path, headers, body) => call('POST', path, { hash: null, headers, body });
+  check('migrate 머리만(본문 keyHash 없음) 401', (await rawPost('/admin/migrate', RK, {})).status, 401);
+  check('migrate 본문만(머리 없음) 401', (await rawPost('/admin/migrate', {}, { keyHash: KEY })).status, 401);
+  check('migrate 머리 틀림 401', (await rawPost('/admin/migrate', { 'X-Push-Read-Key': 'nope' }, { keyHash: KEY })).status, 401);
+  check('migrate 본문 틀림 401', (await rawPost('/admin/migrate', RK, { keyHash: sha('x') })).status, 401);
+  check('migrate 둘 다 맞음 → 이미 이전됨', (await rawPost('/admin/migrate', RK, { keyHash: KEY })).j, { uid: U, created: false });
+
+  const pa = await call('GET', '/prefs/all', { hash: null, headers: RK });
+  check('/prefs/all active 만 (멈춘 B 제외)', pa.j.users.map(u => u.uid).sort(), [U, A.user.uid, ...(await listUsers(env)).filter(u => u.status === 'active' && ![U, A.user.uid].includes(u.uid)).map(u => u.uid)].sort());
+  check('/prefs/all 모양', [pa.j.users.find(u => u.uid === A.user.uid).role, pa.j.users.find(u => u.uid === A.user.uid).prefs.watch.length], ['member', 1]);
+  check('/prefs/all 읽기 키 없으면 401', (await call('GET', '/prefs/all', { hash: null })).status, 401);
+  check('/prefs/all 틀린 키 401', (await call('GET', '/prefs/all', { hash: null, headers: { 'X-Push-Read-Key': 'bad' } })).status, 401);
+  kv.set('push:' + A.user.uid, JSON.stringify([{ endpoint: 'https://p/1', keys: {} }, { endpoint: 'https://p/2', keys: {} }]));
+  const ps = await call('GET', '/push/subscriptions/all', { hash: null, headers: RK });
+  const psA = ps.j.users.find(u => u.uid === A.user.uid);
+  check('/push/subscriptions/all 모양 · 멈춘 B 제외', [psA.role, psA.subs.length, 'quiet' in psA, ps.j.users.some(u => u.uid === B.user.uid)], ['member', 2, true, false]);
+  const prune = await call('PUT', '/push/prune', { hash: null, headers: RK, body: { uid: A.user.uid, endpoints: ['https://p/1'] } });
+  check('prune uid 지정', [prune.j.removed, prune.j.count, JSON.parse(kv.get('push:' + A.user.uid)).length], [1, 1, 1]);
+  check('prune 모르는 uid 404', (await call('PUT', '/push/prune', { hash: null, headers: RK, body: { uid: 'nobody0', endpoints: [] } })).status, 404);
+  check('prune uid 없으면 주인 칸(옛 호환)', (await call('PUT', '/push/prune', { hash: null, headers: RK, body: { endpoints: ['x'] } })).j.removed, 0);
+  check('단수 /push/subscriptions 는 주인 칸', Array.isArray((await call('GET', '/push/subscriptions', { hash: null, headers: RK })).j.subs), true);
+
+  console.log('  /fired');
+  const WK = { 'X-Push-Write-Key': 'fake-push-write-key' };
+  const fcall = (headers, body) => call('POST', '/fired', { hash: null, headers, body });
+  check('PUSH_WRITE_KEY 없으면 503', (await fcall(WK, { uid: U, item: { n: 0 } })).j, { error: 'push_write_not_configured' });
+  env.PUSH_WRITE_KEY = 'fake-push-write-key';
+  check('잘못된 write key 403', (await fcall({ 'X-Push-Write-Key': 'bad' }, { uid: U, item: { n: 0 } })).status, 403);
+  check('write key 없음 403', (await fcall({}, { uid: U, item: { n: 0 } })).status, 403);
+  check('모르는 uid 404', (await fcall(WK, { uid: 'nobody0', item: { n: 0 } })).status, 404);
+  check('item 객체 아님 400', (await fcall(WK, { uid: U, item: 'x' })).status, 400);
+  check('item 2KB 초과 413', (await fcall(WK, { uid: U, item: { t: 'x'.repeat(3000) } })).status, 413);
+  for (let i = 1; i <= 51; i++) await fcall(WK, { uid: U, item: { n: i } });
+  const fl = await call('GET', '/fired');
+  check('51번 쓰면 50건 · 최신이 앞', [fl.j.items.length, fl.j.items[0].n, fl.j.items[49].n], [50, 51, 2]);
+  check('멤버 GET /fired 는 자기 칸(비어 있음)', (await call('GET', '/fired', { hash: hM })).j, { items: [] });
+
+  console.log('  사람 표 이전 전(legacy) 모양');
+  const snap = new Map(kv);
+  kv.clear(); _clearUserCache();
+  await call('PUT', '/prefs', { body: { watch: [{ id: '005930', kind: 'stock' }] } });
+  const la = await call('GET', '/prefs/all', { hash: null, headers: RK });
+  check('legacy /prefs/all 은 주인 한 명(uid=h16)', [la.j.users.length, la.j.users[0].uid, la.j.users[0].role], [1, h16, 'owner']);
+  const lm = await call('GET', '/admin/users');
+  check('legacy 목록 한 명', [lm.status, lm.j.users.length], [200, 1]);
+  check('legacy 생성 409 not_migrated', (await call('POST', '/admin/users', { body: { name: 'x' } })).j, { error: 'not_migrated' });
+  check('legacy rekey 409', (await call('POST', '/admin/users/abc/rekey')).status, 409);
+  check('legacy /me', (await call('GET', '/me')).j, { uid: h16, name: '마스터', role: 'owner', viaBackup: false });
+  check('legacy /fired 쓰기 uid=h16', (await fcall(WK, { uid: h16, item: { a: 1 } })).status, 200);
+  check('legacy /fired 모르는 uid 404', (await fcall(WK, { uid: 'other', item: { a: 1 } })).status, 404);
+  check('legacy GET /fired', (await call('GET', '/fired')).j.items.length, 1);
+  const mig = await rawPost('/admin/migrate', RK, { keyHash: KEY });
+  check('migrate 로 사람 표 생성', [mig.status, mig.j.created, kv.has('users:index')], [200, true, true]);
+  kv.clear(); for (const [k, v] of snap) kv.set(k, v); _clearUserCache();
+}
+
 console.log('index 가 사라지면 닫힌 채 실패');
 kv.delete('users:index');
 _clearUserCache();

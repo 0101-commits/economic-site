@@ -192,6 +192,48 @@ Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요�
 대상은 **지금 유효한 동기화 키의 공간 하나**(`push:<기대 해시 앞 16자>`)뿐입니다. 키를 바꾸면 옛 키 공간의 구독에는 보내지 않습니다.
 옛 키를 알던 사람이 넣어 둔 구독이 알림 내용을 계속 받지 않게 하려는 것입니다. 키를 바꾼 뒤에는 기기마다 「폰 알림」을 다시 켭니다.
 
+### 사람 표 이후의 새 경로 — `/me` · `/admin/*` · 복수 읽기 · `/fired`
+
+사람 표(`users:index`)가 생기면 공간 이름은 키 해시 앞 16자가 아니라 사람마다 정해진 `uid` 입니다. 아래 경로는 모두 JSON 입니다.
+「브라우저」 경로는 헤더 `X-Sync-Key-Hash`(입장 키의 해시)로 인증하고 출처·분당 한도(AI_LIMITER)를 겁니다. 「CI」 경로는 시크릿 헤더로 인증하며 Origin 도 CORS 도 쓰지 않습니다.
+
+| 경로 | 종류 · 인증 | 본문 | 응답 |
+|---|---|---|---|
+| `GET /me` | 브라우저 · 키 해시 | 없음 | `{ uid, name, role, viaBackup }` |
+| `GET /admin/users` | 브라우저 · 마스터만 | 없음 | `{ users: [{ uid, name, role, status, lastSeenDay, pushCount }] }` (키 해시 없음) |
+| `POST /admin/users` | 브라우저 · 마스터만 | `{ name }` (1~20자) | `{ user, key }` — 키는 이 응답에서만 보입니다 |
+| `PATCH /admin/users/<uid>` | 브라우저 · 마스터만 | `{ name?, status? }` (`active`·`paused`) | `{ user }` |
+| `POST /admin/users/<uid>/rekey` | 브라우저 · 마스터만 | 없음 | `{ key }` |
+| `DELETE /admin/users/<uid>` | 브라우저 · 마스터만 | 없음 | `{ ok: true }` (마스터는 지울 수 없음 403) |
+| `POST /admin/backup-key` | 브라우저 · 마스터만 | 없음 | `{ key }` (이전 예비 키는 폐기) |
+| `GET /fired` | 브라우저 · 키 해시 | 없음 | `{ items }` — 내 칸 `fired:<uid>` |
+| `POST /admin/migrate` | CI · 헤더 `X-Push-Read-Key` **그리고** 본문 `keyHash` | `{ keyHash }` (옛 동기화 키 해시) | `{ uid, created }`. 하나라도 틀리면 401 |
+| `GET /prefs/all` | CI · `X-Push-Read-Key` | 없음 | `{ users: [{ uid, role, prefs }] }` — 멈춘 사람 제외 |
+| `GET /push/subscriptions/all` | CI · `X-Push-Read-Key` | 없음 | `{ users: [{ uid, role, quiet, subs }] }` — 멈춘 사람 제외 |
+| `PUT /push/prune` | CI · `X-Push-Read-Key` | `{ uid?, endpoints }` (`uid` 가 없으면 마스터 칸) | `{ ok, removed, count }` |
+| `POST /fired` | CI · 헤더 `X-Push-Write-Key` = 시크릿 `PUSH_WRITE_KEY` | `{ uid, item }` (`item` 은 객체, JSON 2KB 이하) | `{ ok, count }` — 앞에 넣고 50건만 둠. 모르는 `uid` 404, 키 틀림 403, 시크릿 없음 503 `push_write_not_configured` |
+
+- 마스터가 아닌 사람이 `/admin/*` 를 부르면 403 `owner_only`. 사람 표 이전 전에는 목록만 되고 나머지 변경은 409 `not_migrated` 입니다.
+- 단수 `GET /prefs` · `GET /push/subscriptions`(발송기 읽기)는 마스터 칸 고정입니다.
+- 새 시크릿: `npx wrangler secret put PUSH_WRITE_KEY` (발송기의 CI 시크릿에도 같은 값).
+
+#### 마스터 예비 키도 잃었을 때
+
+마스터 입장 키와 예비 키를 둘 다 잃으면 사이트에서는 들어갈 길이 없습니다. 새 키를 하나 정해 사람 표의 마스터 `uid` 에 직접 연결합니다.
+
+```sh
+# 1) 새 키의 해시 계산 — ECOM-XXXX-XXXX-XXXX 모양이 아니어도 되지만 12자 이상으로 정합니다
+node -e "console.log(require('crypto').createHash('sha256').update(process.argv[1].trim()).digest('hex'))" "ECOM-ABCD-2345-WXYZ"
+# 2) 마스터 uid 찾기 — users:index 의 uid 중 user:<uid> 의 role 이 owner 인 칸
+npx wrangler kv key get  --binding ECON_PORTFOLIO --remote users:index
+npx wrangler kv key get  --binding ECON_PORTFOLIO --remote "user:<uid>"
+# 3) 새 키 해시가 마스터 uid 를 가리키게 쓰기 (1 에서 나온 해시 그대로)
+npx wrangler kv key put  --binding ECON_PORTFOLIO --remote "ukey:<1 에서 나온 해시>" "<마스터 uid>"
+```
+
+이 새 키로 사이트에 들어가 「예비 키 발급」을 다시 하고, 쓴 키는 따로 보관합니다. 같은 `ukey:` 칸을 지우면(`kv key delete`) 그 키는 즉시 막힙니다.
+입장 키 모양이 `ECOM-` 형식이면 해시 전에 대문자·하이픈 정리(`ECOM-XXXX-XXXX-XXXX`)가 서버와 같아야 하므로 형식 그대로 넣습니다. 서버 캐시는 최대 60초 뒤 반영됩니다.
+
 ### KV 키 형식(`ECON_PORTFOLIO`, id `49d7bd1ee2874995a7bf0439c4e297b3`)
 
 | 키 | 값 |

@@ -29,7 +29,8 @@
  *    이 경우 GH_DISPATCH_TOKEN 은 Contents:RW 가 필요해 사실상 과권한 — 분리 토큰 설정을 권장한다.
  *  모든 토큰은 Worker 시크릿(wrangler secret put …)에만 보관하며, 코드/저장소에 하드코딩 금지.
  */
-import { resolveUser, touchSeen, normalizeEntryKey, getOwner, setUserKeyHash, hexEq, _clearUserCache } from './users.js';
+import { resolveUser, touchSeen, normalizeEntryKey, getOwner, setUserKeyHash, hexEq, _clearUserCache,
+  createUser, listUsers, patchUser, rekeyUser, deleteUser, issueBackupKey, migrateOwner, readSeen } from './users.js';
 
 // 허용 호스트 — 대시보드가 실제로 호출하는 금융 데이터 출처만.
 const ALLOWED_HOSTS = [
@@ -1399,7 +1400,7 @@ async function handlePushSender(request, env, path) {
   if (request.method !== want) return jsonResponse({ error: 'method_not_allowed', allow: [want] }, 405, nc);
   const a = await _pushReadSpace(request, env, nc);
   if (a.denied) return a.denied;
-  const space = a.space, kvKey = 'push:' + space;
+  const space = a.space; let kvKey = 'push:' + space;
   let subs;
   try { subs = await env.ECON_PORTFOLIO.get(kvKey, 'json'); }
   catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, nc); }
@@ -1417,12 +1418,199 @@ async function handlePushSender(request, env, path) {
   if (b.err) return _withCors(b.err, nc);
   const gone = _isObj(b.body) && Array.isArray(b.body.endpoints) ? b.body.endpoints.filter(e => typeof e === 'string') : null;
   if (!gone) return jsonResponse({ error: 'endpoints_required' }, 400, nc);
+  // uid 가 오면 그 사람 칸을 정리한다(없으면 주인 — 옛 발송기 호환). 모르는 uid 는 404.
+  if (b.body.uid !== undefined && b.body.uid !== space) {
+    const uid = b.body.uid;
+    if (typeof uid !== 'string' || !UID_RE.test(uid)) return jsonResponse({ error: 'not_found' }, 404, nc);
+    try {
+      if (!(await getOwner(env)) || !(await env.ECON_PORTFOLIO.get('user:' + uid, 'json'))) return jsonResponse({ error: 'not_found' }, 404, nc);
+      kvKey = 'push:' + uid;
+      subs = await env.ECON_PORTFOLIO.get(kvKey, 'json');
+    } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, nc); }
+    if (!Array.isArray(subs)) subs = [];
+  }
   const next = subs.filter(s => !gone.includes(s.endpoint));
   if (next.length !== subs.length) {
     try { await env.ECON_PORTFOLIO.put(kvKey, JSON.stringify(next)); }
     catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, nc); }
   }
   return jsonResponse({ ok: true, removed: subs.length - next.length, count: next.length }, 200, nc);
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 사람 관리 · 내 정보 · CI 복수 읽기 · 발송 기록
+// ──────────────────────────────────────────────────────────────────
+const UID_RE = /^[a-z0-9]{1,32}$/;
+const FIRED_KEEP = 50, FIRED_ITEM_MAX = 2048;
+const _NC = { 'Cache-Control': 'no-store' };
+const _pubUser = (u, extra) => ({ uid: u.uid, name: u.name, role: u.role, status: u.status, ...extra });
+const _cleanName = n => { const t = typeof n === 'string' ? n.trim() : ''; return t.length >= 1 && t.length <= 20 ? t : null; };
+
+// 브라우저 경로(/me · /admin/* · GET /fired) 공통 관문 — 출처 → 레이트리밋(fail-closed) → 처리 → 출처 제한 CORS.
+async function handleMemberRoute(request, env, path, ctx) {
+  const pc = { ...postCors(request, env), ..._NC };
+  const o = request.headers.get('Origin');
+  if (o && !_corsOriginOk(o, env)) return jsonResponse({ error: 'forbidden_origin' }, 403, pc);
+  const rl = await _rateLimited(env, 'AI_LIMITER', request, true);
+  if (rl) return _withCors(rl, pc);
+  try { return _withCors(await _memberRoute(request, env, path, ctx), pc); }
+  catch (e) {
+    console.log('[member-route] 예외:', String((e && e.message) || e));
+    return jsonResponse({ error: 'internal_error' }, 500, pc);
+  }
+}
+
+async function _memberRoute(request, env, path, ctx) {
+  const method = request.method;
+  const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx);
+  if (auth.resp) return auth.resp;
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
+  const user = auth.user;
+  try {
+    if (path === '/me') {
+      if (method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405);
+      return jsonResponse({ uid: user.uid, name: user.name, role: user.role, viaBackup: !!user.viaBackup });
+    }
+    if (path === '/fired') {
+      if (method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405);
+      const items = await env.ECON_PORTFOLIO.get('fired:' + user.uid, 'json');
+      return jsonResponse({ items: Array.isArray(items) ? items : [] });
+    }
+    // /admin/*
+    if (!_isOwnerLike(user)) return jsonResponse({ error: 'owner_only' }, 403);
+    const legacy = !!user.legacy;
+    const notMigrated = () => jsonResponse({ error: 'not_migrated' }, 409);
+    const fail = r => jsonResponse({ error: r.error }, r.status || 500);
+    if (path === '/admin/users') {
+      if (method === 'GET') {
+        const rows = legacy ? [user] : await listUsers(env);
+        const users = [];
+        for (const u of rows) {
+          const push = await env.ECON_PORTFOLIO.get('push:' + u.uid, 'json');
+          users.push(_pubUser(u, { lastSeenDay: legacy ? null : ((await readSeen(env, u.uid)) || null), pushCount: Array.isArray(push) ? push.length : 0 }));
+        }
+        return jsonResponse({ users });
+      }
+      if (method === 'POST') {
+        if (legacy) return notMigrated();
+        const b = await _readJsonBody(request, 2048);
+        if (b.err) return b.err;
+        const name = _isObj(b.body) ? _cleanName(b.body.name) : null;
+        if (!name) return jsonResponse({ error: 'bad_name' }, 400);
+        const r = await createUser(env, { name });
+        if (r.error) return fail(r);
+        return jsonResponse({ user: _pubUser(r.user), key: r.key });
+      }
+      return jsonResponse({ error: 'method_not_allowed', allow: ['GET', 'POST'] }, 405);
+    }
+    if (path === '/admin/backup-key') {
+      if (method !== 'POST') return jsonResponse({ error: 'method_not_allowed', allow: ['POST'] }, 405);
+      if (legacy) return notMigrated();
+      const r = await issueBackupKey(env, user.uid);
+      return r.error ? fail(r) : jsonResponse({ key: r.key });
+    }
+    const m = /^\/admin\/users\/([^/]+)(\/rekey)?$/.exec(path);
+    if (m) {
+      const uid = m[1];
+      if (!UID_RE.test(uid)) return jsonResponse({ error: 'not_found' }, 404);
+      if (m[2]) {
+        if (method !== 'POST') return jsonResponse({ error: 'method_not_allowed', allow: ['POST'] }, 405);
+        if (legacy) return notMigrated();
+        const r = await rekeyUser(env, uid);
+        return r.error ? fail(r) : jsonResponse({ key: r.key });
+      }
+      if (method === 'PATCH') {
+        if (legacy) return notMigrated();
+        const b = await _readJsonBody(request, 2048);
+        if (b.err) return b.err;
+        if (!_isObj(b.body)) return jsonResponse({ error: 'bad_patch' }, 400);
+        const patch = {};
+        if (b.body.name !== undefined) { const n = _cleanName(b.body.name); if (!n) return jsonResponse({ error: 'bad_name' }, 400); patch.name = n; }
+        if (b.body.status !== undefined) patch.status = b.body.status;
+        if (patch.status === 'paused' && uid === user.uid) return jsonResponse({ error: 'owner_unpausable' }, 403);
+        const r = await patchUser(env, uid, patch);
+        return r.error ? fail(r) : jsonResponse({ user: _pubUser(r.user) });
+      }
+      if (method === 'DELETE') {
+        if (legacy) return notMigrated();
+        const r = await deleteUser(env, uid);
+        return r.error ? fail(r) : jsonResponse({ ok: true });
+      }
+      return jsonResponse({ error: 'method_not_allowed', allow: ['PATCH', 'DELETE'] }, 405);
+    }
+    return jsonResponse({ error: 'not_found' }, 404);
+  } catch (e) {
+    console.log('[member-route] KV 오류:', String((e && e.message) || e));
+    return jsonResponse({ error: 'kv_read_failed' }, 503);
+  }
+}
+
+// POST /admin/migrate — CI 한 번 호출. 머리 X-Push-Read-Key(시크릿) 와 본문 keyHash(옛 키) 가 둘 다 맞아야 한다.
+async function handleMigrate(request, env) {
+  if (request.method !== 'POST') return jsonResponse({ error: 'method_not_allowed', allow: ['POST'] }, 405, _NC);
+  const secret = String(env.PUSH_READ_KEY || '').trim();
+  if (!secret) return jsonResponse({ error: 'push_read_not_configured' }, 503, _NC);
+  const hdrOk = _hexEq(String(request.headers.get('X-Push-Read-Key') || '').trim(), secret);
+  const b = await _readJsonBody(request, 4096);
+  if (b.err) return b.err;
+  let legacy = '';
+  try { legacy = await _expectedSyncKeyHash(env); } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); }
+  const kh = _isObj(b.body) && typeof b.body.keyHash === 'string' ? b.body.keyHash.toLowerCase() : '';
+  const bodyOk = !!legacy && _hexEq(kh, legacy);
+  if (!hdrOk || !bodyOk) return jsonResponse({ error: 'unauthorized' }, 401, _NC);
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, _NC);
+  try { return jsonResponse(await migrateOwner(env, legacy), 200, _NC); }
+  catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, _NC); }
+}
+
+// GET /prefs/all · GET /push/subscriptions/all — 발송기(CI)가 사람마다 한 번에 읽는다. 멈춘 사람은 뺀다.
+//   사람 표 이전 전에는 옛 공간 하나(uid = 키 해시 앞 16자, 주인)만 낸다.
+async function handlePushAll(request, env, path) {
+  if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405, _NC);
+  const a = await _pushReadSpace(request, env, _NC);
+  if (a.denied) return a.denied;
+  try {
+    const owner = await getOwner(env);
+    const rows = owner ? (await listUsers(env)).filter(u => u.status !== 'paused')
+                       : [{ uid: a.space, role: 'owner' }];
+    const users = [];
+    for (const u of rows) {
+      const p = await env.ECON_PORTFOLIO.get('prefs:' + u.uid, 'json');
+      if (path === '/prefs/all') {
+        users.push({ uid: u.uid, role: u.role, prefs: p || { v: 2, updatedAt: null, ..._sanitizePrefs({}) } });
+      } else {
+        const subs = await env.ECON_PORTFOLIO.get('push:' + u.uid, 'json');
+        users.push({ uid: u.uid, role: u.role, quiet: (p && p.settings && p.settings.quiet) || null, subs: Array.isArray(subs) ? subs : [] });
+      }
+    }
+    return jsonResponse({ users }, 200, _NC);
+  } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); }
+}
+
+// POST /fired {uid, item} — 발송기가 보낸 알림 기록을 사람 칸 fired:<uid> 앞에 넣고 50건만 둔다. 시크릿 PUSH_WRITE_KEY.
+async function handleFiredWrite(request, env) {
+  const secret = String(env.PUSH_WRITE_KEY || '').trim();
+  if (!secret) return jsonResponse({ error: 'push_write_not_configured' }, 503, _NC);
+  if (!_hexEq(String(request.headers.get('X-Push-Write-Key') || '').trim(), secret)) return jsonResponse({ error: 'forbidden' }, 403, _NC);
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, _NC);
+  const b = await _readJsonBody(request, 8192);
+  if (b.err) return b.err;
+  const uid = _isObj(b.body) ? b.body.uid : null, item = _isObj(b.body) ? b.body.item : null;
+  if (typeof uid !== 'string' || !UID_RE.test(uid)) return jsonResponse({ error: 'not_found' }, 404, _NC);
+  if (!_isObj(item) || Array.isArray(item)) return jsonResponse({ error: 'item_required' }, 400, _NC);
+  if (new TextEncoder().encode(JSON.stringify(item)).length > FIRED_ITEM_MAX) return jsonResponse({ error: 'item_too_large', limit: FIRED_ITEM_MAX }, 413, _NC);
+  try {
+    if (await getOwner(env)) {
+      if (!(await env.ECON_PORTFOLIO.get('user:' + uid, 'json'))) return jsonResponse({ error: 'not_found' }, 404, _NC);
+    } else {
+      const h = await _expectedSyncKeyHash(env);   // 이전 전 — 옛 공간(키 해시 앞 16자) 하나뿐
+      if (!h || uid !== h.slice(0, 16)) return jsonResponse({ error: 'not_found' }, 404, _NC);
+    }
+    const cur = await env.ECON_PORTFOLIO.get('fired:' + uid, 'json');
+    const next = [item, ...(Array.isArray(cur) ? cur : [])].slice(0, FIRED_KEEP);
+    await env.ECON_PORTFOLIO.put('fired:' + uid, JSON.stringify(next));
+    return jsonResponse({ ok: true, count: next.length }, 200, _NC);
+  } catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, _NC); }
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1990,8 +2178,9 @@ export default {
     if (request.method === 'OPTIONS') {
       const _p = new URL(request.url).pathname;
       const _isPost = (_p === '/ai' || _p === '/portfolio' || _p === '/portfolio/test' || _p === '/sync-key' ||
-                       _p === '/prefs' || _p === '/push/subscribe');
-      return new Response(null, { headers: _isPost ? postCors(request, env) : GET_CORS });
+                       _p === '/prefs' || _p === '/push/subscribe' ||
+                       _p === '/me' || _p === '/fired' || _p === '/admin/migrate' || _p.startsWith('/admin/'));
+      return new Response(null, { status: 204, headers: _isPost ? postCors(request, env) : GET_CORS });
     }
 
     // 1층 사용자 데이터(관심·알림 조건·화면 설정)와 웹 푸시 구독 — GET/PUT/DELETE 를 한 관문에서 받는다.
@@ -2006,6 +2195,13 @@ export default {
           : jsonResponse({ error: 'push_not_configured', message: 'Worker 시크릿 VAPID_PUBLIC_KEY 가 없습니다.' }, 503);
       }
       if (_p === '/push/subscriptions' || _p === '/push/prune') return handlePushSender(request, env, _p);
+      if (_p === '/prefs/all' || _p === '/push/subscriptions/all') return handlePushAll(request, env, _p);
+      // 사람 관리 · 내 정보 · 발송 기록. 서버 간 호출(/admin/migrate · POST /fired)은 Origin 없이 시크릿으로 인증한다.
+      if (_p === '/admin/migrate') return handleMigrate(request, env);
+      if (_p === '/fired' && request.method === 'POST') return handleFiredWrite(request, env);
+      if (_p === '/me' || _p === '/fired' || _p === '/admin/users' || _p === '/admin/backup-key' || _p.startsWith('/admin/users/')) {
+        return handleMemberRoute(request, env, _p, ctx);
+      }
     }
 
     // 🤖 AI 시황 요약 — POST /ai : 프론트가 보낸 '그 순간의 시장 스냅샷'을 Anthropic(Claude)
