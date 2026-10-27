@@ -457,7 +457,7 @@ export async function pullHoldings(c: { server: Entry[]; stale: boolean; enc: En
   const p = readPortfolio()
   const group = p.groups[0].id
   const items = applyEntries(p.items, c.server, (e): Holding => ({
-    id: newId('i'), symbol: e.s, market: e.m, yahoo: e.m === 'US' ? e.s : null, name: e.s, secType: 'stock',
+    id: newId('i'), symbol: e.s, market: e.m, yahoo: e.m === 'US' ? e.s : null, name: e.n ?? e.s, secType: 'stock',
     ccy: e.m === 'US' ? 'USD' : 'KRW', avg: e.a, qty: e.q, fxBuy: e.fx, group,
   }))
   if (!writePortfolio({ ...p, items })) return { ok: false, msg: '이 기기에 저장하지 못했습니다. 시크릿 창이거나 저장 공간이 찼습니다.' }

@@ -22,6 +22,8 @@ import { loadBench, loadMarketData, type MarketData } from '../lib/personal/data
 import { holdingQuotes } from '../lib/personal/quotes'
 import { newId, readLedger, readPortfolio, readPrefs, readSnaps, saveTodaySnap, writeLedger, writePortfolio, type Ledger } from '../lib/personal/store'
 import { queueHoldSync, syncHoldings, useSyncStatus } from '../lib/personal/sync'
+import { fixHoldingNames } from '../lib/personal/nameLookup'
+import { needsName } from '../lib/personal/names'
 
 const VIEWS = [
   { key: 'hold', label: '보유' }, { key: 'pnl', label: '손익 분해' }, { key: 'risk', label: '위험' },
@@ -52,7 +54,8 @@ function Holdings() {
   const [syncOpen, setSyncOpen] = useState(false)
   const { hold } = useSyncStatus()
   // 열 때 한 번 보유를 맞춘다(범위 ② 가 꺼져 있거나 연결 전이면 아무것도 안 한다). 서버 것을 받았으면 다시 읽는다.
-  useEffect(() => { void syncHoldings().then(p => { if (p) setPf(readPortfolio()) }) }, [])
+  // 이어서 이름이 비었거나 코드뿐인 줄만 이름을 찾아 채운다(직접 지은 이름은 그대로).
+  useEffect(() => { void syncHoldings().then(p => { if (p) setPf(readPortfolio()) }).then(() => fixHoldingNames()).then(ok => { if (ok) setPf(readPortfolio()) }).catch(() => {}) }, [])
   const rev = useBundleRev()
   useEffect(() => {
     // 다시 읽기에서 못 받으면 보던 시세를 둔다
@@ -97,7 +100,7 @@ function Holdings() {
     const market = f.ccy === 'USD' ? 'US' : 'KR'
     if (items.some(it => it.symbol === f.symbol && it.market === market && it.id !== id)) return '이미 담은 종목입니다.'
     const fxNow = md?.fx?.now ?? null
-    const name = f.name || md?.quotes.get(f.symbol)?.name || f.symbol
+    const name = f.name || md?.quotes.get(f.symbol)?.name || ''   // 비면 저장 뒤 이름을 찾아 넣는다(fixHoldingNames)
     if (id) {
       savePf(items.map(it => it.id !== id ? it : {
         ...it, symbol: f.symbol, market, ccy: f.ccy, name, qty: f.qty, avg: f.avg,
@@ -112,6 +115,8 @@ function Holdings() {
       }])
     }
     setEdit(null)
+    // 이름이 비었거나 코드뿐이면 저장한 뒤 이름을 찾아 넣는다
+    if (needsName({ symbol: f.symbol, name })) void fixHoldingNames().then(ok => { if (ok) setPf(readPortfolio()) }).catch(() => {})
     return ''
   }
   const removeHolding = (id: string) => { savePf(readPortfolio().items.filter(it => it.id !== id)); setEdit(null) }
@@ -248,7 +253,7 @@ function HoldTable({ rows, unit, onEdit }: { rows: Row[]; unit: Unit; onEdit: (h
   const m = money(unit)
   const cols: Col<Row>[] = [
     { key: 'name', label: '종목', get: r => r.h.name || r.h.symbol, role: 'name' },
-    { key: 'qty', label: '수량', get: r => r.h.qty, num: true, role: 'sub', render: r => `${r.h.symbol} · ${fmtNumber(r.h.qty, r.h.qty != null && r.h.qty % 1 ? 2 : 0)}주` },
+    { key: 'qty', label: '수량', get: r => r.h.qty, num: true, role: 'sub', render: r => `${needsName(r.h) ? '' : `${r.h.symbol} · `}${fmtNumber(r.h.qty, r.h.qty != null && r.h.qty % 1 ? 2 : 0)}주` },
     { key: 'value', label: '평가액', get: r => r.value, num: true, role: 'value', render: r => m(r.value) ?? <span className="text-ink-3">시세 없음</span> },
     { key: 'pnlPct', label: '수익률', get: r => r.pnlPct, num: true, role: 'change', render: r => pctCell(r.pnlPct) },
     { key: 'today', label: '오늘', get: r => r.q?.pct, num: true, render: r => pctCell(r.q?.pct) },
@@ -311,7 +316,7 @@ function HoldingForm({ edit, onSave, onDelete, onCancel }: {
       <h3 className="m-0 mb-2 text-13 font-bold text-ink-1">{edit ? `${edit.name || edit.symbol} 고치기` : '종목 추가'}</h3>
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <Field label="코드"><input className={INPUT} value={symbol} onChange={e => setSymbol(e.target.value)} placeholder="005930 · AAPL" autoComplete="off" /></Field>
-        <Field label="이름"><input className={INPUT} value={name} onChange={e => setName(e.target.value)} placeholder="비우면 코드" maxLength={40} /></Field>
+        <Field label="이름"><input className={INPUT} value={name} onChange={e => setName(e.target.value)} placeholder="비우면 종목 이름을 찾아 넣습니다" maxLength={40} /></Field>
         <Field label="수량"><input className={INPUT} value={qty} onChange={e => setQty(e.target.value)} inputMode="decimal" placeholder="0" /></Field>
         <Field label="평단가"><input className={INPUT} value={avg} onChange={e => setAvg(e.target.value)} inputMode="decimal" placeholder={ccy === 'USD' ? '달러' : '원'} /></Field>
         <Field label="통화">

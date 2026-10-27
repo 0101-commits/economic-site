@@ -4,18 +4,21 @@
 //           새 화면의 「암호」 = 보유 열쇠 재료(holdKeyOf — 동기화 키에서 만든 hex, 결정 D9 a). 서버 인증 해시(SHA-256)와는 다른 재료다.
 //           예전 판은 사람이 정한 보유 암호(현행 화면의 「평단가 동기화 암호」)로 잠갔다 — 그 사본은 openBlob 이 예전 암호로 한 번 푼다(이전).
 //   평문    JSON 배열 [{ s:종목 코드, m:'KR'|'US', a:평단가, q:수량, fx:매입 환율 }] — 평단가나 수량이 있는 종목만.
+//           새 화면은 칸마다 n:종목 이름을 더 싣는다(이름이 코드뿐이면 생략 · 없는 옛 판도 읽는다 · 지문에는 안 넣는다).
 //           새 화면은 끝에 { t:올린 시각 } 한 칸을 붙인다. 현행 화면은 s 가 없는 칸을 건너뛰므로 그대로 읽는다.
 //           Worker 는 덩어리의 모르는 필드를 지우므로(_sanitizeEncHoldings) 시각은 암호문 안에만 둘 수 있다.
 // 저장소·화면·네트워크를 만지지 않는다 — node --test 로 바로 돈다(e2e.test.ts). 흐름은 sync.ts 「보유」 칸.
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(calc.ts 와 같은 규칙).
 
 import { normalizeEntryKey } from './entryKey.ts'
+import { needsName } from './names.ts'
 
 export const ITER = 600_000
 
 export type EncBlob = { alg: 'AES-256-GCM'; kdf: 'PBKDF2-SHA256'; iter: number; salt: string; iv: string; ciphertext: string }
-export type Entry = { s: string; m: 'KR' | 'US'; a: number | null; q: number | null; fx: number | null }
-type Item = { symbol: string; market: string; avg?: number | null; qty?: number | null; fxBuy?: number | null }
+/** n = 종목 이름(없을 수 있다 — 옛 판 · 이름이 코드뿐인 줄). */
+export type Entry = { s: string; m: 'KR' | 'US'; a: number | null; q: number | null; fx: number | null; n?: string }
+type Item = { symbol: string; market: string; name?: string; avg?: number | null; qty?: number | null; fxBuy?: number | null }
 
 const b64 = (u: Uint8Array) => { let s = ''; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192)); return btoa(s) }
 const unb64 = (s: string) => Uint8Array.from(atob(String(s)), c => c.charCodeAt(0))
@@ -29,7 +32,7 @@ async function aesKey(pass: string, salt: Uint8Array<ArrayBuffer>) {
 /** 보유 줄(portfolioV1.items) → 덩어리에 넣을 칸. 평단가나 수량이 있는 종목만(현행과 같다). */
 export function entriesOf(items: Item[]): Entry[] {
   return items.filter(it => it.avg != null || it.qty != null)
-    .map((it): Entry => ({ s: it.symbol, m: it.market === 'US' ? 'US' : 'KR', a: it.avg ?? null, q: it.qty ?? null, fx: it.fxBuy ?? null }))
+    .map((it): Entry => ({ s: it.symbol, m: it.market === 'US' ? 'US' : 'KR', a: it.avg ?? null, q: it.qty ?? null, fx: it.fxBuy ?? null, ...(needsName(it) ? {} : { n: String(it.name).trim().slice(0, 40) }) }))
 }
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -43,6 +46,7 @@ export function parsePlain(v: unknown): { entries: Entry[]; at: string | null } 
     if (!h || typeof h !== 'object') continue
     if (typeof h.s !== 'string' || !h.s) { if (typeof h.t === 'string') at = h.t; continue }
     const e: Entry = { s: h.s.slice(0, 40), m: h.m === 'US' ? 'US' : 'KR', a: num(h.a), q: num(h.q), fx: num(h.fx) }
+    if (typeof h.n === 'string' && h.n.trim()) e.n = h.n.trim().slice(0, 40)
     if (e.a != null || e.q != null) entries.push(e)
   }
   return { entries, at }
@@ -170,7 +174,8 @@ export function applyEntries<T extends Item>(items: T[], es: Entry[], make: (e: 
     const k = `${it.market === 'US' ? 'US' : 'KR'}:${it.symbol}`
     const e = left.get(k)
     left.delete(k)
-    return { ...it, avg: e ? e.a : null, qty: e ? e.q : null, fxBuy: e ? e.fx : null }
+    // 이름: 코드가 이름 자리에 있거나 빈 줄만 서버 이름으로 채운다 — 직접 지은 이름은 그대로
+    return { ...it, ...(e?.n && needsName(it) ? { name: e.n } : {}), avg: e ? e.a : null, qty: e ? e.q : null, fxBuy: e ? e.fx : null }
   })
   return [...out, ...[...left.values()].map(make)]
 }

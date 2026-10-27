@@ -7,6 +7,7 @@ import { pbkdf2Sync } from 'node:crypto'
 import { applyEntries, autoStep, decide, decrypt, decryptAs, encrypt, entriesOf, fingerprint, holdKeyOf, ITER, openBlob, passProblem, relockBlob, type EncBlob, type Entry } from './e2e.ts'
 
 const PASS = 'test-pass-1234'
+const noName = (es: Entry[]): Entry[] => es.map(({ n: _n, ...e }) => e)
 type Row = { id: string; symbol: string; market: string; name: string; avg: number | null; qty: number | null; fxBuy?: number | null }
 const items: Row[] = [
   { id: 'i1', symbol: '005930', market: 'KR', name: '가짜 A', avg: 70000, qty: 10, fxBuy: null },
@@ -60,7 +61,7 @@ test('현행 화면이 만든 덩어리를 새 화면이 푼다(올린 시각은
   const blob = await legacyBuild(items, PASS)
   const { entries, at } = await decrypt(blob, PASS)
   assert.equal(at, null)
-  assert.deepEqual(entries, entriesOf(items))
+  assert.deepEqual(entries, noName(entriesOf(items)))   // 현행 화면 덩어리엔 이름(n)이 없다
 })
 
 test('새 화면이 만든 덩어리를 현행 방식으로 푼다 · Worker 가 받는 모양', async () => {
@@ -96,7 +97,7 @@ test('끝 공백 암호: 현행이 친 그대로 잠근 덩어리는 원문으�
   const raw = await legacyBuild(items, 'pass-1234 ')   // 현행 설정 경로는 공백을 빼지 않고 저장한다
   const a = await decryptAs(raw, 'pass-1234 ')
   assert.equal(a.pass, 'pass-1234 ')                  // 올릴 때 이 문자열을 그대로 써야 다른 기기가 푼다
-  assert.deepEqual(a.entries, entriesOf(items))
+  assert.deepEqual(a.entries, noName(entriesOf(items)))
   const trimmed = await legacyBuild(items, 'pass-1234')
   assert.equal((await decryptAs(trimmed, ' pass-1234 ')).pass, 'pass-1234')
   await assert.rejects(decryptAs(trimmed, 'other-pass '), /wrong-pass/)
@@ -133,7 +134,7 @@ test('openBlob: 재료로 잠근 것은 그대로 · 예전 암호 사본은 old
   const legacy = await legacyBuild(items, PASS)                       // 이전 전: 사람이 정한 보유 암호로 잠근 사본
   await assert.rejects(openBlob(legacy, mat), /old-pass/)
   await assert.rejects(openBlob(legacy, mat, '   '), /old-pass/)      // 빈 칸은 물은 것으로 치지 않는다
-  assert.deepEqual(await openBlob(legacy, mat, ` ${PASS} `), { entries: es, at: null, stale: true })
+  assert.deepEqual(await openBlob(legacy, mat, ` ${PASS} `), { entries: noName(es), at: null, stale: true })
   await assert.rejects(openBlob(legacy, mat, 'other-pass'), /wrong-pass/)
   const oldKeyed = await encrypt(es, await holdKeyOf('old-sync-key-99'), 't')   // 키를 바꾼 뒤 다시 잠그기가 실패해 남은 사본
   assert.equal((await openBlob(oldKeyed, mat, 'old-sync-key-99')).stale, true)
