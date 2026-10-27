@@ -2,7 +2,7 @@
 // 실행: node cloudflare-worker/test_users.mjs   (가짜 키만 쓴다)
 import {
   normalizeEntryKey, newEntryKey, newUid, sha256Hex, resolveUser, createUser, listUsers,
-  patchUser, rekeyUser, deleteUser, issueBackupKey, touchSeen, migrateOwner, _clearUserCache,
+  patchUser, rekeyUser, deleteUser, issueBackupKey, touchSeen, migrateOwner, _clearUserCache, getOwner, setUserKeyHash,
 } from './users.js';
 
 const kv = new Map();
@@ -176,6 +176,26 @@ console.log('issueBackupKey / touchSeen');
   await touchSeen(env, { ...r0.user, lastSeenDay: '2026-10-27' }, '2026-10-27');
   check('같은 날 touchSeen 쓰기 0', puts - b, 0);
   check('lastSeenDay 기록', (await KV.get(`user:${owner.uid}`, 'json')).lastSeenDay, '2026-10-27');
+}
+
+console.log('getOwner · setUserKeyHash');
+{
+  const kv3 = new Map();
+  const env3 = { ECON_PORTFOLIO: { get: async (k, t) => { const v = kv3.get(k); return v == null ? null : (t === 'json' ? JSON.parse(v) : v); },
+    put: async (k, v) => { kv3.set(k, v); }, delete: async k => { kv3.delete(k); } } };
+  check('표 없음 → null', await getOwner(env3), null);
+  const m = await migrateOwner(env3, LEG);
+  check('owner 찾기', (await getOwner(env3))?.uid, m.uid);
+  const c = await createUser(env3, { name: '갑' });
+  const oldH = c.user.keyHash, nh = await sha256Hex('brand-new-key-123');
+  check('setUserKeyHash 없는 uid → 404', (await setUserKeyHash(env3, 'nope', nh)).status, 404);
+  const s = await setUserKeyHash(env3, c.user.uid, nh);
+  check('setUserKeyHash ok', s.ok, true);
+  check('새 ukey', await kv3.get('ukey:' + nh), c.user.uid);
+  check('옛 ukey 삭제', kv3.has('ukey:' + oldH), false);
+  check('user.keyHash 갱신', (await listUsers(env3)).find(u => u.uid === c.user.uid).keyHash, nh);
+  check('새 키로 해석', (await resolveUser(env3, nh, LEG)).user?.uid, c.user.uid);
+  check('옛 키는 401', (await resolveUser(env3, oldH, LEG)).status, 401);
 }
 
 if (fails) { console.log(`\n${fails}건 실패`); process.exit(1); }

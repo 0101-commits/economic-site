@@ -57,18 +57,19 @@ export async function resolveUser(env, keyHash, legacyHash) {
   const hit = cache.get(keyHash);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.result;
   const result = await resolveUncached(env, keyHash, legacyHash);
-  cache.set(keyHash, { result, at: Date.now() });
+  // 사람 표가 없을 때(legacy)의 답은 캐시하지 않는다 — 옛 키 바꾸기·시크릿 교체가 바로 반영돼야 한다.
+  if (!result._legacyMode && result.status !== 503) cache.set(keyHash, { result, at: Date.now() });
   return result;
 }
 
 async function resolveUncached(env, keyHash, legacyHash) {
   const index = await readIndex(env);
   if (!Array.isArray(index)) {
-    if (await kvGetRaw(env, 'auth:migrated')) return { status: 503, error: 'users_index_missing' }; // 닫힌 채로 실패
+    if ((await kvGetRaw(env, 'auth:migrated')) === '1') return { status: 503, error: 'users_index_missing' }; // 닫힌 채로 실패
     if (keyHash && legacyHash && keyHash === legacyHash) {
-      return { user: { uid: keyHash.slice(0, 16), role: 'owner', status: 'active', name: '마스터', legacy: true } };
+      return { user: { uid: keyHash.slice(0, 16), role: 'owner', status: 'active', name: '마스터', legacy: true }, _legacyMode: true };
     }
-    return { status: 401, error: 'unauthorized' };
+    return { status: 401, error: 'unauthorized', _legacyMode: true };
   }
   const uid = keyHash ? await kvGetRaw(env, `ukey:${keyHash}`) : null;
   if (!uid) return { status: 401, error: 'unauthorized' };
@@ -208,4 +209,25 @@ export async function migrateOwner(env, legacyHash) {
   await insertUser(env, { name: "마스터", role: "owner", keyHash: legacyHash, uid });
   await kvPut(env, 'auth:migrated', '1'); // index 다음 — 영구 이전 표시
   return { uid, created: true };
+}
+
+export async function getOwner(env) {
+  const index = await readIndex(env);
+  if (!Array.isArray(index)) return null;
+  for (const uid of index) { const u = await kvGet(env, `user:${uid}`); if (u && u.role === 'owner') return u; }
+  return null;
+}
+
+// 새 ukey · user 를 먼저 쓰고 옛 ukey 를 마지막에 지운다(중간 실패해도 어느 한쪽 키로는 들어올 수 있다).
+export async function setUserKeyHash(env, uid, newHash) {
+  const u = await kvGet(env, `user:${uid}`);
+  if (!u) return { status: 404, error: 'not_found' };
+  const oldHash = u.keyHash;
+  if (oldHash === newHash) return { ok: true };
+  await kvPut(env, `ukey:${newHash}`, uid);
+  u.keyHash = newHash;
+  await kvPut(env, `user:${uid}`, u);
+  if (oldHash) await kvDel(env, `ukey:${oldHash}`);
+  _clearUserCache();
+  return { ok: true };
 }
