@@ -49,7 +49,8 @@ export function DeviceLink() {
 const countText = (c: Count) => `관심 ${c.watch} · 조건 ${c.alerts} · 시나리오 ${c.scenarios}${c.settings ? ' · 설정 바꿈' : ''}`
 
 /** 연결할 때 서버 저장본과 이 기기가 다르면 한 번 묻는다(그 전엔 아무것도 저장하지 않았다). */
-function AskBox({ ask, busy }: { ask: Ask; busy: boolean }) {
+export function AskBox({ ask, busy, onAnswered }: { ask: Ask; busy: boolean; onAnswered?: (side: 'server' | 'local' | null, ok: boolean) => void }) {
+  const answer = async (side: 'server' | 'local' | null) => { const ok = await answerAsk(side); onAnswered?.(side, ok) }
   return (
     <div role="group" aria-label="어느 쪽으로 맞출지" className="flex flex-col gap-2">
       <p className="m-0 text-13 text-ink-1">서버에 맡겨 둔 설정이 있습니다. 어느 쪽으로 맞출까요?</p>
@@ -60,9 +61,9 @@ function AskBox({ ask, busy }: { ask: Ask; busy: boolean }) {
         <dd className="m-0 num text-ink-1">{countText(ask.local)}</dd>
       </dl>
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy} className={BTN} onClick={() => void answerAsk('server')}>서버 것으로 맞추기</button>
-        <button type="button" disabled={busy} className={BTN2} onClick={() => void answerAsk('local')}>이 기기 것을 올리기</button>
-        <button type="button" disabled={busy} className={BTN2} onClick={() => void answerAsk(null)}>그만두기</button>
+        <button type="button" disabled={busy} className={BTN} onClick={() => void answer('server')}>서버 것으로 맞추기</button>
+        <button type="button" disabled={busy} className={BTN2} onClick={() => void answer('local')}>이 기기 것을 올리기</button>
+        <button type="button" disabled={busy} className={BTN2} onClick={() => void answer(null)}>그만두기</button>
       </div>
       <p className="m-0 text-12 text-ink-3">고르지 않은 쪽의 관심 · 조건 · 시나리오는 사라집니다. 보유는 따로 맞춥니다.</p>
     </div>

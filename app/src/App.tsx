@@ -3,7 +3,7 @@
 // 경로 방식이면 /next/market 을 새로 고칠 때 404 가 난다.
 // 머리 아래 띠 둘(매매중단 · 새 화면 판) · 화면 단위 칸막이(오류가 나도 머리 · 탭은 남는다)도 여기.
 import { useEffect, useState } from 'react'
-import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { HashRouter, Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { Bell, ChartCandlestick, ChevronRight, House, Moon, RotateCw, Search, Settings as Gear, Sun, SunMoon, Telescope, Wallet, type LucideIcon } from 'lucide-react'
 import Home from './screens/Home'
 import Market from './screens/Market'
@@ -12,6 +12,7 @@ import My from './screens/My'
 import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
+import Welcome from './screens/Welcome'
 import { BrandMark, BrandWord } from './components/Brand'
 import { PinGate } from './components/PinGate'
 import { MovedBanner } from './components/MovedBanner'
@@ -26,6 +27,7 @@ import { applyTheme, useTheme, type Theme } from './lib/theme'
 import { countUse, screenKey } from './lib/usage'
 import { loadBundle, useBundleRev, useNewBuild, watchBundles, type Meta } from './lib/bundle'
 import { haltLine, type Halt } from './lib/refresh'
+import { getKeyHash } from './lib/personal/sync'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
 applyUpdown(readPrefs().settings.updown)
@@ -149,10 +151,13 @@ function Shell() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+  // 키 없는 기기는 입장 화면부터(주소를 그대로 next 로 넘겨 들어간 뒤 돌아온다). 입장 화면엔 머리줄 · 하단 탭 · 오른쪽 패널이 없다.
+  const welcome = pathname === '/welcome'
+  if (!welcome && !getKeyHash()) return <Navigate to={'/welcome?next=' + encodeURIComponent(pathname + query)} replace />
   return (
-    <div className={`min-h-dvh pc:pr-12 ${rail.open ? 'min-[90rem]:pr-75' : ''}`}>
+    <div className={`min-h-dvh ${welcome ? '' : 'pc:pr-12'} ${rail.open && !welcome ? 'min-[90rem]:pr-75' : ''}`}>
       {/* PC 상단 */}
-      <header className="hidden pc:block bg-card border-b border-line">
+      {!welcome && <header className="hidden pc:block bg-card border-b border-line">
         <div className="mx-auto max-w-[1200px] px-4 h-14 flex items-stretch gap-6">
           <Link to="/" aria-label="ECOM 홈" className="self-center inline-flex items-center gap-1.5 text-brand-logo no-underline"><BrandMark className="h-[22px] w-auto" /><BrandWord className="h-[15px] w-auto" /></Link>
           <nav aria-label="주 메뉴" className="flex gap-5">
@@ -170,20 +175,20 @@ function Shell() {
             <ThemeButton />
           </div>
         </div>
-      </header>
+      </header>}
 
       {/* 모바일 상단: 이름 + 검색 + 톱니 */}
-      <header className="pc:hidden bg-card border-b border-line px-4 h-12 flex items-center gap-2">
+      {!welcome && <header className="pc:hidden bg-card border-b border-line px-4 h-12 flex items-center gap-2">
         <Link to="/" aria-label="ECOM 홈" className="mr-auto inline-flex items-center gap-1.5 text-brand-logo no-underline"><BrandMark className="h-[22px] w-auto" /><BrandWord className="h-[15px] w-auto" /></Link>
         <SearchButton compact onOpen={() => setSearch(true)} />
         <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
         <ThemeButton />
-      </header>
+      </header>}
 
       <MovedBanner />
 
       {/* 매매중단 배너 —지금 발동 중인 서킷브레이커 · 사이드카(알림의 같은 사건). 누르면 국내 매매중단 패널 */}
-      {halt && (
+      {halt && !welcome && (
         <Link to="/market?a=kr&v=halts&m=all" className="block bg-card border-b border-line no-underline">
           <span className="mx-auto max-w-[1200px] px-4 py-2 flex items-center gap-2 text-13 text-ink-1">
             <Pill tone="x">매매중단</Pill><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{halt}</span><ChevronRight size={16} aria-hidden className="shrink-0 text-ink-3" />
@@ -202,7 +207,7 @@ function Shell() {
         </div>
       )}
 
-      <main className="mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8">
+      <main className={welcome ? undefined : 'mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8'}>
         {/* 화면 단위 칸막이 — 한 화면이 그리다 오류를 내도 머리 · 탭은 남는다. 다른 화면으로 가면 풀린다 */}
         <Boundary screen where={screen} resetKey={`${pathname}:${rev}`}>
           <Routes>
@@ -212,17 +217,18 @@ function Shell() {
             <Route path="/my" element={<My />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/i/:id" element={<Detail />} />
+            <Route path="/welcome" element={<Welcome />} />
             <Route path="/settings" element={<PinGate><Settings /></PinGate>} />
             <Route path="*" element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
           </Routes>
         </Boundary>
       </main>
 
-      <SearchOverlay open={search} onClose={() => setSearch(false)} />
-      <Rail />
+      {!welcome && <SearchOverlay open={search} onClose={() => setSearch(false)} />}
+      {!welcome && <Rail />}
 
       {/* 모바일 하단 탭 */}
-      <nav aria-label="주 메뉴" className="pc:hidden fixed bottom-0 inset-x-0 bg-card border-t border-line grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
+      {!welcome && <nav aria-label="주 메뉴" className="pc:hidden fixed bottom-0 inset-x-0 bg-card border-t border-line grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
         {TABS.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'}
             aria-label={to === '/alerts' && unseen ? `${label} · 안 읽은 알림 있음` : undefined}
@@ -231,7 +237,7 @@ function Shell() {
             <span className="text-10 leading-none">{label}</span>
           </NavLink>
         ))}
-      </nav>
+      </nav>}
     </div>
   )
 }
